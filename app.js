@@ -2576,25 +2576,8 @@ function initDashCharts() {
   if (S.dashCharts.perdas) { try{S.dashCharts.perdas.destroy();}catch(e){} }
   if (S.dashCharts.check)  { try{S.dashCharts.check.destroy();}catch(e){} }
 
-  // Gráfico de perdas por setor — dados reais preenchidos por updateDash()
-  S.dashCharts.perdas = new Chart(document.getElementById('chartPerdas'),{
-    type:'doughnut',
-    data:{
-      labels:['Perecíveis','Açougue','Frios','Hortifruti','Mercearia','Padaria','Outros'],
-      datasets:[{
-        data:[0,0,0,0,0,0,0],
-        backgroundColor:['#c0392b','#a93226','#1a5276','#2d9e62','#d68910','#8e44ad','#95a5a6'],
-        borderWidth:3,borderColor:'#fff'
-      }]
-    },
-    options:{
-      responsive:true,maintainAspectRatio:false,
-      plugins:{
-        legend:{position:'right',labels:{font:{size:11},boxWidth:12}},
-        tooltip:{callbacks:{label:function(ctx){return ctx.label+': R$ '+ctx.parsed.toFixed(2);}}}
-      }
-    }
-  });
+  // Gráfico de perdas desativado temporariamente (módulo oculto)
+  // S.dashCharts.perdas = ...
 
   // Gráfico de evolução de conformidade — últimos 7 dias (linha)
   S.dashCharts.check = new Chart(document.getElementById('chartCheck'),{
