@@ -616,9 +616,19 @@ function finalizarLogin(found) {
     var dEl = document.getElementById('cl-data-hoje');
     if (dEl) dEl.textContent = hoje.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
     document.getElementById('app').style.opacity='1';
-    if (isOpOrPrev2) {
-      var clItem = document.querySelector('.sb-item[onclick*="checklist"]');
-      nav('checklist', clItem);
+    var lastPage = sessionStorage.getItem('eco_last_page');
+    var pagesForRole = {
+      admin:    ['dashboard','checklist','central','relatorios','usuarios','plano'],
+      gerencia: ['dashboard','checklist','central','plano'],
+      operator: ['checklist'],
+      prevencao:['checklist']
+    };
+    var allowed = pagesForRole[S.role] || ['checklist'];
+    if (lastPage && allowed.indexOf(lastPage) >= 0) {
+      var sbEl = document.querySelector('.sb-item[onclick*="\''+lastPage+'\'"]');
+      nav(lastPage, sbEl);
+    } else if (isOpOrPrev2) {
+      nav('checklist', document.querySelector('.sb-item[onclick*="\'checklist\'"]'));
     } else {
       nav('dashboard', document.querySelector('#nav-dashboard'));
       updateDash();
@@ -679,6 +689,7 @@ function finalizarLogin(found) {
 
 function doLogout() {
   sessionStorage.removeItem('eco_session');
+  sessionStorage.removeItem('eco_last_page');
   document.getElementById('loginScreen').style.display='flex';
   document.getElementById('app').style.display='none';
   document.querySelectorAll('.sb-item').forEach(function(i){i.classList.remove('active');});
@@ -776,6 +787,7 @@ var PAGE_TITLES = {
 };
 
 function nav(page, el) {
+  sessionStorage.setItem('eco_last_page', page);
   // Close sidebar on mobile when navigating
   if (window.innerWidth <= 768) {
     var sb = document.querySelector('.sb');

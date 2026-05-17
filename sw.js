@@ -1,6 +1,6 @@
 // Cahu360 Process — Service Worker
 // Atualiza este número de versão sempre que publicar novos arquivos
-var CACHE_NAME = 'cahu360-v11';
+var CACHE_NAME = 'cahu360-v12';
 
 var SHELL_ASSETS = [
   './',
