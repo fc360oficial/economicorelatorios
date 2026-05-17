@@ -339,10 +339,13 @@ function saveResultados(list) {
 function loadResultadosFromFirebase(callback) {
   db.collection('resultados').get().then(function(snap){
     var list = snap.docs.map(function(d){return d.data();});
-    // Sort by dataHora
     list.sort(function(a,b){return (a.dataHora||'') < (b.dataHora||'') ? -1 : 1;});
     S.resultadosCache = list;
-    localStorage.setItem(RESKEY, JSON.stringify(list));
+    // Salva sem assinatura no localStorage para não estourar cota (base64 grande)
+    try {
+      var semAssina = list.map(function(r){ return r.assinatura ? Object.assign({},r,{assinatura:null}) : r; });
+      localStorage.setItem(RESKEY, JSON.stringify(semAssina));
+    } catch(e){}
     if (callback) callback();
   }).catch(function(){
     try { S.resultadosCache = JSON.parse(localStorage.getItem(RESKEY)||'[]'); } catch(e){ S.resultadosCache=[]; }
@@ -645,6 +648,10 @@ function finalizarLogin(found) {
       var list = snap.docs.map(function(d){return d.data();});
       list.sort(function(a,b){return (a.dataHora||'')<(b.dataHora||'')?-1:1;});
       S.resultadosCache = list;
+      try {
+        var semAssina = list.map(function(r){ return r.assinatura ? Object.assign({},r,{assinatura:null}) : r; });
+        localStorage.setItem(RESKEY, JSON.stringify(semAssina));
+      } catch(e){}
     }),
     (function(){
       var userId = found.id;
@@ -1631,7 +1638,10 @@ function confirmarEnviar(assinatura) {
   S.resultadosCache = lista;
   localStorage.setItem(RESKEY, JSON.stringify(lista));
   // Salva com assinatura apenas no Firebase
-  db.collection('resultados').doc(res.id).set(res).catch(function(){});
+  db.collection('resultados').doc(res.id).set(res).catch(function(err){
+    console.error('Erro ao salvar resultado no Firebase:', err);
+    showToast('⚠️ Resultado salvo localmente — sincronizará quando houver conexão');
+  });
   // Auto-criar planos de ação para itens Sim/Não com resposta "Não"
   snapshot.forEach(function(item) {
     if (item.tipo==='simNao' && item.resposta==='nao') {
