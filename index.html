@@ -13,7 +13,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 
-<link rel="stylesheet" href="style.css?v=6"/>
+<link rel="stylesheet" href="style.css"/>
 </head>
 <body>
 
@@ -97,8 +97,7 @@
       <div class="role" id="sbRole">Operador</div>
       <div class="name" id="sbName">—</div>
       <span class="sb-out" onclick="doLogout()">Sair do sistema</span>
-      <div style="font-size:9px;color:rgba(0,0,0,.3);margin-top:5px">v1.0.6</div>
-      <div style="font-size:9px;color:rgba(0,0,0,.3);margin-top:6px">v1.0.6</div>
+      <div style="font-size:9px;color:rgba(0,0,0,.3);margin-top:5px">v1.0.7</div>
     </div>
   </div>
 
@@ -117,17 +116,80 @@
 
       <!-- DASHBOARD -->
       <div id="panel-dashboard" class="panel active">
+
+        <!-- Header de status -->
+        <div style="display:flex;align-items:center;justify-content:space-between;background:#fff;border:1px solid var(--gray2);border-radius:14px;padding:16px 22px;margin-bottom:20px;box-shadow:var(--sh)">
+          <div>
+            <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:800;color:var(--t)" id="dash-loja-nome">Cahu360</div>
+            <div style="font-size:12px;color:var(--t3);margin-top:2px" id="dash-data-full"></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <button class="btn btn-p btn-sm" onclick="exportarRelatorioSupervisor()" style="display:flex;align-items:center;gap:6px">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+              Relatório Supervisor
+            </button>
+            <div style="display:flex;align-items:center;gap:8px;padding:8px 16px;border-radius:20px;border:1.5px solid var(--gray2);transition:border-color .3s" id="dash-saude">
+              <div style="width:9px;height:9px;border-radius:50%;background:var(--gray3);transition:background .3s" id="dash-saude-dot"></div>
+              <div style="font-size:12px;font-weight:600;color:var(--t3);transition:color .3s" id="dash-saude-label">Carregando...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- KPIs -->
         <div class="g4">
-          <div class="mc"><div class="lbl">Checklist Hoje</div><div class="val up" id="dck-val">0/0</div><div class="pbar"><div class="pfill" id="dck-bar" style="width:0%;background:var(--g2)"></div></div><div class="sub" id="dck-pct">0%</div></div>
-          <div class="mc"><div class="lbl">Perdas do Dia</div><div class="val dn" id="dp-val">R$ 0,00</div><div class="sub" id="dp-cnt">0 registros</div></div>
-          <div class="mc"><div class="lbl">Divergências Inv.</div><div class="val" style="color:var(--am)" id="ddiv-val">0</div><div class="sub">itens com diferença</div></div>
-          <div class="mc"><div class="lbl">Itens Inventariados</div><div class="val" id="dinv-val">0</div><div class="sub">hoje</div></div>
+          <div class="mc">
+            <div class="lbl">Checklists Hoje</div>
+            <div class="val up" id="dck-val">0/0</div>
+            <div class="pbar"><div class="pfill" id="dck-bar" style="width:0%;background:var(--g2)"></div></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:5px">
+              <div class="sub" id="dck-pct">0%</div>
+              <div id="dck-trend" style="font-size:11px;font-weight:600"></div>
+            </div>
+          </div>
+          <div class="mc">
+            <div class="lbl">Conformidade Geral</div>
+            <div class="val" id="dconf-val" style="color:var(--g)">—</div>
+            <div class="sub" style="margin-top:5px" id="dconf-sub">100% completos: 0</div>
+            <div id="dconf-trend" style="font-size:11px;font-weight:600;margin-top:4px"></div>
+          </div>
+          <div class="mc">
+            <div class="lbl">Perdas do Dia</div>
+            <div class="val dn" id="dp-val">R$ 0,00</div>
+            <div class="sub" style="margin-top:5px" id="dp-cnt">0 registros</div>
+            <!-- elementos mantidos para compatibilidade -->
+            <div id="ddiv-val" style="display:none">0</div>
+            <div id="dinv-val" style="display:none">0</div>
+          </div>
+          <div class="mc">
+            <div class="lbl">Operadores Ativos</div>
+            <div class="val" id="dops-val">0</div>
+            <div class="sub" style="margin-top:5px" id="dops-sub">enviaram hoje</div>
+          </div>
         </div>
+
+        <!-- Status da equipe -->
+        <div class="card" style="margin-bottom:14px">
+          <div class="card-hdr">
+            <div class="card-title">Status da Equipe — Hoje</div>
+            <div id="dash-equipe-resumo" style="font-size:12px;color:var(--t3)"></div>
+          </div>
+          <div id="dash-equipe" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:8px">
+            <div style="text-align:center;color:var(--t3);font-size:13px;padding:20px;grid-column:1/-1">Nenhum envio hoje</div>
+          </div>
+        </div>
+
+        <!-- Gráficos -->
         <div class="g2">
-          <div class="card"><div class="card-hdr"><div class="card-title">Perdas por Categoria</div></div><div style="position:relative;height:210px"><canvas id="chartPerdas"></canvas></div></div>
-          <div class="card"><div class="card-hdr"><div class="card-title">Checklist por Turno</div></div><div style="position:relative;height:210px"><canvas id="chartCheck"></canvas></div></div>
+          <div class="card"><div class="card-hdr"><div class="card-title">Perdas por Setor</div></div><div style="position:relative;height:210px"><canvas id="chartPerdas"></canvas></div></div>
+          <div class="card"><div class="card-hdr"><div class="card-title">Conformidade — Últimos 7 dias</div></div><div style="position:relative;height:210px"><canvas id="chartCheck"></canvas></div></div>
         </div>
-        <div class="card"><div class="card-hdr"><div class="card-title">Últimas Ocorrências</div></div>
+
+        <!-- Ocorrências -->
+        <div class="card">
+          <div class="card-hdr">
+            <div class="card-title">Últimas Ocorrências</div>
+            <div id="dash-occ-count" style="font-size:12px;color:var(--t3)"></div>
+          </div>
           <table><thead><tr><th>Hora</th><th>Tipo</th><th>Descrição</th><th>Setor</th><th>Operador</th><th>Status</th></tr></thead>
           <tbody id="d-hist"><tr class="erow"><td colspan="6">Nenhuma ocorrência registrada hoje</td></tr></tbody></table>
         </div>
@@ -682,11 +744,6 @@
     <div style="display:flex;flex-direction:column;gap:6px;padding:12px;background:var(--gray);border-radius:9px">
       <div style="display:flex;gap:8px">
         <input id="ncl-item-txt" type="text" placeholder="Ex: Verificar temperatura da câmara fria..." style="flex:1;padding:8px 12px;border:1.5px solid var(--gray2);border-radius:8px;font-size:13px;font-family:inherit;background:#fff" onkeydown="if(event.key==='Enter')addItemNCL()"/>
-        <select id="ncl-item-tipo" style="padding:8px 10px;border:1.5px solid var(--gray2);border-radius:8px;font-size:13px;font-family:inherit;background:#fff">
-          <option value="sim_nao">✅ Sim/Não</option>
-          <option value="nota">⭐ Nota 1–5</option>
-          <option value="texto">📝 Texto</option>
-        </select>
       </div>
       <div style="display:flex;gap:8px;align-items:center">
         <input id="ncl-item-obs" type="text" placeholder="Observação / instrução extra (opcional)" style="flex:1;padding:8px 12px;border:1.5px solid var(--gray2);border-radius:8px;font-size:13px;font-family:inherit;background:#fff"/>

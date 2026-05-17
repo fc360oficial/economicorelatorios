@@ -19,14 +19,9 @@ db.enablePersistence({synchronizeTabs: true}).catch(function(err){
 
 // ── PWA: registrar Service Worker ──
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' })
-    .then(function(reg) {
-      // Força verificação de atualização a cada vez que a página abre
-      reg.update();
-    })
-    .catch(function(err){
-      console.warn('SW registro falhou:', err);
-    });
+  navigator.serviceWorker.register('./sw.js').catch(function(err){
+    console.warn('SW registro falhou:', err);
+  });
 }
 
 // ── PWA: monitorar conexão ──
@@ -172,10 +167,15 @@ var RESKEY = 'eco_resultados';
 // SEGURANÇA — Hash de senhas (SHA-256)
 // ===========================================
 var ADMIN_PROFILE = {id:'admin',nome:'Administrador Central',email:'admin@economico.com',perfil:'admin',setor:'Central',cargo:'Admin do sistema',ativo:true};
-// Senha inicial do admin (visível aqui apenas na primeira execução).
-// Após bootstrap ela fica armazenada como hash no Firebase.
-// Troque a senha pelo painel imediatamente após o primeiro acesso!
-var _ADMIN_INITIAL_PWD = 'Cahu360@Admin2025';
+
+function gerarSenhaAleatoria() {
+  var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789@#!';
+  var senha = '';
+  for (var i = 0; i < 12; i++) {
+    senha += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return senha;
+}
 
 function hashPassword(pwd) {
   var encoder = new TextEncoder();
@@ -220,13 +220,16 @@ function loadUsersFromFirebase(callback) {
     var list = snap.docs.map(function(d){return d.data();});
     var hasAdmin = list.some(function(u){return u.id==='admin';});
     if (!hasAdmin) {
-      // Primeiro boot: cria admin com senha hasheada no Firebase
-      hashPassword(_ADMIN_INITIAL_PWD).then(function(hash){
+      // Primeiro boot: gera senha aleatória e cria admin no Firebase
+      var senhaGerada = gerarSenhaAleatoria();
+      hashPassword(senhaGerada).then(function(hash){
         var adminDoc = Object.assign({}, ADMIN_PROFILE, {senha: hash, _primeiroAcesso: true});
         db.collection('usuarios').doc('admin').set(adminDoc).catch(function(){});
         list.unshift(adminDoc);
         S.usersCache = list;
         localStorage.setItem(UKEY, JSON.stringify(list));
+        // Exibe senha gerada — deve ser anotada e trocada imediatamente
+        alert('PRIMEIRO ACESSO — ANOTE A SENHA ABAIXO:\n\nE-mail: admin@economico.com\nSenha: ' + senhaGerada + '\n\nTroque a senha imediatamente após o primeiro login!');
         if (callback) callback();
       });
       return;
@@ -877,7 +880,7 @@ function buildCLTabs() {
 }
 
 function buildCLBlock(cl) {
-  var done = cl.itens.filter(function(i){ return itemConcluido(i, cl.id); }).length;
+  var done = cl.itens.filter(function(i){ return S.checkState[cl.id+'_'+i.t]; }).length;
   var total = cl.itens.length;
   var pct = total ? Math.round(done/total*100) : 0;
   // Check if already sent today by this user
@@ -885,9 +888,7 @@ function buildCLBlock(cl) {
 
   var items = cl.itens.map(function(item,i){
     var key = cl.id + '_' + item.t;
-    var tipo = item.tipo || 'sim_nao';
-    var val = S.checkState[key];
-    var on = itemConcluido(item, cl.id);
+    var on = S.checkState[key] ? true : false;
     var fotoHtml = '';
     if (item.foto && item.foto !== 'none') {
       var hasFotoAntes = !!S.checkState[cl.id+'_foto_antes_'+i];
@@ -896,6 +897,7 @@ function buildCLBlock(cl) {
       if (item.foto === 'antes_depois') {
         // Fluxo sequencial: primeiro ANTES, depois DEPOIS
         if (!hasFotoAntes) {
+          // Estado 1: aguardando foto ANTES
           fotoHtml = '<div style="flex-shrink:0">'
             + '<label style="cursor:pointer;display:block" onclick="event.stopPropagation()">'
             + '<input type="file" accept="image/*" capture="environment" style="display:none" onchange="salvarFotoTipo(\''+cl.id+'\','+i+',\'antes\',this)">'
@@ -904,6 +906,7 @@ function buildCLBlock(cl) {
             + '<div style="font-size:10px;color:var(--t3);margin-top:3px;text-align:center">1 de 2</div>'
             + '</div>';
         } else if (!hasFotoDepois) {
+          // Estado 2: antes ok, aguardando DEPOIS
           var srcAntes = S.checkState[cl.id+'_foto_antes_'+i];
           fotoHtml = '<div style="flex-shrink:0">'
             + '<img src="'+srcAntes+'" style="width:40px;height:40px;object-fit:cover;border-radius:6px;border:2px solid var(--g2);display:block;margin-bottom:4px;cursor:pointer" onclick="abrirFotoFull([{src:\''+srcAntes+'\',label:\'ANTES\'}],0);event.stopPropagation()" title="Foto ANTES enviada"/>'
@@ -914,6 +917,7 @@ function buildCLBlock(cl) {
             + '<div style="font-size:10px;color:var(--t3);margin-top:3px;text-align:center">2 de 2</div>'
             + '</div>';
         } else {
+          // Estado 3: ambas as fotos enviadas - item completo
           var srcA = S.checkState[cl.id+'_foto_antes_'+i];
           var srcD = S.checkState[cl.id+'_foto_depois_'+i];
           fotoHtml = '<div style="flex-shrink:0;display:flex;gap:4px">'
@@ -928,6 +932,7 @@ function buildCLBlock(cl) {
             + '</div>';
         }
       } else {
+        // So foto depois
         var hasFoto2 = hasFotoDepois || !!S.checkState[cl.id+'_foto_'+i];
         if (!hasFoto2) {
           fotoHtml = '<div style="flex-shrink:0">'
@@ -945,64 +950,15 @@ function buildCLBlock(cl) {
         }
       }
     }
-
-    // ── Cor de fundo do item ──
-    var itemBg;
-    if (tipo === 'sim_nao') {
-      itemBg = val === true ? 'var(--g3)' : val === 'nao' ? '#fdecea' : '#fff';
-    } else {
-      itemBg = on ? 'var(--g3)' : '#fff';
-    }
+    var itemBg = on ? 'var(--g3)' : '#fff';
     var txtStyle = on ? 'text-decoration:line-through;color:var(--t3)' : 'color:var(--t)';
-
-    // ── Input baseado no tipo ──
-    var tipoHtml = '';
-    if (tipo === 'nota') {
-      var nota = typeof val === 'number' ? val : 0;
-      tipoHtml = '<div style="display:flex;gap:4px;flex-shrink:0;align-items:center">'
-        + [1,2,3,4,5].map(function(n){
-            var active = nota >= n;
-            return '<button '+(jaConcluido ? 'disabled' : 'onclick="setNota(\''+cl.id+'\','+i+','+n+')"')+' style="width:30px;height:30px;border-radius:7px;border:1.5px solid var(--gray2);background:'+(active?'var(--am)':'#fff')+';font-size:12px;font-weight:700;cursor:'+(jaConcluido?'not-allowed':'pointer')+';color:'+(active?'#000':'var(--t3)')+'">'+n+'</button>';
-          }).join('')
-        + '</div>';
-    } else if (tipo === 'texto') {
-      var textoVal = typeof val === 'string' ? val : '';
-      tipoHtml = '<div style="width:100%;margin-top:8px">'
-        + '<textarea '+(jaConcluido?'disabled':'')+' placeholder="Digite aqui..." oninput="setTexto(\''+cl.id+'\','+i+',this.value)" style="width:100%;padding:8px 10px;border:1.5px solid var(--gray2);border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;min-height:60px;box-sizing:border-box;background:'+(jaConcluido?'var(--gray)':'#fff')+'">'+textoVal+'</textarea>'
-        + '</div>';
-    } else {
-      // sim_nao: botões Sim / Não
-      var isSim = val === true;
-      var isNao = val === 'nao';
-      if (jaConcluido) {
-        var bgC = isSim ? 'var(--g)' : isNao ? '#fdecea' : 'var(--gray)';
-        var fgC = isSim ? '#fff' : isNao ? 'var(--r)' : 'var(--t3)';
-        var lbl = isSim ? '✓ Sim' : isNao ? '✗ Não' : '—';
-        tipoHtml = '<div style="flex-shrink:0"><span style="font-size:11px;font-weight:700;padding:6px 12px;border-radius:8px;background:'+bgC+';color:'+fgC+'">'+lbl+'</span></div>';
-      } else {
-        tipoHtml = '<div style="flex-shrink:0;display:flex;gap:6px;align-items:center">'
-          + '<button onclick="setSimNao(\''+cl.id+'\','+i+',true)" style="font-size:11px;font-weight:700;padding:6px 12px;border-radius:8px;border:1.5px solid '+(isSim?'var(--g)':'var(--gray2)')+';background:'+(isSim?'var(--g)':'#fff')+';color:'+(isSim?'#fff':'var(--t3)')+';cursor:pointer;white-space:nowrap">✓ Sim</button>'
-          + '<button onclick="setSimNao(\''+cl.id+'\','+i+',\'nao\')" style="font-size:11px;font-weight:700;padding:6px 12px;border-radius:8px;border:1.5px solid '+(isNao?'var(--r)':'var(--gray2)')+';background:'+(isNao?'#fdecea':'#fff')+';color:'+(isNao?'var(--r)':'var(--t3)')+';cursor:pointer;white-space:nowrap">✗ Não</button>'
-          + '</div>';
-      }
-    }
-
-    // ── Montar HTML do item ──
-    var textBlock = '<div style="flex:1;min-width:0">'
-      + '<div style="font-size:13px;font-weight:500;line-height:1.4;'+txtStyle+'">'+item.t+'</div>'
-      + (item.obs ? '<div style="font-size:11px;color:var(--t3);margin-top:3px">'+item.obs+'</div>' : '')
-      + '</div>';
-
-    if (tipo === 'texto') {
-      // Layout em coluna: texto em cima, textarea embaixo
-      return '<div id="cli-'+cl.id+'-'+i+'" style="display:flex;align-items:flex-start;gap:12px;padding:13px 14px;border:1px solid var(--gray2);border-radius:10px;background:'+itemBg+';flex-direction:column">'
-        + '<div style="display:flex;align-items:flex-start;gap:12px;width:100%">'+textBlock+fotoHtml+'</div>'
-        + tipoHtml
-        + '</div>';
-    }
-    return '<div id="cli-'+cl.id+'-'+i+'" style="display:flex;align-items:flex-start;gap:12px;padding:13px 14px;border:1px solid var(--gray2);border-radius:10px;background:'+itemBg+'">'
-      + textBlock
-      + tipoHtml
+    return '<div id="cli-' + cl.id + '-' + i + '" style="display:flex;align-items:flex-start;gap:12px;padding:13px 14px;border:1px solid var(--gray2);border-radius:10px;background:' + itemBg + '">'
+      + '<div class="chkbox' + (on ? ' on' : '') + '" id="chk-' + cl.id + '-' + i + '"'
+      + (jaConcluido ? ' style="cursor:not-allowed;opacity:.6;flex-shrink:0;margin-top:1px">' : ' onclick="toggleCL(\'' + cl.id + '\',' + i + ')" style="cursor:pointer;flex-shrink:0;margin-top:1px">') + (on ? 'ok' : '') + '</div>'
+      + '<div style="flex:1;min-width:0">'
+      + '<div style="font-size:13px;font-weight:500;line-height:1.4;' + txtStyle + '">' + item.t + '</div>'
+      + (item.obs ? '<div style="font-size:11px;color:var(--t3);margin-top:3px">' + item.obs + '</div>' : '')
+      + '</div>'
       + fotoHtml
       + '</div>';
   }).join('');
@@ -1075,44 +1031,6 @@ function toggleCL(clId, idx) {
   updateDash();
 }
 
-// ── Handlers de tipo de resposta ──
-function setSimNao(clId, idx, resposta) {
-  if (jaEnviouHoje(clId)) return;
-  var cl = getMyCLs().find(function(c){return c.id===clId;});
-  if (!cl) return;
-  var key = clId+'_'+cl.itens[idx].t;
-  // Clicou no mesmo botão: deseleciona; senão marca
-  S.checkState[key] = (S.checkState[key] === resposta) ? undefined : resposta;
-  saveCheckState();
-  var b = document.getElementById('cl-block-'+clId);
-  if (b) b.innerHTML = buildCLBlock(cl);
-  updateDash();
-}
-
-function setNota(clId, idx, nota) {
-  if (jaEnviouHoje(clId)) return;
-  var cl = getMyCLs().find(function(c){return c.id===clId;});
-  if (!cl) return;
-  var key = clId+'_'+cl.itens[idx].t;
-  // Clicou na mesma nota: zera; senão marca
-  S.checkState[key] = (S.checkState[key] === nota) ? undefined : nota;
-  saveCheckState();
-  var b = document.getElementById('cl-block-'+clId);
-  if (b) b.innerHTML = buildCLBlock(cl);
-  updateDash();
-}
-
-function setTexto(clId, idx, val) {
-  if (jaEnviouHoje(clId)) return;
-  var cl = getMyCLs().find(function(c){return c.id===clId;});
-  if (!cl) return;
-  var key = clId+'_'+cl.itens[idx].t;
-  S.checkState[key] = val;
-  saveCheckState();
-  updateCLProg(cl);
-  updateDash();
-}
-
 function salvarFoto(clId, idx, input) {
   salvarFotoTipo(clId, idx, 'depois', input);
 }
@@ -1166,7 +1084,7 @@ function salvarFotoTipo(clId, idx, tipo, input) {
 }
 
 function updateCLProg(cl) {
-  var done = cl.itens.filter(function(i){return itemConcluido(i, cl.id);}).length;
+  var done = cl.itens.filter(function(i){return S.checkState[cl.id+'_'+i.t];}).length;
   var total = cl.itens.length;
   var pct = total ? Math.round(done/total*100) : 0;
   var f = document.getElementById('pf-'+cl.id);
@@ -1490,7 +1408,7 @@ function jaEnviouHoje(clId) {
 function enviarCL(clId, label) {
   var cl = getMyCLs().find(function(c){return c.id===clId;});
   if (!cl) return;
-  var feitos = cl.itens.filter(function(i){return itemConcluido(i, clId);}).length;
+  var feitos = cl.itens.filter(function(i){return !!S.checkState[clId+'_'+i.t];}).length;
   var total = cl.itens.length;
   var pct = total ? Math.round(feitos/total*100) : 0;
 
@@ -1564,11 +1482,7 @@ function confirmarEnviar() {
   var cl = getMyCLs().find(function(c){return c.id===clId;});
   if (!cl) return;
   var snapshot = cl.itens.map(function(item,idx){
-    var itemVal = S.checkState[clId+'_'+item.t];
-    return {texto:item.t, obs:item.obs||'', tipo:item.tipo||'sim_nao', valor:itemVal,
-            foto:item.foto||false, fotoAntes:S.checkState[clId+'_foto_antes_'+idx]||null,
-            fotoDepois:S.checkState[clId+'_foto_depois_'+idx]||S.checkState[clId+'_foto_'+idx]||null,
-            feito:itemConcluido(item,clId)};
+    return {texto:item.t, obs:item.obs||'', foto:item.foto||false, fotoAntes:S.checkState[clId+'_foto_antes_'+idx]||null, fotoDepois:S.checkState[clId+'_foto_depois_'+idx]||S.checkState[clId+'_foto_'+idx]||null, feito:!!S.checkState[clId+'_'+item.t]};
   });
   var feitos = snapshot.filter(function(i){return i.feito;}).length;
   var total = snapshot.length;
@@ -1606,15 +1520,6 @@ function cancelarEnviar() {
 // ===========================================
 var nclItens = [];
 var editingCLId = null;
-
-// Retorna true se o item foi concluído, considerando o tipo de resposta
-function itemConcluido(item, clId) {
-  var val = S.checkState[clId+'_'+item.t];
-  var tipo = item.tipo || 'sim_nao';
-  if (tipo === 'nota')  return typeof val === 'number' && val >= 1;
-  if (tipo === 'texto') return typeof val === 'string' && val.trim() !== '';
-  return val === true; // sim_nao: apenas "Sim" conta como concluído
-}
 var clFiltro = 'todos';
 var pendingExcluirId = null;
 
@@ -1622,7 +1527,7 @@ function abrirModalCL() {
   editingCLId = null;
   nclItens = [];
   document.getElementById('mcl-title').textContent = 'Novo Checklist';
-  ['ncl-nome','ncl-desc','ncl-item-txt','ncl-item-obs'].forEach(function(id){document.getElementById(id).value='';}); document.getElementById('ncl-item-foto').value='none'; var _t=document.getElementById('ncl-item-tipo'); if(_t) _t.value='sim_nao';
+  ['ncl-nome','ncl-desc','ncl-item-txt','ncl-item-obs'].forEach(function(id){document.getElementById(id).value='';}); document.getElementById('ncl-item-foto').value='none';
   document.getElementById('ncl-perfil').value='operator';
   document.getElementById('ncl-setor').value='Açougue';
   document.getElementById('ncl-turno').value='Abertura';
@@ -1644,13 +1549,11 @@ function addItemNCL() {
   var obs = document.getElementById('ncl-item-obs').value.trim();
   var fotoVal = document.getElementById('ncl-item-foto').value;
   var foto = fotoVal !== 'none' ? fotoVal : false;
-  var tipo = (document.getElementById('ncl-item-tipo')||{}).value || 'sim_nao';
   if (!txt) return;
-  nclItens.push({t:txt, obs:obs, foto:foto, tipo:tipo});
+  nclItens.push({t:txt, obs:obs, foto:foto});
   document.getElementById('ncl-item-txt').value='';
   document.getElementById('ncl-item-obs').value='';
   document.getElementById('ncl-item-foto').value='none';
-  var tipoEl = document.getElementById('ncl-item-tipo'); if(tipoEl) tipoEl.value='sim_nao';
   renderNclItens();
   document.getElementById('ncl-item-txt').focus();
 }
@@ -1663,18 +1566,13 @@ function removeItemNCL(idx) {
 function renderNclItens() {
   var wrap = document.getElementById('ncl-itens-wrap');
   if (!nclItens.length) { wrap.innerHTML='<div style="font-size:12px;color:var(--t3);padding:8px 0">Nenhum item ainda. Preencha o campo abaixo e clique em Adicionar.</div>'; return; }
-  var tipoLabels = {sim_nao:'✅ Sim/Não', nota:'⭐ Nota 1–5', texto:'📝 Texto'};
   wrap.innerHTML = nclItens.map(function(item,i){
-    var tLabel = tipoLabels[item.tipo||'sim_nao'] || '✅ Sim/Não';
     return '<div style="display:flex;align-items:flex-start;gap:8px;padding:10px 12px;background:var(--gray);border-radius:8px">'
       +'<span style="font-size:18px;margin-top:1px">☐</span>'
       +'<div style="flex:1;min-width:0">'
       +'<div style="font-size:13px;font-weight:500">'+item.t+'</div>'
-      +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:3px">'
-      +'<span style="font-size:10px;background:#e8f5ee;color:var(--g);padding:1px 7px;border-radius:10px;font-weight:600">'+tLabel+'</span>'
-      +(item.obs ? '<span style="font-size:10px;color:var(--t3)">'+item.obs+'</span>' : '')
-      +(item.foto && item.foto!=='none' ? '<span style="font-size:10px;color:var(--g)">'+(item.foto==='antes_depois'?'📷📷 antes e depois':'📷 depois')+'</span>' : '')
-      +'</div>'
+      +(item.obs ? '<div style="font-size:11px;color:var(--t3);margin-top:2px">'+item.obs+'</div>' : '')
+      +(item.foto && item.foto!=='none' ? '<div style="font-size:11px;color:var(--g);margin-top:2px">'+(item.foto==='antes_depois'?'📷📷 Foto antes e depois':'📷 Foto depois')+'</div>' : '')
       +'</div>'
       +'<button onclick="removeItemNCL('+i+')" style="background:none;border:none;color:var(--r);cursor:pointer;font-size:16px;line-height:1;flex-shrink:0">✕</button>'
       +'</div>';
@@ -1723,7 +1621,7 @@ function editarCL(id) {
   [0,1,2,3,4,5,6].forEach(function(d){ var el=document.getElementById('dia-'+d); if(el) el.checked=dias.indexOf(d)>=0; });
   var hl = document.getElementById('ncl-hora-limite'); if(hl) hl.value=cl.horaLimite||'10:00';
   document.getElementById('mcl-err').style.display='none';
-  ['ncl-item-txt','ncl-item-obs'].forEach(function(id){document.getElementById(id).value='';}); document.getElementById('ncl-item-foto').value='none'; var _t2=document.getElementById('ncl-item-tipo'); if(_t2) _t2.value='sim_nao';
+  ['ncl-item-txt','ncl-item-obs'].forEach(function(id){document.getElementById(id).value='';}); document.getElementById('ncl-item-foto').value='none';
   renderNclItens();
   document.getElementById('modal-cl').style.display='flex';
 }
@@ -1894,42 +1792,12 @@ function verDetalhe(idx) {
     } else if (item.foto && item.foto !== 'none') {
       fotoHtml = '<div style="font-size:11px;color:var(--am);margin-top:4px;padding:6px 10px;background:var(--am2);border-radius:6px">📷 Foto obrigatória não enviada</div>';
     }
-    // ── Badge de resposta baseado no tipo ──
-    var tipo = item.tipo || 'sim_nao';
-    var val  = item.valor;
-    var itemBg = item.feito ? 'var(--g3)' : (tipo==='sim_nao' && val==='nao') ? '#fdecea' : '#fff';
-    var respostaHtml = '';
-    if (tipo === 'nota') {
-      var nota = typeof val === 'number' ? val : 0;
-      respostaHtml = '<div style="display:flex;gap:3px;margin-top:6px;align-items:center">'
-        + [1,2,3,4,5].map(function(n){
-            return '<span style="width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;border:1.5px solid var(--gray2);font-size:12px;font-weight:700;background:'+(nota>=n?'var(--am)':'#fff')+';color:'+(nota>=n?'#000':'var(--t3)')+'">'+n+'</span>';
-          }).join('')
-        + (nota ? '<span style="font-size:11px;color:var(--t2);margin-left:6px">'+nota+'/5</span>' : '<span style="font-size:11px;color:var(--t3);margin-left:6px">Não respondido</span>')
-        + '</div>';
-    } else if (tipo === 'texto') {
-      respostaHtml = val && val.trim()
-        ? '<div style="margin-top:6px;padding:8px 10px;background:#f0f4ff;border:1px solid #c5d2f6;border-radius:8px;font-size:13px;color:var(--t);line-height:1.4">'+val+'</div>'
-        : '<div style="margin-top:4px;font-size:11px;color:var(--t3)">Sem resposta</div>';
-    } else {
-      // sim_nao (incluindo resultados antigos sem tipo)
-      var isSim = val === true || (val === undefined && item.feito === true);
-      var isNao = val === 'nao';
-      if (isSim) {
-        respostaHtml = '<span style="display:inline-block;margin-top:5px;font-size:11px;font-weight:700;padding:3px 10px;border-radius:8px;background:var(--g);color:#fff">✓ Sim</span>';
-      } else if (isNao) {
-        respostaHtml = '<span style="display:inline-block;margin-top:5px;font-size:11px;font-weight:700;padding:3px 10px;border-radius:8px;background:#fdecea;color:var(--r);border:1px solid #fac5c0">✗ Não</span>';
-      } else {
-        respostaHtml = '<span style="display:inline-block;margin-top:5px;font-size:11px;color:var(--t3)">Não respondido</span>';
-      }
-    }
-    return '<div style="padding:12px 14px;border-radius:10px;margin-bottom:8px;border:1px solid var(--gray2);background:'+itemBg+'">'
+    return '<div style="padding:12px 14px;border-radius:10px;margin-bottom:8px;border:1px solid var(--gray2);background:'+(item.feito?'var(--g3)':'#fff')+'">'
       +'<div style="display:flex;align-items:flex-start;gap:10px">'
-      +'<span style="font-size:18px;margin-top:1px;flex-shrink:0">'+(item.feito?'✅':(tipo==='sim_nao'&&val==='nao'?'🔴':'⬜'))+'</span>'
+      +'<span style="font-size:18px;margin-top:1px;flex-shrink:0">'+(item.feito?'✅':'⬜')+'</span>'
       +'<div style="flex:1;min-width:0">'
-      +'<div style="font-size:13px;font-weight:600;'+(item.feito?'color:var(--t3)':'color:var(--t)')+'">'+item.texto+'</div>'
+      +'<div style="font-size:13px;font-weight:600;'+(item.feito?'text-decoration:line-through;color:var(--t3)':'color:var(--t)')+'">'+item.texto+'</div>'
       +(item.obs ? '<div style="font-size:11px;color:var(--t3);margin-top:2px">'+item.obs+'</div>' : '')
-      +respostaHtml
       +fotoHtml
       +'</div></div></div>';
   }).join('');
@@ -1953,7 +1821,7 @@ function enviarSemFoto() {
   // Skip photo check and go straight to send modal
   var cl = getMyCLs().find(function(c){return c.id===clId;});
   if (!cl) return;
-  var feitos = cl.itens.filter(function(i){return itemConcluido(i, clId);}).length;
+  var feitos = cl.itens.filter(function(i){return !!S.checkState[clId+'_'+i.t];}).length;
   var total = cl.itens.length;
   var pct = total ? Math.round(feitos/total*100) : 0;
   pendingEnviarId = clId;
@@ -2330,21 +2198,150 @@ function updateDash() {
   var isGer = S.role==='gerencia';
   var isAdmOrGer = isAdmin||isGer;
 
-  // Checklist: para admin/gerencia mostra total de envios do dia, para operador mostra progresso local
-  var today = getLocalDate();
+  var agora = new Date();
+  var hojeStr = agora.toLocaleDateString('pt-BR');
+  var ontemDate = new Date(agora); ontemDate.setDate(ontemDate.getDate()-1);
+  var ontemStr = ontemDate.toLocaleDateString('pt-BR');
+
   var resultados = getResultados();
-  var resultadosHoje = resultados.filter(function(r){ return r.dataHora && r.dataHora.indexOf(new Date().toLocaleDateString('pt-BR'))===0; });
+  var resultadosHoje = resultados.filter(function(r){ return r.dataHora && r.dataHora.indexOf(hojeStr)===0; });
+  var resultadosOntem = resultados.filter(function(r){ return r.dataHora && r.dataHora.indexOf(ontemStr)===0; });
+
+  // ── Header ──
+  var lojaNome = (S.currentUser && S.currentUser.loja) ? S.currentUser.loja : 'Cahu360';
+  var dataFull = agora.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
+  var lojaNomeEl = document.getElementById('dash-loja-nome');
+  var dataFullEl = document.getElementById('dash-data-full');
+  if (lojaNomeEl) lojaNomeEl.textContent = lojaNome;
+  if (dataFullEl) dataFullEl.textContent = dataFull.charAt(0).toUpperCase()+dataFull.slice(1);
 
   if (isAdmOrGer) {
-    // Admin vê total de envios de todos os usuários hoje
     var totalEnvios = resultadosHoje.length;
     var completos = resultadosHoje.filter(function(r){return r.pct===100;}).length;
     var mediaGeral = totalEnvios ? Math.round(resultadosHoje.reduce(function(s,r){return s+r.pct;},0)/totalEnvios) : 0;
-    document.getElementById('dck-val').textContent=completos+'/'+totalEnvios+' envios';
-    document.getElementById('dck-bar').style.width=mediaGeral+'%';
-    document.getElementById('dck-pct').textContent=totalEnvios ? mediaGeral+'% média hoje' : 'Nenhum envio hoje';
+
+    // KPI: Checklists Hoje
+    document.getElementById('dck-val').textContent = completos+'/'+totalEnvios+' envios';
+    document.getElementById('dck-bar').style.width = mediaGeral+'%';
+    document.getElementById('dck-pct').textContent = totalEnvios ? mediaGeral+'% média hoje' : 'Nenhum envio hoje';
+
+    // KPI: Conformidade
+    var dconfEl = document.getElementById('dconf-val');
+    var dconfSubEl = document.getElementById('dconf-sub');
+    if (dconfEl) {
+      dconfEl.textContent = totalEnvios ? mediaGeral+'%' : '—';
+      dconfEl.style.color = mediaGeral>=80 ? 'var(--g)' : mediaGeral>=60 ? 'var(--am)' : totalEnvios ? 'var(--r)' : 'var(--t3)';
+    }
+    if (dconfSubEl) dconfSubEl.textContent = '100% completos: '+completos;
+
+    // Trends (vs ontem)
+    var mediOntem = resultadosOntem.length ? Math.round(resultadosOntem.reduce(function(s,r){return s+r.pct;},0)/resultadosOntem.length) : null;
+    var trendCkEl = document.getElementById('dck-trend');
+    var trendConfEl = document.getElementById('dconf-trend');
+    if (mediOntem !== null) {
+      var diff = mediaGeral - mediOntem;
+      var trendTxt = (diff>=0?'↑':'↓')+' '+Math.abs(diff)+'% vs ontem';
+      var trendCor = diff>=0 ? 'var(--g)' : 'var(--r)';
+      if (trendCkEl) { trendCkEl.textContent=trendTxt; trendCkEl.style.color=trendCor; }
+      if (trendConfEl) { trendConfEl.textContent=trendTxt; trendConfEl.style.color=trendCor; }
+    } else {
+      if (trendCkEl) trendCkEl.textContent='';
+      if (trendConfEl) trendConfEl.textContent='';
+    }
+
+    // KPI: Operadores ativos
+    var opsAtivos = [];
+    resultadosHoje.forEach(function(r){ if(opsAtivos.indexOf(r.operador)<0) opsAtivos.push(r.operador); });
+    var dopsEl = document.getElementById('dops-val');
+    var dopsSubEl = document.getElementById('dops-sub');
+    if (dopsEl) dopsEl.textContent = opsAtivos.length;
+    if (dopsSubEl) dopsSubEl.textContent = opsAtivos.length===1 ? 'operador enviou hoje' : 'operadores enviaram hoje';
+
+    // Indicador de saúde
+    var saudeDot = document.getElementById('dash-saude-dot');
+    var saudeLabel = document.getElementById('dash-saude-label');
+    var saudeEl = document.getElementById('dash-saude');
+    if (saudeDot && saudeLabel) {
+      if (!totalEnvios) {
+        saudeDot.style.background='#9ca3af'; saudeLabel.textContent='Aguardando envios'; saudeLabel.style.color='var(--t3)';
+        if (saudeEl) saudeEl.style.borderColor='var(--gray2)';
+      } else if (mediaGeral>=80) {
+        saudeDot.style.background='var(--g2)'; saudeLabel.textContent='Operação normal'; saudeLabel.style.color='var(--g)';
+        if (saudeEl) saudeEl.style.borderColor='var(--g2)';
+      } else if (mediaGeral>=60) {
+        saudeDot.style.background='var(--am)'; saudeLabel.textContent='Atenção necessária'; saudeLabel.style.color='var(--am)';
+        if (saudeEl) saudeEl.style.borderColor='var(--am)';
+      } else {
+        saudeDot.style.background='var(--r)'; saudeLabel.textContent='Conformidade crítica'; saudeLabel.style.color='var(--r)';
+        if (saudeEl) saudeEl.style.borderColor='var(--r)';
+      }
+    }
+
+    // Status da equipe
+    var dashEquipe = document.getElementById('dash-equipe');
+    var dashEquipeResumo = document.getElementById('dash-equipe-resumo');
+    if (dashEquipe) {
+      var users = getUsers().filter(function(u){ return u.id!=='admin' && u.ativo; });
+      if (!users.length) {
+        dashEquipe.innerHTML='<div style="text-align:center;color:var(--t3);font-size:13px;padding:20px;grid-column:1/-1">Nenhum usuário cadastrado</div>';
+      } else {
+        var enviados=0;
+        var perfisLabel={gerencia:'Gerência',operator:'Operador',prevencao:'Prevenção'};
+        dashEquipe.innerHTML = users.map(function(u){
+          var urs = resultadosHoje.filter(function(r){return r.operador===u.nome;});
+          var enviou = urs.length>0;
+          var media = enviou ? Math.round(urs.reduce(function(s,r){return s+r.pct;},0)/urs.length) : null;
+          if (enviou) enviados++;
+          var cor = !enviou?'#9ca3af':media===100?'var(--g2)':media>=80?'#2d9e62':media>=60?'var(--am)':'var(--r)';
+          var bg  = !enviou?'var(--gray)':media===100?'var(--g3)':media>=60?'var(--am2)':'var(--r2)';
+          return '<div style="padding:10px 12px;border-radius:10px;background:'+bg+';border:1.5px solid '+cor+'">'
+            +'<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">'
+            +'<div style="width:8px;height:8px;border-radius:50%;background:'+cor+';flex-shrink:0"></div>'
+            +'<div style="font-size:12px;font-weight:600;color:var(--t);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+u.nome+'</div>'
+            +'</div>'
+            +'<div style="font-size:10px;color:var(--t3);margin-bottom:4px">'+(perfisLabel[u.perfil]||u.perfil)+'</div>'
+            +(enviou
+              ?'<div style="font-size:14px;font-weight:800;color:'+cor+'">'+media+'%</div>'
+               +'<div style="font-size:10px;color:var(--t3)">'+urs.length+' envio'+(urs.length>1?'s':'')+'</div>'
+              :'<div style="font-size:11px;color:#9ca3af;font-weight:600">Pendente</div>')
+            +'</div>';
+        }).join('');
+        if (dashEquipeResumo) dashEquipeResumo.textContent = enviados+' de '+users.length+' enviaram';
+      }
+    }
+
+    // Atualizar gráfico de perdas com dados reais
+    if (S.dashCharts && S.dashCharts.perdas) {
+      var setoresPerd = ['Perecíveis','Açougue','Frios','Hortifruti','Mercearia','Padaria','Outros'];
+      var outrosSetores = ['Bebidas','Limpeza','Caixa'];
+      var perdaData = setoresPerd.map(function(s){
+        return S.perdaItems.filter(function(p){
+          return s==='Outros' ? outrosSetores.indexOf(p.setor)>=0 : p.setor===s;
+        }).reduce(function(acc,p){return acc+p.total;},0);
+      });
+      S.dashCharts.perdas.data.datasets[0].data = perdaData;
+      S.dashCharts.perdas.update();
+    }
+
+    // Atualizar gráfico de evolução 7 dias
+    if (S.dashCharts && S.dashCharts.check) {
+      var labels7=[]; var days7=[];
+      for (var i=6;i>=0;i--) {
+        var d=new Date(agora); d.setDate(d.getDate()-i);
+        days7.push(d.toLocaleDateString('pt-BR'));
+        labels7.push(d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}));
+      }
+      var data7 = days7.map(function(ds){
+        var dr=resultados.filter(function(r){return r.dataHora&&r.dataHora.indexOf(ds)===0;});
+        return dr.length ? Math.round(dr.reduce(function(s,r){return s+r.pct;},0)/dr.length) : null;
+      });
+      S.dashCharts.check.data.labels = labels7;
+      S.dashCharts.check.data.datasets[0].data = data7;
+      S.dashCharts.check.update();
+    }
+
   } else {
-    // Operador vê seu próprio progresso local
+    // Operador: progresso local
     var allCLs=getMyCLs();
     var allKeys=[];
     allCLs.forEach(function(cl){cl.itens.forEach(function(i){allKeys.push(cl.id+'_'+i.t);});});
@@ -2356,22 +2353,25 @@ function updateDash() {
     document.getElementById('dck-pct').textContent=pct+'% concluído';
   }
 
+  // Perdas (comum a todos)
   var totalP=S.perdaItems.reduce(function(s,i){return s+i.total;},0);
   document.getElementById('dp-val').textContent='R$ '+totalP.toFixed(2);
   document.getElementById('dp-cnt').textContent=S.perdaItems.length+' registros';
-  var divs=S.invItems.filter(function(i){return i.fis!==i.sist;}).length;
-  document.getElementById('ddiv-val').textContent=divs;
-  document.getElementById('dinv-val').textContent=S.invItems.length;
 
-  // Histórico: admin vê todos os envios do localStorage + sessão local; operador vê só sessão
+  // Compat: ddiv-val e dinv-val (ocultos)
+  var divs=S.invItems.filter(function(i){return i.fis!==i.sist;}).length;
+  var ddivEl=document.getElementById('ddiv-val');
+  var dinvEl=document.getElementById('dinv-val');
+  if (ddivEl) ddivEl.textContent=divs;
+  if (dinvEl) dinvEl.textContent=S.invItems.length;
+
+  // Histórico / Ocorrências
   var tbody=document.getElementById('d-hist');
-  var rows = [];
+  var rows=[];
 
   if (isAdmOrGer) {
-    // Mostrar resultados de checklists enviados hoje por todos
-    var PLABEL={admin:'Administrador',gerencia:'Gerência',operator:'Operador',prevencao:'Prevenção'};
     resultadosHoje.slice().reverse().slice(0,10).forEach(function(r){
-      var st = r.pct===100?'st-ok':r.pct>=50?'st-warn':'st-err';
+      var st=r.pct===100?'st-ok':r.pct>=50?'st-warn':'st-err';
       rows.push('<tr>'
         +'<td>'+r.dataHora.split(' ')[1]+'</td>'
         +'<td><span class="st st-info">Checklist</span></td>'
@@ -2381,9 +2381,8 @@ function updateDash() {
         +'<td><span class="st '+st+'">'+r.pct+'%</span></td>'
         +'</tr>');
     });
-    // Also add local session events
     S.historico.slice(0,5).forEach(function(h){
-      if (h.tipo !== 'Checklist') {
+      if (h.tipo!=='Checklist') {
         rows.push('<tr><td>'+h.hora+'</td><td><span class="st st-info">'+h.tipo+'</span></td><td>'+h.desc+'</td><td>'+h.setor+'</td><td>'+h.op+'</td><td><span class="st '+h.stCls+'">'+h.stLabel+'</span></td></tr>');
       }
     });
@@ -2393,33 +2392,66 @@ function updateDash() {
     });
   }
 
-  if (!rows.length) {
-    tbody.innerHTML='<tr class="erow"><td colspan="6">Nenhuma ocorrência hoje</td></tr>';
-  } else {
-    tbody.innerHTML = rows.join('');
-  }
+  var occCount=document.getElementById('dash-occ-count');
+  if (occCount) occCount.textContent=rows.length ? rows.length+' ocorrência'+(rows.length>1?'s':'') : '';
+
+  tbody.innerHTML=rows.length ? rows.join('') : '<tr class="erow"><td colspan="6">Nenhuma ocorrência hoje</td></tr>';
 }
 
 // ===========================================
 // CHARTS
 // ===========================================
 function initDashCharts() {
+  // Destroi charts anteriores se existirem
+  if (S.dashCharts.perdas) { try{S.dashCharts.perdas.destroy();}catch(e){} }
+  if (S.dashCharts.check)  { try{S.dashCharts.check.destroy();}catch(e){} }
+
+  // Gráfico de perdas por setor — dados reais preenchidos por updateDash()
   S.dashCharts.perdas = new Chart(document.getElementById('chartPerdas'),{
     type:'doughnut',
-    data:{labels:['Perecíveis','Açougue','Frios','Hortifruti','Mercearia','Outros'],
-      datasets:[{data:[32,18,20,14,10,6],backgroundColor:['#c0392b','#a93226','#1a5276','#2d9e62','#d68910','#95a5a6'],borderWidth:3,borderColor:'#fff'}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:11},boxWidth:12}}}}
+    data:{
+      labels:['Perecíveis','Açougue','Frios','Hortifruti','Mercearia','Padaria','Outros'],
+      datasets:[{
+        data:[0,0,0,0,0,0,0],
+        backgroundColor:['#c0392b','#a93226','#1a5276','#2d9e62','#d68910','#8e44ad','#95a5a6'],
+        borderWidth:3,borderColor:'#fff'
+      }]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{position:'right',labels:{font:{size:11},boxWidth:12}},
+        tooltip:{callbacks:{label:function(ctx){return ctx.label+': R$ '+ctx.parsed.toFixed(2);}}}
+      }
+    }
   });
-  var labels=getMyCLs().map(function(cl){return cl.label.substring(0,18);});
-  var data=getMyCLs().map(function(cl){
-    var all=cl.itens.map(function(i){return cl.id+'_'+i.t;});
-    var d=all.filter(function(k){return S.checkState[k];}).length;
-    return all.length?Math.round(d/all.length*100):0;
-  });
+
+  // Gráfico de evolução de conformidade — últimos 7 dias (linha)
   S.dashCharts.check = new Chart(document.getElementById('chartCheck'),{
-    type:'bar',
-    data:{labels:labels,datasets:[{label:'%',data:data,backgroundColor:'#2d9e62',borderRadius:5}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{max:100,ticks:{callback:function(v){return v+'%';},font:{size:11}}}}}
+    type:'line',
+    data:{
+      labels:['','','','','','',''],
+      datasets:[{
+        label:'Conformidade %',
+        data:[null,null,null,null,null,null,null],
+        borderColor:'#2d9e62',
+        backgroundColor:'rgba(45,158,98,.12)',
+        borderWidth:2,
+        pointBackgroundColor:'#2d9e62',
+        pointRadius:4,
+        fill:true,
+        tension:.35,
+        spanGaps:true
+      }]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        y:{min:0,max:100,ticks:{callback:function(v){return v+'%';},font:{size:11}}},
+        x:{ticks:{font:{size:11}}}
+      }
+    }
   });
 }
 
@@ -2930,6 +2962,151 @@ function renderRelRanking() {
 }
 
 // ── Exportar PDF ──
+function exportarRelatorioSupervisor() {
+  var logoEl = document.querySelector('.sb-logo img');
+  var logoSrc = logoEl ? logoEl.src : '';
+  var agora = new Date();
+  var hojeStr = agora.toLocaleDateString('pt-BR');
+  var hojeExtenso = agora.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
+  hojeExtenso = hojeExtenso.charAt(0).toUpperCase()+hojeExtenso.slice(1);
+  var loja = (S.currentUser && S.currentUser.loja) ? S.currentUser.loja : 'Cahu360';
+
+  var resultados = getResultados();
+  var resultadosHoje = resultados.filter(function(r){ return r.dataHora && r.dataHora.indexOf(hojeStr)===0; });
+  var totalEnvios = resultadosHoje.length;
+  var completos = resultadosHoje.filter(function(r){return r.pct===100;}).length;
+  var media = totalEnvios ? Math.round(resultadosHoje.reduce(function(s,r){return s+r.pct;},0)/totalEnvios) : 0;
+
+  // Auxiliares de prevenção que enviaram hoje
+  var prevencaoHoje = resultadosHoje.filter(function(r){return r.perfil==='prevencao';});
+  var opsUnicos = [];
+  prevencaoHoje.forEach(function(r){ if(opsUnicos.indexOf(r.operador)<0) opsUnicos.push(r.operador); });
+
+  // Todos os usuários de prevenção
+  var users = getUsers().filter(function(u){return u.perfil==='prevencao' && u.ativo;});
+
+  // Perdas do dia
+  var totalPerdas = S.perdaItems.reduce(function(s,i){return s+i.total;},0);
+
+  // ── Seção: Status da equipe de prevenção ──
+  var equipeTbody = users.length ? users.map(function(u){
+    var urs = prevencaoHoje.filter(function(r){return r.operador===u.nome;});
+    var enviou = urs.length>0;
+    var mediU = enviou ? Math.round(urs.reduce(function(s,r){return s+r.pct;},0)/urs.length) : null;
+    var cor = !enviou?'#e74c3c':mediU===100?'#2d9e62':mediU>=80?'#27ae60':mediU>=60?'#d68910':'#e74c3c';
+    var status = !enviou?'Pendente':mediU===100?'Concluído 100%':mediU+'% concluído';
+    return '<tr>'
+      +'<td>'+u.nome+'</td>'
+      +'<td>'+(u.loja||loja)+'</td>'
+      +'<td>'+urs.length+' envio'+(urs.length>1?'s':'')+'</td>'
+      +'<td style="font-weight:700;color:'+cor+'">'+status+'</td>'
+      +'</tr>';
+  }).join('') : '<tr><td colspan="4" style="text-align:center;color:#999">Nenhum auxiliar cadastrado</td></tr>';
+
+  // ── Seção: Checklists de prevenção enviados ──
+  var checkTbody = prevencaoHoje.length ? prevencaoHoje.slice().reverse().map(function(r){
+    var cor = r.pct===100?'#2d9e62':r.pct>=60?'#d68910':'#e74c3c';
+    return '<tr>'
+      +'<td>'+r.dataHora.split(' ')[1]+'</td>'
+      +'<td>'+r.operador+'</td>'
+      +'<td>'+r.checklistNome+'</td>'
+      +'<td style="font-weight:700;color:'+cor+'">'+r.pct+'%</td>'
+      +'</tr>';
+  }).join('') : '<tr><td colspan="4" style="text-align:center;color:#999">Nenhum checklist enviado hoje</td></tr>';
+
+  // ── Seção: Perdas do dia ──
+  var perdasTbody = S.perdaItems.length ? S.perdaItems.slice().reverse().map(function(p){
+    return '<tr>'
+      +'<td>'+p.hora+'</td>'
+      +'<td>'+p.produto+'</td>'
+      +'<td>'+p.setor+'</td>'
+      +'<td>'+p.motivo+'</td>'
+      +'<td>'+p.qtd+'</td>'
+      +'<td style="font-weight:700;color:#e74c3c">R$ '+p.total.toFixed(2)+'</td>'
+      +'</tr>';
+  }).join('') : '<tr><td colspan="6" style="text-align:center;color:#999">Nenhuma perda registrada hoje</td></tr>';
+
+  var statusCor = media>=80?'#2d9e62':media>=60?'#d68910':'#e74c3c';
+  var statusTxt = media>=80?'NORMAL':media>=60?'ATENÇÃO':'CRÍTICO';
+
+  var html = '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/><title>Relatório Supervisor — '+hojeStr+'</title>'
+    +'<style>'
+    +'*{box-sizing:border-box;margin:0;padding:0;font-family:Arial,sans-serif}'
+    +'body{padding:32px;color:#111;font-size:12px;background:#fff}'
+    +'.header{display:flex;align-items:center;justify-content:space-between;border-bottom:4px solid #FFC600;padding-bottom:16px;margin-bottom:24px}'
+    +'.header img{height:56px;object-fit:contain}'
+    +'.header-r{text-align:right}'
+    +'.header-r h1{font-size:17px;font-weight:700;color:#111}'
+    +'.header-r p{font-size:11px;color:#666;margin-top:3px}'
+    +'.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}'
+    +'.kpi{background:#f8f9fa;border-radius:8px;padding:14px;border-left:4px solid #FFC600}'
+    +'.kpi .k-lbl{font-size:9px;text-transform:uppercase;letter-spacing:.6px;color:#888;margin-bottom:6px}'
+    +'.kpi .k-val{font-size:22px;font-weight:800;color:#111}'
+    +'.kpi .k-sub{font-size:10px;color:#888;margin-top:3px}'
+    +'.status-pill{display:inline-block;padding:4px 14px;border-radius:20px;font-size:11px;font-weight:700;color:#fff;background:'+statusCor+'}'
+    +'.section{margin-bottom:24px}'
+    +'.section-title{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#333;border-bottom:2px solid #FFC600;padding-bottom:6px;margin-bottom:12px}'
+    +'table{width:100%;border-collapse:collapse;font-size:11px}'
+    +'th{background:#FFC600;padding:8px 10px;text-align:left;font-size:9.5px;text-transform:uppercase;letter-spacing:.4px;color:#111}'
+    +'td{padding:8px 10px;border-bottom:1px solid #eee}'
+    +'tr:last-child td{border:none}'
+    +'.assinatura{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:40px}'
+    +'.ass-box{border-top:1px solid #333;padding-top:8px;font-size:11px;color:#555}'
+    +'.footer{margin-top:28px;padding-top:10px;border-top:1px solid #eee;display:flex;justify-content:space-between;font-size:9.5px;color:#999}'
+    +'@media print{body{padding:20px}}'
+    +'</style></head><body>'
+
+    // Cabeçalho
+    +'<div class="header">'
+    +(logoSrc?'<img src="'+logoSrc+'" alt="Logo"/>':'<div style="font-size:18px;font-weight:800">Cahu360</div>')
+    +'<div class="header-r">'
+    +'<h1>Relatório Diário — Prevenção de Perdas</h1>'
+    +'<p>'+hojeExtenso+'</p>'
+    +'<p>Loja: <strong>'+loja+'</strong> &nbsp;|&nbsp; Status: <span class="status-pill">'+statusTxt+'</span></p>'
+    +'</div></div>'
+
+    // KPIs
+    +'<div class="kpis">'
+    +'<div class="kpi"><div class="k-lbl">Checklists Enviados</div><div class="k-val">'+totalEnvios+'</div><div class="k-sub">'+completos+' com 100%</div></div>'
+    +'<div class="kpi"><div class="k-lbl">Conformidade Geral</div><div class="k-val" style="color:'+statusCor+'">'+media+'%</div><div class="k-sub">média do dia</div></div>'
+    +'<div class="kpi"><div class="k-lbl">Aux. Prevenção Ativos</div><div class="k-val">'+opsUnicos.length+'</div><div class="k-sub">de '+users.length+' cadastrados</div></div>'
+    +'<div class="kpi"><div class="k-lbl">Total de Perdas</div><div class="k-val" style="color:#e74c3c">R$ '+totalPerdas.toFixed(2)+'</div><div class="k-sub">'+S.perdaItems.length+' registros</div></div>'
+    +'</div>'
+
+    // Status da equipe
+    +'<div class="section"><div class="section-title">Status da Equipe de Prevenção</div>'
+    +'<table><thead><tr><th>Auxiliar</th><th>Loja</th><th>Envios</th><th>Status</th></tr></thead>'
+    +'<tbody>'+equipeTbody+'</tbody></table></div>'
+
+    // Checklists executados
+    +'<div class="section"><div class="section-title">Checklists Executados — Prevenção</div>'
+    +'<table><thead><tr><th>Hora</th><th>Auxiliar</th><th>Checklist</th><th>Conclusão</th></tr></thead>'
+    +'<tbody>'+checkTbody+'</tbody></table></div>'
+
+    // Perdas registradas
+    +'<div class="section"><div class="section-title">Perdas Registradas no Dia</div>'
+    +'<table><thead><tr><th>Hora</th><th>Produto</th><th>Setor</th><th>Motivo</th><th>Qtd</th><th>Total</th></tr></thead>'
+    +'<tbody>'+perdasTbody+'</tbody></table></div>'
+
+    // Assinaturas
+    +'<div class="assinatura">'
+    +'<div class="ass-box">Responsável pela Prevenção de Perdas</div>'
+    +'<div class="ass-box">Supervisor / Gerente</div>'
+    +'</div>'
+
+    +'<div class="footer"><span>Cahu360 Process © '+agora.getFullYear()+'</span><span>Gerado em: '+agora.toLocaleString('pt-BR')+'</span></div>'
+    +'</body></html>';
+
+  var w = window.open('','_blank','width=900,height=700');
+  if (w) {
+    w.document.write(html);
+    w.document.close();
+    w.onload = function(){ w.print(); };
+  } else {
+    showToast('Permita pop-ups para gerar o relatório.');
+  }
+}
+
 function exportarPDF(tipo) {
   var logoEl = document.querySelector('.sb-logo img');
   var logoSrc = logoEl ? logoEl.src : '';

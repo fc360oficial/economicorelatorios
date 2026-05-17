@@ -1,6 +1,6 @@
 // Cahu360 Process — Service Worker
 // Atualiza este número de versão sempre que publicar novos arquivos
-var CACHE_NAME = 'cahu360-v7';
+var CACHE_NAME = 'cahu360-v4';
 
 var SHELL_ASSETS = [
   './',
@@ -62,23 +62,7 @@ self.addEventListener('fetch', function(event) {
     return;
   }
 
-  // HTML: network-first (sempre pega a versão mais nova do servidor)
-  if (event.request.destination === 'document') {
-    event.respondWith(
-      fetch(event.request).then(function(resp) {
-        if (resp && resp.ok) {
-          var clone = resp.clone();
-          caches.open(CACHE_NAME).then(function(cache) { cache.put(event.request, clone); });
-        }
-        return resp;
-      }).catch(function() {
-        return caches.match('./index.html');
-      })
-    );
-    return;
-  }
-
-  // JS/CSS/outros arquivos: cache-first com atualização em background
+  // Arquivos locais: cache-first (app funciona offline)
   event.respondWith(
     caches.match(event.request).then(function(cached) {
       if (cached) {
@@ -97,7 +81,12 @@ self.addEventListener('fetch', function(event) {
           caches.open(CACHE_NAME).then(function(cache) { cache.put(event.request, clone); });
         }
         return resp;
-      }).catch(function() {});
+      }).catch(function() {
+        // Fallback final: retorna o index.html para navegação offline
+        if (event.request.destination === 'document') {
+          return caches.match('./index.html');
+        }
+      });
     })
   );
 });
