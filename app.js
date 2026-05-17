@@ -2510,6 +2510,58 @@ function updateDash() {
       S.dashCharts.check.update();
     }
 
+    // Gráfico conformidade por setor — hoje
+    if (S.dashCharts && S.dashCharts.setor) {
+      var setoresGraf = ['Açougue','Frios','Hortifruti','Padaria','Mercearia','Prevenção','Geral'];
+      var setorData = setoresGraf.map(function(s){
+        var rs = resultadosHoje.filter(function(r){return (r.setor||'')===s;});
+        return rs.length ? Math.round(rs.reduce(function(acc,r){return acc+r.pct;},0)/rs.length) : null;
+      });
+      S.dashCharts.setor.data.datasets[0].data = setorData;
+      S.dashCharts.setor.update();
+    }
+
+    // KPI Pendentes Hoje
+    var pendVal = document.getElementById('dpend-val');
+    var pendSub = document.getElementById('dpend-sub');
+    if (pendVal) {
+      var totalCLs = getCustomCLs().length;
+      var enviadosHoje = resultadosHoje.map(function(r){return r.checklistId;});
+      var pendentes = totalCLs - enviadosHoje.length;
+      if (pendentes < 0) pendentes = 0;
+      pendVal.textContent = pendentes;
+      pendVal.style.color = pendentes === 0 ? 'var(--g)' : 'var(--r)';
+      if (pendSub) pendSub.textContent = pendentes === 0 ? 'todos enviados ✓' : 'checklists em aberto';
+    }
+
+    // Card Planos de Ação Abertos
+    var planosCard = document.getElementById('dash-planos-card');
+    var planosLista = document.getElementById('dash-planos-lista');
+    if (planosCard && planosLista) {
+      var planos = getPlanos().filter(function(p){return p.status==='aberto'||p.status==='andamento';});
+      var loja = S.currentUser ? (S.currentUser.loja||'').toLowerCase() : '';
+      if (loja) planos = planos.filter(function(p){return (p.loja||'').toLowerCase()===loja||(p.loja||'').toLowerCase()==='';});
+      planosCard.style.display = '';
+      if (!planos.length) {
+        planosLista.innerHTML = '<div style="text-align:center;color:var(--g);font-size:13px;padding:12px">✅ Nenhum plano de ação aberto</div>';
+      } else {
+        planosLista.innerHTML = planos.slice(0,4).map(function(p){
+          var stColor = p.status==='andamento' ? 'var(--am)' : 'var(--r)';
+          var stLabel = p.status==='andamento' ? 'Em andamento' : 'Aberto';
+          return '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid var(--gray2);border-radius:9px;background:#fff">'
+            +'<div style="flex:1;min-width:0">'
+            +'<div style="font-size:13px;font-weight:500;color:var(--t);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+p.desc+'</div>'
+            +'<div style="font-size:11px;color:var(--t3);margin-top:2px">'+p.criadoEm+(p.setor?' · '+p.setor:'')+'</div>'
+            +'</div>'
+            +'<span style="flex-shrink:0;font-size:11px;font-weight:700;color:'+stColor+';padding:2px 8px;border-radius:20px;border:1.5px solid '+stColor+';white-space:nowrap">'+stLabel+'</span>'
+            +'</div>';
+        }).join('');
+        if (planos.length > 4) {
+          planosLista.innerHTML += '<div style="text-align:center;font-size:12px;color:var(--t3);padding:6px">+ '+(planos.length-4)+' outros planos</div>';
+        }
+      }
+    }
+
   } else {
     // Operador: progresso local
     var allCLs=getMyCLs();
@@ -2574,10 +2626,37 @@ function updateDash() {
 function initDashCharts() {
   // Destroi charts anteriores se existirem
   if (S.dashCharts.perdas) { try{S.dashCharts.perdas.destroy();}catch(e){} }
+  if (S.dashCharts.setor)  { try{S.dashCharts.setor.destroy();}catch(e){} }
   if (S.dashCharts.check)  { try{S.dashCharts.check.destroy();}catch(e){} }
 
   // Gráfico de perdas desativado temporariamente (módulo oculto)
   // S.dashCharts.perdas = ...
+
+  // Gráfico de conformidade por setor — hoje
+  var setores = ['Açougue','Frios','Hortifruti','Padaria','Mercearia','Prevenção','Geral'];
+  S.dashCharts.setor = new Chart(document.getElementById('chartSetor'),{
+    type:'bar',
+    data:{
+      labels: setores,
+      datasets:[{
+        label:'Conformidade %',
+        data: setores.map(function(){return 0;}),
+        backgroundColor: setores.map(function(s,i){
+          var colors=['#c0392b','#1a5276','#2d9e62','#d68910','#8e44ad','#2980b9','#95a5a6'];
+          return colors[i]+'CC';
+        }),
+        borderRadius:6,borderSkipped:false
+      }]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        y:{min:0,max:100,ticks:{callback:function(v){return v+'%';},font:{size:10}}},
+        x:{ticks:{font:{size:10}}}
+      }
+    }
+  });
 
   // Gráfico de evolução de conformidade — últimos 7 dias (linha)
   S.dashCharts.check = new Chart(document.getElementById('chartCheck'),{
