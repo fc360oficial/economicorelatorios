@@ -1594,12 +1594,12 @@ function parseCSV(text) {
   var lines = text.trim().split(/\r?\n/);
   var sep = text.indexOf(';') > -1 ? ';' : ',';
   var produtos = [];
-  lines.forEach(function(line, i) {
+  lines.forEach(function(line) {
     var cols = line.split(sep).map(function(c) { return c.trim().replace(/^"|"$/g, ''); });
     if (cols.length < 2) return;
     var codigo = cols[0], descricao = cols[1], setor = cols[2] || '';
-    if (i === 0 && isNaN(parseInt(codigo.replace(/\D/g, '')))) return;
-    if (!codigo || !descricao) return;
+    if (!/\d/.test(codigo)) return; // pula qualquer linha sem dígito na coluna código (cabeçalho)
+    if (!descricao) return;
     produtos.push({ codigo: codigo, descricao: descricao, setor: setor });
   });
   return produtos;
