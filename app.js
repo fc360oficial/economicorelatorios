@@ -1753,13 +1753,20 @@ function confirmarEnviar(assinatura) {
     var val = S.checkState[clId+'_'+item.t];
     var tipo = item.tipo || 'checkbox';
     var justificativa = tipo==='simNao' ? (S.checkState[clId+'_justif_'+idx]||'') : '';
+    var itemProdutos = null;
+    if (tipo === 'planilha' && item.produtos) {
+      itemProdutos = item.produtos.map(function(p) {
+        return Object.assign({}, p, { quantidade: S.checkState[clId+'_qty_'+idx+'_'+p.codigo] || '' });
+      });
+    }
     return {
       texto:item.t, obs:item.obs||'', foto:item.foto||false, tipo:tipo,
-      resposta:tipo!=='checkbox'?(val||null):null,
+      resposta:tipo!=='checkbox'&&tipo!=='planilha'?(val||null):null,
       justificativa:justificativa,
       fotoAntes:S.checkState[clId+'_foto_antes_'+idx]||null,
       fotoDepois:S.checkState[clId+'_foto_depois_'+idx]||S.checkState[clId+'_foto_'+idx]||null,
-      feito:!!val
+      feito:!!val, critico:!!item.critico,
+      produtos: itemProdutos
     };
   });
   var feitos = snapshot.filter(function(i){return i.feito;}).length;
@@ -2144,6 +2151,24 @@ function verDetalhe(idx) {
         +[1,2,3,4,5].map(function(v){return '<span style="width:22px;height:22px;display:flex;align-items:center;justify-content:center;border-radius:5px;font-size:11px;font-weight:700;background:'+(v<=nv?'var(--dk)':'var(--gray2)')+';color:'+(v<=nv?'#111':'var(--t3)')+'">'+v+'</span>';}).join('')+'</div>';
     } else if (tipo === 'texto' && item.resposta) {
       respostaHtml='<div style="margin-top:5px;padding:6px 10px;background:var(--gray);border-radius:6px;font-size:12px;color:var(--t2)">'+item.resposta+'</div>';
+    } else if (tipo === 'planilha' && item.produtos && item.produtos.length) {
+      respostaHtml='<div style="margin-top:8px;overflow-x:auto">'
+        +'<table style="width:100%;border-collapse:collapse;font-size:12px">'
+        +'<thead><tr style="background:var(--gray)">'
+        +'<th style="padding:5px 7px;text-align:left;font-weight:600;color:var(--t2)">Código</th>'
+        +'<th style="padding:5px 7px;text-align:left;font-weight:600;color:var(--t2)">Descrição</th>'
+        +'<th style="padding:5px 7px;text-align:left;font-weight:600;color:var(--t2)">Setor</th>'
+        +'<th style="padding:5px 7px;text-align:center;font-weight:600;color:var(--t2)">Qtd</th>'
+        +'</tr></thead><tbody>'
+        +item.produtos.map(function(p){
+          return '<tr style="border-bottom:1px solid var(--gray2)">'
+            +'<td style="padding:5px 7px;color:var(--t2);font-size:11px">'+p.codigo+'</td>'
+            +'<td style="padding:5px 7px;color:var(--t)">'+p.descricao+'</td>'
+            +'<td style="padding:5px 7px;color:var(--t2)">'+(p.setor||'—')+'</td>'
+            +'<td style="padding:5px 7px;text-align:center;font-weight:700;color:'+(p.quantidade?'var(--g)':'var(--t3)')+'">'+( p.quantidade||'—')+'</td>'
+            +'</tr>';
+        }).join('')
+        +'</tbody></table></div>';
     }
     var itemDoneBg = !item.feito?'#fff':(tipo==='simNao'&&item.resposta==='nao')?'var(--r2)':'var(--g3)';
     var itemIcon = tipo==='simNao'?(item.resposta==='sim'?'✅':item.resposta==='nao'?'❌':'⬜'):(item.feito?'✅':'⬜');
