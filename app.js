@@ -3935,21 +3935,48 @@ function renderRelRanking() {
 
 // Clona elemento substituindo <canvas> por <img> com o conteúdo desenhado
 function _cloneComImagens(containerEl) {
+  // Se o container estiver oculto, mostra temporariamente para que o canvas tenha dimensões
+  var origDisplay = containerEl.style.display;
+  var wasHidden = origDisplay === 'none' || getComputedStyle(containerEl).display === 'none';
+  if (wasHidden) {
+    containerEl.style.display = 'block';
+    // Força redimensionamento dos charts Chart.js dentro do container
+    containerEl.querySelectorAll('canvas').forEach(function(c) {
+      try {
+        var ch = typeof Chart !== 'undefined' ? Chart.getChart(c) : null;
+        if (ch) { ch.resize(); ch.update('none'); }
+      } catch(e) {}
+    });
+  }
+
   var clone = containerEl.cloneNode(true);
   var origCanvases = containerEl.querySelectorAll('canvas');
   var cloneCanvases = clone.querySelectorAll('canvas');
+
   origCanvases.forEach(function(canvas, i) {
     try {
-      var dataUrl = canvas.toDataURL('image/png');
+      var dataUrl = '';
+      // Usa API do Chart.js quando disponível (mais confiável que toDataURL direto)
+      var chart = typeof Chart !== 'undefined' ? Chart.getChart(canvas) : null;
+      if (chart) {
+        dataUrl = chart.toBase64Image('image/png', 1);
+      } else {
+        dataUrl = canvas.toDataURL('image/png');
+      }
+      if (!dataUrl || dataUrl === 'data:,' || dataUrl.length < 50) return;
       var img = document.createElement('img');
       img.src = dataUrl;
       var w = canvas.offsetWidth || canvas.width || 0;
       var h = canvas.offsetHeight || canvas.height || 0;
-      img.style.cssText = 'display:block;max-width:100%;' + (w ? 'width:'+w+'px;' : '') + (h ? 'height:'+h+'px;' : '');
+      img.style.cssText = 'display:block;max-width:100%;'
+        + (w > 0 ? 'width:'+w+'px;' : 'width:100%;')
+        + (h > 0 ? 'height:'+h+'px;' : '');
       var cl = cloneCanvases[i];
       if (cl && cl.parentNode) cl.parentNode.replaceChild(img, cl);
     } catch(e) {}
   });
+
+  if (wasHidden) containerEl.style.display = origDisplay;
   return clone.innerHTML;
 }
 
@@ -5007,12 +5034,6 @@ function renderPontualidade() {
 // ── Relatório 6: Exportar PDF Consolidado ────────────────
 function exportarPDFConsolidado() {
   showToast('Preparando PDF consolidado...');
-  try { renderAdesao(); } catch(e){}
-  try { renderTendencia(); } catch(e){}
-  try { renderNaoConformRecorrente(); } catch(e){}
-  try { renderComparativoLojas(); } catch(e){}
-  try { renderPontualidade(); } catch(e){}
-
   var logoEl = document.querySelector('.sb-logo img');
   var logoSrc = logoEl ? logoEl.src : '';
   var hoje = new Date().toLocaleString('pt-BR');
@@ -5021,10 +5042,23 @@ function exportarPDFConsolidado() {
   var periodoTxt = (mesSel&&mesSel.options[mesSel.selectedIndex]?mesSel.options[mesSel.selectedIndex].text:'Todos os meses')+' / '+(anoSel?anoSel.value:'');
 
   var secoes = ['rel-corp-adesao','rel-corp-naoconf','rel-corp-comparativo','rel-corp-pontualidade'];
+  // Mostra todas as seções temporariamente para que os charts tenham dimensões válidas
+  var secoesEls = secoes.map(function(id){ return document.getElementById(id); });
+  var origDisplays = secoesEls.map(function(el){ return el ? el.style.display : ''; });
+  secoesEls.forEach(function(el){ if (el) el.style.display = 'block'; });
+  // Re-renderiza com as seções visíveis
+  try { renderAdesao(); } catch(e){}
+  try { renderTendencia(); } catch(e){}
+  try { renderNaoConformRecorrente(); } catch(e){}
+  try { renderComparativoLojas(); } catch(e){}
+  try { renderPontualidade(); } catch(e){}
+
   var conteudo = secoes.map(function(id){
     var el=document.getElementById(id);
     return el ? '<div style="page-break-inside:avoid;margin-bottom:30px">'+_cloneComImagens(el)+'</div>' : '';
   }).join('');
+  // Restaura visibilidade original
+  secoesEls.forEach(function(el, i){ if (el) el.style.display = origDisplays[i]; });
 
   var html = '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/><title>Relatório Corporativo Consolidado</title>'
     +'<style>*{box-sizing:border-box;margin:0;padding:0;font-family:Arial,sans-serif}'
