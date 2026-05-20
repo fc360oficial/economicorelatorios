@@ -1,0 +1,1025 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Cahu360 Process — Gestão de Loja Inteligente</title>
+  <meta name="description" content="Sistema completo de gestão de processos para supermercados e redes de varejo. Checklists, planos de ação, relatórios e muito mais."/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --y: #FFC600;
+      --yd: #e6b000;
+      --dark: #111111;
+      --dark2: #1c1c1c;
+      --dark3: #2a2a2a;
+      --t: #111;
+      --t2: #444;
+      --t3: #888;
+      --white: #ffffff;
+      --gray: #f6f6f6;
+      --gray2: #e8e8e8;
+      --g: #2d9e62;
+      --r: #e53e3e;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      color: var(--t);
+      background: var(--white);
+      overflow-x: hidden;
+    }
+
+    h1, h2, h3, h4 { font-family: 'Syne', sans-serif; }
+
+    /* ── NAV ── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      background: rgba(17,17,17,.96);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(255,198,0,.15);
+      padding: 0 6%;
+      display: flex; align-items: center; justify-content: space-between;
+      height: 64px;
+    }
+    .nav-logo {
+      font-family: 'Syne', sans-serif;
+      font-size: 20px; font-weight: 800;
+      color: var(--white);
+      text-decoration: none;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .nav-logo span { color: var(--y); }
+    .nav-logo-badge {
+      background: var(--y); color: var(--dark);
+      font-size: 10px; font-weight: 700;
+      padding: 2px 7px; border-radius: 20px;
+      text-transform: uppercase; letter-spacing: .5px;
+    }
+    .nav-links {
+      display: flex; gap: 28px; list-style: none;
+    }
+    .nav-links a {
+      color: rgba(255,255,255,.75);
+      text-decoration: none; font-size: 14px; font-weight: 500;
+      transition: color .2s;
+    }
+    .nav-links a:hover { color: var(--y); }
+    .nav-cta {
+      background: var(--y); color: var(--dark);
+      padding: 10px 22px; border-radius: 8px;
+      font-weight: 700; font-size: 14px;
+      text-decoration: none;
+      transition: background .2s, transform .15s;
+    }
+    .nav-cta:hover { background: var(--yd); transform: translateY(-1px); }
+    .nav-hamburger { display: none; flex-direction: column; gap: 5px; cursor: pointer; background: none; border: none; padding: 4px; }
+    .nav-hamburger span { width: 24px; height: 2px; background: var(--white); border-radius: 2px; display: block; transition: .3s; }
+    .nav-mobile { display: none; position: fixed; top: 64px; left: 0; right: 0; background: var(--dark2); padding: 24px 6%; flex-direction: column; gap: 20px; z-index: 99; border-bottom: 1px solid rgba(255,198,0,.15); }
+    .nav-mobile.open { display: flex; }
+    .nav-mobile a { color: rgba(255,255,255,.85); text-decoration: none; font-size: 16px; font-weight: 500; }
+    .nav-mobile .nav-cta { text-align: center; }
+
+    /* ── HERO ── */
+    .hero {
+      background: var(--dark);
+      min-height: 100vh;
+      display: flex; align-items: center;
+      padding: 100px 6% 80px;
+      position: relative; overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute; top: -200px; right: -200px;
+      width: 700px; height: 700px;
+      background: radial-gradient(circle, rgba(255,198,0,.12) 0%, transparent 65%);
+      pointer-events: none;
+    }
+    .hero::after {
+      content: '';
+      position: absolute; bottom: -100px; left: -100px;
+      width: 400px; height: 400px;
+      background: radial-gradient(circle, rgba(255,198,0,.06) 0%, transparent 65%);
+      pointer-events: none;
+    }
+    .hero-inner {
+      max-width: 1200px; margin: 0 auto; width: 100%;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 60px; align-items: center;
+    }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: rgba(255,198,0,.12); border: 1px solid rgba(255,198,0,.3);
+      color: var(--y); padding: 6px 14px; border-radius: 20px;
+      font-size: 12px; font-weight: 600; letter-spacing: .5px;
+      text-transform: uppercase; margin-bottom: 24px;
+    }
+    .hero-badge::before { content: '●'; font-size: 8px; animation: blink 1.5s infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+    .hero h1 {
+      font-size: clamp(36px, 5vw, 58px);
+      font-weight: 800; line-height: 1.1;
+      color: var(--white); margin-bottom: 20px;
+    }
+    .hero h1 em { color: var(--y); font-style: normal; }
+    .hero p {
+      font-size: 18px; line-height: 1.7;
+      color: rgba(255,255,255,.65); margin-bottom: 36px;
+    }
+    .hero-actions { display: flex; gap: 14px; flex-wrap: wrap; }
+    .btn-primary {
+      background: var(--y); color: var(--dark);
+      padding: 16px 32px; border-radius: 10px;
+      font-weight: 700; font-size: 16px;
+      text-decoration: none; display: inline-flex; align-items: center; gap: 8px;
+      transition: background .2s, transform .15s, box-shadow .2s;
+      box-shadow: 0 4px 20px rgba(255,198,0,.3);
+    }
+    .btn-primary:hover { background: var(--yd); transform: translateY(-2px); box-shadow: 0 8px 30px rgba(255,198,0,.4); }
+    .btn-outline {
+      border: 1.5px solid rgba(255,255,255,.25); color: var(--white);
+      padding: 15px 28px; border-radius: 10px;
+      font-weight: 600; font-size: 15px;
+      text-decoration: none; display: inline-flex; align-items: center; gap: 8px;
+      transition: border-color .2s, background .2s;
+    }
+    .btn-outline:hover { border-color: var(--y); background: rgba(255,198,0,.06); }
+    .hero-stats {
+      display: flex; gap: 32px; margin-top: 48px; flex-wrap: wrap;
+    }
+    .hero-stat { }
+    .hero-stat strong { font-size: 28px; font-weight: 800; color: var(--y); font-family: 'Syne', sans-serif; display: block; }
+    .hero-stat span { font-size: 13px; color: rgba(255,255,255,.5); }
+
+    /* Mockup do app */
+    .hero-visual {
+      display: flex; justify-content: center; align-items: center;
+      position: relative;
+    }
+    .mockup-phone {
+      width: 260px;
+      background: var(--dark2);
+      border: 2px solid rgba(255,198,0,.25);
+      border-radius: 32px;
+      overflow: hidden;
+      box-shadow: 0 40px 80px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.05);
+      position: relative;
+    }
+    .mockup-statusbar {
+      background: var(--dark3); padding: 10px 20px 6px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .mockup-statusbar span { font-size: 11px; color: rgba(255,255,255,.5); font-weight: 600; }
+    .mockup-header {
+      background: var(--y); padding: 14px 16px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .mockup-header-title { font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 800; color: var(--dark); }
+    .mockup-header-sub { font-size: 10px; color: rgba(0,0,0,.55); }
+    .mockup-body { padding: 14px; background: #f5f5f5; }
+    .mockup-card {
+      background: var(--white); border-radius: 10px;
+      padding: 12px; margin-bottom: 10px;
+      border-left: 4px solid var(--g);
+      box-shadow: 0 2px 8px rgba(0,0,0,.08);
+    }
+    .mockup-card.warn { border-color: #f59e0b; }
+    .mockup-card.red { border-color: var(--r); }
+    .mockup-card-title { font-size: 11px; font-weight: 700; color: var(--t); margin-bottom: 3px; }
+    .mockup-card-sub { font-size: 10px; color: var(--t3); }
+    .mockup-card-badge { float: right; font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 10px; }
+    .mockup-card-badge.ok { background: #dcfce7; color: #166534; }
+    .mockup-card-badge.warn { background: #fef9c3; color: #854d0e; }
+    .mockup-card-badge.red { background: #fee2e2; color: #991b1b; }
+    .mockup-progress { height: 4px; background: #eee; border-radius: 2px; margin-top: 8px; }
+    .mockup-progress-fill { height: 100%; border-radius: 2px; background: var(--g); }
+    .mockup-float {
+      position: absolute;
+      background: var(--white);
+      border-radius: 12px;
+      padding: 10px 14px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.2);
+      font-size: 11px; font-weight: 600;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .mockup-float.f1 { top: 30px; right: -30px; }
+    .mockup-float.f2 { bottom: 60px; left: -40px; }
+    .mockup-float .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+    /* ── SEÇÕES GERAIS ── */
+    section { padding: 96px 6%; }
+    .section-label {
+      font-size: 12px; font-weight: 700; letter-spacing: 1.5px;
+      text-transform: uppercase; color: var(--y);
+      margin-bottom: 12px;
+    }
+    .section-title {
+      font-size: clamp(28px, 4vw, 42px);
+      font-weight: 800; line-height: 1.15;
+      margin-bottom: 16px;
+    }
+    .section-sub {
+      font-size: 17px; color: var(--t2); line-height: 1.7;
+      max-width: 560px;
+    }
+    .section-header { margin-bottom: 56px; }
+    .section-header.center { text-align: center; }
+    .section-header.center .section-sub { margin: 0 auto; }
+    .max { max-width: 1200px; margin: 0 auto; }
+
+    /* ── SOCIAL PROOF BAR ── */
+    .proof-bar {
+      background: var(--gray); padding: 28px 6%;
+      border-top: 1px solid var(--gray2); border-bottom: 1px solid var(--gray2);
+    }
+    .proof-inner {
+      max-width: 1200px; margin: 0 auto;
+      display: flex; align-items: center; gap: 40px; flex-wrap: wrap; justify-content: center;
+    }
+    .proof-label { font-size: 13px; color: var(--t3); font-weight: 500; white-space: nowrap; }
+    .proof-items { display: flex; gap: 32px; flex-wrap: wrap; justify-content: center; }
+    .proof-item { font-size: 14px; font-weight: 700; color: var(--t2); display: flex; align-items: center; gap: 6px; }
+
+    /* ── FUNCIONALIDADES ── */
+    .features-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+    }
+    .feature-card {
+      background: var(--white); border: 1.5px solid var(--gray2);
+      border-radius: 16px; padding: 28px;
+      transition: border-color .2s, transform .2s, box-shadow .2s;
+    }
+    .feature-card:hover { border-color: var(--y); transform: translateY(-4px); box-shadow: 0 12px 40px rgba(0,0,0,.08); }
+    .feature-icon {
+      width: 48px; height: 48px; border-radius: 12px;
+      background: rgba(255,198,0,.12); display: flex; align-items: center; justify-content: center;
+      font-size: 22px; margin-bottom: 16px;
+    }
+    .feature-card h3 { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+    .feature-card p { font-size: 14px; color: var(--t2); line-height: 1.6; }
+
+    /* ── COMO FUNCIONA ── */
+    .how-section { background: var(--dark); }
+    .how-section .section-title { color: var(--white); }
+    .how-section .section-sub { color: rgba(255,255,255,.6); }
+    .how-steps {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 32px; margin-top: 0;
+    }
+    .how-step { text-align: center; }
+    .how-step-num {
+      width: 56px; height: 56px; border-radius: 50%;
+      background: var(--y); color: var(--dark);
+      font-family: 'Syne', sans-serif; font-weight: 800; font-size: 22px;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 20px;
+    }
+    .how-step h3 { font-size: 17px; font-weight: 700; color: var(--white); margin-bottom: 10px; }
+    .how-step p { font-size: 14px; color: rgba(255,255,255,.55); line-height: 1.7; }
+    .how-connector {
+      display: flex; align-items: center; justify-content: center;
+      color: rgba(255,198,0,.4); font-size: 28px;
+      margin-top: 28px;
+    }
+
+    /* ── BENEFÍCIOS ── */
+    .benefits-row {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center;
+      margin-bottom: 80px;
+    }
+    .benefits-row:last-child { margin-bottom: 0; }
+    .benefits-row.reverse .benefits-text { order: 2; }
+    .benefits-row.reverse .benefits-visual { order: 1; }
+    .benefit-list { list-style: none; margin-top: 24px; }
+    .benefit-list li {
+      display: flex; align-items: flex-start; gap: 12px;
+      padding: 10px 0; border-bottom: 1px solid var(--gray2);
+      font-size: 15px; color: var(--t2); line-height: 1.5;
+    }
+    .benefit-list li:last-child { border: none; }
+    .benefit-list li::before { content: '✓'; color: var(--g); font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+    .benefits-visual {
+      background: var(--gray); border-radius: 20px;
+      padding: 32px; min-height: 300px;
+      display: flex; align-items: center; justify-content: center;
+      border: 1.5px solid var(--gray2);
+    }
+    .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; width: 100%; }
+    .stat-box {
+      background: var(--white); border-radius: 12px;
+      padding: 20px; text-align: center;
+      border: 1.5px solid var(--gray2);
+    }
+    .stat-box strong { font-family: 'Syne', sans-serif; font-size: 32px; font-weight: 800; display: block; color: var(--y); }
+    .stat-box span { font-size: 12px; color: var(--t3); }
+
+    /* ── PLANOS ── */
+    .plans-section { background: var(--dark); }
+    .plans-section .section-title { color: var(--white); }
+    .plans-section .section-sub { color: rgba(255,255,255,.6); }
+    .plans-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px; align-items: start;
+    }
+    .plan-card {
+      background: var(--dark2); border: 1.5px solid rgba(255,255,255,.08);
+      border-radius: 20px; padding: 32px;
+      transition: transform .2s;
+    }
+    .plan-card:hover { transform: translateY(-4px); }
+    .plan-card.featured {
+      background: var(--y); border-color: var(--y);
+      transform: scale(1.03);
+    }
+    .plan-card.featured:hover { transform: scale(1.03) translateY(-4px); }
+    .plan-badge {
+      display: inline-block; font-size: 11px; font-weight: 700;
+      padding: 4px 12px; border-radius: 20px;
+      background: rgba(255,255,255,.12); color: rgba(255,255,255,.7);
+      text-transform: uppercase; letter-spacing: .8px; margin-bottom: 20px;
+    }
+    .plan-card.featured .plan-badge { background: rgba(0,0,0,.15); color: rgba(0,0,0,.7); }
+    .plan-name { font-size: 22px; font-weight: 800; color: var(--white); margin-bottom: 8px; }
+    .plan-card.featured .plan-name { color: var(--dark); }
+    .plan-price { margin: 20px 0; }
+    .plan-price strong { font-family: 'Syne', sans-serif; font-size: 40px; font-weight: 800; color: var(--white); }
+    .plan-card.featured .plan-price strong { color: var(--dark); }
+    .plan-price span { font-size: 14px; color: rgba(255,255,255,.5); }
+    .plan-card.featured .plan-price span { color: rgba(0,0,0,.5); }
+    .plan-desc { font-size: 14px; color: rgba(255,255,255,.5); margin-bottom: 24px; line-height: 1.6; }
+    .plan-card.featured .plan-desc { color: rgba(0,0,0,.55); }
+    .plan-features { list-style: none; margin-bottom: 28px; }
+    .plan-features li {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 14px; color: rgba(255,255,255,.75);
+      padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,.06);
+    }
+    .plan-card.featured .plan-features li { color: rgba(0,0,0,.7); border-color: rgba(0,0,0,.1); }
+    .plan-features li:last-child { border: none; }
+    .plan-features li::before { content: '✓'; color: var(--g); font-weight: 700; flex-shrink: 0; }
+    .plan-card.featured .plan-features li::before { color: var(--dark); }
+    .plan-cta {
+      display: block; text-align: center; text-decoration: none;
+      padding: 14px; border-radius: 10px;
+      font-weight: 700; font-size: 15px;
+      background: rgba(255,255,255,.08); color: var(--white);
+      border: 1.5px solid rgba(255,255,255,.15);
+      transition: background .2s;
+    }
+    .plan-cta:hover { background: rgba(255,255,255,.15); }
+    .plan-card.featured .plan-cta { background: var(--dark); color: var(--y); border-color: var(--dark); }
+    .plan-card.featured .plan-cta:hover { background: #222; }
+    .plans-note { text-align: center; margin-top: 28px; font-size: 13px; color: rgba(255,255,255,.4); }
+
+    /* ── DEPOIMENTOS ── */
+    .testimonials-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 24px;
+    }
+    .testimonial-card {
+      background: var(--white); border: 1.5px solid var(--gray2);
+      border-radius: 16px; padding: 28px;
+    }
+    .testimonial-stars { color: var(--y); font-size: 16px; margin-bottom: 14px; }
+    .testimonial-text { font-size: 15px; line-height: 1.7; color: var(--t2); margin-bottom: 20px; font-style: italic; }
+    .testimonial-author { display: flex; align-items: center; gap: 12px; }
+    .testimonial-avatar {
+      width: 44px; height: 44px; border-radius: 50%;
+      background: var(--y); display: flex; align-items: center; justify-content: center;
+      font-family: 'Syne', sans-serif; font-weight: 800; font-size: 16px; color: var(--dark);
+      flex-shrink: 0;
+    }
+    .testimonial-author strong { font-size: 14px; font-weight: 700; display: block; }
+    .testimonial-author span { font-size: 12px; color: var(--t3); }
+
+    /* ── FAQ ── */
+    .faq-section { background: var(--gray); }
+    .faq-list { max-width: 720px; margin: 0 auto; }
+    .faq-item {
+      background: var(--white); border-radius: 12px;
+      margin-bottom: 12px; overflow: hidden;
+      border: 1.5px solid var(--gray2);
+    }
+    .faq-q {
+      padding: 20px 24px; cursor: pointer;
+      display: flex; align-items: center; justify-content: space-between;
+      font-weight: 600; font-size: 15px;
+      user-select: none;
+    }
+    .faq-q .faq-icon { font-size: 20px; color: var(--y); transition: transform .3s; flex-shrink: 0; }
+    .faq-a { font-size: 14px; color: var(--t2); line-height: 1.7; max-height: 0; overflow: hidden; transition: max-height .35s ease, padding .3s; }
+    .faq-item.open .faq-a { max-height: 300px; padding: 0 24px 20px; }
+    .faq-item.open .faq-icon { transform: rotate(45deg); }
+
+    /* ── CTA FINAL ── */
+    .cta-section {
+      background: var(--y); text-align: center;
+      padding: 96px 6%;
+    }
+    .cta-section h2 { font-size: clamp(28px, 4vw, 44px); font-weight: 800; color: var(--dark); margin-bottom: 16px; }
+    .cta-section p { font-size: 18px; color: rgba(0,0,0,.6); margin-bottom: 36px; }
+    .btn-dark {
+      background: var(--dark); color: var(--y);
+      padding: 18px 40px; border-radius: 12px;
+      font-weight: 700; font-size: 17px; text-decoration: none;
+      display: inline-flex; align-items: center; gap: 10px;
+      transition: background .2s, transform .15s;
+      box-shadow: 0 8px 30px rgba(0,0,0,.3);
+    }
+    .btn-dark:hover { background: #222; transform: translateY(-2px); }
+
+    /* ── FOOTER ── */
+    footer {
+      background: var(--dark2); padding: 48px 6% 32px;
+      border-top: 1px solid rgba(255,198,0,.1);
+    }
+    .footer-inner {
+      max-width: 1200px; margin: 0 auto;
+      display: flex; justify-content: space-between; align-items: center;
+      flex-wrap: wrap; gap: 20px;
+    }
+    .footer-logo { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 800; color: var(--white); }
+    .footer-logo span { color: var(--y); }
+    .footer-links { display: flex; gap: 24px; flex-wrap: wrap; }
+    .footer-links a { color: rgba(255,255,255,.45); text-decoration: none; font-size: 13px; transition: color .2s; }
+    .footer-links a:hover { color: var(--y); }
+    .footer-bottom {
+      max-width: 1200px; margin: 28px auto 0;
+      padding-top: 24px; border-top: 1px solid rgba(255,255,255,.06);
+      display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;
+    }
+    .footer-bottom p { font-size: 12px; color: rgba(255,255,255,.3); }
+
+    /* ── WHATSAPP FLOAT ── */
+    .wa-float {
+      position: fixed; bottom: 28px; right: 28px; z-index: 200;
+      width: 58px; height: 58px; border-radius: 50%;
+      background: #25D366;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 8px 24px rgba(37,211,102,.4);
+      text-decoration: none;
+      transition: transform .2s, box-shadow .2s;
+    }
+    .wa-float:hover { transform: scale(1.1); box-shadow: 0 12px 32px rgba(37,211,102,.5); }
+    .wa-float svg { width: 30px; height: 30px; fill: white; }
+
+    /* ── ANIMAÇÕES ── */
+    .fade-up { opacity: 0; transform: translateY(30px); transition: opacity .6s ease, transform .6s ease; }
+    .fade-up.visible { opacity: 1; transform: translateY(0); }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 900px) {
+      .hero-inner { grid-template-columns: 1fr; gap: 48px; }
+      .hero-visual { display: none; }
+      .benefits-row { grid-template-columns: 1fr; gap: 40px; }
+      .benefits-row.reverse .benefits-text { order: 1; }
+      .benefits-row.reverse .benefits-visual { order: 2; }
+      .nav-links { display: none; }
+      .nav-cta { display: none; }
+      .nav-hamburger { display: flex; }
+      .plan-card.featured { transform: none; }
+    }
+    @media (max-width: 600px) {
+      section { padding: 64px 5%; }
+      .hero { padding: 90px 5% 64px; }
+      .hero-stats { gap: 20px; }
+      .plans-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a class="nav-logo" href="#">
+    Cahu360<span>.</span>
+    <span class="nav-logo-badge">Process</span>
+  </a>
+  <ul class="nav-links">
+    <li><a href="#funcionalidades">Funcionalidades</a></li>
+    <li><a href="#beneficios">Benefícios</a></li>
+    <li><a href="#planos">Planos</a></li>
+    <li><a href="#depoimentos">Depoimentos</a></li>
+    <li><a href="#faq">FAQ</a></li>
+  </ul>
+  <a class="nav-cta" href="https://wa.me/5581991665457?text=Ol%C3%A1%2C%20quero%20conhecer%20o%20Cahu360%20Process!" target="_blank">Falar com vendas</a>
+  <button class="nav-hamburger" onclick="toggleMenu()" aria-label="Menu">
+    <span></span><span></span><span></span>
+  </button>
+</nav>
+<div class="nav-mobile" id="nav-mobile">
+  <a href="#funcionalidades" onclick="toggleMenu()">Funcionalidades</a>
+  <a href="#beneficios" onclick="toggleMenu()">Benefícios</a>
+  <a href="#planos" onclick="toggleMenu()">Planos</a>
+  <a href="#depoimentos" onclick="toggleMenu()">Depoimentos</a>
+  <a href="#faq" onclick="toggleMenu()">FAQ</a>
+  <a class="nav-cta" href="https://wa.me/5581991665457?text=Ol%C3%A1%2C%20quero%20conhecer%20o%20Cahu360%20Process!" target="_blank">Falar com vendas →</a>
+</div>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-inner">
+    <div class="hero-content">
+      <div class="hero-badge">Sistema para supermercados e varejo</div>
+      <h1>Gestão de loja <em>simples, rápida</em> e sem papel.</h1>
+      <p>Checklists digitais, planos de ação, relatórios automáticos e controle completo da sua operação — tudo no celular, mesmo sem internet.</p>
+      <div class="hero-actions">
+        <a class="btn-primary" href="https://wa.me/5581991665457?text=Ol%C3%A1%2C%20quero%20uma%20demonstra%C3%A7%C3%A3o%20do%20Cahu360%20Process!" target="_blank">
+          💬 Quero uma demonstração
+        </a>
+        <a class="btn-outline" href="#funcionalidades">Ver funcionalidades ↓</a>
+      </div>
+      <div class="hero-stats">
+        <div class="hero-stat">
+          <strong>100%</strong>
+          <span>Funciona offline</span>
+        </div>
+        <div class="hero-stat">
+          <strong>PWA</strong>
+          <span>Sem instalar app</span>
+        </div>
+        <div class="hero-stat">
+          <strong>Real‑time</strong>
+          <span>Firebase na nuvem</span>
+        </div>
+      </div>
+    </div>
+    <div class="hero-visual">
+      <div style="position:relative">
+        <div class="mockup-phone">
+          <div class="mockup-statusbar">
+            <span>09:41</span>
+            <span>●●● 100%</span>
+          </div>
+          <div class="mockup-header">
+            <div>
+              <div class="mockup-header-title">Cahu360 Process</div>
+              <div class="mockup-header-sub">Açougue · Abertura</div>
+            </div>
+          </div>
+          <div class="mockup-body">
+            <div class="mockup-card">
+              <span class="mockup-card-badge ok">✓ Enviado</span>
+              <div class="mockup-card-title">Temperatura da câmara</div>
+              <div class="mockup-card-sub">Verificado às 07:12</div>
+              <div class="mockup-progress"><div class="mockup-progress-fill" style="width:100%"></div></div>
+            </div>
+            <div class="mockup-card warn">
+              <span class="mockup-card-badge warn">Em andamento</span>
+              <div class="mockup-card-title">Higienização do setor</div>
+              <div class="mockup-card-sub">Limite: 09:00</div>
+              <div class="mockup-progress"><div class="mockup-progress-fill" style="width:65%;background:#f59e0b"></div></div>
+            </div>
+            <div class="mockup-card red">
+              <span class="mockup-card-badge red">Pendente</span>
+              <div class="mockup-card-title">Plano de ação #03</div>
+              <div class="mockup-card-sub">Vence em 4h</div>
+              <div class="mockup-progress"><div class="mockup-progress-fill" style="width:30%;background:#e53e3e"></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="mockup-float f1">
+          <div class="dot" style="background:#2d9e62"></div>
+          <span>3 lojas online</span>
+        </div>
+        <div class="mockup-float f2">
+          <div class="dot" style="background:#FFC600"></div>
+          <span>92% conformidade</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PROOF BAR -->
+<div class="proof-bar">
+  <div class="proof-inner">
+    <span class="proof-label">Usado por equipes de:</span>
+    <div class="proof-items">
+      <div class="proof-item">🏪 Supermercados</div>
+      <div class="proof-item">🥩 Açougues</div>
+      <div class="proof-item">🥬 Hortifrutigranjeiros</div>
+      <div class="proof-item">🧁 Padarias</div>
+      <div class="proof-item">🏬 Redes de Varejo</div>
+    </div>
+  </div>
+</div>
+
+<!-- FUNCIONALIDADES -->
+<section id="funcionalidades">
+  <div class="max">
+    <div class="section-header center fade-up">
+      <div class="section-label">Funcionalidades</div>
+      <h2 class="section-title">Tudo que sua operação precisa em um só lugar</h2>
+      <p class="section-sub">Do checklist diário ao plano de ação, do operador de loja à Central de Resultados.</p>
+    </div>
+    <div class="features-grid">
+      <div class="feature-card fade-up">
+        <div class="feature-icon">✅</div>
+        <h3>Checklists Personalizados</h3>
+        <p>Crie checklists por setor, turno e dia da semana. Itens do tipo sim/não, nota, texto e planilha de preços.</p>
+      </div>
+      <div class="feature-card fade-up">
+        <div class="feature-icon">📋</div>
+        <h3>Planos de Ação</h3>
+        <p>Gerados automaticamente ao reprovar um item. Com prazo, responsável, alerta de vencimento e prorrogação com aprovação.</p>
+      </div>
+      <div class="feature-card fade-up">
+        <div class="feature-icon">📊</div>
+        <h3>Relatórios em PDF</h3>
+        <p>Relatório executivo, de não conformidade, ranking de operadores e lojas, pendências por loja e muito mais.</p>
+      </div>
+      <div class="feature-card fade-up">
+        <div class="feature-icon">🏪</div>
+        <h3>Central de Resultados</h3>
+        <p>Admin e gerência visualizam tudo em tempo real — todos os checklists, planos e pendências de todas as lojas.</p>
+      </div>
+      <div class="feature-card fade-up">
+        <div class="feature-icon">📱</div>
+        <h3>Funciona Offline</h3>
+        <p>PWA instalável em qualquer celular sem precisar de app store. Funciona sem internet e sincroniza quando voltar a rede.</p>
+      </div>
+      <div class="feature-card fade-up">
+        <div class="feature-icon">👥</div>
+        <h3>Multi-perfil</h3>
+        <p>Operador, Prevenção, Gerência e Admin com permissões diferentes. Cada um vê e faz apenas o que é de sua responsabilidade.</p>
+      </div>
+      <div class="feature-card fade-up">
+        <div class="feature-icon">⏰</div>
+        <h3>Agenda Obrigatória</h3>
+        <p>Configure quais checklists são obrigatórios em quais dias e até que horário. Alerta automático para o time.</p>
+      </div>
+      <div class="feature-card fade-up">
+        <div class="feature-icon">📈</div>
+        <h3>Dashboard com Gráficos</h3>
+        <p>Conformidade por setor, evolução dos últimos 7 dias, planos abertos e ranking atualizado em tempo real.</p>
+      </div>
+      <div class="feature-card fade-up">
+        <div class="feature-icon">📸</div>
+        <h3>Evidências com Foto</h3>
+        <p>Operador registra foto antes e depois da ação, e ao concluir um plano. Tudo rastreado e disponível para auditoria.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- COMO FUNCIONA -->
+<section class="how-section" id="como-funciona">
+  <div class="max">
+    <div class="section-header center fade-up">
+      <div class="section-label" style="color:rgba(255,198,0,.7)">Como funciona</div>
+      <h2 class="section-title">Simples para o operador.<br/>Poderoso para a gestão.</h2>
+      <p class="section-sub">Em 3 passos sua equipe está operando com controle total.</p>
+    </div>
+    <div class="how-steps">
+      <div class="how-step fade-up">
+        <div class="how-step-num">1</div>
+        <h3>Configure os checklists</h3>
+        <p>A Central cria os checklists por setor, turno e agenda. Define prazos, itens críticos e planilhas de preço.</p>
+      </div>
+      <div class="how-step fade-up">
+        <div class="how-step-num">2</div>
+        <h3>Operador executa no celular</h3>
+        <p>O operador abre o app, responde o checklist e envia. Se reprovar algo, um plano de ação é criado automaticamente.</p>
+      </div>
+      <div class="how-step fade-up">
+        <div class="how-step-num">3</div>
+        <h3>Gestão acompanha em tempo real</h3>
+        <p>Admin e gerência veem tudo na Central: conformidade, pendências, planos abertos e relatórios prontos para imprimir.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- BENEFÍCIOS -->
+<section id="beneficios">
+  <div class="max">
+    <div class="section-header fade-up">
+      <div class="section-label">Benefícios</div>
+      <h2 class="section-title">Por que equipes escolhem o Cahu360?</h2>
+    </div>
+
+    <div class="benefits-row">
+      <div class="benefits-text fade-up">
+        <h3 style="font-size:26px;font-weight:800;margin-bottom:12px">Fim do papel e das planilhas manuais</h3>
+        <p style="color:var(--t2);font-size:16px;line-height:1.7">Nada de formulários impressos, planilhas no Excel ou registros em caderno. Tudo digital, rastreável e acessível de qualquer lugar a qualquer hora.</p>
+        <ul class="benefit-list">
+          <li>Histórico completo de todas as inspeções</li>
+          <li>Sem perda de informação por papel extraviado</li>
+          <li>Auditoria fácil com rastreio por usuário e hora</li>
+          <li>Fotos vinculadas a cada checklist e plano de ação</li>
+        </ul>
+      </div>
+      <div class="benefits-visual fade-up">
+        <div class="stat-grid">
+          <div class="stat-box"><strong>0</strong><span>Papéis por dia</span></div>
+          <div class="stat-box"><strong>100%</strong><span>Rastreável</span></div>
+          <div class="stat-box"><strong>24/7</strong><span>Acesso ao histórico</span></div>
+          <div class="stat-box"><strong>∞</strong><span>Checklists criados</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="benefits-row reverse">
+      <div class="benefits-text fade-up">
+        <h3 style="font-size:26px;font-weight:800;margin-bottom:12px">Problemas resolvidos, não apenas registrados</h3>
+        <p style="color:var(--t2);font-size:16px;line-height:1.7">O sistema não só detecta a não conformidade — ele cria automaticamente o plano de ação, define prazo e bloqueia o checklist se o operador não resolver.</p>
+        <ul class="benefit-list">
+          <li>Plano de ação gerado automaticamente ao reprovar item</li>
+          <li>Prazo configurável por item — de 24h a 14 dias</li>
+          <li>Checklist travado enquanto plano estiver vencido</li>
+          <li>Prorrogação de prazo com aprovação da Central</li>
+        </ul>
+      </div>
+      <div class="benefits-visual fade-up" style="background:#fff3f3;border-color:#fecaca">
+        <div style="text-align:center">
+          <div style="font-size:56px;margin-bottom:12px">⚡</div>
+          <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:#c0392b">Do problema</div>
+          <div style="font-size:32px;margin:8px 0;color:var(--t3)">↓</div>
+          <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:#2d9e62">À solução</div>
+          <div style="margin-top:12px;font-size:13px;color:var(--t3)">Com rastreio completo de quem resolveu e quando</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="benefits-row">
+      <div class="benefits-text fade-up">
+        <h3 style="font-size:26px;font-weight:800;margin-bottom:12px">Visão completa de todas as lojas</h3>
+        <p style="color:var(--t2);font-size:16px;line-height:1.7">A Central de Resultados mostra em tempo real o desempenho de cada loja, quais checklists estão pendentes e qual loja está liderando em conformidade.</p>
+        <ul class="benefit-list">
+          <li>Ranking de lojas por conformidade com pódio</li>
+          <li>Relatório de pendências por loja em qualquer data</li>
+          <li>Filtro por loja, setor, operador e período</li>
+          <li>Exportação em PDF para reuniões e auditorias</li>
+        </ul>
+      </div>
+      <div class="benefits-visual fade-up" style="background:#f0fdf4;border-color:#bbf7d0">
+        <div style="text-align:center;width:100%">
+          <div style="font-size:13px;font-weight:600;color:var(--t3);margin-bottom:16px;text-transform:uppercase;letter-spacing:.5px">Ranking de Lojas</div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;align-items:center;gap:12px;background:#fff;border-radius:10px;padding:10px 14px;border:1.5px solid #bbf7d0">
+              <span style="font-size:20px">🥇</span>
+              <div style="flex:1;text-align:left"><div style="font-weight:700;font-size:14px">Loja Centro</div><div style="font-size:11px;color:var(--t3)">98% conformidade</div></div>
+              <strong style="color:#2d9e62;font-family:'Syne',sans-serif">142pts</strong>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;background:#fff;border-radius:10px;padding:10px 14px;border:1.5px solid #e2e8f0">
+              <span style="font-size:20px">🥈</span>
+              <div style="flex:1;text-align:left"><div style="font-weight:700;font-size:14px">Loja Norte</div><div style="font-size:11px;color:var(--t3)">91% conformidade</div></div>
+              <strong style="color:var(--t2);font-family:'Syne',sans-serif">118pts</strong>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;background:#fff;border-radius:10px;padding:10px 14px;border:1.5px solid #e2e8f0">
+              <span style="font-size:20px">🥉</span>
+              <div style="flex:1;text-align:left"><div style="font-weight:700;font-size:14px">Loja Sul</div><div style="font-size:11px;color:var(--t3)">85% conformidade</div></div>
+              <strong style="color:var(--t2);font-family:'Syne',sans-serif">97pts</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PLANOS -->
+<section class="plans-section" id="planos">
+  <div class="max">
+    <div class="section-header center fade-up">
+      <div class="section-label" style="color:rgba(255,198,0,.7)">Planos e preços</div>
+      <h2 class="section-title">Escolha o plano ideal para o seu negócio</h2>
+      <p class="section-sub">Sem fidelidade. Cancele quando quiser. Suporte incluso em todos os planos.</p>
+    </div>
+    <div class="plans-grid">
+      <!-- Starter -->
+      <div class="plan-card fade-up">
+        <div class="plan-badge">Starter</div>
+        <div class="plan-name">Starter</div>
+        <div class="plan-price">
+          <strong>R$ 149</strong><span>/mês por loja</span>
+        </div>
+        <p class="plan-desc">Ideal para loja única que quer dar o primeiro passo na gestão digital.</p>
+        <ul class="plan-features">
+          <li>1 loja</li>
+          <li>Até 8 operadores</li>
+          <li>Checklists ilimitados</li>
+          <li>Planos de ação</li>
+          <li>Relatórios em PDF</li>
+          <li>Funciona offline</li>
+          <li>Suporte por WhatsApp</li>
+        </ul>
+        <a class="plan-cta" href="https://wa.me/5581991665457?text=Quero%20o%20plano%20Starter%20do%20Cahu360!" target="_blank">Começar com Starter</a>
+      </div>
+
+      <!-- Pro -->
+      <div class="plan-card featured fade-up">
+        <div class="plan-badge">Mais popular</div>
+        <div class="plan-name">Pro</div>
+        <div class="plan-price">
+          <strong>R$ 349</strong><span>/mês</span>
+        </div>
+        <p class="plan-desc">Para redes com até 5 lojas que precisam de controle centralizado e relatórios avançados.</p>
+        <ul class="plan-features">
+          <li>Até 5 lojas</li>
+          <li>Operadores ilimitados</li>
+          <li>Tudo do Starter</li>
+          <li>Central de Resultados completa</li>
+          <li>Ranking de lojas e operadores</li>
+          <li>Relatório de pendências por loja</li>
+          <li>Dashboard com gráficos</li>
+          <li>Suporte prioritário</li>
+        </ul>
+        <a class="plan-cta" href="https://wa.me/5581991665457?text=Quero%20o%20plano%20Pro%20do%20Cahu360!" target="_blank">Começar com Pro</a>
+      </div>
+
+      <!-- Enterprise -->
+      <div class="plan-card fade-up">
+        <div class="plan-badge">Enterprise</div>
+        <div class="plan-name">Enterprise</div>
+        <div class="plan-price">
+          <strong>R$ 699</strong><span>/mês</span>
+        </div>
+        <p class="plan-desc">Para grandes redes com muitas lojas, múltiplas regiões e necessidade de customização.</p>
+        <ul class="plan-features">
+          <li>Lojas ilimitadas</li>
+          <li>Operadores ilimitados</li>
+          <li>Tudo do Pro</li>
+          <li>Relatório corporativo multi-loja</li>
+          <li>Customização de checklists avançada</li>
+          <li>Onboarding personalizado</li>
+          <li>Gerente de conta dedicado</li>
+          <li>SLA garantido</li>
+        </ul>
+        <a class="plan-cta" href="https://wa.me/5581991665457?text=Quero%20o%20plano%20Enterprise%20do%20Cahu360!" target="_blank">Falar com consultor</a>
+      </div>
+    </div>
+    <p class="plans-note">💬 Não tem certeza qual plano escolher? <a href="https://wa.me/5581991665457" target="_blank" style="color:var(--y);text-decoration:none;font-weight:600">Fale com a gente</a> e te ajudamos a decidir.</p>
+  </div>
+</section>
+
+<!-- DEPOIMENTOS -->
+<section id="depoimentos">
+  <div class="max">
+    <div class="section-header center fade-up">
+      <div class="section-label">Depoimentos</div>
+      <h2 class="section-title">O que nossos clientes dizem</h2>
+      <p class="section-sub">Gestores e supervisores que transformaram a operação das suas lojas com o Cahu360.</p>
+    </div>
+    <div class="testimonials-grid">
+      <div class="testimonial-card fade-up">
+        <div class="testimonial-stars">★★★★★</div>
+        <p class="testimonial-text">"Antes usávamos papéis e o checklist sumia ou era preenchido de qualquer jeito. Com o Cahu360, o operador preenche no celular e a gente vê em tempo real. O índice de conformidade subiu de 67% para 94% em dois meses."</p>
+        <div class="testimonial-author">
+          <div class="testimonial-avatar">M</div>
+          <div>
+            <strong>Marcos Oliveira</strong>
+            <span>Supervisor de Operações · Recife/PE</span>
+          </div>
+        </div>
+      </div>
+      <div class="testimonial-card fade-up">
+        <div class="testimonial-stars">★★★★★</div>
+        <p class="testimonial-text">"O que me convenceu foi o plano de ação automático. Antes eu registrava o problema e ficava por aí. Agora o sistema cria o plano, define prazo e trava o checklist se o operador não resolver. Acabou com a enrolação."</p>
+        <div class="testimonial-author">
+          <div class="testimonial-avatar">A</div>
+          <div>
+            <strong>Ana Paula Ferreira</strong>
+            <span>Gerente de Loja · João Pessoa/PB</span>
+          </div>
+        </div>
+      </div>
+      <div class="testimonial-card fade-up">
+        <div class="testimonial-stars">★★★★★</div>
+        <p class="testimonial-text">"Tenho 4 lojas e ficava no celular ligando pra saber se tinha enviado o checklist. Hoje abro a Central e vejo tudo: quem enviou, quem está pendente, planos em aberto. Economizei horas de gestão todo dia."</p>
+        <div class="testimonial-author">
+          <div class="testimonial-avatar">R</div>
+          <div>
+            <strong>Ricardo Santos</strong>
+            <span>Proprietário de rede · Caruaru/PE</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section class="faq-section" id="faq">
+  <div class="max">
+    <div class="section-header center fade-up">
+      <div class="section-label">Perguntas frequentes</div>
+      <h2 class="section-title">Ficou com dúvida?</h2>
+    </div>
+    <div class="faq-list">
+      <div class="faq-item fade-up">
+        <div class="faq-q" onclick="toggleFaq(this)">
+          Precisa instalar algum aplicativo? <span class="faq-icon">+</span>
+        </div>
+        <div class="faq-a">Não. O Cahu360 é um PWA (Progressive Web App). O operador acessa pelo navegador do celular e pode adicionar na tela inicial como qualquer app — sem precisar de App Store ou Play Store.</div>
+      </div>
+      <div class="faq-item fade-up">
+        <div class="faq-q" onclick="toggleFaq(this)">
+          Funciona sem internet? <span class="faq-icon">+</span>
+        </div>
+        <div class="faq-a">Sim. O app funciona completamente offline. Quando o celular voltar a ter conexão, tudo sincroniza automaticamente com o servidor. Ideal para câmaras frias, depósitos e áreas com sinal ruim.</div>
+      </div>
+      <div class="faq-item fade-up">
+        <div class="faq-q" onclick="toggleFaq(this)">
+          Quantos checklists posso criar? <span class="faq-icon">+</span>
+        </div>
+        <div class="faq-a">Ilimitados em todos os planos. Você pode criar quantos checklists quiser, para quantos setores e turnos precisar.</div>
+      </div>
+      <div class="faq-item fade-up">
+        <div class="faq-q" onclick="toggleFaq(this)">
+          Como é feita a implantação? <span class="faq-icon">+</span>
+        </div>
+        <div class="faq-a">Nossa equipe faz o onboarding completo: configura os usuários, cria os primeiros checklists junto com você e treina o time. No plano Enterprise, o processo é personalizado com acompanhamento dedicado.</div>
+      </div>
+      <div class="faq-item fade-up">
+        <div class="faq-q" onclick="toggleFaq(this)">
+          Posso cancelar a qualquer momento? <span class="faq-icon">+</span>
+        </div>
+        <div class="faq-a">Sim. Não há fidelidade ou multa por cancelamento. Você paga mês a mês e pode cancelar quando quiser, com todos os seus dados exportados.</div>
+      </div>
+      <div class="faq-item fade-up">
+        <div class="faq-q" onclick="toggleFaq(this)">
+          Os dados são seguros? <span class="faq-icon">+</span>
+        </div>
+        <div class="faq-a">Sim. Todos os dados são armazenados no Firebase (Google Cloud), com criptografia em trânsito e em repouso. Backups automáticos e alta disponibilidade garantida pela infraestrutura do Google.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA FINAL -->
+<section class="cta-section">
+  <div class="max" style="text-align:center">
+    <h2 class="fade-up">Pronto para transformar a gestão da sua loja?</h2>
+    <p class="fade-up">Fale com nosso time agora e receba uma demonstração gratuita e personalizada para o seu negócio.</p>
+    <a class="btn-dark fade-up" href="https://wa.me/5581991665457?text=Ol%C3%A1%2C%20quero%20uma%20demonstra%C3%A7%C3%A3o%20gratuita%20do%20Cahu360%20Process!" target="_blank">
+      💬 Falar com nosso time agora
+    </a>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-inner">
+    <div class="footer-logo">Cahu360<span>.</span>Process</div>
+    <div class="footer-links">
+      <a href="#funcionalidades">Funcionalidades</a>
+      <a href="#planos">Planos</a>
+      <a href="#depoimentos">Depoimentos</a>
+      <a href="#faq">FAQ</a>
+      <a href="https://wa.me/5581991665457" target="_blank">Contato</a>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <p>© 2025 Cahu360 Process. Todos os direitos reservados.</p>
+    <p>Gestão de processos para supermercados e varejo.</p>
+  </div>
+</footer>
+
+<!-- WHATSAPP FLOAT -->
+<a class="wa-float" href="https://wa.me/5581991665457?text=Ol%C3%A1%2C%20tenho%20interesse%20no%20Cahu360%20Process!" target="_blank" aria-label="WhatsApp">
+  <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
+  </svg>
+</a>
+
+<script>
+  // Menu mobile
+  function toggleMenu() {
+    var m = document.getElementById('nav-mobile');
+    m.classList.toggle('open');
+  }
+
+  // FAQ accordion
+  function toggleFaq(el) {
+    var item = el.parentElement;
+    var isOpen = item.classList.contains('open');
+    document.querySelectorAll('.faq-item').forEach(function(i){ i.classList.remove('open'); });
+    if (!isOpen) item.classList.add('open');
+  }
+
+  // Fade-up ao rolar
+  var observer = new IntersectionObserver(function(entries) {
+    entries.forEach(function(e) {
+      if (e.isIntersecting) { e.target.classList.add('visible'); }
+    });
+  }, { threshold: 0.12 });
+  document.querySelectorAll('.fade-up').forEach(function(el) { observer.observe(el); });
+
+  // Fechar menu ao clicar fora
+  document.addEventListener('click', function(e) {
+    var menu = document.getElementById('nav-mobile');
+    if (menu.classList.contains('open') && !e.target.closest('nav') && !e.target.closest('#nav-mobile')) {
+      menu.classList.remove('open');
+    }
+  });
+</script>
+</body>
+</html>
