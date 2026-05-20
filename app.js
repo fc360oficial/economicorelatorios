@@ -1909,7 +1909,7 @@ function enviarCL(clId, label) {
   // Bloqueia envio se há planos vencidos para a loja do operador
   var vencidos = _planosVencidosDoUsuario();
   if (vencidos.length) {
-    showToast('🚨 Envio bloqueado: '+vencidos.length+' plano(s) de ação vencido(s). Resolva ou solicite prorrogação.', 5000);
+    showToast('🚨 Envio bloqueado: '+vencidos.length+' plano(s) de ação vencido(s). Contate o supervisor ou gerência para liberar.', 5000);
     return;
   }
   var cl = getMyCLs().find(function(c){return c.id===clId;});
@@ -4795,7 +4795,8 @@ function renderAlertaPlanos() {
   var wrap = document.getElementById('plano-alert-banner');
   if (!wrap) return;
   var isAdm = S.role === 'admin' || S.role === 'gerencia' || S.role === 'supervisor';
-  if (isAdm) { wrap.innerHTML = ''; wrap.style.display = 'none'; return; }
+  var isOp = S.role === 'operator' || S.role === 'prevencao';
+  if (isAdm || isOp) { wrap.innerHTML = ''; wrap.style.display = 'none'; return; }
   var uLoja = S.currentUser ? (S.currentUser.loja||'').toLowerCase() : '';
   var agora = Date.now();
   var planos = getPlanos().filter(function(p) {
