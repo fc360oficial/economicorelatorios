@@ -627,7 +627,7 @@ function finalizarLogin(found) {
     var lastPage = sessionStorage.getItem('eco_last_page');
     var pagesForRole = {
       admin:      ['dashboard','checklist','central','relatorios','usuarios','plano'],
-      gerencia:   ['dashboard','checklist','central','plano'],
+      gerencia:   ['dashboard','checklist','relatorios','plano'],
       supervisor: ['dashboard','checklist','relatorios','plano'],
       operator:   ['checklist'],
       prevencao:  ['checklist']
@@ -727,17 +727,17 @@ function setupRole() {
   show('sb-adm-sec', isAdmOrGer);
   // Show/hide gerenciar tab in checklist (supervisor não gerencia checklists)
   var tabGer = document.getElementById('tab-gerenciar');
-  if (tabGer) tabGer.style.display = isAdmOrGer ? '' : 'none';
+  if (tabGer) tabGer.style.display = isAdmin ? '' : 'none';
   // Dashboard só para admin e gerência
   show('nav-dashboard', isAdmOrGer || isSup);
   show('nav-central', isAdmin);
-  show('nav-relat', isAdmin || isSup);
+  show('nav-relat', isAdmin || isSup || r==='gerencia');
   show('nav-users', isAdmin);
   // Alertas visível para admin e gerência (não supervisor)
-  show('nav-alertas', isAdmOrGer);
+  show('nav-alertas', isAdmOrGer || isSup);
   show('nav-plano', isAdmOrGer || isSup);
-  // Inicia verificação periódica de pendências para gestores
-  if (isAdmOrGer) {
+  // Inicia verificação periódica de pendências para gestores e supervisor
+  if (isAdmOrGer || isSup) {
     pedirPermissaoNotificacao();
     // Aguarda carregar os dados antes de checar
     setTimeout(iniciarVerificacaoPeriodica, 3000);
@@ -844,10 +844,9 @@ function nav(page, el) {
 function setCLMode(mode, btn) {
   document.querySelectorAll('#cl-mode-tabs .tab').forEach(function(t){t.classList.remove('on');});
   btn.classList.add('on');
-  var isAdmOrGer = S.role==='admin'||S.role==='gerencia';
   document.getElementById('cl-mode-executar').style.display = mode==='executar' ? 'block' : 'none';
   document.getElementById('cl-mode-gerenciar').style.display = mode==='gerenciar' ? 'block' : 'none';
-  document.getElementById('cl-add-btn').style.display = (mode==='gerenciar' && isAdmOrGer) ? 'block' : 'none';
+  document.getElementById('cl-add-btn').style.display = (mode==='gerenciar' && S.role==='admin') ? 'block' : 'none';
   if (mode==='gerenciar') renderCLGrid();
   // When switching to executar, sync fresh state from Firebase
   if (mode==='executar') {
