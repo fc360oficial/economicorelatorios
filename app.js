@@ -2638,7 +2638,7 @@ var centralTabAtual = 'checklist';
 
 function switchCentralTab(tab, btn) {
   centralTabAtual = tab;
-  ['checklist','inventario','perdas','plano'].forEach(function(t){
+  ['checklist','inventario','perdas','plano','pendencias'].forEach(function(t){
     var el = document.getElementById('central-tab-'+t);
     if (el) el.style.display = t===tab ? 'block' : 'none';
   });
@@ -2646,6 +2646,13 @@ function switchCentralTab(tab, btn) {
   if (btn) btn.classList.add('on');
   if (tab === 'plano') {
     loadPlanosFromFirebase(function(){ renderCentralPlanos(); });
+    return;
+  }
+  if (tab === 'pendencias') {
+    // pré-preenche com hoje
+    var pendDataEl = document.getElementById('pend-data');
+    if (pendDataEl && !pendDataEl.value) pendDataEl.value = new Date().toISOString().slice(0,10);
+    renderPendencias();
     return;
   }
   renderCentralAtual();
@@ -2671,8 +2678,132 @@ function renderCentralAtual() {
   }
 }
 
+function _isoPtBR(isoDate) {
+  // "2026-05-20" → "20/05/2026"
+  var p = isoDate.split('-');
+  return p[2]+'/'+p[1]+'/'+p[0];
+}
+
+function _getPendenciasPorLoja(isoDate) {
+  var datePtBR = _isoPtBR(isoDate);
+  var dt = new Date(isoDate + 'T00:00:00');
+  var diaSemana = dt.getDay();
+
+  // Lojas distintas dos usuários
+  var lojas = [];
+  getUsers().forEach(function(u) {
+    if (u.loja && lojas.indexOf(u.loja) < 0) lojas.push(u.loja);
+  });
+  lojas.sort();
+
+  // Todos os resultados sem filtro de loja do usuário atual
+  var todosResultados = S.resultadosCache || [];
+  var cls = getCustomCLs();
+
+  var resultado = [];
+  lojas.forEach(function(loja) {
+    var pendentes = [];
+    cls.forEach(function(cl) {
+      // Verifica se o checklist é obrigatório nesse dia
+      var dias = cl.diasObrigatorios || [];
+      if (dias.length && !dias.some(function(d){ return Number(d) === diaSemana; })) return;
+      // Verifica se pertence à loja (sem loja = universal)
+      if (cl.loja && cl.loja.toLowerCase() !== loja.toLowerCase()) return;
+
+      // Verifica se foi enviado nessa data por essa loja
+      var enviado = todosResultados.some(function(r) {
+        if (r.resetado) return false;
+        if (r.checklistId !== cl.id) return false;
+        if (!r.dataHora || r.dataHora.indexOf(datePtBR) !== 0) return false;
+        var rLoja = r.loja || '';
+        return rLoja.toLowerCase() === loja.toLowerCase();
+      });
+
+      if (!enviado) pendentes.push({ cl: cl, horaLimite: cl.horaLimite || '—' });
+    });
+    if (pendentes.length) resultado.push({ loja: loja, pendentes: pendentes });
+  });
+  return resultado;
+}
+
+function renderPendencias() {
+  var wrap = document.getElementById('pend-lista');
+  if (!wrap) return;
+  var isoDate = (document.getElementById('pend-data')||{}).value || new Date().toISOString().slice(0,10);
+  var grupos = _getPendenciasPorLoja(isoDate);
+
+  var totalPend = grupos.reduce(function(s,g){ return s + g.pendentes.length; }, 0);
+
+  if (!grupos.length) {
+    wrap.innerHTML = '<div style="text-align:center;padding:40px;color:var(--g);font-size:14px">✅ Nenhuma pendência em '+_isoPtBR(isoDate)+'</div>';
+    return;
+  }
+
+  wrap.innerHTML = '<div style="margin-bottom:12px;font-size:13px;color:var(--r);font-weight:600">⚠️ '+totalPend+' checklist(s) pendente(s) em '+grupos.length+' loja(s) — '+_isoPtBR(isoDate)+'</div>'
+    + grupos.map(function(g) {
+      return '<div style="border:1px solid var(--gray2);border-left:4px solid var(--r);border-radius:10px;padding:14px 16px;margin-bottom:10px;background:#fff">'
+        +'<div style="font-size:14px;font-weight:700;color:var(--t);margin-bottom:10px">🏪 '+g.loja
+        +'<span style="margin-left:8px;font-size:12px;font-weight:400;color:var(--r)">'+g.pendentes.length+' pendente(s)</span></div>'
+        +'<table style="width:100%;border-collapse:collapse;font-size:12px">'
+        +'<thead><tr style="background:#fff3f3"><th style="padding:6px 8px;text-align:left;font-weight:600;color:var(--t2)">Checklist</th><th style="padding:6px 8px;text-align:left;font-weight:600;color:var(--t2)">Setor</th><th style="padding:6px 8px;text-align:left;font-weight:600;color:var(--t2)">Turno</th><th style="padding:6px 8px;text-align:left;font-weight:600;color:var(--t2)">Hora limite</th></tr></thead>'
+        +'<tbody>'
+        + g.pendentes.map(function(p) {
+          return '<tr style="border-bottom:1px solid var(--gray)">'
+            +'<td style="padding:7px 8px;font-weight:500">'+p.cl.nome+'</td>'
+            +'<td style="padding:7px 8px;color:var(--t2)">'+p.cl.setor+'</td>'
+            +'<td style="padding:7px 8px;color:var(--t2)">'+p.cl.turno+'</td>'
+            +'<td style="padding:7px 8px;color:var(--r);font-weight:600">'+p.horaLimite+'</td>'
+            +'</tr>';
+        }).join('')
+        +'</tbody></table></div>';
+    }).join('');
+}
+
+function exportarPDFPendencias() {
+  var logoEl = document.querySelector('.sb-logo img');
+  var logoSrc = logoEl ? logoEl.src : '';
+  var isoDate = (document.getElementById('pend-data')||{}).value || new Date().toISOString().slice(0,10);
+  var dataBR = _isoPtBR(isoDate);
+  var grupos = _getPendenciasPorLoja(isoDate);
+  var totalPend = grupos.reduce(function(s,g){ return s + g.pendentes.length; }, 0);
+
+  var corpo = grupos.length === 0
+    ? '<p style="color:#2d9e62;font-size:14px;text-align:center;padding:40px 0">✅ Nenhuma pendência nesta data.</p>'
+    : grupos.map(function(g) {
+        return '<div style="border:1px solid #ddd;border-left:4px solid #c0392b;border-radius:8px;padding:12px 14px;margin-bottom:12px;page-break-inside:avoid">'
+          +'<div style="font-size:14px;font-weight:700;margin-bottom:8px">🏪 '+g.loja+' — <span style="color:#c0392b">'+g.pendentes.length+' pendente(s)</span></div>'
+          +'<table style="width:100%;border-collapse:collapse;font-size:11px">'
+          +'<thead><tr style="background:#fff3f3"><th style="padding:5px 8px;text-align:left">Checklist</th><th style="padding:5px 8px;text-align:left">Setor</th><th style="padding:5px 8px;text-align:left">Turno</th><th style="padding:5px 8px;text-align:left">Hora limite</th></tr></thead><tbody>'
+          + g.pendentes.map(function(p){
+              return '<tr style="border-bottom:1px solid #eee"><td style="padding:5px 8px;font-weight:500">'+p.cl.nome+'</td><td style="padding:5px 8px;color:#555">'+p.cl.setor+'</td><td style="padding:5px 8px;color:#555">'+p.cl.turno+'</td><td style="padding:5px 8px;color:#c0392b;font-weight:600">'+p.horaLimite+'</td></tr>';
+            }).join('')
+          +'</tbody></table></div>';
+      }).join('');
+
+  var html = '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/><title>Pendências por Loja</title>'
+    +'<style>*{box-sizing:border-box;margin:0;padding:0;font-family:Arial,sans-serif}body{padding:30px;color:#111;font-size:12px}'
+    +'.header{display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid #FFC600;padding-bottom:16px;margin-bottom:24px}'
+    +'.header img{height:60px;object-fit:contain}.header-info{text-align:right}'
+    +'.header-info h1{font-size:18px;font-weight:700}.header-info p{font-size:11px;color:#666;margin-top:4px}'
+    +'.footer{margin-top:30px;padding-top:12px;border-top:1px solid #eee;display:flex;justify-content:space-between;font-size:10px;color:#999}'
+    +'</style></head><body>'
+    +'<div class="header">'
+    +(logoSrc?'<img src="'+logoSrc+'" alt="Logo"/>':'<div style="font-size:20px;font-weight:700">Cahu360</div>')
+    +'<div class="header-info"><h1>Relatório de Pendências por Loja</h1><p>Data: '+dataBR+'</p>'
+    +(totalPend?'<p style="color:#c0392b;font-weight:700">'+totalPend+' checklist(s) não enviado(s)</p>':'')
+    +'</div></div>'
+    +corpo
+    +'<div class="footer"><span>Cahu360 Process © '+new Date().getFullYear()+'</span><span>Gerado em: '+new Date().toLocaleString('pt-BR')+'</span></div>'
+    +'</body></html>';
+
+  var blob = new Blob([html], {type:'text/html'});
+  var url = URL.createObjectURL(blob);
+  var w = window.open(url, '_blank');
+  if (w) w.onload = function(){ w.print(); };
+}
+
 function limparFiltrosPlanos() {
-  ['cf-loja-plano','cf-status-plano'].forEach(function(id){ var e=document.getElementById(id); if(e) e.value=''; });
+  ['cf-loja-plano','cf-status-plano','cf-plano-dt-ini','cf-plano-dt-fim'].forEach(function(id){ var e=document.getElementById(id); if(e) e.value=''; });
   renderCentralPlanos();
 }
 
@@ -2693,8 +2824,12 @@ function renderCentralPlanos() {
 
   var fl = (document.getElementById('cf-loja-plano')||{}).value||'';
   var fst = (document.getElementById('cf-status-plano')||{}).value||'';
+  var fdtIni = (document.getElementById('cf-plano-dt-ini')||{}).value||'';
+  var fdtFim = (document.getElementById('cf-plano-dt-fim')||{}).value||'';
   if (fl) lista = lista.filter(function(p){ return (p.loja||'')=== fl; });
   if (fst) lista = lista.filter(function(p){ return p.status === fst; });
+  if (fdtIni) lista = lista.filter(function(p){ return (p.criadoTimestamp||'').slice(0,10) >= fdtIni; });
+  if (fdtFim) lista = lista.filter(function(p){ return (p.criadoTimestamp||'').slice(0,10) <= fdtFim; });
 
   // Métricas
   var tot = lista.length;
@@ -4502,6 +4637,10 @@ function renderPlanos(filtro) {
   var isAdmin = S.role==='admin'||S.role==='gerencia';
   if (!isAdmin && loja) lista = lista.filter(function(p){ return (p.loja||'').toLowerCase()===loja; });
   if (filtro && filtro!=='todos') lista = lista.filter(function(p){ return p.status===filtro; });
+  var dtIni = (document.getElementById('plano-dt-ini')||{}).value||'';
+  var dtFim = (document.getElementById('plano-dt-fim')||{}).value||'';
+  if (dtIni) lista = lista.filter(function(p){ return (p.criadoTimestamp||'').slice(0,10) >= dtIni; });
+  if (dtFim) lista = lista.filter(function(p){ return (p.criadoTimestamp||'').slice(0,10) <= dtFim; });
   lista = lista.slice().reverse();
   var wrap = document.getElementById('plano-lista');
   if (!wrap) return;
@@ -5396,12 +5535,16 @@ function exportarPDFPlanos() {
   var hoje = new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
   var fl = (document.getElementById('cf-loja-plano')||{}).value||'';
   var fst = (document.getElementById('cf-status-plano')||{}).value||'';
+  var fdtIni = (document.getElementById('cf-plano-dt-ini')||{}).value||'';
+  var fdtFim = (document.getElementById('cf-plano-dt-fim')||{}).value||'';
 
   var lista = getPlanos().slice().sort(function(a,b){
     return (b.criadoTimestamp||b.criadoEm||'') > (a.criadoTimestamp||a.criadoEm||'') ? 1 : -1;
   });
   if (fl) lista = lista.filter(function(p){ return (p.loja||'')=== fl; });
   if (fst) lista = lista.filter(function(p){ return p.status === fst; });
+  if (fdtIni) lista = lista.filter(function(p){ return (p.criadoTimestamp||'').slice(0,10) >= fdtIni; });
+  if (fdtFim) lista = lista.filter(function(p){ return (p.criadoTimestamp||'').slice(0,10) <= fdtFim; });
 
   var tot = lista.length;
   var res = lista.filter(function(p){ return p.status==='resolvido'; }).length;
