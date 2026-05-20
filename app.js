@@ -603,6 +603,7 @@ function finalizarLogin(found) {
 
   function iniciarApp() {
     limparContagensAntigas();
+    limparPlanosAntigos();
     // Load inv and perdas for this user/day
     loadInvFromFirebase(function(){
       loadPerdasFromFirebase(function(){
@@ -830,6 +831,7 @@ function nav(page, el) {
     loadPlanosFromFirebase(function(){
       renderPlanos(planoFiltroAtual||'aberto');
       atualizarBadgePlano();
+      initFotoObrigToggle();
     });
   }
   updateDash();
@@ -1841,6 +1843,22 @@ function salvarQuantidade(clId, itemIdx, codigo, val) {
   updateCLProg(cl);
 }
 
+function limparPlanosAntigos() {
+  var limite = Date.now() - 30 * 24 * 3600000;
+  var lista = getPlanos();
+  var removidos = lista.filter(function(p) {
+    if (p.status !== 'resolvido') return false;
+    if (!p.resolvidoTimestamp) return false;
+    return new Date(p.resolvidoTimestamp).getTime() < limite;
+  });
+  if (!removidos.length) return;
+  var novaLista = lista.filter(function(p) {
+    return !removidos.some(function(r){ return r.id === p.id; });
+  });
+  savePlanos(novaLista);
+  removidos.forEach(function(p){ db.collection('planos').doc(p.id).delete().catch(function(){}); });
+}
+
 function limparContagensAntigas() {
   var hoje = new Date().toISOString().slice(0, 10);
   db.collection('contagens').get().then(function(snap) {
@@ -2653,16 +2671,30 @@ function renderCentralAtual() {
   }
 }
 
+function limparFiltrosPlanos() {
+  ['cf-loja-plano','cf-status-plano'].forEach(function(id){ var e=document.getElementById(id); if(e) e.value=''; });
+  renderCentralPlanos();
+}
+
 function renderCentralPlanos() {
   var lista = getPlanos().slice().sort(function(a, b){
-    return (b.criadoEm || '') > (a.criadoEm || '') ? 1 : -1;
+    return (b.criadoTimestamp||b.criadoEm||'') > (a.criadoTimestamp||a.criadoEm||'') ? 1 : -1;
   });
-  var fs = (document.getElementById('cf-setor')||{}).value||'';
-  var fo = (document.getElementById('cf-op')||{}).value||'';
-  var dtIni = (document.getElementById('cf-dt-ini')||{}).value||'';
-  var dtFim = (document.getElementById('cf-dt-fim')||{}).value||'';
-  if (fo) lista = lista.filter(function(p){ return (p.criadoPor||'').toLowerCase().indexOf(fo.toLowerCase())>=0 || (p.iniciadoPor&&p.iniciadoPor.nome||'').toLowerCase().indexOf(fo.toLowerCase())>=0; });
-  if (fs) lista = lista.filter(function(p){ return (p.setor||'').toLowerCase().indexOf(fs.toLowerCase())>=0; });
+
+  // Popular select de lojas
+  var lojaSelect = document.getElementById('cf-loja-plano');
+  if (lojaSelect) {
+    var lojas = [];
+    getPlanos().forEach(function(p){ if(p.loja && lojas.indexOf(p.loja)<0) lojas.push(p.loja); });
+    lojas.sort();
+    var lojaVal = lojaSelect.value;
+    lojaSelect.innerHTML = '<option value="">Todas</option>' + lojas.map(function(l){ return '<option value="'+l+'"'+(l===lojaVal?' selected':'')+'>'+l+'</option>'; }).join('');
+  }
+
+  var fl = (document.getElementById('cf-loja-plano')||{}).value||'';
+  var fst = (document.getElementById('cf-status-plano')||{}).value||'';
+  if (fl) lista = lista.filter(function(p){ return (p.loja||'')=== fl; });
+  if (fst) lista = lista.filter(function(p){ return p.status === fst; });
 
   // Métricas
   var tot = lista.length;
@@ -3306,6 +3338,7 @@ function initDashCharts() {
   if (S.dashCharts.perdas) { try{S.dashCharts.perdas.destroy();}catch(e){} }
   if (S.dashCharts.setor)  { try{S.dashCharts.setor.destroy();}catch(e){} }
   if (S.dashCharts.check)  { try{S.dashCharts.check.destroy();}catch(e){} }
+  if (S.dashCharts.planoEvol) { try{S.dashCharts.planoEvol.destroy();}catch(e){} }
 
   // Gráfico de perdas desativado temporariamente (módulo oculto)
   // S.dashCharts.perdas = ...
@@ -3333,6 +3366,36 @@ function initDashCharts() {
         y:{min:0,max:100,ticks:{callback:function(v){return v+'%';},font:{size:10}}},
         x:{ticks:{font:{size:10}}}
       }
+    }
+  });
+
+  // Gráfico evolução de planos — últimos 7 dias
+  var dias7 = [];
+  for (var d = 6; d >= 0; d--) {
+    var dt = new Date(); dt.setDate(dt.getDate() - d);
+    dias7.push(dt.toISOString().slice(0, 10));
+  }
+  var diasLabels = dias7.map(function(d){ return d.slice(8,10)+'/'+d.slice(5,7); });
+  var planosTodos = getPlanos();
+  var dadosCriados = dias7.map(function(dia){
+    return planosTodos.filter(function(p){ return (p.criadoTimestamp||'').slice(0,10)===dia; }).length;
+  });
+  var dadosResolvidos = dias7.map(function(dia){
+    return planosTodos.filter(function(p){ return (p.resolvidoTimestamp||'').slice(0,10)===dia; }).length;
+  });
+  S.dashCharts.planoEvol = new Chart(document.getElementById('chartPlanoEvol'),{
+    type:'bar',
+    data:{
+      labels: diasLabels,
+      datasets:[
+        {label:'Criados', data: dadosCriados, backgroundColor:'rgba(220,53,69,.7)', borderRadius:5},
+        {label:'Resolvidos', data: dadosResolvidos, backgroundColor:'rgba(45,158,98,.7)', borderRadius:5}
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom', labels:{font:{size:11}}}},
+      scales:{y:{ticks:{stepSize:1, font:{size:10}}, beginAtZero:true}, x:{ticks:{font:{size:10}}}}
     }
   });
 
@@ -4246,7 +4309,8 @@ function salvarPlano() {
   if (editingPlanoId) {
     list = list.map(function(p){ return p.id===editingPlanoId ? Object.assign({},p,{desc:desc,responsavel:document.getElementById('plano-resp').value.trim(),prazo:document.getElementById('plano-prazo').value,origem:document.getElementById('plano-origem').value.trim(),obs:document.getElementById('plano-obs').value.trim(),prazoHoras:prazoHoras,prazoFim:prazoFim,mensagem:mensagem.trim()}) : p; });
   } else {
-    list.push({id:genId(),desc:desc,responsavel:document.getElementById('plano-resp').value.trim(),prazo:document.getElementById('plano-prazo').value,origem:document.getElementById('plano-origem').value.trim(),obs:document.getElementById('plano-obs').value.trim(),status:'aberto',loja:loja,criadoEm:now,criadoPor:S.currentUser?S.currentUser.nome:'—',prazoHoras:prazoHoras,prazoFim:prazoFim,mensagem:mensagem.trim(),prorrogacoes:[]});
+    var quem = S.currentUser ? S.currentUser.nome : '—';
+    list.push({id:genId(),desc:desc,responsavel:document.getElementById('plano-resp').value.trim(),prazo:document.getElementById('plano-prazo').value,origem:document.getElementById('plano-origem').value.trim(),obs:document.getElementById('plano-obs').value.trim(),status:'aberto',loja:loja,criadoEm:now,criadoTimestamp:new Date().toISOString(),criadoPor:quem,prazoHoras:prazoHoras,prazoFim:prazoFim,mensagem:mensagem.trim(),prorrogacoes:[],historico:[{acao:'criado',para:'aberto',por:quem,em:now}]});
   }
   savePlanos(list);
   fecharModalPlano();
@@ -4312,9 +4376,13 @@ function confirmarStatusPlano() {
   }
 
   var updatedPlano = null;
+  var acaoMap = {andamento:'iniciado', aberto:'reaberto'};
+  var quemStatus = S.currentUser ? S.currentUser.nome : '—';
+  var agora = new Date().toLocaleString('pt-BR');
   var list = getPlanos().map(function(p){
     if (p.id !== id) return p;
-    updatedPlano = Object.assign({}, p, extras, { status: novoStatus });
+    var hist = (p.historico||[]).concat([{acao: acaoMap[novoStatus]||novoStatus, de: p.status, para: novoStatus, por: quemStatus, em: agora}]);
+    updatedPlano = Object.assign({}, p, extras, { status: novoStatus, historico: hist });
     return updatedPlano;
   });
   if (!updatedPlano) return;
@@ -4362,18 +4430,27 @@ function confirmarConclusaoPlano() {
     if (err) { err.textContent = 'Descreva o que foi feito.'; err.style.display = 'block'; }
     return;
   }
+  if (_isFotoObrig() && !_pendingConclusaoFoto) {
+    if (err) { err.textContent = '📷 Foto obrigatória — anexe uma foto da conclusão.'; err.style.display = 'block'; }
+    return;
+  }
   if (err) err.style.display = 'none';
   if (!_pendingStatusPlano) return;
   var id = _pendingStatusPlano.id;
   _pendingStatusPlano = null;
   document.getElementById('modal-conclusao-plano').style.display = 'none';
 
+  var quemConcl = S.currentUser ? S.currentUser.nome : '—';
+  var agoraConcl = new Date().toLocaleString('pt-BR');
   var updatedPlano = null;
   var list = getPlanos().map(function(p){
     if (p.id !== id) return p;
+    var hist = (p.historico||[]).concat([{acao:'resolvido', de: p.status, para:'resolvido', por: quemConcl, em: agoraConcl}]);
     updatedPlano = Object.assign({}, p, {
       status: 'resolvido',
-      resolvidoEm: new Date().toLocaleString('pt-BR'),
+      resolvidoEm: agoraConcl,
+      resolvidoTimestamp: new Date().toISOString(),
+      historico: hist,
       conclusao: { texto: texto.trim(), foto: _pendingConclusaoFoto || '' }
     });
     return updatedPlano;
@@ -4392,8 +4469,28 @@ function confirmarConclusaoPlano() {
   atualizarBadgePlano();
 }
 
+function toggleFotoObrig(chk) {
+  try { localStorage.setItem('cahu360_fotoObrig', chk.checked ? '1' : '0'); } catch(e) {}
+}
+
+function _isFotoObrig() {
+  try { return localStorage.getItem('cahu360_fotoObrig') === '1'; } catch(e) { return false; }
+}
+
+function initFotoObrigToggle() {
+  var isAdmin = S.role === 'admin' || S.role === 'gerencia';
+  var toggle = document.getElementById('foto-obrig-toggle');
+  var chk = document.getElementById('foto-obrig-check');
+  if (toggle) toggle.style.display = isAdmin ? 'flex' : 'none';
+  if (chk) chk.checked = _isFotoObrig();
+}
+
+var _planoPageCount = 1;
+var PLANO_PAGE_SIZE = 10;
+
 function filtrarPlanos(filtro, el) {
   planoFiltroAtual = filtro;
+  _planoPageCount = 1;
   document.querySelectorAll('#plano-filter-tabs .tab').forEach(function(t){ t.classList.remove('on'); });
   if (el) el.classList.add('on');
   renderPlanos(filtro);
@@ -4409,9 +4506,14 @@ function renderPlanos(filtro) {
   var wrap = document.getElementById('plano-lista');
   if (!wrap) return;
   if (!lista.length) { wrap.innerHTML='<div style="text-align:center;padding:32px;color:var(--t3);font-size:13px">Nenhum plano nesta categoria.</div>'; return; }
+  var totalLista = lista.length;
+  lista = lista.slice(0, PLANO_PAGE_SIZE * _planoPageCount);
   var STATUS_COR = {aberto:'var(--r)',andamento:'var(--am)',resolvido:'var(--g)'};
   var STATUS_LABEL = {aberto:'🔴 Aberto',andamento:'🟡 Em Andamento',resolvido:'✅ Resolvido'};
   var PERFIL_LABEL = {operator:'Operador',prevencao:'Prevenção',gerencia:'Gerência',admin:'Administrador'};
+  var verMaisHtml = (totalLista > lista.length)
+    ? '<div style="text-align:center;padding:16px"><button class="btn btn-s btn-sm" onclick="_planoPageCount++;renderPlanos(planoFiltroAtual)">Ver mais ('+(totalLista - lista.length)+' restantes)</button></div>'
+    : '';
   wrap.innerHTML = lista.map(function(p){
     var cor = STATUS_COR[p.status]||'var(--t3)';
     var lojaTag = (p.loja && isAdmin) ? '<span style="background:#fff8e1;color:#b45309;border-radius:5px;padding:1px 8px;font-size:11px;font-weight:600;margin-right:4px">🏪 '+p.loja+'</span>' : '';
@@ -4458,6 +4560,18 @@ function renderPlanos(filtro) {
         +(p.conclusao.foto ? '<div style="margin-top:6px"><img src="'+p.conclusao.foto+'" style="max-width:100%;max-height:160px;border-radius:8px;object-fit:cover;border:1px solid var(--gray2)"/></div>' : '')
         +'</div>';
     }
+    var histHtml = '';
+    if (p.historico && p.historico.length) {
+      var ACAO_LABEL = {criado:'Criado',iniciado:'Iniciado',resolvido:'Resolvido',reaberto:'Reaberto',prorrogacao_pedida:'Prorrogação solicitada',prorrogacao_aprovada:'Prorrogação aprovada',prorrogacao_rejeitada:'Prorrogação rejeitada'};
+      histHtml = '<details style="margin-top:8px"><summary style="font-size:11px;color:var(--t3);cursor:pointer">🕓 Histórico ('+p.historico.length+')</summary>'
+        +'<div style="margin-top:6px;border-left:2px solid var(--gray2);padding-left:10px">'
+        +p.historico.map(function(h){
+          return '<div style="font-size:11px;color:var(--t2);margin-bottom:4px">'
+            +'<span style="font-weight:600;color:var(--t)">'+(ACAO_LABEL[h.acao]||h.acao)+'</span>'
+            +' — '+h.por+' <span style="color:var(--t3)">'+h.em+'</span></div>';
+        }).join('')
+        +'</div></details>';
+    }
     return '<div style="background:#fff;border:1px solid var(--gray2);border-left:4px solid '+cor+';border-radius:12px;padding:16px 18px;box-shadow:var(--sh)">'
       +'<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap">'
       +'<div style="flex:1;min-width:0">'
@@ -4470,8 +4584,7 @@ function renderPlanos(filtro) {
       +'</div>'
       +iniInfo
       +(p.obs?'<div style="font-size:12px;color:var(--t3);margin-top:6px;padding:6px 10px;background:var(--gray);border-radius:6px">'+p.obs+'</div>':'')
-      +prorrogHtml
-      +conclusaoHtml
+      +prorrogHtml+conclusaoHtml+histHtml
       +'</div>'
       +'<div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">'
       +(p.status==='aberto'?'<button class="btn btn-s btn-sm" onclick="atualizarStatusPlano(\''+p.id+'\',\'andamento\')">Iniciar</button>':'')
@@ -4481,7 +4594,7 @@ function renderPlanos(filtro) {
       +'</div>'
       +'<div style="font-size:10px;color:var(--t3);margin-top:8px">Criado em '+p.criadoEm+' por '+p.criadoPor+(p.resolvidoEm?' · Resolvido em '+p.resolvidoEm:'')+'</div>'
       +'</div>';
-  }).join('');
+  }).join('') + verMaisHtml;
 }
 
 function atualizarBadgePlano() {
@@ -4498,7 +4611,9 @@ function criarPlanoAuto(checklistNome, itemTexto, justificativa, setor, prazoHor
   var desc = '['+checklistNome+'] '+itemTexto;
   prazoHoras = prazoHoras || 72;
   var prazoFim = new Date(Date.now() + prazoHoras * 3600000).toISOString();
-  list.push({id:genId(),desc:desc,responsavel:'',prazo:'',origem:checklistNome,obs:justificativa||'',status:'aberto',loja:loja,setor:setor||'',criadoEm:new Date().toLocaleString('pt-BR'),criadoPor:S.currentUser?S.currentUser.nome:'—',prazoHoras:prazoHoras,prazoFim:prazoFim,mensagem:'',prorrogacoes:[]});
+  var quemAuto = S.currentUser ? S.currentUser.nome : '—';
+  var nowAuto = new Date().toLocaleString('pt-BR');
+  list.push({id:genId(),desc:desc,responsavel:'',prazo:'',origem:checklistNome,obs:justificativa||'',status:'aberto',loja:loja,setor:setor||'',criadoEm:nowAuto,criadoTimestamp:new Date().toISOString(),criadoPor:quemAuto,prazoHoras:prazoHoras,prazoFim:prazoFim,mensagem:'',prorrogacoes:[],historico:[{acao:'criado',para:'aberto',por:quemAuto,em:nowAuto}]});
   savePlanos(list);
   atualizarBadgePlano();
 }
@@ -5271,6 +5386,117 @@ function renderPontualidade() {
       +'<td>'+comercial+'</td><td>'+fora+'</td>'
       +'<td><span class="st '+st+'">'+pct+'%</span></td></tr>';
   }).join('');
+}
+
+// ── Relatório: PDF de Planos de Ação ────────────────
+function exportarPDFPlanos() {
+  showToast('Preparando PDF de planos...');
+  var logoEl = document.querySelector('.sb-logo img');
+  var logoSrc = logoEl ? logoEl.src : '';
+  var hoje = new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
+  var fl = (document.getElementById('cf-loja-plano')||{}).value||'';
+  var fst = (document.getElementById('cf-status-plano')||{}).value||'';
+
+  var lista = getPlanos().slice().sort(function(a,b){
+    return (b.criadoTimestamp||b.criadoEm||'') > (a.criadoTimestamp||a.criadoEm||'') ? 1 : -1;
+  });
+  if (fl) lista = lista.filter(function(p){ return (p.loja||'')=== fl; });
+  if (fst) lista = lista.filter(function(p){ return p.status === fst; });
+
+  var tot = lista.length;
+  var res = lista.filter(function(p){ return p.status==='resolvido'; }).length;
+  var and = lista.filter(function(p){ return p.status==='andamento'; }).length;
+  var abe = lista.filter(function(p){ return p.status==='aberto'; }).length;
+  var taxa = tot ? Math.round(res/tot*100) : 0;
+
+  // Tabela por loja
+  var porLoja = {};
+  lista.forEach(function(p){
+    var l = p.loja || '(sem loja)';
+    if (!porLoja[l]) porLoja[l] = {total:0,resolvidos:0,andamento:0,abertos:0};
+    porLoja[l].total++;
+    if (p.status==='resolvido') porLoja[l].resolvidos++;
+    else if (p.status==='andamento') porLoja[l].andamento++;
+    else porLoja[l].abertos++;
+  });
+  var tabelaLoja = Object.keys(porLoja).map(function(l){
+    var d = porLoja[l];
+    var tx = Math.round(d.resolvidos/d.total*100);
+    return '<tr><td>'+l+'</td><td style="text-align:center">'+d.total+'</td>'
+      +'<td style="text-align:center;color:#2d9e62;font-weight:600">'+d.resolvidos+'</td>'
+      +'<td style="text-align:center;color:#d68910">'+d.andamento+'</td>'
+      +'<td style="text-align:center;color:#c0392b">'+d.abertos+'</td>'
+      +'<td style="text-align:center;font-weight:600">'+tx+'%</td></tr>';
+  }).join('');
+
+  var STATUS_COR = {aberto:'#c0392b',andamento:'#d68910',resolvido:'#2d9e62'};
+  var STATUS_LABEL = {aberto:'Aberto',andamento:'Em Andamento',resolvido:'Resolvido'};
+
+  var listHtml = lista.map(function(p){
+    var cor = STATUS_COR[p.status]||'#666';
+    var fotoConcl = (p.conclusao && p.conclusao.foto)
+      ? '<div style="margin-top:8px"><img src="'+p.conclusao.foto+'" style="max-width:100%;max-height:220px;border-radius:8px;object-fit:cover;border:1px solid #ddd"/></div>' : '';
+    var conclusaoHtml = (p.conclusao && p.conclusao.texto)
+      ? '<div style="margin-top:8px;padding:8px 12px;background:#f0fdf4;border-left:3px solid #2d9e62;border-radius:6px;font-size:11px"><strong>✅ Conclusão:</strong> '+p.conclusao.texto+fotoConcl+'</div>' : '';
+    var histHtml = '';
+    if (p.historico && p.historico.length) {
+      var ACAO_LABEL = {criado:'Criado',iniciado:'Iniciado',resolvido:'Resolvido',reaberto:'Reaberto'};
+      histHtml = '<div style="margin-top:8px;font-size:10px;color:#666"><strong>Histórico:</strong> '
+        + p.historico.map(function(h){ return (ACAO_LABEL[h.acao]||h.acao)+' por '+h.por+' ('+h.em+')'; }).join(' → ')
+        +'</div>';
+    }
+    return '<div style="border:1px solid #ddd;border-left:4px solid '+cor+';border-radius:8px;padding:12px 14px;margin-bottom:10px;page-break-inside:avoid">'
+      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">'
+      +'<div style="flex:1"><strong style="font-size:13px">'+p.desc+'</strong>'
+      +(p.loja?'<span style="margin-left:8px;background:#fff8e1;color:#b45309;border-radius:4px;padding:1px 6px;font-size:11px">🏪 '+p.loja+'</span>':'')
+      +'</div>'
+      +'<span style="font-size:11px;font-weight:700;color:'+cor+'">'+STATUS_LABEL[p.status]+'</span>'
+      +'</div>'
+      +(p.origem?'<div style="font-size:11px;color:#888;margin-top:4px">📋 '+p.origem+'</div>':'')
+      +'<div style="font-size:11px;color:#555;margin-top:4px;display:flex;gap:16px;flex-wrap:wrap">'
+      +(p.responsavel?'<span>👤 '+p.responsavel+'</span>':'')
+      +(p.criadoEm?'<span>📅 Criado: '+p.criadoEm+'</span>':'')
+      +(p.resolvidoEm?'<span>✅ Resolvido: '+p.resolvidoEm+'</span>':'')
+      +'</div>'
+      +(p.obs?'<div style="font-size:11px;color:#666;margin-top:6px;padding:5px 8px;background:#f8f8f8;border-radius:4px">'+p.obs+'</div>':'')
+      +conclusaoHtml+histHtml
+      +'</div>';
+  }).join('');
+
+  var html = '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/><title>Planos de Ação</title>'
+    +'<style>*{box-sizing:border-box;margin:0;padding:0;font-family:Arial,sans-serif}body{padding:30px;color:#111;font-size:12px}'
+    +'.header{display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid #FFC600;padding-bottom:16px;margin-bottom:24px}'
+    +'.header img{height:60px;object-fit:contain}.header-info{text-align:right}'
+    +'.header-info h1{font-size:18px;font-weight:700}.header-info p{font-size:11px;color:#666;margin-top:4px}'
+    +'.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}'
+    +'.mc{background:#f8f9fa;border-radius:8px;padding:12px}.lbl{font-size:9px;text-transform:uppercase;letter-spacing:.6px;color:#888;margin-bottom:4px}'
+    +'.val{font-size:22px;font-weight:700}table{width:100%;border-collapse:collapse;margin-bottom:20px;font-size:11px}'
+    +'th{background:#FFC600;padding:8px;text-align:left;font-size:10px;text-transform:uppercase}td{padding:7px 8px;border-bottom:1px solid #eee}'
+    +'.footer{margin-top:30px;padding-top:12px;border-top:1px solid #eee;display:flex;justify-content:space-between;font-size:10px;color:#999}'
+    +'</style></head><body>'
+    +'<div class="header">'
+    +(logoSrc?'<img src="'+logoSrc+'" alt="Logo"/>':'<div style="font-size:20px;font-weight:700">Cahu360</div>')
+    +'<div class="header-info"><h1>Relatório de Planos de Ação</h1><p>'+hoje+'</p>'
+    +(fl?'<p>Loja: '+fl+'</p>':'')+(fst?'<p>Status: '+STATUS_LABEL[fst]+'</p>':'')
+    +'</div></div>'
+    +'<div class="g4">'
+    +'<div class="mc"><div class="lbl">Total</div><div class="val">'+tot+'</div></div>'
+    +'<div class="mc"><div class="lbl">Resolvidos</div><div class="val" style="color:#2d9e62">'+res+'</div></div>'
+    +'<div class="mc"><div class="lbl">Em Andamento</div><div class="val" style="color:#d68910">'+and+'</div></div>'
+    +'<div class="mc"><div class="lbl">Taxa Resolução</div><div class="val">'+taxa+'%</div></div>'
+    +'</div>'
+    +(Object.keys(porLoja).length > 1
+      ? '<table><thead><tr><th>Loja</th><th style="text-align:center">Total</th><th style="text-align:center">Resolvidos</th><th style="text-align:center">Andamento</th><th style="text-align:center">Abertos</th><th style="text-align:center">Taxa</th></tr></thead><tbody>'+tabelaLoja+'</tbody></table>'
+      : '')
+    +'<div style="margin-bottom:12px;font-size:11px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.5px">Detalhamento ('+tot+' planos)</div>'
+    +listHtml
+    +'<div class="footer"><span>Cahu360 Process © '+new Date().getFullYear()+'</span><span>Gerado em: '+new Date().toLocaleString('pt-BR')+'</span></div>'
+    +'</body></html>';
+
+  var blob = new Blob([html], {type:'text/html'});
+  var url = URL.createObjectURL(blob);
+  var w = window.open(url, '_blank');
+  if (w) w.onload = function(){ w.print(); };
 }
 
 // ── Relatório 6: Exportar PDF Consolidado ────────────────
