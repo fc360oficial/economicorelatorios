@@ -18,19 +18,34 @@ db.enablePersistence({synchronizeTabs: true}).catch(function(err){
 });
 
 // ── PWA: registrar Service Worker ──
+var _swRefreshing = false;
+function _swBanner() {
+  if (document.getElementById('sw-banner')) return;
+  var b = document.createElement('div');
+  b.id = 'sw-banner';
+  b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#FFC600;color:#111;text-align:center;padding:11px 16px;font-size:14px;font-weight:700;font-family:"DM Sans",sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.2)';
+  b.textContent = '🔄 Nova versão disponível — atualizando...';
+  document.body.appendChild(b);
+}
+
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js').catch(function(err){
+  // Guarda o controller atual antes de registrar (null = primeira instalação)
+  var _prevController = navigator.serviceWorker.controller;
+
+  navigator.serviceWorker.register('./sw.js').then(function(reg) {
+    // Força verificação de nova versão ignorando HTTP cache do SW.js
+    reg.update();
+  }).catch(function(err) {
     console.warn('SW registro falhou:', err);
   });
 
-  // Quando o SW detectar nova versão, mostra banner e recarrega automaticamente
-  navigator.serviceWorker.addEventListener('message', function(event) {
-    if (!event.data || event.data.type !== 'SW_UPDATED') return;
-    var banner = document.createElement('div');
-    banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#FFC600;color:#111;text-align:center;padding:11px 16px;font-size:14px;font-weight:700;font-family:"DM Sans",sans-serif;letter-spacing:.2px;box-shadow:0 2px 8px rgba(0,0,0,.18)';
-    banner.textContent = '🔄 Nova versão disponível — atualizando...';
-    document.body.appendChild(banner);
-    setTimeout(function() { window.location.reload(); }, 1800);
+  // controllerchange: novo SW assumiu o controle (mais confiável que postMessage)
+  navigator.serviceWorker.addEventListener('controllerchange', function() {
+    if (!_prevController) return; // primeira instalação — não recarregar
+    if (_swRefreshing) return;
+    _swRefreshing = true;
+    _swBanner();
+    setTimeout(function() { window.location.reload(); }, 1500);
   });
 }
 
