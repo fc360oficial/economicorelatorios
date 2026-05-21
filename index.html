@@ -78,11 +78,16 @@
       </div>
 
       <!-- Módulos futuros (ocultos até ativação) -->
-      <div class="sb-item" onclick="nav('inventario',this)" style="display:none">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7H4a2 2 0 00-2 2v6a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>Inventário
-      </div>
       <div class="sb-item" onclick="nav('perdas',this)" style="display:none">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Lançar Perdas
+      </div>
+
+      <div class="sb-sec" id="sb-inv-sec" style="display:none">FC360 Inventário</div>
+      <div class="sb-item" id="nav-inv-gestao" style="display:none" onclick="nav('inv',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/></svg>Gestão
+      </div>
+      <div class="sb-item" id="nav-inv-coleta" style="display:none" onclick="nav('inv-coleta',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h1v6H9M13 9l3 3-3 3"/></svg>Minha Coleta
       </div>
 
       <div class="sb-sec" id="sb-adm-sec" style="display:none">Administração</div>
@@ -854,6 +859,104 @@
         <div id="plano-lista" style="margin-top:14px;display:flex;flex-direction:column;gap:10px"></div>
       </div>
 
+      <!-- === FC360 INVENTÁRIO — GESTÃO (admin/gerencia) === -->
+      <div id="panel-inv" class="panel">
+        <!-- Lista de inventários -->
+        <div id="inv-lista-wrap">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+            <div>
+              <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:700">FC360 Inventário</div>
+              <div style="font-size:13px;color:var(--t3);margin-top:2px">Gestão de inventários da loja</div>
+            </div>
+            <button class="btn btn-p" onclick="abrirModalNovoInv()">+ Novo Inventário</button>
+          </div>
+          <div id="inv-lista"></div>
+        </div>
+
+        <!-- Detalhe do inventário -->
+        <div id="inv-detalhe-wrap" style="display:none">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;flex-wrap:wrap">
+            <button class="btn btn-s btn-sm" onclick="voltarInvLista()">← Voltar</button>
+            <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:700;flex:1" id="inv-detalhe-nome"></div>
+            <span id="inv-detalhe-status" style="padding:4px 14px;border-radius:20px;font-size:11px;font-weight:700;background:#d1f0e0;color:#1a5c34">ABERTO</span>
+          </div>
+          <div class="tabs" id="inv-detalhe-tabs">
+            <div class="tab on" onclick="switchInvTab('enderecos',this)">Endereços</div>
+            <div class="tab" onclick="switchInvTab('bipagens',this)">Bipagens</div>
+            <div class="tab" onclick="switchInvTab('exportar',this)">Exportar</div>
+          </div>
+
+          <!-- Tab Endereços -->
+          <div id="inv-tab-enderecos" style="margin-top:14px">
+            <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+              <button class="btn btn-s btn-sm" onclick="abrirImportCat()">📥 Importar Catálogo TXT</button>
+              <input type="file" id="inv-import-file" accept=".txt,.csv" style="display:none" onchange="importarCatalogo(event)"/>
+            </div>
+            <div class="card">
+              <table><thead><tr><th>Endereço</th><th>Coletor Atribuído</th><th>Bipagens</th></tr></thead>
+              <tbody id="inv-end-tbody"></tbody></table>
+            </div>
+            <div style="margin-top:14px;display:flex;justify-content:flex-end">
+              <button class="btn btn-sm" style="color:var(--r);border:1.5px solid var(--r);background:#fff;padding:7px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit" onclick="encerrarInventario(_invAtivo&&_invAtivo.id)">Encerrar Inventário</button>
+            </div>
+          </div>
+
+          <!-- Tab Bipagens -->
+          <div id="inv-tab-bipagens" style="display:none;margin-top:14px">
+            <div style="margin-bottom:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <label style="font-size:12px;font-weight:600;color:var(--t2)">Filtrar:</label>
+              <select id="inv-bip-filter" onchange="renderInvBipagens(this.value||null)" style="padding:7px 10px;border:1.5px solid var(--gray2);border-radius:8px;font-size:13px;font-family:inherit"></select>
+              <button class="btn btn-s btn-sm" onclick="renderInvBipagens(null);document.getElementById('inv-bip-filter').value=''">Todos</button>
+            </div>
+            <div class="card">
+              <table><thead><tr><th>Seq</th><th>EAN</th><th>Descrição</th><th>Qtd</th><th>Coletor</th><th>End. / Hora</th></tr></thead>
+              <tbody id="inv-bip-tbody"></tbody></table>
+            </div>
+          </div>
+
+          <!-- Tab Exportar -->
+          <div id="inv-tab-exportar" style="display:none;margin-top:14px">
+            <div class="card" style="max-width:520px">
+              <div style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;margin-bottom:6px">Exportar para ERP</div>
+              <p style="font-size:13px;color:var(--t2);margin-bottom:14px">Gera arquivo <code>.txt</code> com todas as bipagens em formato padrão para importação no ERP.</p>
+              <div style="background:var(--gray);border-radius:8px;padding:12px;font-family:monospace;font-size:11px;color:var(--t2);margin-bottom:16px;line-height:1.7">
+                ENDERECO;EAN;QUANTIDADE;SEQUENCIAL;DESCRICAO;UNIDADE<br>
+                01;7891234567890;5;1;FEIJAO CARIOCA 1KG;UN<br>
+                01;7891234567891;3;2;ARROZ TIPO 1 5KG;SC<br>
+                <span style="color:var(--t3)">...</span>
+              </div>
+              <button class="btn btn-p" onclick="exportarTxtErp()">⬇ Baixar TXT para ERP</button>
+            </div>
+          </div>
+        </div>
+      </div><!-- /panel-inv -->
+
+      <!-- === FC360 INVENTÁRIO — MINHA COLETA === -->
+      <div id="panel-inv-coleta" class="panel">
+        <div id="inv-coleta-wrap"></div>
+      </div><!-- /panel-inv-coleta -->
+
+    </div>
+  </div>
+</div>
+
+<!-- MODAL NOVO INVENTÁRIO -->
+<div class="modal-bg" id="modal-inv">
+  <div class="modal-box" style="width:480px">
+    <div class="modal-title">Novo Inventário</div>
+    <div class="fg" style="margin-bottom:14px">
+      <label>Nome do inventário</label>
+      <input id="ninv-nome" type="text" placeholder="Ex: Inventário Geral — Maio 2026" onkeydown="if(event.key==='Enter')document.getElementById('ninv-enderecos').focus()"/>
+    </div>
+    <div class="fg" style="margin-bottom:4px">
+      <label>Endereços <span style="font-weight:400;color:var(--t3);font-size:11px">(um por linha)</span></label>
+      <textarea id="ninv-enderecos" rows="9" placeholder="01&#10;02&#10;03&#10;A-01&#10;A-02&#10;B-01&#10;..." style="width:100%;padding:10px 12px;border:1.5px solid var(--gray2);border-radius:9px;font-size:13px;font-family:monospace;resize:vertical;background:#fff;color:var(--t)"></textarea>
+    </div>
+    <div style="font-size:11px;color:var(--t3);margin-bottom:14px">💡 Cole a lista de endereços do seu ERP, um por linha. Ex: 001, 002, A-01, Corredor-03</div>
+    <div class="modal-err" id="ninv-err"></div>
+    <div class="btn-row">
+      <button class="btn btn-p" onclick="criarInventario()">Criar Inventário</button>
+      <button class="btn btn-s" onclick="fecharModalInv()">Cancelar</button>
     </div>
   </div>
 </div>

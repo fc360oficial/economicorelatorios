@@ -513,7 +513,8 @@ var S = {
   relCharts: {},
   customCLsCache: [],
   resultadosCache: [],
-  usersCache: []
+  usersCache: [],
+  invsCache: []
 };
 
 // ===========================================
@@ -612,6 +613,10 @@ function finalizarLogin(found) {
         updateDash();
       });
     });
+    // FC360 Inventário: carrega e atualiza nav de coleta para usuários atribuídos
+    loadInventariosFromFirebase(function(){
+      atualizarNavColeta();
+    });
     if (!isOpOrPrev2) initDashCharts();
     // buildCLTabs só após planilhas diárias carregadas para que _planilhaTemplates esteja populado
     loadPlanosFromFirebase(function() {
@@ -626,11 +631,11 @@ function finalizarLogin(found) {
     document.getElementById('app').style.opacity='1';
     var lastPage = sessionStorage.getItem('eco_last_page');
     var pagesForRole = {
-      admin:      ['dashboard','checklist','central','relatorios','usuarios','plano'],
-      gerencia:   ['dashboard','checklist','relatorios','plano'],
-      supervisor: ['dashboard','checklist','relatorios','plano'],
-      operator:   ['checklist'],
-      prevencao:  ['checklist']
+      admin:      ['dashboard','checklist','central','relatorios','usuarios','plano','inv','inv-coleta'],
+      gerencia:   ['dashboard','checklist','relatorios','plano','inv-coleta'],
+      supervisor: ['dashboard','checklist','relatorios','plano','inv-coleta'],
+      operator:   ['checklist','inv-coleta'],
+      prevencao:  ['checklist','inv-coleta']
     };
     var allowed = pagesForRole[S.role] || ['checklist'];
     if (lastPage && allowed.indexOf(lastPage) >= 0) {
@@ -736,6 +741,10 @@ function setupRole() {
   // Alertas visível para admin e gerência (não supervisor)
   show('nav-alertas', isAdmOrGer || isSup);
   show('nav-plano', isAdmOrGer || isSup);
+  // FC360 Inventário — só admin por enquanto
+  show('sb-inv-sec', isAdmin);
+  show('nav-inv-gestao', isAdmin);
+  show('nav-inv-coleta', false); // Atualizado dinamicamente após carregar inventários
   // Inicia verificação periódica de pendências para gestores e supervisor
   if (isAdmOrGer || isSup) {
     pedirPermissaoNotificacao();
@@ -794,6 +803,7 @@ var PAGE_TITLES = {
   perdas:'Lançar Perdas',central:'Central de Resultados',
   relatorios:'Relatórios',usuarios:'Cadastro de Usuários',
   plano:'Plano de Ação',
+  inv:'FC360 Inventário','inv-coleta':'Minha Coleta',
 };
 
 function nav(page, el) {
@@ -833,6 +843,16 @@ function nav(page, el) {
       renderPlanos(planoFiltroAtual||'aberto');
       atualizarBadgePlano();
       initFotoObrigToggle();
+    });
+  }
+  if (page==='inv') {
+    loadInventariosFromFirebase(function(){
+      renderInvList();
+    });
+  }
+  if (page==='inv-coleta') {
+    loadInventariosFromFirebase(function(){
+      renderColeta();
     });
   }
   updateDash();
@@ -5899,6 +5919,554 @@ function renderPerdasChecklist() {
     var tbody=document.getElementById('corp-perdasxcl-tbody');
     if (tbody) tbody.innerHTML='<tr class="erow"><td colspan="4">Erro ao acessar Firebase</td></tr>';
   }
+}
+
+// =============================================================
+// FC360 INVENTÁRIO — FASE 1
+// =============================================================
+
+var _invAtivo = null;        // inventário em detalhe (admin)
+var _invColetaAtual = null;  // inventário e endereço do coletor
+var _catCache = {};          // { invId: { ean: {desc,un} } }
+var _nextSeq = 1;
+var _bipRegistrando = false;
+
+// ── Firestore: carregar inventários da loja ──────────────────────
+function loadInventariosFromFirebase(cb) {
+  var loja = (S.currentUser && S.currentUser.loja) ? S.currentUser.loja.toLowerCase() : '';
+  var q = db.collection('inv_inventarios').orderBy('criadoEm','desc');
+  q.get().then(function(snap) {
+    var list = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
+    if (loja) list = list.filter(function(i){ return (i.loja||'').toLowerCase()===loja; });
+    S.invsCache = list;
+    if (cb) cb();
+  }).catch(function(){ S.invsCache=[]; if (cb) cb(); });
+}
+
+function loadBipagensByInv(invId, cb) {
+  db.collection('inv_bipagens')
+    .where('invId','==',invId)
+    .orderBy('seq','asc')
+    .get().then(function(snap){
+      var list = snap.docs.map(function(d){ return d.data(); });
+      if (cb) cb(list);
+    }).catch(function(){ if (cb) cb([]); });
+}
+
+function loadCatalogoByInv(invId, cb) {
+  if (_catCache[invId]) { if (cb) cb(_catCache[invId]); return; }
+  db.collection('inv_catalogo')
+    .where('invId','==',invId)
+    .get().then(function(snap){
+      var map = {};
+      snap.docs.forEach(function(d){
+        var p = d.data();
+        map[p.ean] = { desc: p.desc||'', un: p.un||'' };
+      });
+      _catCache[invId] = map;
+      if (cb) cb(map);
+    }).catch(function(){ _catCache[invId]={}; if (cb) cb({}); });
+}
+
+// ── Coleta: atualizar visibilidade do nav ────────────────────────
+function atualizarNavColeta() {
+  var colItem = document.getElementById('nav-inv-coleta');
+  if (!colItem) return;
+  if (S.role !== 'admin') {
+    // Outros usuários: mostrar "Minha Coleta" se estiverem atribuídos
+    var atrib = _encontrarAtribuicao();
+    colItem.style.display = atrib ? 'flex' : 'none';
+    var sec = document.getElementById('sb-inv-sec');
+    if (sec) sec.style.display = atrib ? 'block' : 'none';
+  } else {
+    // Admin não usa coleta como coletor
+    colItem.style.display = 'none';
+  }
+}
+
+function _encontrarAtribuicao() {
+  var uid = S.currentUser ? S.currentUser.id : null;
+  if (!uid) return null;
+  var invs = S.invsCache || [];
+  for (var i=0; i<invs.length; i++) {
+    var inv = invs[i];
+    if (inv.status !== 'aberto') continue;
+    var atrib = inv.atribuicoes || {};
+    var ends = Object.keys(atrib).filter(function(e){ return atrib[e].userId === uid; });
+    if (ends.length) return { inv: inv, enderecos: ends };
+  }
+  return null;
+}
+
+// ── Admin: modal novo inventário ─────────────────────────────────
+function abrirModalNovoInv() {
+  document.getElementById('ninv-nome').value = '';
+  document.getElementById('ninv-enderecos').value = '';
+  document.getElementById('ninv-err').style.display = 'none';
+  document.getElementById('modal-inv').style.display = 'flex';
+  setTimeout(function(){ document.getElementById('ninv-nome').focus(); }, 100);
+}
+
+function fecharModalInv() {
+  document.getElementById('modal-inv').style.display = 'none';
+}
+
+function criarInventario() {
+  var nome = document.getElementById('ninv-nome').value.trim();
+  var endStr = document.getElementById('ninv-enderecos').value.trim();
+  var errEl = document.getElementById('ninv-err');
+  errEl.style.display = 'none';
+  if (!nome) { errEl.textContent='Informe o nome do inventário.'; errEl.style.display='block'; return; }
+  if (!endStr) { errEl.textContent='Informe pelo menos um endereço.'; errEl.style.display='block'; return; }
+
+  var enderecos = endStr.split('\n').map(function(e){ return e.trim(); }).filter(function(e){ return e.length>0; });
+  if (!enderecos.length) { errEl.textContent='Nenhum endereço válido.'; errEl.style.display='block'; return; }
+
+  var loja = (S.currentUser && S.currentUser.loja) ? S.currentUser.loja : '';
+  db.collection('inv_inventarios').add({
+    nome: nome,
+    loja: loja,
+    status: 'aberto',
+    criadoEm: firebase.firestore.FieldValue.serverTimestamp(),
+    criadoPor: S.currentUser ? S.currentUser.id : '',
+    enderecos: enderecos,
+    atribuicoes: {},
+    totalBipagens: 0
+  }).then(function(){
+    fecharModalInv();
+    loadInventariosFromFirebase(function(){ renderInvList(); });
+  }).catch(function(e){ errEl.textContent='Erro: '+(e.message||'Tente novamente.'); errEl.style.display='block'; });
+}
+
+// ── Admin: lista de inventários ───────────────────────────────────
+function renderInvList() {
+  var wrap = document.getElementById('inv-lista');
+  if (!wrap) return;
+  var invs = S.invsCache || [];
+  if (!invs.length) {
+    wrap.innerHTML = '<div style="text-align:center;padding:50px 20px;color:var(--t3)"><div style="font-size:40px;margin-bottom:12px">📦</div><div style="font-size:15px;font-weight:600;margin-bottom:6px">Nenhum inventário cadastrado</div><div style="font-size:13px">Clique em <strong>+ Novo Inventário</strong> para começar.</div></div>';
+    return;
+  }
+  wrap.innerHTML = invs.map(function(inv){
+    var endCount = (inv.enderecos||[]).length;
+    var atribCount = Object.keys(inv.atribuicoes||{}).length;
+    var isAberto = inv.status==='aberto';
+    var statusBg = isAberto ? '#d1f0e0' : '#f0f0f0';
+    var statusClr = isAberto ? '#1a5c34' : '#666';
+    var dataStr = inv.criadoEm ? new Date(inv.criadoEm.seconds*1000).toLocaleDateString('pt-BR') : '--';
+    return '<div class="card" style="margin-bottom:12px">'+
+      '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">'+
+        '<div>'+
+          '<div style="font-family:\'Syne\',sans-serif;font-size:15px;font-weight:700">'+inv.nome+'</div>'+
+          '<div style="font-size:12px;color:var(--t3);margin-top:3px">Criado '+dataStr+' &nbsp;·&nbsp; '+endCount+' endereços &nbsp;·&nbsp; '+atribCount+'/'+endCount+' atribuídos &nbsp;·&nbsp; '+(inv.totalBipagens||0)+' bipagens</div>'+
+        '</div>'+
+        '<span style="white-space:nowrap;padding:4px 14px;border-radius:20px;font-size:11px;font-weight:700;background:'+statusBg+';color:'+statusClr+'">'+inv.status.toUpperCase()+'</span>'+
+      '</div>'+
+      '<div style="display:flex;gap:8px;margin-top:12px">'+
+        '<button class="btn btn-p btn-sm" onclick="abrirDetalheInv(\''+inv.id+'\')">Ver Detalhes</button>'+
+        (isAberto ? '<button class="btn btn-sm" style="color:var(--r);border:1.5px solid var(--r);background:#fff;padding:6px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit" onclick="encerrarInventario(\''+inv.id+'\')">Encerrar</button>' : '')+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+// ── Admin: detalhe ────────────────────────────────────────────────
+function abrirDetalheInv(invId) {
+  _invAtivo = (S.invsCache||[]).find(function(i){ return i.id===invId; }) || null;
+  if (!_invAtivo) return;
+  document.getElementById('inv-lista-wrap').style.display = 'none';
+  document.getElementById('inv-detalhe-wrap').style.display = 'block';
+  document.getElementById('inv-detalhe-nome').textContent = _invAtivo.nome;
+  var statusEl = document.getElementById('inv-detalhe-status');
+  var isAberto = _invAtivo.status==='aberto';
+  statusEl.textContent = isAberto ? 'ABERTO' : 'ENCERRADO';
+  statusEl.style.background = isAberto ? '#d1f0e0' : '#f0f0f0';
+  statusEl.style.color = isAberto ? '#1a5c34' : '#666';
+  // Reset bipagens filter
+  var filter = document.getElementById('inv-bip-filter');
+  if (filter) { filter.innerHTML=''; filter.removeAttribute('data-built'); }
+  switchInvTab('enderecos', document.querySelector('#inv-detalhe-tabs .tab'));
+}
+
+function voltarInvLista() {
+  _invAtivo = null;
+  document.getElementById('inv-lista-wrap').style.display = 'block';
+  document.getElementById('inv-detalhe-wrap').style.display = 'none';
+}
+
+function switchInvTab(tab, btn) {
+  document.querySelectorAll('#inv-detalhe-tabs .tab').forEach(function(t){ t.classList.remove('on'); });
+  if (btn) btn.classList.add('on');
+  ['enderecos','bipagens','exportar'].forEach(function(t){
+    var el = document.getElementById('inv-tab-'+t);
+    if (el) el.style.display = t===tab ? 'block' : 'none';
+  });
+  if (tab==='enderecos') renderInvEnderecos();
+  if (tab==='bipagens') { var filter=document.getElementById('inv-bip-filter'); renderInvBipagens(filter&&filter.value||null); }
+  if (tab==='exportar') {} // static content
+}
+
+// ── Endereços tab ─────────────────────────────────────────────────
+function renderInvEnderecos() {
+  if (!_invAtivo) return;
+  var users = (S.usersCache||[]).filter(function(u){ return u.ativo!==false; });
+  var enderecos = _invAtivo.enderecos || [];
+  var atrib = _invAtivo.atribuicoes || {};
+  var tbody = document.getElementById('inv-end-tbody');
+  if (!tbody) return;
+
+  tbody.innerHTML = enderecos.map(function(end){
+    var aUser = atrib[end] || {};
+    var safeEnd = end.replace(/'/g, "\\'");
+    var opts = '<option value="">— sem coletor —</option>' +
+      users.map(function(u){
+        return '<option value="'+u.id+'"'+(aUser.userId===u.id?' selected':'')+'>'+u.nome+'</option>';
+      }).join('');
+    return '<tr>'+
+      '<td><strong>'+end+'</strong></td>'+
+      '<td><select data-end="'+safeEnd+'" onchange="atribuirColetor(\''+_invAtivo.id+'\',\''+safeEnd+'\',this)" style="padding:5px 8px;border:1.5px solid var(--gray2);border-radius:7px;font-size:13px;font-family:inherit;min-width:160px">'+opts+'</select></td>'+
+      '<td id="inv-ec-'+end.replace(/[^a-z0-9]/gi,'_')+'">—</td>'+
+    '</tr>';
+  }).join('');
+
+  // Carregar contagens
+  loadBipagensByInv(_invAtivo.id, function(bips){
+    var cnt = {};
+    bips.forEach(function(b){ cnt[b.endereco]=(cnt[b.endereco]||0)+1; });
+    enderecos.forEach(function(end){
+      var el = document.getElementById('inv-ec-'+end.replace(/[^a-z0-9]/gi,'_'));
+      if (el) el.textContent = cnt[end]||0;
+    });
+  });
+}
+
+function atribuirColetor(invId, endereco, selectEl) {
+  var userId = selectEl.value;
+  var user = userId ? (S.usersCache||[]).find(function(u){ return u.id===userId; }) : null;
+  var update = {};
+  if (user) {
+    update['atribuicoes.'+endereco] = { userId: user.id, nome: user.nome };
+  } else {
+    update['atribuicoes.'+endereco] = firebase.firestore.FieldValue.delete();
+  }
+  db.collection('inv_inventarios').doc(invId).update(update).then(function(){
+    if (_invAtivo && _invAtivo.id===invId) {
+      if (!_invAtivo.atribuicoes) _invAtivo.atribuicoes = {};
+      if (user) { _invAtivo.atribuicoes[endereco] = { userId:user.id, nome:user.nome }; }
+      else { delete _invAtivo.atribuicoes[endereco]; }
+      // Atualiza cache global
+      var idx = (S.invsCache||[]).findIndex(function(i){ return i.id===invId; });
+      if (idx>=0) S.invsCache[idx].atribuicoes = Object.assign({}, _invAtivo.atribuicoes);
+    }
+    atualizarNavColeta();
+  }).catch(function(e){ alert('Erro ao atribuir: '+e.message); selectEl.value = ''; });
+}
+
+// ── Import catálogo TXT ───────────────────────────────────────────
+function abrirImportCat() {
+  document.getElementById('inv-import-file').click();
+}
+
+function importarCatalogo(event) {
+  var file = event.target.files[0];
+  if (!file || !_invAtivo) return;
+  var invId = _invAtivo.id;
+  var loja = _invAtivo.loja || '';
+
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var text = e.target.result;
+    var lines = text.split(/\r?\n/).map(function(l){ return l.trim(); }).filter(function(l){ return l.length>0; });
+    if (!lines.length) { alert('Arquivo vazio.'); event.target.value=''; return; }
+
+    // Detectar delimitador
+    var delim = lines[0].includes(';') ? ';' : lines[0].includes('|') ? '|' : '\t';
+
+    // Detectar coluna EAN (8 ou 13 dígitos) e se há header
+    var startLine = 0;
+    var eanCol = -1;
+    function detectEanCol(lineStr) {
+      var cols = lineStr.split(delim);
+      for (var i=0; i<cols.length; i++) {
+        if (/^\d{8}$|^\d{13}$/.test(cols[i].trim())) { return i; }
+      }
+      return -1;
+    }
+    eanCol = detectEanCol(lines[0]);
+    if (eanCol===-1 && lines[1]) { eanCol=detectEanCol(lines[1]); startLine=1; }
+    if (eanCol===-1) eanCol=0; // fallback: primeira coluna
+
+    var descCol = eanCol+1;
+    var unCol = descCol+1;
+
+    var produtos = [];
+    for (var i=startLine; i<lines.length; i++) {
+      var cols = lines[i].split(delim);
+      var ean = (cols[eanCol]||'').trim().replace(/\D/g,'');
+      var desc = (cols[descCol]||'').trim();
+      var un = (cols[unCol]||'').trim();
+      if (!ean) continue;
+      produtos.push({ invId:invId, loja:loja, ean:ean, desc:desc, un:un });
+    }
+    if (!produtos.length) { alert('Nenhum produto encontrado no arquivo.'); event.target.value=''; return; }
+
+    // Batch write (400 por lote)
+    var lotes = [];
+    for (var j=0; j<produtos.length; j+=400) lotes.push(produtos.slice(j,j+400));
+    var p = Promise.resolve();
+    lotes.forEach(function(lote){
+      p = p.then(function(){
+        var b = db.batch();
+        lote.forEach(function(prod){
+          var ref = db.collection('inv_catalogo').doc(invId+'_'+prod.ean);
+          b.set(ref, prod);
+        });
+        return b.commit();
+      });
+    });
+    p.then(function(){
+      _catCache[invId] = null; // invalida cache
+      alert(produtos.length+' produtos importados com sucesso!');
+      event.target.value='';
+    }).catch(function(err){ alert('Erro ao importar: '+(err.message||err)); event.target.value=''; });
+  };
+  reader.readAsText(file,'ISO-8859-1');
+}
+
+// ── Encerrar inventário ───────────────────────────────────────────
+function encerrarInventario(invId) {
+  if (!invId) return;
+  if (!confirm('Encerrar este inventário? Coletores não poderão mais registrar bipagens.')) return;
+  db.collection('inv_inventarios').doc(invId).update({ status:'encerrado' }).then(function(){
+    loadInventariosFromFirebase(function(){
+      renderInvList();
+      if (_invAtivo && _invAtivo.id===invId) {
+        _invAtivo.status='encerrado';
+        var statusEl = document.getElementById('inv-detalhe-status');
+        if (statusEl) { statusEl.textContent='ENCERRADO'; statusEl.style.background='#f0f0f0'; statusEl.style.color='#666'; }
+      }
+      atualizarNavColeta();
+    });
+  }).catch(function(e){ alert('Erro: '+e.message); });
+}
+
+// ── Bipagens tab ──────────────────────────────────────────────────
+function renderInvBipagens(filtroEnd) {
+  if (!_invAtivo) return;
+  loadBipagensByInv(_invAtivo.id, function(bips){
+    loadCatalogoByInv(_invAtivo.id, function(cat){
+      // Popular filtro de endereços (uma vez)
+      var filterSel = document.getElementById('inv-bip-filter');
+      if (filterSel && !filterSel.dataset.built) {
+        var enderecos = _invAtivo.enderecos || [];
+        filterSel.innerHTML = '<option value="">Todos os endereços</option>'+
+          enderecos.map(function(e){ return '<option value="'+e+'">'+e+'</option>'; }).join('');
+        filterSel.dataset.built = '1';
+        if (filtroEnd) filterSel.value = filtroEnd;
+      }
+      var filtrados = filtroEnd ? bips.filter(function(b){ return b.endereco===filtroEnd; }) : bips;
+      var tbody = document.getElementById('inv-bip-tbody');
+      if (!tbody) return;
+      if (!filtrados.length) {
+        tbody.innerHTML='<tr class="erow"><td colspan="6">Nenhuma bipagem'+(filtroEnd?' neste endereço':'')+' ainda.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = filtrados.map(function(b){
+        var prod = cat[b.ean]||{};
+        var hora = b.ts ? new Date(b.ts.seconds*1000).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : '--';
+        return '<tr>'+
+          '<td><span style="font-weight:700;color:var(--t3)">#'+b.seq+'</span></td>'+
+          '<td style="font-family:monospace;font-size:12px">'+b.ean+'</td>'+
+          '<td style="font-size:12px">'+(prod.desc||'—')+'</td>'+
+          '<td style="font-weight:700;text-align:center">'+b.qty+(prod.un?' <small>'+prod.un+'</small>':'')+'</td>'+
+          '<td style="font-size:12px">'+(b.coletorNome||'—')+'</td>'+
+          '<td style="font-size:12px">'+b.endereco+' · '+hora+'</td>'+
+        '</tr>';
+      }).join('');
+    });
+  });
+}
+
+// ── Exportar TXT para ERP ─────────────────────────────────────────
+function exportarTxtErp() {
+  if (!_invAtivo) return;
+  loadBipagensByInv(_invAtivo.id, function(bips){
+    loadCatalogoByInv(_invAtivo.id, function(cat){
+      var lines = ['ENDERECO;EAN;QUANTIDADE;SEQUENCIAL;DESCRICAO;UNIDADE'];
+      bips.forEach(function(b){
+        var prod = cat[b.ean]||{};
+        lines.push([b.endereco, b.ean, b.qty, b.seq, prod.desc||'', prod.un||''].join(';'));
+      });
+      var conteudo = lines.join('\r\n');
+      var blob = new Blob(['﻿'+conteudo], { type:'text/csv;charset=utf-8' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = (_invAtivo.nome||'inventario').replace(/[^a-z0-9]/gi,'_')+'_ERP.txt';
+      a.click();
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+    });
+  });
+}
+
+// ── Tela de coleta ────────────────────────────────────────────────
+function renderColeta() {
+  var wrap = document.getElementById('inv-coleta-wrap');
+  if (!wrap) return;
+  var info = _encontrarAtribuicao();
+  if (!info) {
+    wrap.innerHTML = '<div style="text-align:center;padding:60px 20px;color:var(--t3)">'+
+      '<div style="font-size:48px;margin-bottom:16px">📦</div>'+
+      '<div style="font-size:16px;font-weight:600;margin-bottom:8px">Sem coleta atribuída</div>'+
+      '<div style="font-size:13px">Aguarde o administrador atribuir um endereço para você.</div>'+
+    '</div>';
+    return;
+  }
+  _invColetaAtual = info;
+  var endAtual = info.enderecos[0];
+  var inv = info.inv;
+
+  wrap.innerHTML =
+    '<div style="background:#fff;border-radius:14px;border:1px solid var(--gray2);padding:20px;box-shadow:var(--sh);margin-bottom:16px">'+
+      '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:18px">'+
+        '<div>'+
+          '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--t3)">Endereço</div>'+
+          '<div style="font-family:\'Syne\',sans-serif;font-size:32px;font-weight:800;color:var(--t)">'+endAtual+'</div>'+
+        '</div>'+
+        '<div style="text-align:right">'+
+          '<div style="font-size:12px;color:var(--t3);max-width:180px">'+inv.nome+'</div>'+
+          '<div id="inv-seq-label" style="font-size:13px;font-weight:700;color:var(--g);margin-top:4px">Seq: —</div>'+
+        '</div>'+
+      '</div>'+
+      '<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">'+
+        '<div style="flex:1;min-width:200px">'+
+          '<label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--t2);display:block;margin-bottom:6px">EAN / Código de Barras</label>'+
+          '<input id="inv-ean-input" type="text" inputmode="numeric" autocomplete="off" placeholder="Bipe ou digite o código..." '+
+            'style="width:100%;padding:13px 14px;border:2px solid var(--gray2);border-radius:10px;font-size:16px;font-family:monospace;letter-spacing:1px" '+
+            'onkeydown="if(event.key===\'Enter\')registrarBipagem()"/>'+
+          '<div id="inv-desc-preview" style="font-size:12px;color:var(--t3);margin-top:5px;min-height:18px"></div>'+
+        '</div>'+
+        '<div style="width:80px">'+
+          '<label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--t2);display:block;margin-bottom:6px">Qtd</label>'+
+          '<input id="inv-qty-input" type="number" value="1" min="1" '+
+            'style="width:100%;padding:13px 10px;border:2px solid var(--gray2);border-radius:10px;font-size:16px;font-family:inherit;text-align:center" '+
+            'onkeydown="if(event.key===\'Enter\')registrarBipagem()"/>'+
+        '</div>'+
+        '<button onclick="registrarBipagem()" '+
+          'style="padding:13px 22px;background:#FFC600;color:#111;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap">'+
+          'Registrar'+
+        '</button>'+
+      '</div>'+
+    '</div>'+
+    '<div style="background:#fff;border-radius:14px;border:1px solid var(--gray2);padding:20px;box-shadow:var(--sh)">'+
+      '<div style="font-family:\'Syne\',sans-serif;font-size:14px;font-weight:700;margin-bottom:12px">Últimas bipagens — Endereço '+endAtual+'</div>'+
+      '<div id="inv-ultimas-wrap"><div style="text-align:center;padding:24px;color:var(--t3);font-size:13px">Carregando...</div></div>'+
+    '</div>';
+
+  // Carregar catálogo e bipagens existentes
+  loadCatalogoByInv(inv.id, function(cat){
+    var eanInput = document.getElementById('inv-ean-input');
+    if (eanInput) {
+      eanInput.addEventListener('input', function(){
+        var ean = this.value.trim();
+        var prod = cat[ean]||{};
+        var prev = document.getElementById('inv-desc-preview');
+        if (prev) prev.textContent = prod.desc ? '📦 '+prod.desc+(prod.un?' — '+prod.un:'') : '';
+      });
+      setTimeout(function(){ eanInput.focus(); }, 150);
+    }
+  });
+  _carregarUltimasBipagens(inv.id, endAtual);
+}
+
+function _carregarUltimasBipagens(invId, endereco) {
+  db.collection('inv_bipagens')
+    .where('invId','==',invId)
+    .where('endereco','==',endereco)
+    .orderBy('seq','desc')
+    .limit(20)
+    .get().then(function(snap){
+      var bips = snap.docs.map(function(d){ return d.data(); });
+      var maxSeq = bips.length ? Math.max.apply(null, bips.map(function(b){ return b.seq; })) : 0;
+      _nextSeq = maxSeq+1;
+      var seqEl = document.getElementById('inv-seq-label');
+      if (seqEl) seqEl.textContent = 'Próx. seq: '+_nextSeq;
+      _renderUltimasBipagens(bips, invId);
+    }).catch(function(){
+      _nextSeq=1;
+      _renderUltimasBipagens([], invId);
+    });
+}
+
+function _renderUltimasBipagens(bips, invId) {
+  loadCatalogoByInv(invId, function(cat){
+    var wrap = document.getElementById('inv-ultimas-wrap');
+    if (!wrap) return;
+    if (!bips.length) {
+      wrap.innerHTML='<div style="text-align:center;padding:24px;color:var(--t3);font-size:13px">Nenhuma bipagem ainda. Comece a escanear!</div>';
+      return;
+    }
+    wrap.innerHTML='<table style="width:100%"><thead><tr><th style="width:55px">Seq</th><th>EAN</th><th>Descrição</th><th style="width:55px;text-align:center">Qtd</th></tr></thead><tbody>'+
+      bips.map(function(b){
+        var prod = cat[b.ean]||{};
+        return '<tr>'+
+          '<td><span style="font-weight:700;color:var(--t3)">#'+b.seq+'</span></td>'+
+          '<td style="font-family:monospace;font-size:12px">'+b.ean+'</td>'+
+          '<td style="font-size:12px">'+(prod.desc||'—')+'</td>'+
+          '<td style="font-weight:700;text-align:center">'+b.qty+'</td>'+
+        '</tr>';
+      }).join('')+
+    '</tbody></table>';
+  });
+}
+
+function registrarBipagem() {
+  if (_bipRegistrando) return;
+  if (!_invColetaAtual) return;
+  var eanInput = document.getElementById('inv-ean-input');
+  var qtyInput = document.getElementById('inv-qty-input');
+  if (!eanInput||!qtyInput) return;
+
+  var ean = eanInput.value.trim();
+  var qty = parseInt(qtyInput.value)||1;
+  if (!ean) { eanInput.focus(); return; }
+  if (qty<1) qty=1;
+
+  var inv = _invColetaAtual.inv;
+  if (inv.status!=='aberto') { alert('Este inventário já foi encerrado.'); return; }
+
+  var endereco = _invColetaAtual.enderecos[0];
+  var seq = _nextSeq;
+  _bipRegistrando = true;
+
+  db.collection('inv_bipagens').add({
+    invId: inv.id,
+    loja: inv.loja||'',
+    endereco: endereco,
+    seq: seq,
+    ean: ean,
+    qty: qty,
+    coletorId: S.currentUser ? S.currentUser.id : '',
+    coletorNome: S.currentUser ? S.currentUser.nome : '',
+    ts: firebase.firestore.FieldValue.serverTimestamp()
+  }).then(function(){
+    db.collection('inv_inventarios').doc(inv.id).update({
+      totalBipagens: firebase.firestore.FieldValue.increment(1)
+    }).catch(function(){});
+    _nextSeq++;
+    var seqEl = document.getElementById('inv-seq-label');
+    if (seqEl) seqEl.textContent = 'Próx. seq: '+_nextSeq;
+    eanInput.value='';
+    qtyInput.value='1';
+    var prev=document.getElementById('inv-desc-preview');
+    if (prev) prev.textContent='';
+    eanInput.focus();
+    _carregarUltimasBipagens(inv.id, endereco);
+    _bipRegistrando=false;
+  }).catch(function(e){
+    _bipRegistrando=false;
+    alert('Erro ao registrar: '+e.message);
+  });
 }
 
 // Restaura sessao ao recarregar a pagina
