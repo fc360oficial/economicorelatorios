@@ -6414,16 +6414,16 @@ function _carregarUltimasBipagens(invId, endereco) {
   db.collection('inv_bipagens')
     .where('invId','==',invId)
     .where('endereco','==',endereco)
-    .orderBy('seq','desc')
-    .limit(20)
     .get().then(function(snap){
       var bips = snap.docs.map(function(d){ return d.data(); });
-      var maxSeq = bips.length ? Math.max.apply(null, bips.map(function(b){ return b.seq; })) : 0;
+      bips.sort(function(a,b){ return (b.seq||0)-(a.seq||0); });
+      var maxSeq = bips.length ? bips[0].seq : 0;
       _nextSeq = maxSeq+1;
       var seqEl = document.getElementById('inv-seq-label');
       if (seqEl) seqEl.textContent = 'Próx. seq: '+_nextSeq;
-      _renderUltimasBipagens(bips, invId);
-    }).catch(function(){
+      _renderUltimasBipagens(bips.slice(0,20), invId);
+    }).catch(function(e){
+      console.error('_carregarUltimasBipagens',e);
       _nextSeq=1;
       _renderUltimasBipagens([], invId);
     });
@@ -6930,15 +6930,15 @@ function renderColeta() {
 }
 
 function _carregarUltimasBipagens(invId,endereco,rodada,modo) {
-  var q=db.collection('inv_bipagens').where('invId','==',invId).where('endereco','==',endereco);
-  if (modo==='auditoria'&&rodada) q=q.where('rodada','==',rodada);
-  q.orderBy('seq','desc').limit(20).get().then(function(snap){
+  db.collection('inv_bipagens').where('invId','==',invId).where('endereco','==',endereco).get().then(function(snap){
     var bips=snap.docs.map(function(d){ return d.data(); });
-    var mx=bips.length?Math.max.apply(null,bips.map(function(b){ return b.seq; })):0;
+    if (modo==='auditoria'&&rodada) bips=bips.filter(function(b){ return (b.rodada||1)===rodada; });
+    bips.sort(function(a,b){ return (b.seq||0)-(a.seq||0); });
+    var mx=bips.length?bips[0].seq:0;
     _nextSeq=mx+1;
     var sl=document.getElementById('inv-seq-label'); if(sl) sl.textContent='Próx. seq: '+_nextSeq;
-    _renderUltimasBipagens(bips,invId);
-  }).catch(function(){ _nextSeq=1; _renderUltimasBipagens([],invId); });
+    _renderUltimasBipagens(bips.slice(0,20),invId);
+  }).catch(function(e){ console.error('_carregarUltimasBipagens',e); _nextSeq=1; _renderUltimasBipagens([],invId); });
 }
 
 function registrarBipagem() {
