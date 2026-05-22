@@ -7368,7 +7368,9 @@ function selecionarEnderecoFila(invId, endereco) {
   if (!found) found=ends.find(function(e){ return e.toUpperCase().indexOf(endNorm)===0; });
   if (!found) { if(errEl) errEl.textContent='Endereço "'+endereco.trim()+'" não encontrado.'; return; }
   var u=S.currentUser;
-  var upd={}; upd['fila.'+found]={userId:u.id,nome:u.nome,desde:firebase.firestore.FieldValue.serverTimestamp(),concluido:false};
+  var coletorId=_getIdColetor(), nomeColetor=_getNomeColetor();
+  var displayNome=coletorId+(nomeColetor?' - '+nomeColetor:'');
+  var upd={}; upd['fila.'+found]={userId:u.id,nome:displayNome,desde:firebase.firestore.FieldValue.serverTimestamp(),concluido:false};
   db.collection('inv_inventarios').doc(invId).update(upd).then(function(){
     _filaEndAtual={invId:invId,endereco:found};
     loadInventariosFromFirebase(function(){ renderColeta(); });
@@ -7475,14 +7477,23 @@ function _setIdColetor(id) {
   localStorage.setItem(_COLETOR_KEY, (id||'').trim().toUpperCase());
 }
 
+var _COLETOR_NOME_KEY = 'fc360_coletor_nome';
+function _getNomeColetor(){ return (localStorage.getItem(_COLETOR_NOME_KEY)||'').trim(); }
+function _setNomeColetor(nome){ localStorage.setItem(_COLETOR_NOME_KEY,(nome||'').trim()); }
+
 function _htmlIdColetorForm() {
   var atual = _getIdColetor();
+  var nomeAtual = _getNomeColetor();
   return '<div style="max-width:360px;margin:50px auto;padding:28px 24px;background:#fff;border-radius:16px;border:1px solid var(--gray2);box-shadow:var(--sh)">'+
     '<div style="font-family:\'Syne\',sans-serif;font-size:19px;font-weight:800;margin-bottom:6px">Identificação</div>'+
-    '<div style="font-size:13px;color:var(--t2);margin-bottom:22px">Informe seu ID de coletor para começar.</div>'+
+    '<div style="font-size:13px;color:var(--t2);margin-bottom:20px">Informe seu ID e nome para começar.</div>'+
     '<label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--t2);display:block;margin-bottom:8px">ID de Coletor</label>'+
-    '<input id="coletor-id-novo" type="text" value="'+atual+'" placeholder="Ex: 01, A1, JOAO" autocomplete="off" '+
-      'style="width:100%;padding:14px;border:2.5px solid var(--y);border-radius:10px;font-size:22px;font-weight:700;font-family:monospace;text-align:center;letter-spacing:3px;margin-bottom:16px;box-sizing:border-box" '+
+    '<input id="coletor-id-novo" type="text" value="'+atual+'" placeholder="Ex: 01, A1, C3" autocomplete="off" '+
+      'style="width:100%;padding:14px;border:2.5px solid var(--y);border-radius:10px;font-size:22px;font-weight:700;font-family:monospace;text-align:center;letter-spacing:3px;margin-bottom:12px;box-sizing:border-box" '+
+      'onkeydown="if(event.key===\'Enter\'){document.getElementById(\'coletor-nome-novo\').focus();}"/>'+
+    '<label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--t2);display:block;margin-bottom:8px">Seu Nome</label>'+
+    '<input id="coletor-nome-novo" type="text" value="'+nomeAtual+'" placeholder="Ex: João Freire" autocomplete="off" '+
+      'style="width:100%;padding:13px;border:1.5px solid var(--gray2);border-radius:10px;font-size:15px;margin-bottom:16px;box-sizing:border-box;font-family:inherit" '+
       'onkeydown="if(event.key===\'Enter\')_confirmarIdColetor()"/>'+
     '<button onclick="_confirmarIdColetor()" style="width:100%;padding:14px;background:var(--y);color:#111;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit">Começar →</button>'+
   '</div>';
@@ -7490,8 +7501,10 @@ function _htmlIdColetorForm() {
 
 function _confirmarIdColetor() {
   var val = ((document.getElementById('coletor-id-novo')||{}).value||'').trim().toUpperCase();
+  var nome = ((document.getElementById('coletor-nome-novo')||{}).value||'').trim();
   if (!val) { alert('Informe seu ID de coletor.'); return; }
   _setIdColetor(val);
+  _setNomeColetor(nome);
   renderColeta();
 }
 
@@ -7587,9 +7600,11 @@ function renderColeta() {
           '<button onclick="finalizarRodada()" style="padding:8px 18px;background:#fff;border:1.5px solid var(--r);color:var(--r);border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Finalizar Contagem</button>'+
         '</div>'+
       '</div>';
-  var coletorChip='<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:9px 14px;background:#fff8e1;border:1.5px solid #f5c518;border-radius:10px">'+
+  var _chipId=_getIdColetor(), _chipNome=_getNomeColetor();
+  var coletorChip='<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:9px 14px;background:#fff8e1;border:1.5px solid #f5c518;border-radius:10px">'+
     '<span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#b38600">Coletor</span>'+
-    '<span style="font-size:17px;font-weight:800;font-family:monospace;flex:1;letter-spacing:2px">'+_getIdColetor()+'</span>'+
+    '<span style="font-size:17px;font-weight:800;font-family:monospace;letter-spacing:2px">'+_chipId+'</span>'+
+    (_chipNome?'<span style="font-size:13px;font-weight:600;color:var(--t2);flex:1">'+_chipNome+'</span>':'<span style="flex:1"></span>')+
     '<button onclick="_editarIdColetor()" style="padding:4px 10px;background:#fff;border:1.5px solid #ddd;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--t2)">✎ Mudar</button>'+
   '</div>';
   wrap.innerHTML=coletorChip+mudarBtn+
@@ -7693,11 +7708,12 @@ function renderDashboardRealtime(bips) {
   if (!_invAtivo) return;
   var inv=_invAtivo,enderecos=inv.enderecos||[],atribs=inv.atribuicoes||{},filaMap=inv.fila||{},resolucoes=inv.resolucoes||{};
   var isModoFila=!!inv.modoFila;
-  var bipMap={};
+  var bipMap={}, bipColMap={};
   bips.forEach(function(b){
     if (!bipMap[b.endereco]) bipMap[b.endereco]={1:[],2:[]};
     var r=b.rodada||1; if(!bipMap[b.endereco][r]) bipMap[b.endereco][r]=[];
     bipMap[b.endereco][r].push(b);
+    if(b.coletorId){ if(!bipColMap[b.endereco]) bipColMap[b.endereco]={}; bipColMap[b.endereco][b.coletorId]=b.coletorNome||b.coletorId; }
   });
   var totalBips=bips.length,endsConcl=0,endsDiv=0,endsSemCol=0;
   var rows=enderecos.map(function(end){
@@ -7713,7 +7729,12 @@ function renderDashboardRealtime(bips) {
       else status='aguardando';
     } else {
       var atrib=_normalizeAtrib(atribs[end]); modo=atrib.modo; var cols=atrib.coletores||[];
-      colTxt=cols.length?cols.map(function(c){ return c.nome+(modo==='auditoria'?' R'+c.rodada:'')+(c.concluido?' ✓':''); }).join(', '):'—';
+      var bipCols=bipColMap[end]||{};
+      if(Object.keys(bipCols).length){
+        colTxt=Object.keys(bipCols).map(function(id){ var n=bipCols[id]; return n&&n!==id?id+' '+n:id; }).join(', ');
+      } else {
+        colTxt=cols.length?cols.map(function(c){ return c.nome+(modo==='auditoria'?' R'+c.rodada:'')+(c.concluido?' ✓':''); }).join(', '):'—';
+      }
       if (!cols.length){ status='sem-coletor'; endsSemCol++; }
       else if (modo==='auditoria'){
         var r1c=cols.find(function(c){ return c.rodada===1; }),r2c=cols.find(function(c){ return c.rodada===2; });
@@ -7908,27 +7929,34 @@ function _limparSubcolecoes(invId) {
   deletarColecao('inv_auditlog');
 }
 
-// ── Override renderInvEnderecos — suporte a modoFila ─────────────────────
+// ── Override renderInvEnderecos — suporte a modoFila + status + reabrir ──
+var _sbMapEnd={
+  'pendente':'<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;background:#f0f0f0;color:#666">Pendente</span>',
+  'sem-coletor':'<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;background:#fff3e0;color:#e65100">Sem coletor</span>',
+  'aguardando':'<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;background:#fff8e1;color:#b7770d">Aguardando</span>',
+  'em-andamento':'<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;background:#e8f5ee;color:#1a7a4a">Em andamento</span>',
+  'concluido':'<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;background:#d1f0e0;color:#1a5c34">✓ Concluído</span>'
+};
 function renderInvEnderecos() {
   if (!_invAtivo) return;
   var inv=_invAtivo, invId=inv.id, enderecos=inv.enderecos||[];
   var tbody=document.getElementById('inv-end-tbody'); if(!tbody) return;
+  var isAdmin=S.role==='admin'||S.role==='gerencia'||S.role==='supervisor';
   if (inv.modoFila) {
     var filaMap=inv.fila||{};
     tbody.innerHTML=enderecos.map(function(end){
       var slot=filaMap[end];
-      var statusHtml=slot
-        ?(slot.concluido
-          ?'<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;background:#d1f0e0;color:#1a5c34">✓ '+slot.nome+'</span>'
-          :'<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;background:#fff8e1;color:#b38600">👤 '+slot.nome+'</span>')
-        :'<span style="font-size:11px;color:var(--t3)">—</span>';
+      var colTxt=slot?slot.nome:'<span style="color:var(--t3)">—</span>';
+      var status=!slot?'sem-coletor':slot.concluido?'concluido':'aguardando';
       var safeEnd=end.replace(/'/g,"\\'");
+      var reabrirBtn=isAdmin&&slot&&slot.concluido?'<button class="btn btn-s btn-sm" onclick="reabrirEndereco(\''+invId+'\',\''+safeEnd+'\')" style="color:var(--r);border-color:var(--r)">↩ Reabrir</button>':'';
       return '<tr>'+
         '<td><strong>'+end+'</strong></td>'+
         '<td><span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:#e8f4ff;color:#1a5c9c">FILA</span></td>'+
-        '<td>'+statusHtml+'</td>'+
+        '<td id="inv-coltxt-'+end.replace(/[^a-z0-9]/gi,'_')+'" style="font-size:12px">'+colTxt+'</td>'+
         '<td id="inv-ec-'+end.replace(/[^a-z0-9]/gi,'_')+'">—</td>'+
-        '<td>—</td>'+
+        '<td>'+(_sbMapEnd[status]||'')+'</td>'+
+        '<td>'+reabrirBtn+'</td>'+
       '</tr>';
     }).join('');
   } else {
@@ -7939,21 +7967,67 @@ function renderInvEnderecos() {
         ?'<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:#ede9fe;color:#5b21b6">AUDITORIA</span>'
         :'<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:#e8f5ee;color:#1a5c34">COLABR.</span>';
       var colTxt=cols.length?cols.map(function(c){ return c.nome+(modo==='auditoria'?' R'+c.rodada:'')+(c.concluido?' ✓':''); }).join(', '):'<span style="color:var(--t3)">—</span>';
+      var allDone=cols.length&&cols.every(function(c){ return c.concluido; });
+      var status=!cols.length?'sem-coletor':allDone?'concluido':'aguardando';
       var safeEnd=end.replace(/'/g,"\\'");
+      var reabrirBtn=isAdmin&&allDone?'<button class="btn btn-s btn-sm" onclick="reabrirEndereco(\''+invId+'\',\''+safeEnd+'\')" style="color:var(--r);border-color:var(--r)">↩ Reabrir</button>':'';
       return '<tr>'+
         '<td><strong>'+end+'</strong></td>'+
         '<td>'+mb+'</td>'+
-        '<td style="font-size:12px">'+colTxt+'</td>'+
+        '<td id="inv-coltxt-'+end.replace(/[^a-z0-9]/gi,'_')+'" style="font-size:12px">'+colTxt+'</td>'+
         '<td id="inv-ec-'+end.replace(/[^a-z0-9]/gi,'_')+'">—</td>'+
-        '<td><button class="btn btn-s btn-sm" onclick="abrirModalGerenciarEnd(\''+invId+'\',\''+safeEnd+'\')">Gerenciar</button></td>'+
+        '<td id="inv-st-'+end.replace(/[^a-z0-9]/gi,'_')+'">'+(_sbMapEnd[status]||'')+'</td>'+
+        '<td>'+reabrirBtn+'<button class="btn btn-s btn-sm" onclick="abrirModalGerenciarEnd(\''+invId+'\',\''+safeEnd+'\')">Gerenciar</button></td>'+
       '</tr>';
     }).join('');
   }
   loadBipagensByInv(invId,function(bips){
-    var cnt={}; bips.forEach(function(b){ cnt[b.endereco]=(cnt[b.endereco]||0)+1; });
-    enderecos.forEach(function(end){ var el=document.getElementById('inv-ec-'+end.replace(/[^a-z0-9]/gi,'_')); if(el) el.textContent=cnt[end]||0; });
+    var cnt={}, colMap={};
+    bips.forEach(function(b){
+      cnt[b.endereco]=(cnt[b.endereco]||0)+1;
+      if(b.coletorId){ if(!colMap[b.endereco]) colMap[b.endereco]={}; colMap[b.endereco][b.coletorId]=b.coletorNome||b.coletorId; }
+    });
+    enderecos.forEach(function(end){
+      var ec=document.getElementById('inv-ec-'+end.replace(/[^a-z0-9]/gi,'_')); if(ec) ec.textContent=cnt[end]||0;
+      if(!inv.modoFila){
+        var ct=document.getElementById('inv-coltxt-'+end.replace(/[^a-z0-9]/gi,'_'));
+        if(ct&&colMap[end]){
+          var names=Object.keys(colMap[end]).map(function(id){ var n=colMap[end][id]; return n&&n!==id?id+' '+n:id; });
+          if(names.length) ct.textContent=names.join(', ');
+        }
+        var stEl=document.getElementById('inv-st-'+end.replace(/[^a-z0-9]/gi,'_'));
+        if(stEl){
+          var atrib=_normalizeAtrib((inv.atribuicoes||{})[end]),cols=atrib.coletores||[];
+          var total=cnt[end]||0;
+          var allDone=cols.length&&cols.every(function(c){ return c.concluido; });
+          var st=!cols.length?'sem-coletor':allDone?'concluido':total>0?'em-andamento':'aguardando';
+          stEl.innerHTML=_sbMapEnd[st]||'';
+        }
+      }
+    });
   });
   _renderImportCatStatus(invId);
+}
+
+function reabrirEndereco(invId, endereco) {
+  if (!confirm('Reabrir "'+endereco+'" para nova coleta?')) return;
+  var inv=(S.invsCache||[]).find(function(i){ return i.id===invId; });
+  if (!inv) return;
+  if (inv.modoFila) {
+    var slot=(inv.fila||{})[endereco];
+    if (!slot) return;
+    var upd={}; upd['fila.'+endereco+'.concluido']=false;
+    db.collection('inv_inventarios').doc(invId).update(upd).then(function(){
+      loadInventariosFromFirebase(function(){ renderInvEnderecos(); });
+    }).catch(function(e){ alert('Erro: '+e.message); });
+  } else {
+    var atrib=_normalizeAtrib((inv.atribuicoes||{})[endereco]);
+    var cols=(atrib.coletores||[]).map(function(c){ return Object.assign({},c,{concluido:false}); });
+    var upd2={}; upd2['atribuicoes.'+endereco]=Object.assign({},atrib,{coletores:cols});
+    db.collection('inv_inventarios').doc(invId).update(upd2).then(function(){
+      loadInventariosFromFirebase(function(){ renderInvEnderecos(); });
+    }).catch(function(e){ alert('Erro: '+e.message); });
+  }
 }
 
 // ── Override _iniciarDashboardRealtime — listener duplo (bips + inv doc) ──
@@ -8081,7 +8155,7 @@ function registrarBipagem() {
   }
   var end=_invColetaAtual.endereco, rodada=_invColetaAtual.rodada||1, modo=_invColetaAtual.modo||'colaboracao', seq=_nextSeq;
   _bipRegistrando=true;
-  var _bipData={invId:inv.id,loja:inv.loja||'',endereco:end,seq:seq,ean:ean,qty:qtyTotal,rodada:rodada,modo:modo,coletorId:coletorId,coletorNome:coletorId,ts:firebase.firestore.FieldValue.serverTimestamp()};
+  var _bipData={invId:inv.id,loja:inv.loja||'',endereco:end,seq:seq,ean:ean,qty:qtyTotal,rodada:rodada,modo:modo,coletorId:coletorId,coletorNome:_getNomeColetor()||coletorId,ts:firebase.firestore.FieldValue.serverTimestamp()};
   if(fator>1) _bipData.fator=fator;
   db.collection('inv_bipagens').add(_bipData).then(function(){
     db.collection('inv_inventarios').doc(inv.id).update({totalBipagens:firebase.firestore.FieldValue.increment(1)}).catch(function(){});
@@ -8281,7 +8355,7 @@ function registrarBipagemAvulsa() {
   db.collection('inv_bipagens').add({
     invId:_avulsaInvId, loja:inv.loja||'', endereco:'_AVULSO', seq:Date.now(), ean:ean, qty:qty,
     rodada:1, modo:'avulso',
-    coletorId:coletorId, coletorNome:coletorId,
+    coletorId:coletorId, coletorNome:_getNomeColetor()||coletorId,
     ts:firebase.firestore.FieldValue.serverTimestamp()
   }).then(function(){
     db.collection('inv_inventarios').doc(_avulsaInvId).update({totalBipagens:firebase.firestore.FieldValue.increment(1)}).catch(function(){});
