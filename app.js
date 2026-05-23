@@ -695,7 +695,7 @@ function finalizarLogin(found) {
     var dEl = document.getElementById('cl-data-hoje');
     if (dEl) dEl.textContent = hoje.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
     document.getElementById('app').style.opacity='1';
-    var _BUILD = '112';
+    var _BUILD = '113';
     if (localStorage.getItem('fc360_build') !== _BUILD || /[?&]t=\d/.test(window.location.search)) {
       localStorage.setItem('fc360_build', _BUILD);
       sessionStorage.removeItem('eco_last_page');
@@ -7781,11 +7781,15 @@ function gerarQREnderecos() {
   var logoEl = document.querySelector('.sb-logo img');
   var logoSrc = logoEl ? logoEl.src : '';
   var data = new Date().toLocaleDateString('pt-BR');
+  var logoCard = logoSrc
+    ? '<img src="'+logoSrc+'" class="card-logo" alt="Logo"/>'
+    : '<div class="card-logo-txt">FC360</div>';
   var cards = enderecos.map(function(end, i) {
     var enc = encodeURIComponent(end);
     var safeId = 'bc'+i;
     return '<div class="qr-card">'
-      + '<img src="https://api.qrserver.com/v1/create-qr-code/?data='+enc+'&size=160x160&margin=4" width="160" height="160" alt="'+end+'"/>'
+      + logoCard
+      + '<img src="https://api.qrserver.com/v1/create-qr-code/?data='+enc+'&size=150x150&margin=4" width="150" height="150" alt="'+end+'"/>'
       + '<div class="divider"></div>'
       + '<svg id="'+safeId+'" class="barcode"></svg>'
       + '<div class="addr">'+end+'</div>'
@@ -7811,6 +7815,8 @@ function gerarQREnderecos() {
     + '.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}'
     + '.qr-card{border:2px solid #222;border-radius:10px;padding:14px 10px;text-align:center;page-break-inside:avoid}'
     + '.qr-card img{display:block;margin:0 auto}'
+    + '.card-logo{height:32px;object-fit:contain;display:block;margin:0 auto 10px}'
+    + '.card-logo-txt{font-size:13px;font-weight:800;color:#FFC600;letter-spacing:1px;margin-bottom:10px;font-family:Arial,sans-serif}'
     + '.divider{border-top:1px dashed #ccc;margin:10px 0}'
     + '.barcode{width:100%;max-width:180px;display:block;margin:0 auto}'
     + '.addr{font-size:15px;font-weight:800;margin-top:8px;font-family:monospace;letter-spacing:.5px;word-break:break-all}'
