@@ -695,7 +695,7 @@ function finalizarLogin(found) {
     var dEl = document.getElementById('cl-data-hoje');
     if (dEl) dEl.textContent = hoje.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
     document.getElementById('app').style.opacity='1';
-    var _BUILD = '115';
+    var _BUILD = '116';
     if (localStorage.getItem('fc360_build') !== _BUILD || /[?&]t=\d/.test(window.location.search)) {
       localStorage.setItem('fc360_build', _BUILD);
       sessionStorage.removeItem('eco_last_page');
@@ -8167,15 +8167,31 @@ function _confirmarFinalizarRodada() {
   if (!_invColetaAtual) return;
   var info=_invColetaAtual, inv=info.inv, invId=inv.id, end=info.endereco, rodada=info.rodada||1;
   if (inv.modoFila) {
+    var _u=S.currentUser;
+    var _colId=_getIdColetor(), _colNome=_getNomeColetor();
+    var _dispNome=_colId+(_colNome?' - '+_colNome:'');
+    var _existing=(inv.fila||{})[end]||{};
+    var _setor=(_filaEndAtual&&_filaEndAtual.setor)||_existing.setor||'';
+    var _fullSlot={
+      userId:_existing.userId||(_u?_u.id:''),
+      coletorId:_existing.coletorId||_colId,
+      nome:_existing.nome||_dispNome,
+      setor:_setor,
+      desde:_existing.desde||firebase.firestore.FieldValue.serverTimestamp(),
+      concluido:true,
+      concluidoEm:firebase.firestore.FieldValue.serverTimestamp()
+    };
     db.collection('inv_inventarios').doc(invId).update(
-      new firebase.firestore.FieldPath('fila',end,'concluido'), true,
-      new firebase.firestore.FieldPath('fila',end,'concluidoEm'), firebase.firestore.FieldValue.serverTimestamp()
+      new firebase.firestore.FieldPath('fila',end), _fullSlot
     ).then(function(){
       info.concluido=true;
       var idx=(S.invsCache||[]).findIndex(function(i){ return i.id===invId; });
-      if (idx>=0&&S.invsCache[idx].fila) S.invsCache[idx].fila[end]=Object.assign({},S.invsCache[idx].fila[end],{concluido:true});
+      if (idx>=0){
+        if(!S.invsCache[idx].fila) S.invsCache[idx].fila={};
+        S.invsCache[idx].fila[end]=_fullSlot;
+      }
       renderColeta();
-    }).catch(function(e){ alert('Erro: '+e.message); });
+    }).catch(function(e){ alert('Erro ao finalizar: '+e.message); });
     return;
   }
   var atrib=_normalizeAtrib((info.inv.atribuicoes||{})[end]);
