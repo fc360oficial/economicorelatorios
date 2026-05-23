@@ -751,7 +751,7 @@ function finalizarLogin(found) {
     var dEl = document.getElementById('cl-data-hoje');
     if (dEl) dEl.textContent = hoje.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
     document.getElementById('app').style.opacity='1';
-    var _BUILD = '119';
+    var _BUILD = '120';
     if (localStorage.getItem('fc360_build') !== _BUILD || /[?&]t=\d/.test(window.location.search)) {
       localStorage.setItem('fc360_build', _BUILD);
       sessionStorage.removeItem('eco_last_page');
@@ -6719,28 +6719,6 @@ function aplicarCorrecaoBipagem() {
   }).catch(function(e){ if(msgEl){ msgEl.textContent='Erro: '+e.message; msgEl.style.color='var(--r)'; } });
 }
 
-// ── Exportar TXT para ERP ─────────────────────────────────────────
-function exportarTxtErp() {
-  if (!_invAtivo) return;
-  loadBipagensByInv(_invAtivo.id, function(bips){
-    loadCatalogoByInv(_invAtivo.id, function(cat){
-      var lines = ['ENDERECO;EAN;QUANTIDADE;SEQUENCIAL;DESCRICAO;UNIDADE'];
-      bips.forEach(function(b){
-        var prod = cat[b.ean]||{};
-        lines.push([b.endereco, b.ean, b.qty, b.seq, prod.desc||'', prod.un||''].join(';'));
-      });
-      var conteudo = lines.join('\r\n');
-      var blob = new Blob(['﻿'+conteudo], { type:'text/csv;charset=utf-8' });
-      var url = URL.createObjectURL(blob);
-      var a = document.createElement('a');
-      a.href = url;
-      a.download = (_invAtivo.nome||'inventario').replace(/[^a-z0-9]/gi,'_')+'_ERP.txt';
-      a.click();
-      setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
-    });
-  });
-}
-
 // ── Tela de coleta ────────────────────────────────────────────────
 function renderColeta() {
   var wrap = document.getElementById('inv-coleta-wrap');
@@ -7373,30 +7351,296 @@ function registrarBipagem() {
   }).catch(function(e){ _bipRegistrando=false; alert('Erro: '+e.message); });
 }
 
-// ── Atualizar exportarTxtErp para usar resolução ──────────────────
+// ── Exportação ERP com template configurável ──────────────────────────────
+
+var _ERP_CAMPOS = [
+  {id:'ean',       label:'EAN / Código'},
+  {id:'qty',       label:'Quantidade'},
+  {id:'endereco',  label:'Endereço/Local'},
+  {id:'desc',      label:'Descrição'},
+  {id:'un',        label:'Unidade'},
+  {id:'setor',     label:'Setor'},
+  {id:'coletorId', label:'Coletor ID'},
+  {id:'seq',       label:'Sequencial'},
+  {id:'rodada',    label:'Rodada'},
+  {id:'data',      label:'Data (dd/mm/aaaa)'},
+  {id:'hora',      label:'Hora (hh:mm)'}
+];
+
+var _ERP_PRESETS = {
+  'fc360': {
+    label:'FC360 Padrão',
+    campos:['endereco','ean','qty','desc','un','setor','rodada'],
+    sep:';', header:true, agrupa:false, dec:'int', enc:'utf8bom'
+  },
+  'protheus': {
+    label:'TOTVS Protheus',
+    campos:['ean','qty'],
+    sep:';', header:false, agrupa:true, dec:'int', enc:'ansi'
+  },
+  'winthor': {
+    label:'Winthor (CISS/TOTVS)',
+    campos:['ean','qty','endereco'],
+    sep:';', header:false, agrupa:true, dec:'int', enc:'ansi'
+  },
+  'microvix': {
+    label:'Microvix / Linx',
+    campos:['ean','desc','qty','un'],
+    sep:';', header:true, agrupa:true, dec:'int', enc:'utf8bom'
+  },
+  'sapb1': {
+    label:'SAP Business One',
+    campos:['ean','desc','qty','un','endereco'],
+    sep:',', header:true, agrupa:true, dec:'dot', enc:'utf8bom'
+  },
+  'bling': {
+    label:'Bling / Tiny',
+    campos:['ean','desc','qty','un'],
+    sep:';', header:true, agrupa:true, dec:'int', enc:'utf8bom'
+  },
+  'pipe': {
+    label:'Pipe (|) sem header',
+    campos:['ean','qty','endereco'],
+    sep:'|', header:false, agrupa:false, dec:'int', enc:'utf8bom'
+  },
+  'tab': {
+    label:'Tabulado (Excel)',
+    campos:['endereco','ean','desc','qty','un','setor','data'],
+    sep:'\t', header:true, agrupa:false, dec:'comma', enc:'utf8bom'
+  },
+  'custom': {label:'Personalizado'}
+};
+
+var _ERP_PROFILE_KEY = 'fc360_erp_profile';
+
 function exportarTxtErp() {
   if (!_invAtivo) return;
-  var resolucoes=_invAtivo.resolucoes||{};
-  loadBipagensByInv(_invAtivo.id,function(bips){
-    loadCatalogoByInv(_invAtivo.id,function(cat){
-      // Filtrar bipagens: para endereços com resolução de auditoria, usar apenas a rodada escolhida
-      var bipsFiltradas=bips.filter(function(b){
-        var res=resolucoes[b.endereco];
-        if (!res) return true; // sem resolução: incluir tudo (colaboração ou sem divergência)
-        return (b.rodada||1)===res.rodada;
+  var saved = {};
+  try { saved = JSON.parse(localStorage.getItem(_ERP_PROFILE_KEY)||'{}'); } catch(e){}
+  var perfil = Object.assign({}, _ERP_PRESETS['fc360'], saved);
+  _abrirModalExportErp(perfil);
+}
+
+function _abrirModalExportErp(perfil) {
+  var presetOpts = Object.keys(_ERP_PRESETS).map(function(k){
+    return '<option value="'+k+'"'+(perfil._preset===k?' selected':'')+'>'+_ERP_PRESETS[k].label+'</option>';
+  }).join('');
+
+  var camposOpts = _ERP_CAMPOS.map(function(c){
+    var on = perfil.campos && perfil.campos.indexOf(c.id) >= 0;
+    return '<label style="display:flex;align-items:center;gap:7px;font-size:13px;padding:5px 0;cursor:pointer">'+
+      '<input type="checkbox" value="'+c.id+'" class="erp-campo-cb"'+(on?' checked':'')+' style="width:15px;height:15px;accent-color:var(--y);cursor:pointer"/>'+
+      c.label+'</label>';
+  }).join('');
+
+  var html =
+    '<div id="modal-erp-export" onclick="if(event.target===this)_fecharModalExportErp()" style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:3000;display:flex;align-items:center;justify-content:center;padding:16px;overflow-y:auto">'+
+    '<div style="background:#fff;border-radius:18px;padding:28px 24px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.25)">'+
+      '<div style="font-family:\'Syne\',sans-serif;font-size:18px;font-weight:800;margin-bottom:4px">Exportar para ERP</div>'+
+      '<div style="font-size:13px;color:var(--t3);margin-bottom:18px">Configure o formato e baixe o arquivo. O perfil é salvo automaticamente.</div>'+
+
+      '<label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--t2);display:block;margin-bottom:6px">Preset de ERP</label>'+
+      '<select id="erp-preset" onchange="_erp_aplicarPreset(this.value)" style="width:100%;padding:10px 12px;border:1.5px solid var(--gray2);border-radius:9px;font-size:14px;font-family:inherit;margin-bottom:16px">'+presetOpts+'</select>'+
+
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">'+
+        '<div>'+
+          '<label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--t2);display:block;margin-bottom:6px">Separador</label>'+
+          '<select id="erp-sep" style="width:100%;padding:9px 12px;border:1.5px solid var(--gray2);border-radius:9px;font-size:13px;font-family:inherit">'+
+            '<option value=";"'+(perfil.sep===';'?' selected':'')+'>Ponto-e-vírgula ( ; )</option>'+
+            '<option value=","'+(perfil.sep===','?' selected':'')+'>Vírgula ( , )</option>'+
+            '<option value="|"'+(perfil.sep==='|'?' selected':'')+'>Pipe ( | )</option>'+
+            '<option value="\t"'+(perfil.sep==='\t'?' selected':'')+'>Tabulação (TAB)</option>'+
+          '</select>'+
+        '</div>'+
+        '<div>'+
+          '<label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--t2);display:block;margin-bottom:6px">Quantidade</label>'+
+          '<select id="erp-dec" style="width:100%;padding:9px 12px;border:1.5px solid var(--gray2);border-radius:9px;font-size:13px;font-family:inherit">'+
+            '<option value="int"'+(perfil.dec==='int'?' selected':'')+'>Inteiro ( 15 )</option>'+
+            '<option value="dot"'+(perfil.dec==='dot'?' selected':'')+'>Decimal ponto ( 15.00 )</option>'+
+            '<option value="comma"'+(perfil.dec==='comma'?' selected':'')+'>Decimal vírgula ( 15,00 )</option>'+
+          '</select>'+
+        '</div>'+
+        '<div>'+
+          '<label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--t2);display:block;margin-bottom:6px">Encoding</label>'+
+          '<select id="erp-enc" style="width:100%;padding:9px 12px;border:1.5px solid var(--gray2);border-radius:9px;font-size:13px;font-family:inherit">'+
+            '<option value="utf8bom"'+(perfil.enc==='utf8bom'?' selected':'')+'>UTF-8 com BOM (padrão)</option>'+
+            '<option value="utf8"'+(perfil.enc==='utf8'?' selected':'')+'>UTF-8 sem BOM</option>'+
+            '<option value="ansi"'+(perfil.enc==='ansi'?' selected':'')+'>ANSI / ISO-8859-1</option>'+
+          '</select>'+
+        '</div>'+
+        '<div>'+
+          '<label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--t2);display:block;margin-bottom:6px">Extensão do arquivo</label>'+
+          '<select id="erp-ext" style="width:100%;padding:9px 12px;border:1.5px solid var(--gray2);border-radius:9px;font-size:13px;font-family:inherit">'+
+            '<option value="txt"'+(perfil.ext==='txt'?' selected':'')+'>TXT</option>'+
+            '<option value="csv"'+(perfil.ext==='csv'?' selected':'')+'>CSV</option>'+
+          '</select>'+
+        '</div>'+
+      '</div>'+
+
+      '<div style="display:flex;gap:20px;margin-bottom:16px">'+
+        '<label style="display:flex;align-items:center;gap:7px;font-size:13px;cursor:pointer">'+
+          '<input type="checkbox" id="erp-header"'+(perfil.header?' checked':'')+' style="width:15px;height:15px;accent-color:var(--y)"/> Linha de cabeçalho'+
+        '</label>'+
+        '<label style="display:flex;align-items:center;gap:7px;font-size:13px;cursor:pointer">'+
+          '<input type="checkbox" id="erp-agrupa"'+(perfil.agrupa?' checked':'')+' style="width:15px;height:15px;accent-color:var(--y)"/> Agrupar por EAN (somar qtd)'+
+        '</label>'+
+      '</div>'+
+
+      '<label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--t2);display:block;margin-bottom:8px">Colunas incluídas (na ordem)</label>'+
+      '<div style="background:var(--gray);border-radius:10px;padding:10px 14px;margin-bottom:6px;display:grid;grid-template-columns:1fr 1fr;gap:2px" id="erp-campos-wrap">'+camposOpts+'</div>'+
+      '<div style="font-size:11px;color:var(--t3);margin-bottom:16px">A ordem das colunas segue a lista de cima para baixo.</div>'+
+
+      '<div style="background:#f8f8f8;border-radius:10px;padding:12px 14px;margin-bottom:16px">'+
+        '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--t3);margin-bottom:8px">Preview (3 primeiras linhas)</div>'+
+        '<pre id="erp-preview" style="font-size:11px;font-family:monospace;overflow-x:auto;white-space:pre;color:var(--t);margin:0">Carregando...</pre>'+
+      '</div>'+
+
+      '<div style="display:flex;gap:10px">'+
+        '<button onclick="_fecharModalExportErp()" style="flex:1;padding:13px;background:#fff;border:1.5px solid var(--gray2);border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;color:var(--t2)">Cancelar</button>'+
+        '<button onclick="_erp_gerarArquivo()" style="flex:2;padding:13px;background:var(--y);color:#111;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">⬇ Baixar arquivo</button>'+
+      '</div>'+
+    '</div></div>';
+
+  document.body.insertAdjacentHTML('beforeend', html);
+  // Carrega preview
+  loadBipagensByInv(_invAtivo.id, function(bips){
+    loadCatalogoByInv(_invAtivo.id, function(cat){
+      window._erpBipsCache = bips;
+      window._erpCatCache  = cat;
+      _erp_atualizarPreview();
+      // Atualiza preview ao mudar qualquer opção
+      ['erp-sep','erp-dec','erp-enc','erp-header','erp-agrupa'].forEach(function(id){
+        var el=document.getElementById(id); if(el) el.addEventListener('change', _erp_atualizarPreview);
       });
-      var lines=['ENDERECO;EAN;QUANTIDADE;SEQUENCIAL;DESCRICAO;UNIDADE;RODADA'];
-      bipsFiltradas.forEach(function(b){
-        var p=cat[b.ean]||{};
-        lines.push([b.endereco,b.ean,b.qty,b.seq,p.desc||'',p.un||'',b.rodada||1].join(';'));
+      document.querySelectorAll('.erp-campo-cb').forEach(function(cb){
+        cb.addEventListener('change', _erp_atualizarPreview);
       });
-      var blob=new Blob(['﻿'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'});
-      var url=URL.createObjectURL(blob);
-      var a=document.createElement('a'); a.href=url;
-      a.download=(_invAtivo.nome||'inventario').replace(/[^a-z0-9]/gi,'_')+'_ERP.txt';
-      a.click(); setTimeout(function(){ URL.revokeObjectURL(url); },2000);
     });
   });
+}
+
+function _fecharModalExportErp() {
+  var m=document.getElementById('modal-erp-export'); if(m) m.remove();
+  window._erpBipsCache=null; window._erpCatCache=null;
+}
+
+function _erp_aplicarPreset(key) {
+  var p = _ERP_PRESETS[key]; if(!p||key==='custom') return;
+  var sepEl=document.getElementById('erp-sep'); if(sepEl) sepEl.value=p.sep;
+  var decEl=document.getElementById('erp-dec'); if(decEl) decEl.value=p.dec;
+  var encEl=document.getElementById('erp-enc'); if(encEl) encEl.value=p.enc;
+  var hdEl=document.getElementById('erp-header'); if(hdEl) hdEl.checked=p.header;
+  var agEl=document.getElementById('erp-agrupa'); if(agEl) agEl.checked=p.agrupa;
+  document.querySelectorAll('.erp-campo-cb').forEach(function(cb){
+    cb.checked = p.campos && p.campos.indexOf(cb.value) >= 0;
+  });
+  _erp_atualizarPreview();
+}
+
+function _erp_lerPerfil() {
+  var sep  = (document.getElementById('erp-sep')||{}).value||';';
+  var dec  = (document.getElementById('erp-dec')||{}).value||'int';
+  var enc  = (document.getElementById('erp-enc')||{}).value||'utf8bom';
+  var ext  = (document.getElementById('erp-ext')||{}).value||'txt';
+  var header = !!(document.getElementById('erp-header')||{}).checked;
+  var agrupa = !!(document.getElementById('erp-agrupa')||{}).checked;
+  var preset = (document.getElementById('erp-preset')||{}).value||'custom';
+  var campos = [];
+  document.querySelectorAll('.erp-campo-cb:checked').forEach(function(cb){ campos.push(cb.value); });
+  // Mantém ordem da lista original (não da DOM checked order)
+  var camposOrdenados = _ERP_CAMPOS.map(function(c){ return c.id; }).filter(function(id){ return campos.indexOf(id)>=0; });
+  return {sep:sep, dec:dec, enc:enc, ext:ext, header:header, agrupa:agrupa, campos:camposOrdenados, _preset:preset};
+}
+
+function _erp_formatarQty(n, dec) {
+  if (dec==='dot')   return n.toFixed(2);
+  if (dec==='comma') return n.toFixed(2).replace('.',',');
+  return String(n);
+}
+
+function _erp_buildLinhas(bips, cat, perfil) {
+  var resolucoes = (_invAtivo&&_invAtivo.resolucoes)||{};
+  var bipsFilt = bips.filter(function(b){
+    var res=resolucoes[b.endereco]; if(!res) return true;
+    return (b.rodada||1)===res.rodada;
+  });
+  var dados;
+  if (perfil.agrupa) {
+    var mapa = {};
+    bipsFilt.forEach(function(b){
+      var k = b.ean;
+      if (!mapa[k]) mapa[k] = {ean:b.ean, qty:0, endereco:b.endereco, setor:b.setor||'', coletorId:b.coletorId||'', seq:b.seq||0, rodada:b.rodada||1, ts:b.ts};
+      mapa[k].qty += (b.qty||1);
+    });
+    dados = Object.values(mapa);
+  } else {
+    dados = bipsFilt;
+  }
+  var lines = [];
+  var labelMap = {};
+  _ERP_CAMPOS.forEach(function(c){ labelMap[c.id]=c.label; });
+  if (perfil.header && perfil.campos.length) {
+    lines.push(perfil.campos.map(function(id){ return labelMap[id]||id; }).join(perfil.sep));
+  }
+  dados.forEach(function(b){
+    var p = cat[b.ean]||{};
+    var ts = b.ts&&b.ts.seconds ? new Date(b.ts.seconds*1000) : null;
+    var row = perfil.campos.map(function(id){
+      if (id==='ean')       return b.ean||'';
+      if (id==='qty')       return _erp_formatarQty(b.qty||1, perfil.dec);
+      if (id==='endereco')  return b.endereco||'';
+      if (id==='desc')      return p.desc||b.desc||'';
+      if (id==='un')        return p.un||'';
+      if (id==='setor')     return b.setor||'';
+      if (id==='coletorId') return b.coletorId||'';
+      if (id==='seq')       return String(b.seq||'');
+      if (id==='rodada')    return String(b.rodada||1);
+      if (id==='data')      return ts ? ts.toLocaleDateString('pt-BR') : '';
+      if (id==='hora')      return ts ? ts.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : '';
+      return '';
+    });
+    lines.push(row.join(perfil.sep));
+  });
+  return lines;
+}
+
+function _erp_atualizarPreview() {
+  var el = document.getElementById('erp-preview'); if(!el) return;
+  var bips = window._erpBipsCache||[];
+  var cat  = window._erpCatCache||{};
+  if (!bips.length) { el.textContent = '(sem bipagens)'; return; }
+  var perfil = _erp_lerPerfil();
+  var lines  = _erp_buildLinhas(bips, cat, perfil);
+  el.textContent = lines.slice(0, 4).join('\n') + (lines.length > 4 ? '\n... ('+lines.length+' linhas total)' : '');
+}
+
+function _erp_gerarArquivo() {
+  var bips = window._erpBipsCache||[];
+  var cat  = window._erpCatCache||{};
+  var perfil = _erp_lerPerfil();
+  // Salva perfil
+  try { localStorage.setItem(_ERP_PROFILE_KEY, JSON.stringify(perfil)); } catch(e){}
+  var lines  = _erp_buildLinhas(bips, cat, perfil);
+  var conteudo = lines.join('\r\n');
+  var blob;
+  if (perfil.enc === 'ansi') {
+    // Converte para ISO-8859-1 (melhor esforço — caracteres fora do range viram '?')
+    var bytes = [];
+    for (var i=0; i<conteudo.length; i++) {
+      var c = conteudo.charCodeAt(i);
+      bytes.push(c < 256 ? c : 63);
+    }
+    blob = new Blob([new Uint8Array(bytes)], {type:'text/plain;charset=iso-8859-1'});
+  } else {
+    var prefix = perfil.enc === 'utf8bom' ? '﻿' : '';
+    blob = new Blob([prefix + conteudo], {type:'text/plain;charset=utf-8'});
+  }
+  var ext = perfil.ext || 'txt';
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a'); a.href=url;
+  a.download = ((_invAtivo&&_invAtivo.nome)||'inventario').replace(/[^a-z0-9]/gi,'_')+'_ERP.'+ext;
+  a.click(); setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+  _fecharModalExportErp();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
