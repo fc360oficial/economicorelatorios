@@ -32,9 +32,13 @@ if ('serviceWorker' in navigator) {
   // Guarda o controller atual antes de registrar (null = primeira instalação)
   var _prevController = navigator.serviceWorker.controller;
 
-  navigator.serviceWorker.register('./sw.js').then(function(reg) {
-    // Força verificação de nova versão ignorando HTTP cache do SW.js
+  // updateViaCache:'none' garante que sw.js é sempre buscado da rede (ignora cache HTTP)
+  navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).then(function(reg) {
     reg.update();
+    // Verifica update toda vez que o usuário volta ao app (mobile PWA)
+    document.addEventListener('visibilitychange', function() {
+      if (document.visibilityState === 'visible') reg.update();
+    });
   }).catch(function(err) {
     console.warn('SW registro falhou:', err);
   });
