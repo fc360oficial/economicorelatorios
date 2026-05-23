@@ -8333,7 +8333,7 @@ function gerarPDFBipagens() {
         if(b.coletorId) slot.coletores[b.coletorId]=b.coletorNome||b.coletorId;
       });
       var enderecos=Object.keys(endMap).sort();
-      var grandTotal=0, grandItens={};
+      var grandTotal=0;
       var bodyHtml=enderecos.map(function(end){
         var slot=endMap[end];
         var setor=slot.setor;
@@ -8347,7 +8347,6 @@ function gerarPDFBipagens() {
         });
         var sub=Object.keys(slot.eans).reduce(function(s,k){ return s+slot.eans[k]; },0);
         grandTotal+=sub;
-        Object.keys(slot.eans).forEach(function(e){ grandItens[e]=true; });
         return '<div style="margin-bottom:14px;break-inside:avoid">'
           +'<div style="padding:7px 10px;font-size:12px;font-weight:700;background:'+bg+';border-left:3px solid '+bc+';border-radius:3px">'
           +end+(setor?' ['+setor+']':'')
@@ -8375,7 +8374,7 @@ function gerarPDFBipagens() {
         +'<div class="fi">Filtro: '+filtroStr+'</div>'
         +'<div class="ct">'+bodyHtml
         +'<div style="margin-top:16px;padding:10px 14px;background:#111;color:#FFC600;font-size:14px;font-weight:700;border-radius:4px">'
-        +'TOTAL GERAL: '+grandTotal+' unidades &nbsp;|&nbsp; '+Object.keys(grandItens).length+' itens &nbsp;|&nbsp; '+enderecos.length+' endereco(s)</div>'
+        +'TOTAL GERAL: '+grandTotal+' unidades &nbsp;|&nbsp; '+bipsFilt.length+' itens bipados &nbsp;|&nbsp; '+enderecos.length+' endereco(s)</div>'
         +'</div></body></html>';
       var w=window.open('','_blank','width=900,height=700');
       if(w){ w.document.write(html); w.document.close(); w.onload=function(){ w.print(); }; }
