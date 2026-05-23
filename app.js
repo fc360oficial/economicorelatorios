@@ -7713,7 +7713,13 @@ function _confirmarIdColetor() {
   _setIdColetor(val);
   _setNomeColetor(nome);
   var activeInv=(S.invsCache||[]).find(function(i){ return i.status==='aberto'; });
-  if(activeInv) localStorage.setItem(_COLETOR_INV_KEY, activeInv.id);
+  if(activeInv) {
+    localStorage.setItem(_COLETOR_INV_KEY, activeInv.id);
+    if(S.currentUser) {
+      var upd={}; upd['coletoresReg.'+S.currentUser.id]={coletorId:val,nome:nome||val,userNome:S.currentUser.nome||'',registradoEm:firebase.firestore.FieldValue.serverTimestamp()};
+      db.collection('inv_inventarios').doc(activeInv.id).update(upd).catch(function(){});
+    }
+  }
   renderColeta();
 }
 
@@ -8394,12 +8400,54 @@ function switchInvTab(tab,btn) {
   // Lógica original
   document.querySelectorAll('#inv-detalhe-tabs .tab').forEach(function(t){ t.classList.remove('on'); });
   if (btn) btn.classList.add('on');
-  ['enderecos','dashboard','bipagens','auditoria','exportar'].forEach(function(t){ var el=document.getElementById('inv-tab-'+t); if(el) el.style.display=t===tab?'block':'none'; });
+  ['enderecos','coletores','dashboard','bipagens','auditoria','exportar'].forEach(function(t){ var el=document.getElementById('inv-tab-'+t); if(el) el.style.display=t===tab?'block':'none'; });
   if (tab!=='dashboard') _pararDashboardRealtime();
   if (tab==='enderecos') renderInvEnderecos();
+  if (tab==='coletores') renderInvColetores();
   if (tab==='dashboard') _iniciarDashboardRealtime(_invAtivo.id);
   if (tab==='bipagens'){ var f=document.getElementById('inv-bip-filter'); renderInvBipagens(f&&f.value||null); }
   if (tab==='auditoria') renderTrilhaAuditoria(_invAtivo.id);
+}
+
+function renderInvColetores() {
+  if (!_invAtivo) return;
+  var wrap=document.getElementById('inv-coletores-wrap'); if(!wrap) return;
+  wrap.innerHTML='<div style="color:var(--t3);font-size:13px;padding:16px 0">⏳ Carregando...</div>';
+  // Busca dados frescos do inventário para ter coletoresReg atualizado
+  db.collection('inv_inventarios').doc(_invAtivo.id).get().then(function(snap){
+    if(!snap.exists) return;
+    var reg=snap.data().coletoresReg||{};
+    var list=Object.keys(reg).map(function(uid){ return reg[uid]; });
+    list.sort(function(a,b){ return (a.coletorId||'').localeCompare(b.coletorId||'',undefined,{numeric:true}); });
+    var n=list.length;
+    var corN=n===0?'var(--r)':n<5?'#b38600':'#1a5c34';
+    wrap.innerHTML=
+      '<div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;padding:16px;background:var(--gray);border-radius:12px;flex-wrap:wrap">'+
+        '<div>'+
+          '<div style="font-size:36px;font-weight:800;font-family:\'Syne\',sans-serif;line-height:1;color:'+corN+'">'+n+'</div>'+
+          '<div style="font-size:12px;color:var(--t2);margin-top:2px">coletores identificados</div>'+
+        '</div>'+
+        '<div style="font-size:12px;color:var(--t3);flex:1">'+
+          (n===0?'Ninguém se identificou ainda.':
+           'Cada coletor aparece aqui ao entrar no ID pela primeira vez neste inventário.')+
+        '</div>'+
+        '<button class="btn btn-s btn-sm" onclick="renderInvColetores()">↺ Atualizar</button>'+
+      '</div>'+
+      (n===0?'<div style="text-align:center;padding:40px;color:var(--t3)"><div style="font-size:40px;margin-bottom:10px">👥</div><div style="font-weight:600">Aguardando coletores...</div></div>':
+        '<div class="card" style="padding:0"><table>'+
+          '<thead><tr><th>ID</th><th>Nome</th><th>Usuário</th><th>Registrado em</th></tr></thead>'+
+          '<tbody>'+
+          list.map(function(c){
+            var ts=c.registradoEm?new Date(c.registradoEm.seconds*1000).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';
+            return '<tr>'+
+              '<td><strong style="font-family:monospace;font-size:15px">'+c.coletorId+'</strong></td>'+
+              '<td>'+c.nome+'</td>'+
+              '<td style="font-size:11px;color:var(--t3)">'+(c.userNome||'—')+'</td>'+
+              '<td style="font-size:11px;color:var(--t3)">'+ts+'</td>'+
+            '</tr>';
+          }).join('')+
+          '</tbody></table></div>');
+  }).catch(function(){ wrap.innerHTML='<div style="color:var(--r);padding:16px">Erro ao carregar coletores.</div>'; });
 }
 
 function voltarInvLista() {
