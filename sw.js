@@ -1,6 +1,6 @@
 // Fluxo Certo 360 — Service Worker
 // Atualiza este número de versão sempre que publicar novos arquivos
-var CACHE_NAME = 'cahu360-v101';
+var CACHE_NAME = 'cahu360-v102';
 
 // Arquivos críticos: sempre buscados da rede (nunca do cache)
 // Isso garante que o app.js novo chegue sempre, quebrando o ciclo de cache
