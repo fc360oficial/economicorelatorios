@@ -1,6 +1,10 @@
 // Fluxo Certo 360 — Service Worker
 // Atualiza este número de versão sempre que publicar novos arquivos
-var CACHE_NAME = 'cahu360-v97';
+var CACHE_NAME = 'cahu360-v98';
+
+// Arquivos críticos: sempre buscados da rede (nunca do cache)
+// Isso garante que o app.js novo chegue sempre, quebrando o ciclo de cache
+var NETWORK_FIRST = ['app.js', 'index.html'];
 
 var SHELL_ASSETS = [
   './',
@@ -31,7 +35,7 @@ self.addEventListener('install', function(event) {
   );
 });
 
-// Ativa e remove caches antigos — controllerchange no app detecta e recarrega
+// Ativa e remove caches antigos
 self.addEventListener('activate', function(event) {
   event.waitUntil(
     caches.keys().then(function(keys) {
@@ -45,16 +49,16 @@ self.addEventListener('activate', function(event) {
   );
 });
 
-// Intercepta requisições: cache-first para arquivos locais, network-first para Firebase/CDN
+// Intercepta requisições
 self.addEventListener('fetch', function(event) {
   var url = event.request.url;
 
-  // Deixa o Firebase SDK gerenciar as suas próprias requisições
+  // Firebase: não intercepta
   if (url.includes('googleapis.com') || url.includes('firestore.googleapis.com') || url.includes('firebaseio.com')) {
     return;
   }
 
-  // Para fontes Google e CDN externos: tenta rede, cai no cache
+  // CDN externos: network-first, cai no cache se offline
   if (url.includes('fonts.googleapis.com') || url.includes('fonts.gstatic.com') || url.includes('cdn.jsdelivr.net') || url.includes('cdnjs.cloudflare.com')) {
     event.respondWith(
       fetch(event.request).then(function(resp) {
@@ -70,11 +74,29 @@ self.addEventListener('fetch', function(event) {
     return;
   }
 
-  // Arquivos locais: cache-first (app funciona offline)
+  // app.js e index.html: SEMPRE network-first
+  // Isso garante que atualizações cheguem sem depender do controllerchange
+  var isNetworkFirst = NETWORK_FIRST.some(function(f) { return url.endsWith(f) || url.endsWith(f + '?'); });
+  if (isNetworkFirst) {
+    event.respondWith(
+      fetch(event.request).then(function(resp) {
+        if (resp && resp.ok) {
+          var clone = resp.clone();
+          caches.open(CACHE_NAME).then(function(cache) { cache.put(event.request, clone); });
+        }
+        return resp;
+      }).catch(function() {
+        // Offline: usa cache como fallback
+        return caches.match(event.request);
+      })
+    );
+    return;
+  }
+
+  // Demais arquivos locais: cache-first (imagens, css, etc.)
   event.respondWith(
     caches.match(event.request).then(function(cached) {
       if (cached) {
-        // Retorna do cache e atualiza em background (stale-while-revalidate)
         fetch(event.request).then(function(resp) {
           if (resp && resp.ok) {
             caches.open(CACHE_NAME).then(function(cache) { cache.put(event.request, resp); });
@@ -82,7 +104,6 @@ self.addEventListener('fetch', function(event) {
         }).catch(function() {});
         return cached;
       }
-      // Não está no cache: busca na rede e guarda
       return fetch(event.request).then(function(resp) {
         if (resp && resp.ok && event.request.method === 'GET') {
           var clone = resp.clone();
@@ -90,7 +111,6 @@ self.addEventListener('fetch', function(event) {
         }
         return resp;
       }).catch(function() {
-        // Fallback final: retorna o index.html para navegação offline
         if (event.request.destination === 'document') {
           return caches.match('./index.html');
         }
