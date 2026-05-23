@@ -6303,8 +6303,8 @@ function encerrarInventario(invId) {
   var nomeInv=inv?inv.nome:'este inventário';
   var html=
     '<div id="modal-encerrar-inv" onclick="if(event.target===this)fecharModalEncerrarInv()" '+
-      'style="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:2000;display:flex;align-items:flex-end;justify-content:center;padding:0">'+
-      '<div style="background:#fff;border-radius:20px 20px 0 0;padding:28px 24px 36px;width:100%;max-width:480px;box-shadow:0 -4px 32px rgba(0,0,0,.18)">'+
+      'style="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:2000;display:flex;align-items:center;justify-content:center;padding:20px">'+
+      '<div style="background:#fff;border-radius:16px;padding:28px 24px 24px;width:100%;max-width:420px;box-shadow:0 8px 40px rgba(0,0,0,.22)">'+
         '<div style="font-family:\'Syne\',sans-serif;font-size:18px;font-weight:800;margin-bottom:6px;color:#c0392b">⚠ Encerrar Inventário</div>'+
         '<div style="font-size:14px;color:var(--t2);margin-bottom:6px">Você está prestes a encerrar:</div>'+
         '<div style="font-size:15px;font-weight:700;margin-bottom:14px;padding:10px 14px;background:#fdecea;border-radius:10px;color:#c0392b">'+nomeInv+'</div>'+
@@ -6313,7 +6313,7 @@ function encerrarInventario(invId) {
           'O inventário ficará disponível apenas para consulta no Histórico.'+
         '</div>'+
         '<label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--t2);display:block;margin-bottom:8px">Confirme sua senha para continuar</label>'+
-        '<input id="encerrar-inv-senha" type="password" placeholder="Sua senha" autocomplete="current-password" '+
+        '<input id="encerrar-inv-senha" type="password" placeholder="Digite sua senha" autocomplete="off" '+
           'style="width:100%;padding:13px;border:2px solid var(--r);border-radius:10px;font-size:15px;box-sizing:border-box;font-family:inherit;margin-bottom:6px" '+
           'onkeydown="if(event.key===\'Enter\')_confirmarEncerrarInv(\''+invId+'\')"/>'+
         '<div id="encerrar-inv-err" style="color:var(--r);font-size:12px;font-weight:600;min-height:18px;margin-bottom:14px"></div>'+
@@ -6324,7 +6324,7 @@ function encerrarInventario(invId) {
       '</div>'+
     '</div>';
   document.body.insertAdjacentHTML('beforeend', html);
-  setTimeout(function(){ var el=document.getElementById('encerrar-inv-senha'); if(el) el.focus(); }, 100);
+  setTimeout(function(){ var el=document.getElementById('encerrar-inv-senha'); if(el){ el.value=''; el.focus(); } }, 120);
 }
 
 function fecharModalEncerrarInv() {
