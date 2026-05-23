@@ -8242,7 +8242,7 @@ function gerarRelPDF() {
     var css='*{box-sizing:border-box;margin:0;padding:0}'
       +'body{font-family:Arial,sans-serif;font-size:12px;color:#111}'
       +'.ph{background:#FFC600;padding:14px 20px;display:flex;align-items:center;gap:14px}'
-      +'.ph img{height:52px;width:auto}'
+      +'.ph img{height:52px;width:auto;mix-blend-mode:multiply}'
       +'.ph-fb{font-size:18px;font-weight:800;color:#111}'
       +'.ph-info h1{font-size:16px;font-weight:700;margin-bottom:3px;color:#111}'
       +'.ph-info p{font-size:11px;color:#333}'
