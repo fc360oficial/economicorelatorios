@@ -695,7 +695,7 @@ function finalizarLogin(found) {
     var dEl = document.getElementById('cl-data-hoje');
     if (dEl) dEl.textContent = hoje.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
     document.getElementById('app').style.opacity='1';
-    var _BUILD = '116';
+    var _BUILD = '117';
     if (localStorage.getItem('fc360_build') !== _BUILD || /[?&]t=\d/.test(window.location.search)) {
       localStorage.setItem('fc360_build', _BUILD);
       sessionStorage.removeItem('eco_last_page');
@@ -7652,10 +7652,10 @@ function _renderSelecaoEndereco(inv, bipCount) {
   }).join('');
   return '<div>'+
     '<div style="font-family:\'Syne\',sans-serif;font-size:16px;font-weight:700;margin-bottom:4px">Selecionar Endereço</div>'+
-    '<div style="font-size:13px;color:var(--t3);margin-bottom:14px">Digite o código, escaneie o QR Code ou toque na lista.</div>'+
+    '<div style="font-size:13px;color:var(--t3);margin-bottom:14px">Scanner físico: aponte e leia diretamente. Câmera: toque em 📷.</div>'+
     '<div style="display:flex;gap:8px;margin-bottom:10px">'+
-      '<input id="fila-end-input" type="text" placeholder="Código do endereço" autocomplete="off" autocorrect="off" autocapitalize="characters" style="flex:1;padding:10px 14px;border:1.5px solid var(--gray2);border-radius:9px;font-size:15px;font-family:monospace;text-transform:uppercase" onkeydown="if(event.key===\'Enter\'){selecionarEnderecoFila(\''+inv.id+'\',document.getElementById(\'fila-end-input\').value.trim())}"/>'+
-      '<button class="btn btn-s btn-sm" id="btn-qr-scan" onclick="iniciarQRScanEndereco(\''+inv.id+'\')" style="font-size:18px;padding:8px 14px">📷</button>'+
+      '<input id="fila-end-input" type="text" placeholder="Aguardando scanner..." autocomplete="off" autocorrect="off" autocapitalize="characters" inputmode="text" style="flex:1;padding:10px 14px;border:2px solid var(--y);border-radius:9px;font-size:15px;font-family:monospace;text-transform:uppercase" onkeydown="if(event.key===\'Enter\'||event.key===\'Tab\'){event.preventDefault();selecionarEnderecoFila(\''+inv.id+'\',document.getElementById(\'fila-end-input\').value.trim());}" onblur="setTimeout(function(){var m=document.getElementById(\'modal-setor-picker\');var qs=document.getElementById(\'qr-scan-wrap\');if(!m&&(!qs||qs.style.display===\'none\')){var e=document.getElementById(\'fila-end-input\');if(e)e.focus();}},120)"/>'+
+      '<button class="btn btn-s btn-sm" id="btn-qr-scan" onclick="iniciarQRScanEndereco(\''+inv.id+'\')" style="font-size:18px;padding:8px 14px" title="Usar câmera">📷</button>'+
       '<button class="btn btn-p btn-sm" onclick="selecionarEnderecoFila(\''+inv.id+'\',document.getElementById(\'fila-end-input\').value.trim())" style="white-space:nowrap">Ir →</button>'+
     '</div>'+
     '<div id="qr-scan-wrap" style="display:none;margin-bottom:12px">'+
@@ -7989,7 +7989,7 @@ function renderColeta() {
             '<span style="padding:4px 14px;border-radius:20px;font-size:11px;font-weight:700;background:#d1f0e0;color:#1a5c34">ABERTO</span>'+
           '</div>'+
           _renderSelecaoEndereco(fresh, cnt)+'</div>';
-        setTimeout(function(){ var el=document.getElementById('fila-end-input'); if(el) el.focus(); },150);
+        setTimeout(function(){ var el=document.getElementById('fila-end-input'); if(el){ el.focus(); el.select(); } },80);
       });
     });
     return;
