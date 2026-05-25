@@ -751,7 +751,7 @@ function finalizarLogin(found) {
     var dEl = document.getElementById('cl-data-hoje');
     if (dEl) dEl.textContent = hoje.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
     document.getElementById('app').style.opacity='1';
-    var _BUILD = '120';
+    var _BUILD = '121';
     if (localStorage.getItem('fc360_build') !== _BUILD || /[?&]t=\d/.test(window.location.search)) {
       localStorage.setItem('fc360_build', _BUILD);
       sessionStorage.removeItem('eco_last_page');
@@ -5202,10 +5202,33 @@ function confirmarComAssinatura() {
 // ===========================================
 function enviarWhatsApp() {
   var numSalvo = localStorage.getItem('cahu360_wp_numero') || '';
-  var num = window.prompt('Número WhatsApp do supervisor (com DDD, sem espaços):\nEx: 11999990000', numSalvo);
-  if (!num) return;
-  num = num.replace(/\D/g,'');
+  // window.prompt não funciona em PWA standalone — usa modal próprio
+  var existing = document.getElementById('modal-wp-numero');
+  if (existing) existing.remove();
+  var html =
+    '<div id="modal-wp-numero" onclick="if(event.target===this)this.remove()" style="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:5000;display:flex;align-items:center;justify-content:center;padding:20px">'+
+    '<div style="background:#fff;border-radius:18px;padding:28px 24px;width:100%;max-width:360px;box-shadow:0 8px 40px rgba(0,0,0,.25)">'+
+      '<div style="font-family:\'Syne\',sans-serif;font-size:17px;font-weight:800;margin-bottom:6px">📱 Avisar pelo WhatsApp</div>'+
+      '<div style="font-size:13px;color:#666;margin-bottom:16px">Digite o DDD + número (apenas dígitos).<br>Ex: <b>11999990000</b></div>'+
+      '<input id="wp-num-input" type="tel" inputmode="numeric" maxlength="15" value="'+numSalvo+'" placeholder="Ex: 11999990000" '+
+        'style="width:100%;padding:13px 14px;border:2px solid #FFC600;border-radius:10px;font-size:18px;font-family:monospace;letter-spacing:2px;box-sizing:border-box;margin-bottom:16px;outline:none"/>'+
+      '<div style="display:flex;gap:10px">'+
+        '<button onclick="document.getElementById(\'modal-wp-numero\').remove()" style="flex:1;padding:13px;background:#fff;border:1.5px solid #ddd;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;color:#555">Cancelar</button>'+
+        '<button onclick="_enviarWhatsAppConfirmar()" style="flex:2;padding:13px;background:#25D366;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">Enviar WhatsApp</button>'+
+      '</div>'+
+    '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+  setTimeout(function(){ var el=document.getElementById('wp-num-input'); if(el){ el.focus(); el.select(); } }, 80);
+}
+
+function _enviarWhatsAppConfirmar() {
+  var el = document.getElementById('wp-num-input');
+  if (!el) return;
+  var num = el.value.replace(/\D/g,'');
+  if (num.length < 10) { el.style.borderColor='#c0392b'; el.focus(); return; }
   localStorage.setItem('cahu360_wp_numero', num);
+  var modal = document.getElementById('modal-wp-numero');
+  if (modal) modal.remove();
   var pendencias = getPendencias();
   var hoje = new Date().toLocaleDateString('pt-BR');
   var loja = S.currentUser ? (S.currentUser.loja||'esta loja') : 'esta loja';
