@@ -493,8 +493,9 @@ function getChecklistsObrigatoriosHoje() {
   var myLoja = S.currentUser ? (S.currentUser.loja || '').toLowerCase() : '';
   return getCustomCLs().filter(function(cl) {
     var dias = cl.diasObrigatorios || [];
-    // sem agenda configurada = obrigatório todo dia
-    if (dias.length && !dias.some(function(d){ return Number(d) === diaSemana; })) return false;
+    // sem nenhum dia marcado = nunca gera alerta
+    if (!dias.length) return false;
+    if (!dias.some(function(d){ return Number(d) === diaSemana; })) return false;
     // Filtra por loja se o checklist tiver loja configurada
     if (cl.loja && myLoja && cl.loja.toLowerCase() !== myLoja) return false;
     return true;
@@ -512,8 +513,14 @@ function getPendencias() {
   var agora = new Date();
   var horaAgora = agora.getHours() * 60 + agora.getMinutes();
   var resultados = getResultados();
+  var diaSemana = agora.getDay();
   var pendencias = [];
   lista.forEach(function(cl) {
+    var dias = cl.diasObrigatorios || [];
+    // sem nenhum dia marcado = não gera alerta
+    if (!dias.length) return;
+    // hoje não está na agenda = não gera alerta
+    if (!dias.some(function(d){ return Number(d) === diaSemana; })) return;
     var enviado = resultados.some(function(r){
       return r.checklistId === cl.id && r.dataHora && r.dataHora.indexOf(hoje) === 0 && !r.resetado;
     });
@@ -751,7 +758,7 @@ function finalizarLogin(found) {
     var dEl = document.getElementById('cl-data-hoje');
     if (dEl) dEl.textContent = hoje.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
     document.getElementById('app').style.opacity='1';
-    var _BUILD = '126';
+    var _BUILD = '127';
     if (localStorage.getItem('fc360_build') !== _BUILD || /[?&]t=\d/.test(window.location.search)) {
       localStorage.setItem('fc360_build', _BUILD);
       sessionStorage.removeItem('eco_last_page');
