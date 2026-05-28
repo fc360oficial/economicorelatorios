@@ -758,7 +758,7 @@ function finalizarLogin(found) {
     var dEl = document.getElementById('cl-data-hoje');
     if (dEl) dEl.textContent = hoje.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
     document.getElementById('app').style.opacity='1';
-    var _BUILD = '130';
+    var _BUILD = '131';
     if (localStorage.getItem('fc360_build') !== _BUILD || /[?&]t=\d/.test(window.location.search)) {
       localStorage.setItem('fc360_build', _BUILD);
       sessionStorage.removeItem('eco_last_page');
@@ -2285,6 +2285,7 @@ function cancelarEnviar() {
 var nclItens = [];
 var editingCLId = null;
 var pendingCLId = null;
+var _editingItemIdx = null;
 var pendingDiariaProdutos = null;
 var pendingDiariaLojas = {};
 var clFiltro = 'todos';
@@ -2310,13 +2311,30 @@ function abrirModalCL() {
 
 function fecharModalCL() {
   document.getElementById('modal-cl').style.display='none';
-  nclItens=[]; editingCLId=null; pendingCLId=null;
+  nclItens=[]; editingCLId=null; pendingCLId=null; _editingItemIdx=null;
   pendingPlanilhaLojas={}; pendingPlanilhaProdutos=null;
   pendingDiariaLojas={}; pendingDiariaProdutos=null;
   renderNclDiariaLojas();
   renderNclPlanilhaLojas();
   var pr=document.getElementById('ncl-planilha-row'); if(pr) pr.style.display='none';
   var fs=document.getElementById('ncl-item-foto'); if(fs) fs.style.display='';
+}
+
+function _resetItemForm() {
+  document.getElementById('ncl-item-txt').value='';
+  document.getElementById('ncl-item-obs').value='';
+  document.getElementById('ncl-item-foto').value='none';
+  var tipoEl = document.getElementById('ncl-item-tipo');
+  if (tipoEl) { tipoEl.value='checkbox'; togglePlanilhaRow(tipoEl); }
+  var criticoEl = document.getElementById('ncl-item-critico');
+  if (criticoEl) criticoEl.checked = false;
+  var prazoEl = document.getElementById('ncl-item-prazo-plano');
+  if (prazoEl) prazoEl.value = '72';
+  _editingItemIdx = null;
+  var btn = document.getElementById('ncl-add-btn');
+  if (btn) btn.textContent = '+ Adicionar';
+  var cancel = document.getElementById('ncl-edit-cancel');
+  if (cancel) cancel.style.display = 'none';
 }
 
 function addItemNCL() {
@@ -2326,6 +2344,27 @@ function addItemNCL() {
   var tipo = (document.getElementById('ncl-item-tipo')||{value:'checkbox'}).value || 'checkbox';
   var criticoEl = document.getElementById('ncl-item-critico');
   if (!txt) return;
+
+  // Modo edição de item existente
+  if (_editingItemIdx !== null) {
+    var oldItem = nclItens[_editingItemIdx];
+    var foto = fotoVal !== 'none' ? fotoVal : false;
+    var critico = criticoEl ? criticoEl.checked : false;
+    var prazoPlanoEl = document.getElementById('ncl-item-prazo-plano');
+    var prazoPlano = (tipo === 'simNao' && prazoPlanoEl) ? parseInt(prazoPlanoEl.value || '72') : 72;
+    var updated = { t: txt, obs: obs, foto: foto, tipo: tipo, critico: critico, prazoPlano: prazoPlano };
+    if (tipo === 'planilha') {
+      updated.lojas = (oldItem && oldItem.lojas) || {};
+      updated.produtos = oldItem && oldItem.produtos;
+      updated.modoPlanilha = (oldItem && oldItem.modoPlanilha) || 'fixa';
+    }
+    nclItens[_editingItemIdx] = updated;
+    _resetItemForm();
+    renderNclItens();
+    document.getElementById('ncl-item-txt').focus();
+    return;
+  }
+
   if (tipo === 'planilha') {
     var modoChecked = document.querySelector('input[name="ncl-planilha-modo"]:checked');
     var modoPlanilha = modoChecked ? modoChecked.value : 'fixa';
@@ -2356,16 +2395,37 @@ function addItemNCL() {
     var prazoPlano = (tipo === 'simNao' && prazoPlanoEl) ? parseInt(prazoPlanoEl.value || '72') : 72;
     nclItens.push({ t: txt, obs: obs, foto: foto, tipo: tipo, critico: critico, prazoPlano: prazoPlano });
   }
-  document.getElementById('ncl-item-txt').value='';
-  document.getElementById('ncl-item-obs').value='';
-  document.getElementById('ncl-item-foto').value='none';
-  var tipoEl = document.getElementById('ncl-item-tipo');
-  if (tipoEl) { tipoEl.value='checkbox'; togglePlanilhaRow(tipoEl); }
-  if (criticoEl) criticoEl.checked = false;
-  var prazoPlanoResetEl = document.getElementById('ncl-item-prazo-plano');
-  if (prazoPlanoResetEl) prazoPlanoResetEl.value = '72';
+  _resetItemForm();
   renderNclItens();
   document.getElementById('ncl-item-txt').focus();
+}
+
+function editItemNCL(idx) {
+  var item = nclItens[idx];
+  if (!item) return;
+  _editingItemIdx = idx;
+  document.getElementById('ncl-item-txt').value = item.t;
+  document.getElementById('ncl-item-obs').value = item.obs || '';
+  var tipoEl = document.getElementById('ncl-item-tipo');
+  if (tipoEl) { tipoEl.value = item.tipo || 'checkbox'; togglePlanilhaRow(tipoEl); }
+  var fotoEl = document.getElementById('ncl-item-foto');
+  if (fotoEl) fotoEl.value = item.foto || 'none';
+  var criticoEl = document.getElementById('ncl-item-critico');
+  if (criticoEl) criticoEl.checked = !!item.critico;
+  var prazoEl = document.getElementById('ncl-item-prazo-plano');
+  if (prazoEl) prazoEl.value = item.prazoPlano || 72;
+  var btn = document.getElementById('ncl-add-btn');
+  if (btn) btn.textContent = '✔ Salvar';
+  var cancel = document.getElementById('ncl-edit-cancel');
+  if (cancel) cancel.style.display = 'inline';
+  renderNclItens();
+  document.getElementById('ncl-item-txt').focus();
+  document.getElementById('ncl-item-txt').scrollIntoView({behavior:'smooth',block:'center'});
+}
+
+function cancelarEditItem() {
+  _resetItemForm();
+  renderNclItens();
 }
 
 function removeItemNCL(idx) {
@@ -2377,7 +2437,10 @@ function renderNclItens() {
   var wrap = document.getElementById('ncl-itens-wrap');
   if (!nclItens.length) { wrap.innerHTML='<div style="font-size:12px;color:var(--t3);padding:8px 0">Nenhum item ainda. Preencha o campo abaixo e clique em Adicionar.</div>'; return; }
   wrap.innerHTML = nclItens.map(function(item,i){
-    return '<div style="display:flex;align-items:flex-start;gap:8px;padding:10px 12px;background:var(--gray);border-radius:8px">'
+    var isEditing = _editingItemIdx === i;
+    var bg = isEditing ? '#fffbea' : 'var(--gray)';
+    var border = isEditing ? '2px solid var(--am)' : '1.5px solid transparent';
+    return '<div style="display:flex;align-items:flex-start;gap:8px;padding:10px 12px;background:'+bg+';border-radius:8px;border:'+border+'">'
       +'<span style="font-size:18px;margin-top:1px">☐</span>'
       +'<div style="flex:1;min-width:0">'
       +'<div style="font-size:13px;font-weight:500">'+item.t+'</div>'
@@ -2386,6 +2449,7 @@ function renderNclItens() {
       +(item.foto && item.foto!=='none' ? '<div style="font-size:11px;color:var(--g);margin-top:2px">'+(item.foto==='antes_depois'?'📷📷 Foto antes e depois':'📷 Foto')+'</div>' : '')
       +(item.critico ? '<div style="font-size:11px;font-weight:700;color:var(--r);margin-top:2px">⚠️ Item Crítico — reprova a inspeção inteira</div>' : '')
       +'</div>'
+      +(isEditing ? '' : '<button onclick="editItemNCL('+i+')" title="Editar item" style="background:none;border:none;color:var(--bl);cursor:pointer;font-size:15px;line-height:1;flex-shrink:0;padding:0 2px">✏</button>')
       +'<button onclick="removeItemNCL('+i+')" style="background:none;border:none;color:var(--r);cursor:pointer;font-size:16px;line-height:1;flex-shrink:0">✕</button>'
       +'</div>';
   }).join('');
