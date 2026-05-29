@@ -761,11 +761,11 @@ function finalizarLogin(found) {
     var dEl = document.getElementById('cl-data-hoje');
     if (dEl) dEl.textContent = hoje.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
     document.getElementById('app').style.opacity='1';
-    var _BUILD = '140';
+    var _BUILD = '141';
     if (localStorage.getItem('fc360_build') !== _BUILD || /[?&]t=\d/.test(window.location.search)) {
       localStorage.setItem('fc360_build', _BUILD);
       sessionStorage.removeItem('eco_last_page');
-      localStorage.removeItem('inv_detalhe_state');
+      // inv_detalhe_state NAO e limpo aqui — sobrevive entre builds
     }
     var lastPage = sessionStorage.getItem('eco_last_page') || localStorage.getItem('eco_last_page');
     var pagesForRole = {
@@ -992,15 +992,15 @@ function nav(page, el) {
     });
   }
   if (page==='inv') {
+    // Captura ANTES do async para não perder o estado em corrida
+    var _snapState = localStorage.getItem('inv_detalhe_state');
     loadInventariosFromFirebase(function(){
-      var _raw=localStorage.getItem('inv_detalhe_state');
-      if (_raw) {
+      if (_snapState) {
         try {
-          var _st=JSON.parse(_raw);
+          var _st=JSON.parse(_snapState);
           if (_st&&_st.invId) {
             var _inv=(S.invsCache||[]).find(function(i){ return i.id===_st.invId; });
             if (_inv) {
-              localStorage.removeItem('inv_detalhe_state');
               abrirDetalheInv(_st.invId, _st.tab||'enderecos');
               return;
             }
