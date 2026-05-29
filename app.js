@@ -758,13 +758,13 @@ function finalizarLogin(found) {
     var dEl = document.getElementById('cl-data-hoje');
     if (dEl) dEl.textContent = hoje.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
     document.getElementById('app').style.opacity='1';
-    var _BUILD = '135';
+    var _BUILD = '136';
     if (localStorage.getItem('fc360_build') !== _BUILD || /[?&]t=\d/.test(window.location.search)) {
       localStorage.setItem('fc360_build', _BUILD);
       sessionStorage.removeItem('eco_last_page');
       localStorage.removeItem('inv_detalhe_state');
     }
-    var lastPage = sessionStorage.getItem('eco_last_page');
+    var lastPage = sessionStorage.getItem('eco_last_page') || localStorage.getItem('eco_last_page');
     var pagesForRole = {
       admin:      ['dashboard','checklist','central','relatorios','usuarios','plano','inv','inv-coleta'],
       gerencia:   ['dashboard','checklist','relatorios','plano','inv-coleta'],
@@ -949,6 +949,7 @@ var PAGE_TITLES = {
 
 function nav(page, el) {
   sessionStorage.setItem('eco_last_page', page);
+  localStorage.setItem('eco_last_page', page); // fallback para PWA fechado/reaberto
   if (page !== 'inv') localStorage.removeItem('inv_detalhe_state');
   // Close sidebar on mobile when navigating
   if (window.innerWidth <= 768) {
@@ -8878,8 +8879,12 @@ function renderColeta() {
   var mb=modo==='auditoria'
     ?'<span style="padding:3px 12px;border-radius:20px;font-size:11px;font-weight:700;background:#ede9fe;color:#5b21b6">Auditoria — Rodada '+rodada+'</span>'
     :'<span style="padding:3px 12px;border-radius:20px;font-size:11px;font-weight:700;background:#e8f5ee;color:#1a5c34">'+(isModoFila?'Fila':'Colaboração')+'</span>';
+  // Concluído: só limpa estado local (não apaga o slot — endereço deve continuar marcado como finalizado)
+  // Em andamento: libera o slot para outro coletor poder pegar
   var mudarBtn=isModoFila
-    ?'<button onclick="liberarEnderecoFila(\''+inv.id+'\',\''+end.replace(/'/g,"\\'")+'\');renderColeta()" style="padding:7px 14px;background:#fff;border:1.5px solid var(--gray2);border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;margin-bottom:14px">← Mudar Endereço</button>'
+    ?(concluido
+      ?'<button onclick="_filaEndAtual=null;renderColeta()" style="padding:7px 14px;background:#fff;border:1.5px solid var(--gray2);border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;margin-bottom:14px">← Próximo Endereço</button>'
+      :'<button onclick="liberarEnderecoFila(\''+inv.id+'\',\''+end.replace(/'/g,"\\'")+'\');renderColeta()" style="padding:7px 14px;background:#fff;border:1.5px solid var(--gray2);border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;margin-bottom:14px">← Mudar Endereço</button>')
     :'';
   var palletOn=_getModoPallet();
   var scanHtml=concluido
@@ -9601,7 +9606,8 @@ function atualizarNavColeta() {
   var colItem=document.getElementById('nav-inv-coleta'); if(!colItem) return;
   // sb-inv-sec e nav-inv-gestao são controlados por setupRole() — não mexer aqui
   var temAberto=(S.invsCache||[]).some(function(i){ return i.status==='aberto'; });
-  colItem.style.display=temAberto?'flex':'none';
+  var isAdminOrColetor=S.role==='admin'||S.role==='coletor';
+  colItem.style.display=(temAberto&&isAdminOrColetor)?'flex':'none';
 
   // Restaura detalhe de inventário após reload
   var raw=localStorage.getItem('inv_detalhe_state');

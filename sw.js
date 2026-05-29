@@ -8,7 +8,7 @@ var NETWORK_FIRST = ['app.js', 'index.html'];
 var SHELL_ASSETS = [
   './',
   './index.html',
-  './app.js?v=135',
+  './app.js?v=136',
   './style.css',
   './logo.png',
   './icon-192.png',
