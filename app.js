@@ -761,7 +761,7 @@ function finalizarLogin(found) {
     var dEl = document.getElementById('cl-data-hoje');
     if (dEl) dEl.textContent = hoje.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
     document.getElementById('app').style.opacity='1';
-    var _BUILD = '156';
+    var _BUILD = '157';
     if (localStorage.getItem('fc360_build') !== _BUILD || /[?&]t=\d/.test(window.location.search)) {
       localStorage.setItem('fc360_build', _BUILD);
       sessionStorage.removeItem('eco_last_page');
@@ -770,7 +770,7 @@ function finalizarLogin(found) {
     var lastPage = sessionStorage.getItem('eco_last_page') || localStorage.getItem('eco_last_page');
     var pagesForRole = {
       admin:      ['dashboard','checklist','central','relatorios','usuarios','plano','inv','inv-coleta'],
-      gerencia:   ['dashboard','checklist','relatorios','plano','inv-coleta'],
+      gerencia:   ['checklist','relatorios'],
       supervisor: ['dashboard','checklist','relatorios','plano','inv-coleta'],
       operator:   ['checklist','inv-coleta'],
       prevencao:  ['checklist','inv-coleta'],
@@ -877,13 +877,13 @@ function setupRole() {
   var tabGer = document.getElementById('tab-gerenciar');
   if (tabGer) tabGer.style.display = (isAdmin || isSup) ? '' : 'none';
   // Dashboard só para admin e gerência
-  show('nav-dashboard', (isAdmOrGer || isSup) && !isColetor);
+  show('nav-dashboard', (isAdmin || isSup) && !isColetor);
   show('nav-central', isAdmin && !isColetor);
   show('nav-relat', (isAdmin || isSup || r==='gerencia') && !isColetor);
   show('nav-assistente', isAdmin);
   show('nav-users', isAdmin && !isColetor);
   show('nav-alertas', (isAdmin || isSup) && !isColetor);
-  show('nav-plano', (isAdmOrGer || isSup) && !isColetor);
+  show('nav-plano', (isAdmin || isSup) && !isColetor);
   show('nav-checklist', !isColetor);
   show('nav-sec-checklist', !isColetor);
   // FC360 Inventário — só admin por enquanto
