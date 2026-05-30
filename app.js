@@ -761,7 +761,7 @@ function finalizarLogin(found) {
     var dEl = document.getElementById('cl-data-hoje');
     if (dEl) dEl.textContent = hoje.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
     document.getElementById('app').style.opacity='1';
-    var _BUILD = '151';
+    var _BUILD = '152';
     if (localStorage.getItem('fc360_build') !== _BUILD || /[?&]t=\d/.test(window.location.search)) {
       localStorage.setItem('fc360_build', _BUILD);
       sessionStorage.removeItem('eco_last_page');
@@ -10378,6 +10378,66 @@ function enviarMensagemIA(textoFixo) {
 
   // Últimos 7 dias resumo
   ctx += '\n>> RESUMO 7 DIAS: ' + result7d.length + ' checklists | ' + reprov7d.length + ' reprovados | ' + planosAtrasados.length + ' planos atrasados\n';
+
+  // ── Cadastro de checklists por loja/setor ─────────────
+  var todosOsCLs = (typeof getCustomCLs==='function') ? getCustomCLs() : [];
+  if(todosOsCLs.length){
+    ctx += '\n>> CHECKLISTS CADASTRADOS NO SISTEMA (' + todosOsCLs.length + ' customizados)\n';
+    // Agrupa por loja
+    var clPorLoja = {};
+    todosOsCLs.forEach(function(cl){
+      var lojaKey = cl.loja || 'Todas as lojas';
+      if(!clPorLoja[lojaKey]) clPorLoja[lojaKey] = [];
+      clPorLoja[lojaKey].push(cl);
+    });
+    Object.keys(clPorLoja).forEach(function(lojaKey){
+      ctx += '  Loja: ' + lojaKey + '\n';
+      clPorLoja[lojaKey].forEach(function(cl){
+        ctx += '    • [' + (cl.setor||'Geral') + '] ' + (cl.nome||cl.label||cl.id) + ' (perfil: ' + (cl.perfil||'todos') + ')\n';
+      });
+    });
+  }
+
+  // ── Equipe cadastrada por loja ────────────────────────
+  var todosUsuarios = (typeof getUsers==='function') ? getUsers() : (S.usersCache||[]);
+  var roleNames2 = {admin:'Administrador',gerencia:'Gerência',supervisor:'Supervisor',operator:'Operador',prevencao:'Prevenção',coletor:'Coletor'};
+  if(todosUsuarios.length){
+    ctx += '\n>> EQUIPE CADASTRADA POR LOJA\n';
+    var usersPorLoja = {};
+    todosUsuarios.forEach(function(usr){
+      var lojaKey = usr.loja || 'Sem loja definida';
+      if(!usersPorLoja[lojaKey]) usersPorLoja[lojaKey] = [];
+      usersPorLoja[lojaKey].push(usr);
+    });
+    Object.keys(usersPorLoja).forEach(function(lojaKey){
+      ctx += '  Loja: ' + lojaKey + '\n';
+      usersPorLoja[lojaKey].forEach(function(usr){
+        ctx += '    • ' + (usr.nome||'?') + ' — ' + (roleNames2[usr.perfil]||usr.perfil||'?') + '\n';
+      });
+    });
+  }
+
+  // ── Resultados agrupados por loja (7 dias) ────────────
+  var result7dTodos = (S.resultadosCache||[]).filter(function(r){ return r.dataHora&&_dePt(r.dataHora)>=sete; });
+  var resultPorLoja = {};
+  result7dTodos.forEach(function(r){
+    var lojaKey = r.loja || 'Sem loja';
+    if(!resultPorLoja[lojaKey]) resultPorLoja[lojaKey] = {total:0,reprov:0,pctSum:0};
+    resultPorLoja[lojaKey].total++;
+    if(r.reprovado) resultPorLoja[lojaKey].reprov++;
+    resultPorLoja[lojaKey].pctSum += (r.pct||0);
+  });
+  if(Object.keys(resultPorLoja).length > 1){
+    ctx += '\n>> DESEMPENHO POR LOJA (últimos 7 dias)\n';
+    Object.keys(resultPorLoja).forEach(function(lojaKey){
+      var rl = resultPorLoja[lojaKey];
+      var media = rl.total ? Math.round(rl.pctSum/rl.total) : 0;
+      // Quem é o gerente/supervisor dessa loja
+      var gestores = todosUsuarios.filter(function(u2){ return u2.loja===lojaKey && (u2.perfil==='gerencia'||u2.perfil==='supervisor'||u2.perfil==='admin'); });
+      var nomeGestores = gestores.map(function(g){ return g.nome+'('+( roleNames2[g.perfil]||g.perfil)+')'; }).join(', ') || 'N/A';
+      ctx += '  📍 ' + lojaKey + ': ' + rl.total + ' checklists | ' + rl.reprov + ' reprovados | média ' + media + '% | Gestão: ' + nomeGestores + '\n';
+    });
+  }
 
   var sp = 'Você é um assistente de gestão integrado ao Fluxo Certo 360, sistema para supermercados e varejo.\n' +
     'Responda SEMPRE em português brasileiro. Seja objetivo, prático e direto ao ponto.\n' +
