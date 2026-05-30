@@ -9,7 +9,7 @@ var SHELL_ASSETS = [
   './',
   './index.html',
   './app.js?v=156',
-  './style.css',
+  './style.css?v=156',
   './logo.png',
   './icon-192.png',
   './icon-512.png',
