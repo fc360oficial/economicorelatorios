@@ -761,7 +761,7 @@ function finalizarLogin(found) {
     var dEl = document.getElementById('cl-data-hoje');
     if (dEl) dEl.textContent = hoje.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
     document.getElementById('app').style.opacity='1';
-    var _BUILD = '146';
+    var _BUILD = '147';
     if (localStorage.getItem('fc360_build') !== _BUILD || /[?&]t=\d/.test(window.location.search)) {
       localStorage.setItem('fc360_build', _BUILD);
       sessionStorage.removeItem('eco_last_page');
@@ -10170,4 +10170,124 @@ window.addEventListener('beforeunload', function() {
       }
     }
   } catch(e) {}
+})();
+
+// ══════════════════════════════════════════════
+// ASSISTENTE IA — Google Gemini
+// ══════════════════════════════════════════════
+var _GK = ['AQ.Ab8RN6LSeF58U2_0FPlznpW8Y7', 'uXakyjmbJWVqOoF5MrmW6T-w'].join('');
+var _iaHist = [];
+var _iaLoading = false;
+
+var _IA_QUICK = [
+  {label: '📊 Desempenho hoje',   msg: 'Como está o desempenho dos checklists hoje? Dê um resumo e dicas.'},
+  {label: '⚠️ O que devo priorizar?', msg: 'Com base no meu perfil e rotinas de loja, o que devo priorizar agora?'},
+  {label: '💡 Dica de gestão',    msg: 'Me dê uma dica prática de gestão para supermercados.'},
+  {label: '📦 Inventário',        msg: 'Me explique boas práticas para fazer inventário rápido e preciso em supermercado.'}
+];
+
+function renderAssistente() {
+  var msgs = document.getElementById('ia-chat-msgs');
+  var quick = document.getElementById('ia-quick-btns');
+  if (!msgs) return;
+
+  if (quick && !quick.hasChildNodes()) {
+    _IA_QUICK.forEach(function(q) {
+      var b = document.createElement('button');
+      b.textContent = q.label;
+      b.style.cssText = 'padding:7px 14px;border:1.5px solid var(--gray2);border-radius:20px;background:#fff;font-size:12px;font-weight:600;cursor:pointer;color:var(--t);transition:.2s';
+      b.onmouseenter = function(){this.style.borderColor='#FFC600';this.style.background='#fffbeb';};
+      b.onmouseleave = function(){this.style.borderColor='var(--gray2)';this.style.background='#fff';};
+      b.onclick = function(){ enviarMensagemIA(q.msg); };
+      quick.appendChild(b);
+    });
+  }
+
+  if (_iaHist.length === 0) {
+    var nome = (S.user && S.user.nome) ? S.user.nome.split(' ')[0] : 'você';
+    _iaAddMsg('bot', 'Olá, ' + nome + '! 👋 Sou o assistente do Fluxo Certo 360.\n\nPosso te ajudar com relatórios, dicas de gestão e análises da sua operação. Use os botões acima ou me pergunte qualquer coisa sobre a loja!');
+  }
+  _iaRender();
+}
+
+function _iaRender() {
+  var c = document.getElementById('ia-chat-msgs');
+  if (!c) return;
+  c.innerHTML = '';
+  _iaHist.forEach(function(m) {
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex;' + (m.r === 'u' ? 'justify-content:flex-end' : 'justify-content:flex-start');
+    var bub = document.createElement('div');
+    var isUser = m.r === 'u';
+    bub.style.cssText = 'max-width:82%;padding:11px 15px;border-radius:' +
+      (isUser ? '16px 16px 4px 16px;background:#FFC600;color:#0d0d0d;font-weight:500' : '16px 16px 16px 4px;background:#fff;color:#111;border:1px solid #e5e7eb') +
+      ';font-size:13.5px;line-height:1.6;white-space:pre-wrap;word-break:break-word;box-shadow:0 1px 3px rgba(0,0,0,.06)';
+    bub.textContent = m.t;
+    wrap.appendChild(bub);
+    c.appendChild(wrap);
+  });
+  c.scrollTop = c.scrollHeight;
+}
+
+function _iaAddMsg(role, text) {
+  _iaHist.push({r: role, t: text});
+  _iaRender();
+}
+
+function enviarMensagemIA(textoFixo) {
+  if (_iaLoading) return;
+  var input = document.getElementById('ia-input');
+  var msg = textoFixo || (input ? input.value.trim() : '');
+  if (!msg) return;
+  if (input && !textoFixo) input.value = '';
+
+  _iaAddMsg('u', msg);
+  _iaLoading = true;
+
+  var placeholderIdx = _iaHist.length;
+  _iaAddMsg('bot', '⏳ Pensando...');
+
+  var perfil = (S.user && S.user.perfil) || 'Gestor';
+  var loja   = (S.user && S.user.loja)   || 'Loja';
+  var nome   = (S.user && S.user.nome)   || 'Usuário';
+  var agora  = new Date().toLocaleString('pt-BR');
+
+  var sp = 'Você é um assistente de gestão integrado ao Fluxo Certo 360, sistema para supermercados e varejo.\n' +
+    'Usuário: ' + nome + ' | Perfil: ' + perfil + ' | Loja: ' + loja + ' | Agora: ' + agora + '\n' +
+    'Responda SEMPRE em português brasileiro. Seja objetivo, prático e amigável. Use emojis com moderação.';
+
+  var contents = _iaHist.slice(0, placeholderIdx).map(function(m) {
+    return {role: m.r === 'u' ? 'user' : 'model', parts: [{text: m.t}]};
+  });
+
+  fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + _GK, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      system_instruction: {parts: [{text: sp}]},
+      contents: contents
+    })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    var resp = 'Não consegui gerar uma resposta. Tente novamente.';
+    try { resp = data.candidates[0].content.parts[0].text; } catch(e) {}
+    _iaHist[placeholderIdx] = {r: 'bot', t: resp};
+    _iaLoading = false;
+    _iaRender();
+  })
+  .catch(function() {
+    _iaHist[placeholderIdx] = {r: 'bot', t: '⚠️ Erro de conexão. Verifique a internet e tente novamente.'};
+    _iaLoading = false;
+    _iaRender();
+  });
+}
+
+// Nav override para assistente
+(function(){
+  var _navOrig = nav;
+  nav = function(page, el, opts) {
+    _navOrig(page, el, opts);
+    if (page === 'assistente') setTimeout(renderAssistente, 50);
+  };
 })();
