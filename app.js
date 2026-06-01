@@ -806,7 +806,7 @@ function finalizarLogin(found) {
     var dEl = document.getElementById('cl-data-hoje');
     if (dEl) dEl.textContent = hoje.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
     document.getElementById('app').style.opacity='1';
-    var _BUILD = '159';
+    var _BUILD = '160';
     if (localStorage.getItem('fc360_build') !== _BUILD || /[?&]t=\d/.test(window.location.search)) {
       localStorage.setItem('fc360_build', _BUILD);
       sessionStorage.removeItem('eco_last_page');
@@ -2590,19 +2590,22 @@ function confirmarExcluir() {
   var digitada = senhaEl ? senhaEl.value : '';
   if (!digitada) { if(errEl){errEl.textContent='Digite sua senha.';errEl.style.display='block';} if(senhaEl)senhaEl.focus(); return; }
   var u = S.currentUser;
-  var hash = hashPassword(digitada);
-  if (!u || (u.senha && u.senha !== hash && u.senha !== digitada)) {
-    if (errEl) { errEl.textContent='Senha incorreta.'; errEl.style.display='block'; }
-    if (senhaEl) { senhaEl.value=''; senhaEl.focus(); }
-    return;
-  }
-  saveCustomCLs(getCustomCLs().filter(function(cl){return cl.id!==pendingExcluirId;}));
-  pendingExcluirId = null;
-  document.getElementById('modal-excluir').style.display = 'none';
-  if (senhaEl) senhaEl.value = '';
-  if (errEl)   errEl.style.display = 'none';
-  renderCLGrid();
-  buildCLTabs();
+  if (!u) { if(errEl){errEl.textContent='Sessão inválida.';errEl.style.display='block';} return; }
+  hashPassword(digitada).then(function(hash) {
+    var match = isHashed(u.senha) ? (u.senha === hash) : (u.senha === digitada);
+    if (!match) {
+      if (errEl) { errEl.textContent='Senha incorreta.'; errEl.style.display='block'; }
+      if (senhaEl) { senhaEl.value=''; senhaEl.focus(); }
+      return;
+    }
+    saveCustomCLs(getCustomCLs().filter(function(cl){return cl.id!==pendingExcluirId;}));
+    pendingExcluirId = null;
+    document.getElementById('modal-excluir').style.display = 'none';
+    if (senhaEl) senhaEl.value = '';
+    if (errEl)   errEl.style.display = 'none';
+    renderCLGrid();
+    buildCLTabs();
+  });
 }
 
 function cancelarExcluir() {
