@@ -76,6 +76,42 @@ db.enablePersistence({synchronizeTabs: true}).catch(function(err){
 // ── PWA: registrar Service Worker ──
 var _swRefreshing = false;
 
+function zerarRelatoriosEPlanos() {
+  if (!confirm('⚠️ ATENÇÃO: Isso vai apagar PERMANENTEMENTE todos os resultados de checklist e todos os planos de ação do sistema.\n\nEssa ação não pode ser desfeita.\n\nDeseja continuar?')) return;
+  if (!confirm('Confirmar: apagar TODOS os dados de relatórios e planos de ação?')) return;
+
+  var el = document.getElementById('btn-zerar-dados');
+  if (el) { el.textContent = '⏳ Apagando...'; el.disabled = true; }
+
+  function deletarTudo(colecao) {
+    function proxLote() {
+      return db.collection(colecao).limit(400).get().then(function(snap) {
+        if (snap.empty) return;
+        var batch = db.batch();
+        snap.docs.forEach(function(d) { batch.delete(d.ref); });
+        return batch.commit().then(function() {
+          if (snap.docs.length === 400) return proxLote();
+        });
+      });
+    }
+    return proxLote();
+  }
+
+  Promise.all([deletarTudo('resultados'), deletarTudo('planos')])
+    .then(function() {
+      localStorage.removeItem(PLANO_KEY);
+      _planosCache = null;
+      S.resultadosCache = [];
+      alert('✅ Dados apagados com sucesso!\nO app será recarregado.');
+      window.location.reload();
+    })
+    .catch(function(e) {
+      console.error('Erro ao zerar dados:', e);
+      if (el) { el.textContent = '🗑 Zerar Relatórios e Planos'; el.disabled = false; }
+      alert('Erro ao apagar dados: ' + e.message);
+    });
+}
+
 function forcarAtualizacao() {
   if (!confirm('Isso vai limpar o cache do app e recarregar a versão mais recente. Continuar?')) return;
   var limpar = [];
@@ -761,7 +797,7 @@ function finalizarLogin(found) {
     var dEl = document.getElementById('cl-data-hoje');
     if (dEl) dEl.textContent = hoje.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
     document.getElementById('app').style.opacity='1';
-    var _BUILD = '157';
+    var _BUILD = '158';
     if (localStorage.getItem('fc360_build') !== _BUILD || /[?&]t=\d/.test(window.location.search)) {
       localStorage.setItem('fc360_build', _BUILD);
       sessionStorage.removeItem('eco_last_page');
@@ -881,6 +917,7 @@ function setupRole() {
   show('nav-central', isAdmin && !isColetor);
   show('nav-relat', (isAdmin || isSup || r==='gerencia') && !isColetor);
   show('nav-assistente', isAdmin);
+  show('btn-zerar-dados', isAdmin);
   show('nav-users', isAdmin && !isColetor);
   show('nav-alertas', (isAdmin || isSup) && !isColetor);
   show('nav-plano', (isAdmin || isSup) && !isColetor);
