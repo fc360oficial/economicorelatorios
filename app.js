@@ -806,7 +806,7 @@ function finalizarLogin(found) {
     var dEl = document.getElementById('cl-data-hoje');
     if (dEl) dEl.textContent = hoje.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
     document.getElementById('app').style.opacity='1';
-    var _BUILD = '160';
+    var _BUILD = '161';
     if (localStorage.getItem('fc360_build') !== _BUILD || /[?&]t=\d/.test(window.location.search)) {
       localStorage.setItem('fc360_build', _BUILD);
       sessionStorage.removeItem('eco_last_page');
@@ -2259,7 +2259,13 @@ function confirmarEnviar(assinatura) {
       justificativa:justificativa,
       fotoAntes:S.checkState[clId+'_foto_antes_'+idx]||null,
       fotoDepois:S.checkState[clId+'_foto_depois_'+idx]||S.checkState[clId+'_foto_'+idx]||null,
-      feito:!!val, critico:!!item.critico,
+      feito:(function(){
+        if (!val) return false;
+        if (!item.foto || item.foto==='none') return true;
+        var temDepois=!!(S.checkState[clId+'_foto_depois_'+idx]||S.checkState[clId+'_foto_'+idx]);
+        if (item.foto==='antes_depois') return !!(S.checkState[clId+'_foto_antes_'+idx])&&temDepois;
+        return temDepois;
+      })(), critico:!!item.critico,
       prazoPlano: item.prazoPlano || 72,
       produtos: itemProdutos,
       emPlano: !!_planoAbertoDoItem(label, item.t)
@@ -3051,7 +3057,14 @@ function enviarSemFoto() {
   // Skip photo check and go straight to send modal
   var cl = getMyCLs().find(function(c){return c.id===clId;});
   if (!cl) return;
-  var feitos = cl.itens.filter(function(i){return !!S.checkState[clId+'_'+i.t];}).length;
+  var feitos = cl.itens.filter(function(i,idx){
+    var val=S.checkState[clId+'_'+i.t];
+    if (!val) return false;
+    if (!i.foto||i.foto==='none') return true;
+    var temDepois=!!(S.checkState[clId+'_foto_depois_'+idx]||S.checkState[clId+'_foto_'+idx]);
+    if (i.foto==='antes_depois') return !!(S.checkState[clId+'_foto_antes_'+idx])&&temDepois;
+    return temDepois;
+  }).length;
   var total = cl.itens.length;
   var pct = total ? Math.round(feitos/total*100) : 0;
   pendingEnviarId = clId;
