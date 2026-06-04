@@ -16,7 +16,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 
-<link rel="stylesheet" href="style.css?v=162"/>
+<link rel="stylesheet" href="style.css?v=163"/>
 </head>
 <body>
 
@@ -106,6 +106,9 @@
       </div>
       <div class="sb-item" id="nav-users" style="display:none" onclick="nav('usuarios',this)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="23" y2="8"/><line x1="21" y1="6" x2="21" y2="10"/></svg>Usuários
+      </div>
+      <div class="sb-item" id="nav-monitor" style="display:none" onclick="nav('monitor',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>Monitor
       </div>
     </div>
     <div class="sb-user">
@@ -1090,6 +1093,71 @@
         </div>
       </div><!-- /panel-assistente -->
 
+      <!-- MONITOR CONFIG -->
+      <div id="panel-monitor" class="panel">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px">
+          <div style="width:44px;height:44px;background:#FFC600;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">📺</div>
+          <div>
+            <div style="font-family:'Syne',sans-serif;font-size:19px;font-weight:800">Monitor Ao Vivo</div>
+            <div style="font-size:12px;color:var(--t3)">Configure o que será exibido na tela de monitoramento</div>
+          </div>
+        </div>
+
+        <div class="card" style="max-width:680px;margin-bottom:16px">
+          <div class="card-hdr"><div class="card-title">Módulos disponíveis nesta conta</div></div>
+          <div style="display:flex;gap:20px;flex-wrap:wrap">
+            <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:500;cursor:pointer">
+              <input type="checkbox" id="mon-mod-check" checked style="width:16px;height:16px;accent-color:var(--am)"> FC360 Checklist
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:500;cursor:pointer">
+              <input type="checkbox" id="mon-mod-inv" style="width:16px;height:16px;accent-color:var(--am)" onchange="monModChange()"> FC360 Inventário
+            </label>
+          </div>
+          <div style="font-size:11px;color:var(--t3);margin-top:10px">Marque os módulos contratados pelo cliente. Isso define quais opções de modo aparecem abaixo.</div>
+        </div>
+
+        <div class="card" style="max-width:680px;margin-bottom:16px">
+          <div class="card-hdr"><div class="card-title">O que exibir no monitor?</div></div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px" id="mon-modo-cards">
+            <div class="mon-modo-card active" data-modo="checklist" onclick="setMonModo('checklist',this)">
+              <div style="font-size:28px;margin-bottom:8px">📋</div>
+              <div style="font-size:13px;font-weight:700">Só Checklist</div>
+              <div style="font-size:11px;opacity:.6;margin-top:4px">Exibe apenas a tela de conformidade</div>
+            </div>
+            <div class="mon-modo-card" data-modo="inventario" id="mon-card-inv" onclick="setMonModo('inventario',this)" style="display:none">
+              <div style="font-size:28px;margin-bottom:8px">📦</div>
+              <div style="font-size:13px;font-weight:700">Só Inventário</div>
+              <div style="font-size:11px;opacity:.6;margin-top:4px">Exibe apenas a tela de inventário</div>
+            </div>
+            <div class="mon-modo-card" data-modo="ambos" id="mon-card-ambos" onclick="setMonModo('ambos',this)" style="display:none">
+              <div style="font-size:28px;margin-bottom:8px">📺</div>
+              <div style="font-size:13px;font-weight:700">Checklist + Inventário</div>
+              <div style="font-size:11px;opacity:.6;margin-top:4px">Alterna automaticamente entre as duas telas</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" id="mon-intervalo-wrap" style="max-width:680px;margin-bottom:20px;display:none">
+          <div class="card-hdr"><div class="card-title">Tempo por tela (modo alternado)</div></div>
+          <div style="display:flex;align-items:center;gap:16px">
+            <input type="range" id="mon-intervalo" min="10" max="60" step="5" value="20"
+              style="flex:1;accent-color:var(--am)"
+              oninput="document.getElementById('mon-intervalo-val').textContent=this.value+'s'">
+            <span id="mon-intervalo-val" style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:var(--am);min-width:52px">20s</span>
+          </div>
+          <div style="font-size:11px;color:var(--t3);margin-top:8px">O monitor ficará este tempo em cada tela antes de alternar automaticamente.</div>
+        </div>
+
+        <div style="display:flex;gap:12px;flex-wrap:wrap">
+          <button onclick="saveAndOpenMonitor()" style="background:var(--am);border:none;color:#fff;font-weight:700;font-size:14px;padding:13px 24px;border-radius:12px;cursor:pointer;display:flex;align-items:center;gap:8px">
+            📺 Abrir Monitor
+          </button>
+          <button onclick="saveMonitorConfig()" style="background:var(--gray);border:1.5px solid var(--gray2);color:var(--t);font-weight:600;font-size:13px;padding:13px 20px;border-radius:12px;cursor:pointer">
+            💾 Salvar configuração
+          </button>
+        </div>
+      </div><!-- /panel-monitor -->
+
     </div>
   </div>
 </div>
@@ -1700,7 +1768,7 @@
 </script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-<script src="app.js?v=162" defer></script>
+<script src="app.js?v=163" defer></script>
 
 
 </body>

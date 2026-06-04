@@ -1,6 +1,6 @@
 // Fluxo Certo 360 — Service Worker
 // Atualiza este número de versão sempre que publicar novos arquivos
-var CACHE_NAME = 'cahu360-v162';
+var CACHE_NAME = 'cahu360-v163';
 
 // Arquivos críticos: sempre buscados da rede (nunca do cache)
 var NETWORK_FIRST = ['app.js', 'index.html'];
@@ -8,8 +8,8 @@ var NETWORK_FIRST = ['app.js', 'index.html'];
 var SHELL_ASSETS = [
   './',
   './index.html',
-  './app.js?v=162',
-  './style.css?v=162',
+  './app.js?v=163',
+  './style.css?v=163',
   './logo.png',
   './icon-192.png',
   './icon-512.png',

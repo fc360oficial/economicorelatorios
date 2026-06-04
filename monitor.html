@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FC360 — Monitor Ao Vivo</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --y:#FFC600;--g:#2d9e62;--r:#c0392b;--am:#d68910;--bl:#2980b9;
+  --bg:#0d0d0d;--bg2:#161616;--bg3:#1e1e1e;
+  --border:rgba(255,255,255,.08);
+  --t1:#fff;--t2:rgba(255,255,255,.65);--t3:rgba(255,255,255,.35);
+}
+html,body{width:100%;height:100%;background:var(--bg);color:var(--t1);font-family:'Inter',sans-serif;overflow:hidden}
+
+.monitor-screen{position:absolute;top:0;left:0;right:0;bottom:46px;display:grid;grid-template-rows:60px auto 1fr 130px;gap:10px;padding:10px;opacity:0;pointer-events:none;transition:opacity .7s ease}
+.monitor-screen.active{opacity:1;pointer-events:all}
+
+/* Header */
+.header{display:flex;align-items:center;justify-content:space-between;background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:0 20px}
+.header-left{display:flex;align-items:center;gap:14px}
+.pulse{width:9px;height:9px;background:var(--g);border-radius:50%;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(45,158,98,.5)}50%{box-shadow:0 0 0 7px rgba(45,158,98,0)}}
+.brand{font-family:'Syne',sans-serif;font-size:17px;font-weight:800;letter-spacing:-.3px}
+.brand em{color:var(--y);font-style:normal}
+.mod-badge{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;padding:3px 10px;border-radius:20px;border:1px solid}
+.mod-badge.check{color:var(--g);background:rgba(45,158,98,.15);border-color:rgba(45,158,98,.3)}
+.mod-badge.inv{color:var(--y);background:rgba(255,198,0,.15);border-color:rgba(255,198,0,.3)}
+.clock-time{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;letter-spacing:-1px}
+.clock-date{font-size:10px;color:var(--t3);margin-top:1px;text-align:right}
+
+/* KPIs */
+.kpi-row{display:grid;gap:10px}
+.kpi-row.cols5{grid-template-columns:repeat(5,1fr)}
+.kpi-row.cols4{grid-template-columns:repeat(4,1fr)}
+.kpi{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+.kpi.hi{border-color:rgba(255,198,0,.22);background:linear-gradient(135deg,rgba(255,198,0,.05),transparent)}
+.kpi-lbl{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:var(--t3);margin-bottom:4px}
+.kpi-val{font-family:'Syne',sans-serif;font-size:40px;font-weight:800;line-height:1;letter-spacing:-2px}
+.kpi-sub{font-size:11px;color:var(--t3);margin-top:3px}
+.green{color:var(--g)}.yellow{color:var(--y)}.red{color:var(--r)}.white{color:var(--t1)}.blue{color:var(--bl)}
+
+/* Cards */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;overflow:hidden}
+.card-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--t3);margin-bottom:10px;flex-shrink:0}
+
+/* Screen 1 — Checklist */
+#screen-check .body{display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px}
+.setor-wrap{flex:1;position:relative;min-height:0}
+.rank-list{flex:1;display:flex;flex-direction:column;gap:7px;overflow:hidden}
+.rank-item{display:flex;align-items:center;gap:10px;background:var(--bg3);border-radius:9px;padding:9px 12px}
+.rank-pos{font-family:'Syne',sans-serif;font-size:18px;font-weight:800;min-width:28px;text-align:center}
+.rank-pos.p1{color:var(--y)}.rank-pos.p2{color:rgba(255,255,255,.6)}.rank-pos.p3{color:#cd7f32}.rank-pos.pn{color:var(--t3)}
+.rank-info{flex:1;min-width:0}
+.rank-nome{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rank-sub{font-size:10px;color:var(--t3);margin-top:1px}
+.rank-bar-wrap{height:3px;background:rgba(255,255,255,.08);border-radius:2px;margin-top:5px}
+.rank-bar{height:3px;border-radius:2px;transition:width .6s}
+.rank-score{font-family:'Syne',sans-serif;font-size:18px;font-weight:800}
+.nc-list{flex:1;display:flex;flex-direction:column;gap:7px;overflow:hidden}
+.nc-item{background:var(--bg3);border-left:3px solid var(--r);border-radius:0 9px 9px 0;padding:9px 12px}
+.nc-item.warn{border-left-color:var(--am)}
+.nc-texto{font-size:12px;font-weight:600;line-height:1.3}
+.nc-meta{font-size:10px;color:var(--t3);margin-top:3px}
+
+/* Screen 2 — Inventário */
+#screen-inv .body{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:10px}
+.coletor-list{flex:1;display:flex;flex-direction:column;gap:9px;overflow:hidden}
+.coletor-item{background:var(--bg3);border-radius:10px;padding:10px 14px}
+.coletor-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+.coletor-nome{font-size:13px;font-weight:600}
+.coletor-pct{font-family:'Syne',sans-serif;font-size:18px;font-weight:800}
+.coletor-sub{font-size:10px;color:var(--t3);margin-bottom:6px}
+.prog-bar-wrap{height:6px;background:rgba(255,255,255,.08);border-radius:3px}
+.prog-bar{height:6px;border-radius:3px;transition:width .8s}
+.div-list{flex:1;display:flex;flex-direction:column;gap:7px;overflow:hidden}
+.div-item{background:var(--bg3);border-left:3px solid var(--r);border-radius:0 9px 9px 0;padding:9px 12px}
+.div-ean{font-size:10px;font-weight:700;color:var(--t3);margin-bottom:2px}
+.div-prod{font-size:12px;font-weight:600;line-height:1.3}
+.div-diff{font-size:11px;margin-top:3px}
+.bip-list{flex:1;display:flex;flex-direction:column;gap:7px;overflow:hidden}
+.bip-item{display:flex;align-items:center;gap:10px;background:var(--bg3);border-radius:9px;padding:9px 12px;animation:fadeIn .4s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:none}}
+.bip-info{flex:1;min-width:0}
+.bip-prod{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bip-meta{font-size:10px;color:var(--t3);margin-top:2px}
+.bip-hora{font-size:10px;color:var(--t3);white-space:nowrap}
+
+/* Feed bottom bar */
+.feed-bar{display:flex;flex-direction:column;overflow:hidden;background:var(--bg2);border:1px solid var(--border);border-radius:12px 12px 0 0;padding:10px 14px 8px}
+.feed-scroll{flex:1;display:flex;gap:10px;overflow:hidden;align-items:stretch}
+.feed-item{flex-shrink:0;display:flex;align-items:center;gap:9px;background:var(--bg3);border-radius:9px;padding:8px 12px;border-left:3px solid transparent;min-width:220px}
+.feed-item.ok{border-left-color:var(--g)}.feed-item.warn{border-left-color:var(--am)}.feed-item.err{border-left-color:var(--r)}
+.feed-score{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;min-width:48px;text-align:center}
+.feed-score.ok{color:var(--g)}.feed-score.warn{color:var(--am)}.feed-score.err{color:var(--r)}
+.feed-info{flex:1;min-width:0}
+.feed-nome{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.feed-meta{font-size:10px;color:var(--t3);margin-top:1px}
+.feed-hora{font-size:10px;color:var(--t3);white-space:nowrap}
+
+/* Inv progress bar */
+.inv-prog-bar-bg{height:10px;background:rgba(255,255,255,.08);border-radius:5px;overflow:hidden}
+.inv-prog-bar-fill{height:100%;border-radius:5px;background:linear-gradient(90deg,var(--g),var(--y));transition:width 1s}
+
+/* Switcher bar */
+.switcher-bar{position:fixed;bottom:0;left:0;right:0;height:46px;background:var(--bg2);border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 20px;z-index:100}
+.sw-dot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.2);transition:all .4s;display:inline-block;margin-right:6px}
+.sw-dot.active{background:var(--y);width:24px;border-radius:4px}
+.sw-label{font-size:11px;font-weight:600;color:var(--t3);margin-left:4px}
+.sw-label span{color:var(--t1)}
+.sw-progress-wrap{flex:1;height:4px;background:rgba(255,255,255,.08);border-radius:2px;margin:0 20px}
+.sw-progress{height:4px;background:var(--y);border-radius:2px;width:0%;transition:width linear}
+.sw-next{font-size:10px;color:var(--t3)}
+
+/* Empty / idle states */
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;color:var(--t3);font-size:13px;gap:8px;text-align:center}
+.empty-state .icon{font-size:32px}
+</style>
+</head>
+<body>
+
+<!-- ═══════ TELA 1: CHECKLIST ═══════ -->
+<div class="monitor-screen active" id="screen-check">
+  <div class="header">
+    <div class="header-left">
+      <div class="pulse"></div>
+      <div class="brand">FC<em>360</em> — Monitor</div>
+      <span class="mod-badge check">● Checklist</span>
+    </div>
+    <div style="text-align:right">
+      <div class="clock-time" id="clock1">--:--</div>
+      <div class="clock-date" id="date1"></div>
+    </div>
+  </div>
+
+  <div class="kpi-row cols5">
+    <div class="kpi hi"><div class="kpi-lbl">Enviados Hoje</div><div class="kpi-val yellow" id="kpi-enviados">—</div><div class="kpi-sub">checklists concluídos</div></div>
+    <div class="kpi"><div class="kpi-lbl">Média Geral</div><div class="kpi-val green" id="kpi-media">—</div><div class="kpi-sub">conformidade do dia</div></div>
+    <div class="kpi"><div class="kpi-lbl">Score Mais Baixo</div><div class="kpi-val red" id="kpi-baixo">—</div><div class="kpi-sub" id="kpi-baixo-setor">—</div></div>
+    <div class="kpi"><div class="kpi-lbl">Operadores Ativos</div><div class="kpi-val white" id="kpi-ops">—</div><div class="kpi-sub">hoje</div></div>
+    <div class="kpi"><div class="kpi-lbl">Planos em Aberto</div><div class="kpi-val red" id="kpi-planos">—</div><div class="kpi-sub">pendentes de ação</div></div>
+  </div>
+
+  <div class="body">
+    <div class="card">
+      <div class="card-title">Conformidade por Setor — Hoje</div>
+      <div class="setor-wrap" id="setor-wrap">
+        <canvas id="chartSetor"></canvas>
+        <div class="empty-state" id="setor-empty" style="display:none"><div class="icon">📋</div>Nenhum checklist enviado hoje</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">🏆 Ranking de Operadores</div>
+      <div class="rank-list" id="ranking"><div class="empty-state"><div class="icon">👤</div>Aguardando dados...</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">⚠️ Não Conformidades Recentes</div>
+      <div class="nc-list" id="nc-list"><div class="empty-state"><div class="icon">✅</div>Nenhuma não conformidade</div></div>
+    </div>
+  </div>
+
+  <div class="feed-bar">
+    <div class="card-title" style="margin-bottom:6px">Atividade Recente</div>
+    <div class="feed-scroll" id="feed-check"><div style="color:var(--t3);font-size:12px;align-self:center">Aguardando checklists...</div></div>
+  </div>
+</div>
+
+<!-- ═══════ TELA 2: INVENTÁRIO ═══════ -->
+<div class="monitor-screen" id="screen-inv">
+  <div class="header">
+    <div class="header-left">
+      <div class="pulse"></div>
+      <div class="brand">FC<em>360</em> — Monitor</div>
+      <span class="mod-badge inv" id="inv-badge">◈ Inventário</span>
+    </div>
+    <div style="text-align:right">
+      <div class="clock-time" id="clock2">--:--</div>
+      <div class="clock-date" id="date2"></div>
+    </div>
+  </div>
+
+  <div class="kpi-row cols4">
+    <div class="kpi hi"><div class="kpi-lbl">Inventário Ativo</div><div class="kpi-val yellow" id="inv-kpi-nome" style="font-size:26px;letter-spacing:-1px">—</div><div class="kpi-sub" id="inv-kpi-sub">aguardando...</div></div>
+    <div class="kpi"><div class="kpi-lbl">Total Bipado</div><div class="kpi-val green" id="inv-kpi-total">—</div><div class="kpi-sub" id="inv-kpi-total-sub">bipagens nesta rodada</div></div>
+    <div class="kpi"><div class="kpi-lbl">Divergências</div><div class="kpi-val red" id="inv-kpi-divs">—</div><div class="kpi-sub">itens com qtd diferente</div></div>
+    <div class="kpi"><div class="kpi-lbl">Endereços</div><div class="kpi-val blue" id="inv-kpi-end">—</div><div class="kpi-sub" id="inv-kpi-end-sub">concluídos</div></div>
+  </div>
+
+  <div class="body">
+    <div class="card">
+      <div class="card-title">📱 Progresso por Coletor</div>
+      <div class="coletor-list" id="coletor-list"><div class="empty-state"><div class="icon">📦</div>Nenhum inventário ativo</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">⚡ Divergências Detectadas</div>
+      <div class="div-list" id="div-list"><div class="empty-state"><div class="icon">✅</div>Sem divergências</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Últimas Bipagens</div>
+      <div class="bip-list" id="bip-list"><div class="empty-state"><div class="icon">📦</div>Aguardando bipagens...</div></div>
+    </div>
+  </div>
+
+  <div class="feed-bar">
+    <div class="card-title" style="margin-bottom:6px">Progresso Geral do Inventário</div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <div class="inv-prog-bar-bg" style="flex:1"><div class="inv-prog-bar-fill" id="inv-prog-fill" style="width:0%"></div></div>
+      <span id="inv-prog-pct" style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--y);min-width:52px;text-align:right">0%</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-top:6px">
+      <div style="font-size:10px;color:var(--t3)" id="inv-prog-info-l">—</div>
+      <div style="font-size:10px;color:var(--t3)" id="inv-prog-info-r">—</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ SWITCHER BAR ═══════ -->
+<div class="switcher-bar" id="switcher-bar">
+  <div style="display:flex;align-items:center">
+    <div class="sw-dot active" id="dot0"></div>
+    <div class="sw-dot" id="dot1" style="display:none"></div>
+    <span class="sw-label" id="sw-label"><span>Checklist</span></span>
+  </div>
+  <div class="sw-progress-wrap">
+    <div class="sw-progress" id="sw-progress"></div>
+  </div>
+  <div class="sw-next" id="sw-next"></div>
+</div>
+
+<script>
+firebase.initializeApp({
+  apiKey:"AIzaSyAIOroUpio0sSBzTuhUqyJxz5bV7PX4KLw",
+  authDomain:"economico-gestao.firebaseapp.com",
+  projectId:"economico-gestao",
+  storageBucket:"economico-gestao.firebasestorage.app",
+  messagingSenderId:"650620659681",
+  appId:"1:650620659681:web:4ca84bdb330d028e9f14a0"
+});
+var db = firebase.firestore();
+
+// ── Config from URL params ──
+var params = new URLSearchParams(window.location.search);
+var MODO = params.get('modo') || 'checklist';
+var INTERVALO = parseInt(params.get('t') || '20') || 20;
+
+// ── State ──
+var checkResultados = [];
+var planosAbertos   = 0;
+var invAtivo        = null;
+var invBipagens     = [];
+var setorChart      = null;
+var bipListener     = null;
+
+// ── Utilities ──
+function setText(id, v) { var el=document.getElementById(id); if(el) el.textContent=v; }
+function today() {
+  var n=new Date();
+  return ('0'+n.getDate()).slice(-2)+'/'+('0'+(n.getMonth()+1)).slice(-2)+'/'+n.getFullYear();
+}
+
+// ── Clock ──
+function updateClock() {
+  var now = new Date();
+  var t = now.toLocaleTimeString('pt-BR');
+  var d = now.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'});
+  setText('clock1',t); setText('clock2',t);
+  setText('date1',d);  setText('date2',d);
+}
+updateClock(); setInterval(updateClock,1000);
+
+// ── Firestore listeners ──
+db.collection('resultados').onSnapshot(function(snap) {
+  var td = today();
+  checkResultados = snap.docs.map(function(d){return d.data();})
+    .filter(function(r){return r.dataHora && r.dataHora.slice(0,10)===td || (r.dataHora && r.dataHora.split(' ')[0]===td);});
+  updateChecklistScreen();
+}, function(err){ console.warn('resultados:', err); });
+
+db.collection('planos').onSnapshot(function(snap) {
+  planosAbertos = snap.docs.filter(function(d){
+    var s=d.data().status; return s==='aberto'||s==='andamento';
+  }).length;
+  setText('kpi-planos', planosAbertos);
+}, function(err){ console.warn('planos:', err); });
+
+if (MODO !== 'checklist') {
+  db.collection('inv_inventarios').onSnapshot(function(snap) {
+    var ativos = snap.docs.map(function(d){return Object.assign({id:d.id},d.data());})
+      .filter(function(i){return i.status!=='concluido';});
+    var prev = invAtivo;
+    invAtivo = ativos.length ? ativos[0] : null;
+    var changed = (!prev&&invAtivo) || (prev&&!invAtivo) || (prev&&invAtivo&&prev.id!==invAtivo.id);
+    if (changed) {
+      if (bipListener) { bipListener(); bipListener=null; }
+      if (invAtivo) listenBipagens(invAtivo.id);
+    }
+    updateInvKPIs();
+    updateScreenList();
+  }, function(err){ console.warn('inventarios:', err); });
+}
+
+function listenBipagens(invId) {
+  bipListener = db.collection('inv_bipagens').where('invId','==',invId)
+    .onSnapshot(function(snap){
+      invBipagens = snap.docs.map(function(d){return d.data();});
+      updateInvScreen();
+    }, function(err){ console.warn('bipagens:', err); });
+}
+
+// ── Checklist screen ──
+var SETORES = ['Açougue','Frios','Hortifruti','Padaria','Mercearia','Prevenção','Geral'];
+var SCOLORS = ['#c0392b','#1a5276','#2d9e62','#d68910','#8e44ad','#2980b9','#95a5a6'];
+
+function updateChecklistScreen() {
+  var res = checkResultados;
+  var enviados = res.length;
+  var media = enviados ? Math.round(res.reduce(function(s,r){return s+r.pct;},0)/enviados) : 0;
+  var ops = {};
+  res.forEach(function(r){ if(r.operador) ops[r.operador]=1; });
+  var nOps = Object.keys(ops).length;
+
+  // Setor scores
+  var setorScores = SETORES.map(function(s){
+    var rs=res.filter(function(r){return (r.setor||'')===s;});
+    return rs.length ? Math.round(rs.reduce(function(a,r){return a+r.pct;},0)/rs.length) : null;
+  });
+  var validos = setorScores.filter(function(v){return v!==null;});
+  var baixo = validos.length ? Math.min.apply(null,validos) : null;
+  var baixoSetor = baixo!==null ? SETORES[setorScores.indexOf(baixo)] : '—';
+
+  setText('kpi-enviados', enviados || '0');
+  setText('kpi-media', enviados ? media+'%' : '—');
+  setText('kpi-baixo', baixo!==null ? baixo+'%' : '—');
+  setText('kpi-baixo-setor', baixoSetor);
+  setText('kpi-ops', nOps || '0');
+
+  // Setor chart
+  var hasData = validos.length > 0;
+  var setorEmpty = document.getElementById('setor-empty');
+  var canvas = document.getElementById('chartSetor');
+  if (setorEmpty) setorEmpty.style.display = hasData ? 'none' : '';
+  if (canvas) canvas.style.display = hasData ? '' : 'none';
+  if (hasData) {
+    if (!setorChart) {
+      setorChart = new Chart(canvas.getContext('2d'), {
+        type:'bar',
+        data:{labels:SETORES,datasets:[{data:setorScores,backgroundColor:SCOLORS.map(function(c){return c+'CC';}),borderRadius:7,borderSkipped:false}]},
+        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return c.raw!==null?c.raw+'%':'—';}}}},
+          scales:{y:{min:0,max:100,ticks:{color:'rgba(255,255,255,.45)',callback:function(v){return v+'%';},font:{size:12}},grid:{color:'rgba(255,255,255,.05)'}},
+                  x:{ticks:{color:'rgba(255,255,255,.7)',font:{size:11,weight:'600'}},grid:{display:false}}}}
+      });
+    } else {
+      setorChart.data.datasets[0].data = setorScores;
+      setorChart.update();
+    }
+  }
+
+  // Ranking
+  var opMap = {};
+  res.forEach(function(r){
+    if(!r.operador) return;
+    if(!opMap[r.operador]) opMap[r.operador]={soma:0,cnt:0};
+    opMap[r.operador].soma += r.pct;
+    opMap[r.operador].cnt++;
+  });
+  var ranking = Object.keys(opMap).map(function(nome){
+    return {nome:nome, media:Math.round(opMap[nome].soma/opMap[nome].cnt), cnt:opMap[nome].cnt};
+  }).sort(function(a,b){return b.media-a.media;}).slice(0,5);
+
+  var posCls=['p1','p2','p3','pn','pn'];
+  var rankEl = document.getElementById('ranking');
+  if (rankEl) {
+    if (!ranking.length) {
+      rankEl.innerHTML='<div class="empty-state"><div class="icon">👤</div>Aguardando dados...</div>';
+    } else {
+      rankEl.innerHTML = ranking.map(function(r,i){
+        var sc=r.media>=85?'var(--g)':r.media>=70?'var(--am)':'var(--r)';
+        return '<div class="rank-item"><div class="rank-pos '+(posCls[i]||'pn')+'">'+(i+1)+'º</div>'
+          +'<div class="rank-info"><div class="rank-nome">'+r.nome+'</div><div class="rank-sub">'+r.cnt+' checklist'+(r.cnt>1?'s':'')+'</div>'
+          +'<div class="rank-bar-wrap"><div class="rank-bar" style="width:'+r.media+'%;background:'+sc+'"></div></div></div>'
+          +'<div class="rank-score" style="color:'+sc+'">'+r.media+'%</div></div>';
+      }).join('');
+    }
+  }
+
+  // NCs
+  var ncMap = {};
+  res.forEach(function(r){
+    if(!r.itens) return;
+    r.itens.forEach(function(item){
+      if(item.feito===false){
+        var k=item.texto||'(sem texto)';
+        if(!ncMap[k]) ncMap[k]={cnt:0,setor:r.setor||'',op:r.operador||''};
+        ncMap[k].cnt++;
+        ncMap[k].setor=r.setor||ncMap[k].setor;
+      }
+    });
+  });
+  var ncs = Object.keys(ncMap).map(function(t){return Object.assign({texto:t},ncMap[t]);})
+    .sort(function(a,b){return b.cnt-a.cnt;}).slice(0,5);
+  var ncEl = document.getElementById('nc-list');
+  if (ncEl) {
+    if (!ncs.length) {
+      ncEl.innerHTML='<div class="empty-state"><div class="icon">✅</div>Nenhuma não conformidade</div>';
+    } else {
+      ncEl.innerHTML = ncs.map(function(n){
+        var grave = n.cnt>=3?'':'warn';
+        return '<div class="nc-item '+grave+'"><div class="nc-texto">'+n.texto+'</div><div class="nc-meta">'+n.setor+(n.op?' · '+n.op:'')+'</div></div>';
+      }).join('');
+    }
+  }
+
+  // Feed
+  var feed = res.slice().sort(function(a,b){return (b.dataHora||'').localeCompare(a.dataHora||'');}).slice(0,8);
+  var feedEl = document.getElementById('feed-check');
+  if (feedEl) {
+    if (!feed.length) {
+      feedEl.innerHTML='<div style="color:var(--t3);font-size:12px;align-self:center">Aguardando checklists...</div>';
+    } else {
+      feedEl.innerHTML = feed.map(function(f){
+        var cls=f.pct>=85?'ok':f.pct>=65?'warn':'err';
+        var hora=f.dataHora?f.dataHora.split(' ')[1]||'':'';
+        return '<div class="feed-item '+cls+'"><div class="feed-score '+cls+'">'+f.pct+'%</div>'
+          +'<div class="feed-info"><div class="feed-nome">'+(f.checklistNome||'Checklist')+'</div><div class="feed-meta">'+(f.operador||'—')+' · '+(f.setor||'—')+'</div></div>'
+          +'<div class="feed-hora">'+hora+'</div></div>';
+      }).join('');
+    }
+  }
+}
+
+// ── Inventário screen ──
+function updateInvKPIs() {
+  if (!invAtivo) {
+    setText('inv-kpi-nome','Nenhum ativo');
+    setText('inv-kpi-sub','sem inventário em andamento');
+    setText('inv-kpi-total','—');
+    setText('inv-kpi-divs','—');
+    setText('inv-kpi-end','—');
+    return;
+  }
+  var inv = invAtivo;
+  var nEnd = (inv.enderecos||[]).length;
+  var endConc = (inv.enderecos||[]).filter(function(e){return e.concluido||e.status==='concluido';}).length;
+  setText('inv-kpi-nome', inv.nome||'Inventário');
+  setText('inv-kpi-sub', (inv.loja||'') + (inv.rodada?' · Rodada '+inv.rodada:''));
+  setText('inv-kpi-end', endConc+'/'+(nEnd||'—'));
+  setText('inv-kpi-end-sub', 'endereços concluídos');
+  var badgeEl = document.getElementById('inv-badge');
+  if (badgeEl) badgeEl.textContent = '◈ '+( inv.nome||'Inventário');
+}
+
+function updateInvScreen() {
+  var bips = invBipagens;
+  var inv  = invAtivo;
+
+  // Current round
+  var maxR = 1;
+  bips.forEach(function(b){ if((b.rodada||1)>maxR) maxR=(b.rodada||1); });
+  var curBips = bips.filter(function(b){ return (b.rodada||1)===maxR; });
+
+  setText('inv-kpi-total', curBips.length);
+  setText('inv-kpi-total-sub', 'bipagens · rodada '+maxR);
+
+  // Expected total (from enderecos or inv.totalBipagens)
+  var expected = inv ? (inv.totalBipagens || 0) : 0;
+  var pct = expected ? Math.round(curBips.length/expected*100) : 0;
+  var fillEl = document.getElementById('inv-prog-fill');
+  if (fillEl) fillEl.style.width = Math.min(pct,100)+'%';
+  setText('inv-prog-pct', pct+'%');
+  setText('inv-prog-info-l', curBips.length+' bipagens realizadas (rodada '+maxR+')');
+  setText('inv-prog-info-r', expected ? (expected-curBips.length)+' restantes' : '');
+
+  // Per-collector progress
+  var colMap = {};
+  curBips.forEach(function(b){
+    var uid = b.userId||b.operador||'Desconhecido';
+    if(!colMap[uid]) colMap[uid]={nome:b.operadorNome||b.operador||uid,cnt:0,lastEnd:''};
+    colMap[uid].cnt++;
+    if(b.endereco) colMap[uid].lastEnd=b.endereco;
+  });
+  var coletores = Object.values(colMap).sort(function(a,b){return b.cnt-a.cnt;});
+  var colEl = document.getElementById('coletor-list');
+  if (colEl) {
+    if (!coletores.length) {
+      colEl.innerHTML='<div class="empty-state"><div class="icon">📦</div>Nenhum coletor ativo</div>';
+    } else {
+      var maxBips = Math.max.apply(null, coletores.map(function(c){return c.cnt;})) || 1;
+      colEl.innerHTML = coletores.map(function(c){
+        var pctC = Math.round(c.cnt/maxBips*100);
+        var cor = pctC>=70?'var(--g)':pctC>=40?'var(--am)':'var(--r)';
+        return '<div class="coletor-item">'
+          +'<div class="coletor-top"><span class="coletor-nome">'+c.nome+'</span><span class="coletor-pct" style="color:'+cor+'">'+c.cnt+' bip</span></div>'
+          +'<div class="coletor-sub">'+(c.lastEnd?'Últ. end: '+c.lastEnd:'—')+'</div>'
+          +'<div class="prog-bar-wrap"><div class="prog-bar" style="width:'+pctC+'%;background:'+cor+'"></div></div>'
+          +'</div>';
+      }).join('');
+    }
+  }
+
+  // Divergences (R1 vs R2)
+  var divEl = document.getElementById('div-list');
+  if (divEl) {
+    if (maxR < 2) {
+      divEl.innerHTML='<div class="empty-state"><div class="icon">⏳</div>Disponível após a rodada 2</div>';
+    } else {
+      var r1 = bips.filter(function(b){return (b.rodada||1)===1;});
+      var r2 = bips.filter(function(b){return (b.rodada||1)===2;});
+      var r1m={}, r2m={};
+      r1.forEach(function(b){r1m[b.ean]=(r1m[b.ean]||0)+(b.qty||1);});
+      r2.forEach(function(b){r2m[b.ean]=(r2m[b.ean]||0)+(b.qty||1);});
+      var allEans = {};
+      Object.keys(r1m).forEach(function(e){allEans[e]=1;});
+      Object.keys(r2m).forEach(function(e){allEans[e]=1;});
+      var divs = Object.keys(allEans).map(function(ean){
+        var q1=r1m[ean]||0, q2=r2m[ean]||0;
+        return {ean:ean,q1:q1,q2:q2,dif:q2-q1};
+      }).filter(function(d){return d.dif!==0;})
+        .sort(function(a,b){return Math.abs(b.dif)-Math.abs(a.dif);}).slice(0,5);
+      setText('inv-kpi-divs', divs.length);
+      if (!divs.length) {
+        divEl.innerHTML='<div class="empty-state"><div class="icon">✅</div>Sem divergências</div>';
+      } else {
+        divEl.innerHTML = divs.map(function(d){
+          var cor=d.dif<0?'var(--r)':'var(--am)';
+          var sinal=d.dif>0?'+':'';
+          return '<div class="div-item"><div class="div-ean">EAN '+d.ean+'</div>'
+            +'<div class="div-prod">—</div>'
+            +'<div class="div-diff">R1: <strong>'+d.q1+'</strong> → R2: <strong>'+d.q2+'</strong> &nbsp;<span style="color:'+cor+';font-weight:700">'+sinal+d.dif+'</span></div></div>';
+        }).join('');
+      }
+    }
+  }
+
+  // Recent bipagens
+  var recentes = bips.slice().sort(function(a,b){
+    var ta=a.timestamp?a.timestamp.toMillis?a.timestamp.toMillis():new Date(a.timestamp).getTime():0;
+    var tb=b.timestamp?b.timestamp.toMillis?b.timestamp.toMillis():new Date(b.timestamp).getTime():0;
+    return tb-ta;
+  }).slice(0,7);
+  var bipEl = document.getElementById('bip-list');
+  if (bipEl) {
+    if (!recentes.length) {
+      bipEl.innerHTML='<div class="empty-state"><div class="icon">📦</div>Aguardando bipagens...</div>';
+    } else {
+      bipEl.innerHTML = recentes.map(function(b){
+        var ts=b.timestamp?(b.timestamp.toDate?b.timestamp.toDate():new Date(b.timestamp)):null;
+        var hora=ts?ts.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'';
+        return '<div class="bip-item">📦<div class="bip-info"><div class="bip-prod">'+(b.descricao||b.ean||'—')+'</div>'
+          +'<div class="bip-meta">'+(b.operadorNome||b.operador||'—')+' · End. '+(b.endereco||'—')+'</div></div>'
+          +'<div class="bip-hora">'+hora+'</div></div>';
+      }).join('');
+    }
+  }
+}
+
+// ── Screen switcher ──
+var screenList = [];
+var currentIdx = 0;
+var swElapsed  = 0;
+var swTimer    = null;
+
+function updateScreenList() {
+  if (MODO === 'checklist') {
+    screenList = ['screen-check'];
+  } else if (MODO === 'inventario') {
+    screenList = ['screen-inv'];
+  } else {
+    screenList = invAtivo ? ['screen-check','screen-inv'] : ['screen-check'];
+  }
+  // Ensure current index is valid
+  if (currentIdx >= screenList.length) currentIdx = 0;
+  applyScreen(currentIdx);
+  updateSwitcherBar();
+}
+
+function applyScreen(idx) {
+  document.querySelectorAll('.monitor-screen').forEach(function(s){ s.classList.remove('active'); });
+  var el = document.getElementById(screenList[idx]);
+  if (el) el.classList.add('active');
+}
+
+function updateSwitcherBar() {
+  var hasMult = screenList.length > 1;
+  var bar = document.getElementById('switcher-bar');
+  var dot0 = document.getElementById('dot0');
+  var dot1 = document.getElementById('dot1');
+  var prog = document.getElementById('sw-progress');
+  var label = document.getElementById('sw-label');
+  var next  = document.getElementById('sw-next');
+
+  if (dot1) dot1.style.display = hasMult ? 'inline-block' : 'none';
+  if (dot0) dot0.classList.toggle('active', currentIdx===0);
+  if (dot1) dot1.classList.toggle('active', currentIdx===1);
+
+  var names = {checklist:'Checklist','screen-check':'Checklist','screen-inv':'Inventário',inventario:'Inventário'};
+  var curName = screenList[currentIdx]==='screen-check'?'Checklist':'Inventário';
+  if (label) label.innerHTML = '<span>'+curName+'</span>'+(hasMult?' · próximo: '+(currentIdx===0?'Inventário':'Checklist'):'');
+  if (next) next.textContent = hasMult ? 'trocando em '+Math.max(0,INTERVALO-swElapsed)+'s' : '';
+
+  // Progress bar animation
+  if (prog && hasMult) {
+    prog.style.transition = 'none';
+    prog.style.width = '0%';
+    setTimeout(function(){
+      prog.style.transition = 'width '+INTERVALO+'s linear';
+      prog.style.width = '100%';
+    },50);
+  } else if (prog) {
+    prog.style.width = '0%';
+  }
+}
+
+function goToScreen(idx) {
+  currentIdx = idx % screenList.length;
+  swElapsed = 0;
+  applyScreen(currentIdx);
+  updateSwitcherBar();
+}
+
+// Tick
+setInterval(function(){
+  if (screenList.length <= 1) return;
+  swElapsed++;
+  var nextEl = document.getElementById('sw-next');
+  if (nextEl) nextEl.textContent = 'trocando em '+Math.max(0,INTERVALO-swElapsed)+'s';
+  if (swElapsed >= INTERVALO) {
+    goToScreen((currentIdx+1) % screenList.length);
+  }
+}, 1000);
+
+// Init screens
+updateScreenList();
+if (MODO !== 'checklist') updateInvKPIs();
+</script>
+</body>
+</html>

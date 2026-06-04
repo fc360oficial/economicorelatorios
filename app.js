@@ -121,6 +121,73 @@ function zerarRelatoriosEPlanos() {
   });
 }
 
+// ── Monitor config ────────────────────────────────────────
+var _monConfig = {modulosAtivos:['checklist'], modo:'checklist', intervalo:20};
+
+function renderMonitorConfig() {
+  db.collection('config').doc('monitor').get().then(function(doc) {
+    if (doc.exists) _monConfig = Object.assign({modulosAtivos:['checklist'],modo:'checklist',intervalo:20}, doc.data());
+    _applyMonitorUI();
+  }).catch(function() { _applyMonitorUI(); });
+}
+
+function _applyMonitorUI() {
+  var modCheck = document.getElementById('mon-mod-check');
+  var modInv   = document.getElementById('mon-mod-inv');
+  if (modCheck) modCheck.checked = _monConfig.modulosAtivos.indexOf('checklist') >= 0;
+  if (modInv)   modInv.checked   = _monConfig.modulosAtivos.indexOf('inventario') >= 0;
+  monModChange();
+  document.querySelectorAll('.mon-modo-card').forEach(function(c){ c.classList.toggle('active', c.dataset.modo === _monConfig.modo); });
+  var intEl = document.getElementById('mon-intervalo');
+  var intValEl = document.getElementById('mon-intervalo-val');
+  if (intEl) intEl.value = _monConfig.intervalo;
+  if (intValEl) intValEl.textContent = _monConfig.intervalo + 's';
+  var intWrap = document.getElementById('mon-intervalo-wrap');
+  if (intWrap) intWrap.style.display = _monConfig.modo === 'ambos' ? '' : 'none';
+}
+
+function monModChange() {
+  var hasInv = document.getElementById('mon-mod-inv') && document.getElementById('mon-mod-inv').checked;
+  var invCard   = document.getElementById('mon-card-inv');
+  var ambosCard = document.getElementById('mon-card-ambos');
+  if (invCard)   invCard.style.display   = hasInv ? '' : 'none';
+  if (ambosCard) ambosCard.style.display = hasInv ? '' : 'none';
+  if (!hasInv && _monConfig.modo !== 'checklist') {
+    setMonModo('checklist', document.querySelector('.mon-modo-card[data-modo="checklist"]'));
+  }
+}
+
+function setMonModo(modo, el) {
+  _monConfig.modo = modo;
+  document.querySelectorAll('.mon-modo-card').forEach(function(c){ c.classList.remove('active'); });
+  if (el) el.classList.add('active');
+  var intWrap = document.getElementById('mon-intervalo-wrap');
+  if (intWrap) intWrap.style.display = modo === 'ambos' ? '' : 'none';
+}
+
+function _collectMonConfig() {
+  var modulos = [];
+  if (document.getElementById('mon-mod-check') && document.getElementById('mon-mod-check').checked) modulos.push('checklist');
+  if (document.getElementById('mon-mod-inv')   && document.getElementById('mon-mod-inv').checked)   modulos.push('inventario');
+  var t = document.getElementById('mon-intervalo');
+  _monConfig.modulosAtivos = modulos;
+  _monConfig.intervalo = t ? parseInt(t.value)||20 : 20;
+}
+
+function saveMonitorConfig() {
+  _collectMonConfig();
+  db.collection('config').doc('monitor').set(_monConfig).then(function(){
+    alert('✅ Configuração salva!');
+  }).catch(function(e){ alert('Erro: ' + e.message); });
+}
+
+function saveAndOpenMonitor() {
+  _collectMonConfig();
+  db.collection('config').doc('monitor').set(_monConfig).catch(function(){});
+  var url = 'monitor.html?modo=' + _monConfig.modo + '&t=' + _monConfig.intervalo;
+  window.open(url, '_blank');
+}
+
 function forcarAtualizacao() {
   if (!confirm('Isso vai limpar o cache do app e recarregar a versão mais recente. Continuar?')) return;
   var limpar = [];
@@ -806,7 +873,7 @@ function finalizarLogin(found) {
     var dEl = document.getElementById('cl-data-hoje');
     if (dEl) dEl.textContent = hoje.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
     document.getElementById('app').style.opacity='1';
-    var _BUILD = '162';
+    var _BUILD = '163';
     if (localStorage.getItem('fc360_build') !== _BUILD || /[?&]t=\d/.test(window.location.search)) {
       localStorage.setItem('fc360_build', _BUILD);
       sessionStorage.removeItem('eco_last_page');
@@ -926,6 +993,7 @@ function setupRole() {
   show('nav-central', isAdmin && !isColetor);
   show('nav-relat', (isAdmin || isSup || r==='gerencia') && !isColetor);
   show('nav-assistente', isAdmin);
+  show('nav-monitor', isAdmin);
   show('btn-zerar-dados', isAdmin);
   show('nav-users', isAdmin && !isColetor);
   show('nav-alertas', (isAdmin || isSup) && !isColetor);
@@ -993,7 +1061,7 @@ var PAGE_TITLES = {
   dashboard:'Dashboard',checklist:'Checklist',inventario:'Inventário',
   perdas:'Lançar Perdas',central:'Central de Resultados',
   relatorios:'Relatórios',usuarios:'Cadastro de Usuários',
-  plano:'Plano de Ação',
+  plano:'Plano de Ação',monitor:'Monitor Ao Vivo',
   inv:'FC360 Inventário','inv-coleta':'Minha Coleta','inv-avulsa':'Coleta Avulsa',
 };
 
@@ -1066,6 +1134,9 @@ function nav(page, el) {
     loadInventariosFromFirebase(function(){
       renderColetaAvulsa();
     });
+  }
+  if (page==='monitor') {
+    renderMonitorConfig();
   }
   updateDash();
 }
