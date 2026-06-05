@@ -873,7 +873,7 @@ function finalizarLogin(found) {
     var dEl = document.getElementById('cl-data-hoje');
     if (dEl) dEl.textContent = hoje.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
     document.getElementById('app').style.opacity='1';
-    var _BUILD = '164';
+    var _BUILD = '165';
     if (localStorage.getItem('fc360_build') !== _BUILD || /[?&]t=\d/.test(window.location.search)) {
       localStorage.setItem('fc360_build', _BUILD);
       sessionStorage.removeItem('eco_last_page');
@@ -3995,20 +3995,31 @@ function updateDash() {
       S.dashCharts.check.update();
     }
 
-    // Gráfico conformidade por setor — hoje
+    // Gráfico conformidade por setor — hoje (dinâmico)
     if (S.dashCharts && S.dashCharts.setor) {
-      var setoresGraf = ['Açougue','Frios','Hortifruti','Padaria','Mercearia','Prevenção','Geral'];
-      var setorData = setoresGraf.map(function(s){
-        var rs = resultadosHoje.filter(function(r){return (r.setor||'')===s;});
-        return rs.length ? Math.round(rs.reduce(function(acc,r){return acc+r.pct;},0)/rs.length) : null;
+      var SETORES_D = ['Açougue','Frios','Hortifruti','Padaria','Mercearia','Prevenção','Geral'];
+      var SCOLORS_D = ['#c0392b','#1a5276','#2d9e62','#d68910','#8e44ad','#2980b9','#95a5a6'];
+      var setorMapD = {};
+      resultadosHoje.forEach(function(r){
+        var s=(r.setor||'').trim()||'Geral';
+        if(!setorMapD[s]) setorMapD[s]={soma:0,cnt:0};
+        setorMapD[s].soma+=r.pct; setorMapD[s].cnt++;
       });
-      var hasSetorData = setorData.some(function(v){return v!==null;});
+      var dynS = SETORES_D.filter(function(s){return setorMapD[s];});
+      Object.keys(setorMapD).forEach(function(s){ if(dynS.indexOf(s)===-1) dynS.push(s); });
+      var dynD = dynS.map(function(s){ return Math.round(setorMapD[s].soma/setorMapD[s].cnt); });
+      var dynC = dynS.map(function(s,i){ var idx=SETORES_D.indexOf(s); return (idx>=0?SCOLORS_D[idx]:SCOLORS_D[i%SCOLORS_D.length])+'CC'; });
+      var hasSetorData = resultadosHoje.length > 0;
       var setorEmpty = document.getElementById('setor-empty');
       var setorWrap = document.getElementById('setor-chart-wrap');
       if (setorEmpty) setorEmpty.style.display = hasSetorData ? 'none' : '';
       if (setorWrap) setorWrap.style.display = hasSetorData ? '' : 'none';
-      S.dashCharts.setor.data.datasets[0].data = setorData;
-      S.dashCharts.setor.update();
+      if (hasSetorData) {
+        S.dashCharts.setor.data.labels = dynS;
+        S.dashCharts.setor.data.datasets[0].data = dynD;
+        S.dashCharts.setor.data.datasets[0].backgroundColor = dynC;
+        S.dashCharts.setor.update();
+      }
     }
 
     // Card Planos de Ação Abertos
