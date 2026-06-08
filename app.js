@@ -5138,11 +5138,9 @@ function exportarRelatorioSupervisor() {
   var perfilLabels = {todos:'Toda a Equipe', operator:'Operadores', gerencia:'Gerência', supervisor:'Supervisão', prevencao:'Prevenção'};
   var perfilLabel  = perfilLabels[pf] || pf;
 
-  var resultadosHoje = window._dashEquipeResultadosHoje || [];
-  if (!resultadosHoje.length) {
-    var resultados = getResultados();
-    resultadosHoje = resultados.filter(function(r){ return r.dataHora && r.dataHora.indexOf(hojeStr)===0; });
-  }
+  // Sempre usa dados frescos do cache (mesma fonte do painel Central)
+  var todosResultados = getResultados();
+  var resultadosHoje = todosResultados.filter(function(r){ return r.dataHora && r.dataHora.indexOf(hojeStr)===0; });
   var resFilt   = pf==='todos' ? resultadosHoje : resultadosHoje.filter(function(r){ return r.perfil===pf; });
   var totalEnvios = resFilt.length;
   var completos   = resFilt.filter(function(r){ return r.pct===100; }).length;
@@ -5175,15 +5173,20 @@ function exportarRelatorioSupervisor() {
   }).join('') : '<tr><td colspan="5" style="text-align:center;color:#999">Nenhum usuário nesta categoria</td></tr>';
 
   // ── Seção: Checklists enviados ──
+  var PLABEL={admin:'Administrador',gerencia:'Gerência',supervisor:'Supervisor',operator:'Operador',prevencao:'Prevenção'};
   var checkTbody = resFilt.length ? resFilt.slice().reverse().map(function(r){
-    var cor = r.pct===100?'#2d9e62':r.pct>=60?'#d68910':'#e74c3c';
+    var cor = r.reprovado?'#e74c3c':r.pct===100?'#2d9e62':r.pct>=60?'#d68910':'#e74c3c';
+    var pctLabel = r.reprovado ? '🚨 REPROVADO' : r.pct+'%'+(r.resetado?' ↺':'');
     return '<tr>'
-      +'<td>'+r.dataHora.split(' ')[1]+'</td>'
+      +'<td style="white-space:nowrap">'+r.dataHora+'</td>'
+      +'<td><strong>'+r.checklistNome+'</strong></td>'
+      +'<td>'+r.setor+'</td>'
       +'<td>'+r.operador+'</td>'
-      +'<td>'+r.checklistNome+'</td>'
-      +'<td style="font-weight:700;color:'+cor+'">'+r.pct+'%</td>'
+      +'<td>'+(PLABEL[r.perfil]||r.perfil)+'</td>'
+      +'<td style="font-weight:700;color:'+cor+'">'+pctLabel+'</td>'
+      +'<td>'+r.feitos+'/'+r.total+'</td>'
       +'</tr>';
-  }).join('') : '<tr><td colspan="4" style="text-align:center;color:#999">Nenhum checklist enviado hoje</td></tr>';
+  }).join('') : '<tr><td colspan="7" style="text-align:center;color:#999">Nenhum checklist enviado hoje</td></tr>';
 
   // ── Seção: Pendentes ──
   var todasPend = getPendencias();
@@ -5251,9 +5254,9 @@ function exportarRelatorioSupervisor() {
 
     // KPIs
     +'<div class="kpis">'
-    +'<div class="kpi"><div class="k-lbl">Checklists Enviados</div><div class="k-val">'+totalEnvios+'</div><div class="k-sub">'+completos+' com 100%</div></div>'
-    +'<div class="kpi"><div class="k-lbl">Conformidade</div><div class="k-val" style="color:'+statusCor+'">'+media+'%</div><div class="k-sub">média do dia</div></div>'
-    +'<div class="kpi"><div class="k-lbl">Ativos Hoje</div><div class="k-val">'+opsUnicos.length+'</div><div class="k-sub">de '+users.length+' cadastrados</div></div>'
+    +'<div class="kpi"><div class="k-lbl">Envios Hoje</div><div class="k-val">'+opsUnicos.length+'/'+users.length+'</div><div class="k-sub">'+totalEnvios+' envios · '+completos+' com 100%</div></div>'
+    +'<div class="kpi"><div class="k-lbl">Conformidade</div><div class="k-val" style="color:'+statusCor+'">'+media+'%</div><div class="k-sub">média · '+completos+' completos</div></div>'
+    +'<div class="kpi"><div class="k-lbl">Operadores Ativos</div><div class="k-val">'+opsUnicos.length+'</div><div class="k-sub">de '+users.length+' cadastrados</div></div>'
     +'<div class="kpi"><div class="k-lbl">Pendentes</div><div class="k-val" style="color:'+(pendFilt.length?'#e74c3c':'#2d9e62')+'">'+pendFilt.length+'</div><div class="k-sub">'+(pendFilt.length?'checklists em aberto':'todos enviados ✓')+'</div></div>'
     +'</div>'
 
@@ -5264,7 +5267,7 @@ function exportarRelatorioSupervisor() {
 
     // Checklists enviados
     +'<div class="section"><div class="section-title">Checklists Enviados Hoje</div>'
-    +'<table><thead><tr><th>Hora</th><th>Operador</th><th>Checklist</th><th>Conclusão</th></tr></thead>'
+    +'<table><thead><tr><th>Data/Hora</th><th>Checklist</th><th>Setor</th><th>Operador</th><th>Perfil</th><th>Conclusão</th><th>Itens</th></tr></thead>'
     +'<tbody>'+checkTbody+'</tbody></table></div>'
 
     // Pendentes
