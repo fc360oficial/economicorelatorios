@@ -5132,144 +5132,293 @@ function exportarRelatorioSupervisor() {
   var hojeExtenso = agora.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
   hojeExtenso = hojeExtenso.charAt(0).toUpperCase()+hojeExtenso.slice(1);
   var loja = (S.currentUser && S.currentUser.loja) ? S.currentUser.loja : 'Fluxo Certo 360';
+  var PLABEL = {admin:'Administrador',gerencia:'Gerência',supervisor:'Supervisor',operator:'Operador',prevencao:'Prevenção'};
 
-  // Usa o mesmo filtro de perfil ativo no dashboard
-  var pf = _dashEquipePerfilAtivo || 'todos';
-  var perfilLabels = {todos:'Toda a Equipe', operator:'Operadores', gerencia:'Gerência', supervisor:'Supervisão', prevencao:'Prevenção'};
-  var perfilLabel  = perfilLabels[pf] || pf;
-
-  // Sempre usa dados frescos do cache (mesma fonte do painel Central)
+  // ── Dados base ──────────────────────────────────────────────────────────────
   var todosResultados = getResultados();
-  var resultadosHoje = todosResultados.filter(function(r){ return r.dataHora && r.dataHora.indexOf(hojeStr)===0; });
-  var resFilt   = pf==='todos' ? resultadosHoje : resultadosHoje.filter(function(r){ return r.perfil===pf; });
-  var totalEnvios = resFilt.length;
-  var completos   = resFilt.filter(function(r){ return r.pct===100; }).length;
-  var media       = totalEnvios ? Math.round(resFilt.reduce(function(s,r){ return s+r.pct; },0)/totalEnvios) : 0;
+  var resultadosHoje  = todosResultados.filter(function(r){ return r.dataHora && r.dataHora.indexOf(hojeStr)===0; });
 
-  // Usuários do perfil selecionado
+  var ontemDate = new Date(agora); ontemDate.setDate(ontemDate.getDate()-1);
+  var ontemStr  = ontemDate.toLocaleDateString('pt-BR');
+  var resultadosOntem = todosResultados.filter(function(r){ return r.dataHora && r.dataHora.indexOf(ontemStr)===0; });
+
   var todosUsers = getUsers().filter(function(u){ return u.id!=='admin' && u.ativo; });
-  var users = pf==='todos' ? todosUsers : todosUsers.filter(function(u){ return u.perfil===pf; });
-  var opsUnicos = [];
-  resFilt.forEach(function(r){ if(opsUnicos.indexOf(r.operador)<0) opsUnicos.push(r.operador); });
+  var todasPend  = getPendencias();
 
-  // ── Seção: Status da equipe ──
-  var equipeTbody = users.length ? users.map(function(u){
-    var urs   = resFilt.filter(function(r){ return r.operador===u.nome; });
-    var enviou = urs.length>0;
+  // ── KPIs (idênticos ao dashboard) ──────────────────────────────────────────
+  var totalEnvios = resultadosHoje.length;
+  var completos   = resultadosHoje.filter(function(r){ return r.pct===100; }).length;
+  var media       = totalEnvios ? Math.round(resultadosHoje.reduce(function(s,r){ return s+r.pct; },0)/totalEnvios) : 0;
+  var opsAtivos   = [];
+  resultadosHoje.forEach(function(r){ if(opsAtivos.indexOf(r.operador)<0) opsAtivos.push(r.operador); });
+  var pendentes   = todasPend.length;
+
+  var mediOntem   = resultadosOntem.length ? Math.round(resultadosOntem.reduce(function(s,r){ return s+r.pct; },0)/resultadosOntem.length) : null;
+  var diff        = mediOntem !== null ? media - mediOntem : null;
+  var trendTxt    = diff !== null ? (diff>=0?'↑':'↓')+' '+Math.abs(diff)+'% vs ontem' : '';
+  var trendCor    = diff !== null ? (diff>=0 ? '#2d9e62' : '#e74c3c') : '#999';
+
+  var statusCor = media>=80?'#2d9e62':media>=60?'#d68910':'#e74c3c';
+  var statusTxt = media>=80?'Operação Normal':media>=60?'Atenção Necessária':'Conformidade Crítica';
+  var kpiPendCor = pendentes===0 ? '#2d9e62' : '#e74c3c';
+  var kpiPendSub = pendentes===0 ? 'todos enviados ✓' : 'checklists em aberto';
+
+  // ── Status da Equipe ────────────────────────────────────────────────────────
+  var equipeTbody = todosUsers.length ? todosUsers.map(function(u){
+    var urs    = resultadosHoje.filter(function(r){ return r.operador===u.nome; });
+    var enviou = urs.length > 0;
     var mediU  = enviou ? Math.round(urs.reduce(function(s,r){ return s+r.pct; },0)/urs.length) : null;
     var cor    = !enviou?'#e74c3c':mediU===100?'#2d9e62':mediU>=80?'#27ae60':mediU>=60?'#d68910':'#e74c3c';
-    var status = !enviou?'Pendente':mediU===100?'Concluído 100%':mediU+'% concluído';
-    var perfisLabel = {gerencia:'Gerência',operator:'Operador',prevencao:'Prevenção',supervisor:'Supervisão'};
-    return '<tr>'
-      +'<td>'+u.nome+'</td>'
-      +'<td>'+(perfisLabel[u.perfil]||u.perfil)+'</td>'
+    var status = !enviou ? 'Pendente' : mediU===100 ? '100% ✓' : mediU+'%';
+    var bg     = !enviou ? '#fff5f5' : mediU===100 ? '#f0fdf4' : mediU>=60 ? '#fffbeb' : '#fff5f5';
+    return '<tr style="background:'+bg+'">'
+      +'<td><strong>'+u.nome+'</strong></td>'
+      +'<td>'+(PLABEL[u.perfil]||u.perfil)+'</td>'
       +'<td>'+(u.loja||loja)+'</td>'
-      +'<td>'+urs.length+' envio'+(urs.length!==1?'s':'')+'</td>'
-      +'<td style="font-weight:700;color:'+cor+'">'+status+'</td>'
+      +'<td style="text-align:center">'+urs.length+'</td>'
+      +'<td style="font-weight:700;color:'+cor+';text-align:center">'+status+'</td>'
       +'</tr>';
-  }).join('') : '<tr><td colspan="5" style="text-align:center;color:#999">Nenhum usuário nesta categoria</td></tr>';
+  }).join('') : '<tr><td colspan="5" style="text-align:center;color:#999;padding:16px">Nenhum usuário cadastrado</td></tr>';
 
-  // ── Seção: Checklists enviados ──
-  var PLABEL={admin:'Administrador',gerencia:'Gerência',supervisor:'Supervisor',operator:'Operador',prevencao:'Prevenção'};
-  var checkTbody = resFilt.length ? resFilt.slice().reverse().map(function(r){
-    var cor = r.reprovado?'#e74c3c':r.pct===100?'#2d9e62':r.pct>=60?'#d68910':'#e74c3c';
-    var pctLabel = r.reprovado ? '🚨 REPROVADO' : r.pct+'%'+(r.resetado?' ↺':'');
-    return '<tr>'
-      +'<td style="white-space:nowrap">'+r.dataHora+'</td>'
+  // ── Checklists Enviados Hoje ────────────────────────────────────────────────
+  var checkTbody = resultadosHoje.length ? resultadosHoje.slice().reverse().map(function(r){
+    var cor      = r.reprovado?'#e74c3c':r.pct===100?'#2d9e62':r.pct>=60?'#d68910':'#e74c3c';
+    var pctLabel = r.reprovado ? '⚠ REPROVADO' : r.pct+'%'+(r.resetado?' ↺':'');
+    var bg       = r.reprovado?'#fff5f5':r.pct===100?'#f0fdf4':'';
+    return '<tr style="background:'+bg+'">'
+      +'<td style="white-space:nowrap;color:#555">'+r.dataHora+'</td>'
       +'<td><strong>'+r.checklistNome+'</strong></td>'
       +'<td>'+r.setor+'</td>'
       +'<td>'+r.operador+'</td>'
-      +'<td>'+(PLABEL[r.perfil]||r.perfil)+'</td>'
+      +'<td style="color:#777">'+(PLABEL[r.perfil]||r.perfil)+'</td>'
       +'<td style="font-weight:700;color:'+cor+'">'+pctLabel+'</td>'
-      +'<td>'+r.feitos+'/'+r.total+'</td>'
+      +'<td style="text-align:center;color:#555">'+r.feitos+'/'+r.total+'</td>'
       +'</tr>';
-  }).join('') : '<tr><td colspan="7" style="text-align:center;color:#999">Nenhum checklist enviado hoje</td></tr>';
+  }).join('') : '<tr><td colspan="7" style="text-align:center;color:#999;padding:16px">Nenhum checklist enviado hoje</td></tr>';
 
-  // ── Seção: Pendentes ──
-  var todasPend = getPendencias();
-  var pendFilt  = pf==='todos' ? todasPend : todasPend.filter(function(p){ return (p.cl.perfil||'').toLowerCase()===pf; });
-  var pendTbody = pendFilt.length ? pendFilt.map(function(p){
+  // ── Pendentes ───────────────────────────────────────────────────────────────
+  var pendTbody = todasPend.length ? todasPend.map(function(p){
     var cor = p.atrasado ? '#e74c3c' : '#d68910';
-    return '<tr>'
-      +'<td>'+p.cl.nome+'</td>'
+    var bg  = p.atrasado ? '#fff5f5' : '#fffbeb';
+    return '<tr style="background:'+bg+'">'
+      +'<td><strong>'+p.cl.nome+'</strong></td>'
       +'<td>'+p.cl.setor+'</td>'
       +'<td>'+p.horaLimite+'</td>'
       +'<td style="font-weight:700;color:'+cor+'">'+(p.atrasado?'⚠ ATRASADO':'Pendente')+'</td>'
       +'</tr>';
-  }).join('') : '<tr><td colspan="4" style="text-align:center;color:#2d9e62">✅ Todos os checklists enviados</td></tr>';
+  }).join('') : '<tr><td colspan="4" style="text-align:center;color:#2d9e62;padding:14px">✓ Todos os checklists foram enviados</td></tr>';
 
-  var statusCor = media>=80?'#2d9e62':media>=60?'#d68910':'#e74c3c';
-  var statusTxt = media>=80?'NORMAL':media>=60?'ATENÇÃO':'CRÍTICO';
+  // ── Conformidade por Setor — Hoje ───────────────────────────────────────────
+  var setorMap = {};
+  resultadosHoje.forEach(function(r){
+    var s = (r.setor||'').trim() || 'Geral';
+    if (!setorMap[s]) setorMap[s] = {soma:0,cnt:0,comp:0};
+    setorMap[s].soma += r.pct; setorMap[s].cnt++;
+    if (r.pct===100) setorMap[s].comp++;
+  });
+  var setorKeys = Object.keys(setorMap).sort();
+  var setorTbody = setorKeys.length ? setorKeys.map(function(s){
+    var med = Math.round(setorMap[s].soma/setorMap[s].cnt);
+    var cor = med===100?'#2d9e62':med>=80?'#27ae60':med>=60?'#d68910':'#e74c3c';
+    var bg  = med===100?'#f0fdf4':med>=60?'#fffbeb':'#fff5f5';
+    return '<tr style="background:'+bg+'">'
+      +'<td><strong>'+s+'</strong></td>'
+      +'<td style="text-align:center">'+setorMap[s].cnt+'</td>'
+      +'<td style="text-align:center">'+setorMap[s].comp+'</td>'
+      +'<td style="font-weight:700;color:'+cor+';text-align:center">'+med+'%</td>'
+      +'</tr>';
+  }).join('') : '<tr><td colspan="4" style="text-align:center;color:#999;padding:16px">Nenhum envio hoje</td></tr>';
 
-  var html = '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/><title>Relatório Supervisor — '+hojeStr+'</title>'
+  // ── Conformidade — Últimos 7 dias ───────────────────────────────────────────
+  var dias7 = [];
+  for (var i=6; i>=0; i--) {
+    var d = new Date(agora); d.setDate(d.getDate()-i);
+    dias7.push(d);
+  }
+  var dias7Tbody = dias7.map(function(d){
+    var ds  = d.toLocaleDateString('pt-BR');
+    var dr  = todosResultados.filter(function(r){ return r.dataHora && r.dataHora.indexOf(ds)===0; });
+    var med = dr.length ? Math.round(dr.reduce(function(s,r){ return s+r.pct; },0)/dr.length) : null;
+    var cor = med===null?'#999':med>=80?'#2d9e62':med>=60?'#d68910':'#e74c3c';
+    var isHoje = ds===hojeStr;
+    return '<tr style="'+(isHoje?'background:#fffde7;font-weight:600':'')+'">'
+      +'<td>'+(isHoje?'<strong>'+ds+' — Hoje</strong>':ds)+'</td>'
+      +'<td style="text-align:center">'+dr.length+'</td>'
+      +'<td style="font-weight:700;color:'+cor+';text-align:center">'+(med!==null?med+'%':'—')+'</td>'
+      +'</tr>';
+  }).join('');
+
+  // ── Operadores Ativos Hoje ──────────────────────────────────────────────────
+  var opMap = {};
+  resultadosHoje.forEach(function(r){
+    if (!opMap[r.operador]) opMap[r.operador] = {envios:0,soma:0,loja:r.loja||'',perfil:r.perfil||''};
+    opMap[r.operador].envios++; opMap[r.operador].soma += r.pct;
+  });
+  var opList = Object.keys(opMap).map(function(nome){
+    var o = opMap[nome];
+    return {nome:nome, envios:o.envios, med:Math.round(o.soma/o.envios), loja:o.loja, perfil:o.perfil};
+  }).sort(function(a,b){ return b.med-a.med; });
+  var opsTbody = opList.length ? opList.map(function(op){
+    var cor = op.med===100?'#2d9e62':op.med>=80?'#27ae60':op.med>=60?'#d68910':'#e74c3c';
+    var bg  = op.med===100?'#f0fdf4':op.med>=60?'#fffbeb':'#fff5f5';
+    return '<tr style="background:'+bg+'">'
+      +'<td><strong>'+op.nome+'</strong></td>'
+      +'<td>'+(PLABEL[op.perfil]||op.perfil||'—')+'</td>'
+      +'<td>'+(op.loja||loja)+'</td>'
+      +'<td style="text-align:center">'+op.envios+'</td>'
+      +'<td style="font-weight:700;color:'+cor+';text-align:center">'+op.med+'%</td>'
+      +'</tr>';
+  }).join('') : '<tr><td colspan="5" style="text-align:center;color:#999;padding:16px">Nenhum operador ativo hoje</td></tr>';
+
+  // ── Planos de Ação Abertos ──────────────────────────────────────────────────
+  var planos = getPlanos().filter(function(p){ return p.status==='aberto'||p.status==='andamento'; });
+  var planosTbody = planos.length ? planos.map(function(p){
+    var stCor = p.status==='andamento'?'#d68910':'#e74c3c';
+    var stLbl = p.status==='andamento'?'Em andamento':'Aberto';
+    return '<tr>'
+      +'<td>'+p.desc+'</td>'
+      +'<td>'+(p.setor||'—')+'</td>'
+      +'<td style="white-space:nowrap">'+p.criadoEm+'</td>'
+      +'<td style="font-weight:700;color:'+stCor+'">'+stLbl+'</td>'
+      +'</tr>';
+  }).join('') : '<tr><td colspan="4" style="text-align:center;color:#2d9e62;padding:14px">✓ Nenhum plano de ação em aberto</td></tr>';
+
+  // ── Últimas Ocorrências ─────────────────────────────────────────────────────
+  var occRows = resultadosHoje.slice().reverse().slice(0,10).map(function(r){
+    var st    = r.pct===100?'#2d9e62':r.pct>=50?'#d68910':'#e74c3c';
+    var stLbl = r.reprovado?'REPROVADO':r.pct+'%';
+    return '<tr>'
+      +'<td style="white-space:nowrap;color:#555">'+r.dataHora.split(' ')[1]+'</td>'
+      +'<td>Checklist</td>'
+      +'<td>'+r.checklistNome+'</td>'
+      +'<td>'+r.setor+'</td>'
+      +'<td>'+r.operador+'</td>'
+      +'<td style="font-weight:700;color:'+st+'">'+stLbl+'</td>'
+      +'</tr>';
+  });
+  S.historico.slice(0,5).forEach(function(h){
+    if (h.tipo!=='Checklist') {
+      occRows.push('<tr><td style="white-space:nowrap;color:#555">'+h.hora+'</td><td>'+h.tipo+'</td><td>'+h.desc+'</td><td>'+h.setor+'</td><td>'+h.op+'</td><td>'+h.stLabel+'</td></tr>');
+    }
+  });
+  var occTbody = occRows.length ? occRows.join('') : '<tr><td colspan="6" style="text-align:center;color:#999;padding:16px">Nenhuma ocorrência hoje</td></tr>';
+
+  // ── HTML ────────────────────────────────────────────────────────────────────
+  var html = '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/>'
+    +'<title>Relatório Supervisor — '+hojeStr+'</title>'
     +'<style>'
     +'*{box-sizing:border-box;margin:0;padding:0;font-family:Arial,sans-serif}'
-    +'body{padding:32px;color:#111;font-size:12px;background:#fff}'
-    +'.header{display:flex;align-items:center;justify-content:space-between;border-bottom:4px solid #FFC600;padding-bottom:16px;margin-bottom:24px}'
-    +'.header img{height:85px;object-fit:contain}'
+    +'body{padding:28px 32px;color:#111;font-size:12px;background:#fff}'
+    +'.header{display:flex;align-items:center;justify-content:space-between;border-bottom:4px solid #FFC600;padding-bottom:14px;margin-bottom:20px}'
+    +'.header img{height:70px;object-fit:contain}'
     +'.header-r{text-align:right}'
-    +'.header-r h1{font-size:17px;font-weight:700;color:#111}'
+    +'.header-r h1{font-size:16px;font-weight:800;color:#111}'
     +'.header-r p{font-size:11px;color:#666;margin-top:3px}'
-    +'.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}'
-    +'.kpi{background:#f8f9fa;border-radius:8px;padding:14px;border-left:4px solid #FFC600}'
-    +'.kpi .k-lbl{font-size:9px;text-transform:uppercase;letter-spacing:.6px;color:#888;margin-bottom:6px}'
-    +'.kpi .k-val{font-size:22px;font-weight:800;color:#111}'
+    +'.status-pill{display:inline-block;padding:3px 12px;border-radius:20px;font-size:10px;font-weight:700;color:#fff;background:'+statusCor+'}'
+    +'.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px}'
+    +'.kpi{background:#f8f9fa;border-radius:8px;padding:12px 14px;border-left:4px solid #FFC600}'
+    +'.kpi .k-lbl{font-size:8.5px;text-transform:uppercase;letter-spacing:.7px;color:#888;margin-bottom:5px}'
+    +'.kpi .k-val{font-size:24px;font-weight:800;line-height:1.1}'
     +'.kpi .k-sub{font-size:10px;color:#888;margin-top:3px}'
-    +'.status-pill{display:inline-block;padding:4px 14px;border-radius:20px;font-size:11px;font-weight:700;color:#fff;background:'+statusCor+'}'
-    +'.section{margin-bottom:24px}'
-    +'.section-title{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#333;border-bottom:2px solid #FFC600;padding-bottom:6px;margin-bottom:12px}'
+    +'.kpi .k-trend{font-size:10px;font-weight:700;margin-top:3px;color:'+trendCor+'}'
+    +'.section{margin-bottom:20px}'
+    +'.sec-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#444;'
+    +'border-bottom:2px solid #FFC600;padding-bottom:5px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}'
+    +'.sec-title span{font-size:10px;font-weight:400;text-transform:none;letter-spacing:0;color:#888}'
     +'table{width:100%;border-collapse:collapse;font-size:11px}'
-    +'th{background:#FFC600;padding:8px 10px;text-align:left;font-size:9.5px;text-transform:uppercase;letter-spacing:.4px;color:#111}'
-    +'td{padding:8px 10px;border-bottom:1px solid #eee}'
+    +'th{background:#FFC600;padding:7px 9px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.4px;color:#111;font-weight:700}'
+    +'td{padding:7px 9px;border-bottom:1px solid #f0f0f0}'
     +'tr:last-child td{border:none}'
-    +'.assinatura{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:40px}'
-    +'.ass-box{border-top:1px solid #333;padding-top:8px;font-size:11px;color:#555}'
-    +'.footer{margin-top:28px;padding-top:10px;border-top:1px solid #eee;display:flex;justify-content:space-between;font-size:9.5px;color:#999}'
-    +'@media print{body{padding:20px}}'
+    +'.assinatura{display:grid;grid-template-columns:1fr 1fr;gap:48px;margin-top:36px;padding-top:0}'
+    +'.ass-box{border-top:1.5px solid #333;padding-top:8px;font-size:11px;color:#555;text-align:center}'
+    +'.footer{margin-top:24px;padding-top:8px;border-top:1px solid #e5e5e5;display:flex;justify-content:space-between;font-size:9px;color:#aaa}'
+    +'@media print{body{padding:16px 20px}@page{margin:15mm}}'
     +'</style></head><body>'
 
     // Cabeçalho
     +'<div class="header">'
-    +(logoSrc?'<img src="'+logoSrc+'" alt="Logo"/>':'<div style="font-size:18px;font-weight:800">Fluxo Certo 360</div>')
+    +(logoSrc?'<img src="'+logoSrc+'" alt="Logo"/>':'<div style="font-size:18px;font-weight:800;font-family:Arial">Fluxo Certo 360</div>')
     +'<div class="header-r">'
-    +'<h1>Relatório Diário — '+perfilLabel+'</h1>'
+    +'<h1>Relatório Diário do Supervisor</h1>'
     +'<p>'+hojeExtenso+'</p>'
-    +'<p>Loja: <strong>'+loja+'</strong> &nbsp;|&nbsp; Gerado: '+agora.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+' &nbsp;|&nbsp; Status: <span class="status-pill">'+statusTxt+'</span></p>'
+    +'<p style="margin-top:5px">Loja: <strong>'+loja+'</strong> &nbsp;&nbsp; Gerado: <strong>'+agora.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+'</strong> &nbsp;&nbsp; <span class="status-pill">'+statusTxt+'</span></p>'
     +'</div></div>'
 
-    // KPIs
+    // ── Bloco 1: KPIs ──
     +'<div class="kpis">'
-    +'<div class="kpi"><div class="k-lbl">Envios Hoje</div><div class="k-val">'+opsUnicos.length+'/'+users.length+'</div><div class="k-sub">'+totalEnvios+' envios · '+completos+' com 100%</div></div>'
-    +'<div class="kpi"><div class="k-lbl">Conformidade</div><div class="k-val" style="color:'+statusCor+'">'+media+'%</div><div class="k-sub">média · '+completos+' completos</div></div>'
-    +'<div class="kpi"><div class="k-lbl">Operadores Ativos</div><div class="k-val">'+opsUnicos.length+'</div><div class="k-sub">de '+users.length+' cadastrados</div></div>'
-    +'<div class="kpi"><div class="k-lbl">Pendentes</div><div class="k-val" style="color:'+(pendFilt.length?'#e74c3c':'#2d9e62')+'">'+pendFilt.length+'</div><div class="k-sub">'+(pendFilt.length?'checklists em aberto':'todos enviados ✓')+'</div></div>'
+    +'<div class="kpi"><div class="k-lbl">Checklists Hoje</div>'
+    +'<div class="k-val" style="color:'+statusCor+'">'+opsAtivos.length+'/'+todosUsers.length+'</div>'
+    +'<div class="k-sub">'+totalEnvios+' envios &nbsp;·&nbsp; '+completos+' com 100%</div>'
+    +(trendTxt?'<div class="k-trend">'+trendTxt+'</div>':'')
+    +'</div>'
+    +'<div class="kpi"><div class="k-lbl">Conformidade Geral</div>'
+    +'<div class="k-val" style="color:'+statusCor+'">'+(totalEnvios?media+'%':'—')+'</div>'
+    +'<div class="k-sub">100% completos: '+completos+'</div>'
+    +(trendTxt?'<div class="k-trend">'+trendTxt+'</div>':'')
+    +'</div>'
+    +'<div class="kpi"><div class="k-lbl">Pendentes Hoje</div>'
+    +'<div class="k-val" style="color:'+kpiPendCor+'">'+pendentes+'</div>'
+    +'<div class="k-sub">'+kpiPendSub+'</div>'
+    +'</div>'
+    +'<div class="kpi"><div class="k-lbl">Operadores Ativos</div>'
+    +'<div class="k-val">'+opsAtivos.length+'</div>'
+    +'<div class="k-sub">'+opsAtivos.length+(opsAtivos.length===1?' operador enviou hoje':' operadores enviaram hoje')+'</div>'
+    +'</div>'
     +'</div>'
 
-    // Status da equipe
-    +'<div class="section"><div class="section-title">Status da Equipe — '+perfilLabel+'</div>'
-    +'<table><thead><tr><th>Nome</th><th>Perfil</th><th>Loja</th><th>Envios</th><th>Status</th></tr></thead>'
+    // ── Bloco 2: Status da Equipe ──
+    +'<div class="section"><div class="sec-title">Status da Equipe — Hoje <span>'+todosUsers.length+' colaboradores cadastrados</span></div>'
+    +'<table><thead><tr><th>Nome</th><th>Perfil</th><th>Loja</th><th style="text-align:center">Envios</th><th style="text-align:center">Conformidade</th></tr></thead>'
     +'<tbody>'+equipeTbody+'</tbody></table></div>'
 
-    // Checklists enviados
-    +'<div class="section"><div class="section-title">Checklists Enviados Hoje</div>'
-    +'<table><thead><tr><th>Data/Hora</th><th>Checklist</th><th>Setor</th><th>Operador</th><th>Perfil</th><th>Conclusão</th><th>Itens</th></tr></thead>'
+    // ── Bloco 3: Checklists Enviados ──
+    +'<div class="section"><div class="sec-title">Checklists Enviados Hoje <span>'+resultadosHoje.length+' envios</span></div>'
+    +'<table><thead><tr><th>Data/Hora</th><th>Checklist</th><th>Setor</th><th>Operador</th><th>Perfil</th><th>Conclusão</th><th style="text-align:center">Itens</th></tr></thead>'
     +'<tbody>'+checkTbody+'</tbody></table></div>'
 
-    // Pendentes
-    +'<div class="section"><div class="section-title">Checklists Pendentes</div>'
-    +'<table><thead><tr><th>Checklist</th><th>Setor</th><th>Limite</th><th>Status</th></tr></thead>'
+    // ── Bloco 4: Pendentes ──
+    +'<div class="section"><div class="sec-title">Checklists Pendentes <span>'+pendentes+' em aberto</span></div>'
+    +'<table><thead><tr><th>Checklist</th><th>Setor</th><th>Hora Limite</th><th>Status</th></tr></thead>'
     +'<tbody>'+pendTbody+'</tbody></table></div>'
+
+    // ── Bloco 5: Conformidade por Setor ──
+    +'<div class="section"><div class="sec-title">Conformidade por Setor — Hoje</div>'
+    +'<table><thead><tr><th>Setor</th><th style="text-align:center">Envios</th><th style="text-align:center">100% Completos</th><th style="text-align:center">Média</th></tr></thead>'
+    +'<tbody>'+setorTbody+'</tbody></table></div>'
+
+    // ── Bloco 6: Últimos 7 dias ──
+    +'<div class="section"><div class="sec-title">Conformidade — Últimos 7 Dias</div>'
+    +'<table><thead><tr><th>Data</th><th style="text-align:center">Envios</th><th style="text-align:center">Média</th></tr></thead>'
+    +'<tbody>'+dias7Tbody+'</tbody></table></div>'
+
+    // ── Bloco 7: Operadores Ativos Hoje ──
+    +'<div class="section"><div class="sec-title">Operadores Ativos Hoje <span>'+opList.length+' ativos</span></div>'
+    +'<table><thead><tr><th>Operador</th><th>Perfil</th><th>Loja</th><th style="text-align:center">Envios</th><th style="text-align:center">Média</th></tr></thead>'
+    +'<tbody>'+opsTbody+'</tbody></table></div>'
+
+    // ── Bloco 8: Planos de Ação ──
+    +'<div class="section"><div class="sec-title">Planos de Ação Abertos <span>'+planos.length+' plano'+(planos.length!==1?'s':'')+'</span></div>'
+    +'<table><thead><tr><th>Descrição</th><th>Setor</th><th>Criado em</th><th>Status</th></tr></thead>'
+    +'<tbody>'+planosTbody+'</tbody></table></div>'
+
+    // ── Bloco 9: Últimas Ocorrências ──
+    +'<div class="section"><div class="sec-title">Últimas Ocorrências</div>'
+    +'<table><thead><tr><th>Hora</th><th>Tipo</th><th>Descrição</th><th>Setor</th><th>Operador</th><th>Status</th></tr></thead>'
+    +'<tbody>'+occTbody+'</tbody></table></div>'
 
     // Assinaturas
     +'<div class="assinatura">'
-    +'<div class="ass-box">Responsável — '+perfilLabel+'</div>'
-    +'<div class="ass-box">Supervisor / Gerente</div>'
+    +'<div class="ass-box">Supervisor / Gerente<br><br>_______________________________</div>'
+    +'<div class="ass-box">Responsável pela Operação<br><br>_______________________________</div>'
     +'</div>'
 
-    +'<div class="footer"><span>Fluxo Certo 360 © '+agora.getFullYear()+'</span><span>Gerado em: '+agora.toLocaleString('pt-BR')+'</span></div>'
+    +'<div class="footer">'
+    +'<span>Fluxo Certo 360 &copy; '+agora.getFullYear()+'</span>'
+    +'<span>Gerado em: '+agora.toLocaleString('pt-BR')+'</span>'
+    +'</div>'
     +'</body></html>';
 
-  var w = window.open('','_blank','width=900,height=700');
+  var w = window.open('','_blank','width=960,height=800');
   if (w) {
     w.document.write(html);
     w.document.close();
