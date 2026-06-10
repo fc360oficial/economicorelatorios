@@ -1004,11 +1004,6 @@ function setupRole() {
   show('sb-inv-sec', isAdmin && !isColetor);
   show('nav-inv-gestao', isAdmin && !isColetor);
   show('nav-inv-coleta', false); // Atualizado dinamicamente após carregar inventários
-  show('sb-delivery-sec', isAdmin);
-  show('nav-delivery-admin', isAdmin);
-  show('nav-delivery-gestao', isAdmin);
-  show('nav-delivery-expedicao', isAdmin);
-  show('nav-delivery-entregador', isAdmin);
   // Inicia verificação periódica de pendências para gestores e supervisor
   if (isAdmOrGer || isSup) {
     pedirPermissaoNotificacao();
