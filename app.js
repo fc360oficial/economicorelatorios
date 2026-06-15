@@ -1651,10 +1651,14 @@ function salvarFotoTipo(clId, idx, tipo, input) {
     if (cl && cl.itens[idx]) {
       if (cl.itens[idx].foto === 'antes_depois') {
         var hasBoth = !!S.checkState[clId+'_foto_antes_'+idx] && !!S.checkState[clId+'_foto_depois_'+idx];
-        if (hasBoth) S.checkState[clId+'_'+cl.itens[idx].t] = true;
+        if (hasBoth && !S.checkState[clId+'_'+cl.itens[idx].t]) {
+          S.checkState[clId+'_'+cl.itens[idx].t] = true;
+        }
       }
       if (cl.itens[idx].foto === 'depois') {
-        S.checkState[clId+'_'+cl.itens[idx].t] = true;
+        if (!S.checkState[clId+'_'+cl.itens[idx].t]) {
+          S.checkState[clId+'_'+cl.itens[idx].t] = true;
+        }
       }
     }
 
