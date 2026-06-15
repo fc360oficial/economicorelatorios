@@ -1644,7 +1644,9 @@ function salvarFotoTipo(clId, idx, tipo, input) {
     var fotoDocId = userId+'_'+today+'_'+clId+'_'+tipo+'_'+idx;
     db.collection('fotos').doc(fotoDocId).set({
       userId: userId, date: today, clId: clId,
-      tipo: tipo, idx: idx, base64: base64
+      tipo: tipo, idx: idx, base64: base64,
+      loja: S.currentUser ? S.currentUser.loja || '' : '',
+      operador: S.currentUser ? S.currentUser.nome || '' : ''
     }).catch(function(e){ console.log('Erro ao salvar foto:', e); });
 
     var cl = getMyCLs().find(function(cc){return cc.id===clId;});
@@ -2396,7 +2398,8 @@ function confirmarEnviar(assinatura) {
     id:genId(), checklistId:clId, checklistNome:label, setor:setor,
     operador:S.currentUser?S.currentUser.nome:'--', perfil:S.role,
     loja:S.currentUser?S.currentUser.loja||'':'',
-    dataHora:dh, itens:snapshot, feitos:feitos, total:total, pct:pct,
+    dataHora:dh, dateISO:getLocalDate(),
+    itens:snapshot, feitos:feitos, total:total, pct:pct,
     reprovado:reprovado, assinatura:assinatura||null
   };
   var lista = getAllResultados();
