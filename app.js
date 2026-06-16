@@ -607,6 +607,31 @@ function limparResultadosFirebase() {
   });
 }
 
+// Listener em tempo real para resultados — mantém o supervisor atualizado sem precisar recarregar
+var _resultadosUnsub = null;
+function iniciarResultadosRealtime() {
+  if (_resultadosUnsub) _resultadosUnsub();
+  _resultadosUnsub = db.collection('resultados').onSnapshot(function(snap) {
+    var list = snap.docs.map(function(d){ return d.data(); });
+    list.sort(function(a,b){ return (a.dataHora||'') < (b.dataHora||'') ? -1 : 1; });
+    S.resultadosCache = list;
+    try {
+      var semAssina = list.map(function(r){ return r.assinatura ? Object.assign({},r,{assinatura:null}) : r; });
+      localStorage.setItem(RESKEY, JSON.stringify(semAssina));
+    } catch(e){}
+    // Re-renderiza a página ativa se depende de resultados
+    var dashPanel = document.getElementById('panel-dashboard');
+    var centralPanel = document.getElementById('panel-central');
+    if (dashPanel && dashPanel.classList.contains('active')) updateDash();
+    if (centralPanel && centralPanel.classList.contains('active')) {
+      var activeTab = centralPanel.querySelector('#central-tabs .tab.on');
+      switchCentralTab('checklist', activeTab);
+    }
+  }, function(err) {
+    console.warn('Falha no listener de resultados:', err);
+  });
+}
+
 function genId() { return 'id_'+Date.now()+'_'+Math.random().toString(36).substr(2,5); }
 
 // ===========================================
@@ -962,7 +987,10 @@ function finalizarLogin(found) {
     })()
   ]).then(function(){
     // Restaurar fotos do dia do Firestore antes de iniciar
-    carregarFotosFirebase(function(){ iniciarApp(); });
+    carregarFotosFirebase(function(){
+      iniciarApp();
+      iniciarResultadosRealtime();
+    });
   }).catch(function(err){
     console.error('Firebase erro:', err);
     // Tentar mesmo assim com o que carregou
@@ -975,6 +1003,7 @@ function finalizarLogin(found) {
 }
 
 function doLogout() {
+  if (_resultadosUnsub) { _resultadosUnsub(); _resultadosUnsub = null; }
   sessionStorage.removeItem('eco_session');
   sessionStorage.removeItem('eco_last_page');
   localStorage.removeItem('inv_detalhe_state');
