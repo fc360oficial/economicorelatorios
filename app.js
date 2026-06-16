@@ -4291,6 +4291,55 @@ function filtrarResumoDia(tipo, btn) {
   renderRelChecklist();
 }
 
+var executivoFiltro = 'hoje';
+
+function filtrarExecutivo(tipo, btn) {
+  executivoFiltro = tipo;
+  document.querySelectorAll('#rel-cl-executivo .rel-dia-btn').forEach(function(b){b.classList.remove('active-dia');});
+  if (btn) btn.classList.add('active-dia');
+  renderRelExecutivo();
+}
+
+function getResultadosFiltradosExecutivo() {
+  var resultados = getResultados();
+  var agora = new Date();
+  var hoje = agora.toLocaleDateString('pt-BR');
+  var custom = (document.getElementById('exec-dia-custom')||{}).value||'';
+  var LABELS = {hoje:'Hoje', ontem:'Ontem', '7dias':'Últimos 7 dias', mes:'Este mês'};
+  var lbl = document.getElementById('exec-data-label');
+  if (lbl) lbl.textContent = executivoFiltro==='custom' ? (custom||'Personalizado') : (LABELS[executivoFiltro]||'Hoje');
+
+  if (executivoFiltro === 'hoje') {
+    return resultados.filter(function(r){return r.dataHora && r.dataHora.indexOf(hoje)===0 && !r.resetado;});
+  } else if (executivoFiltro === 'ontem') {
+    var ontem = new Date(agora); ontem.setDate(ontem.getDate()-1);
+    var ontemStr = ontem.toLocaleDateString('pt-BR');
+    return resultados.filter(function(r){return r.dataHora && r.dataHora.indexOf(ontemStr)===0 && !r.resetado;});
+  } else if (executivoFiltro === '7dias') {
+    var limite = new Date(agora); limite.setDate(limite.getDate()-6);
+    return resultados.filter(function(r){
+      if (!r.dataHora || r.resetado) return false;
+      var p=r.dataHora.split(' ')[0].split('/');
+      if(p.length<3) return false;
+      return new Date(p[2]+'-'+p[1]+'-'+p[0]) >= limite;
+    });
+  } else if (executivoFiltro === 'mes') {
+    var mes = agora.getMonth(), ano = agora.getFullYear();
+    return resultados.filter(function(r){
+      if (!r.dataHora || r.resetado) return false;
+      var p=r.dataHora.split(' ')[0].split('/');
+      if(p.length<3) return false;
+      var d=new Date(p[2]+'-'+p[1]+'-'+p[0]);
+      return d.getMonth()===mes && d.getFullYear()===ano;
+    });
+  } else if (executivoFiltro === 'custom' && custom) {
+    var cp=custom.split('-');
+    var customStr=cp[2]+'/'+cp[1]+'/'+cp[0];
+    return resultados.filter(function(r){return r.dataHora && r.dataHora.indexOf(customStr)===0 && !r.resetado;});
+  }
+  return resultados.filter(function(r){return !r.resetado;});
+}
+
 function getResultadosFiltradosDia() {
   var resultados = getResultados();
   var agora = new Date();
@@ -4658,9 +4707,7 @@ function renderRelPerdas() {
 }
 
 function renderRelExecutivo() {
-  var resultados = getResultados();
-  var hoje = new Date().toLocaleDateString('pt-BR');
-  var res = resultados.filter(function(r){return r.dataHora && r.dataHora.indexOf(hoje)===0 && !r.resetado;});
+  var res = getResultadosFiltradosExecutivo();
   var total = res.length;
   var comp = res.filter(function(r){return r.pct===100;}).length;
   var pend = total - comp;
@@ -4680,7 +4727,6 @@ function renderRelExecutivo() {
   document.getElementById('exec-media').textContent = total ? media+'%' : '-';
   document.getElementById('exec-fotos').textContent = fotos;
   document.getElementById('exec-ocorr').textContent = ocorr;
-  document.getElementById('exec-data-label').textContent = hoje;
 
   // Equipe cards
   var users = getUsers().filter(function(u){return u.id!=='admin'&&u.ativo;});
