@@ -1487,11 +1487,12 @@ app.get('/api/precificacao/margens-criticas', async (req, res) => {
         const c = parseFloat(r?.custo  || 0);
         totalVenda += v;
         totalCusto += c;
-        porLoja[ln] = { msc: c > 0 ? +((v - c) / c * 100).toFixed(1) : 0, venda: +v.toFixed(2), custo: +c.toFixed(2) };
-      } catch(e) { porLoja[ln] = { msc: 0, venda: 0, custo: 0 }; }
+        porLoja[ln] = { msc: c > 0 ? +((v - c) / c * 100).toFixed(1) : 0, msv: v > 0 ? +((v - c) / v * 100).toFixed(1) : 0, venda: +v.toFixed(2), custo: +c.toFixed(2) };
+      } catch(e) { porLoja[ln] = { msc: 0, msv: 0, venda: 0, custo: 0 }; }
     }
     result.resumo = {
       margemMSC: totalCusto > 0 ? +((totalVenda - totalCusto) / totalCusto * 100).toFixed(1) : 0,
+      margemMSV: totalVenda > 0 ? +((totalVenda - totalCusto) / totalVenda * 100).toFixed(1) : 0,
       totalVenda: +totalVenda.toFixed(2),
       totalCusto: +totalCusto.toFixed(2),
       porLoja

@@ -90,7 +90,7 @@ header{
 }
 .mg-geral-label{font-size:9px;font-weight:700;color:var(--text3);
   text-transform:uppercase;letter-spacing:1px}
-.mg-geral-val{font-family:'Syne',sans-serif;font-size:20px;font-weight:900;
+.mg-geral-val{font-family:'Inter',sans-serif;font-size:20px;font-weight:800;
   font-variant-numeric:tabular-nums;line-height:1.1}
 .mg-lojas{display:grid;grid-template-columns:repeat(6,1fr);flex:1;height:100%}
 .mg-loja{
@@ -98,10 +98,10 @@ header{
   border-right:1px solid var(--border);
 }
 .mg-loja:last-child{border-right:none}
-.mg-loja-nome{font-size:9px;color:var(--text3);font-weight:700;
+.mg-loja-nome{font-size:9px;color:var(--brand);font-weight:700;
   text-transform:uppercase;letter-spacing:.5px}
-.mg-loja-val{font-family:'Syne',sans-serif;font-size:17px;font-weight:900;
-  font-variant-numeric:tabular-nums;line-height:1.1}
+.mg-loja-val{font-family:'Inter',sans-serif;font-size:17px;font-weight:800;
+  font-variant-numeric:tabular-nums;line-height:1.1;color:var(--brand)}
 
 .item{
   display:flex;align-items:center;gap:5px;
@@ -177,7 +177,7 @@ header{
 
 <div class="mg-bar">
   <div class="mg-geral">
-    <div class="mg-geral-label">MSC Geral</div>
+    <div class="mg-geral-label">MSV Geral</div>
     <div class="mg-geral-val" id="mg-val">—</div>
   </div>
   <div class="mg-lojas" id="mg-lojas"></div>
@@ -205,6 +205,7 @@ function pararCarrossel() {
 function iniciarCarrossel(idx) {
   pararCarrossel();
   document.querySelectorAll('.col').forEach((c, i) => c.classList.toggle('ativo', i === idx));
+  colBodies.forEach((b, i) => { if (i !== idx) b.scrollTop = 0; });
   const body = colBodies[idx];
   if (!body) return;
   body.scrollTop = 0;
@@ -283,18 +284,17 @@ async function load() {
 
     // Margem geral + por loja
     const resumo = data.resumo || {};
-    const msc = resumo.margemMSC ?? 0;
+    const msv = resumo.margemMSV ?? 0;
     const mgVal = document.getElementById('mg-val');
-    mgVal.textContent = msc.toFixed(1) + '%';
-    mgVal.style.color = msc < 0 ? 'var(--red)' : msc < 20 ? 'var(--orange)' : '#22c55e';
+    mgVal.textContent = msv.toFixed(1) + '%';
+    mgVal.style.color = 'var(--brand)';
 
     const mgLojas = document.getElementById('mg-lojas');
     mgLojas.innerHTML = [1,2,3,4,5,6].map(ln => {
       const d = resumo.porLoja?.[ln] || { msc: 0 };
-      const cor = d.msc < 0 ? 'var(--red)' : d.msc < 20 ? 'var(--orange)' : '#22c55e';
       return `<div class="mg-loja">
         <div class="mg-loja-nome">Loja ${ln}</div>
-        <div class="mg-loja-val" style="color:${cor}">${d.msc.toFixed(1)}%</div>
+        <div class="mg-loja-val">${(d.msv ?? 0).toFixed(1)}%</div>
       </div>`;
     }).join('');
 
