@@ -340,7 +340,6 @@ main{
 .fb-left{display:flex;align-items:center;gap:20px;font-size:11px;color:var(--text3)}
 .fb-right{font-size:11px;color:var(--text3)}
 .countdown{color:var(--brand);font-weight:800;font-variant-numeric:tabular-nums}
-.card-c.no-anim{animation:none!important}
 </style>
 </head>
 <body>
@@ -543,7 +542,7 @@ function calcStats(c) {
 }
 
 /* ══ RENDER CARD ══ */
-function renderCard(c, skipAnim) {
+function renderCard(c) {
   const st     = calcStats(c);
   const allDone = st.pct === 100;
   const atrasado = st.pct === 0 && st.total > 0;
@@ -569,7 +568,7 @@ function renderCard(c, skipAnim) {
   const nomeEnc = encodeURIComponent(c.nome);
 
   return `
-    <div class="card-c${skipAnim?' no-anim':''} ${allDone?'all-done':''} ${atrasado?'atrasado':''}" onclick="location.href='/comprador.html?nome=${nomeEnc}'">
+    <div class="card-c ${allDone?'all-done':''} ${atrasado?'atrasado':''}" onclick="location.href='/comprador.html?nome=${nomeEnc}'">
       <div class="card-accent" style="background:${c.cor}"></div>
       ${warn}
       <div class="ch">
@@ -639,10 +638,8 @@ function renderHeatmap() {
 }
 
 /* ══ RENDER ALL ══ */
-let _animDone = false;
-function renderAll(skipAnim) {
-  document.getElementById('grid-compradores').innerHTML = COMPRADORES.map(c=>renderCard(c,skipAnim||_animDone)).join('');
-  _animDone = true;
+function renderAll() {
+  document.getElementById('grid-compradores').innerHTML = COMPRADORES.map(renderCard).join('');
   const todos = COMPRADORES.flatMap(c=>c.categorias.flatMap(cat=>cat.fornecedores));
   const done  = todos.filter(f=>f.status==='g').length;
   const and   = todos.filter(f=>f.status==='a').length;
@@ -656,14 +653,6 @@ function renderAll(skipAnim) {
   document.getElementById('kpi-pct').textContent   = pct+'%';
   renderRanking();
 }
-
-/* ══ FIT DASHBOARD ══ */
-function fitDashboard() {
-  const scale = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
-  document.documentElement.style.zoom = scale;
-}
-window.addEventListener('resize', fitDashboard);
-fitDashboard();
 
 /* ══ TICKER ══ */
 function renderTicker() {
