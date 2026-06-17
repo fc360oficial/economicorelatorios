@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Diretoria — Econômico Relatórios</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@800;900&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#08111F;--card:#121B2E;--border:rgba(255,255,255,.06);--border-md:rgba(255,255,255,.10);
+  --text:#FFFFFF;--text2:#94A3B8;--text3:#64748B;
+  --green:#22C55E;--red:#EF4444;--brand:#FACC15;
+  --r:16px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;
+  display:flex;flex-direction:column}
+
+/* HEADER */
+header{
+  position:relative;z-index:100;height:76px;flex-shrink:0;
+  background:linear-gradient(180deg,rgba(23,32,51,.99),rgba(18,27,46,.96));
+  border-bottom:1px solid var(--border-md);
+  box-shadow:0 4px 40px rgba(0,0,0,.55),0 1px 0 rgba(250,204,21,.08);
+  padding:0 28px;display:flex;align-items:center;gap:20px;
+}
+.h-logo{height:50px;filter:brightness(0) invert(1) sepia(1) saturate(3) hue-rotate(-8deg);flex-shrink:0}
+.h-brand h1{font-size:11px;font-weight:900;color:var(--brand);letter-spacing:2.5px;text-transform:uppercase;line-height:1;font-family:'Syne',sans-serif}
+.h-brand p{font-size:8px;color:#fff;letter-spacing:2.5px;text-transform:uppercase;margin-top:3px}
+.h-sep{width:1px;height:40px;background:var(--border-md);flex-shrink:0}
+.h-clock{text-align:center;flex-shrink:0}
+.clock-time{font-size:52px;font-weight:900;color:#fff;letter-spacing:3px;font-variant-numeric:tabular-nums;line-height:1}
+.clock-sub{display:flex;gap:10px;justify-content:center;margin-top:2px}
+.clock-date{font-size:10px;color:var(--text3)}
+.clock-semana{font-size:10px;color:var(--brand);font-weight:700;text-transform:uppercase;letter-spacing:1.5px}
+.h-fill{flex:1}
+.h-title{text-align:right}
+.h-title h2{font-family:'Syne',sans-serif;font-size:14px;font-weight:900;color:var(--brand);letter-spacing:2px;text-transform:uppercase}
+.h-title p{font-size:9px;color:var(--text3);letter-spacing:1.5px;text-transform:uppercase;margin-top:2px}
+
+/* TIMER BAR */
+.timer-bar-wrap{height:3px;background:rgba(250,204,21,.12);flex-shrink:0}
+.timer-bar{height:100%;background:var(--brand);width:100%;transform-origin:left;transition:none}
+
+/* GRID */
+.grid{
+  flex:1;display:grid;
+  grid-template-columns:repeat(3,1fr);
+  grid-template-rows:repeat(2,1fr);
+  gap:12px;padding:12px;overflow:hidden;
+}
+
+/* CARD */
+.card{
+  background:var(--card);border:1px solid var(--border);border-radius:var(--r);
+  padding:18px 20px 16px;display:flex;flex-direction:column;gap:10px;
+  position:relative;overflow:hidden;
+}
+.card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,var(--brand),rgba(250,204,21,.3));
+}
+.card-loja{
+  font-family:'Syne',sans-serif;font-size:13px;font-weight:900;
+  color:var(--brand);letter-spacing:2px;text-transform:uppercase;
+}
+.card-fat{
+  font-family:'Inter',sans-serif;font-size:28px;font-weight:800;
+  color:#fff;letter-spacing:-0.5px;line-height:1;
+}
+.card-ant{
+  font-size:11px;color:var(--text2);
+}
+.card-ant span{font-size:11px;font-weight:700}
+.up{color:var(--green)}
+.dn{color:var(--red)}
+.card-sep{height:1px;background:var(--border);margin:2px 0}
+.card-kpis{display:flex;gap:16px}
+.kpi{display:flex;flex-direction:column;gap:2px}
+.kpi-label{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;font-weight:600}
+.kpi-val{font-size:16px;font-weight:700;color:#fff;font-variant-numeric:tabular-nums}
+.kpi-val.msv{color:var(--brand)}
+.card-prog-wrap{height:4px;background:rgba(255,255,255,.06);border-radius:2px;margin-top:auto}
+.card-prog{height:100%;border-radius:2px;background:linear-gradient(90deg,#3B82F6,var(--brand));transition:width .6s ease}
+
+.loading{
+  display:flex;align-items:center;justify-content:center;
+  color:var(--text3);font-size:14px;grid-column:1/-1;grid-row:1/-1;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <img class="h-logo" src="/logo.png" alt="Econômico">
+  <div class="h-brand">
+    <h1>FC360</h1>
+    <p>Relatórios</p>
+  </div>
+  <div class="h-sep"></div>
+  <div class="h-clock">
+    <div class="clock-time" id="clock">00:00:00</div>
+    <div class="clock-sub">
+      <span class="clock-date" id="clock-date"></span>
+      <span class="clock-semana" id="clock-sem"></span>
+    </div>
+  </div>
+  <div class="h-fill"></div>
+  <div class="h-title">
+    <h2>Visão Diretoria</h2>
+    <p>KPIs do mês por loja</p>
+  </div>
+</header>
+
+<div class="timer-bar-wrap"><div class="timer-bar" id="timer-bar"></div></div>
+
+<div class="grid" id="grid">
+  <div class="loading">Carregando...</div>
+</div>
+
+<script>
+const LOJAS = {1:'Loja 1',2:'Loja 2',3:'Loja 3',4:'Loja 4',5:'Loja 5',6:'Loja 6'};
+const TEMPO_TELA = 25000; // 25s na tela
+
+// ── RELÓGIO ──
+const SEMANAS = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+const MESES_EX = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+function atualizarRelogio() {
+  const n = new Date();
+  const h = String(n.getHours()).padStart(2,'0');
+  const m = String(n.getMinutes()).padStart(2,'0');
+  const s = String(n.getSeconds()).padStart(2,'0');
+  document.getElementById('clock').textContent = `${h}:${m}:${s}`;
+  document.getElementById('clock-date').textContent = `${n.getDate()} de ${MESES_EX[n.getMonth()]} de ${n.getFullYear()}`;
+  document.getElementById('clock-sem').textContent = SEMANAS[n.getDay()];
+}
+setInterval(atualizarRelogio, 1000);
+atualizarRelogio();
+
+// ── TIMER BAR ──
+let timerStart = null;
+let timerAnim = null;
+function iniciarTimer() {
+  timerStart = Date.now();
+  const bar = document.getElementById('timer-bar');
+  bar.style.transition = 'none';
+  bar.style.width = '100%';
+  void bar.offsetWidth;
+  bar.style.transition = `width ${TEMPO_TELA}ms linear`;
+  bar.style.width = '0%';
+  if (timerAnim) clearTimeout(timerAnim);
+  timerAnim = setTimeout(() => {
+    try { window.parent.postMessage({ type: 'diretoriaCycleComplete' }, '*'); } catch(_) {}
+  }, TEMPO_TELA);
+}
+
+// ── RENDER ──
+function fmt(v) {
+  return v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function renderGrid(data) {
+  const grid = document.getElementById('grid');
+  const hoje = new Date();
+  const diasMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).getDate();
+  const diaAtual = hoje.getDate();
+  const pctMes = Math.round(diaAtual / diasMes * 100);
+
+  grid.innerHTML = '';
+  for (const lj of data.lojas) {
+    const varOk  = lj.variacao >= 0;
+    const varSeta = varOk ? '▲' : '▼';
+    const varCls  = varOk ? 'up' : 'dn';
+    const pctLoja = Math.min(100, Math.round((lj.faturamento / (lj.fat_ant_ate_dia || 1)) * pctMes));
+
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="card-loja">${LOJAS[lj.loja] || 'Loja ' + lj.loja}</div>
+      <div class="card-fat">R$ ${fmt(lj.faturamento)}</div>
+      <div class="card-ant">
+        Mesmo período ${data.ano_ant}: R$ ${fmt(lj.fat_ant_ate_dia)}
+        &nbsp;<span class="${varCls}">${varSeta} ${Math.abs(lj.variacao).toFixed(1)}%</span>
+      </div>
+      <div class="card-sep"></div>
+      <div class="card-kpis">
+        <div class="kpi">
+          <div class="kpi-label">Ticket Médio</div>
+          <div class="kpi-val">R$ ${fmt(lj.ticket)}</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Margem S/V</div>
+          <div class="kpi-val msv">${lj.msv.toFixed(1)}%</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Cupons</div>
+          <div class="kpi-val">${lj.cupons.toLocaleString('pt-BR')}</div>
+        </div>
+      </div>
+      <div class="card-prog-wrap"><div class="card-prog" style="width:${pctMes}%"></div></div>
+    `;
+    grid.appendChild(card);
+  }
+}
+
+// ── DADOS ──
+async function buscarDados() {
+  try {
+    const r = await fetch('/api/diretoria/kpis');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+    renderGrid(data);
+  } catch(e) {
+    document.getElementById('grid').innerHTML =
+      `<div class="loading" style="color:#ef4444">Erro ao carregar (${e.message})</div>`;
+  }
+}
+
+async function init() {
+  await buscarDados();
+  iniciarTimer();
+}
+
+init();
+setInterval(buscarDados, 3 * 60 * 1000);
+</script>
+</body>
+</html>

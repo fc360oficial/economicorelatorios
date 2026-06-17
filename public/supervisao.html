@@ -26,59 +26,79 @@ iframe.visivel{opacity:1;pointer-events:auto}
 </head>
 <body>
 
-<!-- Compras roda o próprio ciclo: compras.html → cada comprador (15s) → volta -->
-<iframe id="fr-compras" src="/compras.html" title="Compras"></iframe>
-
-<!-- Precificação roda o carrossel de 6 colunas e avisa quando termina -->
-<iframe id="fr-precif"  src="/precificacao.html" title="Precificação"></iframe>
+<iframe id="fr-diretoria" src="/diretoria.html"    title="Diretoria"></iframe>
+<iframe id="fr-precif"   src="/precificacao.html"  title="Precificação"></iframe>
+<iframe id="fr-compras"  src="/compras.html"       title="Compras"></iframe>
 
 <div class="dots">
-  <div class="dot ativo" id="dot-c" title="Compras"></div>
+  <div class="dot ativo" id="dot-d" title="Diretoria"></div>
   <div class="dot"       id="dot-p" title="Precificação"></div>
+  <div class="dot"       id="dot-c" title="Compras"></div>
 </div>
 
 <script>
-let atual = 'compras';
+let atual = 'diretoria';
 
-const frC   = document.getElementById('fr-compras');
-const frP   = document.getElementById('fr-precif');
-const dotC  = document.getElementById('dot-c');
-const dotP  = document.getElementById('dot-p');
+const frD  = document.getElementById('fr-diretoria');
+const frP  = document.getElementById('fr-precif');
+const frC  = document.getElementById('fr-compras');
+const dotD = document.getElementById('dot-d');
+const dotP = document.getElementById('dot-p');
+const dotC = document.getElementById('dot-c');
 
-function mostrarCompras() {
-  atual = 'compras';
-  // Reinicia compras sempre do início (main page)
-  frC.src = '/compras.html';
-  frC.classList.add('visivel');
+function mostrarDiretoria() {
+  atual = 'diretoria';
+  frD.src = '/diretoria.html';
+  frD.classList.add('visivel');
   frP.classList.remove('visivel');
-  dotC.classList.add('ativo');
+  frC.classList.remove('visivel');
+  dotD.classList.add('ativo');
   dotP.classList.remove('ativo');
+  dotC.classList.remove('ativo');
 }
 
 function mostrarPrecif() {
   atual = 'precif';
   frP.classList.add('visivel');
+  frD.classList.remove('visivel');
   frC.classList.remove('visivel');
   dotP.classList.add('ativo');
+  dotD.classList.remove('ativo');
   dotC.classList.remove('ativo');
+}
+
+function mostrarCompras() {
+  atual = 'compras';
+  frC.src = '/compras.html';
+  frC.classList.add('visivel');
+  frD.classList.remove('visivel');
+  frP.classList.remove('visivel');
+  dotC.classList.add('ativo');
+  dotD.classList.remove('ativo');
+  dotP.classList.remove('ativo');
 }
 
 window.addEventListener('message', (e) => {
   if (!e.data || !e.data.type) return;
 
-  // Compras terminou todos os compradores → vai para precificação
-  if (e.data.type === 'comprasCycleComplete' && atual === 'compras') {
+  // Diretoria terminou 25s → vai para precificação
+  if (e.data.type === 'diretoriaCycleComplete' && atual === 'diretoria') {
     mostrarPrecif();
   }
 
-  // Precificação terminou o carrossel (coluna 6 → volta para 1) → volta para compras
+  // Precificação terminou carrossel (col 6 → volta col 1) → vai para compras
   if (e.data.type === 'carouselCycleComplete' && atual === 'precif') {
     mostrarCompras();
   }
+
+  // Compras terminou todos os compradores → volta para diretoria
+  if (e.data.type === 'comprasCycleComplete' && atual === 'compras') {
+    mostrarDiretoria();
+  }
 });
 
-// Inicia mostrando compras
-frC.classList.add('visivel');
+// Inicia mostrando diretoria
+frD.classList.add('visivel');
 </script>
 </body>
 </html>

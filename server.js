@@ -24,7 +24,8 @@ app.use(session({
 app.use((req, res, next) => {
   const publico = ['/login.html', '/api/login', '/logo.png', '/deploy',
     '/precificacao.html', '/compras.html', '/comprador.html', '/supervisao.html',
-    '/api/precificacao/margens-criticas', '/api/compras/pedidos-hoje'];
+    '/api/precificacao/margens-criticas', '/api/compras/pedidos-hoje',
+    '/diretoria.html', '/api/diretoria/kpis'];
   if (publico.includes(req.path)) return next();
   if (req.session && req.session.user) return next();
   if (req.path.startsWith('/api/')) return res.status(401).json({ error: 'Não autenticado' });
@@ -192,6 +193,51 @@ app.get('/api/kpis', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// KPIs por loja — painel diretoria
+app.get('/api/diretoria/kpis', async (req, res) => {
+  try {
+    const hoje   = new Date();
+    const ano    = hoje.getFullYear();
+    const mes    = hoje.getMonth() + 1;
+    const anoAnt = ano - 1;
+    const mm     = mesDB(mes);
+    const diaHoje = String(hoje.getDate()).padStart(2,'0');
+    const mesStr  = String(mes).padStart(2,'0');
+    const dIni        = `${ano}-${mesStr}-01`;
+    const dFim        = `${ano}-${mesStr}-31`;
+    const dIniAnt     = `${anoAnt}-${mesStr}-01`;
+    const dFimAntHoje = `${anoAnt}-${mesStr}-${diaHoje}`;
+
+    const lojas = await Promise.all([1,2,3,4,5,6].map(async ln => {
+      try {
+        const [r] = await q(
+          `SELECT COALESCE(SUM(ValorTotalNovo),0) as venda, COALESCE(SUM(Custo),0) as custo,
+                  COUNT(DISTINCT CONCAT(nECF,'-',CCF)) as cupons
+           FROM \`ln${ln}${mm}\`.zcupomitens WHERE Data BETWEEN ? AND ? AND IndCancel='N'`,
+          [dIni, dFim]
+        );
+        const [r1] = await q(
+          `SELECT COALESCE(SUM(ValorTotalNovo),0) as venda
+           FROM \`ln${ln}${mm}\`.zcupomitens WHERE Data BETWEEN ? AND ? AND IndCancel='N'`,
+          [dIniAnt, dFimAntHoje]
+        );
+        const venda  = parseFloat(r.venda  || 0);
+        const custo  = parseFloat(r.custo  || 0);
+        const cupons = parseInt(r.cupons   || 0);
+        const antAteDia = parseFloat(r1.venda || 0);
+        const variacao  = antAteDia > 0 ? +((venda - antAteDia) / antAteDia * 100).toFixed(1) : 0;
+        const msv    = venda  > 0 ? +((venda - custo) / venda * 100).toFixed(1) : 0;
+        const ticket = cupons > 0 ? +(venda / cupons).toFixed(2) : 0;
+        return { loja: ln, faturamento: +venda.toFixed(2), fat_ant_ate_dia: +antAteDia.toFixed(2), variacao, msv, ticket, cupons };
+      } catch(e) {
+        return { loja: ln, faturamento: 0, fat_ant_ate_dia: 0, variacao: 0, msv: 0, ticket: 0, cupons: 0 };
+      }
+    }));
+
+    res.json({ lojas, mes, dia_ate: diaHoje, ano_ant: anoAnt });
+  } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
 // 1. Produtos mais vendidos essa semana
