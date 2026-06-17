@@ -1393,12 +1393,34 @@ function buildCLBlock(cl) {
       var isSim=val==='sim', isNao=val==='nao';
       var justifVal = S.checkState[cl.id+'_justif_'+i] || '';
       if (!jaConcluido) {
-        belowHtml = '<div style="display:flex;gap:6px;margin-top:8px" onclick="event.stopPropagation()">'
-          +'<button onclick="setSimNao(\''+cl.id+'\','+i+',\'sim\')" style="padding:5px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid '+(isSim?'var(--g2)':'var(--gray3)')+';background:'+(isSim?'var(--g3)':'#fff')+';color:'+(isSim?'var(--g)':'var(--t2)')+'">✓ Sim</button>'
-          +'<button onclick="setSimNao(\''+cl.id+'\','+i+',\'nao\')" style="padding:5px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid '+(isNao?'var(--r)':'var(--gray3)')+';background:'+(isNao?'var(--r2)':'#fff')+';color:'+(isNao?'var(--r)':'var(--t2)')+'">✗ Não</button>'
-          +'</div>';
-        if (isNao) {
-          belowHtml += '<textarea placeholder="Justifique a não-conformidade (obrigatório)..." onblur="salvarJustificativa(\''+cl.id+'\','+i+',this.value)" style="width:100%;margin-top:8px;padding:8px 10px;border:1.5px solid var(--r);border-radius:8px;font-size:12px;font-family:inherit;resize:vertical;min-height:54px;color:var(--t)">'+justifVal+'</textarea>';
+        // Verificar se foto obrigatória já foi enviada antes de liberar Sim/Não
+        var _precisaFoto = item.foto && item.foto !== 'none';
+        var _fotoLiberada = !_precisaFoto;
+        if (_precisaFoto) {
+          if (item.foto === 'antes_depois') {
+            _fotoLiberada = !!(S.checkState[cl.id+'_foto_antes_'+i]);
+          } else {
+            _fotoLiberada = !!(S.checkState[cl.id+'_foto_depois_'+i] || S.checkState[cl.id+'_foto_'+i]);
+          }
+        }
+        if (!_fotoLiberada) {
+          // Foto ainda não enviada: mostrar hint e botões bloqueados
+          belowHtml = '<div style="display:flex;align-items:center;gap:6px;margin-top:8px;padding:7px 10px;background:#fff8e1;border-radius:8px;border:1px solid #ffe082">'
+            +'<span style="font-size:13px">📷</span>'
+            +'<span style="font-size:11px;font-weight:600;color:#b08800">Envie a foto acima antes de responder</span>'
+            +'</div>'
+            +'<div style="display:flex;gap:6px;margin-top:8px">'
+            +'<button disabled style="padding:5px 14px;border-radius:8px;font-size:12px;font-weight:700;border:1.5px solid #e0e0e0;background:#f5f5f5;color:#bbb;cursor:not-allowed">✓ Sim</button>'
+            +'<button disabled style="padding:5px 14px;border-radius:8px;font-size:12px;font-weight:700;border:1.5px solid #e0e0e0;background:#f5f5f5;color:#bbb;cursor:not-allowed">✗ Não</button>'
+            +'</div>';
+        } else {
+          belowHtml = '<div style="display:flex;gap:6px;margin-top:8px" onclick="event.stopPropagation()">'
+            +'<button onclick="setSimNao(\''+cl.id+'\','+i+',\'sim\')" style="padding:5px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid '+(isSim?'var(--g2)':'var(--gray3)')+';background:'+(isSim?'var(--g3)':'#fff')+';color:'+(isSim?'var(--g)':'var(--t2)')+'">✓ Sim</button>'
+            +'<button onclick="setSimNao(\''+cl.id+'\','+i+',\'nao\')" style="padding:5px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid '+(isNao?'var(--r)':'var(--gray3)')+';background:'+(isNao?'var(--r2)':'#fff')+';color:'+(isNao?'var(--r)':'var(--t2)')+'">✗ Não</button>'
+            +'</div>';
+          if (isNao) {
+            belowHtml += '<textarea placeholder="Justifique a não-conformidade (obrigatório)..." onblur="salvarJustificativa(\''+cl.id+'\','+i+',this.value)" style="width:100%;margin-top:8px;padding:8px 10px;border:1.5px solid var(--r);border-radius:8px;font-size:12px;font-family:inherit;resize:vertical;min-height:54px;color:var(--t)">'+justifVal+'</textarea>';
+          }
         }
       } else {
         var snLabel=val==='sim'?'✓ Sim':val==='nao'?'✗ Não':'—';
@@ -1607,6 +1629,13 @@ function setSimNao(clId, idx, val) {
   if (jaEnviouHoje(clId)) return;
   var cl = getMyCLs().find(function(c){return c.id===clId;});
   if (!cl) return;
+  var item = cl.itens[idx];
+  if (item.foto && item.foto !== 'none') {
+    var temFoto = item.foto === 'antes_depois'
+      ? !!(S.checkState[clId+'_foto_antes_'+idx])
+      : !!(S.checkState[clId+'_foto_depois_'+idx] || S.checkState[clId+'_foto_'+idx]);
+    if (!temFoto) { showToast('📷 Envie a foto antes de responder.'); return; }
+  }
   S.checkState[clId+'_'+cl.itens[idx].t] = val;
   saveCheckState();
   var block = document.getElementById('cl-block-'+clId);
