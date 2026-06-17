@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Central de Execução de Compras — FC360</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg: #08111F; --bg2: #0B1220;
+  --card: #121B2E; --card2: #172033;
+  --brand: #FACC15; --brand2: #FFC72C;
+  --brand-glow: rgba(250,204,21,.18); --brand-dim: rgba(250,204,21,.08);
+  --green: #22C55E; --green-bg: rgba(34,197,94,.10); --green-glow: rgba(34,197,94,.22);
+  --amber: #F59E0B; --amber-bg: rgba(245,158,11,.10);
+  --red: #EF4444; --red-bg: rgba(239,68,68,.10); --red-glow: rgba(239,68,68,.22);
+  --blue: #3B82F6; --text: #FFFFFF; --text2: #94A3B8; --text3: #64748B;
+  --border: rgba(255,255,255,.06); --border-md: rgba(255,255,255,.10);
+  --radius: 20px; --radius-sm: 12px;
+  --shadow: 0 8px 32px rgba(0,0,0,.30); --shadow-lg: 0 16px 48px rgba(0,0,0,.40);
+  --font-sans: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+body {
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+  padding-bottom: 44px;
+}
+body::before {
+  content: '';
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background:
+    radial-gradient(ellipse 60% 40% at 15% 60%, rgba(99,102,241,.05) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 30% at 85% 20%, rgba(250,204,21,.04) 0%, transparent 60%);
+}
+
+/* ── HEADER ── */
+header {
+  position: sticky; top: 0; z-index: 200;
+  height: 72px;
+  background: linear-gradient(180deg, rgba(18,27,46,.98), rgba(18,27,46,.94));
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border-md);
+  box-shadow: 0 4px 24px rgba(0,0,0,.4);
+  padding: 0 32px;
+  display: flex; align-items: center; justify-content: space-between; gap: 20px;
+}
+.h-left { display: flex; align-items: center; gap: 16px; }
+.h-logo { height: 38px; filter: brightness(0) invert(1) sepia(1) saturate(3) hue-rotate(-8deg); }
+.h-titles h1 { font-size: 15px; font-weight: 800; color: var(--brand); letter-spacing: .8px; text-transform: uppercase; }
+.h-titles p { font-size: 9px; color: var(--text3); letter-spacing: 2px; text-transform: uppercase; margin-top: 2px; }
+
+/* Clock center */
+.h-clock { text-align: center; flex-shrink: 0; }
+.clock-time { font-size: 38px; font-weight: 800; color: #fff; letter-spacing: 3px; font-variant-numeric: tabular-nums; line-height: 1; }
+.clock-date { font-size: 10px; color: var(--text3); margin-top: 2px; }
+.clock-semana { font-size: 9px; color: var(--brand); font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; margin-top: 1px; }
+
+/* KPIs header */
+.h-kpis { display: flex; gap: 8px; align-items: center; }
+.hk {
+  background: linear-gradient(180deg, var(--card2), var(--card));
+  border: 1px solid var(--border-md);
+  border-radius: var(--radius-sm); padding: 8px 16px; text-align: center; min-width: 82px;
+}
+.hk-val { font-size: 26px; font-weight: 900; line-height: 1; }
+.hk-lbl { font-size: 8px; color: var(--text3); text-transform: uppercase; letter-spacing: 1px; margin-top: 3px; }
+.hk.total .hk-val { color: #93c5fd; }
+.hk.verde .hk-val { color: var(--green); }
+.hk.amber .hk-val { color: var(--amber); }
+.hk.vermelho .hk-val { color: var(--red); }
+.hk.execucao {
+  background: linear-gradient(180deg, rgba(250,204,21,.12), rgba(250,204,21,.06));
+  border-color: rgba(250,204,21,.3); min-width: 100px;
+}
+.hk.execucao .hk-val { font-size: 28px; color: var(--brand); }
+
+/* Live dot */
+.h-refresh { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--text3); flex-shrink: 0; }
+.rdot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); animation: pglow 2s infinite; flex-shrink: 0; }
+@keyframes pglow { 0%,100%{opacity:1;box-shadow:0 0 4px var(--green)} 50%{opacity:.4;box-shadow:0 0 10px var(--green)} }
+
+/* ── MAIN ── */
+main { padding: 18px 28px; position: relative; z-index: 1; }
+
+.section-header {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 9px; font-weight: 700; color: var(--text3);
+  text-transform: uppercase; letter-spacing: 2.5px; margin-bottom: 14px;
+}
+.section-header::before { content:''; width:4px; height:4px; border-radius:50%; background:var(--brand); flex-shrink:0; }
+.section-header::after { content:''; flex:1; height:1px; background: var(--border); }
+
+/* ── GRID COMPRADORES ── */
+.grid-compradores {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+/* ── CARD COMPRADORA ── */
+.card-c {
+  background: linear-gradient(180deg, var(--card2), var(--card));
+  border: 1px solid var(--border-md);
+  border-radius: var(--radius);
+  overflow: hidden;
+  display: flex; flex-direction: column;
+  transition: transform .2s, box-shadow .2s;
+  position: relative;
+  box-shadow: var(--shadow);
+}
+.card-c::after {
+  content:''; position:absolute; top:0; left:20px; right:20px; height:1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.12), transparent);
+}
+.card-c:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
+.card-c.all-done {
+  border-color: rgba(250,204,21,.35);
+  box-shadow: 0 0 30px rgba(250,204,21,.12), var(--shadow);
+}
+
+.card-accent { height: 3px; width: 100%; position: relative; z-index: 1; }
+
+/* Card header */
+.ch {
+  padding: 13px 16px 11px;
+  border-bottom: 1px solid var(--border);
+  position: relative; z-index: 1;
+}
+.ch-nome {
+  font-size: 16px; font-weight: 800; letter-spacing: .5px;
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 9px;
+}
+.badge-done {
+  font-size: 8px; font-weight: 800; color: #000;
+  background: var(--brand); padding: 2px 9px; border-radius: 20px;
+  text-transform: uppercase; letter-spacing: 1px;
+}
+
+/* Progress */
+.prog-label { display: flex; justify-content: space-between; font-size: 9px; color: var(--text3); margin-bottom: 5px; }
+.prog-pct { font-size: 14px; font-weight: 900; color: var(--brand) !important; }
+.prog-bar { height: 5px; background: rgba(255,255,255,.06); border-radius: 99px; overflow: hidden; position: relative; }
+.prog-fill {
+  height: 100%; border-radius: 99px;
+  background: linear-gradient(90deg, var(--brand), #FFF176);
+  box-shadow: 0 0 8px rgba(250,204,21,.5);
+  transition: width 1.2s cubic-bezier(.4,0,.2,1);
+  position: relative; overflow: hidden;
+}
+.prog-fill::after {
+  content:''; position:absolute; top:0; left:-60%; width:60%; height:100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.45), transparent);
+  animation: shimmer 2.5s ease-in-out infinite;
+}
+@keyframes shimmer { 0%{left:-60%} 100%{left:160%} }
+.ch-mini { display: flex; gap: 10px; margin-top: 7px; font-size: 9px; }
+.ch-mini span { display: flex; align-items: center; gap: 4px; color: var(--text2); }
+.dm { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.dm.g { background: var(--green); }
+.dm.a { background: var(--amber); }
+.dm.r { background: var(--red); }
+
+/* Trophy */
+.trophy-box {
+  margin: 9px 0 3px;
+  background: linear-gradient(135deg, rgba(250,204,21,.12), rgba(250,204,21,.04));
+  border: 1px solid rgba(250,204,21,.30);
+  border-radius: var(--radius-sm); padding: 6px 10px;
+  text-align: center;
+  animation: tglow 2.5s ease-in-out infinite;
+}
+@keyframes tglow { 0%,100%{box-shadow:0 0 8px rgba(250,204,21,.15)} 50%{box-shadow:0 0 20px rgba(250,204,21,.40)} }
+.trophy-box span { font-size: 10px; font-weight: 800; color: var(--brand); letter-spacing: 1px; }
+
+/* Card body */
+.cb { padding: 11px 16px; flex: 1; position: relative; z-index: 1; }
+
+/* Category */
+.cat { margin-bottom: 9px; }
+.cat-nome {
+  font-size: 7.5px; font-weight: 800; color: var(--text3);
+  text-transform: uppercase; letter-spacing: 2px;
+  margin-bottom: 4px; display: flex; align-items: center; gap: 6px;
+}
+.cat-nome::after { content:''; flex:1; height:1px; background: var(--border); }
+
+.forn { display: flex; align-items: center; gap: 6px; padding: 3px 6px; border-radius: 7px; margin-bottom: 2px; transition: background .15s; }
+.forn:hover { background: rgba(255,255,255,.04); }
+.sdot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.sdot.g { background: var(--green); box-shadow: 0 0 5px var(--green-glow); }
+.sdot.a { background: var(--amber); box-shadow: 0 0 5px rgba(245,158,11,.4); animation: bpa 2s infinite; }
+.sdot.r { background: var(--red); box-shadow: 0 0 5px var(--red-glow); animation: bpr 2s infinite; }
+@keyframes bpa { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(.8)} }
+@keyframes bpr { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+.forn-nome { font-size: 11px; flex: 1; color: var(--text2); font-weight: 500; }
+.stag {
+  font-size: 7px; font-weight: 700; padding: 2px 6px; border-radius: 4px;
+  text-transform: uppercase; letter-spacing: .5px;
+}
+.stag.g { background: var(--green-bg); color: var(--green); }
+.stag.a { background: var(--amber-bg); color: var(--amber); }
+.stag.r { background: var(--red-bg); color: var(--red); }
+
+/* Atividades */
+.ativ-sec {
+  border-top: 1px solid var(--border);
+  padding-top: 8px; margin-top: 8px;
+}
+.ativ-tit {
+  font-size: 7.5px; font-weight: 800; color: var(--text3);
+  text-transform: uppercase; letter-spacing: 2px; margin-bottom: 4px;
+}
+.ativ { display: flex; align-items: flex-start; gap: 6px; padding: 2px 0; }
+.ativ-icon { font-size: 10px; flex-shrink: 0; }
+.ativ-nome { font-size: 10.5px; color: var(--text2); line-height: 1.3; }
+
+/* Card footer */
+.cf {
+  border-top: 1px solid var(--border);
+  padding: 8px 16px;
+  display: flex; justify-content: space-between; align-items: center;
+  position: relative; z-index: 1;
+}
+.cf-cob { font-size: 9.5px; color: var(--text3); }
+.cf-cob strong { color: #93c5fd; font-weight: 700; }
+.cf-counts { display: flex; gap: 10px; font-size: 9.5px; font-weight: 700; }
+.cf-g { color: var(--green); }
+.cf-r { color: var(--red); }
+
+/* ── ALERTS BAR ── */
+.alert-panel {
+  background: linear-gradient(180deg, rgba(23,14,14,.95), rgba(17,10,10,.95));
+  border: 1px solid rgba(239,68,68,.18);
+  border-radius: var(--radius-sm); padding: 10px 16px;
+  display: flex; align-items: center; gap: 14px;
+  overflow: hidden; box-shadow: 0 0 20px rgba(239,68,68,.06);
+}
+.alert-badge {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 9px; font-weight: 800; color: var(--red);
+  text-transform: uppercase; letter-spacing: 2px; white-space: nowrap; flex-shrink: 0;
+}
+.alert-badge::before { content: '⚠'; animation: blink 1s step-end infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+.alert-scroll { flex: 1; overflow: hidden; position: relative; }
+.alert-scroll::before {
+  content:''; position:absolute; left:0; top:0; bottom:0; width:30px;
+  background: linear-gradient(90deg, rgba(17,10,10,.95), transparent); z-index:1;
+}
+.alert-scroll::after {
+  content:''; position:absolute; right:0; top:0; bottom:0; width:30px;
+  background: linear-gradient(-90deg, rgba(17,10,10,.95), transparent); z-index:1;
+}
+.alert-ticker {
+  display: flex; gap: 0; white-space: nowrap;
+  animation: ticker 40s linear infinite;
+}
+.alert-item { font-size: 11px; color: #fca5a5; padding: 0 24px; }
+.alert-sep { color: rgba(239,68,68,.3); }
+@keyframes ticker { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
+
+/* ── MOBILE ── */
+@media (max-width: 900px) {
+  header { height: auto; flex-wrap: wrap; padding: 10px 16px; gap: 8px; }
+  .h-left { order: 1; }
+  .h-clock { order: 2; flex: 1; text-align: center; }
+  .clock-time { font-size: 24px; letter-spacing: 2px; }
+  .h-kpis { order: 4; width: 100%; justify-content: center; gap: 6px; }
+  .hk { min-width: 60px; padding: 6px 8px; }
+  .hk-val { font-size: 18px; }
+  .h-kpis .hk.execucao .hk-val { font-size: 20px; }
+  header > div:last-child { order: 3; }
+  .h-refresh { display: none; }
+  main { padding: 10px 12px; }
+  .grid-compradores { grid-template-columns: 1fr; gap: 10px; }
+  .card-c { border-radius: var(--radius-sm); }
+  .fixed-bar { padding: 0 14px; }
+}
+@media (max-width: 480px) {
+  .h-kpis { gap: 4px; }
+  .hk { min-width: 52px; padding: 4px 6px; }
+  .hk-val { font-size: 16px; }
+  .hk-lbl { font-size: 7px; }
+  .clock-time { font-size: 18px; }
+}
+
+/* ── BOTTOM BAR ── */
+.fixed-bar {
+  position: fixed; bottom: 0; left: 0; right: 0; height: 40px;
+  background: rgba(8,17,31,.98); backdrop-filter: blur(10px);
+  border-top: 1px solid var(--border-md);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 32px; z-index: 300;
+}
+.fb-left { display: flex; align-items: center; gap: 20px; font-size: 10px; color: var(--text3); }
+.fb-right { font-size: 10px; color: var(--text3); }
+.countdown { color: var(--brand); font-weight: 700; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="h-left">
+    <img src="/logo.png" class="h-logo" alt="FC360">
+    <div class="h-titles">
+      <h1>Central de Execução de Compras</h1>
+      <p>Monitoramento Operacional em Tempo Real</p>
+    </div>
+  </div>
+
+  <div class="h-clock">
+    <div class="clock-time" id="clock">00:00:00</div>
+    <div class="clock-date" id="clock-date">—</div>
+    <div class="clock-semana" id="clock-semana">—</div>
+  </div>
+
+  <div class="h-kpis" id="header-kpis">
+    <div class="hk total"><div class="hk-val" id="kpi-total">35</div><div class="hk-lbl">Fornecedores</div></div>
+    <div class="hk verde"><div class="hk-val" id="kpi-done">21</div><div class="hk-lbl">Concluídos</div></div>
+    <div class="hk amber"><div class="hk-val" id="kpi-and">4</div><div class="hk-lbl">Em Andamento</div></div>
+    <div class="hk vermelho"><div class="hk-val" id="kpi-pend">10</div><div class="hk-lbl">Pendentes</div></div>
+    <div class="hk execucao"><div class="hk-val" id="kpi-pct">60%</div><div class="hk-lbl">Execução Geral</div></div>
+  </div>
+
+  <div style="display:flex;align-items:center;gap:14px;flex-shrink:0">
+    <div class="h-refresh">
+      <span class="rdot"></span>
+      <span>Ao vivo</span>
+    </div>
+    <a href="/" style="display:flex;align-items:center;gap:6px;color:#94a3b8;text-decoration:none;font-size:12px;font-weight:600;padding:7px 14px;border-radius:8px;border:1px solid #334155;background:rgba(255,255,255,.04);transition:all .2s" onmouseover="this.style.borderColor='#F9C200';this.style.color='#F9C200'" onmouseout="this.style.borderColor='#334155';this.style.color='#94a3b8'">
+      ✕ Fechar Painel
+    </a>
+  </div>
+</header>
+
+<main>
+  <div class="section-header">📋 Cronograma do Dia — Compradores Ativos</div>
+
+  <div class="grid-compradores" id="grid-compradores"></div>
+
+  <div class="section-header">🚨 Alertas do Sistema</div>
+  <div class="alert-panel">
+    <div class="alert-badge">ALERTAS</div>
+    <div class="alert-scroll">
+      <div class="alert-ticker" id="ticker"></div>
+    </div>
+  </div>
+</main>
+
+<div class="fixed-bar">
+  <div class="fb-left">
+    <span class="rdot"></span>
+    <span>Sistema online — FC360 Relatórios</span>
+    <span style="color:var(--brand);font-weight:600">Rotação automática ativa</span>
+  </div>
+  <div class="fb-right">Próxima tela em <span class="countdown" id="countdown">60s</span></div>
+</div>
+
+<script>
+// ── CRONOGRAMA DIÁRIO FÁTIMA ──
+function grupoSemana(date) {
+  const d = date.getDate();
+  return (d <= 7 || (d >= 15 && d <= 21)) ? '1e3' : '2e4';
+}
+
+function fatimaHoje() {
+  const DIAS = ['DOM','SEG','TER','QUA','QUI','SEX','SAB'];
+  const sig = DIAS[new Date().getDay()];
+  const sched = {
+    SEG: {
+      categorias: [
+        { nome: 'Açúcar', fornecedores: [
+          { nome: 'Avile',         status: 'r', cod: 1347 },
+          { nome: 'Usina Ipojuca', status: 'r', cod: 123  },
+          { nome: 'Usina Petribú', status: 'r', cod: 1655 },
+        ]},
+        { nome: 'Arroz', fornecedores: [
+          { nome: 'Camil',        status: 'r', cod: 375  },
+          { nome: 'Tio João',     status: 'r', cod: 342  },
+          { nome: 'Emoções',      status: 'r', cod: null },
+          { nome: 'Urbano',       status: 'r', cod: 1079 },
+          { nome: 'Panelaco',     status: 'r', cod: 633  },
+          { nome: 'João Marcelo', status: 'r', cod: 1795 },
+          { nome: 'Rampinelli',   status: 'r', cod: 897  },
+        ]},
+        { nome: 'Café', fornecedores: [
+          { nome: 'São Braz',       status: 'r', cod: 51   },
+          { nome: 'Moinho Petinho', status: 'r', cod: 37   },
+          { nome: 'Três Corações',  status: 'r', cod: 1499 },
+        ]},
+        { nome: 'Farinha', fornecedores: [
+          { nome: 'Feira Nova',       status: 'r', cod: 1299 },
+          { nome: 'Do Sítio',         status: 'r', cod: null },
+          { nome: 'Kelly e Cordeiro', status: 'r', cod: 1105 },
+        ]},
+        { nome: 'Feijão', fornecedores: [
+          { nome: 'Pai Heleno',           status: 'r', cod: 396  },
+          { nome: 'Tá Gostoso',           status: 'r', cod: null },
+          { nome: 'Pernambucano',         status: 'r', cod: 736  },
+          { nome: 'Turquesa ⚠ fecha 14h', status: 'r', cod: null },
+          { nome: 'Grão de Minas',        status: 'r', cod: null },
+          { nome: 'Kicaldo',              status: 'r', cod: null },
+        ]},
+        { nome: 'Floção', fornecedores: [
+          { nome: 'Valeriano Valente', status: 'r', cod: 833 },
+        ]},
+      ],
+      atividades: [{ nome: 'Fechamento da Cotação de Alimentos (Club)', status: 'r' }],
+    },
+    TER: {
+      categorias: [
+        { nome: 'Farinha', fornecedores: [
+          { nome: 'Roniel J. Silva', status: 'r', cod: 1791 },
+        ]},
+      ],
+      atividades: [
+        { nome: 'Planilha de Preços de Cereais', status: 'r' },
+        { nome: 'Fechamento de Pedidos de Cereais', status: 'r' },
+        { nome: 'Alinhamento Encarte Final de Semana', status: 'r' },
+      ],
+    },
+    QUA: {
+      categorias: [
+        { nome: 'Laticínios & Derivados', fornecedores: [
+          { nome: 'ASA',      status: 'r', cod: 538 },
+          { nome: 'Coringa',  status: 'r', cod: 187 },
+          { nome: 'Leitesol', status: 'r', cod: 195 },
+          { nome: 'Lactalis', status: 'r', cod: 835 },
+          { nome: 'Alvoar',   status: 'r', cod: 293 },
+          { nome: 'Raça',     status: 'r', cod: null },
+        ]},
+      ],
+      atividades: [],
+    },
+    QUI: {
+      categorias: [],
+      atividades: [
+        { nome: 'Ofertas Semanais', status: 'r' },
+        { nome: 'Sem Giros das Lojas', status: 'r' },
+      ],
+    },
+    SEX: {
+      categorias: [
+        { nome: 'Cotação de Alimentos', fornecedores: [] },
+      ],
+      atividades: [
+        { nome: 'Pendências / Reuniões / Visitar Lojas', status: 'r' },
+      ],
+    },
+  };
+  return sched[sig] || { categorias: [], atividades: [] };
+}
+
+const _fatimaHoje = fatimaHoje();
+
+// ── DADOS COMPRADORES ──
+const COMPRADORES = [
+  {
+    nome: 'FÁTIMA',
+    cor: '#6366f1',
+    categorias: _fatimaHoje.categorias,
+    atividades: _fatimaHoje.atividades,
+    coberturaMedia: 40,
+  },
+  {
+    nome: 'FERNANDA',
+    cor: '#f43f5e',
+    categorias: [
+      { nome: 'Higiene Pessoal', fornecedores: [
+        { nome: 'Unilever', status: 'g' },
+        { nome: 'P&G', status: 'a' },
+        { nome: 'Colgate-Palmolive', status: 'g' },
+      ]},
+      { nome: 'Limpeza', fornecedores: [
+        { nome: 'Ypê', status: 'g' },
+        { nome: 'Brilhante / Omo', status: 'r' },
+        { nome: 'Veja / Flash Líder', status: 'r' },
+      ]},
+      { nome: 'Descartáveis', fornecedores: [
+        { nome: 'Santher', status: 'g' },
+        { nome: 'Mili', status: 'r' },
+      ]},
+    ],
+    atividades: [
+      { nome: 'Cotação de Higiene e Limpeza', status: 'a' },
+      { nome: 'Análise de Estoque Crítico', status: 'r' },
+    ],
+    coberturaMedia: 35,
+  },
+  {
+    nome: 'PRISCILA',
+    cor: '#14b8a6',
+    categorias: [
+      { nome: 'Bebidas', fornecedores: [
+        { nome: 'Coca-Cola / Femsa', status: 'g' },
+        { nome: 'Ambev', status: 'g' },
+        { nome: 'Del Valle / Ades', status: 'g' },
+      ]},
+      { nome: 'Frios & Laticínios', fornecedores: [
+        { nome: 'Vigor / Italac', status: 'g' },
+        { nome: 'Danone', status: 'a' },
+        { nome: 'Parmalat', status: 'r' },
+      ]},
+    ],
+    atividades: [
+      { nome: 'Fechamento de Bebidas', status: 'g' },
+      { nome: 'Negociação de Frios — Semana', status: 'a' },
+    ],
+    coberturaMedia: 30,
+  },
+  {
+    nome: 'MARCOS',
+    cor: '#f59e0b',
+    categorias: [
+      { nome: 'Hortifruti', fornecedores: [
+        { nome: 'Ceasa Norte', status: 'g' },
+        { nome: 'Fazenda Verde Ltda', status: 'g' },
+        { nome: 'Cooperativa Agrícola', status: 'g' },
+      ]},
+      { nome: 'Padaria & Panif.', fornecedores: [
+        { nome: 'Wickbold', status: 'g' },
+        { nome: 'Pullman / Nutrella', status: 'g' },
+      ]},
+    ],
+    atividades: [
+      { nome: 'Programação Semanal de Hortifruti', status: 'g' },
+      { nome: 'Cotação Padaria — Pão Francês', status: 'g' },
+    ],
+    coberturaMedia: 7,
+  },
+  {
+    nome: 'RENATA',
+    cor: '#a855f7',
+    categorias: [
+      { nome: 'Bazar', fornecedores: [
+        { nome: 'Globimport', status: 'g' },
+        { nome: 'Nobreza Distribuidora', status: 'r' },
+        { nome: 'Caza Nova Ind.', status: 'r' },
+      ]},
+      { nome: 'Utilidades Domésticas', fornecedores: [
+        { nome: 'La Cuisine', status: 'r' },
+        { nome: 'Euro Home', status: 'r' },
+      ]},
+      { nome: 'Papelaria', fornecedores: [
+        { nome: 'Tilibra', status: 'g' },
+        { nome: 'BIC Brasil', status: 'a' },
+      ]},
+    ],
+    atividades: [
+      { nome: 'Cotação Bazar — Ciclo Mensal', status: 'r' },
+      { nome: 'Revisão de Planograma Bazar', status: 'g' },
+    ],
+    coberturaMedia: 45,
+  },
+];
+
+const ALERTAS = [
+  '⚠ URBANO — Fornecedor programado sem pedido fechado (Fátima / Arroz)',
+  '⚠ TURQUESA — Pedido não realizado (Fátima / Feijão)',
+  '⚠ BRILHANTE / OMO — Sem pedido (Fernanda / Limpeza)',
+  '⚠ VEJA / FLASH LÍDER — Cobertura abaixo da meta: 12 dias (meta: 35 dias)',
+  '⚠ MILI — Pedido atrasado em 1 dia (Fernanda / Descartáveis)',
+  '⚠ PARMALAT — Pedido não realizado (Priscila / Frios)',
+  '⚠ P&G — Pedido em andamento há mais de 2 horas (Fernanda / Higiene)',
+  '⚠ NOBREZA — Sem pedido (Renata / Bazar)',
+  '⚠ CAZA NOVA — Cobertura crítica: 8 dias (meta: 45 dias)',
+  '⚠ LA CUISINE — Pedido não iniciado (Renata / Utilidades)',
+  '⚠ EURO HOME — Pedido não iniciado (Renata / Utilidades)',
+  '⚠ ATIVIDADE NÃO CONCLUÍDA — Cotação Bazar Ciclo Mensal (Renata)',
+  '⚠ ATIVIDADE NÃO CONCLUÍDA — Análise de Estoque Crítico (Fernanda)',
+];
+
+const STATUS_LABEL = { g: 'Concluído', a: 'Andamento', r: 'Pendente' };
+
+function calcStats(c) {
+  const todos = c.categorias.flatMap(cat => cat.fornecedores);
+  const done = todos.filter(f => f.status === 'g').length;
+  const and  = todos.filter(f => f.status === 'a').length;
+  const pend = todos.filter(f => f.status === 'r').length;
+  const total = todos.length;
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  return { done, and, pend, total, pct };
+}
+
+function renderCard(c) {
+  const st = calcStats(c);
+  const allDone = st.pct === 100;
+
+  const cats = c.categorias.map(cat => `
+    <div class="cat">
+      <div class="cat-nome">${cat.nome}</div>
+      <div class="forn-list">
+        ${cat.fornecedores.map(f => `
+          <div class="forn">
+            <span class="sdot ${f.status}"></span>
+            <span class="forn-nome">${f.nome}</span>
+            <span class="stag ${f.status}">${STATUS_LABEL[f.status]}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+
+  const ativs = c.atividades.map(a => {
+    const icon = a.status === 'g' ? '✅' : a.status === 'a' ? '🟡' : '❌';
+    return `<div class="ativ"><span class="ativ-icon">${icon}</span><span class="ativ-nome">${a.nome}</span></div>`;
+  }).join('');
+
+  const trophy = allDone ? `
+    <div class="trophy-box">
+      <span>🏆 CRONOGRAMA CONCLUÍDO</span>
+    </div>` : '';
+
+  const nomeEnc = encodeURIComponent(c.nome);
+  return `
+    <div class="card-c ${allDone ? 'all-done' : ''}" onclick="location.href='/comprador.html?nome=${nomeEnc}'" style="cursor:pointer">
+      <div class="card-accent" style="background:${c.cor}"></div>
+      <div class="ch">
+        <div class="ch-nome" style="color:${c.cor}">
+          ${c.nome}
+          ${allDone ? '<span class="badge-done">✓ Concluído</span>' : ''}
+        </div>
+        ${trophy}
+        <div class="prog-label">
+          <span>Progresso</span>
+          <span class="prog-pct">${st.pct}%</span>
+        </div>
+        <div class="prog-bar"><div class="prog-fill" style="width:${st.pct}%"></div></div>
+        <div class="ch-mini">
+          <span><span class="dm g"></span>${st.done} concluído${st.done !== 1 ? 's' : ''}</span>
+          ${st.and > 0 ? `<span><span class="dm a"></span>${st.and} andamento</span>` : ''}
+          <span><span class="dm r"></span>${st.pend} pendente${st.pend !== 1 ? 's' : ''}</span>
+        </div>
+      </div>
+      <div class="cb">
+        ${cats}
+        <div class="ativ-sec">
+          <div class="ativ-tit">Atividades Operacionais</div>
+          ${ativs}
+        </div>
+      </div>
+      <div class="cf">
+        <div class="cf-cob">Cobertura: <strong>${c.coberturaMedia}d</strong></div>
+        <div class="cf-counts">
+          <span class="cf-g">✓ ${st.done}</span>
+          <span class="cf-r">✗ ${st.pend}</span>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderAll() {
+  const grid = document.getElementById('grid-compradores');
+  grid.innerHTML = COMPRADORES.map(renderCard).join('');
+
+  // KPIs globais
+  const todos = COMPRADORES.flatMap(c => c.categorias.flatMap(cat => cat.fornecedores));
+  const done = todos.filter(f => f.status === 'g').length;
+  const and  = todos.filter(f => f.status === 'a').length;
+  const pend = todos.filter(f => f.status === 'r').length;
+  const total = todos.length;
+  const pct = Math.round((done / total) * 100);
+  document.getElementById('kpi-total').textContent = total;
+  document.getElementById('kpi-done').textContent = done;
+  document.getElementById('kpi-and').textContent = and;
+  document.getElementById('kpi-pend').textContent = pend;
+  document.getElementById('kpi-pct').textContent = pct + '%';
+}
+
+function renderTicker() {
+  const items = [...ALERTAS, ...ALERTAS].map(a =>
+    `<span class="alert-item">${a}</span><span class="alert-sep"> ◆ </span>`
+  ).join('');
+  document.getElementById('ticker').innerHTML = items;
+}
+
+// ── CLOCK ──
+function updateClock() {
+  const now = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  document.getElementById('clock').textContent =
+    `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+
+  const dias = ['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado'];
+  const meses = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+  document.getElementById('clock-date').textContent =
+    `${dias[now.getDay()]}, ${now.getDate()} de ${meses[now.getMonth()]} de ${now.getFullYear()}`;
+
+  // Semana do mês
+  const d = now.getDate();
+  const sem = d <= 7 ? '1ª Semana' : d <= 14 ? '2ª Semana' : d <= 21 ? '3ª Semana' : '4ª Semana';
+  document.getElementById('clock-semana').textContent = sem + ' do Mês';
+}
+
+// ── ROTAÇÃO AUTOMÁTICA ──
+const ORDEM = ['FÁTIMA','FERNANDA','PRISCILA','MARCOS','RENATA'];
+let countdown = 30;
+function updateCountdown() {
+  countdown--;
+  document.getElementById('countdown').textContent = countdown + 's';
+  if (countdown <= 0) {
+    location.href = '/comprador.html?nome=' + encodeURIComponent(ORDEM[0]) + '&auto=1&idx=0';
+  }
+}
+
+// ── ATUALIZA STATUS COM DADOS REAIS DO ERP ──
+async function atualizarStatusReal() {
+  try {
+    const resp = await fetch('/api/compras/pedidos-hoje');
+    if (!resp.ok) return;
+    const { concluidos, total_pedidos } = await resp.json();
+    const codsOk = new Set(concluidos);
+
+    // Atualiza status de cada fornecedor em todos os compradores
+    for (const c of COMPRADORES) {
+      for (const cat of c.categorias) {
+        for (const f of cat.fornecedores) {
+          if (f.cod) {
+            f.status = codsOk.has(parseInt(f.cod)) ? 'g' : 'r';
+          }
+        }
+      }
+    }
+
+    // Re-renderiza o grid com dados reais
+    renderAll();
+
+    // Atualiza KPI de pedidos total
+    const rdot = document.querySelector('.fb-left');
+    if (rdot) {
+      const kpiEl = document.createElement('span');
+      kpiEl.style.cssText = 'color:var(--brand);font-weight:700';
+      kpiEl.textContent = `${total_pedidos} pedidos hoje`;
+      // Só adiciona uma vez
+      if (!document.getElementById('kpi-real')) {
+        kpiEl.id = 'kpi-real';
+        rdot.appendChild(kpiEl);
+      } else {
+        document.getElementById('kpi-real').textContent = `${total_pedidos} pedidos hoje`;
+      }
+    }
+  } catch (e) {
+    console.warn('ERP offline:', e.message);
+  }
+}
+
+// ── INIT ──
+renderAll();
+renderTicker();
+updateClock();
+atualizarStatusReal();
+setInterval(updateClock, 1000);
+setInterval(updateCountdown, 1000);
+// Atualiza dados reais a cada 2 minutos
+setInterval(atualizarStatusReal, 2 * 60 * 1000);
+</script>
+</body>
+</html>
