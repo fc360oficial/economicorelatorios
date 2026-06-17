@@ -711,6 +711,21 @@ function updateCountdown() {
 }
 
 /* ══ ERP REAL ══ */
+let fornecMap = {}; // nReg → codFornec real
+
+async function carregarFornecMap() {
+  try {
+    const todosNRegs = [];
+    for (const c of COMPRADORES)
+      for (const cat of c.categorias)
+        for (const f of cat.fornecedores)
+          if (f.cod && !todosNRegs.includes(f.cod)) todosNRegs.push(f.cod);
+    if (!todosNRegs.length) return;
+    const r = await fetch('/api/compras/fornec-por-lista?listas=' + todosNRegs.join(','));
+    if (r.ok) fornecMap = await r.json();
+  } catch(e) { console.warn('fornecMap erro:', e.message); }
+}
+
 async function atualizarStatusReal() {
   try {
     const resp = await fetch('/api/compras/pedidos-hoje');
@@ -720,7 +735,11 @@ async function atualizarStatusReal() {
     for (const c of COMPRADORES)
       for (const cat of c.categorias)
         for (const f of cat.fornecedores)
-          if (f.cod) f.status = codsOk.has(parseInt(f.cod)) ? 'g' : 'r';
+          if (f.cod) {
+            // f.cod = nReg da lista; traduz para CodFornec real
+            const codFornec = fornecMap[String(f.cod)]?.codFornec ?? f.cod;
+            f.status = codsOk.has(parseInt(codFornec)) ? 'g' : 'r';
+          }
     renderAll();
     const el = document.getElementById('kpi-real');
     if (el) el.textContent = `${total_pedidos} pedidos hoje`;
@@ -732,7 +751,7 @@ renderAll();
 renderTicker();
 renderHeatmap();
 updateClock();
-atualizarStatusReal();
+carregarFornecMap().then(() => atualizarStatusReal());
 setInterval(updateClock, 1000);
 setInterval(updateCountdown, 1000);
 setInterval(atualizarStatusReal, 2*60*1000);
