@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login — Econômico Relatórios</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.card{background:#1e293b;border:1px solid #334155;border-radius:16px;padding:40px 36px;width:100%;max-width:380px;box-shadow:0 20px 60px #00000055}
+.logo-wrap{text-align:center;margin-bottom:28px}
+.logo-wrap img{width:150px;filter:brightness(0) invert(1) sepia(1) saturate(3) hue-rotate(-8deg)}
+.titulo{font-size:20px;font-weight:700;color:#f8fafc;text-align:center;margin-bottom:4px}
+.subtitulo{font-size:12px;color:#64748b;text-align:center;margin-bottom:32px}
+.field{margin-bottom:16px}
+.field label{display:block;font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.field input{width:100%;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#e2e8f0;padding:12px 14px;font-size:16px;outline:none;transition:border-color .15s}
+.field input:focus{border-color:#F9C200}
+.btn-login{width:100%;background:#F9C200;color:#0f0f1a;border:none;border-radius:8px;padding:13px;font-size:15px;font-weight:700;cursor:pointer;margin-top:8px;transition:background .15s;letter-spacing:.3px}
+.btn-login:hover{background:#e0ae00}
+.btn-login:disabled{opacity:.6;cursor:not-allowed}
+.erro{background:#450a0a;border:1px solid #7f1d1d;color:#fca5a5;border-radius:8px;padding:10px 14px;font-size:12px;margin-top:14px;display:none;text-align:center}
+.rodape{text-align:center;margin-top:24px;font-size:11px;color:#475569}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo-wrap">
+    <img src="/logo.png" alt="Econômico Relatórios">
+  </div>
+  <div class="titulo">Relatórios BI</div>
+  <div class="subtitulo">Acesso restrito — faça login para continuar</div>
+
+  <div class="field">
+    <label>Usuário</label>
+    <input type="text" id="usuario" placeholder="seu usuário" autocomplete="username" autofocus>
+  </div>
+  <div class="field">
+    <label>Senha</label>
+    <input type="password" id="senha" placeholder="••••••••" autocomplete="current-password"
+           onkeydown="if(event.key==='Enter')login()">
+  </div>
+  <button class="btn-login" id="btn" onclick="login()">Entrar</button>
+  <div class="erro" id="erro"></div>
+  <div class="rodape">Econômico Supermercados · Acesso interno</div>
+</div>
+
+<script>
+async function login() {
+  const btn = document.getElementById('btn');
+  const erroEl = document.getElementById('erro');
+  const usuario = document.getElementById('usuario').value.trim();
+  const senha = document.getElementById('senha').value;
+  if (!usuario || !senha) { mostrarErro('Preencha usuário e senha.'); return; }
+  btn.disabled = true;
+  btn.textContent = 'Entrando...';
+  erroEl.style.display = 'none';
+  try {
+    const r = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ usuario, senha })
+    });
+    const json = await r.json();
+    if (r.ok) {
+      window.location.href = '/hub.html';
+    } else {
+      mostrarErro(json.error || 'Erro ao fazer login.');
+      btn.disabled = false;
+      btn.textContent = 'Entrar';
+    }
+  } catch(e) {
+    mostrarErro('Erro de conexão. Tente novamente.');
+    btn.disabled = false;
+    btn.textContent = 'Entrar';
+  }
+}
+function mostrarErro(msg) {
+  const el = document.getElementById('erro');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+</script>
+</body>
+</html>
