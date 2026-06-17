@@ -1500,55 +1500,56 @@ app.get('/api/compras/pedidos-hoje', async (req, res) => {
   }
 });
 
-// ── Verificação de pedidos por comprador (debug) ──
+// ── Verificação de pedidos da semana de Fátima (debug) ──
 app.get('/api/compras/verificar-comprador', async (req, res) => {
   try {
-    const comprador = (req.query.nome || 'FATIMA').toUpperCase();
+    // Códigos extraídos do cronograma hardcoded da Fátima em comprador.html
+    const cronFatima = {
+      SEG: [344,342,380,355,534,304,537,415,347,332,314,303,482,310,312,311,309,461,313,394],
+      TER: [538],
+      QUA: [341,419,384,543,555,350],
+      QUI: [],
+      SEX: [277],
+    };
 
-    // 1. Fornecedores da agenda do comprador
-    const fornecRows = await q(`
-      SELECT DISTINCT codFornec, nome
-      FROM central.c_cotacao_agenda_comprador
-      WHERE UPPER(nome) LIKE ?
-    `, [`%${comprador}%`]);
+    // Todos os códigos da semana
+    const todosCods = [...new Set(Object.values(cronFatima).flat())];
+    const ph = todosCods.map(() => '?').join(',');
 
-    const codigos = fornecRows.map(r => r.codFornec);
-    if (codigos.length === 0) {
-      return res.json({ comprador, msg: 'Nenhum fornecedor encontrado para este comprador.', fornecedores: [] });
-    }
-
-    // 2. Pedidos colocados nos últimos 7 dias para esses fornecedores
-    const placeholders = codigos.map(() => '?').join(',');
+    // Pedidos dos últimos 10 dias
     const pedidos = await q(`
-      SELECT
-        DATE(DataLan)   AS data,
-        CodFornec,
-        Nome            AS nome_fornec,
-        COUNT(*)        AS qtd_pedidos,
-        SUM(Total)      AS total
+      SELECT DATE(DataLan) AS data, CodFornec, Nome AS nome_fornec,
+             COUNT(*) AS qtd, SUM(Total) AS total
       FROM central.pedidocompra
-      WHERE DATE(DataLan) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
-        AND CodFornec IN (${placeholders})
+      WHERE DATE(DataLan) >= DATE_SUB(CURDATE(), INTERVAL 10 DAY)
+        AND CodFornec IN (${ph})
       GROUP BY DATE(DataLan), CodFornec, Nome
-      ORDER BY data DESC, total DESC
-    `, codigos);
+      ORDER BY data DESC
+    `, todosCods);
 
-    // 3. Monta resultado por fornecedor
+    // Indexa pedidos por cod → dias
     const mapa = {};
-    for (const f of fornecRows) {
-      mapa[f.codFornec] = { codFornec: f.codFornec, nome: f.nome, dias: [] };
-    }
     for (const p of pedidos) {
-      const m = mapa[p.CodFornec];
-      if (m) m.dias.push({ data: p.data, qtd: p.qtd_pedidos, total: parseFloat(p.total||0).toFixed(2), status: 'CONCLUIDO' });
+      if (!mapa[p.CodFornec]) mapa[p.CodFornec] = { nome: p.nome_fornec.trim(), pedidos: [] };
+      mapa[p.CodFornec].pedidos.push({
+        data: String(p.data).slice(0,10),
+        qtd: p.qtd,
+        total: parseFloat(p.total||0).toFixed(2),
+      });
     }
 
-    const resultado = Object.values(mapa).map(f => ({
-      ...f,
-      status_geral: f.dias.length > 0 ? 'CONCLUIDO' : 'PENDENTE'
-    }));
+    // Monta resultado por dia da semana
+    const resultado = {};
+    for (const [dia, cods] of Object.entries(cronFatima)) {
+      resultado[dia] = cods.map(cod => ({
+        cod,
+        nome: mapa[cod]?.nome || `Fornecedor ${cod}`,
+        status: mapa[cod] ? 'CONCLUIDO' : 'PENDENTE',
+        pedidos: mapa[cod]?.pedidos || [],
+      }));
+    }
 
-    res.json({ comprador, total_fornecedores: codigos.length, fornecedores: resultado });
+    res.json({ comprador: 'FATIMA', semana: resultado });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
