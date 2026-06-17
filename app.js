@@ -912,7 +912,7 @@ function finalizarLogin(found) {
     var dEl = document.getElementById('cl-data-hoje');
     if (dEl) dEl.textContent = hoje.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
     document.getElementById('app').style.opacity='1';
-    var _BUILD = '168';
+    var _BUILD = '169';
     if (localStorage.getItem('fc360_build') !== _BUILD || /[?&]t=\d/.test(window.location.search)) {
       localStorage.setItem('fc360_build', _BUILD);
       sessionStorage.removeItem('eco_last_page');
@@ -1313,9 +1313,9 @@ function buildCLBlock(cl) {
     }
     var key = cl.id + '_' + item.t;
     var on = S.checkState[key] ? true : false;
-    // Foto efetiva: respeita config do item; se foto obrigatória global ativa, aplica a todos simNão
+    // Foto efetiva: itens simNão sempre exigem foto; outros respeitam config individual
     var _efFoto = (item.foto && item.foto !== 'none') ? item.foto
-      : (_isFotoObrig() && (item.tipo||'checkbox') === 'simNao' ? 'depois' : 'none');
+      : ((item.tipo||'checkbox') === 'simNao' ? 'depois' : 'none');
     var fotoHtml = '';
     if (_efFoto !== 'none') {
       var hasFotoAntes = !!S.checkState[cl.id+'_foto_antes_'+i];
@@ -1633,7 +1633,8 @@ function setSimNao(clId, idx, val) {
   var cl = getMyCLs().find(function(c){return c.id===clId;});
   if (!cl) return;
   var item = cl.itens[idx];
-  var _efFotoSN = (item.foto && item.foto !== 'none') ? item.foto : (_isFotoObrig() ? 'depois' : 'none');
+  // Itens simNão sempre exigem foto antes de responder
+  var _efFotoSN = (item.foto && item.foto !== 'none') ? item.foto : 'depois';
   if (_efFotoSN !== 'none') {
     var temFoto = _efFotoSN === 'antes_depois'
       ? !!(S.checkState[clId+'_foto_antes_'+idx])
@@ -2343,9 +2344,14 @@ function enviarCL(clId, label) {
   // Verificar fotos obrigatórias pendentes
   var fotosPendentes = [];
   cl.itens.forEach(function(item, idx){
-    if (!item.foto || item.foto === 'none') return;
-    var faltaAntes = item.foto === 'antes_depois' && !S.checkState[clId+'_foto_antes_'+idx];
-    var faltaDepois = (item.foto === 'depois' || item.foto === 'antes_depois') && !S.checkState[clId+'_foto_depois_'+idx] && !S.checkState[clId+'_foto_'+idx];
+    // simNão sempre exige foto; outros só se configurado individualmente
+    var _efF = (item.foto && item.foto !== 'none') ? item.foto
+      : ((item.tipo||'checkbox') === 'simNao' ? 'depois' : 'none');
+    if (_efF === 'none') return;
+    var respondeu = !!S.checkState[clId+'_'+item.t];
+    if (!respondeu) return; // não respondeu ainda, não conta como pendente de foto
+    var faltaAntes = _efF === 'antes_depois' && !S.checkState[clId+'_foto_antes_'+idx];
+    var faltaDepois = (_efF === 'depois' || _efF === 'antes_depois') && !S.checkState[clId+'_foto_depois_'+idx] && !S.checkState[clId+'_foto_'+idx];
     if (faltaAntes || faltaDepois) {
       fotosPendentes.push({texto:item.t, idx:idx, faltaAntes:faltaAntes, faltaDepois:faltaDepois});
     }
