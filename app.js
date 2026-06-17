@@ -1,6 +1,6 @@
 ﻿// Verificação de versão — roda antes de tudo
 (function() {
-  var BUILD = '172';
+  var BUILD = '173';
   if (localStorage.getItem('fc360_build') !== BUILD) {
     localStorage.setItem('fc360_build', BUILD);
     sessionStorage.removeItem('eco_last_page');
@@ -1323,9 +1323,7 @@ function buildCLBlock(cl) {
     }
     var key = cl.id + '_' + item.t;
     var on = S.checkState[key] ? true : false;
-    // Foto efetiva: itens simNão sempre exigem foto; outros respeitam config individual
-    var _efFoto = (item.foto && item.foto !== 'none') ? item.foto
-      : ((item.tipo||'checkbox') === 'simNao' ? 'depois' : 'none');
+    var _efFoto = (item.foto && item.foto !== 'none') ? item.foto : 'none';
     var fotoHtml = '';
     if (_efFoto !== 'none') {
       var hasFotoAntes = !!S.checkState[cl.id+'_foto_antes_'+i];
@@ -1643,8 +1641,7 @@ function setSimNao(clId, idx, val) {
   var cl = getMyCLs().find(function(c){return c.id===clId;});
   if (!cl) return;
   var item = cl.itens[idx];
-  // Itens simNão sempre exigem foto antes de responder
-  var _efFotoSN = (item.foto && item.foto !== 'none') ? item.foto : 'depois';
+  var _efFotoSN = (item.foto && item.foto !== 'none') ? item.foto : 'none';
   if (_efFotoSN !== 'none') {
     var temFoto = _efFotoSN === 'antes_depois'
       ? !!(S.checkState[clId+'_foto_antes_'+idx])
@@ -2355,8 +2352,7 @@ function enviarCL(clId, label) {
   var fotosPendentes = [];
   cl.itens.forEach(function(item, idx){
     // simNão sempre exige foto; outros só se configurado individualmente
-    var _efF = (item.foto && item.foto !== 'none') ? item.foto
-      : ((item.tipo||'checkbox') === 'simNao' ? 'depois' : 'none');
+    var _efF = (item.foto && item.foto !== 'none') ? item.foto : 'none';
     if (_efF === 'none') return;
     var respondeu = !!S.checkState[clId+'_'+item.t];
     if (!respondeu) return; // não respondeu ainda, não conta como pendente de foto
