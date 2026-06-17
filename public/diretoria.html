@@ -10,8 +10,7 @@
   --bg:#08111F;--bg2:#0B1220;
   --card:#121B2E;--card2:#172033;
   --brand:#FACC15;--brand-glow:rgba(250,204,21,.20);--brand-dim:rgba(250,204,21,.08);
-  --green:#22C55E;--green-glow:rgba(34,197,94,.35);
-  --red:#EF4444;--red-glow:rgba(239,68,68,.35);
+  --green:#22C55E;--red:#EF4444;
   --text:#FFFFFF;--text2:#94A3B8;--text3:#64748B;
   --border:rgba(255,255,255,.06);--border-md:rgba(255,255,255,.10);
   --r:20px;--r-sm:12px;
@@ -60,7 +59,7 @@ header{
 .timer-bar-wrap{height:3px;background:rgba(250,204,21,.12);flex-shrink:0;position:relative;z-index:1}
 .timer-bar{height:100%;background:var(--brand);width:100%}
 
-/* ── KPI ROW (6 lojas compactas) ── */
+/* ── KPI ROW (6 lojas fixas no topo) ── */
 .kpi-row{
   display:grid;grid-template-columns:repeat(6,1fr);
   gap:8px;padding:8px 12px;flex-shrink:0;
@@ -70,13 +69,17 @@ header{
   background:linear-gradient(160deg,var(--card2) 0%,var(--card) 100%);
   border:1px solid var(--border-md);border-radius:var(--r-sm);
   padding:10px 12px;position:relative;overflow:hidden;
-  box-shadow:var(--sh);
+  box-shadow:var(--sh);transition:border-color .3s,box-shadow .3s;
 }
 .kcard::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;
-  background:linear-gradient(90deg,var(--brand),rgba(250,204,21,.2))}
+  background:linear-gradient(90deg,var(--brand),rgba(250,204,21,.2));transition:opacity .3s}
+.kcard.ativo{
+  border-color:rgba(250,204,21,.45);
+  box-shadow:var(--sh),0 0 24px rgba(250,204,21,.12);
+}
 .kc-loja{font-size:8px;font-weight:900;color:var(--brand);text-transform:uppercase;letter-spacing:2px;margin-bottom:4px}
 .kc-fat{font-size:18px;font-weight:900;color:#fff;line-height:1;letter-spacing:-0.3px}
-.kc-ant{font-size:10px;color:var(--text2);margin-top:3px;display:flex;align-items:center;gap:5px}
+.kc-ant{font-size:10px;color:var(--text2);margin-top:3px;display:flex;align-items:center;gap:5px;flex-wrap:wrap}
 .badge{font-size:10px;font-weight:800;padding:1px 6px;border-radius:20px;display:inline-flex;align-items:center;gap:2px}
 .badge.up{color:var(--green);background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.25)}
 .badge.dn{color:var(--red);background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.25)}
@@ -100,18 +103,23 @@ header{
 }
 .chart-head{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-shrink:0}
 .chart-icon{font-size:14px}
-.chart-title{font-size:12px;font-weight:800;color:var(--text)}
+.chart-title{font-size:12px;font-weight:800;color:var(--text);flex:1}
 .chart-badge{
   font-size:9px;font-weight:800;padding:2px 8px;border-radius:20px;
   background:rgba(250,204,21,.15);color:var(--brand);border:1px solid rgba(250,204,21,.3);
 }
+.loja-indicator{
+  display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-shrink:0;
+}
+.loja-dot{
+  width:7px;height:7px;border-radius:50%;
+  background:var(--border-md);transition:background .3s,transform .3s;flex-shrink:0;
+}
+.loja-dot.ativo{background:var(--brand);transform:scale(1.3)}
+.loja-nome{font-size:11px;font-weight:800;color:var(--brand);letter-spacing:1px}
 .chart-wrap{flex:1;position:relative;min-height:0}
 .chart-wrap canvas{width:100%!important;height:100%!important}
-
-.loading-chart{
-  display:flex;align-items:center;justify-content:center;
-  color:var(--text3);font-size:12px;height:100%;
-}
+.loading-chart{display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:12px;height:100%}
 </style>
 </head>
 <body>
@@ -137,34 +145,41 @@ header{
 <div class="timer-bar-wrap"><div class="timer-bar" id="timer-bar"></div></div>
 
 <div class="kpi-row" id="kpi-row">
-  <div class="kcard" style="grid-column:1/-1;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:12px">Carregando...</div>
+  <div style="grid-column:1/-1;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:12px;padding:12px">Carregando...</div>
 </div>
 
 <div class="charts-row">
-  <!-- Top produtos -->
   <div class="chart-panel">
     <div class="chart-head">
       <span class="chart-icon">🏆</span>
       <span class="chart-title">Top 10 Produtos Mais Vendidos</span>
-      <span class="chart-badge" id="badge-tv">Mês · Todas</span>
+      <span class="chart-badge" id="badge-tv">—</span>
     </div>
+    <div class="loja-indicator" id="dots-tv"></div>
     <div class="chart-wrap" id="wrap-tv"><div class="loading-chart">Carregando...</div></div>
   </div>
-  <!-- Mercadológico -->
   <div class="chart-panel">
     <div class="chart-head">
       <span class="chart-icon">📦</span>
       <span class="chart-title">Top Mercadológico</span>
-      <span class="chart-badge" id="badge-merc">Mês · Todas</span>
+      <span class="chart-badge" id="badge-merc">—</span>
     </div>
+    <div class="loja-indicator" id="dots-merc"></div>
     <div class="chart-wrap" id="wrap-merc"><div class="loading-chart">Carregando...</div></div>
   </div>
 </div>
 
 <script>
-const LOJAS    = {1:'Loja 1',2:'Loja 2',3:'Loja 3',4:'Loja 4',5:'Loja 5',6:'Loja 6'};
-const TEMPO_TELA = 30000; // 30s na tela
-let chartTV = null, chartMerc = null;
+const LOJAS = {1:'Loja 1',2:'Loja 2',3:'Loja 3',4:'Loja 4',5:'Loja 5',6:'Loja 6'};
+const TEMPO_POR_LOJA = 9000; // 9s por loja → 54s para as 6
+
+let chartTV   = null;
+let chartMerc = null;
+let cacheTV   = {};   // { 1: [...], 2: [...], ... }
+let cacheMerc = {};
+let lojaAtual = 1;
+let lojaTimer = null;
+let mesLabel  = '';
 
 // ── RELÓGIO ──
 const SEMANAS  = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
@@ -180,18 +195,37 @@ function atualizarRelogio() {
 setInterval(atualizarRelogio, 1000);
 atualizarRelogio();
 
-// ── TIMER ──
-let timerAnim = null;
-function iniciarTimer() {
+// ── TIMER BAR (por loja) ──
+function iniciarTimerBarra() {
   const bar = document.getElementById('timer-bar');
   bar.style.transition = 'none'; bar.style.width = '100%';
   void bar.offsetWidth;
-  bar.style.transition = `width ${TEMPO_TELA}ms linear`;
+  bar.style.transition = `width ${TEMPO_POR_LOJA}ms linear`;
   bar.style.width = '0%';
-  if (timerAnim) clearTimeout(timerAnim);
-  timerAnim = setTimeout(() => {
-    try { window.parent.postMessage({ type: 'diretoriaCycleComplete' }, '*'); } catch(_) {}
-  }, TEMPO_TELA);
+}
+
+// ── DOTS INDICADORES ──
+function renderDots(lojaAtiva) {
+  ['dots-tv','dots-merc'].forEach(id => {
+    const el = document.getElementById(id);
+    el.innerHTML = '';
+    for (let i = 1; i <= 6; i++) {
+      const d = document.createElement('div');
+      d.className = 'loja-dot' + (i === lojaAtiva ? ' ativo' : '');
+      el.appendChild(d);
+    }
+    const nome = document.createElement('span');
+    nome.className = 'loja-nome';
+    nome.textContent = LOJAS[lojaAtiva] || 'Loja ' + lojaAtiva;
+    el.appendChild(nome);
+  });
+}
+
+// ── DESTAQUE NO CARD DA LOJA ATIVA ──
+function destacarCard(loja) {
+  document.querySelectorAll('.kcard').forEach((c, i) => {
+    c.classList.toggle('ativo', i + 1 === loja);
+  });
 }
 
 // ── UTILS ──
@@ -200,8 +234,6 @@ function fmtN(v) { return (+v).toLocaleString('pt-BR'); }
 
 // ── KPI CARDS ──
 function renderKPIs(data) {
-  const hoje = new Date();
-  const pctMes = Math.round(hoje.getDate() / new Date(hoje.getFullYear(), hoje.getMonth()+1, 0).getDate() * 100);
   const row = document.getElementById('kpi-row');
   row.innerHTML = '';
   for (const lj of data.lojas) {
@@ -236,21 +268,17 @@ function renderTopVendidos(data) {
     type: 'bar',
     data: {
       labels: sorted.map(d => d.descricao),
-      datasets: [{
-        data: sorted.map(d => d.qtd),
+      datasets: [{ data: sorted.map(d => d.qtd),
         backgroundColor: sorted.map((_,i) => `hsla(${210+i*8},80%,60%,0.85)`),
-        borderRadius: 6, borderSkipped: false,
-      }]
+        borderRadius:6, borderSkipped:false }]
     },
     options: {
-      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: { callbacks: { label: ctx => ` ${fmtN(ctx.raw)} unidades` } }
-      },
-      scales: {
-        x: { grid:{color:'#1e293b'}, ticks:{color:'#94a3b8',callback:v=>fmtN(v)} },
-        y: { grid:{display:false}, ticks:{color:'#e2e8f0',font:{size:11}} }
+      indexAxis:'y', responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false},
+        tooltip:{callbacks:{label:ctx=>` ${fmtN(ctx.raw)} unidades`}} },
+      scales:{
+        x:{grid:{color:'#1e293b'},ticks:{color:'#94a3b8',callback:v=>fmtN(v)}},
+        y:{grid:{display:false},ticks:{color:'#e2e8f0',font:{size:11}}}
       }
     }
   });
@@ -268,60 +296,91 @@ function renderMercadologico(data) {
     type: 'bar',
     data: {
       labels: top.map(d => d.descricao),
-      datasets: [{
-        data: top.map(d => d.valor),
+      datasets: [{ data: top.map(d => d.valor),
         backgroundColor: top.map((_,i) => `hsla(${160+i*12},70%,55%,0.85)`),
-        borderRadius: 6, borderSkipped: false,
-      }]
+        borderRadius:6, borderSkipped:false }]
     },
     options: {
-      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: { callbacks: { label: ctx => ` R$ ${fmt(ctx.raw)}` } }
-      },
-      scales: {
-        x: { grid:{color:'#1e293b'}, ticks:{color:'#94a3b8',callback:v=>'R$'+fmtN(v)} },
-        y: { grid:{display:false}, ticks:{color:'#e2e8f0',font:{size:11}} }
+      indexAxis:'y', responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false},
+        tooltip:{callbacks:{label:ctx=>` R$ ${fmt(ctx.raw)}`}} },
+      scales:{
+        x:{grid:{color:'#1e293b'},ticks:{color:'#94a3b8',callback:v=>'R$'+fmtN(v)}},
+        y:{grid:{display:false},ticks:{color:'#e2e8f0',font:{size:11}}}
       }
     }
   });
 }
 
-// ── CARGA ──
-async function buscarTudo() {
+// ── TROCAR LOJA (só gráficos) ──
+function trocarLoja(loja) {
+  if (lojaTimer) { clearTimeout(lojaTimer); lojaTimer = null; }
+  lojaAtual = loja;
+
+  const badge = `${mesLabel} · ${LOJAS[loja]||'Loja '+loja}`;
+  document.getElementById('badge-tv').textContent   = badge;
+  document.getElementById('badge-merc').textContent = badge;
+
+  renderDots(loja);
+  destacarCard(loja);
+  iniciarTimerBarra();
+
+  if (cacheTV[loja])   renderTopVendidos(cacheTV[loja]);
+  if (cacheMerc[loja]) renderMercadologico(cacheMerc[loja]);
+
+  lojaTimer = setTimeout(() => {
+    const proxima = loja + 1;
+    if (proxima > 6) {
+      // Ciclo completo das 6 lojas → avança na supervisão
+      try { window.parent.postMessage({ type: 'diretoriaCycleComplete' }, '*'); } catch(_) {}
+      // Standalone: recomeça da loja 1 após pausa
+      setTimeout(() => trocarLoja(1), 2000);
+    } else {
+      trocarLoja(proxima);
+    }
+  }, TEMPO_POR_LOJA);
+}
+
+// ── PRÉ-CARREGA DADOS DE TODAS AS LOJAS ──
+async function preCarregarDados() {
   const hoje = new Date();
   const mes  = hoje.getMonth() + 1;
   const ano  = hoje.getFullYear();
-  const mesLabel = MESES_N[mes] + '/' + ano;
+  mesLabel   = MESES_N[mes] + '/' + ano;
 
-  const [kpis, tv, merc] = await Promise.allSettled([
-    fetch('/api/diretoria/kpis').then(r => r.ok ? r.json() : Promise.reject('kpis '+r.status)),
-    fetch(`/api/top-vendidos?loja=todas&mes=${mes}&ano=${ano}`).then(r => r.ok ? r.json() : Promise.reject()),
-    fetch(`/api/top-mercadologico?loja=todas&mes=${mes}&ano=${ano}`).then(r => r.ok ? r.json() : Promise.reject()),
-  ]);
-
-  if (kpis.status === 'fulfilled') renderKPIs(kpis.value);
-  else document.getElementById('kpi-row').innerHTML =
-    `<div style="grid-column:1/-1;color:#ef4444;font-size:12px;padding:8px">Erro ao carregar KPIs</div>`;
-
-  document.getElementById('badge-tv').textContent   = mesLabel + ' · Todas';
-  document.getElementById('badge-merc').textContent = mesLabel + ' · Todas';
-
-  if (tv.status === 'fulfilled' && Array.isArray(tv.value) && tv.value.length) renderTopVendidos(tv.value);
-  else document.getElementById('wrap-tv').innerHTML = '<div class="loading-chart" style="color:#ef4444">Sem dados</div>';
-
-  if (merc.status === 'fulfilled' && Array.isArray(merc.value) && merc.value.length) renderMercadologico(merc.value);
-  else document.getElementById('wrap-merc').innerHTML = '<div class="loading-chart" style="color:#ef4444">Sem dados</div>';
+  await Promise.allSettled([1,2,3,4,5,6].map(async loja => {
+    try {
+      const [tv, merc] = await Promise.all([
+        fetch(`/api/top-vendidos?loja=${loja}&mes=${mes}&ano=${ano}`).then(r=>r.json()),
+        fetch(`/api/top-mercadologico?loja=${loja}&mes=${mes}&ano=${ano}`).then(r=>r.json()),
+      ]);
+      if (Array.isArray(tv)   && tv.length)   cacheTV[loja]   = tv;
+      if (Array.isArray(merc) && merc.length) cacheMerc[loja] = merc;
+    } catch(_) {}
+  }));
 }
 
+// ── INIT ──
 async function init() {
-  await buscarTudo();
-  iniciarTimer();
+  const [kpisRes] = await Promise.allSettled([
+    fetch('/api/diretoria/kpis').then(r => r.ok ? r.json() : Promise.reject()),
+  ]);
+  if (kpisRes.status === 'fulfilled') renderKPIs(kpisRes.value);
+
+  await preCarregarDados();
+  trocarLoja(1);
 }
 
 init();
-setInterval(buscarTudo, 3 * 60 * 1000);
+
+// Recarrega KPIs a cada 3 min (gráficos atualizam no próximo ciclo completo)
+setInterval(async () => {
+  try {
+    const r = await fetch('/api/diretoria/kpis');
+    if (r.ok) renderKPIs(await r.json());
+  } catch(_) {}
+  await preCarregarDados();
+}, 3 * 60 * 1000);
 </script>
 </body>
 </html>
