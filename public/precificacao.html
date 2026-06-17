@@ -237,14 +237,12 @@ function iniciarCarrossel(idx, startAt) {
   }, tickMs);
 }
 
-// Salva posição exata ao sair, retoma do mesmo ponto ao voltar
+// Pausa ao sair, retoma do início da coluna atual ao voltar
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
-    resumeScrollTop = colBodies[currentIdx]?.scrollTop ?? 0;
     pararCarrossel();
   } else if (colBodies.length) {
-    iniciarCarrossel(currentIdx, resumeScrollTop);
-    resumeScrollTop = 0;
+    setTimeout(() => iniciarCarrossel(currentIdx, 0), 150);
   }
 });
 
@@ -320,8 +318,8 @@ async function load() {
     colBodies.push(bodyEl); // referência direta, sem querySelector
   }
 
-  // Sempre inicia carrossel após construir as 6 colunas
-  iniciarCarrossel(currentIdx < colBodies.length ? currentIdx : 0);
+  // Delay para o browser renderizar o layout antes de medir scrollHeight
+  setTimeout(() => iniciarCarrossel(currentIdx < colBodies.length ? currentIdx : 0), 200);
 
   // Atualizar contadores e barra de margem (erros aqui não afetam o carrossel)
   try {
