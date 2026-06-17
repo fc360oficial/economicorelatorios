@@ -109,16 +109,19 @@ app.get('/api/kpis', async (req, res) => {
     const mesSel  = req.query.mes  ? parseInt(req.query.mes)  : hoje.getMonth() + 1;
     const lojaSel = req.query.loja && req.query.loja !== 'todas' ? parseInt(req.query.loja) : null;
 
-    const mesPrev = mesSel === 1 ? 12 : mesSel - 1;
-    const anoPrev = mesSel === 1 ? ano - 1 : ano;
+    const anoAnt  = ano - 1;
     const mm      = mesDB(mesSel);
-    const mmPrev  = mesDB(mesPrev);
+    const mmAnt   = mesDB(mesSel);
     const lojas   = lojaSel ? [lojaSel] : [1,2,3,4,5,6];
 
-    const dIni     = `${ano}-${String(mesSel).padStart(2,'0')}-01`;
-    const dFim     = `${ano}-${String(mesSel).padStart(2,'0')}-31`;
-    const dIniPrev = `${anoPrev}-${String(mesPrev).padStart(2,'0')}-01`;
-    const dFimPrev = `${anoPrev}-${String(mesPrev).padStart(2,'0')}-31`;
+    const diaHoje = String(hoje.getDate()).padStart(2,'0');
+    const mesStr  = String(mesSel).padStart(2,'0');
+
+    const dIni        = `${ano}-${mesStr}-01`;
+    const dFim        = `${ano}-${mesStr}-31`;
+    const dIniAnt     = `${anoAnt}-${mesStr}-01`;
+    const dFimAntHoje = `${anoAnt}-${mesStr}-${diaHoje}`;  // mesmo dia do ano passado
+    const dFimAntMes  = `${anoAnt}-${mesStr}-31`;           // mês completo ano passado
 
     // Faturamento + custo + cupons mês atual
     let atual = 0, custoAtual = 0, totalCupons = 0;
@@ -134,15 +137,20 @@ app.get('/api/kpis', async (req, res) => {
       } catch(_) {}
     }
 
-    // Faturamento mês anterior
-    let anterior = 0;
+    // Ano anterior: mesmo mês até mesmo dia + mês completo
+    let antAteDia = 0, antMesTotal = 0;
     for (const ln of lojas) {
       try {
-        const [r] = await q(
-          `SELECT COALESCE(SUM(ValorTotalNovo),0) as venda FROM \`ln${ln}${mmPrev}\`.zcupomitens WHERE Data BETWEEN ? AND ? AND IndCancel='N'`,
-          [dIniPrev, dFimPrev]
+        const [r1] = await q(
+          `SELECT COALESCE(SUM(ValorTotalNovo),0) as venda FROM \`ln${ln}${mmAnt}\`.zcupomitens WHERE Data BETWEEN ? AND ? AND IndCancel='N'`,
+          [dIniAnt, dFimAntHoje]
         );
-        anterior += parseFloat(r.venda || 0);
+        antAteDia += parseFloat(r1.venda || 0);
+        const [r2] = await q(
+          `SELECT COALESCE(SUM(ValorTotalNovo),0) as venda FROM \`ln${ln}${mmAnt}\`.zcupomitens WHERE Data BETWEEN ? AND ? AND IndCancel='N'`,
+          [dIniAnt, dFimAntMes]
+        );
+        antMesTotal += parseFloat(r2.venda || 0);
       } catch(_) {}
     }
 
@@ -158,22 +166,25 @@ app.get('/api/kpis', async (req, res) => {
       [prodSemana] = await q(`SELECT COUNT(DISTINCT Codigo) as total FROM (${union}) t`);
     } catch(_) {}
 
-    const variacao   = anterior > 0 ? (((atual - anterior) / anterior) * 100).toFixed(1) : 0;
-    const lucroAtual = atual - custoAtual;
-    const margemSC   = custoAtual > 0 ? +(lucroAtual / custoAtual * 100).toFixed(2) : 0;
-    const margemSV   = atual > 0      ? +(lucroAtual / atual      * 100).toFixed(2) : 0;
+    const variacaoAno = antAteDia > 0 ? (((atual - antAteDia) / antAteDia) * 100).toFixed(1) : 0;
+    const lucroAtual  = atual - custoAtual;
+    const margemSC    = custoAtual > 0 ? +(lucroAtual / custoAtual * 100).toFixed(2) : 0;
+    const margemSV    = atual > 0      ? +(lucroAtual / atual      * 100).toFixed(2) : 0;
 
     const ticketMedio = totalCupons > 0 ? +(atual / totalCupons).toFixed(2) : 0;
 
     res.json({
       faturamento_mes: +atual.toFixed(2),
-      faturamento_anterior: +anterior.toFixed(2),
-      variacao_percentual: parseFloat(variacao),
+      fat_ano_ant_ate_dia: +antAteDia.toFixed(2),
+      fat_ano_ant_mes_total: +antMesTotal.toFixed(2),
+      variacao_percentual: parseFloat(variacaoAno),
       ticket_medio: ticketMedio,
       total_cupons: totalCupons,
       margem_sc: margemSC,
       margem_sv: margemSV,
       mes: mesSel,
+      ano_ant: anoAnt,
+      dia_ate: diaHoje,
       loja: lojaSel || 'todas'
     });
   } catch (err) {

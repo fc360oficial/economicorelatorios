@@ -216,10 +216,10 @@
       <div class="kpi-sub" id="kpi-fat-sub">carregando...</div>
     </div>
     <div class="kpi-card green">
-      <div class="kpi-icon">📈</div>
-      <div class="kpi-label">Mês Anterior</div>
+      <div class="kpi-icon">📅</div>
+      <div class="kpi-label" id="kpi-ant-label">Ano Anterior — mesmo período</div>
       <div class="kpi-value" id="kpi-fat-ant">...</div>
-      <div class="kpi-sub" id="kpi-variacao">variação</div>
+      <div class="kpi-sub" id="kpi-ant-sub" style="color:#94a3b8">mês completo: ...</div>
     </div>
     <div class="kpi-card amber">
       <div class="kpi-icon">🎯</div>
@@ -341,20 +341,24 @@ async function carregarKPIs() {
     const d = await r.json();
     if (d.error) return;
 
+    const mesSel = parseInt(mes);
+    const mesNome = mesesNomes[mesSel];
+
     document.getElementById('kpi-fat-mes').textContent = fmt(d.faturamento_mes);
-    document.getElementById('kpi-fat-ant').textContent = fmt(d.faturamento_anterior);
+    document.getElementById('kpi-fat-sub').innerHTML =
+      `<span style="color:#64748b">${mesNome} até dia ${d.dia_ate} · ${lojaLabel}</span>`;
+
+    document.getElementById('kpi-fat-ant').textContent = fmt(d.fat_ano_ant_ate_dia ?? 0);
+    document.getElementById('kpi-ant-label').textContent = `${mesNome}/${d.ano_ant} — até dia ${d.dia_ate}`;
+    const mesCompleto = fmt(d.fat_ano_ant_mes_total ?? 0);
+    const vAno = d.variacao_percentual;
+    document.getElementById('kpi-ant-sub').innerHTML =
+      `mês completo ${d.ano_ant}: ${mesCompleto} &nbsp;·&nbsp; <span class="${vAno >= 0 ? 'kpi-up' : 'kpi-down'}">${vAno >= 0 ? '▲' : '▼'} ${Math.abs(vAno)}%</span>`;
+
     document.getElementById('kpi-ticket-medio').textContent = fmt(d.ticket_medio);
     document.getElementById('kpi-ticket-sub').textContent = fmtN(d.total_cupons) + ' cupons no mês';
     document.getElementById('kpi-margem-sc').textContent = (d.margem_sv ?? 0).toFixed(1) + '%';
     document.getElementById('kpi-margem-sv-sub').textContent = 'S/C: ' + (d.margem_sc ?? 0).toFixed(1) + '%';
-
-    const v = d.variacao_percentual;
-    const el = document.getElementById('kpi-variacao');
-    const mesPrevNome = mesesNomes[parseInt(mes) === 1 ? 12 : parseInt(mes) - 1];
-    el.innerHTML = `<span class="${v >= 0 ? 'kpi-up' : 'kpi-down'}">${v >= 0 ? '▲' : '▼'} ${Math.abs(v)}%</span> vs ${mesPrevNome}`;
-
-    document.getElementById('kpi-fat-sub').innerHTML =
-      `<span style="color:#64748b">${mesesNomes[parseInt(mes)]} · ${lojaLabel}</span>`;
   } catch(e) {}
 }
 
