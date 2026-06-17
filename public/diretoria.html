@@ -64,6 +64,7 @@ header{
   display:grid;grid-template-columns:repeat(6,1fr);
   gap:10px;padding:10px 12px;flex-shrink:0;
   position:relative;z-index:1;
+  height:clamp(200px,27vh,290px);overflow:hidden;
 }
 .kcard{
   background:linear-gradient(160deg,var(--card2) 0%,var(--card) 100%);
@@ -93,13 +94,13 @@ header{
 .charts-row{
   flex:1;display:grid;grid-template-columns:1fr 1fr;
   gap:8px;padding:0 12px 10px;overflow:hidden;
-  position:relative;z-index:1;
+  position:relative;z-index:1;min-height:0;
 }
 .chart-panel{
   background:linear-gradient(160deg,var(--card2) 0%,var(--card) 100%);
   border:1px solid var(--border-md);border-radius:var(--r);
   padding:14px 16px;display:flex;flex-direction:column;
-  box-shadow:var(--sh);overflow:hidden;
+  box-shadow:var(--sh);overflow:hidden;min-height:0;
 }
 .chart-head{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-shrink:0}
 .chart-icon{font-size:14px}
@@ -254,6 +255,26 @@ function renderKPIs(data) {
       </div>`;
     row.appendChild(d);
   }
+  destacarCard(lojaAtual); // re-aplica destaque na loja em exibição
+}
+
+// ── BUSCA KPIs COM TIMEOUT E RETRY ──
+async function buscarKPIs() {
+  for (let tent = 0; tent < 3; tent++) {
+    try {
+      const ctrl = new AbortController();
+      const tid  = setTimeout(() => ctrl.abort(), 7000);
+      const r    = await fetch('/api/diretoria/kpis', { signal: ctrl.signal });
+      clearTimeout(tid);
+      if (r.ok) { renderKPIs(await r.json()); return; }
+    } catch(_) {
+      if (tent < 2) await new Promise(ok => setTimeout(ok, 2000));
+    }
+  }
+  const row = document.getElementById('kpi-row');
+  if (row && !row.querySelector('[data-kpi-erro]')) {
+    row.innerHTML = '<div data-kpi-erro style="grid-column:1/-1;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:11px;padding:8px">Dados indisponíveis — recarregando em breve</div>';
+  }
 }
 
 // ── GRÁFICO TOP VENDIDOS ──
@@ -353,6 +374,11 @@ async function buscarLoja(loja) {
     ]);
     if (Array.isArray(tv)   && tv.length)   cacheTV[loja]   = tv;
     if (Array.isArray(merc) && merc.length) cacheMerc[loja] = merc;
+    // Se chegou enquanto esta loja está na tela, renderiza imediatamente
+    if (loja === lojaAtual) {
+      try { if (cacheTV[loja])   renderTopVendidos(cacheTV[loja]);   } catch(_) {}
+      try { if (cacheMerc[loja]) renderMercadologico(cacheMerc[loja]); } catch(_) {}
+    }
   } catch(_) {}
 }
 
@@ -361,28 +387,30 @@ async function init() {
   const hoje = new Date();
   mesLabel = MESES_N[hoje.getMonth() + 1] + '/' + hoje.getFullYear();
 
-  // KPIs e dados da Loja 1 carregam juntos
-  await Promise.allSettled([
-    fetch('/api/diretoria/kpis').then(r => r.ok ? r.json() : null)
-      .then(d => { if (d) renderKPIs(d); }),
-    buscarLoja(1),
-  ]);
+  // KPIs independentes: não bloqueiam o ciclo
+  buscarKPIs();
 
-  // Inicia ciclo imediatamente
+  // Aguarda Loja 1 (max 5s), depois inicia o ciclo de qualquer jeito
+  await Promise.race([buscarLoja(1), new Promise(ok => setTimeout(ok, 5000))]);
   trocarLoja(1);
 
-  // Pré-carrega lojas 2-6 em background enquanto Loja 1 está na tela
+  // Pré-carrega lojas 2-6 em background
   for (let loja = 2; loja <= 6; loja++) buscarLoja(loja);
 }
 
 init();
 
+// Resize dos gráficos quando a resolução muda
+window.addEventListener('resize', () => {
+  requestAnimationFrame(() => {
+    if (chartTV)   chartTV.resize();
+    if (chartMerc) chartMerc.resize();
+  });
+});
+
 // Recarrega a cada 3 min
-setInterval(async () => {
-  try {
-    const r = await fetch('/api/diretoria/kpis');
-    if (r.ok) renderKPIs(await r.json());
-  } catch(_) {}
+setInterval(() => {
+  buscarKPIs();
   for (let loja = 1; loja <= 6; loja++) buscarLoja(loja);
 }, 3 * 60 * 1000);
 </script>
