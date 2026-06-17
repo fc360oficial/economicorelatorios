@@ -1441,7 +1441,16 @@ app.get('/api/compras/pedidos-hoje', async (req, res) => {
 
 app.get('/deploy', (req, res) => {
   if (req.query.token !== 'fc360deploy2026') return res.status(403).send('Proibido');
-  exec('git fetch origin && git reset --hard origin/main', { cwd: __dirname }, (err, stdout, stderr) => {
+  const gitPaths = [
+    'C:\\Program Files\\Git\\bin\\git.exe',
+    'C:\\Program Files\\Git\\cmd\\git.exe',
+    'C:\\Program Files (x86)\\Git\\bin\\git.exe',
+    'git'
+  ];
+  const fs2 = require('fs');
+  const git = gitPaths.find(p => p === 'git' || fs2.existsSync(p)) || 'git';
+  const cmd = `"${git}" fetch origin && "${git}" reset --hard origin/main`;
+  exec(cmd, { cwd: __dirname }, (err, stdout, stderr) => {
     const out = (stdout || '') + (stderr || '') + (err ? '\nERRO: ' + err.message : '');
     console.log('[DEPLOY]', out);
     res.send('<pre>' + out + '\n\nReiniciando servidor...</pre>');
