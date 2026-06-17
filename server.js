@@ -1441,10 +1441,11 @@ app.get('/api/compras/pedidos-hoje', async (req, res) => {
 
 app.get('/deploy', (req, res) => {
   if (req.query.token !== 'fc360deploy2026') return res.status(403).send('Proibido');
-  res.send('Deploy iniciado. O servidor vai reiniciar em instantes...');
   exec('git fetch origin && git reset --hard origin/main', { cwd: __dirname }, (err, stdout, stderr) => {
-    console.log('[DEPLOY]', stdout || stderr || err?.message);
-    setTimeout(() => process.exit(0), 500);
+    const out = (stdout || '') + (stderr || '') + (err ? '\nERRO: ' + err.message : '');
+    console.log('[DEPLOY]', out);
+    res.send('<pre>' + out + '\n\nReiniciando servidor...</pre>');
+    setTimeout(() => process.exit(0), 1000);
   });
 });
 
