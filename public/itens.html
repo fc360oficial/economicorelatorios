@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mercadológico — Econômico Relatórios</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Segoe UI',sans-serif; background:#0f172a; color:#e2e8f0; min-height:100vh; display:flex; flex-direction:column; }
+
+  header {
+    background:linear-gradient(135deg,#1a1a2e,#16213e);
+    padding:14px 28px; display:flex; align-items:center; justify-content:space-between;
+    border-bottom:3px solid #F9C200; flex-shrink:0;
+  }
+  .logo { display:flex; align-items:center; gap:10px; }
+  .logo-icon { height:42px; width:auto; display:block; }
+  .logo h1 { font-size:17px; font-weight:700; color:#F9C200; letter-spacing:0.5px; }
+  .logo span { font-size:11px; color:#94a3b8; display:block; }
+  .nav-links { display:flex; gap:8px; flex-wrap:wrap; }
+  .nav-links a { color:#F9C200; text-decoration:none; font-size:12px; padding:5px 12px; border-radius:5px; border:1px solid #F9C200; font-weight:600; transition:all .15s; }
+  .nav-links a:hover { background:#F9C200; color:#0f0f1a; }
+
+  .layout { display:flex; flex:1; overflow:hidden; }
+
+  /* Sidebar de grupos */
+  .sidebar {
+    width:280px; background:#1e293b; border-right:1px solid #334155;
+    overflow-y:auto; flex-shrink:0;
+  }
+  .sidebar-title {
+    padding:16px 16px 10px; font-size:11px; font-weight:700;
+    color:#64748b; text-transform:uppercase; letter-spacing:0.8px;
+    border-bottom:1px solid #334155; position:sticky; top:0;
+    background:#1e293b; z-index:1;
+  }
+  .grupo-item { cursor:pointer; }
+  .grupo-header {
+    padding:10px 14px; font-size:13px; font-weight:600; color:#cbd5e1;
+    display:flex; align-items:center; justify-content:space-between;
+    user-select:none; transition:background 0.15s;
+  }
+  .grupo-header:hover { background:#0f172a55; }
+  .grupo-header.ativo { color:#60a5fa; }
+  .grupo-chevron { font-size:10px; transition:transform 0.2s; color:#475569; }
+  .grupo-chevron.aberto { transform:rotate(90deg); }
+  .subgrupos { display:none; }
+  .subgrupos.aberto { display:block; }
+  .subgrupo-item {
+    padding:7px 14px 7px 28px; font-size:12px; color:#94a3b8;
+    cursor:pointer; transition:all 0.15s; display:flex; align-items:center; justify-content:space-between;
+  }
+  .subgrupo-item:hover { background:#0f172a55; color:#e2e8f0; }
+  .subgrupo-item.selecionado { background:#F9C20018; color:#F9C200; border-left:2px solid #F9C200; }
+  .subgrupo-cnt { font-size:10px; background:#0f172a; padding:1px 6px; border-radius:10px; color:#475569; }
+
+  /* Conteúdo principal */
+  .conteudo { flex:1; overflow:auto; padding:20px 24px; }
+
+  .filtros-topo {
+    display:flex; gap:12px; align-items:center; margin-bottom:18px; flex-wrap:wrap;
+  }
+  .search-wrap { position:relative; flex:1; min-width:200px; }
+  .search-wrap input {
+    width:100%; background:#1e293b; border:1px solid #334155; color:#e2e8f0;
+    padding:9px 12px 9px 36px; border-radius:8px; font-size:13px; outline:none;
+  }
+  .search-wrap input:focus { border-color:#F9C200; }
+  .search-icon { position:absolute; left:11px; top:50%; transform:translateY(-50%); color:#64748b; font-size:14px; }
+  .filtro-status { display:flex; gap:6px; }
+  .btn-status {
+    padding:7px 14px; border-radius:6px; border:1px solid #334155;
+    background:transparent; color:#94a3b8; font-size:12px; cursor:pointer; transition:all 0.15s;
+  }
+  .btn-status.ativo { background:#064e3b; border-color:#10b981; color:#6ee7b7; }
+  .btn-status.inativo { background:#450a0a; border-color:#ef4444; color:#fca5a5; }
+  .btn-status.todos { background:#F9C20018; border-color:#F9C200; color:#F9C200; }
+
+  .resultado-info {
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:14px; flex-wrap:wrap; gap:10px;
+  }
+  .resultado-titulo { font-size:14px; font-weight:700; color:#e2e8f0; }
+  .resultado-subtitulo { font-size:12px; color:#64748b; margin-top:2px; }
+  .acoes { display:flex; gap:8px; }
+  .btn-export { background:#059669; border:none; color:#fff; padding:7px 14px; border-radius:6px; font-size:12px; cursor:pointer; }
+  .btn-print { background:#7c3aed; border:none; color:#fff; padding:7px 14px; border-radius:6px; font-size:12px; cursor:pointer; }
+
+  /* Tabela */
+  .tabela-wrap { background:#1e293b; border-radius:12px; border:1px solid #334155; overflow:hidden; }
+  table { width:100%; border-collapse:collapse; }
+  thead { background:#0f172a; position:sticky; top:0; z-index:1; }
+  thead th { padding:10px 14px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.8px; color:#64748b; text-align:left; white-space:nowrap; }
+  th.r, td.r { text-align:right; }
+  tbody tr { border-top:1px solid #334155; transition:background 0.1s; }
+  tbody tr:hover { background:#0f172a55; }
+  td { padding:9px 14px; font-size:12px; color:#cbd5e1; }
+  td.desc { color:#e2e8f0; font-weight:500; max-width:260px; }
+  td.cod { color:#475569; font-size:11px; font-family:monospace; }
+  td.preco { color:#34d399; font-weight:600; }
+  td.estoque-ok { color:#60a5fa; }
+  td.estoque-zero { color:#f87171; }
+  .pill { display:inline-block; padding:2px 8px; border-radius:20px; font-size:10px; font-weight:600; }
+  .pill-on { background:#064e3b; color:#6ee7b7; }
+  .pill-off { background:#450a0a; color:#fca5a5; }
+
+  .estado-vazio { padding:50px 20px; text-align:center; color:#475569; }
+  .estado-vazio .icon { font-size:40px; margin-bottom:10px; }
+
+  .spinner-wrap { padding:50px; text-align:center; }
+  .spinner { width:28px; height:28px; border:3px solid #334155; border-top-color:#3b82f6; border-radius:50%; animation:spin 0.8s linear infinite; margin:0 auto 10px; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  .paginacao { display:flex; justify-content:center; align-items:center; gap:8px; padding:14px; }
+  .btn-pag { background:#1e293b; border:1px solid #334155; color:#94a3b8; padding:5px 12px; border-radius:5px; cursor:pointer; font-size:12px; }
+  .btn-pag:hover:not(:disabled) { border-color:#3b82f6; color:#60a5fa; }
+  .btn-pag:disabled { opacity:0.4; pointer-events:none; }
+  .pag-info { font-size:12px; color:#64748b; }
+
+  @media(max-width:768px){
+    /* Header compacto */
+    header{padding:10px 14px;flex-wrap:wrap;gap:8px}
+    .logo-icon{height:32px}
+    .logo h1{font-size:14px}.logo span{display:none}
+    .nav-links{display:grid;grid-template-columns:1fr 1fr;gap:5px;width:100%}
+    .nav-links a{font-size:11px;padding:7px 6px;text-align:center;border-radius:7px}
+    /* Layout vertical */
+    .layout{flex-direction:column;overflow:visible}
+    body{overflow-y:auto}
+    /* Grupos como painel colapsável no topo */
+    .sidebar{width:100%;max-height:240px;overflow-y:auto;border-right:none;border-bottom:1px solid #334155}
+    .sidebar-title{position:static}
+    .grupo-header{padding:9px 12px;font-size:12px}
+    .subgrupo-item{padding:6px 12px 6px 24px;font-size:11px}
+    /* Conteúdo abaixo */
+    .conteudo{padding:10px;overflow:visible}
+    .filtros-topo{flex-wrap:wrap;gap:6px}
+    .search-wrap{min-width:0;flex:1}
+    .search-wrap input{font-size:16px;padding:7px 10px 7px 32px}
+    .filtro-status{flex-wrap:wrap}
+    .btn-status{font-size:11px;padding:5px 10px}
+    /* Tabela mobile */
+    .tabela-wrap{overflow-x:auto}
+    .tabela-itens th,.tabela-itens td{padding:7px 8px;font-size:11px;white-space:nowrap}
+    .resultado-info{flex-direction:column;align-items:flex-start;gap:6px}
+    .acoes{flex-wrap:wrap;gap:6px}
+    .paginacao{flex-wrap:wrap;justify-content:center;gap:4px}
+  }
+  @media print {
+    @page { size: A4 landscape; margin: 5mm; }
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    body { background: white !important; color: #111 !important; }
+    .sidebar, header, .filtros-topo, .paginacao, .acoes { display: none !important; }
+    .layout { display: block !important; }
+    .conteudo { padding: 2px !important; overflow: visible !important; }
+    .tabela-wrap { border: none !important; overflow: visible !important; border-radius: 0 !important; }
+    /* Modo todas: ocultar as duas tabelas separadas, mostrar unificada gerada pelo JS */
+    #todas-wrap { display: none !important; }
+    #print-unified-wrap {
+      width: 100%;
+      overflow: visible !important;
+    }
+    #print-unified {
+      border-collapse: collapse !important;
+      font-size: 6px !important;
+      white-space: nowrap !important;
+    }
+    #print-unified th, #print-unified td {
+      padding: 2px 3px !important;
+      border: 1px solid #bbb !important;
+      white-space: nowrap !important;
+    }
+    #print-unified thead tr:first-child th { background: #1e3a8a !important; color: white !important; font-size: 7px !important; }
+    #print-unified thead tr:last-child th { background: #dde4f0 !important; color: #1e293b !important; }
+    /* Tabela única (modo loja) */
+    table { font-size: 8px !important; border-collapse: collapse !important; width: 100% !important; }
+    th, td { padding: 3px 5px !important; border: 1px solid #ccc !important; color: #111 !important;
+             position: static !important; background: white !important; white-space: nowrap !important; }
+    thead tr:first-child th { background: #1e3a8a !important; color: white !important; }
+    thead tr:last-child th { background: #e2e8f0 !important; color: #1e293b !important; }
+    .pill { padding: 1px 4px !important; font-size: 6px !important; border-radius: 3px !important; }
+    .pill-on { background: #d1fae5 !important; color: #065f46 !important; }
+    .pill-off { background: #fee2e2 !important; color: #991b1b !important; }
+    .resultado-titulo { font-size: 11px !important; font-weight: bold; color: #111 !important; margin-bottom: 4px; }
+    .resultado-subtitulo { font-size: 8px !important; color: #555 !important; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <img src="/logo.png" class="logo-icon" alt="Econômico" style="filter:brightness(0) invert(1) sepia(1) saturate(3) hue-rotate(-8deg)">
+    <div>
+      <h1>Mercadológico</h1>
+      <span>Consulta por Grupo / Subgrupo</span>
+    </div>
+  </div>
+  <div class="nav-links">
+    <a href="/">Dashboard</a>
+    <a href="/consulta.html">🔍 Consulta Vendas</a>
+    <a href="/fornecedores.html">📋 Lista de Compra</a>
+    <a href="/pendencias.html">⚠️ Pendências</a>
+    <span style="width:1px;height:16px;background:#334155;display:inline-block;margin:0 4px"></span>
+    <a href="/compras.html" style="color:#F9C200;border-color:rgba(249,194,0,.4);background:rgba(249,194,0,.07)">📊 Painéis</a>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px;font-size:12px;margin-left:8px">
+    <span style="color:#94a3b8" id="hdr-user">👤 ...</span>
+    <a href="/api/logout" style="color:#f87171;font-weight:700;text-decoration:none;border:1px solid #7f1d1d;padding:5px 10px;border-radius:6px;background:#450a0a22">🚪 Sair</a>
+  </div>
+</header>
+<script>fetch('/api/me').then(r=>r.json()).then(u=>{if(u.nome)document.getElementById('hdr-user').textContent='👤 '+u.nome}).catch(()=>{})</script>
+
+<div class="layout">
+
+  <!-- Sidebar grupos -->
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-title">📂 Grupos Mercadológicos</div>
+    <div id="lista-grupos">
+      <div class="spinner-wrap"><div class="spinner"></div></div>
+    </div>
+  </div>
+
+  <!-- Conteúdo -->
+  <div class="conteudo">
+
+    <div class="filtros-topo">
+      <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="txt-busca" placeholder="Buscar produto por nome..."
+          oninput="debounceConsulta()" onkeydown="if(event.key==='Enter') consultarItens()">
+      </div>
+      <select id="sel-loja" onchange="paginaAtual=1; consultarItens()"
+        style="background:#1e293b;border:1px solid #334155;color:#e2e8f0;padding:9px 12px;border-radius:8px;font-size:13px;outline:none;cursor:pointer;">
+        <option value="1">Loja 1</option>
+        <option value="2">Loja 2</option>
+        <option value="3">Loja 3</option>
+        <option value="4">Loja 4</option>
+        <option value="5">Loja 5</option>
+        <option value="6">Loja 6</option>
+        <option value="todas">Todas as Lojas</option>
+      </select>
+      <div class="filtro-status">
+        <button class="btn-status todos ativo" id="btn-todos" onclick="setStatus('todos')">Todos</button>
+        <button class="btn-status ativo" id="btn-ativos" onclick="setStatus('1')">✓ Ativos</button>
+        <button class="btn-status inativo" id="btn-inativos" onclick="setStatus('0')">✗ Inativos</button>
+      </div>
+    </div>
+
+    <div class="resultado-info">
+      <div>
+        <div class="resultado-titulo" id="titulo-resultado">Selecione um grupo no menu lateral</div>
+        <div class="resultado-subtitulo" id="sub-resultado"></div>
+      </div>
+      <div class="acoes">
+        <button class="btn-export" onclick="exportarCSV()">⬇ CSV</button>
+        <button class="btn-print" onclick="window.print()">🖨 Imprimir</button>
+      </div>
+    </div>
+
+    <div class="tabela-wrap" id="tabela-wrap">
+      <div class="estado-vazio">
+        <div class="icon">📂</div>
+        <p>Escolha um bloco de produto no menu lateral para visualizar os itens</p>
+      </div>
+    </div>
+
+    <div id="paginacao"></div>
+
+  </div>
+</div>
+
+<script>
+let grupoSel = null, subgrupoSel = null, statusSel = 'todos';
+let paginaAtual = 1;
+let dadosAtuais = [];
+let debTimer = null;
+let totalPaginas = 1;
+let lojaAtual = '1';
+
+const fmt = v => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v||0);
+const fmtN = v => new Intl.NumberFormat('pt-BR',{maximumFractionDigits:2}).format(v||0);
+
+// Carrega grupos na sidebar
+async function carregarGrupos() {
+  const r = await fetch('/api/grupos');
+  const grupos = await r.json();
+  const el = document.getElementById('lista-grupos');
+  el.innerHTML = '';
+
+  // Opção "Todos os produtos ativos"
+  const divTodos = document.createElement('div');
+  divTodos.className = 'grupo-item';
+  divTodos.innerHTML = `<div class="grupo-header" id="hdr-todos" onclick="selecionarTodos()">
+    <span>⭐ Todos os Ativos</span>
+  </div>`;
+  el.appendChild(divTodos);
+
+  grupos.forEach(g => {
+    const div = document.createElement('div');
+    div.className = 'grupo-item';
+    const totalAtivos = g.subs.reduce((s, s2) => s + (s2.ativos || 0), 0);
+    div.innerHTML = `
+      <div class="grupo-header" id="hdr-g${g.id}" onclick="toggleGrupo(${g.id}, this)">
+        <span>${g.nome}</span>
+        <span class="grupo-chevron">▶</span>
+      </div>
+      <div class="subgrupos" id="subs-${g.id}">
+        <div class="subgrupo-item" onclick="selecionarGrupo(${g.id}, '${g.nome}')">
+          <span>— Todos de ${g.nome.substring(0,20)}</span>
+          <span class="subgrupo-cnt">${totalAtivos}</span>
+        </div>
+        ${g.subs.map(s => `
+          <div class="subgrupo-item" id="sub-${s.id}" onclick="selecionarSubgrupo(${g.id}, ${s.id}, '${s.nome.replace(/'/g,"\\'")}', '${g.nome.replace(/'/g,"\\'")}')">
+            <span>${s.nome}</span>
+            <span class="subgrupo-cnt">${s.ativos}</span>
+          </div>
+        `).join('')}
+      </div>
+    `;
+    el.appendChild(div);
+  });
+}
+
+function toggleGrupo(id, el) {
+  const subs = document.getElementById('subs-' + id);
+  const chevron = el.querySelector('.grupo-chevron');
+  const aberto = subs.classList.contains('aberto');
+  subs.classList.toggle('aberto', !aberto);
+  chevron.classList.toggle('aberto', !aberto);
+}
+
+function selecionarTodos() {
+  grupoSel = null; subgrupoSel = null;
+  document.querySelectorAll('.subgrupo-item').forEach(e => e.classList.remove('selecionado'));
+  document.getElementById('titulo-resultado').textContent = '⭐ Todos os Produtos Ativos';
+  statusSel = '1';
+  document.getElementById('btn-todos').classList.remove('ativo');
+  document.getElementById('btn-ativos').classList.add('ativo');
+  document.getElementById('btn-inativos').classList.remove('ativo');
+  paginaAtual = 1;
+  consultarItens();
+}
+
+function selecionarGrupo(id, nome) {
+  grupoSel = id; subgrupoSel = null;
+  document.querySelectorAll('.subgrupo-item').forEach(e => e.classList.remove('selecionado'));
+  document.getElementById('titulo-resultado').textContent = '📁 ' + nome;
+  paginaAtual = 1; consultarItens();
+}
+
+function selecionarSubgrupo(grupoId, subId, nomeS, nomeG) {
+  grupoSel = grupoId; subgrupoSel = subId;
+  document.querySelectorAll('.subgrupo-item').forEach(e => e.classList.remove('selecionado'));
+  document.getElementById('sub-' + subId)?.classList.add('selecionado');
+  document.getElementById('titulo-resultado').textContent = '📦 ' + nomeG + ' › ' + nomeS;
+  paginaAtual = 1; consultarItens();
+}
+
+function setStatus(val) {
+  statusSel = val;
+  document.getElementById('btn-todos').classList.toggle('ativo', val === 'todos');
+  document.getElementById('btn-ativos').classList.toggle('ativo', val === '1');
+  document.getElementById('btn-inativos').classList.toggle('ativo', val === '0');
+  paginaAtual = 1; consultarItens();
+}
+
+function debounceConsulta() {
+  clearTimeout(debTimer);
+  const busca = document.getElementById('txt-busca').value.trim();
+  if (busca) {
+    document.getElementById('titulo-resultado').textContent = '🔍 Busca: ' + busca;
+  } else if (grupoSel || subgrupoSel) {
+    // mantém o título do grupo selecionado
+  } else {
+    document.getElementById('titulo-resultado').textContent = 'Selecione um bloco no menu lateral';
+  }
+  debTimer = setTimeout(consultarItens, 400);
+}
+
+async function consultarItens() {
+  const busca = document.getElementById('txt-busca').value.trim();
+  if (!grupoSel && !subgrupoSel && statusSel !== '1' && !busca) return;
+
+  const wrap = document.getElementById('tabela-wrap');
+  wrap.innerHTML = '<div class="spinner-wrap"><div class="spinner"></div><p style="color:#64748b;font-size:13px">Consultando...</p></div>';
+
+  try {
+    const loja = document.getElementById('sel-loja').value;
+    const params = new URLSearchParams({ pagina: paginaAtual, limite: 50, loja });
+    if (grupoSel) params.set('grupo', grupoSel);
+    if (subgrupoSel) params.set('subgrupo', subgrupoSel);
+    if (statusSel !== 'todos') params.set('ativo', statusSel);
+    if (busca) params.set('busca', busca);
+
+    const r = await fetch('/api/itens?' + params);
+    const d = await r.json();
+    if (d.error) { wrap.innerHTML = `<div class="estado-vazio"><p style="color:#ef4444">Erro: ${d.error}</p></div>`; return; }
+
+    dadosAtuais = d.data || [];
+    totalPaginas = d.paginas || 1;
+    lojaAtual = d.loja;
+
+    document.getElementById('sub-resultado').textContent = `${fmtN(d.total)} produto(s) encontrado(s)`;
+
+    if (!dadosAtuais.length) {
+      wrap.innerHTML = '<div class="estado-vazio"><div class="icon">🈳</div><p>Nenhum produto encontrado</p></div>';
+      document.getElementById('paginacao').innerHTML = '';
+      return;
+    }
+
+    renderTabela(dadosAtuais);
+    renderPaginacao(d.total, d.pagina, d.paginas);
+  } catch (e) {
+    wrap.innerHTML = `<div class="estado-vazio"><p style="color:#ef4444">Erro: ${e.message}</p></div>`;
+    console.error('consultarItens erro:', e);
+  }
+}
+
+function renderTabela(data) {
+  if (lojaAtual === 'todas') { renderTabelaTodas(data); return; }
+  const loja = lojaAtual;
+  let html = `<table><thead><tr>
+    <th>#</th><th>Cód. Barras</th><th>Descrição</th><th>Subgrupo</th>
+    <th class="r">Preço L${loja}</th><th class="r">Custo Compra L${loja}</th><th class="r">Margem L${loja}</th>
+    <th class="r">Estoque L${loja}</th><th>Últ. Entrada</th><th>Un</th><th>Status</th>
+  </tr></thead><tbody>`;
+
+  data.forEach((p, i) => {
+    const estCls = p.estoque > 0 ? 'estoque-ok' : 'estoque-zero';
+    const margemCor = p.margem >= 30 ? '#34d399' : p.margem >= 15 ? '#fbbf24' : p.margem > 0 ? '#f87171' : '#475569';
+    html += `<tr>
+      <td style="color:#475569;font-size:11px">${((paginaAtual-1)*50)+i+1}</td>
+      <td class="cod">${p.codigoBarra || '—'}</td>
+      <td class="desc">${p.descricao}</td>
+      <td style="font-size:11px;color:#64748b">${p.subgrupo || '—'}</td>
+      <td class="r preco">${p.preco > 0 ? fmt(p.preco) : '<span style="color:#475569">—</span>'}</td>
+      <td class="r" style="color:#94a3b8">${p.custo > 0 ? fmt(p.custo) : '<span style="color:#475569">—</span>'}</td>
+      <td class="r" style="color:${margemCor};font-weight:600">${p.margem > 0 ? p.margem.toFixed(1)+'%' : '<span style="color:#475569">—</span>'}</td>
+      <td class="r ${estCls}" style="font-weight:600">${fmtN(p.estoque)}</td>
+      <td style="font-size:11px;color:#64748b">${p.ultimaCompra || '—'}</td>
+      <td style="color:#64748b;font-size:11px">${p.unidade || '—'}</td>
+      <td><span class="pill ${p.ativo ? 'pill-on' : 'pill-off'}">${p.ativo ? 'Ativo' : 'Inativo'}</span></td>
+    </tr>`;
+  });
+
+  html += '</tbody></table>';
+  document.getElementById('tabela-wrap').innerHTML = html;
+}
+
+function renderTabelaTodas(data) {
+  const ls = [1,2,3,4,5,6];
+  const n2 = v => v > 0 ? new Intl.NumberFormat('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}).format(v) : '—';
+  const TD = 'padding:8px 9px;border-top:1px solid #334155';
+  const TH2 = (bg,cor,n) => `<th class="r" style="background:${bg};color:${cor};padding:5px 9px;font-size:10px">L${n}</th>`;
+
+  let lRows='', rRows='';
+  data.forEach((p,i) => {
+    const num = ((paginaAtual-1)*50)+i+1;
+    lRows += `<tr>
+      <td style="${TD};color:#475569;text-align:center;width:32px">${num}</td>
+      <td style="${TD};color:#64748b;font-family:monospace;font-size:10px;width:130px">${p.codigoBarra||'—'}</td>
+      <td style="${TD};font-weight:500;color:#e2e8f0;white-space:normal;min-width:180px;max-width:240px">${p.descricao}</td>
+    </tr>`;
+    rRows += `<tr>
+      ${p.lojas.map(l=>`<td class="r" style="${TD};color:#34d399">${n2(l.preco)}</td>`).join('')}
+      ${p.lojas.map(l=>`<td class="r" style="${TD};color:#94a3b8">${n2(l.custo)}</td>`).join('')}
+      ${p.lojas.map(l=>{
+        const cor=l.margem>=30?'#34d399':l.margem>=15?'#fbbf24':l.margem>0?'#f87171':'#475569';
+        return `<td class="r" style="${TD};color:${cor};font-weight:600">${l.margem>0?l.margem.toFixed(1)+'%':'—'}</td>`;
+      }).join('')}
+      ${p.lojas.map(l=>`<td class="r" style="${TD};color:${l.estoque>0?'#60a5fa':'#f87171'};font-weight:600">${fmtN(l.estoque)}</td>`).join('')}
+    </tr>`;
+  });
+
+  const lHead = `<thead><tr style="background:#0f172a">
+    <th style="padding:8px 6px;font-size:10px">#</th>
+    <th style="padding:8px 9px;font-size:10px;text-align:left">Cód. Barras</th>
+    <th style="padding:8px 9px;font-size:10px;text-align:left">Descrição</th>
+  </tr><tr style="background:#0f172a"><th colspan="3"></th></tr></thead>`;
+
+  const rHead = `<thead><tr style="background:#0f172a">
+    <th colspan="6" style="background:#1e3a8a55;border-bottom:2px solid #3b82f6;color:#93c5fd;text-align:center;padding:6px">PREÇO</th>
+    <th colspan="6" style="background:#064e3b55;border-bottom:2px solid #10b981;color:#6ee7b7;text-align:center;padding:6px">CUSTO COMPRA</th>
+    <th colspan="6" style="background:#3b1f0a55;border-bottom:2px solid #f59e0b;color:#fbbf24;text-align:center;padding:6px">MARGEM %</th>
+    <th colspan="6" style="background:#0c2a5a55;border-bottom:2px solid #60a5fa;color:#93c5fd;text-align:center;padding:6px">ESTOQUE</th>
+  </tr><tr style="background:#0f172a">
+    ${ls.map(n=>TH2('#1e3a8a33','#93c5fd',n)).join('')}
+    ${ls.map(n=>TH2('#064e3b33','#6ee7b7',n)).join('')}
+    ${ls.map(n=>TH2('#3b1f0a33','#fbbf24',n)).join('')}
+    ${ls.map(n=>TH2('#0c2a5a33','#93c5fd',n)).join('')}
+  </tr></thead>`;
+
+  document.getElementById('tabela-wrap').innerHTML = `
+    <div id="todas-wrap" style="display:flex;overflow:hidden;font-size:12px">
+      <div id="todas-left" style="flex-shrink:0;border-right:2px solid #334155;overflow:hidden">
+        <table style="border-collapse:collapse">${lHead}<tbody>${lRows}</tbody></table>
+      </div>
+      <div id="todas-right" style="overflow-x:auto;flex:1">
+        <table style="border-collapse:collapse;white-space:nowrap">${rHead}<tbody>${rRows}</tbody></table>
+      </div>
+    </div>`;
+
+  // Sync row heights between the two tables
+  requestAnimationFrame(() => {
+    const lTrs = document.querySelectorAll('#todas-left tbody tr');
+    const rTrs = document.querySelectorAll('#todas-right tbody tr');
+    lTrs.forEach((tr, i) => {
+      const h = Math.max(tr.offsetHeight, rTrs[i]?.offsetHeight || 0);
+      tr.style.height = h + 'px';
+      if (rTrs[i]) rTrs[i].style.height = h + 'px';
+    });
+  });
+}
+
+function renderPaginacao(total, pagina, paginas) {
+  if (paginas <= 1) { document.getElementById('paginacao').innerHTML = ''; return; }
+  const el = document.getElementById('paginacao');
+  el.innerHTML = `
+    <div class="paginacao">
+      <button class="btn-pag" onclick="irPagina(1)" ${pagina<=1?'disabled':''}>«</button>
+      <button class="btn-pag" onclick="irPagina(${pagina-1})" ${pagina<=1?'disabled':''}>‹ Anterior</button>
+      <span class="pag-info">Página ${pagina} de ${paginas} · ${fmtN(total)} produtos</span>
+      <button class="btn-pag" onclick="irPagina(${pagina+1})" ${pagina>=paginas?'disabled':''}>Próxima ›</button>
+      <button class="btn-pag" onclick="irPagina(${paginas})" ${pagina>=paginas?'disabled':''}>»</button>
+    </div>
+  `;
+}
+
+function irPagina(p) {
+  paginaAtual = p;
+  consultarItens();
+  document.querySelector('.conteudo').scrollTop = 0;
+}
+
+function exportarCSV() {
+  if (!dadosAtuais.length) return;
+  const ls = [1,2,3,4,5,6];
+  let header, rows;
+  if (lojaAtual === 'todas') {
+    header = ['#','Cod.Barras','Descrição','Subgrupo',
+      ...ls.map(n=>'Preço L'+n), ...ls.map(n=>'Custo L'+n),
+      ...ls.map(n=>'Margem L'+n+'%'), ...ls.map(n=>'Estoque L'+n),
+      'Un','Status'];
+    rows = dadosAtuais.map((p,i) => [
+      ((paginaAtual-1)*50)+i+1, p.codigoBarra||'', p.descricao, p.subgrupo||'',
+      ...p.lojas.map(l=>l.preco.toFixed(2).replace('.',',')),
+      ...p.lojas.map(l=>l.custo.toFixed(2).replace('.',',')),
+      ...p.lojas.map(l=>l.margem.toFixed(1).replace('.',',')),
+      ...p.lojas.map(l=>l.estoque),
+      p.unidade||'', p.ativo?'Ativo':'Inativo'
+    ]);
+  } else {
+    header = ['#','Cod.Barras','Descrição','Subgrupo','Preço','Custo Compra','Margem%','Estoque','Últ.Entrada','Un','Status'];
+    rows = dadosAtuais.map((p, i) => [
+      ((paginaAtual-1)*50)+i+1, p.codigoBarra||'',
+      p.descricao, p.subgrupo||'',
+      p.preco.toFixed(2).replace('.',','), p.custo.toFixed(2).replace('.',','),
+      p.margem.toFixed(1).replace('.',','), p.estoque,
+      p.ultimaCompra||'', p.unidade||'', p.ativo?'Ativo':'Inativo'
+    ]);
+  }
+  const csv = [header, ...rows].map(r => r.map(c => `"${c}"`).join(';')).join('\n');
+  const blob = new Blob(['﻿'+csv], {type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'produtos.csv'; a.click();
+}
+
+// Impressão: funde as duas tabelas do modo "todas" em uma única tabela antes de imprimir
+window.onbeforeprint = function() {
+  if (lojaAtual !== 'todas') return;
+  const leftTable = document.querySelector('#todas-left table');
+  const rightTable = document.querySelector('#todas-right table');
+  if (!leftTable || !rightTable) return;
+
+  const unified = document.createElement('table');
+  unified.id = 'print-unified';
+
+  // Mesclar cabeçalhos (2 linhas de cada tabela)
+  const thead = document.createElement('thead');
+  const lHRows = [...leftTable.querySelectorAll('thead tr')];
+  const rHRows = [...rightTable.querySelectorAll('thead tr')];
+  for (let i = 0; i < Math.max(lHRows.length, rHRows.length); i++) {
+    const tr = document.createElement('tr');
+    (lHRows[i] ? [...lHRows[i].querySelectorAll('th')] : []).forEach(th => tr.appendChild(th.cloneNode(true)));
+    (rHRows[i] ? [...rHRows[i].querySelectorAll('th')] : []).forEach(th => tr.appendChild(th.cloneNode(true)));
+    thead.appendChild(tr);
+  }
+  unified.appendChild(thead);
+
+  // Mesclar linhas do corpo
+  const tbody = document.createElement('tbody');
+  const lBRows = [...leftTable.querySelectorAll('tbody tr')];
+  const rBRows = [...rightTable.querySelectorAll('tbody tr')];
+  for (let i = 0; i < Math.max(lBRows.length, rBRows.length); i++) {
+    const tr = document.createElement('tr');
+    (lBRows[i] ? [...lBRows[i].querySelectorAll('td')] : []).forEach(td => tr.appendChild(td.cloneNode(true)));
+    (rBRows[i] ? [...rBRows[i].querySelectorAll('td')] : []).forEach(td => tr.appendChild(td.cloneNode(true)));
+    tbody.appendChild(tr);
+  }
+  unified.appendChild(tbody);
+
+  // Wrapper com zoom automático para caber em A4 paisagem
+  const wrap = document.createElement('div');
+  wrap.id = 'print-unified-wrap';
+  wrap.appendChild(unified);
+  document.getElementById('tabela-wrap').appendChild(wrap);
+
+  // Calcular zoom: A4 landscape com 5mm margens ≈ 1085px a 96dpi
+  const pageW = 1085;
+  const tableW = unified.scrollWidth || unified.offsetWidth;
+  if (tableW > pageW) {
+    const scale = (pageW / tableW).toFixed(3);
+    wrap.style.zoom = scale;
+    wrap.style.transformOrigin = 'top left';
+  }
+};
+
+window.onafterprint = function() {
+  const w = document.getElementById('print-unified-wrap');
+  if (w) w.remove();
+};
+
+carregarGrupos();
+</script>
+</body>
+</html>

@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Consulta de Vendas — Econômico Relatórios</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
+
+  header {
+    background: linear-gradient(135deg, #1a1a2e, #16213e);
+    padding: 16px 32px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 3px solid #F9C200;
+  }
+  .logo { display: flex; align-items: center; gap: 12px; }
+  .logo-icon { height: 42px; width: auto; display: block; }
+  .logo h1 { font-size: 18px; font-weight: 700; color: #F9C200; letter-spacing: 0.5px; }
+  .logo span { font-size: 12px; color: #94a3b8; display: block; }
+  .header-nav { display:flex; gap:8px; flex-wrap:wrap; }
+  .header-nav a {
+    color: #F9C200; text-decoration: none; font-size: 13px; padding: 6px 14px;
+    border-radius: 6px; border: 1px solid #F9C200; font-weight: 600; transition: all 0.2s;
+  }
+  .header-nav a:hover { background: #F9C200; color: #0f0f1a; }
+
+  main { max-width: 1400px; margin: 0 auto; padding: 28px 32px; }
+
+  /* Painel de filtros */
+  .filtros-card {
+    background: #1e293b; border-radius: 14px; border: 1px solid #334155;
+    padding: 28px; margin-bottom: 28px;
+  }
+  .filtros-title {
+    font-size: 16px; font-weight: 700; color: #e2e8f0;
+    margin-bottom: 20px; display: flex; align-items: center; gap: 8px;
+  }
+  .filtros-grid {
+    display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
+    gap: 16px; align-items: end;
+  }
+  .form-group label {
+    display: block; font-size: 11px; font-weight: 600;
+    color: #64748b; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px;
+  }
+  .form-group select,
+  .form-group input {
+    width: 100%; background: #0f172a; border: 1px solid #334155;
+    color: #e2e8f0; padding: 10px 12px; border-radius: 8px;
+    font-size: 14px; transition: border-color 0.2s; outline: none;
+  }
+  .form-group select:focus,
+  .form-group input:focus { border-color: #F9C200; }
+
+  .btn-consultar {
+    width: 100%; background: #F9C200; border: none; color: #0f0f1a;
+    padding: 11px 20px; border-radius: 8px; font-size: 14px; font-weight: 700;
+    cursor: pointer; transition: background 0.2s; display: flex;
+    align-items: center; justify-content: center; gap: 8px;
+  }
+  .btn-consultar:hover { background: #e0ae00; }
+  .btn-consultar:disabled { opacity: 0.5; pointer-events: none; }
+
+  .datas-custom { display: none; grid-column: span 2; display: none; }
+  .datas-custom.visivel { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+  /* Área de resultados */
+  .resultado-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 16px; flex-wrap: wrap; gap: 12px;
+  }
+  .resultado-title { font-size: 15px; font-weight: 700; color: #e2e8f0; }
+  .resultado-badges { display: flex; gap: 10px; flex-wrap: wrap; }
+  .badge-stat {
+    background: #1e293b; border: 1px solid #334155; border-radius: 8px;
+    padding: 6px 14px; font-size: 12px; color: #94a3b8;
+  }
+  .badge-stat strong { color: #F9C200; }
+
+  .btn-exportar {
+    background: #059669; border: none; color: #fff; padding: 8px 16px;
+    border-radius: 6px; font-size: 13px; cursor: pointer; display: flex;
+    align-items: center; gap: 6px; transition: background 0.2s;
+  }
+  .btn-exportar:hover { background: #047857; }
+  .btn-imprimir {
+    background: #7c3aed; border: none; color: #fff; padding: 8px 16px;
+    border-radius: 6px; font-size: 13px; cursor: pointer; display: flex;
+    align-items: center; gap: 6px; transition: background 0.2s;
+  }
+  .btn-imprimir:hover { background: #6d28d9; }
+
+  /* Tabela */
+  .tabela-wrap {
+    background: #1e293b; border-radius: 14px; border: 1px solid #334155;
+    overflow: hidden;
+  }
+  table { width: 100%; border-collapse: collapse; }
+  thead { background: #0f172a; }
+  thead th {
+    padding: 12px 16px; font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.8px; color: #64748b;
+    text-align: left; white-space: nowrap;
+  }
+  thead th.right { text-align: right; }
+  thead th.sortable { cursor: pointer; user-select: none; }
+  thead th.sortable:hover { color: #3b82f6; }
+  tbody tr { border-top: 1px solid #1e293b44; transition: background 0.15s; }
+  tbody tr:hover { background: #1e293b99; }
+  tbody td { padding: 11px 16px; font-size: 13px; color: #cbd5e1; }
+  tbody td.right { text-align: right; font-variant-numeric: tabular-nums; }
+  tbody td.produto { color: #e2e8f0; font-weight: 500; max-width: 280px; }
+  tbody td.codigo { color: #64748b; font-size: 11px; font-family: monospace; }
+  .rank { color: #64748b; font-size: 12px; font-weight: 700; width: 30px; text-align: center; }
+  .rank.top3 { color: #f59e0b; }
+
+  .barra-visual {
+    height: 6px; background: #0f172a; border-radius: 3px; margin-top: 4px; overflow: hidden;
+  }
+  .barra-fill { height: 100%; border-radius: 3px; background: #3b82f6; transition: width 0.5s ease; }
+
+  .valor-verde { color: #10b981; }
+  .valor-azul { color: #60a5fa; }
+
+  /* Estados */
+  .estado-vazio {
+    padding: 60px 20px; text-align: center; color: #475569;
+  }
+  .estado-vazio .icon { font-size: 48px; margin-bottom: 12px; }
+  .estado-vazio p { font-size: 14px; }
+  .estado-loading {
+    padding: 60px 20px; text-align: center; color: #475569;
+    display: none;
+  }
+  .spinner {
+    width: 32px; height: 32px; border: 3px solid #334155;
+    border-top-color: #3b82f6; border-radius: 50%;
+    animation: spin 0.8s linear infinite; margin: 0 auto 12px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .paginacao { display: flex; justify-content: center; gap: 8px; padding: 16px; }
+  .paginacao span { color: #64748b; font-size: 13px; }
+
+  @media (max-width: 1024px) {
+    .filtros-grid { grid-template-columns: 1fr 1fr 1fr; }
+  }
+  @media (max-width: 768px) {
+    header { padding: 10px 14px; flex-wrap: wrap; gap: 8px; }
+    .logo-icon { height: 32px; }
+    .logo h1 { font-size: 14px; }
+    .logo span { display: none; }
+    .header-nav { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; width: 100%; }
+    .header-nav a { font-size: 11px; padding: 7px 8px; text-align: center; border-radius: 7px; }
+    main { padding: 10px; }
+    .filtros-grid { grid-template-columns: 1fr 1fr; }
+    .btn-consultar { width: 100%; justify-content: center; }
+    .form-group select,.form-group input { font-size: 16px; }
+
+    /* No mobile, a tabela desktop some e aparecem os cards */
+    .tabela-loja { display: none !important; }
+
+    /* Cards mobile */
+    .cards-movel { display: flex; flex-direction: column; gap: 6px; }
+    .card-item {
+      background: #1e293b; border: 1px solid #334155;
+      border-radius: 10px; padding: 8px 12px;
+    }
+    .card-header {
+      display: flex; align-items: flex-start; gap: 8px;
+      padding-bottom: 6px; border-bottom: 1px solid #334155; margin-bottom: 4px;
+    }
+    .card-rank { font-size: 15px; flex-shrink: 0; line-height: 1.4; }
+    .card-nome {
+      font-size: 13px; font-weight: 600; color: #f1f5f9; line-height: 1.3;
+      display: -webkit-box; -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .barra-visual { margin-bottom: 6px; }
+    .card-stats { display: flex; }
+    .card-stat { flex: 1; min-width: 0; }
+    .card-stat-label { font-size: 8px; color: #64748b; text-transform: uppercase; letter-spacing: .4px; }
+    .card-stat-val { font-size: 12px; font-weight: 700; }
+
+  }
+
+  @media print {
+    body { background: white; color: black; }
+    header { background: #1e40af !important; -webkit-print-color-adjust: exact; }
+    .filtros-card, .btn-exportar, .btn-imprimir, .btn-consultar { display: none !important; }
+    .tabela-wrap { border: 1px solid #ccc; }
+    thead { background: #f1f5f9 !important; -webkit-print-color-adjust: exact; }
+    thead th { color: #374151 !important; }
+    tbody td { color: #111 !important; }
+    .barra-visual { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <img src="/logo.png" class="logo-icon" alt="Econômico" style="filter:brightness(0) invert(1) sepia(1) saturate(3) hue-rotate(-8deg)">
+    <div>
+      <h1>Consulta de Vendas</h1>
+      <span>Análise por Loja e Período</span>
+    </div>
+  </div>
+  <div class="header-nav">
+    <a href="/">← Dashboard</a>
+    <a href="/itens.html">📂 Mercadológico</a>
+
+    <a href="/fornecedores.html">📋 Lista de Compra</a>
+    <a href="/pendencias.html">⚠️ Pendências</a>
+    <span style="width:1px;height:16px;background:#334155;display:inline-block;margin:0 4px"></span>
+    <a href="/compras.html" style="color:#F9C200;border-color:rgba(249,194,0,.4);background:rgba(249,194,0,.07)">📊 Painéis</a>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px;font-size:12px;margin-left:8px">
+    <span style="color:#94a3b8" id="hdr-user">👤 ...</span>
+    <a href="/api/logout" style="color:#f87171;font-weight:700;text-decoration:none;border:1px solid #7f1d1d;padding:5px 10px;border-radius:6px;background:#450a0a22">🚪 Sair</a>
+  </div>
+</header>
+<script>fetch('/api/me').then(r=>r.json()).then(u=>{if(u.nome)document.getElementById('hdr-user').textContent='👤 '+u.nome}).catch(()=>{})</script>
+
+<main>
+
+  <!-- Filtros -->
+  <div class="filtros-card">
+    <div class="filtros-title">🎯 Configure sua Consulta</div>
+    <!-- Campo de busca por produto em destaque -->
+    <div class="form-group" style="margin-bottom:20px;">
+      <label>🔎 Buscar Produto (opcional — deixe vazio para ver todos)</label>
+      <input type="text" id="txt-produto"
+        placeholder="Digite o nome do produto... ex: leite, feijão, refrigerante"
+        style="width:100%;font-size:15px;padding:12px 16px;"
+        onkeydown="if(event.key==='Enter') consultar()">
+    </div>
+
+    <div class="filtros-grid" id="filtros-grid">
+
+      <div class="form-group">
+        <label>Loja</label>
+        <select id="sel-loja">
+          <option value="todas">Todas as Lojas</option>
+          <option value="1">Loja 1</option>
+          <option value="2">Loja 2</option>
+          <option value="3">Loja 3</option>
+          <option value="4" selected>Loja 4</option>
+          <option value="5">Loja 5</option>
+          <option value="6">Loja 6</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Período</label>
+        <select id="sel-periodo" onchange="toggleDatas()">
+          <option value="semana">Esta Semana</option>
+          <option value="mes" selected>Este Mês</option>
+          <option value="mes_ant">Mês Anterior</option>
+          <option value="trim">Último Trimestre</option>
+          <option value="ano">Este Ano</option>
+          <option value="custom">Personalizado</option>
+        </select>
+      </div>
+
+      <div class="form-group" id="grp-ordenar">
+        <label>Ordenar por</label>
+        <select id="sel-ordenar">
+          <option value="qtd">Quantidade Vendida</option>
+          <option value="valor">Maior Faturamento</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Exibir top</label>
+        <select id="sel-top">
+          <option value="10">Top 10</option>
+          <option value="20" selected>Top 20</option>
+          <option value="50">Top 50</option>
+          <option value="100">Top 100</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>&nbsp;</label>
+        <button class="btn-consultar" id="btn-consultar" onclick="consultar()">
+          <span>🔍</span> Consultar
+        </button>
+      </div>
+
+    </div>
+
+    <!-- Datas customizadas -->
+    <div id="wrap-custom" style="display:none; margin-top:16px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">
+        <div class="form-group">
+          <label>Data Início</label>
+          <input type="date" id="dt-inicio">
+        </div>
+        <div class="form-group">
+          <label>Data Fim</label>
+          <input type="date" id="dt-fim">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Resultados -->
+  <div id="area-resultado" style="display:none;">
+    <div class="resultado-header">
+      <div class="resultado-title" id="titulo-resultado">Resultado</div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <div class="resultado-badges" id="badges-stat"></div>
+        <button class="btn-exportar" onclick="exportarCSV()">⬇ Exportar CSV</button>
+        <button class="btn-imprimir" onclick="window.print()">🖨 Imprimir</button>
+      </div>
+    </div>
+
+    <div class="tabela-wrap">
+      <div class="estado-loading" id="loading">
+        <div class="spinner"></div>
+        <p>Consultando banco de dados...</p>
+      </div>
+      <div id="tabela-container">
+        <div class="estado-vazio">
+          <div class="icon">📋</div>
+          <p>Configure os filtros e clique em <strong>Consultar</strong></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Estado inicial -->
+  <div id="estado-inicial">
+    <div class="tabela-wrap">
+      <div class="estado-vazio">
+        <div class="icon">🔍</div>
+        <p>Configure os filtros acima e clique em <strong>Consultar</strong> para buscar os dados</p>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+let dadosAtuais = [];
+let maxQtd = 1;
+let modoTodas = false;
+
+function toggleDatas() {
+  const val = document.getElementById('sel-periodo').value;
+  document.getElementById('wrap-custom').style.display = val === 'custom' ? 'block' : 'none';
+}
+
+function calcPeriodo(periodo) {
+  const hoje = new Date();
+  const fmt = d => d.toISOString().split('T')[0];
+  if (periodo === 'semana') {
+    const ini = new Date(hoje); ini.setDate(hoje.getDate() - 6);
+    return { inicio: fmt(ini), fim: fmt(hoje) };
+  }
+  if (periodo === 'mes') {
+    return { inicio: fmt(new Date(hoje.getFullYear(), hoje.getMonth(), 1)), fim: fmt(hoje) };
+  }
+  if (periodo === 'mes_ant') {
+    const pri = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1);
+    const ult = new Date(hoje.getFullYear(), hoje.getMonth(), 0);
+    return { inicio: fmt(pri), fim: fmt(ult) };
+  }
+  if (periodo === 'trim') {
+    const ini = new Date(hoje); ini.setMonth(hoje.getMonth() - 3);
+    return { inicio: fmt(ini), fim: fmt(hoje) };
+  }
+  if (periodo === 'ano') {
+    return { inicio: fmt(new Date(hoje.getFullYear(), 0, 1)), fim: fmt(hoje) };
+  }
+  if (periodo === 'custom') {
+    return {
+      inicio: document.getElementById('dt-inicio').value,
+      fim: document.getElementById('dt-fim').value
+    };
+  }
+}
+
+const periodoLabel = {
+  semana: 'Esta Semana', mes: 'Este Mês', mes_ant: 'Mês Anterior',
+  trim: 'Último Trimestre', ano: 'Este Ano', custom: 'Período Personalizado'
+};
+
+const lojaLabel = {
+  todas: 'Todas as Lojas', '1': 'Loja 1', '2': 'Loja 2', '3': 'Loja 3',
+  '4': 'Loja 4', '5': 'Loja 5', '6': 'Loja 6'
+};
+
+async function consultar() {
+  const loja = document.getElementById('sel-loja').value;
+  const periodo = document.getElementById('sel-periodo').value;
+  const ordenar = document.getElementById('sel-ordenar').value;
+  const top = document.getElementById('sel-top').value;
+  const produto = document.getElementById('txt-produto').value.trim();
+  const { inicio, fim } = calcPeriodo(periodo);
+
+  if (!inicio || !fim) { alert('Informe as datas de início e fim'); return; }
+
+  const btn = document.getElementById('btn-consultar');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner" style="width:14px;height:14px;border-width:2px;margin:0"></div> Consultando...';
+
+  document.getElementById('estado-inicial').style.display = 'none';
+  document.getElementById('area-resultado').style.display = 'block';
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('tabela-container').innerHTML = '';
+
+  try {
+    const url = `/api/consulta?loja=${loja}&inicio=${inicio}&fim=${fim}&ordenar=${ordenar}&top=${top}${produto ? '&produto=' + encodeURIComponent(produto) : ''}`;
+    const r = await fetch(url);
+    const d = await r.json();
+
+    if (d.error) throw new Error(d.error);
+
+    dadosAtuais = d.data;
+    modoTodas = d.modo_todas || false;
+    maxQtd = Math.max(...dadosAtuais.map(x => x.total_qtd), 1);
+
+    // Título
+    document.getElementById('titulo-resultado').innerHTML =
+      `📊 ${lojaLabel[loja]} — ${periodoLabel[periodo]} <span style="font-size:12px;color:#64748b;font-weight:400">${inicio} a ${fim}</span>`;
+
+    // Badges
+    document.getElementById('badges-stat').innerHTML = `
+      <div class="badge-stat">Produtos: <strong>${d.total_produtos}</strong></div>
+      <div class="badge-stat">Itens vendidos: <strong>${fmtN(d.total_itens)}</strong></div>
+      <div class="badge-stat">Faturamento: <strong>${fmt(d.total_faturamento)}</strong></div>
+    `;
+
+    localStorage.setItem('consulta_ultima', JSON.stringify({
+      loja, periodo, ordenar, top, produto,
+      dtInicio: periodo === 'custom' ? inicio : null,
+      dtFim: periodo === 'custom' ? fim : null
+    }));
+
+    renderTabela(dadosAtuais, ordenar);
+  } catch (e) {
+    document.getElementById('tabela-container').innerHTML = `<div class="estado-vazio"><div class="icon">⚠️</div><p style="color:#ef4444">Erro: ${e.message}</p></div>`;
+  } finally {
+    document.getElementById('loading').style.display = 'none';
+    btn.disabled = false;
+    btn.innerHTML = '<span>🔍</span> Consultar';
+  }
+}
+
+function renderTabela(data, ordenar) {
+  if (!data.length) {
+    document.getElementById('tabela-container').innerHTML = '<div class="estado-vazio"><div class="icon">🈳</div><p>Nenhum dado encontrado para este período</p></div>';
+    return;
+  }
+
+  if (modoTodas) { renderTabelaTodas(data); return; }
+  if (window.innerWidth <= 768) { renderCardsMovel(data); return; }
+
+  let html = `
+    <table class="tabela-loja">
+      <thead>
+        <tr>
+          <th style="width:40px">#</th>
+          <th class="col-codigo">Código</th>
+          <th>Produto</th>
+          <th class="right">Qtd Vendida</th>
+          <th class="right">Faturamento</th>
+          <th class="right">Ticket Médio</th>
+          <th class="right">Nº Cupons</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+  data.forEach((item, i) => {
+    const pct = ((item.total_qtd / maxQtd) * 100).toFixed(1);
+    const rank = i + 1;
+    const rankClass = rank <= 3 ? 'rank top3' : 'rank';
+    html += `
+      <tr>
+        <td class="${rankClass}">${rank <= 3 ? ['🥇','🥈','🥉'][rank-1] : rank}</td>
+        <td class="codigo">${item.codigo}</td>
+        <td class="produto">
+          <span class="prod-nome">${item.produto}</span>
+          <div class="barra-visual"><div class="barra-fill" style="width:${pct}%"></div></div>
+        </td>
+        <td class="right valor-azul"><strong>${fmtN(item.total_qtd)}</strong></td>
+        <td class="right valor-verde">${fmt(item.total_valor)}</td>
+        <td class="right">${fmt(item.ticket_medio)}</td>
+        <td class="right">${fmtN(item.cupons)}</td>
+      </tr>
+    `;
+  });
+
+  html += '</tbody></table>';
+  document.getElementById('tabela-container').innerHTML = html;
+}
+
+function renderCardsMovel(data) {
+  let html = '<div class="cards-movel">';
+  data.forEach((item, i) => {
+    const pct = ((item.total_qtd / maxQtd) * 100).toFixed(1);
+    const rank = i + 1;
+    const rankIcon = rank <= 3 ? ['🥇','🥈','🥉'][rank-1] : `<strong style="color:#94a3b8">${rank}</strong>`;
+    html += `
+      <div class="card-item">
+        <div class="card-header">
+          <span class="card-rank">${rankIcon}</span>
+          <span class="card-nome">${item.produto}</span>
+        </div>
+        <div class="barra-visual"><div class="barra-fill" style="width:${pct}%"></div></div>
+        <div class="card-stats">
+          <div class="card-stat"><div class="card-stat-label">Qtd</div><div class="card-stat-val valor-azul">${fmtN(item.total_qtd)}</div></div>
+          <div class="card-stat"><div class="card-stat-label">Faturamento</div><div class="card-stat-val valor-verde">${fmt(item.total_valor)}</div></div>
+          <div class="card-stat"><div class="card-stat-label">Ticket Médio</div><div class="card-stat-val">${fmt(item.ticket_medio)}</div></div>
+          <div class="card-stat"><div class="card-stat-label">Cupons</div><div class="card-stat-val">${fmtN(item.cupons)}</div></div>
+        </div>
+      </div>`;
+  });
+  html += '</div>';
+  document.getElementById('tabela-container').innerHTML = html;
+}
+
+function renderTabelaTodas(data) {
+  const ls = [1,2,3,4,5,6];
+  const n = v => v > 0 ? new Intl.NumberFormat('pt-BR',{maximumFractionDigits:0}).format(v) : '—';
+  const c = v => v > 0 ? `<span style="color:#60a5fa">${new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v)}</span>` : '—';
+
+  let html = `
+    <div style="overflow-x:auto">
+    <table style="font-size:12px">
+      <thead>
+        <tr>
+          <th rowspan="2" style="width:32px">#</th>
+          <th rowspan="2">Produto</th>
+          <th colspan="6" style="text-align:center;background:#1e3a8a44;color:#93c5fd;border-bottom:2px solid #3b82f6">QTD POR LOJA</th>
+          <th rowspan="2" class="right" style="color:#34d399">TOTAL QTD</th>
+          <th rowspan="2" class="right" style="color:#34d399">TOTAL R$</th>
+        </tr>
+        <tr>
+          ${ls.map(n=>`<th class="right" style="color:#93c5fd;font-size:10px">L${n}</th>`).join('')}
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+  data.forEach((item, i) => {
+    const rank = i + 1;
+    const rankIcon = rank <= 3 ? ['🥇','🥈','🥉'][rank-1] : rank;
+    html += `<tr>
+      <td class="rank ${rank<=3?'top3':''}">${rankIcon}</td>
+      <td class="produto" style="white-space:normal;min-width:180px">${item.produto}</td>
+      ${ls.map(ln => `<td class="right" style="color:${item.lojas[ln]>0?'#60a5fa':'#475569'}">${n(item.lojas[ln])}</td>`).join('')}
+      <td class="right valor-azul"><strong>${n(item.total_qtd)}</strong></td>
+      <td class="right valor-verde">${fmt(item.total_valor)}</td>
+    </tr>`;
+  });
+
+  // Linha de totais
+  const totQtdLoja = ls.map(ln => data.reduce((s,r) => s + (r.lojas[ln]||0), 0));
+  html += `<tr style="background:#0f172a;font-weight:700;border-top:2px solid #334155">
+    <td colspan="2" style="color:#94a3b8;padding:10px 16px">TOTAL</td>
+    ${totQtdLoja.map(v=>`<td class="right" style="color:#fbbf24">${n(v)}</td>`).join('')}
+    <td class="right" style="color:#fbbf24">${n(data.reduce((s,r)=>s+r.total_qtd,0))}</td>
+    <td class="right" style="color:#fbbf24">${fmt(data.reduce((s,r)=>s+r.total_valor,0))}</td>
+  </tr>`;
+
+  html += '</tbody></table></div>';
+  document.getElementById('tabela-container').innerHTML = html;
+}
+
+function fmt(v) {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
+}
+function fmtN(v) {
+  return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 }).format(v || 0);
+}
+
+function exportarCSV() {
+  if (!dadosAtuais.length) return;
+  const loja = document.getElementById('sel-loja').value;
+  const periodo = document.getElementById('sel-periodo').value;
+  const { inicio, fim } = calcPeriodo(periodo);
+
+  let header, rows;
+  if (modoTodas) {
+    header = ['#', 'Produto', 'L1 Qtd', 'L2 Qtd', 'L3 Qtd', 'L4 Qtd', 'L5 Qtd', 'L6 Qtd', 'Total Qtd', 'Total R$'];
+    rows = dadosAtuais.map((item, i) => [
+      i + 1, item.produto,
+      item.lojas[1]||0, item.lojas[2]||0, item.lojas[3]||0,
+      item.lojas[4]||0, item.lojas[5]||0, item.lojas[6]||0,
+      item.total_qtd,
+      item.total_valor.toFixed(2).replace('.', ',')
+    ]);
+  } else {
+    header = ['#', 'Código', 'Produto', 'Qtd Vendida', 'Faturamento (R$)', 'Ticket Médio (R$)', 'Nº Cupons'];
+    rows = dadosAtuais.map((item, i) => [
+      i + 1, item.codigo, item.produto,
+      item.total_qtd.toString().replace('.', ','),
+      item.total_valor.toFixed(2).replace('.', ','),
+      item.ticket_medio.toFixed(2).replace('.', ','),
+      item.cupons
+    ]);
+  }
+
+  const csv = [header, ...rows].map(r => r.map(c => `"${c}"`).join(';')).join('\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `vendas_${lojaLabel[loja].replace(' ', '_')}_${inicio}_${fim}.csv`;
+  link.click();
+}
+
+// Inicializa datas e restaura última consulta
+(function() {
+  const hoje = new Date();
+  const fmt = d => d.toISOString().split('T')[0];
+  document.getElementById('dt-fim').value = fmt(hoje);
+  const ini = new Date(hoje); ini.setDate(hoje.getDate() - 30);
+  document.getElementById('dt-inicio').value = fmt(ini);
+
+  const salvo = JSON.parse(localStorage.getItem('consulta_ultima') || 'null');
+  if (salvo) {
+    document.getElementById('sel-loja').value = salvo.loja || 'todas';
+    document.getElementById('sel-periodo').value = salvo.periodo || 'mes';
+    document.getElementById('sel-ordenar').value = salvo.ordenar || 'qtd';
+    document.getElementById('sel-top').value = salvo.top || 20;
+    document.getElementById('txt-produto').value = salvo.produto || '';
+    if (salvo.periodo === 'custom' && salvo.dtInicio) {
+      document.getElementById('dt-inicio').value = salvo.dtInicio;
+      document.getElementById('dt-fim').value = salvo.dtFim;
+      document.getElementById('wrap-custom').style.display = 'block';
+    }
+    consultar();
+  }
+})();
+</script>
+</body>
+</html>
