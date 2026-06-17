@@ -195,11 +195,12 @@ setInterval(tick, 1000); tick();
 
 // ── CARROSSEL ──────────────────────────────────────
 const PX_POR_SEG = 18;
-let carTimer     = null;
-let carTimeout   = null;
-let colBodies    = [];
-let currentIdx   = 0;
-let refreshPending = false; // refresh aguarda próxima transição
+let carTimer       = null;
+let carTimeout     = null;
+let colBodies      = [];
+let currentIdx     = 0;
+let refreshPending = false;
+let ultimoAvanço   = Date.now();
 
 function pararCarrossel() {
   if (carTimer)   { clearInterval(carTimer);  carTimer = null; }
@@ -207,7 +208,6 @@ function pararCarrossel() {
 }
 
 function proximaCol(idx) {
-  // se há refresh pendente, aplica agora na transição (sem interromper scroll)
   if (refreshPending) {
     refreshPending = false;
     aplicarRefresh();
@@ -220,6 +220,7 @@ function proximaCol(idx) {
 function iniciarCarrossel(idx, startAt) {
   pararCarrossel();
   if (!colBodies.length) return;
+  ultimoAvanço = Date.now();
   currentIdx = idx;
   document.querySelectorAll('.col').forEach((c, i) => c.classList.toggle('ativo', i === idx));
   colBodies.forEach((b, i) => { if (b && i !== idx) b.scrollTop = 0; });
@@ -227,7 +228,12 @@ function iniciarCarrossel(idx, startAt) {
   if (!body) { proximaCol(idx); return; }
   body.scrollTop = startAt || 0;
   const maxScroll = body.scrollHeight - body.clientHeight;
-  if (maxScroll <= 0 || body.scrollTop >= maxScroll - 1) { proximaCol(idx); return; }
+
+  if (maxScroll <= 0 || body.scrollTop >= maxScroll - 1) {
+    // coluna sem scroll: fica visível 3s antes de passar para a próxima
+    carTimeout = setTimeout(() => proximaCol(idx), 3000);
+    return;
+  }
 
   const tickMs = 50;
   const pxTick = PX_POR_SEG * tickMs / 1000;
@@ -239,6 +245,13 @@ function iniciarCarrossel(idx, startAt) {
     }
   }, tickMs);
 }
+
+// Watchdog: se o carrossel ficar parado mais de 2 min, reinicia
+setInterval(() => {
+  if (colBodies.length && !carTimer && !carTimeout && Date.now() - ultimoAvanço > 120000) {
+    iniciarCarrossel((currentIdx + 1) % colBodies.length, 0);
+  }
+}, 15000);
 
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
