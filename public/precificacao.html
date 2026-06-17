@@ -195,11 +195,11 @@ setInterval(tick, 1000); tick();
 
 // ── CARROSSEL ──────────────────────────────────────
 const PX_POR_SEG = 18;
-let carTimer        = null;
-let carTimeout      = null;
-let colBodies       = [];
-let currentIdx      = 0;
-let resumeScrollTop = 0;
+let carTimer     = null;
+let carTimeout   = null;
+let colBodies    = [];
+let currentIdx   = 0;
+let refreshPending = false; // refresh aguarda próxima transição
 
 function pararCarrossel() {
   if (carTimer)   { clearInterval(carTimer);  carTimer = null; }
@@ -207,6 +207,12 @@ function pararCarrossel() {
 }
 
 function proximaCol(idx) {
+  // se há refresh pendente, aplica agora na transição (sem interromper scroll)
+  if (refreshPending) {
+    refreshPending = false;
+    aplicarRefresh();
+    return;
+  }
   currentIdx = (idx + 1) % colBodies.length;
   carTimeout = setTimeout(() => iniciarCarrossel(currentIdx, 0), 1800);
 }
@@ -215,15 +221,12 @@ function iniciarCarrossel(idx, startAt) {
   pararCarrossel();
   if (!colBodies.length) return;
   currentIdx = idx;
-  if (startAt === undefined) startAt = 0;
   document.querySelectorAll('.col').forEach((c, i) => c.classList.toggle('ativo', i === idx));
   colBodies.forEach((b, i) => { if (b && i !== idx) b.scrollTop = 0; });
   const body = colBodies[idx];
   if (!body) { proximaCol(idx); return; }
-  body.scrollTop = startAt;
+  body.scrollTop = startAt || 0;
   const maxScroll = body.scrollHeight - body.clientHeight;
-
-  // se não tem o que rolar ou já chegou ao fim, vai pra próxima
   if (maxScroll <= 0 || body.scrollTop >= maxScroll - 1) { proximaCol(idx); return; }
 
   const tickMs = 50;
@@ -237,7 +240,6 @@ function iniciarCarrossel(idx, startAt) {
   }, tickMs);
 }
 
-// Pausa ao sair, retoma do início da coluna atual ao voltar
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
     pararCarrossel();
@@ -247,30 +249,32 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // ── LOAD ───────────────────────────────────────────
-async function load() {
-  let data;
+let ultimoData = null; // dados mais recentes da API
+
+async function buscarDados() {
   try {
     const r = await fetch('/api/precificacao/margens-criticas');
-    data = await r.json();
-  } catch(e) {
-    document.getElementById('grid').innerHTML = '<div class="loading">Erro ao carregar dados.</div>';
-    return;
-  }
+    ultimoData = await r.json();
+  } catch(_) {}
+}
 
-  // ── Construir colunas (cada uma protegida individualmente) ──
+function aplicarRefresh() {
+  if (!ultimoData) return;
+  const data = ultimoData;
   const grid = document.getElementById('grid');
+  const idxAntes = currentIdx;
+
   pararCarrossel();
   grid.innerHTML = '';
   colBodies = [];
   let totNeg = 0, totBaixo = 0;
 
   for (let ln = 1; ln <= 6; ln++) {
-    // Criar col-body como elemento DOM direto (sem querySelector depois)
-    const col     = document.createElement('div');
+    const col    = document.createElement('div');
     col.className = 'col';
-    const head    = document.createElement('div');
+    const head   = document.createElement('div');
     head.className = 'col-head';
-    const bodyEl  = document.createElement('div');
+    const bodyEl = document.createElement('div');
     bodyEl.className = 'col-body';
     bodyEl.id = 'body-' + ln;
 
@@ -300,8 +304,7 @@ async function load() {
                   <span class="item-preco">Vda R$${preco}</span>
                   <span class="item-custo">Cst R$${custo}</span>
                 </div>
-              </div>
-              <span class="item-pct">${i.margem}%</span>`;
+              </div><span class="item-pct">${i.margem}%</span>`;
             div.querySelector('.item-desc').textContent = i.descricao || '';
             div.querySelector('.item-cod').textContent  = i.codigo || '';
             bodyEl.appendChild(div);
@@ -315,13 +318,13 @@ async function load() {
     col.appendChild(head);
     col.appendChild(bodyEl);
     grid.appendChild(col);
-    colBodies.push(bodyEl); // referência direta, sem querySelector
+    colBodies.push(bodyEl);
   }
 
-  // Delay para o browser renderizar o layout antes de medir scrollHeight
-  setTimeout(() => iniciarCarrossel(currentIdx < colBodies.length ? currentIdx : 0), 200);
+  // Começa pela PRÓXIMA coluna para não repetir a que estava rolando
+  const inicio = colBodies.length > 0 ? (idxAntes + 1) % colBodies.length : 0;
+  setTimeout(() => iniciarCarrossel(inicio, 0), 200);
 
-  // Atualizar contadores e barra de margem (erros aqui não afetam o carrossel)
   try {
     document.getElementById('tot-neg').textContent   = totNeg;
     document.getElementById('tot-baixo').textContent = totBaixo;
@@ -342,8 +345,18 @@ async function load() {
   } catch(_) {}
 }
 
-load();
-setInterval(load, 3 * 60 * 1000);
+async function load() {
+  await buscarDados();
+  aplicarRefresh();
+}
+
+async function agendarRefresh() {
+  await buscarDados(); // baixa dados em background
+  refreshPending = true; // aplica só na próxima transição de coluna
+}
+
+load(); // carga inicial
+setInterval(agendarRefresh, 3 * 60 * 1000); // a cada 3 min busca dados sem interromper scroll
 </script>
 </body>
 </html>
