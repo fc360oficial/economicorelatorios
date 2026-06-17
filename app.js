@@ -1,4 +1,20 @@
-﻿firebase.initializeApp({
+﻿// Verificação de versão — roda antes de tudo
+(function() {
+  var BUILD = '169';
+  if (localStorage.getItem('fc360_build') !== BUILD) {
+    localStorage.setItem('fc360_build', BUILD);
+    sessionStorage.removeItem('eco_last_page');
+    if ('caches' in window) {
+      caches.keys().then(function(keys) {
+        return Promise.all(keys.map(function(k) { return caches.delete(k); }));
+      }).then(function() { window.location.reload(true); });
+    } else {
+      window.location.reload(true);
+    }
+  }
+})();
+
+firebase.initializeApp({
   apiKey: "AIzaSyAIOroUpio0sSBzTuhUqyJxz5bV7PX4KLw",
   authDomain: "economico-gestao.firebaseapp.com",
   projectId: "economico-gestao",
@@ -912,12 +928,6 @@ function finalizarLogin(found) {
     var dEl = document.getElementById('cl-data-hoje');
     if (dEl) dEl.textContent = hoje.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
     document.getElementById('app').style.opacity='1';
-    var _BUILD = '169';
-    if (localStorage.getItem('fc360_build') !== _BUILD || /[?&]t=\d/.test(window.location.search)) {
-      localStorage.setItem('fc360_build', _BUILD);
-      sessionStorage.removeItem('eco_last_page');
-      // inv_detalhe_state NAO e limpo aqui — sobrevive entre builds
-    }
     var lastPage = sessionStorage.getItem('eco_last_page') || localStorage.getItem('eco_last_page');
     var pagesForRole = {
       admin:      ['dashboard','checklist','central','relatorios','usuarios','plano','inv','inv-coleta'],
