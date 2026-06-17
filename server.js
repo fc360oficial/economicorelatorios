@@ -1439,6 +1439,42 @@ app.get('/api/compras/pedidos-hoje', async (req, res) => {
   }
 });
 
+// ═══════════════════════════════════════════════════
+// MÓDULO PRECIFICAÇÃO — MARGENS CRÍTICAS
+// ═══════════════════════════════════════════════════
+
+app.get('/api/precificacao/margens-criticas', async (req, res) => {
+  try {
+    const hoje = new Date().toISOString().split('T')[0];
+    const mes  = new Date().getMonth() + 1;
+    const mm   = mesDB(mes);
+    const result = {};
+    for (const ln of [1,2,3,4,5,6]) {
+      try {
+        const rows = await q(`
+          SELECT z.Codigo, TRIM(i.Descricao) as descricao,
+                 i.P${ln} as preco, c.Custo as custo
+          FROM \`ln${ln}${mm}\`.zcupomitens z
+          INNER JOIN central.itens i ON i.CodigoBarra = z.Codigo AND i.CodDesativado = 0
+          INNER JOIN central.custoloja${ln} c ON c.CodigoBarra = z.Codigo
+          WHERE z.Data = ? AND z.IndCancel = 'N' AND c.Custo > 0
+          GROUP BY z.Codigo, i.Descricao, i.P${ln}, c.Custo
+        `, [hoje]);
+        result[ln] = rows
+          .map(r => {
+            const preco = parsePreco(r.preco);
+            const custo = parsePreco(r.custo);
+            const margem = preco > 0 ? +((preco - custo) / preco * 100).toFixed(1) : -999;
+            return { codigo: r.Codigo, descricao: r.descricao, preco, custo, margem };
+          })
+          .filter(r => r.preco > 0 && r.margem < 20)
+          .sort((a, b) => a.margem - b.margem);
+      } catch(e) { result[ln] = []; }
+    }
+    res.json(result);
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/deploy', (req, res) => {
   if (req.query.token !== 'fc360deploy2026') return res.status(403).send('Proibido');
   const gitPaths = [
