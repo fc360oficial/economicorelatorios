@@ -27,7 +27,8 @@ app.use((req, res, next) => {
     '/api/precificacao/margens-criticas', '/api/compras/pedidos-hoje',
     '/diretoria.html', '/api/diretoria/kpis',
     '/api/top-vendidos', '/api/top-mercadologico',
-    '/api/compras/verificar-comprador'];
+    '/api/compras/verificar-comprador',
+    '/api/compras/fornec-por-lista'];
   if (publico.includes(req.path)) return next();
   if (req.session && req.session.user) return next();
   if (req.path.startsWith('/api/')) return res.status(401).json({ error: 'Não autenticado' });
@@ -1500,10 +1501,30 @@ app.get('/api/compras/pedidos-hoje', async (req, res) => {
   }
 });
 
-// ── Verificação de pedidos da semana de Fátima (debug) ──
+// Busca CodFornec real e NomeFornec a partir de nRegs de lista de compra
+app.get('/api/compras/fornec-por-lista', async (req, res) => {
+  try {
+    const { listas } = req.query;
+    if (!listas) return res.json({});
+    const nRegs = String(listas).split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n) && n > 0);
+    if (!nRegs.length) return res.json({});
+    const ph = nRegs.map(() => '?').join(',');
+    const rows = await q(
+      `SELECT nReg, CodFornec, NomeFornec FROM central.c_cotacao_lista WHERE nReg IN (${ph})`,
+      nRegs
+    );
+    const map = {};
+    for (const r of rows) {
+      map[String(r.nReg)] = { codFornec: r.CodFornec, nomeFornec: (r.NomeFornec||'').trim() };
+    }
+    res.json(map);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Verificação de pedidos da semana de Fátima ──
 app.get('/api/compras/verificar-comprador', async (req, res) => {
   try {
-    // Códigos extraídos do cronograma hardcoded da Fátima em comprador.html
+    // cod = nReg da lista de compra (não CodFornec)
     const cronFatima = {
       SEG: [344,342,380,355,534,304,537,415,347,332,314,303,482,310,312,311,309,461,313,394],
       TER: [538],
@@ -1512,41 +1533,87 @@ app.get('/api/compras/verificar-comprador', async (req, res) => {
       SEX: [277],
     };
 
-    // Todos os códigos da semana
-    const todosCods = [...new Set(Object.values(cronFatima).flat())];
-    const ph = todosCods.map(() => '?').join(',');
+    const nRegsCron = [...new Set(Object.values(cronFatima).flat())];
 
-    // Pedidos dos últimos 10 dias
+    // Passo 1a: listas linkadas pelo nome (c_cotacao_agenda_comprador)
+    const listasNome = await q(`
+      SELECT DISTINCT nLista
+      FROM central.c_cotacao_agenda_comprador
+      WHERE nome LIKE '%FATIMA%' OR nome LIKE '%FÁTIMA%' OR nome LIKE '%PEREIRA%'
+    `);
+    // Passo 1b: listas com OperadorLista = nome dela
+    const listasOper = await q(`
+      SELECT nReg FROM central.c_cotacao_lista
+      WHERE OperadorLista LIKE '%FATIMA%' OR OperadorLista LIKE '%FÁTIMA%'
+    `);
+
+    const extrasNRegs = [
+      ...listasNome.map(r => r.nLista),
+      ...listasOper.map(r => r.nReg),
+    ].filter(Boolean);
+
+    const todosNRegs = [...new Set([...nRegsCron, ...extrasNRegs])];
+    const phN = todosNRegs.map(() => '?').join(',');
+
+    // Passo 2: traduz nReg → CodFornec real
+    const listas = await q(
+      `SELECT nReg, CodFornec, NomeFornec FROM central.c_cotacao_lista WHERE nReg IN (${phN})`,
+      todosNRegs
+    );
+    const listaMap = {};
+    for (const l of listas) {
+      listaMap[l.nReg] = { codFornec: l.CodFornec, nomeFornec: (l.NomeFornec||'').trim() };
+    }
+
+    const codsFornec = [...new Set(listas.map(l => l.CodFornec).filter(Boolean))];
+    if (!codsFornec.length) {
+      return res.json({ comprador: 'FATIMA', semana: Object.fromEntries(
+        Object.entries(cronFatima).map(([dia, cods]) => [dia, cods.map(cod => ({
+          cod, codFornec: null, nome: listaMap[cod]?.nomeFornec || `Lista ${cod}`,
+          status: 'PENDENTE', pedidos: []
+        }))])
+      )});
+    }
+
+    // Passo 3: busca pedidos usando CodFornec real (últimos 10 dias)
+    const phF = codsFornec.map(() => '?').join(',');
     const pedidos = await q(`
       SELECT DATE(DataLan) AS data, CodFornec, Nome AS nome_fornec,
              COUNT(*) AS qtd, SUM(Total) AS total
       FROM central.pedidocompra
       WHERE DATE(DataLan) >= DATE_SUB(CURDATE(), INTERVAL 10 DAY)
-        AND CodFornec IN (${ph})
+        AND CodFornec IN (${phF})
       GROUP BY DATE(DataLan), CodFornec, Nome
       ORDER BY data DESC
-    `, todosCods);
+    `, codsFornec);
 
-    // Indexa pedidos por cod → dias
+    // Indexa por CodFornec
     const mapa = {};
     for (const p of pedidos) {
-      if (!mapa[p.CodFornec]) mapa[p.CodFornec] = { nome: p.nome_fornec.trim(), pedidos: [] };
-      mapa[p.CodFornec].pedidos.push({
+      const k = String(p.CodFornec);
+      if (!mapa[k]) mapa[k] = { nome: (p.nome_fornec||'').trim(), pedidos: [] };
+      mapa[k].pedidos.push({
         data: String(p.data).slice(0,10),
         qtd: p.qtd,
         total: parseFloat(p.total||0).toFixed(2),
       });
     }
 
-    // Monta resultado por dia da semana
+    // Monta resultado por dia
     const resultado = {};
-    for (const [dia, cods] of Object.entries(cronFatima)) {
-      resultado[dia] = cods.map(cod => ({
-        cod,
-        nome: mapa[cod]?.nome || `Fornecedor ${cod}`,
-        status: mapa[cod] ? 'CONCLUIDO' : 'PENDENTE',
-        pedidos: mapa[cod]?.pedidos || [],
-      }));
+    for (const [dia, nRegs] of Object.entries(cronFatima)) {
+      resultado[dia] = nRegs.map(nReg => {
+        const info = listaMap[nReg];
+        const codFornec = info?.codFornec;
+        const pedidoInfo = codFornec ? mapa[String(codFornec)] : null;
+        return {
+          cod: nReg,
+          codFornec: codFornec || null,
+          nome: pedidoInfo?.nome || info?.nomeFornec || `Lista ${nReg}`,
+          status: pedidoInfo ? 'CONCLUIDO' : 'PENDENTE',
+          pedidos: pedidoInfo?.pedidos || [],
+        };
+      });
     }
 
     res.json({ comprador: 'FATIMA', semana: resultado });

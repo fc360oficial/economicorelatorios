@@ -239,8 +239,12 @@ main {
 .forn-row.andamento { border-left: 3px solid var(--amber); border-color: rgba(245,158,11,.1); }
 .forn-row.pendente  { border-left: 3px solid var(--red);   border-color: rgba(239,68,68,.08); }
 .forn-icon { font-size: 14px; flex-shrink: 0; }
-.forn-cod { font-size: 10px; font-weight: 800; color: var(--text3); min-width: 32px; text-align: center;
+.forn-codes { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; align-items: center; }
+.forn-cod { font-size: 10px; font-weight: 800; color: var(--text3); min-width: 38px; text-align: center;
   background: rgba(255,255,255,.07); border-radius: 4px; padding: 2px 6px; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.forn-cod-label { font-size: 8px; color: var(--text3); opacity: .5; text-align: center; letter-spacing: .5px; }
+.forn-fornec { font-size: 10px; font-weight: 800; color: #93c5fd; min-width: 38px; text-align: center;
+  background: rgba(59,130,246,.10); border-radius: 4px; padding: 2px 6px; flex-shrink: 0; font-variant-numeric: tabular-nums; }
 .forn-nome { flex: 1; font-size: 15px; color: var(--text); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .forn-cat-tag { font-size: 9px; color: var(--text3); background: rgba(255,255,255,.05); padding: 2px 7px; border-radius: 4px; font-weight: 600; }
 .forn-pedido { font-size: 11px; color: var(--text3); white-space: nowrap; font-weight: 500; }
@@ -804,15 +808,23 @@ function calcStats(cronograma) {
 
 function renderCronograma(cronograma) {
   const cats = cronograma.categorias.map(cat => {
-    const rows = cat.itens.map(f => `
+    const rows = cat.itens.map(f => {
+      const listaNum = f.cod || '—';
+      const fornecNum = f.codFornec || '—';
+      const mostrarFornec = f.codFornec && String(f.codFornec) !== String(f.cod);
+      return `
       <div class="forn-row ${f.status === 'g' ? 'concluido' : f.status === 'a' ? 'andamento' : 'pendente'}">
         <span class="forn-icon">${STATUS_ICON[f.status]}</span>
-        <span class="forn-cod">${f.cod || '—'}</span>
+        <span class="forn-codes">
+          <span class="forn-cod" title="Lista">${listaNum}</span>
+          ${mostrarFornec ? `<span class="forn-fornec" title="Cód. Fornecedor">${fornecNum}</span>` : ''}
+        </span>
         <span class="forn-nome" title="${f.nome}">${f.nome}</span>
         <span class="forn-pedido">${f.pedido || 'Sem pedido'}</span>
         <span class="forn-status ${f.status}">${STATUS_LABEL[f.status]}</span>
       </div>
-    `).join('');
+      `;
+    }).join('');
     return `<div class="cat">${rows}</div>`;
   }).join('');
 
@@ -870,8 +882,27 @@ function renderPendencias(cronograma) {
 }
 
 // Estado global para atualização periódica
-let _cronHoje = null;
-let _dados    = null;
+let _cronHoje  = null;
+let _dados     = null;
+let fornecMap  = {}; // { nReg: { codFornec, nomeFornec } }
+
+async function carregarFornecMap(nRegs) {
+  if (!nRegs.length) return;
+  try {
+    const r = await fetch('/api/compras/fornec-por-lista?listas=' + nRegs.join(','));
+    if (r.ok) fornecMap = await r.json();
+  } catch(_) {}
+}
+
+function injetarFornecNoCronograma(cronograma) {
+  for (const cat of (cronograma?.categorias || [])) {
+    for (const item of cat.itens) {
+      if (item.cod && fornecMap[String(item.cod)]) {
+        item.codFornec = fornecMap[String(item.cod)].codFornec;
+      }
+    }
+  }
+}
 
 function ativarCarrossel(elInner) {
   if (!elInner || !elInner.textContent.trim()) return;
@@ -915,7 +946,11 @@ async function atualizarStatusERP() {
         const codsOk = new Set(concluidos);
         for (const cat of _cronHoje.categorias) {
           for (const item of cat.itens) {
-            if (item.cod) item.status = codsOk.has(item.cod) ? 'g' : 'r';
+            if (item.cod) {
+              // item.cod = nReg da lista; traduz para CodFornec real
+              const codFornec = fornecMap[String(item.cod)]?.codFornec ?? item.cod;
+              item.status = codsOk.has(codFornec) ? 'g' : 'r';
+            }
           }
         }
         const st = calcStats(_cronHoje);
@@ -1078,6 +1113,21 @@ async function init() {
       for (const item of cat.itens) { item.status = 'r'; }
     }
   }
+
+  // Carrega mapa lista→fornecedor para todos os dias do comprador
+  const todosNRegs = [];
+  for (const grp of Object.values(dados.cronograma)) {
+    for (const dia of Object.values(grp)) {
+      for (const cat of (dia?.categorias || [])) {
+        for (const item of cat.itens) {
+          if (item.cod && !todosNRegs.includes(item.cod)) todosNRegs.push(item.cod);
+        }
+      }
+    }
+  }
+  if (todosNRegs.length) await carregarFornecMap(todosNRegs);
+  if (cronHoje) injetarFornecNoCronograma(cronHoje);
+  if (cronAnt)  injetarFornecNoCronograma(cronAnt);
 
   // Header compradora
   document.getElementById('h-nome').textContent = nome;
