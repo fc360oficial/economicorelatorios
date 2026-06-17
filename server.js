@@ -1454,12 +1454,12 @@ app.get('/api/precificacao/margens-criticas', async (req, res) => {
         const rows = await q(`
           SELECT z.Codigo,
                  TRIM(COALESCE(i.Descricao, z.Descricao)) as descricao,
-                 i.P${ln} as preco,
-                 SUM(z.Custo) / NULLIF(SUM(z.QtdNovo), 0) as custo
+                 SUM(z.ValorTotalNovo) / NULLIF(SUM(z.QtdNovo), 0) as preco,
+                 SUM(z.Custo)          / NULLIF(SUM(z.QtdNovo), 0) as custo
           FROM \`ln${ln}${mm}\`.zcupomitens z
-          LEFT JOIN central.itens i ON i.CodigoBarra = z.Codigo
+          INNER JOIN central.itens i ON i.CodigoBarra = z.Codigo AND i.CodDesativado = 0
           WHERE z.Data = ? AND z.IndCancel = 'N'
-          GROUP BY z.Codigo, i.Descricao, z.Descricao, i.P${ln}
+          GROUP BY z.Codigo, i.Descricao, z.Descricao
           HAVING custo > 0
         `, [hoje]);
         result[ln] = rows
@@ -1469,7 +1469,7 @@ app.get('/api/precificacao/margens-criticas', async (req, res) => {
             const margem = preco > 0 ? +((preco - custo) / preco * 100).toFixed(1) : -999;
             return { codigo: r.Codigo, descricao: r.descricao, preco, custo, margem };
           })
-          .filter(r => r.preco > 0 && r.margem < 20)
+          .filter(r => r.margem < 20)
           .sort((a, b) => a.margem - b.margem);
       } catch(e) { result[ln] = []; }
     }
