@@ -26,7 +26,8 @@ app.use((req, res, next) => {
     '/precificacao.html', '/compras.html', '/comprador.html', '/supervisao.html',
     '/api/precificacao/margens-criticas', '/api/compras/pedidos-hoje',
     '/diretoria.html', '/api/diretoria/kpis',
-    '/api/top-vendidos', '/api/top-mercadologico'];
+    '/api/top-vendidos', '/api/top-mercadologico',
+    '/api/compras/verificar-comprador'];
   if (publico.includes(req.path)) return next();
   if (req.session && req.session.user) return next();
   if (req.path.startsWith('/api/')) return res.status(401).json({ error: 'Não autenticado' });
@@ -1494,6 +1495,60 @@ app.get('/api/compras/pedidos-hoje', async (req, res) => {
         total:       parseFloat((r.total_R || 0)).toFixed(2)
       }))
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Verificação de pedidos por comprador (debug) ──
+app.get('/api/compras/verificar-comprador', async (req, res) => {
+  try {
+    const comprador = (req.query.nome || 'FATIMA').toUpperCase();
+
+    // 1. Fornecedores da agenda do comprador
+    const fornecRows = await q(`
+      SELECT DISTINCT codFornec, nome
+      FROM central.c_cotacao_agenda_comprador
+      WHERE UPPER(nome) LIKE ?
+    `, [`%${comprador}%`]);
+
+    const codigos = fornecRows.map(r => r.codFornec);
+    if (codigos.length === 0) {
+      return res.json({ comprador, msg: 'Nenhum fornecedor encontrado para este comprador.', fornecedores: [] });
+    }
+
+    // 2. Pedidos colocados nos últimos 7 dias para esses fornecedores
+    const placeholders = codigos.map(() => '?').join(',');
+    const pedidos = await q(`
+      SELECT
+        DATE(DataLan)   AS data,
+        CodFornec,
+        Nome            AS nome_fornec,
+        COUNT(*)        AS qtd_pedidos,
+        SUM(Total)      AS total
+      FROM central.pedidocompra
+      WHERE DATE(DataLan) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+        AND CodFornec IN (${placeholders})
+      GROUP BY DATE(DataLan), CodFornec, Nome
+      ORDER BY data DESC, total DESC
+    `, codigos);
+
+    // 3. Monta resultado por fornecedor
+    const mapa = {};
+    for (const f of fornecRows) {
+      mapa[f.codFornec] = { codFornec: f.codFornec, nome: f.nome, dias: [] };
+    }
+    for (const p of pedidos) {
+      const m = mapa[p.CodFornec];
+      if (m) m.dias.push({ data: p.data, qtd: p.qtd_pedidos, total: parseFloat(p.total||0).toFixed(2), status: 'CONCLUIDO' });
+    }
+
+    const resultado = Object.values(mapa).map(f => ({
+      ...f,
+      status_geral: f.dias.length > 0 ? 'CONCLUIDO' : 'PENDENTE'
+    }));
+
+    res.json({ comprador, total_fornecedores: codigos.length, fornecedores: resultado });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
