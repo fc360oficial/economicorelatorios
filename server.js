@@ -22,7 +22,9 @@ app.use(session({
 
 // Middleware de autenticação (antes do static)
 app.use((req, res, next) => {
-  const publico = ['/login.html', '/api/login', '/logo.png', '/deploy'];
+  const publico = ['/login.html', '/api/login', '/logo.png', '/deploy',
+    '/precificacao.html', '/compras.html', '/comprador.html', '/supervisao.html',
+    '/api/precificacao/margens-criticas'];
   if (publico.includes(req.path)) return next();
   if (req.session && req.session.user) return next();
   if (req.path.startsWith('/api/')) return res.status(401).json({ error: 'Não autenticado' });
