@@ -1630,15 +1630,13 @@ app.get('/api/compras/pedidos-mes', async (req, res) => {
     const hoje = new Date();
     const mes = req.query.mes ? parseInt(req.query.mes) : hoje.getMonth() + 1;
     const ano = req.query.ano ? parseInt(req.query.ano) : hoje.getFullYear();
-    const ini = `${ano}-${String(mes).padStart(2,'0')}-01`;
-    const fim = `${ano}-${String(mes).padStart(2,'0')}-31`;
     const rows = await q(`
       SELECT DATE(DataLan) AS data, CodFornec
       FROM central.pedidocompra
-      WHERE DATE(DataLan) >= ? AND DATE(DataLan) <= ?
+      WHERE YEAR(DataLan) = ? AND MONTH(DataLan) = ?
       GROUP BY DATE(DataLan), CodFornec
       ORDER BY data
-    `, [ini, fim]);
+    `, [ano, mes]);
     const mapa = {};
     for (const r of rows) {
       const k = String(r.data).slice(0,10);
