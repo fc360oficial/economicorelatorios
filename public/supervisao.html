@@ -49,18 +49,18 @@ iframe.visivel{opacity:1;pointer-events:auto}
 <iframe id="fr-diretoria" title="Diretoria"></iframe>
 <iframe id="fr-precif"   title="Precificação"></iframe>
 <iframe id="fr-compras"  title="Compras"></iframe>
+<iframe id="fr-analise"  title="Análise Comprador"></iframe>
 
 <div class="controles">
   <div class="dot ativo" id="dot-d" title="Diretoria"></div>
   <div class="dot"       id="dot-p" title="Precificação"></div>
   <div class="dot"       id="dot-c" title="Compras"></div>
+  <div class="dot"       id="dot-a" title="Análise Estoque"></div>
   <div class="sep"></div>
   <button class="btn-fs" id="btn-fs" title="Tela cheia (F11)">⛶</button>
 </div>
 
 <script>
-// Sempre carrega os iframes do servidor de produção,
-// independente de qual IP foi usado pra abrir esta página.
 const BASE = 'http://192.168.2.252:3003';
 
 let atual = 'diretoria';
@@ -68,10 +68,17 @@ let atual = 'diretoria';
 const frD   = document.getElementById('fr-diretoria');
 const frP   = document.getElementById('fr-precif');
 const frC   = document.getElementById('fr-compras');
+const frA   = document.getElementById('fr-analise');
 const dotD  = document.getElementById('dot-d');
 const dotP  = document.getElementById('dot-p');
 const dotC  = document.getElementById('dot-c');
+const dotA  = document.getElementById('dot-a');
 const btnFs = document.getElementById('btn-fs');
+
+function setDot(ativo) {
+  [dotD,dotP,dotC,dotA].forEach(d => d.classList.remove('ativo'));
+  ativo.classList.add('ativo');
+}
 
 function mostrarDiretoria() {
   atual = 'diretoria';
@@ -79,9 +86,8 @@ function mostrarDiretoria() {
   frD.classList.add('visivel');
   frP.classList.remove('visivel');
   frC.classList.remove('visivel');
-  dotD.classList.add('ativo');
-  dotP.classList.remove('ativo');
-  dotC.classList.remove('ativo');
+  frA.classList.remove('visivel');
+  setDot(dotD);
 }
 
 function mostrarPrecif() {
@@ -89,9 +95,8 @@ function mostrarPrecif() {
   frP.classList.add('visivel');
   frD.classList.remove('visivel');
   frC.classList.remove('visivel');
-  dotP.classList.add('ativo');
-  dotD.classList.remove('ativo');
-  dotC.classList.remove('ativo');
+  frA.classList.remove('visivel');
+  setDot(dotP);
 }
 
 function mostrarCompras() {
@@ -100,9 +105,18 @@ function mostrarCompras() {
   frC.classList.add('visivel');
   frD.classList.remove('visivel');
   frP.classList.remove('visivel');
-  dotC.classList.add('ativo');
-  dotD.classList.remove('ativo');
-  dotP.classList.remove('ativo');
+  frA.classList.remove('visivel');
+  setDot(dotC);
+}
+
+function mostrarAnalise() {
+  atual = 'analise';
+  frA.src = BASE + '/analise-comprador.html?nome=FATIMA';
+  frA.classList.add('visivel');
+  frD.classList.remove('visivel');
+  frP.classList.remove('visivel');
+  frC.classList.remove('visivel');
+  setDot(dotA);
 }
 
 // ── TELA CHEIA ──
@@ -121,8 +135,6 @@ document.addEventListener('fullscreenchange', () => {
 });
 
 btnFs.addEventListener('click', toggleFullscreen);
-
-// F11 aciona tela cheia
 document.addEventListener('keydown', (e) => {
   if (e.key === 'F11') { e.preventDefault(); toggleFullscreen(); }
 });
@@ -131,13 +143,16 @@ document.addEventListener('keydown', (e) => {
 dotD.addEventListener('click', mostrarDiretoria);
 dotP.addEventListener('click', mostrarPrecif);
 dotC.addEventListener('click', mostrarCompras);
+dotA.addEventListener('click', mostrarAnalise);
 
 // ── MENSAGENS DOS IFRAMES ──
+// Rotação: diretoria → precif → compras → analise → diretoria → ...
 window.addEventListener('message', (e) => {
   if (!e.data || !e.data.type) return;
   if (e.data.type === 'diretoriaCycleComplete' && atual === 'diretoria') mostrarPrecif();
   if (e.data.type === 'carouselCycleComplete'  && atual === 'precif')    mostrarCompras();
-  if (e.data.type === 'comprasCycleComplete'   && atual === 'compras')   mostrarDiretoria();
+  if (e.data.type === 'comprasCycleComplete'   && atual === 'compras')   mostrarAnalise();
+  if (e.data.type === 'analiseCycleComplete'   && atual === 'analise')   mostrarDiretoria();
 });
 
 // Pré-carrega precificação e inicia na diretoria
