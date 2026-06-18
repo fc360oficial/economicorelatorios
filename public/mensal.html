@@ -15,8 +15,8 @@
   --radius:16px;--radius-sm:10px;
   --font:'Segoe UI',system-ui,sans-serif;
 }
-html,body{height:100%;font-family:var(--font);background:var(--bg);color:var(--text)}
-body{display:flex;flex-direction:column;min-height:100vh}
+html,body{height:100%;font-family:var(--font);background:var(--bg);color:var(--text);overflow:hidden}
+body{display:flex;flex-direction:column;height:100vh}
 
 /* ── HEADER ── */
 .header{
@@ -44,10 +44,10 @@ body{display:flex;flex-direction:column;min-height:100vh}
 .mes-label{font-size:14px;font-weight:800;color:var(--text);letter-spacing:1px;min-width:130px;text-align:center}
 
 /* ── MAIN ── */
-main{flex:1;padding:20px 28px;overflow:auto}
+main{flex:1;padding:12px 20px;overflow:hidden;display:flex;flex-direction:column}
 
 /* ── TABELA ── */
-.tabela-wrap{overflow-x:auto}
+.tabela-wrap{overflow:hidden;flex:1}
 table{border-collapse:collapse;width:100%;min-width:600px}
 
 /* Seção por dia */
@@ -322,7 +322,24 @@ function renderTabela(cron) {
   `;
 
   document.getElementById('h-sub').textContent = `${nomeSel} · ${MESES[mesSel]} ${anoSel}`;
+
+  requestAnimationFrame(() => fitTela());
 }
+
+function fitTela() {
+  const el = document.getElementById('conteudo');
+  if (!el) return;
+  el.style.zoom = '';
+  const main = document.querySelector('main');
+  if (!main) return;
+  const avail = main.clientHeight - 4;
+  const content = el.scrollHeight;
+  if (content > avail && avail > 50) {
+    el.style.zoom = Math.max(0.28, avail / content).toFixed(3);
+  }
+}
+
+window.addEventListener('resize', fitTela);
 
 // Init
 const params = new URLSearchParams(location.search);
