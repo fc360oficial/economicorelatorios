@@ -46,59 +46,66 @@ body{display:flex;flex-direction:column;height:100vh}
 /* ── MAIN ── */
 main{flex:1;padding:6px 16px;overflow:hidden;display:flex;flex-direction:column}
 
-/* ── TABELA ── */
-.tabela-wrap{overflow:hidden;flex:1}
-table{border-collapse:collapse;width:100%;min-width:600px}
+/* ── LAYOUT DOIS GRUPOS ── */
+.grupos-wrap{display:flex;gap:0;flex:1;overflow:hidden}
+.grupo-col{flex:1;min-width:0;overflow:hidden;padding:0 10px}
+.grupo-col:first-child{padding-left:0}
+.grupo-col:last-child{padding-right:0}
+.grupo-divider{width:1px;background:rgba(255,255,255,.08);flex-shrink:0}
+.grupo-header{
+  font-size:11px;font-weight:900;color:var(--brand);letter-spacing:2px;
+  text-transform:uppercase;padding:4px 0 6px;border-bottom:2px solid rgba(250,204,21,.3);
+  margin-bottom:4px;
+}
 
 /* Título por dia */
 .dia-titulo{
-  padding:7px 0 2px;font-size:11px;font-weight:900;
-  color:var(--brand);letter-spacing:2px;text-transform:uppercase;
-  border-bottom:1px solid rgba(250,204,21,.2);margin-bottom:2px;
+  padding:5px 0 2px;font-size:10px;font-weight:900;
+  color:var(--text2);letter-spacing:1.5px;text-transform:uppercase;
+  border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:1px;margin-top:5px;
 }
+.dia-titulo:first-of-type{margin-top:0}
 
-/* Cabeçalho das semanas */
+/* Tabelas */
+table{border-collapse:collapse;width:100%}
+
+/* Cabeçalho de semana */
 .semana-header th{
-  padding:3px 6px;font-size:10px;font-weight:700;color:var(--text3);
-  text-align:center;white-space:nowrap;border-bottom:1px solid var(--border);
-  line-height:1.3;
+  padding:2px 4px;font-size:9px;font-weight:700;color:var(--text3);
+  text-align:center;border-bottom:1px solid var(--border);line-height:1.2;
 }
-.semana-header th.col-nome{text-align:left;padding-left:0;min-width:160px}
-.semana-header th.col-cat{min-width:60px;text-align:left;font-size:9px}
+.semana-header th.col-nome{text-align:left;padding-left:0}
 
-/* Linha do fornecedor */
+/* Linhas de fornecedor */
 .forn-linha td{
-  padding:2px 6px;border-bottom:1px solid rgba(255,255,255,.03);
+  padding:2px 4px;border-bottom:1px solid rgba(255,255,255,.025);
   font-size:12px;vertical-align:middle;
 }
 .forn-linha:hover td{background:rgba(255,255,255,.03)}
 .forn-linha td.col-nome{
   font-weight:600;color:var(--text);padding-left:0;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;
-}
-.forn-linha td.col-cat{
-  font-size:9px;color:var(--text3);font-weight:600;
-  background:rgba(255,255,255,.04);border-radius:4px;text-align:center;
-  padding:1px 4px;white-space:nowrap;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
 
-/* Células de status */
-.cell{text-align:center;border-radius:5px;padding:3px 8px;font-size:13px;font-weight:800;white-space:nowrap}
+/* Status cells */
+.cell{
+  text-align:center;border-radius:4px;padding:2px 6px;
+  font-size:13px;font-weight:800;white-space:nowrap;display:block;
+}
 .cell.ok  {background:var(--green-bg);color:var(--green)}
 .cell.pend{background:var(--red-bg);color:var(--red)}
-.cell.fut {color:var(--text3);font-size:12px}
-.cell.vazio{color:rgba(255,255,255,.15);font-size:11px}
+.cell.fut {color:rgba(255,255,255,.2);font-size:11px}
 
-/* Data sub-label */
-.data-sub{font-size:9px;font-weight:400;opacity:.7;display:block;margin-top:0}
+/* Sub-data no cabeçalho */
+.data-sub{font-size:8px;font-weight:400;opacity:.6;display:block}
 
-/* Totalizador */
+/* Total row */
 .total-row td{
-  padding:2px 6px;font-size:10px;color:var(--text3);
+  padding:1px 4px;font-size:9px;color:var(--text3);
   border-top:1px solid var(--border);border-bottom:2px solid var(--border-md);
 }
 .total-row td.col-nome{padding-left:0;font-weight:700;color:var(--text2)}
-.total-cell{text-align:center;font-weight:700;font-size:11px}
+.total-cell{text-align:center;font-weight:700;font-size:10px}
 .total-cell.ok{color:var(--green)}
 .total-cell.mix{color:var(--brand)}
 .total-cell.pend{color:var(--red)}
@@ -268,89 +275,89 @@ function pedidoNaSemana(codFornec, dateISO) {
   return false;
 }
 
-function renderTabela(cron) {
+// Retorna as datas do mês para um dia da semana, filtradas pelo grupo (1e3 ou 2e4)
+function ocorrenciasPorGrupo(weekday, grupo) {
+  const todos = ocorrencias(mesSel, anoSel, weekday);
+  return todos.reduce((acc, d, i) => {
+    if (grupo === '1e3' ? i % 2 === 0 : i % 2 === 1) acc.push({ data: d, num: i + 1 });
+    return acc;
+  }, []);
+}
+
+function buildGrupoHTML(cron, grupo) {
   const hoje = isoDate(new Date());
-  let totalOk = 0, totalPend = 0, totalFut = 0;
-
-  let html = '<div class="tabela-wrap">';
-
   const diasOrdem = ['SEG','TER','QUA','QUI','SEX'];
+  let h = '';
+  let gOk = 0, gPend = 0, gFut = 0;
 
   for (const dia of diasOrdem) {
-    const itens1 = cron['1e3']?.[dia] || [];
-    const itens2 = cron['2e4']?.[dia] || [];
-    if (itens1.length === 0 && itens2.length === 0) continue;
-
-    const visto = new Set();
-    const todosItens = [];
-    for (const f of [...itens1, ...itens2]) {
-      if (!visto.has(f.nReg)) { visto.add(f.nReg); todosItens.push(f); }
-    }
-    const nRegs1 = new Set(itens1.map(f => f.nReg));
-    const nRegs2 = new Set(itens2.map(f => f.nReg));
+    const itens = cron[grupo]?.[dia] || [];
+    if (!itens.length) continue;
 
     const weekday = DIA_IDX[dia];
-    const datas = ocorrencias(mesSel, anoSel, weekday);
-    const N = datas.length;
+    const datasGrupo = ocorrenciasPorGrupo(weekday, grupo);
+    if (!datasGrupo.length) continue;
 
-    // Tabela separada por dia — permite colgroup com widths fixas
-    html += `<div class="dia-titulo">${DIAS_LABEL[dia]}</div>`;
-    html += `<table style="table-layout:fixed;width:100%;margin-bottom:6px">`;
-    // colgroup: nome 175px, cat 55px, restante dividido igualmente entre N data cols
-    html += `<colgroup><col style="width:175px"><col style="width:55px">`;
-    for (let i = 0; i < N; i++) html += `<col>`;
-    html += `</colgroup>`;
+    const N = datasGrupo.length;
+    const W = 48; // largura fixa de cada coluna de semana (px)
 
-    // Cabeçalho de semanas
-    html += `<tr class="semana-header"><th class="col-nome">Fornecedor</th><th class="col-cat">Cat.</th>`;
-    datas.forEach((dataISO, i) => {
-      const g = grupoOcorrencia(i);
-      html += `<th>${i+1}ª<span class="data-sub">${fmtDia(dataISO)}</span><br><span style="font-size:8px;opacity:.5">${g}</span></th>`;
+    h += `<div class="dia-titulo">${DIAS_LABEL[dia]}</div>`;
+    h += `<table style="table-layout:fixed;width:100%">`;
+    h += `<colgroup><col>${datasGrupo.map(() => `<col style="width:${W}px">`).join('')}</colgroup>`;
+    h += `<tr class="semana-header"><th class="col-nome">Fornecedor</th>`;
+    datasGrupo.forEach(({data, num}) => {
+      h += `<th>${num}ª<span class="data-sub">${fmtDia(data)}</span></th>`;
     });
-    html += '</tr>';
+    h += '</tr>';
 
-    const totaisDia = Array(N).fill(0).map(() => ({ok:0,pend:0,fut:0}));
+    const tots = Array(N).fill(0).map(() => ({ok:0,pend:0,fut:0}));
 
-    for (const f of todosItens) {
+    for (const f of itens) {
       const codFornec = fornecMap[String(f.nReg)]?.codFornec;
-      html += `<tr class="forn-linha"><td class="col-nome" title="${f.nome}">${f.nome}</td><td class="col-cat">${f.cat}</td>`;
-
-      datas.forEach((dataISO, i) => {
-        const grupo = grupoOcorrencia(i);
-        const nRegsGrupo = grupo === '1e3' ? nRegs1 : nRegs2;
-
-        if (!nRegsGrupo.has(f.nReg)) {
-          html += `<td><div class="cell vazio">·</div></td>`;
-          return;
-        }
-        if (!codFornec) { html += '<td></td>'; return; }
-
-        const futura = dataISO > hoje;
-        const ok = !futura && pedidoNaSemana(codFornec, dataISO);
-
-        if (futura) { totaisDia[i].fut++; totalFut++; }
-        else if (ok) { totaisDia[i].ok++; totalOk++; }
-        else { totaisDia[i].pend++; totalPend++; }
-
-        if (futura) html += `<td><div class="cell fut">—</div></td>`;
-        else if (ok) html += `<td><div class="cell ok">✓</div></td>`;
-        else html += `<td><div class="cell pend">✗</div></td>`;
+      h += `<tr class="forn-linha"><td class="col-nome" title="${f.nome}">${f.nome}</td>`;
+      datasGrupo.forEach(({data}, i) => {
+        const futura = data > hoje;
+        const ok = !futura && pedidoNaSemana(codFornec, data);
+        if (futura)    { tots[i].fut++;  gFut++;  h += `<td><div class="cell fut">—</div></td>`; }
+        else if (ok)   { tots[i].ok++;   gOk++;   h += `<td><div class="cell ok">✓</div></td>`; }
+        else           { tots[i].pend++; gPend++; h += `<td><div class="cell pend">✗</div></td>`; }
       });
-      html += '</tr>';
+      h += '</tr>';
     }
 
-    // Total
-    html += `<tr class="total-row"><td class="col-nome">Total</td><td></td>`;
-    totaisDia.forEach(t => {
-      const cls = t.pend === 0 && t.fut === 0 ? 'ok' : t.ok > 0 ? 'mix' : 'pend';
-      const txt = t.fut > 0 ? `${t.ok}/${t.ok+t.pend+t.fut}` : `${t.ok}/${t.ok+t.pend}`;
-      html += `<td class="total-cell ${cls}">${txt}</td>`;
+    // linha de total
+    h += `<tr class="total-row"><td class="col-nome">Total</td>`;
+    tots.forEach(t => {
+      const cls = t.pend===0&&t.fut===0?'ok':t.ok>0?'mix':'pend';
+      const txt = t.fut>0 ? `${t.ok}/${t.ok+t.pend+t.fut}` : `${t.ok}/${t.ok+t.pend}`;
+      h += `<td class="total-cell ${cls}">${txt}</td>`;
     });
-    html += '</tr></table>';
+    h += '</tr></table>';
   }
 
-  html += '</div>';
-  document.getElementById('conteudo').innerHTML = html;
+  return { html: h, ok: gOk, pend: gPend, fut: gFut };
+}
+
+function renderTabela(cron) {
+  const g1 = buildGrupoHTML(cron, '1e3');
+  const g2 = buildGrupoHTML(cron, '2e4');
+  const totalOk   = g1.ok   + g2.ok;
+  const totalPend = g1.pend + g2.pend;
+  const totalFut  = g1.fut  + g2.fut;
+
+  document.getElementById('conteudo').innerHTML = `
+    <div class="grupos-wrap">
+      <div class="grupo-col">
+        <div class="grupo-header">1ª e 3ª Semanas</div>
+        ${g1.html}
+      </div>
+      <div class="grupo-divider"></div>
+      <div class="grupo-col">
+        <div class="grupo-header">2ª e 4ª Semanas</div>
+        ${g2.html}
+      </div>
+    </div>
+  `;
 
   // Resumo geral — fora do zoom, sempre visível em tamanho normal
   const resumoEl = document.getElementById('resumo');
