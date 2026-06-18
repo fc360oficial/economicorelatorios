@@ -208,7 +208,7 @@ let _ultimoAvanço  = Date.now();
 let _savedScroll   = 0;
 
 function pararCarrossel() {
-  if (_carTimer)   { clearInterval(_carTimer);  _carTimer = null; }
+  if (_carTimer)   { cancelAnimationFrame(_carTimer); _carTimer = null; }
   if (_carTimeout) { clearTimeout(_carTimeout); _carTimeout = null; }
 }
 
@@ -241,25 +241,32 @@ function iniciarCarrossel(idx, startAt, sessao) {
   if (!body) { _carTimeout = setTimeout(() => proximaCol(idx, sessao), 2000); return; }
 
   body.scrollTop = startAt || 0;
-  void body.scrollHeight; // força layout para garantir medição correta
+  void body.scrollHeight;
   const maxScroll = body.scrollHeight - body.clientHeight;
 
   if (maxScroll <= 0 || body.scrollTop >= maxScroll - 1) {
-    // coluna sem scroll ou já no fim: 3s visível e avança
     _carTimeout = setTimeout(() => proximaCol(idx, sessao), 3000);
     return;
   }
 
-  const tickMs = 50;
-  const pxTick = PX_POR_SEG * tickMs / 1000;
-  _carTimer = setInterval(() => {
-    if (sessao !== _carSessao) { clearInterval(_carTimer); _carTimer = null; return; }
-    body.scrollTop += pxTick;
-    if (body.scrollTop >= maxScroll - 1) {
-      pararCarrossel();
-      proximaCol(idx, sessao);
+  // rAF com delta real — sem engasgo nem saltos
+  let _lastTs = null;
+  function step(ts) {
+    if (sessao !== _carSessao) { _carTimer = null; return; }
+    if (_lastTs !== null) {
+      const delta = Math.min(ts - _lastTs, 80); // cap 80ms evita salto após tab hidden
+      body.scrollTop += PX_POR_SEG * delta / 1000;
     }
-  }, tickMs);
+    _lastTs = ts;
+    if (body.scrollTop >= maxScroll - 1) {
+      body.scrollTop = maxScroll;
+      _carTimer = null;
+      proximaCol(idx, sessao);
+      return;
+    }
+    _carTimer = requestAnimationFrame(step);
+  }
+  _carTimer = requestAnimationFrame(step);
 }
 
 // Watchdog: se parado >2 min sem ser por hide, retoma
