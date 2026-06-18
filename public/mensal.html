@@ -50,13 +50,12 @@ main{flex:1;padding:6px 16px;overflow:hidden;display:flex;flex-direction:column}
 .tabela-wrap{overflow:hidden;flex:1}
 table{border-collapse:collapse;width:100%;min-width:600px}
 
-/* Seção por dia */
-.dia-header td{
-  padding:8px 8px 3px;font-size:11px;font-weight:900;
+/* Título por dia */
+.dia-titulo{
+  padding:7px 0 2px;font-size:11px;font-weight:900;
   color:var(--brand);letter-spacing:2px;text-transform:uppercase;
-  border-bottom:1px solid rgba(250,204,21,.2);
+  border-bottom:1px solid rgba(250,204,21,.2);margin-bottom:2px;
 }
-.dia-header td:first-child{padding-left:0}
 
 /* Cabeçalho das semanas */
 .semana-header th{
@@ -254,7 +253,7 @@ function renderTabela(cron) {
   const hoje = isoDate(new Date());
   let totalOk = 0, totalPend = 0, totalFut = 0;
 
-  let html = '<div class="resumo-bar" id="resumo"></div><div class="tabela-wrap"><table>';
+  let html = '<div class="resumo-bar" id="resumo"></div><div class="tabela-wrap">';
 
   const diasOrdem = ['SEG','TER','QUA','QUI','SEX'];
 
@@ -263,7 +262,6 @@ function renderTabela(cron) {
     const itens2 = cron['2e4']?.[dia] || [];
     if (itens1.length === 0 && itens2.length === 0) continue;
 
-    // União de fornecedores de ambos os grupos (sem duplicata)
     const visto = new Set();
     const todosItens = [];
     for (const f of [...itens1, ...itens2]) {
@@ -274,10 +272,17 @@ function renderTabela(cron) {
 
     const weekday = DIA_IDX[dia];
     const datas = ocorrencias(mesSel, anoSel, weekday);
-    const maxSem = datas.length;
+    const N = datas.length;
 
-    // Cabeçalho da seção
-    html += `<tr class="dia-header"><td colspan="${2 + maxSem}">${DIAS_LABEL[dia]}</td></tr>`;
+    // Tabela separada por dia — permite colgroup com widths fixas
+    html += `<div class="dia-titulo">${DIAS_LABEL[dia]}</div>`;
+    html += `<table style="table-layout:fixed;width:100%;margin-bottom:6px">`;
+    // colgroup: nome 175px, cat 55px, restante dividido igualmente entre N data cols
+    html += `<colgroup><col style="width:175px"><col style="width:55px">`;
+    for (let i = 0; i < N; i++) html += `<col>`;
+    html += `</colgroup>`;
+
+    // Cabeçalho de semanas
     html += `<tr class="semana-header"><th class="col-nome">Fornecedor</th><th class="col-cat">Cat.</th>`;
     datas.forEach((dataISO, i) => {
       const g = grupoOcorrencia(i);
@@ -285,7 +290,7 @@ function renderTabela(cron) {
     });
     html += '</tr>';
 
-    const totaisDia = Array(maxSem).fill(0).map(() => ({ok:0,pend:0,fut:0}));
+    const totaisDia = Array(N).fill(0).map(() => ({ok:0,pend:0,fut:0}));
 
     for (const f of todosItens) {
       const codFornec = fornecMap[String(f.nReg)]?.codFornec;
@@ -295,12 +300,10 @@ function renderTabela(cron) {
         const grupo = grupoOcorrencia(i);
         const nRegsGrupo = grupo === '1e3' ? nRegs1 : nRegs2;
 
-        // Não programado nesta semana
         if (!nRegsGrupo.has(f.nReg)) {
           html += `<td><div class="cell vazio">·</div></td>`;
           return;
         }
-
         if (!codFornec) { html += '<td></td>'; return; }
 
         const futura = dataISO > hoje;
@@ -317,19 +320,17 @@ function renderTabela(cron) {
       html += '</tr>';
     }
 
-    // Total por semana
+    // Total
     html += `<tr class="total-row"><td class="col-nome">Total</td><td></td>`;
     totaisDia.forEach(t => {
       const cls = t.pend === 0 && t.fut === 0 ? 'ok' : t.ok > 0 ? 'mix' : 'pend';
       const txt = t.fut > 0 ? `${t.ok}/${t.ok+t.pend+t.fut}` : `${t.ok}/${t.ok+t.pend}`;
       html += `<td class="total-cell ${cls}">${txt}</td>`;
     });
-    html += '</tr>';
-
-    html += `<tr><td colspan="${2 + maxSem}" style="padding:3px 0"></td></tr>`;
+    html += '</tr></table>';
   }
 
-  html += '</table></div>';
+  html += '</div>';
   document.getElementById('conteudo').innerHTML = html;
 
   // Resumo geral
