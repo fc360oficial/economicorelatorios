@@ -118,6 +118,12 @@ function localDate(d) {
   return `${y}-${m}-${dd}`;
 }
 
+// Último dia real do mês — evita '2026-06-31' (data inválida) que retorna NULL no MySQL
+function dFimMes(ano, mes) {
+  const ultimo = new Date(ano, mes, 0).getDate();
+  return `${ano}-${String(mes).padStart(2,'0')}-${String(ultimo).padStart(2,'0')}`;
+}
+
 // KPIs resumo — aceita ?loja=1..6 e ?mes=1..12
 app.get('/api/kpis', async (req, res) => {
   try {
@@ -135,10 +141,10 @@ app.get('/api/kpis', async (req, res) => {
     const mesStr  = String(mesSel).padStart(2,'0');
 
     const dIni        = `${ano}-${mesStr}-01`;
-    const dFim        = `${ano}-${mesStr}-31`;
+    const dFim        = dFimMes(ano, mesSel);
     const dIniAnt     = `${anoAnt}-${mesStr}-01`;
     const dFimAntHoje = `${anoAnt}-${mesStr}-${diaHoje}`;  // mesmo dia do ano passado
-    const dFimAntMes  = `${anoAnt}-${mesStr}-31`;           // mês completo ano passado
+    const dFimAntMes  = dFimMes(anoAnt, mesSel);           // mês completo ano passado
 
     // Faturamento + custo + cupons mês atual
     let atual = 0, custoAtual = 0, totalCupons = 0;
@@ -220,7 +226,7 @@ app.get('/api/diretoria/kpis', async (req, res) => {
     const diaHoje = String(hoje.getDate()).padStart(2,'0');
     const mesStr  = String(mes).padStart(2,'0');
     const dIni        = `${ano}-${mesStr}-01`;
-    const dFim        = `${ano}-${mesStr}-31`;
+    const dFim        = dFimMes(ano, mes);
     const dIniAnt     = `${anoAnt}-${mesStr}-01`;
     const dFimAntHoje = `${anoAnt}-${mesStr}-${diaHoje}`;
 
@@ -321,7 +327,8 @@ app.get('/api/top-vendidos', async (req, res) => {
     const lojas   = lojaSel ? [lojaSel] : [1,2,3,4,5,6];
     const mm      = mesDB(mesSel);
     const dIni    = `${anoSel}-${String(mesSel).padStart(2,'0')}-01`;
-    const dFim    = `${anoSel}-${String(mesSel).padStart(2,'0')}-31`;
+    const ultimoDia = new Date(anoSel, mesSel, 0).getDate();
+    const dFim    = `${anoSel}-${String(mesSel).padStart(2,'0')}-${String(ultimoDia).padStart(2,'0')}`;
 
     let union;
     if (lojaSel) {
@@ -375,7 +382,8 @@ app.get('/api/top-mercadologico', async (req, res) => {
     const lojas   = lojaSel ? [lojaSel] : [1,2,3,4,5,6];
     const mm      = mesDB(mesSel);
     const dIni    = `${anoSel}-${String(mesSel).padStart(2,'0')}-01`;
-    const dFim    = `${anoSel}-${String(mesSel).padStart(2,'0')}-31`;
+    const ultimoDia = new Date(anoSel, mesSel, 0).getDate();
+    const dFim    = `${anoSel}-${String(mesSel).padStart(2,'0')}-${String(ultimoDia).padStart(2,'0')}`;
 
     // Vendas do mês por produto
     let vendasMap = {};
@@ -758,7 +766,7 @@ app.get('/api/fornecedores/resumo', async (req, res) => {
     const busca   = req.query.busca || '';
     const mm       = mesDB(mesSel);
     const dIni     = `${anoSel}-${String(mesSel).padStart(2,'0')}-01`;
-    const dFim     = `${anoSel}-${String(mesSel).padStart(2,'0')}-31`;
+    const dFim     = dFimMes(anoSel, mesSel);
 
     // 1. Vendas do mês para a loja (todas, para obter total real da loja)
     // Custo já vem como total da linha (SUM(Custo) = custo total, igual ao ERP)
@@ -908,7 +916,7 @@ app.get('/api/sem-fornecedor', async (req, res) => {
     const lojaSel = req.query.loja ? parseInt(req.query.loja) : 1;
     const mm      = mesDB(mesSel);
     const dIni    = `${anoSel}-${String(mesSel).padStart(2,'0')}-01`;
-    const dFim    = `${anoSel}-${String(mesSel).padStart(2,'0')}-31`;
+    const dFim    = dFimMes(anoSel, mesSel);
 
     const rows = await q(`
       SELECT z.Codigo, it.Descricao, it.Unid,
@@ -943,7 +951,7 @@ app.get('/api/fornecedores/:id/produtos', async (req, res) => {
     const lojaSel = req.query.loja ? parseInt(req.query.loja) : 1;
     const mm      = mesDB(mesSel);
     const dIni    = `${anoSel}-${String(mesSel).padStart(2,'0')}-01`;
-    const dFim    = `${anoSel}-${String(mesSel).padStart(2,'0')}-31`;
+    const dFim    = dFimMes(anoSel, mesSel);
 
     const prods = await q(`
       SELECT fi.CodigoBarra, it.Descricao, it.Unid,
@@ -1003,7 +1011,7 @@ app.get('/api/fornecedores/:id/avarias', async (req, res) => {
     const anoSel  = req.query.ano  ? parseInt(req.query.ano)  : hoje.getFullYear();
     const lojaSel = req.query.loja ? parseInt(req.query.loja) : 1;
     const dIni    = `${anoSel}-${String(mesSel).padStart(2,'0')}-01`;
-    const dFim    = `${anoSel}-${String(mesSel).padStart(2,'0')}-31`;
+    const dFim    = dFimMes(anoSel, mesSel);
 
     const rows = await q(`
       SELECT a.CodigoBarras, a.Descricao, SUM(a.Qtd) as qtd, SUM(a.Total) as total,
@@ -1066,7 +1074,7 @@ app.get('/api/fornecedores/:id/lojas', async (req, res) => {
     const anoSel = req.query.ano ? parseInt(req.query.ano) : hoje.getFullYear();
     const mm     = mesDB(mesSel);
     const dIni   = `${anoSel}-${String(mesSel).padStart(2,'0')}-01`;
-    const dFim   = `${anoSel}-${String(mesSel).padStart(2,'0')}-31`;
+    const dFim   = dFimMes(anoSel, mesSel);
 
     const prods = await q(`SELECT DISTINCT CodigoBarra FROM central.fornecedoritens WHERE CodFornecedor=? AND Backup=0`, [id]);
     const codigos = prods.map(p => p.CodigoBarra);
@@ -1208,7 +1216,7 @@ app.get('/api/listas-compra/margem-resumo', async (req, res) => {
     const lojas = lojaSel ? [lojaSel] : [1,2,3,4,5,6];
     const mm = mesDB(mesSel);
     const dataInicio = `${anoSel}-${String(mesSel).padStart(2,'0')}-01`;
-    const dataFim = `${anoSel}-${String(mesSel).padStart(2,'0')}-31`;
+    const dataFim = dFimMes(anoSel, mesSel);
 
     // Todos os itens de todas as listas (mapa barcode -> [lista_ids])
     const todosItens = await q(`SELECT nCotacao as lista_id, Codigobarra FROM central.c_cotacao_lista_itens`);
@@ -1300,7 +1308,7 @@ app.get('/api/listas-compra/:id/margem', async (req, res) => {
     const lojas = lojasLista.length ? lojasLista : [1,2,3,4,5,6];
     const mm = mesDB(mesSel);
     const dataInicio = `${anoSel}-${String(mesSel).padStart(2,'0')}-01`;
-    const dataFim = `${anoSel}-${String(mesSel).padStart(2,'0')}-31`;
+    const dataFim = dFimMes(anoSel, mesSel);
 
     const itens = await q(`
       SELECT i.Codigobarra, ci.Descricao, ci.Unid, i.QtdEmb
