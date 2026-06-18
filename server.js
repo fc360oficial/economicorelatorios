@@ -28,7 +28,9 @@ app.use((req, res, next) => {
     '/diretoria.html', '/api/diretoria/kpis',
     '/api/top-vendidos', '/api/top-mercadologico',
     '/api/compras/verificar-comprador',
-    '/api/compras/fornec-por-lista'];
+    '/api/compras/fornec-por-lista',
+    '/api/compras/pedidos-mes',
+    '/mensal.html'];
   if (publico.includes(req.path)) return next();
   if (req.session && req.session.user) return next();
   if (req.path.startsWith('/api/')) return res.status(401).json({ error: 'Não autenticado' });
@@ -1620,6 +1622,31 @@ app.get('/api/compras/verificar-comprador', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// Pedidos do mês agrupados por data e CodFornec
+app.get('/api/compras/pedidos-mes', async (req, res) => {
+  try {
+    const hoje = new Date();
+    const mes = req.query.mes ? parseInt(req.query.mes) : hoje.getMonth() + 1;
+    const ano = req.query.ano ? parseInt(req.query.ano) : hoje.getFullYear();
+    const ini = `${ano}-${String(mes).padStart(2,'0')}-01`;
+    const fim = `${ano}-${String(mes).padStart(2,'0')}-31`;
+    const rows = await q(`
+      SELECT DATE(DataLan) AS data, CodFornec
+      FROM central.pedidocompra
+      WHERE DATE(DataLan) >= ? AND DATE(DataLan) <= ?
+      GROUP BY DATE(DataLan), CodFornec
+      ORDER BY data
+    `, [ini, fim]);
+    const mapa = {};
+    for (const r of rows) {
+      const k = String(r.data).slice(0,10);
+      if (!mapa[k]) mapa[k] = [];
+      mapa[k].push(parseInt(r.CodFornec));
+    }
+    res.json({ mes, ano, pedidos: mapa });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ═══════════════════════════════════════════════════

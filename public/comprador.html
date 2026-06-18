@@ -1193,8 +1193,9 @@ function updateClock() {
 // ── ROTAÇÃO AUTOMÁTICA ──
 const ORDEM_AUTO = ['FÁTIMA','FERNANDA','PRISCILA','MARCOS','RENATA'];
 const params_auto = new URLSearchParams(location.search);
-const isAuto = params_auto.get('auto') === '1';
-const idxAtual = parseInt(params_auto.get('idx') || '0');
+const isAuto    = params_auto.get('auto') === '1';
+const idxAtual  = parseInt(params_auto.get('idx') || '0');
+const nomeAtual = params_auto.get('nome') || ORDEM_AUTO[idxAtual];
 
 if (isAuto) {
   document.getElementById('fb-auto').style.display = 'flex';
@@ -1203,14 +1204,8 @@ if (isAuto) {
     cdAuto--;
     document.getElementById('auto-cd').textContent = cdAuto + 's';
     if (cdAuto <= 0) {
-      const prox = idxAtual + 1;
-      if (prox < ORDEM_AUTO.length) {
-        location.href = '/comprador.html?nome=' + encodeURIComponent(ORDEM_AUTO[prox]) + '&auto=1&idx=' + prox;
-      } else {
-        // Ciclo do compras concluído — avisa supervisão
-        try { window.parent.postMessage({ type: 'comprasCycleComplete' }, '*'); } catch(_) {}
-        location.href = '/compras.html';
-      }
+      // Vai para a visão mensal do mesmo comprador antes de avançar
+      location.href = '/mensal.html?nome=' + encodeURIComponent(nomeAtual) + '&auto=1&idx=' + idxAtual;
     }
   }, 1000);
 }
