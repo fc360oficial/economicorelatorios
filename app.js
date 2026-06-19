@@ -1,6 +1,6 @@
 ﻿// Verificação de versão — roda antes de tudo
 (function() {
-  var BUILD = '176';
+  var BUILD = '177';
   if (localStorage.getItem('fc360_build') !== BUILD) {
     localStorage.setItem('fc360_build', BUILD);
     sessionStorage.removeItem('eco_last_page');
@@ -4048,6 +4048,11 @@ function addHist(tipo,desc,setor,stCls,stLabel) {
 
 var _dashEquipePerfilAtivo = 'todos';
 
+function _perfilDoChecklist(checklistId) {
+  var cl = getCustomCLs().find(function(c){ return c.id === checklistId; });
+  return cl ? (cl.perfil || 'operator') : 'operator';
+}
+
 function _dashEquipeTab(perfil, btn) {
   _dashEquipePerfilAtivo = perfil;
   document.querySelectorAll('#dash-equipe-tabs .tab').forEach(function(t){ t.classList.remove('on'); });
@@ -4060,8 +4065,8 @@ function _renderDashKPIs(perfilFiltro) {
   var resTodos  = window._dashEquipeResultadosHoje  || [];
   var resOntem  = window._dashEquipeResultadosOntem || [];
   var pf        = perfilFiltro || 'todos';
-  var resFilt   = pf === 'todos' ? resTodos : resTodos.filter(function(r){ return r.perfil === pf; });
-  var resOFilt  = pf === 'todos' ? resOntem : resOntem.filter(function(r){ return r.perfil === pf; });
+  var resFilt   = pf === 'todos' ? resTodos : resTodos.filter(function(r){ var cp = _perfilDoChecklist(r.checklistId); return cp === pf || cp === 'todos'; });
+  var resOFilt  = pf === 'todos' ? resOntem : resOntem.filter(function(r){ var cp = _perfilDoChecklist(r.checklistId); return cp === pf || cp === 'todos'; });
 
   var totalEnvios = resFilt.length;
   var completos   = resFilt.filter(function(r){ return r.pct===100; }).length;
@@ -4166,7 +4171,7 @@ function _renderDashKPIs(perfilFiltro) {
   var pendSub = document.getElementById('dpend-sub');
   if (pendVal) {
     var todasPend = getPendencias();
-    var pendFilt  = pf === 'todos' ? todasPend : todasPend.filter(function(p){ return (p.cl.perfil||'').toLowerCase()===pf; });
+    var pendFilt  = pf === 'todos' ? todasPend : todasPend.filter(function(p){ var cp2 = _perfilDoChecklist(p.cl.id); return cp2 === pf || cp2 === 'todos'; });
     var pendentes = pendFilt.length;
     pendVal.textContent = pendentes;
     pendVal.style.color = pendentes===0 ? 'var(--g)' : 'var(--r)';
@@ -4192,7 +4197,14 @@ function _renderDashEquipe() {
   }
   var enviados = 0;
   dashEquipe.innerHTML = users.map(function(u){
-    var urs   = resultadosHoje.filter(function(r){ return r.operador===u.nome; });
+    var urs   = resultadosHoje.filter(function(r){
+      if (r.operador !== u.nome) return false;
+      if (_dashEquipePerfilAtivo !== 'todos') {
+        var cp = _perfilDoChecklist(r.checklistId);
+        if (cp !== _dashEquipePerfilAtivo && cp !== 'todos') return false;
+      }
+      return true;
+    });
     var enviou = urs.length > 0;
     var media  = enviou ? Math.round(urs.reduce(function(s,r){ return s+r.pct; },0)/urs.length) : null;
     if (enviou) enviados++;
@@ -5161,18 +5173,18 @@ function renderRelRanking() {
     }).join('') : '<tr class="erow"><td colspan="6">'+(emptyMsg||'Nenhum dado')+'</td></tr>';
   }
 
-  // ── RANKING DE OPERADORES (perfil operator) ─────────────────
-  var opList = buildRankList(res.filter(function(r){ return r.perfil === 'operator'; }));
+  // ── RANKING DE OPERADORES (checklist perfil operator) ─────────────────
+  var opList = buildRankList(res.filter(function(r){ var cp=_perfilDoChecklist(r.checklistId); return cp==='operator'||cp==='todos'; }));
   buildPodio('rank-podio', opList);
   buildRankTable('rank-tbody', opList, 'Nenhum operador enviou no período');
 
-  // ── RANKING DE GERÊNCIA (perfil gerencia) ───────────────────
-  var gerList = buildRankList(res.filter(function(r){ return r.perfil === 'gerencia'; }));
+  // ── RANKING DE GERÊNCIA (checklist perfil gerencia) ───────────────────
+  var gerList = buildRankList(res.filter(function(r){ var cp=_perfilDoChecklist(r.checklistId); return cp==='gerencia'||cp==='todos'; }));
   buildPodio('rank-gerencia-podio', gerList);
   buildRankTable('rank-gerencia-tbody', gerList, 'Nenhum membro de gerência enviou no período');
 
-  // ── RANKING DE PREVENÇÃO (perfil prevencao) ─────────────────
-  var prevList = buildRankList(res.filter(function(r){ return r.perfil === 'prevencao'; }));
+  // ── RANKING DE PREVENÇÃO (checklist perfil prevencao) ─────────────────
+  var prevList = buildRankList(res.filter(function(r){ var cp=_perfilDoChecklist(r.checklistId); return cp==='prevencao'||cp==='todos'; }));
   buildPodio('rank-prevencao-podio', prevList);
   buildRankTable('rank-prevencao-tbody', prevList, 'Nenhum membro de prevenção enviou no período');
 
