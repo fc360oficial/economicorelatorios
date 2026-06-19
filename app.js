@@ -1,6 +1,6 @@
 ﻿// Verificação de versão — roda antes de tudo
 (function() {
-  var BUILD = '177';
+  var BUILD = '178';
   if (localStorage.getItem('fc360_build') !== BUILD) {
     localStorage.setItem('fc360_build', BUILD);
     sessionStorage.removeItem('eco_last_page');
@@ -5173,18 +5173,18 @@ function renderRelRanking() {
     }).join('') : '<tr class="erow"><td colspan="6">'+(emptyMsg||'Nenhum dado')+'</td></tr>';
   }
 
-  // ── RANKING DE OPERADORES (checklist perfil operator) ─────────────────
-  var opList = buildRankList(res.filter(function(r){ var cp=_perfilDoChecklist(r.checklistId); return cp==='operator'||cp==='todos'; }));
+  // ── RANKING DE OPERADORES (por perfil do usuario) ─────────────────
+  var opList = buildRankList(res.filter(function(r){ return r.perfil === 'operator'; }));
   buildPodio('rank-podio', opList);
   buildRankTable('rank-tbody', opList, 'Nenhum operador enviou no período');
 
-  // ── RANKING DE GERÊNCIA (checklist perfil gerencia) ───────────────────
-  var gerList = buildRankList(res.filter(function(r){ var cp=_perfilDoChecklist(r.checklistId); return cp==='gerencia'||cp==='todos'; }));
+  // ── RANKING DE GERÊNCIA (por perfil do usuario) ───────────────────
+  var gerList = buildRankList(res.filter(function(r){ return r.perfil === 'gerencia'; }));
   buildPodio('rank-gerencia-podio', gerList);
   buildRankTable('rank-gerencia-tbody', gerList, 'Nenhum membro de gerência enviou no período');
 
-  // ── RANKING DE PREVENÇÃO (checklist perfil prevencao) ─────────────────
-  var prevList = buildRankList(res.filter(function(r){ var cp=_perfilDoChecklist(r.checklistId); return cp==='prevencao'||cp==='todos'; }));
+  // ── RANKING DE PREVENÇÃO (por perfil do usuario) ─────────────────
+  var prevList = buildRankList(res.filter(function(r){ return r.perfil === 'prevencao'; }));
   buildPodio('rank-prevencao-podio', prevList);
   buildRankTable('rank-prevencao-tbody', prevList, 'Nenhum membro de prevenção enviou no período');
 
