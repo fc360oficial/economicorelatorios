@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Comparativos — Econômico Relatórios</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh;overflow-x:hidden}
+
+/* SIDEBAR */
+.sidebar{position:fixed;top:0;left:0;height:100vh;width:220px;background:#1e293b;border-right:1px solid #334155;display:flex;flex-direction:column;z-index:50}
+.sidebar-logo{padding:22px 20px 14px;border-bottom:1px solid #334155}
+.sidebar-logo h2{font-size:15px;color:#F9C200;font-weight:700;letter-spacing:0.5px}
+.sidebar-logo p{font-size:11px;color:#64748b;margin-top:2px}
+.sidebar-nav{padding:10px 0;flex:1}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 20px;color:#94a3b8;text-decoration:none;font-size:13px;font-weight:500;transition:all .15s}
+.nav-item:hover{background:#334155;color:#f1f5f9}
+.nav-item.active{background:#F9C20018;color:#F9C200;border-right:3px solid #F9C200}
+.nav-item .ic{font-size:15px;width:20px;text-align:center}
+.nav-sub{padding-left:36px;font-size:12px}
+.nav-sub.active{background:#F9C20010;color:#F9C200;border-right:3px solid #F9C200}
+
+/* LAYOUT */
+.main{margin-left:220px;padding:24px}
+
+/* HEADER */
+.page-hdr{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px;gap:12px;flex-wrap:wrap}
+.page-hdr h1{font-size:21px;font-weight:700;color:#f8fafc}
+.page-hdr p{font-size:12px;color:#64748b;margin-top:2px}
+
+/* FILTROS */
+.filtros{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:14px 18px;margin-bottom:18px;display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.fg{display:flex;flex-direction:column;gap:4px}
+.fg label{font-size:10px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+.fg select{background:#0f172a;border:1px solid #334155;border-radius:7px;color:#e2e8f0;padding:7px 11px;font-size:13px;outline:none;min-width:120px}
+.fg select:focus{border-color:#F9C200}
+.btn{border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;align-self:flex-end;white-space:nowrap}
+.btn-pri{background:#F9C200;color:#0f0f1a;font-weight:700}.btn-pri:hover{background:#e0ae00}
+
+/* KPI CARDS */
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+.kpi{background:#1e293b;border:1px solid #334155;border-radius:10px;padding:14px 18px;position:relative;overflow:hidden}
+.kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.kpi.blue::before{background:#3b82f6}
+.kpi.green::before{background:#10b981}
+.kpi.amber::before{background:#f59e0b}
+.kpi.rose::before{background:#f43f5e}
+.kpi-l{font-size:10px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.kpi-v{font-size:22px;font-weight:700;color:#f1f5f9}
+.kpi-s{font-size:11px;margin-top:4px;color:#64748b}
+.up{color:#10b981}.dn{color:#ef4444}
+
+/* CHART CARD */
+.card{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:18px 20px;margin-bottom:20px}
+.card-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px}
+.card-hdr h2{font-size:14px;font-weight:700;color:#f1f5f9}
+.legenda{display:flex;gap:14px;align-items:center}
+.leg-dot{width:12px;height:12px;border-radius:2px;flex-shrink:0}
+.leg-txt{font-size:11px;color:#94a3b8}
+.chart-wrap{position:relative;height:320px}
+
+/* TABELA */
+.table-wrap{overflow-x:auto;border-radius:10px;border:1px solid #334155}
+table.dt{width:100%;border-collapse:collapse;font-size:12px}
+table.dt thead{background:#0f172a;position:sticky;top:0;z-index:1}
+table.dt th{padding:9px 12px;text-align:left;color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;border-bottom:1px solid #334155}
+table.dt th.r{text-align:right}
+table.dt td{padding:8px 12px;border-bottom:1px solid #1e293b;color:#e2e8f0;vertical-align:middle}
+table.dt td.r{text-align:right}
+table.dt tbody tr:hover{background:#ffffff06}
+.var-pos{color:#10b981;font-weight:700}
+.var-neg{color:#ef4444;font-weight:700}
+.var-zero{color:#64748b}
+.loading{text-align:center;padding:40px;color:#64748b;font-size:14px}
+
+/* RESPONSIVE */
+@media(max-width:900px){
+  .sidebar{position:fixed;top:auto;bottom:0;left:0;right:0;height:auto;width:100%;flex-direction:column;border-right:none;border-top:1px solid #334155}
+  .sidebar-logo{display:none}
+  .sidebar-nav{padding:5px 8px 8px;display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px}
+  .nav-item{padding:7px 6px;font-size:10px;border-radius:6px;gap:4px;justify-content:center;text-align:center;border-right:none!important}
+  .nav-item .ic{font-size:12px;width:auto}
+  .nav-sub{display:none}
+  .main{margin-left:0;margin-bottom:80px;padding:14px}
+  .kpi-row{grid-template-columns:1fr 1fr}
+  .chart-wrap{height:240px}
+  div[style*="border-top:1px solid #334155"]{display:none}
+}
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="sidebar-logo">
+    <img src="/logo.png" alt="Econômico" style="width:160px;height:auto;display:block;filter:brightness(0) invert(1) sepia(1) saturate(3) hue-rotate(-8deg)">
+  </div>
+  <nav class="sidebar-nav">
+    <a href="index.html"       class="nav-item"><span class="ic">📊</span> Dashboard</a>
+    <a href="consulta.html"    class="nav-item"><span class="ic">🔍</span> Consulta Vendas</a>
+    <a href="itens.html"       class="nav-item"><span class="ic">📂</span> Mercadológico</a>
+    <a href="fornecedores.html"class="nav-item"><span class="ic">📋</span> Lista de Compra</a>
+    <a href="pendencias.html"  class="nav-item"><span class="ic">⚠️</span> Pendências</a>
+    <a href="comparativos.html"class="nav-item active"><span class="ic">📈</span> Comparativos</a>
+  </nav>
+  <div style="padding:12px 16px;border-top:1px solid #334155;margin-top:auto">
+    <div style="font-size:11px;color:#64748b;margin-bottom:6px" id="sidebar-user">👤 ...</div>
+    <a href="/api/logout" style="display:flex;align-items:center;gap:6px;color:#f87171;font-size:12px;font-weight:600;text-decoration:none;padding:6px 8px;border-radius:6px;border:1px solid #7f1d1d;background:#450a0a22;transition:background .15s" onmouseover="this.style.background='#450a0a'" onmouseout="this.style.background='#450a0a22'">🚪 Sair</a>
+  </div>
+</div>
+<script>fetch('/api/me').then(r=>r.json()).then(u=>{if(u.nome)document.getElementById('sidebar-user').textContent='👤 '+u.nome}).catch(()=>{})</script>
+
+<div class="main">
+  <div class="page-hdr">
+    <div>
+      <h1>Comparativos</h1>
+      <p>Comparativo Diário por Mês — vendas 2025 × 2026</p>
+    </div>
+  </div>
+
+  <div class="filtros">
+    <div class="fg">
+      <label>Loja</label>
+      <select id="sel-loja">
+        <option value="1">Loja 1</option>
+        <option value="2">Loja 2</option>
+        <option value="3">Loja 3</option>
+        <option value="4">Loja 4</option>
+        <option value="5">Loja 5</option>
+        <option value="6">Loja 6</option>
+      </select>
+    </div>
+    <div class="fg">
+      <label>Mês</label>
+      <select id="sel-mes">
+        <option value="1">Janeiro</option>
+        <option value="2">Fevereiro</option>
+        <option value="3">Março</option>
+        <option value="4">Abril</option>
+        <option value="5">Maio</option>
+        <option value="6">Junho</option>
+        <option value="7">Julho</option>
+        <option value="8">Agosto</option>
+        <option value="9">Setembro</option>
+        <option value="10">Outubro</option>
+        <option value="11">Novembro</option>
+        <option value="12">Dezembro</option>
+      </select>
+    </div>
+    <button class="btn btn-pri" onclick="carregar()">Atualizar</button>
+  </div>
+
+  <!-- KPIs -->
+  <div class="kpi-row">
+    <div class="kpi blue">
+      <div class="kpi-l">Total 2025</div>
+      <div class="kpi-v" id="k-tot25">—</div>
+      <div class="kpi-s" id="k-sub25"></div>
+    </div>
+    <div class="kpi green">
+      <div class="kpi-l">Total 2026</div>
+      <div class="kpi-v" id="k-tot26">—</div>
+      <div class="kpi-s" id="k-sub26"></div>
+    </div>
+    <div class="kpi amber">
+      <div class="kpi-l">Variação</div>
+      <div class="kpi-v" id="k-var">—</div>
+      <div class="kpi-s" id="k-dif">diferença</div>
+    </div>
+    <div class="kpi rose">
+      <div class="kpi-l">Média Diária 2026</div>
+      <div class="kpi-v" id="k-med26">—</div>
+      <div class="kpi-s" id="k-med25">vs 2025: —</div>
+    </div>
+  </div>
+
+  <!-- Gráfico -->
+  <div class="card">
+    <div class="card-hdr">
+      <h2>Vendas por Dia — <span id="chart-titulo">...</span></h2>
+      <div class="legenda">
+        <div style="display:flex;align-items:center;gap:6px"><div class="leg-dot" style="background:#3b82f6"></div><span class="leg-txt">2025</span></div>
+        <div style="display:flex;align-items:center;gap:6px"><div class="leg-dot" style="background:#F9C200"></div><span class="leg-txt">2026</span></div>
+      </div>
+    </div>
+    <div class="chart-wrap">
+      <canvas id="grafico"></canvas>
+    </div>
+  </div>
+
+  <!-- Tabela -->
+  <div class="card">
+    <div class="card-hdr">
+      <h2>Detalhe Diário</h2>
+    </div>
+    <div class="table-wrap">
+      <table class="dt">
+        <thead>
+          <tr>
+            <th>Dia</th>
+            <th class="r">Venda 2025</th>
+            <th class="r">Venda 2026</th>
+            <th class="r">Variação</th>
+            <th class="r">Diferença</th>
+            <th class="r">Cupons 2025</th>
+            <th class="r">Cupons 2026</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+const BRL = v => v.toLocaleString('pt-BR', { style:'currency', currency:'BRL', minimumFractionDigits:2 });
+const PCT = v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
+const MESES = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+let chart = null;
+
+function initSelects() {
+  const hoje = new Date();
+  document.getElementById('sel-mes').value = hoje.getMonth() + 1;
+}
+
+function carregar() {
+  const loja = document.getElementById('sel-loja').value;
+  const mes  = document.getElementById('sel-mes').value;
+
+  document.getElementById('k-tot25').textContent = '...';
+  document.getElementById('k-tot26').textContent = '...';
+  document.getElementById('k-var').textContent   = '...';
+  document.getElementById('k-med26').textContent = '...';
+
+  fetch(`/api/comparativo-diario?loja=${loja}&mes=${mes}`)
+    .then(r => r.json())
+    .then(renderizar)
+    .catch(e => console.error(e));
+}
+
+function renderizar(data) {
+  const mes  = parseInt(document.getElementById('sel-mes').value);
+  const loja = document.getElementById('sel-loja').value;
+  document.getElementById('chart-titulo').textContent = `${MESES[mes]} · Loja ${loja}`;
+
+  // KPIs
+  document.getElementById('k-tot25').textContent = BRL(data.total2025);
+  document.getElementById('k-tot26').textContent = BRL(data.total2026);
+
+  const varPct = data.var_pct;
+  const kVar = document.getElementById('k-var');
+  if (varPct !== null) {
+    kVar.textContent = PCT(varPct);
+    kVar.className = 'kpi-v ' + (varPct >= 0 ? 'up' : 'dn');
+  } else { kVar.textContent = '—'; kVar.className = 'kpi-v'; }
+
+  const dif = data.total2026 - data.total2025;
+  document.getElementById('k-dif').textContent = (dif >= 0 ? '+' : '') + BRL(dif);
+  document.getElementById('k-sub25').textContent = `mês de ${MESES[mes]}`;
+  document.getElementById('k-sub26').textContent = `mês de ${MESES[mes]}`;
+
+  // Média só dos dias com venda em 2026
+  const diasC26 = data.dias.filter(d => d.v2026 > 0);
+  const med26 = diasC26.length > 0 ? diasC26.reduce((s,d) => s+d.v2026, 0) / diasC26.length : 0;
+  const diasC25 = data.dias.filter(d => d.v2025 > 0);
+  const med25 = diasC25.length > 0 ? diasC25.reduce((s,d) => s+d.v2025, 0) / diasC25.length : 0;
+  document.getElementById('k-med26').textContent = BRL(med26);
+  document.getElementById('k-med25').textContent = 'vs 2025: ' + BRL(med25);
+
+  // Gráfico
+  const labels = data.dias.map(d => d.dia);
+  const vals25 = data.dias.map(d => d.v2025);
+  const vals26 = data.dias.map(d => d.v2026);
+
+  if (chart) chart.destroy();
+  chart = new Chart(document.getElementById('grafico'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: '2025',
+          data: vals25,
+          backgroundColor: 'rgba(59,130,246,0.7)',
+          borderColor: 'rgba(59,130,246,1)',
+          borderWidth: 1,
+          borderRadius: 3
+        },
+        {
+          label: '2026',
+          data: vals26,
+          backgroundColor: 'rgba(249,194,0,0.85)',
+          borderColor: 'rgba(249,194,0,1)',
+          borderWidth: 1,
+          borderRadius: 3
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1e293b',
+          borderColor: '#334155',
+          borderWidth: 1,
+          titleColor: '#94a3b8',
+          bodyColor: '#f1f5f9',
+          callbacks: {
+            title: ctx => `Dia ${ctx[0].label}`,
+            label: ctx => ` ${ctx.dataset.label}: ${BRL(ctx.raw)}`
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(255,255,255,0.05)' },
+          ticks: { color: '#64748b', font: { size: 11 } }
+        },
+        y: {
+          grid: { color: 'rgba(255,255,255,0.05)' },
+          ticks: {
+            color: '#64748b',
+            font: { size: 11 },
+            callback: v => 'R$' + (v >= 1000 ? (v/1000).toFixed(0)+'k' : v)
+          }
+        }
+      }
+    }
+  });
+
+  // Tabela
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML = '';
+  let tot25 = 0, tot26 = 0;
+  for (const d of data.dias) {
+    tot25 += d.v2025; tot26 += d.v2026;
+    const dif = d.v2026 - d.v2025;
+    let varCell = '<span class="var-zero">—</span>';
+    if (d.var !== null) {
+      const cls = d.var > 0 ? 'var-pos' : d.var < 0 ? 'var-neg' : 'var-zero';
+      varCell = `<span class="${cls}">${PCT(d.var)}</span>`;
+    }
+    tbody.insertAdjacentHTML('beforeend', `
+      <tr>
+        <td><strong>${String(d.dia).padStart(2,'0')}</strong></td>
+        <td class="r">${d.v2025 > 0 ? BRL(d.v2025) : '<span style="color:#334155">—</span>'}</td>
+        <td class="r">${d.v2026 > 0 ? BRL(d.v2026) : '<span style="color:#334155">—</span>'}</td>
+        <td class="r">${varCell}</td>
+        <td class="r ${dif >= 0 ? 'var-pos' : 'var-neg'}">${d.v2025 > 0 || d.v2026 > 0 ? (dif >= 0 ? '+' : '') + BRL(dif) : ''}</td>
+        <td class="r">${d.c2025 || ''}</td>
+        <td class="r">${d.c2026 || ''}</td>
+      </tr>
+    `);
+  }
+  // Totais
+  const difTot = tot26 - tot25;
+  tbody.insertAdjacentHTML('beforeend', `
+    <tr style="background:#0f172a;font-weight:700;border-top:2px solid #334155">
+      <td>Total</td>
+      <td class="r">${BRL(tot25)}</td>
+      <td class="r">${BRL(tot26)}</td>
+      <td class="r">${data.var_pct !== null ? `<span class="${data.var_pct >= 0 ? 'var-pos' : 'var-neg'}">${PCT(data.var_pct)}</span>` : ''}</td>
+      <td class="r ${difTot >= 0 ? 'var-pos' : 'var-neg'}">${(difTot >= 0 ? '+' : '') + BRL(difTot)}</td>
+      <td class="r">${data.dias.reduce((s,d)=>s+d.c2025,0)}</td>
+      <td class="r">${data.dias.reduce((s,d)=>s+d.c2026,0)}</td>
+    </tr>
+  `);
+}
+
+initSelects();
+carregar();
+</script>
+</body>
+</html>

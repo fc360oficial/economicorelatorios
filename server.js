@@ -894,6 +894,45 @@ app.get('/api/fornecedores/resumo', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Comparativo diário: vendas dia-a-dia 2025 vs 2026 para o mês selecionado
+app.get('/api/comparativo-diario', async (req, res) => {
+  try {
+    const hoje   = new Date();
+    const mesSel = req.query.mes  ? parseInt(req.query.mes)  : hoje.getMonth() + 1;
+    const lojaSel= req.query.loja ? parseInt(req.query.loja) : 1;
+    const mm     = mesDB(mesSel);
+
+    const rows = await q(`
+      SELECT DAY(Data) as dia, YEAR(Data) as ano,
+             SUM(ValorTotalNovo) as valor,
+             COUNT(DISTINCT NumDoc) as cupons
+      FROM \`ln${lojaSel}${mm}\`.zcupomitens
+      WHERE MONTH(Data)=? AND YEAR(Data) IN (2025,2026) AND IndCancel='N'
+      GROUP BY dia, ano ORDER BY dia, ano
+    `, [mesSel]).catch(() => []);
+
+    const v25 = {}, v26 = {}, c25 = {}, c26 = {};
+    for (const r of rows) {
+      if (r.ano == 2025) { v25[r.dia] = parseFloat(r.valor); c25[r.dia] = parseInt(r.cupons); }
+      if (r.ano == 2026) { v26[r.dia] = parseFloat(r.valor); c26[r.dia] = parseInt(r.cupons); }
+    }
+
+    const ultimoDia = new Date(2026, mesSel, 0).getDate();
+    const dias = [];
+    for (let d = 1; d <= ultimoDia; d++) {
+      const a = v25[d] || 0, b = v26[d] || 0;
+      dias.push({ dia: d, v2025: +a.toFixed(2), v2026: +b.toFixed(2),
+        c2025: c25[d] || 0, c2026: c26[d] || 0,
+        var: a > 0 ? +((b - a) / a * 100).toFixed(1) : null });
+    }
+
+    const tot25 = dias.reduce((s,d) => s + d.v2025, 0);
+    const tot26 = dias.reduce((s,d) => s + d.v2026, 0);
+    res.json({ dias, total2025: +tot25.toFixed(2), total2026: +tot26.toFixed(2),
+      var_pct: tot25 > 0 ? +((tot26 - tot25) / tot25 * 100).toFixed(1) : null });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // Produtos vendidos sem fornecedor cadastrado
 app.get('/api/sem-fornecedor', async (req, res) => {
   try {
