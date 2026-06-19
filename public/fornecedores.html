@@ -149,6 +149,48 @@ table.d-t tbody tr:hover{background:#ffffff06}
 .spinner{width:22px;height:22px;border-radius:50%;border:2px solid #334155;border-top-color:#3b82f6;animation:spin .7s linear infinite;margin:30px auto}
 @keyframes spin{to{transform:rotate(360deg)}}
 .empty{padding:30px;text-align:center;color:#475569;font-size:13px}
+
+/* PRINT */
+.btn-print{background:#1e293b;border:1px solid #334155;color:#94a3b8;border-radius:6px;padding:5px 10px;cursor:pointer;font-size:13px;flex-shrink:0;transition:all .15s}
+.btn-print:hover{background:#334155;color:#f1f5f9}
+.print-header{display:none}
+@media print{
+  .sidebar,.drawer-overlay,.btn-close,.btn-print,.drawer-tabs,.quick-filters,.main,
+  .page-hdr,.filtros,.table-wrap,.kpi-row,.insights{display:none!important}
+  body{background:#fff!important;color:#000!important;font-family:'Segoe UI',sans-serif}
+  .drawer{position:static!important;transform:none!important;width:100%!important;height:auto!important;
+    border:none!important;box-shadow:none!important;background:#fff!important;overflow:visible!important}
+  .drawer-hdr{background:#fff!important;border-bottom:2px solid #F9C200!important;padding:0 0 12px 0!important;margin-bottom:12px}
+  .drawer-hdr-info h2{color:#0f172a!important;font-size:18px!important}
+  .drawer-hdr-info p{color:#475569!important;font-size:12px!important}
+  .print-header{display:flex!important;align-items:center;gap:14px;margin-bottom:16px;padding-bottom:12px;border-bottom:3px solid #F9C200}
+  .print-header img{height:38px;width:auto}
+  .print-header-txt h1{font-size:18px;font-weight:800;color:#0f172a;letter-spacing:-.3px}
+  .print-header-txt p{font-size:11px;color:#475569;margin-top:2px}
+  .d-kpis{background:#f8fafc!important;border:1px solid #e2e8f0!important;border-radius:8px;margin-bottom:12px}
+  .d-kpi{background:#fff!important;border:1px solid #e2e8f0!important}
+  .d-kpi .dv{color:#0f172a!important}
+  .d-kpi .dl{color:#64748b!important}
+  .d-section{border-bottom:1px solid #e2e8f0!important}
+  .drawer-body{overflow:visible!important;padding:0}
+  table.d-t{color:#0f172a!important}
+  table.d-t th{color:#475569!important;background:#f1f5f9!important;border-bottom:1px solid #cbd5e1!important}
+  table.d-t td{border-bottom:1px solid #e2e8f0!important;color:#0f172a!important}
+  table.d-t tbody tr:hover{background:none!important}
+  .d-t .cod{color:#64748b!important}
+  .d-t .desc{color:#0f172a!important}
+  .m-great{color:#16a34a!important}.m-ok{color:#65a30d!important}.m-warn{color:#d97706!important}.m-bad{color:#dc2626!important}
+  .loja-row{border-bottom:1px solid #e2e8f0!important}
+  .loja-label{color:#475569!important}
+  .loja-val{color:#1d4ed8!important}
+  .loja-bar-wrap{background:#e2e8f0!important}
+  .loja-bar-fill{background:#3b82f6!important}
+  .badge-rank,.loja-badge,.comp-tag{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .tag-sem-giro,.tag-est-baixo,.tag-neg{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .print-footer{display:block!important;margin-top:24px;padding-top:10px;border-top:1px solid #e2e8f0;
+    font-size:10px;color:#64748b;text-align:right}
+  @page{margin:15mm 12mm;size:A4 portrait}
+}
 .tag-sem-giro{background:#7f1d1d;color:#fca5a5;font-size:9px;font-weight:700;border-radius:3px;padding:1px 4px;margin-left:4px}
 .tag-est-baixo{background:#713f12;color:#fde68a;font-size:9px;font-weight:700;border-radius:3px;padding:1px 4px;margin-left:4px}
 .tag-neg{background:#500000;color:#f87171;font-size:9px;font-weight:700;border-radius:3px;padding:1px 4px;margin-left:4px}
@@ -302,15 +344,24 @@ table.d-t tbody tr:hover{background:#ffffff06}
 
 <!-- DRAWER -->
 <div class="drawer" id="drawer">
+  <div class="print-header">
+    <img src="/icon-192.png" alt="Econômico" onerror="this.style.display='none'">
+    <div class="print-header-txt">
+      <h1>Econômico Relatórios</h1>
+      <p>Análise de Fornecedores · <span id="print-filtro"></span></p>
+    </div>
+  </div>
   <div class="drawer-hdr">
     <div class="drawer-hdr-info">
       <h2 id="d-title">Fornecedor</h2>
       <p id="d-subtitle">Loja X · Mês/Ano</p>
     </div>
+    <button class="btn-print" onclick="imprimirDrawer()" title="Imprimir esta aba">🖨️ Imprimir</button>
     <button class="btn-close" onclick="fecharDrawer()">✕ Fechar</button>
   </div>
   <div class="drawer-tabs" id="d-tabs"></div>
   <div class="drawer-body" id="d-body"><div class="spinner"></div></div>
+  <div class="print-footer" id="print-footer"></div>
 </div>
 
 <script>
@@ -935,6 +986,22 @@ function fecharDrawer() {
   document.querySelectorAll('.main-t tbody tr').forEach(tr=>tr.classList.remove('selected'));
   fornecSelecionado = null;
   listaSelecionada = null;
+}
+
+function imprimirDrawer() {
+  const titulo = document.getElementById('d-title').textContent;
+  const subtitulo = document.getElementById('d-subtitle').textContent;
+  const abaAtiva = document.querySelector('.dtab.active');
+  const abaLabel = abaAtiva ? abaAtiva.textContent.trim() : '';
+  const agora = new Date().toLocaleString('pt-BR');
+
+  document.getElementById('print-filtro').textContent = `${subtitulo} · ${abaLabel}`;
+  document.getElementById('print-footer').textContent = `${titulo} · ${abaLabel} · Impresso em ${agora}`;
+  document.getElementById('print-footer').style.display = 'block';
+
+  window.print();
+
+  document.getElementById('print-footer').style.display = 'none';
 }
 
 async function verSemFornecedor() {
