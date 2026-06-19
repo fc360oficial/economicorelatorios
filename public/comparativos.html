@@ -320,6 +320,22 @@ function renderizar(data) {
   document.getElementById('k-tot25').textContent = BRL(data.total2025);
   document.getElementById('k-tot26').textContent = BRL(data.total2026);
 
+  // 2025 até o mesmo dia atual (só mostra se for o mês corrente)
+  const hoje = new Date();
+  const mesAtual = hoje.getMonth() + 1;
+  const diaAtual = hoje.getDate();
+  if (mes === mesAtual) {
+    const tot25Periodo = data.dias
+      .filter(d => d.dia <= diaAtual)
+      .reduce((s, d) => s + d.v2025, 0);
+    document.getElementById('k-sub25').innerHTML =
+      `mês completo de ${MESES[mes]}<br><span style="color:#60a5fa;font-size:11px">até dia ${diaAtual}: ${BRL(tot25Periodo)}</span>`;
+  } else {
+    document.getElementById('k-sub25').textContent = `mês de ${MESES[mes]}`;
+  }
+  document.getElementById('k-sub26').textContent = `mês de ${MESES[mes]}`;
+
+  // Variação usando mesmo período (2025 até dia atual vs 2026 total)
   const varPct = data.var_pct;
   const kVar = document.getElementById('k-var');
   if (varPct !== null) {
@@ -329,8 +345,6 @@ function renderizar(data) {
 
   const dif = data.total2026 - data.total2025;
   document.getElementById('k-dif').textContent = (dif >= 0 ? '+' : '') + BRL(dif);
-  document.getElementById('k-sub25').textContent = `mês de ${MESES[mes]}`;
-  document.getElementById('k-sub26').textContent = `mês de ${MESES[mes]}`;
 
   // Média só dos dias com venda em 2026
   const diasC26 = data.dias.filter(d => d.v2026 > 0);
