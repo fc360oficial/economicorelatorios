@@ -917,7 +917,8 @@ app.get('/api/comparativo-tv', async (req, res) => {
     const lojaSel = req.query.loja ? parseInt(req.query.loja) : 1;
     const mm      = mesDB(mesSel);
 
-    const [diasRows, prod25, prod26, itens] = await Promise.all([
+    const mesesNomes = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    const [diasRows, prod25, prod26, itens, ...mensalRows] = await Promise.all([
       q(`SELECT DAY(Data) as dia, YEAR(Data) as ano, SUM(ValorTotalNovo) as valor
          FROM \`ln${lojaSel}${mm}\`.zcupomitens
          WHERE MONTH(Data)=? AND YEAR(Data) IN (2025,2026) AND IndCancel='N'
@@ -926,7 +927,12 @@ app.get('/api/comparativo-tv', async (req, res) => {
          WHERE YEAR(Data)=2025 AND MONTH(Data)=? AND IndCancel='N' GROUP BY Codigo`, [mesSel]).catch(()=>[]),
       q(`SELECT Codigo, SUM(ValorTotalNovo) as valor FROM \`ln${lojaSel}${mm}\`.zcupomitens
          WHERE YEAR(Data)=2026 AND MONTH(Data)=? AND IndCancel='N' GROUP BY Codigo`, [mesSel]).catch(()=>[]),
-      getItensGrupo()
+      getItensGrupo(),
+      ...[1,2,3,4,5,6,7,8,9,10,11,12].map(m =>
+        q(`SELECT YEAR(Data) as ano, SUM(ValorTotalNovo) as valor
+           FROM \`ln${lojaSel}mes${String(m).padStart(2,'0')}\`.zcupomitens
+           WHERE YEAR(Data) IN (2025,2026) AND IndCancel='N' GROUP BY ano`, []).catch(()=>[])
+      )
     ]);
 
     // Diário
@@ -962,14 +968,22 @@ app.get('/api/comparativo-tv', async (req, res) => {
       .filter(g=>g.v2025>0||g.v2026>0)
       .map(g=>({ nome:g.nome, v2025:+g.v2025.toFixed(2), v2026:+g.v2026.toFixed(2),
         var:g.v2025>0?+((g.v2026-g.v2025)/g.v2025*100).toFixed(1):null }))
-      .sort((a,b)=>b.v2026-a.v2026||b.v2025-a.v2025).slice(0,10);
+      .sort((a,b)=>b.v2026-a.v2026||b.v2025-a.v2025);
+
+    // Mensal
+    const mensal = mensalRows.map((rows, i) => {
+      let v25=0, v26=0;
+      for (const r of rows) { if(r.ano==2025) v25=parseFloat(r.valor); if(r.ano==2026) v26=parseFloat(r.valor); }
+      return { mes:i+1, nome:mesesNomes[i], v2025:+v25.toFixed(2), v2026:+v26.toFixed(2),
+        var: v25>0?+((v26-v25)/v25*100).toFixed(1):null };
+    });
 
     res.json({ loja:lojaSel, mes:mesSel, dia_atual:diaAtual,
       total2025:+tot25.toFixed(2), total2026:+tot26.toFixed(2),
       total2025_periodo:+tot25p.toFixed(2),
       var_pct: tot25>0?+((tot26-tot25)/tot25*100).toFixed(1):null,
       var_periodo: tot25p>0?+((tot26-tot25p)/tot25p*100).toFixed(1):null,
-      dias, grupos });
+      dias, grupos, mensal });
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
