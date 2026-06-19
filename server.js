@@ -918,13 +918,13 @@ app.get('/api/comparativo-tv', async (req, res) => {
     const mm      = mesDB(mesSel);
 
     const mesesNomes = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-    const [diasRows, prod25, prod26, itens, ...mensalRows] = await Promise.all([
+    const [diasRows, prod25p, prod26, itens, ...mensalRows] = await Promise.all([
       q(`SELECT DAY(Data) as dia, YEAR(Data) as ano, SUM(ValorTotalNovo) as valor
          FROM \`ln${lojaSel}${mm}\`.zcupomitens
          WHERE MONTH(Data)=? AND YEAR(Data) IN (2025,2026) AND IndCancel='N'
          GROUP BY dia, ano ORDER BY dia`, [mesSel]).catch(()=>[]),
       q(`SELECT Codigo, SUM(ValorTotalNovo) as valor FROM \`ln${lojaSel}${mm}\`.zcupomitens
-         WHERE YEAR(Data)=2025 AND MONTH(Data)=? AND IndCancel='N' GROUP BY Codigo`, [mesSel]).catch(()=>[]),
+         WHERE YEAR(Data)=2025 AND MONTH(Data)=? AND DAY(Data)<=? AND IndCancel='N' GROUP BY Codigo`, [mesSel, diaAtual]).catch(()=>[]),
       q(`SELECT Codigo, SUM(ValorTotalNovo) as valor FROM \`ln${lojaSel}${mm}\`.zcupomitens
          WHERE YEAR(Data)=2026 AND MONTH(Data)=? AND IndCancel='N' GROUP BY Codigo`, [mesSel]).catch(()=>[]),
       getItensGrupo(),
@@ -952,9 +952,9 @@ app.get('/api/comparativo-tv', async (req, res) => {
     const tot26  = dias.reduce((s,d)=>s+d.v2026,0);
     const tot25p = dias.filter(d=>d.dia<=diaAtual).reduce((s,d)=>s+d.v2025,0);
 
-    // Mercadológico por grupo
+    // Mercadológico por grupo (2025 até dia atual vs 2026 até hoje)
     const pv25={}, pv26={};
-    for (const r of prod25) pv25[r.Codigo]=parseFloat(r.valor);
+    for (const r of prod25p) pv25[r.Codigo]=parseFloat(r.valor);
     for (const r of prod26) pv26[r.Codigo]=parseFloat(r.valor);
     const gMap={};
     for (const it of itens) {
