@@ -905,7 +905,7 @@ app.get('/api/comparativo-diario', async (req, res) => {
     const rows = await q(`
       SELECT DAY(Data) as dia, YEAR(Data) as ano,
              SUM(ValorTotalNovo) as valor,
-             COUNT(DISTINCT NumDoc) as cupons
+             COUNT(DISTINCT CONCAT(nECF,'-',CCF)) as cupons
       FROM \`ln${lojaSel}${mm}\`.zcupomitens
       WHERE MONTH(Data)=? AND YEAR(Data) IN (2025,2026) AND IndCancel='N'
       GROUP BY dia, ano ORDER BY dia, ano
