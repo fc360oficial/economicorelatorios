@@ -933,6 +933,40 @@ app.get('/api/comparativo-diario', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Comparativo mensal: todos os meses do ano 2025 vs 2026
+app.get('/api/comparativo-mensal', async (req, res) => {
+  try {
+    const lojaSel = req.query.loja ? parseInt(req.query.loja) : 1;
+    const meses = ['01','02','03','04','05','06','07','08','09','10','11','12'];
+
+    const results = await Promise.all(meses.map(mm =>
+      q(`SELECT YEAR(Data) as ano, SUM(ValorTotalNovo) as valor,
+                COUNT(DISTINCT CONCAT(nECF,'-',CCF)) as cupons
+         FROM \`ln${lojaSel}mes${mm}\`.zcupomitens
+         WHERE YEAR(Data) IN (2025,2026) AND IndCancel='N'
+         GROUP BY ano`, []).catch(() => [])
+    ));
+
+    const mesesNomes = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    const data = results.map((rows, i) => {
+      let v25=0, v26=0, c25=0, c26=0;
+      for (const r of rows) {
+        if (r.ano == 2025) { v25 = parseFloat(r.valor); c25 = parseInt(r.cupons); }
+        if (r.ano == 2026) { v26 = parseFloat(r.valor); c26 = parseInt(r.cupons); }
+      }
+      return { mes: i+1, nome: mesesNomes[i],
+        v2025: +v25.toFixed(2), v2026: +v26.toFixed(2),
+        c2025: c25, c2026: c26,
+        var: v25 > 0 ? +((v26-v25)/v25*100).toFixed(1) : null };
+    });
+
+    const tot25 = data.reduce((s,d)=>s+d.v2025,0);
+    const tot26 = data.reduce((s,d)=>s+d.v2026,0);
+    res.json({ meses: data, total2025: +tot25.toFixed(2), total2026: +tot26.toFixed(2),
+      var_pct: tot25>0 ? +((tot26-tot25)/tot25*100).toFixed(1) : null });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // Produtos vendidos sem fornecedor cadastrado
 app.get('/api/sem-fornecedor', async (req, res) => {
   try {

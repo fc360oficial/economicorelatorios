@@ -75,6 +75,12 @@ table.dt tbody tr:hover{background:#ffffff06}
 .var-zero{color:#64748b}
 .loading{text-align:center;padding:40px;color:#64748b;font-size:14px}
 
+/* ABAS */
+.tabs{display:flex;gap:4px;border-bottom:1px solid #334155;margin-bottom:16px}
+.tab-btn{background:none;border:none;cursor:pointer;padding:8px 16px;font-size:13px;font-weight:600;color:#64748b;border-bottom:2px solid transparent;transition:all .15s;white-space:nowrap}
+.tab-btn:hover{color:#e2e8f0}
+.tab-btn.active{color:#F9C200;border-bottom-color:#F9C200}
+
 /* RESPONSIVE */
 @media(max-width:900px){
   .sidebar{position:fixed;top:auto;bottom:0;left:0;right:0;height:auto;width:100%;flex-direction:column;border-right:none;border-top:1px solid #334155}
@@ -175,26 +181,51 @@ table.dt tbody tr:hover{background:#ffffff06}
     </div>
   </div>
 
-  <!-- Tabela -->
+  <!-- Tabelas com abas -->
   <div class="card">
-    <div class="card-hdr">
-      <h2>Detalhe Diário</h2>
+    <div class="tabs">
+      <button class="tab-btn active" id="tab-btn-diario" onclick="setTab('diario')">Detalhe Diário</button>
+      <button class="tab-btn"        id="tab-btn-mensal" onclick="setTab('mensal')">Detalhe Mensal</button>
     </div>
-    <div class="table-wrap">
-      <table class="dt">
-        <thead>
-          <tr>
-            <th>Dia</th>
-            <th class="r">Venda 2025</th>
-            <th class="r">Venda 2026</th>
-            <th class="r">Variação</th>
-            <th class="r">Diferença</th>
-            <th class="r">Cupons 2025</th>
-            <th class="r">Cupons 2026</th>
-          </tr>
-        </thead>
-        <tbody id="tbody"></tbody>
-      </table>
+
+    <!-- Tab: Diário -->
+    <div id="tab-diario">
+      <div class="table-wrap">
+        <table class="dt">
+          <thead>
+            <tr>
+              <th>Dia</th>
+              <th class="r">Venda 2025</th>
+              <th class="r">Venda 2026</th>
+              <th class="r">Variação</th>
+              <th class="r">Diferença</th>
+              <th class="r">Cupons 2025</th>
+              <th class="r">Cupons 2026</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Tab: Mensal -->
+    <div id="tab-mensal" style="display:none">
+      <div class="table-wrap">
+        <table class="dt">
+          <thead>
+            <tr>
+              <th>Mês</th>
+              <th class="r">Venda 2025</th>
+              <th class="r">Venda 2026</th>
+              <th class="r">Variação</th>
+              <th class="r">Diferença</th>
+              <th class="r">Cupons 2025</th>
+              <th class="r">Cupons 2026</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-mensal"><tr><td colspan="7" class="loading">Selecione a aba para carregar</td></tr></tbody>
+        </table>
+      </div>
     </div>
   </div>
 
@@ -371,6 +402,65 @@ function renderizar(data) {
     </tr>
   `);
 }
+
+let mensalCarregado = false;
+
+function setTab(aba) {
+  document.getElementById('tab-diario').style.display = aba === 'diario' ? '' : 'none';
+  document.getElementById('tab-mensal').style.display = aba === 'mensal' ? '' : 'none';
+  document.getElementById('tab-btn-diario').classList.toggle('active', aba === 'diario');
+  document.getElementById('tab-btn-mensal').classList.toggle('active', aba === 'mensal');
+  if (aba === 'mensal' && !mensalCarregado) carregarMensal();
+}
+
+function carregarMensal() {
+  const loja = document.getElementById('sel-loja').value;
+  document.getElementById('tbody-mensal').innerHTML = '<tr><td colspan="7" class="loading">Carregando...</td></tr>';
+  fetch(`/api/comparativo-mensal?loja=${loja}`)
+    .then(r => r.json())
+    .then(data => {
+      mensalCarregado = true;
+      const tbody = document.getElementById('tbody-mensal');
+      tbody.innerHTML = '';
+      for (const m of data.meses) {
+        const dif = m.v2026 - m.v2025;
+        let varCell = '<span class="var-zero">—</span>';
+        if (m.var !== null) {
+          const cls = m.var > 0 ? 'var-pos' : m.var < 0 ? 'var-neg' : 'var-zero';
+          varCell = `<span class="${cls}">${PCT(m.var)}</span>`;
+        }
+        tbody.insertAdjacentHTML('beforeend', `
+          <tr>
+            <td><strong>${m.nome}</strong></td>
+            <td class="r">${m.v2025 > 0 ? BRL(m.v2025) : '<span style="color:#334155">—</span>'}</td>
+            <td class="r">${m.v2026 > 0 ? BRL(m.v2026) : '<span style="color:#334155">—</span>'}</td>
+            <td class="r">${varCell}</td>
+            <td class="r ${dif >= 0 ? 'var-pos' : 'var-neg'}">${m.v2025 > 0 || m.v2026 > 0 ? (dif >= 0 ? '+' : '') + BRL(dif) : ''}</td>
+            <td class="r">${m.c2025 || ''}</td>
+            <td class="r">${m.c2026 || ''}</td>
+          </tr>
+        `);
+      }
+      const difTot = data.total2026 - data.total2025;
+      tbody.insertAdjacentHTML('beforeend', `
+        <tr style="background:#0f172a;font-weight:700;border-top:2px solid #334155">
+          <td>Total Ano</td>
+          <td class="r">${BRL(data.total2025)}</td>
+          <td class="r">${BRL(data.total2026)}</td>
+          <td class="r">${data.var_pct !== null ? `<span class="${data.var_pct >= 0 ? 'var-pos' : 'var-neg'}">${PCT(data.var_pct)}</span>` : ''}</td>
+          <td class="r ${difTot >= 0 ? 'var-pos' : 'var-neg'}">${(difTot >= 0 ? '+' : '') + BRL(difTot)}</td>
+          <td class="r">${data.meses.reduce((s,m)=>s+m.c2025,0)}</td>
+          <td class="r">${data.meses.reduce((s,m)=>s+m.c2026,0)}</td>
+        </tr>
+      `);
+    })
+    .catch(() => {
+      document.getElementById('tbody-mensal').innerHTML = '<tr><td colspan="7" class="loading">Erro ao carregar dados</td></tr>';
+    });
+}
+
+// Reinicia cache mensal ao trocar loja
+document.getElementById('sel-loja').addEventListener('change', () => { mensalCarregado = false; });
 
 initSelects();
 carregar();
