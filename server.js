@@ -403,21 +403,22 @@ app.get('/api/top-mercadologico', async (req, res) => {
       } catch(e) {}
     }
 
-    // Itens com mercadológico (gruposub tem a descrição)
+    // Itens com mercadológico nível 1 (grupo)
     const itens = await q(`
-      SELECT i.CodigoBarra, i.CodGrupoSub,
-             gs.Descricao as merc_desc
+      SELECT i.CodigoBarra, g.CodGrupo,
+             g.Descricao as merc_desc
       FROM central.itens i
       INNER JOIN central.gruposub gs ON gs.CodSubGrupo = i.CodGrupoSub AND gs.CodDesativado = 0
+      INNER JOIN central.grupo g ON g.CodGrupo = gs.CodGrupo
       WHERE i.CodDesativado = 0 AND i.CodGrupoSub > 0
     `);
 
-    // Agrupa por mercadológico
+    // Agrupa por mercadológico nível 1
     const mMap = {};
     for (const it of itens) {
       const v = vendasMap[it.CodigoBarra];
       if (!v) continue;
-      const key = it.CodGrupoSub;
+      const key = it.CodGrupo;
       if (!mMap[key]) mMap[key] = { descricao: it.merc_desc?.trim(), qtd: 0, valor: 0 };
       mMap[key].qtd   += v.qtd;
       mMap[key].valor += v.valor;
