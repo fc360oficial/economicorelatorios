@@ -1,6 +1,8 @@
 ﻿// Verificação de versão — roda antes de tudo
 (function() {
-  var BUILD = '179';
+  var BUILD = '180';
+  var vEl = document.getElementById('sb-versao');
+  if (vEl) vEl.textContent = 'v' + BUILD;
   if (localStorage.getItem('fc360_build') !== BUILD) {
     localStorage.setItem('fc360_build', BUILD);
     sessionStorage.removeItem('eco_last_page');
@@ -1154,10 +1156,13 @@ function nav(page, el) {
   document.getElementById('pageTitle').textContent = PAGE_TITLES[page]||page;
   if (page==='relatorios') {
     initRelCharts();
-    // Reload resultados from Firebase before rendering
-    loadResultadosFromFirebase(function(){
+    if (S.resultadosCache && S.resultadosCache.length) {
       renderRelatorios();
-    });
+    } else {
+      loadResultadosFromFirebase(function(){
+        renderRelatorios();
+      });
+    }
   }
   if (page==='usuarios') {
     loadUsersFromFirebase(function(){ renderUsers(); });
