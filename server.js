@@ -984,7 +984,7 @@ app.get('/api/comparativo-tv', async (req, res) => {
       var_pct: tot25>0?+((tot26-tot25)/tot25*100).toFixed(1):null,
       var_periodo: tot25p>0?+((tot26-tot25p)/tot25p*100).toFixed(1):null,
       dias, grupos, mensal });
-  } catch(err) { res.status(500).json({ error: err.message }); }
+  } catch(err) { console.error('[comparativo-tv]', err); res.status(500).json({ error: err.message }); }
 });
 
 // Comparativo diário: vendas dia-a-dia 2025 vs 2026 para o mês selecionado

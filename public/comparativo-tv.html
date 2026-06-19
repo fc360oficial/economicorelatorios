@@ -214,8 +214,22 @@ function carregarLoja(n) {
 
   fetch('/api/comparativo-tv?loja=' + n)
     .then(r => r.json())
-    .then(renderizar)
-    .catch(err => console.error(err));
+    .then(data => {
+      if (data.error) {
+        ['ti-dias','ti-mensal','ti-merc'].forEach(id => {
+          document.getElementById(id).innerHTML = `<div style="padding:12px;color:#ef4444;font-size:10px">Erro: ${data.error}</div>`;
+        });
+        console.error('API erro:', data.error);
+        return;
+      }
+      renderizar(data);
+    })
+    .catch(err => {
+      console.error('Fetch erro:', err);
+      ['ti-dias','ti-mensal','ti-merc'].forEach(id => {
+        document.getElementById(id).innerHTML = `<div style="padding:12px;color:#ef4444;font-size:10px">Erro de conexão</div>`;
+      });
+    });
 }
 
 function renderRow(label, v25, v26, varPct, extraClass='') {
