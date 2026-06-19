@@ -759,6 +759,9 @@ app.get('/api/faturamento-lojas', async (req, res) => {
 // ═══════════════════════════════════════════════════
 
 // Resumo geral por fornecedor (deve vir ANTES de /:id)
+const _resumoCache = {}, _resumoCacheTs = {};
+const RESUMO_TTL = 5 * 60 * 1000;
+
 app.get('/api/fornecedores/resumo', async (req, res) => {
   try {
     const hoje = new Date();
@@ -766,60 +769,58 @@ app.get('/api/fornecedores/resumo', async (req, res) => {
     const anoSel = req.query.ano ? parseInt(req.query.ano) : hoje.getFullYear();
     const lojaSel = req.query.loja ? parseInt(req.query.loja) : 1;
     const busca   = req.query.busca || '';
+    const compradorSel = req.query.comprador || '';
     const mm       = mesDB(mesSel);
     const dIni     = `${anoSel}-${String(mesSel).padStart(2,'0')}-01`;
     const dFim     = dFimMes(anoSel, mesSel);
 
-    // 1. Vendas do mês para a loja (todas, para obter total real da loja)
-    // Custo já vem como total da linha (SUM(Custo) = custo total, igual ao ERP)
-    let vendasMap = {};
-    let totalLojaReal = 0;
-    let totalCustoLoja = 0;
-    try {
-      const rows = await q(`
-        SELECT Codigo, SUM(QtdNovo) as qtd, SUM(ValorTotalNovo) as valor, SUM(Custo) as custo_total
-        FROM \`ln${lojaSel}${mm}\`.zcupomitens
-        WHERE Data BETWEEN ? AND ? AND IndCancel='N' GROUP BY Codigo
-      `, [dIni, dFim]);
-      for (const r of rows) {
-        const v = parseFloat(r.valor);
-        const ct = parseFloat(r.custo_total || 0);
-        vendasMap[r.Codigo] = { qtd: parseFloat(r.qtd), valor: v, custo: ct };
-        totalLojaReal  += v;
-        totalCustoLoja += ct;
-      }
-    } catch (e) {}
+    // Cache por loja+mes+ano (quando não há busca/comprador)
+    const cacheKey = `${lojaSel}-${mesSel}-${anoSel}`;
+    if (!busca && !compradorSel && _resumoCache[cacheKey] && (Date.now() - _resumoCacheTs[cacheKey]) < RESUMO_TTL) {
+      return res.json(_resumoCache[cacheKey]);
+    }
 
-    // 2. Produtos ativos por fornecedor (Backup=0)
-    const prodRows = await q(`
-      SELECT fi.CodFornecedor, fi.CodigoBarra, c.Custo
-      FROM central.fornecedoritens fi
-      INNER JOIN central.itens it ON it.CodigoBarra = fi.CodigoBarra AND it.CodDesativado = 0
-      LEFT JOIN central.custoloja${lojaSel} c ON c.CodigoBarra = fi.CodigoBarra
-      WHERE fi.Backup = 0
-    `);
+    // Todas as queries em paralelo
+    let wf = 'WHERE CodDesativado=0', pf = [];
+    if (busca) { wf += ' AND (Nome LIKE ? OR NomeCompleto LIKE ?)'; pf.push(`%${busca}%`, `%${busca}%`); }
 
-    // 3. Avaria do mês por fornecedor + breakdown por status
-    const avariaRows = await q(`
-      SELECT a.CodFornec, SUM(a.Total) as total, COUNT(*) as qtd
-      FROM central.avariaconsumo a
-      INNER JOIN central.fornecedoritens fi ON fi.CodigoBarra = a.CodigoBarras AND fi.CodFornecedor = a.CodFornec AND fi.Backup = 0
-      WHERE a.nLoja=? AND a.DataLan BETWEEN ? AND ? AND a.CodFornec>0
-      GROUP BY a.CodFornec
-    `, [lojaSel, dIni, dFim]);
+    const [vendasRows, prodRows, avariaRows, avariaStatusRows, compradorRows, fornecs] = await Promise.all([
+      q(`SELECT Codigo, SUM(QtdNovo) as qtd, SUM(ValorTotalNovo) as valor, SUM(Custo) as custo_total
+         FROM \`ln${lojaSel}${mm}\`.zcupomitens
+         WHERE Data BETWEEN ? AND ? AND IndCancel='N' GROUP BY Codigo`, [dIni, dFim]).catch(() => []),
+      q(`SELECT fi.CodFornecedor, fi.CodigoBarra, c.Custo
+         FROM central.fornecedoritens fi
+         INNER JOIN central.itens it ON it.CodigoBarra = fi.CodigoBarra AND it.CodDesativado = 0
+         LEFT JOIN central.custoloja${lojaSel} c ON c.CodigoBarra = fi.CodigoBarra
+         WHERE fi.Backup = 0`).catch(() => []),
+      q(`SELECT a.CodFornec, SUM(a.Total) as total, COUNT(*) as qtd
+         FROM central.avariaconsumo a
+         INNER JOIN central.fornecedoritens fi ON fi.CodigoBarra = a.CodigoBarras AND fi.CodFornecedor = a.CodFornec AND fi.Backup = 0
+         WHERE a.nLoja=? AND a.DataLan BETWEEN ? AND ? AND a.CodFornec>0
+         GROUP BY a.CodFornec`, [lojaSel, dIni, dFim]).catch(() => []),
+      q(`SELECT SUM(CASE WHEN Status=0 THEN Total ELSE 0 END) as em_aberto,
+                SUM(CASE WHEN Status=2 THEN Total ELSE 0 END) as em_tramite,
+                SUM(CASE WHEN Status IN (3,4) THEN Total ELSE 0 END) as ja_emitido,
+                SUM(Total) as total_geral
+         FROM central.avariaconsumo WHERE nLoja=? AND DataLan BETWEEN ? AND ?`,
+        [lojaSel, dIni, dFim]).catch(() => [{}]),
+      q(`SELECT codFornec, GROUP_CONCAT(DISTINCT nome ORDER BY nome SEPARATOR ', ') as nomes
+         FROM central.c_cotacao_agenda_comprador WHERE nLoja=? GROUP BY codFornec`,
+        [lojaSel]).catch(() => []),
+      q(`SELECT CodFornec, Nome, NomeCompleto FROM central.fornecedor ${wf}`, pf).catch(() => [])
+    ]);
+
+    // Processa vendas
+    let vendasMap = {}, totalLojaReal = 0, totalCustoLoja = 0;
+    for (const r of vendasRows) {
+      const v = parseFloat(r.valor), ct = parseFloat(r.custo_total || 0);
+      vendasMap[r.Codigo] = { qtd: parseFloat(r.qtd), valor: v, custo: ct };
+      totalLojaReal += v; totalCustoLoja += ct;
+    }
+
+    // Avaria
     const avariaMap = {};
     for (const r of avariaRows) avariaMap[r.CodFornec] = { total: parseFloat(r.total), qtd: parseInt(r.qtd) };
-
-    // Avaria breakdown por status (para KPI)
-    const avariaStatusRows = await q(`
-      SELECT
-        SUM(CASE WHEN Status=0 THEN Total ELSE 0 END) as em_aberto,
-        SUM(CASE WHEN Status=2 THEN Total ELSE 0 END) as em_tramite,
-        SUM(CASE WHEN Status IN (3,4) THEN Total ELSE 0 END) as ja_emitido,
-        SUM(Total) as total_geral
-      FROM central.avariaconsumo
-      WHERE nLoja=? AND DataLan BETWEEN ? AND ?
-    `, [lojaSel, dIni, dFim]);
     const avSt = avariaStatusRows[0] || {};
     const avariaBreakdown = {
       em_aberto:  +parseFloat(avSt.em_aberto  || 0).toFixed(2),
@@ -828,20 +829,15 @@ app.get('/api/fornecedores/resumo', async (req, res) => {
       total:      +parseFloat(avSt.total_geral || 0).toFixed(2)
     };
 
-    // 4. Agrupa por fornecedor em memória
-    // Rastreia produtos já contados para o total "c/ fornecedor" (evita duplicata)
+    // Agrupa por fornecedor em memória
     const codsComFornec = new Set(prodRows.map(p => p.CodigoBarra));
-    const totalComFornec = [...codsComFornec]
-      .reduce((s, cod) => s + (vendasMap[cod]?.valor || 0), 0);
-
-    // Margem loja = igual ao ERP: (venda - custo) / venda usando Custo do próprio cupom
+    const totalComFornec = [...codsComFornec].reduce((s, cod) => s + (vendasMap[cod]?.valor || 0), 0);
     const margemReal = totalLojaReal > 0 ? +((totalLojaReal - totalCustoLoja) / totalLojaReal * 100).toFixed(2) : 0;
 
-    // Lucro e margem só dos produtos c/ fornecedor (sem duplicata)
-    let totalLucroReal = 0, totalCustoFornec = 0;
+    let totalLucroReal = 0;
     for (const cod of codsComFornec) {
       const v = vendasMap[cod];
-      if (v && v.valor > 0) { totalLucroReal += v.valor - v.custo; totalCustoFornec += v.custo; }
+      if (v && v.valor > 0) totalLucroReal += v.valor - v.custo;
     }
 
     const fMap = {};
@@ -860,22 +856,9 @@ app.get('/api/fornecedores/resumo', async (req, res) => {
       }
     }
 
-    // 5. Compradores por fornecedor para a loja selecionada
-    const compradorRows = await q(`
-      SELECT codFornec, GROUP_CONCAT(DISTINCT nome ORDER BY nome SEPARATOR ', ') as nomes
-      FROM central.c_cotacao_agenda_comprador
-      WHERE nLoja = ?
-      GROUP BY codFornec
-    `, [lojaSel]);
     const compradorMap = {};
     for (const c of compradorRows) compradorMap[c.codFornec] = c.nomes;
     const todosCompradores = [...new Set(compradorRows.flatMap(r => r.nomes.split(', ')))].sort();
-
-    // 6. Busca fornecedores ativos
-    const compradorSel = req.query.comprador || '';
-    let wf = 'WHERE CodDesativado=0', pf = [];
-    if (busca) { wf += ' AND (Nome LIKE ? OR NomeCompleto LIKE ?)'; pf.push(`%${busca}%`, `%${busca}%`); }
-    const fornecs = await q(`SELECT CodFornec, Nome, NomeCompleto FROM central.fornecedor ${wf}`, pf);
 
     let result = fornecs
       .filter(f => fMap[f.CodFornec] || avariaMap[f.CodFornec])
@@ -905,7 +888,9 @@ app.get('/api/fornecedores/resumo', async (req, res) => {
     }
 
     const margemFornec = totalComFornec > 0 ? +(totalLucroReal / totalComFornec * 100).toFixed(2) : 0;
-    res.json({ total_loja: +totalLojaReal.toFixed(2), total_com_fornecedor: +totalComFornec.toFixed(2), total_lucro_real: +totalLucroReal.toFixed(2), margem_loja: margemReal, margem_fornec: margemFornec, avaria_breakdown: avariaBreakdown, fornecedores: result, compradores: todosCompradores });
+    const payload = { total_loja: +totalLojaReal.toFixed(2), total_com_fornecedor: +totalComFornec.toFixed(2), total_lucro_real: +totalLucroReal.toFixed(2), margem_loja: margemReal, margem_fornec: margemFornec, avaria_breakdown: avariaBreakdown, fornecedores: result, compradores: todosCompradores };
+    if (!busca && !compradorSel) { _resumoCache[cacheKey] = payload; _resumoCacheTs[cacheKey] = Date.now(); }
+    res.json(payload);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
