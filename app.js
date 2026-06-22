@@ -1,6 +1,6 @@
 ﻿// Verificação de versão — roda antes de tudo
 (function() {
-  var BUILD = '181';
+  var BUILD = '182';
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
   if (localStorage.getItem('fc360_build') !== BUILD) {
@@ -617,16 +617,13 @@ function loadResultadosFromFirebase(callback) {
     var list = snap.docs.map(function(d){return d.data();});
     list.sort(function(a,b){return (a.dataHora||'') < (b.dataHora||'') ? -1 : 1;});
     S.resultadosCache = list;
-    console.log('[FC360 DEBUG] Firestore resultados: ' + snap.docs.length + ' docs');
     try {
       var semAssina = list.map(function(r){ return r.assinatura ? Object.assign({},r,{assinatura:null}) : r; });
       localStorage.setItem(RESKEY, JSON.stringify(semAssina));
     } catch(e){}
     if (callback) callback();
   }).catch(function(err){
-    console.error('[FC360 DEBUG] Firestore ERRO:', err);
     try { S.resultadosCache = JSON.parse(localStorage.getItem(RESKEY)||'[]'); } catch(e){ S.resultadosCache=[]; }
-    console.log('[FC360 DEBUG] Fallback localStorage: ' + S.resultadosCache.length + ' resultados');
     if (callback) callback();
   });
 }
@@ -4631,23 +4628,18 @@ function getResultadosFiltradosDia() {
 
 function renderRelChecklist() {
   var resultados = getResultados();
-  var _allCache = S.resultadosCache || [];
-  var _lsCount = 0; try { _lsCount = JSON.parse(localStorage.getItem('eco_resultados')||'[]').length; } catch(e){}
-  console.log('[FC360 DEBUG] renderRelChecklist: cache=' + _allCache.length + ', filtered=' + resultados.length + ', localStorage=' + _lsCount + ', user=' + (S.currentUser ? S.currentUser.nome + '/' + S.currentUser.perfil : 'NULL'));
-  var _dbg = document.getElementById('rel-debug-info');
-  if (_dbg) _dbg.textContent = 'Cache: ' + _allCache.length + ' | Filtrado: ' + resultados.length + ' | LS: ' + _lsCount;
   var totalEnv = resultados.length;
   var totalComp = resultados.filter(function(r){return r.pct===100;}).length;
   var taxa = totalEnv ? Math.round(totalComp/totalEnv*100) : 0;
   var mediaGeral = totalEnv ? Math.round(resultados.reduce(function(s,r){return s+r.pct;},0)/totalEnv) : 0;
-  document.getElementById('rel-checklists').textContent = totalEnv;
-  document.getElementById('rel-taxa').textContent = taxa+'%';
-  document.getElementById('rel-media').textContent = totalEnv ? mediaGeral+'%' : '-';
+  var _e;
+  _e=document.getElementById('rel-checklists'); if(_e) _e.textContent = totalEnv;
+  _e=document.getElementById('rel-taxa'); if(_e) _e.textContent = taxa+'%';
+  _e=document.getElementById('rel-media'); if(_e) _e.textContent = totalEnv ? mediaGeral+'%' : '-';
 
-  // Count unique operators
   var opsUnicos = [];
   resultados.forEach(function(r){ if(opsUnicos.indexOf(r.operador)<0) opsUnicos.push(r.operador); });
-  document.getElementById('rel-ops-ativos').textContent = opsUnicos.length;
+  _e=document.getElementById('rel-ops-ativos'); if(_e) _e.textContent = opsUnicos.length;
 
   var hoje = new Date().toLocaleDateString('pt-BR');
   var dEl = document.getElementById('rel-data-hoje');
@@ -4714,9 +4706,9 @@ function renderRelChecklist() {
   var gerRank  = rankList.filter(function(o){ return o.perfil === 'gerencia'; });
   var prevRank = rankList.filter(function(o){ return o.perfil === 'prevencao'; });
 
-  document.getElementById('rel-ranking-op-tbody').innerHTML   = _miniRankRows(opRank);
-  document.getElementById('rel-ranking-ger-tbody').innerHTML  = _miniRankRows(gerRank);
-  document.getElementById('rel-ranking-prev-tbody').innerHTML = _miniRankRows(prevRank);
+  _e=document.getElementById('rel-ranking-op-tbody'); if(_e) _e.innerHTML = _miniRankRows(opRank);
+  _e=document.getElementById('rel-ranking-ger-tbody'); if(_e) _e.innerHTML = _miniRankRows(gerRank);
+  _e=document.getElementById('rel-ranking-prev-tbody'); if(_e) _e.innerHTML = _miniRankRows(prevRank);
 
   // Problemáticos
   var clMap={};
