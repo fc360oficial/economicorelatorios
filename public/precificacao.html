@@ -271,12 +271,19 @@ function iniciarCarrossel(idx, startAt, sessao) {
   _carTimer = requestAnimationFrame(step);
 }
 
-// Watchdog: se parado >2 min sem ser por hide, retoma
+// Watchdog: se parado >30s, retoma
 setInterval(() => {
-  if (colBodies.length && !_carTimer && !_carTimeout && Date.now() - _ultimoAvanço > 120000) {
+  if (colBodies.length && !_carTimer && !_carTimeout && Date.now() - _ultimoAvanço > 30000) {
     iniciarCarrossel((currentIdx + 1) % colBodies.length, 0);
   }
-}, 15000);
+}, 5000);
+
+// Reativa quando o pai (supervisão) manda activate
+window.addEventListener('message', e => {
+  if (e.data && e.data.type === 'activate' && colBodies.length) {
+    iniciarCarrossel(currentIdx, 0);
+  }
+});
 
 // Pausa e retoma com coluna e posição EXATAS ao voltar para a tela
 document.addEventListener('visibilitychange', () => {
