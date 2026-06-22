@@ -2000,7 +2000,11 @@ app.get('/api/precificacao/margens-criticas', async (req, res) => {
 // ═══════════════════════════════════════════════════
 
 const NREGS_COMPRADOR = {
-  FATIMA: [344,342,380,355,534,304,537,338,347,332,314,303,482,310,312,311,309,461,313,394,538,341,419,384,543,555,350,277],
+  FATIMA: [344,342,380,355,534,304,537,538,347,332,314,303,482,310,312,311,309,461,313,394,341,419,384,543,555,350,277,457,573,574,572,415,417],
+  KELLY: [338,346,366,318,326,325,320,322,502,403,443,382,336,358,473,422,449,351,428,334,398,372,424,337,370,345,431,423,499,328,557,529,359,480,327,563,356,561,442,456,316,440],
+  STHEPHANNY: [405,406,485,293,379,444,445,446,399,530,411,487,319,493,388,386,361,429,430,511,416,516,519,540,505,373,453,218,496,408,500,470,458,544,531,469,279,418,438,365,501],
+  CRISLANE: [364,191,477,488,335,308,554,323,331,324,424,504,478,436,352,559,437,328,556,420,381,514,535,495,307],
+  PATRICIA: [295,391,507,494,306,560,296,396,565,502,401,476,465,317,395,376,552,493,368,550,410,450,427,397,497,392,467,433,454,441,455,329,462,400,407,521,551,447,439,434,459,486,558],
 };
 
 let _analiseCache = {}, _analiseCacheTs = {};
@@ -2069,9 +2073,10 @@ app.get('/api/compras/analise-estoque', async (req, res) => {
     const vendasMap = {};
     for (const ln of ['1','2','3','4','5','6']) vendasMap[ln] = {};
 
-    for (const { ano, mes } of meses) {
-      const mm = mesDB(mes);
-      for (const ln of [1,2,3,4,5,6]) {
+    await Promise.all([1,2,3,4,5,6].map(async (ln) => {
+      const key = String(ln);
+      for (const { ano, mes } of meses) {
+        const mm = mesDB(mes);
         try {
           const rows = await q(`
             SELECT Codigo,
@@ -2084,7 +2089,6 @@ app.get('/api/compras/analise-estoque', async (req, res) => {
             WHERE IndCancel='N' AND Data >= ? AND Codigo IN (${phC})
             GROUP BY Codigo
           `, [ini30, ini60, ini30, ini30, ini60, ini30, ini60, ...codigos]);
-          const key = String(ln);
           for (const r of rows) {
             const k = r.Codigo;
             if (!vendasMap[key][k]) vendasMap[key][k] = { qtd30:0, qtd30ant:0, custoAtual:0, custoAnt:0, ultimaVenda:null };
@@ -2098,7 +2102,7 @@ app.get('/api/compras/analise-estoque', async (req, res) => {
           }
         } catch(_) {}
       }
-    }
+    }));
 
     // Filtrar produtos sem nenhuma atividade (sem estoque e sem vendas em 60 dias)
     const codAtivos = codigos.filter(cod => {
