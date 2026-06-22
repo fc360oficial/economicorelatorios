@@ -263,6 +263,7 @@ function iniciarCarrosselCol(colIdx, slideLocal, sessao) {
   _carTimer = setInterval(() => {
     if (sessao !== _carSessao) { clearInterval(_carTimer); _carTimer = null; return; }
     body.scrollTop += pxTick;
+    _ultimoAvanço = Date.now();
     if (body.scrollTop >= maxScroll - 1) {
       pararCarrossel();
       _carTimeout = setTimeout(() => proximaColuna(colIdx, slideLocal, sessao), 2000);
@@ -270,11 +271,21 @@ function iniciarCarrosselCol(colIdx, slideLocal, sessao) {
   }, tickMs);
 }
 
-// watchdog: se parado > 2 min sem hide, retoma
+// watchdog: se parado >30s, retoma (ignora estado dos timers)
 setInterval(() => {
-  if (colBodies.length && !_carTimer && !_carTimeout && Date.now() - _ultimoAvanço > 120000)
+  if (colBodies.length && Date.now() - _ultimoAvanço > 30000) {
+    pararCarrossel();
     iniciarCarrosselCol(0, slideIdx, undefined);
-}, 15000);
+  }
+}, 5000);
+
+// Reativa quando supervisão manda activate
+window.addEventListener('message', e => {
+  if (e.data && e.data.type === 'activate' && colBodies.length) {
+    pararCarrossel();
+    iniciarCarrosselCol(0, slideIdx, undefined);
+  }
+});
 
 // ── Clock ──
 function tick() {
