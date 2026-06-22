@@ -2170,7 +2170,7 @@ app.get('/api/compras/analise-estoque', async (req, res) => {
 
     // Ordenar e limitar por loja
     for (const ln of ['1','2','3','4','5','6']) {
-      lojas[ln].ruptura.sort((a,b)    => a.diasCobertura - b.diasCobertura);
+      lojas[ln].ruptura.sort((a,b)    => (a.estoque === 0 ? 0 : 1) - (b.estoque === 0 ? 0 : 1) || b.mediaDiaria - a.mediaDiaria);
       lojas[ln].excesso.sort((a,b)    => b.diasCobertura - a.diasCobertura);
       lojas[ln].semVenda.sort((a,b)   => b.diasSemVenda  - a.diasSemVenda);
       lojas[ln].topVendidos.sort((a,b)=> b.qtd30 - a.qtd30);
