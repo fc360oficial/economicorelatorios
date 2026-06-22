@@ -66,12 +66,6 @@ main{
   flex:1;display:flex;flex-direction:column;
   background:var(--card);border-radius:var(--r);
   border:1.5px solid var(--border);overflow:hidden;
-  opacity:.45;transition:opacity .4s,border-color .4s,box-shadow .4s;
-}
-.col.ativo{
-  opacity:1;
-  border-color:rgba(250,204,21,.35);
-  box-shadow:0 0 24px rgba(250,204,21,.08);
 }
 .col-head{
   display:flex;align-items:center;gap:8px;
@@ -80,8 +74,7 @@ main{
 .col-icon{font-size:15px}
 .col-title{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;flex:1}
 .col-count{font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px}
-.col-body{flex:1;overflow-y:auto;scrollbar-width:none}
-.col-body::-webkit-scrollbar{display:none}
+.col-body{flex:1;overflow:hidden}
 
 /* itens */
 .item-row{
@@ -168,7 +161,6 @@ const CARGO_COMPRADORES = {
 
 const params = new URLSearchParams(location.search);
 const NOME   = (params.get('nome')||'FATIMA').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase();
-
 const LOJAS = ['1','2','3','4','5','6'];
 const VIEWS = [
   { id:'abc', label:'Ruptura · Excesso · Sem Venda',
@@ -187,105 +179,15 @@ const VIEWS = [
   },
 ];
 
+const TEMPO_SLIDE = 30; // segundos por slide
 let slides = [];
 for (const loja of LOJAS)
   for (const view of VIEWS)
     slides.push({ loja, view });
 
-let slideIdx   = 0;
-let dados      = null;
-let colBodies  = [];
-
-// ── Carrossel ──────────────────────────────────────
-const PX_POR_SEG = 25;
-let _carTimer = null, _carTimeout = null, _carSessao = 0, _ultimoAvanço = 0;
-
-function pararCarrossel() {
-  if (_carTimer)   { clearInterval(_carTimer);  _carTimer   = null; }
-  if (_carTimeout) { clearTimeout(_carTimeout); _carTimeout = null; }
-}
-
-function proximaColuna(colIdx, slideLocal, sessao) {
-  pararCarrossel();
-  const nextCol = colIdx + 1;
-  if (nextCol < colBodies.length) {
-    _carTimeout = setTimeout(() => iniciarCarrosselCol(nextCol, slideLocal, sessao), 900);
-  } else {
-    const nextSlide = (slideLocal + 1) % slides.length;
-    slideIdx = nextSlide;
-    if (nextSlide === 0) {
-      const sp = new URLSearchParams(location.search);
-      const isAutoMode = sp.get('auto') === '1';
-      const idxMode   = parseInt(sp.get('idx') || '0');
-      const ORDEM_CICLO = ['FATIMA','FERNANDA','PRISCILA','MARCOS','RENATA'];
-      if (isAutoMode) {
-        const prox = idxMode + 1;
-        if (prox < ORDEM_CICLO.length) {
-          _carTimeout = setTimeout(() => {
-            location.href = '/comprador.html?nome=' + ORDEM_CICLO[prox] + '&auto=1&idx=' + prox;
-          }, 1200);
-        } else {
-          try { window.parent.postMessage({ type: 'analiseCycleComplete' }, '*'); } catch(_) {}
-          _carTimeout = setTimeout(() => renderSlide(slides[0]), 1200);
-        }
-        return;
-      }
-      try { window.parent.postMessage({ type: 'analiseCycleComplete' }, '*'); } catch(_) {}
-    }
-    _carTimeout = setTimeout(() => renderSlide(slides[nextSlide]), 1200);
-  }
-}
-
-function iniciarCarrosselCol(colIdx, slideLocal, sessao) {
-  if (sessao === undefined) { _carSessao++; sessao = _carSessao; }
-  pararCarrossel();
-  if (!colBodies.length) return;
-  _ultimoAvanço = Date.now();
-
-  document.querySelectorAll('.col').forEach((c, i) => c.classList.toggle('ativo', i === colIdx));
-  const cfg = slides[slideLocal].view.cols[colIdx];
-  document.getElementById('col-label').textContent = cfg.icon + ' ' + cfg.title;
-
-  const body = colBodies[colIdx];
-  if (!body) { _carTimeout = setTimeout(() => proximaColuna(colIdx, slideLocal, sessao), 2000); return; }
-
-  body.scrollTop = 0;
-  void body.scrollHeight;
-  const maxScroll = body.scrollHeight - body.clientHeight;
-
-  if (maxScroll <= 0) {
-    _carTimeout = setTimeout(() => proximaColuna(colIdx, slideLocal, sessao), 3000);
-    return;
-  }
-
-  const tickMs = 50;
-  const pxTick = PX_POR_SEG * tickMs / 1000;
-  _carTimer = setInterval(() => {
-    if (sessao !== _carSessao) { clearInterval(_carTimer); _carTimer = null; return; }
-    body.scrollTop += pxTick;
-    _ultimoAvanço = Date.now();
-    if (body.scrollTop >= maxScroll - 1) {
-      pararCarrossel();
-      _carTimeout = setTimeout(() => proximaColuna(colIdx, slideLocal, sessao), 2000);
-    }
-  }, tickMs);
-}
-
-// watchdog: se parado >30s, retoma (ignora estado dos timers)
-setInterval(() => {
-  if (colBodies.length && Date.now() - _ultimoAvanço > 30000) {
-    pararCarrossel();
-    iniciarCarrosselCol(0, slideIdx, undefined);
-  }
-}, 5000);
-
-// Reativa quando supervisão manda activate
-window.addEventListener('message', e => {
-  if (e.data && e.data.type === 'activate' && colBodies.length) {
-    pararCarrossel();
-    iniciarCarrosselCol(0, slideIdx, undefined);
-  }
-});
+let slideIdx = 0;
+let dados    = null;
+let _timer   = null;
 
 // ── Clock ──
 function tick() {
@@ -373,9 +275,10 @@ function renderItem(key, r, maxQtd) {
 }
 
 function buildColHTML(cfg, lista) {
-  const maxQtd = lista[0]?.qtd30 || 1;
-  const body = lista.length
-    ? lista.map(r => renderItem(cfg.key, r, maxQtd)).join('')
+  const top10 = lista.slice(0, 10);
+  const maxQtd = top10[0]?.qtd30 || 1;
+  const body = top10.length
+    ? top10.map(r => renderItem(cfg.key, r, maxQtd)).join('')
     : `<div class="col-empty">
          <div class="col-empty-icon">✅</div>
          <div class="col-empty-txt">Nenhuma ocorrência</div>
@@ -392,7 +295,6 @@ function buildColHTML(cfg, lista) {
 }
 
 function renderSlide(slide) {
-  pararCarrossel();
   const { loja, view } = slide;
   const ld = dados?.lojas?.[loja] || {};
 
@@ -412,10 +314,34 @@ function renderSlide(slide) {
     html += buildColHTML(cfg, lista);
   }
   document.getElementById('main-cols').innerHTML = html;
+}
 
-  colBodies = Array.from(document.querySelectorAll('.col-body'));
-  const localSlide = slideIdx;
-  setTimeout(() => iniciarCarrosselCol(0, localSlide, undefined), 300);
+function proximoSlide() {
+  const nextSlide = (slideIdx + 1) % slides.length;
+  slideIdx = nextSlide;
+
+  if (nextSlide === 0) {
+    const sp = new URLSearchParams(location.search);
+    const isAutoMode = sp.get('auto') === '1';
+    const idxMode   = parseInt(sp.get('idx') || '0');
+    const ORDEM_CICLO = ['FATIMA','FERNANDA','PRISCILA','MARCOS','RENATA'];
+    if (isAutoMode) {
+      const prox = idxMode + 1;
+      if (prox < ORDEM_CICLO.length) {
+        location.href = '/comprador.html?nome=' + ORDEM_CICLO[prox] + '&auto=1&idx=' + prox;
+        return;
+      }
+      try { window.parent.postMessage({ type: 'analiseCycleComplete' }, '*'); } catch(_) {}
+    } else {
+      try { window.parent.postMessage({ type: 'analiseCycleComplete' }, '*'); } catch(_) {}
+    }
+  }
+  renderSlide(slides[nextSlide]);
+}
+
+function iniciarRotacao() {
+  if (_timer) clearInterval(_timer);
+  _timer = setInterval(proximoSlide, TEMPO_SLIDE * 1000);
 }
 
 // ── Mock data (quando comprador sem dados reais) ──
@@ -454,22 +380,25 @@ function gerarMockDados(nome) {
 }
 
 // ── Fetch ──
+let _loaded = false;
 async function buscarDados() {
   try {
     const r = await fetch(`/api/compras/analise-estoque?comprador=${NOME}`);
     if (!r.ok) throw new Error('HTTP '+r.status);
     dados = await r.json();
     if (!dados.totalProdutos) dados = gerarMockDados(NOME);
-    const ge = dados.geradoEm ? new Date(dados.geradoEm) : new Date();
-    const p = x => String(x).padStart(2,'0');
-    const demo = dados._demo ? ' · DEMO' : '';
-    document.getElementById('h-update').textContent =
-      `${dados.totalProdutos} produtos · ${p(ge.getHours())}:${p(ge.getMinutes())}${demo}`;
-    if (!_ultimoAvanço) renderSlide(slides[slideIdx]);
   } catch(e) {
     dados = gerarMockDados(NOME);
-    document.getElementById('h-update').textContent = `DEMO · ${dados.totalProdutos} produtos`;
-    if (!_ultimoAvanço) renderSlide(slides[slideIdx]);
+  }
+  const ge = dados.geradoEm ? new Date(dados.geradoEm) : new Date();
+  const p = x => String(x).padStart(2,'0');
+  const demo = dados._demo ? ' · DEMO' : '';
+  document.getElementById('h-update').textContent =
+    `${dados.totalProdutos} produtos · ${p(ge.getHours())}:${p(ge.getMinutes())}${demo}`;
+  if (!_loaded) {
+    _loaded = true;
+    renderSlide(slides[slideIdx]);
+    iniciarRotacao();
   }
 }
 
