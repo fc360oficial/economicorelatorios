@@ -35,6 +35,8 @@ app.use((req, res, next) => {
     '/mensal.html',
     '/comparativo-tv.html', '/api/comparativo-tv'];
   if (publico.includes(req.path)) return next();
+  const ext = req.path.split('.').pop().toLowerCase();
+  if (['js','css','png','jpg','jpeg','gif','svg','ico','woff','woff2','ttf','eot','map'].includes(ext)) return next();
   if (req.session && req.session.user) return next();
   if (req.path.startsWith('/api/')) return res.status(401).json({ error: 'Não autenticado' });
   return res.redirect('/login.html');
