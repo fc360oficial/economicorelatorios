@@ -22,7 +22,7 @@ app.use(session({
 
 // Middleware de autenticação (antes do static)
 app.use((req, res, next) => {
-  const publico = ['/login.html', '/api/login', '/logo.png', '/deploy',
+  const publico = ['/login.html', '/api/login', '/api/logout', '/logo.png', '/deploy',
     '/precificacao.html', '/compras.html', '/comprador.html', '/supervisao.html',
     '/api/precificacao/margens-criticas', '/api/compras/pedidos-hoje',
     '/diretoria.html', '/api/diretoria/kpis',
