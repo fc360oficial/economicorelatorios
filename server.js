@@ -1531,9 +1531,14 @@ app.get('/api/pendencias/prevencao', async (req, res) => {
 
     for (const r of emitidoRows) {
       const tot = parseFloat(r.Total);
-      const setor = getSetor(r.CodMotivo);
       emitido += tot;
-      porSetor[setor] = (porSetor[setor] || 0) + tot;
+      if (r.Status === 4) {
+        const fn = (r.fornecedor || '').toUpperCase();
+        const setor = fn.includes('HORTI') ? 'HORTFRUTI'
+          : (fn.includes('AÇOUGUE') || fn.includes('ACOUGUE')) ? 'AÇOUGUE'
+          : fn.includes('PADARIA') ? 'PADARIA' : 'LOJA';
+        porSetor[setor] = (porSetor[setor] || 0) + tot;
+      }
     }
 
     const abertoTramiteRows = allAbertoTramite.filter(r => !pedSet.has(r.nPedido));
