@@ -1511,7 +1511,7 @@ app.get('/api/pendencias/prevencao', async (req, res) => {
     const bonificacoes = parseFloat(bonifRows[0]?.total || 0);
 
     // Totais por status
-    let emitido = 0, pendente = 0, aberto = 0, tramite = 0;
+    let emitido = 0, aberto = 0, tramite = 0;
     const porSetor = { AÇOUGUE: 0, HORTFRUTI: 0, PADARIA: 0, LOJA: 0 };
     const abertoFornec = {}, tramiteFornec = {};
     const abertoItens = [], tramiteItens = [];
@@ -1519,11 +1519,9 @@ app.get('/api/pendencias/prevencao', async (req, res) => {
     for (const r of avarias) {
       const tot = parseFloat(r.Total);
       const setor = getSetor(r.CodMotivo);
-      if (r.Status === 4) {
+      if (r.Status === 3 || r.Status === 4) {
         emitido += tot;
         porSetor[setor] = (porSetor[setor] || 0) + tot;
-      } else if (r.Status === 3) {
-        pendente += tot;
       } else if (r.Status === 0) {
         aberto += tot;
         const fn = r.fornecedor || 'SEM FORNECEDOR';
@@ -1556,7 +1554,7 @@ app.get('/api/pendencias/prevencao', async (req, res) => {
       const mDB = mesDB(mMes);
       try {
         const [av] = await q(`SELECT SUM(Total) as t FROM central.avariaconsumo
-          WHERE nLoja=? AND Status=4 AND DataLan BETWEEN ? AND ?`, [loja, mIni, mFim]);
+          WHERE nLoja=? AND Status IN (3,4) AND DataLan BETWEEN ? AND ?`, [loja, mIni, mFim]);
         const [vd] = await q(`SELECT SUM(ValorTotalNovo) as t FROM \`ln${loja}${mDB}\`.zcupomitens
           WHERE Data BETWEEN ? AND ? AND IndCancel='N'`, [mIni, mFim]).catch(() => [{ t: 0 }]);
         const avT = parseFloat(av?.t || 0), vdT = parseFloat(vd?.t || 0);
@@ -1568,7 +1566,7 @@ app.get('/api/pendencias/prevencao', async (req, res) => {
     const toArr = obj => Object.entries(obj).map(([nome, d]) => ({ nome, ...d })).sort((a, b) => b.total - a.total);
 
     res.json({
-      resumo: { emitido, pendente, aberto, tramite, valorVenda, bonificacoes, saldoAvaria, avariasFinal, pctTotal, pctFiltrada },
+      resumo: { emitido, aberto, tramite, valorVenda, bonificacoes, saldoAvaria, avariasFinal, pctTotal, pctFiltrada },
       porSetor,
       abertoFornec: toArr(abertoFornec),
       tramiteFornec: toArr(tramiteFornec),
