@@ -1471,6 +1471,18 @@ app.get('/api/grupos', async (req, res) => {
 });
 
 // ─── PREVENÇÃO (avarias em aberto / em trâmite) ──
+const SETOR_MAP = (() => {
+  const ACOUGUE = [3,9,15,16,18,19,20,21,22,23,24,25,26,30,34,36,37,40,41,42,44,45,46,48,50,51,52,53,54,55,56,57,58,59,61,63,67,68,69,70,77];
+  const PADARIA = [1,4,5,7,10,29,35,65,66];
+  const HORTI   = [6,17,47,62];
+  const m = {};
+  ACOUGUE.forEach(id => m[id] = 'AÇOUGUE');
+  PADARIA.forEach(id => m[id] = 'PADARIA');
+  HORTI.forEach(id   => m[id] = 'HORTFRUTI');
+  return m;
+})();
+function getSetor(codMotivo) { return SETOR_MAP[codMotivo] || 'LOJA'; }
+
 app.get('/api/pendencias/prevencao', async (req, res) => {
   try {
     const loja = parseInt(req.query.loja) || 1;
@@ -1479,33 +1491,88 @@ app.get('/api/pendencias/prevencao', async (req, res) => {
     const [ano, mes] = mesSel.split('-').map(Number);
     const dIni = `${ano}-${String(mes).padStart(2,'0')}-01`;
     const dFim = dFimMes(ano, mes);
-    const busca = req.query.busca || '';
+    const mm = mesDB(mes);
 
-    let where = 'WHERE a.nLoja=? AND a.Status IN (0,2) AND a.DataLan BETWEEN ? AND ?';
-    const params = [loja, dIni, dFim];
-    if (busca) { where += ' AND (a.Descricao LIKE ? OR a.CodigoBarras LIKE ?)'; params.push(`%${busca}%`, `%${busca}%`); }
-
-    const [rows, motivos] = await Promise.all([
-      q(`SELECT a.CodigoBarras, a.Descricao, a.Qtd, a.Valor, a.Total,
-                a.CodMotivo, a.Usuario, a.DataLan, a.Status, a.Und,
-                m.Descricao as motivo
+    const [avarias, vendasRows, bonifRows] = await Promise.all([
+      q(`SELECT a.CodMotivo, a.Status, a.Total, a.CodFornec, a.CodigoBarras, a.Descricao,
+                a.Qtd, a.Valor, a.Und, a.Usuario, a.DataLan,
+                f.NomeCompleto as fornecedor
          FROM central.avariaconsumo a
-         LEFT JOIN central.avariaconsumomotivo m ON m.nReg = a.CodMotivo
-         ${where}
-         ORDER BY a.Status, a.DataLan DESC, a.Total DESC`, params),
-      q('SELECT nReg, Descricao FROM central.avariaconsumomotivo ORDER BY nReg')
+         LEFT JOIN central.fornecedor f ON f.CodFornec=a.CodFornec
+         WHERE a.nLoja=? AND a.DataLan BETWEEN ? AND ?
+         ORDER BY a.Status, a.Total DESC`, [loja, dIni, dFim]),
+      q(`SELECT SUM(ValorTotalNovo) as total FROM \`ln${loja}${mm}\`.zcupomitens
+         WHERE Data BETWEEN ? AND ? AND IndCancel='N'`, [dIni, dFim]).catch(() => [{ total: 0 }]),
+      q(`SELECT SUM(ValorTotal) as total FROM central.bonificacao_averbacao
+         WHERE nLoja=? AND DataEntrada BETWEEN ? AND ?`, [loja, dIni, dFim]).catch(() => [{ total: 0 }])
     ]);
 
-    const resumo = {
-      aberto_qtd: 0, aberto_total: 0,
-      tramite_qtd: 0, tramite_total: 0
-    };
-    for (const r of rows) {
-      if (r.Status === 0) { resumo.aberto_qtd++; resumo.aberto_total += parseFloat(r.Total); }
-      else { resumo.tramite_qtd++; resumo.tramite_total += parseFloat(r.Total); }
+    const valorVenda = parseFloat(vendasRows[0]?.total || 0);
+    const bonificacoes = parseFloat(bonifRows[0]?.total || 0);
+
+    // Totais por status
+    let emitido = 0, aberto = 0, tramite = 0;
+    const porSetor = { AÇOUGUE: 0, HORTFRUTI: 0, PADARIA: 0, LOJA: 0 };
+    const abertoFornec = {}, tramiteFornec = {};
+    const abertoItens = [], tramiteItens = [];
+
+    for (const r of avarias) {
+      const tot = parseFloat(r.Total);
+      const setor = getSetor(r.CodMotivo);
+      if (r.Status === 3 || r.Status === 4) {
+        emitido += tot;
+        porSetor[setor] = (porSetor[setor] || 0) + tot;
+      } else if (r.Status === 0) {
+        aberto += tot;
+        const fn = r.fornecedor || 'SEM FORNECEDOR';
+        if (!abertoFornec[fn]) abertoFornec[fn] = { total: 0, qtd: 0 };
+        abertoFornec[fn].total += tot;
+        abertoFornec[fn].qtd++;
+        abertoItens.push(r);
+      } else if (r.Status === 2) {
+        tramite += tot;
+        const fn = r.fornecedor || 'SEM FORNECEDOR';
+        if (!tramiteFornec[fn]) tramiteFornec[fn] = { total: 0, qtd: 0 };
+        tramiteFornec[fn].total += tot;
+        tramiteFornec[fn].qtd++;
+        tramiteItens.push(r);
+      }
     }
 
-    res.json({ itens: rows, resumo, motivos });
+    const saldoAvaria = emitido - porSetor.AÇOUGUE - porSetor.HORTFRUTI - porSetor.PADARIA;
+    const avariasFinal = saldoAvaria - bonificacoes;
+    const pctTotal = valorVenda > 0 ? +(emitido / valorVenda * 100).toFixed(2) : 0;
+    const pctFiltrada = valorVenda > 0 ? +(avariasFinal / valorVenda * 100).toFixed(2) : 0;
+
+    // Comparativo mensal (últimos 6 meses)
+    const mensal = [];
+    for (let i = 5; i >= 0; i--) {
+      const dt = new Date(ano, mes - 1 - i, 1);
+      const mAno = dt.getFullYear(), mMes = dt.getMonth() + 1;
+      const mIni = `${mAno}-${String(mMes).padStart(2,'0')}-01`;
+      const mFim = dFimMes(mAno, mMes);
+      const mDB = mesDB(mMes);
+      try {
+        const [av] = await q(`SELECT SUM(Total) as t FROM central.avariaconsumo
+          WHERE nLoja=? AND Status IN (3,4) AND DataLan BETWEEN ? AND ?`, [loja, mIni, mFim]);
+        const [vd] = await q(`SELECT SUM(ValorTotalNovo) as t FROM \`ln${loja}${mDB}\`.zcupomitens
+          WHERE Data BETWEEN ? AND ? AND IndCancel='N'`, [mIni, mFim]).catch(() => [{ t: 0 }]);
+        const avT = parseFloat(av?.t || 0), vdT = parseFloat(vd?.t || 0);
+        mensal.push({ mes: `${mAno}-${String(mMes).padStart(2,'0')}`, emitido: avT, vendas: vdT,
+          pct: vdT > 0 ? +(avT / vdT * 100).toFixed(2) : 0 });
+      } catch { mensal.push({ mes: `${mAno}-${String(mMes).padStart(2,'0')}`, emitido: 0, vendas: 0, pct: 0 }); }
+    }
+
+    const toArr = obj => Object.entries(obj).map(([nome, d]) => ({ nome, ...d })).sort((a, b) => b.total - a.total);
+
+    res.json({
+      resumo: { emitido, aberto, tramite, valorVenda, bonificacoes, saldoAvaria, avariasFinal, pctTotal, pctFiltrada },
+      porSetor,
+      abertoFornec: toArr(abertoFornec),
+      tramiteFornec: toArr(tramiteFornec),
+      abertoItens, tramiteItens,
+      mensal
+    });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
