@@ -1493,21 +1493,28 @@ app.get('/api/pendencias/prevencao', async (req, res) => {
     const dFim = dFimMes(ano, mes);
     const mm = mesDB(mes);
 
+    const pedidosEmitidos = await q(`SELECT DISTINCT a.nPedido
+         FROM central.avariaconsumo a
+         WHERE a.nLoja=? AND a.Status=4 AND a.Tipo=1 AND a.NF > 0 AND a.DataEmi BETWEEN ? AND ?`, [loja, dIni, dFim]);
+    const pedIds = pedidosEmitidos.map(r => r.nPedido);
+
     const [emitidoRows, abertoTramiteRows, vendasRows, bonifRows] = await Promise.all([
-      q(`SELECT a.CodMotivo, a.Status, a.Total, a.CodFornec, a.CodigoBarras, a.Descricao,
+      pedIds.length ? q(`SELECT a.CodMotivo, a.Status, a.Total, a.CodFornec, a.CodigoBarras, a.Descricao,
                 a.Qtd, a.Valor, a.Und, a.Usuario, a.DataLan, a.DataEmi,
                 f.NomeCompleto as fornecedor
          FROM central.avariaconsumo a
          LEFT JOIN central.fornecedor f ON f.CodFornec=a.CodFornec
-         WHERE a.nLoja=? AND a.Status=4 AND a.Tipo=1 AND a.DataEmi BETWEEN ? AND ?
-         ORDER BY a.Total DESC`, [loja, dIni, dFim]),
+         WHERE a.nLoja=? AND a.Tipo=1 AND a.nPedido IN (?)
+         ORDER BY a.Total DESC`, [loja, pedIds]) : Promise.resolve([]),
       q(`SELECT a.CodMotivo, a.Status, a.Total, a.CodFornec, a.CodigoBarras, a.Descricao,
                 a.Qtd, a.Valor, a.Und, a.Usuario, a.DataLan,
                 f.NomeCompleto as fornecedor
          FROM central.avariaconsumo a
          LEFT JOIN central.fornecedor f ON f.CodFornec=a.CodFornec
          WHERE a.nLoja=? AND a.Status IN (0,2) AND a.DataLan BETWEEN ? AND ?
-         ORDER BY a.Status, a.Total DESC`, [loja, dIni, dFim]),
+           AND a.nPedido NOT IN (SELECT DISTINCT nPedido FROM central.avariaconsumo
+                WHERE nLoja=? AND Status=4 AND Tipo=1 AND NF > 0 AND DataEmi BETWEEN ? AND ?)
+         ORDER BY a.Status, a.Total DESC`, [loja, dIni, dFim, loja, dIni, dFim]),
       q(`SELECT SUM(ValorTotalNovo) as total FROM \`ln${loja}${mm}\`.zcupomitens
          WHERE Data BETWEEN ? AND ? AND IndCancel='N'`, [dIni, dFim]).catch(() => [{ total: 0 }]),
       q(`SELECT SUM(ValorTotal) as total FROM central.bonificacao_averbacao
@@ -1562,8 +1569,11 @@ app.get('/api/pendencias/prevencao', async (req, res) => {
       const mFim = dFimMes(mAno, mMes);
       const mDB = mesDB(mMes);
       try {
-        const [av] = await q(`SELECT SUM(Total) as t FROM central.avariaconsumo
-          WHERE nLoja=? AND Status=4 AND Tipo=1 AND DataEmi BETWEEN ? AND ?`, [loja, mIni, mFim]);
+        const [av] = await q(`SELECT SUM(a.Total) as t FROM central.avariaconsumo a
+          WHERE a.nLoja=? AND a.Tipo=1 AND a.nPedido IN (
+            SELECT DISTINCT nPedido FROM central.avariaconsumo
+            WHERE nLoja=? AND Status=4 AND Tipo=1 AND NF > 0 AND DataEmi BETWEEN ? AND ?
+          )`, [loja, loja, mIni, mFim]);
         const [vd] = await q(`SELECT SUM(ValorTotalNovo) as t FROM \`ln${loja}${mDB}\`.zcupomitens
           WHERE Data BETWEEN ? AND ? AND IndCancel='N'`, [mIni, mFim]).catch(() => [{ t: 0 }]);
         const avT = parseFloat(av?.t || 0), vdT = parseFloat(vd?.t || 0);
