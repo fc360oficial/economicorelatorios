@@ -1493,13 +1493,20 @@ app.get('/api/pendencias/prevencao', async (req, res) => {
     const dFim = dFimMes(ano, mes);
     const mm = mesDB(mes);
 
-    const [avarias, vendasRows, bonifRows] = await Promise.all([
+    const [emitidoRows, abertoTramiteRows, vendasRows, bonifRows] = await Promise.all([
+      q(`SELECT a.CodMotivo, a.Status, a.Total, a.CodFornec, a.CodigoBarras, a.Descricao,
+                a.Qtd, a.Valor, a.Und, a.Usuario, a.DataLan, a.DataEmi,
+                f.NomeCompleto as fornecedor
+         FROM central.avariaconsumo a
+         LEFT JOIN central.fornecedor f ON f.CodFornec=a.CodFornec
+         WHERE a.nLoja=? AND a.Status=4 AND a.DataEmi BETWEEN ? AND ?
+         ORDER BY a.Total DESC`, [loja, dIni, dFim]),
       q(`SELECT a.CodMotivo, a.Status, a.Total, a.CodFornec, a.CodigoBarras, a.Descricao,
                 a.Qtd, a.Valor, a.Und, a.Usuario, a.DataLan,
                 f.NomeCompleto as fornecedor
          FROM central.avariaconsumo a
          LEFT JOIN central.fornecedor f ON f.CodFornec=a.CodFornec
-         WHERE a.nLoja=? AND a.DataLan BETWEEN ? AND ?
+         WHERE a.nLoja=? AND a.Status IN (0,2) AND a.DataLan BETWEEN ? AND ?
          ORDER BY a.Status, a.Total DESC`, [loja, dIni, dFim]),
       q(`SELECT SUM(ValorTotalNovo) as total FROM \`ln${loja}${mm}\`.zcupomitens
          WHERE Data BETWEEN ? AND ? AND IndCancel='N'`, [dIni, dFim]).catch(() => [{ total: 0 }]),
@@ -1510,19 +1517,21 @@ app.get('/api/pendencias/prevencao', async (req, res) => {
     const valorVenda = parseFloat(vendasRows[0]?.total || 0);
     const bonificacoes = parseFloat(bonifRows[0]?.total || 0);
 
-    // Totais por status
     let emitido = 0, aberto = 0, tramite = 0;
     const porSetor = { AÇOUGUE: 0, HORTFRUTI: 0, PADARIA: 0, LOJA: 0 };
     const abertoFornec = {}, tramiteFornec = {};
     const abertoItens = [], tramiteItens = [];
 
-    for (const r of avarias) {
+    for (const r of emitidoRows) {
       const tot = parseFloat(r.Total);
       const setor = getSetor(r.CodMotivo);
-      if (r.Status === 3 || r.Status === 4) {
-        emitido += tot;
-        porSetor[setor] = (porSetor[setor] || 0) + tot;
-      } else if (r.Status === 0) {
+      emitido += tot;
+      porSetor[setor] = (porSetor[setor] || 0) + tot;
+    }
+
+    for (const r of abertoTramiteRows) {
+      const tot = parseFloat(r.Total);
+      if (r.Status === 0) {
         aberto += tot;
         const fn = r.fornecedor || 'SEM FORNECEDOR';
         if (!abertoFornec[fn]) abertoFornec[fn] = { total: 0, qtd: 0 };
@@ -1554,7 +1563,7 @@ app.get('/api/pendencias/prevencao', async (req, res) => {
       const mDB = mesDB(mMes);
       try {
         const [av] = await q(`SELECT SUM(Total) as t FROM central.avariaconsumo
-          WHERE nLoja=? AND Status IN (3,4) AND DataLan BETWEEN ? AND ?`, [loja, mIni, mFim]);
+          WHERE nLoja=? AND Status=4 AND DataEmi BETWEEN ? AND ?`, [loja, mIni, mFim]);
         const [vd] = await q(`SELECT SUM(ValorTotalNovo) as t FROM \`ln${loja}${mDB}\`.zcupomitens
           WHERE Data BETWEEN ? AND ? AND IndCancel='N'`, [mIni, mFim]).catch(() => [{ t: 0 }]);
         const avT = parseFloat(av?.t || 0), vdT = parseFloat(vd?.t || 0);
