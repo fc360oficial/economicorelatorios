@@ -72,6 +72,7 @@ table.t tbody tr:hover{background:#ffffff06}
 .tag{font-size:9px;font-weight:700;border-radius:3px;padding:1px 5px;margin-left:3px;display:inline-block}
 .tag-sem-sub{background:#422006;color:#fed7aa}
 .tag-sem-merc{background:#450a0a;color:#fca5a5}
+.tag-sem-merc-blue{background:#0c4a6e;color:#7dd3fc}
 
 /* SUMMARY BARRA */
 .summary-bar{display:flex;gap:6px;flex-wrap:wrap;padding:10px 14px;background:#0f172a33;border-bottom:1px solid #334155}
@@ -164,8 +165,8 @@ table.t tbody tr:hover{background:#ffffff06}
 
 <div class="main">
   <div class="page-hdr">
-    <h1>⚠️ Pendências de Cadastro</h1>
-    <p>Produtos ativos com informações incompletas</p>
+    <h1>⚠️ Pendências</h1>
+    <p>Cadastro incompleto e prevenção de perdas</p>
   </div>
 
   <div class="main-tabs">
@@ -174,6 +175,9 @@ table.t tbody tr:hover{background:#ffffff06}
     </button>
     <button class="main-tab" onclick="mudarTab('sem-merc')" id="tab-sem-merc">
       🗂️ Sem Mercadológico <span class="cnt" id="cnt-sem-merc">...</span>
+    </button>
+    <button class="main-tab" onclick="mudarTab('prevencao')" id="tab-prevencao">
+      🛡️ Prevenção <span class="cnt" id="cnt-prevencao">...</span>
     </button>
   </div>
 
@@ -212,18 +216,49 @@ table.t tbody tr:hover{background:#ffffff06}
     <div class="kpi-row" id="kpi-sm"></div>
     <div id="lista-sm"><div class="spinner"></div></div>
   </div>
+
+  <!-- SEÇÃO PREVENÇÃO -->
+  <div id="sec-prevencao" style="display:none">
+    <div class="filtros">
+      <div class="fg">
+        <label>Loja</label>
+        <select id="fil-loja-pv" onchange="carregarPrevencao()">
+          <option value="1">Loja 1</option>
+          <option value="2">Loja 2</option>
+          <option value="3">Loja 3</option>
+          <option value="4">Loja 4</option>
+          <option value="5">Loja 5</option>
+          <option value="6">Loja 6</option>
+        </select>
+      </div>
+      <div class="fg">
+        <label>Mês</label>
+        <input type="month" id="fil-mes-pv" onchange="carregarPrevencao()">
+      </div>
+      <div class="fg">
+        <label>Buscar Produto</label>
+        <input type="text" id="fil-busca-pv" placeholder="nome ou código..." onkeydown="if(event.key==='Enter')carregarPrevencao()">
+      </div>
+      <button class="btn btn-blue" onclick="carregarPrevencao()">🔍 Filtrar</button>
+      <button class="btn btn-slate" onclick="exportarCSV('prevencao')">⬇ CSV</button>
+      <button class="btn btn-slate" onclick="window.print()">🖨 Imprimir</button>
+    </div>
+    <div class="kpi-row" id="kpi-pv"></div>
+    <div id="lista-pv"><div class="spinner"></div></div>
+  </div>
 </div>
 
 <script>
-let dadosSL = [], dadosSM = [];
+let dadosSL = [], dadosSM = [], dadosPV = [];
 let tabAtiva = 'sem-lista';
 
 function mudarTab(t) {
   tabAtiva = t;
-  document.getElementById('tab-sem-lista').classList.toggle('active', t==='sem-lista');
-  document.getElementById('tab-sem-merc').classList.toggle('active', t==='sem-merc');
-  document.getElementById('sec-sem-lista').style.display = t==='sem-lista' ? '' : 'none';
-  document.getElementById('sec-sem-merc').style.display  = t==='sem-merc'  ? '' : 'none';
+  ['sem-lista','sem-merc','prevencao'].forEach(k => {
+    document.getElementById('tab-'+k).classList.toggle('active', t===k);
+    document.getElementById('sec-'+k).style.display = t===k ? '' : 'none';
+  });
+  if (t === 'prevencao' && !dadosPV.length && !document.getElementById('lista-pv').querySelector('.empty')) carregarPrevencao();
 }
 
 // ─── GRUPOS ─────────────────────────────────────
@@ -400,6 +435,99 @@ function renderSemMerc() {
   cont.innerHTML = html;
 }
 
+// ─── PREVENÇÃO ──────────────────────────────────
+async function carregarPrevencao() {
+  document.getElementById('lista-pv').innerHTML = '<div class="spinner"></div>';
+  const loja = document.getElementById('fil-loja-pv').value;
+  const mes = document.getElementById('fil-mes-pv').value;
+  const busca = document.getElementById('fil-busca-pv').value.trim();
+  const params = new URLSearchParams();
+  params.set('loja', loja);
+  if (mes) params.set('mes', mes);
+  if (busca) params.set('busca', busca);
+  try {
+    const r = await fetch('/api/pendencias/prevencao?' + params);
+    const data = await r.json();
+    if (data.error) throw new Error(data.error);
+    dadosPV = data.itens || [];
+    renderKpisPV(data.resumo);
+    renderPrevencao();
+  } catch(e) {
+    document.getElementById('lista-pv').innerHTML = `<div class="empty">Erro: ${e.message}</div>`;
+  }
+}
+
+function renderKpisPV(res) {
+  if (!res) return;
+  const fmt = v => v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+  document.getElementById('cnt-prevencao').textContent = (res.aberto_qtd + res.tramite_qtd);
+  document.getElementById('kpi-pv').innerHTML = `
+    <div class="kpi"><div class="v" style="color:#f59e0b">${res.aberto_qtd}</div><div class="l">Itens em Aberto</div></div>
+    <div class="kpi"><div class="v" style="color:#f59e0b">${fmt(res.aberto_total)}</div><div class="l">Valor em Aberto</div></div>
+    <div class="kpi"><div class="v" style="color:#38bdf8">${res.tramite_qtd}</div><div class="l">Itens em Trâmite</div></div>
+    <div class="kpi"><div class="v" style="color:#38bdf8">${fmt(res.tramite_total)}</div><div class="l">Valor em Trâmite</div></div>
+    <div class="kpi"><div class="v" style="color:#f87171">${fmt(res.aberto_total + res.tramite_total)}</div><div class="l">Total Geral</div></div>
+  `;
+}
+
+function renderPrevencao() {
+  const cont = document.getElementById('lista-pv');
+  if (!dadosPV.length) { cont.innerHTML = '<div class="empty">Nenhum item encontrado.</div>'; return; }
+
+  const statusLabel = s => s === 0 ? 'EM ABERTO' : 'EM TRÂMITE';
+  const statusClass = s => s === 0 ? 'tag-sem-sub' : 'tag-sem-merc-blue';
+
+  const grupos = { 0: [], 2: [] };
+  for (const r of dadosPV) {
+    if (!grupos[r.Status]) grupos[r.Status] = [];
+    grupos[r.Status].push(r);
+  }
+
+  const fmtD = d => { const dt = new Date(d); return dt.toLocaleDateString('pt-BR'); };
+  const fmtV = v => parseFloat(v).toLocaleString('pt-BR',{minimumFractionDigits:2});
+
+  let html = '';
+  for (const [status, itens] of Object.entries(grupos)) {
+    if (!itens.length) continue;
+    const label = status == 0 ? '🟡 EM ABERTO' : '🔵 EM TRÂMITE';
+    const total = itens.reduce((s,r) => s + parseFloat(r.Total), 0);
+    const id = 'grp-pv-' + status;
+    html += `
+      <div class="grupo-bloco">
+        <div class="grupo-hdr open" onclick="toggleGrupo('${id}')">
+          <span class="grupo-hdr-nome">${label}</span>
+          <span class="grupo-badge">${itens.length} itens · R$ ${fmtV(total)}</span>
+          <span class="grupo-toggle">▼</span>
+        </div>
+        <div class="grupo-body open" id="${id}">
+          <div class="table-wrap">
+            <table class="t">
+              <thead><tr>
+                <th>Código</th><th>Produto</th><th>Und</th><th>Qtd</th>
+                <th>Valor</th><th>Total</th><th>Motivo</th>
+                <th>Usuário</th><th>Data</th>
+              </tr></thead>
+              <tbody>
+                ${itens.map(p=>`<tr>
+                  <td class="cod">${p.CodigoBarras}</td>
+                  <td class="desc">${p.Descricao||''}</td>
+                  <td style="color:#64748b;font-size:11px">${p.Und||''}</td>
+                  <td style="text-align:right">${parseFloat(p.Qtd).toLocaleString('pt-BR')}</td>
+                  <td style="text-align:right">${fmtV(p.Valor)}</td>
+                  <td style="text-align:right;font-weight:600;color:#f59e0b">${fmtV(p.Total)}</td>
+                  <td class="sub">${p.motivo||'—'}</td>
+                  <td class="sub">${p.Usuario||''}</td>
+                  <td class="sub" style="white-space:nowrap">${fmtD(p.DataLan)}</td>
+                </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>`;
+  }
+  cont.innerHTML = html;
+}
+
 // ─── UTILS ───────────────────────────────────────
 function toggleGrupo(id) {
   const body = document.getElementById(id);
@@ -409,13 +537,22 @@ function toggleGrupo(id) {
 }
 
 function exportarCSV(tipo) {
-  const dados = tipo==='sem-lista' ? dadosSL : dadosSM;
+  let dados, cols;
+  if (tipo === 'prevencao') {
+    dados = dadosPV;
+    cols = ['CodigoBarras','Descricao','Und','Qtd','Valor','Total','motivo','Usuario','DataLan','Status'];
+  } else {
+    dados = tipo==='sem-lista' ? dadosSL : dadosSM;
+    cols = ['CodigoBarra','Descricao','Unid','grupo','subgrupo','mercadologico'];
+  }
   if (!dados.length) return;
-  const cols = tipo==='sem-lista'
-    ? ['CodigoBarra','Descricao','Unid','grupo','subgrupo','mercadologico']
-    : ['CodigoBarra','Descricao','Unid','grupo','subgrupo','mercadologico'];
   const header = cols.join(';');
-  const linhas = dados.map(r => cols.map(c => `"${(r[c]||'').toString().replace(/"/g,'""')}"`).join(';'));
+  const linhas = dados.map(r => cols.map(c => {
+    let v = (r[c]||'').toString();
+    if (c === 'Status') v = r[c] === 0 ? 'Em Aberto' : 'Em Trâmite';
+    if (c === 'DataLan') v = new Date(r[c]).toLocaleDateString('pt-BR');
+    return `"${v.replace(/"/g,'""')}"`;
+  }).join(';'));
   const csv = [header, ...linhas].join('\n');
   const blob = new Blob(['﻿'+csv], {type:'text/csv;charset=utf-8'});
   const a = document.createElement('a');
@@ -426,6 +563,8 @@ function exportarCSV(tipo) {
 
 // ─── INIT ─────────────────────────────────────────
 (async () => {
+  const hoje = new Date();
+  document.getElementById('fil-mes-pv').value = hoje.getFullYear()+'-'+String(hoje.getMonth()+1).padStart(2,'0');
   await carregarGrupos();
   await Promise.all([carregarSemLista(), carregarSemMerc()]);
 })();

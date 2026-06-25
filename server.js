@@ -33,7 +33,8 @@ app.use((req, res, next) => {
     '/api/compras/fornec-por-lista',
     '/api/compras/pedidos-mes',
     '/mensal.html',
-    '/comparativo-tv.html', '/api/comparativo-tv'];
+    '/comparativo-tv.html', '/api/comparativo-tv',
+    '/api/pendencias/prevencao'];
   if (publico.includes(req.path)) return next();
   const ext = req.path.split('.').pop().toLowerCase();
   if (['js','css','png','jpg','jpeg','gif','svg','ico','woff','woff2','ttf','eot','map'].includes(ext)) return next();
@@ -1466,6 +1467,45 @@ app.get('/api/grupos', async (req, res) => {
   try {
     const rows = await q('SELECT CodGrupo, Descricao FROM central.grupo WHERE CodDesativado=0 ORDER BY Descricao');
     res.json(rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── PREVENÇÃO (avarias em aberto / em trâmite) ──
+app.get('/api/pendencias/prevencao', async (req, res) => {
+  try {
+    const loja = parseInt(req.query.loja) || 1;
+    const hoje = new Date();
+    const mesSel = req.query.mes || `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}`;
+    const [ano, mes] = mesSel.split('-').map(Number);
+    const dIni = `${ano}-${String(mes).padStart(2,'0')}-01`;
+    const dFim = dFimMes(ano, mes);
+    const busca = req.query.busca || '';
+
+    let where = 'WHERE a.nLoja=? AND a.Status IN (0,2) AND a.DataLan BETWEEN ? AND ?';
+    const params = [loja, dIni, dFim];
+    if (busca) { where += ' AND (a.Descricao LIKE ? OR a.CodigoBarras LIKE ?)'; params.push(`%${busca}%`, `%${busca}%`); }
+
+    const [rows, motivos] = await Promise.all([
+      q(`SELECT a.CodigoBarras, a.Descricao, a.Qtd, a.Valor, a.Total,
+                a.CodMotivo, a.Usuario, a.DataLan, a.Status, a.Und,
+                m.Descricao as motivo
+         FROM central.avariaconsumo a
+         LEFT JOIN central.avariaconsumomotivo m ON m.nReg = a.CodMotivo
+         ${where}
+         ORDER BY a.Status, a.DataLan DESC, a.Total DESC`, params),
+      q('SELECT nReg, Descricao FROM central.avariaconsumomotivo ORDER BY nReg')
+    ]);
+
+    const resumo = {
+      aberto_qtd: 0, aberto_total: 0,
+      tramite_qtd: 0, tramite_total: 0
+    };
+    for (const r of rows) {
+      if (r.Status === 0) { resumo.aberto_qtd++; resumo.aberto_total += parseFloat(r.Total); }
+      else { resumo.tramite_qtd++; resumo.tramite_total += parseFloat(r.Total); }
+    }
+
+    res.json({ itens: rows, resumo, motivos });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
