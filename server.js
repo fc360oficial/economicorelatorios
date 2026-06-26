@@ -1685,8 +1685,11 @@ app.get('/api/pendencias/prevencao-consolidado', async (req, res) => {
         const mFim = dFimMes(anoSel, m);
         const mDB = mesDB(m);
         try {
-          const [av] = await q(`SELECT SUM(Total) as t FROM central.avariaconsumo
-            WHERE nLoja=? AND Status=4 AND Tipo=1 AND DataEmi BETWEEN ? AND ?`, [loja, mIni, mFim]);
+          const mPeds = await q(`SELECT DISTINCT nPedido FROM central.avariaconsumo
+            WHERE nLoja=? AND Status=4 AND Tipo=1 AND NF > 0 AND DataEmi BETWEEN ? AND ?`, [loja, mIni, mFim]);
+          const mPedIds = mPeds.map(r => r.nPedido);
+          const [av] = mPedIds.length ? await q(`SELECT SUM(Total) as t FROM central.avariaconsumo
+            WHERE nLoja=? AND Tipo=1 AND nPedido IN (?)`, [loja, mPedIds]) : [{ t: 0 }];
           const [vd] = await q(`SELECT SUM(ValorTotalNovo) as t FROM \`ln${loja}${mDB}\`.zcupomitens
             WHERE Data BETWEEN ? AND ? AND IndCancel='N'`, [mIni, mFim]).catch(() => [{ t: 0 }]);
           const avT = parseFloat(av?.t || 0), vdT = parseFloat(vd?.t || 0);

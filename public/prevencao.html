@@ -283,11 +283,13 @@ function renderConsolidado(d) {
     html += '<tr><td class="bold" style="padding-left:16px">' + lj.nome + '</td>';
     for (var mi = 0; mi < lj.mensal.length; mi++) {
       var pct = lj.mensal[mi].pct;
+      var isUltimo = mi === lj.mensal.length - 1;
+      var idAttr = isUltimo ? ' id="mensal-' + i + '"' : '';
       if (pct === 0) {
         html += '<td class="r" style="color:#475569">—</td>';
       } else {
         var cor = pct > 1 ? 'neg' : 'pos';
-        html += '<td class="r bold ' + cor + '">-' + fmtN(pct) + '%</td>';
+        html += '<td class="r bold ' + cor + '"' + idAttr + '>-' + fmtN(pct) + '%</td>';
       }
     }
     html += '</tr>';
@@ -326,7 +328,7 @@ function renderConsolidado(d) {
     html += '<td class="r neg">' + fmtN(lj.aberto) + '</td>';
     html += '<td class="r info">' + fmtN(lj.tramite) + '</td>';
     html += '<td class="r warn">' + fmtN(lj.avMes) + '</td>';
-    html += '<td class="r bold ' + corPct + '">' + fmtN(lj.pctMes) + '%</td>';
+    html += '<td class="r bold ' + corPct + '" id="pctmes-' + i + '">' + fmtN(lj.pctMes) + '%</td>';
     html += '</tr>';
 
     tot.venda += lj.venda; tot.avBruta += lj.avBruta; tot.acougue += lj.acougue;
@@ -390,6 +392,22 @@ function renderConsolidado(d) {
       var el = document.getElementById('avf-' + idx);
       el.textContent = fmtN(avf);
       el.className = 'r bold ' + (avf < 0 ? 'pos' : 'neg');
+
+      // Atualizar % MÊS e tabela mensal
+      var adjPct = lj.venda > 0 ? Math.abs(avf / lj.venda * 100) : 0;
+      var corAdj = adjPct > 1 ? 'neg' : 'pos';
+      var pctEl = document.getElementById('pctmes-' + idx);
+      if (pctEl) { pctEl.textContent = fmtN(adjPct) + '%'; pctEl.className = 'r bold ' + corAdj; }
+      var mensalEl = document.getElementById('mensal-' + idx);
+      if (mensalEl) {
+        if (avf < 0) {
+          mensalEl.textContent = fmtN(adjPct) + '%';
+          mensalEl.className = 'r bold pos';
+        } else {
+          mensalEl.textContent = '-' + fmtN(adjPct) + '%';
+          mensalEl.className = 'r bold ' + corAdj;
+        }
+      }
 
       salvarBonif(lj.loja, mesVal, val);
 
