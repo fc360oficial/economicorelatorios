@@ -1541,8 +1541,7 @@ app.get('/api/pendencias/prevencao', async (req, res) => {
       }
     }
 
-    const abertoTramiteRows = allAbertoTramite.filter(r => !pedSet.has(r.nPedido));
-    for (const r of abertoTramiteRows) {
+    for (const r of allAbertoTramite) {
       const tot = parseFloat(r.Total);
       if (r.Status === 0) {
         aberto += tot;
