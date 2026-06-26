@@ -1656,6 +1656,7 @@ app.get('/api/pendencias/prevencao-consolidado', async (req, res) => {
 
       const mensal = [];
       for (let m = 1; m <= mesNum; m++) {
+        if (m === 3 || m === 4) { mensal.push({ mes: m, pct: 0 }); continue; }
         const mIni = `${anoSel}-${String(m).padStart(2,'0')}-01`;
         const mFim = dFimMes(anoSel, m);
         const mDB = mesDB(m);
