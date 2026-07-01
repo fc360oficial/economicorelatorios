@@ -357,33 +357,7 @@ function renderConsolidado(d) {
   melhoraram.sort(function(a,b){return a.df - b.df;});
   pioraram.sort(function(a,b){return b.df - a.df;});
 
-  if (melhoraram.length > 0 || pioraram.length > 0) {
-    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">';
-    html += '<div style="background:#0d2d1f;border:1px solid #166534;border-radius:10px;padding:12px 16px">';
-    html += '<div style="font-size:11px;font-weight:700;color:#4ade80;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">▼ Melhoraram este mês</div>';
-    if (melhoraram.length === 0) { html += '<div style="color:#475569;font-size:12px">Nenhuma loja</div>'; }
-    for (var mi = 0; mi < melhoraram.length; mi++) {
-      var lm = melhoraram[mi];
-      html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #166534">';
-      html += '<span style="font-size:12px;font-weight:600;color:#e2e8f0">' + lm.nome + '</span>';
-      html += '<span style="font-size:11px;color:#4ade80;font-weight:700">' + fmtN(lm.pct) + '% <span style="color:#86efac;font-size:10px">(' + fmtN(lm.df) + '%)</span></span>';
-      html += '</div>';
-    }
-    html += '</div>';
-
-    html += '<div style="background:#2d0d0d;border:1px solid #7f1d1d;border-radius:10px;padding:12px 16px">';
-    html += '<div style="font-size:11px;font-weight:700;color:#f87171;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">▲ Pioraram este mês</div>';
-    if (pioraram.length === 0) { html += '<div style="color:#475569;font-size:12px">Nenhuma loja</div>'; }
-    for (var pi2 = 0; pi2 < pioraram.length; pi2++) {
-      var lp = pioraram[pi2];
-      html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #7f1d1d">';
-      html += '<span style="font-size:12px;font-weight:600;color:#e2e8f0">' + lp.nome + '</span>';
-      html += '<span style="font-size:11px;color:#f87171;font-weight:700">' + fmtN(lp.pct) + '% <span style="color:#fca5a5;font-size:10px">(+' + fmtN(lp.df) + '%)</span></span>';
-      html += '</div>';
-    }
-    html += '</div>';
-    html += '</div>';
-  }
+  html += '<div id="destaques-section"></div>';
 
   // ── GRÁFICO DE BARRAS ──
   html += '<div class="sec-title">📊 Ranking % Avaria — ' + MF[d.mesAtual] + '</div>';
@@ -580,6 +554,49 @@ function renderConsolidado(d) {
     });
   }
 
+  function atualizarDestaques() {
+    var mel = [], pio = [];
+    for (var di = 0; di < d.lojas.length; di++) {
+      var pctEl3 = document.getElementById('pctmes-' + di);
+      if (!pctEl3) continue;
+      var curPct = parseFloat(pctEl3.textContent.replace('%','').replace(',','.')) || 0;
+      var prv = prevPct[di];
+      if (prv === undefined) continue;
+      var df3 = +(curPct - prv).toFixed(2);
+      if (df3 < -0.05) mel.push({nome: d.lojas[di].nome, df: df3, pct: curPct});
+      else if (df3 > 0.05) pio.push({nome: d.lojas[di].nome, df: df3, pct: curPct});
+    }
+    mel.sort(function(a,b){return a.df - b.df;});
+    pio.sort(function(a,b){return b.df - a.df;});
+    var ds = document.getElementById('destaques-section');
+    if (!ds) return;
+    if (mel.length === 0 && pio.length === 0) { ds.innerHTML = ''; return; }
+    var h = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">';
+    h += '<div style="background:#0d2d1f;border:1px solid #166534;border-radius:10px;padding:12px 16px">';
+    h += '<div style="font-size:11px;font-weight:700;color:#4ade80;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">▼ Melhoraram este mês</div>';
+    if (mel.length === 0) { h += '<div style="color:#475569;font-size:12px">Nenhuma loja</div>'; }
+    for (var mi3 = 0; mi3 < mel.length; mi3++) {
+      var lm3 = mel[mi3];
+      h += '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #166534">';
+      h += '<span style="font-size:12px;font-weight:600;color:#e2e8f0">' + lm3.nome + '</span>';
+      h += '<span style="font-size:11px;color:#4ade80;font-weight:700">' + fmtN(lm3.pct) + '% <span style="color:#86efac;font-size:10px">(' + fmtN(lm3.df) + '%)</span></span>';
+      h += '</div>';
+    }
+    h += '</div>';
+    h += '<div style="background:#2d0d0d;border:1px solid #7f1d1d;border-radius:10px;padding:12px 16px">';
+    h += '<div style="font-size:11px;font-weight:700;color:#f87171;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">▲ Pioraram este mês</div>';
+    if (pio.length === 0) { h += '<div style="color:#475569;font-size:12px">Nenhuma loja</div>'; }
+    for (var pi3 = 0; pi3 < pio.length; pi3++) {
+      var lp3 = pio[pi3];
+      h += '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #7f1d1d">';
+      h += '<span style="font-size:12px;font-weight:600;color:#e2e8f0">' + lp3.nome + '</span>';
+      h += '<span style="font-size:11px;color:#f87171;font-weight:700">' + fmtN(lp3.pct) + '% <span style="color:#fca5a5;font-size:10px">(+' + fmtN(lp3.df) + '%)</span></span>';
+      h += '</div>';
+    }
+    h += '</div></div>';
+    ds.innerHTML = h;
+  }
+
   function atualizarBarras() {
     var pctMap = {};
     for (var bi2 = 0; bi2 < d.lojas.length; bi2++) {
@@ -634,7 +651,8 @@ function renderConsolidado(d) {
         }
       }
       atualizarBarras();
-    }).catch(function() { atualizarBarras(); });
+      atualizarDestaques();
+    }).catch(function() { atualizarBarras(); atualizarDestaques(); });
 }
 
 function renderTudo(d) {
