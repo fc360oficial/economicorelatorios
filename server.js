@@ -1767,8 +1767,8 @@ app.get('/api/pendencias/prevencao-consolidado', withCache(60), async (req, res)
       }
 
       const saldo = emitido - porSetor.AÇOUGUE - porSetor.HORTFRUTI - porSetor.PADARIA;
-      const avFinal  = saldo - bonif;
-      const avMesTotal = aberto + tramite + avFinal;
+      // avMes inicial = aberto + tramite + saldo (sem bonif — JS ajusta via input)
+      const avMesInicial = aberto + tramite + saldo;
 
       // Jan/Fev/Mai fixos do ERP, Mar/Abr vazios, Jun+ calcula do banco
       const pctFixo = {
@@ -1779,9 +1779,9 @@ app.get('/api/pendencias/prevencao-consolidado', withCache(60), async (req, res)
       const mensal = [];
       for (let m = 1; m <= mesNum; m++) {
         if (m === 3 || m === 4) { mensal.push({ mes: m, pct: 0 }); continue; }
-        // Mês atual: usa fórmula nova (aberto + trâmite + avFinal)
+        // Mês atual: usa fórmula nova (aberto + trâmite + saldo, bonif deduzido pelo JS)
         if (m === mesNum) {
-          mensal.push({ mes: m, pct: valorVenda > 0 ? +(avMesTotal / valorVenda * 100).toFixed(2) : 0 });
+          mensal.push({ mes: m, pct: valorVenda > 0 ? +(avMesInicial / valorVenda * 100).toFixed(2) : 0 });
           continue;
         }
         if (pctFixo[m]) {
@@ -1806,10 +1806,10 @@ app.get('/api/pendencias/prevencao-consolidado', withCache(60), async (req, res)
 
       return {
         loja, nome: LOJAS[loja],
-        venda: valorVenda, avBruta, avMes: avMesTotal,
+        venda: valorVenda, avBruta, avMes: avMesInicial,
         acougue: porSetor.AÇOUGUE, horti: porSetor.HORTFRUTI, padaria: porSetor.PADARIA,
         saldo, bonif, aberto, tramite, mensal,
-        pctMes: valorVenda > 0 ? +(avMesTotal / valorVenda * 100).toFixed(2) : 0
+        pctMes: valorVenda > 0 ? +(avMesInicial / valorVenda * 100).toFixed(2) : 0
       };
     }
 
