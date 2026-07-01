@@ -469,17 +469,18 @@ function renderTudo(d) {
   html += '<div class="setor-card"><div class="nome">SALDO AVARIA</div><div class="val" id="saldo-avaria" style="color:#94a3b8">' + fmt(r.saldoAvaria) + '</div></div>';
   html += '<div class="setor-card"><div class="nome">BONIFICAÇÕES</div><div style="padding:4px 0"><input type="text" id="input-bonif" value="0,00" style="width:100%;background:#1e293b;border:1px solid #475569;border-radius:6px;color:#a78bfa;font-size:1.1rem;font-weight:700;padding:6px 8px;text-align:center;outline:none" placeholder="Digite o valor"></div></div>';
   html += '<div class="setor-card"><div class="nome">AVARIAS FINAL</div><div class="val" id="avarias-final" style="color:#f87171">' + fmt(r.saldoAvaria) + '</div></div>';
-  html += '<div class="setor-card"><div class="nome">% AVARIAS</div><div class="val" id="pct-avarias">' + fmtN(r.valorVenda > 0 ? (r.saldoAvaria / r.valorVenda * 100) : 0) + '%</div></div>';
+  html += '<div class="setor-card"><div class="nome">% AVARIAS MÊS</div><div class="val" id="pct-avarias">' + fmtN(r.valorVenda > 0 ? ((r.aberto + r.tramite + r.avariasFinal) / r.valorVenda * 100) : 0) + '%</div></div>';
   html += '</div>';
 
-  // ── TOTAL PRA RESOLVER (MÊS) ──
-  html += '<div class="sec-title">⚠️ PENDÊNCIAS DO MÊS</div>';
+  // ── AVARIA DO MÊS (EM ABERTO + EM TRÂMITE + AVARIA FINAL) ──
+  html += '<div class="sec-title">⚠️ AVARIA DO MÊS</div>';
   html += '<div class="table-wrap"><table class="t">';
   html += '<thead><tr><th>Situação</th><th class="r">Valor</th><th>Tipo</th></tr></thead>';
   html += '<tbody>';
   html += '<tr><td class="bold warn">EM ABERTO</td><td class="r bold warn">' + fmt(r.aberto) + '</td><td style="color:#94a3b8">Produtos na loja (mês)</td></tr>';
   html += '<tr><td class="bold info">EM TRÂMITE</td><td class="r bold info">' + fmt(r.tramite) + '</td><td style="color:#94a3b8">Produtos descartados (mês)</td></tr>';
-  html += '<tr style="border-top:2px solid #334155"><td class="bold" style="color:#f8fafc">TOTAL MÊS</td><td class="r bold neg">' + fmt(r.aberto + r.tramite) + '</td><td></td></tr>';
+  html += '<tr><td class="bold neg">AVARIAS FINAL</td><td class="r bold neg" id="pendencias-final">' + fmt(r.avariasFinal) + '</td><td style="color:#94a3b8">Notas emitidas líquidas (mês)</td></tr>';
+  html += '<tr style="border-top:2px solid #334155"><td class="bold" style="color:#f8fafc">TOTAL AVARIA MÊS</td><td class="r bold neg" id="pendencias-total">' + fmt(r.aberto + r.tramite + r.avariasFinal) + '</td><td style="color:#64748b;font-size:11px">' + fmtN(r.valorVenda > 0 ? ((r.aberto + r.tramite + r.avariasFinal) / r.valorVenda * 100) : 0) + '% s/ venda</td></tr>';
   html += '</tbody></table></div>';
 
   // ── TOTAL GERAL (SEM FILTRO DE MÊS) ──
@@ -526,10 +527,12 @@ function renderTudo(d) {
   if (inputBonif) {
     inputBonif.addEventListener('input', function() {
       var val = parseFloat(this.value.replace(/\./g,'').replace(',','.')) || 0;
-      var saldo = r.saldoAvaria;
-      var final_ = saldo - val;
-      var pct = r.valorVenda > 0 ? (final_ / r.valorVenda * 100) : 0;
+      var final_ = r.saldoAvaria - val;
+      var totalMes = r.aberto + r.tramite + final_;
+      var pct = r.valorVenda > 0 ? (totalMes / r.valorVenda * 100) : 0;
       document.getElementById('avarias-final').textContent = fmt(final_);
+      document.getElementById('pendencias-final').textContent = fmt(final_);
+      document.getElementById('pendencias-total').textContent = fmt(totalMes);
       document.getElementById('pct-avarias').textContent = fmtN(pct) + '%';
       document.getElementById('pct-avarias').className = 'val ' + (pct > 0 ? 'neg' : '');
       salvarBonif(lojaVal, mesVal, val);
