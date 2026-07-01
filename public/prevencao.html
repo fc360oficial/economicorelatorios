@@ -100,6 +100,19 @@ table.t th.r,table.t td.r{text-align:right}
   .top10-wrapper{grid-template-columns:1fr}
 }
 
+/* FICHA AVARIA */
+.ficha-avaria{background:#1e293b;border:1px solid #334155;border-radius:12px;overflow:hidden;margin-bottom:20px;max-width:520px}
+.ficha-hdr{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:#0f172a;border-bottom:1px solid #334155}
+.ficha-hdr .fl{font-size:15px;font-weight:700;color:#f1f5f9}
+.ficha-hdr .fp{font-size:14px;font-weight:700;border-radius:6px;padding:3px 10px;min-width:56px;text-align:center}
+.ficha-r{display:flex;align-items:center;justify-content:space-between;padding:8px 18px;border-bottom:1px solid #0f172a;gap:12px}
+.ficha-r.sub{padding-left:36px}
+.ficha-r.eq{background:#0a1120;padding:10px 18px;border-bottom:1px solid #334155}
+.ficha-r.eq-total{background:#0a1120;padding:13px 18px;border-top:2px solid #334155}
+.ficha-r .lb{font-size:12px;color:#94a3b8;flex:1}
+.ficha-r .vl{font-size:13px;font-weight:600;color:#e2e8f0;white-space:nowrap}
+.ficha-sep{height:1px;background:#334155}
+
 .spinner{width:22px;height:22px;border-radius:50%;border:2px solid #334155;border-top-color:#f59e0b;animation:spin .7s linear infinite;margin:30px auto}
 @keyframes spin{to{transform:rotate(360deg)}}
 .empty{padding:30px;text-align:center;color:#475569;font-size:13px}
@@ -448,40 +461,40 @@ function renderTudo(d) {
 
   var html = '';
 
-  // ── RESUMO AVARIAS ──
+  // ── FICHA AVARIA ──
+  var avMes0 = r.aberto + r.tramite + r.avariasFinal;
+  var pct0   = r.valorVenda > 0 ? (avMes0 / r.valorVenda * 100) : 0;
+  var pctCor = pct0 > 1.5 ? '#f87171' : pct0 > 0.8 ? '#f59e0b' : '#4ade80';
   html += '<div class="sec-title">📋 AVARIAS — ' + lojaName + ' — ' + mesLabel + '</div>';
-  html += '<div class="kpi-row">';
-  html += '<div class="kpi"><div class="v warn">' + fmt(r.emitido) + '</div><div class="l">Notas Emitidas</div></div>';
-  html += '<div class="kpi"><div class="v neg">' + fmt(r.aberto) + '</div><div class="l">Em Aberto</div></div>';
-  html += '<div class="kpi"><div class="v info">' + fmt(r.tramite) + '</div><div class="l">Em Trâmite</div></div>';
-  html += '<div class="kpi"><div class="v" style="color:#e2e8f0">' + fmt(r.valorVenda) + '</div><div class="l">Valor Venda</div></div>';
-  html += '</div>';
-
-  // ── SETOR BREAKDOWN ──
-  html += '<div class="sec-title">🏪 NOTAS EMITIDAS POR SETOR</div>';
-  html += '<div class="setor-grid">';
-  var setores = ['AÇOUGUE','HORTFRUTI','PADARIA'];
+  html += '<div class="ficha-avaria">';
+  // header: loja + %
+  html += '<div class="ficha-hdr"><span class="fl">' + lojaName + '</span><span class="fp" id="pct-avarias" style="background:' + pctCor + '22;color:' + pctCor + '">' + fmtN(pct0) + '%</span></div>';
+  // Avaria bruta
+  html += '<div class="ficha-r"><span class="lb">Avaria bruta <span style="color:#64748b;font-size:10px">(notas emitidas)</span></span><span class="vl">' + fmt(r.emitido) + '</span></div>';
+  // Deduções setores
+  var setores = [['AÇOUGUE','− Açougue'],['HORTFRUTI','− Hortifruti'],['PADARIA','− Padaria']];
   for (var i = 0; i < setores.length; i++) {
-    var s = setores[i];
-    var v = d.porSetor[s] || 0;
-    html += '<div class="setor-card"><div class="nome">' + s + '</div><div class="val">' + fmt(v) + '</div></div>';
+    var sv = d.porSetor[setores[i][0]] || 0;
+    if (sv > 0) html += '<div class="ficha-r sub"><span class="lb" style="color:#64748b">' + setores[i][1] + '</span><span class="vl" style="color:#64748b">' + fmt(sv) + '</span></div>';
   }
-  html += '<div class="setor-card"><div class="nome">SALDO AVARIA</div><div class="val" id="saldo-avaria" style="color:#94a3b8">' + fmt(r.saldoAvaria) + '</div></div>';
-  html += '<div class="setor-card"><div class="nome">BONIFICAÇÕES</div><div style="padding:4px 0"><input type="text" id="input-bonif" value="0,00" style="width:100%;background:#1e293b;border:1px solid #475569;border-radius:6px;color:#a78bfa;font-size:1.1rem;font-weight:700;padding:6px 8px;text-align:center;outline:none" placeholder="Digite o valor"></div></div>';
-  html += '<div class="setor-card"><div class="nome">AVARIAS FINAL</div><div class="val" id="avarias-final" style="color:#f87171">' + fmt(r.saldoAvaria) + '</div></div>';
-  html += '<div class="setor-card"><div class="nome">% AVARIAS MÊS</div><div class="val" id="pct-avarias">' + fmtN(r.valorVenda > 0 ? ((r.aberto + r.tramite + r.avariasFinal) / r.valorVenda * 100) : 0) + '%</div></div>';
+  // Saldo avaria
+  html += '<div class="ficha-r eq"><span class="lb" style="color:#f1f5f9;font-weight:700">= Saldo avaria</span><span class="vl" id="saldo-avaria" style="color:#f1f5f9;font-size:14px;font-weight:700">' + fmt(r.saldoAvaria) + '</span></div>';
+  html += '<div class="ficha-sep"></div>';
+  // Bonificações (input)
+  html += '<div class="ficha-r"><span class="lb">+ Bonificações</span><span class="vl"><input type="text" id="input-bonif" value="0,00" style="background:#0f172a;border:1px solid #475569;border-radius:6px;color:#a78bfa;font-size:13px;font-weight:700;padding:4px 10px;text-align:right;width:130px;outline:none"></span></div>';
+  // Avaria final
+  var afCor0 = r.avariasFinal >= 0 ? '#f87171' : '#4ade80';
+  html += '<div class="ficha-r eq"><span class="lb" style="color:#f1f5f9;font-weight:700">= Avaria final</span><span class="vl" id="avarias-final" style="color:' + afCor0 + ';font-size:15px;font-weight:700">' + fmt(r.avariasFinal) + '</span></div>';
+  html += '<div class="ficha-sep"></div>';
+  // Em aberto + Em trâmite
+  html += '<div class="ficha-r"><span class="lb" style="color:#f59e0b">+ Em aberto</span><span class="vl" style="color:#f59e0b">' + fmt(r.aberto) + '</span></div>';
+  html += '<div class="ficha-r"><span class="lb" style="color:#38bdf8">+ Em trâmite</span><span class="vl" style="color:#38bdf8">' + fmt(r.tramite) + '</span></div>';
+  // Total avaria do mês
+  html += '<div class="ficha-r eq-total"><span class="lb" style="color:#f1f5f9;font-size:14px;font-weight:700">= Avaria do mês</span><span class="vl" id="pendencias-total" style="color:#f87171;font-size:18px;font-weight:700">' + fmt(avMes0) + '</span></div>';
+  html += '<div class="ficha-sep"></div>';
+  // Venda
+  html += '<div class="ficha-r" style="opacity:.65"><span class="lb">Venda</span><span class="vl" style="color:#94a3b8">' + fmt(r.valorVenda) + '</span></div>';
   html += '</div>';
-
-  // ── AVARIA DO MÊS (EM ABERTO + EM TRÂMITE + AVARIA FINAL) ──
-  html += '<div class="sec-title">⚠️ AVARIA DO MÊS</div>';
-  html += '<div class="table-wrap"><table class="t">';
-  html += '<thead><tr><th>Situação</th><th class="r">Valor</th><th>Tipo</th></tr></thead>';
-  html += '<tbody>';
-  html += '<tr><td class="bold warn">EM ABERTO</td><td class="r bold warn">' + fmt(r.aberto) + '</td><td style="color:#94a3b8">Produtos na loja (mês)</td></tr>';
-  html += '<tr><td class="bold info">EM TRÂMITE</td><td class="r bold info">' + fmt(r.tramite) + '</td><td style="color:#94a3b8">Produtos descartados (mês)</td></tr>';
-  html += '<tr><td class="bold neg">AVARIAS FINAL</td><td class="r bold neg" id="pendencias-final">' + fmt(r.avariasFinal) + '</td><td style="color:#94a3b8">Notas emitidas líquidas (mês)</td></tr>';
-  html += '<tr style="border-top:2px solid #334155"><td class="bold" style="color:#f8fafc">TOTAL AVARIA MÊS</td><td class="r bold neg" id="pendencias-total">' + fmt(r.aberto + r.tramite + r.avariasFinal) + '</td><td style="color:#64748b;font-size:11px">' + fmtN(r.valorVenda > 0 ? ((r.aberto + r.tramite + r.avariasFinal) / r.valorVenda * 100) : 0) + '% s/ venda</td></tr>';
-  html += '</tbody></table></div>';
 
   // ── TOTAL GERAL (SEM FILTRO DE MÊS) ──
   html += '<div class="sec-title">📦 TOTAL GERAL PENDENTE (TODOS OS MESES)</div>';
@@ -526,15 +539,19 @@ function renderTudo(d) {
   var inputBonif = document.getElementById('input-bonif');
   if (inputBonif) {
     inputBonif.addEventListener('input', function() {
-      var val = parseFloat(this.value.replace(/\./g,'').replace(',','.')) || 0;
-      var final_ = r.saldoAvaria - val;
+      var val     = parseFloat(this.value.replace(/\./g,'').replace(',','.')) || 0;
+      var final_  = r.saldoAvaria - val;
       var totalMes = r.aberto + r.tramite + final_;
-      var pct = r.valorVenda > 0 ? (totalMes / r.valorVenda * 100) : 0;
-      document.getElementById('avarias-final').textContent = fmt(final_);
-      document.getElementById('pendencias-final').textContent = fmt(final_);
+      var pct     = r.valorVenda > 0 ? (totalMes / r.valorVenda * 100) : 0;
+      var afEl    = document.getElementById('avarias-final');
+      afEl.textContent  = fmt(final_);
+      afEl.style.color  = final_ >= 0 ? '#f87171' : '#4ade80';
       document.getElementById('pendencias-total').textContent = fmt(totalMes);
-      document.getElementById('pct-avarias').textContent = fmtN(pct) + '%';
-      document.getElementById('pct-avarias').className = 'val ' + (pct > 0 ? 'neg' : '');
+      var pctEl   = document.getElementById('pct-avarias');
+      var pctCor  = pct > 1.5 ? '#f87171' : pct > 0.8 ? '#f59e0b' : '#4ade80';
+      pctEl.textContent = fmtN(pct) + '%';
+      pctEl.style.color = pctCor;
+      pctEl.style.background = pctCor + '22';
       salvarBonif(lojaVal, mesVal, val);
     });
 
