@@ -2816,6 +2816,14 @@ q(`CREATE TABLE IF NOT EXISTS central.prevencao_bonif (
 app.listen(3003, '0.0.0.0', () => {
   console.log('✓ Dashboard rodando em http://localhost:3003');
   console.log('✓ Rede local: http://192.168.2.252:3003');
+  // Pre-aquece cache do ruptura no startup para não travar o primeiro usuário
+  setTimeout(() => {
+    const http = require('http');
+    http.get('http://127.0.0.1:3003/api/ruptura', res => {
+      res.resume();
+      console.log('✓ Cache ruptura pré-aquecido');
+    }).on('error', () => {});
+  }, 3000);
 });
 
 process.on('uncaughtException', err => {

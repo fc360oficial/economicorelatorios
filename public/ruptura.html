@@ -408,18 +408,23 @@ function carregar() {
   btn.disabled = true;
   btn.textContent = '⏳ Analisando...';
   document.getElementById('stamp').innerHTML = '<span class="spin"></span> Buscando dados...';
-  document.getElementById('conteudo').innerHTML = '<div class="loading"><span class="spin"></span> Analisando estoque, vendas e cobertura de todos os produtos...</div>';
+  document.getElementById('conteudo').innerHTML = '<div class="loading"><span class="spin"></span> Analisando estoque, vendas e cobertura de todos os produtos...<br><small style="color:#64748b;margin-top:8px;display:block">Primeira análise após reinício pode levar até 60 segundos.</small></div>';
 
-  fetch('/api/ruptura')
-    .then(r => { if (r.status === 401) { location.href='/login.html'; return null; } return r.json(); })
+  const ctrl = new AbortController();
+  const tid = setTimeout(() => ctrl.abort(), 120000);
+
+  fetch('/api/ruptura', { signal: ctrl.signal })
+    .then(r => { clearTimeout(tid); if (r.status === 401) { location.href='/login.html'; return null; } return r.json(); })
     .then(d => {
       if (!d) return;
       if (d.error) throw new Error(d.error);
       renderTudo(d);
     })
     .catch(e => {
+      clearTimeout(tid);
+      const msg = e.name === 'AbortError' ? 'Tempo limite excedido (120s). Tente novamente.' : e.message;
       document.getElementById('conteudo').innerHTML =
-        `<div class="empty">❌ Erro ao carregar: ${e.message}</div>`;
+        `<div class="empty">❌ Erro ao carregar: ${msg}</div>`;
       document.getElementById('stamp').innerHTML = '<span style="color:var(--red)">● Erro</span>';
     })
     .finally(() => {
