@@ -1266,12 +1266,14 @@ app.get('/api/compra-venda', withCache(30), async (req, res) => {
     }));
 
     // NF-e saída e Compra por loja — uma só query
+    // COMPRA: inclui PNF e NF (todos os recebimentos)
+    // VENDA NF-e: só Tipo='NF' (notas fiscais de saída eletrônicas)
     const cvRows = await q(
       `SELECT nLoja, Movimentacao, COALESCE(SUM(TotalNota),0) as total
        FROM central.compras
        WHERE MONTH(DataLan)=? AND YEAR(DataLan)=2026
          AND nLoja IN (1,2,3,4,5,6)
-         AND Movimentacao IN ('COMPRA','VENDA') AND Tipo='NF'${diaFiltroC}
+         AND ((Movimentacao='COMPRA') OR (Movimentacao='VENDA' AND Tipo='NF'))${diaFiltroC}
        GROUP BY nLoja, Movimentacao`,
       [mesSel]
     );
