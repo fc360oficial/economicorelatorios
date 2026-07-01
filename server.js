@@ -2667,12 +2667,12 @@ app.get('/api/ruptura', withCache(60), async (req, res) => {
 
     // Sales from last 30 days (current + previous month tables, all lojas)
     const salesQs = LOJAS.flatMap(l => [
-      q(`SELECT CodigoBarras, ${l} as l, SUM(Qtd) as qt, SUM(Valor) as vl
-         FROM ln${l}${mm}.zcupomitens WHERE Data BETWEEN ? AND ? AND IndCancel='N'
-         GROUP BY CodigoBarras`, [dIniStr, hojStr]).catch(() => []),
-      q(`SELECT CodigoBarras, ${l} as l, SUM(Qtd) as qt, SUM(Valor) as vl
-         FROM ln${l}${mmPrev}.zcupomitens WHERE Data BETWEEN ? AND ? AND IndCancel='N'
-         GROUP BY CodigoBarras`, [dIniStr, hojStr]).catch(() => [])
+      q(`SELECT Codigo, ${l} as l, SUM(QtdNovo) as qt, SUM(ValorTotalNovo) as vl
+         FROM \`ln${l}${mm}\`.zcupomitens WHERE Data BETWEEN ? AND ? AND IndCancel='N'
+         GROUP BY Codigo`, [dIniStr, hojStr]).catch(() => []),
+      q(`SELECT Codigo, ${l} as l, SUM(QtdNovo) as qt, SUM(ValorTotalNovo) as vl
+         FROM \`ln${l}${mmPrev}\`.zcupomitens WHERE Data BETWEEN ? AND ? AND IndCancel='N'
+         GROUP BY Codigo`, [dIniStr, hojStr]).catch(() => [])
     ]);
 
     const salesArr = await Promise.all(salesQs);
@@ -2681,7 +2681,7 @@ app.get('/api/ruptura', withCache(60), async (req, res) => {
     const salesMap = {};
     for (const rows of salesArr) {
       for (const r of rows) {
-        const ean = r.CodigoBarras; const loja = Number(r.l);
+        const ean = r.Codigo; const loja = Number(r.l);
         if (!salesMap[ean]) salesMap[ean] = {};
         if (!salesMap[ean][loja]) salesMap[ean][loja] = { qt: 0, vl: 0 };
         salesMap[ean][loja].qt += parseFloat(r.qt) || 0;
