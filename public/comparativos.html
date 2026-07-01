@@ -315,9 +315,11 @@ table.dt tbody tr:hover{background:#ffffff06}
               <th class="r">Venda 2026</th>
               <th class="r">MSV 2026</th>
               <th class="r">Δ Margem</th>
+              <th class="r" style="color:#60a5fa" title="Compras com NF-e recebidas / Venda 2025">C/V% 2025</th>
+              <th class="r" style="color:#60a5fa" title="Compras com NF-e recebidas / Venda 2026">C/V% 2026</th>
             </tr>
           </thead>
-          <tbody id="tbody-margem-loja"><tr><td colspan="6" class="loading">Selecione a aba para carregar</td></tr></tbody>
+          <tbody id="tbody-margem-loja"><tr><td colspan="8" class="loading">Selecione a aba para carregar</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -780,7 +782,7 @@ function carregarMargem() {
   const mes  = document.getElementById('sel-mes').value;
   const loja = document.getElementById('sel-loja-margem').value;
   document.getElementById('tbody-margem-mes').innerHTML  = '<tr><td colspan="6" class="loading">Carregando...</td></tr>';
-  document.getElementById('tbody-margem-loja').innerHTML = '<tr><td colspan="6" class="loading">Carregando...</td></tr>';
+  document.getElementById('tbody-margem-loja').innerHTML = '<tr><td colspan="8" class="loading">Carregando...</td></tr>';
   fetch(`/api/margem-lojas?mes=${mes}&loja=${loja}`)
     .then(r => { if(r.status===401){location.href='/login.html';return null;} return r.json(); })
     .then(data => {
@@ -866,6 +868,8 @@ function carregarMargem() {
             <td class="r">${l.venda2026>0?BRL(l.venda2026):'<span style="color:#334155">—</span>'}</td>
             <td class="r ${c26}">${l.msv2026!==null?l.msv2026.toFixed(2)+'%':'—'}</td>
             <td class="r ${dc}">${d!==null?(d>=0?'+':'')+d.toFixed(2)+' pp':'—'}</td>
+            <td class="r" style="color:#93c5fd">${l.cv2025!==null?l.cv2025.toFixed(1)+'%':'—'}</td>
+            <td class="r" style="color:#93c5fd">${l.cv2026!==null?l.cv2026.toFixed(1)+'%':'—'}</td>
           </tr>`);
       }
       const rv25=t.msv2025,rv26=t.msv2026;
@@ -878,12 +882,14 @@ function carregarMargem() {
           <td class="r">${BRL(t.venda2026)}</td>
           <td class="r">${rv26!==null?rv26.toFixed(2)+'%':'—'}</td>
           <td class="r ${rd!==null?(rd>=0?'var-pos':'var-neg'):'var-zero'}">${rd!==null?(rd>=0?'+':'')+rd.toFixed(2)+' pp':'—'}</td>
+          <td class="r" style="color:#93c5fd">${t.cv2025!==null?t.cv2025.toFixed(1)+'%':'—'}</td>
+          <td class="r" style="color:#93c5fd">${t.cv2026!==null?t.cv2026.toFixed(1)+'%':'—'}</td>
         </tr>`);
     })
     .catch(e => {
       const msg = e?.message || String(e);
       document.getElementById('tbody-margem-mes').innerHTML  = `<tr><td colspan="6" class="loading">Erro: ${msg}</td></tr>`;
-      document.getElementById('tbody-margem-loja').innerHTML = `<tr><td colspan="6" class="loading">Erro: ${msg}</td></tr>`;
+      document.getElementById('tbody-margem-loja').innerHTML = `<tr><td colspan="8" class="loading">Erro: ${msg}</td></tr>`;
     });
 }
 
