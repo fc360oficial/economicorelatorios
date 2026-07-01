@@ -418,7 +418,7 @@ function renderConsolidado(d) {
         html += '<td class="r bold ' + cor + '"' + idAttr + '>-' + fmtN(pct) + '%</td>';
       }
     }
-    html += '<td class="r">' + getTrend(lj.pctMes, prevPct[i]) + '</td>';
+    html += '<td class="r" id="tend-mes-' + i + '">' + getTrend(lj.pctMes, prevPct[i]) + '</td>';
     html += '</tr>';
   }
   html += '</tbody></table></div>';
@@ -456,7 +456,7 @@ function renderConsolidado(d) {
     html += '<td class="r info">' + fmtN(lj.tramite) + '</td>';
     html += '<td class="r warn" id="avmes-' + i + '">' + fmtN(lj.avMes) + '</td>';
     html += '<td class="r bold ' + corPct + '" id="pctmes-' + i + '">' + fmtN(lj.pctMes) + '%</td>';
-    html += '<td class="r">' + getTrend(lj.pctMes, prevPct[i]) + '</td>';
+    html += '<td class="r" id="tend-det-' + i + '">' + getTrend(lj.pctMes, prevPct[i]) + '</td>';
     html += '</tr>';
 
     tot.venda += lj.venda; tot.avBruta += lj.avBruta; tot.acougue += lj.acougue;
@@ -481,8 +481,8 @@ function renderConsolidado(d) {
   html += '<td class="r bold neg">' + fmtN(tot.aberto) + '</td>';
   html += '<td class="r bold info">' + fmtN(tot.tramite) + '</td>';
   html += '<td class="r bold warn">' + fmtN(tot.avMes) + '</td>';
-  html += '<td class="r bold">' + fmtN(totPct) + '%</td>';
-  html += '<td class="r">' + getTrend(totPct, prevRedePct) + '</td>';
+  html += '<td class="r bold" id="totpct-cons">' + fmtN(totPct) + '%</td>';
+  html += '<td class="r" id="tend-tot">' + getTrend(totPct, prevRedePct) + '</td>';
   html += '</tr>';
   html += '</tbody></table></div>';
 
@@ -551,7 +551,32 @@ function renderConsolidado(d) {
       var taf = document.getElementById('tot-avfinal');
       taf.textContent = fmtN(totalAvFinal);
       taf.className = 'r bold ' + (totalAvFinal < 0 ? 'pos' : 'neg');
+      atualizarBarras();
+      atualizarDestaques();
+      atualizarTend();
     });
+  }
+
+  function atualizarTend() {
+    var totalAvMes = 0;
+    for (var ti = 0; ti < d.lojas.length; ti++) {
+      var pctEl = document.getElementById('pctmes-' + ti);
+      if (!pctEl) continue;
+      var curPct = parseFloat(pctEl.textContent.replace('%','').replace(',','.')) || 0;
+      var trendHtml = getTrend(curPct, prevPct[ti]);
+      var tMes = document.getElementById('tend-mes-' + ti);
+      if (tMes) tMes.innerHTML = trendHtml;
+      var tDet = document.getElementById('tend-det-' + ti);
+      if (tDet) tDet.innerHTML = trendHtml;
+      var avmEl = document.getElementById('avmes-' + ti);
+      if (avmEl) totalAvMes += parseFloat(avmEl.textContent.replace(/\./g,'').replace(',','.')) || 0;
+    }
+    var totalVenda = d.lojas.reduce(function(s,l){return s+l.venda;},0);
+    var totPctDyn = totalVenda > 0 ? +(totalAvMes / totalVenda * 100).toFixed(2) : 0;
+    var tTot = document.getElementById('totpct-cons');
+    if (tTot) tTot.textContent = fmtN(totPctDyn) + '%';
+    var tTotTend = document.getElementById('tend-tot');
+    if (tTotTend) tTotTend.innerHTML = getTrend(totPctDyn, prevRedePct);
   }
 
   function atualizarDestaques() {
@@ -652,7 +677,8 @@ function renderConsolidado(d) {
       }
       atualizarBarras();
       atualizarDestaques();
-    }).catch(function() { atualizarBarras(); atualizarDestaques(); });
+      atualizarTend();
+    }).catch(function() { atualizarBarras(); atualizarDestaques(); atualizarTend(); });
 }
 
 function renderTudo(d) {
