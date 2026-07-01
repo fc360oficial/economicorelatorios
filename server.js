@@ -1684,13 +1684,34 @@ app.get('/api/pendencias/prevencao', withCache(60), async (req, res) => {
         const mPeds = await q(`SELECT DISTINCT nPedido FROM central.avariaconsumo
           WHERE nLoja=? AND Status=4 AND Tipo=1 AND NF > 0 AND DataEmi BETWEEN ? AND ?`, [loja, mIni, mFim]);
         const mPedIds = mPeds.map(r => r.nPedido);
-        const [av] = mPedIds.length ? await q(`SELECT SUM(Total) as t FROM central.avariaconsumo
-          WHERE nLoja=? AND Tipo=1 AND nPedido IN (?)`, [loja, mPedIds]) : [{ t: 0 }];
-        const [vd] = await q(`SELECT SUM(ValorTotalNovo) as t FROM \`ln${loja}${mDB}\`.zcupomitens
-          WHERE Data BETWEEN ? AND ? AND IndCancel='N'`, [mIni, mFim]).catch(() => [{ t: 0 }]);
-        const avT = parseFloat(av?.t || 0), vdT = parseFloat(vd?.t || 0);
-        mensal.push({ mes: mesKey, emitido: avT, vendas: vdT,
-          pct: vdT > 0 ? +(avT / vdT * 100).toFixed(2) : 0 });
+        const [mEmitRows, mAT, mVd] = await Promise.all([
+          mPedIds.length ? q(`SELECT a.Status, a.Total, f.NomeCompleto as fornecedor
+            FROM central.avariaconsumo a LEFT JOIN central.fornecedor f ON f.CodFornec=a.CodFornec
+            WHERE a.nLoja=? AND a.Tipo=1 AND a.nPedido IN (?)`, [loja, mPedIds]) : [],
+          q(`SELECT Status, Total FROM central.avariaconsumo
+            WHERE nLoja=? AND Status IN (0,3) AND DataLan BETWEEN ? AND ?`, [loja, mIni, mFim]),
+          q(`SELECT SUM(ValorTotalNovo) as t FROM \`ln${loja}${mDB}\`.zcupomitens
+            WHERE Data BETWEEN ? AND ? AND IndCancel='N'`, [mIni, mFim]).catch(() => [{ t: 0 }])
+        ]);
+        let mEmit = 0, mAberto = 0, mTramite = 0;
+        const mSetor = { AÇOUGUE: 0, HORTFRUTI: 0, PADARIA: 0 };
+        for (const r of mEmitRows) {
+          mEmit += parseFloat(r.Total);
+          const fn = (r.fornecedor || '').toUpperCase();
+          const st = fn.includes('HORTI') ? 'HORTFRUTI'
+            : (fn.includes('AÇOUGUE') || fn.includes('ACOUGUE')) ? 'AÇOUGUE'
+            : fn.includes('PADARIA') ? 'PADARIA' : null;
+          if (st) mSetor[st] += parseFloat(r.Total);
+        }
+        for (const r of mAT) {
+          if (r.Status === 0) mAberto += parseFloat(r.Total);
+          else if (r.Status === 3) mTramite += parseFloat(r.Total);
+        }
+        const mSaldo = mEmit - mSetor.AÇOUGUE - mSetor.HORTFRUTI - mSetor.PADARIA;
+        const mAvMes = mSaldo + mAberto + mTramite;
+        const vdT = parseFloat(mVd[0]?.t || 0);
+        mensal.push({ mes: mesKey, emitido: mAvMes, vendas: vdT,
+          pct: vdT > 0 ? +(mAvMes / vdT * 100).toFixed(2) : 0 });
       } catch { mensal.push({ mes: mesKey, emitido: 0, vendas: 0, pct: 0 }); }
     }
 
