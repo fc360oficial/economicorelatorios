@@ -403,10 +403,10 @@ function renderConsolidado(d) {
     html += '<div class="bar-row">';
     html += '<div class="bar-label">' + bl.nome + '</div>';
     html += '<div class="bar-track">';
-    html += '<div class="bar-fill" style="width:' + bw + '%;background:' + bc + ';opacity:0.8"></div>';
-    html += '<div class="bar-meta-line" style="left:' + metaPos + '%"></div>';
+    html += '<div class="bar-fill" id="bar-fill-' + bl.loja + '" style="width:' + bw + '%;background:' + bc + ';opacity:0.8"></div>';
+    html += '<div class="bar-meta-line bar-meta-dyn" style="left:' + metaPos + '%"></div>';
     html += '</div>';
-    html += '<div class="bar-pct-lbl ' + (bl.pctMes > 1 ? 'neg' : 'pos') + '">' + fmtN(bl.pctMes) + '%</div>';
+    html += '<div class="bar-pct-lbl ' + (bl.pctMes > 1 ? 'neg' : 'pos') + '" id="bar-pct-' + bl.loja + '">' + fmtN(bl.pctMes) + '%</div>';
     html += '</div>';
   }
   var redeW = maxPct > 0 ? +(redePct / maxPct * 100).toFixed(1) : 0;
@@ -414,10 +414,10 @@ function renderConsolidado(d) {
   html += '<div class="bar-row" style="margin-top:10px;border-top:1px solid #334155;padding-top:10px">';
   html += '<div class="bar-label" style="color:#f8fafc">REDE TOTAL</div>';
   html += '<div class="bar-track">';
-  html += '<div class="bar-fill" style="width:' + redeW + '%;background:' + redeC + '"></div>';
-  html += '<div class="bar-meta-line" style="left:' + metaPos + '%"></div>';
+  html += '<div class="bar-fill" id="bar-fill-rede" style="width:' + redeW + '%;background:' + redeC + '"></div>';
+  html += '<div class="bar-meta-line bar-meta-dyn" style="left:' + metaPos + '%"></div>';
   html += '</div>';
-  html += '<div class="bar-pct-lbl ' + (redePct > 1 ? 'neg' : 'pos') + '">' + fmtN(redePct) + '%</div>';
+  html += '<div class="bar-pct-lbl ' + (redePct > 1 ? 'neg' : 'pos') + '" id="bar-pct-rede">' + fmtN(redePct) + '%</div>';
   html += '</div>';
   html += '</div>';
 
@@ -580,6 +580,48 @@ function renderConsolidado(d) {
     });
   }
 
+  function atualizarBarras() {
+    var pctMap = {};
+    for (var bi2 = 0; bi2 < d.lojas.length; bi2++) {
+      var pctEl2 = document.getElementById('pctmes-' + bi2);
+      if (pctEl2) {
+        var pv = parseFloat(pctEl2.textContent.replace('%','').replace(',','.')) || 0;
+        pctMap[d.lojas[bi2].loja] = pv;
+      }
+    }
+    var allPcts = Object.values(pctMap);
+    var maxP = allPcts.length ? Math.max.apply(null, allPcts) : 2;
+    maxP = Math.max(maxP, 2);
+    var metaP = +(1 / maxP * 100).toFixed(1);
+    for (var lj2 in pctMap) {
+      var p = pctMap[lj2];
+      var bw2 = +(p / maxP * 100).toFixed(1);
+      var bc2 = p > 1 ? '#f87171' : '#4ade80';
+      var fEl = document.getElementById('bar-fill-' + lj2);
+      if (fEl) { fEl.style.width = bw2 + '%'; fEl.style.background = bc2; }
+      var lEl = document.getElementById('bar-pct-' + lj2);
+      if (lEl) { lEl.textContent = fmtN(p) + '%'; lEl.className = 'bar-pct-lbl ' + (p > 1 ? 'neg' : 'pos'); }
+    }
+    // Rede total
+    var totAvMes2 = 0, totVenda2 = 0;
+    for (var bi3 = 0; bi3 < d.lojas.length; bi3++) {
+      var inp2 = document.querySelectorAll('.bonif-input')[bi3];
+      var bv2 = inp2 ? (parseFloat(inp2.value.replace(/\./g,'').replace(',','.')) || 0) : 0;
+      totAvMes2 += d.lojas[bi3].aberto + d.lojas[bi3].tramite + (d.lojas[bi3].saldo - bv2);
+      totVenda2 += d.lojas[bi3].venda;
+    }
+    var redePct2 = totVenda2 > 0 ? Math.abs(totAvMes2 / totVenda2 * 100) : 0;
+    var redeW2 = +(redePct2 / maxP * 100).toFixed(1);
+    var redeC2 = redePct2 > 1 ? '#f87171' : '#4ade80';
+    var rf = document.getElementById('bar-fill-rede');
+    if (rf) { rf.style.width = redeW2 + '%'; rf.style.background = redeC2; }
+    var rl = document.getElementById('bar-pct-rede');
+    if (rl) { rl.textContent = fmtN(redePct2) + '%'; rl.className = 'bar-pct-lbl ' + (redePct2 > 1 ? 'neg' : 'pos'); }
+    // Meta lines
+    var mls = document.querySelectorAll('.bar-meta-dyn');
+    for (var mi2 = 0; mi2 < mls.length; mi2++) mls[mi2].style.left = metaP + '%';
+  }
+
   // Load saved bonifs
   fetch('/api/pendencias/prevencao-bonif?mes=' + mesVal)
     .then(function(r) { return r.json(); })
@@ -591,7 +633,8 @@ function renderConsolidado(d) {
           if (inp) { inp.value = fmtN(sv); inp.dispatchEvent(new Event('input')); }
         }
       }
-    }).catch(function() {});
+      atualizarBarras();
+    }).catch(function() { atualizarBarras(); });
 }
 
 function renderTudo(d) {
