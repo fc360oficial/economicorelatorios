@@ -139,6 +139,18 @@ table.dt tbody tr:hover{background:#ffffff06}
         <option value="6">Loja 6</option>
       </select>
     </div>
+    <div class="fg" id="fg-loja-margem" style="display:none">
+      <label>Loja</label>
+      <select id="sel-loja-margem">
+        <option value="0">Rede Toda</option>
+        <option value="1">Loja 1</option>
+        <option value="2">Loja 2</option>
+        <option value="3">Loja 3</option>
+        <option value="4">Loja 4</option>
+        <option value="5">Loja 5</option>
+        <option value="6">Loja 6</option>
+      </select>
+    </div>
     <div class="fg" id="fg-mes">
       <label>Mês</label>
       <select id="sel-mes">
@@ -190,6 +202,7 @@ table.dt tbody tr:hover{background:#ffffff06}
       <button class="tab-btn"        id="tab-btn-mensal" onclick="setTab('mensal')">Venda Mensal</button>
       <button class="tab-btn"        id="tab-btn-merc"   onclick="setTab('merc')">Venda por Mercadológico</button>
       <button class="tab-btn"        id="tab-btn-lojas"  onclick="setTab('lojas')">Por Lojas</button>
+      <button class="tab-btn"        id="tab-btn-margem" onclick="setTab('margem')">Margem s/ Venda</button>
     </div>
 
     <!-- Tab: Diário -->
@@ -266,6 +279,45 @@ table.dt tbody tr:hover{background:#ffffff06}
             </tr>
           </thead>
           <tbody id="tbody-lojas"><tr><td colspan="7" class="loading">Selecione a aba para carregar</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Tab: Margem s/ Venda -->
+    <div id="tab-margem" style="display:none">
+      <p style="font-size:11px;color:#64748b;margin-bottom:14px">Margem Sobre Venda = (Venda − Custo) ÷ Venda × 100 &nbsp;·&nbsp; Fonte: campo Custo de zcupomitens</p>
+
+      <h3 style="font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Por Mês — 2025 vs 2026</h3>
+      <div class="table-wrap" style="margin-bottom:24px">
+        <table class="dt">
+          <thead>
+            <tr>
+              <th>Mês</th>
+              <th class="r">Venda 2025</th>
+              <th class="r">MSV 2025</th>
+              <th class="r">Venda 2026</th>
+              <th class="r">MSV 2026</th>
+              <th class="r">Δ Margem</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-margem-mes"><tr><td colspan="6" class="loading">Selecione a aba para carregar</td></tr></tbody>
+        </table>
+      </div>
+
+      <h3 style="font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Por Loja — Mês Selecionado</h3>
+      <div class="table-wrap">
+        <table class="dt">
+          <thead>
+            <tr>
+              <th>Loja</th>
+              <th class="r">Venda 2025</th>
+              <th class="r">MSV 2025</th>
+              <th class="r">Venda 2026</th>
+              <th class="r">MSV 2026</th>
+              <th class="r">Δ Margem</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-margem-loja"><tr><td colspan="6" class="loading">Selecione a aba para carregar</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -463,22 +515,23 @@ function renderizar(data) {
   `);
 }
 
-const _carregado = { diario: false, mensal: false, merc: false, lojas: false };
+const _carregado = { diario: false, mensal: false, merc: false, lojas: false, margem: false };
 let abaAtual = 'diario';
 // Visibilidade de filtros por aba: [mostra-loja, mostra-mes]
-const _filtros = { diario:[1,1], mensal:[1,0], merc:[1,1], lojas:[0,1] };
+const _filtros = { diario:[1,1], mensal:[1,0], merc:[1,1], lojas:[0,1], margem:[1,1] };
 // Label do 4º KPI por aba
-const _kpiLabel = { diario:'Média Diária 2026', mensal:'Média Mensal 2026', merc:'Total Mercad. 2026', lojas:'Melhor Loja 2026' };
+const _kpiLabel = { diario:'Média Diária 2026', mensal:'Média Mensal 2026', merc:'Total Mercad. 2026', lojas:'Melhor Loja 2026', margem:'Melhor Margem 2026' };
 
 function setTab(aba) {
   abaAtual = aba;
-  ['diario','mensal','merc','lojas'].forEach(t => {
+  ['diario','mensal','merc','lojas','margem'].forEach(t => {
     document.getElementById('tab-' + t).style.display = t === aba ? '' : 'none';
     document.getElementById('tab-btn-' + t).classList.toggle('active', t === aba);
   });
   const [showLoja, showMes] = _filtros[aba];
-  document.getElementById('fg-loja').style.display = showLoja ? '' : 'none';
-  document.getElementById('fg-mes').style.display  = showMes  ? '' : 'none';
+  document.getElementById('fg-loja').style.display        = (showLoja && aba !== 'margem') ? '' : 'none';
+  document.getElementById('fg-loja-margem').style.display = aba === 'margem' ? '' : 'none';
+  document.getElementById('fg-mes').style.display         = showMes ? '' : 'none';
   document.getElementById('k-med-label').textContent = _kpiLabel[aba];
   if (!_carregado[aba]) _carregar[aba]();
 }
@@ -723,17 +776,121 @@ function atualizarKpisGenerico(data, aba) {
   document.getElementById('k-med25').textContent = 'vs 2025: ' + BRL(data.total2025);
 }
 
-const _carregar = { diario: carregar, mensal: carregarMensal, merc: carregarMerc, lojas: carregarLojas };
+function carregarMargem() {
+  const mes  = document.getElementById('sel-mes').value;
+  const loja = document.getElementById('sel-loja-margem').value;
+  document.getElementById('tbody-margem-mes').innerHTML  = '<tr><td colspan="6" class="loading">Carregando...</td></tr>';
+  document.getElementById('tbody-margem-loja').innerHTML = '<tr><td colspan="6" class="loading">Carregando...</td></tr>';
+  fetch(`/api/margem-lojas?mes=${mes}&loja=${loja}`)
+    .then(r => r.json())
+    .then(data => {
+      _carregado.margem = true;
+      const t = data.totais;
+      const MESES2 = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+      // KPIs
+      const msv25 = t.msv2025, msv26 = t.msv2026;
+      document.getElementById('k-tot25').textContent = msv25 !== null ? msv25.toFixed(2) + '%' : '—';
+      document.getElementById('k-sub25').textContent = 'MSV rede 2025';
+      document.getElementById('k-tot26').textContent = msv26 !== null ? msv26.toFixed(2) + '%' : '—';
+      document.getElementById('k-sub26').textContent = 'MSV rede 2026';
+      const delta = (msv25 !== null && msv26 !== null) ? +(msv26 - msv25).toFixed(2) : null;
+      const kVar = document.getElementById('k-var');
+      if (delta !== null) { kVar.textContent = (delta >= 0 ? '+' : '') + delta.toFixed(2) + ' pp'; kVar.className = 'kpi-v ' + (delta >= 0 ? 'up' : 'dn'); }
+      else { kVar.textContent = '—'; kVar.className = 'kpi-v'; }
+      document.getElementById('k-dif').textContent = 'diferença em pontos percentuais';
+      const melhores = data.por_loja.filter(l => l.msv2026 !== null).sort((a,b) => b.msv2026 - a.msv2026);
+      if (melhores.length > 0) {
+        document.getElementById('k-med26').textContent = melhores[0].msv2026.toFixed(2) + '%';
+        document.getElementById('k-med25').textContent = 'Loja ' + melhores[0].loja;
+      }
+
+      // Tabela por mês
+      const tbM = document.getElementById('tbody-margem-mes');
+      tbM.innerHTML = '';
+      let tv25=0,tc25=0,tv26=0,tc26=0;
+      const mesSel = parseInt(mes);
+      for (const m of data.por_mes) {
+        tv25+=m.venda2025; tc25+=m.custo2025; tv26+=m.venda2026; tc26+=m.custo2026;
+        const d = (m.msv2025!==null && m.msv2026!==null) ? +(m.msv2026-m.msv2025).toFixed(2) : null;
+        const dc = d!==null ? (d>=0?'var-pos':'var-neg') : 'var-zero';
+        const msvCls26 = m.msv2026!==null ? (m.msv2026>=20?'var-pos':m.msv2026>=12?'':'var-neg') : 'var-zero';
+        const msvCls25 = m.msv2025!==null ? (m.msv2025>=20?'var-pos':m.msv2025>=12?'':'var-neg') : 'var-zero';
+        const destaque = m.mes===mesSel ? 'background:#F9C20012;' : '';
+        tbM.insertAdjacentHTML('beforeend', `
+          <tr style="${destaque}">
+            <td><strong>${m.nome}</strong>${m.mes===mesSel?' <span style="color:#F9C200;font-size:10px">◀</span>':''}</td>
+            <td class="r">${m.venda2025>0?BRL(m.venda2025):'<span style="color:#334155">—</span>'}</td>
+            <td class="r ${msvCls25}">${m.msv2025!==null?m.msv2025.toFixed(2)+'%':'—'}</td>
+            <td class="r">${m.venda2026>0?BRL(m.venda2026):'<span style="color:#334155">—</span>'}</td>
+            <td class="r ${msvCls26}">${m.msv2026!==null?m.msv2026.toFixed(2)+'%':'—'}</td>
+            <td class="r ${dc}">${d!==null?(d>=0?'+':'')+d.toFixed(2)+' pp':'—'}</td>
+          </tr>`);
+      }
+      const tmv25=tv25>0?+((tv25-tc25)/tv25*100).toFixed(2):null;
+      const tmv26=tv26>0?+((tv26-tc26)/tv26*100).toFixed(2):null;
+      const td=tmv25!==null&&tmv26!==null?+(tmv26-tmv25).toFixed(2):null;
+      tbM.insertAdjacentHTML('beforeend', `
+        <tr style="background:#0f172a;font-weight:700;border-top:2px solid #334155">
+          <td>Total Ano</td>
+          <td class="r">${BRL(tv25)}</td>
+          <td class="r">${tmv25!==null?tmv25.toFixed(2)+'%':'—'}</td>
+          <td class="r">${BRL(tv26)}</td>
+          <td class="r">${tmv26!==null?tmv26.toFixed(2)+'%':'—'}</td>
+          <td class="r ${td!==null?(td>=0?'var-pos':'var-neg'):'var-zero'}">${td!==null?(td>=0?'+':'')+td.toFixed(2)+' pp':'—'}</td>
+        </tr>`);
+
+      // Tabela por loja
+      const tbL = document.getElementById('tbody-margem-loja');
+      tbL.innerHTML = '';
+      for (const l of data.por_loja) {
+        const d=(l.msv2025!==null&&l.msv2026!==null)?+(l.msv2026-l.msv2025).toFixed(2):null;
+        const dc=d!==null?(d>=0?'var-pos':'var-neg'):'var-zero';
+        const c26=l.msv2026!==null?(l.msv2026>=20?'var-pos':l.msv2026>=12?'':'var-neg'):'var-zero';
+        const c25=l.msv2025!==null?(l.msv2025>=20?'var-pos':l.msv2025>=12?'':'var-neg'):'var-zero';
+        tbL.insertAdjacentHTML('beforeend', `
+          <tr>
+            <td><strong>Loja ${l.loja}</strong></td>
+            <td class="r">${l.venda2025>0?BRL(l.venda2025):'<span style="color:#334155">—</span>'}</td>
+            <td class="r ${c25}">${l.msv2025!==null?l.msv2025.toFixed(2)+'%':'—'}</td>
+            <td class="r">${l.venda2026>0?BRL(l.venda2026):'<span style="color:#334155">—</span>'}</td>
+            <td class="r ${c26}">${l.msv2026!==null?l.msv2026.toFixed(2)+'%':'—'}</td>
+            <td class="r ${dc}">${d!==null?(d>=0?'+':'')+d.toFixed(2)+' pp':'—'}</td>
+          </tr>`);
+      }
+      const rv25=t.msv2025,rv26=t.msv2026;
+      const rd=rv25!==null&&rv26!==null?+(rv26-rv25).toFixed(2):null;
+      tbL.insertAdjacentHTML('beforeend', `
+        <tr style="background:#0f172a;font-weight:700;border-top:2px solid #334155">
+          <td>Total Rede</td>
+          <td class="r">${BRL(t.venda2025)}</td>
+          <td class="r">${rv25!==null?rv25.toFixed(2)+'%':'—'}</td>
+          <td class="r">${BRL(t.venda2026)}</td>
+          <td class="r">${rv26!==null?rv26.toFixed(2)+'%':'—'}</td>
+          <td class="r ${rd!==null?(rd>=0?'var-pos':'var-neg'):'var-zero'}">${rd!==null?(rd>=0?'+':'')+rd.toFixed(2)+' pp':'—'}</td>
+        </tr>`);
+    })
+    .catch(() => {
+      document.getElementById('tbody-margem-mes').innerHTML  = '<tr><td colspan="6" class="loading">Erro ao carregar</td></tr>';
+      document.getElementById('tbody-margem-loja').innerHTML = '<tr><td colspan="6" class="loading">Erro ao carregar</td></tr>';
+    });
+}
+
+const _carregar = { diario: carregar, mensal: carregarMensal, merc: carregarMerc, lojas: carregarLojas, margem: carregarMargem };
 
 // Ao trocar loja: recarrega abas que usam loja (diario, mensal, merc)
 document.getElementById('sel-loja').addEventListener('change', () => {
   _carregado[abaAtual] = false;
   if (['diario','mensal','merc'].includes(abaAtual)) _carregar[abaAtual]();
 });
-// Ao trocar mês: recarrega abas que usam mês (diario, merc, lojas)
+// Ao trocar loja-margem
+document.getElementById('sel-loja-margem').addEventListener('change', () => {
+  if (abaAtual === 'margem') { _carregado.margem = false; carregarMargem(); }
+});
+// Ao trocar mês: recarrega abas que usam mês (diario, merc, lojas, margem)
 document.getElementById('sel-mes').addEventListener('change', () => {
   _carregado[abaAtual] = false;
-  if (['diario','merc','lojas'].includes(abaAtual)) _carregar[abaAtual]();
+  if (['diario','merc','lojas','margem'].includes(abaAtual)) _carregar[abaAtual]();
 });
 
 initSelects();

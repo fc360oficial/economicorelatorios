@@ -1154,6 +1154,82 @@ app.get('/api/comparativo-lojas', withCache(120), async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Margem sobre venda por loja e por mês — 2025 vs 2026
+app.get('/api/margem-lojas', withCache(60), async (req, res) => {
+  try {
+    const hoje    = new Date();
+    const mesSel  = req.query.mes  ? parseInt(req.query.mes)  : hoje.getMonth() + 1;
+    const lojaSel = req.query.loja ? parseInt(req.query.loja) : 0; // 0 = rede toda
+    const lojas   = [1,2,3,4,5,6];
+    const NOMES   = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+    // Por mês (Jan–Dez): loja selecionada ou soma da rede
+    const porMes = await Promise.all(
+      Array.from({length:12},(_,i)=>i+1).map(async m => {
+        const mm = String(m).padStart(2,'0');
+        const lojasFiltro = lojaSel > 0 ? [lojaSel] : lojas;
+        let v25=0,c25=0,v26=0,c26=0;
+        await Promise.all(lojasFiltro.map(async ln => {
+          try {
+            const rows = await q(
+              `SELECT YEAR(Data) as ano, SUM(ValorTotalNovo) as venda, SUM(Custo) as custo
+               FROM \`ln${ln}mes${mm}\`.zcupomitens
+               WHERE YEAR(Data) IN (2025,2026) AND IndCancel='N' GROUP BY ano`);
+            for (const r of rows) {
+              const v=parseFloat(r.venda||0),c=parseFloat(r.custo||0);
+              if(r.ano==2025){v25+=v;c25+=c;}else{v26+=v;c26+=c;}
+            }
+          } catch(_){}
+        }));
+        return {
+          mes: m, nome: NOMES[m-1],
+          venda2025:+v25.toFixed(2), custo2025:+c25.toFixed(2),
+          msv2025: v25>0 ? +((v25-c25)/v25*100).toFixed(2) : null,
+          venda2026:+v26.toFixed(2), custo2026:+c26.toFixed(2),
+          msv2026: v26>0 ? +((v26-c26)/v26*100).toFixed(2) : null,
+        };
+      })
+    );
+
+    // Por loja (mês selecionado)
+    const mm = String(mesSel).padStart(2,'0');
+    const porLoja = await Promise.all(lojas.map(async ln => {
+      let v25=0,c25=0,v26=0,c26=0;
+      try {
+        const rows = await q(
+          `SELECT YEAR(Data) as ano, SUM(ValorTotalNovo) as venda, SUM(Custo) as custo
+           FROM \`ln${ln}mes${mm}\`.zcupomitens
+           WHERE YEAR(Data) IN (2025,2026) AND IndCancel='N' GROUP BY ano`);
+        for (const r of rows) {
+          const v=parseFloat(r.venda||0),c=parseFloat(r.custo||0);
+          if(r.ano==2025){v25+=v;c25+=c;}else{v26+=v;c26+=c;}
+        }
+      } catch(_){}
+      return {
+        loja: ln,
+        venda2025:+v25.toFixed(2), custo2025:+c25.toFixed(2),
+        msv2025: v25>0 ? +((v25-c25)/v25*100).toFixed(2) : null,
+        venda2026:+v26.toFixed(2), custo2026:+c26.toFixed(2),
+        msv2026: v26>0 ? +((v26-c26)/v26*100).toFixed(2) : null,
+      };
+    }));
+
+    const tv25=porLoja.reduce((s,l)=>s+l.venda2025,0);
+    const tc25=porLoja.reduce((s,l)=>s+l.custo2025,0);
+    const tv26=porLoja.reduce((s,l)=>s+l.venda2026,0);
+    const tc26=porLoja.reduce((s,l)=>s+l.custo2026,0);
+
+    res.json({
+      por_mes: porMes, por_loja: porLoja,
+      totais: {
+        venda2025:+tv25.toFixed(2), custo2025:+tc25.toFixed(2), msv2025: tv25>0?+((tv25-tc25)/tv25*100).toFixed(2):null,
+        venda2026:+tv26.toFixed(2), custo2026:+tc26.toFixed(2), msv2026: tv26>0?+((tv26-tc26)/tv26*100).toFixed(2):null,
+      },
+      mes: mesSel, loja: lojaSel
+    });
+  } catch(err){ res.status(500).json({error: err.message}); }
+});
+
 const _mensalCache = {}, _mensalCacheTs = {};
 
 // Comparativo mensal: todos os meses do ano 2025 vs 2026
