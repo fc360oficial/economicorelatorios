@@ -1,6 +1,6 @@
 ﻿// Verificação de versão — roda antes de tudo
 (function() {
-  var BUILD = '193';
+  var BUILD = '194';
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
   var vLogin = document.getElementById('login-versao');
@@ -5406,8 +5406,13 @@ function buildPodio(elId, rankList) {
 
 function renderRelRanking() {
   var resultados = getResultados();
-  var mesSel = document.getElementById('rank-mes') ? document.getElementById('rank-mes').value : '';
-  var anoSel = document.getElementById('rank-ano') ? parseInt(document.getElementById('rank-ano').value) : new Date().getFullYear();
+  var agora = new Date();
+  // Inicializa selects no mês/ano atual na primeira chamada
+  var mesEl = document.getElementById('rank-mes');
+  var anoEl = document.getElementById('rank-ano');
+  if (mesEl && mesEl.value === '') mesEl.value = String(agora.getMonth());
+  var mesSel = mesEl ? mesEl.value : '';
+  var anoSel = anoEl ? parseInt(anoEl.value) : agora.getFullYear();
 
   var res = resultados.filter(function(r){
     if (!r.dataHora) return false;
