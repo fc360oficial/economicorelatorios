@@ -1,6 +1,6 @@
 ﻿// Verificação de versão — roda antes de tudo
 (function() {
-  var BUILD = '192';
+  var BUILD = '193';
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
   var vLogin = document.getElementById('login-versao');
@@ -4859,8 +4859,12 @@ function getResultadosFiltradosExecutivo() {
 }
 
 function getResultadosFiltradosDia() {
-  var resultados = getResultados();
   var agora = new Date();
+  // Mês passado: filtros de dia não fazem sentido, retorna tudo do mês
+  var isCurrentMonth = !_relMesSel || (_relMesSel.ano === agora.getFullYear() && _relMesSel.mes === agora.getMonth() + 1);
+  if (!isCurrentMonth) return getResultadosFiltradosMes();
+
+  var resultados = getResultados();
   var hoje = agora.toLocaleDateString('pt-BR');
   var custom = (document.getElementById('rel-dia-custom')||{}).value||'';
 
@@ -4914,8 +4918,16 @@ function renderRelChecklist() {
 
   var hoje = new Date().toLocaleDateString('pt-BR');
   var dEl = document.getElementById('rel-data-hoje');
-  var filtroLabel = {hoje:'Hoje',ontem:'Ontem','7dias':'Últimos 7 dias',mes:'Este mês',custom:'Data selecionada'};
-  if (dEl) dEl.textContent = filtroLabel[resumoDiaFiltro]||hoje;
+  var nomesLabelMes = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  var isCurrentMonthLabel = !_relMesSel || (_relMesSel.ano === new Date().getFullYear() && _relMesSel.mes === new Date().getMonth() + 1);
+  if (dEl) {
+    if (!isCurrentMonthLabel && _relMesSel) {
+      dEl.textContent = nomesLabelMes[_relMesSel.mes - 1] + '/' + _relMesSel.ano;
+    } else {
+      var filtroLabel = {hoje:'Hoje',ontem:'Ontem','7dias':'Últimos 7 dias',mes:'Este mês',custom:'Data selecionada'};
+      dEl.textContent = filtroLabel[resumoDiaFiltro]||hoje;
+    }
+  }
 
   // Resumo do dia - usa filtro selecionado
   var resultadosHoje = getResultadosFiltradosDia().filter(function(r){return !r.resetado;});
@@ -5463,20 +5475,45 @@ function renderRelRanking() {
   var lojaMap = {};
   res.forEach(function(r){
     var u = users.find(function(u){ return u.nome === r.operador; });
-    var loja = (u && u.loja && u.loja.trim()) ? u.loja.trim() : 'Sem loja';
-    if (!lojaMap[loja]) lojaMap[loja]={env:0,comp:0,soma:0,pontos:0};
+    var loja = (r.loja && r.loja.trim()) ? r.loja.trim() : (u && u.loja && u.loja.trim()) ? u.loja.trim() : 'Sem loja';
+    if (!lojaMap[loja]) lojaMap[loja]={env:0,comp:0,soma:0,pontos:0,semFoto:0};
     lojaMap[loja].env++;
     if (r.pct===100) lojaMap[loja].comp++;
     lojaMap[loja].soma   += r.pct;
     lojaMap[loja].pontos += calcPontos(r.pct);
+    // Conta itens que exigiram foto mas não tiveram foto enviada
+    if (Array.isArray(r.itens)) {
+      r.itens.forEach(function(item){
+        if (!item.foto || item.foto === 'none' || item.foto === false) return;
+        var temFoto = !!(item.fotoDepois || item.fotoAntes || (item.fotosMulti && item.fotosMulti.length));
+        if (!temFoto) lojaMap[loja].semFoto++;
+      });
+    }
   });
   var lojaList = Object.keys(lojaMap).map(function(n){
     var o=lojaMap[n];
-    return {nome:n, env:o.env, comp:o.comp, pontos:o.pontos, media:Math.round(o.soma/o.env)};
+    return {nome:n, env:o.env, comp:o.comp, pontos:o.pontos, media:Math.round(o.soma/o.env), semFoto:o.semFoto};
   }).sort(function(a,b){ return b.pontos-a.pontos || b.media-a.media; });
 
   buildPodio('rank-lojas-podio', lojaList);
-  buildRankTable('rank-lojas-tbody', lojaList, 'Nenhum dado — cadastre a loja nos usuários');
+  // Tabela customizada com coluna Sem Foto
+  var lojasTbody = document.getElementById('rank-lojas-tbody');
+  if (lojasTbody) {
+    lojasTbody.innerHTML = lojaList.length ? lojaList.map(function(o,i){
+      var st = o.media===100?'st-ok':o.media>=70?'st-warn':'st-err';
+      var rowStyle = i===0 ? ' style="background:#fffbe6"' : '';
+      var sfStyle = o.semFoto > 0 ? 'color:var(--r);font-weight:700' : 'color:var(--g)';
+      return '<tr'+rowStyle+'>'
+        +'<td>'+(MEDALS[i]||i+1)+'</td>'
+        +'<td><strong>'+o.nome+'</strong></td>'
+        +'<td><strong style="color:var(--g)">'+o.pontos+'</strong></td>'
+        +'<td>'+o.env+'</td>'
+        +'<td><span class="st '+(o.comp===o.env?'st-ok':'st-warn')+'">'+o.comp+'/'+o.env+'</span></td>'
+        +'<td><span class="st '+st+'">'+o.media+'%</span></td>'
+        +'<td><span style="'+sfStyle+'">'+o.semFoto+'</span></td>'
+        +'</tr>';
+    }).join('') : '<tr class="erow"><td colspan="7">Nenhum dado — cadastre a loja nos usuários</td></tr>';
+  }
 }
 
 // ── Extrato diário de pontuação por loja ─────────────────────────
