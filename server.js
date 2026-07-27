@@ -1879,6 +1879,7 @@ app.get('/api/fornecedores/:id/produtos', async (req, res) => {
     const mesSel  = req.query.mes  ? parseInt(req.query.mes)  : hoje.getMonth() + 1;
     const anoSel  = req.query.ano  ? parseInt(req.query.ano)  : hoje.getFullYear();
     const lojaSel = req.query.loja ? parseInt(req.query.loja) : 1;
+    const listaSel = req.query.lista ? parseInt(req.query.lista) : null;
     const mm      = mesDB(mesSel);
     const dIni    = `${anoSel}-${String(mesSel).padStart(2,'0')}-01`;
     const dFim    = dFimMes(anoSel, mesSel);
@@ -1891,8 +1892,9 @@ app.get('/api/fornecedores/:id/produtos', async (req, res) => {
       INNER JOIN central.itens it ON it.CodigoBarra = fi.CodigoBarra AND it.CodDesativado = 0
       LEFT JOIN central.custoloja${lojaSel} c  ON c.CodigoBarra = fi.CodigoBarra
       LEFT JOIN central.estoquen${lojaSel}  e  ON e.CodigoBarra = fi.CodigoBarra
+      ${listaSel ? 'INNER JOIN central.c_cotacao_lista_itens cli ON cli.Codigobarra = fi.CodigoBarra AND cli.nCotacao = ?' : ''}
       WHERE fi.CodFornecedor = ? AND fi.Backup = 0
-    `, [id]);
+    `, listaSel ? [listaSel, id] : [id]);
 
     if (!prods.length) return res.json([]);
 
@@ -1944,6 +1946,7 @@ app.get('/api/fornecedores/:id/avarias', async (req, res) => {
     const mesSel  = req.query.mes  ? parseInt(req.query.mes)  : hoje.getMonth() + 1;
     const anoSel  = req.query.ano  ? parseInt(req.query.ano)  : hoje.getFullYear();
     const lojaSel = req.query.loja ? parseInt(req.query.loja) : 1;
+    const listaSel = req.query.lista ? parseInt(req.query.lista) : null;
     const dIni    = `${anoSel}-${String(mesSel).padStart(2,'0')}-01`;
     const dFim    = dFimMes(anoSel, mesSel);
 
@@ -1952,10 +1955,11 @@ app.get('/api/fornecedores/:id/avarias', async (req, res) => {
              MAX(a.DataLan) as ultima
       FROM central.avariaconsumo a
       INNER JOIN central.fornecedoritens fi ON fi.CodigoBarra = a.CodigoBarras AND fi.CodFornecedor = a.CodFornec AND fi.Backup = 0
+      ${listaSel ? 'INNER JOIN central.c_cotacao_lista_itens cli ON cli.Codigobarra = a.CodigoBarras AND cli.nCotacao = ?' : ''}
       WHERE a.nLoja=? AND a.CodFornec=? AND a.DataLan BETWEEN ? AND ?
       GROUP BY a.CodigoBarras, a.Descricao
       ORDER BY total DESC
-    `, [lojaSel, id, dIni, dFim]);
+    `, listaSel ? [listaSel, lojaSel, id, dIni, dFim] : [lojaSel, id, dIni, dFim]);
 
     // Enrich with NF-e descriptions from central.itens
     const avCodigos = [...new Set(rows.map(r => r.CodigoBarras))];
@@ -1973,7 +1977,9 @@ app.get('/api/fornecedores/:id/avarias', async (req, res) => {
     let vendaFornec = 0;
     try {
       const mm   = mesDB(mesSel);
-      const prods = await q(`SELECT DISTINCT CodigoBarra FROM central.fornecedoritens WHERE CodFornecedor=? AND Backup=0`, [id]);
+      const prods = listaSel
+        ? await q(`SELECT DISTINCT fi.CodigoBarra FROM central.fornecedoritens fi INNER JOIN central.c_cotacao_lista_itens cli ON cli.Codigobarra = fi.CodigoBarra AND cli.nCotacao = ? WHERE fi.CodFornecedor=? AND fi.Backup=0`, [listaSel, id])
+        : await q(`SELECT DISTINCT CodigoBarra FROM central.fornecedoritens WHERE CodFornecedor=? AND Backup=0`, [id]);
       if (prods.length) {
         const ph = prods.map(() => '?').join(',');
         const [vr] = await q(`

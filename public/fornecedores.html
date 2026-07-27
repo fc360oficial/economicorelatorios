@@ -422,6 +422,7 @@ let margemFornec = 0;
 let avariaBreakdown = {};
 let fornecSelecionado = null;
 let listaSelecionada = null;
+let listaAtivaId = null;
 let cacheProds = {}, cacheAvaria = {}, cacheLojas = {};
 let _filtroAtivo = null;
 
@@ -634,10 +635,10 @@ function renderListasComDados(lista, filtroMsg) {
         <div class="mini-bar"><div class="mini-bar-fill" style="width:${pct}%"></div></div>
       </td>
       <td style="min-width:110px">${compradorHtml}</td>
-      <td class="td-r"><span class="td-venda" onclick="${sid?`abrirDrawer(${sid},'venda')`:'void(0)'}" title="Ver detalhes de venda">${venda>0?fmt(venda):'—'}</span></td>
-      <td class="td-r"><span class="td-margem ${msvClass(s.msv)}" onclick="${sid?`abrirDrawer(${sid},'margem')`:'void(0)'}" title="Ver rentabilidade">${venda>0?pctFmt(s.msv):'—'}</span></td>
-      <td class="td-r"><span class="td-margem ${msvClass(s.msc)}" onclick="${sid?`abrirDrawer(${sid},'margem')`:'void(0)'}" title="Ver rentabilidade">${venda>0?pctFmt(s.msc):'—'}</span></td>
-      <td class="td-r"><span class="td-avaria ${avClass(s.pct_av)}" onclick="${sid?`abrirDrawer(${sid},'avaria')`:'void(0)'}" title="Ver avarias">${avaria>0?fmt(avaria):'—'}</span></td>
+      <td class="td-r"><span class="td-venda" onclick="${sid?`abrirDrawer(${sid},'venda',${r.id})`:'void(0)'}" title="Ver detalhes de venda">${venda>0?fmt(venda):'—'}</span></td>
+      <td class="td-r"><span class="td-margem ${msvClass(s.msv)}" onclick="${sid?`abrirDrawer(${sid},'margem',${r.id})`:'void(0)'}" title="Ver rentabilidade">${venda>0?pctFmt(s.msv):'—'}</span></td>
+      <td class="td-r"><span class="td-margem ${msvClass(s.msc)}" onclick="${sid?`abrirDrawer(${sid},'margem',${r.id})`:'void(0)'}" title="Ver rentabilidade">${venda>0?pctFmt(s.msc):'—'}</span></td>
+      <td class="td-r"><span class="td-avaria ${avClass(s.pct_av)}" onclick="${sid?`abrirDrawer(${sid},'avaria',${r.id})`:'void(0)'}" title="Ver avarias">${avaria>0?fmt(avaria):'—'}</span></td>
       <td class="td-r ${avClass(s.pct_av)}">${avaria>0?pctFmt(s.pct_av):'—'}</td>
       <td class="td-r"><span class="itens-badge">${r.total_itens}</span></td>
       <td class="td-r" style="color:#4E5A72">${fmtN(s.com_venda||0)}</td>
@@ -657,14 +658,15 @@ const TABS = [
 
 let tabAtiva = 'produtos';
 
-async function abrirDrawer(id, tab) {
+async function abrirDrawer(id, tab, listaId) {
   const f = dados.find(r=>r.id===id);
   if (!f) return;
   fornecSelecionado = f;
+  listaAtivaId = listaId || null;
   tabAtiva = tab;
 
   const { loja, mes, ano } = params();
-  document.getElementById('d-title').textContent = f.nome;
+  document.getElementById('d-title').textContent = listaAtivaId ? `${f.nome} · Lista #${listaAtivaId}` : f.nome;
   document.getElementById('d-subtitle').textContent = `Loja ${loja} · ${mesesNomes[+mes]} ${ano}`;
 
   // Tabs
@@ -703,17 +705,19 @@ async function renderTab(tab) {
 }
 
 async function getProdos(id, loja, mes, ano) {
-  const key = `${id}-${loja}-${mes}-${ano}`;
+  const lista = listaAtivaId ? `&lista=${listaAtivaId}` : '';
+  const key = `${id}-${loja}-${mes}-${ano}-${listaAtivaId||''}`;
   if (!cacheProds[key]) {
-    const r = await fetch(`/api/fornecedores/${id}/produtos?loja=${loja}&mes=${mes}&ano=${ano}`);
+    const r = await fetch(`/api/fornecedores/${id}/produtos?loja=${loja}&mes=${mes}&ano=${ano}${lista}`);
     cacheProds[key] = await r.json();
   }
   return cacheProds[key];
 }
 async function getAvaria(id, loja, mes, ano) {
-  const key = `${id}-${loja}-${mes}-${ano}`;
+  const lista = listaAtivaId ? `&lista=${listaAtivaId}` : '';
+  const key = `${id}-${loja}-${mes}-${ano}-${listaAtivaId||''}`;
   if (!cacheAvaria[key]) {
-    const r = await fetch(`/api/fornecedores/${id}/avarias?loja=${loja}&mes=${mes}&ano=${ano}`);
+    const r = await fetch(`/api/fornecedores/${id}/avarias?loja=${loja}&mes=${mes}&ano=${ano}${lista}`);
     cacheAvaria[key] = await r.json();
   }
   return cacheAvaria[key];
@@ -1030,6 +1034,7 @@ function fecharDrawer() {
   document.querySelectorAll('.main-t tbody tr').forEach(tr=>tr.classList.remove('selected'));
   fornecSelecionado = null;
   listaSelecionada = null;
+  listaAtivaId = null;
 }
 
 function imprimirDrawer() {
@@ -1050,7 +1055,7 @@ function imprimirDrawer() {
 
 async function verSemFornecedor() {
   const p = params();
-  fornecSelecionado = null; listaSelecionada = null;
+  fornecSelecionado = null; listaSelecionada = null; listaAtivaId = null;
   document.getElementById('d-title').textContent = 'Produtos sem fornecedor cadastrado';
   document.getElementById('d-subtitle').textContent = `Loja ${p.loja} · ${mesesNomes[+p.mes]} ${p.ano}`;
   document.getElementById('d-tabs').innerHTML = '';
