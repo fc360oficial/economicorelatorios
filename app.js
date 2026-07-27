@@ -1,6 +1,6 @@
 ﻿// Verificação de versão — roda antes de tudo
 (function() {
-  var BUILD = '219';
+  var BUILD = '220';
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
   var vLogin = document.getElementById('login-versao');
@@ -6669,6 +6669,7 @@ function renderPlanos(filtro) {
       +(p.status==='aberto'?'<button class="btn btn-s btn-sm" onclick="atualizarStatusPlano(\''+p.id+'\',\'andamento\')">Iniciar</button>':'')
       +(p.status==='andamento'?'<button class="btn btn-p btn-sm" onclick="atualizarStatusPlano(\''+p.id+'\',\'resolvido\')">Resolver</button>':'')
       +(p.status==='resolvido'?'<button class="btn btn-s btn-sm" onclick="atualizarStatusPlano(\''+p.id+'\',\'aberto\')">Reabrir</button>':'')
+      +(isAdmin && p.status!=='resolvido'?'<button class="btn btn-s btn-sm" style="font-size:11px;color:#b45309;border-color:#fde68a;background:#fffbeb" onclick="prorrogarAdmin(\''+p.id+'\')">⏱ +Prazo</button>':'')
       +'</div>'
       +'</div>'
       +'<div style="font-size:10px;color:var(--t3);margin-top:8px">Criado em '+p.criadoEm+' por '+p.criadoPor+(p.resolvidoEm?' · Resolvido em '+p.resolvidoEm:'')+'</div>'
@@ -6864,6 +6865,28 @@ function avaliarProrrogacao(planoId, prorroId, aprovado) {
   renderPlanos(planoFiltroAtual);
   if (centralTabAtual==='plano') renderCentralPlanos();
   showToast(aprovado?'✅ Prorrogação aprovada! Prazo estendido.':'❌ Prorrogação rejeitada.');
+}
+
+function prorrogarAdmin(planoId) {
+  var plano = getPlanos().find(function(p){ return p.id===planoId; });
+  if (!plano) return;
+  var horas = prompt('Quantas horas deseja adicionar ao prazo?\n(ex: 24 = 1 dia, 72 = 3 dias)', '24');
+  if (!horas) return;
+  var h = parseInt(horas);
+  if (isNaN(h) || h <= 0) { showToast('Valor inválido.'); return; }
+  var prazoAtual = plano.prazoFim ? new Date(plano.prazoFim) : new Date();
+  var novoPrazo = new Date(prazoAtual.getTime() + h * 3600000).toISOString();
+  var agora = new Date().toLocaleString('pt-BR');
+  var quem = S.currentUser ? S.currentUser.nome : 'Admin';
+  var hist = (plano.historico||[]).concat([{acao:'prazo_estendido', de: plano.prazoFim, para: novoPrazo, por: quem, em: agora, horas: h}]);
+  var updated = Object.assign({}, plano, { prazoFim: novoPrazo, historico: hist });
+  var list = getPlanos().map(function(p){ return p.id===planoId ? updated : p; });
+  _planosCache = list;
+  try { localStorage.setItem(PLANO_KEY, JSON.stringify(list)); } catch(e) {}
+  db.collection('planos').doc(planoId).set(updated).catch(function(){});
+  renderPlanos(planoFiltroAtual);
+  if (centralTabAtual==='plano') renderCentralPlanos();
+  showToast('✅ Prazo estendido em +'+h+'h!');
 }
 
 // ===========================================

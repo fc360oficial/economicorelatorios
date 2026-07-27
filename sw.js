@@ -1,6 +1,6 @@
-// Fluxo Certo 360 — Service Worker v219
+// Fluxo Certo 360 — Service Worker v220
 // Atualiza este numero de versao sempre que publicar novos arquivos
-var CACHE_NAME = 'cahu360-v219';
+var CACHE_NAME = 'cahu360-v220';
 
 // Arquivos críticos: sempre buscados da rede (nunca do cache)
 var NETWORK_FIRST = ['app.js', 'index.html', 'monitor.html'];
