@@ -1,6 +1,6 @@
 ﻿// Verificação de versão — roda antes de tudo
 (function() {
-  var BUILD = '223';
+  var BUILD = '224';
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
   var vLogin = document.getElementById('login-versao');
@@ -1212,6 +1212,12 @@ function finalizarLogin(found) {
     if (dEl) dEl.textContent = hoje.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
     document.getElementById('app').style.opacity='1';
     var lastPage = sessionStorage.getItem('eco_last_page') || localStorage.getItem('eco_last_page');
+    // Super Admin: vai direto para painel de clientes
+    if (S.role === 'superadmin') {
+      nav('clientes', document.getElementById('nav-clientes'));
+      renderPainelClientes();
+      return;
+    }
     var pagesForRole = {
       admin:      ['dashboard','checklist','central','relatorios','usuarios','plano','inv','inv-coleta'],
       gerencia:   ['checklist','relatorios','plano'],
@@ -1321,23 +1327,34 @@ function doLogout() {
 
 function setupRole() {
   var r = S.role;
-  var roleNames = {admin:'Administrador',gerencia:'Gerência de Loja',supervisor:'Supervisor',operator:'Operador',prevencao:'Aux. Prevenção',coletor:'Coletor'};
-  var badgeCls = {admin:'badge-admin',gerencia:'badge-admin',supervisor:'badge-sup',operator:'badge-op',prevencao:'badge-prev',coletor:'badge-op'};
-  var badgeTxt = {admin:'Administrador',gerencia:'Gerência',supervisor:'Supervisor',operator:'Operador',prevencao:'Prevenção',coletor:'Coletor'};
+  var isSuperAdmin = r === 'superadmin';
+  var roleNames = {superadmin:'Super Admin',admin:'Administrador',gerencia:'Gerência de Loja',supervisor:'Supervisor',operator:'Operador',prevencao:'Aux. Prevenção',coletor:'Coletor'};
+  var badgeCls = {superadmin:'badge-admin',admin:'badge-admin',gerencia:'badge-admin',supervisor:'badge-sup',operator:'badge-op',prevencao:'badge-prev',coletor:'badge-op'};
+  var badgeTxt = {superadmin:'Super Admin',admin:'Administrador',gerencia:'Gerência',supervisor:'Supervisor',operator:'Operador',prevencao:'Prevenção',coletor:'Coletor'};
   document.getElementById('sbName').textContent = S.currentUser ? S.currentUser.nome : '-';
   document.getElementById('sbRole').textContent = roleNames[r]||r;
   var tb = document.getElementById('tbBadge');
   tb.className = 'badge '+(badgeCls[r]||'badge-op');
   tb.textContent = badgeTxt[r]||r;
+
+  // Super Admin: só painel de clientes, nada operacional
+  if (isSuperAdmin) {
+    show('nav-clientes', true);
+    ['sb-adm-sec','tab-gerenciar','nav-dashboard','nav-central','nav-relat',
+     'nav-assistente','nav-monitor','btn-zerar-dados','nav-users','nav-alertas',
+     'nav-plano','nav-checklist','nav-sec-checklist','sb-inv-sec','nav-inv-gestao','nav-inv-coleta'
+    ].forEach(function(id){ show(id, false); });
+    return;
+  }
+  show('nav-clientes', false);
+
   var isAdmin = r==='admin';
   var isAdmOrGer = r==='admin'||r==='gerencia';
   var isSup = r==='supervisor';
   var isColetor = r==='coletor';
   show('sb-adm-sec', isAdmin && !isColetor);
-  // Gerenciar tab: admin e supervisor
   var tabGer = document.getElementById('tab-gerenciar');
   if (tabGer) tabGer.style.display = (isAdmin || isSup) ? '' : 'none';
-  // Dashboard só para admin e gerência
   show('nav-dashboard', (isAdmin || isSup) && !isColetor);
   show('nav-central', isAdmin && !isColetor);
   show('nav-relat', (isAdmin || isSup || r==='gerencia') && !isColetor);
@@ -1349,14 +1366,11 @@ function setupRole() {
   show('nav-plano', (isAdmin || isSup || r==='gerencia') && !isColetor && _moduloAtivo('planos_acao'));
   show('nav-checklist', !isColetor && _moduloAtivo('checklist'));
   show('nav-sec-checklist', !isColetor && _moduloAtivo('checklist'));
-  // FC360 Inventário — só admin por enquanto
   show('sb-inv-sec', isAdmin && !isColetor && _moduloAtivo('inventario'));
   show('nav-inv-gestao', isAdmin && !isColetor && _moduloAtivo('inventario'));
-  show('nav-inv-coleta', false); // Atualizado dinamicamente após carregar inventários
-  // Inicia verificação periódica de pendências para gestores e supervisor
+  show('nav-inv-coleta', false);
   if (isAdmOrGer || isSup) {
     pedirPermissaoNotificacao();
-    // Aguarda carregar os dados antes de checar
     setTimeout(iniciarVerificacaoPeriodica, 3000);
   }
 }
@@ -6955,6 +6969,207 @@ function avaliarProrrogacao(planoId, prorroId, aprovado) {
   if (centralTabAtual==='plano') renderCentralPlanos();
   showToast(aprovado?'✅ Prorrogação aprovada! Prazo estendido.':'❌ Prorrogação rejeitada.');
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PAINEL SUPER ADMIN — Gestão de Clientes
+// ═══════════════════════════════════════════════════════════════════════════
+var _clientesCache = [];
+
+function renderPainelClientes() {
+  var wrap = document.getElementById('painel-clientes-wrap');
+  if (!wrap) return;
+  wrap.innerHTML = '<div style="text-align:center;padding:40px;color:var(--t3)">Carregando clientes...</div>';
+  db.collection('clientes').get().then(function(snap) {
+    _clientesCache = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
+    _renderClientesLista();
+  }).catch(function(e){ wrap.innerHTML = '<div style="color:var(--r);padding:20px">Erro: '+e.message+'</div>'; });
+}
+
+function _renderClientesLista() {
+  var wrap = document.getElementById('painel-clientes-wrap');
+  if (!wrap) return;
+  var hoje = new Date(); hoje.setHours(0,0,0,0);
+  var MODS = ['checklist','inventario','planos_acao','alertas','perdas','relatorios'];
+  var MODS_LABEL = {checklist:'Checklist',inventario:'Inventário',planos_acao:'Planos',alertas:'Alertas',perdas:'Perdas',relatorios:'Relatórios'};
+  var cards = _clientesCache.map(function(c) {
+    var venc = c.validade ? new Date(c.validade) : null;
+    if (venc) venc.setHours(23,59,59,999);
+    var vencido = venc && hoje > venc;
+    var diasRestantes = venc ? Math.ceil((venc - hoje) / 86400000) : null;
+    var statusBg = !c.ativo ? '#f0f0f0' : vencido ? '#fdecea' : '#d1f0e0';
+    var statusCl = !c.ativo ? '#666' : vencido ? '#c0392b' : '#1a5c34';
+    var statusTxt = !c.ativo ? 'INATIVO' : vencido ? 'VENCIDO' : diasRestantes !== null ? diasRestantes+' dias' : 'ATIVO';
+    var modBadges = MODS.map(function(m){
+      var on = c.modulos && c.modulos[m] !== false;
+      return '<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;margin:2px;background:'+(on?'#e8f5ee':'#f0f0f0')+';color:'+(on?'#1a5c34':'#999')+'">'+MODS_LABEL[m]+'</span>';
+    }).join('');
+    var safeId = c.id.replace(/'/g,"\\'");
+    return '<div class="card" style="margin-bottom:14px">'+
+      '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px">'+
+        '<div>'+
+          '<div style="font-family:\'Syne\',sans-serif;font-size:16px;font-weight:800">'+c.nome+'</div>'+
+          '<div style="font-size:11px;color:var(--t3);margin-top:2px">ID: <code>'+c.id+'</code> · Plano: <strong>'+(c.plano||'—')+'</strong>'+(c.validade?' · Validade: '+new Date(c.validade).toLocaleDateString('pt-BR'):'')+'</div>'+
+        '</div>'+
+        '<span style="white-space:nowrap;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;background:'+statusBg+';color:'+statusCl+'">'+statusTxt+'</span>'+
+      '</div>'+
+      '<div style="margin-bottom:12px">'+modBadges+'</div>'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
+        '<button class="btn btn-p btn-sm" onclick="abrirEditarCliente(\''+safeId+'\')">✏️ Editar</button>'+
+        '<button class="btn btn-sm" style="background:#1a5c9c;color:#fff;border:none;padding:6px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit" onclick="gerarTokenCliente(\''+safeId+'\')">🔑 Gerar Token</button>'+
+        '<button class="btn btn-sm" style="color:var(--t2);border:1.5px solid var(--gray2);padding:6px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;background:#fff" onclick="verTokensCliente(\''+safeId+'\')">📋 Tokens</button>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+  wrap.innerHTML =
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">'+
+      '<div style="font-family:\'Syne\',sans-serif;font-size:18px;font-weight:800">Fluxo Certo 360 — Clientes</div>'+
+      '<button class="btn btn-p btn-sm" onclick="abrirNovoCliente()">+ Novo Cliente</button>'+
+    '</div>'+
+    (cards || '<div style="text-align:center;padding:40px;color:var(--t3)">Nenhum cliente cadastrado.</div>');
+}
+
+function abrirEditarCliente(clienteId) {
+  var c = _clientesCache.find(function(x){ return x.id===clienteId; }) || {};
+  var MODS = ['checklist','inventario','planos_acao','alertas','perdas','relatorios'];
+  var MODS_LABEL = {checklist:'Checklist',inventario:'Inventário',planos_acao:'Planos de Ação',alertas:'Alertas',perdas:'Perdas',relatorios:'Relatórios'};
+  var modHtml = MODS.map(function(m){
+    var on = !c.modulos || c.modulos[m] !== false;
+    return '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:6px 0;font-size:13px;font-weight:600">'+
+      '<input type="checkbox" id="ec-mod-'+m+'"'+(on?' checked':'')+'style="width:16px;height:16px;accent-color:var(--y)"> '+MODS_LABEL[m]+'</label>';
+  }).join('');
+  var html = '<div id="modal-editar-cliente" onclick="if(event.target===this)fecharEditarCliente()" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:3000;display:flex;align-items:center;justify-content:center;padding:16px">'+
+    '<div style="background:#fff;border-radius:16px;padding:28px 24px;width:100%;max-width:440px;max-height:90vh;overflow-y:auto">'+
+      '<div style="font-family:\'Syne\',sans-serif;font-size:17px;font-weight:800;margin-bottom:18px">Editar Cliente</div>'+
+      '<div class="fg" style="margin-bottom:12px"><label>Nome</label><input id="ec-nome" type="text" value="'+c.nome+'"/></div>'+
+      '<div class="fg" style="margin-bottom:12px"><label>Plano</label>'+
+        '<select id="ec-plano" style="width:100%;padding:10px 12px;border:1.5px solid var(--gray2);border-radius:9px;font-size:13px;font-family:inherit">'+
+          '<option value="basico"'+(c.plano==='basico'?' selected':'')+'>Básico</option>'+
+          '<option value="completo"'+(c.plano==='completo'?' selected':'')+'>Completo</option>'+
+        '</select></div>'+
+      '<div class="fg" style="margin-bottom:12px"><label>Validade</label><input id="ec-validade" type="date" value="'+(c.validade||'')+'"/></div>'+
+      '<div style="margin-bottom:14px"><label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--t2);display:block;margin-bottom:8px">Módulos</label>'+modHtml+'</div>'+
+      '<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;padding:10px 12px;background:var(--gray);border-radius:8px">'+
+        '<input type="checkbox" id="ec-ativo"'+(c.ativo!==false?' checked':'')+' style="width:16px;height:16px;accent-color:var(--y)">'+
+        '<label for="ec-ativo" style="font-size:13px;font-weight:600;cursor:pointer">Cliente ativo</label>'+
+      '</div>'+
+      '<div id="ec-err" style="color:var(--r);font-size:12px;font-weight:600;min-height:18px;margin-bottom:10px"></div>'+
+      '<div class="btn-row">'+
+        '<button class="btn btn-p" onclick="salvarEdicaoCliente(\''+clienteId+'\')">Salvar</button>'+
+        '<button class="btn btn-s" onclick="fecharEditarCliente()">Cancelar</button>'+
+      '</div>'+
+    '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+function fecharEditarCliente() {
+  var m = document.getElementById('modal-editar-cliente'); if (m) m.remove();
+}
+
+function salvarEdicaoCliente(clienteId) {
+  var MODS = ['checklist','inventario','planos_acao','alertas','perdas','relatorios'];
+  var modulos = {};
+  MODS.forEach(function(m){ modulos[m] = !!(document.getElementById('ec-mod-'+m)||{}).checked; });
+  var dados = {
+    nome: (document.getElementById('ec-nome')||{}).value||'',
+    plano: (document.getElementById('ec-plano')||{}).value||'basico',
+    validade: (document.getElementById('ec-validade')||{}).value||'',
+    ativo: !!(document.getElementById('ec-ativo')||{}).checked,
+    modulos: modulos
+  };
+  var errEl = document.getElementById('ec-err');
+  if (!dados.nome) { if(errEl) errEl.textContent='Informe o nome.'; return; }
+  db.collection('clientes').doc(clienteId).update(dados).then(function() {
+    fecharEditarCliente();
+    renderPainelClientes();
+    showToast('✅ Cliente atualizado!');
+  }).catch(function(e){ if(errEl) errEl.textContent='Erro: '+e.message; });
+}
+
+function abrirNovoCliente() {
+  var MODS = ['checklist','inventario','planos_acao','alertas','perdas','relatorios'];
+  var MODS_LABEL = {checklist:'Checklist',inventario:'Inventário',planos_acao:'Planos de Ação',alertas:'Alertas',perdas:'Perdas',relatorios:'Relatórios'};
+  var modHtml = MODS.map(function(m){
+    return '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:6px 0;font-size:13px;font-weight:600">'+
+      '<input type="checkbox" id="nc-mod-'+m+'" style="width:16px;height:16px;accent-color:var(--y)"> '+MODS_LABEL[m]+'</label>';
+  }).join('');
+  var html = '<div id="modal-novo-cliente" onclick="if(event.target===this)fecharNovoCliente()" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:3000;display:flex;align-items:center;justify-content:center;padding:16px">'+
+    '<div style="background:#fff;border-radius:16px;padding:28px 24px;width:100%;max-width:440px;max-height:90vh;overflow-y:auto">'+
+      '<div style="font-family:\'Syne\',sans-serif;font-size:17px;font-weight:800;margin-bottom:18px">Novo Cliente</div>'+
+      '<div class="fg" style="margin-bottom:12px"><label>Nome</label><input id="nc-nome" type="text" placeholder="Ex: Padaria Central"/></div>'+
+      '<div class="fg" style="margin-bottom:12px"><label>ID único <span style="font-weight:400;color:var(--t3);font-size:11px">(sem espaços/acentos)</span></label><input id="nc-id" type="text" placeholder="Ex: padariacentral"/></div>'+
+      '<div class="fg" style="margin-bottom:12px"><label>Plano</label>'+
+        '<select id="nc-plano" style="width:100%;padding:10px 12px;border:1.5px solid var(--gray2);border-radius:9px;font-size:13px;font-family:inherit">'+
+          '<option value="basico">Básico</option><option value="completo">Completo</option>'+
+        '</select></div>'+
+      '<div class="fg" style="margin-bottom:12px"><label>Validade</label><input id="nc-validade" type="date"/></div>'+
+      '<div style="margin-bottom:16px"><label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--t2);display:block;margin-bottom:8px">Módulos</label>'+modHtml+'</div>'+
+      '<div id="nc-err" style="color:var(--r);font-size:12px;font-weight:600;min-height:18px;margin-bottom:10px"></div>'+
+      '<div class="btn-row">'+
+        '<button class="btn btn-p" onclick="criarNovoCliente()">Criar</button>'+
+        '<button class="btn btn-s" onclick="fecharNovoCliente()">Cancelar</button>'+
+      '</div>'+
+    '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+function fecharNovoCliente() {
+  var m = document.getElementById('modal-novo-cliente'); if (m) m.remove();
+}
+
+function criarNovoCliente() {
+  var MODS = ['checklist','inventario','planos_acao','alertas','perdas','relatorios'];
+  var nome = (document.getElementById('nc-nome')||{}).value||'';
+  var id = ((document.getElementById('nc-id')||{}).value||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+  var errEl = document.getElementById('nc-err');
+  if (!nome) { if(errEl) errEl.textContent='Informe o nome.'; return; }
+  if (!id) { if(errEl) errEl.textContent='Informe um ID válido (só letras e números).'; return; }
+  var modulos = {};
+  MODS.forEach(function(m){ modulos[m] = !!(document.getElementById('nc-mod-'+m)||{}).checked; });
+  db.collection('clientes').doc(id).set({
+    nome: nome,
+    plano: (document.getElementById('nc-plano')||{}).value||'basico',
+    validade: (document.getElementById('nc-validade')||{}).value||'',
+    ativo: true, modulos: modulos,
+    criadoEm: firebase.firestore.FieldValue.serverTimestamp()
+  }).then(function() {
+    fecharNovoCliente();
+    renderPainelClientes();
+    showToast('✅ Cliente "'+nome+'" criado!');
+  }).catch(function(e){ if(errEl) errEl.textContent='Erro: '+e.message; });
+}
+
+function gerarTokenCliente(clienteId) {
+  var dias = prompt('Quantos dias de acesso deseja gerar?\n(ex: 30 = 1 mês, 90 = 3 meses)', '30');
+  if (!dias) return;
+  var d = parseInt(dias);
+  if (isNaN(d)||d<=0) { showToast('Valor inválido.'); return; }
+  var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  var token = Array.from({length:12}, function(){ return chars[Math.floor(Math.random()*chars.length)]; }).join('');
+  token = token.slice(0,4)+'-'+token.slice(4,8)+'-'+token.slice(8,12);
+  db.collection('tokens').add({
+    token: token, clienteId: clienteId, dias: d, usado: false,
+    criadoEm: firebase.firestore.FieldValue.serverTimestamp(),
+    criadoPor: S.currentUser ? S.currentUser.id : 'superadmin'
+  }).then(function() {
+    var msg = '🔑 TOKEN GERADO\n\nCliente: '+clienteId+'\nDias: '+d+'\nToken:\n'+token+'\n\nEnvie este token para o cliente ativar no app.';
+    alert(msg);
+    showToast('Token gerado: '+token);
+  }).catch(function(e){ showToast('Erro: '+e.message); });
+}
+
+function verTokensCliente(clienteId) {
+  db.collection('tokens').where('clienteId','==',clienteId).orderBy('criadoEm','desc').limit(20).get().then(function(snap) {
+    if (snap.empty) { alert('Nenhum token gerado para este cliente ainda.'); return; }
+    var linhas = snap.docs.map(function(d){
+      var t=d.data();
+      var dt = t.criadoEm ? new Date(t.criadoEm.seconds*1000).toLocaleDateString('pt-BR') : '--';
+      return t.token + ' | ' + t.dias + 'd | ' + (t.usado?'✅ usado em '+new Date((t.usadoEm||{}).seconds*1000).toLocaleDateString('pt-BR'):'⏳ não usado') + ' | gerado '+dt;
+    }).join('\n');
+    alert('Tokens — '+clienteId+':\n\n'+linhas);
+  }).catch(function(e){ alert('Erro: '+e.message); });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 
 function prorrogarAdmin(planoId) {
   var plano = getPlanos().find(function(p){ return p.id===planoId; });
