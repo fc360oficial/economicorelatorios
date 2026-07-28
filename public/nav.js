@@ -47,10 +47,12 @@
     { href: '/itens.html',        ic: 'list',      txt: 'Mercadológico' },
     { href: '/comparativos.html', ic: 'chart',     txt: 'Comparativos' },
     { sec: 'Operação' },
-    { href: '/fornecedores.html', ic: 'bag',       txt: 'Lista de Compra' },
+    { id: 'compras', ic: 'bag', txt: 'Gestão de Compras', sub: [
+        { href: '/fornecedores.html', ic: 'bag',   txt: 'Lista de Compra' },
+        { href: '/ruptura.html',      ic: 'trend', txt: 'Gestão de Rupturas' }
+      ]},
     { href: '/pendencias.html',   ic: 'alert',     txt: 'Pendências' },
-    { href: '/prevencao.html',    ic: 'shield',    txt: 'Prevenção' },
-    { href: '/ruptura.html',      ic: 'trend',     txt: 'Gestão de Rupturas' }
+    { href: '/prevencao.html',    ic: 'shield',    txt: 'Prevenção' }
   ];
 
   var css = ''
@@ -76,6 +78,20 @@
   + '#dsnav a.dn-item:hover{background:var(--wsh,#E4E4E1);color:var(--ink,#0E1626)}'
   + '#dsnav a.dn-item.on{background:var(--amw,#FFF6D9);color:var(--amk,#6B4E00)}'
   + '#dsnav a.dn-item.on svg{color:var(--amk,#6B4E00)}'
+  + '#dsnav .dn-group{margin-bottom:2px}'
+  + '#dsnav .dn-group-hd{display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:9px;'
+  +   'font-size:12.5px;font-weight:600;color:var(--ink2,#4E5A72);cursor:pointer;user-select:none;'
+  +   'transition:background .12s ease}'
+  + '#dsnav .dn-group-hd svg{width:16px;height:16px;stroke:currentColor;stroke-width:1.8;fill:none;'
+  +   'stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;color:var(--ink3,#98A0B3)}'
+  + '#dsnav .dn-group-hd .dn-chev{width:12px;height:12px;margin-left:auto;transition:transform .15s ease}'
+  + '#dsnav .dn-group.open .dn-chev{transform:rotate(90deg)}'
+  + '#dsnav .dn-group-hd:hover{background:var(--wsh,#E4E4E1);color:var(--ink,#0E1626)}'
+  + '#dsnav .dn-group-hd:hover svg{color:var(--ink,#0E1626)}'
+  + '#dsnav .dn-group-hd.on{background:var(--amw,#FFF6D9);color:var(--amk,#6B4E00)}'
+  + '#dsnav .dn-group-hd.on svg{color:var(--amk,#6B4E00)}'
+  + '#dsnav .dn-sub{display:none;flex-direction:column;padding-left:16px}'
+  + '#dsnav .dn-group.open .dn-sub{display:flex}'
   + '#dsnav .dn-foot{margin-top:auto;border-top:1px solid var(--ln,#DADAD6);padding-top:10px;'
   +   'display:flex;align-items:center;gap:9px}'
   + '#dsnav .dn-ava{width:30px;height:30px;border-radius:50%;background:var(--ink,#0E1626);color:#fff;'
@@ -96,6 +112,9 @@
   +   '#dsnav .dn-sec{display:none}'
   +   '#dsnav .dn-rows{display:flex;overflow-x:auto;gap:2px;-webkit-overflow-scrolling:touch;scrollbar-width:none}'+'#dsnav .dn-rows::-webkit-scrollbar{display:none}'
   +   '#dsnav a.dn-item{padding:7px 10px;font-size:11px;flex-shrink:0}'
+  +   '#dsnav .dn-group{display:contents}'
+  +   '#dsnav .dn-group-hd{display:none}'
+  +   '#dsnav .dn-group .dn-sub{display:contents!important}'
   +   '#dsnav .dn-foot{display:none}'
   +   '#dsnav .dn-exit-mobile{display:flex;align-items:center;gap:5px;flex-shrink:0;'
   +     'color:var(--neg,#C22F49);font-size:11px;font-weight:700;text-decoration:none;'
@@ -115,14 +134,22 @@
   + '#dsnav.navy a.dn-item:hover svg{color:#FFFFFF}'
   + '#dsnav.navy a.dn-item.on{background:rgba(255,201,51,.16);color:#FFC933}'
   + '#dsnav.navy a.dn-item.on svg{color:#FFC933}'
+  + '#dsnav.navy .dn-group-hd{color:#AEB8CE}'
+  + '#dsnav.navy .dn-group-hd svg{color:#8E9AB5}'
+  + '#dsnav.navy .dn-group-hd:hover{background:rgba(255,255,255,.07);color:#FFFFFF}'
+  + '#dsnav.navy .dn-group-hd:hover svg{color:#FFFFFF}'
+  + '#dsnav.navy .dn-group-hd.on{background:rgba(255,201,51,.16);color:#FFC933}'
+  + '#dsnav.navy .dn-group-hd.on svg{color:#FFC933}'
   + '#dsnav.navy .dn-foot{border-top-color:rgba(255,255,255,.09)}'
   + '#dsnav.navy .dn-ava{background:#FFC933;color:#5C4600}'
   + '#dsnav.navy .dn-user b{color:#FFFFFF}'
   + '#dsnav.navy .dn-user a{color:#FF8296}';
 
-  function icon(id) {
-    return '<svg><use href="/icons.svg#' + id + '"/></svg>';
+  function icon(id, cls) {
+    return '<svg' + (cls ? ' class="' + cls + '"' : '') + '><use href="/icons.svg#' + id + '"/></svg>';
   }
+
+  var GRUPOS_KEY = 'nav_grupos_abertos';
 
   function montar() {
     var st = document.createElement('style');
@@ -131,6 +158,9 @@
 
     var path = location.pathname.replace(/\/$/, '/index.html');
     if (path === '' || path === '/') path = '/index.html';
+
+    var gruposAbertos = {};
+    try { gruposAbertos = JSON.parse(localStorage.getItem(GRUPOS_KEY) || '{}'); } catch (e) {}
 
     var html = '<div class="dn-top">'
       + '<a class="dn-brand" id="dn-brand" href="/index.html">'
@@ -143,6 +173,22 @@
       var g = it.grupo ? ' data-grupo="' + it.grupo + '"' : '';
       var esconder = it.grupo === 'admin' ? ' style="display:none"' : '';
       if (it.sec) { html += '<div class="dn-sec"' + g + esconder + '>' + it.sec + '</div>'; return; }
+      if (it.sub) {
+        var ativoSub = it.sub.some(function (s) { return path === s.href; });
+        var aberto = ativoSub || gruposAbertos[it.id];
+        html += '<div class="dn-group' + (aberto ? ' open' : '') + '" data-grupo-id="' + it.id + '">'
+          + '<div class="dn-group-hd' + (ativoSub ? ' on' : '') + '">'
+          +   icon(it.ic) + it.txt + icon('chevron-right', 'dn-chev')
+          + '</div>'
+          + '<div class="dn-sub">'
+          + it.sub.map(function (s) {
+              var onS = path === s.href ? ' on' : '';
+              return '<a class="dn-item' + onS + '" href="' + s.href + '">' + icon(s.ic) + s.txt + '</a>';
+            }).join('')
+          + '</div>'
+          + '</div>';
+        return;
+      }
       var on = path === it.href ? ' on' : '';
       var alvo = it.blank ? ' target="_blank" rel="noopener"' : '';
       html += '<a class="dn-item' + on + '"' + g + esconder + ' href="' + it.href + '"' + alvo + '>' + icon(it.ic) + it.txt + '</a>';
@@ -170,6 +216,17 @@
     document.body.insertAdjacentElement('afterbegin', aside);
     document.body.classList.add('dsnav-pad');
 
+    aside.querySelectorAll('.dn-group-hd').forEach(function (hd) {
+      hd.addEventListener('click', function () {
+        var grp = hd.closest('.dn-group');
+        var aberto = grp.classList.toggle('open');
+        var estado = {};
+        try { estado = JSON.parse(localStorage.getItem(GRUPOS_KEY) || '{}'); } catch (e) {}
+        estado[grp.getAttribute('data-grupo-id')] = aberto;
+        try { localStorage.setItem(GRUPOS_KEY, JSON.stringify(estado)); } catch (e) {}
+      });
+    });
+
     fetch('/api/me').then(function (r) { return r.json(); }).then(function (u) {
       if (u && u.nome) {
         document.getElementById('dn-nome').textContent = u.nome;
@@ -180,7 +237,7 @@
          esconde os itens de navegação e desativa o clique na marca
          (que levaria ao Dashboard, fora do alcance desse perfil) */
       if (u && u.perfil === 'gerencial') {
-        aside.querySelectorAll('.dn-item,.dn-sec').forEach(function (el) {
+        aside.querySelectorAll('.dn-item,.dn-sec,.dn-group').forEach(function (el) {
           el.style.display = 'none';
         });
         var brand = document.getElementById('dn-brand');
