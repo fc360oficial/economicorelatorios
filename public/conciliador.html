@@ -124,7 +124,7 @@ table.t tbody tr:hover{background:var(--surface-2)}
   .kpi-row{gap:6px}
   .kpi{min-width:calc(50% - 4px);padding:9px 10px}
   .kpi .v{font-size:16px}
-  table.t{min-width:640px}
+  table.t{min-width:720px}
 }
 </style>
 </head>
@@ -163,6 +163,7 @@ let filtroDe = '';
 let filtroAte = '';
 let filtroBusca = '';
 let filtroCategoria = '';
+let filtroLoja = '';
 let itensAtuais = [];
 
 const CAT_LABEL = {
@@ -240,10 +241,12 @@ function render() {
 
   const optsStatus = Object.keys(STATUS_LABEL).map(s => `<option value="${s}"${filtroAtivo===s?' selected':''}>${STATUS_LABEL[s]}</option>`).join('');
   const optsCat = Object.keys(CAT_LABEL).map(c => `<option value="${c}"${filtroCategoria===c?' selected':''}>${CAT_LABEL[c]}</option>`).join('');
+  const optsLoja = [1,2,3,4,5,6].map(n => `<option value="${n}"${filtroLoja==String(n)?' selected':''}>Loja ${n}</option>`).join('');
 
   html += '<div class="filtros">' +
     `<div class="fg"><label>Status</label><select id="fil-status" onchange="aplicarFiltros()"><option value="">Todos</option>${optsStatus}</select></div>` +
     `<div class="fg"><label>Categoria</label><select id="fil-categoria" onchange="aplicarFiltros()"><option value="">Todas</option>${optsCat}</select></div>` +
+    `<div class="fg"><label>Loja</label><select id="fil-loja" onchange="aplicarFiltros()"><option value="">Todas</option>${optsLoja}</select></div>` +
     `<div class="fg"><label>De</label><input type="date" id="fil-de" value="${filtroDe}" onchange="aplicarFiltros()"></div>` +
     `<div class="fg"><label>Até</label><input type="date" id="fil-ate" value="${filtroAte}" onchange="aplicarFiltros()"></div>` +
     `<div class="fg fg-busca"><label>Buscar favorecido</label><input type="text" id="fil-busca" value="${filtroBusca}" placeholder="nome..." onkeydown="if(event.key==='Enter')aplicarFiltros()"></div>` +
@@ -253,6 +256,7 @@ function render() {
 
   let itens = filtroAtivo ? dados.itens.filter(i => i.status === filtroAtivo) : dados.itens;
   if (filtroCategoria) itens = itens.filter(i => i.categoria === filtroCategoria);
+  if (filtroLoja) itens = itens.filter(i => itemLojas(i).includes(Number(filtroLoja)));
   if (filtroDe) itens = itens.filter(i => i.data >= filtroDe);
   if (filtroAte) itens = itens.filter(i => i.data <= filtroAte);
   if (filtroBusca) {
@@ -270,13 +274,14 @@ function render() {
   itensAtuais = itens;
 
   html += '<div class="table-wrap"><table class="t"><thead><tr>' +
-    '<th>Data</th><th>Categoria</th><th>Favorecido</th><th class="r">Valor</th><th>Status</th><th>Casamento com o ERP</th>' +
+    '<th>Data</th><th>Categoria</th><th>Loja</th><th>Favorecido</th><th class="r">Valor</th><th>Status</th><th>Casamento com o ERP</th>' +
     '</tr></thead><tbody>';
 
   itens.forEach((it, idx) => {
     html += `<tr onclick="abrirPopup(${idx})">` +
       `<td>${it.dataBr}</td>` +
       `<td class="cat">${CAT_LABEL[it.categoria] || it.categoria}</td>` +
+      `<td class="cat">${lojaLabel(it)}</td>` +
       `<td><div class="fav">${it.favorecido || it.historico}</div><div class="hist">${it.historico}</div></td>` +
       `<td class="r val">${fmtMoeda(it.valor)}</td>` +
       `<td><span class="pill ${STATUS_PILL[it.status]}">${STATUS_LABEL[it.status]}</span></td>` +
@@ -287,6 +292,23 @@ function render() {
 
   cont.innerHTML = html;
   ligarKpis();
+}
+
+// Loja só existe do lado do ERP (contasapagar.Filial) — o extrato do banco
+// não sabe de qual loja saiu o pagamento. Item com match usa a loja do
+// título casado; item "revisar" pode ter candidatos em lojas diferentes.
+function itemLojas(it) {
+  if (it.match && it.match.filial != null) return [Number(it.match.filial)];
+  if (it.candidatos && it.candidatos.length) {
+    return [...new Set(it.candidatos.map(c => Number(c.filial)).filter(n => !isNaN(n)))];
+  }
+  return [];
+}
+
+function lojaLabel(it) {
+  const lojas = itemLojas(it);
+  if (!lojas.length) return '<span style="color:var(--ink-3)">—</span>';
+  return lojas.length === 1 ? `Loja ${lojas[0]}` : lojas.map(n => `L${n}`).join(', ');
 }
 
 function renderMatch(it) {
@@ -326,6 +348,7 @@ function filtrar(status) {
 function aplicarFiltros() {
   filtroAtivo = document.getElementById('fil-status').value;
   filtroCategoria = document.getElementById('fil-categoria').value;
+  filtroLoja = document.getElementById('fil-loja').value;
   filtroDe = document.getElementById('fil-de').value;
   filtroAte = document.getElementById('fil-ate').value;
   filtroBusca = document.getElementById('fil-busca').value.trim();
@@ -333,7 +356,7 @@ function aplicarFiltros() {
 }
 
 function limparFiltros() {
-  filtroAtivo = ''; filtroCategoria = ''; filtroDe = ''; filtroAte = ''; filtroBusca = '';
+  filtroAtivo = ''; filtroCategoria = ''; filtroLoja = ''; filtroDe = ''; filtroAte = ''; filtroBusca = '';
   render();
 }
 
@@ -373,6 +396,7 @@ function renderPopup(it) {
       </div>
       <div class="popup-bd">
         <div class="popup-row"><span class="k">Valor do extrato</span><span class="v">${fmtMoeda(it.valor)}</span></div>
+        <div class="popup-row"><span class="k">Loja</span><span class="v">${m.filial != null ? 'Loja ' + m.filial : '—'}</span></div>
         <div class="popup-row"><span class="k">NF / documento</span><span class="v">${m.historico || 'sem NF'}</span></div>
         <div class="popup-row"><span class="k">Vencimento no ERP</span><span class="v">${fmtData(m.dataVencto)}</span></div>
         ${it.status === 'pago_sem_baixa' ? `<div class="popup-row"><span class="k">Devedor no ERP</span><span class="v" style="color:var(--red)">${fmtMoeda(m.devedor)}</span></div>` : ''}
@@ -405,7 +429,7 @@ function renderPopup(it) {
         <div class="cand-list">
           ${it.candidatos.map(c => `
             <div class="cand-item2">
-              <div class="nm">${c.fornecedor}</div>
+              <div class="nm">${c.fornecedor}${c.filial != null ? ' · Loja ' + c.filial : ''}</div>
               <div class="meta"><span>${c.historico || 'sem NF'} · venc. ${fmtData(c.dataVencto)}</span><span>${c.confianca}%</span></div>
             </div>`).join('')}
         </div>
