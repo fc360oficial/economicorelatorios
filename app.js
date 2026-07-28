@@ -1,6 +1,6 @@
 ﻿// Verificação de versão — roda antes de tudo
 (function() {
-  var BUILD = '224';
+  var BUILD = '225';
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
   var vLogin = document.getElementById('login-versao');
@@ -1224,7 +1224,7 @@ function finalizarLogin(found) {
     var pagesForRole = {
       admin:      ['dashboard','checklist','central','relatorios','usuarios','plano','inv','inv-coleta'],
       gerencia:   ['checklist','relatorios','plano'],
-      supervisor: ['dashboard','checklist','relatorios','plano','inv-coleta'],
+      supervisor: ['dashboard','checklist','central','relatorios','plano','inv-coleta'],
       operator:   ['checklist','inv-coleta'],
       prevencao:  ['checklist','inv-coleta'],
       coletor:    ['inv-coleta']
@@ -1359,7 +1359,7 @@ function setupRole() {
   var tabGer = document.getElementById('tab-gerenciar');
   if (tabGer) tabGer.style.display = (isAdmin || isSup) ? '' : 'none';
   show('nav-dashboard', (isAdmin || isSup) && !isColetor);
-  show('nav-central', isAdmin && !isColetor);
+  show('nav-central', (isAdmin || isSup) && !isColetor);
   show('nav-relat', (isAdmin || isSup || r==='gerencia') && !isColetor);
   show('nav-assistente', isAdmin);
   show('nav-monitor', isAdmin);
