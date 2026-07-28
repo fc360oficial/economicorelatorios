@@ -929,7 +929,10 @@ function _moduloAtivo(nome) {
 }
 
 function carregarClienteConfig(cb) {
-  var clienteId = S.currentUser && S.currentUser.clienteId;
+  // client.js do deploy tem prioridade; fallback para clienteId do usuário
+  var clienteId = (window.FC360_CLIENT_ID && window.FC360_CLIENT_ID.trim())
+    || (S.currentUser && S.currentUser.clienteId)
+    || '';
   if (!clienteId) { S.clienteConfig = null; if (cb) cb(); return; }
   db.collection('clientes').doc(clienteId).get().then(function(doc) {
     S.clienteConfig = doc.exists ? Object.assign({}, doc.data(), {id: doc.id}) : null;
