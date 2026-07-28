@@ -1,6 +1,6 @@
 ﻿// Verificação de versão — roda antes de tudo
 (function() {
-  var BUILD = '220';
+  var BUILD = '221';
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
   var vLogin = document.getElementById('login-versao');
@@ -8112,6 +8112,12 @@ function abrirDetalheInv(invId, tabInicial) {
   if(actEl) actEl.style.display=isAberto?'flex':'none';
   var corrBtn=document.getElementById('bip-btn-correcao');
   if(corrBtn) corrBtn.style.display=isAberto?'':'none';
+  // Ajusta labels de acordo com modoOrganizacao
+  var isModoSet = _invAtivo.modoOrganizacao === 'setores';
+  var tabLbl = document.getElementById('inv-tab-lbl-end');
+  if (tabLbl) tabLbl.textContent = isModoSet ? 'Setores' : 'Endereços';
+  var thEnd = document.getElementById('inv-th-end');
+  if (thEnd) thEnd.textContent = isModoSet ? 'Setor' : 'Endereço';
   var tab = tabInicial || 'enderecos';
   var btn = tab === 'enderecos'
     ? document.querySelector('#inv-detalhe-tabs .tab')
@@ -9547,6 +9553,9 @@ function abrirModalNovoInv() {
   // Reset tipo para Geral
   var radioGeral = document.querySelector('input[name="ninv-tipo"][value="geral"]');
   if (radioGeral) { radioGeral.checked = true; _ninvTipoChange(); }
+  // Reset modoOrg para Endereços+Setores
+  var radioMorg = document.querySelector('input[name="ninv-modoOrg"][value="setores_end"]');
+  if (radioMorg) { radioMorg.checked = true; _ninvMorgChange(); }
   var err = document.getElementById('ninv-err');
   if (err) { err.textContent = ''; err.style.display = 'none'; }
   document.getElementById('modal-inv').style.display = 'flex';
@@ -9562,6 +9571,17 @@ function _ninvTipoChange() {
     lbl.style.borderColor=active?'var(--y)':'var(--gray2)';
     lbl.style.color=active?'#000':'var(--t2)';
   });
+}
+
+function _ninvMorgChange() {
+  var val = (document.querySelector('input[name="ninv-modoOrg"]:checked')||{}).value||'setores_end';
+  var isSoSet = val === 'setores';
+  var endBlock = document.getElementById('ninv-end-block');
+  if (endBlock) endBlock.style.display = isSoSet ? 'none' : '';
+  var lblEnd = document.getElementById('ninv-morg-end');
+  var lblSet = document.getElementById('ninv-morg-set');
+  if (lblEnd) { lblEnd.style.background=!isSoSet?'var(--y)':'#fff'; lblEnd.style.borderColor=!isSoSet?'var(--y)':'var(--gray2)'; lblEnd.style.color=!isSoSet?'#000':'var(--t2)'; }
+  if (lblSet) { lblSet.style.background=isSoSet?'var(--y)':'#fff'; lblSet.style.borderColor=isSoSet?'var(--y)':'var(--gray2)'; lblSet.style.color=isSoSet?'#000':'var(--t2)'; }
 }
 
 function gerarEnderecosFaixa() {
@@ -9586,6 +9606,7 @@ function criarInventario() {
   var cbEl = document.getElementById('ninv-modoFila');
   var modoFila = !!(cbEl && cbEl.checked);
   var tipo = (document.querySelector('input[name="ninv-tipo"]:checked')||{}).value||'geral';
+  var modoOrg = (document.querySelector('input[name="ninv-modoOrg"]:checked')||{}).value||'setores_end';
   var setoresRaw = (document.getElementById('ninv-setores')||{}).value||'ESTOQUE,LOJA';
   var setores = setoresRaw.split(',').map(function(s){ return s.trim().toUpperCase(); }).filter(function(s){ return s.length>0; });
   if (!setores.length) setores = ['ESTOQUE','LOJA'];
@@ -9594,9 +9615,16 @@ function criarInventario() {
   var errEl = document.getElementById('ninv-err');
   if (errEl) errEl.style.display = 'none';
   if (!nome) { if(errEl){errEl.textContent='Informe o nome do inventário.';errEl.style.display='block';} return; }
-  if (!endStr) { if(errEl){errEl.textContent='Informe pelo menos um endereço ou use o gerador.';errEl.style.display='block';} return; }
-  var enderecos = endStr.split('\n').map(function(e){ return e.trim(); }).filter(function(e){ return e.length>0; });
-  if (!enderecos.length) { if(errEl){errEl.textContent='Nenhum endereço válido.';errEl.style.display='block';} return; }
+  var enderecos;
+  if (modoOrg === 'setores') {
+    // Em modo Só Setores, os setores são os "endereços"
+    enderecos = setores.slice();
+    modoFila = true; // força fila (coletor toca no setor)
+  } else {
+    if (!endStr) { if(errEl){errEl.textContent='Informe pelo menos um endereço ou use o gerador.';errEl.style.display='block';} return; }
+    enderecos = endStr.split('\n').map(function(e){ return e.trim(); }).filter(function(e){ return e.length>0; });
+    if (!enderecos.length) { if(errEl){errEl.textContent='Nenhum endereço válido.';errEl.style.display='block';} return; }
+  }
   // Bloqueia duplo clique
   var criarBtn = document.querySelector('#modal-inv-novo .btn.btn-p');
   if (criarBtn) { criarBtn.disabled = true; criarBtn.textContent = 'Criando...'; }
@@ -9609,6 +9637,7 @@ function criarInventario() {
     modoFila: modoFila, fila: {},
     totalBipagens: 0,
     setores: setores,
+    modoOrganizacao: modoOrg,
     meta: meta || 0
   }).then(function(){
     fecharModalInv();
@@ -9837,6 +9866,31 @@ function exportarComparativoCsv() {
 // ── Fila: seleção de endereço ─────────────────────────────────────────────
 function _renderSelecaoEndereco(inv, bipCount) {
   var ends=inv.enderecos||[],filaMap=inv.fila||{};
+  // Modo Só Setores: mostra botões de setor diretamente (sem scanner/input)
+  if (inv.modoOrganizacao === 'setores') {
+    var _scol=['#3b5bdb|#e8f0ff|#1a3c9c','#b38600|#fff8e1|#b38600','#1a7a4a|#e8f5ee|#1a5c34','#c0392b|#fdecea|#c0392b','#5b21b6|#ede9fe|#5b21b6','#666|#f0f0f0|#333'];
+    var _sico={'ESTOQUE':'📦','LOJA':'🏪','DEPOSITO':'🏭','FREEZER':'❄️','FARMACIA':'💊','ACOUGUE':'🥩','PADARIA':'🍞','HORTIFRUTI':'🥦','BEBIDAS':'🍺','COZINHA':'🍽️','FRIOS':'🧊'};
+    var safeInvId=inv.id.replace(/'/g,"\\'");
+    var btns=ends.map(function(s,i){
+      var c=(_scol[i%_scol.length]).split('|');
+      var icon=_sico[s]||'📁';
+      var slot=filaMap[s];
+      if(slot&&slot.concluido){
+        return '<button disabled style="padding:20px 6px;border:2.5px solid #ccc;border-radius:14px;background:#f0f0f0;color:#999;font-size:14px;font-weight:800;font-family:\'Syne\',sans-serif;cursor:not-allowed;width:100%;box-sizing:border-box;line-height:1.4;opacity:.65">🔒<br>'+s+'<br><span style="font-size:10px;font-weight:600">encerrado</span></button>';
+      }
+      var andamento=slot&&!slot.concluido;
+      var border=andamento?'border:2.5px solid #b38600':'border:2.5px solid '+c[0];
+      var bg=andamento?'background:#fffbe8':'background:'+c[1];
+      var cl=andamento?'color:#b38600':'color:'+c[2];
+      var ss=s.replace(/'/g,"\\'");
+      return '<button onclick="_confirmarSetorFila(\''+safeInvId+'\',\''+ss+'\',\''+ss+'\')" style="padding:20px 6px;'+border+';border-radius:14px;'+bg+';'+cl+';font-size:14px;font-weight:800;font-family:\'Syne\',sans-serif;cursor:pointer;width:100%;box-sizing:border-box;word-break:break-word;line-height:1.4">'+icon+'<br>'+s+(andamento?'<br><span style="font-size:10px;font-weight:600">em andamento</span>':'')+'</button>';
+    }).join('');
+    return '<div>'+
+      '<div style="font-family:\'Syne\',sans-serif;font-size:16px;font-weight:700;margin-bottom:6px">Selecionar Setor</div>'+
+      '<div style="font-size:13px;color:var(--t3);margin-bottom:16px">Toque no setor que você vai coletar.</div>'+
+      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:12px">'+btns+'</div>'+
+    '</div>';
+  }
   bipCount=bipCount||{};
   var rows=ends.map(function(e){
     var slot=filaMap[e];
@@ -9904,6 +9958,12 @@ function selecionarEnderecoFila(invId, endereco) {
 }
 
 function _mostrarSetorPicker(invId, endereco) {
+  // No modo Só Setores, o endereço já é o setor — confirma direto
+  var inv2=(S.invsCache||[]).find(function(i){ return i.id===invId; });
+  if (inv2 && inv2.modoOrganizacao === 'setores') {
+    _confirmarSetorFila(invId, endereco, endereco);
+    return;
+  }
   var safeInvId=invId.replace(/'/g,"\\'");
   var safeEnd=endereco.replace(/'/g,"\\'");
   var html=
@@ -10843,6 +10903,8 @@ function renderInvEnderecos() {
   var tbody=document.getElementById('inv-end-tbody'); if(!tbody) return;
   var isAdmin=S.role==='admin'||S.role==='gerencia'||S.role==='supervisor';
   var isAberto=inv.status==='aberto';
+  var isModoSet=inv.modoOrganizacao==='setores';
+  var _reIco={'ESTOQUE':'📦','LOJA':'🏪','DEPOSITO':'🏭','FREEZER':'❄️','FARMACIA':'💊','ACOUGUE':'🥩','PADARIA':'🍞','HORTIFRUTI':'🥦','BEBIDAS':'🍺','COZINHA':'🍽️','FRIOS':'🧊'};
   if (inv.modoFila) {
     var filaMap=inv.fila||{};
     tbody.innerHTML=enderecos.map(function(end){
@@ -10851,9 +10913,10 @@ function renderInvEnderecos() {
       var status=!slot?'sem-coletor':slot.concluido?'concluido':'aguardando';
       var safeEnd=end.replace(/'/g,"\\'");
       var reabrirBtn=isAberto&&isAdmin&&slot&&slot.concluido?'<button class="btn btn-s btn-sm" onclick="reabrirEndereco(\''+invId+'\',\''+safeEnd+'\')" style="color:var(--r);border-color:var(--r)">↩ Reabrir</button>':'';
-      var setorBadge=slot&&slot.setor?'<br><span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;'+(slot.setor==='ESTOQUE'?'background:#e8f0ff;color:#1a3c9c':'background:#fff8e1;color:#b38600')+'">'+slot.setor+'</span>':'';
+      var endLabel=isModoSet?(_reIco[end]||'📁')+' '+end:'<strong>'+end+'</strong>';
+      var setorBadge=(!isModoSet&&slot&&slot.setor)?'<br><span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;'+(slot.setor==='ESTOQUE'?'background:#e8f0ff;color:#1a3c9c':'background:#fff8e1;color:#b38600')+'">'+slot.setor+'</span>':'';
       return '<tr>'+
-        '<td><strong>'+end+'</strong>'+setorBadge+'</td>'+
+        '<td>'+endLabel+setorBadge+'</td>'+
         '<td><span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:#e8f4ff;color:#1a5c9c">FILA</span></td>'+
         '<td id="inv-coltxt-'+end.replace(/[^a-z0-9]/gi,'_')+'" style="font-size:12px">'+colTxt+'</td>'+
         '<td id="inv-ec-'+end.replace(/[^a-z0-9]/gi,'_')+'">—</td>'+
