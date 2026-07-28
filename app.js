@@ -1,6 +1,6 @@
 ﻿// Verificação de versão — roda antes de tudo
 (function() {
-  var BUILD = '221';
+  var BUILD = '222';
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
   var vLogin = document.getElementById('login-versao');
@@ -10842,30 +10842,51 @@ function confirmarExcluirInv() {
   if (btn) { btn.textContent = 'Verificando...'; btn.disabled = true; }
   if (errEl) errEl.style.display = 'none';
 
-  hashPassword(senha).then(function(senhaHash) {
-    var match = isHashed(u.senha) ? (u.senha === senhaHash) : (u.senha === senha);
-    if (!match) {
-      if (btn) { btn.textContent = '🗑 Excluir permanentemente'; btn.disabled = false; }
-      if (errEl) { errEl.textContent = 'Senha incorreta. Use sua senha de login.'; errEl.style.display = 'block'; }
-      return;
-    }
-
+  function _doDelete() {
     if (btn) btn.textContent = 'Excluindo...';
-
-    // Apaga o documento principal primeiro — faz a lista atualizar imediatamente
     db.collection('inv_inventarios').doc(invId).delete().then(function() {
       fecharModalExcluirInv();
       if (_invAtivo && _invAtivo.id === invId) voltarInvLista();
       loadInventariosFromFirebase(function(){ renderInvList(); renderInvHistorico(); });
-      // Limpa subcoleções em background (best-effort)
       _limparSubcolecoes(invId);
     }).catch(function(err) {
       mostrarErro('Erro ao excluir: ' + (err.message || String(err)));
     });
+  }
 
-  }).catch(function(err) {
-    mostrarErro('Erro ao verificar senha: ' + (err.message || String(err)));
-  });
+  // Verifica via Firebase Auth (reauth) — mais confiável que senha local
+  var fbUser = firebase.auth().currentUser;
+  if (fbUser) {
+    var cred = firebase.auth.EmailAuthProvider.credential(fbUser.email, senha);
+    fbUser.reauthenticateWithCredential(cred).then(function() {
+      _doDelete();
+    }).catch(function() {
+      // Fallback: compara com senha armazenada localmente
+      hashPassword(senha).then(function(senhaHash) {
+        var match = isHashed(u.senha) ? (u.senha === senhaHash) : (u.senha === senha);
+        if (!match) {
+          if (btn) { btn.textContent = '🗑 Excluir permanentemente'; btn.disabled = false; }
+          if (errEl) { errEl.textContent = 'Senha incorreta. Use sua senha de login.'; errEl.style.display = 'block'; }
+          return;
+        }
+        _doDelete();
+      }).catch(function(err) {
+        mostrarErro('Erro ao verificar senha: ' + (err.message || String(err)));
+      });
+    });
+  } else {
+    hashPassword(senha).then(function(senhaHash) {
+      var match = isHashed(u.senha) ? (u.senha === senhaHash) : (u.senha === senha);
+      if (!match) {
+        if (btn) { btn.textContent = '🗑 Excluir permanentemente'; btn.disabled = false; }
+        if (errEl) { errEl.textContent = 'Senha incorreta. Use sua senha de login.'; errEl.style.display = 'block'; }
+        return;
+      }
+      _doDelete();
+    }).catch(function(err) {
+      mostrarErro('Erro ao verificar senha: ' + (err.message || String(err)));
+    });
+  }
 }
 
 function _limparSubcolecoes(invId) {
