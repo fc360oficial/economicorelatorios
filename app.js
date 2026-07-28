@@ -1,6 +1,6 @@
 ﻿// Verificação de versão — roda antes de tudo
 (function() {
-  var BUILD = '228';
+  var BUILD = '229';
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
   var vLogin = document.getElementById('login-versao');
@@ -7030,7 +7030,8 @@ function _renderClientesLista() {
       '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px">'+
         '<div>'+
           '<div style="font-family:\'Syne\',sans-serif;font-size:16px;font-weight:800">'+c.nome+'</div>'+
-          '<div style="font-size:11px;color:var(--t3);margin-top:2px">ID: <code>'+c.id+'</code> · Plano: <strong>'+(c.plano||'—')+'</strong>'+(c.validade?' · Validade: '+new Date(c.validade).toLocaleDateString('pt-BR'):'')+'</div>'+
+          '<div style="font-size:11px;color:var(--t3);margin-top:2px">ID: <code>'+c.id+'</code> · Plano: <strong>'+(c.plano||'—')+'</strong>'+(c.validade?' · Validade: '+new Date(c.validade).toLocaleDateString('pt-BR'):'')+
+          (c.ultimoDeploy?' · <span style="color:#2d6a2d;font-weight:700">v'+c.buildDeploy+' — deploy '+new Date(c.ultimoDeploy.seconds*1000).toLocaleDateString('pt-BR')+'</span>':' · <span style="color:#999">sem deploy registrado</span>')+'</div>'+
         '</div>'+
         '<span style="white-space:nowrap;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;background:'+statusBg+';color:'+statusCl+'">'+statusTxt+'</span>'+
       '</div>'+
@@ -7210,8 +7211,9 @@ function deployCliente(clienteId) {
         body: JSON.stringify({ event_type: 'deploy' })
       }).then(function(res) {
         if (res.status === 204) {
+          db.collection('clientes').doc(clienteId).update({ ultimoDeploy: firebase.firestore.FieldValue.serverTimestamp(), buildDeploy: BUILD }).catch(function(){});
           showToast('🚀 Deploy iniciado para '+clienteId+'! Aguarde ~1 min.');
-          if(btn){btn.textContent='✅ Enviado';setTimeout(function(){btn.textContent='🚀 Deploy';btn.disabled=false;},5000);}
+          if(btn){btn.textContent='✅ Enviado';setTimeout(function(){btn.textContent='🚀 Deploy';btn.disabled=false;renderPainelClientes();},5000);}
         } else {
           res.text().then(function(t){ showToast('❌ Erro GitHub: '+res.status+' '+t); if(btn){btn.textContent='🚀 Deploy';btn.disabled=false;} });
         }
