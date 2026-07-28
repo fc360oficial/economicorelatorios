@@ -1,6 +1,6 @@
 ﻿// Verificação de versão — roda antes de tudo
 (function() {
-  var BUILD = '226';
+  var BUILD = '227';
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
   var vLogin = document.getElementById('login-versao');
@@ -955,7 +955,7 @@ function _checkAssinatura() {
   }
 }
 
-function ativarToken() {
+function ativarToken(fromModal) {
   var inp = document.getElementById('ativ-token-input');
   var errEl = document.getElementById('ativ-token-err');
   var token = (inp ? inp.value.trim().toUpperCase() : '');
@@ -977,10 +977,28 @@ function ativarToken() {
       S.clienteConfig = Object.assign({}, S.clienteConfig, { validade: novaValidadeStr, ativo: true });
       var ov = document.getElementById('overlay-assinatura');
       if (ov) ov.style.display = 'none';
+      var modal = document.getElementById('modal-inserir-token');
+      if (modal) modal.remove();
       setupRole();
       showToast('✅ Token ativado! Acesso liberado até ' + novaValidade.toLocaleDateString('pt-BR'));
     }).catch(function(e) { if (errEl) errEl.textContent = 'Erro ao ativar: ' + e.message; });
   }).catch(function(e) { if (errEl) errEl.textContent = 'Erro: ' + e.message; });
+}
+
+function abrirModalToken() {
+  var existing = document.getElementById('modal-inserir-token');
+  if (existing) { existing.remove(); }
+  var html = '<div id="modal-inserir-token" onclick="if(event.target===this)this.remove()" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:3000;display:flex;align-items:center;justify-content:center;padding:16px">'+
+    '<div style="background:#fff;border-radius:16px;padding:28px 24px;width:100%;max-width:380px;text-align:center">'+
+      '<div style="font-size:40px;margin-bottom:12px">🔑</div>'+
+      '<div style="font-family:\'Syne\',sans-serif;font-size:17px;font-weight:800;margin-bottom:8px">Inserir Token de Ativação</div>'+
+      '<div style="font-size:13px;color:var(--t2);margin-bottom:20px">Cole o token recebido para renovar o acesso do sistema.</div>'+
+      '<div class="fg" style="margin-bottom:12px"><input id="ativ-token-input" type="text" placeholder="XXXX-XXXX-XXXX" style="text-align:center;font-family:monospace;letter-spacing:2px;text-transform:uppercase"/></div>'+
+      '<button onclick="ativarToken(true)" style="width:100%;padding:12px;background:var(--y);border:none;border-radius:10px;font-size:14px;font-weight:800;font-family:\'Syne\',sans-serif;cursor:pointer;margin-bottom:8px">Ativar Token</button>'+
+      '<div id="ativ-token-err" style="color:var(--r);font-size:12px;font-weight:600;min-height:18px"></div>'+
+      '<button onclick="document.getElementById(\'modal-inserir-token\').remove()" style="margin-top:8px;background:none;border:none;color:var(--t2);font-size:13px;cursor:pointer">Cancelar</button>'+
+    '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
 }
 
 function _mostrarOverlayVencido(msg) {
