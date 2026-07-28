@@ -1,6 +1,6 @@
 ﻿// Verificação de versão — roda antes de tudo
 (function() {
-  var BUILD = '225';
+  var BUILD = '226';
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
   var vLogin = document.getElementById('login-versao');
@@ -1359,7 +1359,7 @@ function setupRole() {
   var tabGer = document.getElementById('tab-gerenciar');
   if (tabGer) tabGer.style.display = (isAdmin || isSup) ? '' : 'none';
   show('nav-dashboard', (isAdmin || isSup) && !isColetor);
-  show('nav-central', (isAdmin || isSup) && !isColetor);
+  show('nav-central', (isAdmin || isSup) && !isColetor && _moduloAtivo('central'));
   show('nav-relat', (isAdmin || isSup || r==='gerencia') && !isColetor);
   show('nav-assistente', isAdmin);
   show('nav-monitor', isAdmin);
@@ -6992,8 +6992,8 @@ function _renderClientesLista() {
   var wrap = document.getElementById('painel-clientes-wrap');
   if (!wrap) return;
   var hoje = new Date(); hoje.setHours(0,0,0,0);
-  var MODS = ['checklist','inventario','planos_acao','alertas','perdas','relatorios'];
-  var MODS_LABEL = {checklist:'Checklist',inventario:'Inventário',planos_acao:'Planos',alertas:'Alertas',perdas:'Perdas',relatorios:'Relatórios'};
+  var MODS = ['checklist','inventario','planos_acao','alertas','perdas','relatorios','central'];
+  var MODS_LABEL = {checklist:'Checklist',inventario:'Inventário',planos_acao:'Planos',alertas:'Alertas',perdas:'Perdas',relatorios:'Relatórios',central:'Central Result.'};
   var cards = _clientesCache.map(function(c) {
     var venc = c.validade ? new Date(c.validade) : null;
     if (venc) venc.setHours(23,59,59,999);
