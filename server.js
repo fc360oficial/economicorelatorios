@@ -5,9 +5,11 @@ const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const fs = require('fs');
 const { exec } = require('child_process');
+const { parseSaidas } = require('./lib/extrato-parser');
+const { conciliar, addDias, TOLERANCIA_DIAS: TOLERANCIA_CONCILIADOR } = require('./lib/conciliador');
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 // Versão do processo — muda a cada deploy/restart, usada pra avisar o
 // usuário que o app foi atualizado (ver /api/versao).
@@ -575,7 +577,7 @@ app.get('/api/formas-pagamento', async (req, res) => {
 // Consulta dinâmica por loja/período
 app.get('/api/consulta', async (req, res) => {
   try {
-    const { loja, inicio, fim, ordenar = 'qtd', top = 20, produto = '' } = req.query;
+    const { loja, inicio, fim, ordenar = 'qtd', top = 20, produto = '', grupo = '', subgrupo = '' } = req.query;
 
     if (!loja || !inicio || !fim) {
       return res.status(400).json({ error: 'Parâmetros obrigatórios: loja, inicio, fim' });
@@ -598,17 +600,39 @@ app.get('/api/consulta', async (req, res) => {
 
     const lojas = loja === 'todas' ? [1, 2, 3, 4, 5, 6] : [parseInt(loja)];
 
-    // Se há filtro de produto, busca códigos pela descrição COMPLETA no cadastro central
-    let codigosFiltro = null;
+    // Se há filtro de produto e/ou de mercadológico (grupo/subgrupo), busca os
+    // códigos de barra correspondentes no cadastro central — os dois filtros
+    // combinam com AND quando usados juntos (ex: "leite" dentro de "Laticínios").
     let nomesCompletos = {};
+    let codigosProduto = null;
     if (produto) {
       const itensCad = await q(
         'SELECT CodigoBarra, Descricao FROM central.itens WHERE Descricao LIKE ?',
         ['%' + produto + '%']
       );
-      codigosFiltro = itensCad.map(r => r.CodigoBarra);
+      codigosProduto = itensCad.map(r => r.CodigoBarra);
       itensCad.forEach(r => { nomesCompletos[r.CodigoBarra] = r.Descricao?.trim(); });
-      if (!codigosFiltro.length) return res.json({ total_produtos: 0, total_faturamento: 0, total_itens: 0, modo_todas: loja === 'todas', data: [] });
+    }
+
+    let codigosMerc = null;
+    if (subgrupo || grupo) {
+      const where = subgrupo ? 'i.CodGrupoSub = ?' : 'gs.CodGrupo = ?';
+      const itensMerc = await q(`
+        SELECT i.CodigoBarra, i.Descricao FROM central.itens i
+        LEFT JOIN central.gruposub gs ON gs.CodSubGrupo = i.CodGrupoSub
+        WHERE ${where}
+      `, [parseInt(subgrupo || grupo)]);
+      codigosMerc = itensMerc.map(r => r.CodigoBarra);
+      itensMerc.forEach(r => { if (!nomesCompletos[r.CodigoBarra]) nomesCompletos[r.CodigoBarra] = r.Descricao?.trim(); });
+    }
+
+    let codigosFiltro = null;
+    if (codigosProduto && codigosMerc) codigosFiltro = codigosProduto.filter(c => codigosMerc.includes(c));
+    else if (codigosProduto) codigosFiltro = codigosProduto;
+    else if (codigosMerc) codigosFiltro = codigosMerc;
+
+    if (codigosFiltro && !codigosFiltro.length) {
+      return res.json({ total_produtos: 0, total_faturamento: 0, total_itens: 0, modo_todas: loja === 'todas', data: [] });
     }
 
     const modoTodas = loja === 'todas';
@@ -3663,6 +3687,42 @@ app.get('/api/_diag/tabelas-central', async (req, res) => {
     return res.json(rows);
   }
   res.json({ ok: 1 });
+});
+
+// ── CONCILIADOR BANCÁRIO ─────────────────────────────────
+// Cruza as saídas de um extrato bancário (TXT colado pelo usuário) com os
+// títulos de contas a pagar do ERP. Ver lib/conciliador.js pra detalhes de
+// como o casamento (Valor + DataVencto) e os status são decididos.
+app.post('/api/conciliador/processar', async (req, res) => {
+  try {
+    const texto = (req.body && req.body.texto) || '';
+    if (!texto.trim()) return res.status(400).json({ error: 'Cole o extrato antes de processar.' });
+
+    const saidas = parseSaidas(texto);
+    if (!saidas.length) return res.status(400).json({ error: 'Nenhuma saída encontrada no texto colado. Confira o formato (data;histórico;valor;).' });
+
+    const datas = saidas.map(s => s.data).sort();
+    const dIni = addDias(datas[0], -TOLERANCIA_CONCILIADOR);
+    const dFim = addDias(datas[datas.length - 1], TOLERANCIA_CONCILIADOR);
+
+    const candidatos = await q(`
+      SELECT a.nReg, a.Valor, a.Devedor, DATE_FORMAT(a.DataVencto,'%Y-%m-%d') as DataVencto,
+             a.CodFornec, a.Historico, a.Filial, f.Nome, f.NomeCompleto
+      FROM loja20045.contasapagar a
+      LEFT JOIN central.fornecedor f ON f.CodFornec = a.CodFornec
+      WHERE a.DataVencto BETWEEN ? AND ?
+    `, [dIni, dFim]);
+
+    const itens = conciliar(saidas, candidatos);
+    const resumo = { conciliado: 0, pago_sem_baixa: 0, revisar: 0, nao_encontrado: 0, fora_escopo: 0 };
+    let totalValor = 0;
+    for (const it of itens) { resumo[it.status]++; totalValor += it.valor; }
+
+    res.json({ total: itens.length, totalValor: +totalValor.toFixed(2), resumo, itens });
+  } catch (err) {
+    console.error('[CONCILIADOR-ERR]', err.message);
+    res.status(500).json({ error: err.message || 'Erro ao processar conciliação.' });
+  }
 });
 
 // Keepalive: garante que o processo não saia mesmo sem conexões ativas

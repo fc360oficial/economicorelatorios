@@ -47,6 +47,9 @@
     { href: '/itens.html',        ic: 'list',      txt: 'Mercadológico' },
     { href: '/comparativos.html', ic: 'chart',     txt: 'Comparativos' },
     { sec: 'Operação' },
+    { id: 'financeiro', ic: 'bank', txt: 'Financeiro', sub: [
+        { href: '/conciliador.html', ic: 'bank', txt: 'Conciliador' }
+      ]},
     { id: 'compras', ic: 'bag', txt: 'Gestão de Compras', sub: [
         { href: '/fornecedores.html', ic: 'bag',   txt: 'Lista de Compra' },
         { href: '/ruptura.html',      ic: 'trend', txt: 'Gestão de Rupturas' }

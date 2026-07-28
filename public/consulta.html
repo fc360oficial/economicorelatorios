@@ -233,12 +233,28 @@
   <div class="filtros-card">
     <div class="filtros-title">🎯 Configure sua Consulta</div>
     <!-- Campo de busca por produto em destaque -->
-    <div class="form-group" style="margin-bottom:20px;">
+    <div class="form-group" style="margin-bottom:14px;">
       <label>🔎 Buscar Produto (opcional — deixe vazio para ver todos)</label>
       <input type="text" id="txt-produto"
         placeholder="Digite o nome do produto... ex: leite, feijão, refrigerante"
         style="width:100%;font-size:15px;padding:12px 16px;"
         onkeydown="if(event.key==='Enter') consultar()">
+    </div>
+
+    <!-- Filtro por mercadológico (grupo/subgrupo) -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+      <div class="form-group">
+        <label>🗂️ Grupo Mercadológico (opcional)</label>
+        <select id="sel-grupo" onchange="popularSubgrupos()">
+          <option value="">Todos os Grupos</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Subgrupo</label>
+        <select id="sel-subgrupo">
+          <option value="">Todos os Subgrupos</option>
+        </select>
+      </div>
     </div>
 
     <div class="filtros-grid" id="filtros-grid">
@@ -351,6 +367,34 @@
 let dadosAtuais = [];
 let maxQtd = 1;
 let modoTodas = false;
+let gruposMerc = [];
+
+async function carregarGrupos() {
+  try {
+    const r = await fetch('/api/grupos');
+    gruposMerc = await r.json();
+    const sel = document.getElementById('sel-grupo');
+    gruposMerc.forEach(g => {
+      const o = document.createElement('option');
+      o.value = g.id; o.textContent = g.nome;
+      sel.appendChild(o);
+    });
+  } catch (e) {}
+}
+
+function popularSubgrupos() {
+  const codGrupo = document.getElementById('sel-grupo').value;
+  const selSub = document.getElementById('sel-subgrupo');
+  selSub.innerHTML = '<option value="">Todos os Subgrupos</option>';
+  const grupo = gruposMerc.find(g => String(g.id) === String(codGrupo));
+  if (grupo) {
+    grupo.subs.forEach(s => {
+      const o = document.createElement('option');
+      o.value = s.id; o.textContent = s.nome;
+      selSub.appendChild(o);
+    });
+  }
+}
 
 function toggleDatas() {
   const val = document.getElementById('sel-periodo').value;
@@ -403,6 +447,8 @@ async function consultar() {
   const ordenar = document.getElementById('sel-ordenar').value;
   const top = document.getElementById('sel-top').value;
   const produto = document.getElementById('txt-produto').value.trim();
+  const grupo = document.getElementById('sel-grupo').value;
+  const subgrupo = document.getElementById('sel-subgrupo').value;
   const { inicio, fim } = calcPeriodo(periodo);
 
   if (!inicio || !fim) { alert('Informe as datas de início e fim'); return; }
@@ -417,7 +463,10 @@ async function consultar() {
   document.getElementById('tabela-container').innerHTML = '';
 
   try {
-    const url = `/api/consulta?loja=${loja}&inicio=${inicio}&fim=${fim}&ordenar=${ordenar}&top=${top}${produto ? '&produto=' + encodeURIComponent(produto) : ''}`;
+    const url = `/api/consulta?loja=${loja}&inicio=${inicio}&fim=${fim}&ordenar=${ordenar}&top=${top}` +
+      (produto ? '&produto=' + encodeURIComponent(produto) : '') +
+      (grupo ? '&grupo=' + grupo : '') +
+      (subgrupo ? '&subgrupo=' + subgrupo : '');
     const r = await fetch(url);
     const d = await r.json();
 
@@ -439,7 +488,7 @@ async function consultar() {
     `;
 
     localStorage.setItem('consulta_ultima', JSON.stringify({
-      loja, periodo, ordenar, top, produto,
+      loja, periodo, ordenar, top, produto, grupo, subgrupo,
       dtInicio: periodo === 'custom' ? inicio : null,
       dtFim: periodo === 'custom' ? fim : null
     }));
@@ -635,12 +684,14 @@ function exportarCSV() {
 }
 
 // Inicializa datas e restaura última consulta
-(function() {
+(async function() {
   const hoje = new Date();
   const fmt = d => d.toISOString().split('T')[0];
   document.getElementById('dt-fim').value = fmt(hoje);
   const ini = new Date(hoje); ini.setDate(hoje.getDate() - 30);
   document.getElementById('dt-inicio').value = fmt(ini);
+
+  await carregarGrupos();
 
   const salvo = JSON.parse(localStorage.getItem('consulta_ultima') || 'null');
   if (salvo) {
@@ -649,6 +700,11 @@ function exportarCSV() {
     document.getElementById('sel-ordenar').value = salvo.ordenar || 'qtd';
     document.getElementById('sel-top').value = salvo.top || 20;
     document.getElementById('txt-produto').value = salvo.produto || '';
+    if (salvo.grupo) {
+      document.getElementById('sel-grupo').value = salvo.grupo;
+      popularSubgrupos();
+      if (salvo.subgrupo) document.getElementById('sel-subgrupo').value = salvo.subgrupo;
+    }
     if (salvo.periodo === 'custom' && salvo.dtInicio) {
       document.getElementById('dt-inicio').value = salvo.dtInicio;
       document.getElementById('dt-fim').value = salvo.dtFim;

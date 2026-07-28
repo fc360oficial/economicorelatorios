@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="/design-system.css">
+<script src="/nav.js" defer></script>
+<title>Conciliador Bancário — Econômico Relatórios</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#EBEBE9; --surface:#FFFFFF; --surface-2:#E4E4E1;
+  --border:#DADAD6; --border-strong:#C9C9C4;
+  --ink:#0E1626; --ink-2:#4E5A72; --ink-3:#98A0B3;
+  --brand:#F5B800; --brand-ink:#6B4E00;
+  --green:#137A48; --green-bg:#E7F5EC;
+  --red:#C22F49; --red-bg:#FBEAED;
+  --amber:#B45C00; --amber-bg:#FBEDDD;
+  --font:'InterVar','Inter','Segoe UI',system-ui,-apple-system,sans-serif;
+}
+body{font-family:var(--font);background:var(--bg);color:var(--ink);min-height:100vh}
+.main{padding:24px}
+.page-hdr{margin-bottom:18px}
+.page-hdr h1{font-size:21px;font-weight:800;color:var(--ink)}
+.page-hdr p{font-size:12px;color:var(--ink-3);margin-top:2px}
+
+/* ENTRADA */
+.entrada{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:18px;box-shadow:0 1px 2px rgba(22,35,63,.04)}
+.entrada label{font-size:10px;color:var(--ink-3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:6px}
+.entrada textarea{width:100%;min-height:120px;background:var(--bg);border:1px solid var(--border-strong);border-radius:8px;color:var(--ink);padding:10px 12px;font-size:12px;font-family:ui-monospace,Consolas,monospace;outline:none;resize:vertical}
+.entrada textarea:focus{border-color:var(--brand)}
+.entrada-foot{display:flex;align-items:center;justify-content:space-between;margin-top:10px;flex-wrap:wrap;gap:8px}
+.entrada-hint{font-size:11px;color:var(--ink-3)}
+.btn{border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font)}
+.btn-blue{background:var(--brand);color:var(--brand-ink)}.btn-blue:hover{background:#E5AC00}
+.btn-blue:disabled{opacity:.5;cursor:not-allowed}
+.btn-slate{background:var(--surface);color:var(--ink-2);border:1px solid var(--border-strong)}.btn-slate:hover{background:var(--surface-2)}
+
+/* FILTROS */
+.filtros{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 16px;margin-bottom:16px;display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;box-shadow:0 1px 2px rgba(22,35,63,.04)}
+.fg{display:flex;flex-direction:column;gap:3px}
+.fg label{font-size:10px;color:var(--ink-3);font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+.fg select,.fg input{background:var(--surface);border:1px solid var(--border-strong);border-radius:7px;color:var(--ink);padding:7px 11px;font-size:13px;outline:none;font-family:var(--font)}
+.fg select:focus,.fg input:focus{border-color:var(--brand)}
+.fg-busca input{min-width:200px}
+
+/* KPI CARDS */
+.kpi-row{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 16px;min-width:130px;flex:1;box-shadow:0 1px 2px rgba(22,35,63,.04);cursor:pointer;transition:border-color .12s}
+.kpi:hover{border-color:var(--border-strong)}
+.kpi.on{border-color:var(--brand);box-shadow:0 0 0 1px var(--brand) inset}
+.kpi .v{font-size:20px;font-weight:800}
+.kpi .l{font-size:10px;color:var(--ink-3);margin-top:2px;font-weight:700;text-transform:uppercase;letter-spacing:.4px}
+
+/* TABELA */
+.table-wrap{overflow-x:auto;border-radius:12px;border:1px solid var(--border);background:var(--surface)}
+table.t{width:100%;border-collapse:collapse;font-size:12px}
+table.t thead{background:var(--surface-2)}
+table.t th{padding:8px 12px;text-align:left;color:var(--ink-3);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;white-space:nowrap;border-bottom:1px solid var(--border)}
+table.t td{padding:8px 12px;border-bottom:1px solid var(--border);vertical-align:top}
+table.t th.r,table.t td.r{text-align:right}
+table.t tbody tr{cursor:pointer}
+table.t tbody tr:hover{background:var(--surface-2)}
+.fav{font-weight:600;color:var(--ink)}
+.hist{font-size:10.5px;color:var(--ink-3);margin-top:1px}
+.cat{font-size:10.5px;color:var(--ink-2)}
+.val{font-variant-numeric:tabular-nums;font-weight:700;color:var(--ink);white-space:nowrap}
+
+.pill{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;border-radius:20px;padding:3px 9px;white-space:nowrap}
+.pill-ok{background:var(--green-bg);color:var(--green)}
+.pill-alerta{background:var(--red-bg);color:var(--red)}
+.pill-revisar{background:var(--amber-bg);color:var(--amber)}
+.pill-neutro{background:var(--surface-2);color:var(--ink-2)}
+
+.match{font-size:11px;color:var(--ink-2)}
+.match b{color:var(--ink);font-weight:600}
+.match .diff{color:var(--ink-3)}
+.cand{border-top:1px dashed var(--border-strong);padding-top:4px;margin-top:4px}
+.cand-item{display:flex;justify-content:space-between;gap:8px;padding:2px 0;font-size:11px;color:var(--ink-2)}
+
+/* POPUP DE DETALHE (abre ao clicar numa linha) */
+.backdrop{position:fixed;inset:0;background:rgba(14,22,38,.38);opacity:0;pointer-events:none;transition:opacity .18s ease;z-index:40}
+.backdrop.on{opacity:1;pointer-events:auto}
+.popup{position:fixed;top:0;right:0;bottom:0;width:400px;max-width:92vw;background:var(--surface);
+  box-shadow:-16px 0 40px -12px rgba(14,22,38,.28);overflow-y:auto;z-index:41;
+  transform:translateX(100%);transition:transform .2s ease}
+.popup.on{transform:translateX(0)}
+.popup-close{position:absolute;top:12px;right:12px;width:30px;height:30px;border-radius:8px;border:1px solid var(--border-strong);
+  background:var(--surface);color:var(--ink-2);cursor:pointer;display:flex;align-items:center;justify-content:center}
+.popup-close:hover{background:var(--surface-2);color:var(--ink)}
+.popup-close svg{width:15px;height:15px;stroke:currentColor;stroke-width:2;fill:none}
+.popup-hd{padding:16px 46px 14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.popup-hd h2{font-size:15px;font-weight:800;color:var(--ink);line-height:1.3}
+.popup-hd .sub{font-size:10.5px;color:var(--ink-3);margin-top:2px}
+.popup-bd{padding:16px}
+.popup-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;font-size:12.5px}
+.popup-row .k{color:var(--ink-3)}
+.popup-row .v{font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
+.popup-sec{font-size:10px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:var(--ink-3);margin:16px 0 8px}
+.check{display:flex;align-items:flex-start;gap:8px;padding:6px 0;font-size:12.5px;color:var(--ink-2)}
+.check svg{width:15px;height:15px;flex-shrink:0;margin-top:1px}
+.check.yes svg{stroke:var(--green)}
+.check.no svg{stroke:var(--red)}
+.check b{color:var(--ink)}
+.conf{margin-top:14px;padding:10px 12px;background:var(--bg);border-radius:8px;display:flex;align-items:center;justify-content:space-between}
+.conf .k{font-size:10px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--ink-3)}
+.conf .v{font-size:17px;font-weight:800;font-variant-numeric:tabular-nums}
+.cand-list{margin-top:6px;display:flex;flex-direction:column;gap:6px}
+.cand-item2{border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:11.5px}
+.cand-item2 .nm{font-weight:700;color:var(--ink)}
+.cand-item2 .meta{display:flex;justify-content:space-between;color:var(--ink-3);margin-top:2px}
+
+.spinner{width:22px;height:22px;border-radius:50%;border:2px solid var(--border);border-top-color:var(--brand);animation:spin .7s linear infinite;margin:30px auto}
+@keyframes spin{to{transform:rotate(360deg)}}
+.empty{padding:30px;text-align:center;color:var(--ink-3);font-size:13px}
+.err{background:var(--red-bg);border:1px solid var(--red);color:var(--red);border-radius:8px;padding:10px 14px;font-size:12px;margin-bottom:14px}
+
+@media(max-width:768px){
+  .main{padding:10px}
+  .page-hdr h1{font-size:16px}
+  .kpi-row{gap:6px}
+  .kpi{min-width:calc(50% - 4px);padding:9px 10px}
+  .kpi .v{font-size:16px}
+  table.t{min-width:640px}
+}
+</style>
+</head>
+<body class="ds">
+
+<div class="main">
+  <div class="page-hdr">
+    <h1>Conciliador Bancário</h1>
+    <p>Cole as saídas do extrato do banco e cruze com os títulos de contas a pagar do ERP</p>
+  </div>
+
+  <div class="entrada">
+    <label>Extrato (formato Itaú: data;histórico;valor;)</label>
+    <textarea id="txt-extrato" placeholder="01/06/2026;BOLETO PAGO COMERCIAL LI COMERCIAL LIMA 54.285.133/0001-80;-375,55;&#10;01/06/2026;PIX ENVIADO FULANO DA SILVA 123.456.789-00;-100,00;"></textarea>
+    <div class="entrada-foot">
+      <span class="entrada-hint">Só as linhas com valor negativo (saídas) são consideradas — entradas são ignoradas.</span>
+      <div style="display:flex;gap:8px">
+        <input type="file" id="file-extrato" accept=".txt,.csv" style="display:none" onchange="importarArquivo(this)">
+        <button class="btn btn-slate" onclick="document.getElementById('file-extrato').click()">Importar Arquivo</button>
+        <button class="btn btn-slate" onclick="document.getElementById('txt-extrato').value=''">Limpar</button>
+        <button class="btn btn-blue" id="btn-processar" onclick="processar()">Processar Extrato</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="resultado"></div>
+</div>
+
+<div class="backdrop" id="backdrop" onclick="fecharPopup()"></div>
+<div class="popup" id="popup"></div>
+
+<script>
+let dados = null;
+let filtroAtivo = '';
+let filtroDe = '';
+let filtroAte = '';
+let filtroBusca = '';
+let filtroCategoria = '';
+let itensAtuais = [];
+
+const CAT_LABEL = {
+  boleto_pago: 'Boleto', pix_enviado: 'PIX Enviado', tributo: 'Tributo',
+  salario: 'Salário', tarifa_juros: 'Tarifa/Juros', aplicacao: 'Aplicação',
+  pix_devolvido: 'PIX Devolvido', outro: 'Outro'
+};
+
+const STATUS_LABEL = {
+  conciliado: 'Conciliado', pago_sem_baixa: 'Pago sem baixa',
+  revisar: 'Revisar', nao_encontrado: 'Não encontrado', fora_escopo: 'Fora do escopo'
+};
+const STATUS_PILL = {
+  conciliado: 'pill-ok', pago_sem_baixa: 'pill-alerta',
+  revisar: 'pill-revisar', nao_encontrado: 'pill-neutro', fora_escopo: 'pill-neutro'
+};
+
+function fmtMoeda(v) {
+  return 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function fmtData(iso) {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+function importarArquivo(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => { document.getElementById('txt-extrato').value = e.target.result; };
+  // extratos do Itaú costumam vir em ISO-8859-1/Windows-1252 (acentos quebram em UTF-8)
+  reader.readAsText(file, 'iso-8859-1');
+  input.value = '';
+}
+
+async function processar() {
+  const texto = document.getElementById('txt-extrato').value;
+  const btn = document.getElementById('btn-processar');
+  const cont = document.getElementById('resultado');
+  btn.disabled = true;
+  cont.innerHTML = '<div class="spinner"></div>';
+  try {
+    const r = await fetch('/api/conciliador/processar', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ texto })
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Erro ao processar');
+    dados = j;
+    filtroAtivo = '';
+    render();
+  } catch (e) {
+    cont.innerHTML = `<div class="err">Erro: ${e.message}</div>`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function render() {
+  const cont = document.getElementById('resultado');
+  if (!dados) { cont.innerHTML = ''; return; }
+  fecharPopup();
+
+  // filtro de data/busca é sobre o conjunto total (KPIs sempre refletem o total do extrato inteiro)
+  const r = dados.resumo;
+  let html = '<div class="kpi-row">';
+  html += kpiCard('', dados.total, 'Total de saídas', fmtMoeda(dados.totalValor));
+  html += kpiCard('conciliado', r.conciliado, 'Conciliado', 'var(--green)');
+  html += kpiCard('pago_sem_baixa', r.pago_sem_baixa, 'Pago sem baixa', 'var(--red)');
+  html += kpiCard('revisar', r.revisar, 'Revisar', 'var(--amber)');
+  html += kpiCard('nao_encontrado', r.nao_encontrado, 'Não encontrado', 'var(--ink-2)');
+  html += kpiCard('fora_escopo', r.fora_escopo, 'Fora do escopo', 'var(--ink-3)');
+  html += '</div>';
+
+  const optsStatus = Object.keys(STATUS_LABEL).map(s => `<option value="${s}"${filtroAtivo===s?' selected':''}>${STATUS_LABEL[s]}</option>`).join('');
+  const optsCat = Object.keys(CAT_LABEL).map(c => `<option value="${c}"${filtroCategoria===c?' selected':''}>${CAT_LABEL[c]}</option>`).join('');
+
+  html += '<div class="filtros">' +
+    `<div class="fg"><label>Status</label><select id="fil-status" onchange="aplicarFiltros()"><option value="">Todos</option>${optsStatus}</select></div>` +
+    `<div class="fg"><label>Categoria</label><select id="fil-categoria" onchange="aplicarFiltros()"><option value="">Todas</option>${optsCat}</select></div>` +
+    `<div class="fg"><label>De</label><input type="date" id="fil-de" value="${filtroDe}" onchange="aplicarFiltros()"></div>` +
+    `<div class="fg"><label>Até</label><input type="date" id="fil-ate" value="${filtroAte}" onchange="aplicarFiltros()"></div>` +
+    `<div class="fg fg-busca"><label>Buscar favorecido</label><input type="text" id="fil-busca" value="${filtroBusca}" placeholder="nome..." onkeydown="if(event.key==='Enter')aplicarFiltros()"></div>` +
+    '<button class="btn btn-blue" onclick="aplicarFiltros()">Filtrar</button>' +
+    '<button class="btn btn-slate" onclick="limparFiltros()">Limpar filtros</button>' +
+    '</div>';
+
+  let itens = filtroAtivo ? dados.itens.filter(i => i.status === filtroAtivo) : dados.itens;
+  if (filtroCategoria) itens = itens.filter(i => i.categoria === filtroCategoria);
+  if (filtroDe) itens = itens.filter(i => i.data >= filtroDe);
+  if (filtroAte) itens = itens.filter(i => i.data <= filtroAte);
+  if (filtroBusca) {
+    const b = filtroBusca.toLowerCase();
+    itens = itens.filter(i => (i.favorecido || '').toLowerCase().includes(b) || (i.historico || '').toLowerCase().includes(b));
+  }
+
+  if (!itens.length) {
+    html += '<div class="empty">Nenhum item com esse status.</div>';
+    cont.innerHTML = html;
+    ligarKpis();
+    return;
+  }
+
+  itensAtuais = itens;
+
+  html += '<div class="table-wrap"><table class="t"><thead><tr>' +
+    '<th>Data</th><th>Categoria</th><th>Favorecido</th><th class="r">Valor</th><th>Status</th><th>Casamento com o ERP</th>' +
+    '</tr></thead><tbody>';
+
+  itens.forEach((it, idx) => {
+    html += `<tr onclick="abrirPopup(${idx})">` +
+      `<td>${it.dataBr}</td>` +
+      `<td class="cat">${CAT_LABEL[it.categoria] || it.categoria}</td>` +
+      `<td><div class="fav">${it.favorecido || it.historico}</div><div class="hist">${it.historico}</div></td>` +
+      `<td class="r val">${fmtMoeda(it.valor)}</td>` +
+      `<td><span class="pill ${STATUS_PILL[it.status]}">${STATUS_LABEL[it.status]}</span></td>` +
+      `<td>${renderMatch(it)}</td>` +
+      '</tr>';
+  });
+  html += '</tbody></table></div>';
+
+  cont.innerHTML = html;
+  ligarKpis();
+}
+
+function renderMatch(it) {
+  if (it.match) {
+    const m = it.match;
+    const diffTxt = m.diffDias === 0 ? 'no vencimento' : `${m.diffDias}d de venc.`;
+    return `<div class="match"><b>${m.fornecedor}</b> · ${m.historico || 'sem NF'} <span class="diff">(${diffTxt})</span></div>`;
+  }
+  if (it.candidatos && it.candidatos.length) {
+    let html = `<div class="match">${it.candidatos.length} candidatos com mesmo valor:</div><div class="cand">`;
+    for (const c of it.candidatos) {
+      const diffTxt = c.diffDias === 0 ? 'no vencimento' : `${c.diffDias}d de venc.`;
+      html += `<div class="cand-item"><span>${c.fornecedor} — ${c.historico || 'sem NF'}</span><span>${diffTxt}</span></div>`;
+    }
+    html += '</div>';
+    return html;
+  }
+  return '<span style="color:var(--ink-3)">—</span>';
+}
+
+function kpiCard(status, valor, label, corOuTexto) {
+  const semFiltroNenhum = !filtroAtivo && !filtroCategoria && !filtroDe && !filtroAte && !filtroBusca;
+  const on = status ? (filtroAtivo === status ? ' on' : '') : (semFiltroNenhum ? ' on' : '');
+  // o card "Total de saídas" (status='') é o botão explícito de "ver tudo de novo"
+  const clickable = status ? ` onclick="filtrar('${status}')"` : ' onclick="limparFiltros()"';
+  const isCor = corOuTexto.startsWith('var(') || corOuTexto.startsWith('#');
+  const vHtml = isCor ? `<div class="v" style="color:${corOuTexto}">${valor}</div>` : `<div class="v">${valor}</div>`;
+  const subHtml = !isCor ? `<div class="hist" style="margin-top:2px">${corOuTexto}</div>` : '';
+  return `<div class="kpi${on}"${clickable}>${vHtml}<div class="l">${label}</div>${subHtml}</div>`;
+}
+
+function filtrar(status) {
+  filtroAtivo = filtroAtivo === status ? '' : status;
+  render();
+}
+
+function aplicarFiltros() {
+  filtroAtivo = document.getElementById('fil-status').value;
+  filtroCategoria = document.getElementById('fil-categoria').value;
+  filtroDe = document.getElementById('fil-de').value;
+  filtroAte = document.getElementById('fil-ate').value;
+  filtroBusca = document.getElementById('fil-busca').value.trim();
+  render();
+}
+
+function limparFiltros() {
+  filtroAtivo = ''; filtroCategoria = ''; filtroDe = ''; filtroAte = ''; filtroBusca = '';
+  render();
+}
+
+function ligarKpis() {} // clique já é via onclick inline
+
+/* ── POPUP DE DETALHE ── */
+const ICONE_CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 12.5 5.5 5.5L20 6.5"/></svg>';
+const ICONE_X = '<svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>';
+const BTN_FECHAR = `<button class="popup-close" onclick="fecharPopup()"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>`;
+
+function abrirPopup(idx) {
+  const it = itensAtuais[idx];
+  if (!it) return;
+  document.getElementById('popup').innerHTML = renderPopup(it);
+  document.getElementById('popup').classList.add('on');
+  document.getElementById('backdrop').classList.add('on');
+}
+
+function fecharPopup() {
+  document.getElementById('popup').classList.remove('on');
+  document.getElementById('backdrop').classList.remove('on');
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') fecharPopup(); });
+
+function linhaCheck(ok, label, valor) {
+  return `<div class="check ${ok ? 'yes' : 'no'}">${ok ? ICONE_CHECK : ICONE_X}<div>${label}${valor ? ` — <b>${valor}</b>` : ''}</div></div>`;
+}
+
+function renderPopup(it) {
+  if (it.match) {
+    const m = it.match;
+    return `
+      ${BTN_FECHAR}
+      <div class="popup-hd">
+        <div><h2>${m.fornecedor}</h2><div class="sub">Fornecedor #${m.codFornec} no ERP</div></div>
+        <span class="pill ${STATUS_PILL[it.status]}">${STATUS_LABEL[it.status]}</span>
+      </div>
+      <div class="popup-bd">
+        <div class="popup-row"><span class="k">Valor do extrato</span><span class="v">${fmtMoeda(it.valor)}</span></div>
+        <div class="popup-row"><span class="k">NF / documento</span><span class="v">${m.historico || 'sem NF'}</span></div>
+        <div class="popup-row"><span class="k">Vencimento no ERP</span><span class="v">${fmtData(m.dataVencto)}</span></div>
+        ${it.status === 'pago_sem_baixa' ? `<div class="popup-row"><span class="k">Devedor no ERP</span><span class="v" style="color:var(--red)">${fmtMoeda(m.devedor)}</span></div>` : ''}
+
+        <div class="popup-sec">Por que casou</div>
+        ${linhaCheck(true, 'Valor idêntico ao título do ERP')}
+        ${linhaCheck(m.similaridade > 0.5, 'Nome do favorecido bate com o fornecedor', m.similaridade > 0.5 ? 'compatível' : 'parcial')}
+        ${linhaCheck(m.diffDias <= 2, m.diffDias === 0 ? 'Pago no dia do vencimento' : `Pago ${m.diffDias} dia(s) do vencimento`)}
+        ${it.status === 'pago_sem_baixa' ? linhaCheck(false, 'ERP ainda não deu baixa nesse título — o dinheiro já saiu do banco') : ''}
+
+        <div class="conf"><span class="k">Confiança do match</span><span class="v" style="color:${m.confianca >= 85 ? 'var(--green)' : 'var(--amber)'}">${m.confianca}%</span></div>
+      </div>`;
+  }
+
+  if (it.candidatos && it.candidatos.length) {
+    return `
+      ${BTN_FECHAR}
+      <div class="popup-hd">
+        <div><h2>${it.favorecido || it.historico}</h2><div class="sub">${it.candidatos.length} candidatos com o mesmo valor</div></div>
+        <span class="pill ${STATUS_PILL[it.status]}">${STATUS_LABEL[it.status]}</span>
+      </div>
+      <div class="popup-bd">
+        <div class="popup-row"><span class="k">Valor do extrato</span><span class="v">${fmtMoeda(it.valor)}</span></div>
+
+        <div class="popup-sec">Por que não casou sozinho</div>
+        ${linhaCheck(true, 'Valor bate com mais de um título')}
+        ${linhaCheck(it.candidatos.some(c => c.similaridade > 0.5), 'Algum candidato tem nome parecido')}
+
+        <div class="popup-sec">Candidatos no ERP</div>
+        <div class="cand-list">
+          ${it.candidatos.map(c => `
+            <div class="cand-item2">
+              <div class="nm">${c.fornecedor}</div>
+              <div class="meta"><span>${c.historico || 'sem NF'} · venc. ${fmtData(c.dataVencto)}</span><span>${c.confianca}%</span></div>
+            </div>`).join('')}
+        </div>
+      </div>`;
+  }
+
+  return `
+    ${BTN_FECHAR}
+    <div class="popup-hd">
+      <div><h2>${it.favorecido || it.historico}</h2><div class="sub">${it.historico}</div></div>
+      <span class="pill ${STATUS_PILL[it.status]}">${STATUS_LABEL[it.status]}</span>
+    </div>
+    <div class="popup-bd">
+      <div class="popup-row"><span class="k">Valor do extrato</span><span class="v">${fmtMoeda(it.valor)}</span></div>
+      <div class="popup-row"><span class="k">Data</span><span class="v">${it.dataBr}</span></div>
+      <div class="popup-sec">${it.status === 'fora_escopo' ? 'Fora do escopo' : 'Sem correspondência'}</div>
+      <div style="color:var(--ink-3);font-size:12px">
+        ${it.status === 'fora_escopo'
+          ? 'Essa categoria (tributo, tarifa, salário, aplicação) não é pagamento a fornecedor, então não tentamos casar com o ERP.'
+          : 'Não achamos nenhum título no ERP com esse valor dentro da janela de vencimento considerada.'}
+      </div>
+    </div>`;
+}
+</script>
+</body>
+</html>
