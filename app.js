@@ -1344,7 +1344,7 @@ function setupRole() {
   if (isSuperAdmin) {
     show('nav-clientes', true);
     ['sb-adm-sec','tab-gerenciar','nav-dashboard','nav-central','nav-relat',
-     'nav-assistente','nav-monitor','btn-zerar-dados','nav-users','nav-alertas',
+     'nav-assistente','nav-monitor','nav-token','btn-zerar-dados','nav-users','nav-alertas',
      'nav-plano','nav-checklist','nav-sec-checklist','sb-inv-sec','nav-inv-gestao','nav-inv-coleta'
     ].forEach(function(id){ show(id, false); });
     return;
@@ -1361,8 +1361,9 @@ function setupRole() {
   show('nav-dashboard', (isAdmin || isSup) && !isColetor);
   show('nav-central', (isAdmin || isSup) && !isColetor && _moduloAtivo('central'));
   show('nav-relat', (isAdmin || isSup || r==='gerencia') && !isColetor);
-  show('nav-assistente', isAdmin);
+  show('nav-assistente', isAdmin && _moduloAtivo('assistente_ia'));
   show('nav-monitor', isAdmin);
+  show('nav-token', isAdmin);
   show('btn-zerar-dados', isAdmin);
   show('nav-users', isAdmin && !isColetor);
   show('nav-alertas', (isAdmin || isSup) && !isColetor && _moduloAtivo('alertas'));
@@ -7033,8 +7034,8 @@ function _renderClientesLista() {
 
 function abrirEditarCliente(clienteId) {
   var c = _clientesCache.find(function(x){ return x.id===clienteId; }) || {};
-  var MODS = ['checklist','inventario','planos_acao','alertas','perdas','relatorios'];
-  var MODS_LABEL = {checklist:'Checklist',inventario:'Inventário',planos_acao:'Planos de Ação',alertas:'Alertas',perdas:'Perdas',relatorios:'Relatórios'};
+  var MODS = ['checklist','inventario','planos_acao','alertas','perdas','relatorios','central','assistente_ia'];
+  var MODS_LABEL = {checklist:'Checklist',inventario:'Inventário',planos_acao:'Planos de Ação',alertas:'Alertas',perdas:'Perdas',relatorios:'Relatórios',central:'Central de Resultados',assistente_ia:'Assistente IA'};
   var modHtml = MODS.map(function(m){
     var on = !c.modulos || c.modulos[m] !== false;
     return '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:6px 0;font-size:13px;font-weight:600">'+
@@ -7069,7 +7070,7 @@ function fecharEditarCliente() {
 }
 
 function salvarEdicaoCliente(clienteId) {
-  var MODS = ['checklist','inventario','planos_acao','alertas','perdas','relatorios'];
+  var MODS = ['checklist','inventario','planos_acao','alertas','perdas','relatorios','central','assistente_ia'];
   var modulos = {};
   MODS.forEach(function(m){ modulos[m] = !!(document.getElementById('ec-mod-'+m)||{}).checked; });
   var dados = {
@@ -7089,8 +7090,8 @@ function salvarEdicaoCliente(clienteId) {
 }
 
 function abrirNovoCliente() {
-  var MODS = ['checklist','inventario','planos_acao','alertas','perdas','relatorios'];
-  var MODS_LABEL = {checklist:'Checklist',inventario:'Inventário',planos_acao:'Planos de Ação',alertas:'Alertas',perdas:'Perdas',relatorios:'Relatórios'};
+  var MODS = ['checklist','inventario','planos_acao','alertas','perdas','relatorios','central','assistente_ia'];
+  var MODS_LABEL = {checklist:'Checklist',inventario:'Inventário',planos_acao:'Planos de Ação',alertas:'Alertas',perdas:'Perdas',relatorios:'Relatórios',central:'Central de Resultados',assistente_ia:'Assistente IA'};
   var modHtml = MODS.map(function(m){
     return '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:6px 0;font-size:13px;font-weight:600">'+
       '<input type="checkbox" id="nc-mod-'+m+'" style="width:16px;height:16px;accent-color:var(--y)"> '+MODS_LABEL[m]+'</label>';
@@ -7120,7 +7121,7 @@ function fecharNovoCliente() {
 }
 
 function criarNovoCliente() {
-  var MODS = ['checklist','inventario','planos_acao','alertas','perdas','relatorios'];
+  var MODS = ['checklist','inventario','planos_acao','alertas','perdas','relatorios','central','assistente_ia'];
   var nome = (document.getElementById('nc-nome')||{}).value||'';
   var id = ((document.getElementById('nc-id')||{}).value||'').toLowerCase().replace(/[^a-z0-9]/g,'');
   var errEl = document.getElementById('nc-err');
