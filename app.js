@@ -1,6 +1,6 @@
 ﻿// Verificação de versão — roda antes de tudo
+var BUILD = '232';
 (function() {
-  var BUILD = '231';
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
   var vLogin = document.getElementById('login-versao');
@@ -988,15 +988,27 @@ function ativarToken(fromModal) {
 function abrirModalToken() {
   var existing = document.getElementById('modal-inserir-token');
   if (existing) { existing.remove(); }
+  var cfg = S.clienteConfig || {};
+  var validade = cfg.validade ? new Date(cfg.validade) : null;
+  var hoje = new Date(); hoje.setHours(0,0,0,0);
+  var vencido = validade && hoje > validade;
+  var diasRestantes = validade ? Math.ceil((validade - hoje) / 86400000) : null;
+  var statusHtml = '';
+  if (validade) {
+    var cor = vencido ? '#c0392b' : diasRestantes <= 7 ? '#e67e22' : '#1a5c34';
+    var txt = vencido ? 'Vencida em '+validade.toLocaleDateString('pt-BR') : diasRestantes+' dias restantes (até '+validade.toLocaleDateString('pt-BR')+')';
+    statusHtml = '<div style="background:'+(vencido?'#fdecea':diasRestantes<=7?'#fef9e7':'#d1f0e0')+';border-radius:10px;padding:10px 14px;margin-bottom:16px;font-size:13px;font-weight:700;color:'+cor+'">'+txt+'</div>';
+  }
   var html = '<div id="modal-inserir-token" onclick="if(event.target===this)this.remove()" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:3000;display:flex;align-items:center;justify-content:center;padding:16px">'+
     '<div style="background:#fff;border-radius:16px;padding:28px 24px;width:100%;max-width:380px;text-align:center">'+
-      '<div style="font-size:40px;margin-bottom:12px">🔑</div>'+
-      '<div style="font-family:\'Syne\',sans-serif;font-size:17px;font-weight:800;margin-bottom:8px">Inserir Token de Ativação</div>'+
-      '<div style="font-size:13px;color:var(--t2);margin-bottom:20px">Cole o token recebido para renovar o acesso do sistema.</div>'+
+      '<div style="font-size:40px;margin-bottom:10px">🔐</div>'+
+      '<div style="font-family:\'Syne\',sans-serif;font-size:17px;font-weight:800;margin-bottom:14px">Licença do Sistema</div>'+
+      statusHtml+
+      '<div style="font-size:12px;color:var(--t2);margin-bottom:12px;text-align:left">Insira o token recebido para renovar o acesso:</div>'+
       '<div class="fg" style="margin-bottom:12px"><input id="ativ-token-input" type="text" placeholder="XXXX-XXXX-XXXX" style="text-align:center;font-family:monospace;letter-spacing:2px;text-transform:uppercase"/></div>'+
       '<button onclick="ativarToken(true)" style="width:100%;padding:12px;background:var(--y);border:none;border-radius:10px;font-size:14px;font-weight:800;font-family:\'Syne\',sans-serif;cursor:pointer;margin-bottom:8px">Ativar Token</button>'+
       '<div id="ativ-token-err" style="color:var(--r);font-size:12px;font-weight:600;min-height:18px"></div>'+
-      '<button onclick="document.getElementById(\'modal-inserir-token\').remove()" style="margin-top:8px;background:none;border:none;color:var(--t2);font-size:13px;cursor:pointer">Cancelar</button>'+
+      '<button onclick="document.getElementById(\'modal-inserir-token\').remove()" style="margin-top:6px;background:none;border:none;color:var(--t2);font-size:13px;cursor:pointer">Fechar</button>'+
     '</div></div>';
   document.body.insertAdjacentHTML('beforeend', html);
 }
@@ -7166,10 +7178,71 @@ function criarNovoCliente() {
 }
 
 function gerarTokenCliente(clienteId) {
-  var dias = prompt('Quantos dias de acesso deseja gerar?\n(ex: 30 = 1 mês, 90 = 3 meses)', '30');
-  if (!dias) return;
-  var d = parseInt(dias);
-  if (isNaN(d)||d<=0) { showToast('Valor inválido.'); return; }
+  var c = _clientesCache.find(function(x){ return x.id===clienteId; }) || {};
+  var validadeAtual = c.validade || '';
+  var html =
+    '<div id="modal-gerar-token" onclick="if(event.target===this)this.remove()" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:3000;display:flex;align-items:center;justify-content:center;padding:16px">'+
+    '<div style="background:#fff;border-radius:16px;padding:28px 24px;width:100%;max-width:400px">'+
+      '<div style="font-family:\'Syne\',sans-serif;font-size:17px;font-weight:800;margin-bottom:4px">Gerar Token de Licença</div>'+
+      '<div style="font-size:12px;color:var(--t2);margin-bottom:18px">Cliente: <strong>'+clienteId+'</strong>'+(validadeAtual?' · Validade atual: <strong>'+new Date(validadeAtual).toLocaleDateString('pt-BR')+'</strong>':'')+'</div>'+
+      '<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px">'+
+        '<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:2px solid var(--y);border-radius:10px;cursor:pointer;font-size:13px;font-weight:600">'+
+          '<input type="radio" name="gt-tipo" value="mensal" checked> Mensal — vence todo dia'+
+          '<input id="gt-dia" type="number" min="1" max="28" value="5" style="width:50px;padding:4px 8px;border:1.5px solid var(--gray2);border-radius:6px;font-size:13px;text-align:center">'+
+        '</label>'+
+        '<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1.5px solid var(--gray2);border-radius:10px;cursor:pointer;font-size:13px;font-weight:600">'+
+          '<input type="radio" name="gt-tipo" value="dias"> Personalizado —'+
+          '<input id="gt-dias" type="number" min="1" value="30" style="width:60px;padding:4px 8px;border:1.5px solid var(--gray2);border-radius:6px;font-size:13px;text-align:center">'+
+          'dias'+
+        '</label>'+
+      '</div>'+
+      '<div id="gt-preview" style="background:var(--gray);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--t2);margin-bottom:14px"></div>'+
+      '<div id="gt-err" style="color:var(--r);font-size:12px;min-height:16px;margin-bottom:8px"></div>'+
+      '<div class="btn-row">'+
+        '<button class="btn btn-p" onclick="_confirmarGerarToken(\''+clienteId+'\')">Gerar Token</button>'+
+        '<button class="btn btn-s" onclick="document.getElementById(\'modal-gerar-token\').remove()">Cancelar</button>'+
+      '</div>'+
+    '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+  _atualizarPreviewToken(validadeAtual);
+  document.querySelectorAll('input[name="gt-tipo"]').forEach(function(r){
+    r.addEventListener('change', function(){ _atualizarPreviewToken(validadeAtual); });
+  });
+  var diaInput = document.getElementById('gt-dia');
+  var diasInput = document.getElementById('gt-dias');
+  if (diaInput) diaInput.addEventListener('input', function(){ _atualizarPreviewToken(validadeAtual); });
+  if (diasInput) diasInput.addEventListener('input', function(){ _atualizarPreviewToken(validadeAtual); });
+}
+
+function _calcDiasToken(validadeAtual) {
+  var tipo = (document.querySelector('input[name="gt-tipo"]:checked')||{}).value || 'mensal';
+  var base = validadeAtual ? new Date(Math.max(new Date(validadeAtual), new Date())) : new Date();
+  base.setHours(0,0,0,0);
+  if (tipo === 'mensal') {
+    var dia = parseInt((document.getElementById('gt-dia')||{}).value||5);
+    if (isNaN(dia)||dia<1) dia=1; if(dia>28) dia=28;
+    var prox = new Date(base);
+    prox.setDate(dia);
+    if (prox <= base) prox.setMonth(prox.getMonth()+1);
+    return Math.max(1, Math.ceil((prox - base)/86400000));
+  } else {
+    return parseInt((document.getElementById('gt-dias')||{}).value||30)||30;
+  }
+}
+
+function _atualizarPreviewToken(validadeAtual) {
+  var el = document.getElementById('gt-preview'); if(!el) return;
+  var d = _calcDiasToken(validadeAtual);
+  var base = validadeAtual ? new Date(Math.max(new Date(validadeAtual), new Date())) : new Date();
+  base.setHours(0,0,0,0);
+  var nova = new Date(base); nova.setDate(nova.getDate()+d);
+  el.innerHTML = 'Token de <strong>'+d+' dias</strong> · Nova validade: <strong>'+nova.toLocaleDateString('pt-BR')+'</strong>';
+}
+
+function _confirmarGerarToken(clienteId) {
+  var c = _clientesCache.find(function(x){ return x.id===clienteId; }) || {};
+  var d = _calcDiasToken(c.validade||'');
+  if (isNaN(d)||d<=0) { var e=document.getElementById('gt-err'); if(e) e.textContent='Valor inválido.'; return; }
   var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   var token = Array.from({length:12}, function(){ return chars[Math.floor(Math.random()*chars.length)]; }).join('');
   token = token.slice(0,4)+'-'+token.slice(4,8)+'-'+token.slice(8,12);
@@ -7178,10 +7251,14 @@ function gerarTokenCliente(clienteId) {
     criadoEm: firebase.firestore.FieldValue.serverTimestamp(),
     criadoPor: S.currentUser ? S.currentUser.id : 'superadmin'
   }).then(function() {
-    var msg = '🔑 TOKEN GERADO\n\nCliente: '+clienteId+'\nDias: '+d+'\nToken:\n'+token+'\n\nEnvie este token para o cliente ativar no app.';
+    document.getElementById('modal-gerar-token').remove();
+    var base = c.validade ? new Date(Math.max(new Date(c.validade), new Date())) : new Date();
+    base.setHours(0,0,0,0);
+    var nova = new Date(base); nova.setDate(nova.getDate()+d);
+    var msg = '🔑 TOKEN GERADO\n\nCliente: '+clienteId+'\nDias: '+d+'\nNova validade: '+nova.toLocaleDateString('pt-BR')+'\n\nToken:\n'+token+'\n\nEnvie este token para o cliente inserir em Licença no app.';
     alert(msg);
-    showToast('Token gerado: '+token);
-  }).catch(function(e){ showToast('Erro: '+e.message); });
+    showToast('✅ Token gerado!');
+  }).catch(function(e){ var el=document.getElementById('gt-err'); if(el) el.textContent='Erro: '+e.message; });
 }
 
 function verTokensCliente(clienteId) {
