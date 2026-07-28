@@ -1,6 +1,6 @@
 ﻿// Verificação de versão — roda antes de tudo
 (function() {
-  var BUILD = '229';
+  var BUILD = '230';
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
   var vLogin = document.getElementById('login-versao');
@@ -7047,7 +7047,10 @@ function _renderClientesLista() {
   wrap.innerHTML =
     '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">'+
       '<div style="font-family:\'Syne\',sans-serif;font-size:18px;font-weight:800">Fluxo Certo 360 — Clientes</div>'+
-      '<button class="btn btn-p btn-sm" onclick="abrirNovoCliente()">+ Novo Cliente</button>'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
+        '<button class="btn btn-sm" style="background:#2d6a2d;color:#fff;border:none;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit" onclick="deployTodosClientes()">🚀 Deploy para Todos</button>'+
+        '<button class="btn btn-p btn-sm" onclick="abrirNovoCliente()">+ Novo Cliente</button>'+
+      '</div>'+
     '</div>'+
     (cards || '<div style="text-align:center;padding:40px;color:var(--t3)">Nenhum cliente cadastrado.</div>');
 }
@@ -7193,8 +7196,23 @@ function verTokensCliente(clienteId) {
   }).catch(function(e){ alert('Erro: '+e.message); });
 }
 
-function deployCliente(clienteId) {
-  if (!confirm('Publicar atualização para "'+clienteId+'"?\n\nIsso vai sincronizar o código base para o repositório do cliente.')) return;
+function deployTodosClientes() {
+  if (_clientesCache.length === 0) { showToast('Nenhum cliente carregado.'); return; }
+  var nomes = _clientesCache.map(function(c){ return c.nome||c.id; }).join(', ');
+  if (!confirm('Publicar atualização para TODOS os clientes?\n\n'+nomes+'\n\nIsso pode demorar alguns minutos.')) return;
+  var total = _clientesCache.length;
+  var feitos = 0;
+  _clientesCache.forEach(function(c) { deployCliente(c.id, true, function(ok){
+    feitos++;
+    if (feitos === total) {
+      showToast('🚀 Deploy enviado para todos os '+total+' clientes!');
+      setTimeout(renderPainelClientes, 5000);
+    }
+  }); });
+}
+
+function deployCliente(clienteId, silencioso, callback) {
+  if (!silencioso && !confirm('Publicar atualização para "'+clienteId+'"?\n\nIsso vai sincronizar o código base para o repositório do cliente.')) return;
   var btn = document.getElementById('btn-deploy-'+clienteId);
   if (btn) { btn.textContent = '⏳ Enviando...'; btn.disabled = true; }
   db.collection('config').doc('superadmin').get().then(function(doc) {
@@ -7204,7 +7222,12 @@ function deployCliente(clienteId) {
     db.collection('config').doc('repos').get().then(function(rDoc) {
       var repos = rDoc.data();
       var repoName = repos[clienteId];
-      if (!repoName) { showToast('❌ Repositório não configurado para este cliente.'); if(btn){btn.textContent='🚀 Deploy';btn.disabled=false;} return; }
+      if (!repoName) {
+        if (!silencioso) showToast('❌ Repositório não configurado: '+clienteId);
+        if (btn) { btn.textContent='🚀 Deploy'; btn.disabled=false; }
+        if (callback) callback(false);
+        return;
+      }
       fetch('https://api.github.com/repos/'+org+'/'+repoName+'/dispatches', {
         method: 'POST',
         headers: { Authorization: 'token '+token, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' },
@@ -7212,14 +7235,27 @@ function deployCliente(clienteId) {
       }).then(function(res) {
         if (res.status === 204) {
           db.collection('clientes').doc(clienteId).update({ ultimoDeploy: firebase.firestore.FieldValue.serverTimestamp(), buildDeploy: BUILD }).catch(function(){});
-          showToast('🚀 Deploy iniciado para '+clienteId+'! Aguarde ~1 min.');
-          if(btn){btn.textContent='✅ Enviado';setTimeout(function(){btn.textContent='🚀 Deploy';btn.disabled=false;renderPainelClientes();},5000);}
+          if (!silencioso) showToast('🚀 Deploy iniciado para '+clienteId+'! Aguarde ~1 min.');
+          if (btn) { btn.textContent='✅ Enviado'; setTimeout(function(){ btn.textContent='🚀 Deploy'; btn.disabled=false; if(!silencioso) renderPainelClientes(); },5000); }
+          if (callback) callback(true);
         } else {
-          res.text().then(function(t){ showToast('❌ Erro GitHub: '+res.status+' '+t); if(btn){btn.textContent='🚀 Deploy';btn.disabled=false;} });
+          res.text().then(function(t){
+            if (!silencioso) showToast('❌ Erro GitHub ('+clienteId+'): '+res.status);
+            if (btn) { btn.textContent='🚀 Deploy'; btn.disabled=false; }
+            if (callback) callback(false);
+          });
         }
-      }).catch(function(e){ showToast('❌ Erro: '+e.message); if(btn){btn.textContent='🚀 Deploy';btn.disabled=false;} });
+      }).catch(function(e){
+        if (!silencioso) showToast('❌ Erro: '+e.message);
+        if (btn) { btn.textContent='🚀 Deploy'; btn.disabled=false; }
+        if (callback) callback(false);
+      });
     });
-  }).catch(function(e){ showToast('❌ Erro Firestore: '+e.message); if(btn){btn.textContent='🚀 Deploy';btn.disabled=false;} });
+  }).catch(function(e){
+    if (!silencioso) showToast('❌ Erro Firestore: '+e.message);
+    if (btn) { btn.textContent='🚀 Deploy'; btn.disabled=false; }
+    if (callback) callback(false);
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
