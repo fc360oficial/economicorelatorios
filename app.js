@@ -1,6 +1,6 @@
 ﻿// Verificação de versão — roda antes de tudo
 (function() {
-  var BUILD = '222';
+  var BUILD = '223';
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
   var vLogin = document.getElementById('login-versao');
@@ -907,6 +907,7 @@ function iniciarVerificacaoPeriodica() {
 var S = {
   role: '',
   currentUser: null,
+  clienteConfig: null,
   checkState: {},
   invItems: [],
   perdaItems: [],
@@ -918,6 +919,88 @@ var S = {
   usersCache: [],
   invsCache: []
 };
+
+// ── Feature flags por cliente ─────────────────────────────────────────────
+function _moduloAtivo(nome) {
+  if (!S.clienteConfig) return true;
+  var m = S.clienteConfig.modulos;
+  if (!m) return true;
+  return m[nome] !== false;
+}
+
+function carregarClienteConfig(cb) {
+  var clienteId = S.currentUser && S.currentUser.clienteId;
+  if (!clienteId) { S.clienteConfig = null; if (cb) cb(); return; }
+  db.collection('clientes').doc(clienteId).get().then(function(doc) {
+    S.clienteConfig = doc.exists ? Object.assign({}, doc.data(), {id: doc.id}) : null;
+    if (cb) cb();
+  }).catch(function() { S.clienteConfig = null; if (cb) cb(); });
+}
+
+function _checkAssinatura() {
+  if (!S.clienteConfig) return;
+  if (S.clienteConfig.ativo === false) {
+    _mostrarOverlayVencido('Assinatura inativa. Entre em contato com o suporte.');
+    return;
+  }
+  var val = S.clienteConfig.validade;
+  if (!val) return;
+  var hoje = new Date(); hoje.setHours(0,0,0,0);
+  var venc = new Date(val); venc.setHours(23,59,59,999);
+  if (hoje > venc) {
+    _mostrarOverlayVencido('Assinatura vencida em ' + new Date(val).toLocaleDateString('pt-BR') + '. Gere um token de ativação.');
+  }
+}
+
+function ativarToken() {
+  var inp = document.getElementById('ativ-token-input');
+  var errEl = document.getElementById('ativ-token-err');
+  var token = (inp ? inp.value.trim().toUpperCase() : '');
+  if (!token) { if (errEl) errEl.textContent = 'Informe o token.'; return; }
+  var clienteId = S.currentUser && S.currentUser.clienteId;
+  if (!clienteId) { if (errEl) errEl.textContent = 'Usuário sem cliente configurado.'; return; }
+  if (errEl) errEl.textContent = '';
+  db.collection('tokens').where('token','==',token).where('clienteId','==',clienteId).get().then(function(snap) {
+    if (snap.empty) { if (errEl) errEl.textContent = 'Token inválido ou não pertence a este cliente.'; return; }
+    var doc = snap.docs[0]; var t = doc.data();
+    if (t.usado) { if (errEl) errEl.textContent = 'Token já foi utilizado.'; return; }
+    var novaValidade = new Date(Math.max(new Date(S.clienteConfig&&S.clienteConfig.validade||new Date()), new Date()));
+    novaValidade.setDate(novaValidade.getDate() + (t.dias||30));
+    var novaValidadeStr = novaValidade.toISOString().slice(0,10);
+    var batch = db.batch();
+    batch.update(doc.ref, { usado: true, usadoEm: firebase.firestore.FieldValue.serverTimestamp(), usadoPor: S.currentUser.id });
+    batch.update(db.collection('clientes').doc(clienteId), { validade: novaValidadeStr, ativo: true });
+    batch.commit().then(function() {
+      S.clienteConfig = Object.assign({}, S.clienteConfig, { validade: novaValidadeStr, ativo: true });
+      var ov = document.getElementById('overlay-assinatura');
+      if (ov) ov.style.display = 'none';
+      setupRole();
+      showToast('✅ Token ativado! Acesso liberado até ' + novaValidade.toLocaleDateString('pt-BR'));
+    }).catch(function(e) { if (errEl) errEl.textContent = 'Erro ao ativar: ' + e.message; });
+  }).catch(function(e) { if (errEl) errEl.textContent = 'Erro: ' + e.message; });
+}
+
+function _mostrarOverlayVencido(msg) {
+  var ov = document.getElementById('overlay-assinatura');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'overlay-assinatura';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px';
+    ov.innerHTML =
+      '<div style="background:#fff;border-radius:18px;padding:36px 28px;max-width:380px;text-align:center;width:100%">'+
+        '<div style="font-size:52px;margin-bottom:14px">🔒</div>'+
+        '<div style="font-family:\'Syne\',sans-serif;font-size:20px;font-weight:800;color:#c0392b;margin-bottom:10px">Acesso Bloqueado</div>'+
+        '<div style="font-size:14px;color:#555;margin-bottom:8px;line-height:1.5">'+msg+'</div>'+
+        '<div style="font-size:12px;font-weight:600;color:#999;margin-bottom:20px">Contato: suporte@fluxocerto.com.br</div>'+
+        '<div class="fg" style="margin-bottom:8px"><input id="ativ-token-input" type="text" placeholder="Cole o token aqui" style="text-align:center;font-family:monospace;letter-spacing:2px;text-transform:uppercase"/></div>'+
+        '<button onclick="ativarToken()" style="width:100%;padding:12px;background:var(--y);border:none;border-radius:10px;font-size:14px;font-weight:800;font-family:\'Syne\',sans-serif;cursor:pointer">Ativar Token</button>'+
+        '<div id="ativ-token-err" style="color:var(--r);font-size:12px;font-weight:600;margin-top:8px;min-height:18px"></div>'+
+      '</div>';
+    document.body.appendChild(ov);
+  } else {
+    ov.style.display = 'flex';
+  }
+}
 
 // ===========================================
 // LOGIN / LOGOUT
@@ -1196,19 +1279,25 @@ function finalizarLogin(found) {
       });
     })()
   ]).then(function(){
-    // Restaurar fotos do dia do Firestore antes de iniciar
-    carregarFotosFirebase(function(){
-      iniciarApp();
-      iniciarResultadosRealtime();
+    carregarClienteConfig(function(){
+      setupRole();
+      _checkAssinatura();
+      carregarFotosFirebase(function(){
+        iniciarApp();
+        iniciarResultadosRealtime();
+      });
     });
   }).catch(function(err){
     console.error('Firebase erro:', err);
-    // Tentar mesmo assim com o que carregou
     if (!S.usersCache) S.usersCache = [DEFAULT_USERS[0]];
     if (!S.customCLsCache) S.customCLsCache = [];
     if (!S.resultadosCache) S.resultadosCache = [];
     if (!S.checkState) S.checkState = {};
-    iniciarApp();
+    carregarClienteConfig(function(){
+      setupRole();
+      _checkAssinatura();
+      iniciarApp();
+    });
   });
 }
 
@@ -1256,13 +1345,13 @@ function setupRole() {
   show('nav-monitor', isAdmin);
   show('btn-zerar-dados', isAdmin);
   show('nav-users', isAdmin && !isColetor);
-  show('nav-alertas', (isAdmin || isSup) && !isColetor);
-  show('nav-plano', (isAdmin || isSup || r==='gerencia') && !isColetor);
-  show('nav-checklist', !isColetor);
-  show('nav-sec-checklist', !isColetor);
+  show('nav-alertas', (isAdmin || isSup) && !isColetor && _moduloAtivo('alertas'));
+  show('nav-plano', (isAdmin || isSup || r==='gerencia') && !isColetor && _moduloAtivo('planos_acao'));
+  show('nav-checklist', !isColetor && _moduloAtivo('checklist'));
+  show('nav-sec-checklist', !isColetor && _moduloAtivo('checklist'));
   // FC360 Inventário — só admin por enquanto
-  show('sb-inv-sec', isAdmin && !isColetor);
-  show('nav-inv-gestao', isAdmin && !isColetor);
+  show('sb-inv-sec', isAdmin && !isColetor && _moduloAtivo('inventario'));
+  show('nav-inv-gestao', isAdmin && !isColetor && _moduloAtivo('inventario'));
   show('nav-inv-coleta', false); // Atualizado dinamicamente após carregar inventários
   // Inicia verificação periódica de pendências para gestores e supervisor
   if (isAdmOrGer || isSup) {
