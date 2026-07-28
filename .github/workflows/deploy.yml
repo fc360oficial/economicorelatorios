@@ -10,15 +10,19 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
-      - run: cp client.js /tmp/client_backup.js
-      - run: |
+      - name: Backup client identity
+        run: cp client.js /tmp/client_backup.js
+      - name: Sync from base repo
+        run: |
           git remote add base https://github.com/fc360oficial/fluxocerto360.git
           git fetch base main
-          git reset --hard base/main
-      - run: |
+          git checkout base/main -- .
+          git checkout HEAD -- .github/
+      - name: Restore client identity and push
+        run: |
           cp /tmp/client_backup.js client.js
-          git add client.js
+          git add -A
           git config user.email "deploy@fluxocerto.com"
           git config user.name "FC360 Auto Deploy"
           git diff --staged --quiet || git commit -m "Auto-deploy $(date '+%d/%m/%Y %H:%M')"
-          git push origin main -f
+          git push origin HEAD:main

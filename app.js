@@ -1,6 +1,6 @@
 ﻿// Verificação de versão — roda antes de tudo
 (function() {
-  var BUILD = '230';
+  var BUILD = '231';
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
   var vLogin = document.getElementById('login-versao');
@@ -1380,7 +1380,7 @@ function setupRole() {
   show('nav-central', (isAdmin || isSup) && !isColetor && _moduloAtivo('central'));
   show('nav-relat', (isAdmin || isSup || r==='gerencia') && !isColetor);
   show('nav-assistente', isAdmin && _moduloAtivo('assistente_ia'));
-  show('nav-monitor', isAdmin);
+  show('nav-monitor', isAdmin && _moduloAtivo('monitor'));
   show('nav-token', isAdmin);
   show('btn-zerar-dados', isAdmin);
   show('nav-users', isAdmin && !isColetor);
@@ -7057,8 +7057,8 @@ function _renderClientesLista() {
 
 function abrirEditarCliente(clienteId) {
   var c = _clientesCache.find(function(x){ return x.id===clienteId; }) || {};
-  var MODS = ['checklist','inventario','planos_acao','alertas','perdas','relatorios','central','assistente_ia'];
-  var MODS_LABEL = {checklist:'Checklist',inventario:'Inventário',planos_acao:'Planos de Ação',alertas:'Alertas',perdas:'Perdas',relatorios:'Relatórios',central:'Central de Resultados',assistente_ia:'Assistente IA'};
+  var MODS = ['checklist','inventario','planos_acao','alertas','perdas','relatorios','central','assistente_ia','monitor'];
+  var MODS_LABEL = {checklist:'Checklist',inventario:'Inventário',planos_acao:'Planos de Ação',alertas:'Alertas',perdas:'Perdas',relatorios:'Relatórios',central:'Central de Resultados',assistente_ia:'Assistente IA',monitor:'Monitor'};
   var modHtml = MODS.map(function(m){
     var on = !c.modulos || c.modulos[m] !== false;
     return '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:6px 0;font-size:13px;font-weight:600">'+
@@ -7093,7 +7093,7 @@ function fecharEditarCliente() {
 }
 
 function salvarEdicaoCliente(clienteId) {
-  var MODS = ['checklist','inventario','planos_acao','alertas','perdas','relatorios','central','assistente_ia'];
+  var MODS = ['checklist','inventario','planos_acao','alertas','perdas','relatorios','central','assistente_ia','monitor'];
   var modulos = {};
   MODS.forEach(function(m){ modulos[m] = !!(document.getElementById('ec-mod-'+m)||{}).checked; });
   var dados = {
@@ -7113,8 +7113,8 @@ function salvarEdicaoCliente(clienteId) {
 }
 
 function abrirNovoCliente() {
-  var MODS = ['checklist','inventario','planos_acao','alertas','perdas','relatorios','central','assistente_ia'];
-  var MODS_LABEL = {checklist:'Checklist',inventario:'Inventário',planos_acao:'Planos de Ação',alertas:'Alertas',perdas:'Perdas',relatorios:'Relatórios',central:'Central de Resultados',assistente_ia:'Assistente IA'};
+  var MODS = ['checklist','inventario','planos_acao','alertas','perdas','relatorios','central','assistente_ia','monitor'];
+  var MODS_LABEL = {checklist:'Checklist',inventario:'Inventário',planos_acao:'Planos de Ação',alertas:'Alertas',perdas:'Perdas',relatorios:'Relatórios',central:'Central de Resultados',assistente_ia:'Assistente IA',monitor:'Monitor'};
   var modHtml = MODS.map(function(m){
     return '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:6px 0;font-size:13px;font-weight:600">'+
       '<input type="checkbox" id="nc-mod-'+m+'" style="width:16px;height:16px;accent-color:var(--y)"> '+MODS_LABEL[m]+'</label>';
@@ -7144,7 +7144,7 @@ function fecharNovoCliente() {
 }
 
 function criarNovoCliente() {
-  var MODS = ['checklist','inventario','planos_acao','alertas','perdas','relatorios','central','assistente_ia'];
+  var MODS = ['checklist','inventario','planos_acao','alertas','perdas','relatorios','central','assistente_ia','monitor'];
   var nome = (document.getElementById('nc-nome')||{}).value||'';
   var id = ((document.getElementById('nc-id')||{}).value||'').toLowerCase().replace(/[^a-z0-9]/g,'');
   var errEl = document.getElementById('nc-err');
