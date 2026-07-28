@@ -1,6 +1,6 @@
 ﻿// Verificação de versão — roda antes de tudo
 (function() {
-  var BUILD = '227';
+  var BUILD = '228';
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
   var vLogin = document.getElementById('login-versao');
@@ -7039,6 +7039,7 @@ function _renderClientesLista() {
         '<button class="btn btn-p btn-sm" onclick="abrirEditarCliente(\''+safeId+'\')">✏️ Editar</button>'+
         '<button class="btn btn-sm" style="background:#1a5c9c;color:#fff;border:none;padding:6px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit" onclick="gerarTokenCliente(\''+safeId+'\')">🔑 Gerar Token</button>'+
         '<button class="btn btn-sm" style="color:var(--t2);border:1.5px solid var(--gray2);padding:6px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;background:#fff" onclick="verTokensCliente(\''+safeId+'\')">📋 Tokens</button>'+
+        '<button class="btn btn-sm" id="btn-deploy-'+safeId+'" style="background:#2d6a2d;color:#fff;border:none;padding:6px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit" onclick="deployCliente(\''+safeId+'\')">🚀 Deploy</button>'+
       '</div>'+
     '</div>';
   }).join('');
@@ -7189,6 +7190,34 @@ function verTokensCliente(clienteId) {
     }).join('\n');
     alert('Tokens — '+clienteId+':\n\n'+linhas);
   }).catch(function(e){ alert('Erro: '+e.message); });
+}
+
+function deployCliente(clienteId) {
+  if (!confirm('Publicar atualização para "'+clienteId+'"?\n\nIsso vai sincronizar o código base para o repositório do cliente.')) return;
+  var btn = document.getElementById('btn-deploy-'+clienteId);
+  if (btn) { btn.textContent = '⏳ Enviando...'; btn.disabled = true; }
+  db.collection('config').doc('superadmin').get().then(function(doc) {
+    var cfg = doc.data();
+    var token = cfg.githubToken;
+    var org = cfg.githubOrg || 'fc360oficial';
+    db.collection('config').doc('repos').get().then(function(rDoc) {
+      var repos = rDoc.data();
+      var repoName = repos[clienteId];
+      if (!repoName) { showToast('❌ Repositório não configurado para este cliente.'); if(btn){btn.textContent='🚀 Deploy';btn.disabled=false;} return; }
+      fetch('https://api.github.com/repos/'+org+'/'+repoName+'/dispatches', {
+        method: 'POST',
+        headers: { Authorization: 'token '+token, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event_type: 'deploy' })
+      }).then(function(res) {
+        if (res.status === 204) {
+          showToast('🚀 Deploy iniciado para '+clienteId+'! Aguarde ~1 min.');
+          if(btn){btn.textContent='✅ Enviado';setTimeout(function(){btn.textContent='🚀 Deploy';btn.disabled=false;},5000);}
+        } else {
+          res.text().then(function(t){ showToast('❌ Erro GitHub: '+res.status+' '+t); if(btn){btn.textContent='🚀 Deploy';btn.disabled=false;} });
+        }
+      }).catch(function(e){ showToast('❌ Erro: '+e.message); if(btn){btn.textContent='🚀 Deploy';btn.disabled=false;} });
+    });
+  }).catch(function(e){ showToast('❌ Erro Firestore: '+e.message); if(btn){btn.textContent='🚀 Deploy';btn.disabled=false;} });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
