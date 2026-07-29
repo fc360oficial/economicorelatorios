@@ -524,6 +524,31 @@ function linhaCheck(ok, label, valor) {
   return `<div class="check ${ok ? 'yes' : 'no'}">${ok ? ICONE_CHECK : ICONE_X}<div>${label}${valor ? ` — <b>${valor}</b>` : ''}</div></div>`;
 }
 
+// Composição do valor do título já lançada no próprio ERP (Acrescimo, Multa,
+// Juros, Desconto, Devolucao) — quando existe, explica a diferença sem
+// precisar adivinhar (diferente da inferência de "divergencia", que é
+// aproximação). Por padrão só mostra as linhas com valor (evita poluir o
+// popup de um item que casou certinho); com forcarTodas=true mostra as 5
+// linhas mesmo zeradas, pra deixar claro no caso de divergência.
+function composicaoValorHtml(m, forcarTodas) {
+  const campos = [
+    ['Acréscimo', m.acrescimo, 1],
+    ['Multa', m.multa, 1],
+    ['Juros', m.juros, 1],
+    ['Desconto', m.desconto, -1],
+    ['Devolução', m.devolucao, -1]
+  ];
+  const partes = [];
+  if (m.valorBruto != null && m.valorBruto !== m.valor) partes.push(['Valor bruto', m.valorBruto]);
+  campos.forEach(([label, v, sinal]) => {
+    if (forcarTodas || v) partes.push([label, (v || 0) * sinal]);
+  });
+  if (!partes.length) return '';
+  return `
+    <div class="popup-sec">Composição do valor no ERP</div>
+    ${partes.map(([label, v]) => `<div class="popup-row"><span class="k">${label}</span><span class="v">${v < 0 ? '− ' : ''}${fmtMoeda(Math.abs(v))}</span></div>`).join('')}`;
+}
+
 function renderPopup(it) {
   let corpo;
 
@@ -551,11 +576,14 @@ function renderPopup(it) {
       <div class="popup-row"><span class="k">NF / documento</span><span class="v">${m.historico || 'sem NF'}</span></div>
       <div class="popup-row"><span class="k">Vencimento no ERP</span><span class="v">${fmtData(m.dataVencto)}</span></div>
       ${m.planoSubNome ? `<div class="popup-row"><span class="k">Plano de Contas</span><span class="v">${m.planoSubNome}</span></div>` : ''}
+      ${composicaoValorHtml(m, true)}
 
       <div class="popup-sec">Por que deu divergência</div>
       ${linhaCheck(true, 'Nome do favorecido bate com o fornecedor', m.similaridade > 0.5 ? 'compatível' : 'parcial')}
       ${linhaCheck(m.diffDias <= 2, m.diffDias === 0 ? 'Pago no dia do vencimento' : `Pago ${m.diffDias} dia(s) do vencimento`)}
-      ${linhaCheck(false, `O extrato pagou ${fmtMoeda(Math.abs(m.diferencaValor))} ${m.diferencaValor > 0 ? 'a mais' : 'a menos'} do que o título lançado no ERP — provavelmente juros, multa ou taxa de boleto que não está lançada como um valor à parte`)}`;
+      ${(m.acrescimo || m.multa || m.juros || m.desconto || m.devolucao)
+        ? linhaCheck(true, `A diferença bate com o que já está lançado no ERP (acréscimo/multa/juros/desconto/devolução do título)`)
+        : linhaCheck(false, `O extrato pagou ${fmtMoeda(Math.abs(m.diferencaValor))} ${m.diferencaValor > 0 ? 'a mais' : 'a menos'} do que o título lançado no ERP, e não há acréscimo/multa/juros/desconto/devolução lançado nesse título — provavelmente uma taxa cobrada só no banco`)}`;
   } else if (it.match) {
     const m = it.match;
     corpo = `
@@ -565,6 +593,7 @@ function renderPopup(it) {
       <div class="popup-row"><span class="k">Vencimento no ERP</span><span class="v">${fmtData(m.dataVencto)}</span></div>
       ${m.planoSubNome ? `<div class="popup-row"><span class="k">Plano de Contas</span><span class="v">${m.planoSubNome}</span></div>` : ''}
       ${it.status === 'pago_sem_baixa' ? `<div class="popup-row"><span class="k">Devedor no ERP</span><span class="v" style="color:var(--red)">${fmtMoeda(m.devedor)}</span></div>` : ''}
+      ${composicaoValorHtml(m)}
 
       <div class="popup-sec">Por que casou</div>
       ${linhaCheck(true, 'Valor idêntico ao título do ERP')}

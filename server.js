@@ -3750,7 +3750,8 @@ app.post('/api/conciliador/processar', async (req, res) => {
     // aqui pra não casar por coincidência de valor com título de outra loja.
     const candidatosRaw = await q(`
       SELECT a.nReg, a.Valor, a.Devedor, DATE_FORMAT(a.DataVencto,'%Y-%m-%d') as DataVencto,
-             a.CodFornec, a.Historico, a.Filial, a.PlanoGrupo, a.PlanoSub, f.Nome, f.NomeCompleto
+             a.CodFornec, a.Historico, a.Filial, a.PlanoGrupo, a.PlanoSub,
+             a.Acrescimo, a.Multa, a.Juros, a.Desconto, a.Devolucao, a.ValorBruto, f.Nome, f.NomeCompleto
       FROM loja20045.contasapagar a
       LEFT JOIN central.fornecedor f ON f.CodFornec = a.CodFornec
       WHERE a.DataVencto BETWEEN ? AND ? AND a.Filial = ?
@@ -3783,7 +3784,8 @@ app.post('/api/conciliador/buscar-proximos', async (req, res) => {
 
     const candidatos = await q(`
       SELECT a.nReg, a.Valor, a.Devedor, DATE_FORMAT(a.DataVencto,'%Y-%m-%d') as DataVencto,
-             a.CodFornec, a.Historico, a.Filial, f.Nome, f.NomeCompleto
+             a.CodFornec, a.Historico, a.Filial,
+             a.Acrescimo, a.Multa, a.Juros, a.Desconto, a.Devolucao, a.ValorBruto, f.Nome, f.NomeCompleto
       FROM loja20045.contasapagar a
       LEFT JOIN central.fornecedor f ON f.CodFornec = a.CodFornec
       WHERE a.DataVencto BETWEEN ? AND ? AND a.Filial = ? AND ABS(a.Valor - ?) <= ?
