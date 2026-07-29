@@ -1,5 +1,5 @@
 ﻿// Verificação de versão — roda antes de tudo
-var BUILD = '233';
+var BUILD = '234';
 (function() {
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
@@ -7278,7 +7278,7 @@ function _confirmarGerarToken(clienteId) {
 }
 
 function verTokensCliente(clienteId) {
-  db.collection('tokens').where('clienteId','==',clienteId).orderBy('criadoEm','desc').limit(20).get().then(function(snap) {
+  db.collection('tokens').where('clienteId','==',clienteId).limit(20).get().then(function(snap) {
     if (snap.empty) { alert('Nenhum token gerado para este cliente ainda.'); return; }
     var linhas = snap.docs.map(function(d){
       var t=d.data();
