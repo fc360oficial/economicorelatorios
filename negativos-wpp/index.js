@@ -357,8 +357,15 @@ async function responderPergunta(jid, texto) {
     }
   }
 
-  const t = texto.toLowerCase();
-  if (t.includes('custo')) { await responderCusto(jid, texto); return; }
+  // Gatilho por palavra-chave ("custo") desativado: o bot está conectado no
+  // número pessoal/comercial do Tiago, então qualquer frase comum que
+  // mencione "custo" (ex: "o custo da grifos saiu") dispara resposta
+  // automática numa conversa real — igual ao problema do bloco abaixo.
+  // Reativar só com um jeito de restringir o escopo (grupo específico,
+  // prefixo/comando explícito, etc), não texto livre.
+  //
+  // const t = texto.toLowerCase();
+  // if (t.includes('custo')) { await responderCusto(jid, texto); return; }
 
   // Não reconhecido: o bot está conectado no número pessoal/comercial do
   // Tiago, então NÃO deve responder automaticamente qualquer mensagem que
