@@ -19,6 +19,30 @@ function salvarAvulsos(lista) {
   fs.writeFileSync(AVULSOS_PATH, JSON.stringify(lista, null, 2));
 }
 
+// Backfill único na subida do servidor: avulsos confirmados antes do Plano
+// de Contas existir nesse fluxo ficaram sem planoGrupo/planoSub — busca no
+// ERP pelo nReg salvo e completa o registro.
+async function backfillPlanoAvulsos() {
+  try {
+    const lista = carregarAvulsos();
+    const pendentes = lista.filter(a => a.nReg && a.planoGrupo == null);
+    if (!pendentes.length) return;
+    const plano = await getPlanoContas();
+    for (const a of pendentes) {
+      const [row] = await q('SELECT PlanoGrupo, PlanoSub FROM loja20045.contasapagar WHERE nReg = ?', [a.nReg]);
+      if (!row) continue;
+      a.planoGrupo = row.PlanoGrupo;
+      a.planoSub = row.PlanoSub;
+      a.planoGrupoNome = plano.grupoMap.get(row.PlanoGrupo) || null;
+      a.planoSubNome = plano.subMap.get(`${row.PlanoGrupo}|${row.PlanoSub}`) || null;
+    }
+    salvarAvulsos(lista);
+    console.log(`✓ Backfill Plano de Contas: ${pendentes.length} conciliação(ões) avulsa(s) atualizada(s)`);
+  } catch (err) {
+    console.error('[BACKFILL-AVULSOS-ERR]', err.message);
+  }
+}
+
 // Cache do Plano de Contas do ERP (loja20045.planodecontas) — traduz
 // PlanoGrupo/PlanoSub em nome legível pro Conciliador. Recarrega a cada 10min.
 let planoContasCache = null;
@@ -3863,6 +3887,7 @@ setInterval(() => {}, 30000);
 
 const server = app.listen(3003, '0.0.0.0', () => {
   console.log('✓ Dashboard rodando em http://localhost:3003');
+  backfillPlanoAvulsos();
   const ipLocal = Object.values(require('os').networkInterfaces())
     .flat().find(i => i.family === 'IPv4' && !i.internal)?.address;
   if (ipLocal) console.log(`✓ Rede local: http://${ipLocal}:3003`);
