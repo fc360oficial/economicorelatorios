@@ -360,18 +360,12 @@ async function responderPergunta(jid, texto) {
   const t = texto.toLowerCase();
   if (t.includes('custo')) { await responderCusto(jid, texto); return; }
 
-  // Não reconhecido — vira pendência (ignora se veio de si mesmo, ex: teste)
-  if (ehEuMesmo) return;
-  const pendentes = carregarPendentes();
-  const novoId = pendentes.reduce((max, p) => Math.max(max, p.id), 0) + 1;
-  pendentes.push({ id: novoId, jid, texto, data: new Date().toISOString(), respondida: false });
-  salvarPendentes(pendentes);
-  await sock.sendMessage(jid, { text: 'Ainda não sei responder isso, mas já anotei — te aviso assim que tiver a resposta.' });
-  try {
-    await sock.sendMessage(sock.user.id, {
-      text: `Nova pergunta pendente #${novoId} de ${remetente}:\n"${texto}"\n\nPra responder: responder ${novoId} <sua resposta>`
-    });
-  } catch (_) {}
+  // Não reconhecido: o bot está conectado no número pessoal/comercial do
+  // Tiago, então NÃO deve responder automaticamente qualquer mensagem que
+  // chegue (senão interfere em conversas reais que não são pra ele) —
+  // desativado até definir um jeito de restringir isso (ex: só grupo
+  // específico, ou só mensagens com um prefixo/comando).
+  return;
 }
 
 // ── WhatsApp ──────────────────────────────────────────────────────────────────
