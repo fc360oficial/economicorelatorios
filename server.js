@@ -5,7 +5,7 @@ const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const fs = require('fs');
 const { exec } = require('child_process');
-const { parseSaidas } = require('./lib/extrato-parser');
+const { parseSaidas, parseSaidasOfx } = require('./lib/extrato-parser');
 const { conciliar, addDias, TOLERANCIA_DIAS: TOLERANCIA_CONCILIADOR } = require('./lib/conciliador');
 
 const app = express();
@@ -3700,8 +3700,9 @@ app.post('/api/conciliador/processar', async (req, res) => {
     if (!texto.trim()) return res.status(400).json({ error: 'Cole o extrato antes de processar.' });
     if (!loja || loja < 1 || loja > 6) return res.status(400).json({ error: 'Selecione a loja desse extrato antes de processar — cada loja tem conta bancária própria, e o casamento é feito só contra os títulos dessa filial.' });
 
-    const saidas = parseSaidas(texto);
-    if (!saidas.length) return res.status(400).json({ error: 'Nenhuma saída encontrada no texto colado. Confira o formato (data;histórico;valor;).' });
+    const ehOfx = /<OFX>|<STMTTRN>/i.test(texto);
+    const saidas = ehOfx ? parseSaidasOfx(texto) : parseSaidas(texto);
+    if (!saidas.length) return res.status(400).json({ error: ehOfx ? 'Nenhuma saída encontrada no OFX.' : 'Nenhuma saída encontrada no texto colado. Confira o formato (data;histórico;valor;).' });
 
     const datas = saidas.map(s => s.data).sort();
     const dIni = addDias(datas[0], -TOLERANCIA_CONCILIADOR);
