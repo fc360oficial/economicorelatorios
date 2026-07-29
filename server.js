@@ -618,8 +618,8 @@ app.get('/api/consulta', async (req, res) => {
     let codigosProduto = null;
     if (produto) {
       const itensCad = await q(
-        'SELECT CodigoBarra, Descricao FROM central.itens WHERE Descricao LIKE ?',
-        ['%' + produto + '%']
+        'SELECT CodigoBarra, Descricao FROM central.itens WHERE Descricao LIKE ? OR CodigoBarra LIKE ?',
+        ['%' + produto + '%', '%' + produto + '%']
       );
       codigosProduto = itensCad.map(r => r.CodigoBarra);
       itensCad.forEach(r => { nomesCompletos[r.CodigoBarra] = r.Descricao?.trim(); });
