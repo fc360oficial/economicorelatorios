@@ -1,5 +1,5 @@
 ﻿// Verificação de versão — roda antes de tudo
-var BUILD = '242';
+var BUILD = '243';
 (function() {
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
@@ -7102,7 +7102,7 @@ function _renderClientesLista() {
       // ── Cabeçalho do card
       '<div style="padding:14px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid var(--gray2)">' +
         '<div>' +
-          '<div style="font-size:16px;font-weight:700;letter-spacing:.2px;margin-bottom:2px">'+c.nome+'</div>' +
+          '<div style="font-size:16px;font-weight:700;letter-spacing:.2px;margin-bottom:2px;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif">'+c.nome+'</div>' +
           '<div style="font-size:11px;color:var(--t3)">ID: <code style="background:var(--gray);padding:1px 5px;border-radius:4px">'+c.id+'</code> &nbsp;·&nbsp; Plano: <strong>'+(PLANO_LABEL[c.plano]||c.plano||'—')+'</strong></div>' +
         '</div>' +
         '<span id="verstatus-'+c.id+'" style="font-size:10px;font-weight:700;padding:4px 10px;border-radius:20px;background:#f0f0f0;color:#999;white-space:nowrap;letter-spacing:.5px">⏳ verificando</span>' +
@@ -7142,7 +7142,7 @@ function _renderClientesLista() {
     '<div style="background:linear-gradient(135deg,#1a1a1a,#2d2d2d);border-radius:14px;padding:18px 22px;margin-bottom:20px;color:#fff;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">' +
       '<div>' +
         '<div style="font-size:9px;letter-spacing:2px;opacity:.5;font-weight:700;margin-bottom:4px">REPOSITÓRIO BASE</div>' +
-        '<div style="font-size:20px;font-weight:700;letter-spacing:.3px">Fluxo Certo 360</div>' +
+        '<div style="font-size:20px;font-weight:700;letter-spacing:.3px;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif">Fluxo Certo 360</div>' +
         '<div style="font-size:12px;opacity:.5;margin-top:3px;font-weight:400;letter-spacing:.2px">fc360oficial/fluxocerto360</div>' +
       '</div>' +
       '<div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">' +
@@ -7150,7 +7150,7 @@ function _renderClientesLista() {
           '<div style="font-size:9px;letter-spacing:1.5px;opacity:.5;font-weight:700;margin-bottom:2px">VERSÃO BASE</div>' +
           '<div id="base-ver-display" style="font-family:monospace;font-size:24px;font-weight:800;color:#f1c40f">v'+BUILD+'</div>' +
         '</div>' +
-        '<button onclick="deployTodosClientes()" style="padding:10px 20px;background:#f1c40f;color:#1a1a1a;border:none;border-radius:10px;font-size:13px;font-weight:800;font-family:\'Syne\',sans-serif;cursor:pointer;white-space:nowrap">🚀 Publicar para Todos</button>' +
+        '<button onclick="deployTodosClientes()" style="padding:10px 20px;background:#f1c40f;color:#1a1a1a;border:none;border-radius:10px;font-size:13px;font-weight:700;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;cursor:pointer;white-space:nowrap">🚀 Publicar para Todos</button>' +
       '</div>' +
     '</div>';
 
