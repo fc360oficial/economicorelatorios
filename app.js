@@ -1,5 +1,5 @@
 ﻿// Verificação de versão — roda antes de tudo
-var BUILD = '236';
+var BUILD = '237';
 (function() {
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
@@ -995,26 +995,77 @@ function abrirModalToken() {
   var cfg = S.clienteConfig || {};
   var validade = cfg.validade ? new Date(cfg.validade) : null;
   var hoje = new Date(); hoje.setHours(0,0,0,0);
-  var vencido = validade && hoje > validade;
   var diasRestantes = validade ? Math.ceil((validade - hoje) / 86400000) : null;
-  var statusHtml = '';
-  if (validade) {
-    var cor = vencido ? '#c0392b' : diasRestantes <= 7 ? '#e67e22' : '#1a5c34';
-    var txt = vencido ? 'Vencida em '+validade.toLocaleDateString('pt-BR') : diasRestantes+' dias restantes (até '+validade.toLocaleDateString('pt-BR')+')';
-    statusHtml = '<div style="background:'+(vencido?'#fdecea':diasRestantes<=7?'#fef9e7':'#d1f0e0')+';border-radius:10px;padding:10px 14px;margin-bottom:16px;font-size:13px;font-weight:700;color:'+cor+'">'+txt+'</div>';
+  var vencido = diasRestantes !== null && diasRestantes < 0;
+  var semLicenca = !validade;
+
+  // Cores e labels de status
+  var statusCor, statusBg, statusLabel, statusIcon;
+  if (semLicenca) {
+    statusCor='#c0392b'; statusBg='#fdecea'; statusLabel='Sem licença ativa'; statusIcon='🔴';
+  } else if (vencido) {
+    statusCor='#c0392b'; statusBg='#fdecea'; statusLabel='Vencida em '+validade.toLocaleDateString('pt-BR'); statusIcon='🔴';
+  } else if (diasRestantes <= 7) {
+    statusCor='#b7500a'; statusBg='#fef3e2'; statusLabel=diasRestantes+' dias restantes'; statusIcon='🟡';
+  } else {
+    statusCor='#1a5c34'; statusBg='#d1f0e0'; statusLabel=diasRestantes+' dias restantes'; statusIcon='🟢';
   }
-  var html = '<div id="modal-inserir-token" onclick="if(event.target===this)this.remove()" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:3000;display:flex;align-items:center;justify-content:center;padding:16px">'+
-    '<div style="background:#fff;border-radius:16px;padding:28px 24px;width:100%;max-width:380px;text-align:center">'+
-      '<div style="font-size:40px;margin-bottom:10px">🔐</div>'+
-      '<div style="font-family:\'Syne\',sans-serif;font-size:17px;font-weight:800;margin-bottom:14px">Licença do Sistema</div>'+
-      statusHtml+
-      '<div style="font-size:12px;color:var(--t2);margin-bottom:12px;text-align:left">Insira o token recebido para renovar o acesso:</div>'+
-      '<div class="fg" style="margin-bottom:12px"><input id="ativ-token-input" type="text" placeholder="XXXX-XXXX-XXXX" style="text-align:center;font-family:monospace;letter-spacing:2px;text-transform:uppercase"/></div>'+
-      '<button onclick="ativarToken(true)" style="width:100%;padding:12px;background:var(--y);border:none;border-radius:10px;font-size:14px;font-weight:800;font-family:\'Syne\',sans-serif;cursor:pointer;margin-bottom:8px">Ativar Token</button>'+
-      '<div id="ativ-token-err" style="color:var(--r);font-size:12px;font-weight:600;min-height:18px"></div>'+
-      '<button onclick="document.getElementById(\'modal-inserir-token\').remove()" style="margin-top:6px;background:none;border:none;color:var(--t2);font-size:13px;cursor:pointer">Fechar</button>'+
+
+  // Barra de progresso (assume ciclo de 30 dias)
+  var progPct = semLicenca || vencido ? 0 : Math.min(100, Math.round((diasRestantes / 30) * 100));
+  var progCor = diasRestantes <= 7 ? '#e67e22' : diasRestantes <= 14 ? '#f1c40f' : '#27ae60';
+  var barHtml = !semLicenca
+    ? '<div style="background:#eee;border-radius:99px;height:8px;margin:10px 0 4px;overflow:hidden">'+
+        '<div style="width:'+progPct+'%;height:100%;background:'+progCor+';border-radius:99px;transition:width .4s"></div>'+
+      '</div>'+
+      '<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--t3)">'+
+        '<span>Hoje</span><span>Venc. '+validade.toLocaleDateString('pt-BR')+'</span>'+
+      '</div>'
+    : '';
+
+  // Plano label
+  var planoLabel = { completo:'Plano Completo', basico:'Plano Básico', premium:'Plano Premium' }[cfg.plano] || (cfg.plano||'');
+  var nomeCliente = cfg.nome || (window.FC360_CLIENT_ID||'').toUpperCase();
+
+  var html =
+    '<div id="modal-inserir-token" onclick="if(event.target===this)this.remove()" style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:3000;display:flex;align-items:center;justify-content:center;padding:16px">'+
+    '<div style="background:#fff;border-radius:20px;width:100%;max-width:400px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.3)">'+
+
+      // Cabeçalho escuro
+      '<div style="background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);padding:24px 24px 20px;color:#fff;text-align:center">'+
+        '<div style="font-size:11px;letter-spacing:3px;font-weight:600;opacity:.6;margin-bottom:6px">FLUXO CERTO 360</div>'+
+        '<div style="font-family:\'Syne\',sans-serif;font-size:18px;font-weight:800;margin-bottom:2px">'+nomeCliente+'</div>'+
+        (planoLabel ? '<div style="font-size:11px;background:rgba(255,255,255,.15);display:inline-block;padding:2px 10px;border-radius:99px;margin-top:4px">'+planoLabel+'</div>' : '')+
+      '</div>'+
+
+      // Card de licença
+      '<div style="padding:20px 24px">'+
+        '<div style="font-size:11px;font-weight:700;letter-spacing:1px;color:var(--t3);margin-bottom:10px">STATUS DA LICENÇA</div>'+
+        '<div style="display:flex;align-items:center;gap:8px;background:'+statusBg+';border-radius:12px;padding:12px 16px">'+
+          '<span style="font-size:18px">'+statusIcon+'</span>'+
+          '<div>'+
+            '<div style="font-size:14px;font-weight:800;color:'+statusCor+'">'+statusLabel+'</div>'+
+            (!semLicenca ? '<div style="font-size:11px;color:var(--t2)">Válida até '+validade.toLocaleDateString('pt-BR')+'</div>' : '<div style="font-size:11px;color:var(--t2)">Insira um token de ativação</div>')+
+          '</div>'+
+        '</div>'+
+        barHtml+
+
+        // Divisor
+        '<div style="border-top:1px solid var(--gray2);margin:18px 0 14px"></div>'+
+        '<div style="font-size:11px;font-weight:700;letter-spacing:1px;color:var(--t3);margin-bottom:10px">ATIVAR / RENOVAR LICENÇA</div>'+
+        '<div class="fg" style="margin-bottom:10px"><input id="ativ-token-input" type="text" placeholder="XXXX - XXXX - XXXX" style="text-align:center;font-family:monospace;letter-spacing:3px;font-size:15px;font-weight:700;text-transform:uppercase"/></div>'+
+        '<button onclick="ativarToken(true)" style="width:100%;padding:13px;background:var(--y);border:none;border-radius:12px;font-size:14px;font-weight:800;font-family:\'Syne\',sans-serif;cursor:pointer">Ativar Token</button>'+
+        '<div id="ativ-token-err" style="color:var(--r);font-size:12px;font-weight:600;margin-top:8px;min-height:16px;text-align:center"></div>'+
+
+        // Rodapé
+        '<div style="text-align:center;margin-top:14px;padding-top:12px;border-top:1px solid var(--gray2)">'+
+          '<div style="font-size:11px;color:var(--t3)">Suporte · <a href="mailto:suporte@fluxocerto.com.br" style="color:var(--t2);text-decoration:none">suporte@fluxocerto.com.br</a></div>'+
+          '<button onclick="document.getElementById(\'modal-inserir-token\').remove()" style="margin-top:8px;background:none;border:none;color:var(--t2);font-size:12px;cursor:pointer">Fechar</button>'+
+        '</div>'+
+      '</div>'+
     '</div></div>';
   document.body.insertAdjacentHTML('beforeend', html);
+  setTimeout(function(){ var i=document.getElementById('ativ-token-input'); if(i) i.focus(); }, 100);
 }
 
 function _mostrarOverlayVencido(msg) {
