@@ -1,5 +1,5 @@
 ﻿// Verificação de versão — roda antes de tudo
-var BUILD = '234';
+var BUILD = '235';
 (function() {
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
@@ -943,15 +943,18 @@ function carregarClienteConfig(cb) {
 function _checkAssinatura() {
   if (!S.clienteConfig) return;
   if (S.clienteConfig.ativo === false) {
-    _mostrarOverlayVencido('Assinatura inativa. Entre em contato com o suporte.');
+    _mostrarOverlayVencido('Acesso inativo. Entre em contato com o suporte.');
     return;
   }
   var val = S.clienteConfig.validade;
-  if (!val) return;
+  if (!val) {
+    _mostrarOverlayVencido('Nenhuma licença ativa. Solicite um token de ativação.');
+    return;
+  }
   var hoje = new Date(); hoje.setHours(0,0,0,0);
   var venc = new Date(val); venc.setHours(23,59,59,999);
   if (hoje > venc) {
-    _mostrarOverlayVencido('Assinatura vencida em ' + new Date(val).toLocaleDateString('pt-BR') + '. Gere um token de ativação.');
+    _mostrarOverlayVencido('Licença vencida em ' + new Date(val).toLocaleDateString('pt-BR') + '. Solicite um novo token.');
   }
 }
 
@@ -967,20 +970,21 @@ function ativarToken(fromModal) {
     if (snap.empty) { if (errEl) errEl.textContent = 'Token inválido ou não pertence a este cliente.'; return; }
     var doc = snap.docs[0]; var t = doc.data();
     if (t.usado) { if (errEl) errEl.textContent = 'Token já foi utilizado.'; return; }
-    var novaValidade = new Date(Math.max(new Date(S.clienteConfig&&S.clienteConfig.validade||new Date()), new Date()));
-    novaValidade.setDate(novaValidade.getDate() + (t.dias||30));
-    var novaValidadeStr = novaValidade.toISOString().slice(0,10);
+    if (t.cancelado) { if (errEl) errEl.textContent = 'Token cancelado pelo administrador.'; return; }
+    var hoje2 = new Date(); hoje2.setHours(0,0,0,0);
+    var dataFim = new Date(hoje2); dataFim.setDate(dataFim.getDate() + (t.dias||30));
+    var dataFimStr = dataFim.toISOString().slice(0,10);
     var batch = db.batch();
-    batch.update(doc.ref, { usado: true, usadoEm: firebase.firestore.FieldValue.serverTimestamp(), usadoPor: S.currentUser.id });
-    batch.update(db.collection('clientes').doc(clienteId), { validade: novaValidadeStr, ativo: true });
+    batch.update(doc.ref, { usado: true, ativadoEm: firebase.firestore.FieldValue.serverTimestamp(), dataFim: dataFimStr, usadoPor: S.currentUser.id });
+    batch.update(db.collection('clientes').doc(clienteId), { validade: dataFimStr, ativo: true });
     batch.commit().then(function() {
-      S.clienteConfig = Object.assign({}, S.clienteConfig, { validade: novaValidadeStr, ativo: true });
+      S.clienteConfig = Object.assign({}, S.clienteConfig, { validade: dataFimStr, ativo: true });
       var ov = document.getElementById('overlay-assinatura');
       if (ov) ov.style.display = 'none';
       var modal = document.getElementById('modal-inserir-token');
       if (modal) modal.remove();
       setupRole();
-      showToast('✅ Token ativado! Acesso liberado até ' + novaValidade.toLocaleDateString('pt-BR'));
+      showToast('✅ Token ativado! Acesso liberado até ' + dataFim.toLocaleDateString('pt-BR'));
     }).catch(function(e) { if (errEl) errEl.textContent = 'Erro ao ativar: ' + e.message; });
   }).catch(function(e) { if (errEl) errEl.textContent = 'Erro: ' + e.message; });
 }
@@ -7243,17 +7247,50 @@ function _confirmarGerarToken(clienteId) {
   var c = _clientesCache.find(function(x){ return x.id===clienteId; }) || {};
   var d = _calcDiasToken(c.validade||'');
   if (isNaN(d)||d<=0) { var e=document.getElementById('gt-err'); if(e) e.textContent='Valor inválido.'; return; }
+
+  // Checar se já existe token ativo (não cancelado, não vencido)
+  var hoje = new Date(); hoje.setHours(0,0,0,0);
+  db.collection('tokens').where('clienteId','==',clienteId).limit(20).get().then(function(snap) {
+    var ativoDoc = null;
+    snap.forEach(function(doc) {
+      var t = doc.data();
+      if (t.cancelado) return;
+      if (!t.usado) { if (!ativoDoc) ativoDoc = doc; }
+      else if (t.dataFim && new Date(t.dataFim) >= hoje) { if (!ativoDoc) ativoDoc = doc; }
+    });
+
+    if (ativoDoc) {
+      var tData = ativoDoc.data();
+      var descAtivo = tData.usado ? ('ativo até '+new Date(tData.dataFim).toLocaleDateString('pt-BR')) : 'ainda não usado';
+      var ok = confirm('⚠️ Já existe um token '+descAtivo+' para este cliente.\n\nToken: '+tData.token+'\n\nDeseja cancelar o token existente e gerar um novo?');
+      if (!ok) return;
+      // Cancelar token existente antes de gerar novo
+      var ontem = new Date(); ontem.setDate(ontem.getDate()-1);
+      ativoDoc.ref.update({ cancelado: true, canceladoEm: firebase.firestore.FieldValue.serverTimestamp() }).then(function() {
+        db.collection('clientes').doc(clienteId).update({ validade: ontem.toISOString().slice(0,10) }).then(function() {
+          _gerarNovoToken(clienteId, d, c);
+        });
+      }).catch(function(e){ var el=document.getElementById('gt-err'); if(el) el.textContent='Erro ao cancelar token: '+e.message; });
+    } else {
+      _gerarNovoToken(clienteId, d, c);
+    }
+  }).catch(function() {
+    // Se a query falhar (ex: sem índice para cancelado==false), tenta gerar direto
+    _gerarNovoToken(clienteId, d, c);
+  });
+}
+
+function _gerarNovoToken(clienteId, d, c) {
   var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   var token = Array.from({length:12}, function(){ return chars[Math.floor(Math.random()*chars.length)]; }).join('');
   token = token.slice(0,4)+'-'+token.slice(4,8)+'-'+token.slice(8,12);
   db.collection('tokens').add({
-    token: token, clienteId: clienteId, dias: d, usado: false,
+    token: token, clienteId: clienteId, dias: d, usado: false, cancelado: false,
     criadoEm: firebase.firestore.FieldValue.serverTimestamp(),
     criadoPor: S.currentUser ? S.currentUser.id : 'superadmin'
   }).then(function() {
-    document.getElementById('modal-gerar-token').remove();
-    var base = c.validade ? new Date(Math.max(new Date(c.validade), new Date())) : new Date();
-    base.setHours(0,0,0,0);
+    var m = document.getElementById('modal-gerar-token'); if (m) m.remove();
+    var base = new Date(); base.setHours(0,0,0,0);
     var nova = new Date(base); nova.setDate(nova.getDate()+d);
     var html2 =
       '<div id="modal-token-gerado" onclick="if(event.target===this)this.remove()" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:3000;display:flex;align-items:center;justify-content:center;padding:16px">'+
@@ -7263,7 +7300,7 @@ function _confirmarGerarToken(clienteId) {
         '<div style="background:var(--gray);border-radius:10px;padding:12px;margin-bottom:12px;font-size:12px;color:var(--t2);text-align:left">'+
           '<div>Cliente: <strong>'+clienteId+'</strong></div>'+
           '<div>Dias: <strong>'+d+'</strong></div>'+
-          '<div>Nova validade: <strong>'+nova.toLocaleDateString('pt-BR')+'</strong></div>'+
+          '<div>Validade ao ativar: <strong>hoje + '+d+' dias ('+nova.toLocaleDateString('pt-BR')+')</strong></div>'+
         '</div>'+
         '<div style="background:#1a1a2e;border-radius:12px;padding:16px;margin-bottom:14px">'+
           '<div style="font-family:monospace;font-size:24px;font-weight:800;color:#f1c40f;letter-spacing:3px" id="token-display">'+token+'</div>'+
@@ -7278,15 +7315,52 @@ function _confirmarGerarToken(clienteId) {
 }
 
 function verTokensCliente(clienteId) {
+  var existing = document.getElementById('modal-tokens'); if (existing) existing.remove();
   db.collection('tokens').where('clienteId','==',clienteId).limit(20).get().then(function(snap) {
-    if (snap.empty) { alert('Nenhum token gerado para este cliente ainda.'); return; }
-    var linhas = snap.docs.map(function(d){
-      var t=d.data();
-      var dt = t.criadoEm ? new Date(t.criadoEm.seconds*1000).toLocaleDateString('pt-BR') : '--';
-      return t.token + ' | ' + t.dias + 'd | ' + (t.usado?'✅ usado em '+new Date((t.usadoEm||{}).seconds*1000).toLocaleDateString('pt-BR'):'⏳ não usado') + ' | gerado '+dt;
-    }).join('\n');
-    alert('Tokens — '+clienteId+':\n\n'+linhas);
-  }).catch(function(e){ alert('Erro: '+e.message); });
+    if (snap.empty) { showToast('Nenhum token gerado ainda.'); return; }
+    var hoje = new Date(); hoje.setHours(0,0,0,0);
+    var rows = snap.docs.map(function(d){
+      var t = d.data();
+      var gerado = t.criadoEm ? new Date(t.criadoEm.seconds*1000).toLocaleDateString('pt-BR') : '--';
+      var status, cor, podeCancel = false;
+      if (t.cancelado) { status = '❌ Cancelado'; cor = '#999'; }
+      else if (t.usado) {
+        var fim = t.dataFim ? new Date(t.dataFim) : null;
+        var vencido = fim && fim < hoje;
+        if (vencido) { status = '⌛ Expirado em '+new Date(t.dataFim).toLocaleDateString('pt-BR'); cor = '#e67e22'; }
+        else { status = '✅ Ativo até '+(t.dataFim ? new Date(t.dataFim).toLocaleDateString('pt-BR') : '--'); cor = '#1a5c34'; podeCancel = true; }
+      } else { status = '⏳ Não usado'; cor = '#1a5c9c'; podeCancel = true; }
+      return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 0;border-bottom:1px solid var(--gray2)">'+
+        '<div>'+
+          '<div style="font-family:monospace;font-size:13px;font-weight:700;letter-spacing:1px">'+t.token+'</div>'+
+          '<div style="font-size:11px;color:var(--t2)">'+t.dias+' dias · gerado '+gerado+'</div>'+
+          '<div style="font-size:11px;font-weight:700;color:'+cor+'">'+status+'</div>'+
+        '</div>'+
+        (podeCancel ? '<button onclick="cancelarToken(\''+d.id+'\',\''+clienteId+'\')" style="padding:6px 12px;background:#fdecea;color:#c0392b;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">Cancelar</button>' : '')+
+      '</div>';
+    }).join('');
+    var html = '<div id="modal-tokens" onclick="if(event.target===this)this.remove()" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:3000;display:flex;align-items:center;justify-content:center;padding:16px">'+
+      '<div style="background:#fff;border-radius:16px;padding:24px;width:100%;max-width:440px;max-height:80vh;overflow-y:auto">'+
+        '<div style="font-family:\'Syne\',sans-serif;font-size:16px;font-weight:800;margin-bottom:16px">Tokens — '+clienteId+'</div>'+
+        rows+
+        '<button onclick="document.getElementById(\'modal-tokens\').remove()" style="margin-top:16px;width:100%;padding:10px;background:var(--gray);border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer">Fechar</button>'+
+      '</div></div>';
+    document.body.insertAdjacentHTML('beforeend', html);
+  }).catch(function(e){ showToast('Erro: '+e.message); });
+}
+
+function cancelarToken(tokenId, clienteId) {
+  if (!confirm('Cancelar este token?\n\nO cliente perderá o acesso no próximo login.')) return;
+  var ontem = new Date(); ontem.setDate(ontem.getDate()-1);
+  var ontemStr = ontem.toISOString().slice(0,10);
+  var batch = db.batch();
+  batch.update(db.collection('tokens').doc(tokenId), { cancelado: true, canceladoEm: firebase.firestore.FieldValue.serverTimestamp() });
+  batch.update(db.collection('clientes').doc(clienteId), { validade: ontemStr });
+  batch.commit().then(function() {
+    var m = document.getElementById('modal-tokens'); if (m) m.remove();
+    renderPainelClientes();
+    showToast('🔒 Token cancelado. Acesso revogado.');
+  }).catch(function(e){ showToast('Erro: '+e.message); });
 }
 
 function deployTodosClientes() {
