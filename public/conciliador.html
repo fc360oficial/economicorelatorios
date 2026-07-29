@@ -347,18 +347,10 @@ function render() {
 
   const optsStatus = Object.keys(STATUS_LABEL).map(s => `<option value="${s}"${filtroAtivo===s?' selected':''}>${STATUS_LABEL[s]}</option>`).join('');
   const optsCat = Object.keys(CAT_LABEL).map(c => `<option value="${c}"${filtroCategoria===c?' selected':''}>${CAT_LABEL[c]}</option>`).join('');
-  const planosPorGrupo = new Map(); // grupoCod -> { grupo, subs: Map(chave -> {chave, subCod, sub}) }
-  dados.itens.forEach(i => {
-    const p = itemPlano(i);
-    if (!p) return;
-    if (!planosPorGrupo.has(p.grupoCod)) planosPorGrupo.set(p.grupoCod, { grupo: p.grupo, subs: new Map() });
-    planosPorGrupo.get(p.grupoCod).subs.set(p.chave, { chave: p.chave, subCod: p.subCod, sub: p.sub });
-  });
-  const optsPlano = [...planosPorGrupo.entries()].sort((a, b) => a[0] - b[0]).map(([grupoCod, g]) => {
-    const opts = [...g.subs.values()].sort((a, b) => a.subCod - b.subCod)
-      .map(s => `<option value="${s.chave}"${filtroPlano===s.chave?' selected':''}>${grupoCod}.${s.subCod} ${s.sub}</option>`).join('');
-    return `<optgroup label="${grupoCod}.0 ${g.grupo || ''}">${opts}</optgroup>`;
-  }).join('');
+  const gruposUnicos = new Map(); // grupoCod -> nome do grupo
+  dados.itens.forEach(i => { const p = itemPlano(i); if (p && !gruposUnicos.has(p.grupoCod)) gruposUnicos.set(p.grupoCod, p.grupo); });
+  const optsPlano = [...gruposUnicos.entries()].sort((a, b) => a[0] - b[0])
+    .map(([cod, nome]) => `<option value="${cod}"${String(filtroPlano)===String(cod)?' selected':''}>${cod}.0 ${nome || ''}</option>`).join('');
 
   html += '<div class="filtros">' +
     `<div class="fg"><label>Status</label><select id="fil-status" onchange="aplicarFiltros()"><option value="">Todos</option>${optsStatus}</select></div>` +
@@ -377,7 +369,7 @@ function render() {
 
   let itens = filtroAtivo ? dados.itens.filter(i => i.status === filtroAtivo) : dados.itens;
   if (filtroCategoria) itens = itens.filter(i => i.categoria === filtroCategoria);
-  if (filtroPlano) itens = itens.filter(i => { const p = itemPlano(i); return p && p.chave === filtroPlano; });
+  if (filtroPlano) itens = itens.filter(i => { const p = itemPlano(i); return p && String(p.grupoCod) === String(filtroPlano); });
   if (filtroTipoEncargo) itens = itens.filter(i => temEncargo(i, filtroTipoEncargo));
   if (filtroDe) itens = itens.filter(i => i.data >= filtroDe);
   if (filtroAte) itens = itens.filter(i => i.data <= filtroAte);
