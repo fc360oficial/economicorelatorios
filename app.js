@@ -1,5 +1,5 @@
 ﻿// Verificação de versão — roda antes de tudo
-var BUILD = '240';
+var BUILD = '241';
 (function() {
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
@@ -7142,8 +7142,8 @@ function _renderClientesLista() {
     '<div style="background:linear-gradient(135deg,#1a1a1a,#2d2d2d);border-radius:14px;padding:18px 22px;margin-bottom:20px;color:#fff;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">' +
       '<div>' +
         '<div style="font-size:9px;letter-spacing:2px;opacity:.5;font-weight:700;margin-bottom:4px">REPOSITÓRIO BASE</div>' +
-        '<div style="font-family:\'Syne\',sans-serif;font-size:16px;font-weight:800">Fluxo Certo 360</div>' +
-        '<div style="font-size:11px;opacity:.5;margin-top:2px">fc360oficial/fluxocerto360</div>' +
+        '<div style="font-size:17px;font-weight:700;letter-spacing:.5px">Fluxo Certo 360</div>' +
+        '<div style="font-size:11px;opacity:.5;margin-top:2px;font-weight:400">fc360oficial/fluxocerto360</div>' +
       '</div>' +
       '<div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">' +
         '<div style="text-align:center">' +
@@ -7158,7 +7158,7 @@ function _renderClientesLista() {
     '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">' +
       '<div>' +
         '<div style="font-size:10px;font-weight:700;letter-spacing:2px;color:var(--t3);margin-bottom:2px">PAINEL DE CONTROLE</div>' +
-        '<div style="font-family:\'Syne\',sans-serif;font-size:20px;font-weight:800">Gestão de Clientes</div>' +
+        '<div style="font-size:22px;font-weight:700;letter-spacing:-.3px">Gestão de Clientes</div>' +
       '</div>' +
       '<button class="btn btn-p btn-sm" onclick="abrirNovoCliente()">+ Novo Cliente</button>' +
     '</div>' +
