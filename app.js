@@ -1,5 +1,5 @@
 ﻿// Verificação de versão — roda antes de tudo
-var BUILD = '237';
+var BUILD = '238';
 (function() {
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
@@ -7098,7 +7098,7 @@ function _renderClientesLista() {
         '<div>'+
           '<div style="font-family:\'Syne\',sans-serif;font-size:16px;font-weight:800">'+c.nome+'</div>'+
           '<div style="font-size:11px;color:var(--t3);margin-top:2px">ID: <code>'+c.id+'</code> · Plano: <strong>'+(c.plano||'—')+'</strong>'+(c.validade?' · Validade: '+new Date(c.validade).toLocaleDateString('pt-BR'):'')+
-          (c.ultimoDeploy?' · <span style="color:#2d6a2d;font-weight:700">v'+c.buildDeploy+' — deploy '+new Date(c.ultimoDeploy.seconds*1000).toLocaleDateString('pt-BR')+'</span>':' · <span style="color:#999">sem deploy registrado</span>')+'</div>'+
+          ' · <span id="ver-'+c.id+'" style="color:#2d6a2d;font-weight:700">⏳ verificando...</span>'+'</div>'+
         '</div>'+
         '<span style="white-space:nowrap;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;background:'+statusBg+';color:'+statusCl+'">'+statusTxt+'</span>'+
       '</div>'+
@@ -7120,6 +7120,32 @@ function _renderClientesLista() {
       '</div>'+
     '</div>'+
     (cards || '<div style="text-align:center;padding:40px;color:var(--t3)">Nenhum cliente cadastrado.</div>');
+  _atualizarVersaoClientes();
+}
+
+function _atualizarVersaoClientes() {
+  db.collection('config').doc('repos').get().then(function(rDoc) {
+    var repos = rDoc.exists ? rDoc.data() : {};
+    _clientesCache.forEach(function(c) {
+      var repo = repos[c.id];
+      var el = document.getElementById('ver-'+c.id);
+      if (!el) return;
+      if (!repo) { el.textContent = 'sem repo'; el.style.color='#999'; return; }
+      var url = 'https://fc360oficial.github.io/'+repo+'/version.json?t='+Date.now();
+      fetch(url).then(function(r) {
+        if (!r.ok) throw new Error(r.status);
+        return r.json();
+      }).then(function(data) {
+        if (el && data.build) {
+          el.textContent = 'v'+data.build;
+          el.style.color = data.build === BUILD ? '#2d6a2d' : '#e67e22';
+          el.title = data.build === BUILD ? 'Atualizado' : 'Desatualizado (admin: v'+BUILD+')';
+        }
+      }).catch(function() {
+        if (el) { el.textContent = 'erro ao verificar'; el.style.color='#999'; }
+      });
+    });
+  }).catch(function(){});
 }
 
 function abrirEditarCliente(clienteId) {
