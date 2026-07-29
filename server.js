@@ -6,7 +6,18 @@ const bcrypt = require('bcryptjs');
 const fs = require('fs');
 const { exec } = require('child_process');
 const { parseSaidas, parseSaidasOfx } = require('./lib/extrato-parser');
-const { conciliar, addDias, TOLERANCIA_DIAS: TOLERANCIA_CONCILIADOR } = require('./lib/conciliador');
+const { conciliar, addDias, TOLERANCIA_DIAS: TOLERANCIA_CONCILIADOR, chaveSaida, aplicarAvulsos } = require('./lib/conciliador');
+
+// Conciliações avulsas (matches manuais com justificativa) — persistidas em
+// JSON local, nunca no MySQL do ERP (que é somente leitura).
+const AVULSOS_PATH = path.join(__dirname, 'data', 'conciliacoes-avulsas.json');
+function carregarAvulsos() {
+  try { return JSON.parse(fs.readFileSync(AVULSOS_PATH, 'utf8')); } catch (e) { return []; }
+}
+function salvarAvulsos(lista) {
+  fs.mkdirSync(path.dirname(AVULSOS_PATH), { recursive: true });
+  fs.writeFileSync(AVULSOS_PATH, JSON.stringify(lista, null, 2));
+}
 
 const app = express();
 app.use(express.json({ limit: '10mb' }));
@@ -3719,8 +3730,8 @@ app.post('/api/conciliador/processar', async (req, res) => {
       WHERE a.DataVencto BETWEEN ? AND ? AND a.Filial = ?
     `, [dIni, dFim, loja]);
 
-    const itens = conciliar(saidas, candidatos);
-    const resumo = { conciliado: 0, pago_sem_baixa: 0, revisar: 0, nao_encontrado: 0, fora_escopo: 0 };
+    const itens = aplicarAvulsos(conciliar(saidas, candidatos), carregarAvulsos());
+    const resumo = { conciliado: 0, conciliado_avulso: 0, pago_sem_baixa: 0, revisar: 0, nao_encontrado: 0, fora_escopo: 0 };
     let totalValor = 0;
     for (const it of itens) { resumo[it.status]++; totalValor += it.valor; }
 
@@ -3728,6 +3739,84 @@ app.post('/api/conciliador/processar', async (req, res) => {
   } catch (err) {
     console.error('[CONCILIADOR-ERR]', err.message);
     res.status(500).json({ error: err.message || 'Erro ao processar conciliação.' });
+  }
+});
+
+// Busca títulos do ERP com valor PRÓXIMO (não exato) do valor da saída —
+// usado quando o boleto foi pago com juros/multa e por isso não bate valor
+// exato com nenhum título (o motor automático só faz match exato).
+app.post('/api/conciliador/buscar-proximos', async (req, res) => {
+  try {
+    const { valor, data, loja } = req.body || {};
+    if (!valor || !data) return res.status(400).json({ error: 'Informe valor e data da saída.' });
+    if (!loja || loja < 1 || loja > 6) return res.status(400).json({ error: 'Loja inválida.' });
+    const TOL_VALOR = 15;
+    const dIni = addDias(data, -TOLERANCIA_CONCILIADOR);
+    const dFim = addDias(data, TOLERANCIA_CONCILIADOR);
+
+    const candidatos = await q(`
+      SELECT a.nReg, a.Valor, a.Devedor, DATE_FORMAT(a.DataVencto,'%Y-%m-%d') as DataVencto,
+             a.CodFornec, a.Historico, a.Filial, f.Nome, f.NomeCompleto
+      FROM loja20045.contasapagar a
+      LEFT JOIN central.fornecedor f ON f.CodFornec = a.CodFornec
+      WHERE a.DataVencto BETWEEN ? AND ? AND a.Filial = ? AND ABS(a.Valor - ?) <= ?
+      ORDER BY ABS(a.Valor - ?) ASC
+      LIMIT 25
+    `, [dIni, dFim, loja, valor, TOL_VALOR, valor]);
+
+    res.json({
+      candidatos: candidatos.map(c => ({
+        nReg: c.nReg,
+        fornecedor: c.NomeCompleto || c.Nome || '(sem cadastro)',
+        codFornec: c.CodFornec,
+        valor: Number(c.Valor),
+        devedor: Number(c.Devedor),
+        dataVencto: c.DataVencto,
+        historico: c.Historico,
+        filial: c.Filial,
+        diferenca: +(Number(c.Valor) - Number(valor)).toFixed(2)
+      }))
+    });
+  } catch (err) {
+    console.error('[CONCILIADOR-PROXIMOS-ERR]', err.message);
+    res.status(500).json({ error: err.message || 'Erro ao buscar títulos próximos.' });
+  }
+});
+
+// Confirma um match manual (avulso) com justificativa — persiste em JSON
+// local (nunca no MySQL do ERP) pra sobreviver a reprocessar o extrato.
+app.post('/api/conciliador/confirmar-avulso', (req, res) => {
+  try {
+    const { saida, escolha, justificativa } = req.body || {};
+    if (!saida || !escolha || !justificativa || !justificativa.trim()) {
+      return res.status(400).json({ error: 'Informe a saída, o título escolhido e a justificativa.' });
+    }
+    const lista = carregarAvulsos();
+    const chave = chaveSaida(saida);
+    const registro = {
+      chave,
+      data: saida.data,
+      valorSaida: saida.valor,
+      historicoSaida: saida.historico,
+      favorecidoSaida: saida.favorecido,
+      nReg: escolha.nReg,
+      fornecedor: escolha.fornecedor,
+      codFornec: escolha.codFornec,
+      valorErp: escolha.valor,
+      dataVencto: escolha.dataVencto,
+      historicoErp: escolha.historico,
+      filial: escolha.filial,
+      justificativa: justificativa.trim(),
+      confirmadoEm: new Date().toISOString(),
+      confirmadoPor: (req.session && req.session.user && req.session.user.nome) || 'desconhecido'
+    };
+    const idx = lista.findIndex(a => a.chave === chave);
+    if (idx >= 0) lista[idx] = registro; else lista.push(registro);
+    salvarAvulsos(lista);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[CONCILIADOR-AVULSO-ERR]', err.message);
+    res.status(500).json({ error: err.message || 'Erro ao salvar conciliação avulsa.' });
   }
 });
 

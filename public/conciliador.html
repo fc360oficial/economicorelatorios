@@ -179,11 +179,11 @@ const CAT_LABEL = {
 };
 
 const STATUS_LABEL = {
-  conciliado: 'Conciliado', pago_sem_baixa: 'Pago sem baixa',
+  conciliado: 'Conciliado', conciliado_avulso: 'Conciliado avulso', pago_sem_baixa: 'Pago sem baixa',
   revisar: 'Revisar', nao_encontrado: 'Não encontrado', fora_escopo: 'Fora do escopo'
 };
 const STATUS_PILL = {
-  conciliado: 'pill-ok', pago_sem_baixa: 'pill-alerta',
+  conciliado: 'pill-ok', conciliado_avulso: 'pill-ok', pago_sem_baixa: 'pill-alerta',
   revisar: 'pill-revisar', nao_encontrado: 'pill-neutro', fora_escopo: 'pill-neutro'
 };
 
@@ -250,6 +250,7 @@ function render() {
   html += '<div class="kpi-row">';
   html += kpiCard('', dados.total, 'Total de saídas', fmtMoeda(dados.totalValor));
   html += kpiCard('conciliado', r.conciliado, 'Conciliado', 'var(--green)');
+  html += kpiCard('conciliado_avulso', r.conciliado_avulso, 'Conciliado avulso', 'var(--green)');
   html += kpiCard('pago_sem_baixa', r.pago_sem_baixa, 'Pago sem baixa', 'var(--red)');
   html += kpiCard('revisar', r.revisar, 'Revisar', 'var(--amber)');
   html += kpiCard('nao_encontrado', r.nao_encontrado, 'Não encontrado', 'var(--ink-2)');
@@ -308,6 +309,10 @@ function render() {
 }
 
 function renderMatch(it) {
+  if (it.status === 'conciliado_avulso' && it.match) {
+    const m = it.match;
+    return `<div class="match"><b>${m.fornecedor}</b> · ${fmtMoeda(m.valor)} <span class="diff">(match manual)</span></div>`;
+  }
   if (it.match) {
     const m = it.match;
     const diffTxt = m.diffDias === 0 ? 'no vencimento' : `${m.diffDias}d de venc.`;
@@ -362,9 +367,16 @@ const ICONE_CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" str
 const ICONE_X = '<svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>';
 const BTN_FECHAR = `<button class="popup-close" onclick="fecharPopup()"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>`;
 
+let popupIdx = null;
+let candidatosProximos = [];
+let candidatoEscolhido = null;
+
 function abrirPopup(idx) {
   const it = itensAtuais[idx];
   if (!it) return;
+  popupIdx = idx;
+  candidatosProximos = [];
+  candidatoEscolhido = null;
   document.getElementById('popup').innerHTML = renderPopup(it);
   document.getElementById('popup').classList.add('on');
   document.getElementById('backdrop').classList.add('on');
@@ -381,63 +393,54 @@ function linhaCheck(ok, label, valor) {
 }
 
 function renderPopup(it) {
-  if (it.match) {
+  let corpo;
+
+  if (it.status === 'conciliado_avulso' && it.match) {
     const m = it.match;
-    return `
-      ${BTN_FECHAR}
-      <div class="popup-hd">
-        <div><h2>${m.fornecedor}</h2><div class="sub">Fornecedor #${m.codFornec} no ERP</div></div>
-        <span class="pill ${STATUS_PILL[it.status]}">${STATUS_LABEL[it.status]}</span>
-      </div>
-      <div class="popup-bd">
-        <div class="popup-row"><span class="k">Valor do extrato</span><span class="v">${fmtMoeda(it.valor)}</span></div>
-        <div class="popup-row"><span class="k">Loja</span><span class="v">${m.filial != null ? 'Loja ' + m.filial : '—'}</span></div>
-        <div class="popup-row"><span class="k">NF / documento</span><span class="v">${m.historico || 'sem NF'}</span></div>
-        <div class="popup-row"><span class="k">Vencimento no ERP</span><span class="v">${fmtData(m.dataVencto)}</span></div>
-        ${it.status === 'pago_sem_baixa' ? `<div class="popup-row"><span class="k">Devedor no ERP</span><span class="v" style="color:var(--red)">${fmtMoeda(m.devedor)}</span></div>` : ''}
+    corpo = `
+      <div class="popup-row"><span class="k">Valor do extrato</span><span class="v">${fmtMoeda(it.valor)}</span></div>
+      <div class="popup-row"><span class="k">Valor no ERP</span><span class="v">${fmtMoeda(m.valor)}</span></div>
+      <div class="popup-row"><span class="k">Diferença</span><span class="v">${fmtMoeda(it.valor - m.valor)}</span></div>
+      <div class="popup-row"><span class="k">Loja</span><span class="v">${m.filial != null ? 'Loja ' + m.filial : '—'}</span></div>
+      <div class="popup-row"><span class="k">NF / documento</span><span class="v">${m.historico || 'sem NF'}</span></div>
+      <div class="popup-row"><span class="k">Vencimento no ERP</span><span class="v">${fmtData(m.dataVencto)}</span></div>
+      <div class="popup-sec">Justificativa</div>
+      <div style="color:var(--ink-2);font-size:12.5px">${m.justificativa}</div>
+      <div style="color:var(--ink-3);font-size:11px;margin-top:8px">Confirmado por ${m.confirmadoPor || 'desconhecido'} em ${m.confirmadoEm ? new Date(m.confirmadoEm).toLocaleString('pt-BR') : '—'}</div>`;
+  } else if (it.match) {
+    const m = it.match;
+    corpo = `
+      <div class="popup-row"><span class="k">Valor do extrato</span><span class="v">${fmtMoeda(it.valor)}</span></div>
+      <div class="popup-row"><span class="k">Loja</span><span class="v">${m.filial != null ? 'Loja ' + m.filial : '—'}</span></div>
+      <div class="popup-row"><span class="k">NF / documento</span><span class="v">${m.historico || 'sem NF'}</span></div>
+      <div class="popup-row"><span class="k">Vencimento no ERP</span><span class="v">${fmtData(m.dataVencto)}</span></div>
+      ${it.status === 'pago_sem_baixa' ? `<div class="popup-row"><span class="k">Devedor no ERP</span><span class="v" style="color:var(--red)">${fmtMoeda(m.devedor)}</span></div>` : ''}
 
-        <div class="popup-sec">Por que casou</div>
-        ${linhaCheck(true, 'Valor idêntico ao título do ERP')}
-        ${linhaCheck(m.similaridade > 0.5, 'Nome do favorecido bate com o fornecedor', m.similaridade > 0.5 ? 'compatível' : 'parcial')}
-        ${linhaCheck(m.diffDias <= 2, m.diffDias === 0 ? 'Pago no dia do vencimento' : `Pago ${m.diffDias} dia(s) do vencimento`)}
-        ${it.status === 'pago_sem_baixa' ? linhaCheck(false, 'ERP ainda não deu baixa nesse título — o dinheiro já saiu do banco') : ''}
+      <div class="popup-sec">Por que casou</div>
+      ${linhaCheck(true, 'Valor idêntico ao título do ERP')}
+      ${linhaCheck(m.similaridade > 0.5, 'Nome do favorecido bate com o fornecedor', m.similaridade > 0.5 ? 'compatível' : 'parcial')}
+      ${linhaCheck(m.diffDias <= 2, m.diffDias === 0 ? 'Pago no dia do vencimento' : `Pago ${m.diffDias} dia(s) do vencimento`)}
+      ${it.status === 'pago_sem_baixa' ? linhaCheck(false, 'ERP ainda não deu baixa nesse título — o dinheiro já saiu do banco') : ''}
 
-        <div class="conf"><span class="k">Confiança do match</span><span class="v" style="color:${m.confianca >= 85 ? 'var(--green)' : 'var(--amber)'}">${m.confianca}%</span></div>
+      <div class="conf"><span class="k">Confiança do match</span><span class="v" style="color:${m.confianca >= 85 ? 'var(--green)' : 'var(--amber)'}">${m.confianca}%</span></div>`;
+  } else if (it.candidatos && it.candidatos.length) {
+    corpo = `
+      <div class="popup-row"><span class="k">Valor do extrato</span><span class="v">${fmtMoeda(it.valor)}</span></div>
+
+      <div class="popup-sec">Por que não casou sozinho</div>
+      ${linhaCheck(true, 'Valor bate com mais de um título')}
+      ${linhaCheck(it.candidatos.some(c => c.similaridade > 0.5), 'Algum candidato tem nome parecido')}
+
+      <div class="popup-sec">Candidatos no ERP</div>
+      <div class="cand-list">
+        ${it.candidatos.map(c => `
+          <div class="cand-item2">
+            <div class="nm">${c.fornecedor}${c.filial != null ? ' · Loja ' + c.filial : ''}</div>
+            <div class="meta"><span>${c.historico || 'sem NF'} · venc. ${fmtData(c.dataVencto)}</span><span>${c.confianca}%</span></div>
+          </div>`).join('')}
       </div>`;
-  }
-
-  if (it.candidatos && it.candidatos.length) {
-    return `
-      ${BTN_FECHAR}
-      <div class="popup-hd">
-        <div><h2>${it.favorecido || it.historico}</h2><div class="sub">${it.candidatos.length} candidatos com o mesmo valor</div></div>
-        <span class="pill ${STATUS_PILL[it.status]}">${STATUS_LABEL[it.status]}</span>
-      </div>
-      <div class="popup-bd">
-        <div class="popup-row"><span class="k">Valor do extrato</span><span class="v">${fmtMoeda(it.valor)}</span></div>
-
-        <div class="popup-sec">Por que não casou sozinho</div>
-        ${linhaCheck(true, 'Valor bate com mais de um título')}
-        ${linhaCheck(it.candidatos.some(c => c.similaridade > 0.5), 'Algum candidato tem nome parecido')}
-
-        <div class="popup-sec">Candidatos no ERP</div>
-        <div class="cand-list">
-          ${it.candidatos.map(c => `
-            <div class="cand-item2">
-              <div class="nm">${c.fornecedor}${c.filial != null ? ' · Loja ' + c.filial : ''}</div>
-              <div class="meta"><span>${c.historico || 'sem NF'} · venc. ${fmtData(c.dataVencto)}</span><span>${c.confianca}%</span></div>
-            </div>`).join('')}
-        </div>
-      </div>`;
-  }
-
-  return `
-    ${BTN_FECHAR}
-    <div class="popup-hd">
-      <div><h2>${it.favorecido || it.historico}</h2><div class="sub">${it.historico}</div></div>
-      <span class="pill ${STATUS_PILL[it.status]}">${STATUS_LABEL[it.status]}</span>
-    </div>
-    <div class="popup-bd">
+  } else {
+    corpo = `
       <div class="popup-row"><span class="k">Valor do extrato</span><span class="v">${fmtMoeda(it.valor)}</span></div>
       <div class="popup-row"><span class="k">Data</span><span class="v">${it.dataBr}</span></div>
       <div class="popup-sec">${it.status === 'fora_escopo' ? 'Fora do escopo' : 'Sem correspondência'}</div>
@@ -445,8 +448,117 @@ function renderPopup(it) {
         ${it.status === 'fora_escopo'
           ? 'Essa categoria (tributo, tarifa, salário, aplicação) não é pagamento a fornecedor, então não tentamos casar com o ERP.'
           : 'Não achamos nenhum título no ERP com esse valor dentro da janela de vencimento considerada.'}
-      </div>
+      </div>`;
+  }
+
+  const podeConciliarManual = it.status !== 'fora_escopo' && it.status !== 'conciliado_avulso';
+
+  return `
+    ${BTN_FECHAR}
+    <div class="popup-hd">
+      <div><h2>${it.match ? it.match.fornecedor : (it.favorecido || it.historico)}</h2><div class="sub">${it.match ? '#' + (it.match.codFornec || it.match.nReg) + ' no ERP' : it.historico}</div></div>
+      <span class="pill ${STATUS_PILL[it.status]}">${STATUS_LABEL[it.status]}</span>
+    </div>
+    <div class="popup-bd">
+      ${corpo}
+      ${podeConciliarManual ? renderConciliacaoManual() : ''}
     </div>`;
+}
+
+/* ── CONCILIAÇÃO MANUAL (juros/multa deixam o valor pago diferente do título) ── */
+function renderConciliacaoManual() {
+  return `
+    <div class="popup-sec">Conciliar manualmente</div>
+    <div id="concman-box">
+      <div style="color:var(--ink-3);font-size:11.5px;margin-bottom:8px">Pra casos de boleto pago com juros/multa (valor não bate exato) — busca títulos do ERP com valor próximo.</div>
+      <button class="btn btn-slate" style="width:100%" onclick="buscarProximos()">Buscar títulos próximos</button>
+    </div>`;
+}
+
+async function buscarProximos() {
+  const it = itensAtuais[popupIdx];
+  const box = document.getElementById('concman-box');
+  box.innerHTML = '<div class="spinner" style="margin:16px auto"></div>';
+  try {
+    const r = await fetch('/api/conciliador/buscar-proximos', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ valor: it.valor, data: it.data, loja: dados.loja })
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Erro ao buscar');
+    candidatosProximos = j.candidatos || [];
+    renderCandidatosProximos();
+  } catch (e) {
+    box.innerHTML = `<div class="err" style="margin:0">Erro: ${e.message}</div>`;
+  }
+}
+
+function renderCandidatosProximos() {
+  const box = document.getElementById('concman-box');
+  if (!candidatosProximos.length) {
+    box.innerHTML = '<div class="empty" style="padding:14px 0">Nenhum título com valor próximo (±R$15) nessa janela de data.</div>';
+    return;
+  }
+  box.innerHTML = '<div class="cand-list">' + candidatosProximos.map((c, i) => `
+    <div class="cand-item2" style="cursor:pointer" onclick="escolherCandidato(${i})">
+      <div class="nm">${c.fornecedor}${c.filial != null ? ' · Loja ' + c.filial : ''}</div>
+      <div class="meta"><span>${c.historico || 'sem NF'} · venc. ${fmtData(c.dataVencto)}</span>
+      <span style="color:${c.diferenca === 0 ? 'var(--green)' : 'var(--amber)'}">${fmtMoeda(c.valor)} (${c.diferenca >= 0 ? '+' : ''}${fmtMoeda(c.diferenca)})</span></div>
+    </div>`).join('') + '</div>';
+}
+
+function escolherCandidato(i) {
+  candidatoEscolhido = candidatosProximos[i];
+  const box = document.getElementById('concman-box');
+  const it = itensAtuais[popupIdx];
+  box.innerHTML = `
+    <div class="cand-item2" style="margin-bottom:10px">
+      <div class="nm">${candidatoEscolhido.fornecedor}</div>
+      <div class="meta"><span>${candidatoEscolhido.historico || 'sem NF'}</span><span>${fmtMoeda(candidatoEscolhido.valor)}</span></div>
+    </div>
+    <label style="font-size:10px;color:var(--ink-3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:6px">Justificativa</label>
+    <textarea id="txt-justificativa" placeholder="Ex: pago com juros/multa de atraso" style="width:100%;min-height:60px;background:var(--bg);border:1px solid var(--border-strong);border-radius:8px;padding:8px 10px;font-size:12.5px;font-family:var(--font);outline:none;resize:vertical"></textarea>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button class="btn btn-slate" style="flex:1" onclick="renderCandidatosProximos()">Voltar</button>
+      <button class="btn btn-blue" style="flex:1" onclick="confirmarAvulso()">Confirmar conciliação</button>
+    </div>`;
+}
+
+async function confirmarAvulso() {
+  const it = itensAtuais[popupIdx];
+  const justificativa = document.getElementById('txt-justificativa').value.trim();
+  if (!justificativa) { alert('Escreve a justificativa antes de confirmar.'); return; }
+  const box = document.getElementById('concman-box');
+  box.innerHTML = '<div class="spinner" style="margin:16px auto"></div>';
+  try {
+    const r = await fetch('/api/conciliador/confirmar-avulso', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        saida: { data: it.data, valor: it.valor, historico: it.historico, favorecido: it.favorecido, categoria: it.categoria },
+        escolha: candidatoEscolhido,
+        justificativa
+      })
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Erro ao confirmar');
+
+    // Atualiza o item localmente pra refletir na tela sem precisar reprocessar tudo
+    const antigo = it.status;
+    it.status = 'conciliado_avulso';
+    it.match = {
+      nReg: candidatoEscolhido.nReg, fornecedor: candidatoEscolhido.fornecedor, codFornec: candidatoEscolhido.codFornec,
+      valor: candidatoEscolhido.valor, dataVencto: candidatoEscolhido.dataVencto, historico: candidatoEscolhido.historico,
+      filial: candidatoEscolhido.filial, justificativa, confirmadoEm: new Date().toISOString(), confirmadoPor: 'você'
+    };
+    it.candidatos = [];
+    dados.resumo[antigo]--;
+    dados.resumo.conciliado_avulso = (dados.resumo.conciliado_avulso || 0) + 1;
+
+    fecharPopup();
+    render();
+  } catch (e) {
+    box.innerHTML = `<div class="err" style="margin:0">Erro: ${e.message}</div>`;
+  }
 }
 </script>
 </body>
