@@ -19,6 +19,32 @@ function salvarAvulsos(lista) {
   fs.writeFileSync(AVULSOS_PATH, JSON.stringify(lista, null, 2));
 }
 
+// Cache do Plano de Contas do ERP (loja20045.planodecontas) — traduz
+// PlanoGrupo/PlanoSub em nome legível pro Conciliador. Recarrega a cada 10min.
+let planoContasCache = null;
+let planoContasCacheEm = 0;
+async function getPlanoContas() {
+  const agora = Date.now();
+  if (planoContasCache && agora - planoContasCacheEm < 10 * 60 * 1000) return planoContasCache;
+  const rows = await q('SELECT PlanoGrupo, PlanoSub, Descricao FROM loja20045.planodecontas');
+  const subMap = new Map();
+  const grupoMap = new Map();
+  for (const r of rows) {
+    subMap.set(`${r.PlanoGrupo}|${r.PlanoSub}`, r.Descricao?.trim());
+    if (r.PlanoSub === 0) grupoMap.set(r.PlanoGrupo, r.Descricao?.trim());
+  }
+  planoContasCache = { subMap, grupoMap };
+  planoContasCacheEm = agora;
+  return planoContasCache;
+}
+function enriquecerComPlanoContas(candidatosRaw, plano) {
+  return candidatosRaw.map(c => ({
+    ...c,
+    planoGrupoNome: plano.grupoMap.get(c.PlanoGrupo) || null,
+    planoSubNome: plano.subMap.get(`${c.PlanoGrupo}|${c.PlanoSub}`) || null
+  }));
+}
+
 const app = express();
 app.use(express.json({ limit: '10mb' }));
 
@@ -3722,13 +3748,14 @@ app.post('/api/conciliador/processar', async (req, res) => {
     // Cada loja tem conta bancária própria — o extrato de uma loja só pode
     // estar pagando títulos daquela mesma Filial no ERP, então restringe
     // aqui pra não casar por coincidência de valor com título de outra loja.
-    const candidatos = await q(`
+    const candidatosRaw = await q(`
       SELECT a.nReg, a.Valor, a.Devedor, DATE_FORMAT(a.DataVencto,'%Y-%m-%d') as DataVencto,
-             a.CodFornec, a.Historico, a.Filial, f.Nome, f.NomeCompleto
+             a.CodFornec, a.Historico, a.Filial, a.PlanoGrupo, a.PlanoSub, f.Nome, f.NomeCompleto
       FROM loja20045.contasapagar a
       LEFT JOIN central.fornecedor f ON f.CodFornec = a.CodFornec
       WHERE a.DataVencto BETWEEN ? AND ? AND a.Filial = ?
     `, [dIni, dFim, loja]);
+    const candidatos = enriquecerComPlanoContas(candidatosRaw, await getPlanoContas());
 
     const itens = aplicarAvulsos(conciliar(saidas, candidatos), carregarAvulsos());
     const resumo = { conciliado: 0, conciliado_avulso: 0, pago_sem_baixa: 0, revisar: 0, nao_encontrado: 0, fora_escopo: 0 };

@@ -113,6 +113,40 @@ table.t tbody tr:hover{background:var(--surface-2)}
 .cand-item2 .nm{font-weight:700;color:var(--ink)}
 .cand-item2 .meta{display:flex;justify-content:space-between;color:var(--ink-3);margin-top:2px}
 
+.plano{display:inline-flex;flex-direction:column;gap:1px}
+.plano .grp{font-size:10px;color:var(--ink-3)}
+.plano .sub{font-size:12px;font-weight:600;color:var(--ink)}
+
+.btn-abrir-resumo{display:flex;align-items:center;gap:8px;background:var(--surface);border:2px dashed var(--brand);border-radius:12px;padding:12px 16px;margin-bottom:16px;cursor:pointer;font-size:13px;font-weight:700;color:var(--brand-ink);width:100%;font-family:var(--font)}
+.btn-abrir-resumo:hover{background:#FFF9E6}
+.btn-abrir-resumo svg{width:16px;height:16px;stroke:currentColor;stroke-width:2.2;fill:none;transition:transform .18s ease}
+.btn-abrir-resumo.aberto svg{transform:rotate(90deg)}
+.resumo-box{display:none;background:var(--surface);border:2px solid var(--brand);border-radius:12px;padding:16px 18px;margin-bottom:16px;box-shadow:0 1px 2px rgba(22,35,63,.04)}
+.resumo-box.aberto{display:block}
+.resumo-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+.resumo-hd h3{font-size:14px;font-weight:800;color:var(--ink)}
+.resumo-hd .total{font-size:11px;color:var(--ink-3)}
+.resumo-sub{font-size:11px;color:var(--ink-3);margin-bottom:14px}
+.rp-item{border-bottom:1px solid var(--border)}
+.rp-item:last-child{border-bottom:none}
+.rp-row{display:grid;grid-template-columns:190px 1fr 100px 60px;align-items:center;gap:12px;padding:8px 0;cursor:pointer;transition:background .12s}
+.rp-row:hover{background:var(--surface-2);margin:0 -8px;padding:8px}
+.rp-nome-wrap{display:flex;align-items:center;gap:4px}
+.rp-chev{width:12px;height:12px;stroke:var(--ink-3);stroke-width:2.4;fill:none;margin-right:2px;transition:transform .15s;flex-shrink:0}
+.rp-row.aberta .rp-chev{transform:rotate(90deg)}
+.rp-nome{font-size:12.5px;font-weight:700;color:var(--ink)}
+.rp-grp{font-size:10px;color:var(--ink-3);margin-top:1px}
+.rp-bar-wrap{background:var(--surface-2);border-radius:6px;height:20px;overflow:hidden;position:relative}
+.rp-bar{height:100%;background:linear-gradient(90deg,var(--brand),#FFD666);border-radius:6px}
+.rp-valor{font-size:13px;font-weight:800;color:var(--ink);text-align:right;font-variant-numeric:tabular-nums}
+.rp-pct{font-size:11px;color:var(--ink-3);text-align:right;font-variant-numeric:tabular-nums}
+.rp-detalhe{display:none;background:var(--bg);border-radius:8px;margin:0 0 10px;padding:4px 12px}
+.rp-detalhe.aberta{display:block}
+.rp-forn-row{display:flex;justify-content:space-between;align-items:center;padding:7px 0;font-size:12px;border-bottom:1px solid var(--border)}
+.rp-forn-row:last-child{border-bottom:none}
+.rp-forn-nome{color:var(--ink-2);font-weight:600}
+.rp-forn-val{font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
+
 .spinner{width:22px;height:22px;border-radius:50%;border:2px solid var(--border);border-top-color:var(--brand);animation:spin .7s linear infinite;margin:30px auto}
 @keyframes spin{to{transform:rotate(360deg)}}
 .empty{padding:30px;text-align:center;color:var(--ink-3);font-size:13px}
@@ -124,7 +158,12 @@ table.t tbody tr:hover{background:var(--surface-2)}
   .kpi-row{gap:6px}
   .kpi{min-width:calc(50% - 4px);padding:9px 10px}
   .kpi .v{font-size:16px}
-  table.t{min-width:720px}
+  table.t{min-width:760px}
+  .rp-row{grid-template-columns:1fr 70px;grid-template-areas:"nome valor" "bar bar";row-gap:4px}
+  .rp-nome-wrap{grid-area:nome}
+  .rp-bar-wrap{grid-area:bar}
+  .rp-valor{grid-area:valor}
+  .rp-pct{display:none}
 }
 </style>
 </head>
@@ -169,6 +208,7 @@ let filtroDe = '';
 let filtroAte = '';
 let filtroBusca = '';
 let filtroCategoria = '';
+let filtroPlano = '';
 let itensAtuais = [];
 let ultimaAtualizacao = null;
 
@@ -194,6 +234,22 @@ function fmtData(iso) {
   if (!iso) return '';
   const [y, m, d] = iso.split('-');
   return `${d}/${m}/${y}`;
+}
+
+// Plano de Contas só existe pra itens que casaram com um título do ERP
+// (match direto ou, no caso de "revisar", qualquer um dos candidatos).
+function itemPlano(it) {
+  if (it.match && it.match.planoSubNome) return { chave: `${it.match.planoGrupo}.${it.match.planoSub}`, grupo: it.match.planoGrupoNome, sub: it.match.planoSubNome };
+  if (it.candidatos && it.candidatos.length) {
+    const c = it.candidatos.find(c => c.planoSubNome);
+    if (c) return { chave: `${c.planoGrupo}.${c.planoSub}`, grupo: c.planoGrupoNome, sub: c.planoSubNome };
+  }
+  return null;
+}
+function planoLabel(it) {
+  const p = itemPlano(it);
+  if (!p) return '<span style="color:var(--ink-3)">—</span>';
+  return `<div class="plano"><span class="grp">${p.grupo || ''}</span><span class="sub">${p.sub}</span></div>`;
 }
 
 function importarArquivo(input) {
@@ -257,12 +313,19 @@ function render() {
   html += kpiCard('fora_escopo', r.fora_escopo, 'Fora do escopo', 'var(--ink-3)');
   html += '</div>';
 
+  html += renderResumoPlano();
+
   const optsStatus = Object.keys(STATUS_LABEL).map(s => `<option value="${s}"${filtroAtivo===s?' selected':''}>${STATUS_LABEL[s]}</option>`).join('');
   const optsCat = Object.keys(CAT_LABEL).map(c => `<option value="${c}"${filtroCategoria===c?' selected':''}>${CAT_LABEL[c]}</option>`).join('');
+  const planosUnicos = new Map();
+  dados.itens.forEach(i => { const p = itemPlano(i); if (p && !planosUnicos.has(p.chave)) planosUnicos.set(p.chave, p); });
+  const optsPlano = [...planosUnicos.values()].sort((a, b) => a.sub.localeCompare(b.sub))
+    .map(p => `<option value="${p.chave}"${filtroPlano===p.chave?' selected':''}>${p.sub}</option>`).join('');
 
   html += '<div class="filtros">' +
     `<div class="fg"><label>Status</label><select id="fil-status" onchange="aplicarFiltros()"><option value="">Todos</option>${optsStatus}</select></div>` +
     `<div class="fg"><label>Categoria</label><select id="fil-categoria" onchange="aplicarFiltros()"><option value="">Todas</option>${optsCat}</select></div>` +
+    `<div class="fg"><label>Plano de Contas</label><select id="fil-plano" onchange="aplicarFiltros()"><option value="">Todos</option>${optsPlano}</select></div>` +
     `<div class="fg"><label>De</label><input type="date" id="fil-de" value="${filtroDe}" onkeydown="if(event.key==='Enter')aplicarFiltros()"></div>` +
     `<div class="fg"><label>Até</label><input type="date" id="fil-ate" value="${filtroAte}" onkeydown="if(event.key==='Enter')aplicarFiltros()"></div>` +
     `<div class="fg fg-busca"><label>Buscar favorecido</label><input type="text" id="fil-busca" value="${filtroBusca}" placeholder="nome..." onkeydown="if(event.key==='Enter')aplicarFiltros()"></div>` +
@@ -272,6 +335,7 @@ function render() {
 
   let itens = filtroAtivo ? dados.itens.filter(i => i.status === filtroAtivo) : dados.itens;
   if (filtroCategoria) itens = itens.filter(i => i.categoria === filtroCategoria);
+  if (filtroPlano) itens = itens.filter(i => { const p = itemPlano(i); return p && p.chave === filtroPlano; });
   if (filtroDe) itens = itens.filter(i => i.data >= filtroDe);
   if (filtroAte) itens = itens.filter(i => i.data <= filtroAte);
   if (filtroBusca) {
@@ -289,7 +353,7 @@ function render() {
   itensAtuais = itens;
 
   html += '<div class="table-wrap"><table class="t"><thead><tr>' +
-    '<th>Data</th><th>Categoria</th><th>Favorecido</th><th class="r">Valor</th><th>Status</th><th>Casamento com o ERP</th>' +
+    '<th>Data</th><th>Categoria</th><th>Favorecido</th><th class="r">Valor</th><th>Status</th><th>Plano de Contas</th><th>Casamento com o ERP</th>' +
     '</tr></thead><tbody>';
 
   itens.forEach((it, idx) => {
@@ -299,6 +363,7 @@ function render() {
       `<td><div class="fav">${it.favorecido || it.historico}</div><div class="hist">${it.historico}</div></td>` +
       `<td class="r val">${fmtMoeda(it.valor)}</td>` +
       `<td><span class="pill ${STATUS_PILL[it.status]}">${STATUS_LABEL[it.status]}</span></td>` +
+      `<td>${planoLabel(it)}</td>` +
       `<td>${renderMatch(it)}</td>` +
       '</tr>';
   });
@@ -331,7 +396,7 @@ function renderMatch(it) {
 }
 
 function kpiCard(status, valor, label, corOuTexto) {
-  const semFiltroNenhum = !filtroAtivo && !filtroCategoria && !filtroDe && !filtroAte && !filtroBusca;
+  const semFiltroNenhum = !filtroAtivo && !filtroCategoria && !filtroPlano && !filtroDe && !filtroAte && !filtroBusca;
   const on = status ? (filtroAtivo === status ? ' on' : '') : (semFiltroNenhum ? ' on' : '');
   // o card "Total de saídas" (status='') é o botão explícito de "ver tudo de novo"
   const clickable = status ? ` onclick="filtrar('${status}')"` : ' onclick="limparFiltros()"';
@@ -349,6 +414,7 @@ function filtrar(status) {
 function aplicarFiltros() {
   filtroAtivo = document.getElementById('fil-status').value;
   filtroCategoria = document.getElementById('fil-categoria').value;
+  filtroPlano = document.getElementById('fil-plano').value;
   filtroDe = document.getElementById('fil-de').value;
   filtroAte = document.getElementById('fil-ate').value;
   filtroBusca = document.getElementById('fil-busca').value.trim();
@@ -356,11 +422,71 @@ function aplicarFiltros() {
 }
 
 function limparFiltros() {
-  filtroAtivo = ''; filtroCategoria = ''; filtroDe = ''; filtroAte = ''; filtroBusca = '';
+  filtroAtivo = ''; filtroCategoria = ''; filtroPlano = ''; filtroDe = ''; filtroAte = ''; filtroBusca = '';
   render();
 }
 
 function ligarKpis() {} // clique já é via onclick inline
+
+let resumoPlanoAberto = false;
+let categoriaPlanoAberta = null;
+
+function renderResumoPlano() {
+  const grupos = new Map(); // chave -> { grupo, sub, total, fornecedores: Map(nome -> total) }
+  let totalGeral = 0;
+  dados.itens.forEach(it => {
+    const p = itemPlano(it);
+    if (!p) return;
+    if (!grupos.has(p.chave)) grupos.set(p.chave, { grupo: p.grupo, sub: p.sub, total: 0, fornecedores: new Map() });
+    const g = grupos.get(p.chave);
+    g.total += it.valor;
+    totalGeral += it.valor;
+    const nomeForn = (it.match && it.match.fornecedor) || it.favorecido || it.historico || '(sem identificação)';
+    g.fornecedores.set(nomeForn, (g.fornecedores.get(nomeForn) || 0) + it.valor);
+  });
+
+  if (!grupos.size) return '';
+
+  const lista = [...grupos.entries()].sort((a, b) => b[1].total - a[1].total);
+
+  let corpo = '';
+  lista.forEach(([chave, g]) => {
+    const pct = totalGeral ? (g.total / totalGeral * 100) : 0;
+    const aberta = categoriaPlanoAberta === chave;
+    const fornecedores = [...g.fornecedores.entries()].sort((a, b) => b[1] - a[1]);
+    corpo += `<div class="rp-item">` +
+      `<div class="rp-row${aberta ? ' aberta' : ''}" onclick="toggleCategoriaPlano('${chave.replace(/'/g, "\\'")}')">` +
+      `<div class="rp-nome-wrap"><svg class="rp-chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg><div><div class="rp-nome">${g.sub}</div><div class="rp-grp">${g.grupo || ''}</div></div></div>` +
+      `<div class="rp-bar-wrap"><div class="rp-bar" style="width:${pct.toFixed(1)}%"></div></div>` +
+      `<div class="rp-valor">${fmtMoeda(g.total)}</div>` +
+      `<div class="rp-pct">${pct.toFixed(1)}%</div>` +
+      `</div>` +
+      `<div class="rp-detalhe${aberta ? ' aberta' : ''}">` +
+      fornecedores.map(([nome, val]) => `<div class="rp-forn-row"><span class="rp-forn-nome">${nome}</span><span class="rp-forn-val">${fmtMoeda(val)}</span></div>`).join('') +
+      `</div>` +
+      `</div>`;
+  });
+
+  return `<button class="btn-abrir-resumo${resumoPlanoAberto ? ' aberto' : ''}" onclick="toggleResumoPlano()">` +
+    `<svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>` +
+    `Resumo por Plano de Contas (${grupos.size} categorias)` +
+    `</button>` +
+    `<div class="resumo-box${resumoPlanoAberto ? ' aberto' : ''}">` +
+    `<div class="resumo-hd"><h3>Total de saídas por categoria — Loja ${dados.loja}</h3><span class="total">${fmtMoeda(totalGeral)}</span></div>` +
+    `<div class="resumo-sub">Clique numa categoria pra ver o detalhamento por fornecedor</div>` +
+    corpo +
+    `</div>`;
+}
+
+function toggleResumoPlano() {
+  resumoPlanoAberto = !resumoPlanoAberto;
+  render();
+}
+
+function toggleCategoriaPlano(chave) {
+  categoriaPlanoAberta = categoriaPlanoAberta === chave ? null : chave;
+  render();
+}
 
 /* ── POPUP DE DETALHE ── */
 const ICONE_CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 12.5 5.5 5.5L20 6.5"/></svg>';
@@ -404,6 +530,7 @@ function renderPopup(it) {
       <div class="popup-row"><span class="k">Loja</span><span class="v">${m.filial != null ? 'Loja ' + m.filial : '—'}</span></div>
       <div class="popup-row"><span class="k">NF / documento</span><span class="v">${m.historico || 'sem NF'}</span></div>
       <div class="popup-row"><span class="k">Vencimento no ERP</span><span class="v">${fmtData(m.dataVencto)}</span></div>
+      ${itemPlano(it) ? `<div class="popup-row"><span class="k">Plano de Contas</span><span class="v">${itemPlano(it).sub}</span></div>` : ''}
       <div class="popup-sec">Justificativa</div>
       <div style="color:var(--ink-2);font-size:12.5px">${m.justificativa}</div>
       <div style="color:var(--ink-3);font-size:11px;margin-top:8px">Confirmado por ${m.confirmadoPor || 'desconhecido'} em ${m.confirmadoEm ? new Date(m.confirmadoEm).toLocaleString('pt-BR') : '—'}</div>`;
@@ -414,6 +541,7 @@ function renderPopup(it) {
       <div class="popup-row"><span class="k">Loja</span><span class="v">${m.filial != null ? 'Loja ' + m.filial : '—'}</span></div>
       <div class="popup-row"><span class="k">NF / documento</span><span class="v">${m.historico || 'sem NF'}</span></div>
       <div class="popup-row"><span class="k">Vencimento no ERP</span><span class="v">${fmtData(m.dataVencto)}</span></div>
+      ${m.planoSubNome ? `<div class="popup-row"><span class="k">Plano de Contas</span><span class="v">${m.planoSubNome}</span></div>` : ''}
       ${it.status === 'pago_sem_baixa' ? `<div class="popup-row"><span class="k">Devedor no ERP</span><span class="v" style="color:var(--red)">${fmtMoeda(m.devedor)}</span></div>` : ''}
 
       <div class="popup-sec">Por que casou</div>
