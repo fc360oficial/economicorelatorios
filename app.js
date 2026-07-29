@@ -1,5 +1,5 @@
 ﻿// Verificação de versão — roda antes de tudo
-var BUILD = '232';
+var BUILD = '233';
 (function() {
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
@@ -7255,8 +7255,24 @@ function _confirmarGerarToken(clienteId) {
     var base = c.validade ? new Date(Math.max(new Date(c.validade), new Date())) : new Date();
     base.setHours(0,0,0,0);
     var nova = new Date(base); nova.setDate(nova.getDate()+d);
-    var msg = '🔑 TOKEN GERADO\n\nCliente: '+clienteId+'\nDias: '+d+'\nNova validade: '+nova.toLocaleDateString('pt-BR')+'\n\nToken:\n'+token+'\n\nEnvie este token para o cliente inserir em Licença no app.';
-    alert(msg);
+    var html2 =
+      '<div id="modal-token-gerado" onclick="if(event.target===this)this.remove()" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:3000;display:flex;align-items:center;justify-content:center;padding:16px">'+
+      '<div style="background:#fff;border-radius:16px;padding:28px 24px;width:100%;max-width:400px;text-align:center">'+
+        '<div style="font-size:36px;margin-bottom:10px">🔑</div>'+
+        '<div style="font-family:\'Syne\',sans-serif;font-size:17px;font-weight:800;margin-bottom:16px">Token Gerado!</div>'+
+        '<div style="background:var(--gray);border-radius:10px;padding:12px;margin-bottom:12px;font-size:12px;color:var(--t2);text-align:left">'+
+          '<div>Cliente: <strong>'+clienteId+'</strong></div>'+
+          '<div>Dias: <strong>'+d+'</strong></div>'+
+          '<div>Nova validade: <strong>'+nova.toLocaleDateString('pt-BR')+'</strong></div>'+
+        '</div>'+
+        '<div style="background:#1a1a2e;border-radius:12px;padding:16px;margin-bottom:14px">'+
+          '<div style="font-family:monospace;font-size:24px;font-weight:800;color:#f1c40f;letter-spacing:3px" id="token-display">'+token+'</div>'+
+        '</div>'+
+        '<button onclick="var t=document.getElementById(\'token-display\').textContent;navigator.clipboard.writeText(t).then(function(){showToast(\'✅ Token copiado!\');}).catch(function(){});" style="width:100%;padding:12px;background:var(--y);border:none;border-radius:10px;font-size:14px;font-weight:800;font-family:\'Syne\',sans-serif;cursor:pointer;margin-bottom:8px">📋 Copiar Token</button>'+
+        '<div style="font-size:11px;color:var(--t3);margin-bottom:12px">Envie este token para o cliente inserir em <strong>Licença</strong> no app.</div>'+
+        '<button onclick="document.getElementById(\'modal-token-gerado\').remove()" style="background:none;border:none;color:var(--t2);font-size:13px;cursor:pointer">Fechar</button>'+
+      '</div></div>';
+    document.body.insertAdjacentHTML('beforeend', html2);
     showToast('✅ Token gerado!');
   }).catch(function(e){ var el=document.getElementById('gt-err'); if(el) el.textContent='Erro: '+e.message; });
 }
