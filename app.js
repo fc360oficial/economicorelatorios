@@ -1,5 +1,5 @@
 ﻿// Verificação de versão — roda antes de tudo
-var BUILD = '243';
+var BUILD = '244';
 (function() {
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
@@ -936,6 +936,8 @@ function carregarClienteConfig(cb) {
   if (!clienteId) { S.clienteConfig = null; if (cb) cb(); return; }
   db.collection('clientes').doc(clienteId).get().then(function(doc) {
     S.clienteConfig = doc.exists ? Object.assign({}, doc.data(), {id: doc.id}) : null;
+    var nomeEl = document.getElementById('dash-loja-nome');
+    if (nomeEl && S.clienteConfig && S.clienteConfig.nome) nomeEl.textContent = S.clienteConfig.nome;
     if (cb) cb();
   }).catch(function() { S.clienteConfig = null; if (cb) cb(); });
 }
