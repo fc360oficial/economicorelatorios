@@ -1,5 +1,5 @@
 ﻿// Verificação de versão — roda antes de tudo
-var BUILD = '246';
+var BUILD = '247';
 (function() {
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
@@ -4872,6 +4872,13 @@ function _renderDashEquipe() {
     if (dashResumo) dashResumo.textContent = '';
     return;
   }
+  var avatarGrad = {
+    gerencia:'linear-gradient(135deg,#3b82f6,#1d4ed8)',
+    supervisor:'linear-gradient(135deg,#8b5cf6,#6d28d9)',
+    prevencao:'linear-gradient(135deg,#f59e0b,#b45309)',
+    operator:'linear-gradient(135deg,#10b981,#047857)',
+    admin:'linear-gradient(135deg,#ef4444,#b91c1c)'
+  };
   var enviados = 0;
   dashEquipe.innerHTML = users.map(function(u){
     var urs   = resultadosHoje.filter(function(r){
@@ -4885,18 +4892,23 @@ function _renderDashEquipe() {
     var enviou = urs.length > 0;
     var media  = enviou ? Math.round(urs.reduce(function(s,r){ return s+r.pct; },0)/urs.length) : null;
     if (enviou) enviados++;
-    var cor = !enviou?'#9ca3af':media===100?'var(--g2)':media>=80?'#2d9e62':media>=60?'var(--am)':'var(--r)';
-    var bg  = !enviou?'var(--gray)':media===100?'var(--g3)':media>=60?'var(--am2)':'var(--r2)';
-    return '<div style="padding:10px 12px;border-radius:10px;background:'+bg+';border:1.5px solid '+cor+'">'
-      +'<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">'
-      +'<div style="width:8px;height:8px;border-radius:50%;background:'+cor+';flex-shrink:0"></div>'
-      +'<div style="font-size:12px;font-weight:600;color:var(--t);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+u.nome+'</div>'
+    var scoreColor = !enviou?'#9ca3af':media===100?'#15803d':media>=60?'#a16207':'#dc2626';
+    var statusBg   = !enviou?'#f3f4f6':media===100?'#dcfce7':media>=60?'#fef9c3':'#fee2e2';
+    var statusColor= !enviou?'#6b7280':media===100?'#15803d':media>=60?'#92400e':'#dc2626';
+    var statusLabel= !enviou?'Pendente':media===100?'Completo':'Enviado';
+    var initials   = u.nome.trim().split(/\s+/).slice(0,2).map(function(w){return w[0]?w[0].toUpperCase():'';}).join('');
+    var avatarBg   = avatarGrad[u.perfil]||'linear-gradient(135deg,#6b7280,#4b5563)';
+    return '<div style="padding:12px 14px;border-radius:14px;background:var(--w);border:1px solid rgba(0,0,0,.07);box-shadow:0 1px 3px rgba(0,0,0,.04),0 2px 8px rgba(0,0,0,.05);transition:box-shadow .2s ease">'
+      +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">'
+      +'<div style="width:38px;height:38px;border-radius:50%;background:'+avatarBg+';display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0;letter-spacing:.3px">'+initials+'</div>'
+      +'<div style="min-width:0">'
+      +'<div style="font-size:12.5px;font-weight:600;color:var(--t);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3">'+u.nome+'</div>'
+      +'<div style="font-size:10px;color:var(--t3);line-height:1.3">'+(perfisLabel[u.perfil]||u.perfil)+'</div>'
+      +'</div></div>'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;gap:6px">'
+      +'<span style="font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:20px;background:'+statusBg+';color:'+statusColor+'">'+statusLabel+'</span>'
+      +(enviou?'<span style="font-size:15px;font-weight:700;color:'+scoreColor+'">'+media+'%</span>':'')
       +'</div>'
-      +'<div style="font-size:10px;color:var(--t3);margin-bottom:4px">'+(perfisLabel[u.perfil]||u.perfil)+'</div>'
-      +(enviou
-        ?'<div style="font-size:14px;font-weight:800;color:'+cor+'">'+media+'%</div>'
-         +'<div style="font-size:10px;color:var(--t3)">'+urs.length+' envio'+(urs.length>1?'s':'')+'</div>'
-        :'<div style="font-size:11px;color:#9ca3af;font-weight:600">Pendente</div>')
       +'</div>';
   }).join('');
   if (dashResumo) dashResumo.textContent = enviados+' de '+users.length+' enviaram';
