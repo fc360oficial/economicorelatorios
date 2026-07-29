@@ -46,9 +46,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--ink);min-height:10
 .fg select,.fg input{background:var(--surface);border:1px solid var(--border-strong);border-radius:7px;color:var(--ink);padding:7px 11px;font-size:13px;outline:none;font-family:var(--font)}
 .fg select:focus,.fg input:focus{border-color:var(--brand)}
 .fg-busca input{min-width:200px}
-.fg-check{padding-bottom:7px}
-.chk{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-2);font-weight:600;text-transform:none;letter-spacing:normal;white-space:nowrap;cursor:pointer}
-.chk input{width:15px;height:15px;accent-color:var(--brand);cursor:pointer}
+.tabs-encargo{display:flex;border:1px solid var(--border-strong);border-radius:7px;overflow:hidden}
+.tab-encargo{background:var(--surface);color:var(--ink-2);border:none;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font)}
+.tab-encargo+.tab-encargo{border-left:1px solid var(--border-strong)}
+.tab-encargo:hover{background:var(--surface-2)}
+.tab-encargo.on{background:var(--brand);color:var(--brand-ink)}
 
 /* KPI CARDS */
 .kpi-row{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap}
@@ -64,6 +66,8 @@ table.t{width:100%;border-collapse:collapse;font-size:12px}
 table.t thead{background:var(--surface-2)}
 table.t th{padding:8px 12px;text-align:left;color:var(--ink-3);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;white-space:nowrap;border-bottom:1px solid var(--border)}
 table.t td{padding:8px 12px;border-bottom:1px solid var(--border);vertical-align:top}
+table.t td.plano-td{padding-right:4px}
+table.t td.fav-td{padding-left:4px}
 table.t th.r,table.t td.r{text-align:right}
 table.t tbody tr{cursor:pointer}
 table.t tbody tr:hover{background:var(--surface-2)}
@@ -119,7 +123,6 @@ table.t tbody tr:hover{background:var(--surface-2)}
 .plano{display:inline-flex;flex-direction:column;gap:1px}
 .plano .grp{font-size:10.5px;color:var(--ink-3)}
 .plano .sub{font-size:12px;font-weight:600;color:var(--ink)}
-.plano.destaque{background:#FFF6D9;border-radius:6px;padding:3px 7px;margin:-3px -7px;display:inline-flex}
 
 .btn-abrir-resumo{display:flex;align-items:center;gap:8px;background:var(--surface);border:2px dashed var(--brand);border-radius:12px;padding:12px 16px;margin-bottom:16px;cursor:pointer;font-size:13px;font-weight:700;color:var(--brand-ink);width:100%;font-family:var(--font)}
 .btn-abrir-resumo:hover{background:#FFF9E6}
@@ -220,7 +223,7 @@ let filtroAte = '';
 let filtroBusca = '';
 let filtroCategoria = '';
 let filtroPlano = '';
-let filtroEncargos = false;
+let filtroTipoEncargo = ''; // '' | 'acrescimos' | 'abatimentos'
 let itensAtuais = [];
 let ultimaAtualizacao = null;
 
@@ -261,14 +264,18 @@ function itemPlano(it) {
 function planoLabel(it) {
   const p = itemPlano(it);
   if (!p) return '<span style="color:var(--ink-3)">—</span>';
-  return `<div class="plano destaque"><span class="grp">${p.grupoCod}.0 ${p.grupo || ''}</span><span class="sub">${p.grupoCod}.${p.subCod} ${p.sub}</span></div>`;
+  return `<div class="plano"><span class="grp">${p.grupoCod}.0 ${p.grupo || ''}</span><span class="sub">${p.grupoCod}.${p.subCod} ${p.sub}</span></div>`;
 }
 
-// Título com acréscimo, juros ou multa lançado no próprio ERP (ver
-// composicaoValorHtml) — usado pelo filtro "Só com acréscimo/juros/multa".
-function temEncargo(it) {
+// Título com algum encargo lançado no próprio ERP (ver composicaoValorHtml).
+// tipo='acrescimos' -> Acréscimo/Juros/Multa (aumentam o valor);
+// tipo='abatimentos' -> Desconto/Devolução (diminuem o valor).
+function temEncargo(it, tipo) {
   const m = it.match;
-  return !!(m && (m.acrescimo || m.multa || m.juros));
+  if (!m) return false;
+  if (tipo === 'acrescimos') return !!(m.acrescimo || m.juros || m.multa);
+  if (tipo === 'abatimentos') return !!(m.desconto || m.devolucao);
+  return !!(m.acrescimo || m.juros || m.multa || m.desconto || m.devolucao);
 }
 
 function importarArquivo(input) {
@@ -348,7 +355,10 @@ function render() {
     `<div class="fg"><label>De</label><input type="date" id="fil-de" value="${filtroDe}" onkeydown="if(event.key==='Enter')aplicarFiltros()"></div>` +
     `<div class="fg"><label>Até</label><input type="date" id="fil-ate" value="${filtroAte}" onkeydown="if(event.key==='Enter')aplicarFiltros()"></div>` +
     `<div class="fg fg-busca"><label>Buscar favorecido</label><input type="text" id="fil-busca" value="${filtroBusca}" placeholder="nome..." onkeydown="if(event.key==='Enter')aplicarFiltros()"></div>` +
-    `<div class="fg fg-check"><label>&nbsp;</label><label class="chk"><input type="checkbox" id="fil-encargos" onchange="aplicarFiltros()"${filtroEncargos ? ' checked' : ''}> Só com acréscimo/juros/multa</label></div>` +
+    `<div class="fg"><label>Encargos</label><div class="tabs-encargo">` +
+    `<button type="button" class="tab-encargo${filtroTipoEncargo==='acrescimos'?' on':''}" onclick="toggleTipoEncargo('acrescimos')">Acréscimos</button>` +
+    `<button type="button" class="tab-encargo${filtroTipoEncargo==='abatimentos'?' on':''}" onclick="toggleTipoEncargo('abatimentos')">Abatimentos</button>` +
+    `</div></div>` +
     '<button class="btn btn-blue" onclick="aplicarFiltros()">Filtrar</button>' +
     '<button class="btn btn-slate" onclick="limparFiltros()">Limpar filtros</button>' +
     '</div>';
@@ -356,7 +366,7 @@ function render() {
   let itens = filtroAtivo ? dados.itens.filter(i => i.status === filtroAtivo) : dados.itens;
   if (filtroCategoria) itens = itens.filter(i => i.categoria === filtroCategoria);
   if (filtroPlano) itens = itens.filter(i => { const p = itemPlano(i); return p && p.chave === filtroPlano; });
-  if (filtroEncargos) itens = itens.filter(temEncargo);
+  if (filtroTipoEncargo) itens = itens.filter(i => temEncargo(i, filtroTipoEncargo));
   if (filtroDe) itens = itens.filter(i => i.data >= filtroDe);
   if (filtroAte) itens = itens.filter(i => i.data <= filtroAte);
   if (filtroBusca) {
@@ -381,8 +391,8 @@ function render() {
     html += `<tr onclick="abrirPopup(${idx})">` +
       `<td>${it.dataBr}</td>` +
       `<td class="cat">${CAT_LABEL[it.categoria] || it.categoria}</td>` +
-      `<td>${planoLabel(it)}</td>` +
-      `<td><div class="fav">${it.favorecido || it.historico}</div><div class="hist">${it.historico}</div></td>` +
+      `<td class="plano-td">${planoLabel(it)}</td>` +
+      `<td class="fav-td"><div class="fav">${it.favorecido || it.historico}</div><div class="hist">${it.historico}</div></td>` +
       `<td class="r val">${fmtMoeda(it.valor)}</td>` +
       `<td><span class="pill ${STATUS_PILL[it.status]}">${STATUS_LABEL[it.status]}</span></td>` +
       `<td>${renderMatch(it)}</td>` +
@@ -422,7 +432,7 @@ function renderMatch(it) {
 }
 
 function kpiCard(status, valor, label, corOuTexto) {
-  const semFiltroNenhum = !filtroAtivo && !filtroCategoria && !filtroPlano && !filtroEncargos && !filtroDe && !filtroAte && !filtroBusca;
+  const semFiltroNenhum = !filtroAtivo && !filtroCategoria && !filtroPlano && !filtroTipoEncargo && !filtroDe && !filtroAte && !filtroBusca;
   const on = status ? (filtroAtivo === status ? ' on' : '') : (semFiltroNenhum ? ' on' : '');
   // o card "Total de saídas" (status='') é o botão explícito de "ver tudo de novo"
   const clickable = status ? ` onclick="filtrar('${status}')"` : ' onclick="limparFiltros()"';
@@ -441,7 +451,6 @@ function aplicarFiltros() {
   filtroAtivo = document.getElementById('fil-status').value;
   filtroCategoria = document.getElementById('fil-categoria').value;
   filtroPlano = document.getElementById('fil-plano').value;
-  filtroEncargos = document.getElementById('fil-encargos').checked;
   filtroDe = document.getElementById('fil-de').value;
   filtroAte = document.getElementById('fil-ate').value;
   filtroBusca = document.getElementById('fil-busca').value.trim();
@@ -449,7 +458,12 @@ function aplicarFiltros() {
 }
 
 function limparFiltros() {
-  filtroAtivo = ''; filtroCategoria = ''; filtroPlano = ''; filtroEncargos = false; filtroDe = ''; filtroAte = ''; filtroBusca = '';
+  filtroAtivo = ''; filtroCategoria = ''; filtroPlano = ''; filtroTipoEncargo = ''; filtroDe = ''; filtroAte = ''; filtroBusca = '';
+  render();
+}
+
+function toggleTipoEncargo(tipo) {
+  filtroTipoEncargo = filtroTipoEncargo === tipo ? '' : tipo;
   render();
 }
 
