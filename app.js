@@ -1,5 +1,5 @@
 ﻿// Verificação de versão — roda antes de tudo
-var BUILD = '238';
+var BUILD = '239';
 (function() {
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
@@ -1032,7 +1032,7 @@ function abrirModalToken() {
     '<div style="background:#fff;border-radius:20px;width:100%;max-width:400px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.3)">'+
 
       // Cabeçalho escuro
-      '<div style="background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);padding:24px 24px 20px;color:#fff;text-align:center">'+
+      '<div style="background:linear-gradient(135deg,#1a1a1a,#2d2d2d);padding:24px 24px 20px;color:#fff;text-align:center">'+
         '<div style="font-size:11px;letter-spacing:3px;font-weight:600;opacity:.6;margin-bottom:6px">FLUXO CERTO 360</div>'+
         '<div style="font-family:\'Syne\',sans-serif;font-size:18px;font-weight:800;margin-bottom:2px">'+nomeCliente+'</div>'+
         (planoLabel ? '<div style="font-size:11px;background:rgba(255,255,255,.15);display:inline-block;padding:2px 10px;border-radius:99px;margin-top:4px">'+planoLabel+'</div>' : '')+
