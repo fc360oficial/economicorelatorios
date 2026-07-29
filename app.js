@@ -1,5 +1,5 @@
 ﻿// Verificação de versão — roda antes de tudo
-var BUILD = '239';
+var BUILD = '240';
 (function() {
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
@@ -7078,71 +7078,148 @@ function _renderClientesLista() {
   var wrap = document.getElementById('painel-clientes-wrap');
   if (!wrap) return;
   var hoje = new Date(); hoje.setHours(0,0,0,0);
-  var MODS = ['checklist','inventario','planos_acao','alertas','perdas','relatorios','central'];
-  var MODS_LABEL = {checklist:'Checklist',inventario:'Inventário',planos_acao:'Planos',alertas:'Alertas',perdas:'Perdas',relatorios:'Relatórios',central:'Central Result.'};
+  var MODS = ['checklist','inventario','planos_acao','alertas','perdas','relatorios','central','monitor','assistente_ia'];
+  var MODS_LABEL = {checklist:'Checklist',inventario:'Inventário',planos_acao:'Planos',alertas:'Alertas',perdas:'Perdas',relatorios:'Relatórios',central:'Central',monitor:'Monitor',assistente_ia:'IA'};
+  var PLANO_LABEL = {basico:'Básico',completo:'Completo',premium:'Premium'};
+
   var cards = _clientesCache.map(function(c) {
     var venc = c.validade ? new Date(c.validade) : null;
     if (venc) venc.setHours(23,59,59,999);
+    var semLic = !venc;
     var vencido = venc && hoje > venc;
-    var diasRestantes = venc ? Math.ceil((venc - hoje) / 86400000) : null;
-    var statusBg = !c.ativo ? '#f0f0f0' : vencido ? '#fdecea' : '#d1f0e0';
-    var statusCl = !c.ativo ? '#666' : vencido ? '#c0392b' : '#1a5c34';
-    var statusTxt = !c.ativo ? 'INATIVO' : vencido ? 'VENCIDO' : diasRestantes !== null ? diasRestantes+' dias' : 'ATIVO';
+    var diasR = venc ? Math.ceil((venc - hoje) / 86400000) : null;
+    var licCor = semLic||vencido ? '#c0392b' : diasR<=7 ? '#b7500a' : '#1a5c34';
+    var licBg  = semLic||vencido ? '#fdecea'  : diasR<=7 ? '#fef3e2' : '#d1f0e0';
+    var licTxt = semLic ? 'Sem licença' : vencido ? 'Vencida em '+venc.toLocaleDateString('pt-BR') : diasR+' dias · até '+venc.toLocaleDateString('pt-BR');
     var modBadges = MODS.map(function(m){
-      var on = c.modulos && c.modulos[m] !== false;
-      return '<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;margin:2px;background:'+(on?'#e8f5ee':'#f0f0f0')+';color:'+(on?'#1a5c34':'#999')+'">'+MODS_LABEL[m]+'</span>';
+      var on = !c.modulos || c.modulos[m] !== false;
+      return on ? '<span style="display:inline-block;padding:2px 7px;border-radius:8px;font-size:10px;font-weight:600;margin:2px;background:#e8f5ee;color:#1a5c34">'+MODS_LABEL[m]+'</span>' : '';
     }).join('');
     var safeId = c.id.replace(/'/g,"\\'");
-    return '<div class="card" style="margin-bottom:14px">'+
-      '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px">'+
-        '<div>'+
-          '<div style="font-family:\'Syne\',sans-serif;font-size:16px;font-weight:800">'+c.nome+'</div>'+
-          '<div style="font-size:11px;color:var(--t3);margin-top:2px">ID: <code>'+c.id+'</code> · Plano: <strong>'+(c.plano||'—')+'</strong>'+(c.validade?' · Validade: '+new Date(c.validade).toLocaleDateString('pt-BR'):'')+
-          ' · <span id="ver-'+c.id+'" style="color:#2d6a2d;font-weight:700">⏳ verificando...</span>'+'</div>'+
-        '</div>'+
-        '<span style="white-space:nowrap;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;background:'+statusBg+';color:'+statusCl+'">'+statusTxt+'</span>'+
-      '</div>'+
-      '<div style="margin-bottom:12px">'+modBadges+'</div>'+
-      '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
-        '<button class="btn btn-p btn-sm" onclick="abrirEditarCliente(\''+safeId+'\')">✏️ Editar</button>'+
-        '<button class="btn btn-sm" style="background:#1a5c9c;color:#fff;border:none;padding:6px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit" onclick="gerarTokenCliente(\''+safeId+'\')">🔑 Gerar Token</button>'+
-        '<button class="btn btn-sm" style="color:var(--t2);border:1.5px solid var(--gray2);padding:6px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;background:#fff" onclick="verTokensCliente(\''+safeId+'\')">📋 Tokens</button>'+
-        '<button class="btn btn-sm" id="btn-deploy-'+safeId+'" style="background:#2d6a2d;color:#fff;border:none;padding:6px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit" onclick="deployCliente(\''+safeId+'\')">🚀 Deploy</button>'+
-      '</div>'+
+    var inativo = c.ativo === false;
+
+    return '<div class="card" style="margin-bottom:12px;padding:0;overflow:hidden;border:1.5px solid var(--gray2)'+(inativo?';opacity:.6':'')+'">' +
+      // ── Cabeçalho do card
+      '<div style="padding:14px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid var(--gray2)">' +
+        '<div>' +
+          '<div style="font-family:\'Syne\',sans-serif;font-size:15px;font-weight:800;margin-bottom:2px">'+c.nome+'</div>' +
+          '<div style="font-size:11px;color:var(--t3)">ID: <code style="background:var(--gray);padding:1px 5px;border-radius:4px">'+c.id+'</code> &nbsp;·&nbsp; Plano: <strong>'+(PLANO_LABEL[c.plano]||c.plano||'—')+'</strong></div>' +
+        '</div>' +
+        '<span id="verstatus-'+c.id+'" style="font-size:10px;font-weight:700;padding:4px 10px;border-radius:20px;background:#f0f0f0;color:#999;white-space:nowrap;letter-spacing:.5px">⏳ verificando</span>' +
+      '</div>' +
+      // ── Linha de métricas
+      '<div style="padding:10px 18px;display:flex;gap:0;border-bottom:1px solid var(--gray2);background:var(--gray)">' +
+        '<div style="flex:1;padding-right:14px;border-right:1px solid var(--gray2)">' +
+          '<div style="font-size:9px;font-weight:700;letter-spacing:1.5px;color:var(--t3);margin-bottom:4px">LICENÇA</div>' +
+          '<span style="font-size:12px;font-weight:700;color:'+licCor+';background:'+licBg+';padding:3px 8px;border-radius:6px">'+licTxt+'</span>' +
+        '</div>' +
+        '<div style="flex:1;padding-left:14px;padding-right:14px;border-right:1px solid var(--gray2)">' +
+          '<div style="font-size:9px;font-weight:700;letter-spacing:1.5px;color:var(--t3);margin-bottom:4px">VERSÃO</div>' +
+          '<span id="ver-'+c.id+'" style="font-family:monospace;font-size:13px;font-weight:700;color:#999">⏳</span>' +
+        '</div>' +
+        '<div style="flex:2;padding-left:14px">' +
+          '<div style="font-size:9px;font-weight:700;letter-spacing:1.5px;color:var(--t3);margin-bottom:4px">URL DO CLIENTE</div>' +
+          '<div style="display:flex;align-items:center;gap:6px">' +
+            '<span id="url-'+c.id+'" style="font-size:11px;color:var(--t2);font-family:monospace">—</span>' +
+            '<button onclick="var u=document.getElementById(\'url-'+safeId+'\').textContent;navigator.clipboard.writeText(u).then(function(){showToast(\'✅ URL copiada!\');})" style="background:none;border:1px solid var(--gray2);border-radius:5px;padding:2px 6px;font-size:10px;color:var(--t2);cursor:pointer">copiar</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+      // ── Módulos ativos
+      (modBadges ? '<div style="padding:8px 18px;border-bottom:1px solid var(--gray2)">'+modBadges+'</div>' : '') +
+      // ── Ações
+      '<div style="padding:10px 18px;display:flex;gap:8px;flex-wrap:wrap">' +
+        '<button class="btn btn-p btn-sm" onclick="abrirEditarCliente(\''+safeId+'\')">✏️ Editar</button>' +
+        '<button class="btn btn-sm" style="background:#1a5c9c;color:#fff;border:none;padding:6px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit" onclick="gerarTokenCliente(\''+safeId+'\')">🔑 Token</button>' +
+        '<button class="btn btn-sm" style="color:var(--t2);border:1.5px solid var(--gray2);padding:6px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;background:#fff" onclick="verTokensCliente(\''+safeId+'\')">📋 Tokens</button>' +
+        '<button class="btn btn-sm" id="btn-deploy-'+safeId+'" style="background:#2d6a2d;color:#fff;border:none;padding:6px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit" onclick="deployCliente(\''+safeId+'\')">🚀 Deploy</button>' +
+      '</div>' +
     '</div>';
   }).join('');
+
+  // ── Bloco da base (topo)
+  var baseCard =
+    '<div style="background:linear-gradient(135deg,#1a1a1a,#2d2d2d);border-radius:14px;padding:18px 22px;margin-bottom:20px;color:#fff;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">' +
+      '<div>' +
+        '<div style="font-size:9px;letter-spacing:2px;opacity:.5;font-weight:700;margin-bottom:4px">REPOSITÓRIO BASE</div>' +
+        '<div style="font-family:\'Syne\',sans-serif;font-size:16px;font-weight:800">Fluxo Certo 360</div>' +
+        '<div style="font-size:11px;opacity:.5;margin-top:2px">fc360oficial/fluxocerto360</div>' +
+      '</div>' +
+      '<div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">' +
+        '<div style="text-align:center">' +
+          '<div style="font-size:9px;letter-spacing:1.5px;opacity:.5;font-weight:700;margin-bottom:2px">VERSÃO BASE</div>' +
+          '<div id="base-ver-display" style="font-family:monospace;font-size:24px;font-weight:800;color:#f1c40f">v'+BUILD+'</div>' +
+        '</div>' +
+        '<button onclick="deployTodosClientes()" style="padding:10px 20px;background:#f1c40f;color:#1a1a1a;border:none;border-radius:10px;font-size:13px;font-weight:800;font-family:\'Syne\',sans-serif;cursor:pointer;white-space:nowrap">🚀 Publicar para Todos</button>' +
+      '</div>' +
+    '</div>';
+
   wrap.innerHTML =
-    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">'+
-      '<div style="font-family:\'Syne\',sans-serif;font-size:18px;font-weight:800">Fluxo Certo 360 — Clientes</div>'+
-      '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
-        '<button class="btn btn-sm" style="background:#2d6a2d;color:#fff;border:none;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit" onclick="deployTodosClientes()">🚀 Deploy para Todos</button>'+
-        '<button class="btn btn-p btn-sm" onclick="abrirNovoCliente()">+ Novo Cliente</button>'+
-      '</div>'+
-    '</div>'+
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">' +
+      '<div>' +
+        '<div style="font-size:10px;font-weight:700;letter-spacing:2px;color:var(--t3);margin-bottom:2px">PAINEL DE CONTROLE</div>' +
+        '<div style="font-family:\'Syne\',sans-serif;font-size:20px;font-weight:800">Gestão de Clientes</div>' +
+      '</div>' +
+      '<button class="btn btn-p btn-sm" onclick="abrirNovoCliente()">+ Novo Cliente</button>' +
+    '</div>' +
+    baseCard +
+    '<div style="font-size:10px;font-weight:700;letter-spacing:2px;color:var(--t3);margin-bottom:12px">CLIENTES ('+_clientesCache.length+')</div>' +
     (cards || '<div style="text-align:center;padding:40px;color:var(--t3)">Nenhum cliente cadastrado.</div>');
+
   _atualizarVersaoClientes();
 }
 
 function _atualizarVersaoClientes() {
+  // Busca versão do base primeiro
+  var ts = Date.now();
+  var basePromise = fetch('https://fc360oficial.github.io/fluxocerto360/version.json?t='+ts)
+    .then(function(r){ return r.json(); })
+    .catch(function(){ return {build: BUILD}; });
+
   db.collection('config').doc('repos').get().then(function(rDoc) {
     var repos = rDoc.exists ? rDoc.data() : {};
-    _clientesCache.forEach(function(c) {
-      var repo = repos[c.id];
-      var el = document.getElementById('ver-'+c.id);
-      if (!el) return;
-      if (!repo) { el.textContent = 'sem repo'; el.style.color='#999'; return; }
-      var url = 'https://fc360oficial.github.io/'+repo+'/version.json?t='+Date.now();
-      fetch(url).then(function(r) {
-        if (!r.ok) throw new Error(r.status);
-        return r.json();
-      }).then(function(data) {
-        if (el && data.build) {
-          el.textContent = 'v'+data.build;
-          el.style.color = data.build === BUILD ? '#2d6a2d' : '#e67e22';
-          el.title = data.build === BUILD ? 'Atualizado' : 'Desatualizado (admin: v'+BUILD+')';
+    basePromise.then(function(baseData) {
+      var baseBuild = baseData.build;
+      var baseEl = document.getElementById('base-ver-display');
+      if (baseEl) baseEl.textContent = 'v'+baseBuild;
+
+      _clientesCache.forEach(function(c) {
+        var repo = repos[c.id];
+        var verEl = document.getElementById('ver-'+c.id);
+        var statusEl = document.getElementById('verstatus-'+c.id);
+        var urlEl = document.getElementById('url-'+c.id);
+        var deployBtn = document.getElementById('btn-deploy-'+c.id);
+
+        // Preenche URL do cliente
+        if (urlEl && repo) urlEl.textContent = 'fc360oficial.github.io/'+repo+'/';
+
+        if (!verEl) return;
+        if (!repo) {
+          verEl.textContent = 'sem repo';
+          if (statusEl) { statusEl.textContent = 'SEM REPO'; statusEl.style.background='#f0f0f0'; statusEl.style.color='#999'; }
+          return;
         }
-      }).catch(function() {
-        if (el) { el.textContent = 'erro ao verificar'; el.style.color='#999'; }
+        var url = 'https://fc360oficial.github.io/'+repo+'/version.json?t='+ts;
+        fetch(url).then(function(r){
+          if (!r.ok) throw new Error(r.status);
+          return r.json();
+        }).then(function(data) {
+          var cb = data.build;
+          var ok = cb === baseBuild;
+          if (verEl) { verEl.textContent = 'v'+cb; verEl.style.color = ok ? '#1a5c34' : '#b7500a'; }
+          if (statusEl) {
+            statusEl.textContent = ok ? '✅ ATUALIZADO' : '⚠️ DESATUALIZADO';
+            statusEl.style.background = ok ? '#d1f0e0' : '#fef3e2';
+            statusEl.style.color = ok ? '#1a5c34' : '#b7500a';
+          }
+          if (deployBtn && !ok) {
+            deployBtn.style.background = '#e67e22';
+            deployBtn.title = 'Cliente em v'+cb+', base em v'+baseBuild;
+          }
+        }).catch(function() {
+          if (verEl) verEl.textContent = '—';
+          if (statusEl) { statusEl.textContent = 'SEM RESPOSTA'; statusEl.style.background='#f0f0f0'; statusEl.style.color='#999'; }
+        });
       });
     });
   }).catch(function(){});
