@@ -3696,7 +3696,9 @@ app.get('/api/_diag/tabelas-central', async (req, res) => {
 app.post('/api/conciliador/processar', async (req, res) => {
   try {
     const texto = (req.body && req.body.texto) || '';
+    const loja = parseInt(req.body && req.body.loja);
     if (!texto.trim()) return res.status(400).json({ error: 'Cole o extrato antes de processar.' });
+    if (!loja || loja < 1 || loja > 6) return res.status(400).json({ error: 'Selecione a loja desse extrato antes de processar — cada loja tem conta bancária própria, e o casamento é feito só contra os títulos dessa filial.' });
 
     const saidas = parseSaidas(texto);
     if (!saidas.length) return res.status(400).json({ error: 'Nenhuma saída encontrada no texto colado. Confira o formato (data;histórico;valor;).' });
@@ -3705,20 +3707,23 @@ app.post('/api/conciliador/processar', async (req, res) => {
     const dIni = addDias(datas[0], -TOLERANCIA_CONCILIADOR);
     const dFim = addDias(datas[datas.length - 1], TOLERANCIA_CONCILIADOR);
 
+    // Cada loja tem conta bancária própria — o extrato de uma loja só pode
+    // estar pagando títulos daquela mesma Filial no ERP, então restringe
+    // aqui pra não casar por coincidência de valor com título de outra loja.
     const candidatos = await q(`
       SELECT a.nReg, a.Valor, a.Devedor, DATE_FORMAT(a.DataVencto,'%Y-%m-%d') as DataVencto,
              a.CodFornec, a.Historico, a.Filial, f.Nome, f.NomeCompleto
       FROM loja20045.contasapagar a
       LEFT JOIN central.fornecedor f ON f.CodFornec = a.CodFornec
-      WHERE a.DataVencto BETWEEN ? AND ?
-    `, [dIni, dFim]);
+      WHERE a.DataVencto BETWEEN ? AND ? AND a.Filial = ?
+    `, [dIni, dFim, loja]);
 
     const itens = conciliar(saidas, candidatos);
     const resumo = { conciliado: 0, pago_sem_baixa: 0, revisar: 0, nao_encontrado: 0, fora_escopo: 0 };
     let totalValor = 0;
     for (const it of itens) { resumo[it.status]++; totalValor += it.valor; }
 
-    res.json({ total: itens.length, totalValor: +totalValor.toFixed(2), resumo, itens });
+    res.json({ loja, total: itens.length, totalValor: +totalValor.toFixed(2), resumo, itens });
   } catch (err) {
     console.error('[CONCILIADOR-ERR]', err.message);
     res.status(500).json({ error: err.message || 'Erro ao processar conciliação.' });

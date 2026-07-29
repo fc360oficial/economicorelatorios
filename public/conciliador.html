@@ -137,6 +137,12 @@ table.t tbody tr:hover{background:var(--surface-2)}
   </div>
 
   <div class="entrada">
+    <label>Loja do extrato — cada loja tem conta bancária própria, então o casamento é feito só contra os títulos dessa filial</label>
+    <select id="sel-loja-extrato" style="height:38px;padding:0 12px;border:1px solid var(--border-strong);border-radius:8px;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:13px;font-weight:700;margin-bottom:14px">
+      <option value="">Selecione a loja...</option>
+      <option value="1">Loja 1</option><option value="2">Loja 2</option><option value="3">Loja 3</option>
+      <option value="4">Loja 4</option><option value="5">Loja 5</option><option value="6">Loja 6</option>
+    </select>
     <label>Extrato (formato Itaú: data;histórico;valor;)</label>
     <textarea id="txt-extrato" placeholder="01/06/2026;BOLETO PAGO COMERCIAL LI COMERCIAL LIMA 54.285.133/0001-80;-375,55;&#10;01/06/2026;PIX ENVIADO FULANO DA SILVA 123.456.789-00;-100,00;"></textarea>
     <div class="entrada-foot">
@@ -163,8 +169,8 @@ let filtroDe = '';
 let filtroAte = '';
 let filtroBusca = '';
 let filtroCategoria = '';
-let filtroLoja = '';
 let itensAtuais = [];
+let ultimaAtualizacao = null;
 
 const CAT_LABEL = {
   boleto_pago: 'Boleto', pix_enviado: 'PIX Enviado', tributo: 'Tributo',
@@ -202,18 +208,24 @@ function importarArquivo(input) {
 
 async function processar() {
   const texto = document.getElementById('txt-extrato').value;
+  const loja = document.getElementById('sel-loja-extrato').value;
   const btn = document.getElementById('btn-processar');
   const cont = document.getElementById('resultado');
+  if (!loja) {
+    cont.innerHTML = '<div class="err">Selecione a loja desse extrato antes de processar.</div>';
+    return;
+  }
   btn.disabled = true;
   cont.innerHTML = '<div class="spinner"></div>';
   try {
     const r = await fetch('/api/conciliador/processar', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ texto })
+      body: JSON.stringify({ texto, loja })
     });
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || 'Erro ao processar');
     dados = j;
+    ultimaAtualizacao = new Date();
     filtroAtivo = '';
     render();
   } catch (e) {
@@ -230,7 +242,12 @@ function render() {
 
   // filtro de data/busca é sobre o conjunto total (KPIs sempre refletem o total do extrato inteiro)
   const r = dados.resumo;
-  let html = '<div class="kpi-row">';
+  let html = '';
+  if (ultimaAtualizacao) {
+    const hh = ultimaAtualizacao.toLocaleTimeString('pt-BR');
+    html += `<div class="entrada-hint" style="margin-bottom:10px">📍 Loja ${dados.loja} · dados do ERP consultados ao vivo às ${hh} (reprocesse pra atualizar)</div>`;
+  }
+  html += '<div class="kpi-row">';
   html += kpiCard('', dados.total, 'Total de saídas', fmtMoeda(dados.totalValor));
   html += kpiCard('conciliado', r.conciliado, 'Conciliado', 'var(--green)');
   html += kpiCard('pago_sem_baixa', r.pago_sem_baixa, 'Pago sem baixa', 'var(--red)');
@@ -241,12 +258,10 @@ function render() {
 
   const optsStatus = Object.keys(STATUS_LABEL).map(s => `<option value="${s}"${filtroAtivo===s?' selected':''}>${STATUS_LABEL[s]}</option>`).join('');
   const optsCat = Object.keys(CAT_LABEL).map(c => `<option value="${c}"${filtroCategoria===c?' selected':''}>${CAT_LABEL[c]}</option>`).join('');
-  const optsLoja = [1,2,3,4,5,6].map(n => `<option value="${n}"${filtroLoja==String(n)?' selected':''}>Loja ${n}</option>`).join('');
 
   html += '<div class="filtros">' +
     `<div class="fg"><label>Status</label><select id="fil-status" onchange="aplicarFiltros()"><option value="">Todos</option>${optsStatus}</select></div>` +
     `<div class="fg"><label>Categoria</label><select id="fil-categoria" onchange="aplicarFiltros()"><option value="">Todas</option>${optsCat}</select></div>` +
-    `<div class="fg"><label>Loja</label><select id="fil-loja" onchange="aplicarFiltros()"><option value="">Todas</option>${optsLoja}</select></div>` +
     `<div class="fg"><label>De</label><input type="date" id="fil-de" value="${filtroDe}" onchange="aplicarFiltros()"></div>` +
     `<div class="fg"><label>Até</label><input type="date" id="fil-ate" value="${filtroAte}" onchange="aplicarFiltros()"></div>` +
     `<div class="fg fg-busca"><label>Buscar favorecido</label><input type="text" id="fil-busca" value="${filtroBusca}" placeholder="nome..." onkeydown="if(event.key==='Enter')aplicarFiltros()"></div>` +
@@ -256,7 +271,6 @@ function render() {
 
   let itens = filtroAtivo ? dados.itens.filter(i => i.status === filtroAtivo) : dados.itens;
   if (filtroCategoria) itens = itens.filter(i => i.categoria === filtroCategoria);
-  if (filtroLoja) itens = itens.filter(i => itemLojas(i).includes(Number(filtroLoja)));
   if (filtroDe) itens = itens.filter(i => i.data >= filtroDe);
   if (filtroAte) itens = itens.filter(i => i.data <= filtroAte);
   if (filtroBusca) {
@@ -274,14 +288,13 @@ function render() {
   itensAtuais = itens;
 
   html += '<div class="table-wrap"><table class="t"><thead><tr>' +
-    '<th>Data</th><th>Categoria</th><th>Loja</th><th>Favorecido</th><th class="r">Valor</th><th>Status</th><th>Casamento com o ERP</th>' +
+    '<th>Data</th><th>Categoria</th><th>Favorecido</th><th class="r">Valor</th><th>Status</th><th>Casamento com o ERP</th>' +
     '</tr></thead><tbody>';
 
   itens.forEach((it, idx) => {
     html += `<tr onclick="abrirPopup(${idx})">` +
       `<td>${it.dataBr}</td>` +
       `<td class="cat">${CAT_LABEL[it.categoria] || it.categoria}</td>` +
-      `<td class="cat">${lojaLabel(it)}</td>` +
       `<td><div class="fav">${it.favorecido || it.historico}</div><div class="hist">${it.historico}</div></td>` +
       `<td class="r val">${fmtMoeda(it.valor)}</td>` +
       `<td><span class="pill ${STATUS_PILL[it.status]}">${STATUS_LABEL[it.status]}</span></td>` +
@@ -292,23 +305,6 @@ function render() {
 
   cont.innerHTML = html;
   ligarKpis();
-}
-
-// Loja só existe do lado do ERP (contasapagar.Filial) — o extrato do banco
-// não sabe de qual loja saiu o pagamento. Item com match usa a loja do
-// título casado; item "revisar" pode ter candidatos em lojas diferentes.
-function itemLojas(it) {
-  if (it.match && it.match.filial != null) return [Number(it.match.filial)];
-  if (it.candidatos && it.candidatos.length) {
-    return [...new Set(it.candidatos.map(c => Number(c.filial)).filter(n => !isNaN(n)))];
-  }
-  return [];
-}
-
-function lojaLabel(it) {
-  const lojas = itemLojas(it);
-  if (!lojas.length) return '<span style="color:var(--ink-3)">—</span>';
-  return lojas.length === 1 ? `Loja ${lojas[0]}` : lojas.map(n => `L${n}`).join(', ');
 }
 
 function renderMatch(it) {
@@ -348,7 +344,6 @@ function filtrar(status) {
 function aplicarFiltros() {
   filtroAtivo = document.getElementById('fil-status').value;
   filtroCategoria = document.getElementById('fil-categoria').value;
-  filtroLoja = document.getElementById('fil-loja').value;
   filtroDe = document.getElementById('fil-de').value;
   filtroAte = document.getElementById('fil-ate').value;
   filtroBusca = document.getElementById('fil-busca').value.trim();
@@ -356,7 +351,7 @@ function aplicarFiltros() {
 }
 
 function limparFiltros() {
-  filtroAtivo = ''; filtroCategoria = ''; filtroLoja = ''; filtroDe = ''; filtroAte = ''; filtroBusca = '';
+  filtroAtivo = ''; filtroCategoria = ''; filtroDe = ''; filtroAte = ''; filtroBusca = '';
   render();
 }
 

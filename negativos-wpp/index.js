@@ -386,6 +386,11 @@ async function conectar() {
     if (type !== 'notify') return;
     for (const msg of messages) {
       if (msg.key.remoteJid.endsWith('@g.us')) continue; // ignora mensagens de grupo
+      // Ignora mensagens antigas reenviadas pelo Baileys numa reconexão —
+      // sem isso, toda vez que o WhatsApp cai e reconecta, o bot responde
+      // de novo a perguntas de minutos/horas atrás como se fossem novas.
+      const idadeSegundos = Date.now() / 1000 - Number(msg.messageTimestamp || 0);
+      if (idadeSegundos > 120) continue;
       // Ignora mensagens enviadas por mim para outra pessoa (ex: as próprias
       // respostas do bot), mas permite "Mensagens para você mesmo" — é por lá
       // que os comandos de administrador (responder/pendentes) chegam.

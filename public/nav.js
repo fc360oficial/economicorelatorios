@@ -152,8 +152,6 @@
     return '<svg' + (cls ? ' class="' + cls + '"' : '') + '><use href="/icons.svg#' + id + '"/></svg>';
   }
 
-  var GRUPOS_KEY = 'nav_grupos_abertos';
-
   function montar() {
     var st = document.createElement('style');
     st.textContent = css;
@@ -161,9 +159,6 @@
 
     var path = location.pathname.replace(/\/$/, '/index.html');
     if (path === '' || path === '/') path = '/index.html';
-
-    var gruposAbertos = {};
-    try { gruposAbertos = JSON.parse(localStorage.getItem(GRUPOS_KEY) || '{}'); } catch (e) {}
 
     var html = '<div class="dn-top">'
       + '<a class="dn-brand" id="dn-brand" href="/index.html">'
@@ -178,7 +173,7 @@
       if (it.sec) { html += '<div class="dn-sec"' + g + esconder + '>' + it.sec + '</div>'; return; }
       if (it.sub) {
         var ativoSub = it.sub.some(function (s) { return path === s.href; });
-        var aberto = ativoSub || gruposAbertos[it.id];
+        var aberto = ativoSub;
         html += '<div class="dn-group' + (aberto ? ' open' : '') + '" data-grupo-id="' + it.id + '">'
           + '<div class="dn-group-hd' + (ativoSub ? ' on' : '') + '">'
           +   icon(it.ic) + it.txt + icon('chevron-right', 'dn-chev')
@@ -221,12 +216,7 @@
 
     aside.querySelectorAll('.dn-group-hd').forEach(function (hd) {
       hd.addEventListener('click', function () {
-        var grp = hd.closest('.dn-group');
-        var aberto = grp.classList.toggle('open');
-        var estado = {};
-        try { estado = JSON.parse(localStorage.getItem(GRUPOS_KEY) || '{}'); } catch (e) {}
-        estado[grp.getAttribute('data-grupo-id')] = aberto;
-        try { localStorage.setItem(GRUPOS_KEY, JSON.stringify(estado)); } catch (e) {}
+        hd.closest('.dn-group').classList.toggle('open');
       });
     });
 
