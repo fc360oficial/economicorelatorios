@@ -478,18 +478,28 @@ let resumoPlanoAberto = false;
 let grupoPlanoAberto = null;
 let subPlanoAberto = null;
 
+const GRUPO_SEM_PLANO = '_sem';
+
 function renderResumoPlano() {
   const gruposMap = new Map(); // grupoCod -> { grupoCod, grupo, total, subs: Map(subChave -> {...}) }
   let totalGeral = 0;
   dados.itens.forEach(it => {
     const p = itemPlano(it);
-    if (!p) return;
-    if (!gruposMap.has(p.grupoCod)) gruposMap.set(p.grupoCod, { grupoCod: p.grupoCod, grupo: p.grupo, total: 0, subs: new Map() });
-    const grp = gruposMap.get(p.grupoCod);
+    // Itens sem título casado no ERP (não encontrado, fora do escopo, etc)
+    // não têm Plano de Contas — entram num grupo à parte, quebrado por
+    // categoria, pra bater com o total de saídas do extrato inteiro.
+    const grupoCod = p ? p.grupoCod : GRUPO_SEM_PLANO;
+    const grupoNome = p ? p.grupo : 'Sem Plano de Contas (sem título casado no ERP)';
+    const subChave = p ? p.chave : `${GRUPO_SEM_PLANO}.${it.categoria}`;
+    const subCod = p ? p.subCod : null;
+    const subNome = p ? p.sub : (CAT_LABEL[it.categoria] || it.categoria);
+
+    if (!gruposMap.has(grupoCod)) gruposMap.set(grupoCod, { grupoCod, grupo: grupoNome, total: 0, subs: new Map() });
+    const grp = gruposMap.get(grupoCod);
     grp.total += it.valor;
     totalGeral += it.valor;
-    if (!grp.subs.has(p.chave)) grp.subs.set(p.chave, { chave: p.chave, subCod: p.subCod, sub: p.sub, total: 0, fornecedores: new Map() });
-    const sub = grp.subs.get(p.chave);
+    if (!grp.subs.has(subChave)) grp.subs.set(subChave, { chave: subChave, subCod, sub: subNome, total: 0, fornecedores: new Map() });
+    const sub = grp.subs.get(subChave);
     sub.total += it.valor;
     const nomeForn = (it.match && it.match.fornecedor) || it.favorecido || it.historico || '(sem identificação)';
     sub.fornecedores.set(nomeForn, (sub.fornecedores.get(nomeForn) || 0) + it.valor);
@@ -501,6 +511,7 @@ function renderResumoPlano() {
 
   let corpo = '';
   gruposList.forEach(grp => {
+    const semPlano = grp.grupoCod === GRUPO_SEM_PLANO;
     const grupoAberto = grupoPlanoAberto === grp.grupoCod;
     const pctGrupo = totalGeral ? (grp.total / totalGeral * 100) : 0;
     const subsList = [...grp.subs.values()].sort((a, b) => b.total - a.total);
@@ -509,10 +520,11 @@ function renderResumoPlano() {
     subsList.forEach(sub => {
       const subAberto = subPlanoAberto === sub.chave;
       const pctSub = totalGeral ? (sub.total / totalGeral * 100) : 0;
+      const nomeSub = semPlano ? sub.sub : `${grp.grupoCod}.${sub.subCod} ${sub.sub}`;
       const fornecedores = [...sub.fornecedores.entries()].sort((a, b) => b[1] - a[1]);
       subsHtml += `<div class="rp-item">` +
         `<div class="rp-row rp-row-sub${subAberto ? ' aberta' : ''}" onclick="toggleSubPlano('${sub.chave.replace(/'/g, "\\'")}')">` +
-        `<div class="rp-nome-wrap"><svg class="rp-chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg><div class="rp-nome">${grp.grupoCod}.${sub.subCod} ${sub.sub}</div></div>` +
+        `<div class="rp-nome-wrap"><svg class="rp-chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg><div class="rp-nome">${nomeSub}</div></div>` +
         `<div class="rp-bar-wrap"><div class="rp-bar" style="width:${Math.max(pctSub, 1.5).toFixed(1)}%"></div></div>` +
         `<div class="rp-valor">${fmtMoeda(sub.total)}</div>` +
         `<div class="rp-pct">${pctSub.toFixed(1)}%</div>` +
@@ -522,9 +534,11 @@ function renderResumoPlano() {
         `</div></div>`;
     });
 
+    const nomeGrupo = semPlano ? grp.grupo : `${grp.grupoCod}.0 ${grp.grupo}`;
+    const codArg = semPlano ? `'${GRUPO_SEM_PLANO}'` : grp.grupoCod;
     corpo += `<div class="rp-grupo">` +
-      `<div class="rp-row rp-row-grupo${grupoAberto ? ' aberta' : ''}" onclick="toggleGrupoPlano(${grp.grupoCod})">` +
-      `<div class="rp-nome-wrap"><svg class="rp-chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg><div class="rp-nome">${grp.grupoCod}.0 ${grp.grupo}</div></div>` +
+      `<div class="rp-row rp-row-grupo${grupoAberto ? ' aberta' : ''}" onclick="toggleGrupoPlano(${codArg})">` +
+      `<div class="rp-nome-wrap"><svg class="rp-chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg><div class="rp-nome">${nomeGrupo}</div></div>` +
       `<div class="rp-bar-wrap"><div class="rp-bar" style="width:${Math.max(pctGrupo, 1.5).toFixed(1)}%"></div></div>` +
       `<div class="rp-valor">${fmtMoeda(grp.total)}</div>` +
       `<div class="rp-pct">${pctGrupo.toFixed(1)}%</div>` +
