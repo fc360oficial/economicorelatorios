@@ -20,24 +20,34 @@ function salvarAvulsos(lista) {
 }
 
 // Backfill único na subida do servidor: avulsos confirmados antes do Plano
-// de Contas existir nesse fluxo ficaram sem planoGrupo/planoSub — busca no
-// ERP pelo nReg salvo e completa o registro.
+// de Contas e dos campos de encargo (Acrescimo/Multa/Juros/Desconto/
+// Devolucao) existirem nesse fluxo ficaram sem esses dados — busca no ERP
+// pelo nReg salvo e completa o registro.
 async function backfillPlanoAvulsos() {
   try {
     const lista = carregarAvulsos();
-    const pendentes = lista.filter(a => a.nReg && a.planoGrupo == null);
+    const pendentes = lista.filter(a => a.nReg && (a.planoGrupo == null || a.acrescimo == null));
     if (!pendentes.length) return;
     const plano = await getPlanoContas();
     for (const a of pendentes) {
-      const [row] = await q('SELECT PlanoGrupo, PlanoSub FROM loja20045.contasapagar WHERE nReg = ?', [a.nReg]);
+      const [row] = await q(
+        'SELECT PlanoGrupo, PlanoSub, Acrescimo, Multa, Juros, Desconto, Devolucao, ValorBruto FROM loja20045.contasapagar WHERE nReg = ?',
+        [a.nReg]
+      );
       if (!row) continue;
       a.planoGrupo = row.PlanoGrupo;
       a.planoSub = row.PlanoSub;
       a.planoGrupoNome = plano.grupoMap.get(row.PlanoGrupo) || null;
       a.planoSubNome = plano.subMap.get(`${row.PlanoGrupo}|${row.PlanoSub}`) || null;
+      a.acrescimo = Number(row.Acrescimo) || 0;
+      a.multa = Number(row.Multa) || 0;
+      a.juros = Number(row.Juros) || 0;
+      a.desconto = Number(row.Desconto) || 0;
+      a.devolucao = Number(row.Devolucao) || 0;
+      a.valorBruto = row.ValorBruto != null ? Number(row.ValorBruto) : null;
     }
     salvarAvulsos(lista);
-    console.log(`✓ Backfill Plano de Contas: ${pendentes.length} conciliação(ões) avulsa(s) atualizada(s)`);
+    console.log(`✓ Backfill Plano de Contas/encargos: ${pendentes.length} conciliação(ões) avulsa(s) atualizada(s)`);
   } catch (err) {
     console.error('[BACKFILL-AVULSOS-ERR]', err.message);
   }
@@ -3832,6 +3842,12 @@ app.post('/api/conciliador/buscar-proximos', async (req, res) => {
         planoSub: c.PlanoSub,
         planoGrupoNome: plano.grupoMap.get(c.PlanoGrupo) || null,
         planoSubNome: plano.subMap.get(`${c.PlanoGrupo}|${c.PlanoSub}`) || null,
+        acrescimo: Number(c.Acrescimo) || 0,
+        multa: Number(c.Multa) || 0,
+        juros: Number(c.Juros) || 0,
+        desconto: Number(c.Desconto) || 0,
+        devolucao: Number(c.Devolucao) || 0,
+        valorBruto: c.ValorBruto != null ? Number(c.ValorBruto) : null,
         diferenca: +(Number(c.Valor) - Number(valor)).toFixed(2)
       }))
     });
@@ -3868,6 +3884,12 @@ app.post('/api/conciliador/confirmar-avulso', (req, res) => {
       planoSub: escolha.planoSub,
       planoGrupoNome: escolha.planoGrupoNome,
       planoSubNome: escolha.planoSubNome,
+      acrescimo: escolha.acrescimo,
+      multa: escolha.multa,
+      juros: escolha.juros,
+      desconto: escolha.desconto,
+      devolucao: escolha.devolucao,
+      valorBruto: escolha.valorBruto,
       justificativa: justificativa.trim(),
       confirmadoEm: new Date().toISOString(),
       confirmadoPor: (req.session && req.session.user && req.session.user.nome) || 'desconhecido'
