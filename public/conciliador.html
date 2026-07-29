@@ -46,6 +46,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--ink);min-height:10
 .fg select,.fg input{background:var(--surface);border:1px solid var(--border-strong);border-radius:7px;color:var(--ink);padding:7px 11px;font-size:13px;outline:none;font-family:var(--font)}
 .fg select:focus,.fg input:focus{border-color:var(--brand)}
 .fg-busca input{min-width:200px}
+.fg-check{padding-bottom:7px}
+.chk{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-2);font-weight:600;text-transform:none;letter-spacing:normal;white-space:nowrap;cursor:pointer}
+.chk input{width:15px;height:15px;accent-color:var(--brand);cursor:pointer}
 
 /* KPI CARDS */
 .kpi-row{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap}
@@ -217,6 +220,7 @@ let filtroAte = '';
 let filtroBusca = '';
 let filtroCategoria = '';
 let filtroPlano = '';
+let filtroEncargos = false;
 let itensAtuais = [];
 let ultimaAtualizacao = null;
 
@@ -258,6 +262,13 @@ function planoLabel(it) {
   const p = itemPlano(it);
   if (!p) return '<span style="color:var(--ink-3)">—</span>';
   return `<div class="plano destaque"><span class="grp">${p.grupoCod}.0 ${p.grupo || ''}</span><span class="sub">${p.grupoCod}.${p.subCod} ${p.sub}</span></div>`;
+}
+
+// Título com acréscimo, juros ou multa lançado no próprio ERP (ver
+// composicaoValorHtml) — usado pelo filtro "Só com acréscimo/juros/multa".
+function temEncargo(it) {
+  const m = it.match;
+  return !!(m && (m.acrescimo || m.multa || m.juros));
 }
 
 function importarArquivo(input) {
@@ -337,6 +348,7 @@ function render() {
     `<div class="fg"><label>De</label><input type="date" id="fil-de" value="${filtroDe}" onkeydown="if(event.key==='Enter')aplicarFiltros()"></div>` +
     `<div class="fg"><label>Até</label><input type="date" id="fil-ate" value="${filtroAte}" onkeydown="if(event.key==='Enter')aplicarFiltros()"></div>` +
     `<div class="fg fg-busca"><label>Buscar favorecido</label><input type="text" id="fil-busca" value="${filtroBusca}" placeholder="nome..." onkeydown="if(event.key==='Enter')aplicarFiltros()"></div>` +
+    `<div class="fg fg-check"><label>&nbsp;</label><label class="chk"><input type="checkbox" id="fil-encargos" onchange="aplicarFiltros()"${filtroEncargos ? ' checked' : ''}> Só com acréscimo/juros/multa</label></div>` +
     '<button class="btn btn-blue" onclick="aplicarFiltros()">Filtrar</button>' +
     '<button class="btn btn-slate" onclick="limparFiltros()">Limpar filtros</button>' +
     '</div>';
@@ -344,6 +356,7 @@ function render() {
   let itens = filtroAtivo ? dados.itens.filter(i => i.status === filtroAtivo) : dados.itens;
   if (filtroCategoria) itens = itens.filter(i => i.categoria === filtroCategoria);
   if (filtroPlano) itens = itens.filter(i => { const p = itemPlano(i); return p && p.chave === filtroPlano; });
+  if (filtroEncargos) itens = itens.filter(temEncargo);
   if (filtroDe) itens = itens.filter(i => i.data >= filtroDe);
   if (filtroAte) itens = itens.filter(i => i.data <= filtroAte);
   if (filtroBusca) {
@@ -409,7 +422,7 @@ function renderMatch(it) {
 }
 
 function kpiCard(status, valor, label, corOuTexto) {
-  const semFiltroNenhum = !filtroAtivo && !filtroCategoria && !filtroPlano && !filtroDe && !filtroAte && !filtroBusca;
+  const semFiltroNenhum = !filtroAtivo && !filtroCategoria && !filtroPlano && !filtroEncargos && !filtroDe && !filtroAte && !filtroBusca;
   const on = status ? (filtroAtivo === status ? ' on' : '') : (semFiltroNenhum ? ' on' : '');
   // o card "Total de saídas" (status='') é o botão explícito de "ver tudo de novo"
   const clickable = status ? ` onclick="filtrar('${status}')"` : ' onclick="limparFiltros()"';
@@ -428,6 +441,7 @@ function aplicarFiltros() {
   filtroAtivo = document.getElementById('fil-status').value;
   filtroCategoria = document.getElementById('fil-categoria').value;
   filtroPlano = document.getElementById('fil-plano').value;
+  filtroEncargos = document.getElementById('fil-encargos').checked;
   filtroDe = document.getElementById('fil-de').value;
   filtroAte = document.getElementById('fil-ate').value;
   filtroBusca = document.getElementById('fil-busca').value.trim();
@@ -435,7 +449,7 @@ function aplicarFiltros() {
 }
 
 function limparFiltros() {
-  filtroAtivo = ''; filtroCategoria = ''; filtroPlano = ''; filtroDe = ''; filtroAte = ''; filtroBusca = '';
+  filtroAtivo = ''; filtroCategoria = ''; filtroPlano = ''; filtroEncargos = false; filtroDe = ''; filtroAte = ''; filtroBusca = '';
   render();
 }
 
