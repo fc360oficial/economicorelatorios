@@ -220,11 +220,11 @@ const CAT_LABEL = {
 
 const STATUS_LABEL = {
   conciliado: 'Conciliado', conciliado_avulso: 'Conciliado avulso', pago_sem_baixa: 'Pago sem baixa',
-  revisar: 'Revisar', nao_encontrado: 'Não encontrado', fora_escopo: 'Fora do escopo'
+  divergencia: 'Divergência de valor', revisar: 'Revisar', nao_encontrado: 'Não encontrado', fora_escopo: 'Fora do escopo'
 };
 const STATUS_PILL = {
   conciliado: 'pill-ok', conciliado_avulso: 'pill-ok', pago_sem_baixa: 'pill-alerta',
-  revisar: 'pill-revisar', nao_encontrado: 'pill-neutro', fora_escopo: 'pill-neutro'
+  divergencia: 'pill-revisar', revisar: 'pill-revisar', nao_encontrado: 'pill-neutro', fora_escopo: 'pill-neutro'
 };
 
 function fmtMoeda(v) {
@@ -308,6 +308,7 @@ function render() {
   html += kpiCard('conciliado', r.conciliado, 'Conciliado', 'var(--green)');
   html += kpiCard('conciliado_avulso', r.conciliado_avulso, 'Conciliado avulso', 'var(--green)');
   html += kpiCard('pago_sem_baixa', r.pago_sem_baixa, 'Pago sem baixa', 'var(--red)');
+  html += kpiCard('divergencia', r.divergencia, 'Divergência de valor', 'var(--amber)');
   html += kpiCard('revisar', r.revisar, 'Revisar', 'var(--amber)');
   html += kpiCard('nao_encontrado', r.nao_encontrado, 'Não encontrado', 'var(--ink-2)');
   html += kpiCard('fora_escopo', r.fora_escopo, 'Fora do escopo', 'var(--ink-3)');
@@ -377,6 +378,11 @@ function renderMatch(it) {
   if (it.status === 'conciliado_avulso' && it.match) {
     const m = it.match;
     return `<div class="match"><b>${m.fornecedor}</b> · ${fmtMoeda(m.valor)} <span class="diff">(match manual)</span></div>`;
+  }
+  if (it.status === 'divergencia' && it.match) {
+    const m = it.match;
+    const sinal = m.diferencaValor > 0 ? '+' : '';
+    return `<div class="match"><b>${m.fornecedor}</b> · título ${fmtMoeda(m.valor)} <span class="diff">(${sinal}${fmtMoeda(m.diferencaValor)} de diferença)</span></div>`;
   }
   if (it.match) {
     const m = it.match;
@@ -534,6 +540,22 @@ function renderPopup(it) {
       <div class="popup-sec">Justificativa</div>
       <div style="color:var(--ink-2);font-size:12.5px">${m.justificativa}</div>
       <div style="color:var(--ink-3);font-size:11px;margin-top:8px">Confirmado por ${m.confirmadoPor || 'desconhecido'} em ${m.confirmadoEm ? new Date(m.confirmadoEm).toLocaleString('pt-BR') : '—'}</div>`;
+  } else if (it.status === 'divergencia' && it.match) {
+    const m = it.match;
+    const sinal = m.diferencaValor > 0 ? '+' : '';
+    corpo = `
+      <div class="popup-row"><span class="k">Valor do extrato</span><span class="v">${fmtMoeda(it.valor)}</span></div>
+      <div class="popup-row"><span class="k">Valor do título no ERP</span><span class="v">${fmtMoeda(m.valor)}</span></div>
+      <div class="popup-row"><span class="k">Diferença</span><span class="v" style="color:var(--amber)">${sinal}${fmtMoeda(m.diferencaValor)}</span></div>
+      <div class="popup-row"><span class="k">Loja</span><span class="v">${m.filial != null ? 'Loja ' + m.filial : '—'}</span></div>
+      <div class="popup-row"><span class="k">NF / documento</span><span class="v">${m.historico || 'sem NF'}</span></div>
+      <div class="popup-row"><span class="k">Vencimento no ERP</span><span class="v">${fmtData(m.dataVencto)}</span></div>
+      ${m.planoSubNome ? `<div class="popup-row"><span class="k">Plano de Contas</span><span class="v">${m.planoSubNome}</span></div>` : ''}
+
+      <div class="popup-sec">Por que deu divergência</div>
+      ${linhaCheck(true, 'Nome do favorecido bate com o fornecedor', m.similaridade > 0.5 ? 'compatível' : 'parcial')}
+      ${linhaCheck(m.diffDias <= 2, m.diffDias === 0 ? 'Pago no dia do vencimento' : `Pago ${m.diffDias} dia(s) do vencimento`)}
+      ${linhaCheck(false, `O extrato pagou ${fmtMoeda(Math.abs(m.diferencaValor))} ${m.diferencaValor > 0 ? 'a mais' : 'a menos'} do que o título lançado no ERP — provavelmente juros, multa ou taxa de boleto que não está lançada como um valor à parte`)}`;
   } else if (it.match) {
     const m = it.match;
     corpo = `

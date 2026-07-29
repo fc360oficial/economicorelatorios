@@ -3758,7 +3758,7 @@ app.post('/api/conciliador/processar', async (req, res) => {
     const candidatos = enriquecerComPlanoContas(candidatosRaw, await getPlanoContas());
 
     const itens = aplicarAvulsos(conciliar(saidas, candidatos), carregarAvulsos());
-    const resumo = { conciliado: 0, conciliado_avulso: 0, pago_sem_baixa: 0, revisar: 0, nao_encontrado: 0, fora_escopo: 0 };
+    const resumo = { conciliado: 0, conciliado_avulso: 0, pago_sem_baixa: 0, divergencia: 0, revisar: 0, nao_encontrado: 0, fora_escopo: 0 };
     let totalValor = 0;
     for (const it of itens) { resumo[it.status]++; totalValor += it.valor; }
 
