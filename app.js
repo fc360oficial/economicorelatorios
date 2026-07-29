@@ -4917,7 +4917,9 @@ function updateDash() {
   var resultadosOntem = resultados.filter(function(r){ return r.dataHora && r.dataHora.indexOf(ontemStr)===0 && !r.resetado; });
 
   // ── Header ──
-  var lojaNome = (S.currentUser && S.currentUser.loja) ? S.currentUser.loja : 'Fluxo Certo 360';
+  var lojaNome = (S.clienteConfig && S.clienteConfig.nome)
+    ? S.clienteConfig.nome
+    : (S.currentUser && S.currentUser.loja) ? S.currentUser.loja : 'Fluxo Certo 360';
   var dataFull = agora.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
   var lojaNomeEl = document.getElementById('dash-loja-nome');
   var dataFullEl = document.getElementById('dash-data-full');
