@@ -1,5 +1,5 @@
 ﻿// Verificação de versão — roda antes de tudo
-var BUILD = '244';
+var BUILD = '245';
 (function() {
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
@@ -46,7 +46,7 @@ db.enablePersistence({synchronizeTabs: true}).catch(function(err){
     el.innerHTML =
       '<div style="background:#fff;border-radius:20px;padding:32px 28px;max-width:400px;width:100%;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,.4)">' +
         '<div style="font-size:48px;margin-bottom:12px">🚫</div>' +
-        '<div style="font-family:\'Syne\',sans-serif;font-size:20px;font-weight:800;margin-bottom:8px;color:#c0392b">Modo Privado Detectado</div>' +
+        '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;font-size:20px;font-weight:800;margin-bottom:8px;color:#c0392b">Modo Privado Detectado</div>' +
         '<div style="font-size:14px;color:#555;line-height:1.6;margin-bottom:20px">' +
           'O app de inventário <strong>não funciona em aba anônima ou privada</strong>. ' +
           'Neste modo o armazenamento local é bloqueado e as bipagens realizadas sem internet <strong>serão perdidas</strong>.' +
@@ -1036,7 +1036,7 @@ function abrirModalToken() {
       // Cabeçalho escuro
       '<div style="background:linear-gradient(135deg,#1a1a1a,#2d2d2d);padding:24px 24px 20px;color:#fff;text-align:center">'+
         '<div style="font-size:11px;letter-spacing:3px;font-weight:600;opacity:.6;margin-bottom:6px">FLUXO CERTO 360</div>'+
-        '<div style="font-family:\'Syne\',sans-serif;font-size:18px;font-weight:800;margin-bottom:2px">'+nomeCliente+'</div>'+
+        '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;font-size:18px;font-weight:800;margin-bottom:2px">'+nomeCliente+'</div>'+
         (planoLabel ? '<div style="font-size:11px;background:rgba(255,255,255,.15);display:inline-block;padding:2px 10px;border-radius:99px;margin-top:4px">'+planoLabel+'</div>' : '')+
       '</div>'+
 
@@ -1056,7 +1056,7 @@ function abrirModalToken() {
         '<div style="border-top:1px solid var(--gray2);margin:18px 0 14px"></div>'+
         '<div style="font-size:11px;font-weight:700;letter-spacing:1px;color:var(--t3);margin-bottom:10px">ATIVAR / RENOVAR LICENÇA</div>'+
         '<div class="fg" style="margin-bottom:10px"><input id="ativ-token-input" type="text" placeholder="XXXX - XXXX - XXXX" style="text-align:center;font-family:monospace;letter-spacing:3px;font-size:15px;font-weight:700;text-transform:uppercase"/></div>'+
-        '<button onclick="ativarToken(true)" style="width:100%;padding:13px;background:var(--y);border:none;border-radius:12px;font-size:14px;font-weight:800;font-family:\'Syne\',sans-serif;cursor:pointer">Ativar Token</button>'+
+        '<button onclick="ativarToken(true)" style="width:100%;padding:13px;background:var(--y);border:none;border-radius:12px;font-size:14px;font-weight:800;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;cursor:pointer">Ativar Token</button>'+
         '<div id="ativ-token-err" style="color:var(--r);font-size:12px;font-weight:600;margin-top:8px;min-height:16px;text-align:center"></div>'+
 
         // Rodapé
@@ -1079,11 +1079,11 @@ function _mostrarOverlayVencido(msg) {
     ov.innerHTML =
       '<div style="background:#fff;border-radius:18px;padding:36px 28px;max-width:380px;text-align:center;width:100%">'+
         '<div style="font-size:52px;margin-bottom:14px">🔒</div>'+
-        '<div style="font-family:\'Syne\',sans-serif;font-size:20px;font-weight:800;color:#c0392b;margin-bottom:10px">Acesso Bloqueado</div>'+
+        '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;font-size:20px;font-weight:800;color:#c0392b;margin-bottom:10px">Acesso Bloqueado</div>'+
         '<div style="font-size:14px;color:#555;margin-bottom:8px;line-height:1.5">'+msg+'</div>'+
         '<div style="font-size:12px;font-weight:600;color:#999;margin-bottom:20px">Contato: suporte@fluxocerto.com.br</div>'+
         '<div class="fg" style="margin-bottom:8px"><input id="ativ-token-input" type="text" placeholder="Cole o token aqui" style="text-align:center;font-family:monospace;letter-spacing:2px;text-transform:uppercase"/></div>'+
-        '<button onclick="ativarToken()" style="width:100%;padding:12px;background:var(--y);border:none;border-radius:10px;font-size:14px;font-weight:800;font-family:\'Syne\',sans-serif;cursor:pointer">Ativar Token</button>'+
+        '<button onclick="ativarToken()" style="width:100%;padding:12px;background:var(--y);border:none;border-radius:10px;font-size:14px;font-weight:800;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;cursor:pointer">Ativar Token</button>'+
         '<div id="ativ-token-err" style="color:var(--r);font-size:12px;font-weight:600;margin-top:8px;min-height:18px"></div>'+
       '</div>';
     document.body.appendChild(ov);
@@ -1289,7 +1289,10 @@ function finalizarLogin(found) {
       var panelColeta=document.getElementById('panel-inv-coleta');
       if (panelColeta&&panelColeta.classList.contains('active')) renderColeta();
     });
-    if (!isOpOrPrev2) initDashCharts();
+    if (!isOpOrPrev2) {
+      initDashCharts();
+      loadResultadosFromFirebase(function(){ updateDash(); });
+    }
     // buildCLTabs só após planilhas diárias carregadas para que _planilhaTemplates esteja populado
     loadPlanosFromFirebase(function() {
       loadPlanilhasDiarias(function() {
@@ -1592,6 +1595,9 @@ function nav(page, el) {
   }
   if (page==='monitor') {
     renderMonitorConfig();
+  }
+  if (page==='dashboard') {
+    loadResultadosFromFirebase(function(){ updateDash(); });
   }
   updateDash();
 }
@@ -2045,7 +2051,7 @@ function buildCLBlock(cl) {
   return '<div style="background:#fff;border:1px solid var(--gray2);border-radius:14px;padding:20px;margin-bottom:16px;box-shadow:var(--sh)">'
     + '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px">'
     + '<div>'
-    + '<div style="font-family:\'Syne\',sans-serif;font-size:18px;font-weight:800;color:var(--t);margin-bottom:4px">' + clLabel + '</div>'
+    + '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;font-size:18px;font-weight:800;color:var(--t);margin-bottom:4px">' + clLabel + '</div>'
     + (clDesc ? '<div style="font-size:13px;color:var(--t2);line-height:1.5;margin-bottom:6px">' + clDesc + '</div>' : '')
     + criticoBanner
     + envioBanner
@@ -3542,7 +3548,7 @@ function verDetalhe(id) {
     {val: naoConformIds+naoFeitos, label:'Não Conformes', color: (naoConformIds+naoFeitos)>0?'var(--r)':'var(--g)', bg:(naoConformIds+naoFeitos)>0?'var(--r2)':'var(--g3)'}
   ].map(function(k){
     return '<div style="background:'+k.bg+';border-radius:12px;padding:16px 14px;text-align:center">'
-      +'<div style="font-size:24px;font-weight:800;color:'+k.color+';font-family:\'Syne\',sans-serif">'+k.val+'</div>'
+      +'<div style="font-size:24px;font-weight:800;color:'+k.color+';font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif">'+k.val+'</div>'
       +'<div style="font-size:11px;font-weight:600;color:var(--t2);margin-top:4px;text-transform:uppercase;letter-spacing:.4px">'+k.label+'</div>'
       +'</div>';
   }).join('');
@@ -7234,7 +7240,7 @@ function abrirEditarCliente(clienteId) {
   }).join('');
   var html = '<div id="modal-editar-cliente" onclick="if(event.target===this)fecharEditarCliente()" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:3000;display:flex;align-items:center;justify-content:center;padding:16px">'+
     '<div style="background:#fff;border-radius:16px;padding:28px 24px;width:100%;max-width:440px;max-height:90vh;overflow-y:auto">'+
-      '<div style="font-family:\'Syne\',sans-serif;font-size:17px;font-weight:800;margin-bottom:18px">Editar Cliente</div>'+
+      '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;font-size:17px;font-weight:800;margin-bottom:18px">Editar Cliente</div>'+
       '<div class="fg" style="margin-bottom:12px"><label>Nome</label><input id="ec-nome" type="text" value="'+c.nome+'"/></div>'+
       '<div class="fg" style="margin-bottom:12px"><label>Plano</label>'+
         '<select id="ec-plano" style="width:100%;padding:10px 12px;border:1.5px solid var(--gray2);border-radius:9px;font-size:13px;font-family:inherit">'+
@@ -7289,7 +7295,7 @@ function abrirNovoCliente() {
   }).join('');
   var html = '<div id="modal-novo-cliente" onclick="if(event.target===this)fecharNovoCliente()" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:3000;display:flex;align-items:center;justify-content:center;padding:16px">'+
     '<div style="background:#fff;border-radius:16px;padding:28px 24px;width:100%;max-width:440px;max-height:90vh;overflow-y:auto">'+
-      '<div style="font-family:\'Syne\',sans-serif;font-size:17px;font-weight:800;margin-bottom:18px">Novo Cliente</div>'+
+      '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;font-size:17px;font-weight:800;margin-bottom:18px">Novo Cliente</div>'+
       '<div class="fg" style="margin-bottom:12px"><label>Nome</label><input id="nc-nome" type="text" placeholder="Ex: Padaria Central"/></div>'+
       '<div class="fg" style="margin-bottom:12px"><label>ID único <span style="font-weight:400;color:var(--t3);font-size:11px">(sem espaços/acentos)</span></label><input id="nc-id" type="text" placeholder="Ex: padariacentral"/></div>'+
       '<div class="fg" style="margin-bottom:12px"><label>Plano</label>'+
@@ -7339,7 +7345,7 @@ function gerarTokenCliente(clienteId) {
   var html =
     '<div id="modal-gerar-token" onclick="if(event.target===this)this.remove()" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:3000;display:flex;align-items:center;justify-content:center;padding:16px">'+
     '<div style="background:#fff;border-radius:16px;padding:28px 24px;width:100%;max-width:400px">'+
-      '<div style="font-family:\'Syne\',sans-serif;font-size:17px;font-weight:800;margin-bottom:4px">Gerar Token de Licença</div>'+
+      '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;font-size:17px;font-weight:800;margin-bottom:4px">Gerar Token de Licença</div>'+
       '<div style="font-size:12px;color:var(--t2);margin-bottom:18px">Cliente: <strong>'+clienteId+'</strong>'+(validadeAtual?' · Validade atual: <strong>'+new Date(validadeAtual).toLocaleDateString('pt-BR')+'</strong>':'')+'</div>'+
       '<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px">'+
         '<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:2px solid var(--y);border-radius:10px;cursor:pointer;font-size:13px;font-weight:600">'+
@@ -7448,7 +7454,7 @@ function _gerarNovoToken(clienteId, d, c) {
       '<div id="modal-token-gerado" onclick="if(event.target===this)this.remove()" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:3000;display:flex;align-items:center;justify-content:center;padding:16px">'+
       '<div style="background:#fff;border-radius:16px;padding:28px 24px;width:100%;max-width:400px;text-align:center">'+
         '<div style="font-size:36px;margin-bottom:10px">🔑</div>'+
-        '<div style="font-family:\'Syne\',sans-serif;font-size:17px;font-weight:800;margin-bottom:16px">Token Gerado!</div>'+
+        '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;font-size:17px;font-weight:800;margin-bottom:16px">Token Gerado!</div>'+
         '<div style="background:var(--gray);border-radius:10px;padding:12px;margin-bottom:12px;font-size:12px;color:var(--t2);text-align:left">'+
           '<div>Cliente: <strong>'+clienteId+'</strong></div>'+
           '<div>Dias: <strong>'+d+'</strong></div>'+
@@ -7457,7 +7463,7 @@ function _gerarNovoToken(clienteId, d, c) {
         '<div style="background:#1a1a2e;border-radius:12px;padding:16px;margin-bottom:14px">'+
           '<div style="font-family:monospace;font-size:24px;font-weight:800;color:#f1c40f;letter-spacing:3px" id="token-display">'+token+'</div>'+
         '</div>'+
-        '<button onclick="var t=document.getElementById(\'token-display\').textContent;navigator.clipboard.writeText(t).then(function(){showToast(\'✅ Token copiado!\');}).catch(function(){});" style="width:100%;padding:12px;background:var(--y);border:none;border-radius:10px;font-size:14px;font-weight:800;font-family:\'Syne\',sans-serif;cursor:pointer;margin-bottom:8px">📋 Copiar Token</button>'+
+        '<button onclick="var t=document.getElementById(\'token-display\').textContent;navigator.clipboard.writeText(t).then(function(){showToast(\'✅ Token copiado!\');}).catch(function(){});" style="width:100%;padding:12px;background:var(--y);border:none;border-radius:10px;font-size:14px;font-weight:800;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;cursor:pointer;margin-bottom:8px">📋 Copiar Token</button>'+
         '<div style="font-size:11px;color:var(--t3);margin-bottom:12px">Envie este token para o cliente inserir em <strong>Licença</strong> no app.</div>'+
         '<button onclick="document.getElementById(\'modal-token-gerado\').remove()" style="background:none;border:none;color:var(--t2);font-size:13px;cursor:pointer">Fechar</button>'+
       '</div></div>';
@@ -7493,7 +7499,7 @@ function verTokensCliente(clienteId) {
     }).join('');
     var html = '<div id="modal-tokens" onclick="if(event.target===this)this.remove()" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:3000;display:flex;align-items:center;justify-content:center;padding:16px">'+
       '<div style="background:#fff;border-radius:16px;padding:24px;width:100%;max-width:440px;max-height:80vh;overflow-y:auto">'+
-        '<div style="font-family:\'Syne\',sans-serif;font-size:16px;font-weight:800;margin-bottom:16px">Tokens — '+clienteId+'</div>'+
+        '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;font-size:16px;font-weight:800;margin-bottom:16px">Tokens — '+clienteId+'</div>'+
         rows+
         '<button onclick="document.getElementById(\'modal-tokens\').remove()" style="margin-top:16px;width:100%;padding:10px;background:var(--gray);border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer">Fechar</button>'+
       '</div></div>';
@@ -7719,7 +7725,7 @@ function enviarWhatsApp() {
   var html =
     '<div id="modal-wp-contatos" onclick="if(event.target===this)this.remove()" style="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:5000;display:flex;align-items:center;justify-content:center;padding:20px">'+
     '<div style="background:#fff;border-radius:18px;padding:24px 22px;width:100%;max-width:400px;box-shadow:0 8px 40px rgba(0,0,0,.25)">'+
-      '<div style="font-family:\'Syne\',sans-serif;font-size:17px;font-weight:800;margin-bottom:4px">📱 Avisar pelo WhatsApp</div>'+
+      '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;font-size:17px;font-weight:800;margin-bottom:4px">📱 Avisar pelo WhatsApp</div>'+
       '<div style="font-size:12px;color:var(--t3);margin-bottom:14px">Mensagem com os checklists pendentes do momento.</div>'+
       listaHtml+
       '<button onclick="document.getElementById(\'modal-wp-contatos\').remove()" style="width:100%;padding:11px;background:#fff;border:1.5px solid var(--gray2);border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;color:var(--t2);margin-top:10px">Fechar</button>'+
@@ -8788,7 +8794,7 @@ function renderInvList() {
     return '<div class="card" style="margin-bottom:12px">'+
       '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">'+
         '<div>'+
-          '<div style="font-family:\'Syne\',sans-serif;font-size:15px;font-weight:700">'+inv.nome+'</div>'+
+          '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;font-size:15px;font-weight:700">'+inv.nome+'</div>'+
           '<div style="font-size:12px;color:var(--t3);margin-top:3px">Criado '+dataStr+' &nbsp;·&nbsp; '+endCount+' endereços &nbsp;·&nbsp; '+atribCount+'/'+endCount+' atribuídos &nbsp;·&nbsp; '+(inv.totalBipagens||0)+' bipagens</div>'+
         '</div>'+
         '<span style="white-space:nowrap;padding:4px 14px;border-radius:20px;font-size:11px;font-weight:700;background:'+statusBg+';color:'+statusClr+'">'+inv.status.toUpperCase()+'</span>'+
@@ -9022,7 +9028,7 @@ function encerrarInventario(invId) {
       '<div id="modal-encerrar-inv" onclick="if(event.target===this)fecharModalEncerrarInv()" '+
         'style="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:2000;display:flex;align-items:center;justify-content:center;padding:20px;overflow-y:auto">'+
         '<div style="background:#fff;border-radius:16px;padding:28px 24px 24px;width:100%;max-width:440px;box-shadow:0 8px 40px rgba(0,0,0,.22)">'+
-          '<div style="font-family:\'Syne\',sans-serif;font-size:18px;font-weight:800;margin-bottom:6px;color:#c0392b">⚠ Encerrar Inventário</div>'+
+          '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;font-size:18px;font-weight:800;margin-bottom:6px;color:#c0392b">⚠ Encerrar Inventário</div>'+
           '<div style="font-size:15px;font-weight:700;margin-bottom:14px;padding:10px 14px;background:#fdecea;border-radius:10px;color:#c0392b">'+nomeInv+'</div>'+
           '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">'+
             '<div style="background:var(--gray);border-radius:10px;padding:12px;text-align:center"><div style="font-size:22px;font-weight:800">'+enderecos.length+'</div><div style="font-size:11px;color:var(--t3)">Endereços</div></div>'+
@@ -9208,7 +9214,7 @@ function renderCorrecaoBipagem() {
   _corrEanCache=null;
   wrap.innerHTML=
     '<div class="card" style="max-width:480px">'+
-      '<div style="font-family:\'Syne\',sans-serif;font-size:15px;font-weight:800;margin-bottom:4px">Correção de Bipagem</div>'+
+      '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;font-size:15px;font-weight:800;margin-bottom:4px">Correção de Bipagem</div>'+
       '<div style="font-size:13px;color:var(--t2);margin-bottom:18px">Busque um EAN e informe a correção (negativo para reduzir, positivo para adicionar).</div>'+
       '<label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--t2);display:block;margin-bottom:6px">EAN / Código de Barras</label>'+
       '<div style="display:flex;gap:8px;margin-bottom:14px">'+
@@ -9341,7 +9347,7 @@ function renderColeta() {
       '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:18px">'+
         '<div>'+
           '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--t3)">Endereço</div>'+
-          '<div style="font-family:\'Syne\',sans-serif;font-size:32px;font-weight:800;color:var(--t)">'+endAtual+'</div>'+
+          '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;font-size:32px;font-weight:800;color:var(--t)">'+endAtual+'</div>'+
         '</div>'+
         '<div style="text-align:right">'+
           '<div style="font-size:12px;color:var(--t3);max-width:180px">'+inv.nome+'</div>'+
@@ -9369,7 +9375,7 @@ function renderColeta() {
       '</div>'+
     '</div>'+
     '<div style="background:#fff;border-radius:14px;border:1px solid var(--gray2);padding:20px;box-shadow:var(--sh)">'+
-      '<div style="font-family:\'Syne\',sans-serif;font-size:14px;font-weight:700;margin-bottom:12px">Últimas bipagens — Endereço '+endAtual+'</div>'+
+      '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;font-size:14px;font-weight:700;margin-bottom:12px">Últimas bipagens — Endereço '+endAtual+'</div>'+
       '<div id="inv-ultimas-wrap"><div style="text-align:center;padding:24px;color:var(--t3);font-size:13px">Carregando...</div></div>'+
     '</div>';
 
@@ -9886,14 +9892,14 @@ function renderColeta() {
     '<div style="background:#fff;border-radius:14px;border:1px solid var(--gray2);padding:20px;box-shadow:var(--sh);margin-bottom:16px">'+
       '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">'+
         '<div><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--t3)">Endereço</div>'+
-          '<div style="font-family:\'Syne\',sans-serif;font-size:32px;font-weight:800;color:var(--t)">'+end+'</div>'+
+          '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;font-size:32px;font-weight:800;color:var(--t)">'+end+'</div>'+
           '<div style="margin-top:4px">'+mb+'</div></div>'+
         '<div style="text-align:right"><div style="font-size:12px;color:var(--t3);max-width:180px">'+inv.nome+'</div>'+
           '<div id="inv-seq-label" style="font-size:13px;font-weight:700;color:var(--g);margin-top:4px">Seq: —</div></div>'+
       '</div>'+scanHtml+
     '</div>'+
     '<div style="background:#fff;border-radius:14px;border:1px solid var(--gray2);padding:20px;box-shadow:var(--sh)">'+
-      '<div style="font-family:\'Syne\',sans-serif;font-size:14px;font-weight:700;margin-bottom:12px">Minhas bipagens — Endereço '+end+(modo==='auditoria'?' (Rodada '+rodada+')':'')+'</div>'+
+      '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;font-size:14px;font-weight:700;margin-bottom:12px">Minhas bipagens — Endereço '+end+(modo==='auditoria'?' (Rodada '+rodada+')':'')+'</div>'+
       '<div id="inv-ultimas-wrap"><div style="text-align:center;padding:24px;color:var(--t3);font-size:13px">Carregando...</div></div>'+
     '</div>';
 
@@ -10036,7 +10042,7 @@ function _abrirModalExportErp(perfil) {
   var html =
     '<div id="modal-erp-export" onclick="if(event.target===this)_fecharModalExportErp()" style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:3000;display:flex;align-items:center;justify-content:center;padding:16px;overflow-y:auto">'+
     '<div style="background:#fff;border-radius:18px;padding:28px 24px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.25)">'+
-      '<div style="font-family:\'Syne\',sans-serif;font-size:18px;font-weight:800;margin-bottom:4px">Exportar para ERP</div>'+
+      '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;font-size:18px;font-weight:800;margin-bottom:4px">Exportar para ERP</div>'+
       '<div style="font-size:13px;color:var(--t3);margin-bottom:18px">Configure o formato e baixe o arquivo. O perfil é salvo automaticamente.</div>'+
 
       '<label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--t2);display:block;margin-bottom:6px">Preset de ERP</label>'+
@@ -10383,7 +10389,7 @@ function renderInvList() {
     return '<div class="card" style="margin-bottom:12px">'+
       '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">'+
         '<div>'+
-          '<div style="font-family:\'Syne\',sans-serif;font-size:15px;font-weight:700">'+inv.nome+filaTag+'</div>'+
+          '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;font-size:15px;font-weight:700">'+inv.nome+filaTag+'</div>'+
           '<div style="font-size:12px;color:var(--t3);margin-top:3px">'+tipoTag+'Criado '+dataStr+' · '+endCount+' endereços · '+(inv.totalBipagens||0)+' bipagens</div>'+
         '</div>'+
         '<span style="white-space:nowrap;padding:4px 14px;border-radius:20px;font-size:11px;font-weight:700;background:#d1f0e0;color:#1a5c34">ABERTO</span>'+
@@ -10460,7 +10466,7 @@ function _histRenderLista() {
     return '<div class="card" style="margin-bottom:12px">'+
       '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">'+
         '<div>'+
-          '<div style="font-family:\'Syne\',sans-serif;font-size:15px;font-weight:700">'+inv.nome+'</div>'+
+          '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;font-size:15px;font-weight:700">'+inv.nome+'</div>'+
           '<div style="font-size:12px;color:var(--t3);margin-top:3px">'+tipoTag+'Encerrado '+dt+' · '+ends+' endereços · '+(inv.totalBipagens||0)+' bipagens</div>'+
         '</div>'+
         '<span style="padding:4px 14px;border-radius:20px;font-size:11px;font-weight:700;background:#f0f0f0;color:#666">ENCERRADO</span>'+
@@ -10489,7 +10495,7 @@ function renderInvComparativo() {
     return '<option value="'+inv.id+'">'+inv.nome+' ('+(inv.status==='aberto'?'ativo':'encerrado')+')</option>';
   }).join('');
   el.innerHTML='<div class="card" style="margin-bottom:14px">'+
-    '<div style="font-family:\'Syne\',sans-serif;font-size:15px;font-weight:700;margin-bottom:12px">Comparativo por Endereço + EAN</div>'+
+    '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;font-size:15px;font-weight:700;margin-bottom:12px">Comparativo por Endereço + EAN</div>'+
     '<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:4px">'+
       '<div style="flex:1;min-width:180px"><label style="font-size:11px;font-weight:700;color:var(--t2);display:block;margin-bottom:4px">Inventário A</label><select id="cmp-inv-a" style="'+ss+'">'+opts+'</select></div>'+
       '<div style="flex:1;min-width:180px"><label style="font-size:11px;font-weight:700;color:var(--t2);display:block;margin-bottom:4px">Inventário B</label><select id="cmp-inv-b" style="'+ss+'">'+opts+'</select></div>'+
@@ -10587,17 +10593,17 @@ function _renderSelecaoEndereco(inv, bipCount) {
       var icon=_sico[s]||'📁';
       var slot=filaMap[s];
       if(slot&&slot.concluido){
-        return '<button disabled style="padding:20px 6px;border:2.5px solid #ccc;border-radius:14px;background:#f0f0f0;color:#999;font-size:14px;font-weight:800;font-family:\'Syne\',sans-serif;cursor:not-allowed;width:100%;box-sizing:border-box;line-height:1.4;opacity:.65">🔒<br>'+s+'<br><span style="font-size:10px;font-weight:600">encerrado</span></button>';
+        return '<button disabled style="padding:20px 6px;border:2.5px solid #ccc;border-radius:14px;background:#f0f0f0;color:#999;font-size:14px;font-weight:800;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;cursor:not-allowed;width:100%;box-sizing:border-box;line-height:1.4;opacity:.65">🔒<br>'+s+'<br><span style="font-size:10px;font-weight:600">encerrado</span></button>';
       }
       var andamento=slot&&!slot.concluido;
       var border=andamento?'border:2.5px solid #b38600':'border:2.5px solid '+c[0];
       var bg=andamento?'background:#fffbe8':'background:'+c[1];
       var cl=andamento?'color:#b38600':'color:'+c[2];
       var ss=s.replace(/'/g,"\\'");
-      return '<button onclick="_confirmarSetorFila(\''+safeInvId+'\',\''+ss+'\',\''+ss+'\')" style="padding:20px 6px;'+border+';border-radius:14px;'+bg+';'+cl+';font-size:14px;font-weight:800;font-family:\'Syne\',sans-serif;cursor:pointer;width:100%;box-sizing:border-box;word-break:break-word;line-height:1.4">'+icon+'<br>'+s+(andamento?'<br><span style="font-size:10px;font-weight:600">em andamento</span>':'')+'</button>';
+      return '<button onclick="_confirmarSetorFila(\''+safeInvId+'\',\''+ss+'\',\''+ss+'\')" style="padding:20px 6px;'+border+';border-radius:14px;'+bg+';'+cl+';font-size:14px;font-weight:800;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;cursor:pointer;width:100%;box-sizing:border-box;word-break:break-word;line-height:1.4">'+icon+'<br>'+s+(andamento?'<br><span style="font-size:10px;font-weight:600">em andamento</span>':'')+'</button>';
     }).join('');
     return '<div>'+
-      '<div style="font-family:\'Syne\',sans-serif;font-size:16px;font-weight:700;margin-bottom:6px">Selecionar Setor</div>'+
+      '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;font-size:16px;font-weight:700;margin-bottom:6px">Selecionar Setor</div>'+
       '<div style="font-size:13px;color:var(--t3);margin-bottom:16px">Toque no setor que você vai coletar.</div>'+
       '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:12px">'+btns+'</div>'+
     '</div>';
@@ -10631,7 +10637,7 @@ function _renderSelecaoEndereco(inv, bipCount) {
       '<span style="font-weight:700;font-family:monospace;font-size:14px">'+e+'</span>'+quem+'</div>';
   }).join('');
   return '<div>'+
-    '<div style="font-family:\'Syne\',sans-serif;font-size:16px;font-weight:700;margin-bottom:4px">Selecionar Endereço</div>'+
+    '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;font-size:16px;font-weight:700;margin-bottom:4px">Selecionar Endereço</div>'+
     '<div style="font-size:13px;color:var(--t3);margin-bottom:14px">Scanner físico: aponte e leia diretamente. Câmera: toque em 📷.</div>'+
     '<div style="display:flex;gap:8px;margin-bottom:10px">'+
       '<input id="fila-end-input" type="text" placeholder="Aguardando scanner..." autocomplete="off" autocorrect="off" autocapitalize="characters" inputmode="text" style="flex:1;padding:10px 14px;border:2px solid var(--y);border-radius:9px;font-size:15px;font-family:monospace;text-transform:uppercase" onkeydown="if(event.key===\'Enter\'||event.key===\'Tab\'){event.preventDefault();selecionarEnderecoFila(\''+inv.id+'\',document.getElementById(\'fila-end-input\').value.trim());}" onblur="setTimeout(function(){var m=document.getElementById(\'modal-setor-picker\');var qs=document.getElementById(\'qr-scan-wrap\');if(!m&&(!qs||qs.style.display===\'none\')){var e=document.getElementById(\'fila-end-input\');if(e)e.focus();}},120)"/>'+
@@ -10680,7 +10686,7 @@ function _mostrarSetorPicker(invId, endereco) {
   var html=
     '<div id="modal-setor-picker" onclick="if(event.target===this)_fecharSetorPicker()" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:2100;display:flex;align-items:flex-end;justify-content:center;padding:0">'+
       '<div style="background:#fff;border-radius:20px 20px 0 0;padding:24px 20px 36px;width:100%;max-width:480px;box-shadow:0 -4px 32px rgba(0,0,0,.18)">'+
-        '<div style="font-family:\'Syne\',sans-serif;font-size:17px;font-weight:800;margin-bottom:4px">Selecionar Setor</div>'+
+        '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;font-size:17px;font-weight:800;margin-bottom:4px">Selecionar Setor</div>'+
         '<div style="font-size:13px;color:var(--t3);margin-bottom:20px">Endereço: <strong style="font-family:monospace">'+endereco+'</strong></div>'+
         '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:10px;margin-bottom:14px" id="setor-picker-btns"></div>'+
         '<button onclick="_fecharSetorPicker()" style="width:100%;padding:11px;border:1.5px solid var(--gray2);border-radius:10px;background:#fff;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;color:var(--t2)">Cancelar</button>'+
@@ -10698,7 +10704,7 @@ function _mostrarSetorPicker(invId, endereco) {
       var c=(_setorColors[i%_setorColors.length]).split('|');
       var icon=_setorIcons[s]||'📁';
       var ss=s.replace(/'/g,"\\'");
-      return '<button onclick="_confirmarSetorFila(\''+safeInvId+'\',\''+safeEnd+'\',\''+ss+'\')" style="padding:14px 6px;border:2.5px solid '+c[0]+';border-radius:12px;background:'+c[1]+';color:'+c[2]+';font-size:13px;font-weight:800;font-family:\'Syne\',sans-serif;cursor:pointer;width:100%;box-sizing:border-box;word-break:break-word;line-height:1.3">'+icon+'<br>'+s+'</button>';
+      return '<button onclick="_confirmarSetorFila(\''+safeInvId+'\',\''+safeEnd+'\',\''+ss+'\')" style="padding:14px 6px;border:2.5px solid '+c[0]+';border-radius:12px;background:'+c[1]+';color:'+c[2]+';font-size:13px;font-weight:800;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;cursor:pointer;width:100%;box-sizing:border-box;word-break:break-word;line-height:1.3">'+icon+'<br>'+s+'</button>';
     }).join('');
   }
 }
@@ -10903,7 +10909,7 @@ function _htmlIdColetorForm() {
   var atual = _getIdColetor();
   var nomeAtual = _getNomeColetor();
   return '<div style="max-width:360px;margin:50px auto;padding:28px 24px;background:#fff;border-radius:16px;border:1px solid var(--gray2);box-shadow:var(--sh)">'+
-    '<div style="font-family:\'Syne\',sans-serif;font-size:19px;font-weight:800;margin-bottom:6px">Identificação</div>'+
+    '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;font-size:19px;font-weight:800;margin-bottom:6px">Identificação</div>'+
     '<div style="font-size:13px;color:var(--t2);margin-bottom:20px">Informe seu ID e nome para começar.</div>'+
     '<label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--t2);display:block;margin-bottom:8px">ID de Coletor</label>'+
     '<input id="coletor-id-novo" type="text" value="'+atual+'" placeholder="Ex: 01, A1, C3" autocomplete="off" '+
@@ -10988,7 +10994,7 @@ function renderColeta() {
         });
         wrap.innerHTML='<div>'+
           '<div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">'+
-            '<div style="font-family:\'Syne\',sans-serif;font-size:17px;font-weight:700;flex:1">'+fresh.nome+'</div>'+
+            '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;font-size:17px;font-weight:700;flex:1">'+fresh.nome+'</div>'+
             '<span style="padding:4px 14px;border-radius:20px;font-size:11px;font-weight:700;background:#d1f0e0;color:#1a5c34">ABERTO</span>'+
           '</div>'+
           _renderSelecaoEndereco(fresh, cnt)+'</div>';
@@ -11062,14 +11068,14 @@ function renderColeta() {
     '<div style="background:#fff;border-radius:14px;border:1px solid var(--gray2);padding:20px;box-shadow:var(--sh);margin-bottom:16px">'+
       '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">'+
         '<div><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--t3)">Endereço</div>'+
-          '<div style="font-family:\'Syne\',sans-serif;font-size:32px;font-weight:800;color:var(--t)">'+end+'</div>'+
+          '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;font-size:32px;font-weight:800;color:var(--t)">'+end+'</div>'+
           '<div style="margin-top:4px">'+mb+'</div></div>'+
         '<div style="text-align:right"><div style="font-size:12px;color:var(--t3);max-width:180px">'+inv.nome+'</div>'+
           '<div id="inv-seq-label" style="font-size:13px;font-weight:700;color:var(--g);margin-top:4px">Seq: —</div></div>'+
       '</div>'+scanHtml+
     '</div>'+
     '<div style="background:#fff;border-radius:14px;border:1px solid var(--gray2);padding:20px;box-shadow:var(--sh)">'+
-      '<div style="font-family:\'Syne\',sans-serif;font-size:14px;font-weight:700;margin-bottom:12px">Minhas bipagens — Endereço '+end+(modo==='auditoria'?' (Rodada '+rodada+')':'')+'</div>'+
+      '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;font-size:14px;font-weight:700;margin-bottom:12px">Minhas bipagens — Endereço '+end+(modo==='auditoria'?' (Rodada '+rodada+')':'')+'</div>'+
       '<div id="inv-ultimas-wrap"><div style="text-align:center;padding:24px;color:var(--t3);font-size:13px">Carregando...</div></div>'+
     '</div>';
   if (!concluido) {
@@ -11133,7 +11139,7 @@ function _exibirModalFinalizar(bips) {
     '<div id="modal-finalizar" onclick="if(event.target===this)fecharModalFinalizar()" '+
       'style="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:flex-end;justify-content:center">'+
       '<div style="background:#fff;border-radius:18px 18px 0 0;padding:24px 20px 28px;width:100%;max-width:520px;max-height:82vh;display:flex;flex-direction:column;box-sizing:border-box">'+
-        '<div style="font-family:\'Syne\',sans-serif;font-size:17px;font-weight:800;margin-bottom:2px">Finalizar Endereço</div>'+
+        '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;font-size:17px;font-weight:800;margin-bottom:2px">Finalizar Endereço</div>'+
         '<div style="font-size:26px;font-weight:800;font-family:monospace;letter-spacing:2px;color:var(--t);margin-bottom:4px">'+end+'</div>'+
         (rodada>1?'<div style="font-size:12px;color:#5b21b6;font-weight:700;margin-bottom:8px">Rodada '+rodada+'</div>':'')+
         '<div style="display:flex;gap:10px;margin-bottom:14px">'+
@@ -11819,7 +11825,7 @@ function renderInvColetores() {
     wrap.innerHTML=
       '<div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;padding:16px;background:var(--gray);border-radius:12px;flex-wrap:wrap">'+
         '<div>'+
-          '<div style="font-size:36px;font-weight:800;font-family:\'Syne\',sans-serif;line-height:1;color:'+corN+'">'+n+'</div>'+
+          '<div style="font-size:36px;font-weight:800;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;line-height:1;color:'+corN+'">'+n+'</div>'+
           '<div style="font-size:12px;color:var(--t2);margin-top:2px">coletores identificados</div>'+
         '</div>'+
         '<div style="font-size:12px;color:var(--t3);flex:1">'+
@@ -12022,7 +12028,7 @@ function renderColetaAvulsa() {
   if (!coletorId) {
     var atual=_getIdColetor();
     wrap.innerHTML='<div style="max-width:360px;margin:50px auto;padding:28px 24px;background:#fff;border-radius:16px;border:1px solid var(--gray2);box-shadow:var(--sh)">'+
-      '<div style="font-family:\'Syne\',sans-serif;font-size:19px;font-weight:800;margin-bottom:6px">Identificação</div>'+
+      '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;font-size:19px;font-weight:800;margin-bottom:6px">Identificação</div>'+
       '<div style="font-size:13px;color:var(--t2);margin-bottom:22px">Informe seu ID de coletor para começar.</div>'+
       '<label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--t2);display:block;margin-bottom:8px">ID de Coletor</label>'+
       '<input id="avulsa-coletor-id" type="text" value="'+(atual||'')+'" placeholder="Ex: 01, A1, JOAO" autocomplete="off" '+
@@ -12060,7 +12066,7 @@ function renderColetaAvulsa() {
       '</div>'+
     '</div>'+
     '<div class="card">'+
-      '<div style="font-family:\'Syne\',sans-serif;font-size:14px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between">'+
+      '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;font-size:14px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between">'+
         'Bipagens Avulsas'+
         '<button class="btn btn-s btn-sm" onclick="_exportarAvulsaCsv()">⬇ CSV</button>'+
       '</div>'+
@@ -12213,7 +12219,7 @@ function _alertar100pct(){
   }catch(e){}
   // Toast visual
   var t=document.createElement('div');
-  t.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:9999;background:#1a5c34;color:#fff;padding:16px 28px;border-radius:16px;font-weight:800;font-size:16px;font-family:\'Syne\',sans-serif;box-shadow:0 4px 24px rgba(0,0,0,.25);text-align:center;animation:none';
+  t.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:9999;background:#1a5c34;color:#fff;padding:16px 28px;border-radius:16px;font-weight:800;font-size:16px;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;box-shadow:0 4px 24px rgba(0,0,0,.25);text-align:center;animation:none';
   t.innerHTML='🎉 Inventário 100% concluído!<br><span style="font-size:12px;font-weight:400">Todos os endereços foram finalizados.</span>';
   document.body.appendChild(t);
   setTimeout(function(){ if(t.parentNode) t.parentNode.removeChild(t); },6000);
@@ -12225,7 +12231,7 @@ function _abrirSemEAN(){
   var html=
     '<div id="modal-sem-ean" onclick="if(event.target===this)_fecharSemEAN()" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:2200;display:flex;align-items:flex-end;justify-content:center;padding:0">'+
       '<div style="background:#fff;border-radius:20px 20px 0 0;padding:24px 20px 36px;width:100%;max-width:480px;box-shadow:0 -4px 32px rgba(0,0,0,.18)">'+
-        '<div style="font-family:\'Syne\',sans-serif;font-size:17px;font-weight:800;margin-bottom:4px">📝 Produto Sem Código</div>'+
+        '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',system-ui,sans-serif;font-size:17px;font-weight:800;margin-bottom:4px">📝 Produto Sem Código</div>'+
         '<div style="font-size:13px;color:var(--t3);margin-bottom:16px">Item sem etiqueta ou código de barras.</div>'+
         '<label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--t2);display:block;margin-bottom:6px">Descrição do produto</label>'+
         '<input id="sem-ean-desc" type="text" placeholder="Ex: Suco laranja caixa 1L" autocomplete="off" style="width:100%;padding:12px 14px;border:2px solid var(--gray2);border-radius:10px;font-size:14px;font-family:inherit;margin-bottom:12px;box-sizing:border-box" onkeydown="if(event.key===\'Enter\')document.getElementById(\'sem-ean-qty\').focus()"/>'+
