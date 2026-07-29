@@ -3784,7 +3784,7 @@ app.post('/api/conciliador/buscar-proximos', async (req, res) => {
 
     const candidatos = await q(`
       SELECT a.nReg, a.Valor, a.Devedor, DATE_FORMAT(a.DataVencto,'%Y-%m-%d') as DataVencto,
-             a.CodFornec, a.Historico, a.Filial,
+             a.CodFornec, a.Historico, a.Filial, a.PlanoGrupo, a.PlanoSub,
              a.Acrescimo, a.Multa, a.Juros, a.Desconto, a.Devolucao, a.ValorBruto, f.Nome, f.NomeCompleto
       FROM loja20045.contasapagar a
       LEFT JOIN central.fornecedor f ON f.CodFornec = a.CodFornec
@@ -3792,6 +3792,7 @@ app.post('/api/conciliador/buscar-proximos', async (req, res) => {
       ORDER BY ABS(a.Valor - ?) ASC
       LIMIT 25
     `, [dIni, dFim, loja, valor, TOL_VALOR, valor]);
+    const plano = await getPlanoContas();
 
     res.json({
       candidatos: candidatos.map(c => ({
@@ -3803,6 +3804,10 @@ app.post('/api/conciliador/buscar-proximos', async (req, res) => {
         dataVencto: c.DataVencto,
         historico: c.Historico,
         filial: c.Filial,
+        planoGrupo: c.PlanoGrupo,
+        planoSub: c.PlanoSub,
+        planoGrupoNome: plano.grupoMap.get(c.PlanoGrupo) || null,
+        planoSubNome: plano.subMap.get(`${c.PlanoGrupo}|${c.PlanoSub}`) || null,
         diferenca: +(Number(c.Valor) - Number(valor)).toFixed(2)
       }))
     });
@@ -3835,6 +3840,10 @@ app.post('/api/conciliador/confirmar-avulso', (req, res) => {
       dataVencto: escolha.dataVencto,
       historicoErp: escolha.historico,
       filial: escolha.filial,
+      planoGrupo: escolha.planoGrupo,
+      planoSub: escolha.planoSub,
+      planoGrupoNome: escolha.planoGrupoNome,
+      planoSubNome: escolha.planoSubNome,
       justificativa: justificativa.trim(),
       confirmadoEm: new Date().toISOString(),
       confirmadoPor: (req.session && req.session.user && req.session.user.nome) || 'desconhecido'
