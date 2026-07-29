@@ -1,5 +1,5 @@
 ﻿// Verificação de versão — roda antes de tudo
-var BUILD = '235';
+var BUILD = '236';
 (function() {
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
@@ -7326,9 +7326,9 @@ function verTokensCliente(clienteId) {
       if (t.cancelado) { status = '❌ Cancelado'; cor = '#999'; }
       else if (t.usado) {
         var fim = t.dataFim ? new Date(t.dataFim) : null;
-        var vencido = fim && fim < hoje;
-        if (vencido) { status = '⌛ Expirado em '+new Date(t.dataFim).toLocaleDateString('pt-BR'); cor = '#e67e22'; }
-        else { status = '✅ Ativo até '+(t.dataFim ? new Date(t.dataFim).toLocaleDateString('pt-BR') : '--'); cor = '#1a5c34'; podeCancel = true; }
+        if (!fim) { status = '⌛ Expirado (legado)'; cor = '#999'; }
+        else if (fim < hoje) { status = '⌛ Expirado em '+fim.toLocaleDateString('pt-BR'); cor = '#e67e22'; }
+        else { status = '✅ Ativo até '+fim.toLocaleDateString('pt-BR'); cor = '#1a5c34'; podeCancel = true; }
       } else { status = '⏳ Não usado'; cor = '#1a5c9c'; podeCancel = true; }
       return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 0;border-bottom:1px solid var(--gray2)">'+
         '<div>'+
@@ -7353,13 +7353,12 @@ function cancelarToken(tokenId, clienteId) {
   if (!confirm('Cancelar este token?\n\nO cliente perderá o acesso no próximo login.')) return;
   var ontem = new Date(); ontem.setDate(ontem.getDate()-1);
   var ontemStr = ontem.toISOString().slice(0,10);
-  var batch = db.batch();
-  batch.update(db.collection('tokens').doc(tokenId), { cancelado: true, canceladoEm: firebase.firestore.FieldValue.serverTimestamp() });
-  batch.update(db.collection('clientes').doc(clienteId), { validade: ontemStr });
-  batch.commit().then(function() {
+  // Atualiza cliente (crítico) e tenta marcar token (pode falhar se já foi excluído)
+  db.collection('clientes').doc(clienteId).update({ validade: ontemStr }).then(function() {
+    db.collection('tokens').doc(tokenId).update({ cancelado: true, canceladoEm: firebase.firestore.FieldValue.serverTimestamp() }).catch(function(){});
     var m = document.getElementById('modal-tokens'); if (m) m.remove();
     renderPainelClientes();
-    showToast('🔒 Token cancelado. Acesso revogado.');
+    showToast('🔒 Acesso revogado.');
   }).catch(function(e){ showToast('Erro: '+e.message); });
 }
 
