@@ -1,5 +1,5 @@
 ﻿// Verificação de versão — roda antes de tudo
-var BUILD = '256';
+var BUILD = '257';
 (function() {
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
@@ -5437,17 +5437,22 @@ function renderRelChecklist() {
   var users = getUsers().filter(function(u){return u.ativo && _pcl.indexOf(u.perfil)!==-1;});
   var resumoDiv = document.getElementById('rel-resumo-dia');
   var PLABEL2 = {gerencia:'Gerência',operator:'Operador',prevencao:'Prevenção'};
+  var _ag = {gerencia:'linear-gradient(135deg,#3b82f6,#1d4ed8)',prevencao:'linear-gradient(135deg,#f59e0b,#b45309)',operator:'linear-gradient(135deg,#10b981,#047857)'};
   resumoDiv.innerHTML = users.length ? users.map(function(u){
-    var enviou = resultadosHoje.find(function(r){return r.operador===u.nome;});
-    var cor = enviou ? (enviou.pct===100?'#e8f5ee':'#fef9e7') : '#fdecea';
-    var icon = enviou ? (enviou.pct===100?'✅':'⚠️') : '⏳';
-    var pct = enviou ? enviou.pct+'%' : 'Pendente';
-    var pctColor = enviou ? (enviou.pct===100?'var(--g)':'var(--am)') : 'var(--r)';
-    return '<div style="background:'+cor+';border-radius:10px;padding:14px;text-align:center">'
-      +'<div style="font-size:24px;margin-bottom:6px">'+icon+'</div>'
-      +'<div style="font-size:13px;font-weight:600;margin-bottom:2px">'+u.nome+'</div>'
-      +'<div style="font-size:11px;color:var(--t3);margin-bottom:6px">'+(PLABEL2[u.perfil]||u.perfil)+'</div>'
-      +'<div style="font-size:18px;font-weight:700;color:'+pctColor+'">'+pct+'</div>'
+    var urs = resultadosHoje.filter(function(r){return r.operador===u.nome;});
+    var enviou = urs.length > 0;
+    var media  = enviou ? Math.round(urs.reduce(function(s,r){return s+r.pct;},0)/urs.length) : null;
+    var statusBg    = !enviou?'#f3f4f6':media===100?'#dcfce7':media>=60?'#fef9c3':'#fee2e2';
+    var statusColor = !enviou?'#6b7280':media===100?'#15803d':media>=60?'#92400e':'#dc2626';
+    var statusLabel = !enviou?'Pendente':media===100?'Completo':media+'%';
+    var initials = u.nome.trim().split(/\s+/).slice(0,2).map(function(w){return w[0]?w[0].toUpperCase():'';}).join('');
+    var avatarBg = _ag[u.perfil]||'linear-gradient(135deg,#6b7280,#4b5563)';
+    return '<div style="padding:12px 14px;border-radius:14px;background:var(--w);border:1px solid rgba(0,0,0,.07);box-shadow:0 1px 3px rgba(0,0,0,.04),0 2px 8px rgba(0,0,0,.05)">'
+      +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">'
+      +'<div style="width:38px;height:38px;border-radius:50%;background:'+avatarBg+';display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0;letter-spacing:.3px">'+initials+'</div>'
+      +'<div style="min-width:0"><div style="font-size:12.5px;font-weight:600;color:var(--t);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3">'+u.nome+'</div>'
+      +'<div style="font-size:10px;color:var(--t3);line-height:1.3">'+(PLABEL2[u.perfil]||u.perfil)+'</div></div></div>'
+      +'<span style="font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:20px;background:'+statusBg+';color:'+statusColor+'">'+statusLabel+'</span>'
       +'</div>';
   }).join('') : '<div style="text-align:center;color:var(--t3);padding:20px;font-size:13px;grid-column:1/-1">Nenhum usuário cadastrado</div>';
 
@@ -5763,20 +5768,26 @@ function renderRelExecutivo() {
   document.getElementById('exec-ocorr').textContent = ocorr;
 
   // Equipe cards
-  var users = getUsers().filter(function(u){return u.id!=='admin'&&u.ativo;});
+  var _pclExec = ['operator','prevencao','gerencia'];
+  var users = getUsers().filter(function(u){return u.ativo && _pclExec.indexOf(u.perfil)!==-1;});
   var PLABEL = {gerencia:'Gerência',operator:'Operador',prevencao:'Prevenção'};
+  var _agExec = {gerencia:'linear-gradient(135deg,#3b82f6,#1d4ed8)',prevencao:'linear-gradient(135deg,#f59e0b,#b45309)',operator:'linear-gradient(135deg,#10b981,#047857)'};
   var eq = document.getElementById('exec-equipe');
   eq.innerHTML = users.length ? users.map(function(u){
-    var env = res.find(function(r){return r.operador===u.nome;});
-    var cor = env?(env.pct===100?'#e8f5ee':'#fef9e7'):'#fdecea';
-    var icon = env?(env.pct===100?'✅':'⚠️'):'⏳';
-    var pctTxt = env?env.pct+'%':'Pendente';
-    var pctColor = env?(env.pct===100?'var(--g)':'var(--am)'):'var(--r)';
-    return '<div style="background:'+cor+';border-radius:10px;padding:14px;text-align:center">'
-      +'<div style="font-size:22px;margin-bottom:4px">'+icon+'</div>'
-      +'<div style="font-size:13px;font-weight:600">'+u.nome+'</div>'
-      +'<div style="font-size:11px;color:var(--t3);margin-bottom:6px">'+(PLABEL[u.perfil]||u.perfil)+'</div>'
-      +'<div style="font-size:20px;font-weight:700;color:'+pctColor+'">'+pctTxt+'</div>'
+    var urs = res.filter(function(r){return r.operador===u.nome;});
+    var enviou = urs.length > 0;
+    var media  = enviou ? Math.round(urs.reduce(function(s,r){return s+r.pct;},0)/urs.length) : null;
+    var statusBg    = !enviou?'#f3f4f6':media===100?'#dcfce7':media>=60?'#fef9c3':'#fee2e2';
+    var statusColor = !enviou?'#6b7280':media===100?'#15803d':media>=60?'#92400e':'#dc2626';
+    var statusLabel = !enviou?'Pendente':media===100?'Completo':media+'%';
+    var initials = u.nome.trim().split(/\s+/).slice(0,2).map(function(w){return w[0]?w[0].toUpperCase():'';}).join('');
+    var avatarBg = _agExec[u.perfil]||'linear-gradient(135deg,#6b7280,#4b5563)';
+    return '<div style="padding:12px 14px;border-radius:14px;background:var(--w);border:1px solid rgba(0,0,0,.07);box-shadow:0 1px 3px rgba(0,0,0,.04),0 2px 8px rgba(0,0,0,.05)">'
+      +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">'
+      +'<div style="width:38px;height:38px;border-radius:50%;background:'+avatarBg+';display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0;letter-spacing:.3px">'+initials+'</div>'
+      +'<div style="min-width:0"><div style="font-size:12.5px;font-weight:600;color:var(--t);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3">'+u.nome+'</div>'
+      +'<div style="font-size:10px;color:var(--t3);line-height:1.3">'+(PLABEL[u.perfil]||u.perfil)+'</div></div></div>'
+      +'<span style="font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:20px;background:'+statusBg+';color:'+statusColor+'">'+statusLabel+'</span>'
       +'</div>';
   }).join('') : '<div style="color:var(--t3);padding:20px;text-align:center;grid-column:1/-1">Nenhum usuário</div>';
 
@@ -6320,7 +6331,8 @@ function exportarRelatorioSupervisor() {
   var ontemStr  = ontemDate.toLocaleDateString('pt-BR');
   var resultadosOntem = todosResultados.filter(function(r){ return r.dataHora && r.dataHora.indexOf(ontemStr)===0 && !r.resetado; });
 
-  var todosUsers = getUsers().filter(function(u){ return u.id!=='admin' && u.ativo; });
+  var _pclPdf = ['operator','prevencao','gerencia'];
+  var todosUsers = getUsers().filter(function(u){ return u.ativo && _pclPdf.indexOf(u.perfil)!==-1; });
   var todasPend  = getPendencias();
 
   // ── KPIs (idênticos ao dashboard) ──────────────────────────────────────────
@@ -7943,17 +7955,22 @@ function _renderRelatorios_unused() {
     resumoDiv.innerHTML = '<div style="text-align:center;color:var(--t3);padding:20px;font-size:13px;grid-column:1/-1">Nenhum envio hoje</div>';
   } else {
     var PLABEL2 = {gerencia:'Gerência',operator:'Operador',prevencao:'Prevenção'};
+    var _ag2 = {gerencia:'linear-gradient(135deg,#3b82f6,#1d4ed8)',prevencao:'linear-gradient(135deg,#f59e0b,#b45309)',operator:'linear-gradient(135deg,#10b981,#047857)'};
     resumoDiv.innerHTML = users.map(function(u){
-      var enviou = resultadosHoje.find(function(r){return r.operador===u.nome;});
-      var cor = enviou ? (enviou.pct===100?'#e8f5ee':'#fef9e7') : '#fdecea';
-      var icon = enviou ? (enviou.pct===100?'✅':'⚠️') : '⏳';
-      var pct = enviou ? enviou.pct+'%' : 'Pendente';
-      var pctColor = enviou ? (enviou.pct===100?'var(--g)':'var(--am)') : 'var(--r)';
-      return '<div style="background:'+cor+';border-radius:10px;padding:14px;text-align:center">'
-        +'<div style="font-size:24px;margin-bottom:6px">'+icon+'</div>'
-        +'<div style="font-size:13px;font-weight:600;margin-bottom:2px">'+u.nome+'</div>'
-        +'<div style="font-size:11px;color:var(--t3);margin-bottom:6px">'+PLABEL2[u.perfil]+'</div>'
-        +'<div style="font-size:18px;font-weight:700;color:'+pctColor+'">'+pct+'</div>'
+      var urs = resultadosHoje.filter(function(r){return r.operador===u.nome;});
+      var enviou = urs.length > 0;
+      var media  = enviou ? Math.round(urs.reduce(function(s,r){return s+r.pct;},0)/urs.length) : null;
+      var statusBg    = !enviou?'#f3f4f6':media===100?'#dcfce7':media>=60?'#fef9c3':'#fee2e2';
+      var statusColor = !enviou?'#6b7280':media===100?'#15803d':media>=60?'#92400e':'#dc2626';
+      var statusLabel = !enviou?'Pendente':media===100?'Completo':media+'%';
+      var initials = u.nome.trim().split(/\s+/).slice(0,2).map(function(w){return w[0]?w[0].toUpperCase():'';}).join('');
+      var avatarBg = _ag2[u.perfil]||'linear-gradient(135deg,#6b7280,#4b5563)';
+      return '<div style="padding:12px 14px;border-radius:14px;background:var(--w);border:1px solid rgba(0,0,0,.07);box-shadow:0 1px 3px rgba(0,0,0,.04),0 2px 8px rgba(0,0,0,.05)">'
+        +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">'
+        +'<div style="width:38px;height:38px;border-radius:50%;background:'+avatarBg+';display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0;letter-spacing:.3px">'+initials+'</div>'
+        +'<div style="min-width:0"><div style="font-size:12.5px;font-weight:600;color:var(--t);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3">'+u.nome+'</div>'
+        +'<div style="font-size:10px;color:var(--t3);line-height:1.3">'+(PLABEL2[u.perfil]||u.perfil)+'</div></div></div>'
+        +'<span style="font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:20px;background:'+statusBg+';color:'+statusColor+'">'+statusLabel+'</span>'
         +'</div>';
     }).join('');
   }
