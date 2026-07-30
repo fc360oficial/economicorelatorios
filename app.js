@@ -1,5 +1,5 @@
 ﻿// Verificação de versão — roda antes de tudo
-var BUILD = '283';
+var BUILD = '284';
 (function() {
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
@@ -10353,6 +10353,8 @@ function exportarTxtErp() {
 }
 
 function _abrirModalExportErp(perfil) {
+  // Ordem de clique: começa com a ordem já salva no perfil (ou preset)
+  window._erpCampoOrdem = (perfil.campos||[]).slice();
   var presetOpts = Object.keys(_ERP_PRESETS).map(function(k){
     return '<option value="'+k+'"'+(perfil._preset===k?' selected':'')+'>'+_ERP_PRESETS[k].label+'</option>';
   }).join('');
@@ -10444,7 +10446,15 @@ function _abrirModalExportErp(perfil) {
         var el=document.getElementById(id); if(el) el.addEventListener('change', _erp_atualizarPreview);
       });
       document.querySelectorAll('.erp-campo-cb').forEach(function(cb){
-        cb.addEventListener('change', _erp_atualizarPreview);
+        cb.addEventListener('change', function(){
+          var idx = window._erpCampoOrdem.indexOf(cb.value);
+          if (cb.checked) {
+            if (idx===-1) window._erpCampoOrdem.push(cb.value);
+          } else if (idx!==-1) {
+            window._erpCampoOrdem.splice(idx,1);
+          }
+          _erp_atualizarPreview();
+        });
       });
     });
   });
@@ -10452,7 +10462,7 @@ function _abrirModalExportErp(perfil) {
 
 function _fecharModalExportErp() {
   var m=document.getElementById('modal-erp-export'); if(m) m.remove();
-  window._erpBipsCache=null; window._erpCatCache=null;
+  window._erpBipsCache=null; window._erpCatCache=null; window._erpCampoOrdem=null;
 }
 
 function _erp_aplicarPreset(key) {
@@ -10465,6 +10475,7 @@ function _erp_aplicarPreset(key) {
   document.querySelectorAll('.erp-campo-cb').forEach(function(cb){
     cb.checked = p.campos && p.campos.indexOf(cb.value) >= 0;
   });
+  window._erpCampoOrdem = (p.campos||[]).slice();
   _erp_atualizarPreview();
 }
 
@@ -10478,8 +10489,10 @@ function _erp_lerPerfil() {
   var preset = (document.getElementById('erp-preset')||{}).value||'custom';
   var campos = [];
   document.querySelectorAll('.erp-campo-cb:checked').forEach(function(cb){ campos.push(cb.value); });
-  // Mantém ordem da lista original (não da DOM checked order)
-  var camposOrdenados = _ERP_CAMPOS.map(function(c){ return c.id; }).filter(function(id){ return campos.indexOf(id)>=0; });
+  // Ordem segue a sequência de cliques do usuário (window._erpCampoOrdem), não a lista fixa
+  var ordem = window._erpCampoOrdem || [];
+  var camposOrdenados = ordem.filter(function(id){ return campos.indexOf(id)>=0; });
+  campos.forEach(function(id){ if (camposOrdenados.indexOf(id)<0) camposOrdenados.push(id); });
   return {sep:sep, dec:dec, enc:enc, ext:ext, header:header, agrupa:agrupa, campos:camposOrdenados, _preset:preset};
 }
 
