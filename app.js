@@ -1440,6 +1440,11 @@ function setupRole() {
   if (_tbMR) _tbMR.textContent = roleNames[r]||r;
   if (_tbMN) _tbMN.textContent = _uNome;
   if (_tbMZ) _tbMZ.style.display = (r==='admin'||r==='superadmin') ? 'flex' : 'none';
+  var _tbMU = document.getElementById('topbar-menu-users');
+  var _tbMT = document.getElementById('topbar-menu-token');
+  var _isAdmRole = (r==='admin'||r==='superadmin'||r==='gerencia');
+  if (_tbMU) _tbMU.style.display = _isAdmRole ? 'flex' : 'none';
+  if (_tbMT) _tbMT.style.display = _isAdmRole ? 'flex' : 'none';
   var tb = document.getElementById('tbBadge');
   tb.className = 'badge '+(badgeCls[r]||'badge-op');
   tb.textContent = badgeTxt[r]||r;
