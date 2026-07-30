@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="/design-system.css">
+<script src="/nav.js" defer></script>
+<title>Controle de Ponta de Gôndola — Econômico Relatórios</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#EBEBE9; --surface:#FFFFFF; --surface-2:#E4E4E1;
+  --border:#DADAD6; --border-strong:#C9C9C4;
+  --ink:#0E1626; --ink-2:#4E5A72; --ink-3:#98A0B3;
+  --brand:#F5B800; --brand-ink:#6B4E00;
+  --green:#137A48; --green-bg:#E7F5EC;
+  --red:#C22F49; --red-bg:#FBEAED;
+  --amber:#B45C00; --amber-bg:#FBEDDD;
+  --laranja:#C2600B; --laranja-bg:#FCE4D2;
+  --font:'InterVar','Inter','Segoe UI',system-ui,-apple-system,sans-serif;
+}
+body{font-family:var(--font);background:var(--bg);color:var(--ink);min-height:100vh}
+.main{padding:24px}
+.page-hdr{margin-bottom:18px}
+.page-hdr h1{font-size:21px;font-weight:800;color:var(--ink)}
+.page-hdr p{font-size:12px;color:var(--ink-3);margin-top:2px}
+
+.legenda{display:flex;gap:14px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 16px;margin-bottom:18px;font-size:11.5px;color:var(--ink-2)}
+.legenda .it{display:flex;align-items:center;gap:6px}
+.legenda .sw{width:11px;height:11px;border-radius:3px;flex-shrink:0}
+
+.board{display:flex;gap:14px;overflow-x:auto;padding-bottom:8px}
+.loja-col{background:var(--surface);border:1px solid var(--border);border-radius:12px;min-width:230px;flex:1;box-shadow:0 1px 2px rgba(22,35,63,.04);display:flex;flex-direction:column}
+.loja-hd{background:var(--ink);color:#fff;font-size:12px;font-weight:800;letter-spacing:.4px;text-align:center;padding:10px 8px;border-radius:12px 12px 0 0}
+.loja-body{padding:8px;flex:1}
+.ponta-row{display:flex;align-items:center;gap:8px;padding:8px 8px;border-radius:8px;margin-bottom:6px;cursor:pointer;border-left:4px solid var(--border-strong);background:var(--bg)}
+.ponta-row:hover{background:var(--surface-2)}
+.ponta-row.st-ok{border-left-color:var(--green)}
+.ponta-row.st-atencao{border-left-color:var(--brand);background:#FFF9E6}
+.ponta-row.st-comprar{border-left-color:var(--laranja);background:var(--laranja-bg)}
+.ponta-row.st-vencido{border-left-color:var(--red);background:var(--red-bg)}
+.ponta-num{font-size:10px;font-weight:800;color:var(--ink-3);width:44px;flex-shrink:0}
+.ponta-info{flex:1;min-width:0}
+.ponta-comp{font-size:11px;font-weight:700;color:var(--ink)}
+.ponta-forn{font-size:10.5px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ponta-vazia{font-size:11px;color:var(--ink-3);font-style:italic}
+.loja-add{margin:4px 8px 10px;text-align:center}
+.btn-add{background:none;border:1px dashed var(--border-strong);border-radius:8px;padding:7px 10px;font-size:11px;font-weight:700;color:var(--ink-3);cursor:pointer;width:100%;font-family:var(--font)}
+.btn-add:hover{border-color:var(--brand);color:var(--brand-ink)}
+
+/* POPUP lateral (mesmo padrão do Conciliador) */
+.backdrop{position:fixed;inset:0;background:rgba(14,22,38,.38);opacity:0;pointer-events:none;transition:opacity .18s ease;z-index:40}
+.backdrop.on{opacity:1;pointer-events:auto}
+.popup{position:fixed;top:0;right:0;bottom:0;width:400px;max-width:92vw;background:var(--surface);
+  box-shadow:-16px 0 40px -12px rgba(14,22,38,.28);overflow-y:auto;z-index:41;
+  transform:translateX(100%);transition:transform .2s ease}
+.popup.on{transform:translateX(0)}
+.popup-close{position:absolute;top:12px;right:12px;width:30px;height:30px;border-radius:8px;border:1px solid var(--border-strong);
+  background:var(--surface);color:var(--ink-2);cursor:pointer;display:flex;align-items:center;justify-content:center}
+.popup-close:hover{background:var(--surface-2);color:var(--ink)}
+.popup-close svg{width:15px;height:15px;stroke:currentColor;stroke-width:2;fill:none}
+.popup-hd{padding:16px 46px 14px 16px;border-bottom:1px solid var(--border)}
+.popup-hd h2{font-size:15px;font-weight:800;color:var(--ink);line-height:1.3}
+.popup-hd .sub{font-size:10.5px;color:var(--ink-3);margin-top:2px}
+.popup-bd{padding:16px}
+.popup-sec{font-size:10px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:var(--ink-3);margin:16px 0 8px}
+.fg{display:flex;flex-direction:column;gap:3px;margin-bottom:12px}
+.fg label{font-size:10px;color:var(--ink-3);font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+.fg select,.fg input{background:var(--surface);border:1px solid var(--border-strong);border-radius:7px;color:var(--ink);padding:8px 11px;font-size:13px;outline:none;font-family:var(--font);width:100%}
+.fg select:focus,.fg input:focus{border-color:var(--brand)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.btn{border:none;border-radius:8px;padding:9px 16px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:var(--font)}
+.btn-blue{background:var(--brand);color:var(--brand-ink)}.btn-blue:hover{background:#E5AC00}
+.btn-slate{background:var(--surface);color:var(--ink-2);border:1px solid var(--border-strong)}.btn-slate:hover{background:var(--surface-2)}
+.acts{display:flex;gap:10px;margin-top:6px}
+.status-chip{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;padding:5px 11px;border-radius:20px}
+.status-chip.st-ok{background:var(--green-bg);color:var(--green)}
+.status-chip.st-atencao{background:#FFF3CC;color:var(--brand-ink)}
+.status-chip.st-comprar{background:var(--laranja-bg);color:var(--laranja)}
+.status-chip.st-vencido{background:var(--red-bg);color:var(--red)}
+.status-chip.st-livre{background:var(--surface-2);color:var(--ink-3)}
+.contrato-box{background:var(--bg);border-radius:10px;padding:12px;margin-top:6px}
+.contrato-box .linha{display:flex;justify-content:space-between;align-items:center;font-size:12px;margin-bottom:8px}
+.contrato-box .linha:last-child{margin-bottom:0}
+.contrato-ok{color:var(--green);font-weight:700;font-size:11.5px}
+.msg-ok{background:var(--green-bg);color:var(--green);border-radius:8px;padding:8px 12px;font-size:11.5px;margin-top:10px}
+.msg-err{background:var(--red-bg);color:var(--red);border-radius:8px;padding:8px 12px;font-size:11.5px;margin-top:10px}
+
+@media(max-width:900px){
+  .board{flex-direction:column}
+  .loja-col{min-width:0}
+}
+</style>
+</head>
+<body class="ds">
+
+<div class="main">
+  <div class="page-hdr">
+    <h1>Controle de Ponta de Gôndola</h1>
+    <p>Quem negocia, qual fornecedor está na ponta, vigência do acordo e o contrato assinado — por loja</p>
+  </div>
+
+  <div class="legenda">
+    <div class="it"><span class="sw" style="background:var(--surface-2);border:1px solid var(--border-strong)"></span>Livre / sem negociação</div>
+    <div class="it"><span class="sw" style="background:var(--green)"></span>Vigente</div>
+    <div class="it"><span class="sw" style="background:var(--brand)"></span>Atenção — até 15 dias pra vencer</div>
+    <div class="it"><span class="sw" style="background:var(--laranja)"></span>Comprar — até 10 dias pra vencer</div>
+    <div class="it"><span class="sw" style="background:var(--red)"></span>Vencido</div>
+  </div>
+
+  <div class="board" id="board">
+    <div class="ponta-vazia" style="padding:20px">Carregando...</div>
+  </div>
+</div>
+
+<div class="backdrop" id="backdrop" onclick="fecharPopup()"></div>
+<div class="popup" id="popup"></div>
+
+<script>
+let dados = { lojas: {}, pontas: [] };
+let compradores = [];
+let popupId = null;
+
+async function carregar() {
+  const [r1, r2] = await Promise.all([
+    fetch('/api/pontas-gondola').then(r => r.json()),
+    fetch('/api/ruptura/compradores').then(r => r.json()).catch(() => [])
+  ]);
+  dados = r1;
+  compradores = Array.isArray(r2) ? r2 : [];
+  render();
+}
+
+function fmtDataBr(iso) {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+const STATUS_LABEL = { livre: 'Livre', ok: 'Vigente', atencao: 'Atenção', comprar: 'Comprar', vencido: 'Vencido' };
+
+function render() {
+  const board = document.getElementById('board');
+  const lojasOrdenadas = Object.keys(dados.lojas).map(Number).sort((a, b) => a - b);
+  board.innerHTML = lojasOrdenadas.map(loja => {
+    const pontas = dados.pontas.filter(p => p.loja === loja).sort((a, b) => a.numero - b.numero);
+    return `<div class="loja-col">
+      <div class="loja-hd">${dados.lojas[loja]}</div>
+      <div class="loja-body">
+        ${pontas.map(p => `
+          <div class="ponta-row st-${p.status}" onclick="abrirPopup(${p.id})">
+            <div class="ponta-num">PONTA ${p.numero}</div>
+            <div class="ponta-info">
+              ${p.comprador
+                ? `<div class="ponta-comp">${p.comprador}</div><div class="ponta-forn">${p.fornecedor || 'sem fornecedor'}</div>`
+                : `<div class="ponta-vazia">Sem negociação</div>`}
+            </div>
+          </div>`).join('')}
+      </div>
+      <div class="loja-add"><button class="btn-add" onclick="adicionarPonta(${loja})">+ Adicionar ponta</button></div>
+    </div>`;
+  }).join('');
+}
+
+async function adicionarPonta(loja) {
+  await fetch(`/api/pontas-gondola/loja/${loja}/adicionar`, { method: 'POST' });
+  await carregar();
+}
+
+function abrirPopup(id) {
+  popupId = id;
+  const p = dados.pontas.find(x => x.id === id);
+  if (!p) return;
+  const optsComprador = ['<option value="">— selecione —</option>']
+    .concat(compradores.map(c => `<option value="${c}"${p.comprador === c ? ' selected' : ''}>${c}</option>`)).join('');
+
+  document.getElementById('popup').innerHTML = `
+    ${'<button class="popup-close" onclick="fecharPopup()"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>'}
+    <div class="popup-hd">
+      <h2>${dados.lojas[p.loja]} — Ponta ${p.numero}</h2>
+      <div class="sub"><span class="status-chip st-${p.status}">${STATUS_LABEL[p.status]}${p.diasRestantes != null && p.status !== 'vencido' ? ` · ${p.diasRestantes}d` : ''}</span></div>
+    </div>
+    <div class="popup-bd">
+      <div class="fg"><label>Compradora responsável</label><select id="f-comprador">${optsComprador}</select></div>
+      <div class="fg"><label>Fornecedor</label><input id="f-fornecedor" value="${p.fornecedor || ''}" placeholder="Nome do fornecedor"></div>
+      <div class="grid2">
+        <div class="fg"><label>Início do acordo</label><input type="date" id="f-inicio" value="${p.inicio || ''}"></div>
+        <div class="fg"><label>Fim do acordo</label><input type="date" id="f-fim" value="${p.fim || ''}"></div>
+      </div>
+      <div class="acts"><button class="btn btn-blue" onclick="salvarPonta()">💾 Salvar</button></div>
+      <div id="msg-salvar"></div>
+      <div style="margin-top:14px;font-size:11px;color:var(--ink-3)">📄 Modelo de contrato e upload do assinado chegam em breve nessa tela.</div>
+    </div>`;
+  document.getElementById('popup').classList.add('on');
+  document.getElementById('backdrop').classList.add('on');
+}
+
+function fecharPopup() {
+  document.getElementById('popup').classList.remove('on');
+  document.getElementById('backdrop').classList.remove('on');
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') fecharPopup(); });
+
+async function salvarPonta() {
+  const body = {
+    comprador: document.getElementById('f-comprador').value,
+    fornecedor: document.getElementById('f-fornecedor').value.trim(),
+    inicio: document.getElementById('f-inicio').value,
+    fim: document.getElementById('f-fim').value
+  };
+  const msg = document.getElementById('msg-salvar');
+  try {
+    const r = await fetch(`/api/pontas-gondola/${popupId}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Erro ao salvar.');
+    msg.innerHTML = '<div class="msg-ok">Salvo com sucesso.</div>';
+    await carregar();
+    abrirPopup(popupId);
+  } catch (e) {
+    msg.innerHTML = `<div class="msg-err">${e.message}</div>`;
+  }
+}
+
+async function enviarContrato() {
+  const input = document.getElementById('f-contrato');
+  const msg = document.getElementById('msg-contrato');
+  if (!input.files.length) { msg.innerHTML = '<div class="msg-err">Escolha um arquivo PDF.</div>'; return; }
+  const fd = new FormData();
+  fd.append('contrato', input.files[0]);
+  try {
+    const r = await fetch(`/api/pontas-gondola/${popupId}/contrato`, { method: 'POST', body: fd });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Erro ao enviar contrato.');
+    msg.innerHTML = '<div class="msg-ok">Contrato enviado.</div>';
+    await carregar();
+    abrirPopup(popupId);
+  } catch (e) {
+    msg.innerHTML = `<div class="msg-err">${e.message}</div>`;
+  }
+}
+
+carregar();
+</script>
+</body>
+</html>

@@ -7,6 +7,10 @@ const fs = require('fs');
 const { exec } = require('child_process');
 const { parseSaidas, parseSaidasOfx } = require('./lib/extrato-parser');
 const { conciliar, addDias, TOLERANCIA_DIAS: TOLERANCIA_CONCILIADOR, chaveSaida, aplicarAvulsos } = require('./lib/conciliador');
+// multer ainda não está instalado no servidor (.254) — deixa comentado até
+// o Tiago rodar `npm install` por lá, senão o processo crasha ao subir.
+// const multer = require('multer');
+const pontaGondola = require('./lib/ponta-gondola');
 
 // Conciliações avulsas (matches manuais com justificativa) — persistidas em
 // JSON local, nunca no MySQL do ERP (que é somente leitura).
@@ -3903,6 +3907,103 @@ app.post('/api/conciliador/confirmar-avulso', (req, res) => {
     res.status(500).json({ error: err.message || 'Erro ao salvar conciliação avulsa.' });
   }
 });
+
+// ── CONTROLE DE PONTA DE GÔNDOLA ────────────────────────────────────
+// Digitaliza o painel físico da sala de compras: quem negocia, qual
+// fornecedor ocupa a ponta, e vigência do acordo. A parte de contrato em
+// PDF (modelo pra baixar + upload do assinado) fica pra quando o Tiago
+// rodar `npm install` no servidor (precisa de multer + pdfkit) — reativar
+// junto com o require('multer') no topo do arquivo e o require('pdfkit')
+// em lib/ponta-gondola.js.
+//
+// const uploadContrato = multer({
+//   storage: multer.diskStorage({
+//     destination: (req, file, cb) => {
+//       fs.mkdirSync(pontaGondola.CONTRATOS_DIR, { recursive: true });
+//       cb(null, pontaGondola.CONTRATOS_DIR);
+//     },
+//     filename: (req, file, cb) => cb(null, `ponta-${req.params.id}-${Date.now()}.pdf`)
+//   }),
+//   fileFilter: (req, file, cb) => cb(null, file.mimetype === 'application/pdf'),
+//   limits: { fileSize: 15 * 1024 * 1024 }
+// });
+
+app.get('/api/pontas-gondola', (req, res) => {
+  const lista = pontaGondola.comPlano(pontaGondola.carregarPontas());
+  res.json({ lojas: pontaGondola.LOJAS, pontas: lista });
+});
+
+app.post('/api/pontas-gondola/loja/:loja/adicionar', (req, res) => {
+  const loja = parseInt(req.params.loja);
+  if (!pontaGondola.LOJAS[loja]) return res.status(400).json({ error: 'Loja inválida.' });
+  const lista = pontaGondola.carregarPontas();
+  const maiorId = lista.reduce((m, p) => Math.max(m, p.id), 0);
+  const maiorNumero = lista.filter(p => p.loja === loja).reduce((m, p) => Math.max(m, p.numero), 0);
+  const nova = {
+    id: maiorId + 1, loja, numero: maiorNumero + 1,
+    comprador: null, fornecedor: null, inicio: null, fim: null,
+    contratoArquivo: null, contratoEnviadoEm: null, contratoEnviadoPor: null,
+    atualizadoEm: null, atualizadoPor: null
+  };
+  lista.push(nova);
+  pontaGondola.salvarPontas(lista);
+  res.json({ ok: true, ponta: nova });
+});
+
+app.post('/api/pontas-gondola/:id', (req, res) => {
+  const id = parseInt(req.params.id);
+  const { comprador, fornecedor, inicio, fim } = req.body || {};
+  const lista = pontaGondola.carregarPontas();
+  const ponta = lista.find(p => p.id === id);
+  if (!ponta) return res.status(404).json({ error: 'Ponta não encontrada.' });
+  ponta.comprador = comprador || null;
+  ponta.fornecedor = fornecedor || null;
+  ponta.inicio = inicio || null;
+  ponta.fim = fim || null;
+  ponta.atualizadoEm = new Date().toISOString();
+  ponta.atualizadoPor = (req.session && req.session.user && req.session.user.nome) || 'desconhecido';
+  pontaGondola.salvarPontas(lista);
+  res.json({ ok: true, ponta });
+});
+
+// DESATIVADO por enquanto (depende de multer/pdfkit — ver comentário acima):
+//
+// app.get('/api/pontas-gondola/:id/modelo.pdf', (req, res) => {
+//   const id = parseInt(req.params.id);
+//   const ponta = pontaGondola.carregarPontas().find(p => p.id === id);
+//   if (!ponta) return res.status(404).json({ error: 'Ponta não encontrada.' });
+//   res.setHeader('Content-Type', 'application/pdf');
+//   res.setHeader('Content-Disposition', `attachment; filename="contrato-ponta-${ponta.loja}-${ponta.numero}.pdf"`);
+//   pontaGondola.gerarModeloPdf(ponta, res);
+// });
+//
+// app.post('/api/pontas-gondola/:id/contrato', uploadContrato.single('contrato'), (req, res) => {
+//   try {
+//     const id = parseInt(req.params.id);
+//     if (!req.file) return res.status(400).json({ error: 'Envie um arquivo PDF.' });
+//     const lista = pontaGondola.carregarPontas();
+//     const ponta = lista.find(p => p.id === id);
+//     if (!ponta) return res.status(404).json({ error: 'Ponta não encontrada.' });
+//     if (ponta.contratoArquivo) {
+//       fs.unlink(path.join(pontaGondola.CONTRATOS_DIR, ponta.contratoArquivo), () => {});
+//     }
+//     ponta.contratoArquivo = req.file.filename;
+//     ponta.contratoEnviadoEm = new Date().toISOString();
+//     ponta.contratoEnviadoPor = (req.session && req.session.user && req.session.user.nome) || 'desconhecido';
+//     pontaGondola.salvarPontas(lista);
+//     res.json({ ok: true, ponta });
+//   } catch (err) {
+//     console.error('[PONTA-GONDOLA-UPLOAD-ERR]', err.message);
+//     res.status(500).json({ error: err.message || 'Erro ao enviar contrato.' });
+//   }
+// });
+//
+// app.get('/api/pontas-gondola/:id/contrato', (req, res) => {
+//   const id = parseInt(req.params.id);
+//   const ponta = pontaGondola.carregarPontas().find(p => p.id === id);
+//   if (!ponta || !ponta.contratoArquivo) return res.status(404).json({ error: 'Sem contrato enviado pra essa ponta.' });
+//   res.sendFile(path.join(pontaGondola.CONTRATOS_DIR, ponta.contratoArquivo));
+// });
 
 // Keepalive: garante que o processo não saia mesmo sem conexões ativas
 setInterval(() => {}, 30000);

@@ -51,8 +51,9 @@
         { href: '/conciliador.html', ic: 'bank', txt: 'Conciliador' }
       ]},
     { id: 'compras', ic: 'bag', txt: 'Gestão de Compras', sub: [
-        { href: '/fornecedores.html', ic: 'bag',   txt: 'Lista de Compra' },
-        { href: '/ruptura.html',      ic: 'trend', txt: 'Gestão de Rupturas' }
+        { href: '/fornecedores.html',    ic: 'bag',   txt: 'Lista de Compra' },
+        { href: '/ruptura.html',         ic: 'trend', txt: 'Gestão de Rupturas' },
+        { href: '/ponta-gondola.html',   ic: 'store', txt: 'Ponta de Gôndola' }
       ]},
     { href: '/pendencias.html',   ic: 'alert',     txt: 'Pendências' },
     { href: '/prevencao.html',    ic: 'shield',    txt: 'Prevenção' }
