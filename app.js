@@ -1,5 +1,5 @@
 ﻿// Verificação de versão — roda antes de tudo
-var BUILD = '272';
+var BUILD = '273';
 (function() {
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
@@ -4563,7 +4563,10 @@ function salvarUser() {
       if (senhaFinal) updates.senha = senhaFinal;
       users=users.map(function(u){return u.id===editingUserId?Object.assign({},u,updates):u;});
     } else {
-      users.push({id:genId(),nome:nome,email:email,senha:senhaFinal,perfil:perfil,setor:setor,cargo:cargo,loja:loja,telefone:telefone,ativo:true,checklistAtivo:checklistAtivo});
+      // clienteId precisa ser gravado explicitamente: usuarios sem esse campo
+      // são tratados como Economico (legado pré multi-tenant) na leitura filtrada.
+      var clienteIdNovo = (S.currentUser && S.currentUser.clienteId) || '';
+      users.push({id:genId(),nome:nome,email:email,senha:senhaFinal,perfil:perfil,setor:setor,cargo:cargo,loja:loja,telefone:telefone,ativo:true,checklistAtivo:checklistAtivo,clienteId:clienteIdNovo});
     }
     saveUsers(users);
     fecharModalUser();
