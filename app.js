@@ -1,5 +1,5 @@
 ﻿// Verificação de versão — roda antes de tudo
-var BUILD = '261';
+var BUILD = '262';
 (function() {
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
@@ -7648,6 +7648,54 @@ function cancelarToken(tokenId, clienteId) {
   }).catch(function(e){ showToast('Erro: '+e.message); });
 }
 
+function _pollWorkflow(org, repoName, token, since, btn, clienteId, silencioso, callback) {
+  var tentativas = 0;
+  var maxTentativas = 36;
+  function _tick() {
+    tentativas++;
+    if (tentativas > maxTentativas) {
+      if (btn) { btn.textContent = '🚀 Deploy'; btn.style.background = ''; btn.disabled = false; }
+      if (!silencioso) showToast('⏱️ Timeout — verifique o GitHub Actions.');
+      if (callback) callback(false);
+      return;
+    }
+    fetch('https://api.github.com/repos/'+org+'/'+repoName+'/actions/runs?per_page=5', {
+      headers: { Authorization: 'token '+token, Accept: 'application/vnd.github+json' }
+    }).then(function(r){ return r.json(); }).then(function(data) {
+      var runs = data.workflow_runs || [];
+      var run = null;
+      for (var i = 0; i < runs.length; i++) {
+        if (new Date(runs[i].created_at).getTime() >= since - 15000) { run = runs[i]; break; }
+      }
+      if (!run || run.status === 'queued' || run.status === 'in_progress') {
+        if (btn) btn.textContent = '⏳ ' + (tentativas * 10) + 's...';
+        setTimeout(_tick, 10000);
+      } else if (run.status === 'completed') {
+        if (run.conclusion === 'success') {
+          db.collection('clientes').doc(clienteId).update({ ultimoDeploy: firebase.firestore.FieldValue.serverTimestamp(), buildDeploy: BUILD }).catch(function(){});
+          if (btn) { btn.textContent = '✅ Publicado!'; btn.style.background = 'linear-gradient(135deg,#22c55e,#15803d)'; }
+          if (!silencioso) showToast('✅ Deploy concluído para '+clienteId+'!');
+          setTimeout(function() {
+            if (btn) { btn.textContent = '🚀 Deploy'; btn.style.background = ''; btn.disabled = false; }
+            if (!silencioso) renderPainelClientes();
+          }, 4000);
+          if (callback) callback(true);
+        } else {
+          if (btn) { btn.textContent = '❌ Falhou'; btn.style.background = 'linear-gradient(135deg,#ef4444,#b91c1c)'; }
+          if (!silencioso) showToast('❌ Deploy falhou para '+clienteId+'. Veja o GitHub Actions.');
+          setTimeout(function() {
+            if (btn) { btn.textContent = '🚀 Deploy'; btn.style.background = ''; btn.disabled = false; }
+          }, 4000);
+          if (callback) callback(false);
+        }
+      } else {
+        setTimeout(_tick, 10000);
+      }
+    }).catch(function() { setTimeout(_tick, 10000); });
+  }
+  setTimeout(_tick, 8000);
+}
+
 function deployTodosClientes() {
   if (_clientesCache.length === 0) { showToast('Nenhum cliente carregado.'); return; }
   var nomes = _clientesCache.map(function(c){ return c.nome||c.id; }).join(', ');
@@ -7684,16 +7732,15 @@ function deployCliente(clienteId, silencioso, callback) {
         if (btn) { btn.textContent='🚀 Deploy'; btn.disabled=false; }
         return;
       }
+      var dispatchTime = Date.now();
       fetch('https://api.github.com/repos/'+org+'/'+repoName+'/dispatches', {
         method: 'POST',
         headers: { Authorization: 'token '+token, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' },
         body: JSON.stringify({ event_type: 'deploy' })
       }).then(function(res) {
         if (res.status === 204) {
-          db.collection('clientes').doc(clienteId).update({ ultimoDeploy: firebase.firestore.FieldValue.serverTimestamp(), buildDeploy: BUILD }).catch(function(){});
-          if (!silencioso) showToast('🚀 Deploy iniciado para '+clienteId+'! Aguarde ~1 min.');
-          if (btn) { btn.textContent='✅ Enviado'; setTimeout(function(){ btn.textContent='🚀 Deploy'; btn.disabled=false; if(!silencioso) renderPainelClientes(); },5000); }
-          if (callback) callback(true);
+          if (btn) { btn.textContent = '⏳ 0s...'; }
+          _pollWorkflow(org, repoName, token, dispatchTime, btn, clienteId, silencioso, callback);
         } else {
           res.text().then(function(t){
             if (!silencioso) showToast('❌ Erro GitHub ('+clienteId+'): '+res.status);
