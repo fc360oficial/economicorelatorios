@@ -1,5 +1,5 @@
 ﻿// Verificação de versão — roda antes de tudo
-var BUILD = '263';
+var BUILD = '264';
 (function() {
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
@@ -7363,8 +7363,9 @@ function abrirEditarCliente(clienteId) {
   var MODS_LABEL = {checklist:'Checklist',inventario:'Inventário',planos_acao:'Planos de Ação',alertas:'Alertas',relatorios:'Relatórios',central:'Central de Resultados',assistente_ia:'Assistente IA',monitor:'Monitor'};
   var modHtml = MODS.map(function(m){
     var on = !c.modulos || c.modulos[m] !== false;
-    return '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:6px 0;font-size:13px;font-weight:600">'+
-      '<input type="checkbox" id="ec-mod-'+m+'"'+(on?' checked':'')+'style="width:16px;height:16px;accent-color:var(--y)"> '+MODS_LABEL[m]+'</label>';
+    var ls = on ? 'background:rgba(34,197,94,.1);color:#15803d;border-radius:8px;' : 'color:var(--t2);border-radius:8px;';
+    return '<label onchange="var i=this.querySelector(\'input\');this.style.background=i.checked?\'rgba(34,197,94,.1)\':\'\';this.style.color=i.checked?\'#15803d\':\'\';" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:7px 10px;font-size:13px;font-weight:600;'+ls+'">'+
+      '<input type="checkbox" id="ec-mod-'+m+'"'+(on?' checked':'')+' style="width:16px;height:16px;accent-color:#22c55e;flex-shrink:0"> '+MODS_LABEL[m]+'</label>';
   }).join('');
   var html = '<div id="modal-editar-cliente" onclick="if(event.target===this)fecharEditarCliente()" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:3000;display:flex;align-items:center;justify-content:center;padding:16px">'+
     '<div style="background:#fff;border-radius:16px;padding:28px 24px;width:100%;max-width:440px;max-height:90vh;overflow-y:auto">'+
@@ -7418,8 +7419,8 @@ function abrirNovoCliente() {
   var MODS = ['checklist','inventario','planos_acao','alertas','relatorios','central','assistente_ia','monitor'];
   var MODS_LABEL = {checklist:'Checklist',inventario:'Inventário',planos_acao:'Planos de Ação',alertas:'Alertas',relatorios:'Relatórios',central:'Central de Resultados',assistente_ia:'Assistente IA',monitor:'Monitor'};
   var modHtml = MODS.map(function(m){
-    return '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:6px 0;font-size:13px;font-weight:600">'+
-      '<input type="checkbox" id="nc-mod-'+m+'" style="width:16px;height:16px;accent-color:var(--y)"> '+MODS_LABEL[m]+'</label>';
+    return '<label onchange="var i=this.querySelector(\'input\');this.style.background=i.checked?\'rgba(34,197,94,.1)\':\'\';this.style.color=i.checked?\'#15803d\':\'\';" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:7px 10px;font-size:13px;font-weight:600;background:rgba(34,197,94,.1);color:#15803d;border-radius:8px;">'+
+      '<input type="checkbox" id="nc-mod-'+m+'" checked style="width:16px;height:16px;accent-color:#22c55e;flex-shrink:0"> '+MODS_LABEL[m]+'</label>';
   }).join('');
   var html = '<div id="modal-novo-cliente" onclick="if(event.target===this)fecharNovoCliente()" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:3000;display:flex;align-items:center;justify-content:center;padding:16px">'+
     '<div style="background:#fff;border-radius:16px;padding:28px 24px;width:100%;max-width:440px;max-height:90vh;overflow-y:auto">'+
