@@ -1,5 +1,5 @@
 ﻿// Verificação de versão — roda antes de tudo
-var BUILD = '275';
+var BUILD = '276';
 (function() {
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
@@ -335,6 +335,7 @@ function savePerdaToFirebase(item) {
   db.collection('perdas').doc(id).set(Object.assign({
     userId: S.currentUser ? S.currentUser.id : 'guest',
     operador: S.currentUser ? S.currentUser.nome : '--',
+    clienteId: (S.currentUser && S.currentUser.clienteId) || '',
     dataHora: new Date().toLocaleDateString('pt-BR')+' '+item.hora
   }, item)).catch(function(){});
 }
@@ -524,12 +525,19 @@ function getCustomCLs() {
 }
 
 function saveCustomCLs(list) {
+  var myClient = (S.currentUser && S.currentUser.clienteId) || '';
+  // Carimba clienteId em cada checklist salvo
+  list = list.map(function(cl){ return Object.assign({}, cl, {clienteId: cl.clienteId || myClient}); });
   S.customCLsCache = list;
   // Save each checklist to Firestore
   var batch = db.collection('checklists');
-  // Delete removed ones
+  // Delete removed ones — SÓ dentro do mesmo clienteId. 'checklists' é global
+  // entre clientes; sem esse filtro, salvar no Fluxo apagaria a biblioteca
+  // inteira de checklists da Economico (e vice-versa).
   batch.get().then(function(snap){
-    var existingIds = snap.docs.map(function(d){return d.id;});
+    var existingIds = snap.docs
+      .filter(function(d){ return ((d.data().clienteId)||'economico') === myClient; })
+      .map(function(d){return d.id;});
     var newIds = list.map(function(cl){return cl.id;});
     existingIds.forEach(function(id){
       if (newIds.indexOf(id)<0) db.collection('checklists').doc(id).delete();
@@ -546,7 +554,9 @@ function saveCustomCLs(list) {
 
 function loadCustomCLsFromFirebase(callback) {
   db.collection('checklists').get().then(function(snap){
-    var list = snap.docs.map(function(d){return d.data();});
+    var myClient = (S.currentUser && S.currentUser.clienteId) || '';
+    var list = snap.docs.map(function(d){return d.data();})
+      .filter(function(cl){ return (cl.clienteId || 'economico') === myClient; });
     // Filter out builtin duplicates
     var allBuiltin = BUILTIN.admin.concat(BUILTIN.operator).concat(BUILTIN.prevencao);
     var builtinIds = allBuiltin.map(function(cl){return cl.id;});
@@ -609,7 +619,9 @@ function saveResultados(list) {
 function loadResultadosFromFirebase(callback) {
   var doFetch = function() {
     db.collection('resultados').get({source: 'server'}).then(function(snap){
-      var list = snap.docs.map(function(d){return d.data();});
+      var myClient = (S.currentUser && S.currentUser.clienteId) || '';
+      var list = snap.docs.map(function(d){return d.data();})
+        .filter(function(r){ return (r.clienteId || 'economico') === myClient; });
       list.sort(function(a,b){return (a.dataHora||'') < (b.dataHora||'') ? -1 : 1;});
       S.resultadosCache = list;
       try {
@@ -634,8 +646,13 @@ function loadResultadosFromFirebase(callback) {
 }
 
 function limparResultadosFirebase() {
+  // NUNCA apagar sem filtrar por clienteId — resultados é global entre clientes.
+  var myClient = (S.currentUser && S.currentUser.clienteId) || '';
   db.collection('resultados').get().then(function(snap){
-    snap.docs.forEach(function(d){ d.ref.delete(); });
+    snap.docs.forEach(function(d){
+      var r = d.data();
+      if ((r.clienteId || 'economico') === myClient) d.ref.delete();
+    });
   });
 }
 
@@ -1247,11 +1264,13 @@ function finalizarLogin(found) {
     ]).then(function(snaps) {
       var clSnap = snaps[0];
       var resSnap = snaps[1];
+      var myClient = (S.currentUser && S.currentUser.clienteId) || '';
       var cls = clSnap.docs.map(function(d){ return d.data(); });
       var batch = db.batch();
       var alterados = 0;
       resSnap.docs.forEach(function(doc) {
         var r = doc.data();
+        if ((r.clienteId || 'economico') !== myClient) return;
         if (!r.itens || !r.itens.length) return;
         var clDef = cls.find(function(c){ return c.id === r.checklistId; });
         var novoFeitos = 0;
@@ -1372,7 +1391,9 @@ function finalizarLogin(found) {
       S.usersCache = list;
     }),
     db.collection('checklists').get().then(function(snap){
-      var list = snap.docs.map(function(d){return d.data();});
+      var myClientCl = (S.currentUser && S.currentUser.clienteId) || '';
+      var list = snap.docs.map(function(d){return d.data();})
+        .filter(function(cl){ return (cl.clienteId || 'economico') === myClientCl; });
       var allBuiltin = BUILTIN.admin.concat(BUILTIN.operator).concat(BUILTIN.prevencao);
       var bIds = allBuiltin.map(function(cl){return cl.id;});
       var bNames = allBuiltin.map(function(cl){return (cl.label||cl.nome||'').trim().toLowerCase();});
@@ -1384,7 +1405,9 @@ function finalizarLogin(found) {
       S.customCLsCache = list;
     }),
     db.collection('resultados').get().then(function(snap){
-      var list = snap.docs.map(function(d){return d.data();});
+      var myClientRes = (S.currentUser && S.currentUser.clienteId) || '';
+      var list = snap.docs.map(function(d){return d.data();})
+        .filter(function(r){ return (r.clienteId || 'economico') === myClientRes; });
       list.sort(function(a,b){return (a.dataHora||'')<(b.dataHora||'')?-1:1;});
       S.resultadosCache = list;
       try {
@@ -1716,7 +1739,9 @@ function sincronizarEstadoFirebase() {
     });
 
   var promiseResultados = db.collection('resultados').get().then(function(snap){
-    var allResults = snap.docs.map(function(d){return d.data();});
+    var myClientPR = (S.currentUser && S.currentUser.clienteId) || '';
+    var allResults = snap.docs.map(function(d){return d.data();})
+      .filter(function(r){ return (r.clienteId || 'economico') === myClientPR; });
     allResults.sort(function(a,b){return (a.dataHora||'') < (b.dataHora||'') ? -1 : 1;});
     S.resultadosCache = allResults;
     localStorage.setItem('eco_resultados', JSON.stringify(S.resultadosCache));
@@ -2890,10 +2915,12 @@ function limparContagensAntigas() {
 
 function loadPlanilhasDiarias(cb) {
   var hoje = new Date().toISOString().slice(0, 10);
+  var myClient = (S.currentUser && S.currentUser.clienteId) || '';
   db.collection('contagens').get().then(function(snap) {
     _planilhaTemplates = {};
     snap.docs.forEach(function(doc) {
       var d = doc.data();
+      if ((d.clienteId || 'economico') !== myClient) return;
       if (d.tipo === 'planilha_diaria' && d.data === hoje) {
         var key = (d.checklistId || '') + '_' + (d.itemIdx !== undefined ? d.itemIdx : '') + '_' + (d.loja || '');
         _planilhaTemplates[key] = d.produtos || [];
@@ -3103,6 +3130,7 @@ function confirmarEnviar(assinatura) {
     id:genId(), checklistId:clId, checklistNome:label, setor:setor,
     operador:S.currentUser?S.currentUser.nome:'--', perfil:S.role,
     loja:S.currentUser?S.currentUser.loja||'':'',
+    clienteId:(S.currentUser && S.currentUser.clienteId) || '',
     dataHora:dh, dateISO:getLocalDate(),
     itens:snapshot, feitos:feitos, total:total, pct:pct,
     reprovado:reprovado, assinatura:assinatura||null
@@ -5996,7 +6024,9 @@ function renderRelRanking(_skipFetch) {
     var loadingEl = document.getElementById('rank-gerencia-tbody');
     if (loadingEl) loadingEl.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:#888">Carregando...</td></tr>';
     db.collection('resultados').get({source: 'server'}).then(function(snap) {
-      var list = snap.docs.map(function(d){ return d.data(); });
+      var myClientRk = (S.currentUser && S.currentUser.clienteId) || '';
+      var list = snap.docs.map(function(d){ return d.data(); })
+        .filter(function(r){ return (r.clienteId || 'economico') === myClientRk; });
       list.sort(function(a,b){ return (a.dataHora||'') < (b.dataHora||'') ? -1 : 1; });
       S.resultadosCache = list;
       try {
@@ -6702,13 +6732,17 @@ function getPlanos() {
   return _planosCache;
 }
 function savePlanos(list) {
+  var myClient = (S.currentUser && S.currentUser.clienteId) || '';
+  list = list.map(function(p){ return p.clienteId ? p : Object.assign({}, p, {clienteId: myClient}); });
   _planosCache = list;
   try { localStorage.setItem(PLANO_KEY, JSON.stringify(list)); } catch(e) {}
   list.forEach(function(p){ db.collection('planos').doc(p.id).set(p).catch(function(){}); });
 }
 function loadPlanosFromFirebase(cb) {
   db.collection('planos').get().then(function(snap){
-    var remotos = snap.docs.map(function(d){ return d.data(); });
+    var myClient = (S.currentUser && S.currentUser.clienteId) || '';
+    var remotos = snap.docs.map(function(d){ return d.data(); })
+      .filter(function(p){ return (p.clienteId || 'economico') === myClient; });
     // Merge: status local mais avançado vence (resolvido > andamento > aberto)
     var STATUS_ORD = {resolvido: 2, andamento: 1, aberto: 0};
     var locais = {};
@@ -8850,9 +8884,11 @@ function renderPerdasChecklist() {
   try {
     db.collection('perdas').get().then(function(snap){
       if (loadingEl) loadingEl.style.display='none';
+      var myClient = (S.currentUser && S.currentUser.clienteId) || '';
       var perdasMap = {};
       snap.forEach(function(doc){
         var d=doc.data();
+        if ((d.clienteId || 'economico') !== myClient) return;
         if (!d.dataHora) return;
         var data = d.dataHora.split(' ')[0];
         if (!perdasMap[data]) perdasMap[data]=0;
@@ -8949,9 +8985,13 @@ var _bipRegistrando = false;
 // ── Firestore: carregar inventários da loja ──────────────────────
 function loadInventariosFromFirebase(cb) {
   var loja = (S.currentUser && S.currentUser.loja) ? S.currentUser.loja.toLowerCase() : '';
+  // inv_inventarios é global entre clientes — filtra pelo tenant logado.
+  // Docs de antes do multi-tenant (BUILD 231) não têm clienteId; sempre eram da Economico.
+  var myClient = (S.currentUser && S.currentUser.clienteId) || '';
   var q = db.collection('inv_inventarios').orderBy('criadoEm','desc');
   q.get().then(function(snap) {
     var list = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
+    list = list.filter(function(i){ return (i.clienteId || 'economico') === myClient; });
     if (loja) list = list.filter(function(i){ return (i.loja||'').toLowerCase()===loja; });
     S.invsCache = list;
     if (cb) cb();
@@ -10599,6 +10639,7 @@ function criarInventario() {
   var loja = (S.currentUser && S.currentUser.loja) ? S.currentUser.loja : '';
   db.collection('inv_inventarios').add({
     nome: nome, loja: loja, status: 'aberto', tipo: tipo,
+    clienteId: (S.currentUser && S.currentUser.clienteId) || '',
     criadoEm: firebase.firestore.FieldValue.serverTimestamp(),
     criadoPor: S.currentUser ? S.currentUser.id : '',
     enderecos: enderecos, atribuicoes: {},
