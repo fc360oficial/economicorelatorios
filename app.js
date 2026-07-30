@@ -1,5 +1,5 @@
 ﻿// Verificação de versão — roda antes de tudo
-var BUILD = '282';
+var BUILD = '283';
 (function() {
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
@@ -9008,6 +9008,17 @@ function loadBipagensByInv(invId, cb) {
     }).catch(function(e){ console.error('loadBipagensByInv',e); if (cb) cb([]); });
 }
 
+// Normaliza EAN pra comparação: tira zeros a esquerda. Um leitor de codigo
+// de barras fisico as vezes le um EAN-13 que comeca com 0 como se fosse o
+// UPC-A de 12 digitos correspondente (mesmo codigo, sem o zero) — sem essa
+// normalizacao, "0041333001005" no catalogo nunca bate com "41333001005"
+// bipado, e o produto aparece como "nao esta na base" mesmo estando cadastrado.
+function _normEan(s) {
+  s = (s||'').trim();
+  var stripped = s.replace(/^0+/, '');
+  return stripped || '0';
+}
+
 function loadCatalogoByInv(invId, cb) {
   if (_catCache[invId]) { if (cb) cb(_catCache[invId]); return; }
   db.collection('inv_catalogo')
@@ -9016,7 +9027,7 @@ function loadCatalogoByInv(invId, cb) {
       var map = {};
       snap.docs.forEach(function(d){
         var p = d.data();
-        map[p.ean] = { desc: p.desc||'', un: p.un||'' };
+        map[_normEan(p.ean)] = { desc: p.desc||'', un: p.un||'' };
       });
       _catCache[invId] = map;
       if (cb) cb(map);
@@ -9282,19 +9293,32 @@ function importarCatalogo(event) {
     }
     if (!produtos.length) { alert('Nenhum produto encontrado no arquivo.'); event.target.value=''; return; }
 
-    // Batch write (400 por lote)
+    // Batch write (400 por lote). Coleções novas no Firestore tem um limite
+    // de ritmo de escrita que escala aos poucos — mandar dezenas de lotes em
+    // sequencia sem pausa estoura "resource-exhausted" mesmo no plano Blaze.
+    // Por isso: pausa entre lotes + retry com backoff se algum lote falhar.
+    function _delay(ms) { return new Promise(function(res){ setTimeout(res, ms); }); }
+    function _commitComRetry(lote, tentativa) {
+      var b = db.batch();
+      lote.forEach(function(prod){
+        var ref = db.collection('inv_catalogo').doc(prod.docId);
+        b.set(ref, prod);
+      });
+      return b.commit().catch(function(err){
+        if (tentativa >= 5) throw err;
+        var espera = 800 * Math.pow(2, tentativa); // 800, 1600, 3200, 6400, 12800ms
+        return _delay(espera).then(function(){ return _commitComRetry(lote, tentativa+1); });
+      });
+    }
     var lotes = [];
     for (var j=0; j<produtos.length; j+=400) lotes.push(produtos.slice(j,j+400));
+    var statusEl = document.getElementById('inv-cat-status');
     var p = Promise.resolve();
-    lotes.forEach(function(lote){
+    lotes.forEach(function(lote, loteIdx){
       p = p.then(function(){
-        var b = db.batch();
-        lote.forEach(function(prod){
-          var ref = db.collection('inv_catalogo').doc(prod.docId);
-          b.set(ref, prod);
-        });
-        return b.commit();
-      });
+        if (statusEl) statusEl.innerHTML = '<div style="padding:8px 12px;color:#856404">Importando... lote '+(loteIdx+1)+'/'+lotes.length+'</div>';
+        return _commitComRetry(lote, 0);
+      }).then(function(){ return _delay(350); }); // pausa entre lotes p/ nao estourar o limite de ritmo
     });
     p.then(function(){
       event.target.value='';
