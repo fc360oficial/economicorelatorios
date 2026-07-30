@@ -1,5 +1,5 @@
 ﻿// Verificação de versão — roda antes de tudo
-var BUILD = '249';
+var BUILD = '250';
 (function() {
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
@@ -1116,7 +1116,7 @@ function doLogin() {
 
   firebase.auth().signInWithEmailAndPassword(email, pass)
     .then(function(cred) {
-      return db.collection('usuarios').where('email', '==', cred.user.email).get();
+      return db.collection('usuarios').where('email', '==', (cred.user.email||'').toLowerCase()).get();
     })
     .then(function(snap) {
       if (snap.empty) throw { code: 'perfil/nao-encontrado' };
@@ -1126,12 +1126,13 @@ function doLogin() {
       finalizarLogin(found);
     })
     .catch(function(e) {
+      console.error('FC360 login error:', e.code, e.message, e);
       var msg = 'E-mail ou senha incorretos.';
       if (e.code === 'auth/too-many-requests') msg = 'Muitas tentativas. Aguarde alguns minutos.';
       if (e.code === 'auth/network-request-failed') msg = 'Sem conexão com a internet.';
       if (e.code === 'auth/user-disabled') msg = 'Usuário inativo. Contate o administrador.';
       if (e.code === 'perfil/nao-encontrado') msg = 'Usuário não encontrado no sistema.';
-      err.textContent = msg;
+      err.innerHTML = msg + '<br><span style="font-size:10px;opacity:.55">' + (e.code||'erro desconhecido') + '</span>';
       err.style.color = 'var(--r)';
       err.style.display = 'block';
     });
