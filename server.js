@@ -2098,7 +2098,8 @@ app.get('/api/fornecedores/:id/avarias', async (req, res) => {
         codigo:    r.CodigoBarras,
         descricao: r.Descricao?.trim(),
         qtd:       +parseFloat(r.qtd).toFixed(3),
-        total:     +parseFloat(r.total).toFixed(2)
+        total:     +parseFloat(r.total).toFixed(2),
+        ultima:    r.ultima ? new Date(r.ultima).toLocaleDateString('pt-BR') : null
       }))
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
