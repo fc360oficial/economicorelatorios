@@ -1,5 +1,5 @@
 ﻿// Verificação de versão — roda antes de tudo
-var BUILD = '260';
+var BUILD = '261';
 (function() {
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
@@ -7664,7 +7664,6 @@ function deployTodosClientes() {
 }
 
 function deployCliente(clienteId, silencioso, callback) {
-  if (!silencioso && !confirm('Publicar atualização para "'+clienteId+'"?\n\nIsso vai sincronizar o código base para o repositório do cliente.')) return;
   var btn = document.getElementById('btn-deploy-'+clienteId);
   if (btn) { btn.textContent = '⏳ Enviando...'; btn.disabled = true; }
   db.collection('config').doc('superadmin').get().then(function(doc) {
@@ -7675,9 +7674,14 @@ function deployCliente(clienteId, silencioso, callback) {
       var repos = rDoc.data();
       var repoName = repos[clienteId];
       if (!repoName) {
-        if (!silencioso) showToast('❌ Repositório não configurado: '+clienteId);
+        if (!silencioso) showToast('❌ Repositório não configurado para: '+clienteId+'\nVerifique config/repos no Firestore.');
         if (btn) { btn.textContent='🚀 Deploy'; btn.disabled=false; }
         if (callback) callback(false);
+        return;
+      }
+      console.log('[Deploy] clienteId='+clienteId+' → repo='+org+'/'+repoName);
+      if (!silencioso && !confirm('Publicar para "'+clienteId+'"?\nRepositório: '+org+'/'+repoName)) {
+        if (btn) { btn.textContent='🚀 Deploy'; btn.disabled=false; }
         return;
       }
       fetch('https://api.github.com/repos/'+org+'/'+repoName+'/dispatches', {
