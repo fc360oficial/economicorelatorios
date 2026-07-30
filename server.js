@@ -130,6 +130,7 @@ app.use(session({
 // Middleware de autenticação (antes do static)
 app.use((req, res, next) => {
   const publico = ['/login.html', '/api/login', '/api/logout', '/logo.png', '/deploy', '/api/versao',
+    '/api/negativos/reenviar',
     '/manifest.json', '/sw.js', '/icon-192.png', '/icon-512.png',
     '/relatorio-cronograma.html',
     '/precificacao.html', '/compras.html', '/comprador.html', '/supervisao.html',
