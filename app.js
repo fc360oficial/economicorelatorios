@@ -1,8 +1,10 @@
 ﻿// Verificação de versão — roda antes de tudo
-var BUILD = '248';
+var BUILD = '249';
 (function() {
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
+  var vMenu = document.getElementById('topbar-menu-versao');
+  if (vMenu) vMenu.textContent = 'v' + BUILD;
   var vLogin = document.getElementById('login-versao');
   if (vLogin) vLogin.textContent = 'v' + BUILD;
   if (localStorage.getItem('fc360_build') !== BUILD) {
@@ -1426,6 +1428,18 @@ function setupRole() {
   var badgeTxt = {superadmin:'Super Admin',admin:'Administrador',gerencia:'Gerência',supervisor:'Supervisor',operator:'Operador',prevencao:'Prevenção',coletor:'Coletor'};
   document.getElementById('sbName').textContent = S.currentUser ? S.currentUser.nome : '-';
   document.getElementById('sbRole').textContent = roleNames[r]||r;
+  var _uNome = S.currentUser ? (S.currentUser.nome||'-') : '-';
+  var _uIni = _uNome.trim().split(/\s+/).slice(0,2).map(function(w){return w[0]?w[0].toUpperCase():'';}).join('');
+  var _tbUN = document.getElementById('topbar-user-nome');
+  var _tbUI = document.getElementById('topbar-user-ini');
+  var _tbMR = document.getElementById('topbar-menu-role');
+  var _tbMN = document.getElementById('topbar-menu-nome');
+  var _tbMZ = document.getElementById('topbar-menu-zerar');
+  if (_tbUN) _tbUN.textContent = _uNome;
+  if (_tbUI) _tbUI.textContent = _uIni||'?';
+  if (_tbMR) _tbMR.textContent = roleNames[r]||r;
+  if (_tbMN) _tbMN.textContent = _uNome;
+  if (_tbMZ) _tbMZ.style.display = (r==='admin'||r==='superadmin') ? 'flex' : 'none';
   var tb = document.getElementById('tbBadge');
   tb.className = 'badge '+(badgeCls[r]||'badge-op');
   tb.textContent = badgeTxt[r]||r;
@@ -1470,6 +1484,17 @@ function setupRole() {
 }
 
 // ── Mobile sidebar ──
+function toggleUserMenu() {
+  var m = document.getElementById('topbar-user-menu');
+  if (!m) return;
+  m.style.display = (m.style.display === 'none' || m.style.display === '') ? 'block' : 'none';
+}
+document.addEventListener('click', function(e) {
+  var wrap = document.getElementById('topbar-user-wrap');
+  var m = document.getElementById('topbar-user-menu');
+  if (m && wrap && !wrap.contains(e.target)) m.style.display = 'none';
+});
+
 function toggleSidebar() {
   var sb = document.querySelector('.sb');
   var overlay = document.getElementById('sb-overlay');
