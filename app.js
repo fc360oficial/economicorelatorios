@@ -1,5 +1,5 @@
 ﻿// Verificação de versão — roda antes de tudo
-var BUILD = '255';
+var BUILD = '256';
 (function() {
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
@@ -5433,7 +5433,8 @@ function renderRelChecklist() {
 
   // Resumo do dia - usa filtro selecionado
   var resultadosHoje = getResultadosFiltradosDia().filter(function(r){return !r.resetado;});
-  var users = getUsers().filter(function(u){return u.id!=='admin' && u.ativo;});
+  var _pcl = ['operator','prevencao','gerencia'];
+  var users = getUsers().filter(function(u){return u.ativo && _pcl.indexOf(u.perfil)!==-1;});
   var resumoDiv = document.getElementById('rel-resumo-dia');
   var PLABEL2 = {gerencia:'Gerência',operator:'Operador',prevencao:'Prevenção'};
   resumoDiv.innerHTML = users.length ? users.map(function(u){
@@ -7935,7 +7936,8 @@ function _renderRelatorios_unused() {
   // ── E: Resumo do dia ──
   var hoje2 = hoje;
   var resultadosHoje = resultados.filter(function(r){return r.dataHora && r.dataHora.indexOf(hoje2)===0 && !r.resetado;});
-  var users = getUsers().filter(function(u){return u.id!=='admin' && u.ativo;});
+  var _pcl2 = ['operator','prevencao','gerencia'];
+  var users = getUsers().filter(function(u){return u.ativo && _pcl2.indexOf(u.perfil)!==-1;});
   var resumoDiv = document.getElementById('rel-resumo-dia');
   if (!users.length && !resultadosHoje.length) {
     resumoDiv.innerHTML = '<div style="text-align:center;color:var(--t3);padding:20px;font-size:13px;grid-column:1/-1">Nenhum envio hoje</div>';
