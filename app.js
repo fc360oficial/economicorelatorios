@@ -1,5 +1,5 @@
 ﻿// Verificação de versão — roda antes de tudo
-var BUILD = '277';
+var BUILD = '279';
 (function() {
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
@@ -9264,13 +9264,21 @@ function importarCatalogo(event) {
     var unCol = descCol+1;
 
     var produtos = [];
+    var idxPorEan = {};
     for (var i=startLine; i<lines.length; i++) {
       var cols = lines[i].split(delim);
       var ean = (cols[eanCol]||'').trim().replace(/\D/g,'');
       var desc = (cols[descCol]||'').trim();
       var un = (cols[unCol]||'').trim();
       if (!ean) continue;
-      produtos.push({ invId:invId, loja:loja, ean:ean, desc:desc, un:un });
+      var prod = { invId:invId, loja:loja, ean:ean, desc:desc, un:un };
+      // Catálogos com códigos internos (ex: "0", "1") repetem o mesmo "ean" em
+      // vários produtos diferentes. Isso gera doc id duplicado (invId+'_'+ean) e
+      // o batch.set() no mesmo doc 2x dentro do mesmo lote de 400 lança exceção
+      // síncrona — derruba a promise chain inteira e nenhum lote é gravado.
+      // Por isso deduplicamos por ean, mantendo a última ocorrência.
+      if (idxPorEan[ean]===undefined) { idxPorEan[ean]=produtos.length; produtos.push(prod); }
+      else { produtos[idxPorEan[ean]]=prod; }
     }
     if (!produtos.length) { alert('Nenhum produto encontrado no arquivo.'); event.target.value=''; return; }
 
@@ -11080,14 +11088,16 @@ function pararQRScan() {
 
 // ── Leitura de EAN/código de barras de produto pela câmera ────────────────
 // (diferente do scan de endereço acima, que só lê QR — código de barras de
-// produto é 1D, então usa a BarcodeDetector nativa do navegador)
-var _eanScanStream = null;
-var _eanScanFrame = null;
+// produto é 1D. Usa ZXing (decodificação 100% em JS) em vez da BarcodeDetector
+// nativa do navegador: no coletor essa API ou não existe, ou existe mas o
+// device não tem o módulo de barcode do ML Kit instalado, e o detect() fica
+// resolvendo vazio pra sempre sem erro nenhum — a câmera abre mas nunca lê.)
+var _eanCodeReader = null;
 
 function iniciarScanEAN(inputId) {
-  if (_eanScanStream) { pararScanEAN(); return; }
-  if (typeof BarcodeDetector === 'undefined') {
-    showToast('Este navegador não suporta leitura de código de barras pela câmera. Use o scanner físico ou digite manualmente.', 5000);
+  if (_eanCodeReader) { pararScanEAN(); return; }
+  if (typeof ZXing === 'undefined') {
+    showToast('Leitor de código de barras não carregou (sem internet?). Use o scanner físico ou digite manualmente.', 5000);
     return;
   }
   var overlay = document.createElement('div');
@@ -11099,37 +11109,32 @@ function iniciarScanEAN(inputId) {
     '<button onclick="pararScanEAN()" style="padding:10px 24px;background:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer">✕ Cancelar</button>';
   document.body.appendChild(overlay);
 
-  var detector = new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','code_128']});
-  navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}}).then(function(stream){
-    _eanScanStream = stream;
-    var video = document.getElementById('ean-scan-video');
-    video.srcObject = stream; video.play();
-    function tick() {
-      if (!_eanScanStream) return;
-      detector.detect(video).then(function(codes){
-        if (codes && codes.length) {
-          var val = codes[0].rawValue;
-          pararScanEAN();
-          var inp = document.getElementById(inputId);
-          if (inp) {
-            inp.value = val;
-            inp.dispatchEvent(new KeyboardEvent('keydown', {key:'Enter', bubbles:true}));
-          }
-          return;
-        }
-        _eanScanFrame = requestAnimationFrame(tick);
-      }).catch(function(){ _eanScanFrame = requestAnimationFrame(tick); });
+  var hints = new Map();
+  hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+    ZXing.BarcodeFormat.EAN_13, ZXing.BarcodeFormat.EAN_8,
+    ZXing.BarcodeFormat.UPC_A, ZXing.BarcodeFormat.UPC_E, ZXing.BarcodeFormat.CODE_128
+  ]);
+  var reader = new ZXing.BrowserMultiFormatReader(hints);
+  _eanCodeReader = reader;
+  reader.decodeFromConstraints({video:{facingMode:'environment'}}, 'ean-scan-video', function(result){
+    if (result && _eanCodeReader === reader) {
+      var val = result.getText();
+      pararScanEAN();
+      var inp = document.getElementById(inputId);
+      if (inp) {
+        inp.value = val;
+        inp.dispatchEvent(new KeyboardEvent('keydown', {key:'Enter', bubbles:true}));
+      }
     }
-    tick();
   }).catch(function(err){
     var ov=document.getElementById('ean-scan-overlay'); if(ov) ov.remove();
+    _eanCodeReader = null;
     showToast('Câmera indisponível: '+(err.message||err));
   });
 }
 
 function pararScanEAN() {
-  if (_eanScanFrame) { cancelAnimationFrame(_eanScanFrame); _eanScanFrame=null; }
-  if (_eanScanStream) { _eanScanStream.getTracks().forEach(function(t){ t.stop(); }); _eanScanStream=null; }
+  if (_eanCodeReader) { try { _eanCodeReader.reset(); } catch(e){} _eanCodeReader = null; }
   var ov = document.getElementById('ean-scan-overlay'); if (ov) ov.remove();
 }
 
