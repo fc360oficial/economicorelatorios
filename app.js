@@ -1,5 +1,5 @@
 ﻿// Verificação de versão — roda antes de tudo
-var BUILD = '267';
+var BUILD = '268';
 (function() {
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
@@ -1180,6 +1180,22 @@ function _doLogin_legado_unused() {
 }
 
 function finalizarLogin(found) {
+  // Guarda única: usuário só pode logar no deploy do seu próprio cliente.
+  // finalizarLogin é o ponto de convergência tanto do login ativo quanto da
+  // restauração de sessão (eco_session), então a validação fica aqui, não duplicada nos dois.
+  var deployClient = (window.FC360_CLIENT_ID || '').trim();
+  var userClient = found.clienteId || '';
+  if (userClient !== deployClient) {
+    try { sessionStorage.removeItem('eco_session'); } catch(e) {}
+    firebase.auth().signOut().catch(function(){});
+    var errEl = document.getElementById('lErr');
+    if (errEl) {
+      errEl.textContent = 'Este usuário não pertence a este endereço. Acesse a URL correta do seu cliente.';
+      errEl.style.color = 'var(--r)';
+      errEl.style.display = 'block';
+    }
+    return;
+  }
   document.getElementById('lErr').style.display='none';
   S.role = found.perfil;
   S.currentUser = found;
@@ -12498,15 +12514,9 @@ window.addEventListener('beforeunload', function() {
     if (saved) {
       var user = JSON.parse(saved);
       if (user && user.id && user.perfil) {
-        // sessionStorage é por origin, não por path: todos os deploys do FC360 vivem em
-        // fc360oficial.github.io/<repo>/, então uma sessão logada em outro cliente
-        // aparece aqui. Só restaura se o clienteId da sessão bater com o deploy atual.
-        var deployClient = (window.FC360_CLIENT_ID || '').trim();
-        var sessionClient = user.clienteId || '';
-        if (sessionClient !== deployClient) {
-          sessionStorage.removeItem('eco_session');
-          firebase.auth().signOut().catch(function(){});
-        } else if (firebase.auth().currentUser) {
+        // A validação de clienteId x deploy atual roda dentro de finalizarLogin,
+        // que é chamada tanto aqui (restore) quanto no login ativo.
+        if (firebase.auth().currentUser) {
           finalizarLogin(user);
         } else {
           var _unsub = firebase.auth().onAuthStateChanged(function(fbUser) {
