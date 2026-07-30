@@ -1,5 +1,5 @@
 ﻿// Verificação de versão — roda antes de tudo
-var BUILD = '279';
+var BUILD = '280';
 (function() {
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
@@ -11932,13 +11932,14 @@ function confirmarExcluirInv() {
     var cred = firebase.auth.EmailAuthProvider.credential(fbUser.email, senha);
     fbUser.reauthenticateWithCredential(cred).then(function() {
       _doDelete();
-    }).catch(function() {
+    }).catch(function(reauthErr) {
       // Fallback: compara com senha armazenada localmente
       hashPassword(senha).then(function(senhaHash) {
         var match = isHashed(u.senha) ? (u.senha === senhaHash) : (u.senha === senha);
         if (!match) {
           if (btn) { btn.textContent = '🗑 Excluir permanentemente'; btn.disabled = false; }
-          if (errEl) { errEl.textContent = 'Senha incorreta. Use sua senha de login.'; errEl.style.display = 'block'; }
+          var motivo = (reauthErr && reauthErr.code) ? reauthErr.code : (reauthErr && reauthErr.message) || 'desconhecido';
+          if (errEl) { errEl.textContent = 'Senha incorreta. Use sua senha de login. (' + motivo + ')'; errEl.style.display = 'block'; }
           return;
         }
         _doDelete();
