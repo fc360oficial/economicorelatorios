@@ -64,6 +64,8 @@ table.t{width:100%;border-collapse:collapse;font-size:12.5px}
 table.t thead{background:var(--surface-2)}
 table.t th{padding:9px 14px;text-align:left;color:var(--ink-3);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;white-space:nowrap;border-bottom:1px solid var(--border)}
 table.t td{padding:9px 14px;border-bottom:1px solid var(--border);white-space:nowrap}
+table.t th.r,table.t td.r{text-align:right}
+.t-valor{font-weight:700;font-variant-numeric:tabular-nums}
 table.t tbody tr:last-child td{border-bottom:none}
 table.t tbody tr:hover{background:var(--surface-2)}
 .t-loja{font-weight:700}
@@ -148,7 +150,7 @@ table.t tbody tr:hover{background:var(--surface-2)}
 
   <div class="table-wrap">
     <table class="t">
-      <thead><tr><th>Loja</th><th>Ponta</th><th>Compradora</th><th>Fornecedor</th><th>Início</th><th>Término</th><th>Status</th></tr></thead>
+      <thead><tr><th>Loja</th><th>Ponta</th><th>Compradora</th><th>Fornecedor</th><th>Início</th><th>Término</th><th class="r">Valor</th><th>Status</th></tr></thead>
       <tbody id="tbody-relatorio"></tbody>
     </table>
   </div>
@@ -252,7 +254,7 @@ function renderRelatorio() {
 
   const tbody = document.getElementById('tbody-relatorio');
   if (!itens.length) {
-    tbody.innerHTML = `<tr><td colspan="7" class="t-vazio">Nenhuma ponta preenchida ${filLoja || filStatus || filComprador ? 'com esse filtro' : 'ainda'}.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="t-vazio">Nenhuma ponta preenchida ${filLoja || filStatus || filComprador ? 'com esse filtro' : 'ainda'}.</td></tr>`;
     return;
   }
   tbody.innerHTML = itens.map(p => `
@@ -263,8 +265,13 @@ function renderRelatorio() {
       <td>${p.fornecedor || '—'}</td>
       <td>${fmtDataBr(p.inicio) || '—'}</td>
       <td>${fmtDataBr(p.fim) || '—'}</td>
+      <td class="r t-valor">${p.valor != null ? fmtMoeda(p.valor) : '—'}</td>
       <td><span class="status-chip st-${p.status}">${STATUS_LABEL[p.status]}${p.diasRestantes != null && p.status !== 'vencido' ? ` · ${p.diasRestantes}d` : ''}</span></td>
     </tr>`).join('');
+}
+
+function fmtMoeda(v) {
+  return 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 async function adicionarPonta(loja) {
@@ -295,6 +302,7 @@ function abrirPopup(id) {
         <div class="fg"><label>Início do acordo</label><input type="date" id="f-inicio" value="${p.inicio || ''}"></div>
         <div class="fg"><label>Fim do acordo</label><input type="date" id="f-fim" value="${p.fim || ''}"></div>
       </div>
+      <div class="fg"><label>Valor do acordo (R$)</label><input type="number" step="0.01" min="0" id="f-valor" value="${p.valor != null ? p.valor : ''}" placeholder="ex: 500,00"></div>
       <div class="acts">
         <button class="btn btn-blue" onclick="salvarPonta()">💾 Salvar</button>
         ${p.comprador || p.fornecedor || p.inicio || p.fim ? '<button class="btn btn-slate" onclick="limparPonta()">🧹 Encerrar / deixar livre</button>' : ''}
@@ -335,7 +343,8 @@ async function salvarPonta() {
     comprador: document.getElementById('f-comprador').value,
     fornecedor: document.getElementById('f-fornecedor').value.trim(),
     inicio: document.getElementById('f-inicio').value,
-    fim: document.getElementById('f-fim').value
+    fim: document.getElementById('f-fim').value,
+    valor: document.getElementById('f-valor').value
   };
   const msg = document.getElementById('msg-salvar');
   try {
@@ -355,7 +364,7 @@ async function salvarPonta() {
 // a linha do quadro.
 async function limparPonta() {
   if (!confirm('Encerrar a negociação dessa ponta? Ela volta a ficar livre pra um novo fornecedor.')) return;
-  const body = { comprador: '', fornecedor: '', inicio: '', fim: '' };
+  const body = { comprador: '', fornecedor: '', inicio: '', fim: '', valor: '' };
   const msg = document.getElementById('msg-salvar');
   try {
     const r = await fetch(`/api/pontas-gondola/${popupId}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });

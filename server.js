@@ -3963,7 +3963,7 @@ app.post('/api/pontas-gondola/loja/:loja/adicionar', (req, res) => {
   const maiorNumero = lista.filter(p => p.loja === loja).reduce((m, p) => Math.max(m, p.numero), 0);
   const nova = {
     id: maiorId + 1, loja, numero: maiorNumero + 1,
-    comprador: null, fornecedor: null, inicio: null, fim: null,
+    comprador: null, fornecedor: null, inicio: null, fim: null, valor: null,
     contratoArquivo: null, contratoEnviadoEm: null, contratoEnviadoPor: null,
     atualizadoEm: null, atualizadoPor: null
   };
@@ -3974,7 +3974,7 @@ app.post('/api/pontas-gondola/loja/:loja/adicionar', (req, res) => {
 
 app.post('/api/pontas-gondola/:id', (req, res) => {
   const id = parseInt(req.params.id);
-  const { comprador, fornecedor, inicio, fim } = req.body || {};
+  const { comprador, fornecedor, inicio, fim, valor } = req.body || {};
   const lista = pontaGondola.carregarPontas();
   const ponta = lista.find(p => p.id === id);
   if (!ponta) return res.status(404).json({ error: 'Ponta não encontrada.' });
@@ -3982,6 +3982,7 @@ app.post('/api/pontas-gondola/:id', (req, res) => {
   ponta.fornecedor = fornecedor || null;
   ponta.inicio = inicio || null;
   ponta.fim = fim || null;
+  ponta.valor = (valor !== '' && valor != null) ? +parseFloat(valor).toFixed(2) : null;
   ponta.atualizadoEm = new Date().toISOString();
   ponta.atualizadoPor = (req.session && req.session.user && req.session.user.nome) || 'desconhecido';
   pontaGondola.salvarPontas(lista);
