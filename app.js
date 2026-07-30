@@ -1,5 +1,5 @@
 ﻿// Verificação de versão — roda antes de tudo
-var BUILD = '265';
+var BUILD = '266';
 (function() {
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
@@ -12498,7 +12498,15 @@ window.addEventListener('beforeunload', function() {
     if (saved) {
       var user = JSON.parse(saved);
       if (user && user.id && user.perfil) {
-        if (firebase.auth().currentUser) {
+        // sessionStorage é por origin, não por path: todos os deploys do FC360 vivem em
+        // fc360oficial.github.io/<repo>/, então uma sessão logada em outro cliente
+        // aparece aqui. Só restaura se o clienteId da sessão bater com o deploy atual.
+        var deployClient = (window.FC360_CLIENT_ID || '').trim();
+        var sessionClient = user.clienteId || '';
+        if (sessionClient !== deployClient) {
+          sessionStorage.removeItem('eco_session');
+          firebase.auth().signOut().catch(function(){});
+        } else if (firebase.auth().currentUser) {
           finalizarLogin(user);
         } else {
           var _unsub = firebase.auth().onAuthStateChanged(function(fbUser) {
