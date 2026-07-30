@@ -1,5 +1,5 @@
 ﻿// Verificação de versão — roda antes de tudo
-var BUILD = '276';
+var BUILD = '277';
 (function() {
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
@@ -9653,6 +9653,7 @@ function renderColeta() {
             'onkeydown="if(event.key===\'Enter\')registrarBipagem()"/>'+
           '<div id="inv-desc-preview" style="font-size:12px;color:var(--t3);margin-top:5px;min-height:18px"></div>'+
         '</div>'+
+        '<button type="button" onclick="iniciarScanEAN(\'inv-ean-input\')" title="Ler código de barras com a câmera" style="padding:13px 16px;background:#fff;border:2px solid var(--gray2);border-radius:10px;font-size:18px;cursor:pointer">📷</button>'+
         '<div style="width:80px">'+
           '<label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--t2);display:block;margin-bottom:6px">Qtd</label>'+
           '<input id="inv-qty-input" type="number" value="1" min="1" '+
@@ -10171,6 +10172,7 @@ function renderColeta() {
           '<input id="inv-ean-input" type="text" inputmode="numeric" autocomplete="off" placeholder="Bipe ou digite o código..." style="width:100%;padding:13px 14px;border:2px solid var(--gray2);border-radius:10px;font-size:16px;font-family:monospace;letter-spacing:1px" onkeydown="if(event.key===\'Enter\')registrarBipagem()"/>'+
           '<div id="inv-desc-preview" style="font-size:12px;color:var(--t3);margin-top:5px;min-height:18px"></div>'+
         '</div>'+
+        '<button type="button" onclick="iniciarScanEAN(\'inv-ean-input\')" title="Ler código de barras com a câmera" style="padding:13px 16px;background:#fff;border:2px solid var(--gray2);border-radius:10px;font-size:18px;cursor:pointer">📷</button>'+
         '<div style="width:80px"><label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--t2);display:block;margin-bottom:6px">Qtd</label>'+
           '<input id="inv-qty-input" type="number" value="1" min="1" style="width:100%;padding:13px 10px;border:2px solid var(--gray2);border-radius:10px;font-size:16px;text-align:center;font-family:inherit" onkeydown="if(event.key===\'Enter\')registrarBipagem()"/></div>'+
         '<button onclick="registrarBipagem()" style="padding:13px 22px;background:#FFC600;color:#111;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap">Registrar</button>'+
@@ -11076,6 +11078,61 @@ function pararQRScan() {
   var wrap=document.getElementById('qr-scan-wrap'); if(wrap) wrap.style.display='none';
 }
 
+// ── Leitura de EAN/código de barras de produto pela câmera ────────────────
+// (diferente do scan de endereço acima, que só lê QR — código de barras de
+// produto é 1D, então usa a BarcodeDetector nativa do navegador)
+var _eanScanStream = null;
+var _eanScanFrame = null;
+
+function iniciarScanEAN(inputId) {
+  if (_eanScanStream) { pararScanEAN(); return; }
+  if (typeof BarcodeDetector === 'undefined') {
+    showToast('Este navegador não suporta leitura de código de barras pela câmera. Use o scanner físico ou digite manualmente.', 5000);
+    return;
+  }
+  var overlay = document.createElement('div');
+  overlay.id = 'ean-scan-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:#000;z-index:4000;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px';
+  overlay.innerHTML =
+    '<video id="ean-scan-video" style="width:100%;max-width:480px;border-radius:10px;background:#111" autoplay playsinline muted></video>'+
+    '<div style="color:#fff;font-size:13px;margin:14px 0">Aponte para o código de barras do produto</div>'+
+    '<button onclick="pararScanEAN()" style="padding:10px 24px;background:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer">✕ Cancelar</button>';
+  document.body.appendChild(overlay);
+
+  var detector = new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','code_128']});
+  navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}}).then(function(stream){
+    _eanScanStream = stream;
+    var video = document.getElementById('ean-scan-video');
+    video.srcObject = stream; video.play();
+    function tick() {
+      if (!_eanScanStream) return;
+      detector.detect(video).then(function(codes){
+        if (codes && codes.length) {
+          var val = codes[0].rawValue;
+          pararScanEAN();
+          var inp = document.getElementById(inputId);
+          if (inp) {
+            inp.value = val;
+            inp.dispatchEvent(new KeyboardEvent('keydown', {key:'Enter', bubbles:true}));
+          }
+          return;
+        }
+        _eanScanFrame = requestAnimationFrame(tick);
+      }).catch(function(){ _eanScanFrame = requestAnimationFrame(tick); });
+    }
+    tick();
+  }).catch(function(err){
+    var ov=document.getElementById('ean-scan-overlay'); if(ov) ov.remove();
+    showToast('Câmera indisponível: '+(err.message||err));
+  });
+}
+
+function pararScanEAN() {
+  if (_eanScanFrame) { cancelAnimationFrame(_eanScanFrame); _eanScanFrame=null; }
+  if (_eanScanStream) { _eanScanStream.getTracks().forEach(function(t){ t.stop(); }); _eanScanStream=null; }
+  var ov = document.getElementById('ean-scan-overlay'); if (ov) ov.remove();
+}
+
 // ── Gerar QR codes dos endereços para impressão ───────────────────────────
 function gerarQREnderecos() {
   if (!_invAtivo) return;
@@ -11337,6 +11394,7 @@ function renderColeta() {
             '<input id="inv-ean-input" type="text" inputmode="numeric" autocomplete="off" placeholder="Bipe ou digite o código..." style="width:100%;padding:13px 14px;border:2px solid var(--gray2);border-radius:10px;font-size:16px;font-family:monospace;letter-spacing:1px" onkeydown="if(event.key===\'Enter\')_eanEnterKey()"/>'+
             '<div id="inv-desc-preview" style="font-size:12px;margin-top:5px;min-height:18px"></div>'+
           '</div>'+
+          '<button type="button" onclick="iniciarScanEAN(\'inv-ean-input\')" title="Ler código de barras com a câmera" style="padding:13px 16px;background:#fff;border:2px solid var(--gray2);border-radius:10px;font-size:18px;cursor:pointer">📷</button>'+
           '<div style="width:80px"><label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--t2);display:block;margin-bottom:6px">Qtd</label>'+
             '<input id="inv-qty-input" type="number" value="1" min="1" style="width:100%;padding:13px 10px;border:2px solid var(--gray2);border-radius:10px;font-size:16px;text-align:center;font-family:inherit" onkeydown="if(event.key===\'Enter\'){if(_getModoPallet()){var fi=document.getElementById(\'inv-fator-input\');if(fi){fi.focus();fi.select();}}else registrarBipagem();}"/></div>'+
           '<div id="inv-fator-wrap" style="width:62px;'+(palletOn?'':'display:none')+'">'+
@@ -12350,6 +12408,7 @@ function renderColetaAvulsa() {
           '<input id="avulsa-ean-input" type="text" inputmode="numeric" autocomplete="off" placeholder="Bipe ou digite o código..." style="width:100%;padding:13px 14px;border:2px solid var(--gray2);border-radius:10px;font-size:16px;font-family:monospace;letter-spacing:1px" onkeydown="if(event.key===\'Enter\'){var qi=document.getElementById(\'avulsa-qty-input\');if(qi){qi.focus();qi.select();}}"/>'+
           '<div id="avulsa-desc-preview" style="font-size:12px;margin-top:5px;min-height:18px"></div>'+
         '</div>'+
+        '<button type="button" onclick="iniciarScanEAN(\'avulsa-ean-input\')" title="Ler código de barras com a câmera" style="padding:13px 16px;background:#fff;border:2px solid var(--gray2);border-radius:10px;font-size:18px;cursor:pointer">📷</button>'+
         '<div style="width:72px">'+
           '<label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--t2);display:block;margin-bottom:6px">Qtd</label>'+
           '<input id="avulsa-qty-input" type="number" value="1" min="1" style="width:100%;padding:13px 10px;border:2px solid var(--gray2);border-radius:10px;font-size:16px;text-align:center;font-family:inherit" onkeydown="if(event.key===\'Enter\')registrarBipagemAvulsa()"/>'+
