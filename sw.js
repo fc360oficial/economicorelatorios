@@ -1,6 +1,6 @@
 // Fluxo Certo 360 — Service Worker v226
 // Atualiza este numero de versao sempre que publicar novos arquivos
-var CACHE_NAME = 'cahu360-v268';
+var CACHE_NAME = 'cahu360-v269';
 
 // Arquivos críticos: sempre buscados da rede (nunca do cache)
 var NETWORK_FIRST = ['app.js', 'index.html', 'monitor.html'];
@@ -74,8 +74,11 @@ self.addEventListener('fetch', function(event) {
   }
 
   // app.js e index.html: SEMPRE network-first
+  // urlPath termina em '/' quando é a URL "raiz" (ex: fluxocerto360/) — o navegador
+  // resolve isso pra index.html, mas o endsWith('index.html') abaixo nao bate,
+  // entao sem esse OR a navegacao principal caia no cache-first la embaixo.
   var urlPath = url.split('?')[0];
-  var isNetworkFirst = NETWORK_FIRST.some(function(f) { return urlPath.endsWith(f); });
+  var isNetworkFirst = urlPath.endsWith('/') || NETWORK_FIRST.some(function(f) { return urlPath.endsWith(f); });
   if (isNetworkFirst) {
     event.respondWith(
       fetch(event.request).then(function(resp) {
