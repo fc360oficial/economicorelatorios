@@ -1,5 +1,5 @@
 ﻿// Verificação de versão — roda antes de tudo
-var BUILD = '273';
+var BUILD = '274';
 (function() {
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
@@ -4548,7 +4548,7 @@ function salvarUser() {
   // Ao editar: senha em branco = manter a existente
   var trocandoSenha = senha.length > 0;
   if (!editingUserId && !trocandoSenha){err.textContent='Informe uma senha.';err.style.display='block';return;}
-  if (trocandoSenha && senha.length<4){err.textContent='Senha com mínimo 4 caracteres.';err.style.display='block';return;}
+  if (trocandoSenha && senha.length<6){err.textContent='Senha com mínimo 6 caracteres (exigido pelo Firebase Auth).';err.style.display='block';return;}
   if (trocandoSenha && senha!==senha2){err.textContent='Senhas não coincidem.';err.style.display='block';return;}
   var users=getUsers();
   var dup=users.find(function(u){return u.email.toLowerCase()===email && u.id!==editingUserId;});
@@ -4573,7 +4573,23 @@ function salvarUser() {
     renderUsers();
   }
 
-  if (trocandoSenha) {
+  if (!editingUserId) {
+    // Usuário novo: antes disso a senha digitada aqui nunca virava um login de
+    // verdade (só ia o hash pro Firestore) — o usuário só conseguia entrar
+    // depois de rodar a migração em lote, com senha temporária aleatória.
+    // Agora cria a conta no Firebase Auth já com a senha que o admin digitou.
+    var secondaryAuth = _getSecondaryAuth();
+    secondaryAuth.createUserWithEmailAndPassword(email, senha).then(function(){
+      secondaryAuth.signOut().catch(function(){});
+      hashPassword(senha).then(function(hash){ aplicarSalvar(hash); });
+    }).catch(function(e){
+      secondaryAuth.signOut().catch(function(){});
+      var msg = e.code === 'auth/email-already-in-use' ? 'Este e-mail já tem login no sistema.'
+        : e.code === 'auth/weak-password' ? 'Senha muito fraca (mínimo 6 caracteres).'
+        : 'Erro ao criar login: '+e.code;
+      err.textContent = msg; err.style.color='var(--r)'; err.style.display='block';
+    });
+  } else if (trocandoSenha) {
     hashPassword(senha).then(function(hash){
       aplicarSalvar(hash);
       var unsub = firebase.auth().onAuthStateChanged(function(fbUser) {
@@ -4606,6 +4622,7 @@ function salvarUser() {
 
 function excluirUser(id) {
   if (!confirm('Excluir este usuário?')) return;
+  db.collection('usuarios').doc(id).delete().catch(function(){});
   saveUsers(getUsers().filter(function(u){return u.id!==id;}));
   renderUsers();
 }
@@ -7353,11 +7370,22 @@ function _atualizarVersaoClientes() {
       if (baseEl) baseEl.textContent = 'v'+baseBuild;
 
       _clientesCache.forEach(function(c) {
-        var repo = repos[c.id];
         var verEl = document.getElementById('ver-'+c.id);
         var statusEl = document.getElementById('verstatus-'+c.id);
         var urlEl = document.getElementById('url-'+c.id);
         var deployBtn = document.getElementById('btn-deploy-'+c.id);
+
+        // fluxocerto é o próprio repo base, não tem entrada em config/repos —
+        // usa a URL e a versão do base direto, em vez de tentar achar um repo dele.
+        if (c.id === 'fluxocerto') {
+          if (urlEl) urlEl.textContent = 'fc360oficial.github.io/fluxocerto360/';
+          if (verEl) { verEl.textContent = 'v'+baseBuild; verEl.style.color = '#1a5c34'; }
+          if (statusEl) { statusEl.textContent = '🏠 BASE'; statusEl.style.background='#fff3cd'; statusEl.style.color='#856404'; }
+          if (deployBtn) { deployBtn.disabled = true; deployBtn.textContent = '🏠 É o base'; deployBtn.style.opacity = '.5'; }
+          return;
+        }
+
+        var repo = repos[c.id];
 
         // Preenche URL do cliente
         if (urlEl && repo) urlEl.textContent = 'fc360oficial.github.io/'+repo+'/';
