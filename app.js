@@ -1,5 +1,5 @@
 ﻿// Verificação de versão — roda antes de tudo
-var BUILD = '271';
+var BUILD = '272';
 (function() {
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
@@ -7234,6 +7234,12 @@ function renderPainelClientes() {
   wrap.innerHTML = '<div style="text-align:center;padding:40px;color:var(--t3)">Carregando clientes...</div>';
   db.collection('clientes').get().then(function(snap) {
     _clientesCache = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
+    var ordem = ['fluxocerto','economico','bardocachorro'];
+    _clientesCache.sort(function(a,b){
+      var ia = ordem.indexOf(a.id); if (ia<0) ia = ordem.length;
+      var ib = ordem.indexOf(b.id); if (ib<0) ib = ordem.length;
+      return ia - ib;
+    });
     _renderClientesLista();
   }).catch(function(e){ wrap.innerHTML = '<div style="color:var(--r);padding:20px">Erro: '+e.message+'</div>'; });
 }
