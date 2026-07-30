@@ -1,5 +1,5 @@
 ﻿// Verificação de versão — roda antes de tudo
-var BUILD = '280';
+var BUILD = '281';
 (function() {
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
@@ -9264,21 +9264,21 @@ function importarCatalogo(event) {
     var unCol = descCol+1;
 
     var produtos = [];
-    var idxPorEan = {};
+    var contPorEan = {};
     for (var i=startLine; i<lines.length; i++) {
       var cols = lines[i].split(delim);
       var ean = (cols[eanCol]||'').trim().replace(/\D/g,'');
       var desc = (cols[descCol]||'').trim();
       var un = (cols[unCol]||'').trim();
       if (!ean) continue;
-      var prod = { invId:invId, loja:loja, ean:ean, desc:desc, un:un };
       // Catálogos com códigos internos (ex: "0", "1") repetem o mesmo "ean" em
-      // vários produtos diferentes. Isso gera doc id duplicado (invId+'_'+ean) e
-      // o batch.set() no mesmo doc 2x dentro do mesmo lote de 400 lança exceção
-      // síncrona — derruba a promise chain inteira e nenhum lote é gravado.
-      // Por isso deduplicamos por ean, mantendo a última ocorrência.
-      if (idxPorEan[ean]===undefined) { idxPorEan[ean]=produtos.length; produtos.push(prod); }
-      else { produtos[idxPorEan[ean]]=prod; }
+      // vários produtos diferentes (itens sem código de barras real). Em vez de
+      // descartar essas linhas, cada uma vira um doc próprio — o docId só ganha
+      // sufixo a partir da 2ª ocorrência do mesmo ean, pra nunca colidir dentro
+      // do mesmo lote de 400 (o que derrubava a importação inteira).
+      var n = (contPorEan[ean] = (contPorEan[ean]||0) + 1);
+      var docId = n===1 ? (invId+'_'+ean) : (invId+'_'+ean+'_'+n);
+      produtos.push({ invId:invId, loja:loja, ean:ean, desc:desc, un:un, docId:docId });
     }
     if (!produtos.length) { alert('Nenhum produto encontrado no arquivo.'); event.target.value=''; return; }
 
@@ -9290,7 +9290,7 @@ function importarCatalogo(event) {
       p = p.then(function(){
         var b = db.batch();
         lote.forEach(function(prod){
-          var ref = db.collection('inv_catalogo').doc(invId+'_'+prod.ean);
+          var ref = db.collection('inv_catalogo').doc(prod.docId);
           b.set(ref, prod);
         });
         return b.commit();
