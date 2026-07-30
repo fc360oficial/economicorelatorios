@@ -51,6 +51,24 @@ body{font-family:var(--font);background:var(--bg);color:var(--ink);min-height:10
 .btn-add{background:none;border:1px dashed var(--border-strong);border-radius:8px;padding:6px 8px;font-size:10px;font-weight:700;color:var(--ink-3);cursor:pointer;width:100%;font-family:var(--font)}
 .btn-add:hover{border-color:var(--brand);color:var(--brand-ink)}
 
+/* RELATÓRIO */
+.resumo-row{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.resumo-chip{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:9px 14px;font-size:12px;font-weight:700;color:var(--ink-2);display:flex;align-items:center;gap:7px}
+.resumo-chip b{color:var(--ink);font-size:15px}
+.resumo-chip .sw{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.filtros{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 16px;margin-bottom:14px;display:flex;gap:12px;flex-wrap:wrap}
+.fg-filtro{min-width:150px}
+.fg-filtro select{width:100%}
+.table-wrap{overflow-x:auto;border-radius:12px;border:1px solid var(--border);background:var(--surface)}
+table.t{width:100%;border-collapse:collapse;font-size:12.5px}
+table.t thead{background:var(--surface-2)}
+table.t th{padding:9px 14px;text-align:left;color:var(--ink-3);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;white-space:nowrap;border-bottom:1px solid var(--border)}
+table.t td{padding:9px 14px;border-bottom:1px solid var(--border);white-space:nowrap}
+table.t tbody tr:last-child td{border-bottom:none}
+table.t tbody tr:hover{background:var(--surface-2)}
+.t-loja{font-weight:700}
+.t-vazio{padding:30px;text-align:center;color:var(--ink-3);font-size:12.5px}
+
 /* POPUP lateral (mesmo padrão do Conciliador) */
 .backdrop{position:fixed;inset:0;background:rgba(14,22,38,.38);opacity:0;pointer-events:none;transition:opacity .18s ease;z-index:40}
 .backdrop.on{opacity:1;pointer-events:auto}
@@ -114,6 +132,26 @@ body{font-family:var(--font);background:var(--bg);color:var(--ink);min-height:10
   <div class="board" id="board">
     <div class="ponta-vazia" style="padding:20px">Carregando...</div>
   </div>
+
+  <div class="page-hdr" style="margin-top:26px">
+    <h1 style="font-size:16px">Relatório por Ponta</h1>
+    <p>Todas as pontas preenchidas, ordenadas pelas que vencem primeiro</p>
+  </div>
+
+  <div class="resumo-row" id="resumo-row"></div>
+
+  <div class="filtros">
+    <div class="fg fg-filtro"><label>Loja</label><select id="fil-loja" onchange="renderRelatorio()"><option value="">Todas</option></select></div>
+    <div class="fg fg-filtro"><label>Status</label><select id="fil-status" onchange="renderRelatorio()"><option value="">Todos</option></select></div>
+    <div class="fg fg-filtro"><label>Compradora</label><select id="fil-comprador" onchange="renderRelatorio()"><option value="">Todas</option></select></div>
+  </div>
+
+  <div class="table-wrap">
+    <table class="t">
+      <thead><tr><th>Loja</th><th>Ponta</th><th>Compradora</th><th>Fornecedor</th><th>Início</th><th>Término</th><th>Status</th></tr></thead>
+      <tbody id="tbody-relatorio"></tbody>
+    </table>
+  </div>
 </div>
 
 <div class="backdrop" id="backdrop" onclick="fecharPopup()"></div>
@@ -165,6 +203,68 @@ function render() {
       <div class="loja-add"><button class="btn-add" onclick="adicionarPonta(${loja})">+ Adicionar ponta</button></div>
     </div>`;
   }).join('');
+
+  popularFiltrosRelatorio();
+  renderRelatorio();
+}
+
+function popularFiltrosRelatorio() {
+  const selLoja = document.getElementById('fil-loja');
+  const selStatus = document.getElementById('fil-status');
+  const selComprador = document.getElementById('fil-comprador');
+  const lojaAtual = selLoja.value, statusAtual = selStatus.value, compradorAtual = selComprador.value;
+
+  const lojasOrdenadas = Object.keys(dados.lojas).map(Number).sort((a, b) => a - b);
+  selLoja.innerHTML = '<option value="">Todas</option>' +
+    lojasOrdenadas.map(l => `<option value="${l}"${String(l) === lojaAtual ? ' selected' : ''}>${dados.lojas[l]}</option>`).join('');
+
+  selStatus.innerHTML = '<option value="">Todos</option>' +
+    Object.keys(STATUS_LABEL).map(s => `<option value="${s}"${s === statusAtual ? ' selected' : ''}>${STATUS_LABEL[s]}</option>`).join('');
+
+  const compradoresPresentes = [...new Set(dados.pontas.map(p => p.comprador).filter(Boolean))].sort();
+  selComprador.innerHTML = '<option value="">Todas</option>' +
+    compradoresPresentes.map(c => `<option value="${c}"${c === compradorAtual ? ' selected' : ''}>${c}</option>`).join('');
+}
+
+function renderRelatorio() {
+  const filLoja = document.getElementById('fil-loja').value;
+  const filStatus = document.getElementById('fil-status').value;
+  const filComprador = document.getElementById('fil-comprador').value;
+
+  let itens = dados.pontas.filter(p => p.comprador || p.fornecedor || p.inicio || p.fim);
+  if (filLoja) itens = itens.filter(p => String(p.loja) === filLoja);
+  if (filStatus) itens = itens.filter(p => p.status === filStatus);
+  if (filComprador) itens = itens.filter(p => p.comprador === filComprador);
+
+  itens = itens.slice().sort((a, b) => {
+    const da = a.diasRestantes == null ? Infinity : a.diasRestantes;
+    const db = b.diasRestantes == null ? Infinity : b.diasRestantes;
+    return da - db;
+  });
+
+  // Resumo sempre reflete o total geral (não o filtro), pra dar visão geral rápida.
+  const contagem = { ok: 0, atencao: 0, comprar: 0, vencido: 0 };
+  dados.pontas.forEach(p => { if (contagem[p.status] != null) contagem[p.status]++; });
+  const cores = { ok: 'var(--green)', atencao: 'var(--brand)', comprar: 'var(--laranja)', vencido: 'var(--red)' };
+  document.getElementById('resumo-row').innerHTML = Object.keys(contagem).map(s =>
+    `<div class="resumo-chip"><span class="sw" style="background:${cores[s]}"></span><b>${contagem[s]}</b> ${STATUS_LABEL[s].toLowerCase()}</div>`
+  ).join('');
+
+  const tbody = document.getElementById('tbody-relatorio');
+  if (!itens.length) {
+    tbody.innerHTML = `<tr><td colspan="7" class="t-vazio">Nenhuma ponta preenchida ${filLoja || filStatus || filComprador ? 'com esse filtro' : 'ainda'}.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = itens.map(p => `
+    <tr onclick="abrirPopup(${p.id})" style="cursor:pointer">
+      <td class="t-loja">${dados.lojas[p.loja]}</td>
+      <td>Ponta ${String(p.numero).padStart(2, '0')}</td>
+      <td>${p.comprador || '—'}</td>
+      <td>${p.fornecedor || '—'}</td>
+      <td>${fmtDataBr(p.inicio) || '—'}</td>
+      <td>${fmtDataBr(p.fim) || '—'}</td>
+      <td><span class="status-chip st-${p.status}">${STATUS_LABEL[p.status]}${p.diasRestantes != null && p.status !== 'vencido' ? ` · ${p.diasRestantes}d` : ''}</span></td>
+    </tr>`).join('');
 }
 
 async function adicionarPonta(loja) {
