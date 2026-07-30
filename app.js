@@ -1,5 +1,5 @@
 ﻿// Verificação de versão — roda antes de tudo
-var BUILD = '252';
+var BUILD = '253';
 (function() {
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
@@ -4906,7 +4906,8 @@ function _renderDashEquipe() {
   if (!dashEquipe) return;
   var resultadosHoje = window._dashEquipeResultadosHoje || [];
   var perfisLabel    = {gerencia:'Gerência', operator:'Operador', prevencao:'Prevenção', supervisor:'Supervisão', admin:'Admin'};
-  var todosUsers     = getUsers().filter(function(u){ return u.id!=='admin' && u.ativo; });
+  var _perfisChecklist = ['operator','prevencao'];
+  var todosUsers = getUsers().filter(function(u){ return u.ativo && _perfisChecklist.indexOf(u.perfil) !== -1; });
   var users = _dashEquipePerfilAtivo === 'todos'
     ? todosUsers
     : todosUsers.filter(function(u){ return u.perfil === _dashEquipePerfilAtivo; });
