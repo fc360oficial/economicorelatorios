@@ -1,5 +1,5 @@
 ﻿// Verificação de versão — roda antes de tudo
-var BUILD = '251';
+var BUILD = '252';
 (function() {
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
@@ -1452,6 +1452,9 @@ function setupRole() {
 
   // Super Admin: só painel de clientes, nada operacional
   if (isSuperAdmin) {
+    if (_tbMZ) _tbMZ.style.display = 'none';
+    if (_tbMU) _tbMU.style.display = 'none';
+    if (_tbMT) _tbMT.style.display = 'none';
     show('nav-clientes', true);
     ['sb-adm-sec','tab-gerenciar','nav-dashboard','nav-central','nav-relat',
      'nav-assistente','nav-monitor','nav-token','btn-zerar-dados','nav-users','nav-alertas',
