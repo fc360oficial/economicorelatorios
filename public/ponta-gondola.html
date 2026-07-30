@@ -300,7 +300,23 @@ function abrirPopup(id) {
         ${p.comprador || p.fornecedor || p.inicio || p.fim ? '<button class="btn btn-slate" onclick="limparPonta()">🧹 Encerrar / deixar livre</button>' : ''}
       </div>
       <div id="msg-salvar"></div>
-      <div style="margin-top:14px;font-size:11px;color:var(--ink-3)">📄 Modelo de contrato e upload do assinado chegam em breve nessa tela.</div>
+
+      <div class="popup-sec">Contrato</div>
+      <div class="contrato-box">
+        <div class="linha">
+          <span>Modelo pra assinar</span>
+          <a class="btn btn-slate" href="/api/pontas-gondola/${p.id}/modelo.pdf" target="_blank" style="text-decoration:none">📄 Baixar modelo</a>
+        </div>
+        <div class="linha">
+          <span>${p.contratoArquivo ? 'Contrato assinado' : 'Nenhum contrato enviado ainda'}</span>
+          ${p.contratoArquivo ? `<a class="btn btn-slate" href="/api/pontas-gondola/${p.id}/contrato" target="_blank" style="text-decoration:none">⬇️ Baixar assinado</a>` : ''}
+        </div>
+        ${p.contratoArquivo ? `<div class="contrato-ok">✓ Enviado por ${p.contratoEnviadoPor || 'desconhecido'} em ${p.contratoEnviadoEm ? new Date(p.contratoEnviadoEm).toLocaleString('pt-BR') : ''}</div>` : ''}
+        <div class="fg" style="margin-top:10px"><label>Enviar contrato assinado (PDF)</label><input type="file" id="f-contrato" accept="application/pdf"></div>
+        <div class="acts"><button class="btn btn-blue" onclick="enviarContrato()">Enviar contrato</button></div>
+        <div id="msg-contrato"></div>
+      </div>
+
       <div class="popup-sec">Zona de risco</div>
       <button class="btn btn-slate" style="color:var(--red);border-color:var(--red)" onclick="excluirPonta()">🗑️ Excluir esta ponta</button>
     </div>`;
@@ -345,6 +361,24 @@ async function limparPonta() {
     const r = await fetch(`/api/pontas-gondola/${popupId}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || 'Erro ao limpar.');
+    await carregar();
+    abrirPopup(popupId);
+  } catch (e) {
+    msg.innerHTML = `<div class="msg-err">${e.message}</div>`;
+  }
+}
+
+async function enviarContrato() {
+  const input = document.getElementById('f-contrato');
+  const msg = document.getElementById('msg-contrato');
+  if (!input.files.length) { msg.innerHTML = '<div class="msg-err">Escolha um arquivo PDF.</div>'; return; }
+  const fd = new FormData();
+  fd.append('contrato', input.files[0]);
+  try {
+    const r = await fetch(`/api/pontas-gondola/${popupId}/contrato`, { method: 'POST', body: fd });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Erro ao enviar contrato.');
+    msg.innerHTML = '<div class="msg-ok">Contrato enviado.</div>';
     await carregar();
     abrirPopup(popupId);
   } catch (e) {
