@@ -1,6 +1,6 @@
 // Fluxo Certo 360 — Service Worker v226
 // Atualiza este numero de versao sempre que publicar novos arquivos
-var CACHE_NAME = 'cahu360-v281';
+var CACHE_NAME = 'cahu360-v282';
 
 // Arquivos críticos: sempre buscados da rede (nunca do cache)
 var NETWORK_FIRST = ['app.js', 'index.html', 'monitor.html'];
@@ -80,8 +80,12 @@ self.addEventListener('fetch', function(event) {
   var urlPath = url.split('?')[0];
   var isNetworkFirst = urlPath.endsWith('/') || NETWORK_FIRST.some(function(f) { return urlPath.endsWith(f); });
   if (isNetworkFirst) {
+    // cache:'reload' forca o navegador a ignorar o Cache-Control: max-age=600
+    // do GitHub Pages e buscar sempre um app.js/index.html frescos da rede —
+    // sem isso, publicar 2+ builds em menos de 10min faz o app continuar
+    // servindo a versao antiga do cache HTTP local mesmo em "network-first".
     event.respondWith(
-      fetch(event.request).then(function(resp) {
+      fetch(event.request, {cache: 'reload'}).then(function(resp) {
         if (resp && resp.ok) {
           var clone = resp.clone();
           caches.open(CACHE_NAME).then(function(cache) { cache.put(event.request, clone); });
