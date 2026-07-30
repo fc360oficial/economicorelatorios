@@ -3304,6 +3304,21 @@ app.get('/deploy', (req, res) => {
   });
 });
 
+// Retransmite o gatilho de reenvio manual pro processo negativos-wpp
+// (roda separado, escutando só em localhost:3010) — permite disparar o
+// reenvio do relatório de estoque negativo sem precisar de comando via
+// WhatsApp, usando o mesmo domínio público já existente do deploy.
+app.get('/api/negativos/reenviar', async (req, res) => {
+  if (req.query.token !== 'fc360deploy2026') return res.status(403).send('Proibido');
+  try {
+    const r = await fetch('http://127.0.0.1:3010/reenviar-negativos');
+    const texto = await r.text();
+    res.status(r.status).type('json').send(texto);
+  } catch (err) {
+    res.status(502).json({ error: 'negativos-wpp não respondeu (serviço fora do ar?): ' + err.message });
+  }
+});
+
 // ── IA RUPTURAS ─────────────────────────────────────────
 app.get('/api/ruptura/debug-comprador', async (req, res) => {
   try {

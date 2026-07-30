@@ -4,6 +4,7 @@ const cron        = require('node-cron');
 const PDFDocument = require('pdfkit');
 const path        = require('path');
 const fs          = require('fs');
+const http        = require('http');
 const qrcode      = require('qrcode-terminal');
 const pino        = require('pino');
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
@@ -533,6 +534,25 @@ async function rotina() {
     logger.error({ err }, 'Erro na rotina');
   }
 }
+
+// ── Gatilho local (só localhost) ────────────────────────────────────────────
+// Servidor HTTP interno, sem exposição externa, pra permitir disparo manual
+// do reenvio sem depender de mensagem de WhatsApp — chamado pelo server.js
+// principal (que já tem domínio público via Caddy) num endpoint próprio.
+http.createServer(async (req, res) => {
+  if (req.url !== '/reenviar-negativos') { res.writeHead(404); res.end(); return; }
+  try {
+    if (!sock || !sock.user) { res.writeHead(503); res.end(JSON.stringify({ error: 'WhatsApp não conectado.' })); return; }
+    const porLoja = await buscarNegativos();
+    const total = Object.values(porLoja).reduce((s, arr) => s + arr.length, 0);
+    if (!total) { res.writeHead(200); res.end(JSON.stringify({ ok: true, total: 0, msg: 'Nenhum estoque negativo agora.' })); return; }
+    await enviarPDFsLojas(porLoja);
+    res.writeHead(200); res.end(JSON.stringify({ ok: true, total }));
+  } catch (err) {
+    logger.error({ err }, 'Erro no gatilho HTTP de reenvio');
+    res.writeHead(500); res.end(JSON.stringify({ error: err.message }));
+  }
+}).listen(3010, '127.0.0.1', () => logger.info('Gatilho local de reenvio ativo em 127.0.0.1:3010'));
 
 // ── Inicialização ─────────────────────────────────────────────────────────────
 
