@@ -1,5 +1,5 @@
 ﻿// Verificação de versão — roda antes de tudo
-var BUILD = '284';
+var BUILD = '285';
 (function() {
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
@@ -10363,6 +10363,7 @@ function _abrirModalExportErp(perfil) {
     var on = perfil.campos && perfil.campos.indexOf(c.id) >= 0;
     return '<label style="display:flex;align-items:center;gap:7px;font-size:13px;padding:5px 0;cursor:pointer">'+
       '<input type="checkbox" value="'+c.id+'" class="erp-campo-cb"'+(on?' checked':'')+' style="width:15px;height:15px;accent-color:var(--y);cursor:pointer"/>'+
+      '<span class="erp-campo-ord" data-id="'+c.id+'" style="display:inline-block;min-width:16px;font-weight:800;color:var(--y);font-size:11px"></span>'+
       c.label+'</label>';
   }).join('');
 
@@ -10421,7 +10422,7 @@ function _abrirModalExportErp(perfil) {
 
       '<label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--t2);display:block;margin-bottom:8px">Colunas incluídas (na ordem)</label>'+
       '<div style="background:var(--gray);border-radius:10px;padding:10px 14px;margin-bottom:6px;display:grid;grid-template-columns:1fr 1fr;gap:2px" id="erp-campos-wrap">'+camposOpts+'</div>'+
-      '<div style="font-size:11px;color:var(--t3);margin-bottom:16px">A ordem das colunas segue a lista de cima para baixo.</div>'+
+      '<div style="font-size:11px;color:var(--t3);margin-bottom:16px">A ordem das colunas no arquivo segue a ordem em que você MARCA os checkboxes (veja o número ao lado de cada um) — desmarcar e marcar de novo manda o campo pro final da ordem.</div>'+
 
       '<div style="background:#f8f8f8;border-radius:10px;padding:12px 14px;margin-bottom:16px">'+
         '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--t3);margin-bottom:8px">Preview (3 primeiras linhas)</div>'+
@@ -10441,6 +10442,7 @@ function _abrirModalExportErp(perfil) {
       window._erpBipsCache = bips;
       window._erpCatCache  = cat;
       _erp_atualizarPreview();
+      _erp_atualizarOrdemBadges();
       // Atualiza preview ao mudar qualquer opção
       ['erp-sep','erp-dec','erp-enc','erp-header','erp-agrupa'].forEach(function(id){
         var el=document.getElementById(id); if(el) el.addEventListener('change', _erp_atualizarPreview);
@@ -10453,10 +10455,21 @@ function _abrirModalExportErp(perfil) {
           } else if (idx!==-1) {
             window._erpCampoOrdem.splice(idx,1);
           }
+          _erp_atualizarOrdemBadges();
           _erp_atualizarPreview();
         });
       });
     });
+  });
+}
+
+function _erp_atualizarOrdemBadges() {
+  var ordem = window._erpCampoOrdem || [];
+  document.querySelectorAll('.erp-campo-ord').forEach(function(span){
+    var id = span.getAttribute('data-id');
+    var cb = document.querySelector('.erp-campo-cb[value="'+id+'"]');
+    var pos = (cb && cb.checked) ? ordem.indexOf(id) : -1;
+    span.textContent = pos>=0 ? (pos+1)+'.' : '';
   });
 }
 
@@ -10476,6 +10489,7 @@ function _erp_aplicarPreset(key) {
     cb.checked = p.campos && p.campos.indexOf(cb.value) >= 0;
   });
   window._erpCampoOrdem = (p.campos||[]).slice();
+  _erp_atualizarOrdemBadges();
   _erp_atualizarPreview();
 }
 
