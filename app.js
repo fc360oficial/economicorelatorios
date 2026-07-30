@@ -1,5 +1,5 @@
 ﻿// Verificação de versão — roda antes de tudo
-var BUILD = '285';
+var BUILD = '287';
 (function() {
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
@@ -10465,10 +10465,13 @@ function _abrirModalExportErp(perfil) {
 
 function _erp_atualizarOrdemBadges() {
   var ordem = window._erpCampoOrdem || [];
+  var checkedIds = [];
+  document.querySelectorAll('.erp-campo-cb:checked').forEach(function(cb){ checkedIds.push(cb.value); });
+  // Mesma lógica de _erp_lerPerfil: posição entre os campos MARCADOS, ignorando lixo de campos desmarcados que sobrou em window._erpCampoOrdem
+  var ordenados = ordem.filter(function(id){ return checkedIds.indexOf(id)>=0; });
+  checkedIds.forEach(function(id){ if (ordenados.indexOf(id)<0) ordenados.push(id); });
   document.querySelectorAll('.erp-campo-ord').forEach(function(span){
-    var id = span.getAttribute('data-id');
-    var cb = document.querySelector('.erp-campo-cb[value="'+id+'"]');
-    var pos = (cb && cb.checked) ? ordem.indexOf(id) : -1;
+    var pos = ordenados.indexOf(span.getAttribute('data-id'));
     span.textContent = pos>=0 ? (pos+1)+'.' : '';
   });
 }
@@ -11302,8 +11305,14 @@ function _getIdColetor() {
   return (localStorage.getItem(_COLETOR_KEY)||'').trim();
 }
 
+// Tira zero à esquerda de IDs numéricos (01 -> 1) pra "01" e "1" nunca virarem
+// dois coletores diferentes na mesma lista. Não mexe em IDs alfanuméricos (A01).
+function _normColetorId(id) {
+  return (id||'').trim().toUpperCase().replace(/^0+(?=\d)/, '');
+}
+
 function _setIdColetor(id) {
-  localStorage.setItem(_COLETOR_KEY, (id||'').trim().toUpperCase());
+  localStorage.setItem(_COLETOR_KEY, _normColetorId(id));
 }
 
 var _COLETOR_NOME_KEY = 'fc360_coletor_nome';
@@ -11329,7 +11338,7 @@ function _htmlIdColetorForm() {
 }
 
 function _confirmarIdColetor() {
-  var val = ((document.getElementById('coletor-id-novo')||{}).value||'').trim().toUpperCase();
+  var val = _normColetorId((document.getElementById('coletor-id-novo')||{}).value);
   var nome = ((document.getElementById('coletor-nome-novo')||{}).value||'').trim();
   if (!val) { alert('Informe seu ID de coletor.'); return; }
   _setIdColetor(val);
@@ -12225,7 +12234,8 @@ function renderInvColetores() {
   db.collection('inv_inventarios').doc(_invAtivo.id).get().then(function(snap){
     if(!snap.exists) return;
     var reg=snap.data().coletoresReg||{};
-    var list=Object.keys(reg).map(function(uid){ return reg[uid]; });
+    window._invColetoresRegCache = reg;
+    var list=Object.keys(reg).map(function(uid){ return Object.assign({_regKey:uid}, reg[uid]); });
     list.sort(function(a,b){ return (a.coletorId||'').localeCompare(b.coletorId||'',undefined,{numeric:true}); });
     var n=list.length;
     var corN=n===0?'var(--r)':n<5?'#b38600':'#1a5c34';
@@ -12243,7 +12253,7 @@ function renderInvColetores() {
       '</div>'+
       (n===0?'<div style="text-align:center;padding:40px;color:var(--t3)"><div style="font-size:40px;margin-bottom:10px">👥</div><div style="font-weight:600">Aguardando coletores...</div></div>':
         '<div class="card" style="padding:0"><table>'+
-          '<thead><tr><th>ID</th><th>Nome</th><th>Usuário</th><th>Registrado em</th></tr></thead>'+
+          '<thead><tr><th>ID</th><th>Nome</th><th>Usuário</th><th>Registrado em</th><th></th></tr></thead>'+
           '<tbody>'+
           list.map(function(c){
             var ts=c.registradoEm?new Date(c.registradoEm.seconds*1000).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';
@@ -12252,10 +12262,87 @@ function renderInvColetores() {
               '<td>'+c.nome+'</td>'+
               '<td style="font-size:11px;color:var(--t3)">'+(c.userNome||'—')+'</td>'+
               '<td style="font-size:11px;color:var(--t3)">'+ts+'</td>'+
+              '<td style="white-space:nowrap;text-align:right">'+
+                '<button class="btn btn-s btn-sm" onclick="_abrirModalEditColetor(\''+c._regKey+'\')" title="Editar" style="padding:5px 9px;margin-right:4px">✎</button>'+
+                '<button class="btn btn-s btn-sm" onclick="_excluirColetorReg(\''+c._regKey+'\')" title="Excluir" style="padding:5px 9px;color:var(--r)">🗑</button>'+
+              '</td>'+
             '</tr>';
           }).join('')+
           '</tbody></table></div>');
   }).catch(function(){ wrap.innerHTML='<div style="color:var(--r);padding:16px">Erro ao carregar coletores.</div>'; });
+}
+
+function _abrirModalEditColetor(regKey) {
+  var reg = window._invColetoresRegCache||{};
+  var cur = reg[regKey]; if(!cur) return;
+  var html =
+    '<div id="modal-edit-coletor" onclick="if(event.target===this)_fecharModalEditColetor()" style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:3000;display:flex;align-items:center;justify-content:center;padding:16px">'+
+    '<div style="background:#fff;border-radius:16px;padding:24px;width:100%;max-width:360px;box-shadow:0 8px 40px rgba(0,0,0,.25)">'+
+      '<div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:17px;font-weight:800;margin-bottom:4px">Editar coletor</div>'+
+      '<div style="font-size:12px;color:var(--t3);margin-bottom:18px">Corrige o registro e atualiza também as bipagens já feitas por ele neste inventário.</div>'+
+      '<label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--t2);display:block;margin-bottom:6px">ID de Coletor</label>'+
+      '<input id="edit-coletor-id" type="text" value="'+cur.coletorId+'" style="width:100%;padding:11px;border:1.5px solid var(--gray2);border-radius:9px;font-size:15px;font-family:monospace;margin-bottom:12px;box-sizing:border-box"/>'+
+      '<label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--t2);display:block;margin-bottom:6px">Nome</label>'+
+      '<input id="edit-coletor-nome" type="text" value="'+(cur.nome||'')+'" style="width:100%;padding:11px;border:1.5px solid var(--gray2);border-radius:9px;font-size:14px;margin-bottom:18px;box-sizing:border-box;font-family:inherit"/>'+
+      '<div style="display:flex;gap:10px">'+
+        '<button onclick="_fecharModalEditColetor()" style="flex:1;padding:12px;background:#fff;border:1.5px solid var(--gray2);border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;color:var(--t2)">Cancelar</button>'+
+        '<button onclick="_salvarEditColetor(\''+regKey+'\')" style="flex:1;padding:12px;background:var(--y);color:#111;border:none;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">Salvar</button>'+
+      '</div>'+
+    '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+  var el=document.getElementById('edit-coletor-id'); if(el){el.focus();el.select();}
+}
+
+function _fecharModalEditColetor() {
+  var m=document.getElementById('modal-edit-coletor'); if(m) m.remove();
+}
+
+function _salvarEditColetor(regKey) {
+  var reg = window._invColetoresRegCache||{};
+  var cur = reg[regKey]; if(!cur||!_invAtivo) return;
+  var newId = _normColetorId((document.getElementById('edit-coletor-id')||{}).value);
+  var newNome = ((document.getElementById('edit-coletor-nome')||{}).value||'').trim();
+  if (!newId) { alert('Informe o ID de coletor.'); return; }
+  newNome = newNome||newId;
+  var oldId = cur.coletorId;
+  var newRegKey = 'col_'+newId;
+  var upd = {};
+  if (newRegKey !== regKey) {
+    upd['coletoresReg.'+regKey] = firebase.firestore.FieldValue.delete();
+  }
+  upd['coletoresReg.'+newRegKey] = {coletorId:newId, nome:newNome, userNome:cur.userNome||'', registradoEm:cur.registradoEm||firebase.firestore.FieldValue.serverTimestamp()};
+
+  db.collection('inv_inventarios').doc(_invAtivo.id).update(upd).then(function(){
+    // Propaga pra bipagens já feitas com o ID antigo (ID e/ou nome corrigidos)
+    return db.collection('inv_bipagens').where('invId','==',_invAtivo.id).get();
+  }).then(function(snap){
+    var docs = snap.docs.filter(function(d){ return d.data().coletorId===oldId; });
+    if (!docs.length) return;
+    var chunks = [];
+    for (var i=0;i<docs.length;i+=400) chunks.push(docs.slice(i,i+400));
+    var chain = Promise.resolve();
+    chunks.forEach(function(chunk){
+      chain = chain.then(function(){
+        var batch = db.batch();
+        chunk.forEach(function(d){ batch.update(d.ref, {coletorId:newId, coletorNome:newNome}); });
+        return batch.commit();
+      });
+    });
+    return chain;
+  }).then(function(){
+    _fecharModalEditColetor();
+    renderInvColetores();
+  }).catch(function(e){ alert('Erro ao salvar: '+e.message); });
+}
+
+function _excluirColetorReg(regKey) {
+  var reg = window._invColetoresRegCache||{};
+  var cur = reg[regKey]; if(!cur||!_invAtivo) return;
+  if (!confirm('Remover "'+cur.nome+'" ('+cur.coletorId+') da lista de coletores identificados?\n\nAs bipagens já feitas por ele continuam normalmente — só some o registro desta lista.')) return;
+  var upd = {}; upd['coletoresReg.'+regKey] = firebase.firestore.FieldValue.delete();
+  db.collection('inv_inventarios').doc(_invAtivo.id).update(upd).then(function(){
+    renderInvColetores();
+  }).catch(function(e){ alert('Erro ao excluir: '+e.message); });
 }
 
 function voltarInvLista() {
