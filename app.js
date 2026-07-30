@@ -1,5 +1,5 @@
 ﻿// Verificação de versão — roda antes de tudo
-var BUILD = '270';
+var BUILD = '271';
 (function() {
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
@@ -499,7 +499,12 @@ function saveUsers(list) {
 
 function loadUsersFromFirebase(callback) {
   db.collection('usuarios').get().then(function(snap){
-    var list = snap.docs.map(function(d){return d.data();});
+    // 'usuarios' é global entre clientes — filtra pelo tenant logado.
+    // Docs de antes do multi-tenant (BUILD 231) não têm clienteId; sempre eram da Economico.
+    var myClient = (S.currentUser && S.currentUser.clienteId) || '';
+    var list = snap.docs.map(function(d){return d.data();}).filter(function(u){
+      return (u.clienteId || 'economico') === myClient;
+    });
     S.usersCache = list;
     localStorage.setItem(UKEY, JSON.stringify(list));
     if (callback) callback();
@@ -1358,8 +1363,12 @@ function finalizarLogin(found) {
   // Carregar tudo do Firebase
   Promise.all([
     db.collection('usuarios').get().then(function(snap){
-      var list = snap.docs.map(function(d){return d.data();});
-      if (!list.some(function(u){return u.id==='admin';})) list.unshift(DEFAULT_USERS[0]);
+      // 'usuarios' é global entre clientes — filtra pelo tenant logado.
+      // Docs de antes do multi-tenant (BUILD 231) não têm clienteId; sempre eram da Economico.
+      var myClient = (S.currentUser && S.currentUser.clienteId) || '';
+      var list = snap.docs.map(function(d){return d.data();}).filter(function(u){
+        return (u.clienteId || 'economico') === myClient;
+      });
       S.usersCache = list;
     }),
     db.collection('checklists').get().then(function(snap){
