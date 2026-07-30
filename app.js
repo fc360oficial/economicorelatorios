@@ -1,5 +1,5 @@
 ﻿// Verificação de versão — roda antes de tudo
-var BUILD = '257';
+var BUILD = '258';
 (function() {
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
@@ -4470,6 +4470,7 @@ function abrirModalUser() {
   ['u-nome','u-email','u-senha','u-senha2','u-cargo','u-loja','u-telefone'].forEach(function(id){document.getElementById(id).value='';});
   document.getElementById('u-perfil').value='operator';
   document.getElementById('u-setor').value='Geral';
+  var ca=document.getElementById('u-checklist-ativo'); if(ca) ca.checked=true;
   document.getElementById('mu-err').style.display='none';
   var hint=document.getElementById('senha-hint');
   if (hint) hint.textContent='';
@@ -4495,6 +4496,7 @@ function editarUser(id) {
   document.getElementById('u-cargo').value=u.cargo||'';
   document.getElementById('u-loja').value=u.loja||'';
   document.getElementById('u-telefone').value=u.telefone||'';
+  var ca=document.getElementById('u-checklist-ativo'); if(ca) ca.checked=(u.checklistAtivo!==false);
   document.getElementById('mu-err').style.display='none';
   var hint=document.getElementById('senha-hint');
   if (hint) hint.textContent='(em branco = manter atual)';
@@ -4511,6 +4513,7 @@ function salvarUser() {
   var cargo=document.getElementById('u-cargo').value.trim();
   var loja=document.getElementById('u-loja').value.trim();
   var telefone=(document.getElementById('u-telefone').value||'').replace(/\D/g,'');
+  var checklistAtivo=(document.getElementById('u-checklist-ativo')||{checked:true}).checked;
   var err=document.getElementById('mu-err');
   if (!nome){err.textContent='Informe o nome.';err.style.display='block';return;}
   if (!email||email.indexOf('@')<0){err.textContent='E-mail inválido.';err.style.display='block';return;}
@@ -4528,11 +4531,11 @@ function salvarUser() {
       var existing = users.find(function(u){return u.id===editingUserId;}) || {};
       // Admin nunca perde o perfil 'admin' pelo select (select não tem essa opção)
       var perfilFinal = editingUserId==='admin' ? 'admin' : perfil;
-      var updates = {nome:nome, email:email, perfil:perfilFinal, setor:setor, cargo:cargo, loja:loja, telefone:telefone};
+      var updates = {nome:nome, email:email, perfil:perfilFinal, setor:setor, cargo:cargo, loja:loja, telefone:telefone, checklistAtivo:checklistAtivo};
       if (senhaFinal) updates.senha = senhaFinal;
       users=users.map(function(u){return u.id===editingUserId?Object.assign({},u,updates):u;});
     } else {
-      users.push({id:genId(),nome:nome,email:email,senha:senhaFinal,perfil:perfil,setor:setor,cargo:cargo,loja:loja,telefone:telefone,ativo:true});
+      users.push({id:genId(),nome:nome,email:email,senha:senhaFinal,perfil:perfil,setor:setor,cargo:cargo,loja:loja,telefone:telefone,ativo:true,checklistAtivo:checklistAtivo});
     }
     saveUsers(users);
     fecharModalUser();
@@ -4907,7 +4910,20 @@ function _renderDashEquipe() {
   var resultadosHoje = window._dashEquipeResultadosHoje || [];
   var perfisLabel    = {gerencia:'Gerência', operator:'Operador', prevencao:'Prevenção', supervisor:'Supervisão', admin:'Admin'};
   var _perfisChecklist = ['operator','prevencao','gerencia'];
-  var todosUsers = getUsers().filter(function(u){ return u.ativo && _perfisChecklist.indexOf(u.perfil) !== -1; });
+  var _allCkUsers = getUsers().filter(function(u){ return u.ativo && u.checklistAtivo!==false && _perfisChecklist.indexOf(u.perfil) !== -1; });
+  // Tabs dinâmicos
+  var _tabsEl = document.getElementById('dash-equipe-tabs');
+  if (_tabsEl) {
+    var _tabDefs = [{id:'gerencia',label:'Gerência'},{id:'operator',label:'Operadores'},{id:'prevencao',label:'Prevenção'}];
+    var _tabsHtml = '<div class="tab '+(_dashEquipePerfilAtivo==='todos'?'on':'')+'" id="dash-eq-tab-todos" onclick="_dashEquipeTab(\'todos\',this)">Todos</div>';
+    _tabDefs.forEach(function(t){
+      if (_allCkUsers.some(function(u){return u.perfil===t.id;}))
+        _tabsHtml += '<div class="tab '+(_dashEquipePerfilAtivo===t.id?'on':'')+'" id="dash-eq-tab-'+t.id+'" onclick="_dashEquipeTab(\''+t.id+'\',this)">'+t.label+'</div>';
+    });
+    _tabsEl.innerHTML = _tabsHtml;
+  }
+  if (_dashEquipePerfilAtivo!=='todos' && !_allCkUsers.some(function(u){return u.perfil===_dashEquipePerfilAtivo;})) _dashEquipePerfilAtivo='todos';
+  var todosUsers = _allCkUsers;
   var users = _dashEquipePerfilAtivo === 'todos'
     ? todosUsers
     : todosUsers.filter(function(u){ return u.perfil === _dashEquipePerfilAtivo; });
@@ -4926,7 +4942,11 @@ function _renderDashEquipe() {
       return (resHoje.some(function(r){return r.operador===b.nome;})?1:0)-(resHoje.some(function(r){return r.operador===a.nome;})?1:0);
     });
   } else {
-    users = users.slice().sort(function(a,b){return a.nome.localeCompare(b.nome,'pt');});
+    var _perfilOrd = {gerencia:0, operator:1, prevencao:2};
+    users = users.slice().sort(function(a,b){
+      var po = (_perfilOrd[a.perfil]||9) - (_perfilOrd[b.perfil]||9);
+      return po !== 0 ? po : a.nome.localeCompare(b.nome,'pt');
+    });
   }
   if (!users.length) {
     dashEquipe.innerHTML = '<div style="text-align:center;color:var(--t3);font-size:13px;padding:20px;grid-column:1/-1">Nenhum usuário encontrado</div>';
@@ -5434,7 +5454,7 @@ function renderRelChecklist() {
   // Resumo do dia - usa filtro selecionado
   var resultadosHoje = getResultadosFiltradosDia().filter(function(r){return !r.resetado;});
   var _pcl = ['operator','prevencao','gerencia'];
-  var users = getUsers().filter(function(u){return u.ativo && _pcl.indexOf(u.perfil)!==-1;});
+  var users = getUsers().filter(function(u){return u.ativo && u.checklistAtivo!==false && _pcl.indexOf(u.perfil)!==-1;});
   var resumoDiv = document.getElementById('rel-resumo-dia');
   var PLABEL2 = {gerencia:'Gerência',operator:'Operador',prevencao:'Prevenção'};
   var _ag = {gerencia:'linear-gradient(135deg,#3b82f6,#1d4ed8)',prevencao:'linear-gradient(135deg,#f59e0b,#b45309)',operator:'linear-gradient(135deg,#10b981,#047857)'};
@@ -5769,7 +5789,7 @@ function renderRelExecutivo() {
 
   // Equipe cards
   var _pclExec = ['operator','prevencao','gerencia'];
-  var users = getUsers().filter(function(u){return u.ativo && _pclExec.indexOf(u.perfil)!==-1;});
+  var users = getUsers().filter(function(u){return u.ativo && u.checklistAtivo!==false && _pclExec.indexOf(u.perfil)!==-1;});
   var PLABEL = {gerencia:'Gerência',operator:'Operador',prevencao:'Prevenção'};
   var _agExec = {gerencia:'linear-gradient(135deg,#3b82f6,#1d4ed8)',prevencao:'linear-gradient(135deg,#f59e0b,#b45309)',operator:'linear-gradient(135deg,#10b981,#047857)'};
   var eq = document.getElementById('exec-equipe');
@@ -6332,7 +6352,7 @@ function exportarRelatorioSupervisor() {
   var resultadosOntem = todosResultados.filter(function(r){ return r.dataHora && r.dataHora.indexOf(ontemStr)===0 && !r.resetado; });
 
   var _pclPdf = ['operator','prevencao','gerencia'];
-  var todosUsers = getUsers().filter(function(u){ return u.ativo && _pclPdf.indexOf(u.perfil)!==-1; });
+  var todosUsers = getUsers().filter(function(u){ return u.ativo && u.checklistAtivo!==false && _pclPdf.indexOf(u.perfil)!==-1; });
   var todasPend  = getPendencias();
 
   // ── KPIs (idênticos ao dashboard) ──────────────────────────────────────────
@@ -7949,7 +7969,7 @@ function _renderRelatorios_unused() {
   var hoje2 = hoje;
   var resultadosHoje = resultados.filter(function(r){return r.dataHora && r.dataHora.indexOf(hoje2)===0 && !r.resetado;});
   var _pcl2 = ['operator','prevencao','gerencia'];
-  var users = getUsers().filter(function(u){return u.ativo && _pcl2.indexOf(u.perfil)!==-1;});
+  var users = getUsers().filter(function(u){return u.ativo && u.checklistAtivo!==false && _pcl2.indexOf(u.perfil)!==-1;});
   var resumoDiv = document.getElementById('rel-resumo-dia');
   if (!users.length && !resultadosHoje.length) {
     resumoDiv.innerHTML = '<div style="text-align:center;color:var(--t3);padding:20px;font-size:13px;grid-column:1/-1">Nenhum envio hoje</div>';
