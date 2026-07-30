@@ -1,5 +1,5 @@
 ﻿// Verificação de versão — roda antes de tudo
-var BUILD = '266';
+var BUILD = '267';
 (function() {
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
@@ -4984,7 +4984,7 @@ function _renderDashEquipe() {
       +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">'
       +'<div style="width:38px;height:38px;border-radius:50%;background:'+avatarBg+';display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0;letter-spacing:.3px">'+initials+'</div>'
       +'<div style="min-width:0">'
-      +'<div style="font-size:12.5px;font-weight:600;color:var(--t);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3">'+u.nome+'</div>'
+      +'<div title="'+u.nome+'" style="font-size:12.5px;font-weight:600;color:var(--t);white-space:normal;line-height:1.3;word-break:break-word">'+u.nome+'</div>'
       +'<div style="font-size:10px;color:var(--t3);line-height:1.3">'+(perfisLabel[u.perfil]||u.perfil)+'</div>'
       +'</div></div>'
       +'<div style="display:flex;align-items:center;gap:6px">'
@@ -5470,7 +5470,7 @@ function renderRelChecklist() {
     return '<div style="padding:12px 14px;border-radius:14px;background:var(--w);border:1px solid rgba(0,0,0,.07);box-shadow:0 1px 3px rgba(0,0,0,.04),0 2px 8px rgba(0,0,0,.05)">'
       +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">'
       +'<div style="width:38px;height:38px;border-radius:50%;background:'+avatarBg+';display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0;letter-spacing:.3px">'+initials+'</div>'
-      +'<div style="min-width:0"><div style="font-size:12.5px;font-weight:600;color:var(--t);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3">'+u.nome+'</div>'
+      +'<div style="min-width:0"><div title="'+u.nome+'" style="font-size:12.5px;font-weight:600;color:var(--t);white-space:normal;line-height:1.3;word-break:break-word">'+u.nome+'</div>'
       +'<div style="font-size:10px;color:var(--t3);line-height:1.3">'+(PLABEL2[u.perfil]||u.perfil)+'</div></div></div>'
       +'<span style="font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:20px;background:'+statusBg+';color:'+statusColor+'">'+statusLabel+'</span>'
       +'</div>';
@@ -5805,7 +5805,7 @@ function renderRelExecutivo() {
     return '<div style="padding:12px 14px;border-radius:14px;background:var(--w);border:1px solid rgba(0,0,0,.07);box-shadow:0 1px 3px rgba(0,0,0,.04),0 2px 8px rgba(0,0,0,.05)">'
       +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">'
       +'<div style="width:38px;height:38px;border-radius:50%;background:'+avatarBg+';display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0;letter-spacing:.3px">'+initials+'</div>'
-      +'<div style="min-width:0"><div style="font-size:12.5px;font-weight:600;color:var(--t);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3">'+u.nome+'</div>'
+      +'<div style="min-width:0"><div title="'+u.nome+'" style="font-size:12.5px;font-weight:600;color:var(--t);white-space:normal;line-height:1.3;word-break:break-word">'+u.nome+'</div>'
       +'<div style="font-size:10px;color:var(--t3);line-height:1.3">'+(PLABEL[u.perfil]||u.perfil)+'</div></div></div>'
       +'<span style="font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:20px;background:'+statusBg+';color:'+statusColor+'">'+statusLabel+'</span>'
       +'</div>';
@@ -8040,7 +8040,7 @@ function _renderRelatorios_unused() {
       return '<div style="padding:12px 14px;border-radius:14px;background:var(--w);border:1px solid rgba(0,0,0,.07);box-shadow:0 1px 3px rgba(0,0,0,.04),0 2px 8px rgba(0,0,0,.05)">'
         +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">'
         +'<div style="width:38px;height:38px;border-radius:50%;background:'+avatarBg+';display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0;letter-spacing:.3px">'+initials+'</div>'
-        +'<div style="min-width:0"><div style="font-size:12.5px;font-weight:600;color:var(--t);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3">'+u.nome+'</div>'
+        +'<div style="min-width:0"><div title="'+u.nome+'" style="font-size:12.5px;font-weight:600;color:var(--t);white-space:normal;line-height:1.3;word-break:break-word">'+u.nome+'</div>'
         +'<div style="font-size:10px;color:var(--t3);line-height:1.3">'+(PLABEL2[u.perfil]||u.perfil)+'</div></div></div>'
         +'<span style="font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:20px;background:'+statusBg+';color:'+statusColor+'">'+statusLabel+'</span>'
         +'</div>';
