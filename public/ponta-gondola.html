@@ -295,7 +295,10 @@ function abrirPopup(id) {
         <div class="fg"><label>Início do acordo</label><input type="date" id="f-inicio" value="${p.inicio || ''}"></div>
         <div class="fg"><label>Fim do acordo</label><input type="date" id="f-fim" value="${p.fim || ''}"></div>
       </div>
-      <div class="acts"><button class="btn btn-blue" onclick="salvarPonta()">💾 Salvar</button></div>
+      <div class="acts">
+        <button class="btn btn-blue" onclick="salvarPonta()">💾 Salvar</button>
+        ${p.comprador || p.fornecedor || p.inicio || p.fim ? '<button class="btn btn-slate" onclick="limparPonta()">🧹 Encerrar / deixar livre</button>' : ''}
+      </div>
       <div id="msg-salvar"></div>
       <div style="margin-top:14px;font-size:11px;color:var(--ink-3)">📄 Modelo de contrato e upload do assinado chegam em breve nessa tela.</div>
       <div class="popup-sec">Zona de risco</div>
@@ -324,6 +327,24 @@ async function salvarPonta() {
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || 'Erro ao salvar.');
     msg.innerHTML = '<div class="msg-ok">Salvo com sucesso.</div>';
+    await carregar();
+    abrirPopup(popupId);
+  } catch (e) {
+    msg.innerHTML = `<div class="msg-err">${e.message}</div>`;
+  }
+}
+
+// Diferente de excluir: a ponta continua existindo (mesmo número, mesma
+// loja), só volta a ficar livre — pra encerrar uma negociação sem perder
+// a linha do quadro.
+async function limparPonta() {
+  if (!confirm('Encerrar a negociação dessa ponta? Ela volta a ficar livre pra um novo fornecedor.')) return;
+  const body = { comprador: '', fornecedor: '', inicio: '', fim: '' };
+  const msg = document.getElementById('msg-salvar');
+  try {
+    const r = await fetch(`/api/pontas-gondola/${popupId}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Erro ao limpar.');
     await carregar();
     abrirPopup(popupId);
   } catch (e) {
