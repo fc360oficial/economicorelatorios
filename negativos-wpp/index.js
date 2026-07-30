@@ -355,6 +355,23 @@ async function responderPergunta(jid, texto) {
       await sock.sendMessage(jid, { text: lista });
       return;
     }
+    // Reenvio manual do relatório de negativos — usado quando o ERP foi
+    // corrigido no meio do dia e as lojas precisam do PDF atualizado sem
+    // esperar o cron de amanhã às 8h.
+    if (/^reenviar\s+negativos\s*$/i.test(texto.trim())) {
+      await sock.sendMessage(jid, { text: 'Buscando negativos atualizados e reenviando pro grupo...' });
+      try {
+        const porLoja = await buscarNegativos();
+        const total = Object.values(porLoja).reduce((s, arr) => s + arr.length, 0);
+        if (!total) { await sock.sendMessage(jid, { text: 'Nenhum estoque negativo encontrado agora.' }); return; }
+        await enviarPDFsLojas(porLoja);
+        await sock.sendMessage(jid, { text: `Reenviado! ${total} produto(s) negativos no total.` });
+      } catch (err) {
+        logger.error({ err }, 'Erro ao reenviar negativos manualmente');
+        await sock.sendMessage(jid, { text: `Erro ao reenviar: ${err.message}` });
+      }
+      return;
+    }
   }
 
   // Gatilho por palavra-chave ("custo") desativado: o bot está conectado no
