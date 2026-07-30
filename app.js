@@ -1,5 +1,5 @@
 ﻿// Verificação de versão — roda antes de tudo
-var BUILD = '269';
+var BUILD = '270';
 (function() {
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
@@ -1185,7 +1185,10 @@ function finalizarLogin(found) {
   // restauração de sessão (eco_session), então a validação fica aqui, não duplicada nos dois.
   var deployClient = (window.FC360_CLIENT_ID || '').trim();
   var userClient = found.clienteId || '';
-  if (userClient !== deployClient) {
+  // Superadmin não pertence a nenhum cliente — o roteamento dele já é 100% por
+  // role (vai direto pro painel de clientes, ver S.role==='superadmin' abaixo),
+  // então fica isento da checagem de deploy pra poder gerenciar clientes de qualquer URL.
+  if (found.perfil !== 'superadmin' && userClient !== deployClient) {
     try { sessionStorage.removeItem('eco_session'); } catch(e) {}
     firebase.auth().signOut().catch(function(){});
     var errEl = document.getElementById('lErr');
