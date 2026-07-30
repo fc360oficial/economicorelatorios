@@ -32,23 +32,23 @@ body{font-family:var(--font);background:var(--bg);color:var(--ink);min-height:10
 .legenda .it{display:flex;align-items:center;gap:6px}
 .legenda .sw{width:11px;height:11px;border-radius:3px;flex-shrink:0}
 
-.board{display:flex;gap:14px;overflow-x:auto;padding-bottom:8px}
-.loja-col{background:var(--surface);border:1px solid var(--border);border-radius:12px;min-width:230px;flex:1;box-shadow:0 1px 2px rgba(22,35,63,.04);display:flex;flex-direction:column}
-.loja-hd{background:var(--ink);color:#fff;font-size:12px;font-weight:800;letter-spacing:.4px;text-align:center;padding:10px 8px;border-radius:12px 12px 0 0}
-.loja-body{padding:8px;flex:1}
-.ponta-row{display:flex;align-items:center;gap:8px;padding:8px 8px;border-radius:8px;margin-bottom:6px;cursor:pointer;border-left:4px solid var(--border-strong);background:var(--bg)}
+.board{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
+.loja-col{background:var(--surface);border:1px solid var(--border);border-radius:12px;min-width:0;box-shadow:0 1px 2px rgba(22,35,63,.04);display:flex;flex-direction:column}
+.loja-hd{background:var(--ink);color:#fff;font-size:11px;font-weight:800;letter-spacing:.3px;text-align:center;padding:9px 6px;border-radius:12px 12px 0 0}
+.loja-body{padding:7px;flex:1}
+.ponta-row{display:flex;flex-direction:column;gap:1px;padding:6px 8px;border-radius:8px;margin-bottom:5px;cursor:pointer;border-left:4px solid var(--border-strong);background:var(--bg);min-width:0}
 .ponta-row:hover{background:var(--surface-2)}
 .ponta-row.st-ok{border-left-color:var(--green)}
 .ponta-row.st-atencao{border-left-color:var(--brand);background:#FFF9E6}
 .ponta-row.st-comprar{border-left-color:var(--laranja);background:var(--laranja-bg)}
 .ponta-row.st-vencido{border-left-color:var(--red);background:var(--red-bg)}
-.ponta-num{font-size:10px;font-weight:800;color:var(--ink-3);width:44px;flex-shrink:0}
-.ponta-info{flex:1;min-width:0}
-.ponta-comp{font-size:11px;font-weight:700;color:var(--ink)}
-.ponta-forn{font-size:10.5px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ponta-vazia{font-size:11px;color:var(--ink-3);font-style:italic}
-.loja-add{margin:4px 8px 10px;text-align:center}
-.btn-add{background:none;border:1px dashed var(--border-strong);border-radius:8px;padding:7px 10px;font-size:11px;font-weight:700;color:var(--ink-3);cursor:pointer;width:100%;font-family:var(--font)}
+.ponta-num{font-size:9px;font-weight:800;color:var(--ink-3);letter-spacing:.3px;white-space:nowrap}
+.ponta-info{min-width:0}
+.ponta-comp{font-size:10.5px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ponta-forn{font-size:10px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ponta-vazia{font-size:10.5px;color:var(--ink-3);font-style:italic}
+.loja-add{margin:4px 7px 9px;text-align:center}
+.btn-add{background:none;border:1px dashed var(--border-strong);border-radius:8px;padding:6px 8px;font-size:10px;font-weight:700;color:var(--ink-3);cursor:pointer;width:100%;font-family:var(--font)}
 .btn-add:hover{border-color:var(--brand);color:var(--brand-ink)}
 
 /* POPUP lateral (mesmo padrão do Conciliador) */
@@ -130,7 +130,9 @@ async function carregar() {
     fetch('/api/ruptura/compradores').then(r => r.json()).catch(() => [])
   ]);
   dados = r1;
-  compradores = Array.isArray(r2) ? r2 : [];
+  // Lista de compradoras é a mesma usada em Rupturas/Margem, mais o
+  // Rodrigo (diretor), que também fecha negociação de ponta de gôndola.
+  compradores = (Array.isArray(r2) ? r2 : []).concat('RODRIGO CAHU').sort();
   render();
 }
 
@@ -152,7 +154,7 @@ function render() {
       <div class="loja-body">
         ${pontas.map(p => `
           <div class="ponta-row st-${p.status}" onclick="abrirPopup(${p.id})">
-            <div class="ponta-num">PONTA ${p.numero}</div>
+            <div class="ponta-num">PONTA ${String(p.numero).padStart(2, '0')}</div>
             <div class="ponta-info">
               ${p.comprador
                 ? `<div class="ponta-comp">${p.comprador}</div><div class="ponta-forn">${p.fornecedor || 'sem fornecedor'}</div>`
@@ -185,7 +187,10 @@ function abrirPopup(id) {
     </div>
     <div class="popup-bd">
       <div class="fg"><label>Compradora responsável</label><select id="f-comprador">${optsComprador}</select></div>
-      <div class="fg"><label>Fornecedor</label><input id="f-fornecedor" value="${p.fornecedor || ''}" placeholder="Nome do fornecedor"></div>
+      <div class="fg"><label>Fornecedor</label>
+        <input id="f-fornecedor" value="${p.fornecedor || ''}" placeholder="Digite pra buscar no cadastro..." list="dl-fornecedor" oninput="buscarFornecedor(this.value)" autocomplete="off">
+        <datalist id="dl-fornecedor"></datalist>
+      </div>
       <div class="grid2">
         <div class="fg"><label>Início do acordo</label><input type="date" id="f-inicio" value="${p.inicio || ''}"></div>
         <div class="fg"><label>Fim do acordo</label><input type="date" id="f-fim" value="${p.fim || ''}"></div>
@@ -193,6 +198,8 @@ function abrirPopup(id) {
       <div class="acts"><button class="btn btn-blue" onclick="salvarPonta()">💾 Salvar</button></div>
       <div id="msg-salvar"></div>
       <div style="margin-top:14px;font-size:11px;color:var(--ink-3)">📄 Modelo de contrato e upload do assinado chegam em breve nessa tela.</div>
+      <div class="popup-sec">Zona de risco</div>
+      <button class="btn btn-slate" style="color:var(--red);border-color:var(--red)" onclick="excluirPonta()">🗑️ Excluir esta ponta</button>
     </div>`;
   document.getElementById('popup').classList.add('on');
   document.getElementById('backdrop').classList.add('on');
@@ -224,21 +231,29 @@ async function salvarPonta() {
   }
 }
 
-async function enviarContrato() {
-  const input = document.getElementById('f-contrato');
-  const msg = document.getElementById('msg-contrato');
-  if (!input.files.length) { msg.innerHTML = '<div class="msg-err">Escolha um arquivo PDF.</div>'; return; }
-  const fd = new FormData();
-  fd.append('contrato', input.files[0]);
+let buscaFornecedorTimer = null;
+function buscarFornecedor(termo) {
+  clearTimeout(buscaFornecedorTimer);
+  if (termo.trim().length < 2) return;
+  buscaFornecedorTimer = setTimeout(async () => {
+    try {
+      const r = await fetch(`/api/fornecedores/buscar?q=${encodeURIComponent(termo.trim())}`);
+      const lista = await r.json();
+      const dl = document.getElementById('dl-fornecedor');
+      if (dl) dl.innerHTML = lista.map(f => `<option value="${f.nome}">`).join('');
+    } catch (e) { /* busca falhou, mantém o que já tava digitado */ }
+  }, 250);
+}
+
+async function excluirPonta() {
+  if (!confirm('Excluir essa ponta de gôndola? Isso apaga também os dados de negociação preenchidos nela.')) return;
   try {
-    const r = await fetch(`/api/pontas-gondola/${popupId}/contrato`, { method: 'POST', body: fd });
-    const j = await r.json();
-    if (!r.ok) throw new Error(j.error || 'Erro ao enviar contrato.');
-    msg.innerHTML = '<div class="msg-ok">Contrato enviado.</div>';
+    const r = await fetch(`/api/pontas-gondola/${popupId}`, { method: 'DELETE' });
+    if (!r.ok) throw new Error((await r.json()).error || 'Erro ao excluir.');
+    fecharPopup();
     await carregar();
-    abrirPopup(popupId);
   } catch (e) {
-    msg.innerHTML = `<div class="msg-err">${e.message}</div>`;
+    alert(e.message);
   }
 }
 

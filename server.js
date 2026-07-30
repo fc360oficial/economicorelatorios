@@ -3928,9 +3928,37 @@ app.post('/api/conciliador/confirmar-avulso', (req, res) => {
 //   limits: { fileSize: 15 * 1024 * 1024 }
 // });
 
+// Autocomplete de fornecedor pro Controle de Ponta de Gôndola — busca no
+// cadastro do ERP pra trazer a razão social certa (ex: digitar "sao braz"
+// já mostra "SAO BRAZ CIA IND DE ALIMENTOS").
+app.get('/api/fornecedores/buscar', async (req, res) => {
+  try {
+    const termo = (req.query.q || '').trim();
+    if (termo.length < 2) return res.json([]);
+    const rows = await q(
+      'SELECT CodFornec, Nome, NomeCompleto FROM central.fornecedor WHERE Nome LIKE ? OR NomeCompleto LIKE ? ORDER BY NomeCompleto LIMIT 15',
+      [`%${termo}%`, `%${termo}%`]
+    );
+    res.json(rows.map(r => ({ codFornec: r.CodFornec, nome: r.NomeCompleto || r.Nome })));
+  } catch (err) {
+    console.error('[FORNECEDORES-BUSCA-ERR]', err.message);
+    res.status(500).json({ error: err.message || 'Erro ao buscar fornecedor.' });
+  }
+});
+
 app.get('/api/pontas-gondola', (req, res) => {
   const lista = pontaGondola.comPlano(pontaGondola.carregarPontas());
   res.json({ lojas: pontaGondola.LOJAS, pontas: lista });
+});
+
+app.delete('/api/pontas-gondola/:id', (req, res) => {
+  const id = parseInt(req.params.id);
+  const lista = pontaGondola.carregarPontas();
+  const idx = lista.findIndex(p => p.id === id);
+  if (idx < 0) return res.status(404).json({ error: 'Ponta não encontrada.' });
+  lista.splice(idx, 1);
+  pontaGondola.salvarPontas(lista);
+  res.json({ ok: true });
 });
 
 app.post('/api/pontas-gondola/loja/:loja/adicionar', (req, res) => {
