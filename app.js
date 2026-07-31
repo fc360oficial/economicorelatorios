@@ -1,5 +1,5 @@
 ﻿// Verificação de versão — roda antes de tudo
-var BUILD = '287';
+var BUILD = '288';
 (function() {
   var vEl = document.getElementById('sb-versao');
   if (vEl) vEl.textContent = 'v' + BUILD;
@@ -11957,7 +11957,7 @@ function fecharModalExcluirInv() {
 
 function confirmarExcluirInv() {
   var invId = _excluirInvId; if (!invId) return;
-  var senha = (document.getElementById('excluir-inv-senha')||{}).value || '';
+  var senha = ((document.getElementById('excluir-inv-senha')||{}).value || '').trim();
   var errEl = document.getElementById('excluir-inv-err');
   var btn = document.getElementById('btn-confirmar-excluir');
 
