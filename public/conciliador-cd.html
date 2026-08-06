@@ -96,14 +96,29 @@ table.t th.r,table.t td.r{text-align:right}
 .nota-valor{background:#FBEDDD;color:#B45C00}
 .nota-vazia{background:var(--surface-2);color:var(--ink-3);font-weight:600}
 
+.print-header{display:none}
+.print-footer{display:none}
+
 @media print{
-  #dsnav,.entrada,.busca-row,.painel-hd .btn{display:none!important}
+  #dsnav,.entrada,.busca-row,.painel-hd .btn,.page-hdr,.kpi-row{display:none!important}
   body.dsnav-pad{margin-left:0!important;padding-top:0!important}
   .cols{grid-template-columns:1fr!important;display:block!important}
   .painel{box-shadow:none;border:1px solid #999;margin-bottom:12px;break-inside:avoid}
   .table-wrap{max-height:none!important;overflow:visible!important}
   table.t thead th{position:static}
   .resumo-list{max-height:none!important;overflow:visible!important}
+  .painel-hd .sub{display:none!important}
+  .print-header{
+    display:flex!important;align-items:center;gap:14px;
+    margin-bottom:14px;padding-bottom:12px;border-bottom:3px solid #F5B800;
+  }
+  .print-header img{height:36px;width:auto}
+  .print-header-txt h1{font-size:17px;font-weight:800;color:#0E1626;letter-spacing:-.3px}
+  .print-header-txt p{font-size:11px;color:#4E5A72;margin-top:2px}
+  .print-footer{display:block!important;margin-top:16px;padding-top:8px;border-top:1px solid #DADAD6;font-size:10px;color:#4E5A72;text-align:right}
+  /* com fornecedor filtrado, a impressão mostra só a linha dele no resumo */
+  body.cd-print-filtrado .rp-row:not(.on){display:none!important}
+  body.cd-print-filtrado .rp-total-row{display:none!important}
 }
 </style>
 </head>
@@ -212,8 +227,8 @@ function notaCelHtml(it) {
   if (!it.nota) return '<span class="nota-pill nota-vazia">Sem nota na loja</span>';
   const classe = it.nota.confianca === 'nome' ? 'nota-ok' : 'nota-valor';
   const rotulo = it.nota.confianca === 'nome' ? 'Nota' : 'Nota (só valor bate)';
-  let html = `<span class="nota-pill ${classe}">${rotulo} ${esc(it.nota.nNota)}</span>` +
-    `<div class="hist">${esc(it.nota.fornecedor)} · ${fmtData(it.nota.dataEmissao)}</div>`;
+  let html = `<span class="nota-pill ${classe}">${rotulo} ${esc(it.nota.nNota)} · entrou ${fmtData(it.nota.dataEmissao)}</span>` +
+    `<div class="hist">${esc(it.nota.fornecedor)}</div>`;
   if (it.notaCandidatos && it.notaCandidatos.length) {
     html += `<div class="hist">+${it.notaCandidatos.length} outra${it.notaCandidatos.length > 1 ? 's' : ''} nota${it.notaCandidatos.length > 1 ? 's' : ''} com esse valor</div>`;
   }
@@ -226,6 +241,7 @@ function render() {
 
   const itens = itensFiltrados();
   const qtdeDestinatarios = dados.totais.length;
+  document.body.classList.toggle('cd-print-filtrado', !!favorecidoAtivo);
 
   const kpis = `<div class="kpi-row">
     <div class="kpi"><div class="v">${fmtMoeda(dados.totalValor)}</div><div class="l">Total de saídas</div></div>
@@ -285,7 +301,16 @@ function render() {
     <div class="rp-total-row"><span>Total geral</span><span>${fmtMoeda(dados.totalValor)}</span></div>
   </div>`;
 
-  cont.innerHTML = kpis + busca_ + `<div class="cols">${detalhe}${resumo}</div>`;
+  const printHeader = `<div class="print-header">
+    <img src="/logo.png" alt="Econômico">
+    <div class="print-header-txt">
+      <h1>Econômico Relatórios</h1>
+      <p>Conciliador CD · Saídas do extrato${favorecidoAtivo ? ' · ' + esc(favorecidoAtivo) : ''}</p>
+    </div>
+  </div>`;
+  const printFooter = `<div class="print-footer">Emitido em ${new Date().toLocaleString('pt-BR')}</div>`;
+
+  cont.innerHTML = printHeader + kpis + busca_ + `<div class="cols">${detalhe}${resumo}</div>` + printFooter;
 }
 </script>
 </body>
