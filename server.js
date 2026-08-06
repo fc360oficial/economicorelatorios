@@ -10,6 +10,24 @@ const { conciliar, addDias, TOLERANCIA_DIAS: TOLERANCIA_CONCILIADOR, chaveSaida,
 const multer = require('multer');
 const pontaGondola = require('./lib/ponta-gondola');
 
+// Congela o resultado de meses já fechados de Avaria/Prevenção. Sem isso, um
+// NF emitida atrasada (DataEmi de um mês que já passou) mudava o total/% de
+// um mês fechado toda vez que a página recarregasse — o relatório de um mês
+// que já era passado não deveria mais se mexer. Uma vez calculado, um mês
+// fechado (ano-mês anterior ao mês corrente real) nunca mais é recalculado.
+const AVARIA_CONGELADO_PATH = path.join(__dirname, 'data', 'avaria-mensal-congelado.json');
+function carregarAvariaCongelado() {
+  try { return JSON.parse(fs.readFileSync(AVARIA_CONGELADO_PATH, 'utf8')); } catch (e) { return {}; }
+}
+function salvarAvariaCongelado(obj) {
+  fs.mkdirSync(path.dirname(AVARIA_CONGELADO_PATH), { recursive: true });
+  fs.writeFileSync(AVARIA_CONGELADO_PATH, JSON.stringify(obj, null, 2));
+}
+function mesFechado(ano, mes) {
+  const hoje = new Date();
+  return ano < hoje.getFullYear() || (ano === hoje.getFullYear() && mes < hoje.getMonth() + 1);
+}
+
 // Conciliações avulsas (matches manuais com justificativa) — persistidas em
 // JSON local, nunca no MySQL do ERP (que é somente leitura).
 const AVULSOS_PATH = path.join(__dirname, 'data', 'conciliacoes-avulsas.json');
@@ -2264,79 +2282,99 @@ app.get('/api/pendencias/prevencao', withCache(60), async (req, res) => {
     const dFim = dFimMes(ano, mes);
     const mm = mesDB(mes);
 
-    const pedidosEmitidos = await q(`SELECT DISTINCT a.nPedido
-         FROM central.avariaconsumo a
-         WHERE a.nLoja=? AND a.Status=4 AND a.Tipo=1 AND a.NF > 0 AND a.DataEmi BETWEEN ? AND ?`, [loja, dIni, dFim]);
-    const pedIds = pedidosEmitidos.map(r => r.nPedido);
+    // Mês fechado (já passou) e já congelado antes: usa o valor salvo direto,
+    // sem consultar o banco de novo — é isso que trava o relatório de um mês
+    // que já fechou, mesmo que o ERP receba NF emitida com atraso depois.
+    const avariaCongeladoResumo = carregarAvariaCongelado();
+    const chaveResumo = `resumo-${loja}-${mesSel}`;
+    let emitido, aberto, tramite, valorVenda, bonificacoes, saldoAvaria, avariasFinal, pctTotal, pctFiltrada,
+      porSetor, abertoFornec, tramiteFornec, abertoItens, tramiteItens;
 
-    const pedSet = new Set(pedIds);
+    if (mesFechado(ano, mes) && avariaCongeladoResumo[chaveResumo]) {
+      ({ emitido, aberto, tramite, valorVenda, bonificacoes, saldoAvaria, avariasFinal, pctTotal, pctFiltrada,
+        porSetor, abertoFornec, tramiteFornec, abertoItens, tramiteItens } = avariaCongeladoResumo[chaveResumo]);
+    } else {
+      const pedidosEmitidos = await q(`SELECT DISTINCT a.nPedido
+           FROM central.avariaconsumo a
+           WHERE a.nLoja=? AND a.Status=4 AND a.Tipo=1 AND a.NF > 0 AND a.DataEmi BETWEEN ? AND ?`, [loja, dIni, dFim]);
+      const pedIds = pedidosEmitidos.map(r => r.nPedido);
 
-    const [emitidoRows, allAbertoTramite, vendasRows, bonifRows, totalGeralRows] = await Promise.all([
-      pedIds.length ? q(`SELECT a.CodMotivo, a.Status, a.Total, a.CodFornec, a.CodigoBarras, a.Descricao,
+      const [emitidoRows, allAbertoTramite, vendasRows, bonifRows] = await Promise.all([
+        pedIds.length ? q(`SELECT a.CodMotivo, a.Status, a.Total, a.CodFornec, a.CodigoBarras, a.Descricao,
                 a.Qtd, a.Valor, a.Und, a.Usuario, a.DataLan, a.DataEmi,
                 f.NomeCompleto as fornecedor
          FROM central.avariaconsumo a
          LEFT JOIN central.fornecedor f ON f.CodFornec=a.CodFornec
-         WHERE a.nLoja=? AND a.Tipo=1 AND a.nPedido IN (?)
-         ORDER BY a.Total DESC`, [loja, pedIds]) : Promise.resolve([]),
-      q(`SELECT a.CodMotivo, a.Status, a.Total, a.CodFornec, a.CodigoBarras, a.Descricao,
+         WHERE a.nLoja=? AND a.Tipo=1 AND a.nPedido IN (?) AND a.Status=4 AND a.NF > 0 AND a.DataEmi BETWEEN ? AND ?
+         ORDER BY a.Total DESC`, [loja, pedIds, dIni, dFim]) : Promise.resolve([]),
+        q(`SELECT a.CodMotivo, a.Status, a.Total, a.CodFornec, a.CodigoBarras, a.Descricao,
                 a.Qtd, a.Valor, a.Und, a.Usuario, a.DataLan, a.nPedido,
                 f.NomeCompleto as fornecedor
          FROM central.avariaconsumo a
          LEFT JOIN central.fornecedor f ON f.CodFornec=a.CodFornec
          WHERE a.nLoja=? AND a.Status IN (0,3) AND a.DataLan BETWEEN ? AND ?
          ORDER BY a.Status, a.Total DESC`, [loja, dIni, dFim]),
-      q(`SELECT SUM(ValorTotalNovo) as total FROM \`ln${loja}${mm}\`.zcupomitens
+        q(`SELECT SUM(ValorTotalNovo) as total FROM \`ln${loja}${mm}\`.zcupomitens
          WHERE Data BETWEEN ? AND ? AND IndCancel='N'`, [dIni, dFim]).catch(() => [{ total: 0 }]),
-      q(`SELECT SUM(ValorTotal) as total FROM central.bonificacao_averbacao
-         WHERE nLoja=? AND DataEntrada BETWEEN ? AND ?`, [loja, dIni, dFim]).catch(() => [{ total: 0 }]),
-      q(`SELECT Status, SUM(Total) as total FROM central.avariaconsumo
-         WHERE nLoja=? AND Status IN (0,3) GROUP BY Status`, [loja])
-    ]);
+        q(`SELECT SUM(ValorTotal) as total FROM central.bonificacao_averbacao
+         WHERE nLoja=? AND DataEntrada BETWEEN ? AND ?`, [loja, dIni, dFim]).catch(() => [{ total: 0 }])
+      ]);
 
-    const valorVenda = parseFloat(vendasRows[0]?.total || 0);
-    const bonificacoes = parseFloat(bonifRows[0]?.total || 0);
+      valorVenda = parseFloat(vendasRows[0]?.total || 0);
+      bonificacoes = parseFloat(bonifRows[0]?.total || 0);
 
-    let emitido = 0, aberto = 0, tramite = 0;
-    const porSetor = { AÇOUGUE: 0, HORTFRUTI: 0, PADARIA: 0 };
-    const abertoFornec = {}, tramiteFornec = {};
-    const abertoItens = [], tramiteItens = [];
+      emitido = 0; aberto = 0; tramite = 0;
+      porSetor = { AÇOUGUE: 0, HORTFRUTI: 0, PADARIA: 0 };
+      abertoFornec = {}; tramiteFornec = {};
+      abertoItens = []; tramiteItens = [];
 
-    for (const r of emitidoRows) {
-      const tot = parseFloat(r.Total);
-      emitido += tot;
-      if (r.Status === 4) {
-        const fn = (r.fornecedor || '').toUpperCase();
-        const setor = fn.includes('HORTI') ? 'HORTFRUTI'
-          : (fn.includes('AÇOUGUE') || fn.includes('ACOUGUE')) ? 'AÇOUGUE'
-          : fn.includes('PADARIA') ? 'PADARIA' : 'LOJA';
-        porSetor[setor] = (porSetor[setor] || 0) + tot;
+      for (const r of emitidoRows) {
+        const tot = parseFloat(r.Total);
+        emitido += tot;
+        if (r.Status === 4) {
+          const fn = (r.fornecedor || '').toUpperCase();
+          const setor = fn.includes('HORTI') ? 'HORTFRUTI'
+            : (fn.includes('AÇOUGUE') || fn.includes('ACOUGUE')) ? 'AÇOUGUE'
+            : fn.includes('PADARIA') ? 'PADARIA' : 'LOJA';
+          porSetor[setor] = (porSetor[setor] || 0) + tot;
+        }
+      }
+
+      for (const r of allAbertoTramite) {
+        const tot = parseFloat(r.Total);
+        if (r.Status === 0) {
+          aberto += tot;
+          const fn = r.fornecedor || 'SEM FORNECEDOR';
+          if (!abertoFornec[fn]) abertoFornec[fn] = { total: 0, qtd: 0 };
+          abertoFornec[fn].total += tot;
+          abertoFornec[fn].qtd++;
+          abertoItens.push(r);
+        } else if (r.Status === 3) {
+          tramite += tot;
+          const fn = r.fornecedor || 'SEM FORNECEDOR';
+          if (!tramiteFornec[fn]) tramiteFornec[fn] = { total: 0, qtd: 0 };
+          tramiteFornec[fn].total += tot;
+          tramiteFornec[fn].qtd++;
+          tramiteItens.push(r);
+        }
+      }
+
+      saldoAvaria = emitido - porSetor.AÇOUGUE - porSetor.HORTFRUTI - porSetor.PADARIA;
+      avariasFinal = saldoAvaria - bonificacoes;
+      pctTotal = valorVenda > 0 ? +(emitido / valorVenda * 100).toFixed(2) : 0;
+      pctFiltrada = valorVenda > 0 ? +(avariasFinal / valorVenda * 100).toFixed(2) : 0;
+
+      if (mesFechado(ano, mes)) {
+        avariaCongeladoResumo[chaveResumo] = { emitido, aberto, tramite, valorVenda, bonificacoes, saldoAvaria,
+          avariasFinal, pctTotal, pctFiltrada, porSetor, abertoFornec, tramiteFornec, abertoItens, tramiteItens };
+        salvarAvariaCongelado(avariaCongeladoResumo);
       }
     }
 
-    for (const r of allAbertoTramite) {
-      const tot = parseFloat(r.Total);
-      if (r.Status === 0) {
-        aberto += tot;
-        const fn = r.fornecedor || 'SEM FORNECEDOR';
-        if (!abertoFornec[fn]) abertoFornec[fn] = { total: 0, qtd: 0 };
-        abertoFornec[fn].total += tot;
-        abertoFornec[fn].qtd++;
-        abertoItens.push(r);
-      } else if (r.Status === 3) {
-        tramite += tot;
-        const fn = r.fornecedor || 'SEM FORNECEDOR';
-        if (!tramiteFornec[fn]) tramiteFornec[fn] = { total: 0, qtd: 0 };
-        tramiteFornec[fn].total += tot;
-        tramiteFornec[fn].qtd++;
-        tramiteItens.push(r);
-      }
-    }
-
-    const saldoAvaria = emitido - porSetor.AÇOUGUE - porSetor.HORTFRUTI - porSetor.PADARIA;
-    const avariasFinal = saldoAvaria - bonificacoes;
-    const pctTotal = valorVenda > 0 ? +(emitido / valorVenda * 100).toFixed(2) : 0;
-    const pctFiltrada = valorVenda > 0 ? +(avariasFinal / valorVenda * 100).toFixed(2) : 0;
+    // Contador corrente de tudo em aberto/trâmite na loja (não é do mês
+    // selecionado, é "hoje") — sempre ao vivo, nunca congela.
+    const totalGeralRows = await q(`SELECT Status, SUM(Total) as total FROM central.avariaconsumo
+         WHERE nLoja=? AND Status IN (0,3) GROUP BY Status`, [loja]);
 
     // Bonifs salvos para meses históricos desta loja
     const bonifHistRows = await q(`SELECT mes, valor FROM central.prevencao_bonif WHERE nLoja=? AND mes LIKE ?`, [loja, `${ano}-%`]).catch(() => []);
@@ -2350,12 +2388,19 @@ app.get('/api/pendencias/prevencao', withCache(60), async (req, res) => {
     };
     const fixos = pctFixoLoja[loja] || {};
     const mensal = [];
+    const avariaCongelado = carregarAvariaCongelado();
+    let congeladoMudou = false;
     for (let i = 5; i >= 0; i--) {
       const dt = new Date(ano, mes - 1 - i, 1);
       const mAno = dt.getFullYear(), mMes = dt.getMonth() + 1;
       const mesKey = `${mAno}-${String(mMes).padStart(2,'0')}`;
       if (mMes === 3 || mMes === 4) { mensal.push({ mes: mesKey, emitido: 0, vendas: 0, pct: 0 }); continue; }
       if (fixos[mMes] !== undefined) { mensal.push({ mes: mesKey, emitido: 0, vendas: 0, pct: fixos[mMes] }); continue; }
+      const congeladoKey = `${loja}-${mesKey}`;
+      if (mesFechado(mAno, mMes) && avariaCongelado[congeladoKey]) {
+        mensal.push({ mes: mesKey, ...avariaCongelado[congeladoKey] });
+        continue;
+      }
       const mIni = `${mAno}-${String(mMes).padStart(2,'0')}-01`;
       const mFim = dFimMes(mAno, mMes);
       const mDB = mesDB(mMes);
@@ -2366,7 +2411,7 @@ app.get('/api/pendencias/prevencao', withCache(60), async (req, res) => {
         const [mEmitRows, mAT, mVd] = await Promise.all([
           mPedIds.length ? q(`SELECT a.Status, a.Total, f.NomeCompleto as fornecedor
             FROM central.avariaconsumo a LEFT JOIN central.fornecedor f ON f.CodFornec=a.CodFornec
-            WHERE a.nLoja=? AND a.Tipo=1 AND a.nPedido IN (?)`, [loja, mPedIds]) : [],
+            WHERE a.nLoja=? AND a.Tipo=1 AND a.nPedido IN (?) AND a.Status=4 AND a.NF > 0 AND a.DataEmi BETWEEN ? AND ?`, [loja, mPedIds, mIni, mFim]) : [],
           q(`SELECT Status, Total FROM central.avariaconsumo
             WHERE nLoja=? AND Status IN (0,3) AND DataLan BETWEEN ? AND ?`, [loja, mIni, mFim]),
           q(`SELECT SUM(ValorTotalNovo) as t FROM \`ln${loja}${mDB}\`.zcupomitens
@@ -2390,10 +2435,12 @@ app.get('/api/pendencias/prevencao', withCache(60), async (req, res) => {
         const mBonif = bonifHistMap[mesKey] || 0;
         const mAvMes = (mSaldo - mBonif) + mAberto + mTramite;
         const vdT = parseFloat(mVd[0]?.t || 0);
-        mensal.push({ mes: mesKey, emitido: mAvMes, vendas: vdT,
-          pct: vdT > 0 ? +(mAvMes / vdT * 100).toFixed(2) : 0 });
+        const mResultado = { emitido: mAvMes, vendas: vdT, pct: vdT > 0 ? +(mAvMes / vdT * 100).toFixed(2) : 0 };
+        mensal.push({ mes: mesKey, ...mResultado });
+        if (mesFechado(mAno, mMes)) { avariaCongelado[congeladoKey] = mResultado; congeladoMudou = true; }
       } catch { mensal.push({ mes: mesKey, emitido: 0, vendas: 0, pct: 0 }); }
     }
+    if (congeladoMudou) salvarAvariaCongelado(avariaCongelado);
 
     const toArr = obj => Object.entries(obj).map(([nome, d]) => ({ nome, ...d })).sort((a, b) => b.total - a.total);
 
@@ -2434,7 +2481,7 @@ app.get('/api/pendencias/prevencao-consolidado', withCache(60), async (req, res)
       const [emitidoRows, allAT, vendasRows, bonifRows, avBrutaRows] = await Promise.all([
         pedIds.length ? q(`SELECT a.Status, a.Total, f.NomeCompleto as fornecedor
           FROM central.avariaconsumo a LEFT JOIN central.fornecedor f ON f.CodFornec=a.CodFornec
-          WHERE a.nLoja=? AND a.Tipo=1 AND a.nPedido IN (?)`, [loja, pedIds]) : [],
+          WHERE a.nLoja=? AND a.Tipo=1 AND a.nPedido IN (?) AND a.Status=4 AND a.NF > 0 AND a.DataEmi BETWEEN ? AND ?`, [loja, pedIds, dIni, dFim]) : [],
         q(`SELECT Status, Total FROM central.avariaconsumo
           WHERE nLoja=? AND Status IN (0,3) AND DataLan BETWEEN ? AND ?`, [loja, dIni, dFim]),
         q(`SELECT SUM(ValorTotalNovo) as total FROM \`ln${loja}${mm}\`.zcupomitens
@@ -2499,7 +2546,7 @@ app.get('/api/pendencias/prevencao-consolidado', withCache(60), async (req, res)
           const [mEmitRows, mAT, mVd] = await Promise.all([
             mPedIds.length ? q(`SELECT a.Status, a.Total, f.NomeCompleto as fornecedor
               FROM central.avariaconsumo a LEFT JOIN central.fornecedor f ON f.CodFornec=a.CodFornec
-              WHERE a.nLoja=? AND a.Tipo=1 AND a.nPedido IN (?)`, [loja, mPedIds]) : [],
+              WHERE a.nLoja=? AND a.Tipo=1 AND a.nPedido IN (?) AND a.Status=4 AND a.NF > 0 AND a.DataEmi BETWEEN ? AND ?`, [loja, mPedIds, mIni, mFim]) : [],
             q(`SELECT Status, Total FROM central.avariaconsumo
               WHERE nLoja=? AND Status IN (0,3) AND DataLan BETWEEN ? AND ?`, [loja, mIni, mFim]),
             q(`SELECT SUM(ValorTotalNovo) as t FROM \`ln${loja}${mDB}\`.zcupomitens
