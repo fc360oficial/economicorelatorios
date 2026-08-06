@@ -48,7 +48,8 @@
     { href: '/comparativos.html', ic: 'chart',     txt: 'Comparativos' },
     { sec: 'Operação' },
     { id: 'financeiro', ic: 'bank', txt: 'Financeiro', sub: [
-        { href: '/conciliador.html', ic: 'bank', txt: 'Conciliador' }
+        { href: '/conciliador.html', ic: 'bank', txt: 'Conciliador' },
+        { href: '/conciliador-cd.html', ic: 'bank', txt: 'CD' }
       ]},
     { id: 'compras', ic: 'bag', txt: 'Gestão de Compras', sub: [
         { href: '/fornecedores.html',    ic: 'bag',   txt: 'Lista de Compra' },

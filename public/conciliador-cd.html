@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="/design-system.css">
+<script src="/nav.js" defer></script>
+<title>Conciliador CD — Econômico Relatórios</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#EBEBE9; --surface:#FFFFFF; --surface-2:#E4E4E1;
+  --border:#DADAD6; --border-strong:#C9C9C4;
+  --ink:#0E1626; --ink-2:#4E5A72; --ink-3:#98A0B3;
+  --brand:#F5B800; --brand-ink:#6B4E00;
+  --green:#137A48; --green-bg:#E7F5EC;
+  --red:#C22F49; --red-bg:#FBEAED;
+  --font:'InterVar','Inter','Segoe UI',system-ui,-apple-system,sans-serif;
+}
+body{font-family:var(--font);background:var(--bg);color:var(--ink);min-height:100vh}
+.main{padding:24px}
+.page-hdr{margin-bottom:18px}
+.page-hdr h1{font-size:21px;font-weight:800;color:var(--ink)}
+.page-hdr p{font-size:12px;color:var(--ink-3);margin-top:2px}
+
+/* ENTRADA */
+.entrada{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:18px;box-shadow:0 1px 2px rgba(22,35,63,.04)}
+.entrada label{font-size:10px;color:var(--ink-3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:6px}
+.entrada textarea{width:100%;min-height:120px;background:var(--bg);border:1px solid var(--border-strong);border-radius:8px;color:var(--ink);padding:10px 12px;font-size:12px;font-family:ui-monospace,Consolas,monospace;outline:none;resize:vertical}
+.entrada textarea:focus{border-color:var(--brand)}
+.entrada-foot{display:flex;align-items:center;justify-content:space-between;margin-top:10px;flex-wrap:wrap;gap:8px}
+.entrada-hint{font-size:11px;color:var(--ink-3)}
+.btn{border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font)}
+.btn-blue{background:var(--brand);color:var(--brand-ink)}.btn-blue:hover{background:#E5AC00}
+.btn-blue:disabled{opacity:.5;cursor:not-allowed}
+.btn-slate{background:var(--surface);color:var(--ink-2);border:1px solid var(--border-strong)}.btn-slate:hover{background:var(--surface-2)}
+.err{background:var(--red-bg);color:var(--red);border-radius:10px;padding:12px 16px;font-size:13px;font-weight:600}
+.spinner{width:22px;height:22px;border:3px solid var(--border-strong);border-top-color:var(--brand);border-radius:50%;animation:spin .7s linear infinite;margin:24px auto}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* KPI CARDS */
+.kpi-row{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 16px;min-width:150px;flex:1;box-shadow:0 1px 2px rgba(22,35,63,.04)}
+.kpi .v{font-size:20px;font-weight:800;font-variant-numeric:tabular-nums}
+.kpi .l{font-size:10px;color:var(--ink-3);margin-top:2px;font-weight:700;text-transform:uppercase;letter-spacing:.4px}
+
+/* BUSCA */
+.busca-row{margin-bottom:14px}
+.busca-row input{width:100%;max-width:340px;background:var(--surface);border:1px solid var(--border-strong);border-radius:8px;color:var(--ink);padding:8px 12px;font-size:13px;outline:none;font-family:var(--font)}
+.busca-row input:focus{border-color:var(--brand)}
+
+/* LADO A LADO */
+.cols{display:grid;grid-template-columns:1.6fr 1fr;gap:16px;align-items:start}
+@media(max-width:900px){.cols{grid-template-columns:1fr}}
+
+.painel{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:0 1px 2px rgba(22,35,63,.04)}
+.painel-hd{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px}
+.painel-hd h3{font-size:13px;font-weight:800;color:var(--ink)}
+.painel-hd .sub{font-size:10.5px;color:var(--ink-3)}
+
+/* TABELA DETALHE */
+.table-wrap{overflow-x:auto;max-height:640px;overflow-y:auto}
+table.t{width:100%;border-collapse:collapse;font-size:12px}
+table.t thead th{position:sticky;top:0;background:var(--surface-2);z-index:1}
+table.t th{padding:8px 12px;text-align:left;color:var(--ink-3);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;white-space:nowrap;border-bottom:1px solid var(--border)}
+table.t td{padding:8px 12px;border-bottom:1px solid var(--border);vertical-align:top}
+table.t th.r,table.t td.r{text-align:right}
+.fav{font-weight:600;color:var(--ink)}
+.hist{font-size:10.5px;color:var(--ink-3);margin-top:1px}
+.val{font-variant-numeric:tabular-nums;font-weight:700;color:var(--ink);white-space:nowrap}
+.data-cel{white-space:nowrap;color:var(--ink-2)}
+
+/* RESUMO POR DESTINATÁRIO */
+.resumo-list{max-height:640px;overflow-y:auto}
+.rp-row{display:flex;align-items:center;gap:10px;padding:9px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .12s}
+.rp-row:hover{background:var(--surface-2)}
+.rp-row.on{background:#FFF6D9}
+.rp-nome{flex:1;min-width:0;font-size:12px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rp-nome small{display:block;font-size:10px;font-weight:600;color:var(--ink-3)}
+.rp-bar-wrap{width:70px;height:6px;background:var(--surface-2);border-radius:4px;overflow:hidden;flex-shrink:0}
+.rp-bar{height:100%;background:var(--brand);border-radius:4px}
+.rp-valor{font-size:12px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap;min-width:92px;text-align:right}
+.rp-total-row{display:flex;justify-content:space-between;padding:12px 16px;font-size:13px;font-weight:800;color:var(--ink);background:var(--surface-2)}
+</style>
+</head>
+<body class="ds">
+
+<div class="main">
+  <div class="page-hdr">
+    <h1>Conciliador CD</h1>
+    <p>Importe o extrato bancário do CD e veja as saídas com o destinatário de cada uma, lado a lado, e o total pago por pessoa/empresa</p>
+  </div>
+
+  <div class="entrada">
+    <label>Extrato do CD (.ofx recomendado — também aceita TXT do Itaú: data;histórico;valor;)</label>
+    <textarea id="txt-extrato" placeholder="Cole aqui o conteúdo do extrato, ou use Importar Arquivo"></textarea>
+    <div class="entrada-foot">
+      <span class="entrada-hint">Não cruza com contas a pagar do ERP — só organiza e soma as saídas do próprio extrato. Só as linhas com valor negativo (saídas) são consideradas.</span>
+      <div style="display:flex;gap:8px">
+        <input type="file" id="file-extrato" accept=".txt,.ofx" style="display:none" onchange="importarArquivo(this)">
+        <button class="btn btn-slate" onclick="document.getElementById('file-extrato').click()">Importar Arquivo</button>
+        <button class="btn btn-slate" onclick="document.getElementById('txt-extrato').value=''">Limpar</button>
+        <button class="btn btn-blue" id="btn-processar" onclick="processar()">Processar Extrato</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="resultado"></div>
+</div>
+
+<script>
+let dados = null;
+let favorecidoAtivo = '';
+let busca = '';
+
+function fmtMoeda(v) {
+  return 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function fmtData(iso) {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+}
+
+function importarArquivo(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => { document.getElementById('txt-extrato').value = e.target.result; };
+  // extratos do Itaú costumam vir em ISO-8859-1/Windows-1252 (acentos quebram em UTF-8)
+  reader.readAsText(file, 'iso-8859-1');
+  input.value = '';
+}
+
+async function processar() {
+  const texto = document.getElementById('txt-extrato').value;
+  const btn = document.getElementById('btn-processar');
+  const cont = document.getElementById('resultado');
+  btn.disabled = true;
+  cont.innerHTML = '<div class="spinner"></div>';
+  try {
+    const r = await fetch('/api/conciliador-cd/processar', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ texto })
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Erro ao processar');
+    dados = j;
+    favorecidoAtivo = '';
+    busca = '';
+    render();
+  } catch (e) {
+    cont.innerHTML = `<div class="err">${esc(e.message)}</div>`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function itensFiltrados() {
+  if (!dados) return [];
+  return dados.itens.filter(it => {
+    if (favorecidoAtivo && (it.favorecido || '(sem identificação)') !== favorecidoAtivo) return false;
+    if (busca && !(it.favorecido || '').toUpperCase().includes(busca.toUpperCase()) && !(it.historico || '').toUpperCase().includes(busca.toUpperCase())) return false;
+    return true;
+  }).sort((a, b) => b.data.localeCompare(a.data) || b.valor - a.valor);
+}
+
+function toggleFavorecido(nome) {
+  favorecidoAtivo = favorecidoAtivo === nome ? '' : nome;
+  render();
+}
+
+function aplicarBusca(v) {
+  busca = v;
+  render();
+}
+
+function render() {
+  const cont = document.getElementById('resultado');
+  if (!dados) { cont.innerHTML = ''; return; }
+
+  const itens = itensFiltrados();
+  const qtdeDestinatarios = dados.totais.length;
+
+  const kpis = `<div class="kpi-row">
+    <div class="kpi"><div class="v">${fmtMoeda(dados.totalValor)}</div><div class="l">Total de saídas</div></div>
+    <div class="kpi"><div class="v">${dados.total}</div><div class="l">Lançamentos</div></div>
+    <div class="kpi"><div class="v">${qtdeDestinatarios}</div><div class="l">Destinatários</div></div>
+  </div>`;
+
+  const busca_ = `<div class="busca-row"><input type="text" placeholder="Buscar por destinatário ou histórico..." value="${esc(busca)}" oninput="aplicarBusca(this.value)"></div>`;
+
+  const linhasDetalhe = itens.map(it => `
+    <tr>
+      <td class="data-cel">${fmtData(it.data)}</td>
+      <td class="r val">${fmtMoeda(it.valor)}</td>
+      <td>
+        <div class="fav">${esc(it.favorecido || '(sem identificação)')}</div>
+        <div class="hist">${esc(it.historico)}</div>
+      </td>
+    </tr>`).join('');
+
+  const detalhe = `<div class="painel">
+    <div class="painel-hd">
+      <h3>Saídas detalhadas</h3>
+      <div class="sub">${itens.length} de ${dados.total}${favorecidoAtivo ? ' · filtrado por ' + esc(favorecidoAtivo) : ''}</div>
+    </div>
+    <div class="table-wrap">
+      <table class="t">
+        <thead><tr><th>Data</th><th class="r">Valor</th><th>Para quem foi</th></tr></thead>
+        <tbody>${linhasDetalhe || '<tr><td colspan="3" style="padding:20px;text-align:center;color:var(--ink-3)">Nenhuma saída encontrada</td></tr>'}</tbody>
+      </table>
+    </div>
+  </div>`;
+
+  const maiorTotal = dados.totais.length ? dados.totais[0].total : 1;
+  const linhasResumo = dados.totais.map(t => {
+    const pct = Math.max((t.total / maiorTotal) * 100, 2);
+    const on = favorecidoAtivo === t.favorecido ? ' on' : '';
+    return `<div class="rp-row${on}" onclick="toggleFavorecido('${esc(t.favorecido).replace(/'/g, "\\'")}')">
+      <div class="rp-nome">${esc(t.favorecido)}<small>${t.qtde} lançamento${t.qtde > 1 ? 's' : ''}</small></div>
+      <div class="rp-bar-wrap"><div class="rp-bar" style="width:${pct.toFixed(1)}%"></div></div>
+      <div class="rp-valor">${fmtMoeda(t.total)}</div>
+    </div>`;
+  }).join('');
+
+  const resumo = `<div class="painel">
+    <div class="painel-hd">
+      <h3>Total por destinatário</h3>
+      <div class="sub">Clique pra filtrar ao lado</div>
+    </div>
+    <div class="resumo-list">${linhasResumo}</div>
+    <div class="rp-total-row"><span>Total geral</span><span>${fmtMoeda(dados.totalValor)}</span></div>
+  </div>`;
+
+  cont.innerHTML = kpis + busca_ + `<div class="cols">${detalhe}${resumo}</div>`;
+}
+</script>
+</body>
+</html>

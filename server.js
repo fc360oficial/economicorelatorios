@@ -3970,6 +3970,41 @@ app.post('/api/conciliador/confirmar-avulso', (req, res) => {
   }
 });
 
+// ── CONCILIADOR CD — SAÍDAS POR DESTINATÁRIO ────────────
+// O CD tem conta bancária própria (sem títulos no ERP das lojas pra cruzar),
+// então aqui não há casamento com contasapagar — só organiza as saídas do
+// extrato (mesmo parser do Conciliador, ver lib/extrato-parser.js) agrupando
+// por favorecido, com total e quantidade de lançamentos por pessoa/empresa.
+app.post('/api/conciliador-cd/processar', (req, res) => {
+  try {
+    const texto = (req.body && req.body.texto) || '';
+    if (!texto.trim()) return res.status(400).json({ error: 'Cole ou importe o extrato antes de processar.' });
+
+    const ehOfx = /<OFX>|<STMTTRN>/i.test(texto);
+    const saidas = ehOfx ? parseSaidasOfx(texto) : parseSaidas(texto);
+    if (!saidas.length) return res.status(400).json({ error: ehOfx ? 'Nenhuma saída encontrada no OFX.' : 'Nenhuma saída encontrada no texto colado. Confira o formato (data;histórico;valor;).' });
+
+    const porFavorecido = new Map();
+    let totalValor = 0;
+    for (const s of saidas) {
+      const chave = s.favorecido || '(sem identificação)';
+      if (!porFavorecido.has(chave)) porFavorecido.set(chave, { favorecido: chave, total: 0, qtde: 0 });
+      const g = porFavorecido.get(chave);
+      g.total += s.valor;
+      g.qtde++;
+      totalValor += s.valor;
+    }
+    const totais = [...porFavorecido.values()]
+      .map(g => ({ ...g, total: +g.total.toFixed(2) }))
+      .sort((a, b) => b.total - a.total);
+
+    res.json({ total: saidas.length, totalValor: +totalValor.toFixed(2), itens: saidas, totais });
+  } catch (err) {
+    console.error('[CONCILIADOR-CD-ERR]', err.message);
+    res.status(500).json({ error: err.message || 'Erro ao processar extrato do CD.' });
+  }
+});
+
 // ── CONTROLE DE PONTA DE GÔNDOLA ────────────────────────────────────
 // Digitaliza o painel físico da sala de compras: quem negocia, qual
 // fornecedor ocupa a ponta, vigência do acordo e o contrato assinado.
