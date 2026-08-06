@@ -6,7 +6,7 @@ const bcrypt = require('bcryptjs');
 const fs = require('fs');
 const { exec } = require('child_process');
 const { parseSaidas, parseSaidasOfx } = require('./lib/extrato-parser');
-const { conciliar, addDias, TOLERANCIA_DIAS: TOLERANCIA_CONCILIADOR, chaveSaida, aplicarAvulsos } = require('./lib/conciliador');
+const { conciliar, addDias, similaridadeNome, normalizarNome, TOLERANCIA_DIAS: TOLERANCIA_CONCILIADOR, chaveSaida, aplicarAvulsos } = require('./lib/conciliador');
 const multer = require('multer');
 const pontaGondola = require('./lib/ponta-gondola');
 
@@ -3975,14 +3975,104 @@ app.post('/api/conciliador/confirmar-avulso', (req, res) => {
 // então aqui não há casamento com contasapagar — só organiza as saídas do
 // extrato (mesmo parser do Conciliador, ver lib/extrato-parser.js) agrupando
 // por favorecido, com total e quantidade de lançamentos por pessoa/empresa.
-app.post('/api/conciliador-cd/processar', (req, res) => {
+//
+// Opcionalmente cruza cada saída com a Entrada de Notas (NFe recebida) de
+// uma loja específica — central.compras, Status='F' (fechada) — casando por
+// Valor exato dentro de uma janela de data (a nota costuma entrar bem antes
+// do boleto ser pago, por isso a janela é assimétrica: bastante tempo antes
+// da saída, pouco depois). Valor sozinho casa por coincidência demais num
+// universo de milhares de notas de fornecedores diferentes (ex: um SISPAG de
+// R$60 pra uma pessoa física "casando" com uma nota de R$60 de uma
+// distribuidora de combustível) — por isso também exige similaridade mínima
+// entre o favorecido do banco e o fornecedor da nota (mesma função de nome
+// usada no Conciliador de loja). Quando mais de uma nota passa no corte de
+// similaridade com o mesmo valor, todas ficam expostas como candidatas — a
+// de maior similaridade (e, empatando, a mais próxima da data) vira o match
+// sugerido, sem esconder a ambiguidade do usuário.
+const SIMILARIDADE_MINIMA_NOTA = 0.34;
+
+// similaridadeNome sozinha deixa passar coincidências por sufixo genérico de
+// razão social (ex: "W E SPEEDFIBRA LTDA" x "OLINDA COMERCIO DE ALIMENTOS
+// LTDA" batem em 0.5 só por causa de "LTDA") — então também exige pelo menos
+// uma palavra específica em comum, fora desses termos genéricos.
+const TOKENS_GENERICOS_RAZAO_SOCIAL = new Set([
+  'LTDA', 'LTD', 'SA', 'EIRELI', 'ME', 'EPP', 'MEI', 'COM', 'COMERCIO',
+  'COMERCIAL', 'IMPORTACAO', 'EXPORTACAO', 'INDUSTRIA', 'INDUSTRIAL',
+  'ALIMENTOS', 'ALIMENTICIOS', 'DISTRIBUIDORA', 'DISTRIBUICAO'
+]);
+
+function temTokenEspecificoComum(a, b) {
+  const ta = new Set(normalizarNome(a).split(' ').filter(t => t.length > 2 && !TOKENS_GENERICOS_RAZAO_SOCIAL.has(t)));
+  const tb = new Set(normalizarNome(b).split(' ').filter(t => t.length > 2 && !TOKENS_GENERICOS_RAZAO_SOCIAL.has(t)));
+  for (const t of ta) if (tb.has(t)) return true;
+  return false;
+}
+
+function diasEntre(a, b) {
+  return Math.round(Math.abs(new Date(a) - new Date(b)) / 86400000);
+}
+
+async function casarComEntradaNotas(saidas, lojaRecebimento) {
+  if (!lojaRecebimento) return saidas;
+  const datas = saidas.map(s => s.data).sort();
+  const dIni = addDias(datas[0], -60);
+  const dFim = addDias(datas[datas.length - 1], 5);
+
+  const candidatos = await q(
+    `SELECT nCompra, nNota, NomeFornec, TotalNota, DATE_FORMAT(DataEmissao,'%Y-%m-%d') as DataEmissao
+     FROM central.compras
+     WHERE nLoja = ? AND Status = 'F' AND DataEmissao BETWEEN ? AND ?`,
+    [lojaRecebimento, dIni, dFim]
+  );
+
+  const porValor = new Map();
+  for (const c of candidatos) {
+    const key = Number(c.TotalNota).toFixed(2);
+    if (!porValor.has(key)) porValor.set(key, []);
+    porValor.get(key).push(c);
+  }
+
+  return saidas.map(s => {
+    // Não descarta candidato só porque o nome não bate — o Tiago pediu pra
+    // ver também os que batem só no valor, pra julgar ele mesmo. O que muda
+    // é a prioridade: nota com nome confirmado sempre vem na frente de uma
+    // que só coincide no valor, e o front pinta cada caso de um jeito.
+    const pool = (porValor.get(s.valor.toFixed(2)) || [])
+      .map(c => {
+        const sim = similaridadeNome(s.favorecido, c.NomeFornec);
+        const nomeConfere = sim >= SIMILARIDADE_MINIMA_NOTA && temTokenEspecificoComum(s.favorecido, c.NomeFornec);
+        return { c, sim, nomeConfere, dias: diasEntre(s.data, c.DataEmissao) };
+      })
+      .sort((a, b) => (b.nomeConfere - a.nomeConfere) || (b.sim - a.sim) || (a.dias - b.dias));
+
+    if (!pool.length) return { ...s, nota: null, notaCandidatos: [] };
+
+    const melhor = pool[0];
+    return {
+      ...s,
+      nota: {
+        nCompra: melhor.c.nCompra, nNota: melhor.c.nNota, fornecedor: melhor.c.NomeFornec,
+        dataEmissao: melhor.c.DataEmissao, confianca: melhor.nomeConfere ? 'nome' : 'valor'
+      },
+      notaCandidatos: pool.slice(1).map(p => ({
+        nCompra: p.c.nCompra, nNota: p.c.nNota, fornecedor: p.c.NomeFornec,
+        dataEmissao: p.c.DataEmissao, confianca: p.nomeConfere ? 'nome' : 'valor'
+      }))
+    };
+  });
+}
+
+app.post('/api/conciliador-cd/processar', async (req, res) => {
   try {
     const texto = (req.body && req.body.texto) || '';
+    const lojaRecebimento = parseInt(req.body && req.body.lojaRecebimento) || null;
     if (!texto.trim()) return res.status(400).json({ error: 'Cole ou importe o extrato antes de processar.' });
 
     const ehOfx = /<OFX>|<STMTTRN>/i.test(texto);
-    const saidas = ehOfx ? parseSaidasOfx(texto) : parseSaidas(texto);
+    let saidas = ehOfx ? parseSaidasOfx(texto) : parseSaidas(texto);
     if (!saidas.length) return res.status(400).json({ error: ehOfx ? 'Nenhuma saída encontrada no OFX.' : 'Nenhuma saída encontrada no texto colado. Confira o formato (data;histórico;valor;).' });
+
+    if (lojaRecebimento) saidas = await casarComEntradaNotas(saidas, lojaRecebimento);
 
     const porFavorecido = new Map();
     let totalValor = 0;
@@ -3998,7 +4088,7 @@ app.post('/api/conciliador-cd/processar', (req, res) => {
       .map(g => ({ ...g, total: +g.total.toFixed(2) }))
       .sort((a, b) => b.total - a.total);
 
-    res.json({ total: saidas.length, totalValor: +totalValor.toFixed(2), itens: saidas, totais });
+    res.json({ total: saidas.length, totalValor: +totalValor.toFixed(2), itens: saidas, totais, lojaRecebimento });
   } catch (err) {
     console.error('[CONCILIADOR-CD-ERR]', err.message);
     res.status(500).json({ error: err.message || 'Erro ao processar extrato do CD.' });

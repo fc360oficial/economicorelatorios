@@ -84,6 +84,27 @@ table.t th.r,table.t td.r{text-align:right}
 .rp-bar{height:100%;background:var(--brand);border-radius:4px}
 .rp-valor{font-size:12px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap;min-width:92px;text-align:right}
 .rp-total-row{display:flex;justify-content:space-between;padding:12px 16px;font-size:13px;font-weight:800;color:var(--ink);background:var(--surface-2)}
+
+/* NOTA CASADA COM ENTRADA (central.compras) */
+.loja-recebimento{margin-top:12px;padding-top:12px;border-top:1px dashed var(--border-strong);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.loja-recebimento label{font-size:10px;color:var(--ink-3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin:0}
+.loja-recebimento input{width:80px;background:var(--bg);border:1px solid var(--border-strong);border-radius:8px;color:var(--ink);padding:7px 10px;font-size:13px;outline:none;font-family:var(--font);font-weight:700}
+.loja-recebimento input:focus{border-color:var(--brand)}
+.loja-recebimento .hint2{font-size:11px;color:var(--ink-3)}
+.nota-pill{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;border-radius:20px;padding:3px 9px;white-space:nowrap;margin-top:3px}
+.nota-ok{background:var(--green-bg);color:var(--green)}
+.nota-valor{background:#FBEDDD;color:#B45C00}
+.nota-vazia{background:var(--surface-2);color:var(--ink-3);font-weight:600}
+
+@media print{
+  #dsnav,.entrada,.busca-row,.painel-hd .btn{display:none!important}
+  body.dsnav-pad{margin-left:0!important;padding-top:0!important}
+  .cols{grid-template-columns:1fr!important;display:block!important}
+  .painel{box-shadow:none;border:1px solid #999;margin-bottom:12px;break-inside:avoid}
+  .table-wrap{max-height:none!important;overflow:visible!important}
+  table.t thead th{position:static}
+  .resumo-list{max-height:none!important;overflow:visible!important}
+}
 </style>
 </head>
 <body class="ds">
@@ -105,6 +126,11 @@ table.t th.r,table.t td.r{text-align:right}
         <button class="btn btn-slate" onclick="document.getElementById('txt-extrato').value=''">Limpar</button>
         <button class="btn btn-blue" id="btn-processar" onclick="processar()">Processar Extrato</button>
       </div>
+    </div>
+    <div class="loja-recebimento">
+      <label>Conferir com entrada de notas da loja</label>
+      <input type="number" id="loja-recebimento" placeholder="Ex: 10" min="1">
+      <span class="hint2">Opcional — cruza cada saída com as notas fechadas (NFe) dessa loja no ERP, pra ver se o pagamento corresponde a uma mercadoria que realmente entrou.</span>
     </div>
   </div>
 
@@ -140,6 +166,7 @@ function importarArquivo(input) {
 
 async function processar() {
   const texto = document.getElementById('txt-extrato').value;
+  const lojaRecebimento = document.getElementById('loja-recebimento').value;
   const btn = document.getElementById('btn-processar');
   const cont = document.getElementById('resultado');
   btn.disabled = true;
@@ -147,7 +174,7 @@ async function processar() {
   try {
     const r = await fetch('/api/conciliador-cd/processar', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ texto })
+      body: JSON.stringify({ texto, lojaRecebimento: lojaRecebimento || null })
     });
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || 'Erro ao processar');
@@ -181,6 +208,18 @@ function aplicarBusca(v) {
   render();
 }
 
+function notaCelHtml(it) {
+  if (!it.nota) return '<span class="nota-pill nota-vazia">Sem nota na loja</span>';
+  const classe = it.nota.confianca === 'nome' ? 'nota-ok' : 'nota-valor';
+  const rotulo = it.nota.confianca === 'nome' ? 'Nota' : 'Nota (só valor bate)';
+  let html = `<span class="nota-pill ${classe}">${rotulo} ${esc(it.nota.nNota)}</span>` +
+    `<div class="hist">${esc(it.nota.fornecedor)} · ${fmtData(it.nota.dataEmissao)}</div>`;
+  if (it.notaCandidatos && it.notaCandidatos.length) {
+    html += `<div class="hist">+${it.notaCandidatos.length} outra${it.notaCandidatos.length > 1 ? 's' : ''} nota${it.notaCandidatos.length > 1 ? 's' : ''} com esse valor</div>`;
+  }
+  return html;
+}
+
 function render() {
   const cont = document.getElementById('resultado');
   if (!dados) { cont.innerHTML = ''; return; }
@@ -192,9 +231,12 @@ function render() {
     <div class="kpi"><div class="v">${fmtMoeda(dados.totalValor)}</div><div class="l">Total de saídas</div></div>
     <div class="kpi"><div class="v">${dados.total}</div><div class="l">Lançamentos</div></div>
     <div class="kpi"><div class="v">${qtdeDestinatarios}</div><div class="l">Destinatários</div></div>
+    ${dados.lojaRecebimento ? `<div class="kpi"><div class="v">${dados.itens.filter(i => i.nota).length}</div><div class="l">Com nota na loja ${dados.lojaRecebimento}</div></div>` : ''}
   </div>`;
 
   const busca_ = `<div class="busca-row"><input type="text" placeholder="Buscar por destinatário ou histórico..." value="${esc(busca)}" oninput="aplicarBusca(this.value)"></div>`;
+
+  const temLoja = !!dados.lojaRecebimento;
 
   const linhasDetalhe = itens.map(it => `
     <tr>
@@ -204,17 +246,21 @@ function render() {
         <div class="fav">${esc(it.favorecido || '(sem identificação)')}</div>
         <div class="hist">${esc(it.historico)}</div>
       </td>
+      ${temLoja ? `<td>${notaCelHtml(it)}</td>` : ''}
     </tr>`).join('');
 
   const detalhe = `<div class="painel">
     <div class="painel-hd">
       <h3>Saídas detalhadas</h3>
-      <div class="sub">${itens.length} de ${dados.total}${favorecidoAtivo ? ' · filtrado por ' + esc(favorecidoAtivo) : ''}</div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="sub">${itens.length} de ${dados.total}${favorecidoAtivo ? ' · filtrado por ' + esc(favorecidoAtivo) : ''}</div>
+        <button class="btn btn-slate" onclick="window.print()">Imprimir / PDF</button>
+      </div>
     </div>
     <div class="table-wrap">
       <table class="t">
-        <thead><tr><th>Data</th><th class="r">Valor</th><th>Para quem foi</th></tr></thead>
-        <tbody>${linhasDetalhe || '<tr><td colspan="3" style="padding:20px;text-align:center;color:var(--ink-3)">Nenhuma saída encontrada</td></tr>'}</tbody>
+        <thead><tr><th>Data</th><th class="r">Valor</th><th>Para quem foi</th>${temLoja ? `<th>Nota (loja ${dados.lojaRecebimento})</th>` : ''}</tr></thead>
+        <tbody>${linhasDetalhe || `<tr><td colspan="${temLoja ? 4 : 3}" style="padding:20px;text-align:center;color:var(--ink-3)">Nenhuma saída encontrada</td></tr>`}</tbody>
       </table>
     </div>
   </div>`;
