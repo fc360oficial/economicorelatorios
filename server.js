@@ -164,7 +164,7 @@ app.use((req, res, next) => {
     '/comparativo-tv.html', '/api/comparativo-tv',
     '/prevencao.html', '/api/pendencias/prevencao', '/api/pendencias/prevencao-consolidado', '/api/pendencias/prevencao-bonif',
     '/api/ruptura/debug-comprador',
-    '/api/_diag/tabelas-central', '/api/_diag/ferramentas',
+    '/api/_diag/tabelas-central',
     '/ruptura-painel.html', '/api/ruptura', '/api/ruptura/comprador-listas',
     '/margem-comprador.html', '/api/margem-tv/comprador',
     '/painel-diretoria.html'];
@@ -3810,25 +3810,6 @@ q(`CREATE TABLE IF NOT EXISTS central.prevencao_bonif (
   nLoja INT NOT NULL, mes VARCHAR(7) NOT NULL, valor DECIMAL(12,2) NOT NULL DEFAULT 0,
   PRIMARY KEY (nLoja, mes)) ENGINE=InnoDB`).catch(() => {});
 
-
-// TEMPORÁRIO — só pra checar se git/openssl já estão instalados no .254
-// antes de gerar o certificado da API do Itaú. Remover depois de usar.
-app.get('/api/_diag/ferramentas', (req, res) => {
-  if (req.query.token !== 'diag2026') return res.status(403).end();
-  const { execSync } = require('child_process');
-  function tentar(cmd) {
-    try { return execSync(cmd, { timeout: 5000 }).toString().trim(); }
-    catch (e) { return `NÃO ENCONTRADO (${e.message.split('\n')[0]})`; }
-  }
-  res.json({
-    git: tentar('git --version'),
-    gitPath: tentar('where git'),
-    opensslPath: tentar('where openssl'),
-    opensslNoPath: tentar('"C:\\Program Files\\Git\\usr\\bin\\openssl.exe" version'),
-    bashPath: tentar('where bash'),
-    bashNoPath: tentar('"C:\\Program Files\\Git\\bin\\bash.exe" --version')
-  });
-});
 
 app.get('/api/_diag/tabelas-central', async (req, res) => {
   if (req.query.token !== 'diag2026') return res.status(403).end();
