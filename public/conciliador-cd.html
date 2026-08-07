@@ -96,11 +96,21 @@ table.t th.r,table.t td.r{text-align:right}
 .nota-valor{background:#FBEDDD;color:#B45C00}
 .nota-vazia{background:var(--surface-2);color:var(--ink-3);font-weight:600}
 
+.filtro-nota-row{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.fn-btn{background:var(--surface);border:1px solid var(--border-strong);border-radius:20px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);color:var(--ink-2);display:flex;align-items:center;gap:6px}
+.fn-btn:hover{background:var(--surface-2)}
+.fn-btn .n{font-variant-numeric:tabular-nums}
+.fn-btn.on{border-color:transparent}
+.fn-btn.on.fn-nome{background:var(--green-bg);color:var(--green)}
+.fn-btn.on.fn-valor{background:#FBEDDD;color:#B45C00}
+.fn-btn.on.fn-sem{background:var(--surface-2);color:var(--ink)}
+.fn-btn.on.fn-todos{background:#FFF6D9;color:var(--brand-ink)}
+
 .print-header{display:none}
 .print-footer{display:none}
 
 @media print{
-  #dsnav,.entrada,.busca-row,.painel-hd .btn,.page-hdr,.kpi-row{display:none!important}
+  #dsnav,.entrada,.busca-row,.painel-hd .btn,.page-hdr,.kpi-row,.filtro-nota-row{display:none!important}
   body.dsnav-pad{margin-left:0!important;padding-top:0!important}
   .cols{grid-template-columns:1fr!important;display:block!important}
   .painel{box-shadow:none;border:1px solid #999;margin-bottom:12px;break-inside:avoid}
@@ -156,6 +166,7 @@ table.t th.r,table.t td.r{text-align:right}
 let dados = null;
 let favorecidoAtivo = '';
 let busca = '';
+let filtroNota = ''; // '' | 'nome' | 'valor' | 'sem'
 
 function fmtMoeda(v) {
   return 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -204,11 +215,17 @@ async function processar() {
   }
 }
 
+function statusNota(it) {
+  if (!it.nota) return 'sem';
+  return it.nota.confianca === 'nome' ? 'nome' : 'valor';
+}
+
 function itensFiltrados() {
   if (!dados) return [];
   return dados.itens.filter(it => {
     if (favorecidoAtivo && (it.favorecido || '(sem identificação)') !== favorecidoAtivo) return false;
     if (busca && !(it.favorecido || '').toUpperCase().includes(busca.toUpperCase()) && !(it.historico || '').toUpperCase().includes(busca.toUpperCase())) return false;
+    if (filtroNota && statusNota(it) !== filtroNota) return false;
     return true;
   }).sort((a, b) => b.data.localeCompare(a.data) || b.valor - a.valor);
 }
@@ -220,6 +237,11 @@ function toggleFavorecido(nome) {
 
 function aplicarBusca(v) {
   busca = v;
+  render();
+}
+
+function aplicarFiltroNota(v) {
+  filtroNota = filtroNota === v ? '' : v;
   render();
 }
 
@@ -253,6 +275,19 @@ function render() {
   const busca_ = `<div class="busca-row"><input type="text" placeholder="Buscar por destinatário ou histórico..." value="${esc(busca)}" oninput="aplicarBusca(this.value)"></div>`;
 
   const temLoja = !!dados.lojaRecebimento;
+
+  let filtroNota_ = '';
+  if (temLoja) {
+    const cont_ = { nome: 0, valor: 0, sem: 0 };
+    dados.itens.forEach(it => cont_[statusNota(it)]++);
+    const btn = (v, cls, label, n) => `<button class="fn-btn ${cls}${filtroNota === v ? ' on' : ''}" onclick="aplicarFiltroNota('${v}')">${label} <span class="n">${n}</span></button>`;
+    filtroNota_ = `<div class="filtro-nota-row">
+      ${btn('', 'fn-todos', 'Todos', dados.itens.length)}
+      ${btn('nome', 'fn-nome', 'Nota confere', cont_.nome)}
+      ${btn('valor', 'fn-valor', 'Só valor bate', cont_.valor)}
+      ${btn('sem', 'fn-sem', 'Sem nota', cont_.sem)}
+    </div>`;
+  }
 
   const linhasDetalhe = itens.map(it => `
     <tr>
@@ -310,7 +345,7 @@ function render() {
   </div>`;
   const printFooter = `<div class="print-footer">Emitido em ${new Date().toLocaleString('pt-BR')}</div>`;
 
-  cont.innerHTML = printHeader + kpis + busca_ + `<div class="cols">${detalhe}${resumo}</div>` + printFooter;
+  cont.innerHTML = printHeader + kpis + filtroNota_ + busca_ + `<div class="cols">${detalhe}${resumo}</div>` + printFooter;
 }
 </script>
 </body>
