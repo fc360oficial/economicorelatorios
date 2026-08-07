@@ -3822,8 +3822,11 @@ app.get('/api/_diag/ferramentas', (req, res) => {
   }
   res.json({
     git: tentar('git --version'),
-    openssl: tentar('openssl version'),
-    bash: tentar('where bash')
+    gitPath: tentar('where git'),
+    opensslPath: tentar('where openssl'),
+    opensslNoPath: tentar('"C:\\Program Files\\Git\\usr\\bin\\openssl.exe" version'),
+    bashPath: tentar('where bash'),
+    bashNoPath: tentar('"C:\\Program Files\\Git\\bin\\bash.exe" --version')
   });
 });
 
