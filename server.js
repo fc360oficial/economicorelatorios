@@ -4018,10 +4018,14 @@ async function casarComEntradaNotas(saidas, lojaRecebimento) {
   const dIni = addDias(datas[0], -60);
   const dFim = addDias(datas[datas.length - 1], 5);
 
+  // DataRecto = quando a mercadoria/nota entrou de fato no ERP (recebimento),
+  // diferente de DataEmissao (data que o fornecedor emitiu a NFe — pode ser
+  // uns dias antes). O Tiago quer ver e casar pela data de entrada aqui, não
+  // pela emissão.
   const candidatos = await q(
-    `SELECT nCompra, nNota, NomeFornec, TotalNota, chave, CNPJ, DATE_FORMAT(DataEmissao,'%Y-%m-%d') as DataEmissao
+    `SELECT nCompra, nNota, NomeFornec, TotalNota, chave, CNPJ, DATE_FORMAT(DataRecto,'%Y-%m-%d') as DataEmissao
      FROM central.compras
-     WHERE nLoja = ? AND Status = 'F' AND DataEmissao BETWEEN ? AND ?`,
+     WHERE nLoja = ? AND Status = 'F' AND DataRecto BETWEEN ? AND ?`,
     [lojaRecebimento, dIni, dFim]
   );
 
