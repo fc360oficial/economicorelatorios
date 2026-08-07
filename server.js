@@ -4019,7 +4019,7 @@ async function casarComEntradaNotas(saidas, lojaRecebimento) {
   const dFim = addDias(datas[datas.length - 1], 5);
 
   const candidatos = await q(
-    `SELECT nCompra, nNota, NomeFornec, TotalNota, chave, DATE_FORMAT(DataEmissao,'%Y-%m-%d') as DataEmissao
+    `SELECT nCompra, nNota, NomeFornec, TotalNota, chave, CNPJ, DATE_FORMAT(DataEmissao,'%Y-%m-%d') as DataEmissao
      FROM central.compras
      WHERE nLoja = ? AND Status = 'F' AND DataEmissao BETWEEN ? AND ?`,
     [lojaRecebimento, dIni, dFim]
@@ -4044,15 +4044,30 @@ async function casarComEntradaNotas(saidas, lojaRecebimento) {
   function montarNota(x, confianca) {
     return { nCompra: x.c.nCompra, nNota: x.c.nNota, fornecedor: x.c.NomeFornec, dataEmissao: x.c.DataEmissao, chave: x.c.chave, confianca };
   }
+  function soDigitos(v) { return (v || '').replace(/\D/g, ''); }
 
   return saidas.map(s => {
+    // Uma só avaliação por candidata: nome (similaridade + token
+    // específico) e CNPJ (quando o memo do banco trouxe um documento) —
+    // CNPJ batendo já basta pra confirmar sozinho, mesmo se o nome não
+    // bater bem (razão social pode vir abreviada/diferente no banco).
+    const docSaida = s.tipoDocumento === 'CNPJ' ? soDigitos(s.documento) : '';
     const poolBruto = (porValor.get(s.valor.toFixed(2)) || []).map(c => {
       const sim = similaridadeNome(s.favorecido, c.NomeFornec);
-      const nomeConfere = sim >= SIMILARIDADE_MINIMA_NOTA && temTokenEspecificoComum(s.favorecido, c.NomeFornec);
-      return { c, sim, nomeConfere, dias: diasEntre(s.data, c.DataEmissao) };
+      const cnpjBate = !!docSaida && docSaida === soDigitos(c.CNPJ);
+      const nomeConfere = cnpjBate || (sim >= SIMILARIDADE_MINIMA_NOTA && temTokenEspecificoComum(s.favorecido, c.NomeFornec));
+      return { c, sim, cnpjBate, nomeConfere, dias: diasEntre(s.data, c.DataEmissao) };
     });
 
-    const comNome = poolBruto.filter(x => x.nomeConfere).sort((a, b) => b.sim - a.sim || a.dias - b.dias);
+    const comNome = poolBruto.filter(x => x.nomeConfere).sort((a, b) => (b.cnpjBate - a.cnpjBate) || (b.sim - a.sim) || (a.dias - b.dias));
+
+    // CNPJ batendo em exatamente uma candidata resolve sozinho, mesmo se
+    // o nome deixou mais de uma passar no corte de similaridade — CNPJ é
+    // prova definitiva, não precisa de escolha manual nesse caso.
+    const cnpjUnico = comNome.filter(x => x.cnpjBate);
+    if (cnpjUnico.length === 1) {
+      return { ...s, nota: montarNota(cnpjUnico[0], 'nome'), notaCandidatos: [] };
+    }
     if (comNome.length === 1) {
       return { ...s, nota: montarNota(comNome[0], 'nome'), notaCandidatos: [] };
     }
