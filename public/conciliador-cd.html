@@ -284,6 +284,7 @@ function notaCelHtml(it, idx) {
   let html = `<div class="nota-linha">
       <span class="nota-pill ${classe}">${rotulo} ${esc(it.nota.nNota)}</span>
       ${it.nota.chave ? `<a href="#" class="nota-ver-link" onclick="verNota('${esc(it.nota.chave)}');return false">ver nota</a>` : ''}
+      ${it.nota.confianca === 'valor' ? `<a href="#" class="nota-ver-link" onclick="aprovarValor(${idx});return false">é essa, aprovar</a>` : ''}
     </div>` +
     `<div class="hist">entrou ${fmtData(it.nota.dataEmissao)} · ${esc(it.nota.fornecedor)}</div>`;
   if (it.notaCandidatos && it.notaCandidatos.length) {
@@ -314,6 +315,27 @@ async function confirmarNota(idx, cidx) {
   }
 }
 
+async function aprovarValor(idx) {
+  const it = itensAtuaisRef[idx];
+  const escolha = it && it.nota;
+  if (!it || !escolha) return;
+  try {
+    const r = await fetch('/api/conciliador-cd/confirmar-nota', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        saida: { data: it.data, valor: it.valor, historico: it.historico },
+        escolha
+      })
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Erro ao aprovar nota');
+    it.nota = { ...escolha, confianca: 'manual' };
+    render();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
 function fmtDataHora(iso) {
   if (!iso) return '';
   const d = new Date(iso);
@@ -328,6 +350,7 @@ function fmtCnpj(v) {
 
 async function verNota(chave) {
   const w = window.open('', '_blank');
+  if (!w) { alert('O navegador bloqueou a janela da nota — permita pop-ups pra esse site.'); return; }
   w.document.write('<p style="font-family:sans-serif;padding:20px">Carregando nota...</p>');
   try {
     const r = await fetch('/api/conciliador-cd/nota-detalhe?chave=' + encodeURIComponent(chave));
@@ -371,7 +394,7 @@ async function verNota(chave) {
       </style></head><body>
       <div class="header">
         <img src="/logo.png" alt="Econômico">
-        <div><h1>NFe ${esc(n.numero)} · Série ${esc(n.serie)}</h1><p>${esc(n.naturezaOperacao)} · Emitida em ${fmtDataHora(n.dataEmissao)}</p></div>
+        <div><h1>NFe ${esc(n.numero)} · Série ${esc(n.serie)}${n.movimentacao ? ` <span style="font-size:11px;font-weight:700;color:#B45C00;background:#FBEDDD;border-radius:10px;padding:2px 8px;vertical-align:middle">${esc(n.movimentacao)}</span>` : ''}</h1><p>${esc(n.naturezaOperacao)} · Emitida em ${fmtDataHora(n.dataEmissao)}</p></div>
       </div>
       <div class="grid2">
         <div class="box"><b>${esc(n.emitente.nome)}</b>CNPJ ${fmtCnpj(n.emitente.cnpj)} · IE ${esc(n.emitente.ie)}</div>

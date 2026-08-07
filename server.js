@@ -4259,13 +4259,16 @@ app.get('/api/conciliador-cd/nota-detalhe', async (req, res) => {
       // recebimento de fato é NomeOperador; DataConferencia/HoraConferencia
       // é quando a conferência da mercadoria foi fechada. Isso não é parte
       // do XML fiscal, é dado operacional interno do ERP.
-      q(`SELECT NomeOperador, DATE_FORMAT(DataConferencia,'%Y-%m-%d') as DataConferencia, HoraConferencia
+      q(`SELECT NomeOperador, DATE_FORMAT(DataConferencia,'%Y-%m-%d') as DataConferencia, HoraConferencia, Movimentacao
          FROM central.compras WHERE chave = ? LIMIT 1`, [chave]).catch(() => [])
     ]);
     if (!rows.length || !rows[0].xml) return res.status(404).json({ error: 'XML da nota não encontrado no ERP.' });
     const detalhe = extrairNotaXml(rows[0].xml);
     const c = compraRows[0];
-    if (c) detalhe.recebimento = { operador: c.NomeOperador || null, data: c.DataConferencia || null, hora: c.HoraConferencia || null };
+    if (c) {
+      detalhe.recebimento = { operador: c.NomeOperador || null, data: c.DataConferencia || null, hora: c.HoraConferencia || null };
+      detalhe.movimentacao = c.Movimentacao || null;
+    }
     res.json(detalhe);
   } catch (err) {
     console.error('[CD-NOTA-DETALHE-ERR]', err.message);
