@@ -4294,6 +4294,24 @@ app.get('/api/conciliador-cd/nota-detalhe', async (req, res) => {
   }
 });
 
+// ── API DE EXTRATO DO ITAÚ ───────────────────────────────────────────
+// Teste manual da integração direta com o Itaú (ver lib/itau-extrato.js).
+// Só admin, porque toca em credencial bancária real. Enquanto o ClientID
+// não estiver liberado pelo Itaú pro produto de Extrato, retorna o erro
+// deles mesmo (ex: "ClientID not enable") — é esperado até a liberação.
+app.get('/api/itau/extrato-teste', async (req, res) => {
+  if (!req.session.user || req.session.user.perfil !== 'admin') return res.status(403).json({ error: 'Só admin.' });
+  try {
+    const itauExtrato = require('./lib/itau-extrato');
+    const dataFim = req.query.fim || new Date().toISOString().slice(0, 10);
+    const dataIni = req.query.inicio || addDias(dataFim, -30);
+    const resultado = await itauExtrato.buscarExtrato({ dataInicio: dataIni, dataFim: dataFim });
+    res.json(resultado);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── CONTROLE DE PONTA DE GÔNDOLA ────────────────────────────────────
 // Digitaliza o painel físico da sala de compras: quem negocia, qual
 // fornecedor ocupa a ponta, vigência do acordo e o contrato assinado.
