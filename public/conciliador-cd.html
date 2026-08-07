@@ -107,7 +107,9 @@ table.t th.r,table.t td.r{text-align:right}
 .nota-opcao-forn{display:block;font-size:10px;color:var(--ink-3)}
 
 .filtro-nota-row{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
-.fn-btn{background:var(--surface);border:1px solid var(--border-strong);border-radius:20px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);color:var(--ink-2);display:flex;align-items:center;gap:6px}
+.fn-btn{background:var(--surface);border:1px solid var(--border-strong);border-radius:10px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);color:var(--ink-2);display:flex;align-items:baseline;flex-wrap:wrap;gap:5px;line-height:1.5}
+.fn-v{font-size:10px;font-weight:700;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.fn-btn.on .fn-v{color:inherit;opacity:.75}
 .fn-btn:hover{background:var(--surface-2)}
 .fn-btn .n{font-variant-numeric:tabular-nums}
 .fn-btn.on{border-color:transparent}
@@ -452,16 +454,21 @@ function render() {
 
   let filtroNota_ = '';
   if (temLoja) {
-    const cont_ = { nome: 0, valor: 0, manual: 0, ambiguo: 0, sem: 0 };
-    dados.itens.forEach(it => cont_[statusNota(it)]++);
-    const btn = (v, cls, label, n) => `<button class="fn-btn ${cls}${filtroNota === v ? ' on' : ''}" onclick="aplicarFiltroNota('${v}')">${label} <span class="n">${n}</span></button>`;
+    const cont_ = { nome: { n: 0, v: 0 }, valor: { n: 0, v: 0 }, manual: { n: 0, v: 0 }, ambiguo: { n: 0, v: 0 }, sem: { n: 0, v: 0 } };
+    let totalGeralN = 0, totalGeralV = 0;
+    dados.itens.forEach(it => {
+      const s = statusNota(it);
+      cont_[s].n++; cont_[s].v += it.valor;
+      totalGeralN++; totalGeralV += it.valor;
+    });
+    const btn = (v, cls, label, n, valor) => `<button class="fn-btn ${cls}${filtroNota === v ? ' on' : ''}" onclick="aplicarFiltroNota('${v}')">${label} <span class="n">${n}</span><span class="fn-v">${fmtMoeda(valor)}</span></button>`;
     filtroNota_ = `<div class="filtro-nota-row">
-      ${btn('', 'fn-todos', 'Todos', dados.itens.length)}
-      ${btn('nome', 'fn-nome', 'Conciliado', cont_.nome)}
-      ${btn('manual', 'fn-manual', 'Conciliado avulso', cont_.manual)}
-      ${btn('valor', 'fn-valor', 'Valor único', cont_.valor)}
-      ${btn('ambiguo', 'fn-ambiguo', 'Revisar', cont_.ambiguo)}
-      ${btn('sem', 'fn-sem', 'Não encontrada', cont_.sem)}
+      ${btn('', 'fn-todos', 'Todos', totalGeralN, totalGeralV)}
+      ${btn('nome', 'fn-nome', 'Conciliado', cont_.nome.n, cont_.nome.v)}
+      ${btn('manual', 'fn-manual', 'Conciliado avulso', cont_.manual.n, cont_.manual.v)}
+      ${btn('valor', 'fn-valor', 'Valor único', cont_.valor.n, cont_.valor.v)}
+      ${btn('ambiguo', 'fn-ambiguo', 'Revisar', cont_.ambiguo.n, cont_.ambiguo.v)}
+      ${btn('sem', 'fn-sem', 'Não encontrada', cont_.sem.n, cont_.sem.v)}
     </div>`;
   }
 
