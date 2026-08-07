@@ -4091,9 +4091,26 @@ function salvarCdNotasAvulsas(lista) {
   fs.mkdirSync(path.dirname(CD_NOTAS_AVULSAS_PATH), { recursive: true });
   fs.writeFileSync(CD_NOTAS_AVULSAS_PATH, JSON.stringify(lista, null, 2));
 }
-function aplicarCdNotasAvulsas(saidas) {
+async function aplicarCdNotasAvulsas(saidas) {
   const avulsos = carregarCdNotasAvulsas();
   if (!avulsos.length) return saidas;
+
+  // Auto-correção: avulsos confirmados antes do campo chaveNfe existir
+  // ficaram sem ela (sem "ver nota" na tela) — busca pelo nCompra e
+  // completa o registro salvo, uma vez, pra não faltar de novo.
+  const semChave = avulsos.filter(a => !a.chaveNfe && a.nCompra);
+  if (semChave.length) {
+    const nCompras = [...new Set(semChave.map(a => a.nCompra))];
+    const rows = await q(`SELECT nCompra, chave FROM central.compras WHERE nCompra IN (?)`, [nCompras]).catch(() => []);
+    const chavePorCompra = new Map(rows.map(r => [r.nCompra, r.chave]));
+    let mudou = false;
+    for (const a of semChave) {
+      const chave = chavePorCompra.get(a.nCompra);
+      if (chave) { a.chaveNfe = chave; mudou = true; }
+    }
+    if (mudou) salvarCdNotasAvulsas(avulsos);
+  }
+
   const porChave = new Map(avulsos.map(a => [a.chave, a]));
   return saidas.map(s => {
     const av = porChave.get(chaveSaida(s));
@@ -4116,7 +4133,7 @@ app.post('/api/conciliador-cd/processar', async (req, res) => {
     let saidas = ehOfx ? parseSaidasOfx(texto) : parseSaidas(texto);
     if (!saidas.length) return res.status(400).json({ error: ehOfx ? 'Nenhuma saída encontrada no OFX.' : 'Nenhuma saída encontrada no texto colado. Confira o formato (data;histórico;valor;).' });
 
-    if (lojaRecebimento) saidas = aplicarCdNotasAvulsas(await casarComEntradaNotas(saidas, lojaRecebimento));
+    if (lojaRecebimento) saidas = await aplicarCdNotasAvulsas(await casarComEntradaNotas(saidas, lojaRecebimento));
 
     const porFavorecido = new Map();
     let totalValor = 0;
@@ -4206,6 +4223,10 @@ function extrairNotaXml(xmlCompleto) {
     emitente: { nome: tagXml(emit, 'xNome'), fantasia: tagXml(emit, 'xFant'), cnpj: tagXml(emit, 'CNPJ'), ie: tagXml(emit, 'IE') },
     destinatario: { nome: tagXml(dest, 'xNome'), cnpj: tagXml(dest, 'CNPJ') },
     itens,
+    valorProdutos: tagXml(total, 'vProd'),
+    desconto: tagXml(total, 'vDesc'),
+    frete: tagXml(total, 'vFrete'),
+    outrasDespesas: tagXml(total, 'vOutro'),
     valorTotal: tagXml(total, 'vNF'),
     duplicatas,
     protocolo: { numero: tagXml(prot, 'nProt'), dataRecebimento: tagXml(prot, 'dhRecbto'), status: tagXml(prot, 'xMotivo'), chave: tagXml(prot, 'chNFe') }
@@ -4216,9 +4237,20 @@ app.get('/api/conciliador-cd/nota-detalhe', async (req, res) => {
   try {
     const chave = (req.query.chave || '').replace(/[^0-9]/g, '');
     if (chave.length !== 44) return res.status(400).json({ error: 'Chave de acesso inválida.' });
-    const rows = await q('SELECT xml FROM central.arquivoxml WHERE chave = ?', [chave]);
+    const [rows, compraRows] = await Promise.all([
+      q('SELECT xml FROM central.arquivoxml WHERE chave = ?', [chave]),
+      // NomeConferente costuma vir "0" (não confiável) — quem processou o
+      // recebimento de fato é NomeOperador; DataConferencia/HoraConferencia
+      // é quando a conferência da mercadoria foi fechada. Isso não é parte
+      // do XML fiscal, é dado operacional interno do ERP.
+      q(`SELECT NomeOperador, DATE_FORMAT(DataConferencia,'%Y-%m-%d') as DataConferencia, HoraConferencia
+         FROM central.compras WHERE chave = ? LIMIT 1`, [chave]).catch(() => [])
+    ]);
     if (!rows.length || !rows[0].xml) return res.status(404).json({ error: 'XML da nota não encontrado no ERP.' });
-    res.json(extrairNotaXml(rows[0].xml));
+    const detalhe = extrairNotaXml(rows[0].xml);
+    const c = compraRows[0];
+    if (c) detalhe.recebimento = { operador: c.NomeOperador || null, data: c.DataConferencia || null, hora: c.HoraConferencia || null };
+    res.json(detalhe);
   } catch (err) {
     console.error('[CD-NOTA-DETALHE-ERR]', err.message);
     res.status(500).json({ error: err.message || 'Erro ao buscar detalhe da nota.' });
