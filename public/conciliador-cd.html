@@ -95,6 +95,12 @@ table.t th.r,table.t td.r{text-align:right}
 .nota-ok{background:var(--green-bg);color:var(--green)}
 .nota-valor{background:#FBEDDD;color:#B45C00}
 .nota-vazia{background:var(--surface-2);color:var(--ink-3);font-weight:600}
+.nota-amb-tag{background:var(--red-bg);color:var(--red)}
+.nota-opcoes{margin-top:6px;display:flex;flex-direction:column;gap:4px;max-width:280px}
+.nota-opcao{border:1px solid var(--border-strong);border-radius:8px;padding:5px 8px;cursor:pointer;transition:background .12s,border-color .12s}
+.nota-opcao:hover{background:var(--amw,#FFF6D9);border-color:var(--brand)}
+.nota-opcao-nn{display:block;font-size:11px;font-weight:700;color:var(--ink)}
+.nota-opcao-forn{display:block;font-size:10px;color:var(--ink-3)}
 
 .filtro-nota-row{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
 .fn-btn{background:var(--surface);border:1px solid var(--border-strong);border-radius:20px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);color:var(--ink-2);display:flex;align-items:center;gap:6px}
@@ -167,6 +173,7 @@ let dados = null;
 let favorecidoAtivo = '';
 let busca = '';
 let filtroNota = ''; // '' | 'nome' | 'valor' | 'sem'
+let itensAtuaisRef = [];
 
 function fmtMoeda(v) {
   return 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -217,7 +224,7 @@ async function processar() {
 
 function statusNota(it) {
   if (!it.nota) return 'sem';
-  return it.nota.confianca === 'nome' ? 'nome' : 'valor';
+  return (it.nota.confianca === 'nome' || it.nota.confianca === 'manual') ? 'nome' : 'valor';
 }
 
 function itensFiltrados() {
@@ -245,16 +252,47 @@ function aplicarFiltroNota(v) {
   render();
 }
 
-function notaCelHtml(it) {
-  if (!it.nota) return '<span class="nota-pill nota-vazia">Sem nota na loja</span>';
-  const classe = it.nota.confianca === 'nome' ? 'nota-ok' : 'nota-valor';
-  const rotulo = it.nota.confianca === 'nome' ? 'Nota' : 'Nota (só valor bate)';
-  let html = `<span class="nota-pill ${classe}">${rotulo} ${esc(it.nota.nNota)} · entrou ${fmtData(it.nota.dataEmissao)}</span>` +
-    `<div class="hist">${esc(it.nota.fornecedor)}</div>`;
-  if (it.notaCandidatos && it.notaCandidatos.length) {
-    html += `<div class="hist">+${it.notaCandidatos.length} outra${it.notaCandidatos.length > 1 ? 's' : ''} nota${it.notaCandidatos.length > 1 ? 's' : ''} com esse valor</div>`;
+function notaCelHtml(it, idx) {
+  if (!it.nota && it.notaCandidatos && it.notaCandidatos.length) {
+    // Ambíguo: várias notas com o mesmo valor, nome não confere com nenhuma
+    // — mostra as opções pra confirmar manualmente qual é a certa.
+    const opcoes = it.notaCandidatos.map((c, cidx) => `
+      <div class="nota-opcao" onclick="confirmarNota(${idx}, ${cidx})">
+        <span class="nota-opcao-nn">Nota ${esc(c.nNota)}</span>
+        <span class="nota-opcao-forn">${esc(c.fornecedor)} · entrou ${fmtData(c.dataEmissao)}</span>
+      </div>`).join('');
+    return `<div class="nota-ambigua">
+      <span class="nota-pill nota-amb-tag">${it.notaCandidatos.length} notas com esse valor — qual é?</span>
+      <div class="nota-opcoes">${opcoes}</div>
+    </div>`;
   }
-  return html;
+  if (!it.nota) return '<span class="nota-pill nota-vazia">Sem nota na loja</span>';
+  const classe = (it.nota.confianca === 'nome' || it.nota.confianca === 'manual') ? 'nota-ok' : 'nota-valor';
+  const rotulo = it.nota.confianca === 'nome' ? 'Nota' : it.nota.confianca === 'manual' ? 'Nota (confirmada)' : 'Nota (só valor bate)';
+  return `<span class="nota-pill ${classe}">${rotulo} ${esc(it.nota.nNota)} · entrou ${fmtData(it.nota.dataEmissao)}</span>` +
+    `<div class="hist">${esc(it.nota.fornecedor)}</div>`;
+}
+
+async function confirmarNota(idx, cidx) {
+  const it = itensAtuaisRef[idx];
+  const escolha = it && it.notaCandidatos && it.notaCandidatos[cidx];
+  if (!it || !escolha) return;
+  try {
+    const r = await fetch('/api/conciliador-cd/confirmar-nota', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        saida: { data: it.data, valor: it.valor, historico: it.historico },
+        escolha
+      })
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Erro ao confirmar nota');
+    it.nota = { ...escolha, confianca: 'manual' };
+    it.notaCandidatos = [];
+    render();
+  } catch (e) {
+    alert(e.message);
+  }
 }
 
 function render() {
@@ -262,6 +300,7 @@ function render() {
   if (!dados) { cont.innerHTML = ''; return; }
 
   const itens = itensFiltrados();
+  itensAtuaisRef = itens;
   const qtdeDestinatarios = dados.totais.length;
   document.body.classList.toggle('cd-print-filtrado', !!favorecidoAtivo);
 
@@ -289,7 +328,7 @@ function render() {
     </div>`;
   }
 
-  const linhasDetalhe = itens.map(it => `
+  const linhasDetalhe = itens.map((it, idx) => `
     <tr>
       <td class="data-cel">${fmtData(it.data)}</td>
       <td class="r val">${fmtMoeda(it.valor)}</td>
@@ -297,7 +336,7 @@ function render() {
         <div class="fav">${esc(it.favorecido || '(sem identificação)')}</div>
         <div class="hist">${esc(it.historico)}</div>
       </td>
-      ${temLoja ? `<td>${notaCelHtml(it)}</td>` : ''}
+      ${temLoja ? `<td>${notaCelHtml(it, idx)}</td>` : ''}
     </tr>`).join('');
 
   const detalhe = `<div class="painel">

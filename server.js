@@ -4032,32 +4032,74 @@ async function casarComEntradaNotas(saidas, lojaRecebimento) {
     porValor.get(key).push(c);
   }
 
+  // Valor redondo (R$1.000,00 etc.) colide com dezenas de fornecedores sem
+  // relação nenhuma (achado testando: um SISPAG de supermercado "casando"
+  // com nota de posto de combustível só pela coincidência do valor) — então
+  // só assume um match "por valor" quando ele é o único candidato dentro de
+  // uma janela curta e plausível. Se tiver mais de um concorrendo, é ruído
+  // demais pra apontar um "melhor palpite": melhor dizer que não é confiável
+  // do que arriscar um fornecedor errado.
+  const JANELA_VALOR_SOZINHO_DIAS = 20;
+
+  function montarNota(x, confianca) {
+    return { nCompra: x.c.nCompra, nNota: x.c.nNota, fornecedor: x.c.NomeFornec, dataEmissao: x.c.DataEmissao, confianca };
+  }
+
   return saidas.map(s => {
-    // Não descarta candidato só porque o nome não bate — o Tiago pediu pra
-    // ver também os que batem só no valor, pra julgar ele mesmo. O que muda
-    // é a prioridade: nota com nome confirmado sempre vem na frente de uma
-    // que só coincide no valor, e o front pinta cada caso de um jeito.
-    const pool = (porValor.get(s.valor.toFixed(2)) || [])
-      .map(c => {
-        const sim = similaridadeNome(s.favorecido, c.NomeFornec);
-        const nomeConfere = sim >= SIMILARIDADE_MINIMA_NOTA && temTokenEspecificoComum(s.favorecido, c.NomeFornec);
-        return { c, sim, nomeConfere, dias: diasEntre(s.data, c.DataEmissao) };
-      })
-      .sort((a, b) => (b.nomeConfere - a.nomeConfere) || (b.sim - a.sim) || (a.dias - b.dias));
+    const poolBruto = (porValor.get(s.valor.toFixed(2)) || []).map(c => {
+      const sim = similaridadeNome(s.favorecido, c.NomeFornec);
+      const nomeConfere = sim >= SIMILARIDADE_MINIMA_NOTA && temTokenEspecificoComum(s.favorecido, c.NomeFornec);
+      return { c, sim, nomeConfere, dias: diasEntre(s.data, c.DataEmissao) };
+    });
 
-    if (!pool.length) return { ...s, nota: null, notaCandidatos: [] };
+    const comNome = poolBruto.filter(x => x.nomeConfere).sort((a, b) => b.sim - a.sim || a.dias - b.dias);
+    if (comNome.length) {
+      return {
+        ...s,
+        nota: montarNota(comNome[0], 'nome'),
+        notaCandidatos: comNome.slice(1).map(x => montarNota(x, 'nome'))
+      };
+    }
 
-    const melhor = pool[0];
+    const proximos = poolBruto.filter(x => x.dias <= JANELA_VALOR_SOZINHO_DIAS).sort((a, b) => a.dias - b.dias);
+    if (proximos.length === 1) {
+      return { ...s, nota: montarNota(proximos[0], 'valor'), notaCandidatos: [] };
+    }
+    if (poolBruto.length) {
+      // Ambíguo: não escolhe por conta própria — expõe todas as candidatas
+      // (ordenadas pela mais próxima da data) pro Tiago escolher manualmente
+      // qual é a nota certa (ver /api/conciliador-cd/confirmar-nota).
+      const ordenadas = [...poolBruto].sort((a, b) => a.dias - b.dias);
+      return { ...s, nota: null, notaCandidatos: ordenadas.map(x => montarNota(x, 'valor')) };
+    }
+    return { ...s, nota: null, notaCandidatos: [] };
+  });
+}
+
+// Notas confirmadas manualmente pelo Tiago quando o valor bate em mais de
+// uma nota (ver casarComEntradaNotas) — persistidas em JSON local, mesmo
+// padrão de conciliacoes-avulsas.json, pra sobreviver a reprocessar o
+// extrato. Uma vez confirmada, a nota vira confiança 'manual' (pintada de
+// verde igual 'nome') e nunca mais volta a ficar ambígua nesse item.
+const CD_NOTAS_AVULSAS_PATH = path.join(__dirname, 'data', 'cd-notas-avulsas.json');
+function carregarCdNotasAvulsas() {
+  try { return JSON.parse(fs.readFileSync(CD_NOTAS_AVULSAS_PATH, 'utf8')); } catch (e) { return []; }
+}
+function salvarCdNotasAvulsas(lista) {
+  fs.mkdirSync(path.dirname(CD_NOTAS_AVULSAS_PATH), { recursive: true });
+  fs.writeFileSync(CD_NOTAS_AVULSAS_PATH, JSON.stringify(lista, null, 2));
+}
+function aplicarCdNotasAvulsas(saidas) {
+  const avulsos = carregarCdNotasAvulsas();
+  if (!avulsos.length) return saidas;
+  const porChave = new Map(avulsos.map(a => [a.chave, a]));
+  return saidas.map(s => {
+    const av = porChave.get(chaveSaida(s));
+    if (!av) return s;
     return {
       ...s,
-      nota: {
-        nCompra: melhor.c.nCompra, nNota: melhor.c.nNota, fornecedor: melhor.c.NomeFornec,
-        dataEmissao: melhor.c.DataEmissao, confianca: melhor.nomeConfere ? 'nome' : 'valor'
-      },
-      notaCandidatos: pool.slice(1).map(p => ({
-        nCompra: p.c.nCompra, nNota: p.c.nNota, fornecedor: p.c.NomeFornec,
-        dataEmissao: p.c.DataEmissao, confianca: p.nomeConfere ? 'nome' : 'valor'
-      }))
+      nota: { nCompra: av.nCompra, nNota: av.nNota, fornecedor: av.fornecedor, dataEmissao: av.dataEmissao, confianca: 'manual' },
+      notaCandidatos: []
     };
   });
 }
@@ -4072,7 +4114,7 @@ app.post('/api/conciliador-cd/processar', async (req, res) => {
     let saidas = ehOfx ? parseSaidasOfx(texto) : parseSaidas(texto);
     if (!saidas.length) return res.status(400).json({ error: ehOfx ? 'Nenhuma saída encontrada no OFX.' : 'Nenhuma saída encontrada no texto colado. Confira o formato (data;histórico;valor;).' });
 
-    if (lojaRecebimento) saidas = await casarComEntradaNotas(saidas, lojaRecebimento);
+    if (lojaRecebimento) saidas = aplicarCdNotasAvulsas(await casarComEntradaNotas(saidas, lojaRecebimento));
 
     const porFavorecido = new Map();
     let totalValor = 0;
@@ -4092,6 +4134,31 @@ app.post('/api/conciliador-cd/processar', async (req, res) => {
   } catch (err) {
     console.error('[CONCILIADOR-CD-ERR]', err.message);
     res.status(500).json({ error: err.message || 'Erro ao processar extrato do CD.' });
+  }
+});
+
+// Confirma manualmente qual nota (dentre as candidatas ambíguas de mesmo
+// valor) é a certa pra uma saída do CD — ver aplicarCdNotasAvulsas.
+app.post('/api/conciliador-cd/confirmar-nota', (req, res) => {
+  try {
+    const { saida, escolha } = req.body || {};
+    if (!saida || !escolha) return res.status(400).json({ error: 'Informe a saída e a nota escolhida.' });
+    const lista = carregarCdNotasAvulsas();
+    const chave = chaveSaida(saida);
+    const registro = {
+      chave,
+      dataSaida: saida.data, valorSaida: saida.valor, favorecidoSaida: saida.favorecido,
+      nCompra: escolha.nCompra, nNota: escolha.nNota, fornecedor: escolha.fornecedor, dataEmissao: escolha.dataEmissao,
+      confirmadoEm: new Date().toISOString(),
+      confirmadoPor: (req.session && req.session.user && req.session.user.nome) || 'desconhecido'
+    };
+    const idx = lista.findIndex(a => a.chave === chave);
+    if (idx >= 0) lista[idx] = registro; else lista.push(registro);
+    salvarCdNotasAvulsas(lista);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[CONCILIADOR-CD-AVULSO-ERR]', err.message);
+    res.status(500).json({ error: err.message || 'Erro ao confirmar nota.' });
   }
 });
 
