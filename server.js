@@ -4110,18 +4110,19 @@ async function aplicarCdNotasAvulsas(saidas) {
   const avulsos = carregarCdNotasAvulsas();
   if (!avulsos.length) return saidas;
 
-  // Auto-correção: avulsos confirmados antes do campo chaveNfe existir
-  // ficaram sem ela (sem "ver nota" na tela) — busca pelo nCompra e
-  // completa o registro salvo, uma vez, pra não faltar de novo.
-  const semChave = avulsos.filter(a => !a.chaveNfe && a.nCompra);
-  if (semChave.length) {
-    const nCompras = [...new Set(semChave.map(a => a.nCompra))];
+  // Sempre reconfere a chave pelo nCompra (não só quando falta) — evita
+  // ficar com uma chaveNfe desatualizada/errada presa no JSON (ex: avulso
+  // salvo antes desse campo existir direito, ou qualquer inconsistência
+  // passada) fazendo "ver nota" dar XML não encontrado à toa.
+  const comNCompra = avulsos.filter(a => a.nCompra);
+  if (comNCompra.length) {
+    const nCompras = [...new Set(comNCompra.map(a => a.nCompra))];
     const rows = await q(`SELECT nCompra, chave FROM central.compras WHERE nCompra IN (?)`, [nCompras]).catch(() => []);
     const chavePorCompra = new Map(rows.map(r => [r.nCompra, r.chave]));
     let mudou = false;
-    for (const a of semChave) {
+    for (const a of comNCompra) {
       const chave = chavePorCompra.get(a.nCompra);
-      if (chave) { a.chaveNfe = chave; mudou = true; }
+      if (chave && chave !== a.chaveNfe) { a.chaveNfe = chave; mudou = true; }
     }
     if (mudou) salvarCdNotasAvulsas(avulsos);
   }
