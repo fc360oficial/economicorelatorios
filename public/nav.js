@@ -44,8 +44,8 @@
     { sec: 'Análise' },
     { href: '/index.html',        ic: 'dashboard', txt: 'Dashboard' },
     { href: '/comparativos.html', ic: 'chart',     txt: 'Comparativos' },
-    { href: '/itens.html',        ic: 'list',      txt: 'Mercadológico' },
     { href: '/consulta.html',     ic: 'search',    txt: 'Consulta de Vendas' },
+    { href: '/itens.html',        ic: 'list',      txt: 'Mercadológico' },
     { sec: 'Operação' },
     { id: 'financeiro', ic: 'bank', txt: 'Financeiro', sub: [
         { href: '/conciliador.html', ic: 'bank', txt: 'Conciliador' },
