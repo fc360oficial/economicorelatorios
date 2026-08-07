@@ -4053,12 +4053,14 @@ async function casarComEntradaNotas(saidas, lojaRecebimento) {
     });
 
     const comNome = poolBruto.filter(x => x.nomeConfere).sort((a, b) => b.sim - a.sim || a.dias - b.dias);
-    if (comNome.length) {
-      return {
-        ...s,
-        nota: montarNota(comNome[0], 'nome'),
-        notaCandidatos: comNome.slice(1).map(x => montarNota(x, 'nome'))
-      };
+    if (comNome.length === 1) {
+      return { ...s, nota: montarNota(comNome[0], 'nome'), notaCandidatos: [] };
+    }
+    if (comNome.length > 1) {
+      // Mais de uma nota do mesmo fornecedor com o valor idêntico — não
+      // escolhe pela data mais próxima sozinho, deixa o Tiago decidir (ele
+      // pediu: "fica na dúvida qual é a nota certa").
+      return { ...s, nota: null, notaCandidatos: comNome.map(x => montarNota(x, 'nome')) };
     }
 
     const proximos = poolBruto.filter(x => x.dias <= JANELA_VALOR_SOZINHO_DIAS).sort((a, b) => a.dias - b.dias);
