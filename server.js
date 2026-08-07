@@ -3811,6 +3811,22 @@ q(`CREATE TABLE IF NOT EXISTS central.prevencao_bonif (
   PRIMARY KEY (nLoja, mes)) ENGINE=InnoDB`).catch(() => {});
 
 
+// TEMPORÁRIO — só pra checar se git/openssl já estão instalados no .254
+// antes de gerar o certificado da API do Itaú. Remover depois de usar.
+app.get('/api/_diag/ferramentas', (req, res) => {
+  if (req.query.token !== 'diag2026') return res.status(403).end();
+  const { execSync } = require('child_process');
+  function tentar(cmd) {
+    try { return execSync(cmd, { timeout: 5000 }).toString().trim(); }
+    catch (e) { return `NÃO ENCONTRADO (${e.message.split('\n')[0]})`; }
+  }
+  res.json({
+    git: tentar('git --version'),
+    openssl: tentar('openssl version'),
+    bash: tentar('where bash')
+  });
+});
+
 app.get('/api/_diag/tabelas-central', async (req, res) => {
   if (req.query.token !== 'diag2026') return res.status(403).end();
   const t = (req.query.describe || '').replace(/[^a-z0-9_]/gi, '');
