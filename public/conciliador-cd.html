@@ -116,6 +116,7 @@ table.t th.r,table.t td.r{text-align:right}
 .fn-btn.on.fn-sem{background:var(--surface-2);color:var(--ink)}
 .fn-btn.on.fn-todos{background:#FFF6D9;color:var(--brand-ink)}
 .fn-btn.on.fn-ambiguo{background:var(--red-bg);color:var(--red)}
+.fn-btn.on.fn-manual{background:#E0EDFF;color:#1D4ED8}
 
 .print-header{display:none}
 .print-footer{display:none}
@@ -234,7 +235,8 @@ async function processar() {
 
 function statusNota(it) {
   if (!it.nota) return (it.notaCandidatos && it.notaCandidatos.length) ? 'ambiguo' : 'sem';
-  return (it.nota.confianca === 'nome' || it.nota.confianca === 'manual') ? 'nome' : 'valor';
+  if (it.nota.confianca === 'manual') return 'manual';
+  return it.nota.confianca === 'nome' ? 'nome' : 'valor';
 }
 
 function itensFiltrados() {
@@ -424,12 +426,13 @@ function render() {
 
   let filtroNota_ = '';
   if (temLoja) {
-    const cont_ = { nome: 0, valor: 0, ambiguo: 0, sem: 0 };
+    const cont_ = { nome: 0, valor: 0, manual: 0, ambiguo: 0, sem: 0 };
     dados.itens.forEach(it => cont_[statusNota(it)]++);
     const btn = (v, cls, label, n) => `<button class="fn-btn ${cls}${filtroNota === v ? ' on' : ''}" onclick="aplicarFiltroNota('${v}')">${label} <span class="n">${n}</span></button>`;
     filtroNota_ = `<div class="filtro-nota-row">
       ${btn('', 'fn-todos', 'Todos', dados.itens.length)}
       ${btn('nome', 'fn-nome', 'Conciliado', cont_.nome)}
+      ${btn('manual', 'fn-manual', 'Conciliado avulso', cont_.manual)}
       ${btn('valor', 'fn-valor', 'Só valor bate', cont_.valor)}
       ${btn('ambiguo', 'fn-ambiguo', 'Escolher', cont_.ambiguo)}
       ${btn('sem', 'fn-sem', 'Sem nota', cont_.sem)}
