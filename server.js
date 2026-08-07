@@ -4019,7 +4019,7 @@ async function casarComEntradaNotas(saidas, lojaRecebimento) {
   const dFim = addDias(datas[datas.length - 1], 5);
 
   const candidatos = await q(
-    `SELECT nCompra, nNota, NomeFornec, TotalNota, DATE_FORMAT(DataEmissao,'%Y-%m-%d') as DataEmissao
+    `SELECT nCompra, nNota, NomeFornec, TotalNota, chave, DATE_FORMAT(DataEmissao,'%Y-%m-%d') as DataEmissao
      FROM central.compras
      WHERE nLoja = ? AND Status = 'F' AND DataEmissao BETWEEN ? AND ?`,
     [lojaRecebimento, dIni, dFim]
@@ -4042,7 +4042,7 @@ async function casarComEntradaNotas(saidas, lojaRecebimento) {
   const JANELA_VALOR_SOZINHO_DIAS = 20;
 
   function montarNota(x, confianca) {
-    return { nCompra: x.c.nCompra, nNota: x.c.nNota, fornecedor: x.c.NomeFornec, dataEmissao: x.c.DataEmissao, confianca };
+    return { nCompra: x.c.nCompra, nNota: x.c.nNota, fornecedor: x.c.NomeFornec, dataEmissao: x.c.DataEmissao, chave: x.c.chave, confianca };
   }
 
   return saidas.map(s => {
@@ -4100,7 +4100,7 @@ function aplicarCdNotasAvulsas(saidas) {
     if (!av) return s;
     return {
       ...s,
-      nota: { nCompra: av.nCompra, nNota: av.nNota, fornecedor: av.fornecedor, dataEmissao: av.dataEmissao, confianca: 'manual' },
+      nota: { nCompra: av.nCompra, nNota: av.nNota, fornecedor: av.fornecedor, dataEmissao: av.dataEmissao, chave: av.chaveNfe, confianca: 'manual' },
       notaCandidatos: []
     };
   });
@@ -4151,6 +4151,7 @@ app.post('/api/conciliador-cd/confirmar-nota', (req, res) => {
       chave,
       dataSaida: saida.data, valorSaida: saida.valor, favorecidoSaida: saida.favorecido,
       nCompra: escolha.nCompra, nNota: escolha.nNota, fornecedor: escolha.fornecedor, dataEmissao: escolha.dataEmissao,
+      chaveNfe: escolha.chave,
       confirmadoEm: new Date().toISOString(),
       confirmadoPor: (req.session && req.session.user && req.session.user.nome) || 'desconhecido'
     };
@@ -4161,6 +4162,66 @@ app.post('/api/conciliador-cd/confirmar-nota', (req, res) => {
   } catch (err) {
     console.error('[CONCILIADOR-CD-AVULSO-ERR]', err.message);
     res.status(500).json({ error: err.message || 'Erro ao confirmar nota.' });
+  }
+});
+
+// Detalhe de uma NFe pelo XML autorizado (central.arquivoxml, indexado pela
+// chave de acesso de 44 dígitos que já vem em central.compras.chave) — sem
+// dependência de lib de XML, extrai só os campos que interessam por regex
+// (schema da NFe é fixo/conhecido). Não é um DANFE oficial pixel-perfect,
+// mas mostra os dados reais da nota autorizada pela SEFAZ (itens, valores,
+// emitente/destinatário, duplicatas, protocolo de autorização).
+function tagXml(bloco, nome) {
+  const m = bloco.match(new RegExp(`<${nome}>([^<]*)</${nome}>`));
+  return m ? m[1] : '';
+}
+function blocoXml(xml, nome) {
+  const m = xml.match(new RegExp(`<${nome}[^>]*>([\\s\\S]*?)<\\/${nome}>`));
+  return m ? m[1] : '';
+}
+function extrairNotaXml(xmlCompleto) {
+  const inf = blocoXml(xmlCompleto, 'infNFe') || xmlCompleto;
+  const ide = blocoXml(inf, 'ide');
+  const emit = blocoXml(inf, 'emit');
+  const dest = blocoXml(inf, 'dest');
+  const total = blocoXml(inf, 'ICMSTot');
+  const prot = blocoXml(xmlCompleto, 'protNFe');
+
+  const itens = [...inf.matchAll(/<det nItem="(\d+)">([\s\S]*?)<\/det>/g)].map(m => {
+    const prod = blocoXml(m[2], 'prod');
+    return {
+      item: m[1], codigo: tagXml(prod, 'cProd'), descricao: tagXml(prod, 'xProd'),
+      qtd: tagXml(prod, 'qCom'), unidade: tagXml(prod, 'uCom'),
+      valorUnit: tagXml(prod, 'vUnCom'), valorTotal: tagXml(prod, 'vProd')
+    };
+  });
+
+  const duplicatas = [...inf.matchAll(/<dup>([\s\S]*?)<\/dup>/g)].map(m => ({
+    numero: tagXml(m[1], 'nDup'), vencimento: tagXml(m[1], 'dVenc'), valor: tagXml(m[1], 'vDup')
+  }));
+
+  return {
+    numero: tagXml(ide, 'nNF'), serie: tagXml(ide, 'serie'), dataEmissao: tagXml(ide, 'dhEmi'),
+    naturezaOperacao: tagXml(ide, 'natOp'),
+    emitente: { nome: tagXml(emit, 'xNome'), fantasia: tagXml(emit, 'xFant'), cnpj: tagXml(emit, 'CNPJ'), ie: tagXml(emit, 'IE') },
+    destinatario: { nome: tagXml(dest, 'xNome'), cnpj: tagXml(dest, 'CNPJ') },
+    itens,
+    valorTotal: tagXml(total, 'vNF'),
+    duplicatas,
+    protocolo: { numero: tagXml(prot, 'nProt'), dataRecebimento: tagXml(prot, 'dhRecbto'), status: tagXml(prot, 'xMotivo'), chave: tagXml(prot, 'chNFe') }
+  };
+}
+
+app.get('/api/conciliador-cd/nota-detalhe', async (req, res) => {
+  try {
+    const chave = (req.query.chave || '').replace(/[^0-9]/g, '');
+    if (chave.length !== 44) return res.status(400).json({ error: 'Chave de acesso inválida.' });
+    const rows = await q('SELECT xml FROM central.arquivoxml WHERE chave = ?', [chave]);
+    if (!rows.length || !rows[0].xml) return res.status(404).json({ error: 'XML da nota não encontrado no ERP.' });
+    res.json(extrairNotaXml(rows[0].xml));
+  } catch (err) {
+    console.error('[CD-NOTA-DETALHE-ERR]', err.message);
+    res.status(500).json({ error: err.message || 'Erro ao buscar detalhe da nota.' });
   }
 });
 

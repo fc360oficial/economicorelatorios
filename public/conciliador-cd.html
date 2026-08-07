@@ -95,6 +95,8 @@ table.t th.r,table.t td.r{text-align:right}
 .nota-ok{background:var(--green-bg);color:var(--green)}
 .nota-valor{background:#FBEDDD;color:#B45C00}
 .nota-vazia{background:var(--surface-2);color:var(--ink-3);font-weight:600}
+.nota-ver-link{font-size:10.5px;color:var(--ink-3);text-decoration:underline;margin-left:4px}
+.nota-ver-link:hover{color:var(--ink)}
 .nota-amb-tag{background:var(--red-bg);color:var(--red)}
 .nota-opcoes{margin-top:6px;display:flex;flex-direction:column;gap:4px;max-width:280px}
 .nota-opcao{border:1px solid var(--border-strong);border-radius:8px;padding:5px 8px;cursor:pointer;transition:background .12s,border-color .12s}
@@ -111,6 +113,7 @@ table.t th.r,table.t td.r{text-align:right}
 .fn-btn.on.fn-valor{background:#FBEDDD;color:#B45C00}
 .fn-btn.on.fn-sem{background:var(--surface-2);color:var(--ink)}
 .fn-btn.on.fn-todos{background:#FFF6D9;color:var(--brand-ink)}
+.fn-btn.on.fn-ambiguo{background:var(--red-bg);color:var(--red)}
 
 .print-header{display:none}
 .print-footer{display:none}
@@ -165,7 +168,7 @@ table.t th.r,table.t td.r{text-align:right}
     </div>
     <div class="loja-recebimento">
       <label>Conferir com entrada de notas da loja</label>
-      <input type="number" id="loja-recebimento" placeholder="Ex: 10" min="1">
+      <input type="number" id="loja-recebimento" placeholder="Ex: 10" min="1" value="10">
       <span class="hint2">Opcional — cruza cada saída com as notas fechadas (NFe) dessa loja no ERP, pra ver se o pagamento corresponde a uma mercadoria que realmente entrou.</span>
     </div>
   </div>
@@ -228,7 +231,7 @@ async function processar() {
 }
 
 function statusNota(it) {
-  if (!it.nota) return 'sem';
+  if (!it.nota) return (it.notaCandidatos && it.notaCandidatos.length) ? 'ambiguo' : 'sem';
   return (it.nota.confianca === 'nome' || it.nota.confianca === 'manual') ? 'nome' : 'valor';
 }
 
@@ -275,6 +278,7 @@ function notaCelHtml(it, idx) {
   const classe = (it.nota.confianca === 'nome' || it.nota.confianca === 'manual') ? 'nota-ok' : 'nota-valor';
   const rotulo = it.nota.confianca === 'nome' ? 'Nota' : it.nota.confianca === 'manual' ? 'Nota (confirmada)' : 'Nota (só valor bate)';
   let html = `<span class="nota-pill ${classe}">${rotulo} ${esc(it.nota.nNota)} · entrou ${fmtData(it.nota.dataEmissao)}</span>` +
+    (it.nota.chave ? ` <a href="#" class="nota-ver-link" onclick="verNota('${esc(it.nota.chave)}');return false">ver nota</a>` : '') +
     `<div class="hist">${esc(it.nota.fornecedor)}</div>`;
   if (it.notaCandidatos && it.notaCandidatos.length) {
     html += `<div class="hist">+${it.notaCandidatos.length} outra${it.notaCandidatos.length > 1 ? 's' : ''} nota${it.notaCandidatos.length > 1 ? 's' : ''} do mesmo fornecedor com esse valor</div>`;
@@ -304,6 +308,88 @@ async function confirmarNota(idx, cidx) {
   }
 }
 
+function fmtDataHora(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d)) return iso;
+  return d.toLocaleString('pt-BR');
+}
+function fmtCnpj(v) {
+  const s = (v || '').replace(/\D/g, '');
+  if (s.length !== 14) return v || '';
+  return `${s.slice(0,2)}.${s.slice(2,5)}.${s.slice(5,8)}/${s.slice(8,12)}-${s.slice(12)}`;
+}
+
+async function verNota(chave) {
+  const w = window.open('', '_blank');
+  w.document.write('<p style="font-family:sans-serif;padding:20px">Carregando nota...</p>');
+  try {
+    const r = await fetch('/api/conciliador-cd/nota-detalhe?chave=' + encodeURIComponent(chave));
+    const n = await r.json();
+    if (!r.ok) throw new Error(n.error || 'Erro ao buscar nota');
+
+    const linhasItens = n.itens.map(it => `
+      <tr>
+        <td>${esc(it.item)}</td>
+        <td>${esc(it.descricao)}</td>
+        <td class="r">${esc(it.qtd)} ${esc(it.unidade)}</td>
+        <td class="r">${fmtMoeda(it.valorUnit)}</td>
+        <td class="r">${fmtMoeda(it.valorTotal)}</td>
+      </tr>`).join('');
+
+    const linhasDup = n.duplicatas.map(d => `
+      <tr><td>${esc(d.numero)}</td><td>${fmtData(d.vencimento)}</td><td class="r">${fmtMoeda(d.valor)}</td></tr>`).join('');
+
+    w.document.open();
+    w.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
+      <title>NFe ${esc(n.numero)} — ${esc(n.emitente.nome)}</title>
+      <style>
+        *{box-sizing:border-box;font-family:'Segoe UI',Arial,sans-serif}
+        body{padding:24px;color:#0E1626;max-width:800px;margin:0 auto}
+        .header{display:flex;align-items:center;gap:14px;border-bottom:3px solid #F5B800;padding-bottom:12px;margin-bottom:16px}
+        .header img{height:36px}
+        .header h1{font-size:17px;font-weight:800}
+        .header p{font-size:11px;color:#4E5A72;margin-top:2px}
+        .sec{font-size:10px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:#98A0B3;margin:16px 0 6px}
+        .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+        .box{border:1px solid #DADAD6;border-radius:8px;padding:10px 12px;font-size:12.5px}
+        .box b{display:block;font-size:13px;margin-bottom:2px}
+        table{width:100%;border-collapse:collapse;font-size:12px;margin-top:4px}
+        th{background:#F5F5F3;text-align:left;padding:6px 8px;font-size:10px;text-transform:uppercase;color:#4E5A72;border:1px solid #DADAD6}
+        td{padding:6px 8px;border:1px solid #DADAD6}
+        th.r,td.r{text-align:right}
+        .total-row{font-weight:800;background:#F5F5F3}
+        .protocolo{margin-top:16px;font-size:11px;color:#137A48;background:#E7F5EC;border-radius:8px;padding:10px 12px}
+        .chave{font-family:monospace;font-size:11px;word-break:break-all;color:#4E5A72;margin-top:8px}
+        @media print{button{display:none!important}}
+      </style></head><body>
+      <div class="header">
+        <img src="/logo.png" alt="Econômico">
+        <div><h1>NFe ${esc(n.numero)} · Série ${esc(n.serie)}</h1><p>${esc(n.naturezaOperacao)} · Emitida em ${fmtDataHora(n.dataEmissao)}</p></div>
+      </div>
+      <div class="grid2">
+        <div class="box"><b>${esc(n.emitente.nome)}</b>CNPJ ${fmtCnpj(n.emitente.cnpj)} · IE ${esc(n.emitente.ie)}</div>
+        <div class="box"><b>${esc(n.destinatario.nome)}</b>CNPJ ${fmtCnpj(n.destinatario.cnpj)}</div>
+      </div>
+      <div class="sec">Itens</div>
+      <table><thead><tr><th>#</th><th>Descrição</th><th class="r">Qtd</th><th class="r">Vl. Unit.</th><th class="r">Vl. Total</th></tr></thead>
+      <tbody>${linhasItens}
+        <tr class="total-row"><td colspan="4" class="r">Total da nota</td><td class="r">${fmtMoeda(n.valorTotal)}</td></tr>
+      </tbody></table>
+      ${n.duplicatas.length ? `<div class="sec">Duplicatas / Vencimentos</div>
+      <table><thead><tr><th>Parcela</th><th>Vencimento</th><th class="r">Valor</th></tr></thead><tbody>${linhasDup}</tbody></table>` : ''}
+      <div class="protocolo">
+        <b>${esc(n.protocolo.status)}</b> — Protocolo ${esc(n.protocolo.numero)} em ${fmtDataHora(n.protocolo.dataRecebimento)}
+        <div class="chave">Chave de acesso: ${esc(n.protocolo.chave)}</div>
+      </div>
+      <button onclick="window.print()" style="margin-top:16px;padding:8px 16px;border-radius:8px;border:none;background:#F5B800;color:#6B4E00;font-weight:700;cursor:pointer">Imprimir / PDF</button>
+      </body></html>`);
+    w.document.close();
+  } catch (e) {
+    w.document.write(`<p style="font-family:sans-serif;padding:20px;color:#C22F49">${esc(e.message)}</p>`);
+  }
+}
+
 function render() {
   const cont = document.getElementById('resultado');
   if (!dados) { cont.innerHTML = ''; return; }
@@ -326,13 +412,14 @@ function render() {
 
   let filtroNota_ = '';
   if (temLoja) {
-    const cont_ = { nome: 0, valor: 0, sem: 0 };
+    const cont_ = { nome: 0, valor: 0, ambiguo: 0, sem: 0 };
     dados.itens.forEach(it => cont_[statusNota(it)]++);
     const btn = (v, cls, label, n) => `<button class="fn-btn ${cls}${filtroNota === v ? ' on' : ''}" onclick="aplicarFiltroNota('${v}')">${label} <span class="n">${n}</span></button>`;
     filtroNota_ = `<div class="filtro-nota-row">
       ${btn('', 'fn-todos', 'Todos', dados.itens.length)}
       ${btn('nome', 'fn-nome', 'Conciliado', cont_.nome)}
       ${btn('valor', 'fn-valor', 'Só valor bate', cont_.valor)}
+      ${btn('ambiguo', 'fn-ambiguo', 'Escolher', cont_.ambiguo)}
       ${btn('sem', 'fn-sem', 'Sem nota', cont_.sem)}
     </div>`;
   }
