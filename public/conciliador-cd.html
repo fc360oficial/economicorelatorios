@@ -101,6 +101,7 @@ table.t th.r,table.t td.r{text-align:right}
 .nota-ver-link:hover{color:var(--ink)}
 .nota-amb-tag{background:var(--red-bg);color:var(--red)}
 .nota-opcoes{margin-top:6px;display:flex;flex-direction:column;gap:4px;max-width:280px}
+.nota-nenhuma-link{display:inline-block;margin-top:6px;font-size:10.5px;color:var(--red);text-decoration:underline}
 .nota-opcao{border:1px solid var(--border-strong);border-radius:8px;padding:5px 8px;cursor:pointer;transition:background .12s,border-color .12s}
 .nota-opcao:hover{background:var(--amw,#FFF6D9);border-color:var(--brand)}
 .nota-opcao-nn{display:block;font-size:11px;font-weight:700;color:var(--ink)}
@@ -279,11 +280,12 @@ function notaCelHtml(it, idx) {
         <span class="nota-opcao-forn">${esc(c.fornecedor)} · emissão ${fmtData(c.dataEmissao)} · recebimento ${fmtData(c.dataRecebimento)}</span>
       </div>`).join('');
     return `<div class="nota-ambigua">
-      <span class="nota-pill nota-amb-tag">${it.notaCandidatos.length} notas com esse valor — qual é?</span>
+      <span class="nota-pill nota-amb-tag">${it.notaCandidatos.length} nota${it.notaCandidatos.length > 1 ? 's' : ''} com esse valor — qual é?</span>
       <div class="nota-opcoes">${opcoes}</div>
+      <a href="#" class="nota-nenhuma-link" onclick="rejeitarNota(${idx});return false">nenhuma dessas é a nota certa</a>
     </div>`;
   }
-  if (!it.nota) return '<span class="nota-pill nota-vazia">Não encontrada na loja</span>';
+  if (!it.nota) return `<span class="nota-pill nota-vazia">${it.semNotaConfirmado ? 'Revisado — nenhuma nota' : 'Não encontrada na loja'}</span>`;
   const classe = it.nota.confianca === 'manual' ? 'nota-manual' : it.nota.confianca === 'nome' ? 'nota-ok' : 'nota-valor';
   const rotulo = it.nota.confianca === 'valor' ? 'Nota (valor único)' : 'Nota';
   let html = `<div class="nota-linha">
@@ -335,6 +337,29 @@ async function aprovarValor(idx) {
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || 'Erro ao aprovar nota');
     it.nota = { ...escolha, confianca: 'manual' };
+    render();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+async function rejeitarNota(idx) {
+  const it = itensAtuaisRef[idx];
+  if (!it) return;
+  if (!confirm('Confirma que nenhuma das notas candidatas é essa saída? Ela vai ficar marcada como "Revisado — nenhuma nota" e não volta a aparecer como ambígua.')) return;
+  try {
+    const r = await fetch('/api/conciliador-cd/confirmar-nota', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        saida: { data: it.data, valor: it.valor, historico: it.historico },
+        semNota: true
+      })
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Erro ao marcar como não encontrada');
+    it.nota = null;
+    it.notaCandidatos = [];
+    it.semNotaConfirmado = true;
     render();
   } catch (e) {
     alert(e.message);

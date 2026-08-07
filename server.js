@@ -4137,6 +4137,12 @@ async function aplicarCdNotasAvulsas(saidas) {
   return saidas.map(s => {
     const av = porChave.get(chaveSaida(s));
     if (!av) return s;
+    if (av.semNota) {
+      // Tiago revisou e confirmou que nenhuma nota candidata é essa saída —
+      // fica travado em "Não encontrada", não volta a mostrar as candidatas
+      // ambíguas de novo a cada reprocessamento.
+      return { ...s, nota: null, notaCandidatos: [], semNotaConfirmado: true };
+    }
     return {
       ...s,
       nota: { nCompra: av.nCompra, nNota: av.nNota, fornecedor: av.fornecedor, dataEmissao: av.dataEmissao, dataRecebimento: av.dataRecebimento, chave: av.chaveNfe, confianca: 'manual' },
@@ -4182,11 +4188,17 @@ app.post('/api/conciliador-cd/processar', async (req, res) => {
 // valor) é a certa pra uma saída do CD — ver aplicarCdNotasAvulsas.
 app.post('/api/conciliador-cd/confirmar-nota', (req, res) => {
   try {
-    const { saida, escolha } = req.body || {};
-    if (!saida || !escolha) return res.status(400).json({ error: 'Informe a saída e a nota escolhida.' });
+    const { saida, escolha, semNota } = req.body || {};
+    if (!saida || (!escolha && !semNota)) return res.status(400).json({ error: 'Informe a saída e a nota escolhida (ou semNota pra marcar como não encontrada).' });
     const lista = carregarCdNotasAvulsas();
     const chave = chaveSaida(saida);
-    const registro = {
+    const registro = semNota ? {
+      chave,
+      dataSaida: saida.data, valorSaida: saida.valor, favorecidoSaida: saida.favorecido,
+      semNota: true,
+      confirmadoEm: new Date().toISOString(),
+      confirmadoPor: (req.session && req.session.user && req.session.user.nome) || 'desconhecido'
+    } : {
       chave,
       dataSaida: saida.data, valorSaida: saida.valor, favorecidoSaida: saida.favorecido,
       nCompra: escolha.nCompra, nNota: escolha.nNota, fornecedor: escolha.fornecedor, dataEmissao: escolha.dataEmissao, dataRecebimento: escolha.dataRecebimento,
