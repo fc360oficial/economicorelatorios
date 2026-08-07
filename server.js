@@ -4020,10 +4020,12 @@ async function casarComEntradaNotas(saidas, lojaRecebimento) {
 
   // DataRecto = quando a mercadoria/nota entrou de fato no ERP (recebimento),
   // diferente de DataEmissao (data que o fornecedor emitiu a NFe — pode ser
-  // uns dias antes). O Tiago quer ver e casar pela data de entrada aqui, não
-  // pela emissão.
+  // uns dias antes). Casa pela data de recebimento (mais perto de quando o
+  // pagamento sai), mas mostra as duas pro Tiago.
   const candidatos = await q(
-    `SELECT nCompra, nNota, NomeFornec, TotalNota, chave, CNPJ, DATE_FORMAT(DataRecto,'%Y-%m-%d') as DataEmissao
+    `SELECT nCompra, nNota, NomeFornec, TotalNota, chave, CNPJ,
+            DATE_FORMAT(DataRecto,'%Y-%m-%d') as DataRecebimento,
+            DATE_FORMAT(DataEmissao,'%Y-%m-%d') as DataEmissao
      FROM central.compras
      WHERE nLoja = ? AND Status = 'F' AND DataRecto BETWEEN ? AND ?`,
     [lojaRecebimento, dIni, dFim]
@@ -4046,7 +4048,7 @@ async function casarComEntradaNotas(saidas, lojaRecebimento) {
   const JANELA_VALOR_SOZINHO_DIAS = 20;
 
   function montarNota(x, confianca) {
-    return { nCompra: x.c.nCompra, nNota: x.c.nNota, fornecedor: x.c.NomeFornec, dataEmissao: x.c.DataEmissao, chave: x.c.chave, confianca };
+    return { nCompra: x.c.nCompra, nNota: x.c.nNota, fornecedor: x.c.NomeFornec, dataEmissao: x.c.DataEmissao, dataRecebimento: x.c.DataRecebimento, chave: x.c.chave, confianca };
   }
   function soDigitos(v) { return (v || '').replace(/\D/g, ''); }
 
@@ -4060,7 +4062,7 @@ async function casarComEntradaNotas(saidas, lojaRecebimento) {
       const sim = similaridadeNome(s.favorecido, c.NomeFornec);
       const cnpjBate = !!docSaida && docSaida === soDigitos(c.CNPJ);
       const nomeConfere = cnpjBate || (sim >= SIMILARIDADE_MINIMA_NOTA && temTokenEspecificoComum(s.favorecido, c.NomeFornec));
-      return { c, sim, cnpjBate, nomeConfere, dias: diasEntre(s.data, c.DataEmissao) };
+      return { c, sim, cnpjBate, nomeConfere, dias: diasEntre(s.data, c.DataRecebimento) };
     });
 
     const comNome = poolBruto.filter(x => x.nomeConfere).sort((a, b) => (b.cnpjBate - a.cnpjBate) || (b.sim - a.sim) || (a.dias - b.dias));
@@ -4137,7 +4139,7 @@ async function aplicarCdNotasAvulsas(saidas) {
     if (!av) return s;
     return {
       ...s,
-      nota: { nCompra: av.nCompra, nNota: av.nNota, fornecedor: av.fornecedor, dataEmissao: av.dataEmissao, chave: av.chaveNfe, confianca: 'manual' },
+      nota: { nCompra: av.nCompra, nNota: av.nNota, fornecedor: av.fornecedor, dataEmissao: av.dataEmissao, dataRecebimento: av.dataRecebimento, chave: av.chaveNfe, confianca: 'manual' },
       notaCandidatos: []
     };
   });
@@ -4187,7 +4189,7 @@ app.post('/api/conciliador-cd/confirmar-nota', (req, res) => {
     const registro = {
       chave,
       dataSaida: saida.data, valorSaida: saida.valor, favorecidoSaida: saida.favorecido,
-      nCompra: escolha.nCompra, nNota: escolha.nNota, fornecedor: escolha.fornecedor, dataEmissao: escolha.dataEmissao,
+      nCompra: escolha.nCompra, nNota: escolha.nNota, fornecedor: escolha.fornecedor, dataEmissao: escolha.dataEmissao, dataRecebimento: escolha.dataRecebimento,
       chaveNfe: escolha.chave,
       confirmadoEm: new Date().toISOString(),
       confirmadoPor: (req.session && req.session.user && req.session.user.nome) || 'desconhecido'
