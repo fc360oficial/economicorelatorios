@@ -148,7 +148,7 @@ app.use(session({
 // Middleware de autenticação (antes do static)
 app.use((req, res, next) => {
   const publico = ['/login.html', '/api/login', '/api/logout', '/logo.png', '/deploy', '/api/versao',
-    '/api/negativos/reenviar',
+    '/api/negativos/reenviar', '/api/pendencias/congelar-manual',
     '/manifest.json', '/sw.js', '/icon-192.png', '/icon-512.png',
     '/relatorio-cronograma.html',
     '/precificacao.html', '/compras.html', '/comprador.html', '/supervisao.html',
@@ -2474,6 +2474,12 @@ app.get('/api/pendencias/prevencao-consolidado', withCache(60), async (req, res)
       const dFim = dFimMes(anoSel, mesNum);
       const mm = mesDB(mesNum);
 
+      const avariaCongeladoCons = carregarAvariaCongelado();
+      const chaveConsolidado = `consolidado-${loja}-${mesSel}`;
+      if (mesFechado(anoSel, mesNum) && avariaCongeladoCons[chaveConsolidado]) {
+        return { loja, nome: LOJAS[loja], ...avariaCongeladoCons[chaveConsolidado] };
+      }
+
       const pedidosEmitidos = await q(`SELECT DISTINCT nPedido FROM central.avariaconsumo
         WHERE nLoja=? AND Status=4 AND Tipo=1 AND NF > 0 AND DataEmi BETWEEN ? AND ?`, [loja, dIni, dFim]);
       const pedIds = pedidosEmitidos.map(r => r.nPedido);
@@ -2575,13 +2581,17 @@ app.get('/api/pendencias/prevencao-consolidado', withCache(60), async (req, res)
         } catch { mensal.push({ mes: m, pct: 0 }); }
       }
 
-      return {
-        loja, nome: LOJAS[loja],
+      const resultadoLoja = {
         venda: valorVenda, avBruta, avMes: avMesInicial,
         acougue: porSetor.AÇOUGUE, horti: porSetor.HORTFRUTI, padaria: porSetor.PADARIA,
         saldo, bonif, aberto, tramite, mensal,
         pctMes: valorVenda > 0 ? +(avMesInicial / valorVenda * 100).toFixed(2) : 0
       };
+      if (mesFechado(anoSel, mesNum)) {
+        avariaCongeladoCons[chaveConsolidado] = resultadoLoja;
+        salvarAvariaCongelado(avariaCongeladoCons);
+      }
+      return { loja, nome: LOJAS[loja], ...resultadoLoja };
     }
 
     // Bonifs salvos pelo usuário (para aplicar nos meses históricos)
@@ -3364,6 +3374,24 @@ app.get('/api/negativos/reenviar', async (req, res) => {
     res.status(r.status).type('json').send(texto);
   } catch (err) {
     res.status(502).json({ error: 'negativos-wpp não respondeu (serviço fora do ar?): ' + err.message });
+  }
+});
+
+// Injeta manualmente um valor congelado de Avaria/Prevenção pra um mês
+// fechado — usado quando o Tiago quer travar um mês num valor específico
+// (ex: bater com um print/relatório que ele já validou), sem depender do
+// recálculo automático. Body: { chave, dados }.
+app.post('/api/pendencias/congelar-manual', (req, res) => {
+  if (req.query.token !== 'fc360deploy2026') return res.status(403).send('Proibido');
+  try {
+    const { chave, dados } = req.body || {};
+    if (!chave || !dados) return res.status(400).json({ error: 'Informe chave e dados.' });
+    const congelado = carregarAvariaCongelado();
+    congelado[chave] = dados;
+    salvarAvariaCongelado(congelado);
+    res.json({ ok: true, chave });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
