@@ -2542,6 +2542,12 @@ app.get('/api/pendencias/prevencao-consolidado', withCache(60), async (req, res)
           mensal.push({ mes: m, pct: pctFixo[m][loja] || 0 });
           continue;
         }
+        const mMesKey = `${anoSel}-${String(m).padStart(2,'0')}`;
+        const mChaveCongelado = `consolidado-${loja}-${mMesKey}`;
+        if (mesFechado(anoSel, m) && avariaCongeladoCons[mChaveCongelado]) {
+          mensal.push({ mes: m, pct: avariaCongeladoCons[mChaveCongelado].pctMes || 0 });
+          continue;
+        }
         const mIni = `${anoSel}-${String(m).padStart(2,'0')}-01`;
         const mFim = dFimMes(anoSel, m);
         const mDB = mesDB(m);
@@ -2577,7 +2583,14 @@ app.get('/api/pendencias/prevencao-consolidado', withCache(60), async (req, res)
           const mBonif = bonifMap[`${loja}-${mMesStr}`] || 0;
           const mAvMes = (mSaldo - mBonif) + mAberto + mTramite;
           const vdT = parseFloat(mVd[0]?.t || 0);
-          mensal.push({ mes: m, pct: vdT > 0 ? +(mAvMes / vdT * 100).toFixed(2) : 0 });
+          const mPct = vdT > 0 ? +(mAvMes / vdT * 100).toFixed(2) : 0;
+          mensal.push({ mes: m, pct: mPct });
+          if (mesFechado(anoSel, m) && !avariaCongeladoCons[mChaveCongelado]) {
+            avariaCongeladoCons[mChaveCongelado] = { venda: vdT, avBruta: mEmit, avMes: mAvMes,
+              acougue: mSetor.AÇOUGUE, horti: mSetor.HORTFRUTI, padaria: mSetor.PADARIA,
+              saldo: mSaldo, bonif: mBonif, aberto: mAberto, tramite: mTramite, mensal: [], pctMes: mPct };
+            salvarAvariaCongelado(avariaCongeladoCons);
+          }
         } catch { mensal.push({ mes: m, pct: 0 }); }
       }
 
