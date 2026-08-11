@@ -69,14 +69,16 @@ Expected (no terminal): linha `✓ Dashboard rodando em http://localhost:3003` (
 Deixe rodando em background para as próximas tasks. O `DB_HOST` não definido cai no padrão
 `192.168.2.252` (produção, leitura), então os dados batem com o real.
 
-- [ ] **Step 3: Confirmar que a home exige login**
+- [ ] **Step 3: Confirmar que o middleware de autenticação está de pé**
 
 ```bash
-curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3003/api/ruptura
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3003/api/fornecedores/resumo
 ```
 
-Expected: `401` (prova que o middleware de autenticação está de pé e que `/api/ruptura`, rota
-irmã da que vamos criar, está protegida — nossa rota nova deve se comportar igual).
+Expected: `401`. **Atenção:** não use `/api/ruptura` como referência — essa rota está na lista
+`publico` do middleware (`server.js:150-170`, liberada para o pré-aquecimento de cache interno) e
+responde `200` mesmo sem sessão. `/api/fornecedores/resumo` não está nessa lista e é o exemplo
+correto de rota protegida — é o comportamento que a rota nova (Task 2) deve reproduzir.
 
 Não precisa commit nesta task (nenhum arquivo alterado).
 
@@ -257,8 +259,9 @@ node server.js
 curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3003/api/compras/centro-distribuicao
 ```
 
-Expected: `401` (mesmo comportamento de `/api/ruptura` — prova que a rota está registrada e
-protegida pelo middleware, sem precisar de sessão pra esse check).
+Expected: `401` (mesmo comportamento de `/api/fornecedores/resumo`, verificado na Task 1 — prova
+que a rota nova está registrada e protegida pelo middleware, sem precisar de sessão pra esse
+check). Não confunda com `/api/ruptura`, que é público por estar na lista de pré-aquecimento.
 
 - [ ] **Step 3: Verificar a query e o cálculo direto no MySQL (sem precisar de sessão HTTP)**
 
