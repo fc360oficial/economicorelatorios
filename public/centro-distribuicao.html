@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="/design-system.css">
+<script src="/nav.js" defer></script>
+<title>Centro Distribuição — Econômico Relatórios</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#EBEBE9;--card:#FFFFFF;--border:#DADAD6;
+  --brand:#F5B800;--red:#C22F49;--green:#137A48;--orange:#B45C00;
+  --blue:#2C4A6B;--purple:#0E1626;--text:#0E1626;--text2:#4E5A72;--text3:#4E5A72;
+}
+html,body{height:100%;font-family:'InterVar','Segoe UI',sans-serif;background:var(--bg);color:var(--text)}
+.main{margin-left:0;padding:24px;min-height:100vh}
+.page-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px}
+.page-hdr h1{font-size:20px;font-weight:800;color:#0E1626}
+.page-hdr p{font-size:12px;color:var(--text3);margin-top:2px}
+.btn{border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all .2s}
+.btn-brand{background:var(--brand);color:#6B4E00}.btn-brand:hover{background:#E5AC00}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px}
+.kpi-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px 18px}
+.kpi-card .val{font-size:22px;font-weight:800;line-height:1}
+.kpi-card .lbl{font-size:11px;color:var(--text3);margin-top:5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.kpi-card.danger{border-color:#C22F4940}.kpi-card.danger .val{color:var(--red)}
+.kpi-card.warning{border-color:#B45C0040}.kpi-card.warning .val{color:var(--orange)}
+.kpi-card.brand{border-color:#F5B80040}.kpi-card.brand .val{color:#6B4E00}
+
+.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.filtro{padding:6px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1px solid var(--border);background:var(--card);color:var(--text2)}
+.filtro.active{background:var(--brand);color:#6B4E00;border-color:var(--brand)}
+#busca{background:#FFFFFF;border:1px solid #98A0B3;border-radius:6px;color:#0E1626;padding:6px 10px;font-size:12px;min-width:220px}
+
+.sec{background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden}
+.tbl-wrap{overflow-x:auto}
+table.t{width:100%;border-collapse:collapse;font-size:12px}
+table.t thead{background:#EBEBE9}
+table.t th{padding:9px 12px;text-align:left;color:var(--text3);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;white-space:nowrap;border-bottom:1px solid var(--border)}
+table.t td{padding:8px 12px;border-bottom:1px solid #DADAD666;vertical-align:middle}
+table.t th.r,table.t td.r{text-align:right}
+table.t tr.prod-row{cursor:pointer}
+table.t tr.prod-row:hover{background:#00000006}
+table.t tr.sub-row{display:none;background:#F7F8FA}
+table.t tr.sub-row.open{display:table-row}
+.risk{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700}
+.risk-critico{background:#C22F4922;color:var(--red)}
+.risk-alto{background:#B45C0022;color:var(--orange)}
+.risk-medio{background:#F5B80022;color:#6B4E00}
+.risk-ok{background:#137A4822;color:var(--green)}
+.sub-tbl{width:100%;border-collapse:collapse;font-size:11px;margin:6px 0}
+.sub-tbl th{padding:5px 10px;text-align:left;color:var(--text3);font-weight:700;font-size:9px;text-transform:uppercase}
+.sub-tbl td{padding:5px 10px;border-top:1px solid #DADAD6}
+.sub-tbl td.r,.sub-tbl th.r{text-align:right}
+.sub-tbl tr.precisa td{color:var(--red);font-weight:700}
+
+.loading{display:flex;align-items:center;justify-content:center;padding:48px;gap:12px;color:var(--text3);font-size:14px}
+.spin{width:20px;height:20px;border:2px solid #DADAD6;border-top-color:var(--brand);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.empty{padding:32px;text-align:center;color:var(--text3);font-size:13px}
+.stamp{font-size:11px;color:var(--text3);display:flex;align-items:center;gap:6px}
+.dot-live{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+@media(max-width:768px){.kpi-grid{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body class="ds">
+
+<main class="main">
+  <div class="page-hdr">
+    <div>
+      <h1>🚚 Centro Distribuição</h1>
+      <p>Estoque do CD (Loja 10) x giro de 30 dias das lojas 1-6 · sugestão de pedido automático por loja</p>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span class="stamp" id="stamp"><span class="dot-live"></span> Aguardando análise</span>
+      <button class="btn btn-brand" onclick="carregar()" id="btn-analisar">⚡ Analisar Agora</button>
+    </div>
+  </div>
+
+  <div id="conteudo"><div class="loading"><span class="spin"></span> Clique em "Analisar Agora" para iniciar a análise...</div></div>
+</main>
+
+<script>
+const fmtN = v => Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:0});
+const fmtD = v => v >= 9999 ? '—' : Number(v||0).toFixed(1) + 'd';
+
+let _dados = null;
+let _filtro = 'todos';
+
+function statusBadge(s) {
+  const map = { critico:['risk-critico','🔴 CRÍTICO'], alto:['risk-alto','🟠 ALTO'], medio:['risk-medio','🟡 MÉDIO'], ok:['risk-ok','🟢 OK'] };
+  const [cls, lbl] = map[s] || ['risk-ok', s];
+  return `<span class="risk ${cls}">${lbl}</span>`;
+}
+
+function renderTabela() {
+  const busca = (document.getElementById('busca')?.value || '').toLowerCase().trim();
+  let lista = _dados.produtos;
+  if (_filtro !== 'todos') lista = lista.filter(p => p.status === _filtro);
+  if (busca) lista = lista.filter(p => p.descricao.toLowerCase().includes(busca) || String(p.codigo).includes(busca));
+
+  if (!lista.length) {
+    document.getElementById('tbl-wrap').innerHTML = '<div class="empty">Nenhum produto encontrado para esse filtro.</div>';
+    return;
+  }
+
+  const linhas = lista.map((p, i) => `
+    <tr class="prod-row" onclick="toggleLinha(${i})">
+      <td class="bold">${p.descricao}</td>
+      <td class="r">${fmtN(p.estoqueCD)}</td>
+      <td class="r">${fmtD(p.diasCoberturaCD)}</td>
+      <td>${statusBadge(p.status)}</td>
+      <td class="r">${p.totalSugerido > 0 ? fmtN(p.totalSugerido) : '—'}</td>
+      <td class="r" style="color:${p.faltaComprar>0?'var(--red)':'inherit'};font-weight:${p.faltaComprar>0?'700':'400'}">${p.faltaComprar > 0 ? fmtN(p.faltaComprar) : '—'}</td>
+    </tr>
+    <tr class="sub-row" id="sub-${i}">
+      <td colspan="6">
+        <table class="sub-tbl">
+          <thead><tr><th>Loja</th><th class="r">Estoque</th><th class="r">Giro/dia</th><th class="r">Cobertura</th><th class="r">Sugestão de pedido</th></tr></thead>
+          <tbody>
+            ${p.lojas.map(l => `
+              <tr class="${l.sugestaoPedido > 0 ? 'precisa' : ''}">
+                <td>${l.nome}</td>
+                <td class="r">${fmtN(l.estoque)}</td>
+                <td class="r">${(l.giroDiario||0).toFixed(2)}</td>
+                <td class="r">${fmtD(l.diasCobertura)}</td>
+                <td class="r">${l.sugestaoPedido > 0 ? fmtN(l.sugestaoPedido) : '—'}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </td>
+    </tr>`).join('');
+
+  document.getElementById('tbl-wrap').innerHTML = `
+    <table class="t">
+      <thead><tr>
+        <th>Produto</th><th class="r">Estoque CD</th><th class="r">Cobertura CD</th>
+        <th>Status</th><th class="r">Total sugerido (6 lojas)</th><th class="r">Falta comprar (CD)</th>
+      </tr></thead>
+      <tbody>${linhas}</tbody>
+    </table>`;
+}
+
+function toggleLinha(i) {
+  document.getElementById('sub-'+i).classList.toggle('open');
+}
+
+function setFiltro(btn, f) {
+  document.querySelectorAll('.filtro').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  _filtro = f;
+  renderTabela();
+}
+
+function renderTudo(d) {
+  _dados = d;
+  const r = d.resumo;
+  const kpis = `
+  <div class="kpi-grid">
+    <div class="kpi-card brand"><div class="val">${fmtN(r.totalProdutos)}</div><div class="lbl">Produtos Analisados</div></div>
+    <div class="kpi-card warning"><div class="val">${fmtN(r.precisamReposicao)}</div><div class="lbl">Precisam Reposição</div></div>
+    <div class="kpi-card danger"><div class="val">${fmtN(r.criticos)}</div><div class="lbl">Em Estado Crítico</div></div>
+    <div class="kpi-card danger"><div class="val">${fmtN(r.totalUnidadesFaltando)}</div><div class="lbl">Unidades Faltando no CD</div></div>
+  </div>`;
+
+  const toolbar = `
+  <div class="toolbar">
+    <div class="filtro active" onclick="setFiltro(this,'todos')">Todos</div>
+    <div class="filtro" onclick="setFiltro(this,'critico')">🔴 Crítico</div>
+    <div class="filtro" onclick="setFiltro(this,'alto')">🟠 Alto</div>
+    <div class="filtro" onclick="setFiltro(this,'medio')">🟡 Médio</div>
+    <div class="filtro" onclick="setFiltro(this,'ok')">🟢 OK</div>
+    <input id="busca" type="text" placeholder="🔍 Buscar produto..." oninput="renderTabela()">
+  </div>`;
+
+  document.getElementById('conteudo').innerHTML = kpis + toolbar + `<div class="sec"><div class="tbl-wrap" id="tbl-wrap"></div></div>`;
+  _filtro = 'todos';
+  renderTabela();
+
+  document.getElementById('stamp').innerHTML =
+    `<span class="dot-live"></span> Atualizado em ${new Date().toLocaleTimeString('pt-BR')}`;
+}
+
+function carregar() {
+  const btn = document.getElementById('btn-analisar');
+  btn.disabled = true;
+  btn.textContent = '⏳ Analisando...';
+  document.getElementById('stamp').innerHTML = '<span class="spin"></span> Buscando dados...';
+  document.getElementById('conteudo').innerHTML = '<div class="loading"><span class="spin"></span> Cruzando estoque do CD com o giro das 6 lojas...<br><small style="color:#4E5A72;margin-top:8px;display:block">Primeira análise pode levar 1-2 minutos. Próximas serão instantâneas (cache 10min).</small></div>';
+
+  const ctrl = new AbortController();
+  const tid = setTimeout(() => ctrl.abort(), 300000);
+
+  fetch('/api/compras/centro-distribuicao', { signal: ctrl.signal })
+    .then(r => { clearTimeout(tid); if (r.status === 401) { location.href='/login.html'; return null; } return r.json(); })
+    .then(d => {
+      if (!d) return;
+      if (d.error) throw new Error(d.error);
+      renderTudo(d);
+    })
+    .catch(e => {
+      clearTimeout(tid);
+      const msg = e.name === 'AbortError' ? 'Tempo limite excedido (5min). Tente novamente.' : e.message;
+      document.getElementById('conteudo').innerHTML = `<div class="empty">❌ Erro ao carregar: ${msg}</div>`;
+      document.getElementById('stamp').innerHTML = '<span style="color:var(--red)">● Erro</span>';
+    })
+    .finally(() => {
+      btn.disabled = false;
+      btn.textContent = '⚡ Analisar Agora';
+    });
+}
+</script>
+</body>
+</html>
