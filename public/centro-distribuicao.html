@@ -77,6 +77,15 @@ table.t tr.sub-row.open{display:table-row}
       <p>Estoque do CD (Loja 10) x giro de 30 dias das lojas 1-6 · sugestão de pedido automático por loja</p>
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <select id="sel-loja" onchange="onLojaChange()" style="background:#FFFFFF;border:1px solid #98A0B3;border-radius:6px;color:#0E1626;padding:6px 10px;font-size:12px">
+        <option value="">Todas as Lojas</option>
+        <option value="1">Loja 1 — CAHU</option>
+        <option value="2">Loja 2 — MURIBECA</option>
+        <option value="3">Loja 3 — PONTE</option>
+        <option value="4">Loja 4 — ATACAREJO</option>
+        <option value="5">Loja 5 — PORTA LARGA</option>
+        <option value="6">Loja 6 — JARDIM JORDÃO</option>
+      </select>
       <span class="stamp" id="stamp"><span class="dot-live"></span> Aguardando análise</span>
       <button class="btn btn-brand" onclick="carregar()" id="btn-analisar">⚡ Analisar Agora</button>
     </div>
@@ -91,6 +100,7 @@ const fmtD = v => v >= 9999 ? '—' : Number(v||0).toFixed(1) + 'd';
 
 let _dados = null;
 let _filtro = 'todos';
+let _lojaSel = '';
 
 function statusBadge(s) {
   const map = { critico:['risk-critico','🔴 CRÍTICO'], alto:['risk-alto','🟠 ALTO'], medio:['risk-medio','🟡 MÉDIO'], ok:['risk-ok','🟢 OK'] };
@@ -98,17 +108,9 @@ function statusBadge(s) {
   return `<span class="risk ${cls}">${lbl}</span>`;
 }
 
-function renderTabela() {
-  const busca = (document.getElementById('busca')?.value || '').toLowerCase().trim();
-  let lista = _dados.produtos;
-  if (_filtro !== 'todos') lista = lista.filter(p => p.status === _filtro);
-  if (busca) lista = lista.filter(p => p.descricao.toLowerCase().includes(busca) || String(p.codigo).includes(busca));
-
-  if (!lista.length) {
-    document.getElementById('tbl-wrap').innerHTML = '<div class="empty">Nenhum produto encontrado para esse filtro.</div>';
-    return;
-  }
-
+// Visão "Todas as Lojas": uma linha por produto com os números do CD,
+// expande mostrando a quebra das 6 lojas.
+function renderTabelaTodasLojas(lista) {
   const linhas = lista.map((p, i) => `
     <tr class="prod-row" onclick="toggleLinha(${i})">
       <td class="bold">${p.descricao}</td>
@@ -136,7 +138,7 @@ function renderTabela() {
       </td>
     </tr>`).join('');
 
-  document.getElementById('tbl-wrap').innerHTML = `
+  return `
     <table class="t">
       <thead><tr>
         <th>Produto</th><th class="r">Estoque CD</th><th class="r">Cobertura CD</th>
@@ -144,6 +146,52 @@ function renderTabela() {
       </tr></thead>
       <tbody>${linhas}</tbody>
     </table>`;
+}
+
+// Visão de uma loja específica: só produtos que ELA precisa pedir do CD,
+// com os números dessa loja (não da soma das 6).
+function renderTabelaLoja(lista, lojaId) {
+  const linhas = lista.map(p => {
+    const l = p.lojas.find(x => String(x.loja) === String(lojaId));
+    return `
+    <tr>
+      <td class="bold">${p.descricao}</td>
+      <td class="r">${fmtN(l.estoque)}</td>
+      <td class="r">${(l.giroDiario||0).toFixed(2)}</td>
+      <td class="r">${fmtD(l.diasCobertura)}</td>
+      <td class="r" style="color:var(--red);font-weight:700">${fmtN(l.sugestaoPedido)}</td>
+      <td class="r">${fmtN(p.estoqueCD)}</td>
+    </tr>`;
+  }).join('');
+
+  return `
+    <table class="t">
+      <thead><tr>
+        <th>Produto</th><th class="r">Estoque loja</th><th class="r">Giro/dia</th>
+        <th class="r">Cobertura loja</th><th class="r">Sugestão de pedido</th><th class="r">Estoque CD (disponível)</th>
+      </tr></thead>
+      <tbody>${linhas}</tbody>
+    </table>`;
+}
+
+function renderTabela() {
+  const busca = (document.getElementById('busca')?.value || '').toLowerCase().trim();
+  let lista = _dados.produtos;
+  if (_filtro !== 'todos') lista = lista.filter(p => p.status === _filtro);
+  if (busca) lista = lista.filter(p => p.descricao.toLowerCase().includes(busca) || String(p.codigo).includes(busca));
+  if (_lojaSel) lista = lista.filter(p => {
+    const l = p.lojas.find(x => String(x.loja) === String(_lojaSel));
+    return l && l.sugestaoPedido > 0;
+  });
+
+  if (!lista.length) {
+    document.getElementById('tbl-wrap').innerHTML = '<div class="empty">Nenhum produto encontrado para esse filtro.</div>';
+    return;
+  }
+
+  document.getElementById('tbl-wrap').innerHTML = _lojaSel
+    ? renderTabelaLoja(lista, _lojaSel)
+    : renderTabelaTodasLojas(lista);
 }
 
 function toggleLinha(i) {
@@ -154,6 +202,11 @@ function setFiltro(btn, f) {
   document.querySelectorAll('.filtro').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   _filtro = f;
+  renderTabela();
+}
+
+function onLojaChange() {
+  _lojaSel = document.getElementById('sel-loja').value;
   renderTabela();
 }
 
