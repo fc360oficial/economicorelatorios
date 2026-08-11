@@ -3373,27 +3373,39 @@ app.get('/api/compras/centro-distribuicao', withCache(10), async (req, res) => {
       geradoEm: new Date().toISOString()
     };
 
-    // 1. Universo de produtos — mesmo critério de /api/ruptura sem filtro de comprador
-    const prods = await q(`
-      SELECT DISTINCT i.CodigoBarra, TRIM(i.Descricao) as descricao
-      FROM central.c_cotacao_lista_itens cli
-      JOIN central.itens i ON i.CodigoBarra = cli.Codigobarra AND i.CodDesativado = 0
-    `, []).catch(() => []);
-    if (!prods.length) return res.json(vazio);
+    // 1. Universo de produtos — só o que o CD (loja 10) tem em estoque positivo agora.
+    // Mais estreito e muito mais rápido do que partir de todas as listas de cotação
+    // (que trazia produtos que o CD nunca chegou a estocar); também é o critério certo
+    // pro negócio: essa aba distribui o que já está no CD, não planeja compra nova.
+    const estCD = await q(`SELECT CodigoBarra, Qtd FROM central.estoquen10 WHERE Qtd > 0`, [])
+      .catch(() => []);
+    if (!estCD.length) return res.json(vazio);
 
-    const codigos = prods.map(p => p.CodigoBarra);
-    const descMap = Object.fromEntries(prods.map(p => [p.CodigoBarra, p.descricao || p.CodigoBarra]));
+    const estoqueCDMap = Object.fromEntries(estCD.map(r => [r.CodigoBarra, parseFloat(r.Qtd) || 0]));
+    const codigosCD = estCD.map(r => r.CodigoBarra);
+    const phCD = codigosCD.map(() => '?').join(',');
+
+    // Descrição + filtro de produto ativo (CodDesativado=0) — descarta código de barras
+    // do estoque que não corresponde a um item ativo cadastrado.
+    const descRows = await q(`
+      SELECT CodigoBarra, TRIM(Descricao) as descricao
+      FROM central.itens WHERE CodDesativado = 0 AND CodigoBarra IN (${phCD})
+    `, codigosCD).catch(() => []);
+    if (!descRows.length) return res.json(vazio);
+
+    const descMap = Object.fromEntries(descRows.map(r => [r.CodigoBarra, r.descricao || r.CodigoBarra]));
+    const codigos = descRows.map(r => r.CodigoBarra);
     const phC = codigos.map(() => '?').join(',');
 
-    // 2. Estoque — lojas 1-6 e CD (loja 10), em paralelo
+    // 2. Estoque nas lojas 1-6 (o do CD já temos em estoqueCDMap)
     const LOJAS = [1, 2, 3, 4, 5, 6];
-    const estoqueQs = [...LOJAS, 10].map(n =>
+    const estoqueQs = LOJAS.map(n =>
       q(`SELECT CodigoBarra, Qtd FROM central.estoquen${n} WHERE CodigoBarra IN (${phC})`, codigos).catch(() => [])
     );
     const estoqueArr = await Promise.all(estoqueQs);
-    const estoqueMap = {}; // estoqueMap[cod][loja] = qtd (loja 10 = CD)
+    const estoqueMap = {}; // estoqueMap[cod][loja] = qtd
     estoqueArr.forEach((rows, idx) => {
-      const ln = idx < 6 ? LOJAS[idx] : 10;
+      const ln = LOJAS[idx];
       for (const r of rows) {
         if (!estoqueMap[r.CodigoBarra]) estoqueMap[r.CodigoBarra] = {};
         estoqueMap[r.CodigoBarra][ln] = parseFloat(r.Qtd) || 0;
@@ -3423,19 +3435,18 @@ app.get('/api/compras/centro-distribuicao', withCache(10), async (req, res) => {
       }
     }));
 
-    // 4. Montar um registro por produto
+    // 4. Montar um registro por produto — todo produto aqui já tem estoque
+    // positivo no CD (filtrado no passo 1), não precisa de checagem extra.
     const produtos = [];
     for (const cod of codigos) {
-      const estoqueCD = estoqueMap[cod]?.[10] || 0;
+      const estoqueCD = estoqueCDMap[cod] || 0;
       let totalSugerido = 0;
       let giroDiarioTotalCD = 0;
-      let algumaAtividade = estoqueCD > 0;
       const lojasOut = [];
 
       for (const ln of LOJAS) {
         const estoqueLoja = estoqueMap[cod]?.[ln] || 0;
         const qtd30 = vendasMap[ln][cod] || 0;
-        if (qtd30 > 0) algumaAtividade = true;
         const giroDiario = qtd30 / 30;
         const diasCobertura = giroDiario > 0.001
           ? estoqueLoja / giroDiario
@@ -3454,8 +3465,6 @@ app.get('/api/compras/centro-distribuicao', withCache(10), async (req, res) => {
           sugestaoPedido
         });
       }
-
-      if (!algumaAtividade) continue; // sem estoque no CD e sem venda nas 6 lojas — fora do universo ativo
 
       const diasCoberturaCD = giroDiarioTotalCD > 0.001
         ? estoqueCD / giroDiarioTotalCD
