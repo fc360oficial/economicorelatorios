@@ -3381,9 +3381,52 @@ app.get('/api/compras/centro-distribuicao', withCache(10), async (req, res) => {
       .catch(() => []);
     if (!estCD.length) return res.json(vazio);
 
-    const estoqueCDMap = Object.fromEntries(estCD.map(r => [r.CodigoBarra, parseFloat(r.Qtd) || 0]));
     const codigosCD = estCD.map(r => r.CodigoBarra);
     const phCD = codigosCD.map(() => '?').join(',');
+
+    // No CD, código de barras com 14 dígitos é caixa/fardo, não unidade (regra do
+    // Tiago) — o giro das lojas é sempre em unidade, então sem converter, comparar
+    // "100 caixas" com "giro de 5 unidades/dia" dá uma cobertura completamente errada.
+    // central.embalagempadrao_venda (cadastro "Embalagem Vendas" do ERP) guarda, pelo
+    // próprio código de 14 dígitos, quantas unidades cada caixa tem (Qtd_venda).
+    const codigosCaixa = codigosCD.filter(c => String(c).length === 14);
+    let fatorCaixaMap = {};
+    if (codigosCaixa.length) {
+      const phCx = codigosCaixa.map(() => '?').join(',');
+      const embRows = await q(`
+        SELECT Codigobarra, Qtd_venda FROM central.embalagempadrao_venda
+        WHERE Codigobarra IN (${phCx})
+      `, codigosCaixa).catch(() => []);
+      fatorCaixaMap = Object.fromEntries(embRows.map(r => [r.Codigobarra, parseFloat(r.Qtd_venda) || 0]));
+    }
+
+    // estoqueCDMap guarda sempre unidades — para código de caixa, já converte aqui
+    // (estoqueEmCaixas × unidades por caixa). Quando o cadastro de embalagem não tem
+    // esse código, não dá pra converter com segurança: marca conversaoDesconhecida e
+    // mantém o valor bruto (mesmo comportamento de antes) só pra não sumir da tela.
+    const estoqueCDMap = {};
+    const medidoEmCaixaMap = {};
+    const conversaoDesconhecidaMap = {};
+    const estoqueCDCaixasMap = {};
+    const unidadesPorCaixaMap = {};
+    for (const r of estCD) {
+      const cod = r.CodigoBarra;
+      const qtd = parseFloat(r.Qtd) || 0;
+      if (String(cod).length === 14) {
+        medidoEmCaixaMap[cod] = true;
+        estoqueCDCaixasMap[cod] = qtd;
+        const fator = fatorCaixaMap[cod];
+        if (fator > 0) {
+          unidadesPorCaixaMap[cod] = fator;
+          estoqueCDMap[cod] = qtd * fator;
+        } else {
+          conversaoDesconhecidaMap[cod] = true;
+          estoqueCDMap[cod] = qtd; // sem fator confiável — não inventa conversão
+        }
+      } else {
+        estoqueCDMap[cod] = qtd;
+      }
+    }
 
     // Descrição + filtro de produto ativo (CodDesativado=0) — descarta código de barras
     // do estoque que não corresponde a um item ativo cadastrado.
@@ -3440,6 +3483,11 @@ app.get('/api/compras/centro-distribuicao', withCache(10), async (req, res) => {
     const produtos = [];
     for (const cod of codigos) {
       const estoqueCD = estoqueCDMap[cod] || 0;
+      // Giro/estoque de loja é sempre em unidade — o pedido calculado também sai em
+      // unidade. Mas se o CD só entrega esse produto em caixa fechada, a loja não
+      // pode pedir "150 unidades": arredonda pra cima em nº de caixas (fatorCaixa),
+      // sempre cobrindo pelo menos a necessidade calculada.
+      const fatorCaixa = unidadesPorCaixaMap[cod] || null;
       let totalSugerido = 0;
       let giroDiarioTotalCD = 0;
       const lojasOut = [];
@@ -3454,6 +3502,9 @@ app.get('/api/compras/centro-distribuicao', withCache(10), async (req, res) => {
         const sugestaoPedido = (giroDiario > 0.001 && diasCobertura < 30)
           ? Math.max(0, Math.round(giroDiario * 30 - estoqueLoja))
           : 0;
+        const sugestaoPedidoCaixas = (fatorCaixa && sugestaoPedido > 0)
+          ? Math.ceil(sugestaoPedido / fatorCaixa)
+          : null;
 
         totalSugerido += sugestaoPedido;
         giroDiarioTotalCD += giroDiario;
@@ -3462,7 +3513,7 @@ app.get('/api/compras/centro-distribuicao', withCache(10), async (req, res) => {
           estoque: +estoqueLoja.toFixed(2),
           giroDiario: +giroDiario.toFixed(2),
           diasCobertura: diasCobertura === 9999 ? 9999 : +diasCobertura.toFixed(1),
-          sugestaoPedido
+          sugestaoPedido, sugestaoPedidoCaixas
         });
       }
 
@@ -3476,12 +3527,22 @@ app.get('/api/compras/centro-distribuicao', withCache(10), async (req, res) => {
         : diasCoberturaCD < 30 ? 'medio' : 'ok';
       // Arredondado pra inteiro — não faz sentido sugerir fração de unidade.
       const faltaComprar = Math.max(0, Math.round(totalSugerido - estoqueCD));
+      const faltaComprarCaixas = (fatorCaixa && faltaComprar > 0)
+        ? Math.ceil(faltaComprar / fatorCaixa)
+        : null;
+      const totalSugeridoCaixas = (fatorCaixa && totalSugerido > 0)
+        ? Math.ceil(totalSugerido / fatorCaixa)
+        : null;
 
       produtos.push({
         codigo: cod, descricao: descMap[cod] || cod,
         estoqueCD: +estoqueCD.toFixed(2),
         diasCoberturaCD: diasCoberturaCD === 9999 ? 9999 : +diasCoberturaCD.toFixed(1),
-        status, totalSugerido, faltaComprar,
+        status, totalSugerido, totalSugeridoCaixas, faltaComprar, faltaComprarCaixas,
+        medidoEmCaixa: !!medidoEmCaixaMap[cod],
+        conversaoDesconhecida: !!conversaoDesconhecidaMap[cod],
+        estoqueCDCaixas: medidoEmCaixaMap[cod] ? +estoqueCDCaixasMap[cod].toFixed(2) : null,
+        unidadesPorCaixa: fatorCaixa,
         lojas: lojasOut
       });
     }

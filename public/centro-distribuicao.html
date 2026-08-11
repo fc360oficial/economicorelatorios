@@ -98,6 +98,28 @@ table.t tr.sub-row.open{display:table-row}
 const fmtN = v => Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:0});
 const fmtD = v => v >= 9999 ? '—' : Number(v||0).toFixed(1) + 'd';
 
+// CD entrega em caixa fechada pra alguns produtos (código de barras de 14 dígitos) —
+// quando dá pra converter, mostra a quantidade em caixas (o que a loja de fato pede)
+// com as unidades entre parênteses só como contexto.
+function fmtPedido(unidades, caixas) {
+  if (!unidades || unidades <= 0) return '—';
+  if (caixas) return `${fmtN(caixas)} cx <span style="color:var(--text3);font-weight:400">(${fmtN(unidades)} un)</span>`;
+  return fmtN(unidades);
+}
+
+function badgeCaixa(p) {
+  if (!p.medidoEmCaixa) return '';
+  if (p.conversaoDesconhecida)
+    return ` <span title="Item em caixa no CD, sem cadastro de Embalagem Vendas — confira o fator manualmente" style="font-size:10px;color:var(--orange);font-weight:700">⚠️ CX?</span>`;
+  return ` <span title="Item controlado em caixa no CD (${p.unidadesPorCaixa} un/caixa)" style="font-size:10px;color:var(--text3);font-weight:700">📦 CX</span>`;
+}
+
+function fmtEstoqueCD(p) {
+  if (p.medidoEmCaixa && !p.conversaoDesconhecida)
+    return `${fmtN(p.estoqueCD)} <span style="color:var(--text3);font-weight:400">(${fmtN(p.estoqueCDCaixas)} cx)</span>`;
+  return fmtN(p.estoqueCD);
+}
+
 let _dados = null;
 let _filtro = 'todos';
 let _lojaSel = '';
@@ -114,12 +136,12 @@ function renderTabelaTodasLojas(lista) {
   const truncado = lista.length > 200;
   const linhas = lista.slice(0, 200).map((p, i) => `
     <tr class="prod-row" onclick="toggleLinha(${i})">
-      <td class="bold">${p.descricao}</td>
-      <td class="r">${fmtN(p.estoqueCD)}</td>
+      <td class="bold">${p.descricao}${badgeCaixa(p)}</td>
+      <td class="r">${fmtEstoqueCD(p)}</td>
       <td class="r">${fmtD(p.diasCoberturaCD)}</td>
       <td>${statusBadge(p.status)}</td>
-      <td class="r">${p.totalSugerido > 0 ? fmtN(p.totalSugerido) : '—'}</td>
-      <td class="r" style="color:${p.faltaComprar>0?'var(--red)':'inherit'};font-weight:${p.faltaComprar>0?'700':'400'}">${p.faltaComprar > 0 ? fmtN(p.faltaComprar) : '—'}</td>
+      <td class="r">${fmtPedido(p.totalSugerido, p.totalSugeridoCaixas)}</td>
+      <td class="r" style="color:${p.faltaComprar>0?'var(--red)':'inherit'};font-weight:${p.faltaComprar>0?'700':'400'}">${fmtPedido(p.faltaComprar, p.faltaComprarCaixas)}</td>
     </tr>
     <tr class="sub-row" id="sub-${i}">
       <td colspan="6">
@@ -132,7 +154,7 @@ function renderTabelaTodasLojas(lista) {
                 <td class="r">${fmtN(l.estoque)}</td>
                 <td class="r">${(l.giroDiario||0).toFixed(2)}</td>
                 <td class="r">${fmtD(l.diasCobertura)}</td>
-                <td class="r">${l.sugestaoPedido > 0 ? fmtN(l.sugestaoPedido) : '—'}</td>
+                <td class="r">${fmtPedido(l.sugestaoPedido, l.sugestaoPedidoCaixas)}</td>
               </tr>`).join('')}
           </tbody>
         </table>
@@ -159,13 +181,13 @@ function renderTabelaLoja(lista, lojaId) {
     const disputado = p.totalSugerido > p.estoqueCD;
     return `
     <tr>
-      <td class="bold">${p.descricao}</td>
+      <td class="bold">${p.descricao}${badgeCaixa(p)}</td>
       <td class="r">${fmtN(l.estoque)}</td>
       <td class="r">${(l.giroDiario||0).toFixed(2)}</td>
       <td class="r">${fmtD(l.diasCobertura)}</td>
-      <td class="r" style="color:var(--red);font-weight:700">${fmtN(l.sugestaoPedido)}</td>
-      <td class="r">${fmtN(p.estoqueCD)}</td>
-      <td class="r" style="${disputado ? 'color:var(--red);font-weight:700' : ''}" title="${disputado ? 'CD pode não ter estoque suficiente pra atender todas as lojas se todas pedirem' : ''}">${fmtN(p.totalSugerido)}</td>
+      <td class="r" style="color:var(--red);font-weight:700">${fmtPedido(l.sugestaoPedido, l.sugestaoPedidoCaixas)}</td>
+      <td class="r">${fmtEstoqueCD(p)}</td>
+      <td class="r" style="${disputado ? 'color:var(--red);font-weight:700' : ''}" title="${disputado ? 'CD pode não ter estoque suficiente pra atender todas as lojas se todas pedirem' : ''}">${fmtPedido(p.totalSugerido, p.totalSugeridoCaixas)}</td>
     </tr>`;
   }).join('');
 
