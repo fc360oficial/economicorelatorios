@@ -3370,6 +3370,36 @@ app.get('/api/compras/analise-estoque', async (req, res) => {
 
 const LOJAS_CD_NOMES = { 1: 'CAHU', 2: 'MURIBECA', 3: 'PONTE', 4: 'ATACAREJO', 5: 'PORTA LARGA', 6: 'JARDIM JORDÃO' };
 
+// Ajustes manuais de sugestão de pedido (chave "codigo|loja" → quantidade em
+// unidades) — sobrepõe tanto o cálculo por giro quanto a distribuição padrão
+// de produto sem histórico. Fica em JSON local (mesmo padrão de
+// CD_NOTAS_AVULSAS_PATH), nunca no MySQL.
+const CD_PEDIDO_OVERRIDES_PATH = path.join(__dirname, 'data', 'cd-pedido-overrides.json');
+function carregarCdPedidoOverrides() {
+  try { return JSON.parse(fs.readFileSync(CD_PEDIDO_OVERRIDES_PATH, 'utf8')); } catch (e) { return {}; }
+}
+function salvarCdPedidoOverrides(overrides) {
+  fs.mkdirSync(path.dirname(CD_PEDIDO_OVERRIDES_PATH), { recursive: true });
+  fs.writeFileSync(CD_PEDIDO_OVERRIDES_PATH, JSON.stringify(overrides, null, 2));
+}
+
+app.post('/api/compras/centro-distribuicao/ajustar', (req, res) => {
+  const { codigo, loja, quantidade, remover } = req.body || {};
+  if (!codigo || !loja) return res.status(400).json({ error: 'Informe codigo e loja.' });
+  const overrides = carregarCdPedidoOverrides();
+  const key = `${codigo}|${loja}`;
+  if (remover) {
+    delete overrides[key];
+  } else {
+    const qtd = Math.round(Number(quantidade));
+    if (!Number.isFinite(qtd) || qtd < 0) return res.status(400).json({ error: 'Quantidade inválida.' });
+    overrides[key] = qtd;
+  }
+  salvarCdPedidoOverrides(overrides);
+  _cache.delete('/api/compras/centro-distribuicao'); // reflete o ajuste no próximo "Analisar Agora" sem esperar o TTL
+  res.json({ ok: true });
+});
+
 app.get('/api/compras/centro-distribuicao', withCache(10), async (req, res) => {
   try {
     const vazio = {
@@ -3386,6 +3416,7 @@ app.get('/api/compras/centro-distribuicao', withCache(10), async (req, res) => {
       .catch(() => []);
     if (!estCD.length) return res.json(vazio);
 
+    const overrides = carregarCdPedidoOverrides();
     const codigosCD = estCD.map(r => r.CodigoBarra);
     const phCD = codigosCD.map(() => '?').join(',');
 
@@ -3524,12 +3555,48 @@ app.get('/api/compras/centro-distribuicao', withCache(10), async (req, res) => {
 
       // Universo já garante estoqueCD > 0 (filtrado no passo 1), então sem giro
       // a cobertura é sempre "infinita" — não existe o caso estoqueCD <= 0 aqui.
-      const diasCoberturaCD = giroDiarioTotalCD > 0.001
-        ? estoqueCD / giroDiarioTotalCD
-        : 9999;
+      // Isso também é o sinal de "produto sem histórico de venda": nenhuma das
+      // 6 lojas vendeu nos últimos 30 dias, então não tem giro pra calcular
+      // sugestão nenhuma — típico de produto novo que acabou de chegar no CD.
+      const semHistorico = giroDiarioTotalCD <= 0.001;
+      const diasCoberturaCD = semHistorico ? 9999 : estoqueCD / giroDiarioTotalCD;
       const status = diasCoberturaCD < 10 ? 'critico'
         : diasCoberturaCD < 20 ? 'alto'
         : diasCoberturaCD < 30 ? 'medio' : 'ok';
+
+      // Sem histórico: não tem giro pra calcular nada, então a sugestão vira
+      // uma distribuição igual do estoque do CD entre as 6 lojas (um "pedido
+      // de teste" pra loja começar a vender o produto novo). Se o item é de
+      // caixa, distribui em caixas fechadas, não fração de caixa.
+      if (semHistorico) {
+        if (fatorCaixa) {
+          const caixasPorLoja = Math.floor((estoqueCDCaixasMap[cod] || 0) / 6);
+          for (const l of lojasOut) {
+            l.sugestaoPedido = caixasPorLoja * fatorCaixa;
+            l.sugestaoPedidoCaixas = caixasPorLoja > 0 ? caixasPorLoja : null;
+          }
+        } else {
+          const unidadesPorLoja = Math.floor(estoqueCD / 6);
+          for (const l of lojasOut) { l.sugestaoPedido = unidadesPorLoja; l.sugestaoPedidoCaixas = null; }
+        }
+      }
+
+      // Ajuste manual (se existir) sempre vence — tanto o cálculo por giro
+      // quanto a distribuição de produto sem histórico.
+      for (const l of lojasOut) {
+        const key = `${cod}|${l.loja}`;
+        if (Object.prototype.hasOwnProperty.call(overrides, key)) {
+          l.sugestaoPedido = overrides[key];
+          l.sugestaoPedidoCaixas = (fatorCaixa && l.sugestaoPedido > 0) ? Math.ceil(l.sugestaoPedido / fatorCaixa) : null;
+          l.ajustadoManualmente = true;
+        } else {
+          l.ajustadoManualmente = false;
+        }
+      }
+
+      // Recalcula os totais do produto a partir do valor final de cada loja
+      // (já com distribuição de produto novo e ajustes manuais aplicados).
+      totalSugerido = lojasOut.reduce((s, l) => s + l.sugestaoPedido, 0);
       // Arredondado pra inteiro — não faz sentido sugerir fração de unidade.
       const faltaComprar = Math.max(0, Math.round(totalSugerido - estoqueCD));
       const faltaComprarCaixas = (fatorCaixa && faltaComprar > 0)
@@ -3543,7 +3610,7 @@ app.get('/api/compras/centro-distribuicao', withCache(10), async (req, res) => {
         codigo: cod, descricao: descMap[cod] || cod,
         estoqueCD: +estoqueCD.toFixed(2),
         diasCoberturaCD: diasCoberturaCD === 9999 ? 9999 : +diasCoberturaCD.toFixed(1),
-        status, totalSugerido, totalSugeridoCaixas, faltaComprar, faltaComprarCaixas,
+        status, semHistorico, totalSugerido, totalSugeridoCaixas, faltaComprar, faltaComprarCaixas,
         medidoEmCaixa: !!medidoEmCaixaMap[cod],
         conversaoDesconhecida: !!conversaoDesconhecidaMap[cod],
         estoqueCDCaixas: medidoEmCaixaMap[cod] ? +estoqueCDCaixasMap[cod].toFixed(2) : null,

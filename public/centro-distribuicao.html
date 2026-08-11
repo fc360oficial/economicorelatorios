@@ -111,6 +111,62 @@ function fmtEstoqueCD(p) {
   return fmtN(p.estoqueCD);
 }
 
+function badgeSemHistorico(p) {
+  if (!p.semHistorico) return '';
+  return ` <span title="Produto novo no CD, sem venda registrada em nenhuma loja nos últimos 30 dias — a sugestão abaixo é uma distribuição igual do estoque do CD entre as 6 lojas (pedido de teste), não um cálculo por giro" style="font-size:10px;color:var(--blue);font-weight:700">🆕 NOVO</span>`;
+}
+
+// Sugestão de pedido é clicável pra ajuste manual — o valor calculado (por
+// giro, ou pela distribuição de produto novo) fica editável a qualquer
+// momento; o ajuste manual sempre vence e fica marcado em azul com um ↺
+// pra voltar ao cálculo automático.
+function renderSugestaoCell(p, l) {
+  const id = `sug-${p.codigo}-${l.loja}`;
+  const valorTxt = fmtPedido(l.sugestaoPedido, l.sugestaoPedidoCaixas);
+  const cor = l.ajustadoManualmente ? 'color:var(--blue);font-weight:700' : (l.sugestaoPedido > 0 ? 'color:var(--red);font-weight:700' : '');
+  return `<span class="sug-wrap" id="${id}">
+    <span onclick="editarSugestao('${p.codigo}',${l.loja},${l.sugestaoPedido})" style="cursor:pointer;${cor}" title="Clique pra ajustar manualmente">${valorTxt}</span>${
+      l.ajustadoManualmente ? `<span onclick="removerAjuste('${p.codigo}',${l.loja})" title="Voltar pro cálculo automático" style="cursor:pointer;color:var(--text3);font-size:10px;margin-left:4px">↺</span>` : ''
+    }</span>`;
+}
+
+function editarSugestao(codigo, loja, valorAtual) {
+  const id = `sug-${codigo}-${loja}`;
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.innerHTML = `
+    <input type="number" min="0" step="1" value="${valorAtual||0}" id="inp-${id}"
+      style="width:64px;padding:2px 4px;font-size:12px;border:1px solid var(--brand);border-radius:4px"
+      onkeydown="if(event.key==='Enter')salvarSugestao('${codigo}',${loja});if(event.key==='Escape')renderTabela()">
+    <span onclick="salvarSugestao('${codigo}',${loja})" title="Salvar" style="cursor:pointer;color:var(--green);font-weight:700;margin-left:4px">✓</span>
+    <span onclick="renderTabela()" title="Cancelar" style="cursor:pointer;color:var(--text3);margin-left:2px">✕</span>`;
+  const inp = document.getElementById(`inp-${id}`);
+  inp.focus();
+  inp.select();
+}
+
+async function salvarSugestao(codigo, loja) {
+  const inp = document.getElementById(`inp-sug-${codigo}-${loja}`);
+  const valor = parseInt(inp.value, 10);
+  if (isNaN(valor) || valor < 0) { alert('Quantidade inválida.'); return; }
+  await enviarAjuste({ codigo, loja, quantidade: valor });
+}
+
+async function removerAjuste(codigo, loja) {
+  await enviarAjuste({ codigo, loja, remover: true });
+}
+
+async function enviarAjuste(body) {
+  try {
+    const r = await fetch('/api/compras/centro-distribuicao/ajustar', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Erro ao salvar');
+    carregar();
+  } catch (e) { alert('Erro ao salvar ajuste: ' + e.message); }
+}
+
 let _dados = null;
 let _filtro = 'todos';
 let _lojaSel = '';
@@ -130,11 +186,11 @@ function renderTabelaTodasLojas(lista) {
 
   const linhas = lista.slice(0, 200).map(p => `
     <tr>
-      <td class="bold">${p.descricao}${badgeCaixa(p)}</td>
+      <td class="bold">${p.descricao}${badgeCaixa(p)}${badgeSemHistorico(p)}</td>
       <td class="r">${fmtEstoqueCD(p)}</td>
       <td class="r">${fmtD(p.diasCoberturaCD)}</td>
       <td>${statusBadge(p.status)}</td>
-      ${p.lojas.map(l => `<td class="r" style="${l.sugestaoPedido>0?'color:var(--red);font-weight:700':''}">${fmtPedido(l.sugestaoPedido, l.sugestaoPedidoCaixas)}</td>`).join('')}
+      ${p.lojas.map(l => `<td class="r">${renderSugestaoCell(p, l)}</td>`).join('')}
       <td class="r">${fmtPedido(p.totalSugerido, p.totalSugeridoCaixas)}</td>
       <td class="r" style="color:${p.faltaComprar>0?'var(--red)':'inherit'};font-weight:${p.faltaComprar>0?'700':'400'}">${fmtPedido(p.faltaComprar, p.faltaComprarCaixas)}</td>
     </tr>`).join('');
@@ -159,11 +215,11 @@ function renderTabelaLoja(lista, lojaId) {
     const disputado = p.totalSugerido > p.estoqueCD;
     return `
     <tr>
-      <td class="bold">${p.descricao}${badgeCaixa(p)}</td>
+      <td class="bold">${p.descricao}${badgeCaixa(p)}${badgeSemHistorico(p)}</td>
       <td class="r">${fmtN(l.estoque)}</td>
       <td class="r">${(l.giroDiario||0).toFixed(2)}</td>
       <td class="r">${fmtD(l.diasCobertura)}</td>
-      <td class="r" style="color:var(--red);font-weight:700">${fmtPedido(l.sugestaoPedido, l.sugestaoPedidoCaixas)}</td>
+      <td class="r">${renderSugestaoCell(p, l)}</td>
       <td class="r">${fmtEstoqueCD(p)}</td>
       <td class="r" style="${disputado ? 'color:var(--red);font-weight:700' : ''}" title="${disputado ? 'CD pode não ter estoque suficiente pra atender todas as lojas se todas pedirem' : ''}">${fmtPedido(p.totalSugerido, p.totalSugeridoCaixas)}</td>
     </tr>`;
