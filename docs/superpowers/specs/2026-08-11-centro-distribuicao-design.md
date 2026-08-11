@@ -27,10 +27,17 @@ A nova rota segue o mesmo padrão de consulta (estoque por loja + vendas por loj
 
 ## Escopo
 
-- Universo de produtos: itens ativos (`central.itens`, `CodDesativado=0`) que tenham estoque no CD
-  (`estoquen10.Qtd > 0`) OU venda em qualquer uma das lojas 1-6 nos últimos 60 dias — mesmo filtro
-  de "produto ativo" já usado em `analise-estoque`. Não há filtro por comprador/fornecedor: a aba
-  cobre todos os produtos que passam pelo CD.
+> **Correção pós-implementação (11/08):** o plano original definia o universo como "estoque no CD
+> OU venda nas lojas nos últimos 60 dias", partindo de toda lista de produtos já cotados por algum
+> comprador. Em teste real isso deu timeout (180s+) e também não batia com a intenção de negócio —
+> o requisitante corrigiu para: só produtos com estoque positivo no CD agora. O texto abaixo já
+> reflete essa correção.
+
+- Universo de produtos: itens ativos (`central.itens`, `CodDesativado=0`) que tenham estoque
+  positivo no CD (`estoquen10.Qtd > 0`) — mesmo filtro de "produto ativo" já usado em
+  `analise-estoque`. Venda nas lojas 1-6 não amplia mais o universo; ela só é usada para calcular
+  giro/sugestão dos produtos que já estão nesse conjunto (estoque CD > 0). Não há filtro por
+  comprador/fornecedor: a aba cobre todos os produtos com estoque no CD.
 - Fora de escopo (não entra nesta versão):
   - Ratear automaticamente a sugestão entre lojas quando o CD não tem estoque suficiente para
     atender todo mundo — o sistema só alerta a falta; o rateio fica manual (decisão do comprador).
@@ -61,8 +68,10 @@ Só entra sugestão de pedido quando a loja está abaixo de 30 dias de cobertura
 ```
 totalSugerido     = soma(sugestaoPedido das 6 lojas)
 giroDiarioTotalCD = soma(giroDiario das 6 lojas)
-diasCoberturaCD   = estoqueCD / giroDiarioTotalCD   (ou 9999 se giroDiarioTotalCD ~ 0 e estoqueCD > 0)
-faltaComprar      = max(0, totalSugerido - estoqueCD)
+diasCoberturaCD   = estoqueCD / giroDiarioTotalCD   (ou 9999 se giroDiarioTotalCD ~ 0 — universo já
+                                                      garante estoqueCD > 0, então não existe o caso
+                                                      "sem giro e sem estoque" aqui)
+faltaComprar      = max(0, round(totalSugerido - estoqueCD))
 ```
 
 **Classificação de urgência do CD** (mesmo espírito de `/api/ruptura`, teto ajustado para 30 dias):
@@ -113,10 +122,13 @@ Nova página, adicionada ao `nav.js` dentro do grupo "Gestão de Compras" (após
 
 ## Testes / verificação manual
 
-- Produto com estoque no CD zerado e giro ativo nas lojas → deve aparecer como crítico com
-  `faltaComprar` = soma das sugestões das 6 lojas.
+- Produto com estoque no CD baixo relativo ao giro combinado das 6 lojas → aparece como
+  crítico/alto e `faltaComprar` reflete a diferença entre o total sugerido e o estoque do CD.
+- Produto com estoque no CD zerado (mesmo com giro ativo nas lojas) → não aparece na lista, está
+  fora do universo (universo exige `estoquen10.Qtd > 0`); esse é o caso mais urgente de "falta de
+  verdade" e a UI avisa essa limitação no subtítulo/KPI, não tenta simular um valor pra ele.
 - Produto com estoque CD alto e giro baixo nas lojas → aparece como OK, sem sugestão.
 - Loja com estoque próprio já acima de 30 dias de cobertura → não gera sugestão de pedido para
   aquela loja, mesmo que outras lojas do mesmo produto precisem.
-- Produto sem nenhuma venda nas 6 lojas nos últimos 60 dias e sem estoque no CD → não aparece na
-  lista (fora do universo de produtos ativos).
+- Produto com estoque no CD positivo mas sem nenhuma venda nas 6 lojas nos últimos 60 dias →
+  aparece na lista (está no universo), mas como OK/sem sugestão (giro zero).

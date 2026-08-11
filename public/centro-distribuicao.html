@@ -74,7 +74,7 @@ table.t tr.sub-row.open{display:table-row}
   <div class="page-hdr">
     <div>
       <h1>🚚 Centro Distribuição</h1>
-      <p>Estoque do CD (Loja 10) x giro de 30 dias das lojas 1-6 · sugestão de pedido automático por loja</p>
+      <p>Estoque do CD (Loja 10) x giro de 30 dias das lojas 1-6 · sugestão de pedido automático por loja — cobre apenas itens com estoque atual no CD</p>
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <select id="sel-loja" onchange="onLojaChange()" style="background:#FFFFFF;border:1px solid #98A0B3;border-radius:6px;color:#0E1626;padding:6px 10px;font-size:12px">
@@ -111,7 +111,8 @@ function statusBadge(s) {
 // Visão "Todas as Lojas": uma linha por produto com os números do CD,
 // expande mostrando a quebra das 6 lojas.
 function renderTabelaTodasLojas(lista) {
-  const linhas = lista.map((p, i) => `
+  const truncado = lista.length > 200;
+  const linhas = lista.slice(0, 200).map((p, i) => `
     <tr class="prod-row" onclick="toggleLinha(${i})">
       <td class="bold">${p.descricao}</td>
       <td class="r">${fmtN(p.estoqueCD)}</td>
@@ -145,14 +146,17 @@ function renderTabelaTodasLojas(lista) {
         <th>Status</th><th class="r">Total sugerido (6 lojas)</th><th class="r">Falta comprar (CD)</th>
       </tr></thead>
       <tbody>${linhas}</tbody>
-    </table>`;
+    </table>
+    ${truncado ? `<div class="empty">Mostrando 200 de ${lista.length} produtos — refine a busca ou o filtro.</div>` : ''}`;
 }
 
 // Visão de uma loja específica: só produtos que ELA precisa pedir do CD,
 // com os números dessa loja (não da soma das 6).
 function renderTabelaLoja(lista, lojaId) {
-  const linhas = lista.map(p => {
+  const truncado = lista.length > 200;
+  const linhas = lista.slice(0, 200).map(p => {
     const l = p.lojas.find(x => String(x.loja) === String(lojaId));
+    const disputado = p.totalSugerido > p.estoqueCD;
     return `
     <tr>
       <td class="bold">${p.descricao}</td>
@@ -161,6 +165,7 @@ function renderTabelaLoja(lista, lojaId) {
       <td class="r">${fmtD(l.diasCobertura)}</td>
       <td class="r" style="color:var(--red);font-weight:700">${fmtN(l.sugestaoPedido)}</td>
       <td class="r">${fmtN(p.estoqueCD)}</td>
+      <td class="r" style="${disputado ? 'color:var(--red);font-weight:700' : ''}" title="${disputado ? 'CD pode não ter estoque suficiente pra atender todas as lojas se todas pedirem' : ''}">${fmtN(p.totalSugerido)}</td>
     </tr>`;
   }).join('');
 
@@ -169,9 +174,11 @@ function renderTabelaLoja(lista, lojaId) {
       <thead><tr>
         <th>Produto</th><th class="r">Estoque loja</th><th class="r">Giro/dia</th>
         <th class="r">Cobertura loja</th><th class="r">Sugestão de pedido</th><th class="r">Estoque CD (disponível)</th>
+        <th class="r">Total pedido (6 lojas)</th>
       </tr></thead>
       <tbody>${linhas}</tbody>
-    </table>`;
+    </table>
+    ${truncado ? `<div class="empty">Mostrando 200 de ${lista.length} produtos — refine a busca ou o filtro.</div>` : ''}`;
 }
 
 function renderTabela() {
@@ -219,7 +226,7 @@ function renderTudo(d) {
     <div class="kpi-card brand"><div class="val">${fmtN(r.totalProdutos)}</div><div class="lbl">Produtos Analisados</div></div>
     <div class="kpi-card warning"><div class="val">${fmtN(r.precisamReposicao)}</div><div class="lbl">Precisam Reposição</div></div>
     <div class="kpi-card danger"><div class="val">${fmtN(r.criticos)}</div><div class="lbl">Em Estado Crítico</div></div>
-    <div class="kpi-card danger"><div class="val">${fmtN(r.totalUnidadesFaltando)}</div><div class="lbl">Unidades Faltando no CD</div></div>
+    <div class="kpi-card danger"><div class="val">${fmtN(r.totalUnidadesFaltando)}</div><div class="lbl">Unidades Faltando (itens em estoque no CD)</div></div>
   </div>`;
 
   const toolbar = `
@@ -245,7 +252,7 @@ function carregar() {
   btn.disabled = true;
   btn.textContent = '⏳ Analisando...';
   document.getElementById('stamp').innerHTML = '<span class="spin"></span> Buscando dados...';
-  document.getElementById('conteudo').innerHTML = '<div class="loading"><span class="spin"></span> Cruzando estoque do CD com o giro das 6 lojas...<br><small style="color:#4E5A72;margin-top:8px;display:block">Primeira análise pode levar 1-2 minutos. Próximas serão instantâneas (cache 10min).</small></div>';
+  document.getElementById('conteudo').innerHTML = '<div class="loading"><span class="spin"></span> Cruzando estoque do CD com o giro das 6 lojas...<br><small style="color:#4E5A72;margin-top:8px;display:block">Resultado fica em cache por 10 minutos.</small></div>';
 
   const ctrl = new AbortController();
   const tid = setTimeout(() => ctrl.abort(), 300000);

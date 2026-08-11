@@ -3466,13 +3466,16 @@ app.get('/api/compras/centro-distribuicao', withCache(10), async (req, res) => {
         });
       }
 
+      // Universo já garante estoqueCD > 0 (filtrado no passo 1), então sem giro
+      // a cobertura é sempre "infinita" — não existe o caso estoqueCD <= 0 aqui.
       const diasCoberturaCD = giroDiarioTotalCD > 0.001
         ? estoqueCD / giroDiarioTotalCD
-        : (estoqueCD > 0 ? 9999 : 0);
+        : 9999;
       const status = diasCoberturaCD < 10 ? 'critico'
         : diasCoberturaCD < 20 ? 'alto'
         : diasCoberturaCD < 30 ? 'medio' : 'ok';
-      const faltaComprar = Math.max(0, totalSugerido - estoqueCD);
+      // Arredondado pra inteiro — não faz sentido sugerir fração de unidade.
+      const faltaComprar = Math.max(0, Math.round(totalSugerido - estoqueCD));
 
       produtos.push({
         codigo: cod, descricao: descMap[cod] || cod,
