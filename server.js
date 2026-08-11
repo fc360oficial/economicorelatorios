@@ -3356,6 +3356,139 @@ app.get('/api/compras/analise-estoque', async (req, res) => {
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
+// ═══════════════════════════════════════════════════
+// MÓDULO COMPRAS — CENTRO DE DISTRIBUIÇÃO (loja 10)
+// Estoque do CD x giro de 30 dias das lojas 1-6 —
+// sugere quanto cada loja deve pedir do CD e alerta
+// quando o próprio CD precisa comprar do fornecedor.
+// ═══════════════════════════════════════════════════
+
+const LOJAS_CD_NOMES = { 1: 'CAHU', 2: 'MURIBECA', 3: 'PONTE', 4: 'ATACAREJO', 5: 'PORTA LARGA', 6: 'JARDIM JORDÃO' };
+
+app.get('/api/compras/centro-distribuicao', withCache(10), async (req, res) => {
+  try {
+    const vazio = {
+      produtos: [],
+      resumo: { totalProdutos: 0, precisamReposicao: 0, criticos: 0, totalUnidadesFaltando: 0 },
+      geradoEm: new Date().toISOString()
+    };
+
+    // 1. Universo de produtos — mesmo critério de /api/ruptura sem filtro de comprador
+    const prods = await q(`
+      SELECT DISTINCT i.CodigoBarra, TRIM(i.Descricao) as descricao
+      FROM central.c_cotacao_lista_itens cli
+      JOIN central.itens i ON i.CodigoBarra = cli.Codigobarra AND i.CodDesativado = 0
+    `, []).catch(() => []);
+    if (!prods.length) return res.json(vazio);
+
+    const codigos = prods.map(p => p.CodigoBarra);
+    const descMap = Object.fromEntries(prods.map(p => [p.CodigoBarra, p.descricao || p.CodigoBarra]));
+    const phC = codigos.map(() => '?').join(',');
+
+    // 2. Estoque — lojas 1-6 e CD (loja 10), em paralelo
+    const LOJAS = [1, 2, 3, 4, 5, 6];
+    const estoqueQs = [...LOJAS, 10].map(n =>
+      q(`SELECT CodigoBarra, Qtd FROM central.estoquen${n} WHERE CodigoBarra IN (${phC})`, codigos).catch(() => [])
+    );
+    const estoqueArr = await Promise.all(estoqueQs);
+    const estoqueMap = {}; // estoqueMap[cod][loja] = qtd (loja 10 = CD)
+    estoqueArr.forEach((rows, idx) => {
+      const ln = idx < 6 ? LOJAS[idx] : 10;
+      for (const r of rows) {
+        if (!estoqueMap[r.CodigoBarra]) estoqueMap[r.CodigoBarra] = {};
+        estoqueMap[r.CodigoBarra][ln] = parseFloat(r.Qtd) || 0;
+      }
+    });
+
+    // 3. Vendas dos últimos 30 dias por loja (1-6) — janela de 2 meses pra cobrir virada de mês
+    const hojeD = new Date();
+    const ini30 = localDate(new Date(hojeD - 30 * 86400000));
+    const meses = [0, 1].map(i => mesDB(new Date(hojeD.getFullYear(), hojeD.getMonth() - i, 1).getMonth() + 1));
+
+    const vendasMap = {}; // vendasMap[loja][cod] = qtd30
+    for (const ln of LOJAS) vendasMap[ln] = {};
+    await Promise.all(LOJAS.map(async (ln) => {
+      for (const mm of meses) {
+        try {
+          const rows = await q(`
+            SELECT Codigo, SUM(QtdNovo) as qtd30
+            FROM \`ln${ln}${mm}\`.zcupomitens
+            WHERE IndCancel='N' AND Data >= ? AND Codigo IN (${phC})
+            GROUP BY Codigo
+          `, [ini30, ...codigos]);
+          for (const r of rows) {
+            vendasMap[ln][r.Codigo] = (vendasMap[ln][r.Codigo] || 0) + (parseFloat(r.qtd30) || 0);
+          }
+        } catch (_) {}
+      }
+    }));
+
+    // 4. Montar um registro por produto
+    const produtos = [];
+    for (const cod of codigos) {
+      const estoqueCD = estoqueMap[cod]?.[10] || 0;
+      let totalSugerido = 0;
+      let giroDiarioTotalCD = 0;
+      let algumaAtividade = estoqueCD > 0;
+      const lojasOut = [];
+
+      for (const ln of LOJAS) {
+        const estoqueLoja = estoqueMap[cod]?.[ln] || 0;
+        const qtd30 = vendasMap[ln][cod] || 0;
+        if (qtd30 > 0) algumaAtividade = true;
+        const giroDiario = qtd30 / 30;
+        const diasCobertura = giroDiario > 0.001
+          ? estoqueLoja / giroDiario
+          : (estoqueLoja > 0 ? 9999 : 0);
+        const sugestaoPedido = (giroDiario > 0.001 && diasCobertura < 30)
+          ? Math.max(0, Math.round(giroDiario * 30 - estoqueLoja))
+          : 0;
+
+        totalSugerido += sugestaoPedido;
+        giroDiarioTotalCD += giroDiario;
+        lojasOut.push({
+          loja: ln, nome: LOJAS_CD_NOMES[ln],
+          estoque: +estoqueLoja.toFixed(2),
+          giroDiario: +giroDiario.toFixed(2),
+          diasCobertura: diasCobertura === 9999 ? 9999 : +diasCobertura.toFixed(1),
+          sugestaoPedido
+        });
+      }
+
+      if (!algumaAtividade) continue; // sem estoque no CD e sem venda nas 6 lojas — fora do universo ativo
+
+      const diasCoberturaCD = giroDiarioTotalCD > 0.001
+        ? estoqueCD / giroDiarioTotalCD
+        : (estoqueCD > 0 ? 9999 : 0);
+      const status = diasCoberturaCD < 10 ? 'critico'
+        : diasCoberturaCD < 20 ? 'alto'
+        : diasCoberturaCD < 30 ? 'medio' : 'ok';
+      const faltaComprar = Math.max(0, totalSugerido - estoqueCD);
+
+      produtos.push({
+        codigo: cod, descricao: descMap[cod] || cod,
+        estoqueCD: +estoqueCD.toFixed(2),
+        diasCoberturaCD: diasCoberturaCD === 9999 ? 9999 : +diasCoberturaCD.toFixed(1),
+        status, totalSugerido, faltaComprar,
+        lojas: lojasOut
+      });
+    }
+
+    produtos.sort((a, b) => a.diasCoberturaCD - b.diasCoberturaCD);
+
+    const resumo = {
+      totalProdutos: produtos.length,
+      precisamReposicao: produtos.filter(p => p.totalSugerido > 0).length,
+      criticos: produtos.filter(p => p.status === 'critico').length,
+      totalUnidadesFaltando: produtos.reduce((s, p) => s + p.faltaComprar, 0)
+    };
+
+    res.json({ produtos, resumo, geradoEm: new Date().toISOString() });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/deploy', (req, res) => {
   if (req.query.token !== 'fc360deploy2026') return res.status(403).send('Proibido');
   const gitPaths = [
