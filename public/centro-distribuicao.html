@@ -42,20 +42,11 @@ table.t thead{background:#EBEBE9}
 table.t th{padding:9px 12px;text-align:left;color:var(--text3);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;white-space:nowrap;border-bottom:1px solid var(--border)}
 table.t td{padding:8px 12px;border-bottom:1px solid #DADAD666;vertical-align:middle}
 table.t th.r,table.t td.r{text-align:right}
-table.t tr.prod-row{cursor:pointer}
-table.t tr.prod-row:hover{background:#00000006}
-table.t tr.sub-row{display:none;background:#F7F8FA}
-table.t tr.sub-row.open{display:table-row}
 .risk{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700}
 .risk-critico{background:#C22F4922;color:var(--red)}
 .risk-alto{background:#B45C0022;color:var(--orange)}
 .risk-medio{background:#F5B80022;color:#6B4E00}
 .risk-ok{background:#137A4822;color:var(--green)}
-.sub-tbl{width:100%;border-collapse:collapse;font-size:11px;margin:6px 0}
-.sub-tbl th{padding:5px 10px;text-align:left;color:var(--text3);font-weight:700;font-size:9px;text-transform:uppercase}
-.sub-tbl td{padding:5px 10px;border-top:1px solid #DADAD6}
-.sub-tbl td.r,.sub-tbl th.r{text-align:right}
-.sub-tbl tr.precisa td{color:var(--red);font-weight:700}
 
 .loading{display:flex;align-items:center;justify-content:center;padding:48px;gap:12px;color:var(--text3);font-size:14px}
 .spin{width:20px;height:20px;border:2px solid #DADAD6;border-top-color:var(--brand);border-radius:50%;animation:spin .8s linear infinite}
@@ -130,42 +121,29 @@ function statusBadge(s) {
   return `<span class="risk ${cls}">${lbl}</span>`;
 }
 
-// Visão "Todas as Lojas": uma linha por produto com os números do CD,
-// expande mostrando a quebra das 6 lojas.
+// Visão "Todas as Lojas": uma linha por produto, com a sugestão de pedido
+// de cada uma das 6 lojas já visível na própria linha (sem precisar expandir).
 function renderTabelaTodasLojas(lista) {
   const truncado = lista.length > 200;
-  const linhas = lista.slice(0, 200).map((p, i) => `
-    <tr class="prod-row" onclick="toggleLinha(${i})">
+  const lojasRef = lista[0]?.lojas || [];
+  const lojasHead = lojasRef.map(l => `<th class="r">${l.nome}</th>`).join('');
+
+  const linhas = lista.slice(0, 200).map(p => `
+    <tr>
       <td class="bold">${p.descricao}${badgeCaixa(p)}</td>
       <td class="r">${fmtEstoqueCD(p)}</td>
       <td class="r">${fmtD(p.diasCoberturaCD)}</td>
       <td>${statusBadge(p.status)}</td>
+      ${p.lojas.map(l => `<td class="r" style="${l.sugestaoPedido>0?'color:var(--red);font-weight:700':''}">${fmtPedido(l.sugestaoPedido, l.sugestaoPedidoCaixas)}</td>`).join('')}
       <td class="r">${fmtPedido(p.totalSugerido, p.totalSugeridoCaixas)}</td>
       <td class="r" style="color:${p.faltaComprar>0?'var(--red)':'inherit'};font-weight:${p.faltaComprar>0?'700':'400'}">${fmtPedido(p.faltaComprar, p.faltaComprarCaixas)}</td>
-    </tr>
-    <tr class="sub-row" id="sub-${i}">
-      <td colspan="6">
-        <table class="sub-tbl">
-          <thead><tr><th>Loja</th><th class="r">Estoque</th><th class="r">Giro/dia</th><th class="r">Cobertura</th><th class="r">Sugestão de pedido</th></tr></thead>
-          <tbody>
-            ${p.lojas.map(l => `
-              <tr class="${l.sugestaoPedido > 0 ? 'precisa' : ''}">
-                <td>${l.nome}</td>
-                <td class="r">${fmtN(l.estoque)}</td>
-                <td class="r">${(l.giroDiario||0).toFixed(2)}</td>
-                <td class="r">${fmtD(l.diasCobertura)}</td>
-                <td class="r">${fmtPedido(l.sugestaoPedido, l.sugestaoPedidoCaixas)}</td>
-              </tr>`).join('')}
-          </tbody>
-        </table>
-      </td>
     </tr>`).join('');
 
   return `
     <table class="t">
       <thead><tr>
         <th>Produto</th><th class="r">Estoque CD</th><th class="r">Cobertura CD</th>
-        <th>Status</th><th class="r">Total sugerido (6 lojas)</th><th class="r">Falta comprar (CD)</th>
+        <th>Status</th>${lojasHead}<th class="r">Total sugerido (6 lojas)</th><th class="r">Falta comprar (CD)</th>
       </tr></thead>
       <tbody>${linhas}</tbody>
     </table>
@@ -224,10 +202,6 @@ function renderTabela() {
     : renderTabelaTodasLojas(lista);
 }
 
-function toggleLinha(i) {
-  document.getElementById('sub-'+i).classList.toggle('open');
-}
-
 function setFiltro(btn, f) {
   document.querySelectorAll('.filtro').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
@@ -279,7 +253,7 @@ function carregar() {
   const ctrl = new AbortController();
   const tid = setTimeout(() => ctrl.abort(), 300000);
 
-  fetch('/api/compras/centro-distribuicao', { signal: ctrl.signal })
+  fetch('/api/compras/centro-distribuicao?refresh=1', { signal: ctrl.signal })
     .then(r => { clearTimeout(tid); if (r.status === 401) { location.href='/login.html'; return null; } return r.json(); })
     .then(d => {
       if (!d) return;

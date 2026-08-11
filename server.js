@@ -111,9 +111,14 @@ app.get('/api/versao', (req, res) => res.json({ versao: APP_VERSAO }));
 const _cache = new Map();
 function withCache(ttlMin) {
   return (req, res, next) => {
-    const key = req.originalUrl;
+    // ?refresh=1 força recálculo (usado pelo botão "Analisar Agora" — clicar
+    // de novo deve sempre buscar dado fresco, não só repetir o cache). A
+    // chave ignora esse parâmetro pra não fragmentar o cache normal.
+    const { refresh, ...restQuery } = req.query;
+    const qs = new URLSearchParams(restQuery).toString();
+    const key = req.path + (qs ? '?' + qs : '');
     const hit = _cache.get(key);
-    if (hit && Date.now() < hit.exp) return res.json(hit.data);
+    if (!refresh && hit && Date.now() < hit.exp) return res.json(hit.data);
     const origJson = res.json.bind(res);
     res.json = (data) => {
       if (res.statusCode === 200 && data && !data.error)
