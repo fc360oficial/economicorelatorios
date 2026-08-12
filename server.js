@@ -3644,10 +3644,21 @@ app.get('/deploy', (req, res) => {
   ];
   const fs2 = require('fs');
   const git = gitPaths.find(p => p === 'git' || fs2.existsSync(p)) || 'git';
-  const cmd = `"${git}" fetch origin && "${git}" reset --hard origin/main`;
-  exec(cmd, { cwd: __dirname }, (err, stdout, stderr) => {
+  // npm install roda ANTES do restart, com o servidor antigo ainda no ar, e só
+  // reinicia se der tudo certo — se o código novo usar uma dependência nova e
+  // o npm install falhar (ou o git der problema), o servidor NÃO reinicia e
+  // continua rodando a versão anterior (que funciona), em vez de trocar pra
+  // um código que vai quebrar ao carregar. Aconteceu de verdade uma vez sem
+  // essa trava: deploy trocou o código, reiniciou, e caiu porque faltava
+  // instalar um pacote novo — ninguém percebeu até o site sair do ar.
+  const cmd = `"${git}" fetch origin && "${git}" reset --hard origin/main && npm install --omit=dev`;
+  exec(cmd, { cwd: __dirname, timeout: 5 * 60 * 1000 }, (err, stdout, stderr) => {
     const out = (stdout || '') + (stderr || '') + (err ? '\nERRO: ' + err.message : '');
     console.log('[DEPLOY]', out);
+    if (err) {
+      res.status(500).send('<pre>' + out + '\n\nFALHOU — servidor NÃO foi reiniciado, continua rodando a versão anterior.</pre>');
+      return;
+    }
     res.send('<pre>' + out + '\n\nReiniciando servidor...</pre>');
     setTimeout(() => process.exit(0), 1000);
   });
