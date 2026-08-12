@@ -3723,25 +3723,25 @@ async function montarListaConferencia() {
   const resumo = { total: rows.length };
   for (const c of COLUNAS_CONFERENCIA) resumo[c] = colunas[c].length;
 
-  // Itens marcados pra reconferir, agrupados por pedido (pode ter 2
-  // conferentes com 2 notas em reconferência ao mesmo tempo — o painel
-  // mostra o número do pedido na frente e cicla um pedido inteiro antes de
-  // ir pro próximo, não mistura os itens dos dois). conferenciaitens.chave
-  // é o próprio nReg do pedido em texto (confirmado direto no banco, sem
-  // tabela ponte). "Name" desse item vem sempre "0" (campo não usado nesse
-  // fluxo), então busca a descrição de verdade em central.itens pelo código
-  // de barra. Só pedido + descrição saem pro painel — sem código de barra,
-  // sem quantidade (pedido explícito do Tiago).
+  // Itens pra reconferir, agrupados por pedido (pode ter 2 conferentes com 2
+  // notas em reconferência ao mesmo tempo — o painel mostra o número do
+  // pedido na frente e cicla um pedido inteiro antes de ir pro próximo, não
+  // mistura os itens dos dois). Quando a NOTA inteira está marcada pra
+  // reconferência (Status=3 no cabeçalho), todos os itens dela entram —
+  // não só os que tiverem a flag Reconferir=1 individual (confirmado com o
+  // Tiago: às vezes a nota é marcada sem nenhum item individual flagado).
+  // conferenciaitens.chave é o próprio nReg do pedido em texto (confirmado
+  // direto no banco, sem tabela ponte). "Name" desse item vem sempre "0"
+  // (campo não usado nesse fluxo), então busca a descrição de verdade em
+  // central.itens pelo código de barra. Só pedido + descrição saem pro
+  // painel — sem código de barra, sem quantidade (pedido explícito do Tiago).
   let itensReconferir = [];
-  // Só pedidos que estão de fato na coluna "Reconferir" (Status=3) — não a
-  // janela toda — senão o banner mostra pedido já liberado/conferido cujo
-  // item ficou com a flag Reconferir=1 antiga, e o número não bate com a coluna.
   const nRegsReconferir = colunas.reconferir.map(r => r.pedido);
   if (nRegsReconferir.length) {
     const ph = nRegsReconferir.map(() => '?').join(',');
     const itensRows = await q(`
       SELECT DISTINCT chave, codigobarra FROM central.conferenciaitens
-      WHERE chave IN (${ph}) AND Reconferir = 1
+      WHERE chave IN (${ph})
     `, nRegsReconferir).catch(() => []);
     if (itensRows.length) {
       const barras = [...new Set(itensRows.map(r => r.codigobarra))];
