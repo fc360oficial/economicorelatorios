@@ -3708,7 +3708,32 @@ async function montarListaConferencia() {
   }
   const resumo = { total: rows.length };
   for (const c of COLUNAS_CONFERENCIA) resumo[c] = colunas[c].length;
-  return { resumo, colunas };
+
+  // Itens marcados pra reconferir, dos pedidos de hoje — conferenciaitens.chave
+  // é o próprio nReg do pedido em texto (confirmado direto no banco, sem
+  // tabela ponte). "Name" desse item vem sempre "0" (campo não usado nesse
+  // fluxo), então busca a descrição de verdade em central.itens pelo código
+  // de barra. Só a descrição sai pro painel — sem código de barra, sem
+  // quantidade (pedido explícito do Tiago).
+  let itensReconferir = [];
+  const nRegsHoje = rows.map(r => String(r.nReg));
+  if (nRegsHoje.length) {
+    const ph = nRegsHoje.map(() => '?').join(',');
+    const codigos = await q(`
+      SELECT DISTINCT codigobarra FROM central.conferenciaitens
+      WHERE chave IN (${ph}) AND Reconferir = 1
+    `, nRegsHoje).catch(() => []);
+    if (codigos.length) {
+      const barras = codigos.map(c => c.codigobarra);
+      const phB = barras.map(() => '?').join(',');
+      const descRows = await q(`
+        SELECT DISTINCT TRIM(Descricao) as descricao FROM central.itens WHERE CodigoBarra IN (${phB})
+      `, barras).catch(() => []);
+      itensReconferir = descRows.map(r => r.descricao).filter(Boolean);
+    }
+  }
+
+  return { resumo, colunas, itensReconferir };
 }
 
 app.get('/api/painel-cd', withCache(1), async (req, res) => {

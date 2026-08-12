@@ -7,13 +7,20 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{--bg:#0E1626;--card:#101B33;--border:#1D2A46;--text:#FFFFFF;--text2:#AEB8CE;--text3:#6E7B98}
-html,body{height:100%;font-family:'Segoe UI',Arial,sans-serif;background:var(--bg);color:var(--text);overflow:hidden}
-.wrap{display:flex;flex-direction:column;height:100vh;padding:14px 18px}
-.hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-shrink:0}
-.hdr .brand{display:flex;align-items:center;gap:14px}
-.hdr .brand img{height:52px;background:#fff;border-radius:8px;padding:4px 10px}
-.hdr .brand span{font-size:13px;color:#F5B800;font-weight:700;letter-spacing:1.5px;text-transform:uppercase}
-.hdr .clock{font-size:18px;font-weight:700;color:var(--text2);font-variant-numeric:tabular-nums}
+html,body{height:100%;font-family:'Segoe UI',Arial,sans-serif;background:var(--bg);color:var(--text);overflow:hidden;display:flex;flex-direction:column}
+
+/* BARRA AMARELA — mesmo padrão dos outros painéis de TV do sistema */
+.brand-bar{height:72px;flex-shrink:0;background:#FACC15;display:flex;align-items:center;justify-content:center;position:relative;z-index:200}
+.b-left{position:absolute;left:14px;top:50%;transform:translateY(-50%);display:flex;align-items:center}
+.b-left img{height:58px}
+.b-name{font-size:15px;font-weight:900;letter-spacing:.3em;text-transform:uppercase;color:#0E1626}
+.b-right{position:absolute;right:16px;top:50%;transform:translateY(-50%);display:flex;align-items:center;gap:14px}
+.b-live{display:flex;align-items:center;gap:5px;font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:rgba(14,22,38,.65)}
+.b-live-dot{width:6px;height:6px;border-radius:50%;background:#137A48;animation:bpulse 2s infinite}
+@keyframes bpulse{0%,100%{opacity:1}50%{opacity:.3}}
+.b-clock{font-size:14px;font-weight:900;color:#0E1626;font-variant-numeric:tabular-nums}
+
+.wrap{flex:1;display:flex;flex-direction:column;padding:14px 18px;min-height:0}
 
 .secoes{flex:1;display:flex;flex-direction:column;min-height:0}
 .sec{flex:1;display:flex;flex-direction:column;min-height:0}
@@ -23,10 +30,17 @@ html,body{height:100%;font-family:'Segoe UI',Arial,sans-serif;background:var(--b
 .sec-hdr h2{font-size:20px;font-weight:800;letter-spacing:.3px}
 .sec-hdr .sub{font-size:13px;color:var(--text3);margin-left:auto}
 
+.aviso-reconferir{flex-shrink:0;margin-bottom:10px;padding:10px 16px;border-radius:10px;background:#C22F49;color:#fff;
+  font-size:18px;font-weight:800;text-align:center;letter-spacing:.3px;animation:piscar 1s step-start infinite}
+.aviso-reconferir .aviso-ic{margin-right:6px}
+@keyframes piscar{50%{opacity:.25}}
+
 .colunas{flex:1;display:grid;grid-template-columns:repeat(5,1fr);gap:10px;min-height:0}
 .col{display:flex;flex-direction:column;min-height:0;border-radius:10px;overflow:hidden;border:1px solid var(--border)}
-.col-hd{padding:10px 8px;text-align:center;font-size:15px;font-weight:800;text-transform:uppercase;letter-spacing:.3px;color:#0E1626}
-.col-hd.c1{background:#F5D400}
+.col-hd{padding:8px 8px 10px;text-align:center;color:#0E1626}
+.col-hd .titulo{font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.3px}
+.col-hd .contagem{font-size:30px;font-weight:900;line-height:1.15}
+.col-hd.c1{background:#FACC15}
 .col-hd.c2{background:#E24C63;color:#fff}
 .col-hd.c3{background:#3B82F6;color:#fff}
 .col-hd.c4{background:#F5A623;color:#fff}
@@ -39,25 +53,52 @@ html,body{height:100%;font-family:'Segoe UI',Arial,sans-serif;background:var(--b
 .item .nome{font-size:13px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 2px}
 .empty-col{padding:20px 6px;text-align:center;color:var(--text3);font-size:13px}
 
+.progresso{flex-shrink:0;margin-top:12px;display:flex;align-items:center;gap:16px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 16px}
+.progresso .lbl{font-size:11px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--text3);white-space:nowrap}
+.progresso .barra{flex:1;height:12px;background:var(--border);border-radius:6px;overflow:hidden}
+.progresso .barra-fill{height:100%;background:linear-gradient(90deg,#22C55E,#5EEAD4);border-radius:6px;transition:width .5s}
+.progresso .pct{font-size:16px;font-weight:900;width:52px;text-align:right;flex-shrink:0}
+.progresso .concl{font-size:12px;color:var(--text3);white-space:nowrap;flex-shrink:0}
+.progresso .concl b{color:var(--text)}
+
 .stamp{text-align:center;font-size:10px;color:var(--text3);margin-top:6px;flex-shrink:0}
 </style>
 </head>
 <body>
 
-<div class="wrap">
-  <div class="hdr">
-    <div class="brand"><img src="/logo-cahu.png" onerror="this.style.display='none'"><span>Centro de Distribuição</span></div>
-    <div class="clock" id="relogio">--:--:--</div>
+<div class="brand-bar">
+  <div class="b-left"><img id="logo-cahu" src="/logo-cahu.png" onload="removerFundoBranco(this)" onerror="this.style.display='none'"></div>
+  <div class="b-name">Centro de Distribuição</div>
+  <div class="b-right">
+    <span class="b-live"><span class="b-live-dot"></span>Ao vivo</span>
+    <span class="b-clock" id="relogio">--:--:--</span>
   </div>
+</div>
 
+<div class="wrap">
   <div class="secoes">
     <div class="sec" id="sec-exp">
       <div class="sec-hdr"><span class="ic">🚚</span><h2>Expedição — Saídas</h2><span class="sub" id="sub-exp"></span></div>
       <div class="colunas" id="colunas-exp"></div>
+      <div class="progresso">
+        <span class="lbl">Progresso geral do dia</span>
+        <div class="barra"><div class="barra-fill" id="barra-exp" style="width:0%"></div></div>
+        <span class="pct" id="pct-exp">0%</span>
+        <span class="concl">Concluídas <b id="concl-exp">0 / 0</b></span>
+      </div>
     </div>
     <div class="sec hidden" id="sec-conf">
       <div class="sec-hdr"><span class="ic">📥</span><h2>Conferência — Entradas</h2><span class="sub" id="sub-conf"></span></div>
+      <div class="aviso-reconferir" id="aviso-reconferir" style="display:none">
+        <span class="aviso-ic">⚠️</span> RECONFERIR: <span id="aviso-reconferir-texto"></span>
+      </div>
       <div class="colunas" id="colunas-conf"></div>
+      <div class="progresso">
+        <span class="lbl">Progresso geral do dia</span>
+        <div class="barra"><div class="barra-fill" id="barra-conf" style="width:0%"></div></div>
+        <span class="pct" id="pct-conf">0%</span>
+        <span class="concl">Concluídas <b id="concl-conf">0 / 0</b></span>
+      </div>
     </div>
   </div>
 
@@ -65,6 +106,28 @@ html,body{height:100%;font-family:'Segoe UI',Arial,sans-serif;background:var(--b
 </div>
 
 <script>
+// A logo salva tem fundo branco opaco (não é PNG transparente de verdade) —
+// desenha num canvas e apaga (alpha=0) todo pixel quase-branco, deixando só
+// o desenho preto flutuando no fundo amarelo da barra.
+function removerFundoBranco(img) {
+  if (img.dataset.processado) return; // troca de src abaixo dispara onload de novo — evita loop
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0);
+    const dados = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const px = dados.data;
+    for (let i = 0; i < px.length; i += 4) {
+      if (px[i] > 235 && px[i + 1] > 235 && px[i + 2] > 235) px[i + 3] = 0;
+    }
+    ctx.putImageData(dados, 0, 0);
+    img.dataset.processado = '1';
+    img.src = canvas.toDataURL('image/png');
+  } catch (e) {} // se der erro (ex: sem canvas), mantém a logo original com fundo branco mesmo
+}
+
 // Cada lado tem seu próprio conjunto de colunas — Expedição e Conferência
 // usam nomes de status diferentes no painel legado do sistema.
 const COLS_EXP = [
@@ -85,7 +148,10 @@ const COLS_CONF = [
 function renderSecao(elId, cols) {
   document.getElementById(elId).innerHTML = cols.map(c => `
     <div class="col">
-      <div class="col-hd ${c.cor}">${c.titulo}</div>
+      <div class="col-hd ${c.cor}">
+        <div class="contagem" id="ct-${elId}-${c.id}">0</div>
+        <div class="titulo">${c.titulo}</div>
+      </div>
       <div class="col-body" id="cb-${elId}-${c.id}"><div class="empty-col">—</div></div>
     </div>`).join('');
 }
@@ -130,6 +196,7 @@ function preencherSecao(elId, ladoKey, cols, dados) {
   for (const c of cols) {
     const el = document.getElementById(`cb-${elId}-${c.id}`);
     const itens = dados.colunas[c.id] || [];
+    document.getElementById(`ct-${elId}-${c.id}`).textContent = itens.length;
     if (!itens.length) { el.innerHTML = '<div class="empty-col">—</div>'; continue; }
     el.innerHTML = itens.map(it => `
       <div class="item">
@@ -137,11 +204,37 @@ function preencherSecao(elId, ladoKey, cols, dados) {
         <div class="nome">${it.nome}</div>
       </div>`).join('');
   }
+
+  // Progresso do dia = % que já chegou na última coluna (liberado)
+  const total = dados.resumo.total || 0;
+  const liberado = dados.resumo.liberado || 0;
+  const pct = total > 0 ? Math.round((liberado / total) * 100) : 0;
+  const ladoSufixo = ladoKey; // 'exp' ou 'conf'
+  document.getElementById(`barra-${ladoSufixo}`).style.width = pct + '%';
+  document.getElementById(`pct-${ladoSufixo}`).textContent = pct + '%';
+  document.getElementById(`concl-${ladoSufixo}`).textContent = `${liberado} / ${total}`;
+
   return mudou;
 }
 
 renderSecao('colunas-exp', COLS_EXP);
 renderSecao('colunas-conf', COLS_CONF);
+
+// Lista de descrições em reconferência agora — só nome do item, sem
+// quantidade nem código de barra (pedido explícito do Tiago). Se tiver mais
+// de uma, revezam sozinhas no aviso piscando.
+let itensReconferirAtual = [];
+let idxReconferir = 0;
+
+function atualizarAvisoReconferir() {
+  const el = document.getElementById('aviso-reconferir');
+  if (!itensReconferirAtual.length) { el.style.display = 'none'; return; }
+  el.style.display = '';
+  idxReconferir = idxReconferir % itensReconferirAtual.length;
+  document.getElementById('aviso-reconferir-texto').textContent = itensReconferirAtual[idxReconferir];
+  idxReconferir++;
+}
+setInterval(atualizarAvisoReconferir, 4000);
 
 function carregar() {
   fetch('/api/painel-cd?refresh=1').then(r => r.json()).then(d => {
@@ -149,6 +242,10 @@ function carregar() {
     const mudouExp = preencherSecao('colunas-exp', 'exp', COLS_EXP, d.expedicao);
     const mudouConf = preencherSecao('colunas-conf', 'conf', COLS_CONF, d.conferencia);
     if (mudouExp || mudouConf) beep();
+
+    itensReconferirAtual = d.conferencia.itensReconferir || [];
+    idxReconferir = 0;
+    atualizarAvisoReconferir();
 
     document.getElementById('sub-exp').textContent = d.expedicao.resumo.total + ' hoje';
     document.getElementById('sub-conf').textContent = d.conferencia.resumo.total + ' hoje';
