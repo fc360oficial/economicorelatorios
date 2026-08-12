@@ -3649,41 +3649,73 @@ app.get('/api/compras/centro-distribuicao', withCache(10), async (req, res) => {
 // ═══════════════════════════════════════════════════
 // PAINEL TV — CD (loja 10): Expedição (saídas, painel_televendas)
 // e Conferência (entradas, conferencia), só loja 10.
-// Mesmo mapeamento de Status usado no painel legado do sistema (5 colunas):
+//
+// Expedição — Status mapeia direto pras 5 colunas (confirmado pelo Tiago,
+// é a mesma query que o painel legado do sistema usa):
 // 0 Pedido p/ Separação · 1 Pedido em Separação · 2 Aguardando Liberação ·
 // 3 Reconferir · 4 Pedido Liberado.
+//
+// Conferência — painel legado tem colunas diferentes (Conf. Pedido /
+// Conf. Coletor / Conferido / Reconferir / Liberado) e o Status NÃO separa
+// Conferido de Liberado sozinho: comparando pedidos reais do painel físico
+// contra o banco, os dois apareceram com Status=2 — quem realmente separa é
+// DataLiberacao preenchida (liberado) ou não (só conferido). Status 0/1/3
+// mapeiam direto pras 3 primeiras colunas; qualquer outro Status (2, 4, ou
+// o que aparecer) cai no par conferido/liberado por DataLiberacao.
 // ═══════════════════════════════════════════════════
 
-const STATUS_PAINEL_CD = { 0: 'separacao', 1: 'em_separacao', 2: 'aguardando_liberacao', 3: 'reconferir', 4: 'liberado' };
-const COLUNAS_PAINEL_CD = ['separacao', 'em_separacao', 'aguardando_liberacao', 'reconferir', 'liberado'];
+const COLUNAS_EXPEDICAO = ['separacao', 'em_separacao', 'aguardando_liberacao', 'reconferir', 'liberado'];
+const STATUS_EXPEDICAO = { 0: 'separacao', 1: 'em_separacao', 2: 'aguardando_liberacao', 3: 'reconferir', 4: 'liberado' };
 
-async function montarListaPainelCD(tabela, nomeCampo, campoPedido) {
-  const camposPedido = campoPedido ? `${campoPedido} as pedido, ` : '';
+const COLUNAS_CONFERENCIA = ['conf_pedido', 'conf_coletor', 'conferido', 'reconferir', 'liberado'];
+function statusConferencia(row) {
+  if (row.Status === 0) return 'conf_pedido';
+  if (row.Status === 1) return 'conf_coletor';
+  if (row.Status === 3) return 'reconferir';
+  return row.DataLiberacao ? 'liberado' : 'conferido';
+}
+
+async function montarListaExpedicao() {
   const rows = await q(`
-    SELECT nReg, ${camposPedido}${nomeCampo} as nome, Status, HoraEntrada
-    FROM central.${tabela}
+    SELECT nReg, nPedido as pedido, NomeFornec as nome, Status, HoraEntrada
+    FROM central.painel_televendas
     WHERE nLoja = 10 AND DataEntrada = CURDATE()
     ORDER BY HoraEntrada DESC
   `, []).catch(() => []);
 
   const colunas = { separacao: [], em_separacao: [], aguardando_liberacao: [], reconferir: [], liberado: [] };
   for (const r of rows) {
-    const item = { pedido: campoPedido ? String(r.pedido) : String(r.nReg), nome: r.nome || 'N/I' };
-    const status = STATUS_PAINEL_CD[r.Status] || 'separacao';
-    colunas[status].push(item);
+    const status = STATUS_EXPEDICAO[r.Status] || 'separacao';
+    colunas[status].push({ pedido: String(r.pedido), nome: r.nome || 'N/I' });
   }
-
   const resumo = { total: rows.length };
-  for (const c of COLUNAS_PAINEL_CD) resumo[c] = colunas[c].length;
+  for (const c of COLUNAS_EXPEDICAO) resumo[c] = colunas[c].length;
+  return { resumo, colunas };
+}
 
+async function montarListaConferencia() {
+  const rows = await q(`
+    SELECT nReg, NomeFornec as nome, Status, HoraEntrada, DataLiberacao
+    FROM central.conferencia
+    WHERE nLoja = 10 AND DataEntrada = CURDATE()
+    ORDER BY HoraEntrada DESC
+  `, []).catch(() => []);
+
+  const colunas = { conf_pedido: [], conf_coletor: [], conferido: [], reconferir: [], liberado: [] };
+  for (const r of rows) {
+    const status = statusConferencia(r);
+    colunas[status].push({ pedido: String(r.nReg), nome: r.nome || 'N/I' });
+  }
+  const resumo = { total: rows.length };
+  for (const c of COLUNAS_CONFERENCIA) resumo[c] = colunas[c].length;
   return { resumo, colunas };
 }
 
 app.get('/api/painel-cd', withCache(1), async (req, res) => {
   try {
     const [expedicao, conferencia] = await Promise.all([
-      montarListaPainelCD('painel_televendas', 'NomeFornec', 'nPedido'),
-      montarListaPainelCD('conferencia', 'NomeFornec', null)
+      montarListaExpedicao(),
+      montarListaConferencia()
     ]);
     res.json({ expedicao, conferencia, geradoEm: new Date().toISOString() });
   } catch (err) {

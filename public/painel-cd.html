@@ -10,10 +10,9 @@
 html,body{height:100%;font-family:'Segoe UI',Arial,sans-serif;background:var(--bg);color:var(--text);overflow:hidden}
 .wrap{display:flex;flex-direction:column;height:100vh;padding:14px 18px}
 .hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-shrink:0}
-.hdr .brand{display:flex;align-items:center;gap:12px}
-.hdr .brand img{height:34px}
-.hdr .brand b{font-size:22px;font-weight:900;letter-spacing:-.5px}
-.hdr .brand span{font-size:12px;color:#F5B800;font-weight:700;letter-spacing:1.5px;text-transform:uppercase}
+.hdr .brand{display:flex;align-items:center;gap:14px}
+.hdr .brand img{height:52px;background:#fff;border-radius:8px;padding:4px 10px}
+.hdr .brand span{font-size:13px;color:#F5B800;font-weight:700;letter-spacing:1.5px;text-transform:uppercase}
 .hdr .clock{font-size:18px;font-weight:700;color:var(--text2);font-variant-numeric:tabular-nums}
 
 .secoes{flex:1;display:flex;flex-direction:column;min-height:0}
@@ -27,14 +26,15 @@ html,body{height:100%;font-family:'Segoe UI',Arial,sans-serif;background:var(--b
 .colunas{flex:1;display:grid;grid-template-columns:repeat(5,1fr);gap:10px;min-height:0}
 .col{display:flex;flex-direction:column;min-height:0;border-radius:10px;overflow:hidden;border:1px solid var(--border)}
 .col-hd{padding:10px 8px;text-align:center;font-size:15px;font-weight:800;text-transform:uppercase;letter-spacing:.3px;color:#0E1626}
-.col-hd.separacao{background:#F5D400}
-.col-hd.em_separacao{background:#E24C63;color:#fff}
-.col-hd.aguardando_liberacao{background:#3B82F6;color:#fff}
-.col-hd.reconferir{background:#F5A623;color:#fff}
-.col-hd.liberado{background:#22C55E;color:#0E1626}
+.col-hd.c1{background:#F5D400}
+.col-hd.c2{background:#E24C63;color:#fff}
+.col-hd.c3{background:#3B82F6;color:#fff}
+.col-hd.c4{background:#F5A623;color:#fff}
+.col-hd.c5{background:#22C55E;color:#0E1626}
 .col-body{flex:1;overflow-y:auto;background:var(--card);padding:6px}
-.item{padding:10px 6px;text-align:center;border-bottom:1px solid var(--border)}
+.item{padding:10px 6px;text-align:center;border-bottom:1px solid var(--border);transition:background .4s}
 .item:last-child{border-bottom:none}
+.item.novo{background:#F5B80033}
 .item .num{font-size:24px;font-weight:900;color:#5EEAD4}
 .item .nome{font-size:13px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 2px}
 .empty-col{padding:20px 6px;text-align:center;color:var(--text3);font-size:13px}
@@ -46,7 +46,7 @@ html,body{height:100%;font-family:'Segoe UI',Arial,sans-serif;background:var(--b
 
 <div class="wrap">
   <div class="hdr">
-    <div class="brand"><img src="/logo-cahu.png" onerror="this.style.display='none'"><b>CAHU</b><span>Distribuidora · Centro de Distribuição</span></div>
+    <div class="brand"><img src="/logo-cahu.png" onerror="this.style.display='none'"><span>Centro de Distribuição</span></div>
     <div class="clock" id="relogio">--:--:--</div>
   </div>
 
@@ -65,40 +65,91 @@ html,body{height:100%;font-family:'Segoe UI',Arial,sans-serif;background:var(--b
 </div>
 
 <script>
-const COLS = [
-  { id: 'separacao', titulo: 'Pedido p/ Separação' },
-  { id: 'em_separacao', titulo: 'Pedido em Separação' },
-  { id: 'aguardando_liberacao', titulo: 'Aguardando Liberação' },
-  { id: 'reconferir', titulo: 'Reconferir' },
-  { id: 'liberado', titulo: 'Pedido Liberado' }
+// Cada lado tem seu próprio conjunto de colunas — Expedição e Conferência
+// usam nomes de status diferentes no painel legado do sistema.
+const COLS_EXP = [
+  { id: 'separacao', cor: 'c1', titulo: 'Pedido p/ Separação' },
+  { id: 'em_separacao', cor: 'c2', titulo: 'Pedido em Separação' },
+  { id: 'aguardando_liberacao', cor: 'c3', titulo: 'Aguardando Liberação' },
+  { id: 'reconferir', cor: 'c4', titulo: 'Reconferir' },
+  { id: 'liberado', cor: 'c5', titulo: 'Pedido Liberado' }
+];
+const COLS_CONF = [
+  { id: 'conf_pedido', cor: 'c1', titulo: 'Conf. Pedido' },
+  { id: 'conf_coletor', cor: 'c2', titulo: 'Conf. Coletor' },
+  { id: 'conferido', cor: 'c3', titulo: 'Conferido' },
+  { id: 'reconferir', cor: 'c4', titulo: 'Reconferir' },
+  { id: 'liberado', cor: 'c5', titulo: 'Liberado' }
 ];
 
-function renderSecao(elId, lado) {
-  document.getElementById(elId).innerHTML = COLS.map(c => `
+function renderSecao(elId, cols) {
+  document.getElementById(elId).innerHTML = cols.map(c => `
     <div class="col">
-      <div class="col-hd ${c.id}">${c.titulo}</div>
+      <div class="col-hd ${c.cor}">${c.titulo}</div>
       <div class="col-body" id="cb-${elId}-${c.id}"><div class="empty-col">—</div></div>
     </div>`).join('');
 }
 
-function preencherColuna(elId, colId, itens) {
-  const el = document.getElementById(`cb-${elId}-${colId}`);
-  if (!itens || !itens.length) { el.innerHTML = '<div class="empty-col">—</div>'; return; }
-  el.innerHTML = itens.map(it => `
-    <div class="item">
-      <div class="num">${it.pedido}</div>
-      <div class="nome">${it.nome}</div>
-    </div>`).join('');
+// Toca um beep curto (Web Audio, sem precisar de arquivo de áudio) quando
+// algum pedido muda de coluna/status — chama atenção pra quem tá de olho
+// na TV mas não fixado nela o tempo todo.
+let audioCtx = null;
+function beep() {
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.35);
+    osc.start(); osc.stop(audioCtx.currentTime + 0.35);
+  } catch (e) {}
 }
 
-renderSecao('colunas-exp');
-renderSecao('colunas-conf');
+// Estado anterior (pedido -> status) de cada lado, pra detectar o que mudou
+// entre uma atualização e outra e destacar/apitar só o que de fato mexeu.
+let estadoAnterior = { exp: {}, conf: {} };
+
+function preencherSecao(elId, ladoKey, cols, dados) {
+  let mudou = false;
+  const novoEstado = {};
+  for (const c of cols) {
+    const itens = dados.colunas[c.id] || [];
+    for (const it of itens) novoEstado[it.pedido] = c.id;
+  }
+  // primeira carga não conta como "mudança" (senão apita tudo de uma vez ao abrir a página)
+  const primeiraCarga = Object.keys(estadoAnterior[ladoKey]).length === 0;
+  if (!primeiraCarga) {
+    for (const pedido in novoEstado) {
+      if (estadoAnterior[ladoKey][pedido] !== novoEstado[pedido]) { mudou = true; break; }
+    }
+  }
+  estadoAnterior[ladoKey] = novoEstado;
+
+  for (const c of cols) {
+    const el = document.getElementById(`cb-${elId}-${c.id}`);
+    const itens = dados.colunas[c.id] || [];
+    if (!itens.length) { el.innerHTML = '<div class="empty-col">—</div>'; continue; }
+    el.innerHTML = itens.map(it => `
+      <div class="item">
+        <div class="num">${it.pedido}</div>
+        <div class="nome">${it.nome}</div>
+      </div>`).join('');
+  }
+  return mudou;
+}
+
+renderSecao('colunas-exp', COLS_EXP);
+renderSecao('colunas-conf', COLS_CONF);
 
 function carregar() {
   fetch('/api/painel-cd?refresh=1').then(r => r.json()).then(d => {
     if (d.error) throw new Error(d.error);
-    for (const c of COLS) preencherColuna('colunas-exp', c.id, d.expedicao.colunas[c.id]);
-    for (const c of COLS) preencherColuna('colunas-conf', c.id, d.conferencia.colunas[c.id]);
+    const mudouExp = preencherSecao('colunas-exp', 'exp', COLS_EXP, d.expedicao);
+    const mudouConf = preencherSecao('colunas-conf', 'conf', COLS_CONF, d.conferencia);
+    if (mudouExp || mudouConf) beep();
+
     document.getElementById('sub-exp').textContent = d.expedicao.resumo.total + ' hoje';
     document.getElementById('sub-conf').textContent = d.conferencia.resumo.total + ' hoje';
     document.getElementById('stamp').textContent = 'Atualizado às ' + new Date().toLocaleTimeString('pt-BR');
