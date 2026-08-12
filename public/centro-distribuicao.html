@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="/design-system.css">
+<script src="/nav.js" defer></script>
+<title>Centro Distribuição — Econômico Relatórios</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#EBEBE9;--card:#FFFFFF;--border:#DADAD6;
+  --brand:#F5B800;--red:#C22F49;--green:#137A48;--orange:#B45C00;
+  --blue:#2C4A6B;--purple:#0E1626;--text:#0E1626;--text2:#4E5A72;--text3:#4E5A72;
+}
+html,body{height:100%;font-family:'InterVar','Segoe UI',sans-serif;background:var(--bg);color:var(--text)}
+.main{margin-left:0;padding:24px;min-height:100vh}
+.page-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px}
+.page-hdr h1{font-size:20px;font-weight:800;color:#0E1626}
+.page-hdr p{font-size:12px;color:var(--text3);margin-top:2px}
+.btn{border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all .2s}
+.btn-brand{background:var(--brand);color:#6B4E00}.btn-brand:hover{background:#E5AC00}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px}
+.kpi-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px 18px}
+.kpi-card .val{font-size:22px;font-weight:800;line-height:1}
+.kpi-card .lbl{font-size:11px;color:var(--text3);margin-top:5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.kpi-card.danger{border-color:#C22F4940}.kpi-card.danger .val{color:var(--red)}
+.kpi-card.warning{border-color:#B45C0040}.kpi-card.warning .val{color:var(--orange)}
+.kpi-card.brand{border-color:#F5B80040}.kpi-card.brand .val{color:#6B4E00}
+
+.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.filtro{padding:6px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1px solid var(--border);background:var(--card);color:var(--text2)}
+.filtro.active{background:var(--brand);color:#6B4E00;border-color:var(--brand)}
+#busca{background:#FFFFFF;border:1px solid #98A0B3;border-radius:6px;color:#0E1626;padding:6px 10px;font-size:12px;min-width:220px}
+
+.sec{background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden}
+.tbl-wrap{overflow-x:auto}
+table.t{width:100%;border-collapse:collapse;font-size:12px}
+table.t thead{background:#EBEBE9}
+table.t th{padding:9px 12px;text-align:left;color:var(--text3);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;white-space:nowrap;border-bottom:1px solid var(--border)}
+table.t td{padding:8px 12px;border-bottom:1px solid #DADAD666;vertical-align:middle}
+table.t th.r,table.t td.r{text-align:right}
+.risk{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700}
+.risk-critico{background:#C22F4922;color:var(--red)}
+.risk-alto{background:#B45C0022;color:var(--orange)}
+.risk-medio{background:#F5B80022;color:#6B4E00}
+.risk-ok{background:#137A4822;color:var(--green)}
+
+.loading{display:flex;align-items:center;justify-content:center;padding:48px;gap:12px;color:var(--text3);font-size:14px}
+.spin{width:20px;height:20px;border:2px solid #DADAD6;border-top-color:var(--brand);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.empty{padding:32px;text-align:center;color:var(--text3);font-size:13px}
+.stamp{font-size:11px;color:var(--text3);display:flex;align-items:center;gap:6px}
+.dot-live{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+@media(max-width:768px){.kpi-grid{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body class="ds">
+
+<main class="main">
+  <div class="page-hdr">
+    <div>
+      <h1>🚚 Centro Distribuição</h1>
+      <p>Estoque do CD (Loja 10) x giro de 30 dias das lojas 1-6 · sugestão de pedido automático por loja — cobre apenas itens com estoque atual no CD</p>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <select id="sel-loja" onchange="onLojaChange()" style="background:#FFFFFF;border:1px solid #98A0B3;border-radius:6px;color:#0E1626;padding:6px 10px;font-size:12px">
+        <option value="">Todas as Lojas</option>
+        <option value="1">Loja 1 — CAHU</option>
+        <option value="2">Loja 2 — MURIBECA</option>
+        <option value="3">Loja 3 — PONTE</option>
+        <option value="4">Loja 4 — ATACAREJO</option>
+        <option value="5">Loja 5 — PORTA LARGA</option>
+        <option value="6">Loja 6 — JARDIM JORDÃO</option>
+      </select>
+      <span class="stamp" id="stamp"><span class="dot-live"></span> Aguardando análise</span>
+      <button class="btn btn-brand" onclick="carregar()" id="btn-analisar">⚡ Analisar Agora</button>
+    </div>
+  </div>
+
+  <div id="conteudo"><div class="loading"><span class="spin"></span> Clique em "Analisar Agora" para iniciar a análise...</div></div>
+</main>
+
+<script>
+const fmtN = v => Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:0});
+const fmtD = v => v >= 9999 ? '—' : Number(v||0).toFixed(1) + 'd';
+
+// CD entrega em caixa fechada pra alguns produtos (código de barras de 14 dígitos) —
+// quando dá pra converter, mostra a quantidade em caixas (o que a loja de fato pede)
+// com as unidades entre parênteses só como contexto.
+function fmtPedido(unidades, caixas) {
+  if (!unidades || unidades <= 0) return '—';
+  if (caixas) return `${fmtN(caixas)} cx <span style="color:var(--text3);font-weight:400">(${fmtN(unidades)} un)</span>`;
+  return fmtN(unidades);
+}
+
+function badgeCaixa(p) {
+  if (!p.medidoEmCaixa) return '';
+  if (p.conversaoDesconhecida)
+    return ` <span title="Item em caixa no CD, sem cadastro de Embalagem Vendas — confira o fator manualmente" style="font-size:10px;color:var(--orange);font-weight:700">⚠️ CX?</span>`;
+  return ` <span title="Item controlado em caixa no CD (${p.unidadesPorCaixa} un/caixa)" style="font-size:10px;color:var(--text3);font-weight:700">📦 CX</span>`;
+}
+
+function fmtEstoqueCD(p) {
+  if (p.medidoEmCaixa && !p.conversaoDesconhecida)
+    return `${fmtN(p.estoqueCD)} <span style="color:var(--text3);font-weight:400">(${fmtN(p.estoqueCDCaixas)} cx)</span>`;
+  return fmtN(p.estoqueCD);
+}
+
+function badgeSemHistorico(p) {
+  if (!p.semHistorico) return '';
+  return ` <span title="Produto novo no CD, sem venda registrada em nenhuma loja nos últimos 30 dias — a sugestão abaixo é uma distribuição igual do estoque do CD entre as 6 lojas (pedido de teste), não um cálculo por giro" style="font-size:10px;color:var(--blue);font-weight:700">🆕 NOVO</span>`;
+}
+
+// Sugestão de pedido é clicável pra ajuste manual — o valor calculado (por
+// giro, ou pela distribuição de produto novo) fica editável a qualquer
+// momento; o ajuste manual sempre vence e fica marcado em azul com um ↺
+// pra voltar ao cálculo automático.
+function renderSugestaoCell(p, l) {
+  const id = `sug-${p.codigo}-${l.loja}`;
+  const valorTxt = fmtPedido(l.sugestaoPedido, l.sugestaoPedidoCaixas);
+  const cor = l.ajustadoManualmente ? 'color:var(--blue);font-weight:700' : (l.sugestaoPedido > 0 ? 'color:var(--red);font-weight:700' : '');
+  return `<span class="sug-wrap" id="${id}">
+    <span onclick="editarSugestao('${p.codigo}',${l.loja},${l.sugestaoPedido})" style="cursor:pointer;${cor}" title="Clique pra ajustar manualmente">${valorTxt}</span>${
+      l.ajustadoManualmente ? `<span onclick="removerAjuste('${p.codigo}',${l.loja})" title="Voltar pro cálculo automático" style="cursor:pointer;color:var(--text3);font-size:10px;margin-left:4px">↺</span>` : ''
+    }</span>`;
+}
+
+function editarSugestao(codigo, loja, valorAtual) {
+  const id = `sug-${codigo}-${loja}`;
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.innerHTML = `
+    <input type="number" min="0" step="1" value="${valorAtual||0}" id="inp-${id}"
+      style="width:64px;padding:2px 4px;font-size:12px;border:1px solid var(--brand);border-radius:4px"
+      onkeydown="if(event.key==='Enter')salvarSugestao('${codigo}',${loja});if(event.key==='Escape')renderTabela()">
+    <span onclick="salvarSugestao('${codigo}',${loja})" title="Salvar" style="cursor:pointer;color:var(--green);font-weight:700;margin-left:4px">✓</span>
+    <span onclick="renderTabela()" title="Cancelar" style="cursor:pointer;color:var(--text3);margin-left:2px">✕</span>`;
+  const inp = document.getElementById(`inp-${id}`);
+  inp.focus();
+  inp.select();
+}
+
+async function salvarSugestao(codigo, loja) {
+  const inp = document.getElementById(`inp-sug-${codigo}-${loja}`);
+  const valor = parseInt(inp.value, 10);
+  if (isNaN(valor) || valor < 0) { alert('Quantidade inválida.'); return; }
+  await enviarAjuste({ codigo, loja, quantidade: valor });
+}
+
+async function removerAjuste(codigo, loja) {
+  await enviarAjuste({ codigo, loja, remover: true });
+}
+
+async function enviarAjuste(body) {
+  try {
+    const r = await fetch('/api/compras/centro-distribuicao/ajustar', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Erro ao salvar');
+    carregar();
+  } catch (e) { alert('Erro ao salvar ajuste: ' + e.message); }
+}
+
+let _dados = null;
+let _filtro = 'todos';
+let _lojaSel = '';
+
+function statusBadge(s) {
+  const map = { critico:['risk-critico','🔴 CRÍTICO'], alto:['risk-alto','🟠 ALTO'], medio:['risk-medio','🟡 MÉDIO'], ok:['risk-ok','🟢 OK'] };
+  const [cls, lbl] = map[s] || ['risk-ok', s];
+  return `<span class="risk ${cls}">${lbl}</span>`;
+}
+
+// Visão "Todas as Lojas": uma linha por produto, com a sugestão de pedido
+// de cada uma das 6 lojas já visível na própria linha (sem precisar expandir).
+function renderTabelaTodasLojas(lista) {
+  const truncado = lista.length > 200;
+  const lojasRef = lista[0]?.lojas || [];
+  const lojasHead = lojasRef.map(l => `<th class="r">${l.nome}</th>`).join('');
+
+  const linhas = lista.slice(0, 200).map(p => `
+    <tr>
+      <td class="bold">${p.descricao}${badgeCaixa(p)}${badgeSemHistorico(p)}</td>
+      <td class="r">${fmtEstoqueCD(p)}</td>
+      <td class="r">${fmtD(p.diasCoberturaCD)}</td>
+      <td>${statusBadge(p.status)}</td>
+      ${p.lojas.map(l => `<td class="r">${renderSugestaoCell(p, l)}</td>`).join('')}
+      <td class="r">${fmtPedido(p.totalSugerido, p.totalSugeridoCaixas)}</td>
+      <td class="r" style="color:${p.faltaComprar>0?'var(--red)':'inherit'};font-weight:${p.faltaComprar>0?'700':'400'}">${fmtPedido(p.faltaComprar, p.faltaComprarCaixas)}</td>
+    </tr>`).join('');
+
+  return `
+    <table class="t">
+      <thead><tr>
+        <th>Produto</th><th class="r">Estoque CD</th><th class="r">Cobertura CD</th>
+        <th>Status</th>${lojasHead}<th class="r">Total sugerido (6 lojas)</th><th class="r">Falta comprar (CD)</th>
+      </tr></thead>
+      <tbody>${linhas}</tbody>
+    </table>
+    ${truncado ? `<div class="empty">Mostrando 200 de ${lista.length} produtos — refine a busca ou o filtro.</div>` : ''}`;
+}
+
+// Visão de uma loja específica: só produtos que ELA precisa pedir do CD,
+// com os números dessa loja (não da soma das 6).
+function renderTabelaLoja(lista, lojaId) {
+  const truncado = lista.length > 200;
+  const linhas = lista.slice(0, 200).map(p => {
+    const l = p.lojas.find(x => String(x.loja) === String(lojaId));
+    const disputado = p.totalSugerido > p.estoqueCD;
+    return `
+    <tr>
+      <td class="bold">${p.descricao}${badgeCaixa(p)}${badgeSemHistorico(p)}</td>
+      <td class="r">${fmtN(l.estoque)}</td>
+      <td class="r">${(l.giroDiario||0).toFixed(2)}</td>
+      <td class="r">${fmtD(l.diasCobertura)}</td>
+      <td class="r">${renderSugestaoCell(p, l)}</td>
+      <td class="r">${fmtEstoqueCD(p)}</td>
+      <td class="r" style="${disputado ? 'color:var(--red);font-weight:700' : ''}" title="${disputado ? 'CD pode não ter estoque suficiente pra atender todas as lojas se todas pedirem' : ''}">${fmtPedido(p.totalSugerido, p.totalSugeridoCaixas)}</td>
+    </tr>`;
+  }).join('');
+
+  return `
+    <table class="t">
+      <thead><tr>
+        <th>Produto</th><th class="r">Estoque loja</th><th class="r">Giro/dia</th>
+        <th class="r">Cobertura loja</th><th class="r">Sugestão de pedido</th><th class="r">Estoque CD (disponível)</th>
+        <th class="r">Total pedido (6 lojas)</th>
+      </tr></thead>
+      <tbody>${linhas}</tbody>
+    </table>
+    ${truncado ? `<div class="empty">Mostrando 200 de ${lista.length} produtos — refine a busca ou o filtro.</div>` : ''}`;
+}
+
+function renderTabela() {
+  if (!_dados) return;
+  const busca = (document.getElementById('busca')?.value || '').toLowerCase().trim();
+  let lista = _dados.produtos;
+  if (_filtro !== 'todos') lista = lista.filter(p => p.status === _filtro);
+  if (busca) lista = lista.filter(p => p.descricao.toLowerCase().includes(busca) || String(p.codigo).includes(busca));
+  if (_lojaSel) lista = lista.filter(p => {
+    const l = p.lojas.find(x => String(x.loja) === String(_lojaSel));
+    return l && l.sugestaoPedido > 0;
+  });
+
+  if (!lista.length) {
+    document.getElementById('tbl-wrap').innerHTML = '<div class="empty">Nenhum produto encontrado para esse filtro.</div>';
+    return;
+  }
+
+  document.getElementById('tbl-wrap').innerHTML = _lojaSel
+    ? renderTabelaLoja(lista, _lojaSel)
+    : renderTabelaTodasLojas(lista);
+}
+
+function setFiltro(btn, f) {
+  document.querySelectorAll('.filtro').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  _filtro = f;
+  renderTabela();
+}
+
+function onLojaChange() {
+  _lojaSel = document.getElementById('sel-loja').value;
+  renderTabela();
+}
+
+function renderTudo(d) {
+  _dados = d;
+  const r = d.resumo;
+  const kpis = `
+  <div class="kpi-grid">
+    <div class="kpi-card brand"><div class="val">${fmtN(r.totalProdutos)}</div><div class="lbl">Produtos Analisados</div></div>
+    <div class="kpi-card warning"><div class="val">${fmtN(r.precisamReposicao)}</div><div class="lbl">Precisam Reposição</div></div>
+    <div class="kpi-card danger"><div class="val">${fmtN(r.criticos)}</div><div class="lbl">Em Estado Crítico</div></div>
+    <div class="kpi-card danger"><div class="val">${fmtN(r.totalUnidadesFaltando)}</div><div class="lbl">Unidades Faltando (itens em estoque no CD)</div></div>
+  </div>`;
+
+  const toolbar = `
+  <div class="toolbar">
+    <div class="filtro active" onclick="setFiltro(this,'todos')">Todos</div>
+    <div class="filtro" onclick="setFiltro(this,'critico')">🔴 Crítico</div>
+    <div class="filtro" onclick="setFiltro(this,'alto')">🟠 Alto</div>
+    <div class="filtro" onclick="setFiltro(this,'medio')">🟡 Médio</div>
+    <div class="filtro" onclick="setFiltro(this,'ok')">🟢 OK</div>
+    <input id="busca" type="text" placeholder="🔍 Buscar produto..." oninput="renderTabela()">
+  </div>`;
+
+  document.getElementById('conteudo').innerHTML = kpis + toolbar + `<div class="sec"><div class="tbl-wrap" id="tbl-wrap"></div></div>`;
+  _filtro = 'todos';
+  renderTabela();
+
+  document.getElementById('stamp').innerHTML =
+    `<span class="dot-live"></span> Atualizado em ${new Date().toLocaleTimeString('pt-BR')}`;
+}
+
+function carregar() {
+  const btn = document.getElementById('btn-analisar');
+  btn.disabled = true;
+  btn.textContent = '⏳ Analisando...';
+  document.getElementById('stamp').innerHTML = '<span class="spin"></span> Buscando dados...';
+  document.getElementById('conteudo').innerHTML = '<div class="loading"><span class="spin"></span> Cruzando estoque do CD com o giro das 6 lojas...<br><small style="color:#4E5A72;margin-top:8px;display:block">Resultado fica em cache por 10 minutos.</small></div>';
+
+  const ctrl = new AbortController();
+  const tid = setTimeout(() => ctrl.abort(), 300000);
+
+  fetch('/api/compras/centro-distribuicao?refresh=1', { signal: ctrl.signal })
+    .then(r => { clearTimeout(tid); if (r.status === 401) { location.href='/login.html'; return null; } return r.json(); })
+    .then(d => {
+      if (!d) return;
+      if (d.error) throw new Error(d.error);
+      renderTudo(d);
+    })
+    .catch(e => {
+      clearTimeout(tid);
+      const msg = e.name === 'AbortError' ? 'Tempo limite excedido (5min). Tente novamente.' : e.message;
+      document.getElementById('conteudo').innerHTML = `<div class="empty">❌ Erro ao carregar: ${msg}</div>`;
+      document.getElementById('stamp').innerHTML = '<span style="color:var(--red)">● Erro</span>';
+    })
+    .finally(() => {
+      btn.disabled = false;
+      btn.textContent = '⚡ Analisar Agora';
+    });
+}
+</script>
+</body>
+</html>

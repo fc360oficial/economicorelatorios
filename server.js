@@ -2,6 +2,7 @@ const express = require('express');
 const mysql = require('mysql2/promise');
 const path = require('path');
 const session = require('express-session');
+const FileStore = require('session-file-store')(session);
 const bcrypt = require('bcryptjs');
 const fs = require('fs');
 const { exec } = require('child_process');
@@ -111,9 +112,14 @@ app.get('/api/versao', (req, res) => res.json({ versao: APP_VERSAO }));
 const _cache = new Map();
 function withCache(ttlMin) {
   return (req, res, next) => {
-    const key = req.originalUrl;
+    // ?refresh=1 força recálculo (usado pelo botão "Analisar Agora" — clicar
+    // de novo deve sempre buscar dado fresco, não só repetir o cache). A
+    // chave ignora esse parâmetro pra não fragmentar o cache normal.
+    const { refresh, ...restQuery } = req.query;
+    const qs = new URLSearchParams(restQuery).toString();
+    const key = req.path + (qs ? '?' + qs : '');
     const hit = _cache.get(key);
-    if (hit && Date.now() < hit.exp) return res.json(hit.data);
+    if (!refresh && hit && Date.now() < hit.exp) return res.json(hit.data);
     const origJson = res.json.bind(res);
     res.json = (data) => {
       if (res.statusCode === 200 && data && !data.error)
@@ -138,7 +144,17 @@ try {
 }
 
 // Sessão (8 horas)
+// Sessão (8 horas) — gravada em disco (não só em memória) pra sobreviver a
+// reinício do servidor. Todo deploy reinicia o processo; com sessão só em
+// memória isso deslogava todo mundo, inclusive os painéis de TV que ficam
+// abertos sem ninguém pra logar de novo na sala.
 app.use(session({
+  store: new FileStore({
+    path: path.join(__dirname, 'data', 'sessions'),
+    ttl: 8 * 60 * 60,
+    retries: 0,
+    logFn: () => {} // a lib loga toda leitura/escrita no console por padrão — silencia
+  }),
   secret: 'ec0n0mic0-bi-2026-xK9#mP',
   resave: false,
   saveUninitialized: false,
@@ -167,7 +183,8 @@ app.use((req, res, next) => {
     '/api/_diag/tabelas-central',
     '/ruptura-painel.html', '/api/ruptura', '/api/ruptura/comprador-listas',
     '/margem-comprador.html', '/api/margem-tv/comprador',
-    '/painel-diretoria.html'];
+    '/painel-diretoria.html',
+    '/painel-cd.html', '/api/painel-cd'];
   if (publico.includes(req.path)) return next();
   // Pré-aquecimento interno (somente localhost)
   if (req.headers['x-internal-warmup'] === 'fc360warmup2026' && req.socket.remoteAddress === '::1') return next();
@@ -3356,6 +3373,449 @@ app.get('/api/compras/analise-estoque', async (req, res) => {
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
+// ═══════════════════════════════════════════════════
+// MÓDULO COMPRAS — CENTRO DE DISTRIBUIÇÃO (loja 10)
+// Estoque do CD x giro de 30 dias das lojas 1-6 —
+// sugere quanto cada loja deve pedir do CD e alerta
+// quando o próprio CD precisa comprar do fornecedor.
+// ═══════════════════════════════════════════════════
+
+const LOJAS_CD_NOMES = { 1: 'CAHU', 2: 'MURIBECA', 3: 'PONTE', 4: 'ATACAREJO', 5: 'PORTA LARGA', 6: 'JARDIM JORDÃO' };
+
+// Ajustes manuais de sugestão de pedido (chave "codigo|loja" → quantidade em
+// unidades) — sobrepõe tanto o cálculo por giro quanto a distribuição padrão
+// de produto sem histórico. Fica em JSON local (mesmo padrão de
+// CD_NOTAS_AVULSAS_PATH), nunca no MySQL.
+const CD_PEDIDO_OVERRIDES_PATH = path.join(__dirname, 'data', 'cd-pedido-overrides.json');
+function carregarCdPedidoOverrides() {
+  try { return JSON.parse(fs.readFileSync(CD_PEDIDO_OVERRIDES_PATH, 'utf8')); } catch (e) { return {}; }
+}
+function salvarCdPedidoOverrides(overrides) {
+  fs.mkdirSync(path.dirname(CD_PEDIDO_OVERRIDES_PATH), { recursive: true });
+  fs.writeFileSync(CD_PEDIDO_OVERRIDES_PATH, JSON.stringify(overrides, null, 2));
+}
+
+app.post('/api/compras/centro-distribuicao/ajustar', (req, res) => {
+  const { codigo, loja, quantidade, remover } = req.body || {};
+  if (!codigo || !loja) return res.status(400).json({ error: 'Informe codigo e loja.' });
+  const overrides = carregarCdPedidoOverrides();
+  const key = `${codigo}|${loja}`;
+  if (remover) {
+    delete overrides[key];
+  } else {
+    const qtd = Math.round(Number(quantidade));
+    if (!Number.isFinite(qtd) || qtd < 0) return res.status(400).json({ error: 'Quantidade inválida.' });
+    overrides[key] = qtd;
+  }
+  salvarCdPedidoOverrides(overrides);
+  _cache.delete('/api/compras/centro-distribuicao'); // reflete o ajuste no próximo "Analisar Agora" sem esperar o TTL
+  res.json({ ok: true });
+});
+
+app.get('/api/compras/centro-distribuicao', withCache(10), async (req, res) => {
+  try {
+    const vazio = {
+      produtos: [],
+      resumo: { totalProdutos: 0, precisamReposicao: 0, criticos: 0, totalUnidadesFaltando: 0 },
+      geradoEm: new Date().toISOString()
+    };
+
+    // 1. Universo de produtos — só o que o CD (loja 10) tem em estoque positivo agora.
+    // Mais estreito e muito mais rápido do que partir de todas as listas de cotação
+    // (que trazia produtos que o CD nunca chegou a estocar); também é o critério certo
+    // pro negócio: essa aba distribui o que já está no CD, não planeja compra nova.
+    const estCD = await q(`SELECT CodigoBarra, Qtd FROM central.estoquen10 WHERE Qtd > 0`, [])
+      .catch(() => []);
+    if (!estCD.length) return res.json(vazio);
+
+    const overrides = carregarCdPedidoOverrides();
+    const codigosCD = estCD.map(r => r.CodigoBarra);
+    const phCD = codigosCD.map(() => '?').join(',');
+
+    // No CD, código de barras com 14 dígitos é caixa/fardo, não unidade (regra do
+    // Tiago) — o giro das lojas é sempre em unidade, então sem converter, comparar
+    // "100 caixas" com "giro de 5 unidades/dia" dá uma cobertura completamente errada.
+    // central.embalagempadrao_venda (cadastro "Embalagem Vendas" do ERP) guarda, pelo
+    // próprio código de 14 dígitos, quantas unidades cada caixa tem (Qtd_venda).
+    const codigosCaixa = codigosCD.filter(c => String(c).length === 14);
+    let fatorCaixaMap = {};
+    if (codigosCaixa.length) {
+      const phCx = codigosCaixa.map(() => '?').join(',');
+      const embRows = await q(`
+        SELECT Codigobarra, Qtd_venda FROM central.embalagempadrao_venda
+        WHERE Codigobarra IN (${phCx})
+      `, codigosCaixa).catch(() => []);
+      fatorCaixaMap = Object.fromEntries(embRows.map(r => [r.Codigobarra, parseFloat(r.Qtd_venda) || 0]));
+    }
+
+    // estoqueCDMap guarda sempre unidades — para código de caixa, já converte aqui
+    // (estoqueEmCaixas × unidades por caixa). Quando o cadastro de embalagem não tem
+    // esse código, não dá pra converter com segurança: marca conversaoDesconhecida e
+    // mantém o valor bruto (mesmo comportamento de antes) só pra não sumir da tela.
+    const estoqueCDMap = {};
+    const medidoEmCaixaMap = {};
+    const conversaoDesconhecidaMap = {};
+    const estoqueCDCaixasMap = {};
+    const unidadesPorCaixaMap = {};
+    for (const r of estCD) {
+      const cod = r.CodigoBarra;
+      const qtd = parseFloat(r.Qtd) || 0;
+      if (String(cod).length === 14) {
+        medidoEmCaixaMap[cod] = true;
+        estoqueCDCaixasMap[cod] = qtd;
+        const fator = fatorCaixaMap[cod];
+        if (fator > 0) {
+          unidadesPorCaixaMap[cod] = fator;
+          estoqueCDMap[cod] = qtd * fator;
+        } else {
+          conversaoDesconhecidaMap[cod] = true;
+          estoqueCDMap[cod] = qtd; // sem fator confiável — não inventa conversão
+        }
+      } else {
+        estoqueCDMap[cod] = qtd;
+      }
+    }
+
+    // Descrição + filtro de produto ativo (CodDesativado=0) — descarta código de barras
+    // do estoque que não corresponde a um item ativo cadastrado.
+    const descRows = await q(`
+      SELECT CodigoBarra, TRIM(Descricao) as descricao
+      FROM central.itens WHERE CodDesativado = 0 AND CodigoBarra IN (${phCD})
+    `, codigosCD).catch(() => []);
+    if (!descRows.length) return res.json(vazio);
+
+    const descMap = Object.fromEntries(descRows.map(r => [r.CodigoBarra, r.descricao || r.CodigoBarra]));
+    const codigos = descRows.map(r => r.CodigoBarra);
+    const phC = codigos.map(() => '?').join(',');
+
+    // 2. Estoque nas lojas 1-6 (o do CD já temos em estoqueCDMap)
+    const LOJAS = [1, 2, 3, 4, 5, 6];
+    const estoqueQs = LOJAS.map(n =>
+      q(`SELECT CodigoBarra, Qtd FROM central.estoquen${n} WHERE CodigoBarra IN (${phC})`, codigos).catch(() => [])
+    );
+    const estoqueArr = await Promise.all(estoqueQs);
+    const estoqueMap = {}; // estoqueMap[cod][loja] = qtd
+    estoqueArr.forEach((rows, idx) => {
+      const ln = LOJAS[idx];
+      for (const r of rows) {
+        if (!estoqueMap[r.CodigoBarra]) estoqueMap[r.CodigoBarra] = {};
+        estoqueMap[r.CodigoBarra][ln] = parseFloat(r.Qtd) || 0;
+      }
+    });
+
+    // 3. Vendas dos últimos 30 dias por loja (1-6) — janela de 2 meses pra cobrir virada de mês
+    const hojeD = new Date();
+    const ini30 = localDate(new Date(hojeD - 30 * 86400000));
+    const meses = [0, 1].map(i => mesDB(new Date(hojeD.getFullYear(), hojeD.getMonth() - i, 1).getMonth() + 1));
+
+    const vendasMap = {}; // vendasMap[loja][cod] = qtd30
+    for (const ln of LOJAS) vendasMap[ln] = {};
+    await Promise.all(LOJAS.map(async (ln) => {
+      for (const mm of meses) {
+        try {
+          const rows = await q(`
+            SELECT Codigo, SUM(QtdNovo) as qtd30
+            FROM \`ln${ln}${mm}\`.zcupomitens
+            WHERE IndCancel='N' AND Data >= ? AND Codigo IN (${phC})
+            GROUP BY Codigo
+          `, [ini30, ...codigos]);
+          for (const r of rows) {
+            vendasMap[ln][r.Codigo] = (vendasMap[ln][r.Codigo] || 0) + (parseFloat(r.qtd30) || 0);
+          }
+        } catch (_) {}
+      }
+    }));
+
+    // 4. Montar um registro por produto — todo produto aqui já tem estoque
+    // positivo no CD (filtrado no passo 1), não precisa de checagem extra.
+    const produtos = [];
+    for (const cod of codigos) {
+      const estoqueCD = estoqueCDMap[cod] || 0;
+      // Giro/estoque de loja é sempre em unidade — o pedido calculado também sai em
+      // unidade. Mas se o CD só entrega esse produto em caixa fechada, a loja não
+      // pode pedir "150 unidades": arredonda pra cima em nº de caixas (fatorCaixa),
+      // sempre cobrindo pelo menos a necessidade calculada.
+      const fatorCaixa = unidadesPorCaixaMap[cod] || null;
+      let totalSugerido = 0;
+      let giroDiarioTotalCD = 0;
+      const lojasOut = [];
+
+      for (const ln of LOJAS) {
+        const estoqueLoja = estoqueMap[cod]?.[ln] || 0;
+        const qtd30 = vendasMap[ln][cod] || 0;
+        const giroDiario = qtd30 / 30;
+        const diasCobertura = giroDiario > 0.001
+          ? estoqueLoja / giroDiario
+          : (estoqueLoja > 0 ? 9999 : 0);
+        const sugestaoPedido = (giroDiario > 0.001 && diasCobertura < 30)
+          ? Math.max(0, Math.round(giroDiario * 30 - estoqueLoja))
+          : 0;
+        const sugestaoPedidoCaixas = (fatorCaixa && sugestaoPedido > 0)
+          ? Math.ceil(sugestaoPedido / fatorCaixa)
+          : null;
+
+        totalSugerido += sugestaoPedido;
+        giroDiarioTotalCD += giroDiario;
+        lojasOut.push({
+          loja: ln, nome: LOJAS_CD_NOMES[ln],
+          estoque: +estoqueLoja.toFixed(2),
+          giroDiario: +giroDiario.toFixed(2),
+          diasCobertura: diasCobertura === 9999 ? 9999 : +diasCobertura.toFixed(1),
+          sugestaoPedido, sugestaoPedidoCaixas
+        });
+      }
+
+      // Universo já garante estoqueCD > 0 (filtrado no passo 1), então sem giro
+      // a cobertura é sempre "infinita" — não existe o caso estoqueCD <= 0 aqui.
+      // Isso também é o sinal de "produto sem histórico de venda": nenhuma das
+      // 6 lojas vendeu nos últimos 30 dias, então não tem giro pra calcular
+      // sugestão nenhuma — típico de produto novo que acabou de chegar no CD.
+      const semHistorico = giroDiarioTotalCD <= 0.001;
+      const diasCoberturaCD = semHistorico ? 9999 : estoqueCD / giroDiarioTotalCD;
+      const status = diasCoberturaCD < 10 ? 'critico'
+        : diasCoberturaCD < 20 ? 'alto'
+        : diasCoberturaCD < 30 ? 'medio' : 'ok';
+
+      // Sem histórico: não tem giro pra calcular nada, então a sugestão vira
+      // uma distribuição igual do estoque do CD entre as 6 lojas (um "pedido
+      // de teste" pra loja começar a vender o produto novo). Se o item é de
+      // caixa, distribui em caixas fechadas, não fração de caixa.
+      if (semHistorico) {
+        if (fatorCaixa) {
+          const caixasPorLoja = Math.floor((estoqueCDCaixasMap[cod] || 0) / 6);
+          for (const l of lojasOut) {
+            l.sugestaoPedido = caixasPorLoja * fatorCaixa;
+            l.sugestaoPedidoCaixas = caixasPorLoja > 0 ? caixasPorLoja : null;
+          }
+        } else {
+          const unidadesPorLoja = Math.floor(estoqueCD / 6);
+          for (const l of lojasOut) { l.sugestaoPedido = unidadesPorLoja; l.sugestaoPedidoCaixas = null; }
+        }
+      }
+
+      // Ajuste manual (se existir) sempre vence — tanto o cálculo por giro
+      // quanto a distribuição de produto sem histórico.
+      for (const l of lojasOut) {
+        const key = `${cod}|${l.loja}`;
+        if (Object.prototype.hasOwnProperty.call(overrides, key)) {
+          l.sugestaoPedido = overrides[key];
+          l.sugestaoPedidoCaixas = (fatorCaixa && l.sugestaoPedido > 0) ? Math.ceil(l.sugestaoPedido / fatorCaixa) : null;
+          l.ajustadoManualmente = true;
+        } else {
+          l.ajustadoManualmente = false;
+        }
+      }
+
+      // Recalcula os totais do produto a partir do valor final de cada loja
+      // (já com distribuição de produto novo e ajustes manuais aplicados).
+      totalSugerido = lojasOut.reduce((s, l) => s + l.sugestaoPedido, 0);
+      // Arredondado pra inteiro — não faz sentido sugerir fração de unidade.
+      const faltaComprar = Math.max(0, Math.round(totalSugerido - estoqueCD));
+      const faltaComprarCaixas = (fatorCaixa && faltaComprar > 0)
+        ? Math.ceil(faltaComprar / fatorCaixa)
+        : null;
+      const totalSugeridoCaixas = (fatorCaixa && totalSugerido > 0)
+        ? Math.ceil(totalSugerido / fatorCaixa)
+        : null;
+
+      produtos.push({
+        codigo: cod, descricao: descMap[cod] || cod,
+        estoqueCD: +estoqueCD.toFixed(2),
+        diasCoberturaCD: diasCoberturaCD === 9999 ? 9999 : +diasCoberturaCD.toFixed(1),
+        status, semHistorico, totalSugerido, totalSugeridoCaixas, faltaComprar, faltaComprarCaixas,
+        medidoEmCaixa: !!medidoEmCaixaMap[cod],
+        conversaoDesconhecida: !!conversaoDesconhecidaMap[cod],
+        estoqueCDCaixas: medidoEmCaixaMap[cod] ? +estoqueCDCaixasMap[cod].toFixed(2) : null,
+        unidadesPorCaixa: fatorCaixa,
+        lojas: lojasOut
+      });
+    }
+
+    produtos.sort((a, b) => a.diasCoberturaCD - b.diasCoberturaCD);
+
+    const resumo = {
+      totalProdutos: produtos.length,
+      precisamReposicao: produtos.filter(p => p.totalSugerido > 0).length,
+      criticos: produtos.filter(p => p.status === 'critico').length,
+      totalUnidadesFaltando: produtos.reduce((s, p) => s + p.faltaComprar, 0)
+    };
+
+    res.json({ produtos, resumo, geradoEm: new Date().toISOString() });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════
+// PAINEL TV — CD (loja 10): Expedição (saídas, painel_televendas)
+// e Conferência (entradas, conferencia), só loja 10.
+//
+// Expedição — Status mapeia direto pras 5 colunas (confirmado pelo Tiago,
+// é a mesma query que o painel legado do sistema usa):
+// 0 Pedido p/ Separação · 1 Pedido em Separação · 2 Aguardando Liberação ·
+// 3 Reconferir · 4 Pedido Liberado.
+//
+// Conferência — painel legado tem colunas diferentes (Conf. Pedido /
+// Conf. Coletor / Conferido / Reconferir / Liberado) e usa OUTRO conjunto de
+// códigos de Status, diferente da Expedição. Mapeamento confirmado cruzando
+// pedidos reais da tela física (monitor "Documentos Fiscais") contra o banco:
+// Status=5 → Conf. Pedido (178198/178223, sem OperadorCentral ainda),
+// Status=3 → Conf. Coletor, Status=4 → Reconferir (178197, confirmado com
+// print da tela mostrando ">>Reconferir<<"), Status=2 → Conferido/Liberado
+// (o Status sozinho não separa os dois — quem separa é DataLiberacao
+// preenchida = liberado, vazia = só conferido; confirmado com 178257).
+// Status 0/1 são raros (poucos registros no histórico) e sempre aparecem já
+// com DataLiberacao preenchida — tratados como o par conferido/liberado.
+// ═══════════════════════════════════════════════════
+
+const COLUNAS_EXPEDICAO = ['separacao', 'em_separacao', 'aguardando_liberacao', 'reconferir', 'liberado'];
+const STATUS_EXPEDICAO = { 0: 'separacao', 1: 'em_separacao', 2: 'aguardando_liberacao', 3: 'reconferir', 4: 'liberado' };
+
+const COLUNAS_CONFERENCIA = ['conf_pedido', 'conf_coletor', 'conferido', 'reconferir', 'liberado'];
+function statusConferencia(row) {
+  if (row.Status === 5) return 'conf_pedido';
+  if (row.Status === 3) return 'conf_coletor';
+  if (row.Status === 4) return 'reconferir';
+  return row.DataLiberacao ? 'liberado' : 'conferido';
+}
+
+async function montarListaExpedicao() {
+  // Pedido pendente (Status<4) fica visível enquanto não for liberado, mesmo
+  // que tenha entrado em dia anterior (senão pedido travado, tipo o 00807,
+  // some do painel mesmo continuando pendente de verdade). Limita a 7 dias
+  // pra não voltar a puxar lixo antigo abandonado (teve caso de 2021).
+  // "Liberado" sempre fica restrito a hoje, senão cresceria pra sempre.
+  const rows = await q(`
+    SELECT nReg, nPedido as pedido, NomeFornec as nome, Status, HoraEntrada
+    FROM central.painel_televendas
+    WHERE nLoja = 10 AND (
+      (Status < 4 AND DataEntrada >= CURDATE() - INTERVAL 7 DAY)
+      OR (Status = 4 AND DataLiberacao = CURDATE())
+    )
+    ORDER BY HoraEntrada DESC
+  `, []).catch(() => []);
+
+  const colunas = { separacao: [], em_separacao: [], aguardando_liberacao: [], reconferir: [], liberado: [] };
+  for (const r of rows) {
+    const status = STATUS_EXPEDICAO[r.Status] || 'separacao';
+    colunas[status].push({ pedido: String(r.pedido), nome: r.nome || 'N/I' });
+  }
+  const resumo = { total: rows.length };
+  for (const c of COLUNAS_EXPEDICAO) resumo[c] = colunas[c].length;
+
+  // Itens dos pedidos que estão na coluna Reconferir, agrupados por pedido —
+  // mesma lógica da Conferência. A tabela de itens da Expedição é
+  // central.conferencia_televendas (chave por nLoja+nPedido, não por nReg
+  // do cabeçalho). O campo Status_Conferencia dela fica sempre 0 (não é um
+  // flag individual usável), então — igual na Conferência — mostra todos os
+  // itens do pedido quando ele está marcado pra reconferir.
+  let itensReconferir = [];
+  const pedidosReconferir = colunas.reconferir.map(r => r.pedido);
+  if (pedidosReconferir.length) {
+    const ph = pedidosReconferir.map(() => '?').join(',');
+    const itensRows = await q(`
+      SELECT DISTINCT nPedido, Codigobarra FROM central.conferencia_televendas
+      WHERE nLoja = 10 AND nPedido IN (${ph})
+    `, pedidosReconferir).catch(() => []);
+    if (itensRows.length) {
+      const barras = [...new Set(itensRows.map(r => r.Codigobarra))];
+      const phB = barras.map(() => '?').join(',');
+      const descRows = await q(`
+        SELECT CodigoBarra, TRIM(Descricao) as descricao FROM central.itens WHERE CodigoBarra IN (${phB})
+      `, barras).catch(() => []);
+      const descMap = Object.fromEntries(descRows.map(r => [r.CodigoBarra, r.descricao]));
+
+      const porPedido = new Map();
+      for (const r of itensRows) {
+        const desc = descMap[r.Codigobarra];
+        if (!desc) continue;
+        const pedido = String(r.nPedido);
+        if (!porPedido.has(pedido)) porPedido.set(pedido, []);
+        porPedido.get(pedido).push(desc);
+      }
+      itensReconferir = [...porPedido.entries()].map(([pedido, itens]) => ({ pedido, itens }));
+    }
+  }
+
+  return { resumo, colunas, itensReconferir };
+}
+
+async function montarListaConferencia() {
+  // Mesmo raciocínio da Expedição: pedido ainda não liberado fica visível até
+  // 7 dias atrás (pega travado real, tipo pedido de 1-2 dias), sem voltar a
+  // puxar lixo antigo abandonado. "Liberado" fica restrito a hoje.
+  const rows = await q(`
+    SELECT nReg, NomeFornec as nome, Status, HoraEntrada, DataLiberacao
+    FROM central.conferencia
+    WHERE nLoja = 10 AND (
+      (DataLiberacao IS NULL AND DataEntrada >= CURDATE() - INTERVAL 7 DAY)
+      OR (DataLiberacao = CURDATE())
+    )
+    ORDER BY HoraEntrada DESC
+  `, []).catch(() => []);
+
+  const colunas = { conf_pedido: [], conf_coletor: [], conferido: [], reconferir: [], liberado: [] };
+  for (const r of rows) {
+    const status = statusConferencia(r);
+    colunas[status].push({ pedido: String(r.nReg), nome: r.nome || 'N/I' });
+  }
+  const resumo = { total: rows.length };
+  for (const c of COLUNAS_CONFERENCIA) resumo[c] = colunas[c].length;
+
+  // Itens pra reconferir, agrupados por pedido (pode ter 2 conferentes com 2
+  // notas em reconferência ao mesmo tempo — o painel mostra o número do
+  // pedido na frente e cicla um pedido inteiro antes de ir pro próximo, não
+  // mistura os itens dos dois). Quando a NOTA inteira está marcada pra
+  // reconferência (Status=3 no cabeçalho), todos os itens dela entram —
+  // não só os que tiverem a flag Reconferir=1 individual (confirmado com o
+  // Tiago: às vezes a nota é marcada sem nenhum item individual flagado).
+  // conferenciaitens.chave é o próprio nReg do pedido em texto (confirmado
+  // direto no banco, sem tabela ponte). "Name" desse item vem sempre "0"
+  // (campo não usado nesse fluxo), então busca a descrição de verdade em
+  // central.itens pelo código de barra. Só pedido + descrição saem pro
+  // painel — sem código de barra, sem quantidade (pedido explícito do Tiago).
+  let itensReconferir = [];
+  const nRegsReconferir = colunas.reconferir.map(r => r.pedido);
+  if (nRegsReconferir.length) {
+    const ph = nRegsReconferir.map(() => '?').join(',');
+    const itensRows = await q(`
+      SELECT DISTINCT chave, codigobarra FROM central.conferenciaitens
+      WHERE chave IN (${ph})
+    `, nRegsReconferir).catch(() => []);
+    if (itensRows.length) {
+      const barras = [...new Set(itensRows.map(r => r.codigobarra))];
+      const phB = barras.map(() => '?').join(',');
+      const descRows = await q(`
+        SELECT CodigoBarra, TRIM(Descricao) as descricao FROM central.itens WHERE CodigoBarra IN (${phB})
+      `, barras).catch(() => []);
+      const descMap = Object.fromEntries(descRows.map(r => [r.CodigoBarra, r.descricao]));
+
+      const porPedido = new Map(); // Map preserva a ordem de inserção mesmo com chave numérica
+      for (const r of itensRows) {
+        const desc = descMap[r.codigobarra];
+        if (!desc) continue;
+        if (!porPedido.has(r.chave)) porPedido.set(r.chave, []);
+        porPedido.get(r.chave).push(desc);
+      }
+      itensReconferir = [...porPedido.entries()].map(([pedido, itens]) => ({ pedido, itens }));
+    }
+  }
+
+  return { resumo, colunas, itensReconferir };
+}
+
+app.get('/api/painel-cd', withCache(1), async (req, res) => {
+  try {
+    const [expedicao, conferencia] = await Promise.all([
+      montarListaExpedicao(),
+      montarListaConferencia()
+    ]);
+    res.json({ expedicao, conferencia, geradoEm: new Date().toISOString() });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/deploy', (req, res) => {
   if (req.query.token !== 'fc360deploy2026') return res.status(403).send('Proibido');
   const gitPaths = [
@@ -3366,10 +3826,21 @@ app.get('/deploy', (req, res) => {
   ];
   const fs2 = require('fs');
   const git = gitPaths.find(p => p === 'git' || fs2.existsSync(p)) || 'git';
-  const cmd = `"${git}" fetch origin && "${git}" reset --hard origin/main`;
-  exec(cmd, { cwd: __dirname }, (err, stdout, stderr) => {
+  // npm install roda ANTES do restart, com o servidor antigo ainda no ar, e só
+  // reinicia se der tudo certo — se o código novo usar uma dependência nova e
+  // o npm install falhar (ou o git der problema), o servidor NÃO reinicia e
+  // continua rodando a versão anterior (que funciona), em vez de trocar pra
+  // um código que vai quebrar ao carregar. Aconteceu de verdade uma vez sem
+  // essa trava: deploy trocou o código, reiniciou, e caiu porque faltava
+  // instalar um pacote novo — ninguém percebeu até o site sair do ar.
+  const cmd = `"${git}" fetch origin && "${git}" reset --hard origin/main && npm install --omit=dev`;
+  exec(cmd, { cwd: __dirname, timeout: 5 * 60 * 1000 }, (err, stdout, stderr) => {
     const out = (stdout || '') + (stderr || '') + (err ? '\nERRO: ' + err.message : '');
     console.log('[DEPLOY]', out);
+    if (err) {
+      res.status(500).send('<pre>' + out + '\n\nFALHOU — servidor NÃO foi reiniciado, continua rodando a versão anterior.</pre>');
+      return;
+    }
     res.send('<pre>' + out + '\n\nReiniciando servidor...</pre>');
     setTimeout(() => process.exit(0), 1000);
   });
