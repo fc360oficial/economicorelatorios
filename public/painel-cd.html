@@ -10,15 +10,18 @@
 html,body{height:100%;font-family:'Segoe UI',Arial,sans-serif;background:var(--bg);color:var(--text);overflow:hidden;display:flex;flex-direction:column}
 
 /* BARRA AMARELA — mesmo padrão dos outros painéis de TV do sistema */
-.brand-bar{height:72px;flex-shrink:0;background:#FACC15;display:flex;align-items:center;justify-content:center;position:relative;z-index:200}
-.b-left{position:absolute;left:14px;top:50%;transform:translateY(-50%);display:flex;align-items:center}
-.b-left img{height:58px}
+.brand-bar{height:36px;flex-shrink:0;background:#FACC15;display:flex;align-items:center;justify-content:center;position:relative;z-index:200}
+.b-left{position:absolute;left:14px;top:50%;transform:translateY(-50%);display:flex;align-items:center;z-index:201}
+.b-left img{height:64px}
 .b-name{font-size:15px;font-weight:900;letter-spacing:.3em;text-transform:uppercase;color:#0E1626}
 .b-right{position:absolute;right:16px;top:50%;transform:translateY(-50%);display:flex;align-items:center;gap:14px}
 .b-live{display:flex;align-items:center;gap:5px;font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:rgba(14,22,38,.65)}
 .b-live-dot{width:6px;height:6px;border-radius:50%;background:#137A48;animation:bpulse 2s infinite}
 @keyframes bpulse{0%,100%{opacity:1}50%{opacity:.3}}
 .b-clock{font-size:14px;font-weight:900;color:#0E1626;font-variant-numeric:tabular-nums}
+.b-troca{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:rgba(14,22,38,.65)}
+.b-btn-fs{background:rgba(14,22,38,.15);border:1px solid rgba(14,22,38,.25);border-radius:6px;color:#0E1626;font-size:14px;width:26px;height:26px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.b-btn-fs:hover{background:rgba(14,22,38,.3)}
 
 .wrap{flex:1;display:flex;flex-direction:column;padding:14px 18px;min-height:0}
 
@@ -45,7 +48,7 @@ html,body{height:100%;font-family:'Segoe UI',Arial,sans-serif;background:var(--b
 .col-hd.c3{background:#3B82F6;color:#fff}
 .col-hd.c4{background:#F5A623;color:#fff}
 .col-hd.c5{background:#22C55E;color:#0E1626}
-.col-body{flex:1;overflow-y:auto;background:var(--card);padding:6px}
+.col-body{flex:1;overflow-y:hidden;background:var(--card);padding:6px}
 .item{padding:10px 6px;text-align:center;border-bottom:1px solid var(--border);transition:background .4s}
 .item:last-child{border-bottom:none}
 .item.novo{background:#F5B80033}
@@ -70,8 +73,9 @@ html,body{height:100%;font-family:'Segoe UI',Arial,sans-serif;background:var(--b
   <div class="b-left"><img id="logo-cahu" src="/logo-cahu.png" onload="removerFundoBranco(this)" onerror="this.style.display='none'"></div>
   <div class="b-name">Centro de Distribuição</div>
   <div class="b-right">
-    <span class="b-live"><span class="b-live-dot"></span>Ao vivo</span>
+    <span class="b-troca" id="contador-tela"></span>
     <span class="b-clock" id="relogio">--:--:--</span>
+    <button class="b-btn-fs" id="btn-fs" title="Tela cheia">⛶</button>
   </div>
 </div>
 
@@ -259,16 +263,56 @@ function relogio() {
   document.getElementById('relogio').textContent = new Date().toLocaleTimeString('pt-BR');
 }
 
-// Alterna tela cheia entre Expedição e Conferência a cada 60s — mais legível
-// que dividir a tela, principalmente com 5 colunas cada.
-const TELAS = ['sec-exp', 'sec-conf'];
+// Alterna tela cheia entre Expedição e Conferência — mais legível que dividir
+// a tela, principalmente com 5 colunas cada. Tempos diferentes por tela
+// (Expedição fica mais tempo, tem mais volume de pedido) com contador
+// regressivo visível no canto.
+const TELAS = [
+  { id: 'sec-exp', duracao: 120 },
+  { id: 'sec-conf', duracao: 30 }
+];
 let telaAtual = 0;
-function alternarTela() {
-  document.getElementById(TELAS[telaAtual]).classList.add('hidden');
-  telaAtual = (telaAtual + 1) % TELAS.length;
-  document.getElementById(TELAS[telaAtual]).classList.remove('hidden');
+let contagemTela = TELAS[0].duracao;
+
+function tickTela() {
+  contagemTela--;
+  if (contagemTela <= 0) {
+    document.getElementById(TELAS[telaAtual].id).classList.add('hidden');
+    telaAtual = (telaAtual + 1) % TELAS.length;
+    document.getElementById(TELAS[telaAtual].id).classList.remove('hidden');
+    contagemTela = TELAS[telaAtual].duracao;
+  }
+  document.getElementById('contador-tela').textContent = 'troca em ' + contagemTela + 's';
 }
-setInterval(alternarTela, 60000);
+setInterval(tickTela, 1000);
+tickTela();
+
+// Carrossel automático — qualquer coluna que não caiba todos os itens na
+// tela rola sozinha devagar (em vez de depender de alguém arrastar a barra
+// de rolagem, que não faz sentido numa TV sem ninguém mexendo nela). Roda
+// pra todas as colunas de ambos os lados, genérico, não é fixo numa coluna
+// específica.
+const carrosselPausadoAte = new WeakMap();
+function tickCarrosseis() {
+  document.querySelectorAll('.col-body').forEach(el => {
+    if (el.scrollHeight <= el.clientHeight + 4) { el.scrollTop = 0; return; }
+    const agora = Date.now();
+    const pausadoAte = carrosselPausadoAte.get(el) || 0;
+    if (agora < pausadoAte) return;
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 1) {
+      el.scrollTop = 0;
+      carrosselPausadoAte.set(el, agora + 2500);
+    } else {
+      el.scrollTop += 1;
+    }
+  });
+}
+setInterval(tickCarrosseis, 60);
+
+// Mesmo padrão dos outros painéis de TV do sistema.
+document.getElementById('btn-fs').addEventListener('click', () => {
+  if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
+});
 
 relogio();
 setInterval(relogio, 1000);
