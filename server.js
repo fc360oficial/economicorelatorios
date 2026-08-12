@@ -2,7 +2,6 @@ const express = require('express');
 const mysql = require('mysql2/promise');
 const path = require('path');
 const session = require('express-session');
-const FileStore = require('session-file-store')(session);
 const bcrypt = require('bcryptjs');
 const fs = require('fs');
 const { exec } = require('child_process');
@@ -143,18 +142,8 @@ try {
   fs.writeFileSync(usuariosPath, JSON.stringify(usuarios, null, 2));
 }
 
-// Sessão (8 horas) — gravada em disco (não só em memória) pra sobreviver a
-// reinício do servidor. Todo deploy reinicia o processo (o `/deploy` mata o
-// processo e o NSSM sobe de novo); com sessão só em memória isso deslogava
-// todo mundo, inclusive os painéis de TV que ficam abertos sem ninguém pra
-// logar de novo na sala.
+// Sessão (8 horas)
 app.use(session({
-  store: new FileStore({
-    path: path.join(__dirname, 'data', 'sessions'),
-    ttl: 8 * 60 * 60,
-    retries: 0,
-    logFn: () => {} // a lib loga toda leitura/escrita no console por padrão — silencia
-  }),
   secret: 'ec0n0mic0-bi-2026-xK9#mP',
   resave: false,
   saveUninitialized: false,
