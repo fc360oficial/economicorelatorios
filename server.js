@@ -3656,12 +3656,16 @@ app.get('/api/compras/centro-distribuicao', withCache(10), async (req, res) => {
 // 3 Reconferir · 4 Pedido Liberado.
 //
 // Conferência — painel legado tem colunas diferentes (Conf. Pedido /
-// Conf. Coletor / Conferido / Reconferir / Liberado) e o Status NÃO separa
-// Conferido de Liberado sozinho: comparando pedidos reais do painel físico
-// contra o banco, os dois apareceram com Status=2 — quem realmente separa é
-// DataLiberacao preenchida (liberado) ou não (só conferido). Status 0/1/3
-// mapeiam direto pras 3 primeiras colunas; qualquer outro Status (2, 4, ou
-// o que aparecer) cai no par conferido/liberado por DataLiberacao.
+// Conf. Coletor / Conferido / Reconferir / Liberado) e usa OUTRO conjunto de
+// códigos de Status, diferente da Expedição. Mapeamento confirmado cruzando
+// pedidos reais da tela física (monitor "Documentos Fiscais") contra o banco:
+// Status=5 → Conf. Pedido (178198/178223, sem OperadorCentral ainda),
+// Status=3 → Conf. Coletor, Status=4 → Reconferir (178197, confirmado com
+// print da tela mostrando ">>Reconferir<<"), Status=2 → Conferido/Liberado
+// (o Status sozinho não separa os dois — quem separa é DataLiberacao
+// preenchida = liberado, vazia = só conferido; confirmado com 178257).
+// Status 0/1 são raros (poucos registros no histórico) e sempre aparecem já
+// com DataLiberacao preenchida — tratados como o par conferido/liberado.
 // ═══════════════════════════════════════════════════
 
 const COLUNAS_EXPEDICAO = ['separacao', 'em_separacao', 'aguardando_liberacao', 'reconferir', 'liberado'];
@@ -3669,9 +3673,9 @@ const STATUS_EXPEDICAO = { 0: 'separacao', 1: 'em_separacao', 2: 'aguardando_lib
 
 const COLUNAS_CONFERENCIA = ['conf_pedido', 'conf_coletor', 'conferido', 'reconferir', 'liberado'];
 function statusConferencia(row) {
-  if (row.Status === 0) return 'conf_pedido';
-  if (row.Status === 1) return 'conf_coletor';
-  if (row.Status === 3) return 'reconferir';
+  if (row.Status === 5) return 'conf_pedido';
+  if (row.Status === 3) return 'conf_coletor';
+  if (row.Status === 4) return 'reconferir';
   return row.DataLiberacao ? 'liberado' : 'conferido';
 }
 
