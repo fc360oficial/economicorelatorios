@@ -3676,10 +3676,14 @@ function statusConferencia(row) {
 }
 
 async function montarListaExpedicao() {
+  // Igual o painel legado: mostra TUDO que ainda não foi liberado (Status<4),
+  // não importa o dia que entrou (senão pedido antigo travado, tipo o 00807,
+  // some do painel mesmo continuando pendente de verdade) — só a coluna
+  // "liberado" é limitada a hoje, senão ela cresceria pra sempre.
   const rows = await q(`
     SELECT nReg, nPedido as pedido, NomeFornec as nome, Status, HoraEntrada
     FROM central.painel_televendas
-    WHERE nLoja = 10 AND DataEntrada = CURDATE()
+    WHERE nLoja = 10 AND (Status < 4 OR DataLiberacao = CURDATE())
     ORDER BY HoraEntrada DESC
   `, []).catch(() => []);
 
@@ -3694,10 +3698,13 @@ async function montarListaExpedicao() {
 }
 
 async function montarListaConferencia() {
+  // Mesmo raciocínio da Expedição: tudo que ainda não foi liberado
+  // (DataLiberacao vazia) entra, não importa o dia que chegou; só o que já
+  // foi liberado fica limitado a hoje.
   const rows = await q(`
     SELECT nReg, NomeFornec as nome, Status, HoraEntrada, DataLiberacao
     FROM central.conferencia
-    WHERE nLoja = 10 AND DataEntrada = CURDATE()
+    WHERE nLoja = 10 AND (DataLiberacao IS NULL OR DataLiberacao = CURDATE())
     ORDER BY HoraEntrada DESC
   `, []).catch(() => []);
 
