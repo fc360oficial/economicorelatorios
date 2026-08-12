@@ -3733,13 +3733,16 @@ async function montarListaConferencia() {
   // de barra. Só pedido + descrição saem pro painel — sem código de barra,
   // sem quantidade (pedido explícito do Tiago).
   let itensReconferir = [];
-  const nRegsHoje = rows.map(r => String(r.nReg));
-  if (nRegsHoje.length) {
-    const ph = nRegsHoje.map(() => '?').join(',');
+  // Só pedidos que estão de fato na coluna "Reconferir" (Status=3) — não a
+  // janela toda — senão o banner mostra pedido já liberado/conferido cujo
+  // item ficou com a flag Reconferir=1 antiga, e o número não bate com a coluna.
+  const nRegsReconferir = colunas.reconferir.map(r => r.pedido);
+  if (nRegsReconferir.length) {
+    const ph = nRegsReconferir.map(() => '?').join(',');
     const itensRows = await q(`
       SELECT DISTINCT chave, codigobarra FROM central.conferenciaitens
       WHERE chave IN (${ph}) AND Reconferir = 1
-    `, nRegsHoje).catch(() => []);
+    `, nRegsReconferir).catch(() => []);
     if (itensRows.length) {
       const barras = [...new Set(itensRows.map(r => r.codigobarra))];
       const phB = barras.map(() => '?').join(',');
