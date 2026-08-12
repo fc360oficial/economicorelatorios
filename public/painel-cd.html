@@ -84,6 +84,9 @@ html,body{height:100%;font-family:'Segoe UI',Arial,sans-serif;background:var(--b
   <div class="secoes">
     <div class="sec" id="sec-exp">
       <div class="sec-hdr"><span class="ic">🚚</span><h2>Expedição — Saídas</h2><span class="sub" id="sub-exp"></span></div>
+      <div class="aviso-reconferir" id="aviso-reconferir-exp" style="display:none">
+        <span class="aviso-ic">⚠️</span> RECONFERIR: <span id="aviso-reconferir-texto-exp"></span>
+      </div>
       <div class="colunas" id="colunas-exp"></div>
       <div class="progresso">
         <span class="lbl">Progresso geral do dia</span>
@@ -94,8 +97,8 @@ html,body{height:100%;font-family:'Segoe UI',Arial,sans-serif;background:var(--b
     </div>
     <div class="sec hidden" id="sec-conf">
       <div class="sec-hdr"><span class="ic">📥</span><h2>Conferência — Entradas</h2><span class="sub" id="sub-conf"></span></div>
-      <div class="aviso-reconferir" id="aviso-reconferir" style="display:none">
-        <span class="aviso-ic">⚠️</span> RECONFERIR: <span id="aviso-reconferir-texto"></span>
+      <div class="aviso-reconferir" id="aviso-reconferir-conf" style="display:none">
+        <span class="aviso-ic">⚠️</span> RECONFERIR: <span id="aviso-reconferir-texto-conf"></span>
       </div>
       <div class="colunas" id="colunas-conf"></div>
       <div class="progresso">
@@ -248,20 +251,32 @@ renderSecao('colunas-conf', COLS_CONF);
 // quantidade nem código de barra (pedido explícito do Tiago). Pode ter mais
 // de uma conferência em reconferir ao mesmo tempo (2 conferentes, 2 notas)
 // -- cicla todos os itens de UM pedido primeiro, só depois passa pro
-// próximo pedido, nunca mistura os dois.
-let itensReconferirAtual = []; // lista achatada [{pedido, descricao}, ...] já na ordem certa
-let idxReconferir = 0;
+// próximo pedido, nunca mistura os dois. Expedição e Conferência têm cada
+// uma seu próprio banner e estado, independentes um do outro.
+const avisoReconferir = {
+  exp: { itens: [], idx: 0 },
+  conf: { itens: [], idx: 0 }
+};
 
-function atualizarAvisoReconferir() {
-  const el = document.getElementById('aviso-reconferir');
-  if (!itensReconferirAtual.length) { el.style.display = 'none'; return; }
+function atualizarAvisoReconferir(secao) {
+  const st = avisoReconferir[secao];
+  const el = document.getElementById('aviso-reconferir-' + secao);
+  if (!st.itens.length) { el.style.display = 'none'; return; }
   el.style.display = '';
-  idxReconferir = idxReconferir % itensReconferirAtual.length;
-  const atual = itensReconferirAtual[idxReconferir];
-  document.getElementById('aviso-reconferir-texto').textContent = `PEDIDO ${atual.pedido} — ${atual.descricao}`;
-  idxReconferir++;
+  st.idx = st.idx % st.itens.length;
+  const atual = st.itens[st.idx];
+  document.getElementById('aviso-reconferir-texto-' + secao).textContent = `PEDIDO ${atual.pedido} — ${atual.descricao}`;
+  st.idx++;
 }
-setInterval(atualizarAvisoReconferir, 4000);
+setInterval(() => { atualizarAvisoReconferir('exp'); atualizarAvisoReconferir('conf'); }, 4000);
+
+function achatarItensReconferir(itensReconferir) {
+  const lista = [];
+  for (const grupo of (itensReconferir || [])) {
+    for (const desc of grupo.itens) lista.push({ pedido: grupo.pedido, descricao: desc });
+  }
+  return lista;
+}
 
 function carregar() {
   fetch('/api/painel-cd?refresh=1').then(r => r.json()).then(d => {
@@ -270,15 +285,12 @@ function carregar() {
     const mudouConf = preencherSecao('colunas-conf', 'conf', COLS_CONF, d.conferencia);
     if (mudouExp || mudouConf) beep();
 
-    // Achata os grupos por pedido numa lista só, mantendo a ordem (todos os
-    // itens do 1º pedido, depois todos do 2º, etc.) pra atualizarAvisoReconferir
-    // ciclar sem misturar.
-    itensReconferirAtual = [];
-    for (const grupo of (d.conferencia.itensReconferir || [])) {
-      for (const desc of grupo.itens) itensReconferirAtual.push({ pedido: grupo.pedido, descricao: desc });
-    }
-    idxReconferir = 0;
-    atualizarAvisoReconferir();
+    avisoReconferir.exp.itens = achatarItensReconferir(d.expedicao.itensReconferir);
+    avisoReconferir.exp.idx = 0;
+    atualizarAvisoReconferir('exp');
+    avisoReconferir.conf.itens = achatarItensReconferir(d.conferencia.itensReconferir);
+    avisoReconferir.conf.idx = 0;
+    atualizarAvisoReconferir('conf');
 
     document.getElementById('sub-exp').textContent = d.expedicao.resumo.total + ' hoje';
     document.getElementById('sub-conf').textContent = d.conferencia.resumo.total + ' hoje';

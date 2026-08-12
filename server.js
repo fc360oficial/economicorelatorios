@@ -3702,7 +3702,42 @@ async function montarListaExpedicao() {
   }
   const resumo = { total: rows.length };
   for (const c of COLUNAS_EXPEDICAO) resumo[c] = colunas[c].length;
-  return { resumo, colunas };
+
+  // Itens dos pedidos que estão na coluna Reconferir, agrupados por pedido —
+  // mesma lógica da Conferência. A tabela de itens da Expedição é
+  // central.conferencia_televendas (chave por nLoja+nPedido, não por nReg
+  // do cabeçalho). O campo Status_Conferencia dela fica sempre 0 (não é um
+  // flag individual usável), então — igual na Conferência — mostra todos os
+  // itens do pedido quando ele está marcado pra reconferir.
+  let itensReconferir = [];
+  const pedidosReconferir = colunas.reconferir.map(r => r.pedido);
+  if (pedidosReconferir.length) {
+    const ph = pedidosReconferir.map(() => '?').join(',');
+    const itensRows = await q(`
+      SELECT DISTINCT nPedido, Codigobarra FROM central.conferencia_televendas
+      WHERE nLoja = 10 AND nPedido IN (${ph})
+    `, pedidosReconferir).catch(() => []);
+    if (itensRows.length) {
+      const barras = [...new Set(itensRows.map(r => r.Codigobarra))];
+      const phB = barras.map(() => '?').join(',');
+      const descRows = await q(`
+        SELECT CodigoBarra, TRIM(Descricao) as descricao FROM central.itens WHERE CodigoBarra IN (${phB})
+      `, barras).catch(() => []);
+      const descMap = Object.fromEntries(descRows.map(r => [r.CodigoBarra, r.descricao]));
+
+      const porPedido = new Map();
+      for (const r of itensRows) {
+        const desc = descMap[r.Codigobarra];
+        if (!desc) continue;
+        const pedido = String(r.nPedido);
+        if (!porPedido.has(pedido)) porPedido.set(pedido, []);
+        porPedido.get(pedido).push(desc);
+      }
+      itensReconferir = [...porPedido.entries()].map(([pedido, itens]) => ({ pedido, itens }));
+    }
+  }
+
+  return { resumo, colunas, itensReconferir };
 }
 
 async function montarListaConferencia() {
