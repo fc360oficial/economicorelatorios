@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Compras — Econômico Relatórios</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:#000}
+iframe{
+  position:absolute;top:0;left:0;width:100%;height:100%;
+  border:none;opacity:0;pointer-events:none;transition:opacity .6s;
+}
+iframe.visivel{opacity:1;pointer-events:auto}
+.controles{
+  position:fixed;bottom:12px;right:16px;z-index:999;
+  display:flex;gap:8px;align-items:center;
+  background:rgba(0,0,0,.55);border-radius:24px;
+  padding:7px 12px;backdrop-filter:blur(8px);
+  border:1px solid rgba(255,255,255,.08);
+}
+.dot{
+  width:11px;height:11px;border-radius:50%;
+  background:rgba(255,255,255,.22);transition:background .3s,transform .2s;
+  cursor:pointer;flex-shrink:0;
+}
+.dot:hover{background:rgba(255,255,255,.55);transform:scale(1.3)}
+.dot.ativo{background:rgba(250,204,21,.9)}
+.sep{width:1px;height:14px;background:rgba(255,255,255,.15);flex-shrink:0}
+.btn-fs{
+  background:none;border:none;cursor:pointer;padding:0 2px;
+  color:rgba(255,255,255,.5);font-size:15px;line-height:1;
+  transition:color .2s,transform .2s;display:flex;align-items:center;
+}
+.btn-fs:hover{color:rgba(250,204,21,.9);transform:scale(1.2)}
+.controles{opacity:.35;transition:opacity .4s}
+.controles:hover{opacity:1}
+</style>
+</head>
+<body>
+
+<iframe id="fr-compras" title="Compras"       allow="fullscreen" allowfullscreen></iframe>
+<iframe id="fr-ruptura" title="Rupturas"      allow="fullscreen" allowfullscreen></iframe>
+<iframe id="fr-margem"  title="Margem"        allow="fullscreen" allowfullscreen></iframe>
+<iframe id="fr-mensal"  title="Mensal"        allow="fullscreen" allowfullscreen></iframe>
+
+<div class="controles">
+  <!-- rotação: Compras → Rupturas → Margem/Venda → Cronograma Mensal → Compras -->
+  <div class="dot ativo" id="dot-c"  title="Compras"></div>
+  <div class="dot"       id="dot-r"  title="Rupturas"></div>
+  <div class="dot"       id="dot-mg" title="Margem"></div>
+  <div class="dot"       id="dot-m"  title="Mensal"></div>
+  <div class="sep"></div>
+  <button class="btn-fs" id="btn-fs" title="Tela cheia (F11)">⛶</button>
+</div>
+
+<script>
+const BASE = 'http://192.168.2.254:3003';
+
+let atual = 'compras';
+
+const frC  = document.getElementById('fr-compras');
+const frR  = document.getElementById('fr-ruptura');
+const frMG = document.getElementById('fr-margem');
+const frM  = document.getElementById('fr-mensal');
+
+const dotC  = document.getElementById('dot-c');
+const dotR  = document.getElementById('dot-r');
+const dotMG = document.getElementById('dot-mg');
+const dotM  = document.getElementById('dot-m');
+const btnFs = document.getElementById('btn-fs');
+
+const todosFrames = [frC,frR,frMG,frM];
+const todosDots   = [dotC,dotR,dotMG,dotM];
+
+function mostrar(iframe, dot, nome) {
+  atual = nome;
+  todosFrames.forEach(f => {
+    f.classList.remove('visivel');
+    if (f !== iframe) f.src = 'about:blank'; // para scripts em background
+  });
+  todosDots.forEach(d => d.classList.remove('ativo'));
+  iframe.classList.add('visivel');
+  dot.classList.add('ativo');
+  setTimeout(reforcarTelaCheia, 200);
+}
+
+// força reload mesmo que a src seja igual
+function carregarIframe(iframe, url) {
+  iframe.src = 'about:blank';
+  setTimeout(() => { iframe.src = url; }, 30);
+}
+
+// Alguns navegadores (Fire TV/Silk) saem da tela cheia sozinhos quando o
+// iframe navega, mesmo com allowfullscreen. Se estava em tela cheia antes
+// da troca de painel, tenta voltar automaticamente depois.
+let queriaTelaCheia = false;
+document.addEventListener('fullscreenchange', () => {
+  if (document.fullscreenElement) queriaTelaCheia = true;
+});
+function reforcarTelaCheia() {
+  if (queriaTelaCheia && !document.fullscreenElement) {
+    document.documentElement.requestFullscreen().catch(() => {});
+  }
+}
+
+// ── Rotação automática ──
+function mostrarCompras() {
+  carregarIframe(frC, BASE + '/compras.html');
+  mostrar(frC, dotC, 'compras');
+}
+function mostrarRuptura() {
+  carregarIframe(frR, BASE + '/ruptura-painel.html');
+  mostrar(frR, dotR, 'ruptura');
+}
+function mostrarMargem() {
+  carregarIframe(frMG, BASE + '/margem-comprador.html?auto=1&idx=0');
+  mostrar(frMG, dotMG, 'margem');
+}
+function mostrarMensal() {
+  carregarIframe(frM, BASE + '/mensal.html?nome=FATIMA&auto=1&idx=0');
+  mostrar(frM, dotM, 'mensal');
+}
+
+// ── Rotação: Compras → Rupturas → Margem/Venda → Cronograma Mensal → Compras ──
+window.addEventListener('message', (e) => {
+  if (!e.data || !e.data.type) return;
+  if (e.data.type === 'comprasCycleComplete' && atual === 'compras') mostrarRuptura();
+  if (e.data.type === 'rupturaCycleComplete' && atual === 'ruptura') mostrarMargem();
+  if (e.data.type === 'margemCycleComplete'  && atual === 'margem')  mostrarMensal();
+  if (e.data.type === 'mensalCycleComplete'  && atual === 'mensal')  mostrarCompras();
+  // fullscreen controlado pelo pai para persistir entre slides
+  if (e.data.type === 'requestFullscreen') {
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
+    else document.exitFullscreen().catch(()=>{});
+  }
+});
+
+// ── Tela cheia ──
+function toggleFullscreen() {
+  if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
+  else document.exitFullscreen().catch(()=>{});
+}
+document.addEventListener('fullscreenchange', () => {
+  const fs = !!document.fullscreenElement;
+  btnFs.textContent = fs ? '✕' : '⛶';
+  btnFs.title = fs ? 'Sair da tela cheia (Esc)' : 'Tela cheia (F11)';
+});
+btnFs.addEventListener('click', toggleFullscreen);
+
+// ── Dots ──
+dotC.addEventListener('click',  mostrarCompras);
+dotR.addEventListener('click',  mostrarRuptura);
+dotMG.addEventListener('click', mostrarMargem);
+dotM.addEventListener('click',  mostrarMensal);
+
+// ── Início: Compras ──
+mostrarCompras();
+</script>
+</body>
+</html>
