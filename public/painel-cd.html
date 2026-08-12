@@ -30,7 +30,7 @@ html,body{height:100%;font-family:'Segoe UI',Arial,sans-serif;background:var(--b
 .sec.hidden{display:none}
 .sec-hdr{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-shrink:0}
 .sec-hdr .ic{font-size:24px}
-.sec-hdr h2{font-size:20px;font-weight:800;letter-spacing:.3px}
+.sec-hdr h2{font-size:20px;font-weight:800;letter-spacing:.5px;flex:1;text-align:center;text-transform:uppercase}
 .sec-hdr .sub{font-size:13px;color:var(--text3);margin-left:auto}
 
 .aviso-reconferir{flex-shrink:0;margin-bottom:12px;padding:22px 16px;border-radius:12px;background:#FF1E3C;color:#fff;
@@ -245,9 +245,11 @@ renderSecao('colunas-exp', COLS_EXP);
 renderSecao('colunas-conf', COLS_CONF);
 
 // Lista de descrições em reconferência agora — só nome do item, sem
-// quantidade nem código de barra (pedido explícito do Tiago). Se tiver mais
-// de uma, revezam sozinhas no aviso piscando.
-let itensReconferirAtual = [];
+// quantidade nem código de barra (pedido explícito do Tiago). Pode ter mais
+// de uma conferência em reconferir ao mesmo tempo (2 conferentes, 2 notas)
+// -- cicla todos os itens de UM pedido primeiro, só depois passa pro
+// próximo pedido, nunca mistura os dois.
+let itensReconferirAtual = []; // lista achatada [{pedido, descricao}, ...] já na ordem certa
 let idxReconferir = 0;
 
 function atualizarAvisoReconferir() {
@@ -255,7 +257,8 @@ function atualizarAvisoReconferir() {
   if (!itensReconferirAtual.length) { el.style.display = 'none'; return; }
   el.style.display = '';
   idxReconferir = idxReconferir % itensReconferirAtual.length;
-  document.getElementById('aviso-reconferir-texto').textContent = itensReconferirAtual[idxReconferir];
+  const atual = itensReconferirAtual[idxReconferir];
+  document.getElementById('aviso-reconferir-texto').textContent = `PEDIDO ${atual.pedido} — ${atual.descricao}`;
   idxReconferir++;
 }
 setInterval(atualizarAvisoReconferir, 4000);
@@ -267,7 +270,13 @@ function carregar() {
     const mudouConf = preencherSecao('colunas-conf', 'conf', COLS_CONF, d.conferencia);
     if (mudouExp || mudouConf) beep();
 
-    itensReconferirAtual = d.conferencia.itensReconferir || [];
+    // Achata os grupos por pedido numa lista só, mantendo a ordem (todos os
+    // itens do 1º pedido, depois todos do 2º, etc.) pra atualizarAvisoReconferir
+    // ciclar sem misturar.
+    itensReconferirAtual = [];
+    for (const grupo of (d.conferencia.itensReconferir || [])) {
+      for (const desc of grupo.itens) itensReconferirAtual.push({ pedido: grupo.pedido, descricao: desc });
+    }
     idxReconferir = 0;
     atualizarAvisoReconferir();
 

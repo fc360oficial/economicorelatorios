@@ -3676,14 +3676,11 @@ function statusConferencia(row) {
 }
 
 async function montarListaExpedicao() {
-  // Igual o painel legado: mostra TUDO que ainda não foi liberado (Status<4),
-  // não importa o dia que entrou (senão pedido antigo travado, tipo o 00807,
-  // some do painel mesmo continuando pendente de verdade) — só a coluna
-  // "liberado" é limitada a hoje, senão ela cresceria pra sempre.
+  // Igual o painel legado: zera todo dia. Só entra pedido cuja DataEntrada é hoje.
   const rows = await q(`
     SELECT nReg, nPedido as pedido, NomeFornec as nome, Status, HoraEntrada
     FROM central.painel_televendas
-    WHERE nLoja = 10 AND (Status < 4 OR DataLiberacao = CURDATE())
+    WHERE nLoja = 10 AND DataEntrada = CURDATE()
     ORDER BY HoraEntrada DESC
   `, []).catch(() => []);
 
@@ -3698,13 +3695,11 @@ async function montarListaExpedicao() {
 }
 
 async function montarListaConferencia() {
-  // Mesmo raciocínio da Expedição: tudo que ainda não foi liberado
-  // (DataLiberacao vazia) entra, não importa o dia que chegou; só o que já
-  // foi liberado fica limitado a hoje.
+  // Igual o painel legado: zera todo dia. Só entra pedido cuja DataEntrada é hoje.
   const rows = await q(`
     SELECT nReg, NomeFornec as nome, Status, HoraEntrada, DataLiberacao
     FROM central.conferencia
-    WHERE nLoja = 10 AND (DataLiberacao IS NULL OR DataLiberacao = CURDATE())
+    WHERE nLoja = 10 AND DataEntrada = CURDATE()
     ORDER BY HoraEntrada DESC
   `, []).catch(() => []);
 
@@ -3716,27 +3711,39 @@ async function montarListaConferencia() {
   const resumo = { total: rows.length };
   for (const c of COLUNAS_CONFERENCIA) resumo[c] = colunas[c].length;
 
-  // Itens marcados pra reconferir, dos pedidos de hoje — conferenciaitens.chave
+  // Itens marcados pra reconferir, agrupados por pedido (pode ter 2
+  // conferentes com 2 notas em reconferência ao mesmo tempo — o painel
+  // mostra o número do pedido na frente e cicla um pedido inteiro antes de
+  // ir pro próximo, não mistura os itens dos dois). conferenciaitens.chave
   // é o próprio nReg do pedido em texto (confirmado direto no banco, sem
   // tabela ponte). "Name" desse item vem sempre "0" (campo não usado nesse
   // fluxo), então busca a descrição de verdade em central.itens pelo código
-  // de barra. Só a descrição sai pro painel — sem código de barra, sem
-  // quantidade (pedido explícito do Tiago).
+  // de barra. Só pedido + descrição saem pro painel — sem código de barra,
+  // sem quantidade (pedido explícito do Tiago).
   let itensReconferir = [];
   const nRegsHoje = rows.map(r => String(r.nReg));
   if (nRegsHoje.length) {
     const ph = nRegsHoje.map(() => '?').join(',');
-    const codigos = await q(`
-      SELECT DISTINCT codigobarra FROM central.conferenciaitens
+    const itensRows = await q(`
+      SELECT DISTINCT chave, codigobarra FROM central.conferenciaitens
       WHERE chave IN (${ph}) AND Reconferir = 1
     `, nRegsHoje).catch(() => []);
-    if (codigos.length) {
-      const barras = codigos.map(c => c.codigobarra);
+    if (itensRows.length) {
+      const barras = [...new Set(itensRows.map(r => r.codigobarra))];
       const phB = barras.map(() => '?').join(',');
       const descRows = await q(`
-        SELECT DISTINCT TRIM(Descricao) as descricao FROM central.itens WHERE CodigoBarra IN (${phB})
+        SELECT CodigoBarra, TRIM(Descricao) as descricao FROM central.itens WHERE CodigoBarra IN (${phB})
       `, barras).catch(() => []);
-      itensReconferir = descRows.map(r => r.descricao).filter(Boolean);
+      const descMap = Object.fromEntries(descRows.map(r => [r.CodigoBarra, r.descricao]));
+
+      const porPedido = new Map(); // Map preserva a ordem de inserção mesmo com chave numérica
+      for (const r of itensRows) {
+        const desc = descMap[r.codigobarra];
+        if (!desc) continue;
+        if (!porPedido.has(r.chave)) porPedido.set(r.chave, []);
+        porPedido.get(r.chave).push(desc);
+      }
+      itensReconferir = [...porPedido.entries()].map(([pedido, itens]) => ({ pedido, itens }));
     }
   }
 
