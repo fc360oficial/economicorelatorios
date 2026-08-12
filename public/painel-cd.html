@@ -178,6 +178,10 @@ function tocarTom(quando, duracao) {
 function beep() {
   try {
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    // Navegador começa o áudio "suspenso" até ter algum clique na página —
+    // tenta destravar sozinho toda vez (não garante funcionar sem clique
+    // nenhum, mas cobre o caso de já ter tido qualquer interação).
+    if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
     const agora = audioCtx.currentTime;
     // dois toques em sequência em vez de um só — chama mais atenção numa
     // sala com barulho de fundo (motor de empilhadeira, conversa etc.)
@@ -185,6 +189,13 @@ function beep() {
     tocarTom(agora + 0.35, 0.28);
   } catch (e) {}
 }
+
+// Qualquer clique/toque na tela já destrava o áudio pro resto da sessão —
+// cobre o caso do botão de tela cheia (ou qualquer outro toque acidental).
+document.addEventListener('click', () => {
+  audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+}, { once: false });
 
 // Estado anterior (pedido -> status) de cada lado, pra detectar o que mudou
 // entre uma atualização e outra e destacar/apitar só o que de fato mexeu.
