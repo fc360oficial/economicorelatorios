@@ -3676,11 +3676,18 @@ function statusConferencia(row) {
 }
 
 async function montarListaExpedicao() {
-  // Igual o painel legado: zera todo dia. Só entra pedido cuja DataEntrada é hoje.
+  // Pedido pendente (Status<4) fica visível enquanto não for liberado, mesmo
+  // que tenha entrado em dia anterior (senão pedido travado, tipo o 00807,
+  // some do painel mesmo continuando pendente de verdade). Limita a 7 dias
+  // pra não voltar a puxar lixo antigo abandonado (teve caso de 2021).
+  // "Liberado" sempre fica restrito a hoje, senão cresceria pra sempre.
   const rows = await q(`
     SELECT nReg, nPedido as pedido, NomeFornec as nome, Status, HoraEntrada
     FROM central.painel_televendas
-    WHERE nLoja = 10 AND DataEntrada = CURDATE()
+    WHERE nLoja = 10 AND (
+      (Status < 4 AND DataEntrada >= CURDATE() - INTERVAL 7 DAY)
+      OR (Status = 4 AND DataLiberacao = CURDATE())
+    )
     ORDER BY HoraEntrada DESC
   `, []).catch(() => []);
 
@@ -3695,11 +3702,16 @@ async function montarListaExpedicao() {
 }
 
 async function montarListaConferencia() {
-  // Igual o painel legado: zera todo dia. Só entra pedido cuja DataEntrada é hoje.
+  // Mesmo raciocínio da Expedição: pedido ainda não liberado fica visível até
+  // 7 dias atrás (pega travado real, tipo pedido de 1-2 dias), sem voltar a
+  // puxar lixo antigo abandonado. "Liberado" fica restrito a hoje.
   const rows = await q(`
     SELECT nReg, NomeFornec as nome, Status, HoraEntrada, DataLiberacao
     FROM central.conferencia
-    WHERE nLoja = 10 AND DataEntrada = CURDATE()
+    WHERE nLoja = 10 AND (
+      (DataLiberacao IS NULL AND DataEntrada >= CURDATE() - INTERVAL 7 DAY)
+      OR (DataLiberacao = CURDATE())
+    )
     ORDER BY HoraEntrada DESC
   `, []).catch(() => []);
 
