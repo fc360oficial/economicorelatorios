@@ -183,7 +183,8 @@ app.use((req, res, next) => {
     '/api/_diag/tabelas-central',
     '/ruptura-painel.html', '/api/ruptura', '/api/ruptura/comprador-listas',
     '/margem-comprador.html', '/api/margem-tv/comprador',
-    '/painel-diretoria.html'];
+    '/painel-diretoria.html',
+    '/painel-cd.html', '/api/painel-cd'];
   if (publico.includes(req.path)) return next();
   // Pré-aquecimento interno (somente localhost)
   if (req.headers['x-internal-warmup'] === 'fc360warmup2026' && req.socket.remoteAddress === '::1') return next();
@@ -3640,6 +3641,80 @@ app.get('/api/compras/centro-distribuicao', withCache(10), async (req, res) => {
     };
 
     res.json({ produtos, resumo, geradoEm: new Date().toISOString() });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════
+// PAINEL TV — CD (loja 10): Expedição (saídas, painel_televendas)
+// e Conferência (entradas, conferencia) lado a lado, só loja 10.
+// ═══════════════════════════════════════════════════
+
+// Deriva o estado a partir das datas preenchidas, não do código numérico de
+// Status (cujo significado exato não está documentado) — DataLiberacao
+// preenchida sempre vence (já apareceram casos liberados sem DataConferido
+// preenchida, então não dá pra assumir uma ordem estrita entre os dois).
+function estadoPainelCD(row) {
+  if (row.DataLiberacao) return 'liberado';
+  if (row.DataConferido) return 'conferido';
+  return 'aguardando';
+}
+
+function minutosEsperando(row, agora) {
+  if (!row.DataEntrada || !row.HoraEntrada) return null;
+  // mysql2 devolve DataEntrada como objeto Date (meia-noite do dia) — usa os
+  // componentes de data dele + o horário separado de HoraEntrada (HH:MM ou
+  // HH:MM:SS) pra montar o instante real, em vez de concatenar strings (o
+  // Date.toString() do JS não é um formato parseável de volta).
+  const d = row.DataEntrada;
+  const [h, m, s] = String(row.HoraEntrada).split(':').map(Number);
+  const inicio = new Date(d.getFullYear(), d.getMonth(), d.getDate(), h || 0, m || 0, s || 0);
+  if (isNaN(inicio.getTime())) return null;
+  return Math.max(0, Math.round((agora - inicio) / 60000));
+}
+
+async function montarListaPainelCD(tabela, nomeCampo) {
+  const rows = await q(`
+    SELECT nReg, ${nomeCampo} as nome, DataEntrada, HoraEntrada, DataConferido, HoraConferido,
+           DataLiberacao, HoraLiberacao, OperadorLoja, OperadorCentral
+    FROM central.${tabela}
+    WHERE nLoja = 10 AND DataEntrada = CURDATE()
+    ORDER BY HoraEntrada DESC
+  `, []).catch(() => []);
+
+  const agora = new Date();
+  const fila = rows.map(r => ({
+    nome: r.nome || 'N/I',
+    horaEntrada: r.HoraEntrada,
+    horaConferido: r.HoraConferido,
+    horaLiberacao: r.HoraLiberacao,
+    operador: r.OperadorCentral || r.OperadorLoja || null,
+    status: estadoPainelCD(r),
+    minutosEsperando: minutosEsperando(r, agora)
+  }));
+
+  const resumo = {
+    total: fila.length,
+    aguardando: fila.filter(f => f.status === 'aguardando').length,
+    conferido: fila.filter(f => f.status === 'conferido').length,
+    liberado: fila.filter(f => f.status === 'liberado').length
+  };
+  fila.sort((a, b) => {
+    if (a.status !== b.status) return a.status === 'aguardando' ? -1 : b.status === 'aguardando' ? 1 : 0;
+    return (b.minutosEsperando || 0) - (a.minutosEsperando || 0);
+  });
+
+  return { resumo, fila };
+}
+
+app.get('/api/painel-cd', withCache(1), async (req, res) => {
+  try {
+    const [expedicao, conferencia] = await Promise.all([
+      montarListaPainelCD('painel_televendas', 'NomeFornec'),
+      montarListaPainelCD('conferencia', 'NomeFornec')
+    ]);
+    res.json({ expedicao, conferencia, geradoEm: new Date().toISOString() });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Painel CD — CAHU Distribuidora</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0E1626;--card:#101B33;--border:#1D2A46;
+  --brand:#F5B800;--red:#C22F49;--green:#137A48;--orange:#B45C00;
+  --text:#FFFFFF;--text2:#AEB8CE;--text3:#6E7B98;
+}
+html,body{height:100%;font-family:'Segoe UI',Arial,sans-serif;background:var(--bg);color:var(--text);overflow:hidden}
+.wrap{display:flex;flex-direction:column;height:100vh;padding:18px 22px}
+.hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-shrink:0}
+.hdr .brand{display:flex;align-items:baseline;gap:10px}
+.hdr .brand b{font-size:26px;font-weight:900;letter-spacing:-.5px}
+.hdr .brand span{font-size:13px;color:var(--brand);font-weight:700;letter-spacing:2px;text-transform:uppercase}
+.hdr .clock{font-size:20px;font-weight:700;color:var(--text2);font-variant-numeric:tabular-nums}
+
+.cols{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:18px;min-height:0}
+.col{display:flex;flex-direction:column;min-height:0}
+.col-hdr{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-shrink:0}
+.col-hdr .ic{font-size:22px}
+.col-hdr h2{font-size:17px;font-weight:800;letter-spacing:.3px}
+.col-hdr .sub{font-size:11px;color:var(--text3);margin-left:auto}
+
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px;flex-shrink:0}
+.kpi{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 12px;text-align:center}
+.kpi .val{font-size:26px;font-weight:900;line-height:1}
+.kpi .lbl{font-size:10px;color:var(--text3);margin-top:4px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+.kpi.aguardando .val{color:var(--orange)}
+.kpi.conferido .val{color:var(--brand)}
+.kpi.liberado .val{color:var(--green)}
+
+.lista{flex:1;overflow-y:auto;background:var(--card);border:1px solid var(--border);border-radius:12px}
+.item{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--border)}
+.item:last-child{border-bottom:none}
+.item .nome{flex:1;min-width:0;font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item .hora{font-size:12px;color:var(--text3);font-variant-numeric:tabular-nums;width:52px;flex-shrink:0}
+.item .espera{font-size:12px;font-weight:800;width:64px;text-align:right;flex-shrink:0;font-variant-numeric:tabular-nums}
+.item .badge{font-size:10px;font-weight:800;padding:3px 9px;border-radius:20px;flex-shrink:0;white-space:nowrap}
+.badge-aguardando{background:#B45C0033;color:#FFB454}
+.badge-conferido{background:#F5B80033;color:var(--brand)}
+.badge-liberado{background:#137A4833;color:#3FD98A}
+.item.critico{background:#C22F4922}
+.item.critico .espera{color:var(--red)}
+
+.empty{padding:30px;text-align:center;color:var(--text3);font-size:13px}
+.stamp{text-align:center;font-size:10px;color:var(--text3);margin-top:8px;flex-shrink:0}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="hdr">
+    <div class="brand"><b>CAHU</b><span>Distribuidora · Centro de Distribuição</span></div>
+    <div class="clock" id="relogio">--:--:--</div>
+  </div>
+
+  <div class="cols">
+    <div class="col">
+      <div class="col-hdr"><span class="ic">🚚</span><h2>Expedição — Saídas</h2><span class="sub" id="sub-exp"></span></div>
+      <div class="kpis" id="kpis-exp"></div>
+      <div class="lista" id="lista-exp"><div class="empty">Carregando...</div></div>
+    </div>
+    <div class="col">
+      <div class="col-hdr"><span class="ic">📥</span><h2>Conferência — Entradas</h2><span class="sub" id="sub-conf"></span></div>
+      <div class="kpis" id="kpis-conf"></div>
+      <div class="lista" id="lista-conf"><div class="empty">Carregando...</div></div>
+    </div>
+  </div>
+
+  <div class="stamp" id="stamp"></div>
+</div>
+
+<script>
+const LIMIAR_CRITICO_MIN = 45; // acima disso, linha destacada em vermelho
+
+function fmtEspera(min) {
+  if (min === null || min === undefined) return '—';
+  if (min < 60) return min + 'min';
+  const h = Math.floor(min / 60), m = min % 60;
+  return h + 'h' + String(m).padStart(2, '0');
+}
+
+const BADGE = { aguardando: ['badge-aguardando', 'AGUARDANDO'], conferido: ['badge-conferido', 'CONFERIDO'], liberado: ['badge-liberado', 'LIBERADO'] };
+
+function renderKpis(elId, resumo) {
+  document.getElementById(elId).innerHTML = `
+    <div class="kpi aguardando"><div class="val">${resumo.aguardando}</div><div class="lbl">Aguardando</div></div>
+    <div class="kpi conferido"><div class="val">${resumo.conferido}</div><div class="lbl">Conferido</div></div>
+    <div class="kpi liberado"><div class="val">${resumo.liberado}</div><div class="lbl">Liberado</div></div>`;
+}
+
+function renderLista(elId, fila) {
+  const el = document.getElementById(elId);
+  if (!fila.length) { el.innerHTML = '<div class="empty">Nenhum registro hoje.</div>'; return; }
+  el.innerHTML = fila.map(f => {
+    const [cls, lbl] = BADGE[f.status] || BADGE.aguardando;
+    const critico = f.status === 'aguardando' && (f.minutosEsperando || 0) >= LIMIAR_CRITICO_MIN;
+    return `
+    <div class="item${critico ? ' critico' : ''}">
+      <span class="hora">${(f.horaEntrada || '').slice(0, 5)}</span>
+      <span class="nome">${f.nome}</span>
+      <span class="badge ${cls}">${lbl}</span>
+      <span class="espera">${f.status === 'aguardando' ? fmtEspera(f.minutosEsperando) : '—'}</span>
+    </div>`;
+  }).join('');
+}
+
+function carregar() {
+  fetch('/api/painel-cd?refresh=1').then(r => r.json()).then(d => {
+    if (d.error) throw new Error(d.error);
+    renderKpis('kpis-exp', d.expedicao.resumo);
+    renderLista('lista-exp', d.expedicao.fila);
+    document.getElementById('sub-exp').textContent = d.expedicao.resumo.total + ' hoje';
+
+    renderKpis('kpis-conf', d.conferencia.resumo);
+    renderLista('lista-conf', d.conferencia.fila);
+    document.getElementById('sub-conf').textContent = d.conferencia.resumo.total + ' hoje';
+
+    document.getElementById('stamp').textContent = 'Atualizado às ' + new Date().toLocaleTimeString('pt-BR');
+  }).catch(e => {
+    document.getElementById('stamp').textContent = 'Erro ao atualizar: ' + e.message;
+  });
+}
+
+function relogio() {
+  document.getElementById('relogio').textContent = new Date().toLocaleTimeString('pt-BR');
+}
+
+relogio();
+setInterval(relogio, 1000);
+carregar();
+setInterval(carregar, 30000);
+// Recarrega a página inteira de tempos em tempos pra sempre pegar a versão
+// mais nova do HTML/JS publicada, igual os outros painéis de TV do sistema.
+setTimeout(() => location.reload(), 20 * 60 * 1000);
+</script>
+</body>
+</html>
