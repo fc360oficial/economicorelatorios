@@ -986,7 +986,10 @@ const FORN_COL_DURATION = 10000; // ms
 let _cardPages = {}, _cardPageIdx = {}, _cardTimers = {};
 
 function buildCardPages(c) {
-  const flat = c.categorias.flatMap(cat => cat.fornecedores.map(f => ({...f, catNome: cat.nome})));
+  const flat = [];
+  for (const cat of c.categorias)
+    for (const f of cat.fornecedores)
+      flat.push(Object.assign({}, f, {catNome: cat.nome}));
   const pages = [];
   for (let i = 0; i < flat.length; i += FORN_PER_PAGE) pages.push(flat.slice(i, i + FORN_PER_PAGE));
   return pages;
@@ -1057,6 +1060,15 @@ function renderCard(c) {
   const warn   = atrasado ? `<div class="warn-badge">⚠ Atrasado</div>` : '';
   const nomeEnc = encodeURIComponent(c.nome);
 
+  // Conteúdo da página 0 vai direto no HTML inicial do card — não depende de
+  // um passo de JS separado rodar depois pra aparecer (esse passo continua
+  // existindo só pra girar pras páginas seguintes, quando há mais de uma).
+  const pages0    = (_cardPages[c.nome] || [])[0] || [];
+  const totalPgs  = (_cardPages[c.nome] || []).length;
+  const dotsHtml  = totalPgs > 1
+    ? Array.from({length: totalPgs}, (_,i)=>`<div class="cb-dot${i===0?' active':''}"></div>`).join('')
+    : '';
+
   return `
     <div class="card-c ${allDone?'all-done':''} ${atrasado?'atrasado':''}" onclick="location.href='/comprador.html?nome=${nomeEnc}'">
       <div class="card-accent" style="background:${c.cor}"></div>
@@ -1079,8 +1091,8 @@ function renderCard(c) {
         </div>
       </div>
       <div class="cb">
-        <div class="cb-scroll" id="cbscroll-${nomeEnc}"></div>
-        <div class="cb-dots" id="cbdots-${nomeEnc}"></div>
+        <div class="cb-scroll" id="cbscroll-${nomeEnc}">${renderCbContent(pages0)}</div>
+        <div class="cb-dots" id="cbdots-${nomeEnc}" style="${totalPgs>1?'':'visibility:hidden'}">${dotsHtml}</div>
       </div>
       <div class="cf">
         <div class="cf-left">
@@ -1130,7 +1142,10 @@ function renderAll() {
   COMPRADORES.forEach(c => { _cardPages[c.nome] = buildCardPages(c); _cardPageIdx[c.nome] = 0; });
 
   document.getElementById('grid-compradores').innerHTML = COMPRADORES.map(renderCard).join('');
-  COMPRADORES.forEach(c => { renderCardPage(c); startCardCarousel(c); });
+  // Página 0 já veio pronta no HTML acima; isso só liga o giro pras páginas
+  // seguintes. Protegido — se falhar num navegador mais velho, o conteúdo
+  // já visível não é afetado, só não gira pra página 2+.
+  COMPRADORES.forEach(c => { try { startCardCarousel(c); } catch(e) { console.warn('carousel card erro:', c.nome, e.message); } });
 
   const todos = COMPRADORES.flatMap(c=>c.categorias.flatMap(cat=>cat.fornecedores));
   const done  = todos.filter(f=>f.status==='g').length;
