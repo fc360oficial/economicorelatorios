@@ -108,6 +108,9 @@ app.use(express.json({ limit: '10mb' }));
 const APP_VERSAO = String(Date.now());
 app.get('/api/versao', (req, res) => res.json({ versao: APP_VERSAO }));
 
+// Atalho curto pra digitar em controle de TV (teclado na tela é lento/chato)
+app.get('/tv', (req, res) => res.redirect('/painel-compras.html'));
+
 // ── CACHE EM MEMÓRIA ─────────────────────────────────────
 const _cache = new Map();
 function withCache(ttlMin) {
@@ -184,7 +187,8 @@ app.use((req, res, next) => {
     '/ruptura-painel.html', '/api/ruptura', '/api/ruptura/comprador-listas',
     '/margem-comprador.html', '/api/margem-tv/comprador',
     '/painel-diretoria.html',
-    '/painel-cd.html', '/api/painel-cd'];
+    '/painel-cd.html', '/api/painel-cd',
+    '/painel-compras.html', '/tv'];
   if (publico.includes(req.path)) return next();
   // Pré-aquecimento interno (somente localhost)
   if (req.headers['x-internal-warmup'] === 'fc360warmup2026' && req.socket.remoteAddress === '::1') return next();
