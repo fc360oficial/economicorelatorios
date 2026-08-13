@@ -263,7 +263,11 @@ main{
 .dm.g{background:var(--green)}.dm.a{background:var(--amber)}.dm.r{background:var(--red)}
 
 /* Card Body */
-.cb{padding:10px 16px;flex:1;overflow:hidden;position:relative;z-index:2}
+.cb{padding:10px 16px 4px;flex:1;overflow:hidden;position:relative;z-index:2;display:flex;flex-direction:column;min-height:0}
+.cb-scroll{flex:1;overflow:hidden;min-height:0}
+.cb-dots{display:flex;justify-content:center;align-items:center;gap:5px;padding-top:6px;flex-shrink:0;min-height:11px}
+.cb-dot{width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,.15);flex-shrink:0;transition:background .3s}
+.cb-dot.active{background:var(--brand)}
 
 .cat{margin-bottom:8px}
 .cat-nome{
@@ -974,28 +978,82 @@ function calcStats(c) {
   return {done,and,pend,total,pct};
 }
 
-/* ══ RENDER CARD ══ */
-function renderCard(c) {
-  const st     = calcStats(c);
-  const allDone = st.pct === 100 && st.total > 0;
-  const atrasado = st.pct === 0 && st.total > 0;
+/* ══ PAGINAÇÃO DE FORNECEDORES DENTRO DO CARD ══
+   Evita que fornecedores excedentes fiquem cortados pelo overflow:hidden do .cb —
+   em vez disso o card gira internamente entre páginas, igual ao ruptura-painel.html. */
+const FORN_PER_PAGE     = 6;
+const FORN_COL_DURATION = 10000; // ms
+let _cardPages = {}, _cardPageIdx = {}, _cardTimers = {};
 
-  const temFornecedores = c.categorias.some(cat => cat.fornecedores.length > 0);
+function buildCardPages(c) {
+  const flat = c.categorias.flatMap(cat => cat.fornecedores.map(f => ({...f, catNome: cat.nome})));
+  const pages = [];
+  for (let i = 0; i < flat.length; i += FORN_PER_PAGE) pages.push(flat.slice(i, i + FORN_PER_PAGE));
+  return pages;
+}
 
-  const cats = temFornecedores
-    ? c.categorias.map(cat => `
+function renderCbContent(items) {
+  if (!items.length) return `<div class="sem-forn">📋 Sem fornecedores programados hoje</div>`;
+  const groups = [];
+  for (const f of items) {
+    const last = groups[groups.length - 1];
+    if (last && last.catNome === f.catNome) last.fornecedores.push(f);
+    else groups.push({catNome: f.catNome, fornecedores: [f]});
+  }
+  return groups.map(g => `
     <div class="cat">
-      ${cat.fornecedores.map(f=>`
+      <div class="cat-nome">${g.catNome}</div>
+      ${g.fornecedores.map(f=>`
         <div class="forn">
           <span class="sdot ${f.status}"></span>
           <span class="forn-cod">${f.cod||'—'}</span>
           <span class="forn-nome" title="${f.nome}">${f.nome}</span>
           <span class="stag ${f.status}">${STATUS_LABEL[f.status]}</span>
         </div>`).join('')}
-    </div>`).join('')
-    : `<div class="sem-forn">📋 Sem fornecedores programados hoje</div>`;
+    </div>`).join('');
+}
 
-  const trophy = allDone && temFornecedores ? `<div class="trophy-box"><span>🏆 CRONOGRAMA CONCLUÍDO</span></div>` : '';
+function renderCardPage(c) {
+  const nomeEnc = encodeURIComponent(c.nome);
+  const pages   = _cardPages[c.nome] || [];
+  const idx     = _cardPageIdx[c.nome] || 0;
+
+  const scrollEl = document.getElementById('cbscroll-' + nomeEnc);
+  if (scrollEl) scrollEl.innerHTML = renderCbContent(pages[idx] || []);
+
+  const dotsEl = document.getElementById('cbdots-' + nomeEnc);
+  if (dotsEl) {
+    dotsEl.style.visibility = pages.length > 1 ? 'visible' : 'hidden';
+    dotsEl.innerHTML = pages.length > 1
+      ? pages.map((_,i)=>`<div class="cb-dot${i===idx?' active':''}"></div>`).join('')
+      : '';
+  }
+}
+
+function clearCardTimers() {
+  Object.values(_cardTimers).forEach(t => clearTimeout(t));
+  _cardTimers = {};
+}
+
+function startCardCarousel(c) {
+  const nome     = c.nome;
+  const totalPgs = (_cardPages[nome] || []).length;
+  if (totalPgs <= 1) return;
+  function advance() {
+    _cardPageIdx[nome] = (_cardPageIdx[nome] + 1) % totalPgs;
+    renderCardPage(c);
+    _cardTimers[nome] = setTimeout(advance, FORN_COL_DURATION);
+  }
+  _cardTimers[nome] = setTimeout(advance, FORN_COL_DURATION);
+}
+
+/* ══ RENDER CARD ══ */
+function renderCard(c) {
+  const st     = calcStats(c);
+  const allDone = st.pct === 100 && st.total > 0;
+  const atrasado = st.pct === 0 && st.total > 0;
+
+  const trophy = allDone && st.total > 0 ? `<div class="trophy-box"><span>🏆 CRONOGRAMA CONCLUÍDO</span></div>` : '';
   const warn   = atrasado ? `<div class="warn-badge">⚠ Atrasado</div>` : '';
   const nomeEnc = encodeURIComponent(c.nome);
 
@@ -1021,7 +1079,8 @@ function renderCard(c) {
         </div>
       </div>
       <div class="cb">
-        ${cats}
+        <div class="cb-scroll" id="cbscroll-${nomeEnc}"></div>
+        <div class="cb-dots" id="cbdots-${nomeEnc}"></div>
       </div>
       <div class="cf">
         <div class="cf-left">
@@ -1066,7 +1125,13 @@ function renderHeatmap() {
 
 /* ══ RENDER ALL ══ */
 function renderAll() {
+  clearCardTimers();
+  _cardPages = {}; _cardPageIdx = {};
+  COMPRADORES.forEach(c => { _cardPages[c.nome] = buildCardPages(c); _cardPageIdx[c.nome] = 0; });
+
   document.getElementById('grid-compradores').innerHTML = COMPRADORES.map(renderCard).join('');
+  COMPRADORES.forEach(c => { renderCardPage(c); startCardCarousel(c); });
+
   const todos = COMPRADORES.flatMap(c=>c.categorias.flatMap(cat=>cat.fornecedores));
   const done  = todos.filter(f=>f.status==='g').length;
   const and   = todos.filter(f=>f.status==='a').length;
