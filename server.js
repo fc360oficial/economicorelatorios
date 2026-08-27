@@ -4327,6 +4327,17 @@ q(`CREATE TABLE IF NOT EXISTS central.prevencao_bonif (
   PRIMARY KEY (nLoja, mes)) ENGINE=InnoDB`).catch(() => {});
 
 
+app.get('/api/_diag/avaria-congelado', (req, res) => {
+  if (req.query.token !== 'diag2026') return res.status(403).end();
+  const raw = carregarAvariaCongelado();
+  if (req.query.loja && req.query.mes) {
+    const chave = `consolidado-${req.query.loja}-${req.query.mes}`;
+    return res.json({ chave, entry: raw[chave] || null });
+  }
+  const keys = Object.keys(raw).filter(k => k.startsWith('consolidado-'));
+  res.json({ count: keys.length, keys: keys.map(k => ({ chave: k, mensalLen: (raw[k].mensal || []).length })) });
+});
+
 app.get('/api/_diag/tabelas-central', async (req, res) => {
   if (req.query.token !== 'diag2026') return res.status(403).end();
   const t = (req.query.describe || '').replace(/[^a-z0-9_]/gi, '');
