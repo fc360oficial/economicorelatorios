@@ -57,7 +57,9 @@
         { href: '/ponta-gondola.html',       ic: 'store', txt: 'Ponta de Gôndola' },
         { href: '/centro-distribuicao.html', ic: 'cart',  txt: 'Centro Distribuição' }
       ]},
-    { href: '/pendencias.html',   ic: 'alert',     txt: 'Pendências' },
+    { id: 'processos', ic: 'folder', txt: 'Processos', sub: [
+        { href: '/pendencias.html', ic: 'alert', txt: 'Pendências' }
+      ]},
     { href: '/prevencao.html',    ic: 'shield',    txt: 'Prevenção' }
   ];
 
