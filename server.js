@@ -184,7 +184,6 @@ app.use((req, res, next) => {
     '/prevencao.html', '/api/pendencias/prevencao', '/api/pendencias/prevencao-consolidado', '/api/pendencias/prevencao-bonif',
     '/api/ruptura/debug-comprador',
     '/api/_diag/tabelas-central',
-    '/api/_diag/avaria-congelado',
     '/ruptura-painel.html', '/api/ruptura', '/api/ruptura/comprador-listas',
     '/margem-comprador.html', '/api/margem-tv/comprador',
     '/painel-diretoria.html',
@@ -4327,23 +4326,6 @@ q(`CREATE TABLE IF NOT EXISTS central.prevencao_bonif (
   nLoja INT NOT NULL, mes VARCHAR(7) NOT NULL, valor DECIMAL(12,2) NOT NULL DEFAULT 0,
   PRIMARY KEY (nLoja, mes)) ENGINE=InnoDB`).catch(() => {});
 
-
-app.get('/api/_diag/avaria-congelado', (req, res) => {
-  if (req.query.token !== 'diag2026') return res.status(403).end();
-  const raw = carregarAvariaCongelado();
-  if (req.query.purgeEmpty === '1') {
-    const removidas = Object.keys(raw).filter(k => k.startsWith('consolidado-') && (raw[k].mensal || []).length === 0);
-    removidas.forEach(k => delete raw[k]);
-    salvarAvariaCongelado(raw);
-    return res.json({ removidas });
-  }
-  if (req.query.loja && req.query.mes) {
-    const chave = `consolidado-${req.query.loja}-${req.query.mes}`;
-    return res.json({ chave, entry: raw[chave] || null });
-  }
-  const keys = Object.keys(raw).filter(k => k.startsWith('consolidado-'));
-  res.json({ count: keys.length, keys: keys.map(k => ({ chave: k, mensalLen: (raw[k].mensal || []).length })) });
-});
 
 app.get('/api/_diag/tabelas-central', async (req, res) => {
   if (req.query.token !== 'diag2026') return res.status(403).end();
