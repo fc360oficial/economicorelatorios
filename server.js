@@ -2565,7 +2565,7 @@ app.get('/api/pendencias/prevencao-consolidado', withCache(60), async (req, res)
           continue;
         }
         const mMesKey = `${anoSel}-${String(m).padStart(2,'0')}`;
-        const mChaveCongelado = `consolidado-${loja}-${mMesKey}`;
+        const mChaveCongelado = `mes-${loja}-${mMesKey}`;
         if (mesFechado(anoSel, m) && avariaCongeladoCons[mChaveCongelado]) {
           mensal.push({ mes: m, pct: avariaCongeladoCons[mChaveCongelado].pctMes || 0 });
           continue;
@@ -4331,6 +4331,12 @@ q(`CREATE TABLE IF NOT EXISTS central.prevencao_bonif (
 app.get('/api/_diag/avaria-congelado', (req, res) => {
   if (req.query.token !== 'diag2026') return res.status(403).end();
   const raw = carregarAvariaCongelado();
+  if (req.query.purgeEmpty === '1') {
+    const removidas = Object.keys(raw).filter(k => k.startsWith('consolidado-') && (raw[k].mensal || []).length === 0);
+    removidas.forEach(k => delete raw[k]);
+    salvarAvariaCongelado(raw);
+    return res.json({ removidas });
+  }
   if (req.query.loja && req.query.mes) {
     const chave = `consolidado-${req.query.loja}-${req.query.mes}`;
     return res.json({ chave, entry: raw[chave] || null });
