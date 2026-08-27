@@ -52,10 +52,10 @@
         { href: '/conciliador-cd.html', ic: 'bank', txt: 'CD' }
       ]},
     { id: 'compras', ic: 'bag', txt: 'Gestão de Compras', sub: [
-        { href: '/fornecedores.html',        ic: 'bag',   txt: 'Lista de Compra' },
+        { href: '/centro-distribuicao.html', ic: 'cart',  txt: 'Centro Distribuição' },
         { href: '/ruptura.html',             ic: 'trend', txt: 'Gestão de Rupturas' },
-        { href: '/ponta-gondola.html',       ic: 'store', txt: 'Ponta de Gôndola' },
-        { href: '/centro-distribuicao.html', ic: 'cart',  txt: 'Centro Distribuição' }
+        { href: '/fornecedores.html',        ic: 'bag',   txt: 'Lista de Compra' },
+        { href: '/ponta-gondola.html',       ic: 'store', txt: 'Ponta de Gôndola' }
       ]},
     { id: 'processos', ic: 'folder', txt: 'Processos', sub: [
         { href: '/pendencias.html', ic: 'alert', txt: 'Pendências' }
