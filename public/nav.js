@@ -60,7 +60,9 @@
     { id: 'processos', ic: 'folder', txt: 'Processos', sub: [
         { href: '/pendencias.html', ic: 'alert', txt: 'Pendências' }
       ]},
-    { href: '/prevencao.html',    ic: 'shield',    txt: 'Prevenção' }
+    { id: 'prevencao', ic: 'shield', txt: 'Prevenção', sub: [
+        { href: '/prevencao.html', ic: 'shield', txt: 'Fechamento de Mês' }
+      ]}
   ];
 
   var css = ''
