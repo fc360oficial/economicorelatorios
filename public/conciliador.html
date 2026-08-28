@@ -198,19 +198,13 @@ table.t th:nth-child(3),table.t td.plano-td{width:150px;max-width:150px}
       <option value="4">Loja 4</option><option value="5">Loja 5</option><option value="6">Loja 6</option>
     </select>
 
-    <div style="display:flex;align-items:center;gap:10px;padding:12px;border:1px dashed var(--border-strong);border-radius:8px;margin-bottom:14px;flex-wrap:wrap">
-      <label style="margin:0">Importar direto do Itaú (sem colar extrato):</label>
-      <select id="sel-conta-api" style="height:34px;padding:0 10px;border:1px solid var(--border-strong);border-radius:8px;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:13px;font-weight:700">
-        <option value="">Selecione a conta...</option>
-        <option value="cahu">Cahu (Loja 1)</option>
-        <option value="muribeca">Muribeca (Loja 2)</option>
-      </select>
+    <div id="box-api" style="display:none;align-items:center;gap:10px;padding:12px;border:1px dashed var(--border-strong);border-radius:8px;margin-bottom:14px;flex-wrap:wrap">
+      <span id="api-loja-label" style="font-weight:700"></span>
       <label style="margin:0;font-weight:400">de</label>
       <input type="date" id="data-ini-api" style="height:34px;padding:0 10px;border:1px solid var(--border-strong);border-radius:8px;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:13px">
       <label style="margin:0;font-weight:400">até</label>
       <input type="date" id="data-fim-api" style="height:34px;padding:0 10px;border:1px solid var(--border-strong);border-radius:8px;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:13px">
       <button class="btn btn-blue" id="btn-processar-api" onclick="processarViaApi()">Importar via API</button>
-      <span class="entrada-hint">Só disponível pras contas já liberadas pelo Itaú.</span>
     </div>
 
     <label>Ou cole manualmente — extrato (formato Itaú: data;histórico;valor;)</label>
@@ -334,14 +328,21 @@ async function processar() {
   }
 }
 
-// Mapeamento conta da API -> Filial do ERP (só as duas liberadas até agora,
-// confirmado com o Tiago 28/08/2026). Auto-preenche a loja, mas o select
-// continua editável caso o mapeamento mude no futuro.
-const CONTA_LOJA_API = { cahu: '1', muribeca: '2' };
+// Mapeamento Filial do ERP -> conta da API (só as duas liberadas até agora,
+// confirmado com o Tiago 28/08/2026: Loja 1=Cahu, Loja 2=Muribeca, Loja
+// 3=Ponte, Loja 4=Atacarejo, Loja 5=Porta Larga, Loja 6=Jardim Jordão —
+// só as 2 primeiras têm certificado liberado pelo Itaú até agora).
+const LOJA_CONTA_API = { '1': { conta: 'cahu', nome: 'Cahu' }, '2': { conta: 'muribeca', nome: 'Muribeca' } };
 
-document.getElementById('sel-conta-api').addEventListener('change', function () {
-  const loja = CONTA_LOJA_API[this.value];
-  if (loja) document.getElementById('sel-loja-extrato').value = loja;
+document.getElementById('sel-loja-extrato').addEventListener('change', function () {
+  const info = LOJA_CONTA_API[this.value];
+  const box = document.getElementById('box-api');
+  if (info) {
+    box.style.display = 'flex';
+    document.getElementById('api-loja-label').textContent = `Importar direto do Itaú (${info.nome}):`;
+  } else {
+    box.style.display = 'none';
+  }
 });
 
 (function initDatasApi() {
@@ -352,14 +353,14 @@ document.getElementById('sel-conta-api').addEventListener('change', function () 
 })();
 
 async function processarViaApi() {
-  const conta = document.getElementById('sel-conta-api').value;
   const loja = document.getElementById('sel-loja-extrato').value;
+  const info = LOJA_CONTA_API[loja];
+  const conta = info && info.conta;
   const inicio = document.getElementById('data-ini-api').value;
   const fim = document.getElementById('data-fim-api').value;
   const btn = document.getElementById('btn-processar-api');
   const cont = document.getElementById('resultado');
-  if (!conta) { cont.innerHTML = '<div class="err">Selecione a conta pra importar via API.</div>'; return; }
-  if (!loja) { cont.innerHTML = '<div class="err">Selecione a loja desse extrato antes de processar.</div>'; return; }
+  if (!conta) { cont.innerHTML = '<div class="err">Essa loja não tem integração com o Itaú liberada ainda.</div>'; return; }
   if (!inicio || !fim) { cont.innerHTML = '<div class="err">Selecione o período (de/até) pra importar.</div>'; return; }
   btn.disabled = true;
   cont.innerHTML = '<div class="spinner"></div>';
