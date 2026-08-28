@@ -6,7 +6,7 @@ const FileStore = require('session-file-store')(session);
 const bcrypt = require('bcryptjs');
 const fs = require('fs');
 const { exec } = require('child_process');
-const { parseSaidas, parseSaidasOfx } = require('./lib/extrato-parser');
+const { parseSaidas, parseSaidasOfx, parseSaidasApi } = require('./lib/extrato-parser');
 const { conciliar, addDias, similaridadeNome, normalizarNome, TOLERANCIA_DIAS: TOLERANCIA_CONCILIADOR, chaveSaida, aplicarAvulsos } = require('./lib/conciliador');
 const multer = require('multer');
 const pontaGondola = require('./lib/ponta-gondola');
@@ -4346,6 +4346,32 @@ app.get('/api/_diag/tabelas-central', async (req, res) => {
 // Cruza as saídas de um extrato bancário (TXT colado pelo usuário) com os
 // títulos de contas a pagar do ERP. Ver lib/conciliador.js pra detalhes de
 // como o casamento (Valor + DataVencto) e os status são decididos.
+async function processarConciliacao(saidas, loja) {
+  const datas = saidas.map(s => s.data).sort();
+  const dIni = addDias(datas[0], -TOLERANCIA_CONCILIADOR);
+  const dFim = addDias(datas[datas.length - 1], TOLERANCIA_CONCILIADOR);
+
+  // Cada loja tem conta bancária própria — o extrato de uma loja só pode
+  // estar pagando títulos daquela mesma Filial no ERP, então restringe
+  // aqui pra não casar por coincidência de valor com título de outra loja.
+  const candidatosRaw = await q(`
+    SELECT a.nReg, a.Valor, a.Devedor, DATE_FORMAT(a.DataVencto,'%Y-%m-%d') as DataVencto,
+           a.CodFornec, a.Historico, a.Filial, a.PlanoGrupo, a.PlanoSub,
+           a.Acrescimo, a.Multa, a.Juros, a.Desconto, a.Devolucao, a.ValorBruto, f.Nome, f.NomeCompleto
+    FROM loja20045.contasapagar a
+    LEFT JOIN central.fornecedor f ON f.CodFornec = a.CodFornec
+    WHERE a.DataVencto BETWEEN ? AND ? AND a.Filial = ?
+  `, [dIni, dFim, loja]);
+  const candidatos = enriquecerComPlanoContas(candidatosRaw, await getPlanoContas());
+
+  const itens = aplicarAvulsos(conciliar(saidas, candidatos), carregarAvulsos());
+  const resumo = { conciliado: 0, conciliado_avulso: 0, pago_sem_baixa: 0, divergencia: 0, revisar: 0, nao_encontrado: 0, fora_escopo: 0 };
+  let totalValor = 0;
+  for (const it of itens) { resumo[it.status]++; totalValor += it.valor; }
+
+  return { loja, total: itens.length, totalValor: +totalValor.toFixed(2), resumo, itens };
+}
+
 app.post('/api/conciliador/processar', async (req, res) => {
   try {
     const texto = (req.body && req.body.texto) || '';
@@ -4357,32 +4383,38 @@ app.post('/api/conciliador/processar', async (req, res) => {
     const saidas = ehOfx ? parseSaidasOfx(texto) : parseSaidas(texto);
     if (!saidas.length) return res.status(400).json({ error: ehOfx ? 'Nenhuma saída encontrada no OFX.' : 'Nenhuma saída encontrada no texto colado. Confira o formato (data;histórico;valor;).' });
 
-    const datas = saidas.map(s => s.data).sort();
-    const dIni = addDias(datas[0], -TOLERANCIA_CONCILIADOR);
-    const dFim = addDias(datas[datas.length - 1], TOLERANCIA_CONCILIADOR);
-
-    // Cada loja tem conta bancária própria — o extrato de uma loja só pode
-    // estar pagando títulos daquela mesma Filial no ERP, então restringe
-    // aqui pra não casar por coincidência de valor com título de outra loja.
-    const candidatosRaw = await q(`
-      SELECT a.nReg, a.Valor, a.Devedor, DATE_FORMAT(a.DataVencto,'%Y-%m-%d') as DataVencto,
-             a.CodFornec, a.Historico, a.Filial, a.PlanoGrupo, a.PlanoSub,
-             a.Acrescimo, a.Multa, a.Juros, a.Desconto, a.Devolucao, a.ValorBruto, f.Nome, f.NomeCompleto
-      FROM loja20045.contasapagar a
-      LEFT JOIN central.fornecedor f ON f.CodFornec = a.CodFornec
-      WHERE a.DataVencto BETWEEN ? AND ? AND a.Filial = ?
-    `, [dIni, dFim, loja]);
-    const candidatos = enriquecerComPlanoContas(candidatosRaw, await getPlanoContas());
-
-    const itens = aplicarAvulsos(conciliar(saidas, candidatos), carregarAvulsos());
-    const resumo = { conciliado: 0, conciliado_avulso: 0, pago_sem_baixa: 0, divergencia: 0, revisar: 0, nao_encontrado: 0, fora_escopo: 0 };
-    let totalValor = 0;
-    for (const it of itens) { resumo[it.status]++; totalValor += it.valor; }
-
-    res.json({ loja, total: itens.length, totalValor: +totalValor.toFixed(2), resumo, itens });
+    res.json(await processarConciliacao(saidas, loja));
   } catch (err) {
     console.error('[CONCILIADOR-ERR]', err.message);
     res.status(500).json({ error: err.message || 'Erro ao processar conciliação.' });
+  }
+});
+
+// Mesma conciliação acima, mas a origem do extrato é a API oficial do Itaú
+// (lib/itau-extrato.js) em vez de texto colado — só disponível pras contas
+// já liberadas pelo banco (hoje: cahu, muribeca — ver data/itau/config.json).
+// A loja (Filial do ERP) continua escolhida manualmente pelo usuário, igual
+// ao fluxo de colar texto — não existe hoje um mapeamento automático
+// confiável de conta bancária pra número de Filial no ERP.
+app.post('/api/conciliador/processar-api', async (req, res) => {
+  if (!req.session.user || req.session.user.perfil !== 'admin') return res.status(403).json({ error: 'Só admin.' });
+  try {
+    const itauExtrato = require('./lib/itau-extrato');
+    const conta = req.body && req.body.conta;
+    const loja = parseInt(req.body && req.body.loja);
+    if (!conta) return res.status(400).json({ error: 'Informe a conta (ex: cahu, muribeca).' });
+    if (!loja || loja < 1 || loja > 6) return res.status(400).json({ error: 'Selecione a loja desse extrato antes de processar — cada loja tem conta bancária própria, e o casamento é feito só contra os títulos dessa filial.' });
+
+    const dataFim = (req.body && req.body.fim) || new Date().toISOString().slice(0, 10);
+    const dataIni = (req.body && req.body.inicio) || addDias(dataFim, -60);
+    const resultado = await itauExtrato.buscarExtrato({ conta, dataInicio: dataIni, dataFim });
+    const saidas = parseSaidasApi(resultado);
+    if (!saidas.length) return res.status(400).json({ error: `Nenhuma saída encontrada no extrato da API entre ${dataIni} e ${dataFim}.` });
+
+    res.json(await processarConciliacao(saidas, loja));
+  } catch (err) {
+    console.error('[CONCILIADOR-API-ERR]', err.message);
+    res.status(500).json({ error: err.message || 'Erro ao importar extrato via API do Itaú.' });
   }
 });
 

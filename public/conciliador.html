@@ -197,7 +197,19 @@ table.t th:nth-child(3),table.t td.plano-td{width:150px;max-width:150px}
       <option value="1">Loja 1</option><option value="2">Loja 2</option><option value="3">Loja 3</option>
       <option value="4">Loja 4</option><option value="5">Loja 5</option><option value="6">Loja 6</option>
     </select>
-    <label>Extrato (formato Itaú: data;histórico;valor;)</label>
+
+    <div style="display:flex;align-items:center;gap:10px;padding:12px;border:1px dashed var(--border-strong);border-radius:8px;margin-bottom:14px">
+      <label style="margin:0">Importar direto do Itaú (sem colar extrato):</label>
+      <select id="sel-conta-api" style="height:34px;padding:0 10px;border:1px solid var(--border-strong);border-radius:8px;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:13px;font-weight:700">
+        <option value="">Selecione a conta...</option>
+        <option value="cahu">Cahu (Loja 1)</option>
+        <option value="muribeca">Muribeca (Loja 2)</option>
+      </select>
+      <button class="btn btn-blue" id="btn-processar-api" onclick="processarViaApi()">Importar via API</button>
+      <span class="entrada-hint">Só disponível pras contas já liberadas pelo Itaú. Traz os últimos 60 dias automaticamente.</span>
+    </div>
+
+    <label>Ou cole manualmente — extrato (formato Itaú: data;histórico;valor;)</label>
     <textarea id="txt-extrato" placeholder="01/06/2026;BOLETO PAGO COMERCIAL LI COMERCIAL LIMA 54.285.133/0001-80;-375,55;&#10;01/06/2026;PIX ENVIADO FULANO DA SILVA 123.456.789-00;-100,00;"></textarea>
     <div class="entrada-foot">
       <span class="entrada-hint">Prefira o formato <b>OFX</b> (mais confiável — evita duplicar lançamento e identifica a loja sozinho). TXT do Itaú fica como reserva. Só as linhas com valor negativo (saídas) são consideradas — entradas são ignoradas.</span>
@@ -307,6 +319,43 @@ async function processar() {
     });
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || 'Erro ao processar');
+    dados = j;
+    ultimaAtualizacao = new Date();
+    filtroAtivo = '';
+    render();
+  } catch (e) {
+    cont.innerHTML = `<div class="err">Erro: ${e.message}</div>`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// Mapeamento conta da API -> Filial do ERP (só as duas liberadas até agora,
+// confirmado com o Tiago 28/08/2026). Auto-preenche a loja, mas o select
+// continua editável caso o mapeamento mude no futuro.
+const CONTA_LOJA_API = { cahu: '1', muribeca: '2' };
+
+document.getElementById('sel-conta-api').addEventListener('change', function () {
+  const loja = CONTA_LOJA_API[this.value];
+  if (loja) document.getElementById('sel-loja-extrato').value = loja;
+});
+
+async function processarViaApi() {
+  const conta = document.getElementById('sel-conta-api').value;
+  const loja = document.getElementById('sel-loja-extrato').value;
+  const btn = document.getElementById('btn-processar-api');
+  const cont = document.getElementById('resultado');
+  if (!conta) { cont.innerHTML = '<div class="err">Selecione a conta pra importar via API.</div>'; return; }
+  if (!loja) { cont.innerHTML = '<div class="err">Selecione a loja desse extrato antes de processar.</div>'; return; }
+  btn.disabled = true;
+  cont.innerHTML = '<div class="spinner"></div>';
+  try {
+    const r = await fetch('/api/conciliador/processar-api', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ conta, loja })
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Erro ao importar');
     dados = j;
     ultimaAtualizacao = new Date();
     filtroAtivo = '';
