@@ -4812,16 +4812,18 @@ app.get('/api/conciliador-cd/nota-detalhe', async (req, res) => {
 
 // ── API DE EXTRATO DO ITAÚ ───────────────────────────────────────────
 // Teste manual da integração direta com o Itaú (ver lib/itau-extrato.js).
-// Só admin, porque toca em credencial bancária real. Enquanto o ClientID
-// não estiver liberado pelo Itaú pro produto de Extrato, retorna o erro
-// deles mesmo (ex: "ClientID not enable") — é esperado até a liberação.
+// Só admin, porque toca em credencial bancária real. Suporta múltiplas
+// contas (uma por loja/CNPJ) via ?conta=cahu|muribeca — cada uma com seu
+// próprio certificado + ClientID em data/itau/config.json.
 app.get('/api/itau/extrato-teste', async (req, res) => {
   if (!req.session.user || req.session.user.perfil !== 'admin') return res.status(403).json({ error: 'Só admin.' });
   try {
     const itauExtrato = require('./lib/itau-extrato');
+    const conta = req.query.conta;
+    if (!conta) return res.status(400).json({ error: 'Informe ?conta= (opções: ' + itauExtrato.contasConfiguradas().join(', ') + ')' });
     const dataFim = req.query.fim || new Date().toISOString().slice(0, 10);
     const dataIni = req.query.inicio || addDias(dataFim, -30);
-    const resultado = await itauExtrato.buscarExtrato({ dataInicio: dataIni, dataFim: dataFim });
+    const resultado = await itauExtrato.buscarExtrato({ conta, dataInicio: dataIni, dataFim: dataFim });
     res.json(resultado);
   } catch (err) {
     res.status(500).json({ error: err.message });
