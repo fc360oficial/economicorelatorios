@@ -4103,7 +4103,7 @@ app.get('/api/ruptura/lista-lojas', async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-app.get('/api/ruptura', withCache(30), async (req, res) => {
+app.get('/api/ruptura', withCache(10), async (req, res) => {
   try {
     const hoje = new Date();
     const mes = hoje.getMonth() + 1;

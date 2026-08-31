@@ -485,7 +485,7 @@ function carregar() {
   btn.disabled = true;
   btn.textContent = '⏳ Analisando...';
   document.getElementById('stamp').innerHTML = '<span class="spin"></span> Buscando dados...';
-  document.getElementById('conteudo').innerHTML = '<div class="loading"><span class="spin"></span> Analisando estoque, vendas e cobertura de todos os produtos...<br><small style="color:#4E5A72;margin-top:8px;display:block">Primeira análise pode levar 2-3 minutos. Próximas serão instantâneas (cache 30min).</small></div>';
+  document.getElementById('conteudo').innerHTML = '<div class="loading"><span class="spin"></span> Analisando estoque, vendas e cobertura de todos os produtos...<br><small style="color:#4E5A72;margin-top:8px;display:block">Cada clique busca dado atualizado do ERP — pode levar de alguns segundos a 2-3 minutos.</small></div>';
 
   const ctrl = new AbortController();
   const tid = setTimeout(() => ctrl.abort(), 300000);
@@ -494,7 +494,8 @@ function carregar() {
   const params = new URLSearchParams();
   if (loja) params.set('loja', loja);
   if (comprador) params.set('comprador', comprador);
-  const url = '/api/ruptura' + (params.toString() ? '?' + params.toString() : '');
+  params.set('refresh', '1');
+  const url = '/api/ruptura' + '?' + params.toString();
 
   fetch(url, { signal: ctrl.signal })
     .then(r => { clearTimeout(tid); if (r.status === 401) { location.href='/login.html'; return null; } return r.json(); })
