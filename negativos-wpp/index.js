@@ -50,118 +50,163 @@ async function buscarNegativos() {
 }
 
 // ── PDF ───────────────────────────────────────────────────────────────────────
-// Estilo: fundo branco, texto navy escuro, acento laranja/âmbar
+// Folha de conferência física: encarregado preenche à mão (Depósito/Loja) e
+// devolve foto pro agente ler. Marcas de referência + caixa LOJA-DATA existem
+// pra correção de perspectiva/identificação automática da foto — não mexer
+// nelas sem falar com o Tiago primeiro.
+
+const MM = 2.83465; // pt por mm
+const mm = v => v * MM;
 
 function gerarPDFLoja(itens, ln, hoje) {
-  const rows = itens; // já filtrado por loja
   const doc    = new PDFDocument({ size:'A4', margin:0, bufferPages:true });
   const chunks = [];
   doc.on('data', c => chunks.push(c));
 
   const PW = 595, PH = 842, ML = 36, MR = 36, CW = PW - ML - MR;
 
-  // Colunas da tabela
-  const C = {
-    cod:  { x: ML,       w: 108 },
-    desc: { x: ML + 108, w: 252 },
-    est:  { x: ML + 360, w: 88  },
-    sis:  { x: ML + 448, w: CW - 360 - 88 },
-  };
-
-  // Paleta "Executive Ink" — a mesma dos relatórios estratégicos (navy + âmbar só como acento pontual)
   const COR = {
     branco:   '#FFFFFF',
+    preto:    '#000000',
     navy:     '#0E1626',
     navySec:  '#4E5A72',
     navyTer:  '#98A0B3',
     cinza:    '#F4F4F2',
-    cinzaMd:  '#E4E4E1',
-    borda:    '#DADAD6',
+    cinzaMd:  '#EDEDEB',
     laranja:  '#F5B800',
-    laranjaL: '#FFF6D9',
-    vermelho: '#E53E3E',
-    verde:    '#38A169',
   };
 
-  const ROW_H = 15, GRP_H = 17, COL_H = 19;
+  // Colunas da tabela
+  const C = {
+    cod:  { x: ML,  w: 76  },
+    desc: { x: 0,   w: 206 },
+    dep:  { x: 0,   w: 96  },
+    loja: { x: 0,   w: 96  },
+    sis:  { x: 0,   w: CW - 76 - 206 - 96 - 96 },
+  };
+  C.desc.x = C.cod.x + C.cod.w;
+  C.dep.x  = C.desc.x + C.desc.w;
+  C.loja.x = C.dep.x + C.dep.w;
+  C.sis.x  = C.loja.x + C.loja.w;
 
-  function ln_(x1,y1,x2,y2, c=COR.borda, w=0.5) {
+  const CORNER = mm(6);    // 17pt — quadrado de referência pra correção de perspectiva da foto
+  const BOXW   = mm(6.5);  // quadrado grande (algarismo)
+  const BOXH   = mm(9);
+  const BOXS   = mm(5);    // quadrado pequeno ("zerado")
+  const ROW_H  = mm(9.5);  // altura de linha, pra caber letra grande
+  const GRP_H  = 16;
+  const INSET  = mm(5);    // distância das marcas de referência até a borda da página
+  const COLH_H = 34;       // altura do cabeçalho de colunas
+
+  function linha(x1,y1,x2,y2, c=COR.preto, w=0.6) {
     doc.strokeColor(c).lineWidth(w).moveTo(x1,y1).lineTo(x2,y2).stroke();
   }
 
-  function txt(text, x, y, w, h, { cor=COR.navy, font='Helvetica', size=8, align='left', pad=5 }={}) {
+  function txt(text, x, y, w, h, { cor=COR.navy, font='Helvetica', size=8, align='left', pad=4, lineBreak=false }={}) {
     doc.fillColor(cor).fontSize(size).font(font)
-       .text(String(text||''), x+pad, y+Math.max(0,(h-size)/2), { width:w-pad*2, align, lineBreak:false });
+       .text(String(text==null?'':text), x+pad, y+Math.max(0,(h-size)/2), { width:w-pad*2, align, lineBreak });
   }
 
-  const dataHora = hoje.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'})
-                 + '  —  ' + hoje.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-  const dataLabel = `GERADO EM\n${hoje.toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'})}\n${hoje.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}`;
+  // Marcas de referência (fiduciais). De propósito só 3 cantos — falta o
+  // inferior-direito — pra resolver ambiguidade de rotação 180° na foto.
+  function marcasReferencia() {
+    doc.rect(INSET, INSET, CORNER, CORNER).fill(COR.preto);
+    doc.rect(PW-INSET-CORNER, INSET, CORNER, CORNER).fill(COR.preto);
+    doc.rect(INSET, PH-INSET-CORNER, CORNER, CORNER).fill(COR.preto);
+  }
+
+  // Caixa "LOJA-AAAAMMDD" — identificador da folha pro agente que lê a foto
+  function idBox() {
+    const idTxt = `L${String(ln).padStart(2,'0')}-${hoje.getFullYear()}${String(hoje.getMonth()+1).padStart(2,'0')}${String(hoje.getDate()).padStart(2,'0')}`;
+    const w = 150, h = 22, x = PW-MR-w, y = 26;
+    doc.lineWidth(1).strokeColor(COR.preto).rect(x,y,w,h).stroke();
+    doc.fillColor(COR.navy).fontSize(12).font('Courier-Bold')
+       .text(idTxt, x, y+6, { width:w, align:'center', lineBreak:false });
+    return { x, y, w, h };
+  }
+
+  function cabecalhoColunas(y) {
+    doc.rect(0,y,PW,COLH_H).fill(COR.cinzaMd);
+    linha(0,y,PW,y); linha(0,y+COLH_H,PW,y+COLH_H);
+
+    txt('Código',    C.cod.x,  y, C.cod.w,  COLH_H, { font:'Helvetica-Bold', size:7.5 });
+    txt('Descrição', C.desc.x, y, C.desc.w, COLH_H, { font:'Helvetica-Bold', size:7.5 });
+
+    [['dep','Depósito','o que achou no estoque'],['loja','Loja','o que achou na área de vendas']].forEach(([k,label,sub]) => {
+      const col = C[k];
+      txt(label, col.x, y+3, col.w, 10, { font:'Helvetica-Bold', size:7.5, align:'center' });
+      doc.fillColor(COR.navyTer).fontSize(5.6).font('Helvetica')
+         .text(sub, col.x+2, y+13, { width:col.w-4, align:'center', lineBreak:true });
+      const boxesW = BOXW*3 + 4 + BOXS;
+      const bx = col.x + (col.w-boxesW)/2;
+      txt('quantidade', bx, y+COLH_H-11, BOXW*3+4, 8, { font:'Helvetica', size:5.6, align:'center', cor:COR.navyTer });
+      const zx = bx + BOXW*3 + 4 + BOXS/2 - 15;
+      txt('zerado', zx, y+COLH_H-11, 30, 8, { font:'Helvetica', size:5.6, align:'center', cor:COR.navyTer });
+    });
+
+    doc.rect(C.sis.x, y, C.sis.w, COLH_H).fill(COR.cinza);
+    txt('Sistema', C.sis.x, y+4, C.sis.w, 10, { font:'Helvetica-Bold', size:7.5, align:'center' });
+    doc.fillColor(COR.navyTer).fontSize(5.6).font('Helvetica')
+       .text('não escreva aqui', C.sis.x+2, y+15, { width:C.sis.w-4, align:'center', lineBreak:true });
+
+    [C.desc.x, C.dep.x, C.loja.x, C.sis.x, PW-MR].forEach(x => linha(x,y,x,y+COLH_H));
+
+    return y + COLH_H;
+  }
+
+  function desenharBoxes(col, y, h) {
+    const boxesW = BOXW*3 + 4 + BOXS;
+    let bx = col.x + (col.w-boxesW)/2;
+    const by = y + (h-BOXH)/2;
+    doc.lineWidth(0.9).strokeColor(COR.preto);
+    for (let i=0; i<3; i++) { doc.rect(bx,by,BOXW,BOXH).stroke(); bx += BOXW+2; }
+    bx += 2;
+    const sy = y + (h-BOXS)/2;
+    doc.rect(bx, sy, BOXS, BOXS).stroke();
+  }
 
   function cabecalho() {
-    // Fundo branco total
     doc.rect(0, 0, PW, PH).fill(COR.branco);
-
-    // Header top — linha fina laranja no topo
+    marcasReferencia();
     doc.rect(0, 0, PW, 2).fill(COR.laranja);
 
-    // Área do cabeçalho
-    const HDR = 68;
-    doc.rect(0, 2, PW, HDR).fill(COR.branco);
-
-    // Logo
     const temLogo = fs.existsSync(LOGO_PATH);
-    if (temLogo) { try { doc.image(LOGO_PATH, ML, 12, { height: 44 }); } catch(_) {} }
+    if (temLogo) { try { doc.image(LOGO_PATH, ML, 14, { height: 30 }); } catch(_) {} }
+    const txX = temLogo ? ML + 42 : ML;
 
-    // Nome empresa
-    const txX = temLogo ? ML + 54 : ML;
-    doc.fillColor(COR.laranja).fontSize(8).font('Helvetica-Bold')
-       .text('ECONÔMICO RELATÓRIOS', txX, 16, { width: 180, lineBreak:false });
-    doc.fillColor(COR.navySec).fontSize(9.5).font('Helvetica')
-       .text('Auditoria de Estoque Negativo', txX, 28, { width: 180, lineBreak:false });
-    doc.fillColor(COR.borda).fontSize(8).font('Helvetica')
-       .text('Relatório Operacional', txX, 42, { width: 180, lineBreak:false });
-
-    // Data geração — canto direito (estilo do exemplo)
-    const dL = hoje.toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'});
-    const hL = hoje.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-    doc.fillColor(COR.navySec).fontSize(6.5).font('Helvetica')
-       .text('GERADO EM', ML, 14, { width:CW, align:'right', lineBreak:false });
+    doc.fillColor(COR.laranja).fontSize(7.5).font('Helvetica-Bold')
+       .text('ECONÔMICO RELATÓRIOS', txX, 16, { width: 220, lineBreak:false });
     doc.fillColor(COR.navy).fontSize(13).font('Helvetica-Bold')
-       .text(dL, ML, 23, { width:CW, align:'right', lineBreak:false });
-    doc.fillColor(COR.navySec).fontSize(9).font('Helvetica')
-       .text(hL, ML, 39, { width:CW, align:'right', lineBreak:false });
+       .text('Auditoria de Estoque Negativo', txX, 27, { width: 280, lineBreak:false });
+    doc.fillColor(COR.navySec).fontSize(7.5).font('Helvetica')
+       .text('Folha de conferência — preencher e devolver até 17:00', txX, 44, { width: 320, lineBreak:false });
 
-    // Divisor fino cinza
-    ln_(ML, HDR+2, PW-MR, HDR+2, COR.borda, 0.8);
-
-    let y = HDR + 10;
-
-    // Título da loja com barra laranja à esquerda (estilo do exemplo)
-    doc.rect(ML, y, 3, 26).fill(COR.laranja);
-    doc.fillColor(COR.navy).fontSize(16).font('Helvetica-Bold')
-       .text(`LOJA ${ln}  —  ${NOMES_LOJA[ln]||'LOJA '+ln}`, ML+10, y+4, { width:CW-10, lineBreak:false });
+    const { y:idY, h:idH } = idBox();
+    const dataHora = hoje.toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'})
+                   + '  ·  ' + hoje.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
     doc.fillColor(COR.navySec).fontSize(8).font('Helvetica')
-       .text('Estoque Negativo por Mercadológico', ML+10, y+22, { width:CW-10, lineBreak:false });
+       .text(dataHora, PW-MR-200, idY+idH+6, { width:200, align:'right', lineBreak:false });
 
-    y += 36;
+    let y = 68;
+    doc.rect(ML, y, 3, 22).fill(COR.laranja);
+    doc.fillColor(COR.navy).fontSize(14).font('Helvetica-Bold')
+       .text(`LOJA ${ln}  —  ${NOMES_LOJA[ln]||'LOJA '+ln}`, ML+9, y+3, { width: CW-9, lineBreak:false });
+    y += 30;
 
-    // Cabeçalho colunas — fundo cinza claro com label laranja
-    doc.rect(0, y, PW, COL_H).fill(COR.cinzaMd);
-    ln_(0, y, PW, y, COR.borda, 0.5);
-    ln_(0, y+COL_H, PW, y+COL_H, COR.borda, 0.5);
+    return cabecalhoColunas(y);
+  }
 
-    txt('CÓDIGO',       C.cod.x,  y, C.cod.w,  COL_H, { cor:COR.navySec, font:'Helvetica-Bold', size:7, align:'left' });
-    txt('DESCRIÇÃO',    C.desc.x, y, C.desc.w, COL_H, { cor:COR.navySec, font:'Helvetica-Bold', size:7 });
-    txt('ESTOQUE/LOJA', C.est.x,  y, C.est.w,  COL_H, { cor:COR.navySec, font:'Helvetica-Bold', size:7, align:'center' });
-    txt('SISTEMA',      C.sis.x,  y, C.sis.w,  COL_H, { cor:COR.navySec, font:'Helvetica-Bold', size:7, align:'center' });
-
-    // Divisores verticais cabeçalho
-    ln_(C.desc.x, y, C.desc.x, y+COL_H, COR.borda);
-    ln_(C.est.x,  y, C.est.x,  y+COL_H, COR.borda);
-    ln_(C.sis.x,  y, C.sis.x,  y+COL_H, COR.borda);
-
-    return y + COL_H;
+  // Cabeçalho de continuação (loja com folha grande, estourou pra página 2+).
+  // Mantém marcas de referência + caixa LOJA-DATA: cada página vira uma foto
+  // separada e precisa da própria referência de perspectiva/identificação.
+  function retomarCabecalho() {
+    doc.rect(0, 0, PW, PH).fill(COR.branco);
+    marcasReferencia();
+    doc.rect(0, 0, PW, 2).fill(COR.laranja);
+    idBox();
+    doc.fillColor(COR.navySec).fontSize(7).font('Helvetica-Bold')
+       .text(`ECONÔMICO RELATÓRIOS  |  Loja ${ln} — ${NOMES_LOJA[ln]||''}  |  (continuação)`, ML, 16, { width:300, lineBreak:false });
+    return cabecalhoColunas(56);
   }
 
   // ── Conteúdo ────────────────────────────────────────────────────────────────
@@ -169,7 +214,7 @@ function gerarPDFLoja(itens, ln, hoje) {
 
   // Agrupa: Grupo → SubGrupo → produtos (igual ao mercadológico do ERP)
   const arvore = {};
-  rows.forEach(r => {
+  itens.forEach(r => {
     const grp = (r.Grupo    || 'SEM GRUPO').toUpperCase();
     const sub = (r.SubGrupo || 'SEM SUBGRUPO').toUpperCase();
     if (!arvore[grp]) arvore[grp] = {};
@@ -177,84 +222,88 @@ function gerarPDFLoja(itens, ln, hoje) {
     arvore[grp][sub].push(r);
   });
 
-  const SUB_H = 14; // altura da linha de subgrupo
-  let idx = 0;
-
   for (const [nomeGrupo, subGrupos] of Object.entries(arvore)) {
-    if (y > 788) { doc.addPage(); doc.rect(0,0,PW,PH).fill(COR.branco); y = retomarCabecalho(); }
-
-    // Cabeçalho do GRUPO — fundo neutro, texto navy, acento âmbar à esquerda
-    doc.rect(0, y, PW, GRP_H).fill(COR.cinzaMd);
-    doc.rect(0, y, 3, GRP_H).fill(COR.laranja);
-    doc.fillColor(COR.navy).fontSize(8).font('Helvetica-Bold')
-       .text(nomeGrupo, ML + 6, y + (GRP_H - 8) / 2, { width: CW - 6, lineBreak: false });
-    y += GRP_H;
-
     for (const [nomeSub, produtos] of Object.entries(subGrupos)) {
-      if (y > 790) { doc.addPage(); doc.rect(0,0,PW,PH).fill(COR.branco); y = retomarCabecalho(); }
+      if (y > 760) { doc.addPage(); y = retomarCabecalho(); }
 
-      // Sub-cabeçalho — fundo branco, texto navy secundário, indentado
-      doc.rect(0, y, PW, SUB_H).fill(COR.branco);
-      ln_(0, y+SUB_H, PW, y+SUB_H, COR.borda, 0.4);
-      doc.fillColor(COR.navyTer).fontSize(7).font('Helvetica-Bold')
-         .text('▸', ML + 10, y + (SUB_H - 7) / 2, { width: 10, lineBreak: false });
-      doc.fillColor(COR.navySec).fontSize(7).font('Helvetica-Bold')
-         .text(nomeSub, ML + 22, y + (SUB_H - 7) / 2, { width: CW - 22, lineBreak: false });
-      y += SUB_H;
+      // Grupo e subgrupo na mesma linha — grupo em negrito, subgrupo normal
+      doc.rect(0, y, PW, GRP_H).fill(COR.cinzaMd);
+      doc.fillColor(COR.navy).fontSize(8).font('Helvetica-Bold')
+         .text(nomeGrupo, ML+6, y+(GRP_H-8)/2, { width: CW-12, lineBreak:false, continued:true });
+      doc.fillColor(COR.navySec).fontSize(8).font('Helvetica')
+         .text('  >  '+nomeSub, { width: CW-12, lineBreak:false });
+      y += GRP_H;
 
       for (const r of produtos) {
-        if (y > 800) { doc.addPage(); doc.rect(0,0,PW,PH).fill(COR.branco); y = retomarCabecalho(); }
+        if (y > 800) { doc.addPage(); y = retomarCabecalho(); }
 
-        const bg = idx % 2 === 0 ? COR.branco : COR.cinza;
-        doc.rect(0, y, PW, ROW_H).fill(bg);
+        txt(r.Codigo||'', C.cod.x, y, C.cod.w, ROW_H, { size:7.5, font:'Helvetica' });
+        doc.fillColor(COR.navy).fontSize(7.5).font('Helvetica')
+           .text(String(r.Descricao||''), C.desc.x+4, y+3, { width: C.desc.w-8, lineBreak:true, height: ROW_H-6 });
 
-        txt(r.Codigo||'',                             C.cod.x,  y, C.cod.w,  ROW_H, { size:7.5 });
-        txt(String(r.Descricao||'').substring(0,54),  C.desc.x, y, C.desc.w, ROW_H, { size:7.5 });
-        txt('',                                       C.est.x,  y, C.est.w,  ROW_H, { size:7.5, align:'center' });
-        txt(String(r.Estoque),                        C.sis.x,  y, C.sis.w,  ROW_H, { cor:COR.vermelho, font:'Helvetica-Bold', size:7.5, align:'center' });
+        desenharBoxes(C.dep, y, ROW_H);
+        desenharBoxes(C.loja, y, ROW_H);
 
-        ln_(0,        y+ROW_H, PW,       y+ROW_H, COR.borda, 0.3);
-        ln_(C.desc.x, y,       C.desc.x, y+ROW_H, COR.borda, 0.3);
-        ln_(C.est.x,  y,       C.est.x,  y+ROW_H, COR.borda, 0.3);
-        ln_(C.sis.x,  y,       C.sis.x,  y+ROW_H, COR.borda, 0.3);
+        doc.rect(C.sis.x, y, C.sis.w, ROW_H).fill(COR.cinza);
+        txt(String(r.Estoque), C.sis.x, y, C.sis.w, ROW_H, { cor:COR.preto, font:'Helvetica-Bold', size:9, align:'center' });
 
-        y += ROW_H; idx++;
+        linha(0, y+ROW_H, PW, y+ROW_H, COR.preto, 1);
+        [C.desc.x, C.dep.x, C.loja.x, C.sis.x, PW-MR].forEach(x => linha(x, y, x, y+ROW_H, COR.preto, 0.75));
+
+        y += ROW_H;
       }
     }
   }
 
-  // Rodapé total
-  if (y > 808) { doc.addPage(); doc.rect(0,0,PW,PH).fill(COR.branco); y = retomarCabecalho(); }
-  ln_(ML, y, PW-MR, y, COR.laranja, 0.8);
-  y += 6;
-  doc.fillColor(COR.navySec).fontSize(7.5).font('Helvetica-Bold')
-     .text(`TOTAL: ${itens.length} produto(s) com estoque negativo nesta loja`, ML, y, { width:CW });
+  // Precisa de ~170pt pro total + legenda + regras + assinatura — se não
+  // couber, começa página nova pra não partir esse bloco ao meio.
+  if (y + 170 > PH-20) { doc.addPage(); y = retomarCabecalho(); }
 
-  // Rodapé da página
-  doc.rect(0, PH-20, PW, 20).fill(COR.cinzaMd);
-  ln_(0, PH-20, PW, PH-20, COR.laranja, 1.5);
-  doc.fillColor(COR.navySec).fontSize(6.5).font('Helvetica')
-     .text('ECONÔMICO RELATÓRIOS  |  Gerado automaticamente  |  Uso interno', ML, PH-13, { align:'center', width:CW, lineBreak:false });
+  y += 8;
+  doc.fillColor(COR.navy).fontSize(8.5).font('Helvetica-Bold')
+     .text(`TOTAL: ${itens.length} produto(s) nesta folha`, ML, y, { width:CW });
+  y += 20;
 
-  // retomarCabecalho para novas páginas (sem o header da loja, só colunas)
-  function retomarCabecalho() {
-    doc.rect(0, 0, PW, 2).fill(COR.laranja);
-    doc.rect(0, 2, PW, 28).fill(COR.branco);
-    doc.fillColor(COR.navySec).fontSize(7).font('Helvetica-Bold')
-       .text(`ECONÔMICO RELATÓRIOS  |  Loja ${ln} — ${NOMES_LOJA[ln]||''}  |  (continuação)`, ML, 10, { width:CW, lineBreak:false });
-    const yy = 30;
-    doc.rect(0, yy, PW, COL_H).fill(COR.cinzaMd);
-    ln_(0, yy, PW, yy, COR.borda, 0.5);
-    ln_(0, yy+COL_H, PW, yy+COL_H, COR.borda, 0.5);
-    txt('CÓDIGO',       C.cod.x,  yy, C.cod.w,  COL_H, { cor:COR.navySec, font:'Helvetica-Bold', size:7 });
-    txt('DESCRIÇÃO',    C.desc.x, yy, C.desc.w, COL_H, { cor:COR.navySec, font:'Helvetica-Bold', size:7 });
-    txt('ESTOQUE/LOJA', C.est.x,  yy, C.est.w,  COL_H, { cor:COR.navySec, font:'Helvetica-Bold', size:7, align:'center' });
-    txt('SISTEMA',      C.sis.x,  yy, C.sis.w,  COL_H, { cor:COR.navySec, font:'Helvetica-Bold', size:7, align:'center' });
-    ln_(C.desc.x, yy, C.desc.x, yy+COL_H, COR.borda);
-    ln_(C.est.x,  yy, C.est.x,  yy+COL_H, COR.borda);
-    ln_(C.sis.x,  yy, C.sis.x,  yy+COL_H, COR.borda);
-    return yy + COL_H;
-  }
+  // Legenda + regras de preenchimento
+  const legY = y, legH = 92, colW = (CW-16)/2;
+  doc.lineWidth(1).strokeColor(COR.preto).rect(ML, legY, colW, legH).stroke();
+  doc.lineWidth(1).strokeColor(COR.preto).rect(ML+colW+16, legY, colW, legH).stroke();
+
+  const legendas = [
+    ['Depósito', 'quantidade que você contou no estoque, incluindo o que está em pallet e em caixa fechada.'],
+    ['Loja', 'quantidade que você contou na gôndola, ponta, ilha e check-out.'],
+    ['Sistema', 'saldo negativo que o sistema mostra hoje. Já vem impresso — é só a referência, não preencha.'],
+    ['Quadro pequeno', 'marque X quando a contagem daquele lugar deu zero.'],
+  ];
+  let ly = legY+8;
+  legendas.forEach(([label,desc]) => {
+    doc.fillColor(COR.navy).fontSize(7).font('Helvetica-Bold').text(label, ML+8, ly, { width:70, lineBreak:true });
+    doc.fillColor(COR.navySec).fontSize(6.8).font('Helvetica').text(desc, ML+80, ly, { width:colW-88, lineBreak:true });
+    ly += 21;
+  });
+
+  const regras = [
+    'Preencha os dois lados. Achou só na loja? X no zerado do depósito.',
+    'Nunca deixe uma linha inteira em branco sem anotar o motivo no verso.',
+    'Um algarismo por quadro, caneta preta ou azul escura. Não use lápis.',
+    'Contagem zero: X no quadro pequeno. Não escreva 0 nos quadros grandes.',
+    'Não conseguiu contar: deixe os quadros em branco e anote o motivo no verso.',
+    'Fotografe a folha inteira, com os três quadrados pretos das pontas visíveis.',
+  ];
+  let ry = legY+8;
+  const rx = ML+colW+16+8;
+  regras.forEach(rtxt => {
+    doc.fillColor(COR.navy).fontSize(6).font('Helvetica-Bold').text('•', rx, ry, { width:8, lineBreak:false });
+    doc.fillColor(COR.navySec).fontSize(6.8).font('Helvetica').text(rtxt, rx+8, ry, { width:colW-24, lineBreak:true });
+    ry += 13.5;
+  });
+
+  // Assinatura
+  y = legY + legH + 22;
+  linha(ML, y, ML+180, y, COR.preto, 0.75);
+  linha(PW-MR-160, y, PW-MR, y, COR.preto, 0.75);
+  txt('Aux Prevenção (nome legível)', ML, y+3, 180, 12, { size:7, cor:COR.navySec });
+  txt('Hora da conclusão', PW-MR-160, y+3, 160, 12, { size:7, cor:COR.navySec });
 
   doc.end();
   return new Promise(resolve => doc.on('end', () => resolve({ buffer:Buffer.concat(chunks), total:itens.length })));
