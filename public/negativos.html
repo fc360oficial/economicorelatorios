@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="/design-system.css">
+<script src="/nav.js" defer></script>
+<title>Negativos — Econômico Relatórios</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#EBEBE9; --surface:#FFFFFF; --border:#DADAD6;
+  --ink:#0E1626; --ink-2:#4E5A72; --ink-3:#98A0B3;
+  --brand:#F5B800; --brand-ink:#6B4E00;
+  --font:'InterVar','Inter','Segoe UI',system-ui,-apple-system,sans-serif;
+}
+body{font-family:var(--font);background:var(--bg);color:var(--ink);min-height:100vh}
+.main{padding:24px;display:flex;flex-direction:column;height:100vh}
+.page-hdr{margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+.page-hdr h1{font-size:21px;font-weight:800;color:var(--ink)}
+.page-hdr p{font-size:12px;color:var(--ink-3);margin-top:2px}
+.btn{border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font)}
+.btn-blue{background:var(--brand);color:var(--brand-ink)}
+.btn-blue:hover{background:#E5AC00}
+.btn-blue:disabled{opacity:.5;cursor:not-allowed}
+#status{font-size:12px;color:var(--ink-3);margin-top:6px}
+.frame-wrap{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:0 1px 2px rgba(22,35,63,.04)}
+.frame-wrap iframe{width:100%;height:100%;border:none;display:block}
+</style>
+</head>
+<body class="ds">
+<div class="main">
+  <div class="page-hdr">
+    <div>
+      <h1>Negativos</h1>
+      <p>Upload das folhas de conferência, leitura automática e revisão antes de lançar no ERP.</p>
+    </div>
+    <div>
+      <button class="btn btn-blue" id="btnReenviar" onclick="reenviar()">Reenviar negativos no grupo</button>
+      <div id="status"></div>
+    </div>
+  </div>
+  <div class="frame-wrap">
+    <iframe src="/negativos-agent/"></iframe>
+  </div>
+</div>
+
+<script>
+async function reenviar() {
+  const btn = document.getElementById('btnReenviar');
+  const st = document.getElementById('status');
+  btn.disabled = true;
+  st.textContent = 'Enviando...';
+  try {
+    const r = await fetch('/api/negativos/reenviar-ui', { method: 'POST' });
+    const j = await r.json();
+    st.textContent = r.ok
+      ? (j.total ? `Reenviado — ${j.total} produto(s) negativos.` : (j.msg || 'Nenhum estoque negativo agora.'))
+      : ('Falhou: ' + (j.error || r.status));
+  } catch (e) {
+    st.textContent = 'Falhou: ' + e.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+</script>
+</body>
+</html>

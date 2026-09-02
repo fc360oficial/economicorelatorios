@@ -1,6 +1,7 @@
 const express = require('express');
 const mysql = require('mysql2/promise');
 const path = require('path');
+const http = require('http');
 const session = require('express-session');
 const FileStore = require('session-file-store')(session);
 const bcrypt = require('bcryptjs');
@@ -101,7 +102,14 @@ function enriquecerComPlanoContas(candidatosRaw, plano) {
 }
 
 const app = express();
-app.use(express.json({ limit: '10mb' }));
+// /negativos-agent fica de fora do body-parser global: é proxy puro pro
+// processo negativos-agent (porta 4300), e precisa do corpo da requisição
+// intacto pra repassar (upload de fotos passa de 10mb — o limite daqui nem
+// se aplicaria a ele, viraria só um consumo inútil do stream).
+app.use((req, res, next) => {
+  if (req.path.startsWith('/negativos-agent')) return next();
+  express.json({ limit: '10mb' })(req, res, next);
+});
 
 // Versão do processo — muda a cada deploy/restart, usada pra avisar o
 // usuário que o app foi atualizado (ver /api/versao).
@@ -3863,6 +3871,40 @@ app.get('/api/negativos/reenviar', async (req, res) => {
   } catch (err) {
     res.status(502).json({ error: 'negativos-wpp não respondeu (serviço fora do ar?): ' + err.message });
   }
+});
+
+// Mesmo gatilho acima, mas pro botão da aba Negativos (public/negativos.html)
+// — usa a sessão logada em vez do token de deploy, que não devia ficar
+// exposto no front-end.
+app.post('/api/negativos/reenviar-ui', async (req, res) => {
+  if (!req.session.user) return res.status(401).json({ error: 'Não autenticado.' });
+  try {
+    const r = await fetch('http://127.0.0.1:3010/reenviar-negativos');
+    const texto = await r.text();
+    res.status(r.status).type('json').send(texto);
+  } catch (err) {
+    res.status(502).json({ error: 'negativos-wpp não respondeu (serviço fora do ar?): ' + err.message });
+  }
+});
+
+// Proxy autenticado pro negativos-agent (processo separado, porta 4300 só em
+// localhost) — a aba Negativos embeda esse app via iframe em /negativos-agent/.
+// Fica atrás da sessão do Econômico Relatórios porque o negativos-agent em si
+// não tem login próprio.
+app.use('/negativos-agent', (req, res) => {
+  if (!req.session.user) return res.status(401).send('Não autenticado.');
+  const upstreamPath = req.originalUrl.replace(/^\/negativos-agent/, '') || '/';
+  const proxyReq = http.request({
+    hostname: '127.0.0.1', port: 4300,
+    path: upstreamPath, method: req.method, headers: req.headers,
+  }, proxyRes => {
+    res.writeHead(proxyRes.statusCode, proxyRes.headers);
+    proxyRes.pipe(res);
+  });
+  proxyReq.on('error', err => {
+    if (!res.headersSent) res.status(502).send('negativos-agent não respondeu: ' + err.message);
+  });
+  req.pipe(proxyReq);
 });
 
 // Injeta manualmente um valor congelado de Avaria/Prevenção pra um mês

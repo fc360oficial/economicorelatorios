@@ -58,7 +58,8 @@
         { href: '/ponta-gondola.html',       ic: 'store', txt: 'Ponta de Gôndola' }
       ]},
     { id: 'processos', ic: 'folder', txt: 'Processos', sub: [
-        { href: '/pendencias.html', ic: 'alert', txt: 'Pendências' }
+        { href: '/pendencias.html', ic: 'alert', txt: 'Pendências' },
+        { href: '/negativos.html', ic: 'alert', txt: 'Negativos' }
       ]},
     { id: 'prevencao', ic: 'shield', txt: 'Prevenção', sub: [
         { href: '/prevencao.html', ic: 'shield', txt: 'Fechamento de Mês' }
