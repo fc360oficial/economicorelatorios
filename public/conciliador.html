@@ -185,9 +185,12 @@ table.t th:nth-child(3),table.t td.plano-td{width:150px;max-width:150px}
 <body class="ds">
 
 <div class="main">
-  <div class="page-hdr">
-    <h1>Conciliador Bancário</h1>
-    <p>Cole as saídas do extrato do banco e cruze com os títulos de contas a pagar do ERP</p>
+  <div class="page-hdr" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+    <div>
+      <h1>Conciliador Bancário</h1>
+      <p>Cole as saídas do extrato do banco e cruze com os títulos de contas a pagar do ERP</p>
+    </div>
+    <button class="btn btn-slate" id="btn-gerenciar-regras" style="display:none" onclick="abrirGerenciarRegras()">Gerenciar regras</button>
   </div>
 
   <div class="entrada">
@@ -245,6 +248,7 @@ function ehAdmin() { return !!(usuarioAtual && usuarioAtual.perfil === 'admin');
     const r = await fetch('/api/me');
     if (r.ok) usuarioAtual = await r.json();
   } catch (e) { /* segue sem admin — checkbox/botões de regra ficam escondidos */ }
+  if (ehAdmin()) document.getElementById('btn-gerenciar-regras').style.display = 'inline-block';
 })();
 
 const CAT_LABEL = {
@@ -994,6 +998,51 @@ function aplicarConciliacaoLocal(it, novoStatus, extra) {
   it.candidatos = [];
   dados.resumo[antigo]--;
   dados.resumo[novoStatus] = (dados.resumo[novoStatus] || 0) + 1;
+}
+
+/* ── GERENCIAMENTO DE REGRAS (admin) ── */
+async function abrirGerenciarRegras() {
+  document.getElementById('popup').innerHTML = '<div class="spinner" style="margin:40px auto"></div>';
+  document.getElementById('popup').classList.add('on');
+  document.getElementById('backdrop').classList.add('on');
+  try {
+    const r = await fetch('/api/conciliador/regras');
+    const regras = await r.json();
+    if (!r.ok) throw new Error(regras.error || 'Erro ao carregar regras');
+    document.getElementById('popup').innerHTML = renderGerenciarRegras(regras);
+  } catch (e) {
+    document.getElementById('popup').innerHTML = `${BTN_FECHAR}<div class="popup-bd"><div class="err">Erro: ${e.message}</div></div>`;
+  }
+}
+
+function renderGerenciarRegras(regras) {
+  const linhas = regras.length
+    ? regras.map(reg => `
+        <div class="cand-item2">
+          <div class="nm">${reg.beneficiarioOriginal || reg.beneficiarioNormalizado}</div>
+          <div class="meta">
+            <span>${reg.tipo === 'fornecedor' ? `→ ${reg.fornecedorNome || 'fornecedor #' + reg.codFornec}` : 'Auto-dispensar'} · criado por ${reg.criadoPor} em ${new Date(reg.criadoEm).toLocaleDateString('pt-BR')}</span>
+          </div>
+          <button class="btn btn-slate" style="margin-top:6px;font-size:11px;padding:5px 10px" onclick="excluirRegra('${reg.id}')">Excluir</button>
+        </div>`).join('')
+    : '<div class="empty" style="padding:14px 0">Nenhuma regra criada ainda.</div>';
+
+  return `
+    ${BTN_FECHAR}
+    <div class="popup-hd"><div><h2>Regras de conciliação</h2><div class="sub">${regras.length} ativa(s)</div></div></div>
+    <div class="popup-bd"><div class="cand-list">${linhas}</div></div>`;
+}
+
+async function excluirRegra(id) {
+  if (!confirm('Excluir essa regra? O beneficiário volta a cair em conferência manual nos próximos meses.')) return;
+  try {
+    const r = await fetch(`/api/conciliador/regras/${id}`, { method: 'DELETE' });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Erro ao excluir');
+    abrirGerenciarRegras();
+  } catch (e) {
+    alert('Erro: ' + e.message);
+  }
 }
 </script>
 </body>
