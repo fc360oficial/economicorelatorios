@@ -8,8 +8,9 @@ const bcrypt = require('bcryptjs');
 const fs = require('fs');
 const crypto = require('crypto');
 const { exec } = require('child_process');
-const { parseSaidas, parseSaidasOfx, parseSaidasApi } = require('./lib/extrato-parser');
+const { parseSaidas, parseSaidasOfx, parseSaidasApi, parseEntradas, parseEntradasOfx, parseEntradasApi } = require('./lib/extrato-parser');
 const { conciliar, addDias, similaridadeNome, normalizarNome, TOLERANCIA_DIAS: TOLERANCIA_CONCILIADOR, chaveSaida, aplicarAvulsos, aplicarRegras } = require('./lib/conciliador');
+const { conciliarEntradas } = require('./lib/conciliador-entradas');
 const multer = require('multer');
 const pontaGondola = require('./lib/ponta-gondola');
 
@@ -4988,6 +4989,95 @@ app.get('/api/conciliador-cd/nota-detalhe', async (req, res) => {
     res.status(500).json({ error: err.message || 'Erro ao buscar detalhe da nota.' });
   }
 });
+
+// ── CONCILIAÇÃO DE ENTRADAS ──────────────────────────────
+// Cruza as entradas (valor positivo) de um extrato bancário com faturas de
+// crediário/B2B do ERP (cargaaux.fatura / cargaaux.faturabaixa) — mesmo
+// espírito da Conciliação de Saídas, mas pro que entrou na conta. Cartão
+// débito/crédito não casa linha a linha (ERP não tem lançamento diário por
+// forma de pagamento nessa instalação) — vira conferência agregada contra
+// dashboard.tipovendas. Ver docs/superpowers/specs/2026-09-03-conciliacao-entradas-design.md.
+
+async function buscarCandidatosFatura(loja, dIni, dFim) {
+  return q(`
+    SELECT f.nFatura, f.CodCliente, f.Nloja,
+           DATE_FORMAT(f.DataVenda,'%Y-%m-%d') as DataVenda,
+           DATE_FORMAT(f.DataVencto,'%Y-%m-%d') as DataVencto,
+           f.Valor, f.EmAberto,
+           cl.Nome as NomeCliente, cl.Empresa,
+           DATE_FORMAT(fb.DataPagto,'%Y-%m-%d') as DataPagto, fb.ValorPago
+    FROM cargaaux.fatura f
+    LEFT JOIN cargaaux.cliente cl ON cl.CodCliente = f.CodCliente
+    LEFT JOIN (
+      SELECT b1.nFatura, b1.DataPagto, b1.ValorPago
+      FROM cargaaux.faturabaixa b1
+      INNER JOIN (
+        SELECT nFatura, MAX(DataPagto) as maxData FROM cargaaux.faturabaixa GROUP BY nFatura
+      ) b2 ON b2.nFatura = b1.nFatura AND b2.maxData = b1.DataPagto
+    ) fb ON fb.nFatura = f.nFatura
+    WHERE f.Nloja = ? AND f.DataVencto BETWEEN ? AND ?
+  `, [loja, dIni, dFim]);
+}
+
+// Soma o total de vendas por forma de pagamento (dashboard.tipovendas) pros
+// meses cobertos pelo período do extrato — só granularidade mensal existe
+// pra cartão (ver spec), então a comparação é sempre por mês inteiro, nunca
+// por dia.
+async function buscarTotalCartaoMes(loja, meses) {
+  if (!meses.length) return [];
+  const condicoes = meses.map(() => '(Ano=? AND Mes=?)').join(' OR ');
+  const params = [loja];
+  meses.forEach(m => params.push(m.ano, m.mes));
+  const rows = await q(
+    `SELECT Ano, Mes, TipoPagto, SUM(Total) as total FROM dashboard.tipovendas
+     WHERE nLoja=? AND (${condicoes}) GROUP BY Ano, Mes, TipoPagto`,
+    params
+  );
+  return rows.map(r => ({ ano: r.Ano, mes: r.Mes, tipo: pagtoLabels[r.TipoPagto] || `Tipo ${r.TipoPagto}`, total: parseFloat(r.total) }));
+}
+
+function mesesEntrePeriodo(dIni, dFim) {
+  const meses = [];
+  let [ano, mes] = dIni.split('-').map(Number);
+  const [anoFim, mesFim] = dFim.split('-').map(Number);
+  while (ano < anoFim || (ano === anoFim && mes <= mesFim)) {
+    meses.push({ ano, mes });
+    mes++;
+    if (mes > 12) { mes = 1; ano++; }
+  }
+  return meses;
+}
+
+async function processarConciliacaoEntradas(entradas, loja) {
+  const datas = entradas.map(e => e.data).sort();
+  const dIni = addDias(datas[0], -TOLERANCIA_CONCILIADOR);
+  const dFim = addDias(datas[datas.length - 1], TOLERANCIA_CONCILIADOR);
+
+  const candidatos = await buscarCandidatosFatura(loja, dIni, dFim);
+  const itens = conciliarEntradas(entradas, candidatos);
+
+  const resumo = { conciliado: 0, baixa_pendente: 0, revisar: 0, nao_encontrado: 0, cartao: 0, fora_escopo: 0 };
+  let totalValor = 0;
+  for (const it of itens) { resumo[it.status]++; totalValor += it.valor; }
+
+  const meses = mesesEntrePeriodo(datas[0], datas[datas.length - 1]);
+  const cartaoBanco = itens.filter(it => it.status === 'cartao').reduce((s, it) => s + it.valor, 0);
+  const cartaoErp = await buscarTotalCartaoMes(loja, meses);
+  const cartaoErpTotal = cartaoErp
+    .filter(c => c.tipo === 'PIX / Débito' || c.tipo === 'Crédito')
+    .reduce((s, c) => s + c.total, 0);
+
+  return {
+    loja, total: itens.length, totalValor: +totalValor.toFixed(2), resumo, itens,
+    cartao: {
+      totalBanco: +cartaoBanco.toFixed(2),
+      totalErp: +cartaoErpTotal.toFixed(2),
+      diferenca: +(cartaoBanco - cartaoErpTotal).toFixed(2),
+      meses,
+      semDadoErp: cartaoErp.length === 0
+    }
+  };
+}
 
 // ── API DE EXTRATO DO ITAÚ ───────────────────────────────────────────
 // Teste manual da integração direta com o Itaú (ver lib/itau-extrato.js).
