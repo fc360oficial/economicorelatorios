@@ -4652,6 +4652,18 @@ app.post('/api/conciliador/confirmar-regra', requireAdmin, async (req, res) => {
   }
 });
 
+app.get('/api/conciliador/regras', requireAdmin, (req, res) => {
+  res.json(carregarRegras());
+});
+
+app.delete('/api/conciliador/regras/:id', requireAdmin, (req, res) => {
+  const regras = carregarRegras();
+  const restante = regras.filter(r => r.id !== req.params.id);
+  if (restante.length === regras.length) return res.status(404).json({ error: 'Regra não encontrada.' });
+  salvarRegras(restante);
+  res.json({ ok: true });
+});
+
 // ── CONCILIADOR CD — SAÍDAS POR DESTINATÁRIO ────────────
 // O CD tem conta bancária própria (sem títulos no ERP das lojas pra cruzar),
 // então aqui não há casamento com contasapagar — só organiza as saídas do
