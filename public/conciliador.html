@@ -755,9 +755,12 @@ function renderPopup(it) {
     const badgeRegra = m.regraAplicada
       ? `<div style="color:var(--ink-3);font-size:11px;margin-bottom:8px">✓ Conciliado por regra criada por ${m.regraAplicada.criadoPor} em ${new Date(m.regraAplicada.criadoEm).toLocaleDateString('pt-BR')}</div>`
       : '';
+    const temGapValor = Math.abs(m.diferencaValor || 0) > 0.005;
     corpo = `
       ${badgeRegra}
       <div class="popup-row"><span class="k">Valor do extrato</span><span class="v">${fmtMoeda(it.valor)}</span></div>
+      ${temGapValor ? `<div class="popup-row"><span class="k">Valor no ERP</span><span class="v">${fmtMoeda(m.valor)}</span></div>
+      <div class="popup-row"><span class="k">Diferença</span><span class="v" style="color:var(--amber)">${m.diferencaValor > 0 ? '+' : ''}${fmtMoeda(m.diferencaValor)}</span></div>` : ''}
       <div class="popup-row"><span class="k">Loja</span><span class="v">${m.filial != null ? 'Loja ' + m.filial : '—'}</span></div>
       <div class="popup-row"><span class="k">NF / documento</span><span class="v">${m.historico || 'sem NF'}</span></div>
       <div class="popup-row"><span class="k">Vencimento no ERP</span><span class="v">${fmtData(m.dataVencto)}</span></div>
@@ -766,7 +769,7 @@ function renderPopup(it) {
       ${composicaoValorHtml(m)}
 
       <div class="popup-sec">Por que casou</div>
-      ${linhaCheck(true, 'Valor idêntico ao título do ERP')}
+      ${linhaCheck(!temGapValor, temGapValor ? 'Valor próximo do título do ERP (dentro da tolerância de regra)' : 'Valor idêntico ao título do ERP')}
       ${linhaCheck(m.similaridade > 0.5, 'Nome do favorecido bate com o fornecedor', m.similaridade > 0.5 ? 'compatível' : 'parcial')}
       ${linhaCheck(m.diffDias <= 2, m.diffDias === 0 ? 'Pago no dia do vencimento' : `Pago ${m.diffDias} dia(s) do vencimento`)}
       ${it.status === 'pago_sem_baixa' ? linhaCheck(false, 'ERP ainda não deu baixa nesse título — o dinheiro já saiu do banco') : ''}
@@ -789,19 +792,22 @@ function renderPopup(it) {
           </div>`).join('')}
       </div>`;
   } else {
+    const dispensadoRegra = it.status === 'dispensado_regra';
     corpo = `
       <div class="popup-row"><span class="k">Valor do extrato</span><span class="v">${fmtMoeda(it.valor)}</span></div>
       <div class="popup-row"><span class="k">Data</span><span class="v">${it.dataBr}</span></div>
-      <div class="popup-sec">${it.status === 'fora_escopo' ? 'Fora do escopo' : 'Sem correspondência'}</div>
+      <div class="popup-sec">${dispensadoRegra ? 'Dispensado por regra' : it.status === 'fora_escopo' ? 'Fora do escopo' : 'Sem correspondência'}</div>
       <div style="color:var(--ink-3);font-size:12px">
-        ${it.status === 'fora_escopo'
+        ${dispensadoRegra
+          ? 'Um admin marcou esse beneficiário pra não precisar de conferência manual — veja em "Gerenciar regras" quem criou e quando.'
+          : it.status === 'fora_escopo'
           ? 'Essa categoria (tributo, tarifa, salário, aplicação) não é pagamento a fornecedor, então não tentamos casar com o ERP.'
           : 'Não achamos nenhum título no ERP com esse valor dentro da janela de vencimento considerada.'}
       </div>
       ${it.status === 'fora_escopo' && ehAdmin() ? renderDispensarRegra() : ''}`;
   }
 
-  const podeConciliarManual = it.status !== 'fora_escopo' && it.status !== 'conciliado_avulso';
+  const podeConciliarManual = it.status !== 'fora_escopo' && it.status !== 'conciliado_avulso' && it.status !== 'dispensado_regra';
 
   return `
     ${BTN_FECHAR}
@@ -827,10 +833,16 @@ function renderConciliacaoManual() {
 
 /* ── DISPENSAR RECORRENTE (categorias fora do escopo, sem título pra vincular) ── */
 function renderDispensarRegra() {
+  const it = itensAtuais[popupIdx];
+  const chave = it.favorecido || it.historico;
   return `
     <div class="popup-sec">Não é um caso de fornecedor</div>
     <div id="dispensar-box">
-      <div style="color:var(--ink-3);font-size:11.5px;margin-bottom:8px">Beneficiários recorrentes desse tipo (ex: salário, tributo) podem sair da fila de conferência pra sempre.</div>
+      <div style="color:var(--ink-3);font-size:11.5px;margin-bottom:4px">Beneficiários recorrentes desse tipo (ex: salário, tributo) podem sair da fila de conferência pra sempre.</div>
+      <div style="background:var(--bg);border:1px solid var(--border-strong);border-radius:6px;padding:6px 8px;margin-bottom:8px;font-size:11px;color:var(--ink-2);font-family:ui-monospace,Consolas,monospace">
+        Chave salva: <b>${chave}</b><br>
+        <span style="color:var(--ink-3)">Se esse texto tiver número/data que muda todo mês (ex: competência da folha), a regra não vai bater de novo — confira antes de confirmar.</span>
+      </div>
       <button class="btn btn-slate" style="width:100%" onclick="mostrarSenhaDispensar()">Não preciso ver isso de novo</button>
     </div>`;
 }
@@ -955,7 +967,7 @@ async function confirmarAvulso() {
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || 'Erro ao confirmar regra');
-      aplicarConciliacaoLocal(it, 'conciliado_avulso', { regraAplicada: j.regra });
+      aplicarConciliacaoLocal(it, 'conciliado_avulso', { justificativa, regraAplicada: j.regra });
       fecharPopup();
       render();
     } catch (e) {
