@@ -4447,8 +4447,8 @@ app.post('/api/conciliador/processar', async (req, res) => {
 });
 
 // Mesma conciliação acima, mas a origem do extrato é a API oficial do Itaú
-// (lib/itau-extrato.js) em vez de texto colado — só disponível pras contas
-// já liberadas pelo banco (hoje: cahu, muribeca — ver data/itau/config.json).
+// (lib/itau-extrato.js) em vez de texto colado — disponível pras 6 contas
+// do grupo, todas liberadas pelo banco (ver data/itau/config.json).
 // A loja (Filial do ERP) continua escolhida manualmente pelo usuário, igual
 // ao fluxo de colar texto — não existe hoje um mapeamento automático
 // confiável de conta bancária pra número de Filial no ERP.
