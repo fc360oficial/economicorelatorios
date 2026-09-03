@@ -4574,6 +4574,84 @@ app.post('/api/conciliador/confirmar-avulso', (req, res) => {
   }
 });
 
+// Confirma uma regra permanente (alias fornecedor ou auto-dispensar) — exige
+// reautenticação por senha (a própria senha de login do usuário, restrita a
+// perfil admin via requireAdmin) porque a regra passa a agir sozinha todo
+// mês, sem conferência manual. Ver lib/conciliador.js (aplicarRegras) pra
+// como a regra entra no motor de match.
+app.post('/api/conciliador/confirmar-regra', requireAdmin, async (req, res) => {
+  try {
+    const { tipo, saida, senha, escolha, beneficiario } = req.body || {};
+    if (!senha) return res.status(400).json({ error: 'Informe a senha pra confirmar definitivamente.' });
+    if (tipo !== 'fornecedor' && tipo !== 'dispensar') return res.status(400).json({ error: 'Tipo de regra inválido.' });
+
+    const usuarioAtual = usuarios.find(u => u.id === req.session.user.id);
+    const senhaOk = usuarioAtual && await bcrypt.compare(String(senha), usuarioAtual.senha_hash);
+    if (!senhaOk) return res.status(401).json({ error: 'Senha incorreta.' });
+
+    const beneficiarioOriginal = (saida && saida.favorecido) || beneficiario;
+    const beneficiarioNorm = normalizarNome(beneficiarioOriginal);
+    if (!beneficiarioNorm) return res.status(400).json({ error: 'Beneficiário não informado.' });
+
+    if (tipo === 'fornecedor' && (!escolha || !escolha.codFornec)) {
+      return res.status(400).json({ error: 'Escolha um título do ERP antes de confirmar a regra.' });
+    }
+
+    const regras = carregarRegras();
+    const idx = regras.findIndex(r => r.beneficiarioNormalizado === beneficiarioNorm && r.tipo === tipo);
+    const agora = new Date().toISOString();
+    const registro = tipo === 'fornecedor'
+      ? {
+          id: idx >= 0 ? regras[idx].id : crypto.randomUUID(),
+          tipo: 'fornecedor',
+          beneficiarioNormalizado: beneficiarioNorm,
+          beneficiarioOriginal,
+          codFornec: escolha.codFornec,
+          fornecedorNome: escolha.fornecedor,
+          criadoPor: req.session.user.nome,
+          criadoEm: agora
+        }
+      : {
+          id: idx >= 0 ? regras[idx].id : crypto.randomUUID(),
+          tipo: 'dispensar',
+          beneficiarioNormalizado: beneficiarioNorm,
+          beneficiarioOriginal,
+          criadoPor: req.session.user.nome,
+          criadoEm: agora
+        };
+
+    if (idx >= 0) regras[idx] = registro; else regras.push(registro);
+    salvarRegras(regras);
+
+    // Também grava/atualiza o avulso do mês corrente (regra 'fornecedor' com
+    // saída informada), pra o item já sair conciliado nessa mesma consulta
+    // sem precisar esperar reprocessar o extrato inteiro.
+    if (tipo === 'fornecedor' && saida && escolha) {
+      const lista = carregarAvulsos();
+      const chave = chaveSaida(saida);
+      const avulso = {
+        chave, data: saida.data, valorSaida: saida.valor, historicoSaida: saida.historico,
+        favorecidoSaida: saida.favorecido, nReg: escolha.nReg, fornecedor: escolha.fornecedor,
+        codFornec: escolha.codFornec, valorErp: escolha.valor, dataVencto: escolha.dataVencto,
+        historicoErp: escolha.historico, filial: escolha.filial, planoGrupo: escolha.planoGrupo,
+        planoSub: escolha.planoSub, planoGrupoNome: escolha.planoGrupoNome, planoSubNome: escolha.planoSubNome,
+        acrescimo: escolha.acrescimo, multa: escolha.multa, juros: escolha.juros, desconto: escolha.desconto,
+        devolucao: escolha.devolucao, valorBruto: escolha.valorBruto,
+        justificativa: `Regra automática: ${registro.fornecedorNome}`,
+        confirmadoEm: agora, confirmadoPor: registro.criadoPor
+      };
+      const idxA = lista.findIndex(a => a.chave === chave);
+      if (idxA >= 0) lista[idxA] = avulso; else lista.push(avulso);
+      salvarAvulsos(lista);
+    }
+
+    res.json({ ok: true, regra: registro });
+  } catch (err) {
+    console.error('[CONCILIADOR-REGRA-ERR]', err.message);
+    res.status(500).json({ error: err.message || 'Erro ao confirmar regra.' });
+  }
+});
+
 // ── CONCILIADOR CD — SAÍDAS POR DESTINATÁRIO ────────────
 // O CD tem conta bancária própria (sem títulos no ERP das lojas pra cruzar),
 // então aqui não há casamento com contasapagar — só organiza as saídas do
