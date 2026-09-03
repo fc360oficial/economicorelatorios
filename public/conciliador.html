@@ -839,15 +839,26 @@ function renderPopup(it) {
     </div>
     <div class="popup-bd">
       ${corpo}
-      ${podeConciliarManual ? renderConciliacaoManual() : ''}
+      ${podeConciliarManual ? renderConciliacaoManual(it) : ''}
     </div>`;
 }
 
+// Aviso reaproveitado em todas as etapas do fluxo manual (busca, escolha,
+// confirmação) — item "pago_sem_baixa" já casou com o título certo, mas
+// esse título ainda está em aberto no ERP; confirmar manualmente não dá
+// baixa lá, só registra a conciliação aqui.
+function avisoSemBaixaHtml(it) {
+  return it && it.status === 'pago_sem_baixa'
+    ? `<div style="background:var(--red-bg);border:1px solid var(--red);color:var(--red);border-radius:8px;padding:8px 10px;font-size:11.5px;margin-bottom:8px">⚠ Esse título ainda não teve baixa dada no ERP. Confirmar manualmente aqui não substitui a baixa — ela continua precisando ser feita no ERP financeiro.</div>`
+    : '';
+}
+
 /* ── CONCILIAÇÃO MANUAL (juros/multa deixam o valor pago diferente do título) ── */
-function renderConciliacaoManual() {
+function renderConciliacaoManual(it) {
   return `
     <div class="popup-sec">Conciliar manualmente</div>
     <div id="concman-box">
+      ${avisoSemBaixaHtml(it)}
       <div style="color:var(--ink-3);font-size:11.5px;margin-bottom:8px">Pra casos de boleto pago com juros/multa (valor não bate exato) — busca títulos do ERP com valor próximo.</div>
       <button class="btn btn-slate" style="width:100%" onclick="buscarProximos()">Buscar títulos próximos</button>
     </div>`;
@@ -941,6 +952,7 @@ function escolherCandidato(i) {
   const box = document.getElementById('concman-box');
   const it = itensAtuais[popupIdx];
   box.innerHTML = `
+    ${avisoSemBaixaHtml(it)}
     <div class="cand-item2" style="margin-bottom:10px">
       <div class="nm">${candidatoEscolhido.fornecedor}</div>
       <div class="meta"><span>${candidatoEscolhido.historico || 'sem NF'}</span><span>${fmtMoeda(candidatoEscolhido.valor)}</span></div>
@@ -953,6 +965,7 @@ function escolherCandidato(i) {
       Confirmar definitivamente (vira regra pra sempre pra esse fornecedor)
     </label>
     <div id="box-senha-regra" style="display:none;margin-top:6px">
+      <div style="background:var(--amber-bg);border:1px solid var(--amber);color:var(--amber-ink,var(--amber));border-radius:8px;padding:8px 10px;font-size:11.5px;margin-bottom:6px">⚠ Você está confirmando definitivamente — isso vira uma regra permanente, que passa a conciliar esse fornecedor sozinha todo mês, sem revisão manual.</div>
       <input type="password" id="txt-senha-regra" placeholder="Sua senha de login" style="width:100%;height:34px;padding:0 10px;background:var(--bg);border:1px solid var(--border-strong);border-radius:8px;font-family:var(--font);font-size:12.5px;outline:none">
     </div>` : ''}
     <div style="display:flex;gap:8px;margin-top:8px">
