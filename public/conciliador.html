@@ -260,11 +260,13 @@ const CAT_LABEL = {
 
 const STATUS_LABEL = {
   conciliado: 'Conciliado', conciliado_avulso: 'Conciliado avulso', pago_sem_baixa: 'Pago sem baixa no ERP',
+  baixa_pendente: 'Baixa pendente no ERP',
   divergencia: 'Divergência de valor', revisar: 'Revisar', nao_encontrado: 'Não encontrado', fora_escopo: 'Fora do escopo',
   dispensado_regra: 'Dispensado (regra)'
 };
 const STATUS_PILL = {
   conciliado: 'pill-ok', conciliado_avulso: 'pill-ok', pago_sem_baixa: 'pill-alerta',
+  baixa_pendente: 'pill-revisar',
   divergencia: 'pill-revisar', revisar: 'pill-revisar', nao_encontrado: 'pill-neutro', fora_escopo: 'pill-neutro',
   dispensado_regra: 'pill-neutro'
 };
@@ -439,6 +441,7 @@ function render() {
   html += kpiCard('conciliado', r.conciliado, 'Conciliado', 'var(--green)', totalPorStatus.conciliado || 0);
   html += kpiCard('conciliado_avulso', r.conciliado_avulso, 'Conciliado avulso', 'var(--green)', totalPorStatus.conciliado_avulso || 0);
   html += kpiCard('pago_sem_baixa', r.pago_sem_baixa, 'Pago sem baixa no ERP', 'var(--red)', totalPorStatus.pago_sem_baixa || 0);
+  html += kpiCard('baixa_pendente', r.baixa_pendente || 0, 'Baixa pendente no ERP', 'var(--amber)', totalPorStatus.baixa_pendente || 0);
   html += kpiCard('revisar', r.revisar, 'Revisar', 'var(--amber)', totalPorStatus.revisar || 0);
   html += kpiCard('nao_encontrado', r.nao_encontrado, 'Não encontrado', 'var(--ink-2)', totalPorStatus.nao_encontrado || 0);
   html += kpiCard('fora_escopo', r.fora_escopo, 'Fora do escopo', 'var(--ink-3)', totalPorStatus.fora_escopo || 0);
@@ -788,6 +791,7 @@ function renderPopup(it) {
       <div class="popup-row"><span class="k">Vencimento no ERP</span><span class="v">${fmtData(m.dataVencto)}</span></div>
       ${m.planoSubNome ? `<div class="popup-row"><span class="k">Plano de Contas</span><span class="v">${m.planoGrupo}.${m.planoSub} ${m.planoSubNome}</span></div>` : ''}
       ${it.status === 'pago_sem_baixa' ? `<div class="popup-row"><span class="k">Devedor no ERP</span><span class="v" style="color:var(--red)">${fmtMoeda(m.devedor)}</span></div>` : ''}
+      ${it.status === 'baixa_pendente' ? `<div class="popup-row"><span class="k">Devedor no ERP</span><span class="v" style="color:var(--amber)">${fmtMoeda(m.devedor)}</span></div>` : ''}
       ${composicaoValorHtml(m)}
 
       <div class="popup-sec">Por que casou</div>
@@ -795,6 +799,7 @@ function renderPopup(it) {
       ${linhaCheck(m.similaridade > 0.5, 'Nome do favorecido bate com o fornecedor', m.similaridade > 0.5 ? 'compatível' : 'parcial')}
       ${linhaCheck(m.diffDias <= 2, m.diffDias === 0 ? 'Pago no dia do vencimento' : `Pago ${m.diffDias} dia(s) do vencimento`)}
       ${it.status === 'pago_sem_baixa' ? linhaCheck(false, 'ERP ainda não deu baixa nesse título — o dinheiro já saiu do banco') : ''}
+      ${it.status === 'baixa_pendente' ? linhaCheck(false, 'Pagamento já foi lançado e bateu com o banco no ERP — só falta confirmar a baixa do título lá (botão "Baixar")') : ''}
 
       <div class="conf"><span class="k">Confiança do match</span><span class="v" style="color:${m.confianca >= 85 ? 'var(--green)' : 'var(--amber)'}">${m.confianca}%</span></div>`;
   } else if (it.candidatos && it.candidatos.length) {
@@ -848,9 +853,13 @@ function renderPopup(it) {
 // esse título ainda está em aberto no ERP; confirmar manualmente não dá
 // baixa lá, só registra a conciliação aqui.
 function avisoSemBaixaHtml(it) {
-  return it && it.status === 'pago_sem_baixa'
-    ? `<div style="background:var(--red-bg);border:1px solid var(--red);color:var(--red);border-radius:8px;padding:8px 10px;font-size:11.5px;margin-bottom:8px">⚠ Esse título ainda não teve baixa dada no ERP. Confirmar manualmente aqui não substitui a baixa — ela continua precisando ser feita no ERP financeiro.</div>`
-    : '';
+  if (it && it.status === 'pago_sem_baixa') {
+    return `<div style="background:var(--red-bg);border:1px solid var(--red);color:var(--red);border-radius:8px;padding:8px 10px;font-size:11.5px;margin-bottom:8px">⚠ Esse título ainda não teve baixa dada no ERP. Confirmar manualmente aqui não substitui a baixa — ela continua precisando ser feita no ERP financeiro.</div>`;
+  }
+  if (it && it.status === 'baixa_pendente') {
+    return `<div style="background:var(--amber-bg);border:1px solid var(--amber);color:var(--amber);border-radius:8px;padding:8px 10px;font-size:11.5px;margin-bottom:8px">⚠ O pagamento já foi lançado e bateu com o banco no ERP, mas falta confirmar a baixa do título lá (botão "Baixar"). Confirmar manualmente aqui não faz isso por você.</div>`;
+  }
+  return '';
 }
 
 /* ── CONCILIAÇÃO MANUAL (juros/multa deixam o valor pago diferente do título) ── */

@@ -4413,7 +4413,8 @@ async function processarConciliacao(saidas, loja) {
   const candidatosRaw = await q(`
     SELECT a.nReg, a.Valor, a.Devedor, DATE_FORMAT(a.DataVencto,'%Y-%m-%d') as DataVencto,
            a.CodFornec, a.Historico, a.Filial, a.PlanoGrupo, a.PlanoSub,
-           a.Acrescimo, a.Multa, a.Juros, a.Desconto, a.Devolucao, a.ValorBruto, f.Nome, f.NomeCompleto
+           a.Acrescimo, a.Multa, a.Juros, a.Desconto, a.Devolucao, a.ValorBruto, f.Nome, f.NomeCompleto,
+           (SELECT COUNT(*) FROM loja20045.contasapagarbaixaconta bc WHERE bc.nReg = a.nReg) as BaixaLancada
     FROM loja20045.contasapagar a
     LEFT JOIN central.fornecedor f ON f.CodFornec = a.CodFornec
     WHERE a.DataVencto BETWEEN ? AND ? AND a.Filial = ?
@@ -4421,7 +4422,7 @@ async function processarConciliacao(saidas, loja) {
   const candidatos = enriquecerComPlanoContas(candidatosRaw, await getPlanoContas());
 
   const itens = aplicarAvulsos(aplicarRegras(saidas, candidatos, carregarRegras()), carregarAvulsos());
-  const resumo = { conciliado: 0, conciliado_avulso: 0, pago_sem_baixa: 0, divergencia: 0, revisar: 0, nao_encontrado: 0, fora_escopo: 0, dispensado_regra: 0 };
+  const resumo = { conciliado: 0, conciliado_avulso: 0, pago_sem_baixa: 0, baixa_pendente: 0, divergencia: 0, revisar: 0, nao_encontrado: 0, fora_escopo: 0, dispensado_regra: 0 };
   let totalValor = 0;
   for (const it of itens) { resumo[it.status]++; totalValor += it.valor; }
 
