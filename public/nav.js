@@ -49,6 +49,7 @@
     { sec: 'Operação' },
     { id: 'financeiro', ic: 'bank', txt: 'Financeiro', sub: [
         { href: '/conciliador.html', ic: 'bank', txt: 'Conciliação de Saídas' },
+        { href: '/conciliador-entradas.html', ic: 'bank', txt: 'Conciliação de Entradas' },
         { href: '/conciliador-cd.html', ic: 'bank', txt: 'CD' }
       ]},
     { id: 'compras', ic: 'bag', txt: 'Gestão de Compras', sub: [
