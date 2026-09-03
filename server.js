@@ -5028,9 +5028,13 @@ async function buscarTotalCartaoMes(loja, meses) {
   const condicoes = meses.map(() => '(Ano=? AND Mes=?)').join(' OR ');
   const params = [loja];
   meses.forEach(m => params.push(m.ano, m.mes));
+  // Filtra por TipoPagto IN ('01','02') na própria SQL — código numérico
+  // estável (ver central.tipo_finalizadora), não pelo label traduzido em
+  // pagtoLabels. Isso já garante que todo row retornado aqui é card-relevante,
+  // então quem consome não precisa (e não deve) filtrar de novo por `tipo`.
   const rows = await q(
     `SELECT Ano, Mes, TipoPagto, SUM(Total) as total FROM dashboard.tipovendas
-     WHERE nLoja=? AND (${condicoes}) GROUP BY Ano, Mes, TipoPagto`,
+     WHERE nLoja=? AND (${condicoes}) AND TipoPagto IN ('01','02') GROUP BY Ano, Mes, TipoPagto`,
     params
   );
   return rows.map(r => ({ ano: r.Ano, mes: r.Mes, tipo: pagtoLabels[r.TipoPagto] || `Tipo ${r.TipoPagto}`, total: parseFloat(r.total) }));
@@ -5058,17 +5062,25 @@ async function processarConciliacaoEntradas(entradas, loja) {
 
   const resumo = { conciliado: 0, baixa_pendente: 0, revisar: 0, nao_encontrado: 0, cartao: 0, fora_escopo: 0 };
   let totalValor = 0;
-  for (const it of itens) { resumo[it.status]++; totalValor += it.valor; }
+  for (const it of itens) {
+    resumo[it.status]++;
+    // Cartão é indicador à parte (conferência mensal agregada, ver bloco
+    // `cartao` abaixo) — não entra na contagem/soma do total de entradas,
+    // senão o usuário nunca fecha as contas somando os KPIs visíveis (que
+    // já excluem cartão por padrão na tabela).
+    if (it.status !== 'cartao') totalValor += it.valor;
+  }
 
   const meses = mesesEntrePeriodo(datas[0], datas[datas.length - 1]);
   const cartaoBanco = itens.filter(it => it.status === 'cartao').reduce((s, it) => s + it.valor, 0);
+  // buscarTotalCartaoMes já filtra TipoPagto IN ('01','02') na SQL, então todo
+  // row aqui é card-relevante — soma direta, sem filtrar de novo pelo label
+  // `tipo` (que é só pra exibição, não pra lógica de filtro).
   const cartaoErp = await buscarTotalCartaoMes(loja, meses);
-  const cartaoErpTotal = cartaoErp
-    .filter(c => c.tipo === 'PIX / Débito' || c.tipo === 'Crédito')
-    .reduce((s, c) => s + c.total, 0);
+  const cartaoErpTotal = cartaoErp.reduce((s, c) => s + c.total, 0);
 
   return {
-    loja, total: itens.length, totalValor: +totalValor.toFixed(2), resumo, itens,
+    loja, total: itens.filter(it => it.status !== 'cartao').length, totalValor: +totalValor.toFixed(2), resumo, itens,
     cartao: {
       totalBanco: +cartaoBanco.toFixed(2),
       totalErp: +cartaoErpTotal.toFixed(2),

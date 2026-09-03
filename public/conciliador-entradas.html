@@ -258,6 +258,11 @@ function filtrar(status) {
 }
 
 function render() {
+  // Fecha qualquer popup de detalhe aberto antes de trocar os dados — senão
+  // um popup aberto continua mostrando um item do resultado ANTERIOR depois
+  // de reprocessar (novo colar, nova busca via API), com itensAtuais já
+  // trocado por baixo (risco de índice não bater, e só confunde).
+  fecharPopup();
   const cont = document.getElementById('resultado');
   if (!dados) { cont.innerHTML = ''; return; }
 
@@ -272,11 +277,12 @@ function render() {
             <div class="item"><div class="l">No ERP (mês)</div><div class="v">${fmtMoeda(dados.cartao.totalErp)}</div></div>
             <div class="item"><div class="l">Diferença</div><div class="v" style="color:${Math.abs(dados.cartao.diferenca) < 0.01 ? 'var(--green)' : 'var(--amber)'}">${fmtMoeda(dados.cartao.diferenca)}</div></div>
           </div>
-          <div class="cartao-obs">Comparação por mês inteiro, não linha a linha — o ERP não guarda o repasse diário de cartão nessa instalação.</div>`}
+          <div class="cartao-obs">Comparação por mês inteiro, não linha a linha — o ERP não guarda o repasse diário de cartão nessa instalação.</div>
+          <div class="cartao-obs">O total do ERP nesse código inclui PIX recebido no caixa, não só débito de cartão de verdade — uma diferença aqui pode ser só isso, não necessariamente um problema.</div>`}
     </div>`;
 
   const kpis = [
-    { k: '', l: 'Total de entradas', v: dados.total, valor: dados.totalValor },
+    { k: '', l: 'Total de entradas', v: dados.total },
     { k: 'conciliado', l: 'Conciliado', v: dados.resumo.conciliado },
     { k: 'baixa_pendente', l: 'Baixa pendente', v: dados.resumo.baixa_pendente },
     { k: 'revisar', l: 'Revisar', v: dados.resumo.revisar },
@@ -323,7 +329,9 @@ function abrirDetalhe(i) {
       <div class="popup-row"><span class="k">Cliente</span><span class="v">${it.match.cliente}</span></div>
       <div class="popup-row"><span class="k">Vencimento</span><span class="v">${fmtData(it.match.dataVencto)}</span></div>
       <div class="popup-row"><span class="k">Valor do título</span><span class="v">${fmtMoeda(it.match.valor)}</span></div>
-      <div class="popup-row"><span class="k">Baixado no ERP</span><span class="v">${it.match.baixado ? 'Sim, em ' + fmtData(it.match.dataPagto) : 'Não'}</span></div>`;
+      <div class="popup-row"><span class="k">Baixado no ERP</span><span class="v">${it.match.baixado ? 'Sim, em ' + fmtData(it.match.dataPagto) : 'Não'}</span></div>
+      ${it.match.valorPago != null ? `<div class="popup-row"><span class="k">Valor pago</span><span class="v">${fmtMoeda(it.match.valorPago)}</span></div>` : ''}
+      ${it.match.emAberto > 0 ? `<div class="popup-row"><span class="k">Saldo em aberto</span><span class="v">${fmtMoeda(it.match.emAberto)}</span></div>` : ''}`;
   } else if (it.candidatos && it.candidatos.length) {
     matchHtml = `<div class="cand-list">${it.candidatos.map(c => `
       <div class="cand-item2">
