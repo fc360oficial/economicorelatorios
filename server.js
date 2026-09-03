@@ -5079,6 +5079,48 @@ async function processarConciliacaoEntradas(entradas, loja) {
   };
 }
 
+app.post('/api/conciliador-entradas/processar', async (req, res) => {
+  try {
+    const texto = (req.body && req.body.texto) || '';
+    const loja = parseInt(req.body && req.body.loja);
+    if (!texto.trim()) return res.status(400).json({ error: 'Cole o extrato antes de processar.' });
+    if (!loja || loja < 1 || loja > 6) return res.status(400).json({ error: 'Selecione a loja desse extrato antes de processar — cada loja tem conta bancária própria, e o casamento é feito só contra os títulos dessa filial.' });
+
+    const ehOfx = /<OFX>|<STMTTRN>/i.test(texto);
+    const entradas = ehOfx ? parseEntradasOfx(texto) : parseEntradas(texto);
+    if (!entradas.length) return res.status(400).json({ error: ehOfx ? 'Nenhuma entrada encontrada no OFX.' : 'Nenhuma entrada encontrada no texto colado. Confira o formato (data;histórico;valor;).' });
+
+    res.json(await processarConciliacaoEntradas(entradas, loja));
+  } catch (err) {
+    console.error('[CONCILIADOR-ENTRADAS-ERR]', err.message);
+    res.status(500).json({ error: err.message || 'Erro ao processar conciliação de entradas.' });
+  }
+});
+
+// Mesmo padrão de /api/conciliador/processar-api (Saídas): admin only, usa
+// lib/itau-extrato.js já existente. A loja continua escolhida manualmente.
+app.post('/api/conciliador-entradas/processar-api', async (req, res) => {
+  if (!req.session.user || req.session.user.perfil !== 'admin') return res.status(403).json({ error: 'Só admin.' });
+  try {
+    const itauExtrato = require('./lib/itau-extrato');
+    const conta = req.body && req.body.conta;
+    const loja = parseInt(req.body && req.body.loja);
+    if (!conta) return res.status(400).json({ error: 'Informe a conta (ex: cahu, muribeca).' });
+    if (!loja || loja < 1 || loja > 6) return res.status(400).json({ error: 'Selecione a loja desse extrato antes de processar — cada loja tem conta bancária própria, e o casamento é feito só contra os títulos dessa filial.' });
+
+    const dataFim = (req.body && req.body.fim) || new Date().toISOString().slice(0, 10);
+    const dataIni = (req.body && req.body.inicio) || addDias(dataFim, -60);
+    const resultado = await itauExtrato.buscarExtrato({ conta, dataInicio: dataIni, dataFim });
+    const entradas = parseEntradasApi(resultado);
+    if (!entradas.length) return res.status(400).json({ error: `Nenhuma entrada encontrada no extrato da API entre ${dataIni} e ${dataFim}.` });
+
+    res.json(await processarConciliacaoEntradas(entradas, loja));
+  } catch (err) {
+    console.error('[CONCILIADOR-ENTRADAS-API-ERR]', err.message);
+    res.status(500).json({ error: err.message || 'Erro ao importar extrato via API do Itaú.' });
+  }
+});
+
 // ── API DE EXTRATO DO ITAÚ ───────────────────────────────────────────
 // Teste manual da integração direta com o Itaú (ver lib/itau-extrato.js).
 // Só admin, porque toca em credencial bancária real. Suporta múltiplas
