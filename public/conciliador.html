@@ -239,6 +239,7 @@ let filtroCategoria = '';
 let filtroPlano = '';
 let filtroTipoEncargo = ''; // '' | 'acrescimos' | 'abatimentos'
 let itensAtuais = [];
+let ultimoModo = null; // 'manual' | 'api' — usado por reprocessarAtual() pra saber como refazer a consulta
 let ultimaAtualizacao = null;
 
 let usuarioAtual = null;
@@ -334,6 +335,7 @@ async function processar() {
     if (!r.ok) throw new Error(j.error || 'Erro ao processar');
     dados = j;
     ultimaAtualizacao = new Date();
+    ultimoModo = 'manual';
     filtroAtivo = '';
     render();
   } catch (e) {
@@ -388,6 +390,7 @@ async function processarViaApi() {
     if (!r.ok) throw new Error(j.error || 'Erro ao importar');
     dados = j;
     ultimaAtualizacao = new Date();
+    ultimoModo = 'api';
     filtroAtivo = '';
     render();
   } catch (e) {
@@ -395,6 +398,15 @@ async function processarViaApi() {
   } finally {
     btn.disabled = false;
   }
+}
+
+// Refaz a consulta inteira (mesmo texto/período de antes) — chamado depois
+// de criar uma regra permanente, pra que outros itens do mesmo beneficiário
+// que já estavam na tela (não só o que foi clicado) já saiam conciliados/
+// dispensados na hora, sem precisar de outro clique manual em "Processar".
+async function reprocessarAtual() {
+  if (ultimoModo === 'api') await processarViaApi();
+  else await processar();
 }
 
 function render() {
@@ -875,12 +887,8 @@ async function dispensarRegra() {
     });
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || 'Erro ao confirmar regra');
-    const antigo = it.status;
-    it.status = 'dispensado_regra';
-    dados.resumo[antigo]--;
-    dados.resumo.dispensado_regra = (dados.resumo.dispensado_regra || 0) + 1;
     fecharPopup();
-    render();
+    await reprocessarAtual();
   } catch (e) {
     box.innerHTML = `<div class="err" style="margin:0">Erro: ${e.message}</div>`;
   }
@@ -967,9 +975,8 @@ async function confirmarAvulso() {
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || 'Erro ao confirmar regra');
-      aplicarConciliacaoLocal(it, 'conciliado_avulso', { justificativa, regraAplicada: j.regra });
       fecharPopup();
-      render();
+      await reprocessarAtual();
     } catch (e) {
       box.innerHTML = `<div class="err" style="margin:0">Erro: ${e.message}</div>`;
     }
