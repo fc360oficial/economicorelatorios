@@ -48,7 +48,7 @@
     { href: '/itens.html',        ic: 'list',      txt: 'Mercadológico' },
     { sec: 'Operação' },
     { id: 'financeiro', ic: 'bank', txt: 'Financeiro', sub: [
-        { href: '/conciliador.html', ic: 'bank', txt: 'Conciliador' },
+        { href: '/conciliador.html', ic: 'bank', txt: 'Conciliação de Saídas' },
         { href: '/conciliador-cd.html', ic: 'bank', txt: 'CD' }
       ]},
     { id: 'compras', ic: 'bag', txt: 'Gestão de Compras', sub: [
