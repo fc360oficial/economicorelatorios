@@ -784,7 +784,8 @@ function renderPopup(it) {
         ${it.status === 'fora_escopo'
           ? 'Essa categoria (tributo, tarifa, salário, aplicação) não é pagamento a fornecedor, então não tentamos casar com o ERP.'
           : 'Não achamos nenhum título no ERP com esse valor dentro da janela de vencimento considerada.'}
-      </div>`;
+      </div>
+      ${it.status === 'fora_escopo' && ehAdmin() ? renderDispensarRegra() : ''}`;
   }
 
   const podeConciliarManual = it.status !== 'fora_escopo' && it.status !== 'conciliado_avulso';
@@ -809,6 +810,55 @@ function renderConciliacaoManual() {
       <div style="color:var(--ink-3);font-size:11.5px;margin-bottom:8px">Pra casos de boleto pago com juros/multa (valor não bate exato) — busca títulos do ERP com valor próximo.</div>
       <button class="btn btn-slate" style="width:100%" onclick="buscarProximos()">Buscar títulos próximos</button>
     </div>`;
+}
+
+/* ── DISPENSAR RECORRENTE (categorias fora do escopo, sem título pra vincular) ── */
+function renderDispensarRegra() {
+  return `
+    <div class="popup-sec">Não é um caso de fornecedor</div>
+    <div id="dispensar-box">
+      <div style="color:var(--ink-3);font-size:11.5px;margin-bottom:8px">Beneficiários recorrentes desse tipo (ex: salário, tributo) podem sair da fila de conferência pra sempre.</div>
+      <button class="btn btn-slate" style="width:100%" onclick="mostrarSenhaDispensar()">Não preciso ver isso de novo</button>
+    </div>`;
+}
+
+function mostrarSenhaDispensar() {
+  const box = document.getElementById('dispensar-box');
+  box.innerHTML = `
+    <label style="font-size:10px;color:var(--ink-3);font-weight:700;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:6px">Sua senha de login</label>
+    <input type="password" id="txt-senha-dispensar" style="width:100%;height:34px;padding:0 10px;background:var(--bg);border:1px solid var(--border-strong);border-radius:8px;font-family:var(--font);font-size:12.5px;outline:none">
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button class="btn btn-slate" style="flex:1" onclick="renderPopupAtual()">Cancelar</button>
+      <button class="btn btn-blue" style="flex:1" onclick="dispensarRegra()">Confirmar</button>
+    </div>`;
+}
+
+function renderPopupAtual() {
+  document.getElementById('popup').innerHTML = renderPopup(itensAtuais[popupIdx]);
+}
+
+async function dispensarRegra() {
+  const it = itensAtuais[popupIdx];
+  const senha = document.getElementById('txt-senha-dispensar').value;
+  if (!senha) { alert('Digite sua senha pra confirmar.'); return; }
+  const box = document.getElementById('dispensar-box');
+  box.innerHTML = '<div class="spinner" style="margin:16px auto"></div>';
+  try {
+    const r = await fetch('/api/conciliador/confirmar-regra', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tipo: 'dispensar', beneficiario: it.favorecido || it.historico, senha })
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Erro ao confirmar regra');
+    const antigo = it.status;
+    it.status = 'dispensado_regra';
+    dados.resumo[antigo]--;
+    dados.resumo.dispensado_regra = (dados.resumo.dispensado_regra || 0) + 1;
+    fecharPopup();
+    render();
+  } catch (e) {
+    box.innerHTML = `<div class="err" style="margin:0">Erro: ${e.message}</div>`;
+  }
 }
 
 async function buscarProximos() {
