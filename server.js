@@ -6,9 +6,10 @@ const session = require('express-session');
 const FileStore = require('session-file-store')(session);
 const bcrypt = require('bcryptjs');
 const fs = require('fs');
+const crypto = require('crypto');
 const { exec } = require('child_process');
 const { parseSaidas, parseSaidasOfx, parseSaidasApi } = require('./lib/extrato-parser');
-const { conciliar, addDias, similaridadeNome, normalizarNome, TOLERANCIA_DIAS: TOLERANCIA_CONCILIADOR, chaveSaida, aplicarAvulsos } = require('./lib/conciliador');
+const { conciliar, addDias, similaridadeNome, normalizarNome, TOLERANCIA_DIAS: TOLERANCIA_CONCILIADOR, chaveSaida, aplicarAvulsos, aplicarRegras } = require('./lib/conciliador');
 const multer = require('multer');
 const pontaGondola = require('./lib/ponta-gondola');
 
@@ -39,6 +40,19 @@ function carregarAvulsos() {
 function salvarAvulsos(lista) {
   fs.mkdirSync(path.dirname(AVULSOS_PATH), { recursive: true });
   fs.writeFileSync(AVULSOS_PATH, JSON.stringify(lista, null, 2));
+}
+
+// Regras permanentes de conciliação (alias fornecedor / auto-dispensar) —
+// criadas via POST /api/conciliador/confirmar-regra, sempre com
+// reautenticação por senha (ver requireAdmin mais abaixo). Persistidas em
+// JSON local, nunca no MySQL do ERP.
+const REGRAS_PATH = path.join(__dirname, 'data', 'regras-conciliacao.json');
+function carregarRegras() {
+  try { return JSON.parse(fs.readFileSync(REGRAS_PATH, 'utf8')); } catch (e) { return []; }
+}
+function salvarRegras(lista) {
+  fs.mkdirSync(path.dirname(REGRAS_PATH), { recursive: true });
+  fs.writeFileSync(REGRAS_PATH, JSON.stringify(lista, null, 2));
 }
 
 // Backfill único na subida do servidor: avulsos confirmados antes do Plano
@@ -4406,8 +4420,8 @@ async function processarConciliacao(saidas, loja) {
   `, [dIni, dFim, loja]);
   const candidatos = enriquecerComPlanoContas(candidatosRaw, await getPlanoContas());
 
-  const itens = aplicarAvulsos(conciliar(saidas, candidatos), carregarAvulsos());
-  const resumo = { conciliado: 0, conciliado_avulso: 0, pago_sem_baixa: 0, divergencia: 0, revisar: 0, nao_encontrado: 0, fora_escopo: 0 };
+  const itens = aplicarAvulsos(aplicarRegras(saidas, candidatos, carregarRegras()), carregarAvulsos());
+  const resumo = { conciliado: 0, conciliado_avulso: 0, pago_sem_baixa: 0, divergencia: 0, revisar: 0, nao_encontrado: 0, fora_escopo: 0, dispensado_regra: 0 };
   let totalValor = 0;
   for (const it of itens) { resumo[it.status]++; totalValor += it.valor; }
 
