@@ -238,6 +238,15 @@ let filtroTipoEncargo = ''; // '' | 'acrescimos' | 'abatimentos'
 let itensAtuais = [];
 let ultimaAtualizacao = null;
 
+let usuarioAtual = null;
+function ehAdmin() { return !!(usuarioAtual && usuarioAtual.perfil === 'admin'); }
+(async function carregarUsuarioAtual() {
+  try {
+    const r = await fetch('/api/me');
+    if (r.ok) usuarioAtual = await r.json();
+  } catch (e) { /* segue sem admin — checkbox/botões de regra ficam escondidos */ }
+})();
+
 const CAT_LABEL = {
   boleto_pago: 'Boleto', pix_enviado: 'PIX Enviado', tributo: 'Tributo',
   salario: 'Salário', tarifa_juros: 'Tarifa/Juros', aplicacao: 'Aplicação',
@@ -246,11 +255,13 @@ const CAT_LABEL = {
 
 const STATUS_LABEL = {
   conciliado: 'Conciliado', conciliado_avulso: 'Conciliado avulso', pago_sem_baixa: 'Pago sem baixa',
-  divergencia: 'Divergência de valor', revisar: 'Revisar', nao_encontrado: 'Não encontrado', fora_escopo: 'Fora do escopo'
+  divergencia: 'Divergência de valor', revisar: 'Revisar', nao_encontrado: 'Não encontrado', fora_escopo: 'Fora do escopo',
+  dispensado_regra: 'Dispensado (regra)'
 };
 const STATUS_PILL = {
   conciliado: 'pill-ok', conciliado_avulso: 'pill-ok', pago_sem_baixa: 'pill-alerta',
-  divergencia: 'pill-revisar', revisar: 'pill-revisar', nao_encontrado: 'pill-neutro', fora_escopo: 'pill-neutro'
+  divergencia: 'pill-revisar', revisar: 'pill-revisar', nao_encontrado: 'pill-neutro', fora_escopo: 'pill-neutro',
+  dispensado_regra: 'pill-neutro'
 };
 
 function fmtMoeda(v) {
