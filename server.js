@@ -13,6 +13,7 @@ const { conciliar, addDias, similaridadeNome, normalizarNome, TOLERANCIA_DIAS: T
 const { conciliarEntradas } = require('./lib/conciliador-entradas');
 const multer = require('multer');
 const pontaGondola = require('./lib/ponta-gondola');
+const ExcelJS = require('exceljs');
 
 // Congela o resultado de meses já fechados de Avaria/Prevenção. Sem isso, um
 // NF emitida atrasada (DataEmi de um mês que já passou) mudava o total/% de
@@ -3830,6 +3831,133 @@ async function montarListaConferencia() {
 
   return { resumo, colunas, itensReconferir };
 }
+
+// Tabela de Preços da CAHU Distribuidora — cabeçalho (s_codigo_tabela_preco) x
+// itens (s_tabela_item, cod_tabela = nReg do cabeçalho). Filtra só as 5 tabelas
+// que o Tiago usa (retirada + entrega 7/14/21/28 dias) e só produtos com estoque
+// positivo no CD (central.estoquen10 — mesmo critério de central-distribuicao acima).
+const CAHU_TABELAS_PRECO = [
+  { cod: 1, label: 'Tabela Retirada' },
+  { cod: 4, label: 'Tabela Entrega Boleto 7 dias' },
+  { cod: 5, label: 'Tabela Entrega 14 dias' },
+  { cod: 7, label: 'Tabela Entrega 21 dias' },
+  { cod: 10, label: 'Tabela Entrega 28 dias' }
+];
+
+app.get('/api/cahu-distribuidora/tabela-precos.xlsx', async (req, res) => {
+  try {
+    const codigosTabela = CAHU_TABELAS_PRECO.map(t => t.cod);
+    const phTab = codigosTabela.map(() => '?').join(',');
+
+    const [precos, estoque] = await Promise.all([
+      q(`SELECT codigobarra, descricao, cod_tabela, preco FROM central.s_tabela_item WHERE cod_tabela IN (${phTab})`, codigosTabela),
+      q(`SELECT CodigoBarra, Qtd FROM central.estoquen10 WHERE Qtd > 0`, [])
+    ]);
+
+    const estoquePositivo = new Set(estoque.map(e => e.CodigoBarra));
+
+    const produtos = new Map();
+    for (const r of precos) {
+      if (!estoquePositivo.has(r.codigobarra)) continue;
+      if (!produtos.has(r.codigobarra)) {
+        produtos.set(r.codigobarra, { codigobarra: r.codigobarra, descricao: r.descricao });
+      }
+      produtos.get(r.codigobarra)[r.cod_tabela] = Number(r.preco);
+    }
+    const lista = [...produtos.values()].sort((a, b) => a.descricao.localeCompare(b.descricao, 'pt-BR'));
+
+    const NAVY = 'FF1F3864', NAVY_LIGHT = 'FF2E5395', GOLD = 'FFC9A227';
+    const ZEBRA = 'FFF2F5FA', BORDER_COLOR = 'FFD0D7E5';
+    const headers = ['Código de Barras', 'Descrição', ...CAHU_TABELAS_PRECO.map(t => t.label)];
+    const colWidths = [20, 48, 20, 26, 20, 20, 20];
+    const lastCol = String.fromCharCode(64 + headers.length);
+
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'Econômico Relatórios';
+    wb.created = new Date();
+    const ws = wb.addWorksheet('Tabelas de Preço', {
+      views: [{ showGridLines: false }],
+      pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1 }
+    });
+    ws.columns = colWidths.map(w => ({ width: w }));
+
+    ws.mergeCells(`A1:${lastCol}1`);
+    const titleCell = ws.getCell('A1');
+    titleCell.value = 'TABELA DE PREÇOS — CAHU DISTRIBUIDORA';
+    titleCell.font = { name: 'Calibri', size: 16, bold: true, color: { argb: 'FFFFFFFF' } };
+    titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
+    titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: NAVY } };
+    ws.getRow(1).height = 30;
+
+    ws.mergeCells(`A2:${lastCol}2`);
+    const subCell = ws.getCell('A2');
+    subCell.value = `Somente itens com estoque positivo no CD — gerado em ${new Date().toLocaleDateString('pt-BR')}`;
+    subCell.font = { name: 'Calibri', size: 10, italic: true, color: { argb: 'FFFFFFFF' } };
+    subCell.alignment = { vertical: 'middle', horizontal: 'center' };
+    subCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: NAVY_LIGHT } };
+    ws.getRow(2).height = 18;
+
+    const headerRowIdx = 3;
+    const headerRow = ws.getRow(headerRowIdx);
+    headers.forEach((h, i) => {
+      const cell = headerRow.getCell(i + 1);
+      cell.value = h;
+      cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+      cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: NAVY } };
+      cell.border = {
+        top: { style: 'thin', color: { argb: GOLD } },
+        bottom: { style: 'medium', color: { argb: GOLD } }
+      };
+    });
+    headerRow.height = 32;
+
+    const firstDataRow = headerRowIdx + 1;
+    lista.forEach((p, idx) => {
+      const row = ws.getRow(firstDataRow + idx);
+      row.getCell(1).value = p.codigobarra;
+      row.getCell(2).value = p.descricao;
+      CAHU_TABELAS_PRECO.forEach((t, i) => { row.getCell(3 + i).value = p[t.cod] ?? null; });
+
+      const isZebra = idx % 2 === 1;
+      for (let c = 1; c <= headers.length; c++) {
+        const cell = row.getCell(c);
+        cell.font = { name: 'Calibri', size: 10.5, color: { argb: 'FF1A1A1A' } };
+        cell.border = {
+          top: { style: 'hair', color: { argb: BORDER_COLOR } },
+          bottom: { style: 'hair', color: { argb: BORDER_COLOR } },
+          left: { style: 'hair', color: { argb: BORDER_COLOR } },
+          right: { style: 'hair', color: { argb: BORDER_COLOR } }
+        };
+        if (isZebra) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ZEBRA } };
+        if (c === 1) cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        if (c === 2) cell.alignment = { horizontal: 'left', vertical: 'middle' };
+        if (c >= 3) { cell.alignment = { horizontal: 'right', vertical: 'middle' }; cell.numFmt = 'R$ #,##0.00'; }
+      }
+      row.height = 18;
+    });
+
+    const lastDataRow = firstDataRow + lista.length - 1;
+    ws.autoFilter = { from: `A${headerRowIdx}`, to: `${lastCol}${headerRowIdx}` };
+    ws.views = [{ state: 'frozen', ySplit: headerRowIdx, showGridLines: false }];
+
+    const footerRowIdx = lastDataRow + 2;
+    ws.mergeCells(`A${footerRowIdx}:${lastCol}${footerRowIdx}`);
+    const footerCell = ws.getCell(`A${footerRowIdx}`);
+    footerCell.value = `Total de produtos: ${lista.length}`;
+    footerCell.font = { name: 'Calibri', size: 10, bold: true, italic: true, color: { argb: 'FF555555' } };
+    footerCell.alignment = { horizontal: 'right' };
+
+    const hoje = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="Tabela_Precos_CAHU_Distribuidora_${hoje}.xlsx"`);
+    await wb.xlsx.write(res);
+    res.end();
+  } catch (e) {
+    console.error('[CAHU-TABELA-PRECOS-ERR]', e.message);
+    res.status(500).json({ error: 'Falha ao gerar o Excel: ' + e.message });
+  }
+});
 
 app.get('/api/painel-cd', withCache(1), async (req, res) => {
   try {

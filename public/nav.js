@@ -64,6 +64,9 @@
       ]},
     { id: 'prevencao', ic: 'shield', txt: 'Prevenção', sub: [
         { href: '/prevencao.html', ic: 'shield', txt: 'Fechamento de Mês' }
+      ]},
+    { id: 'cahu-distribuidora', ic: 'store', txt: 'CAHU Distribuidora', sub: [
+        { href: '/cahu-tabela-precos.html', ic: 'download', txt: 'Tabela de Preços' }
       ]}
   ];
 
