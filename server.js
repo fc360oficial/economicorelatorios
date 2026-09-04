@@ -5077,13 +5077,21 @@ async function processarConciliacaoEntradas(entradas, loja) {
   // row aqui é card-relevante — soma direta, sem filtrar de novo pelo label
   // `tipo` (que é só pra exibição, não pra lógica de filtro).
   const cartaoErp = await buscarTotalCartaoMes(loja, meses);
-  const cartaoErpTotal = cartaoErp.reduce((s, c) => s + c.total, 0);
+  // Breakdown por tipo pedido pelo Tiago: o ERP separa PIX/Débito de Crédito
+  // (TipoPagto '01' vs '02', ver pagtoLabels), mas o banco não tem um jeito
+  // validado de distinguir liquidação de débito de crédito — então só o lado
+  // ERP é quebrado em dois números, totalBanco continua um valor só.
+  const cartaoErpPixDebito = cartaoErp.filter(c => c.tipo === 'PIX / Débito').reduce((s, c) => s + c.total, 0);
+  const cartaoErpCredito = cartaoErp.filter(c => c.tipo === 'Crédito').reduce((s, c) => s + c.total, 0);
+  const cartaoErpTotal = cartaoErpPixDebito + cartaoErpCredito;
 
   return {
     loja, total: itens.filter(it => it.status !== 'cartao').length, totalValor: +totalValor.toFixed(2), resumo, itens,
     cartao: {
       totalBanco: +cartaoBanco.toFixed(2),
       totalErp: +cartaoErpTotal.toFixed(2),
+      totalErpPixDebito: +cartaoErpPixDebito.toFixed(2),
+      totalErpCredito: +cartaoErpCredito.toFixed(2),
       diferenca: +(cartaoBanco - cartaoErpTotal).toFixed(2),
       meses,
       semDadoErp: cartaoErp.length === 0
