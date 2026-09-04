@@ -5052,56 +5052,29 @@ function mesesEntrePeriodo(dIni, dFim) {
   return meses;
 }
 
+// A pedido do Tiago (04/09/2026): a tela deixou de tentar casar entradas
+// contra fatura do ERP ou contra o total mensal de cartão — vira só um
+// resumo do que entrou na conta bancária, por categoria (PIX, Cartão,
+// Voucher, Boleto/Depósito, Outros). Não faz nenhuma consulta ao MySQL do
+// ERP; é só o extrato já categorizado por lib/extrato-parser.js, agrupado.
+const CATEGORIAS_ENTRADA = ['pix_recebido', 'cartao', 'voucher', 'deposito_boleto', 'outro'];
+
 async function processarConciliacaoEntradas(entradas, loja) {
-  const datas = entradas.map(e => e.data).sort();
-  const dIni = addDias(datas[0], -TOLERANCIA_CONCILIADOR);
-  const dFim = addDias(datas[datas.length - 1], TOLERANCIA_CONCILIADOR);
+  const categorias = {};
+  for (const cat of CATEGORIAS_ENTRADA) categorias[cat] = { count: 0, valor: 0 };
 
-  const candidatos = await buscarCandidatosFatura(loja, dIni, dFim);
-  const itens = conciliarEntradas(entradas, candidatos);
-
-  const resumo = { conciliado: 0, baixa_pendente: 0, revisar: 0, nao_encontrado: 0, cartao: 0, fora_escopo: 0 };
   let totalValor = 0;
-  for (const it of itens) {
-    resumo[it.status]++;
-    // Cartão é indicador à parte (conferência mensal agregada, ver bloco
-    // `cartao` abaixo) — não entra na contagem/soma do total de entradas,
-    // senão o usuário nunca fecha as contas somando os KPIs visíveis (que
-    // já excluem cartão por padrão na tabela).
-    if (it.status !== 'cartao') totalValor += it.valor;
+  for (const e of entradas) {
+    const bucket = categorias[e.categoria] || categorias.outro;
+    bucket.count++;
+    bucket.valor += e.valor;
+    totalValor += e.valor;
   }
-
-  const meses = mesesEntrePeriodo(datas[0], datas[datas.length - 1]);
-  const pixRecebidoItens = itens.filter(it => it.categoria === 'pix_recebido');
-  const cartaoItens = itens.filter(it => it.status === 'cartao');
-  const cartaoBanco = cartaoItens.reduce((s, it) => s + it.valor, 0);
-  // buscarTotalCartaoMes já filtra TipoPagto IN ('01','02') na SQL, então todo
-  // row aqui é card-relevante — soma direta, sem filtrar de novo pelo label
-  // `tipo` (que é só pra exibição, não pra lógica de filtro).
-  const cartaoErp = await buscarTotalCartaoMes(loja, meses);
-  // Breakdown por tipo pedido pelo Tiago: o ERP separa PIX/Débito de Crédito
-  // (TipoPagto '01' vs '02', ver pagtoLabels), mas o banco não tem um jeito
-  // validado de distinguir liquidação de débito de crédito — então só o lado
-  // ERP é quebrado em dois números, totalBanco continua um valor só.
-  const cartaoErpPixDebito = cartaoErp.filter(c => c.tipo === 'PIX / Débito').reduce((s, c) => s + c.total, 0);
-  const cartaoErpCredito = cartaoErp.filter(c => c.tipo === 'Crédito').reduce((s, c) => s + c.total, 0);
-  const cartaoErpTotal = cartaoErpPixDebito + cartaoErpCredito;
+  for (const cat of CATEGORIAS_ENTRADA) categorias[cat].valor = +categorias[cat].valor.toFixed(2);
 
   return {
-    loja, total: itens.filter(it => it.status !== 'cartao').length, totalValor: +totalValor.toFixed(2), resumo, itens,
-    cartao: {
-      totalBanco: +cartaoBanco.toFixed(2),
-      totalErp: +cartaoErpTotal.toFixed(2),
-      totalErpPixDebito: +cartaoErpPixDebito.toFixed(2),
-      totalErpCredito: +cartaoErpCredito.toFixed(2),
-      diferenca: +(cartaoBanco - cartaoErpTotal).toFixed(2),
-      meses,
-      semDadoErp: cartaoErp.length === 0
-    },
-    categorias: {
-      pix_recebido: { count: pixRecebidoItens.length, valor: +pixRecebidoItens.reduce((s, it) => s + it.valor, 0).toFixed(2) },
-      cartao: { count: cartaoItens.length, valor: +cartaoBanco.toFixed(2) }
-    }
+    loja, total: entradas.length, totalValor: +totalValor.toFixed(2),
+    categorias, itens: entradas
   };
 }
 
