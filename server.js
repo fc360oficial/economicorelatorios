@@ -5072,7 +5072,9 @@ async function processarConciliacaoEntradas(entradas, loja) {
   }
 
   const meses = mesesEntrePeriodo(datas[0], datas[datas.length - 1]);
-  const cartaoBanco = itens.filter(it => it.status === 'cartao').reduce((s, it) => s + it.valor, 0);
+  const pixRecebidoItens = itens.filter(it => it.categoria === 'pix_recebido');
+  const cartaoItens = itens.filter(it => it.status === 'cartao');
+  const cartaoBanco = cartaoItens.reduce((s, it) => s + it.valor, 0);
   // buscarTotalCartaoMes já filtra TipoPagto IN ('01','02') na SQL, então todo
   // row aqui é card-relevante — soma direta, sem filtrar de novo pelo label
   // `tipo` (que é só pra exibição, não pra lógica de filtro).
@@ -5095,6 +5097,10 @@ async function processarConciliacaoEntradas(entradas, loja) {
       diferenca: +(cartaoBanco - cartaoErpTotal).toFixed(2),
       meses,
       semDadoErp: cartaoErp.length === 0
+    },
+    categorias: {
+      pix_recebido: { count: pixRecebidoItens.length, valor: +pixRecebidoItens.reduce((s, it) => s + it.valor, 0).toFixed(2) },
+      cartao: { count: cartaoItens.length, valor: +cartaoBanco.toFixed(2) }
     }
   };
 }
