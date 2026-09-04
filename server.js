@@ -3849,8 +3849,17 @@ app.get('/api/cahu-distribuidora/tabela-precos.xlsx', async (req, res) => {
     const codigosTabela = CAHU_TABELAS_PRECO.map(t => t.cod);
     const phTab = codigosTabela.map(() => '?').join(',');
 
+    // status_item é por tabela (um produto pode estar inativo só numa tabela
+    // específica, ex: fora da Retirada mas ativo nas de Entrega) — filtra aqui
+    // pra não trazer preço de item que o ERP já considera inativo naquela tabela.
+    // CodDesativado é o cadastro geral do produto (itens), independente de tabela.
     const [precos, estoque] = await Promise.all([
-      q(`SELECT codigobarra, descricao, cod_tabela, preco FROM central.s_tabela_item WHERE cod_tabela IN (${phTab})`, codigosTabela),
+      q(`
+        SELECT s.codigobarra, s.descricao, s.cod_tabela, s.preco
+        FROM central.s_tabela_item s
+        JOIN central.itens i ON i.CodigoBarra = s.codigobarra
+        WHERE s.cod_tabela IN (${phTab}) AND s.status_item = 0 AND i.CodDesativado = 0
+      `, codigosTabela),
       q(`SELECT CodigoBarra, Qtd FROM central.estoquen10 WHERE Qtd > 0`, [])
     ]);
 
