@@ -5057,7 +5057,7 @@ function mesesEntrePeriodo(dIni, dFim) {
 // resumo do que entrou na conta bancária, por categoria (PIX, Cartão,
 // Voucher, Boleto/Depósito, Outros). Não faz nenhuma consulta ao MySQL do
 // ERP; é só o extrato já categorizado por lib/extrato-parser.js, agrupado.
-const CATEGORIAS_ENTRADA = ['pix_recebido', 'cartao', 'voucher', 'deposito_boleto', 'outro'];
+const CATEGORIAS_ENTRADA = ['pix_recebido', 'cartao_credito', 'cartao_debito', 'cartao', 'voucher', 'deposito_boleto', 'outro'];
 
 async function processarConciliacaoEntradas(entradas, loja) {
   const categorias = {};
