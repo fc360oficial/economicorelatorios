@@ -46,7 +46,10 @@
     { href: '/comparativos.html', ic: 'chart',     txt: 'Comparativos' },
     { href: '/consulta.html',     ic: 'search',    txt: 'Consulta de Vendas' },
     { href: '/itens.html',        ic: 'list',      txt: 'Mercadológico' },
-    { sec: 'Operação' },
+    { sec: 'Operação' }, // itens abaixo em ordem alfabética por txt — manter ao adicionar novos
+    { id: 'cahu-distribuidora', ic: 'store', txt: 'CAHU Distribuidora', sub: [
+        { href: '/cahu-tabela-precos.html', ic: 'download', txt: 'Tabela de Preços' }
+      ]},
     { id: 'financeiro', ic: 'bank', txt: 'Financeiro', sub: [
         { href: '/conciliador.html', ic: 'bank', txt: 'Conciliação de Saídas' },
         { href: '/conciliador-entradas.html', ic: 'bank', txt: 'Conciliação de Entradas' },
@@ -58,15 +61,12 @@
         { href: '/fornecedores.html',        ic: 'bag',   txt: 'Lista de Compra' },
         { href: '/ponta-gondola.html',       ic: 'store', txt: 'Ponta de Gôndola' }
       ]},
-    { id: 'processos', ic: 'folder', txt: 'Processos', sub: [
-        { href: '/pendencias.html', ic: 'alert', txt: 'Pendências' },
-        { href: '/negativos.html', ic: 'alert', txt: 'Negativos' }
-      ]},
     { id: 'prevencao', ic: 'shield', txt: 'Prevenção', sub: [
         { href: '/prevencao.html', ic: 'shield', txt: 'Fechamento de Mês' }
       ]},
-    { id: 'cahu-distribuidora', ic: 'store', txt: 'CAHU Distribuidora', sub: [
-        { href: '/cahu-tabela-precos.html', ic: 'download', txt: 'Tabela de Preços' }
+    { id: 'processos', ic: 'folder', txt: 'Processos', sub: [
+        { href: '/pendencias.html', ic: 'alert', txt: 'Pendências' },
+        { href: '/negativos.html', ic: 'alert', txt: 'Negativos' }
       ]}
   ];
 
