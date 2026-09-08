@@ -4585,6 +4585,25 @@ app.post('/api/conciliador/processar', async (req, res) => {
   }
 });
 
+// Reaplica a conciliação (regras + cruzamento com o ERP) sobre lançamentos
+// já extraídos antes (texto colado ou API do Itaú) — usado pela tela depois
+// de confirmar uma regra permanente com senha, pra achar na hora outros
+// lançamentos do mesmo fornecedor que já batem com a regra nova, sem
+// precisar colar o texto de novo nem rebater na API do banco.
+app.post('/api/conciliador/reprocessar', async (req, res) => {
+  try {
+    const saidas = (req.body && req.body.saidas) || [];
+    const loja = parseInt(req.body && req.body.loja);
+    if (!Array.isArray(saidas) || !saidas.length) return res.status(400).json({ error: 'Nenhum lançamento pra reprocessar.' });
+    if (!loja || loja < 1 || loja > 6) return res.status(400).json({ error: 'Loja inválida.' });
+
+    res.json(await processarConciliacao(saidas, loja));
+  } catch (err) {
+    console.error('[CONCILIADOR-REPROCESSAR-ERR]', err.message);
+    res.status(500).json({ error: err.message || 'Erro ao reprocessar conciliação.' });
+  }
+});
+
 // Mesma conciliação acima, mas a origem do extrato é a API oficial do Itaú
 // (lib/itau-extrato.js) em vez de texto colado — disponível pras 6 contas
 // do grupo, todas liberadas pelo banco (ver data/itau/config.json).

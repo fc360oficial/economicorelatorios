@@ -239,7 +239,6 @@ let filtroCategoria = '';
 let filtroPlano = '';
 let filtroTipoEncargo = ''; // '' | 'acrescimos' | 'abatimentos'
 let itensAtuais = [];
-let ultimoModo = null; // 'manual' | 'api' — usado por reprocessarAtual() pra saber como refazer a consulta
 let ultimaAtualizacao = null;
 
 let usuarioAtual = null;
@@ -337,7 +336,6 @@ async function processar() {
     if (!r.ok) throw new Error(j.error || 'Erro ao processar');
     dados = j;
     ultimaAtualizacao = new Date();
-    ultimoModo = 'manual';
     filtroAtivo = '';
     render();
   } catch (e) {
@@ -399,7 +397,6 @@ async function processarViaApi() {
     if (!r.ok) throw new Error(j.error || 'Erro ao importar');
     dados = j;
     ultimaAtualizacao = new Date();
-    ultimoModo = 'api';
     filtroAtivo = '';
     render();
   } catch (e) {
@@ -409,13 +406,23 @@ async function processarViaApi() {
   }
 }
 
-// Refaz a consulta inteira (mesmo texto/período de antes) — chamado depois
-// de criar uma regra permanente, pra que outros itens do mesmo beneficiário
-// que já estavam na tela (não só o que foi clicado) já saiam conciliados/
-// dispensados na hora, sem precisar de outro clique manual em "Processar".
+// Reaplica as regras + o cruzamento com o ERP sobre os MESMOS lançamentos já
+// carregados na tela — sem rebuscar o extrato (nem re-chamar a API do Itaú,
+// nem re-colar o texto). Usado depois de confirmar uma regra com senha, pra
+// que outros lançamentos do mesmo beneficiário já na tela também saiam
+// conciliados/dispensados automaticamente se baterem com a regra nova,
+// mantendo a tela e os filtros como estavam (sem o "voltar pro início").
 async function reprocessarAtual() {
-  if (ultimoModo === 'api') await processarViaApi();
-  else await processar();
+  const saidas = dados.itens.map(({ status, match, candidatos, ...saida }) => saida);
+  const r = await fetch('/api/conciliador/reprocessar', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ saidas, loja: dados.loja })
+  });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || 'Erro ao reprocessar');
+  dados = j;
+  ultimaAtualizacao = new Date();
+  render();
 }
 
 function render() {
@@ -908,17 +915,28 @@ async function dispensarRegra() {
   const it = itensAtuais[popupIdx];
   const senha = document.getElementById('txt-senha-dispensar').value;
   if (!senha) { alert('Digite sua senha pra confirmar.'); return; }
+  const chave = it.favorecido || it.historico;
   const box = document.getElementById('dispensar-box');
   box.innerHTML = '<div class="spinner" style="margin:16px auto"></div>';
   try {
     const r = await fetch('/api/conciliador/confirmar-regra', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tipo: 'dispensar', beneficiario: it.favorecido || it.historico, senha })
+      body: JSON.stringify({ tipo: 'dispensar', beneficiario: chave, senha })
     });
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || 'Erro ao confirmar regra');
+    // aplica a dispensa nos itens já carregados na tela (mesmo beneficiário),
+    // sem reprocessar/rebuscar o extrato — fica na mesma tela.
+    dados.itens.forEach(item => {
+      const k = item.favorecido || item.historico;
+      if (k === chave && item.status !== 'dispensado_regra') {
+        dados.resumo[item.status] = (dados.resumo[item.status] || 0) - 1;
+        item.status = 'dispensado_regra';
+        dados.resumo.dispensado_regra = (dados.resumo.dispensado_regra || 0) + 1;
+      }
+    });
     fecharPopup();
-    await reprocessarAtual();
+    render();
   } catch (e) {
     box.innerHTML = `<div class="err" style="margin:0">Erro: ${e.message}</div>`;
   }
@@ -1008,6 +1026,9 @@ async function confirmarAvulso() {
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || 'Erro ao confirmar regra');
       fecharPopup();
+      // reaplica a regra nova sobre os itens já na tela — outros lançamentos
+      // desse fornecedor que baterem (mesmo CodFornec/valor/data) já saem
+      // conciliados automaticamente aqui, sem rebuscar o extrato.
       await reprocessarAtual();
     } catch (e) {
       box.innerHTML = `<div class="err" style="margin:0">Erro: ${e.message}</div>`;
