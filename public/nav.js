@@ -94,6 +94,7 @@
     + '</svg>';
 
   var css = ''
+  + 'html,body{overflow-x:hidden!important}'
   + '#dsnav{position:fixed;top:0;left:0;bottom:0;width:64px;z-index:900;'
   +   'background:var(--crd,#FFFFFF);border-right:1px solid var(--ln,#DADAD6);'
   +   'display:flex;flex-direction:column;padding:14px 12px 12px;overflow:hidden;'
@@ -147,7 +148,8 @@
   +   'display:flex;align-items:center;gap:9px}'
   + '#dsnav .dn-ava{width:30px;height:30px;border-radius:50%;background:var(--ink,#0E1626);color:#fff;'
   +   'display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0}'
-  + '#dsnav .dn-user{flex:1;min-width:0;white-space:nowrap}'
+  + '#dsnav .dn-user{flex:1;min-width:0;white-space:nowrap;opacity:0;transition:opacity .1s ease}'
+  + '#dsnav.pinned .dn-user,#dsnav:hover .dn-user{opacity:1}'
   + '#dsnav .dn-user b{display:block;font-size:12px;color:var(--ink,#0E1626);'
   +   'white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'
   + '#dsnav .dn-user a{font-size:10.5px;color:var(--neg,#C22F49);font-weight:700;text-decoration:none}'
