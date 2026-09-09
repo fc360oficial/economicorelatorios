@@ -2,9 +2,11 @@
    NAVEGAÇÃO ÚNICA — Econômico Relatórios · Executive Ink
    Injeta a MESMA sidebar em todas as páginas do sistema.
    Uso: <script src="/nav.js" defer></script>
-   A página só precisa reservar o espaço: margin-left:236px no
-   conteúdo (desktop). No mobile (≤820px) vira barra superior fixa
-   e o nav.js aplica padding-top no body automaticamente.
+   Rail recolhido (64px, só ícone) o tempo todo; passar o mouse (ou
+   tocar, em telas sem hover) expande por cima do conteúdo — o
+   conteúdo nunca se move. Grupos (Financeiro, Gestão de Compras...)
+   abrem um segundo flyout ao lado, como o menu do Club da Cotação.
+   No mobile (≤820px) vira barra superior fixa, sem rail/flyout.
    ═══════════════════════════════════════════════════════════════ */
 (function () {
   'use strict';
@@ -71,9 +73,9 @@
   ];
 
   var css = ''
-  + '#dsnav{position:fixed;top:0;left:0;bottom:0;width:236px;z-index:900;'
+  + '#dsnav{position:fixed;top:0;left:0;bottom:0;width:64px;z-index:900;'
   +   'background:var(--crd,#FFFFFF);border-right:1px solid var(--ln,#DADAD6);'
-  +   'display:flex;flex-direction:column;padding:14px 12px 12px;'
+  +   'display:flex;flex-direction:column;padding:14px 12px 12px;overflow:hidden;'
   +   "font-family:'InterVar','Segoe UI',system-ui,sans-serif}"
   + '#dsnav .dn-top{display:flex;align-items:center;gap:8px;padding:4px 8px 14px;'
   +   'border-bottom:1px solid var(--ln,#DADAD6);margin-bottom:10px;flex-shrink:0}'
@@ -83,10 +85,10 @@
   + '#dsnav .dn-rows{flex:1;min-height:0;overflow-y:auto}'
   + '#dsnav .dn-brand{display:flex;align-items:center;gap:10px;text-decoration:none;flex:1;min-width:0}'
   + '#dsnav .dn-exit-mobile{display:none}'
-  + '#dsnav .dn-brand img{height:66px;display:block}'
-  + '#dsnav .dn-brand b{font-size:14.5px;color:var(--ink,#0E1626);letter-spacing:-.2px;line-height:1.1}'
+  + '#dsnav .dn-brand img{height:38px;display:block;transition:height .15s ease;flex-shrink:0}'
+  + '#dsnav .dn-brand b{font-size:14.5px;color:var(--ink,#0E1626);letter-spacing:-.2px;line-height:1.1;white-space:nowrap}'
   + '#dsnav .dn-sec{font-size:9.5px;font-weight:800;letter-spacing:1.6px;text-transform:uppercase;'
-  +   'color:var(--ink3,#98A0B3);padding:12px 10px 6px}'
+  +   'color:var(--ink3,#98A0B3);padding:12px 10px 6px;white-space:nowrap}'
   + '#dsnav a.dn-item{display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:9px;'
   +   'font-size:12.5px;font-weight:600;color:var(--ink2,#4E5A72);text-decoration:none;'
   +   'transition:background .12s ease;margin-bottom:2px;white-space:nowrap}'
@@ -95,47 +97,68 @@
   + '#dsnav a.dn-item:hover{background:var(--wsh,#E4E4E1);color:var(--ink,#0E1626)}'
   + '#dsnav a.dn-item.on{background:var(--amw,#FFF6D9);color:var(--amk,#6B4E00)}'
   + '#dsnav a.dn-item.on svg{color:var(--amk,#6B4E00)}'
-  + '#dsnav .dn-group{margin-bottom:2px}'
+  + '#dsnav .dn-group{margin-bottom:2px;position:relative}'
   + '#dsnav .dn-group-hd{display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:9px;'
-  +   'font-size:12.5px;font-weight:600;color:var(--ink2,#4E5A72);cursor:pointer;user-select:none;'
-  +   'transition:background .12s ease}'
+  +   'font-size:12.5px;font-weight:600;color:var(--ink2,#4E5A72);cursor:default;user-select:none;'
+  +   'transition:background .12s ease;white-space:nowrap}'
   + '#dsnav .dn-group-hd svg{width:16px;height:16px;stroke:currentColor;stroke-width:1.8;fill:none;'
   +   'stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;color:var(--ink3,#98A0B3)}'
-  + '#dsnav .dn-group-hd .dn-chev{width:12px;height:12px;margin-left:auto;transition:transform .15s ease}'
-  + '#dsnav .dn-group.open .dn-chev{transform:rotate(90deg)}'
+  + '#dsnav .dn-group-hd .dn-chev{width:12px;height:12px;margin-left:auto;flex-shrink:0}'
   + '#dsnav .dn-group-hd:hover{background:var(--wsh,#E4E4E1);color:var(--ink,#0E1626)}'
   + '#dsnav .dn-group-hd:hover svg{color:var(--ink,#0E1626)}'
   + '#dsnav .dn-group-hd.on{background:var(--amw,#FFF6D9);color:var(--amk,#6B4E00)}'
   + '#dsnav .dn-group-hd.on svg{color:var(--amk,#6B4E00)}'
-  + '#dsnav .dn-sub{display:none;flex-direction:column;padding-left:16px}'
-  + '#dsnav .dn-group.open .dn-sub{display:flex}'
+  + '#dsnav .dn-sub{display:none;flex-direction:column;padding:6px;min-width:210px;'
+  +   'position:absolute;left:100%;top:-6px;margin-left:6px;background:var(--crd,#FFFFFF);'
+  +   'border:1px solid var(--ln,#DADAD6);border-radius:10px;box-shadow:0 12px 28px -10px rgba(14,22,38,.35);z-index:950}'
+  + '#dsnav .dn-sub a{padding:8px 10px;font-size:12.5px;border-radius:7px}'
+  + '#dsnav .dn-sub a.on{background:var(--amw,#FFF6D9);color:var(--amk,#6B4E00)}'
+  + '#dsnav .dn-sub a.on svg{color:var(--amk,#6B4E00)}'
   + '#dsnav .dn-foot{margin-top:auto;flex-shrink:0;border-top:1px solid var(--ln,#DADAD6);padding-top:10px;'
   +   'display:flex;align-items:center;gap:9px}'
   + '#dsnav .dn-ava{width:30px;height:30px;border-radius:50%;background:var(--ink,#0E1626);color:#fff;'
   +   'display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0}'
-  + '#dsnav .dn-user{flex:1;min-width:0}'
+  + '#dsnav .dn-user{flex:1;min-width:0;white-space:nowrap}'
   + '#dsnav .dn-user b{display:block;font-size:12px;color:var(--ink,#0E1626);'
   +   'white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'
   + '#dsnav .dn-user a{font-size:10.5px;color:var(--neg,#C22F49);font-weight:700;text-decoration:none}'
-  + 'body.dsnav-pad{margin-left:236px}'
-  /* mobile: barra superior fixa com scroll horizontal */
+  + 'body.dsnav-pad{margin-left:64px}'
+  /* mobile: barra superior fixa com scroll horizontal — sem rail/flyout */
   + '@media(max-width:820px){'
   +   'body.dsnav-pad{margin-left:0;padding-top:96px}'
   +   '#dsnav{width:100%;height:auto;bottom:auto;flex-direction:column;padding:6px 8px;'
   +     'border-right:none;border-bottom:1px solid var(--ln,#DADAD6)}'
   +   '#dsnav .dn-top{border-bottom:none;padding:2px 6px 4px;margin-bottom:0}'
   +   '#dsnav .dn-brand img{height:44px}'
+  +   '#dsnav .dn-brand b,#dsnav .lbl,#dsnav .dn-chev{display:inline!important}'
   +   '#dsnav .dn-sec{display:none}'
   +   '#dsnav .dn-rows{display:flex;overflow-x:auto;gap:2px;-webkit-overflow-scrolling:touch;scrollbar-width:none}'+'#dsnav .dn-rows::-webkit-scrollbar{display:none}'
   +   '#dsnav a.dn-item{padding:7px 10px;font-size:11px;flex-shrink:0}'
   +   '#dsnav .dn-group{display:contents}'
   +   '#dsnav .dn-group-hd{display:none}'
-  +   '#dsnav .dn-group .dn-sub{display:contents!important}'
+  +   '#dsnav .dn-group .dn-sub{position:static;display:contents!important;box-shadow:none;border:none;padding:0;margin:0}'
   +   '#dsnav .dn-foot{display:none}'
   +   '#dsnav .dn-exit-mobile{display:flex;align-items:center;gap:5px;flex-shrink:0;'
   +     'color:var(--neg,#C22F49);font-size:11px;font-weight:700;text-decoration:none;'
   +     'padding:6px 10px;border-radius:8px;background:var(--negw,#FBEAED)}'
   +   '#dsnav .dn-exit-mobile svg{width:14px;height:14px;stroke:currentColor;stroke-width:1.8;fill:none}'
+  + '}'
+  /* ── rail com flyout (passa o mouse expande por cima do conteúdo, sem
+     empurrar nada; clicar no rail fixa aberto — útil em tablet sem hover) ── */
+  + '@media(min-width:821px){'
+  +   '#dsnav{transition:width .18s ease}'
+  +   '#dsnav .dn-brand b,#dsnav .lbl,#dsnav .dn-chev{display:none}'
+  +   '#dsnav:not(:hover):not(.pinned) .dn-top,'
+  +   '#dsnav:not(:hover):not(.pinned) a.dn-item,'
+  +   '#dsnav:not(:hover):not(.pinned) .dn-group-hd,'
+  +   '#dsnav:not(:hover):not(.pinned) .dn-foot{justify-content:center}'
+  +   '#dsnav:hover,#dsnav.pinned{width:236px;overflow:visible;'
+  +     'box-shadow:14px 0 34px -10px rgba(10,15,26,.45)}'
+  +   '#dsnav:hover .dn-brand img,#dsnav.pinned .dn-brand img{height:66px}'
+  +   '#dsnav:hover .dn-brand b,#dsnav.pinned .dn-brand b,'
+  +   '#dsnav:hover .lbl,#dsnav.pinned .lbl,'
+  +   '#dsnav:hover .dn-chev,#dsnav.pinned .dn-chev{display:inline}'
+  +   '#dsnav .dn-group:hover .dn-sub{display:flex}'
   + '}'
   /* ── variante NAVY (teste: ?nav=navy · voltar: ?nav=claro) ── */
   + '#dsnav.navy{background:#101B33;border-right-color:#1D2A46;border-bottom-color:#1D2A46}'
@@ -185,15 +208,14 @@
       if (it.sec) { html += '<div class="dn-sec"' + g + esconder + '>' + it.sec + '</div>'; return; }
       if (it.sub) {
         var ativoSub = it.sub.some(function (s) { return path === s.href; });
-        var aberto = ativoSub;
-        html += '<div class="dn-group' + (aberto ? ' open' : '') + '" data-grupo-id="' + it.id + '">'
+        html += '<div class="dn-group" data-grupo-id="' + it.id + '">'
           + '<div class="dn-group-hd' + (ativoSub ? ' on' : '') + '">'
-          +   icon(it.ic) + it.txt + icon('chevron-right', 'dn-chev')
+          +   icon(it.ic) + '<span class="lbl">' + it.txt + '</span>' + icon('chevron-right', 'dn-chev')
           + '</div>'
           + '<div class="dn-sub">'
           + it.sub.map(function (s) {
               var onS = path === s.href ? ' on' : '';
-              return '<a class="dn-item' + onS + '" href="' + s.href + '">' + icon(s.ic) + s.txt + '</a>';
+              return '<a class="dn-item' + onS + '" href="' + s.href + '">' + icon(s.ic) + '<span class="lbl">' + s.txt + '</span></a>';
             }).join('')
           + '</div>'
           + '</div>';
@@ -201,7 +223,7 @@
       }
       var on = path === it.href ? ' on' : '';
       var alvo = it.blank ? ' target="_blank" rel="noopener"' : '';
-      html += '<a class="dn-item' + on + '"' + g + esconder + ' href="' + it.href + '"' + alvo + '>' + icon(it.ic) + it.txt + '</a>';
+      html += '<a class="dn-item' + on + '"' + g + esconder + ' href="' + it.href + '"' + alvo + '>' + icon(it.ic) + '<span class="lbl">' + it.txt + '</span></a>';
     });
     html += '</div>'
       + '<div class="dn-foot">'
@@ -226,10 +248,17 @@
     document.body.insertAdjacentElement('afterbegin', aside);
     document.body.classList.add('dsnav-pad');
 
-    aside.querySelectorAll('.dn-group-hd').forEach(function (hd) {
-      hd.addEventListener('click', function () {
-        hd.closest('.dn-group').classList.toggle('open');
-      });
+    /* clique em qualquer ponto vazio do rail fixa ele aberto — importante em
+       tablet, onde não existe hover de verdade. Clicar de novo (ou clicar
+       fora) fecha. Clique em link/marca navega normal, sem interferir. */
+    aside.addEventListener('click', function (e) {
+      if (e.target.closest('a')) return;
+      aside.classList.toggle('pinned');
+    });
+    document.addEventListener('click', function (e) {
+      if (aside.classList.contains('pinned') && !aside.contains(e.target)) {
+        aside.classList.remove('pinned');
+      }
     });
 
     fetch('/api/me').then(function (r) { return r.json(); }).then(function (u) {
