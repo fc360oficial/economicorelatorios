@@ -142,7 +142,7 @@
   /* acordeão — abre embaixo do próprio grupo, empurra os itens seguintes,
      igual era antes desta mudança de rail */
   + '#dsnav .dn-sub{display:none;flex-direction:column;padding-left:16px}'
-  + '#dsnav .dn-group.open .dn-sub{display:flex}'
+  + '#dsnav.pinned .dn-group.open .dn-sub,#dsnav:hover .dn-group.open .dn-sub{display:flex}'
   + '#dsnav .dn-sub a{padding:8px 10px;font-size:12px}'
   + '#dsnav .dn-sub a.on{background:var(--amw,#FFF6D9);color:var(--amk,#6B4E00);font-weight:700}'
   + '#dsnav .dn-sub a.on svg{color:var(--amk,#6B4E00)}'
