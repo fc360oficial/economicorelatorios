@@ -1861,6 +1861,40 @@ app.get('/api/margem-lojas', withCache(60), async (req, res) => {
   } catch(err){ res.status(500).json({error: err.message}); }
 });
 
+// Venda total por loja (NFC-e + NF-e de saída) — compartilhado entre
+// /api/compra-venda e /api/pagar-venda.
+async function calcularVendaPorLoja(mesSel, mm, diaFiltroV, diaFiltroC) {
+  const lojas = [1,2,3,4,5,6];
+
+  const nfceMap = {};
+  await Promise.all(lojas.map(async ln => {
+    try {
+      const [r] = await q(
+        `SELECT COALESCE(SUM(ValorTotalNovo),0) as venda
+         FROM \`ln${ln}mes${mm}\`.zcupomitens
+         WHERE YEAR(Data)=2026 AND IndCancel='N'${diaFiltroV}`);
+      nfceMap[ln] = parseFloat(r?.venda || 0);
+    } catch(_) { nfceMap[ln] = 0; }
+  }));
+
+  const nfeVendaRows = await q(
+    `SELECT nLoja, COALESCE(SUM(TotalNota),0) as total
+     FROM central.compras
+     WHERE MONTH(DataLan)=? AND YEAR(DataLan)=2026
+       AND nLoja IN (1,2,3,4,5,6)
+       AND Movimentacao='VENDA' AND Tipo='NF'${diaFiltroC}
+     GROUP BY nLoja`,
+    [mesSel]
+  );
+  const nfeVendaMap = {};
+  for (const r of nfeVendaRows) nfeVendaMap[r.nLoja] = parseFloat(r.total || 0);
+
+  const vendaTotalMap = {};
+  for (const ln of lojas) vendaTotalMap[ln] = +((nfceMap[ln] || 0) + (nfeVendaMap[ln] || 0)).toFixed(2);
+
+  return { nfceMap, nfeVendaMap, vendaTotalMap };
+}
+
 // ── COMPRA x VENDA por loja ────────────────────────────────────────────────
 // Venda = NFC-e (zcupomitens) + NF-e saída (central.compras Tipo=NF Movimentacao=VENDA)
 // Compra = central.compras Tipo=NF Movimentacao=COMPRA
@@ -1876,20 +1910,9 @@ app.get('/api/compra-venda', withCache(30), async (req, res) => {
     const diaFiltroC = mesSel === mesHoje ? ` AND DAY(DataLan) <= ${diaHoje}` : '';
     const NOMES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
-    // NFC-e por loja (6 queries em paralelo)
-    const nfceMap = {};
-    await Promise.all(lojas.map(async ln => {
-      try {
-        const [r] = await q(
-          `SELECT COALESCE(SUM(ValorTotalNovo),0) as venda
-           FROM \`ln${ln}mes${mm}\`.zcupomitens
-           WHERE YEAR(Data)=2026 AND IndCancel='N'${diaFiltroV}`);
-        nfceMap[ln] = parseFloat(r?.venda || 0);
-      } catch(_) { nfceMap[ln] = 0; }
-    }));
+    const { nfceMap, nfeVendaMap } = await calcularVendaPorLoja(mesSel, mm, diaFiltroV, diaFiltroC);
 
     // Compra por loja: DataRecto (recebimento) + Tipo='PNF' + Status='F' = igual ao ERP "com NF"
-    // Venda NF-e: DataLan + Tipo='NF'
     const compraRows = await q(
       `SELECT nLoja, COALESCE(SUM(TotalNota),0) as total
        FROM central.compras
@@ -1899,25 +1922,8 @@ app.get('/api/compra-venda', withCache(30), async (req, res) => {
        GROUP BY nLoja`,
       [mesSel]
     );
-    const nfeVendaRows = await q(
-      `SELECT nLoja, COALESCE(SUM(TotalNota),0) as total
-       FROM central.compras
-       WHERE MONTH(DataLan)=? AND YEAR(DataLan)=2026
-         AND nLoja IN (1,2,3,4,5,6)
-         AND Movimentacao='VENDA' AND Tipo='NF'${diaFiltroC}
-       GROUP BY nLoja`,
-      [mesSel]
-    );
-    const cvRows = [
-      ...compraRows.map(r => ({ ...r, Movimentacao: 'COMPRA' })),
-      ...nfeVendaRows.map(r => ({ ...r, Movimentacao: 'VENDA' })),
-    ];
-    const nfeVendaMap = {}, compraMap = {};
-    for (const r of cvRows) {
-      const v = parseFloat(r.total || 0);
-      if (r.Movimentacao === 'VENDA')  nfeVendaMap[r.nLoja] = v;
-      if (r.Movimentacao === 'COMPRA') compraMap[r.nLoja]   = v;
-    }
+    const compraMap = {};
+    for (const r of compraRows) compraMap[r.nLoja] = parseFloat(r.total || 0);
 
     const por_loja = lojas.map(ln => {
       const nfce   = nfceMap[ln]    || 0;
