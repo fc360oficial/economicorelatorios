@@ -933,8 +933,8 @@ function renderItensTabela() {
   const rows = itens.map(it => `<tr>
       <td class="cod">${it.codigo}</td>
       <td class="desc">${it.descricao||'—'}</td>
-      <td class="c"><input class="cell-edit-unid" data-codigo="${it.codigo}" value="${(it.unidade||'').toUpperCase()}" title="Editar e apertar Enter pra fixar" style="width:42px;text-align:center;border:1px solid transparent;background:transparent;font:inherit;color:#4E5A72" oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter')this.blur()" onblur="salvarUnidadeEmb(this)"></td>
-      <td class="c"><input class="cell-edit-emb" type="number" min="1" step="1" data-codigo="${it.codigo}" value="${it.embalagem||1}" title="Editar e apertar Enter pra fixar" style="width:42px;text-align:center;border:1px solid transparent;background:transparent;font:inherit;color:#4E5A72" onkeydown="if(event.key==='Enter')this.blur()" onblur="salvarUnidadeEmb(this)"></td>
+      <td class="c"><input class="cell-edit-unid" data-codigo="${it.codigo}" value="${(it.unidade||'').toUpperCase()}" title="Editar e apertar Enter pra fixar" style="width:42px;text-align:center;border:1px solid transparent;background:transparent;font:inherit;color:#4E5A72" oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter'){event.preventDefault();focarProximoCampo(this,'unid')}" onblur="salvarUnidadeEmb(this)"></td>
+      <td class="c"><input class="cell-edit-emb" type="number" min="1" step="1" data-codigo="${it.codigo}" value="${it.embalagem||1}" title="Editar e apertar Enter pra fixar" style="width:42px;text-align:center;border:1px solid transparent;background:transparent;font:inherit;color:#4E5A72" onkeydown="if(event.key==='Enter'){event.preventDefault();focarProximoCampo(this,'emb')}" onblur="salvarUnidadeEmb(this)"></td>
       <td class="c" style="color:#B45C00">${it.custo > 0 ? fmt(it.custo) : '—'}</td>
       <td class="c"><span class="${it.margem_cadastro!=null?msvClass(it.margem_cadastro):''}">${it.margem_cadastro!=null?pctFmt(it.margem_cadastro):'—'}</span></td>
       <td class="c">${abcBadge(it.abc_venda)}</td>
@@ -1008,6 +1008,16 @@ async function abrirLista(id) {
   } catch(e) {
     body.innerHTML = `<div class="empty">Erro: ${e.message}</div>`;
   }
+}
+
+// Enter em Unid vai pra Emb da mesma linha; Enter em Emb vai pra Unid da
+// próxima linha (fluxo tipo planilha, pra digitar lista inteira sem mouse).
+function focarProximoCampo(input, campo) {
+  const tr = input.closest('tr');
+  const alvo = campo === 'unid'
+    ? tr.querySelector('.cell-edit-emb')
+    : tr.nextElementSibling?.querySelector('.cell-edit-unid');
+  if (alvo) { alvo.focus(); alvo.select(); }
 }
 
 async function salvarUnidadeEmb(input) {
