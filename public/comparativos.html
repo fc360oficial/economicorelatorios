@@ -83,6 +83,15 @@ table.dt tbody tr:hover{background:#ffffff06}
 .tab-btn:hover{color:#0E1626;background:rgba(255,255,255,.55)}
 .tab-btn.active{color:#0E1626;background:#FFFFFF;border-bottom-color:#F5B800;box-shadow:0 1px 4px rgba(14,22,38,.16),0 0 0 1px rgba(14,22,38,.04)}
 
+/* A PAGAR X VENDA */
+.pv-row{display:flex;align-items:center;gap:12px;padding:8px 0}
+.pv-row+.pv-row{border-top:1px solid #DADAD6}
+.pv-loja{width:170px;flex-shrink:0;font-size:12px;font-weight:700;color:#0E1626}
+.pv-loja span{color:#4E5A72;font-weight:400;font-size:10px;margin-left:4px}
+.pv-track{position:relative;flex:1;height:22px;border-radius:6px;overflow:hidden;background:linear-gradient(to right,#137A48 0%,#137A48 50%,#F5B800 50%,#F5B800 70%,#C22F49 70%,#C22F49 100%)}
+.pv-mask{position:absolute;top:0;right:0;height:100%;background:#EDEDE9;transition:width .3s}
+.pv-pct{width:64px;flex-shrink:0;text-align:right;font-size:13px;font-weight:700;color:#0E1626}
+
 /* RESPONSIVE */
 @media(max-width:900px){
   .sidebar{position:fixed;top:auto;bottom:0;left:0;right:0;height:auto;width:100%;flex-direction:column;border-right:none;border-top:1px solid #DADAD6}
@@ -187,6 +196,7 @@ table.dt tbody tr:hover{background:#ffffff06}
       <button class="tab-btn"        id="tab-btn-lojas"  onclick="setTab('lojas')">Por Lojas</button>
       <button class="tab-btn"        id="tab-btn-margem" onclick="setTab('margem')">Margem s/ Venda</button>
       <button class="tab-btn"        id="tab-btn-cv"     onclick="setTab('cv')">Compra x Venda</button>
+      <button class="tab-btn"        id="tab-btn-pagar"  onclick="setTab('pagar')">A Pagar x Venda</button>
     </div>
 
     <!-- Tab: Diário -->
@@ -326,6 +336,14 @@ table.dt tbody tr:hover{background:#ffffff06}
           <tbody id="tbody-cv"><tr><td colspan="6" class="loading">Selecione a aba para carregar</td></tr></tbody>
         </table>
       </div>
+    </div>
+
+    <!-- Tab: A Pagar x Venda -->
+    <div id="tab-pagar" style="display:none">
+      <p id="pagar-subtitulo" style="font-size:11px;color:#4E5A72;margin-bottom:14px">
+        A Pagar = Contas a Pagar com vencimento no mês (mês inteiro) &nbsp;·&nbsp; Venda = NFC-e (PDV) + NF-e saída &nbsp;·&nbsp; % = A Pagar ÷ Venda Total × 100
+      </p>
+      <div id="pv-body"><p class="loading">Selecione a aba para carregar</p></div>
     </div>
   </div>
 
@@ -521,16 +539,16 @@ function renderizar(data) {
   `);
 }
 
-const _carregado = { diario: false, mensal: false, merc: false, lojas: false, margem: false, cv: false };
+const _carregado = { diario: false, mensal: false, merc: false, lojas: false, margem: false, cv: false, pagar: false };
 let abaAtual = 'diario';
 // Visibilidade de filtros por aba: [mostra-loja, mostra-mes]
-const _filtros = { diario:[1,1], mensal:[1,0], merc:[1,1], lojas:[0,1], margem:[1,1], cv:[0,1] };
+const _filtros = { diario:[1,1], mensal:[1,0], merc:[1,1], lojas:[0,1], margem:[1,1], cv:[0,1], pagar:[0,1] };
 // Label do 4º KPI por aba
-const _kpiLabel = { diario:'Média Diária 2026', mensal:'Média Mensal 2026', merc:'Total Mercad. 2026', lojas:'Melhor Loja 2026', margem:'Melhor Margem 2026', cv:'C/V% Rede' };
+const _kpiLabel = { diario:'Média Diária 2026', mensal:'Média Mensal 2026', merc:'Total Mercad. 2026', lojas:'Melhor Loja 2026', margem:'Melhor Margem 2026', cv:'C/V% Rede', pagar:'A Pagar % Rede' };
 
 function setTab(aba) {
   abaAtual = aba;
-  ['diario','mensal','merc','lojas','margem','cv'].forEach(t => {
+  ['diario','mensal','merc','lojas','margem','cv','pagar'].forEach(t => {
     document.getElementById('tab-' + t).style.display = t === aba ? '' : 'none';
     document.getElementById('tab-btn-' + t).classList.toggle('active', t === aba);
   });
@@ -949,7 +967,51 @@ function carregarCV() {
     });
 }
 
-const _carregar = { diario: carregar, mensal: carregarMensal, merc: carregarMerc, lojas: carregarLojas, margem: carregarMargem, cv: carregarCV };
+function carregarPagarVenda() {
+  const mes = document.getElementById('sel-mes').value;
+  const body = document.getElementById('pv-body');
+  body.innerHTML = '<p class="loading">Carregando...</p>';
+  fetch(`/api/pagar-venda?mes=${mes}`)
+    .then(r => { if (r.status === 401) { location.href='/login.html'; throw new Error('401'); } return r.json(); })
+    .then(data => {
+      if (data.error) throw new Error(data.error);
+      _carregado.pagar = true;
+
+      const t = data.totais;
+      document.getElementById('k-tot26').textContent = t.pct !== null ? t.pct.toFixed(1) + '%' : '—';
+      document.getElementById('k-sub26').textContent = 'A Pagar % rede ' + data.nome_mes;
+      document.getElementById('k-tot25').textContent = '—';
+      document.getElementById('k-sub25').textContent = '';
+      document.getElementById('k-var').textContent = '';
+      document.getElementById('k-var').className = 'kpi-v';
+      document.getElementById('k-med26').textContent = '—';
+      document.getElementById('k-med-label').textContent = 'A Pagar x Venda';
+
+      const parcialLabel = data.parcial ? ` <span style="color:#4E5A72;font-size:10px">(venda até dia ${data.diaHoje})</span>` : '';
+      document.getElementById('pagar-subtitulo').innerHTML =
+        `A Pagar = Contas a Pagar com vencimento no mês (mês inteiro) &nbsp;·&nbsp; Venda = NFC-e (PDV) + NF-e saída${parcialLabel} &nbsp;·&nbsp; % = A Pagar ÷ Venda Total × 100`;
+
+      const LOJAS = ['','CAHU','MURIBECA','PONTE','ATACAREJO','PORTA LARGA','JARDIM JORDÃO'];
+      let html = '';
+      for (const l of data.por_loja) {
+        const pctTxt = l.pct !== null ? l.pct.toFixed(1) + '%' : '—';
+        const maskPct = l.pct !== null ? 100 - Math.min(l.pct, 100) : 100;
+        html += `
+          <div class="pv-row">
+            <div class="pv-loja">Loja ${l.loja}<span>${LOJAS[l.loja]||''}</span></div>
+            <div class="pv-track"><div class="pv-mask" style="width:${maskPct}%"></div></div>
+            <div class="pv-pct">${pctTxt}</div>
+          </div>`;
+      }
+      body.innerHTML = html;
+    })
+    .catch(e => {
+      if (e?.message === '401') return;
+      body.innerHTML = `<p class="loading">Erro: ${e?.message || e}</p>`;
+    });
+}
+
+const _carregar = { diario: carregar, mensal: carregarMensal, merc: carregarMerc, lojas: carregarLojas, margem: carregarMargem, cv: carregarCV, pagar: carregarPagarVenda };
 
 // Ao trocar loja: recarrega abas que usam loja (diario, mensal, merc)
 document.getElementById('sel-loja').addEventListener('change', () => {
@@ -963,7 +1025,7 @@ document.getElementById('sel-loja-margem').addEventListener('change', () => {
 // Ao trocar mês: recarrega abas que usam mês (diario, merc, lojas, margem)
 document.getElementById('sel-mes').addEventListener('change', () => {
   _carregado[abaAtual] = false;
-  if (['diario','merc','lojas','margem','cv'].includes(abaAtual)) _carregar[abaAtual]();
+  if (['diario','merc','lojas','margem','cv','pagar'].includes(abaAtual)) _carregar[abaAtual]();
 });
 
 initSelects();
