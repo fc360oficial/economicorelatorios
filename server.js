@@ -1057,7 +1057,8 @@ app.get('/api/fornecedores/resumo', async (req, res) => {
     const hoje = new Date();
     const mesSel = req.query.mes ? parseInt(req.query.mes) : hoje.getMonth() + 1;
     const anoSel = req.query.ano ? parseInt(req.query.ano) : hoje.getFullYear();
-    const lojaSel = req.query.loja ? parseInt(req.query.loja) : 1;
+    const lojaParam = req.query.loja || '1';
+    const lojasList = lojaParam === 'todas' ? [1,2,3,4,5,6] : [parseInt(lojaParam) || 1];
     const busca   = req.query.busca || '';
     const compradorSel = req.query.comprador || '';
     const mm       = mesDB(mesSel);
@@ -1065,7 +1066,7 @@ app.get('/api/fornecedores/resumo', async (req, res) => {
     const dFim     = dFimMes(anoSel, mesSel);
 
     // Cache por loja+mes+ano (quando não há busca/comprador)
-    const cacheKey = `${lojaSel}-${mesSel}-${anoSel}`;
+    const cacheKey = `${lojaParam}-${mesSel}-${anoSel}`;
     if (!busca && !compradorSel && _resumoCache[cacheKey] && (Date.now() - _resumoCacheTs[cacheKey]) < RESUMO_TTL) {
       return res.json(_resumoCache[cacheKey]);
     }
@@ -1074,23 +1075,27 @@ app.get('/api/fornecedores/resumo', async (req, res) => {
     let wf = 'WHERE CodDesativado=0', pf = [];
     if (busca) { wf += ' AND (Nome LIKE ? OR NomeCompleto LIKE ?)'; pf.push(`%${busca}%`, `%${busca}%`); }
 
-    const [vendasRows, fornecItensRaw, custoLojaRows, avariaRows, avariaStatusRows, compradorRows, fornecs] = await Promise.all([
-      q(`SELECT Codigo, SUM(QtdNovo) as qtd, SUM(ValorTotalNovo) as valor, SUM(Custo) as custo_total
-         FROM \`ln${lojaSel}${mm}\`.zcupomitens
-         WHERE Data BETWEEN ? AND ? AND IndCancel='N' GROUP BY Codigo`, [dIni, dFim]).catch(() => []),
+    const lojasPh = lojasList.map(() => '?').join(',');
+
+    const [vendasPorLoja, fornecItensRaw, avariaRows, avariaStatusRows, compradorRows, fornecs] = await Promise.all([
+      Promise.all(lojasList.map(ln => Promise.all([
+        q(`SELECT Codigo, SUM(QtdNovo) as qtd, SUM(ValorTotalNovo) as valor, SUM(Custo) as custo_total
+           FROM \`ln${ln}${mm}\`.zcupomitens
+           WHERE Data BETWEEN ? AND ? AND IndCancel='N' GROUP BY Codigo`, [dIni, dFim]).catch(() => []),
+        q(`SELECT CodigoBarra, Custo FROM central.custoloja${ln} WHERE Custo > 0`).catch(() => [])
+      ]))),
       getFornecItens(),
-      q(`SELECT CodigoBarra, Custo FROM central.custoloja${lojaSel} WHERE Custo > 0`).catch(() => []),
       q(`SELECT a.CodFornec, SUM(a.Total) as total, COUNT(*) as qtd
          FROM central.avariaconsumo a
          INNER JOIN central.fornecedoritens fi ON fi.CodigoBarra = a.CodigoBarras AND fi.CodFornecedor = a.CodFornec AND fi.Backup = 0
-         WHERE a.nLoja=? AND a.DataLan BETWEEN ? AND ? AND a.CodFornec>0
-         GROUP BY a.CodFornec`, [lojaSel, dIni, dFim]).catch(() => []),
+         WHERE a.nLoja IN (${lojasPh}) AND a.DataLan BETWEEN ? AND ? AND a.CodFornec>0
+         GROUP BY a.CodFornec`, [...lojasList, dIni, dFim]).catch(() => []),
       q(`SELECT SUM(CASE WHEN Status=0 THEN Total ELSE 0 END) as em_aberto,
                 SUM(CASE WHEN Status=2 THEN Total ELSE 0 END) as em_tramite,
                 SUM(CASE WHEN Status IN (3,4) THEN Total ELSE 0 END) as ja_emitido,
                 SUM(Total) as total_geral
-         FROM central.avariaconsumo WHERE nLoja=? AND DataLan BETWEEN ? AND ?`,
-        [lojaSel, dIni, dFim]).catch(() => [{}]),
+         FROM central.avariaconsumo WHERE nLoja IN (${lojasPh}) AND DataLan BETWEEN ? AND ?`,
+        [...lojasList, dIni, dFim]).catch(() => [{}]),
       (async () => {
         const allNRegs = Object.values(NREGS_COMPRADOR).flat();
         if (!allNRegs.length) return [];
@@ -1100,17 +1105,25 @@ app.get('/api/fornecedores/resumo', async (req, res) => {
       q(`SELECT CodFornec, Nome, NomeCompleto FROM central.fornecedor ${wf}`, pf).catch(() => [])
     ]);
 
-    // Monta prodRows: fornecItens + custo da loja em memória
-    const custoLojaMap = {};
-    for (const r of custoLojaRows) custoLojaMap[r.CodigoBarra] = parseFloat(r.Custo) || 0;
-    const prodRows = fornecItensRaw.map(fi => ({ CodFornecedor: fi.CodFornecedor, CodigoBarra: fi.CodigoBarra, Custo: custoLojaMap[fi.CodigoBarra] || 0 }));
+    // Monta prodRows: fornecItens (catálogo, independe de loja)
+    const prodRows = fornecItensRaw.map(fi => ({ CodFornecedor: fi.CodFornecedor, CodigoBarra: fi.CodigoBarra }));
 
-    // Processa vendas
-    let vendasMap = {}, totalLojaReal = 0, totalCustoLoja = 0;
-    for (const r of vendasRows) {
-      const v = parseFloat(r.valor), ct = parseFloat(r.custo_total || 0);
-      vendasMap[r.Codigo] = { qtd: parseFloat(r.qtd), valor: v, custo: ct };
-      totalLojaReal += v; totalCustoLoja += ct;
+    // Processa vendas — soma qtd/valor de todas as lojas selecionadas e acumula
+    // o custo real (qtd da loja × custo daquela loja) por produto, em vez de
+    // aplicar o custo de uma única loja sobre a quantidade total.
+    let vendasMap = {}, custoAcumulado = {}, totalLojaReal = 0, totalCustoLoja = 0;
+    for (const [vendasRowsN, custoLojaRowsN] of vendasPorLoja) {
+      const custoLojaMapN = {};
+      for (const r of custoLojaRowsN) custoLojaMapN[r.CodigoBarra] = parseFloat(r.Custo) || 0;
+      for (const r of vendasRowsN) {
+        const v = parseFloat(r.valor), ct = parseFloat(r.custo_total || 0), qtd = parseFloat(r.qtd);
+        if (!vendasMap[r.Codigo]) vendasMap[r.Codigo] = { qtd: 0, valor: 0, custo: 0 };
+        vendasMap[r.Codigo].qtd   += qtd;
+        vendasMap[r.Codigo].valor += v;
+        vendasMap[r.Codigo].custo += ct;
+        custoAcumulado[r.Codigo] = (custoAcumulado[r.Codigo] || 0) + qtd * (custoLojaMapN[r.Codigo] || 0);
+        totalLojaReal += v; totalCustoLoja += ct;
+      }
     }
 
     // Avaria
@@ -1139,8 +1152,7 @@ app.get('/api/fornecedores/resumo', async (req, res) => {
     for (const p of prodRows) {
       const fid = p.CodFornecedor;
       const v   = vendasMap[p.CodigoBarra] || { qtd: 0, valor: 0 };
-      const cst = parsePreco(p.Custo);
-      const cstTot = v.qtd * cst;
+      const cstTot = custoAcumulado[p.CodigoBarra] || 0;
       if (!fMap[fid]) fMap[fid] = { venda: 0, custo: 0, lucro: 0, ativos: 0, comVenda: 0 };
       fMap[fid].ativos++;
       if (v.valor > 0) {
@@ -1199,7 +1211,9 @@ app.get('/api/fornecedores/resumo', async (req, res) => {
 // Compras por comprador — fonte de verdade: NREGS_COMPRADOR, populado a partir do ERP
 app.get('/api/fornecedores/compras-resumo', async (req, res) => {
   try {
-    const loja = parseInt(req.query.loja) || 1;
+    const lojaParam = req.query.loja || '1';
+    const lojasList = lojaParam === 'todas' ? [1,2,3,4,5,6] : [parseInt(lojaParam) || 1];
+    const lojasPh = lojasList.map(() => '?').join(',');
     const mes  = parseInt(req.query.mes)  || new Date().getMonth() + 1;
     const ano  = parseInt(req.query.ano)  || new Date().getFullYear();
 
@@ -1211,19 +1225,19 @@ app.get('/api/fornecedores/compras-resumo', async (req, res) => {
       q(`SELECT c.CodFornec, c.NomeFornec as fornecedor_nome,
                COUNT(*) as qtd_nfs, SUM(c.TotalNota) as total
          FROM central.compras c
-         WHERE c.nLoja = ? AND MONTH(c.DataRecto) = ? AND YEAR(c.DataRecto) = ?
+         WHERE c.nLoja IN (${lojasPh}) AND MONTH(c.DataRecto) = ? AND YEAR(c.DataRecto) = ?
            AND c.Movimentacao = 'COMPRA' AND c.Tipo = 'PNF' AND c.Status = 'F'
            AND c.CodFornec > 0
          GROUP BY c.CodFornec, c.NomeFornec
-         ORDER BY total DESC`, [loja, mes, ano]),
+         ORDER BY total DESC`, [...lojasList, mes, ano]),
       q(`SELECT nReg as lista_id, CodFornec FROM central.c_cotacao_lista WHERE nReg IN (${excelPh})`, allExcelNRegs),
-      q(`SELECT COALESCE(SUM(Total), 0) as total FROM dashboard.vendas WHERE nLoja=? AND Mes=? AND Ano=?`, [loja, mes, ano]),
-      q(`SELECT COALESCE(SUM(Total), 0) as total FROM dashboard.compras WHERE nLoja=? AND Mes=? AND Ano=?`, [loja, mes, ano]),
+      q(`SELECT COALESCE(SUM(Total), 0) as total FROM dashboard.vendas WHERE nLoja IN (${lojasPh}) AND Mes=? AND Ano=?`, [...lojasList, mes, ano]),
+      q(`SELECT COALESCE(SUM(Total), 0) as total FROM dashboard.compras WHERE nLoja IN (${lojasPh}) AND Mes=? AND Ano=?`, [...lojasList, mes, ano]),
       q(`SELECT DATE(DataRecto) as dia, SUM(TotalNota) as total
          FROM central.compras
-         WHERE nLoja=? AND MONTH(DataRecto)=? AND YEAR(DataRecto)=?
+         WHERE nLoja IN (${lojasPh}) AND MONTH(DataRecto)=? AND YEAR(DataRecto)=?
            AND Movimentacao='COMPRA' AND Tipo='PNF' AND Status='F' AND CodFornec > 0
-         GROUP BY DATE(DataRecto) ORDER BY dia ASC`, [loja, mes, ano])
+         GROUP BY DATE(DataRecto) ORDER BY dia ASC`, [...lojasList, mes, ano])
     ]);
 
     // Mapa invertido lista → comprador
@@ -1305,7 +1319,9 @@ app.get('/api/fornecedores/compras-resumo', async (req, res) => {
 app.get('/api/fornecedores/compras-produtos', async (req, res) => {
   try {
     const codFornec = parseInt(req.query.codFornec);
-    const loja = parseInt(req.query.loja) || 1;
+    const lojaParam = req.query.loja || '1';
+    const lojasList = lojaParam === 'todas' ? [1,2,3,4,5,6] : [parseInt(lojaParam) || 1];
+    const lojasPh = lojasList.map(() => '?').join(',');
     const mes  = parseInt(req.query.mes)  || new Date().getMonth() + 1;
     const ano  = parseInt(req.query.ano)  || new Date().getFullYear();
     if (!codFornec) return res.json({ produtos: [], nfs: 0 });
@@ -1321,20 +1337,20 @@ app.get('/api/fornecedores/compras-produtos', async (req, res) => {
         ON ap.CNPJemit = c.CNPJ
         AND ap.nNota   = CAST(c.nNota AS DECIMAL(12,0))
         AND ap.nSerie  = c.Serie
-      WHERE c.CodFornec = ? AND c.nLoja = ?
+      WHERE c.CodFornec = ? AND c.nLoja IN (${lojasPh})
         AND MONTH(c.DataRecto) = ? AND YEAR(c.DataRecto) = ?
         AND c.Movimentacao = 'COMPRA' AND c.Tipo = 'PNF' AND c.Status = 'F'
       GROUP BY ap.CodigoBarras, ap.Descricao, ap.Und
       ORDER BY ap.Descricao
-    `, [codFornec, loja, mes, ano]);
+    `, [codFornec, ...lojasList, mes, ano]);
 
     // Lista das NFs do período para exibir ao clicar
     const nfsList = await q(`
       SELECT nNota, Serie, DataRecto, TotalNota FROM central.compras
-      WHERE CodFornec = ? AND nLoja = ? AND MONTH(DataRecto) = ? AND YEAR(DataRecto) = ?
+      WHERE CodFornec = ? AND nLoja IN (${lojasPh}) AND MONTH(DataRecto) = ? AND YEAR(DataRecto) = ?
         AND Movimentacao = 'COMPRA' AND Tipo = 'PNF' AND Status = 'F'
       ORDER BY DataRecto DESC
-    `, [codFornec, loja, mes, ano]);
+    `, [codFornec, ...lojasList, mes, ano]);
 
     const produtos = itens.map(p => ({
       CodigoBarra: p.CodigoBarras,
@@ -2118,7 +2134,8 @@ app.get('/api/fornecedores/:id/produtos', async (req, res) => {
     const hoje    = new Date();
     const mesSel  = req.query.mes  ? parseInt(req.query.mes)  : hoje.getMonth() + 1;
     const anoSel  = req.query.ano  ? parseInt(req.query.ano)  : hoje.getFullYear();
-    const lojaSel = req.query.loja ? parseInt(req.query.loja) : 1;
+    // "todas" não se aplica aqui (produtos/estoque são por loja específica) — cai em Loja 1
+    const lojaSel = parseInt(req.query.loja) || 1;
     const listaSel = req.query.lista ? parseInt(req.query.lista) : null;
     const mm      = mesDB(mesSel);
     const dIni    = `${anoSel}-${String(mesSel).padStart(2,'0')}-01`;
@@ -2185,7 +2202,8 @@ app.get('/api/fornecedores/:id/avarias', async (req, res) => {
     const hoje    = new Date();
     const mesSel  = req.query.mes  ? parseInt(req.query.mes)  : hoje.getMonth() + 1;
     const anoSel  = req.query.ano  ? parseInt(req.query.ano)  : hoje.getFullYear();
-    const lojaSel = req.query.loja ? parseInt(req.query.loja) : 1;
+    // "todas" não se aplica aqui (avaria é por loja específica) — cai em Loja 1
+    const lojaSel = parseInt(req.query.loja) || 1;
     const listaSel = req.query.lista ? parseInt(req.query.lista) : null;
     const dIni    = `${anoSel}-${String(mesSel).padStart(2,'0')}-01`;
     const dFim    = dFimMes(anoSel, mesSel);
