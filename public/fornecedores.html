@@ -51,6 +51,11 @@ table.main-t{width:100%;border-collapse:collapse;font-size:13px}
 table.main-t thead{background:#EBEBE9;position:sticky;top:0;z-index:10}
 table.main-t th{padding:10px 14px;text-align:left;color:#4E5A72;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;border-bottom:1px solid #DADAD6}
 table.main-t th.r{text-align:right}
+table.main-t th.sortable{cursor:pointer;user-select:none}
+table.main-t th.sortable:hover{color:#0E1626}
+table.main-t th.sortable .sort-arrow{display:inline-block;margin-left:4px;font-size:9px;color:#98A0B3}
+table.main-t th.sortable.active{color:#6B4E00}
+table.main-t th.sortable.active .sort-arrow{color:#F5B800}
 table.main-t td{padding:9px 14px;border-bottom:1px solid #DADAD6;vertical-align:middle}
 table.main-t tbody tr{transition:background .1s}
 table.main-t tbody tr:hover{background:#F5F5F3}
@@ -337,16 +342,17 @@ table.comp-t tr:hover td{background:#ffffff05}
           <th style="width:30px">#</th>
           <th>Lista / Fornecedor</th>
           <th>Comprador</th>
-          <th class="r" title="Clique para detalhar">Venda R$</th>
-          <th class="r" title="Clique para detalhar">Margem S/V</th>
-          <th class="r" title="Clique para detalhar">Margem S/C</th>
-          <th class="r" title="Clique para detalhar">Avaria R$</th>
-          <th class="r">% Av/Venda</th>
-          <th class="r">Itens Lista</th>
-          <th class="r">C/ Venda</th>
+          <th class="r sortable" id="th-venda" onclick="ordenarPor('venda')" title="Clique para ordenar">Venda R$<span class="sort-arrow"></span></th>
+          <th class="r sortable" id="th-msv" onclick="ordenarPor('msv')" title="Clique para ordenar">Margem S/V<span class="sort-arrow"></span></th>
+          <th class="r sortable" id="th-msc" onclick="ordenarPor('msc')" title="Clique para ordenar">Margem S/C<span class="sort-arrow"></span></th>
+          <th class="r" title="Margem cadastrada no produto (cadastro do comprador no ERP) — média ponderada pela venda">Margem Cadastro</th>
+          <th class="r sortable" id="th-avaria" onclick="ordenarPor('avaria')" title="Clique para ordenar">Avaria R$<span class="sort-arrow"></span></th>
+          <th class="r sortable" id="th-pctav" onclick="ordenarPor('pctav')" title="Clique para ordenar">% Av/Venda<span class="sort-arrow"></span></th>
+          <th class="r sortable" id="th-itens" onclick="ordenarPor('itens')" title="Clique para ordenar">Itens Lista<span class="sort-arrow"></span></th>
+          <th class="r sortable" id="th-comvenda" onclick="ordenarPor('comvenda')" title="Clique para ordenar">C/ Venda<span class="sort-arrow"></span></th>
         </tr>
       </thead>
-      <tbody id="main-tbody"><tr><td colspan="10" style="padding:40px;text-align:center"><div class="spinner"></div></td></tr></tbody>
+      <tbody id="main-tbody"><tr><td colspan="11" style="padding:40px;text-align:center"><div class="spinner"></div></td></tr></tbody>
     </table>
   </div>
   </div><!-- /sec-ranking -->
@@ -421,7 +427,7 @@ async function carregar() {
   fecharDrawer();
   _comprasCache = null; _comprasCacheKey = '';
   cacheProds = {}; cacheAvaria = {}; cacheLojas = {};
-  document.getElementById('main-tbody').innerHTML = '<tr><td colspan="10" style="padding:40px;text-align:center"><div class="spinner"></div></td></tr>';
+  document.getElementById('main-tbody').innerHTML = '<tr><td colspan="11" style="padding:40px;text-align:center"><div class="spinner"></div></td></tr>';
 
   const p = params();
 
@@ -455,20 +461,63 @@ async function carregar() {
     }
     renderListas();
   } catch(e) {
-    document.getElementById('main-tbody').innerHTML = `<tr><td colspan="10" class="empty">Erro: ${e.message}</td></tr>`;
+    document.getElementById('main-tbody').innerHTML = `<tr><td colspan="11" class="empty">Erro: ${e.message}</td></tr>`;
   }
 }
 
 function msvClass(v) { return v>=20?'m-great':v>=12?'m-ok':v>=0?'m-warn':'m-bad'; }
 function avClass(v)  { return v<=2?'av-ok':v<=5?'av-warn':'av-bad'; }
 
+let sortCol = null, sortDir = 'desc';
+
+function valorOrdenacao(r, col) {
+  const s = dados.find(d => d.id === r.codFornec) || {};
+  switch (col) {
+    case 'venda':    return s.venda || 0;
+    case 'msv':      return s.msv || 0;
+    case 'msc':      return s.msc || 0;
+    case 'avaria':   return s.avaria || 0;
+    case 'pctav':    return s.pct_av || 0;
+    case 'itens':    return r.total_itens || 0;
+    case 'comvenda': return s.com_venda || 0;
+    default:         return 0;
+  }
+}
+
+function ordenarPor(col) {
+  if (sortCol === col) {
+    sortDir = sortDir === 'desc' ? 'asc' : 'desc';
+  } else {
+    sortCol = col;
+    sortDir = 'desc';
+  }
+  renderListas();
+}
+
+function atualizarSetas() {
+  document.querySelectorAll('table.main-t th.sortable').forEach(th => th.classList.remove('active'));
+  document.querySelectorAll('table.main-t th.sortable .sort-arrow').forEach(el => el.textContent = '');
+  if (!sortCol) return;
+  const th = document.getElementById('th-' + sortCol);
+  if (!th) return;
+  th.classList.add('active');
+  th.querySelector('.sort-arrow').textContent = sortDir === 'desc' ? '▼' : '▲';
+}
+
 function renderListas() { renderListasComDados(listas, null); }
 
 function renderListasComDados(lista, filtroMsg) {
   if (!lista.length) {
-    document.getElementById('main-tbody').innerHTML=`<tr><td colspan="10" class="empty">${filtroMsg?'Nenhuma lista para estes fornecedores.':'Nenhuma lista encontrada.'}</td></tr>`;
+    document.getElementById('main-tbody').innerHTML=`<tr><td colspan="11" class="empty">${filtroMsg?'Nenhuma lista para estes fornecedores.':'Nenhuma lista encontrada.'}</td></tr>`;
     return;
   }
+  if (sortCol) {
+    lista = lista.slice().sort((a, b) => {
+      const va = valorOrdenacao(a, sortCol), vb = valorOrdenacao(b, sortCol);
+      return sortDir === 'desc' ? vb - va : va - vb;
+    });
+  }
+  atualizarSetas();
   // Para a barra de referência, pega o maior venda entre os fornecedores das listas
   const maxVenda = Math.max(...lista.map(r => {
     const s = dados.find(d => d.id === r.codFornec);
@@ -497,6 +546,7 @@ function renderListasComDados(lista, filtroMsg) {
       <td class="td-r"><span class="td-venda" onclick="${sid?`abrirDrawer(${sid},'venda',${r.id})`:'void(0)'}" title="Ver detalhes de venda">${venda>0?fmt(venda):'—'}</span></td>
       <td class="td-r"><span class="td-margem ${msvClass(s.msv)}" onclick="${sid?`abrirDrawer(${sid},'margem',${r.id})`:'void(0)'}" title="Ver rentabilidade">${venda>0?pctFmt(s.msv):'—'}</span></td>
       <td class="td-r"><span class="td-margem ${msvClass(s.msc)}" onclick="${sid?`abrirDrawer(${sid},'margem',${r.id})`:'void(0)'}" title="Ver rentabilidade">${venda>0?pctFmt(s.msc):'—'}</span></td>
+      <td class="td-r"><span class="${s.mcad!=null?msvClass(s.mcad):''}" title="Margem cadastrada no produto (ERP), ponderada pela venda">${s.mcad!=null?pctFmt(s.mcad):'—'}</span></td>
       <td class="td-r"><span class="td-avaria ${avClass(s.pct_av)}" onclick="${sid?`abrirDrawer(${sid},'avaria',${r.id})`:'void(0)'}" title="Ver avarias">${avaria>0?fmt(avaria):'—'}</span></td>
       <td class="td-r ${avClass(s.pct_av)}">${avaria>0?pctFmt(s.pct_av):'—'}</td>
       <td class="td-r"><span class="itens-badge">${r.total_itens}</span></td>
