@@ -3068,18 +3068,18 @@ app.get('/api/listas-compra/:id/itens', async (req, res) => {
     // (central.itenscoletorvalidade) — pega o lote com validade mais próxima
     // de vencer (ou o mais recente já vencido, se não houver nenhum futuro) e
     // calcula os dias de validade daquele lote (Data - dataEntrada).
+    // Não filtra por loja: é informação do produto, não da loja selecionada —
+    // um produto pode não ter sido escaneado na loja do filtro, mas ter
+    // histórico de validade em outras.
     const validadeMap = {};
     const codigos = [...new Set(itens.map(r => r.Codigobarra))];
     if (codigos.length) {
       const ph = codigos.map(() => '?').join(',');
-      let wLoja = '';
-      const vParams = [...codigos];
-      if (loja && loja !== 'todas') { wLoja = ' AND nLoja = ?'; vParams.push(parseInt(loja)); }
       const loteRows = await q(`
         SELECT Codigobarra, Data, dataEntrada
         FROM central.itenscoletorvalidade
-        WHERE Codigobarra IN (${ph})${wLoja}
-      `, vParams).catch(() => []);
+        WHERE Codigobarra IN (${ph})
+      `, codigos).catch(() => []);
 
       const porCodigo = {};
       for (const r of loteRows) (porCodigo[r.Codigobarra] = porCodigo[r.Codigobarra] || []).push(r);
