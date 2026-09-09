@@ -3040,6 +3040,32 @@ app.get('/api/listas-compra', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Correção manual de Unidade/Embalagem quando o cadastro do ERP (UnidadeCompra/
+// qtdemb) vier errado ou vazio — por CodigoBarra (produto), não por lista, já que
+// é uma característica do item. Fica em JSON local, nunca escreve no MySQL.
+const UNIDADE_EMB_OVERRIDES_PATH = path.join(__dirname, 'data', 'unidade-embalagem-overrides.json');
+function carregarUnidadeEmbOverrides() {
+  try { return JSON.parse(fs.readFileSync(UNIDADE_EMB_OVERRIDES_PATH, 'utf8')); } catch (e) { return {}; }
+}
+function salvarUnidadeEmbOverrides(overrides) {
+  fs.mkdirSync(path.dirname(UNIDADE_EMB_OVERRIDES_PATH), { recursive: true });
+  fs.writeFileSync(UNIDADE_EMB_OVERRIDES_PATH, JSON.stringify(overrides, null, 2));
+}
+
+app.post('/api/itens/unidade-embalagem', (req, res) => {
+  const { codigo, unidade, embalagem } = req.body || {};
+  if (!codigo) return res.status(400).json({ error: 'Informe o código de barras.' });
+  const emb = parseFloat(embalagem);
+  if (!Number.isFinite(emb) || emb <= 0) return res.status(400).json({ error: 'Embalagem inválida.' });
+  const unid = String(unidade || '').trim().toUpperCase();
+  if (!unid) return res.status(400).json({ error: 'Informe a unidade.' });
+
+  const overrides = carregarUnidadeEmbOverrides();
+  overrides[codigo] = { unidade: unid, embalagem: emb };
+  salvarUnidadeEmbOverrides(overrides);
+  res.json({ ok: true });
+});
+
 // Itens de uma lista específica
 app.get('/api/listas-compra/:id/itens', async (req, res) => {
   try {
@@ -3096,13 +3122,17 @@ app.get('/api/listas-compra/:id/itens', async (req, res) => {
       }
     }
 
+    const unidadeEmbOverrides = carregarUnidadeEmbOverrides();
+
     res.json(itens.map(r => {
       const v = validadeMap[r.Codigobarra];
+      const ov = unidadeEmbOverrides[r.Codigobarra];
       return {
         codigo: r.Codigobarra,
         descricao: r.Descricao?.trim(),
-        unidade: (r.UnidadeCompra?.trim() || r.Unid?.trim()),
-        embalagem: parseFloat(r.qtdemb) > 0 ? parseFloat(r.qtdemb) : 1,
+        unidade: ov?.unidade || (r.UnidadeCompra?.trim() || r.Unid?.trim()),
+        embalagem: ov?.embalagem || (parseFloat(r.qtdemb) > 0 ? parseFloat(r.qtdemb) : 1),
+        unidade_embalagem_ajustada: !!ov,
         posicao: r.Posicao,
         custo: parseFloat(r.custo_atual || 0),
         margem_cadastro: r.margem_cadastro != null ? parseFloat(r.margem_cadastro) : null,

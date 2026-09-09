@@ -932,8 +932,8 @@ async function abrirLista(id) {
     const rows = itens.map(it => `<tr>
       <td class="cod">${it.codigo}</td>
       <td class="desc">${it.descricao||'—'}</td>
-      <td class="r" style="color:#4E5A72">${it.unidade||''}</td>
-      <td class="r" style="color:#4E5A72">${it.embalagem||1}</td>
+      <td class="r"><input class="cell-edit-unid" data-codigo="${it.codigo}" value="${it.unidade||''}" title="Editar e apertar Enter pra fixar" style="width:42px;text-align:right;border:1px solid transparent;background:transparent;font:inherit;color:#4E5A72${it.unidade_embalagem_ajustada?';font-weight:700':''}" onkeydown="if(event.key==='Enter')this.blur()" onblur="salvarUnidadeEmb(this)"></td>
+      <td class="r"><input class="cell-edit-emb" type="number" min="1" step="1" data-codigo="${it.codigo}" value="${it.embalagem||1}" title="Editar e apertar Enter pra fixar" style="width:42px;text-align:right;border:1px solid transparent;background:transparent;font:inherit;color:#4E5A72${it.unidade_embalagem_ajustada?';font-weight:700':''}" onkeydown="if(event.key==='Enter')this.blur()" onblur="salvarUnidadeEmb(this)"></td>
       <td class="r" style="color:#B45C00">${it.custo > 0 ? fmt(it.custo) : '—'}</td>
       <td class="r"><span class="${it.margem_cadastro!=null?msvClass(it.margem_cadastro):''}">${it.margem_cadastro!=null?pctFmt(it.margem_cadastro):'—'}</span></td>
       <td>${validadeHtml(it)}</td>
@@ -953,6 +953,35 @@ async function abrirLista(id) {
       </div>`;
   } catch(e) {
     body.innerHTML = `<div class="empty">Erro: ${e.message}</div>`;
+  }
+}
+
+async function salvarUnidadeEmb(input) {
+  const tr = input.closest('tr');
+  const codigo = input.dataset.codigo;
+  const unidInput = tr.querySelector('.cell-edit-unid');
+  const embInput = tr.querySelector('.cell-edit-emb');
+  const unidade = unidInput.value.trim();
+  const embalagem = parseFloat(embInput.value);
+  if (!unidade || !embalagem || embalagem <= 0) return;
+
+  try {
+    const r = await fetch('/api/itens/unidade-embalagem', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ codigo, unidade, embalagem })
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Erro ao salvar');
+    unidInput.style.fontWeight = '700';
+    embInput.style.fontWeight = '700';
+    [unidInput, embInput].forEach(el => {
+      el.style.borderColor = '#2E8B57';
+      setTimeout(() => { el.style.borderColor = 'transparent'; }, 1200);
+    });
+  } catch (e) {
+    input.style.borderColor = '#C0392B';
+    alert('Erro ao salvar: ' + e.message);
   }
 }
 
