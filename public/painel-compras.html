@@ -42,13 +42,15 @@ iframe.visivel{opacity:1;pointer-events:auto}
 <iframe id="fr-ruptura" title="Rupturas"      allow="fullscreen" allowfullscreen></iframe>
 <iframe id="fr-margem"  title="Margem"        allow="fullscreen" allowfullscreen></iframe>
 <iframe id="fr-mensal"  title="Mensal"        allow="fullscreen" allowfullscreen></iframe>
+<iframe id="fr-pagar"   title="A Pagar x Venda" allow="fullscreen" allowfullscreen></iframe>
 
 <div class="controles">
-  <!-- rotação: Compras → Rupturas → Margem/Venda → Cronograma Mensal → Compras -->
+  <!-- rotação: Compras → Rupturas → Margem/Venda → Cronograma Mensal → A Pagar x Venda → Compras -->
   <div class="dot ativo" id="dot-c"  title="Compras"></div>
   <div class="dot"       id="dot-r"  title="Rupturas"></div>
   <div class="dot"       id="dot-mg" title="Margem"></div>
   <div class="dot"       id="dot-m"  title="Mensal"></div>
+  <div class="dot"       id="dot-p"  title="A Pagar x Venda"></div>
   <div class="sep"></div>
   <button class="btn-fs" id="btn-fs" title="Tela cheia (F11)">⛶</button>
 </div>
@@ -62,15 +64,17 @@ const frC  = document.getElementById('fr-compras');
 const frR  = document.getElementById('fr-ruptura');
 const frMG = document.getElementById('fr-margem');
 const frM  = document.getElementById('fr-mensal');
+const frP  = document.getElementById('fr-pagar');
 
 const dotC  = document.getElementById('dot-c');
 const dotR  = document.getElementById('dot-r');
 const dotMG = document.getElementById('dot-mg');
 const dotM  = document.getElementById('dot-m');
+const dotP  = document.getElementById('dot-p');
 const btnFs = document.getElementById('btn-fs');
 
-const todosFrames = [frC,frR,frMG,frM];
-const todosDots   = [dotC,dotR,dotMG,dotM];
+const todosFrames = [frC,frR,frMG,frM,frP];
+const todosDots   = [dotC,dotR,dotMG,dotM,dotP];
 
 function mostrar(iframe, dot, nome) {
   atual = nome;
@@ -120,14 +124,19 @@ function mostrarMensal() {
   carregarIframe(frM, BASE + '/mensal.html?nome=FATIMA&auto=1&idx=0');
   mostrar(frM, dotM, 'mensal');
 }
+function mostrarPagarVenda() {
+  carregarIframe(frP, BASE + '/painel-a-pagar-venda.html?auto=1');
+  mostrar(frP, dotP, 'pagar');
+}
 
-// ── Rotação: Compras → Rupturas → Margem/Venda → Cronograma Mensal → Compras ──
+// ── Rotação: Compras → Rupturas → Margem/Venda → Cronograma Mensal → A Pagar x Venda → Compras ──
 window.addEventListener('message', (e) => {
   if (!e.data || !e.data.type) return;
-  if (e.data.type === 'comprasCycleComplete' && atual === 'compras') mostrarRuptura();
-  if (e.data.type === 'rupturaCycleComplete' && atual === 'ruptura') mostrarMargem();
-  if (e.data.type === 'margemCycleComplete'  && atual === 'margem')  mostrarMensal();
-  if (e.data.type === 'mensalCycleComplete'  && atual === 'mensal')  mostrarCompras();
+  if (e.data.type === 'comprasCycleComplete'   && atual === 'compras') mostrarRuptura();
+  if (e.data.type === 'rupturaCycleComplete'   && atual === 'ruptura') mostrarMargem();
+  if (e.data.type === 'margemCycleComplete'    && atual === 'margem')  mostrarMensal();
+  if (e.data.type === 'mensalCycleComplete'    && atual === 'mensal')  mostrarPagarVenda();
+  if (e.data.type === 'pagarVendaCycleComplete' && atual === 'pagar')  mostrarCompras();
   // fullscreen controlado pelo pai para persistir entre slides
   if (e.data.type === 'requestFullscreen') {
     if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
@@ -152,6 +161,7 @@ dotC.addEventListener('click',  mostrarCompras);
 dotR.addEventListener('click',  mostrarRuptura);
 dotMG.addEventListener('click', mostrarMargem);
 dotM.addEventListener('click',  mostrarMensal);
+dotP.addEventListener('click',  mostrarPagarVenda);
 
 // ── Início: Compras ──
 mostrarCompras();

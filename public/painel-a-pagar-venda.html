@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>A Pagar × Venda — Econômico Relatórios</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#070d1a;--card:#0f172a;--card2:#141f38;--border:#1e293b;--border2:#334155;
+  --brand:#FACC15;--green:#22c55e;--amber:#f59e0b;--red:#ef4444;
+  --text:#e2e8f0;--text2:#94a3b8;--text3:#64748b;
+}
+html,body{height:100%;font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);overflow:hidden;display:flex;flex-direction:column}
+
+/* BRAND BAR */
+.brand-bar{height:36px;flex-shrink:0;background:#FACC15;display:flex;align-items:center;justify-content:center;position:relative;z-index:200}
+.b-name{font-size:15px;font-weight:900;letter-spacing:.35em;text-transform:uppercase;color:#0a0e18}
+.b-right{position:absolute;right:20px;top:50%;transform:translateY(-50%);display:flex;align-items:center;gap:10px}
+.b-slide{font-size:9px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:rgba(10,14,24,.5)}
+.b-live{display:flex;align-items:center;gap:5px;font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(10,14,24,.45)}
+.b-live-dot{width:6px;height:6px;border-radius:50%;background:#16a34a;animation:bpulse 2s infinite}
+@keyframes bpulse{0%,100%{opacity:1}50%{opacity:.3}}
+.b-left{position:absolute;left:14px;top:50%;transform:translateY(-50%)}
+.b-btn-fs{background:rgba(10,14,24,.18);border:1px solid rgba(10,14,24,.25);border-radius:6px;color:#0a0e18;font-size:15px;width:28px;height:28px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .2s}
+.b-btn-fs:hover{background:rgba(10,14,24,.35)}
+
+/* HEADER */
+.hdr{height:64px;flex-shrink:0;background:linear-gradient(180deg,rgba(23,32,51,.99),rgba(18,27,46,.96));border-bottom:1px solid rgba(255,255,255,.08);display:flex;align-items:center;padding:0 28px;gap:16px}
+.hdr-ic{font-size:26px;flex-shrink:0}
+.hdr-nome{font-size:19px;font-weight:900;line-height:1;letter-spacing:.02em}
+.hdr-sub{font-size:10px;color:var(--text3);margin-top:4px;letter-spacing:.02em}
+.hdr-kpi{margin-left:auto;background:rgba(15,23,42,.9);border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:8px 20px;text-align:center;min-width:120px}
+.hdr-kpi .v{font-size:26px;font-weight:900;font-variant-numeric:tabular-nums;line-height:1}
+.hdr-kpi .l{font-size:8px;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;margin-top:3px}
+
+/* CONTEÚDO */
+#conteudo{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:center;gap:22px;padding:0 48px}
+.scale-legend{display:flex;align-items:center;gap:10px;font-size:11px;color:var(--text3);padding-left:210px}
+.scale-legend b{color:var(--text2);font-weight:700}
+.scale-legend .lg{display:inline-flex;align-items:center;gap:5px}
+.lg-dot{width:9px;height:9px;border-radius:3px;flex-shrink:0}
+
+.pv-row{display:flex;align-items:center;gap:20px}
+.pv-loja{width:210px;flex-shrink:0}
+.pv-loja .n{font-size:19px;font-weight:900;color:var(--text)}
+.pv-loja .s{font-size:11px;color:var(--text3);font-weight:600;margin-left:8px}
+.pv-track{position:relative;flex:1;height:26px;border-radius:8px;overflow:hidden;box-shadow:inset 0 0 0 1px rgba(255,255,255,.06)}
+.pv-mask{position:absolute;top:0;right:0;height:100%;background:var(--bg);transition:width 1s cubic-bezier(.4,0,.2,1)}
+.pv-marker{position:absolute;top:-4px;bottom:-4px;width:3px;background:#FFFFFF;box-shadow:0 0 8px rgba(0,0,0,.8)}
+.pv-pct{width:100px;flex-shrink:0;text-align:right;font-size:26px;font-weight:900;color:var(--text);font-variant-numeric:tabular-nums}
+
+.loading{height:100%;display:flex;align-items:center;justify-content:center;gap:12px;color:var(--text3);font-size:14px}
+.spin{width:22px;height:22px;border:2px solid #334155;border-top-color:var(--brand);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* FOOTER */
+.footer{height:40px;flex-shrink:0;background:#060d1c;border-top:1px solid rgba(250,204,21,.10);display:flex;align-items:center;padding:0 20px;gap:16px}
+.ft-next{font-size:12px;color:var(--text2);flex:1}
+.ft-next span{color:#FACC15;font-weight:800}
+.ft-close{display:flex;align-items:center;gap:5px;color:var(--text3);text-decoration:none;font-size:11px;font-weight:700;padding:5px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.04);transition:all .2s;flex-shrink:0}
+.ft-close:hover{border-color:#ef4444;color:#ef4444}
+.btn-slides{position:fixed;bottom:58px;right:58px;width:34px;height:34px;border-radius:8px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.5);color:#94A3B8;font-size:20px;cursor:pointer;z-index:999;backdrop-filter:blur(4px);transition:all .3s;opacity:.35;display:flex;align-items:center;justify-content:center;letter-spacing:-1px;font-weight:900;padding-bottom:2px}
+.btn-slides:hover{opacity:1;color:#FACC15;border-color:#FACC15}
+.slide-nav-menu{position:fixed;bottom:100px;right:58px;background:rgba(6,12,26,.97);border:1px solid rgba(255,255,255,.15);border-radius:14px;padding:6px;z-index:1000;display:none;flex-direction:column;gap:2px;backdrop-filter:blur(12px);min-width:210px;box-shadow:0 8px 32px rgba(0,0,0,.6)}
+.slide-nav-menu.open{display:flex}
+.slide-nav-opt{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;cursor:pointer;transition:background .15s;font-size:13px;font-weight:600;color:#cbd5e1;border:none;background:none;width:100%;text-align:left}
+.slide-nav-opt:hover{background:rgba(250,204,21,.12);color:#FACC15}
+.slide-nav-opt.active{color:#fff;background:rgba(255,255,255,.08)}
+</style>
+</head>
+<body>
+
+<!-- BRAND BAR -->
+<div class="brand-bar">
+  <div class="b-left">
+    <button class="b-btn-fs" id="btn-fs" title="Tela cheia">⛶</button>
+  </div>
+  <div class="b-name">ECONÔMICO</div>
+  <div class="b-right">
+    <span class="b-slide">A Pagar × Venda</span>
+    <span class="b-live"><span class="b-live-dot"></span>Ao vivo</span>
+  </div>
+</div>
+
+<!-- HEADER -->
+<div class="hdr">
+  <div class="hdr-ic">💰</div>
+  <div>
+    <div class="hdr-nome">A Pagar × Venda</div>
+    <div class="hdr-sub" id="hdr-sub">Carregando…</div>
+  </div>
+  <div class="hdr-kpi">
+    <div class="v" id="kpi-rede">—</div>
+    <div class="l">% Rede</div>
+  </div>
+</div>
+
+<!-- CONTEÚDO -->
+<div id="conteudo" class="loading"><div class="spin"></div><span>Carregando dados…</span></div>
+
+<!-- FOOTER -->
+<div class="footer">
+  <div class="ft-next" id="ft-next">Rotação automática</div>
+  <a href="/" class="ft-close">✕ Fechar</a>
+</div>
+
+<div class="slide-nav-menu" id="slide-nav-menu"></div>
+<button class="btn-slides" id="btn-slides" title="Navegar slides">⋯</button>
+
+<script>
+const LOJAS = ['','CAHU','MURIBECA','PONTE','ATACAREJO','PORTA LARGA','JARDIM JORDÃO'];
+const params   = new URLSearchParams(location.search);
+const autoMode = params.get('auto') === '1';
+const DURACAO  = 30; // segundos nesta tela antes de avançar
+
+function renderBarras(data) {
+  const el = document.getElementById('conteudo');
+  el.className = '';
+  el.innerHTML = '';
+
+  document.getElementById('hdr-sub').textContent =
+    `A Pagar = mês inteiro · Venda = média ${data.venda_media_label}/2026`;
+  const t = data.totais;
+  document.getElementById('kpi-rede').textContent = t.pct !== null ? t.pct.toFixed(1) + '%' : '—';
+
+  const maiorPct  = Math.max(0, ...data.por_loja.map(l => l.pct ?? 0));
+  const escalaMax = Math.max(100, Math.ceil(maiorPct / 50) * 50);
+  const corte50 = (50 / escalaMax * 100).toFixed(2);
+  const corte70 = (70 / escalaMax * 100).toFixed(2);
+  const gradiente = `linear-gradient(to right,var(--green) 0%,var(--green) ${corte50}%,var(--amber) ${corte50}%,var(--amber) ${corte70}%,var(--red) ${corte70}%,var(--red) 100%)`;
+
+  const legend = document.createElement('div');
+  legend.className = 'scale-legend';
+  legend.innerHTML = `
+    <span class="lg"><span class="lg-dot" style="background:var(--green)"></span>até 50%</span>
+    <span class="lg"><span class="lg-dot" style="background:var(--amber)"></span>até 70%</span>
+    <span class="lg"><span class="lg-dot" style="background:var(--red)"></span>70%+</span>
+    <span>· escala até <b>${escalaMax}%</b> (maior valor do mês) · risco de fluxo de caixa por loja</span>`;
+  el.appendChild(legend);
+
+  for (const l of data.por_loja) {
+    const pctTxt  = l.pct !== null ? l.pct.toFixed(1) + '%' : '—';
+    const posPct  = l.pct !== null ? Math.max(0, Math.min(l.pct, escalaMax)) / escalaMax * 100 : null;
+    const maskPct = posPct !== null ? 100 - posPct : 100;
+    const row = document.createElement('div');
+    row.className = 'pv-row';
+    row.innerHTML = `
+      <div class="pv-loja"><span class="n">Loja ${l.loja}</span><span class="s">${LOJAS[l.loja]||''}</span></div>
+      <div class="pv-track" style="background:${gradiente}">
+        <div class="pv-mask" style="width:${maskPct}%"></div>
+        ${posPct !== null ? `<div class="pv-marker" style="left:${posPct}%"></div>` : ''}
+      </div>
+      <div class="pv-pct">${pctTxt}</div>`;
+    el.appendChild(row);
+  }
+}
+
+async function carregar() {
+  try {
+    const r = await fetch('/api/pagar-venda');
+    if (!r.ok) throw new Error('Erro ' + r.status);
+    const data = await r.json();
+    if (data.error) throw new Error(data.error);
+    renderBarras(data);
+  } catch(e) {
+    document.getElementById('conteudo').className = 'loading';
+    document.getElementById('conteudo').innerHTML = `<span style="color:#ef4444">Erro: ${e.message}</span>`;
+  }
+}
+
+// Contagem — sempre visível; avança só em autoMode
+let _cd = DURACAO, _iv = null;
+function iniciarContagem() {
+  clearInterval(_iv);
+  _cd = DURACAO;
+  document.getElementById('ft-next').innerHTML =
+    'Próximo: <span>Central de Compras</span> em <span id="cd-val">' + _cd + 's</span>';
+  _iv = setInterval(() => {
+    _cd--;
+    const el = document.getElementById('cd-val');
+    if (el) el.textContent = _cd + 's';
+    if (_cd <= 0) {
+      clearInterval(_iv);
+      if (!autoMode) return;
+      try { window.parent.postMessage({ type: 'pagarVendaCycleComplete' }, '*'); } catch(_) {}
+      if (window.parent === window) location.href = '/compras.html';
+    }
+  }, 1000);
+}
+
+// Tela cheia
+(function(){
+  const b = document.getElementById('btn-fs');
+  b.addEventListener('click', () => {
+    if (window.parent !== window) { window.parent.postMessage({ type: 'requestFullscreen' }, '*'); return; }
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
+    else document.exitFullscreen().catch(()=>{});
+  });
+  document.addEventListener('fullscreenchange', () => { b.textContent = document.fullscreenElement?'✕':'⛶'; });
+})();
+
+// Menu de navegação entre slides
+(function(){
+  const btn=document.getElementById('btn-slides'),menu=document.getElementById('slide-nav-menu');
+  const slides=[
+    {ic:'🛒',nome:'Central de Compras',url:'/compras.html',id:'compras'},
+    {ic:'📉',nome:'Rupturas',url:'/ruptura-painel.html',id:'ruptura'},
+    {ic:'📊',nome:'Venda / Margem / Avaria',url:'/margem-comprador.html',id:'margem'},
+    {ic:'📅',nome:'Cronograma Mensal',url:'/mensal.html?nome=FATIMA',id:'mensal'},
+    {ic:'💰',nome:'A Pagar x Venda',url:'/painel-a-pagar-venda.html',id:'pagar'},
+  ];
+  menu.innerHTML=slides.map(s=>`<button class="slide-nav-opt${s.id==='pagar'?' active':''}" onclick="location.href='${s.url}'"><span style="font-size:14px;width:18px;text-align:center">${s.ic}</span>${s.nome}</button>`).join('');
+  btn.addEventListener('click',e=>{e.stopPropagation();menu.classList.toggle('open');});
+  document.addEventListener('click',()=>menu.classList.remove('open'));
+  menu.addEventListener('click',e=>e.stopPropagation());
+})();
+
+// Inicia
+carregar();
+iniciarContagem();
+</script>
+</body>
+</html>
