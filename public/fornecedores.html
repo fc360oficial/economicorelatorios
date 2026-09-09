@@ -41,22 +41,9 @@ body{font-family:'InterVar','Segoe UI',sans-serif;background:#EBEBE9;color:#0E16
 .btn-slate{background:#DADAD6;color:#0E1626}.btn-slate:hover{background:#98A0B3}
 
 /* KPI CARDS */
-.kpi-row{display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap}
 .kpi{background:#FFFFFF;border:1px solid #DADAD6;border-radius:10px;padding:12px 16px;display:flex;flex-direction:column;gap:2px;min-width:130px}
 .kpi .v{font-size:20px;font-weight:700}
 .kpi .l{font-size:10px;color:#4E5A72}
-
-/* INSIGHTS */
-.insights{background:#FFFFFF;border:1px solid #E9EEF3;border-radius:10px;padding:12px 16px;margin-bottom:16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-.insight-chip{background:#E4E4E1;border:1px solid #E9EEF3;border-radius:8px;padding:6px 12px;font-size:11px;color:#4E5A72;display:flex;align-items:center;gap:6px;cursor:pointer;transition:all .15s;user-select:none}
-.insight-chip:hover{border-color:#0E1626;background:#E9EEF3;transform:translateY(-1px)}
-.insight-chip.warn{background:#FBEDDD;border-color:#B45C00;color:#B45C00}
-.insight-chip.warn:hover{background:#F8DFC0;border-color:#B45C00}
-.insight-chip.danger{background:#FBEAED;border-color:#F3C1CB;color:#C22F49}
-.insight-chip.danger:hover{background:#F8D3DA;border-color:#C22F49}
-.insight-chip.active-filter{box-shadow:0 0 0 2px #F5B800;border-color:#F5B800 !important;color:#6B4E00 !important}
-.chip-clear{background:#DADAD6;border:1px solid #98A0B3;border-radius:8px;padding:6px 12px;font-size:11px;color:#4E5A72;cursor:pointer;transition:all .15s}
-.chip-clear:hover{background:#98A0B3;color:#0E1626}
 
 /* TABELA PRINCIPAL */
 .table-wrap{overflow-x:auto;border-radius:12px;border:1px solid #DADAD6;background:#FFFFFF;box-shadow:0 1px 3px rgba(14,22,38,.07)}
@@ -267,13 +254,8 @@ table.comp-t tr:hover td{background:#ffffff05}
   .fg select,.fg input{min-width:80px;font-size:16px}
 
   /* KPIs — 2 por linha */
-  .kpi-row{gap:8px}
   .kpi{min-width:calc(50% - 5px);flex:1;padding:10px 12px}
   .kpi .v{font-size:15px}
-
-  /* INSIGHTS */
-  .insights{gap:5px}
-  .insight-chip{font-size:10px;padding:5px 8px}
 
   /* TABLE — scroll horizontal, fonte menor */
   .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
@@ -339,9 +321,6 @@ table.comp-t tr:hover td{background:#ffffff05}
     </div>
     <button class="btn btn-blue" id="btn-buscar" onclick="carregar()">🔍 Buscar</button>
   </div>
-
-  <div class="kpi-row" id="kpi-row"></div>
-  <div class="insights" id="insights-box" style="display:none"></div>
 
   <div class="main-tabs">
     <button class="mtab active" id="tab-ranking" onclick="trocarAba('ranking')">📊 Ranking Fornecedores</button>
@@ -424,7 +403,6 @@ let fornecSelecionado = null;
 let listaSelecionada = null;
 let listaAtivaId = null;
 let cacheProds = {}, cacheAvaria = {}, cacheLojas = {};
-let _filtroAtivo = null;
 
 document.getElementById('fil-mes').value = new Date().getMonth() + 1;
 
@@ -440,12 +418,9 @@ function params() {
 
 async function carregar() {
   fecharDrawer();
-  _filtroAtivo = null;
   _comprasCache = null; _comprasCacheKey = '';
   cacheProds = {}; cacheAvaria = {}; cacheLojas = {};
   document.getElementById('main-tbody').innerHTML = '<tr><td colspan="10" style="padding:40px;text-align:center"><div class="spinner"></div></td></tr>';
-  document.getElementById('kpi-row').innerHTML = '';
-  document.getElementById('insights-box').style.display = 'none';
 
   const p = params();
 
@@ -461,8 +436,6 @@ async function carregar() {
       margemFornec = json.margem_fornec || 0;
       avariaBreakdown = json.avaria_breakdown || {};
       dados = json.fornecedores || [];
-      renderKpis();
-      renderInsights();
     }
   } catch(e) { console.error('KPI error:', e); }
 
@@ -479,125 +452,10 @@ async function carregar() {
       sel.innerHTML = '<option value="">Todos</option>' +
         json.compradores.map(c => `<option value="${c}"${c===cur?' selected':''}>${c}</option>`).join('');
     }
-    renderKpis();    // atualiza contagem de listas
-    renderInsights(); // recalcula chips com contagem de listas
     renderListas();
   } catch(e) {
     document.getElementById('main-tbody').innerHTML = `<tr><td colspan="10" class="empty">Erro: ${e.message}</td></tr>`;
   }
-}
-
-function renderKpis() {
-  const totalAvaria = dados.reduce((s,r)=>s+r.avaria,0);
-  const cobertura   = totalLojaReal > 0 ? (totalComFornecedor / totalLojaReal * 100).toFixed(1) : '—';
-  const gap         = totalLojaReal - totalComFornecedor;
-  const pctGap      = totalLojaReal > 0 ? (gap / totalLojaReal * 100).toFixed(1) : '0.0';
-  const { loja } = params();
-  document.getElementById('kpi-row').innerHTML = `
-    <div class="kpi"><div class="v">${listas.length||dados.length}</div><div class="l">Listas de Compra</div></div>
-    <div class="kpi" title="Total real de todas as vendas da loja no mês">
-      <div class="v" style="color:#2C4A6B">${fmt(totalLojaReal)}</div>
-      <div class="l">Faturamento Total Loja ${loja}</div>
-    </div>
-    <div class="kpi" title="Vendas de produtos com fornecedor cadastrado (sem duplicata por fornecedor)">
-      <div class="v" style="color:#0E1626">${fmt(totalComFornecedor)}</div>
-      <div class="l">Faturamento c/ Fornecedor <span style="color:#B45C00;font-size:11px">(${cobertura}%)</span></div>
-    </div>
-    <div class="kpi" onclick="verSemFornecedor()" title="Produtos vendidos sem fornecedor cadastrado — clique para ver" style="cursor:pointer;border-color:#F3C1CB">
-      <div class="v" style="color:#C22F49">${fmt(gap)}</div>
-      <div class="l" style="color:#C22F49">Sem Fornecedor <span style="font-size:11px">(${pctGap}%) ▶</span></div>
-    </div>
-    <div class="kpi" title="Margem S/V de todos os produtos da loja (alinhada com ERP)">
-      <div class="v" style="color:#137A48">${pctFmt(margemLoja)}</div>
-      <div class="l">Margem S/V Loja</div>
-    </div>
-    <div class="kpi" onclick="verSemFornecedor()" title="Margem sem os produtos sem fornecedor cadastrado — clique para ver quais são" style="cursor:pointer;border-color:#137A48">
-      <div class="v" style="color:#137A48">${pctFmt(margemFornec)}</div>
-      <div class="l" style="color:#137A48">Margem s/ Fornec. <span style="font-size:10px">▶</span></div>
-    </div>
-    <div class="kpi" title="Lucro bruto: venda menos custo dos produtos c/ fornecedor (sem duplicata)">
-      <div class="v" style="color:#0E1626">${fmt(totalLucroReal)}</div>
-      <div class="l">Lucro Bruto c/ Fornec.</div>
-    </div>
-    <div class="kpi" style="min-width:170px" title="Total de avarias lançadas no período">
-      <div class="v" style="color:#C22F49">${fmt(avariaBreakdown.total ?? totalAvaria)}</div>
-      <div class="l">Total Avarias</div>
-      <div style="display:flex;gap:6px;margin-top:5px;flex-wrap:wrap">
-        <span style="font-size:10px;background:#FFFFFF;border:1px solid #DADAD6;border-radius:4px;padding:2px 6px;color:#B45C00">⏳ Ab. ${fmt(avariaBreakdown.em_aberto??0)}</span>
-        <span style="font-size:10px;background:#FFFFFF;border:1px solid #DADAD6;border-radius:4px;padding:2px 6px;color:#0E1626">🔄 Trâm. ${fmt(avariaBreakdown.em_tramite??0)}</span>
-        <span style="font-size:10px;background:#FFFFFF;border:1px solid #DADAD6;border-radius:4px;padding:2px 6px;color:#137A48">✅ Emit. ${fmt(avariaBreakdown.ja_emitido??0)}</span>
-      </div>
-    </div>
-  `;
-}
-
-function renderInsights() {
-  const box = document.getElementById('insights-box');
-  if (!listas.length && !dados.length) { box.style.display='none'; return; }
-  const chips = [];
-  const { loja, mes } = params();
-  const totalVenda = dados.reduce((s,r)=>s+r.venda,0);
-  const baseRef    = totalLojaReal > 0 ? totalLojaReal : totalVenda;
-
-  // Top fornecedor → filtra as listas dele
-  const top = dados[0];
-  if (top && baseRef > 0) {
-    const pct      = (top.venda/baseRef*100).toFixed(1);
-    const idsTop   = listas.filter(l=>l.codFornec===top.id).map(l=>l.id);
-    chips.push(`<div class="insight-chip${_filtroAtivo==='top'?' active-filter':''}" onclick="filtrarListas('top',[${idsTop.join(',')}])" title="Ver listas deste fornecedor">
-      🏆 <b>${top.nome}</b> · ${pct}% do faturamento · ${fmt(top.venda)}
-    </div>`);
-  }
-
-  // Listas cujo fornecedor tem margem negativa
-  const idsMargemNeg = new Set(dados.filter(r=>r.msv<0&&r.venda>0).map(r=>r.id));
-  const listasMargemNeg = listas.filter(l=>idsMargemNeg.has(l.codFornec));
-  if (listasMargemNeg.length) chips.push(`<div class="insight-chip danger${_filtroAtivo==='margem_neg'?' active-filter':''}" onclick="filtrarListas('margem_neg',[${listasMargemNeg.map(l=>l.id).join(',')}])" title="Ver listas de fornecedores com margem negativa">
-    ⚠️ <b>${listasMargemNeg.length}</b> lista(s) · fornecedor(es) com margem negativa
-  </div>`);
-
-  // Listas cujo fornecedor tem avaria alta
-  const idsAltaAv = new Set(dados.filter(r=>r.pct_av>5&&r.avaria>0).map(r=>r.id));
-  const listasAltaAv = listas.filter(l=>idsAltaAv.has(l.codFornec));
-  if (listasAltaAv.length) chips.push(`<div class="insight-chip warn${_filtroAtivo==='alta_av'?' active-filter':''}" onclick="filtrarListas('alta_av',[${listasAltaAv.map(l=>l.id).join(',')}])" title="Ver listas com alta avaria">
-    🔴 <b>${listasAltaAv.length}</b> lista(s) · fornecedor(es) com avaria acima de 5%
-  </div>`);
-
-  // Listas sem faturamento no mês (fornecedor sem venda ou não encontrado)
-  const listasSemVenda = listas.filter(l => {
-    const s = dados.find(d=>d.id===l.codFornec);
-    return !s || s.venda===0;
-  });
-  if (listasSemVenda.length) chips.push(`<div class="insight-chip${_filtroAtivo==='sem_venda'?' active-filter':''}" onclick="filtrarListas('sem_venda',[${listasSemVenda.map(l=>l.id).join(',')}])" title="Ver listas sem faturamento">
-    📦 <b>${listasSemVenda.length}</b> lista(s) sem faturamento em ${mesesNomes[+mes]}
-  </div>`);
-
-  // Avaria total (informativo)
-  const totalAv = dados.reduce((s,r)=>s+r.avaria,0);
-  if (totalVenda>0) chips.push(`<div class="insight-chip warn" style="cursor:default">
-    📉 Avaria total: <b>${(totalAv/totalVenda*100).toFixed(2)}%</b> do faturamento da Loja ${loja}
-  </div>`);
-
-  if (_filtroAtivo) chips.push(`<div class="chip-clear" onclick="limparFiltro()">✕ Limpar filtro</div>`);
-
-  if (!chips.length) { box.style.display='none'; return; }
-  box.style.display='flex';
-  box.innerHTML = chips.join('');
-}
-
-// Filtra a tabela de listas por IDs de lista
-function filtrarListas(chave, ids) {
-  if (_filtroAtivo === chave) { limparFiltro(); return; }
-  _filtroAtivo = chave;
-  const filtradas = listas.filter(l => ids.includes(l.id));
-  renderListasComDados(filtradas);
-  renderInsights();
-}
-
-function limparFiltro() {
-  _filtroAtivo = null;
-  renderListas();
-  renderInsights();
 }
 
 function msvClass(v) { return v>=20?'m-great':v>=12?'m-ok':v>=0?'m-warn':'m-bad'; }
@@ -1055,50 +913,6 @@ function imprimirDrawer() {
   document.getElementById('print-footer').style.display = 'none';
 }
 
-async function verSemFornecedor() {
-  const p = params();
-  fornecSelecionado = null; listaSelecionada = null; listaAtivaId = null;
-  document.getElementById('d-title').textContent = 'Produtos sem fornecedor cadastrado';
-  document.getElementById('d-subtitle').textContent = `Loja ${p.loja} · ${mesesNomes[+p.mes]} ${p.ano}`;
-  document.getElementById('d-tabs').innerHTML = '';
-  document.getElementById('d-body').innerHTML = '<div class="spinner"></div>';
-  document.getElementById('drawer').classList.add('open');
-  document.getElementById('overlay').classList.add('open');
-  document.getElementById('main').classList.add('drawer-open');
-
-  try {
-    const r = await fetch(`/api/sem-fornecedor?loja=${p.loja}&mes=${p.mes}&ano=${p.ano}`);
-    const rows = await r.json();
-    if (!rows.length) {
-      document.getElementById('d-body').innerHTML = '<div class="empty">Todos os produtos têm fornecedor cadastrado.</div>';
-      return;
-    }
-    const total = rows.reduce((s, r) => s + r.valor, 0);
-    let html = `
-      <div class="d-kpis">
-        <div class="d-kpi"><div class="dv" style="color:#C22F49">${rows.length}</div><div class="dl">Produtos</div></div>
-        <div class="d-kpi"><div class="dv" style="color:#C22F49">${fmt(total)}</div><div class="dl">Total sem fornecedor</div></div>
-      </div>
-      <div class="d-table-wrap"><table class="d-t">
-        <thead><tr>
-          <th>Código</th><th>Descrição</th><th>Unid</th><th class="r">Qtd</th><th class="r">Valor R$</th>
-        </tr></thead><tbody>`;
-    rows.forEach(row => {
-      html += `<tr>
-        <td class="cod">${row.codigo}</td>
-        <td class="desc">${row.descricao}</td>
-        <td style="color:#4E5A72;font-size:11px">${row.unid}</td>
-        <td class="r" style="color:#4E5A72">${row.qtd.toLocaleString('pt-BR')}</td>
-        <td class="r" style="color:#C22F49;font-weight:700">${fmt(row.valor)}</td>
-      </tr>`;
-    });
-    html += '</tbody></table></div>';
-    document.getElementById('d-body').innerHTML = html;
-  } catch(e) {
-    document.getElementById('d-body').innerHTML = `<div class="empty">Erro: ${e.message}</div>`;
-  }
-}
-
 // ── ABAS PRINCIPAIS ──
 let _abaAtiva = 'ranking';
 function trocarAba(aba) {
@@ -1107,8 +921,6 @@ function trocarAba(aba) {
   document.getElementById('fg-fornecedor').style.display = soCompras ? 'none' : '';
   document.getElementById('fg-comprador').style.display  = soCompras ? 'none' : '';
   document.getElementById('btn-buscar').style.display    = soCompras ? 'none' : '';
-  document.getElementById('kpi-row').style.display       = soCompras ? 'none' : '';
-  document.getElementById('insights-box').style.display  = 'none';
   document.getElementById('sec-ranking').style.display   = soCompras ? 'none' : '';
   document.getElementById('sec-compras').style.display   = soCompras ? '' : 'none';
   document.querySelectorAll('.mtab').forEach(b => b.classList.remove('active'));
