@@ -88,9 +88,11 @@ table.dt tbody tr:hover{background:#ffffff06}
 .pv-row+.pv-row{border-top:1px solid #DADAD6}
 .pv-loja{width:170px;flex-shrink:0;font-size:12px;font-weight:700;color:#0E1626}
 .pv-loja span{color:#4E5A72;font-weight:400;font-size:10px;margin-left:4px}
-.pv-track{position:relative;flex:1;height:22px;border-radius:6px;overflow:hidden;background:linear-gradient(to right,#137A48 0%,#137A48 50%,#F5B800 50%,#F5B800 70%,#C22F49 70%,#C22F49 100%)}
+.pv-track{position:relative;flex:1;height:22px;border-radius:6px;overflow:hidden}
 .pv-mask{position:absolute;top:0;right:0;height:100%;background:#EDEDE9;transition:width .3s}
+.pv-marker{position:absolute;top:-3px;bottom:-3px;width:2px;background:#0E1626;box-shadow:0 0 0 2px #FFFFFF;transform:translateX(-1px)}
 .pv-pct{width:64px;flex-shrink:0;text-align:right;font-size:13px;font-weight:700;color:#0E1626}
+.pv-scale{font-size:10px;color:#4E5A72;margin-bottom:10px;padding-left:170px}
 
 /* RESPONSIVE */
 @media(max-width:900px){
@@ -1001,14 +1003,27 @@ function carregarPagarVenda() {
         `A Pagar = Contas a Pagar com vencimento no mês (mês inteiro) &nbsp;·&nbsp; Venda = NFC-e (PDV) + NF-e saída${parcialLabel} &nbsp;·&nbsp; % = A Pagar ÷ Venda Total × 100`;
 
       const LOJAS = ['','CAHU','MURIBECA','PONTE','ATACAREJO','PORTA LARGA','JARDIM JORDÃO'];
-      let html = '';
+
+      // Escala dinâmica: se alguma loja passar de 100% (normal no início do mês,
+      // já que A Pagar é o mês inteiro e Venda é só até hoje), a escala cresce
+      // pra caber o maior valor — senão toda loja acima de 100% ficaria com a
+      // barra idêntica (sempre "cheia"), sem dar pra comparar uma da outra.
+      const maiorPct = Math.max(0, ...data.por_loja.map(l => l.pct ?? 0));
+      const escalaMax = Math.max(100, Math.ceil(maiorPct / 50) * 50);
+      const corte50 = (50 / escalaMax * 100).toFixed(2);
+      const corte70 = (70 / escalaMax * 100).toFixed(2);
+      const gradiente = `linear-gradient(to right,#137A48 0%,#137A48 ${corte50}%,#F5B800 ${corte50}%,#F5B800 ${corte70}%,#C22F49 ${corte70}%,#C22F49 100%)`;
+
+      let html = `<div class="pv-scale">0% ─ verde até 50% ─ amarelo até 70% ─ vermelho a partir de 70% ─ escala até ${escalaMax}% (maior valor do mês) ─ ▏marca sua posição exata</div>`;
       for (const l of data.por_loja) {
         const pctTxt = l.pct !== null ? l.pct.toFixed(1) + '%' : '—';
-        const maskPct = l.pct !== null ? 100 - Math.max(0, Math.min(l.pct, 100)) : 100;
+        const posPct = l.pct !== null ? Math.max(0, Math.min(l.pct, escalaMax)) / escalaMax * 100 : null;
+        const maskPct = posPct !== null ? 100 - posPct : 100;
+        const marker = posPct !== null ? `<div class="pv-marker" style="left:${posPct}%"></div>` : '';
         html += `
           <div class="pv-row">
             <div class="pv-loja">Loja ${l.loja}<span>${LOJAS[l.loja]||''}</span></div>
-            <div class="pv-track"><div class="pv-mask" style="width:${maskPct}%"></div></div>
+            <div class="pv-track" style="background:${gradiente}"><div class="pv-mask" style="width:${maskPct}%"></div>${marker}</div>
             <div class="pv-pct">${pctTxt}</div>
           </div>`;
       }
