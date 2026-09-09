@@ -1962,6 +1962,67 @@ app.get('/api/compra-venda', withCache(30), async (req, res) => {
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
+// ── A PAGAR x VENDA por loja ─────────────────────────────────────────────
+// A Pagar = loja20045.contasapagar (tabela única pra rede toda, não por
+// loja), filtrado por DataVencto no mês inteiro (SEM corte de dia) e
+// Filial IN (1..6) — Filial=10 é o CD e não entra nessa comparação.
+// Venda = calcularVendaPorLoja (reaproveitada de /api/compra-venda).
+app.get('/api/pagar-venda', withCache(30), async (req, res) => {
+  try {
+    const hoje   = new Date();
+    const mesSel = req.query.mes ? parseInt(req.query.mes) : hoje.getMonth() + 1;
+    const diaHoje = hoje.getDate();
+    const mesHoje = hoje.getMonth() + 1;
+    const lojas  = [1,2,3,4,5,6];
+    const mm     = String(mesSel).padStart(2,'0');
+    const diaFiltroV = mesSel === mesHoje ? ` AND DAY(Data) <= ${diaHoje}` : '';
+    const diaFiltroC = mesSel === mesHoje ? ` AND DAY(DataLan) <= ${diaHoje}` : '';
+    const NOMES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+    const { vendaTotalMap } = await calcularVendaPorLoja(mesSel, mm, diaFiltroV, diaFiltroC);
+
+    // Contas a pagar: vencimento no mês inteiro (sem corte de dia — os
+    // títulos do mês já existem todos no ERP hoje, diferente da venda).
+    const pagarRows = await q(
+      `SELECT Filial, COALESCE(SUM(Valor),0) as total
+       FROM loja20045.contasapagar
+       WHERE MONTH(DataVencto)=? AND YEAR(DataVencto)=2026
+         AND Filial IN (1,2,3,4,5,6)
+       GROUP BY Filial`,
+      [mesSel]
+    );
+    const pagarMap = {};
+    for (const r of pagarRows) pagarMap[r.Filial] = parseFloat(r.total || 0);
+
+    const por_loja = lojas.map(ln => {
+      const a_pagar     = pagarMap[ln] || 0;
+      const venda_total = vendaTotalMap[ln] || 0;
+      return {
+        loja: ln,
+        a_pagar:     +a_pagar.toFixed(2),
+        venda_total: +venda_total.toFixed(2),
+        pct: venda_total > 0 ? +((a_pagar / venda_total) * 100).toFixed(1) : null,
+      };
+    });
+
+    const tpagar = por_loja.reduce((s,l)=>s+l.a_pagar,0);
+    const ttotal = por_loja.reduce((s,l)=>s+l.venda_total,0);
+
+    res.json({
+      por_loja,
+      totais: {
+        a_pagar:     +tpagar.toFixed(2),
+        venda_total: +ttotal.toFixed(2),
+        pct: ttotal > 0 ? +((tpagar / ttotal) * 100).toFixed(1) : null,
+      },
+      mes: mesSel,
+      nome_mes: NOMES[mesSel - 1],
+      diaHoje, mesHoje,
+      parcial: mesSel === mesHoje,
+    });
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
 const _mensalCache = {}, _mensalCacheTs = {};
 
 // Comparativo mensal: todos os meses do ano 2025 vs 2026
