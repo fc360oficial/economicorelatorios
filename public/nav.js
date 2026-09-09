@@ -2,18 +2,13 @@
    NAVEGAÇÃO ÚNICA — Econômico Relatórios · Executive Ink
    Injeta a MESMA sidebar em todas as páginas do sistema.
    Uso: <script src="/nav.js" defer></script>
-   Rail recolhido (64px, só ícone) o tempo todo. Em mouse (hover:hover)
-   expande sozinho ao passar por cima; em touch, só expande com clique
-   — evita abrir "por acidente" ao tocar num item. Nunca empurra o
-   conteúdo, só flutua por cima. Grupos (Financeiro, Gestão de
-   Compras...) abrem um segundo flyout ao lado, como o Club da Cotação
-   — o flyout é posicionado por JS (não fica dentro de .dn-rows, que
-   tem scroll vertical e cortaria ele, já que overflow-y:auto força
-   overflow-x:auto também).
+   Rail recolhido (64px, só ícone). Passar o mouse expande por cima
+   do conteúdo (nunca empurra); clicar também fixa aberto. Grupos
+   (Financeiro, Gestão de Compras...) abrem um segundo flyout ao
+   lado — cópia fiel do protótipo aprovado (Club da Cotação).
    No mobile (≤820px) vira barra superior fixa, sem rail/flyout.
-   Ícones da sidebar são próprios (não usam /icons.svg do design
-   system) — o resto do Design System não muda se um dia trocar o
-   traço de um ícone só aqui.
+   Ícones da sidebar são próprios (sprite embutido, não usam o
+   /icons.svg do design system) pra bater exatamente com o protótipo.
    ═══════════════════════════════════════════════════════════════ */
 (function () {
   'use strict';
@@ -102,17 +97,19 @@
   + '#dsnav{position:fixed;top:0;left:0;bottom:0;width:64px;z-index:900;'
   +   'background:var(--crd,#FFFFFF);border-right:1px solid var(--ln,#DADAD6);'
   +   'display:flex;flex-direction:column;padding:14px 12px 12px;overflow:hidden;'
-  +   "font-family:'InterVar','Segoe UI',system-ui,sans-serif}"
+  +   "transition:width .18s ease;font-family:'InterVar','Segoe UI',system-ui,sans-serif}"
+  + '#dsnav.pinned,#dsnav:hover{width:236px;overflow:visible;'
+  +   'box-shadow:14px 0 34px -10px rgba(10,15,26,.45)}'
   + '#dsnav .dn-top{display:flex;align-items:center;padding:4px 0 14px;'
   +   'border-bottom:1px solid var(--ln,#DADAD6);margin-bottom:10px;flex-shrink:0}'
   /* só a lista de itens rola por dentro — topo (logo) e rodapé (usuário/sair)
      ficam sempre visíveis, mesmo em telas baixas (TV) ou sem scroll por
-     toque/mouse disponível, sem depender de rolar até o fim pra deslogar.
-     Os flyouts (.dn-sub) NÃO ficam dentro daqui — ver comentário no topo. */
+     toque/mouse disponível, sem depender de rolar até o fim pra deslogar */
   + '#dsnav .dn-rows{flex:1;min-height:0;overflow-y:auto}'
   + '#dsnav .dn-brand{display:flex;align-items:center;text-decoration:none;min-width:0}'
   + '#dsnav .dn-exit-mobile{display:none}'
   + '#dsnav .dn-brand img{height:38px;display:block;transition:height .15s ease;flex-shrink:0}'
+  + '#dsnav.pinned .dn-brand img,#dsnav:hover .dn-brand img{height:66px}'
   + '#dsnav .dn-sec{font-size:9.5px;font-weight:800;letter-spacing:1.6px;text-transform:uppercase;'
   +   'color:var(--ink3,#98A0B3);padding:12px 10px 6px;white-space:nowrap}'
   + '#dsnav a.dn-item{display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:9px;'
@@ -123,22 +120,25 @@
   + '#dsnav a.dn-item:hover{background:var(--wsh,#E4E4E1);color:var(--ink,#0E1626)}'
   + '#dsnav a.dn-item.on{background:var(--amw,#FFF6D9);color:var(--amk,#6B4E00)}'
   + '#dsnav a.dn-item.on svg{color:var(--amk,#6B4E00)}'
+  + '#dsnav .lbl{opacity:0;transition:opacity .1s ease}'
+  + '#dsnav.pinned .lbl,#dsnav:hover .lbl{opacity:1}'
+  + '#dsnav .dn-group{position:relative;margin-bottom:2px}'
   + '#dsnav .dn-group-hd{display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:9px;'
   +   'font-size:12.5px;font-weight:600;color:var(--ink2,#4E5A72);cursor:default;user-select:none;'
-  +   'transition:background .12s ease;white-space:nowrap;margin-bottom:2px}'
+  +   'transition:background .12s ease;white-space:nowrap}'
   + '#dsnav .dn-group-hd svg{width:16px;height:16px;stroke:currentColor;stroke-width:1.8;fill:none;'
   +   'stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;color:var(--ink3,#98A0B3)}'
-  + '#dsnav .dn-group-hd .dn-chev{width:12px;height:12px;margin-left:auto;flex-shrink:0}'
   + '#dsnav .dn-group-hd:hover{background:var(--wsh,#E4E4E1);color:var(--ink,#0E1626)}'
   + '#dsnav .dn-group-hd:hover svg{color:var(--ink,#0E1626)}'
   + '#dsnav .dn-group-hd.on{background:var(--amw,#FFF6D9);color:var(--amk,#6B4E00)}'
   + '#dsnav .dn-group-hd.on svg{color:var(--amk,#6B4E00)}'
-  /* flyout de 2º nível — filho direto de #dsnav (não de .dn-rows), posição
-     "top" calculada via JS quando abre, pra nunca ser cortado pelo scroll */
-  + '#dsnav .dn-sub{display:none;flex-direction:column;padding:6px;min-width:210px;'
-  +   'position:absolute;left:100%;margin-left:6px;background:var(--crd,#FFFFFF);'
-  +   'border:1px solid var(--ln,#DADAD6);border-radius:10px;box-shadow:0 12px 28px -10px rgba(14,22,38,.35);z-index:950}'
-  + '#dsnav .dn-sub.show{display:flex}'
+  + '#dsnav .dn-chev{margin-left:auto;width:12px;height:12px;flex-shrink:0;opacity:0;transition:opacity .1s ease}'
+  + '#dsnav.pinned .dn-chev,#dsnav:hover .dn-chev{opacity:1}'
+  + '#dsnav .dn-sub{position:absolute;left:100%;top:-6px;margin-left:6px;min-width:210px;'
+  +   'background:var(--crd,#FFFFFF);border:1px solid var(--ln,#DADAD6);border-radius:10px;padding:6px;'
+  +   'box-shadow:0 12px 28px -10px rgba(14,22,38,.35);opacity:0;visibility:hidden;'
+  +   'transform:translateX(-6px);transition:opacity .12s ease,transform .12s ease;z-index:950}'
+  + '#dsnav .dn-group:hover .dn-sub{opacity:1;visibility:visible;transform:translateX(0)}'
   + '#dsnav .dn-sub a{padding:8px 10px;font-size:12.5px;border-radius:7px}'
   + '#dsnav .dn-sub a.on{background:var(--amw,#FFF6D9);color:var(--amk,#6B4E00)}'
   + '#dsnav .dn-sub a.on svg{color:var(--amk,#6B4E00)}'
@@ -163,30 +163,13 @@
   +   '#dsnav .dn-rows{display:flex;overflow-x:auto;gap:2px;-webkit-overflow-scrolling:touch;scrollbar-width:none}'+'#dsnav .dn-rows::-webkit-scrollbar{display:none}'
   +   '#dsnav a.dn-item{padding:7px 10px;font-size:11px;flex-shrink:0}'
   +   '#dsnav .dn-group-hd{display:none}'
-  +   '#dsnav .dn-sub{position:static;display:contents!important;box-shadow:none;border:none;padding:0;margin:0}'
+  +   '#dsnav .dn-sub{position:static;display:contents!important;opacity:1;visibility:visible;'
+  +     'transform:none;box-shadow:none;border:none;padding:0;margin:0}'
   +   '#dsnav .dn-foot{display:none}'
   +   '#dsnav .dn-exit-mobile{display:flex;align-items:center;gap:5px;flex-shrink:0;'
   +     'color:var(--neg,#C22F49);font-size:11px;font-weight:700;text-decoration:none;'
   +     'padding:6px 10px;border-radius:8px;background:var(--negw,#FBEAED)}'
   +   '#dsnav .dn-exit-mobile svg{width:14px;height:14px;stroke:currentColor;stroke-width:1.8;fill:none}'
-  + '}'
-  /* ── rail com flyout, desktop (≥821px) ──
-     .pinned (clique) funciona em qualquer dispositivo; :hover só entra
-     como atalho extra em quem tem mouse de verdade — assim não "abre
-     sozinho" ao tocar num item em tablet. Rótulo/chevron usam opacity
-     (não display), igual ao protótipo aprovado — sem re-centralizar
-     nada, o ícone fica sempre na mesma posição (com padding fixo). */
-  + '@media(min-width:821px){'
-  +   '#dsnav{transition:width .18s ease}'
-  +   '#dsnav .lbl,#dsnav .dn-chev{opacity:0;transition:opacity .1s ease}'
-  +   '#dsnav.pinned{width:236px;overflow:visible;box-shadow:14px 0 34px -10px rgba(10,15,26,.45)}'
-  +   '#dsnav.pinned .dn-brand img{height:66px}'
-  +   '#dsnav.pinned .lbl,#dsnav.pinned .dn-chev{opacity:1}'
-  + '}'
-  + '@media(min-width:821px) and (hover:hover){'
-  +   '#dsnav:hover{width:236px;overflow:visible;box-shadow:14px 0 34px -10px rgba(10,15,26,.45)}'
-  +   '#dsnav:hover .dn-brand img{height:66px}'
-  +   '#dsnav:hover .lbl,#dsnav:hover .dn-chev{opacity:1}'
   + '}'
   /* ── variante NAVY (teste: ?nav=navy · voltar: ?nav=claro) ── */
   + '#dsnav.navy{background:#101B33;border-right-color:#1D2A46;border-bottom-color:#1D2A46}'
@@ -229,39 +212,37 @@
     var path = location.pathname.replace(/\/$/, '/index.html');
     if (path === '' || path === '/') path = '/index.html';
 
-    var rowsHtml = '';
-    var subsHtml = '';
-    ITENS.forEach(function (it) {
-      var g = it.grupo ? ' data-grupo="' + it.grupo + '"' : '';
-      var esconder = it.grupo === 'admin' ? ' style="display:none"' : '';
-      if (it.sec) { rowsHtml += '<div class="dn-sec"' + g + esconder + '>' + it.sec + '</div>'; return; }
-      if (it.sub) {
-        var ativoSub = it.sub.some(function (s) { return path === s.href; });
-        rowsHtml += '<div class="dn-group" data-grupo-id="' + it.id + '">'
-          + '<div class="dn-group-hd' + (ativoSub ? ' on' : '') + '">'
-          +   icon(it.ic) + '<span class="lbl">' + it.txt + '</span>' + icon('chevron-right', 'dn-chev')
-          + '</div></div>';
-        subsHtml += '<div class="dn-sub" data-for="' + it.id + '">'
-          + it.sub.map(function (s) {
-              var onS = path === s.href ? ' on' : '';
-              return '<a class="dn-item' + onS + '" href="' + s.href + '">' + icon(s.ic) + '<span class="lbl">' + s.txt + '</span></a>';
-            }).join('')
-          + '</div>';
-        return;
-      }
-      var on = path === it.href ? ' on' : '';
-      var alvo = it.blank ? ' target="_blank" rel="noopener"' : '';
-      rowsHtml += '<a class="dn-item' + on + '"' + g + esconder + ' href="' + it.href + '"' + alvo + '>' + icon(it.ic) + '<span class="lbl">' + it.txt + '</span></a>';
-    });
-
     var html = '<div class="dn-top">'
       + '<a class="dn-brand" id="dn-brand" href="/index.html">'
       + '<img src="/logo.png" alt="Econômico Relatórios">'
       + '</a>'
       + '<a class="dn-exit-mobile" href="/api/logout">' + icon('logout') + 'Sair</a>'
       + '</div>'
-      + '<div class="dn-rows">' + rowsHtml + '</div>'
-      + subsHtml
+      + '<div class="dn-rows">';
+    ITENS.forEach(function (it) {
+      var g = it.grupo ? ' data-grupo="' + it.grupo + '"' : '';
+      var esconder = it.grupo === 'admin' ? ' style="display:none"' : '';
+      if (it.sec) { html += '<div class="dn-sec"' + g + esconder + '>' + it.sec + '</div>'; return; }
+      if (it.sub) {
+        var ativoSub = it.sub.some(function (s) { return path === s.href; });
+        html += '<div class="dn-group" data-grupo-id="' + it.id + '">'
+          + '<div class="dn-group-hd' + (ativoSub ? ' on' : '') + '">'
+          +   icon(it.ic) + '<span class="lbl">' + it.txt + '</span>' + icon('chevron-right', 'dn-chev')
+          + '</div>'
+          + '<div class="dn-sub">'
+          + it.sub.map(function (s) {
+              var onS = path === s.href ? ' on' : '';
+              return '<a class="dn-item' + onS + '" href="' + s.href + '">' + icon(s.ic) + '<span class="lbl">' + s.txt + '</span></a>';
+            }).join('')
+          + '</div>'
+          + '</div>';
+        return;
+      }
+      var on = path === it.href ? ' on' : '';
+      var alvo = it.blank ? ' target="_blank" rel="noopener"' : '';
+      html += '<a class="dn-item' + on + '"' + g + esconder + ' href="' + it.href + '"' + alvo + '>' + icon(it.ic) + '<span class="lbl">' + it.txt + '</span></a>';
+    });
+    html += '</div>'
       + '<div class="dn-foot">'
       + '<div class="dn-ava" id="dn-ava">–</div>'
       + '<div class="dn-user"><b id="dn-nome">…</b><a href="/api/logout">Sair da conta</a></div>'
@@ -284,47 +265,15 @@
     document.body.insertAdjacentElement('afterbegin', aside);
     document.body.classList.add('dsnav-pad');
 
-    /* flyout do grupo: posição calculada na hora (funciona mesmo com a
-       lista rolada), mouse abre/fecha sozinho; clique fixa (touch). */
-    function fecharTodosFlyouts() {
-      aside.querySelectorAll('.dn-sub.show').forEach(function (s) { s.classList.remove('show'); });
-    }
-    aside.querySelectorAll('.dn-group').forEach(function (grp) {
-      var hd = grp.querySelector('.dn-group-hd');
-      var sub = aside.querySelector('.dn-sub[data-for="' + grp.dataset.grupoId + '"]');
-      if (!hd || !sub) return;
-      function abrir() {
-        var r1 = hd.getBoundingClientRect();
-        var r0 = aside.getBoundingClientRect();
-        sub.style.top = Math.max(0, r1.top - r0.top) + 'px';
-        fecharTodosFlyouts();
-        sub.classList.add('show');
-      }
-      hd.addEventListener('mouseenter', abrir);
-      hd.addEventListener('mouseleave', function () { sub.classList.remove('show'); });
-      sub.addEventListener('mouseenter', function () { sub.classList.add('show'); });
-      sub.addEventListener('mouseleave', function () { sub.classList.remove('show'); });
-      hd.addEventListener('click', function (e) {
-        e.stopPropagation();
-        var jaAberto = sub.classList.contains('show');
-        fecharTodosFlyouts();
-        if (!jaAberto) { abrir(); aside.classList.add('pinned'); }
-      });
-    });
-
-    /* clique em qualquer ponto vazio do rail fixa ele aberto — em telas
-       sem mouse de verdade (tablet), é a ÚNICA forma de abrir (não expande
-       sozinho ao tocar num item). Clique em link/marca navega normal.
-       Clicar fora, ou de novo no rail, fecha tudo. */
+    /* clique fixa o menu aberto (útil em touch, onde não existe hover de
+       verdade); clique em link/marca navega normal; clicar fora fecha. */
     aside.addEventListener('click', function (e) {
-      if (e.target.closest('a, .dn-group-hd')) return;
+      if (e.target.closest('a')) return;
       aside.classList.toggle('pinned');
-      if (!aside.classList.contains('pinned')) fecharTodosFlyouts();
     });
     document.addEventListener('click', function (e) {
-      if (!aside.contains(e.target)) {
+      if (aside.classList.contains('pinned') && !aside.contains(e.target)) {
         aside.classList.remove('pinned');
-        fecharTodosFlyouts();
       }
     });
 
@@ -338,7 +287,7 @@
          esconde os itens de navegação e desativa o clique na marca
          (que levaria ao Dashboard, fora do alcance desse perfil) */
       if (u && u.perfil === 'gerencial') {
-        aside.querySelectorAll('.dn-item,.dn-sec,.dn-group,.dn-sub').forEach(function (el) {
+        aside.querySelectorAll('.dn-item,.dn-sec,.dn-group').forEach(function (el) {
           el.style.display = 'none';
         });
         var brand = document.getElementById('dn-brand');
