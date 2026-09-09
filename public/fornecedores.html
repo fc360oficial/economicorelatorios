@@ -892,10 +892,73 @@ async function renderLojas(id, mes, ano, body) {
 }
 
 // ─── ABRIR LISTA ────────────────────────────────
+let itensListaAtual = [];
+let sortColItens = null, sortDirItens = 'desc';
+
+function valorOrdenacaoItens(it, col) {
+  switch (col) {
+    case 'custo': return it.custo || 0;
+    case 'mcad':  return it.margem_cadastro || 0;
+    default:      return 0;
+  }
+}
+
+function ordenarItens(col) {
+  if (sortColItens !== col) {
+    sortColItens = col;
+    sortDirItens = 'desc';
+  } else if (sortDirItens === 'desc') {
+    sortDirItens = 'asc';
+  } else {
+    sortColItens = null;
+    sortDirItens = 'desc';
+  }
+  renderItensTabela();
+}
+
+function renderItensTabela() {
+  let itens = itensListaAtual;
+  if (sortColItens) {
+    itens = itens.slice().sort((a, b) => {
+      const va = valorOrdenacaoItens(a, sortColItens), vb = valorOrdenacaoItens(b, sortColItens);
+      return sortDirItens === 'desc' ? vb - va : va - vb;
+    });
+  }
+
+  const rows = itens.map(it => `<tr>
+      <td class="cod">${it.codigo}</td>
+      <td class="desc">${it.descricao||'—'}</td>
+      <td class="r"><input class="cell-edit-unid" data-codigo="${it.codigo}" value="${it.unidade||''}" title="Editar e apertar Enter pra fixar" style="width:42px;text-align:right;border:1px solid transparent;background:transparent;font:inherit;color:#4E5A72${it.unidade_embalagem_ajustada?';font-weight:700':''}" onkeydown="if(event.key==='Enter')this.blur()" onblur="salvarUnidadeEmb(this)"></td>
+      <td class="r"><input class="cell-edit-emb" type="number" min="1" step="1" data-codigo="${it.codigo}" value="${it.embalagem||1}" title="Editar e apertar Enter pra fixar" style="width:42px;text-align:right;border:1px solid transparent;background:transparent;font:inherit;color:#4E5A72${it.unidade_embalagem_ajustada?';font-weight:700':''}" onkeydown="if(event.key==='Enter')this.blur()" onblur="salvarUnidadeEmb(this)"></td>
+      <td class="r" style="color:#B45C00">${it.custo > 0 ? fmt(it.custo) : '—'}</td>
+      <td class="r"><span class="${it.margem_cadastro!=null?msvClass(it.margem_cadastro):''}">${it.margem_cadastro!=null?pctFmt(it.margem_cadastro):'—'}</span></td>
+      <td>${validadeHtml(it)}</td>
+      <td>${it.lojas.map(n=>`<span class="loja-badge">L${n}</span>`).join('')}</td>
+    </tr>`).join('');
+
+  const arrow = col => sortColItens === col ? (sortDirItens === 'desc' ? '▼' : '▲') : '';
+  const active = col => sortColItens === col ? ' active' : '';
+
+  document.getElementById('d-itens-wrap').innerHTML = `
+      <div class="d-table-wrap">
+        <table class="d-t">
+          <thead><tr>
+            <th>Código</th><th>Produto</th>
+            <th class="r">Unid</th><th class="r">Emb</th>
+            <th class="r sortable${active('custo')}" onclick="ordenarItens('custo')" title="Custo da última compra registrada (ERP) — clique para ordenar">Últ Custo<span class="sort-arrow">${arrow('custo')}</span></th>
+            <th class="r sortable${active('mcad')}" onclick="ordenarItens('mcad')" title="Margem cadastrada no produto (ERP) — clique para ordenar">Margem Cadastro<span class="sort-arrow">${arrow('mcad')}</span></th>
+            <th>Validade</th><th>Lojas</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+}
+
 async function abrirLista(id) {
   const lista = listas.find(r => r.id === id);
   if (!lista) return;
   listaSelecionada = lista;
+  sortColItens = null; sortDirItens = 'desc';
 
   document.querySelectorAll('.main-t tbody tr').forEach(tr => tr.classList.remove('selected'));
   const row = document.getElementById('row-' + id);
@@ -947,7 +1010,7 @@ async function abrirLista(id) {
           <thead><tr>
             <th>Código</th><th>Produto</th>
             <th class="r">Unid</th><th class="r">Emb</th>
-            <th class="r" title="Custo da última compra registrada (ERP)">Últ Custo</th><th class="r" title="Margem cadastrada no produto (ERP)">Margem Cadastro</th><th>Validade</th><th>Lojas</th>
+            <th class="r" title="Custo da última compra registrada (ERP)">Últ Custo</th><th class="r" title="Margem cadastrada no produto (ERP)">Marg. Cad.</th><th>Validade</th><th>Lojas</th>
           </tr></thead>
           <tbody>${rows}</tbody>
         </table>
