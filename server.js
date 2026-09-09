@@ -3049,15 +3049,49 @@ app.get('/api/listas-compra/:id/itens', async (req, res) => {
       ORDER BY i.Posicao, it.Descricao
     `, params);
 
-    res.json(itens.map(r => ({
-      codigo: r.Codigobarra,
-      descricao: r.Descricao?.trim(),
-      unidade: r.Unid?.trim(),
-      embalagem: r.QtdEmb,
-      posicao: r.Posicao,
-      custo: parseFloat(r.custo_atual || 0),
-      lojas: [1,2,3,4,5,6].filter(n => r['l'+n] == 1)
-    })));
+    // Validade real por lote, escaneada pelo coletor no recebimento
+    // (central.itenscoletorvalidade) — próxima validade a vencer por produto,
+    // ou a última vencida quando não há nenhuma futura.
+    const validadeMap = {};
+    const codigos = [...new Set(itens.map(r => r.Codigobarra))];
+    if (codigos.length) {
+      const ph = codigos.map(() => '?').join(',');
+      let wLoja = '';
+      const vParams = [...codigos];
+      if (loja && loja !== 'todas') { wLoja = ' AND nLoja = ?'; vParams.push(parseInt(loja)); }
+      const validadeRows = await q(`
+        SELECT Codigobarra,
+               MIN(CASE WHEN Data >= CURDATE() THEN Data END) as proxima,
+               MAX(CASE WHEN Data <  CURDATE() THEN Data END) as ultima_vencida,
+               COUNT(*) as qtd_lotes
+        FROM central.itenscoletorvalidade
+        WHERE Codigobarra IN (${ph})${wLoja}
+        GROUP BY Codigobarra
+      `, vParams).catch(() => []);
+      for (const r of validadeRows) {
+        validadeMap[r.Codigobarra] = {
+          validade: r.proxima || r.ultima_vencida || null,
+          vencida: !r.proxima && !!r.ultima_vencida,
+          qtd_lotes: r.qtd_lotes
+        };
+      }
+    }
+
+    res.json(itens.map(r => {
+      const v = validadeMap[r.Codigobarra];
+      return {
+        codigo: r.Codigobarra,
+        descricao: r.Descricao?.trim(),
+        unidade: r.Unid?.trim(),
+        embalagem: r.QtdEmb,
+        posicao: r.Posicao,
+        custo: parseFloat(r.custo_atual || 0),
+        lojas: [1,2,3,4,5,6].filter(n => r['l'+n] == 1),
+        validade: v?.validade ? new Date(v.validade).toISOString().slice(0, 10) : null,
+        validade_vencida: v?.vencida || false,
+        validade_lotes: v?.qtd_lotes || 0
+      };
+    }));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

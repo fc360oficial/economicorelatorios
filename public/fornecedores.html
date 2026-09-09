@@ -519,6 +519,19 @@ let tabAtiva = 'produtos';
 
 function lojaLabel(loja) { return loja === 'todas' ? 'Todas as Lojas' : `Loja ${loja}`; }
 
+// Validade real do lote (central.itenscoletorvalidade), escaneada pelo coletor no recebimento
+function validadeHtml(it) {
+  if (!it.validade) return '<span style="color:#4E5A72">—</span>';
+  const dt = new Date(it.validade + 'T00:00:00');
+  const dataFmt = dt.toLocaleDateString('pt-BR');
+  const diasRestantes = Math.ceil((dt - new Date(new Date().toDateString())) / 86400000);
+  let cor = '#137A48'; // ok
+  if (it.validade_vencida || diasRestantes < 0) cor = '#C22F49'; // vencida
+  else if (diasRestantes <= 7) cor = '#B45C00'; // próxima do vencimento
+  const lotesInfo = it.validade_lotes > 1 ? ` <span style="color:#4E5A72;font-size:10px">(${it.validade_lotes} lotes)</span>` : '';
+  return `<span style="color:${cor};font-weight:700">${dataFmt}</span>${lotesInfo}`;
+}
+
 async function abrirDrawer(id, tab, listaId) {
   const f = dados.find(r=>r.id===id);
   if (!f) return;
@@ -871,6 +884,7 @@ async function abrirLista(id) {
       <td class="r" style="color:#4E5A72">${it.unidade||''}</td>
       <td class="r" style="color:#4E5A72">${it.embalagem||1}</td>
       <td class="r" style="color:#B45C00">${it.custo > 0 ? fmt(it.custo) : '—'}</td>
+      <td>${validadeHtml(it)}</td>
       <td>${it.lojas.map(n=>`<span class="loja-badge">L${n}</span>`).join('')}</td>
     </tr>`).join('');
 
@@ -880,7 +894,7 @@ async function abrirLista(id) {
           <thead><tr>
             <th>Código</th><th>Produto</th>
             <th class="r">Unid</th><th class="r">Emb</th>
-            <th class="r">Custo</th><th>Lojas</th>
+            <th class="r">Custo</th><th>Validade</th><th>Lojas</th>
           </tr></thead>
           <tbody>${rows}</tbody>
         </table>
