@@ -3051,11 +3051,72 @@ app.post('/api/itens/unidade-embalagem', (req, res) => {
   res.json({ ok: true });
 });
 
+// Curva ABC por venda e por quantidade — classificação relativa a TODOS os
+// produtos vendidos no período/loja(s), não só os da lista (é assim que
+// curva ABC funciona: um item só é "A" comparado ao resto do catálogo).
+// Corte clássico 80/95/100. Cache 30min por loja+mes+ano (custa caro somar
+// zcupomitens de até 6 lojas inteiras).
+let _abcCache = {}, _abcCacheTs = {};
+const ABC_TTL = 30 * 60 * 1000;
+
+async function getCurvaABC(lojaParam, mes, ano) {
+  const cacheKey = `${lojaParam}-${mes}-${ano}`;
+  if (_abcCache[cacheKey] && Date.now() - _abcCacheTs[cacheKey] < ABC_TTL) return _abcCache[cacheKey];
+
+  const lojasList = lojaParam === 'todas' ? [1,2,3,4,5,6] : [parseInt(lojaParam) || 1];
+  const mm = mesDB(mes);
+  const dIni = `${ano}-${String(mes).padStart(2,'0')}-01`;
+  const dFim = dFimMes(ano, mes);
+
+  const totais = {};
+  for (const ln of lojasList) {
+    const rows = await q(`
+      SELECT Codigo, SUM(ValorTotalNovo) as valor, SUM(QtdNovo) as qtd
+      FROM \`ln${ln}${mm}\`.zcupomitens
+      WHERE Data BETWEEN ? AND ? AND IndCancel='N'
+      GROUP BY Codigo
+    `, [dIni, dFim]).catch(() => []);
+    for (const r of rows) {
+      if (!totais[r.Codigo]) totais[r.Codigo] = { valor: 0, qtd: 0 };
+      totais[r.Codigo].valor += parseFloat(r.valor || 0);
+      totais[r.Codigo].qtd += parseFloat(r.qtd || 0);
+    }
+  }
+
+  const lista = Object.entries(totais).map(([codigo, v]) => ({ codigo, ...v }));
+  const classificar = campo => {
+    const ordenado = lista.filter(r => r[campo] > 0).sort((a, b) => b[campo] - a[campo]);
+    const total = ordenado.reduce((s, r) => s + r[campo], 0);
+    const resultado = {};
+    let acumulado = 0;
+    for (const r of ordenado) {
+      acumulado += r[campo];
+      const pct = total > 0 ? acumulado / total * 100 : 100;
+      resultado[r.codigo] = pct <= 80 ? 'A' : pct <= 95 ? 'B' : 'C';
+    }
+    return resultado;
+  };
+
+  const porVenda = classificar('valor');
+  const porQtd = classificar('qtd');
+  const resultado = {};
+  for (const codigo of Object.keys(totais)) {
+    resultado[codigo] = { abc_venda: porVenda[codigo] || null, abc_qtd: porQtd[codigo] || null };
+  }
+
+  _abcCache[cacheKey] = resultado;
+  _abcCacheTs[cacheKey] = Date.now();
+  return resultado;
+}
+
 // Itens de uma lista específica
 app.get('/api/listas-compra/:id/itens', async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const { loja } = req.query;
+    const hoje = new Date();
+    const mes = req.query.mes ? parseInt(req.query.mes) : hoje.getMonth() + 1;
+    const ano = req.query.ano ? parseInt(req.query.ano) : hoje.getFullYear();
     const lojaMargemCad = loja && loja !== 'todas' ? (parseInt(loja) || 1) : 1; // "todas" usa Loja 1, mesmo padrão do resumo por fornecedor
 
     let where = 'WHERE i.nCotacao = ?';
@@ -3108,16 +3169,20 @@ app.get('/api/listas-compra/:id/itens', async (req, res) => {
     }
 
     const unidadeEmbOverrides = carregarUnidadeEmbOverrides();
+    const curvaAbc = await getCurvaABC(loja || '1', mes, ano).catch(() => ({}));
 
     res.json(itens.map(r => {
       const v = validadeMap[r.Codigobarra];
       const ov = unidadeEmbOverrides[r.Codigobarra];
+      const abc = curvaAbc[r.Codigobarra];
       return {
         codigo: r.Codigobarra,
         descricao: r.Descricao?.trim(),
         unidade: ov?.unidade || (r.UnidadeCompra?.trim() || r.Unid?.trim()),
         embalagem: ov?.embalagem || (parseFloat(r.qtdemb) > 0 ? parseFloat(r.qtdemb) : 1),
         unidade_embalagem_ajustada: !!ov,
+        abc_venda: abc?.abc_venda || null,
+        abc_qtd: abc?.abc_qtd || null,
         posicao: r.Posicao,
         custo: parsePreco(r.custo_atual),
         margem_cadastro: r.margem_cadastro != null ? parseFloat(r.margem_cadastro) : null,

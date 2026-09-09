@@ -896,12 +896,23 @@ async function renderLojas(id, mes, ano, body) {
 let itensListaAtual = [];
 let sortColItens = null, sortDirItens = 'desc';
 
+const ABC_RANK = { A: 3, B: 2, C: 1 };
 function valorOrdenacaoItens(it, col) {
   switch (col) {
-    case 'custo': return it.custo || 0;
-    case 'mcad':  return it.margem_cadastro || 0;
-    default:      return 0;
+    case 'custo':     return it.custo || 0;
+    case 'mcad':      return it.margem_cadastro || 0;
+    case 'abc_venda': return ABC_RANK[it.abc_venda] || 0;
+    case 'abc_qtd':   return ABC_RANK[it.abc_qtd] || 0;
+    default:          return 0;
   }
+}
+
+// Curva ABC: classificação do produto no catálogo inteiro (não só na lista),
+// por venda em R$ e por quantidade vendida, no mês/loja do filtro.
+function abcBadge(letra) {
+  if (!letra) return '<span style="color:#4E5A72">—</span>';
+  const cores = { A: '#137A48', B: '#B45C00', C: '#C22F49' };
+  return `<span style="display:inline-block;min-width:20px;text-align:center;font-weight:700;color:#fff;background:${cores[letra]};border-radius:4px;padding:1px 6px;font-size:11px">${letra}</span>`;
 }
 
 function ordenarItens(col) {
@@ -933,6 +944,8 @@ function renderItensTabela() {
       <td class="c"><input class="cell-edit-emb" type="number" min="1" step="1" data-codigo="${it.codigo}" value="${it.embalagem||1}" title="Editar e apertar Enter pra fixar" style="width:42px;text-align:center;border:1px solid transparent;background:transparent;font:inherit;color:#4E5A72${it.unidade_embalagem_ajustada?';font-weight:700':''}" onkeydown="if(event.key==='Enter')this.blur()" onblur="salvarUnidadeEmb(this)"></td>
       <td class="c" style="color:#B45C00">${it.custo > 0 ? fmt(it.custo) : '—'}</td>
       <td class="c"><span class="${it.margem_cadastro!=null?msvClass(it.margem_cadastro):''}">${it.margem_cadastro!=null?pctFmt(it.margem_cadastro):'—'}</span></td>
+      <td class="c">${abcBadge(it.abc_venda)}</td>
+      <td class="c">${abcBadge(it.abc_qtd)}</td>
       <td>${validadeHtml(it)}</td>
       <td><div style="display:flex;gap:2px;justify-content:center">${[1,2,3,4,5,6].map(n=>`<span class="loja-badge" style="${it.lojas.includes(n)?'':'visibility:hidden'}">L${n}</span>`).join('')}</div></td>
     </tr>`).join('');
@@ -948,6 +961,8 @@ function renderItensTabela() {
             <th class="c">Unid</th><th class="c">Emb</th>
             <th class="c sortable${active('custo')}" onclick="ordenarItens('custo')" title="Custo da última compra registrada (ERP) — clique para ordenar">Últ Custo<span class="sort-arrow">${arrow('custo')}</span></th>
             <th class="c sortable${active('mcad')}" onclick="ordenarItens('mcad')" title="Margem cadastrada no produto (ERP) — clique para ordenar">Marg. Cad.<span class="sort-arrow">${arrow('mcad')}</span></th>
+            <th class="c sortable${active('abc_venda')}" onclick="ordenarItens('abc_venda')" title="Curva ABC por valor de venda no mês/loja do filtro, comparado a todo o catálogo — clique para ordenar">Curva $<span class="sort-arrow">${arrow('abc_venda')}</span></th>
+            <th class="c sortable${active('abc_qtd')}" onclick="ordenarItens('abc_qtd')" title="Curva ABC por quantidade vendida no mês/loja do filtro, comparado a todo o catálogo — clique para ordenar">Curva Qtd<span class="sort-arrow">${arrow('abc_qtd')}</span></th>
             <th>Validade</th><th class="c">Lojas</th>
           </tr></thead>
           <tbody>${rows}</tbody>
@@ -965,7 +980,7 @@ async function abrirLista(id) {
   const row = document.getElementById('row-' + id);
   if (row) row.classList.add('selected');
 
-  const { loja } = params();
+  const { loja, mes, ano } = params();
   document.getElementById('d-title').textContent = lista.nome;
   document.getElementById('d-subtitle').textContent = `${lista.fornecedor||''} · ${lista.total_itens} itens`;
   document.getElementById('d-tabs').innerHTML = '';
@@ -977,7 +992,7 @@ async function abrirLista(id) {
   body.innerHTML = '<div class="spinner"></div>';
 
   try {
-    const r = await fetch(`/api/listas-compra/${id}/itens?loja=${loja}`);
+    const r = await fetch(`/api/listas-compra/${id}/itens?loja=${loja}&mes=${mes}&ano=${ano}`);
     const itens = await r.json();
     if (itens.error) throw new Error(itens.error);
 
