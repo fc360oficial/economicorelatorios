@@ -170,6 +170,30 @@ main{
 .hm-dot.x{background:var(--border-md)}
 
 /* ═══════════════════════════════════
+   A PAGAR X VENDA
+═══════════════════════════════════ */
+.finance-panel{
+  display:flex;flex-direction:column;gap:6px;flex-shrink:0;
+  background:linear-gradient(180deg,var(--card2),var(--card));
+  border:1px solid var(--border-md);border-radius:var(--r-sm);
+  padding:10px 20px;
+}
+.fin-title{
+  font-size:9px;font-weight:900;color:var(--brand);
+  text-transform:uppercase;letter-spacing:2.5px;
+  display:flex;align-items:center;gap:8px;
+}
+.fin-sub{font-size:9px;color:var(--text3);font-weight:600;text-transform:none;letter-spacing:0}
+.fin-rows{display:flex;flex-direction:column;gap:4px}
+.fin-row{display:flex;align-items:center;gap:10px}
+.fin-loja{width:150px;flex-shrink:0;font-size:11px;font-weight:800;color:var(--text)}
+.fin-loja span{color:var(--text3);font-weight:500;font-size:8px;margin-left:4px}
+.fin-track{position:relative;flex:1;height:11px;border-radius:6px;overflow:hidden}
+.fin-mask{position:absolute;top:0;right:0;height:100%;background:var(--bg);transition:width .8s}
+.fin-marker{position:absolute;top:-2px;bottom:-2px;width:2px;background:#FFFFFF;box-shadow:0 0 4px rgba(0,0,0,.7)}
+.fin-pct{width:56px;flex-shrink:0;text-align:right;font-size:13px;font-weight:900;color:var(--text)}
+
+/* ═══════════════════════════════════
    CARDS GRID
 ═══════════════════════════════════ */
 /* Flexbox simples em vez de CSS Grid — Grid (auto-fit/minmax, linhas
@@ -451,6 +475,12 @@ main{
       <div class="hm-title">Semana</div>
       <div class="hm-grid" id="hm-grid"></div>
     </div>
+  </div>
+
+  <!-- A Pagar x Venda -->
+  <div class="finance-panel" id="finance-panel">
+    <div class="fin-title">💰 A Pagar × Venda <span class="fin-sub" id="fin-sub">carregando…</span></div>
+    <div class="fin-rows" id="fin-rows"></div>
   </div>
 
   <!-- Cards compradores -->
@@ -1330,15 +1360,51 @@ async function atualizarStatusReal() {
   } catch(e) { console.warn('ERP offline:',e.message); }
 }
 
+async function carregarFinancas() {
+  try {
+    const resp = await fetch('/api/pagar-venda');
+    if (!resp.ok) return;
+    const data = await resp.json();
+    if (data.error) return;
+
+    document.getElementById('fin-sub').textContent =
+      `A Pagar = mês inteiro · Venda = média ${data.venda_media_label}/2026`;
+
+    const LOJAS = ['','CAHU','MURIBECA','PONTE','ATACAREJO','PORTA LARGA','JARDIM JORDÃO'];
+    const maiorPct = Math.max(0, ...data.por_loja.map(l => l.pct ?? 0));
+    const escalaMax = Math.max(100, Math.ceil(maiorPct / 50) * 50);
+    const corte50 = (50 / escalaMax * 100).toFixed(2);
+    const corte70 = (70 / escalaMax * 100).toFixed(2);
+    const gradiente = `linear-gradient(to right,var(--green) 0%,var(--green) ${corte50}%,var(--amber) ${corte50}%,var(--amber) ${corte70}%,var(--red) ${corte70}%,var(--red) 100%)`;
+
+    let html = '';
+    for (const l of data.por_loja) {
+      const pctTxt = l.pct !== null ? l.pct.toFixed(1) + '%' : '—';
+      const posPct = l.pct !== null ? Math.max(0, Math.min(l.pct, escalaMax)) / escalaMax * 100 : null;
+      const maskPct = posPct !== null ? 100 - posPct : 100;
+      const marker = posPct !== null ? `<div class="fin-marker" style="left:${posPct}%"></div>` : '';
+      html += `
+        <div class="fin-row">
+          <div class="fin-loja">Loja ${l.loja}<span>${LOJAS[l.loja]||''}</span></div>
+          <div class="fin-track" style="background:${gradiente}"><div class="fin-mask" style="width:${maskPct}%"></div>${marker}</div>
+          <div class="fin-pct">${pctTxt}</div>
+        </div>`;
+    }
+    document.getElementById('fin-rows').innerHTML = html;
+  } catch(e) { console.warn('financas erro:', e.message); }
+}
+
 /* ══ INIT ══ */
 renderAll();
 renderTicker();
 renderHeatmap();
 updateClock();
 carregarFornecMap().then(() => atualizarStatusReal());
+carregarFinancas();
 setInterval(updateClock, 1000);
 setInterval(updateCountdown, 1000);
 setInterval(atualizarStatusReal, 2*60*1000);
+setInterval(carregarFinancas, 5*60*1000);
 </script>
 <style>
 .btn-slides{position:fixed;bottom:14px;right:58px;width:34px;height:34px;border-radius:8px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.5);color:#94A3B8;font-size:20px;cursor:pointer;z-index:999;backdrop-filter:blur(4px);transition:all .3s;opacity:.35;display:flex;align-items:center;justify-content:center;letter-spacing:-1px;font-weight:900;padding-bottom:2px}
