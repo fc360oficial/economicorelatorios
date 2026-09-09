@@ -51,11 +51,11 @@ table.main-t{width:100%;border-collapse:collapse;font-size:13px}
 table.main-t thead{background:#EBEBE9;position:sticky;top:0;z-index:10}
 table.main-t th{padding:10px 14px;text-align:left;color:#4E5A72;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;border-bottom:1px solid #DADAD6}
 table.main-t th.r{text-align:right}
-table.main-t th.sortable{cursor:pointer;user-select:none}
-table.main-t th.sortable:hover{color:#0E1626}
-table.main-t th.sortable .sort-arrow{display:inline-block;margin-left:4px;font-size:9px;color:#98A0B3}
-table.main-t th.sortable.active{color:#6B4E00}
-table.main-t th.sortable.active .sort-arrow{color:#F5B800}
+th.sortable{cursor:pointer;user-select:none}
+th.sortable:hover{color:#0E1626}
+th.sortable .sort-arrow{display:inline-block;margin-left:4px;font-size:9px;color:#98A0B3}
+th.sortable.active{color:#6B4E00}
+th.sortable.active .sort-arrow{color:#F5B800}
 table.main-t td{padding:9px 14px;border-bottom:1px solid #DADAD6;vertical-align:middle}
 table.main-t tbody tr{transition:background .1s}
 table.main-t tbody tr:hover{background:#F5F5F3}
@@ -580,8 +580,7 @@ function validadeHtml(it) {
   let cor = '#137A48'; // ok
   if (it.validade_vencida || diasRestantes < 0) cor = '#C22F49'; // vencida
   else if (diasRestantes <= 7) cor = '#B45C00'; // próxima do vencimento
-  const lotesInfo = it.validade_lotes > 1 ? ` <span style="color:#4E5A72;font-size:10px;white-space:nowrap">(${it.validade_lotes} lotes)</span>` : '';
-  return `<span style="color:${cor};font-weight:700;white-space:nowrap">${dataFmt}</span>${lotesInfo}${diasInfo ? '<br>' + diasInfo : ''}`;
+  return `<span style="color:${cor};font-weight:700;white-space:nowrap">${dataFmt}</span>${diasInfo ? '<br>' + diasInfo : ''}`;
 }
 
 async function abrirDrawer(id, tab, listaId) {
@@ -946,7 +945,7 @@ function renderItensTabela() {
             <th>Código</th><th>Produto</th>
             <th class="r">Unid</th><th class="r">Emb</th>
             <th class="r sortable${active('custo')}" onclick="ordenarItens('custo')" title="Custo da última compra registrada (ERP) — clique para ordenar">Últ Custo<span class="sort-arrow">${arrow('custo')}</span></th>
-            <th class="r sortable${active('mcad')}" onclick="ordenarItens('mcad')" title="Margem cadastrada no produto (ERP) — clique para ordenar">Margem Cadastro<span class="sort-arrow">${arrow('mcad')}</span></th>
+            <th class="r sortable${active('mcad')}" onclick="ordenarItens('mcad')" title="Margem cadastrada no produto (ERP) — clique para ordenar">Marg. Cad.<span class="sort-arrow">${arrow('mcad')}</span></th>
             <th>Validade</th><th>Lojas</th>
           </tr></thead>
           <tbody>${rows}</tbody>
@@ -993,28 +992,9 @@ async function abrirLista(id) {
         ${lista.lojas.length ? `<div class="d-kpi"><div class="dv">${lista.lojas.map(n=>`<span class="loja-badge">L${n}</span>`).join('')}</div><div class="dl">Lojas</div></div>` : ''}
       </div>`;
 
-    const rows = itens.map(it => `<tr>
-      <td class="cod">${it.codigo}</td>
-      <td class="desc">${it.descricao||'—'}</td>
-      <td class="r"><input class="cell-edit-unid" data-codigo="${it.codigo}" value="${it.unidade||''}" title="Editar e apertar Enter pra fixar" style="width:42px;text-align:right;border:1px solid transparent;background:transparent;font:inherit;color:#4E5A72${it.unidade_embalagem_ajustada?';font-weight:700':''}" onkeydown="if(event.key==='Enter')this.blur()" onblur="salvarUnidadeEmb(this)"></td>
-      <td class="r"><input class="cell-edit-emb" type="number" min="1" step="1" data-codigo="${it.codigo}" value="${it.embalagem||1}" title="Editar e apertar Enter pra fixar" style="width:42px;text-align:right;border:1px solid transparent;background:transparent;font:inherit;color:#4E5A72${it.unidade_embalagem_ajustada?';font-weight:700':''}" onkeydown="if(event.key==='Enter')this.blur()" onblur="salvarUnidadeEmb(this)"></td>
-      <td class="r" style="color:#B45C00">${it.custo > 0 ? fmt(it.custo) : '—'}</td>
-      <td class="r"><span class="${it.margem_cadastro!=null?msvClass(it.margem_cadastro):''}">${it.margem_cadastro!=null?pctFmt(it.margem_cadastro):'—'}</span></td>
-      <td>${validadeHtml(it)}</td>
-      <td>${it.lojas.map(n=>`<span class="loja-badge">L${n}</span>`).join('')}</td>
-    </tr>`).join('');
-
-    body.innerHTML = kpiHtml + `
-      <div class="d-table-wrap">
-        <table class="d-t">
-          <thead><tr>
-            <th>Código</th><th>Produto</th>
-            <th class="r">Unid</th><th class="r">Emb</th>
-            <th class="r" title="Custo da última compra registrada (ERP)">Últ Custo</th><th class="r" title="Margem cadastrada no produto (ERP)">Marg. Cad.</th><th>Validade</th><th>Lojas</th>
-          </tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>`;
+    itensListaAtual = itens;
+    body.innerHTML = kpiHtml + '<div id="d-itens-wrap"></div>';
+    renderItensTabela();
   } catch(e) {
     body.innerHTML = `<div class="empty">Erro: ${e.message}</div>`;
   }

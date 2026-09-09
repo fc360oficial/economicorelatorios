@@ -3103,7 +3103,7 @@ app.get('/api/listas-compra/:id/itens', async (req, res) => {
         const passados = lotes.filter(l => new Date(l.Data) < hoje).sort((a, b) => new Date(b.Data) - new Date(a.Data));
         const escolhido = futuros[0] || passados[0];
         if (!escolhido) continue;
-        validadeMap[cod] = { validade: escolhido.Data, vencida: !futuros.length, qtd_lotes: lotes.length };
+        validadeMap[cod] = { validade: escolhido.Data, vencida: !futuros.length };
       }
     }
 
@@ -3124,7 +3124,6 @@ app.get('/api/listas-compra/:id/itens', async (req, res) => {
         lojas: [1,2,3,4,5,6].filter(n => r['l'+n] == 1),
         validade: v?.validade ? new Date(v.validade).toISOString().slice(0, 10) : null,
         validade_vencida: v?.vencida || false,
-        validade_lotes: v?.qtd_lotes || 0,
         validade_dias: r.dias_configurado || null
       };
     }));
