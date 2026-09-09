@@ -124,7 +124,7 @@
   + '#dsnav a.dn-item.on svg{color:var(--amk,#6B4E00)}'
   + '#dsnav .lbl{opacity:0;transition:opacity .1s ease}'
   + '#dsnav.pinned .lbl,#dsnav:hover .lbl{opacity:1}'
-  + '#dsnav .dn-group{position:relative;margin-bottom:2px}'
+  + '#dsnav .dn-group{margin-bottom:2px}'
   + '#dsnav .dn-group-hd{display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:9px;'
   +   'font-size:12.5px;font-weight:600;color:var(--ink2,#4E5A72);cursor:default;user-select:none;'
   +   'transition:background .12s ease;white-space:nowrap}'
@@ -136,11 +136,16 @@
   + '#dsnav .dn-group-hd.on svg{color:var(--amk,#6B4E00)}'
   + '#dsnav .dn-chev{margin-left:auto;width:12px;height:12px;flex-shrink:0;opacity:0;transition:opacity .1s ease}'
   + '#dsnav.pinned .dn-chev,#dsnav:hover .dn-chev{opacity:1}'
-  + '#dsnav .dn-sub{position:absolute;left:100%;top:-6px;margin-left:6px;min-width:210px;'
-  +   'background:var(--crd,#FFFFFF);border:1px solid var(--ln,#DADAD6);border-radius:10px;padding:6px;'
-  +   'box-shadow:0 12px 28px -10px rgba(14,22,38,.35);opacity:0;visibility:hidden;'
-  +   'transform:translateX(-6px);transition:opacity .12s ease,transform .12s ease;z-index:950}'
-  + '#dsnav .dn-group:hover .dn-sub{opacity:1;visibility:visible;transform:translateX(0)}'
+  /* flyout do grupo: filho direto de #dsnav (NÃO de .dn-rows) — .dn-rows
+     tem overflow-y:auto, e isso força overflow-x:auto também (regra do
+     CSS), o que ou corta o flyout ou soma uma barra horizontal só pelo
+     flyout existir fora da vista. Posição "top" calculada por JS na
+     hora de abrir, pra acompanhar a linha certa mesmo com a lista
+     rolada. display:none (não opacity) pra não ocupar espaço à toa. */
+  + '#dsnav .dn-sub{display:none;position:absolute;left:236px;margin-left:6px;min-width:210px;'
+  +   'flex-direction:column;background:var(--crd,#FFFFFF);border:1px solid var(--ln,#DADAD6);'
+  +   'border-radius:10px;padding:6px;box-shadow:0 12px 28px -10px rgba(14,22,38,.35);z-index:950}'
+  + '#dsnav .dn-sub.show{display:flex}'
   + '#dsnav .dn-sub a{padding:8px 10px;font-size:12.5px;border-radius:7px}'
   + '#dsnav .dn-sub a.on{background:var(--amw,#FFF6D9);color:var(--amk,#6B4E00)}'
   + '#dsnav .dn-sub a.on svg{color:var(--amk,#6B4E00)}'
@@ -215,37 +220,39 @@
     var path = location.pathname.replace(/\/$/, '/index.html');
     if (path === '' || path === '/') path = '/index.html';
 
+    var rowsHtml = '';
+    var subsHtml = '';
+    ITENS.forEach(function (it) {
+      var g = it.grupo ? ' data-grupo="' + it.grupo + '"' : '';
+      var esconder = it.grupo === 'admin' ? ' style="display:none"' : '';
+      if (it.sec) { rowsHtml += '<div class="dn-sec"' + g + esconder + '>' + it.sec + '</div>'; return; }
+      if (it.sub) {
+        var ativoSub = it.sub.some(function (s) { return path === s.href; });
+        rowsHtml += '<div class="dn-group" data-grupo-id="' + it.id + '">'
+          + '<div class="dn-group-hd' + (ativoSub ? ' on' : '') + '">'
+          +   icon(it.ic) + '<span class="lbl">' + it.txt + '</span>' + icon('chevron-right', 'dn-chev')
+          + '</div></div>';
+        subsHtml += '<div class="dn-sub" data-for="' + it.id + '">'
+          + it.sub.map(function (s) {
+              var onS = path === s.href ? ' on' : '';
+              return '<a class="dn-item' + onS + '" href="' + s.href + '">' + icon(s.ic) + '<span class="lbl">' + s.txt + '</span></a>';
+            }).join('')
+          + '</div>';
+        return;
+      }
+      var on = path === it.href ? ' on' : '';
+      var alvo = it.blank ? ' target="_blank" rel="noopener"' : '';
+      rowsHtml += '<a class="dn-item' + on + '"' + g + esconder + ' href="' + it.href + '"' + alvo + '>' + icon(it.ic) + '<span class="lbl">' + it.txt + '</span></a>';
+    });
+
     var html = '<div class="dn-top">'
       + '<a class="dn-brand" id="dn-brand" href="/index.html">'
       + '<img src="/logo.png" alt="Econômico Relatórios">'
       + '</a>'
       + '<a class="dn-exit-mobile" href="/api/logout">' + icon('logout') + 'Sair</a>'
       + '</div>'
-      + '<div class="dn-rows">';
-    ITENS.forEach(function (it) {
-      var g = it.grupo ? ' data-grupo="' + it.grupo + '"' : '';
-      var esconder = it.grupo === 'admin' ? ' style="display:none"' : '';
-      if (it.sec) { html += '<div class="dn-sec"' + g + esconder + '>' + it.sec + '</div>'; return; }
-      if (it.sub) {
-        var ativoSub = it.sub.some(function (s) { return path === s.href; });
-        html += '<div class="dn-group" data-grupo-id="' + it.id + '">'
-          + '<div class="dn-group-hd' + (ativoSub ? ' on' : '') + '">'
-          +   icon(it.ic) + '<span class="lbl">' + it.txt + '</span>' + icon('chevron-right', 'dn-chev')
-          + '</div>'
-          + '<div class="dn-sub">'
-          + it.sub.map(function (s) {
-              var onS = path === s.href ? ' on' : '';
-              return '<a class="dn-item' + onS + '" href="' + s.href + '">' + icon(s.ic) + '<span class="lbl">' + s.txt + '</span></a>';
-            }).join('')
-          + '</div>'
-          + '</div>';
-        return;
-      }
-      var on = path === it.href ? ' on' : '';
-      var alvo = it.blank ? ' target="_blank" rel="noopener"' : '';
-      html += '<a class="dn-item' + on + '"' + g + esconder + ' href="' + it.href + '"' + alvo + '>' + icon(it.ic) + '<span class="lbl">' + it.txt + '</span></a>';
-    });
-    html += '</div>'
+      + '<div class="dn-rows">' + rowsHtml + '</div>'
+      + subsHtml
       + '<div class="dn-foot">'
       + '<div class="dn-ava" id="dn-ava">–</div>'
       + '<div class="dn-user"><b id="dn-nome">…</b><a href="/api/logout">Sair da conta</a></div>'
@@ -268,15 +275,43 @@
     document.body.insertAdjacentElement('afterbegin', aside);
     document.body.classList.add('dsnav-pad');
 
+    function fecharFlyouts() {
+      aside.querySelectorAll('.dn-sub.show').forEach(function (s) { s.classList.remove('show'); });
+    }
+    aside.querySelectorAll('.dn-group').forEach(function (grp) {
+      var hd = grp.querySelector('.dn-group-hd');
+      var sub = aside.querySelector('.dn-sub[data-for="' + grp.dataset.grupoId + '"]');
+      if (!hd || !sub) return;
+      function abrir() {
+        var r1 = hd.getBoundingClientRect();
+        var r0 = aside.getBoundingClientRect();
+        sub.style.top = Math.max(0, r1.top - r0.top) + 'px';
+        fecharFlyouts();
+        sub.classList.add('show');
+      }
+      hd.addEventListener('mouseenter', abrir);
+      hd.addEventListener('mouseleave', function () { sub.classList.remove('show'); });
+      sub.addEventListener('mouseenter', function () { sub.classList.add('show'); });
+      sub.addEventListener('mouseleave', function () { sub.classList.remove('show'); });
+      hd.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var jaAberto = sub.classList.contains('show');
+        fecharFlyouts();
+        if (!jaAberto) { abrir(); aside.classList.add('pinned'); }
+      });
+    });
+
     /* clique fixa o menu aberto (útil em touch, onde não existe hover de
        verdade); clique em link/marca navega normal; clicar fora fecha. */
     aside.addEventListener('click', function (e) {
-      if (e.target.closest('a')) return;
+      if (e.target.closest('a, .dn-group-hd')) return;
       aside.classList.toggle('pinned');
+      if (!aside.classList.contains('pinned')) fecharFlyouts();
     });
     document.addEventListener('click', function (e) {
-      if (aside.classList.contains('pinned') && !aside.contains(e.target)) {
+      if (!aside.contains(e.target)) {
         aside.classList.remove('pinned');
+        fecharFlyouts();
       }
     });
 
