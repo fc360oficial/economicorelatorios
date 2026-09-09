@@ -3050,8 +3050,9 @@ app.get('/api/listas-compra/:id/itens', async (req, res) => {
     `, params);
 
     // Validade real por lote, escaneada pelo coletor no recebimento
-    // (central.itenscoletorvalidade) — próxima validade a vencer por produto,
-    // ou a última vencida quando não há nenhuma futura.
+    // (central.itenscoletorvalidade) — pega o lote com validade mais próxima
+    // de vencer (ou o mais recente já vencido, se não houver nenhum futuro) e
+    // calcula os dias de validade daquele lote (Data - dataEntrada).
     const validadeMap = {};
     const codigos = [...new Set(itens.map(r => r.Codigobarra))];
     if (codigos.length) {
@@ -3059,20 +3060,27 @@ app.get('/api/listas-compra/:id/itens', async (req, res) => {
       let wLoja = '';
       const vParams = [...codigos];
       if (loja && loja !== 'todas') { wLoja = ' AND nLoja = ?'; vParams.push(parseInt(loja)); }
-      const validadeRows = await q(`
-        SELECT Codigobarra,
-               MIN(CASE WHEN Data >= CURDATE() THEN Data END) as proxima,
-               MAX(CASE WHEN Data <  CURDATE() THEN Data END) as ultima_vencida,
-               COUNT(*) as qtd_lotes
+      const loteRows = await q(`
+        SELECT Codigobarra, Data, dataEntrada
         FROM central.itenscoletorvalidade
         WHERE Codigobarra IN (${ph})${wLoja}
-        GROUP BY Codigobarra
       `, vParams).catch(() => []);
-      for (const r of validadeRows) {
-        validadeMap[r.Codigobarra] = {
-          validade: r.proxima || r.ultima_vencida || null,
-          vencida: !r.proxima && !!r.ultima_vencida,
-          qtd_lotes: r.qtd_lotes
+
+      const porCodigo = {};
+      for (const r of loteRows) (porCodigo[r.Codigobarra] = porCodigo[r.Codigobarra] || []).push(r);
+
+      const hoje = new Date(new Date().toDateString());
+      for (const [cod, lotes] of Object.entries(porCodigo)) {
+        const futuros = lotes.filter(l => new Date(l.Data) >= hoje).sort((a, b) => new Date(a.Data) - new Date(b.Data));
+        const passados = lotes.filter(l => new Date(l.Data) < hoje).sort((a, b) => new Date(b.Data) - new Date(a.Data));
+        const escolhido = futuros[0] || passados[0];
+        if (!escolhido) continue;
+        const dias = Math.round((new Date(escolhido.Data) - new Date(escolhido.dataEntrada)) / 86400000);
+        validadeMap[cod] = {
+          validade: escolhido.Data,
+          vencida: !futuros.length,
+          qtd_lotes: lotes.length,
+          dias: dias > 0 ? dias : null
         };
       }
     }
@@ -3089,7 +3097,8 @@ app.get('/api/listas-compra/:id/itens', async (req, res) => {
         lojas: [1,2,3,4,5,6].filter(n => r['l'+n] == 1),
         validade: v?.validade ? new Date(v.validade).toISOString().slice(0, 10) : null,
         validade_vencida: v?.vencida || false,
-        validade_lotes: v?.qtd_lotes || 0
+        validade_lotes: v?.qtd_lotes || 0,
+        validade_dias: v?.dias || null
       };
     }));
   } catch (err) { res.status(500).json({ error: err.message }); }
