@@ -3057,6 +3057,7 @@ app.get('/api/listas-compra/:id/itens', async (req, res) => {
     const itens = await q(`
       SELECT i.nReg, i.Codigobarra, it.Descricao, it.Unid, it.UnidadeCompra, it.qtdemb, i.Posicao,
              i.l1, i.l2, i.l3, i.l4, i.l5, i.l6,
+             it.Validar as dias_configurado,
              ci.Custo as custo_atual,
              im.MargemVarejo as margem_cadastro
       FROM central.c_cotacao_lista_itens i
@@ -3067,10 +3068,8 @@ app.get('/api/listas-compra/:id/itens', async (req, res) => {
       ORDER BY i.Posicao, it.Descricao
     `, [lojaMargemCad, ...params]);
 
-    // Validade real por lote, escaneada pelo coletor no recebimento
-    // (central.itenscoletorvalidade) — pega o lote com validade mais próxima
-    // de vencer (ou o mais recente já vencido, se não houver nenhum futuro) e
-    // calcula os dias de validade daquele lote (Data - dataEntrada).
+    // Validade real do lote mais próximo de vencer, escaneada pelo coletor no
+    // recebimento (central.itenscoletorvalidade) — só a data, pra referência.
     // Não filtra por loja: é informação do produto, não da loja selecionada —
     // um produto pode não ter sido escaneado na loja do filtro, mas ter
     // histórico de validade em outras.
@@ -3079,7 +3078,7 @@ app.get('/api/listas-compra/:id/itens', async (req, res) => {
     if (codigos.length) {
       const ph = codigos.map(() => '?').join(',');
       const loteRows = await q(`
-        SELECT Codigobarra, Data, dataEntrada
+        SELECT Codigobarra, Data
         FROM central.itenscoletorvalidade
         WHERE Codigobarra IN (${ph})
       `, codigos).catch(() => []);
@@ -3093,13 +3092,7 @@ app.get('/api/listas-compra/:id/itens', async (req, res) => {
         const passados = lotes.filter(l => new Date(l.Data) < hoje).sort((a, b) => new Date(b.Data) - new Date(a.Data));
         const escolhido = futuros[0] || passados[0];
         if (!escolhido) continue;
-        const dias = Math.round((new Date(escolhido.Data) - new Date(escolhido.dataEntrada)) / 86400000);
-        validadeMap[cod] = {
-          validade: escolhido.Data,
-          vencida: !futuros.length,
-          qtd_lotes: lotes.length,
-          dias: dias > 0 ? dias : null
-        };
+        validadeMap[cod] = { validade: escolhido.Data, vencida: !futuros.length, qtd_lotes: lotes.length };
       }
     }
 
@@ -3117,7 +3110,7 @@ app.get('/api/listas-compra/:id/itens', async (req, res) => {
         validade: v?.validade ? new Date(v.validade).toISOString().slice(0, 10) : null,
         validade_vencida: v?.vencida || false,
         validade_lotes: v?.qtd_lotes || 0,
-        validade_dias: v?.dias || null
+        validade_dias: r.dias_configurado || null
       };
     }));
   } catch (err) { res.status(500).json({ error: err.message }); }

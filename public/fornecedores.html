@@ -571,7 +571,8 @@ function lojaLabel(loja) { return loja === 'todas' ? 'Todas as Lojas' : `Loja ${
 
 // Validade real do lote (central.itenscoletorvalidade), escaneada pelo coletor no recebimento
 function validadeHtml(it) {
-  if (!it.validade) return '<span style="color:#4E5A72">—</span>';
+  const diasInfo = it.validade_dias ? `<span style="color:#4E5A72;font-size:10px;white-space:nowrap">Cadastro ERP: ${it.validade_dias} dias</span>` : '';
+  if (!it.validade) return diasInfo || '<span style="color:#4E5A72">—</span>';
   const dt = new Date(it.validade + 'T00:00:00');
   const dataFmt = dt.toLocaleDateString('pt-BR');
   const diasRestantes = Math.ceil((dt - new Date(new Date().toDateString())) / 86400000);
@@ -579,8 +580,7 @@ function validadeHtml(it) {
   if (it.validade_vencida || diasRestantes < 0) cor = '#C22F49'; // vencida
   else if (diasRestantes <= 7) cor = '#B45C00'; // próxima do vencimento
   const lotesInfo = it.validade_lotes > 1 ? ` <span style="color:#4E5A72;font-size:10px;white-space:nowrap">(${it.validade_lotes} lotes)</span>` : '';
-  const diasInfo = it.validade_dias ? `<br><span style="color:#4E5A72;font-size:10px;white-space:nowrap">Validade: ${it.validade_dias} dias</span>` : '';
-  return `<span style="color:${cor};font-weight:700;white-space:nowrap">${dataFmt}</span>${lotesInfo}${diasInfo}`;
+  return `<span style="color:${cor};font-weight:700;white-space:nowrap">${dataFmt}</span>${lotesInfo}${diasInfo ? '<br>' + diasInfo : ''}`;
 }
 
 async function abrirDrawer(id, tab, listaId) {
