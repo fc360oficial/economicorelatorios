@@ -1971,18 +1971,24 @@ app.get('/api/pagar-venda', withCache(30), async (req, res) => {
   try {
     const hoje   = new Date();
     const mesSel = req.query.mes ? parseInt(req.query.mes) : hoje.getMonth() + 1;
-    const diaHoje = hoje.getDate();
-    const mesHoje = hoje.getMonth() + 1;
     const lojas  = [1,2,3,4,5,6];
-    const mm     = String(mesSel).padStart(2,'0');
-    const diaFiltroV = mesSel === mesHoje ? ` AND DAY(Data) <= ${diaHoje}` : '';
-    const diaFiltroC = mesSel === mesHoje ? ` AND DAY(DataLan) <= ${diaHoje}` : '';
     const NOMES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
-    const { vendaTotalMap } = await calcularVendaPorLoja(mesSel, mm, diaFiltroV, diaFiltroC);
+    // Venda: média mensal de Jan-Ago/2026 (dashboard.vendas, já agregado por
+    // loja/mês) — em vez da venda parcial "até hoje", que fazia a % disparar
+    // no início de cada mês só por falta de dado acumulado ainda. A média dá
+    // uma base estável de comparação, igual em qualquer dia do mês.
+    const mediaRows = await q(
+      `SELECT nLoja, COALESCE(SUM(Total),0)/8 as media
+       FROM dashboard.vendas
+       WHERE Ano=2026 AND Mes BETWEEN 1 AND 8 AND nLoja IN (1,2,3,4,5,6)
+       GROUP BY nLoja`
+    );
+    const vendaMediaMap = {};
+    for (const r of mediaRows) vendaMediaMap[Number(r.nLoja)] = parseFloat(r.media || 0);
 
-    // Contas a pagar: vencimento no mês inteiro (sem corte de dia — os
-    // títulos do mês já existem todos no ERP hoje, diferente da venda).
+    // Contas a pagar: vencimento no mês selecionado, inteiro (sem corte de
+    // dia — os títulos do mês já existem todos no ERP hoje).
     const pagarRows = await q(
       `SELECT Filial, COALESCE(SUM(Valor),0) as total
        FROM loja20045.contasapagar
@@ -1996,12 +2002,12 @@ app.get('/api/pagar-venda', withCache(30), async (req, res) => {
 
     const por_loja = lojas.map(ln => {
       const a_pagar     = pagarMap[ln] || 0;
-      const venda_total = vendaTotalMap[ln] || 0;
+      const venda_media = vendaMediaMap[ln] || 0;
       return {
         loja: ln,
         a_pagar:     +a_pagar.toFixed(2),
-        venda_total: +venda_total.toFixed(2),
-        pct: venda_total > 0 ? +((a_pagar / venda_total) * 100).toFixed(1) : null,
+        venda_total: +venda_media.toFixed(2),
+        pct: venda_media > 0 ? +((a_pagar / venda_media) * 100).toFixed(1) : null,
       };
     });
 
@@ -2017,8 +2023,6 @@ app.get('/api/pagar-venda', withCache(30), async (req, res) => {
       },
       mes: mesSel,
       nome_mes: NOMES[mesSel - 1],
-      diaHoje, mesHoje,
-      parcial: mesSel === mesHoje,
     });
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
