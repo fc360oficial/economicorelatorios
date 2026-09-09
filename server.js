@@ -3045,6 +3045,7 @@ app.get('/api/listas-compra/:id/itens', async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const { loja } = req.query;
+    const lojaMargemCad = loja && loja !== 'todas' ? (parseInt(loja) || 1) : 1; // "todas" usa Loja 1, mesmo padrão do resumo por fornecedor
 
     let where = 'WHERE i.nCotacao = ?';
     let params = [id];
@@ -3056,13 +3057,15 @@ app.get('/api/listas-compra/:id/itens', async (req, res) => {
     const itens = await q(`
       SELECT i.nReg, i.Codigobarra, it.Descricao, it.Unid, it.UnidadeCompra, it.qtdemb, i.Posicao,
              i.l1, i.l2, i.l3, i.l4, i.l5, i.l6,
-             ci.Custo as custo_atual
+             ci.Custo as custo_atual,
+             im.MargemVarejo as margem_cadastro
       FROM central.c_cotacao_lista_itens i
       INNER JOIN central.itens it ON it.CodigoBarra = i.Codigobarra AND it.CodDesativado = 0
       LEFT JOIN central.custoloja1 ci ON ci.CodigoBarra = i.Codigobarra
+      LEFT JOIN central.itens_margens im ON im.CodigoBarra = i.Codigobarra AND im.nLoja = ?
       ${where}
       ORDER BY i.Posicao, it.Descricao
-    `, params);
+    `, [lojaMargemCad, ...params]);
 
     // Validade real por lote, escaneada pelo coletor no recebimento
     // (central.itenscoletorvalidade) — pega o lote com validade mais próxima
@@ -3109,6 +3112,7 @@ app.get('/api/listas-compra/:id/itens', async (req, res) => {
         embalagem: parseFloat(r.qtdemb) > 0 ? parseFloat(r.qtdemb) : 1,
         posicao: r.Posicao,
         custo: parseFloat(r.custo_atual || 0),
+        margem_cadastro: r.margem_cadastro != null ? parseFloat(r.margem_cadastro) : null,
         lojas: [1,2,3,4,5,6].filter(n => r['l'+n] == 1),
         validade: v?.validade ? new Date(v.validade).toISOString().slice(0, 10) : null,
         validade_vencida: v?.vencida || false,
