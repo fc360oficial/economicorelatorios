@@ -1196,14 +1196,14 @@ app.get('/api/fornecedores/resumo', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Compras por comprador — fonte de verdade: NREGS_COMPRADOR (Excel), não o ERP
+// Compras por comprador — fonte de verdade: NREGS_COMPRADOR, populado a partir do ERP
 app.get('/api/fornecedores/compras-resumo', async (req, res) => {
   try {
     const loja = parseInt(req.query.loja) || 1;
     const mes  = parseInt(req.query.mes)  || new Date().getMonth() + 1;
     const ano  = parseInt(req.query.ano)  || new Date().getFullYear();
 
-    // Todas as listas do Excel (sem filtro de loja — o Excel define comprador, não a loja)
+    // Todas as listas com comprador linkado no ERP (sem filtro de loja — o comprador é quem define, não a loja)
     const allExcelNRegs = Object.values(NREGS_COMPRADOR).flat();
     const excelPh = allExcelNRegs.map(() => '?').join(',');
 
@@ -1226,7 +1226,7 @@ app.get('/api/fornecedores/compras-resumo', async (req, res) => {
          GROUP BY DATE(DataRecto) ORDER BY dia ASC`, [loja, mes, ano])
     ]);
 
-    // Mapa invertido lista → comprador (via Excel)
+    // Mapa invertido lista → comprador
     const listaToComp = {};
     for (const [comp, nRegs] of Object.entries(NREGS_COMPRADOR)) {
       for (const nReg of nRegs) listaToComp[nReg] = comp;
@@ -2978,7 +2978,7 @@ app.get('/api/listas-compra', async (req, res) => {
 
     const rows = await q(sql, params);
 
-    // Comprador via NREGS_COMPRADOR (Excel)
+    // Comprador via NREGS_COMPRADOR (ERP)
     const _nRegToComp = {};
     for (const [comp, nRegs] of Object.entries(NREGS_COMPRADOR)) {
       for (const nReg of nRegs) _nRegToComp[nReg] = comp;
@@ -3116,8 +3116,8 @@ app.get('/api/compras/verificar-comprador', async (req, res) => {
       SEX: [277],
     };
 
-    // Listas da FATIMA via NREGS_COMPRADOR (Excel)
-    const todosNRegs = [...new Set([...Object.values(cronFatima).flat(), ...(NREGS_COMPRADOR.FATIMA || [])])];
+    // Listas da FATIMA via NREGS_COMPRADOR (ERP)
+    const todosNRegs = [...new Set([...Object.values(cronFatima).flat(), ...(NREGS_COMPRADOR[resolveComprador('FATIMA')] || [])])];
     const phN = todosNRegs.map(() => '?').join(',');
 
     // Passo 2: traduz nReg → CodFornec real
@@ -3278,21 +3278,56 @@ app.get('/api/precificacao/margens-criticas', async (req, res) => {
 // Variação de custo: soma das 6 lojas (preço único de compra)
 // ═══════════════════════════════════════════════════
 
-const NREGS_COMPRADOR = {
-  FATIMA: [303,309,310,311,312,313,314,332,342,344,347,350,355,380,394,415,417,419,457,461,482,534,537,538,543,555,572],
-  KELLY: [218,316,318,320,322,325,326,327,328,334,336,337,338,345,346,351,356,358,366,370,372,382,398,403,404,413,421,422,423,424,428,429,430,431,440,442,449,456,473,480,483,487,499,529,557,561,563,584],
-  STHEPHANNY: [279,293,319,361,365,371,373,377,379,388,399,405,406,408,409,411,412,414,416,418,444,445,446,458,469,470,485,496,500,501,505,508,516,519,530,531,540,541,544,564,570,578,579,580,583],
-  CRISLANE: [191,307,308,323,324,331,335,339,340,352,364,369,374,375,381,420,424,436,437,478,488,495,504,514,535,554,556,559,582,586],
-  PATRICIA: [295,296,317,329,368,376,391,392,395,396,397,400,401,407,410,427,433,434,439,441,447,450,454,455,459,462,465,467,476,484,486,493,494,497,502,507,521,550,551,552,560,565],
+// Comprador de cada lista de compra — fonte de verdade é o ERP
+// (central.c_cotacao_agenda_comprador, ligado por nLista = c_cotacao_lista.nReg),
+// não mais o Excel hardcoded. Populado no boot e recarregado a cada 10min.
+let NREGS_COMPRADOR = {};
+let _nregsCompradorTs = 0;
+const NREGS_COMPRADOR_TTL = 10 * 60 * 1000;
+
+async function refreshNregsComprador() {
+  try {
+    const rows = await q(`
+      SELECT DISTINCT a.nome, a.nLista
+      FROM central.c_cotacao_agenda_comprador a
+      INNER JOIN central.c_cotacao_lista l ON l.nReg = a.nLista
+    `);
+    const map = {};
+    for (const r of rows) {
+      const nome = (r.nome || '').trim().toUpperCase();
+      if (!nome) continue;
+      (map[nome] = map[nome] || []).push(r.nLista);
+    }
+    NREGS_COMPRADOR = map;
+    _nregsCompradorTs = Date.now();
+  } catch (e) {
+    console.error('[NREGS_COMPRADOR-ERR]', e.message);
+  }
+}
+
+refreshNregsComprador();
+setInterval(refreshNregsComprador, NREGS_COMPRADOR_TTL);
+
+// Apelidos curtos usados historicamente em URLs de painéis (fora do escopo
+// desta migração) -> nome completo real no ERP (chave de NREGS_COMPRADOR).
+const COMPRADOR_ALIASES = {
+  FATIMA: 'FATIMA PEREIRA',
+  KELLY: 'ANA KELLY',
+  STHEPHANNY: 'STEPHANNY',
+  CRISLANE: 'CRISLANE CECILIA',
+  PATRICIA: 'PATRICIA PEREIRA',
 };
+function resolveComprador(nome) {
+  const up = (nome || '').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase();
+  return COMPRADOR_ALIASES[up] || up;
+}
 
 let _analiseCache = {}, _analiseCacheTs = {};
 const ANALISE_TTL = 10 * 60 * 1000;
 
 app.get('/api/compras/analise-estoque', async (req, res) => {
   try {
-    const comp = (req.query.comprador || 'FATIMA')
-      .normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase();
+    const comp = resolveComprador(req.query.comprador || 'FATIMA');
     const nRegs = NREGS_COMPRADOR[comp];
     const vazio = { lojas:{}, variacaoCusto:[], totalProdutos:0, geradoEm:'' };
     if (!nRegs) return res.json(vazio);
@@ -4160,7 +4195,7 @@ app.post('/api/pendencias/congelar-manual', (req, res) => {
 app.get('/api/ruptura/debug-comprador', async (req, res) => {
   try {
     const nome = req.query.nome || 'ANA KELLY';
-    const nomeUp = nome.normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase();
+    const nomeUp = resolveComprador(nome);
     const listIds = NREGS_COMPRADOR[nomeUp] || [];
     let itensCount = 0;
     let prodsCount = 0;
@@ -4188,7 +4223,7 @@ app.get('/api/margem-tv/comprador', withCache(5), async (req, res) => {
     const hoje = new Date();
     const mesSel = req.query.mes ? parseInt(req.query.mes) : hoje.getMonth() + 1;
     const anoSel = req.query.ano ? parseInt(req.query.ano) : hoje.getFullYear();
-    const comp   = (req.query.comprador || '').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase();
+    const comp   = resolveComprador(req.query.comprador || '');
     const nRegs  = NREGS_COMPRADOR[comp];
     if (!nRegs || !nRegs.length) return res.status(400).json({ error: 'Comprador inválido' });
 
@@ -4397,11 +4432,11 @@ app.get('/api/ruptura', withCache(10), async (req, res) => {
     const LEAD = 3;      // lead time para alerta sem pedido
 
     // Passo 1: produtos + estoque
-    // Com comprador: listas via NREGS_COMPRADOR (Excel)
+    // Com comprador: listas via NREGS_COMPRADOR (ERP)
     // Sem comprador: todos os itens de todas as listas ativas
     let prods;
     if (compradorFiltro) {
-      const compKey = compradorFiltro.normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase();
+      const compKey = resolveComprador(compradorFiltro);
       const listIds = NREGS_COMPRADOR[compKey] || [];
       if (!listIds.length) {
         return res.json({
