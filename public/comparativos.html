@@ -557,7 +557,7 @@ function setTab(aba) {
   document.getElementById('fg-loja-margem').style.display = aba === 'margem' ? '' : 'none';
   document.getElementById('fg-mes').style.display         = showMes ? '' : 'none';
   document.getElementById('k-med-label').textContent = _kpiLabel[aba];
-  if (aba === 'pagar') limparKpisPagar();
+  if (aba === 'pagar') { limparKpisPagar(); _carregado.pagar = false; }
   if (!_carregado[aba]) _carregar[aba]();
 }
 
@@ -976,6 +976,8 @@ function limparKpisPagar() {
   document.getElementById('k-med26').textContent = '—';
   document.getElementById('k-dif').textContent = '—';
   document.getElementById('k-med25').textContent = '—';
+  document.getElementById('k-tot26').textContent = '—';
+  document.getElementById('k-sub26').textContent = 'A Pagar % rede';
 }
 
 function carregarPagarVenda() {
@@ -985,13 +987,13 @@ function carregarPagarVenda() {
   fetch(`/api/pagar-venda?mes=${mes}`)
     .then(r => { if (r.status === 401) { location.href='/login.html'; throw new Error('401'); } return r.json(); })
     .then(data => {
+      limparKpisPagar();
       if (data.error) throw new Error(data.error);
       _carregado.pagar = true;
 
       const t = data.totais;
       document.getElementById('k-tot26').textContent = t.pct !== null ? t.pct.toFixed(1) + '%' : '—';
       document.getElementById('k-sub26').textContent = 'A Pagar % rede ' + data.nome_mes;
-      limparKpisPagar();
       document.getElementById('k-med-label').textContent = 'A Pagar x Venda';
 
       const parcialLabel = data.parcial ? ` <span style="color:#4E5A72;font-size:10px">(venda até dia ${data.diaHoje})</span>` : '';
