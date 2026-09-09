@@ -1992,7 +1992,7 @@ app.get('/api/pagar-venda', withCache(30), async (req, res) => {
       [mesSel]
     );
     const pagarMap = {};
-    for (const r of pagarRows) pagarMap[r.Filial] = parseFloat(r.total || 0);
+    for (const r of pagarRows) pagarMap[Number(r.Filial)] = parseFloat(r.total || 0);
 
     const por_loja = lojas.map(ln => {
       const a_pagar     = pagarMap[ln] || 0;

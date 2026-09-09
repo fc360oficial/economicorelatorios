@@ -557,6 +557,7 @@ function setTab(aba) {
   document.getElementById('fg-loja-margem').style.display = aba === 'margem' ? '' : 'none';
   document.getElementById('fg-mes').style.display         = showMes ? '' : 'none';
   document.getElementById('k-med-label').textContent = _kpiLabel[aba];
+  if (aba === 'pagar') limparKpisPagar();
   if (!_carregado[aba]) _carregar[aba]();
 }
 
@@ -967,6 +968,16 @@ function carregarCV() {
     });
 }
 
+function limparKpisPagar() {
+  document.getElementById('k-tot25').textContent = '—';
+  document.getElementById('k-sub25').textContent = '';
+  document.getElementById('k-var').textContent = '';
+  document.getElementById('k-var').className = 'kpi-v';
+  document.getElementById('k-med26').textContent = '—';
+  document.getElementById('k-dif').textContent = '—';
+  document.getElementById('k-med25').textContent = '—';
+}
+
 function carregarPagarVenda() {
   const mes = document.getElementById('sel-mes').value;
   const body = document.getElementById('pv-body');
@@ -980,11 +991,7 @@ function carregarPagarVenda() {
       const t = data.totais;
       document.getElementById('k-tot26').textContent = t.pct !== null ? t.pct.toFixed(1) + '%' : '—';
       document.getElementById('k-sub26').textContent = 'A Pagar % rede ' + data.nome_mes;
-      document.getElementById('k-tot25').textContent = '—';
-      document.getElementById('k-sub25').textContent = '';
-      document.getElementById('k-var').textContent = '';
-      document.getElementById('k-var').className = 'kpi-v';
-      document.getElementById('k-med26').textContent = '—';
+      limparKpisPagar();
       document.getElementById('k-med-label').textContent = 'A Pagar x Venda';
 
       const parcialLabel = data.parcial ? ` <span style="color:#4E5A72;font-size:10px">(venda até dia ${data.diaHoje})</span>` : '';
@@ -995,7 +1002,7 @@ function carregarPagarVenda() {
       let html = '';
       for (const l of data.por_loja) {
         const pctTxt = l.pct !== null ? l.pct.toFixed(1) + '%' : '—';
-        const maskPct = l.pct !== null ? 100 - Math.min(l.pct, 100) : 100;
+        const maskPct = l.pct !== null ? 100 - Math.max(0, Math.min(l.pct, 100)) : 100;
         html += `
           <div class="pv-row">
             <div class="pv-loja">Loja ${l.loja}<span>${LOJAS[l.loja]||''}</span></div>
