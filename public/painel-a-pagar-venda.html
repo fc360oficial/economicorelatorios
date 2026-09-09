@@ -41,14 +41,23 @@ html,body{height:100%;font-family:'Segoe UI',system-ui,sans-serif;background:var
 .scale-legend .lg{display:inline-flex;align-items:center;gap:5px}
 .lg-dot{width:9px;height:9px;border-radius:3px;flex-shrink:0}
 
-.pv-row{display:flex;align-items:center;gap:20px}
-.pv-loja{width:210px;flex-shrink:0}
+.pv-row{display:flex;align-items:center;gap:20px;padding:6px 14px;border-radius:10px;border-left:3px solid transparent}
+.pv-row.alerta{background:rgba(239,68,68,.07);border-left-color:var(--red)}
+.pv-loja{width:210px;flex-shrink:0;display:flex;align-items:baseline;flex-wrap:wrap;gap:2px 8px}
 .pv-loja .n{font-size:19px;font-weight:900;color:var(--text)}
-.pv-loja .s{font-size:11px;color:var(--text3);font-weight:600;margin-left:8px}
+.pv-loja .s{font-size:11px;color:var(--text3);font-weight:600}
+.pv-badge{
+  font-size:10px;font-weight:900;color:var(--red);
+  background:rgba(239,68,68,.14);border:1px solid rgba(239,68,68,.35);
+  padding:2px 8px;border-radius:20px;text-transform:uppercase;letter-spacing:.6px;
+  white-space:nowrap;animation:pvWarnPulse 2s ease-in-out infinite;
+}
+@keyframes pvWarnPulse{0%,100%{opacity:1}50%{opacity:.55}}
 .pv-track{position:relative;flex:1;height:26px;border-radius:8px;overflow:hidden;box-shadow:inset 0 0 0 1px rgba(255,255,255,.06)}
 .pv-mask{position:absolute;top:0;right:0;height:100%;background:var(--bg);transition:width 1s cubic-bezier(.4,0,.2,1)}
 .pv-marker{position:absolute;top:-4px;bottom:-4px;width:3px;background:#FFFFFF;box-shadow:0 0 8px rgba(0,0,0,.8)}
 .pv-pct{width:100px;flex-shrink:0;text-align:right;font-size:26px;font-weight:900;color:var(--text);font-variant-numeric:tabular-nums}
+.pv-pct.alerta{color:var(--red);text-shadow:0 0 16px rgba(239,68,68,.4)}
 
 .loading{height:100%;display:flex;align-items:center;justify-content:center;gap:12px;color:var(--text3);font-size:14px}
 .spin{width:22px;height:22px;border:2px solid #334155;border-top-color:var(--brand);border-radius:50%;animation:spin .8s linear infinite}
@@ -112,7 +121,7 @@ html,body{height:100%;font-family:'Segoe UI',system-ui,sans-serif;background:var
 const LOJAS = ['','CAHU','MURIBECA','PONTE','ATACAREJO','PORTA LARGA','JARDIM JORDÃO'];
 const params   = new URLSearchParams(location.search);
 const autoMode = params.get('auto') === '1';
-const DURACAO  = 30; // segundos nesta tela antes de avançar
+const DURACAO  = 60; // segundos nesta tela antes de avançar (mesmo padrão das outras)
 
 function renderBarras(data) {
   const el = document.getElementById('conteudo');
@@ -140,18 +149,20 @@ function renderBarras(data) {
   el.appendChild(legend);
 
   for (const l of data.por_loja) {
-    const pctTxt  = l.pct !== null ? l.pct.toFixed(1) + '%' : '—';
-    const posPct  = l.pct !== null ? Math.max(0, Math.min(l.pct, escalaMax)) / escalaMax * 100 : null;
-    const maskPct = posPct !== null ? 100 - posPct : 100;
+    const pctTxt   = l.pct !== null ? l.pct.toFixed(1) + '%' : '—';
+    const posPct   = l.pct !== null ? Math.max(0, Math.min(l.pct, escalaMax)) / escalaMax * 100 : null;
+    const maskPct  = posPct !== null ? 100 - posPct : 100;
+    const emAlerta = l.pct !== null && l.pct >= 70;
+    const badge    = emAlerta ? '<span class="pv-badge">⚠ Limite ultrapassado</span>' : '';
     const row = document.createElement('div');
-    row.className = 'pv-row';
+    row.className = 'pv-row' + (emAlerta ? ' alerta' : '');
     row.innerHTML = `
-      <div class="pv-loja"><span class="n">Loja ${l.loja}</span><span class="s">${LOJAS[l.loja]||''}</span></div>
+      <div class="pv-loja"><span class="n">Loja ${l.loja}</span><span class="s">${LOJAS[l.loja]||''}</span>${badge}</div>
       <div class="pv-track" style="background:${gradiente}">
         <div class="pv-mask" style="width:${maskPct}%"></div>
         ${posPct !== null ? `<div class="pv-marker" style="left:${posPct}%"></div>` : ''}
       </div>
-      <div class="pv-pct">${pctTxt}</div>`;
+      <div class="pv-pct${emAlerta ? ' alerta' : ''}">${pctTxt}</div>`;
     el.appendChild(row);
   }
 }
