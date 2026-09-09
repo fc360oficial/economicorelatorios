@@ -56,13 +56,18 @@ pagar é sempre o mês cheio.
   "por_loja": [
     { "loja": 1, "a_pagar": 249635.22, "venda_total": 180000.00, "pct": 138.7 }
   ],
+  "totais": { "a_pagar": 5784318.94, "venda_total": 4200000.00, "pct": 137.7 },
   "mes": 9, "nome_mes": "Setembro",
   "diaHoje": 9, "parcial": true
 }
 ```
 
 `pct = a_pagar / venda_total * 100`, arredondado a 1 casa; `null` se `venda_total` for 0. Sem teto
-em 100 — pode passar (ex: 138.7).
+em 100 — pode passar (ex: 138.7). `totais` é a soma das 6 lojas (rede), no mesmo formato de
+`totais` em `/api/compra-venda`, para alimentar o card de KPI superior da página (mesmo padrão que
+as outras abas já seguem) — só o `pct` é exibido ali (`k-tot26` = "138.7%", `k-sub26` = "A Pagar %
+rede"), sem valor em R$, consistente com a regra de não mostrar valor monetário nessa aba. Os
+outros 2 KPIs superiores (`k-tot25`/`k-sub25`, `k-med26`/`k-med-label`) ficam com "—" nessa aba.
 
 ## Frontend
 
@@ -73,15 +78,15 @@ do `#cv-subtitulo`).
 Uma linha por loja (1 a 6, ordem numérica — mesma ordem das outras abas), cada linha com:
 
 - Nome da loja (`LOJAS[l.loja]`, mesmo array já usado em Compra x Venda).
-- Barra horizontal preenchendo da esquerda pra direita até `min(pct, 100)%` da largura.
-- **Sem valor em R$** — só o número da porcentagem, como texto ao lado/sobre a barra.
-- Preenchimento em camadas por faixa, mudando de cor ao cruzar cada corte:
-  - `0–50%` → verde (`#137A48`, mesmo tom de `var-pos`)
-  - `50–70%` → amarelo/âmbar (`#F5B800`, cor de destaque já usada na página)
-  - `70%+` → vermelho (`#C22F49`, mesmo tom de `var-neg`)
-- Se `pct > 100`, a barra fica toda vermelha (preenchida a 100% de largura) e o texto mostra o
-  valor real (ex: "138.7%") sem cortar.
-- Track (fundo não preenchido) em cinza claro (`#EDEDE9`, mesmo tom do trilho das abas).
+- Barra horizontal com uma escala de cor **fixa** por baixo (0-50% verde `#137A48`, 50-70% amarelo
+  `#F5B800`, 70-100% vermelho `#C22F49`, mesmos tons de `var-pos`/destaque/`var-neg` já usados na
+  página), coberta por uma máscara cinza-claro (`#EDEDE9`, mesmo tom do trilho das abas) que
+  recua da direita pra esquerda até `min(pct, 100)%` — o efeito visual é uma barra "enchendo" da
+  esquerda pra direita e trocando de cor ao cruzar cada corte, sem recalcular gradiente por loja.
+- **Sem valor em R$** — só o número da porcentagem como texto ao lado da barra.
+- Se `pct > 100`, a máscara recua 100% (barra toda revelada, ponta final vermelha) e o texto
+  mostra o valor real sem cortar (ex: "138.7%") — não existe tratamento visual especial além
+  disso, o texto já comunica o excesso.
 
 Sem gráfico, sem linha de total/rede agregado (fora de escopo — só o comparativo por loja).
 
