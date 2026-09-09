@@ -1974,15 +1974,22 @@ app.get('/api/pagar-venda', withCache(30), async (req, res) => {
     const lojas  = [1,2,3,4,5,6];
     const NOMES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
-    // Venda: média mensal de Jan-Ago/2026 (dashboard.vendas, já agregado por
-    // loja/mês) — em vez da venda parcial "até hoje", que fazia a % disparar
-    // no início de cada mês só por falta de dado acumulado ainda. A média dá
-    // uma base estável de comparação, igual em qualquer dia do mês.
+    // Venda: média mensal dos meses já FECHADOS do ano (dashboard.vendas, já
+    // agregado por loja/mês) — em vez da venda parcial "até hoje", que fazia
+    // a % disparar no início de cada mês só por falta de dado acumulado
+    // ainda. Cresce com o calendário: em setembro usa Jan-Ago (8 meses), em
+    // outubro passa a usar Jan-Set (9 meses), etc. — nunca fica travada num
+    // período fixo. (Não cobre virada de ano — em janeiro cairia pra usar só
+    // o próprio janeiro incompleto; não tratado, só relevante a partir de
+    // 2027.)
+    const mesAtual = hoje.getMonth() + 1;
+    const mesesReferencia = Math.max(1, mesAtual - 1);
     const mediaRows = await q(
-      `SELECT nLoja, COALESCE(SUM(Total),0)/8 as media
+      `SELECT nLoja, COALESCE(SUM(Total),0)/? as media
        FROM dashboard.vendas
-       WHERE Ano=2026 AND Mes BETWEEN 1 AND 8 AND nLoja IN (1,2,3,4,5,6)
-       GROUP BY nLoja`
+       WHERE Ano=2026 AND Mes BETWEEN 1 AND ? AND nLoja IN (1,2,3,4,5,6)
+       GROUP BY nLoja`,
+      [mesesReferencia, mesesReferencia]
     );
     const vendaMediaMap = {};
     for (const r of mediaRows) vendaMediaMap[Number(r.nLoja)] = parseFloat(r.media || 0);
@@ -2023,6 +2030,7 @@ app.get('/api/pagar-venda', withCache(30), async (req, res) => {
       },
       mes: mesSel,
       nome_mes: NOMES[mesSel - 1],
+      venda_media_label: mesesReferencia === 1 ? NOMES[0].slice(0,3) : `${NOMES[0].slice(0,3)}-${NOMES[mesesReferencia - 1].slice(0,3)}`,
     });
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
