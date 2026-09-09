@@ -74,9 +74,13 @@
   + '#dsnav{position:fixed;top:0;left:0;bottom:0;width:236px;z-index:900;'
   +   'background:var(--crd,#FFFFFF);border-right:1px solid var(--ln,#DADAD6);'
   +   'display:flex;flex-direction:column;padding:14px 12px 12px;'
-  +   "font-family:'InterVar','Segoe UI',system-ui,sans-serif;overflow-y:auto}"
+  +   "font-family:'InterVar','Segoe UI',system-ui,sans-serif}"
   + '#dsnav .dn-top{display:flex;align-items:center;gap:8px;padding:4px 8px 14px;'
-  +   'border-bottom:1px solid var(--ln,#DADAD6);margin-bottom:10px}'
+  +   'border-bottom:1px solid var(--ln,#DADAD6);margin-bottom:10px;flex-shrink:0}'
+  /* só a lista de itens rola por dentro — topo (logo) e rodapé (usuário/sair)
+     ficam sempre visíveis, mesmo em telas baixas (TV) ou sem scroll por
+     toque/mouse disponível, sem depender de rolar até o fim pra deslogar */
+  + '#dsnav .dn-rows{flex:1;min-height:0;overflow-y:auto}'
   + '#dsnav .dn-brand{display:flex;align-items:center;gap:10px;text-decoration:none;flex:1;min-width:0}'
   + '#dsnav .dn-exit-mobile{display:none}'
   + '#dsnav .dn-brand img{height:66px;display:block}'
@@ -105,7 +109,7 @@
   + '#dsnav .dn-group-hd.on svg{color:var(--amk,#6B4E00)}'
   + '#dsnav .dn-sub{display:none;flex-direction:column;padding-left:16px}'
   + '#dsnav .dn-group.open .dn-sub{display:flex}'
-  + '#dsnav .dn-foot{margin-top:auto;border-top:1px solid var(--ln,#DADAD6);padding-top:10px;'
+  + '#dsnav .dn-foot{margin-top:auto;flex-shrink:0;border-top:1px solid var(--ln,#DADAD6);padding-top:10px;'
   +   'display:flex;align-items:center;gap:9px}'
   + '#dsnav .dn-ava{width:30px;height:30px;border-radius:50%;background:var(--ink,#0E1626);color:#fff;'
   +   'display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0}'
