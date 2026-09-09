@@ -3119,7 +3119,7 @@ app.get('/api/listas-compra/:id/itens', async (req, res) => {
         embalagem: ov?.embalagem || (parseFloat(r.qtdemb) > 0 ? parseFloat(r.qtdemb) : 1),
         unidade_embalagem_ajustada: !!ov,
         posicao: r.Posicao,
-        custo: parseFloat(r.custo_atual || 0),
+        custo: parsePreco(r.custo_atual),
         margem_cadastro: r.margem_cadastro != null ? parseFloat(r.margem_cadastro) : null,
         lojas: [1,2,3,4,5,6].filter(n => r['l'+n] == 1),
         validade: v?.validade ? new Date(v.validade).toISOString().slice(0, 10) : null,
