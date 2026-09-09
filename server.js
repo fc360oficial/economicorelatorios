@@ -1059,6 +1059,7 @@ app.get('/api/fornecedores/resumo', async (req, res) => {
     const anoSel = req.query.ano ? parseInt(req.query.ano) : hoje.getFullYear();
     const lojaParam = req.query.loja || '1';
     const lojasList = lojaParam === 'todas' ? [1,2,3,4,5,6] : [parseInt(lojaParam) || 1];
+    const lojaMargemCad = lojaParam === 'todas' ? 1 : (parseInt(lojaParam) || 1); // "todas" usa Loja 1 como referência, mesmo padrão do drawer de produtos/avaria
     const busca   = req.query.busca || '';
     const compradorSel = req.query.comprador || '';
     const mm       = mesDB(mesSel);
@@ -1077,7 +1078,7 @@ app.get('/api/fornecedores/resumo', async (req, res) => {
 
     const lojasPh = lojasList.map(() => '?').join(',');
 
-    const [vendasPorLoja, fornecItensRaw, avariaRows, avariaStatusRows, compradorRows, fornecs] = await Promise.all([
+    const [vendasPorLoja, fornecItensRaw, margemCadRows, avariaRows, avariaStatusRows, compradorRows, fornecs] = await Promise.all([
       Promise.all(lojasList.map(ln => Promise.all([
         q(`SELECT Codigo, SUM(QtdNovo) as qtd, SUM(ValorTotalNovo) as valor, SUM(Custo) as custo_total
            FROM \`ln${ln}${mm}\`.zcupomitens
@@ -1085,6 +1086,7 @@ app.get('/api/fornecedores/resumo', async (req, res) => {
         q(`SELECT CodigoBarra, Custo FROM central.custoloja${ln} WHERE Custo > 0`).catch(() => [])
       ]))),
       getFornecItens(),
+      q(`SELECT CodigoBarra, MargemVarejo FROM central.itens_margens WHERE nLoja = ?`, [lojaMargemCad]).catch(() => []),
       q(`SELECT a.CodFornec, SUM(a.Total) as total, COUNT(*) as qtd
          FROM central.avariaconsumo a
          INNER JOIN central.fornecedoritens fi ON fi.CodigoBarra = a.CodigoBarras AND fi.CodFornecedor = a.CodFornec AND fi.Backup = 0
@@ -1107,6 +1109,13 @@ app.get('/api/fornecedores/resumo', async (req, res) => {
 
     // Monta prodRows: fornecItens (catálogo, independe de loja)
     const prodRows = fornecItensRaw.map(fi => ({ CodFornecedor: fi.CodFornecedor, CodigoBarra: fi.CodigoBarra }));
+
+    // Margem cadastrada no produto (central.itens_margens.MargemVarejo) — cadastro do comprador, não calculada
+    const margemCadMap = {};
+    for (const r of margemCadRows) {
+      const mc = parseFloat(r.MargemVarejo);
+      if (!isNaN(mc)) margemCadMap[r.CodigoBarra] = mc;
+    }
 
     // Processa vendas — soma qtd/valor de todas as lojas selecionadas e acumula
     // o custo real (qtd da loja × custo daquela loja) por produto, em vez de
@@ -1153,13 +1162,18 @@ app.get('/api/fornecedores/resumo', async (req, res) => {
       const fid = p.CodFornecedor;
       const v   = vendasMap[p.CodigoBarra] || { qtd: 0, valor: 0 };
       const cstTot = custoAcumulado[p.CodigoBarra] || 0;
-      if (!fMap[fid]) fMap[fid] = { venda: 0, custo: 0, lucro: 0, ativos: 0, comVenda: 0 };
+      if (!fMap[fid]) fMap[fid] = { venda: 0, custo: 0, lucro: 0, ativos: 0, comVenda: 0, margCadSum: 0, margCadPeso: 0 };
       fMap[fid].ativos++;
       if (v.valor > 0) {
         fMap[fid].venda  += v.valor;
         fMap[fid].custo  += cstTot;
         fMap[fid].lucro  += v.valor - cstTot;
         fMap[fid].comVenda++;
+        const margCad = margemCadMap[p.CodigoBarra];
+        if (margCad != null) {
+          fMap[fid].margCadSum  += margCad * v.valor;
+          fMap[fid].margCadPeso += v.valor;
+        }
       }
     }
 
@@ -1177,7 +1191,7 @@ app.get('/api/fornecedores/resumo', async (req, res) => {
     let result = fornecs
       .filter(f => fMap[f.CodFornec] || avariaMap[f.CodFornec])
       .map(f => {
-        const m  = fMap[f.CodFornec]  || { venda: 0, custo: 0, lucro: 0, ativos: 0, comVenda: 0 };
+        const m  = fMap[f.CodFornec]  || { venda: 0, custo: 0, lucro: 0, ativos: 0, comVenda: 0, margCadSum: 0, margCadPeso: 0 };
         const av = avariaMap[f.CodFornec] || { total: 0, qtd: 0 };
         return {
           id:         f.CodFornec,
@@ -1188,6 +1202,7 @@ app.get('/api/fornecedores/resumo', async (req, res) => {
           lucro:      +m.lucro.toFixed(2),
           msv:        m.venda > 0  ? +(m.lucro / m.venda  * 100).toFixed(2) : 0,
           msc:        m.custo > 0  ? +(m.lucro / m.custo  * 100).toFixed(2) : 0,
+          mcad:       m.margCadPeso > 0 ? +(m.margCadSum / m.margCadPeso).toFixed(2) : null,
           avaria:     +av.total.toFixed(2),
           qtd_avaria: av.qtd,
           ativos:     m.ativos,
