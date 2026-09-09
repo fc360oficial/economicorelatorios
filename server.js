@@ -4099,15 +4099,17 @@ async function montarListaConferencia() {
 }
 
 // Tabela de Preços da CAHU Distribuidora — cabeçalho (s_codigo_tabela_preco) x
-// itens (s_tabela_item, cod_tabela = nReg do cabeçalho). Filtra só as 5 tabelas
-// que o Tiago usa (retirada + entrega 7/14/21/28 dias) e só produtos com estoque
-// positivo no CD (central.estoquen10 — mesmo critério de central-distribuicao acima).
+// itens (s_tabela_item, cod_tabela = nReg do cabeçalho). Filtra só as 6 tabelas
+// que o Tiago usa (retirada + entrega boleto 7/14/21/28 dias + entrega cartão/pix)
+// e só produtos com estoque positivo no CD (central.estoquen10 — mesmo critério
+// de central-distribuicao acima).
 const CAHU_TABELAS_PRECO = [
   { cod: 1, label: 'Tabela Retirada' },
   { cod: 4, label: 'Tabela Entrega Boleto 7 dias' },
   { cod: 5, label: 'Tabela Entrega 14 dias' },
   { cod: 7, label: 'Tabela Entrega 21 dias' },
-  { cod: 10, label: 'Tabela Entrega 28 dias' }
+  { cod: 10, label: 'Tabela Entrega 28 dias' },
+  { cod: 14, label: 'Tabela Entrega Cartão/Pix' }
 ];
 
 app.get('/api/cahu-distribuidora/tabela-precos.xlsx', async (req, res) => {
@@ -4144,7 +4146,7 @@ app.get('/api/cahu-distribuidora/tabela-precos.xlsx', async (req, res) => {
     const NAVY = 'FF1F3864', NAVY_LIGHT = 'FF2E5395', GOLD = 'FFC9A227';
     const ZEBRA = 'FFF2F5FA', BORDER_COLOR = 'FFD0D7E5';
     const headers = ['Código de Barras', 'Descrição', ...CAHU_TABELAS_PRECO.map(t => t.label)];
-    const colWidths = [20, 48, 20, 26, 20, 20, 20];
+    const colWidths = [20, 48, 20, 26, 20, 20, 20, 22];
     const lastCol = String.fromCharCode(64 + headers.length);
 
     const wb = new ExcelJS.Workbook();
