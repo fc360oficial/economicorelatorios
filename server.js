@@ -3054,7 +3054,7 @@ app.get('/api/listas-compra/:id/itens', async (req, res) => {
     }
 
     const itens = await q(`
-      SELECT i.nReg, i.Codigobarra, it.Descricao, it.Unid, i.QtdEmb, i.Posicao,
+      SELECT i.nReg, i.Codigobarra, it.Descricao, it.Unid, it.UnidadeCompra, it.qtdemb, i.Posicao,
              i.l1, i.l2, i.l3, i.l4, i.l5, i.l6,
              ci.Custo as custo_atual
       FROM central.c_cotacao_lista_itens i
@@ -3105,8 +3105,8 @@ app.get('/api/listas-compra/:id/itens', async (req, res) => {
       return {
         codigo: r.Codigobarra,
         descricao: r.Descricao?.trim(),
-        unidade: r.Unid?.trim(),
-        embalagem: r.QtdEmb,
+        unidade: (r.UnidadeCompra?.trim() || r.Unid?.trim()),
+        embalagem: parseFloat(r.qtdemb) > 0 ? parseFloat(r.qtdemb) : 1,
         posicao: r.Posicao,
         custo: parseFloat(r.custo_atual || 0),
         lojas: [1,2,3,4,5,6].filter(n => r['l'+n] == 1),
