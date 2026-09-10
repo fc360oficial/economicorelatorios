@@ -2134,21 +2134,19 @@ app.get('/api/fornecedores/:id/produtos', async (req, res) => {
     const hoje    = new Date();
     const mesSel  = req.query.mes  ? parseInt(req.query.mes)  : hoje.getMonth() + 1;
     const anoSel  = req.query.ano  ? parseInt(req.query.ano)  : hoje.getFullYear();
-    // "todas" não se aplica aqui (produtos/estoque são por loja específica) — cai em Loja 1
-    const lojaSel = parseInt(req.query.loja) || 1;
+    // loja=todas soma as 6 lojas: venda, qtd e estoque somados; custo acumulado
+    // loja a loja (qtd_loja × custo_loja, mesmo critério do /resumo); última
+    // compra = a mais recente entre as lojas. Loja específica: só ela.
+    const lojas   = req.query.loja === 'todas' ? [1,2,3,4,5,6] : [parseInt(req.query.loja) || 1];
     const listaSel = req.query.lista ? parseInt(req.query.lista) : null;
     const mm      = mesDB(mesSel);
     const dIni    = `${anoSel}-${String(mesSel).padStart(2,'0')}-01`;
     const dFim    = dFimMes(anoSel, mesSel);
 
     const prods = await q(`
-      SELECT fi.CodigoBarra, it.Descricao, it.Unid,
-             c.Custo, c.UltimaCompra,
-             e.Qtd as estoque
+      SELECT fi.CodigoBarra, it.Descricao, it.Unid
       FROM central.fornecedoritens fi
       INNER JOIN central.itens it ON it.CodigoBarra = fi.CodigoBarra AND it.CodDesativado = 0
-      LEFT JOIN central.custoloja${lojaSel} c  ON c.CodigoBarra = fi.CodigoBarra
-      LEFT JOIN central.estoquen${lojaSel}  e  ON e.CodigoBarra = fi.CodigoBarra
       ${listaSel ? 'INNER JOIN central.c_cotacao_lista_itens cli ON cli.Codigobarra = fi.CodigoBarra AND cli.nCotacao = ?' : ''}
       WHERE fi.CodFornecedor = ? AND fi.Backup = 0
     `, listaSel ? [listaSel, id] : [id]);
@@ -2161,35 +2159,57 @@ app.get('/api/fornecedores/:id/produtos', async (req, res) => {
 
     const codigos = [...seenCod];
     const ph = codigos.map(() => '?').join(',');
-    let vendasMap = {};
-    try {
-      const rows = await q(`
-        SELECT Codigo, SUM(QtdNovo) as qtd, SUM(ValorTotalNovo) as valor
-        FROM \`ln${lojaSel}${mm}\`.zcupomitens
-        WHERE Data BETWEEN ? AND ? AND IndCancel='N' AND Codigo IN (${ph})
-        GROUP BY Codigo
-      `, [dIni, dFim, ...codigos]);
-      for (const r of rows) vendasMap[r.Codigo] = { qtd: parseFloat(r.qtd), valor: parseFloat(r.valor) };
-    } catch (e) {}
+    const acc = {};
+    for (const c of codigos) acc[c] = { qtd: 0, valor: 0, custoTot: 0, estoque: 0, custoUnit: 0, ultima: null };
+
+    for (const ln of lojas) {
+      const custoMap = {};
+      try {
+        const cr = await q(`SELECT CodigoBarra, Custo, UltimaCompra FROM central.custoloja${ln} WHERE CodigoBarra IN (${ph})`, codigos);
+        for (const r of cr) {
+          const a = acc[r.CodigoBarra]; if (!a) continue;
+          const cst = parsePreco(r.Custo);
+          custoMap[r.CodigoBarra] = cst;
+          if (cst > 0 && !a.custoUnit) a.custoUnit = cst; // exibe o 1º custo encontrado (Loja 1 primeiro)
+          if (r.UltimaCompra) { const d = new Date(r.UltimaCompra); if (!a.ultima || d > a.ultima) a.ultima = d; }
+        }
+      } catch (e) {}
+      try {
+        const er = await q(`SELECT CodigoBarra, Qtd FROM central.estoquen${ln} WHERE CodigoBarra IN (${ph})`, codigos);
+        for (const r of er) { const a = acc[r.CodigoBarra]; if (a) a.estoque += parseFloat(r.Qtd || 0); }
+      } catch (e) {}
+      try {
+        const rows = await q(`
+          SELECT Codigo, SUM(QtdNovo) as qtd, SUM(ValorTotalNovo) as valor
+          FROM \`ln${ln}${mm}\`.zcupomitens
+          WHERE Data BETWEEN ? AND ? AND IndCancel='N' AND Codigo IN (${ph})
+          GROUP BY Codigo
+        `, [dIni, dFim, ...codigos]);
+        for (const r of rows) {
+          const a = acc[r.Codigo]; if (!a) continue;
+          const qtd = parseFloat(r.qtd || 0), val = parseFloat(r.valor || 0);
+          a.qtd += qtd; a.valor += val;
+          a.custoTot += qtd * (custoMap[r.Codigo] || 0); // custo da própria loja onde vendeu
+        }
+      } catch (e) {}
+    }
 
     res.json(prodsUniq.map(p => {
-      const v   = vendasMap[p.CodigoBarra] || { qtd: 0, valor: 0 };
-      const cst = parsePreco(p.Custo);
-      const cstTot = v.qtd * cst;
-      const lucro  = v.valor - cstTot;
+      const a = acc[p.CodigoBarra];
+      const lucro = a.valor - a.custoTot;
       return {
         codigo:       p.CodigoBarra,
         descricao:    p.Descricao?.trim(),
         unidade:      p.Unid?.trim(),
-        estoque:      parseFloat(p.estoque || 0),
-        qtd_vendida:  +v.qtd.toFixed(3),
-        venda:        +v.valor.toFixed(2),
-        custo_unit:   +cst.toFixed(4),
-        custo_total:  +cstTot.toFixed(2),
+        estoque:      +a.estoque.toFixed(3),
+        qtd_vendida:  +a.qtd.toFixed(3),
+        venda:        +a.valor.toFixed(2),
+        custo_unit:   +a.custoUnit.toFixed(4),
+        custo_total:  +a.custoTot.toFixed(2),
         lucro:        +lucro.toFixed(2),
-        msv:          v.valor > 0 ? +(lucro / v.valor * 100).toFixed(2) : null,
-        ultima_compra: p.UltimaCompra ? new Date(p.UltimaCompra).toLocaleDateString('pt-BR') : null,
-        tem_venda:    v.valor > 0
+        msv:          a.valor > 0 ? +(lucro / a.valor * 100).toFixed(2) : null,
+        ultima_compra: a.ultima ? a.ultima.toLocaleDateString('pt-BR') : null,
+        tem_venda:    a.valor > 0
       };
     }).sort((a, b) => b.venda - a.venda));
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -2202,8 +2222,9 @@ app.get('/api/fornecedores/:id/avarias', async (req, res) => {
     const hoje    = new Date();
     const mesSel  = req.query.mes  ? parseInt(req.query.mes)  : hoje.getMonth() + 1;
     const anoSel  = req.query.ano  ? parseInt(req.query.ano)  : hoje.getFullYear();
-    // "todas" não se aplica aqui (avaria é por loja específica) — cai em Loja 1
-    const lojaSel = parseInt(req.query.loja) || 1;
+    // loja=todas soma a avaria das 6 lojas (e a venda-base do % também)
+    const lojas   = req.query.loja === 'todas' ? [1,2,3,4,5,6] : [parseInt(req.query.loja) || 1];
+    const lojasPh = lojas.map(() => '?').join(',');
     const listaSel = req.query.lista ? parseInt(req.query.lista) : null;
     const dIni    = `${anoSel}-${String(mesSel).padStart(2,'0')}-01`;
     const dFim    = dFimMes(anoSel, mesSel);
@@ -2214,10 +2235,10 @@ app.get('/api/fornecedores/:id/avarias', async (req, res) => {
       FROM central.avariaconsumo a
       INNER JOIN central.fornecedoritens fi ON fi.CodigoBarra = a.CodigoBarras AND fi.CodFornecedor = a.CodFornec AND fi.Backup = 0
       ${listaSel ? 'INNER JOIN central.c_cotacao_lista_itens cli ON cli.Codigobarra = a.CodigoBarras AND cli.nCotacao = ?' : ''}
-      WHERE a.nLoja=? AND a.CodFornec=? AND a.DataLan BETWEEN ? AND ?
+      WHERE a.nLoja IN (${lojasPh}) AND a.CodFornec=? AND a.DataLan BETWEEN ? AND ?
       GROUP BY a.CodigoBarras, a.Descricao
       ORDER BY total DESC
-    `, listaSel ? [listaSel, lojaSel, id, dIni, dFim] : [lojaSel, id, dIni, dFim]);
+    `, listaSel ? [listaSel, ...lojas, id, dIni, dFim] : [...lojas, id, dIni, dFim]);
 
     // Enrich with NF-e descriptions from central.itens
     const avCodigos = [...new Set(rows.map(r => r.CodigoBarras))];
@@ -2240,11 +2261,13 @@ app.get('/api/fornecedores/:id/avarias', async (req, res) => {
         : await q(`SELECT DISTINCT CodigoBarra FROM central.fornecedoritens WHERE CodFornecedor=? AND Backup=0`, [id]);
       if (prods.length) {
         const ph = prods.map(() => '?').join(',');
-        const [vr] = await q(`
-          SELECT SUM(ValorTotalNovo) as v FROM \`ln${lojaSel}${mm}\`.zcupomitens
-          WHERE Data BETWEEN ? AND ? AND IndCancel='N' AND Codigo IN (${ph})
-        `, [dIni, dFim, ...prods.map(p => p.CodigoBarra)]);
-        vendaFornec = parseFloat(vr?.v || 0);
+        for (const ln of lojas) {
+          const [vr] = await q(`
+            SELECT SUM(ValorTotalNovo) as v FROM \`ln${ln}${mm}\`.zcupomitens
+            WHERE Data BETWEEN ? AND ? AND IndCancel='N' AND Codigo IN (${ph})
+          `, [dIni, dFim, ...prods.map(p => p.CodigoBarra)]).catch(() => [null]);
+          vendaFornec += parseFloat(vr?.v || 0);
+        }
       }
     } catch (e) {}
 
