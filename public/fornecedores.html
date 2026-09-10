@@ -115,6 +115,8 @@ table.d-t td{padding:7px 12px;border-bottom:1px solid #DADAD622;vertical-align:m
 table.d-t tbody tr:hover{background:#ffffff06}
 .prod-desc-link{cursor:pointer;border-bottom:1px dashed #C9C9C4}
 .prod-desc-link:hover{color:#B45C00;border-bottom-color:#B45C00}
+.subtitle-link{cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px}
+.subtitle-link:hover{color:#B45C00}
 .d-t .cod{color:#98A0B3;font-size:10px;font-family:monospace}
 .d-t .desc{font-weight:500;color:#0E1626}
 .d-t .r{text-align:right}
@@ -1071,10 +1073,10 @@ async function abrirLista(id) {
     const naoNaLojaSelec = loja!=='todas' ? Math.max(0, (lista.total_itens||0) - itens.length - semLoja) : 0;
     const desativados = Math.max(0, (lista.total_linhas||0) - (lista.total_itens||0));
     const detalhePartes = [`${lista.total_itens} ativo(s) no total`];
-    if (desativados > 0) detalhePartes.push(`${desativados} desativado(s) no ERP`);
-    if (semLoja > 0) detalhePartes.push(`${semLoja} sem loja nenhuma marcada`);
-    if (naoNaLojaSelec > 0) detalhePartes.push(`${naoNaLojaSelec} marcado(s) só em outra(s) loja(s)`);
-    document.getElementById('d-subtitle').textContent = detalhePartes.length > 1
+    if (desativados > 0) detalhePartes.push(`<span class="subtitle-link" onclick="abrirItensExcluidos(${id},'desativado','${loja}')">${desativados} desativado(s) no ERP</span>`);
+    if (semLoja > 0) detalhePartes.push(`<span class="subtitle-link" onclick="abrirItensExcluidos(${id},'sem_loja','${loja}')">${semLoja} sem loja nenhuma marcada</span>`);
+    if (naoNaLojaSelec > 0) detalhePartes.push(`<span class="subtitle-link" onclick="abrirItensExcluidos(${id},'outra_loja','${loja}')">${naoNaLojaSelec} marcado(s) só em outra(s) loja(s)</span>`);
+    document.getElementById('d-subtitle').innerHTML = detalhePartes.length > 1
       ? `${lista.fornecedor||''} · ${detalhePartes.join(' · ')}`
       : lista.fornecedor || '';
     const kpiHtml = `
@@ -1467,6 +1469,40 @@ function imprimirCompras() {
 // pra embutir texto dinâmico dentro de onclick="..." (atributo com aspas
 // duplas) sem quebrar — JSON.stringify escapa pro JS, &quot; escapa pro HTML
 function escAttr(s) { return JSON.stringify(String(s)).replace(/"/g, '&quot;'); }
+
+const TITULOS_EXCLUIDOS = {
+  desativado: 'Desativados no ERP',
+  sem_loja: 'Sem loja nenhuma marcada',
+  outra_loja: 'Marcados só em outra(s) loja(s)'
+};
+async function abrirItensExcluidos(listaId, tipo, loja) {
+  const modal = document.getElementById('modal-produtos');
+  const body = document.getElementById('modal-produtos-body');
+  document.getElementById('modal-fornec-nome').textContent = TITULOS_EXCLUIDOS[tipo] || 'Itens';
+  modal.style.display = 'flex';
+  body.innerHTML = '<div class="spinner"></div>';
+  try {
+    const r = await fetch(`/api/listas-compra/${listaId}/itens-excluidos?tipo=${tipo}&loja=${loja}`);
+    const itens = await r.json();
+    if (itens.error) throw new Error(itens.error);
+    if (!itens.length) { body.innerHTML = '<div class="empty">Nenhum item.</div>'; return; }
+    body.innerHTML = `
+      <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+        <thead><tr style="font-size:10px;color:#98A0B3;text-transform:uppercase;text-align:left">
+          <th style="padding:8px 6px">Código</th><th style="padding:8px 6px">Produto</th><th style="padding:8px 6px">Marcado em</th>
+        </tr></thead>
+        <tbody>${itens.map(it => `
+          <tr style="border-top:1px solid #DADAD6">
+            <td style="padding:9px 6px;color:#98A0B3;font-family:monospace;font-size:10px">${it.codigo}</td>
+            <td style="padding:9px 6px;font-weight:500">${it.descricao}</td>
+            <td style="padding:9px 6px">${it.lojas.length ? it.lojas.map(n=>`<span class="loja-badge">L${n}</span>`).join('') : '<span style="color:#98A0B3">—</span>'}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>`;
+  } catch (e) {
+    body.innerHTML = `<div class="empty">Erro: ${e.message}</div>`;
+  }
+}
 
 async function abrirDetalheProduto(codigo, descricao) {
   const { loja, mes, ano } = params();

@@ -3238,6 +3238,43 @@ async function getCurvaABC(lojaParam, mes, ano) {
 }
 
 // Itens de uma lista específica
+// Quais produtos exatamente compõem cada parte do detalhamento do subtítulo
+// (desativado no ERP / sem loja nenhuma / marcado só em outra loja) — clique
+// no texto pra ver a lista, em vez de só o número.
+app.get('/api/listas-compra/:id/itens-excluidos', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const tipo = req.query.tipo; // 'desativado' | 'sem_loja' | 'outra_loja'
+    const loja = req.query.loja && req.query.loja !== 'todas' ? parseInt(req.query.loja) : null;
+
+    let where = 'i.nCotacao = ?';
+    const params = [id];
+    if (tipo === 'desativado') {
+      where += ' AND (it.CodigoBarra IS NULL OR it.CodDesativado <> 0)';
+    } else if (tipo === 'sem_loja') {
+      where += " AND it.CodDesativado = 0 AND i.l1=0 AND i.l2=0 AND i.l3=0 AND i.l4=0 AND i.l5=0 AND i.l6=0";
+    } else if (tipo === 'outra_loja' && loja) {
+      where += ` AND it.CodDesativado = 0 AND i.l${loja} = 0 AND (i.l1=1 OR i.l2=1 OR i.l3=1 OR i.l4=1 OR i.l5=1 OR i.l6=1)`;
+    } else {
+      return res.status(400).json({ error: 'tipo inválido' });
+    }
+
+    const rows = await q(`
+      SELECT i.Codigobarra, TRIM(it.Descricao) as descricao, i.l1,i.l2,i.l3,i.l4,i.l5,i.l6
+      FROM central.c_cotacao_lista_itens i
+      LEFT JOIN central.itens it ON it.CodigoBarra = i.Codigobarra
+      WHERE ${where}
+      ORDER BY it.Descricao
+    `, params);
+
+    res.json(rows.map(r => ({
+      codigo: r.Codigobarra,
+      descricao: r.descricao || '(sem cadastro no ERP)',
+      lojas: [1,2,3,4,5,6].filter(n => r['l'+n] == 1)
+    })));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/api/listas-compra/:id/itens', async (req, res) => {
   try {
     const id = parseInt(req.params.id);
