@@ -69,6 +69,20 @@ tr.novo td{background:#FFF3F5}
 .empty{padding:60px 20px;text-align:center;color:#98A0B3;font-size:13px}
 .spinner{width:26px;height:26px;border:3px solid #DADAD6;border-top-color:#F5B800;border-radius:50%;animation:spin .7s linear infinite;margin:40px auto}
 @keyframes spin{to{transform:rotate(360deg)}}
+.dts{font-size:11px;line-height:1.45;white-space:nowrap}.dts span{display:inline-block;width:62px;color:#98A0B3;font-size:10px;text-transform:uppercase;letter-spacing:.3px}.dts i{color:#98A0B3;font-style:normal;font-size:10.5px}
+table.main-t td.lc{min-width:250px;max-width:360px}
+table.main-t td.acao{white-space:nowrap}
+#pv{position:fixed;inset:0;background:rgba(14,22,38,.55);z-index:1000;overflow:auto;padding:24px}
+.pv-card{background:#fff;border-radius:14px;max-width:900px;margin:0 auto;padding:22px 26px 30px;box-shadow:0 20px 60px -20px rgba(0,0,0,.5)}
+.pv-top{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;border-bottom:3px solid #F5B800;padding-bottom:12px;margin-bottom:14px}
+.pv-top h2{font-size:18px;font-weight:800;letter-spacing:-.3px}.pv-sub{font-size:12px;color:#4E5A72;margin-top:4px;max-width:70ch}
+.env{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;border:1px solid #DADAD6;border-radius:10px;padding:10px 14px;margin-bottom:8px}
+.det table td.lj,.det table th.lj{min-width:0;padding-left:4px;padding-right:4px;background:#FAFAF8}.det table td.lj.tem{background:#FFF6D9}
+input.qin{width:50px;text-align:right;font:inherit;font-size:11.5px;font-weight:700;padding:3px 5px;border:1px solid #DADAD6;border-radius:5px;background:#fff;color:#0E1626;-moz-appearance:textfield}
+input.qin::-webkit-outer-spin-button,input.qin::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+input.qin:focus{outline:none;border-color:#F5B800;background:#FFFDF3}input.qin.ed{border-color:#2E5E8C;background:#E9EEF6}
+.lnk{cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}.lnk:hover{color:#fff}
+.cad-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 24px}.cad-grid table{border-collapse:collapse;width:100%}.cad-r{padding:6px 10px;color:#98A0B3;font-size:11.5px;white-space:nowrap;vertical-align:top}.cad-v{padding:6px 10px;font-weight:600;color:#0E1626}.cad-v a{color:#2E5E8C}.cad-sec{padding:12px 10px 4px;font-size:10px;font-weight:800;letter-spacing:.5px;color:#B45C00;text-transform:uppercase}
 .aviso{background:#FFF6D9;border:1px solid #EFD98F;color:#6B4E00;border-radius:10px;padding:10px 14px;font-size:12px;margin-bottom:14px}
 @media print{.tools,.totais,.fluxo,.btn,.acoes{display:none!important}.main{padding:0}}
 </style>
@@ -85,9 +99,10 @@ tr.novo td{background:#FFF3F5}
   <div id="banner"></div>
   <div class="fluxo"><span class="pill st-aguardando">Aguardando vendedor</span>→<span class="pill st-digitacao">Em digitação</span>→<span class="pill st-finalizado">Finalizado · aguardando aprovação</span>→<span class="pill st-aprovado">Aprovado</span>→<span class="pill st-recebido">Recebido</span> <span style="margin-left:10px">·</span> <span class="pill st-sugestao">Sugestão · ruptura de entrega</span> = criada pelo sistema quando a nota chegou com falta</div>
   <div class="totais" id="totais"></div>
-  <div class="tools"><input id="q" placeholder="Buscar lista, fornecedor ou vendedor" style="min-width:280px"><select id="fComp"><option value="">Todos compradores</option></select><span class="cnt" id="cnt"></span><button class="btn btn-slate" id="btnVer" onclick="verificarAgora()" title="Confere agora, no ERP, se a nota dos pedidos aprovados já entrou e se veio com falta (o sistema faz isso sozinho a cada 30 min)">Verificar recebimentos</button><button class="btn btn-slate" id="btnAtu">Atualizar</button></div>
+  <div class="tools"><input id="q" placeholder="Buscar lista, fornecedor ou vendedor" style="min-width:280px"><select id="fComp"><option value="">Todos compradores</option></select><span class="cnt" id="cnt"></span><button class="btn btn-amber" id="btnTodos" onclick="enviarTodos()" title="Lista todos os pedidos Aguardando vendedor com o botão de WhatsApp de cada um">Enviar pra todos</button><button class="btn btn-slate" id="btnVer" onclick="verificarAgora()" title="Confere agora, no ERP, se a nota dos pedidos aprovados já entrou e se veio com falta (o sistema faz isso sozinho a cada 30 min)">Verificar recebimentos</button><button class="btn btn-slate" id="btnAtu">Atualizar</button></div>
   <div id="view"><div class="spinner"></div></div>
 </div>
+<div id="pv" hidden><div class="pv-card" id="pv-body"></div></div>
 <script>
 const $=s=>document.querySelector(s);
 const fmt=(v,d=1)=>v==null||isNaN(v)?'—':Number(v).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
@@ -148,12 +163,12 @@ function render(){
   rows=rows.filter(p=>(!q||p.lista_nome.toLowerCase().includes(q)||(p.fornecedor||'').toLowerCase().includes(q)||(p.vendedor?.nome||'').toLowerCase().includes(q)||String(p.id)===q||String(p.lista)===q)&&(!comp||p.comprador?.nome===comp));
   $('#cnt').textContent=rows.length+' pedido'+(rows.length===1?'':'s');
   if(!rows.length){$('#view').innerHTML='<div class="empty">Nenhum pedido aqui.'+(filtro==='andamento'||filtro==='todos'?' Gere um no Radar de Pedidos: selecione as listas e clique em "Enviar pro fornecedor".':'')+'</div>';return;}
-  let h='<div class="table-wrap"><table class="main-t"><thead><tr><th>#</th><th>Lista / fornecedor</th><th>Comprador</th><th>Vendedor</th><th>Status</th><th>Enviado</th><th>Aberto</th><th>Finalizado</th><th>Aprovado</th><th class="r">Itens</th><th class="r">Com preço</th><th class="r">Último custo</th><th class="r">Digitado</th><th class="r">Variação</th></tr></thead><tbody>';
+  let h='<div class="table-wrap"><table class="main-t"><thead><tr><th>#</th><th>Lista / fornecedor</th><th>Comprador</th><th>Vendedor</th><th>Status</th><th>Andamento</th><th class="r">Itens</th><th class="r">Com preço</th><th class="r">Último custo</th><th class="r">Digitado</th><th class="r">Variação</th><th>Ação</th></tr></thead><tbody>';
   for(const p of rows){
     const rup=p.origem?.tipo==='ruptura'?'<div><span class="rup" title="Criada automaticamente pelo sistema: a nota do pedido #'+p.origem.pedidoId+' chegou com falta nas lojas L'+(p.origem.lojas||[]).join(' L')+'">RUPTURA DE ENTREGA · do pedido #'+p.origem.pedidoId+'</span></div>':'';
     const recS=p.recebimento?Object.entries(p.recebimento).map(([l,r])=>'L'+l+': '+(r.faltas?'<span class="f">'+r.faltas+' falta'+(r.faltas>1?'s':'')+'</span>':'ok')).join(' · '):'';
-    h+='<tr class="lst'+(aberto===p.id?' open':'')+(p.alerta_novo?' novo':'')+'" data-id="'+p.id+'"><td><b>'+p.id+'</b></td><td class="lc"><div class="nm">'+esc(p.lista_nome)+'<span>#'+p.lista+'</span></div><div class="sub">'+esc(p.fornecedor||'')+' · L'+p.lojas.join(' L')+'</div>'+rup+(recS?'<div class="rec">recebimento: '+recS+'</div>':'')+'</td><td>'+esc(p.comprador?.nome||p.criadoPor||'—')+'</td><td>'+esc(p.vendedor?.nome||'—')+'</td><td><span class="pill st-'+p.status+'">'+(ST[p.status]||p.status)+'</span></td><td>'+dt(p.criadoEm)+'<div class="s2">'+esc(p.criadoPor||'')+'</div></td><td>'+dt(p.abertoEm)+'</td><td>'+dt(p.finalizadoEm)+'</td><td>'+dt(p.aprovadoEm)+(p.aprovadoPor?'<div class="s2">'+esc(p.aprovadoPor)+'</div>':'')+'</td><td class="r">'+p.totais.itens+'</td><td class="r">'+p.totais.com_preco+'</td><td class="r">'+money(p.totais.ultimo_custo)+'</td><td class="r">'+(p.totais.com_preco?money(p.totais.digitado):'<span class="mut">—</span>')+'</td><td class="r">'+seta(p.totais.com_preco?p.totais.digitado:null,ultProp(p),true)+'</td></tr>';
-    if(aberto===p.id) h+='<tr class="det"><td colspan="14"><div class="box" id="det-'+p.id+'"><div class="spinner"></div></div></td></tr>';
+    h+='<tr class="lst'+(aberto===p.id?' open':'')+(p.alerta_novo?' novo':'')+'" data-id="'+p.id+'"><td><b>'+p.id+'</b></td><td class="lc"><div class="nm">'+esc(p.lista_nome)+'<span>#'+p.lista+'</span></div><div class="sub">'+esc(p.fornecedor||'')+' · L'+p.lojas.join(' L')+'</div>'+rup+(recS?'<div class="rec">recebimento: '+recS+'</div>':'')+'</td><td>'+esc(p.comprador?.nome||p.criadoPor||'—')+'</td><td>'+esc(p.vendedor?.nome||'—')+'</td><td><span class="pill st-'+p.status+'">'+(ST[p.status]||p.status)+'</span></td><td class="dts"><div><span>enviado</span> '+dt(p.criadoEm)+' <i>'+esc(p.criadoPor||'')+'</i></div>'+(p.abertoEm?'<div><span>aberto</span> '+dt(p.abertoEm)+'</div>':'')+(p.finalizadoEm?'<div><span>finalizado</span> '+dt(p.finalizadoEm)+'</div>':'')+(p.aprovadoEm?'<div><span>aprovado</span> '+dt(p.aprovadoEm)+' <i>'+esc(p.aprovadoPor||'')+'</i></div>':'')+'</td><td class="r">'+p.totais.itens+'</td><td class="r">'+p.totais.com_preco+'</td><td class="r">'+money(p.totais.ultimo_custo)+'</td><td class="r">'+(p.totais.com_preco?money(p.totais.digitado):'<span class="mut">—</span>')+'</td><td class="r">'+seta(p.totais.com_preco?p.totais.digitado:null,ultProp(p),true)+'</td><td class="acao">'+acaoLinha(p)+'</td></tr>';
+    if(aberto===p.id) h+='<tr class="det"><td colspan="12"><div class="box" id="det-'+p.id+'"><div class="spinner"></div></div></td></tr>';
   }
   h+='</tbody></table></div>';
   $('#view').innerHTML=h;
@@ -164,9 +179,10 @@ async function carregarDetalhe(id){
   try{
     const r=await fetch('/api/pedidos-fornecedor/'+id); const p=await r.json(); if(p.error) throw new Error(p.error);
     const orig=p.origem?.tipo==='ruptura'?' · <span class="rup" style="margin:0">RUPTURA DE ENTREGA · pedido #'+p.origem.pedidoId+' · notas '+(p.origem.notas||[]).map(n=>'L'+n.loja+' nº '+esc(n.nNota)).join(', ')+'</span>':'';
-    let h='<div class="hd"><div><b>'+esc(p.lista_nome)+'</b> · '+esc(p.fornecedor||'')+' · <span class="pill st-'+p.status+'">'+(ST[p.status]||p.status)+'</span>'+orig+(p.vendedor?.nome?' · vendedor '+esc(p.vendedor.nome)+(p.vendedor.whats?' '+esc(p.vendedor.whats):''):'')+(p.finalizadoPor?' · finalizado por '+esc(p.finalizadoPor):'')+(p.prazo_pagamento?' · prazo '+esc(p.prazo_pagamento):'')+'</div>'+
+    let h='<div class="hd"><div><b class="lnk" title="Abrir cadastro da lista no ERP" onclick="event.stopPropagation();abrirCadastro('+p.lista+')">'+esc(p.lista_nome)+' ↗</b> · <span class="pill st-'+p.status+'">'+(ST[p.status]||p.status)+'</span>'+orig+(p.vendedor?.nome?' · vendedor '+esc(p.vendedor.nome)+(p.vendedor.whats?' '+esc(p.vendedor.whats):''):'')+(p.finalizadoPor?' · finalizado por '+esc(p.finalizadoPor):'')+(p.prazo_pagamento?' · prazo '+esc(p.prazo_pagamento):'')+'</div>'+
       '<div>último custo <b>'+money2(p.totais.ultimo_custo)+'</b> · digitado <b>'+(p.totais.com_preco?money2(p.totais.digitado):'—')+'</b> ('+p.totais.com_preco+'/'+p.totais.itens+' itens) '+seta(p.totais.com_preco?p.totais.digitado:null,ultProp(p),true)+'</div></div>';
-    h+='<div style="overflow-x:auto"><table><thead><tr><th>Produto</th><th class="r">Qtd</th><th>Por loja</th><th class="r">Último custo (ERP)</th><th class="r">Preço digitado</th><th class="r">Variação</th><th class="r">Total últ. custo</th><th class="r">Total digitado</th><th class="obs">Obs. do vendedor</th></tr></thead><tbody>';
+    const LJ=[...new Set(p.itens.flatMap(i=>Object.keys(i.lojas_qtd||{}).map(Number)))].sort((a,b)=>a-b); const editavel=['sugestao','aguardando','digitacao','finalizado'].includes(p.status); PED[p.id]=p;
+    h+='<div style="overflow-x:auto"><table><thead><tr><th>Produto</th><th class="r">Qtd</th>'+(editavel?LJ.map(l=>'<th class="r lj">L'+l+'</th>').join(''):'<th>Por loja</th>')+'<th class="r">Último custo (ERP)</th><th class="r">Preço digitado</th><th class="r">Variação</th><th class="r">Total últ. custo</th><th class="r">Total digitado</th><th class="obs">Obs. do vendedor</th></tr></thead><tbody>';
     for(const i of p.itens){
       const lj=Object.entries(i.lojas_qtd||{}).filter(([,q])=>q>0).map(([l,q])=>{
         const rc=i.recebido?.[l]; const ru=i.ruptura?.[l];
@@ -174,7 +190,8 @@ async function carregarDetalhe(id){
         if(rc!=null) return 'L'+l+': '+fmt(q,0)+(rc>=q-0.001?' <span style="color:#137A48;font-weight:700">✓</span>':' <span class="f">recebeu '+fmt(rc,0)+'</span>');
         return 'L'+l+': '+fmt(q,0);
       }).join(' · ');
-      h+='<tr class="'+(i.preco!=null||p.status==='sugestao'?'pede':'zero')+'"><td class="desc">'+esc(i.descricao)+'<span class="cod">'+esc(i.cod)+'</span></td><td class="r"><b>'+fmt(i.qtd,0)+'</b> '+esc(i.unid)+(i.emb>1?'<div class="s2">'+i.volumes+' vol × '+i.emb+'</div>':'')+'</td><td class="mut" style="font-size:11px">'+lj+'</td><td class="r">'+fmt(i.ultimo_custo,2)+'</td><td class="r"><b>'+(i.preco!=null?fmt(i.preco,2):'<span class="mut">—</span>')+'</b></td><td class="r">'+seta(i.preco,i.ultimo_custo,false)+'</td><td class="r">'+money2(i.qtd*i.ultimo_custo)+'</td><td class="r">'+(i.preco!=null?money2(i.qtd*i.preco):'')+'</td><td class="mut obs">'+esc(i.obs||'')+'</td></tr>';
+      const cel=editavel?LJ.map(l=>{const q=i.lojas_qtd[l]||0;const ru=i.ruptura?.[l];return '<td class="r lj'+(q?' tem':'')+'"><input class="qin" type="number" min="0" step="1" data-id="'+p.id+'" data-cod="'+esc(i.cod)+'" data-ln="'+l+'" value="'+(q||'')+'" placeholder="·"'+(ru?' title="ruptura: '+(ru.tipo==='total'?'não veio nada':'veio '+fmt(ru.recebida,0)+' de '+fmt(ru.pedida,0))+'"':'')+'></td>';}).join(''):'<td class="mut" style="font-size:11px">'+lj+'</td>';
+      h+='<tr class="'+(i.preco!=null||p.status==='sugestao'?'pede':'zero')+'"><td class="desc">'+esc(i.descricao)+'<span class="cod">'+esc(i.cod)+'</span></td><td class="r" id="pq-'+p.id+'-'+esc(i.cod)+'"><b>'+fmt(i.qtd,0)+'</b> '+esc(i.unid)+(i.emb>1?'<div class="s2">'+i.volumes+' vol × '+i.emb+'</div>':'')+'</td>'+cel+'<td class="r">'+fmt(i.ultimo_custo,2)+'</td><td class="r"><b>'+(i.preco!=null?fmt(i.preco,2):'<span class="mut">—</span>')+'</b></td><td class="r">'+seta(i.preco,i.ultimo_custo,false)+'</td><td class="r">'+money2(i.qtd*i.ultimo_custo)+'</td><td class="r">'+(i.preco!=null?money2(i.qtd*i.preco):'')+'</td><td class="mut obs">'+esc(i.obs||'')+'</td></tr>';
     }
     h+='</tbody></table></div>';
     h+='<div class="acoes">'+
@@ -183,7 +200,7 @@ async function carregarDetalhe(id){
       (p.status==='aprovado'&&p.recebimento&&Object.keys(p.recebimento).length?'<span>Nota já conferida em L'+Object.keys(p.recebimento).join(', L')+'; aguardando as outras lojas.</span>':'')+
       (p.status==='recebido'?'<span class="pos">Recebido completo'+(p.recebidoEm?' em '+new Date(p.recebidoEm).toLocaleString('pt-BR'):'')+'.</span>':'')+
       (p.status==='recebido_parcial'?'<span class="neg">Recebido com falta. A sugestão de ruptura foi criada automaticamente (veja o card "Ruptura de entrega").</span>':'')+
-      (p.status==='aprovado'?'<span class="pos">Aprovado em '+new Date(p.aprovadoEm).toLocaleString('pt-BR')+(p.aprovadoPor?' por '+esc(p.aprovadoPor):'')+'</span>':'')+
+      (p.status==='aprovado'?'<span class="pos">Aprovado em '+new Date(p.aprovadoEm).toLocaleString('pt-BR')+(p.aprovadoPor?' por '+esc(p.aprovadoPor):'')+'</span><button class="btn btn-green btn-sm" onclick="modalPdf(PED['+p.id+'])">PDF · enviar ao vendedor e comprador</button>':'')+
       (['aguardando','digitacao'].includes(p.status)?'<span>Aguardando o vendedor'+(p.status==='digitacao'?' terminar de digitar':' abrir o link')+'.</span>':'')+
       '<span style="margin-left:auto"></span>'+
       '<button class="btn btn-slate btn-sm" onclick="navigator.clipboard.writeText(\''+p.link+'\');this.textContent=\'Link copiado\'">Copiar link do vendedor</button><a class="btn btn-slate btn-sm" target="_blank" rel="noopener" href="'+p.link+'">Abrir como vendedor</a>'+
@@ -191,12 +208,62 @@ async function carregarDetalhe(id){
       (p.status!=='aprovado'&&p.status!=='cancelado'?'<button class="btn btn-red btn-sm" onclick="cancelar('+p.id+')">Cancelar</button>':'')+
       '</div>';
     box.innerHTML=h;
+    box.querySelectorAll('input.qin').forEach(inp=>{inp.addEventListener('click',e=>e.stopPropagation());inp.addEventListener('change',()=>salvarQtd(inp));inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();inp.blur();}});});
   }catch(e){ box.innerHTML='<div class="empty">'+esc(e.message)+'</div>'; }
+}
+const PED={};
+async function salvarQtd(inp){
+  const id=+inp.dataset.id, cod=inp.dataset.cod, ln=+inp.dataset.ln, v=Math.max(0,Math.round(parseFloat(inp.value)||0));
+  const p=PED[id]; const it=p&&p.itens.find(i=>i.cod===cod); if(!it) return;
+  it.lojas_qtd[ln]=v; it.qtd=Object.values(it.lojas_qtd).reduce((s,x)=>s+(x||0),0); it.volumes=it.qtd?Math.ceil(it.qtd/(it.emb||1)):0;
+  inp.value=v||''; inp.closest('td').classList.toggle('tem',v>0); inp.classList.add('ed');
+  const c=document.getElementById('pq-'+id+'-'+cod); if(c) c.innerHTML='<b>'+fmt(it.qtd,0)+'</b> '+esc(it.unid)+(it.emb>1?'<div class="s2">'+it.volumes+' vol × '+it.emb+'</div>':'');
+  try{const r=await fetch('/api/pedidos-fornecedor/'+id+'/quantidades',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ajustes:{[cod]:{[ln]:v}}})});const j=await r.json();if(j.error)throw new Error(j.error);const L=LISTA.find(x=>x.id===id);if(L){L.totais=j.totais;L.lojas=j.lojas;}}
+  catch(e){alert('Não salvou: '+e.message);}
+}
+function wpp(p,texto){const msg=encodeURIComponent(texto||('Olá'+(p.vendedor?.nome?' '+p.vendedor.nome:'')+', segue o pedido da lista '+p.lista_nome+' (Econômico). Por favor, preencha os preços no link: '+p.link));const w=(p.vendedor?.whats||'').replace(/\D/g,'');return w.length>=10?'https://wa.me/55'+w+'?text='+msg:'https://wa.me/?text='+msg;}
+function wppNum(num,texto){const w=(num||'').replace(/\D/g,'');return (w.length>=10?'https://wa.me/55'+w:'https://wa.me/')+'?text='+encodeURIComponent(texto);}
+function acaoLinha(p){
+  if(p.status==='aguardando') return '<a class="btn btn-amber btn-sm" style="margin:0" target="_blank" rel="noopener" href="'+wpp(p)+'" title="Abre o WhatsApp do vendedor com a mensagem e o link">Enviar</a>';
+  if(p.status==='sugestao') return '<button class="btn btn-green btn-sm" style="margin:0" onclick="enviarSugestao('+p.id+')">Enviar</button>';
+  if(['aprovado','recebido','recebido_parcial'].includes(p.status)) return '<a class="btn btn-slate btn-sm" style="margin:0" target="_blank" rel="noopener" href="/api/pedidos-fornecedor/'+p.id+'/pdf">PDF</a>';
+  return '';
+}
+function enviarTodos(){
+  const ag=LISTA.filter(p=>p.status==='aguardando'); if(!ag.length){alert('Nenhum pedido aguardando envio.');return;}
+  let x='<div class="pv-top"><div><h2>'+ag.length+' pedido'+(ag.length>1?'s':'')+' aguardando envio</h2><div class="pv-sub">O navegador não deixa abrir vários WhatsApp de uma vez: clique em cada botão. O status muda sozinho quando o vendedor abrir o link.</div></div><button class="btn btn-amber" onclick="fecharPv()">Fechar</button></div>';
+  for(const p of ag) x+='<div class="env"><div><div class="nm">#'+p.id+' '+esc(p.lista_nome)+'</div><div class="sub">'+esc(p.fornecedor||'')+' · '+p.totais.itens+' itens · '+money(p.totais.ultimo_custo)+(p.vendedor?.nome?' · '+esc(p.vendedor.nome)+(p.vendedor.whats?' '+esc(p.vendedor.whats):''):' · <span class="neg">sem vendedor no cadastro</span>')+'</div></div><div style="display:flex;gap:6px"><a class="btn btn-amber btn-sm" style="margin:0" target="_blank" rel="noopener" href="'+wpp(p)+'">WhatsApp</a><button class="btn btn-slate btn-sm" style="margin:0" onclick="navigator.clipboard.writeText(\''+p.link+'\');this.textContent=\'Copiado\'">Copiar link</button></div></div>';
+  abrirPv(x);
+}
+async function abrirCadastro(id){
+  abrirPv('<div class="pv-top"><div><div style="font-size:10px;font-weight:800;letter-spacing:.1em;color:#6B4E00">CADASTRO DA LISTA · ERP</div><h2>Lista #'+id+'</h2></div><button class="btn btn-amber" onclick="fecharPv()">Fechar</button></div><div class="spinner"></div>');
+  try{
+    const r=await fetch('/api/listas-compra/'+id+'/cadastro'); const c=await r.json(); if(c.error) throw new Error(c.error);
+    const dig=s=>(s||'').replace(/D/g,''); const wa=w=>dig(w).length>=10?'https://wa.me/55'+dig(w):null;
+    const WA='<svg viewBox="0 0 24 24" width="15" height="15" style="vertical-align:-3px;margin-right:5px"><path fill="#25D366" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2z"/><path fill="#fff" d="M17 14.4c-.3-.1-1.6-.8-1.9-.9-.3-.1-.4-.1-.6.1l-.9 1c-.2.2-.3.2-.6.1-1.6-.7-2.7-1.6-3.6-3.2-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.5l-.9-2c-.2-.5-.4-.4-.6-.4h-.5c-.2 0-.5.1-.7.3-.8.8-1.1 1.7-.9 2.8.4 2.2 3 5 5.6 6 1.4.5 2.2.5 3 .3.5-.1 1.5-.7 1.7-1.3.2-.6.2-1 .1-1.1l-.5-.2z"/></svg>';
+    const li=(rot,val,href,ic)=>'<tr><td class="cad-r">'+rot+'</td><td class="cad-v">'+(val?(href?'<a href="'+href+'" target="_blank" rel="noopener">'+(ic?WA:'')+esc(val)+'</a>':esc(val)):'<span class="mut">—</span>')+'</td></tr>';
+    const sec=t=>'<tr><td colspan="2" class="cad-sec">'+t+'</td></tr>';
+    abrirPv('<div class="pv-top"><div><div style="font-size:10px;font-weight:800;letter-spacing:.1em;color:#6B4E00">CADASTRO DA LISTA · ERP</div><h2>'+esc(c.descricao||('Lista #'+id))+' <span class="mut" style="font-size:13px;font-weight:500">#'+id+'</span></h2><div class="pv-sub">Direto do cadastro da lista no Dlinks Gestão. Pra editar, é lá.</div></div><button class="btn btn-amber" onclick="fecharPv()">Fechar</button></div>'+
+      '<div class="cad-grid"><table>'+li('Fornecedor',c.fornecedor?.codigo?c.fornecedor.codigo+' - '+(c.fornecedor.nome||''):null)+li('Descrição',c.descricao)+li('Observação',c.observacao)+sec('Vendedor (fornecedor)')+li('Nome',c.vendedor?.nome)+li('Email',c.vendedor?.email,c.vendedor?.email?'mailto:'+c.vendedor.email:null)+li('WhatsApp',c.vendedor?.whats,wa(c.vendedor?.whats),true)+'</table>'+
+      '<table>'+li('Prazo pagamento',c.prazo_pagamento)+li('Pedido mínimo',c.pedido_minimo?'R$ '+c.pedido_minimo:null)+sec('Comprador (loja)')+li('Nome',c.comprador?.nome)+li('Email',c.comprador?.email,c.comprador?.email?'mailto:'+c.comprador.email:null)+li('WhatsApp',c.comprador?.whats,wa(c.comprador?.whats),true)+'</table></div>');
+  }catch(e){ document.getElementById('pv-body').insertAdjacentHTML('beforeend','<div class="empty">Erro: '+esc(e.message)+'</div>'); }
+}
+function abrirPv(x){document.getElementById('pv-body').innerHTML=x;document.getElementById('pv').hidden=false;}
+function fecharPv(){document.getElementById('pv').hidden=true;}
+function modalPdf(p){
+  const pdf=p.link+'/pdf';
+  const txtV='Olá'+(p.vendedor?.nome?' '+p.vendedor.nome:'')+', o pedido #'+p.id+' ('+p.lista_nome+' · Econômico) foi APROVADO. PDF do pedido: '+pdf;
+  const txtC='Pedido #'+p.id+' ('+p.lista_nome+') aprovado. PDF: '+pdf;
+  abrirPv('<div class="pv-top"><div><div style="font-size:10px;font-weight:800;letter-spacing:.1em;color:#137A48">PEDIDO APROVADO</div><h2>#'+p.id+' · '+esc(p.lista_nome)+'</h2><div class="pv-sub">O PDF do pedido (uma seção por loja, com os preços aprovados) já está pronto. Envie pro vendedor e pro comprador pelo WhatsApp; o link do PDF é público, só funciona pra pedido aprovado.</div></div><button class="btn btn-amber" onclick="fecharPv()">Fechar</button></div>'+
+    '<div class="env"><div><div class="nm">Vendedor · '+esc(p.vendedor?.nome||'—')+'</div><div class="sub">'+esc(p.vendedor?.whats||'sem WhatsApp no cadastro')+'</div></div><a class="btn btn-amber btn-sm" style="margin:0" target="_blank" rel="noopener" href="'+wppNum(p.vendedor?.whats,txtV)+'">WhatsApp com o PDF</a></div>'+
+    '<div class="env"><div><div class="nm">Comprador(a) · '+esc(p.comprador?.nome||'—')+'</div><div class="sub">'+esc(p.comprador?.whats||'sem WhatsApp no cadastro')+'</div></div><a class="btn btn-amber btn-sm" style="margin:0" target="_blank" rel="noopener" href="'+wppNum(p.comprador?.whats,txtC)+'">WhatsApp com o PDF</a></div>'+
+    '<div class="env"><div><div class="nm">PDF</div><div class="sub">'+pdf+'</div></div><div style="display:flex;gap:6px"><a class="btn btn-slate btn-sm" style="margin:0" target="_blank" rel="noopener" href="/api/pedidos-fornecedor/'+p.id+'/pdf">Abrir PDF</a><button class="btn btn-slate btn-sm" style="margin:0" onclick="navigator.clipboard.writeText(\''+pdf+'\');this.textContent=\'Copiado\'">Copiar link</button></div></div>');
 }
 async function aprovar(id){
   if(!confirm('Aprovar o pedido #'+id+'?')) return;
   const r=await fetch('/api/pedidos-fornecedor/'+id+'/aprovar',{method:'POST'}); const j=await r.json();
   if(j.error){alert(j.error);return;} await carregar(); aberto=id; render(); carregarDetalhe(id);
+  try{const r2=await fetch('/api/pedidos-fornecedor/'+id);const p=await r2.json();if(!p.error)modalPdf(p);}catch(e){}
 }
 async function cancelar(id){
   const motivo=prompt('Motivo do cancelamento (opcional):'); if(motivo===null) return;

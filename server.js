@@ -215,7 +215,7 @@ app.use((req, res, next) => {
     '/painel-compras.html', '/tv'];
   if (publico.includes(req.path)) return next();
   // Link do vendedor (pedido ao fornecedor): público por token de 32 hex, sem login
-  if (/^\/pedido\/[a-f0-9]{32}$/.test(req.path) || /^\/api\/pedido-publico\/[a-f0-9]{32}(\/|$)/.test(req.path)) return next();
+  if (/^\/pedido\/[a-f0-9]{32}(\/pdf)?$/.test(req.path) || /^\/api\/pedido-publico\/[a-f0-9]{32}(\/|$)/.test(req.path)) return next();
   // Pré-aquecimento interno (somente localhost)
   if (req.headers['x-internal-warmup'] === 'fc360warmup2026' && req.socket.remoteAddress === '::1') return next();
   const ext = req.path.split('.').pop().toLowerCase();
@@ -6235,6 +6235,12 @@ app.post('/api/pedidos-fornecedor/verificar-recebimentos', async (req, res) => {
 app.post('/api/pedidos-fornecedor/alertas-vistos', (req, res) => {
   pedidosFornec.verAlertas(req.body.ids, req.session.user?.nome || null); res.json({ ok: true });
 });
+app.post('/api/pedidos-fornecedor/:id/quantidades', (req, res) => {
+  const p = pedidosFornec.ajustarQuantidades(parseInt(req.params.id), req.body.ajustes || {}, req.session.user?.nome || null);
+  if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
+  if (p.erro) return res.status(409).json({ error: p.erro });
+  res.json({ ok: true, totais: p.totais, lojas: p.lojas });
+});
 app.post('/api/pedidos-fornecedor/:id/cancelar', (req, res) => {
   const p = pedidosFornec.cancelar(parseInt(req.params.id), req.session.user?.nome || null, req.body.motivo);
   if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
@@ -6242,14 +6248,35 @@ app.post('/api/pedidos-fornecedor/:id/cancelar', (req, res) => {
   res.json({ ok: true, status: p.status });
 });
 
+// PDF do pedido aprovado (interno, por id) — gera na hora se ainda não existir
+app.get('/api/pedidos-fornecedor/:id/pdf', (req, res) => {
+  const p = pedidosFornec.obter(parseInt(req.params.id));
+  if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
+  let f = pedidosFornec.caminhoPdf(p.id);
+  if (!f || req.query.refazer === '1') { try { f = pedidosFornec.gerarPdf(p); } catch (e) { return res.status(500).json({ error: e.message }); } }
+  setTimeout(() => res.sendFile(f, { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="pedido-${p.id}.pdf"` } }), 150);
+});
+// PDF público pelo token (link que vai no WhatsApp pro vendedor/comprador) — só pedido aprovado ou posterior
+app.get('/pedido/:token/pdf', (req, res) => {
+  const p = pedidosFornec.porToken(req.params.token);
+  if (!p) return res.status(404).send('Pedido não encontrado');
+  if (!['aprovado', 'recebido', 'recebido_parcial'].includes(p.status)) return res.status(403).send('O PDF só fica disponível depois que o pedido é aprovado.');
+  let f = pedidosFornec.caminhoPdf(p.id);
+  if (!f) { try { f = pedidosFornec.gerarPdf(p); } catch (e) { return res.status(500).send(e.message); } }
+  setTimeout(() => res.sendFile(f, { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="pedido-${p.id}.pdf"` } }), 150);
+});
+
 // --- lado do vendedor (público por token; ver bypass no middleware de auth) ---
 app.get('/pedido/:token', (req, res) => {
-  if (!pedidosFornec.porToken(req.params.token)) return res.status(404).send('Pedido não encontrado');
+  const pt = pedidosFornec.porToken(req.params.token);
+  if (!pt) return res.status(404).send('Pedido não encontrado');
+  if (pt.status === 'cancelado') return res.status(410).send('<!doctype html><meta charset=utf-8><body style="font-family:sans-serif;padding:40px;text-align:center;color:#4E5A72"><h2>Este pedido foi cancelado</h2><p>O link não está mais válido. Em caso de dúvida, fale com a compradora.</p></body>');
   res.sendFile(path.join(__dirname, 'public', 'pedido-fornecedor.html'));
 });
 app.get('/api/pedido-publico/:token', (req, res) => {
   const p = pedidosFornec.abrir(req.params.token);
   if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
+  if (p.status === 'cancelado') return res.status(410).json({ error: 'Pedido cancelado' });
   res.json(pedidosFornec.visaoVendedor(p));
 });
 app.post('/api/pedido-publico/:token/salvar', (req, res) => {
