@@ -1044,12 +1044,7 @@ async function abrirLista(id) {
 
   const { loja, mes, ano } = params();
   document.getElementById('d-title').textContent = `${lista.nome} · Lista #${lista.id}`;
-  // total_itens é a lista inteira (qualquer loja); o card "Itens ativos" logo
-  // abaixo é que reflete o filtro de loja atual — por isso não repete o
-  // número aqui, pra não parecer contradição (216 total vs. 212 na loja X)
-  const desativados = (lista.total_linhas || 0) - (lista.total_itens || 0);
-  document.getElementById('d-subtitle').textContent = `${lista.fornecedor||''} · ${lista.total_itens} itens ativos no total`
-    + (desativados > 0 ? ` · ${desativados} desativado(s) no ERP` : '');
+  document.getElementById('d-subtitle').textContent = lista.fornecedor || '';
   document.getElementById('d-tabs').innerHTML = '';
   document.getElementById('drawer').classList.add('open');
   document.getElementById('overlay').classList.add('open');
@@ -1079,12 +1074,14 @@ async function abrirLista(id) {
     if (desativados > 0) detalhePartes.push(`${desativados} desativado(s) no ERP`);
     if (semLoja > 0) detalhePartes.push(`${semLoja} sem loja nenhuma marcada`);
     if (naoNaLojaSelec > 0) detalhePartes.push(`${naoNaLojaSelec} marcado(s) só em outra(s) loja(s)`);
+    document.getElementById('d-subtitle').textContent = detalhePartes.length > 1
+      ? `${lista.fornecedor||''} · ${detalhePartes.join(' · ')}`
+      : lista.fornecedor || '';
     const kpiHtml = `
       <div class="d-kpis">
         <div class="d-kpi">
           <div class="dv">${itens.length}</div>
           <div class="dl">Itens ativos${loja!=='todas'?` · Loja ${loja}`:''}</div>
-          ${detalhePartes.length>1 ? `<div style="font-size:9.5px;color:#98A0B3;margin-top:2px;font-weight:400">${detalhePartes.join(' · ')}</div>` : ''}
         </div>
         ${lista.compradores ? `<div class="d-kpi"><div class="dv" style="font-size:12px;color:#6B4E00">${lista.compradores}</div><div class="dl">Comprador(es)</div></div>` : ''}
         ${lista.obs ? `<div class="d-kpi"><div class="dv" style="font-size:11px;color:#4E5A72">${lista.obs}</div><div class="dl">Observação</div></div>` : ''}
