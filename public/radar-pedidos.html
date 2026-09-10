@@ -153,6 +153,7 @@ function renderEstado(){
   $('#estado').innerHTML='Dados de <b>'+br(e.hoje)+'</b> · venda de '+br(e.janela.dIni)+' a '+br(e.janela.dFim)+' ('+e.janela.dias+' dias)<br>lead time de 12 meses calculado em <b>'+br(e.leadCalculadoEm)+'</b> · '+e.produtos.toLocaleString('pt-BR')+' produtos · '+e.leadListas+' listas com lead<br>atualizado '+new Date(e.atualizadoEm).toLocaleString('pt-BR')+(e.erro?' · <span class="neg">erro no último cálculo: '+esc(e.erro)+'</span>':'');
 }
 function renderTotais(){
+  if(DATA.estado.status!=='ok'){$('#totais').innerHTML='';$('#nHoje').textContent='…';$('#nCal').textContent='…';return;}
   const r=DATA.resumo, d=r.estoque_alvo-r.estoque_hoje;
   $('#totais').innerHTML=
     '<div class="tkpi"><div class="v neg">'+r.pedir_hoje+'</div><div class="l">Listas pra fazer hoje</div></div>'+
@@ -187,6 +188,10 @@ function flagsHtml(l){
 
 function render(){
   document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.tab===tab));
+  if(DATA.estado.status!=='ok'&&tab!=='regras'){
+    $('#view').innerHTML='<div class="empty"><div class="spinner"></div><b style="color:#0E1626">O radar está calculando</b><br>Logo depois que o sistema sobe ele recoleta lead time, venda, estoque e trânsito de todas as listas (1 a 3 minutos). Esta tela atualiza sozinha quando terminar.'+(DATA.estado.erro?'<br><br><span class="neg">Último erro: '+esc(DATA.estado.erro)+'</span>':'')+'</div>';
+    return;
+  }
   if(tab==='hoje') return renderTabela(listasFiltradas().filter(l=>l.ok&&l.fazer_em===0),'Nenhuma lista precisa ser feita hoje com esse teto.');
   if(tab==='cal') return renderTabela(listasFiltradas(),'Nenhuma lista.');
   if(tab==='acomp') return renderAcomp();
