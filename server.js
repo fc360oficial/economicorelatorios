@@ -234,7 +234,10 @@ app.use((req, res, next) => {
 // Arquivos estáticos (após auth)
 app.use(express.static(path.join(__dirname, 'public'), {
   setHeaders: (res, filePath) => {
-    if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-cache');
+    // no-cache = pode guardar, mas revalida sempre (304 se não mudou) — assim
+    // nav.js/design-system.css/icons.svg/sw.js pegam a versão nova logo após
+    // o deploy, sem precisar de hard refresh. Imagens ficam com o cache padrão.
+    if (/\.(html|js|css|svg|json)$/i.test(filePath)) res.setHeader('Cache-Control', 'no-cache');
   }
 }));
 
