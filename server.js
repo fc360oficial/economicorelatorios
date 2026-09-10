@@ -2842,27 +2842,36 @@ app.get('/api/listas-compra/margem-resumo', async (req, res) => {
       } catch (e) {}
     }
 
-    // Acumula margem por lista
+    // Acumula venda e margem por lista (só os produtos DAQUELA lista — um
+    // fornecedor com várias listas tem venda diferente em cada uma)
     const listaMargens = {};
     for (const [barcode, listaIds] of Object.entries(barcodeToListas)) {
       const v = vendas[barcode];
       if (!v || v.valor <= 0) continue;
       const custo = custos[barcode] || 0;
-      if (custo <= 0) continue;
-      const custoTotal = v.qtd * custo;
-      const lucro = v.valor - custoTotal;
+      const temCusto = custo > 0;
+      const custoTotal = temCusto ? v.qtd * custo : 0;
+      const lucro = temCusto ? v.valor - custoTotal : 0;
       for (const listaId of listaIds) {
-        if (!listaMargens[listaId]) listaMargens[listaId] = { fat: 0, custo_total: 0, lucro: 0, prods: 0 };
-        listaMargens[listaId].fat += v.valor;
-        listaMargens[listaId].custo_total += custoTotal;
-        listaMargens[listaId].lucro += lucro;
-        listaMargens[listaId].prods++;
+        if (!listaMargens[listaId]) listaMargens[listaId] = { venda: 0, com_venda: 0, fat: 0, custo_total: 0, lucro: 0, prods: 0 };
+        const m = listaMargens[listaId];
+        // venda/com_venda: todo produto da lista que vendeu (é o que o card mostra)
+        m.venda += v.valor;
+        m.com_venda++;
+        // margem: só produtos com custo cadastrado, senão o lucro sai inflado
+        if (!temCusto) continue;
+        m.fat += v.valor;
+        m.custo_total += custoTotal;
+        m.lucro += lucro;
+        m.prods++;
       }
     }
 
     const result = {};
     for (const [listaId, m] of Object.entries(listaMargens)) {
       result[parseInt(listaId)] = {
+        venda: parseFloat(m.venda.toFixed(2)),
+        com_venda: m.com_venda,
         msv: m.fat > 0 ? parseFloat((m.lucro / m.fat * 100).toFixed(2)) : 0,
         msc: m.custo_total > 0 ? parseFloat((m.lucro / m.custo_total * 100).toFixed(2)) : 0,
         faturamento: parseFloat(m.fat.toFixed(2)),

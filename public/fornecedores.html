@@ -454,13 +454,20 @@ async function carregar() {
     }
   } catch(e) { console.error('KPI error:', e); }
 
-  // Listas de compra (filtro por busca e comprador)
+  // Listas de compra (filtro por busca e comprador) + venda/margem POR LISTA.
+  // margem-resumo soma só os produtos de cada lista — o resumo por fornecedor
+  // (dados) daria o mesmo número pra todas as listas de um mesmo fornecedor.
   try {
     const url = `/api/listas-compra?busca=${encodeURIComponent(p.busca)}&comprador=${encodeURIComponent(p.comprador)}`;
-    const r = await fetch(url);
+    const [r, rm] = await Promise.all([
+      fetch(url),
+      fetch(`/api/listas-compra/margem-resumo?loja=${p.loja}&mes=${p.mes}&ano=${p.ano}`).catch(() => null)
+    ]);
     const json = await r.json();
     if (json.error) throw new Error(json.error);
     listas = json.listas || [];
+    margensLista = {};
+    if (rm) { try { const jm = await rm.json(); if (!jm.error) margensLista = jm; } catch (e) {} }
     if (json.compradores && json.compradores.length) {
       const sel = document.getElementById('fil-comprador');
       const cur = sel.value;
@@ -473,21 +480,24 @@ async function carregar() {
   }
 }
 
+let margensLista = {}; // id da lista -> { venda, com_venda, msv, msc, ... } (de /api/listas-compra/margem-resumo)
+
 function msvClass(v) { return v>=20?'m-great':v>=12?'m-ok':v>=0?'m-warn':'m-bad'; }
 function avClass(v)  { return v<=2?'av-ok':v<=5?'av-warn':'av-bad'; }
 
 let sortCol = null, sortDir = 'desc';
 
 function valorOrdenacao(r, col) {
-  const s = dados.find(d => d.id === r.codFornec) || {};
+  const s = dados.find(d => d.id === r.codFornec) || {}; // fornecedor (avaria)
+  const m = margensLista[r.id] || {};                     // lista (venda/margem)
   switch (col) {
-    case 'venda':    return s.venda || 0;
-    case 'msv':      return s.msv || 0;
-    case 'msc':      return s.msc || 0;
+    case 'venda':    return m.venda || 0;
+    case 'msv':      return m.msv || 0;
+    case 'msc':      return m.msc || 0;
     case 'avaria':   return s.avaria || 0;
     case 'pctav':    return s.pct_av || 0;
     case 'itens':    return r.total_itens || 0;
-    case 'comvenda': return s.com_venda || 0;
+    case 'comvenda': return m.com_venda || 0;
     default:         return 0;
   }
 }
@@ -529,20 +539,22 @@ function renderListasComDados(lista, filtroMsg) {
     });
   }
   atualizarSetas();
-  // Para a barra de referência, pega o maior venda entre os fornecedores das listas
-  const maxVenda = Math.max(...lista.map(r => {
-    const s = dados.find(d => d.id === r.codFornec);
-    return s?.venda || 0;
-  }), 1);
+  // Barra de referência: maior venda entre as LISTAS (venda dos produtos de
+  // cada lista, não do fornecedor inteiro)
+  const vendaDaLista = r => (margensLista[r.id] || {}).venda || 0;
+  const maxVenda = Math.max(...lista.map(vendaDaLista), 1);
 
   let html = '';
   lista.forEach((r, i) => {
-    const s = dados.find(d => d.id === r.codFornec) || {}; // dados do fornecedor vinculado
+    const s = dados.find(d => d.id === r.codFornec) || {}; // fornecedor: só avaria e drawer
+    const m = margensLista[r.id] || {};                     // lista: venda, margem, c/ venda
     const sel = listaSelecionada?.id === r.id ? 'selected' : '';
     const compradorHtml = r.compradores
       ? r.compradores.split(', ').map(c=>`<span class="comp-tag">${c}</span>`).join(' ')
       : '<span style="color:#98A0B3;font-size:11px">—</span>';
-    const venda  = s.venda  || 0;
+    const venda  = m.venda  || 0;
+    const msv    = m.msv    || 0;
+    const msc    = m.msc    || 0;
     const avaria = s.avaria || 0;
     const pct    = (venda / maxVenda * 100).toFixed(1);
     const sid    = s.id;
@@ -555,12 +567,12 @@ function renderListasComDados(lista, filtroMsg) {
       </td>
       <td style="min-width:110px">${compradorHtml}</td>
       <td class="td-r"><span class="td-venda" onclick="${sid?`abrirDrawer(${sid},'venda',${r.id})`:'void(0)'}" title="Ver detalhes de venda">${venda>0?fmt(venda):'—'}</span></td>
-      <td class="td-r"><span class="td-margem ${msvClass(s.msv)}" onclick="${sid?`abrirDrawer(${sid},'margem',${r.id})`:'void(0)'}" title="Ver rentabilidade">${venda>0?pctFmt(s.msv):'—'}</span></td>
-      <td class="td-r"><span class="td-margem ${msvClass(s.msc)}" onclick="${sid?`abrirDrawer(${sid},'margem',${r.id})`:'void(0)'}" title="Ver rentabilidade">${venda>0?pctFmt(s.msc):'—'}</span></td>
+      <td class="td-r"><span class="td-margem ${msvClass(msv)}" onclick="${sid?`abrirDrawer(${sid},'margem',${r.id})`:'void(0)'}" title="Ver rentabilidade">${venda>0?pctFmt(msv):'—'}</span></td>
+      <td class="td-r"><span class="td-margem ${msvClass(msc)}" onclick="${sid?`abrirDrawer(${sid},'margem',${r.id})`:'void(0)'}" title="Ver rentabilidade">${venda>0?pctFmt(msc):'—'}</span></td>
       <td class="td-r"><span class="td-avaria ${avClass(s.pct_av)}" onclick="${sid?`abrirDrawer(${sid},'avaria',${r.id})`:'void(0)'}" title="Ver avarias">${avaria>0?fmt(avaria):'—'}</span></td>
       <td class="td-r ${avClass(s.pct_av)}">${avaria>0?pctFmt(s.pct_av):'—'}</td>
       <td class="td-r"><span class="itens-badge">${r.total_itens}</span></td>
-      <td class="td-r" style="color:#4E5A72">${fmtN(s.com_venda||0)}</td>
+      <td class="td-r" style="color:#4E5A72">${fmtN(m.com_venda||0)}</td>
     </tr>`;
   });
   document.getElementById('main-tbody').innerHTML = html;
