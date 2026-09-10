@@ -142,6 +142,39 @@ table.det-t th.r,table.det-t td.r{text-align:right}
 table.det-t td{padding:7px 10px;border-top:1px solid #DADAD6;color:#4E5A72}
 table.det-t td.loja{font-weight:700;color:#0E1626}
 
+/* rupturas por comprador (tela inicial) */
+.rup-top{background:#FFFFFF;border:1px solid #DADAD6;border-radius:12px;padding:14px 18px;margin-bottom:16px;display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
+.rup-top .stamp{font-size:11.5px;color:#4E5A72;font-weight:600;margin-left:auto;align-self:center}
+.rup-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:16px}
+.rkpi{background:#FFFFFF;border:1px solid #DADAD6;border-left:4px solid #C9C9C4;border-radius:10px;padding:11px 16px}
+.rkpi .v{font-size:20px;font-weight:800;letter-spacing:-.3px;font-variant-numeric:tabular-nums}
+.rkpi .l{font-size:9.5px;color:#98A0B3;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-top:2px}
+.rkpi.rup{border-left-color:#C22F49}.rkpi.rup .v{color:#C22F49}
+.rkpi.urg{border-left-color:#E08A00}.rkpi.urg .v{color:#B26A00}
+.rkpi.ris{border-left-color:#F5B800}.rkpi.ris .v{color:#6B4E00}
+.rkpi.perda{border-left-color:#101B33}.rkpi.perda .v{color:#101B33}
+table.rup-t{width:100%;border-collapse:collapse;font-size:12.5px}
+table.rup-t th{text-align:left;font-size:10px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:#4E5A72;background:#EBEBE9;padding:10px 14px;white-space:nowrap;border-bottom:1px solid #DADAD6}
+table.rup-t th.c,table.rup-t td.c{text-align:center}
+table.rup-t th.r,table.rup-t td.r{text-align:right}
+table.rup-t td{padding:9px 14px;border-top:1px solid #DADAD6;white-space:nowrap}
+table.rup-t tbody tr.lista-row{cursor:pointer}
+table.rup-t tbody tr.lista-row:hover{background:#EBEBE955}
+table.rup-t tbody tr.lista-row.open{background:#FFF6D9}
+table.rup-t tbody tr.lista-row.zerada td{color:#98A0B3}
+table.rup-t tbody tr.lista-row.zerada .fornec-nome{color:#4E5A72}
+.fornec-nome{font-weight:700;color:#0E1626}
+.num-rup{font-weight:800;color:#C22F49}.num-urg{font-weight:800;color:#E08A00}.num-ris{font-weight:700;color:#B26A00}.num-exc{font-weight:700;color:#4E5A72}
+.num-zero{color:#C9C9C4;font-weight:600}
+.btn-mini{border:none;border-radius:7px;padding:6px 11px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;background:#F5B800;color:#6B4E00;white-space:nowrap}
+.btn-mini:hover{background:#E5AC00}
+.rup-det{background:#F7F7F5;padding:12px 20px 14px;border-top:1px solid #DADAD6}
+.rup-abas{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;align-items:center}
+.rup-abas button{border:1px solid #C9C9C4;background:#FFFFFF;border-radius:20px;padding:5px 12px;font-size:11.5px;font-weight:700;color:#4E5A72;cursor:pointer;font-family:inherit}
+.rup-abas button.on{background:#101B33;color:#fff;border-color:#101B33}
+.rup-abas button.criar{margin-left:auto;background:#F5B800;border-color:#F5B800;color:#6B4E00}
+.rup-abas button.criar:hover{background:#E5AC00}
+
 @media print{
   #dsnav,.filtros,.busca-row,.btn-imprimir,table.main-t tbody tr:not(.open),.detalhe-row:not(.on){display:none!important}
   body.dsnav-pad{margin-left:0!important}
@@ -151,12 +184,34 @@ table.det-t td.loja{font-weight:700;color:#0E1626}
 <body class="ds">
 <div class="main" id="main">
 
-  <div id="monitor-view">
+  <div id="rupturas-view">
+    <div class="mon-hdr">
+      <div>
+        <h1>Sugestão de Compras</h1>
+        <p>Escolha a compradora: aparecem só as listas dela, com as rupturas de cada uma (mesmo cálculo da Central de Rupturas). Daí você cria a sugestão.</p>
+      </div>
+      <button class="btn btn-slate" onclick="mostrarMonitor()">📋 Monitor de Sugestões</button>
+    </div>
+
+    <div class="rup-top">
+      <div class="fg" style="min-width:240px">
+        <label>Comprador</label>
+        <select id="r-comprador" onchange="analisarRupturas()"><option value="">Selecione...</option></select>
+      </div>
+      <button class="btn btn-blue" id="btn-analisar-rup" onclick="analisarRupturas(true)">⚡ Analisar</button>
+      <span class="stamp" id="r-stamp">Escolha a compradora pra começar</span>
+    </div>
+
+    <div id="rup-conteudo"><div class="empty">Nenhuma compradora selecionada.</div></div>
+  </div>
+
+  <div id="monitor-view" style="display:none">
     <div class="mon-hdr">
       <div>
         <h1>Sugestão de Compras</h1>
         <p>Monitor das sugestões geradas no ERP — clique numa linha pra abrir o cálculo de cobertura da lista.</p>
       </div>
+      <button class="btn btn-slate" onclick="mostrarRupturas()">← Rupturas por Comprador</button>
     </div>
 
     <div class="mon-filtros">
@@ -361,8 +416,15 @@ function filtrarListas(){
     </tr>`).join('')}</tbody></table></div>`;
 }
 
+let origemSugestao = 'listas'; // de onde a calculadora foi aberta: rupturas | monitor | listas
 function abrirSugestao(id){
   listaAtual = id;
+  const monitorVisivel  = document.getElementById('monitor-view').style.display !== 'none';
+  const rupturasVisivel = document.getElementById('rupturas-view').style.display !== 'none';
+  origemSugestao = monitorVisivel ? 'monitor' : rupturasVisivel ? 'rupturas' : 'listas';
+  document.querySelector('#sugestao-wrap .voltar').textContent =
+    origemSugestao === 'rupturas' ? '← Rupturas' : origemSugestao === 'monitor' ? '← Monitor' : '← Listas';
+  document.getElementById('rupturas-view').style.display = 'none';
   document.getElementById('monitor-view').style.display = 'none';
   document.getElementById('filtros-lista').style.display = 'none';
   document.getElementById('listas-wrap').style.display = 'none';
@@ -371,19 +433,33 @@ function abrirSugestao(id){
   carregarSugestao();
 }
 function voltarListas(){
-  document.getElementById('filtros-lista').style.display = 'flex';
-  document.getElementById('listas-wrap').style.display = 'block';
   document.getElementById('sugestao-wrap').style.display = 'none';
   listaAtual = null; sugestaoAtual = null; linhaAberta = null;
+  if (origemSugestao === 'rupturas') { mostrarRupturas(); return; }
+  if (origemSugestao === 'monitor')  { mostrarMonitor();  return; }
+  document.getElementById('filtros-lista').style.display = 'flex';
+  document.getElementById('listas-wrap').style.display = 'block';
+}
+function mostrarRupturas(){
+  document.getElementById('monitor-view').style.display = 'none';
+  document.getElementById('por-lista-view').style.display = 'none';
+  document.getElementById('rupturas-view').style.display = 'block';
+}
+let monitorJaCarregado = false;
+function mostrarMonitor(){
+  document.getElementById('rupturas-view').style.display = 'none';
+  document.getElementById('por-lista-view').style.display = 'none';
+  document.getElementById('monitor-view').style.display = 'block';
+  if (!monitorJaCarregado) { monitorJaCarregado = true; carregarMonitor(); }
 }
 function mostrarPorLista(){
   document.getElementById('monitor-view').style.display = 'none';
+  document.getElementById('rupturas-view').style.display = 'none';
   document.getElementById('por-lista-view').style.display = 'block';
   if (!listas.length) carregarListas(); else filtrarListas();
 }
 function voltarMonitor(){
-  document.getElementById('por-lista-view').style.display = 'none';
-  document.getElementById('monitor-view').style.display = 'block';
+  mostrarMonitor();
 }
 
 // ── Monitor de Sugestões (central.pedidocompra) ──
@@ -478,8 +554,8 @@ function atualizarBotaoDesativar(){
 // segue o layout da tela "Listas > Sugestão de Compras" do Dlinks desktop,
 // mas o Confirmar só abre o cálculo de cobertura já existente (só leitura).
 let lojasNSCarregadas = [];
-function abrirNovaSugestao(){
-  document.getElementById('ns-lista').value = '';
+function abrirNovaSugestao(listaId){
+  document.getElementById('ns-lista').value = listaId || '';
   document.getElementById('ns-cobertura').value = 20;
   document.getElementById('ns-obs1').checked = false;
   document.getElementById('ns-obs2').checked = false;
@@ -493,6 +569,7 @@ function abrirNovaSugestao(){
   document.getElementById('ns-data-ini').value = antes.toISOString().slice(0,10);
   recalcQtdDiasNS();
   document.getElementById('ns-overlay').style.display = 'flex';
+  if (listaId) carregarLojasNS();
 }
 function fecharNovaSugestao(){
   document.getElementById('ns-overlay').style.display = 'none';
@@ -647,7 +724,149 @@ function exportarExcelSugestao(){
   URL.revokeObjectURL(url);
 }
 
-carregarMonitor();
+// ── Rupturas por Comprador (tela inicial) — reaproveita GET /api/ruptura da Central ──
+const LOJAS_NOMES_RUP = { 1:'CAHU', 2:'MURIBECA', 3:'PONTE', 4:'ATACAREJO', 5:'PORTA LARGA', 6:'JARDIM JORDÃO' };
+let dadosRup = null, listasRup = [], listaRupAberta = null, abaRupAberta = 'rup', ultRupReq = 0;
+const fmtD = v => Number(v||0).toFixed(1) + 'd';
+
+async function carregarCompradoresRup(){
+  const sel = document.getElementById('r-comprador');
+  try {
+    const r = await fetch('/api/ruptura/compradores');
+    if (r.status === 401) { location.href = '/login.html'; return; }
+    const nomes = await r.json();
+    sel.innerHTML = '<option value="">Selecione...</option>' + nomes.map(n => `<option value="${n}">${n}</option>`).join('');
+    let salvo = '';
+    try { salvo = localStorage.getItem('sc_comprador') || ''; } catch(e) {}
+    if (salvo && nomes.includes(salvo)) { sel.value = salvo; analisarRupturas(); }
+  } catch(e) {
+    sel.innerHTML = '<option value="">Erro ao carregar compradores</option>';
+  }
+}
+
+async function analisarRupturas(forcar){
+  const comp = document.getElementById('r-comprador').value;
+  const wrap = document.getElementById('rup-conteudo');
+  const stamp = document.getElementById('r-stamp');
+  const btn = document.getElementById('btn-analisar-rup');
+  if (!comp) { wrap.innerHTML = '<div class="empty">Nenhuma compradora selecionada.</div>'; stamp.textContent = 'Escolha a compradora pra começar'; return; }
+  try { localStorage.setItem('sc_comprador', comp); } catch(e) {}
+  const meuReq = ++ultRupReq;
+  listaRupAberta = null; abaRupAberta = 'rup';
+  btn.disabled = true; btn.textContent = '⏳ Analisando...';
+  stamp.textContent = 'Buscando estoque e vendas das listas de ' + comp + '...';
+  wrap.innerHTML = '<div class="spinner"></div><div class="empty" style="padding-top:0">Cada análise busca dado atualizado do ERP — pode levar alguns segundos.</div>';
+  try {
+    const qs = new URLSearchParams({ comprador: comp });
+    if (forcar === true) qs.set('refresh', '1');
+    const [rRup, rListas] = await Promise.all([
+      fetch('/api/ruptura?' + qs.toString()),
+      fetch('/api/listas-compra?comprador=' + encodeURIComponent(comp))
+    ]);
+    if (rRup.status === 401) { location.href = '/login.html'; return; }
+    const d = await rRup.json();
+    const jl = await rListas.json().catch(() => ({}));
+    if (meuReq !== ultRupReq) return;
+    if (d.error) throw new Error(d.error);
+    dadosRup = d;
+    listasRup = montarListasRup(d, jl.listas || []);
+    renderRupturas();
+    stamp.textContent = `Atualizado ${new Date().toLocaleTimeString('pt-BR')} · ${listasRup.length} lista(s) de ${comp}`;
+  } catch(e) {
+    if (meuReq !== ultRupReq) return;
+    wrap.innerHTML = `<div class="empty">Erro ao analisar: ${e.message}</div>`;
+    stamp.textContent = 'Erro';
+  } finally {
+    if (meuReq === ultRupReq) { btn.disabled = false; btn.textContent = '⚡ Analisar'; }
+  }
+}
+
+// ranking_fornec só traz as listas com algum problema; as demais listas da
+// compradora entram no fim, zeradas, pra ela ver a carteira inteira
+function montarListasRup(d, todasListas){
+  const comProblema = (d.ranking_fornec || []).map(f => ({ ...f, zerada: false }));
+  const ids = new Set(comProblema.map(f => String(f.listaId)));
+  const resto = todasListas.filter(l => !ids.has(String(l.id))).map(l => ({
+    listaId: l.id, fornecedor: l.fornecedor || l.nome || 'N/I', codFornec: l.codFornec || 0,
+    rupturas: 0, urgencia: 0, em_risco: 0, excesso: 0, perda: 0, lojas: '', score: 0, zerada: true
+  })).sort((a, b) => String(a.fornecedor).localeCompare(String(b.fornecedor)));
+  return comProblema.concat(resto);
+}
+
+function renderRupturas(){
+  const d = dadosRup; if (!d) return;
+  const r = d.resumo || {};
+  const wrap = document.getElementById('rup-conteudo');
+  const kpis = `<div class="rup-kpis">
+    <div class="rkpi rup"><div class="v">${r.total_rupturas||0}</div><div class="l">Produtos em ruptura</div></div>
+    <div class="rkpi urg"><div class="v">${r.urgencia||0}</div><div class="l">Urgência ≤ 3 dias</div></div>
+    <div class="rkpi ris"><div class="v">${r.em_risco||0}</div><div class="l">Em risco (&lt; ${d.min_cob||10} dias)</div></div>
+    <div class="rkpi perda"><div class="v">${fmt(r.perdaDia)}</div><div class="l">Perda estimada / dia</div></div>
+  </div>`;
+  if (!listasRup.length) { wrap.innerHTML = kpis + '<div class="empty">Nenhuma lista encontrada pra essa compradora.</div>'; return; }
+  const n = (v, cls) => v > 0 ? `<span class="${cls}">${v}</span>` : '<span class="num-zero">0</span>';
+  const linhas = listasRup.map(f => {
+    const aberta = listaRupAberta === f.listaId;
+    return `<tr class="lista-row ${aberta?'open':''} ${f.zerada?'zerada':''}" onclick="toggleListaRup(${f.listaId})">
+      <td><div class="fornec-nome">${f.fornecedor||'N/I'}</div><div class="cod">Lista #${f.listaId}${f.codFornec?' · Forn. #'+f.codFornec:''}</div></td>
+      <td class="c">${n(f.rupturas,'num-rup')}</td>
+      <td class="c">${n(f.urgencia,'num-urg')}</td>
+      <td class="c">${n(f.em_risco,'num-ris')}</td>
+      <td class="c">${n(f.excesso,'num-exc')}</td>
+      <td class="r">${f.perda > 0 ? `<span class="num-rup">${fmt(f.perda)}</span>` : '<span class="num-zero">—</span>'}</td>
+      <td style="font-size:11px;color:#4E5A72">${f.lojas||'—'}</td>
+      <td class="c" onclick="event.stopPropagation()"><button class="btn-mini" onclick="criarSugestaoDaLista(${f.listaId})">+ Criar Sugestão</button></td>
+    </tr>
+    ${aberta ? `<tr class="detalhe-row on"><td colspan="8">${renderDetalheRup(f.listaId)}</td></tr>` : ''}`;
+  }).join('');
+  wrap.innerHTML = kpis + `<div class="table-wrap"><table class="rup-t"><thead><tr>
+      <th>Fornecedor / Lista</th><th class="c">🔴 Rupturas</th><th class="c">🟠 Urgência ≤3d</th><th class="c">🟡 Em risco</th>
+      <th class="c">Excesso</th><th class="r">Perda / dia</th><th>Lojas</th><th class="c">Ação</th>
+    </tr></thead><tbody>${linhas}</tbody></table></div>`;
+}
+
+function toggleListaRup(listaId){
+  listaRupAberta = listaRupAberta === listaId ? null : listaId;
+  abaRupAberta = 'rup';
+  renderRupturas();
+}
+function mudarAbaRup(e, aba){ e.stopPropagation(); abaRupAberta = aba; renderRupturas(); }
+
+function renderDetalheRup(listaId){
+  const d = dadosRup;
+  const filtrar = arr => (arr||[]).filter(x => x.listaId == listaId);
+  const abas = [
+    { id:'rup', label:'🔴 Rupturas',      dados: filtrar(d.rupturas) },
+    { id:'urg', label:'🟠 Urgência ≤3d',  dados: filtrar(d.sem_pedido) },
+    { id:'ris', label:'🟡 Em risco',      dados: filtrar(d.em_risco) },
+    { id:'exc', label:'Excesso',          dados: filtrar(d.excesso) },
+  ];
+  const atual = abas.find(a => a.id === abaRupAberta) || abas[0];
+  const botoes = abas.map(a => `<button class="${a.id===atual.id?'on':''}" onclick="mudarAbaRup(event,'${a.id}')">${a.label} (${a.dados.length})</button>`).join('');
+  let corpo;
+  if (!atual.dados.length) corpo = '<div class="empty" style="padding:18px">Nenhum produto nessa categoria.</div>';
+  else corpo = `<table class="det-t"><thead><tr>
+      <th>Loja</th><th>Produto</th><th class="r">Estoque</th><th class="r">Cobertura</th><th class="r">VMD un</th><th class="r">VMD R$</th>${atual.id==='rup'?'<th class="r">Perda/dia</th>':''}
+    </tr></thead><tbody>${atual.dados.map(x => `<tr>
+      <td class="loja">${x.lj || LOJAS_NOMES_RUP[x.loja] || x.loja}</td>
+      <td style="white-space:normal;color:#0E1626;font-weight:600">${x.produto||''}</td>
+      <td class="r">${x.estoque}</td>
+      <td class="r" style="color:${x.cobertura<=3?'#C22F49':x.cobertura<=7?'#E08A00':'inherit'}">${x.cobertura>0?fmtD(x.cobertura):'—'}</td>
+      <td class="r">${(x.vmd||0).toFixed(2)}</td>
+      <td class="r">${fmt(x.vmd_valor)}</td>
+      ${atual.id==='rup'?`<td class="r" style="color:#C22F49;font-weight:700">${fmt(x.vmd_valor)}</td>`:''}
+    </tr>`).join('')}</tbody></table>`;
+  return `<div class="rup-det" onclick="event.stopPropagation()">
+    <div class="rup-abas">${botoes}<button class="criar" onclick="criarSugestaoDaLista(${listaId})">+ Criar Sugestão desta lista</button></div>
+    ${corpo}
+  </div>`;
+}
+
+function criarSugestaoDaLista(listaId){
+  abrirNovaSugestao(listaId);
+}
+
+carregarCompradoresRup();
 </script>
 </body>
 </html>

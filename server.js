@@ -5186,7 +5186,7 @@ app.get('/api/ruptura', withCache(10), async (req, res) => {
       alertas: alertas.slice(0, 100),
       plano,
       lojas: Object.values(lojasMap).sort((a, b) => b.perda - a.perda),
-      ranking_fornec: rankingFornec.slice(0, 50),
+      ranking_fornec: rankingFornec.slice(0, 200),
       previsao: {
         hoje: rupturas.length,
         amanha: emRisco.filter(x => x.risco === 'CRITICO').length,
