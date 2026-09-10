@@ -2313,14 +2313,32 @@ app.get('/api/fornecedores/:id/lojas', async (req, res) => {
     const dIni   = `${anoSel}-${String(mesSel).padStart(2,'0')}-01`;
     const dFim   = dFimMes(anoSel, mesSel);
 
-    const prods = await q(`SELECT DISTINCT CodigoBarra FROM central.fornecedoritens WHERE CodFornecedor=? AND Backup=0`, [id]);
-    const codigos = prods.map(p => p.CodigoBarra);
-    if (!codigos.length) return res.json([]);
-    const ph = codigos.map(() => '?').join(',');
+    // Com ?lista=: os itens ATIVOS da lista, e por loja só os que a lista tem
+    // pra aquela loja (l1..l6) — mesma regra das abas Produtos/Avaria.
+    // Sem lista: catálogo do fornecedor (fornecedoritens), como sempre.
+    const listaSel = req.query.lista ? parseInt(req.query.lista) : null;
+    let codigosPorLoja = {};
+    if (listaSel) {
+      const itensLista = await q(`
+        SELECT DISTINCT cli.Codigobarra, cli.l1, cli.l2, cli.l3, cli.l4, cli.l5, cli.l6
+        FROM central.c_cotacao_lista_itens cli
+        INNER JOIN central.itens it ON it.CodigoBarra = cli.Codigobarra AND it.CodDesativado = 0
+        WHERE cli.nCotacao = ?`, [listaSel]);
+      for (const ln of [1,2,3,4,5,6]) codigosPorLoja[ln] = itensLista.filter(r => r['l' + ln] == 1).map(r => r.Codigobarra);
+      if (!itensLista.length) return res.json([]);
+    } else {
+      const prods = await q(`SELECT DISTINCT CodigoBarra FROM central.fornecedoritens WHERE CodFornecedor=? AND Backup=0`, [id]);
+      const todos = prods.map(p => p.CodigoBarra);
+      if (!todos.length) return res.json([]);
+      for (const ln of [1,2,3,4,5,6]) codigosPorLoja[ln] = todos;
+    }
 
     const result = [];
     for (const ln of [1,2,3,4,5,6]) {
+      const codigos = codigosPorLoja[ln];
       let venda = 0, avaria = 0, custo = 0, qtd = 0;
+      if (!codigos.length) { result.push({ loja: ln, itens: 0, venda: 0, avaria: 0, lucro: 0, msv: 0, pct_av: 0 }); continue; }
+      const ph = codigos.map(() => '?').join(',');
       try {
         const [vr] = await q(`
           SELECT SUM(QtdNovo) as qtd, SUM(ValorTotalNovo) as v
@@ -2331,7 +2349,8 @@ app.get('/api/fornecedores/:id/lojas', async (req, res) => {
         qtd   = parseFloat(vr?.qtd || 0);
       } catch (e) {}
       try {
-        const [ar] = await q(`SELECT SUM(Total) v FROM central.avariaconsumo WHERE nLoja=? AND CodFornec=? AND DataLan BETWEEN ? AND ?`, [ln, id, dIni, dFim]);
+        const [ar] = await q(`SELECT SUM(Total) v FROM central.avariaconsumo WHERE nLoja=? AND CodFornec=? AND DataLan BETWEEN ? AND ?${listaSel ? ` AND CodigoBarras IN (${ph})` : ''}`,
+          listaSel ? [ln, id, dIni, dFim, ...codigos] : [ln, id, dIni, dFim]);
         avaria = parseFloat(ar?.v || 0);
       } catch (e) {}
       try {
@@ -2352,6 +2371,7 @@ app.get('/api/fornecedores/:id/lojas', async (req, res) => {
       const lucro = venda - custo;
       result.push({
         loja:   ln,
+        itens:  codigos.length,
         venda:  +venda.toFixed(2),
         avaria: +avaria.toFixed(2),
         lucro:  +lucro.toFixed(2),

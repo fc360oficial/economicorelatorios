@@ -131,8 +131,12 @@ table.d-t tbody tr:hover{background:#ffffff06}
 .loja-val{font-size:12px;font-weight:700;color:#0E1626;min-width:90px;text-align:right}
 .loja-msv{font-size:11px;min-width:54px;text-align:right}
 .loja-av{font-size:11px;min-width:70px;text-align:right}
+.loja-itens{font-size:11px;min-width:44px;text-align:right;color:#4E5A72}
+.loja-hd{background:#EBEBE955;border-bottom:1px solid #DADAD6;cursor:default}
+.loja-hd:hover{background:#EBEBE955}
+.loja-hd>div{font-size:9.5px!important;font-weight:700!important;color:#98A0B3!important;text-transform:uppercase;letter-spacing:.5px}
 .badge-loja{font-size:9px;font-weight:700;border-radius:3px;padding:1px 5px;margin-left:4px}
-.bl-gold{background:#B45C00;color:#B45C00}
+.bl-gold{background:#FFF6D9;color:#6B4E00}
 .bl-green{background:#E7F5EC;color:#137A48}
 .bl-blue{background:#E9EEF3;color:#4E5A72}
 
@@ -669,9 +673,10 @@ async function getAvaria(id, loja, mes, ano) {
   return cacheAvaria[key];
 }
 async function getLojas(id, mes, ano) {
-  const key = `${id}-${mes}-${ano}`;
+  const lista = listaAtivaId ? `&lista=${listaAtivaId}` : '';
+  const key = `${id}-${mes}-${ano}-${listaAtivaId||''}`;
   if (!cacheLojas[key]) {
-    const r = await fetch(`/api/fornecedores/${id}/lojas?mes=${mes}&ano=${ano}`);
+    const r = await fetch(`/api/fornecedores/${id}/lojas?mes=${mes}&ano=${ano}${lista}`);
     cacheLojas[key] = await r.json();
   }
   return cacheLojas[key];
@@ -884,23 +889,38 @@ async function renderLojas(id, mes, ano, body) {
   const totalAv = lojas.reduce((s,r)=>s+r.avaria,0);
   const totalL  = lojas.reduce((s,r)=>s+r.lucro,0);
 
+  const ctx = listaAtivaId ? `Lista #${listaAtivaId}` : 'catálogo do fornecedor';
   let html = `
     <div class="d-kpis">
-      <div class="d-kpi"><div class="dv" style="color:#0E1626">${fmt(totalV)}</div><div class="dl">Venda Total (Rede)</div></div>
-      <div class="d-kpi"><div class="dv" style="color:#0E1626">${fmt(totalL)}</div><div class="dl">Lucro Bruto (Rede)</div></div>
-      <div class="d-kpi"><div class="dv" style="color:#C22F49">${fmt(totalAv)}</div><div class="dl">Avaria Total (Rede)</div></div>
+      <div class="d-kpi"><div class="dv" style="color:#0E1626">${fmt(totalV)}</div><div class="dl">Venda · soma das 6 lojas</div></div>
+      <div class="d-kpi"><div class="dv" style="color:#0E1626">${fmt(totalL)}</div><div class="dl">Lucro bruto · soma das 6 lojas</div></div>
+      <div class="d-kpi"><div class="dv" style="color:#C22F49">${fmt(totalAv)}</div><div class="dl">Avaria · soma das 6 lojas</div></div>
     </div>
-    <div class="d-section" style="padding:0">`;
+    <div style="padding:10px 18px 4px;font-size:11px;color:#98A0B3">
+      Comparativo loja a loja · ${ctx} · ${mesesNomes[+mes]} ${ano}${listaAtivaId ? ' · cada loja conta só os itens que a lista tem pra ela' : ''}
+    </div>
+    <div class="d-section" style="padding:0">
+      <div class="loja-row loja-hd">
+        <div class="loja-label">Loja</div>
+        <div class="loja-bar-wrap" style="background:transparent;height:auto;overflow:visible">Participação na venda</div>
+        <div class="loja-itens">Itens</div>
+        <div class="loja-val">Venda</div>
+        <div class="loja-msv">Marg. S/V</div>
+        <div class="loja-av">Avaria</div>
+        <div style="min-width:160px">Destaques</div>
+      </div>`;
 
   lojas.forEach(r => {
     const pct = (r.venda/maxV*100).toFixed(1);
     const badges = [];
-    if (r.badge_venda)  badges.push('<span class="badge-loja bl-gold">🥇 Maior Venda</span>');
-    if (r.badge_msv)    badges.push('<span class="badge-loja bl-green">📈 Melhor Margem</span>');
-    if (r.badge_avaria) badges.push('<span class="badge-loja bl-blue">✅ Menor Avaria</span>');
-    html += `<div class="loja-row">
+    if (r.badge_venda)  badges.push('<span class="badge-loja bl-gold">🥇 Maior venda</span>');
+    if (r.badge_msv)    badges.push('<span class="badge-loja bl-green">📈 Melhor margem</span>');
+    if (r.badge_avaria) badges.push('<span class="badge-loja bl-blue">✅ Menor avaria</span>');
+    const semItens = r.itens === 0;
+    html += `<div class="loja-row" title="${semItens ? 'A lista não tem itens marcados pra esta loja' : `Loja ${r.loja}: ${r.itens ?? ''} itens · venda ${fmt(r.venda)} · margem s/ venda ${pctFmt(r.msv)} · avaria ${fmt(r.avaria)} (${pctFmt(r.pct_av)} da venda)`}">
       <div class="loja-label">Loja ${r.loja}</div>
       <div class="loja-bar-wrap"><div class="loja-bar-fill" style="width:${pct}%"></div></div>
+      <div class="loja-itens">${r.itens != null ? r.itens : '—'}</div>
       <div class="loja-val">${r.venda>0?fmt(r.venda):'—'}</div>
       <div class="loja-msv ${msvClass(r.msv)}">${r.venda>0?pctFmt(r.msv):'—'}</div>
       <div class="loja-av ${avClass(r.pct_av)}">${r.avaria>0?fmt(r.avaria):'—'}</div>
