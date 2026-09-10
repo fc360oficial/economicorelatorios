@@ -276,7 +276,8 @@
         var grp = hd.closest('.dn-group');
         var estavaAberto = grp.classList.contains('open');
         aside.querySelectorAll('.dn-group.open').forEach(function (g) { g.classList.remove('open'); });
-        if (!estavaAberto) grp.classList.add('open');
+        aside.querySelectorAll('.dn-group-hd.on').forEach(function (h) { h.classList.remove('on'); });
+        if (!estavaAberto) { grp.classList.add('open'); hd.classList.add('on'); }
       });
     });
 
