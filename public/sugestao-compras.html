@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="/design-system.css">
+<script src="/nav.js" defer></script>
+<title>Sugestão de Compras — Econômico Relatórios</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'InterVar','Segoe UI',sans-serif;background:#EBEBE9;color:#0E1626;min-height:100vh}
+.main{padding:24px}
+.page-hdr{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:18px;gap:12px;flex-wrap:wrap}
+.page-hdr h1{font-size:21px;font-weight:800;letter-spacing:-.3px}
+.page-hdr p{font-size:12px;color:#4E5A72;margin-top:2px}
+
+.filtros{background:#FFFFFF;border:1px solid #DADAD6;border-radius:12px;padding:14px 18px;margin-bottom:16px;display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.fg{display:flex;flex-direction:column;gap:4px}
+.fg label{font-size:10px;color:#4E5A72;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+.fg select,.fg input{background:#EBEBE9;border:1px solid #DADAD6;border-radius:7px;color:#0E1626;padding:7px 11px;font-size:12.5px;outline:none;min-width:140px;font-family:inherit}
+.fg select:focus,.fg input:focus{border-color:#F5B800}
+.btn{border:none;border-radius:8px;padding:9px 16px;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:inherit}
+.btn-blue{background:#F5B800;color:#6B4E00}.btn-blue:hover{background:#E5AC00}
+.btn-slate{background:#FFFFFF;border:1px solid #C9C9C4;color:#4E5A72}.btn-slate:hover{background:#DADAD6}
+
+.empty{padding:60px 20px;text-align:center;color:#98A0B3;font-size:13px}
+.spinner{width:26px;height:26px;border:3px solid #DADAD6;border-top-color:#F5B800;border-radius:50%;animation:spin .7s linear infinite;margin:40px auto}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* cabeçalho da sugestão selecionada */
+.sug-hdr{background:#101B33;border-radius:12px;padding:16px 20px;margin-bottom:16px;color:#fff;display:flex;flex-wrap:wrap;gap:18px;align-items:center}
+.sug-hdr .fornec{flex:1;min-width:260px}
+.sug-hdr .fornec b{font-size:15px;letter-spacing:-.2px}
+.sug-hdr .fornec span{display:block;font-size:11px;color:#AEB8CE;margin-top:2px}
+.sug-hdr .meta{font-size:11px;color:#AEB8CE;text-align:right;line-height:1.7}
+.sug-hdr .meta b{color:#FFC933;font-weight:700}
+.sug-hdr .voltar{background:rgba(255,255,255,.1);border:none;color:#fff;border-radius:7px;padding:6px 12px;font-size:11.5px;font-weight:700;cursor:pointer;flex-shrink:0}
+.sug-hdr .voltar:hover{background:rgba(255,255,255,.18)}
+
+.totais{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.tkpi{background:#FFFFFF;border:1px solid #DADAD6;border-radius:10px;padding:11px 16px;min-width:135px;flex:1}
+.tkpi .v{font-size:18px;font-weight:800;letter-spacing:-.3px;font-variant-numeric:tabular-nums}
+.tkpi .l{font-size:9.5px;color:#98A0B3;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-top:2px}
+.tkpi .v.pos{color:#137A48}.tkpi .v.neg{color:#C22F49}
+
+.busca-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.busca-row input{flex:1;max-width:420px;border:1px solid #C9C9C4;border-radius:8px;padding:8px 12px;font-size:12.5px;font-family:inherit}
+.busca-row .contagem{font-size:11.5px;color:#98A0B3;font-weight:600}
+
+.table-wrap{overflow-x:auto;border-radius:12px;border:1px solid #DADAD6;background:#FFFFFF;box-shadow:0 1px 3px rgba(14,22,38,.07);margin-bottom:18px}
+table.main-t{width:100%;border-collapse:collapse;font-size:12.5px}
+table.main-t th{text-align:left;font-size:10px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:#4E5A72;background:#EBEBE9;padding:10px 14px;white-space:nowrap;border-bottom:1px solid #DADAD6}
+table.main-t th.r,table.main-t td.r{text-align:right}
+table.main-t th.c,table.main-t td.c{text-align:center}
+table.main-t td{padding:10px 14px;border-top:1px solid #DADAD6;white-space:nowrap}
+table.main-t tbody tr{cursor:pointer}
+table.main-t tbody tr:hover{background:#EBEBE955}
+table.main-t tbody tr.open{background:#FFF6D9}
+.cod{color:#98A0B3;font-size:10px;font-family:monospace}
+.desc{font-weight:600;color:#0E1626;white-space:normal;min-width:240px}
+.sug-input{width:64px;text-align:center;border:1px solid #C9C9C4;border-radius:6px;padding:5px 6px;font-size:12.5px;font-weight:700;font-family:inherit;color:#0E1626}
+.badge{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;border-radius:20px;padding:3px 10px}
+.badge.alto{background:#FBEAED;color:#C22F49}
+.badge.medio{background:#FFF6D9;color:#6B4E00}
+.badge.baixo{background:#E7F5EC;color:#137A48}
+.badge.ok{background:#E9EEF6;color:#2E5E8C}
+.badge.sem_venda{background:#F1F2ED;color:#98A0B3}
+
+/* detalhe por loja */
+.detalhe-row td{padding:0;border-top:none}
+.detalhe{background:#F7F7F5;padding:14px 20px;border-top:1px solid #DADAD6}
+.detalhe h4{font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:#98A0B3;margin-bottom:8px}
+table.det-t{width:100%;border-collapse:collapse;font-size:12px}
+table.det-t th{text-align:left;font-size:9.5px;text-transform:uppercase;color:#98A0B3;padding:6px 10px;font-weight:700}
+table.det-t th.r,table.det-t td.r{text-align:right}
+table.det-t td{padding:7px 10px;border-top:1px solid #DADAD6;color:#4E5A72}
+table.det-t td.loja{font-weight:700;color:#0E1626}
+
+@media print{
+  #dsnav,.filtros,.busca-row,.btn-imprimir,table.main-t tbody tr:not(.open),.detalhe-row:not(.on){display:none!important}
+  body.dsnav-pad{margin-left:0!important}
+}
+</style>
+</head>
+<body class="ds">
+<div class="main" id="main">
+
+  <div class="page-hdr">
+    <div>
+      <h1>Sugestão de Compras</h1>
+      <p>Quantidade sugerida por cobertura de estoque — estoque atual + venda média do período, comparado a uma cobertura alvo.</p>
+    </div>
+  </div>
+
+  <div class="filtros" id="filtros-lista">
+    <div class="fg" style="min-width:260px;flex:1">
+      <label>Lista</label>
+      <input type="text" id="f-busca-lista" placeholder="Buscar por fornecedor ou nº da lista..." oninput="filtrarListas()">
+    </div>
+    <div class="fg">
+      <label>Comprador</label>
+      <select id="f-comprador" onchange="carregarListas()"><option value="">Todos</option></select>
+    </div>
+  </div>
+
+  <div id="listas-wrap">
+    <div class="spinner"></div>
+  </div>
+
+  <div id="sugestao-wrap" style="display:none">
+    <div class="sug-hdr">
+      <button class="voltar" onclick="voltarListas()">← Listas</button>
+      <div class="fornec"><b id="s-fornecedor">—</b><span id="s-lista">—</span></div>
+      <div class="meta">
+        Período: <b id="s-periodo">—</b><br>
+        Cobertura alvo: <b id="s-cobertura-lbl">20 dias</b>
+      </div>
+    </div>
+
+    <div class="filtros">
+      <div class="fg"><label>Loja</label>
+        <select id="f-loja" onchange="carregarSugestao()">
+          <option value="todas">Todas as Lojas</option>
+          <option value="1">Loja 1</option><option value="2">Loja 2</option><option value="3">Loja 3</option>
+          <option value="4">Loja 4</option><option value="5">Loja 5</option><option value="6">Loja 6</option>
+        </select>
+      </div>
+      <div class="fg"><label>Mês</label><select id="f-mes" onchange="carregarSugestao()"></select></div>
+      <div class="fg"><label>Ano</label><select id="f-ano" onchange="carregarSugestao()"></select></div>
+      <div class="fg"><label>Cobertura alvo (dias)</label><input type="number" id="f-cobertura" value="20" min="1" style="width:90px" onchange="carregarSugestao()"></div>
+      <button class="btn btn-slate" onclick="exportarExcelSugestao()">📊 Excel</button>
+      <button class="btn btn-slate btn-imprimir" onclick="window.print()">🖨️ Imprimir</button>
+    </div>
+
+    <div class="totais" id="totais-wrap"></div>
+
+    <div class="busca-row">
+      <input type="text" id="f-busca-item" placeholder="Buscar por código ou descrição — use % como coringa" oninput="renderTabelaSugestao()">
+      <span class="contagem" id="contagem-itens"></span>
+    </div>
+
+    <div class="table-wrap">
+      <table class="main-t">
+        <thead><tr>
+          <th>Código</th><th>Descrição</th><th class="c">Und</th><th class="c">Emb</th>
+          <th class="r">Estoque</th><th class="r">Dias Cob.</th><th class="c">Quantidade</th><th class="c">Prioridade</th>
+        </tr></thead>
+        <tbody id="itens-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const mesesNomes = {1:'Janeiro',2:'Fevereiro',3:'Março',4:'Abril',5:'Maio',6:'Junho',7:'Julho',8:'Agosto',9:'Setembro',10:'Outubro',11:'Novembro',12:'Dezembro'};
+function fmt(v){ return 'R$ ' + (v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function pctFmt(v){ return (v==null?'—':v.toFixed(1).replace('.',',')+'%'); }
+
+function bateBusca(texto, termo) {
+  if (!termo) return true;
+  const t = (texto || '').toUpperCase();
+  if (termo.includes('%')) {
+    const partes = termo.toUpperCase().split('%').map(p => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    return new RegExp(partes.join('.*')).test(t);
+  }
+  return t.includes(termo.toUpperCase());
+}
+
+let listas = [];
+let listaAtual = null;
+let sugestaoAtual = null;
+let linhaAberta = null;
+
+(function preencherMesAno(){
+  const hoje = new Date();
+  const selMes = document.getElementById('f-mes'), selAno = document.getElementById('f-ano');
+  for (let m = 1; m <= 12; m++) selMes.innerHTML += `<option value="${m}"${m===hoje.getMonth()+1?' selected':''}>${mesesNomes[m]}</option>`;
+  for (let a = hoje.getFullYear(); a >= hoje.getFullYear()-2; a--) selAno.innerHTML += `<option value="${a}">${a}</option>`;
+})();
+
+async function carregarListas(){
+  document.getElementById('listas-wrap').innerHTML = '<div class="spinner"></div>';
+  try {
+    const comp = document.getElementById('f-comprador').value;
+    const r = await fetch(`/api/listas-compra?comprador=${encodeURIComponent(comp)}`);
+    const json = await r.json();
+    listas = json.listas || [];
+    if (json.compradores) {
+      const sel = document.getElementById('f-comprador');
+      const cur = sel.value;
+      sel.innerHTML = '<option value="">Todos</option>' + json.compradores.map(c=>`<option value="${c}"${c===cur?' selected':''}>${c}</option>`).join('');
+    }
+    filtrarListas();
+  } catch(e) {
+    document.getElementById('listas-wrap').innerHTML = `<div class="empty">Erro: ${e.message}</div>`;
+  }
+}
+
+function filtrarListas(){
+  const termo = document.getElementById('f-busca-lista').value;
+  const filtradas = listas.filter(l => bateBusca(l.nome, termo) || bateBusca(l.fornecedor, termo) || bateBusca(String(l.id), termo));
+  const wrap = document.getElementById('listas-wrap');
+  if (!filtradas.length) { wrap.innerHTML = '<div class="empty">Nenhuma lista encontrada.</div>'; return; }
+  wrap.innerHTML = `<div class="table-wrap"><table class="main-t"><thead><tr>
+    <th>Lista</th><th>Fornecedor</th><th>Comprador(es)</th><th class="r">Itens ativos</th>
+  </tr></thead><tbody>${filtradas.map(l => `
+    <tr onclick="abrirSugestao(${l.id})">
+      <td><b>${l.nome}</b> <span class="cod">#${l.id}</span></td>
+      <td>${l.fornecedor||'—'}</td>
+      <td>${l.compradores||'—'}</td>
+      <td class="r">${l.total_itens}</td>
+    </tr>`).join('')}</tbody></table></div>`;
+}
+
+function abrirSugestao(id){
+  listaAtual = id;
+  document.getElementById('filtros-lista').style.display = 'none';
+  document.getElementById('listas-wrap').style.display = 'none';
+  document.getElementById('sugestao-wrap').style.display = 'block';
+  carregarSugestao();
+}
+function voltarListas(){
+  document.getElementById('filtros-lista').style.display = 'flex';
+  document.getElementById('listas-wrap').style.display = 'block';
+  document.getElementById('sugestao-wrap').style.display = 'none';
+  listaAtual = null; sugestaoAtual = null; linhaAberta = null;
+}
+
+async function carregarSugestao(){
+  if (!listaAtual) return;
+  const loja = document.getElementById('f-loja').value;
+  const mes = document.getElementById('f-mes').value;
+  const ano = document.getElementById('f-ano').value;
+  const cobertura = document.getElementById('f-cobertura').value;
+  document.getElementById('itens-tbody').innerHTML = '<tr><td colspan="8" style="padding:30px;text-align:center"><div class="spinner"></div></td></tr>';
+  try {
+    const r = await fetch(`/api/sugestao-compras/${listaAtual}/itens?loja=${loja}&mes=${mes}&ano=${ano}&cobertura=${cobertura}`);
+    const json = await r.json();
+    if (json.error) throw new Error(json.error);
+    sugestaoAtual = json;
+    linhaAberta = null;
+
+    document.getElementById('s-fornecedor').textContent = json.fornecedor || '—';
+    document.getElementById('s-lista').textContent = `${json.lista} · Lista #${json.lista_id}`;
+    document.getElementById('s-periodo').textContent = `${json.periodo.dIni.split('-').reverse().join('/')} até ${json.periodo.dFim.split('-').reverse().join('/')} (${json.periodo.dias} dias)`;
+    document.getElementById('s-cobertura-lbl').textContent = `${json.cobertura_alvo} dias`;
+
+    const t = json.totais || {};
+    document.getElementById('totais-wrap').innerHTML = `
+      <div class="tkpi"><div class="v">${fmt(t.valor_total_compra)}</div><div class="l">Valor Total Compra</div></div>
+      <div class="tkpi"><div class="v">${fmt(t.receita_prevista)}</div><div class="l">Receita Prevista</div></div>
+      <div class="tkpi"><div class="v">${t.total_itens ?? 0}</div><div class="l">Total Itens</div></div>
+      <div class="tkpi"><div class="v">${t.total_volumes ?? 0}</div><div class="l">Total Volumes</div></div>
+      <div class="tkpi"><div class="v ${t.margem_prevista>0?'pos':t.margem_prevista<0?'neg':''}">${pctFmt(t.margem_prevista)}</div><div class="l">Margem Prevista</div></div>
+      <div class="tkpi"><div class="v">${t.cobertura_media_final ?? '—'}${t.cobertura_media_final!=null?' dias':''}</div><div class="l">Cobertura Média Final</div></div>
+    `;
+    renderTabelaSugestao();
+  } catch(e) {
+    document.getElementById('itens-tbody').innerHTML = `<tr><td colspan="8" class="empty">Erro: ${e.message}</td></tr>`;
+  }
+}
+
+const PRIORIDADE_LABEL = { alto:'🔴 Alto', medio:'🟡 Médio', baixo:'🟢 Baixo' };
+function badgePrioridade(it){
+  if (it.status === 'ok') return '<span class="badge ok">OK</span>';
+  if (it.status === 'sem_venda') return '<span class="badge sem_venda">Sem venda</span>';
+  return `<span class="badge ${it.prioridade}">${PRIORIDADE_LABEL[it.prioridade]||it.prioridade}</span>`;
+}
+
+function renderTabelaSugestao(){
+  if (!sugestaoAtual) return;
+  const termo = document.getElementById('f-busca-item').value;
+  const itens = sugestaoAtual.itens.filter(it => bateBusca(it.descricao, termo) || bateBusca(it.codigo, termo));
+  document.getElementById('contagem-itens').textContent = `${itens.length} de ${sugestaoAtual.itens.length} produto(s)`;
+  const tbody = document.getElementById('itens-tbody');
+  if (!itens.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty">Nenhum item encontrado.</td></tr>'; return; }
+
+  tbody.innerHTML = itens.map(it => `
+    <tr class="${linhaAberta===it.codigo?'open':''}" onclick="toggleDetalhe(event,'${it.codigo}')">
+      <td class="cod">${it.codigo}</td>
+      <td class="desc">${it.descricao}</td>
+      <td class="c">${it.unidade}</td>
+      <td class="c">${it.embalagem}</td>
+      <td class="r">${it.estoque_atual}</td>
+      <td class="r">${it.dias_cobertura ?? '—'}</td>
+      <td class="c" onclick="event.stopPropagation()"><input class="sug-input" type="number" min="0" value="${it.sugestao_qtd}" data-codigo="${it.codigo}"></td>
+      <td class="c">${badgePrioridade(it)}</td>
+    </tr>
+    <tr class="detalhe-row ${linhaAberta===it.codigo?'on':''}" id="det-${it.codigo}" style="display:${linhaAberta===it.codigo?'table-row':'none'}">
+      <td colspan="8"><div class="detalhe">
+        <h4>Detalhe por loja</h4>
+        <table class="det-t"><thead><tr>
+          <th>Loja</th><th>Últ. Compra</th><th>Últ. Venda</th><th class="r">Estoque</th>
+          <th class="r">Méd./Dia</th><th class="r">Dias Cob.</th><th class="r">Sugestão</th><th class="c">Status</th>
+        </tr></thead><tbody>
+          ${it.lojas.map(l => `<tr>
+            <td class="loja">Loja ${l.loja}</td>
+            <td>${l.ultima_compra||'—'}</td>
+            <td>${l.ultima_venda||'—'}</td>
+            <td class="r">${l.estoque}</td>
+            <td class="r">${l.venda_media_dia}</td>
+            <td class="r">${l.dias_cobertura ?? '—'}</td>
+            <td class="r">${l.sugestao_qtd}</td>
+            <td class="c">${badgePrioridade(l)}</td>
+          </tr>`).join('')}
+        </tbody></table>
+      </div></td>
+    </tr>
+  `).join('');
+}
+
+function toggleDetalhe(e, codigo){
+  if (e.target.closest('input')) return;
+  linhaAberta = linhaAberta === codigo ? null : codigo;
+  renderTabelaSugestao();
+}
+
+function exportarExcelSugestao(){
+  if (!sugestaoAtual) return;
+  const linhas = [['Código','Descrição','Unidade','Embalagem','Estoque Atual','Venda Média/Dia','Dias Cobertura','Quantidade Sugerida','Status','Prioridade']];
+  sugestaoAtual.itens.forEach(it => linhas.push([it.codigo, it.descricao, it.unidade, it.embalagem, it.estoque_atual, it.venda_media_dia, it.dias_cobertura??'', it.sugestao_qtd, it.status, it.prioridade||'']));
+  const csv = linhas.map(l => l.map(c => `"${String(c).replace(/"/g,'""')}"`).join(';')).join('\n');
+  const blob = new Blob(['﻿'+csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `sugestao-compras-lista-${listaAtual}.csv`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+carregarListas();
+</script>
+</body>
+</html>

@@ -2892,6 +2892,150 @@ app.get('/api/produtos/:codigo/detalhe', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ═══════════════════════════════════════════════════
+// SUGESTÃO DE COMPRAS — V1
+// Sugere quantidade a comprar por cobertura de estoque: estoque atual +
+// venda média diária do período vs. uma cobertura alvo (dias). Não gera
+// cotação/pedido ainda (não existe workflow pra isso no app) — só a
+// sugestão de quantidade, por produto e por loja.
+// ═══════════════════════════════════════════════════
+app.get('/api/sugestao-compras/:listaId/itens', async (req, res) => {
+  try {
+    const listaId = parseInt(req.params.listaId);
+    const hoje = new Date();
+    const mesSel = req.query.mes ? parseInt(req.query.mes) : hoje.getMonth() + 1;
+    const anoSel = req.query.ano ? parseInt(req.query.ano) : hoje.getFullYear();
+    const coberturaAlvo = Math.max(1, parseFloat(req.query.cobertura) || 20);
+    const lojas = req.query.loja && req.query.loja !== 'todas' ? [parseInt(req.query.loja) || 1] : [1, 2, 3, 4, 5, 6];
+    const mm = mesDB(mesSel);
+    const dIni = `${anoSel}-${String(mesSel).padStart(2, '0')}-01`;
+    const dFim = dFimMes(anoSel, mesSel);
+    const diasPeriodo = Math.max(1, Math.round((new Date(dFim) - new Date(dIni)) / 86400000) + 1);
+
+    const [lista] = await q(`SELECT Nome, NomeFornec, CodFornec FROM central.c_cotacao_lista WHERE nReg=?`, [listaId]);
+    if (!lista) return res.status(404).json({ error: 'Lista não encontrada' });
+
+    let where = "i.nCotacao = ? AND it.CodDesativado = 0";
+    const params = [listaId];
+    if (lojas.length === 1) where += ` AND i.l${lojas[0]} = 1`;
+    else where += " AND (i.l1=1 OR i.l2=1 OR i.l3=1 OR i.l4=1 OR i.l5=1 OR i.l6=1)";
+
+    const itensBase = await q(`
+      SELECT i.Codigobarra, TRIM(it.Descricao) as descricao, it.Unid, it.qtdemb,
+             i.l1, i.l2, i.l3, i.l4, i.l5, i.l6
+      FROM central.c_cotacao_lista_itens i
+      INNER JOIN central.itens it ON it.CodigoBarra = i.Codigobarra
+      WHERE ${where}
+      ORDER BY it.Descricao
+    `, params);
+    if (!itensBase.length) return res.json({ fornecedor: lista.NomeFornec?.trim(), lista: lista.Nome?.trim(), periodo: { dIni, dFim, dias: diasPeriodo }, cobertura_alvo: coberturaAlvo, itens: [], totais: {} });
+
+    const codigos = itensBase.map(r => r.Codigobarra);
+    const ph = codigos.map(() => '?').join(',');
+
+    // por loja: estoque atual, venda no período (qtd+valor), última entrada/venda
+    const porLoja = {};
+    for (const ln of lojas) {
+      porLoja[ln] = {};
+      for (const cod of codigos) porLoja[ln][cod] = { estoque: 0, qtdVendida: 0, valorVendido: 0, custo: 0, ultimaCompra: null, ultimaVenda: null };
+      try {
+        const er = await q(`SELECT CodigoBarra, Qtd FROM central.estoquen${ln} WHERE CodigoBarra IN (${ph})`, codigos);
+        for (const r of er) if (porLoja[ln][r.CodigoBarra]) porLoja[ln][r.CodigoBarra].estoque = parseFloat(r.Qtd || 0);
+      } catch (e) {}
+      try {
+        const cr = await q(`SELECT CodigoBarra, Custo, UltimaCompra FROM central.custoloja${ln} WHERE CodigoBarra IN (${ph})`, codigos);
+        for (const r of cr) if (porLoja[ln][r.CodigoBarra]) {
+          porLoja[ln][r.CodigoBarra].custo = parsePreco(r.Custo);
+          if (r.UltimaCompra) porLoja[ln][r.CodigoBarra].ultimaCompra = new Date(r.UltimaCompra).toLocaleDateString('pt-BR');
+        }
+      } catch (e) {}
+      try {
+        const vr = await q(`
+          SELECT Codigo, SUM(QtdNovo) qtd, SUM(ValorTotalNovo) valor, MAX(Data) ultima
+          FROM \`ln${ln}${mm}\`.zcupomitens
+          WHERE Data BETWEEN ? AND ? AND IndCancel='N' AND Codigo IN (${ph})
+          GROUP BY Codigo
+        `, [dIni, dFim, ...codigos]);
+        for (const r of vr) if (porLoja[ln][r.Codigo]) {
+          porLoja[ln][r.Codigo].qtdVendida = parseFloat(r.qtd || 0);
+          porLoja[ln][r.Codigo].valorVendido = parseFloat(r.valor || 0);
+          porLoja[ln][r.Codigo].ultimaVenda = r.ultima ? new Date(r.ultima).toLocaleDateString('pt-BR') : null;
+        }
+      } catch (e) {}
+    }
+
+    function classificar(diasCob, temVenda) {
+      if (!temVenda) return { status: 'sem_venda', prioridade: null };
+      if (diasCob >= coberturaAlvo) return { status: 'ok', prioridade: null };
+      const razao = diasCob / coberturaAlvo;
+      return { status: 'comprar', prioridade: razao <= 0.3 ? 'alto' : razao <= 0.7 ? 'medio' : 'baixo' };
+    }
+    function sugerir(diasCob, vendaDia, emb) {
+      if (vendaDia <= 0) return 0;
+      const falta = (coberturaAlvo - diasCob) * vendaDia;
+      if (falta <= 0) return 0;
+      const embN = parseFloat(emb) > 0 ? parseFloat(emb) : 1;
+      return Math.ceil(falta / embN) * embN;
+    }
+
+    let valorTotalCompra = 0, receitaPrevista = 0, volumesTotal = 0, coberturaSomaPonderada = 0, coberturaPeso = 0;
+    const itens = itensBase.map(base => {
+      const cod = base.Codigobarra;
+      let estoqueTot = 0, qtdVendidaTot = 0, valorVendidoTot = 0;
+      const lojasDetalhe = [];
+      for (const ln of lojas) {
+        const d = porLoja[ln][cod];
+        estoqueTot += d.estoque; qtdVendidaTot += d.qtdVendida; valorVendidoTot += d.valorVendido;
+        const vendaDiaLn = d.qtdVendida / diasPeriodo;
+        const diasCobLn = vendaDiaLn > 0 ? d.estoque / vendaDiaLn : (d.estoque > 0 ? Infinity : 0);
+        const clLn = classificar(diasCobLn, d.qtdVendida > 0);
+        const sugLn = sugerir(diasCobLn, vendaDiaLn, base.qtdemb);
+        lojasDetalhe.push({
+          loja: ln, estoque: +d.estoque.toFixed(2), venda_media_dia: +vendaDiaLn.toFixed(3),
+          dias_cobertura: isFinite(diasCobLn) ? Math.round(diasCobLn) : null,
+          sugestao_qtd: sugLn, status: clLn.status, prioridade: clLn.prioridade,
+          ultima_compra: d.ultimaCompra, ultima_venda: d.ultimaVenda, custo: +d.custo.toFixed(4)
+        });
+      }
+      const vendaDiaTot = qtdVendidaTot / diasPeriodo;
+      const diasCobTot = vendaDiaTot > 0 ? estoqueTot / vendaDiaTot : (estoqueTot > 0 ? Infinity : 0);
+      const cl = classificar(diasCobTot, qtdVendidaTot > 0);
+      const sugTot = sugerir(diasCobTot, vendaDiaTot, base.qtdemb);
+      const custoUnit = lojasDetalhe.find(l => l.custo > 0)?.custo || 0;
+      const precoMedio = qtdVendidaTot > 0 ? valorVendidoTot / qtdVendidaTot : 0;
+
+      if (sugTot > 0) {
+        valorTotalCompra += sugTot * custoUnit;
+        receitaPrevista += sugTot * precoMedio;
+        volumesTotal += Math.ceil(sugTot / (parseFloat(base.qtdemb) > 0 ? parseFloat(base.qtdemb) : 1));
+      }
+      if (isFinite(diasCobTot) && vendaDiaTot > 0) { coberturaSomaPonderada += diasCobTot; coberturaPeso++; }
+
+      return {
+        codigo: cod, descricao: base.descricao, unidade: base.Unid?.trim() || 'UN', embalagem: parseFloat(base.qtdemb) || 1,
+        estoque_atual: +estoqueTot.toFixed(2), venda_media_dia: +vendaDiaTot.toFixed(3),
+        dias_cobertura: isFinite(diasCobTot) ? Math.round(diasCobTot) : null,
+        sugestao_qtd: sugTot, status: cl.status, prioridade: cl.prioridade,
+        custo_unit: +custoUnit.toFixed(4), lojas: lojasDetalhe
+      };
+    });
+
+    const totais = {
+      valor_total_compra: +valorTotalCompra.toFixed(2),
+      receita_prevista: +receitaPrevista.toFixed(2),
+      margem_prevista: receitaPrevista > 0 ? +((receitaPrevista - valorTotalCompra) / receitaPrevista * 100).toFixed(1) : null,
+      total_itens: itens.filter(i => i.sugestao_qtd > 0).length,
+      total_volumes: volumesTotal,
+      cobertura_media_final: coberturaPeso > 0 ? Math.round(coberturaSomaPonderada / coberturaPeso) : null
+    };
+
+    res.json({
+      fornecedor: lista.NomeFornec?.trim(), fornecedor_codigo: lista.CodFornec, lista: lista.Nome?.trim(), lista_id: listaId,
+      periodo: { dIni, dFim, dias: diasPeriodo }, cobertura_alvo: coberturaAlvo, itens, totais
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/api/listas-compra/margem-resumo', async (req, res) => {
   try {
     const hoje = new Date();

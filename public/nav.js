@@ -63,7 +63,8 @@
         { href: '/centro-distribuicao.html', ic: 'cart',  txt: 'Centro Distribuição' },
         { href: '/ruptura.html',             ic: 'trend', txt: 'Gestão de Rupturas' },
         { href: '/fornecedores.html',        ic: 'bag',   txt: 'Lista de Compra' },
-        { href: '/ponta-gondola.html',       ic: 'store', txt: 'Ponta de Gôndola' }
+        { href: '/ponta-gondola.html',       ic: 'store', txt: 'Ponta de Gôndola' },
+        { href: '/sugestao-compras.html',    ic: 'trend', txt: 'Sugestão de Compras' }
       ]},
     { id: 'prevencao', ic: 'shield', txt: 'Prevenção', sub: [
         { href: '/prevencao.html', ic: 'shield', txt: 'Fechamento de Mês' }
