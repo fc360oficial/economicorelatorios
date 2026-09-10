@@ -2925,7 +2925,7 @@ app.get('/api/sugestoes-compra', async (req, res) => {
       WHERE ${where}
       GROUP BY p.nConsolidado
       ORDER BY p.nConsolidado DESC
-      LIMIT 150
+      LIMIT 5
     `, params);
 
     res.json(rows.map(r => ({
