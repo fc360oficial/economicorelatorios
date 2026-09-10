@@ -157,7 +157,9 @@ table.rup-t{width:100%;border-collapse:collapse;font-size:12.5px}
 table.rup-t th{text-align:left;font-size:10px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:#4E5A72;background:#EBEBE9;padding:10px 14px;white-space:nowrap;border-bottom:1px solid #DADAD6}
 table.rup-t th.c,table.rup-t td.c{text-align:center}
 table.rup-t th.r,table.rup-t td.r{text-align:right}
-table.rup-t td{padding:9px 14px;border-top:1px solid #DADAD6;white-space:nowrap}
+table.rup-t td{padding:9px 12px;border-top:1px solid #DADAD6;white-space:nowrap}
+table.rup-t td.fornec{white-space:normal;min-width:200px;max-width:340px}
+.lojas-pill{display:inline-block;background:#E9EEF6;color:#2E5E8C;font-size:11px;font-weight:700;border-radius:20px;padding:3px 9px;cursor:help}
 table.rup-t tbody tr.lista-row{cursor:pointer}
 table.rup-t tbody tr.lista-row:hover{background:#EBEBE955}
 table.rup-t tbody tr.lista-row.open{background:#FFF6D9}
@@ -808,13 +810,13 @@ function renderRupturas(){
   const linhas = listasRup.map(f => {
     const aberta = listaRupAberta === f.listaId;
     return `<tr class="lista-row ${aberta?'open':''} ${f.zerada?'zerada':''}" onclick="toggleListaRup(${f.listaId})">
-      <td><div class="fornec-nome">${f.fornecedor||'N/I'}</div><div class="cod">Lista #${f.listaId}${f.codFornec?' · Forn. #'+f.codFornec:''}</div></td>
+      <td class="fornec"><div class="fornec-nome">${f.fornecedor||'N/I'}</div><div class="cod">Lista #${f.listaId}${f.codFornec?' · Forn. #'+f.codFornec:''}</div></td>
       <td class="c">${n(f.rupturas,'num-rup')}</td>
       <td class="c">${n(f.urgencia,'num-urg')}</td>
       <td class="c">${n(f.em_risco,'num-ris')}</td>
       <td class="c">${n(f.excesso,'num-exc')}</td>
       <td class="r">${f.perda > 0 ? `<span class="num-rup">${fmt(f.perda)}</span>` : '<span class="num-zero">—</span>'}</td>
-      <td style="font-size:11px;color:#4E5A72">${f.lojas||'—'}</td>
+      <td class="c">${lojasPill(f.lojas)}</td>
       <td class="c" onclick="event.stopPropagation()"><button class="btn-mini" onclick="criarSugestaoDaLista(${f.listaId})">+ Criar Sugestão</button></td>
     </tr>
     ${aberta ? `<tr class="detalhe-row on"><td colspan="8">${renderDetalheRup(f.listaId)}</td></tr>` : ''}`;
@@ -825,6 +827,11 @@ function renderRupturas(){
     </tr></thead><tbody>${linhas}</tbody></table></div>`;
 }
 
+function lojasPill(lojas){
+  const arr = String(lojas||'').split(',').map(x => x.trim()).filter(Boolean);
+  if (!arr.length) return '<span class="num-zero">—</span>';
+  return `<span class="lojas-pill" title="${arr.join(', ')}">${arr.length} loja${arr.length>1?'s':''}</span>`;
+}
 function toggleListaRup(listaId){
   listaRupAberta = listaRupAberta === listaId ? null : listaId;
   abaRupAberta = 'rup';
@@ -856,8 +863,10 @@ function renderDetalheRup(listaId){
       <td class="r">${fmt(x.vmd_valor)}</td>
       ${atual.id==='rup'?`<td class="r" style="color:#C22F49;font-weight:700">${fmt(x.vmd_valor)}</td>`:''}
     </tr>`).join('')}</tbody></table>`;
+  const lista = listasRup.find(f => f.listaId == listaId);
+  const lojasTxt = lista && lista.lojas ? `<div style="font-size:11px;color:#4E5A72;margin-bottom:8px">Lojas com ocorrência: <b>${lista.lojas}</b></div>` : '';
   return `<div class="rup-det" onclick="event.stopPropagation()">
-    <div class="rup-abas">${botoes}<button class="criar" onclick="criarSugestaoDaLista(${listaId})">+ Criar Sugestão desta lista</button></div>
+    ${lojasTxt}<div class="rup-abas">${botoes}<button class="criar" onclick="criarSugestaoDaLista(${listaId})">+ Criar Sugestão desta lista</button></div>
     ${corpo}
   </div>`;
 }
