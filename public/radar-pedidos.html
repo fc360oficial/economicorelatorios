@@ -274,10 +274,32 @@ function renderSombra(){
   h+='<div class="table-wrap"><table class="main-t"><thead><tr><th>Dia</th><th>Lista</th><th>Comprador</th><th>Caso</th><th class="r">Sistema pediria (custo)</th><th class="r">Itens</th><th class="r">Compradora pediu (ERP)</th><th class="r">Lojas</th><th class="r">Cobertura no dia</th><th class="r">Rupturas no dia</th></tr></thead><tbody>';
   for(const l of linhas.sort((a,b)=>b.dia.localeCompare(a.dia)||b.real-a.real)){
     const caso=l.caso==='ambos'?'<span class="pill p-ok">ambos</span>':l.caso==='so_sistema'?'<span class="pill p-breve">só sistema</span>':'<span class="pill p-cinza">só compradora</span>';
-    h+='<tr><td>'+br(l.dia)+'</td><td><div class="nm">'+esc(l.nome)+'<span>#'+l.lista+'</span></div></td><td>'+esc(l.comprador||'—')+'</td><td>'+caso+'</td><td class="r">'+(l.sistema?money(l.sistema):'<span class="mut">—</span>')+'</td><td class="r">'+(l.sistema_itens||'')+'</td><td class="r">'+(l.real?money(l.real):'<span class="mut">—</span>')+'</td><td class="r">'+(l.real_lojas||'')+'</td><td class="r">'+fmt(l.cobertura,0)+' d</td><td class="r '+(l.rupturas?'neg':'')+'">'+l.rupturas+'</td></tr>';
+    const key=l.dia+'|'+l.lista;
+    h+='<tr class="lst'+(sombraAberta===key?' open':'')+'" data-key="'+key+'"><td>'+br(l.dia)+'</td><td><div class="nm">'+esc(l.nome)+'<span>#'+l.lista+'</span></div></td><td>'+esc(l.comprador||'—')+'</td><td>'+caso+'</td><td class="r">'+(l.sistema?money(l.sistema):'<span class="mut">—</span>')+'</td><td class="r">'+(l.sistema_itens||'')+'</td><td class="r">'+(l.real?money(l.real):'<span class="mut">—</span>')+'</td><td class="r">'+(l.real_lojas||'')+'</td><td class="r">'+fmt(l.cobertura,0)+' d</td><td class="r '+(l.rupturas?'neg':'')+'">'+l.rupturas+'</td></tr>';
+    if(sombraAberta===key) h+='<tr class="det"><td colspan="10"><div class="box" id="sdet"><div class="spinner"></div></div></td></tr>';
   }
   h+='</tbody></table></div>';
   $('#view').innerHTML=h;
+  document.querySelectorAll('tr.lst[data-key]').forEach(tr=>tr.onclick=()=>{const k=tr.dataset.key;sombraAberta=sombraAberta===k?null:k;renderSombra();if(sombraAberta)carregarSombraDetalhe(k);});
+}
+let sombraAberta=null;
+async function carregarSombraDetalhe(key){
+  const [dia,lista]=key.split('|'); const box=document.getElementById('sdet'); if(!box) return;
+  try{
+    const r=await fetch('/api/radar-pedidos/sombra/'+dia+'/'+lista); const j=await r.json(); if(j.error) throw new Error(j.error);
+    const t=j.totais;
+    let h='<div class="hd"><div><b>'+esc(j.lista.nome||('#'+lista))+'</b> · '+br(dia)+' · compradora × sistema, produto a produto</div><div>compradora <b>'+money(t.compradora)+'</b> ('+t.itens_compradora+' itens) · sistema <b>'+money(t.sistema)+'</b> ('+t.itens_sistema+' itens) · em comum <b>'+t.ambos+'</b></div></div>';
+    if(!j.tem_itens_sistema) h+='<div class="aviso" style="margin:10px 14px">Este dia não tem as quantidades do sistema guardadas (snapshot anterior a essa versão). A partir de hoje todo snapshot guarda produto a produto.</div>';
+    h+='<div style="overflow-x:auto"><table><thead><tr><th>Produto</th><th class="r">Estoque</th><th class="r">Cobertura</th><th class="r">Venda/dia</th><th class="r">Compradora pediu</th><th class="r">R$ ERP</th><th class="r">Sistema pediria</th><th class="r">R$ custo</th><th class="r">Diferença</th><th class="obs">Leitura</th></tr></thead><tbody>';
+    for(const l of j.linhas){
+      const leitura = l.caso==='so_compradora' ? (l.cobertura!=null&&l.cobertura>28?'compradora pediu com '+fmt(l.cobertura,0)+' d de cobertura':'só a compradora') : l.caso==='so_sistema' ? (l.estoque===0?'sistema pediria: estoque zero':'só o sistema') : (Math.abs(l.diff)<=(l.emb||1)?'bateu':(l.diff>0?'compradora pediu mais':'sistema pediria mais'));
+      h+='<tr class="'+(l.caso==='ambos'?'pede':'')+'"><td class="desc">'+esc(l.descricao)+'<span class="cod">'+esc(l.cod)+(l.compradora_lojas?' · L'+l.compradora_lojas.replace(/,/g,' L'):'')+'</span></td><td class="r">'+(l.estoque==null?'—':fmt(l.estoque,0))+'</td><td class="r '+(l.cobertura!=null&&l.cobertura<=3?'neg':'')+'">'+(l.cobertura==null?'—':fmt(l.cobertura,0)+' d')+'</td><td class="r">'+(l.venda_dia==null?'—':fmt(l.venda_dia,2))+'</td>'+
+        '<td class="r"><span class="qtd">'+(l.compradora_qtd?fmt(l.compradora_qtd,0):'')+'</span></td><td class="r">'+(l.compradora_total?money(l.compradora_total):'')+'</td><td class="r"><span class="qtd">'+(l.sistema_qtd?fmt(l.sistema_qtd,0):'')+'</span></td><td class="r">'+(l.sistema_total?money(l.sistema_total):'')+'</td>'+
+        '<td class="r '+(l.diff>0?'neg':(l.diff<0?'pos':''))+'">'+(l.diff?(l.diff>0?'+':'')+fmt(l.diff,0):'')+'</td><td class="mut obs">'+leitura+'</td></tr>';
+    }
+    h+='</tbody></table></div>';
+    box.innerHTML=h;
+  }catch(e){ box.innerHTML='<div class="empty">'+esc(e.message)+'</div>'; }
 }
 function renderRegras(){
   $('#view').innerHTML='<div class="grid2"><div class="card"><h3>Como o radar decide</h3><div class="meth">'+

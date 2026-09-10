@@ -6134,6 +6134,13 @@ app.get('/api/radar-pedidos/sombra', async (req, res) => {
   catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.get('/api/radar-pedidos/sombra/:dia/:listaId', async (req, res) => {
+  try {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(req.params.dia)) return res.status(400).json({ error: 'dia inválido' });
+    res.json(await radarPedidos.sombraDetalhe(req.params.dia, parseInt(req.params.listaId)));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/api/radar-pedidos/:listaId/itens', (req, res) => {
   try {
     const teto = Math.max(3, Math.min(90, parseFloat(req.query.alvo) || radarPedidos.TETO_PADRAO));
