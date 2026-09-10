@@ -71,6 +71,9 @@ table.main-t tbody tr.open{background:#FFF6D9}
 .mon-hdr{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap}
 .mon-filtros{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
 .mon-filtros input{background:#FFFFFF;border:1px solid #C9C9C4;border-radius:8px;padding:8px 11px;font-size:12.5px;font-family:inherit;min-width:300px}
+.mon-abas{display:flex;gap:2px;background:#FFFFFF;border:1px solid #C9C9C4;border-radius:9px;padding:3px}
+.mon-abas button{border:none;background:transparent;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:700;color:#4E5A72;cursor:pointer;font-family:inherit;white-space:nowrap}
+.mon-abas button.on{background:#101B33;color:#fff}
 table.mon-t{width:100%;border-collapse:collapse;font-size:12.5px}
 table.mon-t th{text-align:left;font-size:10px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:#4E5A72;background:#EBEBE9;padding:10px 14px;white-space:nowrap;border-bottom:1px solid #DADAD6}
 table.mon-t td{padding:10px 14px;border-top:1px solid #DADAD6;white-space:nowrap}
@@ -120,10 +123,12 @@ table.det-t td.loja{font-weight:700;color:#0E1626}
     </div>
 
     <div class="mon-filtros">
-      <button class="btn btn-slate" onclick="mudarDiaMonitor(-1)" title="Dia anterior">←</button>
-      <button class="btn btn-slate" id="m-data-lbl" onclick="voltarHojeMonitor()" title="Clique pra voltar pra hoje"></button>
-      <button class="btn btn-slate" onclick="mudarDiaMonitor(1)" title="Próximo dia">→</button>
       <input type="text" id="m-busca" placeholder="Buscar por fornecedor, nº da sugestão ou da lista..." oninput="carregarMonitor()">
+      <div class="mon-abas" id="m-abas">
+        <button class="on" data-aba="todos" onclick="mudarAbaMonitor('todos')">Todos</button>
+        <button data-aba="abertos" onclick="mudarAbaMonitor('abertos')">Aberto/Digitação</button>
+        <button data-aba="finalizados" onclick="mudarAbaMonitor('finalizados')">Finalizado</button>
+      </div>
     </div>
 
     <div class="table-wrap" id="monitor-wrap"><div class="spinner"></div></div>
@@ -294,30 +299,22 @@ function voltarMonitor(){
 
 // ── Monitor de Sugestões (central.pedidocompra) ──
 let ultimoMonitorReq = 0;
-function hojeISO(){ const d = new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
-let dataMonitor = hojeISO();
-function labelData(iso){
-  if (iso === hojeISO()) return 'Hoje';
-  const [a,m,d] = iso.split('-');
-  return `${d}/${m}/${a}`;
-}
-function atualizarLabelData(){ document.getElementById('m-data-lbl').textContent = labelData(dataMonitor); }
-function mudarDiaMonitor(delta){
-  const d = new Date(dataMonitor + 'T12:00:00');
-  d.setDate(d.getDate() + delta);
-  dataMonitor = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-  atualizarLabelData();
-  carregarMonitor();
-}
-function voltarHojeMonitor(){
-  if (dataMonitor === hojeISO()) return;
-  dataMonitor = hojeISO();
-  atualizarLabelData();
-  carregarMonitor();
-}
 function statusInfo(s){
   if (s.pedido) return { cls:'pedido', label:'Pedido Gerado', extra:'#'+s.pedido };
   return { cls:'desconhecido', label:'Status ' + s.status_bruto, extra:null };
+}
+let abaMonitor = 'todos', sugestoesCarregadas = [];
+function mudarAbaMonitor(aba){
+  abaMonitor = aba;
+  document.querySelectorAll('#m-abas button').forEach(b => b.classList.toggle('on', b.dataset.aba === aba));
+  renderMonitorTabela(sugestoesCarregadas);
+}
+// "Finalizado" = tem pedido gerado (confirmado); "Aberto/Digitação" = ainda
+// não gerou pedido (agrupa os status ainda não mapeados individualmente)
+function passaNaAba(s){
+  if (abaMonitor === 'todos') return true;
+  if (abaMonitor === 'finalizados') return !!s.pedido;
+  return !s.pedido;
 }
 async function carregarMonitor(){
   const meuReq = ++ultimoMonitorReq;
@@ -326,34 +323,41 @@ async function carregarMonitor(){
   wrap.innerHTML = '<div class="spinner"></div>';
   document.getElementById('monitor-rodape').style.display = 'none';
   try {
-    const r = await fetch(`/api/sugestoes-compra?busca=${encodeURIComponent(busca)}&data=${dataMonitor}`);
+    const r = await fetch(`/api/sugestoes-compra?busca=${encodeURIComponent(busca)}`);
     const rows = await r.json();
     if (meuReq !== ultimoMonitorReq) return; // resposta antiga, ignora
     if (rows.error) throw new Error(rows.error);
-    if (!rows.length) { wrap.innerHTML = '<div class="empty">Nenhuma sugestão encontrada.</div>'; return; }
-    document.getElementById('m-contagem').textContent = `${rows.length} — Sugestão(ões)`;
-    document.getElementById('monitor-rodape').style.display = 'flex';
-    wrap.innerHTML = `<table class="mon-t"><thead><tr>
-        <th class="chk"><input type="checkbox" onclick="event.stopPropagation()"></th>
-        <th>Sugestão</th><th>Lista</th><th>Fornecedor</th><th>CNPJ</th><th>Loja(s)</th><th>Status</th><th class="r">Total</th><th>Data</th>
-      </tr></thead><tbody>${rows.map(s => {
-        const si = statusInfo(s);
-        return `<tr class="st-${si.cls}" onclick="abrirSugestao(${s.lista})">
-          <td class="chk"><input type="checkbox" onclick="event.stopPropagation()"></td>
-          <td><b>${s.sugestao}</b></td>
-          <td>${s.lista}</td>
-          <td>${s.fornecedor||'—'}</td>
-          <td class="cod">${s.cnpj||'—'}</td>
-          <td>Loja(s): ${s.lojas.join(' - ')}</td>
-          <td><span class="status-pill ${si.cls}"><span class="status-dot ${si.cls}"></span>${si.label}${si.extra?`<span class="num">${si.extra}</span>`:''}</span></td>
-          <td class="r">${fmt(s.total)}</td>
-          <td>${s.data||'—'}</td>
-        </tr>`;
-      }).join('')}</tbody></table>`;
+    sugestoesCarregadas = rows;
+    renderMonitorTabela(rows);
   } catch(e) {
     if (meuReq !== ultimoMonitorReq) return;
     wrap.innerHTML = `<div class="empty">Erro: ${e.message}</div>`;
   }
+}
+function renderMonitorTabela(todasRows){
+  const wrap = document.getElementById('monitor-wrap');
+  const rows = todasRows.filter(passaNaAba);
+  if (!todasRows.length) { wrap.innerHTML = '<div class="empty">Nenhuma sugestão encontrada.</div>'; document.getElementById('monitor-rodape').style.display = 'none'; return; }
+  document.getElementById('m-contagem').textContent = `${rows.length} — Sugestão(ões)`;
+  document.getElementById('monitor-rodape').style.display = 'flex';
+  if (!rows.length) { wrap.innerHTML = '<div class="empty">Nenhuma sugestão nessa aba.</div>'; return; }
+  wrap.innerHTML = `<table class="mon-t"><thead><tr>
+      <th class="chk"><input type="checkbox" onclick="event.stopPropagation()"></th>
+      <th>Sugestão</th><th>Lista</th><th>Fornecedor</th><th>CNPJ</th><th>Loja(s)</th><th>Status</th><th class="r">Total</th><th>Data</th>
+    </tr></thead><tbody>${rows.map(s => {
+      const si = statusInfo(s);
+      return `<tr class="st-${si.cls}" onclick="abrirSugestao(${s.lista})">
+        <td class="chk"><input type="checkbox" onclick="event.stopPropagation()"></td>
+        <td><b>${s.sugestao}</b></td>
+        <td>${s.lista}</td>
+        <td>${s.fornecedor||'—'}</td>
+        <td class="cod">${s.cnpj||'—'}</td>
+        <td>Loja(s): ${s.lojas.join(' - ')}</td>
+        <td><span class="status-pill ${si.cls}"><span class="status-dot ${si.cls}"></span>${si.label}${si.extra?`<span class="num">${si.extra}</span>`:''}</span></td>
+        <td class="r">${fmt(s.total)}</td>
+        <td>${s.data||'—'}</td>
+      </tr>`;
+    }).join('')}</tbody></table>`;
 }
 
 async function carregarSugestao(){
@@ -458,7 +462,6 @@ function exportarExcelSugestao(){
   URL.revokeObjectURL(url);
 }
 
-atualizarLabelData();
 carregarMonitor();
 </script>
 </body>
