@@ -113,6 +113,8 @@ table.d-t th.r{text-align:right}
 table.d-t th.c{text-align:center}
 table.d-t td{padding:7px 12px;border-bottom:1px solid #DADAD622;vertical-align:middle}
 table.d-t tbody tr:hover{background:#ffffff06}
+.prod-desc-link{cursor:pointer;border-bottom:1px dashed #C9C9C4}
+.prod-desc-link:hover{color:#B45C00;border-bottom-color:#B45C00}
 .d-t .cod{color:#98A0B3;font-size:10px;font-family:monospace}
 .d-t .desc{font-weight:500;color:#0E1626}
 .d-t .r{text-align:right}
@@ -986,7 +988,7 @@ function renderItensTabela() {
 
   const rows = itens.map(it => `<tr>
       <td class="cod">${it.codigo}</td>
-      <td class="desc">${it.descricao||'—'}</td>
+      <td class="desc"><span class="prod-desc-link" onclick="abrirDetalheProduto('${it.codigo}',${JSON.stringify(it.descricao||'—')})" title="Ver última entrada, última venda e estoque">${it.descricao||'—'}</span></td>
       <td class="c"><input class="cell-edit-unid" data-codigo="${it.codigo}" value="${(it.unidade||'').toUpperCase()}" title="Editar e apertar Enter pra fixar" style="width:42px;text-align:center;border:1px solid transparent;background:transparent;font:inherit;color:#4E5A72" oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter'){event.preventDefault();focarProximoCampo(this,'unid')}" onblur="salvarUnidadeEmb(this)"></td>
       <td class="c"><input class="cell-edit-emb" type="number" min="1" step="1" data-codigo="${it.codigo}" value="${it.embalagem||1}" title="Editar e apertar Enter pra fixar" style="width:42px;text-align:center;border:1px solid transparent;background:transparent;font:inherit;color:#4E5A72" onkeydown="if(event.key==='Enter'){event.preventDefault();focarProximoCampo(this,'emb')}" onblur="salvarUnidadeEmb(this)"></td>
       <td class="c" style="color:#B45C00">${it.custo > 0 ? fmt(it.custo) : '—'}</td>
@@ -1442,6 +1444,43 @@ function imprimirCompras() {
     <script>setTimeout(()=>window.print(),300)<\/script>
   </body></html>`);
   w.document.close();
+}
+
+async function abrirDetalheProduto(codigo, descricao) {
+  const { loja, mes, ano } = params();
+  const modal = document.getElementById('modal-produtos');
+  const body = document.getElementById('modal-produtos-body');
+  document.getElementById('modal-fornec-nome').textContent = descricao;
+  modal.style.display = 'flex';
+  body.innerHTML = '<div class="spinner"></div>';
+  try {
+    const r = await fetch(`/api/produtos/${codigo}/detalhe?loja=${loja}&mes=${mes}&ano=${ano}`);
+    const linhas = await r.json();
+    if (linhas.error) throw new Error(linhas.error);
+    body.innerHTML = `
+      <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+        <thead><tr style="font-size:10px;color:#98A0B3;text-transform:uppercase;text-align:left">
+          <th style="padding:8px 6px">Loja</th>
+          <th style="padding:8px 6px">Última entrada</th>
+          <th style="padding:8px 6px">Última venda</th>
+          <th style="padding:8px 6px;text-align:right">Estoque atual</th>
+        </tr></thead>
+        <tbody>${linhas.map(l => `
+          <tr style="border-top:1px solid #DADAD6">
+            <td style="padding:9px 6px;font-weight:700">Loja ${l.loja}</td>
+            <td style="padding:9px 6px;color:#4E5A72">${l.ultima_entrada || '—'}</td>
+            <td style="padding:9px 6px;color:#4E5A72">${l.ultima_venda || '—'}</td>
+            <td style="padding:9px 6px;text-align:right;font-weight:700" class="${l.estoque<=0?'m-bad':''}">${l.estoque}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+      <p style="color:#98A0B3;font-size:11px;margin-top:10px">
+        Última venda considera o mês/ano do filtro (${mesesNomes[+mes]} ${ano}); se não vendeu nesse mês, olha o mês anterior também.
+        Última entrada e estoque são a foto atual do ERP, sem relação com o filtro de mês.
+      </p>`;
+  } catch (e) {
+    body.innerHTML = `<div class="empty">Erro: ${e.message}</div>`;
+  }
 }
 
 carregar();

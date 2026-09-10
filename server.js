@@ -2850,6 +2850,48 @@ app.get('/api/pendencias/prevencao-bonif', async (req, res) => {
 // ═══════════════════════════════════════════════════
 
 // Resumo de margens de todas as listas (deve vir ANTES de /:id)
+// Detalhe de um produto (clique na descrição, drawer da Lista de Compra):
+// última entrada, última venda e estoque atual — por loja (ou 1 linha por
+// loja quando "todas"). Última entrada/estoque são foto atual do ERP;
+// última venda olha o mês/ano do filtro, e o mês anterior se não vendeu nele.
+app.get('/api/produtos/:codigo/detalhe', async (req, res) => {
+  try {
+    const codigo = req.params.codigo;
+    const hoje = new Date();
+    const mesSel = req.query.mes ? parseInt(req.query.mes) : hoje.getMonth() + 1;
+    const anoSel = req.query.ano ? parseInt(req.query.ano) : hoje.getFullYear();
+    const lojas = req.query.loja && req.query.loja !== 'todas' ? [parseInt(req.query.loja) || 1] : [1,2,3,4,5,6];
+
+    const mesAnt = mesSel === 1 ? { m: 12, a: anoSel - 1 } : { m: mesSel - 1, a: anoSel };
+    const periodos = [
+      { mm: mesDB(mesSel), dIni: `${anoSel}-${String(mesSel).padStart(2,'0')}-01`, dFim: dFimMes(anoSel, mesSel) },
+      { mm: mesDB(mesAnt.m), dIni: `${mesAnt.a}-${String(mesAnt.m).padStart(2,'0')}-01`, dFim: dFimMes(mesAnt.a, mesAnt.m) }
+    ];
+
+    const result = [];
+    for (const ln of lojas) {
+      let estoque = 0, ultimaEntrada = null, ultimaVenda = null;
+      try {
+        const [er] = await q(`SELECT Qtd FROM central.estoquen${ln} WHERE CodigoBarra=?`, [codigo]);
+        estoque = parseFloat(er?.Qtd || 0);
+      } catch (e) {}
+      try {
+        const [cr] = await q(`SELECT UltimaCompra FROM central.custoloja${ln} WHERE CodigoBarra=?`, [codigo]);
+        if (cr?.UltimaCompra) ultimaEntrada = new Date(cr.UltimaCompra).toLocaleDateString('pt-BR');
+      } catch (e) {}
+      for (const p of periodos) {
+        if (ultimaVenda) break;
+        try {
+          const [vr] = await q(`SELECT MAX(Data) d FROM \`ln${ln}${p.mm}\`.zcupomitens WHERE Codigo=? AND IndCancel='N' AND Data BETWEEN ? AND ?`, [codigo, p.dIni, p.dFim]);
+          if (vr?.d) ultimaVenda = new Date(vr.d).toLocaleDateString('pt-BR');
+        } catch (e) {}
+      }
+      result.push({ loja: ln, estoque: +estoque.toFixed(3), ultima_entrada: ultimaEntrada, ultima_venda: ultimaVenda });
+    }
+    res.json(result);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/api/listas-compra/margem-resumo', async (req, res) => {
   try {
     const hoje = new Date();
