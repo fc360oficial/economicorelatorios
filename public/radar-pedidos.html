@@ -104,6 +104,7 @@ table.main-t tbody tr.open{background:#FFF6D9}
   <div class="filtros">
     <div class="fg"><label>Comprador</label><select id="fComp"><option value="">Todos</option></select></div>
     <div class="fg"><label>Teto de cobertura (dias)</label><input type="number" id="fTeto" min="3" max="90" value="28"></div>
+    <div class="fg"><label title="Arredonda o pedido pela embalagem em que o produto de fato chegou nas notas de entrada nesse período. 0 = usar só a embalagem do cadastro.">Embalagem real (meses)</label><input type="number" id="fEmb" min="0" max="24" value="12"></div>
     <div class="fg"><label>Buscar</label><input type="text" id="fBusca" placeholder="lista ou fornecedor" style="min-width:220px"></div>
     <button class="btn btn-amber" id="btnAplicar">Aplicar</button>
     <button class="btn btn-slate" id="btnRecalc" title="Recoleta venda, estoque e trânsito do ERP (1 a 3 min)">Recalcular agora</button>
@@ -131,7 +132,8 @@ const br=s=>s?s.split('-').reverse().join('/'):'—';
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 let DATA=null, tab='hoje', sortK='fazer_em', sortD=1, aberta=null, SOMBRA=null;
 
-function params(){const p=new URLSearchParams();const c=$('#fComp').value;if(c)p.set('comprador',c);p.set('alvo',$('#fTeto').value||28);return p;}
+function params(){const p=new URLSearchParams();const c=$('#fComp').value;if(c)p.set('comprador',c);p.set('alvo',$('#fTeto').value||28);p.set('emb',$('#fEmb').value===''?12:$('#fEmb').value);return p;}
+const money2=v=>v==null?'—':'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 
 async function carregar(refresh){
   $('#view').innerHTML='<div class="spinner"></div>';
@@ -229,15 +231,15 @@ function renderTabela(rows,vazio){
 async function carregarItens(id){
   const box=document.getElementById('det-'+id); if(!box) return;
   try{
-    const r=await fetch('/api/radar-pedidos/'+id+'/itens?alvo='+($('#fTeto').value||28)); const j=await r.json(); if(j.error) throw new Error(j.error);
+    const r=await fetch('/api/radar-pedidos/'+id+'/itens?alvo='+($('#fTeto').value||28)+'&emb='+($('#fEmb').value===''?12:$('#fEmb').value)); const j=await r.json(); if(j.error) throw new Error(j.error);
     const L=j.lista, P=j.params, pede=j.itens.filter(i=>i.qtd>0);
     let h='<div class="hd"><div><b>'+esc(L.nome)+'</b> · '+esc(L.fornecedor||'')+(L.pedidoMinimo?' · pedido mínimo R$ '+fmt(L.pedidoMinimo,0):'')+'</div>'+
       '<div>'+(P?'ponto <b>'+fmt(P.ponto)+'d</b> · alvo <b>'+fmt(P.alvoLista)+'d</b> · ciclo <b>'+fmt(P.ciclo)+'d</b> · ':'')+'fazer em <b>'+(j.fazer_em===0?'HOJE':j.fazer_em+' dias ('+br(j.data)+')')+'</b> · '+pede.length+' itens · '+j.volumes+' volumes · <b>'+money(j.total)+'</b></div></div>';
-    h+='<div style="overflow-x:auto"><table><thead><tr><th>Produto</th><th class="r">Emb</th><th class="r">Venda/dia</th><th class="r">Estoque</th><th class="r">Trânsito</th><th class="r">Cobertura</th><th class="r">Alvo</th><th class="r">Pedir</th><th class="r">Total</th><th class="obs">Obs</th></tr></thead><tbody>';
+    h+='<div style="overflow-x:auto"><table><thead><tr><th>Produto</th><th class="r" title="Embalagem em que o produto de fato chegou nas notas de entrada no período escolhido no filtro">Emb (real)</th><th class="r">Venda/dia</th><th class="r">Estoque</th><th class="r">Trânsito</th><th class="r">Cobertura</th><th class="r">Alvo</th><th class="r">Pedir</th><th class="r">Total</th><th class="obs">Obs</th></tr></thead><tbody>';
     for(const i of j.itens){
       const obs=[]; if(i.flag==='piso')obs.push('piso: 1 ciclo'); if(i.flag==='teto')obs.push('TETO: conferir'); if(i.estoque_bruto<0)obs.push('estoque negativo no ERP'); if(i.validade&&i.alvo_dias&&i.alvo_dias<P.alvoLista-0.05)obs.push('validade '+i.validade+'d'); if(i.venda_dia===0)obs.push('sem venda');
-      h+='<tr class="'+(i.qtd>0?'pede':'zero')+'"><td class="desc">'+esc(i.descricao)+'<span class="cod">'+esc(i.cod)+' · L'+i.lojas.join(' L')+'</span></td><td class="r">'+i.emb+'</td><td class="r">'+fmt(i.venda_dia,2)+'</td><td class="r">'+fmt(i.estoque,0)+'</td><td class="r">'+(i.transito?fmt(i.transito,0):'<span class="mut">—</span>')+'</td>'+
-        '<td class="r '+(i.abaixo_ponto?'neg':'')+'">'+(i.cobertura_dias==null?'—':fmt(i.cobertura_dias,0)+' d')+'</td><td class="r">'+(i.alvo_dias?fmt(i.alvo_dias,0)+' d':'—')+'</td><td class="r"><span class="qtd">'+(i.qtd?fmt(i.qtd,0):'')+'</span>'+(i.qtd?' '+esc(i.unid)+(i.emb>1?'<div class="s2">'+i.volumes+' vol × '+i.emb+'</div>':''):'')+'</td><td class="r">'+(i.total?money(i.total):'')+'<div class="s2">'+fmt(i.custo,2)+' un</div></td><td class="mut obs">'+obs.join(' · ')+'</td></tr>';
+      h+='<tr class="'+(i.qtd>0?'pede':'zero')+'"><td class="desc">'+esc(i.descricao)+'<span class="cod">'+esc(i.cod)+' · L'+i.lojas.join(' L')+'</span></td><td class="r"><b>'+i.emb+'</b>'+(i.emb_compra?(i.emb_cadastro!==i.emb?'<div class="s2" title="Embalagem do cadastro do ERP">cad. '+i.emb_cadastro+'</div>':'<div class="s2">notas</div>'):'<div class="s2" title="Sem nota de entrada no período: usa a embalagem do cadastro">cadastro</div>')+'</td><td class="r">'+fmt(i.venda_dia,2)+'</td><td class="r">'+fmt(i.estoque,0)+'</td><td class="r">'+(i.transito?fmt(i.transito,0):'<span class="mut">—</span>')+'</td>'+
+        '<td class="r '+(i.abaixo_ponto?'neg':'')+'">'+(i.cobertura_dias==null?'—':fmt(i.cobertura_dias,0)+' d')+'</td><td class="r">'+(i.alvo_dias?fmt(i.alvo_dias,0)+' d':'—')+'</td><td class="r"><span class="qtd">'+(i.qtd?fmt(i.qtd,0):'')+'</span>'+(i.qtd?' '+esc(i.unid)+(i.emb>1?'<div class="s2">'+i.volumes+' vol × '+i.emb+'</div>':''):'')+'</td><td class="r">'+(i.total?money2(i.total):'')+'<div class="s2">'+fmt(i.custo,2)+' un</div></td><td class="mut obs">'+obs.join(' · ')+'</td></tr>';
     }
     h+='</tbody></table></div>';
     box.innerHTML=h;
@@ -309,6 +311,7 @@ function renderRegras(){
   '<div><b>Alvo do produto</b> = alvo da lista limitado a 60% da validade de cadastro (perecível não segura 28 dias).</div>'+
   '<div><b>Fazer a lista</b> no dia em que 25% da venda dela (em R$) cruza o ponto de pedido. Fim de semana cai pra segunda.</div>'+
   '<div><b>Quanto pedir</b> = alvo × venda/dia − (estoque + o que já está pedido e não chegou), arredondado pra cima à embalagem.</div>'+
+  '<div><b>Embalagem real</b>: o arredondamento usa a embalagem em que o produto de fato chegou nas notas de entrada no período do filtro (padrão 12 meses; a mais frequente, empate vai pra maior). Se sempre veio em caixa de 24, "faltam 2" vira 1 caixa de 24. Sem nota no período, vale a embalagem do cadastro. Filtro em 0 desliga e usa só o cadastro.</div>'+
   '<div><b>Piso</b>: nunca menos que o consumo de 1 ciclo. <b>Teto</b>: nunca mais que (alvo + ciclo) × venda/dia; se bater, aparece "TETO: conferir" (estoque negativo ou venda atípica).</div>'+
   '<div><b>Estoque acima do alvo</b> não gera pedido de redução. A lista só volta a ser pedida quando cruzar o ponto: o excesso desce sozinho com a venda.</div>'+
   '</div></div><div class="card"><h3>Fontes e limites</h3><div class="meth">'+

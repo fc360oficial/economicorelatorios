@@ -6114,7 +6114,8 @@ app.get('/api/radar-pedidos', async (req, res) => {
     if (req.query.refresh === '1') await radarPedidos.recalcular(req.query.lead === '1');
     const teto = Math.max(3, Math.min(90, parseFloat(req.query.alvo) || radarPedidos.TETO_PADRAO));
     const comprador = req.query.comprador ? resolveComprador(req.query.comprador) : null;
-    const listas = radarPedidos.politica(teto, comprador);
+    const embMeses = req.query.emb == null ? undefined : Math.max(0, Math.min(24, parseInt(req.query.emb) || 0));
+    const listas = radarPedidos.politica(teto, comprador, embMeses);
     const ok = listas.filter(r => r.ok);
     const resumo = {
       listas: listas.length, com_calculo: ok.length,
@@ -6144,7 +6145,8 @@ app.get('/api/radar-pedidos/sombra/:dia/:listaId', async (req, res) => {
 app.get('/api/radar-pedidos/:listaId/itens', (req, res) => {
   try {
     const teto = Math.max(3, Math.min(90, parseFloat(req.query.alvo) || radarPedidos.TETO_PADRAO));
-    const r = radarPedidos.itensLista(parseInt(req.params.listaId), teto);
+    const embMeses = req.query.emb == null ? undefined : Math.max(0, Math.min(24, parseInt(req.query.emb) || 0));
+    const r = radarPedidos.itensLista(parseInt(req.params.listaId), teto, null, embMeses);
     if (!r) return res.status(404).json({ error: radarPedidos.getEstado().status === 'ok' ? 'Lista não encontrada' : 'Radar ainda calculando, tente em instantes' });
     res.json(r);
   } catch (err) { res.status(500).json({ error: err.message }); }
