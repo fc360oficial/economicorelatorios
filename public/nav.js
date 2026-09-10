@@ -111,6 +111,7 @@
   + '#dsnav .dn-exit-mobile{display:none}'
   + '#dsnav .dn-brand img{height:38px;display:block;transition:height .15s ease;flex-shrink:0}'
   + '#dsnav.pinned .dn-brand img,#dsnav:hover .dn-brand img{height:66px}'
+  + '#dsnav.pinned .dn-top,#dsnav:hover .dn-top{justify-content:center}'
   + '#dsnav .dn-sec{font-size:9.5px;font-weight:800;letter-spacing:1.6px;text-transform:uppercase;'
   +   'color:var(--ink3,#98A0B3);padding:12px 10px 6px;white-space:nowrap;overflow:hidden;'
   +   'opacity:0;transition:opacity .1s ease}'
