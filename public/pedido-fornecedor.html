@@ -49,7 +49,7 @@ input.obs:focus{outline:none;border-color:#F5B800}
 </head>
 <body>
 <div class="wrap" id="app"><div class="empty">Carregando pedido…</div></div>
-<div class="bar" id="bar" hidden><div class="info" id="barinfo"></div><div class="nome"><input id="nome" placeholder="Seu nome (vendedor)" maxlength="80"><button class="btn btn-amber" id="btnFim">Finalizar pedido</button></div></div>
+<div class="bar" id="bar" hidden><div class="info" id="barinfo"></div><button class="btn btn-amber" id="btnFim">Finalizar pedido</button></div>
 <script>
 const token=location.pathname.split('/').pop();
 const $=s=>document.querySelector(s);
@@ -87,7 +87,7 @@ $('#btnFim').onclick=async()=>{
   const {n}=totais();
   if(!confirm(n<P.itens.length?'Ainda tem '+(P.itens.length-n)+' item(ns) sem preço. Finalizar mesmo assim?':'Finalizar o pedido? Depois disso não dá mais pra alterar.')) return;
   $('#btnFim').disabled=true;
-  try{const r=await fetch('/api/pedido-publico/'+token+'/finalizar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({itens:itensForm(),nome:$('#nome').value})});P=await r.json();render();window.scrollTo(0,0);}
+  try{const r=await fetch('/api/pedido-publico/'+token+'/finalizar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({itens:itensForm(),nome:(P.vendedor&&P.vendedor.nome)||''})});P=await r.json();render();window.scrollTo(0,0);}
   catch(e){alert('Não foi possível finalizar. Tente de novo.');$('#btnFim').disabled=false;}
 };
 window.addEventListener('beforeunload',()=>{if(dirty)salvar();});
