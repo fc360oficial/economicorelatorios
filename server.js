@@ -3324,11 +3324,14 @@ app.get('/api/listas-compra/:id/itens', async (req, res) => {
              i.l1, i.l2, i.l3, i.l4, i.l5, i.l6,
              it.Validar as dias_configurado,
              ci.Custo as custo_atual,
-             im.MargemVarejo as margem_cadastro
+             im.MargemVarejo as margem_cadastro,
+             im.MargemAtacado as margem_atacado,
+             ev.Unidade_venda as atacado_unidade, ev.Qtd_venda as atacado_qtd, ev.emb_multipla as atacado_multiplo
       FROM central.c_cotacao_lista_itens i
       INNER JOIN central.itens it ON it.CodigoBarra = i.Codigobarra AND it.CodDesativado = 0
       LEFT JOIN central.custoloja1 ci ON ci.CodigoBarra = i.Codigobarra
       LEFT JOIN central.itens_margens im ON im.CodigoBarra = i.Codigobarra AND im.nLoja = ?
+      LEFT JOIN central.embalagempadrao_venda ev ON ev.Codigobarra = i.Codigobarra
       ${where}
       ORDER BY i.Posicao, it.Descricao
     `, [lojaMargemCad, ...params]);
@@ -3379,6 +3382,12 @@ app.get('/api/listas-compra/:id/itens', async (req, res) => {
         posicao: r.Posicao,
         custo: parsePreco(r.custo_atual),
         margem_cadastro: r.margem_cadastro != null ? parseFloat(r.margem_cadastro) : null,
+        margem_atacado: r.margem_atacado != null ? parseFloat(r.margem_atacado) : null,
+        atacado: r.atacado_qtd != null ? {
+          unidade: r.atacado_unidade?.trim() || null,
+          qtd: parseFloat(r.atacado_qtd),
+          multiplo: !!r.atacado_multiplo
+        } : null,
         lojas: [1,2,3,4,5,6].filter(n => r['l'+n] == 1),
         validade: v?.validade ? new Date(v.validade).toISOString().slice(0, 10) : null,
         validade_vencida: v?.vencida || false,

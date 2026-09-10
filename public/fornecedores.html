@@ -946,6 +946,7 @@ function valorOrdenacaoItens(it, col) {
   switch (col) {
     case 'custo':     return it.custo || 0;
     case 'mcad':      return it.margem_cadastro || 0;
+    case 'matac':     return it.margem_atacado || 0;
     case 'abc_venda': return ABC_RANK[it.abc_venda] || 0;
     case 'abc_qtd':   return ABC_RANK[it.abc_qtd] || 0;
     case 'validade':  return it.validade_dias || 0;
@@ -996,6 +997,8 @@ function renderItensTabela() {
       <td class="c"><input class="cell-edit-emb" type="number" min="1" step="1" data-codigo="${it.codigo}" value="${it.embalagem||1}" title="Editar e apertar Enter pra fixar" style="width:42px;text-align:center;border:1px solid transparent;background:transparent;font:inherit;color:#4E5A72" onkeydown="if(event.key==='Enter'){event.preventDefault();focarProximoCampo(this,'emb')}" onblur="salvarUnidadeEmb(this)"></td>
       <td class="c" style="color:#B45C00">${it.custo > 0 ? fmt(it.custo) : '—'}</td>
       <td class="c"><span class="${it.margem_cadastro!=null?msvClass(it.margem_cadastro):''}">${it.margem_cadastro!=null?pctFmt(it.margem_cadastro):'—'}</span></td>
+      <td class="c"><span class="${it.margem_atacado!=null?msvClass(it.margem_atacado):''}">${it.margem_atacado!=null?pctFmt(it.margem_atacado):'—'}</span></td>
+      <td class="c">${it.atacado ? `<span title="${it.atacado.multiplo?'Venda só em múltiplos desse tanto':'Embalagem padrão de atacado'}">${it.atacado.qtd} ${it.atacado.unidade||''}${it.atacado.multiplo?' <b style="color:#B45C00">×</b>':''}</span>` : '—'}</td>
       <td class="c">${abcBadge(it.abc_venda)}</td>
       <td class="c">${abcBadge(it.abc_qtd)}</td>
       <td>${validadeHtml(it)}</td>
@@ -1025,7 +1028,9 @@ function renderItensTabela() {
             <th>Código</th><th>Produto</th>
             <th class="c">Unid</th><th class="c">Emb</th>
             <th class="c sortable${active('custo')}" onclick="ordenarItens('custo')" title="Custo da última compra registrada (ERP) — clique para ordenar">Últ Custo<span class="sort-arrow">${arrow('custo')}</span></th>
-            <th class="c sortable${active('mcad')}" onclick="ordenarItens('mcad')" title="Margem cadastrada no produto (ERP) — clique para ordenar">Marg. Cad.<span class="sort-arrow">${arrow('mcad')}</span></th>
+            <th class="c sortable${active('mcad')}" onclick="ordenarItens('mcad')" title="Margem cadastrada no produto, varejo (ERP) — clique para ordenar">Marg. Varejo<span class="sort-arrow">${arrow('mcad')}</span></th>
+            <th class="c sortable${active('matac')}" onclick="ordenarItens('matac')" title="Margem cadastrada no produto, atacado (ERP) — clique para ordenar">Marg. Atacado<span class="sort-arrow">${arrow('matac')}</span></th>
+            <th class="c" title="Embalagem padrão de venda no atacado (× = só vende em múltiplos desse tanto)">Qtd. Atacado</th>
             <th class="c sortable${active('abc_venda')}" onclick="ordenarItens('abc_venda')" title="Curva ABC por valor de venda no mês/loja do filtro, comparado a todo o catálogo — clique para ordenar">Curva $<span class="sort-arrow">${arrow('abc_venda')}</span></th>
             <th class="c sortable${active('abc_qtd')}" onclick="ordenarItens('abc_qtd')" title="Curva ABC por quantidade vendida no mês/loja do filtro, comparado a todo o catálogo — clique para ordenar">Curva Qtd<span class="sort-arrow">${arrow('abc_qtd')}</span></th>
             <th class="sortable${active('validade')}" onclick="ordenarItens('validade')" title="Dias até vencer o lote mais próximo (coletor) — clique para ordenar">Validade<span class="sort-arrow">${arrow('validade')}</span></th>${thLojas}
