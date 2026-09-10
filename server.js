@@ -3238,6 +3238,29 @@ async function getCurvaABC(lojaParam, mes, ano) {
 }
 
 // Itens de uma lista específica
+// Cadastro completo da lista no ERP (tela "Cadastro de Listas" do Dlinks):
+// fornecedor, descrição, observação, prazo de pagamento, pedido mínimo,
+// vendedor (fornecedor) e comprador (loja) com contato — botão "📋 Cadastro".
+app.get('/api/listas-compra/:id/cadastro', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const [lista] = await q(`SELECT Nome, Obs, CodFornec, NomeFornec, CodPrazoPag, PedidoMinimo FROM central.c_cotacao_lista WHERE nReg=?`, [id]);
+    if (!lista) return res.status(404).json({ error: 'Lista não encontrada' });
+    const [prazo] = await q(`SELECT Descricao FROM central.pedidoprazos WHERE nReg=?`, [lista.CodPrazoPag]).catch(() => []);
+    const [vendedor] = await q(`SELECT Nome, email, whats FROM central.c_cotacao_agenda WHERE nLista=? LIMIT 1`, [id]).catch(() => []);
+    const [comprador] = await q(`SELECT nome, email, whats FROM central.c_cotacao_agenda_comprador WHERE nLista=? LIMIT 1`, [id]).catch(() => []);
+    res.json({
+      fornecedor: { codigo: lista.CodFornec, nome: lista.NomeFornec?.trim() },
+      descricao: lista.Nome?.trim(),
+      observacao: lista.Obs?.trim() || null,
+      prazo_pagamento: prazo?.Descricao || null,
+      pedido_minimo: lista.PedidoMinimo || null,
+      vendedor: vendedor ? { nome: vendedor.Nome?.trim() || null, email: vendedor.email || null, whats: vendedor.whats || null } : null,
+      comprador: comprador ? { nome: comprador.nome?.trim() || null, email: comprador.email || null, whats: comprador.whats || null } : null
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // Quais produtos exatamente compõem cada parte do detalhamento do subtítulo
 // (desativado no ERP / sem loja nenhuma / marcado só em outra loja) — clique
 // no texto pra ver a lista, em vez de só o número.

@@ -400,6 +400,7 @@ table.comp-t tr:hover td{background:#ffffff05}
       <h2 id="d-title">Fornecedor</h2>
       <p id="d-subtitle">Loja X · Mês/Ano</p>
     </div>
+    <button class="btn-print" onclick="abrirCadastroLista(listaAtivaId)" title="Fornecedor, vendedor, comprador, prazo de pagamento — cadastro do ERP">📋 Cadastro</button>
     <button class="btn-print" onclick="imprimirDrawer()" title="Imprimir esta aba">🖨️ Imprimir</button>
     <button class="btn-close" onclick="fecharDrawer()">✕ Fechar</button>
   </div>
@@ -1469,6 +1470,54 @@ function imprimirCompras() {
 // pra embutir texto dinâmico dentro de onclick="..." (atributo com aspas
 // duplas) sem quebrar — JSON.stringify escapa pro JS, &quot; escapa pro HTML
 function escAttr(s) { return JSON.stringify(String(s)).replace(/"/g, '&quot;'); }
+
+function linhaCadastro(rotulo, valor, link) {
+  if (!valor) return `<tr><td style="padding:6px 10px;color:#98A0B3;font-size:11.5px;white-space:nowrap">${rotulo}</td><td style="padding:6px 10px;color:#98A0B3;font-style:italic">— não cadastrado no ERP</td></tr>`;
+  const conteudo = link ? `<a href="${link}" target="_blank" style="color:#1d4ed8;text-decoration:none">${valor}</a>` : valor;
+  return `<tr><td style="padding:6px 10px;color:#98A0B3;font-size:11.5px;white-space:nowrap">${rotulo}</td><td style="padding:6px 10px;font-weight:600;color:#0E1626">${conteudo}</td></tr>`;
+}
+async function abrirCadastroLista(listaId) {
+  if (!listaId) return;
+  const modal = document.getElementById('modal-produtos');
+  const body = document.getElementById('modal-produtos-body');
+  document.getElementById('modal-fornec-nome').textContent = 'Cadastro da lista (ERP)';
+  modal.style.display = 'flex';
+  body.innerHTML = '<div class="spinner"></div>';
+  try {
+    const r = await fetch(`/api/listas-compra/${listaId}/cadastro`);
+    const c = await r.json();
+    if (c.error) throw new Error(c.error);
+    const soDigitos = s => (s || '').replace(/\D/g, '');
+    const whatsLink = w => soDigitos(w).length >= 10 ? `https://wa.me/55${soDigitos(w)}` : null;
+    body.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 18px">
+        <table style="border-collapse:collapse;width:100%">
+          <tbody>
+            ${linhaCadastro('Fornecedor', c.fornecedor?.codigo ? `${c.fornecedor.codigo} - ${c.fornecedor.nome||''}` : null)}
+            ${linhaCadastro('Descrição', c.descricao)}
+            ${linhaCadastro('Observação', c.observacao)}
+            <tr><td colspan="2" style="padding:10px 10px 4px;font-size:10px;font-weight:800;letter-spacing:.5px;color:#B45C00;text-transform:uppercase">Vendedor (fornecedor)</td></tr>
+            ${linhaCadastro('Nome', c.vendedor?.nome)}
+            ${linhaCadastro('Email', c.vendedor?.email, c.vendedor?.email ? `mailto:${c.vendedor.email}` : null)}
+            ${linhaCadastro('WhatsApp', c.vendedor?.whats, whatsLink(c.vendedor?.whats))}
+          </tbody>
+        </table>
+        <table style="border-collapse:collapse;width:100%">
+          <tbody>
+            ${linhaCadastro('Prazo Pagamento', c.prazo_pagamento)}
+            ${linhaCadastro('Pedido Mínimo', c.pedido_minimo ? 'R$ ' + c.pedido_minimo : null)}
+            <tr><td colspan="2" style="padding:10px 10px 4px;font-size:10px;font-weight:800;letter-spacing:.5px;color:#B45C00;text-transform:uppercase">Comprador (loja)</td></tr>
+            ${linhaCadastro('Nome', c.comprador?.nome)}
+            ${linhaCadastro('Email', c.comprador?.email, c.comprador?.email ? `mailto:${c.comprador.email}` : null)}
+            ${linhaCadastro('WhatsApp', c.comprador?.whats, whatsLink(c.comprador?.whats))}
+          </tbody>
+        </table>
+      </div>
+      <p style="color:#98A0B3;font-size:11px;margin-top:12px">Direto do cadastro da lista no ERP (Dlinks Gestão) — pra editar, é lá.</p>`;
+  } catch (e) {
+    body.innerHTML = `<div class="empty">Erro: ${e.message}</div>`;
+  }
+}
 
 const TITULOS_EXCLUIDOS = {
   desativado: 'Desativados no ERP',
