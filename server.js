@@ -2932,7 +2932,7 @@ app.get('/api/sugestoes-compra', async (req, res) => {
       fornecedor: r.Nome?.trim(),
       cnpj: r.cnpj,
       descricao: r.descricao?.trim() || null,
-      lojas: (r.lojas || '').split(',').filter(Boolean).map(n => parseInt(n)),
+      lojas: (r.lojas ? r.lojas.toString() : '').split(',').filter(Boolean).map(n => parseInt(n)),
       status_bruto: r.status,
       pedido: r.nPedido > 0 ? r.nPedido : null,
       data: r.data ? new Date(r.data).toLocaleDateString('pt-BR') : null,
