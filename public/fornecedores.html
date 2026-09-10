@@ -234,6 +234,9 @@ table.comp-t tr:hover td{background:#ffffff05}
 
 /* LISTA TAGS */
 .loja-badge{display:inline-block;background:#E9EEF333;border:1px solid #E9EEF366;border-radius:4px;padding:1px 5px;font-size:10px;color:#4E5A72;margin:1px;font-weight:700}
+.loja-filtro .loja-badge{cursor:pointer;padding:3px 8px;font-size:11px;user-select:none}
+.loja-filtro .loja-badge:hover{border-color:#C9C9C4;color:#0E1626}
+.loja-filtro .loja-badge.on{background:#F5B800;border-color:#F5B800;color:#6B4E00}
 .comp-tag{display:inline-block;background:#E9EEF322;border:1px solid #E9EEF355;border-radius:4px;padding:1px 6px;font-size:10px;color:#4E5A72;margin:1px}
 .nome-lista{cursor:pointer;font-weight:600;color:#0E1626}.nome-lista:hover{color:#6B4E00;text-decoration:underline}
 .itens-badge{display:inline-block;background:#F5B80022;border:1px solid #F5B80055;border-radius:6px;padding:2px 8px;font-size:12px;color:#6B4E00;font-weight:700}
@@ -888,6 +891,7 @@ async function renderLojas(id, mes, ano, body) {
 // ─── ABRIR LISTA ────────────────────────────────
 let itensListaAtual = [];
 let sortColItens = null, sortDirItens = 'desc';
+let lojaFiltroItens = null; // 1..6 = só itens presentes nessa loja; null = todas
 
 const ABC_RANK = { A: 3, B: 2, C: 1 };
 function valorOrdenacaoItens(it, col) {
@@ -909,6 +913,11 @@ function abcBadge(letra) {
   return `<span style="display:inline-block;min-width:20px;text-align:center;font-weight:700;color:#fff;background:${cores[letra]};border-radius:4px;padding:1px 6px;font-size:11px">${letra}</span>`;
 }
 
+function filtrarLoja(n) {
+  lojaFiltroItens = lojaFiltroItens === n ? null : n;
+  renderItensTabela();
+}
+
 function ordenarItens(col) {
   if (sortColItens !== col) {
     sortColItens = col;
@@ -924,6 +933,7 @@ function ordenarItens(col) {
 
 function renderItensTabela() {
   let itens = itensListaAtual;
+  if (lojaFiltroItens) itens = itens.filter(it => it.lojas.includes(lojaFiltroItens));
   if (sortColItens) {
     itens = itens.slice().sort((a, b) => {
       const va = valorOrdenacaoItens(a, sortColItens), vb = valorOrdenacaoItens(b, sortColItens);
@@ -947,7 +957,13 @@ function renderItensTabela() {
   const arrow = col => sortColItens === col ? (sortDirItens === 'desc' ? '▼' : '▲') : '';
   const active = col => sortColItens === col ? ' active' : '';
 
-  document.getElementById('d-itens-wrap').innerHTML = `
+  const filtroLojas = `<div class="loja-filtro" style="display:flex;align-items:center;gap:4px;margin-bottom:8px;font-size:11px;color:#98A0B3;flex-wrap:wrap">
+        <span style="margin-right:4px">Só itens da loja:</span>
+        ${[1,2,3,4,5,6].map(n=>`<span class="loja-badge${lojaFiltroItens===n?' on':''}" onclick="filtrarLoja(${n})" title="Mostrar só os itens que existem na Loja ${n} (clique de novo pra limpar)">L${n}</span>`).join('')}
+        ${lojaFiltroItens ? `<span style="margin-left:6px;color:#4E5A72">${itens.length} de ${itensListaAtual.length} itens</span>` : ''}
+      </div>`;
+
+  document.getElementById('d-itens-wrap').innerHTML = filtroLojas + `
       <div class="d-table-wrap">
         <table class="d-t">
           <thead><tr>
@@ -968,7 +984,7 @@ async function abrirLista(id) {
   const lista = listas.find(r => r.id === id);
   if (!lista) return;
   listaSelecionada = lista;
-  sortColItens = null; sortDirItens = 'desc';
+  sortColItens = null; sortDirItens = 'desc'; lojaFiltroItens = null;
 
   document.querySelectorAll('.main-t tbody tr').forEach(tr => tr.classList.remove('selected'));
   const row = document.getElementById('row-' + id);
