@@ -88,7 +88,33 @@ table.main-t tbody tr.open{background:#FFF6D9}
 .spark{display:inline-flex;align-items:flex-end;gap:2px;height:22px;vertical-align:middle;margin-left:6px}
 .spark i{display:block;width:5px;background:#F5B800;border-radius:1px 1px 0 0;min-height:2px}
 .spark i.r{background:#C22F49}
-@media print{.filtros,.tabs,.busca-row,.btn{display:none!important}.main{padding:0}}
+.btn-sm{padding:5px 11px;font-size:11.5px;margin-left:8px}
+.det table td.lj,.det table th.lj{background:#FAFAF8;min-width:44px}
+.det table td.lj.tem{font-weight:800;color:#0E1626;background:#FFF6D9}
+/* prévia do pedido (overlay) */
+#pv{position:fixed;inset:0;background:rgba(14,22,38,.55);z-index:1000;overflow:auto;padding:24px}
+.pv-card{background:#fff;border-radius:14px;max-width:1100px;margin:0 auto;padding:22px 26px 30px;box-shadow:0 20px 60px -20px rgba(0,0,0,.5)}
+.pv-top{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;border-bottom:3px solid #F5B800;padding-bottom:12px;margin-bottom:14px}
+.pv-top h2{font-size:19px;font-weight:800;letter-spacing:-.3px;margin-top:2px}
+.eyebrow-pv{font-size:10px;font-weight:800;letter-spacing:.1em;color:#C22F49}
+.pv-sub{font-size:12px;color:#4E5A72;margin-top:3px}
+.pv-acts{display:flex;gap:8px}
+.pv-resumo{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px}
+.pv-resumo>div{border:1px solid #DADAD6;border-radius:10px;padding:10px 12px}
+.pv-resumo>div.tot{background:#101B33;color:#fff;border-color:#101B33}.pv-resumo>div.tot .lb,.pv-resumo>div.tot .s2{color:#AEB8CE}.pv-resumo>div.tot .v{color:#FFC933}
+.pv-resumo .lb{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#4E5A72}
+.pv-resumo .v{font-size:17px;font-weight:800;letter-spacing:-.3px}
+.pv-loja{border:1px solid #DADAD6;border-radius:10px;overflow:hidden;margin-bottom:12px;break-inside:avoid}
+.pv-loja-hd{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:9px 14px;background:#EBEBE9;font-size:12.5px}
+.pv-loja-hd span{color:#4E5A72;font-size:12px}
+.pv-vazio{padding:12px 14px;color:#98A0B3;font-size:12px}
+.pv-t{width:100%;border-collapse:collapse;font-size:12px}
+.pv-t th{text-align:left;font-size:9.5px;text-transform:uppercase;letter-spacing:.4px;color:#4E5A72;padding:7px 12px;border-bottom:1px solid #DADAD6}
+.pv-t td{padding:6px 12px;border-top:1px solid #EEEEEA}
+.pv-t th.r,.pv-t td.r{text-align:right}
+.pv-t td.mono{font-family:monospace;font-size:11px;color:#4E5A72}
+@media print{.filtros,.tabs,.busca-row,.btn{display:none!important}.main{padding:0}
+  body.pv-on .main{display:none}#pv{position:static;background:none;padding:0;overflow:visible}.pv-card{box-shadow:none;max-width:none;padding:0}.pv-acts{display:none}}
 </style>
 </head>
 <body>
@@ -123,6 +149,8 @@ table.main-t tbody tr.open{background:#FFF6D9}
 
   <div id="view"></div>
 </div>
+
+<div id="pv" hidden><div class="pv-card" id="pv-body"></div></div>
 
 <script>
 const $=s=>document.querySelector(s);
@@ -233,13 +261,17 @@ async function carregarItens(id){
   try{
     const r=await fetch('/api/radar-pedidos/'+id+'/itens?alvo='+($('#fTeto').value||28)+'&emb='+($('#fEmb').value===''?12:$('#fEmb').value)); const j=await r.json(); if(j.error) throw new Error(j.error);
     const L=j.lista, P=j.params, pede=j.itens.filter(i=>i.qtd>0);
+    const LJ=[...new Set(j.itens.flatMap(i=>i.lojas))].sort((a,b)=>a-b);
+    DETALHES[id]=j;
     let h='<div class="hd"><div><b>'+esc(L.nome)+'</b> · '+esc(L.fornecedor||'')+(L.pedidoMinimo?' · pedido mínimo R$ '+fmt(L.pedidoMinimo,0):'')+'</div>'+
-      '<div>'+(P?'ponto <b>'+fmt(P.ponto)+'d</b> · alvo <b>'+fmt(P.alvoLista)+'d</b> · ciclo <b>'+fmt(P.ciclo)+'d</b> · ':'')+'fazer em <b>'+(j.fazer_em===0?'HOJE':j.fazer_em+' dias ('+br(j.data)+')')+'</b> · '+pede.length+' itens · '+j.volumes+' volumes · <b>'+money(j.total)+'</b></div></div>';
-    h+='<div style="overflow-x:auto"><table><thead><tr><th>Produto</th><th class="r" title="Embalagem em que o produto de fato chegou nas notas de entrada no período escolhido no filtro">Emb (real)</th><th class="r">Venda/dia</th><th class="r">Estoque</th><th class="r">Trânsito</th><th class="r">Cobertura</th><th class="r">Alvo</th><th class="r">Pedir</th><th class="r">Total</th><th class="obs">Obs</th></tr></thead><tbody>';
+      '<div>'+(P?'ponto <b>'+fmt(P.ponto)+'d</b> · alvo <b>'+fmt(P.alvoLista)+'d</b> · ciclo <b>'+fmt(P.ciclo)+'d</b> · ':'')+'fazer em <b>'+(j.fazer_em===0?'HOJE':j.fazer_em+' dias ('+br(j.data)+')')+'</b> · '+pede.length+' itens · '+j.volumes+' volumes · <b>'+money(j.total)+'</b> <button class="btn btn-amber btn-sm" onclick="event.stopPropagation();gerarPedido('+id+')">Gerar pedido</button></div></div>';
+    h+='<div style="overflow-x:auto"><table><thead><tr><th>Produto</th><th class="r" title="Embalagem em que o produto de fato chegou nas notas de entrada no período escolhido no filtro">Emb (real)</th><th class="r">Venda/dia</th><th class="r">Estoque</th><th class="r">Trânsito</th><th class="r">Cobertura</th><th class="r">Alvo</th>'+LJ.map(ln=>'<th class="r lj" title="Quantidade a pedir na loja '+ln+'">L'+ln+'</th>').join('')+'<th class="r">Pedir (total)</th><th class="r">Total</th><th class="obs">Obs</th></tr></thead><tbody>';
     for(const i of j.itens){
       const obs=[]; if(i.flag==='piso')obs.push('piso: 1 ciclo'); if(i.flag==='teto')obs.push('TETO: conferir'); if(i.estoque_bruto<0)obs.push('estoque negativo no ERP'); if(i.validade&&i.alvo_dias&&i.alvo_dias<P.alvoLista-0.05)obs.push('validade '+i.validade+'d'); if(i.venda_dia===0)obs.push('sem venda');
       h+='<tr class="'+(i.qtd>0?'pede':'zero')+'"><td class="desc">'+esc(i.descricao)+'<span class="cod">'+esc(i.cod)+' · L'+i.lojas.join(' L')+'</span></td><td class="r"><b>'+i.emb+'</b>'+(i.emb_compra?(i.emb_cadastro!==i.emb?'<div class="s2" title="Embalagem do cadastro do ERP">cad. '+i.emb_cadastro+'</div>':'<div class="s2">notas</div>'):'<div class="s2" title="Sem nota de entrada no período: usa a embalagem do cadastro">cadastro</div>')+'</td><td class="r">'+fmt(i.venda_dia,2)+'</td><td class="r">'+fmt(i.estoque,0)+'</td><td class="r">'+(i.transito?fmt(i.transito,0):'<span class="mut">—</span>')+'</td>'+
-        '<td class="r '+(i.abaixo_ponto?'neg':'')+'">'+(i.cobertura_dias==null?'—':fmt(i.cobertura_dias,0)+' d')+'</td><td class="r">'+(i.alvo_dias?fmt(i.alvo_dias,0)+' d':'—')+'</td><td class="r"><span class="qtd">'+(i.qtd?fmt(i.qtd,0):'')+'</span>'+(i.qtd?' '+esc(i.unid)+(i.emb>1?'<div class="s2">'+i.volumes+' vol × '+i.emb+'</div>':''):'')+'</td><td class="r">'+(i.total?money2(i.total):'')+'<div class="s2">'+fmt(i.custo,2)+' un</div></td><td class="mut obs">'+obs.join(' · ')+'</td></tr>';
+        '<td class="r '+(i.abaixo_ponto?'neg':'')+'">'+(i.cobertura_dias==null?'—':fmt(i.cobertura_dias,0)+' d')+'</td><td class="r">'+(i.alvo_dias?fmt(i.alvo_dias,0)+' d':'—')+'</td>'+
+        LJ.map(ln=>{const q=i.lojas_qtd[ln]||0;const d=i.lojas_det[ln];const tip=d?('loja '+ln+': estoque '+fmt(d.estoque,0)+(d.transito?' + trânsito '+fmt(d.transito,0):'')+' · venda/dia '+fmt(d.venda_dia,2)+' · cobertura '+(d.cobertura_dias==null?'—':fmt(d.cobertura_dias,0)+' d')):'não participa';return '<td class="r lj'+(q?' tem':'')+'" title="'+tip+'">'+(q?fmt(q,0):(d?'<span class="mut">·</span>':''))+'</td>';}).join('')+
+        '<td class="r"><span class="qtd">'+(i.qtd?fmt(i.qtd,0):'')+'</span>'+(i.qtd?' '+esc(i.unid)+(i.emb>1?'<div class="s2">'+i.volumes+' vol × '+i.emb+'</div>':''):'')+'</td><td class="r">'+(i.total?money2(i.total):'')+'<div class="s2">'+fmt(i.custo,2)+' un</div></td><td class="mut obs">'+obs.join(' · ')+'</td></tr>';
     }
     h+='</tbody></table></div>';
     box.innerHTML=h;
@@ -325,6 +357,33 @@ function renderRegras(){
   '</div></div></div>';
 }
 
+// ---- Gerar pedido: PRÉVIA por loja, só pra ver como fica. Não grava nada (nem no ERP, nem no app). ----
+const DETALHES={};
+const LOJAS_NOMES={1:'CAHU',2:'MURIBECA',3:'PONTE',4:'ATACAREJO',5:'PORTA LARGA',6:'JARDIM JORDÃO'};
+function gerarPedido(id){
+  const j=DETALHES[id]; if(!j) return;
+  const L=j.lista, LJ=[...new Set(j.itens.flatMap(i=>i.lojas))].sort((a,b)=>a-b);
+  const hoje=new Date().toLocaleDateString('pt-BR');
+  const top='<div class="pv-top"><div><div class="eyebrow-pv">PRÉVIA · NÃO ENVIADO · NÃO GRAVADO</div><h2>Pedido · '+esc(L.nome)+'</h2><div class="pv-sub">'+esc(L.fornecedor||'')+' · gerado em '+hoje+' · teto '+($('#fTeto').value||28)+' d · embalagem real '+($('#fEmb').value===''?12:$('#fEmb').value)+' m'+(L.pedidoMinimo?' · pedido mínimo R$ '+fmt(L.pedidoMinimo,0):'')+'</div></div><div class="pv-acts"><button class="btn btn-slate" onclick="window.print()">Imprimir</button><button class="btn btn-amber" onclick="fecharPedido()">Fechar</button></div></div>';
+  let h='';
+  let totalGeral=0, volGeral=0, resumo=[];
+  for(const ln of LJ){
+    const rows=j.itens.filter(i=>(i.lojas_qtd[ln]||0)>0).sort((a,b)=>a.descricao.localeCompare(b.descricao,'pt-BR'));
+    let tot=0,vol=0; for(const i of rows){const q=i.lojas_qtd[ln];tot+=q*i.custo;vol+=Math.ceil(q/i.emb);}
+    totalGeral+=tot; volGeral+=vol; resumo.push({ln,itens:rows.length,vol,tot});
+    h+='<div class="pv-loja"><div class="pv-loja-hd"><b>Loja '+ln+' · '+(LOJAS_NOMES[ln]||'')+'</b><span>'+rows.length+' itens · '+vol+' volumes · <b>'+money2(tot)+'</b>'+(L.pedidoMinimo&&tot>0&&tot<L.pedidoMinimo?' · <span class="neg">abaixo do pedido mínimo</span>':'')+'</span></div>';
+    if(!rows.length){h+='<div class="pv-vazio">Nada a pedir nesta loja hoje.</div></div>';continue;}
+    h+='<table class="pv-t"><thead><tr><th>Código</th><th>Produto</th><th class="r">Emb</th><th class="r">Volumes</th><th class="r">Qtd</th><th class="r">Custo</th><th class="r">Total</th><th class="r">Estoque</th><th class="r">Cob.</th></tr></thead><tbody>';
+    for(const i of rows){const q=i.lojas_qtd[ln],d=i.lojas_det[ln]||{};h+='<tr><td class="mono">'+esc(i.cod)+'</td><td>'+esc(i.descricao)+'</td><td class="r">'+i.emb+'</td><td class="r"><b>'+Math.ceil(q/i.emb)+'</b></td><td class="r"><b>'+fmt(q,0)+'</b> '+esc(i.unid)+'</td><td class="r">'+fmt(i.custo,2)+'</td><td class="r">'+money2(q*i.custo)+'</td><td class="r">'+fmt(d.estoque,0)+'</td><td class="r">'+(d.cobertura_dias==null?'—':fmt(d.cobertura_dias,0)+' d')+'</td></tr>';}
+    h+='</tbody></table></div>';
+  }
+  const resumoHtml='<div class="pv-resumo">'+resumo.map(r=>'<div><div class="lb">Loja '+r.ln+' · '+(LOJAS_NOMES[r.ln]||'')+'</div><div class="v">'+money2(r.tot)+'</div><div class="s2">'+r.itens+' itens · '+r.vol+' vol</div></div>').join('')+'<div class="tot"><div class="lb">Total do pedido</div><div class="v">'+money2(totalGeral)+'</div><div class="s2">'+volGeral+' volumes · '+LJ.length+' lojas</div></div></div>';
+  $('#pv-body').innerHTML=top+resumoHtml+h;
+  $('#pv').hidden=false; document.body.classList.add('pv-on');
+  $('#pv').scrollTop=0;
+}
+function fecharPedido(){$('#pv').hidden=true;document.body.classList.remove('pv-on');}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#pv').hidden)fecharPedido();});
 document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{tab=t.dataset.tab;aberta=null;render();});
 $('#btnAplicar').onclick=()=>{aberta=null;carregar(false);};
 $('#fBusca').addEventListener('input',()=>{if(DATA)render();});
