@@ -482,6 +482,13 @@ async function carregar() {
 
 let margensLista = {}; // id da lista -> { venda, com_venda, msv, msc, ... } (de /api/listas-compra/margem-resumo)
 
+// nº de itens da lista NA LOJA do filtro (a composição varia por loja); "todas" = total
+function itensDaLista(r) {
+  const lj = params().loja;
+  if (lj === 'todas' || !r.itens_por_loja) return r.total_itens || 0;
+  return r.itens_por_loja[lj] ?? 0;
+}
+
 function msvClass(v) { return v>=20?'m-great':v>=12?'m-ok':v>=0?'m-warn':'m-bad'; }
 function avClass(v)  { return v<=2?'av-ok':v<=5?'av-warn':'av-bad'; }
 
@@ -496,7 +503,7 @@ function valorOrdenacao(r, col) {
     case 'msc':      return m.msc || 0;
     case 'avaria':   return s.avaria || 0;
     case 'pctav':    return s.pct_av || 0;
-    case 'itens':    return r.total_itens || 0;
+    case 'itens':    return itensDaLista(r);
     case 'comvenda': return m.com_venda || 0;
     default:         return 0;
   }
@@ -571,7 +578,7 @@ function renderListasComDados(lista, filtroMsg) {
       <td class="td-r"><span class="td-margem ${msvClass(msc)}" onclick="${sid?`abrirDrawer(${sid},'margem',${r.id})`:'void(0)'}" title="Ver rentabilidade">${venda>0?pctFmt(msc):'—'}</span></td>
       <td class="td-r"><span class="td-avaria ${avClass(s.pct_av)}" onclick="${sid?`abrirDrawer(${sid},'avaria',${r.id})`:'void(0)'}" title="Ver avarias">${avaria>0?fmt(avaria):'—'}</span></td>
       <td class="td-r ${avClass(s.pct_av)}">${avaria>0?pctFmt(s.pct_av):'—'}</td>
-      <td class="td-r"><span class="itens-badge">${r.total_itens}</span></td>
+      <td class="td-r"><span class="itens-badge" title="${params().loja==='todas' ? 'Total de itens da lista' : `Itens da lista na Loja ${params().loja} (total da lista: ${r.total_itens})`}">${itensDaLista(r)}</span></td>
       <td class="td-r" style="color:#4E5A72">${fmtN(m.com_venda||0)}</td>
     </tr>`;
   });
@@ -973,8 +980,13 @@ function renderItensTabela() {
   const arrow = col => sortColItens === col ? (sortDirItens === 'desc' ? '▼' : '▲') : '';
   const active = col => sortColItens === col ? ' active' : '';
 
-  const thLojas = `<th class="c loja-filtro" title="Clique numa loja pra ver só os itens que existem nela (clique de novo pra limpar)">
-              <div style="display:flex;gap:2px;justify-content:center">${[1,2,3,4,5,6].map(n=>`<span class="loja-badge${lojaFiltroItens===n?' on':''}" onclick="filtrarLoja(${n})">L${n}</span>`).join('')}</div>
+  // por loja: quantos itens da lista (carregada) existem naquela loja — a composição varia
+  const porLoja = n => itensListaAtual.filter(it => it.lojas.includes(n)).length;
+  const thLojas = `<th class="c loja-filtro" title="Nº embaixo = itens desta lista em cada loja. Clique numa loja pra ver só os itens dela (clique de novo pra limpar)">
+              <div style="display:flex;gap:2px;justify-content:center">${[1,2,3,4,5,6].map(n=>`<div style="display:flex;flex-direction:column;align-items:center;gap:1px">
+                <span class="loja-badge${lojaFiltroItens===n?' on':''}" onclick="filtrarLoja(${n})">L${n}</span>
+                <span style="font-size:9px;font-weight:600;color:${lojaFiltroItens===n?'#6B4E00':'#98A0B3'};text-transform:none">${porLoja(n)}</span>
+              </div>`).join('')}</div>
               ${lojaFiltroItens ? `<div style="font-weight:400;font-size:9.5px;color:#98A0B3;margin-top:2px;text-transform:none">${itens.length} de ${itensListaAtual.length}</div>` : ''}
             </th>`;
 

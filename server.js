@@ -3023,7 +3023,9 @@ app.get('/api/listas-compra', async (req, res) => {
     let sql = `
       SELECT l.nReg, l.Nome, l.NomeFornec, l.CodFornec, l.OperadorLista, l.Obs,
              l.l1, l.l2, l.l3, l.l4, l.l5, l.l6,
-             COUNT(DISTINCT i.nReg) as total_itens
+             COUNT(DISTINCT i.nReg) as total_itens,
+             SUM(i.l1=1) as i1, SUM(i.l2=1) as i2, SUM(i.l3=1) as i3,
+             SUM(i.l4=1) as i4, SUM(i.l5=1) as i5, SUM(i.l6=1) as i6
       FROM central.c_cotacao_lista l
       LEFT JOIN central.c_cotacao_lista_itens i ON i.nCotacao = l.nReg
       ${filtro}
@@ -3047,6 +3049,8 @@ app.get('/api/listas-compra', async (req, res) => {
       operador: r.OperadorLista && r.OperadorLista !== '0' ? r.OperadorLista : null,
       obs: r.Obs?.trim(),
       total_itens: r.total_itens,
+      // composição por loja (c_cotacao_lista_itens.l1..l6) — varia bastante entre lojas
+      itens_por_loja: { 1: +r.i1 || 0, 2: +r.i2 || 0, 3: +r.i3 || 0, 4: +r.i4 || 0, 5: +r.i5 || 0, 6: +r.i6 || 0 },
       compradores: _nRegToComp[r.nReg] || null,
       lojas: [1,2,3,4,5,6].filter(n => r['l'+n] == 1)
     }));
