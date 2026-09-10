@@ -980,8 +980,23 @@ function ordenarItens(col) {
   renderItensTabela();
 }
 
+let buscaItens = '';
+// aceita % como coringa (igual busca do ERP: "economico%200" = começa com
+// economico e tem 200 em algum lugar depois); sem %, é "contém" simples
+function bateBusca(texto, termo) {
+  if (!termo) return true;
+  const t = (texto || '').toUpperCase();
+  if (termo.includes('%')) {
+    const partes = termo.toUpperCase().split('%').map(p => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    return new RegExp(partes.join('.*')).test(t);
+  }
+  return t.includes(termo.toUpperCase());
+}
+function filtrarBuscaItens(v) { buscaItens = v; renderItensTabela(); }
+
 function renderItensTabela() {
   let itens = itensListaAtual;
+  if (buscaItens.trim()) itens = itens.filter(it => bateBusca(it.descricao, buscaItens) || bateBusca(it.codigo, buscaItens));
   if (lojaFiltroItens) itens = itens.filter(it => it.lojas.includes(lojaFiltroItens));
   if (sortColItens) {
     itens = itens.slice().sort((a, b) => {
@@ -1044,7 +1059,7 @@ async function abrirLista(id) {
   const lista = listas.find(r => r.id === id);
   if (!lista) return;
   listaSelecionada = lista;
-  sortColItens = null; sortDirItens = 'desc'; lojaFiltroItens = null;
+  sortColItens = null; sortDirItens = 'desc'; lojaFiltroItens = null; buscaItens = '';
 
   document.querySelectorAll('.main-t tbody tr').forEach(tr => tr.classList.remove('selected'));
   const row = document.getElementById('row-' + id);
@@ -1097,7 +1112,13 @@ async function abrirLista(id) {
       </div>`;
 
     itensListaAtual = itens;
-    body.innerHTML = kpiHtml + '<div id="d-itens-wrap"></div>';
+    const buscaHtml = `<div style="padding:10px 18px;border-bottom:1px solid #DADAD6;background:#fff">
+      <input type="text" id="d-busca-itens" placeholder="Buscar por código ou descrição — use % como coringa, ex. economico%200"
+        value="${(buscaItens||'').replace(/"/g,'&quot;')}"
+        oninput="filtrarBuscaItens(this.value)"
+        style="width:100%;max-width:460px;border:1px solid #C9C9C4;border-radius:8px;padding:8px 12px;font-size:12.5px;font-family:inherit;color:#0E1626">
+    </div>`;
+    body.innerHTML = kpiHtml + buscaHtml + '<div id="d-itens-wrap"></div>';
     renderItensTabela();
   } catch(e) {
     body.innerHTML = `<div class="empty">Erro: ${e.message}</div>`;
