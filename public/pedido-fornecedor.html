@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pedido — Econômico</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Inter,'Segoe UI',system-ui,sans-serif;background:#EBEBE9;color:#0E1626;font-size:14px;font-variant-numeric:tabular-nums}
+.wrap{max-width:980px;margin:0 auto;padding:18px 14px 90px}
+.top{background:#101B33;color:#fff;border-radius:14px;padding:16px 18px;margin-bottom:14px}
+.top .ey{font-size:10px;font-weight:800;letter-spacing:.1em;color:#FFC933}
+.top h1{font-size:18px;font-weight:800;letter-spacing:-.2px;margin-top:3px}
+.top .sub{font-size:12px;color:#AEB8CE;margin-top:4px;line-height:1.5}
+.top .sub b{color:#fff}
+.st{display:inline-block;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:800;letter-spacing:.04em;margin-top:8px}
+.st-dig{background:#FFF6D9;color:#6B4E00}.st-fin{background:#E7F5EC;color:#137A48}
+.card{background:#fff;border:1px solid #DADAD6;border-radius:12px;overflow:hidden;margin-bottom:12px}
+.card .hd{padding:10px 14px;border-bottom:1px solid #DADAD6;font-size:12.5px;font-weight:700;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.card .hd span{font-weight:500;color:#4E5A72;font-size:11.5px}
+table{width:100%;border-collapse:collapse}
+th{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#4E5A72;background:#EBEBE9;padding:8px 10px;text-align:left}
+th.r,td.r{text-align:right}
+td{padding:9px 10px;border-top:1px solid #EEEEEA;vertical-align:middle}
+.desc{font-weight:600;line-height:1.3}
+.cod{display:block;font-family:monospace;font-size:11px;color:#98A0B3;font-weight:400;margin-top:2px}
+.qtd{font-weight:800;font-size:15px;white-space:nowrap}.qtd small{font-size:11px;color:#4E5A72;font-weight:600}
+.lj{font-size:11px;color:#4E5A72;white-space:nowrap}
+input.preco{width:104px;font:inherit;font-size:15px;font-weight:700;text-align:right;padding:8px 10px;border:2px solid #C9C9C4;border-radius:9px;background:#fff;color:#0E1626}
+input.preco:focus{outline:none;border-color:#F5B800;background:#FFFDF3}
+input.preco.ok{border-color:#137A48}
+input.obs{width:100%;min-width:140px;font:inherit;font-size:12.5px;padding:8px 10px;border:1px solid #DADAD6;border-radius:9px;background:#fff}
+input.obs:focus{outline:none;border-color:#F5B800}
+.tot{padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:12.5px;color:#4E5A72}
+.tot b{color:#0E1626;font-size:16px}
+.bar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid #DADAD6;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;box-shadow:0 -6px 20px -12px rgba(14,22,38,.3)}
+.bar .info{font-size:12px;color:#4E5A72}
+.bar .info b{color:#0E1626}
+.btn{border:none;border-radius:10px;padding:12px 20px;font:inherit;font-size:14px;font-weight:800;cursor:pointer}
+.btn-amber{background:#F5B800;color:#6B4E00}.btn-amber:hover{background:#E5AC00}.btn:disabled{opacity:.45;cursor:default}
+.saving{font-size:11px;color:#98A0B3}
+.fim{background:#E7F5EC;border:1px solid #BFE3CC;color:#137A48;border-radius:12px;padding:14px 16px;font-size:13px;margin-bottom:12px;line-height:1.5}
+.empty{padding:60px 20px;text-align:center;color:#98A0B3}
+.nome{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.nome input{font:inherit;font-size:13px;padding:8px 10px;border:1px solid #DADAD6;border-radius:9px;min-width:220px}
+@media(max-width:640px){th.lj,td.lj{display:none}.wrap{padding:10px 8px 110px}td,th{padding:8px 6px}input.preco{width:92px}}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"><div class="empty">Carregando pedido…</div></div>
+<div class="bar" id="bar" hidden><div class="info" id="barinfo"></div><div class="nome"><input id="nome" placeholder="Seu nome (vendedor)" maxlength="80"><button class="btn btn-amber" id="btnFim">Finalizar pedido</button></div></div>
+<script>
+const token=location.pathname.split('/').pop();
+const $=s=>document.querySelector(s);
+const fmt=(v,d=2)=>v==null?'—':Number(v).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let P=null, dirty=false, saveTimer=null;
+function precoNum(v){const n=parseFloat(String(v).replace(/\./g,'').replace(',','.'));return isFinite(n)?n:null;}
+function itensForm(){return P.itens.map(i=>{const el=document.querySelector('input.preco[data-cod="'+i.cod+'"]');const ob=document.querySelector('input.obs[data-cod="'+i.cod+'"]');return {cod:i.cod,preco:el?(el.value.trim()===''?'':precoNum(el.value)):i.preco,obs:ob?ob.value:i.obs};});}
+function totais(){let t=0,n=0;for(const i of itensForm()){if(i.preco!=null&&i.preco!==''){t+=i.preco*(P.itens.find(x=>x.cod===i.cod)?.qtd||0);n++;}}return {t,n};}
+function atualizarTot(){const {t,n}=totais();$('#tot').innerHTML='<span>'+n+' de '+P.itens.length+' itens com preço</span><span>Total do pedido: <b>R$ '+fmt(t)+'</b></span>';$('#barinfo').innerHTML=n<P.itens.length?'Faltam <b>'+(P.itens.length-n)+'</b> itens sem preço. Você pode finalizar mesmo assim.':'Todos os itens com preço. <b>R$ '+fmt(t)+'</b>';}
+function render(){
+  const fin=P.status==='finalizado';
+  let h='<div class="top"><div class="ey">PEDIDO DE COMPRA · ECONÔMICO</div><h1>'+esc(P.lista_nome)+'</h1><div class="sub">Fornecedor: <b>'+esc(P.fornecedor||'')+'</b>'+(P.comprador?.nome?' · Comprador(a): <b>'+esc(P.comprador.nome)+'</b>'+(P.comprador.whats?' · '+esc(P.comprador.whats):''):'')+(P.prazo_pagamento?' · Prazo: <b>'+esc(P.prazo_pagamento)+'</b>':'')+'<br>Enviado em '+new Date(P.criadoEm).toLocaleString('pt-BR')+' · Lojas: '+P.lojas.map(l=>'L'+l+' '+(P.lojas_nomes[l]||'')).join(', ')+'</div><span class="st '+(fin?'st-fin':'st-dig')+'">'+(fin?'FINALIZADO':'EM DIGITAÇÃO')+'</span></div>';
+  if(fin) h+='<div class="fim"><b>Pedido finalizado'+(P.finalizadoEm?' em '+new Date(P.finalizadoEm).toLocaleString('pt-BR'):'')+'.</b> Obrigado! A compradora já recebeu os preços. Se precisar corrigir algo, fale com ela.</div>';
+  else h+='<div class="fim" style="background:#FFF6D9;border-color:#EFD98F;color:#6B4E00">Preencha o <b>preço unitário</b> de cada item (por unidade, não por caixa) e, se quiser, uma observação. Tudo salva sozinho. Quando terminar, clique em <b>Finalizar pedido</b> no rodapé.</div>';
+  h+='<div class="card"><div class="hd">Itens do pedido <span>'+P.itens.length+' itens</span></div><div style="overflow-x:auto"><table><thead><tr><th>Produto</th><th class="r">Quantidade</th><th class="lj">Por loja</th><th class="r">Preço unit. (R$)</th><th>Observação</th></tr></thead><tbody>';
+  for(const i of P.itens){
+    const lj=Object.entries(i.lojas_qtd||{}).filter(([,q])=>q>0).map(([l,q])=>'L'+l+': '+fmt(q,0)).join(' · ');
+    h+='<tr><td class="desc">'+esc(i.descricao)+'<span class="cod">'+esc(i.cod)+'</span></td><td class="r"><div class="qtd">'+fmt(i.qtd,0)+' <small>'+esc(i.unid)+'</small></div>'+(i.emb>1?'<div class="lj">'+i.volumes+' vol × '+i.emb+'</div>':'')+'</td><td class="lj">'+lj+'</td>'+
+      '<td class="r">'+(fin?'<b>'+(i.preco!=null?'R$ '+fmt(i.preco):'—')+'</b>':'<input class="preco'+(i.preco!=null?' ok':'')+'" inputmode="decimal" data-cod="'+esc(i.cod)+'" value="'+(i.preco!=null?fmt(i.preco):'')+'" placeholder="0,00">')+'</td>'+
+      '<td>'+(fin?esc(i.obs||'')||'<span style="color:#98A0B3">—</span>':'<input class="obs" data-cod="'+esc(i.cod)+'" value="'+esc(i.obs||'')+'" placeholder="ex.: sem estoque, substituir por…" maxlength="200">')+'</td></tr>';
+  }
+  h+='</tbody></table></div><div class="tot" id="tot"></div></div>';
+  $('#app').innerHTML=h;
+  $('#bar').hidden=fin;
+  if(!fin){
+    document.querySelectorAll('input.preco,input.obs').forEach(el=>{el.addEventListener('input',()=>{dirty=true;el.classList.toggle('ok',el.classList.contains('preco')&&precoNum(el.value)!=null);atualizarTot();agendarSave();});
+      if(el.classList.contains('preco')) el.addEventListener('blur',()=>{const n=precoNum(el.value);el.value=n==null?'':fmt(n);});});
+    atualizarTot();
+  } else { const {t,n}=totais(); $('#tot').innerHTML='<span>'+n+' de '+P.itens.length+' itens com preço</span><span>Total: <b>R$ '+fmt(t)+'</b></span>'; }
+}
+function agendarSave(){clearTimeout(saveTimer);saveTimer=setTimeout(salvar,900);}
+async function salvar(){if(!dirty)return;dirty=false;try{await fetch('/api/pedido-publico/'+token+'/salvar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({itens:itensForm()})});}catch(e){dirty=true;}}
+$('#btnFim').onclick=async()=>{
+  const {n}=totais();
+  if(!confirm(n<P.itens.length?'Ainda tem '+(P.itens.length-n)+' item(ns) sem preço. Finalizar mesmo assim?':'Finalizar o pedido? Depois disso não dá mais pra alterar.')) return;
+  $('#btnFim').disabled=true;
+  try{const r=await fetch('/api/pedido-publico/'+token+'/finalizar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({itens:itensForm(),nome:$('#nome').value})});P=await r.json();render();window.scrollTo(0,0);}
+  catch(e){alert('Não foi possível finalizar. Tente de novo.');$('#btnFim').disabled=false;}
+};
+window.addEventListener('beforeunload',()=>{if(dirty)salvar();});
+(async()=>{try{const r=await fetch('/api/pedido-publico/'+token);const j=await r.json();if(j.error)throw new Error(j.error);P=j;render();}catch(e){$('#app').innerHTML='<div class="empty">Pedido não encontrado ou link inválido.</div>';}})();
+</script>
+</body>
+</html>

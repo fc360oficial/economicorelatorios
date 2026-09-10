@@ -214,6 +214,8 @@ app.use((req, res, next) => {
     '/painel-cd.html', '/api/painel-cd',
     '/painel-compras.html', '/tv'];
   if (publico.includes(req.path)) return next();
+  // Link do vendedor (pedido ao fornecedor): público por token de 32 hex, sem login
+  if (/^\/pedido\/[a-f0-9]{32}$/.test(req.path) || /^\/api\/pedido-publico\/[a-f0-9]{32}(\/|$)/.test(req.path)) return next();
   // Pré-aquecimento interno (somente localhost)
   if (req.headers['x-internal-warmup'] === 'fc360warmup2026' && req.socket.remoteAddress === '::1') return next();
   const ext = req.path.split('.').pop().toLowerCase();
@@ -6150,6 +6152,100 @@ app.get('/api/radar-pedidos/:listaId/itens', (req, res) => {
     if (!r) return res.status(404).json({ error: radarPedidos.getEstado().status === 'ok' ? 'Lista não encontrada' : 'Radar ainda calculando, tente em instantes' });
     res.json(r);
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ═══════════════════════════════════════════════════
+// PEDIDOS AO FORNECEDOR (Fase 3 do Radar) — link pro vendedor digitar preços.
+// Guardado em data/pedidos-fornecedor/ (JSON por pedido). Nada vai pro ERP.
+// ═══════════════════════════════════════════════════
+const pedidosFornec = require('./lib/pedidos-fornecedor');
+pedidosFornec.init();
+
+async function cadastroLista(id) {
+  const [lista] = await q(`SELECT Nome, Obs, CodFornec, NomeFornec, CodPrazoPag, PedidoMinimo FROM central.c_cotacao_lista WHERE nReg=?`, [id]);
+  if (!lista) return null;
+  const [prazo] = await q(`SELECT Descricao FROM central.pedidoprazos WHERE nReg=?`, [lista.CodPrazoPag]).catch(() => []);
+  const [vendedor] = await q(`SELECT Nome, email, whats FROM central.c_cotacao_agenda WHERE nLista=? LIMIT 1`, [id]).catch(() => []);
+  const [comprador] = await q(`SELECT nome, email, whats FROM central.c_cotacao_agenda_comprador WHERE nLista=? LIMIT 1`, [id]).catch(() => []);
+  return {
+    prazo_pagamento: prazo?.Descricao || null,
+    vendedor: vendedor ? { nome: vendedor.Nome?.trim() || null, email: vendedor.email || null, whats: vendedor.whats || null } : null,
+    comprador: comprador ? { nome: comprador.nome?.trim() || null, email: comprador.email || null, whats: comprador.whats || null } : null
+  };
+}
+
+// cria 1 pedido por lista selecionada
+app.post('/api/pedidos-fornecedor', async (req, res) => {
+  try {
+    const listas = (req.body.listas || []).map(n => parseInt(n)).filter(n => n > 0).slice(0, 50);
+    if (!listas.length) return res.status(400).json({ error: 'Nenhuma lista selecionada' });
+    const teto = Math.max(3, Math.min(90, parseFloat(req.body.teto) || radarPedidos.TETO_PADRAO));
+    const embMeses = req.body.emb == null ? undefined : Math.max(0, Math.min(24, parseInt(req.body.emb) || 0));
+    const criados = [], semItens = [];
+    const ajustes = req.body.ajustes && typeof req.body.ajustes === 'object' ? req.body.ajustes : {};
+    for (const id of listas) {
+      const det = radarPedidos.itensLista(id, teto, null, embMeses);
+      if (!det) { semItens.push({ lista: id, motivo: 'lista não encontrada ou radar calculando' }); continue; }
+      // quantidades editadas pela compradora na tela (por produto e loja) sobrepõem o cálculo
+      const aj = ajustes[id] || ajustes[String(id)] || {};
+      for (const it of det.itens) {
+        const a = aj[it.cod]; if (!a) continue;
+        for (const [ln, v] of Object.entries(a)) { const n = Math.max(0, Math.round(parseFloat(v) || 0)); it.lojas_qtd[ln] = n; }
+        it.qtd = Object.values(it.lojas_qtd).reduce((s, v) => s + (v || 0), 0);
+        it.volumes = it.qtd ? Math.ceil(it.qtd / (it.emb || 1)) : 0; it.total = +(it.qtd * it.custo).toFixed(2); it.editado = true;
+      }
+      if (!det.itens.some(i => i.qtd > 0)) { semItens.push({ lista: id, nome: det.lista.nome, motivo: 'nada a pedir hoje' }); continue; }
+      const cad = await cadastroLista(id).catch(() => null);
+      criados.push(pedidosFornec.criar({ lista: det.lista, cadastro: cad, detalhe: det, teto, embMeses, usuario: req.session.user?.nome || null }));
+    }
+    const base = `${req.protocol}://${req.get('host')}`;
+    res.json({ criados: criados.map(p => ({ id: p.id, lista: p.lista, lista_nome: p.lista_nome, fornecedor: p.fornecedor, vendedor: p.vendedor, itens: p.itens.length, totais: p.totais, link: `${base}/pedido/${p.token}` })), sem_itens: semItens });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.get('/api/pedidos-fornecedor', (req, res) => {
+  const base = `${req.protocol}://${req.get('host')}`;
+  res.json(pedidosFornec.listar().map(p => ({ id: p.id, lista: p.lista, lista_nome: p.lista_nome, fornecedor: p.fornecedor, vendedor: p.vendedor, comprador: p.comprador, status: p.status, aprovadoEm: p.aprovadoEm || null, aprovadoPor: p.aprovadoPor || null, criadoEm: p.criadoEm, criadoPor: p.criadoPor, abertoEm: p.abertoEm, finalizadoEm: p.finalizadoEm, lojas: p.lojas, totais: p.totais, link: `${base}/pedido/${p.token}` })));
+});
+app.get('/api/pedidos-fornecedor/:id', (req, res) => {
+  const p = pedidosFornec.obter(parseInt(req.params.id));
+  if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
+  res.json({ ...p, link: `${req.protocol}://${req.get('host')}/pedido/${p.token}` });
+});
+
+app.post('/api/pedidos-fornecedor/:id/aprovar', (req, res) => {
+  const p = pedidosFornec.aprovar(parseInt(req.params.id), req.session.user?.nome || null);
+  if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
+  if (p.erro) return res.status(409).json({ error: p.erro });
+  res.json({ ok: true, status: p.status, aprovadoEm: p.aprovadoEm });
+});
+app.post('/api/pedidos-fornecedor/:id/cancelar', (req, res) => {
+  const p = pedidosFornec.cancelar(parseInt(req.params.id), req.session.user?.nome || null, req.body.motivo);
+  if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
+  if (p.erro) return res.status(409).json({ error: p.erro });
+  res.json({ ok: true, status: p.status });
+});
+
+// --- lado do vendedor (público por token; ver bypass no middleware de auth) ---
+app.get('/pedido/:token', (req, res) => {
+  if (!pedidosFornec.porToken(req.params.token)) return res.status(404).send('Pedido não encontrado');
+  res.sendFile(path.join(__dirname, 'public', 'pedido-fornecedor.html'));
+});
+app.get('/api/pedido-publico/:token', (req, res) => {
+  const p = pedidosFornec.abrir(req.params.token);
+  if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
+  res.json(pedidosFornec.visaoVendedor(p));
+});
+app.post('/api/pedido-publico/:token/salvar', (req, res) => {
+  const p = pedidosFornec.salvarPrecos(req.params.token, req.body.itens);
+  if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
+  if (p.erro) return res.status(409).json({ error: p.erro });
+  res.json({ ok: true, status: p.status, atualizadoEm: p.atualizadoEm });
+});
+app.post('/api/pedido-publico/:token/finalizar', (req, res) => {
+  const p0 = pedidosFornec.salvarPrecos(req.params.token, req.body.itens || []);
+  if (!p0) return res.status(404).json({ error: 'Pedido não encontrado' });
+  const p = pedidosFornec.finalizar(req.params.token, req.body.nome);
+  res.json(pedidosFornec.visaoVendedor(p));
 });
 
 const server = app.listen(3003, '0.0.0.0', () => {
