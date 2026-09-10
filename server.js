@@ -2892,6 +2892,55 @@ app.get('/api/produtos/:codigo/detalhe', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Monitor de Sugestões — lista as "Sugestões" já existentes no ERP
+// (central.pedidocompra, agrupada por nConsolidado; 1 linha por loja lá,
+// aqui vira 1 linha por sugestão). nPedido>0 = Pedido Gerado (confirmado:
+// o número mostrado no ERP é o próprio nPedido). Os outros códigos de
+// Status (0/1/2/7/8 vistos até agora) AINDA NÃO estão confirmados com o
+// Tiago — mostra o código bruto até ele confirmar qual é qual.
+app.get('/api/sugestoes-compra', async (req, res) => {
+  try {
+    const loja = req.query.loja && req.query.loja !== 'todas' ? parseInt(req.query.loja) : null;
+    const busca = (req.query.busca || '').trim();
+
+    let where = 'p.nConsolidado > 0';
+    const params = [];
+    if (loja) { where += ' AND p.nLoja = ?'; params.push(loja); }
+    if (busca) {
+      where += ' AND (p.Nome LIKE ? OR p.CNPJFornec LIKE ? OR p.nConsolidado = ? OR p.nLista = ?)';
+      const nBusca = parseInt(busca) || 0;
+      params.push('%' + busca + '%', '%' + busca + '%', nBusca, nBusca);
+    }
+
+    const rows = await q(`
+      SELECT p.nConsolidado,
+             MAX(p.nLista) as nLista, MAX(p.CodFornec) as CodFornec, MAX(p.Nome) as Nome,
+             MAX(p.CNPJFornec) as cnpj, MAX(p.Descricao) as descricao,
+             GROUP_CONCAT(DISTINCT p.nLoja ORDER BY p.nLoja) as lojas,
+             MAX(p.Status) as status, MAX(p.nPedido) as nPedido, MAX(p.DataLan) as data,
+             SUM(p.Total) as total
+      FROM central.pedidocompra p
+      WHERE ${where}
+      GROUP BY p.nConsolidado
+      ORDER BY p.nConsolidado DESC
+      LIMIT 150
+    `, params);
+
+    res.json(rows.map(r => ({
+      sugestao: r.nConsolidado,
+      lista: r.nLista,
+      fornecedor: r.Nome?.trim(),
+      cnpj: r.cnpj,
+      descricao: r.descricao?.trim() || null,
+      lojas: (r.lojas || '').split(',').filter(Boolean).map(n => parseInt(n)),
+      status_bruto: r.status,
+      pedido: r.nPedido > 0 ? r.nPedido : null,
+      data: r.data ? new Date(r.data).toLocaleDateString('pt-BR') : null,
+      total: r.total ? +parseFloat(r.total).toFixed(2) : 0
+    })));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // ═══════════════════════════════════════════════════
 // SUGESTÃO DE COMPRAS — V1
 // Sugere quantidade a comprar por cobertura de estoque: estoque atual +

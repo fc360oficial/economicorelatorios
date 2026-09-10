@@ -67,6 +67,27 @@ table.main-t tbody tr.open{background:#FFF6D9}
 .badge.sem_venda{background:#F1F2ED;color:#98A0B3}
 
 /* detalhe por loja */
+/* monitor de sugestões */
+.mon-hdr{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+.mon-filtros{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.mon-filtros select,.mon-filtros input{background:#FFFFFF;border:1px solid #C9C9C4;border-radius:8px;padding:8px 11px;font-size:12.5px;font-family:inherit}
+.mon-filtros input{min-width:260px}
+.contagem-mon{font-size:11.5px;color:#98A0B3;font-weight:600}
+table.mon-t{width:100%;border-collapse:collapse;font-size:12.5px}
+table.mon-t th{text-align:left;font-size:10px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:#4E5A72;background:#EBEBE9;padding:10px 14px;white-space:nowrap;border-bottom:1px solid #DADAD6}
+table.mon-t td{padding:10px 14px;border-top:1px solid #DADAD6;white-space:nowrap}
+table.mon-t th.r,table.mon-t td.r{text-align:right}
+table.mon-t tbody tr{cursor:pointer;border-left:4px solid transparent}
+table.mon-t tbody tr:hover{filter:brightness(.98)}
+table.mon-t tbody tr.st-pedido{background:#E9EEF6;border-left-color:#2E5E8C}
+table.mon-t tbody tr.st-desconhecido{background:#FFFFFF;border-left-color:#DADAD6}
+.status-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px}
+.status-pill{display:inline-flex;align-items:center;font-size:10.5px;font-weight:700;border-radius:20px;padding:4px 10px}
+.status-pill.pedido{background:#DCE7F7;color:#2E5E8C}
+.status-pill.desconhecido{background:#F1F2ED;color:#98A0B3}
+.status-pill .num{margin-left:5px;font-weight:800;opacity:.85}
+.aviso-status{background:#FFF6D9;border:1px solid #F5B800;border-radius:8px;padding:8px 12px;font-size:11.5px;color:#6B4E00;margin-bottom:14px}
+
 .detalhe-row td{padding:0;border-top:none}
 .detalhe{background:#F7F7F5;padding:14px 20px;border-top:1px solid #DADAD6}
 .detalhe h4{font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:#98A0B3;margin-bottom:8px}
@@ -85,26 +106,53 @@ table.det-t td.loja{font-weight:700;color:#0E1626}
 <body class="ds">
 <div class="main" id="main">
 
-  <div class="page-hdr">
-    <div>
-      <h1>Sugestão de Compras</h1>
-      <p>Quantidade sugerida por cobertura de estoque — estoque atual + venda média do período, comparado a uma cobertura alvo.</p>
+  <div id="monitor-view">
+    <div class="mon-hdr">
+      <div>
+        <h1>Sugestão de Compras</h1>
+        <p>Monitor das sugestões geradas no ERP — clique numa linha pra abrir o cálculo de cobertura da lista.</p>
+      </div>
+      <button class="btn btn-slate" onclick="mostrarPorLista()">📋 Calcular por Lista (sem passar pelo Monitor)</button>
     </div>
+
+    <div class="aviso-status">⚠️ As cores <b>Em Aberto / Em Digitação / Fechado</b> ainda não foram confirmadas com o código do ERP — por enquanto mostro o código bruto (ex. "Status 7") nesses casos. <b>Pedido Gerado</b> já está confirmado (é o próprio nº do pedido). Me diga qual código é qual olhando um exemplo que você reconheça, e eu ajusto as cores certas.</div>
+
+    <div class="mon-filtros">
+      <select id="m-loja" onchange="carregarMonitor()">
+        <option value="todas">Todas as Lojas</option>
+        <option value="1">Loja 1</option><option value="2">Loja 2</option><option value="3">Loja 3</option>
+        <option value="4">Loja 4</option><option value="5">Loja 5</option><option value="6">Loja 6</option>
+      </select>
+      <input type="text" id="m-busca" placeholder="Buscar por fornecedor, nº da sugestão ou da lista..." oninput="carregarMonitor()">
+      <span class="contagem-mon" id="m-contagem"></span>
+    </div>
+
+    <div class="table-wrap" id="monitor-wrap"><div class="spinner"></div></div>
   </div>
 
-  <div class="filtros" id="filtros-lista">
-    <div class="fg" style="min-width:260px;flex:1">
-      <label>Lista</label>
-      <input type="text" id="f-busca-lista" placeholder="Buscar por fornecedor ou nº da lista..." oninput="filtrarListas()">
+  <div id="por-lista-view" style="display:none">
+    <div class="page-hdr">
+      <div>
+        <h1>Calcular por Lista</h1>
+        <p>Quantidade sugerida por cobertura de estoque — estoque atual + venda média do período, comparado a uma cobertura alvo.</p>
+      </div>
+      <button class="btn btn-slate" onclick="voltarMonitor()">← Monitor de Sugestões</button>
     </div>
-    <div class="fg">
-      <label>Comprador</label>
-      <select id="f-comprador" onchange="carregarListas()"><option value="">Todos</option></select>
-    </div>
-  </div>
 
-  <div id="listas-wrap">
-    <div class="spinner"></div>
+    <div class="filtros" id="filtros-lista">
+      <div class="fg" style="min-width:260px;flex:1">
+        <label>Lista</label>
+        <input type="text" id="f-busca-lista" placeholder="Buscar por fornecedor ou nº da lista..." oninput="filtrarListas()">
+      </div>
+      <div class="fg">
+        <label>Comprador</label>
+        <select id="f-comprador" onchange="carregarListas()"><option value="">Todos</option></select>
+      </div>
+    </div>
+
+    <div id="listas-wrap">
+      <div class="spinner"></div>
+    </div>
   </div>
 
   <div id="sugestao-wrap" style="display:none">
@@ -215,8 +263,10 @@ function filtrarListas(){
 
 function abrirSugestao(id){
   listaAtual = id;
+  document.getElementById('monitor-view').style.display = 'none';
   document.getElementById('filtros-lista').style.display = 'none';
   document.getElementById('listas-wrap').style.display = 'none';
+  document.getElementById('por-lista-view').style.display = 'block';
   document.getElementById('sugestao-wrap').style.display = 'block';
   carregarSugestao();
 }
@@ -225,6 +275,55 @@ function voltarListas(){
   document.getElementById('listas-wrap').style.display = 'block';
   document.getElementById('sugestao-wrap').style.display = 'none';
   listaAtual = null; sugestaoAtual = null; linhaAberta = null;
+}
+function mostrarPorLista(){
+  document.getElementById('monitor-view').style.display = 'none';
+  document.getElementById('por-lista-view').style.display = 'block';
+  if (!listas.length) carregarListas(); else filtrarListas();
+}
+function voltarMonitor(){
+  document.getElementById('por-lista-view').style.display = 'none';
+  document.getElementById('monitor-view').style.display = 'block';
+}
+
+// ── Monitor de Sugestões (central.pedidocompra) ──
+let ultimoMonitorReq = 0;
+function statusInfo(s){
+  if (s.pedido) return { cls:'pedido', label:'Pedido Gerado', extra:'#'+s.pedido };
+  return { cls:'desconhecido', label:'Status ' + s.status_bruto, extra:null };
+}
+async function carregarMonitor(){
+  const meuReq = ++ultimoMonitorReq;
+  const loja = document.getElementById('m-loja').value;
+  const busca = document.getElementById('m-busca').value;
+  const wrap = document.getElementById('monitor-wrap');
+  wrap.innerHTML = '<div class="spinner"></div>';
+  try {
+    const r = await fetch(`/api/sugestoes-compra?loja=${loja}&busca=${encodeURIComponent(busca)}`);
+    const rows = await r.json();
+    if (meuReq !== ultimoMonitorReq) return; // resposta antiga, ignora
+    if (rows.error) throw new Error(rows.error);
+    document.getElementById('m-contagem').textContent = `${rows.length} sugestão(ões)`;
+    if (!rows.length) { wrap.innerHTML = '<div class="empty">Nenhuma sugestão encontrada.</div>'; return; }
+    wrap.innerHTML = `<table class="mon-t"><thead><tr>
+        <th>Sugestão</th><th>Lista</th><th>Fornecedor</th><th>CNPJ</th><th>Loja(s)</th><th>Status</th><th class="r">Total</th><th>Data</th>
+      </tr></thead><tbody>${rows.map(s => {
+        const si = statusInfo(s);
+        return `<tr class="st-${si.cls}" onclick="abrirSugestao(${s.lista})">
+          <td><b>${s.sugestao}</b></td>
+          <td>${s.lista}</td>
+          <td>${s.fornecedor||'—'}</td>
+          <td class="cod">${s.cnpj||'—'}</td>
+          <td>Loja(s): ${s.lojas.join(' - ')}</td>
+          <td><span class="status-pill ${si.cls}">${si.label}${si.extra?`<span class="num">${si.extra}</span>`:''}</span></td>
+          <td class="r">${fmt(s.total)}</td>
+          <td>${s.data||'—'}</td>
+        </tr>`;
+      }).join('')}</tbody></table>`;
+  } catch(e) {
+    if (meuReq !== ultimoMonitorReq) return;
+    wrap.innerHTML = `<div class="empty">Erro: ${e.message}</div>`;
+  }
 }
 
 async function carregarSugestao(){
@@ -329,7 +428,7 @@ function exportarExcelSugestao(){
   URL.revokeObjectURL(url);
 }
 
-carregarListas();
+carregarMonitor();
 </script>
 </body>
 </html>
