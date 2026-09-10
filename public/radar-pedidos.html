@@ -41,17 +41,21 @@ body{font-family:'InterVar','Segoe UI',sans-serif;background:#EBEBE9;color:#0E16
 .busca-row input{flex:1;max-width:380px;border:1px solid #C9C9C4;border-radius:8px;padding:8px 12px;font-size:12.5px;font-family:inherit}
 .busca-row .contagem{font-size:11.5px;color:#98A0B3;font-weight:600}
 .table-wrap{overflow-x:auto;border-radius:12px;border:1px solid #DADAD6;background:#FFFFFF;box-shadow:0 1px 3px rgba(14,22,38,.07);margin-bottom:18px}
-table.main-t{width:100%;border-collapse:collapse;font-size:12.5px}
-table.main-t th{text-align:left;font-size:10px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:#4E5A72;background:#EBEBE9;padding:10px 12px;white-space:nowrap;border-bottom:1px solid #DADAD6;cursor:pointer;user-select:none;position:sticky;top:0}
+table.main-t{width:100%;border-collapse:collapse;font-size:12px;table-layout:auto}
+table.main-t th{text-align:left;font-size:9.5px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:#4E5A72;background:#EBEBE9;padding:9px 10px;white-space:nowrap;border-bottom:1px solid #DADAD6;cursor:pointer;user-select:none;position:sticky;top:0}
 table.main-t th.on{color:#0E1626}
 table.main-t th.r,table.main-t td.r{text-align:right}
 table.main-t th.c,table.main-t td.c{text-align:center}
-table.main-t td{padding:9px 12px;border-top:1px solid #DADAD6;white-space:nowrap;vertical-align:top}
+table.main-t td{padding:8px 10px;border-top:1px solid #DADAD6;white-space:nowrap;vertical-align:top;line-height:1.35}
+table.main-t td.lc{white-space:normal;min-width:200px;max-width:320px}
+table.main-t td.comp{white-space:normal;max-width:110px;font-size:11.5px}
+.s2{font-size:10.5px;color:#98A0B3;font-weight:500;margin-top:1px}
+.fl{margin-top:4px;display:flex;gap:4px;flex-wrap:wrap}
 table.main-t tbody tr.lst{cursor:pointer}
 table.main-t tbody tr.lst:hover{background:#EBEBE955}
 table.main-t tbody tr.open{background:#FFF6D9}
 .nm{font-weight:700}.nm span{color:#98A0B3;font-weight:500;font-size:11px;margin-left:5px}
-.sub{font-size:11px;color:#4E5A72;white-space:normal;max-width:34ch}
+.sub{font-size:10.5px;color:#4E5A72;white-space:normal}
 .pill{display:inline-block;padding:2px 8px;border-radius:99px;font-size:10.5px;font-weight:700;letter-spacing:.3px}
 .p-hoje{background:#FBEAED;color:#C22F49}.p-breve{background:#FFF6D9;color:#6B4E00;border:1px solid #EFD98F}.p-ok{background:#E7F5EC;color:#137A48}.p-cinza{background:#EBEBE9;color:#4E5A72}
 .p-flag{background:#E9EEF6;color:#2E5E8C}
@@ -189,8 +193,8 @@ function render(){
   if(tab==='regras') return renderRegras();
 }
 const COLS=[
-  ['nome','Lista / fornecedor',''],['comprador','Comprador',''],['fazer_em','Fazer em','c'],['pedido_valor','Pedido (custo)','r'],['pedido_itens','Itens','r'],
-  ['cobertura_dias','Cobertura hoje','r'],['ponto','Ponto','r'],['alvo','Alvo','r'],['ciclo','Ciclo','r'],['venda_dia','Venda R$/dia','r'],['estoque_hoje','Estoque hoje','r'],['diferenca','vs alvo','r'],['rupturas','Ruptura','r'],['lead','Lead (méd/máx/n)','r'],['flags','Avisos','']
+  ['nome','Lista / fornecedor',''],['comprador','Comprador',''],['fazer_em','Fazer em','c'],['pedido_valor','Pedido (custo)','r'],
+  ['cobertura_dias','Cobertura · ponto · alvo','r'],['venda_dia','Venda R$/dia','r'],['estoque_hoje','Estoque · vs alvo','r'],['rupturas','Rupt.','r'],['lead','Lead','r']
 ];
 function renderTabela(rows,vazio){
   rows=ordenar(rows);
@@ -199,13 +203,16 @@ function renderTabela(rows,vazio){
   for(const [k,t,c] of COLS) h+='<th class="'+c+(sortK===k?' on':'')+'" data-k="'+k+'">'+t+(sortK===k?(sortD>0?' ↑':' ↓'):'')+'</th>';
   h+='</tr></thead><tbody>';
   for(const l of rows){
-    const lead=l.lead;
-    h+='<tr class="lst'+(aberta===l.lista?' open':'')+'" data-l="'+l.lista+'"><td><div class="nm">'+esc(l.nome)+'<span>#'+l.lista+'</span></div><div class="sub">'+esc(l.fornecedor||'')+'</div></td>'+
-      '<td>'+esc(l.comprador||'—')+'</td><td class="c">'+pillDia(l)+'</td>'+
-      '<td class="r"><b>'+(l.ok?money(l.pedido_valor):'—')+'</b></td><td class="r">'+(l.ok?l.pedido_itens+' <span class="mut">/ '+l.com_venda+'</span>':'—')+'</td>'+
-      '<td class="r '+(l.ok&&l.cobertura_dias<=l.ponto?'neg':'')+'">'+(l.ok?fmt(l.cobertura_dias)+' d':'—')+'</td><td class="r">'+(l.ok?fmt(l.ponto):'—')+'</td><td class="r">'+(l.ok?fmt(l.alvo):'—')+'</td><td class="r">'+(l.ok?fmt(l.ciclo):'—')+'</td>'+
-      '<td class="r">'+(l.ok?fmt(l.venda_dia,2):'—')+'</td><td class="r">'+(l.ok?money(l.estoque_hoje):'—')+'</td><td class="r '+(l.ok&&l.diferenca>0?'neg':'pos')+'">'+(l.ok?(l.diferenca>0?'+':'−')+money(Math.abs(l.diferenca)):'—')+'</td>'+
-      '<td class="r '+(l.rupturas?'neg':'')+'">'+(l.ok?l.rupturas:'—')+'</td><td class="r">'+(lead&&lead.lead_medio!=null?fmt(lead.lead_medio)+' / '+lead.lead_max+' / '+lead.sugestoes:'—')+'</td><td>'+(l.ok?flagsHtml(l):'')+'</td></tr>';
+    const lead=l.lead, fl=l.ok?flagsHtml(l):'';
+    h+='<tr class="lst'+(aberta===l.lista?' open':'')+'" data-l="'+l.lista+'">'+
+      '<td class="lc"><div class="nm">'+esc(l.nome)+'<span>#'+l.lista+'</span></div><div class="sub">'+esc(l.fornecedor||'')+'</div>'+(fl?'<div class="fl">'+fl+'</div>':'')+'</td>'+
+      '<td class="comp">'+esc(l.comprador||'—')+'</td><td class="c">'+pillDia(l)+'</td>'+
+      '<td class="r"><b>'+(l.ok?money(l.pedido_valor):'—')+'</b>'+(l.ok?'<div class="s2">'+l.pedido_itens+' de '+l.com_venda+' itens</div>':'')+'</td>'+
+      '<td class="r"><span class="'+(l.ok&&l.cobertura_dias<=l.ponto?'neg':'')+'">'+(l.ok?fmt(l.cobertura_dias)+' d':'—')+'</span>'+(l.ok?'<div class="s2">ponto '+fmt(l.ponto)+' · alvo '+fmt(l.alvo)+' · ciclo '+fmt(l.ciclo)+'</div>':'')+'</td>'+
+      '<td class="r">'+(l.ok?fmt(l.venda_dia,0):'—')+'</td>'+
+      '<td class="r">'+(l.ok?money(l.estoque_hoje):'—')+(l.ok?'<div class="s2 '+(l.diferenca>0?'neg':'pos')+'">'+(l.diferenca>0?'+':'−')+money(Math.abs(l.diferenca))+'</div>':'')+'</td>'+
+      '<td class="r '+(l.rupturas?'neg':'')+'">'+(l.ok?l.rupturas:'—')+'</td>'+
+      '<td class="r">'+(lead&&lead.lead_medio!=null?fmt(lead.lead_medio)+' d<div class="s2">máx '+lead.lead_max+' · '+lead.sugestoes+' sug.</div>':'—')+'</td></tr>';
     if(aberta===l.lista) h+='<tr class="det"><td colspan="'+COLS.length+'"><div class="box" id="det-'+l.lista+'"><div class="spinner"></div></div></td></tr>';
   }
   h+='</tbody></table></div>';
