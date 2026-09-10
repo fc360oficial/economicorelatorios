@@ -62,11 +62,12 @@ table.main-t tbody tr.open{background:#FFF6D9}
 .neg{color:#C22F49;font-weight:700}.pos{color:#137A48;font-weight:700}.mut{color:#98A0B3}
 .det td{background:#FAFAF8;padding:0 12px 14px 12px;white-space:normal}
 .det .box{margin-top:8px;border:1px solid #DADAD6;border-radius:10px;overflow:hidden;background:#fff}
-.det .box .hd{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:9px 14px;background:#101B33;color:#fff;font-size:12px}
+.det .box .hd{display:flex;justify-content:space-between;align-items:center;gap:6px 16px;flex-wrap:wrap;padding:9px 14px;background:#101B33;color:#fff;font-size:12px;white-space:normal;line-height:1.5}
 .det .box .hd b{color:#FFC933}
 .det table{width:100%;border-collapse:collapse;font-size:12px}
 .det table th{font-size:9.5px;text-transform:uppercase;letter-spacing:.4px;color:#4E5A72;background:#EBEBE9;padding:7px 10px;text-align:left;position:static;cursor:default}
 .det table td{padding:6px 10px;border-top:1px solid #EEEEEA;white-space:nowrap}
+.det table td.obs,.det table th.obs{white-space:normal;min-width:120px;max-width:200px;font-size:11px}
 .det table td.r,.det table th.r{text-align:right}
 .det table tr.pede td{font-weight:600}
 .det table tr.zero td{color:#98A0B3}
@@ -227,11 +228,11 @@ async function carregarItens(id){
     const L=j.lista, P=j.params, pede=j.itens.filter(i=>i.qtd>0);
     let h='<div class="hd"><div><b>'+esc(L.nome)+'</b> · '+esc(L.fornecedor||'')+(L.pedidoMinimo?' · pedido mínimo R$ '+fmt(L.pedidoMinimo,0):'')+'</div>'+
       '<div>'+(P?'ponto <b>'+fmt(P.ponto)+'d</b> · alvo <b>'+fmt(P.alvoLista)+'d</b> · ciclo <b>'+fmt(P.ciclo)+'d</b> · ':'')+'fazer em <b>'+(j.fazer_em===0?'HOJE':j.fazer_em+' dias ('+br(j.data)+')')+'</b> · '+pede.length+' itens · '+j.volumes+' volumes · <b>'+money(j.total)+'</b></div></div>';
-    h+='<div style="overflow-x:auto"><table><thead><tr><th>Produto</th><th class="r">Emb</th><th class="r">Venda/dia</th><th class="r">Estoque</th><th class="r">Trânsito</th><th class="r">Cobertura</th><th class="r">Alvo</th><th class="r">Pedir</th><th class="r">Volumes</th><th class="r">Custo</th><th class="r">Total</th><th>Obs</th></tr></thead><tbody>';
+    h+='<div style="overflow-x:auto"><table><thead><tr><th>Produto</th><th class="r">Emb</th><th class="r">Venda/dia</th><th class="r">Estoque</th><th class="r">Trânsito</th><th class="r">Cobertura</th><th class="r">Alvo</th><th class="r">Pedir</th><th class="r">Total</th><th class="obs">Obs</th></tr></thead><tbody>';
     for(const i of j.itens){
       const obs=[]; if(i.flag==='piso')obs.push('piso: 1 ciclo'); if(i.flag==='teto')obs.push('TETO: conferir'); if(i.estoque_bruto<0)obs.push('estoque negativo no ERP'); if(i.validade&&i.alvo_dias&&i.alvo_dias<P.alvoLista-0.05)obs.push('validade '+i.validade+'d'); if(i.venda_dia===0)obs.push('sem venda');
       h+='<tr class="'+(i.qtd>0?'pede':'zero')+'"><td class="desc">'+esc(i.descricao)+'<span class="cod">'+esc(i.cod)+' · L'+i.lojas.join(' L')+'</span></td><td class="r">'+i.emb+'</td><td class="r">'+fmt(i.venda_dia,2)+'</td><td class="r">'+fmt(i.estoque,0)+'</td><td class="r">'+(i.transito?fmt(i.transito,0):'<span class="mut">—</span>')+'</td>'+
-        '<td class="r '+(i.abaixo_ponto?'neg':'')+'">'+(i.cobertura_dias==null?'—':fmt(i.cobertura_dias,0)+' d')+'</td><td class="r">'+(i.alvo_dias?fmt(i.alvo_dias,0)+' d':'—')+'</td><td class="r"><span class="qtd">'+(i.qtd?fmt(i.qtd,0):'')+'</span>'+(i.qtd?' '+esc(i.unid):'')+'</td><td class="r">'+(i.volumes||'')+'</td><td class="r">'+fmt(i.custo,2)+'</td><td class="r">'+(i.total?money(i.total):'')+'</td><td class="mut">'+obs.join(' · ')+'</td></tr>';
+        '<td class="r '+(i.abaixo_ponto?'neg':'')+'">'+(i.cobertura_dias==null?'—':fmt(i.cobertura_dias,0)+' d')+'</td><td class="r">'+(i.alvo_dias?fmt(i.alvo_dias,0)+' d':'—')+'</td><td class="r"><span class="qtd">'+(i.qtd?fmt(i.qtd,0):'')+'</span>'+(i.qtd?' '+esc(i.unid)+(i.emb>1?'<div class="s2">'+i.volumes+' vol × '+i.emb+'</div>':''):'')+'</td><td class="r">'+(i.total?money(i.total):'')+'<div class="s2">'+fmt(i.custo,2)+' un</div></td><td class="mut obs">'+obs.join(' · ')+'</td></tr>';
     }
     h+='</tbody></table></div>';
     box.innerHTML=h;
