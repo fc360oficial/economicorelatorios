@@ -2902,10 +2902,12 @@ app.get('/api/sugestoes-compra', async (req, res) => {
   try {
     const loja = req.query.loja && req.query.loja !== 'todas' ? parseInt(req.query.loja) : null;
     const busca = (req.query.busca || '').trim();
+    const data = req.query.data && /^\d{4}-\d{2}-\d{2}$/.test(req.query.data) ? req.query.data : null;
 
     let where = 'p.nConsolidado > 0';
     const params = [];
     if (loja) { where += ' AND p.nLoja = ?'; params.push(loja); }
+    if (data) { where += ' AND DATE(p.DataLan) = ?'; params.push(data); }
     if (busca) {
       where += ' AND (p.Nome LIKE ? OR p.CNPJFornec LIKE ? OR p.nConsolidado = ? OR p.nLista = ?)';
       const nBusca = parseInt(busca) || 0;
