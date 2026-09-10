@@ -3207,6 +3207,11 @@ app.get('/api/listas-compra/:id/itens', async (req, res) => {
 
     if (loja && loja !== 'todas') {
       where += ` AND i.l${parseInt(loja)} = 1`;
+    } else {
+      // "Todas as Lojas": esconde item sem NENHUMA loja marcada no ERP
+      // (l1..l6 tudo 0) — cadastro incompleto, não pertence a loja nenhuma
+      // ainda. Some sozinho da lista quando marcarem no ERP.
+      where += ' AND (i.l1=1 OR i.l2=1 OR i.l3=1 OR i.l4=1 OR i.l5=1 OR i.l6=1)';
     }
 
     const itens = await q(`
