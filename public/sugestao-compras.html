@@ -70,23 +70,28 @@ table.main-t tbody tr.open{background:#FFF6D9}
 /* monitor de sugestões */
 .mon-hdr{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap}
 .mon-filtros{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
-.mon-filtros select,.mon-filtros input{background:#FFFFFF;border:1px solid #C9C9C4;border-radius:8px;padding:8px 11px;font-size:12.5px;font-family:inherit}
-.mon-filtros input{min-width:260px}
-.contagem-mon{font-size:11.5px;color:#98A0B3;font-weight:600}
+.mon-filtros input{background:#FFFFFF;border:1px solid #C9C9C4;border-radius:8px;padding:8px 11px;font-size:12.5px;font-family:inherit;min-width:300px}
 table.mon-t{width:100%;border-collapse:collapse;font-size:12.5px}
 table.mon-t th{text-align:left;font-size:10px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:#4E5A72;background:#EBEBE9;padding:10px 14px;white-space:nowrap;border-bottom:1px solid #DADAD6}
 table.mon-t td{padding:10px 14px;border-top:1px solid #DADAD6;white-space:nowrap}
 table.mon-t th.r,table.mon-t td.r{text-align:right}
-table.mon-t tbody tr{cursor:pointer;border-left:4px solid transparent}
+table.mon-t td.chk{width:30px;padding-right:0}
+table.mon-t tbody tr{cursor:pointer}
+table.mon-t tbody tr td:nth-child(2){position:relative}
+table.mon-t tbody tr td:nth-child(2)::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px}
 table.mon-t tbody tr:hover{filter:brightness(.98)}
-table.mon-t tbody tr.st-pedido{background:#E9EEF6;border-left-color:#2E5E8C}
-table.mon-t tbody tr.st-desconhecido{background:#FFFFFF;border-left-color:#DADAD6}
+table.mon-t tbody tr.st-pedido td:nth-child(2)::before{background:#2E5E8C}
+table.mon-t tbody tr.st-desconhecido td:nth-child(2)::before{background:#C9C9C4}
 .status-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px}
-.status-pill{display:inline-flex;align-items:center;font-size:10.5px;font-weight:700;border-radius:20px;padding:4px 10px}
+.status-dot.pedido{background:#2E5E8C}
+.status-dot.desconhecido{background:#98A0B3}
+.status-pill{display:inline-flex;align-items:center;font-size:11px;font-weight:700;border-radius:20px;padding:4px 10px}
 .status-pill.pedido{background:#DCE7F7;color:#2E5E8C}
 .status-pill.desconhecido{background:#F1F2ED;color:#98A0B3}
 .status-pill .num{margin-left:5px;font-weight:800;opacity:.85}
-.aviso-status{background:#FFF6D9;border:1px solid #F5B800;border-radius:8px;padding:8px 12px;font-size:11.5px;color:#6B4E00;margin-bottom:14px}
+.mon-rodape{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:12px 16px;border-top:1px solid #DADAD6;background:#FFFFFF;font-size:11.5px;color:#4E5A72;font-weight:600}
+.mon-legenda{display:flex;gap:16px;flex-wrap:wrap}
+.mon-legenda span{display:inline-flex;align-items:center;gap:5px}
 
 .detalhe-row td{padding:0;border-top:none}
 .detalhe{background:#F7F7F5;padding:14px 20px;border-top:1px solid #DADAD6}
@@ -116,16 +121,17 @@ table.det-t td.loja{font-weight:700;color:#0E1626}
     </div>
 
     <div class="mon-filtros">
-      <select id="m-loja" onchange="carregarMonitor()">
-        <option value="todas">Todas as Lojas</option>
-        <option value="1">Loja 1</option><option value="2">Loja 2</option><option value="3">Loja 3</option>
-        <option value="4">Loja 4</option><option value="5">Loja 5</option><option value="6">Loja 6</option>
-      </select>
       <input type="text" id="m-busca" placeholder="Buscar por fornecedor, nº da sugestão ou da lista..." oninput="carregarMonitor()">
-      <span class="contagem-mon" id="m-contagem"></span>
     </div>
 
     <div class="table-wrap" id="monitor-wrap"><div class="spinner"></div></div>
+    <div class="mon-rodape" id="monitor-rodape" style="display:none">
+      <span id="m-contagem"></span>
+      <div class="mon-legenda">
+        <span><span class="status-dot pedido"></span>Pedido Gerado</span>
+        <span><span class="status-dot desconhecido"></span>Status não confirmado ainda</span>
+      </div>
+    </div>
   </div>
 
   <div id="por-lista-view" style="display:none">
@@ -292,28 +298,31 @@ function statusInfo(s){
 }
 async function carregarMonitor(){
   const meuReq = ++ultimoMonitorReq;
-  const loja = document.getElementById('m-loja').value;
   const busca = document.getElementById('m-busca').value;
   const wrap = document.getElementById('monitor-wrap');
   wrap.innerHTML = '<div class="spinner"></div>';
+  document.getElementById('monitor-rodape').style.display = 'none';
   try {
-    const r = await fetch(`/api/sugestoes-compra?loja=${loja}&busca=${encodeURIComponent(busca)}`);
+    const r = await fetch(`/api/sugestoes-compra?busca=${encodeURIComponent(busca)}`);
     const rows = await r.json();
     if (meuReq !== ultimoMonitorReq) return; // resposta antiga, ignora
     if (rows.error) throw new Error(rows.error);
-    document.getElementById('m-contagem').textContent = `${rows.length} sugestão(ões)`;
     if (!rows.length) { wrap.innerHTML = '<div class="empty">Nenhuma sugestão encontrada.</div>'; return; }
+    document.getElementById('m-contagem').textContent = `${rows.length} — Sugestão(ões)`;
+    document.getElementById('monitor-rodape').style.display = 'flex';
     wrap.innerHTML = `<table class="mon-t"><thead><tr>
+        <th class="chk"><input type="checkbox" onclick="event.stopPropagation()"></th>
         <th>Sugestão</th><th>Lista</th><th>Fornecedor</th><th>CNPJ</th><th>Loja(s)</th><th>Status</th><th class="r">Total</th><th>Data</th>
       </tr></thead><tbody>${rows.map(s => {
         const si = statusInfo(s);
         return `<tr class="st-${si.cls}" onclick="abrirSugestao(${s.lista})">
+          <td class="chk"><input type="checkbox" onclick="event.stopPropagation()"></td>
           <td><b>${s.sugestao}</b></td>
           <td>${s.lista}</td>
           <td>${s.fornecedor||'—'}</td>
           <td class="cod">${s.cnpj||'—'}</td>
           <td>Loja(s): ${s.lojas.join(' - ')}</td>
-          <td><span class="status-pill ${si.cls}">${si.label}${si.extra?`<span class="num">${si.extra}</span>`:''}</span></td>
+          <td><span class="status-pill ${si.cls}"><span class="status-dot ${si.cls}"></span>${si.label}${si.extra?`<span class="num">${si.extra}</span>`:''}</span></td>
           <td class="r">${fmt(s.total)}</td>
           <td>${s.data||'—'}</td>
         </tr>`;
