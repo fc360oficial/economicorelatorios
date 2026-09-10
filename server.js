@@ -6100,6 +6100,49 @@ app.get('/api/pontas-gondola/:id/contrato', (req, res) => {
 // Keepalive: garante que o processo não saia mesmo sem conexões ativas
 setInterval(() => {}, 30000);
 
+// ═══════════════════════════════════════════════════
+// RADAR DE PEDIDOS — Fase 0 (sombra) + Fase 1 (pedidos do dia)
+// Regras e fontes em lib/radar-pedidos.js. Só leitura no ERP; o único estado
+// gravado são os snapshots diários em data/radar-sombra/.
+// ═══════════════════════════════════════════════════
+const radarPedidos = require('./lib/radar-pedidos');
+radarPedidos.init({ q, mesDB, getNregsComprador: () => NREGS_COMPRADOR });
+radarPedidos.agendar();
+
+app.get('/api/radar-pedidos', async (req, res) => {
+  try {
+    if (req.query.refresh === '1') await radarPedidos.recalcular(req.query.lead === '1');
+    const teto = Math.max(3, Math.min(90, parseFloat(req.query.alvo) || radarPedidos.TETO_PADRAO));
+    const comprador = req.query.comprador ? resolveComprador(req.query.comprador) : null;
+    const listas = radarPedidos.politica(teto, comprador);
+    const ok = listas.filter(r => r.ok);
+    const resumo = {
+      listas: listas.length, com_calculo: ok.length,
+      pedir_hoje: ok.filter(r => r.fazer_em === 0).length, pedir_7d: ok.filter(r => r.fazer_em <= 7).length,
+      valor_hoje: +ok.filter(r => r.fazer_em === 0).reduce((a, r) => a + r.pedido_valor, 0).toFixed(2),
+      estoque_hoje: +ok.reduce((a, r) => a + r.estoque_hoje, 0).toFixed(2),
+      estoque_alvo: +ok.reduce((a, r) => a + r.estoque_alvo, 0).toFixed(2),
+      rupturas: ok.reduce((a, r) => a + r.rupturas, 0), perecivel: ok.filter(r => r.perecivel).length,
+      compradores: [...new Set(listas.map(r => r.comprador).filter(Boolean))].sort()
+    };
+    res.json({ estado: radarPedidos.getEstado(), teto, resumo, listas });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/radar-pedidos/sombra', async (req, res) => {
+  try { res.json(await radarPedidos.sombra(Math.max(1, Math.min(120, parseInt(req.query.dias) || 30)))); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/radar-pedidos/:listaId/itens', (req, res) => {
+  try {
+    const teto = Math.max(3, Math.min(90, parseFloat(req.query.alvo) || radarPedidos.TETO_PADRAO));
+    const r = radarPedidos.itensLista(parseInt(req.params.listaId), teto);
+    if (!r) return res.status(404).json({ error: radarPedidos.getEstado().status === 'ok' ? 'Lista não encontrada' : 'Radar ainda calculando, tente em instantes' });
+    res.json(r);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 const server = app.listen(3003, '0.0.0.0', () => {
   console.log('✓ Dashboard rodando em http://localhost:3003');
   backfillPlanoAvulsos();

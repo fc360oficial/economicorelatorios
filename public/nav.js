@@ -64,6 +64,7 @@
         { href: '/ruptura.html',             ic: 'trend', txt: 'Gestão de Rupturas' },
         { href: '/fornecedores.html',        ic: 'bag',   txt: 'Lista de Compra' },
         { href: '/ponta-gondola.html',       ic: 'store', txt: 'Ponta de Gôndola' },
+        { href: '/radar-pedidos.html',       ic: 'trend', txt: 'Radar de Pedidos' },
         { href: '/sugestao-compras.html',    ic: 'trend', txt: 'Sugestão de Compras' }
       ]},
     { id: 'prevencao', ic: 'shield', txt: 'Prevenção', sub: [

@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="/design-system.css">
+<script src="/nav.js" defer></script>
+<title>Radar de Pedidos — Econômico Relatórios</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'InterVar','Segoe UI',sans-serif;background:#EBEBE9;color:#0E1626;min-height:100vh;font-variant-numeric:tabular-nums}
+.main{padding:24px}
+.page-hdr{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:18px;gap:12px;flex-wrap:wrap}
+.page-hdr h1{font-size:21px;font-weight:800;letter-spacing:-.3px}
+.page-hdr p{font-size:12px;color:#4E5A72;margin-top:2px;max-width:72ch}
+.estado{font-size:11px;color:#4E5A72;text-align:right;line-height:1.6}
+.estado b{color:#0E1626}
+.estado .calc{color:#6B4E00;font-weight:700}
+.filtros{background:#FFFFFF;border:1px solid #DADAD6;border-radius:12px;padding:14px 18px;margin-bottom:16px;display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.fg{display:flex;flex-direction:column;gap:4px}
+.fg label{font-size:10px;color:#4E5A72;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+.fg select,.fg input{background:#EBEBE9;border:1px solid #DADAD6;border-radius:7px;color:#0E1626;padding:7px 11px;font-size:12.5px;outline:none;min-width:140px;font-family:inherit}
+.fg input[type=number]{min-width:80px;width:90px;text-align:right;font-weight:700}
+.fg select:focus,.fg input:focus{border-color:#F5B800}
+.btn{border:none;border-radius:8px;padding:9px 16px;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:inherit}
+.btn-amber{background:#F5B800;color:#6B4E00}.btn-amber:hover{background:#E5AC00}
+.btn-slate{background:#FFFFFF;border:1px solid #C9C9C4;color:#4E5A72}.btn-slate:hover{background:#DADAD6}
+.btn:disabled{opacity:.5;cursor:default}
+.totais{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px}
+.tkpi{background:#FFFFFF;border:1px solid #DADAD6;border-radius:10px;padding:11px 16px}
+.tkpi .v{font-size:19px;font-weight:800;letter-spacing:-.3px}
+.tkpi .v small{font-size:11px;color:#98A0B3;font-weight:600;margin-left:3px}
+.tkpi .l{font-size:9.5px;color:#98A0B3;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-top:2px}
+.tkpi .v.pos{color:#137A48}.tkpi .v.neg{color:#C22F49}.tkpi .v.amb{color:#6B4E00}
+.tabs{display:flex;gap:4px;margin-bottom:12px;border-bottom:1px solid #DADAD6}
+.tab{background:none;border:none;padding:9px 14px;font-size:12.5px;font-weight:700;color:#4E5A72;cursor:pointer;border-bottom:2px solid transparent;font-family:inherit}
+.tab.on{color:#0E1626;border-bottom-color:#F5B800}
+.tab .n{display:inline-block;background:#EBEBE9;border-radius:99px;padding:1px 7px;font-size:10.5px;margin-left:5px;color:#4E5A72}
+.tab.on .n{background:#FFF6D9;color:#6B4E00}
+.busca-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.busca-row input{flex:1;max-width:380px;border:1px solid #C9C9C4;border-radius:8px;padding:8px 12px;font-size:12.5px;font-family:inherit}
+.busca-row .contagem{font-size:11.5px;color:#98A0B3;font-weight:600}
+.table-wrap{overflow-x:auto;border-radius:12px;border:1px solid #DADAD6;background:#FFFFFF;box-shadow:0 1px 3px rgba(14,22,38,.07);margin-bottom:18px}
+table.main-t{width:100%;border-collapse:collapse;font-size:12.5px}
+table.main-t th{text-align:left;font-size:10px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:#4E5A72;background:#EBEBE9;padding:10px 12px;white-space:nowrap;border-bottom:1px solid #DADAD6;cursor:pointer;user-select:none;position:sticky;top:0}
+table.main-t th.on{color:#0E1626}
+table.main-t th.r,table.main-t td.r{text-align:right}
+table.main-t th.c,table.main-t td.c{text-align:center}
+table.main-t td{padding:9px 12px;border-top:1px solid #DADAD6;white-space:nowrap;vertical-align:top}
+table.main-t tbody tr.lst{cursor:pointer}
+table.main-t tbody tr.lst:hover{background:#EBEBE955}
+table.main-t tbody tr.open{background:#FFF6D9}
+.nm{font-weight:700}.nm span{color:#98A0B3;font-weight:500;font-size:11px;margin-left:5px}
+.sub{font-size:11px;color:#4E5A72;white-space:normal;max-width:34ch}
+.pill{display:inline-block;padding:2px 8px;border-radius:99px;font-size:10.5px;font-weight:700;letter-spacing:.3px}
+.p-hoje{background:#FBEAED;color:#C22F49}.p-breve{background:#FFF6D9;color:#6B4E00;border:1px solid #EFD98F}.p-ok{background:#E7F5EC;color:#137A48}.p-cinza{background:#EBEBE9;color:#4E5A72}
+.p-flag{background:#E9EEF6;color:#2E5E8C}
+.neg{color:#C22F49;font-weight:700}.pos{color:#137A48;font-weight:700}.mut{color:#98A0B3}
+.det td{background:#FAFAF8;padding:0 12px 14px 12px;white-space:normal}
+.det .box{margin-top:8px;border:1px solid #DADAD6;border-radius:10px;overflow:hidden;background:#fff}
+.det .box .hd{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:9px 14px;background:#101B33;color:#fff;font-size:12px}
+.det .box .hd b{color:#FFC933}
+.det table{width:100%;border-collapse:collapse;font-size:12px}
+.det table th{font-size:9.5px;text-transform:uppercase;letter-spacing:.4px;color:#4E5A72;background:#EBEBE9;padding:7px 10px;text-align:left;position:static;cursor:default}
+.det table td{padding:6px 10px;border-top:1px solid #EEEEEA;white-space:nowrap}
+.det table td.r,.det table th.r{text-align:right}
+.det table tr.pede td{font-weight:600}
+.det table tr.zero td{color:#98A0B3}
+.desc{white-space:normal!important;min-width:220px}
+.cod{color:#98A0B3;font-size:10px;font-family:monospace;display:block}
+.qtd{font-size:13px;font-weight:800;color:#0E1626}
+.empty{padding:60px 20px;text-align:center;color:#98A0B3;font-size:13px}
+.spinner{width:26px;height:26px;border:3px solid #DADAD6;border-top-color:#F5B800;border-radius:50%;animation:spin .7s linear infinite;margin:40px auto}
+@keyframes spin{to{transform:rotate(360deg)}}
+.aviso{background:#FFF6D9;border:1px solid #EFD98F;color:#6B4E00;border-radius:10px;padding:10px 14px;font-size:12px;margin-bottom:14px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:1100px){.grid2{grid-template-columns:1fr}}
+.card{background:#fff;border:1px solid #DADAD6;border-radius:12px;overflow:hidden}
+.card h3{font-size:12.5px;font-weight:800;padding:11px 14px;border-bottom:1px solid #DADAD6;display:flex;justify-content:space-between;align-items:center}
+.card h3 span{font-weight:500;color:#98A0B3;font-size:11px}
+.meth{font-size:11.5px;color:#4E5A72;padding:12px 14px;display:grid;gap:6px}
+.meth b{color:#0E1626}
+.spark{display:inline-flex;align-items:flex-end;gap:2px;height:22px;vertical-align:middle;margin-left:6px}
+.spark i{display:block;width:5px;background:#F5B800;border-radius:1px 1px 0 0;min-height:2px}
+.spark i.r{background:#C22F49}
+@media print{.filtros,.tabs,.busca-row,.btn{display:none!important}.main{padding:0}}
+</style>
+</head>
+<body>
+<div class="main">
+  <div class="page-hdr">
+    <div>
+      <h1>Radar de Pedidos</h1>
+      <p>Calcula, pra todas as listas, em que dia a lista precisa ser feita e quanto pedir pra manter a cobertura alvo. Nada é gravado no ERP: a compradora confere e lança no Dlinks como hoje. Todo dia o sistema guarda o que pediria (modo sombra) pra comparar com o que foi pedido de verdade.</p>
+    </div>
+    <div class="estado" id="estado">carregando…</div>
+  </div>
+
+  <div class="filtros">
+    <div class="fg"><label>Comprador</label><select id="fComp"><option value="">Todos</option></select></div>
+    <div class="fg"><label>Teto de cobertura (dias)</label><input type="number" id="fTeto" min="3" max="90" value="28"></div>
+    <div class="fg"><label>Buscar</label><input type="text" id="fBusca" placeholder="lista ou fornecedor" style="min-width:220px"></div>
+    <button class="btn btn-amber" id="btnAplicar">Aplicar</button>
+    <button class="btn btn-slate" id="btnRecalc" title="Recoleta venda, estoque e trânsito do ERP (1 a 3 min)">Recalcular agora</button>
+    <button class="btn btn-slate" onclick="window.print()">Imprimir</button>
+  </div>
+
+  <div class="totais" id="totais"></div>
+
+  <div class="tabs">
+    <button class="tab on" data-tab="hoje">Pedidos do dia <span class="n" id="nHoje">0</span></button>
+    <button class="tab" data-tab="cal">Calendário <span class="n" id="nCal">0</span></button>
+    <button class="tab" data-tab="acomp">Acompanhamento</button>
+    <button class="tab" data-tab="sombra">Modo sombra <span class="n" id="nSombra">0</span></button>
+    <button class="tab" data-tab="regras">Regras</button>
+  </div>
+
+  <div id="view"></div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+const fmt=(v,d=1)=>v==null||isNaN(v)?'—':Number(v).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
+const money=v=>v==null?'—':'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:0});
+const br=s=>s?s.split('-').reverse().join('/'):'—';
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let DATA=null, tab='hoje', sortK='fazer_em', sortD=1, aberta=null, SOMBRA=null;
+
+function params(){const p=new URLSearchParams();const c=$('#fComp').value;if(c)p.set('comprador',c);p.set('alvo',$('#fTeto').value||28);return p;}
+
+async function carregar(refresh){
+  $('#view').innerHTML='<div class="spinner"></div>';
+  const p=params(); if(refresh)p.set('refresh','1');
+  try{
+    const r=await fetch('/api/radar-pedidos?'+p.toString()); const j=await r.json();
+    if(j.error) throw new Error(j.error);
+    DATA=j; renderEstado(); renderTotais(); preencherCompradores(); render();
+    if(j.estado.status!=='ok' && !refresh){ setTimeout(()=>carregar(false), 15000); }
+  }catch(e){ $('#view').innerHTML='<div class="empty">Erro: '+esc(e.message)+'</div>'; }
+}
+function preencherCompradores(){
+  const s=$('#fComp'); if(s.options.length>1) return;
+  for(const c of DATA.resumo.compradores){const o=document.createElement('option');o.value=c;o.textContent=c;s.appendChild(o);}
+}
+function renderEstado(){
+  const e=DATA.estado;
+  if(e.status!=='ok'){ $('#estado').innerHTML='<span class="calc">'+(e.status==='calculando'?'Calculando… (1 a 3 min, a tela atualiza sozinha)':'Aguardando primeiro cálculo')+'</span>'+(e.erro?'<br>último erro: '+esc(e.erro):''); return; }
+  $('#estado').innerHTML='Dados de <b>'+br(e.hoje)+'</b> · venda de '+br(e.janela.dIni)+' a '+br(e.janela.dFim)+' ('+e.janela.dias+' dias)<br>lead time de 12 meses calculado em <b>'+br(e.leadCalculadoEm)+'</b> · '+e.produtos.toLocaleString('pt-BR')+' produtos · '+e.leadListas+' listas com lead<br>atualizado '+new Date(e.atualizadoEm).toLocaleString('pt-BR')+(e.erro?' · <span class="neg">erro no último cálculo: '+esc(e.erro)+'</span>':'');
+}
+function renderTotais(){
+  const r=DATA.resumo, d=r.estoque_alvo-r.estoque_hoje;
+  $('#totais').innerHTML=
+    '<div class="tkpi"><div class="v neg">'+r.pedir_hoje+'</div><div class="l">Listas pra fazer hoje</div></div>'+
+    '<div class="tkpi"><div class="v">'+money(r.valor_hoje)+'</div><div class="l">Valor dos pedidos de hoje (custo)</div></div>'+
+    '<div class="tkpi"><div class="v amb">'+r.pedir_7d+'</div><div class="l">Listas nos próximos 7 dias</div></div>'+
+    '<div class="tkpi"><div class="v">'+money(r.estoque_hoje)+'</div><div class="l">Estoque hoje (custo, itens c/ venda)</div></div>'+
+    '<div class="tkpi"><div class="v">'+money(r.estoque_alvo)+'</div><div class="l">Estoque no alvo ('+DATA.teto+'d teto)</div></div>'+
+    '<div class="tkpi"><div class="v '+(d<0?'pos':'neg')+'">'+(d<0?'−':'+')+money(Math.abs(d))+'</div><div class="l">Diferença (alvo − hoje)</div></div>'+
+    '<div class="tkpi"><div class="v neg">'+r.rupturas+'</div><div class="l">Produtos c/ venda e estoque zero</div></div>';
+  $('#nHoje').textContent=r.pedir_hoje; $('#nCal').textContent=r.com_calculo;
+}
+
+function listasFiltradas(){
+  const b=($('#fBusca').value||'').toLowerCase();
+  return DATA.listas.filter(l=>!b||l.nome.toLowerCase().includes(b)||(l.fornecedor||'').toLowerCase().includes(b)||String(l.lista)===b);
+}
+function ordenar(rows){
+  return rows.sort((a,b)=>{let x=a[sortK],y=b[sortK];if(x==null&&y==null)return 0;if(x==null)return 1;if(y==null)return -1;if(typeof x==='string')return sortD*x.localeCompare(y,'pt-BR');return sortD*(x-y)||(b.venda_dia||0)-(a.venda_dia||0);});
+}
+function pillDia(l){
+  if(!l.ok) return '<span class="pill p-cinza">'+esc(l.motivo)+'</span>';
+  if(l.fazer_em===0) return '<span class="pill p-hoje">HOJE</span>';
+  if(l.fazer_em<=3) return '<span class="pill p-breve">'+l.fazer_em+' d · '+l.dow+'</span>';
+  return '<span class="pill p-ok">'+l.fazer_em+' d · '+l.dow+' '+br(l.data).slice(0,5)+'</span>';
+}
+function flagsHtml(l){
+  const f=[]; if(l.abaixo_minimo)f.push('<span class="pill p-flag" title="Valor abaixo do pedido mínimo do fornecedor">abaixo do mínimo</span>');
+  if(l.flags&&l.flags.teto)f.push('<span class="pill p-flag" title="Itens em que a quantidade bateu no teto (alvo + ciclo): conferir estoque/venda atípica">'+l.flags.teto+' no teto</span>');
+  if(l.perecivel)f.push('<span class="pill p-flag" title="Alvo limitado a 60% da validade de cadastro">perecível</span>');
+  return f.join(' ');
+}
+
+function render(){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.tab===tab));
+  if(tab==='hoje') return renderTabela(listasFiltradas().filter(l=>l.ok&&l.fazer_em===0),'Nenhuma lista precisa ser feita hoje com esse teto.');
+  if(tab==='cal') return renderTabela(listasFiltradas(),'Nenhuma lista.');
+  if(tab==='acomp') return renderAcomp();
+  if(tab==='sombra') return renderSombra();
+  if(tab==='regras') return renderRegras();
+}
+const COLS=[
+  ['nome','Lista / fornecedor',''],['comprador','Comprador',''],['fazer_em','Fazer em','c'],['pedido_valor','Pedido (custo)','r'],['pedido_itens','Itens','r'],
+  ['cobertura_dias','Cobertura hoje','r'],['ponto','Ponto','r'],['alvo','Alvo','r'],['ciclo','Ciclo','r'],['venda_dia','Venda R$/dia','r'],['estoque_hoje','Estoque hoje','r'],['diferenca','vs alvo','r'],['rupturas','Ruptura','r'],['lead','Lead (méd/máx/n)','r'],['flags','Avisos','']
+];
+function renderTabela(rows,vazio){
+  rows=ordenar(rows);
+  if(!rows.length){$('#view').innerHTML='<div class="empty">'+vazio+'</div>';return;}
+  let h='<div class="busca-row"><span class="contagem">'+rows.length+' lista'+(rows.length===1?'':'s')+' · clique numa lista pra ver as quantidades por produto</span></div><div class="table-wrap"><table class="main-t"><thead><tr>';
+  for(const [k,t,c] of COLS) h+='<th class="'+c+(sortK===k?' on':'')+'" data-k="'+k+'">'+t+(sortK===k?(sortD>0?' ↑':' ↓'):'')+'</th>';
+  h+='</tr></thead><tbody>';
+  for(const l of rows){
+    const lead=l.lead;
+    h+='<tr class="lst'+(aberta===l.lista?' open':'')+'" data-l="'+l.lista+'"><td><div class="nm">'+esc(l.nome)+'<span>#'+l.lista+'</span></div><div class="sub">'+esc(l.fornecedor||'')+'</div></td>'+
+      '<td>'+esc(l.comprador||'—')+'</td><td class="c">'+pillDia(l)+'</td>'+
+      '<td class="r"><b>'+(l.ok?money(l.pedido_valor):'—')+'</b></td><td class="r">'+(l.ok?l.pedido_itens+' <span class="mut">/ '+l.com_venda+'</span>':'—')+'</td>'+
+      '<td class="r '+(l.ok&&l.cobertura_dias<=l.ponto?'neg':'')+'">'+(l.ok?fmt(l.cobertura_dias)+' d':'—')+'</td><td class="r">'+(l.ok?fmt(l.ponto):'—')+'</td><td class="r">'+(l.ok?fmt(l.alvo):'—')+'</td><td class="r">'+(l.ok?fmt(l.ciclo):'—')+'</td>'+
+      '<td class="r">'+(l.ok?fmt(l.venda_dia,2):'—')+'</td><td class="r">'+(l.ok?money(l.estoque_hoje):'—')+'</td><td class="r '+(l.ok&&l.diferenca>0?'neg':'pos')+'">'+(l.ok?(l.diferenca>0?'+':'−')+money(Math.abs(l.diferenca)):'—')+'</td>'+
+      '<td class="r '+(l.rupturas?'neg':'')+'">'+(l.ok?l.rupturas:'—')+'</td><td class="r">'+(lead&&lead.lead_medio!=null?fmt(lead.lead_medio)+' / '+lead.lead_max+' / '+lead.sugestoes:'—')+'</td><td>'+(l.ok?flagsHtml(l):'')+'</td></tr>';
+    if(aberta===l.lista) h+='<tr class="det"><td colspan="'+COLS.length+'"><div class="box" id="det-'+l.lista+'"><div class="spinner"></div></div></td></tr>';
+  }
+  h+='</tbody></table></div>';
+  $('#view').innerHTML=h;
+  document.querySelectorAll('th[data-k]').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(sortK===k)sortD=-sortD;else{sortK=k;sortD=(k==='nome'||k==='comprador')?1:(k==='fazer_em'||k==='cobertura_dias'?1:-1)}render();});
+  document.querySelectorAll('tr.lst').forEach(tr=>tr.onclick=()=>{const id=+tr.dataset.l;aberta=aberta===id?null:id;render();if(aberta)carregarItens(aberta);});
+}
+async function carregarItens(id){
+  const box=document.getElementById('det-'+id); if(!box) return;
+  try{
+    const r=await fetch('/api/radar-pedidos/'+id+'/itens?alvo='+($('#fTeto').value||28)); const j=await r.json(); if(j.error) throw new Error(j.error);
+    const L=j.lista, P=j.params, pede=j.itens.filter(i=>i.qtd>0);
+    let h='<div class="hd"><div><b>'+esc(L.nome)+'</b> · '+esc(L.fornecedor||'')+(L.pedidoMinimo?' · pedido mínimo R$ '+fmt(L.pedidoMinimo,0):'')+'</div>'+
+      '<div>'+(P?'ponto <b>'+fmt(P.ponto)+'d</b> · alvo <b>'+fmt(P.alvoLista)+'d</b> · ciclo <b>'+fmt(P.ciclo)+'d</b> · ':'')+'fazer em <b>'+(j.fazer_em===0?'HOJE':j.fazer_em+' dias ('+br(j.data)+')')+'</b> · '+pede.length+' itens · '+j.volumes+' volumes · <b>'+money(j.total)+'</b></div></div>';
+    h+='<div style="overflow-x:auto"><table><thead><tr><th>Produto</th><th class="r">Emb</th><th class="r">Venda/dia</th><th class="r">Estoque</th><th class="r">Trânsito</th><th class="r">Cobertura</th><th class="r">Alvo</th><th class="r">Pedir</th><th class="r">Volumes</th><th class="r">Custo</th><th class="r">Total</th><th>Obs</th></tr></thead><tbody>';
+    for(const i of j.itens){
+      const obs=[]; if(i.flag==='piso')obs.push('piso: 1 ciclo'); if(i.flag==='teto')obs.push('TETO: conferir'); if(i.estoque_bruto<0)obs.push('estoque negativo no ERP'); if(i.validade&&i.alvo_dias&&i.alvo_dias<P.alvoLista-0.05)obs.push('validade '+i.validade+'d'); if(i.venda_dia===0)obs.push('sem venda');
+      h+='<tr class="'+(i.qtd>0?'pede':'zero')+'"><td class="desc">'+esc(i.descricao)+'<span class="cod">'+esc(i.cod)+' · L'+i.lojas.join(' L')+'</span></td><td class="r">'+i.emb+'</td><td class="r">'+fmt(i.venda_dia,2)+'</td><td class="r">'+fmt(i.estoque,0)+'</td><td class="r">'+(i.transito?fmt(i.transito,0):'<span class="mut">—</span>')+'</td>'+
+        '<td class="r '+(i.abaixo_ponto?'neg':'')+'">'+(i.cobertura_dias==null?'—':fmt(i.cobertura_dias,0)+' d')+'</td><td class="r">'+(i.alvo_dias?fmt(i.alvo_dias,0)+' d':'—')+'</td><td class="r"><span class="qtd">'+(i.qtd?fmt(i.qtd,0):'')+'</span>'+(i.qtd?' '+esc(i.unid):'')+'</td><td class="r">'+(i.volumes||'')+'</td><td class="r">'+fmt(i.custo,2)+'</td><td class="r">'+(i.total?money(i.total):'')+'</td><td class="mut">'+obs.join(' · ')+'</td></tr>';
+    }
+    h+='</tbody></table></div>';
+    box.innerHTML=h;
+  }catch(e){ box.innerHTML='<div class="empty">'+esc(e.message)+'</div>'; }
+}
+
+function renderAcomp(){
+  const ok=DATA.listas.filter(l=>l.ok); const por={};
+  for(const l of ok){const c=por[l.comprador||'SEM COMPRADOR']||(por[l.comprador||'SEM COMPRADOR']={listas:0,hoje:0,venda:0,est:0,alvo:0,rupt:0,cobW:0,prod:0,semLead:0});c.listas++;if(l.fazer_em===0)c.hoje++;c.venda+=l.venda_dia;c.est+=l.estoque_hoje;c.alvo+=l.estoque_alvo;c.rupt+=l.rupturas;c.prod+=l.com_venda;}
+  for(const l of DATA.listas.filter(l=>!l.ok)){const k=l.comprador||'SEM COMPRADOR';(por[k]=por[k]||{listas:0,hoje:0,venda:0,est:0,alvo:0,rupt:0,prod:0,semLead:0}).semLead++;}
+  let h='<div class="aviso">Métrica de sucesso combinada: <b>dias de cobertura caindo</b> e <b>produtos com venda e estoque zero não subindo</b>. Se a ruptura subir numa lista, sobe o alvo só dela. A tendência vem dos snapshots diários do modo sombra e cresce a cada dia que o radar roda.</div>';
+  h+='<div class="table-wrap"><table class="main-t"><thead><tr><th>Comprador</th><th class="r">Listas</th><th class="r">Sem cálculo</th><th class="r">Fazer hoje</th><th class="r">Venda R$/dia</th><th class="r">Estoque hoje</th><th class="r">Estoque alvo</th><th class="r">Cobertura (dias)</th><th class="r">Produtos c/ venda</th><th class="r">Em ruptura</th><th class="r">% ruptura</th><th>Tendência cobertura / ruptura</th></tr></thead><tbody>';
+  const tend=SOMBRA?SOMBRA.tendencia:[];
+  for(const [c,v] of Object.entries(por).sort((a,b)=>b[1].venda-a[1].venda)){
+    const cobDias = v.venda>0 ? v.est/(v.venda*0.7) : null; // aproximação: venda a custo ≈ 70% do preço
+    const serie=tend.map(t=>t.porComprador[c]).filter(Boolean);
+    const spark=serie.length>1?'<span class="spark">'+serie.map(s=>'<i style="height:'+Math.max(2,Math.round(20*(s.estoque_hoje/(s.venda_dia||1))/Math.max(...serie.map(x=>x.estoque_hoje/(x.venda_dia||1)))))+'px" title="estoque/venda"></i>').join('')+'</span><span class="spark">'+serie.map(s=>'<i class="r" style="height:'+Math.max(2,Math.round(20*s.rupturas/Math.max(1,...serie.map(x=>x.rupturas))))+'px" title="'+s.rupturas+' rupturas"></i>').join('')+'</span>':'<span class="mut">'+serie.length+' dia(s) de histórico</span>';
+    h+='<tr><td><b>'+esc(c)+'</b></td><td class="r">'+v.listas+'</td><td class="r mut">'+v.semLead+'</td><td class="r '+(v.hoje?'neg':'')+'">'+v.hoje+'</td><td class="r">'+fmt(v.venda,0)+'</td><td class="r">'+money(v.est)+'</td><td class="r">'+money(v.alvo)+'</td><td class="r">'+(cobDias!=null?fmt(cobDias,0):'—')+'</td><td class="r">'+v.prod+'</td><td class="r '+(v.rupt?'neg':'')+'">'+v.rupt+'</td><td class="r">'+(v.prod?fmt(v.rupt/v.prod*100,1)+'%':'—')+'</td><td>'+spark+'</td></tr>';
+  }
+  h+='</tbody></table></div>';
+  $('#view').innerHTML=h;
+  if(!SOMBRA) carregarSombra().then(()=>{ if(tab==='acomp') renderAcomp(); });
+}
+async function carregarSombra(){
+  try{ const r=await fetch('/api/radar-pedidos/sombra?dias=30'); SOMBRA=await r.json(); $('#nSombra').textContent=SOMBRA.snapshots||0; }catch(e){ SOMBRA={linhas:[],tendencia:[],snapshots:0,erro:e.message}; }
+}
+function renderSombra(){
+  if(!SOMBRA){ $('#view').innerHTML='<div class="spinner"></div>'; carregarSombra().then(()=>{ if(tab==='sombra') renderSombra(); }); return; }
+  const comp=$('#fComp').value; const linhas=SOMBRA.linhas.filter(l=>!comp||l.comprador===comp);
+  const t={ambos:0,so_sistema:0,so_compradora:0,sis:0,real:0}; for(const l of linhas){t[l.caso]++;t.sis+=l.sistema;t.real+=l.real;}
+  let h='<div class="aviso"><b>Fase 0, modo sombra.</b> Todo dia o radar grava o que pediria. Aqui isso é comparado com as sugestões que as compradoras criaram no ERP no mesmo dia (valor da sugestão, a preço do ERP; o do sistema é a custo, então compare a ordem de grandeza e o <i>momento</i>, não o centavo). Snapshots guardados: <b>'+SOMBRA.snapshots+'</b>'+(SOMBRA.erro?' · erro: '+esc(SOMBRA.erro):'')+'</div>';
+  h+='<div class="totais"><div class="tkpi"><div class="v">'+t.ambos+'</div><div class="l">Sistema e compradora no mesmo dia</div></div><div class="tkpi"><div class="v amb">'+t.so_sistema+'</div><div class="l">Só o sistema pediria</div></div><div class="tkpi"><div class="v">'+t.so_compradora+'</div><div class="l">Só a compradora pediu</div></div><div class="tkpi"><div class="v">'+money(t.sis)+'</div><div class="l">Total sistema (custo)</div></div><div class="tkpi"><div class="v">'+money(t.real)+'</div><div class="l">Total compradoras (ERP)</div></div></div>';
+  if(!linhas.length){ h+='<div class="empty">Ainda sem dias pra comparar. O primeiro snapshot é gravado no primeiro cálculo do radar; a comparação ganha sentido depois de 1 a 2 semanas.</div>'; $('#view').innerHTML=h; return; }
+  h+='<div class="table-wrap"><table class="main-t"><thead><tr><th>Dia</th><th>Lista</th><th>Comprador</th><th>Caso</th><th class="r">Sistema pediria (custo)</th><th class="r">Itens</th><th class="r">Compradora pediu (ERP)</th><th class="r">Lojas</th><th class="r">Cobertura no dia</th><th class="r">Rupturas no dia</th></tr></thead><tbody>';
+  for(const l of linhas.sort((a,b)=>b.dia.localeCompare(a.dia)||b.real-a.real)){
+    const caso=l.caso==='ambos'?'<span class="pill p-ok">ambos</span>':l.caso==='so_sistema'?'<span class="pill p-breve">só sistema</span>':'<span class="pill p-cinza">só compradora</span>';
+    h+='<tr><td>'+br(l.dia)+'</td><td><div class="nm">'+esc(l.nome)+'<span>#'+l.lista+'</span></div></td><td>'+esc(l.comprador||'—')+'</td><td>'+caso+'</td><td class="r">'+(l.sistema?money(l.sistema):'<span class="mut">—</span>')+'</td><td class="r">'+(l.sistema_itens||'')+'</td><td class="r">'+(l.real?money(l.real):'<span class="mut">—</span>')+'</td><td class="r">'+(l.real_lojas||'')+'</td><td class="r">'+fmt(l.cobertura,0)+' d</td><td class="r '+(l.rupturas?'neg':'')+'">'+l.rupturas+'</td></tr>';
+  }
+  h+='</tbody></table></div>';
+  $('#view').innerHTML=h;
+}
+function renderRegras(){
+  $('#view').innerHTML='<div class="grid2"><div class="card"><h3>Como o radar decide</h3><div class="meth">'+
+  '<div><b>Lead time</b>: dias entre fechar a sugestão no ERP e a nota do fornecedor entrar (12 meses de histórico, por lista).</div>'+
+  '<div><b>Ponto de pedido</b> = lead médio + segurança. <b>Segurança</b> = lead máximo − lead médio, no máximo 1 lead. Fornecedor pontual ganha pouca segurança; o que atrasa ganha mais.</div>'+
+  '<div><b>Alvo da lista</b> = ponto + intervalo real entre pedidos, limitado ao <b>teto</b> (28 dias por padrão, ajustável no filtro).</div>'+
+  '<div><b>Alvo do produto</b> = alvo da lista limitado a 60% da validade de cadastro (perecível não segura 28 dias).</div>'+
+  '<div><b>Fazer a lista</b> no dia em que 25% da venda dela (em R$) cruza o ponto de pedido. Fim de semana cai pra segunda.</div>'+
+  '<div><b>Quanto pedir</b> = alvo × venda/dia − (estoque + o que já está pedido e não chegou), arredondado pra cima à embalagem.</div>'+
+  '<div><b>Piso</b>: nunca menos que o consumo de 1 ciclo. <b>Teto</b>: nunca mais que (alvo + ciclo) × venda/dia; se bater, aparece "TETO: conferir" (estoque negativo ou venda atípica).</div>'+
+  '<div><b>Estoque acima do alvo</b> não gera pedido de redução. A lista só volta a ser pedida quando cruzar o ponto: o excesso desce sozinho com a venda.</div>'+
+  '</div></div><div class="card"><h3>Fontes e limites</h3><div class="meth">'+
+  '<div><b>Venda</b>: NFC-e das 6 lojas nos últimos 40 dias, só nas lojas marcadas na lista. Sem sazonalidade nem promoção: em semana atípica, a compradora ajusta.</div>'+
+  '<div><b>Estoque</b>: posição atual do ERP por loja; negativo é tratado como zero e sinalizado no detalhe.</div>'+
+  '<div><b>Trânsito</b>: sugestões abertas no ERP (Status 0 e 1) dos últimos 30 dias, por produto e loja.</div>'+
+  '<div><b>Custo</b>: custo de cadastro por loja; onde falta, 75% do preço médio de venda.</div>'+
+  '<div><b>Sem cálculo</b>: lista sem sugestão fechada nos últimos 12 meses (não há lead) ou sem venda no período.</div>'+
+  '<div><b>Nada é gravado no ERP.</b> O radar só lê. O único registro próprio é o snapshot diário do modo sombra.</div>'+
+  '<div><b>Recálculo</b>: automático ao subir o sistema e todo dia às 05:30; o botão "Recalcular agora" força uma nova coleta (1 a 3 minutos).</div>'+
+  '</div></div></div>';
+}
+
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{tab=t.dataset.tab;aberta=null;render();});
+$('#btnAplicar').onclick=()=>{aberta=null;carregar(false);};
+$('#fBusca').addEventListener('input',()=>{if(DATA)render();});
+$('#fComp').addEventListener('change',()=>{aberta=null;carregar(false);});
+$('#fTeto').addEventListener('keydown',e=>{if(e.key==='Enter')carregar(false);});
+$('#btnRecalc').onclick=async()=>{const b=$('#btnRecalc');b.disabled=true;b.textContent='Recalculando…';try{await carregar(true);}finally{b.disabled=false;b.textContent='Recalcular agora';SOMBRA=null;}};
+carregar(false);
+</script>
+</body>
+</html>
