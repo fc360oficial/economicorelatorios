@@ -2143,16 +2143,25 @@ app.get('/api/fornecedores/:id/produtos', async (req, res) => {
     const dIni    = `${anoSel}-${String(mesSel).padStart(2,'0')}-01`;
     const dFim    = dFimMes(anoSel, mesSel);
 
-    // com lista + loja específica, só os itens que a lista tem PRA AQUELA loja
-    // (c_cotacao_lista_itens.l1..l6) — a composição da lista varia por loja
+    // Com LISTA: os produtos são os itens ativos da própria lista — sem exigir
+    // vínculo em fornecedoritens (parte dos itens da lista não está vinculada ao
+    // fornecedor lá, e sumia daqui enquanto o card, via margem-resumo, contava).
+    // Com loja específica, só os itens que a lista tem PRA AQUELA loja (l1..l6).
+    // Sem lista: catálogo do fornecedor (fornecedoritens), como sempre.
     const lojaFlag = (listaSel && lojas.length === 1) ? ` AND cli.l${lojas[0]} = 1` : '';
-    const prods = await q(`
-      SELECT fi.CodigoBarra, it.Descricao, it.Unid
-      FROM central.fornecedoritens fi
-      INNER JOIN central.itens it ON it.CodigoBarra = fi.CodigoBarra AND it.CodDesativado = 0
-      ${listaSel ? 'INNER JOIN central.c_cotacao_lista_itens cli ON cli.Codigobarra = fi.CodigoBarra AND cli.nCotacao = ?' + lojaFlag : ''}
-      WHERE fi.CodFornecedor = ? AND fi.Backup = 0
-    `, listaSel ? [listaSel, id] : [id]);
+    const prods = listaSel
+      ? await q(`
+        SELECT DISTINCT cli.Codigobarra AS CodigoBarra, it.Descricao, it.Unid
+        FROM central.c_cotacao_lista_itens cli
+        INNER JOIN central.itens it ON it.CodigoBarra = cli.Codigobarra AND it.CodDesativado = 0
+        WHERE cli.nCotacao = ?${lojaFlag}
+      `, [listaSel])
+      : await q(`
+        SELECT fi.CodigoBarra, it.Descricao, it.Unid
+        FROM central.fornecedoritens fi
+        INNER JOIN central.itens it ON it.CodigoBarra = fi.CodigoBarra AND it.CodDesativado = 0
+        WHERE fi.CodFornecedor = ? AND fi.Backup = 0
+      `, [id]);
 
     if (!prods.length) return res.json([]);
 
@@ -2238,8 +2247,9 @@ app.get('/api/fornecedores/:id/avarias', async (req, res) => {
       SELECT a.CodigoBarras, a.Descricao, SUM(a.Qtd) as qtd, SUM(a.Total) as total,
              MAX(a.DataLan) as ultima
       FROM central.avariaconsumo a
-      INNER JOIN central.fornecedoritens fi ON fi.CodigoBarra = a.CodigoBarras AND fi.CodFornecedor = a.CodFornec AND fi.Backup = 0
-      ${listaSel ? 'INNER JOIN central.c_cotacao_lista_itens cli ON cli.Codigobarra = a.CodigoBarras AND cli.nCotacao = ?' + lojaFlag : ''}
+      ${listaSel
+        ? 'INNER JOIN central.c_cotacao_lista_itens cli ON cli.Codigobarra = a.CodigoBarras AND cli.nCotacao = ?' + lojaFlag
+        : 'INNER JOIN central.fornecedoritens fi ON fi.CodigoBarra = a.CodigoBarras AND fi.CodFornecedor = a.CodFornec AND fi.Backup = 0'}
       WHERE a.nLoja IN (${lojasPh}) AND a.CodFornec=? AND a.DataLan BETWEEN ? AND ?
       GROUP BY a.CodigoBarras, a.Descricao
       ORDER BY total DESC
@@ -2262,7 +2272,7 @@ app.get('/api/fornecedores/:id/avarias', async (req, res) => {
     try {
       const mm   = mesDB(mesSel);
       const prods = listaSel
-        ? await q(`SELECT DISTINCT fi.CodigoBarra FROM central.fornecedoritens fi INNER JOIN central.c_cotacao_lista_itens cli ON cli.Codigobarra = fi.CodigoBarra AND cli.nCotacao = ?${lojaFlag} WHERE fi.CodFornecedor=? AND fi.Backup=0`, [listaSel, id])
+        ? await q(`SELECT DISTINCT cli.Codigobarra AS CodigoBarra FROM central.c_cotacao_lista_itens cli INNER JOIN central.itens it ON it.CodigoBarra = cli.Codigobarra AND it.CodDesativado = 0 WHERE cli.nCotacao = ?${lojaFlag}`, [listaSel])
         : await q(`SELECT DISTINCT CodigoBarra FROM central.fornecedoritens WHERE CodFornecedor=? AND Backup=0`, [id]);
       if (prods.length) {
         const ph = prods.map(() => '?').join(',');
