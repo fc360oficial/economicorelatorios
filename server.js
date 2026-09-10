@@ -6160,6 +6160,10 @@ app.get('/api/radar-pedidos/:listaId/itens', (req, res) => {
 // ═══════════════════════════════════════════════════
 const pedidosFornec = require('./lib/pedidos-fornecedor');
 pedidosFornec.init();
+pedidosFornec.initERP(q);
+// confere recebimento dos pedidos aprovados (nota no ERP × pedido) e gera sugestão de ruptura de entrega
+setTimeout(() => pedidosFornec.verificarRecebimentos().catch(e => console.error('[PEDIDOS] verificar:', e.message)), 120 * 1000);
+setInterval(() => pedidosFornec.verificarRecebimentos().catch(e => console.error('[PEDIDOS] verificar:', e.message)), 30 * 60 * 1000);
 
 async function cadastroLista(id) {
   const [lista] = await q(`SELECT Nome, Obs, CodFornec, NomeFornec, CodPrazoPag, PedidoMinimo FROM central.c_cotacao_lista WHERE nReg=?`, [id]);
@@ -6204,7 +6208,8 @@ app.post('/api/pedidos-fornecedor', async (req, res) => {
 });
 app.get('/api/pedidos-fornecedor', (req, res) => {
   const base = `${req.protocol}://${req.get('host')}`;
-  res.json(pedidosFornec.listar().map(p => ({ id: p.id, lista: p.lista, lista_nome: p.lista_nome, fornecedor: p.fornecedor, vendedor: p.vendedor, comprador: p.comprador, status: p.status, aprovadoEm: p.aprovadoEm || null, aprovadoPor: p.aprovadoPor || null, criadoEm: p.criadoEm, criadoPor: p.criadoPor, abertoEm: p.abertoEm, finalizadoEm: p.finalizadoEm, lojas: p.lojas, totais: p.totais, link: `${base}/pedido/${p.token}` })));
+  res.json(pedidosFornec.listar().map(p => ({ id: p.id, lista: p.lista, lista_nome: p.lista_nome, fornecedor: p.fornecedor, vendedor: p.vendedor, comprador: p.comprador, status: p.status, aprovadoEm: p.aprovadoEm || null, aprovadoPor: p.aprovadoPor || null, recebidoEm: p.recebidoEm || null, origem: p.origem || null, alerta_novo: !!p.alerta_novo,
+    recebimento: p.recebimento ? Object.fromEntries(Object.entries(p.recebimento).map(([l, r]) => [l, { faltas: r.faltas, itens_pedidos: r.itens_pedidos, notas: r.notas.map(n => n.nNota) }])) : null, criadoEm: p.criadoEm, criadoPor: p.criadoPor, abertoEm: p.abertoEm, finalizadoEm: p.finalizadoEm, lojas: p.lojas, totais: p.totais, link: `${base}/pedido/${p.token}` })));
 });
 app.get('/api/pedidos-fornecedor/:id', (req, res) => {
   const p = pedidosFornec.obter(parseInt(req.params.id));
@@ -6217,6 +6222,18 @@ app.post('/api/pedidos-fornecedor/:id/aprovar', (req, res) => {
   if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
   if (p.erro) return res.status(409).json({ error: p.erro });
   res.json({ ok: true, status: p.status, aprovadoEm: p.aprovadoEm });
+});
+app.post('/api/pedidos-fornecedor/:id/enviar', (req, res) => {
+  const p = pedidosFornec.enviar(parseInt(req.params.id), req.session.user?.nome || null);
+  if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
+  if (p.erro) return res.status(409).json({ error: p.erro });
+  res.json({ ok: true, status: p.status, link: `${req.protocol}://${req.get('host')}/pedido/${p.token}` });
+});
+app.post('/api/pedidos-fornecedor/verificar-recebimentos', async (req, res) => {
+  try { res.json(await pedidosFornec.verificarRecebimentos()); } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.post('/api/pedidos-fornecedor/alertas-vistos', (req, res) => {
+  pedidosFornec.verAlertas(req.body.ids, req.session.user?.nome || null); res.json({ ok: true });
 });
 app.post('/api/pedidos-fornecedor/:id/cancelar', (req, res) => {
   const p = pedidosFornec.cancelar(parseInt(req.params.id), req.session.user?.nome || null, req.body.motivo);
