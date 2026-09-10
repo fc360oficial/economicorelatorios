@@ -3456,6 +3456,22 @@ app.get('/api/listas-compra/:id/cadastro', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+const LOJAS_NOMES_LISTA = { 1: 'CAHU COMERCIO DE ALIMENTOS', 2: 'MURIBECA COMERCIO ALIMENTOS EIRELI', 3: 'PONTE DOS CARVALHOS COMERCIO', 4: 'ATACAREJO ECONOMICO COM DE ALIM LTD', 5: 'PORTA LARGA COMERCIO DE ALIMENTOS L', 6: 'JARDIM JORDÃO COMERCIO DE ALIMENTOS' };
+app.get('/api/listas-compra/:id/lojas-participantes', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const [row] = await q(`
+      SELECT SUM(l1) l1, SUM(l2) l2, SUM(l3) l3, SUM(l4) l4, SUM(l5) l5, SUM(l6) l6
+      FROM central.c_cotacao_lista_itens WHERE nCotacao=?`, [id]);
+    if (!row) return res.json([]);
+    const result = [];
+    for (const ln of [1,2,3,4,5,6]) {
+      if (parseInt(row['l' + ln]) > 0) result.push({ loja: ln, nome: LOJAS_NOMES_LISTA[ln] });
+    }
+    res.json(result);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // Quais produtos exatamente compõem cada parte do detalhamento do subtítulo
 // (desativado no ERP / sem loja nenhuma / marcado só em outra loja) — clique
 // no texto pra ver a lista, em vez de só o número.

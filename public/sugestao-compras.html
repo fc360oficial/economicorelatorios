@@ -85,13 +85,43 @@ table.mon-t tbody tr td:nth-child(2)::before{content:'';position:absolute;left:0
 table.mon-t tbody tr:hover{filter:brightness(.98)}
 table.mon-t tbody tr.st-pedido td:nth-child(2)::before{background:#2E5E8C}
 table.mon-t tbody tr.st-desconhecido td:nth-child(2)::before{background:#C9C9C4}
+table.mon-t tbody tr.st-aberto td:nth-child(2)::before{background:#D64545}
+table.mon-t tbody tr.st-digitacao td:nth-child(2)::before{background:#E08A00}
+table.mon-t tbody tr.st-fechado td:nth-child(2)::before{background:#3E9142}
 .status-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px}
 .status-dot.pedido{background:#2E5E8C}
 .status-dot.desconhecido{background:#98A0B3}
+.status-dot.aberto{background:#D64545}
+.status-dot.digitacao{background:#E08A00}
+.status-dot.fechado{background:#3E9142}
 .status-pill{display:inline-flex;align-items:center;font-size:11px;font-weight:700;border-radius:20px;padding:4px 10px}
 .status-pill.pedido{background:#DCE7F7;color:#2E5E8C}
 .status-pill.desconhecido{background:#F1F2ED;color:#98A0B3}
+.status-pill.aberto{background:#FBEAEA;color:#B23A3A}
+.status-pill.digitacao{background:#FCEFDC;color:#B26A00}
+.status-pill.fechado{background:#E6F3E7;color:#2E7A33}
 .status-pill .num{margin-left:5px;font-weight:800;opacity:.85}
+.mon-aviso-exemplo{background:#FCEFDC;border:1px solid #E5C98A;color:#8A6200;font-size:11.5px;font-weight:700;border-radius:8px;padding:9px 13px;margin-bottom:12px}
+
+.ns-overlay{position:fixed;inset:0;z-index:9999;background:rgba(14,22,38,.6);display:flex;align-items:center;justify-content:center;padding:20px}
+.ns-modal{background:#FFFFFF;border-radius:12px;width:720px;max-width:100%;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.ns-hdr{background:#101B33;color:#fff;padding:14px 18px;border-radius:12px 12px 0 0;display:flex;align-items:center;justify-content:space-between;font-weight:800;font-size:14px}
+.ns-x{background:transparent;border:none;color:#B7C0D6;font-size:14px;cursor:pointer;padding:2px 6px}
+.ns-x:hover{color:#fff}
+.ns-body{padding:18px;overflow-y:auto}
+.ns-sec{margin-bottom:16px}
+.ns-sec h4{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:#98A0B3;margin-bottom:9px;border-bottom:1px solid #EBEBE9;padding-bottom:5px}
+.ns-grid{display:grid;grid-template-columns:1fr 1.2fr;gap:22px}
+.ns-grid .fg{margin-bottom:9px}
+.ns-lojas-wrap{border:1px solid #DADAD6;border-radius:8px;max-height:190px;overflow-y:auto}
+.ns-loja-row{display:flex;align-items:center;gap:9px;padding:7px 11px;font-size:12px;border-bottom:1px solid #EBEBE9}
+.ns-loja-row:last-child{border-bottom:none}
+.ns-loja-row b{color:#2E5E8C;min-width:20px}
+.ns-obs-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 16px}
+.ns-obs-grid label{display:flex;align-items:center;gap:7px;font-size:12px;color:#0E1626}
+.ns-obs-grid label.off{color:#B7BEC9}
+.ns-hint{font-size:11.5px;color:#B23A3A;font-weight:700;min-height:14px}
+.ns-ftr{padding:14px 18px;border-top:1px solid #DADAD6;display:flex;justify-content:flex-end;gap:10px}
 .mon-rodape{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:12px 16px;border-top:1px solid #DADAD6;background:#FFFFFF;font-size:11.5px;color:#4E5A72;font-weight:600}
 .mon-legenda{display:flex;gap:16px;flex-wrap:wrap}
 .mon-legenda span{display:inline-flex;align-items:center;gap:5px}
@@ -223,6 +253,49 @@ table.det-t td.loja{font-weight:700;color:#0E1626}
     </div>
   </div>
 
+</div>
+
+<div class="ns-overlay" id="ns-overlay" style="display:none" onclick="if(event.target===this) fecharNovaSugestao()">
+  <div class="ns-modal">
+    <div class="ns-hdr"><span>Sugestão de Compras</span><button class="ns-x" onclick="fecharNovaSugestao()">✕</button></div>
+    <div class="ns-body">
+      <div class="ns-sec">
+        <h4>Lista</h4>
+        <div class="fg"><label>Número da Lista</label><input type="number" id="ns-lista" oninput="carregarLojasNS()"></div>
+      </div>
+      <div class="ns-grid">
+        <div class="ns-sec">
+          <h4>Período de Venda (Venda média diária)</h4>
+          <div class="fg"><label>Data Inicial</label><input type="date" id="ns-data-ini" onchange="recalcQtdDiasNS()"></div>
+          <div class="fg"><label>Data Final</label><input type="date" id="ns-data-fim" onchange="recalcQtdDiasNS()"></div>
+          <div class="fg"><label>Qtd Dias</label><input type="text" id="ns-qtd-dias" readonly></div>
+          <h4 style="margin-top:14px">Período de Cobertura (Dias)</h4>
+          <div class="fg"><label>Quantidade dias</label><input type="number" id="ns-cobertura" value="20" min="1"></div>
+        </div>
+        <div class="ns-sec">
+          <h4>Lojas Participantes</h4>
+          <div class="ns-lojas-wrap" id="ns-lojas"><div class="empty" style="padding:20px 0">Informe o número da lista</div></div>
+        </div>
+      </div>
+      <div class="ns-sec">
+        <h4>Observações</h4>
+        <div class="ns-obs-grid">
+          <label><input type="checkbox" id="ns-obs1"> Não considerar estoque do Sistema.</label>
+          <label class="off"><input type="checkbox" disabled> Considerar itens em trânsito.</label>
+          <label><input type="checkbox" id="ns-obs2"> Utilizar lista recebida da Indústria.</label>
+          <label class="off"><input type="checkbox" disabled> Utilizar Custo Consolidado Lista(s) Indústria</label>
+          <label class="off"><input type="checkbox" disabled> Gerar com Custo (Única Loja)</label>
+          <label class="off"><input type="checkbox" disabled> Gerar com Custo (Grupo de Lojas)</label>
+          <label><input type="checkbox" id="ns-obs3"> Não usar dias de vendas corrido.</label>
+        </div>
+      </div>
+      <div class="ns-hint" id="ns-hint"></div>
+    </div>
+    <div class="ns-ftr">
+      <button class="btn btn-slate" onclick="fecharNovaSugestao()">Cancelar</button>
+      <button class="btn btn-blue" onclick="confirmarNovaSugestao()">Confirmar</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -385,10 +458,70 @@ function atualizarBotaoDesativar(){
   btn.disabled = n === 0;
   btn.textContent = n > 0 ? `✕ Desativar (${n})` : '✕ Desativar';
 }
-// Layout apenas — ainda não grava nada no ERP. Confirmar com o Tiago o fluxo
-// real de criação/desativação antes de ligar isso em central.pedidocompra.
+// "Nova Sugestão" não cria nada novo em central.pedidocompra ainda — o modal
+// segue o layout da tela "Listas > Sugestão de Compras" do Dlinks desktop,
+// mas o Confirmar só abre o cálculo de cobertura já existente (só leitura).
+let lojasNSCarregadas = [];
 function abrirNovaSugestao(){
-  alert('Layout de "Nova Sugestão" ainda em construção — por enquanto essa tela é só leitura do ERP. Quando você confirmar o fluxo de criação, a gente liga essa tela em central.pedidocompra.');
+  document.getElementById('ns-lista').value = '';
+  document.getElementById('ns-cobertura').value = 20;
+  document.getElementById('ns-obs1').checked = false;
+  document.getElementById('ns-obs2').checked = false;
+  document.getElementById('ns-obs3').checked = false;
+  document.getElementById('ns-lojas').innerHTML = '<div class="empty" style="padding:20px 0">Informe o número da lista</div>';
+  document.getElementById('ns-hint').textContent = '';
+  lojasNSCarregadas = [];
+  const hoje = new Date();
+  const antes = new Date(hoje.getTime() - 30 * 86400000);
+  document.getElementById('ns-data-fim').value = hoje.toISOString().slice(0,10);
+  document.getElementById('ns-data-ini').value = antes.toISOString().slice(0,10);
+  recalcQtdDiasNS();
+  document.getElementById('ns-overlay').style.display = 'flex';
+}
+function fecharNovaSugestao(){
+  document.getElementById('ns-overlay').style.display = 'none';
+}
+function recalcQtdDiasNS(){
+  const ini = document.getElementById('ns-data-ini').value;
+  const fim = document.getElementById('ns-data-fim').value;
+  if (!ini || !fim) { document.getElementById('ns-qtd-dias').value = ''; return; }
+  const dias = Math.max(1, Math.round((new Date(fim) - new Date(ini)) / 86400000));
+  document.getElementById('ns-qtd-dias').value = dias;
+}
+let ultNsLojasReq = 0;
+async function carregarLojasNS(){
+  const id = parseInt(document.getElementById('ns-lista').value);
+  const wrap = document.getElementById('ns-lojas');
+  document.getElementById('ns-hint').textContent = '';
+  if (!id) { wrap.innerHTML = '<div class="empty" style="padding:20px 0">Informe o número da lista</div>'; lojasNSCarregadas = []; return; }
+  const meuReq = ++ultNsLojasReq;
+  wrap.innerHTML = '<div class="spinner"></div>';
+  try {
+    const r = await fetch(`/api/listas-compra/${id}/lojas-participantes`);
+    const lojas = await r.json();
+    if (meuReq !== ultNsLojasReq) return;
+    if (lojas.error) throw new Error(lojas.error);
+    lojasNSCarregadas = lojas;
+    if (!lojas.length) { wrap.innerHTML = '<div class="empty" style="padding:20px 0">Nenhuma loja participante encontrada pra essa lista</div>'; return; }
+    wrap.innerHTML = lojas.map(l => `
+      <div class="ns-loja-row"><input type="checkbox" class="ns-chk-loja" value="${l.loja}" checked><b>${l.loja}</b> ${l.nome}</div>
+    `).join('');
+  } catch(e) {
+    if (meuReq !== ultNsLojasReq) return;
+    wrap.innerHTML = `<div class="empty" style="padding:20px 0">Erro: ${e.message}</div>`;
+  }
+}
+function confirmarNovaSugestao(){
+  const id = parseInt(document.getElementById('ns-lista').value);
+  const hint = document.getElementById('ns-hint');
+  if (!id) { hint.textContent = 'Informe o número da lista.'; return; }
+  const cobertura = document.getElementById('ns-cobertura').value || 20;
+  const lojasMarcadas = [...document.querySelectorAll('.ns-chk-loja:checked')].map(c => c.value);
+  fecharNovaSugestao();
+  abrirSugestao(id);
+  document.getElementById('f-cobertura').value = cobertura;
+  document.getElementById('f-loja').value = (lojasMarcadas.length === 1) ? lojasMarcadas[0] : 'todas';
+  carregarSugestao();
 }
 function desativarSugestoesSelecionadas(){
   const n = document.querySelectorAll('.chk-sugestao:checked').length;
