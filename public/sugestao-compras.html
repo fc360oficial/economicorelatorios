@@ -71,6 +71,7 @@ table.main-t tbody tr.open{background:#FFF6D9}
 .mon-hdr{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap}
 .mon-filtros{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
 .mon-filtros input{background:#FFFFFF;border:1px solid #C9C9C4;border-radius:8px;padding:8px 11px;font-size:12.5px;font-family:inherit;min-width:300px}
+.mon-filtros select{background:#FFFFFF;border:1px solid #C9C9C4;border-radius:8px;padding:8px 11px;font-size:12.5px;font-family:inherit;color:#0E1626}
 .mon-abas{display:flex;gap:2px;background:#FFFFFF;border:1px solid #C9C9C4;border-radius:9px;padding:3px}
 .mon-abas button{border:none;background:transparent;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:700;color:#4E5A72;cursor:pointer;font-family:inherit;white-space:nowrap}
 .mon-abas button.on{background:#101B33;color:#fff}
@@ -160,6 +161,7 @@ table.det-t td.loja{font-weight:700;color:#0E1626}
 
     <div class="mon-filtros">
       <input type="text" id="m-busca" placeholder="Buscar por fornecedor, nº da sugestão ou da lista..." oninput="carregarMonitor()">
+      <select id="m-comprador" onchange="renderMonitorTabela(sugestoesCarregadas)"><option value="">Todos os compradores</option></select>
       <div class="mon-abas" id="m-abas">
         <button class="on" data-aba="todos" onclick="mudarAbaMonitor('todos')">Todos</button>
         <button data-aba="abertos" onclick="mudarAbaMonitor('abertos')">Aberto/Digitação</button>
@@ -403,6 +405,18 @@ function passaNaAba(s){
   if (abaMonitor === 'finalizados') return !!s.pedido;
   return !s.pedido;
 }
+function passaNoComprador(s){
+  const alvo = document.getElementById('m-comprador').value;
+  if (!alvo) return true;
+  return s.comprador === alvo;
+}
+function atualizarFiltroCompradores(rows){
+  const sel = document.getElementById('m-comprador');
+  const atual = sel.value;
+  const nomes = [...new Set(rows.map(r => r.comprador).filter(Boolean))].sort((a,b) => a.localeCompare(b));
+  sel.innerHTML = '<option value="">Todos os compradores</option>' + nomes.map(n => `<option value="${n}">${n}</option>`).join('');
+  if (nomes.includes(atual)) sel.value = atual;
+}
 async function carregarMonitor(){
   const meuReq = ++ultimoMonitorReq;
   const busca = document.getElementById('m-busca').value;
@@ -415,6 +429,7 @@ async function carregarMonitor(){
     if (meuReq !== ultimoMonitorReq) return; // resposta antiga, ignora
     if (rows.error) throw new Error(rows.error);
     sugestoesCarregadas = rows;
+    atualizarFiltroCompradores(rows);
     renderMonitorTabela(rows);
   } catch(e) {
     if (meuReq !== ultimoMonitorReq) return;
@@ -423,16 +438,16 @@ async function carregarMonitor(){
 }
 function renderMonitorTabela(todasRows){
   const wrap = document.getElementById('monitor-wrap');
-  const rows = todasRows.filter(passaNaAba);
+  const rows = todasRows.filter(passaNaAba).filter(passaNoComprador);
   document.getElementById('m-contagem-top').textContent = `${rows.length} sugestão(ões)`;
   atualizarBotaoDesativar();
   if (!todasRows.length) { wrap.innerHTML = '<div class="empty">Nenhuma sugestão encontrada.</div>'; document.getElementById('monitor-rodape').style.display = 'none'; return; }
   document.getElementById('m-contagem').textContent = `${rows.length} — Sugestão(ões)`;
   document.getElementById('monitor-rodape').style.display = 'flex';
-  if (!rows.length) { wrap.innerHTML = '<div class="empty">Nenhuma sugestão nessa aba.</div>'; return; }
+  if (!rows.length) { wrap.innerHTML = '<div class="empty">Nenhuma sugestão nessa aba/comprador.</div>'; return; }
   wrap.innerHTML = `<table class="mon-t"><thead><tr>
       <th class="chk"><input type="checkbox" id="chk-todos" onclick="marcarTodasSugestoes(this.checked)"></th>
-      <th>Sugestão</th><th>Lista</th><th>Fornecedor</th><th>CNPJ</th><th>Loja(s)</th><th>Status</th><th class="r">Total</th><th>Data</th>
+      <th>Sugestão</th><th>Lista</th><th>Fornecedor</th><th>CNPJ</th><th>Comprador</th><th>Loja(s)</th><th>Status</th><th class="r">Total</th><th>Data</th>
     </tr></thead><tbody>${rows.map(s => {
       const si = statusInfo(s);
       return `<tr class="st-${si.cls}" onclick="abrirSugestao(${s.lista})">
@@ -441,6 +456,7 @@ function renderMonitorTabela(todasRows){
         <td>${s.lista}</td>
         <td>${s.fornecedor||'—'}</td>
         <td class="cod">${s.cnpj||'—'}</td>
+        <td>${s.comprador||'—'}</td>
         <td>Loja(s): ${s.lojas.join(' - ')}</td>
         <td><span class="status-pill ${si.cls}"><span class="status-dot ${si.cls}"></span>${si.label}${si.extra?`<span class="num">${si.extra}</span>`:''}</span></td>
         <td class="r">${fmt(s.total)}</td>

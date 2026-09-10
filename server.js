@@ -2920,12 +2920,14 @@ app.get('/api/sugestoes-compra', async (req, res) => {
              MAX(p.CNPJFornec) as cnpj, MAX(p.Descricao) as descricao,
              GROUP_CONCAT(DISTINCT p.nLoja ORDER BY p.nLoja) as lojas,
              MAX(p.Status) as status, MAX(p.nPedido) as nPedido, MAX(p.DataLan) as data,
-             SUM(p.Total) as total
+             SUM(p.Total) as total,
+             MAX(cac.nome) as comprador
       FROM central.pedidocompra p
+      LEFT JOIN central.c_cotacao_agenda_comprador cac ON cac.nLista = p.nLista
       WHERE ${where}
       GROUP BY p.nConsolidado
       ORDER BY p.nConsolidado DESC
-      LIMIT 5
+      LIMIT 500
     `, params);
 
     res.json(rows.map(r => ({
@@ -2938,7 +2940,8 @@ app.get('/api/sugestoes-compra', async (req, res) => {
       status_bruto: r.status,
       pedido: r.nPedido > 0 ? r.nPedido : null,
       data: r.data ? new Date(r.data).toLocaleDateString('pt-BR') : null,
-      total: r.total ? +parseFloat(r.total).toFixed(2) : 0
+      total: r.total ? +parseFloat(r.total).toFixed(2) : 0,
+      comprador: r.comprador?.trim() || null
     })));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
