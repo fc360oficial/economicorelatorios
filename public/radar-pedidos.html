@@ -89,6 +89,16 @@ table.main-t tbody tr.open{background:#FFF6D9}
 .spark i{display:block;width:5px;background:#F5B800;border-radius:1px 1px 0 0;min-height:2px}
 .spark i.r{background:#C22F49}
 .btn-sm{padding:5px 11px;font-size:11.5px;margin-left:8px}
+.lnk{cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}.lnk:hover{color:#fff}
+.selbar{margin-left:auto;display:flex;align-items:center;gap:4px}
+table.main-t th.sel,table.main-t td.sel{width:34px;padding-left:10px;padding-right:4px;cursor:default}
+table.main-t td.sel input,table.main-t th.sel input{width:15px;height:15px;accent-color:#F5B800;cursor:pointer}
+.cad-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 24px}
+@media(max-width:800px){.cad-grid{grid-template-columns:1fr}}
+.cad-grid table{border-collapse:collapse;width:100%}
+.cad-r{padding:6px 10px;color:#98A0B3;font-size:11.5px;white-space:nowrap;vertical-align:top}
+.cad-v{padding:6px 10px;font-weight:600;color:#0E1626}.cad-v a{color:#2E5E8C}
+.cad-sec{padding:12px 10px 4px;font-size:10px;font-weight:800;letter-spacing:.5px;color:#B45C00;text-transform:uppercase}
 .det table td.lj,.det table th.lj{background:#FAFAF8;min-width:44px}
 .det table td.lj.tem{font-weight:800;color:#0E1626;background:#FFF6D9}
 /* prévia do pedido (overlay) */
@@ -235,12 +245,15 @@ const COLS=[
 function renderTabela(rows,vazio){
   rows=ordenar(rows);
   if(!rows.length){$('#view').innerHTML='<div class="empty">'+vazio+'</div>';return;}
-  let h='<div class="busca-row"><span class="contagem">'+rows.length+' lista'+(rows.length===1?'':'s')+' · clique numa lista pra ver as quantidades por produto</span></div><div class="table-wrap"><table class="main-t"><thead><tr>';
+  const nSel=rows.filter(r=>SEL.has(r.lista)).length;
+  let h='<div class="busca-row"><span class="contagem">'+rows.length+' lista'+(rows.length===1?'':'s')+' · clique numa lista pra ver as quantidades por produto</span>'+
+    '<div class="selbar"><span class="contagem" id="selcnt">'+(nSel?nSel+' selecionada'+(nSel>1?'s':''):'nenhuma selecionada')+'</span><button class="btn btn-slate btn-sm" onclick="SEL.clear();render()" '+(nSel?'':'disabled')+'>Limpar</button><button class="btn btn-amber btn-sm" id="btnEnviar" disabled title="Em definição: vai montar o pedido das listas selecionadas pra enviar ao fornecedor. Ainda não envia nada.">Enviar pro fornecedor</button></div></div><div class="table-wrap"><table class="main-t"><thead><tr><th class="sel c" title="Selecionar todas as listas visíveis"><input type="checkbox" id="selall" '+(rows.length&&nSel===rows.length?'checked':'')+'></th>';
   for(const [k,t,c] of COLS) h+='<th class="'+c+(sortK===k?' on':'')+'" data-k="'+k+'">'+t+(sortK===k?(sortD>0?' ↑':' ↓'):'')+'</th>';
   h+='</tr></thead><tbody>';
   for(const l of rows){
     const lead=l.lead, fl=l.ok?flagsHtml(l):'';
     h+='<tr class="lst'+(aberta===l.lista?' open':'')+'" data-l="'+l.lista+'">'+
+      '<td class="sel c"><input type="checkbox" class="selrow" data-l="'+l.lista+'" '+(SEL.has(l.lista)?'checked':'')+'></td>'+
       '<td class="lc"><div class="nm">'+esc(l.nome)+'<span>#'+l.lista+'</span></div><div class="sub">'+esc(l.fornecedor||'')+'</div>'+(fl?'<div class="fl">'+fl+'</div>':'')+'</td>'+
       '<td class="comp">'+esc(l.comprador||'—')+'</td><td class="c">'+pillDia(l)+'</td>'+
       '<td class="r"><b>'+(l.ok?money(l.pedido_valor):'—')+'</b>'+(l.ok?'<div class="s2">'+l.pedido_itens+' de '+l.com_venda+' itens</div>':'')+'</td>'+
@@ -249,12 +262,14 @@ function renderTabela(rows,vazio){
       '<td class="r">'+(l.ok?money(l.estoque_hoje):'—')+(l.ok?'<div class="s2 '+(l.diferenca>0?'neg':'pos')+'">'+(l.diferenca>0?'+':'−')+money(Math.abs(l.diferenca))+'</div>':'')+'</td>'+
       '<td class="r '+(l.rupturas?'neg':'')+'">'+(l.ok?l.rupturas:'—')+'</td>'+
       '<td class="r">'+(lead&&lead.lead_medio!=null?fmt(lead.lead_medio)+' d<div class="s2">máx '+lead.lead_max+' · '+lead.sugestoes+' sug.</div>':'—')+'</td></tr>';
-    if(aberta===l.lista) h+='<tr class="det"><td colspan="'+COLS.length+'"><div class="box" id="det-'+l.lista+'"><div class="spinner"></div></div></td></tr>';
+    if(aberta===l.lista) h+='<tr class="det"><td colspan="'+(COLS.length+1)+'"><div class="box" id="det-'+l.lista+'"><div class="spinner"></div></div></td></tr>';
   }
   h+='</tbody></table></div>';
   $('#view').innerHTML=h;
   document.querySelectorAll('th[data-k]').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(sortK===k)sortD=-sortD;else{sortK=k;sortD=(k==='nome'||k==='comprador')?1:(k==='fazer_em'||k==='cobertura_dias'?1:-1)}render();});
-  document.querySelectorAll('tr.lst').forEach(tr=>tr.onclick=()=>{const id=+tr.dataset.l;aberta=aberta===id?null:id;render();if(aberta)carregarItens(aberta);});
+  document.querySelectorAll('tr.lst[data-l]').forEach(tr=>tr.onclick=(e)=>{if(e.target.closest('.sel'))return;const id=+tr.dataset.l;aberta=aberta===id?null:id;render();if(aberta)carregarItens(aberta);});
+  document.querySelectorAll('input.selrow').forEach(cb=>cb.onchange=()=>{const id=+cb.dataset.l;if(cb.checked)SEL.add(id);else SEL.delete(id);atualizarSel(rows);});
+  const sa=document.getElementById('selall'); if(sa) sa.onchange=()=>{for(const r of rows){if(sa.checked)SEL.add(r.lista);else SEL.delete(r.lista);}render();};
 }
 async function carregarItens(id){
   const box=document.getElementById('det-'+id); if(!box) return;
@@ -263,7 +278,7 @@ async function carregarItens(id){
     const L=j.lista, P=j.params, pede=j.itens.filter(i=>i.qtd>0);
     const LJ=[...new Set(j.itens.flatMap(i=>i.lojas))].sort((a,b)=>a-b);
     DETALHES[id]=j;
-    let h='<div class="hd"><div><b>'+esc(L.nome)+'</b> · '+esc(L.fornecedor||'')+(L.pedidoMinimo?' · pedido mínimo R$ '+fmt(L.pedidoMinimo,0):'')+'</div>'+
+    let h='<div class="hd"><div><b class="lnk" title="Abrir cadastro da lista no ERP (fornecedor, vendedor, comprador, prazo)" onclick="event.stopPropagation();abrirCadastro('+id+')">'+esc(L.nome)+' ↗</b> · '+esc(L.fornecedor||'')+(L.pedidoMinimo?' · pedido mínimo R$ '+fmt(L.pedidoMinimo,0):'')+'</div>'+
       '<div>'+(P?'ponto <b>'+fmt(P.ponto)+'d</b> · alvo <b>'+fmt(P.alvoLista)+'d</b> · ciclo <b>'+fmt(P.ciclo)+'d</b> · ':'')+'fazer em <b>'+(j.fazer_em===0?'HOJE':j.fazer_em+' dias ('+br(j.data)+')')+'</b> · '+pede.length+' itens · '+j.volumes+' volumes · <b>'+money(j.total)+'</b> <button class="btn btn-amber btn-sm" onclick="event.stopPropagation();gerarPedido('+id+')">Gerar pedido</button></div></div>';
     h+='<div style="overflow-x:auto"><table><thead><tr><th>Produto</th><th class="r" title="Embalagem em que o produto de fato chegou nas notas de entrada no período escolhido no filtro">Emb (real)</th><th class="r">Venda/dia</th><th class="r">Estoque</th><th class="r">Trânsito</th><th class="r">Cobertura</th><th class="r">Alvo</th>'+LJ.map(ln=>'<th class="r lj" title="Quantidade a pedir na loja '+ln+'">L'+ln+'</th>').join('')+'<th class="r">Pedir (total)</th><th class="r">Total</th><th class="obs">Obs</th></tr></thead><tbody>';
     for(const i of j.itens){
@@ -359,6 +374,14 @@ function renderRegras(){
 
 // ---- Gerar pedido: PRÉVIA por loja, só pra ver como fica. Não grava nada (nem no ERP, nem no app). ----
 const DETALHES={};
+// seleção de listas (pro futuro botão "Enviar pro fornecedor")
+const SEL=new Set();
+function atualizarSel(rows){
+  const n=rows.filter(r=>SEL.has(r.lista)).length;
+  const c=document.getElementById('selcnt'); if(c) c.textContent=n?n+' selecionada'+(n>1?'s':''):'nenhuma selecionada';
+  const sa=document.getElementById('selall'); if(sa) sa.checked=rows.length>0&&n===rows.length;
+  const lim=c?c.nextElementSibling:null; if(lim) lim.disabled=!n;
+}
 const LOJAS_NOMES={1:'CAHU',2:'MURIBECA',3:'PONTE',4:'ATACAREJO',5:'PORTA LARGA',6:'JARDIM JORDÃO'};
 function gerarPedido(id){
   const j=DETALHES[id]; if(!j) return;
@@ -383,6 +406,20 @@ function gerarPedido(id){
   $('#pv').scrollTop=0;
 }
 function fecharPedido(){$('#pv').hidden=true;document.body.classList.remove('pv-on');}
+// Cadastro da lista (mesma fonte da tela Lista de Compra: /api/listas-compra/:id/cadastro)
+async function abrirCadastro(id){
+  $('#pv-body').innerHTML='<div class="pv-top"><div><div class="eyebrow-pv" style="color:#6B4E00">CADASTRO DA LISTA · ERP</div><h2>Lista #'+id+'</h2></div><div class="pv-acts"><button class="btn btn-amber" onclick="fecharPedido()">Fechar</button></div></div><div class="spinner"></div>';
+  $('#pv').hidden=false; document.body.classList.add('pv-on'); $('#pv').scrollTop=0;
+  try{
+    const r=await fetch('/api/listas-compra/'+id+'/cadastro'); const c=await r.json(); if(c.error) throw new Error(c.error);
+    const dig=s=>(s||'').replace(/\D/g,''); const wa=w=>dig(w).length>=10?'https://wa.me/55'+dig(w):null;
+    const li=(rot,val,href)=>'<tr><td class="cad-r">'+rot+'</td><td class="cad-v">'+(val?(href?'<a href="'+href+'" target="_blank" rel="noopener">'+esc(val)+'</a>':esc(val)):'<span class="mut">—</span>')+'</td></tr>';
+    const sec=t=>'<tr><td colspan="2" class="cad-sec">'+t+'</td></tr>';
+    $('#pv-body').innerHTML='<div class="pv-top"><div><div class="eyebrow-pv" style="color:#6B4E00">CADASTRO DA LISTA · ERP</div><h2>'+esc(c.nome||('Lista #'+id))+' <span class="mut" style="font-size:13px;font-weight:500">#'+id+'</span></h2><div class="pv-sub">Direto do cadastro da lista no Dlinks Gestão. Pra editar, é lá.</div></div><div class="pv-acts"><a class="btn btn-slate" href="/fornecedores.html" style="text-decoration:none">Abrir na Lista de Compra</a><button class="btn btn-amber" onclick="fecharPedido()">Fechar</button></div></div>'+
+      '<div class="cad-grid"><table>'+li('Fornecedor',c.fornecedor?.codigo?c.fornecedor.codigo+' - '+(c.fornecedor.nome||''):null)+li('Descrição',c.descricao)+li('Observação',c.observacao)+sec('Vendedor (fornecedor)')+li('Nome',c.vendedor?.nome)+li('Email',c.vendedor?.email,c.vendedor?.email?'mailto:'+c.vendedor.email:null)+li('WhatsApp',c.vendedor?.whats,wa(c.vendedor?.whats))+'</table>'+
+      '<table>'+li('Prazo pagamento',c.prazo_pagamento)+li('Pedido mínimo',c.pedido_minimo?'R$ '+c.pedido_minimo:null)+sec('Comprador (loja)')+li('Nome',c.comprador?.nome)+li('Email',c.comprador?.email,c.comprador?.email?'mailto:'+c.comprador.email:null)+li('WhatsApp',c.comprador?.whats,wa(c.comprador?.whats))+'</table></div>';
+  }catch(e){ $('#pv-body').insertAdjacentHTML('beforeend','<div class="empty">Erro: '+esc(e.message)+'</div>'); }
+}
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#pv').hidden)fecharPedido();});
 document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{tab=t.dataset.tab;aberta=null;render();});
 $('#btnAplicar').onclick=()=>{aberta=null;carregar(false);};
