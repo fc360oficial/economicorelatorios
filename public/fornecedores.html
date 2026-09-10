@@ -1002,8 +1002,11 @@ function renderItensTabela() {
   const arrow = col => sortColItens === col ? (sortDirItens === 'desc' ? '▼' : '▲') : '';
   const active = col => sortColItens === col ? ' active' : '';
 
-  // por loja: quantos itens da lista (carregada) existem naquela loja — a composição varia
-  const porLoja = n => itensListaAtual.filter(it => it.lojas.includes(n)).length;
+  // por loja: quantos itens ATIVOS a lista tem em cada loja — vem pronto do
+  // /api/listas-compra (composição real, não só o que está carregado aqui;
+  // com uma loja específica selecionada, itensListaAtual só tem os daquela
+  // loja, então recontar localmente sempre repetiria o mesmo número)
+  const porLoja = n => (listaSelecionada?.itens_por_loja?.[n]) ?? itensListaAtual.filter(it => it.lojas.includes(n)).length;
   const thLojas = `<th class="c loja-filtro" title="Nº embaixo = itens desta lista em cada loja. Clique numa loja pra ver só os itens dela (clique de novo pra limpar)">
               <div style="display:flex;gap:2px;justify-content:center">${[1,2,3,4,5,6].map(n=>`<div style="display:flex;flex-direction:column;align-items:center;gap:1px">
                 <span class="loja-badge${lojaFiltroItens===n?' on':''}" onclick="filtrarLoja(${n})">L${n}</span>
@@ -1041,8 +1044,11 @@ async function abrirLista(id) {
 
   const { loja, mes, ano } = params();
   document.getElementById('d-title').textContent = `${lista.nome} · Lista #${lista.id}`;
+  // total_itens é a lista inteira (qualquer loja); o card "Itens ativos" logo
+  // abaixo é que reflete o filtro de loja atual — por isso não repete o
+  // número aqui, pra não parecer contradição (216 total vs. 212 na loja X)
   const desativados = (lista.total_linhas || 0) - (lista.total_itens || 0);
-  document.getElementById('d-subtitle').textContent = `${lista.fornecedor||''} · ${lista.total_itens} itens ativos`
+  document.getElementById('d-subtitle').textContent = `${lista.fornecedor||''} · ${lista.total_itens} itens ativos no total`
     + (desativados > 0 ? ` · ${desativados} desativado(s) no ERP` : '');
   document.getElementById('d-tabs').innerHTML = '';
   document.getElementById('drawer').classList.add('open');
