@@ -299,6 +299,10 @@ table.rup-t tbody tr.lista-row.zerada .fornec-nome{color:#4E5A72}
     <div class="busca-row">
       <input type="text" id="f-busca-item" placeholder="Buscar por código ou descrição — use % como coringa" oninput="renderTabelaSugestao()">
       <span class="contagem" id="contagem-itens"></span>
+      <div class="mon-abas" id="f-toggle-problema" style="display:none">
+        <button data-v="problema" onclick="setFiltroProblema(true)">⚠️ Só com problema</button>
+        <button data-v="todos" onclick="setFiltroProblema(false)">Lista inteira</button>
+      </div>
     </div>
 
     <div class="table-wrap">
@@ -376,6 +380,8 @@ let listas = [];
 let listaAtual = null;
 let sugestaoAtual = null;
 let linhaAberta = null;
+let filtroProblemaCods = null;   // Set de códigos de barra vindos da tela de rupturas
+let filtroProblemaAtivo = false;
 
 (function preencherMesAno(){
   const hoje = new Date();
@@ -424,6 +430,7 @@ function abrirSugestao(id){
   const monitorVisivel  = document.getElementById('monitor-view').style.display !== 'none';
   const rupturasVisivel = document.getElementById('rupturas-view').style.display !== 'none';
   origemSugestao = monitorVisivel ? 'monitor' : rupturasVisivel ? 'rupturas' : 'listas';
+  if (origemSugestao !== 'rupturas') { filtroProblemaCods = null; filtroProblemaAtivo = false; }
   document.querySelector('#sugestao-wrap .voltar').textContent =
     origemSugestao === 'rupturas' ? '← Rupturas' : origemSugestao === 'monitor' ? '← Monitor' : '← Listas';
   document.getElementById('rupturas-view').style.display = 'none';
@@ -668,8 +675,10 @@ function badgePrioridade(it){
 function renderTabelaSugestao(){
   if (!sugestaoAtual) return;
   const termo = document.getElementById('f-busca-item').value;
-  const itens = sugestaoAtual.itens.filter(it => bateBusca(it.descricao, termo) || bateBusca(it.codigo, termo));
+  const base = (filtroProblemaAtivo && filtroProblemaCods) ? sugestaoAtual.itens.filter(it => filtroProblemaCods.has(String(it.codigo))) : sugestaoAtual.itens;
+  const itens = base.filter(it => bateBusca(it.descricao, termo) || bateBusca(it.codigo, termo));
   document.getElementById('contagem-itens').textContent = `${itens.length} de ${sugestaoAtual.itens.length} produto(s)`;
+  renderToggleProblema();
   const tbody = document.getElementById('itens-tbody');
   if (!itens.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty">Nenhum item encontrado.</td></tr>'; return; }
 
@@ -707,6 +716,16 @@ function renderTabelaSugestao(){
   `).join('');
 }
 
+function renderToggleProblema(){
+  const el = document.getElementById('f-toggle-problema');
+  if (!filtroProblemaCods) { el.style.display = 'none'; return; }
+  const n = sugestaoAtual ? sugestaoAtual.itens.filter(it => filtroProblemaCods.has(String(it.codigo))).length : filtroProblemaCods.size;
+  el.style.display = 'inline-flex';
+  el.querySelector('[data-v="problema"]').classList.toggle('on', filtroProblemaAtivo);
+  el.querySelector('[data-v="todos"]').classList.toggle('on', !filtroProblemaAtivo);
+  el.querySelector('[data-v="problema"]').textContent = `⚠️ Só com problema (${n})`;
+}
+function setFiltroProblema(v){ filtroProblemaAtivo = v; renderTabelaSugestao(); }
 function toggleDetalhe(e, codigo){
   if (e.target.closest('input')) return;
   linhaAberta = linhaAberta === codigo ? null : codigo;
@@ -738,9 +757,6 @@ async function carregarCompradoresRup(){
     if (r.status === 401) { location.href = '/login.html'; return; }
     const nomes = await r.json();
     sel.innerHTML = '<option value="">Selecione...</option>' + nomes.map(n => `<option value="${n}">${n}</option>`).join('');
-    let salvo = '';
-    try { salvo = localStorage.getItem('sc_comprador') || ''; } catch(e) {}
-    if (salvo && nomes.includes(salvo)) { sel.value = salvo; analisarRupturas(); }
   } catch(e) {
     sel.innerHTML = '<option value="">Erro ao carregar compradores</option>';
   }
@@ -752,7 +768,6 @@ async function analisarRupturas(forcar){
   const stamp = document.getElementById('r-stamp');
   const btn = document.getElementById('btn-analisar-rup');
   if (!comp) { wrap.innerHTML = '<div class="empty">Nenhuma compradora selecionada.</div>'; stamp.textContent = 'Escolha a compradora pra começar'; return; }
-  try { localStorage.setItem('sc_comprador', comp); } catch(e) {}
   const meuReq = ++ultRupReq;
   listaRupAberta = null; abaRupAberta = 'rup';
   btn.disabled = true; btn.textContent = '⏳ Analisando...';
@@ -871,7 +886,14 @@ function renderDetalheRup(listaId){
   </div>`;
 }
 
+// Criar Sugestão a partir das rupturas: leva os produtos com problema (ruptura,
+// urgência, em risco) dessa lista pra calculadora abrir já filtrada neles
 function criarSugestaoDaLista(listaId){
+  const d = dadosRup || {};
+  const cods = new Set();
+  for (const arr of [d.rupturas, d.sem_pedido, d.em_risco]) (arr||[]).forEach(x => { if (x.listaId == listaId && x.ean) cods.add(String(x.ean)); });
+  filtroProblemaCods = cods.size ? cods : null;
+  filtroProblemaAtivo = !!filtroProblemaCods;
   abrirNovaSugestao(listaId);
 }
 
