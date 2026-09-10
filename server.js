@@ -3105,7 +3105,9 @@ app.get('/api/listas-compra', async (req, res) => {
              COUNT(DISTINCT CASE WHEN i.l3=1 AND it.CodigoBarra IS NOT NULL THEN i.nReg END) as i3,
              COUNT(DISTINCT CASE WHEN i.l4=1 AND it.CodigoBarra IS NOT NULL THEN i.nReg END) as i4,
              COUNT(DISTINCT CASE WHEN i.l5=1 AND it.CodigoBarra IS NOT NULL THEN i.nReg END) as i5,
-             COUNT(DISTINCT CASE WHEN i.l6=1 AND it.CodigoBarra IS NOT NULL THEN i.nReg END) as i6
+             COUNT(DISTINCT CASE WHEN i.l6=1 AND it.CodigoBarra IS NOT NULL THEN i.nReg END) as i6,
+             COUNT(DISTINCT CASE WHEN i.l1=0 AND i.l2=0 AND i.l3=0 AND i.l4=0 AND i.l5=0 AND i.l6=0
+                                  AND it.CodigoBarra IS NOT NULL THEN i.nReg END) as sem_loja
       FROM central.c_cotacao_lista l
       LEFT JOIN central.c_cotacao_lista_itens i ON i.nCotacao = l.nReg
       -- só produto ATIVO conta (mesmo critério do drawer, que faz INNER JOIN itens CodDesativado=0);
@@ -3135,6 +3137,7 @@ app.get('/api/listas-compra', async (req, res) => {
       total_linhas: r.total_linhas,
       // composição por loja (c_cotacao_lista_itens.l1..l6) — varia bastante entre lojas
       itens_por_loja: { 1: +r.i1 || 0, 2: +r.i2 || 0, 3: +r.i3 || 0, 4: +r.i4 || 0, 5: +r.i5 || 0, 6: +r.i6 || 0 },
+      itens_sem_loja: +r.sem_loja || 0, // ativo, na lista, mas sem NENHUMA loja marcada no ERP (l1..l6 = 0)
       compradores: _nRegToComp[r.nReg] || null,
       lojas: [1,2,3,4,5,6].filter(n => r['l'+n] == 1)
     }));
