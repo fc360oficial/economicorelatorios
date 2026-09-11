@@ -255,10 +255,16 @@ function ordenar(rows){
   return rows.sort((a,b)=>{let x=a[sortK],y=b[sortK];if(x==null&&y==null)return 0;if(x==null)return 1;if(y==null)return -1;if(typeof x==='string')return sortD*x.localeCompare(y,'pt-BR');return sortD*(x-y)||(b.venda_dia||0)-(a.venda_dia||0);});
 }
 function pillA(l){
-  if(!l.ok||l.gatilho!=='curva_a') return '';
-  const its=(l.curva_a_risco||[]).filter(c=>c.zera_antes);
-  const tip='Antecipada: a lista cairia em '+l.fazer_em_lista+' d pela regra dos 10% da venda, mas '+its.length+' produto'+(its.length>1?'s':'')+' de curva A zera'+(its.length>1?'m':'')+' antes: '+its.slice(0,4).map(c=>c.descricao+' ('+fmt(c.cobertura_dias,0)+' d)').join(', ')+(its.length>4?'…':'');
-  return ' <span class="pill p-a" title="'+esc(tip)+'">curva A</span>';
+  if(!l.ok) return '';
+  const risco=l.curva_a_risco||[], nA=l.curva_a_itens||0;
+  const lista=risco.slice(0,5).map(c=>c.descricao+' ('+fmt(c.cobertura_dias,0)+' d)').join(', ')+(risco.length>5?'…':'');
+  if(l.gatilho==='curva_a'){
+    const its=risco.filter(c=>c.zera_antes);
+    return ' <span class="pill p-a" title="'+esc('Antecipada: a lista cairia em '+l.fazer_em_lista+' d pela regra dos 10% da venda, mas '+its.length+' produto'+(its.length>1?'s':'')+' de curva A zera'+(its.length>1?'m':'')+' antes: '+lista)+'">antecipada · '+risco.length+' A em risco</span>';
+  }
+  if(risco.length) return ' <span class="pill p-a" title="'+esc('Produtos de curva A em risco nesta lista (zera antes da data da lista ou está no ponto de pedido): '+lista)+'">'+risco.length+' A em risco</span>';
+  if(nA) return ' <span class="pill p-a soft" title="Esta lista tem '+nA+' produto'+(nA>1?'s':'')+' de curva A, nenhum em risco hoje">'+nA+' A</span>';
+  return '';
 }
 function pillDia(l){
   if(!l.ok) return '<span class="pill p-cinza">'+esc(l.motivo)+'</span>';
