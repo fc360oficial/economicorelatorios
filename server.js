@@ -6185,6 +6185,27 @@ app.post('/api/pedidos-fornecedor/testes-xml', async (req, res) => {
 app.get('/api/pedidos-fornecedor/financeiro', (req, res) => {
   try { res.json(pedidosFornec.financeiroAlertas()); } catch (err) { res.status(500).json({ error: err.message }); }
 });
+// Decisão por item antes da entrega (aceitar / recusar) e PDF de aviso de devolução por loja
+app.post('/api/pedidos-fornecedor/:id/xml/:loja/decidir', (req, res) => {
+  try {
+    const r = pedidosFornec.decidirItemXml(parseInt(req.params.id), parseInt(req.params.loja), String(req.body?.cod || ''), req.body?.acao, req.session.user?.nome || null);
+    if (!r) return res.status(404).json({ error: 'Pedido não encontrado' });
+    if (r.erro) return res.status(400).json({ error: r.erro });
+    res.json({ ok: true, recusas: pedidosFornec.recusasLoja(r, parseInt(req.params.loja)).length });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.get('/api/pedidos-fornecedor/:id/devolucao/:loja/pdf', (req, res) => {
+  const p = pedidosFornec.obter(parseInt(req.params.id)); if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
+  let f; try { f = pedidosFornec.gerarPdfDevolucao(p, parseInt(req.params.loja), req.session.user?.nome || null); } catch (e) { return res.status(500).json({ error: e.message }); }
+  setTimeout(() => res.sendFile(f, { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="devolucao-${p.id}-L${req.params.loja}.pdf"` } }), 200);
+});
+// público (vai no WhatsApp pro vendedor / CPD / fiscal)
+app.get('/pedido/:token/devolucao/:loja/pdf', (req, res) => {
+  const p = pedidosFornec.porToken(req.params.token); if (!p) return res.status(404).send('Pedido não encontrado');
+  const ln = parseInt(req.params.loja); if (!pedidosFornec.recusasLoja(p, ln).length) return res.status(404).send('Sem itens recusados nesta loja');
+  let f; try { f = pedidosFornec.gerarPdfDevolucao(p, ln, null); } catch (e) { return res.status(500).send(e.message); }
+  setTimeout(() => res.sendFile(f, { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="devolucao-${p.id}-L${ln}.pdf"` } }), 200);
+});
 // Compradora aceita e fecha a consistência de uma loja (motivo obrigatório)
 app.post('/api/pedidos-fornecedor/:id/xml/:loja/aceitar', (req, res) => {
   try {
