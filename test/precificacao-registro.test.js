@@ -6,11 +6,18 @@ const pr = require('../lib/precificacao');
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'precif-'));
 pr.init({ dir });
 
-// ERP falso: responde pelas 3 consultas (itens/preço, custo, margem)
-const qFake = async (sql) => {
-  if (/FROM central\.itens /.test(sql)) return [{ CodigoBarra: 'A', P: '12,99', A: '0', CodDesativado: 0 }, { CodigoBarra: 'B', P: '5,00', A: '0', CodDesativado: 0 }];
+// ERP falso: responde pelas 3 consultas (itens/preço, custo, margem). Preço/margem de atacado
+// (loja 4) variam por parâmetro: "a4 AS A" no SQL de itens, e params[0]===4 no de margens.
+const qFake = async (sql, params) => {
+  if (/FROM central\.itens /.test(sql)) {
+    if (/a4 AS A/.test(sql)) return [{ CodigoBarra: 'A', P: '12,99', A: '11,50', CodDesativado: 0 }, { CodigoBarra: 'B', P: '5,00', A: '0', CodDesativado: 0 }];
+    return [{ CodigoBarra: 'A', P: '12,99', A: '0', CodDesativado: 0 }, { CodigoBarra: 'B', P: '5,00', A: '0', CodDesativado: 0 }];
+  }
   if (/FROM central\.custoloja/.test(sql)) return [{ CodigoBarra: 'A', Custo: '10' }, { CodigoBarra: 'B', Custo: '4' }];
-  if (/FROM central\.itens_margens/.test(sql)) return [{ CodigoBarra: 'A', MargemVarejo: 30, MargemAtacado: null }];
+  if (/FROM central\.itens_margens/.test(sql)) {
+    if (params && params[0] === 4) return [{ CodigoBarra: 'A', MargemVarejo: 30, MargemAtacado: 10 }];
+    return [{ CodigoBarra: 'A', MargemVarejo: 30, MargemAtacado: null }];
+  }
   return [];
 };
 pr.initERP(qFake, { curvaASet: () => new Set(['A']) });
@@ -89,4 +96,71 @@ test('verificar lê o ERP e marca divergência', async () => {
   assert.equal(r.divergentes, 1);
   const t = await pr.verificarTodos();
   assert.equal(t.verificados, 1);
+});
+
+test('reabrir limpa erp de todos os itens', () => {
+  const r = pr.reabrir('40-L2', 'tiago');
+  assert.equal(r.status, 'a_precificar');
+  assert.equal(r.aplicadoEm, undefined);
+  assert.equal(r.divergentes, undefined);
+  for (const i of r.itens) assert.equal(Object.prototype.hasOwnProperty.call(i, 'erp'), false);
+});
+
+// pedido de loja 4: mesmos itens da loja 2, mas com preço/margem de atacado próprios
+const pedido4 = {
+  id: 42, lista: 7, lista_nome: 'LISTA X', fornecedor: 'FORN', teste: true,
+  itens: [{ cod: 'A', descricao: 'ARROZ' }],
+  xml: { lojas: { 4: {
+    status: 'conciliado', conferidoEm: '2026-09-11T10:00:00.000Z',
+    notas: [{ chave: 'k4' }],   // sem valorProduto: rateio indisponível, custo_imposto = custo_novo = 10
+    itens: [{ cod: 'A', descricao: 'ARROZ', recebida: 10, tipo: 'ok', preco_xml: 10 }],
+    nao_pedidos: []
+  } } }
+};
+
+test('verificar detecta divergência de atacado (loja 4) e reabrir corrige', async () => {
+  const reg = await pr.criarDeConciliacao(pedido4, 4);
+  assert.equal(reg.id, '42-L4');
+  const a0 = reg.itens.find(i => i.cod === 'A');
+  assert.ok(a0.atacado, 'margem_atacado=10 na loja 4 deveria gerar item.atacado');
+
+  // varejo bate com o ERP (P4=12,99); atacado diverge de propósito (ERP a4=11,50)
+  pr.editarItem('42-L4', 'A', { preco_final: 12.99 }, 'tiago');
+  pr.editarItem('42-L4', 'A', { preco_atacado_final: 13.99 }, 'tiago');
+  pr.fechar('42-L4', 'tiago', { ignorarBloqueados: true });
+  pr.aplicar('42-L4', 'tiago');
+  const v1 = await pr.verificar('42-L4');
+  const i1 = v1.itens.find(i => i.cod === 'A');
+  assert.equal(i1.erp.ok, false);
+  assert.equal(i1.erp.atacado, 11.5);
+  assert.equal(v1.divergentes, 1);
+
+  // corrige o atacado pra bater com o ERP → sem divergência
+  pr.reabrir('42-L4', 'tiago');
+  pr.editarItem('42-L4', 'A', { preco_final: 12.99 }, 'tiago');
+  pr.editarItem('42-L4', 'A', { preco_atacado_final: 11.5 }, 'tiago');
+  pr.fechar('42-L4', 'tiago', { ignorarBloqueados: true });
+  pr.aplicar('42-L4', 'tiago');
+  const v2 = await pr.verificar('42-L4');
+  const i2 = v2.itens.find(i => i.cod === 'A');
+  assert.equal(i2.erp.ok, true);
+  assert.equal(v2.divergentes, 0);
+});
+
+test('verificarTodos ignora registros aplicados há mais de 7 dias', async () => {
+  const antes = pr.obter('42-L4');
+  const verificadoEmAntes = antes.verificadoEm;
+  antes.aplicadoEm = new Date(Date.now() - 8 * 86400000).toISOString();   // fora da janela de 7 dias
+  pr.salvar(antes);
+
+  const esperados = pr.listar().filter(x =>
+    ['aplicado', 'conferido'].includes(x.status) &&
+    x.aplicadoEm && new Date(x.aplicadoEm).getTime() >= Date.now() - 7 * 86400000
+  ).length;
+
+  const t = await pr.verificarTodos();
+  assert.equal(t.verificados, esperados);
+
+  const depois = pr.obter('42-L4');
+  assert.equal(depois.verificadoEm, verificadoEmAntes);   // não foi tocado
 });
