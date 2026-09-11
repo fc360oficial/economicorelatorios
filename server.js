@@ -6359,6 +6359,12 @@ async function cadastroLista(id) {
 }
 
 // cria 1 pedido por lista selecionada
+// Link público dos pedidos ao fornecedor: SEMPRE o endereço externo (DDNS via Caddy), nunca o
+// endereço que a compradora usou pra abrir o sistema (se ela entrou por IP interno, o vendedor
+// receberia um link que não abre de fora). Troque PUBLIC_URL no ambiente quando houver domínio próprio.
+const PUBLIC_URL = (process.env.PUBLIC_URL || 'https://hhk0a8gt2cn.sn.mynetname.net').replace(/\/$/, '');
+const linkPedido = p => `${PUBLIC_URL}/pedido/${p.token}`;
+
 app.post('/api/pedidos-fornecedor', async (req, res) => {
   try {
     const listas = (req.body.listas || []).map(n => parseInt(n)).filter(n => n > 0).slice(0, 50);
@@ -6386,19 +6392,17 @@ app.post('/api/pedidos-fornecedor', async (req, res) => {
       const cad = await cadastroLista(id).catch(() => null);
       criados.push(pedidosFornec.criar({ lista: det.lista, cadastro: cad, detalhe: det, teto, embMeses, usuario: req.session.user?.nome || null, modo: soCurvaA ? 'curva_a' : 'completa' }));
     }
-    const base = `${req.protocol}://${req.get('host')}`;
-    res.json({ criados: criados.map(p => ({ id: p.id, lista: p.lista, lista_nome: p.lista_nome, fornecedor: p.fornecedor, vendedor: p.vendedor, itens: p.itens.length, totais: p.totais, link: `${base}/pedido/${p.token}` })), sem_itens: semItens });
+    res.json({ criados: criados.map(p => ({ id: p.id, lista: p.lista, lista_nome: p.lista_nome, fornecedor: p.fornecedor, vendedor: p.vendedor, itens: p.itens.length, totais: p.totais, link: linkPedido(p) })), sem_itens: semItens });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.get('/api/pedidos-fornecedor', (req, res) => {
-  const base = `${req.protocol}://${req.get('host')}`;
   res.json(pedidosFornec.listar().map(p => ({ id: p.id, lista: p.lista, lista_nome: p.lista_nome, fornecedor: p.fornecedor, vendedor: p.vendedor, comprador: p.comprador, status: p.status, aprovadoEm: p.aprovadoEm || null, aprovadoPor: p.aprovadoPor || null, recebidoEm: p.recebidoEm || null, origem: p.origem || null, alerta_novo: !!p.alerta_novo,
-    recebimento: p.recebimento ? Object.fromEntries(Object.entries(p.recebimento).map(([l, r]) => [l, { faltas: r.faltas, itens_pedidos: r.itens_pedidos, notas: r.notas.map(n => n.nNota) }])) : null, criadoEm: p.criadoEm, criadoPor: p.criadoPor, abertoEm: p.abertoEm, finalizadoEm: p.finalizadoEm, lojas: p.lojas, totais: p.totais, link: `${base}/pedido/${p.token}` })));
+    recebimento: p.recebimento ? Object.fromEntries(Object.entries(p.recebimento).map(([l, r]) => [l, { faltas: r.faltas, itens_pedidos: r.itens_pedidos, notas: r.notas.map(n => n.nNota) }])) : null, criadoEm: p.criadoEm, criadoPor: p.criadoPor, abertoEm: p.abertoEm, finalizadoEm: p.finalizadoEm, lojas: p.lojas, totais: p.totais, link: linkPedido(p) })));
 });
 app.get('/api/pedidos-fornecedor/:id', (req, res) => {
   const p = pedidosFornec.obter(parseInt(req.params.id));
   if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
-  res.json({ ...p, link: `${req.protocol}://${req.get('host')}/pedido/${p.token}` });
+  res.json({ ...p, link: linkPedido(p) });
 });
 
 app.post('/api/pedidos-fornecedor/:id/aprovar', (req, res) => {
@@ -6411,7 +6415,7 @@ app.post('/api/pedidos-fornecedor/:id/enviar', (req, res) => {
   const p = pedidosFornec.enviar(parseInt(req.params.id), req.session.user?.nome || null);
   if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
   if (p.erro) return res.status(409).json({ error: p.erro });
-  res.json({ ok: true, status: p.status, link: `${req.protocol}://${req.get('host')}/pedido/${p.token}` });
+  res.json({ ok: true, status: p.status, link: linkPedido(p) });
 });
 app.post('/api/pedidos-fornecedor/verificar-recebimentos', async (req, res) => {
   try { res.json(await pedidosFornec.verificarRecebimentos()); } catch (err) { res.status(500).json({ error: err.message }); }
