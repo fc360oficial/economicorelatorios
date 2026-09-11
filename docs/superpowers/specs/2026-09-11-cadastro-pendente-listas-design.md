@@ -40,3 +40,10 @@ Margem zero conta como pendente (cadastro existe mas nunca foi preenchido).
 
 ## Fora de escopo
 Escrever no ERP, notificar comprador, outras lojas além da 4 no critério de múltiplo.
+
+## Adendo (11/09/2026) — aba "📅 Sem Validade"
+Quarta aba, mesmo padrão. Item ATIVO com loja marcada cuja validade de cadastro `itens.Validar` (dias) é vazia, 0 ou **1**
+(o ERP grava 1 como padrão quando ninguém preencheu). Produto de balança entra normalmente. Rotas
+`GET /api/listas-compra/validade-pendente` (resumo: total_itens, sem_validade, com_validade, pct; `?comprador=`) e
+`GET /api/listas-compra/:id/validade-pendente` (só itens sem validade). Drawer: código, descrição (⚖️ se balança), lojas,
+validade do cadastro. 1º run: 10.357 itens, 2.309 sem validade (2.093 com "1", 216 vazio/0), 137 listas de 228.

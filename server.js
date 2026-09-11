@@ -3344,6 +3344,69 @@ async function coletarCadastroPendente(listaId) {
   });
 }
 
+// ─── SEM VALIDADE (Lista de Compra > aba "Sem Validade") ─────────────────────
+// Itens ATIVOS de cada lista (com loja marcada) cuja validade de cadastro no ERP
+// (itens.Validar, em dias) está vazia, 0 ou 1 — o ERP grava 1 como padrão quando
+// ninguém preencheu, então 1 conta como "sem validade" (pedido do Tiago 11/09/2026).
+// Produto de balança entra normalmente (perecível é onde a validade mais importa).
+async function coletarValidadePendente(listaId) {
+  const filtroLista = listaId ? 'AND i.nCotacao = ?' : '';
+  const rows = await q(`
+    SELECT i.nCotacao as lista_id, i.Codigobarra, TRIM(it.Descricao) as descricao,
+           i.l1, i.l2, i.l3, i.l4, i.l5, i.l6, it.Validar, it.TipoBalanca
+    FROM central.c_cotacao_lista_itens i
+    INNER JOIN central.itens it ON it.CodigoBarra = i.Codigobarra AND it.CodDesativado = 0
+    WHERE (i.l1=1 OR i.l2=1 OR i.l3=1 OR i.l4=1 OR i.l5=1 OR i.l6=1) ${filtroLista}
+  `, listaId ? [listaId] : []);
+  return rows.map(r => {
+    const dias = parseInt(r.Validar) || 0;
+    return {
+      lista_id: r.lista_id, codigo: String(r.Codigobarra || '').trim(), descricao: r.descricao,
+      lojas: [1,2,3,4,5,6].filter(n => r['l'+n] == 1),
+      validade_dias: dias, balanca: r.TipoBalanca === 'P',
+      sem_validade: dias <= 1
+    };
+  });
+}
+
+app.get('/api/listas-compra/validade-pendente', async (req, res) => {
+  try {
+    const { comprador } = req.query;
+    const [itens, listasRows] = await Promise.all([
+      coletarValidadePendente(null),
+      q(`SELECT nReg, Nome, NomeFornec, CodFornec FROM central.c_cotacao_lista`)
+    ]);
+    const _nRegToComp = {};
+    for (const [comp, nRegs] of Object.entries(NREGS_COMPRADOR)) for (const nReg of nRegs) _nRegToComp[nReg] = comp;
+    const porLista = {};
+    for (const it of itens) {
+      const a = porLista[it.lista_id] || (porLista[it.lista_id] = { total_itens: 0, sem_validade: 0, com_validade: 0 });
+      a.total_itens++;
+      if (it.sem_validade) a.sem_validade++; else a.com_validade++;
+    }
+    let listas = listasRows.map(l => {
+      const a = porLista[l.nReg] || { total_itens: 0, sem_validade: 0, com_validade: 0 };
+      return { id: l.nReg, nome: l.Nome?.trim(), fornecedor: l.NomeFornec?.trim(), codFornec: l.CodFornec,
+               compradores: _nRegToComp[l.nReg] || null, ...a,
+               pct: a.total_itens ? +(a.sem_validade / a.total_itens * 100).toFixed(1) : 0 };
+    }).filter(l => l.sem_validade > 0);
+    const compradores = [...new Set(listas.map(l => l.compradores).filter(Boolean))].sort();
+    if (comprador) listas = listas.filter(l => l.compradores === comprador);
+    listas.sort((a, b) => b.sem_validade - a.sem_validade || (a.nome || '').localeCompare(b.nome || ''));
+    res.json({ listas, compradores, total_listas: listas.length,
+               total_itens_sem_validade: listas.reduce((s, l) => s + l.sem_validade, 0) });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/listas-compra/:id/validade-pendente', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (!id) return res.status(400).json({ error: 'id inválido' });
+    const itens = await coletarValidadePendente(id);
+    res.json(itens.filter(it => it.sem_validade).sort((a, b) => (a.descricao || '').localeCompare(b.descricao || '')));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/api/listas-compra/cadastro-pendente', async (req, res) => {
   try {
     const { comprador } = req.query;

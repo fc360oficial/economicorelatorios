@@ -360,6 +360,7 @@ table.comp-t tr:hover td{background:#ffffff05}
     <button class="mtab active" id="tab-ranking" onclick="trocarAba('ranking')">📊 Listas de Compras</button>
     <button class="mtab" id="tab-compras" onclick="trocarAba('compras')">📦 Compras por Comprador</button>
     <button class="mtab" id="tab-pendente" onclick="trocarAba('pendente')" title="Listas com produto sem margem varejo/atacado cadastrada ou sem múltiplo de atacado na Loja 4">⚠️ Cadastro Pendente</button>
+    <button class="mtab" id="tab-validade" onclick="trocarAba('validade')" title="Listas com produto sem validade cadastrada no ERP (vazio, 0 ou 1 dia — o 1 é o padrão de quem não preencheu)">📅 Sem Validade</button>
   </div>
 
   <!-- SEÇÃO RANKING (atual) -->
@@ -417,6 +418,32 @@ table.comp-t tr:hover td{background:#ffffff05}
           </tr>
         </thead>
         <tbody id="pend-tbody"><tr><td colspan="8" style="padding:40px;text-align:center"><div class="spinner"></div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- SEÇÃO SEM VALIDADE -->
+  <div id="sec-validade" style="display:none">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <div id="val-kpi" style="display:flex;gap:12px;flex-wrap:wrap"></div>
+      <div style="font-size:11px;color:#4E5A72;max-width:560px">
+        Só produtos <b>ativos</b> com loja marcada na lista. <b>Sem validade</b> = campo "Validade (dias)" do cadastro do ERP vazio, 0 ou <b>1</b> — o ERP grava 1 como padrão quando ninguém preencheu.
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table class="main-t" id="val-table">
+        <thead>
+          <tr>
+            <th style="width:30px">#</th>
+            <th>Lista / Fornecedor</th>
+            <th>Comprador</th>
+            <th class="r" title="Itens ativos com loja marcada">Itens</th>
+            <th class="r" title="Itens com validade de cadastro vazia, 0 ou 1 dia">Sem validade</th>
+            <th class="r" title="Itens com validade cadastrada (> 1 dia)">Com validade</th>
+            <th class="r" title="% da lista sem validade">% sem</th>
+          </tr>
+        </thead>
+        <tbody id="val-tbody"><tr><td colspan="7" style="padding:40px;text-align:center"><div class="spinner"></div></td></tr></tbody>
       </table>
     </div>
   </div>
@@ -483,6 +510,7 @@ async function carregar() {
   fecharDrawer();
   _comprasCache = null; _comprasCacheKey = '';
   _pendCache = null; _pendItensCache = {};
+  _valCache = null; _valItensCache = {};
   cacheProds = {}; cacheAvaria = {}; cacheLojas = {};
   document.getElementById('main-tbody').innerHTML = '<tr><td colspan="10" style="padding:40px;text-align:center"><div class="spinner"></div></td></tr>';
 
@@ -1238,20 +1266,124 @@ function trocarAba(aba) {
   _abaAtiva = aba;
   const soCompras = aba === 'compras';
   const pendente = aba === 'pendente';
-  document.getElementById('fg-fornecedor').style.display = (soCompras || pendente) ? 'none' : '';
+  const validade = aba === 'validade';
+  const semBusca = soCompras || pendente || validade;
+  document.getElementById('fg-fornecedor').style.display = semBusca ? 'none' : '';
   document.getElementById('fg-comprador').style.display  = soCompras ? 'none' : '';
-  document.getElementById('btn-buscar').style.display    = (soCompras || pendente) ? 'none' : '';
-  document.getElementById('sec-ranking').style.display   = (soCompras || pendente) ? 'none' : '';
+  document.getElementById('btn-buscar').style.display    = semBusca ? 'none' : '';
+  document.getElementById('sec-ranking').style.display   = semBusca ? 'none' : '';
   document.getElementById('sec-compras').style.display   = soCompras ? '' : 'none';
   document.getElementById('sec-pendente').style.display  = pendente ? '' : 'none';
+  document.getElementById('sec-validade').style.display  = validade ? '' : 'none';
   document.querySelectorAll('.mtab').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + aba).classList.add('active');
   if (soCompras) carregarCompras();
   if (pendente) carregarPendente();
+  if (validade) carregarValidade();
 }
 
 function onFiltroCompradorChange() {
   if (_abaAtiva === 'pendente') carregarPendente();
+  if (_abaAtiva === 'validade') carregarValidade();
+}
+
+// ── SEM VALIDADE ──
+// Listas com produto cuja validade de cadastro (itens.Validar, dias) está
+// vazia/0/1 — 1 é o padrão do ERP quando ninguém preencheu. Só leitura.
+let _valCache = null, _valItensCache = {}, _valLista = null;
+async function carregarValidade() {
+  const tbody = document.getElementById('val-tbody');
+  const comprador = document.getElementById('fil-comprador').value;
+  if (!_valCache) {
+    tbody.innerHTML = '<tr><td colspan="7" style="padding:40px;text-align:center"><div class="spinner"></div></td></tr>';
+    try {
+      const r = await fetch('/api/listas-compra/validade-pendente');
+      const j = await r.json();
+      if (j.error) throw new Error(j.error);
+      _valCache = j;
+    } catch (e) {
+      tbody.innerHTML = `<tr><td colspan="7" class="empty">Erro: ${e.message}</td></tr>`;
+      return;
+    }
+  }
+  const todas = _valCache.listas || [];
+  const lista = comprador ? todas.filter(l => l.compradores === comprador) : todas;
+  const soma = k => lista.reduce((s, l) => s + (l[k] || 0), 0);
+  const tot = soma('total_itens'), sem = soma('sem_validade');
+  document.getElementById('val-kpi').innerHTML = `
+    <div class="d-kpi"><div class="dv">${fmtN(lista.length)}</div><div class="dl">Listas com item sem validade${comprador ? ' · ' + comprador : ''}</div></div>
+    <div class="d-kpi"><div class="dv" style="color:#C22F49">${fmtN(sem)}</div><div class="dl">Itens sem validade</div></div>
+    <div class="d-kpi"><div class="dv">${fmtN(soma('com_validade'))}</div><div class="dl">Itens com validade</div></div>
+    <div class="d-kpi"><div class="dv">${tot ? (sem / tot * 100).toFixed(1) : '0.0'}%</div><div class="dl">% sem validade</div></div>`;
+  if (!lista.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty">Nenhuma lista com item sem validade' + (comprador ? ' para ' + comprador : '') + '. 🎉</td></tr>';
+    return;
+  }
+  tbody.innerHTML = lista.map((l, i) => {
+    const sel = listaSelecionada?.id === l.id && listaSelecionada?._validade ? 'selected' : '';
+    const compradorHtml = l.compradores ? `<span class="comp-tag">${l.compradores}</span>` : '<span style="color:#98A0B3;font-size:11px">—</span>';
+    return `<tr class="${sel}" id="vrow-${l.id}">
+      <td class="rank">${i + 1}</td>
+      <td>
+        <div class="nome-lista" onclick="abrirListaValidade(${l.id})" title="Ver itens sem validade">${l.nome} <span style="font-size:10px;color:#98A0B3;font-weight:400">#${l.id}</span></div>
+        <div style="font-size:11px;color:#4E5A72;margin-top:2px">${l.fornecedor || ''}</div>
+      </td>
+      <td style="min-width:110px">${compradorHtml}</td>
+      <td class="td-r"><span class="itens-badge">${fmtN(l.total_itens)}</span></td>
+      <td class="td-r"><span class="pend-num bad" onclick="abrirListaValidade(${l.id})" title="Ver itens">${fmtN(l.sem_validade)}</span></td>
+      <td class="td-r" style="color:#4E5A72">${fmtN(l.com_validade)}</td>
+      <td class="td-r ${l.pct >= 50 ? 'm-bad' : l.pct >= 20 ? 'm-warn' : ''}">${l.pct.toFixed(1)}%</td>
+    </tr>`;
+  }).join('');
+}
+
+async function abrirListaValidade(id) {
+  const lista = (_valCache?.listas || []).find(l => l.id === id);
+  if (!lista) return;
+  _valLista = lista;
+  listaSelecionada = Object.assign({}, lista, { _validade: true });
+  document.querySelectorAll('.main-t tbody tr').forEach(tr => tr.classList.remove('selected'));
+  const row = document.getElementById('vrow-' + id);
+  if (row) row.classList.add('selected');
+
+  document.getElementById('d-title').textContent = `${lista.nome} · Lista #${lista.id}`;
+  document.getElementById('d-subtitle').textContent = `${lista.fornecedor || ''} · Itens sem validade cadastrada`;
+  document.getElementById('d-tabs').innerHTML = '';
+  document.getElementById('drawer').classList.add('open');
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('main').classList.add('drawer-open');
+  const body = document.getElementById('d-body');
+  body.innerHTML = '<div class="spinner"></div>';
+  try {
+    if (!_valItensCache[id]) {
+      const r = await fetch(`/api/listas-compra/${id}/validade-pendente`);
+      const j = await r.json();
+      if (j.error) throw new Error(j.error);
+      _valItensCache[id] = j;
+    }
+    const itens = _valItensCache[id];
+    const kpi = `
+      <div class="d-kpis">
+        <div class="d-kpi"><div class="dv" style="color:#C22F49">${fmtN(lista.sem_validade)}</div><div class="dl">Sem validade · de ${fmtN(lista.total_itens)} ativos</div></div>
+        <div class="d-kpi"><div class="dv">${fmtN(itens.filter(it => it.validade_dias === 1).length)}</div><div class="dl">Com 1 dia (padrão do ERP)</div></div>
+        <div class="d-kpi"><div class="dv">${fmtN(itens.filter(it => it.validade_dias <= 0).length)}</div><div class="dl">Vazio / 0</div></div>
+        ${lista.compradores ? `<div class="d-kpi"><div class="dv" style="font-size:12px;color:#6B4E00">${lista.compradores}</div><div class="dl">Comprador</div></div>` : ''}
+      </div>`;
+    if (!itens.length) { body.innerHTML = kpi + '<div class="empty">Nenhum item sem validade nesta lista.</div>'; return; }
+    const rows = itens.map(it => `<tr>
+        <td class="cod">${it.codigo}</td>
+        <td class="desc"><span class="prod-desc-link" onclick="abrirDetalheProduto(${escAttr(it.codigo)},${escAttr(it.descricao || '—')})" title="Ver última entrada, última venda e estoque">${it.descricao || '—'}</span>${it.balanca ? ' <span class="loja-badge" title="Produto de balança">⚖️</span>' : ''}</td>
+        <td class="c">${it.lojas.map(n => `<span class="loja-badge">L${n}</span>`).join('')}</td>
+        <td class="c"><b style="color:#C22F49">${it.validade_dias <= 0 ? '—' : it.validade_dias + ' dia'}</b></td>
+      </tr>`).join('');
+    body.innerHTML = kpi + `<div class="d-table-wrap"><table class="d-t">
+      <thead><tr>
+        <th>Código</th><th>Descrição</th><th class="c">Lojas</th>
+        <th class="c" title="Campo Validade (dias) do cadastro do ERP (itens.Validar)">Validade cadastro</th>
+      </tr></thead><tbody>${rows}</tbody></table></div>`;
+  } catch (e) {
+    body.innerHTML = `<div class="empty">Erro: ${e.message}</div>`;
+  }
 }
 
 // ── CADASTRO PENDENTE ──
