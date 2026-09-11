@@ -45,3 +45,28 @@ test('mediaLead', () => {
   assert.equal(u.mediaLead([]), null);
   assert.deepEqual(u.mediaLead([{ entrada: '2026-09-01', nota: '2026-09-02' }, { entrada: '2026-09-03', nota: '2026-09-06' }]), { lead_medio: 2, lead_max: 3, n: 2 });
 });
+
+test('mediaLead descarta pares com lead negativo ou acima de 30 dias', () => {
+  const r = u.mediaLead([
+    { entrada: '2026-09-10', nota: '2026-09-01' },  // negativo, descarta
+    { entrada: '2026-01-01', nota: '2026-03-01' },  // > 30 dias, descarta
+    { entrada: '2026-09-01', nota: '2026-09-03' }   // 2 dias, fica
+  ]);
+  assert.deepEqual(r, { lead_medio: 2, lead_max: 2, n: 1 });
+});
+
+test('distribuirCdInsuficiente com cobertura igual desempata por menor loja', () => {
+  const r = u.distribuirCdInsuficiente({ 1: 2, 2: 2 }, 2, { 1: 5, 2: 5 });
+  assert.deepEqual(r, { pedidoCx: { 1: 1, 2: 1 }, falta: 2 });
+});
+
+test('distribuirCdInsuficiente com estoque fracionário arredonda pra baixo', () => {
+  const r = u.distribuirCdInsuficiente({ 1: 3 }, 2.9, { 1: 5 });
+  assert.equal(r.pedidoCx[1], 2);
+  assert.equal(r.falta, 1);
+});
+
+test('distribuirCdInsuficiente trata cobertura ausente como prioridade mais baixa (9999)', () => {
+  const r = u.distribuirCdInsuficiente({ 1: 2, 2: 2 }, 2, { 1: 5 });
+  assert.deepEqual(r, { pedidoCx: { 1: 2, 2: 0 }, falta: 2 });
+});

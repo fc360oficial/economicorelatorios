@@ -114,7 +114,8 @@ const $ = s => document.querySelector(s);
 const fmtN = (v, d = 0) => (v == null ? '–' : (+v).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d }));
 const fmtR = v => 'R$ ' + fmtN(v, 2);
 const LOJAS = [1, 2, 3, 4, 5, 6];
-let DADOS = null, EDITS = {}, SEL = new Set(), FILTRO = '', PEDIDOS = [], VINC = {}, VF = 'pendentes';
+const LOJAS_NOMES = { 1: 'CAHU', 2: 'MURIBECA', 3: 'PONTE', 4: 'ATACAREJO', 5: 'PORTA LARGA', 6: 'JARDIM JORDÃO' };
+let DADOS = null, EDITS = {}, SEL = new Set(), FILTRO = '', FLOJA = 0, VIS = {}, PEDIDOS = [], VINC = {}, VF = 'pendentes';
 
 document.querySelectorAll('.tab').forEach(b => b.onclick = () => { document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === b)); ['pedido', 'vinculos', 'pedidos', 'regras'].forEach(t => $('#tab-' + t).hidden = t !== b.dataset.tab); });
 
@@ -124,12 +125,14 @@ async function carregar(refresh) {
   $('#estado').innerHTML = refresh ? '<span class="calc">recalculando…</span>' : 'carregando…';
   try { DADOS = await api('/api/pedidos-cd' + (refresh ? '?refresh=1' : '')); } catch (e) { $('#estado').innerHTML = '<span class="neg">' + e.message + '</span>'; return; }
   const es = DADOS.estado;
-  $('#estado').innerHTML = es.status === 'calculando' || !es.atualizadoEm ? '<span class="calc">calculando… (até 1 min)</span>' : `dados de <b>${new Date(es.atualizadoEm).toLocaleString('pt-BR')}</b>${es.erro ? ' · <span class="neg">ERP indisponível: ' + es.erro + '</span>' : ''} · <b>${es.produtosCD}</b> produtos no CD`;
+  const avisos = es.avisos && es.avisos.length ? ` · <span class="neg">${es.avisos.length} aviso(s): ${es.avisos.join('; ')}</span>` : '';
+  $('#estado').innerHTML = es.status === 'calculando' || !es.atualizadoEm ? '<span class="calc">calculando… (até 1 min)</span>' : `dados de <b>${new Date(es.atualizadoEm).toLocaleString('pt-BR')}</b>${es.erro ? ' · <span class="neg">ERP indisponível: ' + es.erro + '</span>' : ''} · <b>${es.produtosCD}</b> produtos no CD${avisos}`;
   if (!es.atualizadoEm) setTimeout(() => carregar(false), 15000);
-  renderPedido(); renderRegras();
+  renderPedido(); renderRegras(); renderVinculos();
 }
 function cxDe(item, ln) { const k = item.codigoCD + '|' + ln; return k in EDITS ? EDITS[k] : item.lojas[ln].cx; }
-function linha(item) {
+function linha(item, lojasCols) {
+  lojasCols = lojasCols || LOJAS;
   const tot = LOJAS.reduce((a, ln) => a + cxDe(item, ln), 0);
   const cls = item.cdInsuficiente ? 'insuf' : (LOJAS.some(ln => item.lojas[ln].zeraAntes) ? 'zera' : '');
   return `<tr class="${cls}" data-cod="${item.codigoCD}">
@@ -137,14 +140,18 @@ function linha(item) {
     <td class="lc"><div class="nm">${item.descricaoCD}</div><div class="sub">${item.unidade ? item.unidade + ' · ' + (item.descricaoUn || '') : '<span class="neg">sem vínculo</span>'}${item.cdInsuficiente ? ' · <span class="neg">CD insuficiente: faltam ' + item.faltaCx + ' cx</span>' : ''}</div></td>
     <td class="r">${fmtN(item.estoqueCDcx)}</td><td class="c">${item.unPorCaixa || '–'}</td>
     <td class="r">${fmtN(item.vqTotal, 1)}</td><td class="r">${item.coberturaTotal == null ? '–' : fmtN(item.coberturaTotal, 1)}</td>
-    ${LOJAS.map(ln => { const L = item.lojas[ln]; const k = item.codigoCD + '|' + ln; return `<td class="c" title="venda ${fmtN(L.vq, 1)}/d · est ${fmtN(L.est)} · trânsito ${fmtN(L.transito)} · cob ${L.cobertura == null ? '–' : fmtN(L.cobertura, 1)} d"><input class="cx ${k in EDITS ? 'edit' : ''}" type="number" min="0" value="${cxDe(item, ln)}" onchange="editar('${item.codigoCD}',${ln},this.value)">${L.zeraAntes ? '<div class="s2 neg">zera</div>' : ''}</td>`; }).join('')}
+    ${lojasCols.map(ln => { const L = item.lojas[ln]; const k = item.codigoCD + '|' + ln; return `<td class="c" title="venda ${fmtN(L.vq, 1)}/d · est ${fmtN(L.est)} · trânsito ${fmtN(L.transito)} · cob ${L.cobertura == null ? '–' : fmtN(L.cobertura, 1)} d"><input class="cx ${k in EDITS ? 'edit' : ''}" type="number" min="0" value="${cxDe(item, ln)}" onchange="editar('${item.codigoCD}',${ln},this.value)">${L.zeraAntes ? '<div class="s2 neg">zera</div>' : ''}</td>`; }).join('')}
     <td class="r"><b>${fmtN(tot)}</b></td><td class="r">${fmtR(tot * (item.unPorCaixa || 0) * item.custoUn)}</td></tr>`;
 }
-function tabela(titulo, itens, id) {
-  const f = FILTRO.toLowerCase(); const vis = itens.filter(i => !f || (i.descricaoCD + ' ' + (i.descricaoUn || '') + ' ' + i.codigoCD + ' ' + (i.unidade || '')).toLowerCase().includes(f));
+function tabela(titulo, itens, id, isRepor) {
+  const f = FILTRO.toLowerCase();
+  let vis = itens.filter(i => !f || (i.descricaoCD + ' ' + (i.descricaoUn || '') + ' ' + i.codigoCD + ' ' + (i.unidade || '')).toLowerCase().includes(f));
+  if (FLOJA && isRepor) vis = vis.filter(i => cxDe(i, FLOJA) > 0);
+  VIS[id] = vis.map(i => i.codigoCD);
+  const lojasCols = FLOJA ? [FLOJA] : LOJAS;
   return `<h3 style="font-size:13px;margin:14px 0 6px">${titulo} <span class="mut">(${vis.length})</span></h3>
-  <div class="table-wrap"><table class="main-t"><thead><tr><th class="c"><input type="checkbox" onchange="selTodos('${id}',this.checked)"></th><th>Produto</th><th class="r">Est. CD (cx)</th><th class="c">Un/cx</th><th class="r">Venda un/d</th><th class="r">Cob. (d)</th>${LOJAS.map(ln => `<th class="c">L${ln}</th>`).join('')}<th class="r">Total cx</th><th class="r">Custo</th></tr></thead>
-  <tbody>${vis.map(linha).join('') || '<tr><td colspan="15" class="mut">nada aqui</td></tr>'}</tbody></table></div>`;
+  <div class="table-wrap"><table class="main-t"><thead><tr><th class="c"><input type="checkbox" onchange="selTodos('${id}',this.checked)"></th><th>Produto</th><th class="r">Est. CD (cx)</th><th class="c">Un/cx</th><th class="r">Venda un/d</th><th class="r">Cob. (d)</th>${lojasCols.map(ln => `<th class="c">L${ln}</th>`).join('')}<th class="r">Total cx</th><th class="r">Custo</th></tr></thead>
+  <tbody>${vis.map(i => linha(i, lojasCols)).join('') || '<tr><td colspan="16" class="mut">nada aqui</td></tr>'}</tbody></table></div>`;
 }
 function renderPedido() {
   if (!DADOS || !DADOS.resumo) { $('#tab-pedido').innerHTML = '<p class="mut">calculando…</p>'; return; }
@@ -158,12 +165,17 @@ function renderPedido() {
       <div class="tkpi"><div class="v">${fmtN(r.caixas)}</div><div class="l">caixas sugeridas</div></div>
       <div class="tkpi"><div class="v">${fmtR(r.custo)}</div><div class="l">custo</div></div>
     </div>
-    <div class="busca-row"><input placeholder="buscar produto ou código" value="${FILTRO}" oninput="FILTRO=this.value;renderPedido()"><button class="btn btn-slate" onclick="carregar(true)">Recalcular</button><span class="contagem">${Object.keys(EDITS).length ? Object.keys(EDITS).length + ' quantidades editadas' : ''}</span></div>
-    ${tabela('Repor', DADOS.repor, 'repor')}${tabela('Novos no CD (1 cx por loja)', DADOS.novos, 'novos')}
+    <div class="busca-row"><input placeholder="buscar produto ou código" value="${FILTRO}" oninput="FILTRO=this.value;renderPedido()">
+      <select onchange="FLOJA=+this.value;renderPedido()">
+        <option value="0" ${FLOJA === 0 ? 'selected' : ''}>Todas as lojas</option>
+        ${LOJAS.map(ln => `<option value="${ln}" ${FLOJA === ln ? 'selected' : ''}>L${ln} ${LOJAS_NOMES[ln]}</option>`).join('')}
+      </select>
+      <button class="btn btn-slate" onclick="carregar(true)">Recalcular</button><span class="contagem">${Object.keys(EDITS).length ? Object.keys(EDITS).length + ' quantidades editadas' : ''}</span></div>
+    ${tabela('Repor', DADOS.repor, 'repor', true)}${tabela('Novos no CD (1 cx por loja)', DADOS.novos, 'novos', false)}
     <div class="barra"><span>${SEL.size} produto(s) selecionado(s)</span><button class="btn btn-slate" onclick="SEL.clear();renderPedido()">Limpar</button><button class="btn btn-amber" ${SEL.size ? '' : 'disabled'} onclick="fecharPedido()">Fechar pedido</button></div>`;
 }
 function toggleSel(cod, on) { on ? SEL.add(cod) : SEL.delete(cod); renderPedido(); }
-function selTodos(id, on) { for (const i of DADOS[id]) on ? SEL.add(i.codigoCD) : SEL.delete(i.codigoCD); renderPedido(); }
+function selTodos(id, on) { for (const cod of (VIS[id] || [])) on ? SEL.add(cod) : SEL.delete(cod); renderPedido(); }
 function editar(cod, ln, v) { EDITS[cod + '|' + ln] = Math.max(0, Math.round(+v || 0)); renderPedido(); }
 async function fecharPedido() {
   const itens = DADOS.repor.concat(DADOS.novos).filter(i => SEL.has(i.codigoCD));
@@ -204,7 +216,7 @@ async function confirmarVinc(cod, unidade) {
 async function removerVinc(cod) { if (!confirm('Remover o vínculo?')) return; await api('/api/pedidos-cd/vinculos/' + cod, { method: 'DELETE' }); await carregarVinculos(); carregar(true); }
 let PF = 'todos';
 async function carregarPedidos() { PEDIDOS = await api('/api/pedidos-cd/pedidos'); renderPedidos(); }
-const ST = { aberto: ['Aberto', 'p-breve'], separado: ['Separado no CD', 'p-flag'], recebido: ['Chegou na loja', 'p-ok'], recebido_parcial: ['Chegou parcial', 'p-hoje'], cancelado: ['Cancelado', 'p-cinza'] };
+const ST = { aberto: ['Aberto', 'p-breve'], separado: ['Separado no CD', 'p-flag'], recebido: ['Chegou na loja', 'p-ok'], recebido_parcial: ['Chegou parcial', 'p-hoje'], cancelado: ['Cancelado', 'p-cinza'], expirado: ['Expirado (30 d sem nota)', 'p-cinza'] };
 function renderPedidos() {
   const cont = { todos: PEDIDOS.length }; for (const k of Object.keys(ST)) cont[k] = PEDIDOS.filter(p => p.status === k).length;
   $('#n-peds').textContent = cont.aberto + cont.separado;
@@ -213,8 +225,8 @@ function renderPedidos() {
   <div class="busca-row"><button class="btn btn-slate" onclick="verificar()">Verificar agora</button></div>
   <div class="table-wrap"><table class="main-t"><thead><tr><th>#</th><th>Loja</th><th>Criado</th><th class="r">Itens</th><th class="r">Caixas</th><th class="r">Custo</th><th>Andamento</th><th>Ação</th></tr></thead><tbody>
   ${vis.map(p => `<tr class="lst" onclick="abrirPedido(${p.id})"><td>${p.id}</td><td><b>L${p.loja}</b> ${p.lojaNome}</td><td>${new Date(p.criadoEm).toLocaleString('pt-BR')}<div class="s2">${p.criadoPor || ''}</div></td><td class="r">${p.itens.length}</td><td class="r">${fmtN(p.totais.caixas)}</td><td class="r">${fmtR(p.totais.custo)}</td>
-    <td><span class="pill ${ST[p.status][1]}">${ST[p.status][0]}</span>${p.expedicao ? '<div class="s2">CD pedido ' + p.expedicao.nPedido + ' · ' + p.expedicao.data.split('-').reverse().join('/') + '</div>' : ''}${p.recebimento ? '<div class="s2">nota(s) ' + p.recebimento.notas.map(n => n.nNota).join(', ') + '</div>' : ''}</td>
-    <td onclick="event.stopPropagation()">${['aberto', 'separado', 'recebido_parcial'].includes(p.status) ? `<button class="btn btn-slate" onclick="cancelar(${p.id})">Cancelar</button>` : ''} <button class="btn btn-slate" onclick="imprimir(${p.id})">Imprimir</button></td></tr>`).join('') || '<tr><td colspan="8" class="mut">nenhum pedido</td></tr>'}
+    <td><span class="pill ${ST[p.status][1]}">${ST[p.status][0]}</span>${p.expedicao ? '<div class="s2">CD pedido ' + p.expedicao.nPedido + ' · ' + (p.expedicao.data || '').split('-').reverse().join('/') + '</div>' : ''}${p.recebimento ? '<div class="s2">nota(s) ' + p.recebimento.notas.map(n => n.nNota).join(', ') + '</div>' : ''}</td>
+    <td onclick="event.stopPropagation()">${['aberto', 'separado', 'recebido_parcial', 'expirado'].includes(p.status) ? `<button class="btn btn-slate" onclick="cancelar(${p.id})">Cancelar</button>` : ''} <button class="btn btn-slate" onclick="imprimir(${p.id})">Imprimir</button></td></tr>`).join('') || '<tr><td colspan="8" class="mut">nenhum pedido</td></tr>'}
   </tbody></table></div>`;
 }
 function abrirPedido(id) {
@@ -230,7 +242,8 @@ function abrirPedido(id) {
 async function cancelar(id) { if (!confirm('Cancelar o pedido #' + id + '?')) return; try { await api('/api/pedidos-cd/pedidos/' + id + '/cancelar', { method: 'POST' }); await carregarPedidos(); carregar(false); } catch (e) { alert(e.message); } }
 async function verificar() { try { const r = await api('/api/pedidos-cd/verificar', { method: 'POST' }); await carregarPedidos(); alert(`Verificados ${r.verificados} · separados ${r.separados} · recebidos ${r.recebidos}`); } catch (e) { alert(e.message); } }
 function imprimir(id) {
-  const p = PEDIDOS.find(x => x.id === id); const w = window.open('', '_blank');
+  const p = PEDIDOS.find(x => x.id === id); if (!p) return;
+  const w = window.open('', '_blank');
   w.document.write(`<title>Pedido CD #${p.id} L${p.loja}</title><style>body{font-family:sans-serif;font-size:12px;padding:20px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #999;padding:4px 6px}th{background:#eee}</style>
   <h2>Pedido ao CD #${p.id} · Loja ${p.loja} ${p.lojaNome}</h2><p>${new Date(p.criadoEm).toLocaleString('pt-BR')} · ${p.criadoPor || ''} · ${p.itens.length} itens · ${p.totais.caixas} caixas</p>
   <table><tr><th>Código CD</th><th>Produto</th><th>Un/cx</th><th>Caixas</th><th>Unidades</th></tr>${p.itens.map(i => `<tr><td>${i.codigoCD}</td><td>${i.descricao}</td><td>${i.unPorCaixa}</td><td><b>${i.caixas}</b></td><td>${i.unidades}</td></tr>`).join('')}</table>`);
@@ -245,10 +258,12 @@ function renderRegras() {
   api('/api/pedidos-cd/config').then(c => { for (const ln of LOJAS) $('#cli-' + ln).value = c.clientesLoja[ln] || ''; $('#cfg-forn').textContent = c.fornecedorCD; });
 }
 async function salvarCfg() {
-  const clientesLoja = {}; for (const ln of LOJAS) clientesLoja[ln] = +$('#cli-' + ln).value || 0;
+  const clientesLoja = {}; for (const ln of LOJAS) clientesLoja[ln] = +$('#cli-' + ln).value;
   try { await api('/api/pedidos-cd/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ teto: +$('#cfg-teto').value, clientesLoja }) }); carregar(true); } catch (e) { alert(e.message); }
 }
-carregar(false); carregarVinculos(); carregarPedidos();
+carregar(false);
+carregarVinculos().catch(e => alert(e.message));
+carregarPedidos().catch(e => alert(e.message));
 </script>
 </body>
 </html>

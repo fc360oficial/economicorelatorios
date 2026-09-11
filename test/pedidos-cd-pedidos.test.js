@@ -12,7 +12,8 @@ const fakeQ = async (s, p) => {
   if (s.includes('FROM central.compras c')) return [{ cod: '7896037913146', cx: 2, nNota: 4900, d: '2026-09-16' }];
   return [];
 };
-cd.init({ q: fakeQ, mesDB: m => String(m).padStart(2, '0'), dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'pcd-')) });
+const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pcd-'));
+cd.init({ q: fakeQ, mesDB: m => String(m).padStart(2, '0'), dataDir });
 cd.salvarVinculo({ codigoCD: '17896037913143', unidade: '7896037913146', unPorCaixa: 12, usuario: 't' });
 cd._setBaseParaTeste({ hoje: '2026-09-14', cd: { '17896037913143': { descricao: 'VINHO CX12', estoqueCx: 5 } }, un: { '7896037913146': { descricao: 'VINHO', custo: 20, porLoja: {} } }, lead: {} });
 
@@ -45,4 +46,19 @@ test('cancelar', () => {
   cd.cancelarPedido(p.id, 'tiago');
   assert.equal(cd.obterPedido(p.id).status, 'cancelado');
   assert.throws(() => cd.cancelarPedido(p.id, 'tiago'), /cancelado/);
+});
+
+test('obterPedido: id inválido/path traversal devolve null', () => {
+  assert.equal(cd.obterPedido('../config'), null);
+  assert.equal(cd.obterPedido('abc'), null);
+});
+
+test('verificar: pedido em trânsito há mais de 30 dias expira', async () => {
+  const [p] = cd.criarPedidos({ lojas: { 1: [{ codigoCD: '17896037913143', caixas: 1 }] }, usuario: 'tiago' });
+  const arqPed = path.join(dataDir, 'pedidos-cd', `${p.id}.json`);
+  const dados = JSON.parse(fs.readFileSync(arqPed, 'utf8'));
+  dados.criadoEm = new Date(Date.now() - 40 * 86400000).toISOString();
+  fs.writeFileSync(arqPed, JSON.stringify(dados));
+  await cd.verificar();
+  assert.equal(cd.obterPedido(p.id).status, 'expirado');
 });

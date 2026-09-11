@@ -15,6 +15,11 @@ test('config default e salvar parcial', () => {
   assert.equal(cd.getConfig().ciclo, 7);
 });
 
+test('salvarConfig rejeita entrada inválida', () => {
+  assert.throws(() => cd.salvarConfig({ teto: 'x' }), /teto/);
+  assert.throws(() => cd.salvarConfig({ clientesLoja: { 1: 0 } }), /loja 1/);
+});
+
 test('sincronizarVinculos: igual, dun14 sugerido, pendente; não sobrescreve confirmado', () => {
   const v = cd.sincronizarVinculos([
     { codigoCD: '7897395040727', unPorCaixa: null, unidadeExiste: null },
@@ -39,4 +44,9 @@ test('salvarVinculo valida', () => {
   cd.removerVinculo('17509546679171');
   assert.equal(cd.getVinculos()['17509546679171'].status, 'pendente');
   assert.equal(cd.getVinculos()['17509546679171'].unidade, null);
+});
+
+test('salvarVinculo/removerVinculo rejeitam codigoCD malicioso (path traversal)', () => {
+  assert.throws(() => cd.salvarVinculo({ codigoCD: '__proto__', unidade: '1', unPorCaixa: 1 }), /codigoCD/);
+  assert.throws(() => cd.removerVinculo('../../etc/passwd'), /codigoCD/);
 });

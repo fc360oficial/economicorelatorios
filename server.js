@@ -6097,9 +6097,11 @@ app.post('/api/pedidos-cd/vinculos', (req, res) => {
   catch (err) { res.status(400).json({ error: err.message }); }
 });
 app.delete('/api/pedidos-cd/vinculos/:codigoCD', (req, res) => {
-  const v = pedidosCD.removerVinculo(req.params.codigoCD);
-  if (!v) return res.status(404).json({ error: 'vínculo não encontrado' });
-  res.json(v);
+  try {
+    const v = pedidosCD.removerVinculo(req.params.codigoCD);
+    if (!v) return res.status(404).json({ error: 'vínculo não encontrado' });
+    res.json(v);
+  } catch (err) { res.status(400).json({ error: err.message }); }
 });
 app.get('/api/pedidos-cd/buscar-unidade', async (req, res) => {
   try { res.json(await pedidosCD.buscarUnidade(req.query.q)); } catch (err) { res.status(500).json({ error: err.message }); }
@@ -6110,12 +6112,16 @@ app.post('/api/pedidos-cd/pedidos', (req, res) => {
   catch (err) { res.status(400).json({ error: err.message }); }
 });
 app.get('/api/pedidos-cd/pedidos/:id', (req, res) => {
-  const p = pedidosCD.obterPedido(req.params.id);
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isInteger(id) || id < 1) return res.status(400).json({ error: 'id inválido' });
+  const p = pedidosCD.obterPedido(id);
   if (!p) return res.status(404).json({ error: 'pedido não encontrado' });
   res.json(p);
 });
 app.post('/api/pedidos-cd/pedidos/:id/cancelar', (req, res) => {
-  try { res.json(pedidosCD.cancelarPedido(req.params.id, req.session.user?.nome || null)); }
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isInteger(id) || id < 1) return res.status(400).json({ error: 'id inválido' });
+  try { res.json(pedidosCD.cancelarPedido(id, req.session.user?.nome || null)); }
   catch (err) { res.status(400).json({ error: err.message }); }
 });
 app.post('/api/pedidos-cd/verificar', async (req, res) => {
