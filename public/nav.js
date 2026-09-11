@@ -71,6 +71,7 @@
             { txt: 'Sugestão Manual', desc: 'Monitor de Sugestões do ERP: acompanha as sugestões existentes e abre a calculadora por lista.', href: '/sugestao-compras.html?tela=monitor' }
           ] }
       ]},
+    { href: '/formacao-de-preco.html', ic: 'trend', txt: 'Precificação' },
     { id: 'prevencao', ic: 'shield', txt: 'Prevenção', sub: [
         { href: '/prevencao.html', ic: 'shield', txt: 'Fechamento de Mês' }
       ]},
