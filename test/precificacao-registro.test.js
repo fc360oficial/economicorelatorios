@@ -45,13 +45,13 @@ const pedido = {
 test('criarDeConciliacao monta entradas, rateia impostos e calcula', async () => {
   const reg = await pr.criarDeConciliacao(pedido, 2);
   assert.equal(reg.id, '40-L2'); assert.equal(reg.loja, 2); assert.equal(reg.status, 'a_precificar');
-  assert.equal(reg.rateio.fator, 0.1);                 // (10+0+10−0)/200
+  assert.equal(reg.rateio.fator, 0.05);                // só imposto: (ipi 0 + st 10)/200 — frete e desconto ficam fora
   const cods = reg.entradas.map(e => e.cod).sort();
   assert.deepEqual(cods, ['A', 'D']);                  // B recusado, C faltou
   const a = reg.itens.find(i => i.cod === 'A');
-  assert.equal(a.custo_novo, 11); assert.equal(a.custo_imposto, 12.1); assert.equal(a.custo_atual, 10);
+  assert.equal(a.custo_novo, 11); assert.equal(a.custo_imposto, 11.55); assert.equal(a.custo_atual, 10);
   assert.equal(a.preco_atual, 12.99); assert.equal(a.margem, 30); assert.equal(a.curvaA, true);
-  assert.equal(a.status, 'sobe'); assert.equal(a.preco_sugerido, 15.79);   // 12.1×1.3=15.73 → 15.79
+  assert.equal(a.status, 'sobe'); assert.equal(a.preco_sugerido, 15.09);   // 11.55×1.3=15.015→15.02 → 15.09
   const d = reg.itens.find(i => i.cod === 'D');
   assert.equal(d.status, 'bloqueado'); assert.match(d.motivo, /não casado/);
   assert.equal(reg.resumo.mudam, 1);
