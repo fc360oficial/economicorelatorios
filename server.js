@@ -6341,6 +6341,7 @@ app.get('/api/precificacao', (req, res) => {
 app.post('/api/precificacao/padrao', (req, res) => res.json(precificacao.setPadrao(req.body || {})));
 app.post('/api/precificacao/verificar', async (req, res) => { try { res.json(await precificacao.verificarTodos()); } catch (e) { res.status(500).json({ error: e.message }); } });
 app.post('/api/precificacao/remover-testes', (req, res) => res.json({ removidos: precificacao.removerTestes() }));
+app.post('/api/precificacao/criar-teste', (req, res) => res.json(precificacao.criarTeste(precifUser(req))));
 app.get('/api/precificacao/:id', (req, res) => precifResp(res, precificacao.obter(req.params.id)));
 app.post('/api/precificacao/:id/item', (req, res) => precifResp(res, precificacao.editarItem(req.params.id, req.body?.cod, req.body || {}, precifUser(req))));
 app.post('/api/precificacao/:id/parametros', async (req, res) => { try { precifResp(res, await precificacao.setParametros(req.params.id, req.body || {}, precifUser(req))); } catch (e) { res.status(500).json({ error: e.message }); } });
