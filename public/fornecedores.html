@@ -200,7 +200,7 @@ table.comp-t tr:hover td{background:#ffffff05}
      cabeçalho da folha é o .print-header, preenchido por imprimirDrawer() */
   body > *:not(#drawer){display:none!important}
   .sidebar,#dsnav,.drawer-overlay,.btn-close,.btn-print,.drawer-tabs,.quick-filters,
-  .drawer-hdr,.sort-arrow,.spinner,.empty{display:none!important}
+  .drawer-hdr,.sort-arrow,.spinner,.empty,.no-print{display:none!important}
   html,body{background:#fff!important;color:#0E1626!important;height:auto!important;
     overflow:visible!important;margin:0!important;padding:0!important}
   #drawer{position:static!important;transform:none!important;width:100%!important;max-width:none!important;
@@ -251,6 +251,17 @@ table.comp-t tr:hover td{background:#ffffff05}
 .loja-filtro .loja-badge.on{background:#F5B800;border-color:#F5B800;color:#6B4E00}
 .comp-tag{display:inline-block;background:#E9EEF322;border:1px solid #E9EEF355;border-radius:4px;padding:1px 6px;font-size:10px;color:#4E5A72;margin:1px}
 .nome-lista{cursor:pointer;font-weight:600;color:#0E1626}.nome-lista:hover{color:#6B4E00;text-decoration:underline}
+.pend-num{display:inline-block;min-width:26px;text-align:center;border-radius:6px;padding:2px 8px;font-size:12px;font-weight:700;cursor:pointer}
+.pend-num.zero{color:#98A0B3;background:transparent;font-weight:400;cursor:default}
+.pend-num.bad{background:#F3C1CB;color:#C22F49}
+.pend-num.warn{background:#F5B80022;color:#6B4E00;border:1px solid #F5B80055}
+.pend-tag{display:inline-block;font-size:9.5px;font-weight:700;border-radius:3px;padding:1px 6px;margin:1px 2px 1px 0;white-space:nowrap}
+.pend-tag.varejo{background:#F3C1CB;color:#C22F49}
+.pend-tag.atacado{background:#FFE2C2;color:#B45C00}
+.pend-tag.multiplo{background:#E9EEF3;color:#0E1626;border:1px solid #C9C9C4}
+.pend-mg{font-size:10.5px;white-space:nowrap}.pend-mg b{color:#C22F49}
+.pend-ftab{background:transparent;border:1px solid #C9C9C4;border-radius:14px;padding:3px 10px;font-size:11px;color:#4E5A72;cursor:pointer;font-family:inherit}
+.pend-ftab.active{background:#0E1626;color:#fff;border-color:#0E1626}
 .itens-badge{display:inline-block;background:#F5B80022;border:1px solid #F5B80055;border-radius:6px;padding:2px 8px;font-size:12px;color:#6B4E00;font-weight:700}
 
 @media (max-width:768px){
@@ -338,7 +349,7 @@ table.comp-t tr:hover td{background:#ffffff05}
     </div>
     <div class="fg" id="fg-comprador">
       <label>Comprador</label>
-      <select id="fil-comprador">
+      <select id="fil-comprador" onchange="onFiltroCompradorChange()">
         <option value="">Todos</option>
       </select>
     </div>
@@ -348,6 +359,7 @@ table.comp-t tr:hover td{background:#ffffff05}
   <div class="main-tabs">
     <button class="mtab active" id="tab-ranking" onclick="trocarAba('ranking')">📊 Listas de Compras</button>
     <button class="mtab" id="tab-compras" onclick="trocarAba('compras')">📦 Compras por Comprador</button>
+    <button class="mtab" id="tab-pendente" onclick="trocarAba('pendente')" title="Listas com produto sem margem varejo/atacado cadastrada ou sem múltiplo de atacado na Loja 4">⚠️ Cadastro Pendente</button>
   </div>
 
   <!-- SEÇÃO RANKING (atual) -->
@@ -380,6 +392,33 @@ table.comp-t tr:hover td{background:#ffffff05}
       <button class="btn btn-slate" onclick="imprimirCompras()" style="flex-shrink:0">🖨️ Imprimir</button>
     </div>
     <div class="comp-cards" id="comp-cards"><div class="spinner"></div></div>
+  </div>
+
+  <!-- SEÇÃO CADASTRO PENDENTE -->
+  <div id="sec-pendente" style="display:none">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <div id="pend-kpi" style="display:flex;gap:12px;flex-wrap:wrap"></div>
+      <div style="font-size:11px;color:#4E5A72;max-width:560px">
+        Só produtos <b>ativos</b> com loja marcada na lista. <b>Sem margem</b> = margem varejo/atacado vazia ou 0% em alguma loja em que o item está marcado (cadastro do ERP, por loja). <b>L4 sem múltiplo</b> = item marcado na Loja 4 sem quantidade de atacado cadastrada.
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table class="main-t" id="pend-table">
+        <thead>
+          <tr>
+            <th style="width:30px">#</th>
+            <th>Lista / Fornecedor</th>
+            <th>Comprador</th>
+            <th class="r" title="Itens ativos com loja marcada">Itens</th>
+            <th class="r" title="Itens sem margem varejo em alguma loja marcada">Sem margem varejo</th>
+            <th class="r" title="Itens sem margem atacado em alguma loja marcada">Sem margem atacado</th>
+            <th class="r" title="Itens marcados na Loja 4 sem múltiplo de atacado (q4)">L4 sem múltiplo</th>
+            <th class="r" title="Itens com pelo menos uma pendência">Com pendência</th>
+          </tr>
+        </thead>
+        <tbody id="pend-tbody"><tr><td colspan="8" style="padding:40px;text-align:center"><div class="spinner"></div></td></tr></tbody>
+      </table>
+    </div>
   </div>
 </div>
 
@@ -443,6 +482,7 @@ function params() {
 async function carregar() {
   fecharDrawer();
   _comprasCache = null; _comprasCacheKey = '';
+  _pendCache = null; _pendItensCache = {};
   cacheProds = {}; cacheAvaria = {}; cacheLojas = {};
   document.getElementById('main-tbody').innerHTML = '<tr><td colspan="10" style="padding:40px;text-align:center"><div class="spinner"></div></td></tr>';
 
@@ -1197,14 +1237,163 @@ let _abaAtiva = 'ranking';
 function trocarAba(aba) {
   _abaAtiva = aba;
   const soCompras = aba === 'compras';
-  document.getElementById('fg-fornecedor').style.display = soCompras ? 'none' : '';
+  const pendente = aba === 'pendente';
+  document.getElementById('fg-fornecedor').style.display = (soCompras || pendente) ? 'none' : '';
   document.getElementById('fg-comprador').style.display  = soCompras ? 'none' : '';
-  document.getElementById('btn-buscar').style.display    = soCompras ? 'none' : '';
-  document.getElementById('sec-ranking').style.display   = soCompras ? 'none' : '';
+  document.getElementById('btn-buscar').style.display    = (soCompras || pendente) ? 'none' : '';
+  document.getElementById('sec-ranking').style.display   = (soCompras || pendente) ? 'none' : '';
   document.getElementById('sec-compras').style.display   = soCompras ? '' : 'none';
+  document.getElementById('sec-pendente').style.display  = pendente ? '' : 'none';
   document.querySelectorAll('.mtab').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + aba).classList.add('active');
   if (soCompras) carregarCompras();
+  if (pendente) carregarPendente();
+}
+
+function onFiltroCompradorChange() {
+  if (_abaAtiva === 'pendente') carregarPendente();
+}
+
+// ── CADASTRO PENDENTE ──
+// Listas com produto sem margem varejo/atacado cadastrada (por loja marcada no
+// item) ou marcado na Loja 4 sem múltiplo de atacado. Fonte: itens_margens e
+// itens.q4 do ERP, só leitura. Dado do cadastro não depende de loja/mês do
+// filtro — só o comprador se aplica.
+let _pendCache = null, _pendItensCache = {};
+async function carregarPendente() {
+  const tbody = document.getElementById('pend-tbody');
+  const comprador = document.getElementById('fil-comprador').value;
+  if (!_pendCache) {
+    tbody.innerHTML = '<tr><td colspan="8" style="padding:40px;text-align:center"><div class="spinner"></div></td></tr>';
+    try {
+      const r = await fetch('/api/listas-compra/cadastro-pendente');
+      const j = await r.json();
+      if (j.error) throw new Error(j.error);
+      _pendCache = j;
+    } catch (e) {
+      tbody.innerHTML = `<tr><td colspan="8" class="empty">Erro: ${e.message}</td></tr>`;
+      return;
+    }
+  }
+  const todas = _pendCache.listas || [];
+  const lista = comprador ? todas.filter(l => l.compradores === comprador) : todas;
+  const soma = k => lista.reduce((s, l) => s + (l[k] || 0), 0);
+  document.getElementById('pend-kpi').innerHTML = `
+    <div class="d-kpi"><div class="dv">${fmtN(lista.length)}</div><div class="dl">Listas com pendência${comprador ? ' · ' + comprador : ''}</div></div>
+    <div class="d-kpi"><div class="dv" style="color:#C22F49">${fmtN(soma('com_pendencia'))}</div><div class="dl">Itens com pendência</div></div>
+    <div class="d-kpi"><div class="dv">${fmtN(soma('sem_varejo'))}</div><div class="dl">Sem margem varejo</div></div>
+    <div class="d-kpi"><div class="dv">${fmtN(soma('sem_atacado'))}</div><div class="dl">Sem margem atacado</div></div>
+    <div class="d-kpi"><div class="dv">${fmtN(soma('sem_multiplo_l4'))}</div><div class="dl">Loja 4 sem múltiplo</div></div>`;
+  if (!lista.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="empty">Nenhuma lista com pendência de cadastro' + (comprador ? ' para ' + comprador : '') + '. 🎉</td></tr>';
+    return;
+  }
+  const num = (v, cls, id, tipo) => v > 0
+    ? `<span class="pend-num ${cls}" onclick="abrirListaPendente(${id},'${tipo}')" title="Ver itens">${fmtN(v)}</span>`
+    : '<span class="pend-num zero">—</span>';
+  tbody.innerHTML = lista.map((l, i) => {
+    const sel = listaSelecionada?.id === l.id && listaSelecionada?._pendente ? 'selected' : '';
+    const compradorHtml = l.compradores ? `<span class="comp-tag">${l.compradores}</span>` : '<span style="color:#98A0B3;font-size:11px">—</span>';
+    return `<tr class="${sel}" id="prow-${l.id}">
+      <td class="rank">${i + 1}</td>
+      <td>
+        <div class="nome-lista" onclick="abrirListaPendente(${l.id},'todos')" title="Ver itens com pendência">${l.nome} <span style="font-size:10px;color:#98A0B3;font-weight:400">#${l.id}</span></div>
+        <div style="font-size:11px;color:#4E5A72;margin-top:2px">${l.fornecedor || ''}</div>
+      </td>
+      <td style="min-width:110px">${compradorHtml}</td>
+      <td class="td-r"><span class="itens-badge">${fmtN(l.total_itens)}</span></td>
+      <td class="td-r">${num(l.sem_varejo, 'bad', l.id, 'varejo')}</td>
+      <td class="td-r">${num(l.sem_atacado, 'warn', l.id, 'atacado')}</td>
+      <td class="td-r">${num(l.sem_multiplo_l4, 'warn', l.id, 'multiplo_l4')}</td>
+      <td class="td-r">${num(l.com_pendencia, 'bad', l.id, 'todos')}</td>
+    </tr>`;
+  }).join('');
+}
+
+let _pendFiltro = 'todos', _pendItens = [], _pendLista = null;
+async function abrirListaPendente(id, tipo) {
+  const lista = (_pendCache?.listas || []).find(l => l.id === id);
+  if (!lista) return;
+  _pendLista = lista; _pendFiltro = tipo || 'todos';
+  listaSelecionada = Object.assign({}, lista, { _pendente: true });
+  document.querySelectorAll('.main-t tbody tr').forEach(tr => tr.classList.remove('selected'));
+  const row = document.getElementById('prow-' + id);
+  if (row) row.classList.add('selected');
+
+  document.getElementById('d-title').textContent = `${lista.nome} · Lista #${lista.id}`;
+  document.getElementById('d-subtitle').textContent = `${lista.fornecedor || ''} · Cadastro pendente`;
+  document.getElementById('d-tabs').innerHTML = '';
+  document.getElementById('drawer').classList.add('open');
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('main').classList.add('drawer-open');
+  const body = document.getElementById('d-body');
+  body.innerHTML = '<div class="spinner"></div>';
+  try {
+    if (!_pendItensCache[id]) {
+      const r = await fetch(`/api/listas-compra/${id}/cadastro-pendente`);
+      const j = await r.json();
+      if (j.error) throw new Error(j.error);
+      _pendItensCache[id] = j;
+    }
+    _pendItens = _pendItensCache[id];
+    renderPendenteDrawer();
+  } catch (e) {
+    body.innerHTML = `<div class="empty">Erro: ${e.message}</div>`;
+  }
+}
+
+function filtrarPendente(tipo) { _pendFiltro = tipo; renderPendenteDrawer(); }
+
+function renderPendenteDrawer() {
+  const body = document.getElementById('d-body');
+  const l = _pendLista || {};
+  const itens = _pendFiltro === 'todos' ? _pendItens : _pendItens.filter(it => it.problemas.includes(_pendFiltro));
+  const ftab = (id, label, n) => `<button class="pend-ftab ${_pendFiltro === id ? 'active' : ''}" onclick="filtrarPendente('${id}')">${label} (${fmtN(n)})</button>`;
+  const kpi = `
+    <div class="d-kpis">
+      <div class="d-kpi"><div class="dv" style="color:#C22F49">${fmtN(l.com_pendencia || 0)}</div><div class="dl">Itens com pendência · de ${fmtN(l.total_itens || 0)} ativos</div></div>
+      <div class="d-kpi"><div class="dv">${fmtN(l.sem_varejo || 0)}</div><div class="dl">Sem margem varejo</div></div>
+      <div class="d-kpi"><div class="dv">${fmtN(l.sem_atacado || 0)}</div><div class="dl">Sem margem atacado</div></div>
+      <div class="d-kpi"><div class="dv">${fmtN(l.sem_multiplo_l4 || 0)}</div><div class="dl">Loja 4 sem múltiplo</div></div>
+      ${l.compradores ? `<div class="d-kpi"><div class="dv" style="font-size:12px;color:#6B4E00">${l.compradores}</div><div class="dl">Comprador</div></div>` : ''}
+    </div>
+    <div style="padding:8px 18px;border-bottom:1px solid #DADAD6;background:#fff;display:flex;gap:6px;flex-wrap:wrap" class="no-print">
+      ${ftab('todos', 'Todos', _pendItens.length)}
+      ${ftab('varejo', 'Sem margem varejo', l.sem_varejo || 0)}
+      ${ftab('atacado', 'Sem margem atacado', l.sem_atacado || 0)}
+      ${ftab('multiplo_l4', 'L4 sem múltiplo', l.sem_multiplo_l4 || 0)}
+    </div>`;
+  if (!itens.length) { body.innerHTML = kpi + '<div class="empty">Nenhum item nesse filtro.</div>'; return; }
+
+  // margens por loja: "L1 32% · L4 —" com a loja que falta em vermelho
+  const mg = (obj, faltam) => (Object.keys(obj || {}).map(lj => {
+    const v = obj[lj];
+    const falta = faltam.includes(+lj);
+    const txt = v != null && v > 0 ? pctFmt(v) : (v === 0 ? '0%' : '—');
+    return falta ? `<b>L${lj} ${txt}</b>` : `L${lj} ${txt}`;
+  }).join(' · ')) || '—';
+  const tags = it => [
+    it.problemas.includes('varejo') ? `<span class="pend-tag varejo" title="Sem margem varejo na(s) loja(s) ${it.lojas_sem_varejo.join(', ')}">Sem margem varejo</span>` : '',
+    it.problemas.includes('atacado') ? `<span class="pend-tag atacado" title="Sem margem atacado na(s) loja(s) ${it.lojas_sem_atacado.join(', ')}">Sem margem atacado</span>` : '',
+    it.problemas.includes('multiplo_l4') ? '<span class="pend-tag multiplo" title="Marcado na Loja 4 sem quantidade de atacado cadastrada (q4)">L4 sem múltiplo</span>' : ''
+  ].join('');
+  const rows = itens.map(it => `<tr>
+      <td class="cod">${it.codigo}</td>
+      <td class="desc"><span class="prod-desc-link" onclick="abrirDetalheProduto(${escAttr(it.codigo)},${escAttr(it.descricao || '—')})" title="Ver última entrada, última venda e estoque">${it.descricao || '—'}</span></td>
+      <td class="c">${it.lojas.map(n => `<span class="loja-badge">L${n}</span>`).join('')}</td>
+      <td class="pend-mg">${mg(it.margem_varejo, it.lojas_sem_varejo)}</td>
+      <td class="pend-mg">${mg(it.margem_atacado, it.lojas_sem_atacado)}</td>
+      <td class="c">${it.lojas.includes(4) ? (it.atacado_qtd_l4 ? `≥ ${fmtN(it.atacado_qtd_l4)} un` : '<b style="color:#C22F49">—</b>') : '<span style="color:#98A0B3">n/a</span>'}</td>
+      <td>${tags(it)}</td>
+    </tr>`).join('');
+  body.innerHTML = kpi + `<div class="d-table-wrap"><table class="d-t">
+    <thead><tr>
+      <th>Código</th><th>Descrição</th><th class="c">Lojas</th>
+      <th title="Margem varejo cadastrada por loja (itens_margens). Em vermelho: falta.">Margem varejo</th>
+      <th title="Margem atacado cadastrada por loja (itens_margens). Em vermelho: falta.">Margem atacado</th>
+      <th class="c" title="Quantidade a partir da qual ativa o preço de atacado na Loja 4 (itens.q4)">Múltiplo L4</th>
+      <th>Pendências</th>
+    </tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 function onFiltroComprasChange() {

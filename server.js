@@ -3281,6 +3281,109 @@ app.get('/api/listas-compra/:id/margem', async (req, res) => {
 });
 
 // Listas de compra cadastradas
+// ─── CADASTRO PENDENTE (Lista de Compra > aba "Cadastro Pendente") ───────────
+// Itens ATIVOS de cada lista com cadastro incompleto no ERP, em 3 critérios
+// (decididos com o Tiago em 11/09/2026):
+//  - sem margem VAREJO  : itens_margens.MargemVarejo  NULL/0 em alguma loja marcada no item (l1..l6)
+//  - sem margem ATACADO : itens_margens.MargemAtacado NULL/0 em alguma loja marcada no item
+//  - L4 sem múltiplo    : item marcado na Loja 4 (l4=1) com itens.q4 NULL/0
+// Item sem loja nenhuma marcada não é avaliado (já aparece como "sem loja" na aba principal).
+// Só leitura no ERP.
+async function coletarCadastroPendente(listaId) {
+  const filtroLista = listaId ? 'AND i.nCotacao = ?' : '';
+  const params = listaId ? [listaId] : [];
+  const [itens, margens] = await Promise.all([
+    q(`
+      SELECT i.nCotacao as lista_id, i.Codigobarra, TRIM(it.Descricao) as descricao,
+             i.l1, i.l2, i.l3, i.l4, i.l5, i.l6, it.q4
+      FROM central.c_cotacao_lista_itens i
+      INNER JOIN central.itens it ON it.CodigoBarra = i.Codigobarra AND it.CodDesativado = 0
+      WHERE (i.l1=1 OR i.l2=1 OR i.l3=1 OR i.l4=1 OR i.l5=1 OR i.l6=1) ${filtroLista}
+    `, params),
+    q(`SELECT CodigoBarra, nLoja, MargemVarejo, MargemAtacado FROM central.itens_margens WHERE nLoja BETWEEN 1 AND 6`)
+  ]);
+
+  // margens[codigo][loja] = { varejo, atacado } (número ou null)
+  const mg = {};
+  for (const m of margens) {
+    const cod = String(m.CodigoBarra || '').trim(); const lj = +m.nLoja; // trim: o ERP guarda com espaço no fim em algumas tabelas
+    if (!mg[cod]) mg[cod] = {};
+    mg[cod][lj] = {
+      varejo: m.MargemVarejo != null ? parseFloat(m.MargemVarejo) : null,
+      atacado: m.MargemAtacado != null ? parseFloat(m.MargemAtacado) : null
+    };
+  }
+  const falta = v => v == null || !(v > 0);
+
+  return itens.map(r => {
+    const codigo = String(r.Codigobarra || '').trim();
+    const lojas = [1,2,3,4,5,6].filter(n => r['l'+n] == 1);
+    const margem_varejo = {}, margem_atacado = {};
+    const lojas_sem_varejo = [], lojas_sem_atacado = [];
+    for (const lj of lojas) {
+      const m = (mg[codigo] || {})[lj] || {};
+      margem_varejo[lj] = m.varejo ?? null;
+      margem_atacado[lj] = m.atacado ?? null;
+      if (falta(m.varejo)) lojas_sem_varejo.push(lj);
+      if (falta(m.atacado)) lojas_sem_atacado.push(lj);
+    }
+    const q4 = parseFloat(r.q4 || 0);
+    const sem_multiplo_l4 = lojas.includes(4) && !(q4 > 0);
+    const problemas = [];
+    if (lojas_sem_varejo.length) problemas.push('varejo');
+    if (lojas_sem_atacado.length) problemas.push('atacado');
+    if (sem_multiplo_l4) problemas.push('multiplo_l4');
+    return {
+      lista_id: r.lista_id, codigo, descricao: r.descricao, lojas,
+      margem_varejo, margem_atacado, lojas_sem_varejo, lojas_sem_atacado,
+      sem_multiplo_l4, atacado_qtd_l4: q4 > 0 ? q4 : null, problemas
+    };
+  });
+}
+
+app.get('/api/listas-compra/cadastro-pendente', async (req, res) => {
+  try {
+    const { comprador } = req.query;
+    const [itens, listasRows] = await Promise.all([
+      coletarCadastroPendente(null),
+      q(`SELECT nReg, Nome, NomeFornec, CodFornec FROM central.c_cotacao_lista`)
+    ]);
+    const _nRegToComp = {};
+    for (const [comp, nRegs] of Object.entries(NREGS_COMPRADOR)) for (const nReg of nRegs) _nRegToComp[nReg] = comp;
+
+    const porLista = {};
+    for (const it of itens) {
+      const a = porLista[it.lista_id] || (porLista[it.lista_id] = { total_itens: 0, sem_varejo: 0, sem_atacado: 0, sem_multiplo_l4: 0, com_pendencia: 0 });
+      a.total_itens++;
+      if (it.lojas_sem_varejo.length) a.sem_varejo++;
+      if (it.lojas_sem_atacado.length) a.sem_atacado++;
+      if (it.sem_multiplo_l4) a.sem_multiplo_l4++;
+      if (it.problemas.length) a.com_pendencia++;
+    }
+
+    let listas = listasRows.map(l => {
+      const a = porLista[l.nReg] || { total_itens: 0, sem_varejo: 0, sem_atacado: 0, sem_multiplo_l4: 0, com_pendencia: 0 };
+      return { id: l.nReg, nome: l.Nome?.trim(), fornecedor: l.NomeFornec?.trim(), codFornec: l.CodFornec,
+               compradores: _nRegToComp[l.nReg] || null, ...a };
+    }).filter(l => l.com_pendencia > 0);
+    const compradores = [...new Set(listas.map(l => l.compradores).filter(Boolean))].sort();
+    if (comprador) listas = listas.filter(l => l.compradores === comprador);
+    listas.sort((a, b) => b.com_pendencia - a.com_pendencia || (a.nome || '').localeCompare(b.nome || ''));
+
+    res.json({ listas, compradores, total_listas: listas.length,
+               total_itens_pendentes: listas.reduce((s, l) => s + l.com_pendencia, 0) });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/listas-compra/:id/cadastro-pendente', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (!id) return res.status(400).json({ error: 'id inválido' });
+    const itens = await coletarCadastroPendente(id);
+    res.json(itens.filter(it => it.problemas.length).sort((a, b) => b.problemas.length - a.problemas.length || (a.descricao || '').localeCompare(b.descricao || '')));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/api/listas-compra', async (req, res) => {
   try {
     const { busca, comprador } = req.query;
