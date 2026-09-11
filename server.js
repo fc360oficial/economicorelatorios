@@ -6160,7 +6160,7 @@ app.get('/api/radar-pedidos/:listaId/itens', (req, res) => {
 // ═══════════════════════════════════════════════════
 const pedidosFornec = require('./lib/pedidos-fornecedor');
 pedidosFornec.init();
-pedidosFornec.initERP(q);
+pedidosFornec.initERP(q, radarPedidos);
 // confere recebimento dos pedidos aprovados (nota no ERP × pedido) e gera sugestão de ruptura de entrega
 setTimeout(() => pedidosFornec.verificarRecebimentos().catch(e => console.error('[PEDIDOS] verificar:', e.message)), 120 * 1000);
 setInterval(() => pedidosFornec.verificarRecebimentos().catch(e => console.error('[PEDIDOS] verificar:', e.message)), 30 * 60 * 1000);
