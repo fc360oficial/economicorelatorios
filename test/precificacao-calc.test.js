@@ -120,3 +120,26 @@ test('resumo conta status', () => {
   const r = c.resumo([{ status: 'sobe' }, { status: 'desce' }, { status: 'mantem' }, { status: 'sem_mudanca' }, { status: 'bloqueado' }, { status: 'sobe' }]);
   assert.deepEqual(r, { itens: 6, sobem: 2, descem: 1, mantem: 1, sem_mudanca: 1, bloqueados: 1, mudam: 3 });
 });
+
+test('calcularItem: piso vale também em mantem/sem_mudanca', () => {
+  // custo com imposto (13) acima do preço atual (12.99): manter deixaria preço abaixo do custo
+  const it = c.calcularItem({ ...base, custo_atual: 12.99, custo_imposto: 13, preco_atual: 12.99 }, { politica: 'manter', arredondamento: 'nenhum' });
+  assert.equal(it.status, 'sem_mudanca');
+  assert.equal(it.piso, true);
+  assert.ok(it.preco_sugerido >= 13);
+  assert.equal(it.preco_final, it.preco_sugerido);
+
+  const mant = c.calcularItem({ ...base, custo_atual: 20, custo_imposto: 13, preco_atual: 12.99 }, { politica: 'manter', arredondamento: 'nenhum' });
+  assert.equal(mant.status, 'mantem');      // custo caiu, política manter
+  assert.equal(mant.piso, true);
+  assert.ok(mant.preco_sugerido >= 13);
+});
+
+test('calcularItem: piso no atacado quando mantém', () => {
+  const it = c.calcularItem({ ...base, custo_atual: 20, custo_imposto: 13, preco_atual: 12.99, margem_atacado: 5, preco_atacado_atual: 12.50 },
+                            { politica: 'manter', arredondamento: 'nenhum' });
+  assert.equal(it.status, 'mantem');
+  assert.equal(it.atacado.piso, true);
+  assert.ok(it.atacado.preco_sugerido >= 13);
+  assert.equal(it.atacado.preco_final, it.atacado.preco_sugerido);
+});

@@ -8,19 +8,24 @@ pr.init({ dir });
 
 // ERP falso: responde pelas 3 consultas (itens/preço, custo, margem). Preço/margem de atacado
 // (loja 4) variam por parâmetro: "a4 AS A" no SQL de itens, e params[0]===4 no de margens.
+let desativados = new Set();    // códigos que o ERP devolve com CodDesativado != 0
+let margemB = null;             // margem varejo do item B (null = sem cadastro → bloqueado)
 const qFake = async (sql, params) => {
+  const des = c => (desativados.has(c) ? 1 : 0);
   if (/FROM central\.itens /.test(sql)) {
-    if (/a4 AS A/.test(sql)) return [{ CodigoBarra: 'A', P: '12,99', A: '11,50', CodDesativado: 0 }, { CodigoBarra: 'B', P: '5,00', A: '0', CodDesativado: 0 }];
-    return [{ CodigoBarra: 'A', P: '12,99', A: '0', CodDesativado: 0 }, { CodigoBarra: 'B', P: '5,00', A: '0', CodDesativado: 0 }];
+    if (/a4 AS A/.test(sql)) return [{ CodigoBarra: 'A', P: '12,99', A: '11,50', CodDesativado: des('A') }, { CodigoBarra: 'B', P: '5,00', A: '0', CodDesativado: des('B') }];
+    return [{ CodigoBarra: 'A', P: '12,99', A: '0', CodDesativado: des('A') }, { CodigoBarra: 'B', P: '5,00', A: '0', CodDesativado: des('B') }];
   }
   if (/FROM central\.custoloja/.test(sql)) return [{ CodigoBarra: 'A', Custo: '10' }, { CodigoBarra: 'B', Custo: '4' }];
   if (/FROM central\.itens_margens/.test(sql)) {
-    if (params && params[0] === 4) return [{ CodigoBarra: 'A', MargemVarejo: 30, MargemAtacado: 10 }];
-    return [{ CodigoBarra: 'A', MargemVarejo: 30, MargemAtacado: null }];
+    const b = margemB != null ? [{ CodigoBarra: 'B', MargemVarejo: margemB, MargemAtacado: null }] : [];
+    if (params && params[0] === 4) return [{ CodigoBarra: 'A', MargemVarejo: 30, MargemAtacado: 10 }, ...b];
+    return [{ CodigoBarra: 'A', MargemVarejo: 30, MargemAtacado: null }, ...b];
   }
   return [];
 };
-pr.initERP(qFake, { curvaASet: () => new Set(['A']) });
+const radarOk = { curvaASet: () => new Set(['A']) };
+pr.initERP(qFake, radarOk);
 
 const pedido = {
   id: 40, lista: 7, lista_nome: 'LISTA X', fornecedor: 'FORN', teste: true,
@@ -163,4 +168,108 @@ test('verificarTodos ignora registros aplicados há mais de 7 dias', async () =>
 
   const depois = pr.obter('42-L4');
   assert.equal(depois.verificadoEm, verificadoEmAntes);   // não foi tocado
+});
+
+
+// ── revisão final ────────────────────────────────────────────────────────────
+
+test('obter/caminhoPdf rejeitam id com path traversal', () => {
+  const fora = path.join(dir, '..', 'usuarios-precif-teste.json');
+  fs.writeFileSync(fora, JSON.stringify({ segredo: 'hash bcrypt' }));
+  try {
+    assert.equal(pr.obter('../usuarios-precif-teste'), null);   // não pode sair do diretório
+  } finally { try { fs.unlinkSync(fora); } catch (e) {} }
+  assert.equal(pr.obter('../../usuarios'), null);
+  assert.equal(pr.obter('..%2F..%2Fusuarios'), null);
+  assert.equal(pr.obter(String.raw`..\..\usuarios`), null);
+  assert.equal(pr.obter('40-L2/../../usuarios'), null);
+  assert.equal(pr.caminhoPdf('../../usuarios'), null);
+  assert.equal(pr.obter('40-L2').id, '40-L2');     // id legítimo continua funcionando
+  assert.ok(pr.listar().length > 0);               // listar() deriva ids de nomes de arquivo
+});
+
+test('salvar invalida o PDF em cache', () => {
+  const pdf = path.join(dir, '40-L2.pdf');
+  fs.writeFileSync(pdf, 'pdf velho');
+  assert.equal(pr.caminhoPdf('40-L2'), pdf);
+  pr.salvar(pr.obter('40-L2'));
+  assert.equal(pr.caminhoPdf('40-L2'), null);
+});
+
+// pedido 44: item com unidade não convertida (caixa/fardo) e não-pedido idem
+const pedido44 = {
+  id: 44, lista: 7, lista_nome: 'LISTA U', fornecedor: 'FORN', teste: true,
+  itens: [{ cod: 'A', descricao: 'ARROZ' }],
+  xml: { lojas: { 2: {
+    status: 'conciliado', conferidoEm: '2026-09-11T10:00:00.000Z',
+    notas: [{ chave: 'k44' }],
+    itens: [{ cod: 'A', descricao: 'ARROZ', recebida: 10, tipo: 'ok', preco_xml: 11, conferir_unidade: true }],
+    nao_pedidos: [
+      { cod: 'B', descricao: 'FEIJAO', recebida: 4, preco_xml: 4, decisao: { acao: 'aceitar' }, xml: [{ conversao: 'conferir' }] },
+      { cod: 'A', descricao: 'ARROZ EXTRA', recebida: 1, preco_xml: 11, decisao: { acao: 'aceitar' } }
+    ]
+  } } }
+};
+
+test('unidade não convertida bloqueia o item', async () => {
+  const reg = await pr.criarDeConciliacao(pedido44, 2);
+  const a = reg.itens.find(i => i.cod === 'A');
+  assert.equal(a.status, 'bloqueado');
+  assert.match(a.motivo, /unidade/i);
+  const b = reg.itens.find(i => i.cod === 'B');
+  assert.equal(b.status, 'bloqueado');
+  assert.match(b.motivo, /unidade/i);
+});
+
+test('itensConciliados: não-pedido sem xml não é bloqueado por unidade', () => {
+  const saida = pr.itensConciliados({ itens: [], nao_pedidos: [{ cod: 'Z', descricao: 'Z', recebida: 1, preco_xml: 2, decisao: { acao: 'aceitar' } }] });
+  assert.equal(saida[0].motivo_bloqueio, undefined);
+});
+
+test('CodDesativado != 0 bloqueia o item', async () => {
+  desativados = new Set(['A']);
+  try {
+    const p = JSON.parse(JSON.stringify(pedido)); p.id = 46;
+    const reg = await pr.criarDeConciliacao(p, 2);
+    const a = reg.itens.find(i => i.cod === 'A');
+    assert.equal(a.status, 'bloqueado');
+    assert.match(a.motivo, /desativado/i);
+  } finally { desativados = new Set(); }
+});
+
+test('radar sem base: curva_disponivel false e nenhum item vira curva A', async () => {
+  pr.initERP(qFake, { curvaASet: () => null });
+  try {
+    const p = JSON.parse(JSON.stringify(pedido)); p.id = 45;
+    const reg = await pr.criarDeConciliacao(p, 2);
+    assert.equal(reg.curva_disponivel, false);
+    assert.equal(reg.entradas.find(e => e.cod === 'A').curvaA, false);
+  } finally { pr.initERP(qFake, radarOk); }
+  const p2 = JSON.parse(JSON.stringify(pedido)); p2.id = 47;
+  const reg2 = await pr.criarDeConciliacao(p2, 2);
+  assert.equal(reg2.curva_disponivel, true);
+  assert.equal(reg2.entradas.find(e => e.cod === 'A').curvaA, true);
+});
+
+test('recalcular doERP: item sai de bloqueado quando a margem é cadastrada, e edição manual sobrevive', async () => {
+  const p = JSON.parse(JSON.stringify(pedido)); p.id = 48;
+  p.xml.lojas[2].itens[1].decisao = { acao: 'aceitar' };   // B entra (antes era recusado)
+  const reg = await pr.criarDeConciliacao(p, 2);
+  const b0 = reg.itens.find(i => i.cod === 'B');
+  assert.equal(b0.status, 'bloqueado');
+  assert.match(b0.motivo, /margem/i);
+
+  pr.editarItem('48-L2', 'A', { preco_final: 16.49 }, 'tiago');
+
+  margemB = 20;
+  try {
+    const r2 = await pr.recalcular('48-L2', { doERP: true });
+    const b = r2.itens.find(i => i.cod === 'B');
+    assert.notEqual(b.status, 'bloqueado');
+    assert.equal(b.margem, 20);
+    assert.ok(b.preco_sugerido > 0);
+    const a = r2.itens.find(i => i.cod === 'A');
+    assert.equal(a.preco_final, 16.49);      // custo_imposto igual → manual sobrevive
+    assert.equal(a.manual, true);
+  } finally { margemB = null; }
 });
