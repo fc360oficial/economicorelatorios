@@ -30,6 +30,12 @@ test('distribuirCdInsuficiente respeita o estoque e prioriza menor cobertura', (
   assert.ok(r.pedidoCx[3] >= r.pedidoCx[1]); // próxima prioridade
 });
 
+test('distribuirCdInsuficiente reparte em rodízio entre todas as lojas que pediram (caso Capricche)', () => {
+  const r = u.distribuirCdInsuficiente({ 2: 6, 3: 7, 4: 2, 5: 4 }, 13, { 2: 0, 3: 0.5, 4: 1, 5: 1.2 });
+  assert.equal(r.falta, 6);
+  assert.deepEqual(r.pedidoCx, { 2: 4, 3: 4, 4: 2, 5: 3 });
+});
+
 test('distribuirCdInsuficiente sem falta devolve igual', () => {
   const r = u.distribuirCdInsuficiente({ 1: 3, 2: 2 }, 10, { 1: 1, 2: 2 });
   assert.deepEqual(r, { pedidoCx: { 1: 3, 2: 2 }, falta: 0 });
@@ -68,5 +74,5 @@ test('distribuirCdInsuficiente com estoque fracionário arredonda pra baixo', ()
 
 test('distribuirCdInsuficiente trata cobertura ausente como prioridade mais baixa (9999)', () => {
   const r = u.distribuirCdInsuficiente({ 1: 2, 2: 2 }, 2, { 1: 5 });
-  assert.deepEqual(r, { pedidoCx: { 1: 2, 2: 0 }, falta: 2 });
+  assert.deepEqual(r, { pedidoCx: { 1: 1, 2: 1 }, falta: 2 }); // rodízio: loja sem cobertura entra depois, mas entra
 });
