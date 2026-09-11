@@ -57,3 +57,36 @@ test('sem valorProduto → rateio indisponível, custo_imposto = custo_novo', as
   assert.equal(reg.rateio.disponivel, false);
   assert.equal(reg.itens.find(i => i.cod === 'A').custo_imposto, 11);
 });
+
+test('editarItem marca manual e respeita piso', () => {
+  const r1 = pr.editarItem('40-L2', 'A', { preco_final: 16.49 }, 'tiago');
+  const a = r1.itens.find(i => i.cod === 'A');
+  assert.equal(a.preco_final, 16.49); assert.equal(a.manual, true);
+  const err = pr.editarItem('40-L2', 'A', { preco_final: 1 }, 'tiago');
+  assert.match(err.erro, /abaixo do custo/);
+});
+
+test('setParametros recalcula preservando manual', async () => {
+  const r = await pr.setParametros('40-L2', { arredondamento: '5' }, 'tiago');
+  assert.equal(r.parametros.arredondamento, '5');
+  assert.equal(r.itens.find(i => i.cod === 'A').preco_final, 16.49);
+});
+
+test('fechar exige resolver bloqueados, aplicar exige precificado', () => {
+  assert.match(pr.fechar('40-L2', 'tiago').erro, /bloqueado/);
+  const r = pr.fechar('40-L2', 'tiago', { ignorarBloqueados: true });
+  assert.equal(r.status, 'precificado');
+  assert.match(pr.editarItem('40-L2', 'A', { preco_final: 17 }, 'x').erro, /fechado/);
+  assert.equal(pr.aplicar('40-L2', 'tiago').status, 'aplicado');
+  assert.equal(pr.reabrir('40-L2', 'tiago').status, 'a_precificar');
+  pr.fechar('40-L2', 'tiago', { ignorarBloqueados: true }); pr.aplicar('40-L2', 'tiago');
+});
+
+test('verificar lê o ERP e marca divergência', async () => {
+  const r = await pr.verificar('40-L2');   // qFake devolve P=12,99 pra A, e o final é 16.49 → divergente
+  assert.equal(r.status, 'conferido');
+  assert.equal(r.itens.find(i => i.cod === 'A').erp.ok, false);
+  assert.equal(r.divergentes, 1);
+  const t = await pr.verificarTodos();
+  assert.equal(t.verificados, 1);
+});
