@@ -76,8 +76,23 @@ function render(){
   $('#app').innerHTML=h;
   $('#bar').hidden=fin;
   if(!fin){
-    document.querySelectorAll('input.preco,input.obs').forEach(el=>{el.addEventListener('input',()=>{dirty=true;el.classList.toggle('ok',el.classList.contains('preco')&&precoNum(el.value)!=null);atualizarTot();agendarSave();});
-      if(el.classList.contains('preco')) el.addEventListener('blur',()=>{const n=precoNum(el.value);el.value=n==null?'':fmt(n);});});
+    // Preço digitado "em centavos", como maquininha: só números, os 2 últimos são os centavos.
+    // 545 -> 5,45 · 1000 -> 10,00 · 100000 -> 1.000,00. Não precisa digitar vírgula nem ponto.
+    // Enter grava e pula pro preço do próximo item.
+    const precos=[...document.querySelectorAll('input.preco')];
+    document.querySelectorAll('input.preco,input.obs').forEach(el=>{
+      const isPreco=el.classList.contains('preco');
+      el.addEventListener('input',()=>{
+        if(isPreco){const d=el.value.replace(/\D/g,'').replace(/^0+(?=\d)/,'').slice(0,9);el.value=d?fmt(parseInt(d,10)/100):'';}
+        dirty=true;el.classList.toggle('ok',isPreco&&precoNum(el.value)!=null);atualizarTot();agendarSave();});
+      el.addEventListener('keydown',e=>{
+        if(e.key!=='Enter')return;e.preventDefault();
+        clearTimeout(saveTimer);salvar();
+        const i=isPreco?precos.indexOf(el):precos.findIndex(p=>p.dataset.cod===el.dataset.cod);
+        const prox=precos[i+1];if(prox){prox.focus();prox.select();prox.scrollIntoView({block:'center',behavior:'smooth'});}else el.blur();
+      });
+      if(isPreco){el.setAttribute('inputmode','numeric');el.addEventListener('focus',()=>setTimeout(()=>el.select(),0));}
+    });
     atualizarTot();
   } else { const {t,n}=totais(); $('#tot').innerHTML='<span>'+n+' de '+P.itens.length+' itens com preço</span><span>Total: <b>R$ '+fmt(t)+'</b></span>'; }
 }
