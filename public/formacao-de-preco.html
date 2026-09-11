@@ -77,7 +77,8 @@ tr.bloq td{background:#FFF4F6}
 <div id="pv" hidden><div class="pv-card" id="pv-body"></div></div>
 <script>
 const $=s=>document.querySelector(s);
-const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const js=s=>esc(JSON.stringify(String(s??'')));
 const brl=v=>v==null?'—':'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 const pct=v=>v==null?'—':((v>0?'+':'')+(v*100).toFixed(1)+'%');
 const dt=s=>s?new Date(s).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';
@@ -98,7 +99,7 @@ function renderTotais(){
   const c={a_precificar:0,precificado:0,aplicado:0,divergente:0,bloqueados:0};
   for(const r of LISTA){const g=grupo(r);if(g==='conferido')c.aplicado++;else if(c[g]!=null)c[g]++;c.bloqueados+=r.resumo?.bloqueados||0;}
   const k=[['a_precificar','A precificar',c.a_precificar],['precificado','Precificados',c.precificado],['aplicado','Aplicados',c.aplicado],['divergente','Divergentes',c.divergente],['bloq','Itens bloqueados',c.bloqueados],['todos','Todos',LISTA.length]];
-  $('#totais').innerHTML=k.map(([id,l,v])=>'<div class="tkpi'+(filtro===id?' on':'')+'" onclick="filtro=\''+id+'\';renderTotais();render()"><div class="v">'+v+'</div><div class="l">'+l+'</div></div>').join('');
+  $('#totais').innerHTML=k.map(([id,l,v])=>'<div class="tkpi'+(filtro===id?' on':'')+'" onclick="filtro='+js(id)+';renderTotais();render()"><div class="v">'+v+'</div><div class="l">'+l+'</div></div>').join('');
 }
 function render(){
   const loja=$('#f-loja').value,b=$('#f-busca').value.trim().toLowerCase();
@@ -112,7 +113,7 @@ function render(){
     return true;});
   if(!rows.length){$('#view').innerHTML='<div class="empty">Nada aqui. Registros entram sozinhos quando uma loja concilia o XML em Pedidos de Compra.</div>';return;}
   $('#view').innerHTML='<table><thead><tr><th>#</th><th>Loja</th><th>Lista / Fornecedor</th><th>Conciliado</th><th class="n">Itens</th><th class="n">Sobem</th><th class="n">Descem</th><th class="n">Mantêm</th><th class="n">Sem mud.</th><th class="n">Bloq.</th><th>Política</th><th>Status</th><th>Ação</th></tr></thead><tbody>'+
-    rows.map(r=>{const s=r.resumo||{};const g=grupo(r);return '<tr class="click" onclick="abrir(\''+r.id+'\')"><td>'+r.pedidoId+'</td><td><b>L'+r.loja+'</b> <span class="mut sm">'+LOJAS[r.loja]+'</span></td><td><b>'+esc(r.lista_nome)+'</b>'+(r.teste?'<span class="tag teste">TESTE</span>':'')+'<div class="mut sm">'+esc(r.fornecedor)+'</div></td><td class="sm">'+dt(r.conciliadoEm)+'</td><td class="n">'+(s.itens||0)+'</td><td class="n i-sobe">'+(s.sobem||0)+'</td><td class="n i-desce">'+(s.descem||0)+'</td><td class="n">'+(s.mantem||0)+'</td><td class="n mut">'+(s.sem_mudanca||0)+'</td><td class="n '+(s.bloqueados?'i-bloqueado':'mut')+'">'+(s.bloqueados||0)+'</td><td class="sm">'+POL[r.parametros.politica]+' · '+r.parametros.arredondamento+'</td><td><span class="st st-'+(g==='divergente'?'div':r.status)+'">'+(g==='divergente'?r.divergentes+' divergente(s)':STN[r.status])+'</span></td><td onclick="event.stopPropagation()"><a class="btn btn-slate btn-sm" target="_blank" href="/api/precificacao/'+r.id+'/pdf">PDF</a></td></tr>';}).join('')+'</tbody></table>';
+    rows.map(r=>{const s=r.resumo||{};const g=grupo(r);return '<tr class="click" onclick="abrir('+js(r.id)+')"><td>'+r.pedidoId+'</td><td><b>L'+r.loja+'</b> <span class="mut sm">'+LOJAS[r.loja]+'</span></td><td><b>'+esc(r.lista_nome)+'</b>'+(r.teste?'<span class="tag teste">TESTE</span>':'')+'<div class="mut sm">'+esc(r.fornecedor)+'</div></td><td class="sm">'+dt(r.conciliadoEm)+'</td><td class="n">'+(s.itens||0)+'</td><td class="n i-sobe">'+(s.sobem||0)+'</td><td class="n i-desce">'+(s.descem||0)+'</td><td class="n">'+(s.mantem||0)+'</td><td class="n mut">'+(s.sem_mudanca||0)+'</td><td class="n '+(s.bloqueados?'i-bloqueado':'mut')+'">'+(s.bloqueados||0)+'</td><td class="sm">'+POL[r.parametros.politica]+' · '+r.parametros.arredondamento+'</td><td><span class="st st-'+(g==='divergente'?'div':r.status)+'">'+(g==='divergente'?r.divergentes+' divergente(s)':STN[r.status])+'</span></td><td onclick="event.stopPropagation()"><a class="btn btn-slate btn-sm" target="_blank" href="/api/precificacao/'+encodeURIComponent(r.id)+'/pdf">PDF</a></td></tr>';}).join('')+'</tbody></table>';
 }
 async function salvarPadrao(){try{await api('/api/precificacao/padrao',{politica:$('#p-politica').value,arredondamento:$('#p-arred').value});}catch(e){alert(e.message);}}
 async function verificarTodos(){try{const j=await api('/api/precificacao/verificar',{});await carregar();alert('Verificados '+j.verificados+' registro(s), '+j.divergentes+' item(ns) divergente(s).');}catch(e){alert(e.message);}}
@@ -122,7 +123,7 @@ async function removerTestes(){if(!confirm('Remover os registros de teste?'))ret
 // ── detalhe
 function abrirPv(x){$('#pv-body').innerHTML=x;$('#pv').hidden=false;}
 function fecharPv(){$('#pv').hidden=true;REG=null;}
-async function abrir(id){abrirPv('<div class="pv-top"><h2>Carregando…</h2><button class="btn btn-amber" onclick="fecharPv()">Fechar</button></div>');try{REG=await api('/api/precificacao/'+id);}catch(e){abrirPv('<div class="empty">'+esc(e.message)+'</div>');return;}renderPv();}
+async function abrir(id){abrirPv('<div class="pv-top"><h2>Carregando…</h2><button class="btn btn-amber" onclick="fecharPv()">Fechar</button></div>');try{REG=await api('/api/precificacao/'+encodeURIComponent(id));}catch(e){abrirPv('<div class="empty">'+esc(e.message)+'</div>');return;}renderPv();}
 function renderPv(){
   const r=REG,s=r.resumo||{},aberto=r.status==='a_precificar',l4=r.loja===4,conf=['aplicado','conferido'].includes(r.status);
   const itens=r.itens.filter(i=>filtroItem==='tudo'||(filtroItem==='bloq'?i.status==='bloqueado':(i.status==='sobe'||i.status==='desce'||i.manual)));
@@ -137,32 +138,32 @@ function renderPv(){
      (r.status==='precificado'?'<button class="btn btn-green btn-sm" onclick="acao(\'aplicar\')">Marcar como aplicado</button>':'')+
      (conf?'<button class="btn btn-slate btn-sm" onclick="acao(\'verificar\')">Verificar agora</button>':'')+
      (aberto?'':'<button class="btn btn-red btn-sm" onclick="acao(\'reabrir\')">Reabrir</button>')+
-     '<a class="btn btn-slate btn-sm" target="_blank" href="/api/precificacao/'+r.id+'/pdf?refazer=1">PDF</a><button class="btn btn-slate btn-sm" onclick="whats()">WhatsApp</button></div>';
+     '<a class="btn btn-slate btn-sm" target="_blank" href="/api/precificacao/'+encodeURIComponent(r.id)+'/pdf?refazer=1">PDF</a><button class="btn btn-slate btn-sm" onclick="whats()">WhatsApp</button></div>';
   h+='<div class="card"><table><thead><tr><th>Código</th><th>Descrição</th><th>Curva</th><th class="n">Qtd</th><th class="n">Custo atual</th><th class="n">Custo novo</th><th class="n">C/ imposto</th><th class="n">Var.</th><th class="n">Margem cad.</th><th class="n">Preço atual</th><th class="n">Marg. se mantém</th><th class="n">Sugerido</th><th class="n">Preço final</th>'+(l4?'<th class="n">Atac. atual</th><th class="n">Atac. final</th>':'')+(conf?'<th class="n">No ERP</th>':'')+'<th>Status</th></tr></thead><tbody>';
   if(!itens.length)h+='<tr><td colspan="20" class="empty">Nenhum item neste filtro.</td></tr>';
   for(const i of itens){
     const bl=i.status==='bloqueado';
     h+='<tr class="'+(bl?'bloq':'')+'"><td>'+esc(i.cod)+'</td><td>'+esc(i.descricao)+(i.nao_pedido?'<span class="tag">não pedido</span>':'')+'</td><td>'+(i.curvaA?'<b>A</b>':'<span class="mut">—</span>')+'</td><td class="n">'+i.recebida+'</td><td class="n">'+brl(i.custo_atual)+'</td><td class="n">'+brl(i.custo_novo)+'</td><td class="n"><b>'+brl(i.custo_imposto)+'</b></td><td class="n '+(i.variacao>0?'i-sobe':i.variacao<0?'i-desce':'mut')+'">'+(i.variacao>0?'▲ ':i.variacao<0?'▼ ':'')+pct(i.variacao)+'</td><td class="n">'+(i.margem!=null?i.margem+'%':'<span class="i-bloqueado">sem margem</span>')+'</td><td class="n">'+brl(i.preco_atual)+'</td><td class="n mut">'+pct(i.margem_se_mantem)+'</td><td class="n">'+brl(i.preco_sugerido)+(i.piso?' <span class="sm i-bloqueado">piso</span>':'')+'</td>'+
-       '<td class="n">'+(bl?'—':(aberto?'<input class="pf'+(i.manual?' manual':'')+'" value="'+Number(i.preco_final).toFixed(2)+'" onchange="editar(\''+esc(i.cod)+'\',this.value,null)">':'<b>'+brl(i.preco_final)+'</b>'+(i.manual?' <span class="sm mut">manual</span>':'')))+'</td>'+
-       (l4?'<td class="n">'+brl(i.preco_atacado_atual)+'</td><td class="n">'+(i.atacado?(aberto?'<input class="pf" value="'+Number(i.atacado.preco_final).toFixed(2)+'" onchange="editar(\''+esc(i.cod)+'\',null,this.value)">':'<b>'+brl(i.atacado.preco_final)+'</b>'):'<span class="mut">—</span>')+'</td>':'')+
+       '<td class="n">'+(bl?'—':(aberto?'<input class="pf'+(i.manual?' manual':'')+'" value="'+Number(i.preco_final).toFixed(2)+'" onchange="editar('+js(i.cod)+',this.value,null)">':'<b>'+brl(i.preco_final)+'</b>'+(i.manual?' <span class="sm mut">manual</span>':'')))+'</td>'+
+       (l4?'<td class="n">'+brl(i.preco_atacado_atual)+'</td><td class="n">'+(i.atacado?(aberto?'<input class="pf" value="'+Number(i.atacado.preco_final).toFixed(2)+'" onchange="editar('+js(i.cod)+',null,this.value)">':'<b>'+brl(i.atacado.preco_final)+'</b>'):'<span class="mut">—</span>')+'</td>':'')+
        (conf?'<td class="n '+(i.erp?(i.erp.ok?'i-desce':'i-bloqueado'):'mut')+'">'+(i.erp?brl(i.erp.preco)+(i.erp.ok?' ✓':' ✗'):'—')+'</td>':'')+
        '<td class="i-'+i.status+'">'+({sobe:'sobe',desce:'desce',mantem:'mantém',sem_mudanca:'sem mudança',bloqueado:'bloqueado'}[i.status])+(bl?'<div class="sm">'+esc(i.motivo)+(/margem/.test(i.motivo||'')?' · <a href="/fornecedores.html?aba=cadastro-pendente">Cadastro Pendente</a>':'')+'</div>':'')+'</td></tr>';
   }
   h+='</tbody></table></div>';
   abrirPv(h);$('#d-pol').value=r.parametros.politica;$('#d-arr').value=r.parametros.arredondamento;$('#d-fil').value=filtroItem;
 }
-async function editar(cod,pf,pa){try{const b={cod};if(pf!=null)b.preco_final=String(pf).replace(',','.');if(pa!=null)b.preco_atacado_final=String(pa).replace(',','.');REG=await api('/api/precificacao/'+REG.id+'/item',b);}catch(e){alert(e.message);}renderPv();}
-async function setParam(){try{REG=await api('/api/precificacao/'+REG.id+'/parametros',{politica:$('#d-pol').value,arredondamento:$('#d-arr').value});}catch(e){alert(e.message);}renderPv();}
-async function recalc(desc){if(desc&&!confirm('Descartar todas as edições manuais e recalcular?'))return;try{REG=await api('/api/precificacao/'+REG.id+'/recalcular',{descartarManuais:desc});}catch(e){alert(e.message);}renderPv();}
+async function editar(cod,pf,pa){try{const b={cod};if(pf!=null)b.preco_final=String(pf).replace(',','.');if(pa!=null)b.preco_atacado_final=String(pa).replace(',','.');REG=await api('/api/precificacao/'+encodeURIComponent(REG.id)+'/item',b);}catch(e){alert(e.message);}renderPv();}
+async function setParam(){try{REG=await api('/api/precificacao/'+encodeURIComponent(REG.id)+'/parametros',{politica:$('#d-pol').value,arredondamento:$('#d-arr').value});}catch(e){alert(e.message);}renderPv();}
+async function recalc(desc){if(desc&&!confirm('Descartar todas as edições manuais e recalcular?'))return;try{REG=await api('/api/precificacao/'+encodeURIComponent(REG.id)+'/recalcular',{descartarManuais:desc});}catch(e){alert(e.message);}renderPv();}
 async function fechar(){
-  try{REG=await api('/api/precificacao/'+REG.id+'/fechar',{});}
-  catch(e){if(/bloqueado/.test(e.message)&&confirm(e.message+'\n\nFechar mesmo assim, deixando os bloqueados de fora?')){try{REG=await api('/api/precificacao/'+REG.id+'/fechar',{ignorarBloqueados:true});}catch(e2){alert(e2.message);}}else alert(e.message);}
+  try{REG=await api('/api/precificacao/'+encodeURIComponent(REG.id)+'/fechar',{});}
+  catch(e){if(/bloqueado/.test(e.message)&&confirm(e.message+'\n\nFechar mesmo assim, deixando os bloqueados de fora?')){try{REG=await api('/api/precificacao/'+encodeURIComponent(REG.id)+'/fechar',{ignorarBloqueados:true});}catch(e2){alert(e2.message);}}else alert(e.message);}
   renderPv();carregar();
 }
-async function acao(a){if(a==='reabrir'&&!confirm('Reabrir esta lista pra edição?'))return;try{REG=await api('/api/precificacao/'+REG.id+'/'+a,{});}catch(e){alert(e.message);}renderPv();carregar();}
+async function acao(a){if(a==='reabrir'&&!confirm('Reabrir esta lista pra edição?'))return;try{REG=await api('/api/precificacao/'+encodeURIComponent(REG.id)+'/'+a,{});}catch(e){alert(e.message);}renderPv();carregar();}
 function whats(){
   const r=REG,s=r.resumo||{};const num=prompt('WhatsApp de quem vai digitar no Dlinks (DDD+número):');if(!num)return;
-  const link=location.origin+'/api/precificacao/'+r.id+'/pdf';
+  const link=location.origin+'/api/precificacao/'+encodeURIComponent(r.id)+'/pdf';
   const txt='Formação de Preço · Loja '+r.loja+' '+LOJAS[r.loja]+'\nPedido #'+r.pedidoId+' · '+r.lista_nome+'\n'+s.sobem+' sobem, '+s.descem+' descem'+(s.bloqueados?', '+s.bloqueados+' bloqueados':'')+'\nPDF (precisa estar logado): '+link;
   window.open('https://wa.me/55'+num.replace(/\D/g,'')+'?text='+encodeURIComponent(txt),'_blank');
 }
