@@ -34,6 +34,12 @@ test('verificar: separado pelo painel do CD e recebido pela nota da loja', async
   assert.equal(r.verificados, 1);
 });
 
+test('criarPedidos: não grava nada se alguma loja tiver produto sem vínculo', () => {
+  const antes = cd.listarPedidos().length;
+  assert.throws(() => cd.criarPedidos({ lojas: { 1: [{ codigoCD: '17896037913143', caixas: 1 }], 2: [{ codigoCD: '999', caixas: 1 }] }, usuario: 't' }), /vínculo/);
+  assert.equal(cd.listarPedidos().length, antes);
+});
+
 test('cancelar', () => {
   const p = cd.listarPedidos()[0];
   cd.cancelarPedido(p.id, 'tiago');
