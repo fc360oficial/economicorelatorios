@@ -46,7 +46,8 @@ table.main-t tbody tr.open{background:#FFF6D9}
 .st-aguardando{background:#FFF6D9;color:#6B4E00;border:1px solid #EFD98F}.st-digitacao{background:#E9EEF6;color:#2E5E8C}.st-finalizado{background:#FBEAED;color:#C22F49}.st-aprovado{background:#E7F5EC;color:#137A48}.st-cancelado{background:#EBEBE9;color:#98A0B3}
 .st-sugestao{background:#C22F49;color:#fff}
 .xml{display:inline-block;margin-top:4px;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:800;letter-spacing:.3px;white-space:nowrap}.xml.aguardando,.xml.parcial{background:#FFF6D9;color:#6B4E00;border:1px solid #EFD98F}.xml.conciliado{background:#137A48;color:#fff}.xml.consistencia{background:#C22F49;color:#fff}
-.xl{margin:12px 12px 4px;border:1px solid #DADAD6;border-radius:10px;overflow:hidden;background:#fff}.xl .xh{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 12px;background:#EBEBE9;font-size:12px;font-weight:700}.xl .xh .xml{margin:0}.xl .xb{padding:8px 12px;font-size:11.5px;color:#4E5A72;line-height:1.6}.xl .xb b{color:#0E1626}.xl table{font-size:11.5px}.xl .prob{color:#C22F49;font-weight:700}.tp-ok{color:#137A48;font-weight:800}.tp-falta,.tp-parcial{color:#C22F49;font-weight:800}.tp-a_mais,.tp-nao_pedido{color:#B45C00;font-weight:800}.xtit{margin:14px 12px 0;font-size:10.5px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:#4E5A72}.lojatag{display:inline-block;background:#101B33;color:#FFC933;font-size:10px;font-weight:800;letter-spacing:.4px;padding:2px 8px;border-radius:6px;margin-bottom:3px}.teste{background:#E9EEF6;color:#2E5E8C;font-size:9.5px;padding:1px 6px;border-radius:6px;font-weight:800;margin-left:6px}.st-recebido{background:#137A48;color:#fff}.st-recebido_parcial{background:#FFF6D9;color:#6B4E00;border:1px solid #EFD98F}
+.xl{margin:12px 12px 4px;border:1px solid #DADAD6;border-radius:10px;overflow:hidden;background:#fff}.xl .xh{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 12px;background:#EBEBE9;font-size:12px;font-weight:700}.xl .xh .xml{margin:0}.xl .xb{padding:8px 12px;font-size:11.5px;color:#4E5A72;line-height:1.6}.xl .xb b{color:#0E1626}.xl table{font-size:11.5px}.xl .prob{color:#C22F49;font-weight:700}.tp-ok{color:#137A48;font-weight:800}.tp-falta,.tp-parcial{color:#C22F49;font-weight:800}.tp-a_mais,.tp-nao_pedido{color:#B45C00;font-weight:800}.xtit{margin:14px 12px 0;font-size:10.5px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:#4E5A72}.oq{background:#FFF6D9;border:1px solid #EFD98F;border-radius:8px;padding:8px 12px;margin:8px 12px;font-size:11.5px;color:#6B4E00;line-height:1.6}.oq b{color:#0E1626}.oq .t{font-weight:800;text-transform:uppercase;font-size:10px;letter-spacing:.4px;margin-right:6px}.xl .xacoes{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 12px;border-top:1px solid #EEEEEA;background:#FAFAF8;font-size:11.5px;color:#4E5A72}.xl .xacoes .btn{margin:0}.aceito{background:#E7F5EC;color:#137A48;border-radius:8px;padding:6px 12px;margin:8px 12px;font-size:11.5px}.fin-t td{white-space:normal}
+.lojatag{display:inline-block;background:#101B33;color:#FFC933;font-size:10px;font-weight:800;letter-spacing:.4px;padding:2px 8px;border-radius:6px;margin-bottom:3px}.teste{background:#E9EEF6;color:#2E5E8C;font-size:9.5px;padding:1px 6px;border-radius:6px;font-weight:800;margin-left:6px}.st-recebido{background:#137A48;color:#fff}.st-recebido_parcial{background:#FFF6D9;color:#6B4E00;border:1px solid #EFD98F}
 .rup{display:inline-block;margin-top:3px;padding:2px 8px;border-radius:6px;background:#FBEAED;color:#C22F49;font-size:10.5px;font-weight:800;letter-spacing:.3px}
 .banner{background:#FBEAED;border:1px solid #E5B4BD;color:#7A1A2C;border-radius:12px;padding:12px 16px;font-size:12.5px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
 .banner b{color:#C22F49}
@@ -136,7 +137,7 @@ async function carregar(){
   $('#view').innerHTML='<div class="spinner"></div>';
   try{const r=await fetch('/api/pedidos-fornecedor');LISTA=await r.json();if(LISTA.error)throw new Error(LISTA.error);}catch(e){$('#view').innerHTML='<div class="empty">Erro: '+esc(e.message)+'</div>';return;}
   const s=$('#fComp'); if(s.options.length===1) [...new Set(LISTA.map(p=>p.comprador?.nome).filter(Boolean))].sort().forEach(c=>{const o=document.createElement('option');o.textContent=c;s.appendChild(o);});
-  renderTotais(); render(); renderBanner();
+  await carregarFin(); renderTotais(); render(); renderBanner();
 }
 function renderBanner(){
   const novos=LISTA.filter(p=>p.alerta_novo&&p.status==='sugestao');
@@ -174,6 +175,38 @@ async function removerTestesXml(){
 const XML_ST={aguardando:'Aguardando conferência XML',parcial:'XML parcial',conciliado:'Conciliado XML',consistencia:'Consistência XML'};
 const XML_PROB={falta:'falta',a_mais:'veio a mais',nao_pedido:'item não pedido',preco:'preço',sem_boleto:'sem boleto',boleto:'boleto ≠ NF-e',valor:'valor ≠ esperado'};
 const probTxt=a=>(a||[]).map(t=>XML_PROB[t]||t).join(', ');
+// o que fazer em cada tipo de problema (quem resolve)
+const O_QUE_FAZER={
+  falta:['Compradora','Já virou sugestão de ruptura. Decida se reenvia ao vendedor ou deixa pra próxima lista.'],
+  a_mais:['Recebimento','Aceitar o excedente ou recusar na portaria antes de a nota entrar no ERP.'],
+  nao_pedido:['Recebimento','Item que não estava no pedido: recusar na entrega ou aceitar e registrar. Sem ação, entra no custo como se fosse pedido.'],
+  preco:['Compradora + Financeiro','Preço do XML maior que o digitado: cobrar do vendedor nota de crédito ou desconto no boleto. Não pagar o preço errado.'],
+  boleto:['Financeiro','Boletos não batem com a NF-e: não pagar até o fornecedor corrigir.'],
+  sem_boleto:['Compradora','Pedir o boleto/duplicata ao vendedor antes do vencimento.'],
+  valor:['Compradora','Valor da NF-e diferente do esperado: conferir frete, IPI, ST ou desconto que não estava combinado.']
+};
+function msgCobranca(p,ln,x){
+  const L=[];
+  L.push('Olá'+(p.vendedor?.nome?' '+p.vendedor.nome:'')+', conferimos a NF-e do pedido #'+p.id+' ('+p.lista_nome+') na Loja '+ln+' · '+(LOJAS_NOMES[ln]||'')+' (ECONOMICO SUPERMERCADO - REDE CAHU) e encontramos:');
+  for(const n of x.notas||[]) L.push('• NF-e '+n.nNota+' de '+n.data.split('-').reverse().join('/')+' · R$ '+fmt(n.valorNFE,2)+(n.boletos?.length?' · boletos: '+n.boletos.map(b=>'R$ '+fmt(b.valor,2)+' venc. '+b.vencimento.split('-').reverse().join('/')).join(', '):' · SEM boleto no XML'));
+  for(const i of x.itens||[]){
+    if(i.tipo==='falta') L.push('• '+i.descricao+': pedimos '+fmt(i.pedida,0)+', não veio.');
+    else if(i.tipo==='parcial') L.push('• '+i.descricao+': pedimos '+fmt(i.pedida,0)+', veio '+fmt(i.recebida,0)+'.');
+    else if(i.tipo==='a_mais') L.push('• '+i.descricao+': pedimos '+fmt(i.pedida,0)+', veio '+fmt(i.recebida,0)+' (a mais).');
+    if(i.preco_status==='maior') L.push('• '+i.descricao+': preço combinado R$ '+fmt(i.preco_digitado,2)+', cobrado R$ '+fmt(i.preco_xml,2)+' × '+fmt(i.recebida,0)+' = R$ '+fmt((i.preco_xml-i.preco_digitado)*i.recebida,2)+' a mais.');
+  }
+  for(const i of x.nao_pedidos||[]) L.push('• '+i.descricao+': veio '+fmt(i.recebida,0)+' e não estava no pedido.');
+  const f=x.financeiro||{}; if(f.boletos&&Math.abs(f.boletos-f.nfe)>0.01) L.push('• Boletos somam R$ '+fmt(f.boletos,2)+' e a NF-e é R$ '+fmt(f.nfe,2)+'.');
+  L.push('Por favor, nos retorne com a correção (nota de crédito, boleto ajustado ou reposição). Obrigado!');
+  return L.join('\n');
+}
+function wppTexto(p,texto){const w=(p.vendedor?.whats||'').replace(/\D/g,'');const m=encodeURIComponent(texto);return w.length>=10?'https://wa.me/55'+w+'?text='+m:'https://wa.me/?text='+m;}
+async function aceitarLoja(id,ln){
+  const motivo=prompt('Aceitar e fechar a Loja '+ln+' do pedido #'+id+' como conciliada.\nMotivo (obrigatório):');
+  if(motivo==null) return; if(motivo.trim().length<5){alert('Escreva o motivo (mínimo 5 letras).');return;}
+  try{const r=await fetch('/api/pedidos-fornecedor/'+id+'/xml/'+ln+'/aceitar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({motivo})});const j=await r.json();if(j.error)throw new Error(j.error);await carregar();aberto=id+'-'+ln;render();carregarDetalhe(aberto);}
+  catch(e){alert('Erro: '+e.message);}
+}
 const POS_APROV=['aprovado','recebido','recebido_parcial'];   // depois da aprovação: uma linha por loja
 function pillXml(p,ln){
   if(ln){ const x=p.xml?.lojas?.[ln]; const st=x?x.status:'aguardando'; const pr=probTxt(x?.problemas); return '<div><span class="xml '+st+'" title="'+esc(pr)+'">'+(XML_ST[st]||st)+(pr?' · '+esc(pr):'')+'</span></div>'; }
@@ -191,11 +224,32 @@ function linhas(){
 const EM_ANDAMENTO=['sugestao','aguardando','digitacao','finalizado','aprovado','xml_consistencia'];
 function renderTotais(){
   const L=linhas(); const c=k=>L.filter(r=>r._grupo===k).length;
-  const cards=[['andamento','Em andamento',L.filter(r=>EM_ANDAMENTO.includes(r._grupo)).length],['sugestao','Ruptura de entrega',c('sugestao')],['aguardando','Aguardando vendedor',c('aguardando')],['digitacao','Em digitação',c('digitacao')],['finalizado','Aguardando aprovação',c('finalizado')],['aprovado','Aguardando XML',c('aprovado')],['xml_consistencia','Consistência XML',c('xml_consistencia')],['recebido','Conciliados',c('recebido')],['todos','Todos',L.length]];
-  $('#totais').innerHTML=cards.map(([k,l,n])=>'<div class="tkpi'+(filtro===k?' on':'')+'" data-f="'+k+'"><div class="v'+((k==='finalizado'||k==='sugestao'||k==='xml_consistencia')&&n?' neg':'')+'">'+n+'</div><div class="l">'+l+'</div></div>').join('');
+  const cards=[['andamento','Em andamento',L.filter(r=>EM_ANDAMENTO.includes(r._grupo)).length],['sugestao','Ruptura de entrega',c('sugestao')],['aguardando','Aguardando vendedor',c('aguardando')],['digitacao','Em digitação',c('digitacao')],['finalizado','Aguardando aprovação',c('finalizado')],['aprovado','Aguardando XML',c('aprovado')],['xml_consistencia','Consistência XML',c('xml_consistencia')],['recebido','Conciliados',c('recebido')],['financeiro','Financeiro · conferir antes de pagar',FIN.length],['todos','Todos',L.length]];
+  $('#totais').innerHTML=cards.map(([k,l,n])=>'<div class="tkpi'+(filtro===k?' on':'')+'" data-f="'+k+'"><div class="v'+((k==='finalizado'||k==='sugestao'||k==='xml_consistencia'||k==='financeiro')&&n?' neg':'')+'">'+n+'</div><div class="l">'+l+'</div></div>').join('');
   document.querySelectorAll('.tkpi').forEach(t=>t.onclick=()=>{filtro=t.dataset.f;aberto=null;renderTotais();render();});
 }
+let FIN=[];
+async function carregarFin(){ try{const r=await fetch('/api/pedidos-fornecedor/financeiro');FIN=await r.json();if(FIN.error)FIN=[];}catch(e){FIN=[];} }
+function renderFin(){
+  const fl=+($('#fLoja').value||0); const rows=FIN.filter(f=>!fl||f.loja===fl);
+  let h='<div class="banner" style="background:#FFF6D9;border-color:#EFD98F;color:#6B4E00"><div>💰 <b style="color:#6B4E00">Financeiro · não pagar sem conferir.</b> Lojas em que a NF-e do fornecedor veio com boleto diferente da nota, sem boleto, preço maior que o combinado ou valor diferente do esperado. Some daqui quando a compradora aceitar e fechar a loja, ou quando a conferência for refeita e bater.</div><div><button class="btn btn-slate btn-sm" onclick="navigator.clipboard.writeText(textoFin());this.textContent=\'Copiado\'">Copiar aviso</button><a class="btn btn-amber btn-sm" target="_blank" rel="noopener" href="https://wa.me/?text='+encodeURIComponent(textoFin())+'">WhatsApp pro financeiro</a></div></div>';
+  if(!rows.length){$('#view').innerHTML=h+'<div class="empty">Nenhuma pendência financeira na conferência XML.</div>';return;}
+  h+='<div class="table-wrap"><table class="main-t fin-t"><thead><tr><th>Pedido</th><th>Loja</th><th>Fornecedor / lista</th><th>NF-e</th><th>Boletos · vencimentos</th><th class="r">NF-e R$</th><th class="r">Esperado R$</th><th class="r">Boletos R$</th><th>Problema</th><th>O que fazer</th><th>Ação</th></tr></thead><tbody>';
+  for(const f of rows){
+    const fi=f.financeiro||{};
+    h+='<tr><td><b>#'+f.pedido+'</b>'+(f.teste?'<span class="teste">TESTE</span>':'')+'</td><td><span class="lojatag">L'+f.loja+' · '+esc(f.loja_nome)+'</span></td><td class="lc"><div class="nm">'+esc(f.fornecedor||'')+'</div><div class="sub">'+esc(f.lista_nome)+(f.comprador?' · '+esc(f.comprador):'')+'</div></td><td>'+f.notas.map(n=>'<b>'+esc(n.nNota)+'</b> '+n.data.split('-').reverse().join('/')).join('<br>')+'</td><td>'+f.notas.flatMap(n=>n.boletos.map(b=>'dup '+b.dup+' '+b.vencimento.split('-').reverse().join('/')+' <b>'+money2(b.valor)+'</b>')).join('<br>')+(!fi.n_boletos?'<span class="neg">sem boleto</span>':'')+'</td><td class="r">'+money2(fi.nfe)+'</td><td class="r">'+money2(fi.esperado)+'</td><td class="r '+(Math.abs((fi.boletos||0)-(fi.nfe||0))>0.01?'neg':'')+'">'+money2(fi.boletos)+'</td><td>'+f.problemas.map(z=>'<div class="neg">'+esc(z.msg)+'</div>').join('')+(f.preco_maior.length?f.preco_maior.map(i=>'<div class="sub">'+esc(i.descricao)+': '+fmt(i.digitado,2)+' → '+fmt(i.xml,2)+' × '+fmt(i.recebida,0)+' = <b>'+money2(i.dif_total)+'</b> a mais</div>').join(''):'')+'</td><td class="sub">'+[...new Set(f.problemas.map(z=>z.tipo))].map(t=>'<div><b>'+esc((O_QUE_FAZER[t]||['',''])[0])+':</b> '+esc((O_QUE_FAZER[t]||['',''])[1])+'</div>').join('')+'</td><td class="acao"><button class="btn btn-slate btn-sm" style="margin:0" onclick="filtro=\'todos\';renderTotais();aberto=\''+f.pedido+'-'+f.loja+'\';render();carregarDetalhe(aberto)">Abrir</button></td></tr>';
+  }
+  h+='</tbody></table></div>'; $('#view').innerHTML=h;
+}
+function textoFin(){
+  const fl=+($('#fLoja').value||0); const rows=FIN.filter(f=>!fl||f.loja===fl);
+  const L=['NÃO PAGAR SEM CONFERIR · conferência XML dos pedidos (ECONOMICO SUPERMERCADO - REDE CAHU) · '+new Date().toLocaleDateString('pt-BR')];
+  for(const f of rows){ const fi=f.financeiro||{}; L.push('• Pedido #'+f.pedido+' · Loja '+f.loja+' '+f.loja_nome+' · '+f.fornecedor+' · NF-e '+f.notas.map(n=>n.nNota).join('/')+' R$ '+fmt(fi.nfe,2)+' · boletos R$ '+fmt(fi.boletos,2)+(fi.vencimentos?.length?' (venc. '+fi.vencimentos.map(v=>v.split('-').reverse().join('/')).join(', ')+')':'')+' · '+f.problemas.map(z=>z.msg).join('; ')+(f.preco_maior.length?' · preço a mais: R$ '+fmt(f.preco_maior.reduce((a,i)=>a+i.dif_total,0),2):'')); }
+  if(!rows.length) L.push('Nenhuma pendência.');
+  return L.join('\n');
+}
 function render(){
+  if(filtro==='financeiro') return renderFin();
   const q=($('#q').value||'').toLowerCase(), comp=$('#fComp').value, fl=+($('#fLoja').value||0);
   let rows=linhas().filter(r=>filtro==='todos'||(filtro==='andamento'?EM_ANDAMENTO.includes(r._grupo):r._grupo===filtro));
   rows=rows.filter(p=>(!q||p.lista_nome.toLowerCase().includes(q)||(p.fornecedor||'').toLowerCase().includes(q)||(p.vendedor?.nome||'').toLowerCase().includes(q)||String(p.id)===q||String(p.lista)===q)&&(!comp||p.comprador?.nome===comp)&&(!fl||(p._ln?p._ln===fl:p.lojas.includes(fl))));
@@ -279,7 +333,15 @@ function secaoXml(p,LN){
     const TP={ok:'✓ ok',parcial:'parcial',falta:'não veio',a_mais:'veio a mais'};
     for(const i of x.itens) h+='<tr class="'+(i.tipo==='ok'?'':'zero')+'"><td class="desc">'+esc(i.descricao)+'<span class="cod">'+esc(i.cod)+'</span></td><td class="r">'+fmt(i.pedida,0)+'</td><td class="r"><b>'+fmt(i.recebida,0)+'</b></td><td class="r '+(i.dif<0?'neg':(i.dif>0?'pos':''))+'">'+(i.dif?(i.dif>0?'+':'')+fmt(i.dif,0):'')+'</td><td class="tp-'+i.tipo+'">'+(TP[i.tipo]||i.tipo)+'</td><td class="r">'+(i.preco_digitado!=null?fmt(i.preco_digitado,2):'<span class="mut">—</span>')+'</td><td class="r"><b>'+(i.preco_xml!=null?fmt(i.preco_xml,2):'—')+'</b></td><td class="r">'+(i.preco_status?(i.preco_status==='ok'?'<span class="arw eq">=</span>':seta(i.preco_xml,i.preco_digitado,true)):'')+'</td></tr>';
     for(const i of (x.nao_pedidos||[])) h+='<tr><td class="desc">'+esc(i.descricao)+'<span class="cod">'+esc(i.cod)+'</span></td><td class="r">—</td><td class="r"><b>'+fmt(i.recebida,0)+'</b></td><td class="r"></td><td class="tp-nao_pedido">não pedido</td><td class="r">—</td><td class="r"><b>'+(i.preco_xml!=null?fmt(i.preco_xml,2):'—')+'</b></td><td></td></tr>';
-    h+='</tbody></table></div></div>';
+    h+='</tbody></table></div>';
+    if(x.aceito) h+='<div class="aceito">✓ Aceito e fechado por <b>'+esc(x.aceito.por||'—')+'</b> em '+new Date(x.aceito.em).toLocaleString('pt-BR')+' · motivo: <b>'+esc(x.aceito.motivo)+'</b>'+(x.aceito.problemas?.length?' · tinha: '+esc(probTxt(x.aceito.problemas.map(z=>z.tipo)))+'':'')+'</div>';
+    if(x.status==='consistencia'){
+      const tipos=[...new Set((x.problemas||[]).map(z=>z.tipo))];
+      h+='<div class="oq">'+tipos.map(t=>{const o=O_QUE_FAZER[t]||['—',''];return '<div><span class="t">'+esc(XML_PROB[t]||t)+' · '+esc(o[0])+'</span>'+esc(o[1])+'</div>';}).join('')+'</div>';
+      const cobrar=tipos.some(t=>['preco','boleto','sem_boleto','valor','falta','a_mais','nao_pedido'].includes(t));
+      h+='<div class="xacoes">'+(cobrar?'<a class="btn btn-amber btn-sm" target="_blank" rel="noopener" href="'+wppTexto(p,msgCobranca(p,ln,x))+'" onclick="event.stopPropagation()" title="Abre o WhatsApp do vendedor com a lista do que veio errado">Cobrar vendedor</a><button class="btn btn-slate btn-sm" onclick="event.stopPropagation();navigator.clipboard.writeText('+JSON.stringify(msgCobranca(p,ln,x)).replace(/"/g,'&quot;')+');this.textContent=\'Copiado\'">Copiar texto</button>':'')+'<button class="btn btn-green btn-sm" onclick="event.stopPropagation();aceitarLoja('+p.id+','+ln+')" title="Marca esta loja como conciliada, com motivo e registro de quem aceitou">Aceitar e fechar Loja '+ln+'</button><span>Aceitar fecha só esta loja; o pedido fecha quando todas as lojas estiverem conciliadas.</span></div>';
+    }
+    h+='</div>';
   }
   return h;
 }

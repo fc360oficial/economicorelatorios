@@ -6400,6 +6400,19 @@ app.post('/api/pedidos-fornecedor/testes-xml', async (req, res) => {
   try { const ids = pedidosFornec.criarTestesXml(req.session.user?.nome || null); const r = await pedidosFornec.verificarRecebimentos(); res.json({ criados: ids, conferencia: r }); }
   catch (err) { res.status(500).json({ error: err.message }); }
 });
+// Financeiro: lojas com problema de pagamento na conferência XML (não pagar sem conferir)
+app.get('/api/pedidos-fornecedor/financeiro', (req, res) => {
+  try { res.json(pedidosFornec.financeiroAlertas()); } catch (err) { res.status(500).json({ error: err.message }); }
+});
+// Compradora aceita e fecha a consistência de uma loja (motivo obrigatório)
+app.post('/api/pedidos-fornecedor/:id/xml/:loja/aceitar', (req, res) => {
+  try {
+    const r = pedidosFornec.aceitarLojaXml(parseInt(req.params.id), parseInt(req.params.loja), req.body?.motivo, req.session.user?.nome || null);
+    if (!r) return res.status(404).json({ error: 'Pedido não encontrado' });
+    if (r.erro) return res.status(400).json({ error: r.erro });
+    res.json({ ok: true, status: r.status, xml: r.xml.status });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 app.post('/api/pedidos-fornecedor/testes-xml/remover', (req, res) => {
   try { res.json({ removidos: pedidosFornec.removerTestesXml() }); } catch (err) { res.status(500).json({ error: err.message }); }
 });
