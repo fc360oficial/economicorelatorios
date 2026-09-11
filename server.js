@@ -3285,9 +3285,10 @@ app.get('/api/listas-compra/:id/margem', async (req, res) => {
 // Itens ATIVOS de cada lista com cadastro incompleto no ERP, em 3 critérios
 // (decididos com o Tiago em 11/09/2026):
 //  - sem margem VAREJO  : itens_margens.MargemVarejo  NULL/0 em alguma loja marcada no item (l1..l6)
-//  - sem margem ATACADO : itens_margens.MargemAtacado NULL/0 em alguma loja marcada no item
+//  - sem margem ATACADO : só Loja 4 (pedido do Tiago 11/09): item com l4=1 e itens_margens.MargemAtacado NULL/0 na loja 4
 //  - L4 sem múltiplo    : item marcado na Loja 4 (l4=1) com itens.q4 NULL/0
 // Item sem loja nenhuma marcada não é avaliado (já aparece como "sem loja" na aba principal).
+// Produto de balança (itens.TipoBalanca = 'P') fica fora de tudo (pedido do Tiago 11/09).
 // Só leitura no ERP.
 async function coletarCadastroPendente(listaId) {
   const filtroLista = listaId ? 'AND i.nCotacao = ?' : '';
@@ -3298,6 +3299,7 @@ async function coletarCadastroPendente(listaId) {
              i.l1, i.l2, i.l3, i.l4, i.l5, i.l6, it.q4
       FROM central.c_cotacao_lista_itens i
       INNER JOIN central.itens it ON it.CodigoBarra = i.Codigobarra AND it.CodDesativado = 0
+        AND IFNULL(it.TipoBalanca,'') <> 'P'
       WHERE (i.l1=1 OR i.l2=1 OR i.l3=1 OR i.l4=1 OR i.l5=1 OR i.l6=1) ${filtroLista}
     `, params),
     q(`SELECT CodigoBarra, nLoja, MargemVarejo, MargemAtacado FROM central.itens_margens WHERE nLoja BETWEEN 1 AND 6`)
@@ -3325,8 +3327,9 @@ async function coletarCadastroPendente(listaId) {
       margem_varejo[lj] = m.varejo ?? null;
       margem_atacado[lj] = m.atacado ?? null;
       if (falta(m.varejo)) lojas_sem_varejo.push(lj);
-      if (falta(m.atacado)) lojas_sem_atacado.push(lj);
     }
+    // atacado só importa na Loja 4 (única com preço de atacado na prática)
+    if (lojas.includes(4) && falta(margem_atacado[4])) lojas_sem_atacado.push(4);
     const q4 = parseFloat(r.q4 || 0);
     const sem_multiplo_l4 = lojas.includes(4) && !(q4 > 0);
     const problemas = [];

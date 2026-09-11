@@ -399,7 +399,7 @@ table.comp-t tr:hover td{background:#ffffff05}
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
       <div id="pend-kpi" style="display:flex;gap:12px;flex-wrap:wrap"></div>
       <div style="font-size:11px;color:#4E5A72;max-width:560px">
-        Só produtos <b>ativos</b> com loja marcada na lista. <b>Sem margem</b> = margem varejo/atacado vazia ou 0% em alguma loja em que o item está marcado (cadastro do ERP, por loja). <b>L4 sem múltiplo</b> = item marcado na Loja 4 sem quantidade de atacado cadastrada.
+        Só produtos <b>ativos</b> com loja marcada na lista; <b>produto de balança fica fora</b>. <b>Sem margem varejo</b> = vazia ou 0% em alguma loja em que o item está marcado. <b>Sem margem atacado</b> e <b>L4 sem múltiplo</b> = só itens marcados na Loja 4, sem margem de atacado / sem quantidade de atacado cadastrada nela.
       </div>
     </div>
     <div class="table-wrap">
@@ -409,9 +409,9 @@ table.comp-t tr:hover td{background:#ffffff05}
             <th style="width:30px">#</th>
             <th>Lista / Fornecedor</th>
             <th>Comprador</th>
-            <th class="r" title="Itens ativos com loja marcada">Itens</th>
+            <th class="r" title="Itens ativos com loja marcada, sem produto de balança">Itens</th>
             <th class="r" title="Itens sem margem varejo em alguma loja marcada">Sem margem varejo</th>
-            <th class="r" title="Itens sem margem atacado em alguma loja marcada">Sem margem atacado</th>
+            <th class="r" title="Itens marcados na Loja 4 sem margem atacado cadastrada nela">Sem margem atacado (L4)</th>
             <th class="r" title="Itens marcados na Loja 4 sem múltiplo de atacado (q4)">L4 sem múltiplo</th>
             <th class="r" title="Itens com pelo menos uma pendência">Com pendência</th>
           </tr>
@@ -1282,7 +1282,7 @@ async function carregarPendente() {
     <div class="d-kpi"><div class="dv">${fmtN(lista.length)}</div><div class="dl">Listas com pendência${comprador ? ' · ' + comprador : ''}</div></div>
     <div class="d-kpi"><div class="dv" style="color:#C22F49">${fmtN(soma('com_pendencia'))}</div><div class="dl">Itens com pendência</div></div>
     <div class="d-kpi"><div class="dv">${fmtN(soma('sem_varejo'))}</div><div class="dl">Sem margem varejo</div></div>
-    <div class="d-kpi"><div class="dv">${fmtN(soma('sem_atacado'))}</div><div class="dl">Sem margem atacado</div></div>
+    <div class="d-kpi"><div class="dv">${fmtN(soma('sem_atacado'))}</div><div class="dl">Sem margem atacado (L4)</div></div>
     <div class="d-kpi"><div class="dv">${fmtN(soma('sem_multiplo_l4'))}</div><div class="dl">Loja 4 sem múltiplo</div></div>`;
   if (!lista.length) {
     tbody.innerHTML = '<tr><td colspan="8" class="empty">Nenhuma lista com pendência de cadastro' + (comprador ? ' para ' + comprador : '') + '. 🎉</td></tr>';
@@ -1353,14 +1353,14 @@ function renderPendenteDrawer() {
     <div class="d-kpis">
       <div class="d-kpi"><div class="dv" style="color:#C22F49">${fmtN(l.com_pendencia || 0)}</div><div class="dl">Itens com pendência · de ${fmtN(l.total_itens || 0)} ativos</div></div>
       <div class="d-kpi"><div class="dv">${fmtN(l.sem_varejo || 0)}</div><div class="dl">Sem margem varejo</div></div>
-      <div class="d-kpi"><div class="dv">${fmtN(l.sem_atacado || 0)}</div><div class="dl">Sem margem atacado</div></div>
+      <div class="d-kpi"><div class="dv">${fmtN(l.sem_atacado || 0)}</div><div class="dl">Sem margem atacado (L4)</div></div>
       <div class="d-kpi"><div class="dv">${fmtN(l.sem_multiplo_l4 || 0)}</div><div class="dl">Loja 4 sem múltiplo</div></div>
       ${l.compradores ? `<div class="d-kpi"><div class="dv" style="font-size:12px;color:#6B4E00">${l.compradores}</div><div class="dl">Comprador</div></div>` : ''}
     </div>
     <div style="padding:8px 18px;border-bottom:1px solid #DADAD6;background:#fff;display:flex;gap:6px;flex-wrap:wrap" class="no-print">
       ${ftab('todos', 'Todos', _pendItens.length)}
       ${ftab('varejo', 'Sem margem varejo', l.sem_varejo || 0)}
-      ${ftab('atacado', 'Sem margem atacado', l.sem_atacado || 0)}
+      ${ftab('atacado', 'Sem margem atacado (L4)', l.sem_atacado || 0)}
       ${ftab('multiplo_l4', 'L4 sem múltiplo', l.sem_multiplo_l4 || 0)}
     </div>`;
   if (!itens.length) { body.innerHTML = kpi + '<div class="empty">Nenhum item nesse filtro.</div>'; return; }
@@ -1382,7 +1382,7 @@ function renderPendenteDrawer() {
       <td class="desc"><span class="prod-desc-link" onclick="abrirDetalheProduto(${escAttr(it.codigo)},${escAttr(it.descricao || '—')})" title="Ver última entrada, última venda e estoque">${it.descricao || '—'}</span></td>
       <td class="c">${it.lojas.map(n => `<span class="loja-badge">L${n}</span>`).join('')}</td>
       <td class="pend-mg">${mg(it.margem_varejo, it.lojas_sem_varejo)}</td>
-      <td class="pend-mg">${mg(it.margem_atacado, it.lojas_sem_atacado)}</td>
+      <td class="pend-mg">${it.lojas.includes(4) ? mg({4: it.margem_atacado[4]}, it.lojas_sem_atacado) : '<span style="color:#98A0B3">n/a</span>'}</td>
       <td class="c">${it.lojas.includes(4) ? (it.atacado_qtd_l4 ? `≥ ${fmtN(it.atacado_qtd_l4)} un` : '<b style="color:#C22F49">—</b>') : '<span style="color:#98A0B3">n/a</span>'}</td>
       <td>${tags(it)}</td>
     </tr>`).join('');
@@ -1390,7 +1390,7 @@ function renderPendenteDrawer() {
     <thead><tr>
       <th>Código</th><th>Descrição</th><th class="c">Lojas</th>
       <th title="Margem varejo cadastrada por loja (itens_margens). Em vermelho: falta.">Margem varejo</th>
-      <th title="Margem atacado cadastrada por loja (itens_margens). Em vermelho: falta.">Margem atacado</th>
+      <th title="Margem atacado cadastrada na Loja 4 (itens_margens). Em vermelho: falta.">Margem atacado L4</th>
       <th class="c" title="Quantidade a partir da qual ativa o preço de atacado na Loja 4 (itens.q4)">Múltiplo L4</th>
       <th>Pendências</th>
     </tr></thead><tbody>${rows}</tbody></table></div>`;

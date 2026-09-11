@@ -10,10 +10,11 @@ e permitir abrir a lista pra ver exatamente quais itens e qual é o problema. S�
 Para cada item ATIVO (`itens.CodDesativado = 0`) de cada lista (`c_cotacao_lista_itens`):
 1. **Sem margem varejo** — em alguma loja em que o item está marcado na lista (`i.l1..l6 = 1`),
    `itens_margens.MargemVarejo` (por `nLoja`) é NULL ou 0.
-2. **Sem margem atacado** — mesma regra, com `itens_margens.MargemAtacado`.
+2. **Sem margem atacado** — só itens com `i.l4 = 1`; `itens_margens.MargemAtacado` da loja 4 NULL ou 0 (ajuste do Tiago em 11/09: atacado só existe na Loja 4).
 3. **Loja 4 sem múltiplo de atacado** — só itens com `i.l4 = 1`; `itens.q4` NULL ou 0.
 
 Item sem nenhuma loja marcada (l1..l6 = 0) não é avaliado (já aparece como "sem loja" na aba atual).
+Produto de balança (`itens.TipoBalanca = 'P'`) fica fora de todos os critérios.
 Margem zero conta como pendente (cadastro existe mas nunca foi preenchido).
 
 ## Backend (`server.js`, ao lado das rotas `/api/listas-compra`)
