@@ -6405,12 +6405,12 @@ app.post('/api/pedidos-fornecedor/testes-xml/remover', (req, res) => {
 });
 app.get('/api/pedidos-fornecedor', (req, res) => {
   res.json(pedidosFornec.listar().map(p => ({ id: p.id, lista: p.lista, lista_nome: p.lista_nome, fornecedor: p.fornecedor, vendedor: p.vendedor, comprador: p.comprador, status: p.status, aprovadoEm: p.aprovadoEm || null, aprovadoPor: p.aprovadoPor || null, recebidoEm: p.recebidoEm || null, origem: p.origem || null, alerta_novo: !!p.alerta_novo,
-    recebimento: p.recebimento ? Object.fromEntries(Object.entries(p.recebimento).map(([l, r]) => [l, { faltas: r.faltas, itens_pedidos: r.itens_pedidos, notas: r.notas.map(n => n.nNota) }])) : null, criadoEm: p.criadoEm, criadoPor: p.criadoPor, abertoEm: p.abertoEm, finalizadoEm: p.finalizadoEm, lojas: p.lojas, totais: p.totais, link: linkPedido(p), teste: !!p.teste, xml: p.xml ? { status: p.xml.status, verificadoEm: p.xml.verificadoEm || null, lojas: Object.fromEntries(Object.entries(p.xml.lojas || {}).map(([l, x]) => [l, { status: x.status, problemas: (x.problemas || []).map(z => z.tipo), notas: (x.notas || []).length }])) } : null })));
+    recebimento: p.recebimento ? Object.fromEntries(Object.entries(p.recebimento).map(([l, r]) => [l, { faltas: r.faltas, itens_pedidos: r.itens_pedidos, notas: r.notas.map(n => n.nNota) }])) : null, criadoEm: p.criadoEm, criadoPor: p.criadoPor, abertoEm: p.abertoEm, finalizadoEm: p.finalizadoEm, lojas: p.lojas, totais: p.totais, por_loja: pedidosFornec.porLoja(p), link: linkPedido(p), teste: !!p.teste, xml: p.xml ? { status: p.xml.status, verificadoEm: p.xml.verificadoEm || null, lojas: Object.fromEntries(Object.entries(p.xml.lojas || {}).map(([l, x]) => [l, { status: x.status, problemas: (x.problemas || []).map(z => z.tipo), notas: (x.notas || []).length }])) } : null })));
 });
 app.get('/api/pedidos-fornecedor/:id', (req, res) => {
   const p = pedidosFornec.obter(parseInt(req.params.id));
   if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
-  res.json({ ...p, link: linkPedido(p) });
+  res.json({ ...p, por_loja: pedidosFornec.porLoja(p), link: linkPedido(p) });
 });
 
 app.post('/api/pedidos-fornecedor/:id/aprovar', (req, res) => {
@@ -6448,18 +6448,20 @@ app.post('/api/pedidos-fornecedor/:id/cancelar', (req, res) => {
 app.get('/api/pedidos-fornecedor/:id/pdf', (req, res) => {
   const p = pedidosFornec.obter(parseInt(req.params.id));
   if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
-  let f = pedidosFornec.caminhoPdf(p.id);
-  if (!f || req.query.refazer === '1') { try { f = pedidosFornec.gerarPdf(p); } catch (e) { return res.status(500).json({ error: e.message }); } }
-  setTimeout(() => res.sendFile(f, { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="pedido-${p.id}.pdf"` } }), 150);
+  const ln = parseInt(req.query.loja) || 0;   // ?loja=N → PDF só daquela loja
+  let f = pedidosFornec.caminhoPdf(p.id, ln);
+  if (!f || req.query.refazer === '1') { try { f = pedidosFornec.gerarPdf(p, ln); } catch (e) { return res.status(500).json({ error: e.message }); } }
+  setTimeout(() => res.sendFile(f, { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="pedido-${p.id}${ln ? '-L' + ln : ''}.pdf"` } }), 150);
 });
 // PDF público pelo token (link que vai no WhatsApp pro vendedor/comprador) — só pedido aprovado ou posterior
 app.get('/pedido/:token/pdf', (req, res) => {
   const p = pedidosFornec.porToken(req.params.token);
   if (!p) return res.status(404).send('Pedido não encontrado');
   if (!['aprovado', 'recebido', 'recebido_parcial'].includes(p.status)) return res.status(403).send('O PDF só fica disponível depois que o pedido é aprovado.');
-  let f = pedidosFornec.caminhoPdf(p.id);
-  if (!f) { try { f = pedidosFornec.gerarPdf(p); } catch (e) { return res.status(500).send(e.message); } }
-  setTimeout(() => res.sendFile(f, { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="pedido-${p.id}.pdf"` } }), 150);
+  const ln = parseInt(req.query.loja) || 0;
+  let f = pedidosFornec.caminhoPdf(p.id, ln);
+  if (!f) { try { f = pedidosFornec.gerarPdf(p, ln); } catch (e) { return res.status(500).send(e.message); } }
+  setTimeout(() => res.sendFile(f, { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="pedido-${p.id}${ln ? '-L' + ln : ''}.pdf"` } }), 150);
 });
 
 // --- lado do vendedor (público por token; ver bypass no middleware de auth) ---
