@@ -335,15 +335,15 @@ async function carregarItens(id){
     // guarda as quantidades calculadas pra poder alternar "Só curva A" / "Lista completa"
     for(const i of j.itens){ i._calc={...i.lojas_qtd}; const ed=EDITS[id]?.[i.cod]; if(ed) for(const [ln,v] of Object.entries(ed)) i.lojas_qtd[ln]=v; recalcItem(i); }
     DETALHES[id]=j; if(!MODO[id]) MODO[id]='completa'; aplicarModo(id,MODO[id],false);
-    const nRisco=j.itens.filter(i=>i.risco_a).length, nA=j.itens.filter(i=>i.curva_a).length;
+    const nRisco=j.itens.filter(i=>i.risco_a).length, nA=j.itens.filter(i=>i.bloco_a).length;
     let h='<div class="hd"><div><b class="lnk" title="Abrir cadastro da lista no ERP (fornecedor, vendedor, comprador, prazo)" onclick="event.stopPropagation();abrirCadastro('+id+')">'+esc(L.nome)+' ↗</b>'+(L.pedidoMinimo?' · pedido mínimo R$ '+fmt(L.pedidoMinimo,0):'')+(j.gatilho==='curva_a'?' · <span class="pill p-a">antecipada por curva A</span> <span style="opacity:.8">era pra '+j.fazer_em_lista+' d pela regra dos 10% da venda</span>':'')+'</div>'+
       '<div id="hdr-'+id+'">'+hdResumo(id)+'</div></div>';
     h+='<div style="overflow-x:auto"><table><thead><tr><th>Produto</th><th class="r">Venda/dia</th><th class="r">Estoque</th><th class="r">Trânsito</th><th class="r">Cobertura</th><th class="r">Alvo</th>'+LJ.map(ln=>'<th class="r lj" title="Quantidade a pedir na loja '+ln+'">L'+ln+'</th>').join('')+'<th class="r">Pedir (total)</th><th class="r">Total</th></tr></thead><tbody>';
     const NC=LJ.length+8;
-    if(nA) h+='<tr class="sec'+(nRisco?' a':'')+'"><td colspan="'+NC+'">'+(nRisco?'Curva A em risco · '+nRisco+' de '+nA+' produto'+(nA>1?'s':'')+' A · em vermelho quem zera antes do dia da lista ou está no ponto de pedido (margem 1 d)':'Curva A da lista · '+nA+' produto'+(nA>1?'s':'')+' · nenhum em risco hoje')+'</td></tr>';
+    if(nA) h+='<tr class="sec'+(nRisco?' a':'')+'"><td colspan="'+NC+'">'+(nRisco?'Curva A em risco · '+nRisco+' de '+nA+' produto'+(nA>1?'s':'')+' A a pedir · em vermelho quem zera antes do dia da lista ou está no ponto de pedido (margem 1 d)':'Curva A a pedir · '+nA+' produto'+(nA>1?'s':'')+' · nenhum em risco hoje')+'</td></tr>';
     let secLista=false;
     for(const i of j.itens){
-      if(nA&&!i.curva_a&&!secLista){secLista=true;const nF=j.itens.filter(x=>!x.curva_a&&x.zera_antes).length;h+='<tr class="sec"><td colspan="'+NC+'">Demais itens da lista · '+(j.itens.length-nA)+' produtos'+(nF?' · <span class="neg">'+nF+' zera'+(nF>1?'m':'')+' antes da data da lista</span>':'')+(MODO[id]==='curva_a'?' · <b>zerados no modo "Só curva A"</b>':'')+'</td></tr>';}
+      if(nA&&!i.bloco_a&&!secLista){secLista=true;const nF=j.itens.filter(x=>!x.bloco_a&&x.zera_antes).length;h+='<tr class="sec"><td colspan="'+NC+'">Demais itens da lista · '+(j.itens.length-nA)+' produtos'+(nF?' · <span class="neg">'+nF+' zera'+(nF>1?'m':'')+' antes da data da lista</span>':'')+(MODO[id]==='curva_a'?' · <b>zerados no modo "Só curva A"</b>':'')+'</td></tr>';}
       const obs=[]; if(i.risco_a)obs.push(i.cobertura_dias<j.fazer_em_lista?'curva A: zera em '+fmt(i.cobertura_dias,0)+' d, lista era em '+j.fazer_em_lista+' d':'curva A: no ponto de pedido'); else if(i.zera_antes)obs.push('<span class="neg">zera em '+fmt(i.cobertura_dias,0)+' d, antes da lista ('+j.fazer_em_lista+' d)</span>'); else if(i.curva_a)obs.push('curva A'); if(i.flag==='piso')obs.push('piso: 1 ciclo'); if(i.flag==='teto')obs.push('TETO: conferir'); if(i.estoque_bruto<0)obs.push('estoque negativo no ERP'); if(i.validade&&i.alvo_dias&&i.alvo_dias<P.alvoLista-0.05)obs.push('validade '+i.validade+'d'); if(i.venda_dia===0)obs.push('sem venda');
       h+='<tr class="'+(i.qtd>0?'pede':'zero')+(i.risco_a?' risco':(i.zera_antes?' falta':''))+'"><td class="desc">'+(i.curva_a?'<span class="pill '+(i.risco_a?'p-a':'p-a soft')+'" style="font-size:9px;padding:1px 5px;margin-right:4px" title="Curva A · posição '+i.rank_a+' na venda">A</span>':'')+esc(i.descricao)+'<span class="cod">'+esc(i.cod)+' · L'+i.lojas.join(' L')+'</span>'+(obs.length?'<div class="obsl">'+obs.join(' · ')+'</div>':'')+'</td><td class="r">'+fmt(i.venda_dia,2)+'</td><td class="r">'+fmt(i.estoque,0)+'</td><td class="r">'+(i.transito?fmt(i.transito,0)+'<div class="s2">'+Object.entries(i.lojas_det||{}).filter(([,d])=>d.transito>0).map(([l,d])=>'L'+l+': '+fmt(d.transito,0)).join(' · ')+'</div>':'<span class="mut">—</span>')+'</td>'+
         '<td class="r '+(i.abaixo_ponto?'neg':'')+'">'+(i.cobertura_dias==null?'—':fmt(i.cobertura_dias,0)+' d')+'</td><td class="r">'+(i.alvo_dias?fmt(i.alvo_dias,0)+' d':'—')+'</td>'+
@@ -359,7 +359,7 @@ function recalcItem(it){ it.qtd=Object.values(it.lojas_qtd).reduce((s,x)=>s+(x||
 function recalcLista(j){ j.total=+j.itens.reduce((a,i)=>a+i.total,0).toFixed(2); j.volumes=j.itens.reduce((a,i)=>a+i.volumes,0); }
 // resumo do cabeçalho do detalhe (re-renderizado a cada edição / troca de modo)
 function hdResumo(id){
-  const j=DETALHES[id]; if(!j) return ''; const P=j.params, L=j.lista, pede=j.itens.filter(i=>i.qtd>0).length, nRisco=j.itens.filter(i=>i.curva_a).length;
+  const j=DETALHES[id]; if(!j) return ''; const P=j.params, L=j.lista, pede=j.itens.filter(i=>i.qtd>0).length, nRisco=j.itens.filter(i=>i.bloco_a).length;
   const min=L.pedidoMinimo&&j.total>0&&j.total<L.pedidoMinimo?' <span class="minimo" title="Total abaixo do pedido mínimo do fornecedor (R$ '+fmt(L.pedidoMinimo,0)+'). Complete com itens do bloco de baixo ou combine com o vendedor.">abaixo do mínimo (R$ '+fmt(L.pedidoMinimo,0)+')</span>':'';
   const modo=nRisco?'<span class="modo" title="Só curva A: pede apenas os produtos de curva A da lista (bloco de cima). Lista completa: pede tudo que o radar calculou pra hoje."><button class="'+(MODO[id]==='curva_a'?'on':'')+'" onclick="event.stopPropagation();aplicarModo('+id+',\'curva_a\',true)">Só curva A</button><button class="'+(MODO[id]!=='curva_a'?'on':'')+'" onclick="event.stopPropagation();aplicarModo('+id+',\'completa\',true)">Lista completa</button></span> ':'';
   return (P?'ponto <b>'+fmt(P.ponto)+'d</b> · alvo <b>'+fmt(P.alvoLista)+'d</b> · ciclo <b>'+fmt(P.ciclo)+'d</b> · ':'')+'fazer em <b>'+(j.fazer_em===0?'HOJE':j.fazer_em+' dias ('+br(j.data)+')')+'</b> · '+pede+(pede===1?' item':' itens')+' · '+j.volumes+' volumes · <b>'+money(j.total)+'</b>'+min+' '+modo+'<button class="btn btn-amber btn-sm" onclick="event.stopPropagation();gerarPedido('+id+')">Gerar pedido</button>';
@@ -369,7 +369,7 @@ const MODO={};
 function aplicarModo(id,modo,rerender){
   const j=DETALHES[id]; if(!j) return; MODO[id]=modo;
   for(const i of j.itens){
-    if(i.curva_a) continue;
+    if(i.bloco_a) continue;
     if(modo==='curva_a'){ for(const ln of Object.keys(i.lojas_qtd)) i.lojas_qtd[ln]=0; }
     else { const ed=EDITS[id]?.[i.cod]; i.lojas_qtd={...i._calc}; if(ed) for(const [ln,v] of Object.entries(ed)) i.lojas_qtd[ln]=v; }
     recalcItem(i);
@@ -504,7 +504,7 @@ function gerarPedido(id){
   const j=DETALHES[id]; if(!j) return;
   const L=j.lista, LJ=[...new Set(j.itens.flatMap(i=>i.lojas))].sort((a,b)=>a-b);
   const hoje=new Date().toLocaleDateString('pt-BR');
-  const top='<div class="pv-top"><div><div class="eyebrow-pv">PRÉVIA · NÃO ENVIADO · NÃO GRAVADO</div><h2>Pedido · '+esc(L.nome)+'</h2><div class="pv-sub">'+esc(L.fornecedor||'')+' · gerado em '+hoje+' · teto '+($('#fTeto').value||28)+' d · embalagem real '+($('#fEmb').value===''?24:$('#fEmb').value)+' m'+(L.pedidoMinimo?' · pedido mínimo R$ '+fmt(L.pedidoMinimo,0):'')+(MODO[id]==='curva_a'?' · <b style="color:#C22F49">SÓ CURVA A</b>':(j.itens.some(i=>i.risco_a)?' · lista completa (inclui '+j.itens.filter(i=>i.curva_a).length+' de curva A)':''))+'</div></div><div class="pv-acts"><button class="btn btn-slate" onclick="window.print()">Imprimir</button><button class="btn btn-amber" onclick="fecharPedido()">Fechar</button></div></div>';
+  const top='<div class="pv-top"><div><div class="eyebrow-pv">PRÉVIA · NÃO ENVIADO · NÃO GRAVADO</div><h2>Pedido · '+esc(L.nome)+'</h2><div class="pv-sub">'+esc(L.fornecedor||'')+' · gerado em '+hoje+' · teto '+($('#fTeto').value||28)+' d · embalagem real '+($('#fEmb').value===''?24:$('#fEmb').value)+' m'+(L.pedidoMinimo?' · pedido mínimo R$ '+fmt(L.pedidoMinimo,0):'')+(MODO[id]==='curva_a'?' · <b style="color:#C22F49">SÓ CURVA A</b>':(j.itens.some(i=>i.risco_a)?' · lista completa (inclui '+j.itens.filter(i=>i.bloco_a).length+' de curva A)':''))+'</div></div><div class="pv-acts"><button class="btn btn-slate" onclick="window.print()">Imprimir</button><button class="btn btn-amber" onclick="fecharPedido()">Fechar</button></div></div>';
   let h='';
   let totalGeral=0, volGeral=0, resumo=[];
   for(const ln of LJ){
