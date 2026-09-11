@@ -28,7 +28,7 @@ body{font-family:'InterVar','Segoe UI',sans-serif;background:#EBEBE9;color:#0E16
 .btn:disabled{opacity:.5;cursor:default}
 .totais{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px}
 .tkpi{background:#FFFFFF;border:1px solid #DADAD6;border-radius:10px;padding:11px 16px}
-.tkpi .v{font-size:19px;font-weight:800;letter-spacing:-.3px}
+.tkpi .v{font-size:19px;font-weight:800;letter-spacing:-.3px;white-space:nowrap}
 .tkpi .v small{font-size:11px;color:#98A0B3;font-weight:600;margin-left:3px}
 .tkpi .l{font-size:9.5px;color:#98A0B3;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-top:2px}
 .tkpi .v.pos{color:#137A48}.tkpi .v.neg{color:#C22F49}.tkpi .v.amb{color:#6B4E00}
@@ -208,6 +208,7 @@ table.main-t td.sel input,table.main-t th.sel input{width:15px;height:15px;accen
 const $=s=>document.querySelector(s);
 const fmt=(v,d=1)=>v==null||isNaN(v)?'—':Number(v).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
 const money=v=>v==null?'—':'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:0});
+const moneyK=v=>v==null?'—':Math.abs(v)>=1e6?'R$ '+(v/1e6).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+' mi':Math.abs(v)>=1e5?'R$ '+(v/1e3).toLocaleString('pt-BR',{maximumFractionDigits:0})+' mil':money(v);
 const br=s=>s?s.split('-').reverse().join('/'):'—';
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 let DATA=null, tab='hoje', sortK='fazer_em', sortD=1, aberta=null, SOMBRA=null;
@@ -239,12 +240,12 @@ function renderTotais(){
   const r=DATA.resumo, d=r.estoque_alvo-r.estoque_hoje;
   $('#totais').innerHTML=
     '<div class="tkpi"><div class="v neg">'+r.pedir_hoje+'</div><div class="l">Listas pra fazer hoje</div></div>'+
-    '<div class="tkpi"><div class="v">'+money(r.valor_hoje)+'</div><div class="l">Valor dos pedidos de hoje (custo)</div></div>'+
+    '<div class="tkpi" title="'+money(r.valor_hoje)+'"><div class="v">'+moneyK(r.valor_hoje)+'</div><div class="l">Valor dos pedidos de hoje (custo)</div></div>'+
     '<div class="tkpi"><div class="v amb">'+r.pedir_7d+'</div><div class="l">Listas nos próximos 7 dias</div></div>'+
     '<div class="tkpi" title="Listas cuja data foi puxada porque um produto de curva A zeraria antes do dia previsto"><div class="v '+(r.curva_a_antecipadas?'neg':'')+'">'+(r.curva_a_antecipadas||0)+'</div><div class="l">Antecipadas por curva A'+(DATA.estado.curva_a?' <span class="mut">('+DATA.estado.curva_a.n+' produtos A)</span>':'')+'</div></div>'+
-    '<div class="tkpi"><div class="v">'+money(r.estoque_hoje)+'</div><div class="l">Estoque hoje (custo, itens c/ venda)</div></div>'+
-    '<div class="tkpi"><div class="v">'+money(r.estoque_alvo)+'</div><div class="l">Estoque no alvo ('+DATA.teto+'d teto)</div></div>'+
-    '<div class="tkpi"><div class="v '+(d<0?'pos':'neg')+'">'+(d<0?'−':'+')+money(Math.abs(d))+'</div><div class="l">Diferença (alvo − hoje)</div></div>'+
+    '<div class="tkpi" title="'+money(r.estoque_hoje)+'"><div class="v">'+moneyK(r.estoque_hoje)+'</div><div class="l">Estoque hoje (custo, itens c/ venda)</div></div>'+
+    '<div class="tkpi" title="'+money(r.estoque_alvo)+'"><div class="v">'+moneyK(r.estoque_alvo)+'</div><div class="l">Estoque no alvo ('+DATA.teto+'d teto)</div></div>'+
+    '<div class="tkpi" title="'+money(d)+'"><div class="v '+(d<0?'pos':'neg')+'">'+(d<0?'−':'+')+moneyK(Math.abs(d))+'</div><div class="l">Diferença (alvo − hoje)</div></div>'+
     '<div class="tkpi"><div class="v neg">'+r.rupturas+'</div><div class="l">Produtos c/ venda e estoque zero</div></div>';
   $('#nHoje').textContent=r.pedir_hoje; $('#nCal').textContent=r.com_calculo;
 }
@@ -437,7 +438,8 @@ function renderSombra(){
   h+='<div class="totais"><div class="tkpi"><div class="v">'+t.ambos+'</div><div class="l">Sistema e compradora no mesmo dia</div></div><div class="tkpi"><div class="v amb">'+t.so_sistema+'</div><div class="l">Só o sistema pediria</div></div><div class="tkpi"><div class="v">'+t.so_compradora+'</div><div class="l">Só a compradora pediu</div></div><div class="tkpi"><div class="v">'+money(t.sis)+'</div><div class="l">Total sistema (custo)</div></div><div class="tkpi"><div class="v">'+money(t.real)+'</div><div class="l">Total compradoras (ERP)</div></div></div>';
   if(!linhas.length){ h+='<div class="empty">Ainda sem dias pra comparar. O primeiro snapshot é gravado no primeiro cálculo do radar; a comparação ganha sentido depois de 1 a 2 semanas.</div>'; $('#view').innerHTML=h; return; }
   h+='<div class="table-wrap"><table class="main-t"><thead><tr><th>Dia</th><th>Lista</th><th>Comprador</th><th>Caso</th><th class="r">Sistema pediria (custo)</th><th class="r">Itens</th><th class="r">Compradora pediu (ERP)</th><th class="r">Lojas</th><th class="r">Cobertura no dia</th><th class="r">Rupturas no dia</th></tr></thead><tbody>';
-  for(const l of linhas.sort((a,b)=>b.dia.localeCompare(a.dia)||b.real-a.real)){
+  const ORD={ambos:0,so_sistema:1,so_compradora:2};
+  for(const l of linhas.sort((a,b)=>b.dia.localeCompare(a.dia)||(ORD[a.caso]-ORD[b.caso])||b.real-a.real)){
     const caso=l.caso==='ambos'?'<span class="pill p-ok">ambos</span>':l.caso==='so_sistema'?'<span class="pill p-breve">só sistema</span>':'<span class="pill p-cinza">só compradora</span>';
     const key=l.dia+'|'+l.lista;
     h+='<tr class="lst'+(sombraAberta===key?' open':'')+'" data-key="'+key+'"><td>'+br(l.dia)+'</td><td><div class="nm">'+esc(l.nome)+'<span>#'+l.lista+'</span></div></td><td>'+esc(l.comprador||'—')+'</td><td>'+caso+'</td><td class="r">'+(l.sistema?money(l.sistema):'<span class="mut">—</span>')+'</td><td class="r">'+(l.sistema_itens||'')+'</td><td class="r">'+(l.real?money(l.real):'<span class="mut">—</span>')+'</td><td class="r">'+(l.real_lojas||'')+'</td><td class="r">'+fmt(l.cobertura,0)+' d</td><td class="r '+(l.rupturas?'neg':'')+'">'+l.rupturas+'</td></tr>';
