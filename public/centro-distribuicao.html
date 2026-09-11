@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="/design-system.css">
+<script src="/nav.js" defer></script>
+<title>Centro de Distribuição — Econômico Relatórios</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'InterVar','Segoe UI',sans-serif;background:#EBEBE9;color:#0E1626;min-height:100vh;font-variant-numeric:tabular-nums}
+.main{padding:24px}
+.page-hdr{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:18px;gap:12px;flex-wrap:wrap}
+.page-hdr h1{font-size:21px;font-weight:800;letter-spacing:-.3px}
+.page-hdr p{font-size:12px;color:#4E5A72;margin-top:2px;max-width:72ch}
+.estado{font-size:11px;color:#4E5A72;text-align:right;line-height:1.6}
+.estado b{color:#0E1626}
+.estado .calc{color:#6B4E00;font-weight:700}
+.filtros{background:#FFFFFF;border:1px solid #DADAD6;border-radius:12px;padding:14px 18px;margin-bottom:16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.fg{display:flex;flex-direction:column;gap:4px;align-items:center}
+.fg label{font-size:10px;color:#4E5A72;font-weight:700;text-transform:uppercase;letter-spacing:.5px;text-align:center}
+.fg select,.fg input{background:#EBEBE9;border:1px solid #DADAD6;border-radius:7px;color:#0E1626;padding:7px 11px;font-size:12.5px;outline:none;min-width:140px;font-family:inherit}
+.fg input[type=number]{min-width:80px;width:90px;text-align:center;font-weight:700}
+.fg select:focus,.fg input:focus{border-color:#F5B800}
+.btn{border:none;border-radius:8px;padding:9px 16px;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:inherit}
+.btn-amber{background:#F5B800;color:#6B4E00}.btn-amber:hover{background:#E5AC00}
+.btn-slate{background:#FFFFFF;border:1px solid #C9C9C4;color:#4E5A72}.btn-slate:hover{background:#DADAD6}
+.btn:disabled{opacity:.5;cursor:default}
+.totais{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px}
+.tkpi{background:#FFFFFF;border:1px solid #DADAD6;border-radius:10px;padding:11px 16px}
+.tkpi .v{font-size:19px;font-weight:800;letter-spacing:-.3px}
+.tkpi .v small{font-size:11px;color:#98A0B3;font-weight:600;margin-left:3px}
+.tkpi .l{font-size:9.5px;color:#98A0B3;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-top:2px}
+.tkpi .v.pos{color:#137A48}.tkpi .v.neg{color:#C22F49}.tkpi .v.amb{color:#6B4E00}
+.tabs{display:flex;gap:4px;margin-bottom:12px;border-bottom:1px solid #DADAD6}
+.tab{background:none;border:none;padding:9px 14px;font-size:12.5px;font-weight:700;color:#4E5A72;cursor:pointer;border-bottom:2px solid transparent;font-family:inherit}
+.tab.on{color:#0E1626;border-bottom-color:#F5B800}
+.tab .n{display:inline-block;background:#EBEBE9;border-radius:99px;padding:1px 7px;font-size:10.5px;margin-left:5px;color:#4E5A72}
+.tab.on .n{background:#FFF6D9;color:#6B4E00}
+.busca-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.busca-row input{flex:1;max-width:380px;border:1px solid #C9C9C4;border-radius:8px;padding:8px 12px;font-size:12.5px;font-family:inherit}
+.busca-row .contagem{font-size:11.5px;color:#98A0B3;font-weight:600}
+.table-wrap{overflow-x:auto;border-radius:12px;border:1px solid #DADAD6;background:#FFFFFF;box-shadow:0 1px 3px rgba(14,22,38,.07);margin-bottom:18px}
+table.main-t{width:100%;border-collapse:collapse;font-size:12px;table-layout:auto}
+table.main-t th{text-align:left;font-size:9.5px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:#4E5A72;background:#EBEBE9;padding:9px 10px;white-space:nowrap;border-bottom:1px solid #DADAD6;cursor:pointer;user-select:none;position:sticky;top:0}
+table.main-t th.on{color:#0E1626}
+table.main-t th.r,table.main-t td.r{text-align:right}
+table.main-t th.c,table.main-t td.c{text-align:center}
+table.main-t td{padding:8px 10px;border-top:1px solid #DADAD6;white-space:nowrap;vertical-align:top;line-height:1.35}
+table.main-t td.lc{white-space:normal;min-width:200px;max-width:320px}
+table.main-t td.comp{white-space:normal;max-width:110px;font-size:11.5px}
+.s2{font-size:10.5px;color:#98A0B3;font-weight:500;margin-top:1px}
+.fl{margin-top:4px;display:flex;gap:4px;flex-wrap:wrap}
+table.main-t tbody tr.lst{cursor:pointer}
+table.main-t tbody tr.lst:hover{background:#EBEBE955}
+table.main-t tbody tr.open{background:#FFF6D9}
+.nm{font-weight:700}.nm span{color:#98A0B3;font-weight:500;font-size:11px;margin-left:5px}
+.sub{font-size:10.5px;color:#4E5A72;white-space:normal}
+.pill{display:inline-block;padding:2px 8px;border-radius:99px;font-size:10.5px;font-weight:700;letter-spacing:.3px}
+.p-hoje{background:#FBEAED;color:#C22F49}.p-breve{background:#FFF6D9;color:#6B4E00;border:1px solid #EFD98F}.p-ok{background:#E7F5EC;color:#137A48}.p-cinza{background:#EBEBE9;color:#4E5A72}
+.p-flag{background:#E9EEF6;color:#2E5E8C}
+.p-a{background:#C22F49;color:#fff;font-weight:800}
+.lc .fl.top{margin:0 0 4px}.lc .fl.top .pill{font-size:10px;letter-spacing:.3px}.p-a.soft{background:#FBEAED;color:#C22F49}
+.det table tr.sec td{background:#F4F4F1;color:#4E5A72;font-size:10px;text-transform:uppercase;letter-spacing:.5px;font-weight:800;padding:6px 10px;white-space:normal}
+.det table tr.sec.a td{background:#FBEAED;color:#C22F49}
+.det table tr.risco td.desc{border-left:3px solid #C22F49}
+.det table tr.falta td.desc{border-left:3px solid #E5AC00}
+.det .trn{cursor:pointer;border-bottom:1px dashed #98A0B3}.det .trn.on{color:#6B4E00;font-weight:800}.det .trn small{font-size:9px}.det .trn-lj{text-align:right;line-height:1.5;margin-top:3px}.det table tr.falta.zero td.desc{color:#C22F49}
+.det .modo{display:inline-flex;border:1px solid #F5B800;border-radius:7px;overflow:hidden}.det .modo button{background:transparent;border:none;color:#FFC933;padding:4px 9px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit}.det .modo button.on{background:#F5B800;color:#6B4E00}
+.det .box .hd .minimo{color:#FF8FA3;font-weight:800}
+.fg.chk{flex-direction:row;align-items:center;gap:6px;padding-top:14px}.fg.chk input{width:15px;height:15px;accent-color:#F5B800;min-width:0}.fg.chk label{text-transform:none;font-size:12px;letter-spacing:0;color:#0E1626;cursor:pointer}
+.acao{font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:999px;white-space:nowrap}.acao.hoje{background:#C22F49;color:#fff}.acao.antecipada{background:#FBEAED;color:#C22F49}.acao.antecipar{background:#FFF6D9;color:#6B4E00;border:1px solid #EFD98F}.acao.transferir{background:#E9EEF6;color:#2E5E8C}
+.neg{color:#C22F49;font-weight:700}.pos{color:#137A48;font-weight:700}.mut{color:#98A0B3}
+.det td{background:#FAFAF8;padding:0 12px 14px 12px;white-space:normal}
+.det .box{margin-top:8px;border:1px solid #DADAD6;border-radius:10px;overflow:hidden;background:#fff}
+.det .box .hd{display:flex;justify-content:space-between;align-items:center;gap:6px 16px;flex-wrap:wrap;padding:9px 14px;background:#101B33;color:#fff;font-size:12px;white-space:normal;line-height:1.5}
+.det .box .hd b{color:#FFC933}
+.det table{width:100%;border-collapse:collapse;font-size:12px}
+.det table th{font-size:9.5px;text-transform:uppercase;letter-spacing:.4px;color:#4E5A72;background:#EBEBE9;padding:7px 10px;text-align:left;position:static;cursor:default}
+.det table td{padding:6px 10px;border-top:1px solid #EEEEEA;white-space:nowrap}
+input.cx{width:56px;text-align:center;border:1px solid #C9C9C4;border-radius:6px;padding:4px;font-weight:700;font-family:inherit}
+input.cx.edit{border-color:#F5B800;background:#FFF6D9}
+tr.insuf td.lc{border-left:3px solid #C22F49}
+tr.zera td.lc{border-left:3px solid #E5AC00}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:14px}
+.card{background:#fff;border:1px solid #DADAD6;border-radius:10px;padding:10px 12px;cursor:pointer}.card.on{border-color:#F5B800;background:#FFF6D9}
+.card .v{font-size:18px;font-weight:800}.card .l{font-size:9.5px;text-transform:uppercase;color:#98A0B3;font-weight:700}
+.barra{position:sticky;bottom:0;background:#101B33;color:#fff;padding:10px 16px;border-radius:10px;display:flex;gap:12px;align-items:center;justify-content:flex-end;margin-top:8px}
+.overlay{position:fixed;inset:0;background:rgba(14,22,38,.55);display:none;align-items:center;justify-content:center;z-index:50}.overlay.on{display:flex}
+.modal{background:#fff;border-radius:12px;max-width:900px;width:94vw;max-height:90vh;overflow:auto;padding:18px}
+.busca-un{position:relative}.busca-un ul{position:absolute;z-index:5;background:#fff;border:1px solid #DADAD6;border-radius:8px;list-style:none;max-height:260px;overflow:auto;width:100%}.busca-un li{padding:6px 10px;cursor:pointer;font-size:12px}.busca-un li:hover{background:#FFF6D9}
+</style>
+</head>
+<body>
+<div class="main">
+  <div class="page-hdr">
+    <div><h1>Centro de Distribuição</h1><p>Pedido semanal das lojas ao CD em caixas, com as regras do Radar. Vínculo caixa↔unidade, acompanhamento até chegar na loja. Nada é gravado no ERP.</p></div>
+    <div class="estado" id="estado"></div>
+  </div>
+  <div class="tabs">
+    <button class="tab on" data-tab="pedido">Pedido da semana <span class="n" id="n-pedido">–</span></button>
+    <button class="tab" data-tab="vinculos">Vínculos <span class="n" id="n-vinc">–</span></button>
+    <button class="tab" data-tab="pedidos">Pedidos <span class="n" id="n-peds">–</span></button>
+    <button class="tab" data-tab="regras">Regras</button>
+  </div>
+  <section id="tab-pedido"></section>
+  <section id="tab-vinculos" hidden></section>
+  <section id="tab-pedidos" hidden></section>
+  <section id="tab-regras" hidden></section>
+</div>
+<div class="overlay" id="ov"><div class="modal" id="ov-body"></div></div>
+<script>
+const $ = s => document.querySelector(s);
+const fmtN = (v, d = 0) => (v == null ? '–' : (+v).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d }));
+const fmtR = v => 'R$ ' + fmtN(v, 2);
+const LOJAS = [1, 2, 3, 4, 5, 6];
+let DADOS = null, EDITS = {}, SEL = new Set(), FILTRO = '', PEDIDOS = [], VINC = {}, VF = 'pendentes';
+
+document.querySelectorAll('.tab').forEach(b => b.onclick = () => { document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === b)); ['pedido', 'vinculos', 'pedidos', 'regras'].forEach(t => $('#tab-' + t).hidden = t !== b.dataset.tab); });
+
+async function api(url, opt) { const r = await fetch(url, opt); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || r.statusText); return j; }
+
+async function carregar(refresh) {
+  $('#estado').innerHTML = refresh ? '<span class="calc">recalculando…</span>' : 'carregando…';
+  try { DADOS = await api('/api/pedidos-cd' + (refresh ? '?refresh=1' : '')); } catch (e) { $('#estado').innerHTML = '<span class="neg">' + e.message + '</span>'; return; }
+  const es = DADOS.estado;
+  $('#estado').innerHTML = es.status === 'calculando' || !es.atualizadoEm ? '<span class="calc">calculando… (até 1 min)</span>' : `dados de <b>${new Date(es.atualizadoEm).toLocaleString('pt-BR')}</b>${es.erro ? ' · <span class="neg">ERP indisponível: ' + es.erro + '</span>' : ''} · <b>${es.produtosCD}</b> produtos no CD`;
+  if (!es.atualizadoEm) setTimeout(() => carregar(false), 15000);
+  renderPedido(); renderRegras();
+}
+function cxDe(item, ln) { const k = item.codigoCD + '|' + ln; return k in EDITS ? EDITS[k] : item.lojas[ln].cx; }
+function linha(item) {
+  const tot = LOJAS.reduce((a, ln) => a + cxDe(item, ln), 0);
+  const cls = item.cdInsuficiente ? 'insuf' : (LOJAS.some(ln => item.lojas[ln].zeraAntes) ? 'zera' : '');
+  return `<tr class="${cls}" data-cod="${item.codigoCD}">
+    <td class="c"><input type="checkbox" ${SEL.has(item.codigoCD) ? 'checked' : ''} onchange="toggleSel('${item.codigoCD}',this.checked)"></td>
+    <td class="lc"><div class="nm">${item.descricaoCD}</div><div class="sub">${item.unidade ? item.unidade + ' · ' + (item.descricaoUn || '') : '<span class="neg">sem vínculo</span>'}${item.cdInsuficiente ? ' · <span class="neg">CD insuficiente: faltam ' + item.faltaCx + ' cx</span>' : ''}</div></td>
+    <td class="r">${fmtN(item.estoqueCDcx)}</td><td class="c">${item.unPorCaixa || '–'}</td>
+    <td class="r">${fmtN(item.vqTotal, 1)}</td><td class="r">${item.coberturaTotal == null ? '–' : fmtN(item.coberturaTotal, 1)}</td>
+    ${LOJAS.map(ln => { const L = item.lojas[ln]; const k = item.codigoCD + '|' + ln; return `<td class="c" title="venda ${fmtN(L.vq, 1)}/d · est ${fmtN(L.est)} · trânsito ${fmtN(L.transito)} · cob ${L.cobertura == null ? '–' : fmtN(L.cobertura, 1)} d"><input class="cx ${k in EDITS ? 'edit' : ''}" type="number" min="0" value="${cxDe(item, ln)}" onchange="editar('${item.codigoCD}',${ln},this.value)">${L.zeraAntes ? '<div class="s2 neg">zera</div>' : ''}</td>`; }).join('')}
+    <td class="r"><b>${fmtN(tot)}</b></td><td class="r">${fmtR(tot * (item.unPorCaixa || 0) * item.custoUn)}</td></tr>`;
+}
+function tabela(titulo, itens, id) {
+  const f = FILTRO.toLowerCase(); const vis = itens.filter(i => !f || (i.descricaoCD + ' ' + (i.descricaoUn || '') + ' ' + i.codigoCD + ' ' + (i.unidade || '')).toLowerCase().includes(f));
+  return `<h3 style="font-size:13px;margin:14px 0 6px">${titulo} <span class="mut">(${vis.length})</span></h3>
+  <div class="table-wrap"><table class="main-t"><thead><tr><th class="c"><input type="checkbox" onchange="selTodos('${id}',this.checked)"></th><th>Produto</th><th class="r">Est. CD (cx)</th><th class="c">Un/cx</th><th class="r">Venda un/d</th><th class="r">Cob. (d)</th>${LOJAS.map(ln => `<th class="c">L${ln}</th>`).join('')}<th class="r">Total cx</th><th class="r">Custo</th></tr></thead>
+  <tbody>${vis.map(linha).join('') || '<tr><td colspan="15" class="mut">nada aqui</td></tr>'}</tbody></table></div>`;
+}
+function renderPedido() {
+  if (!DADOS || !DADOS.resumo) { $('#tab-pedido').innerHTML = '<p class="mut">calculando…</p>'; return; }
+  const r = DADOS.resumo; $('#n-pedido').textContent = r.repor + r.novos;
+  $('#tab-pedido').innerHTML = `
+    <div class="totais">
+      <div class="tkpi"><div class="v">${r.proximaSegunda.split('-').reverse().join('/')}</div><div class="l">próxima segunda</div></div>
+      <div class="tkpi"><div class="v">${r.repor}</div><div class="l">produtos a repor</div></div>
+      <div class="tkpi"><div class="v amb">${r.novos}</div><div class="l">novos no CD</div></div>
+      <div class="tkpi"><div class="v ${r.cdInsuficiente ? 'neg' : ''}">${r.cdInsuficiente}</div><div class="l">CD insuficiente</div></div>
+      <div class="tkpi"><div class="v">${fmtN(r.caixas)}</div><div class="l">caixas sugeridas</div></div>
+      <div class="tkpi"><div class="v">${fmtR(r.custo)}</div><div class="l">custo</div></div>
+    </div>
+    <div class="busca-row"><input placeholder="buscar produto ou código" value="${FILTRO}" oninput="FILTRO=this.value;renderPedido()"><button class="btn btn-slate" onclick="carregar(true)">Recalcular</button><span class="contagem">${Object.keys(EDITS).length ? Object.keys(EDITS).length + ' quantidades editadas' : ''}</span></div>
+    ${tabela('Repor', DADOS.repor, 'repor')}${tabela('Novos no CD (1 cx por loja)', DADOS.novos, 'novos')}
+    <div class="barra"><span>${SEL.size} produto(s) selecionado(s)</span><button class="btn btn-slate" onclick="SEL.clear();renderPedido()">Limpar</button><button class="btn btn-amber" ${SEL.size ? '' : 'disabled'} onclick="fecharPedido()">Fechar pedido</button></div>`;
+}
+function toggleSel(cod, on) { on ? SEL.add(cod) : SEL.delete(cod); renderPedido(); }
+function selTodos(id, on) { for (const i of DADOS[id]) on ? SEL.add(i.codigoCD) : SEL.delete(i.codigoCD); renderPedido(); }
+function editar(cod, ln, v) { EDITS[cod + '|' + ln] = Math.max(0, Math.round(+v || 0)); renderPedido(); }
+async function fecharPedido() {
+  const itens = DADOS.repor.concat(DADOS.novos).filter(i => SEL.has(i.codigoCD));
+  if (itens.some(i => i.semVinculo)) return alert('Há produto sem vínculo confirmado na seleção. Vincule na aba Vínculos antes de fechar.');
+  const lojas = {}; for (const ln of LOJAS) { const l = itens.map(i => ({ codigoCD: i.codigoCD, caixas: cxDe(i, ln) })).filter(x => x.caixas > 0); if (l.length) lojas[ln] = l; }
+  const n = Object.keys(lojas).length; if (!n) return alert('Nenhuma caixa nas lojas selecionadas.');
+  if (!confirm(`Gerar pedidos pra ${n} loja(s)?`)) return;
+  try { const ps = await api('/api/pedidos-cd/pedidos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lojas }) });
+    SEL.clear(); EDITS = {}; await carregarPedidos(); document.querySelector('[data-tab=pedidos]').click(); alert(ps.length + ' pedido(s) criado(s).'); carregar(false);
+  } catch (e) { alert(e.message); }
+}
+async function carregarVinculos() { const r = await api('/api/pedidos-cd/vinculos'); VINC = r.vinculos; renderVinculos(); }
+function renderVinculos() {
+  const all = Object.values(VINC); const cont = { pendentes: all.filter(v => v.status === 'pendente').length, sugeridos: all.filter(v => v.status === 'sugerido').length, confirmados: all.filter(v => v.status === 'confirmado').length, todos: all.length };
+  $('#n-vinc').textContent = cont.pendentes + cont.sugeridos;
+  const cd = DADOS?.repor.concat(DADOS.novos).reduce((m, i) => (m[i.codigoCD] = i, m), {}) || {};
+  const vis = all.filter(v => VF === 'todos' || v.status === VF.replace(/s$/, '')).sort((a, b) => (cd[a.codigoCD]?.descricaoCD || '').localeCompare(cd[b.codigoCD]?.descricaoCD || ''));
+  $('#tab-vinculos').innerHTML = `<div class="cards">${['pendentes', 'sugeridos', 'confirmados', 'todos'].map(k => `<div class="card ${VF === k ? 'on' : ''}" onclick="VF='${k}';renderVinculos()"><div class="v">${cont[k]}</div><div class="l">${k}</div></div>`).join('')}</div>
+  <div class="table-wrap"><table class="main-t"><thead><tr><th>Código CD</th><th>Descrição CD</th><th class="r">Est. CD</th><th class="c">Un/cx</th><th>Unidade vinculada</th><th>Origem</th><th>Ação</th></tr></thead><tbody>
+  ${vis.map(v => { const i = cd[v.codigoCD] || {}; const upc = v.unPorCaixa || v.unPorCaixaCadastro || ''; return `<tr>
+    <td>${v.codigoCD}</td><td class="lc">${i.descricaoCD || ''}</td><td class="r">${fmtN(i.estoqueCDcx)}</td>
+    <td class="c"><input class="cx" id="upc-${v.codigoCD}" type="number" min="1" value="${upc}" ${v.origem === 'igual' ? 'disabled' : ''}></td>
+    <td class="lc">${v.status === 'confirmado' ? `<b>${v.unidade}</b><div class="sub">${i.descricaoUn || ''}</div>` : v.candidato ? `<span class="pill p-breve">sugerido</span> ${v.candidato}` : '<span class="pill p-hoje">sem vínculo</span>'}
+      <div class="busca-un" id="bu-${v.codigoCD}"><input placeholder="buscar unidade por descrição ou código" oninput="buscarUn('${v.codigoCD}',this.value)"><ul hidden></ul></div></td>
+    <td>${v.origem || '–'}${v.confirmadoPor ? '<div class="s2">' + v.confirmadoPor + '</div>' : ''}</td>
+    <td>${v.status === 'sugerido' ? `<button class="btn btn-amber" onclick="confirmarVinc('${v.codigoCD}','${v.candidato}')">Confirmar</button>` : ''}${v.status === 'confirmado' && v.origem !== 'igual' ? `<button class="btn btn-slate" onclick="removerVinc('${v.codigoCD}')">Remover</button> <button class="btn btn-slate" onclick="confirmarVinc('${v.codigoCD}','${v.unidade}')">Salvar un/cx</button>` : ''}</td></tr>`; }).join('')}
+  </tbody></table></div>`;
+}
+let buscaT = null;
+function buscarUn(cod, txt) {
+  clearTimeout(buscaT); const ul = $('#bu-' + cod + ' ul'); if (txt.trim().length < 3) { ul.hidden = true; return; }
+  buscaT = setTimeout(async () => { const r = await api('/api/pedidos-cd/buscar-unidade?q=' + encodeURIComponent(txt)); ul.innerHTML = r.map(x => `<li onclick="confirmarVinc('${cod}','${x.cod}')">${x.cod} · ${x.descricao}</li>`).join('') || '<li class="mut">nada encontrado</li>'; ul.hidden = false; }, 300);
+}
+async function confirmarVinc(cod, unidade) {
+  const upc = +$('#upc-' + cod).value; if (!(upc >= 1)) return alert('Informe un/cx (mínimo 1).');
+  try { await api('/api/pedidos-cd/vinculos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ codigoCD: cod, unidade, unPorCaixa: upc }) }); await carregarVinculos(); carregar(true); } catch (e) { alert(e.message); }
+}
+async function removerVinc(cod) { if (!confirm('Remover o vínculo?')) return; await api('/api/pedidos-cd/vinculos/' + cod, { method: 'DELETE' }); await carregarVinculos(); carregar(true); }
+let PF = 'todos';
+async function carregarPedidos() { PEDIDOS = await api('/api/pedidos-cd/pedidos'); renderPedidos(); }
+const ST = { aberto: ['Aberto', 'p-breve'], separado: ['Separado no CD', 'p-flag'], recebido: ['Chegou na loja', 'p-ok'], recebido_parcial: ['Chegou parcial', 'p-hoje'], cancelado: ['Cancelado', 'p-cinza'] };
+function renderPedidos() {
+  const cont = { todos: PEDIDOS.length }; for (const k of Object.keys(ST)) cont[k] = PEDIDOS.filter(p => p.status === k).length;
+  $('#n-peds').textContent = cont.aberto + cont.separado;
+  const vis = PEDIDOS.filter(p => PF === 'todos' || p.status === PF);
+  $('#tab-pedidos').innerHTML = `<div class="cards">${['todos', ...Object.keys(ST)].map(k => `<div class="card ${PF === k ? 'on' : ''}" onclick="PF='${k}';renderPedidos()"><div class="v">${cont[k]}</div><div class="l">${k === 'todos' ? 'todos' : ST[k][0]}</div></div>`).join('')}</div>
+  <div class="busca-row"><button class="btn btn-slate" onclick="verificar()">Verificar agora</button></div>
+  <div class="table-wrap"><table class="main-t"><thead><tr><th>#</th><th>Loja</th><th>Criado</th><th class="r">Itens</th><th class="r">Caixas</th><th class="r">Custo</th><th>Andamento</th><th>Ação</th></tr></thead><tbody>
+  ${vis.map(p => `<tr class="lst" onclick="abrirPedido(${p.id})"><td>${p.id}</td><td><b>L${p.loja}</b> ${p.lojaNome}</td><td>${new Date(p.criadoEm).toLocaleString('pt-BR')}<div class="s2">${p.criadoPor || ''}</div></td><td class="r">${p.itens.length}</td><td class="r">${fmtN(p.totais.caixas)}</td><td class="r">${fmtR(p.totais.custo)}</td>
+    <td><span class="pill ${ST[p.status][1]}">${ST[p.status][0]}</span>${p.expedicao ? '<div class="s2">CD pedido ' + p.expedicao.nPedido + ' · ' + p.expedicao.data.split('-').reverse().join('/') + '</div>' : ''}${p.recebimento ? '<div class="s2">nota(s) ' + p.recebimento.notas.map(n => n.nNota).join(', ') + '</div>' : ''}</td>
+    <td onclick="event.stopPropagation()">${['aberto', 'separado', 'recebido_parcial'].includes(p.status) ? `<button class="btn btn-slate" onclick="cancelar(${p.id})">Cancelar</button>` : ''} <button class="btn btn-slate" onclick="imprimir(${p.id})">Imprimir</button></td></tr>`).join('') || '<tr><td colspan="8" class="mut">nenhum pedido</td></tr>'}
+  </tbody></table></div>`;
+}
+function abrirPedido(id) {
+  const p = PEDIDOS.find(x => x.id === id); if (!p) return;
+  $('#ov-body').innerHTML = `<h2 style="font-size:16px">Pedido #${p.id} · L${p.loja} ${p.lojaNome} <span class="pill ${ST[p.status][1]}">${ST[p.status][0]}</span></h2>
+  <p class="mut" style="font-size:11px;margin:4px 0 10px">criado ${new Date(p.criadoEm).toLocaleString('pt-BR')} por ${p.criadoPor || '–'}</p>
+  <table class="main-t"><thead><tr><th>Produto</th><th class="c">Un/cx</th><th class="r">Pedidas (cx)</th><th class="r">Separadas</th><th class="r">Recebidas</th><th>Situação</th></tr></thead><tbody>
+  ${p.itens.map(i => `<tr><td class="lc">${i.descricao}<div class="sub">${i.codigoCD} → ${i.unidade}</div></td><td class="c">${i.unPorCaixa}</td><td class="r">${i.caixas}</td><td class="r">${i.separadas || 0}</td><td class="r">${i.recebidas || 0}</td>
+    <td>${!p.recebimento ? '<span class="mut">aguardando</span>' : i.recebidas >= i.caixas ? '<span class="pos">✓</span>' : i.recebidas > 0 ? `<span class="neg">veio ${i.recebidas} de ${i.caixas} cx</span>` : '<span class="neg">não veio</span>'}</td></tr>`).join('')}
+  </tbody></table><div style="text-align:right;margin-top:12px"><button class="btn btn-slate" onclick="$('#ov').classList.remove('on')">Fechar</button></div>`;
+  $('#ov').classList.add('on');
+}
+async function cancelar(id) { if (!confirm('Cancelar o pedido #' + id + '?')) return; try { await api('/api/pedidos-cd/pedidos/' + id + '/cancelar', { method: 'POST' }); await carregarPedidos(); carregar(false); } catch (e) { alert(e.message); } }
+async function verificar() { try { const r = await api('/api/pedidos-cd/verificar', { method: 'POST' }); await carregarPedidos(); alert(`Verificados ${r.verificados} · separados ${r.separados} · recebidos ${r.recebidos}`); } catch (e) { alert(e.message); } }
+function imprimir(id) {
+  const p = PEDIDOS.find(x => x.id === id); const w = window.open('', '_blank');
+  w.document.write(`<title>Pedido CD #${p.id} L${p.loja}</title><style>body{font-family:sans-serif;font-size:12px;padding:20px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #999;padding:4px 6px}th{background:#eee}</style>
+  <h2>Pedido ao CD #${p.id} · Loja ${p.loja} ${p.lojaNome}</h2><p>${new Date(p.criadoEm).toLocaleString('pt-BR')} · ${p.criadoPor || ''} · ${p.itens.length} itens · ${p.totais.caixas} caixas</p>
+  <table><tr><th>Código CD</th><th>Produto</th><th>Un/cx</th><th>Caixas</th><th>Unidades</th></tr>${p.itens.map(i => `<tr><td>${i.codigoCD}</td><td>${i.descricao}</td><td>${i.unPorCaixa}</td><td><b>${i.caixas}</b></td><td>${i.unidades}</td></tr>`).join('')}</table>`);
+  w.document.close(); w.print();
+}
+function renderRegras() {
+  if (!DADOS?.regras) return; const r = DADOS.regras; const cfg = DADOS.regras;
+  $('#tab-regras').innerHTML = `<div class="filtros"><div class="fg"><label>Teto (dias)</label><input type="number" id="cfg-teto" value="${r.teto}" min="3" max="90"></div><div class="fg"><label>Ciclo</label><input value="${r.ciclo} dias (segunda)" disabled></div><div class="fg"><label>Validade</label><input value="60% do cadastro" disabled></div><button class="btn btn-amber" onclick="salvarCfg()">Salvar</button></div>
+  <div class="table-wrap"><table class="main-t"><thead><tr><th>Loja</th><th class="r">Lead médio (d)</th><th class="r">Lead máx</th><th class="r">Amostras</th><th class="r">Segurança</th><th class="r">Ponto</th><th class="r">Alvo</th><th class="c">Cliente no painel do CD</th></tr></thead><tbody>
+  ${LOJAS.map(ln => { const L = r.lojas[ln]; return `<tr><td><b>L${ln}</b> ${L.nome}</td><td class="r">${L.lead ? L.lead.lead_medio : '<span class="mut">padrão</span>'}</td><td class="r">${L.lead ? L.lead.lead_max : '–'}</td><td class="r">${L.lead ? L.lead.n : 0}</td><td class="r">${L.seg}</td><td class="r">${L.ponto}</td><td class="r">${L.alvoLista}</td><td class="c"><input class="cx" style="width:80px" id="cli-${ln}" data-ln="${ln}"></td></tr>`; }).join('')}
+  </tbody></table></div><p class="mut" style="font-size:11px">Lead = dias entre o pedido da loja no painel de expedição do CD e a nota de entrada do fornecedor do CD na loja (6 meses). Alvo = lead + segurança + 7, limitado ao teto. Fornecedor do CD nas notas: <span id="cfg-forn"></span>.</p>`;
+  api('/api/pedidos-cd/config').then(c => { for (const ln of LOJAS) $('#cli-' + ln).value = c.clientesLoja[ln] || ''; $('#cfg-forn').textContent = c.fornecedorCD; });
+}
+async function salvarCfg() {
+  const clientesLoja = {}; for (const ln of LOJAS) clientesLoja[ln] = +$('#cli-' + ln).value || 0;
+  try { await api('/api/pedidos-cd/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ teto: +$('#cfg-teto').value, clientesLoja }) }); carregar(true); } catch (e) { alert(e.message); }
+}
+carregar(false); carregarVinculos(); carregarPedidos();
+</script>
+</body>
+</html>
