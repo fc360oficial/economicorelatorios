@@ -111,6 +111,7 @@ tr.zera td.lc{border-left:3px solid #E5AC00}
 <div class="overlay" id="ov"><div class="modal" id="ov-body"></div></div>
 <script>
 const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmtN = (v, d = 0) => (v == null ? '–' : (+v).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d }));
 const fmtR = v => 'R$ ' + fmtN(v, 2);
 const LOJAS = [1, 2, 3, 4, 5, 6];
@@ -125,8 +126,8 @@ async function carregar(refresh) {
   $('#estado').innerHTML = refresh ? '<span class="calc">recalculando…</span>' : 'carregando…';
   try { DADOS = await api('/api/pedidos-cd' + (refresh ? '?refresh=1' : '')); } catch (e) { $('#estado').innerHTML = '<span class="neg">' + e.message + '</span>'; return; }
   const es = DADOS.estado;
-  const avisos = es.avisos && es.avisos.length ? ` · <span class="neg">${es.avisos.length} aviso(s): ${es.avisos.join('; ')}</span>` : '';
-  $('#estado').innerHTML = es.status === 'calculando' || !es.atualizadoEm ? '<span class="calc">calculando… (até 1 min)</span>' : `dados de <b>${new Date(es.atualizadoEm).toLocaleString('pt-BR')}</b>${es.erro ? ' · <span class="neg">ERP indisponível: ' + es.erro + '</span>' : ''} · <b>${es.produtosCD}</b> produtos no CD${avisos}`;
+  const avisos = es.avisos && es.avisos.length ? ` · <span class="neg">${es.avisos.length} aviso(s): ${esc(es.avisos.join('; '))}</span>` : '';
+  $('#estado').innerHTML = es.status === 'calculando' || !es.atualizadoEm ? '<span class="calc">calculando… (até 1 min)</span>' : `dados de <b>${new Date(es.atualizadoEm).toLocaleString('pt-BR')}</b>${es.erro ? ' · <span class="neg">ERP indisponível: ' + esc(es.erro) + '</span>' : ''} · <b>${es.produtosCD}</b> produtos no CD${avisos}`;
   if (!es.atualizadoEm) setTimeout(() => carregar(false), 15000);
   renderPedido(); renderRegras(); renderVinculos();
 }
@@ -151,7 +152,7 @@ function tabela(titulo, itens, id, isRepor) {
   const lojasCols = FLOJA ? [FLOJA] : LOJAS;
   return `<h3 style="font-size:13px;margin:14px 0 6px">${titulo} <span class="mut">(${vis.length})</span></h3>
   <div class="table-wrap"><table class="main-t"><thead><tr><th class="c"><input type="checkbox" onchange="selTodos('${id}',this.checked)"></th><th>Produto</th><th class="r">Est. CD (cx)</th><th class="c">Un/cx</th><th class="r">Venda un/d</th><th class="r">Cob. (d)</th>${lojasCols.map(ln => `<th class="c">L${ln}</th>`).join('')}<th class="r">Total cx</th><th class="r">Custo</th></tr></thead>
-  <tbody>${vis.map(i => linha(i, lojasCols)).join('') || '<tr><td colspan="16" class="mut">nada aqui</td></tr>'}</tbody></table></div>`;
+  <tbody>${vis.map(i => linha(i, lojasCols)).join('') || `<tr><td colspan="${8 + lojasCols.length}" class="mut">nada aqui</td></tr>`}</tbody></table></div>`;
 }
 function renderPedido() {
   if (!DADOS || !DADOS.resumo) { $('#tab-pedido').innerHTML = '<p class="mut">calculando…</p>'; return; }
@@ -180,9 +181,10 @@ function editar(cod, ln, v) { EDITS[cod + '|' + ln] = Math.max(0, Math.round(+v 
 async function fecharPedido() {
   const itens = DADOS.repor.concat(DADOS.novos).filter(i => SEL.has(i.codigoCD));
   if (itens.some(i => i.semVinculo)) return alert('Há produto sem vínculo confirmado na seleção. Vincule na aba Vínculos antes de fechar.');
-  const lojas = {}; for (const ln of LOJAS) { const l = itens.map(i => ({ codigoCD: i.codigoCD, caixas: cxDe(i, ln) })).filter(x => x.caixas > 0); if (l.length) lojas[ln] = l; }
+  const lojasAlvo = FLOJA ? [FLOJA] : LOJAS;
+  const lojas = {}; for (const ln of lojasAlvo) { const l = itens.map(i => ({ codigoCD: i.codigoCD, caixas: cxDe(i, ln) })).filter(x => x.caixas > 0); if (l.length) lojas[ln] = l; }
   const n = Object.keys(lojas).length; if (!n) return alert('Nenhuma caixa nas lojas selecionadas.');
-  if (!confirm(`Gerar pedidos pra ${n} loja(s)?`)) return;
+  if (!confirm(FLOJA ? `Gerar pedido pra L${FLOJA}?` : `Gerar pedidos pra ${n} loja(s)?`)) return;
   try { const ps = await api('/api/pedidos-cd/pedidos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lojas }) });
     SEL.clear(); EDITS = {}; await carregarPedidos(); document.querySelector('[data-tab=pedidos]').click(); alert(ps.length + ' pedido(s) criado(s).'); carregar(false);
   } catch (e) { alert(e.message); }
@@ -258,7 +260,7 @@ function renderRegras() {
   api('/api/pedidos-cd/config').then(c => { for (const ln of LOJAS) $('#cli-' + ln).value = c.clientesLoja[ln] || ''; $('#cfg-forn').textContent = c.fornecedorCD; });
 }
 async function salvarCfg() {
-  const clientesLoja = {}; for (const ln of LOJAS) clientesLoja[ln] = +$('#cli-' + ln).value;
+  const clientesLoja = {}; for (const ln of LOJAS) { const v = $('#cli-' + ln).value.trim(); if (v) clientesLoja[ln] = +v; }
   try { await api('/api/pedidos-cd/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ teto: +$('#cfg-teto').value, clientesLoja }) }); carregar(true); } catch (e) { alert(e.message); }
 }
 carregar(false);
