@@ -6310,7 +6310,7 @@ app.post('/api/pedidos-fornecedor', async (req, res) => {
       const det = radarPedidos.itensLista(id, teto, null, embMeses, req.body.curvaA !== false && req.body.curvaA !== '0');
       if (!det) { semItens.push({ lista: id, motivo: 'lista não encontrada ou radar calculando' }); continue; }
       const soCurvaA = (modo[id] || modo[String(id)]) === 'curva_a';
-      if (soCurvaA) for (const it of det.itens) if (!it.risco_a) { for (const ln of Object.keys(it.lojas_qtd)) it.lojas_qtd[ln] = 0; it.qtd = 0; it.volumes = 0; it.total = 0; }
+      if (soCurvaA) for (const it of det.itens) if (!it.curva_a) { for (const ln of Object.keys(it.lojas_qtd)) it.lojas_qtd[ln] = 0; it.qtd = 0; it.volumes = 0; it.total = 0; }
       // quantidades editadas pela compradora na tela (por produto e loja) sobrepõem o cálculo
       const aj = ajustes[id] || ajustes[String(id)] || {};
       for (const it of det.itens) {

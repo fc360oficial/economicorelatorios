@@ -329,15 +329,15 @@ async function carregarItens(id){
     // guarda as quantidades calculadas pra poder alternar "Só curva A" / "Lista completa"
     for(const i of j.itens){ i._calc={...i.lojas_qtd}; const ed=EDITS[id]?.[i.cod]; if(ed) for(const [ln,v] of Object.entries(ed)) i.lojas_qtd[ln]=v; recalcItem(i); }
     DETALHES[id]=j; if(!MODO[id]) MODO[id]='completa'; aplicarModo(id,MODO[id],false);
-    const nRisco=j.itens.filter(i=>i.risco_a).length;
+    const nRisco=j.itens.filter(i=>i.risco_a).length, nA=j.itens.filter(i=>i.curva_a).length;
     let h='<div class="hd"><div><b class="lnk" title="Abrir cadastro da lista no ERP (fornecedor, vendedor, comprador, prazo)" onclick="event.stopPropagation();abrirCadastro('+id+')">'+esc(L.nome)+' ↗</b>'+(L.pedidoMinimo?' · pedido mínimo R$ '+fmt(L.pedidoMinimo,0):'')+(j.gatilho==='curva_a'?' · <span class="pill p-a">antecipada por curva A</span> <span style="opacity:.8">era pra '+j.fazer_em_lista+' d pela regra dos 10% da venda</span>':'')+'</div>'+
       '<div id="hdr-'+id+'">'+hdResumo(id)+'</div></div>';
     h+='<div style="overflow-x:auto"><table><thead><tr><th>Produto</th><th class="r">Venda/dia</th><th class="r">Estoque</th><th class="r">Trânsito</th><th class="r">Cobertura</th><th class="r">Alvo</th>'+LJ.map(ln=>'<th class="r lj" title="Quantidade a pedir na loja '+ln+'">L'+ln+'</th>').join('')+'<th class="r">Pedir (total)</th><th class="r">Total</th></tr></thead><tbody>';
     const NC=LJ.length+8;
-    if(nRisco) h+='<tr class="sec a"><td colspan="'+NC+'">Curva A em risco · '+nRisco+' produto'+(nRisco>1?'s':'')+' · zera antes do dia da lista ou já está no ponto de pedido</td></tr>';
+    if(nA) h+='<tr class="sec'+(nRisco?' a':'')+'"><td colspan="'+NC+'">'+(nRisco?'Curva A em risco · '+nRisco+' de '+nA+' produto'+(nA>1?'s':'')+' A · em vermelho quem zera antes do dia da lista ou está no ponto de pedido (margem 1 d)':'Curva A da lista · '+nA+' produto'+(nA>1?'s':'')+' · nenhum em risco hoje')+'</td></tr>';
     let secLista=false;
     for(const i of j.itens){
-      if(nRisco&&!i.risco_a&&!secLista){secLista=true;const nF=j.itens.filter(x=>!x.risco_a&&x.zera_antes).length;h+='<tr class="sec"><td colspan="'+NC+'">Demais itens da lista · '+(j.itens.length-nRisco)+' produtos'+(nF?' · <span class="neg">'+nF+' zera'+(nF>1?'m':'')+' antes da data da lista</span>':'')+(MODO[id]==='curva_a'?' · <b>zerados no modo "Só curva A"</b>':'')+'</td></tr>';}
+      if(nA&&!i.curva_a&&!secLista){secLista=true;const nF=j.itens.filter(x=>!x.curva_a&&x.zera_antes).length;h+='<tr class="sec"><td colspan="'+NC+'">Demais itens da lista · '+(j.itens.length-nA)+' produtos'+(nF?' · <span class="neg">'+nF+' zera'+(nF>1?'m':'')+' antes da data da lista</span>':'')+(MODO[id]==='curva_a'?' · <b>zerados no modo "Só curva A"</b>':'')+'</td></tr>';}
       const obs=[]; if(i.risco_a)obs.push(i.cobertura_dias<j.fazer_em_lista?'curva A: zera em '+fmt(i.cobertura_dias,0)+' d, lista era em '+j.fazer_em_lista+' d':'curva A: no ponto de pedido'); else if(i.zera_antes)obs.push('<span class="neg">zera em '+fmt(i.cobertura_dias,0)+' d, antes da lista ('+j.fazer_em_lista+' d)</span>'); else if(i.curva_a)obs.push('curva A'); if(i.flag==='piso')obs.push('piso: 1 ciclo'); if(i.flag==='teto')obs.push('TETO: conferir'); if(i.estoque_bruto<0)obs.push('estoque negativo no ERP'); if(i.validade&&i.alvo_dias&&i.alvo_dias<P.alvoLista-0.05)obs.push('validade '+i.validade+'d'); if(i.venda_dia===0)obs.push('sem venda');
       h+='<tr class="'+(i.qtd>0?'pede':'zero')+(i.risco_a?' risco':(i.zera_antes?' falta':''))+'"><td class="desc">'+(i.curva_a?'<span class="pill '+(i.risco_a?'p-a':'p-a soft')+'" style="font-size:9px;padding:1px 5px;margin-right:4px" title="Curva A · posição '+i.rank_a+' na venda">A</span>':'')+esc(i.descricao)+'<span class="cod">'+esc(i.cod)+' · L'+i.lojas.join(' L')+'</span>'+(obs.length?'<div class="obsl">'+obs.join(' · ')+'</div>':'')+'</td><td class="r">'+fmt(i.venda_dia,2)+'</td><td class="r">'+fmt(i.estoque,0)+'</td><td class="r">'+(i.transito?fmt(i.transito,0)+'<div class="s2">'+Object.entries(i.lojas_det||{}).filter(([,d])=>d.transito>0).map(([l,d])=>'L'+l+': '+fmt(d.transito,0)).join(' · ')+'</div>':'<span class="mut">—</span>')+'</td>'+
         '<td class="r '+(i.abaixo_ponto?'neg':'')+'">'+(i.cobertura_dias==null?'—':fmt(i.cobertura_dias,0)+' d')+'</td><td class="r">'+(i.alvo_dias?fmt(i.alvo_dias,0)+' d':'—')+'</td>'+
@@ -353,9 +353,9 @@ function recalcItem(it){ it.qtd=Object.values(it.lojas_qtd).reduce((s,x)=>s+(x||
 function recalcLista(j){ j.total=+j.itens.reduce((a,i)=>a+i.total,0).toFixed(2); j.volumes=j.itens.reduce((a,i)=>a+i.volumes,0); }
 // resumo do cabeçalho do detalhe (re-renderizado a cada edição / troca de modo)
 function hdResumo(id){
-  const j=DETALHES[id]; if(!j) return ''; const P=j.params, L=j.lista, pede=j.itens.filter(i=>i.qtd>0).length, nRisco=j.itens.filter(i=>i.risco_a).length;
+  const j=DETALHES[id]; if(!j) return ''; const P=j.params, L=j.lista, pede=j.itens.filter(i=>i.qtd>0).length, nRisco=j.itens.filter(i=>i.curva_a).length;
   const min=L.pedidoMinimo&&j.total>0&&j.total<L.pedidoMinimo?' <span class="minimo" title="Total abaixo do pedido mínimo do fornecedor (R$ '+fmt(L.pedidoMinimo,0)+'). Complete com itens do bloco de baixo ou combine com o vendedor.">abaixo do mínimo (R$ '+fmt(L.pedidoMinimo,0)+')</span>':'';
-  const modo=nRisco?'<span class="modo" title="Só curva A: pede apenas os produtos de curva A em risco. Lista completa: pede tudo que o radar calculou pra hoje."><button class="'+(MODO[id]==='curva_a'?'on':'')+'" onclick="event.stopPropagation();aplicarModo('+id+',\'curva_a\',true)">Só curva A</button><button class="'+(MODO[id]!=='curva_a'?'on':'')+'" onclick="event.stopPropagation();aplicarModo('+id+',\'completa\',true)">Lista completa</button></span> ':'';
+  const modo=nRisco?'<span class="modo" title="Só curva A: pede apenas os produtos de curva A da lista (bloco de cima). Lista completa: pede tudo que o radar calculou pra hoje."><button class="'+(MODO[id]==='curva_a'?'on':'')+'" onclick="event.stopPropagation();aplicarModo('+id+',\'curva_a\',true)">Só curva A</button><button class="'+(MODO[id]!=='curva_a'?'on':'')+'" onclick="event.stopPropagation();aplicarModo('+id+',\'completa\',true)">Lista completa</button></span> ':'';
   return (P?'ponto <b>'+fmt(P.ponto)+'d</b> · alvo <b>'+fmt(P.alvoLista)+'d</b> · ciclo <b>'+fmt(P.ciclo)+'d</b> · ':'')+'fazer em <b>'+(j.fazer_em===0?'HOJE':j.fazer_em+' dias ('+br(j.data)+')')+'</b> · '+pede+(pede===1?' item':' itens')+' · '+j.volumes+' volumes · <b>'+money(j.total)+'</b>'+min+' '+modo+'<button class="btn btn-amber btn-sm" onclick="event.stopPropagation();gerarPedido('+id+')">Gerar pedido</button>';
 }
 // modo do pedido por lista: 'completa' (tudo que o radar calculou) ou 'curva_a' (só os produtos A em risco; os demais ficam zerados)
@@ -363,7 +363,7 @@ const MODO={};
 function aplicarModo(id,modo,rerender){
   const j=DETALHES[id]; if(!j) return; MODO[id]=modo;
   for(const i of j.itens){
-    if(i.risco_a) continue;
+    if(i.curva_a) continue;
     if(modo==='curva_a'){ for(const ln of Object.keys(i.lojas_qtd)) i.lojas_qtd[ln]=0; }
     else { const ed=EDITS[id]?.[i.cod]; i.lojas_qtd={...i._calc}; if(ed) for(const [ln,v] of Object.entries(ed)) i.lojas_qtd[ln]=v; }
     recalcItem(i);
@@ -466,7 +466,7 @@ function renderRegras(){
   '<div><b>Fazer a lista</b> (risco ponderado) no dia em que os produtos que vão faltar somam <b>10% da venda</b> da lista (em R$), ou no dia em que um <b>produto de curva A</b> vai faltar, o que vier primeiro. Fim de semana cai pra segunda. Antes era 25%: um produto sobrando muito (84 d) empurrava a data e escondia itens zerados.</div>'+
   '<div><b>Gatilho curva A</b>: curva A são os produtos que somam 50% da venda em R$ (≈400). Se um produto A vai <b>zerar antes do dia previsto da lista</b>, a lista é antecipada pro dia em que ele cruza o ponto de pedido (pill vermelha "curva A"). Um A que só cruzou o ponto, mas ainda cobre até o dia da lista, não antecipa. No detalhe, os A em risco ficam no bloco de cima e dá pra gerar o pedido <b>só com eles</b> ou com a <b>lista completa</b>. Desligável no filtro.</div>'+
   '<div><b>Loja zerada</b> de produto A com estoque em outra loja aparece na aba "Curva A em risco" como <b>transferir</b>, não como compra.</div>'+
-  '<div><b>No detalhe</b>, todo item que zera antes da data da lista fica marcado em vermelho ("zera em N d, antes da lista"), seja curva A ou não, pra ninguém escolher "Só curva A" sem ver o que vai faltar.</div>'+
+  '<div><b>No detalhe</b>, os produtos de curva A da lista ficam sempre no bloco de cima (em vermelho os em risco: cobertura até ponto + 1 dia, ou zera antes da data da lista). Todo item que zera antes da data da lista fica marcado em vermelho ("zera em N d, antes da lista"), seja curva A ou não, pra ninguém escolher "Só curva A" sem ver o que vai faltar.</div>'+
   '<div><b>Quanto pedir</b> = alvo × venda/dia − (estoque + o que já está pedido e não chegou), arredondado pra cima à embalagem.</div>'+
   '<div><b>Embalagem real</b>: o arredondamento usa a embalagem em que o produto de fato chegou nas notas de entrada no período do filtro (padrão 24 meses; a mais frequente, empate vai pra maior). Se sempre veio em caixa de 24, "faltam 2" vira 1 caixa de 24. Sem nota no período, vale a embalagem do cadastro. Filtro em 0 desliga e usa só o cadastro.</div>'+
   '<div><b>Piso</b>: nunca menos que o consumo de 1 ciclo. <b>Teto</b>: nunca mais que (alvo + ciclo) × venda/dia; se bater, aparece "TETO: conferir" (estoque negativo ou venda atípica).</div>'+
@@ -498,7 +498,7 @@ function gerarPedido(id){
   const j=DETALHES[id]; if(!j) return;
   const L=j.lista, LJ=[...new Set(j.itens.flatMap(i=>i.lojas))].sort((a,b)=>a-b);
   const hoje=new Date().toLocaleDateString('pt-BR');
-  const top='<div class="pv-top"><div><div class="eyebrow-pv">PRÉVIA · NÃO ENVIADO · NÃO GRAVADO</div><h2>Pedido · '+esc(L.nome)+'</h2><div class="pv-sub">'+esc(L.fornecedor||'')+' · gerado em '+hoje+' · teto '+($('#fTeto').value||28)+' d · embalagem real '+($('#fEmb').value===''?24:$('#fEmb').value)+' m'+(L.pedidoMinimo?' · pedido mínimo R$ '+fmt(L.pedidoMinimo,0):'')+(MODO[id]==='curva_a'?' · <b style="color:#C22F49">SÓ CURVA A</b>':(j.itens.some(i=>i.risco_a)?' · lista completa (inclui '+j.itens.filter(i=>i.risco_a).length+' de curva A em risco)':''))+'</div></div><div class="pv-acts"><button class="btn btn-slate" onclick="window.print()">Imprimir</button><button class="btn btn-amber" onclick="fecharPedido()">Fechar</button></div></div>';
+  const top='<div class="pv-top"><div><div class="eyebrow-pv">PRÉVIA · NÃO ENVIADO · NÃO GRAVADO</div><h2>Pedido · '+esc(L.nome)+'</h2><div class="pv-sub">'+esc(L.fornecedor||'')+' · gerado em '+hoje+' · teto '+($('#fTeto').value||28)+' d · embalagem real '+($('#fEmb').value===''?24:$('#fEmb').value)+' m'+(L.pedidoMinimo?' · pedido mínimo R$ '+fmt(L.pedidoMinimo,0):'')+(MODO[id]==='curva_a'?' · <b style="color:#C22F49">SÓ CURVA A</b>':(j.itens.some(i=>i.risco_a)?' · lista completa (inclui '+j.itens.filter(i=>i.curva_a).length+' de curva A)':''))+'</div></div><div class="pv-acts"><button class="btn btn-slate" onclick="window.print()">Imprimir</button><button class="btn btn-amber" onclick="fecharPedido()">Fechar</button></div></div>';
   let h='';
   let totalGeral=0, volGeral=0, resumo=[];
   for(const ln of LJ){
