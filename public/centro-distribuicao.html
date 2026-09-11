@@ -145,7 +145,7 @@ function linha(item, lojasCols) {
     <td class="lc"><div class="nm">${item.descricaoCD}</div><div class="sub">${item.unidade ? item.unidade + ' · ' + (item.descricaoUn || '') : `<button class="btn btn-slate" style="padding:2px 8px;font-size:11px;color:#C22F49" onclick="event.stopPropagation();irVinculo('${item.codigoCD}')">sem vínculo · vincular unidade</button>`}${item.cdInsuficiente ? ' · <span class="neg">CD insuficiente: faltam ' + item.faltaCx + ' cx</span>' : ''}</div></td>
     <td class="r">${fmtN(item.estoqueCDcx)}</td><td class="c">${item.unPorCaixa || '–'}</td>
     <td class="r">${fmtN(item.vqTotal, 1)}</td><td class="r">${item.coberturaTotal == null ? '–' : fmtN(item.coberturaTotal, 1)}</td>
-    ${lojasCols.map(ln => { const L = item.lojas[ln]; const k = item.codigoCD + '|' + ln; return `<td class="c" title="venda ${fmtN(L.vq, 1)}/d · est ${fmtN(L.est)} · trânsito ${fmtN(L.transito)} · cob ${L.cobertura == null ? '–' : fmtN(L.cobertura, 1)} d"><input class="cx ${k in EDITS ? 'edit' : ''}" type="number" min="0" value="${cxDe(item, ln)}" onchange="editar('${item.codigoCD}',${ln},this.value)">${L.zeraAntes ? '<div class="s2 neg">zera</div>' : ''}</td>`; }).join('')}
+    ${lojasCols.map(ln => { const L = item.lojas[ln]; const k = item.codigoCD + '|' + ln; return `<td class="c" title="venda ${fmtN(L.vq, 1)}/d · est ${fmtN(L.est)} · trânsito ${fmtN(L.transito)} · cob ${L.cobertura == null ? '–' : fmtN(L.cobertura, 1)} d"><input class="cx ${k in EDITS ? 'edit' : ''}" type="number" min="0" value="${cxDe(item, ln)}" onchange="editar('${item.codigoCD}',${ln},this.value)"><div class="s2">${item.unPorCaixa > 1 ? '= ' + fmtN(cxDe(item, ln) * item.unPorCaixa) + ' un' : 'un'}${L.zeraAntes ? ' · <span class="neg">zera</span>' : ''}</div></td>`; }).join('')}
     <td class="r"><b>${fmtN(tot)}</b></td><td class="r">${fmtR(tot * (item.unPorCaixa || 0) * item.custoUn)}</td></tr>`;
 }
 function tabela(titulo, itens, id, isRepor) {
@@ -155,7 +155,7 @@ function tabela(titulo, itens, id, isRepor) {
   VIS[id] = vis.map(i => i.codigoCD);
   const lojasCols = FLOJA ? [FLOJA] : LOJAS;
   return `<h3 style="font-size:13px;margin:14px 0 6px">${titulo} <span class="mut">(${vis.length})</span></h3>
-  <div class="table-wrap"><table class="main-t"><thead><tr><th class="c"><input type="checkbox" onchange="selTodos('${id}',this.checked)"></th><th>Produto</th><th class="r">Est. CD (cx)</th><th class="c">Un/cx</th><th class="r">Venda un/d</th><th class="r">Cob. (d)</th>${lojasCols.map(ln => `<th class="c">L${ln}</th>`).join('')}<th class="r">Total cx</th><th class="r">Custo</th></tr></thead>
+  <div class="table-wrap"><table class="main-t"><thead><tr><th class="c"><input type="checkbox" onchange="selTodos('${id}',this.checked)"></th><th>Produto</th><th class="r">Est. CD (cx)</th><th class="c">Un/cx</th><th class="r">Venda un/d</th><th class="r">Cob. (d)</th>${lojasCols.map(ln => `<th class="c" title="quantidade sugerida em CAIXAS (unidades embaixo)">L${ln} <small>cx</small></th>`).join('')}<th class="r">Total cx</th><th class="r">Custo</th></tr></thead>
   <tbody>${vis.map(i => linha(i, lojasCols)).join('') || `<tr><td colspan="${8 + lojasCols.length}" class="mut">nada aqui</td></tr>`}</tbody></table></div>`;
 }
 function renderPedido() {
