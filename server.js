@@ -6177,9 +6177,11 @@ app.post('/api/pedidos-fornecedor', async (req, res) => {
       }
       if (!det.itens.some(i => i.qtd > 0)) { semItens.push({ lista: id, nome: det.lista.nome, motivo: 'nada a pedir hoje' }); continue; }
       const cad = await cadastroLista(id).catch(() => null);
-      criados.push(pedidosFornec.criar({ lista: det.lista, cadastro: cad, detalhe: det, teto, embMeses, usuario: req.session.user?.nome || null, modo: soCurvaA ? 'curva_a' : 'completa' }));
+      const np = pedidosFornec.criar({ lista: det.lista, cadastro: cad, detalhe: det, teto, embMeses, usuario: req.session.user?.nome || null, modo: soCurvaA ? 'curva_a' : 'completa' });
+      try { await pedidosFornec.anexarAvarias(np); } catch (e) { console.error('[PEDIDOS] avarias:', e.message); }
+      criados.push(np);
     }
-    res.json({ criados: criados.map(p => ({ id: p.id, lista: p.lista, lista_nome: p.lista_nome, fornecedor: p.fornecedor, vendedor: p.vendedor, itens: p.itens.length, totais: p.totais, link: linkPedido(p) })), sem_itens: semItens });
+    res.json({ criados: criados.map(p => ({ id: p.id, lista: p.lista, lista_nome: p.lista_nome, fornecedor: p.fornecedor, vendedor: p.vendedor, itens: p.itens.length, totais: p.totais, link: linkPedido(p), avarias: p.avarias ? { n: p.avarias.n, total: p.avarias.total } : null, avarias_txt: pedidosFornec.textoAvarias(p) })), sem_itens: semItens });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 // Testes da conferência XML: cria 4 pedidos "FORNECEDOR TESTE" com notas simuladas e roda a conferência
@@ -6221,17 +6223,25 @@ app.post('/api/pedidos-fornecedor/:id/xml/:loja/aceitar', (req, res) => {
     res.json({ ok: true, status: r.status, xml: r.xml.status });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+app.post('/api/pedidos-fornecedor/testes-avaria', (req, res) => {
+  try { res.json({ criados: pedidosFornec.criarTestesAvaria(req.session.user?.nome || null) }); } catch (err) { res.status(500).json({ error: err.message }); }
+});
+// reconsulta as avarias pendentes do fornecedor no ERP e atualiza a foto guardada no pedido
+app.post('/api/pedidos-fornecedor/:id/avarias/atualizar', async (req, res) => {
+  try { const p = pedidosFornec.obter(parseInt(req.params.id)); if (!p) return res.status(404).json({ error: 'Pedido não encontrado' }); await pedidosFornec.anexarAvarias(p); res.json({ ok: true, avarias: p.avarias }); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
 app.post('/api/pedidos-fornecedor/testes-xml/remover', (req, res) => {
   try { res.json({ removidos: pedidosFornec.removerTestesXml() }); } catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.get('/api/pedidos-fornecedor', (req, res) => {
   res.json(pedidosFornec.listar().map(p => ({ id: p.id, lista: p.lista, lista_nome: p.lista_nome, fornecedor: p.fornecedor, vendedor: p.vendedor, comprador: p.comprador, status: p.status, aprovadoEm: p.aprovadoEm || null, aprovadoPor: p.aprovadoPor || null, recebidoEm: p.recebidoEm || null, origem: p.origem || null, alerta_novo: !!p.alerta_novo,
-    recebimento: p.recebimento ? Object.fromEntries(Object.entries(p.recebimento).map(([l, r]) => [l, { faltas: r.faltas, itens_pedidos: r.itens_pedidos, notas: r.notas.map(n => n.nNota) }])) : null, criadoEm: p.criadoEm, criadoPor: p.criadoPor, abertoEm: p.abertoEm, finalizadoEm: p.finalizadoEm, lojas: p.lojas, totais: p.totais, por_loja: pedidosFornec.porLoja(p), link: linkPedido(p), teste: !!p.teste, xml: p.xml ? { status: p.xml.status, verificadoEm: p.xml.verificadoEm || null, lojas: Object.fromEntries(Object.entries(p.xml.lojas || {}).map(([l, x]) => [l, { status: x.status, problemas: (x.problemas || []).map(z => z.tipo), notas: (x.notas || []).length }])) } : null })));
+    recebimento: p.recebimento ? Object.fromEntries(Object.entries(p.recebimento).map(([l, r]) => [l, { faltas: r.faltas, itens_pedidos: r.itens_pedidos, notas: r.notas.map(n => n.nNota) }])) : null, criadoEm: p.criadoEm, criadoPor: p.criadoPor, abertoEm: p.abertoEm, finalizadoEm: p.finalizadoEm, lojas: p.lojas, totais: p.totais, por_loja: pedidosFornec.porLoja(p), link: linkPedido(p), teste: !!p.teste, avarias: p.avarias ? { n: p.avarias.n, total: p.avarias.total, por_loja: p.avarias.por_loja || {} } : null, xml: p.xml ? { status: p.xml.status, verificadoEm: p.xml.verificadoEm || null, lojas: Object.fromEntries(Object.entries(p.xml.lojas || {}).map(([l, x]) => [l, { status: x.status, problemas: (x.problemas || []).map(z => z.tipo), notas: (x.notas || []).length }])) } : null })));
 });
 app.get('/api/pedidos-fornecedor/:id', (req, res) => {
   const p = pedidosFornec.obter(parseInt(req.params.id));
   if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
-  res.json({ ...p, por_loja: pedidosFornec.porLoja(p), link: linkPedido(p) });
+  res.json({ ...p, por_loja: pedidosFornec.porLoja(p), link: linkPedido(p), avarias_txt: pedidosFornec.textoAvarias(p) });
 });
 
 app.post('/api/pedidos-fornecedor/:id/aprovar', (req, res) => {
