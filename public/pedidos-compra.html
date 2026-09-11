@@ -172,11 +172,13 @@ async function removerTestesXml(){
   catch(e){alert('Erro: '+e.message);}
 }
 const XML_ST={aguardando:'Aguardando conferência XML',parcial:'XML parcial',conciliado:'Conciliado XML',consistencia:'Consistência XML'};
+const XML_PROB={falta:'falta',a_mais:'veio a mais',nao_pedido:'item não pedido',preco:'preço',sem_boleto:'sem boleto',boleto:'boleto ≠ NF-e',valor:'valor ≠ esperado'};
+const probTxt=a=>(a||[]).map(t=>XML_PROB[t]||t).join(', ');
 const POS_APROV=['aprovado','recebido','recebido_parcial'];   // depois da aprovação: uma linha por loja
 function pillXml(p,ln){
-  if(ln){ const x=p.xml?.lojas?.[ln]; const st=x?x.status:'aguardando'; const pr=(x?.problemas||[]).join(', '); return '<div><span class="xml '+st+'" title="'+esc(pr)+'">'+(XML_ST[st]||st)+(pr?' · '+esc(pr):'')+'</span></div>'; }
+  if(ln){ const x=p.xml?.lojas?.[ln]; const st=x?x.status:'aguardando'; const pr=probTxt(x?.problemas); return '<div><span class="xml '+st+'" title="'+esc(pr)+'">'+(XML_ST[st]||st)+(pr?' · '+esc(pr):'')+'</span></div>'; }
   if(!p.xml) return p.status==='aprovado'?'<div><span class="xml aguardando">Aguardando conferência XML</span></div>':'';
-  const lj=Object.entries(p.xml.lojas||{}).map(([l,x])=>'L'+l+': '+(XML_ST[x.status]||x.status)+(x.problemas?.length?' ('+x.problemas.join(', ')+')':'')).join(' · ');
+  const lj=Object.entries(p.xml.lojas||{}).map(([l,x])=>'L'+l+': '+(XML_ST[x.status]||x.status)+(x.problemas?.length?' ('+probTxt(x.problemas)+')':'')).join(' · ');
   return '<div><span class="xml '+p.xml.status+'" title="'+esc(lj)+'">'+(XML_ST[p.xml.status]||p.xml.status)+'</span></div>';
 }
 function renderTotais(){
