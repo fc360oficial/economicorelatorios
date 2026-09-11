@@ -59,16 +59,16 @@ let P=null, dirty=false, saveTimer=null;
 function precoNum(v){const n=parseFloat(String(v).replace(/\./g,'').replace(',','.'));return isFinite(n)?n:null;}
 function itensForm(){return P.itens.map(i=>{const el=document.querySelector('input.preco[data-cod="'+i.cod+'"]');const ob=document.querySelector('input.obs[data-cod="'+i.cod+'"]');return {cod:i.cod,preco:el?(el.value.trim()===''?'':precoNum(el.value)):i.preco,obs:ob?ob.value:i.obs};});}
 function totais(){let t=0,n=0;for(const i of itensForm()){if(i.preco!=null&&i.preco!==''){t+=i.preco*(P.itens.find(x=>x.cod===i.cod)?.qtd||0);n++;}}return {t,n};}
-function atualizarTot(){const {t,n}=totais();$('#tot').innerHTML='<span>'+n+' de '+P.itens.length+' itens com preço</span><span>Total do pedido: <b>R$ '+fmt(t)+'</b></span>';$('#barinfo').innerHTML=n<P.itens.length?'Faltam <b>'+(P.itens.length-n)+'</b> itens sem preço. Você pode finalizar mesmo assim.':'Todos os itens com preço. <b>R$ '+fmt(t)+'</b>';}
+function atualizarTot(){const {t,n}=totais();$('#tot').innerHTML='<span>'+n+' de '+P.itens.length+' itens com preço</span>';$('#barinfo').innerHTML=n<P.itens.length?'Faltam <b>'+(P.itens.length-n)+'</b> itens sem preço. Você pode finalizar mesmo assim.':'Todos os itens com preço.';}
 function render(){
   const fin=P.status==='finalizado';
   let h='<div class="top"><div class="ey">PEDIDO DE COMPRA · ECONÔMICO</div><h1>'+esc(P.lista_nome)+'</h1><div class="sub">Fornecedor: <b>'+esc(P.fornecedor||'')+'</b>'+(P.comprador?.nome?' · Comprador(a): <b>'+esc(P.comprador.nome)+'</b>'+(P.comprador.whats?' · '+esc(P.comprador.whats):''):'')+(P.prazo_pagamento?' · Prazo: <b>'+esc(P.prazo_pagamento)+'</b>':'')+'<br>Enviado em '+new Date(P.criadoEm).toLocaleString('pt-BR')+' · Lojas: '+P.lojas.map(l=>'L'+l+' '+(P.lojas_nomes[l]||'')).join(', ')+'</div><span class="st '+(fin?'st-fin':'st-dig')+'">'+(fin?'FINALIZADO':'EM DIGITAÇÃO')+'</span></div>';
   if(fin) h+='<div class="fim"><b>Pedido finalizado'+(P.finalizadoEm?' em '+new Date(P.finalizadoEm).toLocaleString('pt-BR'):'')+'.</b> Obrigado! A compradora já recebeu os preços. Se precisar corrigir algo, fale com ela.</div>';
   else h+='<div class="fim" style="background:#FFF6D9;border-color:#EFD98F;color:#6B4E00">Preencha o <b>preço unitário</b> de cada item (por unidade, não por caixa) e, se quiser, uma observação. Tudo salva sozinho. Quando terminar, clique em <b>Finalizar pedido</b> no rodapé.</div>';
-  h+='<div class="card"><div class="hd">Itens do pedido <span>'+P.itens.length+' itens</span></div><div style="overflow-x:auto"><table><thead><tr><th>Produto</th><th class="r">Quantidade</th><th class="lj">Por loja</th><th class="r">Preço unit. (R$)</th><th>Observação</th></tr></thead><tbody>';
+  h+='<div class="card"><div class="hd">Itens do pedido <span>'+P.itens.length+' itens</span></div><div style="overflow-x:auto"><table><thead><tr><th>Produto</th><th class="r">Preço unit. (R$)</th><th>Observação</th></tr></thead><tbody>';
   for(const i of P.itens){
-    const lj=Object.entries(i.lojas_qtd||{}).filter(([,q])=>q>0).map(([l,q])=>'L'+l+': '+fmt(q,0)).join(' · ');
-    h+='<tr><td class="desc">'+esc(i.descricao)+'<span class="cod">'+esc(i.cod)+'</span></td><td class="r"><div class="qtd">'+fmt(i.qtd,0)+' <small>'+esc(i.unid)+'</small></div>'+(i.emb>1?'<div class="lj">'+i.volumes+' vol × '+i.emb+'</div>':'')+'</td><td class="lj">'+lj+'</td>'+
+    // quantidade NÃO aparece pro vendedor (pedido do Tiago, 11/09/2026): ele só cota o preço unitário
+    h+='<tr><td class="desc">'+esc(i.descricao)+'<span class="cod">'+esc(i.cod)+(i.emb>1?' · emb. '+i.emb:'')+'</span></td>'+
       '<td class="r">'+(fin?'<b>'+(i.preco!=null?'R$ '+fmt(i.preco):'—')+'</b>':'<input class="preco'+(i.preco!=null?' ok':'')+'" inputmode="decimal" data-cod="'+esc(i.cod)+'" value="'+(i.preco!=null?fmt(i.preco):'')+'" placeholder="0,00">')+'</td>'+
       '<td>'+(fin?esc(i.obs||'')||'<span style="color:#98A0B3">—</span>':'<input class="obs" data-cod="'+esc(i.cod)+'" value="'+esc(i.obs||'')+'" placeholder="ex.: sem estoque, substituir por…" maxlength="200">')+'</td></tr>';
   }
