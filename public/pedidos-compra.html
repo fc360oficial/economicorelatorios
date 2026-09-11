@@ -226,8 +226,12 @@ async function decidir(id,ln,cod,acao){
   catch(e){alert('Erro: '+e.message);}
 }
 function wppTexto(p,texto){const w=(p.vendedor?.whats||'').replace(/\D/g,'');const m=encodeURIComponent(texto);return w.length>=10?'https://wa.me/55'+w+'?text='+m:'https://wa.me/?text='+m;}
+// motivo sugerido automaticamente a partir dos problemas da loja (a compradora edita se quiser)
+const MOTIVO_AUTO={preco:'Preço divergente acertado com o vendedor (nota de devolução / boleto ajustado)',boleto:'Boleto corrigido pelo fornecedor conforme a NF-e',sem_boleto:'Boleto recebido do fornecedor',falta:'Falta tratada pela sugestão de ruptura',a_mais:'Excedente recusado na entrega, nota de devolução emitida',nao_pedido:'Item não pedido recusado na entrega',valor:'Diferença de valor conferida (frete / IPI / ST / desconto)',unidade:'Unidade da nota conferida com a embalagem'};
 async function aceitarLoja(id,ln){
-  const motivo=prompt('Aceitar e fechar a Loja '+ln+' do pedido #'+id+' como conciliada.\nMotivo (obrigatório):');
+  const x=PED[id]?.xml?.lojas?.[ln]; const tipos=[...new Set((x?.problemas||[]).map(z=>z.tipo))];
+  const sugerido=tipos.map(t=>MOTIVO_AUTO[t]||t).join('; ');
+  const motivo=prompt('Aceitar e fechar a Loja '+ln+' do pedido #'+id+' como conciliada.\nProblemas: '+(probTxt(tipos)||'—')+'\n\nMotivo (edite se precisar):',sugerido);
   if(motivo==null) return; if(motivo.trim().length<5){alert('Escreva o motivo (mínimo 5 letras).');return;}
   try{const r=await fetch('/api/pedidos-fornecedor/'+id+'/xml/'+ln+'/aceitar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({motivo})});const j=await r.json();if(j.error)throw new Error(j.error);await carregar();aberto=id+'-'+ln;render();carregarDetalhe(aberto);}
   catch(e){alert('Erro: '+e.message);}
