@@ -88,7 +88,8 @@ tr.zera td.lc{border-left:3px solid #E5AC00}
 .barra{position:sticky;bottom:0;background:#101B33;color:#fff;padding:10px 16px;border-radius:10px;display:flex;gap:12px;align-items:center;justify-content:flex-end;margin-top:8px}
 .overlay{position:fixed;inset:0;background:rgba(14,22,38,.55);display:none;align-items:center;justify-content:center;z-index:50}.overlay.on{display:flex}
 .modal{background:#fff;border-radius:12px;max-width:900px;width:94vw;max-height:90vh;overflow:auto;padding:18px}
-.busca-un{position:relative;margin-top:4px;min-width:260px}.busca-un ul{position:absolute;z-index:5;background:#fff;border:1px solid #DADAD6;border-radius:8px;list-style:none;max-height:260px;overflow:auto;width:100%}.busca-un li{padding:6px 10px;cursor:pointer;font-size:12px}.busca-un li:hover{background:#FFF6D9}
+.table-wrap.vinc{overflow:visible}
+.busca-un{position:relative;margin-top:4px;min-width:260px}.busca-un ul{position:absolute;z-index:50;box-shadow:0 8px 24px -8px rgba(14,22,38,.35);background:#fff;border:1px solid #DADAD6;border-radius:8px;list-style:none;max-height:260px;overflow:auto;width:100%}.busca-un li{padding:6px 10px;cursor:pointer;font-size:12px}.busca-un li:hover{background:#FFF6D9}
 </style>
 </head>
 <body>
@@ -129,7 +130,10 @@ async function carregar(refresh) {
   const avisos = es.avisos && es.avisos.length ? ` · <span class="neg">${es.avisos.length} aviso(s): ${esc(es.avisos.join('; '))}</span>` : '';
   $('#estado').innerHTML = es.status === 'calculando' || !es.atualizadoEm ? '<span class="calc">calculando… (até 1 min)</span>' : `dados de <b>${new Date(es.atualizadoEm).toLocaleString('pt-BR')}</b>${es.erro ? ' · <span class="neg">ERP indisponível: ' + esc(es.erro) + '</span>' : ''} · <b>${es.produtosCD}</b> produtos no CD${avisos}`;
   if (!es.atualizadoEm) setTimeout(() => carregar(false), 15000);
-  renderPedido(); renderRegras(); renderVinculos();
+  renderPedido(); renderRegras();
+  // não redesenha a aba Vínculos se alguém está digitando numa busca (o recarregamento automático de 15 s apagava a caixa e o resultado)
+  const digitando = document.activeElement && document.activeElement.closest && document.activeElement.closest('.busca-un');
+  if (!digitando) renderVinculos();
 }
 function cxDe(item, ln) { const k = item.codigoCD + '|' + ln; return k in EDITS ? EDITS[k] : item.lojas[ln].cx; }
 function linha(item, lojasCols) {
@@ -201,7 +205,7 @@ function renderVinculos() {
   $('#tab-vinculos').innerHTML = `<div class="cards">${['pendentes', 'sugeridos', 'confirmados', 'todos'].map(k => `<div class="card ${VF === k ? 'on' : ''}" onclick="VF='${k}';renderVinculos()"><div class="v">${cont[k]}</div><div class="l">${k}</div></div>`).join('')}</div>
   <p class="mut" style="font-size:11.5px;margin:0 0 8px">Cada caixa do CD precisa apontar pra unidade que a loja vende. <b>Sugerido</b> = unidade encontrada pelo código de barras, só conferir e Confirmar. <b>Sem vínculo</b> = buscar a unidade pelo nome ou código. Un/cx = quantas unidades tem a caixa.</p>
   <div class="busca-row"><input placeholder="filtrar caixa por descrição ou código" value="${VBUSCA}" oninput="VBUSCA=this.value;renderVinculos()"><span class="contagem">${vis.length} de ${all.length}</span></div>
-  <div class="table-wrap"><table class="main-t"><thead><tr><th>Código CD</th><th>Descrição CD</th><th class="r">Est. CD</th><th class="c">Un/cx</th><th>Unidade vinculada</th><th>Origem</th><th>Ação</th></tr></thead><tbody>
+  <div class="table-wrap vinc"><table class="main-t"><thead><tr><th>Código CD</th><th>Descrição CD</th><th class="r">Est. CD</th><th class="c">Un/cx</th><th>Unidade vinculada</th><th>Origem</th><th>Ação</th></tr></thead><tbody>
   ${vis.map(v => { const i = cd[v.codigoCD] || {}; const upc = v.unPorCaixa || v.unPorCaixaCadastro || ''; return `<tr>
     <td>${v.codigoCD}</td><td class="lc">${i.descricaoCD || v.descricaoCD || ''}</td><td class="r">${fmtN(i.estoqueCDcx ?? v.estoqueCx)}</td>
     <td class="c"><input class="cx" id="upc-${v.codigoCD}" type="number" min="1" value="${upc}" ${v.origem === 'igual' ? 'disabled' : ''}></td>
