@@ -70,7 +70,12 @@ tr.novo td{background:#FFF3F5}
 .spinner{width:26px;height:26px;border:3px solid #DADAD6;border-top-color:#F5B800;border-radius:50%;animation:spin .7s linear infinite;margin:40px auto}
 @keyframes spin{to{transform:rotate(360deg)}}
 .dts{font-size:11px;line-height:1.45;white-space:nowrap}.dts span{display:inline-block;width:62px;color:#98A0B3;font-size:10px;text-transform:uppercase;letter-spacing:.3px}.dts i{color:#98A0B3;font-style:normal;font-size:10.5px}
-table.main-t td.lc{min-width:250px;max-width:360px}
+table.main-t td.lc{min-width:200px;max-width:300px}
+table.main-t td.cv{white-space:normal;max-width:150px;font-size:11.5px}
+table.main-t td{padding:7px 8px;font-size:11.5px}table.main-t th{padding:8px 8px}
+.dts{font-size:10.5px}.dts span{width:56px}
+.rup{white-space:normal;line-height:1.3}
+table.main-t td.acao .btn{padding:5px 9px;font-size:11px}
 table.main-t td.acao{white-space:nowrap}
 #pv{position:fixed;inset:0;background:rgba(14,22,38,.55);z-index:1000;overflow:auto;padding:24px}
 .pv-card{background:#fff;border-radius:14px;max-width:900px;margin:0 auto;padding:22px 26px 30px;box-shadow:0 20px 60px -20px rgba(0,0,0,.5)}
@@ -165,12 +170,12 @@ function render(){
   rows=rows.filter(p=>(!q||p.lista_nome.toLowerCase().includes(q)||(p.fornecedor||'').toLowerCase().includes(q)||(p.vendedor?.nome||'').toLowerCase().includes(q)||String(p.id)===q||String(p.lista)===q)&&(!comp||p.comprador?.nome===comp));
   $('#cnt').textContent=rows.length+' pedido'+(rows.length===1?'':'s');
   if(!rows.length){$('#view').innerHTML='<div class="empty">Nenhum pedido aqui.'+(filtro==='andamento'||filtro==='todos'?' Gere um no Radar de Pedidos: selecione as listas e clique em "Enviar pro fornecedor".':'')+'</div>';return;}
-  let h='<div class="table-wrap"><table class="main-t"><thead><tr><th>#</th><th>Lista / fornecedor</th><th>Comprador</th><th>Vendedor</th><th>Status</th><th>Andamento</th><th class="r">Itens</th><th class="r">Com preço</th><th class="r">Último custo</th><th class="r">Digitado</th><th class="r">Variação</th><th>Ação</th></tr></thead><tbody>';
+  let h='<div class="table-wrap"><table class="main-t"><thead><tr><th>#</th><th>Lista / fornecedor</th><th>Comprador / vendedor</th><th>Status</th><th>Andamento</th><th class="r">Itens</th><th class="r">Último custo</th><th class="r">Digitado</th><th>Ação</th></tr></thead><tbody>';
   for(const p of rows){
     const rup=p.origem?.tipo==='ruptura'?'<div><span class="rup" title="Criada automaticamente pelo sistema: a nota do pedido #'+p.origem.pedidoId+' chegou com falta nas lojas L'+(p.origem.lojas||[]).join(' L')+'">RUPTURA DE ENTREGA · do pedido #'+p.origem.pedidoId+'</span></div>':'';
     const recS=p.recebimento?Object.entries(p.recebimento).map(([l,r])=>'L'+l+': '+(r.faltas?'<span class="f">'+r.faltas+' falta'+(r.faltas>1?'s':'')+'</span>':'ok')).join(' · '):'';
-    h+='<tr class="lst'+(aberto===p.id?' open':'')+(p.alerta_novo?' novo':'')+'" data-id="'+p.id+'"><td><b>'+p.id+'</b></td><td class="lc"><div class="nm">'+esc(p.lista_nome)+'<span>#'+p.lista+'</span></div><div class="sub">'+esc(p.fornecedor||'')+' · L'+p.lojas.join(' L')+'</div>'+rup+(recS?'<div class="rec">recebimento: '+recS+'</div>':'')+'</td><td>'+esc(p.comprador?.nome||p.criadoPor||'—')+'</td><td>'+esc(p.vendedor?.nome||'—')+'</td><td><span class="pill st-'+p.status+'">'+(ST[p.status]||p.status)+'</span></td><td class="dts"><div><span>enviado</span> '+dt(p.criadoEm)+' <i>'+esc(p.criadoPor||'')+'</i></div>'+(p.abertoEm?'<div><span>aberto</span> '+dt(p.abertoEm)+'</div>':'')+(p.finalizadoEm?'<div><span>finalizado</span> '+dt(p.finalizadoEm)+'</div>':'')+(p.aprovadoEm?'<div><span>aprovado</span> '+dt(p.aprovadoEm)+' <i>'+esc(p.aprovadoPor||'')+'</i></div>':'')+'</td><td class="r">'+p.totais.itens+'</td><td class="r">'+p.totais.com_preco+'</td><td class="r">'+money(p.totais.ultimo_custo)+'</td><td class="r">'+(p.totais.com_preco?money(p.totais.digitado):'<span class="mut">—</span>')+'</td><td class="r">'+seta(p.totais.com_preco?p.totais.digitado:null,ultProp(p),true)+'</td><td class="acao">'+acaoLinha(p)+'</td></tr>';
-    if(aberto===p.id) h+='<tr class="det"><td colspan="12"><div class="box" id="det-'+p.id+'"><div class="spinner"></div></div></td></tr>';
+    h+='<tr class="lst'+(aberto===p.id?' open':'')+(p.alerta_novo?' novo':'')+'" data-id="'+p.id+'"><td><b>'+p.id+'</b></td><td class="lc"><div class="nm">'+esc(p.lista_nome)+'<span>#'+p.lista+'</span></div><div class="sub">'+esc(p.fornecedor||'')+' · L'+p.lojas.join(' L')+'</div>'+rup+(recS?'<div class="rec">recebimento: '+recS+'</div>':'')+'</td><td class="cv"><div>'+esc(p.comprador?.nome||p.criadoPor||'—')+'</div><div class="sub">vend. '+esc(p.vendedor?.nome||'—')+'</div></td><td><span class="pill st-'+p.status+'">'+(ST[p.status]||p.status)+'</span></td><td class="dts"><div><span>enviado</span> '+dt(p.criadoEm)+' <i>'+esc(p.criadoPor||'')+'</i></div>'+(p.abertoEm?'<div><span>aberto</span> '+dt(p.abertoEm)+'</div>':'')+(p.finalizadoEm?'<div><span>finalizado</span> '+dt(p.finalizadoEm)+'</div>':'')+(p.aprovadoEm?'<div><span>aprovado</span> '+dt(p.aprovadoEm)+' <i>'+esc(p.aprovadoPor||'')+'</i></div>':'')+'</td><td class="r">'+p.totais.itens+(p.totais.com_preco?'<div class="sub">'+p.totais.com_preco+' c/ preço</div>':'')+'</td><td class="r">'+money(p.totais.ultimo_custo)+'</td><td class="r">'+(p.totais.com_preco?money(p.totais.digitado)+'<div>'+seta(p.totais.digitado,ultProp(p),true)+'</div>':'<span class="mut">—</span>')+'</td><td class="acao">'+acaoLinha(p)+'</td></tr>';
+    if(aberto===p.id) h+='<tr class="det"><td colspan="9"><div class="box" id="det-'+p.id+'"><div class="spinner"></div></div></td></tr>';
   }
   h+='</tbody></table></div>';
   $('#view').innerHTML=h;
