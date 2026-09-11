@@ -66,7 +66,10 @@
         { href: '/pedidos-compra.html',      ic: 'cart',  txt: 'Pedidos de Compra' },
         { href: '/ponta-gondola.html',       ic: 'store', txt: 'Ponta de Gôndola' },
         { href: '/radar-pedidos.html',       ic: 'trend', txt: 'Radar de Pedidos' },
-        { href: '/sugestao-compras.html',    ic: 'trend', txt: 'Sugestão de Compras' }
+        { href: '/sugestao-compras.html',    ic: 'trend', txt: 'Sugestão de Compras', escolha: [
+            { txt: 'Sugestão por Rupturas', desc: 'Escolhe a compradora, mostra as rupturas de cada lista e cria a sugestão a partir delas.', href: '/sugestao-compras.html?tela=rupturas' },
+            { txt: 'Sugestão Manual', desc: 'Monitor de Sugestões do ERP: acompanha as sugestões existentes e abre a calculadora por lista.', href: '/sugestao-compras.html?tela=monitor' }
+          ] }
       ]},
     { id: 'prevencao', ic: 'shield', txt: 'Prevenção', sub: [
         { href: '/prevencao.html', ic: 'shield', txt: 'Fechamento de Mês' }
@@ -242,7 +245,8 @@
           + '<div class="dn-sub">'
           + it.sub.map(function (s) {
               var onS = path === s.href ? ' on' : '';
-              return '<a class="dn-item' + onS + '" href="' + s.href + '">' + icon(s.ic) + '<span class="lbl">' + s.txt + '</span></a>';
+              var esc = s.escolha ? ' data-escolha="' + encodeURIComponent(JSON.stringify({ titulo: s.txt, opcoes: s.escolha })) + '"' : '';
+              return '<a class="dn-item' + onS + '" href="' + s.href + '"' + esc + '>' + icon(s.ic) + '<span class="lbl">' + s.txt + '</span></a>';
             }).join('')
           + '</div>'
           + '</div>';
@@ -289,10 +293,41 @@
        hover de verdade); clique em link/marca/grupo navega ou abre o
        acordeão normal; clicar fora fecha o rail (não fecha os acordeões
        abertos — só recolhe pra ícone, igual recarregar a página faria). */
+    /* item com "escolha": em vez de navegar direto, abre uma janela perguntando
+       qual das telas o usuário quer (ex.: Sugestão por Rupturas × Sugestão Manual) */
     aside.addEventListener('click', function (e) {
+      var esc = e.target.closest('a[data-escolha]');
+      if (esc) {
+        e.preventDefault();
+        var cfg; try { cfg = JSON.parse(decodeURIComponent(esc.getAttribute('data-escolha'))); } catch (err) { location.href = esc.getAttribute('href'); return; }
+        abrirEscolha(cfg);
+        return;
+      }
       if (e.target.closest('a, .dn-group-hd')) return;
       aside.classList.toggle('pinned');
     });
+    function abrirEscolha(cfg) {
+      var old = document.getElementById('dn-escolha'); if (old) old.remove();
+      if (!document.getElementById('dn-escolha-css')) {
+        var st = document.createElement('style'); st.id = 'dn-escolha-css';
+        st.textContent = '#dn-escolha{position:fixed;inset:0;z-index:5000;background:rgba(14,22,38,.55);display:flex;align-items:center;justify-content:center;padding:20px}'
+          + '#dn-escolha .bx{background:#fff;border-radius:14px;max-width:560px;width:100%;box-shadow:0 20px 60px -20px rgba(0,0,0,.5);overflow:hidden;font-family:InterVar,Inter,"Segoe UI",system-ui,sans-serif;color:#0E1626}'
+          + '#dn-escolha .hd{background:#101B33;color:#fff;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;gap:10px}'
+          + '#dn-escolha .hd b{font-size:15px;font-weight:800;letter-spacing:-.2px}#dn-escolha .hd small{display:block;color:#AEB8CE;font-size:11.5px;font-weight:500;margin-top:2px}'
+          + '#dn-escolha .x{background:rgba(255,255,255,.12);border:none;color:#fff;border-radius:7px;width:30px;height:30px;font-size:16px;cursor:pointer}'
+          + '#dn-escolha .ops{padding:14px;display:grid;gap:10px}'
+          + '#dn-escolha .op{display:block;text-decoration:none;color:inherit;border:1px solid #DADAD6;border-radius:11px;padding:13px 16px;transition:border-color .12s,background .12s}'
+          + '#dn-escolha .op:hover{border-color:#F5B800;background:#FFF6D9}'
+          + '#dn-escolha .op b{display:block;font-size:14px;font-weight:800}#dn-escolha .op span{display:block;font-size:12px;color:#4E5A72;margin-top:3px;line-height:1.4}';
+        document.head.appendChild(st);
+      }
+      var ov = document.createElement('div'); ov.id = 'dn-escolha';
+      ov.innerHTML = '<div class="bx"><div class="hd"><div><b>' + cfg.titulo + '</b><small>Qual sugestão você quer usar?</small></div><button class="x" aria-label="Fechar">×</button></div>'
+        + '<div class="ops">' + cfg.opcoes.map(function (o) { return '<a class="op" href="' + o.href + '"><b>' + o.txt + '</b>' + (o.desc ? '<span>' + o.desc + '</span>' : '') + '</a>'; }).join('') + '</div></div>';
+      ov.addEventListener('click', function (ev) { if (ev.target === ov || ev.target.closest('.x')) ov.remove(); });
+      document.addEventListener('keydown', function esc(ev) { if (ev.key === 'Escape') { ov.remove(); document.removeEventListener('keydown', esc); } });
+      document.body.appendChild(ov);
+    }
     document.addEventListener('click', function (e) {
       if (aside.classList.contains('pinned') && !aside.contains(e.target)) {
         aside.classList.remove('pinned');
