@@ -226,7 +226,7 @@
 
     var html = '<div class="dn-top">'
       + '<a class="dn-brand" id="dn-brand" href="/index.html">'
-      + '<img src="/logo.png" alt="Econômico Relatórios">'
+      + '<img src="/logo-supermercados-transp.png" alt="Econômico Supermercados">'
       + '</a>'
       + '<a class="dn-exit-mobile" href="/api/logout">' + icon('logout') + 'Sair</a>'
       + '</div>'
