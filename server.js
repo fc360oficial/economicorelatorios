@@ -6395,9 +6395,17 @@ app.post('/api/pedidos-fornecedor', async (req, res) => {
     res.json({ criados: criados.map(p => ({ id: p.id, lista: p.lista, lista_nome: p.lista_nome, fornecedor: p.fornecedor, vendedor: p.vendedor, itens: p.itens.length, totais: p.totais, link: linkPedido(p) })), sem_itens: semItens });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+// Testes da conferência XML: cria 4 pedidos "FORNECEDOR TESTE" com notas simuladas e roda a conferência
+app.post('/api/pedidos-fornecedor/testes-xml', async (req, res) => {
+  try { const ids = pedidosFornec.criarTestesXml(req.session.user?.nome || null); const r = await pedidosFornec.verificarRecebimentos(); res.json({ criados: ids, conferencia: r }); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.post('/api/pedidos-fornecedor/testes-xml/remover', (req, res) => {
+  try { res.json({ removidos: pedidosFornec.removerTestesXml() }); } catch (err) { res.status(500).json({ error: err.message }); }
+});
 app.get('/api/pedidos-fornecedor', (req, res) => {
   res.json(pedidosFornec.listar().map(p => ({ id: p.id, lista: p.lista, lista_nome: p.lista_nome, fornecedor: p.fornecedor, vendedor: p.vendedor, comprador: p.comprador, status: p.status, aprovadoEm: p.aprovadoEm || null, aprovadoPor: p.aprovadoPor || null, recebidoEm: p.recebidoEm || null, origem: p.origem || null, alerta_novo: !!p.alerta_novo,
-    recebimento: p.recebimento ? Object.fromEntries(Object.entries(p.recebimento).map(([l, r]) => [l, { faltas: r.faltas, itens_pedidos: r.itens_pedidos, notas: r.notas.map(n => n.nNota) }])) : null, criadoEm: p.criadoEm, criadoPor: p.criadoPor, abertoEm: p.abertoEm, finalizadoEm: p.finalizadoEm, lojas: p.lojas, totais: p.totais, link: linkPedido(p) })));
+    recebimento: p.recebimento ? Object.fromEntries(Object.entries(p.recebimento).map(([l, r]) => [l, { faltas: r.faltas, itens_pedidos: r.itens_pedidos, notas: r.notas.map(n => n.nNota) }])) : null, criadoEm: p.criadoEm, criadoPor: p.criadoPor, abertoEm: p.abertoEm, finalizadoEm: p.finalizadoEm, lojas: p.lojas, totais: p.totais, link: linkPedido(p), teste: !!p.teste, xml: p.xml ? { status: p.xml.status, verificadoEm: p.xml.verificadoEm || null, lojas: Object.fromEntries(Object.entries(p.xml.lojas || {}).map(([l, x]) => [l, { status: x.status, problemas: (x.problemas || []).map(z => z.tipo), notas: (x.notas || []).length }])) } : null })));
 });
 app.get('/api/pedidos-fornecedor/:id', (req, res) => {
   const p = pedidosFornec.obter(parseInt(req.params.id));
