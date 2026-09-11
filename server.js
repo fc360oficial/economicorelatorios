@@ -6072,6 +6072,14 @@ pedidosFornec.initERP(q, radarPedidos);
 setTimeout(() => pedidosFornec.verificarRecebimentos().catch(e => console.error('[PEDIDOS] verificar:', e.message)), 120 * 1000);
 setInterval(() => pedidosFornec.verificarRecebimentos().catch(e => console.error('[PEDIDOS] verificar:', e.message)), 30 * 60 * 1000);
 
+// ── Formação de Preço (sidebar "Precificação"): registro por pedido×loja quando a loja concilia o XML
+const precificacao = require('./lib/precificacao');
+precificacao.init();
+precificacao.initERP(q, radarPedidos);
+pedidosFornec.setHooks({ onConciliado: (p, ln) => precificacao.criarDeConciliacao(p, ln).catch(e => console.error('[PRECIF] criar', p.id, ln, e.message)) });
+setTimeout(() => precificacao.verificarTodos().catch(e => console.error('[PRECIF] verificar:', e.message)), 120 * 1000);
+setInterval(() => precificacao.verificarTodos().catch(e => console.error('[PRECIF] verificar:', e.message)), 60 * 60 * 1000);
+
 // ═══════════════════════════════════════════════════
 // PEDIDOS DO CD — Gestão de Compras > Centro Distribuição
 // Vínculo caixa↔unidade, sugestão semanal em caixas (regras do Radar) e
@@ -6232,7 +6240,7 @@ app.post('/api/pedidos-fornecedor/:id/avarias/atualizar', async (req, res) => {
   catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.post('/api/pedidos-fornecedor/testes-xml/remover', (req, res) => {
-  try { res.json({ removidos: pedidosFornec.removerTestesXml() }); } catch (err) { res.status(500).json({ error: err.message }); }
+  try { const n = pedidosFornec.removerTestesXml(); const np = precificacao.removerTestes(); res.json({ removidos: n, precificacao_removidos: np }); } catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.get('/api/pedidos-fornecedor', (req, res) => {
   res.json(pedidosFornec.listar().map(p => ({ id: p.id, lista: p.lista, lista_nome: p.lista_nome, fornecedor: p.fornecedor, vendedor: p.vendedor, comprador: p.comprador, status: p.status, aprovadoEm: p.aprovadoEm || null, aprovadoPor: p.aprovadoPor || null, recebidoEm: p.recebidoEm || null, origem: p.origem || null, alerta_novo: !!p.alerta_novo,
@@ -6309,7 +6317,7 @@ app.get('/api/pedido-publico/:token', (req, res) => {
   res.json(pedidosFornec.visaoVendedor(p));
 });
 app.post('/api/pedido-publico/:token/salvar', (req, res) => {
-  const p = pedidosFornec.salvarPrecos(req.params.token, req.body.itens);
+  const p = pedidosFornec.salvarPrecos(req.params.token, req.body.itens, req.body.avaria_resposta);
   if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
   if (p.erro) return res.status(409).json({ error: p.erro });
   res.json({ ok: true, status: p.status, atualizadoEm: p.atualizadoEm });
@@ -6319,6 +6327,33 @@ app.post('/api/pedido-publico/:token/finalizar', (req, res) => {
   if (!p0) return res.status(404).json({ error: 'Pedido não encontrado' });
   const p = pedidosFornec.finalizar(req.params.token, req.body.nome);
   res.json(pedidosFornec.visaoVendedor(p));
+});
+
+// ── rotas Formação de Preço
+const precifUser = req => req.session.user?.nome || null;
+const precifResp = (res, r) => { if (!r) return res.status(404).json({ error: 'Registro não encontrado' }); if (r.erro) return res.status(400).json({ error: r.erro }); res.json(r); };
+app.get('/api/precificacao', (req, res) => {
+  let regs = precificacao.listar();
+  if (req.query.status) regs = regs.filter(r => r.status === req.query.status);
+  if (req.query.loja) regs = regs.filter(r => r.loja === parseInt(req.query.loja));
+  res.json({ padrao: precificacao.getPadrao(), registros: regs.map(r => ({ id: r.id, pedidoId: r.pedidoId, loja: r.loja, lista: r.lista, lista_nome: r.lista_nome, fornecedor: r.fornecedor, teste: r.teste, status: r.status, criadoEm: r.criadoEm, conciliadoEm: r.conciliadoEm, aplicadoEm: r.aplicadoEm || null, parametros: r.parametros, resumo: r.resumo, divergentes: r.divergentes ?? null, rateio_disponivel: !!r.rateio?.disponivel })) });
+});
+app.post('/api/precificacao/padrao', (req, res) => res.json(precificacao.setPadrao(req.body || {})));
+app.post('/api/precificacao/verificar', async (req, res) => { try { res.json(await precificacao.verificarTodos()); } catch (e) { res.status(500).json({ error: e.message }); } });
+app.post('/api/precificacao/remover-testes', (req, res) => res.json({ removidos: precificacao.removerTestes() }));
+app.get('/api/precificacao/:id', (req, res) => precifResp(res, precificacao.obter(req.params.id)));
+app.post('/api/precificacao/:id/item', (req, res) => precifResp(res, precificacao.editarItem(req.params.id, req.body?.cod, req.body || {}, precifUser(req))));
+app.post('/api/precificacao/:id/parametros', async (req, res) => { try { precifResp(res, await precificacao.setParametros(req.params.id, req.body || {}, precifUser(req))); } catch (e) { res.status(500).json({ error: e.message }); } });
+app.post('/api/precificacao/:id/recalcular', async (req, res) => { try { precifResp(res, await precificacao.recalcular(req.params.id, { doERP: true, descartarManuais: !!req.body?.descartarManuais })); } catch (e) { res.status(500).json({ error: e.message }); } });
+app.post('/api/precificacao/:id/fechar', (req, res) => precifResp(res, precificacao.fechar(req.params.id, precifUser(req), { ignorarBloqueados: !!req.body?.ignorarBloqueados })));
+app.post('/api/precificacao/:id/reabrir', (req, res) => precifResp(res, precificacao.reabrir(req.params.id, precifUser(req))));
+app.post('/api/precificacao/:id/aplicar', (req, res) => precifResp(res, precificacao.aplicar(req.params.id, precifUser(req))));
+app.post('/api/precificacao/:id/verificar', async (req, res) => { try { precifResp(res, await precificacao.verificar(req.params.id)); } catch (e) { res.status(500).json({ error: e.message }); } });
+app.get('/api/precificacao/:id/pdf', (req, res) => {
+  const r = precificacao.obter(req.params.id); if (!r) return res.status(404).json({ error: 'Registro não encontrado' });
+  let f = precificacao.caminhoPdf(r.id);
+  if (!f || req.query.refazer === '1') { try { f = precificacao.gerarPdf(r); } catch (e) { return res.status(500).json({ error: e.message }); } }
+  setTimeout(() => res.sendFile(f, { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="formacao-preco-${r.id}.pdf"` } }), 150);
 });
 
 const server = app.listen(3003, '0.0.0.0', () => {

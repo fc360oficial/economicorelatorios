@@ -42,6 +42,7 @@ input.obs:focus{outline:none;border-color:#F5B800}
 .saving{font-size:11px;color:#98A0B3}
 .fim{background:#E7F5EC;border:1px solid #BFE3CC;color:#137A48;border-radius:12px;padding:14px 16px;font-size:13px;margin-bottom:12px;line-height:1.5}
 .empty{padding:60px 20px;text-align:center;color:#98A0B3}
+.card.av{border-color:#E5B4BD}.avn{background:#FFF6D9;border-bottom:1px solid #EFD98F;color:#6B4E00;padding:10px 14px;font-size:12.5px;line-height:1.5}
 .avt{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:99px;background:#FBEAED;color:#C22F49;font-size:10px;font-weight:800;vertical-align:middle}
 .nome{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .nome input{font:inherit;font-size:13px;padding:8px 10px;border:1px solid #DADAD6;border-radius:9px;min-width:220px}
@@ -69,11 +70,21 @@ function render(){
   h+='<div class="card"><div class="hd">Itens do pedido <span>'+P.itens.length+' itens</span></div><div style="overflow-x:auto"><table><thead><tr><th>Produto</th><th class="r">Preço unit. (R$)</th><th>Observação</th></tr></thead><tbody>';
   for(const i of P.itens){
     // quantidade NÃO aparece pro vendedor (pedido do Tiago, 11/09/2026): ele só cota o preço unitário
-    h+='<tr><td class="desc">'+esc(i.descricao)+(i.avaria?' <span class="avt" title="Reposição de avaria pendente: bonificar ou lançar preço zero">reposição de avaria'+(i.so_avaria?'':' (parte)')+'</span>':'')+'<span class="cod">'+esc(i.cod)+(i.emb>1?'<i>Emb. '+i.emb+'</i>':'')+'</span></td>'+
+    h+='<tr><td class="desc">'+esc(i.descricao)+'<span class="cod">'+esc(i.cod)+(i.emb>1?'<i>Emb. '+i.emb+'</i>':'')+'</span></td>'+
       '<td class="r">'+(fin?'<b>'+(i.preco!=null?'R$ '+fmt(i.preco):'—')+'</b>':'<input class="preco'+(i.preco!=null?' ok':'')+'" inputmode="decimal" data-cod="'+esc(i.cod)+'" value="'+(i.preco!=null?fmt(i.preco):'')+'" placeholder="0,00">')+'</td>'+
       '<td>'+(fin?esc(i.obs||'')||'<span style="color:#98A0B3">—</span>':'<input class="obs" data-cod="'+esc(i.cod)+'" value="'+esc(i.obs||'')+'" placeholder="ex.: sem estoque, substituir por…" maxlength="200">')+'</td></tr>';
   }
   h+='</tbody></table></div><div class="tot" id="tot"></div></div>';
+  // AVARIAS PENDENTES: bloco separado, embaixo dos itens. Pedido só é autorizado com a resolução.
+  if(P.avarias&&P.avarias.itens.length){
+    const A=P.avarias;
+    h+='<div class="card av"><div class="hd" style="background:#FBEAED;color:#7A1A2C;border-color:#E5B4BD">Avarias pendentes com o fornecedor <span style="color:#C22F49;font-weight:800">'+A.n+(A.n>1?' itens':' item')+' · R$ '+fmt(A.total)+'</span></div>';
+    h+='<div class="avn"><b>Atenção:</b> este pedido só será autorizado pela compradora com a resolução das avarias abaixo (troca, bonificação ou nota de devolução). Se já resolveu ou tem previsão, escreva na resposta no fim.</div>';
+    h+='<div style="overflow-x:auto"><table><thead><tr><th>Loja</th><th>Produto</th><th class="r">Qtd</th><th class="r">Valor</th><th>Lançada em</th><th>Situação</th></tr></thead><tbody>';
+    for(const a of A.itens) h+='<tr><td><b>L'+a.loja+'</b> '+esc(P.lojas_nomes[a.loja]||'')+'</td><td class="desc">'+esc(a.descricao)+'<span class="cod">'+esc(a.cod)+'</span></td><td class="r">'+fmt(a.qtd,a.qtd%1?3:0)+' '+esc(a.und||'')+'</td><td class="r">R$ '+fmt(a.total)+'</td><td>'+String(a.data).split('-').reverse().join('/')+'</td><td><span class="avt" style="margin:0'+(a.status==='em trâmite'?';background:#FFF6D9;color:#6B4E00':'')+'">'+esc(a.status)+'</span></td></tr>';
+    h+='</tbody></table></div>';
+    h+='<div style="padding:10px 14px;border-top:1px solid #EEEEEA"><label style="font-size:11px;font-weight:800;color:#4E5A72;text-transform:uppercase;letter-spacing:.04em">Sua resposta sobre as avarias</label>'+(fin?'<div style="margin-top:4px">'+(esc(A.resposta_vendedor)||'<span style="color:#98A0B3">—</span>')+'</div>':'<input class="obs" id="avresp" value="'+esc(A.resposta_vendedor||'')+'" placeholder="ex.: vamos bonificar na próxima entrega / troca agendada dia 15" maxlength="500" style="margin-top:4px">')+'</div></div>';
+  }
   $('#app').innerHTML=h;
   $('#bar').hidden=fin;
   if(!fin){
@@ -81,6 +92,7 @@ function render(){
     // 545 -> 5,45 · 1000 -> 10,00 · 100000 -> 1.000,00. Não precisa digitar vírgula nem ponto.
     // Enter grava e pula pro preço do próximo item.
     const precos=[...document.querySelectorAll('input.preco')];
+    const ar=document.getElementById('avresp'); if(ar) ar.addEventListener('input',()=>{dirty=true;agendarSave();});
     document.querySelectorAll('input.preco,input.obs').forEach(el=>{
       const isPreco=el.classList.contains('preco');
       el.addEventListener('input',()=>{
@@ -98,7 +110,7 @@ function render(){
   } else { const {t,n}=totais(); $('#tot').innerHTML='<span>'+n+' de '+P.itens.length+' itens com preço</span><span>Total: <b>R$ '+fmt(t)+'</b></span>'; }
 }
 function agendarSave(){clearTimeout(saveTimer);saveTimer=setTimeout(salvar,900);}
-async function salvar(){if(!dirty)return;dirty=false;try{await fetch('/api/pedido-publico/'+token+'/salvar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({itens:itensForm()})});}catch(e){dirty=true;}}
+async function salvar(){if(!dirty)return;dirty=false;try{await fetch('/api/pedido-publico/'+token+'/salvar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({itens:itensForm(),avaria_resposta:(document.getElementById('avresp')||{}).value})});}catch(e){dirty=true;}}
 $('#btnFim').onclick=async()=>{
   const {n}=totais();
   if(!confirm(n<P.itens.length?'Ainda tem '+(P.itens.length-n)+' item(ns) sem preço. Finalizar mesmo assim?':'Finalizar o pedido? Depois disso não dá mais pra alterar.')) return;
