@@ -45,11 +45,12 @@ input.pf{width:86px;text-align:right;font-family:inherit;font-size:12px;padding:
 input.pf.manual{border-color:#F5B800;background:#FFF9E5}
 tr.bloq td{background:#FFF4F6}
 #pv{position:fixed;inset:0;background:rgba(14,22,38,.55);z-index:1000;overflow:auto;padding:24px}
-.pv-card{background:#fff;border-radius:14px;max-width:1240px;margin:0 auto;padding:22px 26px 30px;box-shadow:0 20px 60px -20px rgba(0,0,0,.5)}
+.pv-card{background:#fff;border-radius:14px;max-width:calc(100vw - 64px);margin:0 auto;padding:22px 26px 30px;box-shadow:0 20px 60px -20px rgba(0,0,0,.5)}
 .pv-top{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;border-bottom:3px solid #F5B800;padding-bottom:12px;margin-bottom:14px}
 .pv-top h2{font-size:18px;font-weight:800;letter-spacing:-.3px}.pv-sub{font-size:12px;color:#4E5A72;margin-top:4px;max-width:80ch}
 .pv-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0}
 .aviso{background:#FFF1C2;border:1px solid #F5B800;border-radius:8px;padding:8px 12px;font-size:12px;margin-bottom:10px}
+.det table{font-size:11.5px}.det th{padding:7px 6px;font-size:9.5px}.det td{padding:6px 6px}.det td.desc{white-space:normal;min-width:180px;max-width:260px;line-height:1.25}.det td.cod{color:#4E5A72;font-size:10.5px}.det td .sm{font-size:10px;white-space:nowrap}.det input.pf{width:74px;padding:4px 6px}
 @media(max-width:700px){.main{padding:14px}.pv-card{padding:14px}}
 </style>
 </head>
@@ -124,6 +125,8 @@ async function removerTestes(){if(!confirm('Remover os registros de teste?'))ret
 function abrirPv(x){$('#pv-body').innerHTML=x;$('#pv').hidden=false;}
 function fecharPv(){$('#pv').hidden=true;REG=null;}
 async function abrir(id){abrirPv('<div class="pv-top"><h2>Carregando…</h2><button class="btn btn-amber" onclick="fecharPv()">Fechar</button></div>');try{REG=await api('/api/precificacao/'+encodeURIComponent(id));}catch(e){abrirPv('<div class="empty">'+esc(e.message)+'</div>');return;}renderPv();}
+// detalhe do rateio por unidade: quanto frete/IPI/ST/desconto acrescentaram ao custo novo
+function impostoDet(r,i){const rt=r.rateio;if(!rt||!rt.disponivel||!(rt.valorProduto>0)||!(i.custo_novo>0))return '';const p=[['frete',rt.frete],['IPI',rt.ipi],['ST',rt.st],['desc.',-(rt.desconto||0)]].map(([n,v])=>[n,i.custo_novo*(v||0)/rt.valorProduto]).filter(([n,v])=>Math.abs(v)>=0.005);if(!p.length)return '<div class="sm mut">sem imposto</div>';const tot=p.reduce((s,[n,v])=>s+v,0);return '<div class="sm mut" title="custo novo '+brl(i.custo_novo)+' + '+brl(tot)+' de impostos/frete">'+p.map(([n,v])=>(v>0?'+':'−')+Math.abs(v).toFixed(2).replace('.',',')+' '+n).join(' · ')+'</div>';}
 function renderPv(){
   const r=REG,s=r.resumo||{},aberto=r.status==='a_precificar',l4=r.loja===4,conf=['aplicado','conferido'].includes(r.status);
   const itens=r.itens.filter(i=>filtroItem==='tudo'||(filtroItem==='bloq'?i.status==='bloqueado':(i.status==='sobe'||i.status==='desce'||i.manual||i.piso)));
@@ -140,11 +143,11 @@ function renderPv(){
      (conf?'<button class="btn btn-slate btn-sm" onclick="acao(\'verificar\')">Verificar agora</button>':'')+
      (aberto?'':'<button class="btn btn-red btn-sm" onclick="acao(\'reabrir\')">Reabrir</button>')+
      '<a class="btn btn-slate btn-sm" target="_blank" href="/api/precificacao/'+encodeURIComponent(r.id)+'/pdf?refazer=1">PDF</a><button class="btn btn-slate btn-sm" onclick="whats()">WhatsApp</button></div>';
-  h+='<div class="card"><table><thead><tr><th>Código</th><th>Descrição</th><th>Curva</th><th class="n">Qtd</th><th class="n">Custo atual</th><th class="n">Custo novo</th><th class="n">C/ imposto</th><th class="n">Var.</th><th class="n">Margem cad.</th><th class="n">Preço atual</th><th class="n">Marg. se mantém</th><th class="n">Sugerido</th><th class="n">Preço final</th>'+(l4?'<th class="n">Atac. atual</th><th class="n">Atac. final</th>':'')+(conf?'<th class="n">No ERP</th>':'')+'<th>Status</th></tr></thead><tbody>';
+  h+='<div class="card det"><table><thead><tr><th>Código</th><th>Descrição</th><th>Curva</th><th class="n">Qtd</th><th class="n">Custo atual</th><th class="n">Custo novo</th><th class="n">C/ imposto</th><th class="n">Var.</th><th class="n">Marg. cad.</th><th class="n">Preço atual</th><th class="n">Marg. atual</th><th class="n">Sugerido</th><th class="n">Preço final</th>'+(l4?'<th class="n">Atac. atual</th><th class="n">Atac. final</th>':'')+(conf?'<th class="n">No ERP</th>':'')+'<th>Status</th></tr></thead><tbody>';
   if(!itens.length)h+='<tr><td colspan="20" class="empty">Nenhum item neste filtro.</td></tr>';
   for(const i of itens){
     const bl=i.status==='bloqueado';
-    h+='<tr class="'+(bl?'bloq':'')+'"><td>'+esc(i.cod)+'</td><td>'+esc(i.descricao)+(i.nao_pedido?'<span class="tag">não pedido</span>':'')+'</td><td>'+(i.curvaA?'<b>A</b>':'<span class="mut">—</span>')+'</td><td class="n">'+i.recebida+'</td><td class="n">'+brl(i.custo_atual)+'</td><td class="n">'+brl(i.custo_novo)+'</td><td class="n"><b>'+brl(i.custo_imposto)+'</b></td><td class="n '+(i.variacao>0?'i-sobe':i.variacao<0?'i-desce':'mut')+'">'+(i.variacao>0?'▲ ':i.variacao<0?'▼ ':'')+pct(i.variacao)+'</td><td class="n">'+(i.margem!=null?i.margem+'%':'<span class="i-bloqueado">sem margem</span>')+'</td><td class="n">'+brl(i.preco_atual)+'</td><td class="n mut">'+pct(i.margem_se_mantem)+'</td><td class="n">'+brl(i.preco_sugerido)+(i.piso?' <span class="sm i-bloqueado">piso</span>':'')+'</td>'+
+    h+='<tr class="'+(bl?'bloq':'')+'"><td class="cod">'+esc(i.cod)+'</td><td class="desc">'+esc(i.descricao)+(i.nao_pedido?'<span class="tag">não pedido</span>':'')+'</td><td>'+(i.curvaA?'<b>A</b>':'<span class="mut">—</span>')+'</td><td class="n">'+i.recebida+'</td><td class="n">'+brl(i.custo_atual)+'</td><td class="n">'+brl(i.custo_novo)+'</td><td class="n"><b>'+brl(i.custo_imposto)+'</b>'+impostoDet(r,i)+'</td><td class="n '+(i.variacao>0?'i-sobe':i.variacao<0?'i-desce':'mut')+'">'+(i.variacao>0?'▲ ':i.variacao<0?'▼ ':'')+pct(i.variacao)+'</td><td class="n">'+(i.margem!=null?i.margem+'%':'<span class="i-bloqueado">sem margem</span>')+'</td><td class="n">'+brl(i.preco_atual)+'</td><td class="n mut">'+pct(i.margem_se_mantem)+'</td><td class="n">'+brl(i.preco_sugerido)+(i.piso?' <span class="sm i-bloqueado">piso</span>':'')+'</td>'+
        '<td class="n">'+(bl?'—':(aberto?'<input class="pf'+(i.manual?' manual':'')+'" value="'+Number(i.preco_final).toFixed(2)+'" onchange="editar('+js(i.cod)+',this.value,null)">':'<b>'+brl(i.preco_final)+'</b>'+(i.manual?' <span class="sm mut">manual</span>':'')))+'</td>'+
        (l4?'<td class="n">'+brl(i.preco_atacado_atual)+'</td><td class="n">'+(i.atacado?(aberto?'<input class="pf" value="'+Number(i.atacado.preco_final).toFixed(2)+'" onchange="editar('+js(i.cod)+',null,this.value)">':'<b>'+brl(i.atacado.preco_final)+'</b>'):'<span class="mut">—</span>')+'</td>':'')+
        (conf?'<td class="n '+(i.erp?(i.erp.ok?'i-desce':'i-bloqueado'):'mut')+'">'+(i.erp?brl(i.erp.preco)+(i.erp.ok?' ✓':' ✗'):'—')+'</td>':'')+
