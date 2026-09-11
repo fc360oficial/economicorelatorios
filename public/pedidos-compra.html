@@ -181,18 +181,24 @@ function pillXml(p,ln){
   const lj=Object.entries(p.xml.lojas||{}).map(([l,x])=>'L'+l+': '+(XML_ST[x.status]||x.status)+(x.problemas?.length?' ('+probTxt(x.problemas)+')':'')).join(' · ');
   return '<div><span class="xml '+p.xml.status+'" title="'+esc(lj)+'">'+(XML_ST[p.xml.status]||p.xml.status)+'</span></div>';
 }
+// LINHAS da tela: pedido aprovado/recebido vira uma linha por loja (a conferência XML é por loja);
+// antes da aprovação é uma linha por pedido. Cards, filtros e tabela usam a mesma expansão.
+function linhas(){
+  return LISTA.flatMap(p=>POS_APROV.includes(p.status)
+    ? p.lojas.map(l=>{const x=p.xml?.lojas?.[l]; const st=x?x.status:'aguardando'; return {...p,_ln:l,_key:p.id+'-'+l,_xst:st,_grupo:st==='conciliado'?'recebido':st==='consistencia'?'xml_consistencia':'aprovado'};})
+    : [{...p,_key:String(p.id),_grupo:p.status}]);
+}
+const EM_ANDAMENTO=['sugestao','aguardando','digitacao','finalizado','aprovado','xml_consistencia'];
 function renderTotais(){
-  const c=k=>LISTA.filter(p=>p.status===k).length;
-  const cards=[['andamento','Em andamento',LISTA.filter(p=>ANDAMENTO.includes(p.status)).length],['sugestao','Ruptura de entrega',c('sugestao')],['aguardando','Aguardando vendedor',c('aguardando')],['digitacao','Em digitação',c('digitacao')],['finalizado','Aguardando aprovação',c('finalizado')],['aprovado','Aguardando XML',LISTA.filter(p=>p.status==='aprovado').length],['xml_consistencia','Consistência XML',LISTA.filter(p=>p.xml?.status==='consistencia').length],['recebido','Conciliados',c('recebido')],['todos','Todos',LISTA.length]];
+  const L=linhas(); const c=k=>L.filter(r=>r._grupo===k).length;
+  const cards=[['andamento','Em andamento',L.filter(r=>EM_ANDAMENTO.includes(r._grupo)).length],['sugestao','Ruptura de entrega',c('sugestao')],['aguardando','Aguardando vendedor',c('aguardando')],['digitacao','Em digitação',c('digitacao')],['finalizado','Aguardando aprovação',c('finalizado')],['aprovado','Aguardando XML',c('aprovado')],['xml_consistencia','Consistência XML',c('xml_consistencia')],['recebido','Conciliados',c('recebido')],['todos','Todos',L.length]];
   $('#totais').innerHTML=cards.map(([k,l,n])=>'<div class="tkpi'+(filtro===k?' on':'')+'" data-f="'+k+'"><div class="v'+((k==='finalizado'||k==='sugestao'||k==='xml_consistencia')&&n?' neg':'')+'">'+n+'</div><div class="l">'+l+'</div></div>').join('');
   document.querySelectorAll('.tkpi').forEach(t=>t.onclick=()=>{filtro=t.dataset.f;aberto=null;renderTotais();render();});
 }
 function render(){
-  const q=($('#q').value||'').toLowerCase(), comp=$('#fComp').value;
-  let rows=LISTA.filter(p=>filtro==='todos'||(filtro==='andamento'?ANDAMENTO.includes(p.status):filtro==='recebido'?p.status==='recebido':filtro==='xml_consistencia'?p.xml?.status==='consistencia':p.status===filtro));
-  rows=rows.filter(p=>(!q||p.lista_nome.toLowerCase().includes(q)||(p.fornecedor||'').toLowerCase().includes(q)||(p.vendedor?.nome||'').toLowerCase().includes(q)||String(p.id)===q||String(p.lista)===q)&&(!comp||p.comprador?.nome===comp));
-  const fl=+($('#fLoja').value||0);
-  rows=rows.flatMap(p=>POS_APROV.includes(p.status)?p.lojas.filter(l=>!fl||l===fl).map(l=>({...p,_ln:l,_key:p.id+'-'+l})):(!fl||p.lojas.includes(fl)?[{...p,_key:String(p.id)}]:[]));
+  const q=($('#q').value||'').toLowerCase(), comp=$('#fComp').value, fl=+($('#fLoja').value||0);
+  let rows=linhas().filter(r=>filtro==='todos'||(filtro==='andamento'?EM_ANDAMENTO.includes(r._grupo):r._grupo===filtro));
+  rows=rows.filter(p=>(!q||p.lista_nome.toLowerCase().includes(q)||(p.fornecedor||'').toLowerCase().includes(q)||(p.vendedor?.nome||'').toLowerCase().includes(q)||String(p.id)===q||String(p.lista)===q)&&(!comp||p.comprador?.nome===comp)&&(!fl||(p._ln?p._ln===fl:p.lojas.includes(fl))));
   $('#cnt').textContent=rows.length+' linha'+(rows.length===1?'':'s')+' ('+new Set(rows.map(p=>p.id)).size+' pedido'+(new Set(rows.map(p=>p.id)).size===1?'':'s')+')';
   if(!rows.length){$('#view').innerHTML='<div class="empty">Nenhum pedido aqui.'+(filtro==='andamento'||filtro==='todos'?' Gere um no Radar de Pedidos: selecione as listas e clique em "Enviar pro fornecedor".':'')+'</div>';return;}
   let h='<div class="table-wrap"><table class="main-t"><thead><tr><th>#</th><th>Lista / fornecedor</th><th>Comprador / vendedor</th><th>Status</th><th>Andamento</th><th class="r" title="Com preço / itens">Preço / itens</th><th class="r">Último custo</th><th class="r">Digitado</th><th>Ação</th></tr></thead><tbody>';
