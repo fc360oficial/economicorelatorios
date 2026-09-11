@@ -118,7 +118,13 @@ test('calcularRegistro: recalcula e preserva edição manual', () => {
 
 test('resumo conta status', () => {
   const r = c.resumo([{ status: 'sobe' }, { status: 'desce' }, { status: 'mantem' }, { status: 'sem_mudanca' }, { status: 'bloqueado' }, { status: 'sobe' }]);
-  assert.deepEqual(r, { itens: 6, sobem: 2, descem: 1, mantem: 1, sem_mudanca: 1, bloqueados: 1, mudam: 3 });
+  assert.deepEqual(r, { itens: 6, sobem: 2, descem: 1, mantem: 1, sem_mudanca: 1, bloqueados: 1, mudam: 3, piso: 0 });
+});
+
+test('resumo: item mantem com piso conta em mudam e em piso', () => {
+  const r = c.resumo([{ status: 'sobe' }, { status: 'mantem' }, { status: 'mantem', piso: true }, { status: 'sem_mudanca' }]);
+  assert.equal(r.piso, 1);
+  assert.equal(r.mudam, 2);
 });
 
 test('calcularItem: piso vale também em mantem/sem_mudanca', () => {
