@@ -4253,279 +4253,6 @@ app.get('/api/compras/analise-estoque', async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════
-// MÓDULO COMPRAS — CENTRO DE DISTRIBUIÇÃO (loja 10)
-// Estoque do CD x giro de 30 dias das lojas 1-6 —
-// sugere quanto cada loja deve pedir do CD e alerta
-// quando o próprio CD precisa comprar do fornecedor.
-// ═══════════════════════════════════════════════════
-
-const LOJAS_CD_NOMES = { 1: 'CAHU', 2: 'MURIBECA', 3: 'PONTE', 4: 'ATACAREJO', 5: 'PORTA LARGA', 6: 'JARDIM JORDÃO' };
-
-// Ajustes manuais de sugestão de pedido (chave "codigo|loja" → quantidade em
-// unidades) — sobrepõe tanto o cálculo por giro quanto a distribuição padrão
-// de produto sem histórico. Fica em JSON local (mesmo padrão de
-// CD_NOTAS_AVULSAS_PATH), nunca no MySQL.
-const CD_PEDIDO_OVERRIDES_PATH = path.join(__dirname, 'data', 'cd-pedido-overrides.json');
-function carregarCdPedidoOverrides() {
-  try { return JSON.parse(fs.readFileSync(CD_PEDIDO_OVERRIDES_PATH, 'utf8')); } catch (e) { return {}; }
-}
-function salvarCdPedidoOverrides(overrides) {
-  fs.mkdirSync(path.dirname(CD_PEDIDO_OVERRIDES_PATH), { recursive: true });
-  fs.writeFileSync(CD_PEDIDO_OVERRIDES_PATH, JSON.stringify(overrides, null, 2));
-}
-
-app.post('/api/compras/centro-distribuicao/ajustar', (req, res) => {
-  const { codigo, loja, quantidade, remover } = req.body || {};
-  if (!codigo || !loja) return res.status(400).json({ error: 'Informe codigo e loja.' });
-  const overrides = carregarCdPedidoOverrides();
-  const key = `${codigo}|${loja}`;
-  if (remover) {
-    delete overrides[key];
-  } else {
-    const qtd = Math.round(Number(quantidade));
-    if (!Number.isFinite(qtd) || qtd < 0) return res.status(400).json({ error: 'Quantidade inválida.' });
-    overrides[key] = qtd;
-  }
-  salvarCdPedidoOverrides(overrides);
-  _cache.delete('/api/compras/centro-distribuicao'); // reflete o ajuste no próximo "Analisar Agora" sem esperar o TTL
-  res.json({ ok: true });
-});
-
-app.get('/api/compras/centro-distribuicao', withCache(10), async (req, res) => {
-  try {
-    const vazio = {
-      produtos: [],
-      resumo: { totalProdutos: 0, precisamReposicao: 0, criticos: 0, totalUnidadesFaltando: 0 },
-      geradoEm: new Date().toISOString()
-    };
-
-    // 1. Universo de produtos — só o que o CD (loja 10) tem em estoque positivo agora.
-    // Mais estreito e muito mais rápido do que partir de todas as listas de cotação
-    // (que trazia produtos que o CD nunca chegou a estocar); também é o critério certo
-    // pro negócio: essa aba distribui o que já está no CD, não planeja compra nova.
-    const estCD = await q(`SELECT CodigoBarra, Qtd FROM central.estoquen10 WHERE Qtd > 0`, [])
-      .catch(() => []);
-    if (!estCD.length) return res.json(vazio);
-
-    const overrides = carregarCdPedidoOverrides();
-    const codigosCD = estCD.map(r => r.CodigoBarra);
-    const phCD = codigosCD.map(() => '?').join(',');
-
-    // No CD, código de barras com 14 dígitos é caixa/fardo, não unidade (regra do
-    // Tiago) — o giro das lojas é sempre em unidade, então sem converter, comparar
-    // "100 caixas" com "giro de 5 unidades/dia" dá uma cobertura completamente errada.
-    // central.embalagempadrao_venda (cadastro "Embalagem Vendas" do ERP) guarda, pelo
-    // próprio código de 14 dígitos, quantas unidades cada caixa tem (Qtd_venda).
-    const codigosCaixa = codigosCD.filter(c => String(c).length === 14);
-    let fatorCaixaMap = {};
-    if (codigosCaixa.length) {
-      const phCx = codigosCaixa.map(() => '?').join(',');
-      const embRows = await q(`
-        SELECT Codigobarra, Qtd_venda FROM central.embalagempadrao_venda
-        WHERE Codigobarra IN (${phCx})
-      `, codigosCaixa).catch(() => []);
-      fatorCaixaMap = Object.fromEntries(embRows.map(r => [r.Codigobarra, parseFloat(r.Qtd_venda) || 0]));
-    }
-
-    // estoqueCDMap guarda sempre unidades — para código de caixa, já converte aqui
-    // (estoqueEmCaixas × unidades por caixa). Quando o cadastro de embalagem não tem
-    // esse código, não dá pra converter com segurança: marca conversaoDesconhecida e
-    // mantém o valor bruto (mesmo comportamento de antes) só pra não sumir da tela.
-    const estoqueCDMap = {};
-    const medidoEmCaixaMap = {};
-    const conversaoDesconhecidaMap = {};
-    const estoqueCDCaixasMap = {};
-    const unidadesPorCaixaMap = {};
-    for (const r of estCD) {
-      const cod = r.CodigoBarra;
-      const qtd = parseFloat(r.Qtd) || 0;
-      if (String(cod).length === 14) {
-        medidoEmCaixaMap[cod] = true;
-        estoqueCDCaixasMap[cod] = qtd;
-        const fator = fatorCaixaMap[cod];
-        if (fator > 0) {
-          unidadesPorCaixaMap[cod] = fator;
-          estoqueCDMap[cod] = qtd * fator;
-        } else {
-          conversaoDesconhecidaMap[cod] = true;
-          estoqueCDMap[cod] = qtd; // sem fator confiável — não inventa conversão
-        }
-      } else {
-        estoqueCDMap[cod] = qtd;
-      }
-    }
-
-    // Descrição + filtro de produto ativo (CodDesativado=0) — descarta código de barras
-    // do estoque que não corresponde a um item ativo cadastrado.
-    const descRows = await q(`
-      SELECT CodigoBarra, TRIM(Descricao) as descricao
-      FROM central.itens WHERE CodDesativado = 0 AND CodigoBarra IN (${phCD})
-    `, codigosCD).catch(() => []);
-    if (!descRows.length) return res.json(vazio);
-
-    const descMap = Object.fromEntries(descRows.map(r => [r.CodigoBarra, r.descricao || r.CodigoBarra]));
-    const codigos = descRows.map(r => r.CodigoBarra);
-    const phC = codigos.map(() => '?').join(',');
-
-    // 2. Estoque nas lojas 1-6 (o do CD já temos em estoqueCDMap)
-    const LOJAS = [1, 2, 3, 4, 5, 6];
-    const estoqueQs = LOJAS.map(n =>
-      q(`SELECT CodigoBarra, Qtd FROM central.estoquen${n} WHERE CodigoBarra IN (${phC})`, codigos).catch(() => [])
-    );
-    const estoqueArr = await Promise.all(estoqueQs);
-    const estoqueMap = {}; // estoqueMap[cod][loja] = qtd
-    estoqueArr.forEach((rows, idx) => {
-      const ln = LOJAS[idx];
-      for (const r of rows) {
-        if (!estoqueMap[r.CodigoBarra]) estoqueMap[r.CodigoBarra] = {};
-        estoqueMap[r.CodigoBarra][ln] = parseFloat(r.Qtd) || 0;
-      }
-    });
-
-    // 3. Vendas dos últimos 30 dias por loja (1-6) — janela de 2 meses pra cobrir virada de mês
-    const hojeD = new Date();
-    const ini30 = localDate(new Date(hojeD - 30 * 86400000));
-    const meses = [0, 1].map(i => mesDB(new Date(hojeD.getFullYear(), hojeD.getMonth() - i, 1).getMonth() + 1));
-
-    const vendasMap = {}; // vendasMap[loja][cod] = qtd30
-    for (const ln of LOJAS) vendasMap[ln] = {};
-    await Promise.all(LOJAS.map(async (ln) => {
-      for (const mm of meses) {
-        try {
-          const rows = await q(`
-            SELECT Codigo, SUM(QtdNovo) as qtd30
-            FROM \`ln${ln}${mm}\`.zcupomitens
-            WHERE IndCancel='N' AND Data >= ? AND Codigo IN (${phC})
-            GROUP BY Codigo
-          `, [ini30, ...codigos]);
-          for (const r of rows) {
-            vendasMap[ln][r.Codigo] = (vendasMap[ln][r.Codigo] || 0) + (parseFloat(r.qtd30) || 0);
-          }
-        } catch (_) {}
-      }
-    }));
-
-    // 4. Montar um registro por produto — todo produto aqui já tem estoque
-    // positivo no CD (filtrado no passo 1), não precisa de checagem extra.
-    const produtos = [];
-    for (const cod of codigos) {
-      const estoqueCD = estoqueCDMap[cod] || 0;
-      // Giro/estoque de loja é sempre em unidade — o pedido calculado também sai em
-      // unidade. Mas se o CD só entrega esse produto em caixa fechada, a loja não
-      // pode pedir "150 unidades": arredonda pra cima em nº de caixas (fatorCaixa),
-      // sempre cobrindo pelo menos a necessidade calculada.
-      const fatorCaixa = unidadesPorCaixaMap[cod] || null;
-      let totalSugerido = 0;
-      let giroDiarioTotalCD = 0;
-      const lojasOut = [];
-
-      for (const ln of LOJAS) {
-        const estoqueLoja = estoqueMap[cod]?.[ln] || 0;
-        const qtd30 = vendasMap[ln][cod] || 0;
-        const giroDiario = qtd30 / 30;
-        const diasCobertura = giroDiario > 0.001
-          ? estoqueLoja / giroDiario
-          : (estoqueLoja > 0 ? 9999 : 0);
-        const sugestaoPedido = (giroDiario > 0.001 && diasCobertura < 30)
-          ? Math.max(0, Math.round(giroDiario * 30 - estoqueLoja))
-          : 0;
-        const sugestaoPedidoCaixas = (fatorCaixa && sugestaoPedido > 0)
-          ? Math.ceil(sugestaoPedido / fatorCaixa)
-          : null;
-
-        totalSugerido += sugestaoPedido;
-        giroDiarioTotalCD += giroDiario;
-        lojasOut.push({
-          loja: ln, nome: LOJAS_CD_NOMES[ln],
-          estoque: +estoqueLoja.toFixed(2),
-          giroDiario: +giroDiario.toFixed(2),
-          diasCobertura: diasCobertura === 9999 ? 9999 : +diasCobertura.toFixed(1),
-          sugestaoPedido, sugestaoPedidoCaixas
-        });
-      }
-
-      // Universo já garante estoqueCD > 0 (filtrado no passo 1), então sem giro
-      // a cobertura é sempre "infinita" — não existe o caso estoqueCD <= 0 aqui.
-      // Isso também é o sinal de "produto sem histórico de venda": nenhuma das
-      // 6 lojas vendeu nos últimos 30 dias, então não tem giro pra calcular
-      // sugestão nenhuma — típico de produto novo que acabou de chegar no CD.
-      const semHistorico = giroDiarioTotalCD <= 0.001;
-      const diasCoberturaCD = semHistorico ? 9999 : estoqueCD / giroDiarioTotalCD;
-      const status = diasCoberturaCD < 10 ? 'critico'
-        : diasCoberturaCD < 20 ? 'alto'
-        : diasCoberturaCD < 30 ? 'medio' : 'ok';
-
-      // Sem histórico: não tem giro pra calcular nada, então a sugestão vira
-      // uma distribuição igual do estoque do CD entre as 6 lojas (um "pedido
-      // de teste" pra loja começar a vender o produto novo). Se o item é de
-      // caixa, distribui em caixas fechadas, não fração de caixa.
-      if (semHistorico) {
-        if (fatorCaixa) {
-          const caixasPorLoja = Math.floor((estoqueCDCaixasMap[cod] || 0) / 6);
-          for (const l of lojasOut) {
-            l.sugestaoPedido = caixasPorLoja * fatorCaixa;
-            l.sugestaoPedidoCaixas = caixasPorLoja > 0 ? caixasPorLoja : null;
-          }
-        } else {
-          const unidadesPorLoja = Math.floor(estoqueCD / 6);
-          for (const l of lojasOut) { l.sugestaoPedido = unidadesPorLoja; l.sugestaoPedidoCaixas = null; }
-        }
-      }
-
-      // Ajuste manual (se existir) sempre vence — tanto o cálculo por giro
-      // quanto a distribuição de produto sem histórico.
-      for (const l of lojasOut) {
-        const key = `${cod}|${l.loja}`;
-        if (Object.prototype.hasOwnProperty.call(overrides, key)) {
-          l.sugestaoPedido = overrides[key];
-          l.sugestaoPedidoCaixas = (fatorCaixa && l.sugestaoPedido > 0) ? Math.ceil(l.sugestaoPedido / fatorCaixa) : null;
-          l.ajustadoManualmente = true;
-        } else {
-          l.ajustadoManualmente = false;
-        }
-      }
-
-      // Recalcula os totais do produto a partir do valor final de cada loja
-      // (já com distribuição de produto novo e ajustes manuais aplicados).
-      totalSugerido = lojasOut.reduce((s, l) => s + l.sugestaoPedido, 0);
-      // Arredondado pra inteiro — não faz sentido sugerir fração de unidade.
-      const faltaComprar = Math.max(0, Math.round(totalSugerido - estoqueCD));
-      const faltaComprarCaixas = (fatorCaixa && faltaComprar > 0)
-        ? Math.ceil(faltaComprar / fatorCaixa)
-        : null;
-      const totalSugeridoCaixas = (fatorCaixa && totalSugerido > 0)
-        ? Math.ceil(totalSugerido / fatorCaixa)
-        : null;
-
-      produtos.push({
-        codigo: cod, descricao: descMap[cod] || cod,
-        estoqueCD: +estoqueCD.toFixed(2),
-        diasCoberturaCD: diasCoberturaCD === 9999 ? 9999 : +diasCoberturaCD.toFixed(1),
-        status, semHistorico, totalSugerido, totalSugeridoCaixas, faltaComprar, faltaComprarCaixas,
-        medidoEmCaixa: !!medidoEmCaixaMap[cod],
-        conversaoDesconhecida: !!conversaoDesconhecidaMap[cod],
-        estoqueCDCaixas: medidoEmCaixaMap[cod] ? +estoqueCDCaixasMap[cod].toFixed(2) : null,
-        unidadesPorCaixa: fatorCaixa,
-        lojas: lojasOut
-      });
-    }
-
-    produtos.sort((a, b) => a.diasCoberturaCD - b.diasCoberturaCD);
-
-    const resumo = {
-      totalProdutos: produtos.length,
-      precisamReposicao: produtos.filter(p => p.totalSugerido > 0).length,
-      criticos: produtos.filter(p => p.status === 'critico').length,
-      totalUnidadesFaltando: produtos.reduce((s, p) => s + p.faltaComprar, 0)
-    };
-
-    res.json({ produtos, resumo, geradoEm: new Date().toISOString() });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// ═══════════════════════════════════════════════════
 // PAINEL TV — CD (loja 10): Expedição (saídas, painel_televendas)
 // e Conferência (entradas, conferencia), só loja 10.
 //
@@ -6344,6 +6071,60 @@ pedidosFornec.initERP(q, radarPedidos);
 // confere recebimento dos pedidos aprovados (nota no ERP × pedido) e gera sugestão de ruptura de entrega
 setTimeout(() => pedidosFornec.verificarRecebimentos().catch(e => console.error('[PEDIDOS] verificar:', e.message)), 120 * 1000);
 setInterval(() => pedidosFornec.verificarRecebimentos().catch(e => console.error('[PEDIDOS] verificar:', e.message)), 30 * 60 * 1000);
+
+// ═══════════════════════════════════════════════════
+// PEDIDOS DO CD — Gestão de Compras > Centro Distribuição
+// Vínculo caixa↔unidade, sugestão semanal em caixas (regras do Radar) e
+// acompanhamento do pedido loja→CD. Regras em lib/pedidos-cd.js. ERP só leitura;
+// estado em data/cd-vinculos.json e data/pedidos-cd/.
+// ═══════════════════════════════════════════════════
+const pedidosCD = require('./lib/pedidos-cd');
+pedidosCD.init({ q, mesDB });
+pedidosCD.agendar();
+setTimeout(() => pedidosCD.verificar().catch(e => console.error('[PEDIDOS-CD] verificar:', e.message)), 150 * 1000);
+setInterval(() => pedidosCD.verificar().catch(e => console.error('[PEDIDOS-CD] verificar:', e.message)), 30 * 60 * 1000);
+
+app.get('/api/pedidos-cd', async (req, res) => {
+  try {
+    if (req.query.refresh === '1') await pedidosCD.recalcular();
+    const teto = req.query.teto ? Math.max(3, Math.min(90, parseFloat(req.query.teto))) : null;
+    res.json(pedidosCD.sugestao(teto));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.get('/api/pedidos-cd/vinculos', (req, res) => res.json({ vinculos: pedidosCD.getVinculos(), estado: pedidosCD.getEstado() }));
+app.post('/api/pedidos-cd/vinculos', (req, res) => {
+  try { res.json(pedidosCD.salvarVinculo({ ...req.body, usuario: req.session.user?.nome || null })); }
+  catch (err) { res.status(400).json({ error: err.message }); }
+});
+app.delete('/api/pedidos-cd/vinculos/:codigoCD', (req, res) => {
+  const v = pedidosCD.removerVinculo(req.params.codigoCD);
+  if (!v) return res.status(404).json({ error: 'vínculo não encontrado' });
+  res.json(v);
+});
+app.get('/api/pedidos-cd/buscar-unidade', async (req, res) => {
+  try { res.json(await pedidosCD.buscarUnidade(req.query.q)); } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.get('/api/pedidos-cd/pedidos', (req, res) => res.json(pedidosCD.listarPedidos()));
+app.post('/api/pedidos-cd/pedidos', (req, res) => {
+  try { res.json(pedidosCD.criarPedidos({ lojas: req.body?.lojas || {}, usuario: req.session.user?.nome || null })); }
+  catch (err) { res.status(400).json({ error: err.message }); }
+});
+app.get('/api/pedidos-cd/pedidos/:id', (req, res) => {
+  const p = pedidosCD.obterPedido(req.params.id);
+  if (!p) return res.status(404).json({ error: 'pedido não encontrado' });
+  res.json(p);
+});
+app.post('/api/pedidos-cd/pedidos/:id/cancelar', (req, res) => {
+  try { res.json(pedidosCD.cancelarPedido(req.params.id, req.session.user?.nome || null)); }
+  catch (err) { res.status(400).json({ error: err.message }); }
+});
+app.post('/api/pedidos-cd/verificar', async (req, res) => {
+  try { res.json(await pedidosCD.verificar()); } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.get('/api/pedidos-cd/config', (req, res) => res.json(pedidosCD.getConfig()));
+app.post('/api/pedidos-cd/config', (req, res) => {
+  try { res.json(pedidosCD.salvarConfig(req.body || {})); } catch (err) { res.status(400).json({ error: err.message }); }
+});
 
 async function cadastroLista(id) {
   const [lista] = await q(`SELECT Nome, Obs, CodFornec, NomeFornec, CodPrazoPag, PedidoMinimo FROM central.c_cotacao_lista WHERE nReg=?`, [id]);
