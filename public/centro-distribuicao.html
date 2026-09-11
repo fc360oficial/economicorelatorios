@@ -99,7 +99,7 @@ tr.zera td.lc{border-left:3px solid #E5AC00}
   </div>
   <div class="tabs">
     <button class="tab on" data-tab="pedido">Pedido da semana <span class="n" id="n-pedido">–</span></button>
-    <button class="tab" data-tab="vinculos">Vínculos <span class="n" id="n-vinc">–</span></button>
+    <button class="tab" data-tab="vinculos">Vínculos caixa → unidade <span class="n" id="n-vinc">–</span></button>
     <button class="tab" data-tab="pedidos">Pedidos <span class="n" id="n-peds">–</span></button>
     <button class="tab" data-tab="regras">Regras</button>
   </div>
@@ -138,7 +138,7 @@ function linha(item, lojasCols) {
   const cls = item.cdInsuficiente ? 'insuf' : (LOJAS.some(ln => item.lojas[ln].zeraAntes) ? 'zera' : '');
   return `<tr class="${cls}" data-cod="${item.codigoCD}">
     <td class="c"><input type="checkbox" ${SEL.has(item.codigoCD) ? 'checked' : ''} onchange="toggleSel('${item.codigoCD}',this.checked)"></td>
-    <td class="lc"><div class="nm">${item.descricaoCD}</div><div class="sub">${item.unidade ? item.unidade + ' · ' + (item.descricaoUn || '') : '<span class="neg">sem vínculo</span>'}${item.cdInsuficiente ? ' · <span class="neg">CD insuficiente: faltam ' + item.faltaCx + ' cx</span>' : ''}</div></td>
+    <td class="lc"><div class="nm">${item.descricaoCD}</div><div class="sub">${item.unidade ? item.unidade + ' · ' + (item.descricaoUn || '') : `<button class="btn btn-slate" style="padding:2px 8px;font-size:11px;color:#C22F49" onclick="event.stopPropagation();irVinculo('${item.codigoCD}')">sem vínculo · vincular unidade</button>`}${item.cdInsuficiente ? ' · <span class="neg">CD insuficiente: faltam ' + item.faltaCx + ' cx</span>' : ''}</div></td>
     <td class="r">${fmtN(item.estoqueCDcx)}</td><td class="c">${item.unPorCaixa || '–'}</td>
     <td class="r">${fmtN(item.vqTotal, 1)}</td><td class="r">${item.coberturaTotal == null ? '–' : fmtN(item.coberturaTotal, 1)}</td>
     ${lojasCols.map(ln => { const L = item.lojas[ln]; const k = item.codigoCD + '|' + ln; return `<td class="c" title="venda ${fmtN(L.vq, 1)}/d · est ${fmtN(L.est)} · trânsito ${fmtN(L.transito)} · cob ${L.cobertura == null ? '–' : fmtN(L.cobertura, 1)} d"><input class="cx ${k in EDITS ? 'edit' : ''}" type="number" min="0" value="${cxDe(item, ln)}" onchange="editar('${item.codigoCD}',${ln},this.value)">${L.zeraAntes ? '<div class="s2 neg">zera</div>' : ''}</td>`; }).join('')}
@@ -190,12 +190,17 @@ async function fecharPedido() {
   } catch (e) { alert(e.message); }
 }
 async function carregarVinculos() { const r = await api('/api/pedidos-cd/vinculos'); VINC = r.vinculos; renderVinculos(); }
+let VBUSCA = '';
+function irVinculo(cod) { VF = 'todos'; VBUSCA = cod; renderVinculos(); document.querySelector('[data-tab=vinculos]').click(); setTimeout(() => $('#bu-' + cod + ' input')?.focus(), 50); }
 function renderVinculos() {
   const all = Object.values(VINC); const cont = { pendentes: all.filter(v => v.status === 'pendente').length, sugeridos: all.filter(v => v.status === 'sugerido').length, confirmados: all.filter(v => v.status === 'confirmado').length, todos: all.length };
   $('#n-vinc').textContent = cont.pendentes + cont.sugeridos;
   const cd = DADOS?.repor.concat(DADOS.novos).reduce((m, i) => (m[i.codigoCD] = i, m), {}) || {};
-  const vis = all.filter(v => VF === 'todos' || v.status === VF.replace(/s$/, '')).sort((a, b) => (cd[a.codigoCD]?.descricaoCD || '').localeCompare(cd[b.codigoCD]?.descricaoCD || ''));
+  const vb = VBUSCA.toLowerCase();
+  const vis = all.filter(v => (VF === 'todos' || v.status === VF.replace(/s$/, '')) && (!vb || (v.codigoCD + ' ' + (cd[v.codigoCD]?.descricaoCD || '') + ' ' + (v.unidade || '') + ' ' + (cd[v.codigoCD]?.descricaoUn || '')).toLowerCase().includes(vb))).sort((a, b) => (cd[a.codigoCD]?.descricaoCD || '').localeCompare(cd[b.codigoCD]?.descricaoCD || ''));
   $('#tab-vinculos').innerHTML = `<div class="cards">${['pendentes', 'sugeridos', 'confirmados', 'todos'].map(k => `<div class="card ${VF === k ? 'on' : ''}" onclick="VF='${k}';renderVinculos()"><div class="v">${cont[k]}</div><div class="l">${k}</div></div>`).join('')}</div>
+  <p class="mut" style="font-size:11.5px;margin:0 0 8px">Cada caixa do CD precisa apontar pra unidade que a loja vende. <b>Sugerido</b> = unidade encontrada pelo código de barras, só conferir e Confirmar. <b>Sem vínculo</b> = buscar a unidade pelo nome ou código. Un/cx = quantas unidades tem a caixa.</p>
+  <div class="busca-row"><input placeholder="filtrar caixa por descrição ou código" value="${VBUSCA}" oninput="VBUSCA=this.value;renderVinculos()"><span class="contagem">${vis.length} de ${all.length}</span></div>
   <div class="table-wrap"><table class="main-t"><thead><tr><th>Código CD</th><th>Descrição CD</th><th class="r">Est. CD</th><th class="c">Un/cx</th><th>Unidade vinculada</th><th>Origem</th><th>Ação</th></tr></thead><tbody>
   ${vis.map(v => { const i = cd[v.codigoCD] || {}; const upc = v.unPorCaixa || v.unPorCaixaCadastro || ''; return `<tr>
     <td>${v.codigoCD}</td><td class="lc">${i.descricaoCD || ''}</td><td class="r">${fmtN(i.estoqueCDcx)}</td>
