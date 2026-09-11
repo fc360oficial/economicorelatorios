@@ -6117,10 +6117,11 @@ app.get('/api/radar-pedidos', async (req, res) => {
     const teto = Math.max(3, Math.min(90, parseFloat(req.query.alvo) || radarPedidos.TETO_PADRAO));
     const comprador = req.query.comprador ? resolveComprador(req.query.comprador) : null;
     const embMeses = req.query.emb == null ? undefined : Math.max(0, Math.min(24, parseInt(req.query.emb) || 0));
-    const listas = radarPedidos.politica(teto, comprador, embMeses);
+    const usarCurvaA = req.query.curvaA !== '0';
+    const listas = radarPedidos.politica(teto, comprador, embMeses, usarCurvaA);
     const ok = listas.filter(r => r.ok);
     const resumo = {
-      listas: listas.length, com_calculo: ok.length,
+      listas: listas.length, com_calculo: ok.length, curva_a_antecipadas: ok.filter(r => r.gatilho === 'curva_a').length,
       pedir_hoje: ok.filter(r => r.fazer_em === 0).length, pedir_7d: ok.filter(r => r.fazer_em <= 7).length,
       valor_hoje: +ok.filter(r => r.fazer_em === 0).reduce((a, r) => a + r.pedido_valor, 0).toFixed(2),
       estoque_hoje: +ok.reduce((a, r) => a + r.estoque_hoje, 0).toFixed(2),
@@ -6128,7 +6129,17 @@ app.get('/api/radar-pedidos', async (req, res) => {
       rupturas: ok.reduce((a, r) => a + r.rupturas, 0), perecivel: ok.filter(r => r.perecivel).length,
       compradores: [...new Set(listas.map(r => r.comprador).filter(Boolean))].sort()
     };
-    res.json({ estado: radarPedidos.getEstado(), teto, resumo, listas });
+    res.json({ estado: radarPedidos.getEstado(), teto, resumo, listas, curvaA: usarCurvaA });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Curva A em risco: produto a produto (zera antes da lista / no ponto / loja zerada com estoque em outra)
+app.get('/api/radar-pedidos/curva-a', (req, res) => {
+  try {
+    const teto = Math.max(3, Math.min(90, parseFloat(req.query.alvo) || radarPedidos.TETO_PADRAO));
+    const comprador = req.query.comprador ? resolveComprador(req.query.comprador) : null;
+    const embMeses = req.query.emb == null ? undefined : Math.max(0, Math.min(24, parseInt(req.query.emb) || 0));
+    res.json(radarPedidos.curvaARisco(teto, comprador, embMeses, req.query.curvaA !== '0'));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -6148,7 +6159,7 @@ app.get('/api/radar-pedidos/:listaId/itens', (req, res) => {
   try {
     const teto = Math.max(3, Math.min(90, parseFloat(req.query.alvo) || radarPedidos.TETO_PADRAO));
     const embMeses = req.query.emb == null ? undefined : Math.max(0, Math.min(24, parseInt(req.query.emb) || 0));
-    const r = radarPedidos.itensLista(parseInt(req.params.listaId), teto, null, embMeses);
+    const r = radarPedidos.itensLista(parseInt(req.params.listaId), teto, null, embMeses, req.query.curvaA !== '0');
     if (!r) return res.status(404).json({ error: radarPedidos.getEstado().status === 'ok' ? 'Lista não encontrada' : 'Radar ainda calculando, tente em instantes' });
     res.json(r);
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -6187,9 +6198,13 @@ app.post('/api/pedidos-fornecedor', async (req, res) => {
     const embMeses = req.body.emb == null ? undefined : Math.max(0, Math.min(24, parseInt(req.body.emb) || 0));
     const criados = [], semItens = [];
     const ajustes = req.body.ajustes && typeof req.body.ajustes === 'object' ? req.body.ajustes : {};
+    // modo por lista: 'curva_a' = só os produtos de curva A em risco (os demais itens da lista vão zerados)
+    const modo = req.body.modo && typeof req.body.modo === 'object' ? req.body.modo : {};
     for (const id of listas) {
-      const det = radarPedidos.itensLista(id, teto, null, embMeses);
+      const det = radarPedidos.itensLista(id, teto, null, embMeses, req.body.curvaA !== false && req.body.curvaA !== '0');
       if (!det) { semItens.push({ lista: id, motivo: 'lista não encontrada ou radar calculando' }); continue; }
+      const soCurvaA = (modo[id] || modo[String(id)]) === 'curva_a';
+      if (soCurvaA) for (const it of det.itens) if (!it.risco_a) { for (const ln of Object.keys(it.lojas_qtd)) it.lojas_qtd[ln] = 0; it.qtd = 0; it.volumes = 0; it.total = 0; }
       // quantidades editadas pela compradora na tela (por produto e loja) sobrepõem o cálculo
       const aj = ajustes[id] || ajustes[String(id)] || {};
       for (const it of det.itens) {
@@ -6200,7 +6215,7 @@ app.post('/api/pedidos-fornecedor', async (req, res) => {
       }
       if (!det.itens.some(i => i.qtd > 0)) { semItens.push({ lista: id, nome: det.lista.nome, motivo: 'nada a pedir hoje' }); continue; }
       const cad = await cadastroLista(id).catch(() => null);
-      criados.push(pedidosFornec.criar({ lista: det.lista, cadastro: cad, detalhe: det, teto, embMeses, usuario: req.session.user?.nome || null }));
+      criados.push(pedidosFornec.criar({ lista: det.lista, cadastro: cad, detalhe: det, teto, embMeses, usuario: req.session.user?.nome || null, modo: soCurvaA ? 'curva_a' : 'completa' }));
     }
     const base = `${req.protocol}://${req.get('host')}`;
     res.json({ criados: criados.map(p => ({ id: p.id, lista: p.lista, lista_nome: p.lista_nome, fornecedor: p.fornecedor, vendedor: p.vendedor, itens: p.itens.length, totais: p.totais, link: `${base}/pedido/${p.token}` })), sem_itens: semItens });

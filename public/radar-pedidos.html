@@ -59,6 +59,14 @@ table.main-t tbody tr.open{background:#FFF6D9}
 .pill{display:inline-block;padding:2px 8px;border-radius:99px;font-size:10.5px;font-weight:700;letter-spacing:.3px}
 .p-hoje{background:#FBEAED;color:#C22F49}.p-breve{background:#FFF6D9;color:#6B4E00;border:1px solid #EFD98F}.p-ok{background:#E7F5EC;color:#137A48}.p-cinza{background:#EBEBE9;color:#4E5A72}
 .p-flag{background:#E9EEF6;color:#2E5E8C}
+.p-a{background:#C22F49;color:#fff;font-weight:800}.p-a.soft{background:#FBEAED;color:#C22F49}
+.det table tr.sec td{background:#F4F4F1;color:#4E5A72;font-size:10px;text-transform:uppercase;letter-spacing:.5px;font-weight:800;padding:6px 10px;white-space:normal}
+.det table tr.sec.a td{background:#FBEAED;color:#C22F49}
+.det table tr.risco td.desc{border-left:3px solid #C22F49}
+.det .modo{display:inline-flex;border:1px solid #F5B800;border-radius:7px;overflow:hidden}.det .modo button{background:transparent;border:none;color:#FFC933;padding:4px 9px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit}.det .modo button.on{background:#F5B800;color:#6B4E00}
+.det .box .hd .minimo{color:#FF8FA3;font-weight:800}
+.fg.chk{flex-direction:row;align-items:center;gap:6px;padding-bottom:8px}.fg.chk input{width:15px;height:15px;accent-color:#F5B800;min-width:0}.fg.chk label{text-transform:none;font-size:12px;letter-spacing:0;color:#0E1626;cursor:pointer}
+.acao{font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:999px;white-space:nowrap}.acao.hoje{background:#C22F49;color:#fff}.acao.antecipada{background:#FBEAED;color:#C22F49}.acao.antecipar{background:#FFF6D9;color:#6B4E00;border:1px solid #EFD98F}.acao.transferir{background:#E9EEF6;color:#2E5E8C}
 .neg{color:#C22F49;font-weight:700}.pos{color:#137A48;font-weight:700}.mut{color:#98A0B3}
 .det td{background:#FAFAF8;padding:0 12px 14px 12px;white-space:normal}
 .det .box{margin-top:8px;border:1px solid #DADAD6;border-radius:10px;overflow:hidden;background:#fff}
@@ -167,6 +175,7 @@ table.main-t td.sel input,table.main-t th.sel input{width:15px;height:15px;accen
     <div class="fg"><label>Teto de cobertura (dias)</label><input type="number" id="fTeto" min="3" max="90" value="28"></div>
     <div class="fg"><label title="Arredonda o pedido pela embalagem em que o produto de fato chegou nas notas de entrada nesse período. 0 = usar só a embalagem do cadastro.">Embalagem real (meses)</label><input type="number" id="fEmb" min="0" max="24" value="24"></div>
     <div class="fg"><label>Buscar</label><input type="text" id="fBusca" placeholder="lista ou fornecedor" style="min-width:220px"></div>
+    <div class="fg chk" title="Produto de curva A (os que somam 50% da venda) que vai zerar antes do dia previsto da lista antecipa a lista. Desmarque pra ver o radar só com a regra dos 25% da venda."><input type="checkbox" id="fCurvaA" checked><label for="fCurvaA">Gatilho curva A</label></div>
     <button class="btn btn-amber" id="btnAplicar">Aplicar</button>
     <button class="btn btn-slate" id="btnRecalc" title="Recoleta venda, estoque e trânsito do ERP (1 a 3 min)">Recalcular agora</button>
     <button class="btn btn-slate" onclick="window.print()">Imprimir</button>
@@ -177,6 +186,7 @@ table.main-t td.sel input,table.main-t th.sel input{width:15px;height:15px;accen
   <div class="tabs">
     <button class="tab on" data-tab="hoje">Pedidos do dia <span class="n" id="nHoje">0</span></button>
     <button class="tab" data-tab="cal">Calendário <span class="n" id="nCal">0</span></button>
+    <button class="tab" data-tab="curvaa" title="Produtos de curva A em risco, independente da lista">Curva A em risco <span class="n" id="nA">…</span></button>
     <button class="tab" data-tab="acomp">Acompanhamento</button>
     <button class="tab" data-tab="sombra">Modo sombra <span class="n" id="nSombra">0</span></button>
     <button class="tab" data-tab="regras">Regras</button>
@@ -196,7 +206,7 @@ const br=s=>s?s.split('-').reverse().join('/'):'—';
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 let DATA=null, tab='hoje', sortK='fazer_em', sortD=1, aberta=null, SOMBRA=null;
 
-function params(){const p=new URLSearchParams();const c=$('#fComp').value;if(c)p.set('comprador',c);p.set('alvo',$('#fTeto').value||28);p.set('emb',$('#fEmb').value===''?24:$('#fEmb').value);return p;}
+function params(){const p=new URLSearchParams();const c=$('#fComp').value;if(c)p.set('comprador',c);p.set('alvo',$('#fTeto').value||28);p.set('emb',$('#fEmb').value===''?24:$('#fEmb').value);if(!$('#fCurvaA').checked)p.set('curvaA','0');return p;}
 const money2=v=>v==null?'—':'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 
 async function carregar(refresh){
@@ -205,7 +215,7 @@ async function carregar(refresh){
   try{
     const r=await fetch('/api/radar-pedidos?'+p.toString()); const j=await r.json();
     if(j.error) throw new Error(j.error);
-    DATA=j; renderEstado(); renderTotais(); preencherCompradores(); render();
+    DATA=j; CURVAA=null; renderEstado(); renderTotais(); preencherCompradores(); render(); carregarCurvaA();
     if(j.estado.status!=='ok' && !refresh){ setTimeout(()=>carregar(false), 15000); }
   }catch(e){ $('#view').innerHTML='<div class="empty">Erro: '+esc(e.message)+'</div>'; }
 }
@@ -225,6 +235,7 @@ function renderTotais(){
     '<div class="tkpi"><div class="v neg">'+r.pedir_hoje+'</div><div class="l">Listas pra fazer hoje</div></div>'+
     '<div class="tkpi"><div class="v">'+money(r.valor_hoje)+'</div><div class="l">Valor dos pedidos de hoje (custo)</div></div>'+
     '<div class="tkpi"><div class="v amb">'+r.pedir_7d+'</div><div class="l">Listas nos próximos 7 dias</div></div>'+
+    '<div class="tkpi" title="Listas cuja data foi puxada porque um produto de curva A zeraria antes do dia previsto"><div class="v '+(r.curva_a_antecipadas?'neg':'')+'">'+(r.curva_a_antecipadas||0)+'</div><div class="l">Antecipadas por curva A'+(DATA.estado.curva_a?' <span class="mut">('+DATA.estado.curva_a.n+' produtos A)</span>':'')+'</div></div>'+
     '<div class="tkpi"><div class="v">'+money(r.estoque_hoje)+'</div><div class="l">Estoque hoje (custo, itens c/ venda)</div></div>'+
     '<div class="tkpi"><div class="v">'+money(r.estoque_alvo)+'</div><div class="l">Estoque no alvo ('+DATA.teto+'d teto)</div></div>'+
     '<div class="tkpi"><div class="v '+(d<0?'pos':'neg')+'">'+(d<0?'−':'+')+money(Math.abs(d))+'</div><div class="l">Diferença (alvo − hoje)</div></div>'+
@@ -239,11 +250,18 @@ function listasFiltradas(){
 function ordenar(rows){
   return rows.sort((a,b)=>{let x=a[sortK],y=b[sortK];if(x==null&&y==null)return 0;if(x==null)return 1;if(y==null)return -1;if(typeof x==='string')return sortD*x.localeCompare(y,'pt-BR');return sortD*(x-y)||(b.venda_dia||0)-(a.venda_dia||0);});
 }
+function pillA(l){
+  if(!l.ok||l.gatilho!=='curva_a') return '';
+  const its=(l.curva_a_risco||[]).filter(c=>c.zera_antes);
+  const tip='Antecipada: a lista cairia em '+l.fazer_em_lista+' d pela regra dos 25%, mas '+its.length+' produto'+(its.length>1?'s':'')+' de curva A zera'+(its.length>1?'m':'')+' antes: '+its.slice(0,4).map(c=>c.descricao+' ('+fmt(c.cobertura_dias,0)+' d)').join(', ')+(its.length>4?'…':'');
+  return ' <span class="pill p-a" title="'+esc(tip)+'">curva A</span>';
+}
 function pillDia(l){
   if(!l.ok) return '<span class="pill p-cinza">'+esc(l.motivo)+'</span>';
-  if(l.fazer_em===0) return '<span class="pill p-hoje">HOJE</span>';
-  if(l.fazer_em<=3) return '<span class="pill p-breve">'+l.fazer_em+' d · '+l.dow+'</span>';
-  return '<span class="pill p-ok">'+l.fazer_em+' d · '+l.dow+' '+br(l.data).slice(0,5)+'</span>';
+  const a=pillA(l), de=l.gatilho==='curva_a'?'<div class="s2" title="Dia previsto pela regra dos 25% da venda">era '+l.fazer_em_lista+' d</div>':'';
+  if(l.fazer_em===0) return '<span class="pill p-hoje">HOJE</span>'+a+de;
+  if(l.fazer_em<=3) return '<span class="pill p-breve">'+l.fazer_em+' d · '+l.dow+'</span>'+a+de;
+  return '<span class="pill p-ok">'+l.fazer_em+' d · '+l.dow+' '+br(l.data).slice(0,5)+'</span>'+a+de;
 }
 function flagsHtml(l){
   const f=[]; if(l.abaixo_minimo)f.push('<span class="pill p-flag" title="Valor abaixo do pedido mínimo do fornecedor">abaixo do mínimo</span>');
@@ -260,6 +278,7 @@ function render(){
   }
   if(tab==='hoje') return renderTabela(listasFiltradas().filter(l=>l.ok&&l.fazer_em===0),'Nenhuma lista precisa ser feita hoje com esse teto.');
   if(tab==='cal') return renderTabela(listasFiltradas(),'Nenhuma lista.');
+  if(tab==='curvaa') return renderCurvaA();
   if(tab==='acomp') return renderAcomp();
   if(tab==='sombra') return renderSombra();
   if(tab==='regras') return renderRegras();
@@ -300,16 +319,23 @@ function renderTabela(rows,vazio){
 async function carregarItens(id){
   const box=document.getElementById('det-'+id); if(!box) return;
   try{
-    const r=await fetch('/api/radar-pedidos/'+id+'/itens?alvo='+($('#fTeto').value||28)+'&emb='+($('#fEmb').value===''?24:$('#fEmb').value)); const j=await r.json(); if(j.error) throw new Error(j.error);
-    const L=j.lista, P=j.params, pede=j.itens.filter(i=>i.qtd>0);
+    const r=await fetch('/api/radar-pedidos/'+id+'/itens?'+params().toString()); const j=await r.json(); if(j.error) throw new Error(j.error);
+    const L=j.lista, P=j.params;
     const LJ=[...new Set(j.itens.flatMap(i=>i.lojas))].sort((a,b)=>a-b);
-    DETALHES[id]=j;
-    let h='<div class="hd"><div><b class="lnk" title="Abrir cadastro da lista no ERP (fornecedor, vendedor, comprador, prazo)" onclick="event.stopPropagation();abrirCadastro('+id+')">'+esc(L.nome)+' ↗</b>'+(L.pedidoMinimo?' · pedido mínimo R$ '+fmt(L.pedidoMinimo,0):'')+'</div>'+
-      '<div>'+(P?'ponto <b>'+fmt(P.ponto)+'d</b> · alvo <b>'+fmt(P.alvoLista)+'d</b> · ciclo <b>'+fmt(P.ciclo)+'d</b> · ':'')+'fazer em <b>'+(j.fazer_em===0?'HOJE':j.fazer_em+' dias ('+br(j.data)+')')+'</b> · '+pede.length+' itens · '+j.volumes+' volumes · <b>'+money(j.total)+'</b> <button class="btn btn-amber btn-sm" onclick="event.stopPropagation();gerarPedido('+id+')">Gerar pedido</button></div></div>';
+    // guarda as quantidades calculadas pra poder alternar "Só curva A" / "Lista completa"
+    for(const i of j.itens){ i._calc={...i.lojas_qtd}; const ed=EDITS[id]?.[i.cod]; if(ed) for(const [ln,v] of Object.entries(ed)) i.lojas_qtd[ln]=v; recalcItem(i); }
+    DETALHES[id]=j; if(!MODO[id]) MODO[id]='completa'; aplicarModo(id,MODO[id],false);
+    const nRisco=j.itens.filter(i=>i.risco_a).length;
+    let h='<div class="hd"><div><b class="lnk" title="Abrir cadastro da lista no ERP (fornecedor, vendedor, comprador, prazo)" onclick="event.stopPropagation();abrirCadastro('+id+')">'+esc(L.nome)+' ↗</b>'+(L.pedidoMinimo?' · pedido mínimo R$ '+fmt(L.pedidoMinimo,0):'')+(j.gatilho==='curva_a'?' · <span class="pill p-a">antecipada por curva A</span> <span style="opacity:.8">era pra '+j.fazer_em_lista+' d pela regra dos 25%</span>':'')+'</div>'+
+      '<div id="hdr-'+id+'">'+hdResumo(id)+'</div></div>';
     h+='<div style="overflow-x:auto"><table><thead><tr><th>Produto</th><th class="r">Venda/dia</th><th class="r">Estoque</th><th class="r">Trânsito</th><th class="r">Cobertura</th><th class="r">Alvo</th>'+LJ.map(ln=>'<th class="r lj" title="Quantidade a pedir na loja '+ln+'">L'+ln+'</th>').join('')+'<th class="r">Pedir (total)</th><th class="r">Total</th><th class="obs">Obs</th></tr></thead><tbody>';
+    const NC=LJ.length+9;
+    if(nRisco) h+='<tr class="sec a"><td colspan="'+NC+'">Curva A em risco · '+nRisco+' produto'+(nRisco>1?'s':'')+' · zera antes do dia da lista ou já está no ponto de pedido</td></tr>';
+    let secLista=false;
     for(const i of j.itens){
-      const obs=[]; if(i.flag==='piso')obs.push('piso: 1 ciclo'); if(i.flag==='teto')obs.push('TETO: conferir'); if(i.estoque_bruto<0)obs.push('estoque negativo no ERP'); if(i.validade&&i.alvo_dias&&i.alvo_dias<P.alvoLista-0.05)obs.push('validade '+i.validade+'d'); if(i.venda_dia===0)obs.push('sem venda');
-      h+='<tr class="'+(i.qtd>0?'pede':'zero')+'"><td class="desc">'+esc(i.descricao)+'<span class="cod">'+esc(i.cod)+' · L'+i.lojas.join(' L')+'</span></td><td class="r">'+fmt(i.venda_dia,2)+'</td><td class="r">'+fmt(i.estoque,0)+'</td><td class="r">'+(i.transito?fmt(i.transito,0)+'<div class="s2">'+Object.entries(i.lojas_det||{}).filter(([,d])=>d.transito>0).map(([l,d])=>'L'+l+': '+fmt(d.transito,0)).join(' · ')+'</div>':'<span class="mut">—</span>')+'</td>'+
+      if(nRisco&&!i.risco_a&&!secLista){secLista=true;h+='<tr class="sec"><td colspan="'+NC+'">Demais itens da lista · '+(j.itens.length-nRisco)+' produtos'+(MODO[id]==='curva_a'?' · <b>zerados no modo "Só curva A"</b>':'')+'</td></tr>';}
+      const obs=[]; if(i.risco_a)obs.push(i.cobertura_dias<j.fazer_em_lista?'curva A: zera em '+fmt(i.cobertura_dias,0)+' d, lista era em '+j.fazer_em_lista+' d':'curva A: no ponto de pedido'); else if(i.curva_a)obs.push('curva A'); if(i.flag==='piso')obs.push('piso: 1 ciclo'); if(i.flag==='teto')obs.push('TETO: conferir'); if(i.estoque_bruto<0)obs.push('estoque negativo no ERP'); if(i.validade&&i.alvo_dias&&i.alvo_dias<P.alvoLista-0.05)obs.push('validade '+i.validade+'d'); if(i.venda_dia===0)obs.push('sem venda');
+      h+='<tr class="'+(i.qtd>0?'pede':'zero')+(i.risco_a?' risco':'')+'"><td class="desc">'+(i.curva_a?'<span class="pill '+(i.risco_a?'p-a':'p-a soft')+'" style="font-size:9px;padding:1px 5px;margin-right:4px" title="Curva A · posição '+i.rank_a+' na venda">A</span>':'')+esc(i.descricao)+'<span class="cod">'+esc(i.cod)+' · L'+i.lojas.join(' L')+'</span></td><td class="r">'+fmt(i.venda_dia,2)+'</td><td class="r">'+fmt(i.estoque,0)+'</td><td class="r">'+(i.transito?fmt(i.transito,0)+'<div class="s2">'+Object.entries(i.lojas_det||{}).filter(([,d])=>d.transito>0).map(([l,d])=>'L'+l+': '+fmt(d.transito,0)).join(' · ')+'</div>':'<span class="mut">—</span>')+'</td>'+
         '<td class="r '+(i.abaixo_ponto?'neg':'')+'">'+(i.cobertura_dias==null?'—':fmt(i.cobertura_dias,0)+' d')+'</td><td class="r">'+(i.alvo_dias?fmt(i.alvo_dias,0)+' d':'—')+'</td>'+
         LJ.map(ln=>{const q=i.lojas_qtd[ln]||0;const d=i.lojas_det[ln];const tip=d?('loja '+ln+': estoque '+fmt(d.estoque,0)+(d.transito?' + trânsito '+fmt(d.transito,0):'')+' · venda/dia '+fmt(d.venda_dia,2)+' · cobertura '+(d.cobertura_dias==null?'—':fmt(d.cobertura_dias,0)+' d')+' · edite a quantidade se precisar'):'não participa';return '<td class="r lj'+(q?' tem':'')+'" title="'+tip+'">'+(d?'<input class="qin'+(EDITS[id]?.[i.cod]?.[ln]!=null?' ed':'')+'" type="number" min="0" step="1" data-cod="'+esc(i.cod)+'" data-ln="'+ln+'" value="'+(q||'')+'" placeholder="·">':'')+'</td>';}).join('')+
         '<td class="r" id="tq-'+esc(i.cod)+'"><span class="qtd">'+(i.qtd?fmt(i.qtd,0):'')+'</span>'+(i.qtd?' '+esc(i.unid)+(i.emb>1?'<div class="s2">'+i.volumes+' vol × '+i.emb+'</div>':''):'')+'</td><td class="r" id="tt-'+esc(i.cod)+'">'+(i.total?money2(i.total):'')+'<div class="s2">'+fmt(i.custo,2)+' un</div></td><td class="mut obs">'+obs.join(' · ')+'</td></tr>';
@@ -319,7 +345,57 @@ async function carregarItens(id){
     box.querySelectorAll('input.qin').forEach(inp=>{inp.addEventListener('click',e=>e.stopPropagation());inp.addEventListener('change',()=>aplicarEdicao(id,inp));inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();inp.blur();}});});
   }catch(e){ box.innerHTML='<div class="empty">'+esc(e.message)+'</div>'; }
 }
+function recalcItem(it){ it.qtd=Object.values(it.lojas_qtd).reduce((s,x)=>s+(x||0),0); it.volumes=it.qtd?Math.ceil(it.qtd/(it.emb||1)):0; it.total=+(it.qtd*it.custo).toFixed(2); }
+function recalcLista(j){ j.total=+j.itens.reduce((a,i)=>a+i.total,0).toFixed(2); j.volumes=j.itens.reduce((a,i)=>a+i.volumes,0); }
+// resumo do cabeçalho do detalhe (re-renderizado a cada edição / troca de modo)
+function hdResumo(id){
+  const j=DETALHES[id]; if(!j) return ''; const P=j.params, L=j.lista, pede=j.itens.filter(i=>i.qtd>0).length, nRisco=j.itens.filter(i=>i.risco_a).length;
+  const min=L.pedidoMinimo&&j.total>0&&j.total<L.pedidoMinimo?' <span class="minimo" title="Total abaixo do pedido mínimo do fornecedor (R$ '+fmt(L.pedidoMinimo,0)+'). Complete com itens do bloco de baixo ou combine com o vendedor.">abaixo do mínimo (R$ '+fmt(L.pedidoMinimo,0)+')</span>':'';
+  const modo=nRisco?'<span class="modo" title="Só curva A: pede apenas os produtos de curva A em risco. Lista completa: pede tudo que o radar calculou pra hoje."><button class="'+(MODO[id]==='curva_a'?'on':'')+'" onclick="event.stopPropagation();aplicarModo('+id+',\'curva_a\',true)">Só curva A</button><button class="'+(MODO[id]!=='curva_a'?'on':'')+'" onclick="event.stopPropagation();aplicarModo('+id+',\'completa\',true)">Lista completa</button></span> ':'';
+  return (P?'ponto <b>'+fmt(P.ponto)+'d</b> · alvo <b>'+fmt(P.alvoLista)+'d</b> · ciclo <b>'+fmt(P.ciclo)+'d</b> · ':'')+'fazer em <b>'+(j.fazer_em===0?'HOJE':j.fazer_em+' dias ('+br(j.data)+')')+'</b> · '+pede+' itens · '+j.volumes+' volumes · <b>'+money(j.total)+'</b>'+min+' '+modo+'<button class="btn btn-amber btn-sm" onclick="event.stopPropagation();gerarPedido('+id+')">Gerar pedido</button>';
+}
+// modo do pedido por lista: 'completa' (tudo que o radar calculou) ou 'curva_a' (só os produtos A em risco; os demais ficam zerados)
+const MODO={};
+function aplicarModo(id,modo,rerender){
+  const j=DETALHES[id]; if(!j) return; MODO[id]=modo;
+  for(const i of j.itens){
+    if(i.risco_a) continue;
+    if(modo==='curva_a'){ for(const ln of Object.keys(i.lojas_qtd)) i.lojas_qtd[ln]=0; }
+    else { const ed=EDITS[id]?.[i.cod]; i.lojas_qtd={...i._calc}; if(ed) for(const [ln,v] of Object.entries(ed)) i.lojas_qtd[ln]=v; }
+    recalcItem(i);
+  }
+  recalcLista(j);
+  if(rerender){ const box=document.getElementById('det-'+id); if(box){ box.innerHTML='<div class="spinner"></div>'; carregarItens(id); } }
+}
 
+// ---- aba Curva A em risco (produto a produto) ----
+let CURVAA=null;
+async function carregarCurvaA(){
+  try{ const r=await fetch('/api/radar-pedidos/curva-a?'+params().toString()); CURVAA=await r.json(); if(CURVAA.error) throw new Error(CURVAA.error); }
+  catch(e){ CURVAA={erro:e.message,itens:[],resumo:null}; }
+  const n=document.getElementById('nA'); if(n) n.textContent=CURVAA.resumo?CURVAA.resumo.comprar:'—';
+  if(tab==='curvaa') renderCurvaA();
+}
+const ACAO={pedir_hoje:['pedir hoje','hoje','A lista já está em HOJE: o produto sai no pedido de hoje'],antecipada:['antecipada','antecipada','A lista foi puxada pra antes por causa deste produto (gatilho curva A)'],antecipar:['antecipar','antecipar','Gatilho curva A desligado ou produto no ponto sem zerar antes da lista: avalie antecipar a lista ou pedir só este item'],transferir:['transferir','transferir','Loja zerada com venda, mas há estoque em outra loja: transferência resolve mais rápido que compra']};
+function abrirLista(id){ tab='cal'; $('#fBusca').value=String(id); aberta=id; render(); carregarItens(id); window.scrollTo({top:document.querySelector('.tabs').offsetTop-10,behavior:'smooth'}); }
+function renderCurvaA(){
+  if(!CURVAA){ $('#view').innerHTML='<div class="spinner"></div>'; return; }
+  const R=CURVAA.resumo; const b=($('#fBusca').value||'').toLowerCase();
+  const rows=CURVAA.itens.filter(i=>!b||i.descricao.toLowerCase().includes(b)||i.lista_nome.toLowerCase().includes(b)||i.cod===b||String(i.lista)===b);
+  let h='<div class="aviso"><b>Curva A</b> = os '+(R?R.curva_a.n:'—')+' produtos que somam '+(R?Math.round(R.curva_a.fracao*100):50)+'% da venda em R$ das listas ('+(R?R.curva_a.produtos.toLocaleString('pt-BR'):'—')+' produtos com venda). Aqui aparece todo produto A que <b>zera antes do dia previsto da lista</b>, já está <b>no ponto de pedido</b>, ou tem <b>loja zerada</b> com estoque sobrando em outra. A lista abre no calendário pra você decidir: antecipar, pedir só ele, ou transferir.'+(CURVAA.erro?' <span class="neg">'+esc(CURVAA.erro)+'</span>':'')+'</div>';
+  if(R) h+='<div class="totais"><div class="tkpi"><div class="v neg">'+R.comprar+'</div><div class="l">Produtos A pra comprar</div></div><div class="tkpi"><div class="v neg">'+R.hoje+'</div><div class="l">Saem no pedido de hoje</div></div><div class="tkpi"><div class="v '+(R.listas_antecipadas?'neg':'')+'">'+R.listas_antecipadas+'</div><div class="l">Listas antecipadas por curva A</div></div><div class="tkpi"><div class="v amb">'+R.transferir+'</div><div class="l">Só transferir entre lojas</div></div></div>';
+  if(!rows.length){ $('#view').innerHTML=h+'<div class="empty">Nenhum produto de curva A em risco'+(b?' com essa busca':'')+'.</div>'; return; }
+  h+='<div class="busca-row"><span class="contagem">'+rows.length+' produto'+(rows.length===1?'':'s')+' · clique na lista pra abrir o detalhe no calendário</span></div>';
+  h+='<div class="table-wrap"><table class="main-t"><thead><tr><th>Ação</th><th>Produto</th><th class="r" title="Posição na venda em R$ (1 = mais vendido)">Pos.</th><th class="r">Venda/dia</th><th class="r">R$/dia</th><th class="r">Estoque</th><th class="r">Trânsito</th><th class="r">Cobertura</th><th class="r">Ponto</th><th>Lojas zeradas</th><th>Lista</th><th>Comprador</th><th class="c">Lista marcada pra</th></tr></thead><tbody>';
+  for(const i of rows){
+    const a=ACAO[i.acao]||[i.acao,'',''];
+    const lz=i.lojas_zeradas.length?i.lojas_zeradas.map(z=>'<span title="loja '+z.loja+': vende '+fmt(z.venda_dia,1)+'/dia e está zerada">L'+z.loja+'</span>').join(' ')+(i.lojas_com_estoque?'<div class="s2">'+i.lojas_com_estoque+' loja'+(i.lojas_com_estoque>1?'s':'')+' com estoque</div>':''):'<span class="mut">—</span>';
+    const motivo=i.zera_antes?'zera em '+fmt(i.cobertura_dias,0)+' d, lista era em '+i.fazer_em_lista+' d':(i.no_ponto?'no ponto de pedido':'loja zerada');
+    h+='<tr><td><span class="acao '+a[1]+'" title="'+esc(a[2])+'">'+a[0]+'</span></td><td class="lc"><div class="nm">'+esc(i.descricao)+'<span>'+esc(i.cod)+'</span></div><div class="sub">'+motivo+'</div></td><td class="r">'+i.rank+'</td><td class="r">'+fmt(i.venda_dia,1)+'</td><td class="r">'+fmt(i.venda_dia_valor,0)+'</td><td class="r">'+fmt(i.estoque,0)+'</td><td class="r">'+(i.transito?fmt(i.transito,0):'<span class="mut">—</span>')+'</td><td class="r '+(i.zera_antes||i.no_ponto?'neg':'')+'">'+fmt(i.cobertura_dias,0)+' d</td><td class="r">'+fmt(i.ponto)+' d</td><td>'+lz+'</td><td class="lc"><div class="nm lnk" style="cursor:pointer" onclick="abrirLista('+i.lista+')">'+esc(i.lista_nome)+' ↗<span>#'+i.lista+'</span></div></td><td class="comp">'+esc(i.comprador||'—')+'</td><td class="c">'+(i.fazer_em===0?'<span class="pill p-hoje">HOJE</span>':'<span class="pill '+(i.fazer_em<=3?'p-breve':'p-ok')+'">'+i.fazer_em+' d · '+br(i.data).slice(0,5)+'</span>')+(i.gatilho==='curva_a'?'<div class="s2">era '+i.fazer_em_lista+' d</div>':'')+'</td></tr>';
+  }
+  h+='</tbody></table></div>';
+  $('#view').innerHTML=h;
+}
 function renderAcomp(){
   const ok=DATA.listas.filter(l=>l.ok); const por={};
   for(const l of ok){const c=por[l.comprador||'SEM COMPRADOR']||(por[l.comprador||'SEM COMPRADOR']={listas:0,hoje:0,venda:0,est:0,alvo:0,rupt:0,cobW:0,prod:0,semLead:0});c.listas++;if(l.fazer_em===0)c.hoje++;c.venda+=l.venda_dia;c.est+=l.estoque_hoje;c.alvo+=l.estoque_alvo;c.rupt+=l.rupturas;c.prod+=l.com_venda;}
@@ -384,6 +460,8 @@ function renderRegras(){
   '<div><b>Alvo da lista</b> = ponto + intervalo real entre pedidos, limitado ao <b>teto</b> (28 dias por padrão, ajustável no filtro).</div>'+
   '<div><b>Alvo do produto</b> = alvo da lista limitado a 60% da validade de cadastro (perecível não segura 28 dias).</div>'+
   '<div><b>Fazer a lista</b> no dia em que 25% da venda dela (em R$) cruza o ponto de pedido. Fim de semana cai pra segunda.</div>'+
+  '<div><b>Gatilho curva A</b>: curva A são os produtos que somam 50% da venda em R$ (≈400). Se um produto A vai <b>zerar antes do dia previsto da lista</b>, a lista é antecipada pro dia em que ele cruza o ponto de pedido (pill vermelha "curva A"). Um A que só cruzou o ponto, mas ainda cobre até o dia da lista, não antecipa. No detalhe, os A em risco ficam no bloco de cima e dá pra gerar o pedido <b>só com eles</b> ou com a <b>lista completa</b>. Desligável no filtro.</div>'+
+  '<div><b>Loja zerada</b> de produto A com estoque em outra loja aparece na aba "Curva A em risco" como <b>transferir</b>, não como compra.</div>'+
   '<div><b>Quanto pedir</b> = alvo × venda/dia − (estoque + o que já está pedido e não chegou), arredondado pra cima à embalagem.</div>'+
   '<div><b>Embalagem real</b>: o arredondamento usa a embalagem em que o produto de fato chegou nas notas de entrada no período do filtro (padrão 24 meses; a mais frequente, empate vai pra maior). Se sempre veio em caixa de 24, "faltam 2" vira 1 caixa de 24. Sem nota no período, vale a embalagem do cadastro. Filtro em 0 desliga e usa só o cadastro.</div>'+
   '<div><b>Piso</b>: nunca menos que o consumo de 1 ciclo. <b>Teto</b>: nunca mais que (alvo + ciclo) × venda/dia; se bater, aparece "TETO: conferir" (estoque negativo ou venda atípica).</div>'+
@@ -415,7 +493,7 @@ function gerarPedido(id){
   const j=DETALHES[id]; if(!j) return;
   const L=j.lista, LJ=[...new Set(j.itens.flatMap(i=>i.lojas))].sort((a,b)=>a-b);
   const hoje=new Date().toLocaleDateString('pt-BR');
-  const top='<div class="pv-top"><div><div class="eyebrow-pv">PRÉVIA · NÃO ENVIADO · NÃO GRAVADO</div><h2>Pedido · '+esc(L.nome)+'</h2><div class="pv-sub">'+esc(L.fornecedor||'')+' · gerado em '+hoje+' · teto '+($('#fTeto').value||28)+' d · embalagem real '+($('#fEmb').value===''?24:$('#fEmb').value)+' m'+(L.pedidoMinimo?' · pedido mínimo R$ '+fmt(L.pedidoMinimo,0):'')+'</div></div><div class="pv-acts"><button class="btn btn-slate" onclick="window.print()">Imprimir</button><button class="btn btn-amber" onclick="fecharPedido()">Fechar</button></div></div>';
+  const top='<div class="pv-top"><div><div class="eyebrow-pv">PRÉVIA · NÃO ENVIADO · NÃO GRAVADO</div><h2>Pedido · '+esc(L.nome)+'</h2><div class="pv-sub">'+esc(L.fornecedor||'')+' · gerado em '+hoje+' · teto '+($('#fTeto').value||28)+' d · embalagem real '+($('#fEmb').value===''?24:$('#fEmb').value)+' m'+(L.pedidoMinimo?' · pedido mínimo R$ '+fmt(L.pedidoMinimo,0):'')+(MODO[id]==='curva_a'?' · <b style="color:#C22F49">SÓ CURVA A</b>':(j.itens.some(i=>i.risco_a)?' · lista completa (inclui '+j.itens.filter(i=>i.risco_a).length+' de curva A em risco)':''))+'</div></div><div class="pv-acts"><button class="btn btn-slate" onclick="window.print()">Imprimir</button><button class="btn btn-amber" onclick="fecharPedido()">Fechar</button></div></div>';
   let h='';
   let totalGeral=0, volGeral=0, resumo=[];
   for(const ln of LJ){
@@ -448,8 +526,8 @@ function aplicarEdicao(id,inp){
   if(tq) tq.innerHTML='<span class="qtd">'+(it.qtd?fmt(it.qtd,0):'')+'</span>'+(it.qtd?' '+esc(it.unid)+(it.emb>1?'<div class="s2">'+it.volumes+' vol × '+it.emb+'</div>':''):'');
   if(tt) tt.innerHTML=(it.total?money2(it.total):'')+'<div class="s2">'+fmt(it.custo,2)+' un</div>';
   inp.closest('tr').className=it.qtd>0?'pede':'zero';
-  j.total=+j.itens.reduce((a,i)=>a+i.total,0).toFixed(2); j.volumes=j.itens.reduce((a,i)=>a+i.volumes,0);
-  const hd=inp.closest('.box')?.querySelector('.hd div:last-child'); if(hd){const b=hd.querySelectorAll('b');/* último <b> = total */ const pede=j.itens.filter(i=>i.qtd>0).length; hd.innerHTML=hd.innerHTML.replace(/(\d+) itens · (\d+) volumes · <b>R\$ [\d\.]+<\/b>/, pede+' itens · '+j.volumes+' volumes · <b>'+money(j.total)+'</b>');}
+  recalcLista(j);
+  const hd=document.getElementById('hdr-'+id); if(hd) hd.innerHTML=hdResumo(id);
 }
 
 // ---- enviar pro fornecedor: cria 1 pedido por lista selecionada e abre os links ----
@@ -458,7 +536,7 @@ async function enviarSelecionadas(){
   if(!confirm('Gerar '+ids.length+' pedido'+(ids.length>1?'s':'')+' pro fornecedor ('+ids.length+' lista'+(ids.length>1?'s':'')+' selecionada'+(ids.length>1?'s':'')+')? Cada um ganha um link próprio; você escolhe pra quem enviar depois.')) return;
   const b=document.getElementById('btnEnviar'); if(b){b.disabled=true;b.textContent='Gerando…';}
   try{
-    const r=await fetch('/api/pedidos-fornecedor',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({listas:ids,teto:$('#fTeto').value||28,emb:$('#fEmb').value===''?24:$('#fEmb').value,ajustes:EDITS})});
+    const r=await fetch('/api/pedidos-fornecedor',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({listas:ids,teto:$('#fTeto').value||28,emb:$('#fEmb').value===''?24:$('#fEmb').value,ajustes:EDITS,modo:MODO,curvaA:$('#fCurvaA').checked})});
     const j=await r.json(); if(j.error) throw new Error(j.error);
     let h='<div class="pv-top"><div><div class="eyebrow-pv" style="color:#137A48">PEDIDOS GERADOS · LINK PRO VENDEDOR</div><h2>'+j.criados.length+' pedido'+(j.criados.length===1?'':'s')+' pronto'+(j.criados.length===1?'':'s')+' pra enviar</h2><div class="pv-sub">Cada link abre a página onde o vendedor digita preço e observação por item. Ao abrir, o status vira "Em digitação"; ao finalizar, "Finalizado". Envie pelo WhatsApp ou copie o link.</div></div><div class="pv-acts"><a class="btn btn-amber" href="/pedidos-compra.html" style="text-decoration:none">Ir pra Pedidos de Compra</a><button class="btn btn-slate" onclick="fecharPedido();SEL.clear();render()">Fechar</button></div></div>';
     for(const p of j.criados){
@@ -533,6 +611,7 @@ document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{tab=t.dataset.tab;ab
 $('#btnAplicar').onclick=()=>{aberta=null;carregar(false);};
 $('#fBusca').addEventListener('input',()=>{if(DATA)render();});
 $('#fComp').addEventListener('change',()=>{aberta=null;carregar(false);});
+$('#fCurvaA').addEventListener('change',()=>{aberta=null;carregar(false);});
 $('#fTeto').addEventListener('keydown',e=>{if(e.key==='Enter')carregar(false);});
 $('#btnRecalc').onclick=async()=>{const b=$('#btnRecalc');b.disabled=true;b.textContent='Recalculando…';try{await carregar(true);}finally{b.disabled=false;b.textContent='Recalcular agora';SOMBRA=null;}};
 carregar(false);
