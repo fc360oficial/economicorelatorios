@@ -98,3 +98,25 @@ test('calcularItem: L4 com atacado', () => {
   const semAt = c.calcularItem({ ...base, margem_atacado: 0, preco_atacado_atual: 11.5 }, P9);
   assert.equal(semAt.atacado, null);
 });
+
+test('calcularRegistro: recalcula e preserva edição manual', () => {
+  const reg = { parametros: P9, entradas: [base, { ...base, cod: '2', custo_imposto: 8 }], itens: [] };
+  c.calcularRegistro(reg);
+  assert.equal(reg.itens.length, 2);
+  reg.itens[0].preco_final = 15.49; reg.itens[0].manual = true;
+  c.calcularRegistro(reg);                       // custo igual → mantém
+  assert.equal(reg.itens[0].preco_final, 15.49);
+  assert.equal(reg.itens[0].manual, true);
+  reg.entradas[0] = { ...base, custo_imposto: 12 };
+  c.calcularRegistro(reg);                       // custo mudou → descarta
+  assert.equal(reg.itens[0].manual, false);
+  assert.equal(reg.itens[0].preco_final, reg.itens[0].preco_sugerido);
+  reg.itens[1].preco_final = 9.99; reg.itens[1].manual = true;
+  c.calcularRegistro(reg, { descartarManuais: true });
+  assert.equal(reg.itens[1].manual, false);
+});
+
+test('resumo conta status', () => {
+  const r = c.resumo([{ status: 'sobe' }, { status: 'desce' }, { status: 'mantem' }, { status: 'sem_mudanca' }, { status: 'bloqueado' }, { status: 'sobe' }]);
+  assert.deepEqual(r, { itens: 6, sobem: 2, descem: 1, mantem: 1, sem_mudanca: 1, bloqueados: 1, mudam: 3 });
+});
