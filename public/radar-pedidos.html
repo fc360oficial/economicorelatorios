@@ -254,7 +254,9 @@ function listasFiltradas(){
   return DATA.listas.filter(l=>!b||l.nome.toLowerCase().includes(b)||(l.fornecedor||'').toLowerCase().includes(b)||String(l.lista)===b);
 }
 function ordenar(rows){
-  return rows.sort((a,b)=>{let x=a[sortK],y=b[sortK];if(x==null&&y==null)return 0;if(x==null)return 1;if(y==null)return -1;if(typeof x==='string')return sortD*x.localeCompare(y,'pt-BR');return sortD*(x-y)||(b.venda_dia||0)-(a.venda_dia||0);});
+  // na ordem por "Fazer em", dentro do mesmo dia as listas com curva A em risco vêm primeiro
+  const rA=l=>l.ok&&(l.curva_a_risco||[]).length?1:0;
+  return rows.sort((a,b)=>{let x=a[sortK],y=b[sortK];if(x==null&&y==null)return 0;if(x==null)return 1;if(y==null)return -1;if(typeof x==='string')return sortD*x.localeCompare(y,'pt-BR');return sortD*(x-y)||(sortK==='fazer_em'?rA(b)-rA(a):0)||(b.venda_dia||0)-(a.venda_dia||0);});
 }
 function pillA(l){
   if(!l.ok) return '';
