@@ -6126,9 +6126,7 @@ app.get('/api/radar-pedidos/:listaId/itens', (req, res) => {
     const embMeses = req.query.emb == null ? undefined : Math.max(0, Math.min(36, parseInt(req.query.emb) || 0));
     const r = radarPedidos.itensLista(parseInt(req.params.listaId), teto, null, embMeses, req.query.curvaA !== '0');
     if (!r) return res.status(404).json({ error: radarPedidos.getEstado().status === 'ok' ? 'Lista não encontrada' : 'Radar ainda calculando, tente em instantes' });
-    // alertas do Sortimento por loja (cobertura >120 d, parado, não merece, compra e não vende): vermelho no Radar, pedido só com confirmação
-    for (const i of r.itens) { const a = {}; for (const ln of i.lojas) { const x = sortimento.alerta(r.lista.lista, i.cod, ln); if (x) a[ln] = x; } if (Object.keys(a).length) i.sortimento = a; }
-    res.json(r);
+    res.json(r);   // (alerta vermelho do Sortimento no Radar retirado a pedido do Tiago em 14/09/2026; a aba Sortimento segue na Lista de Compra)
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -6261,9 +6259,6 @@ app.post('/api/pedidos-fornecedor', async (req, res) => {
         it.volumes = it.qtd ? Math.ceil(it.qtd / (it.emb || 1)) : 0; it.total = +(it.qtd * it.custo).toFixed(2); it.editado = true;
       }
       if (!det.itens.some(i => i.qtd > 0)) { semItens.push({ lista: id, nome: det.lista.nome, motivo: 'nada a pedir hoje' }); continue; }
-      // item com alerta do Sortimento e quantidade > 0 na loja: só sai com confirmação explícita da compradora
-      for (const it of det.itens) for (const [ln, qv] of Object.entries(it.lojas_qtd)) { if (!(qv > 0)) continue; const a = sortimento.alerta(id, it.cod, +ln); if (a) bloqueados.push({ lista: id, lista_nome: det.lista.nome, cod: it.cod, descricao: it.descricao, loja: +ln, qtd: qv, classe: a.classe, cob: a.cob }); }
-      if (bloqueados.some(b => b.lista === id) && !confirmarExcesso) continue;
       const cad = await cadastroLista(id).catch(() => null);
       const np = pedidosFornec.criar({ lista: det.lista, cadastro: cad, detalhe: det, teto, embMeses, usuario: req.session.user?.nome || null, modo: soCurvaA ? 'curva_a' : 'completa', origem: origemPedido });
       try { await pedidosFornec.anexarAvarias(np); } catch (e) { console.error('[PEDIDOS] avarias:', e.message); }
