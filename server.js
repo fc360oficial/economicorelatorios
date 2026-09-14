@@ -6051,6 +6051,14 @@ app.get('/api/radar-pedidos/sombra/:dia/:listaId', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// DANFE simplificada (PDF gerado dos dados do XML no ERP)
+app.get('/api/radar-pedidos/nfe/:chave/danfe', async (req, res) => {
+  try {
+    const n = await radarPedidos.nfe(req.params.chave); if (!n) return res.status(404).json({ error: 'NF-e não encontrada' });
+    res.setHeader('Content-Type', 'application/pdf'); res.setHeader('Content-Disposition', `inline; filename="danfe-${n.nNota}.pdf"`);
+    require('./lib/danfe').gerarDanfe(n).pipe(res);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 app.get('/api/radar-pedidos/nfe/:chave', async (req, res) => {
   try { const n = await radarPedidos.nfe(req.params.chave); if (!n) return res.status(404).json({ error: 'NF-e não encontrada' }); res.json(n); }
   catch (err) { res.status(500).json({ error: err.message }); }
