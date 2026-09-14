@@ -181,7 +181,7 @@ table.main-t td.sel input,table.main-t th.sel input{width:15px;height:15px;accen
   <div class="filtros">
     <div class="fg"><label>Comprador</label><select id="fComp"><option value="">Todos</option></select></div>
     <div class="fg"><label>Teto de cobertura (dias)</label><input type="number" id="fTeto" min="3" max="90" value="28"></div>
-    <div class="fg"><label title="Arredonda o pedido pela embalagem em que o produto de fato chegou nas notas de entrada nesse período. 0 = usar só a embalagem do cadastro.">Embalagem real (meses)</label><input type="number" id="fEmb" min="0" max="24" value="24"></div>
+    <div class="fg"><label title="Arredonda o pedido pela embalagem em que o produto de fato chegou nas notas de entrada nesse período. 0 = usar só a embalagem do cadastro.">Embalagem real (meses)</label><input type="number" id="fEmb" min="0" max="36" value="36"></div>
     <div class="fg"><label>Buscar</label><input type="text" id="fBusca" placeholder="lista ou fornecedor" style="min-width:220px"></div>
     <div class="fg chk" title="Produto de curva A (os que somam 50% da venda) que vai zerar antes do dia previsto da lista antecipa a lista. Desmarque pra ver o radar só com a regra dos 10% da venda."><input type="checkbox" id="fCurvaA" checked><label for="fCurvaA">Gatilho curva A</label></div>
     <button class="btn btn-amber" id="btnAplicar" style="margin-top:14px">Aplicar</button>
@@ -215,7 +215,7 @@ const br=s=>s?s.split('-').reverse().join('/'):'—';
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 let DATA=null, tab='hoje', sortK='fazer_em', sortD=1, aberta=null, SOMBRA=null;
 
-function params(){const p=new URLSearchParams();const c=$('#fComp').value;if(c)p.set('comprador',c);p.set('alvo',$('#fTeto').value||28);p.set('emb',$('#fEmb').value===''?24:$('#fEmb').value);if(!$('#fCurvaA').checked)p.set('curvaA','0');return p;}
+function params(){const p=new URLSearchParams();const c=$('#fComp').value;if(c)p.set('comprador',c);p.set('alvo',$('#fTeto').value||28);p.set('emb',$('#fEmb').value===''?36:$('#fEmb').value);if(!$('#fCurvaA').checked)p.set('curvaA','0');return p;}
 const money2=v=>v==null?'—':'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 
 async function carregar(refresh){
@@ -482,7 +482,7 @@ function renderRegras(){
   '<div><b>Loja zerada</b> de produto A com estoque em outra loja aparece na aba "Curva A em risco" como <b>transferir</b>, não como compra.</div>'+
   '<div><b>No detalhe</b>, os produtos de curva A da lista ficam sempre no bloco de cima (em vermelho os em risco: cobertura até ponto + 1 dia, ou zera antes da data da lista). Todo item que zera antes da data da lista fica marcado em vermelho ("zera em N d, antes da lista"), seja curva A ou não, pra ninguém escolher "Só curva A" sem ver o que vai faltar.</div>'+
   '<div><b>Quanto pedir</b> = alvo × venda/dia − (estoque + o que já está pedido e não chegou), arredondado pra cima à embalagem.</div>'+
-  '<div><b>Embalagem real</b>: o arredondamento usa a embalagem em que o produto de fato chegou nas notas de entrada no período do filtro (padrão 24 meses; a mais frequente, empate vai pra maior). Se sempre veio em caixa de 24, "faltam 2" vira 1 caixa de 24. Sem nota no período, vale a embalagem do cadastro. Filtro em 0 desliga e usa só o cadastro.</div>'+
+  '<div><b>Embalagem real</b>: o arredondamento usa a embalagem em que o produto de fato chegou nas notas de entrada no período do filtro (padrão 36 meses; a mais frequente, empate vai pra maior). Se sempre veio em caixa de 24, "faltam 2" vira 1 caixa de 24. Sem nota no período, vale a embalagem do cadastro. Filtro em 0 desliga e usa só o cadastro.</div>'+
   '<div><b>Sem venda nos 40 dias</b>: se a loja vendeu o produto em pelo menos 3 dos últimos 6 meses (ruptura recente), usa a média desses 6 meses, nunca acima da média das outras lojas (marcado "venda 6 m"). Loja que não vende há mais tempo fica na regra de 1 caixa. <b>Sazonal (2 anos)</b>: o mês que vem precisa se destacar nos DOIS anos anteriores, 50% acima da média do ano (ou 33% abaixo); aí a venda/dia é multiplicada pela média dos dois anos de (mês alvo ÷ mês atual), entre 0,5 e 2,0 (marcado "sazonal ×1,6"). Um ano só não conta: pode ser promoção. Histórico calculado de madrugada, em cache.</div>'+
   '<div><b>Lista nova</b>: lista que aparece no cadastro do ERP pela primeira vez fica marcada <b>LISTA NOVA</b> por 24 h, no topo de Pedidos do dia e do Calendário, mesmo sem histórico de lead. Depois segue o fluxo normal.</div>'+
   '<div><b>Trânsito</b>: sugestões abertas no ERP por loja; quando o fornecedor já emitiu a NF-e (XML no ERP, ainda não importada), o número da nota aparece e abre a nota ao clicar.</div>'+
@@ -516,7 +516,7 @@ function gerarPedido(id){
   const j=DETALHES[id]; if(!j) return;
   const L=j.lista, LJ=[...new Set(j.itens.flatMap(i=>i.lojas))].sort((a,b)=>a-b);
   const hoje=new Date().toLocaleDateString('pt-BR');
-  const top='<div class="pv-top"><div><div class="eyebrow-pv">PRÉVIA · NÃO ENVIADO · NÃO GRAVADO</div><h2>Pedido · '+esc(L.nome)+'</h2><div class="pv-sub">'+esc(L.fornecedor||'')+' · gerado em '+hoje+' · teto '+($('#fTeto').value||28)+' d · embalagem real '+($('#fEmb').value===''?24:$('#fEmb').value)+' m'+(L.pedidoMinimo?' · pedido mínimo R$ '+fmt(L.pedidoMinimo,0):'')+(MODO[id]==='curva_a'?' · <b style="color:#C22F49">SÓ CURVA A</b>':(j.itens.some(i=>i.risco_a)?' · lista completa (inclui '+j.itens.filter(i=>i.bloco_a).length+' de curva A)':''))+'</div></div><div class="pv-acts"><button class="btn btn-slate" onclick="window.print()">Imprimir</button><button class="btn btn-amber" onclick="fecharPedido()">Fechar</button></div></div>';
+  const top='<div class="pv-top"><div><div class="eyebrow-pv">PRÉVIA · NÃO ENVIADO · NÃO GRAVADO</div><h2>Pedido · '+esc(L.nome)+'</h2><div class="pv-sub">'+esc(L.fornecedor||'')+' · gerado em '+hoje+' · teto '+($('#fTeto').value||28)+' d · embalagem real '+($('#fEmb').value===''?36:$('#fEmb').value)+' m'+(L.pedidoMinimo?' · pedido mínimo R$ '+fmt(L.pedidoMinimo,0):'')+(MODO[id]==='curva_a'?' · <b style="color:#C22F49">SÓ CURVA A</b>':(j.itens.some(i=>i.risco_a)?' · lista completa (inclui '+j.itens.filter(i=>i.bloco_a).length+' de curva A)':''))+'</div></div><div class="pv-acts"><button class="btn btn-slate" onclick="window.print()">Imprimir</button><button class="btn btn-amber" onclick="fecharPedido()">Fechar</button></div></div>';
   let h='';
   let totalGeral=0, volGeral=0, resumo=[];
   for(const ln of LJ){
@@ -559,7 +559,7 @@ async function enviarSelecionadas(){
   if(!confirm('Gerar '+ids.length+' pedido'+(ids.length>1?'s':'')+' pro fornecedor ('+ids.length+' lista'+(ids.length>1?'s':'')+' selecionada'+(ids.length>1?'s':'')+')? Cada um ganha um link próprio; você escolhe pra quem enviar depois.')) return;
   const b=document.getElementById('btnEnviar'); if(b){b.disabled=true;b.textContent='Gerando…';}
   try{
-    const r=await fetch('/api/pedidos-fornecedor',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({listas:ids,teto:$('#fTeto').value||28,emb:$('#fEmb').value===''?24:$('#fEmb').value,ajustes:EDITS,modo:MODO,curvaA:$('#fCurvaA').checked})});
+    const r=await fetch('/api/pedidos-fornecedor',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({listas:ids,teto:$('#fTeto').value||28,emb:$('#fEmb').value===''?36:$('#fEmb').value,ajustes:EDITS,modo:MODO,curvaA:$('#fCurvaA').checked})});
     const j=await r.json(); if(j.error) throw new Error(j.error);
     let h='<div class="pv-top"><div><div class="eyebrow-pv" style="color:#137A48">PEDIDOS GERADOS · LINK PRO VENDEDOR</div><h2>'+j.criados.length+' pedido'+(j.criados.length===1?'':'s')+' pronto'+(j.criados.length===1?'':'s')+' pra enviar</h2><div class="pv-sub">Cada link abre a página onde o vendedor digita preço e observação por item. Ao abrir, o status vira "Em digitação"; ao finalizar, "Finalizado". Envie pelo WhatsApp ou copie o link.</div></div><div class="pv-acts"><a class="btn btn-amber" href="/pedidos-compra.html" style="text-decoration:none">Ir pra Pedidos de Compra</a><button class="btn btn-slate" onclick="fecharPedido();SEL.clear();render()">Fechar</button></div></div>';
     for(const p of j.criados){
@@ -645,11 +645,16 @@ async function abrirCadastro(id){
 }
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#pv').hidden)fecharPedido();});
 document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{tab=t.dataset.tab;aberta=null;render();});
-$('#btnAplicar').onclick=()=>{aberta=null;carregar(false);};
+// filtros ficam guardados no navegador quando você clica em Aplicar (teto, embalagem, gatilho curva A)
+function salvarFiltros(){try{localStorage.setItem('radar.filtros',JSON.stringify({teto:$('#fTeto').value,emb:$('#fEmb').value,curvaA:$('#fCurvaA').checked}));}catch(e){}}
+function carregarFiltros(){try{const f=JSON.parse(localStorage.getItem('radar.filtros')||'null');if(!f)return;if(f.teto)$('#fTeto').value=f.teto;if(f.emb!==undefined&&f.emb!=='')$('#fEmb').value=f.emb;if(typeof f.curvaA==='boolean')$('#fCurvaA').checked=f.curvaA;}catch(e){}}
+carregarFiltros();
+$('#btnAplicar').onclick=()=>{aberta=null;salvarFiltros();carregar(false);};
 $('#fBusca').addEventListener('input',()=>{if(DATA)render();});
 $('#fComp').addEventListener('change',()=>{aberta=null;carregar(false);});
-$('#fCurvaA').addEventListener('change',()=>{aberta=null;carregar(false);});
-$('#fTeto').addEventListener('keydown',e=>{if(e.key==='Enter')carregar(false);});
+$('#fCurvaA').addEventListener('change',()=>{aberta=null;salvarFiltros();carregar(false);});
+$('#fTeto').addEventListener('keydown',e=>{if(e.key==='Enter'){salvarFiltros();carregar(false);}});
+$('#fEmb').addEventListener('keydown',e=>{if(e.key==='Enter'){salvarFiltros();carregar(false);}});
 $('#btnRecalc').onclick=async()=>{const b=$('#btnRecalc');b.disabled=true;b.textContent='Recalculando…';try{await carregar(true);}finally{b.disabled=false;b.textContent='Recalcular agora';SOMBRA=null;}};
 carregar(false);
 </script>

@@ -6012,7 +6012,7 @@ app.get('/api/radar-pedidos', async (req, res) => {
     if (req.query.refresh === '1') await radarPedidos.recalcular(req.query.lead === '1');
     const teto = Math.max(3, Math.min(90, parseFloat(req.query.alvo) || radarPedidos.TETO_PADRAO));
     const comprador = req.query.comprador ? resolveComprador(req.query.comprador) : null;
-    const embMeses = req.query.emb == null ? undefined : Math.max(0, Math.min(24, parseInt(req.query.emb) || 0));
+    const embMeses = req.query.emb == null ? undefined : Math.max(0, Math.min(36, parseInt(req.query.emb) || 0));
     const usarCurvaA = req.query.curvaA !== '0';
     const listas = radarPedidos.politica(teto, comprador, embMeses, usarCurvaA);
     const ok = listas.filter(r => r.ok);
@@ -6034,7 +6034,7 @@ app.get('/api/radar-pedidos/curva-a', (req, res) => {
   try {
     const teto = Math.max(3, Math.min(90, parseFloat(req.query.alvo) || radarPedidos.TETO_PADRAO));
     const comprador = req.query.comprador ? resolveComprador(req.query.comprador) : null;
-    const embMeses = req.query.emb == null ? undefined : Math.max(0, Math.min(24, parseInt(req.query.emb) || 0));
+    const embMeses = req.query.emb == null ? undefined : Math.max(0, Math.min(36, parseInt(req.query.emb) || 0));
     res.json(radarPedidos.curvaARisco(teto, comprador, embMeses, req.query.curvaA !== '0'));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -6066,7 +6066,7 @@ app.get('/api/radar-pedidos/nfe/:chave', async (req, res) => {
 app.get('/api/radar-pedidos/:listaId/itens', (req, res) => {
   try {
     const teto = Math.max(3, Math.min(90, parseFloat(req.query.alvo) || radarPedidos.TETO_PADRAO));
-    const embMeses = req.query.emb == null ? undefined : Math.max(0, Math.min(24, parseInt(req.query.emb) || 0));
+    const embMeses = req.query.emb == null ? undefined : Math.max(0, Math.min(36, parseInt(req.query.emb) || 0));
     const r = radarPedidos.itensLista(parseInt(req.params.listaId), teto, null, embMeses, req.query.curvaA !== '0');
     if (!r) return res.status(404).json({ error: radarPedidos.getEstado().status === 'ok' ? 'Lista não encontrada' : 'Radar ainda calculando, tente em instantes' });
     res.json(r);
@@ -6177,7 +6177,7 @@ app.post('/api/pedidos-fornecedor', async (req, res) => {
     const listas = (req.body.listas || []).map(n => parseInt(n)).filter(n => n > 0).slice(0, 50);
     if (!listas.length) return res.status(400).json({ error: 'Nenhuma lista selecionada' });
     const teto = Math.max(3, Math.min(90, parseFloat(req.body.teto) || radarPedidos.TETO_PADRAO));
-    const embMeses = req.body.emb == null ? undefined : Math.max(0, Math.min(24, parseInt(req.body.emb) || 0));
+    const embMeses = req.body.emb == null ? undefined : Math.max(0, Math.min(36, parseInt(req.body.emb) || 0));
     const criados = [], semItens = [];
     const ajustes = req.body.ajustes && typeof req.body.ajustes === 'object' ? req.body.ajustes : {};
     // modo por lista: 'curva_a' = só os produtos de curva A em risco (os demais itens da lista vão zerados)
