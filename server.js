@@ -3072,7 +3072,8 @@ app.get('/api/sugestao-compras/:listaId/itens', async (req, res) => {
         estoque_atual: +estoqueTot.toFixed(2), venda_media_dia: +vendaDiaTot.toFixed(3),
         dias_cobertura: isFinite(diasCobTot) ? Math.round(diasCobTot) : null,
         sugestao_qtd: sugTot, status: cl.status, prioridade: cl.prioridade,
-        custo_unit: +custoUnit.toFixed(4), lojas: lojasDetalhe
+        custo_unit: +custoUnit.toFixed(4), lojas: lojasDetalhe,
+        lojas_marcadas: [1, 2, 3, 4, 5, 6].filter(n => parseInt(base['l' + n]) === 1)
       };
     });
 
@@ -6241,7 +6242,10 @@ app.post('/api/pedidos-fornecedor', async (req, res) => {
     // modo por lista: 'curva_a' = só os produtos de curva A em risco (os demais itens da lista vão zerados)
     const modo = req.body.modo && typeof req.body.modo === 'object' ? req.body.modo : {};
     const confirmarExcesso = req.body.confirmar_excesso === true;
-    const bloqueados = [];
+    // substituir: a tela (Sugestão de Compras) manda TODAS as quantidades; o cálculo do Radar é zerado antes dos ajustes
+    const substituir = req.body.substituir === true;
+    const origemPedido = req.body.origem === 'sugestao' ? 'sugestao' : 'radar';
+    const bloqueados = [], naoEncontrados = [];
     for (const id of listas) {
       const det = radarPedidos.itensLista(id, teto, null, embMeses, req.body.curvaA !== false && req.body.curvaA !== '0');
       if (!det) { semItens.push({ lista: id, motivo: 'lista não encontrada ou radar calculando' }); continue; }
@@ -6249,6 +6253,7 @@ app.post('/api/pedidos-fornecedor', async (req, res) => {
       if (soCurvaA) for (const it of det.itens) if (!it.bloco_a) { for (const ln of Object.keys(it.lojas_qtd)) it.lojas_qtd[ln] = 0; it.qtd = 0; it.volumes = 0; it.total = 0; }
       // quantidades editadas pela compradora na tela (por produto e loja) sobrepõem o cálculo
       const aj = ajustes[id] || ajustes[String(id)] || {};
+      if (substituir) { for (const it of det.itens) { for (const ln of Object.keys(it.lojas_qtd)) it.lojas_qtd[ln] = 0; it.qtd = 0; it.volumes = 0; it.total = 0; } for (const c of Object.keys(aj)) if (!det.itens.some(i => String(i.cod) === String(c))) naoEncontrados.push(c); }
       for (const it of det.itens) {
         const a = aj[it.cod]; if (!a) continue;
         for (const [ln, v] of Object.entries(a)) { const n = Math.max(0, Math.round(parseFloat(v) || 0)); it.lojas_qtd[ln] = n; }
@@ -6260,12 +6265,12 @@ app.post('/api/pedidos-fornecedor', async (req, res) => {
       for (const it of det.itens) for (const [ln, qv] of Object.entries(it.lojas_qtd)) { if (!(qv > 0)) continue; const a = sortimento.alerta(id, it.cod, +ln); if (a) bloqueados.push({ lista: id, lista_nome: det.lista.nome, cod: it.cod, descricao: it.descricao, loja: +ln, qtd: qv, classe: a.classe, cob: a.cob }); }
       if (bloqueados.some(b => b.lista === id) && !confirmarExcesso) continue;
       const cad = await cadastroLista(id).catch(() => null);
-      const np = pedidosFornec.criar({ lista: det.lista, cadastro: cad, detalhe: det, teto, embMeses, usuario: req.session.user?.nome || null, modo: soCurvaA ? 'curva_a' : 'completa' });
+      const np = pedidosFornec.criar({ lista: det.lista, cadastro: cad, detalhe: det, teto, embMeses, usuario: req.session.user?.nome || null, modo: soCurvaA ? 'curva_a' : 'completa', origem: origemPedido });
       try { await pedidosFornec.anexarAvarias(np); } catch (e) { console.error('[PEDIDOS] avarias:', e.message); }
       criados.push(np);
     }
     if (bloqueados.length && !confirmarExcesso) return res.status(409).json({ error: 'Itens com alerta do Sortimento precisam de confirmação', bloqueados });
-    res.json({ criados: criados.map(p => ({ id: p.id, lista: p.lista, lista_nome: p.lista_nome, fornecedor: p.fornecedor, vendedor: p.vendedor, itens: p.itens.length, totais: p.totais, link: linkPedido(p), avarias: p.avarias ? { n: p.avarias.n, total: p.avarias.total } : null, avarias_txt: pedidosFornec.textoAvarias(p) })), sem_itens: semItens, confirmados: confirmarExcesso ? bloqueados : [] });
+    res.json({ criados: criados.map(p => ({ id: p.id, lista: p.lista, lista_nome: p.lista_nome, fornecedor: p.fornecedor, vendedor: p.vendedor, itens: p.itens.length, totais: p.totais, link: linkPedido(p), avarias: p.avarias ? { n: p.avarias.n, total: p.avarias.total } : null, avarias_txt: pedidosFornec.textoAvarias(p) })), sem_itens: semItens, confirmados: confirmarExcesso ? bloqueados : [], nao_encontrados: naoEncontrados });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 // Testes da conferência XML: cria 4 pedidos "FORNECEDOR TESTE" com notas simuladas e roda a conferência

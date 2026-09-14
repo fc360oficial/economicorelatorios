@@ -291,6 +291,7 @@ table.rup-t tbody tr.lista-row.zerada .fornec-nome{color:#4E5A72}
       <div class="fg"><label>Ano</label><select id="f-ano" onchange="carregarSugestao()"></select></div>
       <div class="fg"><label>Cobertura alvo (dias)</label><input type="number" id="f-cobertura" value="20" min="1" style="width:90px" onchange="carregarSugestao()"></div>
       <button class="btn btn-slate" onclick="exportarExcelSugestao()">📊 Excel</button>
+      <button class="btn btn-blue" id="btn-finalizar-sug" onclick="finalizarSugestao()" title="Cria o pedido com as quantidades da tela e manda pra Pedidos de Compra (link pro vendedor digitar preço)">✅ Finalizar → Pedidos de Compra</button>
       <button class="btn btn-slate btn-imprimir" onclick="window.print()">🖨️ Imprimir</button>
     </div>
 
@@ -690,7 +691,7 @@ function renderTabelaSugestao(){
       <td class="c">${it.embalagem}</td>
       <td class="r">${it.estoque_atual}</td>
       <td class="r">${it.dias_cobertura ?? '—'}</td>
-      <td class="c" onclick="event.stopPropagation()"><input class="sug-input" type="number" min="0" value="${it.sugestao_qtd}" data-codigo="${it.codigo}"></td>
+      <td class="c" onclick="event.stopPropagation()"><input class="sug-input" type="number" min="0" value="${it.sugestao_qtd}" data-codigo="${it.codigo}" oninput="editarQtdSug('${it.codigo}',this.value)"></td>
       <td class="c">${badgePrioridade(it)}</td>
     </tr>
     <tr class="detalhe-row ${linhaAberta===it.codigo?'on':''}" id="det-${it.codigo}" style="display:${linhaAberta===it.codigo?'table-row':'none'}">
@@ -730,6 +731,56 @@ function toggleDetalhe(e, codigo){
   if (e.target.closest('input')) return;
   linhaAberta = linhaAberta === codigo ? null : codigo;
   renderTabelaSugestao();
+}
+
+// quantidade digitada fica no item (a tabela é redesenhada ao abrir o detalhe)
+function editarQtdSug(codigo, v){
+  const it = sugestaoAtual && sugestaoAtual.itens.find(i => String(i.codigo) === String(codigo)); if (!it) return;
+  it.sugestao_qtd = Math.max(0, Math.round(parseFloat(v) || 0)); it.editado = true;
+}
+// reparte a quantidade total do item entre as lojas marcadas na lista (proporcional à sugestão por loja;
+// sem sugestão por loja, divide igual). Devolve {loja: qtd} só com lojas > 0.
+function repartirPorLoja(it){
+  const T = it.sugestao_qtd || 0; if (T <= 0) return {};
+  const lojaSel = document.getElementById('f-loja').value;
+  let lojas = it.lojas.filter(l => !it.lojas_marcadas || it.lojas_marcadas.includes(l.loja));
+  if (lojaSel !== 'todas') lojas = it.lojas.filter(l => String(l.loja) === String(lojaSel));
+  if (!lojas.length) lojas = it.lojas;
+  if (!lojas.length) return {};
+  const soma = lojas.reduce((a, l) => a + (l.sugestao_qtd || 0), 0);
+  const out = {}; let dist = 0;
+  lojas.forEach((l, i) => {
+    let qv = soma > 0 ? Math.round(T * (l.sugestao_qtd || 0) / soma) : Math.floor(T / lojas.length);
+    if (i === lojas.length - 1) qv = T - dist;   // última loja fecha a conta
+    dist += qv; if (qv > 0) out[l.loja] = qv;
+  });
+  return out;
+}
+async function finalizarSugestao(){
+  if (!sugestaoAtual || !listaAtual) return;
+  const ajustes = {}; let nItens = 0, nUn = 0;
+  for (const it of sugestaoAtual.itens) { const r = repartirPorLoja(it); if (Object.keys(r).length) { ajustes[it.codigo] = r; nItens++; nUn += it.sugestao_qtd; } }
+  if (!nItens) { alert('Nenhum item com quantidade. Digite a quantidade nos produtos antes de finalizar.'); return; }
+  const lojasTxt = [...new Set(Object.values(ajustes).flatMap(r => Object.keys(r)))].sort().map(l => 'L' + l).join(', ');
+  if (!confirm(`Finalizar a sugestão da lista ${listaAtual} (${sugestaoAtual.fornecedor || ''})?\n\n${nItens} produto(s) · ${nUn} un · lojas ${lojasTxt}\n\nO pedido vai pra Pedidos de Compra com o link pro vendedor digitar os preços. As quantidades são as da tela (o Radar não recalcula).`)) return;
+  const btn = document.getElementById('btn-finalizar-sug'); btn.disabled = true; btn.textContent = 'Criando pedido...';
+  try {
+    const corpo = conf => JSON.stringify({ listas: [listaAtual], ajustes: { [listaAtual]: ajustes }, substituir: true, origem: 'sugestao', confirmar_excesso: conf });
+    let r = await fetch('/api/pedidos-fornecedor', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: corpo(false) });
+    let j = await r.json();
+    if (r.status === 409 && j.bloqueados) {
+      const SL = { cobertura_excessiva: 'cobertura >120 d', parado: 'parado', nao_merece: 'não merece', compra_e_nao_vende: 'compra e não vende' };
+      const txt = j.bloqueados.slice(0, 25).map(b => '• L' + b.loja + ' · ' + b.descricao + ' · ' + b.qtd + ' un · ' + (SL[b.classe] || b.classe) + (b.cob && b.cob !== 9999 ? ' (' + b.cob + ' d)' : '')).join('\n') + (j.bloqueados.length > 25 ? '\n… e mais ' + (j.bloqueados.length - 25) : '');
+      if (!confirm('SORTIMENTO: ' + j.bloqueados.length + ' item(ns) com alerta iriam no pedido:\n\n' + txt + '\n\nConfirmar e gerar mesmo assim?')) throw new Error('Cancelado: zere esses itens ou confirme.');
+      r = await fetch('/api/pedidos-fornecedor', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: corpo(true) }); j = await r.json();
+    }
+    if (j.error) throw new Error(j.error);
+    const p = (j.criados || [])[0];
+    if (!p) throw new Error((j.sem_itens || []).map(x => x.motivo).join('; ') || 'Pedido não foi criado');
+    let msg = `Pedido #${p.id} criado · ${p.itens} item(ns)` + (j.nao_encontrados && j.nao_encontrados.length ? `\n${j.nao_encontrados.length} código(s) fora da lista do Radar foram ignorados` : '') + `\n\nLink pro vendedor:\n${p.link}\n\nAbrindo Pedidos de Compra...`;
+    alert(msg);
+    location.href = '/pedidos-compra.html';
+  } catch (e) { alert('Erro: ' + e.message); btn.disabled = false; btn.textContent = '✅ Finalizar → Pedidos de Compra'; }
 }
 
 function exportarExcelSugestao(){
