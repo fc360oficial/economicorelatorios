@@ -6051,6 +6051,10 @@ app.get('/api/radar-pedidos/sombra/:dia/:listaId', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.get('/api/radar-pedidos/nfe/:chave', async (req, res) => {
+  try { const n = await radarPedidos.nfe(req.params.chave); if (!n) return res.status(404).json({ error: 'NF-e não encontrada' }); res.json(n); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
 app.get('/api/radar-pedidos/:listaId/itens', (req, res) => {
   try {
     const teto = Math.max(3, Math.min(90, parseFloat(req.query.alvo) || radarPedidos.TETO_PADRAO));
