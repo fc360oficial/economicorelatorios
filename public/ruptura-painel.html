@@ -307,8 +307,15 @@ async function carregar() {
     document.getElementById('kpi-hora').textContent = 'Atualizado: ' + new Date().toLocaleTimeString('pt-BR');
 
     const ORDEM = ['FATIMA','KELLY','STHEPHANNY','CRISLANE','PATRICIA'];
-    _grupos = ORDEM.filter(n => dMap[n]).map(nome => {
-      const listaSet = new Set(dMap[nome]);
+    // Desde 09/09/26 /api/ruptura/comprador-listas vem do ERP com o nome completo
+    // (ANA KELLY, FATIMA PEREIRA, STEPHANNY...). O painel continua usando os
+    // apelidos curtos (cores, ordem), então traduz aqui — mesmo mapa do
+    // COMPRADOR_ALIASES do server.js.
+    const ALIAS = { FATIMA:'FATIMA PEREIRA', KELLY:'ANA KELLY', STHEPHANNY:'STEPHANNY',
+                    CRISLANE:'CRISLANE CECILIA', PATRICIA:'PATRICIA PEREIRA' };
+    const listasDe = n => dMap[ALIAS[n]] || dMap[n];
+    _grupos = ORDEM.filter(n => listasDe(n)).map(nome => {
+      const listaSet = new Set(listasDe(nome));
       const fornecs  = ranking.filter(f => listaSet.has(f.listaId));
       return { nome, fornecs, color: COMP_COLORS[nome] || '#64748b' };
     }).filter(g => g.fornecs.length > 0);
