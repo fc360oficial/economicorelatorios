@@ -291,7 +291,7 @@ table.rup-t tbody tr.lista-row.zerada .fornec-nome{color:#4E5A72}
       <div class="fg"><label>Ano</label><select id="f-ano" onchange="carregarSugestao()"></select></div>
       <div class="fg"><label>Cobertura alvo (dias)</label><input type="number" id="f-cobertura" value="20" min="1" style="width:90px" onchange="carregarSugestao()"></div>
       <button class="btn btn-slate" onclick="exportarExcelSugestao()">📊 Excel</button>
-      <button class="btn btn-blue" id="btn-finalizar-sug" onclick="finalizarSugestao()" title="Cria o pedido com as quantidades da tela e manda pra Pedidos de Compra (link pro vendedor digitar preço)">✅ Finalizar → Pedidos de Compra</button>
+      <button class="btn btn-blue" onclick="abrirSugestao(listaAtual)" title="Abre esta lista no Radar de Pedidos: quantidade por loja com as regras do Radar; o Gerar pedido de lá manda pra Pedidos de Compra">➜ Fazer sugestão por loja (Radar)</button>
       <button class="btn btn-slate btn-imprimir" onclick="window.print()">🖨️ Imprimir</button>
     </div>
 
@@ -426,7 +426,13 @@ function filtrarListas(){
 }
 
 let origemSugestao = 'listas'; // de onde a calculadora foi aberta: rupturas | monitor | listas
+// A sugestão é feita por loja inteira, com a mesma forma e as mesmas regras do Radar de Pedidos:
+// abrir uma lista aqui leva ao detalhe dela no Radar (coluna editável por loja, curva A, sortimento,
+// trânsito, loja zerada). Lá o "Gerar pedido" cria o pedido em Pedidos de Compra.
 function abrirSugestao(id){
+  location.href = '/radar-pedidos.html?lista=' + encodeURIComponent(id) + '&origem=sugestao';
+}
+function abrirCalculadoraAntiga(id){
   listaAtual = id;
   const monitorVisivel  = document.getElementById('monitor-view').style.display !== 'none';
   const rupturasVisivel = document.getElementById('rupturas-view').style.display !== 'none';
@@ -622,9 +628,6 @@ function confirmarNovaSugestao(){
   const lojasMarcadas = [...document.querySelectorAll('.ns-chk-loja:checked')].map(c => c.value);
   fecharNovaSugestao();
   abrirSugestao(id);
-  document.getElementById('f-cobertura').value = cobertura;
-  document.getElementById('f-loja').value = (lojasMarcadas.length === 1) ? lojasMarcadas[0] : 'todas';
-  carregarSugestao();
 }
 function desativarSugestoesSelecionadas(){
   const n = document.querySelectorAll('.chk-sugestao:checked').length;
