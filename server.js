@@ -6045,6 +6045,10 @@ app.get('/api/listas-compra/sortimento', (req, res) => {
     res.json({ estado: sortimento.estado(), resumo: sortimento.resumo(rows), total: rows.length, rows: rows.slice(0, limite) });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+app.get('/api/listas-compra/sortimento/item', (req, res) => {
+  try { const r = sortimento.item(parseInt(req.query.lista), String(req.query.cod || ''), parseInt(req.query.loja)); if (!r) return res.status(404).json({ error: 'Item não está no cálculo de sortimento (recalculado de madrugada)' }); res.json({ ...r, calculadoEm: sortimento.estado().calculadoEm }); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
 app.get('/api/listas-compra/sortimento/export.csv', (req, res) => {
   try {
     const f = { loja: req.query.loja, comprador: req.query.comprador, classe: req.query.classe, lista: req.query.lista, busca: req.query.busca };
