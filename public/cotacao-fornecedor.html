@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cotação — Econômico</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Inter,'Segoe UI',system-ui,sans-serif;background:#EBEBE9;color:#0E1626;font-size:14px;font-variant-numeric:tabular-nums}
+.wrap{max-width:980px;margin:0 auto;padding:18px 14px 90px}
+.top{background:#101B33;color:#fff;border-radius:14px;padding:14px 18px 16px;margin-bottom:14px}.tophd{display:flex;align-items:center;gap:12px;margin-bottom:10px}.top .logo{width:56px;height:56px;border-radius:12px;background:#fff;object-fit:contain;padding:4px;flex:none}
+.top .ey{font-size:10px;font-weight:800;letter-spacing:.1em;color:#FFC933}
+.top h1{font-size:18px;font-weight:800;letter-spacing:-.2px;margin-top:0}
+.top .sub{font-size:12px;color:#AEB8CE;margin-top:4px;line-height:1.5}
+.top .sub b{color:#fff}
+.st{display:inline-block;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:800;letter-spacing:.04em;margin-top:8px}
+.st-dig{background:#FFF6D9;color:#6B4E00}.st-fin{background:#E7F5EC;color:#137A48}.st-enc{background:#DADAD6;color:#4E5A72}
+.card{background:#fff;border:1px solid #DADAD6;border-radius:12px;overflow:hidden;margin-bottom:12px}
+.card .hd{padding:10px 14px;border-bottom:1px solid #DADAD6;font-size:12.5px;font-weight:700;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.card .hd span{font-weight:500;color:#4E5A72;font-size:11.5px}
+table{width:100%;border-collapse:collapse}
+th{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#4E5A72;background:#EBEBE9;padding:8px 10px;text-align:left}
+th.r,td.r{text-align:right}
+td{padding:9px 10px;border-top:1px solid #EEEEEA;vertical-align:middle}
+.desc{font-weight:600;line-height:1.3}
+.cod{display:block;font-size:11px;color:#98A0B3;font-weight:500;margin-top:3px;white-space:nowrap}.cod i{font-style:normal;color:#4E5A72;font-weight:600;margin-left:8px}
+.qtd{font-weight:800;font-size:15px;white-space:nowrap}.qtd small{font-size:11px;color:#4E5A72;font-weight:600;display:block}
+input.preco{width:104px;font:inherit;font-size:15px;font-weight:700;text-align:right;padding:8px 10px;border:2px solid #C9C9C4;border-radius:9px;background:#fff;color:#0E1626}
+input.preco:focus{outline:none;border-color:#F5B800;background:#FFFDF3}
+input.preco.ok{border-color:#137A48}
+input.obs{width:100%;min-width:140px;font:inherit;font-size:12.5px;padding:8px 10px;border:1px solid #DADAD6;border-radius:9px;background:#fff}
+input.obs:focus{outline:none;border-color:#F5B800}
+.cond{display:grid;grid-template-columns:1fr 2fr;gap:10px;padding:12px 14px}
+.cond label{display:block;font-size:10.5px;font-weight:800;color:#4E5A72;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
+.tot{padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:12.5px;color:#4E5A72}
+.tot b{color:#0E1626;font-size:16px}
+.bar[hidden]{display:none!important}.bar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid #DADAD6;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;box-shadow:0 -6px 20px -12px rgba(14,22,38,.3)}
+.bar .info{font-size:12px;color:#4E5A72}
+.bar .info b{color:#0E1626}
+.btn{border:none;border-radius:10px;padding:12px 20px;font:inherit;font-size:14px;font-weight:800;cursor:pointer}
+.btn-amber{background:#F5B800;color:#6B4E00}.btn-amber:hover{background:#E5AC00}.btn:disabled{opacity:.45;cursor:default}
+.fim{background:#E7F5EC;border:1px solid #BFE3CC;color:#137A48;border-radius:12px;padding:14px 16px;font-size:13px;margin-bottom:12px;line-height:1.5}
+.fim.av{background:#FFF6D9;border-color:#EFD98F;color:#6B4E00}
+.empty{padding:60px 20px;text-align:center;color:#98A0B3}
+@media(max-width:640px){.wrap{padding:10px 8px 110px}td,th{padding:8px 6px}input.preco{width:92px}.cond{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"><div class="empty">Carregando cotação…</div></div>
+<div class="bar" id="bar" hidden><div class="info" id="barinfo"></div><button class="btn btn-amber" id="btnFim">Enviar proposta</button></div>
+<script>
+const token=location.pathname.split('/').pop();
+const $=s=>document.querySelector(s);
+const fmt=(v,d=2)=>v==null?'—':Number(v).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const dt=s=>s?new Date(s).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):'';
+const dd=s=>s?String(s).slice(0,10).split('-').reverse().join('/'):'';
+let P=null, dirty=false, saveTimer=null;
+function precoNum(v){const n=parseFloat(String(v).replace(/\./g,'').replace(',','.'));return isFinite(n)?n:null;}
+function itensForm(){return P.itens.map(i=>{const el=document.querySelector('input.preco[data-cod="'+i.cod+'"]');const ob=document.querySelector('input.obs[data-cod="'+i.cod+'"]');return {cod:i.cod,preco:el?(el.value.trim()===''?'':precoNum(el.value)):i.preco,obs:ob?ob.value:i.obs};});}
+function extras(){return {condicao:($('#cond')||{}).value,obs:($('#obsg')||{}).value};}
+function totais(){let t=0,n=0;for(const i of itensForm()){if(i.preco!=null&&i.preco!==''){t+=i.preco*(P.itens.find(x=>x.cod===i.cod)?.qtd||0);n++;}}return {t,n};}
+function atualizarTot(){const {t,n}=totais();$('#tot').innerHTML='<span>'+n+' de '+P.itens.length+' itens com preço</span><span>Total da proposta: <b>R$ '+fmt(t)+'</b></span>';$('#barinfo').innerHTML=n<P.itens.length?'Faltam <b>'+(P.itens.length-n)+'</b> itens sem preço. Você pode enviar mesmo assim (item sem preço = não cotado).':'Todos os itens com preço.';}
+function render(){
+  const fin=P.fornecedor.status==='finalizado', enc=P.status!=='aberta', lock=fin||enc;
+  let h='<div class="top"><div class="tophd"><img class="logo" src="/logo-supermercados.png" alt="Econômico Supermercados"><div class="ey">COTAÇÃO DE PREÇOS · ECONOMICO SUPERMERCADO - REDE CAHU</div></div><h1>'+esc(P.nome)+'</h1><div class="sub">Fornecedor: <b>'+esc(P.fornecedor.nome||'')+'</b>'+(P.comprador?.nome?' · Comprador(a): <b>'+esc(P.comprador.nome)+'</b>'+(P.comprador.whats?' · '+esc(P.comprador.whats):''):'')+(P.prazo?' · Prazo pra resposta: <b>'+dd(P.prazo)+'</b>':'')+'<br>Enviada em '+dt(P.criadoEm)+' · Lojas: '+(P.lojas||[]).map(l=>'L'+l+' '+(P.lojas_nomes[l]||'')).join(', ')+'</div><span class="st '+(enc?'st-enc':(fin?'st-fin':'st-dig'))+'">'+(enc?'COTAÇÃO ENCERRADA':(fin?'PROPOSTA ENVIADA':'EM DIGITAÇÃO'))+'</span></div>';
+  if(enc&&!fin) h+='<div class="fim av"><b>Esta cotação já foi encerrada pela compradora.</b> Não é mais possível enviar preços.</div>';
+  else if(fin) h+='<div class="fim"><b>Proposta enviada'+(P.fornecedor.finalizadoEm?' em '+dt(P.fornecedor.finalizadoEm):'')+'.</b> Obrigado! A compradora já recebeu seus preços. Se precisar corrigir algo, fale com ela.</div>';
+  else h+='<div class="fim av">Preencha o <b>preço unitário</b> de cada item (por unidade, não por caixa) e, se quiser, uma observação. Tudo salva sozinho. Quando terminar, clique em <b>Enviar proposta</b> no rodapé. Item sem preço = você não cota esse item.</div>';
+  h+='<div class="card"><div class="hd">Itens da cotação <span>'+P.itens.length+' itens</span></div><div style="overflow-x:auto"><table><thead><tr><th>Produto</th><th class="r">Quantidade</th><th class="r">Preço unit. (R$)</th><th>Observação</th></tr></thead><tbody>';
+  for(const i of P.itens){
+    h+='<tr><td class="desc">'+esc(i.descricao)+'<span class="cod">'+esc(i.cod)+(i.emb>1?'<i>Emb. '+i.emb+'</i>':'')+'</span></td>'+
+      '<td class="r qtd">'+fmt(i.qtd,0)+' '+esc(i.unid||'UN')+(i.volumes&&i.emb>1?'<small>'+i.volumes+' cx de '+i.emb+'</small>':'')+'</td>'+
+      '<td class="r">'+(lock?'<b>'+(i.preco!=null?'R$ '+fmt(i.preco):'—')+'</b>':'<input class="preco'+(i.preco!=null?' ok':'')+'" inputmode="numeric" data-cod="'+esc(i.cod)+'" value="'+(i.preco!=null?fmt(i.preco):'')+'" placeholder="0,00">')+'</td>'+
+      '<td>'+(lock?esc(i.obs||'')||'<span style="color:#98A0B3">—</span>':'<input class="obs" data-cod="'+esc(i.cod)+'" value="'+esc(i.obs||'')+'" placeholder="ex.: sem estoque, marca X, validade…" maxlength="200">')+'</td></tr>';
+  }
+  h+='</tbody></table></div><div class="tot" id="tot"></div></div>';
+  h+='<div class="card"><div class="hd">Condições da proposta <span>opcional</span></div><div class="cond"><div><label>Condição de pagamento</label>'+(lock?'<div>'+(esc(P.fornecedor.condicao)||'<span style="color:#98A0B3">—</span>')+'</div>':'<input class="obs" id="cond" value="'+esc(P.fornecedor.condicao||'')+'" placeholder="ex.: 28 dias, boleto" maxlength="80">')+'</div><div><label>Observação geral</label>'+(lock?'<div>'+(esc(P.fornecedor.obs)||'<span style="color:#98A0B3">—</span>')+'</div>':'<input class="obs" id="obsg" value="'+esc(P.fornecedor.obs||'')+'" placeholder="ex.: entrega em 3 dias, pedido mínimo R$ 500" maxlength="500">')+'</div></div></div>';
+  $('#app').innerHTML=h;
+  $('#bar').hidden=lock;
+  if(!lock){
+    // Preço "em centavos", como maquininha: só números, os 2 últimos são os centavos (545 -> 5,45). Enter grava e pula pro próximo.
+    const precos=[...document.querySelectorAll('input.preco')];
+    document.querySelectorAll('input.preco,input.obs').forEach(el=>{
+      const isPreco=el.classList.contains('preco');
+      el.addEventListener('input',()=>{
+        if(isPreco){const d=el.value.replace(/\D/g,'').replace(/^0+(?=\d)/,'').slice(0,9);el.value=d?fmt(parseInt(d,10)/100):'';}
+        dirty=true;el.classList.toggle('ok',isPreco&&precoNum(el.value)!=null);atualizarTot();agendarSave();});
+      el.addEventListener('keydown',e=>{
+        if(e.key!=='Enter')return;e.preventDefault();
+        clearTimeout(saveTimer);salvar();
+        const i=isPreco?precos.indexOf(el):precos.findIndex(p=>p.dataset.cod===el.dataset.cod);
+        const prox=precos[i+1];if(prox){prox.focus();prox.select();prox.scrollIntoView({block:'center',behavior:'smooth'});}else el.blur();
+      });
+      if(isPreco)el.addEventListener('focus',()=>setTimeout(()=>el.select(),0));
+    });
+    atualizarTot();
+  } else { const t=P.itens.reduce((a,i)=>a+(i.preco!=null?i.preco*i.qtd:0),0), n=P.itens.filter(i=>i.preco!=null).length; $('#tot').innerHTML='<span>'+n+' de '+P.itens.length+' itens com preço</span><span>Total: <b>R$ '+fmt(t)+'</b></span>'; }
+}
+function agendarSave(){clearTimeout(saveTimer);saveTimer=setTimeout(salvar,900);}
+async function salvar(){if(!dirty)return;dirty=false;try{await fetch('/api/cotacao-publica/'+token+'/salvar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({itens:itensForm(),...extras()})});}catch(e){dirty=true;}}
+$('#btnFim').onclick=async()=>{
+  const {n}=totais();
+  if(!confirm(n<P.itens.length?'Ainda tem '+(P.itens.length-n)+' item(ns) sem preço (não cotados). Enviar a proposta mesmo assim?':'Enviar a proposta? Depois disso não dá mais pra alterar os preços.')) return;
+  $('#btnFim').disabled=true;
+  try{const r=await fetch('/api/cotacao-publica/'+token+'/finalizar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({itens:itensForm(),...extras(),nome:(P.fornecedor.vendedor&&P.fornecedor.vendedor.nome)||''})});const j=await r.json();if(j.error)throw new Error(j.error);P=j;render();window.scrollTo(0,0);}
+  catch(e){alert('Não foi possível enviar: '+e.message);$('#btnFim').disabled=false;}
+};
+window.addEventListener('beforeunload',()=>{if(dirty)salvar();});
+(async()=>{try{const r=await fetch('/api/cotacao-publica/'+token);const j=await r.json();if(j.error)throw new Error(j.error);P=j;render();}catch(e){$('#app').innerHTML='<div class="empty">Cotação não encontrada ou link inválido.</div>';}})();
+</script>
+</body>
+</html>

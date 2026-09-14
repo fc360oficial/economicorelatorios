@@ -45,11 +45,33 @@ Documento pra continuar o módulo em qualquer máquina. Tudo que importa está n
   `cobertura × (venda do período ÷ dias) − estoque − trânsito`.
 - Sortimento (aba na Lista de Compra) fica como relatório; o Radar NÃO marca mais em vermelho.
 
-## Próximos passos sugeridos
+## MÓDULO REAL (14/09/2026, noite) — protótipo virou módulo ligado em dados reais
 
-1. Aprovar o desenho tela a tela com as compradoras.
-2. Ligar o Monitor em dados reais: tabela própria em `data/cotacoes/*.json` (mesmo padrão dos
-   pedidos), com nº, lista, produtos, fornecedores convidados, prazo, status.
-3. Página pública do fornecedor a partir de `pedido-fornecedor.html`.
-4. Comparativo com "última compra" vinda de `central.compras`/`custoloja{N}`.
-5. "Gerar pedido" reaproveitando `pedidosFornec.criar` (já vai pra Pedidos de Compra).
+Fluxo descrito pelo Tiago: "na parte de cima sugestão de compra, digito a lista (ex. 277) e a partir
+dessa sugestão faz que nem o Radar; depois o preço de cotação (manda pros vendedores porem o preço);
+analiso fornecedor a fornecedor quem ganhou; envio o pedido pra cada um; fechando a cotação, os pedidos
+vão pra tela de Pedidos de Compra pra conferir do mesmo jeito do Radar".
+
+| O quê | Onde |
+|---|---|
+| Regras e persistência (1 JSON por cotação, `data/cotacoes/`, fora do git) | `lib/cotacao.js` |
+| Rotas `/api/cotacoes*` e públicas `/cotacao/:token`, `/api/cotacao-publica/:token` | `server.js` (bloco COTAÇÃO, depois dos pedidos ao fornecedor) |
+| Tela (Monitor · Nova Cotação · Acompanhamento · Comparativo · Pedidos) | `public/cotacao.html` (`?id=N&tela=s3`, `?lista=277`) |
+| Página pública do fornecedor (nasceu de `pedido-fornecedor.html`) | `public/cotacao-fornecedor.html` |
+| Lista sem lead (277) na sugestão | `radar-pedidos.itensLista(..., paramsPadrao={alvo,ponto})` |
+| Vínculo pedido→cotação (badge em Pedidos de Compra) | `pedidos-fornecedor.vincularCotacao`, `p.cotacao`, `parametros.origem='cotacao'` |
+
+- **Sugestão** = `GET /api/cotacoes/sugestao/:lista?cobertura=28&ponto=3&emb=` → Radar por loja
+  (piso/teto/embalagem real). Lista com lead usa o lead real; sem lead (277) usa cobertura+prazo da tela.
+- **Cotação** = itens com qtd por loja + N fornecedores, cada um com token/link próprio; fornecedor
+  digita preço unitário (centavos, Enter pula), condição de pagamento e observação; não vê custo nem
+  concorrentes. Status do fornecedor: aguardando → digitacao → finalizado. Status da cotação:
+  aberta → fechada | cancelada.
+- **Comparativo** = menor preço vence por item; compradora clica pra trocar vencedor ou marcar
+  "não comprar" (`c.vencedores[cod]`); economia × último custo do ERP; total por fornecedor.
+- **Fechar** = `POST /api/cotacoes/:id/fechar` → 1 pedido por vencedor via `pedidosFornec.criar` +
+  `salvarPrecos` + `finalizar` (já chega "finalizado" com os preços) → compradora aprova em Pedidos
+  de Compra; PDF, XML, ruptura, avarias iguais ao Radar.
+
+Pendente: testar com a lista 277 real no .254 (Radar precisa estar calculado); envio ao vendedor é
+WhatsApp manual (igual aos pedidos); histórico de preço por produto olha só cotações anteriores do app.

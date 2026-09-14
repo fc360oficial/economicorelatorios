@@ -216,6 +216,8 @@ app.use((req, res, next) => {
   if (publico.includes(req.path)) return next();
   // Link do vendedor (pedido ao fornecedor): público por token de 32 hex, sem login
   if (/^\/pedido\/[a-f0-9]{32}(\/pdf)?$/.test(req.path) || /^\/api\/pedido-publico\/[a-f0-9]{32}(\/|$)/.test(req.path)) return next();
+  // Link do fornecedor na Cotação: mesmo esquema (token de 32 hex por fornecedor convidado)
+  if (/^\/cotacao\/[a-f0-9]{32}$/.test(req.path) || /^\/api\/cotacao-publica\/[a-f0-9]{32}(\/|$)/.test(req.path)) return next();
   // Pré-aquecimento interno (somente localhost)
   if (req.headers['x-internal-warmup'] === 'fc360warmup2026' && req.socket.remoteAddress === '::1') return next();
   const ext = req.path.split('.').pop().toLowerCase();
@@ -6403,6 +6405,145 @@ app.post('/api/pedido-publico/:token/finalizar', (req, res) => {
   if (!p0) return res.status(404).json({ error: 'Pedido não encontrado' });
   const p = pedidosFornec.finalizar(req.params.token, req.body.nome);
   res.json(pedidosFornec.visaoVendedor(p));
+});
+
+// ═══════════════════════════════════════════════════
+// COTAÇÃO — Gestão de Compras > Cotação. Regras em lib/cotacao.js (1 JSON por cotação em data/cotacoes/).
+// Sugestão de quantidade = Radar (itensLista) com cobertura/prazo padrão quando a lista não tem lead
+// (ex.: #277 Cotação de Alimentos). Fechar a cotação gera 1 pedido por fornecedor vencedor em
+// pedidos-fornecedor, já com os preços (status "finalizado") → Pedidos de Compra pra aprovar e conferir
+// igual ao Radar. ERP só leitura.
+// ═══════════════════════════════════════════════════
+const cotacao = require('./lib/cotacao');
+cotacao.init();
+const linkCotacao = f => `${PUBLIC_URL}/cotacao/${f.token}`;
+const cotUser = req => req.session.user?.nome || null;
+const cotId = req => { const id = parseInt(req.params.id, 10); return Number.isInteger(id) && id > 0 ? id : null; };
+// detalhe pra compradora: comparativo pronto + link de cada fornecedor (sem o mapa cru de preços)
+const cotDetalhe = c => ({ ...c, comparativo: cotacao.comparativo(c), fornecedores: c.fornecedores.map(f => ({ ...f, precos: undefined, link: linkCotacao(f), cotados: c.itens.filter(i => f.precos[i.cod]?.preco != null).length })) });
+
+app.get('/api/cotacoes', (req, res) => {
+  try { res.json(cotacao.listar().map(cotacao.resumo)); } catch (err) { res.status(500).json({ error: err.message }); }
+});
+// Sugestão de compra da lista (topo da aba): itens com quantidade por loja calculada pelo Radar
+app.get('/api/cotacoes/sugestao/:lista', async (req, res) => {
+  try {
+    const id = parseInt(req.params.lista); if (!(id > 0)) return res.status(400).json({ error: 'nº da lista inválido' });
+    const cobertura = Math.max(3, Math.min(120, parseFloat(req.query.cobertura) || radarPedidos.TETO_PADRAO));
+    const ponto = Math.max(0, Math.min(60, req.query.ponto == null || req.query.ponto === '' ? 3 : (parseFloat(req.query.ponto) || 0)));
+    const embMeses = req.query.emb == null || req.query.emb === '' ? undefined : Math.max(0, Math.min(36, parseInt(req.query.emb) || 0));
+    const det = radarPedidos.itensLista(id, cobertura, 0, embMeses, false, { alvo: cobertura, ponto });
+    if (!det) return res.status(404).json({ error: radarPedidos.getEstado().status === 'ok' ? 'Lista ' + id + ' não encontrada no Radar (confira o nº no ERP; lista sem nenhuma loja marcada não entra)' : 'Radar ainda calculando, tente em instantes', estado: radarPedidos.getEstado() });
+    const cad = await cadastroLista(id).catch(() => null);
+    const itens = det.itens.map(i => ({
+      cod: i.cod, descricao: i.descricao, unid: i.unid, emb: i.emb, emb_cadastro: i.emb_cadastro, lojas: i.lojas, curva_a: i.curva_a, validade: i.validade,
+      venda_dia: i.venda_dia, estoque: i.estoque, estoque_bruto: i.estoque_bruto, transito: i.transito, cobertura_dias: i.cobertura_dias, alvo_dias: i.alvo_dias,
+      qtd: i.qtd, volumes: i.volumes, custo: i.custo, total: i.total, flag: i.flag, lojas_qtd: i.lojas_qtd,
+      lojas_det: Object.fromEntries(Object.entries(i.lojas_det || {}).map(([ln, d]) => [ln, { estoque: d.estoque, venda_dia: d.venda_dia, cobertura_dias: d.cobertura_dias, transito: d.transito, ja_vendeu: d.ja_vendeu }]))
+    }));
+    res.json({ lista: det.lista, cadastro: cad, sem_lead: !det.lead, params: det.params, parametros: { cobertura, ponto, embMeses: embMeses ?? null },
+      itens, com_qtd: itens.filter(i => i.qtd > 0).length, total: det.total, volumes: det.volumes, estado: radarPedidos.getEstado() });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+// contato pra pré-preencher o convite: vendedor cadastrado em alguma lista desse fornecedor + telefones do cadastro
+app.get('/api/cotacoes/fornecedor/:codFornec/contato', async (req, res) => {
+  try {
+    const cod = parseInt(req.params.codFornec); if (!(cod > 0)) return res.status(400).json({ error: 'código inválido' });
+    const [f] = await q(`SELECT * FROM central.fornecedor WHERE CodFornec=? LIMIT 1`, [cod]).catch(() => []);
+    const [ag] = await q(`SELECT a.Nome, a.email, a.whats, l.nReg lista, l.Nome lista_nome FROM central.c_cotacao_agenda a JOIN central.c_cotacao_lista l ON l.nReg=a.nLista WHERE l.CodFornec=? ORDER BY a.nLista DESC LIMIT 1`, [cod]).catch(() => []);
+    const telefones = [];
+    if (f) for (const [k, v] of Object.entries(f)) if (/fone|cel|whats|tel/i.test(k) && v && String(v).replace(/\D/g, '').length >= 8) telefones.push({ campo: k, valor: String(v).trim() });
+    res.json({ codFornec: cod, nome: f ? String(f.NomeCompleto || f.Nome || '').trim() : null,
+      vendedor: ag ? { nome: ag.Nome?.trim() || null, email: ag.email || null, whats: ag.whats || null, lista: ag.lista, lista_nome: ag.lista_nome?.trim() || null } : null, telefones });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.get('/api/cotacoes/historico/:cod', (req, res) => {
+  try { res.json(cotacao.historicoProduto(req.params.cod)); } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.post('/api/cotacoes', (req, res) => {
+  try { res.json(cotDetalhe(cotacao.criar({ ...(req.body || {}), usuario: cotUser(req) }))); }
+  catch (err) { res.status(400).json({ error: err.message }); }
+});
+app.get('/api/cotacoes/:id', (req, res) => {
+  const id = cotId(req); if (!id) return res.status(400).json({ error: 'id inválido' });
+  const c = cotacao.obter(id); if (!c) return res.status(404).json({ error: 'cotação não encontrada' });
+  res.json(cotDetalhe(c));
+});
+app.post('/api/cotacoes/:id/fornecedores', (req, res) => {
+  const id = cotId(req); if (!id) return res.status(400).json({ error: 'id inválido' });
+  const r = cotacao.adicionarFornecedor(id, req.body || {});
+  if (!r) return res.status(404).json({ error: 'cotação não encontrada' });
+  if (r.erro) return res.status(409).json({ error: r.erro });
+  res.json(cotDetalhe(r.c));
+});
+app.post('/api/cotacoes/:id/enviado', (req, res) => {
+  const id = cotId(req); if (!id) return res.status(400).json({ error: 'id inválido' });
+  const c = cotacao.marcarEnviado(id, req.body?.codFornec);
+  if (!c) return res.status(404).json({ error: 'cotação não encontrada' });
+  res.json({ ok: true });
+});
+app.post('/api/cotacoes/:id/vencedores', (req, res) => {
+  const id = cotId(req); if (!id) return res.status(400).json({ error: 'id inválido' });
+  const r = cotacao.definirVencedor(id, req.body?.cod, req.body?.codFornec);
+  if (!r) return res.status(404).json({ error: 'cotação não encontrada' });
+  if (r.erro) return res.status(409).json({ error: r.erro });
+  res.json(cotDetalhe(r));
+});
+app.post('/api/cotacoes/:id/cancelar', (req, res) => {
+  const id = cotId(req); if (!id) return res.status(400).json({ error: 'id inválido' });
+  const r = cotacao.cancelar(id, cotUser(req));
+  if (!r) return res.status(404).json({ error: 'cotação não encontrada' });
+  if (r.erro) return res.status(409).json({ error: r.erro });
+  res.json(cotDetalhe(r));
+});
+// Fechar: 1 pedido por fornecedor vencedor, já com os preços digitados → "finalizado" em Pedidos de Compra
+// (a compradora aprova lá; PDF, conferência XML e ruptura de entrega seguem iguais ao Radar)
+app.post('/api/cotacoes/:id/fechar', async (req, res) => {
+  try {
+    const id = cotId(req); if (!id) return res.status(400).json({ error: 'id inválido' });
+    const usuario = cotUser(req);
+    const r = await cotacao.fechar(id, usuario, async (f, itens, c) => {
+      const detalhe = { fazer_em: 0, gatilho: 'lista', fazer_em_lista: 0, itens: itens.map(i => ({ cod: i.cod, descricao: i.descricao, unid: i.unid, emb: i.emb, qtd: i.qtd, volumes: i.volumes, lojas_qtd: i.lojas_qtd, custo: i.ultimo_custo || 0, curva_a: !!i.curva_a, risco_a: false, cobertura_dias: i.cobertura_dias ?? null })) };
+      const lista = { lista: c.lista, nome: `${c.nome} · ${f.nome}`, fornecedor: f.nome, codFornec: f.codFornec, pedidoMinimo: null };
+      const cadastro = { vendedor: (f.vendedor?.nome || f.vendedor?.whats) ? { nome: f.vendedor.nome, whats: f.vendedor.whats, email: f.vendedor.email } : null, comprador: c.comprador || null, prazo_pagamento: f.condicao || null };
+      const p = pedidosFornec.criar({ lista, cadastro, detalhe, teto: c.parametros?.cobertura || radarPedidos.TETO_PADRAO, embMeses: c.parametros?.embMeses ?? undefined, usuario, modo: 'completa', origem: 'cotacao' });
+      pedidosFornec.salvarPrecos(p.token, itens.map(i => ({ cod: i.cod, preco: i.preco, obs: i.obs || '' })));
+      pedidosFornec.finalizar(p.token, `Cotação #${c.id}`);
+      pedidosFornec.vincularCotacao(p.id, { id: c.id, nome: c.nome });
+      try { await pedidosFornec.anexarAvarias(pedidosFornec.obter(p.id)); } catch (e) { console.error('[COTACAO] avarias:', e.message); }
+      const fin = pedidosFornec.obter(p.id);
+      return { id: fin.id, fornecedor: f.nome, codFornec: f.codFornec, vendedor: fin.vendedor, itens: fin.itens.length, total: fin.totais.digitado, lojas: fin.lojas, status: fin.status, link: linkPedido(fin), avarias: fin.avarias ? { n: fin.avarias.n, total: fin.avarias.total } : null };
+    });
+    if (!r) return res.status(404).json({ error: 'cotação não encontrada' });
+    if (r.erro) return res.status(409).json({ error: r.erro });
+    res.json(cotDetalhe(r));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+// --- lado do fornecedor (público por token; ver bypass no middleware de auth) ---
+app.get('/cotacao/:token', (req, res) => {
+  const r = cotacao.porToken(req.params.token);
+  if (!r) return res.status(404).send('Cotação não encontrada');
+  if (r.c.status === 'cancelada') return res.status(410).send('<!doctype html><meta charset=utf-8><body style="font-family:sans-serif;padding:40px;text-align:center;color:#4E5A72"><h2>Esta cotação foi cancelada</h2><p>O link não está mais válido. Em caso de dúvida, fale com a compradora.</p></body>');
+  res.sendFile(path.join(__dirname, 'public', 'cotacao-fornecedor.html'));
+});
+app.get('/api/cotacao-publica/:token', (req, res) => {
+  const r = cotacao.abrir(req.params.token);
+  if (!r) return res.status(404).json({ error: 'Cotação não encontrada' });
+  if (r.c.status === 'cancelada') return res.status(410).json({ error: 'Cotação cancelada' });
+  res.json(cotacao.visaoVendedor(r.c, r.f));
+});
+app.post('/api/cotacao-publica/:token/salvar', (req, res) => {
+  const r = cotacao.salvarPrecos(req.params.token, req.body?.itens, { condicao: req.body?.condicao, obs: req.body?.obs });
+  if (!r) return res.status(404).json({ error: 'Cotação não encontrada' });
+  if (r.erro) return res.status(409).json({ error: r.erro });
+  res.json({ ok: true, status: r.f.status, atualizadoEm: r.f.atualizadoEm });
+});
+app.post('/api/cotacao-publica/:token/finalizar', (req, res) => {
+  const r0 = cotacao.salvarPrecos(req.params.token, req.body?.itens || [], { condicao: req.body?.condicao, obs: req.body?.obs });
+  if (!r0) return res.status(404).json({ error: 'Cotação não encontrada' });
+  if (r0.erro) return res.status(409).json({ error: r0.erro });
+  const r = cotacao.finalizar(req.params.token, req.body?.nome);
+  res.json(cotacao.visaoVendedor(r.c, r.f));
 });
 
 // ── rotas Formação de Preço
