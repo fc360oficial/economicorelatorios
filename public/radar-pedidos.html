@@ -59,6 +59,7 @@ table.main-t tbody tr.open{background:#FFF6D9}
 .pill{display:inline-block;padding:2px 8px;border-radius:99px;font-size:10.5px;font-weight:700;letter-spacing:.3px}
 .p-hoje{background:#FBEAED;color:#C22F49}.p-breve{background:#FFF6D9;color:#6B4E00;border:1px solid #EFD98F}.p-ok{background:#E7F5EC;color:#137A48}.p-cinza{background:#EBEBE9;color:#4E5A72}
 .p-flag{background:#E9EEF6;color:#2E5E8C}
+.p-nova{background:#137A48;color:#fff;font-weight:900;letter-spacing:.5px;animation:novapulse 1.6s ease-in-out infinite}@keyframes novapulse{50%{opacity:.55}}
 .p-a{background:#C22F49;color:#fff;font-weight:800}
 .lc .fl.top{margin:0 0 4px}.lc .fl.top .pill{font-size:10px;letter-spacing:.3px}.p-a.soft{background:#FBEAED;color:#C22F49}
 .det table tr.sec td{background:#F4F4F1;color:#4E5A72;font-size:10px;text-transform:uppercase;letter-spacing:.5px;font-weight:800;padding:6px 10px;white-space:normal}
@@ -258,7 +259,8 @@ function listasFiltradas(){
 function ordenar(rows){
   // na ordem por "Fazer em", dentro do mesmo dia as listas com curva A em risco vêm primeiro
   const rA=l=>l.ok&&(l.curva_a_risco||[]).length?1:0;
-  return rows.sort((a,b)=>{let x=a[sortK],y=b[sortK];if(x==null&&y==null)return 0;if(x==null)return 1;if(y==null)return -1;if(typeof x==='string')return sortD*x.localeCompare(y,'pt-BR');return sortD*(x-y)||(sortK==='fazer_em'?rA(b)-rA(a):0)||(b.venda_dia||0)-(a.venda_dia||0);});
+  const nv=l=>l.nova_ate?1:0;
+  return rows.sort((a,b)=>{if(nv(a)!==nv(b))return nv(b)-nv(a);let x=a[sortK],y=b[sortK];if(x==null&&y==null)return 0;if(x==null)return 1;if(y==null)return -1;if(typeof x==='string')return sortD*x.localeCompare(y,'pt-BR');return sortD*(x-y)||(sortK==='fazer_em'?rA(b)-rA(a):0)||(b.venda_dia||0)-(a.venda_dia||0);});
 }
 function pillA(l){
   if(!l.ok) return '';
@@ -291,7 +293,7 @@ function render(){
     $('#view').innerHTML='<div class="empty"><div class="spinner"></div><b style="color:#0E1626">O radar está calculando</b><br>Logo depois que o sistema sobe ele recoleta lead time, venda, estoque e trânsito de todas as listas (1 a 3 minutos). Esta tela atualiza sozinha quando terminar.'+(DATA.estado.erro?'<br><br><span class="neg">Último erro: '+esc(DATA.estado.erro)+'</span>':'')+'</div>';
     return;
   }
-  if(tab==='hoje') return renderTabela(listasFiltradas().filter(l=>l.ok&&l.fazer_em===0),'Nenhuma lista precisa ser feita hoje com esse teto.');
+  if(tab==='hoje') return renderTabela(listasFiltradas().filter(l=>(l.ok&&l.fazer_em===0)||l.nova_ate),'Nenhuma lista precisa ser feita hoje com esse teto.');
   if(tab==='cal') return renderTabela(listasFiltradas(),'Nenhuma lista.');
   if(tab==='curvaa') return renderCurvaA();
   if(tab==='acomp') return renderAcomp();
@@ -314,7 +316,7 @@ function renderTabela(rows,vazio){
     const lead=l.lead, fl=l.ok?flagsHtml(l):'';
     h+='<tr class="lst'+(aberta===l.lista?' open':'')+'" data-l="'+l.lista+'">'+
       '<td class="sel c"><input type="checkbox" class="selrow" data-l="'+l.lista+'" '+(SEL.has(l.lista)?'checked':'')+'></td>'+
-      '<td class="lc">'+(l.ok&&pillA(l)?'<div class="fl top">'+pillA(l).trim()+'</div>':'')+'<div class="nm">'+esc(l.nome)+'<span>#'+l.lista+'</span></div><div class="sub">'+esc(l.fornecedor||'')+'</div>'+(fl?'<div class="fl">'+fl+'</div>':'')+'</td>'+
+      '<td class="lc">'+((l.nova_ate||(l.ok&&pillA(l)))?'<div class="fl top">'+(l.nova_ate?'<span class="pill p-nova" title="Lista criada no ERP e vista pelo radar pela 1ª vez em '+new Date(l.vista_em).toLocaleString('pt-BR')+'. Fica no topo por 24 h; depois segue o fluxo normal.">LISTA NOVA</span> ':'')+(l.ok?pillA(l).trim():'')+'</div>':'')+'<div class="nm">'+esc(l.nome)+'<span>#'+l.lista+'</span></div><div class="sub">'+esc(l.fornecedor||'')+'</div>'+(fl?'<div class="fl">'+fl+'</div>':'')+'</td>'+
       '<td class="comp">'+esc(l.comprador||'—')+'</td><td class="c">'+pillDia(l)+'</td>'+
       '<td class="r"><b>'+(l.ok?money(l.pedido_valor):'—')+'</b>'+(l.ok?'<div class="s2">'+l.pedido_itens+' de '+l.com_venda+' itens</div>':'')+'</td>'+
       '<td class="r"><span class="'+(l.ok&&l.cobertura_dias<=l.ponto?'neg':'')+'">'+(l.ok?fmt(l.cobertura_dias)+' d':'—')+'</span>'+(l.ok?'<div class="s2">ponto '+fmt(l.ponto)+' · alvo '+fmt(l.alvo)+' · ciclo '+fmt(l.ciclo)+'</div>':'')+'</td>'+
@@ -482,6 +484,7 @@ function renderRegras(){
   '<div><b>Quanto pedir</b> = alvo × venda/dia − (estoque + o que já está pedido e não chegou), arredondado pra cima à embalagem.</div>'+
   '<div><b>Embalagem real</b>: o arredondamento usa a embalagem em que o produto de fato chegou nas notas de entrada no período do filtro (padrão 24 meses; a mais frequente, empate vai pra maior). Se sempre veio em caixa de 24, "faltam 2" vira 1 caixa de 24. Sem nota no período, vale a embalagem do cadastro. Filtro em 0 desliga e usa só o cadastro.</div>'+
   '<div><b>Sem venda nos 40 dias</b>: a loja usa a média dos últimos 12 meses dela (marcado "venda 12 m"). <b>Sazonal</b>: se, no ano passado, o mês que vem vendeu 25% a mais ou a menos que o mês atual, a venda/dia é multiplicada por esse fator (marcado "sazonal ×1,4"); precisa de pelo menos 30 unidades no mês-base pra valer.</div>'+
+  '<div><b>Lista nova</b>: lista que aparece no cadastro do ERP pela primeira vez fica marcada <b>LISTA NOVA</b> por 24 h, no topo de Pedidos do dia e do Calendário, mesmo sem histórico de lead. Depois segue o fluxo normal.</div>'+
   '<div><b>Trânsito</b>: sugestões abertas no ERP por loja; quando o fornecedor já emitiu a NF-e (XML no ERP, ainda não importada), o número da nota aparece e abre a nota ao clicar.</div>'+
   '<div><b>Loja zerada sem venda</b>: loja da lista com estoque zero, nada em trânsito e sem venda nos 40 dias (porque não tinha o produto) recebe <b>1 caixa</b> quando o produto vende nas outras lojas. Sem isso a ruptura ficava escondida.</div>'+
   '<div><b>Piso</b>: nunca menos que o consumo de 1 ciclo. <b>Teto</b>: nunca mais que (alvo + ciclo) × venda/dia; se bater, aparece "TETO: conferir" (estoque negativo ou venda atípica).</div>'+
