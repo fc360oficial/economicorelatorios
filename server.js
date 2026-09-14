@@ -6031,6 +6031,33 @@ setInterval(() => {}, 30000);
 const radarPedidos = require('./lib/radar-pedidos');
 radarPedidos.init({ q, mesDB, getNregsComprador: () => NREGS_COMPRADOR });
 radarPedidos.agendar();
+// Sortimento lista × loja (aba na Lista de Compra): calculado de madrugada a partir do histórico de 24 m do Radar
+const sortimento = require('./lib/sortimento');
+sortimento.init({ q, getNregsComprador: () => NREGS_COMPRADOR });
+sortimento.agendar();
+app.get('/api/listas-compra/sortimento', (req, res) => {
+  try {
+    const f = { loja: req.query.loja, comprador: req.query.comprador, classe: req.query.classe, lista: req.query.lista, busca: req.query.busca };
+    const rows = sortimento.filtrar(f);
+    const ord = req.query.ordem || 'valorEst';
+    rows.sort((a, b) => (b[ord] || 0) - (a[ord] || 0) || a.descricao.localeCompare(b.descricao, 'pt-BR'));
+    const limite = Math.min(2000, parseInt(req.query.limite) || 500);
+    res.json({ estado: sortimento.estado(), resumo: sortimento.resumo(rows), total: rows.length, rows: rows.slice(0, limite) });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.get('/api/listas-compra/sortimento/export.csv', (req, res) => {
+  try {
+    const f = { loja: req.query.loja, comprador: req.query.comprador, classe: req.query.classe, lista: req.query.lista, busca: req.query.busca };
+    const rows = sortimento.filtrar(f).sort((a, b) => a.loja - b.loja || (a.nome || '').localeCompare(b.nome || '', 'pt-BR') || b.valorEst - a.valorEst);
+    const nome = ['sortimento', f.loja ? 'L' + f.loja : '', f.comprador ? f.comprador.replace(/\W+/g, '_') : '', f.classe || ''].filter(Boolean).join('-') + '.csv';
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8'); res.setHeader('Content-Disposition', `attachment; filename="${nome}"`);
+    res.send(sortimento.csv(rows));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.post('/api/listas-compra/sortimento/recalcular', async (req, res) => {
+  try { const c = await sortimento.calcular(); res.json({ ok: true, calculadoEm: c.calculadoEm, itens: c.rows.length, duracaoMs: c.duracaoMs }); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
 
 app.get('/api/radar-pedidos', async (req, res) => {
   try {
