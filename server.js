@@ -3369,6 +3369,31 @@ async function coletarValidadePendente(listaId) {
   });
 }
 
+// Produtos que estão em DUAS OU MAIS listas de compra (risco de pedir duas vezes o mesmo item pra mesma loja)
+app.get('/api/listas-compra/repetidos', async (req, res) => {
+  try {
+    const rows = await q(`SELECT i.Codigobarra cod, TRIM(it.Descricao) descricao, i.nCotacao lista, TRIM(l.Nome) nome, TRIM(l.NomeFornec) fornecedor, i.l1, i.l2, i.l3, i.l4, i.l5, i.l6
+                          FROM central.c_cotacao_lista_itens i JOIN central.itens it ON it.CodigoBarra=i.Codigobarra JOIN central.c_cotacao_lista l ON l.nReg=i.nCotacao
+                          WHERE it.CodDesativado=0`);
+    const _nRegToComp = {};
+    for (const [comp, nRegs] of Object.entries(NREGS_COMPRADOR)) for (const nReg of nRegs) _nRegToComp[nReg] = comp;
+    const porCod = {};
+    for (const r of rows) {
+      const p = porCod[r.cod] || (porCod[r.cod] = { cod: r.cod, descricao: r.descricao, listas: [] });
+      if (p.listas.some(x => x.id === r.lista)) continue;
+      p.listas.push({ id: r.lista, nome: r.nome, fornecedor: r.fornecedor, comprador: _nRegToComp[r.lista] || null, lojas: [1, 2, 3, 4, 5, 6].filter(n => r['l' + n]) });
+    }
+    let itens = Object.values(porCod).filter(p => p.listas.length >= 2).map(p => {
+      const cont = {}; for (const l of p.listas) for (const ln of l.lojas) cont[ln] = (cont[ln] || 0) + 1;
+      const comum = Object.entries(cont).filter(([, n]) => n >= 2).map(([ln]) => +ln);
+      return { ...p, n_listas: p.listas.length, lojas_em_comum: comum, mesmo_fornecedor: new Set(p.listas.map(l => (l.fornecedor || '').toUpperCase())).size === 1, compradores: [...new Set(p.listas.map(l => l.comprador).filter(Boolean))] };
+    });
+    const compradores = [...new Set(itens.flatMap(p => p.compradores))].sort();
+    if (req.query.comprador) itens = itens.filter(p => p.compradores.includes(req.query.comprador));
+    itens.sort((a, b) => b.lojas_em_comum.length - a.lojas_em_comum.length || b.n_listas - a.n_listas || a.descricao.localeCompare(b.descricao, 'pt-BR'));
+    res.json({ itens, compradores, total: itens.length, com_loja_em_comum: itens.filter(p => p.lojas_em_comum.length).length, mesmo_fornecedor: itens.filter(p => p.mesmo_fornecedor).length });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 app.get('/api/listas-compra/validade-pendente', async (req, res) => {
   try {
     const { comprador } = req.query;
