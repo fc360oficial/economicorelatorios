@@ -61,6 +61,7 @@
       ]},
     { id: 'compras', ic: 'bag', txt: 'Gestão de Compras', sub: [
         { href: '/centro-distribuicao.html', ic: 'cart',  txt: 'Centro Distribuição' },
+        { href: '/cotacao.html',             ic: 'trend', txt: 'Cotação' },
         { href: '/ruptura.html',             ic: 'trend', txt: 'Gestão de Rupturas' },
         { href: '/fornecedores.html',        ic: 'bag',   txt: 'Lista de Compra' },
         { href: '/pedidos-compra.html',      ic: 'cart',  txt: 'Pedidos de Compra' },
