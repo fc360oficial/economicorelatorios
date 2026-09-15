@@ -153,3 +153,30 @@ test('montarDeLinhas: sem ajustes usa Ql, sem Ql usa QtdSug; inativo vem dos aju
   const s2 = sm.montarDeLinhas(cab, itens, hist, null);
   assert.equal(s2.itens[0].ativo, true);
 });
+
+test('montarItens: calcula por loja, quantidade = soma, ABC e P/M', () => {
+  const base = [
+    { codigo: '1', descricao: 'A', und: 'UN', emb: 12, lojas: [1, 2] },
+    { codigo: '2', descricao: 'B', und: 'UN', emb: 1, lojas: [1] },
+    { codigo: '3', descricao: 'C', und: 'UN', emb: 1, lojas: [1] },
+  ];
+  const porLoja = {
+    1: { 1: { estoque: 5, qtdVenda: 30, valorVenda: 300, diasVenda: 12, ultimaVenda: '10/09/2026', custo: 7.8, ultimaCompra: '01/09/2026', precoAtual: 12.49, transito: 4 },
+         2: { estoque: 0, qtdVenda: 10, valorVenda: 50, diasVenda: 5, ultimaVenda: null, custo: 2, ultimaCompra: null, precoAtual: 5, transito: 0 },
+         3: { estoque: 3, qtdVenda: 0, valorVenda: 0, diasVenda: 0, ultimaVenda: null, custo: 1, ultimaCompra: null, precoAtual: 2, transito: 0 } },
+    2: { 1: { estoque: 2, qtdVenda: 15, valorVenda: 150, diasVenda: 8, ultimaVenda: null, custo: 7.9, ultimaCompra: null, precoAtual: 12.49, transito: 0 } },
+  };
+  const r = sm.montarItens(base, porLoja, { dias: 30, cobertura: 20, obs: { sem_estoque: false, transito: true, dias_com_venda: false }, curvaA: new Set(['2']) });
+  const i1 = r.itens[0];
+  assert.equal(i1.lojas[0].sug_sistema, 11);          // 20×1 − 5 − 4
+  assert.equal(i1.lojas[1].sug_sistema, 8);           // 20×0,5 − 2
+  assert.equal(i1.quantidade, 19);
+  assert.equal(i1.lojas[0].sug_loja, 11);
+  assert.equal(i1.preco_und, 7.9);                    // maior custo entre as lojas
+  assert.equal(i1.lojas[0].pmv, 10);                  // 300/30
+  assert.equal(i1.lojas[0].abc, 'B');                 // maior venda R$ da lista: acumulado antes dele = 0% < 80% → B
+  assert.equal(r.itens[1].lojas[0].abc, 'A');         // curva A do Radar
+  assert.equal(r.itens[2].lojas[0].abc, 'C');         // sem venda
+  assert.equal(r.itens[2].lojas[0].dias_cob, null);
+  assert.equal(r.pm, +(500 / 55).toFixed(2));
+});
