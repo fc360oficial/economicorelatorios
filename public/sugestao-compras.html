@@ -98,6 +98,10 @@ table.mon-t tbody tr.st-fechado td:nth-child(2)::before{background:#3E9142}
 .status-pill{display:inline-flex;align-items:center;font-size:11px;font-weight:700;border-radius:20px;padding:4px 10px}
 .status-pill.pedido{background:#DCE7F7;color:#2E5E8C}
 .status-pill.desconhecido{background:#F1F2ED;color:#98A0B3}
+.status-pill.nenhum{background:#F1F2ED;color:#6B7280}
+.status-pill.desativada{background:#ECEDF1;color:#6B7280;text-decoration:line-through}
+table.mon-t tbody tr.desativada td{color:#98A0B3}
+.mon-check{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#4E5A72;cursor:pointer;white-space:nowrap}
 .status-pill.aberto{background:#FBEAEA;color:#B23A3A}
 .status-pill.digitacao{background:#FCEFDC;color:#B26A00}
 .status-pill.fechado{background:#E6F3E7;color:#2E7A33}
@@ -224,6 +228,7 @@ table.rup-t tbody tr.lista-row.zerada .fornec-nome{color:#4E5A72}
         <button data-aba="abertos" onclick="mudarAbaMonitor('abertos')">Aberto/Digitação</button>
         <button data-aba="finalizados" onclick="mudarAbaMonitor('finalizados')">Finalizado</button>
       </div>
+      <label class="mon-check"><input type="checkbox" id="m-desativadas" onchange="carregarMonitor()"> Mostrar desativadas</label>
     </div>
 
     <div class="mon-toolbar">
@@ -238,8 +243,11 @@ table.rup-t tbody tr.lista-row.zerada .fornec-nome{color:#4E5A72}
     <div class="mon-rodape" id="monitor-rodape" style="display:none">
       <span id="m-contagem"></span>
       <div class="mon-legenda">
+        <span><span class="status-dot aberto"></span>Em Aberto</span>
+        <span><span class="status-dot digitacao"></span>Em Digitação</span>
+        <span><span class="status-dot fechado"></span>Fechado</span>
         <span><span class="status-dot pedido"></span>Pedido Gerado</span>
-        <span><span class="status-dot desconhecido"></span>Status não confirmado ainda</span>
+        <span><span class="status-dot nenhum"></span>Sem link enviado</span>
       </div>
     </div>
   </div>
@@ -478,11 +486,18 @@ function voltarMonitor(){
   mostrarMonitor();
 }
 
-// ── Monitor de Sugestões (central.pedidocompra) ──
+// ── Monitor de Sugestões (central.lista_consolidadas, igual à aba do Dlinks) ──
+// Cor = lista_consolidadas.StatusWeb: 0 sem link, 1 Em Aberto, 2 Fechado
+// (confirmado 15/09/26 contra print do ERP). Em Digitação = qualquer outro
+// valor (nenhum exemplo no banco ainda). Desativada = CodDesativado=1.
 let ultimoMonitorReq = 0;
 function statusInfo(s){
+  if (s.desativada) return { cls:'desativada', label:'Desativada', extra:null };
   if (s.pedido) return { cls:'pedido', label:'Pedido Gerado', extra:'#'+s.pedido };
-  return { cls:'desconhecido', label:'Status ' + s.status_bruto, extra:null };
+  if (s.status_web === 1) return { cls:'aberto', label:'Em Aberto', extra:null };
+  if (s.status_web === 2) return { cls:'fechado', label:'Fechado', extra:null };
+  if (s.status_web) return { cls:'digitacao', label:'Em Digitação', extra:null };
+  return { cls:'nenhum', label:'Sem link', extra:null };
 }
 let abaMonitor = 'todos', sugestoesCarregadas = [];
 function mudarAbaMonitor(aba){
@@ -490,12 +505,13 @@ function mudarAbaMonitor(aba){
   document.querySelectorAll('#m-abas button').forEach(b => b.classList.toggle('on', b.dataset.aba === aba));
   renderMonitorTabela(sugestoesCarregadas);
 }
-// "Finalizado" = tem pedido gerado (confirmado); "Aberto/Digitação" = ainda
-// não gerou pedido (agrupa os status ainda não mapeados individualmente)
+// Mesmas abas do Dlinks: "Finalizado" = Fechado ou Pedido Gerado;
+// "Aberto/Digitação" = link enviado e ainda não fechado (StatusWeb 1 ou outro)
 function passaNaAba(s){
   if (abaMonitor === 'todos') return true;
-  if (abaMonitor === 'finalizados') return !!s.pedido;
-  return !s.pedido;
+  const fin = s.status_web === 2 || !!s.pedido;
+  if (abaMonitor === 'finalizados') return fin;
+  return !!s.status_web && !fin;
 }
 function passaNoComprador(s){
   const alvo = document.getElementById('m-comprador').value;
@@ -516,7 +532,8 @@ async function carregarMonitor(){
   wrap.innerHTML = '<div class="spinner"></div>';
   document.getElementById('monitor-rodape').style.display = 'none';
   try {
-    const r = await fetch(`/api/sugestoes-compra?busca=${encodeURIComponent(busca)}`);
+    const des = document.getElementById('m-desativadas').checked ? '&desativadas=1' : '';
+    const r = await fetch(`/api/sugestoes-compra?busca=${encodeURIComponent(busca)}${des}`);
     const rows = await r.json();
     if (meuReq !== ultimoMonitorReq) return; // resposta antiga, ignora
     if (rows.error) throw new Error(rows.error);
@@ -542,14 +559,14 @@ function renderMonitorTabela(todasRows){
       <th>Sugestão</th><th>Lista</th><th>Fornecedor</th><th>CNPJ</th><th>Comprador</th><th>Loja(s)</th><th>Status</th><th class="r">Total</th><th>Data</th>
     </tr></thead><tbody>${rows.map(s => {
       const si = statusInfo(s);
-      return `<tr class="st-${si.cls}" onclick="abrirSugestao(${s.lista})">
+      return `<tr class="st-${si.cls}${s.desativada?' desativada':''}" onclick="abrirSugestao(${s.lista})" title="${s.periodo_venda?`Venda ${s.periodo_venda} · cobertura ${s.cobertura}d · ${s.itens} item(ns)`:''}">
         <td class="chk"><input type="checkbox" class="chk-sugestao" onclick="event.stopPropagation();atualizarBotaoDesativar()"></td>
         <td><b>${s.sugestao}</b></td>
         <td>${s.lista}</td>
         <td>${s.fornecedor||'—'}</td>
         <td class="cod">${s.cnpj||'—'}</td>
         <td>${s.comprador||'—'}</td>
-        <td>Loja(s): ${s.lojas.join(' - ')}</td>
+        <td>Loja(s): ${s.lojas.length ? s.lojas.join(' - ') : '—'}</td>
         <td><span class="status-pill ${si.cls}"><span class="status-dot ${si.cls}"></span>${si.label}${si.extra?`<span class="num">${si.extra}</span>`:''}</span></td>
         <td class="r">${fmt(s.total)}</td>
         <td>${s.data||'—'}</td>
@@ -632,7 +649,7 @@ function confirmarNovaSugestao(){
 function desativarSugestoesSelecionadas(){
   const n = document.querySelectorAll('.chk-sugestao:checked').length;
   if (!n) return;
-  alert(`Layout de "Desativar" ainda em construção (${n} selecionada(s)) — por enquanto essa tela é só leitura do ERP. Quando você confirmar o fluxo, a gente liga isso em central.pedidocompra.`);
+  alert(`Layout de "Desativar" ainda em construção (${n} selecionada(s)) — por enquanto essa tela é só leitura do ERP. Quando você confirmar o fluxo, a gente liga isso em central.lista_consolidadas (CodDesativado=1).`);
 }
 
 async function carregarSugestao(){

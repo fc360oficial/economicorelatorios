@@ -2896,54 +2896,58 @@ app.get('/api/produtos/:codigo/detalhe', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Monitor de Sugestões — lista as "Sugestões" já existentes no ERP
-// (central.pedidocompra, agrupada por nConsolidado; 1 linha por loja lá,
-// aqui vira 1 linha por sugestão). nPedido>0 = Pedido Gerado (confirmado:
-// o número mostrado no ERP é o próprio nPedido). Os outros códigos de
-// Status (0/1/2/7/8 vistos até agora) AINDA NÃO estão confirmados com o
-// Tiago — mostra o código bruto até ele confirmar qual é qual.
+// Monitor de Sugestões — espelha a aba "Gestão de Compras > Sugestão de
+// Compras" do Dlinks. Fonte é central.lista_consolidadas (1 linha por
+// sugestão), NÃO pedidocompra (aquela é por loja e a aba do ERP ignora).
+// Confirmado em 15/09/2026 contra print do Dlinks:
+//   CodDesativado=1  → some da lista ("Desativar Sugestão")
+//   StatusWeb 0/1/2  → sem cor / Em Aberto (vermelho) / Fechado (verde)
+//   (Em Digitação e Pedido Gerado: nenhum exemplo no banco ainda)
+// Lojas participantes = lojas com linha em lista_consolidado_historico;
+// Total = soma de lista_consolidado_itens.Total.
 app.get('/api/sugestoes-compra', async (req, res) => {
   try {
-    const loja = req.query.loja && req.query.loja !== 'todas' ? parseInt(req.query.loja) : null;
     const busca = (req.query.busca || '').trim();
-    const data = req.query.data && /^\d{4}-\d{2}-\d{2}$/.test(req.query.data) ? req.query.data : null;
+    const comDesativadas = req.query.desativadas === '1';
 
-    let where = 'p.nConsolidado > 0';
+    let where = comDesativadas ? '1=1' : 'lc.CodDesativado = 0';
     const params = [];
-    if (loja) { where += ' AND p.nLoja = ?'; params.push(loja); }
-    if (data) { where += ' AND DATE(p.DataLan) = ?'; params.push(data); }
     if (busca) {
-      where += ' AND (p.Nome LIKE ? OR p.CNPJFornec LIKE ? OR p.nConsolidado = ? OR p.nLista = ?)';
+      where += ' AND (lc.NomeFornec LIKE ? OR lc.Nome LIKE ? OR lc.CNPJ LIKE ? OR lc.nConsolidado = ? OR lc.nLista = ?)';
       const nBusca = parseInt(busca) || 0;
-      params.push('%' + busca + '%', '%' + busca + '%', nBusca, nBusca);
+      params.push('%' + busca + '%', '%' + busca + '%', '%' + busca + '%', nBusca, nBusca);
     }
 
     const rows = await q(`
-      SELECT p.nConsolidado,
-             MAX(p.nLista) as nLista, MAX(p.CodFornec) as CodFornec, MAX(p.Nome) as Nome,
-             MAX(p.CNPJFornec) as cnpj, MAX(p.Descricao) as descricao,
-             GROUP_CONCAT(DISTINCT p.nLoja ORDER BY p.nLoja) as lojas,
-             MAX(p.Status) as status, MAX(p.nPedido) as nPedido, MAX(p.DataLan) as data,
-             SUM(p.Total) as total,
-             MAX(cac.nome) as comprador
-      FROM central.pedidocompra p
-      LEFT JOIN central.c_cotacao_agenda_comprador cac ON cac.nLista = p.nLista
+      SELECT lc.nConsolidado, lc.nLista, lc.CodFornec, lc.NomeFornec, lc.Nome as descricao, lc.CNPJ as cnpj,
+             lc.Data as data, lc.Status as status, lc.StatusWeb as status_web, lc.CodDesativado as desativada,
+             lc.QtdCobertura as cobertura, lc.DataVenda1, lc.DataVenda2,
+             (SELECT GROUP_CONCAT(DISTINCT h.nLoja ORDER BY h.nLoja) FROM central.lista_consolidado_historico h WHERE h.nConsolidado = lc.nConsolidado) as lojas,
+             (SELECT SUM(i.Total) FROM central.lista_consolidado_itens i WHERE i.nConsolidado = lc.nConsolidado) as total,
+             (SELECT COUNT(*) FROM central.lista_consolidado_itens i WHERE i.nConsolidado = lc.nConsolidado) as itens,
+             (SELECT MAX(p.nPedido) FROM central.pedidocompra p WHERE p.nConsolidado = lc.nConsolidado) as nPedido,
+             (SELECT MAX(cac.nome) FROM central.c_cotacao_agenda_comprador cac WHERE cac.nLista = lc.nLista) as comprador
+      FROM central.lista_consolidadas lc
       WHERE ${where}
-      GROUP BY p.nConsolidado
-      ORDER BY p.nConsolidado DESC
+      ORDER BY lc.nConsolidado DESC
       LIMIT 500
     `, params);
 
     res.json(rows.map(r => ({
       sugestao: r.nConsolidado,
       lista: r.nLista,
-      fornecedor: r.Nome?.trim(),
-      cnpj: r.cnpj,
-      descricao: r.descricao?.trim() || null,
+      fornecedor: r.NomeFornec?.trim(),
+      cnpj: r.cnpj && r.cnpj !== '0' ? r.cnpj : null,
+      descricao: r.descricao && r.descricao !== '0' ? r.descricao.trim() : null,
       lojas: (r.lojas ? r.lojas.toString() : '').split(',').filter(Boolean).map(n => parseInt(n)),
-      status_bruto: r.status,
+      status_web: r.status_web || 0,
+      status: r.status || 0,
+      desativada: r.desativada === 1,
       pedido: r.nPedido > 0 ? r.nPedido : null,
       data: r.data ? new Date(r.data).toLocaleDateString('pt-BR') : null,
+      periodo_venda: r.DataVenda1 && r.DataVenda1 !== '0' ? `${r.DataVenda1} a ${r.DataVenda2}` : null,
+      cobertura: r.cobertura || null,
+      itens: r.itens || 0,
       total: r.total ? +parseFloat(r.total).toFixed(2) : 0,
       comprador: r.comprador?.trim() || null
     })));
