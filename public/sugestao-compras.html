@@ -106,6 +106,9 @@ table.mon-t tbody tr.desativada td{color:#98A0B3}
 .status-pill.digitacao{background:#FCEFDC;color:#B26A00}
 .status-pill.fechado{background:#E6F3E7;color:#2E7A33}
 .status-pill .num{margin-left:5px;font-weight:800;opacity:.85}
+.origem-pill{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.4px;border-radius:4px;padding:2px 6px;margin-right:6px;vertical-align:middle}
+.origem-pill.dlinks{background:#E4E6EA;color:#4E5A72}
+.origem-pill.fluxo{background:#FCEFDC;color:#B26A00}
 .mon-aviso-exemplo{background:#FCEFDC;border:1px solid #E5C98A;color:#8A6200;font-size:11.5px;font-weight:700;border-radius:8px;padding:9px 13px;margin-bottom:12px}
 
 .ns-overlay{position:fixed;inset:0;z-index:9999;background:rgba(14,22,38,.6);display:flex;align-items:center;justify-content:center;padding:20px}
@@ -353,8 +356,8 @@ table.rup-t tbody tr.lista-row.zerada .fornec-nome{color:#4E5A72}
         <h4>Observações</h4>
         <div class="ns-obs-grid">
           <label><input type="checkbox" id="ns-obs1"> Não considerar estoque do Sistema.</label>
-          <label class="off"><input type="checkbox" disabled> Considerar itens em trânsito.</label>
-          <label><input type="checkbox" id="ns-obs2"> Utilizar lista recebida da Indústria.</label>
+          <label><input type="checkbox" id="ns-obs-transito"> Considerar itens em trânsito.</label>
+          <label><input type="checkbox" id="ns-obs2" disabled title="Ainda não disponível"> Utilizar lista recebida da Indústria.</label>
           <label class="off"><input type="checkbox" disabled> Utilizar Custo Consolidado Lista(s) Indústria</label>
           <label class="off"><input type="checkbox" disabled> Gerar com Custo (Única Loja)</label>
           <label class="off"><input type="checkbox" disabled> Gerar com Custo (Grupo de Lojas)</label>
@@ -492,6 +495,11 @@ function voltarMonitor(){
 // valor (nenhum exemplo no banco ainda). Desativada = CodDesativado=1.
 let ultimoMonitorReq = 0;
 function statusInfo(s){
+  if (s.origem === 'fluxo') {
+    if (s.status_fluxo === 'desativada') return { cls:'desativada', label:'Desativada', extra:null };
+    if (s.status_fluxo === 'pedido_gerado' || s.pedido) return { cls:'pedido', label:'Pedido Gerado', extra:s.pedido ? '#'+s.pedido : null };
+    return { cls:'aberto', label:'Aberta', extra:null };
+  }
   if (s.desativada) return { cls:'desativada', label:'Desativada', extra:null };
   if (s.pedido) return { cls:'pedido', label:'Pedido Gerado', extra:'#'+s.pedido };
   if (s.status_web === 1) return { cls:'aberto', label:'Em Aberto', extra:null };
@@ -499,6 +507,7 @@ function statusInfo(s){
   if (s.status_web) return { cls:'digitacao', label:'Em Digitação', extra:null };
   return { cls:'nenhum', label:'Sem link', extra:null };
 }
+function abrirConsolidacao(id, dados){ console.log('consolidacao', id, dados); }
 let abaMonitor = 'todos', sugestoesCarregadas = [];
 function mudarAbaMonitor(aba){
   abaMonitor = aba;
@@ -508,6 +517,7 @@ function mudarAbaMonitor(aba){
 // Mesmas abas do Dlinks: "Finalizado" = Fechado ou Pedido Gerado;
 // "Aberto/Digitação" = link enviado e ainda não fechado (StatusWeb 1 ou outro)
 function passaNaAba(s){
+  if (s.origem === 'fluxo') { if (abaMonitor === 'todos') return true; const fin = s.status_fluxo === 'pedido_gerado'; return abaMonitor === 'finalizados' ? fin : !fin; }
   if (abaMonitor === 'todos') return true;
   const fin = s.status_web === 2 || !!s.pedido;
   if (abaMonitor === 'finalizados') return fin;
@@ -559,9 +569,9 @@ function renderMonitorTabela(todasRows){
       <th>Sugestão</th><th>Lista</th><th>Fornecedor</th><th>CNPJ</th><th>Comprador</th><th>Loja(s)</th><th>Status</th><th class="r">Total</th><th>Data</th>
     </tr></thead><tbody>${rows.map(s => {
       const si = statusInfo(s);
-      return `<tr class="st-${si.cls}${s.desativada?' desativada':''}" onclick="abrirSugestao(${s.lista})" title="${s.periodo_venda?`Venda ${s.periodo_venda} · cobertura ${s.cobertura}d · ${s.itens} item(ns)`:''}">
-        <td class="chk"><input type="checkbox" class="chk-sugestao" onclick="event.stopPropagation();atualizarBotaoDesativar()"></td>
-        <td><b>${s.sugestao}</b></td>
+      return `<tr class="st-${si.cls}${s.desativada?' desativada':''}" onclick="abrirConsolidacao('${s.origem === 'fluxo' ? s.sugestao : 'D-' + s.sugestao}')" title="${s.periodo_venda?`Venda ${s.periodo_venda} · cobertura ${s.cobertura}d · ${s.itens} item(ns)`:''}">
+        <td class="chk"><input type="checkbox" class="chk-sugestao" data-id="${s.sugestao}" data-origem="${s.origem}" onclick="event.stopPropagation();atualizarBotaoDesativar()"></td>
+        <td><span class="origem-pill ${s.origem}">${s.origem === 'fluxo' ? 'FLUXO' : 'DLINKS'}</span><b>${s.sugestao}</b></td>
         <td>${s.lista}</td>
         <td>${s.fornecedor||'—'}</td>
         <td class="cod">${s.cnpj||'—'}</td>
@@ -591,6 +601,7 @@ function abrirNovaSugestao(listaId){
   document.getElementById('ns-lista').value = listaId || '';
   document.getElementById('ns-cobertura').value = 20;
   document.getElementById('ns-obs1').checked = false;
+  document.getElementById('ns-obs-transito').checked = false;
   document.getElementById('ns-obs2').checked = false;
   document.getElementById('ns-obs3').checked = false;
   document.getElementById('ns-lojas').innerHTML = '<div class="empty" style="padding:20px 0">Informe o número da lista</div>';
@@ -637,19 +648,40 @@ async function carregarLojasNS(){
     wrap.innerHTML = `<div class="empty" style="padding:20px 0">Erro: ${e.message}</div>`;
   }
 }
-function confirmarNovaSugestao(){
+async function confirmarNovaSugestao(){
   const id = parseInt(document.getElementById('ns-lista').value);
   const hint = document.getElementById('ns-hint');
   if (!id) { hint.textContent = 'Informe o número da lista.'; return; }
-  const cobertura = document.getElementById('ns-cobertura').value || 20;
-  const lojasMarcadas = [...document.querySelectorAll('.ns-chk-loja:checked')].map(c => c.value);
-  fecharNovaSugestao();
-  abrirSugestao(id);
+  const lojas = [...document.querySelectorAll('.ns-chk-loja:checked')].map(c => parseInt(c.value));
+  if (!lojas.length) { hint.textContent = 'Marque ao menos uma loja participante.'; return; }
+  const body = {
+    lista: id,
+    data_ini: document.getElementById('ns-data-ini').value,
+    data_fim: document.getElementById('ns-data-fim').value,
+    cobertura: parseInt(document.getElementById('ns-cobertura').value) || 20,
+    lojas,
+    obs: { sem_estoque: document.getElementById('ns-obs1').checked, transito: document.getElementById('ns-obs-transito').checked, dias_com_venda: document.getElementById('ns-obs3').checked }
+  };
+  const btn = document.querySelector('#ns-overlay .btn-blue'); btn.disabled = true; btn.textContent = 'Calculando...'; hint.textContent = '';
+  try {
+    const r = await fetch('/api/sugestao-manual', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const j = await r.json();
+    if (j.error) throw new Error(j.error);
+    fecharNovaSugestao();
+    monitorJaCarregado = false;            // força recarregar o Monitor na volta
+    abrirConsolidacao(j.id, j);
+  } catch (e) { hint.textContent = e.message; }
+  finally { btn.disabled = false; btn.textContent = 'Confirmar'; }
 }
-function desativarSugestoesSelecionadas(){
-  const n = document.querySelectorAll('.chk-sugestao:checked').length;
-  if (!n) return;
-  alert(`Layout de "Desativar" ainda em construção (${n} selecionada(s)) — por enquanto essa tela é só leitura do ERP. Quando você confirmar o fluxo, a gente liga isso em central.lista_consolidadas (CodDesativado=1).`);
+async function desativarSugestoesSelecionadas(){
+  const sel = [...document.querySelectorAll('.chk-sugestao:checked')];
+  if (!sel.length) return;
+  const fluxo = sel.filter(c => c.dataset.origem === 'fluxo').map(c => c.dataset.id);
+  const dlinks = sel.length - fluxo.length;
+  if (!fluxo.length) { alert(`As ${dlinks} selecionada(s) são do Dlinks — o Fluxo não escreve no ERP. Desative por lá.`); return; }
+  if (!confirm(`Desativar ${fluxo.length} sugestão(ões) do Fluxo (${fluxo.join(', ')})?` + (dlinks ? `\n\n${dlinks} do Dlinks vão ficar como estão (não escrevemos no ERP).` : ''))) return;
+  for (const id of fluxo) { try { await fetch(`/api/sugestao-manual/${id}/desativar`, { method: 'POST' }); } catch (e) {} }
+  carregarMonitor();
 }
 
 async function carregarSugestao(){
