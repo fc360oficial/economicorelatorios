@@ -188,6 +188,34 @@ table.rup-t tbody tr.lista-row.zerada .fornec-nome{color:#4E5A72}
   #dsnav,.filtros,.busca-row,.btn-imprimir,table.main-t tbody tr:not(.open),.detalhe-row:not(.on){display:none!important}
   body.dsnav-pad{margin-left:0!important}
 }
+
+.cons-hdr{background:#fff;border:1px solid #DADAD6;border-radius:10px;padding:12px 16px;display:grid;grid-template-columns:auto 1fr auto auto;gap:18px;align-items:start;margin-bottom:12px}
+.cons-nums{display:flex;gap:14px}
+.cons-num{background:#F1F2ED;border-radius:8px;padding:6px 14px;text-align:center}
+.cons-num span{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:#98A0B3}
+.cons-num b{font-size:22px;color:#101B33}
+.cons-forn div,.cons-meta div{font-size:12.5px;margin-bottom:4px}
+.cons-forn span,.cons-meta span{color:#98A0B3}
+.cons-busca input{width:100%;max-width:420px;padding:5px 8px;border:1px solid #DADAD6;border-radius:6px;font-size:12px}
+.cons-salvo{font-size:10.5px;color:#2E7A33;margin-left:8px}
+.cons-acoes{display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+.cons-itens-wrap{max-height:46vh;overflow:auto}
+table.cons-t td,table.cons-t th{font-size:12px;padding:5px 8px;white-space:nowrap}
+table.cons-t tbody tr{cursor:pointer}
+table.cons-t tbody tr.sel td{background:#FFF6D6}
+table.cons-t tbody tr.inativo td{color:#B23A3A;text-decoration:line-through}
+table.cons-t tbody tr.inativo td input{text-decoration:none}
+table.cons-t input.qtd{width:72px;text-align:center;font-weight:700;border:1px solid #DADAD6;border-radius:5px;padding:3px}
+table.cons-t input.qtd.zero{color:#98A0B3;font-weight:400}
+table.cons-t input.obs{width:220px;border:1px solid transparent;border-radius:5px;padding:3px;background:transparent}
+table.cons-t input.obs:focus{border-color:#DADAD6;background:#fff}
+table.cons-det td.neg{color:#B23A3A;font-weight:700}
+.cons-rodape{display:flex;justify-content:space-between;font-size:12px;color:#4E5A72;padding:6px 4px}
+.cons-det-titulo{font-weight:800;font-size:13px;text-align:center;background:#101B33;color:#fff;border-radius:8px 8px 0 0;padding:6px;margin-top:6px}
+.cons-barra{display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap}
+.cons-barra .spacer{flex:1}
+.cons-barra label{font-size:12px;color:#4E5A72}
+@media print{.cons-barra,.cons-acoes,.cons-busca{display:none}}
 </style>
 </head>
 <body class="ds">
@@ -277,6 +305,55 @@ table.rup-t tbody tr.lista-row.zerada .fornec-nome{color:#4E5A72}
 
     <div id="listas-wrap">
       <div class="spinner"></div>
+    </div>
+  </div>
+
+  <div id="consolidacao-view" style="display:none">
+    <div class="cons-hdr">
+      <div class="cons-nums">
+        <div class="cons-num"><span>Sugestão</span><b id="c-sugestao">—</b></div>
+        <div class="cons-num"><span>Lista</span><b id="c-lista">—</b></div>
+      </div>
+      <div class="cons-forn">
+        <div><span>Fornecedor:</span> <b id="c-cnpj" class="cod"></b> <b id="c-fornecedor"></b></div>
+        <div class="cons-busca"><span>Item:</span> <input type="text" id="c-busca" placeholder="código ou descrição — % coringa" oninput="CONS.busca=this.value;renderConsItens()"></div>
+      </div>
+      <div class="cons-meta">
+        <div><span>Período Vendas:</span> <b id="c-periodo"></b></div>
+        <div><span>Lojas:</span> <b id="c-lojas"></b></div>
+        <div><span>Cobertura:</span> <b id="c-cobertura"></b> &nbsp; <span>P/M:</span> <b id="c-pm"></b></div>
+        <div><span>Status:</span> <b id="c-status"></b> <span class="cons-salvo" id="c-salvo"></span></div>
+      </div>
+      <div class="cons-acoes">
+        <span class="origem-pill" id="c-origem"></span>
+        <button class="btn btn-slate" id="c-recalc" onclick="recalcularConsolidacao()">↻ Recalcular</button>
+        <button class="btn btn-slate" onclick="voltarDaConsolidacao()">← Monitor</button>
+      </div>
+    </div>
+
+    <div class="table-wrap cons-itens-wrap">
+      <table class="main-t cons-t" id="c-itens">
+        <thead><tr><th>Código</th><th>Descrição</th><th class="c">Und</th><th class="c">Emb</th><th class="c">Quantidade</th><th class="r">Preço Und</th><th class="r">Preço Emb</th><th class="r">Total</th><th>Observação</th></tr></thead>
+        <tbody id="c-itens-tbody"></tbody>
+      </table>
+    </div>
+    <div class="cons-rodape"><span id="c-contagem"></span><span>Total: <b id="c-total"></b></span></div>
+
+    <div class="cons-det-titulo" id="c-det-titulo">Selecione um item</div>
+    <div class="table-wrap"><table class="main-t cons-t cons-det" id="c-det"><thead><tr>
+      <th>LJ</th><th>Última Compra</th><th>Última Venda</th><th>Fornecedor</th><th class="c">Un</th><th class="c">Emb</th><th class="r">Qtd</th><th class="r">Preço</th><th class="r">Total</th><th class="r">Custo Unit.</th><th class="r">Preço Atual</th><th class="r">Estoque Atual</th><th class="r">P.M.V</th><th class="r">Qtd Venda</th><th class="r">Dias de Venda</th><th class="r">Média Período</th><th class="r">Dias de Cob.</th><th class="r">Sugestão Sistema</th><th class="r">Pedido Compra</th><th class="c">ABC</th><th class="c">Sugestão Loja</th>
+    </tr></thead><tbody id="c-det-tbody"></tbody></table></div>
+
+    <div class="cons-barra">
+      <button class="btn btn-danger-out" onclick="alternarItemAtivo(false)">Excluir/Desativar item</button>
+      <button class="btn btn-slate" onclick="alternarItemAtivo(true)">Ativar item</button>
+      <label>Exibir itens:
+        <select id="c-filtro" onchange="CONS.filtro=this.value;renderConsItens()"><option value="todos">Todos</option><option value="com_qtd">Com quantidade</option><option value="sem_giro">Sem giro</option></select>
+      </label>
+      <span class="spacer"></span>
+      <button class="btn btn-slate" onclick="exportarExcelConsolidacao()">📊 Excel</button>
+      <button class="btn btn-slate btn-imprimir" onclick="window.print()">🖨️ Imprimir</button>
+      <button class="btn btn-blue" id="c-gerar" onclick="gerarPedidoConsolidacao()">Gerar Pedido</button>
     </div>
   </div>
 
@@ -507,7 +584,113 @@ function statusInfo(s){
   if (s.status_web) return { cls:'digitacao', label:'Em Digitação', extra:null };
   return { cls:'nenhum', label:'Sem link', extra:null };
 }
-function abrirConsolidacao(id, dados){ console.log('consolidacao', id, dados); }
+// ── Consolidação da Lista (Sugestão Manual) ──
+const CONS = { s: null, sel: null, filtro: 'todos', busca: '', pend: null, timer: null };
+const fmtN = (v, d = 2) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
+function esconderTudoConsolidacao(){ for (const id of ['rupturas-view','monitor-view','por-lista-view','sugestao-wrap']) document.getElementById(id).style.display = 'none'; }
+async function abrirConsolidacao(id, dados){
+  esconderTudoConsolidacao();
+  const v = document.getElementById('consolidacao-view'); v.style.display = 'block';
+  document.getElementById('c-itens-tbody').innerHTML = '<tr><td colspan="9" style="padding:30px;text-align:center"><div class="spinner"></div></td></tr>';
+  try {
+    let s = dados;
+    if (!s) { const r = await fetch('/api/sugestao-manual/' + encodeURIComponent(id)); s = await r.json(); if (s.error) throw new Error(s.error); }
+    CONS.s = s; CONS.sel = null; CONS.filtro = 'todos'; CONS.busca = ''; document.getElementById('c-filtro').value = 'todos'; document.getElementById('c-busca').value = '';
+    renderConsCabecalho(); renderConsItens(); renderConsDetalhe();
+    history.replaceState(null, '', '?tela=monitor&sugestao=' + encodeURIComponent(s.id));
+  } catch (e) { document.getElementById('c-itens-tbody').innerHTML = `<tr><td colspan="9" class="empty">Erro: ${e.message}</td></tr>`; }
+}
+function voltarDaConsolidacao(){ document.getElementById('consolidacao-view').style.display = 'none'; CONS.s = null; history.replaceState(null, '', '?tela=monitor'); monitorJaCarregado = false; mostrarMonitor(); }
+function consTravada(){ return CONS.s && CONS.s.status === 'pedido_gerado'; }
+function renderConsCabecalho(){
+  const s = CONS.s, p = s.parametros;
+  document.getElementById('c-sugestao').textContent = s.id.replace(/^D-/, '');
+  document.getElementById('c-lista').textContent = s.lista.id;
+  document.getElementById('c-cnpj').textContent = s.lista.cnpj || '';
+  document.getElementById('c-fornecedor').textContent = s.lista.fornecedor || s.lista.nome || '';
+  const br = d => d && d.includes('-') ? d.split('-').reverse().join('/') : (d || '—');
+  document.getElementById('c-periodo').textContent = `${br(p.data_ini)} até ${br(p.data_fim)} ( ${p.dias} Dias )`;
+  document.getElementById('c-lojas').textContent = 'Loja(s): ' + p.lojas.join(' - ');
+  document.getElementById('c-cobertura').textContent = p.cobertura + ' Dias';
+  document.getElementById('c-pm').textContent = fmtN(s.pm, 4);
+  const st = s.status === 'pedido_gerado' ? `Pedido gerado #${s.pedido_id}` : s.status === 'desativada' ? 'Desativada' : (s.origem === 'dlinks' ? ({1:'Em Aberto (web)',2:'Fechado (web)'}[s.status_web] || 'Aberta') : 'Aberta');
+  document.getElementById('c-status').textContent = st;
+  const op = document.getElementById('c-origem'); op.className = 'origem-pill ' + s.origem; op.textContent = s.origem === 'fluxo' ? 'FLUXO' : 'DLINKS';
+  document.getElementById('c-recalc').style.display = s.origem === 'fluxo' && !consTravada() ? '' : 'none';
+  document.getElementById('c-gerar').disabled = consTravada() || s.status === 'desativada';
+  document.getElementById('c-salvo').textContent = '';
+}
+function itensFiltrados(){
+  const b = CONS.busca.trim().toLowerCase();
+  const re = b ? new RegExp('^' + b.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/%/g, '.*'), 'i') : null;
+  return CONS.s.itens.filter(it => {
+    if (re && !(re.test(it.codigo) || re.test(it.descricao) || it.descricao.toLowerCase().includes(b))) return false;
+    if (CONS.filtro === 'com_qtd') return it.quantidade > 0;
+    if (CONS.filtro === 'sem_giro') return !it.lojas.some(l => (l.qtd_venda || 0) > 0);
+    return true;
+  });
+}
+function renderConsItens(){
+  const its = itensFiltrados(); const trav = consTravada();
+  document.getElementById('c-itens-tbody').innerHTML = its.length ? its.map(it => `
+    <tr class="${it.codigo === CONS.sel ? 'sel' : ''} ${it.ativo ? '' : 'inativo'}" onclick="selecionarItem('${it.codigo}')">
+      <td class="cod">${it.codigo}</td><td>${it.descricao}</td><td class="c">${it.und || ''}</td><td class="c">${it.emb}</td>
+      <td class="c"><input type="number" min="0" class="qtd ${it.quantidade ? '' : 'zero'}" value="${it.quantidade}" ${(!it.ativo || trav) ? 'disabled' : ''} onclick="event.stopPropagation()" onchange="editarQuantidade('${it.codigo}', this.value)"></td>
+      <td class="r">${fmtN(it.preco_und)}</td><td class="r">${fmtN(it.preco_und * (it.emb || 1))}</td><td class="r">${fmtN(it.quantidade * it.preco_und)}</td>
+      <td><input type="text" class="obs" value="${(it.obs || '').replace(/"/g, '&quot;')}" ${trav ? 'disabled' : ''} onclick="event.stopPropagation()" onchange="editarObs('${it.codigo}', this.value)"></td>
+    </tr>`).join('') : '<tr><td colspan="9" class="empty">Nenhum item.</td></tr>';
+  const ativos = CONS.s.itens.filter(i => i.ativo);
+  document.getElementById('c-contagem').textContent = `${its.length} - Produto(s)`;
+  document.getElementById('c-total').textContent = 'R$ ' + fmtN(ativos.reduce((a, i) => a + i.quantidade * i.preco_und, 0));
+}
+function selecionarItem(codigo){ CONS.sel = codigo; renderConsItens(); renderConsDetalhe(); }
+function renderConsDetalhe(){ /* Task 8 */ }
+// quantidade do item → reparte pelas lojas proporcional à sugestão sistema
+function editarQuantidade(codigo, v){
+  const it = CONS.s.itens.find(i => i.codigo === codigo); if (!it) return;
+  const T = Math.max(0, Math.round(parseFloat(v) || 0));
+  const rep = repartirLojas(T, it.lojas);
+  for (const l of it.lojas) l.sug_loja = rep[l.loja] || 0;
+  it.quantidade = it.lojas.reduce((a, l) => a + l.sug_loja, 0);
+  salvarPatch({ quantidades: { [codigo]: Object.fromEntries(it.lojas.map(l => [l.loja, l.sug_loja])) } });
+  renderConsItens(); renderConsDetalhe();
+}
+function repartirLojas(total, lojas){        // mesma regra de lib/sugestao-manual.repartirPorLoja
+  const T = Math.max(0, Math.round(total || 0)); if (T <= 0 || !lojas.length) return {};
+  const soma = lojas.reduce((a, l) => a + (l.sug_sistema || 0), 0); const out = {}; let dist = 0;
+  lojas.forEach((l, i) => { let qv = soma > 0 ? Math.round(T * (l.sug_sistema || 0) / soma) : Math.floor(T / lojas.length); if (i === lojas.length - 1) qv = T - dist; dist += qv; if (qv > 0) out[l.loja] = qv; });
+  return out;
+}
+function editarObs(codigo, v){ const it = CONS.s.itens.find(i => i.codigo === codigo); if (!it) return; it.obs = v; salvarPatch({ obs: { [codigo]: v } }); }
+function alternarItemAtivo(ativo){
+  if (!CONS.sel) { alert('Selecione um item na grade.'); return; }
+  if (consTravada()) return;
+  const it = CONS.s.itens.find(i => i.codigo === CONS.sel); it.ativo = ativo;
+  salvarPatch({ ativo: { [it.codigo]: ativo } }); renderConsItens();
+}
+// salvamento automático: mescla os patches e manda um PATCH 600 ms depois da última edição
+function salvarPatch(patch){
+  const p = CONS.pend = CONS.pend || {};
+  for (const k of ['quantidades', 'obs', 'ativo']) if (patch[k]) p[k] = Object.assign(p[k] || {}, patch[k]);
+  document.getElementById('c-salvo').textContent = 'salvando…';
+  clearTimeout(CONS.timer);
+  CONS.timer = setTimeout(async () => {
+    const body = CONS.pend; CONS.pend = null;
+    try {
+      const r = await fetch('/api/sugestao-manual/' + encodeURIComponent(CONS.s.id), { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const j = await r.json(); if (j.error) throw new Error(j.error);
+      document.getElementById('c-salvo').textContent = 'salvo ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    } catch (e) { document.getElementById('c-salvo').textContent = 'erro ao salvar: ' + e.message; }
+  }, 600);
+}
+async function recalcularConsolidacao(){
+  if (!confirm('Recalcular com os mesmos parâmetros? As quantidades digitadas serão substituídas pela Sugestão Sistema.')) return;
+  const r = await fetch('/api/sugestao-manual/' + encodeURIComponent(CONS.s.id) + '/recalcular', { method: 'POST' }); const j = await r.json();
+  if (j.error) { alert(j.error); return; }
+  abrirConsolidacao(j.id, j);
+}
+function gerarPedidoConsolidacao(){ alert('em construção'); }
+function exportarExcelConsolidacao(){ alert('em construção'); }
 let abaMonitor = 'todos', sugestoesCarregadas = [];
 function mudarAbaMonitor(aba){
   abaMonitor = aba;
@@ -1003,6 +1186,7 @@ function criarSugestaoDaLista(listaId){
 carregarCompradoresRup();
 // vindo do menu com escolha: ?tela=monitor abre direto a Sugestão Manual (Monitor); ?tela=rupturas (padrão) fica na tela de rupturas
 try { if (new URLSearchParams(location.search).get('tela') === 'monitor') mostrarMonitor(); } catch (e) {}
+try { const sugParam = new URLSearchParams(location.search).get('sugestao'); if (sugParam) abrirConsolidacao(sugParam); } catch (e) {}
 </script>
 </body>
 </html>
