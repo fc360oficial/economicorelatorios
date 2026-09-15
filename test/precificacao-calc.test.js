@@ -28,36 +28,68 @@ test('arred termo inválido cai em nenhum', () => {
   assert.equal(c.arred(3.141, 'x'), 3.15);
 });
 
-const P9 = { politica: 'por_curva', arredondamento: '9' };
-const base = { cod: '1', descricao: 'X', curvaA: false, recebida: 10, custo_atual: 10, custo_novo: 11, custo_imposto: 11.5, margem: 30, preco_atual: 12.99, margem_atacado: null, preco_atacado_atual: null };
+const P9 = { arredondamento: '9' };
+const PN = { arredondamento: 'nenhum' };
+const base = { cod: '1', descricao: 'X', curvaA: false, recebida: 10, custo_atual: 10, custo_novo: 11, custo_imposto: 11, margem: 30, preco_atual: 12.99, margem_atacado: null, preco_atacado_atual: null };
 
-test('calcularItem: custo subiu → sobe, preço = custo_imposto×(1+margem) arredondado', () => {
+test('regra 2: custo subiu → margem de cadastro, preço = custo×(1+margem) arredondado', () => {
   const it = c.calcularItem(base, P9);
+  assert.equal(it.regra, 'margem');
   assert.equal(it.status, 'sobe');
-  assert.equal(it.preco_calc, 14.95);
-  assert.equal(it.preco_sugerido, 14.99);
-  assert.equal(it.preco_final, 14.99);
+  assert.equal(it.preco_calc, 14.3);
+  assert.equal(it.preco_sugerido, 14.39);
+  assert.equal(it.preco_final, 14.39);
   assert.equal(it.manual, false);
-  assert.equal(it.variacao, 0.15);
-  assert.equal(it.margem_se_mantem, 0.1296);
+  assert.equal(it.variacao, 0.1);
   assert.equal(it.atacado, null);
 });
 
-test('calcularItem: sem mudança dentro de 0,5%', () => {
-  const it = c.calcularItem({ ...base, custo_imposto: 10.04 }, P9);
-  assert.equal(it.status, 'sem_mudanca');
-  assert.equal(it.preco_sugerido, 12.99);
+test('regra 1: custo igual → margem de cadastro (mesmo que o preço atual esteja diferente)', () => {
+  const it = c.calcularItem({ ...base, custo_atual: 10, custo_imposto: 10 }, P9);
+  assert.equal(it.regra, 'margem');
+  assert.equal(it.preco_sugerido, 13.09);           // 10×1.3 = 13.00 → 13.09
+  assert.equal(it.status, 'sobe');                  // 13.09 > 12.99
+  const igual = c.calcularItem({ ...base, custo_atual: 10, custo_imposto: 10, preco_atual: 13.09 }, P9);
+  assert.equal(igual.status, 'sem_mudanca');        // margem já dá o preço atual
+  const desce = c.calcularItem({ ...base, custo_atual: 10, custo_imposto: 10, preco_atual: 15.99 }, P9);
+  assert.equal(desce.status, 'desce');              // preço atual estava acima da margem: segue a margem
+  assert.equal(desce.preco_sugerido, 13.09);
 });
 
-test('calcularItem: custo caiu — manter / repassar / por_curva', () => {
-  const caiu = { ...base, custo_imposto: 8 };
-  assert.equal(c.calcularItem(caiu, { politica: 'manter', arredondamento: '9' }).status, 'mantem');
-  assert.equal(c.calcularItem(caiu, { politica: 'manter', arredondamento: '9' }).preco_sugerido, 12.99);
-  const rep = c.calcularItem(caiu, { politica: 'repassar', arredondamento: '9' });
-  assert.equal(rep.status, 'desce');
-  assert.equal(rep.preco_sugerido, 10.49);            // 8×1.3 = 10.40 → 10.49
-  assert.equal(c.calcularItem(caiu, P9).status, 'mantem');                       // não é curva A
-  assert.equal(c.calcularItem({ ...caiu, curvaA: true }, P9).status, 'desce');   // curva A repassa
+test('regra 2: custo subiu mas margem dá preço abaixo do atual → desce (segue a margem)', () => {
+  const it = c.calcularItem({ ...base, preco_atual: 19.99 }, P9);
+  assert.equal(it.regra, 'margem');
+  assert.equal(it.status, 'desce');
+  assert.equal(it.preco_sugerido, 14.39);
+});
+
+test('regra 3: custo 20% (ou mais) abaixo do atual → preço 10% abaixo do preço atual', () => {
+  const it = c.calcularItem({ ...base, custo_atual: 10, custo_imposto: 8, preco_atual: 12.99 }, P9);
+  assert.equal(it.regra, 'desconto');
+  assert.equal(it.status, 'desce');
+  assert.equal(it.preco_sugerido, 11.69);           // 12.99×0.9 = 11.691 → 11.69 (já termina em 9)
+  const exato = c.calcularItem({ ...base, custo_atual: 10, custo_imposto: 8, preco_atual: 12.99 }, PN);
+  assert.equal(exato.preco_sugerido, 11.69);
+  const limite = c.calcularItem({ ...base, custo_atual: 10, custo_imposto: 8.0, preco_atual: 20 }, PN);
+  assert.equal(limite.regra, 'desconto');            // exatamente 20% conta
+  assert.equal(limite.preco_sugerido, 18);
+  const quase = c.calcularItem({ ...base, custo_atual: 10, custo_imposto: 8.01, preco_atual: 20 }, PN);
+  assert.equal(quase.regra, 'mantem');               // 19,9% não conta
+});
+
+test('regra 3: −10% não pode ficar abaixo do custo → piso', () => {
+  const it = c.calcularItem({ ...base, custo_atual: 10, custo_imposto: 8, preco_atual: 8.5 }, PN);
+  assert.equal(it.regra, 'desconto');
+  assert.equal(it.piso, true);
+  assert.equal(it.preco_sugerido, 8);               // 8.5×0.9 = 7.65 < custo 8 → 8.00
+});
+
+test('queda menor que 20% → mantém o preço atual', () => {
+  const it = c.calcularItem({ ...base, custo_atual: 10, custo_imposto: 9, preco_atual: 12.99 }, P9);
+  assert.equal(it.regra, 'mantem');
+  assert.equal(it.status, 'mantem');
+  assert.equal(it.preco_sugerido, 12.99);
+  assert.equal(it.piso, false);
 });
 
 test('calcularItem: sem margem → bloqueado', () => {
@@ -75,28 +107,34 @@ test('calcularItem: motivo_bloqueio externo vence tudo', () => {
   assert.equal(it.motivo, 'não casado no ERP');
 });
 
-test('calcularItem: piso no custo com imposto', () => {
-  const it = c.calcularItem({ ...base, margem: 1, custo_imposto: 11.5 }, { politica: 'manter', arredondamento: 'nenhum' });
-  // 11.5 × 1.01 = 11.615 → 11.62 ≥ custo: sem piso
-  assert.equal(it.piso, false);
-  const it2 = c.calcularItem({ ...base, margem: -10 }, { politica: 'manter', arredondamento: 'nenhum' });
-  assert.equal(it2.preco_sugerido, 11.5);
+test('calcularItem: piso no custo quando a margem é baixa/negativa', () => {
+  const it = c.calcularItem({ ...base, margem: 1, custo_imposto: 11.5 }, PN);
+  assert.equal(it.piso, false);                     // 11.5×1.01 = 11.615 → 11.62 ≥ custo
+  const it2 = c.calcularItem({ ...base, margem: -10 }, PN);
+  assert.equal(it2.preco_sugerido, 11);
   assert.equal(it2.piso, true);
 });
 
-test('calcularItem: preço atual 0/null (produto novo) → sobe, margem_se_mantem null', () => {
+test('calcularItem: preço atual 0/null (produto novo) → margem, sobe, margem_se_mantem null', () => {
   const it = c.calcularItem({ ...base, preco_atual: 0, custo_atual: null }, P9);
+  assert.equal(it.regra, 'margem');
   assert.equal(it.status, 'sobe');
   assert.equal(it.variacao, null);
   assert.equal(it.margem_se_mantem, null);
-  assert.equal(it.preco_sugerido, 14.99);
+  assert.equal(it.preco_sugerido, 14.39);
 });
 
-test('calcularItem: L4 com atacado', () => {
+test('calcularItem: L4 com atacado segue a mesma regra', () => {
   const it = c.calcularItem({ ...base, margem_atacado: 10, preco_atacado_atual: 11.5 }, P9);
-  assert.deepEqual(it.atacado, { preco_calc: 12.65, preco_sugerido: 12.69, preco_final: 12.69, piso: false });
+  assert.deepEqual(it.atacado, { preco_calc: 12.1, preco_sugerido: 12.19, preco_final: 12.19, piso: false });
   const semAt = c.calcularItem({ ...base, margem_atacado: 0, preco_atacado_atual: 11.5 }, P9);
   assert.equal(semAt.atacado, null);
+  const desc = c.calcularItem({ ...base, custo_atual: 10, custo_imposto: 7, preco_atual: 12.99, margem_atacado: 10, preco_atacado_atual: 11 }, PN);
+  assert.equal(desc.regra, 'desconto');
+  assert.equal(desc.atacado.preco_sugerido, 9.9);   // 11×0.9
+  const mant = c.calcularItem({ ...base, custo_atual: 10, custo_imposto: 9.5, preco_atual: 12.99, margem_atacado: 10, preco_atacado_atual: 11 }, PN);
+  assert.equal(mant.regra, 'mantem');
+  assert.equal(mant.atacado.preco_sugerido, 11);
 });
 
 test('calcularRegistro: recalcula e preserva edição manual', () => {
@@ -127,25 +165,12 @@ test('resumo: item mantem com piso conta em mudam e em piso', () => {
   assert.equal(r.mudam, 2);
 });
 
-test('calcularItem: piso vale também em mantem/sem_mudanca', () => {
-  // custo com imposto (13) acima do preço atual (12.99): manter deixaria preço abaixo do custo
-  const it = c.calcularItem({ ...base, custo_atual: 12.99, custo_imposto: 13, preco_atual: 12.99 }, { politica: 'manter', arredondamento: 'nenhum' });
-  assert.equal(it.status, 'sem_mudanca');
-  assert.equal(it.piso, true);
-  assert.ok(it.preco_sugerido >= 13);
-  assert.equal(it.preco_final, it.preco_sugerido);
-
-  const mant = c.calcularItem({ ...base, custo_atual: 20, custo_imposto: 13, preco_atual: 12.99 }, { politica: 'manter', arredondamento: 'nenhum' });
-  assert.equal(mant.status, 'mantem');      // custo caiu, política manter
+test('piso vale também quando mantém: preço atual abaixo do custo novo', () => {
+  const mant = c.calcularItem({ ...base, custo_atual: 15, custo_imposto: 13, preco_atual: 12.99 }, PN);
+  assert.equal(mant.regra, 'mantem');      // caiu 13%, menos de 20%
   assert.equal(mant.piso, true);
   assert.ok(mant.preco_sugerido >= 13);
-});
-
-test('calcularItem: piso no atacado quando mantém', () => {
-  const it = c.calcularItem({ ...base, custo_atual: 20, custo_imposto: 13, preco_atual: 12.99, margem_atacado: 5, preco_atacado_atual: 12.50 },
-                            { politica: 'manter', arredondamento: 'nenhum' });
-  assert.equal(it.status, 'mantem');
-  assert.equal(it.atacado.piso, true);
-  assert.ok(it.atacado.preco_sugerido >= 13);
-  assert.equal(it.atacado.preco_final, it.atacado.preco_sugerido);
+  const at = c.calcularItem({ ...base, custo_atual: 15, custo_imposto: 13, preco_atual: 12.99, margem_atacado: 5, preco_atacado_atual: 12.50 }, PN);
+  assert.equal(at.atacado.piso, true);
+  assert.ok(at.atacado.preco_sugerido >= 13);
 });
