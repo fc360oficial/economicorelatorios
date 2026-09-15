@@ -3573,6 +3573,7 @@ app.post('/api/itens/unidade-embalagem', (req, res) => {
   const overrides = carregarUnidadeEmbOverrides();
   overrides[codigo] = { unidade: unid, embalagem: emb };
   salvarUnidadeEmbOverrides(overrides);
+  try { radarPedidos.recarregarEmbPadrao(); } catch (e) {}   // Radar/Cotação passam a usar a caixa corrigida na hora
   res.json({ ok: true });
 });
 
@@ -6439,10 +6440,27 @@ app.get('/api/cotacoes/sugestao/:lista', async (req, res) => {
       cod: i.cod, descricao: i.descricao, unid: i.unid, emb: i.emb, emb_cadastro: i.emb_cadastro, lojas: i.lojas, curva_a: i.curva_a, validade: i.validade,
       venda_dia: i.venda_dia, estoque: i.estoque, estoque_bruto: i.estoque_bruto, transito: i.transito, cobertura_dias: i.cobertura_dias, alvo_dias: i.alvo_dias,
       qtd: i.qtd, volumes: i.volumes, custo: i.custo, total: i.total, flag: i.flag, lojas_qtd: i.lojas_qtd,
-      lojas_det: Object.fromEntries(Object.entries(i.lojas_det || {}).map(([ln, d]) => [ln, { estoque: d.estoque, venda_dia: d.venda_dia, cobertura_dias: d.cobertura_dias, transito: d.transito, ja_vendeu: d.ja_vendeu }]))
+      lojas_det: Object.fromEntries(Object.entries(i.lojas_det || {}).map(([ln, d]) => [ln, { estoque: d.estoque, estoque_bruto: d.estoque_bruto, venda_dia: d.venda_dia, cobertura_dias: d.cobertura_dias, transito: d.transito, transito_det: d.transito_det || [], ja_vendeu: d.ja_vendeu }]))
     }));
     res.json({ lista: det.lista, cadastro: cad, sem_lead: !det.lead, params: det.params, parametros: { cobertura, ponto, embMeses: embMeses ?? null },
       itens, com_qtd: itens.filter(i => i.qtd > 0).length, total: det.total, volumes: det.volumes, estado: radarPedidos.getEstado() });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+// Botão "Buscar caixa padrão" da sugestão (Tiago, 14/09): pros itens sem embalagem (ou os informados em cods),
+// vasculha todas as fontes de entrada (notas de qualquer época/fornecedor, XML da NF-e, Embalagem Vendas,
+// DUN-14, sugestão do ERP), grava data/emb-padrao.json e o Radar passa a usar (recalcule a sugestão depois)
+const embPadraoLib = require('./lib/emb-padrao');
+app.post('/api/cotacoes/sugestao/:lista/embalagens', async (req, res) => {
+  try {
+    const id = parseInt(req.params.lista); if (!(id > 0)) return res.status(400).json({ error: 'nº da lista inválido' });
+    const det = radarPedidos.itensLista(id, radarPedidos.TETO_PADRAO, 0, undefined, false, { alvo: radarPedidos.TETO_PADRAO, ponto: 3 });
+    if (!det) return res.status(404).json({ error: 'Lista não encontrada no Radar ou Radar ainda calculando' });
+    const pedidos = Array.isArray(req.body?.cods) && req.body.cods.length ? new Set(req.body.cods.map(String)) : null;
+    const alvo = det.itens.filter(i => pedidos ? pedidos.has(String(i.cod)) : !(i.emb > 1)).map(i => String(i.cod));
+    const r = await embPadraoLib.descobrir(q, alvo, det.lista.codFornec || 0);
+    embPadraoLib.gravar(r.encontrados);
+    radarPedidos.recarregarEmbPadrao();
+    res.json({ procurados: r.procurados, encontrados: Object.keys(r.encontrados).length, sem_padrao: r.semPadrao, fontes: r.fontes, resultados: r.encontrados, duracaoMs: r.duracaoMs });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 // contato pra pré-preencher o convite: vendedor cadastrado em alguma lista desse fornecedor + telefones do cadastro

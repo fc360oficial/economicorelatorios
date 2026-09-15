@@ -102,6 +102,12 @@ tr.off td{opacity:.45}
 .lj input{width:54px;border:1px solid var(--ln2);border-radius:6px;padding:4px 5px;font-family:inherit;font-size:12px;text-align:right}
 .lj input.ed{border-color:var(--am);background:var(--amw)}
 .lj input.z{color:var(--ink3)}
+.trn{cursor:pointer;border-bottom:1px dashed var(--ln2);white-space:nowrap;font-variant-numeric:tabular-nums}
+.trn small{color:var(--ink3);font-size:9px}
+.trn.on{color:var(--inf);border-bottom-color:var(--inf)}
+.trn-lj{text-align:left;font-size:11px;color:var(--ink2);margin-top:5px;white-space:nowrap;line-height:1.55}
+.trn-lj[hidden]{display:none}
+.neg{color:var(--neg)}
 .prod-cell{display:flex;flex-direction:column;gap:3px;white-space:normal;min-width:220px}
 .prod-meta{display:flex;flex-wrap:wrap;gap:3px 9px;font-size:10.5px;color:var(--ink3);font-weight:600}
 .prod-meta .m-good{color:var(--pos)} .prod-meta .m-warn{color:var(--amk)} .prod-meta .m-bad{color:var(--neg)}
@@ -236,11 +242,11 @@ td.price.manual{box-shadow:inset 0 0 0 2px var(--inf)}
     <div class="wizpanel on" id="w1">
       <div class="toolbar">
         <div class="l"><span id="w1-resumo"></span><label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" class="check" id="ns-so-qtd" checked onchange="renderSugestao()">só itens com quantidade</label><input type="text" id="ns-busca" placeholder="buscar produto…" oninput="renderSugestao()" style="border:1px solid var(--ln2);border-radius:8px;padding:6px 9px;font-family:inherit;font-size:12px"></div>
-        <div class="l"><button class="btn ghost sm" onclick="marcarTodos(true)">Marcar todos</button><button class="btn ghost sm" onclick="marcarTodos(false)">Desmarcar</button></div>
+        <div class="l"><button class="btn ghost sm" id="btn-emb" onclick="buscarCaixaPadrao()" title="Vasculha notas de entrada de qualquer época e fornecedor, XML das NF-e, Embalagem Vendas, código de caixa (DUN-14) e a sugestão do ERP pra achar a caixa padrão dos itens que estão sem">↻ Buscar caixa padrão</button><button class="btn ghost sm" onclick="marcarTodos(true)">Marcar todos</button><button class="btn ghost sm" onclick="marcarTodos(false)">Desmarcar</button></div>
       </div>
       <div class="tablewrap">
         <table>
-          <thead><tr><th></th><th>Código</th><th>Produto</th><th>Quantidade por loja</th><th style="text-align:right">Total</th><th style="text-align:right">Último custo</th><th style="text-align:right">R$</th></tr></thead>
+          <thead><tr><th></th><th>Código</th><th>Produto</th><th style="text-align:right">Estoque</th><th style="text-align:right">Trânsito</th><th>Quantidade por loja</th><th style="text-align:right">Total</th><th style="text-align:right">Último custo</th><th style="text-align:right">R$</th></tr></thead>
           <tbody id="w1-tbody"></tbody>
         </table>
       </div>
@@ -383,12 +389,17 @@ function filtrarMonitor(){
 }
 
 // ───────── NOVA COTAÇÃO — sugestão de compra (topo)
-async function calcularSugestao(){
+async function calcularSugestao(manter){
   var lista = parseInt($('#ns-lista').value); if (!(lista > 0)) { toastMsg('Digite o nº da lista do ERP'); $('#ns-lista').focus(); return; }
   var btn = $('#ns-btn'); btn.disabled = true; btn.textContent = 'Calculando…'; $('#ns-info').innerHTML = '';
   try {
+    var anterior = manter === true && SUG && SUG.lista.lista === lista ? {edit: EDIT, sel: SEL} : null;
     SUG = await api('/api/cotacoes/sugestao/' + lista + '?cobertura=' + ($('#ns-cob').value || 28) + '&ponto=' + ($('#ns-ponto').value || 0) + '&emb=' + ($('#ns-emb').value || 36));
     EDIT = {}; SEL = {}; SUG.itens.forEach(function(i){ if (i.qtd > 0) SEL[i.cod] = true; });
+    if (anterior) {
+      // recálculo depois de achar caixa padrão: mantém marcação e quantidades digitadas, arredondadas pra nova caixa
+      SUG.itens.forEach(function(i){ if (anterior.sel[i.cod] != null) SEL[i.cod] = anterior.sel[i.cod]; var e = anterior.edit[i.cod]; if (!e) return; EDIT[i.cod] = {}; Object.keys(e).forEach(function(ln){ var v = e[ln]; EDIT[i.cod][ln] = v > 0 && i.emb > 1 ? Math.ceil(v / i.emb) * i.emb : v; }); });
+    }
     var L = SUG.lista, P = SUG.params;
     $('#ns-info').innerHTML =
       '<span>Lista <b>' + L.lista + ' · ' + esc(L.nome) + '</b></span>' +
@@ -416,9 +427,36 @@ function atualizarLinha(i){
   tr.querySelectorAll('.lj input').forEach(function(inp){ var ln = inp.dataset.ln, v = qtdLoja(i, ln); inp.classList.toggle('ed', !!(EDIT[i.cod] && EDIT[i.cod][ln] != null && EDIT[i.cod][ln] !== (i.lojas_qtd[ln] || 0))); inp.classList.toggle('z', v === 0); });
 }
 function atualizarResumoW1(){
-  var n = 0, tot = 0, vol = 0;
-  SUG.itens.forEach(function(i){ if (!SEL[i.cod]) return; var q = qtdItem(i); if (q <= 0) return; n++; tot += q * i.custo; vol += Math.ceil(q / (i.emb || 1)); });
-  $('#w1-resumo').innerHTML = '<b>' + n + '</b> itens na cotação · <b>' + fmtN(vol) + '</b> volumes · a último custo <b>' + fmtR(tot) + '</b>';
+  var n = 0, tot = 0, vol = 0, semPadrao = 0;
+  SUG.itens.forEach(function(i){ if (!(i.emb > 1)) semPadrao++; if (!SEL[i.cod]) return; var q = qtdItem(i); if (q <= 0) return; n++; tot += q * i.custo; vol += Math.ceil(q / (i.emb || 1)); });
+  $('#w1-resumo').innerHTML = '<b>' + n + '</b> itens na cotação · <b>' + fmtN(vol) + '</b> volumes · a último custo <b>' + fmtR(tot) + '</b>' + (semPadrao ? ' · <span style="color:var(--neg);font-weight:700">' + semPadrao + ' sem caixa padrão</span>' : ' · <span style="color:var(--pos);font-weight:700">todos com caixa padrão</span>');
+  var b = $('#btn-emb'); if (b) { b.textContent = '↻ Buscar caixa padrão' + (semPadrao ? ' (' + semPadrao + ')' : ''); b.disabled = !semPadrao; }
+}
+// de onde veio a embalagem do item (ordem do Radar: manual > notas do fornecedor da lista > padrão descoberto > cadastro)
+function embLabel(i){
+  var e = i.emb || 1;
+  if (!(e > 1)) return '<span class="m-bad">sem caixa padrão · digite: <input type="text" inputmode="numeric" class="qtyinput" style="width:44px;padding:2px 5px;font-size:11px" placeholder="un/cx" onchange="definirCaixa(\'' + esc(i.cod) + '\',\'' + esc(i.unid || 'UN') + '\',this.value)" onclick="event.stopPropagation()"></span>';
+  var fonte = i.emb_manual && e === i.emb_manual ? 'manual' : (i.emb_compra && e === i.emb_compra ? 'notas' : (i.emb_padrao && e === i.emb_padrao.emb ? (i.emb_padrao.fonte || 'padrão') : (e === i.emb_cadastro ? 'cadastro' : '')));
+  var nomes = {manual:'corrigida à mão', notas:'notas de entrada', xml:'XML da NF-e', vendas:'Embalagem Vendas', dun14:'código de caixa', erp:'sugestão do ERP', cadastro:'cadastro'};
+  return '<span title="fonte: ' + (nomes[fonte] || fonte || '—') + '">Cx ' + e + (fonte ? ' <i style="font-style:normal;color:var(--ink3)">(' + (nomes[fonte] || fonte) + ')</i>' : '') + '</span>';
+}
+async function buscarCaixaPadrao(){
+  if (!SUG) return;
+  var cods = SUG.itens.filter(function(i){ return !(i.emb > 1); }).map(function(i){ return i.cod; });
+  if (!cods.length) { toastMsg('Todos os itens já têm caixa padrão'); return; }
+  var b = $('#btn-emb'); b.disabled = true; b.textContent = 'Procurando em ' + cods.length + ' itens…';
+  try {
+    var r = await post('/api/cotacoes/sugestao/' + SUG.lista.lista + '/embalagens', {cods: cods});
+    var f = r.fontes || {}, partes = [];
+    if (f.notas) partes.push(f.notas + ' nas notas de entrada'); if (f.xml) partes.push(f.xml + ' no XML da NF-e'); if (f.vendas) partes.push(f.vendas + ' na Embalagem Vendas'); if (f.dun14) partes.push(f.dun14 + ' por código de caixa'); if (f.erp) partes.push(f.erp + ' na sugestão do ERP'); if (f.manual) partes.push(f.manual + ' corrigidos à mão');
+    toastMsg('Caixa padrão encontrada pra ' + r.encontrados + ' de ' + r.procurados + ' itens' + (partes.length ? ' (' + partes.join(', ') + ')' : '') + (r.sem_padrao.length ? ' · ' + r.sem_padrao.length + ' continuam sem: digite a caixa na linha' : ''));
+    await calcularSugestao(true);
+  } catch(e) { toastMsg('Erro: ' + e.message); b.disabled = false; b.textContent = '↻ Buscar caixa padrão'; }
+}
+async function definirCaixa(cod, unid, v){
+  var e = Math.round(parseFloat(String(v).replace(',', '.'))); if (!(e >= 1)) return;
+  try { await post('/api/itens/unidade-embalagem', {codigo: cod, unidade: unid || 'UN', embalagem: e}); toastMsg('Caixa de ' + e + ' gravada pro produto ' + cod + ' (vale no Radar também)'); await calcularSugestao(true); }
+  catch(err) { toastMsg('Erro: ' + err.message); }
 }
 function renderSugestao(){
   if (!SUG) return;
@@ -432,7 +470,8 @@ function renderSugestao(){
     return '<tr id="sg-' + esc(i.cod) + '" class="' + (SEL[i.cod] ? '' : 'off') + '">' +
       '<td><input type="checkbox" class="check" ' + (SEL[i.cod] ? 'checked' : '') + ' onchange="SEL[\'' + esc(i.cod) + '\']=this.checked;atualizarLinha(SUG.itens.find(function(x){return x.cod===\'' + esc(i.cod) + '\'}));atualizarResumoW1()"></td>' +
       '<td class="mini">' + esc(i.cod) + '</td>' +
-      '<td><div class="prod-cell"><b>' + esc(i.descricao) + (i.curva_a ? ' <span class="an-badge bad" style="font-size:9.5px;padding:1px 6px">curva A</span>' : '') + '</b><span class="prod-meta"><span>Emb ' + i.emb + '</span><span>Estoque ' + fmtN(i.estoque, 0) + '</span><span>Venda/dia ' + fmtN(i.venda_dia, 2) + '</span><span class="m-' + band.cls + '">Cobertura ' + (i.cobertura_dias != null ? '~' + fmtN(i.cobertura_dias, 0) + ' d' : '—') + ' · ' + band.label + '</span>' + (i.transito > 0 ? '<span>Trânsito ' + fmtN(i.transito, 0) + '</span>' : '') + (i.flag ? '<span class="m-warn">' + esc(i.flag) + '</span>' : '') + '</span></div></td>' +
+      '<td><div class="prod-cell"><b>' + esc(i.descricao) + (i.curva_a ? ' <span class="an-badge bad" style="font-size:9.5px;padding:1px 6px">curva A</span>' : '') + '</b><span class="prod-meta">' + embLabel(i) + '<span>Venda/dia ' + fmtN(i.venda_dia, 2) + '</span><span class="m-' + band.cls + '">Cobertura ' + (i.cobertura_dias != null ? '~' + fmtN(i.cobertura_dias, 0) + ' d' : '—') + ' · ' + band.label + '</span>' + (i.flag ? '<span class="m-warn">' + esc(i.flag) + '</span>' : '') + '</span></div></td>' +
+      '<td class="price">' + colEstoque(i) + '</td><td class="price">' + colTransito(i) + '</td>' +
       '<td>' + lojas + '</td>' +
       '<td class="price q-tot">' + fmtN(q) + (i.emb > 1 ? '<br><span class="mini">' + Math.ceil(q / i.emb) + ' cx de ' + i.emb + '</span>' : '') + '</td>' +
       '<td class="price">' + fmtR(i.custo) + '</td>' +
@@ -441,6 +480,18 @@ function renderSugestao(){
   atualizarResumoW1();
 }
 function marcarTodos(v){ if (!SUG) return; SUG.itens.forEach(function(i){ if (qtdItem(i) > 0 || !v) SEL[i.cod] = v; }); renderSugestao(); }
+// Estoque e Trânsito no formato do Radar: total + ▾ que abre o detalhe por loja (estoque negativo do ERP em vermelho;
+// trânsito com nº da sugestão aberta no ERP e NF-e já chegada, clicável = DANFE)
+function toggleTrn(el){ var d = el.nextElementSibling; d.hidden = !d.hidden; el.classList.toggle('on', !d.hidden); }
+function colEstoque(i){
+  var det = Object.keys(i.lojas_det || {}).map(function(l){ var d = i.lojas_det[l]; return '<div' + (d.estoque <= 0 && d.venda_dia > 0 ? ' class="neg"' : '') + '>L' + l + ' ' + (LOJAS_NOMES[l] || '') + ': <b>' + fmtN(d.estoque, 0) + '</b>' + (d.estoque_bruto < 0 ? ' <span class="neg" title="negativo no ERP, tratado como zero">(ERP ' + fmtN(d.estoque_bruto, 0) + ')</span>' : '') + (d.cobertura_dias != null ? ' · ' + fmtN(d.cobertura_dias, 0) + ' d' : '') + (d.transito > 0 ? ' · +' + fmtN(d.transito, 0) + ' chegando' : '') + '</div>'; }).join('');
+  return '<span class="trn" title="Clique pra ver o estoque por loja" onclick="event.stopPropagation();toggleTrn(this)">' + fmtN(i.estoque, 0) + (i.estoque_bruto < 0 ? ' <span class="neg" title="Estoque negativo no ERP (soma das lojas negativas ' + fmtN(i.estoque_bruto, 0) + '); o cálculo trata como zero">(' + fmtN(i.estoque_bruto, 0) + ')</span>' : '') + ' <small>▾</small></span><div class="trn-lj" hidden>' + det + '</div>';
+}
+function colTransito(i){
+  if (!(i.transito > 0)) return '<span class="mini">—</span>';
+  var det = Object.keys(i.lojas_det || {}).map(function(l){ var d = i.lojas_det[l]; return '<div' + (d.transito > 0 ? '' : ' style="color:var(--ink3)"') + '>L' + l + ' ' + (LOJAS_NOMES[l] || '') + ': <b>' + fmtN(d.transito, 0) + '</b>' + (d.transito_det || []).map(function(t){ return '<div style="padding-left:8px;color:var(--ink2)">sug. ' + t.sugestao + (t.data ? ' de ' + String(t.data).split('-').reverse().join('/').slice(0, 5) : '') + ' · ' + fmtN(t.und, 0) + ' un' + (t.nfe && t.nfe.length ? ' · NF-e ' + t.nfe.map(function(n){ return '<a href="/api/radar-pedidos/nfe/' + esc(n.chave) + '/danfe" target="_blank" style="color:var(--inf);font-weight:700" title="XML já no ERP (emitida ' + String(n.data).split('-').reverse().join('/') + '), ainda não importada. Abre a DANFE." onclick="event.stopPropagation()">' + esc(n.nNota) + '</a>'; }).join(', ') : ' · <span style="color:var(--ink3)">sem NF-e ainda</span>') + '</div>'; }).join('') + '</div>'; }).join('');
+  return '<span class="trn" title="Clique pra ver em quais lojas está chegando (sugestões abertas no ERP)" onclick="event.stopPropagation();toggleTrn(this)">' + fmtN(i.transito, 0) + ' <small>▾</small></span><div class="trn-lj" hidden>' + det + '</div>';
+}
 function itensSelecionados(){
   return SUG.itens.filter(function(i){ return SEL[i.cod]; }).map(function(i){
     var lq = {}; i.lojas.forEach(function(ln){ var v = qtdLoja(i, ln); if (v > 0) lq[ln] = v; });
