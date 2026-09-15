@@ -345,8 +345,8 @@ table.cons-det td.neg{color:#B23A3A;font-weight:700}
     </tr></thead><tbody id="c-det-tbody"></tbody></table></div>
 
     <div class="cons-barra">
-      <button class="btn btn-danger-out" onclick="alternarItemAtivo(false)">Excluir/Desativar item</button>
-      <button class="btn btn-slate" onclick="alternarItemAtivo(true)">Ativar item</button>
+      <button class="btn btn-danger-out" id="c-btn-desativar" onclick="alternarItemAtivo(false)">Excluir/Desativar item</button>
+      <button class="btn btn-slate" id="c-btn-ativar" onclick="alternarItemAtivo(true)">Ativar item</button>
       <label>Exibir itens:
         <select id="c-filtro" onchange="CONS.filtro=this.value;renderConsItens()"><option value="todos">Todos</option><option value="com_qtd">Com quantidade</option><option value="sem_giro">Sem giro</option></select>
       </label>
@@ -587,6 +587,8 @@ function statusInfo(s){
 // ── Consolidação da Lista (Sugestão Manual) ──
 const CONS = { s: null, sel: null, filtro: 'todos', busca: '', pend: null, timer: null };
 const fmtN = (v, d = 2) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
+const escH = v => String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+const escJ = v => String(v ?? '').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;').replace(/</g,'\\x3c');
 function esconderTudoConsolidacao(){ for (const id of ['rupturas-view','monitor-view','por-lista-view','sugestao-wrap']) document.getElementById(id).style.display = 'none'; }
 async function abrirConsolidacao(id, dados){
   esconderTudoConsolidacao();
@@ -618,6 +620,8 @@ function renderConsCabecalho(){
   const op = document.getElementById('c-origem'); op.className = 'origem-pill ' + s.origem; op.textContent = s.origem === 'fluxo' ? 'FLUXO' : 'DLINKS';
   document.getElementById('c-recalc').style.display = s.origem === 'fluxo' && !consTravada() ? '' : 'none';
   document.getElementById('c-gerar').disabled = consTravada() || s.status === 'desativada';
+  document.getElementById('c-btn-desativar').disabled = consTravada();
+  document.getElementById('c-btn-ativar').disabled = consTravada();
   document.getElementById('c-salvo').textContent = '';
 }
 function itensFiltrados(){
@@ -633,11 +637,11 @@ function itensFiltrados(){
 function renderConsItens(){
   const its = itensFiltrados(); const trav = consTravada();
   document.getElementById('c-itens-tbody').innerHTML = its.length ? its.map(it => `
-    <tr class="${it.codigo === CONS.sel ? 'sel' : ''} ${it.ativo ? '' : 'inativo'}" onclick="selecionarItem('${it.codigo}')">
-      <td class="cod">${it.codigo}</td><td>${it.descricao}</td><td class="c">${it.und || ''}</td><td class="c">${it.emb}</td>
-      <td class="c"><input type="number" min="0" class="qtd ${it.quantidade ? '' : 'zero'}" value="${it.quantidade}" ${(!it.ativo || trav) ? 'disabled' : ''} onclick="event.stopPropagation()" onchange="editarQuantidade('${it.codigo}', this.value)"></td>
+    <tr class="${it.codigo === CONS.sel ? 'sel' : ''} ${it.ativo ? '' : 'inativo'}" onclick="selecionarItem('${escJ(it.codigo)}')">
+      <td class="cod">${escH(it.codigo)}</td><td>${escH(it.descricao)}</td><td class="c">${escH(it.und || '')}</td><td class="c">${it.emb}</td>
+      <td class="c"><input type="number" min="0" class="qtd ${it.quantidade ? '' : 'zero'}" value="${it.quantidade}" ${(!it.ativo || trav) ? 'disabled' : ''} onclick="event.stopPropagation()" onchange="editarQuantidade('${escJ(it.codigo)}', this.value)"></td>
       <td class="r">${fmtN(it.preco_und)}</td><td class="r">${fmtN(it.preco_und * (it.emb || 1))}</td><td class="r">${fmtN(it.quantidade * it.preco_und)}</td>
-      <td><input type="text" class="obs" value="${(it.obs || '').replace(/"/g, '&quot;')}" ${trav ? 'disabled' : ''} onclick="event.stopPropagation()" onchange="editarObs('${it.codigo}', this.value)"></td>
+      <td><input type="text" class="obs" value="${escH(it.obs || '')}" ${trav ? 'disabled' : ''} onclick="event.stopPropagation()" onchange="editarObs('${escJ(it.codigo)}', this.value)"></td>
     </tr>`).join('') : '<tr><td colspan="9" class="empty">Nenhum item.</td></tr>';
   const ativos = CONS.s.itens.filter(i => i.ativo);
   document.getElementById('c-contagem').textContent = `${its.length} - Produto(s)`;
@@ -653,14 +657,14 @@ function renderConsDetalhe(){
   const cob = v => v == null ? '—' : (v >= 9999 ? '∞' : fmtN(v, 0));
   tb.innerHTML = it.lojas.map(l => `
     <tr>
-      <td><b>${l.loja}</b></td><td>${l.ultima_compra || '—'}</td><td>${l.ultima_venda || '—'}</td><td>${l.fornecedor || '—'}</td>
-      <td class="c">${l.un || ''}</td><td class="c">${l.emb ?? '—'}</td>
+      <td><b>${l.loja}</b></td><td>${escH(l.ultima_compra) || '—'}</td><td>${escH(l.ultima_venda) || '—'}</td><td>${escH(l.fornecedor) || '—'}</td>
+      <td class="c">${escH(l.un) || '—'}</td><td class="c">${l.emb ?? '—'}</td>
       <td class="r">${l.qtd_compra == null ? '—' : fmtN(l.qtd_compra, 0)}</td><td class="r">${l.preco_compra == null ? '—' : fmtN(l.preco_compra)}</td><td class="r">${l.total_compra == null ? '—' : fmtN(l.total_compra)}</td>
       <td class="r">${fmtN(l.custo)}</td><td class="r">${fmtN(l.preco_atual)}</td>
-      <td class="r ${l.estoque <= 0 ? 'neg' : ''}">${fmtN(l.estoque, 0)}</td><td class="r ${l.pmv <= 0 ? 'neg' : ''}">${fmtN(l.pmv)}</td>
+      <td class="r ${typeof l.estoque === 'number' && l.estoque <= 0 ? 'neg' : ''}">${fmtN(l.estoque, 0)}</td><td class="r ${typeof l.pmv === 'number' && l.pmv <= 0 ? 'neg' : ''}">${fmtN(l.pmv)}</td>
       <td class="r">${fmtN(l.qtd_venda, 0)}</td><td class="r">${l.dias_venda == null ? '—' : l.dias_venda}</td><td class="r">${fmtN(l.media)}</td><td class="r">${cob(l.dias_cob)}</td>
-      <td class="r"><b>${l.sug_sistema}</b></td><td class="r">${fmtN(l.transito, 0)}</td><td class="c">${l.abc || '—'}</td>
-      <td class="c"><input type="number" min="0" class="qtd ${l.sug_loja ? '' : 'zero'}" value="${l.sug_loja}" ${trav ? 'disabled' : ''} onchange="editarSugLoja('${it.codigo}', ${l.loja}, this.value)"></td>
+      <td class="r"><b>${l.sug_sistema == null ? '—' : l.sug_sistema}</b></td><td class="r">${fmtN(l.transito, 0)}</td><td class="c">${l.abc || '—'}</td>
+      <td class="c"><input type="number" min="0" class="qtd ${l.sug_loja ? '' : 'zero'}" value="${l.sug_loja}" ${trav ? 'disabled' : ''} onchange="editarSugLoja('${escJ(it.codigo)}', ${l.loja}, this.value)"></td>
     </tr>`).join('');
 }
 // sugestão loja → quantidade do item = soma das lojas
@@ -727,19 +731,20 @@ async function gerarPedidoConsolidacao(){
   try {
     const corpo = conf => JSON.stringify({ listas: [s.lista.id], ajustes: { [s.lista.id]: ajustes }, substituir: true, origem: 'sugestao-manual', confirmar_excesso: conf });
     let r = await fetch('/api/pedidos-fornecedor', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: corpo(false) });
-    let j = await r.json();
+    let j = await r.json().catch(() => ({ error: 'Resposta inválida do servidor (' + r.status + ')' }));
     if (r.status === 409 && j.bloqueados) {
       const SL = { cobertura_excessiva: 'cobertura >120 d', parado: 'parado', nao_merece: 'não merece', compra_e_nao_vende: 'compra e não vende' };
       const txt = j.bloqueados.slice(0, 25).map(b => '• L' + b.loja + ' · ' + b.descricao + ' · ' + b.qtd + ' un · ' + (SL[b.classe] || b.classe) + (b.cob && b.cob !== 9999 ? ' (' + b.cob + ' d)' : '')).join('\n') + (j.bloqueados.length > 25 ? '\n… e mais ' + (j.bloqueados.length - 25) : '');
       if (!confirm('SORTIMENTO: ' + j.bloqueados.length + ' item(ns) com alerta iriam no pedido:\n\n' + txt + '\n\nConfirmar e gerar mesmo assim?')) throw new Error('Cancelado: zere esses itens ou confirme.');
-      r = await fetch('/api/pedidos-fornecedor', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: corpo(true) }); j = await r.json();
+      r = await fetch('/api/pedidos-fornecedor', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: corpo(true) }); j = await r.json().catch(() => ({ error: 'Resposta inválida do servidor (' + r.status + ')' }));
     }
     if (j.error) throw new Error(j.error);
     const p = (j.criados || [])[0];
     if (!p) throw new Error((j.sem_itens || []).map(x => x.motivo).join('; ') || 'Pedido não foi criado');
-    await fetch('/api/sugestao-manual/' + encodeURIComponent(s.id), { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'pedido_gerado', pedido_id: p.id }) });
+    let travou = true;
+    try { const rp = await fetch('/api/sugestao-manual/' + encodeURIComponent(s.id), { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'pedido_gerado', pedido_id: p.id }) }); const jp = await rp.json().catch(() => ({})); if (!rp.ok || jp.error) travou = false; } catch (e) { travou = false; }
     s.status = 'pedido_gerado'; s.pedido_id = p.id; renderConsCabecalho(); renderConsItens(); renderConsDetalhe();
-    alert(`Pedido #${p.id} criado · ${p.itens} item(ns)` + (j.nao_encontrados && j.nao_encontrados.length ? `\n${j.nao_encontrados.length} código(s) fora da lista do Radar foram ignorados` : '') + `\n\nLink pro vendedor:\n${p.link}\n\nAbrindo Pedidos de Compra...`);
+    alert(`Pedido #${p.id} criado · ${p.itens} item(ns)` + (j.nao_encontrados && j.nao_encontrados.length ? `\n${j.nao_encontrados.length} código(s) fora da lista do Radar foram ignorados` : '') + `\n\nLink pro vendedor:\n${p.link}\n\nAbrindo Pedidos de Compra...` + (travou ? '' : '\n\nATENÇÃO: o pedido foi criado, mas não consegui marcar a sugestão como "pedido gerado". Não gere de novo — avise o suporte.'));
     location.href = '/pedidos-compra.html';
   } catch (e) { alert(e.message); btn.disabled = false; btn.textContent = 'Gerar Pedido'; }
 }
@@ -750,7 +755,8 @@ function exportarExcelConsolidacao(){
   for (const it of s.itens) L.push([it.codigo, it.descricao, it.und, it.emb, it.quantidade, it.preco_und, +(it.preco_und * it.emb).toFixed(2), +(it.quantidade * it.preco_und).toFixed(2), it.obs || '', it.ativo ? 'S' : 'N']);
   L.push([], ['Código','Loja','Última Compra','Última Venda','Custo Unit.','Preço Atual','Estoque','PMV','Qtd Venda','Dias de Venda','Média Período','Dias de Cob.','Sugestão Sistema','Trânsito','ABC','Sugestão Loja']);
   for (const it of s.itens) for (const l of it.lojas) L.push([it.codigo, l.loja, l.ultima_compra || '', l.ultima_venda || '', l.custo, l.preco_atual, l.estoque, l.pmv, l.qtd_venda, l.dias_venda ?? '', l.media, l.dias_cob ?? '', l.sug_sistema, l.transito, l.abc || '', l.sug_loja]);
-  const csv = L.map(r => r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(';')).join('\n');
+  const csvCell = c => { let s = String(c ?? ''); if (typeof c === 'string' && /^[=+\-@\t\r]/.test(s)) s = "'" + s; return '"' + s.replace(/"/g, '""') + '"'; };
+  const csv = L.map(r => r.map(csvCell).join(';')).join('\n');
   const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' }); const url = URL.createObjectURL(blob);
   const a = document.createElement('a'); a.href = url; a.download = `sugestao-${s.id}-lista-${s.lista.id}.csv`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
 }
@@ -815,13 +821,13 @@ function renderMonitorTabela(todasRows){
       <th>Sugestão</th><th>Lista</th><th>Fornecedor</th><th>CNPJ</th><th>Comprador</th><th>Loja(s)</th><th>Status</th><th class="r">Total</th><th>Data</th>
     </tr></thead><tbody>${rows.map(s => {
       const si = statusInfo(s);
-      return `<tr class="st-${si.cls}${s.desativada?' desativada':''}" onclick="abrirConsolidacao('${s.origem === 'fluxo' ? s.sugestao : 'D-' + s.sugestao}')" title="${s.periodo_venda?`Venda ${s.periodo_venda} · cobertura ${s.cobertura}d · ${s.itens} item(ns)`:''}">
-        <td class="chk"><input type="checkbox" class="chk-sugestao" data-id="${s.sugestao}" data-origem="${s.origem}" onclick="event.stopPropagation();atualizarBotaoDesativar()"></td>
-        <td><span class="origem-pill ${s.origem}">${s.origem === 'fluxo' ? 'FLUXO' : 'DLINKS'}</span><b>${s.sugestao}</b></td>
-        <td>${s.lista}</td>
-        <td>${s.fornecedor||'—'}</td>
-        <td class="cod">${s.cnpj||'—'}</td>
-        <td>${s.comprador||'—'}</td>
+      return `<tr class="st-${si.cls}${s.desativada?' desativada':''}" onclick="abrirConsolidacao('${s.origem === 'fluxo' ? escJ(s.sugestao) : 'D-' + escJ(s.sugestao)}')" title="${escH(s.periodo_venda?`Venda ${s.periodo_venda} · cobertura ${s.cobertura}d · ${s.itens} item(ns)`:'')}">
+        <td class="chk"><input type="checkbox" class="chk-sugestao" data-id="${escH(s.sugestao)}" data-origem="${escH(s.origem)}" onclick="event.stopPropagation();atualizarBotaoDesativar()"></td>
+        <td><span class="origem-pill ${s.origem}">${s.origem === 'fluxo' ? 'FLUXO' : 'DLINKS'}</span><b>${escH(s.sugestao)}</b></td>
+        <td>${escH(s.lista)}</td>
+        <td>${escH(s.fornecedor)||'—'}</td>
+        <td class="cod">${escH(s.cnpj)||'—'}</td>
+        <td>${escH(s.comprador)||'—'}</td>
         <td>Loja(s): ${s.lojas.length ? s.lojas.join(' - ') : '—'}</td>
         <td><span class="status-pill ${si.cls}"><span class="status-dot ${si.cls}"></span>${si.label}${si.extra?`<span class="num">${si.extra}</span>`:''}</span></td>
         <td class="r">${fmt(s.total)}</td>
