@@ -6564,7 +6564,7 @@ app.get('/api/cotacoes/fornecedor/:codFornec/contato', async (req, res) => {
     const [ag] = await q(`SELECT a.Nome, a.email, a.whats, l.nReg lista, l.Nome lista_nome FROM central.c_cotacao_agenda a JOIN central.c_cotacao_lista l ON l.nReg=a.nLista WHERE l.CodFornec=? ORDER BY a.nLista DESC LIMIT 1`, [cod]).catch(() => []);
     const telefones = [];
     if (f) for (const [k, v] of Object.entries(f)) if (/fone|cel|whats|tel/i.test(k) && v && String(v).replace(/\D/g, '').length >= 8) telefones.push({ campo: k, valor: String(v).trim() });
-    res.json({ codFornec: cod, nome: f ? String(f.NomeCompleto || f.Nome || '').trim() : null,
+    res.json({ codFornec: cod, nome: f ? String(f.NomeCompleto || f.Nome || '').trim() : null, cnpj: f ? (String(f.CNPJ || '').replace(/\D/g, '') || null) : null,
       vendedor: ag ? { nome: ag.Nome?.trim() || null, email: ag.email || null, whats: ag.whats || null, lista: ag.lista, lista_nome: ag.lista_nome?.trim() || null } : null, telefones });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -6602,7 +6602,7 @@ app.get('/api/cotacoes/lista/:lista/fornecedores', async (req, res) => {
 app.post('/api/cotacoes/lista/:lista/fornecedores', (req, res) => {
   try {
     const id = parseInt(req.params.lista); if (!(id > 0)) return res.status(400).json({ error: 'nº da lista inválido' });
-    const lista = (Array.isArray(req.body?.fornecedores) ? req.body.fornecedores : []).map(f => ({ codFornec: parseInt(f.codFornec) || 0, nome: String(f.nome || '').slice(0, 120), nome_planilha: f.nome_planilha ? String(f.nome_planilha).slice(0, 120) : null, cnpj: f.cnpj ? String(f.cnpj).replace(/\D/g, '').slice(0, 14) : null, casou: f.casou || null, outros: Array.isArray(f.outros) ? f.outros.slice(0, 10).map(String) : null, inativo: !!f.inativo, inativo_em: f.inativo ? (f.inativo_em || new Date().toISOString()) : null, vendedor: { nome: String(f.vendedor?.nome || '').slice(0, 80), whats: String(f.vendedor?.whats || '').replace(/\D/g, '').slice(0, 20), email: String(f.vendedor?.email || '').slice(0, 120) } })).filter(f => f.codFornec > 0 || f.nome);
+    const lista = (Array.isArray(req.body?.fornecedores) ? req.body.fornecedores : []).map(f => ({ codFornec: parseInt(f.codFornec) || 0, nome: String(f.nome || '').slice(0, 120), nome_planilha: f.nome_planilha ? String(f.nome_planilha).slice(0, 120) : null, cnpj: f.cnpj ? String(f.cnpj).replace(/\D/g, '').slice(0, 14) : null, casou: f.casou || null, outros: Array.isArray(f.outros) ? f.outros.slice(0, 10).map(String) : null, inativo: !!f.inativo, inativo_em: f.inativo ? (f.inativo_em || new Date().toISOString()) : null, faturamento_minimo: (parseFloat(String(f.faturamento_minimo ?? '').replace(/\./g, '').replace(',', '.')) || null), condicao: f.condicao ? String(f.condicao).slice(0, 80) : null, prazo_entrega: parseInt(f.prazo_entrega) || null, obs: f.obs ? String(f.obs).slice(0, 300) : null, vendedor: { nome: String(f.vendedor?.nome || '').slice(0, 80), whats: String(f.vendedor?.whats || '').replace(/\D/g, '').slice(0, 20), email: String(f.vendedor?.email || '').slice(0, 120) } })).filter(f => f.codFornec > 0 || f.nome);
     const todos = lerCotForn(); todos[id] = lista; todos[id + '_em'] = new Date().toISOString(); todos[id + '_por'] = cotUser(req);
     fs.mkdirSync(path.dirname(COT_FORN_PATH), { recursive: true }); fs.writeFileSync(COT_FORN_PATH, JSON.stringify(todos, null, 2));
     res.json({ ok: true, salvos: lista.length });
