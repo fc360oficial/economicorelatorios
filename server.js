@@ -6456,7 +6456,7 @@ app.post('/api/cotacoes/sugestao/:lista/embalagens', async (req, res) => {
     const det = radarPedidos.itensLista(id, radarPedidos.TETO_PADRAO, 0, undefined, false, { alvo: radarPedidos.TETO_PADRAO, ponto: 3 });
     if (!det) return res.status(404).json({ error: 'Lista não encontrada no Radar ou Radar ainda calculando' });
     const pedidos = Array.isArray(req.body?.cods) && req.body.cods.length ? new Set(req.body.cods.map(String)) : null;
-    const alvo = det.itens.filter(i => pedidos ? pedidos.has(String(i.cod)) : !(i.emb > 1)).map(i => String(i.cod));
+    const alvo = det.itens.filter(i => pedidos ? pedidos.has(String(i.cod)) : (!(i.emb > 1) && !(i.emb_manual >= 1))).map(i => String(i.cod));
     const r = await embPadraoLib.descobrir(q, alvo, det.lista.codFornec || 0);
     embPadraoLib.gravar(r.encontrados);
     radarPedidos.recarregarEmbPadrao();
