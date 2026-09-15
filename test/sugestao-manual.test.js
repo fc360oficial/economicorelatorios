@@ -180,3 +180,15 @@ test('montarItens: calcula por loja, quantidade = soma, ABC e P/M', () => {
   assert.equal(r.itens[2].lojas[0].dias_cob, null);
   assert.equal(r.pm, +(500 / 55).toFixed(2));
 });
+
+test('mesesDoPeriodo: intervalo invertido devolve []', () => {
+  assert.deepEqual(sm.mesesDoPeriodo('2026-09-15', '2026-09-01'), []);
+});
+
+test('mesesDoPeriodo: cruza um mês', () => {
+  assert.deepEqual(sm.mesesDoPeriodo('2026-08-15', '2026-09-15'), [8, 9]);
+});
+
+test('mesesDoPeriodo: cruza o ano novo', () => {
+  assert.deepEqual(sm.mesesDoPeriodo('2026-12-20', '2027-01-05'), [12, 1]);
+});
