@@ -426,7 +426,7 @@ var LOJA_F = null;   // card de loja clicado em cima: mostra só essa loja (iten
 function filtrarLoja(ln){ LOJA_F = String(LOJA_F) === String(ln) ? null : ln; renderSugestao(); toastMsg(LOJA_F ? 'Mostrando só a loja L' + LOJA_F + ' ' + (LOJAS_NOMES[LOJA_F] || '') : 'Mostrando todas as lojas'); }
 function atualizarLinha(i){
   var tr = document.getElementById('sg-' + i.cod); if (!tr) return;
-  var q = LOJA_F ? qtdLoja(i, LOJA_F) : qtdItem(i); tr.querySelector('.q-tot').innerHTML = fmtN(q) + (i.emb > 1 ? '<br><span class="mini">' + Math.ceil(q / i.emb) + ' cx de ' + i.emb + '</span>' : '');
+  var q = LOJA_F ? qtdLoja(i, LOJA_F) : qtdItem(i); tr.querySelector('.q-tot').innerHTML = fmtN(q) + (i.emb > 1 ? '<br>' + cxLink(i, q) : '');
   tr.querySelector('.q-val').textContent = fmtR(q * i.custo); tr.classList.toggle('off', !SEL[i.cod]);
   tr.querySelectorAll('.lj input').forEach(function(inp){ var ln = inp.dataset.ln, v = qtdLoja(i, ln); inp.classList.toggle('ed', !!(EDIT[i.cod] && EDIT[i.cod][ln] != null && EDIT[i.cod][ln] !== (i.lojas_qtd[ln] || 0))); inp.classList.toggle('z', v === 0); });
 }
@@ -460,6 +460,9 @@ async function buscarCaixaPadrao(){
     await calcularSugestao(true);
   } catch(e) { toastMsg('Erro: ' + e.message); b.disabled = false; b.textContent = '↻ Buscar caixa padrão'; }
 }
+// "N cx de E" clicável na coluna Total: ajusta a caixa padrão do produto na hora (grava como correção manual, vale no Radar)
+function cxLink(i, q){ return '<span class="mini" style="cursor:pointer;border-bottom:1px dashed var(--ln2)" title="Clique pra ajustar a caixa padrão deste produto" onclick="event.stopPropagation();ajustarCaixa(\x27' + esc(i.cod) + '\x27,\x27' + esc(i.unid || 'UN') + '\x27,' + i.emb + ')">' + Math.ceil(q / i.emb) + ' cx de ' + i.emb + ' ✎</span>'; }
+function ajustarCaixa(cod, unid, atual){ var i = SUG && SUG.itens.find(function(x){ return x.cod === cod; }); var v = prompt('Caixa padrão (unidades por caixa) de\n' + (i ? i.descricao : cod) + '\n\nHoje: ' + atual, atual); if (v === null) return; definirCaixa(cod, unid, v); }
 async function definirCaixa(cod, unid, v){
   var e = Math.round(parseFloat(String(v).replace(',', '.'))); if (!(e >= 1)) return;
   try { await post('/api/itens/unidade-embalagem', {codigo: cod, unidade: unid || 'UN', embalagem: e}); toastMsg('Caixa de ' + e + ' gravada pro produto ' + cod + ' (vale no Radar também)'); await calcularSugestao(true); }
@@ -481,7 +484,7 @@ function renderSugestao(){
       '<td><div class="prod-cell"><b>' + esc(i.descricao) + (i.curva_a ? ' <span class="an-badge bad" style="font-size:9.5px;padding:1px 6px">curva A</span>' : '') + '</b><span class="prod-meta">' + embLabel(i) + '<span>Venda/dia ' + fmtN(i.venda_dia, 2) + '</span><span class="m-' + band.cls + '">Cobertura ' + (i.cobertura_dias != null ? '~' + fmtN(i.cobertura_dias, 0) + ' d' : '—') + ' · ' + band.label + '</span>' + (i.flag ? '<span class="m-warn">' + esc(i.flag) + '</span>' : '') + '</span></div></td>' +
       '<td class="price">' + colEstoque(i) + '</td><td class="price">' + colTransito(i) + '</td>' +
       '<td>' + lojas + '</td>' +
-      '<td class="price q-tot">' + fmtN(q) + (i.emb > 1 ? '<br><span class="mini">' + Math.ceil(q / i.emb) + ' cx de ' + i.emb + '</span>' : '') + '</td>' +
+      '<td class="price q-tot">' + fmtN(q) + (i.emb > 1 ? '<br>' + cxLink(i, q) : '') + '</td>' +
       '<td class="price">' + fmtR(i.custo) + '</td>' +
       '<td class="price q-val">' + fmtR(q * i.custo) + '</td></tr>';
   }).join('') + (rows.length > 1500 ? '<tr><td colspan="7" class="empty">Mostrando 1.500 de ' + rows.length + ' — use a busca.</td></tr>' : '');
