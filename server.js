@@ -6168,28 +6168,26 @@ pedidosFornec.initERP(q, radarPedidos);
 // ERP (lista_consolidado_*) + ajustes gravados aqui. NADA é escrito no ERP.
 // ═══════════════════════════════════════════════════
 const sugestaoManual = require('./lib/sugestao-manual');
-let TRANSITO_ATUAL = () => 0;
 function transitoDaLista(listaId) {
   const det = radarPedidos.itensLista(parseInt(listaId)); const m = {};
   if (det) for (const it of det.itens) for (const [ln, d] of Object.entries(it.lojas_det || {})) m[`${it.cod}|${ln}`] = d.transito || 0;
   return (cod, ln) => m[`${cod}|${ln}`] || 0;
 }
 sugestaoManual.init();
-sugestaoManual.initERP({ q, mesDB, curvaASet: radarPedidos.curvaASet, transitoDe: (cod, ln) => TRANSITO_ATUAL(cod, ln) });
+sugestaoManual.initERP({ q, mesDB, curvaASet: radarPedidos.curvaASet, transitoDe: () => 0 });
 
 app.post('/api/sugestao-manual', async (req, res) => {
   try {
     const b = req.body || {};
     const listaId = parseInt(b.lista); if (!listaId) return res.status(400).json({ error: 'Informe o número da lista' });
     if (!/^\d{4}-\d{2}-\d{2}$/.test(b.data_ini || '') || !/^\d{4}-\d{2}-\d{2}$/.test(b.data_fim || '')) return res.status(400).json({ error: 'Período de venda inválido' });
-    TRANSITO_ATUAL = transitoDaLista(listaId);
-    const s = await sugestaoManual.calcularNova({ listaId, data_ini: b.data_ini, data_fim: b.data_fim, cobertura: Math.max(1, parseInt(b.cobertura) || 20), lojas: b.lojas, obs: b.obs, usuario: req.session.user?.nome || null });
+    const s = await sugestaoManual.calcularNova({ listaId, data_ini: b.data_ini, data_fim: b.data_fim, cobertura: Math.max(1, parseInt(b.cobertura) || 20), lojas: b.lojas, obs: b.obs, usuario: req.session.user?.nome || null, transitoDe: transitoDaLista(listaId) });
     res.json(s);
   } catch (err) { res.status(err.message.startsWith('Lista') || err.message.startsWith('Escolha') ? 400 : 500).json({ error: err.message }); }
 });
 app.get('/api/sugestao-manual/:id', async (req, res) => {
   try {
-    const id = String(req.params.id);
+    const id = String(req.params.id); if (!/^[FD]-\d+$/.test(id)) return res.status(400).json({ error: 'Id inválido' });
     const s = id.startsWith('D-') ? await sugestaoManual.montarDoERP(id.slice(2)) : sugestaoManual.obter(id);
     if (!s) return res.status(404).json({ error: 'Sugestão não encontrada' });
     res.json(s);
@@ -6209,16 +6207,17 @@ app.patch('/api/sugestao-manual/:id', (req, res) => {
 });
 app.post('/api/sugestao-manual/:id/recalcular', async (req, res) => {
   try {
-    const s0 = sugestaoManual.obter(String(req.params.id));
+    const id = String(req.params.id); if (!/^[FD]-\d+$/.test(id)) return res.status(400).json({ error: 'Id inválido' });
+    const s0 = sugestaoManual.obter(id);
     if (!s0 || s0.origem !== 'fluxo') return res.status(400).json({ error: 'Só sugestões do Fluxo podem ser recalculadas' });
     if (s0.status === 'pedido_gerado') return res.status(409).json({ error: 'Sugestão já tem pedido gerado' });
-    TRANSITO_ATUAL = transitoDaLista(s0.lista.id);
-    res.json(await sugestaoManual.recalcular(s0.id));
+    res.json(await sugestaoManual.recalcular(s0.id, transitoDaLista(s0.lista.id)));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.post('/api/sugestao-manual/:id/desativar', (req, res) => {
   try {
-    const s = sugestaoManual.obter(String(req.params.id));
+    const id = String(req.params.id); if (!/^[FD]-\d+$/.test(id)) return res.status(400).json({ error: 'Id inválido' });
+    const s = sugestaoManual.obter(id);
     if (!s || s.origem !== 'fluxo') return res.status(400).json({ error: 'Só sugestões do Fluxo podem ser desativadas aqui' });
     sugestaoManual.salvar(sugestaoManual.aplicarPatch(s, { status: 'desativada' }));
     res.json({ ok: true });
