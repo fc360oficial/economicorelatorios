@@ -115,6 +115,22 @@ table.forntab tr.off td:last-child{opacity:1}
 .trn-lj{text-align:left;font-size:11px;color:var(--ink2);margin-top:5px;white-space:nowrap;line-height:1.55}
 .trn-lj[hidden]{display:none}
 .neg{color:var(--neg)}
+.citem{background:var(--crd);border:1px solid var(--ln);border-radius:12px;margin-bottom:12px;overflow:hidden;box-shadow:var(--shadow)}
+.cihd{background:#FFF1E8;color:#7A2E00;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.cihd b{font-size:14px}
+.cihd .cod{color:#C2410C;font-weight:700;font-size:12px}
+.ciult{padding:8px 14px;font-size:12px;color:var(--ink2);border-bottom:1px solid var(--ln);display:flex;gap:6px 18px;flex-wrap:wrap}
+.ciult b{color:var(--ink)}
+.citem table td{white-space:normal;padding:9px 12px}
+.citem table th{padding:8px 12px}
+.citem tr.win td{background:var(--posw)}
+.citem tr.win td:first-child{border-left:3px solid var(--pos)}
+.citem .chk{width:17px;height:17px;accent-color:var(--pos);cursor:pointer}
+.cifoot{padding:7px 14px;font-size:11.5px;color:var(--ink3);border-top:1px dashed var(--ln)}
+.vtab{display:inline-flex;border:1px solid var(--ln2);border-radius:9px;overflow:hidden}
+.vtab button{border:none;background:var(--crd);color:var(--ink2);padding:8px 12px;font-weight:700;font-size:12px;cursor:pointer}
+.vtab button.on{background:var(--ink);color:#fff}
+@media print{.modtabs,.pagehead div:last-child,.kpis,.cfilt,.vtab{display:none!important}.main{padding:0}.citem{break-inside:avoid;box-shadow:none}}
 .prod-cell{display:flex;flex-direction:column;gap:3px;white-space:normal;min-width:220px}
 .prod-meta{display:flex;flex-wrap:wrap;gap:3px 9px;font-size:10.5px;color:var(--ink3);font-weight:600}
 .prod-meta .m-good{color:var(--pos)} .prod-meta .m-warn{color:var(--amk)} .prod-meta .m-bad{color:var(--neg)}
@@ -754,7 +770,7 @@ async function abrirCotacao(id, tela){
   renderTudo(); goScreen(tela || 's3');
 }
 async function recarregar(){ if (!CUR) return; try { CUR = await api('/api/cotacoes/' + CUR.id); renderTudo(); } catch(e) {} }
-function renderTudo(){ $('#cur-lbl').innerHTML = CUR ? 'Cotação <b>#' + CUR.id + ' · ' + esc(CUR.nome) + '</b>' : ''; renderAcomp(); renderComparativo(); renderPedidos(); }
+function renderTudo(){ carregarUltimas(); $('#cur-lbl').innerHTML = CUR ? 'Cotação <b>#' + CUR.id + ' · ' + esc(CUR.nome) + '</b>' : ''; renderAcomp(); renderComparativo(); renderPedidos(); }
 function cabecalho(sub){
   var s = statusCot(CUR.status === 'aberta' ? Object.assign({}, CUR, CUR.comparativo.resumo) : CUR);
   return '<div class="crumb">Cotação <span>›</span> <b>#' + CUR.id + ' · ' + esc(CUR.nome) + '</b></div>' +
@@ -818,10 +834,78 @@ function analiseItem(i){
   if (i.cobertura_dias != null && i.cobertura_dias > 60) return {cls:'warn', txt:'estoque elevado'};
   return {cls:'good', txt:'boa oportunidade'};
 }
-function renderComparativo(){
+// ───────── COMPARATIVO POR ITEM (estilo Club da Cotação, pedido do Tiago 15/09): cada item num bloco, dados da
+// última compra do ERP e, embaixo, cada vendedor que digitou aquele item; checkbox marca o vencedor
+var VISTA = localStorage.getItem('cot-vista') || 'itens', ULT = {}, CI_F = {busca:'', forn:'', soObs:false, soSemPreco:false, soManual:false, var:''};
+function setVista(v){ VISTA = v; localStorage.setItem('cot-vista', v); renderComparativo(); }
+function renderComparativo(){ if (VISTA === 'matriz') return renderComparativoMatriz(); return renderComparativoItens(); }
+async function carregarUltimas(){
+  if (!CUR || ULT[CUR.id]) return; ULT[CUR.id] = {};
+  try { var r = await api('/api/cotacoes/' + CUR.id + '/ultimas-compras'); ULT[CUR.id] = r.ultimas || {}; } catch(e) { ULT[CUR.id] = {}; }
+  if (VISTA !== 'matriz' && document.getElementById('s4').classList.contains('on')) renderComparativoItens();
+}
+function ciSet(k, v){ CI_F[k] = v; renderComparativoItens(); }
+function dataPrevista(dias){ if (!dias) return '—'; var d = new Date(); d.setDate(d.getDate() + (+dias)); return d.toLocaleDateString('pt-BR'); }
+function renderComparativoItens(){
+  var m = $('#s4-main'); if (!CUR) { m.innerHTML = '<div class="empty">Escolha uma cotação no Monitor.</div>'; return; }
+  var C = CUR.comparativo, R = C.resumo, F = C.fornecedores, aberta = CUR.status === 'aberta', U = ULT[CUR.id] || {};
+  var byF = {}; F.forEach(function(f){ byF[f.codFornec] = f; });
+  var h = cabecalho((aberta ? '<button class="btn primary" id="btn-fechar" onclick="fecharCotacao()"' + (R.total_vencedores > 0 ? '' : ' disabled') + '>Fechar cotação e gerar pedidos →</button>' : (CUR.pedidos && CUR.pedidos.length ? '<button class="btn primary" onclick="goScreen(\'s5\')">Ver pedidos gerados →</button>' : '')) + '<span class="vtab"><button class="on" onclick="setVista(\'itens\')">Por item</button><button onclick="setVista(\'matriz\')">Matriz</button></span><button class="btn ghost" onclick="naoDigitados()">Não digitados</button><button class="btn ghost" onclick="window.print()">Imprimir</button><button class="btn ghost" onclick="exportarComparativo()">Exportar CSV</button><button class="btn ghost" onclick="recarregar()">↻</button>');
+  h += '<div class="kpis"><div class="kpi"><div class="val">' + fmtR(R.total_ultimo_vencedores) + '</div><div class="lbl">Última compra (ERP) dos itens com vencedor</div></div><div class="kpi"><div class="val pos">' + fmtR(R.total_vencedores) + '</div><div class="lbl">Pedidos (melhor combinação · ' + (R.itens - R.sem_vencedor - R.nao_comprar) + ' de ' + R.itens + ' itens)</div></div><div class="kpi"><div class="val ' + (R.economia >= 0 ? 'pos' : 'neg') + '">' + fmtR(R.economia) + '</div><div class="lbl">Economia × última compra</div></div><div class="kpi"><div class="val">' + R.responderam + ' de ' + R.convidados + '</div><div class="lbl">Fornecedores que responderam</div></div></div>';
+  h += '<div class="filters cfilt"><div class="fld"><label>Descrição do produto</label><input type="text" value="' + esc(CI_F.busca) + '" placeholder="nome ou código" oninput="ciSet(\'busca\',this.value)"></div>' +
+    '<div class="fld"><label>Fornecedor</label><select onchange="ciSet(\'forn\',this.value)"><option value="">Todos</option>' + F.map(function(f){ return '<option value="' + f.codFornec + '"' + (String(CI_F.forn) === String(f.codFornec) ? ' selected' : '') + '>' + esc(f.nome) + ' (' + f.cotados + ' itens)</option>'; }).join('') + '</select></div>' +
+    '<div class="fld"><label>Alta variação (%)</label><input type="text" inputmode="numeric" value="' + esc(CI_F.var) + '" placeholder="ex.: 10" style="min-width:90px" onchange="ciSet(\'var\',this.value)"></div>' +
+    '<label style="display:flex;gap:6px;align-items:center;font-size:12px;cursor:pointer"><input type="checkbox" class="check"' + (CI_F.soObs ? ' checked' : '') + ' onchange="ciSet(\'soObs\',this.checked)">Itens com observações</label>' +
+    '<label style="display:flex;gap:6px;align-items:center;font-size:12px;cursor:pointer"><input type="checkbox" class="check"' + (CI_F.soSemPreco ? ' checked' : '') + ' onchange="ciSet(\'soSemPreco\',this.checked)">Não digitados (sem nenhum preço)</label>' +
+    '<label style="display:flex;gap:6px;align-items:center;font-size:12px;cursor:pointer"><input type="checkbox" class="check"' + (CI_F.soManual ? ' checked' : '') + ' onchange="ciSet(\'soManual\',this.checked)">Vencedor escolhido à mão / não comprar</label></div>';
+  var b = CI_F.busca.trim().toLowerCase(), varMin = parseFloat(String(CI_F.var).replace(',', '.')) || 0;
+  var itens = C.itens.filter(function(i){
+    if (b && i.descricao.toLowerCase().indexOf(b) === -1 && String(i.cod).indexOf(b) === -1) return false;
+    if (CI_F.forn && !i.precos[CI_F.forn]) return false;
+    var temPreco = Object.keys(i.precos).length > 0;
+    if (CI_F.soSemPreco && temPreco) return false;
+    if (CI_F.soObs && !Object.keys(i.precos).some(function(k){ return i.precos[k].obs; })) return false;
+    if (CI_F.soManual && !i.manual && !i.nao_comprar) return false;
+    if (varMin > 0) { var base = (U[i.cod] && U[i.cod].preco) || i.ultimo_custo; if (!(base > 0) || !i.melhor) return false; if (Math.abs((i.melhor.preco - base) / base * 100) < varMin) return false; }
+    return true;
+  });
+  h += '<p class="mini" style="margin:0 0 10px">' + itens.length + ' de ' + C.itens.length + ' itens' + (aberta ? ' · marque o vencedor de cada item na caixinha (menor preço já vem marcado)' : '') + '</p>';
+  if (!itens.length) h += '<div class="empty">Nenhum item com esse filtro.</div>';
+  h += itens.map(function(i){
+    var u = U[i.cod], base = (u && u.preco) || i.ultimo_custo || 0, an = analiseItem(i), v = i.vencedor;
+    var quem = F.filter(function(f){ return i.precos[f.codFornec]; }), naoCot = F.filter(function(f){ return !i.precos[f.codFornec]; });
+    var x = '<div class="citem"><div class="cihd"><div><b>' + esc(i.descricao) + '</b> <span class="cod">Código: ' + esc(i.cod) + '</span>' + (i.curva_a ? ' <span class="an-badge bad" style="padding:1px 7px">curva A</span>' : '') + ' <span class="an-badge ' + an.cls + '" style="padding:1px 7px">' + an.txt + '</span></div>' +
+      '<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><span>Quantidade: <b>' + fmtN(i.qtd) + '</b>' + (i.emb > 1 ? ' <span class="mini">(' + i.volumes + ' cx de ' + i.emb + ')</span>' : '') + '</span>' +
+      (aberta ? '<span class="sel-vc"><button class="' + (!i.manual && !i.nao_comprar ? 'on' : '') + '" onclick="escolher(\'' + esc(i.cod) + '\',\'auto\')">auto (menor)</button><button class="' + (i.nao_comprar ? 'on' : '') + '" onclick="escolher(\'' + esc(i.cod) + '\',\'nao\')">não comprar</button></span>' : '') + '</div></div>';
+    x += '<div class="ciult"><span>Dados da última compra:</span>' + (u ? '<span>Valor: <b>' + (u.preco ? fmtR(u.preco) : '—') + '</b></span><span>Fornecedor: <b>' + esc(u.fornecedor || ('cód. ' + u.cf)) + '</b></span><span>Data: <b>' + dd(u.data) + '</b></span><span>Quantidade: <b>' + fmtN(u.qtd) + '</b>' + (u.loja ? ' <span class="mini">L' + u.loja + '</span>' : '') + '</span>' : '<span>sem nota de entrada nos últimos 24 meses</span>') + '<span>Último custo (cadastro): <b>' + (i.ultimo_custo > 0 ? fmtR(i.ultimo_custo) : '—') + '</b></span></div>';
+    if (quem.length) {
+      x += '<table><thead><tr><th style="width:36px"></th><th>Fornecedor</th><th>Forma de pgto</th><th>Data prevista</th><th style="text-align:right">Qtd. emb.</th><th style="text-align:right">Valor unitário</th><th style="text-align:right">Total</th><th style="text-align:right">Variação</th><th>Observação</th></tr></thead><tbody>';
+      x += quem.sort(function(a, c2){ return i.precos[a.codFornec].preco - i.precos[c2.codFornec].preco; }).map(function(f){
+        var p = i.precos[f.codFornec], win = v && v.codFornec === f.codFornec, varp = base > 0 ? (p.preco - base) / base * 100 : null;
+        return '<tr class="' + (win ? 'win' : '') + '"><td><input type="checkbox" class="chk" ' + (win ? 'checked' : '') + (aberta ? ' onclick="escolher(\'' + esc(i.cod) + '\',' + (win ? '\'auto\'' : f.codFornec) + ')"' : ' disabled') + ' title="' + (win ? 'vencedor' : 'marcar como vencedor') + '"></td>' +
+          '<td><b>' + esc(f.nome) + '</b>' + (f.vendedor && f.vendedor.nome ? '<br><span class="mini">' + esc(f.vendedor.nome) + '</span>' : '') + (win && i.manual ? ' <span class="an-badge good" style="padding:1px 6px">escolhido à mão</span>' : '') + '</td>' +
+          '<td>' + esc(f.condicao || f.condicao_padrao || '—') + '</td><td>' + dataPrevista(f.prazo_entrega) + '</td><td class="price">' + i.emb + '</td>' +
+          '<td class="price"><b>' + fmtR(p.preco) + '</b></td><td class="price">' + fmtR(p.preco * i.qtd) + '</td>' +
+          '<td class="price">' + (varp == null ? '—' : '<span class="' + (varp <= 0 ? 'eco-pos' : 'eco-neg') + '">' + (varp > 0 ? '+' : '') + fmtN(varp, 1) + '%</span>') + '</td>' +
+          '<td class="mini">' + (esc(p.obs || '') || '—') + '</td></tr>';
+      }).join('') + '</tbody></table>';
+    } else x += '<div class="empty" style="padding:16px">Nenhum vendedor digitou preço para este item ainda.</div>';
+    if (naoCot.length) x += '<div class="cifoot">Não cotaram: ' + naoCot.map(function(f){ return esc(f.nome); }).join(' · ') + '</div>';
+    if (i.nao_comprar) x += '<div class="cifoot" style="color:var(--neg);font-weight:700">Marcado como "não comprar": fica fora dos pedidos.</div>';
+    return x + '</div>';
+  }).join('');
+  h += '<div class="totfoot"><h4>Pedido por fornecedor vencedor</h4>' + F.filter(function(f){ return f.itens_vencedor > 0; }).map(function(f){ return '<div class="totfoot-row"><span>' + esc(f.nome) + ' · ' + f.itens_vencedor + ' itens' + (f.condicao ? ' · ' + esc(f.condicao) : '') + (f.faturamento_minimo && f.total_vencedor < f.faturamento_minimo ? ' · <span style="color:var(--neg);font-weight:800">abaixo do faturamento mínimo (' + fmtR(f.faturamento_minimo) + ')</span>' : '') + '</span><b>' + fmtR(f.total_vencedor) + '</b></div>'; }).join('') + '<div class="totfoot-best"><span>Total dos pedidos</span><b>' + fmtR(R.total_vencedores) + '</b></div></div>';
+  m.innerHTML = h;
+}
+function naoDigitados(){
+  var F = CUR.comparativo.fornecedores, n = CUR.itens.length;
+  var h = '<table><thead><tr><th>Fornecedor</th><th>Status</th><th style="text-align:right">Cotou</th><th>Não digitou</th></tr></thead><tbody>' + F.map(function(f){ var falt = CUR.comparativo.itens.filter(function(i){ return !i.precos[f.codFornec]; }); return '<tr><td><b>' + esc(f.nome) + '</b></td><td>' + stForn(f) + '</td><td class="price">' + f.cotados + ' de ' + n + '</td><td class="mini" style="white-space:normal">' + (falt.length ? falt.slice(0, 40).map(function(i){ return esc(i.descricao); }).join(', ') + (falt.length > 40 ? ' … (+' + (falt.length - 40) + ')' : '') : 'tudo digitado') + '</td></tr>'; }).join('') + '</tbody></table>';
+  abrirModal('Não digitados · por fornecedor', h, true);
+}
+function renderComparativoMatriz(){
   var m = $('#s4-main'); if (!CUR) { m.innerHTML = '<div class="empty">Escolha uma cotação no Monitor.</div>'; return; }
   var C = CUR.comparativo, R = C.resumo, F = C.fornecedores, aberta = CUR.status === 'aberta';
-  var h = cabecalho((aberta ? '<button class="btn primary" id="btn-fechar" onclick="fecharCotacao()"' + (R.total_vencedores > 0 ? '' : ' disabled') + '>Fechar cotação e gerar pedidos →</button>' : (CUR.pedidos && CUR.pedidos.length ? '<button class="btn primary" onclick="goScreen(\'s5\')">Ver pedidos gerados →</button>' : '')) + '<button class="btn ghost" onclick="exportarComparativo()">Exportar CSV</button><button class="btn ghost" onclick="recarregar()">↻</button>');
+  var h = cabecalho((aberta ? '<button class="btn primary" id="btn-fechar" onclick="fecharCotacao()"' + (R.total_vencedores > 0 ? '' : ' disabled') + '>Fechar cotação e gerar pedidos →</button>' : (CUR.pedidos && CUR.pedidos.length ? '<button class="btn primary" onclick="goScreen(\'s5\')">Ver pedidos gerados →</button>' : '')) + '<span class="vtab"><button onclick="setVista(\'itens\')">Por item</button><button class="on" onclick="setVista(\'matriz\')">Matriz</button></span><button class="btn ghost" onclick="exportarComparativo()">Exportar CSV</button><button class="btn ghost" onclick="recarregar()">↻</button>');
   h += '<div class="kpis"><div class="kpi"><div class="val">' + fmtR(R.total_ultimo_vencedores) + '</div><div class="lbl">Última compra (ERP) dos itens com vencedor</div></div><div class="kpi"><div class="val pos">' + fmtR(R.total_vencedores) + '</div><div class="lbl">Melhor combinação (' + (R.itens - R.sem_vencedor - R.nao_comprar) + ' de ' + R.itens + ' itens)</div></div><div class="kpi"><div class="val ' + (R.economia >= 0 ? 'pos' : 'neg') + '">' + fmtR(R.economia) + '</div><div class="lbl">Economia × última compra</div></div><div class="kpi"><div class="val ' + (R.economia >= 0 ? 'pos' : 'neg') + '">' + (R.economia_pct != null ? fmtN(R.economia_pct, 1) + '%' : '—') + '</div><div class="lbl">Economia %</div></div></div>';
   h += '<div class="resumo-strip"><span class="rlabel">Resumo</span><span class="chip"><b>' + R.itens + '</b> produtos</span><span class="sep">·</span><span class="chip"><b>' + R.com_preco + '</b> com preço</span><span class="sep">·</span><span class="chip"><b>' + R.abaixo + '</b> igual/abaixo da última compra</span><span class="sep">·</span><span class="chip"><b>' + R.acima + '</b> acima</span><span class="sep">·</span><span class="chip"><b>' + R.sem_vencedor + '</b> sem preço</span><span class="sep">·</span><span class="chip"><b>' + R.nao_comprar + '</b> marcados "não comprar"</span><span class="sep">·</span><span class="chip">' + R.responderam + ' de ' + R.convidados + ' fornecedores responderam</span></div>';
   if (aberta) h += '<p class="mini" style="margin:0 0 10px">Menor preço vence automaticamente. Clique no preço de outro fornecedor pra escolher ele; "auto" volta pro menor; "não comprar" tira o item dos pedidos.</p>';

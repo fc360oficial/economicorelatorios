@@ -6661,6 +6661,30 @@ app.post('/api/cotacoes', (req, res) => {
   try { res.json(cotDetalhe(cotacao.criar({ ...(req.body || {}), usuario: cotUser(req) }))); }
   catch (err) { res.status(400).json({ error: err.message }); }
 });
+// Comparativo por item (estilo Club da Cotação): "dados da última compra" de cada produto — última nota de entrada
+// (compraprodutos × compras × fornecedor) nos últimos 24 meses. Preço = primeira coluna valor/preco/custo > 0 da linha.
+app.get('/api/cotacoes/:id/ultimas-compras', async (req, res) => {
+  try {
+    const id = cotId(req); if (!id) return res.status(400).json({ error: 'id inválido' });
+    const c = cotacao.obter(id); if (!c) return res.status(404).json({ error: 'cotação não encontrada' });
+    const out = {};
+    for (const ch of radarPedidos.chunk(c.itens.map(i => String(i.cod)), 1500)) {
+      const rows = await q(`SELECT cp.*, DATE_FORMAT(cp.DataEntrada,'%Y-%m-%d') dt, co.CodFornec cf FROM central.compraprodutos cp LEFT JOIN central.compras co ON co.nCompra=cp.nCompra AND co.nLoja=cp.nLoja
+                            WHERE cp.Movimentacao='COMPRA' AND cp.DataEntrada >= DATE_SUB(CURDATE(), INTERVAL 24 MONTH) AND cp.CodigoBarra IN (${ch.map(() => '?').join(',')}) ORDER BY cp.DataEntrada DESC`, ch).catch(() => []);
+      for (const r of rows) {
+        const cod = String(r.CodigoBarra); if (out[cod]) continue;
+        let preco = null, col = null;
+        for (const [k, v] of Object.entries(r)) if (/valor|preco|custo/i.test(k) && !/total|desc|ipi|icms|frete|entrada|estoque/i.test(k) && +v > 0) { preco = +v; col = k; break; }
+        out[cod] = { data: r.dt || null, cf: +r.cf || 0, preco, coluna_preco: col, qtd: +r.QtdEntradaEstoque || +r.Qtd || null, emb: +r.QtdEmb || null, nCompra: r.nCompra, loja: r.nLoja };
+      }
+    }
+    const cfs = [...new Set(Object.values(out).map(x => x.cf).filter(Boolean))];
+    const nomes = cfs.length ? await q(`SELECT CodFornec, Nome, NomeCompleto FROM central.fornecedor WHERE CodFornec IN (${cfs.map(() => '?').join(',')})`, cfs).catch(() => []) : [];
+    const nomeDe = Object.fromEntries(nomes.map(n => [+n.CodFornec, String(n.NomeCompleto || n.Nome || '').trim()]));
+    for (const x of Object.values(out)) x.fornecedor = nomeDe[x.cf] || null;
+    res.json({ ultimas: out, itens: c.itens.length, com_ultima: Object.keys(out).length });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 app.get('/api/cotacoes/:id', (req, res) => {
   const id = cotId(req); if (!id) return res.status(400).json({ error: 'id inválido' });
   const c = cotacao.obter(id); if (!c) return res.status(404).json({ error: 'cotação não encontrada' });
