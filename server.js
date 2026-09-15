@@ -2910,50 +2910,7 @@ app.get('/api/sugestoes-compra', async (req, res) => {
     const busca = (req.query.busca || '').trim();
     const comDesativadas = req.query.desativadas === '1';
 
-    let where = comDesativadas ? '1=1' : 'lc.CodDesativado = 0';
-    const params = [];
-    if (busca) {
-      where += ' AND (lc.NomeFornec LIKE ? OR lc.Nome LIKE ? OR lc.CNPJ LIKE ? OR lc.nConsolidado = ? OR lc.nLista = ?)';
-      const nBusca = parseInt(busca) || 0;
-      params.push('%' + busca + '%', '%' + busca + '%', '%' + busca + '%', nBusca, nBusca);
-    }
-
-    const rows = await q(`
-      SELECT lc.nConsolidado, lc.nLista, lc.CodFornec, lc.NomeFornec, lc.Nome as descricao, lc.CNPJ as cnpj,
-             lc.Data as data, lc.Status as status, lc.StatusWeb as status_web, lc.CodDesativado as desativada,
-             lc.QtdCobertura as cobertura, lc.DataVenda1, lc.DataVenda2,
-             (SELECT GROUP_CONCAT(DISTINCT h.nLoja ORDER BY h.nLoja) FROM central.lista_consolidado_historico h WHERE h.nConsolidado = lc.nConsolidado) as lojas,
-             (SELECT SUM(i.Total) FROM central.lista_consolidado_itens i WHERE i.nConsolidado = lc.nConsolidado) as total,
-             (SELECT COUNT(*) FROM central.lista_consolidado_itens i WHERE i.nConsolidado = lc.nConsolidado) as itens,
-             (SELECT MAX(p.nPedido) FROM central.pedidocompra p WHERE p.nConsolidado = lc.nConsolidado) as nPedido,
-             (SELECT MAX(cac.nome) FROM central.c_cotacao_agenda_comprador cac WHERE cac.nLista = lc.nLista) as comprador
-      FROM central.lista_consolidadas lc
-      WHERE ${where}
-      ORDER BY lc.nConsolidado DESC
-      LIMIT 500
-    `, params);
-
-    const dlinks = rows.map(r => ({
-      origem: 'dlinks',
-      sugestao: r.nConsolidado,
-      lista: r.nLista,
-      fornecedor: r.NomeFornec?.trim(),
-      cnpj: r.cnpj && r.cnpj !== '0' ? r.cnpj : null,
-      descricao: r.descricao && r.descricao !== '0' ? r.descricao.trim() : null,
-      lojas: (r.lojas ? r.lojas.toString() : '').split(',').filter(Boolean).map(n => parseInt(n)),
-      status_web: r.status_web || 0,
-      status: r.status || 0,
-      desativada: r.desativada === 1,
-      pedido: r.nPedido > 0 ? r.nPedido : null,
-      data: r.data ? new Date(r.data).toLocaleDateString('pt-BR') : null,
-      periodo_venda: r.DataVenda1 && r.DataVenda1 !== '0' ? `${r.DataVenda1} a ${r.DataVenda2}` : null,
-      cobertura: r.cobertura || null,
-      itens: r.itens || 0,
-      total: r.total ? +parseFloat(r.total).toFixed(2) : 0,
-      comprador: r.comprador?.trim() || null,
-      _ord: r.data ? new Date(r.data).getTime() : 0
-    }));
-    // sugestões criadas no Fluxo (JSON local) — mesma busca e mesmo filtro de desativadas
+    // sugestões criadas no Fluxo (JSON local) — sempre disponíveis, mesmo com o ERP fora
     const fluxo = sugestaoManual.listar()
       .filter(s => comDesativadas || s.status !== 'desativada')
       .filter(s => !busca || String(s.lista.id) === busca || s.id.toLowerCase() === busca.toLowerCase() || (s.lista.fornecedor || '').toLowerCase().includes(busca.toLowerCase()))
@@ -2966,6 +2923,59 @@ app.get('/api/sugestoes-compra', async (req, res) => {
         total: +s.itens.filter(i => i.ativo).reduce((a, i) => a + i.quantidade * (i.preco_und || 0), 0).toFixed(2),
         comprador: s.criado_por || null, _ord: new Date(s.criado_em).getTime()
       }));
+
+    // sugestões do Dlinks (ERP) — se o ERP estiver fora, segue só com as do Fluxo
+    let dlinks = [], dlinksErro = null;
+    try {
+      let where = comDesativadas ? '1=1' : 'lc.CodDesativado = 0';
+      const params = [];
+      if (busca) {
+        where += ' AND (lc.NomeFornec LIKE ? OR lc.Nome LIKE ? OR lc.CNPJ LIKE ? OR lc.nConsolidado = ? OR lc.nLista = ?)';
+        const nBusca = parseInt(busca) || 0;
+        params.push('%' + busca + '%', '%' + busca + '%', '%' + busca + '%', nBusca, nBusca);
+      }
+
+      const rows = await q(`
+        SELECT lc.nConsolidado, lc.nLista, lc.CodFornec, lc.NomeFornec, lc.Nome as descricao, lc.CNPJ as cnpj,
+               lc.Data as data, lc.Status as status, lc.StatusWeb as status_web, lc.CodDesativado as desativada,
+               lc.QtdCobertura as cobertura, lc.DataVenda1, lc.DataVenda2,
+               (SELECT GROUP_CONCAT(DISTINCT h.nLoja ORDER BY h.nLoja) FROM central.lista_consolidado_historico h WHERE h.nConsolidado = lc.nConsolidado) as lojas,
+               (SELECT SUM(i.Total) FROM central.lista_consolidado_itens i WHERE i.nConsolidado = lc.nConsolidado) as total,
+               (SELECT COUNT(*) FROM central.lista_consolidado_itens i WHERE i.nConsolidado = lc.nConsolidado) as itens,
+               (SELECT MAX(p.nPedido) FROM central.pedidocompra p WHERE p.nConsolidado = lc.nConsolidado) as nPedido,
+               (SELECT MAX(cac.nome) FROM central.c_cotacao_agenda_comprador cac WHERE cac.nLista = lc.nLista) as comprador
+        FROM central.lista_consolidadas lc
+        WHERE ${where}
+        ORDER BY lc.nConsolidado DESC
+        LIMIT 500
+      `, params);
+
+      dlinks = rows.map(r => ({
+        origem: 'dlinks',
+        sugestao: r.nConsolidado,
+        lista: r.nLista,
+        fornecedor: r.NomeFornec?.trim(),
+        cnpj: r.cnpj && r.cnpj !== '0' ? r.cnpj : null,
+        descricao: r.descricao && r.descricao !== '0' ? r.descricao.trim() : null,
+        lojas: (r.lojas ? r.lojas.toString() : '').split(',').filter(Boolean).map(n => parseInt(n)),
+        status_web: r.status_web || 0,
+        status: r.status || 0,
+        desativada: r.desativada === 1,
+        pedido: r.nPedido > 0 ? r.nPedido : null,
+        data: r.data ? new Date(r.data).toLocaleDateString('pt-BR') : null,
+        periodo_venda: r.DataVenda1 && r.DataVenda1 !== '0' ? `${r.DataVenda1} a ${r.DataVenda2}` : null,
+        cobertura: r.cobertura || null,
+        itens: r.itens || 0,
+        total: r.total ? +parseFloat(r.total).toFixed(2) : 0,
+        comprador: r.comprador?.trim() || null,
+        _ord: r.data ? new Date(r.data).getTime() : 0
+      }));
+    } catch (err) {
+      console.error('[SUGESTOES] Dlinks indisponível:', err.message);
+      dlinks = []; dlinksErro = err.message;
+    }
+
+    if (dlinksErro) res.set('X-Dlinks-Erro', 'indisponivel');
     const todos = [...fluxo, ...dlinks].sort((a, b) => b._ord - a._ord);
     res.json(todos.map(({ _ord, ...x }) => x));
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -6181,7 +6191,7 @@ app.post('/api/sugestao-manual', async (req, res) => {
     const b = req.body || {};
     const listaId = parseInt(b.lista); if (!listaId) return res.status(400).json({ error: 'Informe o número da lista' });
     if (!/^\d{4}-\d{2}-\d{2}$/.test(b.data_ini || '') || !/^\d{4}-\d{2}-\d{2}$/.test(b.data_fim || '')) return res.status(400).json({ error: 'Período de venda inválido' });
-    const s = await sugestaoManual.calcularNova({ listaId, data_ini: b.data_ini, data_fim: b.data_fim, cobertura: Math.max(1, parseInt(b.cobertura) || 20), lojas: b.lojas, obs: b.obs, usuario: req.session.user?.nome || null, transitoDe: transitoDaLista(listaId) });
+    const s = await sugestaoManual.calcularNova({ listaId, data_ini: b.data_ini, data_fim: b.data_fim, cobertura: Math.max(1, parseInt(b.cobertura) || 20), lojas: b.lojas, obs: b.obs, usuario: req.session.user?.comprador_nome || req.session.user?.nome || null, transitoDe: transitoDaLista(listaId) });
     res.json(s);
   } catch (err) { res.status(err.message.startsWith('Lista') || err.message.startsWith('Escolha') ? 400 : 500).json({ error: err.message }); }
 });

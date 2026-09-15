@@ -270,6 +270,7 @@ table.cons-det td.neg{color:#B23A3A;font-weight:700}
       </div>
     </div>
 
+    <div id="m-aviso" class="empty" style="display:none">⚠️ Dlinks indisponível agora — mostrando só as sugestões do Fluxo.</div>
     <div class="table-wrap" id="monitor-wrap"><div class="spinner"></div></div>
     <div class="mon-rodape" id="monitor-rodape" style="display:none">
       <span id="m-contagem"></span>
@@ -686,10 +687,17 @@ function editarQuantidade(codigo, v){
   salvarPatch({ quantidades: { [codigo]: Object.fromEntries(it.lojas.map(l => [l.loja, l.sug_loja])) } });
   renderConsItens(); renderConsDetalhe();
 }
-function repartirLojas(total, lojas){        // mesma regra de lib/sugestao-manual.repartirPorLoja
+function repartirLojas(total, lojas){        // mesma regra de lib/sugestao-manual.repartirPorLoja (maior resto)
   const T = Math.max(0, Math.round(total || 0)); if (T <= 0 || !lojas.length) return {};
-  const soma = lojas.reduce((a, l) => a + (l.sug_sistema || 0), 0); const out = {}; let dist = 0;
-  lojas.forEach((l, i) => { let qv = soma > 0 ? Math.round(T * (l.sug_sistema || 0) / soma) : Math.floor(T / lojas.length); if (i === lojas.length - 1) qv = T - dist; dist += qv; if (qv > 0) out[l.loja] = qv; });
+  const soma = lojas.reduce((a, l) => a + (l.sug_sistema || 0), 0);
+  const pesos = lojas.map(l => soma > 0 ? (l.sug_sistema || 0) : 1);
+  const pesoSoma = pesos.reduce((a, b) => a + b, 0);
+  const raws = pesos.map(p => T * p / pesoSoma);
+  const bases = raws.map(r => Math.floor(r));
+  const resto = T - bases.reduce((a, b) => a + b, 0);
+  const fracs = raws.map((r, i) => ({ i, f: r - bases[i] })).sort((a, b) => b.f - a.f || a.i - b.i);
+  for (let k = 0; k < resto; k++) bases[fracs[k].i] += 1;
+  const out = {}; lojas.forEach((l, i) => { if (bases[i] > 0) out[l.loja] = bases[i]; });
   return out;
 }
 function editarObs(codigo, v){ const it = CONS.s.itens.find(i => i.codigo === codigo); if (!it) return; it.obs = v; salvarPatch({ obs: { [codigo]: v } }); }
@@ -778,6 +786,7 @@ function passaNaAba(s){
 function passaNoComprador(s){
   const alvo = document.getElementById('m-comprador').value;
   if (!alvo) return true;
+  if (s.origem === 'fluxo' && !s.comprador) return true;
   return s.comprador === alvo;
 }
 function atualizarFiltroCompradores(rows){
@@ -799,11 +808,13 @@ async function carregarMonitor(){
     const rows = await r.json();
     if (meuReq !== ultimoMonitorReq) return; // resposta antiga, ignora
     if (rows.error) throw new Error(rows.error);
+    document.getElementById('m-aviso').style.display = r.headers.get('X-Dlinks-Erro') ? '' : 'none';
     sugestoesCarregadas = rows;
     atualizarFiltroCompradores(rows);
     renderMonitorTabela(rows);
   } catch(e) {
     if (meuReq !== ultimoMonitorReq) return;
+    document.getElementById('m-aviso').style.display = 'none';
     wrap.innerHTML = `<div class="empty">Erro: ${e.message}</div>`;
   }
 }

@@ -52,14 +52,23 @@ test('repartirPorLoja: proporcional à sugestão sistema, última fecha a conta'
   assert.deepEqual(r, { 1: 3, 2: 7 });        // 3,33→3 ; 6,67→ resto 7 ; loja 3 fica 0 e sai
 });
 
-test('repartirPorLoja: sem sugestão sistema divide igual', () => {
+test('repartirPorLoja: sem sugestão sistema divide igual, empate vai pro índice menor', () => {
   const r = sm.repartirPorLoja(7, [{ loja: 1, sug_sistema: 0 }, { loja: 2, sug_sistema: 0 }, { loja: 3, sug_sistema: 0 }]);
-  assert.deepEqual(r, { 1: 2, 2: 2, 3: 3 });
+  assert.deepEqual(r, { 1: 3, 2: 2, 3: 2 });
+  assert.equal(Object.values(r).reduce((a, b) => a + b, 0), 7);
 });
 
 test('repartirPorLoja: total 0 ou sem lojas → {}', () => {
   assert.deepEqual(sm.repartirPorLoja(0, [{ loja: 1, sug_sistema: 5 }]), {});
   assert.deepEqual(sm.repartirPorLoja(5, []), {});
+});
+
+test('repartirPorLoja: soma nunca excede T (maior resto), 6 lojas iguais', () => {
+  const lojas = [1, 2, 3, 4, 5, 6].map(loja => ({ loja, sug_sistema: 1 }));
+  const r = sm.repartirPorLoja(3, lojas);
+  assert.equal(Object.values(r).reduce((a, b) => a + b, 0), 3);
+  assert.equal(Object.keys(r).length, 3);
+  assert.ok(Object.values(r).every(v => v === 1));
 });
 
 test('persistência: proximoId sequencial, salvar/obter/listar, D-* fora do listar', () => {
@@ -191,4 +200,21 @@ test('mesesDoPeriodo: cruza um mês', () => {
 
 test('mesesDoPeriodo: cruza o ano novo', () => {
   assert.deepEqual(sm.mesesDoPeriodo('2026-12-20', '2027-01-05'), [12, 1]);
+});
+
+test('num: milhar com vírgula decimal', () => {
+  assert.equal(sm.num('1.234,56'), 1234.56);
+});
+
+test('num: vírgula decimal simples', () => {
+  assert.equal(sm.num('15,75'), 15.75);
+});
+
+test('num: ponto como decimal (sem vírgula) fica como está', () => {
+  assert.equal(sm.num('6.890'), 6.89);
+});
+
+test('num: zero e nulo', () => {
+  assert.equal(sm.num('0'), 0);
+  assert.equal(sm.num(null), 0);
 });
