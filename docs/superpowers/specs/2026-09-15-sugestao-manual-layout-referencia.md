@@ -85,3 +85,19 @@ A grade de cima continua (linha selecionada em verde-água) e abre um
 | Aceitar Sugestão Sistema | não existe | Novo botão: copia sug_sistema → sug_loja em todos os itens ativos |
 | Status IA / Painel IA / Venda Prev. / Ruptura em / Capital Parado / vs Anterior | não existe | Fora desta rodada (depende do Radar/IA); deixar as colunas escondidas nos presets |
 | Gerar Cotação / Cadastro Fornecedor / Solicitar Preço Web / Enviar Link | não existe | Fora desta rodada (spec original) |
+
+## Complemento (prints 3 e 4 — sugestão 3346 / lista 482, 15/09/2026)
+
+- **Barra de baixo é fixa** (sticky no rodapé da janela): quando o painel do
+  produto abre, a barra de botões continua visível sem rolar. Decisão do
+  Tiago: "tem que ficar fixa".
+- **Prioridade tem 4 níveis**: 🟢 BAIXO · 🟡 MÉDIO · 🟠 ALTO · 🔴 **CRÍTICO**.
+  Linha do item CRÍTICO fica com fundo rosa claro e código/descrição em
+  vermelho (ex.: ADES 200ML MAÇÃ, PÊSSEGO).
+- Status Web no cabeçalho pode ser "Em Digitação".
+- Painel do produto (preset Comprador): Sug.Sistema e Pedido Compra em azul;
+  ABC "B" em azul; **Status IA** com 3 estados vistos: 🟡 "Comprar", 🟢 "OK";
+  **Ruptura em** mostra badge amarelo "Ruptura em 15d" quando há risco, senão
+  "OK" cinza; Investimento e Capital Parado "—" quando não há.
+- Clicar no item: a grade de cima fica, o painel abre logo abaixo (não é
+  modal), linha do item selecionado em verde-água.
