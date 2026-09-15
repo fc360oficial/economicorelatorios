@@ -6509,7 +6509,7 @@ app.get('/api/cotacoes/lista/:lista/fornecedores', async (req, res) => {
 app.post('/api/cotacoes/lista/:lista/fornecedores', (req, res) => {
   try {
     const id = parseInt(req.params.lista); if (!(id > 0)) return res.status(400).json({ error: 'nº da lista inválido' });
-    const lista = (Array.isArray(req.body?.fornecedores) ? req.body.fornecedores : []).map(f => ({ codFornec: parseInt(f.codFornec) || 0, nome: String(f.nome || '').slice(0, 120), vendedor: { nome: String(f.vendedor?.nome || '').slice(0, 80), whats: String(f.vendedor?.whats || '').replace(/\D/g, '').slice(0, 20), email: String(f.vendedor?.email || '').slice(0, 120) } })).filter(f => f.codFornec > 0 || f.nome);
+    const lista = (Array.isArray(req.body?.fornecedores) ? req.body.fornecedores : []).map(f => ({ codFornec: parseInt(f.codFornec) || 0, nome: String(f.nome || '').slice(0, 120), nome_planilha: f.nome_planilha ? String(f.nome_planilha).slice(0, 120) : null, cnpj: f.cnpj ? String(f.cnpj).replace(/\D/g, '').slice(0, 14) : null, casou: f.casou || null, outros: Array.isArray(f.outros) ? f.outros.slice(0, 10).map(String) : null, vendedor: { nome: String(f.vendedor?.nome || '').slice(0, 80), whats: String(f.vendedor?.whats || '').replace(/\D/g, '').slice(0, 20), email: String(f.vendedor?.email || '').slice(0, 120) } })).filter(f => f.codFornec > 0 || f.nome);
     const todos = lerCotForn(); todos[id] = lista; todos[id + '_em'] = new Date().toISOString(); todos[id + '_por'] = cotUser(req);
     fs.mkdirSync(path.dirname(COT_FORN_PATH), { recursive: true }); fs.writeFileSync(COT_FORN_PATH, JSON.stringify(todos, null, 2));
     res.json({ ok: true, salvos: lista.length });
@@ -6533,6 +6533,34 @@ app.post('/api/cotacoes/fornecedores/importar', uploadPlanilhaCot.single('planil
     res.json({ arquivo: req.file.originalname, cabecalho: p.cabecalho, colunas: p.colunas, total: out.length, casados: out.filter(c => c.codFornec).length, nao_achados: out.filter(c => !c.codFornec).length, parciais: out.filter(c => c.como === 'parcial').length, fornecedores: out, erp_total: forn.length });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+// PASSO ÚNICO (15/09/2026, pedido do Tiago "vá no ERP, concilie com os fornecedores salvos lá, vincule o CNPJ pela
+// descrição da empresa e jogue na minha tela"): ao subir, se scripts/fornecedores-cotacao-277.xlsx existe e ainda não
+// foi importado, casa a planilha do Club da Cotação com central.fornecedor e grava como fornecedores da lista 277.
+// Não abre rota nenhuma; roda uma vez (marca em data/). Remover este bloco e a planilha depois.
+(async () => {
+  try {
+    const arq = path.join(__dirname, 'scripts', 'fornecedores-cotacao-277.xlsx'), marca = path.join(__dirname, 'data', 'fornecedores-cotacao-277.importado.json');
+    if (!fs.existsSync(arq) || fs.existsSync(marca)) return;
+    await new Promise(r => setTimeout(r, 25000));
+    const p = await cotImport.parsePlanilha(fs.readFileSync(arq));
+    const forn = await q('SELECT CodFornec, Nome, NomeCompleto, CNPJ FROM central.fornecedor');
+    const cas = cotImport.casar(p.linhas, forn);
+    const cfs = [...new Set(cas.filter(c => c.codFornec).map(c => c.codFornec))]; const vendDe = {};
+    if (cfs.length) for (const v of await q(`SELECT l.CodFornec cf, a.Nome, a.email, a.whats FROM central.c_cotacao_agenda a JOIN central.c_cotacao_lista l ON l.nReg=a.nLista WHERE l.CodFornec IN (${cfs.map(() => '?').join(',')}) ORDER BY a.nLista DESC`, cfs).catch(() => [])) if (!vendDe[+v.cf]) vendDe[+v.cf] = { nome: v.Nome?.trim() || '', whats: String(v.whats || '').replace(/\D/g, ''), email: v.email || '' };
+    const lista = [];
+    for (const c of cas) {
+      const e = vendDe[c.codFornec] || {}; const vend = { nome: c.vendedor || e.nome || '', whats: String(c.whats || e.whats || '').replace(/\D/g, ''), email: c.email || e.email || '' };
+      const ja = lista.find(x => c.codFornec ? x.codFornec === c.codFornec : (!x.codFornec && x.nome === c.nome));
+      if (ja) { const vn = vend.nome || vend.whats; if (vn && vn !== ja.vendedor.nome) { ja.outros = ja.outros || []; ja.outros.push(vn + (vend.whats ? ' ' + vend.whats : '')); } continue; }
+      lista.push({ codFornec: c.codFornec || 0, nome: c.codFornec ? c.nome_erp : c.nome, nome_planilha: c.nome, cnpj: c.cnpj_erp || null, vendedor: vend, casou: c.como, condicao: c.condicao || '' });
+    }
+    const todos = lerCotForn(); todos[277] = lista; todos['277_em'] = new Date().toISOString(); todos['277_por'] = 'importação automática da planilha Club da Cotação #1597054';
+    fs.mkdirSync(path.dirname(COT_FORN_PATH), { recursive: true }); fs.writeFileSync(COT_FORN_PATH, JSON.stringify(todos, null, 2));
+    const resumo = { em: new Date().toISOString(), linhas: cas.length, fornecedores: lista.length, casados: lista.filter(x => x.codFornec).length, parciais: lista.filter(x => x.casou === 'parcial').map(x => x.nome_planilha + ' → ' + x.nome), nao_achados: lista.filter(x => !x.codFornec).map(x => x.nome_planilha), erp_total: forn.length };
+    fs.writeFileSync(marca, JSON.stringify(resumo, null, 2));
+    console.log('[COTACAO] fornecedores da lista 277 importados da planilha:', JSON.stringify(resumo));
+  } catch (e) { console.error('[COTACAO] import 277:', e.message); }
+})();
 app.get('/api/cotacoes/historico/:cod', (req, res) => {
   try { res.json(cotacao.historicoProduto(req.params.cod)); } catch (err) { res.status(500).json({ error: err.message }); }
 });
