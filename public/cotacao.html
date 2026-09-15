@@ -261,6 +261,9 @@ td.price.manual{box-shadow:inset 0 0 0 2px var(--inf)}
 
     <div class="wizpanel" id="w2">
       <div class="toolbar"><span style="color:var(--ink2);font-size:12px">Quem vai receber esta cotação (cada um recebe um link próprio por WhatsApp).</span><span class="mini" id="w2-cont"></span></div>
+      <div id="w2-erp" style="margin-bottom:14px"></div>
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap"><button class="btn ghost sm" onclick="document.getElementById('f-xlsx').click()" title="Planilha exportada do Club da Cotação (Fornecedores da Cotação) ou qualquer .xlsx com colunas Fornecedor, CNPJ, Vendedor, Tel. Vendedor, Email">📥 Importar do Excel (Club da Cotação)</button><input type="file" id="f-xlsx" accept=".xlsx" style="display:none" onchange="importarExcel(this)"><span class="mini" id="f-xlsx-info"></span></div>
+      <div id="w2-import" style="margin-bottom:12px"></div>
       <div class="srch" style="max-width:520px;margin-bottom:14px">
         <input type="text" id="f-srch" placeholder="Buscar fornecedor no cadastro do ERP (nome ou razão social)…" autocomplete="off" oninput="buscarFornecedor(this.value)" style="width:100%;border:1px solid var(--ln2);border-radius:9px;padding:9px 12px;font-family:inherit;font-size:13px">
         <div class="res" id="f-res" style="display:none"></div>
@@ -271,7 +274,7 @@ td.price.manual{box-shadow:inset 0 0 0 2px var(--inf)}
           <tbody id="w2-tbody"><tr><td colspan="5" class="empty">Nenhum fornecedor ainda. Busque acima e clique pra adicionar.</td></tr></tbody>
         </table>
       </div>
-      <div class="wizfoot"><button class="btn ghost" onclick="wizGo('w1')">← Voltar</button><button class="btn primary" onclick="irResumo()">Próximo: resumo →</button></div>
+      <div class="wizfoot"><button class="btn ghost" onclick="wizGo('w1')">← Voltar</button><span><button class="btn ghost" onclick="salvarFornLista()" title="Guarda estes fornecedores pra esta lista: na próxima cotação já vêm prontos">Salvar fornecedores desta lista</button> <button class="btn primary" onclick="irResumo()">Próximo: resumo →</button></span></div>
     </div>
 
     <div class="wizpanel" id="w3">
@@ -515,7 +518,54 @@ function itensSelecionados(){
     return {cod:i.cod, descricao:i.descricao, unid:i.unid, emb:i.emb, lojas_qtd:lq, ultimo_custo:i.custo, estoque:i.estoque, venda_dia:i.venda_dia, cobertura_dias:i.cobertura_dias, curva_a:i.curva_a};
   }).filter(function(i){ return Object.keys(i.lojas_qtd).length; });
 }
-function irFornecedores(){ if (!SUG) return; if (!itensSelecionados().length) { toastMsg('Marque pelo menos um item com quantidade'); return; } wizGo('w2'); renderFornecedores(); setTimeout(function(){ $('#f-srch').focus(); }, 50); }
+function irFornecedores(){ if (!SUG) return; if (!itensSelecionados().length) { toastMsg('Marque pelo menos um item com quantidade'); return; } wizGo('w2'); renderFornecedores(); carregarFornLista(); setTimeout(function(){ $('#f-srch').focus(); }, 50); }
+var ERP_FORN = [];
+// fornecedores guardados pra lista (última vez salva / última cotação) + quem o ERP diz que atende os produtos da lista
+async function carregarFornLista(){
+  var box = $('#w2-erp'); if (!box) return; box.innerHTML = '<span class="mini">Conferindo fornecedores desta lista no ERP…</span>';
+  try {
+    var r = await api('/api/cotacoes/lista/' + SUG.lista.lista + '/fornecedores');
+    ERP_FORN = r.erp || [];
+    var base = (r.salvos && r.salvos.length) ? r.salvos : (r.da_ultima_cotacao || []);
+    if (!FORN.length && base.length) { FORN = base.map(function(f){ return {codFornec:f.codFornec, nome:f.nome, vendedor:{nome:(f.vendedor&&f.vendedor.nome)||'', whats:(f.vendedor&&f.vendedor.whats)||'', email:(f.vendedor&&f.vendedor.email)||''}, telefones:[]}; }); renderFornecedores(); toastMsg(FORN.length + ' fornecedores desta lista carregados' + (r.salvos && r.salvos.length ? ' (salvos por você)' : ' (da cotação #' + (r.ultima_cotacao ? r.ultima_cotacao.id : '') + ')')); }
+    renderErpForn();
+  } catch(e) { box.innerHTML = '<span class="mini" style="color:var(--neg)">Não deu pra conferir no ERP: ' + esc(e.message) + '</span>'; }
+}
+function renderErpForn(){
+  var box = $('#w2-erp'); if (!box) return;
+  var falta = ERP_FORN.filter(function(f){ return !FORN.some(function(x){ return x.codFornec === f.codFornec; }); });
+  if (!ERP_FORN.length) { box.innerHTML = '<span class="mini">O ERP não tem fornecedores vinculados aos produtos desta lista (cadastro de itens por fornecedor).</span>'; return; }
+  var h = '<div class="pubcard" style="padding:12px 16px"><b>Fornecedores que o ERP conhece para esta lista</b> <span class="mini">(têm produtos da lista no cadastro de itens por fornecedor · ' + ERP_FORN.length + ' encontrados, ' + (ERP_FORN.length - falta.length) + ' já na cotação)</span><div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px">';
+  h += falta.slice(0, 30).map(function(f){ return '<button class="btn ghost sm" onclick="addFornecedorErp(' + f.codFornec + ')" title="' + esc(f.nome) + (f.vendedor && f.vendedor.nome ? ' · vendedor ' + esc(f.vendedor.nome) : '') + '">+ ' + esc(f.nome.length > 34 ? f.nome.slice(0, 33) + '…' : f.nome) + ' <span class="mini">' + f.atende + ' de ' + f.total + '</span></button>'; }).join('');
+  if (!falta.length) h += '<span class="mini">todos já adicionados</span>';
+  h += '</div>' + (falta.length > 1 ? '<div style="margin-top:8px"><button class="link-btn" onclick="addTodosErp()">adicionar todos os ' + falta.length + '</button></div>' : '') + '</div>';
+  box.innerHTML = h;
+}
+function addFornecedorErp(cod){ var f = ERP_FORN.find(function(x){ return x.codFornec === cod; }); if (!f || FORN.some(function(x){ return x.codFornec === cod; })) return; var v = f.vendedor || {}; FORN.push({codFornec:f.codFornec, nome:f.nome, vendedor:{nome:v.nome||'', whats:String(v.whats||'').replace(/\D/g,''), email:v.email||''}, telefones:[], lista_origem: v.lista ? '#' + v.lista + (v.lista_nome ? ' ' + v.lista_nome : '') : null, atende:f.atende}); renderFornecedores(); renderErpForn(); }
+async function importarExcel(inp){
+  var file = inp.files && inp.files[0]; if (!file) return; inp.value = '';
+  var info = $('#f-xlsx-info'); info.textContent = 'Lendo ' + file.name + ' e conferindo no ERP…';
+  try {
+    var fd = new FormData(); fd.append('planilha', file);
+    var r = await fetch('/api/cotacoes/fornecedores/importar', {method:'POST', body: fd}); var j = await r.json(); if (!r.ok || j.error) throw new Error(j.error || ('HTTP ' + r.status));
+    var novos = 0, dup = 0;
+    j.fornecedores.forEach(function(c){
+      var ja = FORN.find(function(x){ return c.codFornec ? x.codFornec === c.codFornec : (!x.codFornec && x.nome === c.nome); });
+      if (ja) { dup++; var vn = c.vendedor_final.nome || c.vendedor_final.whats; if (vn && vn !== ja.vendedor.nome) { ja.outros = ja.outros || []; ja.outros.push(vn + (c.vendedor_final.whats ? ' ' + c.vendedor_final.whats : '')); } return; }
+      FORN.push({codFornec: c.codFornec || 0, nome: c.codFornec ? c.nome_erp : c.nome, nome_planilha: c.nome, vendedor: {nome: c.vendedor_final.nome, whats: String(c.vendedor_final.whats || '').replace(/\D/g, ''), email: c.vendedor_final.email}, telefones: [], casou: c.como, condicao: c.condicao || ''}); novos++;
+    });
+    renderFornecedores(); renderErpForn();
+    info.textContent = file.name + ': ' + j.total + ' na planilha · ' + j.casados + ' casados com o ERP (' + j.parciais + ' por nome parecido, confira) · ' + j.nao_achados + ' não achados';
+    var na = j.fornecedores.filter(function(c){ return !c.codFornec; }), pa = j.fornecedores.filter(function(c){ return c.como === 'parcial'; });
+    var h = '';
+    if (pa.length) h += '<div class="pubcard" style="padding:10px 14px;margin-bottom:8px;background:var(--amw);border-color:var(--am)"><b style="color:var(--amk)">Casados por nome parecido — confira:</b> ' + pa.map(function(c){ return '<span class="mini">' + esc(c.nome) + ' → <b>' + esc(c.nome_erp) + '</b></span>'; }).join(' · ') + '</div>';
+    if (na.length) h += '<div class="pubcard" style="padding:10px 14px;background:var(--negw);border-color:var(--neg)"><b style="color:var(--neg)">Não achados no cadastro do ERP (entram só com o nome da planilha):</b> ' + na.map(function(c){ return '<span class="mini">' + esc(c.nome) + ' <button class="link-btn" style="font-size:10.5px" onclick="$(\'#f-srch\').value=\'' + esc(c.nome.split(' ')[0]).replace(/'/g, '') + '\';buscarFornecedor($(\'#f-srch\').value);$(\'#f-srch\').focus()">buscar no ERP</button></span>'; }).join(' · ') + '<div class="mini" style="margin-top:6px">Se achar o cadastro certo pela busca, adicione ele e remova a linha da planilha.</div></div>';
+    $('#w2-import').innerHTML = h;
+    toastMsg(novos + ' fornecedores importados' + (dup ? ' (' + dup + ' repetidos: mesmo fornecedor com outro vendedor, juntados na mesma linha)' : ''));
+  } catch(e) { info.textContent = ''; toastMsg('Erro na importação: ' + e.message); }
+}
+function addTodosErp(){ ERP_FORN.forEach(function(f){ addFornecedorErp(f.codFornec); }); }
+async function salvarFornLista(){ if (!SUG) return; if (!FORN.length) { toastMsg('Nenhum fornecedor pra salvar'); return; } try { var r = await post('/api/cotacoes/lista/' + SUG.lista.lista + '/fornecedores', {fornecedores: FORN.map(function(f){ return {codFornec:f.codFornec, nome:f.nome, vendedor:f.vendedor}; })}); toastMsg(r.salvos + ' fornecedores guardados pra lista ' + SUG.lista.lista + ' — na próxima cotação já vêm prontos'); } catch(e) { toastMsg('Erro: ' + e.message); } }
 
 // ───────── NOVA COTAÇÃO — fornecedores
 var _srchT = null;
@@ -544,19 +594,19 @@ async function addFornecedor(cod, nome){
     renderFornecedores();
   } catch(e) {}
 }
-function rmFornecedor(cod){ FORN = FORN.filter(function(f){ return f.codFornec !== cod; }); renderFornecedores(); }
-function setForn(cod, campo, v){ var f = FORN.find(function(x){ return x.codFornec === cod; }); if (f) f.vendedor[campo] = campo === 'whats' ? String(v).replace(/\D/g, '') : v; }
+function rmFornecedor(cod, nome){ FORN = FORN.filter(function(f){ return cod ? f.codFornec !== cod : f.nome !== nome; }); renderFornecedores(); renderErpForn(); }
+function setForn(cod, campo, v, nome){ var f = FORN.find(function(x){ return cod ? x.codFornec === cod : x.nome === nome; }); if (f) f.vendedor[campo] = campo === 'whats' ? String(v).replace(/\D/g, '') : v; }
 function renderFornecedores(){
   var tb = $('#w2-tbody');
   var semW = FORN.filter(function(f){ return !f.vendedor.whats; }).length, cont = $('#w2-cont');
   if (cont) cont.innerHTML = FORN.length ? '<b style="color:var(--ink)">' + FORN.length + '</b> fornecedor' + (FORN.length > 1 ? 'es' : '') + (semW ? ' · <b style="color:var(--neg)">' + semW + '</b> sem WhatsApp' : ' · todos com WhatsApp') : '';
   if (!FORN.length) { tb.innerHTML = '<tr><td colspan="5" class="empty">Nenhum fornecedor ainda. Busque acima e clique pra adicionar.</td></tr>'; return; }
   tb.innerHTML = FORN.map(function(f){
-    return '<tr><td><b>' + esc(f.nome) + '</b><br><span class="mini">cód. ' + f.codFornec + (f.telefones && f.telefones.length ? ' · cadastro: ' + f.telefones.map(function(t){ return esc(t.valor); }).join(', ') : '') + (f.lista_origem ? ' · vendedor veio da lista ' + esc(f.lista_origem) : '') + '</span></td>' +
+    return '<tr><td><b>' + esc(f.nome) + '</b><br><span class="mini">cód. ' + f.codFornec + (f.telefones && f.telefones.length ? ' · cadastro: ' + f.telefones.map(function(t){ return esc(t.valor); }).join(', ') : '') + (f.lista_origem ? ' · vendedor veio da lista ' + esc(f.lista_origem) : '') + (f.casou === 'parcial' ? ' · <span style="color:var(--amk);font-weight:700">casado por nome parecido (planilha: ' + esc(f.nome_planilha || '') + ')</span>' : '') + (!f.codFornec ? ' · <span style="color:var(--neg);font-weight:700">não achado no ERP (só nome da planilha)</span>' : '') + (f.outros && f.outros.length ? ' · outros vendedores na planilha: ' + esc(f.outros.join(', ')) : '') + '</span></td>' +
       '<td><input class="finp" value="' + esc(f.vendedor.nome) + '" placeholder="nome do vendedor" onchange="setForn(' + f.codFornec + ',\'nome\',this.value)"></td>' +
       '<td><input class="finp" value="' + esc(f.vendedor.whats) + '" placeholder="5581999990000"' + (f.vendedor.whats ? '' : ' style="border-color:var(--neg);background:var(--negw)"') + ' onchange="setForn(' + f.codFornec + ',\'whats\',this.value);renderFornecedores()">' + (f.vendedor.whats ? '' : '<div class="mini" style="color:var(--neg);margin-top:3px">sem WhatsApp: o link vai ter que ser copiado à mão</div>') + '</td>' +
       '<td><input class="finp" value="' + esc(f.vendedor.email) + '" placeholder="opcional" onchange="setForn(' + f.codFornec + ',\'email\',this.value)"></td>' +
-      '<td><button class="link-btn" style="color:var(--neg)" onclick="rmFornecedor(' + f.codFornec + ')">remover</button></td></tr>';
+      '<td><button class="link-btn" style="color:var(--neg)" onclick="rmFornecedor(' + f.codFornec + ',\'' + esc(f.nome).replace(/'/g, '') + '\')">remover</button></td></tr>';
   }).join('');
 }
 function irResumo(){
@@ -579,6 +629,7 @@ async function criarCotacao(){
       prazo: $('#ns-prazo').value || null, parametros: SUG.parametros, itens: its,
       fornecedores: FORN.map(function(f){ return {codFornec:f.codFornec, nome:f.nome, vendedor:f.vendedor}; })
     });
+    try { await post('/api/cotacoes/lista/' + SUG.lista.lista + '/fornecedores', {fornecedores: FORN.map(function(f){ return {codFornec:f.codFornec, nome:f.nome, vendedor:f.vendedor}; })}); } catch(e) {}
     toastMsg('Cotação #' + c.id + ' criada com ' + c.itens.length + ' itens e ' + c.fornecedores.length + ' fornecedores');
     SUG = null; EDIT = {}; SEL = {}; FORN = []; $('#wiz').style.display = 'none'; $('#ns-info').innerHTML = ''; $('#ns-lista').value = '';
     CUR = c; renderTudo(); goScreen('s3');

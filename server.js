@@ -6475,6 +6475,64 @@ app.get('/api/cotacoes/fornecedor/:codFornec/contato', async (req, res) => {
       vendedor: ag ? { nome: ag.Nome?.trim() || null, email: ag.email || null, whats: ag.whats || null, lista: ag.lista, lista_nome: ag.lista_nome?.trim() || null } : null, telefones });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+// Fornecedores DA LISTA (Tiago, 15/09): os que ele escolheu ficam guardados por lista (data/cotacoes-fornecedores.json)
+// e o ERP sugere quem atende os produtos da lista (fornecedoritens), com vendedor/whats de c_cotacao_agenda.
+const COT_FORN_PATH = path.join(__dirname, 'data', 'cotacoes-fornecedores.json');
+const lerCotForn = () => { try { return JSON.parse(fs.readFileSync(COT_FORN_PATH, 'utf8')); } catch (e) { return {}; } };
+app.get('/api/cotacoes/lista/:lista/fornecedores', async (req, res) => {
+  try {
+    const id = parseInt(req.params.lista); if (!(id > 0)) return res.status(400).json({ error: 'nº da lista inválido' });
+    const salvos = lerCotForn()[id] || [];
+    const ult = cotacao.listar().find(c => c.lista === id);
+    const daUltima = ult ? ult.fornecedores.map(f => ({ codFornec: f.codFornec, nome: f.nome, vendedor: f.vendedor })) : [];
+    const cods = (await q('SELECT DISTINCT Codigobarra cod FROM central.c_cotacao_lista_itens WHERE nCotacao=?', [id]).catch(() => [])).map(r => String(r.cod));
+    let erp = [];
+    if (cods.length) {
+      const cont = {};
+      for (const c of radarPedidos.chunk(cods, 2000)) {
+        const rows = await q(`SELECT CodFornecedor cf, COUNT(DISTINCT CodigoBarra) n FROM central.fornecedoritens WHERE Backup=0 AND CodigoBarra IN (${c.map(() => '?').join(',')}) GROUP BY CodFornecedor`, c).catch(() => []);
+        for (const r of rows) cont[r.cf] = (cont[r.cf] || 0) + (+r.n || 0);
+      }
+      const top = Object.entries(cont).sort((a, b) => b[1] - a[1]).slice(0, 40);
+      if (top.length) {
+        const cfs = top.map(x => +x[0]);
+        const nomes = await q(`SELECT CodFornec, Nome, NomeCompleto FROM central.fornecedor WHERE CodFornec IN (${cfs.map(() => '?').join(',')})`, cfs).catch(() => []);
+        const vend = await q(`SELECT l.CodFornec cf, a.Nome, a.email, a.whats, l.nReg lista, l.Nome lista_nome FROM central.c_cotacao_agenda a JOIN central.c_cotacao_lista l ON l.nReg=a.nLista WHERE l.CodFornec IN (${cfs.map(() => '?').join(',')}) ORDER BY a.nLista DESC`, cfs).catch(() => []);
+        const nomeDe = Object.fromEntries(nomes.map(r => [+r.CodFornec, String(r.NomeCompleto || r.Nome || '').trim()]));
+        const vendDe = {}; for (const v of vend) if (!vendDe[+v.cf]) vendDe[+v.cf] = { nome: v.Nome?.trim() || null, email: v.email || null, whats: v.whats || null, lista: v.lista, lista_nome: v.lista_nome?.trim() || null };
+        erp = top.map(([cf, n]) => ({ codFornec: +cf, nome: nomeDe[+cf] || ('Fornecedor ' + cf), atende: n, total: cods.length, vendedor: vendDe[+cf] || null }));
+      }
+    }
+    res.json({ lista: id, salvos, da_ultima_cotacao: daUltima, ultima_cotacao: ult ? { id: ult.id, nome: ult.nome, criadoEm: ult.criadoEm } : null, erp, total_itens: cods.length });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.post('/api/cotacoes/lista/:lista/fornecedores', (req, res) => {
+  try {
+    const id = parseInt(req.params.lista); if (!(id > 0)) return res.status(400).json({ error: 'nº da lista inválido' });
+    const lista = (Array.isArray(req.body?.fornecedores) ? req.body.fornecedores : []).map(f => ({ codFornec: parseInt(f.codFornec) || 0, nome: String(f.nome || '').slice(0, 120), vendedor: { nome: String(f.vendedor?.nome || '').slice(0, 80), whats: String(f.vendedor?.whats || '').replace(/\D/g, '').slice(0, 20), email: String(f.vendedor?.email || '').slice(0, 120) } })).filter(f => f.codFornec > 0 || f.nome);
+    const todos = lerCotForn(); todos[id] = lista; todos[id + '_em'] = new Date().toISOString(); todos[id + '_por'] = cotUser(req);
+    fs.mkdirSync(path.dirname(COT_FORN_PATH), { recursive: true }); fs.writeFileSync(COT_FORN_PATH, JSON.stringify(todos, null, 2));
+    res.json({ ok: true, salvos: lista.length });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+// Importar fornecedores de planilha (Excel do Club da Cotação ou qualquer .xlsx com Fornecedor/CNPJ/Vendedor/Telefone/Email):
+// lê, casa com central.fornecedor (CNPJ > nome igual > parcial) e devolve pra tela montar a lista. Não grava nada.
+const cotImport = require('./lib/cotacao-import');
+const uploadPlanilhaCot = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
+app.post('/api/cotacoes/fornecedores/importar', uploadPlanilhaCot.single('planilha'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Envie a planilha (.xlsx) no campo "planilha"' });
+    const p = await cotImport.parsePlanilha(req.file.buffer);
+    const forn = await q('SELECT CodFornec, Nome, NomeCompleto, CNPJ FROM central.fornecedor').catch(() => []);
+    const casados = cotImport.casar(p.linhas, forn);
+    // vendedor/whats do ERP pra quem casou e veio sem contato na planilha
+    const cfs = [...new Set(casados.filter(c => c.codFornec).map(c => c.codFornec))];
+    const vendDe = {};
+    if (cfs.length) for (const v of await q(`SELECT l.CodFornec cf, a.Nome, a.email, a.whats FROM central.c_cotacao_agenda a JOIN central.c_cotacao_lista l ON l.nReg=a.nLista WHERE l.CodFornec IN (${cfs.map(() => '?').join(',')}) ORDER BY a.nLista DESC`, cfs).catch(() => [])) if (!vendDe[+v.cf]) vendDe[+v.cf] = { nome: v.Nome?.trim() || '', whats: String(v.whats || '').replace(/\D/g, ''), email: v.email || '' };
+    const out = casados.map(c => { const e = vendDe[c.codFornec] || {}; return { ...c, vendedor_final: { nome: c.vendedor || e.nome || '', whats: c.whats || e.whats || '', email: c.email || e.email || '' } }; });
+    res.json({ arquivo: req.file.originalname, cabecalho: p.cabecalho, colunas: p.colunas, total: out.length, casados: out.filter(c => c.codFornec).length, nao_achados: out.filter(c => !c.codFornec).length, parciais: out.filter(c => c.como === 'parcial').length, fornecedores: out, erp_total: forn.length });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 app.get('/api/cotacoes/historico/:cod', (req, res) => {
   try { res.json(cotacao.historicoProduto(req.params.cod)); } catch (err) { res.status(500).json({ error: err.message }); }
 });
