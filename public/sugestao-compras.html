@@ -644,7 +644,34 @@ function renderConsItens(){
   document.getElementById('c-total').textContent = 'R$ ' + fmtN(ativos.reduce((a, i) => a + i.quantidade * i.preco_und, 0));
 }
 function selecionarItem(codigo){ CONS.sel = codigo; renderConsItens(); renderConsDetalhe(); }
-function renderConsDetalhe(){ /* Task 8 */ }
+function renderConsDetalhe(){
+  const tb = document.getElementById('c-det-tbody'), tt = document.getElementById('c-det-titulo');
+  const it = CONS.s && CONS.sel ? CONS.s.itens.find(i => i.codigo === CONS.sel) : null;
+  if (!it) { tt.textContent = 'Selecione um item'; tb.innerHTML = ''; return; }
+  tt.textContent = `${it.codigo} - ${it.descricao}`;
+  const trav = consTravada() || !it.ativo;
+  const cob = v => v == null ? '—' : (v >= 9999 ? '∞' : fmtN(v, 0));
+  tb.innerHTML = it.lojas.map(l => `
+    <tr>
+      <td><b>${l.loja}</b></td><td>${l.ultima_compra || '—'}</td><td>${l.ultima_venda || '—'}</td><td>${l.fornecedor || '—'}</td>
+      <td class="c">${l.un || ''}</td><td class="c">${l.emb ?? '—'}</td>
+      <td class="r">${l.qtd_compra == null ? '—' : fmtN(l.qtd_compra, 0)}</td><td class="r">${l.preco_compra == null ? '—' : fmtN(l.preco_compra)}</td><td class="r">${l.total_compra == null ? '—' : fmtN(l.total_compra)}</td>
+      <td class="r">${fmtN(l.custo)}</td><td class="r">${fmtN(l.preco_atual)}</td>
+      <td class="r ${l.estoque <= 0 ? 'neg' : ''}">${fmtN(l.estoque, 0)}</td><td class="r ${l.pmv <= 0 ? 'neg' : ''}">${fmtN(l.pmv)}</td>
+      <td class="r">${fmtN(l.qtd_venda, 0)}</td><td class="r">${l.dias_venda == null ? '—' : l.dias_venda}</td><td class="r">${fmtN(l.media)}</td><td class="r">${cob(l.dias_cob)}</td>
+      <td class="r"><b>${l.sug_sistema}</b></td><td class="r">${fmtN(l.transito, 0)}</td><td class="c">${l.abc || '—'}</td>
+      <td class="c"><input type="number" min="0" class="qtd ${l.sug_loja ? '' : 'zero'}" value="${l.sug_loja}" ${trav ? 'disabled' : ''} onchange="editarSugLoja('${it.codigo}', ${l.loja}, this.value)"></td>
+    </tr>`).join('');
+}
+// sugestão loja → quantidade do item = soma das lojas
+function editarSugLoja(codigo, loja, v){
+  const it = CONS.s.itens.find(i => i.codigo === codigo); if (!it) return;
+  const l = it.lojas.find(x => x.loja === loja); if (!l) return;
+  l.sug_loja = Math.max(0, Math.round(parseFloat(v) || 0));
+  it.quantidade = it.lojas.reduce((a, x) => a + (x.sug_loja || 0), 0);
+  salvarPatch({ quantidades: { [codigo]: { [loja]: l.sug_loja } } });
+  renderConsItens(); renderConsDetalhe();
+}
 // quantidade do item → reparte pelas lojas proporcional à sugestão sistema
 function editarQuantidade(codigo, v){
   const it = CONS.s.itens.find(i => i.codigo === codigo); if (!it) return;
