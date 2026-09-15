@@ -2933,7 +2933,8 @@ app.get('/api/sugestoes-compra', async (req, res) => {
       LIMIT 500
     `, params);
 
-    res.json(rows.map(r => ({
+    const dlinks = rows.map(r => ({
+      origem: 'dlinks',
       sugestao: r.nConsolidado,
       lista: r.nLista,
       fornecedor: r.NomeFornec?.trim(),
@@ -2949,8 +2950,24 @@ app.get('/api/sugestoes-compra', async (req, res) => {
       cobertura: r.cobertura || null,
       itens: r.itens || 0,
       total: r.total ? +parseFloat(r.total).toFixed(2) : 0,
-      comprador: r.comprador?.trim() || null
-    })));
+      comprador: r.comprador?.trim() || null,
+      _ord: r.data ? new Date(r.data).getTime() : 0
+    }));
+    // sugestões criadas no Fluxo (JSON local) — mesma busca e mesmo filtro de desativadas
+    const fluxo = sugestaoManual.listar()
+      .filter(s => comDesativadas || s.status !== 'desativada')
+      .filter(s => !busca || String(s.lista.id) === busca || s.id.toLowerCase() === busca.toLowerCase() || (s.lista.fornecedor || '').toLowerCase().includes(busca.toLowerCase()))
+      .map(s => ({
+        origem: 'fluxo', sugestao: s.id, lista: s.lista.id, fornecedor: s.lista.fornecedor, cnpj: s.lista.cnpj, descricao: s.lista.nome,
+        lojas: s.parametros.lojas, status_web: 0, status: 0, desativada: s.status === 'desativada', status_fluxo: s.status,
+        pedido: s.pedido_id, data: new Date(s.criado_em).toLocaleDateString('pt-BR'),
+        periodo_venda: `${s.parametros.data_ini.split('-').reverse().join('/')} a ${s.parametros.data_fim.split('-').reverse().join('/')}`,
+        cobertura: s.parametros.cobertura, itens: s.itens.filter(i => i.ativo).length,
+        total: +s.itens.filter(i => i.ativo).reduce((a, i) => a + i.quantidade * (i.preco_und || 0), 0).toFixed(2),
+        comprador: s.criado_por || null, _ord: new Date(s.criado_em).getTime()
+      }));
+    const todos = [...fluxo, ...dlinks].sort((a, b) => b._ord - a._ord);
+    res.json(todos.map(({ _ord, ...x }) => x));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -6144,6 +6161,69 @@ app.get('/api/radar-pedidos/:listaId/itens', (req, res) => {
 const pedidosFornec = require('./lib/pedidos-fornecedor');
 pedidosFornec.init();
 pedidosFornec.initERP(q, radarPedidos);
+
+// ═══════════════════════════════════════════════════
+// SUGESTÃO MANUAL — tela "Consolidação da Lista" (espelho do Dlinks, dentro do Fluxo).
+// F-N = criada aqui (JSON em data/sugestoes-manuais); D-N = sugestão do Dlinks lida do
+// ERP (lista_consolidado_*) + ajustes gravados aqui. NADA é escrito no ERP.
+// ═══════════════════════════════════════════════════
+const sugestaoManual = require('./lib/sugestao-manual');
+let TRANSITO_ATUAL = () => 0;
+function transitoDaLista(listaId) {
+  const det = radarPedidos.itensLista(parseInt(listaId)); const m = {};
+  if (det) for (const it of det.itens) for (const [ln, d] of Object.entries(it.lojas_det || {})) m[`${it.cod}|${ln}`] = d.transito || 0;
+  return (cod, ln) => m[`${cod}|${ln}`] || 0;
+}
+sugestaoManual.init();
+sugestaoManual.initERP({ q, mesDB, curvaASet: radarPedidos.curvaASet, transitoDe: (cod, ln) => TRANSITO_ATUAL(cod, ln) });
+
+app.post('/api/sugestao-manual', async (req, res) => {
+  try {
+    const b = req.body || {};
+    const listaId = parseInt(b.lista); if (!listaId) return res.status(400).json({ error: 'Informe o número da lista' });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(b.data_ini || '') || !/^\d{4}-\d{2}-\d{2}$/.test(b.data_fim || '')) return res.status(400).json({ error: 'Período de venda inválido' });
+    TRANSITO_ATUAL = transitoDaLista(listaId);
+    const s = await sugestaoManual.calcularNova({ listaId, data_ini: b.data_ini, data_fim: b.data_fim, cobertura: Math.max(1, parseInt(b.cobertura) || 20), lojas: b.lojas, obs: b.obs, usuario: req.session.user?.nome || null });
+    res.json(s);
+  } catch (err) { res.status(err.message.startsWith('Lista') || err.message.startsWith('Escolha') ? 400 : 500).json({ error: err.message }); }
+});
+app.get('/api/sugestao-manual/:id', async (req, res) => {
+  try {
+    const id = String(req.params.id);
+    const s = id.startsWith('D-') ? await sugestaoManual.montarDoERP(id.slice(2)) : sugestaoManual.obter(id);
+    if (!s) return res.status(404).json({ error: 'Sugestão não encontrada' });
+    res.json(s);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.patch('/api/sugestao-manual/:id', (req, res) => {
+  try {
+    const id = String(req.params.id); if (!/^[FD]-\d+$/.test(id)) return res.status(400).json({ error: 'Id inválido' });
+    let s = sugestaoManual.obter(id);
+    if (!s && id.startsWith('D-')) s = { id, origem: 'dlinks', quantidades: {}, obs: {}, inativos: [], status: 'aberta', pedido_id: null };
+    if (!s) return res.status(404).json({ error: 'Sugestão não encontrada' });
+    const p = req.body || {};
+    if (s.status === 'pedido_gerado' && (p.quantidades || p.ativo)) return res.status(409).json({ error: 'Sugestão já tem pedido gerado — não dá pra alterar quantidades' });
+    sugestaoManual.salvar(sugestaoManual.aplicarPatch(s, p));
+    res.json({ ok: true, atualizado_em: s.atualizado_em });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.post('/api/sugestao-manual/:id/recalcular', async (req, res) => {
+  try {
+    const s0 = sugestaoManual.obter(String(req.params.id));
+    if (!s0 || s0.origem !== 'fluxo') return res.status(400).json({ error: 'Só sugestões do Fluxo podem ser recalculadas' });
+    if (s0.status === 'pedido_gerado') return res.status(409).json({ error: 'Sugestão já tem pedido gerado' });
+    TRANSITO_ATUAL = transitoDaLista(s0.lista.id);
+    res.json(await sugestaoManual.recalcular(s0.id));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.post('/api/sugestao-manual/:id/desativar', (req, res) => {
+  try {
+    const s = sugestaoManual.obter(String(req.params.id));
+    if (!s || s.origem !== 'fluxo') return res.status(400).json({ error: 'Só sugestões do Fluxo podem ser desativadas aqui' });
+    sugestaoManual.salvar(sugestaoManual.aplicarPatch(s, { status: 'desativada' }));
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 // confere recebimento dos pedidos aprovados (nota no ERP × pedido) e gera sugestão de ruptura de entrega
 setTimeout(() => pedidosFornec.verificarRecebimentos().catch(e => console.error('[PEDIDOS] verificar:', e.message)), 120 * 1000);
 setInterval(() => pedidosFornec.verificarRecebimentos().catch(e => console.error('[PEDIDOS] verificar:', e.message)), 30 * 60 * 1000);
@@ -6249,7 +6329,7 @@ app.post('/api/pedidos-fornecedor', async (req, res) => {
     const confirmarExcesso = req.body.confirmar_excesso === true;
     // substituir: a tela (Sugestão de Compras) manda TODAS as quantidades; o cálculo do Radar é zerado antes dos ajustes
     const substituir = req.body.substituir === true;
-    const origemPedido = req.body.origem === 'sugestao' ? 'sugestao' : 'radar';
+    const origemPedido = ['sugestao', 'sugestao-manual'].includes(req.body.origem) ? req.body.origem : 'radar';
     const bloqueados = [], naoEncontrados = [];
     for (const id of listas) {
       const det = radarPedidos.itensLista(id, teto, null, embMeses, req.body.curvaA !== false && req.body.curvaA !== '0');
