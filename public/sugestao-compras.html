@@ -716,8 +716,44 @@ async function recalcularConsolidacao(){
   if (j.error) { alert(j.error); return; }
   abrirConsolidacao(j.id, j);
 }
-function gerarPedidoConsolidacao(){ alert('em construção'); }
-function exportarExcelConsolidacao(){ alert('em construção'); }
+async function gerarPedidoConsolidacao(){
+  const s = CONS.s; if (!s || consTravada()) return;
+  const ajustes = {}; let nItens = 0, nUn = 0;
+  for (const it of s.itens) { if (!it.ativo) continue; const r = {}; for (const l of it.lojas) if (l.sug_loja > 0) r[l.loja] = l.sug_loja; if (Object.keys(r).length) { ajustes[it.codigo] = r; nItens++; nUn += it.quantidade; } }
+  if (!nItens) { alert('Nenhum item com quantidade. Digite a quantidade nos produtos antes de gerar o pedido.'); return; }
+  const lojasTxt = [...new Set(Object.values(ajustes).flatMap(r => Object.keys(r)))].sort().map(l => 'L' + l).join(', ');
+  if (!confirm(`Gerar pedido da sugestão ${s.id} (lista ${s.lista.id} · ${s.lista.fornecedor || ''})?\n\n${nItens} produto(s) · ${nUn} un · lojas ${lojasTxt}\n\nO pedido vai pra Pedidos de Compra com o link pro vendedor digitar os preços. Depois disso a sugestão fica travada.`)) return;
+  const btn = document.getElementById('c-gerar'); btn.disabled = true; btn.textContent = 'Criando pedido...';
+  try {
+    const corpo = conf => JSON.stringify({ listas: [s.lista.id], ajustes: { [s.lista.id]: ajustes }, substituir: true, origem: 'sugestao-manual', confirmar_excesso: conf });
+    let r = await fetch('/api/pedidos-fornecedor', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: corpo(false) });
+    let j = await r.json();
+    if (r.status === 409 && j.bloqueados) {
+      const SL = { cobertura_excessiva: 'cobertura >120 d', parado: 'parado', nao_merece: 'não merece', compra_e_nao_vende: 'compra e não vende' };
+      const txt = j.bloqueados.slice(0, 25).map(b => '• L' + b.loja + ' · ' + b.descricao + ' · ' + b.qtd + ' un · ' + (SL[b.classe] || b.classe) + (b.cob && b.cob !== 9999 ? ' (' + b.cob + ' d)' : '')).join('\n') + (j.bloqueados.length > 25 ? '\n… e mais ' + (j.bloqueados.length - 25) : '');
+      if (!confirm('SORTIMENTO: ' + j.bloqueados.length + ' item(ns) com alerta iriam no pedido:\n\n' + txt + '\n\nConfirmar e gerar mesmo assim?')) throw new Error('Cancelado: zere esses itens ou confirme.');
+      r = await fetch('/api/pedidos-fornecedor', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: corpo(true) }); j = await r.json();
+    }
+    if (j.error) throw new Error(j.error);
+    const p = (j.criados || [])[0];
+    if (!p) throw new Error((j.sem_itens || []).map(x => x.motivo).join('; ') || 'Pedido não foi criado');
+    await fetch('/api/sugestao-manual/' + encodeURIComponent(s.id), { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'pedido_gerado', pedido_id: p.id }) });
+    s.status = 'pedido_gerado'; s.pedido_id = p.id; renderConsCabecalho(); renderConsItens(); renderConsDetalhe();
+    alert(`Pedido #${p.id} criado · ${p.itens} item(ns)` + (j.nao_encontrados && j.nao_encontrados.length ? `\n${j.nao_encontrados.length} código(s) fora da lista do Radar foram ignorados` : '') + `\n\nLink pro vendedor:\n${p.link}\n\nAbrindo Pedidos de Compra...`);
+    location.href = '/pedidos-compra.html';
+  } catch (e) { alert(e.message); btn.disabled = false; btn.textContent = 'Gerar Pedido'; }
+}
+function exportarExcelConsolidacao(){
+  const s = CONS.s; if (!s) return;
+  const L = [['Sugestão', s.id, 'Lista', s.lista.id, 'Fornecedor', s.lista.fornecedor || '', 'Período', `${s.parametros.data_ini} a ${s.parametros.data_fim}`, 'Cobertura', s.parametros.cobertura], []];
+  L.push(['Código','Descrição','Und','Emb','Quantidade','Preço Und','Preço Emb','Total','Observação','Ativo']);
+  for (const it of s.itens) L.push([it.codigo, it.descricao, it.und, it.emb, it.quantidade, it.preco_und, +(it.preco_und * it.emb).toFixed(2), +(it.quantidade * it.preco_und).toFixed(2), it.obs || '', it.ativo ? 'S' : 'N']);
+  L.push([], ['Código','Loja','Última Compra','Última Venda','Custo Unit.','Preço Atual','Estoque','PMV','Qtd Venda','Dias de Venda','Média Período','Dias de Cob.','Sugestão Sistema','Trânsito','ABC','Sugestão Loja']);
+  for (const it of s.itens) for (const l of it.lojas) L.push([it.codigo, l.loja, l.ultima_compra || '', l.ultima_venda || '', l.custo, l.preco_atual, l.estoque, l.pmv, l.qtd_venda, l.dias_venda ?? '', l.media, l.dias_cob ?? '', l.sug_sistema, l.transito, l.abc || '', l.sug_loja]);
+  const csv = L.map(r => r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(';')).join('\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' }); const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = `sugestao-${s.id}-lista-${s.lista.id}.csv`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+}
 let abaMonitor = 'todos', sugestoesCarregadas = [];
 function mudarAbaMonitor(aba){
   abaMonitor = aba;
