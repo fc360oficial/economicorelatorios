@@ -1,6 +1,9 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const sm = require('../lib/sugestao-manual');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
 
 const OBS = { sem_estoque: false, transito: false, dias_com_venda: false };
 
@@ -57,4 +60,40 @@ test('repartirPorLoja: sem sugestão sistema divide igual', () => {
 test('repartirPorLoja: total 0 ou sem lojas → {}', () => {
   assert.deepEqual(sm.repartirPorLoja(0, [{ loja: 1, sug_sistema: 5 }]), {});
   assert.deepEqual(sm.repartirPorLoja(5, []), {});
+});
+
+test('persistência: proximoId sequencial, salvar/obter/listar, D-* fora do listar', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sugman-'));
+  sm._setDir(dir);
+  assert.equal(sm.proximoId(), 'F-1');
+  assert.equal(sm.proximoId(), 'F-2');
+  sm.salvar({ id: 'F-1', origem: 'fluxo', criado_em: '2026-09-15T10:00:00.000Z', itens: [] });
+  sm.salvar({ id: 'F-2', origem: 'fluxo', criado_em: '2026-09-15T11:00:00.000Z', itens: [] });
+  sm.salvar({ id: 'D-4380', origem: 'dlinks', quantidades: {} });
+  assert.equal(sm.obter('F-1').id, 'F-1');
+  assert.equal(sm.obter('X-9'), null);
+  assert.deepEqual(sm.listar().map(s => s.id), ['F-2', 'F-1']);
+});
+
+test('aplicarPatch numa F-N: quantidade por loja, obs, ativo, status', () => {
+  const s = { id: 'F-1', origem: 'fluxo', status: 'aberta', pedido_id: null,
+    itens: [{ codigo: '789', ativo: true, obs: '', quantidade: 5, lojas: [{ loja: 1, sug_loja: 2 }, { loja: 2, sug_loja: 3 }] }] };
+  sm.aplicarPatch(s, { quantidades: { 789: { 1: 4, 2: 0 } }, obs: { 789: 'urgente' }, ativo: { 789: false }, status: 'pedido_gerado', pedido_id: 77 });
+  assert.equal(s.itens[0].lojas[0].sug_loja, 4);
+  assert.equal(s.itens[0].lojas[1].sug_loja, 0);
+  assert.equal(s.itens[0].quantidade, 4);          // soma das lojas
+  assert.equal(s.itens[0].obs, 'urgente');
+  assert.equal(s.itens[0].ativo, false);
+  assert.equal(s.status, 'pedido_gerado');
+  assert.equal(s.pedido_id, 77);
+});
+
+test('aplicarPatch numa D-N guarda só os ajustes', () => {
+  const d = { id: 'D-4380', origem: 'dlinks', quantidades: {}, obs: {}, inativos: [], status: 'aberta', pedido_id: null };
+  sm.aplicarPatch(d, { quantidades: { 789: { 3: 9 } }, ativo: { 789: false, 555: true }, obs: { 789: 'x' } });
+  assert.deepEqual(d.quantidades, { 789: { 3: 9 } });
+  assert.deepEqual(d.inativos, ['789']);
+  assert.equal(d.obs['789'], 'x');
+  sm.aplicarPatch(d, { ativo: { 789: true } });
+  assert.deepEqual(d.inativos, []);
 });
