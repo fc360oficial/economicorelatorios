@@ -432,7 +432,7 @@ function atualizarLinha(i){
 }
 function atualizarResumoW1(){
   var n = 0, tot = 0, vol = 0, semPadrao = 0, porLoja = {};
-  SUG.itens.forEach(function(i){ if (!(i.emb > 1)) semPadrao++; if (!SEL[i.cod]) return; var q = qtdItem(i); if (q <= 0) return; n++; tot += q * i.custo; vol += Math.ceil(q / (i.emb || 1)); i.lojas.forEach(function(ln){ var ql = qtdLoja(i, ln); if (ql <= 0) return; var L = porLoja[ln] = porLoja[ln] || {valor:0, vol:0, itens:0}; L.valor += ql * i.custo; L.vol += Math.ceil(ql / (i.emb || 1)); L.itens++; }); });
+  SUG.itens.forEach(function(i){ if (semCaixa(i)) semPadrao++; if (!SEL[i.cod]) return; var q = qtdItem(i); if (q <= 0) return; n++; tot += q * i.custo; vol += Math.ceil(q / (i.emb || 1)); i.lojas.forEach(function(ln){ var ql = qtdLoja(i, ln); if (ql <= 0) return; var L = porLoja[ln] = porLoja[ln] || {valor:0, vol:0, itens:0}; L.valor += ql * i.custo; L.vol += Math.ceil(ql / (i.emb || 1)); L.itens++; }); });
   // janela por loja em cima: valor a último custo, volumes e itens de cada loja (só itens marcados)
   var lojasAll = {}; SUG.itens.forEach(function(i){ i.lojas.forEach(function(ln){ lojasAll[ln] = 1; }); });
   var box = $('#w1-lojas'); if (box) box.innerHTML = Object.keys(lojasAll).sort(function(a, b){ return a - b; }).map(function(ln){ var L = porLoja[ln] || {valor:0, vol:0, itens:0}; var on = String(LOJA_F) === String(ln); return '<div class="kpi" style="padding:10px 14px;cursor:pointer' + (on ? ';outline:2px solid var(--am);background:var(--amw)' : '') + '" title="' + (on ? 'Clique pra voltar a ver todas as lojas' : 'Clique pra ver só esta loja') + '" onclick="filtrarLoja(\'' + ln + '\')"><div class="lbl" style="margin:0 0 2px;color:var(--ink2)">L' + ln + ' ' + esc(LOJAS_NOMES[ln] || '') + (on ? ' · <b style="color:var(--amk)">só esta</b>' : '') + '</div><div class="val" style="font-size:17px' + (L.valor > 0 ? '' : ';color:var(--ink3)') + '">' + fmtR(L.valor) + '</div><div class="lbl">' + fmtN(L.vol) + ' volumes · ' + L.itens + ' itens</div></div>'; }).join('');
@@ -440,16 +440,19 @@ function atualizarResumoW1(){
   var b = $('#btn-emb'); if (b) { b.textContent = '↻ Buscar caixa padrão' + (semPadrao ? ' (' + semPadrao + ')' : ''); b.disabled = !semPadrao; }
 }
 // de onde veio a embalagem do item (ordem do Radar: manual > notas do fornecedor da lista > padrão descoberto > cadastro)
+// sem caixa padrão = embalagem 1 SEM ninguém ter dito que é por unidade (caixa 1 corrigida à mão = vende por unidade, aceita)
+function semCaixa(i){ return !(i.emb > 1) && !(i.emb_manual >= 1); }
 function embLabel(i){
   var e = i.emb || 1;
-  if (!(e > 1)) return '<span class="m-bad">sem caixa padrão · digite: <input type="text" inputmode="numeric" class="qtyinput" style="width:44px;padding:2px 5px;font-size:11px" placeholder="un/cx" onchange="definirCaixa(\'' + esc(i.cod) + '\',\'' + esc(i.unid || 'UN') + '\',this.value)" onclick="event.stopPropagation()"></span>';
+  if (e === 1 && i.emb_manual >= 1) return '<span title="Caixa 1 definida à mão: produto vende por unidade">Por unidade <i style="font-style:normal;color:var(--ink3)">(corrigida à mão)</i> <button class="link-btn" style="font-size:10.5px" onclick="event.stopPropagation();ajustarCaixa(\'' + esc(i.cod) + '\',\'' + esc(i.unid || 'UN') + '\',1)">alterar</button></span>';
+  if (semCaixa(i)) return '<span class="m-bad">sem caixa padrão · digite: <input type="text" inputmode="numeric" class="qtyinput" style="width:44px;padding:2px 5px;font-size:11px" placeholder="un/cx" onchange="definirCaixa(\'' + esc(i.cod) + '\',\'' + esc(i.unid || 'UN') + '\',this.value)" onclick="event.stopPropagation()"></span>';
   var fonte = i.emb_manual && e === i.emb_manual ? 'manual' : (i.emb_compra && e === i.emb_compra ? 'notas' : (i.emb_padrao && e === i.emb_padrao.emb ? (i.emb_padrao.fonte || 'padrão') : (e === i.emb_cadastro ? 'cadastro' : '')));
   var nomes = {manual:'corrigida à mão', notas:'notas de entrada', xml:'XML da NF-e', vendas:'Embalagem Vendas', dun14:'código de caixa', erp:'sugestão do ERP', cadastro:'cadastro'};
   return '<span title="fonte: ' + (nomes[fonte] || fonte || '—') + '">Cx ' + e + (fonte ? ' <i style="font-style:normal;color:var(--ink3)">(' + (nomes[fonte] || fonte) + ')</i>' : '') + '</span>';
 }
 async function buscarCaixaPadrao(){
   if (!SUG) return;
-  var cods = SUG.itens.filter(function(i){ return !(i.emb > 1); }).map(function(i){ return i.cod; });
+  var cods = SUG.itens.filter(semCaixa).map(function(i){ return i.cod; });
   if (!cods.length) { toastMsg('Todos os itens já têm caixa padrão'); return; }
   var b = $('#btn-emb'); b.disabled = true; b.textContent = 'Procurando em ' + cods.length + ' itens…';
   try {
@@ -465,13 +468,13 @@ function cxLink(i, q){ return '<span class="mini" style="cursor:pointer;border-b
 function ajustarCaixa(cod, unid, atual){ var i = SUG && SUG.itens.find(function(x){ return x.cod === cod; }); var v = prompt('Caixa padrão (unidades por caixa) de\n' + (i ? i.descricao : cod) + '\n\nHoje: ' + atual, atual); if (v === null) return; definirCaixa(cod, unid, v); }
 async function definirCaixa(cod, unid, v){
   var e = Math.round(parseFloat(String(v).replace(',', '.'))); if (!(e >= 1)) return;
-  try { await post('/api/itens/unidade-embalagem', {codigo: cod, unidade: unid || 'UN', embalagem: e}); toastMsg('Caixa de ' + e + ' gravada pro produto ' + cod + ' (vale no Radar também)'); await calcularSugestao(true); }
+  try { await post('/api/itens/unidade-embalagem', {codigo: cod, unidade: unid || 'UN', embalagem: e}); toastMsg((e === 1 ? 'Produto marcado como venda por unidade' : 'Caixa de ' + e + ' gravada') + ' pro produto ' + cod + ' (vale no Radar também)'); await calcularSugestao(true); }
   catch(err) { toastMsg('Erro: ' + err.message); }
 }
 function renderSugestao(){
   if (!SUG) return;
   var soQtd = $('#ns-so-qtd').checked, b = ($('#ns-busca').value || '').trim().toLowerCase(), ordem = ($('#ns-ordem') || {}).value || 'az', fEst = ($('#ns-est') || {}).value || '', fCx = ($('#ns-cx') || {}).value || '';
-  var rows = SUG.itens.filter(function(i){ if (LOJA_F && i.lojas.map(String).indexOf(String(LOJA_F)) === -1) return false; var qf = LOJA_F ? qtdLoja(i, LOJA_F) : qtdItem(i); if (soQtd && qf <= 0 && !SEL[i.cod]) return false; if (b && i.descricao.toLowerCase().indexOf(b) === -1 && String(i.cod).indexOf(b) === -1) return false; var estF = LOJA_F ? (((i.lojas_det || {})[LOJA_F] || {}).estoque || 0) : i.estoque; if (fEst === 'com' && !(estF > 0)) return false; if (fEst === 'sem' && estF > 0) return false; if (fCx === 'sem' && i.emb > 1) return false; if (fCx === 'com' && !(i.emb > 1)) return false; return true; });
+  var rows = SUG.itens.filter(function(i){ if (LOJA_F && i.lojas.map(String).indexOf(String(LOJA_F)) === -1) return false; var qf = LOJA_F ? qtdLoja(i, LOJA_F) : qtdItem(i); if (soQtd && qf <= 0 && !SEL[i.cod]) return false; if (b && i.descricao.toLowerCase().indexOf(b) === -1 && String(i.cod).indexOf(b) === -1) return false; var estF = LOJA_F ? (((i.lojas_det || {})[LOJA_F] || {}).estoque || 0) : i.estoque; if (fEst === 'com' && !(estF > 0)) return false; if (fEst === 'sem' && estF > 0) return false; if (fCx === 'sem' && !semCaixa(i)) return false; if (fCx === 'com' && semCaixa(i)) return false; return true; });
   if (ordem === 'az' || ordem === 'za') { rows = rows.slice().sort(function(x, y){ return (x.descricao || '').localeCompare(y.descricao || '', 'pt-BR'); }); if (ordem === 'za') rows.reverse(); }
   var tb = $('#w1-tbody');
   if (!rows.length) { tb.innerHTML = '<tr><td colspan="9" class="empty">Nenhum item' + (LOJA_F ? ' na loja L' + LOJA_F : '') + (soQtd ? ' com quantidade — desmarque "só itens com quantidade" pra ver a lista inteira e digitar' : '') + '.</td></tr>'; atualizarResumoW1(); return; }
