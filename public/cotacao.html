@@ -260,7 +260,7 @@ td.price.manual{box-shadow:inset 0 0 0 2px var(--inf)}
     </div>
 
     <div class="wizpanel" id="w2">
-      <div class="toolbar"><span style="color:var(--ink2);font-size:12px">Quem vai receber esta cotação (cada um recebe um link próprio por WhatsApp).</span></div>
+      <div class="toolbar"><span style="color:var(--ink2);font-size:12px">Quem vai receber esta cotação (cada um recebe um link próprio por WhatsApp).</span><span class="mini" id="w2-cont"></span></div>
       <div class="srch" style="max-width:520px;margin-bottom:14px">
         <input type="text" id="f-srch" placeholder="Buscar fornecedor no cadastro do ERP (nome ou razão social)…" autocomplete="off" oninput="buscarFornecedor(this.value)" style="width:100%;border:1px solid var(--ln2);border-radius:9px;padding:9px 12px;font-family:inherit;font-size:13px">
         <div class="res" id="f-res" style="display:none"></div>
@@ -525,7 +525,7 @@ function buscarFornecedor(v){
   _srchT = setTimeout(async function(){
     try {
       var rs = await api('/api/fornecedores/buscar?q=' + encodeURIComponent(v.trim()));
-      box.innerHTML = rs.length ? rs.map(function(r){ return '<button onclick="addFornecedor(' + r.codFornec + ',\'' + esc(r.nome).replace(/'/g, '&#39;') + '\')">' + esc(r.nome) + '<span class="mini">cód. ' + r.codFornec + '</span></button>'; }).join('') : '<div class="empty" style="padding:14px">Nenhum fornecedor com esse nome no ERP.</div>';
+      box.innerHTML = rs.length ? rs.map(function(r){ var ja = FORN.some(function(f){ return f.codFornec === r.codFornec; }); return '<button' + (ja ? ' style="background:var(--wsh);color:var(--ink3)"' : '') + ' onclick="addFornecedor(' + r.codFornec + ',\'' + esc(r.nome).replace(/'/g, '&#39;') + '\')">' + esc(r.nome) + '<span class="mini">cód. ' + r.codFornec + (ja ? ' · já adicionado' : '') + '</span></button>'; }).join('') : '<div class="empty" style="padding:14px">Nenhum fornecedor com esse nome no ERP.</div>';
       box.style.display = 'block';
     } catch(e) { toastMsg('Erro na busca: ' + e.message); }
   }, 300);
@@ -538,7 +538,7 @@ async function addFornecedor(cod, nome){
   FORN.push(f); renderFornecedores();
   try {
     var c = await api('/api/cotacoes/fornecedor/' + cod + '/contato');
-    if (c.vendedor) { f.vendedor.nome = c.vendedor.nome || ''; f.vendedor.whats = String(c.vendedor.whats || '').replace(/\D/g, ''); f.vendedor.email = c.vendedor.email || ''; }
+    if (c.vendedor) { f.vendedor.nome = c.vendedor.nome || ''; f.vendedor.whats = String(c.vendedor.whats || '').replace(/\D/g, ''); f.vendedor.email = c.vendedor.email || ''; f.lista_origem = c.vendedor.lista ? '#' + c.vendedor.lista + (c.vendedor.lista_nome ? ' ' + c.vendedor.lista_nome : '') : null; }
     f.telefones = c.telefones || [];
     if (!f.vendedor.whats && f.telefones.length) f.vendedor.whats = f.telefones[0].valor.replace(/\D/g, '');
     renderFornecedores();
@@ -548,11 +548,13 @@ function rmFornecedor(cod){ FORN = FORN.filter(function(f){ return f.codFornec !
 function setForn(cod, campo, v){ var f = FORN.find(function(x){ return x.codFornec === cod; }); if (f) f.vendedor[campo] = campo === 'whats' ? String(v).replace(/\D/g, '') : v; }
 function renderFornecedores(){
   var tb = $('#w2-tbody');
+  var semW = FORN.filter(function(f){ return !f.vendedor.whats; }).length, cont = $('#w2-cont');
+  if (cont) cont.innerHTML = FORN.length ? '<b style="color:var(--ink)">' + FORN.length + '</b> fornecedor' + (FORN.length > 1 ? 'es' : '') + (semW ? ' · <b style="color:var(--neg)">' + semW + '</b> sem WhatsApp' : ' · todos com WhatsApp') : '';
   if (!FORN.length) { tb.innerHTML = '<tr><td colspan="5" class="empty">Nenhum fornecedor ainda. Busque acima e clique pra adicionar.</td></tr>'; return; }
   tb.innerHTML = FORN.map(function(f){
-    return '<tr><td><b>' + esc(f.nome) + '</b><br><span class="mini">cód. ' + f.codFornec + (f.telefones && f.telefones.length ? ' · cadastro: ' + f.telefones.map(function(t){ return esc(t.valor); }).join(', ') : '') + '</span></td>' +
+    return '<tr><td><b>' + esc(f.nome) + '</b><br><span class="mini">cód. ' + f.codFornec + (f.telefones && f.telefones.length ? ' · cadastro: ' + f.telefones.map(function(t){ return esc(t.valor); }).join(', ') : '') + (f.lista_origem ? ' · vendedor veio da lista ' + esc(f.lista_origem) : '') + '</span></td>' +
       '<td><input class="finp" value="' + esc(f.vendedor.nome) + '" placeholder="nome do vendedor" onchange="setForn(' + f.codFornec + ',\'nome\',this.value)"></td>' +
-      '<td><input class="finp" value="' + esc(f.vendedor.whats) + '" placeholder="5581999990000" onchange="setForn(' + f.codFornec + ',\'whats\',this.value)"></td>' +
+      '<td><input class="finp" value="' + esc(f.vendedor.whats) + '" placeholder="5581999990000"' + (f.vendedor.whats ? '' : ' style="border-color:var(--neg);background:var(--negw)"') + ' onchange="setForn(' + f.codFornec + ',\'whats\',this.value);renderFornecedores()">' + (f.vendedor.whats ? '' : '<div class="mini" style="color:var(--neg);margin-top:3px">sem WhatsApp: o link vai ter que ser copiado à mão</div>') + '</td>' +
       '<td><input class="finp" value="' + esc(f.vendedor.email) + '" placeholder="opcional" onchange="setForn(' + f.codFornec + ',\'email\',this.value)"></td>' +
       '<td><button class="link-btn" style="color:var(--neg)" onclick="rmFornecedor(' + f.codFornec + ')">remover</button></td></tr>';
   }).join('');
