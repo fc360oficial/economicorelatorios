@@ -218,3 +218,30 @@ test('num: zero e nulo', () => {
   assert.equal(sm.num('0'), 0);
   assert.equal(sm.num(null), 0);
 });
+
+test('montarDeLinhas: loja participante sem histórico do item vira linha desativada ("Item")', () => {
+  const cab = { nConsolidado: 9, nLista: 2, CodFornec: 3, NomeFornec: 'F', CNPJ: '0', Data: null, DataVenda1: '01/09/2026', DataVenda2: '11/09/2026', QtdCobertura: 10, StatusWeb: 0, CodDesativado: 0 };
+  const itens = [{ CodigoBarra: 'A', Descricao: 'A', Unid: 'UN', QtdEmb: 1, QTotal: '0', Preco: '0', Ql1: '0', Ql3: '0', Obs: '0' },
+                 { CodigoBarra: 'B', Descricao: 'B', Unid: 'UN', QtdEmb: 1, QTotal: '0', Preco: '0', Ql1: '0', Ql3: '0', Obs: '0' }];
+  const h = (loja, cod) => ({ nLoja: loja, CodigoBarra: cod, DataCompra: '0', Fornecedor: '0', Qtd: '0', Emb: '0', Preco: '0', Total: '0', Custo: '0', PVenda: '0', Transito: '0', SaidaMedia: '1', Cobertura: '3', Estoque: '3', QtdVendas: '10', QtdSug: '7', QtdLoja: '0', PMV: '0' });
+  const s = sm.montarDeLinhas(cab, itens, [h(1, 'A'), h(3, 'A'), h(3, 'B')], null);
+  assert.deepEqual(s.parametros.lojas, [1, 3]);
+  const b = s.itens.find(i => i.codigo === 'B');
+  assert.deepEqual(b.lojas.map(l => [l.loja, !!l.desativado]), [[1, true], [3, false]]);
+  assert.equal(b.quantidade, 7);
+  // numa D-N o patch só guarda os ajustes; a próxima montagem reaplica — e a loja desativada continua em 0
+  const aj = sm.aplicarPatch({ id: 'D-9', origem: 'dlinks', quantidades: {}, obs: {}, inativos: [], status: 'aberta', pedido_id: null }, { quantidades: { B: { 1: 5, 3: 2 } } });
+  const s2 = sm.montarDeLinhas(cab, itens, [h(1, 'A'), h(3, 'A'), h(3, 'B')], aj);
+  const b2 = s2.itens.find(i => i.codigo === 'B');
+  assert.equal(b2.lojas[0].sug_loja, 0);                // desativada não aceita digitação
+  assert.equal(b2.lojas[1].sug_loja, 2);
+  assert.equal(b2.quantidade, 2);
+});
+
+test('montarItens: loja da sugestão onde o produto não está na lista vira desativada', () => {
+  const base = [{ codigo: '1', descricao: 'A', und: 'UN', emb: 1, lojas: [2] }];
+  const porLoja = { 2: { 1: { estoque: 0, qtdVenda: 10, valorVenda: 50, diasVenda: 5, ultimaVenda: null, custo: 2, ultimaCompra: null, precoAtual: 5, transito: 0 } } };
+  const r = sm.montarItens(base, porLoja, { dias: 10, cobertura: 10, obs: { sem_estoque: false, transito: false, dias_com_venda: false }, curvaA: null, lojas: [1, 2] });
+  assert.deepEqual(r.itens[0].lojas.map(l => [l.loja, !!l.desativado]), [[1, true], [2, false]]);
+  assert.equal(r.itens[0].quantidade, 10);
+});

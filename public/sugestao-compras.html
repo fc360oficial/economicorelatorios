@@ -210,7 +210,7 @@ table.cons-t input.qtd.zero{color:#98A0B3;font-weight:400}
 table.cons-t input.obs{width:220px;border:1px solid transparent;border-radius:5px;padding:3px;background:transparent}
 table.cons-t input.obs:focus{border-color:#DADAD6;background:#fff}
 table.cons-det td.neg{color:#B23A3A;font-weight:700}
-table.cons-det tr.loja-off td{color:#B7BEC9;background:#F7F7F5;font-style:italic}
+table.cons-det tr.loja-item td{color:#B23A3A;font-weight:700;background:#FFF7F7}
 .cons-rodape{display:flex;justify-content:space-between;font-size:12px;color:#4E5A72;padding:6px 4px}
 .cons-det-titulo{font-weight:800;font-size:13px;text-align:center;background:#101B33;color:#fff;border-radius:8px 8px 0 0;padding:6px;margin-top:6px}
 .cons-barra{display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap}
@@ -657,10 +657,9 @@ function renderConsDetalhe(){
   tt.textContent = `${it.codigo} - ${it.descricao}`;
   const trav = consTravada() || !it.ativo;
   const cob = v => v == null ? '—' : (v >= 9999 ? '∞' : fmtN(v, 0));
-  // todas as 6 lojas: as que não participam da sugestão aparecem desativadas (cinza, sem digitar)
-  tb.innerHTML = [1, 2, 3, 4, 5, 6].map(ln => {
-    const l = it.lojas.find(x => x.loja === ln);
-    if (!l) return `<tr class="loja-off"><td><b>${ln}</b></td><td colspan="19" class="c">não participa desta sugestão</td><td class="c"><input type="number" class="qtd zero" value="0" disabled></td></tr>`;
+  // igual ao Dlinks: loja participante com o item desativado vira linha vermelha "Item"; loja fora da sugestão não aparece
+  tb.innerHTML = it.lojas.map(l => {
+    if (l.desativado) return `<tr class="loja-item"><td><b>${l.loja}</b></td><td colspan="19">Item</td><td class="c"><input type="number" class="qtd zero" value="0" disabled></td></tr>`;
     return `
     <tr>
       <td><b>${l.loja}</b></td><td>${escH(l.ultima_compra) || '—'}</td><td>${escH(l.ultima_venda) || '—'}</td><td>${escH((l.fornecedor || '').split(' ')[0]) || '—'}</td>
@@ -686,8 +685,8 @@ function editarSugLoja(codigo, loja, v){
 function editarQuantidade(codigo, v){
   const it = CONS.s.itens.find(i => i.codigo === codigo); if (!it) return;
   const T = Math.max(0, Math.round(parseFloat(v) || 0));
-  const rep = repartirLojas(T, it.lojas);
-  for (const l of it.lojas) l.sug_loja = rep[l.loja] || 0;
+  const rep = repartirLojas(T, it.lojas.filter(l => !l.desativado));
+  for (const l of it.lojas) l.sug_loja = l.desativado ? 0 : (rep[l.loja] || 0);
   it.quantidade = it.lojas.reduce((a, l) => a + l.sug_loja, 0);
   salvarPatch({ quantidades: { [codigo]: Object.fromEntries(it.lojas.map(l => [l.loja, l.sug_loja])) } });
   renderConsItens(); renderConsDetalhe();
