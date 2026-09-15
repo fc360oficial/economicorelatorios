@@ -97,3 +97,59 @@ test('aplicarPatch numa D-N guarda só os ajustes', () => {
   sm.aplicarPatch(d, { ativo: { 789: true } });
   assert.deepEqual(d.inativos, []);
 });
+
+test('salvar: rejeita id inválido', () => {
+  assert.throws(() => sm.salvar({ id: '../x' }), /Id inválido/);
+});
+
+test('obter/listar ignoram arquivo corrompido', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sugman-corrupt-'));
+  sm._setDir(dir);
+  fs.writeFileSync(path.join(dir, 'F-9.json'), '{not json');
+  assert.equal(sm.obter('F-9'), null);
+  assert.doesNotThrow(() => sm.listar());
+  assert.ok(!sm.listar().map(s => s.id).includes('F-9'));
+});
+
+test('montarDeLinhas: monta D-N a partir das linhas do ERP e aplica ajustes', () => {
+  const cab = { nConsolidado: 4380, nLista: 444, CodFornec: 1335, NomeFornec: 'PARATY ATACADO', CNPJ: '05476815001056', Data: new Date('2026-09-15T03:00:00Z'), DataVenda1: '15/08/2026', DataVenda2: '15/09/2026', QtdCobertura: 40, StatusWeb: 1, CodDesativado: 0 };
+  const itens = [{ CodigoBarra: '789', Descricao: 'CAREFREE 15UN', Unid: 'un', QtdEmb: 1, QTotal: '24.000', Preco: '6.890', Ql1: '10.000', Ql2: '14.000', Ql3: '0.000', Obs: 'x' }];
+  const hist = [
+    { nLoja: 1, CodigoBarra: '789', DataCompra: '18/11/25', Fornecedor: 'PARATY', Qtd: '6', Emb: '1', Preco: '6,89', Total: '41,32', Custo: '7,80', PVenda: '12,49', Transito: '0', SaidaMedia: '0,31', Cobertura: '12', Estoque: '4', QtdVendas: '10', QtdSug: '9', QtdLoja: '10', PMV: '12,49' },
+    { nLoja: 2, CodigoBarra: '789', DataCompra: '13/02/26', Fornecedor: 'PARATY', Qtd: '12', Emb: '1', Preco: '6,85', Total: '82,22', Custo: '7,76', PVenda: '12,49', Transito: '0', SaidaMedia: '0', Cobertura: '0', Estoque: '0', QtdVendas: '0', QtdSug: '0', QtdLoja: '14', PMV: '0' },
+  ];
+  const s = sm.montarDeLinhas(cab, itens, hist, { id: 'D-4380', origem: 'dlinks', quantidades: { 789: { 2: 20 } }, obs: {}, inativos: [], status: 'aberta', pedido_id: null });
+  assert.equal(s.id, 'D-4380');
+  assert.equal(s.origem, 'dlinks');
+  assert.equal(s.lista.id, 444);
+  assert.equal(s.lista.cnpj, '05476815001056');
+  assert.equal(s.parametros.dias, 31);
+  assert.equal(s.parametros.cobertura, 40);
+  assert.deepEqual(s.parametros.lojas, [1, 2]);
+  assert.equal(s.status_web, 1);
+  const it = s.itens[0];
+  assert.equal(it.preco_und, 6.89);
+  assert.equal(it.lojas[0].sug_sistema, 9);
+  assert.equal(it.lojas[0].sug_loja, 10);          // Ql1 do Dlinks
+  assert.equal(it.lojas[1].sug_loja, 20);          // ajuste gravado no Fluxo sobrepõe Ql2
+  assert.equal(it.quantidade, 30);
+  assert.equal(it.lojas[0].estoque, 4);
+  assert.equal(it.lojas[0].pmv, 12.49);
+  assert.equal(it.lojas[0].dias_cob, 12);
+  assert.equal(it.lojas[0].media, 0.31);
+  assert.equal(it.lojas[0].abc, null);
+});
+
+test('montarDeLinhas: sem ajustes usa Ql, sem Ql usa QtdSug; inativo vem dos ajustes', () => {
+  const cab = { nConsolidado: 1, nLista: 2, CodFornec: 3, NomeFornec: 'F', CNPJ: '0', Data: null, DataVenda1: '01/09/2026', DataVenda2: '11/09/2026', QtdCobertura: 10, StatusWeb: 0, CodDesativado: 0 };
+  const itens = [{ CodigoBarra: '1', Descricao: 'A', Unid: 'UN', QtdEmb: 12, QTotal: '0.000', Preco: '0.000', Ql1: '0.000', Obs: '0' }];
+  const hist = [{ nLoja: 1, CodigoBarra: '1', DataCompra: '0', Fornecedor: '0', Qtd: '0', Emb: '0', Preco: '0', Total: '0', Custo: '0', PVenda: '0', Transito: '0', SaidaMedia: '1', Cobertura: '3', Estoque: '3', QtdVendas: '10', QtdSug: '7', QtdLoja: '0', PMV: '0' }];
+  const s = sm.montarDeLinhas(cab, itens, hist, { id: 'D-1', origem: 'dlinks', quantidades: {}, obs: {}, inativos: ['1'], status: 'aberta', pedido_id: null });
+  assert.equal(s.itens[0].lojas[0].sug_loja, 7);
+  assert.equal(s.itens[0].quantidade, 7);
+  assert.equal(s.itens[0].ativo, false);
+  assert.equal(s.itens[0].obs, '');                 // '0' do ERP vira vazio
+  assert.equal(s.lista.cnpj, null);
+  const s2 = sm.montarDeLinhas(cab, itens, hist, null);
+  assert.equal(s2.itens[0].ativo, true);
+});
