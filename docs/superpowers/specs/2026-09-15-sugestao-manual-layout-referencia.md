@@ -101,3 +101,18 @@ A grade de cima continua (linha selecionada em verde-água) e abre um
   "OK" cinza; Investimento e Capital Parado "—" quando não há.
 - Clicar no item: a grade de cima fica, o painel abre logo abaixo (não é
   modal), linha do item selecionado em verde-água.
+
+## Fonte da referência (15/09/2026, tarde)
+
+A tela dos prints é o protótipo `fluxo-certo-erp/apps/web/components/compras/tab-sugestao.tsx`
+(função `ConsolidacaoLista`, dados mock). Estrutura portada em `public/sugestao-compras.html`:
+overlay `fixed inset-0` em coluna flex → cabeçalho · barra Totais · busca (fixos) → miolo com
+lista de produtos (rolagem própria, `thead` sticky; 50% da altura quando tem item selecionado)
+e painel do produto (50%: título · Resumo Financeiro · presets de colunas · grade por loja com
+rolagem própria) → barra de baixo em 2 linhas (legenda + checkboxes + Exibir Itens / botões).
+Regras de conta copiadas de lá: `calcPrioridade`, `calcStatusIA`, `calcRupturaInfo`,
+`calcCapitalParado`, `calcMotivoIA`, totais e resumo financeiro, "Aceitar Sugestão Sistema"
+(só preenche lojas em 0), Enter no Pedido Compra pula pra loja de baixo. Cores: sempre os
+tokens do design-system (navy + âmbar), nunca as do protótipo.
+Ficaram desabilitados (em breve): Painel IA, Detalhamento do Produto, Solicitar Preço Web,
+Enviar Link, Gerar Cotação, NFe/Promoção.
