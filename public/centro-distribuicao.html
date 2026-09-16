@@ -350,6 +350,11 @@ function resumoDiv(p) {
   return { ok, div, faltaCx: p.itens.reduce((a, i) => a + Math.max(0, i.caixas - (p.recebimento ? (i.recebidas || 0) : p.expedicao ? (i.separadas || 0) : i.caixas)), 0) };
 }
 function renderPedidos() {
+  const foco = document.activeElement && document.activeElement.id === 'pdbusca'; const pos = foco ? document.activeElement.selectionStart : 0;
+  renderPedidosInner();
+  if (foco) { const el = $('#pdbusca'); if (el) { el.focus(); el.setSelectionRange(pos, pos); } }
+}
+function renderPedidosInner() {
   const cont = { todos: PEDIDOS.length }; for (const k of Object.keys(ST)) cont[k] = PEDIDOS.filter(p => p.status === k).length;
   cont.divergencia = PEDIDOS.filter(p => ['separado', 'recebido', 'recebido_parcial'].includes(p.status) && resumoDiv(p).div > 0).length;
   $('#n-peds').textContent = cont.aberto + cont.separado;
@@ -359,17 +364,20 @@ function renderPedidos() {
   <p class="mut" style="font-size:11.5px;margin:0 0 8px">Conferência automática a cada 30 min: <b>separado</b> = pedido da loja liberado no painel do Televendas do CD; <b>chegou</b> = nota do CD recebida na loja. Clique no pedido pra ver item a item o que foi pedido, separado e recebido.</p>
   <div class="busca-row"><button class="btn btn-slate" onclick="verificar()">Verificar agora</button></div>
   <div class="table-wrap"><table class="main-t"><thead><tr><th>#</th><th>Loja</th><th>Criado</th><th class="r">Itens</th><th class="r">Caixas</th><th class="r">Custo</th><th>Andamento</th><th>Conferência</th><th>Ação</th></tr></thead><tbody>
-  ${vis.map(p => { const R = resumoDiv(p); const aberto = PABERTO === p.id; return `<tr class="lst${aberto ? ' open' : ''}" onclick="PABERTO=PABERTO===${p.id}?null:${p.id};renderPedidos()"><td>${p.id}</td><td><b>L${p.loja}</b> ${p.lojaNome}</td><td>${new Date(p.criadoEm).toLocaleString('pt-BR')}<div class="s2">${p.criadoPor || ''}</div></td><td class="r">${p.itens.length}</td><td class="r">${fmtN(p.totais.caixas)}</td><td class="r">${fmtR(p.totais.custo)}</td>
+  ${vis.map(p => { const R = resumoDiv(p); const aberto = PABERTO === p.id; return `<tr class="lst${aberto ? ' open' : ''}" onclick="PABERTO=PABERTO===${p.id}?null:${p.id};PDBUSCA='';renderPedidos()"><td>${p.id}</td><td><b>L${p.loja}</b> ${p.lojaNome}</td><td>${new Date(p.criadoEm).toLocaleString('pt-BR')}<div class="s2">${p.criadoPor || ''}</div></td><td class="r">${p.itens.length}</td><td class="r">${fmtN(p.totais.caixas)}</td><td class="r">${fmtR(p.totais.custo)}</td>
     <td><span class="pill ${ST[p.status][1]}">${ST[p.status][0]}</span>${p.expedicao ? '<div class="s2">separação ' + p.expedicao.nPedido + ' · ' + (p.expedicao.data || '').split('-').reverse().join('/') + '</div>' : ''}${p.recebimento ? '<div class="s2">nota(s) ' + p.recebimento.notas.map(n => n.nNota).join(', ') + '</div>' : ''}</td>
     <td>${p.status === 'aberto' ? '<span class="mut">aguardando CD</span>' : ['cancelado', 'expirado'].includes(p.status) ? '<span class="mut">—</span>' : R.div ? `<span class="neg">${R.div} item(ns) com divergência</span><div class="s2">faltam ${fmtN(R.faltaCx)} cx</div>` : '<span class="pos">✓ tudo conferido</span>'}</td>
     <td onclick="event.stopPropagation()">${['aberto', 'separado', 'recebido_parcial', 'expirado'].includes(p.status) ? `<button class="btn btn-slate" onclick="cancelar(${p.id})">Cancelar</button>` : ''} <button class="btn btn-slate" onclick="imprimir(${p.id})">Imprimir</button></td></tr>${aberto ? detalhePedido(p) : ''}`; }).join('') || '<tr><td colspan="9" class="mut">nenhum pedido</td></tr>'}
   </tbody></table></div>`;
 }
+let PDBUSCA = '';
 function detalhePedido(p) {
   const R = resumoDiv(p);
-  const itens = p.itens.slice().sort((a, b) => { const da = divItem(p, a)[0] === 'neg' ? 0 : 1, db = divItem(p, b)[0] === 'neg' ? 0 : 1; return da - db || a.descricao.localeCompare(b.descricao, 'pt-BR'); });
+  const termos = normTxt(PDBUSCA).split(/[\s%]+/).filter(Boolean);
+  const itens = p.itens.filter(i => !termos.length || (() => { const t = normTxt(i.descricao + ' ' + i.codigoCD + ' ' + (i.unidade || '')); return termos.every(x => t.includes(x)); })()).sort((a, b) => { const da = divItem(p, a)[0] === 'neg' ? 0 : 1, db = divItem(p, b)[0] === 'neg' ? 0 : 1; return da - db || a.descricao.localeCompare(b.descricao, 'pt-BR'); });
   return `<tr class="det"><td colspan="9"><div class="box"><div class="hd"><div>Pedido <b>#${p.id}</b> · L${p.loja} ${p.lojaNome} · <span class="pill ${ST[p.status][1]}">${ST[p.status][0]}</span> · ${p.itens.length} itens · <b>${fmtN(p.totais.caixas)}</b> cx pedidas${p.expedicao ? ' · separação <b>' + p.expedicao.nPedido + '</b> em ' + (p.expedicao.data || '').split('-').reverse().join('/') : ''}${p.recebimento ? ' · nota(s) <b>' + p.recebimento.notas.map(n => n.nNota).join(', ') + '</b>' : ''}</div>
     <div>${R.div ? `<span style="color:#FF8FA3;font-weight:800">${R.div} com divergência · faltam ${fmtN(R.faltaCx)} cx</span>` : (p.status === 'aberto' ? '<span style="color:#AEB8CE">aguardando separação no CD</span>' : '<span style="color:#7BE0A6;font-weight:800">tudo conferido</span>')} <button class="btn btn-slate btn-sm" style="margin-left:10px" onclick="event.stopPropagation();imprimir(${p.id})">Imprimir</button></div></div>
+    <div style="padding:8px 12px;background:#F4F4F1;border-bottom:1px solid #DADAD6;display:flex;gap:10px;align-items:center" onclick="event.stopPropagation()"><input id="pdbusca" class="hin" placeholder="buscar produto no pedido: descrição, código ou palavras em qualquer ordem" value="${esc(PDBUSCA)}" oninput="PDBUSCA=this.value;renderPedidos()" style="flex:1;max-width:460px;border:1px solid #C9C9C4;border-radius:7px;padding:6px 10px;font-size:12px;font-family:inherit"><span class="contagem">${itens.length} de ${p.itens.length} itens</span></div>
     <table><thead><tr><th>Código CD</th><th>Produto</th><th class="r">Un/cx</th><th class="r">Pedidas (cx)</th><th class="r">Separadas no CD</th><th class="r">Recebidas na loja</th><th class="r">Custo</th><th>Conferência</th></tr></thead><tbody>
     ${itens.map(i => { const [cls, txt] = divItem(p, i); return `<tr class="${cls === 'neg' ? 'risco' : ''}"><td class="mono" style="font-family:ui-monospace,Consolas,monospace;font-size:11px;color:#4E5A72">${i.codigoCD}</td><td class="desc" style="white-space:normal">${esc(i.descricao)}${i.semVinculo ? ' <span class="pill p-flag">produto novo</span>' : ''}${i.unidade ? `<div class="s2">unidade ${i.unidade}</div>` : ''}</td><td class="r">${i.unPorCaixa}</td><td class="r"><b>${fmtN(i.caixas)}</b></td><td class="r">${p.expedicao ? fmtN(i.separadas || 0) : '<span class="mut">—</span>'}</td><td class="r">${p.recebimento ? fmtN(i.recebidas || 0) : '<span class="mut">—</span>'}</td><td class="r">${i.custoUn ? fmtR(i.caixas * i.unPorCaixa * i.custoUn) : '—'}</td><td class="${cls}">${txt}</td></tr>`; }).join('')}
     </tbody></table></div></td></tr>`;
