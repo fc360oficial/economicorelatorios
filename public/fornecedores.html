@@ -262,14 +262,18 @@ table.comp-t tr:hover td{background:#ffffff05}
 .pend-mg{font-size:10.5px;white-space:nowrap}.pend-mg b{color:#C22F49}
 .pend-ftab{background:transparent;border:1px solid #C9C9C4;border-radius:14px;padding:3px 10px;font-size:11px;color:#4E5A72;cursor:pointer;font-family:inherit}
 .pend-ftab.active{background:#0E1626;color:#fff;border-color:#0E1626}
-.pend-filtro{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#FFFFFF;border:1px solid #DADAD6;border-radius:12px;padding:10px 14px;margin-bottom:10px}
-.pend-filtro-lbl{font-size:11px;font-weight:700;color:#4E5A72;text-transform:uppercase;letter-spacing:.04em}
-.pend-filtro select{font:inherit;font-size:12.5px;padding:6px 10px;border:1px solid #C9C9C4;border-radius:8px;background:#fff;color:#0E1626}
-.pend-seg{display:inline-flex;border:1px solid #C9C9C4;border-radius:8px;overflow:hidden}
-.pend-seg button{background:#fff;border:none;padding:6px 14px;font:inherit;font-size:12.5px;font-weight:600;color:#4E5A72;cursor:pointer;border-right:1px solid #C9C9C4}
-.pend-seg button:last-child{border-right:none}
-.pend-seg button:hover{background:#EBEBE9;color:#0E1626}
-.pend-seg button.on{background:#0E1626;color:#fff}
+/* toggle Com/Sem em cada coluna de pendência (cabeçalho da tabela) */
+.pend-th{vertical-align:top}
+.pend-th .pend-th-lbl{display:block}
+.pend-cs{display:inline-flex;margin-top:5px;border:1px solid #C9C9C4;border-radius:6px;overflow:hidden;background:#fff}
+.pend-cs button{background:#fff;border:none;padding:2px 9px;font:inherit;font-size:10px;font-weight:700;letter-spacing:.3px;color:#4E5A72;cursor:pointer;border-right:1px solid #C9C9C4;text-transform:uppercase}
+.pend-cs button:last-child{border-right:none}
+.pend-cs button:hover{background:#EBEBE9;color:#0E1626}
+.pend-cs button.on{background:#0E1626;color:#fff}
+.pend-cs button.on.sem{background:#137A48}
+.pend-res{font-size:11px;color:#4E5A72;padding:6px 14px 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.pend-res .lnk{color:#0E1626;cursor:pointer;text-decoration:underline;font-weight:600}
+@media print{.pend-cs,.pend-res{display:none!important}}
 .itens-badge{display:inline-block;background:#F5B80022;border:1px solid #F5B80055;border-radius:6px;padding:2px 8px;font-size:12px;color:#6B4E00;font-weight:700}
 
 @media (max-width:768px){
@@ -413,22 +417,8 @@ table.comp-t tr:hover td{background:#ffffff05}
         Só produtos <b>ativos</b> com loja marcada na lista; <b>produto de balança fica fora</b>. <b>Sem margem varejo</b> = vazia ou 0% em alguma loja em que o item está marcado. <b>Sem margem atacado</b> e <b>L4 sem múltiplo</b> = só itens marcados na Loja 4, sem margem de atacado / sem quantidade de atacado cadastrada nela.
       </div>
     </div>
-    <div class="pend-filtro no-print">
-      <span class="pend-filtro-lbl">Mostrar listas</span>
-      <div class="pend-seg" id="pend-modo">
-        <button class="on" data-v="com" onclick="setPendModo('com')" title="Só listas que TÊM a pendência escolhida">Com</button>
-        <button data-v="sem" onclick="setPendModo('sem')" title="Só listas que NÃO têm a pendência escolhida (cadastro ok nesse ponto)">Sem</button>
-        <button data-v="todas" onclick="setPendModo('todas')" title="Todas as listas com item ativo">Todas</button>
-      </div>
-      <select id="pend-tipo" onchange="carregarPendente()">
-        <option value="com_pendencia">qualquer pendência</option>
-        <option value="sem_varejo">margem varejo faltando</option>
-        <option value="sem_atacado">margem atacado (L4) faltando</option>
-        <option value="sem_multiplo_l4">múltiplo L4 faltando</option>
-      </select>
-      <span id="pend-filtro-res" style="font-size:11px;color:#4E5A72"></span>
-    </div>
     <div class="table-wrap">
+      <div class="pend-res no-print" id="pend-filtro-res"></div>
       <table class="main-t" id="pend-table">
         <thead>
           <tr>
@@ -436,10 +426,10 @@ table.comp-t tr:hover td{background:#ffffff05}
             <th>Lista / Fornecedor</th>
             <th>Comprador</th>
             <th class="r" title="Itens ativos com loja marcada, sem produto de balança">Itens</th>
-            <th class="r" title="Itens sem margem varejo em alguma loja marcada">Sem margem varejo</th>
-            <th class="r" title="Itens marcados na Loja 4 sem margem atacado cadastrada nela">Sem margem atacado (L4)</th>
-            <th class="r" title="Itens marcados na Loja 4 sem múltiplo de atacado (q4)">L4 sem múltiplo</th>
-            <th class="r" title="Itens com pelo menos uma pendência">Com pendência</th>
+            <th class="r pend-th" title="Itens sem margem varejo em alguma loja marcada"><span class="pend-th-lbl">Sem margem varejo</span><span class="pend-cs" data-k="sem_varejo"><button data-v="com" onclick="setPendCol('sem_varejo','com')" title="Só listas COM item sem margem varejo">Com</button><button data-v="sem" class="sem" onclick="setPendCol('sem_varejo','sem')" title="Só listas SEM nenhum item sem margem varejo (ok)">Sem</button></span></th>
+            <th class="r pend-th" title="Itens marcados na Loja 4 sem margem atacado cadastrada nela"><span class="pend-th-lbl">Sem margem atacado (L4)</span><span class="pend-cs" data-k="sem_atacado"><button data-v="com" onclick="setPendCol('sem_atacado','com')" title="Só listas COM item sem margem atacado na L4">Com</button><button data-v="sem" class="sem" onclick="setPendCol('sem_atacado','sem')" title="Só listas SEM nenhum item sem margem atacado (ok)">Sem</button></span></th>
+            <th class="r pend-th" title="Itens marcados na Loja 4 sem múltiplo de atacado (q4)"><span class="pend-th-lbl">L4 sem múltiplo</span><span class="pend-cs" data-k="sem_multiplo_l4"><button data-v="com" onclick="setPendCol('sem_multiplo_l4','com')" title="Só listas COM item sem múltiplo na L4">Com</button><button data-v="sem" class="sem" onclick="setPendCol('sem_multiplo_l4','sem')" title="Só listas SEM nenhum item sem múltiplo (ok)">Sem</button></span></th>
+            <th class="r pend-th" title="Itens com pelo menos uma pendência"><span class="pend-th-lbl">Com pendência</span><span class="pend-cs" data-k="com_pendencia"><button data-v="com" class="on" onclick="setPendCol('com_pendencia','com')" title="Só listas COM alguma pendência">Com</button><button data-v="sem" class="sem" onclick="setPendCol('com_pendencia','sem')" title="Só listas SEM nenhuma pendência (cadastro 100% ok)">Sem</button></span></th>
           </tr>
         </thead>
         <tbody id="pend-tbody"><tr><td colspan="8" style="padding:40px;text-align:center"><div class="spinner"></div></td></tr></tbody>
@@ -1540,15 +1530,13 @@ async function carregarPendente() {
   }
   const todas = _pendCache.listas || [];
   const doComprador = comprador ? todas.filter(l => l.compradores === comprador) : todas;
-  // Filtro Com / Sem / Todas sobre o tipo de pendência escolhido
-  const tipo = document.getElementById('pend-tipo').value || 'com_pendencia';
-  const lista = _pendModo === 'com' ? doComprador.filter(l => (l[tipo] || 0) > 0)
-              : _pendModo === 'sem' ? doComprador.filter(l => !(l[tipo] > 0))
-              : doComprador;
-  const tipoLbl = document.getElementById('pend-tipo').selectedOptions[0]?.textContent || '';
-  document.getElementById('pend-filtro-res').textContent =
-    `${fmtN(lista.length)} de ${fmtN(doComprador.length)} listas` +
-    (_pendModo === 'com' ? ` com ${tipoLbl}` : _pendModo === 'sem' ? ` sem ${tipoLbl}` : '');
+  // Filtros Com / Sem por coluna (cabeçalho), combinados com E; sem nada marcado = todas
+  const ativos = Object.entries(_pendCol).filter(([, v]) => v);
+  const lista = doComprador.filter(l => ativos.every(([k, v]) => v === 'com' ? (l[k] || 0) > 0 : !(l[k] > 0)));
+  const desc = ativos.map(([k, v]) => (v === 'com' ? 'com ' : 'sem ') + PEND_COL_LBL[k]).join(' e ');
+  document.getElementById('pend-filtro-res').innerHTML =
+    `<span><b>${fmtN(lista.length)}</b> de ${fmtN(doComprador.length)} listas${desc ? ' · ' + desc : ''}</span>` +
+    (ativos.length ? '<span class="lnk" onclick="limparPendCol()">limpar filtros</span>' : '');
   const soma = k => lista.reduce((s, l) => s + (l[k] || 0), 0);
   const nComPend = lista.filter(l => l.com_pendencia > 0).length;
   document.getElementById('pend-kpi').innerHTML = `
@@ -1559,9 +1547,7 @@ async function carregarPendente() {
     <div class="d-kpi"><div class="dv">${fmtN(soma('sem_atacado'))}</div><div class="dl">Sem margem atacado (L4)</div></div>
     <div class="d-kpi"><div class="dv">${fmtN(soma('sem_multiplo_l4'))}</div><div class="dl">Loja 4 sem múltiplo</div></div>`;
   if (!lista.length) {
-    tbody.innerHTML = '<tr><td colspan="8" class="empty">' + (_pendModo === 'sem'
-      ? 'Nenhuma lista sem ' + tipoLbl + (comprador ? ' para ' + comprador : '') + '.'
-      : 'Nenhuma lista com ' + tipoLbl + (comprador ? ' para ' + comprador : '') + '. 🎉') + '</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="empty">Nenhuma lista ' + (desc || 'encontrada') + (comprador ? ' para ' + comprador : '') + '.</td></tr>';
     return;
   }
   const num = (v, cls, id, tipo) => v > 0
@@ -1586,11 +1572,24 @@ async function carregarPendente() {
   }).join('');
 }
 
-let _pendModo = 'com'; // com | sem | todas
-function setPendModo(m) {
-  _pendModo = m;
-  document.querySelectorAll('#pend-modo button').forEach(b => b.classList.toggle('on', b.dataset.v === m));
+// Estado dos toggles do cabeçalho: coluna -> 'com' | 'sem' | null. Padrão = só "Com pendência: Com" (visão original)
+const PEND_COL_LBL = { sem_varejo: 'margem varejo faltando', sem_atacado: 'margem atacado (L4) faltando', sem_multiplo_l4: 'múltiplo L4 faltando', com_pendencia: 'pendência' };
+let _pendCol = { sem_varejo: null, sem_atacado: null, sem_multiplo_l4: null, com_pendencia: 'com' };
+function setPendCol(k, v) {
+  _pendCol[k] = _pendCol[k] === v ? null : v; // clicar de novo desliga
+  pintarPendCol();
   carregarPendente();
+}
+function limparPendCol() {
+  for (const k in _pendCol) _pendCol[k] = null;
+  pintarPendCol();
+  carregarPendente();
+}
+function pintarPendCol() {
+  document.querySelectorAll('#pend-table .pend-cs').forEach(seg => {
+    const v = _pendCol[seg.dataset.k];
+    seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+  });
 }
 
 let _pendFiltro = 'todos', _pendItens = [], _pendLista = null;
