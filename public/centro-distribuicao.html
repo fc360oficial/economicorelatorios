@@ -361,7 +361,18 @@ async function removerVinc(cod) { if (!confirm('Remover o vínculo?')) return; a
 let PF = 'todos';
 async function carregarPedidos() { PEDIDOS = await api('/api/pedidos-cd/pedidos'); renderPedidos(); }
 const ST = { aberto: ['Aberto', 'p-breve'], separado: ['Separado no CD', 'p-flag'], recebido: ['Chegou na loja', 'p-ok'], recebido_parcial: ['Chegou parcial', 'p-hoje'], cancelado: ['Cancelado', 'p-cinza'], expirado: ['Expirado (30 d sem nota)', 'p-cinza'] };
-let PABERTO = null;
+let PABERTO = null, CFGCD = {};
+// envio pro CD: link público (token por pedido, vários juntos separados por vírgula) por WhatsApp — igual ao link do vendedor
+function enviarCD(ps) {
+  ps = (ps || []).filter(p => p && p.token); if (!ps.length) return alert('Pedido sem link. Recarregue a tela.');
+  ps.sort((a, b) => a.loja - b.loja);
+  const link = location.origin + '/cd/' + ps.map(p => p.token).join(',');
+  const cx = ps.reduce((a, p) => a + p.totais.caixas, 0);
+  const texto = `Pedido ao CD · ${ps.map(p => 'L' + p.loja + ' ' + p.lojaNome).join(', ')} · ${fmtN(cx)} caixas · ${ps.length} pedido${ps.length > 1 ? 's' : ''}\n${link}\nDigitar no Televendas no cliente de cada loja, código CD e quantidade em caixas.`;
+  const w = (CFGCD.whatsCD || '').replace(/\D/g, '');
+  try { navigator.clipboard && navigator.clipboard.writeText(link); } catch (e) {}
+  window.open((w.length >= 10 ? 'https://wa.me/55' + w : 'https://wa.me/') + '?text=' + encodeURIComponent(texto), '_blank');
+}
 // divergência por item: pedido × separado no CD × recebido na loja
 function divItem(p, i) {
   if (p.status === 'cancelado' || p.status === 'expirado') return ['mut', '—'];
@@ -386,12 +397,12 @@ function renderPedidosInner() {
   const cardsK = ['todos', ...Object.keys(ST), 'divergencia'];
   $('#tab-pedidos').innerHTML = `<div class="cards">${cardsK.map(k => `<div class="card ${PF === k ? 'on' : ''}" onclick="PF='${k}';renderPedidos()"><div class="v ${k === 'divergencia' && cont[k] ? 'neg' : ''}">${cont[k]}</div><div class="l">${k === 'todos' ? 'todos' : k === 'divergencia' ? 'com divergência' : ST[k][0]}</div></div>`).join('')}</div>
   <p class="mut" style="font-size:11.5px;margin:0 0 8px">Conferência automática a cada 30 min: <b>separado</b> = pedido da loja liberado no painel do Televendas do CD; <b>chegou</b> = nota do CD recebida na loja. Clique no pedido pra ver item a item o que foi pedido, separado e recebido.</p>
-  <div class="busca-row"><button class="btn btn-slate" onclick="verificar()">Verificar agora</button></div>
+  <div class="busca-row"><button class="btn btn-slate" onclick="verificar()">Verificar agora</button>${cont.aberto ? `<button class="btn btn-amber" onclick="enviarCD(PEDIDOS.filter(p => p.status === 'aberto'))" title="Um link só com todos os pedidos abertos, pra mandar por WhatsApp pra pessoa do CD">Enviar abertos pro CD (${cont.aberto})</button>` : ''}<span class="contagem">${CFGCD.whatsCD ? 'WhatsApp do CD: ' + CFGCD.whatsCD : 'WhatsApp do CD não cadastrado (aba Regras) — o link abre no seu WhatsApp pra você escolher o contato'}</span></div>
   <div class="table-wrap"><table class="main-t"><thead><tr><th>#</th><th>Loja</th><th>Criado</th><th class="r">Itens</th><th class="r">Caixas</th><th class="r">Custo</th><th>Andamento</th><th>Conferência</th><th>Ação</th></tr></thead><tbody>
   ${vis.map(p => { const R = resumoDiv(p); const aberto = PABERTO === p.id; return `<tr class="lst${aberto ? ' open' : ''}" onclick="PABERTO=PABERTO===${p.id}?null:${p.id};PDBUSCA='';renderPedidos()"><td>${p.id}</td><td><b>L${p.loja}</b> ${p.lojaNome}</td><td>${new Date(p.criadoEm).toLocaleString('pt-BR')}<div class="s2">${p.criadoPor || ''}</div></td><td class="r">${p.itens.length}</td><td class="r">${fmtN(p.totais.caixas)}</td><td class="r">${fmtR(p.totais.custo)}</td>
     <td><span class="pill ${ST[p.status][1]}">${ST[p.status][0]}</span>${p.expedicao ? '<div class="s2">separação ' + p.expedicao.nPedido + ' · ' + (p.expedicao.data || '').split('-').reverse().join('/') + '</div>' : ''}${p.recebimento ? '<div class="s2">nota(s) ' + p.recebimento.notas.map(n => n.nNota).join(', ') + '</div>' : ''}</td>
     <td>${p.status === 'aberto' ? '<span class="mut">aguardando CD</span>' : ['cancelado', 'expirado'].includes(p.status) ? '<span class="mut">—</span>' : R.div ? `<span class="neg">${R.div} item(ns) com divergência</span><div class="s2">faltam ${fmtN(R.faltaCx)} cx</div>` : '<span class="pos">✓ tudo conferido</span>'}</td>
-    <td onclick="event.stopPropagation()">${['aberto', 'separado', 'recebido_parcial', 'expirado'].includes(p.status) ? `<button class="btn btn-slate" onclick="cancelar(${p.id})">Cancelar</button>` : ''} <button class="btn btn-slate" onclick="imprimir(${p.id})">Imprimir</button></td></tr>${aberto ? detalhePedido(p) : ''}`; }).join('') || '<tr><td colspan="9" class="mut">nenhum pedido</td></tr>'}
+    <td onclick="event.stopPropagation()">${['aberto', 'separado', 'recebido_parcial', 'expirado'].includes(p.status) ? `<button class="btn btn-slate" onclick="cancelar(${p.id})">Cancelar</button>` : ''} <button class="btn btn-slate" onclick="imprimir(${p.id})">Imprimir</button> <button class="btn btn-slate" onclick="enviarCD([PEDIDOS.find(x => x.id === ${p.id})])" title="link deste pedido por WhatsApp">Enviar</button></td></tr>${aberto ? detalhePedido(p) : ''}`; }).join('') || '<tr><td colspan="9" class="mut">nenhum pedido</td></tr>'}
   </tbody></table></div>`;
 }
 let PDBUSCA = '';
@@ -454,15 +465,15 @@ function imprimir(id) {
 }
 function renderRegras() {
   if (!DADOS?.regras) return; const r = DADOS.regras; const cfg = DADOS.regras;
-  $('#tab-regras').innerHTML = `<div class="filtros"><div class="fg"><label>Teto (dias)</label><input type="number" id="cfg-teto" value="${r.teto}" min="3" max="90"></div><div class="fg"><label>Ciclo</label><input value="${r.ciclo} dias (segunda)" disabled></div><div class="fg"><label>Validade</label><input value="60% do cadastro" disabled></div><button class="btn btn-amber" onclick="salvarCfg()">Salvar</button></div>
+  $('#tab-regras').innerHTML = `<div class="filtros"><div class="fg"><label>Teto (dias)</label><input type="number" id="cfg-teto" value="${r.teto}" min="3" max="90"></div><div class="fg"><label>Ciclo</label><input value="${r.ciclo} dias (segunda)" disabled></div><div class="fg"><label>Validade</label><input value="60% do cadastro" disabled></div><div class="fg"><label>WhatsApp do CD</label><input id="cfg-whats" placeholder="DDD + número" title="pra quem vai o link dos pedidos"></div><button class="btn btn-amber" onclick="salvarCfg()">Salvar</button></div>
   <div class="table-wrap"><table class="main-t"><thead><tr><th>Loja</th><th class="r">Lead médio (d)</th><th class="r">Lead máx</th><th class="r">Amostras</th><th class="r">Segurança</th><th class="r">Ponto</th><th class="r">Alvo</th><th class="c">Cliente no painel do CD</th></tr></thead><tbody>
   ${LOJAS.map(ln => { const L = r.lojas[ln]; return `<tr><td><b>L${ln}</b> ${L.nome}</td><td class="r">${L.lead ? L.lead.lead_medio : '<span class="mut">padrão</span>'}</td><td class="r">${L.lead ? L.lead.lead_max : '–'}</td><td class="r">${L.lead ? L.lead.n : 0}</td><td class="r">${L.seg}</td><td class="r">${L.ponto}</td><td class="r">${L.alvoLista}</td><td class="c"><input class="cx" style="width:80px" id="cli-${ln}" data-ln="${ln}"></td></tr>`; }).join('')}
   </tbody></table></div><p class="mut" style="font-size:11px">Lead = dias entre o pedido da loja no painel de expedição do CD e a nota de entrada do fornecedor do CD na loja (6 meses). Alvo = lead + segurança + 7, limitado ao teto. Fornecedor do CD nas notas: <span id="cfg-forn"></span>.</p>`;
-  api('/api/pedidos-cd/config').then(c => { for (const ln of LOJAS) $('#cli-' + ln).value = c.clientesLoja[ln] || ''; $('#cfg-forn').textContent = c.fornecedorCD; });
+  api('/api/pedidos-cd/config').then(c => { CFGCD = c; for (const ln of LOJAS) $('#cli-' + ln).value = c.clientesLoja[ln] || ''; $('#cfg-forn').textContent = c.fornecedorCD; $('#cfg-whats').value = c.whatsCD || ''; });
 }
 async function salvarCfg() {
   const clientesLoja = {}; for (const ln of LOJAS) { const v = $('#cli-' + ln).value.trim(); if (v) clientesLoja[ln] = +v; }
-  try { await api('/api/pedidos-cd/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ teto: +$('#cfg-teto').value, clientesLoja }) }); carregar(true); } catch (e) { alert(e.message); }
+  try { await api('/api/pedidos-cd/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ teto: +$('#cfg-teto').value, clientesLoja, whatsCD: $('#cfg-whats').value }) }); carregar(true); } catch (e) { alert(e.message); }
 }
 carregar(false);
 carregarVinculos().catch(e => alert(e.message));

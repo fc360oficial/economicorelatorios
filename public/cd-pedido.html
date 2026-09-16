@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pedidos ao CD</title>
+<style>
+body{font-family:'InterVar','Segoe UI',sans-serif;color:#0E1626;margin:0;padding:18px 22px 30px;font-size:12px;font-variant-numeric:tabular-nums;background:#EBEBE9}
+.card{background:#fff;border-radius:12px;padding:18px 22px 22px;margin:0 auto 16px;max-width:1000px;box-shadow:0 1px 3px rgba(14,22,38,.07)}
+.pv-top{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;border-bottom:3px solid #F5B800;padding-bottom:12px;margin-bottom:14px}
+.pv-top h2{font-size:19px;font-weight:800;letter-spacing:-.3px;margin:2px 0 0}
+.eyebrow-pv{font-size:10px;font-weight:800;letter-spacing:.1em;color:#6B4E00}
+.pv-sub{font-size:12px;color:#4E5A72;margin-top:3px}
+.pv-acts{display:flex;gap:8px}.btn{border:none;border-radius:8px;padding:9px 16px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;background:#F5B800;color:#6B4E00}
+.pv-resumo{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px}
+.pv-resumo>div{border:1px solid #DADAD6;border-radius:10px;padding:10px 12px}
+.pv-resumo>div.tot{background:#101B33;color:#fff;border-color:#101B33}.pv-resumo>div.tot .lb,.pv-resumo>div.tot .s2{color:#AEB8CE}.pv-resumo>div.tot .v{color:#FFC933}
+.pv-resumo .lb{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#4E5A72}
+.pv-resumo .v{font-size:17px;font-weight:800;letter-spacing:-.3px}.pv-resumo .s2{font-size:10.5px;color:#98A0B3;margin-top:1px}
+.pv-loja{border:1px solid #DADAD6;border-radius:10px;overflow:hidden;margin-bottom:12px}
+.pv-loja-hd{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:9px 14px;background:#EBEBE9;font-size:12.5px;break-after:avoid}
+.pv-loja-hd span{color:#4E5A72;font-size:12px}
+.pv-t{width:100%;border-collapse:collapse;font-size:12px}.pv-t thead{display:table-header-group}.pv-t tr{break-inside:avoid}
+.pv-t th{text-align:left;font-size:9.5px;text-transform:uppercase;letter-spacing:.4px;color:#4E5A72;padding:7px 12px;border-bottom:1px solid #DADAD6}
+.pv-t td{padding:6px 12px;border-top:1px solid #EEEEEA;vertical-align:top}
+.pv-t th.r,.pv-t td.r{text-align:right}.pv-t td.mono{font-family:ui-monospace,Consolas,monospace;font-size:11px;color:#4E5A72;white-space:nowrap}
+.pv-t .sub{font-size:10.5px;color:#98A0B3}.pill{display:inline-block;padding:1px 7px;border-radius:99px;font-size:9.5px;font-weight:800;background:#E9EEF6;color:#2E5E8C;margin-left:4px}
+.pv-foot{margin-top:14px;font-size:10.5px;color:#98A0B3;display:flex;justify-content:space-between}
+.topo{max-width:1000px;margin:0 auto 12px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.topo h1{font-size:16px;margin:0}.topo .mut{color:#4E5A72;font-size:12px}
+.erro{max-width:600px;margin:60px auto;text-align:center;color:#4E5A72;font-size:14px}
+@media print{body{background:#fff;padding:0}.card{box-shadow:none;border-radius:0;padding:0;margin:0 0 18px;break-after:page}.card:last-child{break-after:auto}.topo,.pv-acts{display:none}.pv-top,.pv-resumo{break-inside:avoid;break-after:avoid}.pv-loja{border:none;border-radius:0}.pv-t th{background:#EBEBE9;-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+@page{size:A4 portrait;margin:12mm 10mm}
+</style>
+</head>
+<body>
+<div class="topo"><div><h1>Pedidos ao CD</h1><div class="mut" id="sub">carregando…</div></div><button class="btn" onclick="window.print()">Imprimir tudo</button></div>
+<div id="lista"></div>
+<script>
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const fmtN = (v, d = 0) => (v == null ? '–' : (+v).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d }));
+function bloco(p) {
+  const itens = p.itens.slice().sort((a, b) => a.descricao.localeCompare(b.descricao, 'pt-BR'));
+  const novos = itens.filter(i => i.semVinculo).length;
+  return `<div class="card">
+  <div class="pv-top"><div><div class="eyebrow-pv">PEDIDO AO CD #${p.id} · LOJAS → CENTRO DE DISTRIBUIÇÃO</div><h2>Pedido ao CD · Loja ${p.loja} ${esc(p.lojaNome)}</h2>
+    <div class="pv-sub">gerado em ${new Date(p.criadoEm).toLocaleString('pt-BR')}${p.criadoPor ? ' · ' + esc(p.criadoPor) : ''}</div></div>
+    <div class="pv-acts"><button class="btn" onclick="window.print()">Imprimir</button></div></div>
+  <div class="pv-resumo"><div><div class="lb">Itens</div><div class="v">${itens.length}</div><div class="s2">${novos ? novos + ' novo(s) na loja' : 'todos com venda'}</div></div><div class="tot"><div class="lb">Caixas</div><div class="v">${fmtN(p.totais.caixas)}</div><div class="s2">${fmtN(p.totais.unidades)} unidades</div></div></div>
+  <div class="pv-loja"><div class="pv-loja-hd"><b>Loja ${p.loja} · ${esc(p.lojaNome)}</b><span>${itens.length} itens · <b>${fmtN(p.totais.caixas)} caixas</b></span></div>
+  <table class="pv-t"><thead><tr><th>Código CD</th><th>Produto</th><th class="r">Caixas</th><th class="r">Un/cx</th><th class="r">Unidades</th><th>Separado</th></tr></thead><tbody>
+  ${itens.map(i => `<tr><td class="mono">${esc(i.codigoCD)}</td><td>${esc(i.descricao)}${i.semVinculo ? '<span class="pill">produto novo</span>' : ''}${i.unidade ? `<div class="sub">unidade ${esc(i.unidade)}</div>` : ''}</td><td class="r"><b>${fmtN(i.caixas)}</b></td><td class="r">${i.unPorCaixa}</td><td class="r">${fmtN(i.unidades)}</td><td style="color:#DADAD6">☐</td></tr>`).join('')}
+  </tbody></table></div>
+  <div class="pv-foot"><span>Econômico Relatórios · Centro de Distribuição</span><span>Pedido ao CD #${p.id} · L${p.loja} · digitar no Televendas no cliente da loja</span></div></div>`;
+}
+(async () => {
+  const toks = location.pathname.split('/').pop();
+  try {
+    const r = await fetch('/api/cd-publico/' + toks); const j = await r.json();
+    if (!r.ok) throw new Error(j.error || r.statusText);
+    const ps = j.pedidos.sort((a, b) => a.loja - b.loja);
+    document.title = 'Pedidos ao CD · ' + ps.map(p => 'L' + p.loja).join(', ');
+    document.getElementById('sub').textContent = ps.length + ' pedido' + (ps.length > 1 ? 's' : '') + ' · ' + fmtN(ps.reduce((a, p) => a + p.totais.caixas, 0)) + ' caixas · ' + ps.map(p => 'L' + p.loja + ' ' + p.lojaNome).join(', ');
+    document.getElementById('lista').innerHTML = ps.map(bloco).join('');
+  } catch (e) { document.getElementById('lista').innerHTML = '<div class="erro"><h2>Não foi possível abrir</h2><p>' + esc(e.message) + '</p></div>'; document.getElementById('sub').textContent = ''; }
+})();
+</script>
+</body>
+</html>

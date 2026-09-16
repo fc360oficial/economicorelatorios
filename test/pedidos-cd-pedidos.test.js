@@ -107,3 +107,11 @@ test('criarPedidos: caixa sem vínculo vai como produto novo pela caixa, un/cx d
   assert.equal(it.unidade, null); assert.equal(it.semVinculo, true); assert.equal(it.origem, 'novo');
   assert.equal(it.unPorCaixa, 6); assert.equal(it.unidades, 6); assert.equal(it.descricao, 'SANDALIA IPANEMA INF CX6');
 });
+
+test('pedido ganha token e porTokens acha por um ou vários', () => {
+  const ps = cd.listarPedidos();
+  assert.ok(ps.length >= 2); for (const p of ps) assert.match(p.token, /^[a-f0-9]{32}$/);
+  assert.equal(cd.porTokens(ps[0].token).length, 1);
+  assert.equal(cd.porTokens(ps[0].token + ',' + ps[1].token).length, 2);
+  assert.equal(cd.porTokens('xx').length, 0);
+});

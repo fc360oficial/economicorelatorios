@@ -216,6 +216,8 @@ app.use((req, res, next) => {
   if (publico.includes(req.path)) return next();
   // Link do vendedor (pedido ao fornecedor): público por token de 32 hex, sem login
   if (/^\/pedido\/[a-f0-9]{32}(\/pdf)?$/.test(req.path) || /^\/api\/pedido-publico\/[a-f0-9]{32}(\/|$)/.test(req.path)) return next();
+  // Link do CD (Centro de Distribuição): pedido(s) das lojas por token(s) de 32 hex, sem login
+  if (/^\/cd\/[a-f0-9]{32}(,[a-f0-9]{32}){0,20}$/.test(req.path) || /^\/api\/cd-publico\/[a-f0-9]{32}(,[a-f0-9]{32}){0,20}$/.test(req.path)) return next();
   // Link do fornecedor na Cotação: mesmo esquema (token de 32 hex por fornecedor convidado)
   if (/^\/cotacao\/[a-f0-9]{32}$/.test(req.path) || /^\/api\/cotacao-publica\/[a-f0-9]{32}(\/|$)/.test(req.path)) return next();
   // App de contagem de negativos no celular do auxiliar: entra por PIN da loja,
@@ -6552,6 +6554,17 @@ app.get('/api/pedidos-cd/buscar-unidade', async (req, res) => {
   try { res.json(await pedidosCD.buscarUnidade(req.query.q)); } catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.get('/api/pedidos-cd/pedidos', (req, res) => res.json(pedidosCD.listarPedidos()));
+// --- lado do CD (público por token, igual ao link do vendedor) ---
+app.get('/cd/:tokens', (req, res) => {
+  const ps = pedidosCD.porTokens(req.params.tokens);
+  if (!ps.length) return res.status(404).send('Pedido não encontrado');
+  res.sendFile(path.join(__dirname, 'public', 'cd-pedido.html'));
+});
+app.get('/api/cd-publico/:tokens', (req, res) => {
+  const ps = pedidosCD.porTokens(req.params.tokens);
+  if (!ps.length) return res.status(404).json({ error: 'Pedido não encontrado' });
+  res.json({ pedidos: ps.map(p => ({ id: p.id, loja: p.loja, lojaNome: p.lojaNome, status: p.status, criadoEm: p.criadoEm, criadoPor: p.criadoPor, totais: p.totais, itens: p.itens.map(i => ({ codigoCD: i.codigoCD, unidade: i.unidade, descricao: i.descricao, unPorCaixa: i.unPorCaixa, caixas: i.caixas, unidades: i.unidades, semVinculo: !!i.semVinculo })) })) });
+});
 app.post('/api/pedidos-cd/pedidos', (req, res) => {
   try { res.json(pedidosCD.criarPedidos({ lojas: req.body?.lojas || {}, usuario: req.session.user?.nome || null })); }
   catch (err) { res.status(400).json({ error: err.message }); }
