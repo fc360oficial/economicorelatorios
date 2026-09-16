@@ -4559,7 +4559,7 @@ app.get('/api/cahu-distribuidora/tabela-precos.xlsx', async (req, res) => {
     titleCell.value = tabelaUnica
       ? `${tabelaUnica.label.toUpperCase()} — CAHU DISTRIBUIDORA`
       : 'TABELA DE PREÇOS — CAHU DISTRIBUIDORA';
-    titleCell.font = { name: 'Calibri', size: 16, bold: true, color: { argb: 'FF000000' } };
+    titleCell.font = { name: 'Arial Black', size: 18, bold: true, color: { argb: 'FF000000' } };
     titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
     titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: NAVY } };
     ws.getRow(1).height = 54;
