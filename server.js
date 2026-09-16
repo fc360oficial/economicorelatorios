@@ -4585,8 +4585,10 @@ app.get('/api/cahu-distribuidora/tabela-precos.xlsx', async (req, res) => {
       }
     } catch (e) { console.warn('[CAHU-TABELA-PRECOS] logo não inserido:', e.message); }
 
-    ws.mergeCells(`A2:${lastCol}2`);
-    const subCell = ws.getCell('A2');
+    // subtítulo centralizado no mesmo espaço do título (B até a última coluna)
+    ws.getCell('A2').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: NAVY_LIGHT } };
+    ws.mergeCells(`B2:${lastCol}2`);
+    const subCell = ws.getCell('B2');
     subCell.value = `Tabela gerada em ${new Date().toLocaleDateString('pt-BR')}`;
     subCell.font = { name: 'Calibri', size: 10, italic: true, color: { argb: 'FF000000' } };
     subCell.alignment = { vertical: 'middle', horizontal: 'center' };
@@ -4712,7 +4714,7 @@ app.get('/api/cahu-distribuidora/tabela-precos.pdf', async (req, res) => {
       doc.rect(MARGEM, y, larguraUtil, ALT_SUB).fill(AMARELO_CLARO);
       doc.fillColor(PRETO).font('Helvetica-Oblique').fontSize(8.5)
         .text(`Tabela gerada em ${new Date().toLocaleDateString('pt-BR')}`,
-          MARGEM, y + 4, { width: larguraUtil, align: 'center', lineBreak: false });
+          xTitulo, y + 4, { width: wTitulo, align: 'center', lineBreak: false });
       y += ALT_SUB + 4;
       // cabeçalho da tabela
       doc.rect(MARGEM, y, larguraUtil, ALT_CAB).fill(AMARELO);
