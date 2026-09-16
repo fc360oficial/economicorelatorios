@@ -4537,8 +4537,9 @@ app.get('/api/cahu-distribuidora/tabela-precos.xlsx', async (req, res) => {
     }
     const lista = [...produtos.values()].sort((a, b) => a.descricao.localeCompare(b.descricao, 'pt-BR'));
 
-    const NAVY = 'FF1F3864', NAVY_LIGHT = 'FF2E5395', GOLD = 'FFC9A227';
-    const ZEBRA = 'FFF2F5FA', BORDER_COLOR = 'FFD0D7E5';
+    // Amarelo CIMED com letras pretas (pedido do Tiago, 16/09/26)
+    const NAVY = 'FFFFCB05', NAVY_LIGHT = 'FFFFE066', GOLD = 'FF000000';
+    const ZEBRA = 'FFFFF8DC', BORDER_COLOR = 'FFE0D6A0';
     const headers = ['Código de Barras', 'Descrição', ...tabelas.map(t => t.label)];
     const colWidths = tabelaUnica ? [20, 48, 26] : [20, 48, 20, 26, 20, 20, 20, 22];
     const lastCol = String.fromCharCode(64 + headers.length);
@@ -4558,7 +4559,7 @@ app.get('/api/cahu-distribuidora/tabela-precos.xlsx', async (req, res) => {
     titleCell.value = tabelaUnica
       ? `${tabelaUnica.label.toUpperCase()} — CAHU DISTRIBUIDORA`
       : 'TABELA DE PREÇOS — CAHU DISTRIBUIDORA';
-    titleCell.font = { name: 'Calibri', size: 16, bold: true, color: { argb: 'FFFFFFFF' } };
+    titleCell.font = { name: 'Calibri', size: 16, bold: true, color: { argb: 'FF000000' } };
     titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
     titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: NAVY } };
     ws.getRow(1).height = 54;
@@ -4576,7 +4577,7 @@ app.get('/api/cahu-distribuidora/tabela-precos.xlsx', async (req, res) => {
     ws.mergeCells(`A2:${lastCol}2`);
     const subCell = ws.getCell('A2');
     subCell.value = `Somente itens com estoque positivo no CD — gerado em ${new Date().toLocaleDateString('pt-BR')}`;
-    subCell.font = { name: 'Calibri', size: 10, italic: true, color: { argb: 'FFFFFFFF' } };
+    subCell.font = { name: 'Calibri', size: 10, italic: true, color: { argb: 'FF000000' } };
     subCell.alignment = { vertical: 'middle', horizontal: 'center' };
     subCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: NAVY_LIGHT } };
     ws.getRow(2).height = 18;
@@ -4586,7 +4587,7 @@ app.get('/api/cahu-distribuidora/tabela-precos.xlsx', async (req, res) => {
     headers.forEach((h, i) => {
       const cell = headerRow.getCell(i + 1);
       cell.value = h;
-      cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+      cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FF000000' } };
       cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: NAVY } };
       cell.border = {
