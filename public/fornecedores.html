@@ -262,6 +262,14 @@ table.comp-t tr:hover td{background:#ffffff05}
 .pend-mg{font-size:10.5px;white-space:nowrap}.pend-mg b{color:#C22F49}
 .pend-ftab{background:transparent;border:1px solid #C9C9C4;border-radius:14px;padding:3px 10px;font-size:11px;color:#4E5A72;cursor:pointer;font-family:inherit}
 .pend-ftab.active{background:#0E1626;color:#fff;border-color:#0E1626}
+.pend-filtro{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#FFFFFF;border:1px solid #DADAD6;border-radius:12px;padding:10px 14px;margin-bottom:10px}
+.pend-filtro-lbl{font-size:11px;font-weight:700;color:#4E5A72;text-transform:uppercase;letter-spacing:.04em}
+.pend-filtro select{font:inherit;font-size:12.5px;padding:6px 10px;border:1px solid #C9C9C4;border-radius:8px;background:#fff;color:#0E1626}
+.pend-seg{display:inline-flex;border:1px solid #C9C9C4;border-radius:8px;overflow:hidden}
+.pend-seg button{background:#fff;border:none;padding:6px 14px;font:inherit;font-size:12.5px;font-weight:600;color:#4E5A72;cursor:pointer;border-right:1px solid #C9C9C4}
+.pend-seg button:last-child{border-right:none}
+.pend-seg button:hover{background:#EBEBE9;color:#0E1626}
+.pend-seg button.on{background:#0E1626;color:#fff}
 .itens-badge{display:inline-block;background:#F5B80022;border:1px solid #F5B80055;border-radius:6px;padding:2px 8px;font-size:12px;color:#6B4E00;font-weight:700}
 
 @media (max-width:768px){
@@ -404,6 +412,21 @@ table.comp-t tr:hover td{background:#ffffff05}
       <div style="font-size:11px;color:#4E5A72;max-width:560px">
         Só produtos <b>ativos</b> com loja marcada na lista; <b>produto de balança fica fora</b>. <b>Sem margem varejo</b> = vazia ou 0% em alguma loja em que o item está marcado. <b>Sem margem atacado</b> e <b>L4 sem múltiplo</b> = só itens marcados na Loja 4, sem margem de atacado / sem quantidade de atacado cadastrada nela.
       </div>
+    </div>
+    <div class="pend-filtro no-print">
+      <span class="pend-filtro-lbl">Mostrar listas</span>
+      <div class="pend-seg" id="pend-modo">
+        <button class="on" data-v="com" onclick="setPendModo('com')" title="Só listas que TÊM a pendência escolhida">Com</button>
+        <button data-v="sem" onclick="setPendModo('sem')" title="Só listas que NÃO têm a pendência escolhida (cadastro ok nesse ponto)">Sem</button>
+        <button data-v="todas" onclick="setPendModo('todas')" title="Todas as listas com item ativo">Todas</button>
+      </div>
+      <select id="pend-tipo" onchange="carregarPendente()">
+        <option value="com_pendencia">qualquer pendência</option>
+        <option value="sem_varejo">margem varejo faltando</option>
+        <option value="sem_atacado">margem atacado (L4) faltando</option>
+        <option value="sem_multiplo_l4">múltiplo L4 faltando</option>
+      </select>
+      <span id="pend-filtro-res" style="font-size:11px;color:#4E5A72"></span>
     </div>
     <div class="table-wrap">
       <table class="main-t" id="pend-table">
@@ -1516,16 +1539,29 @@ async function carregarPendente() {
     }
   }
   const todas = _pendCache.listas || [];
-  const lista = comprador ? todas.filter(l => l.compradores === comprador) : todas;
+  const doComprador = comprador ? todas.filter(l => l.compradores === comprador) : todas;
+  // Filtro Com / Sem / Todas sobre o tipo de pendência escolhido
+  const tipo = document.getElementById('pend-tipo').value || 'com_pendencia';
+  const lista = _pendModo === 'com' ? doComprador.filter(l => (l[tipo] || 0) > 0)
+              : _pendModo === 'sem' ? doComprador.filter(l => !(l[tipo] > 0))
+              : doComprador;
+  const tipoLbl = document.getElementById('pend-tipo').selectedOptions[0]?.textContent || '';
+  document.getElementById('pend-filtro-res').textContent =
+    `${fmtN(lista.length)} de ${fmtN(doComprador.length)} listas` +
+    (_pendModo === 'com' ? ` com ${tipoLbl}` : _pendModo === 'sem' ? ` sem ${tipoLbl}` : '');
   const soma = k => lista.reduce((s, l) => s + (l[k] || 0), 0);
+  const nComPend = lista.filter(l => l.com_pendencia > 0).length;
   document.getElementById('pend-kpi').innerHTML = `
-    <div class="d-kpi"><div class="dv">${fmtN(lista.length)}</div><div class="dl">Listas com pendência${comprador ? ' · ' + comprador : ''}</div></div>
+    <div class="d-kpi"><div class="dv">${fmtN(lista.length)}</div><div class="dl">Listas${comprador ? ' · ' + comprador : ''}</div></div>
+    <div class="d-kpi"><div class="dv" style="color:${nComPend ? '#C22F49' : '#137A48'}">${fmtN(nComPend)}</div><div class="dl">Listas com pendência</div></div>
     <div class="d-kpi"><div class="dv" style="color:#C22F49">${fmtN(soma('com_pendencia'))}</div><div class="dl">Itens com pendência</div></div>
     <div class="d-kpi"><div class="dv">${fmtN(soma('sem_varejo'))}</div><div class="dl">Sem margem varejo</div></div>
     <div class="d-kpi"><div class="dv">${fmtN(soma('sem_atacado'))}</div><div class="dl">Sem margem atacado (L4)</div></div>
     <div class="d-kpi"><div class="dv">${fmtN(soma('sem_multiplo_l4'))}</div><div class="dl">Loja 4 sem múltiplo</div></div>`;
   if (!lista.length) {
-    tbody.innerHTML = '<tr><td colspan="8" class="empty">Nenhuma lista com pendência de cadastro' + (comprador ? ' para ' + comprador : '') + '. 🎉</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="empty">' + (_pendModo === 'sem'
+      ? 'Nenhuma lista sem ' + tipoLbl + (comprador ? ' para ' + comprador : '') + '.'
+      : 'Nenhuma lista com ' + tipoLbl + (comprador ? ' para ' + comprador : '') + '. 🎉') + '</td></tr>';
     return;
   }
   const num = (v, cls, id, tipo) => v > 0
@@ -1548,6 +1584,13 @@ async function carregarPendente() {
       <td class="td-r">${num(l.com_pendencia, 'bad', l.id, 'todos')}</td>
     </tr>`;
   }).join('');
+}
+
+let _pendModo = 'com'; // com | sem | todas
+function setPendModo(m) {
+  _pendModo = m;
+  document.querySelectorAll('#pend-modo button').forEach(b => b.classList.toggle('on', b.dataset.v === m));
+  carregarPendente();
 }
 
 let _pendFiltro = 'todos', _pendItens = [], _pendLista = null;

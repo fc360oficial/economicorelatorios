@@ -3490,13 +3490,14 @@ app.get('/api/listas-compra/cadastro-pendente', async (req, res) => {
       const a = porLista[l.nReg] || { total_itens: 0, sem_varejo: 0, sem_atacado: 0, sem_multiplo_l4: 0, com_pendencia: 0 };
       return { id: l.nReg, nome: l.Nome?.trim(), fornecedor: l.NomeFornec?.trim(), codFornec: l.CodFornec,
                compradores: _nRegToComp[l.nReg] || null, ...a };
-    }).filter(l => l.com_pendencia > 0);
+    }).filter(l => l.total_itens > 0); // devolve TODAS as listas com item ativo (com e sem pendência) — a tela filtra Com/Sem
     const compradores = [...new Set(listas.map(l => l.compradores).filter(Boolean))].sort();
     if (comprador) listas = listas.filter(l => l.compradores === comprador);
     listas.sort((a, b) => b.com_pendencia - a.com_pendencia || (a.nome || '').localeCompare(b.nome || ''));
 
-    res.json({ listas, compradores, total_listas: listas.length,
-               total_itens_pendentes: listas.reduce((s, l) => s + l.com_pendencia, 0) });
+    const comPend = listas.filter(l => l.com_pendencia > 0);
+    res.json({ listas, compradores, total_listas: comPend.length,
+               total_itens_pendentes: comPend.reduce((s, l) => s + l.com_pendencia, 0) });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
