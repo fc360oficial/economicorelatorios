@@ -4560,12 +4560,13 @@ app.get('/api/cahu-distribuidora/tabela-precos.xlsx', async (req, res) => {
     const titleCell = ws.getCell('B1');
     // no Excel de tabela única só há 3 colunas: título curto (o logo já identifica a CAHU)
     titleCell.value = tabelaUnica
-      ? tabelaUnica.label.toUpperCase()
+      ? `${tabelaUnica.label.toUpperCase()}
+CAHU DISTRIBUIDORA`
       : 'TABELA DE PREÇOS — CAHU DISTRIBUIDORA';
     titleCell.font = { name: 'Arial Black', size: tabelaUnica ? 13 : 18, bold: true, color: { argb: 'FF000000' } };
     titleCell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
     titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: NAVY } };
-    ws.getRow(1).height = 54;
+    ws.getRow(1).height = tabelaUnica ? 62 : 54;
     try {
       const logoPath = path.join(__dirname, 'public', 'logo-cahu-excel.png');
       if (fs.existsSync(logoPath)) {
