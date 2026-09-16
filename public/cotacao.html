@@ -141,6 +141,34 @@ table.forntab tr.off td:last-child{opacity:1}
 .citem tr.win td:first-child{border-left:3px solid var(--pos)}
 .citem .chk{width:17px;height:17px;accent-color:var(--pos);cursor:pointer}
 .cifoot{padding:7px 14px;font-size:11.5px;color:var(--ink3);border-top:1px dashed var(--ln)}
+.clubcrumb{font-size:12.5px;color:var(--ink3);margin-bottom:2px}
+.clubh1{font-size:26px;font-weight:600;color:#3D4451;letter-spacing:0;margin-bottom:14px}
+.clubinfo{display:inline-flex;gap:14px;align-items:center;background:var(--crd);border:1px solid var(--ln);border-radius:10px;padding:12px 18px;margin-bottom:22px;font-size:12.5px;color:var(--ink2)}
+.clubinfo .ico{width:30px;height:30px;border-radius:50%;background:#E3F2FD;color:#1E88E5;display:inline-flex;align-items:center;justify-content:center;font-weight:800;flex:none}
+.clubbar{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:26px}
+.cbtn{background:var(--crd);border:1px solid var(--ln);border-radius:6px;padding:14px 26px;font-size:14px;font-weight:700;color:#3D4451;cursor:pointer;font-family:inherit}
+.cbtn:hover{background:var(--wsh)}
+.cbtn.on{background:#FFE9DE;border-color:#FFE9DE;color:#3D4451}
+.cbtn.blue{color:#3B6BEA;border-color:#3B6BEA}
+.cbtn.blue.on{background:#E8EEFF}
+.clubfilt{margin-bottom:12px}
+.clubgrid{display:grid;grid-template-columns:2fr 1.3fr 1.3fr 1.3fr;gap:22px;margin-bottom:14px}
+.ftit{font-size:22px;font-weight:500;color:#4B5563;margin-bottom:8px}
+.fin{width:100%;border:1px solid var(--ln);border-radius:6px;padding:12px 12px;font-family:inherit;font-size:13px;background:var(--crd);color:var(--ink)}
+.clubchecks{display:grid;grid-template-columns:1.6fr 1.6fr 1.6fr 1fr;gap:6px 22px;font-size:14px;color:#4B5563;align-items:start}
+.clubchecks label{display:flex;gap:8px;align-items:center;padding:4px 0;cursor:pointer}
+.clubfiltrar{display:flex;gap:0;justify-content:flex-end;align-items:stretch}
+.clubfiltrar .fin{max-width:170px;border-radius:6px 0 0 6px}
+.clubfiltrar .cbtn{border-radius:0 6px 6px 0;padding:12px 26px}
+.citem.club{border-radius:6px;box-shadow:none}
+.citem.club .cihd{background:#FFE9DE;color:#1F2937;padding:12px 16px 12px 22px}
+.citem.club .cihd b{font-size:16px;font-weight:500}
+.citem.club .cihd .cod{font-size:16px;font-weight:500;color:#F4511E;display:inline-block;margin-top:6px}
+.citem.club .ciult{font-size:15px;color:#1F2937;padding:12px 16px;justify-content:space-between}
+.citem.club .ciult .ico2{color:#1E88E5;font-size:9px;vertical-align:middle}
+.citem.club table th{background:var(--crd);color:#1F2937;text-transform:none;letter-spacing:0;font-size:14px;font-weight:500;border-top:1px solid var(--ln);border-bottom:1px solid var(--ln);padding:12px}
+.citem.club table td{font-size:14px;color:#1F2937;padding:12px;white-space:normal}
+.citem.club table td i.mini{font-size:12px}
 .citem .chev{display:inline-block;transition:transform .15s;color:#C2410C;font-size:14px}
 .citem.rec .chev{transform:rotate(-90deg)}
 .citem.rec .cibody{display:none}
@@ -913,12 +941,12 @@ function analiseItem(i){
 }
 // ───────── COMPARATIVO POR ITEM (estilo Club da Cotação, pedido do Tiago 15/09): cada item num bloco, dados da
 // última compra do ERP e, embaixo, cada vendedor que digitou aquele item; checkbox marca o vencedor
-var VISTA = localStorage.getItem('cot-vista') || 'itens', ULT = {}, CI_F = {busca:'', forn:'', loja:'', soObs:false, soSemPreco:false, soManual:false, soComprados:false, soNaoComprados:false, soNovos:false, varTipo:'pct', var:''}, CI_ABA = 'produtos', CI_REC = {};
+var VISTA = localStorage.getItem('cot-vista') || 'itens', ULT = {}, CI_F = {busca:'', forn:'', loja:'', cat:'', soObs:false, soSemPreco:false, soManual:false, soComprados:false, soNaoComprados:false, soNovos:false, varTipo:'pct', var:''}, CI_ABA = 'produtos', CI_REC = {}, CATS = {};
 function setVista(v){ VISTA = v; localStorage.setItem('cot-vista', v); renderComparativo(); }
 function renderComparativo(){ if (VISTA === 'matriz') return renderComparativoMatriz(); return renderComparativoItens(); }
 async function carregarUltimas(){
   if (!CUR || ULT[CUR.id]) return; ULT[CUR.id] = {};
-  try { var r = await api('/api/cotacoes/' + CUR.id + '/ultimas-compras'); ULT[CUR.id] = r.ultimas || {}; } catch(e) { ULT[CUR.id] = {}; }
+  try { var r = await api('/api/cotacoes/' + CUR.id + '/ultimas-compras'); ULT[CUR.id] = r.ultimas || {}; CATS[CUR.id] = r.categorias || {}; } catch(e) { ULT[CUR.id] = {}; CATS[CUR.id] = {}; }
   if (VISTA !== 'matriz' && document.getElementById('s4').classList.contains('on')) renderComparativoItens();
 }
 function ciSet(k, v){ CI_F[k] = v; renderComparativoItens(); }
@@ -929,32 +957,33 @@ function ciRecTodos(v){ CUR.comparativo.itens.forEach(function(i){ CI_REC[i.cod]
 function ciFiltrar(){ CI_F.var = ($('#ci-var') || {}).value || ''; renderComparativoItens(); }
 function renderComparativoItens(){
   var m = $('#s4-main'); if (!CUR) { renderVazio(m); return; }
-  var C = CUR.comparativo, R = C.resumo, F = C.fornecedores, aberta = CUR.status === 'aberta', U = ULT[CUR.id] || {};
+  var C = CUR.comparativo, R = C.resumo, F = C.fornecedores, aberta = CUR.status === 'aberta', U = ULT[CUR.id] || {}, K = CATS[CUR.id] || {};
   var novos = {}; (CUR.fornecedores || []).forEach(function(f){ if (f.novo) novos[f.codFornec] = true; });
-  var h = '<div class="crumb">Cotação <span>›</span> <b>#' + CUR.id + ' · ' + esc(CUR.nome) + '</b></div>';
-  h += '<div class="pagehead"><div><h1>Comparativo de Preços' + (CUR.teste ? ' <span class="status-pill" style="background:var(--amw);color:var(--amk);vertical-align:middle">TESTE</span>' : '') + '</h1><p>#' + CUR.id + ' ' + esc(CUR.nome) + ' · lista ' + (CUR.lista || '—') + ' · ' + R.responderam + ' de ' + R.convidados + ' fornecedores responderam</p></div></div>';
-  // barra estilo Club: Produtos | Pedidos: R$ | Voltar | Imprimir | Não digitados | Outras funções
-  h += '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:18px"><span class="vtab"><button class="' + (CI_ABA === 'produtos' ? 'on' : '') + '" onclick="ciAba(\'produtos\')">📦 Produtos</button><button class="' + (CI_ABA === 'pedidos' ? 'on' : '') + '" onclick="ciAba(\'pedidos\')">🚚 Pedidos: ' + fmtR(R.total_vencedores) + '</button></span><span style="flex:1"></span>' +
-    '<button class="btn ghost" onclick="goScreen(\'s3\')">← Voltar</button><button class="btn ghost" onclick="window.print()">🖨️ Imprimir</button><button class="btn ghost" onclick="naoDigitados()">⛔ Não digitados</button>' +
-    '<div class="kebab-wrap" style="position:relative;display:inline-block"><button class="btn ghost" onclick="event.stopPropagation();var m=this.nextElementSibling;m.style.display=m.style.display===\'block\'?\'none\':\'block\'">Outras funções ▾</button><div style="display:none;position:absolute;right:0;top:40px;background:var(--crd);border:1px solid var(--ln);border-radius:10px;box-shadow:var(--shadow);z-index:80;min-width:220px;overflow:hidden">' +
-    '<button class="link-btn" style="display:block;width:100%;text-align:left;padding:9px 13px;color:var(--ink2)" onclick="setVista(\'matriz\')">Ver em matriz (produto × fornecedor)</button><button class="link-btn" style="display:block;width:100%;text-align:left;padding:9px 13px;color:var(--ink2)" onclick="exportarComparativo()">Exportar CSV</button><button class="link-btn" style="display:block;width:100%;text-align:left;padding:9px 13px;color:var(--ink2)" onclick="ciRecTodos(true)">Recolher todos os itens</button><button class="link-btn" style="display:block;width:100%;text-align:left;padding:9px 13px;color:var(--ink2)" onclick="ciRecTodos(false)">Expandir todos</button><button class="link-btn" style="display:block;width:100%;text-align:left;padding:9px 13px;color:var(--ink2)" onclick="recarregar()">Atualizar</button>' + (aberta ? '<button class="link-btn" style="display:block;width:100%;text-align:left;padding:9px 13px;color:var(--pos);font-weight:800" onclick="fecharCotacao()">Fechar cotação e gerar pedidos →</button>' : '') + '</div></div></div>';
+  var cats = {}; C.itens.forEach(function(i){ var k = K[i.cod]; if (k && k.grupo) cats[k.grupo] = (cats[k.grupo] || 0) + 1; });
+  var h = '<div class="clubcrumb">Home · Comparativo de Preços</div><h1 class="clubh1">Comparativo de Preços' + (CUR.teste ? ' <span class="status-pill" style="background:var(--amw);color:var(--amk);vertical-align:middle;font-size:11px">TESTE</span>' : '') + '</h1>';
+  h += '<div class="clubinfo"><span class="ico">i</span><div><b>#' + CUR.id + ' ' + esc(CUR.nome) + '</b><br><span class="mini">Lista ' + (CUR.lista || '—') + ' ' + esc(CUR.lista_nome || '') + ' · ' + R.responderam + ' de ' + R.convidados + ' fornecedores responderam · ' + (aberta ? 'marque o vencedor de cada item; o menor preço já vem marcado' : 'cotação ' + CUR.status) + '</span></div></div>';
+  // linha de botões (Produtos | Pedidos | Voltar | Imprimir | Não Digitados | Outras Funções)
+  h += '<div class="clubbar"><button class="cbtn' + (CI_ABA === 'produtos' ? ' on' : '') + '" onclick="ciAba(\'produtos\')">▤ Produtos</button><button class="cbtn blue' + (CI_ABA === 'pedidos' ? ' on' : '') + '" onclick="ciAba(\'pedidos\')">🚚 Pedidos: ' + fmtR(R.total_vencedores) + '</button><span style="flex:1"></span>' +
+    '<button class="cbtn" onclick="goScreen(\'s3\')">← Voltar</button><button class="cbtn" onclick="window.print()">🖨 Imprimir</button><button class="cbtn" onclick="naoDigitados()"><span style="color:#F4511E">⛔</span> Não Digitados</button>' +
+    '<span style="position:relative;display:inline-block"><button class="cbtn" onclick="event.stopPropagation();var m=this.nextElementSibling;m.style.display=m.style.display===\'block\'?\'none\':\'block\'">⌄ Outras Funções</button><div style="display:none;position:absolute;right:0;top:52px;background:var(--crd);border:1px solid var(--ln);border-radius:10px;box-shadow:var(--shadow);z-index:80;min-width:240px;overflow:hidden;text-align:left">' +
+    ['<button onclick="setVista(\'matriz\')">Ver em matriz (produto × fornecedor)</button>', '<button onclick="exportarComparativo()">Exportar Excel (CSV)</button>', '<button onclick="ciRecTodos(true)">Recolher todos os itens</button>', '<button onclick="ciRecTodos(false)">Expandir todos</button>', '<button onclick="recarregar()">Atualizar</button>', aberta ? '<button style="color:var(--pos);font-weight:800" onclick="fecharCotacao()">Fechar cotação e gerar pedidos →</button>' : ''].map(function(b){ return b.replace('<button ', '<button class="link-btn" style="display:block;width:100%;text-align:left;padding:9px 13px;color:var(--ink2)" '); }).join('') + '</div></span></div>';
   if (CI_ABA === 'pedidos') { h += renderPedidosResumo(C, R, F, aberta); m.innerHTML = h; return; }
-  // filtros
+  // filtros com títulos grandes (Descrição do Produto · Fornecedor · Categoria · Empresa)
   var lojas = CUR.lojas || [];
-  h += '<div class="cfilt" style="margin-bottom:14px"><div class="filters" style="margin-bottom:8px"><div class="fld" style="flex:1;min-width:220px"><label>Descrição do produto</label><input type="text" value="' + esc(CI_F.busca) + '" placeholder="Digite o nome ou código" oninput="ciSet(\'busca\',this.value)" style="width:100%"></div>' +
-    '<div class="fld"><label>Fornecedor</label><select onchange="ciSet(\'forn\',this.value)"><option value="">Selecione o fornecedor</option>' + F.map(function(f){ return '<option value="' + f.codFornec + '"' + (String(CI_F.forn) === String(f.codFornec) ? ' selected' : '') + '>' + esc(f.nome) + ' (' + f.cotados + ')</option>'; }).join('') + '</select></div>' +
-    '<div class="fld"><label>Empresa (loja)</label><select onchange="ciSet(\'loja\',this.value)"><option value="">Todas as lojas</option>' + lojas.map(function(l){ return '<option value="' + l + '"' + (String(CI_F.loja) === String(l) ? ' selected' : '') + '>L' + l + ' ' + esc(LOJAS_NOMES[l] || '') + '</option>'; }).join('') + '</select></div></div>' +
-    '<div style="display:flex;gap:8px 22px;flex-wrap:wrap;align-items:center;font-size:12.5px">' +
-    '<label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" class="check"' + (CI_F.soNovos ? ' checked' : '') + ' onchange="ciSet(\'soNovos\',this.checked)">Novos fornecedores</label>' +
-    '<label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" class="check"' + (CI_F.soComprados ? ' checked' : '') + ' onchange="ciSet(\'soComprados\',this.checked)">Apenas comprados</label>' +
-    '<label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" class="check"' + (CI_F.soObs ? ' checked' : '') + ' onchange="ciSet(\'soObs\',this.checked)">Itens com observações</label>' +
-    '<label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" class="check"' + (CI_F.soNaoComprados ? ' checked' : '') + ' onchange="ciSet(\'soNaoComprados\',this.checked)">Não comprados</label>' +
-    '<label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" class="check"' + (CI_F.soSemPreco ? ' checked' : '') + ' onchange="ciSet(\'soSemPreco\',this.checked)">Não digitados</label>' +
-    '<span style="display:flex;gap:8px;align-items:center;margin-left:auto"><span>Alta variação de preços:</span><label style="cursor:pointer"><input type="radio" name="ci-vt"' + (CI_F.varTipo === 'pct' ? ' checked' : '') + ' onchange="CI_F.varTipo=\'pct\'"> Em percentual (%)</label><label style="cursor:pointer"><input type="radio" name="ci-vt"' + (CI_F.varTipo === 'rs' ? ' checked' : '') + ' onchange="CI_F.varTipo=\'rs\'"> Em valor (R$)</label><input type="text" id="ci-var" inputmode="decimal" value="' + esc(CI_F.var) + '" placeholder="Informe o valor" class="hin" style="width:120px" onkeydown="if(event.key===\'Enter\')ciFiltrar()"><button class="btn primary sm" onclick="ciFiltrar()">Filtrar</button></span></div></div>';
+  h += '<div class="cfilt clubfilt"><div class="clubgrid">' +
+    '<div><div class="ftit">Descrição do Produto</div><input type="text" class="fin" value="' + esc(CI_F.busca) + '" placeholder="Digite o nome" oninput="ciSet(\'busca\',this.value)"></div>' +
+    '<div><div class="ftit">Fornecedor</div><select class="fin" onchange="ciSet(\'forn\',this.value)"><option value="">Selecione o fornecedor</option>' + F.map(function(f){ return '<option value="' + f.codFornec + '"' + (String(CI_F.forn) === String(f.codFornec) ? ' selected' : '') + '>' + esc(f.nome) + '</option>'; }).join('') + '</select></div>' +
+    '<div><div class="ftit">Categoria</div><select class="fin" onchange="ciSet(\'cat\',this.value)"><option value="">Selecione a categoria</option>' + Object.keys(cats).sort().map(function(g){ return '<option value="' + esc(g) + '"' + (CI_F.cat === g ? ' selected' : '') + '>' + esc(g) + ' (' + cats[g] + ')</option>'; }).join('') + (Object.keys(cats).length ? '' : '<option disabled>sem categoria do ERP pra estes itens</option>') + '</select></div>' +
+    '<div><div class="ftit">Empresa</div><select class="fin" onchange="ciSet(\'loja\',this.value)"><option value="">Selecione a empresa</option>' + lojas.map(function(l){ return '<option value="' + l + '"' + (String(CI_F.loja) === String(l) ? ' selected' : '') + '>Loja ' + l + ' ' + esc(LOJAS_NOMES[l] || '') + '</option>'; }).join('') + '</select></div></div>' +
+    '<div class="clubchecks"><div><label><input type="checkbox" class="check"' + (CI_F.soNovos ? ' checked' : '') + ' onchange="ciSet(\'soNovos\',this.checked)"> Novos Fornecedores</label><label><input type="checkbox" class="check"' + (CI_F.soComprados ? ' checked' : '') + ' onchange="ciSet(\'soComprados\',this.checked)"> Apenas comprados</label></div>' +
+    '<div><label><input type="checkbox" class="check"' + (CI_F.soObs ? ' checked' : '') + ' onchange="ciSet(\'soObs\',this.checked)"> Itens com Observações</label><label><input type="checkbox" class="check"' + (CI_F.soNaoComprados ? ' checked' : '') + ' onchange="ciSet(\'soNaoComprados\',this.checked)"> Não Comprados</label><label><input type="checkbox" class="check"' + (CI_F.soSemPreco ? ' checked' : '') + ' onchange="ciSet(\'soSemPreco\',this.checked)"> Não Digitados</label></div>' +
+    '<div><label style="color:var(--ink2);font-weight:600">Alta variação de Preços</label><label><input type="radio" name="ci-vt"' + (CI_F.varTipo === 'pct' ? ' checked' : '') + ' onchange="CI_F.varTipo=\'pct\'"> Em percentual (%)</label><label><input type="radio" name="ci-vt"' + (CI_F.varTipo === 'rs' ? ' checked' : '') + ' onchange="CI_F.varTipo=\'rs\'"> Em valor (R$)</label></div>' +
+    '<div class="clubfiltrar"><input type="text" id="ci-var" class="fin" inputmode="decimal" value="' + esc(CI_F.var) + '" placeholder="Informe o valor" onkeydown="if(event.key===\'Enter\')ciFiltrar()"><button class="cbtn" style="font-weight:800" onclick="ciFiltrar()">Filtrar</button></div></div></div>';
   var b = CI_F.busca.trim().toLowerCase(), varMin = parseFloat(String(CI_F.var).replace(/\./g, '').replace(',', '.')) || 0, L = CI_F.loja;
   var itens = C.itens.filter(function(i){
     if (b && i.descricao.toLowerCase().indexOf(b) === -1 && String(i.cod).indexOf(b) === -1) return false;
     if (CI_F.forn && !i.precos[CI_F.forn]) return false;
+    if (CI_F.cat && !(K[i.cod] && K[i.cod].grupo === CI_F.cat)) return false;
     if (L && !(i.lojas_qtd && i.lojas_qtd[L] > 0)) return false;
     var temPreco = Object.keys(i.precos).length > 0;
     if (CI_F.soSemPreco && temPreco) return false;
@@ -965,28 +994,27 @@ function renderComparativoItens(){
     if (varMin > 0) { var base = (U[i.cod] && U[i.cod].preco) || i.ultimo_custo; if (!(base > 0) || !i.melhor) return false; var d = CI_F.varTipo === 'rs' ? Math.abs(i.melhor.preco - base) : Math.abs((i.melhor.preco - base) / base * 100); if (d < varMin) return false; }
     return true;
   });
-  h += '<p class="mini" style="margin:0 0 10px">' + itens.length + ' de ' + C.itens.length + ' itens' + (L ? ' · quantidades da loja L' + L : '') + (aberta ? ' · marque o vencedor de cada item na caixinha (menor preço já vem marcado)' : '') + '</p>';
+  h += '<p class="mini" style="margin:12px 0 8px">' + itens.length + ' de ' + C.itens.length + ' itens' + (L ? ' · quantidades da Loja ' + L : '') + '</p>';
   if (!itens.length) h += '<div class="empty">Nenhum item com esse filtro.</div>';
   h += itens.map(function(i){
-    var u = U[i.cod], base = (u && u.preco) || i.ultimo_custo || 0, an = analiseItem(i), v = i.vencedor, q = L ? (i.lojas_qtd[L] || 0) : i.qtd, rec = !!CI_REC[i.cod];
+    var u = U[i.cod], base = (u && u.preco) || i.ultimo_custo || 0, v = i.vencedor, q = L ? (i.lojas_qtd[L] || 0) : i.qtd, rec = !!CI_REC[i.cod], k = K[i.cod];
     var quem = F.filter(function(f){ return i.precos[f.codFornec]; }), naoCot = F.filter(function(f){ return !i.precos[f.codFornec]; });
-    var x = '<div class="citem' + (rec ? ' rec' : '') + '" id="ci-' + esc(i.cod) + '"><div class="cihd" style="cursor:pointer" onclick="ciRec(\'' + esc(i.cod) + '\')"><div><span class="chev">▾</span> <b>' + esc(i.descricao) + '</b>' + (i.curva_a ? ' <span class="an-badge bad" style="padding:1px 7px">curva A</span>' : '') + ' <span class="an-badge ' + an.cls + '" style="padding:1px 7px">' + an.txt + '</span><br><span class="cod">Código: ' + esc(i.cod) + '</span>' + (v ? ' <span class="mini" style="color:#7A2E00">· vencedor: <b>' + esc((F.find(function(f){ return f.codFornec === v.codFornec; }) || {}).nome || '') + '</b> ' + fmtR(v.preco) + '</span>' : (i.nao_comprar ? ' <span class="mini" style="color:var(--neg);font-weight:700">· não comprar</span>' : '')) + '</div>' +
-      '<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap" onclick="event.stopPropagation()"><span>Quantidade: <b>' + fmtN(q) + '</b>' + (i.emb > 1 ? ' <span class="mini">(' + Math.ceil(q / i.emb) + ' cx de ' + i.emb + ')</span>' : '') + (L ? '' : (Object.keys(i.lojas_qtd || {}).length ? ' <span class="mini">' + Object.keys(i.lojas_qtd).map(function(l){ return 'L' + l + ' ' + i.lojas_qtd[l]; }).join(' · ') + '</span>' : '')) + '</span>' +
-      (aberta ? '<span class="sel-vc"><button class="' + (!i.manual && !i.nao_comprar ? 'on' : '') + '" onclick="escolher(\'' + esc(i.cod) + '\',\'auto\')">auto (menor)</button><button class="' + (i.nao_comprar ? 'on' : '') + '" onclick="escolher(\'' + esc(i.cod) + '\',\'nao\')">não comprar</button></span>' : '') + '</div></div><div class="cibody">';
-    x += '<div class="ciult"><span>Dados da última compra:</span>' + (u ? '<span>Valor: <b>' + (u.preco ? fmtR(u.preco) : '—') + '</b></span><span>Fornecedor: <b>' + esc(u.fornecedor || ('cód. ' + u.cf)) + '</b></span><span>Data: <b>' + dd(u.data) + '</b></span><span>Quantidade: <b>' + fmtN(u.qtd) + '</b>' + (u.loja ? ' <span class="mini">L' + u.loja + '</span>' : '') + '</span>' : '<span>sem nota de entrada nos últimos 24 meses</span>') + '<span>Último custo (cadastro): <b>' + (i.ultimo_custo > 0 ? fmtR(i.ultimo_custo) : '—') + '</b></span></div>';
+    var x = '<div class="citem club' + (rec ? ' rec' : '') + '" id="ci-' + esc(i.cod) + '"><div class="cihd" onclick="ciRec(\'' + esc(i.cod) + '\')"><div><span class="chev">⌄</span> <b>' + esc(i.descricao) + '</b> <span class="mini" style="color:#7A2E00">' + esc(i.unid || 'UN') + '|' + i.emb + '</span>' + (i.curva_a ? ' <span class="an-badge bad" style="padding:1px 7px">curva A</span>' : '') + (k && k.grupo ? ' <span class="mini" style="color:#7A2E00">· ' + esc(k.grupo) + (k.subgrupo ? ' / ' + esc(k.subgrupo) : '') + '</span>' : '') + '<br><span class="cod">Código: ' + esc(i.cod) + '</span>' + (i.nao_comprar ? ' <span class="mini" style="color:var(--neg);font-weight:700">· não comprar</span>' : '') + '</div>' +
+      '<div style="text-align:right" onclick="event.stopPropagation()"><span style="font-size:15px">Quantidade: <b>' + fmtN(q) + '</b></span>' + (i.emb > 1 ? ' <span class="mini">(' + Math.ceil(q / i.emb) + ' cx de ' + i.emb + ')</span>' : '') + (L ? '' : (Object.keys(i.lojas_qtd || {}).length > 1 ? '<br><span class="mini">' + Object.keys(i.lojas_qtd).map(function(l){ return 'L' + l + ' ' + i.lojas_qtd[l]; }).join(' · ') + '</span>' : '')) +
+      (aberta ? '<br><span class="sel-vc" style="justify-content:flex-end"><button class="' + (!i.manual && !i.nao_comprar ? 'on' : '') + '" onclick="escolher(\'' + esc(i.cod) + '\',\'auto\')">auto (menor)</button><button class="' + (i.nao_comprar ? 'on' : '') + '" onclick="escolher(\'' + esc(i.cod) + '\',\'nao\')">não comprar</button></span>' : '') + '</div></div><div class="cibody">';
+    x += '<div class="ciult"><span>Dados da ultima compra: <span class="ico2">▪</span></span>' + (u ? '<span>Valor: ' + (u.preco ? fmtN(u.preco, 2) : '—') + '</span><span>Fornecedor: ' + esc(u.fornecedor || ('cód. ' + u.cf)) + '</span><span>Data: ' + dd(u.data) + '</span><span>Quantidade: ' + fmtN(u.qtd) + (u.loja ? ' <span class="mini">(L' + u.loja + ')</span>' : '') + '</span>' : '<span>sem nota de entrada nos últimos 24 meses</span><span>Último custo (cadastro): ' + (i.ultimo_custo > 0 ? fmtN(i.ultimo_custo, 2) : '—') + '</span>') + '</div>';
     if (quem.length) {
-      x += '<table><thead><tr><th style="width:36px"></th><th>Fornecedor</th><th>Marca</th><th>Forma de pgto</th><th>Data prevista</th><th style="text-align:right">Qtd. emb.</th><th style="text-align:right">Valor unitário</th><th style="text-align:right">Total</th><th style="text-align:right">Variação</th><th>Observação</th></tr></thead><tbody>';
+      x += '<table><thead><tr><th style="width:44px"></th><th>Fornecedor</th><th>Marca</th><th>Forma De Pgto</th><th>Data Prevista</th><th>Qtd. Emb.</th><th>Valor unitário</th><th>Observação</th></tr></thead><tbody>';
       x += quem.sort(function(a, c2){ return i.precos[a.codFornec].preco - i.precos[c2.codFornec].preco; }).map(function(f){
         var p = i.precos[f.codFornec], win = v && v.codFornec === f.codFornec, varp = base > 0 ? (p.preco - base) / base * 100 : null;
         return '<tr class="' + (win ? 'win' : '') + '"><td><input type="checkbox" class="chk" ' + (win ? 'checked' : '') + (aberta ? ' onclick="escolher(\'' + esc(i.cod) + '\',' + (win ? '\'auto\'' : f.codFornec) + ')"' : ' disabled') + ' title="' + (win ? 'vencedor' : 'marcar como vencedor') + '"></td>' +
-          '<td><b>' + esc(f.nome) + '</b>' + (novos[f.codFornec] ? ' <span class="an-badge warn" style="padding:1px 6px">novo</span>' : '') + (f.vendedor && f.vendedor.nome ? '<br><i class="mini">(' + esc(f.vendedor.nome) + ')</i>' : '') + (win && i.manual ? ' <span class="an-badge good" style="padding:1px 6px">escolhido à mão</span>' : '') + '</td>' +
-          '<td>' + (esc(p.marca || '') || '<span class="mini">—</span>') + '</td><td>' + esc(f.condicao || f.condicao_padrao || '—') + '</td><td>' + dataPrevista(f.prazo_entrega) + '</td><td class="price">' + i.emb + '</td>' +
-          '<td class="price"><b>' + fmtR(p.preco) + '</b></td><td class="price">' + fmtR(p.preco * q) + '</td>' +
-          '<td class="price">' + (varp == null ? '—' : '<span class="' + (varp <= 0 ? 'eco-pos' : 'eco-neg') + '">' + (varp > 0 ? '+' : '') + fmtN(varp, 1) + '%</span>') + '</td>' +
-          '<td class="mini">' + (esc(p.obs || '') || '—') + '</td></tr>';
+          '<td>' + esc(f.nome) + (novos[f.codFornec] ? ' <span class="an-badge warn" style="padding:1px 6px">novo</span>' : '') + (win && i.manual ? ' <span class="an-badge good" style="padding:1px 6px">escolhido à mão</span>' : '') + (f.vendedor && f.vendedor.nome ? '<br><i class="mini">(' + esc(f.vendedor.nome).toUpperCase() + ')</i>' : '') + '</td>' +
+          '<td>' + (esc(p.marca || '') || '—') + '</td><td>' + esc(f.condicao || f.condicao_padrao || '—') + '</td><td>' + dataPrevista(f.prazo_entrega) + '</td><td>' + i.emb + '</td>' +
+          '<td><b>' + fmtR(p.preco) + '</b>' + (varp == null ? '' : '<br><span class="mini ' + (varp <= 0 ? 'eco-pos' : 'eco-neg') + '">' + (varp > 0 ? '+' : '') + fmtN(varp, 1) + '% · total ' + fmtR(p.preco * q) + '</span>') + '</td>' +
+          '<td>' + (esc(p.obs || '') || '--') + '</td></tr>';
       }).join('') + '</tbody></table>';
     } else x += '<div class="empty" style="padding:16px">Nenhum vendedor digitou preço para este item ainda.</div>';
-    if (naoCot.length) x += '<div class="cifoot">Não cotaram: ' + naoCot.map(function(f){ return esc(f.nome); }).join(' · ') + '</div>';
+    if (naoCot.length) x += '<div class="cifoot">Não digitaram este item: ' + naoCot.map(function(f){ return esc(f.nome); }).join(' · ') + '</div>';
     return x + '</div></div>';
   }).join('');
   m.innerHTML = h;

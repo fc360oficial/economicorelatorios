@@ -6758,7 +6758,13 @@ app.get('/api/cotacoes/:id/ultimas-compras', async (req, res) => {
     const nomes = cfs.length ? await q(`SELECT CodFornec, Nome, NomeCompleto FROM central.fornecedor WHERE CodFornec IN (${cfs.map(() => '?').join(',')})`, cfs).catch(() => []) : [];
     const nomeDe = Object.fromEntries(nomes.map(n => [+n.CodFornec, String(n.NomeCompleto || n.Nome || '').trim()]));
     for (const x of Object.values(out)) x.fornecedor = nomeDe[x.cf] || null;
-    res.json({ ultimas: out, itens: c.itens.length, com_ultima: Object.keys(out).length });
+    // categoria do mercadológico do ERP (itens.CodGrupoSub → gruposub → grupo)
+    const categorias = {};
+    for (const ch of radarPedidos.chunk(c.itens.map(i => String(i.cod)), 2000)) {
+      const rows = await q(`SELECT i.CodigoBarra cod, g.Descricao grupo, gs.Descricao subgrupo FROM central.itens i LEFT JOIN central.gruposub gs ON gs.CodSubGrupo = i.CodGrupoSub LEFT JOIN central.grupo g ON g.CodGrupo = gs.CodGrupo WHERE i.CodigoBarra IN (${ch.map(() => '?').join(',')})`, ch).catch(() => []);
+      for (const r of rows) categorias[String(r.cod)] = { grupo: String(r.grupo || '').trim() || null, subgrupo: String(r.subgrupo || '').trim() || null };
+    }
+    res.json({ ultimas: out, categorias, itens: c.itens.length, com_ultima: Object.keys(out).length });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.get('/api/cotacoes/:id', (req, res) => {
