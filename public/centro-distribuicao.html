@@ -82,6 +82,23 @@ input.cx{width:56px;text-align:center;border:1px solid #C9C9C4;border-radius:6px
 input.cx.edit{border-color:#F5B800;background:#FFF6D9}
 tr.insuf td.lc{border-left:3px solid #C22F49}
 tr.zera td.lc{border-left:3px solid #E5AC00}
+.lcards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:12px}
+.lcard{background:#fff;border:1px solid #DADAD6;border-radius:12px;padding:10px 14px;cursor:pointer;box-shadow:0 1px 3px rgba(14,22,38,.05)}.lcard:hover{border-color:#C9C9C4}.lcard.on{outline:2px solid #F5B800;background:#FFF6D9}
+.lcard .lbl{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:#4E5A72}.lcard .lbl b{color:#6B4E00}
+.lcard .val{font-size:18px;font-weight:800;letter-spacing:-.3px;margin:2px 0}.lcard .val.z{color:#98A0B3}
+.lcard .sub{font-size:11px;color:#98A0B3;font-weight:600}
+.resumo{display:flex;align-items:center;gap:6px 14px;flex-wrap:wrap;font-size:12.5px;color:#4E5A72;margin-bottom:10px}.resumo b{color:#0E1626}
+.resumo label{display:flex;gap:6px;align-items:center;cursor:pointer;color:#0E1626}.resumo input[type=checkbox]{accent-color:#F5B800;width:15px;height:15px}
+.resumo select{background:#fff;border:1px solid #C9C9C4;border-radius:8px;padding:6px 10px;font-size:12px;font-family:inherit}
+.acoes{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}.acoes .contagem{font-size:11.5px;color:#98A0B3;font-weight:600;margin-left:auto}
+.prod-cell{display:flex;flex-direction:column;gap:3px;white-space:normal;min-width:240px;max-width:360px}.prod-cell .nm{font-size:12.5px}
+.prod-meta{display:flex;flex-wrap:wrap;gap:2px 9px;font-size:10.5px;color:#98A0B3;font-weight:600}.prod-meta .m-good{color:#137A48}.prod-meta .m-warn{color:#6B4E00}.prod-meta .m-bad{color:#C22F49}
+.prod-meta a{color:#C22F49;text-decoration:underline;cursor:pointer}
+.lj{display:inline-flex;flex-direction:column;align-items:center;gap:2px;margin-right:4px}.lj small{font-size:9.5px;font-weight:800;color:#98A0B3}
+.lj input{width:56px;border:1px solid #C9C9C4;border-radius:6px;padding:4px 5px;font-family:inherit;font-size:12.5px;font-weight:700;text-align:center}.lj input.ed{border-color:#F5B800;background:#FFF6D9}.lj input.z{color:#98A0B3;font-weight:500}
+.lj .zr{font-size:9px;color:#C22F49;font-weight:800}
+td.cod{color:#98A0B3;font-size:11px}
+th .hin{background:#fff;border:1px solid #C9C9C4;border-radius:7px;padding:5px 9px;font-size:12px;font-family:inherit;font-weight:500;text-transform:none;letter-spacing:0}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:14px}
 .card{background:#fff;border:1px solid #DADAD6;border-radius:10px;padding:10px 12px;cursor:pointer}.card.on{border-color:#F5B800;background:#FFF6D9}
 .card .v{font-size:18px;font-weight:800}.card .l{font-size:9.5px;text-transform:uppercase;color:#98A0B3;font-weight:700}
@@ -119,7 +136,7 @@ const fmtN = (v, d = 0) => (v == null ? '–' : (+v).toLocaleString('pt-BR', { m
 const fmtR = v => 'R$ ' + fmtN(v, 2);
 const LOJAS = [1, 2, 3, 4, 5, 6];
 const LOJAS_NOMES = { 1: 'CAHU', 2: 'MURIBECA', 3: 'PONTE', 4: 'ATACAREJO', 5: 'PORTA LARGA', 6: 'JARDIM JORDÃO' };
-let ESTOPEN = new Set(), DADOS = null, EDITS = {}, SEL = new Set(), FILTRO = '', FLOJA = 0, VIS = {}, PEDIDOS = [], VINC = {}, VF = 'pendentes';
+let ESTOPEN = new Set(), DADOS = null, EDITS = {}, SEL = new Set(), FILTRO = '', FLOJA = 0, VIS = {}, PEDIDOS = [], VINC = {}, VF = 'pendentes', SOQTD = true, ORDEM = 'urgencia', SELINIT = false;
 
 document.querySelectorAll('.tab').forEach(b => b.onclick = () => { document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === b)); ['pedido', 'vinculos', 'pedidos', 'regras'].forEach(t => $('#tab-' + t).hidden = t !== b.dataset.tab); });
 
@@ -138,49 +155,85 @@ async function carregar(refresh) {
   if (!digitando) renderVinculos();
 }
 function cxDe(item, ln) { const k = item.codigoCD + '|' + ln; return k in EDITS ? EDITS[k] : item.lojas[ln].cx; }
+function todosItens() { return DADOS ? DADOS.repor.concat(DADOS.novos) : []; }
+function totCx(item) { return LOJAS.reduce((a, ln) => a + cxDe(item, ln), 0); }
+function cobClass(item) {
+  if (item.cdInsuficiente) return ['m-bad', 'CD insuficiente'];
+  if (item.origem === 'novo') return ['m-warn', 'novo'];
+  const c = item.coberturaTotal; if (c == null) return ['', '–'];
+  if (c < 7) return ['m-bad', 'crítico'];
+  const zeram = LOJAS.filter(ln => item.lojas[ln].zeraAntes);
+  if (c < 14 || zeram.length) return ['m-warn', 'atenção' + (zeram.length ? ' · zera L' + zeram.join(' L') : '')];
+  return ['m-good', 'normal'];
+}
+function metaCx(item) {
+  const v = VINC[item.codigoCD] || {};
+  if (!(item.unPorCaixa >= 1)) return `<span class="m-bad">sem un/cx · <a onclick="event.stopPropagation();irVinculo('${item.codigoCD}')">definir</a></span>`;
+  const manual = v.confirmadoPor && v.confirmadoPor !== 'sistema' && v.unPorCaixaCadastro != null && v.unPorCaixa !== v.unPorCaixaCadastro;
+  return `<span>Cx ${item.unPorCaixa} (${manual ? 'corrigida à mão' : 'embalagem ERP'})</span>`;
+}
 function linha(item, lojasCols) {
   lojasCols = lojasCols || LOJAS;
-  const tot = LOJAS.reduce((a, ln) => a + cxDe(item, ln), 0);
-  const cls = item.cdInsuficiente ? 'insuf' : (LOJAS.some(ln => item.lojas[ln].zeraAntes) ? 'zera' : '');
-  return `<tr class="${cls} lst${SEL.has(item.codigoCD) ? ' open' : ''}" data-cod="${item.codigoCD}" onclick="toggleSel('${item.codigoCD}',!SEL.has('${item.codigoCD}'))">
-    <td class="c" onclick="event.stopPropagation()"><input type="checkbox" ${SEL.has(item.codigoCD) ? 'checked' : ''} onchange="toggleSel('${item.codigoCD}',this.checked)"></td>
-    <td class="lc"><div class="nm">${item.descricaoCD}</div><div class="sub">${item.unidade ? item.unidade + ' · ' + (item.descricaoUn || '') : `<span class="pill p-flag" title="sem venda e sem estoque nas lojas: entra na loja como produto novo, pela caixa">produto novo</span> <button class="btn btn-slate" style="padding:2px 8px;font-size:11px;color:#4E5A72" onclick="event.stopPropagation();irVinculo('${item.codigoCD}')">vincular unidade</button>`}${item.cdInsuficiente ? ' · <span class="neg">CD insuficiente: faltam ' + item.faltaCx + ' cx</span>' : ''}</div></td>
-    <td class="r">${fmtN(item.estoqueCDcx)}</td><td class="c">${item.unPorCaixa || '–'}</td><td class="r" style="cursor:pointer" onclick="event.stopPropagation();ESTOPEN.has('${item.codigoCD}')?ESTOPEN.delete('${item.codigoCD}'):ESTOPEN.add('${item.codigoCD}');renderPedido()"><b>${fmtN(LOJAS.reduce((a, ln) => a + (item.lojas[ln].est || 0), 0))}</b>${ESTOPEN.has(item.codigoCD) ? '<div class="s2" style="text-align:right">' + LOJAS.map(ln => 'L' + ln + ' ' + fmtN(item.lojas[ln].est || 0)).join('<br>') + '</div>' : '<div class="s2">▾</div>'}</td>
-    <td class="r">${fmtN(item.vqTotal, 1)}</td><td class="r">${item.coberturaTotal == null ? '–' : fmtN(item.coberturaTotal, 1)}</td>
-    ${lojasCols.map(ln => { const L = item.lojas[ln]; const k = item.codigoCD + '|' + ln; return `<td class="c" title="venda ${fmtN(L.vq, 1)}/d · est ${fmtN(L.est)} · trânsito ${fmtN(L.transito)} · cob ${L.cobertura == null ? '–' : fmtN(L.cobertura, 1)} d"><input class="cx ${k in EDITS ? 'edit' : ''}" type="number" min="0" value="${cxDe(item, ln)}" onclick="event.stopPropagation()" onchange="editar('${item.codigoCD}',${ln},this.value)"> <small style="font-weight:800;color:#4E5A72">CX</small><div class="s2">${item.unPorCaixa > 1 ? '= ' + fmtN(cxDe(item, ln) * item.unPorCaixa) + ' un' : 'un'}${L.zeraAntes ? ' · <span class="neg">zera</span>' : ''}</div></td>`; }).join('')}
-    <td class="r"><b>${fmtN(tot)}</b></td><td class="r">${fmtR(tot * (item.unPorCaixa || 0) * item.custoUn)}</td></tr>`;
+  const tot = totCx(item); const upc = item.unPorCaixa || 0;
+  const [cc, ct] = cobClass(item);
+  const transito = LOJAS.reduce((a, ln) => a + (item.lojas[ln].transito || 0), 0);
+  const estLojas = LOJAS.reduce((a, ln) => a + (item.lojas[ln].est || 0), 0);
+  const sel = SEL.has(item.codigoCD);
+  return `<tr class="lst${item.cdInsuficiente ? ' insuf' : ''}" data-cod="${item.codigoCD}" onclick="toggleSel('${item.codigoCD}',!SEL.has('${item.codigoCD}'))">
+    <td class="c" onclick="event.stopPropagation()"><input type="checkbox" ${sel ? 'checked' : ''} onchange="toggleSel('${item.codigoCD}',this.checked)"></td>
+    <td class="cod">${item.codigoCD}</td>
+    <td><div class="prod-cell"><div class="nm">${item.descricaoCD}</div>
+      <div class="prod-meta">${metaCx(item)}${item.origem === 'repor' ? `<span>Venda/dia ${fmtN(item.vqTotal, 2)}</span><span class="${cc}">Cobertura ${item.coberturaTotal == null ? '–' : '~' + fmtN(item.coberturaTotal, 0) + ' d'} · ${ct}</span>` : `<span class="pill p-flag" title="sem venda nas lojas: 1 caixa por loja, entra como produto novo">produto novo</span>`}${item.cdInsuficiente ? `<span class="m-bad">faltam ${item.faltaCx} cx no CD</span>` : ''}</div>
+      <div class="prod-meta">${item.unidade ? `<span>${item.unidade} · ${item.descricaoUn || ''}</span>` : `<span class="m-bad">sem vínculo · <a onclick="event.stopPropagation();irVinculo('${item.codigoCD}')">vincular</a></span>`}</div></div></td>
+    <td class="r">${fmtN(item.estoqueCDcx)}</td>
+    <td class="r" style="cursor:pointer" title="clique pra ver por loja" onclick="event.stopPropagation();ESTOPEN.has('${item.codigoCD}')?ESTOPEN.delete('${item.codigoCD}'):ESTOPEN.add('${item.codigoCD}');renderPedido()">${fmtN(estLojas)} <span class="mut">▾</span>${ESTOPEN.has(item.codigoCD) ? '<div class="s2" style="text-align:right">' + LOJAS.map(ln => 'L' + ln + ' ' + fmtN(item.lojas[ln].est || 0)).join('<br>') + '</div>' : ''}</td>
+    <td class="r">${transito ? fmtN(transito) + ' <span class="mut">un</span>' : '<span class="mut">—</span>'}</td>
+    <td>${lojasCols.map(ln => { const L = item.lojas[ln]; const k = item.codigoCD + '|' + ln; const q = cxDe(item, ln); return `<span class="lj" title="L${ln} ${LOJAS_NOMES[ln]}: estoque ${fmtN(L.est)} un · venda/dia ${fmtN(L.vq, 2)} · cobertura ${L.cobertura == null ? '–' : fmtN(L.cobertura, 0) + ' d'}${L.transito ? ' · trânsito ' + fmtN(L.transito) : ''}"><small>L${ln}</small><input type="number" min="0" value="${q}" class="${k in EDITS ? 'ed' : ''}${q ? '' : ' z'}" onclick="event.stopPropagation()" onchange="editar('${item.codigoCD}',${ln},this.value)">${L.zeraAntes ? '<span class="zr">zera</span>' : ''}</span>`; }).join('')}</td>
+    <td class="r"><b>${fmtN(tot)}</b> <span class="mut">cx</span>${upc > 1 ? `<div class="s2">= ${fmtN(tot * upc)} un</div>` : ''}</td>
+    <td class="r ${item.custoUn ? '' : 'mut'}">${item.custoUn ? fmtR(item.custoUn) : '—'}</td>
+    <td class="r"><b>${fmtR(tot * upc * item.custoUn)}</b></td></tr>`;
 }
-function tabela(titulo, itens, id, isRepor) {
+function itensVisiveis() {
   const f = FILTRO.toLowerCase();
-  let vis = itens.filter(i => !f || (i.descricaoCD + ' ' + (i.descricaoUn || '') + ' ' + i.codigoCD + ' ' + (i.unidade || '')).toLowerCase().includes(f));
-  if (FLOJA && isRepor) vis = vis.filter(i => cxDe(i, FLOJA) > 0);
-  VIS[id] = vis.map(i => i.codigoCD);
-  const lojasCols = FLOJA ? [FLOJA] : LOJAS;
-  return `<h3 style="font-size:13px;margin:14px 0 6px">${titulo} <span class="mut">(${vis.length})</span></h3>
-  <div class="table-wrap"><table class="main-t"><thead><tr><th class="c"><input type="checkbox" onchange="selTodos('${id}',this.checked)"></th><th>Produto</th><th class="r">Est. CD (cx)</th><th class="c">Un/cx</th><th class="r" title="estoque nas lojas (unidades) — clique pra ver por loja">Est. lojas (un)</th><th class="r">Venda un/d</th><th class="r">Cob. (d)</th>${lojasCols.map(ln => `<th class="c" title="quantidade sugerida em CAIXAS (unidades embaixo)">L${ln} <small>cx</small></th>`).join('')}<th class="r">Total cx</th><th class="r">Custo</th></tr></thead>
-  <tbody>${vis.map(i => linha(i, lojasCols)).join('') || `<tr><td colspan="${9 + lojasCols.length}" class="mut">nada aqui</td></tr>`}</tbody></table></div>`;
+  let vis = todosItens().filter(i => !f || (i.descricaoCD + ' ' + (i.descricaoUn || '') + ' ' + i.codigoCD + ' ' + (i.unidade || '')).toLowerCase().includes(f));
+  if (SOQTD) vis = vis.filter(i => FLOJA ? cxDe(i, FLOJA) > 0 : totCx(i) > 0);
+  const urg = i => i.cdInsuficiente ? 0 : (i.origem === 'novo' ? 3 : (cobClass(i)[1] === 'crítico' ? 1 : 2));
+  if (ORDEM === 'az') vis.sort((a, b) => a.descricaoCD.localeCompare(b.descricaoCD));
+  else vis.sort((a, b) => urg(a) - urg(b) || ((a.coberturaTotal ?? 9999) - (b.coberturaTotal ?? 9999)) || a.descricaoCD.localeCompare(b.descricaoCD));
+  return vis;
 }
 function renderPedido() {
   if (!DADOS || !DADOS.resumo) { $('#tab-pedido').innerHTML = '<p class="mut">calculando…</p>'; return; }
-  const r = DADOS.resumo; $('#n-pedido').textContent = r.repor + r.novos;
+  const r = DADOS.resumo; const all = todosItens(); $('#n-pedido').textContent = r.repor + r.novos;
+  if (!SELINIT) { for (const i of all) if (totCx(i) > 0) SEL.add(i.codigoCD); SELINIT = true; }
+  // cards por loja: o que está SELECIONADO iria pra cada loja (com as edições)
+  const porLoja = {}; for (const ln of LOJAS) porLoja[ln] = { cx: 0, itens: 0, custo: 0 };
+  let semVinc = 0, semUpc = 0;
+  for (const i of all) {
+    if (i.semVinculo) semVinc++; if (!(i.unPorCaixa >= 1)) semUpc++;
+    if (!SEL.has(i.codigoCD)) continue;
+    for (const ln of LOJAS) { const q = cxDe(i, ln); if (q > 0) { porLoja[ln].cx += q; porLoja[ln].itens++; porLoja[ln].custo += q * (i.unPorCaixa || 0) * i.custoUn; } }
+  }
+  const selItens = all.filter(i => SEL.has(i.codigoCD) && (FLOJA ? cxDe(i, FLOJA) > 0 : totCx(i) > 0));
+  const selCx = selItens.reduce((a, i) => a + (FLOJA ? cxDe(i, FLOJA) : totCx(i)), 0);
+  const selCusto = selItens.reduce((a, i) => a + (FLOJA ? cxDe(i, FLOJA) : totCx(i)) * (i.unPorCaixa || 0) * i.custoUn, 0);
+  const vis = itensVisiveis(); VIS.todos = vis.map(i => i.codigoCD);
+  const lojasCols = FLOJA ? [FLOJA] : LOJAS;
   $('#tab-pedido').innerHTML = `
-    <div class="totais">
-      <div class="tkpi"><div class="v">${r.proximaSegunda.split('-').reverse().join('/')}</div><div class="l">próxima segunda</div></div>
-      <div class="tkpi"><div class="v">${r.repor}</div><div class="l">produtos a repor</div></div>
-      <div class="tkpi"><div class="v amb">${r.novos}</div><div class="l">novos no CD</div></div>
-      <div class="tkpi"><div class="v ${r.cdInsuficiente ? 'neg' : ''}">${r.cdInsuficiente}</div><div class="l">CD insuficiente</div></div>
-      <div class="tkpi"><div class="v">${fmtN(r.caixas)}</div><div class="l">caixas sugeridas</div></div>
-      <div class="tkpi"><div class="v">${fmtR(r.custo)}</div><div class="l">custo</div></div>
-    </div>
-    <div class="busca-row"><input placeholder="buscar produto ou código" value="${FILTRO}" oninput="FILTRO=this.value;renderPedido()">
-      <select onchange="FLOJA=+this.value;renderPedido()">
-        <option value="0" ${FLOJA === 0 ? 'selected' : ''}>Todas as lojas</option>
-        ${LOJAS.map(ln => `<option value="${ln}" ${FLOJA === ln ? 'selected' : ''}>L${ln} ${LOJAS_NOMES[ln]}</option>`).join('')}
-      </select>
-      <button class="btn btn-slate" onclick="carregar(true)">Recalcular</button><span class="contagem">${Object.keys(EDITS).length ? Object.keys(EDITS).length + ' quantidades editadas' : ''}</span>
-      <div class="selbar"><span class="contagem" id="selcnt">${SEL.size ? SEL.size + ' selecionado' + (SEL.size > 1 ? 's' : '') : 'nenhum selecionado'}</span><button class="btn btn-slate btn-sm" onclick="SEL.clear();renderPedido()" ${SEL.size ? '' : 'disabled'}>Limpar</button><button class="btn btn-amber btn-sm" ${SEL.size ? '' : 'disabled'} onclick="fecharPedido()" title="Gera um pedido por loja com as caixas dos produtos selecionados (com as quantidades editadas)">Fechar pedido</button></div></div>
-    ${tabela('Repor', DADOS.repor, 'repor', true)}${tabela('Novos no CD (1 cx por loja)', DADOS.novos, 'novos', false)}
-    `;
+    <div class="lcards">${LOJAS.map(ln => { const L = porLoja[ln]; const on = FLOJA === ln; return `<div class="lcard ${on ? 'on' : ''}" onclick="FLOJA=${on ? 0 : ln};renderPedido()" title="${on ? 'Clique pra voltar a ver todas as lojas' : 'Clique pra ver só esta loja (o Fechar pedido gera só pra ela)'}"><div class="lbl">L${ln} ${LOJAS_NOMES[ln]}${on ? ' · <b>só esta</b>' : ''}</div><div class="val ${L.cx ? '' : 'z'}">${fmtN(L.cx)} <small style="font-size:11px;color:#98A0B3;font-weight:700">cx</small></div><div class="sub">${L.itens} itens · ${fmtR(L.custo)}</div></div>`; }).join('')}</div>
+    <div class="resumo"><span>pedido de <b>${r.proximaSegunda.split('-').reverse().join('/')}</b></span><span><b>${selItens.length}</b> itens · <b>${fmtN(selCx)}</b> caixas · custo estimado <b>${fmtR(selCusto)}</b></span>
+      ${r.cdInsuficiente ? `<span class="neg">${r.cdInsuficiente} com CD insuficiente</span>` : ''}${semVinc ? `<span class="neg" style="cursor:pointer" onclick="VF='pendentes';document.querySelector('[data-tab=vinculos]').click()">${semVinc} sem vínculo (vão como produto novo)</span>` : ''}${semUpc ? `<span class="neg" style="cursor:pointer" onclick="VF='todos';document.querySelector('[data-tab=vinculos]').click()">${semUpc} sem un/cx</span>` : ''}
+      <label><input type="checkbox" ${SOQTD ? 'checked' : ''} onchange="SOQTD=this.checked;renderPedido()">só itens com quantidade</label>
+      <select onchange="ORDEM=this.value;renderPedido()"><option value="urgencia" ${ORDEM === 'urgencia' ? 'selected' : ''}>Ordem: urgência (CD insuficiente, crítico, cobertura)</option><option value="az" ${ORDEM === 'az' ? 'selected' : ''}>Ordem: A → Z</option></select></div>
+    <div class="acoes"><button class="btn btn-slate" onclick="carregar(true)">↻ Recalcular</button><button class="btn btn-slate" onclick="selTodos('todos',true)">Marcar todos</button><button class="btn btn-slate" onclick="SEL.clear();renderPedido()">Desmarcar</button>
+      <button class="btn btn-amber" ${selItens.length ? '' : 'disabled'} onclick="fecharPedido()" title="Gera um pedido por loja com as caixas dos produtos marcados (com as quantidades editadas)">Fechar pedido${FLOJA ? ' · L' + FLOJA : ''} →</button>
+      <span class="contagem">${Object.keys(EDITS).length ? Object.keys(EDITS).length + ' quantidades editadas · ' : ''}${vis.length} de ${all.length} produtos</span></div>
+    <div class="table-wrap"><table class="main-t"><thead><tr><th class="c"><input type="checkbox" ${vis.length && vis.every(i => SEL.has(i.codigoCD)) ? 'checked' : ''} onchange="selTodos('todos',this.checked)"></th><th>Código</th>
+      <th style="min-width:300px"><div style="display:flex;align-items:center;gap:10px"><span>Produto</span><input class="hin" placeholder="buscar por código ou descrição…" value="${FILTRO}" oninput="FILTRO=this.value;renderPedido()" style="flex:1;min-width:200px;max-width:420px"></div></th>
+      <th class="r">Est. CD (cx)</th><th class="r">Est. lojas (un)</th><th class="r">Trânsito</th><th>Quantidade por loja (cx)</th><th class="r">Total</th><th class="r">Último custo</th><th class="r">R$</th></tr></thead>
+    <tbody>${vis.map(i => linha(i, lojasCols)).join('') || `<tr><td colspan="10" class="mut" style="padding:18px">Nenhum item${FLOJA ? ' na L' + FLOJA : ''}${SOQTD ? ' com quantidade — desmarque "só itens com quantidade" pra ver todos' : ''}.</td></tr>`}</tbody></table></div>`;
+  // mantém o foco na busca enquanto digita
+  if (document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('hin')) { const el = $('#tab-pedido .hin'); if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); } }
 }
 function toggleSel(cod, on) { on ? SEL.add(cod) : SEL.delete(cod); renderPedido(); }
 function selTodos(id, on) { for (const cod of (VIS[id] || [])) on ? SEL.add(cod) : SEL.delete(cod); renderPedido(); }
@@ -197,7 +250,7 @@ async function fecharPedido() {
     SEL.clear(); EDITS = {}; await carregarPedidos(); document.querySelector('[data-tab=pedidos]').click(); alert(ps.length + ' pedido(s) criado(s).'); carregar(false);
   } catch (e) { alert(e.message); }
 }
-async function carregarVinculos() { const r = await api('/api/pedidos-cd/vinculos'); VINC = r.vinculos; renderVinculos(); }
+async function carregarVinculos() { const r = await api('/api/pedidos-cd/vinculos'); VINC = r.vinculos; renderVinculos(); if (DADOS) renderPedido(); }
 let VBUSCA = '';
 function irVinculo(cod) { VF = 'todos'; VBUSCA = cod; renderVinculos(); document.querySelector('[data-tab=vinculos]').click(); setTimeout(() => $('#bu-' + cod + ' input')?.focus(), 50); }
 function renderVinculos() {
