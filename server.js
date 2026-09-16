@@ -6515,7 +6515,7 @@ const linkCotacao = f => `${PUBLIC_URL}/cotacao/${f.token}`;
 const cotUser = req => req.session.user?.nome || null;
 const cotId = req => { const id = parseInt(req.params.id, 10); return Number.isInteger(id) && id > 0 ? id : null; };
 // detalhe pra compradora: comparativo pronto + link de cada fornecedor (sem o mapa cru de preços)
-const cotDetalhe = c => ({ ...c, comparativo: cotacao.comparativo(c), fornecedores: c.fornecedores.map(f => ({ ...f, precos: undefined, link: linkCotacao(f), cotados: c.itens.filter(i => f.precos[i.cod]?.preco != null).length })) });
+const cotDetalhe = c => { const antes = new Set(cotacao.listar().filter(x => x.id !== c.id && x.criadoEm < c.criadoEm && !x.teste).flatMap(x => x.fornecedores.map(f => f.codFornec))); return { ...c, comparativo: cotacao.comparativo(c), fornecedores: c.fornecedores.map(f => ({ ...f, precos: undefined, link: linkCotacao(f), cotados: c.itens.filter(i => f.precos[i.cod]?.preco != null).length, novo: !antes.has(f.codFornec) })) }; };
 
 app.get('/api/cotacoes', (req, res) => {
   try {
