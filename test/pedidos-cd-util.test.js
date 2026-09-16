@@ -111,3 +111,17 @@ test('casarPorDescricao: unidade com 1 palavra a mais ainda é candidato; com ma
   assert.equal(u.casarPorDescricao('LAVA ROUPAS EM PO BEM TE VI PERF NAT FD CX27', un).candidato, null); // 2 extras (400G, DA)
   assert.equal(u.casarPorDescricao('LAVA ROUPAS EM PO BEM TE VI 400G PERF DA NAT CX27', un).candidato, '7898031174677');
 });
+
+test('casarPorDescricao: se duas unidades batem todas as palavras, não escolhe (Pedigree JR × ADULTO); sobra 0 vence sobra 1', () => {
+  const ped = [
+    { cod: '7896029015001', descricao: 'PEDIGREE POUCH JR 100G CARNE' },
+    { cod: '7896029022245', descricao: 'PEDIGREE POUCH RP ADULTO 100G CARNE' }
+  ];
+  const r = u.casarPorDescricao('POUCH PEDIGREE CARNE 100G CX36', ped);
+  assert.equal(r.candidato, null); assert.equal(r.alternativas.length, 2);
+  const wk = [
+    { cod: '7896029046609', descricao: 'WHISKAS POUCH ADULTO 85G CARNE' },
+    { cod: '7896029046616', descricao: 'WHISKAS POUCH JELLY ADULTO 85G CARNE' }
+  ];
+  assert.equal(u.casarPorDescricao('POUCH WHISKAS CARNE ADULTO 85G CX/40', wk).candidato, '7896029046609');
+});
