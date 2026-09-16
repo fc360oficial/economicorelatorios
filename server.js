@@ -6708,7 +6708,7 @@ async function criarCotacaoTeste(usuario, cenario, diasAtras, seq) {
   const c = cotacao.obter(c0.id); const F = c.fornecedores; const r2 = v => Math.round(v * 100) / 100;
   const cota = (f, filtro, fator, obsCada, cond) => { cotacao.abrir(f.token); cotacao.salvarPrecos(f.token, c.itens.filter(filtro).map((i, k) => ({ cod: i.cod, preco: r2(i.ultimo_custo * fator(k)), obs: k % obsCada === 0 ? ['cx fechada', 'marca similar', 'entrega parcial'][k % 3] : '' })), { condicao: cond }); cotacao.finalizar(f.token, f.vendedor.nome); };
   if (cenario === 'fechada' || cenario === 'analise') {
-    F.forEach((f, n) => cota(f, (i, k) => n === 1 ? k % 3 !== 2 : true, k => 0.9 + ((k + n) % 5) * 0.035, 4 + n, f.condicao_padrao));
+    F.forEach((f, n) => cota(f, (i, k) => n === 1 ? k % 3 !== 2 : true, k => (n === 0 ? 0.9 + (k % 5) * 0.035 : 0.87 + ((k + 2 + n) % 4) * 0.05), 4 + n, f.condicao_padrao));
     if (cenario === 'fechada') { const rf = await cotacao.fechar(c.id, usuario, (f, its, cc) => criarPedidoDaCotacao(f, its, cc, usuario)); if (rf && rf.pedidos) for (const p of rf.pedidos.slice(0, 1)) { try { pedidosFornec.aprovar(p.id, usuario); } catch (e) {} } cotacao.patchTeste(c.id, { fechadaEm: new Date(prazo.getTime() + 3600e3).toISOString() }); }
   } else if (cenario === 'digitacao') {
     cota(F[0], () => true, k => 0.92 + (k % 4) * 0.03, 5, F[0].condicao_padrao);
