@@ -488,7 +488,8 @@ table.cx-itens tbody tr.promo td.desc,table.cx-itens tbody tr.rebaixa td.desc,ta
       <div class="cx-barra-r2">
         <label class="cx-exibir">Exibir:
           <select id="c-filtro" onchange="CONS.filtro=this.value;renderConsItens()">
-            <option value="todos">Todos</option><option value="sol_sistema">Solicitação Sistema</option><option value="com_qtd">Apenas com Quantidade</option>
+            <option value="todos">Todos</option><option value="sol_loja">Solicitação Loja</option><option value="sol_sistema">Solicitação Sistema</option>
+            <option value="com_qtd">Apenas com Quantidade</option><option value="qtd_preco">Quantidade e Preço</option>
             <option value="sem_sug">Sem Sugestão Sistema</option><option value="sem_sug_est">Sem Sugestão &amp; Estoque</option><option value="sem_giro">Dias Sem Venda</option><option value="criticos">Críticos</option>
           </select>
         </label>
@@ -861,12 +862,15 @@ function itensFiltrados(){
   const ativas = it => it.lojas.filter(l => !l.desativado);
   return CONS.s.itens.filter(it => {
     if (re && !(re.test(it.codigo) || re.test(it.descricao) || it.descricao.toLowerCase().includes(b))) return false;
+    // Opções iguais às do "Exibir Itens" do Dlinks (mesma ordem e nomes), + "Críticos" que é nossa
     switch (CONS.filtro) {
-      case 'com_qtd':     return it.quantidade > 0;
-      case 'sol_sistema': return ativas(it).some(l => (l.sug_sistema || 0) > 0);
-      case 'sem_sug':     return ativas(it).every(l => !(l.sug_sistema > 0));
-      case 'sem_sug_est': return ativas(it).every(l => !(l.sug_sistema > 0) && !(l.estoque > 0));
-      case 'sem_giro':    return !ativas(it).some(l => (l.qtd_venda || 0) > 0);
+      case 'sol_loja':    return ativas(it).some(l => (l.qtd_loja || 0) > 0);            // alguma loja pediu (QtdLoja)
+      case 'sol_sistema': return ativas(it).some(l => (l.sug_sistema || 0) > 0);         // sistema sugeriu em alguma loja (QtdSug)
+      case 'com_qtd':     return it.quantidade > 0;                                       // Pedido Compra digitado (Σ QTdCompra)
+      case 'qtd_preco':   return it.quantidade > 0 && it.preco_digitado > 0;              // quantidade + preço digitado pelo fornecedor
+      case 'sem_sug':     return ativas(it).every(l => !(l.sug_sistema > 0));             // nenhuma loja com sugestão
+      case 'sem_sug_est': return ativas(it).every(l => !(l.sug_sistema > 0) && !(l.estoque > 0)); // sem sugestão e sem estoque em todas
+      case 'sem_giro':    return !ativas(it).some(l => (l.qtd_venda || 0) > 0);           // sem venda no período em todas as lojas
       case 'criticos':    return prioItem(it) === 'critico';
       default: return true;
     }
