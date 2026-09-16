@@ -67,3 +67,12 @@ test('sincronizarVinculos: candidato pela descrição vira sugerido com origem d
   const m = cd.salvarVinculo({ codigoCD: '17896029046767', unidade: '7896029046609', unPorCaixa: 40 });
   assert.equal(m.origem, 'manual');
 });
+
+test('sincronizarVinculos guarda a descrição da unidade candidata (dun14 e descricao)', () => {
+  const v = cd.sincronizarVinculos([
+    { codigoCD: '17896221600156', unPorCaixa: 12, unidadeExiste: '7896221600159', descricaoUnidadeExiste: 'CLORITO AGUA SANITARIA 1L' },
+    { codigoCD: '47896006711245', unPorCaixa: 10, unidadeExiste: null, candidatoDescricao: '7896006711100', alternativas: [{ cod: '7896006711100', descricao: 'POP ARROZ 1KG BRANCO' }] }
+  ]);
+  assert.equal(v['17896221600156'].descricaoCandidato, 'CLORITO AGUA SANITARIA 1L');
+  assert.equal(v['47896006711245'].descricaoCandidato, 'POP ARROZ 1KG BRANCO');
+});
