@@ -125,3 +125,10 @@ test('casarPorDescricao: se duas unidades batem todas as palavras, não escolhe 
   ];
   assert.equal(u.casarPorDescricao('POUCH WHISKAS CARNE ADULTO 85G CX/40', wk).candidato, '7896029046609');
 });
+
+test('mediaMensal: média por dia dos meses com venda, ignora meses zerados', () => {
+  const r = u.mediaMensal({ '2026-05': [696, 1593], '2026-06': [394, 902], '2026-07': [173, 396], '2026-08': [0, 0] });
+  assert.equal(r.meses, 3); assert.equal(r.ultimo, '2026-07'); assert.equal(r.vq, +((696 + 394 + 173) / (3 * 30.4)).toFixed(3));
+  assert.deepEqual(u.mediaMensal({}), { vq: 0, meses: 0, ultimo: null });
+  assert.deepEqual(u.mediaMensal(undefined), { vq: 0, meses: 0, ultimo: null });
+});
