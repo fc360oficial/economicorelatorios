@@ -6654,6 +6654,47 @@ app.post('/api/cotacoes/fornecedores/importar', uploadPlanilhaCot.single('planil
     console.log('[COTACAO] fornecedores da lista 277 importados da planilha:', JSON.stringify(resumo));
   } catch (e) { console.error('[COTACAO] import 277:', e.message); }
 })();
+// Cotação de TESTE (Tiago, 15/09: "atalho em cada tela pra eu analisar tela a tela"): cria uma cotação completa com
+// itens reais da lista 277 (se o Radar já calculou; senão amostra), 3 fornecedores de teste — 2 com preços digitados
+// (um com observações e itens faltando), 1 só com o link aberto. Nada vai pro ERP nem pra vendedor real.
+app.post('/api/cotacoes/teste', (req, res) => {
+  try {
+    const usuario = cotUser(req);
+    const det = radarPedidos.itensLista(277, radarPedidos.TETO_PADRAO, 0, undefined, false, { alvo: 28, ponto: 3 });
+    let itens = det ? det.itens.filter(i => i.qtd > 0 && i.custo > 0).slice(0, 12).map(i => ({ cod: i.cod, descricao: i.descricao, unid: i.unid, emb: i.emb, lojas_qtd: i.lojas_qtd, ultimo_custo: i.custo, estoque: i.estoque, venda_dia: i.venda_dia, cobertura_dias: i.cobertura_dias, curva_a: i.curva_a })) : [];
+    if (itens.length < 3) itens = [
+      { cod: '7896002100014', descricao: '51 AGUARDENTE CANA 965ML', unid: 'UN', emb: 12, lojas_qtd: { 1: 12, 3: 12, 4: 24 }, ultimo_custo: 10.14, estoque: 47, venda_dia: 1.68, cobertura_dias: 28 },
+      { cod: '7891000100103', descricao: 'ARROZ BRANCO TIPO 1 5KG', unid: 'UN', emb: 6, lojas_qtd: { 1: 60, 2: 30, 4: 90 }, ultimo_custo: 24.9, estoque: 312, venda_dia: 8, cobertura_dias: 39, curva_a: true },
+      { cod: '7891000100202', descricao: 'FEIJÃO CARIOCA 1KG', unid: 'UN', emb: 10, lojas_qtd: { 1: 50, 4: 30, 6: 20 }, ultimo_custo: 7.89, estoque: 208, venda_dia: 10, cobertura_dias: 21, curva_a: true },
+      { cod: '7896003740233', descricao: 'MARILAN BISC 300G COCO', unid: 'UN', emb: 20, lojas_qtd: { 1: 40, 3: 20, 4: 60 }, ultimo_custo: 4.9, estoque: 156, venda_dia: 9, cobertura_dias: 17 },
+      { cod: '7891167023017', descricao: '88 SARDINHA 125G OLEO', unid: 'UN', emb: 50, lojas_qtd: { 2: 50, 4: 100, 5: 50 }, ultimo_custo: 4.55, estoque: 61, venda_dia: 13.2, cobertura_dias: 5, curva_a: true }
+    ];
+    const forns = [
+      { codFornec: 999001, nome: 'FORNECEDOR TESTE 1 (SABOR & CIA)', vendedor: { nome: 'Maria Teste', whats: '5581999990001', email: 'teste1@exemplo.com' }, faturamento_minimo: 600, condicao: '28 dias', prazo_entrega: 3 },
+      { codFornec: 999002, nome: 'FORNECEDOR TESTE 2 (ATACADO NORDESTE)', vendedor: { nome: 'Érico Teste', whats: '5581999990002', email: 'teste2@exemplo.com' }, faturamento_minimo: 400, condicao: '21 dias boleto', prazo_entrega: 5 },
+      { codFornec: 999003, nome: 'FORNECEDOR TESTE 3 (SEM RESPOSTA)', vendedor: { nome: 'Carlos Teste', whats: '', email: 'teste3@exemplo.com' }, faturamento_minimo: null, condicao: '14 dias', prazo_entrega: 2 }
+    ];
+    const prazo = new Date(); prazo.setDate(prazo.getDate() + 2);
+    const c0 = cotacao.criar({ nome: 'COTAÇÃO DE TESTE ' + new Date().toLocaleDateString('pt-BR') + ' ' + new Date().toLocaleTimeString('pt-BR').slice(0, 5), lista: det ? det.lista.lista : 277, lista_nome: det ? det.lista.nome : 'COTAÇÃO DE ALIMENTOS', comprador: { nome: usuario || 'Compradora Teste', whats: null }, prazo: prazo.toISOString().slice(0, 10), parametros: { cobertura: 28, ponto: 3, embMeses: 36, teste: true }, itens, fornecedores: forns, usuario });
+    cotacao.marcarTeste(c0.id);
+    const c = cotacao.obter(c0.id); const [f1, f2, f3] = c.fornecedores;
+    const r2 = v => Math.round(v * 100) / 100;
+    // fornecedor 1: cotou tudo, preços em volta do último custo (uns abaixo, uns acima), 1 observação
+    cotacao.abrir(f1.token);
+    cotacao.salvarPrecos(f1.token, c.itens.map((i, k) => ({ cod: i.cod, preco: r2(i.ultimo_custo * (0.9 + (k % 5) * 0.035)), obs: k % 4 === 0 ? 'cx fechada' : '' })), { condicao: '28 dias', obs: 'entrega em 3 dias úteis' });
+    cotacao.finalizar(f1.token, 'Maria Teste');
+    // fornecedor 2: não cotou 1 a cada 3 itens, preços um pouco diferentes, observação de marca
+    cotacao.abrir(f2.token);
+    cotacao.salvarPrecos(f2.token, c.itens.filter((i, k) => k % 3 !== 2).map((i, k) => ({ cod: i.cod, preco: r2(i.ultimo_custo * (0.94 + (k % 3) * 0.04)), obs: k % 3 === 1 ? 'marca similar' : '' })), { condicao: '21 dias boleto', obs: 'pedido mínimo R$ 400' });
+    cotacao.finalizar(f2.token, 'Érico Teste');
+    // fornecedor 3: só abriu o link
+    cotacao.abrir(f3.token);
+    res.json(cotDetalhe(cotacao.obter(c.id)));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.post('/api/cotacoes/testes/remover', (req, res) => {
+  try { res.json({ removidas: cotacao.removerTestes() }); } catch (err) { res.status(500).json({ error: err.message }); }
+});
 app.get('/api/cotacoes/historico/:cod', (req, res) => {
   try { res.json(cotacao.historicoProduto(req.params.cod)); } catch (err) { res.status(500).json({ error: err.message }); }
 });

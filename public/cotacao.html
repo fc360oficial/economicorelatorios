@@ -223,7 +223,7 @@ table.forntab .check{width:15px;height:15px}
     <div class="crumb">Gestão de Compras <span>›</span> <b>Cotação</b></div>
     <div class="pagehead">
       <div><h1>Monitor de Cotações</h1><p>Cotações abertas (aguardando os fornecedores), prontas pra análise e fechadas (pedidos gerados em Pedidos de Compra).</p></div>
-      <button class="btn primary" onclick="goScreen('s2')">+ Nova Cotação</button>
+      <span style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost" onclick="criarTeste()" title="Cria uma cotação de exemplo já com preços digitados por 2 fornecedores de teste, pra você analisar Acompanhamento, Comparativo, fechar e Pedidos tela a tela">🧪 Criar cotação de teste</button><button class="btn ghost" id="btn-rm-teste" style="display:none" onclick="removerTestes()">Remover testes</button><button class="btn primary" onclick="goScreen('s2')">+ Nova Cotação</button></span>
     </div>
     <div class="filters">
       <div class="fld"><label>Nº / nome / lista</label><input type="text" id="f-busca" placeholder="ex.: 277 ou alimentos" oninput="filtrarMonitor()"></div>
@@ -422,6 +422,14 @@ async function carregarMonitor(){
   sel.innerHTML = '<option value="">Todos</option>' + Object.keys(nomes).sort().map(function(n){ return '<option' + (n === atual ? ' selected' : '') + '>' + esc(n) + '</option>'; }).join('');
   filtrarMonitor();
 }
+async function criarTeste(){
+  if (!confirm('Criar uma cotação de TESTE?\n\nEla vem com itens da lista 277 (ou amostra), 3 fornecedores de teste, 2 já com preços digitados e 1 só com o link aberto. Não vai pra nenhum vendedor real. Depois use "Remover testes".')) return;
+  try { var c = await post('/api/cotacoes/teste'); toastMsg('Cotação de teste #' + c.id + ' criada'); CUR = c; renderTudo(); goScreen('s3'); } catch(e) { toastMsg('Erro: ' + e.message); }
+}
+async function removerTestes(){
+  if (!confirm('Remover TODAS as cotações de teste? (as reais ficam)')) return;
+  try { var r = await post('/api/cotacoes/testes/remover'); toastMsg((r.removidas || []).length + ' cotação(ões) de teste removida(s)'); if (CUR && CUR.teste) { CUR = null; renderTudo(); } carregarMonitor(); } catch(e) { toastMsg('Erro: ' + e.message); }
+}
 function filtrarMonitor(){
   var b = ($('#f-busca').value || '').trim().toLowerCase(), st = $('#f-status').value, comp = $('#f-comprador').value;
   var lista = COTS.filter(function(c){
@@ -431,12 +439,12 @@ function filtrarMonitor(){
     if (comp && (!c.comprador || c.comprador.nome !== comp)) return false;
     return true;
   });
-  var tb = $('#monitor-tbody');
+  var tb = $('#monitor-tbody'); var brm = $('#btn-rm-teste'); if (brm) brm.style.display = COTS.some(function(c){ return c.teste; }) ? '' : 'none';
   if (!lista.length) { tb.innerHTML = '<tr><td colspan="7" class="empty">' + (COTS.length ? 'Nenhuma cotação com esse filtro.' : 'Nenhuma cotação ainda. Clique em "+ Nova Cotação" e digite o nº da lista do ERP.') + '</td></tr>'; return; }
   tb.innerHTML = lista.map(function(c){
     var s = statusCot(c);
     return '<tr>' +
-      '<td style="white-space:normal;min-width:220px"><b>#' + c.id + '</b> ' + esc(c.nome) + '<br><span class="mini">' + esc(c.comprador && c.comprador.nome || '') + (c.comprador && c.comprador.nome ? ' · ' : '') + 'criada ' + dt(c.criadoEm) + (c.prazo ? ' · prazo ' + dd(c.prazo) : '') + '</span></td>' +
+      '<td style="white-space:normal;min-width:220px"><b>#' + c.id + '</b> ' + esc(c.nome) + (c.teste ? ' <span class="status-pill amb" style="background:var(--amw);color:var(--amk)">TESTE</span>' : '') + '<br><span class="mini">' + esc(c.comprador && c.comprador.nome || '') + (c.comprador && c.comprador.nome ? ' · ' : '') + 'criada ' + dt(c.criadoEm) + (c.prazo ? ' · prazo ' + dd(c.prazo) : '') + '</span></td>' +
       '<td>' + (c.lista ? '<b>' + c.lista + '</b><br><span class="mini">' + esc((c.lista_nome || '').slice(0, 26)) + '</span>' : '—') + '</td>' +
       '<td><span class="status-pill ' + s.cls + '">' + s.txt + '</span></td>' +
       '<td><span class="numpill blue" title="convidados">' + c.convidados + '</span> <span class="numpill" title="responderam">' + c.responderam + '</span> <span class="numpill amb" title="faltam responder">' + (c.convidados - c.responderam) + '</span></td>' +
@@ -775,13 +783,13 @@ function renderTudo(){ carregarUltimas(); $('#cur-lbl').innerHTML = CUR ? 'Cota�
 async function renderVazio(m){
   m.innerHTML = '<div class="empty">Carregando…</div>';
   var lista = []; try { lista = await api('/api/cotacoes'); } catch(e) {}
-  if (!lista.length) { m.innerHTML = '<div class="pubcard" style="max-width:720px;margin:30px auto;text-align:center"><b>Ainda não existe nenhuma cotação.</b><p style="color:var(--ink2);margin:10px 0 16px">O caminho é: <b>Nova Cotação</b> (digite a lista, ex. 277, confira as quantidades e marque os fornecedores) → criar → mandar os links pelo WhatsApp em <b>Acompanhamento</b> → quando os vendedores digitarem os preços, o <b>Comparativo</b> aparece aqui, item a item.</p><button class="btn primary" onclick="goScreen(\'s2\')">Ir pra Nova Cotação →</button></div>'; return; }
+  if (!lista.length) { m.innerHTML = '<div class="pubcard" style="max-width:720px;margin:30px auto;text-align:center"><b>Ainda não existe nenhuma cotação.</b><p style="color:var(--ink2);margin:10px 0 16px">O caminho é: <b>Nova Cotação</b> (digite a lista, ex. 277, confira as quantidades e marque os fornecedores) → criar → mandar os links pelo WhatsApp em <b>Acompanhamento</b> → quando os vendedores digitarem os preços, o <b>Comparativo</b> aparece aqui, item a item.</p><button class="btn ghost" onclick="criarTeste()">🧪 Criar cotação de teste</button> <button class="btn primary" onclick="goScreen(\'s2\')">Ir pra Nova Cotação →</button></div>'; return; }
   m.innerHTML = '<div class="pubcard" style="max-width:900px;margin:20px auto"><b>Escolha a cotação</b><p class="mini" style="margin:6px 0 12px">Esta aba mostra os dados de uma cotação já criada. Clique numa das abaixo (ou abra pelo Monitor).</p>' + lista.map(function(c){ var st = statusCot(c); return '<div class="totfoot-row" style="align-items:center"><span><b>#' + c.id + '</b> ' + esc(c.nome) + ' <span class="status-pill ' + st.cls + '" style="margin-left:6px">' + st.txt + '</span><br><span class="mini">lista ' + (c.lista || '—') + ' · ' + c.itens + ' itens · ' + c.responderam + ' de ' + c.convidados + ' fornecedores responderam</span></span><span><button class="btn ghost sm" onclick="abrirCotacao(' + c.id + ',\'s3\')">Acompanhar</button> <button class="btn primary sm" onclick="abrirCotacao(' + c.id + ',\'s4\')">Comparativo</button></span></div>'; }).join('') + '</div>';
 }
 function cabecalho(sub){
   var s = statusCot(CUR.status === 'aberta' ? Object.assign({}, CUR, CUR.comparativo.resumo) : CUR);
   return '<div class="crumb">Cotação <span>›</span> <b>#' + CUR.id + ' · ' + esc(CUR.nome) + '</b></div>' +
-    '<div class="pagehead"><div><h1>#' + CUR.id + ' ' + esc(CUR.nome) + ' <span class="status-pill ' + s.cls + '" style="margin-left:8px;vertical-align:middle">' + s.txt + '</span></h1>' +
+    '<div class="pagehead"><div><h1>#' + CUR.id + ' ' + esc(CUR.nome) + ' <span class="status-pill ' + s.cls + '" style="margin-left:8px;vertical-align:middle">' + s.txt + '</span>' + (CUR.teste ? ' <span class="status-pill" style="background:var(--amw);color:var(--amk);vertical-align:middle">TESTE · nada vai pra vendedor real</span>' : '') + '</h1>' +
     '<p>Lista ERP <b>' + (CUR.lista || '—') + '</b> ' + esc(CUR.lista_nome || '') + ' · comprador(a) <b>' + esc(CUR.comprador && CUR.comprador.nome || '—') + '</b> · criada ' + dt(CUR.criadoEm) + (CUR.prazo ? ' · prazo pra resposta <b>' + dd(CUR.prazo) + '</b>' : '') + (CUR.fechadaEm ? ' · fechada ' + dt(CUR.fechadaEm) + (CUR.fechadaPor ? ' por ' + esc(CUR.fechadaPor) : '') : '') + ' · lojas ' + (CUR.lojas || []).map(function(l){ return 'L' + l; }).join(' ') + '</p></div><div style="display:flex;gap:8px;flex-wrap:wrap">' + (sub || '') + '</div></div>';
 }
 function msgWhats(f){ return 'Olá' + (f.vendedor && f.vendedor.nome ? ', ' + f.vendedor.nome : '') + '! Cotação #' + CUR.id + ' – ' + CUR.nome + ' do Econômico Supermercado (Rede Cahu). Por favor, preencha seus preços neste link: ' + f.link + (CUR.prazo ? ' . Prazo pra resposta: ' + dd(CUR.prazo) : '') + ' . Obrigado(a)!'; }
