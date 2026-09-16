@@ -39,19 +39,21 @@ body{font-family:'InterVar','Segoe UI',sans-serif;color:#0E1626;margin:0;padding
 <script>
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmtN = (v, d = 0) => (v == null ? '–' : (+v).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d }));
+const fmtR = v => 'R$ ' + fmtN(v, 2);
 function bloco(p) {
   const itens = p.itens.slice().sort((a, b) => a.descricao.localeCompare(b.descricao, 'pt-BR'));
   const novos = itens.filter(i => i.semVinculo).length;
+  const custo = itens.reduce((a, i) => a + i.unidades * (i.custoUn || 0), 0);
   return `<div class="card">
   <div class="pv-top"><div><div class="eyebrow-pv">PEDIDO AO CD #${p.id} · LOJAS → CENTRO DE DISTRIBUIÇÃO</div><h2>Pedido ao CD · Loja ${p.loja} ${esc(p.lojaNome)}</h2>
     <div class="pv-sub">gerado em ${new Date(p.criadoEm).toLocaleString('pt-BR')}${p.criadoPor ? ' · ' + esc(p.criadoPor) : ''}</div></div>
     <div class="pv-acts"><button class="btn" onclick="window.print()">Imprimir</button></div></div>
-  <div class="pv-resumo"><div><div class="lb">Itens</div><div class="v">${itens.length}</div><div class="s2">${novos ? novos + ' novo(s) na loja' : 'todos com venda'}</div></div><div class="tot"><div class="lb">Caixas</div><div class="v">${fmtN(p.totais.caixas)}</div><div class="s2">${fmtN(p.totais.unidades)} unidades</div></div></div>
-  <div class="pv-loja"><div class="pv-loja-hd"><b>Loja ${p.loja} · ${esc(p.lojaNome)}</b><span>${itens.length} itens · <b>${fmtN(p.totais.caixas)} caixas</b></span></div>
-  <table class="pv-t"><thead><tr><th>Código CD</th><th>Produto</th><th class="r">Caixas</th><th class="r">Un/cx</th><th class="r">Unidades</th><th>Separado</th></tr></thead><tbody>
-  ${itens.map(i => `<tr><td class="mono">${esc(i.codigoCD)}</td><td>${esc(i.descricao)}${i.semVinculo ? '<span class="pill">produto novo</span>' : ''}${i.unidade ? `<div class="sub">unidade ${esc(i.unidade)}</div>` : ''}</td><td class="r"><b>${fmtN(i.caixas)}</b></td><td class="r">${i.unPorCaixa}</td><td class="r">${fmtN(i.unidades)}</td><td style="color:#DADAD6">☐</td></tr>`).join('')}
+  <div class="pv-resumo"><div><div class="lb">Itens</div><div class="v">${itens.length}</div><div class="s2">${novos ? novos + ' novo(s) na loja' : 'todos com venda'}</div></div><div><div class="lb">Caixas</div><div class="v">${fmtN(p.totais.caixas)}</div><div class="s2">${fmtN(p.totais.unidades)} unidades</div></div><div class="tot"><div class="lb">Custo do pedido</div><div class="v">${fmtR(custo)}</div><div class="s2">custo do CD por caixa</div></div></div>
+  <div class="pv-loja"><div class="pv-loja-hd"><b>Loja ${p.loja} · ${esc(p.lojaNome)}</b><span>${itens.length} itens · ${fmtN(p.totais.caixas)} caixas · <b>${fmtR(custo)}</b></span></div>
+  <table class="pv-t"><thead><tr><th>Código CD</th><th>Produto</th><th class="r">Caixas</th><th class="r">Un/cx</th><th class="r">Unidades</th><th class="r">Custo cx</th><th class="r">Total</th></tr></thead><tbody>
+  ${itens.map(i => `<tr><td class="mono">${esc(i.codigoCD)}</td><td>${esc(i.descricao)}${i.semVinculo ? '<span class="pill">produto novo</span>' : ''}${i.unidade ? `<div class="sub">unidade ${esc(i.unidade)}</div>` : ''}</td><td class="r"><b>${fmtN(i.caixas)}</b></td><td class="r">${i.unPorCaixa}</td><td class="r">${fmtN(i.unidades)}</td><td class="r">${i.custoUn ? fmtR(i.custoUn * i.unPorCaixa) : '—'}</td><td class="r">${i.custoUn ? fmtR(i.unidades * i.custoUn) : '—'}</td></tr>`).join('')}
   </tbody></table></div>
-  <div class="pv-foot"><span>Econômico Relatórios · Centro de Distribuição</span><span>Pedido ao CD #${p.id} · L${p.loja} · digitar no Televendas no cliente da loja</span></div></div>`;
+  <div class="pv-foot"><span>Econômico Relatórios · Centro de Distribuição</span><span>Pedido ao CD #${p.id} · L${p.loja} · nada é gravado no ERP</span></div></div>`;
 }
 (async () => {
   const toks = location.pathname.split('/').pop();

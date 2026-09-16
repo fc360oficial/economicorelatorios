@@ -6563,7 +6563,7 @@ app.get('/cd/:tokens', (req, res) => {
 app.get('/api/cd-publico/:tokens', (req, res) => {
   const ps = pedidosCD.porTokens(req.params.tokens);
   if (!ps.length) return res.status(404).json({ error: 'Pedido não encontrado' });
-  res.json({ pedidos: ps.map(p => ({ id: p.id, loja: p.loja, lojaNome: p.lojaNome, status: p.status, criadoEm: p.criadoEm, criadoPor: p.criadoPor, totais: p.totais, itens: p.itens.map(i => ({ codigoCD: i.codigoCD, unidade: i.unidade, descricao: i.descricao, unPorCaixa: i.unPorCaixa, caixas: i.caixas, unidades: i.unidades, semVinculo: !!i.semVinculo })) })) });
+  res.json({ pedidos: ps.map(p => ({ id: p.id, loja: p.loja, lojaNome: p.lojaNome, status: p.status, criadoEm: p.criadoEm, criadoPor: p.criadoPor, totais: p.totais, itens: p.itens.map(i => ({ codigoCD: i.codigoCD, unidade: i.unidade, descricao: i.descricao, unPorCaixa: i.unPorCaixa, caixas: i.caixas, unidades: i.unidades, custoUn: i.custoUn || 0, semVinculo: !!i.semVinculo })) })) });
 });
 app.post('/api/pedidos-cd/pedidos', (req, res) => {
   try { res.json(pedidosCD.criarPedidos({ lojas: req.body?.lojas || {}, usuario: req.session.user?.nome || null })); }
