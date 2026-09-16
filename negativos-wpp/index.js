@@ -11,6 +11,20 @@ const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLat
 
 const DB         = { host:'192.168.2.252', port:3306, user:'root', password:'1900', database:'central', connectTimeout:15000 };
 const GRUPO_NOME = 'CENTRAL ( Aux ) PREVENÇÃO DE PERDAS';
+
+// Mensagem enviada no grupo logo depois dos PDFs, orientando a devolução das folhas
+const MSG_INSTRUCAO_FOTO = [
+  '📸 *COMO DEVOLVER A CONFERÊNCIA*',
+  '',
+  'Depois de preencher, mande as folhas *UMA FOTO POR FOLHA* aqui no grupo.',
+  '',
+  '✅ Em cada foto precisa aparecer *os 3 quadrados pretos* dos cantos da folha (em cima à esquerda, em cima à direita e embaixo à esquerda).',
+  '✅ Folha inteira, reta, sem cortar as bordas.',
+  '✅ Boa luz, sem sombra e sem dedo na frente.',
+  '',
+  '❌ Não junte várias folhas na mesma foto.',
+  '❌ Não mande print nem PDF, só a foto da folha preenchida.',
+].join('\n');
 const LOGO_PATH  = path.join(__dirname, '..', 'public', 'logo.png');
 const logger     = pino({ level:'info' });
 const NOMES_LOJA = { 1:'CAHU', 2:'MURIBECA', 3:'PONTE', 4:'ATACAREJO', 5:'PORTA LARGA', 6:'JARDIM JORDAO' };
@@ -525,6 +539,7 @@ async function enviarPDFsLojas(porLoja) {
   const hoje     = new Date();
   const dataStr  = hoje.toLocaleDateString('pt-BR');
   const dataNome = hoje.toISOString().slice(0, 10);
+  let enviados = 0;
 
   for (let ln = 1; ln <= 6; ln++) {
     const itens = porLoja[ln] || [];
@@ -541,9 +556,20 @@ async function enviarPDFsLojas(porLoja) {
         caption:  `*Estoque Negativo — Loja ${ln} (${NOMES_LOJA[ln]}) — ${dataStr}*\n${total} produto(s) negativos`,
       });
       logger.info(`Loja ${ln}: PDF enviado (${total} itens)`);
+      enviados++;
       await new Promise(r => setTimeout(r, 3000));
     } catch (err) {
       logger.error({ err }, `Erro ao enviar Loja ${ln}`);
+    }
+  }
+
+  // Instrução de devolução: uma única mensagem depois de todos os PDFs
+  if (enviados > 0) {
+    try {
+      await sock.sendMessage(jid, { text: MSG_INSTRUCAO_FOTO });
+      logger.info('Mensagem de instrução (foto a foto) enviada');
+    } catch (err) {
+      logger.error({ err }, 'Erro ao enviar mensagem de instrução');
     }
   }
 }
