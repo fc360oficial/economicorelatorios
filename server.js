@@ -4552,7 +4552,7 @@ app.get('/api/cahu-distribuidora/tabela-precos.xlsx', async (req, res) => {
     const NAVY = 'FFFFCB05', NAVY_LIGHT = 'FFFFE066', GOLD = 'FF000000';
     const ZEBRA = 'FFFFF8DC', BORDER_COLOR = 'FFE0D6A0';
     const headers = ['Código de Barras', 'Descrição', ...tabelas.map(t => t.label)];
-    const colWidths = tabelaUnica ? [24, 58, 26] : [24, 44, 20, 26, 20, 20, 20, 22];
+    const colWidths = tabelaUnica ? [27, 55, 26] : [27, 41, 20, 26, 20, 20, 20, 22];
     const lastCol = String.fromCharCode(64 + headers.length);
 
     const wb = new ExcelJS.Workbook();
@@ -4580,8 +4580,8 @@ app.get('/api/cahu-distribuidora/tabela-precos.xlsx', async (req, res) => {
         const logoBuf = fs.readFileSync(CAHU_LOGO_EXCEL);
         const logoId = wb.addImage({ buffer: logoBuf, extension: 'png' });
         const pw = logoBuf.readUInt32BE(16), ph = logoBuf.readUInt32BE(20);
-        const h = 56, w = Math.round(h * pw / ph);
-        ws.addImage(logoId, { tl: { col: 0.12, row: 0.12 }, ext: { width: w, height: h }, editAs: 'oneCell' });
+        const h = 44, w = Math.round(h * pw / ph);
+        ws.addImage(logoId, { tl: { col: 0.1, row: 0.2 }, ext: { width: w, height: h }, editAs: 'oneCell' });
       }
     } catch (e) { console.warn('[CAHU-TABELA-PRECOS] logo não inserido:', e.message); }
 
@@ -4703,7 +4703,8 @@ app.get('/api/cahu-distribuidora/tabela-precos.pdf', async (req, res) => {
       doc.rect(MARGEM, y, larguraUtil, ALT_FAIXA).fill(AMARELO);
       let xTitulo = MARGEM + 10, wTitulo = larguraUtil - 20;
       if (logoBuf) {
-        const hLogo = ALT_FAIXA - 12, wLogo = Math.round(hLogo * 774 / 316);
+        const pw = logoBuf.readUInt32BE(16), ph = logoBuf.readUInt32BE(20);
+        const hLogo = ALT_FAIXA - 14, wLogo = Math.round(hLogo * pw / ph);
         doc.image(logoBuf, MARGEM + 8, y + 6, { height: hLogo });
         xTitulo = MARGEM + 8 + wLogo + 10; wTitulo = larguraUtil - (xTitulo - MARGEM) - 10;
       }
