@@ -254,15 +254,22 @@ async function carregarVinculos() { const r = await api('/api/pedidos-cd/vinculo
 let VBUSCA = '';
 function irVinculo(cod) { VF = 'todos'; VBUSCA = cod; renderVinculos(); document.querySelector('[data-tab=vinculos]').click(); setTimeout(() => $('#bu-' + cod + ' input')?.focus(), 50); }
 function renderVinculos() {
+  const tinhaFoco = document.activeElement && document.activeElement.id === 'vbusca'; const pos = tinhaFoco ? document.activeElement.selectionStart : 0;
+  renderVinculosInner();
+  if (tinhaFoco) { const el = $('#vbusca'); if (el) { el.focus(); el.setSelectionRange(pos, pos); } }
+}
+function renderVinculosInner() {
   const all = Object.values(VINC); const cont = { pendentes: all.filter(v => v.status === 'pendente').length, sugeridos: all.filter(v => v.status === 'sugerido').length, confirmados: all.filter(v => v.status === 'confirmado').length, todos: all.length };
   $('#n-vinc').textContent = cont.pendentes + cont.sugeridos;
   const cd = DADOS?.repor.concat(DADOS.novos).reduce((m, i) => (m[i.codigoCD] = i, m), {}) || {};
-  const vb = VBUSCA.toLowerCase();
-  const vis = all.filter(v => (VF === 'todos' || v.status === VF.replace(/s$/, '')) && (!vb || (v.codigoCD + ' ' + (cd[v.codigoCD]?.descricaoCD || v.descricaoCD || '') + ' ' + (v.unidade || '') + ' ' + (cd[v.codigoCD]?.descricaoUn || '')).toLowerCase().includes(vb))).sort((a, b) => (cd[a.codigoCD]?.descricaoCD || a.descricaoCD || '').localeCompare(cd[b.codigoCD]?.descricaoCD || b.descricaoCD || ''));
+  // busca por palavras em qualquer ordem, sem acento ("pop arroz" acha "ARROZ BRANCO POP")
+  const norm = t => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const termos = norm(VBUSCA).split(/[\s%]+/).filter(Boolean);
+  const vis = all.filter(v => (VF === 'todos' || v.status === VF.replace(/s$/, '')) && (!termos.length || (() => { const txt = norm(v.codigoCD + ' ' + (cd[v.codigoCD]?.descricaoCD || v.descricaoCD || '') + ' ' + (v.unidade || '') + ' ' + (cd[v.codigoCD]?.descricaoUn || '') + ' ' + (v.candidato || '') + ' ' + (v.descricaoCandidato || '')); return termos.every(t => txt.includes(t)); })())).sort((a, b) => (cd[a.codigoCD]?.descricaoCD || a.descricaoCD || '').localeCompare(cd[b.codigoCD]?.descricaoCD || b.descricaoCD || ''));
   $('#tab-vinculos').innerHTML = `<div class="cards">${['pendentes', 'sugeridos', 'confirmados', 'todos'].map(k => `<div class="card ${VF === k ? 'on' : ''}" onclick="VF='${k}';renderVinculos()"><div class="v">${cont[k]}</div><div class="l">${k}</div></div>`).join('')}</div>
   <p class="mut" style="font-size:11.5px;margin:0 0 8px">Cada caixa do CD precisa apontar pra unidade que a loja vende. <b>Sugerido</b> = unidade encontrada pelo código de barras ou pela descrição (mesmas palavras em outra ordem), só conferir e Confirmar. <b>Parecidos</b> = mais de uma unidade bate com a descrição, clique na certa. <b>Sem vínculo</b> = buscar a unidade pelo nome ou código. Un/cx = quantas unidades tem a caixa.</p>
   ${cont.sugeridos ? `<div class="selbar" style="margin:0 0 10px"><span class="contagem">${cont.sugeridos} sugerido${cont.sugeridos > 1 ? 's' : ''} aguardando conferência</span><button class="btn btn-amber btn-sm" onclick="confirmarTodosSugeridos()" title="Confirma de uma vez todas as caixas com sugestão (código de barras ou descrição), com o un/cx que está na tela">Confirmar todos os sugeridos</button></div>` : ''}
-  <div class="busca-row"><input placeholder="filtrar caixa por descrição ou código" value="${VBUSCA}" oninput="VBUSCA=this.value;renderVinculos()"><span class="contagem">${vis.length} de ${all.length}</span></div>
+  <div class="busca-row"><input id="vbusca" placeholder="filtrar: código, descrição ou palavras em qualquer ordem" value="${VBUSCA}" oninput="VBUSCA=this.value;renderVinculos()"><span class="contagem">${vis.length} de ${all.length}</span></div>
   <div class="table-wrap vinc"><table class="main-t"><thead><tr><th>Código CD</th><th>Descrição CD</th><th class="r">Est. CD</th><th class="c">Un/cx</th><th>Unidade vinculada</th><th>Origem</th><th>Ação</th></tr></thead><tbody>
   ${vis.map(v => { const i = cd[v.codigoCD] || {}; const upc = v.unPorCaixa || v.unPorCaixaCadastro || ''; return `<tr>
     <td>${v.codigoCD}</td><td class="lc">${i.descricaoCD || v.descricaoCD || ''}</td><td class="r">${fmtN(i.estoqueCDcx ?? v.estoqueCx)}${v.estoqueUn != null ? '<div class="s2">' + fmtN(v.estoqueUn) + ' un</div>' : ''}</td>
