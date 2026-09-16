@@ -50,3 +50,20 @@ test('salvarVinculo/removerVinculo rejeitam codigoCD malicioso (path traversal)'
   assert.throws(() => cd.salvarVinculo({ codigoCD: '__proto__', unidade: '1', unPorCaixa: 1 }), /codigoCD/);
   assert.throws(() => cd.removerVinculo('../../etc/passwd'), /codigoCD/);
 });
+
+test('sincronizarVinculos: candidato pela descrição vira sugerido com origem descricao; alternativas ficam guardadas', () => {
+  const v = cd.sincronizarVinculos([
+    { codigoCD: '47896006711245', unPorCaixa: 10, unidadeExiste: null, candidatoDescricao: '7896006711100', alternativas: [{ cod: '7896006711100', descricao: 'POP ARROZ 1KG BRANCO' }] },
+    { codigoCD: '17896029046767', unPorCaixa: 40, unidadeExiste: null, candidatoDescricao: null, alternativas: [{ cod: '7896029046609', descricao: 'WHISKAS POUCH ADULTO 85G CARNE' }, { cod: '7896029046623', descricao: 'WHISKAS POUCH CASTRADOS 85G CARNE' }] },
+    { codigoCD: '17896037913143', unPorCaixa: 12, unidadeExiste: '7896037913146', candidatoDescricao: '7896037913122' }
+  ]);
+  assert.equal(v['47896006711245'].status, 'sugerido'); assert.equal(v['47896006711245'].origem, 'descricao'); assert.equal(v['47896006711245'].candidato, '7896006711100');
+  assert.equal(v['17896029046767'].status, 'pendente'); assert.equal(v['17896029046767'].alternativas.length, 2);
+  assert.equal(v['17896037913143'].origem, 'dun14'); assert.equal(v['17896037913143'].candidato, '7896037913146'); // código de barras vence a descrição
+  const c = cd.salvarVinculo({ codigoCD: '47896006711245', unidade: '7896006711100', unPorCaixa: 10, usuario: 'tiago' });
+  assert.equal(c.origem, 'descricao'); assert.equal(c.status, 'confirmado');
+  const r = cd.removerVinculo('47896006711245');
+  assert.equal(r.status, 'sugerido'); assert.equal(r.origem, 'descricao');
+  const m = cd.salvarVinculo({ codigoCD: '17896029046767', unidade: '7896029046609', unPorCaixa: 40 });
+  assert.equal(m.origem, 'manual');
+});

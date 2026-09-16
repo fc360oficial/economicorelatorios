@@ -76,3 +76,38 @@ test('distribuirCdInsuficiente trata cobertura ausente como prioridade mais baix
   const r = u.distribuirCdInsuficiente({ 1: 2, 2: 2 }, 2, { 1: 5 });
   assert.deepEqual(r, { pedidoCx: { 1: 1, 2: 1 }, falta: 2 }); // rodízio: loja sem cobertura entra depois, mas entra
 });
+
+test('casarPorDescricao: mesmas palavras em outra ordem, embalagem ignorada, abreviação por prefixo', () => {
+  const un = [
+    { cod: '7896006711100', descricao: 'POP ARROZ 1KG BRANCO' },
+    { cod: '7896070224018', descricao: 'SAMAN ARROZ 1KG BRANCO' },
+    { cod: '7896006714019', descricao: 'POP ARROZ 1KG PARBOILIZADO' },
+    { cod: '7509546667638', descricao: 'SORRISO CR DENTAL 120G TRIPLA LIMPEZA COMPLET' }
+  ];
+  assert.equal(u.casarPorDescricao('ARROZ BRANCO POP 1KG PC10', un).candidato, '7896006711100');
+  assert.equal(u.casarPorDescricao('ARROZ PARB POP 1KG PC10', un).candidato, '7896006714019');
+  assert.equal(u.casarPorDescricao('CR DENTAL SORRISO TRIPLA LIMP COMP 120G CX72', un).candidato, '7509546667638');
+  assert.deepEqual(u.tokensDescricao('CREME LEITE BETANIA 200G TP CX/27'), ['CREME', 'LEITE', 'BETANIA', '200G', 'TP']);
+  assert.deepEqual(u.tokensDescricao('POUCH WHISKAS CARNE ADULTO 85G CX/40'), ['POUCH', 'WHISKAS', 'CARNE', 'ADULTO', '85G']);
+});
+
+test('casarPorDescricao: empate não vira candidato, só alternativas; sem parecido não sugere', () => {
+  const un = [
+    { cod: '7896029046609', descricao: 'WHISKAS POUCH ADULTO 85G CARNE' },
+    { cod: '7896029046623', descricao: 'WHISKAS POUCH CASTRADOS 85G CARNE' },
+    { cod: '7896029047101', descricao: 'WHISKAS POUCH FILHOTE 85G CARNE' }
+  ];
+  const r = u.casarPorDescricao('POUCH WHISKAS CARNE 85G CX40', un);
+  assert.equal(r.candidato, null);
+  assert.equal(r.alternativas.length, 3);
+  assert.equal(u.casarPorDescricao('ENERGETICO POWER BUSTER MELANCIA 2L PC6', un).candidato, null);
+  assert.equal(u.casarPorDescricao('ENERGETICO POWER BUSTER MELANCIA 2L PC6', un).alternativas.length, 0);
+  // caixa com só uma palavra útil não casa com nada
+  assert.equal(u.casarPorDescricao('SANDALIA CX6', [{ cod: '1', descricao: 'SANDALIA' }]).candidato, null);
+});
+
+test('casarPorDescricao: unidade com 1 palavra a mais ainda é candidato; com mais que isso, não', () => {
+  const un = [{ cod: '7898031174677', descricao: 'BEM TE VI LAVA ROUPAS EM PO 400G PERF DA NATU' }];
+  assert.equal(u.casarPorDescricao('LAVA ROUPAS EM PO BEM TE VI PERF NAT FD CX27', un).candidato, null); // 2 extras (400G, DA)
+  assert.equal(u.casarPorDescricao('LAVA ROUPAS EM PO BEM TE VI 400G PERF DA NAT CX27', un).candidato, '7898031174677');
+});

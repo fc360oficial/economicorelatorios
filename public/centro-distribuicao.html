@@ -90,6 +90,7 @@ tr.zera td.lc{border-left:3px solid #E5AC00}
 .overlay{position:fixed;inset:0;background:rgba(14,22,38,.55);display:none;align-items:center;justify-content:center;z-index:50}.overlay.on{display:flex}
 .modal{background:#fff;border-radius:12px;max-width:900px;width:94vw;max-height:90vh;overflow:auto;padding:18px}
 .table-wrap.vinc{overflow:visible}
+.alts{display:flex;flex-direction:column;gap:2px;margin-top:3px}.alts a{font-size:11.5px;color:#0E1626;text-decoration:none;padding:2px 6px;border:1px solid #DADAD6;border-radius:6px;background:#fff}.alts a:hover{background:#FFF6D9;border-color:#F5B800}
 .busca-un{position:relative;margin-top:4px;min-width:260px}.busca-un ul{position:absolute;z-index:50;box-shadow:0 8px 24px -8px rgba(14,22,38,.35);background:#fff;border:1px solid #DADAD6;border-radius:8px;list-style:none;max-height:260px;overflow:auto;width:100%}.busca-un li{padding:6px 10px;cursor:pointer;font-size:12px}.busca-un li:hover{background:#FFF6D9}
 </style>
 </head>
@@ -205,17 +206,33 @@ function renderVinculos() {
   const vb = VBUSCA.toLowerCase();
   const vis = all.filter(v => (VF === 'todos' || v.status === VF.replace(/s$/, '')) && (!vb || (v.codigoCD + ' ' + (cd[v.codigoCD]?.descricaoCD || v.descricaoCD || '') + ' ' + (v.unidade || '') + ' ' + (cd[v.codigoCD]?.descricaoUn || '')).toLowerCase().includes(vb))).sort((a, b) => (cd[a.codigoCD]?.descricaoCD || a.descricaoCD || '').localeCompare(cd[b.codigoCD]?.descricaoCD || b.descricaoCD || ''));
   $('#tab-vinculos').innerHTML = `<div class="cards">${['pendentes', 'sugeridos', 'confirmados', 'todos'].map(k => `<div class="card ${VF === k ? 'on' : ''}" onclick="VF='${k}';renderVinculos()"><div class="v">${cont[k]}</div><div class="l">${k}</div></div>`).join('')}</div>
-  <p class="mut" style="font-size:11.5px;margin:0 0 8px">Cada caixa do CD precisa apontar pra unidade que a loja vende. <b>Sugerido</b> = unidade encontrada pelo código de barras, só conferir e Confirmar. <b>Sem vínculo</b> = buscar a unidade pelo nome ou código. Un/cx = quantas unidades tem a caixa.</p>
+  <p class="mut" style="font-size:11.5px;margin:0 0 8px">Cada caixa do CD precisa apontar pra unidade que a loja vende. <b>Sugerido</b> = unidade encontrada pelo código de barras ou pela descrição (mesmas palavras em outra ordem), só conferir e Confirmar. <b>Parecidos</b> = mais de uma unidade bate com a descrição, clique na certa. <b>Sem vínculo</b> = buscar a unidade pelo nome ou código. Un/cx = quantas unidades tem a caixa.</p>
+  ${cont.sugeridos ? `<div class="selbar" style="margin:0 0 10px"><span class="contagem">${cont.sugeridos} sugerido${cont.sugeridos > 1 ? 's' : ''} aguardando conferência</span><button class="btn btn-amber btn-sm" onclick="confirmarTodosSugeridos()" title="Confirma de uma vez todas as caixas com sugestão (código de barras ou descrição), com o un/cx que está na tela">Confirmar todos os sugeridos</button></div>` : ''}
   <div class="busca-row"><input placeholder="filtrar caixa por descrição ou código" value="${VBUSCA}" oninput="VBUSCA=this.value;renderVinculos()"><span class="contagem">${vis.length} de ${all.length}</span></div>
   <div class="table-wrap vinc"><table class="main-t"><thead><tr><th>Código CD</th><th>Descrição CD</th><th class="r">Est. CD</th><th class="c">Un/cx</th><th>Unidade vinculada</th><th>Origem</th><th>Ação</th></tr></thead><tbody>
   ${vis.map(v => { const i = cd[v.codigoCD] || {}; const upc = v.unPorCaixa || v.unPorCaixaCadastro || ''; return `<tr>
     <td>${v.codigoCD}</td><td class="lc">${i.descricaoCD || v.descricaoCD || ''}</td><td class="r">${fmtN(i.estoqueCDcx ?? v.estoqueCx)}${v.estoqueUn != null ? '<div class="s2">' + fmtN(v.estoqueUn) + ' un</div>' : ''}</td>
     <td class="c"><input class="cx" id="upc-${v.codigoCD}" type="number" min="1" value="${upc}"></td>
-    <td class="lc">${v.status === 'confirmado' ? `<b>${v.unidade}</b><div class="sub">${i.descricaoUn || ''}</div>` : v.candidato ? `<span class="pill p-breve">sugerido</span> ${v.candidato}` : '<span class="pill p-hoje">sem vínculo</span>'}
+    <td class="lc">${v.status === 'confirmado' ? `<b>${v.unidade}</b><div class="sub">${i.descricaoUn || ''}</div>` : v.candidato ? `<span class="pill p-breve">sugerido${v.origem === 'descricao' ? ' pela descrição' : ''}</span> ${v.candidato}<div class="sub">${descAlt(v, v.candidato)}</div>` : (v.alternativas || []).length ? `<span class="pill p-cinza">parecidos</span><div class="alts">${v.alternativas.map(a => `<a href="#" onclick="confirmarVinc('${v.codigoCD}','${a.cod}');return false" title="vincular a esta unidade">${a.cod} · ${a.descricao}</a>`).join('')}</div>` : '<span class="pill p-hoje">sem vínculo</span>'}
       <div class="busca-un" id="bu-${v.codigoCD}"><input placeholder="buscar: código ou nescau%180" style="width:100%;min-width:260px" oninput="buscarUn('${v.codigoCD}',this.value)"><ul hidden></ul></div></td>
-    <td>${v.origem || '–'}${v.confirmadoPor ? '<div class="s2">' + v.confirmadoPor + '</div>' : ''}</td>
+    <td>${({ igual: 'mesmo código', dun14: 'código de barras', descricao: 'descrição', manual: 'manual' })[v.origem] || '–'}${v.confirmadoPor ? '<div class="s2">' + v.confirmadoPor + '</div>' : ''}</td>
     <td>${v.status === 'sugerido' ? `<button class="btn btn-amber" onclick="confirmarVinc('${v.codigoCD}','${v.candidato}')">Confirmar</button>` : ''}${v.status === 'confirmado' ? `${v.origem !== 'igual' ? `<button class="btn btn-slate" onclick="removerVinc('${v.codigoCD}')">Remover</button> ` : ''}<button class="btn btn-slate" onclick="confirmarVinc('${v.codigoCD}','${v.unidade}')">Salvar un/cx</button>` : ''}</td></tr>`; }).join('')}
   </tbody></table></div>`;
+}
+function descAlt(v, cod) { const a = (v.alternativas || []).find(x => x.cod === cod); return a ? a.descricao : ''; }
+async function confirmarTodosSugeridos() {
+  const sug = Object.values(VINC).filter(v => v.status === 'sugerido' && v.candidato);
+  if (!sug.length) return;
+  if (!confirm(`Confirmar ${sug.length} vínculo${sug.length > 1 ? 's' : ''} sugerido${sug.length > 1 ? 's' : ''}? Dá pra remover depois um a um.`)) return;
+  const erros = [];
+  for (const v of sug) {
+    const el = $('#upc-' + v.codigoCD); const upc = el ? +el.value : +(v.unPorCaixa || v.unPorCaixaCadastro);
+    if (!(upc >= 1)) { erros.push(v.codigoCD + ': sem un/cx'); continue; }
+    try { await api('/api/pedidos-cd/vinculos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ codigoCD: v.codigoCD, unidade: v.candidato, unPorCaixa: upc }) }); }
+    catch (e) { erros.push(v.codigoCD + ': ' + e.message); }
+  }
+  await carregarVinculos(); carregar(true);
+  if (erros.length) alert('Não confirmados: ' + erros.join(' | '));
 }
 let buscaT = null;
 function buscarUn(cod, txt) {
