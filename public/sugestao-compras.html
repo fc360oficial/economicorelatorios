@@ -190,7 +190,7 @@ table.rup-t tbody tr.lista-row.zerada .fornec-nome{color:#4E5A72}
 }
 
 /* Consolidação da Lista — estrutura portada de fluxo-certo-erp/apps/web/components/compras/tab-sugestao.tsx (overlay em tela cheia,
-   cabeçalho/totais/busca fixos, lista e painel 50/50 com rolagem própria, barra de baixo em 2 linhas); cores pelos tokens do design-system */
+   cabeçalho/totais/busca fixos, lista com o resto da tela e painel do produto pelo conteúdo (até 65%, divisor arrastável), barra de baixo em 1 linha); cores pelos tokens do design-system */
 #consolidacao-view{position:fixed;inset:0;z-index:6000;background:var(--crd);display:flex;flex-direction:column;color:var(--ink)}
 .cx-hdr{background:#101B33;color:#fff;display:flex;align-items:center;gap:22px;padding:9px 22px;flex-shrink:0}
 .cx-num{text-align:center}
@@ -219,8 +219,12 @@ table.rup-t tbody tr.lista-row.zerada .fornec-nome{color:#4E5A72}
 .cx-busca input:focus{outline:2px solid var(--am);outline-offset:-1px}
 .cx-main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0}
 .cx-lista{flex:1;overflow:auto;border-bottom:1px solid var(--ln);min-height:0}
-.cx-main.split .cx-lista{flex:none;height:50%}
-.cx-det{height:50%;display:flex;flex-direction:column;overflow:hidden;min-height:0}
+.cx-det{flex:none;height:auto;max-height:65%;display:flex;flex-direction:column;overflow:hidden;min-height:0}
+.cx-det.arrastado{max-height:none}
+.cx-divisor{display:none;height:7px;flex-shrink:0;cursor:row-resize;background:var(--wsh);border-top:1px solid var(--ln);border-bottom:1px solid var(--ln);position:relative;touch-action:none}
+.cx-divisor::after{content:'';position:absolute;left:50%;top:2px;width:44px;height:2px;margin-left:-22px;border-radius:2px;background:var(--ln2)}
+.cx-divisor:hover::after{background:var(--am)}
+.cx-main.split .cx-divisor{display:block}
 table.cx-t{width:100%;border-collapse:collapse;font-size:12px}
 table.cx-t th,table.cx-t td{border:1px solid var(--ln);padding:6px 8px;white-space:nowrap}
 table.cx-t th.l,table.cx-t td.l{text-align:left}table.cx-t th.c,table.cx-t td.c{text-align:center}table.cx-t th.r,table.cx-t td.r{text-align:right}
@@ -295,14 +299,14 @@ table.cons-det td.cap{color:#B4530A;font-size:9px;font-weight:700;line-height:1.
 table.cons-det td.ant{font-size:9px;color:var(--ink3);line-height:1.2}
 table.cons-det tr.loja-item td{color:var(--neg);font-weight:700;background:var(--negw)}
 .cx-barra{flex-shrink:0;border-top:2px solid var(--ln2);background:var(--wsh);padding:6px 12px}
-.cx-barra-r1{display:flex;align-items:center;gap:18px;margin-bottom:6px;font-size:10px;color:var(--ink2);white-space:nowrap;overflow-x:auto}
+.cx-busca-legs{margin-left:auto;display:flex;align-items:center;gap:16px;font-size:10px;white-space:nowrap}
 .cx-legenda{display:flex;gap:14px}
 .cx-legenda span{display:flex;align-items:center;gap:5px}
 .cx-legenda i{width:11px;height:11px;border:1px solid;display:inline-block}
 .lg-promo{background:var(--infw);border-color:var(--inf)!important}.lg-rebaixa{background:var(--negw);border-color:var(--neg)!important}.lg-avaria{background:var(--amw);border-color:var(--am)!important}
-.cx-barra-r1 label{display:flex;align-items:center;gap:5px;cursor:pointer}
-.cx-barra-r1 label.off{color:var(--ink3);cursor:default}
-.cx-exibir{margin-left:auto;font-weight:700}
+.cx-busca-legs label{display:flex;align-items:center;gap:5px;cursor:pointer}
+.cx-busca-legs label.off{color:var(--ink3);cursor:default}
+.cx-exibir{font-weight:700;font-size:10px;color:var(--ink2);display:flex;align-items:center;gap:6px;white-space:nowrap;flex-shrink:0;margin-right:4px}
 .cx-exibir select{font-size:10.5px;border:1px solid var(--ln2);border-radius:5px;padding:3px 6px;background:var(--crd);color:var(--ink)}
 .cx-barra-r2{display:flex;align-items:center;gap:5px;flex-wrap:nowrap;overflow-x:auto;padding-bottom:2px}
 .cx-barra-r2 .spacer{flex:1}
@@ -315,7 +319,7 @@ table.cons-det tr.loja-item td{color:var(--neg);font-weight:700;background:var(-
 .cxb.cxb-pedido{border-color:var(--inf);background:var(--inf);color:#fff;font-weight:800;padding:6px 14px}
 .cxb.cxb-pedido:hover:not(:disabled){background:#254B70}
 .cxb.cxb-excel{border-color:var(--pos);background:var(--posw);color:var(--pos);font-weight:800}
-@media print{#consolidacao-view{position:static}.cx-barra,.cx-busca,.cx-cols,.cx-x,#c-recalc,.cx-ia{display:none}.cx-lista,.cx-det-wrap{overflow:visible;height:auto}.cx-main.split .cx-lista{height:auto}}
+@media print{#consolidacao-view{position:static}.cx-barra,.cx-busca,.cx-cols,.cx-x,#c-recalc,.cx-ia{display:none}.cx-lista,.cx-det-wrap{overflow:visible;height:auto}.cx-det{max-height:none}.cx-divisor{display:none}}
 </style>
 </head>
 <body class="ds">
@@ -438,6 +442,11 @@ table.cons-det tr.loja-item td{color:var(--neg);font-weight:700;background:var(-
       <span>Item:</span>
       <div class="cx-busca-in"><input type="text" id="c-busca" placeholder="Buscar por código ou descrição..." oninput="CONS.busca=this.value;renderConsItens()"></div>
       <span class="cx-cont" id="c-contagem"></span>
+      <div class="cx-busca-legs">
+        <div class="cx-legenda"><span><i class="lg-promo"></i>Promoção</span><span><i class="lg-rebaixa"></i>Rebaixa de Preço</span><span><i class="lg-avaria"></i>Avarias</span></div>
+        <label class="off" title="Em breve"><input type="checkbox" disabled> NFe no cálculo de venda</label>
+        <label class="off" title="Em breve"><input type="checkbox" disabled checked> Promoção / Rebaixa / Avarias</label>
+      </div>
     </div>
     <!-- miolo: lista de produtos + painel do produto -->
     <div class="cx-main" id="cx-main">
@@ -447,6 +456,7 @@ table.cons-det tr.loja-item td{color:var(--neg);font-weight:700;background:var(-
           <tbody id="c-itens-tbody"></tbody>
         </table>
       </div>
+      <div class="cx-divisor" id="cx-divisor" title="Arraste pra ajustar a altura do painel"></div>
       <div class="cx-det" id="c-painel" style="display:none">
         <div class="cx-det-t"><span class="cod" id="cp-cod"></span><b id="cp-desc"></b><span class="spacer"></span><button class="cx-x" onclick="fecharPainel()" title="Fechar detalhe">✕</button></div>
         <div class="cx-fin">
@@ -470,18 +480,13 @@ table.cons-det tr.loja-item td{color:var(--neg);font-weight:700;background:var(-
     </div>
     <!-- barra de baixo -->
     <div class="cx-barra">
-      <div class="cx-barra-r1">
-        <div class="cx-legenda"><span><i class="lg-promo"></i>Promoção</span><span><i class="lg-rebaixa"></i>Rebaixa de Preço</span><span><i class="lg-avaria"></i>Avarias</span></div>
-        <label class="off" title="Em breve"><input type="checkbox" disabled> Considerar NFe no cálculo de venda</label>
-        <label class="off" title="Em breve"><input type="checkbox" disabled checked> Consultar Promoção / Rebaixa de Preço / Avarias</label>
-        <label class="cx-exibir">Exibir Itens:
+      <div class="cx-barra-r2">
+        <label class="cx-exibir">Exibir:
           <select id="c-filtro" onchange="CONS.filtro=this.value;renderConsItens()">
             <option value="todos">Todos</option><option value="sol_sistema">Solicitação Sistema</option><option value="com_qtd">Apenas com Quantidade</option>
             <option value="sem_sug">Sem Sugestão Sistema</option><option value="sem_sug_est">Sem Sugestão &amp; Estoque</option><option value="sem_giro">Dias Sem Venda</option><option value="criticos">Críticos</option>
           </select>
         </label>
-      </div>
-      <div class="cx-barra-r2">
         <button class="cxb" disabled title="Em breve">Abrir Solicitar Preço Web</button>
         <button class="cxb" disabled title="Em breve">Fechar Solicitar Preço Web</button>
         <button class="cxb" disabled title="Em breve">✈ Enviar Link</button>
@@ -867,6 +872,18 @@ function renderConsItens(){
 }
 function selecionarItem(codigo){ CONS.sel = CONS.sel === codigo ? null : codigo; renderConsItens(); renderConsDetalhe(); }
 function fecharPainel(){ CONS.sel = null; renderConsItens(); renderConsDetalhe(); }
+// Divisor entre a lista e o painel do produto: arrasta pra dar mais espaço às lojas ou aos produtos
+(function(){
+  const div = document.getElementById('cx-divisor'), painel = document.getElementById('c-painel');
+  if (!div) return;
+  let y0 = 0, h0 = 0;
+  div.addEventListener('pointerdown', e => {
+    y0 = e.clientY; h0 = painel.getBoundingClientRect().height; div.setPointerCapture(e.pointerId);
+    const mv = ev => { const h = Math.max(120, Math.min(window.innerHeight * 0.8, h0 + (y0 - ev.clientY))); painel.classList.add('arrastado'); painel.style.height = h + 'px'; };
+    const up = () => { div.removeEventListener('pointermove', mv); div.removeEventListener('pointerup', up); };
+    div.addEventListener('pointermove', mv); div.addEventListener('pointerup', up);
+  });
+})();
 // colunas do detalhe por loja (mesma lista e presets do Fluxo ERP)
 const DET_COLS = [
   // ── mesma ordem e nomes da grade por loja do Dlinks ──
@@ -917,7 +934,7 @@ function proximaLoja(inp){ const ins = [...document.querySelectorAll('#c-det-tbo
 function renderConsDetalhe(){
   const painel = document.getElementById('c-painel'), th = document.getElementById('c-det-thead'), tb = document.getElementById('c-det-tbody'), main = document.getElementById('cx-main');
   const it = CONS.s && CONS.sel ? CONS.s.itens.find(i => i.codigo === CONS.sel) : null;
-  if (!it) { painel.style.display = 'none'; main.classList.remove('split'); tb.innerHTML = ''; return; }
+  if (!it) { painel.style.display = 'none'; painel.classList.remove('arrastado'); painel.style.height = ''; main.classList.remove('split'); tb.innerHTML = ''; return; }
   painel.style.display = ''; main.classList.add('split');
   document.getElementById('cp-cod').textContent = it.codigo; document.getElementById('cp-desc').textContent = it.descricao;
   document.getElementById('cp-forn').textContent = CONS.s.lista.fornecedor || '';
