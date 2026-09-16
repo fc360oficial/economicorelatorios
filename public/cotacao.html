@@ -771,6 +771,13 @@ async function abrirCotacao(id, tela){
 }
 async function recarregar(){ if (!CUR) return; try { CUR = await api('/api/cotacoes/' + CUR.id); renderTudo(); } catch(e) {} }
 function renderTudo(){ carregarUltimas(); $('#cur-lbl').innerHTML = CUR ? 'Cotação <b>#' + CUR.id + ' · ' + esc(CUR.nome) + '</b>' : ''; renderAcomp(); renderComparativo(); renderPedidos(); }
+// aba aberta sem cotação escolhida: explica o fluxo e lista as cotações existentes pra abrir direto
+async function renderVazio(m){
+  m.innerHTML = '<div class="empty">Carregando…</div>';
+  var lista = []; try { lista = await api('/api/cotacoes'); } catch(e) {}
+  if (!lista.length) { m.innerHTML = '<div class="pubcard" style="max-width:720px;margin:30px auto;text-align:center"><b>Ainda não existe nenhuma cotação.</b><p style="color:var(--ink2);margin:10px 0 16px">O caminho é: <b>Nova Cotação</b> (digite a lista, ex. 277, confira as quantidades e marque os fornecedores) → criar → mandar os links pelo WhatsApp em <b>Acompanhamento</b> → quando os vendedores digitarem os preços, o <b>Comparativo</b> aparece aqui, item a item.</p><button class="btn primary" onclick="goScreen(\'s2\')">Ir pra Nova Cotação →</button></div>'; return; }
+  m.innerHTML = '<div class="pubcard" style="max-width:900px;margin:20px auto"><b>Escolha a cotação</b><p class="mini" style="margin:6px 0 12px">Esta aba mostra os dados de uma cotação já criada. Clique numa das abaixo (ou abra pelo Monitor).</p>' + lista.map(function(c){ var st = statusCot(c); return '<div class="totfoot-row" style="align-items:center"><span><b>#' + c.id + '</b> ' + esc(c.nome) + ' <span class="status-pill ' + st.cls + '" style="margin-left:6px">' + st.txt + '</span><br><span class="mini">lista ' + (c.lista || '—') + ' · ' + c.itens + ' itens · ' + c.responderam + ' de ' + c.convidados + ' fornecedores responderam</span></span><span><button class="btn ghost sm" onclick="abrirCotacao(' + c.id + ',\'s3\')">Acompanhar</button> <button class="btn primary sm" onclick="abrirCotacao(' + c.id + ',\'s4\')">Comparativo</button></span></div>'; }).join('') + '</div>';
+}
 function cabecalho(sub){
   var s = statusCot(CUR.status === 'aberta' ? Object.assign({}, CUR, CUR.comparativo.resumo) : CUR);
   return '<div class="crumb">Cotação <span>›</span> <b>#' + CUR.id + ' · ' + esc(CUR.nome) + '</b></div>' +
@@ -780,7 +787,7 @@ function cabecalho(sub){
 function msgWhats(f){ return 'Olá' + (f.vendedor && f.vendedor.nome ? ', ' + f.vendedor.nome : '') + '! Cotação #' + CUR.id + ' – ' + CUR.nome + ' do Econômico Supermercado (Rede Cahu). Por favor, preencha seus preços neste link: ' + f.link + (CUR.prazo ? ' . Prazo pra resposta: ' + dd(CUR.prazo) : '') + ' . Obrigado(a)!'; }
 async function marcarEnviado(codFornec){ try { await post('/api/cotacoes/' + CUR.id + '/enviado', {codFornec: codFornec}); } catch(e) {} setTimeout(recarregar, 800); }
 function renderAcomp(){
-  var m = $('#s3-main'); if (!CUR) { m.innerHTML = '<div class="empty">Escolha uma cotação no Monitor.</div>'; return; }
+  var m = $('#s3-main'); if (!CUR) { renderVazio(m); return; }
   var R = CUR.comparativo.resumo, aberta = CUR.status === 'aberta';
   var h = cabecalho((aberta ? '<button class="btn primary" onclick="goScreen(\'s4\')">Ver comparativo →</button><button class="btn danger" onclick="cancelarCotacao()">Cancelar cotação</button>' : '<button class="btn primary" onclick="goScreen(\'s4\')">Ver comparativo →</button>') + '<button class="btn ghost" onclick="recarregar()">↻</button>');
   h += '<div class="kpis"><div class="kpi"><div class="val">' + R.convidados + '</div><div class="lbl">Fornecedores convidados</div></div><div class="kpi"><div class="val pos">' + R.responderam + '</div><div class="lbl">Já responderam</div></div><div class="kpi"><div class="val">' + (R.convidados - R.responderam) + '</div><div class="lbl">Aguardando resposta</div></div><div class="kpi"><div class="val">' + (R.itens ? Math.round(R.com_preco / R.itens * 100) : 0) + '%</div><div class="lbl">Itens com pelo menos 1 preço (' + R.com_preco + ' de ' + R.itens + ')</div></div></div>';
@@ -847,7 +854,7 @@ async function carregarUltimas(){
 function ciSet(k, v){ CI_F[k] = v; renderComparativoItens(); }
 function dataPrevista(dias){ if (!dias) return '—'; var d = new Date(); d.setDate(d.getDate() + (+dias)); return d.toLocaleDateString('pt-BR'); }
 function renderComparativoItens(){
-  var m = $('#s4-main'); if (!CUR) { m.innerHTML = '<div class="empty">Escolha uma cotação no Monitor.</div>'; return; }
+  var m = $('#s4-main'); if (!CUR) { renderVazio(m); return; }
   var C = CUR.comparativo, R = C.resumo, F = C.fornecedores, aberta = CUR.status === 'aberta', U = ULT[CUR.id] || {};
   var byF = {}; F.forEach(function(f){ byF[f.codFornec] = f; });
   var h = cabecalho((aberta ? '<button class="btn primary" id="btn-fechar" onclick="fecharCotacao()"' + (R.total_vencedores > 0 ? '' : ' disabled') + '>Fechar cotação e gerar pedidos →</button>' : (CUR.pedidos && CUR.pedidos.length ? '<button class="btn primary" onclick="goScreen(\'s5\')">Ver pedidos gerados →</button>' : '')) + '<span class="vtab"><button class="on" onclick="setVista(\'itens\')">Por item</button><button onclick="setVista(\'matriz\')">Matriz</button></span><button class="btn ghost" onclick="naoDigitados()">Não digitados</button><button class="btn ghost" onclick="window.print()">Imprimir</button><button class="btn ghost" onclick="exportarComparativo()">Exportar CSV</button><button class="btn ghost" onclick="recarregar()">↻</button>');
@@ -903,7 +910,7 @@ function naoDigitados(){
   abrirModal('Não digitados · por fornecedor', h, true);
 }
 function renderComparativoMatriz(){
-  var m = $('#s4-main'); if (!CUR) { m.innerHTML = '<div class="empty">Escolha uma cotação no Monitor.</div>'; return; }
+  var m = $('#s4-main'); if (!CUR) { renderVazio(m); return; }
   var C = CUR.comparativo, R = C.resumo, F = C.fornecedores, aberta = CUR.status === 'aberta';
   var h = cabecalho((aberta ? '<button class="btn primary" id="btn-fechar" onclick="fecharCotacao()"' + (R.total_vencedores > 0 ? '' : ' disabled') + '>Fechar cotação e gerar pedidos →</button>' : (CUR.pedidos && CUR.pedidos.length ? '<button class="btn primary" onclick="goScreen(\'s5\')">Ver pedidos gerados →</button>' : '')) + '<span class="vtab"><button onclick="setVista(\'itens\')">Por item</button><button class="on" onclick="setVista(\'matriz\')">Matriz</button></span><button class="btn ghost" onclick="exportarComparativo()">Exportar CSV</button><button class="btn ghost" onclick="recarregar()">↻</button>');
   h += '<div class="kpis"><div class="kpi"><div class="val">' + fmtR(R.total_ultimo_vencedores) + '</div><div class="lbl">Última compra (ERP) dos itens com vencedor</div></div><div class="kpi"><div class="val pos">' + fmtR(R.total_vencedores) + '</div><div class="lbl">Melhor combinação (' + (R.itens - R.sem_vencedor - R.nao_comprar) + ' de ' + R.itens + ' itens)</div></div><div class="kpi"><div class="val ' + (R.economia >= 0 ? 'pos' : 'neg') + '">' + fmtR(R.economia) + '</div><div class="lbl">Economia × última compra</div></div><div class="kpi"><div class="val ' + (R.economia >= 0 ? 'pos' : 'neg') + '">' + (R.economia_pct != null ? fmtN(R.economia_pct, 1) + '%' : '—') + '</div><div class="lbl">Economia %</div></div></div>';
@@ -963,7 +970,7 @@ async function fecharCotacao(){
 // ───────── PEDIDOS
 var ST_PED = {sugestao:'Sugestão', aguardando:'Aguardando vendedor', digitacao:'Em digitação', finalizado:'Finalizado pelo vendedor · aprovar', aprovado:'Aprovado', recebido:'Recebido', recebido_parcial:'Recebido com falta', cancelado:'Cancelado'};
 async function renderPedidos(){
-  var m = $('#s5-main'); if (!CUR) { m.innerHTML = '<div class="empty">Escolha uma cotação no Monitor.</div>'; return; }
+  var m = $('#s5-main'); if (!CUR) { renderVazio(m); return; }
   var h = cabecalho('<a class="btn primary" href="/pedidos-compra.html">Abrir Pedidos de Compra →</a>');
   if (!CUR.pedidos || !CUR.pedidos.length) { m.innerHTML = h + '<div class="empty">' + (CUR.status === 'aberta' ? 'Nenhum pedido ainda — feche a cotação no Comparativo pra gerar um pedido por fornecedor vencedor.' : 'Nenhum pedido gerado.') + '</div>'; return; }
   var live = {};
