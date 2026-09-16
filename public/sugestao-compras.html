@@ -431,7 +431,6 @@ table.cons-det tr.loja-item td{color:var(--neg);font-weight:700;background:var(-
       <div class="cx-kpi"><span>Total Volumes</span><b id="t-volumes" class="inf">—</b></div>
       <div class="cx-kpi"><span>Margem Prevista</span><b id="t-margem">—</b></div>
       <div class="cx-kpi"><span>Cobertura Média Final</span><b id="t-cob">—</b></div>
-      <button class="cx-ia" disabled title="Painel IA — em breve">🤖 Painel IA</button>
     </div>
     <!-- busca -->
     <div class="cx-busca">
@@ -448,7 +447,7 @@ table.cons-det tr.loja-item td{color:var(--neg);font-weight:700;background:var(-
         </table>
       </div>
       <div class="cx-det" id="c-painel" style="display:none">
-        <div class="cx-det-t"><span class="cod" id="cp-cod"></span><b id="cp-desc"></b><button class="cx-det-btn" disabled title="Detalhamento do Produto — em breve">📊 Detalhamento do Produto</button><button class="cx-x" onclick="fecharPainel()" title="Fechar detalhe">✕</button></div>
+        <div class="cx-det-t"><span class="cod" id="cp-cod"></span><b id="cp-desc"></b><span class="spacer"></span><button class="cx-x" onclick="fecharPainel()" title="Fechar detalhe">✕</button></div>
         <div class="cx-fin">
           <span class="cx-fin-lbl">Resumo Financeiro:</span>
           <div><span>Capital Investido:</span><b id="cp-cap" class="pos">R$ 0,00</b></div>
@@ -760,7 +759,8 @@ function renderConsCabecalho(){
   document.getElementById('c-lojas').textContent = 'Loja(s): ' + p.lojas.join(' - ');
   document.getElementById('c-cobertura').textContent = p.cobertura + ' Dias';
   // P/M: média dos dias de cobertura atuais das lojas com venda (mesma leitura do Dlinks, em dias)
-  let cs = 0, cn = 0; for (const it of s.itens) for (const l of it.lojas) if (!l.desativado && l.media > 0 && l.dias_cob != null && l.dias_cob < 9999) { cs += l.dias_cob; cn++; }
+  // P/M (confirmado na 4380: 30,47 x 30,71 do Dlinks): média dos dias de cobertura das lojas com venda, limitada à cobertura alvo
+  let cs = 0, cn = 0; for (const it of s.itens) for (const l of it.lojas) if (!l.desativado && l.media > 0 && l.dias_cob != null) { cs += Math.min(l.dias_cob, p.cobertura || 0); cn++; }
   document.getElementById('c-pm').textContent = cn ? fmtN(cs / cn, 1) + ' Dias' : '—';
   const st = s.status === 'pedido_gerado' ? `Pedido Gerado #${s.pedido_id}` : s.status === 'desativada' ? 'Desativada' : (s.origem === 'dlinks' ? ({1:'Em Aberto',2:'Fechado'}[s.status_web] || 'Sem link') : 'Em Aberto');
   document.getElementById('c-status').textContent = st;
@@ -790,13 +790,6 @@ const PRIO_ORD = { critico: 4, alto: 3, medio: 2, baixo: 1 };
 const PRIO_LBL = { critico: '🔴 CRÍTICO', alto: '🟠 ALTO', medio: '🟡 MÉDIO', baixo: '🟢 BAIXO' };
 function prioItem(it){ let p = 'baixo'; for (const l of it.lojas) { const q = prioLoja(l, CONS.s.parametros.cobertura); if (q && PRIO_ORD[q] > PRIO_ORD[p]) p = q; } return p; }
 const prioBadge = p => `<span class="prio ${p}">${PRIO_LBL[p]}</span>`;
-function statusIA(l, meta){
-  const cob = l.dias_cob == null ? 9999 : l.dias_cob;
-  if (!(l.estoque > 0)) return { k: 'ruptura', t: '🔴 Ruptura' };
-  if (cob > meta * 1.5) return { k: 'excesso', t: '🟠 Excesso' };
-  if ((l.sug_sistema || 0) > 0 && cob < meta) return { k: 'comprar', t: '🟡 Comprar' };
-  return { k: 'ok', t: '🟢 OK' };
-}
 function rupturaInfo(l){
   if (!(l.estoque > 0)) return { d: 0, cls: 'r0', t: 'RUPTURA' };
   if (!(l.media > 0)) return null;
@@ -878,7 +871,6 @@ const DET_COLS = [
   { k: 'Últ.Venda',     cls: 'c mono', r: l => escH(l.ultima_venda) || '—' },
   { k: 'Emb',           cls: 'c dim',  r: l => l.emb ?? '—' },
   { k: 'Qtd',           cls: 'c dim',  r: l => l.qtd_compra == null ? '—' : fmtN(l.qtd_compra, 0) },
-  { k: 'V.A.C',         cls: 'c dim',  r: l => l.fornecedor ? escH(l.fornecedor.split(' ')[0]) : '—' },
   { k: 'Preço',         cls: 'r',      r: l => l.preco_compra == null ? '—' : fmtN(l.preco_compra) },
   { k: 'Total',         cls: 'r',      r: l => l.total_compra == null ? '—' : fmtN(l.total_compra) },
   { k: 'Custo Unt.',    cls: 'r dim',  r: l => fmtN(l.custo) },
@@ -892,8 +884,8 @@ const DET_COLS = [
   { k: 'Sug.Sistema',   cls: 'c',      r: l => l.sug_sistema || '0', td: l => l.sug_sistema > 0 ? 'azul' : 'dim' },
   { k: 'Pedido Compra', cls: 'c col-pedido', th: 'col-pedido', r: (l, it, trav) => `<input type="number" min="0" class="qtd ${l.sug_loja ? '' : 'zero'}" value="${l.sug_loja || ''}" placeholder="${l.sug_sistema || 0}" ${trav ? 'disabled' : ''} onchange="editarSugLoja('${escJ(it.codigo)}', ${l.loja}, this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();proximaLoja(this)}">` },
   { k: 'ABC',           cls: 'c',      r: l => l.abc || '—', td: l => l.abc === 'A' ? 'pos' : l.abc === 'B' ? 'azul' : 'dim' },
+  { k: 'Sug.Loja',      cls: 'c dim',  r: l => l.qtd_loja == null ? '—' : l.qtd_loja },
   { k: 'Trânsito',      cls: 'c dim',  r: l => fmtN(l.transito, 0) },
-  { k: 'Status IA',     cls: 'c', th: 'th-ia', r: l => { const s = statusIA(l, CONS.s.parametros.cobertura); return `<span class="stia ${s.k}">${s.t}</span>`; } },
   { k: 'Venda Prev.',   cls: 'c dim',  r: l => l.media > 0 ? fmtN(l.media * CONS.s.parametros.cobertura, 1) : '—' },
   { k: 'Receita Prev.', cls: 'r dim',  r: l => l.media > 0 && l.preco_atual > 0 ? 'R$ ' + fmtN(l.media * CONS.s.parametros.cobertura * l.preco_atual) : '—' },
   { k: 'Margem Prev.',  cls: 'c',      r: l => l.preco_atual > 0 ? fmtN((l.preco_atual - (l.custo || 0)) / l.preco_atual * 100, 1) + '%' : '—', td: l => { const m = l.preco_atual > 0 ? (l.preco_atual - (l.custo || 0)) / l.preco_atual * 100 : null; return m == null ? 'dim' : m >= 20 ? 'pos' : m >= 10 ? 'amb' : 'neg'; } },
@@ -904,8 +896,8 @@ const DET_COLS = [
   { k: 'vs Anterior',   cls: 'c ant', th: 'th-ant', r: l => { const a = l.qtd_compra; if (!(a > 0)) return '<span class="dim">1º</span>'; const q = l.sug_loja || 0; const pct = q > 0 ? Math.round((q - a) / a * 100) : null; return `Ant:${fmtN(a, 0)}` + (pct == null ? '' : `<br><b class="${pct > 0 ? 'pos' : 'neg'}" style="color:${pct > 0 ? 'var(--pos)' : 'var(--neg)'}">${pct > 0 ? '▲+' + pct : '▼' + pct}%</b>`); } },
 ];
 const DET_PRESETS = {
-  compacta:  ['LJ', 'Estoque Atual', 'Méd.Período', 'Dias Cob.', 'Sug.Sistema', 'Pedido Compra', 'Status IA', 'Prioridade'],
-  comprador: ['LJ', 'Últ.Compra', 'Últ.Venda', 'Emb', 'Qtd', 'Estoque Atual', 'Méd.Período', 'Dias Cob.', 'Sug.Sistema', 'Pedido Compra', 'ABC', 'Status IA', 'Venda Prev.', 'Margem Prev.', 'Investimento', 'Ruptura em', 'Capital Parado', 'Prioridade', 'vs Anterior'],
+  compacta:  ['LJ', 'Estoque Atual', 'Méd.Período', 'Dias Cob.', 'Sug.Sistema', 'Pedido Compra', 'Sug.Loja', 'Prioridade'],
+  comprador: ['LJ', 'Últ.Compra', 'Últ.Venda', 'Emb', 'Qtd', 'Estoque Atual', 'Méd.Período', 'Dias Cob.', 'Sug.Sistema', 'Pedido Compra', 'Sug.Loja', 'ABC', 'Venda Prev.', 'Margem Prev.', 'Investimento', 'Ruptura em', 'Capital Parado', 'Prioridade', 'vs Anterior'],
   analitica: DET_COLS.map(c => c.k),
 };
 CONS.preset = 'comprador';
