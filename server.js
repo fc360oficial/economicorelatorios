@@ -4590,7 +4590,7 @@ CAHU DISTRIBUIDORA`
 
     ws.mergeCells(`A2:${lastCol}2`);
     const subCell = ws.getCell('A2');
-    subCell.value = `Somente itens com estoque positivo no CD — gerado em ${new Date().toLocaleDateString('pt-BR')}`;
+    subCell.value = `Tabela gerada em ${new Date().toLocaleDateString('pt-BR')}`;
     subCell.font = { name: 'Calibri', size: 10, italic: true, color: { argb: 'FF000000' } };
     subCell.alignment = { vertical: 'middle', horizontal: 'center' };
     subCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: NAVY_LIGHT } };
@@ -4714,7 +4714,7 @@ app.get('/api/cahu-distribuidora/tabela-precos.pdf', async (req, res) => {
       y += ALT_FAIXA;
       doc.rect(MARGEM, y, larguraUtil, ALT_SUB).fill(AMARELO_CLARO);
       doc.fillColor(PRETO).font('Helvetica-Oblique').fontSize(8.5)
-        .text(`Somente itens com estoque positivo no CD — gerado em ${new Date().toLocaleDateString('pt-BR')}`,
+        .text(`Tabela gerada em ${new Date().toLocaleDateString('pt-BR')}`,
           MARGEM, y + 4, { width: larguraUtil, align: 'center', lineBreak: false });
       y += ALT_SUB + 4;
       // cabeçalho da tabela
