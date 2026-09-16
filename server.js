@@ -6199,7 +6199,7 @@ app.post('/api/sugestao-manual', async (req, res) => {
 app.get('/api/sugestao-manual/:id', async (req, res) => {
   try {
     const id = String(req.params.id); if (!/^[FD]-\d+$/.test(id)) return res.status(400).json({ error: 'Id inválido' });
-    const s = id.startsWith('D-') ? await sugestaoManual.montarDoERP(id.slice(2)) : sugestaoManual.obter(id);
+    const s = id.startsWith('D-') ? await sugestaoManual.montarDoERP(id.slice(2), req.query.refresh === '1') : sugestaoManual.obter(id);
     if (!s) return res.status(404).json({ error: 'Sugestão não encontrada' });
     res.json(s);
   } catch (err) { res.status(500).json({ error: err.message }); }

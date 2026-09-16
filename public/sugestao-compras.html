@@ -735,13 +735,13 @@ const fmtN = (v, d = 2) => v == null ? '—' : Number(v).toLocaleString('pt-BR',
 const escH = v => String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 const escJ = v => String(v ?? '').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;').replace(/</g,'\\x3c');
 function esconderTudoConsolidacao(){ for (const id of ['rupturas-view','monitor-view','por-lista-view','sugestao-wrap']) document.getElementById(id).style.display = 'none'; }
-async function abrirConsolidacao(id, dados){
+async function abrirConsolidacao(id, dados, refresh){
   esconderTudoConsolidacao();
   const v = document.getElementById('consolidacao-view'); v.style.display = 'flex';   // overlay em coluna flex (tela cheia)
   document.getElementById('c-itens-tbody').innerHTML = '<tr><td colspan="7" style="padding:30px;text-align:center"><div class="spinner"></div></td></tr>';
   try {
     let s = dados;
-    if (!s) { const r = await fetch('/api/sugestao-manual/' + encodeURIComponent(id)); s = await r.json(); if (s.error) throw new Error(s.error); }
+    if (!s) { const r = await fetch('/api/sugestao-manual/' + encodeURIComponent(id) + (refresh ? '?refresh=1' : '')); s = await r.json(); if (s.error) throw new Error(s.error); }
     CONS.s = s; CONS.sel = null; CONS.filtro = 'todos'; CONS.busca = ''; document.getElementById('c-filtro').value = 'todos'; document.getElementById('c-busca').value = '';
     renderConsCabecalho(); renderConsItens(); renderConsDetalhe();
     history.replaceState(null, '', '?tela=monitor&sugestao=' + encodeURIComponent(s.id));
@@ -775,7 +775,7 @@ function renderConsCabecalho(){
   renderConsTotais();
 }
 function fmtCnpj(c){ const d = String(c || '').replace(/\D/g, ''); return d.length === 14 ? d.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5') : (c || ''); }
-async function atualizarConsolidacao(){ if (CONS.s) abrirConsolidacao(CONS.s.id); }
+async function atualizarConsolidacao(){ if (CONS.s) abrirConsolidacao(CONS.s.id, null, true); }   // relê do ERP ignorando o cache
 
 // ── regras portadas do Fluxo ERP (tab-sugestao.tsx): prioridade, status IA, ruptura, capital parado — só conta sobre os dados da loja ──
 const diasEst = l => l.media > 0 ? (l.estoque > 0 ? l.estoque : 0) / l.media : (!(l.estoque > 0) ? 0 : 999);
