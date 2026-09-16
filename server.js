@@ -222,7 +222,7 @@ app.use((req, res, next) => {
   // depois manda o token (32 hex) em toda chamada — validado dentro da rota
   if (req.path === '/contagem.html' || req.path === '/contagem' || req.path === '/manifest-contagem.json' || req.path.startsWith('/api/contagem-publica/')) return next();
   // Pré-aquecimento interno (somente localhost)
-  if (req.headers['x-internal-warmup'] === 'fc360warmup2026' && req.socket.remoteAddress === '::1') return next();
+  if (req.headers['x-internal-warmup'] === 'fc360warmup2026' && ['::1', '127.0.0.1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress)) return next();
   const ext = req.path.split('.').pop().toLowerCase();
   if (['js','css','png','jpg','jpeg','gif','svg','ico','woff','woff2','ttf','eot','map'].includes(ext)) return next();
   if (req.session && req.session.user) {
