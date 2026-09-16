@@ -44,6 +44,15 @@ body{font-family:var(--font);background:var(--bg);color:var(--ink);min-height:10
   border-radius:50%;animation:spin .7s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 
+.btn-gerar.sec{background:var(--surface);color:var(--ink);border:1px solid var(--border-strong);font-size:13px;font-weight:700;padding:10px 16px}
+.btn-gerar.sec:hover{background:var(--surface-2)}
+.btn-gerar.sec .spinner-ico{border-color:rgba(14,22,38,.25);border-top-color:var(--ink)}
+
+.sep{margin:22px 0 16px;border-top:1px solid var(--border)}
+.sub-title{font-size:13px;font-weight:800;color:var(--ink);margin-bottom:4px}
+.sub-desc{font-size:12px;color:var(--ink-2);line-height:1.5;margin-bottom:12px}
+.btn-grid{display:flex;flex-wrap:wrap;gap:8px}
+
 .status{margin-top:14px;font-size:12px;font-weight:600}
 .status.ok{color:var(--green)}
 .status.err{color:var(--red)}
@@ -72,10 +81,15 @@ body{font-family:var(--font);background:var(--bg);color:var(--ink);min-height:10
       <div class="row"><span class="dot"></span>Tabela Entrega Cartão/Pix</div>
     </div>
 
-    <button class="btn-gerar" id="btnGerar" type="button">
-      <svg id="btnIco"><use href="/icons.svg#download"/></svg>
-      <span id="btnTxt">Gerar Excel</span>
+    <button class="btn-gerar" type="button" data-tabela="" data-label="Gerar Excel completo">
+      <svg><use href="/icons.svg#download"/></svg>
+      <span>Gerar Excel completo</span>
     </button>
+
+    <div class="sep"></div>
+    <div class="sub-title">Gerar separado por tabela</div>
+    <div class="sub-desc">Cada botão gera um Excel só com a coluna de preço daquela tabela — útil pra mandar ao cliente só a condição que ele usa.</div>
+    <div class="btn-grid" id="btnGrid"></div>
 
     <div class="status" id="status"></div>
 
@@ -85,47 +99,68 @@ body{font-family:var(--font);background:var(--bg);color:var(--ink);min-height:10
 
 <script>
 (function () {
-  var btn = document.getElementById('btnGerar');
-  var ico = document.getElementById('btnIco');
-  var txt = document.getElementById('btnTxt');
   var status = document.getElementById('status');
+  var grid = document.getElementById('btnGrid');
+  var ICON = '<svg><use href="/icons.svg#download"/></svg>';
 
-  btn.addEventListener('click', async function () {
-    btn.disabled = true;
-    ico.outerHTML = '<span class="spinner-ico" id="btnIco"></span>';
-    ico = document.getElementById('btnIco');
-    txt.textContent = 'Gerando...';
+  function nomeArquivo(res, fallback) {
+    var cd = res.headers.get('Content-Disposition') || '';
+    var m = cd.match(/filename="([^"]+)"/);
+    return m ? m[1] : fallback;
+  }
+
+  async function gerar(btn) {
+    var tabela = btn.getAttribute('data-tabela');
+    var label = btn.getAttribute('data-label');
+    var todos = document.querySelectorAll('.btn-gerar');
+    todos.forEach(function (b) { b.disabled = true; });
+    btn.innerHTML = '<span class="spinner-ico"></span><span>Gerando...</span>';
     status.textContent = '';
     status.className = 'status';
 
     try {
-      const r = await fetch('/api/cahu-distribuidora/tabela-precos.xlsx');
+      var url = '/api/cahu-distribuidora/tabela-precos.xlsx' + (tabela ? '?tabela=' + encodeURIComponent(tabela) : '');
+      var r = await fetch(url);
       if (!r.ok) {
-        const e = await r.json().catch(function () { return {}; });
+        var e = await r.json().catch(function () { return {}; });
         throw new Error(e.error || 'Falha ao gerar o Excel.');
       }
-      const blob = await r.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      const hoje = new Date().toISOString().slice(0, 10);
-      a.href = url;
-      a.download = 'Tabela_Precos_CAHU_Distribuidora_' + hoje + '.xlsx';
+      var blob = await r.blob();
+      var hoje = new Date().toISOString().slice(0, 10);
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = nomeArquivo(r, 'Tabela_Precos_CAHU_Distribuidora_' + hoje + '.xlsx');
       document.body.appendChild(a);
       a.click();
       a.remove();
-      URL.revokeObjectURL(url);
-      status.textContent = 'Excel gerado e baixado com sucesso.';
+      URL.revokeObjectURL(a.href);
+      status.textContent = (tabela ? label : 'Excel completo') + ' gerado e baixado com sucesso.';
       status.className = 'status ok';
-    } catch (e) {
-      status.textContent = e.message || 'Erro ao gerar o Excel.';
+    } catch (err) {
+      status.textContent = err.message || 'Erro ao gerar o Excel.';
       status.className = 'status err';
     } finally {
-      btn.disabled = false;
-      ico.outerHTML = '<svg id="btnIco"><use href="/icons.svg#download"/></svg>';
-      ico = document.getElementById('btnIco');
-      txt.textContent = 'Gerar Excel';
+      btn.innerHTML = ICON + '<span>' + label + '</span>';
+      todos.forEach(function (b) { b.disabled = false; });
     }
+  }
+
+  document.addEventListener('click', function (ev) {
+    var btn = ev.target.closest('.btn-gerar');
+    if (btn && !btn.disabled) gerar(btn);
   });
+
+  fetch('/api/cahu-distribuidora/tabelas-preco')
+    .then(function (r) { return r.json(); })
+    .then(function (tabelas) {
+      grid.innerHTML = tabelas.map(function (t) {
+        return '<button class="btn-gerar sec" type="button" data-tabela="' + t.cod + '" data-label="' + t.label + '">' +
+          ICON + '<span>' + t.label + '</span></button>';
+      }).join('');
+    })
+    .catch(function () {
+      grid.innerHTML = '<span class="sub-desc" style="color:var(--red)">Não foi possível carregar a lista de tabelas.</span>';
+    });
 })();
 </script>
 </body>

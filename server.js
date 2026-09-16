@@ -4489,9 +4489,23 @@ const CAHU_TABELAS_PRECO = [
   { cod: 14, label: 'Tabela Entrega Cartão/Pix' }
 ];
 
+// Lista das tabelas disponíveis (pra página montar um botão por tabela).
+app.get('/api/cahu-distribuidora/tabelas-preco', (req, res) => {
+  res.json(CAHU_TABELAS_PRECO);
+});
+
 app.get('/api/cahu-distribuidora/tabela-precos.xlsx', async (req, res) => {
   try {
-    const codigosTabela = CAHU_TABELAS_PRECO.map(t => t.cod);
+    // ?tabela=<cod> gera o Excel de UMA tabela só (uma coluna de preço);
+    // sem o parâmetro gera o completo com todas as tabelas lado a lado.
+    let tabelas = CAHU_TABELAS_PRECO;
+    let tabelaUnica = null;
+    if (req.query.tabela !== undefined) {
+      tabelaUnica = CAHU_TABELAS_PRECO.find(t => String(t.cod) === String(req.query.tabela));
+      if (!tabelaUnica) return res.status(400).json({ error: 'Tabela de preço inválida.' });
+      tabelas = [tabelaUnica];
+    }
+    const codigosTabela = tabelas.map(t => t.cod);
     const phTab = codigosTabela.map(() => '?').join(',');
 
     // status_item é por tabela (um produto pode estar inativo só numa tabela
@@ -4522,14 +4536,14 @@ app.get('/api/cahu-distribuidora/tabela-precos.xlsx', async (req, res) => {
 
     const NAVY = 'FF1F3864', NAVY_LIGHT = 'FF2E5395', GOLD = 'FFC9A227';
     const ZEBRA = 'FFF2F5FA', BORDER_COLOR = 'FFD0D7E5';
-    const headers = ['Código de Barras', 'Descrição', ...CAHU_TABELAS_PRECO.map(t => t.label)];
-    const colWidths = [20, 48, 20, 26, 20, 20, 20, 22];
+    const headers = ['Código de Barras', 'Descrição', ...tabelas.map(t => t.label)];
+    const colWidths = tabelaUnica ? [20, 48, 26] : [20, 48, 20, 26, 20, 20, 20, 22];
     const lastCol = String.fromCharCode(64 + headers.length);
 
     const wb = new ExcelJS.Workbook();
     wb.creator = 'Econômico Relatórios';
     wb.created = new Date();
-    const ws = wb.addWorksheet('Tabelas de Preço', {
+    const ws = wb.addWorksheet(tabelaUnica ? tabelaUnica.label.slice(0, 31) : 'Tabelas de Preço', {
       views: [{ showGridLines: false }],
       pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1 }
     });
@@ -4537,7 +4551,9 @@ app.get('/api/cahu-distribuidora/tabela-precos.xlsx', async (req, res) => {
 
     ws.mergeCells(`A1:${lastCol}1`);
     const titleCell = ws.getCell('A1');
-    titleCell.value = 'TABELA DE PREÇOS — CAHU DISTRIBUIDORA';
+    titleCell.value = tabelaUnica
+      ? `${tabelaUnica.label.toUpperCase()} — CAHU DISTRIBUIDORA`
+      : 'TABELA DE PREÇOS — CAHU DISTRIBUIDORA';
     titleCell.font = { name: 'Calibri', size: 16, bold: true, color: { argb: 'FFFFFFFF' } };
     titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
     titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: NAVY } };
@@ -4571,7 +4587,7 @@ app.get('/api/cahu-distribuidora/tabela-precos.xlsx', async (req, res) => {
       const row = ws.getRow(firstDataRow + idx);
       row.getCell(1).value = p.codigobarra;
       row.getCell(2).value = p.descricao;
-      CAHU_TABELAS_PRECO.forEach((t, i) => { row.getCell(3 + i).value = p[t.cod] ?? null; });
+      tabelas.forEach((t, i) => { row.getCell(3 + i).value = p[t.cod] ?? null; });
 
       const isZebra = idx % 2 === 1;
       for (let c = 1; c <= headers.length; c++) {
@@ -4603,8 +4619,11 @@ app.get('/api/cahu-distribuidora/tabela-precos.xlsx', async (req, res) => {
     footerCell.alignment = { horizontal: 'right' };
 
     const hoje = new Date().toISOString().slice(0, 10);
+    const slug = tabelaUnica
+      ? tabelaUnica.label.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '')
+      : 'Tabela_Precos_Completa';
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename="Tabela_Precos_CAHU_Distribuidora_${hoje}.xlsx"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${slug}_CAHU_Distribuidora_${hoje}.xlsx"`);
     await wb.xlsx.write(res);
     res.end();
   } catch (e) {
