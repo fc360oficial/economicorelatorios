@@ -4558,11 +4558,12 @@ app.get('/api/cahu-distribuidora/tabela-precos.xlsx', async (req, res) => {
     ws.getCell('A1').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: NAVY } };
     ws.mergeCells(`B1:${lastCol}1`);
     const titleCell = ws.getCell('B1');
+    // no Excel de tabela única só há 3 colunas: título curto (o logo já identifica a CAHU)
     titleCell.value = tabelaUnica
-      ? `${tabelaUnica.label.toUpperCase()} — CAHU DISTRIBUIDORA`
+      ? tabelaUnica.label.toUpperCase()
       : 'TABELA DE PREÇOS — CAHU DISTRIBUIDORA';
-    titleCell.font = { name: 'Arial Black', size: tabelaUnica ? 14 : 18, bold: true, color: { argb: 'FF000000' } };
-    titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
+    titleCell.font = { name: 'Arial Black', size: tabelaUnica ? 13 : 18, bold: true, color: { argb: 'FF000000' } };
+    titleCell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
     titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: NAVY } };
     ws.getRow(1).height = 54;
     try {
