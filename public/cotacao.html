@@ -69,7 +69,21 @@ table.forntab tr.off td:last-child{opacity:1}
 .status-pill.cancel{background:var(--negw);color:var(--neg)}
 .status-pill.off{background:var(--wsh);color:var(--ink3)}
 .link-btn{background:none;border:none;color:var(--inf);font-weight:700;font-size:12px;cursor:pointer;padding:0}
-.numpill{padding:5px 9px;border-radius:7px;font-size:12px;font-weight:800;background:var(--posw);color:var(--pos)}
+.numgrp{display:inline-flex;gap:5px;align-items:center}
+.numcirc{width:28px;height:28px;border-radius:50%;border:2px solid var(--ln2);background:var(--crd);display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:var(--ink2);cursor:pointer;font-family:inherit}
+.numcirc.c1{border-color:var(--inf);color:var(--inf)} .numcirc.c2{border-color:var(--am);color:var(--amk)} .numcirc.c3{border-color:var(--pos);color:var(--pos)} .numcirc.c4{border-color:var(--neg);color:var(--neg)}
+.numcirc:hover{background:var(--wsh)}
+.numpill{padding:5px 9px;border-radius:7px;font-size:12px;font-weight:800;background:var(--posw);color:var(--pos);border:none;cursor:pointer;font-family:inherit}
+.numpill:hover{filter:brightness(.95)}
+.aicon{width:30px;height:30px;border-radius:8px;border:1px solid var(--ln);background:var(--crd);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px}
+.aicon:hover{background:var(--wsh)}
+.vbtn{width:34px;height:30px;border-radius:8px;border:none;background:#F4511E;color:#fff;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;font-size:15px}
+.vbtn:hover{filter:brightness(1.08)}
+.obs-btn{width:22px;height:22px;border-radius:50%;border:none;background:#F4511E;color:#fff;font-weight:800;font-size:11px;cursor:pointer}
+.mon td{text-align:center;vertical-align:middle;padding:10px 8px}
+.mon th{text-align:center}
+.mon td.l,.mon th.l{text-align:left}
+.mon .st{color:#5B5BD6;font-weight:700}
 .numpill.blue{background:var(--infw);color:var(--inf)}
 .numpill.amb{background:var(--amw);color:var(--amk)}
 .acoes-row{display:inline-flex;gap:6px;flex-wrap:wrap}
@@ -231,7 +245,7 @@ table.forntab .check{width:15px;height:15px}
     <div class="crumb">Gestão de Compras <span>›</span> <b>Cotação</b></div>
     <div class="pagehead">
       <div><h1>Monitor de Cotações</h1><p>Cotações abertas (aguardando os fornecedores), prontas pra análise e fechadas (pedidos gerados em Pedidos de Compra).</p></div>
-      <span style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost" onclick="criarTeste()" title="Cria uma cotação de exemplo já com preços digitados por 2 fornecedores de teste, pra você analisar Acompanhamento, Comparativo, fechar e Pedidos tela a tela">🧪 Criar cotação de teste</button><button class="btn ghost" id="btn-rm-teste" style="display:none" onclick="removerTestes()">Remover testes</button><button class="btn primary" onclick="goScreen('s2')">+ Nova Cotação</button></span>
+      <span style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost" onclick="criarTeste()" title="Cria uma cotação de exemplo já com preços digitados por 2 fornecedores de teste, pra você analisar Acompanhamento, Comparativo, fechar e Pedidos tela a tela">🧪 Criar exemplos de teste</button><button class="btn ghost" id="btn-rm-teste" style="display:none" onclick="removerTestes()">Remover testes</button><button class="btn primary" onclick="goScreen('s2')">+ Nova Cotação</button></span>
     </div>
     <div class="filters">
       <div class="fld"><label>Nº / nome / lista</label><input type="text" id="f-busca" placeholder="ex.: 277 ou alimentos" oninput="filtrarMonitor()"></div>
@@ -240,9 +254,9 @@ table.forntab .check{width:15px;height:15px}
       <button class="btn ghost sm" onclick="carregarMonitor()">↻ Atualizar</button>
     </div>
     <div class="tablewrap">
-      <table>
-        <thead><tr><th>Cotação</th><th>Lista ERP</th><th>Status</th><th>Fornecedores</th><th>Produtos</th><th style="text-align:right">Melhor total · economia</th><th>Ações</th></tr></thead>
-        <tbody id="monitor-tbody"><tr><td colspan="7" class="empty">Carregando…</td></tr></tbody>
+      <table class="mon">
+        <thead><tr><th>Data / nº</th><th>Empresa</th><th>Status</th><th title="Pedidos gerados · aprovados · recebidos · cancelados">Pedidos</th><th title="Produtos da cotação · com preço digitado · comprados (com vencedor)">Produtos</th><th title="Fornecedores convidados · que digitaram">Concorrentes</th><th>Total</th><th>Ações</th><th>Vencedores</th><th>Observação</th></tr></thead>
+        <tbody id="monitor-tbody"><tr><td colspan="10" class="empty">Carregando…</td></tr></tbody>
       </table>
     </div>
   </main>
@@ -431,8 +445,8 @@ async function carregarMonitor(){
   filtrarMonitor();
 }
 async function criarTeste(){
-  if (!confirm('Criar uma cotação de TESTE?\n\nEla vem com itens da lista 277 (ou amostra), 3 fornecedores de teste, 2 já com preços digitados e 1 só com o link aberto. Não vai pra nenhum vendedor real. Depois use "Remover testes".')) return;
-  try { var c = await post('/api/cotacoes/teste'); toastMsg('Cotação de teste #' + c.id + ' criada'); CUR = c; renderTudo(); goScreen('s3'); } catch(e) { toastMsg('Erro: ' + e.message); }
+  if (!confirm('Criar 5 cotações de EXEMPLO?\n\n• Pedido gerado (com pedidos em Pedidos de Compra)\n• Pronta pra análise (todos digitaram)\n• Em digitação\n• Não digitada\n• Cancelada\n\nItens da lista 277 (ou amostra) e fornecedores de teste. Nada vai pra vendedor real. Depois use "Remover testes".')) return;
+  try { var r = await post('/api/cotacoes/teste'); toastMsg((r.criadas || []).length + ' cotações de exemplo criadas'); carregarMonitor(); } catch(e) { toastMsg('Erro: ' + e.message); }
 }
 async function removerTestes(){
   if (!confirm('Remover TODAS as cotações de teste? (as reais ficam)')) return;
@@ -448,18 +462,55 @@ function filtrarMonitor(){
     return true;
   });
   var tb = $('#monitor-tbody'); var brm = $('#btn-rm-teste'); if (brm) brm.style.display = COTS.some(function(c){ return c.teste; }) ? '' : 'none';
-  if (!lista.length) { tb.innerHTML = '<tr><td colspan="7" class="empty">' + (COTS.length ? 'Nenhuma cotação com esse filtro.' : 'Nenhuma cotação ainda. Clique em "+ Nova Cotação" e digite o nº da lista do ERP.') + '</td></tr>'; return; }
+  if (!lista.length) { tb.innerHTML = '<tr><td colspan="10" class="empty">' + (COTS.length ? 'Nenhuma cotação com esse filtro.' : 'Nenhuma cotação ainda. Clique em "+ Nova Cotação" e digite o nº da lista do ERP.') + '</td></tr>'; return; }
   tb.innerHTML = lista.map(function(c){
-    var s = statusCot(c);
+    var s = statusCot(c), ps = c.pedidos_status || {gerados:0, aprovados:0, recebidos:0, cancelados:0};
+    var stTxt = {fechada:'Pedido gerado', cancelada:'Cancelada', analise:'Pronta p/ análise', digitacao:'Em digitação', aguardando:'Não digitada'}[s.k] || s.txt;
+    var emp = 'GRUPO - SUPERMERCADO ECONÔMICO' + (c.lojas && c.lojas.length === 1 ? ' (' + (LOJAS_NOMES[c.lojas[0]] || 'L' + c.lojas[0]) + ')' : ' (CAHU)');
     return '<tr>' +
-      '<td style="white-space:normal;min-width:220px"><b>#' + c.id + '</b> ' + esc(c.nome) + (c.teste ? ' <span class="status-pill amb" style="background:var(--amw);color:var(--amk)">TESTE</span>' : '') + '<br><span class="mini">' + esc(c.comprador && c.comprador.nome || '') + (c.comprador && c.comprador.nome ? ' · ' : '') + 'criada ' + dt(c.criadoEm) + (c.prazo ? ' · prazo ' + dd(c.prazo) : '') + '</span></td>' +
-      '<td>' + (c.lista ? '<b>' + c.lista + '</b><br><span class="mini">' + esc((c.lista_nome || '').slice(0, 26)) + '</span>' : '—') + '</td>' +
-      '<td><span class="status-pill ' + s.cls + '">' + s.txt + '</span></td>' +
-      '<td><span class="numpill blue" title="convidados">' + c.convidados + '</span> <span class="numpill" title="responderam">' + c.responderam + '</span> <span class="numpill amb" title="faltam responder">' + (c.convidados - c.responderam) + '</span></td>' +
-      '<td><span class="numpill" title="produtos na cotação">' + c.itens + '</span> <span class="numpill blue" title="com pelo menos 1 preço">' + c.com_preco + '</span></td>' +
-      '<td class="price">' + (c.total_vencedores > 0 ? fmtR(c.total_vencedores) + '<br><span class="' + (c.economia >= 0 ? 'eco-pos' : 'eco-neg') + '" style="font-size:11px">' + fmtR(c.economia) + (c.economia_pct != null ? ' (' + fmtN(c.economia_pct, 1) + '%)' : '') + '</span>' : '—') + '</td>' +
-      '<td><div class="acoes-row"><button class="btn ghost sm" onclick="abrirCotacao(' + c.id + ',\'s3\')">Acompanhar</button><button class="btn ghost sm" onclick="abrirCotacao(' + c.id + ',\'s4\')">Comparativo</button>' + (c.pedidos && c.pedidos.length ? '<button class="btn ghost sm" onclick="abrirCotacao(' + c.id + ',\'s5\')">Pedidos (' + c.pedidos.length + ')</button>' : '') + '</div></td></tr>';
+      '<td class="l" style="white-space:normal;min-width:150px">' + dt(c.prazo ? c.prazo + 'T18:00:00' : c.criadoEm) + '<br><b>#' + c.id + '</b>' + (c.teste ? ' <span class="status-pill" style="background:var(--amw);color:var(--amk);padding:2px 7px">TESTE</span>' : '') + '<br><span class="mini">' + esc(c.nome) + '</span></td>' +
+      '<td class="l" style="white-space:normal;max-width:190px;font-weight:600;font-size:11.5px">' + emp + '<br><span class="mini">lista ' + (c.lista || '—') + ' · ' + esc(c.comprador && c.comprador.nome || '') + '</span></td>' +
+      '<td><span class="st" style="color:' + (s.k === 'fechada' ? '#5B5BD6' : (s.k === 'cancelada' ? 'var(--neg)' : (s.k === 'aguardando' ? 'var(--neg)' : 'var(--amk)'))) + '">' + stTxt + '</span></td>' +
+      '<td><div class="numgrp"><button class="numcirc c1" title="Pedidos gerados" onclick="abrirCotacao(' + c.id + ',\'s5\')">' + ps.gerados + '</button><button class="numcirc c2" title="Pedidos aprovados" onclick="abrirCotacao(' + c.id + ',\'s5\')">' + ps.aprovados + '</button><button class="numcirc c3" title="Pedidos recebidos" onclick="abrirCotacao(' + c.id + ',\'s5\')">' + ps.recebidos + '</button><button class="numcirc c4" title="Pedidos cancelados" onclick="abrirCotacao(' + c.id + ',\'s5\')">' + ps.cancelados + '</button></div></td>' +
+      '<td><div class="numgrp"><button class="numpill" title="Produtos da cotação" onclick="monProdutos(' + c.id + ',\'todos\')">' + c.itens + '</button><button class="numpill" title="Produtos com preço digitado" onclick="monProdutos(' + c.id + ',\'digitados\')">' + c.com_preco + '</button><button class="numpill" title="Produtos comprados (com vencedor)" onclick="monProdutos(' + c.id + ',\'comprados\')">' + (c.comprados || 0) + '</button></div></td>' +
+      '<td><div class="numgrp"><button class="numpill blue" title="Fornecedores convidados" onclick="monFornecedores(' + c.id + ',false)">' + c.convidados + '</button><button class="numpill blue" title="Fornecedores que digitaram" onclick="monFornecedores(' + c.id + ',true)">' + c.responderam + '</button></div></td>' +
+      '<td style="color:#5B5BD6;font-weight:800;white-space:nowrap">' + (c.total_vencedores > 0 ? fmtR(c.total_vencedores) : '—') + (c.total_vencedores > 0 && c.economia != null ? '<br><span class="' + (c.economia >= 0 ? 'eco-pos' : 'eco-neg') + '" style="font-size:11px">' + fmtR(c.economia) + '</span>' : '') + '</td>' +
+      '<td><div class="numgrp"><button class="aicon" title="Ver pedidos" onclick="abrirCotacao(' + c.id + ',\'s5\')">💲</button><button class="aicon" title="Acompanhamento (fornecedores, links, WhatsApp)" onclick="abrirCotacao(' + c.id + ',\'s3\')">📈</button><button class="aicon" title="Replicar: nova cotação da mesma lista" onclick="replicar(' + (c.lista || 0) + ')">🔁</button>' + (c.status === 'aberta' ? '<button class="aicon" title="Cancelar cotação" onclick="cancelarMon(' + c.id + ')">🗑️</button>' : '') + '</div></td>' +
+      '<td><button class="vbtn" title="Vencedores (comparativo)" onclick="abrirCotacao(' + c.id + ',\'s4\')">🛒</button></td>' +
+      '<td><button class="obs-btn" title="Observação" onclick="monObs(' + c.id + ')">i</button></td></tr>';
   }).join('');
+}
+// ─── modais do Monitor (estilo Club): produtos, concorrentes, observação
+async function monDet(id){ try { return await api('/api/cotacoes/' + id); } catch(e) { toastMsg('Erro: ' + e.message); return null; } }
+async function monProdutos(id, tipo){
+  var c = await monDet(id); if (!c) return; var C = c.comparativo;
+  var its = C.itens.filter(function(i){ return tipo === 'todos' || (tipo === 'digitados' ? Object.keys(i.precos).length > 0 : !!i.vencedor); });
+  var nomeF = function(cf){ var f = C.fornecedores.find(function(x){ return x.codFornec === cf; }); return f ? f.nome : ''; };
+  var h = '<div style="display:flex;gap:8px;margin-bottom:12px"><button class="btn ghost sm" onclick="abrirCotacao(' + id + ',\'s4\');fecharModal()">Abrir comparativo</button><button class="btn ghost sm" onclick="exportarModalCsv()">Excel (CSV)</button></div>';
+  h += '<table><thead><tr><th>Código</th><th>Produto</th><th style="text-align:right">Qtd</th><th style="text-align:right">Emb</th>' + (tipo === 'todos' ? '<th style="text-align:right">Último custo</th>' : '<th>Fornecedor</th><th style="text-align:right">Preço</th><th style="text-align:right">Total</th>') + '</tr></thead><tbody>';
+  var tot = 0;
+  h += its.map(function(i){ var v = i.vencedor || i.melhor; if (v) tot += v.preco * i.qtd; return '<tr><td class="mini">' + esc(i.cod) + '</td><td style="white-space:normal">' + esc(i.descricao) + '</td><td class="price">' + fmtN(i.qtd) + '</td><td class="price">' + i.emb + '</td>' + (tipo === 'todos' ? '<td class="price">' + (i.ultimo_custo > 0 ? fmtR(i.ultimo_custo) : '—') + '</td>' : '<td>' + (v ? esc(nomeF(v.codFornec)) : '—') + '</td><td class="price">' + (v ? fmtR(v.preco) : '—') + '</td><td class="price">' + (v ? fmtR(v.preco * i.qtd) : '—') + '</td>') + '</tr>'; }).join('');
+  if (tipo !== 'todos') h += '<tr style="font-weight:800;background:var(--wsh)"><td colspan="6">Total</td><td class="price">' + fmtR(tot) + '</td></tr>';
+  h += '</tbody></table>';
+  abrirModal({todos:'Produtos da cotação', digitados:'Produtos digitados', comprados:'Produtos comprados'}[tipo] + ' · #' + id + ' (' + its.length + ')', h, true);
+}
+async function monFornecedores(id, soDigitaram){
+  var c = await monDet(id); if (!c) return; var F = c.comparativo.fornecedores.filter(function(f){ return !soDigitaram || f.cotados > 0; });
+  var h = '<div class="mini" style="margin-bottom:10px">' + c.comparativo.resumo.convidados + ' convidados · ' + c.comparativo.resumo.responderam + ' responderam</div><table><thead><tr><th>Fornecedor</th><th>Vendedor</th><th>WhatsApp</th><th>Status</th><th style="text-align:right">Cotou</th><th>Condição</th><th style="text-align:right">Venceu</th><th style="text-align:right">Total vencedor</th></tr></thead><tbody>';
+  h += F.map(function(f){ return '<tr><td><b>' + esc(f.nome) + '</b></td><td>' + esc(f.vendedor && f.vendedor.nome || '—') + '</td><td class="mini">' + esc(f.vendedor && f.vendedor.whats || '—') + '</td><td>' + stForn(f) + '</td><td class="price">' + f.cotados + ' de ' + c.itens.length + '</td><td>' + esc(f.condicao || f.condicao_padrao || '—') + '</td><td class="price">' + f.itens_vencedor + ' itens</td><td class="price">' + (f.total_vencedor > 0 ? fmtR(f.total_vencedor) : '—') + '</td></tr>'; }).join('') + '</tbody></table>';
+  abrirModal((soDigitaram ? 'Concorrentes que digitaram' : 'Concorrentes convidados') + ' · #' + id, h, true);
+}
+async function monObs(id){
+  var c = await monDet(id); if (!c) return; var R = c.comparativo.resumo;
+  var conds = c.comparativo.fornecedores.filter(function(f){ return f.condicao; }).map(function(f){ return esc(f.nome) + ': ' + esc(f.condicao); });
+  abrirModal('Observação · #' + id, '<div style="font-size:13px;line-height:1.9"><div class="mini" style="text-transform:uppercase;font-weight:800">Cotação</div><div><b>' + esc(c.nome) + '</b> · lista ' + (c.lista || '—') + ' ' + esc(c.lista_nome || '') + '</div><div class="mini" style="text-transform:uppercase;font-weight:800;margin-top:10px">Condições de pagamento informadas</div><div>' + (conds.length ? conds.join('<br>') : '—') + '</div><div class="mini" style="text-transform:uppercase;font-weight:800;margin-top:10px">Enviada por</div><div><b>' + esc(c.criadoPor || '—') + '</b> em ' + dt(c.criadoEm) + (c.prazo ? ' · prazo pra resposta ' + dd(c.prazo) : '') + '</div>' + (c.fechadaEm ? '<div class="mini" style="text-transform:uppercase;font-weight:800;margin-top:10px">Fechada</div><div>' + dt(c.fechadaEm) + (c.fechadaPor ? ' por ' + esc(c.fechadaPor) : '') + ' · ' + (c.pedidos || []).length + ' pedido(s) · ' + fmtR(R.total_vencedores) + '</div>' : '') + '</div>');
+}
+function replicar(lista){ if (!lista) { goScreen('s2'); return; } $('#ns-lista').value = lista; goScreen('s2'); calcularSugestao(); }
+async function cancelarMon(id){ if (!confirm('Cancelar a cotação #' + id + '?')) return; try { await post('/api/cotacoes/' + id + '/cancelar'); toastMsg('Cotação cancelada'); carregarMonitor(); } catch(e) { toastMsg('Erro: ' + e.message); } }
+function exportarModalCsv(){
+  var t = $('#modal-body').querySelector('table'); if (!t) return; var rows = [];
+  t.querySelectorAll('tr').forEach(function(tr){ var l = []; tr.querySelectorAll('th,td').forEach(function(c){ l.push('"' + c.textContent.replace(/\s+/g, ' ').trim().replace(/"/g, '""') + '"'); }); rows.push(l.join(';')); });
+  var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['\ufeff' + rows.join('\n')], {type:'text/csv;charset=utf-8;'})); a.download = ($('#modal-title').textContent || 'cotacao').replace(/[^a-z0-9]+/gi, '_') + '.csv'; document.body.appendChild(a); a.click(); document.body.removeChild(a);
 }
 
 // ───────── NOVA COTAÇÃO — sugestão de compra (topo)
@@ -791,7 +842,7 @@ function renderTudo(){ carregarUltimas(); $('#cur-lbl').innerHTML = CUR ? 'Cota�
 async function renderVazio(m){
   m.innerHTML = '<div class="empty">Carregando…</div>';
   var lista = []; try { lista = await api('/api/cotacoes'); } catch(e) {}
-  if (!lista.length) { m.innerHTML = '<div class="pubcard" style="max-width:720px;margin:30px auto;text-align:center"><b>Ainda não existe nenhuma cotação.</b><p style="color:var(--ink2);margin:10px 0 16px">O caminho é: <b>Nova Cotação</b> (digite a lista, ex. 277, confira as quantidades e marque os fornecedores) → criar → mandar os links pelo WhatsApp em <b>Acompanhamento</b> → quando os vendedores digitarem os preços, o <b>Comparativo</b> aparece aqui, item a item.</p><button class="btn ghost" onclick="criarTeste()">🧪 Criar cotação de teste</button> <button class="btn primary" onclick="goScreen(\'s2\')">Ir pra Nova Cotação →</button></div>'; return; }
+  if (!lista.length) { m.innerHTML = '<div class="pubcard" style="max-width:720px;margin:30px auto;text-align:center"><b>Ainda não existe nenhuma cotação.</b><p style="color:var(--ink2);margin:10px 0 16px">O caminho é: <b>Nova Cotação</b> (digite a lista, ex. 277, confira as quantidades e marque os fornecedores) → criar → mandar os links pelo WhatsApp em <b>Acompanhamento</b> → quando os vendedores digitarem os preços, o <b>Comparativo</b> aparece aqui, item a item.</p><button class="btn ghost" onclick="criarTeste()">🧪 Criar exemplos de teste</button> <button class="btn primary" onclick="goScreen(\'s2\')">Ir pra Nova Cotação →</button></div>'; return; }
   m.innerHTML = '<div class="pubcard" style="max-width:900px;margin:20px auto"><b>Escolha a cotação</b><p class="mini" style="margin:6px 0 12px">Esta aba mostra os dados de uma cotação já criada. Clique numa das abaixo (ou abra pelo Monitor).</p>' + lista.map(function(c){ var st = statusCot(c); return '<div class="totfoot-row" style="align-items:center"><span><b>#' + c.id + '</b> ' + esc(c.nome) + ' <span class="status-pill ' + st.cls + '" style="margin-left:6px">' + st.txt + '</span><br><span class="mini">lista ' + (c.lista || '—') + ' · ' + c.itens + ' itens · ' + c.responderam + ' de ' + c.convidados + ' fornecedores responderam</span></span><span><button class="btn ghost sm" onclick="abrirCotacao(' + c.id + ',\'s3\')">Acompanhar</button> <button class="btn primary sm" onclick="abrirCotacao(' + c.id + ',\'s4\')">Comparativo</button></span></div>'; }).join('') + '</div>';
 }
 function cabecalho(sub){
