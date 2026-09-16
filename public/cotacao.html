@@ -185,6 +185,14 @@ td.price.manual{box-shadow:inset 0 0 0 2px var(--inf)}
 .srch .res .mini{margin-left:6px}
 .finp{border:1px solid var(--ln2);border-radius:7px;padding:6px 8px;font-family:inherit;font-size:12px;width:100%;min-width:0;box-sizing:border-box}
 table.forntab{table-layout:fixed;min-width:860px}
+table.forntab.cad9{min-width:1180px}
+table.forntab.cad9 th{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:10px 8px}
+table.forntab.cad9 td{padding:8px 8px}
+table.forntab.cad9 td .finp{width:100%;min-width:0!important;box-sizing:border-box}
+table.forntab.cad9 td:nth-child(5) .finp{text-align:right}
+table.forntab.cad9 td:nth-child(7) .finp{text-align:center}
+table.forntab.cad9 td:last-child{text-align:right;white-space:nowrap}
+table.forntab.cad9 td:last-child .link-btn{display:block;margin-left:auto;font-size:11.5px;line-height:1.6}
 table.forntab td{white-space:normal;vertical-align:middle}
 table.forntab td .mini{display:block;margin-top:2px;line-height:1.35}
 table.forntab .check{width:15px;height:15px}
@@ -340,9 +348,9 @@ table.forntab .check{width:15px;height:15px}
     <div id="cad" style="display:none">
       <div class="toolbar" style="align-items:center;gap:12px;flex-wrap:wrap"><span style="color:var(--ink2);font-size:12px;flex:1;min-width:240px">Fornecedores desta lista com vendedor, WhatsApp e e-mail. Na Nova Cotação eles já aparecem marcados; é só tirar quem não deve receber.</span><span class="mini" id="cad-cont"></span><span class="mini" id="cad-salvo"></span><button class="btn primary" onclick="salvarFornLista()">Salvar fornecedores desta lista</button></div>
       <div class="tablewrap">
-        <table class="forntab">
-          <colgroup><col><col style="width:20%"><col style="width:17%"><col style="width:22%"><col style="width:80px"></colgroup>
-          <thead><tr><th>Fornecedor</th><th>Vendedor</th><th>WhatsApp (só números, com DDD)</th><th>E-mail</th><th>Fat. mínimo (R$)</th><th>Cond. pagto</th><th>Prazo entrega</th><th>Observação</th><th></th></tr></thead>
+        <table class="forntab cad9">
+          <colgroup><col style="width:23%"><col style="width:13%"><col style="width:10%"><col style="width:15%"><col style="width:8%"><col style="width:9%"><col style="width:6%"><col style="width:10%"><col style="width:72px"></colgroup>
+          <thead><tr><th>Fornecedor</th><th>Vendedor</th><th>WhatsApp</th><th>E-mail</th><th>Fat. mín. (R$)</th><th>Cond. pagto</th><th>Prazo (d)</th><th>Observação</th><th></th></tr></thead>
           <tbody id="cad-tbody"><tr><td colspan="9" class="empty">Nenhum fornecedor ainda. Busque acima e clique pra adicionar.</td></tr></tbody>
         </table>
       </div>
@@ -734,7 +742,7 @@ function renderFornecedores(){
   if (!CAD.length) { tb.innerHTML = '<tr><td colspan="9" class="empty">Nenhum fornecedor ainda. Busque acima e clique pra adicionar.</td></tr>'; return; }
   tb.innerHTML = CAD.map(function(f){
     var idArgs = f.codFornec + ',\'' + esc(f.nome).replace(/'/g, '') + '\'';
-    return '<tr' + (f.inativo ? ' class="off" title="Inativo desde ' + dd(f.inativo_em) + ': não aparece na Nova Cotação"' : '') + '><td><b>' + esc(f.nome) + '</b>' + (f.inativo ? ' <span class="status-pill cancel" style="margin-left:4px">Inativo</span>' : '') + '<br><span class="mini">' + (f.codFornec ? 'cód. ' + f.codFornec + (f.cnpj ? ' · CNPJ ' + esc(f.cnpj) : '') : 'sem cadastro') + (f.telefones && f.telefones.length ? ' · cadastro: ' + f.telefones.map(function(t){ return esc(t.valor); }).join(', ') : '') + (f.lista_origem ? ' · vendedor veio da lista ' + esc(f.lista_origem) : '') + (f.casou === 'parcial' ? ' · <span style="color:var(--amk);font-weight:700">casado por nome parecido (planilha: ' + esc(f.nome_planilha || '') + ')</span>' : '') + (!f.codFornec ? ' · <span style="color:var(--neg);font-weight:700">não achado no ERP (só nome da planilha)</span>' : '') + (f.outros && f.outros.length ? ' · outros vendedores na planilha: ' + esc(f.outros.join(', ')) : '') + '</span></td>' +
+    return '<tr' + (f.inativo ? ' class="off" title="Inativo desde ' + dd(f.inativo_em) + ': não aparece na Nova Cotação"' : '') + '><td><b>' + esc(f.nome) + '</b>' + (f.inativo ? ' <span class="status-pill cancel" style="margin-left:4px">Inativo</span>' : '') + '<br><span class="mini">' + (f.codFornec ? 'cód. ' + f.codFornec + (f.cnpj ? ' · CNPJ ' + esc(f.cnpj) : '') : 'sem cadastro') + (f.telefones && f.telefones.length ? ' · cadastro: ' + f.telefones.map(function(t){ return esc(t.valor); }).join(', ') : '') + (f.lista_origem ? ' · vendedor veio da lista ' + esc(f.lista_origem) : '') + (f.casou === 'parcial' ? ' · <span style="color:var(--amk);font-weight:700">casado por nome parecido (planilha: ' + esc((f.nome_planilha || '').slice(0, 38)) + ((f.nome_planilha || '').length > 38 ? '…' : '') + ')</span>' : '') + (!f.codFornec ? ' · <span style="color:var(--neg);font-weight:700">não achado no ERP</span>' : '') + (f.outros && f.outros.length ? ' · outros vendedores na planilha: ' + esc(f.outros.join(', ')) : '') + '</span></td>' +
       '<td><input class="finp" value="' + esc(f.vendedor.nome) + '" placeholder="nome do vendedor" onchange="setForn(' + f.codFornec + ',\'nome\',this.value)"></td>' +
       '<td><input class="finp" value="' + esc(f.vendedor.whats) + '" placeholder="5581999990000"' + (f.vendedor.whats ? '' : ' style="border-color:var(--neg);background:var(--negw)"') + ' onchange="setForn(' + f.codFornec + ',\'whats\',this.value);renderFornecedores()">' + (f.vendedor.whats ? '' : '<div class="mini" style="color:var(--neg);margin-top:3px">sem WhatsApp: o link vai ter que ser copiado à mão</div>') + '</td>' +
       '<td><input class="finp" value="' + esc(f.vendedor.email) + '" placeholder="opcional" onchange="setForn(' + f.codFornec + ',\'email\',this.value)"></td>' +
