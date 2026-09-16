@@ -4619,7 +4619,7 @@ app.get('/api/cahu-distribuidora/tabela-precos.xlsx', async (req, res) => {
         if (isZebra) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ZEBRA } };
         if (c === 1) cell.alignment = { horizontal: 'center', vertical: 'middle' };
         if (c === 2) cell.alignment = { horizontal: 'left', vertical: 'middle' };
-        if (c >= 3) { cell.alignment = { horizontal: 'right', vertical: 'middle' }; cell.numFmt = 'R$ #,##0.00'; }
+        if (c >= 3) { cell.alignment = { horizontal: 'center', vertical: 'middle' }; cell.numFmt = 'R$ #,##0.00'; }
       }
       row.height = 18;
     });
