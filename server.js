@@ -4570,14 +4570,11 @@ app.get('/api/cahu-distribuidora/tabela-precos.xlsx', async (req, res) => {
     ws.mergeCells(`B1:${lastCol}1`);
     const titleCell = ws.getCell('B1');
     // no Excel de tabela única só há 3 colunas: título curto (o logo já identifica a CAHU)
-    titleCell.value = tabelaUnica
-      ? `${tabelaUnica.label.toUpperCase()}
-CAHU DISTRIBUIDORA`
-      : 'TABELA DE PREÇOS — CAHU DISTRIBUIDORA';
-    titleCell.font = { name: 'Arial Black', size: tabelaUnica ? 13 : 18, bold: true, color: { argb: 'FF000000' } };
+    titleCell.value = tabelaUnica ? tabelaUnica.label.toUpperCase() : 'TABELA DE PREÇOS';
+    titleCell.font = { name: 'Arial Black', size: tabelaUnica ? 14 : 18, bold: true, color: { argb: 'FF000000' } };
     titleCell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
     titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: NAVY } };
-    ws.getRow(1).height = tabelaUnica ? 62 : 54;
+    ws.getRow(1).height = 54;
     try {
       if (fs.existsSync(CAHU_LOGO_EXCEL)) {
         const logoBuf = fs.readFileSync(CAHU_LOGO_EXCEL);
@@ -4708,9 +4705,9 @@ app.get('/api/cahu-distribuidora/tabela-precos.pdf', async (req, res) => {
         doc.image(logoBuf, MARGEM + 8, y + 6, { height: hLogo });
         xTitulo = MARGEM + 8 + wLogo + 10; wTitulo = larguraUtil - (xTitulo - MARGEM) - 10;
       }
-      doc.fillColor(PRETO).font('Helvetica-Bold').fontSize(tabelaUnica ? 13 : 17)
-        .text(tabelaUnica ? `${tabelaUnica.label.toUpperCase()} — CAHU DISTRIBUIDORA` : 'TABELA DE PREÇOS — CAHU DISTRIBUIDORA',
-          xTitulo, y + (ALT_FAIXA - (tabelaUnica ? 13 : 17)) / 2 - 2, { width: wTitulo, align: 'center', lineBreak: false });
+      doc.fillColor(PRETO).font('Helvetica-Bold').fontSize(tabelaUnica ? 15 : 17)
+        .text(tabelaUnica ? tabelaUnica.label.toUpperCase() : 'TABELA DE PREÇOS',
+          xTitulo, y + (ALT_FAIXA - (tabelaUnica ? 15 : 17)) / 2 - 2, { width: wTitulo, align: 'center', lineBreak: false });
       y += ALT_FAIXA;
       doc.rect(MARGEM, y, larguraUtil, ALT_SUB).fill(AMARELO_CLARO);
       doc.fillColor(PRETO).font('Helvetica-Oblique').fontSize(8.5)
