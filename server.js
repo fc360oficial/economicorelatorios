@@ -218,6 +218,9 @@ app.use((req, res, next) => {
   if (/^\/pedido\/[a-f0-9]{32}(\/pdf)?$/.test(req.path) || /^\/api\/pedido-publico\/[a-f0-9]{32}(\/|$)/.test(req.path)) return next();
   // Link do fornecedor na Cotação: mesmo esquema (token de 32 hex por fornecedor convidado)
   if (/^\/cotacao\/[a-f0-9]{32}$/.test(req.path) || /^\/api\/cotacao-publica\/[a-f0-9]{32}(\/|$)/.test(req.path)) return next();
+  // App de contagem de negativos no celular do auxiliar: entra por PIN da loja,
+  // depois manda o token (32 hex) em toda chamada — validado dentro da rota
+  if (req.path === '/contagem.html' || req.path === '/contagem' || req.path === '/manifest-contagem.json' || req.path.startsWith('/api/contagem-publica/')) return next();
   // Pré-aquecimento interno (somente localhost)
   if (req.headers['x-internal-warmup'] === 'fc360warmup2026' && req.socket.remoteAddress === '::1') return next();
   const ext = req.path.split('.').pop().toLowerCase();
@@ -4698,6 +4701,77 @@ app.use('/negativos-agent', (req, res) => {
     if (!res.headersSent) res.status(502).send('negativos-agent não respondeu: ' + err.message);
   });
   req.pipe(proxyReq);
+});
+
+// ═══════════════════════════════════════════════════
+// Contagem de Negativos — o auxiliar digita no celular (/contagem.html),
+// a central acompanha em /negativos.html. Dados em data/contagem-negativos/.
+// O dia é aberto pelo bot negativos-wpp na hora do envio no grupo.
+// ═══════════════════════════════════════════════════
+const contagemNeg = require('./lib/contagem-negativos');
+contagemNeg.init();
+app.get('/contagem', (req, res) => res.redirect('/contagem.html'));
+
+// -- público (celular) --
+const cnLoja = req => contagemNeg.lojaPorToken(req.query.t || req.body?.t);
+app.post('/api/contagem-publica/entrar', (req, res) => {
+  const { loja, pin } = req.body || {};
+  const r = contagemNeg.lojaPorPin(parseInt(loja, 10), String(pin || '').trim());
+  if (!r) return res.status(401).json({ error: 'PIN não confere com essa loja.' });
+  res.json({ ...r, nome: contagemNeg.LOJAS_NOMES[r.loja] });
+});
+app.get('/api/contagem-publica/hoje', (req, res) => {
+  const ln = cnLoja(req); if (!ln) return res.status(401).json({ error: 'Sessão inválida. Entre de novo com o PIN.' });
+  const data = req.query.data || contagemNeg.diaAtualDaLoja(ln);
+  const v = data ? contagemNeg.visaoLoja(data, ln) : null;
+  res.json(v || { vazio: true, loja: ln, nome: contagemNeg.LOJAS_NOMES[ln] });
+});
+app.post('/api/contagem-publica/item', (req, res) => {
+  const ln = cnLoja(req); if (!ln) return res.status(401).json({ error: 'Sessão inválida. Entre de novo com o PIN.' });
+  try { res.json({ ok: true, reg: contagemNeg.lancarItem(req.body.data, ln, req.body) }); }
+  catch (err) { res.status(400).json({ error: err.message }); }
+});
+app.post('/api/contagem-publica/concluir', (req, res) => {
+  const ln = cnLoja(req); if (!ln) return res.status(401).json({ error: 'Sessão inválida. Entre de novo com o PIN.' });
+  try { res.json(contagemNeg.concluir(req.body.data, ln, req.body.nome)); }
+  catch (err) { res.status(400).json({ error: err.message }); }
+});
+
+// -- central (sessão) --
+app.get('/api/contagem/dias', (req, res) => res.json(contagemNeg.listarDias().slice(0, 60)));
+app.get('/api/contagem/config', (req, res) => {
+  if (req.session.user.perfil !== 'admin') return res.status(403).json({ error: 'Só admin.' });
+  const c = contagemNeg.config();
+  res.json(Object.keys(c.lojas).map(ln => ({ loja: +ln, nome: contagemNeg.LOJAS_NOMES[ln], pin: c.lojas[ln].pin })));
+});
+app.get('/api/contagem/:data', (req, res) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(req.params.data)) return res.status(400).json({ error: 'Data inválida.' });
+  const v = contagemNeg.visaoCentral(req.params.data);
+  if (!v) return res.status(404).json({ error: 'Sem contagem nesse dia.' });
+  res.json(v);
+});
+app.get('/api/contagem/:data/csv', (req, res) => {
+  const c = contagemNeg.csv(req.params.data);
+  if (!c) return res.status(404).send('Sem contagem nesse dia.');
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="negativos_${req.params.data}.csv"`);
+  res.send(c);
+});
+app.post('/api/contagem/:data/:loja/reabrir', (req, res) => {
+  try { res.json(contagemNeg.reabrir(req.params.data, parseInt(req.params.loja, 10))); }
+  catch (err) { res.status(400).json({ error: err.message }); }
+});
+// Cobrar lojas pendentes: manda texto no grupo via o bot (sem link)
+app.post('/api/contagem/:data/cobrar', async (req, res) => {
+  const v = contagemNeg.visaoCentral(req.params.data);
+  if (!v) return res.status(404).json({ error: 'Sem contagem nesse dia.' });
+  const pend = v.lojas.filter(l => !l.semNegativos && l.status !== 'concluida');
+  if (!pend.length) return res.json({ ok: true, msg: 'Todas as lojas já concluíram.' });
+  const texto = `⏰ *Contagem de negativos pendente*\n\n` + pend.map(l => `• Loja ${l.loja} (${l.nome}): ${l.contados}/${l.itens} itens${l.status === 'nao_iniciada' ? ' — não começou' : ''}`).join('\n') + `\n\nAbram o app *Contagem* e concluam, por favor.`;
+  try {
+    const r = await fetch('http://127.0.0.1:3010/mensagem-grupo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texto }) });
+    res.status(r.status).json(await r.json());
+  } catch (err) { res.status(502).json({ error: 'negativos-wpp não respondeu: ' + err.message }); }
 });
 
 // Injeta manualmente um valor congelado de Avaria/Prevenção pra um mês

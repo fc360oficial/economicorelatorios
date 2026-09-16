@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0E1626">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Contagem">
+<link rel="manifest" href="/manifest-contagem.json">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<link rel="stylesheet" href="/design-system.css">
+<title>Contagem — Econômico</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{font-family:var(--font);background:var(--pap);color:var(--ink);font-size:14px;line-height:1.4;display:flex;flex-direction:column;min-height:100dvh}
+.mono{font-family:ui-monospace,Consolas,'Courier New',monospace;font-variant-numeric:tabular-nums}
+.label{font-size:10.5px;font-weight:700;letter-spacing:1.1px;text-transform:uppercase;color:var(--ink3)}
+.btn{height:40px;padding:0 14px;border-radius:var(--r);border:1px solid transparent;font-family:var(--font);font-size:13px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap}
+.btn:focus-visible{outline:2px solid var(--am);outline-offset:1px}
+.btn:disabled{opacity:.55;cursor:default}
+.btn-primary{background:var(--am);color:var(--amk)}
+.btn-primary:hover{background:var(--am-hover)}
+.btn-secondary{background:var(--crd);color:var(--ink2);border-color:var(--ln2)}
+.btn-ghost{background:transparent;color:var(--ink2)}
+
+/* login */
+#login{flex:1;display:flex;align-items:center;justify-content:center;padding:24px 16px}
+.lbox{background:var(--crd);border:1px solid var(--ln);border-radius:var(--r-lg);box-shadow:var(--sh-md);padding:22px 20px;width:100%;max-width:380px}
+.lbox img{height:34px;margin-bottom:14px}
+.lbox h1{font-size:19px;font-weight:800}
+.lbox p{font-size:12.5px;color:var(--ink3);margin:4px 0 16px}
+.fld{margin-bottom:12px}
+.fld label{display:block;font-size:10.5px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--ink3);margin-bottom:5px}
+.fld select,.fld input{width:100%;height:46px;border-radius:var(--r);border:1.5px solid var(--ln2);background:var(--pap);color:var(--ink);font-family:var(--font);font-size:16px;padding:0 12px;outline:none}
+.fld input:focus,.fld select:focus{border-color:var(--am)}
+.fld input.pin{font-family:ui-monospace,Consolas,monospace;font-size:24px;letter-spacing:8px;text-align:center;font-weight:700}
+.erro{color:var(--neg);font-size:12.5px;font-weight:600;margin:-4px 0 10px;min-height:16px}
+
+/* app */
+#app{flex:1;display:flex;flex-direction:column;min-height:0}
+.appbar{background:var(--crd);border-bottom:1px solid var(--ln);padding:10px 14px 10px;position:sticky;top:0;z-index:5}
+.row1{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.row1 h2{font-size:16px;font-weight:800}
+.row1 .sub{font-size:11.5px;color:var(--ink3);margin-top:1px}
+.folha{font-family:ui-monospace,Consolas,monospace;font-size:11px;font-weight:700;color:var(--amk);background:var(--amw);border:1px solid var(--am-ln);padding:3px 7px;border-radius:5px;white-space:nowrap}
+.actions{display:flex;gap:8px;margin-top:10px}
+.actions .btn-primary{flex:1}
+.progress{margin-top:10px}
+.progress .txt{display:flex;justify-content:space-between;font-size:11.5px;color:var(--ink2)}
+.progress .txt b{color:var(--ink)}
+.progress .bar{height:6px;background:var(--wsh);border-radius:999px;overflow:hidden;margin-top:5px}
+.progress .bar i{display:block;height:100%;background:var(--am);width:0;transition:width .25s}
+.search{padding:8px 12px;background:var(--crd);border-bottom:1px solid var(--ln);position:relative}
+.search input{width:100%;height:38px;border-radius:var(--r);border:1px solid var(--ln2);background:var(--pap);color:var(--ink);font-family:var(--font);font-size:14px;padding:0 12px 0 34px;outline:none}
+.search input:focus{border-color:var(--am)}
+.search svg{position:absolute;left:23px;top:20px;color:var(--ink3)}
+.list{flex:1;overflow-y:auto;padding:8px 10px 90px;display:flex;flex-direction:column;gap:8px}
+.grp{font-size:10.5px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--ink3);padding:8px 4px 2px;display:flex;justify-content:space-between;gap:8px}
+.grp b{color:var(--ink2);white-space:nowrap}
+.item{background:var(--crd);border:1px solid var(--ln);border-radius:var(--r-lg);padding:10px 12px;display:grid;grid-template-columns:1fr auto;gap:8px 10px;align-items:center;box-shadow:var(--sh-sm)}
+.item.done{border-color:var(--pos)}
+.item.zero{border-color:var(--ln2);background:var(--wsh)}
+.item .cod{font-family:ui-monospace,Consolas,monospace;font-size:11px;color:var(--ink3)}
+.item .desc{font-size:13.5px;font-weight:600;line-height:1.25;margin-top:1px}
+.item .sys{text-align:right}
+.item .sys .label{font-size:9.5px}
+.item .sys .v{font-family:ui-monospace,Consolas,monospace;font-size:16px;font-weight:700;color:var(--neg)}
+.fields{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end}
+.fields label{display:block;font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--ink3);margin-bottom:3px}
+.fields input{width:100%;height:46px;border-radius:var(--r);border:1.5px solid var(--ln2);background:var(--pap);color:var(--ink);font-family:ui-monospace,Consolas,monospace;font-size:22px;font-weight:700;text-align:center;outline:none}
+.fields input:focus{border-color:var(--am);background:var(--crd)}
+.fields input:disabled{background:var(--wsh);color:var(--ink3)}
+.zbtn{height:46px;padding:0 10px;border-radius:var(--r);border:1.5px solid var(--ln2);background:var(--crd);color:var(--ink2);font-family:var(--font);font-size:11px;font-weight:700;cursor:pointer;line-height:1.1;text-align:center}
+.zbtn[aria-pressed="true"]{background:var(--ink);color:var(--pap);border-color:var(--ink)}
+.tot{grid-column:1/-1;display:flex;justify-content:space-between;font-size:11.5px;color:var(--ink2);border-top:1px dashed var(--ln);padding-top:6px;gap:8px}
+.tot .mono{font-weight:700;color:var(--ink)}
+.tot .dif{font-weight:700;text-align:right;color:var(--amk)}
+.foot{background:var(--crd);border-top:1px solid var(--ln);padding:8px 14px;display:flex;justify-content:space-between;align-items:center;font-size:11.5px;color:var(--ink3);position:sticky;bottom:0}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--pos);margin-right:5px;vertical-align:middle}
+.dot.off{background:var(--neg)}
+.dot.pend{background:var(--am)}
+.toast{position:fixed;left:14px;right:14px;bottom:56px;background:var(--ink);color:var(--pap);padding:10px 14px;border-radius:var(--r);font-size:13px;font-weight:600;box-shadow:var(--sh-md);opacity:0;transform:translateY(8px);transition:.25s;pointer-events:none;z-index:9}
+.toast.show{opacity:1;transform:none}
+.vazio{padding:40px 20px;text-align:center;color:var(--ink3);font-size:14px}
+.vazio b{display:block;color:var(--ink);font-size:16px;margin-bottom:6px}
+.done-box{margin:10px;background:var(--posw);border:1px solid var(--pos);border-radius:var(--r-lg);padding:14px;color:var(--pos);font-weight:700;font-size:13.5px;text-align:center}
+@media (prefers-reduced-motion:reduce){.toast,.progress .bar i{transition:none}}
+</style>
+</head>
+<body class="ds">
+
+<!-- ===== Entrada por PIN ===== -->
+<div id="login">
+  <form class="lbox" onsubmit="entrar(event)">
+    <img src="/logo.png" alt="Econômico">
+    <h1>Contagem de negativos</h1>
+    <p>Escolha sua loja e digite o PIN. Só precisa uma vez neste celular.</p>
+    <div class="fld"><label for="lj">Loja</label>
+      <select id="lj" required>
+        <option value="">Escolha…</option>
+        <option value="1">Loja 1 · CAHU</option><option value="2">Loja 2 · MURIBECA</option><option value="3">Loja 3 · PONTE</option>
+        <option value="4">Loja 4 · ATACAREJO</option><option value="5">Loja 5 · PORTA LARGA</option><option value="6">Loja 6 · JARDIM JORDÃO</option>
+      </select></div>
+    <div class="fld"><label for="pin">PIN da loja</label><input id="pin" class="pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" required></div>
+    <div class="fld"><label for="nome">Seu nome</label><input id="nome" type="text" autocomplete="name" placeholder="Como aparece pra central" required></div>
+    <div class="erro" id="lerro"></div>
+    <button class="btn btn-primary" style="width:100%;height:46px" type="submit">Entrar</button>
+  </form>
+</div>
+
+<!-- ===== App ===== -->
+<div id="app" hidden>
+  <div class="appbar">
+    <div class="row1">
+      <div><h2 id="titulo">Loja</h2><div class="sub" id="subt">—</div></div>
+      <span class="folha" id="folha">—</span>
+    </div>
+    <div class="actions">
+      <button class="btn btn-primary" id="btnConcluir" onclick="concluir()">Concluir contagem</button>
+      <button class="btn btn-secondary" onclick="carregar(true)" title="Atualizar">↻</button>
+    </div>
+    <div class="progress">
+      <div class="txt"><span><b id="pDone">0</b> de <b id="pTot">0</b> itens contados</span><span id="pPct">0%</span></div>
+      <div class="bar"><i id="pBar"></i></div>
+    </div>
+  </div>
+  <div class="search">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <input id="busca" type="search" placeholder="Buscar por código ou nome" oninput="render()" autocomplete="off">
+  </div>
+  <div class="list" id="lista"></div>
+  <div class="foot">
+    <span><span class="dot" id="netDot"></span><span id="netTxt">—</span></span>
+    <span><span id="quem"></span> · <button class="btn btn-ghost" style="height:auto;padding:0;font-size:11.5px" onclick="sair()">sair</button></span>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ── sessão local ──────────────────────────────────────────────────────────
+const LS = 'contagem-sessao';
+let sess = null; try { sess = JSON.parse(localStorage.getItem(LS) || 'null'); } catch (e) {}
+let dia = null;            // {data, loja, nome, status, itens, contagem}
+let fila = [];             // lançamentos pendentes de envio (offline)
+try { fila = JSON.parse(localStorage.getItem('contagem-fila') || '[]'); } catch (e) {}
+const $ = id => document.getElementById(id);
+
+async function entrar(ev) {
+  ev.preventDefault(); $('lerro').textContent = '';
+  const loja = $('lj').value, pin = $('pin').value.trim(), nome = $('nome').value.trim();
+  try {
+    const r = await fetch('/api/contagem-publica/entrar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ loja, pin }) });
+    const j = await r.json();
+    if (!r.ok) { $('lerro').textContent = j.error || 'Não foi possível entrar.'; return; }
+    sess = { token: j.token, loja: j.loja, nomeLoja: j.nome, nome };
+    localStorage.setItem(LS, JSON.stringify(sess));
+    iniciar();
+  } catch (e) { $('lerro').textContent = 'Sem conexão. Tente de novo quando tiver sinal.'; }
+}
+function sair() { if (!confirm('Sair deste celular? Vai precisar do PIN de novo.')) return; localStorage.removeItem(LS); location.reload(); }
+
+function iniciar() {
+  $('login').hidden = true; $('app').hidden = false;
+  $('quem').textContent = sess.nome;
+  carregar();
+  setInterval(() => { if (fila.length) enviarFila(); }, 15000);
+  window.addEventListener('online', enviarFila);
+}
+
+async function carregar(manual) {
+  try {
+    const r = await fetch('/api/contagem-publica/hoje?t=' + sess.token);
+    if (r.status === 401) { localStorage.removeItem(LS); location.reload(); return; }
+    const j = await r.json();
+    dia = j.vazio ? null : j;
+    // dados salvos no celular ainda não enviados prevalecem sobre o servidor
+    if (dia) for (const f of fila) if (f.data === dia.data) dia.contagem[f.cod] = f.zero ? { dep: 0, loja: 0, zero: true } : { dep: f.dep, loja: f.loja, zero: false };
+    localStorage.setItem('contagem-dia', JSON.stringify(dia));
+    setNet(true);
+    if (manual) toast('Atualizado');
+  } catch (e) {
+    try { dia = JSON.parse(localStorage.getItem('contagem-dia') || 'null'); } catch (x) {}
+    setNet(false);
+  }
+  render();
+}
+
+// ── regras ────────────────────────────────────────────────────────────────
+const contado = c => !!c && (c.zero || (c.dep ?? null) !== null || (c.loja ?? null) !== null);
+const total   = c => !contado(c) ? null : (c.zero ? 0 : (c.dep || 0) + (c.loja || 0));
+
+function render() {
+  const box = $('lista');
+  if (!dia) {
+    $('titulo').textContent = `Loja ${sess.loja} · ${sess.nomeLoja}`; $('subt').textContent = 'Sem contagem aberta'; $('folha').textContent = '—';
+    $('btnConcluir').disabled = true; $('pDone').textContent = 0; $('pTot').textContent = 0; $('pPct').textContent = '0%'; $('pBar').style.width = '0';
+    box.innerHTML = '<div class="vazio"><b>Nenhuma contagem hoje</b>A lista aparece aqui quando os negativos forem enviados no grupo (dias úteis, 08:00).</div>';
+    return;
+  }
+  const [y, m, d] = dia.data.split('-');
+  const dataBr = `${d}/${m}/${y}`;
+  const diaSem = ['domingo','segunda','terça','quarta','quinta','sexta','sábado'][new Date(+y, m - 1, +d).getDay()];
+  $('titulo').textContent = `Loja ${dia.loja} · ${dia.nome}`;
+  $('subt').textContent = `Negativos de ${diaSem}, ${dataBr}`;
+  $('folha').textContent = `L${String(dia.loja).padStart(2, '0')}-${y}${m}${d}`;
+  const q = ($('busca').value || '').toLowerCase().trim();
+  const fechada = dia.status === 'concluida';
+  let html = fechada ? `<div class="done-box">✔ Contagem concluída e enviada pra central${dia.concluidoEm ? ' às ' + new Date(dia.concluidoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : ''}.</div>` : '';
+  let lastG = '';
+  const itens = dia.itens.filter(i => !q || i.cod.includes(q) || i.desc.toLowerCase().includes(q));
+  if (!itens.length) html += '<div class="vazio">Nenhum item com esse nome ou código.</div>';
+  for (const i of itens) {
+    const g = `${i.grupo} > ${i.sub}`;
+    if (g !== lastG) { lastG = g; const tot = dia.itens.filter(x => x.grupo === i.grupo && x.sub === i.sub).length, ok = dia.itens.filter(x => x.grupo === i.grupo && x.sub === i.sub && contado(dia.contagem[x.cod])).length; html += `<div class="grp"><span>${esc(g)}</span><b>${ok}/${tot}</b></div>`; }
+    const c = dia.contagem[i.cod] || {}, ok = contado(c), zero = !!c.zero, t = total(c), dif = t === null ? null : t - i.sys;
+    html += `<div class="item ${zero ? 'zero' : ok ? 'done' : ''}" data-cod="${i.cod}">
+      <div><div class="cod">${esc(i.cod)}</div><div class="desc">${esc(i.desc)}</div></div>
+      <div class="sys"><div class="label">Sistema</div><div class="v">${i.sys}</div></div>
+      <div class="fields">
+        <div><label for="d${i.cod}">Depósito</label><input id="d${i.cod}" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="0" value="${zero ? '' : (c.dep ?? '')}" ${zero || fechada ? 'disabled' : ''} oninput="setv('${i.cod}','dep',this.value)"></div>
+        <div><label for="l${i.cod}">Loja</label><input id="l${i.cod}" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="0" value="${zero ? '' : (c.loja ?? '')}" ${zero || fechada ? 'disabled' : ''} oninput="setv('${i.cod}','loja',this.value)"></div>
+        <button class="zbtn" aria-pressed="${zero}" ${fechada ? 'disabled' : ''} onclick="toggleZero('${i.cod}')">Não<br>achei</button>
+      </div>
+      ${ok ? `<div class="tot"><span>Contado <span class="mono">${t}</span></span><span class="dif">${zero ? 'não existe na loja · ajuste +' + dif : 'ajuste de +' + dif + ' no sistema'}</span></div>` : ''}
+    </div>`;
+  }
+  box.innerHTML = html;
+  progresso();
+  $('btnConcluir').disabled = fechada;
+  $('btnConcluir').textContent = fechada ? 'Contagem concluída' : (faltam() ? `Concluir (${faltam()} faltando)` : 'Concluir contagem');
+}
+const faltam = () => dia ? dia.itens.filter(i => !contado(dia.contagem[i.cod])).length : 0;
+function progresso() {
+  const tot = dia.itens.length, done = tot - faltam(), pct = tot ? Math.round(done / tot * 100) : 0;
+  $('pDone').textContent = done; $('pTot').textContent = tot; $('pPct').textContent = pct + '%'; $('pBar').style.width = pct + '%';
+}
+const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+
+// ── lançamentos ───────────────────────────────────────────────────────────
+let timers = {};
+function setv(cod, k, s) {
+  const n = s.replace(/\D/g, '');
+  const c = dia.contagem[cod] = Object.assign({ dep: null, loja: null, zero: false }, dia.contagem[cod], { zero: false });
+  c[k] = n === '' ? null : +n;
+  progresso();
+  $('btnConcluir').textContent = faltam() ? `Concluir (${faltam()} faltando)` : 'Concluir contagem';
+  clearTimeout(timers[cod]);
+  timers[cod] = setTimeout(() => { enfileirar(cod); atualizarLinha(cod); }, 500);
+}
+function toggleZero(cod) {
+  const c = dia.contagem[cod] || {};
+  dia.contagem[cod] = c.zero ? { dep: null, loja: null, zero: false } : { dep: 0, loja: 0, zero: true };
+  enfileirar(cod); render();
+}
+function atualizarLinha(cod) {
+  // re-render só do rodapé da linha, sem perder o foco do teclado
+  const el = document.querySelector(`.item[data-cod="${cod}"]`); if (!el) return;
+  const i = dia.itens.find(x => x.cod === cod), c = dia.contagem[cod], ok = contado(c), t = total(c), dif = t === null ? null : t - i.sys;
+  el.classList.toggle('done', ok && !c.zero);
+  let tot = el.querySelector('.tot');
+  if (!ok) { if (tot) tot.remove(); return; }
+  if (!tot) { tot = document.createElement('div'); tot.className = 'tot'; el.appendChild(tot); }
+  tot.innerHTML = `<span>Contado <span class="mono">${t}</span></span><span class="dif">ajuste de +${dif} no sistema</span>`;
+}
+function enfileirar(cod) {
+  const c = dia.contagem[cod] || { dep: null, loja: null, zero: false };
+  fila = fila.filter(f => !(f.data === dia.data && f.cod === cod));
+  fila.push({ data: dia.data, cod, dep: c.dep, loja: c.loja, zero: !!c.zero, nome: sess.nome });
+  localStorage.setItem('contagem-fila', JSON.stringify(fila));
+  localStorage.setItem('contagem-dia', JSON.stringify(dia));
+  enviarFila();
+}
+let enviando = false;
+async function enviarFila() {
+  if (enviando || !fila.length) return;
+  enviando = true;
+  try {
+    while (fila.length) {
+      const f = fila[0];
+      const r = await fetch('/api/contagem-publica/item', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...f, t: sess.token }) });
+      if (r.status === 401) { localStorage.removeItem(LS); location.reload(); return; }
+      if (r.status === 400) { const j = await r.json(); toast(j.error || 'Item recusado'); fila.shift(); continue; }
+      if (!r.ok) throw new Error('falhou');
+      fila.shift();
+      localStorage.setItem('contagem-fila', JSON.stringify(fila));
+    }
+    setNet(true);
+  } catch (e) { setNet(false); }
+  finally { enviando = false; }
+}
+async function concluir() {
+  if (faltam()) { toast(`Faltam ${faltam()} itens. Marque "Não achei" nos que não existem na loja.`); return; }
+  if (fila.length) { await enviarFila(); if (fila.length) { toast('Sem sinal: ainda tem itens pra enviar. Tente de novo.'); return; } }
+  if (!confirm('Concluir e enviar a contagem pra central?')) return;
+  try {
+    const r = await fetch('/api/contagem-publica/concluir', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ t: sess.token, data: dia.data, nome: sess.nome }) });
+    const j = await r.json();
+    if (!r.ok) { toast(j.error || 'Não foi possível concluir.'); return; }
+    dia = j; localStorage.setItem('contagem-dia', JSON.stringify(dia)); render(); toast('Contagem enviada pra central ✔');
+  } catch (e) { toast('Sem sinal. Tente de novo quando tiver rede.'); }
+}
+function setNet(on) {
+  const dot = $('netDot'), tx = $('netTxt'), h = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  if (!on) { dot.className = 'dot off'; tx.textContent = fila.length ? `Sem sinal · ${fila.length} pra enviar` : 'Sem sinal · salvo no celular'; }
+  else if (fila.length) { dot.className = 'dot pend'; tx.textContent = `Enviando ${fila.length}…`; }
+  else { dot.className = 'dot'; tx.textContent = `Salvo às ${h} · online`; }
+}
+function toast(m) { const t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(t._x); t._x = setTimeout(() => t.classList.remove('show'), 2600); }
+
+if (sess && sess.token) iniciar();
+</script>
+</body>
+</html>

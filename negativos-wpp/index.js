@@ -2,6 +2,7 @@
 const mysql       = require('mysql2/promise');
 const cron        = require('node-cron');
 const PDFDocument = require('pdfkit');
+const contagem    = require('../lib/contagem-negativos');
 const path        = require('path');
 const fs          = require('fs');
 const http        = require('http');
@@ -12,18 +13,17 @@ const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLat
 const DB         = { host:'192.168.2.252', port:3306, user:'root', password:'1900', database:'central', connectTimeout:15000 };
 const GRUPO_NOME = 'CENTRAL ( Aux ) PREVENÇÃO DE PERDAS';
 
-// Mensagem enviada no grupo logo depois dos PDFs, orientando a devolução das folhas
-const MSG_INSTRUCAO_FOTO = [
-  '📸 *COMO DEVOLVER A CONFERÊNCIA*',
+// Mensagem enviada no grupo logo depois dos PDFs, orientando a devolução.
+// Sem link de propósito: link em bot não oficial é sinal de spam pro WhatsApp.
+// O app Contagem já fica instalado no celular do auxiliar.
+const MSG_INSTRUCAO = [
+  '📱 *COMO DEVOLVER A CONTAGEM*',
   '',
-  'Depois de preencher, mande as folhas *UMA FOTO POR FOLHA* aqui no grupo.',
+  'Abra o app *Contagem* no celular: a lista de hoje da sua loja já está lá.',
+  'Digite *Depósito* e *Loja* em cada item. Se o produto não existe na loja, toque em *Não achei*.',
+  'No fim, toque em *Concluir contagem*. A central recebe na hora.',
   '',
-  '✅ Em cada foto precisa aparecer *os 3 quadrados pretos* dos cantos da folha (em cima à esquerda, em cima à direita e embaixo à esquerda).',
-  '✅ Folha inteira, reta, sem cortar as bordas.',
-  '✅ Boa luz, sem sombra e sem dedo na frente.',
-  '',
-  '❌ Não junte várias folhas na mesma foto.',
-  '❌ Não mande print nem PDF, só a foto da folha preenchida.',
+  '📄 A folha em PDF é só apoio pra contar no corredor. Se o app não abrir, preencha a folha e mande *uma foto por folha* com os *3 quadrados pretos* dos cantos aparecendo.',
 ].join('\n');
 const LOGO_PATH  = path.join(__dirname, '..', 'public', 'logo.png');
 const logger     = pino({ level:'info' });
@@ -521,20 +521,29 @@ async function conectar() {
   });
 }
 
-async function enviarPDFsLojas(porLoja) {
+async function acharGrupo() {
   const grupos = await sock.groupFetchAllParticipating();
   let jid = Object.keys(grupos).find(id => grupos[id].subject === GRUPO_NOME);
   if (!jid) {
     // Busca parcial (case-insensitive) como fallback
-    const termo = GRUPO_NOME.toLowerCase();
     jid = Object.keys(grupos).find(id => grupos[id].subject.toLowerCase().includes('prevenção') || grupos[id].subject.toLowerCase().includes('prevencao'));
     const todosNomes = Object.values(grupos).map(g => `  • "${g.subject}"`).join('\n');
     if (!jid) {
       logger.error(`Grupo "${GRUPO_NOME}" não encontrado. Grupos disponíveis:\n${todosNomes}`);
-      return;
+      return null;
     }
     logger.warn(`Grupo exato não encontrado. Usando: "${grupos[jid].subject}"\nGrupos disponíveis:\n${todosNomes}`);
   }
+  return jid;
+}
+
+async function enviarPDFsLojas(porLoja) {
+  const jid = await acharGrupo();
+  if (!jid) return;
+
+  // Abre a contagem do dia pro app do celular (não apaga o que já foi digitado)
+  try { contagem.abrirDia(porLoja); logger.info('Contagem do dia aberta pro app'); }
+  catch (err) { logger.error({ err }, 'Erro ao abrir contagem do dia'); }
 
   const hoje     = new Date();
   const dataStr  = hoje.toLocaleDateString('pt-BR');
@@ -566,7 +575,7 @@ async function enviarPDFsLojas(porLoja) {
   // Instrução de devolução: uma única mensagem depois de todos os PDFs
   if (enviados > 0) {
     try {
-      await sock.sendMessage(jid, { text: MSG_INSTRUCAO_FOTO });
+      await sock.sendMessage(jid, { text: MSG_INSTRUCAO });
       logger.info('Mensagem de instrução (foto a foto) enviada');
     } catch (err) {
       logger.error({ err }, 'Erro ao enviar mensagem de instrução');
@@ -615,6 +624,21 @@ async function rotina() {
 // do reenvio sem depender de mensagem de WhatsApp — chamado pelo server.js
 // principal (que já tem domínio público via Caddy) num endpoint próprio.
 http.createServer(async (req, res) => {
+  if (req.url === '/mensagem-grupo' && req.method === 'POST') {
+    let body = ''; req.on('data', c => body += c);
+    req.on('end', async () => {
+      try {
+        const { texto } = JSON.parse(body || '{}');
+        if (!texto) { res.writeHead(400); res.end(JSON.stringify({ error: 'Sem texto.' })); return; }
+        if (!sock || !sock.user) { res.writeHead(503); res.end(JSON.stringify({ error: 'WhatsApp não conectado.' })); return; }
+        const jid = await acharGrupo();
+        if (!jid) { res.writeHead(500); res.end(JSON.stringify({ error: 'Grupo não encontrado.' })); return; }
+        await sock.sendMessage(jid, { text: texto });
+        res.writeHead(200); res.end(JSON.stringify({ ok: true }));
+      } catch (err) { res.writeHead(500); res.end(JSON.stringify({ error: err.message })); }
+    });
+    return;
+  }
   if (req.url !== '/reenviar-negativos') { res.writeHead(404); res.end(); return; }
   try {
     if (!sock || !sock.user) { res.writeHead(503); res.end(JSON.stringify({ error: 'WhatsApp não conectado.' })); return; }
