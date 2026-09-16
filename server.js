@@ -4552,25 +4552,49 @@ app.get('/api/cahu-distribuidora/tabela-precos.xlsx', async (req, res) => {
     });
     ws.columns = colWidths.map(w => ({ width: w }));
 
-    ws.mergeCells(`A1:${lastCol}1`);
-    const titleCell = ws.getCell('A1');
+    // Linha 1: faixa branca com o logo da CAHU (logo é preto, não aparece sobre navy)
+    const LOGO_ROW_H = 58;
+    ws.getRow(1).height = LOGO_ROW_H;
+    for (let c = 1; c <= headers.length; c++) {
+      ws.getRow(1).getCell(c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } };
+    }
+    ws.mergeCells(`B1:${lastCol}1`);
+    const empresaCell = ws.getCell('B1');
+    empresaCell.value = 'CAHU DISTRIBUIDORA DE ALIMENTOS LTDA';
+    empresaCell.font = { name: 'Calibri', size: 14, bold: true, color: { argb: NAVY } };
+    empresaCell.alignment = { vertical: 'middle', horizontal: 'left' };
+    try {
+      const logoPath = path.join(__dirname, 'public', 'logo-cahu-excel.png');
+      if (fs.existsSync(logoPath)) {
+        const logoBuf = fs.readFileSync(logoPath);
+        const logoId = wb.addImage({ buffer: logoBuf, extension: 'png' });
+        // lê largura/altura do cabeçalho do PNG (IHDR) pra manter a proporção;
+        // altura fixa ~68px cabe na linha de 58pt (≈77px)
+        const pw = logoBuf.readUInt32BE(16), ph = logoBuf.readUInt32BE(20);
+        const h = 68, w = Math.round(h * pw / ph);
+        ws.addImage(logoId, { tl: { col: 0.55, row: 0.06 }, ext: { width: w, height: h }, editAs: 'oneCell' });
+      }
+    } catch (e) { console.warn('[CAHU-TABELA-PRECOS] logo não inserido:', e.message); }
+
+    ws.mergeCells(`A2:${lastCol}2`);
+    const titleCell = ws.getCell('A2');
     titleCell.value = tabelaUnica
       ? `${tabelaUnica.label.toUpperCase()} — CAHU DISTRIBUIDORA`
       : 'TABELA DE PREÇOS — CAHU DISTRIBUIDORA';
     titleCell.font = { name: 'Calibri', size: 16, bold: true, color: { argb: 'FFFFFFFF' } };
     titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
     titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: NAVY } };
-    ws.getRow(1).height = 30;
+    ws.getRow(2).height = 30;
 
-    ws.mergeCells(`A2:${lastCol}2`);
-    const subCell = ws.getCell('A2');
+    ws.mergeCells(`A3:${lastCol}3`);
+    const subCell = ws.getCell('A3');
     subCell.value = `Somente itens com estoque positivo no CD — gerado em ${new Date().toLocaleDateString('pt-BR')}`;
     subCell.font = { name: 'Calibri', size: 10, italic: true, color: { argb: 'FFFFFFFF' } };
     subCell.alignment = { vertical: 'middle', horizontal: 'center' };
     subCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: NAVY_LIGHT } };
-    ws.getRow(2).height = 18;
+    ws.getRow(3).height = 18;
 
-    const headerRowIdx = 3;
+    const headerRowIdx = 4;
     const headerRow = ws.getRow(headerRowIdx);
     headers.forEach((h, i) => {
       const cell = headerRow.getCell(i + 1);
