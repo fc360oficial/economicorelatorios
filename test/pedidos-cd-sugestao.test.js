@@ -41,3 +41,12 @@ test('trânsito desconta do pedido', () => {
   const { repor } = cd.calcularSugestao(base, vinc, cfg, { '7896037913146|1': 600 });
   assert.equal(repor[0].lojas[1].cx, 0);
 });
+
+test('trânsito de produto sem vínculo fica só no próprio código, não soma nos outros novos', () => {
+  const b = { hoje: '2026-09-14', dias: 40, lead: {}, un: {}, cd: {
+    '77900204333763': { descricao: 'SANDALIA A CX6', estoqueCx: 10, unPorCaixaCadastro: 6 },
+    '67909510420139': { descricao: 'SANDALIA B CX6', estoqueCx: 10, unPorCaixaCadastro: 6 } } };
+  const r = cd.calcularSugestao(b, {}, cd.getConfig(), { '77900204333763|1': 12 });
+  const a = r.novos.find(i => i.codigoCD === '77900204333763'), bb = r.novos.find(i => i.codigoCD === '67909510420139');
+  assert.equal(a.lojas[1].transito, 12); assert.equal(bb.lojas[1].transito, 0);
+});
