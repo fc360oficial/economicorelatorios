@@ -2947,6 +2947,7 @@ app.get('/api/sugestoes-compra', async (req, res) => {
                (SELECT SUM(i.Total) FROM central.lista_consolidado_itens i WHERE i.nConsolidado = lc.nConsolidado) as total,
                (SELECT COUNT(*) FROM central.lista_consolidado_itens i WHERE i.nConsolidado = lc.nConsolidado) as itens,
                (SELECT MAX(p.nPedido) FROM central.pedidocompra p WHERE p.nConsolidado = lc.nConsolidado) as nPedido,
+               (SELECT COUNT(*) FROM central.pedidocompra p WHERE p.nConsolidado = lc.nConsolidado) as nPedidoLinhas,
                (SELECT MAX(cac.nome) FROM central.c_cotacao_agenda_comprador cac WHERE cac.nLista = lc.nLista) as comprador
         FROM central.lista_consolidadas lc
         WHERE ${where}
@@ -2965,7 +2966,9 @@ app.get('/api/sugestoes-compra', async (req, res) => {
         status_web: r.status_web || 0,
         status: r.status || 0,
         desativada: r.desativada === 1,
-        pedido: r.nPedido > 0 ? r.nPedido : null,
+        // "Pedido Gerado" (azul no Dlinks) = existe linha em pedidocompra pra sugestão (confirmado 16/09/26: 4394 tem 6 linhas
+        // com nPedido=0 e o Dlinks mostra Pedido Gerado; 4392 Fechado não tem nenhuma). nPedido só vem depois, se vier.
+        pedido: r.nPedidoLinhas > 0 ? (r.nPedido > 0 ? r.nPedido : true) : null,
         data: r.data ? new Date(r.data).toLocaleDateString('pt-BR') : null,
         periodo_venda: r.DataVenda1 && r.DataVenda1 !== '0' ? `${r.DataVenda1} a ${r.DataVenda2}` : null,
         cobertura: r.cobertura || null,
