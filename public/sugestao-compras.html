@@ -298,6 +298,11 @@ table.cons-det td.inv{background:var(--amw);color:var(--amk);font-size:9px;font-
 table.cons-det td.cap{color:#B4530A;font-size:9px;font-weight:700;line-height:1.2}
 table.cons-det td.ant{font-size:9px;color:var(--ink3);line-height:1.2}
 table.cons-det tr.loja-item td{color:var(--neg);font-weight:700;background:var(--negw)}
+/* cores da lista (ligadas pelo checkbox Promoção / Rebaixa / Avarias) — mesma paleta da legenda */
+table.cx-itens tbody tr.promo td{background:var(--infw)}
+table.cx-itens tbody tr.rebaixa td{background:var(--negw)}
+table.cx-itens tbody tr.avaria td{background:var(--amw)}
+table.cx-itens tbody tr.promo td.desc,table.cx-itens tbody tr.rebaixa td.desc,table.cx-itens tbody tr.avaria td.desc{font-weight:700}
 .cx-barra{flex-shrink:0;border-top:2px solid var(--ln2);background:var(--wsh);padding:6px 12px}
 .cx-busca-legs{margin-left:auto;display:flex;align-items:center;gap:16px;font-size:10px;white-space:nowrap}
 .cx-legenda{display:flex;gap:14px}
@@ -445,7 +450,7 @@ table.cons-det tr.loja-item td{color:var(--neg);font-weight:700;background:var(-
       <div class="cx-busca-legs">
         <div class="cx-legenda"><span><i class="lg-promo"></i>Promoção</span><span><i class="lg-rebaixa"></i>Rebaixa de Preço</span><span><i class="lg-avaria"></i>Avarias</span></div>
         <label class="off" title="Em breve"><input type="checkbox" disabled> NFe no cálculo de venda</label>
-        <label class="off" title="Em breve"><input type="checkbox" disabled checked> Promoção / Rebaixa / Avarias</label>
+        <label title="Liga/desliga as cores de Promoção, Rebaixa de Preço e Avarias na lista"><input type="checkbox" id="c-cores" checked onchange="CONS.cores=this.checked;try{localStorage.setItem('sc_cores',this.checked?'1':'0')}catch(e){};renderConsItens()"> Promoção / Rebaixa / Avarias</label>
       </div>
     </div>
     <!-- miolo: lista de produtos + painel do produto -->
@@ -735,7 +740,18 @@ function statusInfo(s){
   return { cls:'nenhum', label:'Sem link', extra:null };
 }
 // ── Consolidação da Lista (Sugestão Manual) ──
-const CONS = { s: null, sel: null, filtro: 'todos', busca: '', pend: null, timer: null };
+const CONS = { s: null, sel: null, filtro: 'todos', busca: '', pend: null, timer: null, cores: true };
+try { CONS.cores = localStorage.getItem('sc_cores') !== '0'; } catch (e) {}
+{ const cb = document.getElementById('c-cores'); if (cb) cb.checked = CONS.cores; }
+// Cor da linha (Promoção / Rebaixa / Avarias). A regra do Tiago ainda vai ser definida:
+// hoje usa as flags it.promocao / it.rebaixa / it.avaria se o servidor mandar, senão nada.
+function corItem(it){
+  if (!CONS.cores) return '';
+  if (it.promocao) return 'promo';
+  if (it.rebaixa) return 'rebaixa';
+  if (it.avaria) return 'avaria';
+  return '';
+}
 const fmtN = (v, d = 2) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
 const escH = v => String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 const escJ = v => String(v ?? '').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;').replace(/</g,'\\x3c');
@@ -861,7 +877,7 @@ function renderConsItens(){
   document.getElementById('c-itens-tbody').innerHTML = its.length ? its.map(it => {
     const pr = prioItem(it);
     return `
-    <tr class="${it.codigo === CONS.sel ? 'sel' : ''} ${it.ativo ? '' : 'inativo'} ${pr === 'critico' && it.ativo ? 'critico' : ''}" onclick="selecionarItem('${escJ(it.codigo)}')">
+    <tr class="${it.codigo === CONS.sel ? 'sel' : ''} ${it.ativo ? '' : 'inativo'} ${pr === 'critico' && it.ativo ? 'critico' : ''} ${corItem(it)}" onclick="selecionarItem('${escJ(it.codigo)}')">
       <td class="cod l">${escH(it.codigo)}</td><td class="desc l">${escH(it.descricao)}</td><td class="c dim">${escH(it.und || '')}</td><td class="c dim">${it.emb}</td>
       <td class="c col-qtd ${it.quantidade > 0 ? 'cheio' : ''}"><input type="number" min="0" class="qtd ${it.quantidade ? '' : 'zero'}" value="${it.quantidade}" ${(!it.ativo || trav) ? 'disabled' : ''} onclick="event.stopPropagation()" onchange="editarQuantidade('${escJ(it.codigo)}', this.value)"></td>
       <td class="c">${prioBadge(pr)}</td>
