@@ -190,8 +190,8 @@ function linha(item, lojasCols) {
     <td class="r">${transito ? fmtN(transito) + ' <span class="mut">un</span>' : '<span class="mut">—</span>'}</td>
     <td>${lojasCols.map(ln => { const L = item.lojas[ln]; const k = item.codigoCD + '|' + ln; const q = cxDe(item, ln); return `<span class="lj" title="L${ln} ${LOJAS_NOMES[ln]}: estoque ${fmtN(L.est)} un · venda/dia ${fmtN(L.vq, 2)} · cobertura ${L.cobertura == null ? '–' : fmtN(L.cobertura, 0) + ' d'}${L.transito ? ' · trânsito ' + fmtN(L.transito) : ''}"><small>L${ln}</small><input type="number" min="0" value="${q}" class="${k in EDITS ? 'ed' : ''}${q ? '' : ' z'}" onclick="event.stopPropagation()" onchange="editar('${item.codigoCD}',${ln},this.value)">${L.zeraAntes ? '<span class="zr">zera</span>' : ''}</span>`; }).join('')}</td>
     <td class="r"><b>${fmtN(tot)}</b> <span class="mut">cx</span>${upc > 1 ? `<div class="s2">= ${fmtN(tot * upc)} un</div>` : ''}</td>
-    <td class="r ${item.custoUn ? '' : 'mut'}">${item.custoUn ? fmtR(item.custoUn) : '—'}</td>
-    <td class="r"><b>${fmtR(tot * upc * item.custoUn)}</b></td></tr>`;
+    <td class="r ${item.custoCDcx ? '' : 'mut'}" title="custo de compra do CD (loja 10) por caixa">${item.custoCDcx ? fmtR(item.custoCDcx) : '—'}${item.custoCDcx && upc > 1 ? `<div class="s2">${fmtR(item.custoCDun)}/un</div>` : ''}</td>
+    <td class="r"><b>${fmtR(tot * (item.custoCDcx || 0))}</b></td></tr>`;
 }
 const normTxt = t => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 function itensVisiveis() {
@@ -215,11 +215,11 @@ function renderPedido() {
   for (const i of all) {
     if (i.semVinculo) semVinc++; if (!(i.unPorCaixa >= 1)) semUpc++;
     if (!SEL.has(i.codigoCD)) continue;
-    for (const ln of LOJAS) { const q = cxDe(i, ln); if (q > 0) { porLoja[ln].cx += q; porLoja[ln].itens++; porLoja[ln].custo += q * (i.unPorCaixa || 0) * i.custoUn; } }
+    for (const ln of LOJAS) { const q = cxDe(i, ln); if (q > 0) { porLoja[ln].cx += q; porLoja[ln].itens++; porLoja[ln].custo += q * (i.custoCDcx || 0); } }
   }
   const selItens = all.filter(i => SEL.has(i.codigoCD) && (FLOJA ? cxDe(i, FLOJA) > 0 : totCx(i) > 0));
   const selCx = selItens.reduce((a, i) => a + (FLOJA ? cxDe(i, FLOJA) : totCx(i)), 0);
-  const selCusto = selItens.reduce((a, i) => a + (FLOJA ? cxDe(i, FLOJA) : totCx(i)) * (i.unPorCaixa || 0) * i.custoUn, 0);
+  const selCusto = selItens.reduce((a, i) => a + (FLOJA ? cxDe(i, FLOJA) : totCx(i)) * (i.custoCDcx || 0), 0);
   const vis = itensVisiveis(); VIS.todos = vis.map(i => i.codigoCD);
   const lojasCols = FLOJA ? [FLOJA] : LOJAS;
   $('#tab-pedido').innerHTML = `
@@ -233,7 +233,7 @@ function renderPedido() {
       <span class="contagem">${Object.keys(EDITS).length ? Object.keys(EDITS).length + ' quantidades editadas · ' : ''}${vis.length} de ${all.length} produtos</span></div>
     <div class="table-wrap"><table class="main-t"><thead><tr><th class="c"><input type="checkbox" ${vis.length && vis.every(i => SEL.has(i.codigoCD)) ? 'checked' : ''} onchange="selTodos('todos',this.checked)"></th><th>Código</th>
       <th style="min-width:300px"><div style="display:flex;align-items:center;gap:10px"><span>Produto</span><input class="hin" placeholder="buscar por código ou descrição…" value="${FILTRO}" oninput="FILTRO=this.value;renderPedido()" style="flex:1;min-width:200px;max-width:420px"></div></th>
-      <th class="r">Est. CD (cx)</th><th class="r">Est. lojas (un)</th><th class="r">Trânsito</th><th>Quantidade por loja (cx)</th><th class="r">Total</th><th class="r">Último custo</th><th class="r">R$</th></tr></thead>
+      <th class="r">Est. CD (cx)</th><th class="r">Est. lojas (un)</th><th class="r">Trânsito</th><th>Quantidade por loja (cx)</th><th class="r">Total</th><th class="r" title="custo de compra do CD por caixa">Custo CD (cx)</th><th class="r">R$</th></tr></thead>
     <tbody>${vis.map(i => linha(i, lojasCols)).join('') || `<tr><td colspan="10" class="mut" style="padding:18px">${FILTRO.trim() ? 'Nenhum produto do CD com "' + esc(FILTRO) + '" — a busca aceita palavras em qualquer ordem (ex.: "walker red")' : 'Nenhum item' + (FLOJA ? ' na L' + FLOJA : '') + (SOQTD ? ' com quantidade — desmarque "só itens com quantidade" pra ver todos' : '')}.</td></tr>`}</tbody></table></div>`;
   // mantém o foco na busca enquanto digita
   if (document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('hin')) { const el = $('#tab-pedido .hin'); if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); } }

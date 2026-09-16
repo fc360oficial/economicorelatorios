@@ -87,6 +87,7 @@ test('coletarCD: emb_multipla=0 conta o estoque do CD em fardos; =1 em unidades;
     if (sql.includes('embalagempadrao_venda')) return [
       { cod: '7896012303115', qv: 10, em: 0 }, { cod: '7891150097575', qv: 27, em: 1 }, { cod: '17896221600156', qv: 12, em: 0 }];
     if (sql.includes('FROM central.itens WHERE CodDesativado=0 AND CodigoBarra IN')) return [{ cod: '7896221600159', descricao: 'CLORITO AGUA SANITARIA 1L' }];
+    if (sql.includes('custoloja10')) return [{ cod: '17896221600156', Custo: 19.08 }, { cod: '7891150097575', Custo: 2.18 }, { cod: '7896012303115', Custo: 44 }];
     return [];
   };
   const cdm = require('../lib/pedidos-cd');
@@ -96,5 +97,7 @@ test('coletarCD: emb_multipla=0 conta o estoque do CD em fardos; =1 em unidades;
   assert.equal(r['7891150097575'].estoqueCx, 14); assert.equal(r['7891150097575'].estoqueUn, 379); assert.equal(r['7891150097575'].estoqueEm, 'un');
   assert.equal(r['17896221600156'].estoqueCx, 1825); assert.equal(r['17896221600156'].unPorCaixaCadastro, 12);
   assert.equal(r['039800014009'].estoqueCx, 1800); assert.equal(r['039800014009'].estoqueEm, 'un');   // sem Itens App: unidades, un/cx 1
+  // custo do CD por caixa: caixa/fardo usa o custo direto; unidade multiplica pelo un/cx
+  assert.equal(r['17896221600156'].custoCDcx, 19.08); assert.equal(r['7896012303115'].custoCDcx, 44); assert.equal(r['7891150097575'].custoCDcx, 58.86); assert.equal(r['039800014009'].custoCDcx, 0);
   cdm.init({ q: async () => [], mesDB: m => String(m).padStart(2, '0'), dataDir: dir });
 });
