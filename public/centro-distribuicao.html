@@ -187,13 +187,25 @@ function linha(item, lojasCols) {
       <div class="prod-meta">${item.unidade ? `<span>${item.unidade} · ${item.descricaoUn || ''}</span>` : `<span class="m-bad">sem vínculo · <a onclick="event.stopPropagation();irVinculo('${item.codigoCD}')">vincular</a></span>`}</div></div></td>
     <td class="r" title="${item.estoqueCDem === 'un' ? 'o CD conta em unidades: ' + fmtN(item.estoqueCDun) + ' un ÷ ' + (item.unPorCaixa || 1) + ' = caixas' : 'o CD já conta em caixas/fardos'}">${fmtN(item.estoqueCDcx)}${item.estoqueCDem === 'un' ? `<div class="s2">${fmtN(item.estoqueCDun)} un</div>` : ''}</td>
     <td class="r" style="cursor:pointer" title="clique pra ver por loja" onclick="event.stopPropagation();ESTOPEN.has('${item.codigoCD}')?ESTOPEN.delete('${item.codigoCD}'):ESTOPEN.add('${item.codigoCD}');renderPedido()">${fmtN(estLojas)} <span class="mut">▾</span>${ESTOPEN.has(item.codigoCD) ? '<div class="s2" style="text-align:right">' + LOJAS.map(ln => 'L' + ln + ' ' + fmtN(item.lojas[ln].est || 0)).join('<br>') + '</div>' : ''}</td>
-    <td class="r">${transito ? fmtN(transito) + ' <span class="mut">un</span>' : '<span class="mut">—</span>'}</td>
+    <td class="r" ${transito ? `style="cursor:pointer" title="clique pra ver de qual pedido ao CD está vindo" onclick="event.stopPropagation();TROPEN.has('${item.codigoCD}')?TROPEN.delete('${item.codigoCD}'):TROPEN.add('${item.codigoCD}');renderPedido()"` : ''}>${transito ? fmtN(transito) + ' <span class="mut">un ▾</span>' : '<span class="mut">—</span>'}${transito && TROPEN.has(item.codigoCD) ? transitoDetalhe(item) : ''}</td>
     <td>${lojasCols.map(ln => { const L = item.lojas[ln]; const k = item.codigoCD + '|' + ln; const q = cxDe(item, ln); return `<span class="lj" title="L${ln} ${LOJAS_NOMES[ln]}: estoque ${fmtN(L.est)} un · venda/dia ${fmtN(L.vq, 2)} · cobertura ${L.cobertura == null ? '–' : fmtN(L.cobertura, 0) + ' d'}${L.transito ? ' · trânsito ' + fmtN(L.transito) : ''}"><small>L${ln}</small><input type="number" min="0" value="${q}" class="${k in EDITS ? 'ed' : ''}${q ? '' : ' z'}" onclick="event.stopPropagation()" onchange="editar('${item.codigoCD}',${ln},this.value)">${L.zeraAntes ? '<span class="zr">zera</span>' : ''}</span>`; }).join('')}</td>
     <td class="r"><b>${fmtN(tot)}</b> <span class="mut">cx</span>${upc > 1 ? `<div class="s2">= ${fmtN(tot * upc)} un</div>` : ''}</td>
     <td class="r ${item.custoCDcx ? '' : 'mut'}" title="custo de compra do CD (loja 10) por caixa">${item.custoCDcx ? fmtR(item.custoCDcx) : '—'}${item.custoCDcx && upc > 1 ? `<div class="s2">${fmtR(item.custoCDun)}/un</div>` : ''}</td>
     <td class="r"><b>${fmtR(tot * (item.custoCDcx || 0))}</b></td></tr>`;
 }
 const normTxt = t => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+// de onde vem o trânsito: pedidos ao CD abertos/separados (últimos 30 d) com este produto, por loja
+let TROPEN = new Set();
+function transitoDetalhe(item) {
+  const lim = Date.now() - 30 * 86400000; const linhas = [];
+  for (const p of PEDIDOS) {
+    if (!(p.status === 'aberto' || p.status === 'separado') || new Date(p.criadoEm).getTime() < lim) continue;
+    for (const i of p.itens) if ((i.unidade || i.codigoCD) === (item.unidade || item.codigoCD)) linhas.push({ loja: p.loja, id: p.id, cx: i.caixas, un: i.unidades, st: p.status, data: p.criadoEm });
+  }
+  linhas.sort((a, b) => a.loja - b.loja || a.id - b.id);
+  if (!linhas.length) return '<div class="s2" style="text-align:right;white-space:normal">vindo do CD (pedido não encontrado na lista)</div>';
+  return `<div class="s2" style="text-align:right;white-space:normal;line-height:1.5"><b style="color:#6B4E00">vindo do CD</b><br>${linhas.map(l => `L${l.loja} · pedido #${l.id} · <b>${fmtN(l.cx)} cx</b> (${fmtN(l.un)} un) · ${l.st === 'separado' ? '<span class="pos">separado</span>' : 'aguardando separação'} · ${new Date(l.data).toLocaleDateString('pt-BR')}`).join('<br>')}</div>`;
+}
 function itensVisiveis() {
   // busca por palavras em qualquer ordem, sem acento; com busca digitada ignora o "só itens com quantidade"
   const termos = normTxt(FILTRO).split(/[\s%]+/).filter(Boolean);
