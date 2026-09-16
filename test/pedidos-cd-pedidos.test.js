@@ -18,13 +18,14 @@ cd.init({ q: fakeQ, mesDB: m => String(m).padStart(2, '0'), dataDir });
 cd.salvarVinculo({ codigoCD: '17896037913143', unidade: '7896037913146', unPorCaixa: 12, usuario: 't' });
 cd._setBaseParaTeste({ hoje: '2026-09-14', cd: { '17896037913143': { descricao: 'VINHO CX12', estoqueCx: 5 } }, un: { '7896037913146': { descricao: 'VINHO', custo: 20, porLoja: {} } }, lead: {} });
 
-test('criarPedidos: 1 por loja, só itens com caixas > 0, recusa sem vínculo', () => {
+test('criarPedidos: 1 por loja, só itens com caixas > 0, recusa produto fora do CD', () => {
   const ps = cd.criarPedidos({ lojas: { 1: [{ codigoCD: '17896037913143', caixas: 3 }], 2: [{ codigoCD: '17896037913143', caixas: 0 }] }, usuario: 'tiago' });
   assert.equal(ps.length, 1);
   assert.equal(ps[0].loja, 1); assert.equal(ps[0].status, 'aberto');
   assert.equal(ps[0].itens[0].unidades, 36); assert.equal(ps[0].totais.custo, 720);
-  assert.throws(() => cd.criarPedidos({ lojas: { 1: [{ codigoCD: '999', caixas: 1 }] }, usuario: 't' }), /vínculo/);
+  assert.throws(() => cd.criarPedidos({ lojas: { 1: [{ codigoCD: '999', caixas: 1 }] }, usuario: 't' }), /estoque do CD/);
 });
+
 
 test('verificar: separado pelo painel do CD e recebido pela nota da loja', async () => {
   const r = await cd.verificar();
@@ -36,9 +37,9 @@ test('verificar: separado pelo painel do CD e recebido pela nota da loja', async
   assert.equal(r.verificados, 1);
 });
 
-test('criarPedidos: não grava nada se alguma loja tiver produto sem vínculo', () => {
+test('criarPedidos: não grava nada se alguma loja tiver produto fora do CD', () => {
   const antes = cd.listarPedidos().length;
-  assert.throws(() => cd.criarPedidos({ lojas: { 1: [{ codigoCD: '17896037913143', caixas: 1 }], 2: [{ codigoCD: '999', caixas: 1 }] }, usuario: 't' }), /vínculo/);
+  assert.throws(() => cd.criarPedidos({ lojas: { 1: [{ codigoCD: '17896037913143', caixas: 1 }], 2: [{ codigoCD: '999', caixas: 1 }] }, usuario: 't' }), /estoque do CD/);
   assert.equal(cd.listarPedidos().length, antes);
 });
 
@@ -97,4 +98,12 @@ test('verificar: casa expedição do pedido mais antigo primeiro e não reusa no
 
   assert.equal(cd.obterPedido(pA.id).expedicao.nPedido, '7400');
   assert.equal(cd.obterPedido(pB.id).expedicao.nPedido, '7401');
+});
+
+test('criarPedidos: caixa sem vínculo vai como produto novo pela caixa, un/cx do cadastro', () => {
+  cd._setBaseParaTeste({ hoje: '2026-09-14', cd: { '77900204333763': { descricao: 'SANDALIA IPANEMA INF CX6', estoqueCx: 4, unPorCaixaCadastro: 6 } }, un: {}, lead: {} });
+  const [p] = cd.criarPedidos({ lojas: { 3: [{ codigoCD: '77900204333763', caixas: 1 }] }, usuario: 'tiago' });
+  const it = p.itens[0];
+  assert.equal(it.unidade, null); assert.equal(it.semVinculo, true); assert.equal(it.origem, 'novo');
+  assert.equal(it.unPorCaixa, 6); assert.equal(it.unidades, 6); assert.equal(it.descricao, 'SANDALIA IPANEMA INF CX6');
 });
