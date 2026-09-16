@@ -6278,18 +6278,19 @@ app.get('/api/diag-abc', async (req, res) => {
     if (req.query.rows) {   // linhas cruas de lista_consolidadas + pedidocompra pra achar o campo do "Pedido Gerado"
       const ids = String(req.query.rows).split(',').map(x => parseInt(x)).filter(Boolean);
       const lc = await q(`SELECT * FROM central.lista_consolidadas WHERE nConsolidado IN (${ids.map(() => '?').join(',')})`, ids);
-      const pc = await q(`SELECT nConsolidado, nLoja, nReg, Status, nPedido, Data FROM central.pedidocompra WHERE nConsolidado IN (${ids.map(() => '?').join(',')})`, ids);
+      const pc = await q(`SELECT nConsolidado, nLoja, nReg, Status, nPedido FROM central.pedidocompra WHERE nConsolidado IN (${ids.map(() => '?').join(',')})`, ids);
       return res.json({ lista_consolidadas: lc, pedidocompra: pc });
     }
     const n = parseInt(req.query.n), cod = String(req.query.cod || '');
     const [cab] = await q(`SELECT Data, DataVenda1, DataVenda2, QtdCobertura FROM central.lista_consolidadas WHERE nConsolidado=?`, [n]);
     if (!cab) return res.status(404).json({ error: 'sugestão não encontrada' });
     const dias = parseInt(req.query.dias) || +cab.QtdCobertura || 40;
-    const fmt = d => new Date(d).toISOString().slice(0, 10);
+    // datas do ERP vêm como texto 'dd/mm/aaaa' (ou Date, no caso de Data)
+    const fmt = d => { if (d instanceof Date) return d.toISOString().slice(0, 10); const m = String(d).match(/^(\d{2})\/(\d{2})\/(\d{4})/); return m ? `${m[3]}-${m[2]}-${m[1]}` : String(d).slice(0, 10); };
     const fimTipo = req.query.fim || 'venda';
-    const dFim = fimTipo === 'hoje' ? fmt(new Date()) : fmt(fimTipo === 'data' ? cab.Data : cab.DataVenda2);
-    const dIni = fmt(new Date(new Date(dFim + 'T00:00:00').getTime() - (dias - 1) * 86400000));
-    const lojas = (await q(`SELECT DISTINCT Loja FROM central.lista_consolidado_historico WHERE nConsolidado=? ORDER BY Loja`, [n])).map(r => +r.Loja);
+    const dFim = fimTipo === 'hoje' ? new Date().toISOString().slice(0, 10) : fmt(fimTipo === 'data' ? cab.Data : cab.DataVenda2);
+    const dIni = new Date(new Date(dFim + 'T00:00:00').getTime() - (dias - 1) * 86400000).toISOString().slice(0, 10);
+    const lojas = (await q(`SELECT DISTINCT nLoja FROM central.lista_consolidado_historico WHERE nConsolidado=? ORDER BY nLoja`, [n])).map(r => +r.nLoja);
     const meses = [...new Set(sugestaoManual.mesesDoPeriodo(dIni, dFim))];
     const out = { n, cod, dias, periodo: [dIni, dFim], cobertura: +cab.QtdCobertura, lojas: {} };
     for (const ln of lojas) {
