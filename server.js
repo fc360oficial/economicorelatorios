@@ -4486,9 +4486,9 @@ async function montarListaConferencia() {
 const CAHU_TABELAS_PRECO = [
   { cod: 1, label: 'Tabela Retirada' },
   { cod: 4, label: 'Tabela Entrega Boleto 7 dias' },
-  { cod: 5, label: 'Tabela Entrega 14 dias' },
-  { cod: 7, label: 'Tabela Entrega 21 dias' },
-  { cod: 10, label: 'Tabela Entrega 28 dias' },
+  { cod: 5, label: 'Tabela Entrega Boleto 14 dias' },
+  { cod: 7, label: 'Tabela Entrega Boleto 21 dias' },
+  { cod: 10, label: 'Tabela Entrega Boleto 28 dias' },
   { cod: 14, label: 'Tabela Entrega Cartão/Pix' }
 ];
 
@@ -4723,7 +4723,8 @@ app.get('/api/cahu-distribuidora/tabela-precos.pdf', async (req, res) => {
       let x = MARGEM;
       doc.fillColor(PRETO).font('Helvetica-Bold').fontSize(8.5);
       for (const c of cols) {
-        doc.text(c.titulo, x + 3, y + (c.titulo.length > 16 ? 6 : 11), { width: c.w - 6, align: 'center', height: ALT_CAB - 4 });
+        const hTit = doc.heightOfString(c.titulo, { width: c.w - 6 });
+        doc.text(c.titulo, x + 3, y + Math.max(2, (ALT_CAB - hTit) / 2), { width: c.w - 6, align: 'center', height: ALT_CAB - 4 });
         x += c.w;
       }
       return y + ALT_CAB;
