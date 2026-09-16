@@ -6271,6 +6271,45 @@ app.post('/api/sugestao-manual', async (req, res) => {
     res.json(s);
   } catch (err) { res.status(err.message.startsWith('Lista') || err.message.startsWith('Escolha') ? 400 : 500).json({ error: err.message }); }
 });
+// DIAG TEMPORÁRIO (16/09/26): testa se o ABC do Dlinks = ranking da loja inteira nos N dias de cobertura da sugestão.
+// GET /api/diag-abc?n=4380&cod=7891010087722[&dias=40][&fim=venda|data|hoje]  — só SELECT. Remover depois de validar.
+app.get('/api/diag-abc', async (req, res) => {
+  try {
+    if (req.query.rows) {   // linhas cruas de lista_consolidadas + pedidocompra pra achar o campo do "Pedido Gerado"
+      const ids = String(req.query.rows).split(',').map(x => parseInt(x)).filter(Boolean);
+      const lc = await q(`SELECT * FROM central.lista_consolidadas WHERE nConsolidado IN (${ids.map(() => '?').join(',')})`, ids);
+      const pc = await q(`SELECT nConsolidado, nLoja, nReg, Status, nPedido, Data FROM central.pedidocompra WHERE nConsolidado IN (${ids.map(() => '?').join(',')})`, ids);
+      return res.json({ lista_consolidadas: lc, pedidocompra: pc });
+    }
+    const n = parseInt(req.query.n), cod = String(req.query.cod || '');
+    const [cab] = await q(`SELECT Data, DataVenda1, DataVenda2, QtdCobertura FROM central.lista_consolidadas WHERE nConsolidado=?`, [n]);
+    if (!cab) return res.status(404).json({ error: 'sugestão não encontrada' });
+    const dias = parseInt(req.query.dias) || +cab.QtdCobertura || 40;
+    const fmt = d => new Date(d).toISOString().slice(0, 10);
+    const fimTipo = req.query.fim || 'venda';
+    const dFim = fimTipo === 'hoje' ? fmt(new Date()) : fmt(fimTipo === 'data' ? cab.Data : cab.DataVenda2);
+    const dIni = fmt(new Date(new Date(dFim + 'T00:00:00').getTime() - (dias - 1) * 86400000));
+    const lojas = (await q(`SELECT DISTINCT Loja FROM central.lista_consolidado_historico WHERE nConsolidado=? ORDER BY Loja`, [n])).map(r => +r.Loja);
+    const meses = [...new Set(sugestaoManual.mesesDoPeriodo(dIni, dFim))];
+    const out = { n, cod, dias, periodo: [dIni, dFim], cobertura: +cab.QtdCobertura, lojas: {} };
+    for (const ln of lojas) {
+      const t0 = Date.now(); const acc = {};
+      for (const m of meses) {
+        const rows = await q(`SELECT Codigo, SUM(QtdNovo) qtd, SUM(ValorTotalNovo) valor FROM \`ln${ln}${mesDB(m)}\`.zcupomitens WHERE Data BETWEEN ? AND ? AND IndCancel='N' GROUP BY Codigo`, [dIni, dFim]);
+        for (const r of rows) { const a = acc[r.Codigo] || (acc[r.Codigo] = { qtd: 0, valor: 0 }); a.qtd += +r.qtd; a.valor += +r.valor; }
+      }
+      const cls = (arr, key) => {
+        const ord = Object.entries(acc).filter(([, v]) => v[key] > 0).sort((a, b) => b[1][key] - a[1][key]);
+        const N = ord.length, idx = ord.findIndex(([c]) => c === cod); const tot = ord.reduce((s, [, v]) => s + v[key], 0);
+        let acum = 0, cum = null; for (let i = 0; i < ord.length; i++) { acum += ord[i][1][key]; if (i === idx) { cum = acum / tot; break; } }
+        const pos = idx < 0 ? null : (idx + 1) / N;
+        return { N, pos_rank: idx < 0 ? null : idx + 1, pct_pos: pos == null ? null : +pos.toFixed(3), abc_posicao: pos == null ? 'sem venda' : pos <= .2 ? 'A' : pos <= .5 ? 'B' : 'C', pct_acum: cum == null ? null : +cum.toFixed(3), abc_acumulado: cum == null ? 'sem venda' : cum <= .8 ? 'A' : cum <= .95 ? 'B' : 'C', valor_item: acc[cod] ? +acc[cod][key].toFixed(2) : 0 };
+      };
+      out.lojas[ln] = { ms: Date.now() - t0, valor: cls(acc, 'valor'), quantidade: cls(acc, 'qtd') };
+    }
+    res.json(out);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 // resumo do pedido pro cliente da Consolidação (sem itens); PUBLIC_URL é definida mais abaixo, mas só é lida em runtime
 function resumoPedidoSugestao(p) {
   if (!p) return null;
