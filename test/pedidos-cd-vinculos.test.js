@@ -76,3 +76,25 @@ test('sincronizarVinculos guarda a descrição da unidade candidata (dun14 e des
   assert.equal(v['17896221600156'].descricaoCandidato, 'CLORITO AGUA SANITARIA 1L');
   assert.equal(v['47896006711245'].descricaoCandidato, 'POP ARROZ 1KG BRANCO');
 });
+
+test('coletarCD: emb_multipla=0 conta o estoque do CD em fardos; =1 em unidades; caixa de 14 dígitos sempre em caixas', async () => {
+  const fake = async (sql) => {
+    if (sql.includes('estoquen10')) return [
+      { cod: '7896012303115', Qtd: 300, descricao: 'ARROZ PARB EMOCOES 1KG FD10', qtdemb: 0 },
+      { cod: '7891150097575', Qtd: 379, descricao: 'ALA LAVA ROUPAS EM PO 400G COCO', qtdemb: 1 },
+      { cod: '17896221600156', Qtd: 1825, descricao: 'AGUA SANITARIA CLORITO 1L CX12', qtdemb: 0 },
+      { cod: '039800014009', Qtd: 1800, descricao: 'ENERGIZER PILHA AAA2', qtdemb: 1 }];
+    if (sql.includes('embalagempadrao_venda')) return [
+      { cod: '7896012303115', qv: 10, em: 0 }, { cod: '7891150097575', qv: 27, em: 1 }, { cod: '17896221600156', qv: 12, em: 0 }];
+    if (sql.includes('FROM central.itens WHERE CodDesativado=0 AND CodigoBarra IN')) return [{ cod: '7896221600159', descricao: 'CLORITO AGUA SANITARIA 1L' }];
+    return [];
+  };
+  const cdm = require('../lib/pedidos-cd');
+  cdm.init({ q: fake, mesDB: m => String(m).padStart(2, '0'), dataDir: dir });
+  const r = await cdm.coletarCD();
+  assert.equal(r['7896012303115'].estoqueCx, 300); assert.equal(r['7896012303115'].estoqueUn, null); assert.equal(r['7896012303115'].unPorCaixaCadastro, 10); assert.equal(r['7896012303115'].estoqueEm, 'cx');
+  assert.equal(r['7891150097575'].estoqueCx, 14); assert.equal(r['7891150097575'].estoqueUn, 379); assert.equal(r['7891150097575'].estoqueEm, 'un');
+  assert.equal(r['17896221600156'].estoqueCx, 1825); assert.equal(r['17896221600156'].unPorCaixaCadastro, 12);
+  assert.equal(r['039800014009'].estoqueCx, 1800); assert.equal(r['039800014009'].estoqueEm, 'un');   // sem Itens App: unidades, un/cx 1
+  cdm.init({ q: async () => [], mesDB: m => String(m).padStart(2, '0'), dataDir: dir });
+});
