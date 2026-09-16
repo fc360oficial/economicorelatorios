@@ -116,6 +116,7 @@ input.qin:focus{outline:none;border-color:#F5B800;background:#FFFDF3}input.qin.e
   <div id="banner"></div>
   <div class="fluxo"><span class="pill st-aguardando">Aguardando vendedor</span>→<span class="pill st-digitacao">Em digitação</span>→<span class="pill st-finalizado">Finalizado · aguardando aprovação</span>→<span class="pill st-aprovado">Aprovado</span>→<span class="xml aguardando" style="margin:0">Aguardando conferência XML</span>→<span class="xml conciliado" style="margin:0">Conciliado</span> ou <span class="xml consistencia" style="margin:0">Consistência XML</span> <span style="margin-left:10px">·</span> <span class="pill st-sugestao">Sugestão · ruptura de entrega</span> = criada pelo sistema quando a nota chegou com falta</div>
   <div class="totais" id="totais"></div>
+  <div id="cd-card" hidden style="margin:-6px 0 14px"></div>
   <div class="tools"><input id="q" placeholder="Buscar lista, fornecedor ou vendedor" style="min-width:280px"><select id="fComp"><option value="">Todos compradores</option></select><select id="fLoja" onchange="aberto=null;render()"><option value="">Todas as lojas</option><option value="1">L1 CAHU</option><option value="2">L2 MURIBECA</option><option value="3">L3 PONTE</option><option value="4">L4 ATACAREJO</option><option value="5">L5 PORTA LARGA</option><option value="6">L6 JARDIM JORDÃO</option></select><span class="cnt" id="cnt"></span><button class="btn btn-amber" id="btnTodos" onclick="enviarTodos()" title="Lista todos os pedidos Aguardando vendedor com o botão de WhatsApp de cada um">Enviar pra todos</button><button class="btn btn-slate" id="btnVer" onclick="verificarAgora()" title="Procura agora, no ERP, as NF-e (XML) dos pedidos aprovados, loja a loja, e confere quantidade, preço e boletos (o sistema faz isso sozinho a cada 30 min)">Conferir XML agora</button><button class="btn btn-slate" onclick="testesXml()" title="Cria 4 pedidos do FORNECEDOR TESTE com notas simuladas: conciliado, falta, preço diferente, boleto diferente">Criar testes XML</button><button class="btn btn-slate" onclick="testesAvaria()" title="Cria 2 pedidos do FORNECEDOR TESTE com avarias pendentes simuladas (abertas e em trâmite)">Criar testes avaria</button><button class="btn btn-slate" onclick="removerTestesXml()" title="Apaga os pedidos de teste (XML e avaria) e as sugestões que eles geraram">Remover testes</button><button class="btn btn-slate" id="btnAtu">Atualizar</button></div>
   <div id="view"><div class="spinner"></div></div>
 </div>
@@ -141,6 +142,7 @@ function seta(dig,ult,pct){
 // compara só os itens que têm preço digitado (último custo proporcional)
 const ultProp=p=>p.totais.com_preco?p.totais.ultimo_custo*(p.totais.com_preco/p.totais.itens):null;
 async function carregar(){
+  carregarCD();
   $('#view').innerHTML='<div class="spinner"></div>';
   try{const r=await fetch('/api/pedidos-fornecedor');LISTA=await r.json();if(LISTA.error)throw new Error(LISTA.error);}catch(e){$('#view').innerHTML='<div class="empty">Erro: '+esc(e.message)+'</div>';return;}
   const s=$('#fComp'); if(s.options.length===1) [...new Set(LISTA.map(p=>p.comprador?.nome).filter(Boolean))].sort().forEach(c=>{const o=document.createElement('option');o.textContent=c;s.appendChild(o);});
@@ -263,6 +265,20 @@ function renderTotais(){
   const cards=[['andamento','Em andamento',L.filter(r=>EM_ANDAMENTO.includes(r._grupo)).length],['sugestao','Ruptura de entrega',c('sugestao')],['aguardando','Aguardando vendedor',c('aguardando')],['digitacao','Em digitação',c('digitacao')],['finalizado','Aguardando aprovação',c('finalizado')],['aprovado','Aguardando XML',c('aprovado')],['xml_consistencia','Consistência XML',c('xml_consistencia')],['recebido','Conciliados',c('recebido')],['financeiro','Financeiro · conferir antes de pagar',FIN.length],['todos','Todos',L.length]];
   $('#totais').innerHTML=cards.map(([k,l,n])=>'<div class="tkpi'+(filtro===k?' on':'')+'" data-f="'+k+'"><div class="v'+((k==='finalizado'||k==='sugestao'||k==='xml_consistencia'||k==='financeiro')&&n?' neg':'')+'">'+n+'</div><div class="l">'+l+'</div></div>').join('');
   document.querySelectorAll('.tkpi').forEach(t=>t.onclick=()=>{filtro=t.dataset.f;aberto=null;renderTotais();render();});
+}
+// Pedidos ao CD (Centro de Distribuição) em andamento — só um resumo com link; o acompanhamento fica na tela do CD
+async function carregarCD(){
+  try{
+    const r=await fetch('/api/pedidos-cd/pedidos'); if(!r.ok) return; const ps=await r.json(); if(!Array.isArray(ps)) return;
+    const c=k=>ps.filter(p=>p.status===k).length; const ab=c('aberto'), sep=c('separado'), par=c('recebido_parcial');
+    const div=ps.filter(p=>['separado','recebido','recebido_parcial'].includes(p.status)&&p.itens.some(i=>(p.recebimento?(i.recebidas||0):(i.separadas||0))<i.caixas)).length;
+    const el=$('#cd-card'); if(!el) return; if(!ps.length){el.hidden=true;return;}
+    el.hidden=false;
+    el.innerHTML='<a href="/centro-distribuicao.html?tab=pedidos" style="text-decoration:none;color:inherit;display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:#fff;border:1px solid #DADAD6;border-left:4px solid #F5B800;border-radius:10px;padding:10px 16px;font-size:12.5px">'
+      +'<b style="font-size:13px">Pedidos ao CD</b><span style="color:#4E5A72">lojas → Centro de Distribuição · conferência automática (separado no CD / chegou na loja)</span>'
+      +'<span style="margin-left:auto;display:flex;gap:14px;font-weight:700"><span title="aguardando separação no CD">'+ab+' aberto'+(ab===1?'':'s')+'</span><span title="separado no CD, a caminho da loja">'+sep+' separado'+(sep===1?'':'s')+'</span><span title="chegou parcial na loja">'+par+' parcia'+(par===1?'l':'is')+'</span>'
+      +(div?'<span style="color:#C22F49" title="pedido separado/recebido com item faltando">'+div+' com divergência</span>':'')+'<span style="color:#6B4E00">abrir →</span></span></a>';
+  }catch(e){}
 }
 let FIN=[];
 async function carregarFin(){ try{const r=await fetch('/api/pedidos-fornecedor/financeiro');FIN=await r.json();if(FIN.error)FIN=[];}catch(e){FIN=[];} }

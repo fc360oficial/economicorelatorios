@@ -337,27 +337,42 @@ async function removerVinc(cod) { if (!confirm('Remover o vínculo?')) return; a
 let PF = 'todos';
 async function carregarPedidos() { PEDIDOS = await api('/api/pedidos-cd/pedidos'); renderPedidos(); }
 const ST = { aberto: ['Aberto', 'p-breve'], separado: ['Separado no CD', 'p-flag'], recebido: ['Chegou na loja', 'p-ok'], recebido_parcial: ['Chegou parcial', 'p-hoje'], cancelado: ['Cancelado', 'p-cinza'], expirado: ['Expirado (30 d sem nota)', 'p-cinza'] };
+let PABERTO = null;
+// divergência por item: pedido × separado no CD × recebido na loja
+function divItem(p, i) {
+  if (p.status === 'cancelado' || p.status === 'expirado') return ['mut', '—'];
+  if (p.recebimento) { if ((i.recebidas || 0) >= i.caixas) return ['pos', '✓ chegou']; if (i.recebidas > 0) return ['neg', `chegou ${i.recebidas} de ${i.caixas} cx`]; return ['neg', 'não chegou']; }
+  if (p.expedicao) { if ((i.separadas || 0) >= i.caixas) return ['pos', '✓ separado']; if (i.separadas > 0) return ['neg', `separou ${i.separadas} de ${i.caixas} cx`]; return ['neg', 'não separado']; }
+  return ['mut', 'aguardando CD'];
+}
+function resumoDiv(p) {
+  let ok = 0, div = 0; for (const i of p.itens) { const d = divItem(p, i)[0]; if (d === 'pos') ok++; else if (d === 'neg') div++; }
+  return { ok, div, faltaCx: p.itens.reduce((a, i) => a + Math.max(0, i.caixas - (p.recebimento ? (i.recebidas || 0) : p.expedicao ? (i.separadas || 0) : i.caixas)), 0) };
+}
 function renderPedidos() {
   const cont = { todos: PEDIDOS.length }; for (const k of Object.keys(ST)) cont[k] = PEDIDOS.filter(p => p.status === k).length;
+  cont.divergencia = PEDIDOS.filter(p => ['separado', 'recebido', 'recebido_parcial'].includes(p.status) && resumoDiv(p).div > 0).length;
   $('#n-peds').textContent = cont.aberto + cont.separado;
-  const vis = PEDIDOS.filter(p => PF === 'todos' || p.status === PF);
-  $('#tab-pedidos').innerHTML = `<div class="cards">${['todos', ...Object.keys(ST)].map(k => `<div class="card ${PF === k ? 'on' : ''}" onclick="PF='${k}';renderPedidos()"><div class="v">${cont[k]}</div><div class="l">${k === 'todos' ? 'todos' : ST[k][0]}</div></div>`).join('')}</div>
+  const vis = PEDIDOS.filter(p => PF === 'todos' || (PF === 'divergencia' ? (['separado', 'recebido', 'recebido_parcial'].includes(p.status) && resumoDiv(p).div > 0) : p.status === PF));
+  const cardsK = ['todos', ...Object.keys(ST), 'divergencia'];
+  $('#tab-pedidos').innerHTML = `<div class="cards">${cardsK.map(k => `<div class="card ${PF === k ? 'on' : ''}" onclick="PF='${k}';renderPedidos()"><div class="v ${k === 'divergencia' && cont[k] ? 'neg' : ''}">${cont[k]}</div><div class="l">${k === 'todos' ? 'todos' : k === 'divergencia' ? 'com divergência' : ST[k][0]}</div></div>`).join('')}</div>
+  <p class="mut" style="font-size:11.5px;margin:0 0 8px">Conferência automática a cada 30 min: <b>separado</b> = pedido da loja liberado no painel do Televendas do CD; <b>chegou</b> = nota do CD recebida na loja. Clique no pedido pra ver item a item o que foi pedido, separado e recebido.</p>
   <div class="busca-row"><button class="btn btn-slate" onclick="verificar()">Verificar agora</button></div>
-  <div class="table-wrap"><table class="main-t"><thead><tr><th>#</th><th>Loja</th><th>Criado</th><th class="r">Itens</th><th class="r">Caixas</th><th class="r">Custo</th><th>Andamento</th><th>Ação</th></tr></thead><tbody>
-  ${vis.map(p => `<tr class="lst" onclick="abrirPedido(${p.id})"><td>${p.id}</td><td><b>L${p.loja}</b> ${p.lojaNome}</td><td>${new Date(p.criadoEm).toLocaleString('pt-BR')}<div class="s2">${p.criadoPor || ''}</div></td><td class="r">${p.itens.length}</td><td class="r">${fmtN(p.totais.caixas)}</td><td class="r">${fmtR(p.totais.custo)}</td>
-    <td><span class="pill ${ST[p.status][1]}">${ST[p.status][0]}</span>${p.expedicao ? '<div class="s2">CD pedido ' + p.expedicao.nPedido + ' · ' + (p.expedicao.data || '').split('-').reverse().join('/') + '</div>' : ''}${p.recebimento ? '<div class="s2">nota(s) ' + p.recebimento.notas.map(n => n.nNota).join(', ') + '</div>' : ''}</td>
-    <td onclick="event.stopPropagation()">${['aberto', 'separado', 'recebido_parcial', 'expirado'].includes(p.status) ? `<button class="btn btn-slate" onclick="cancelar(${p.id})">Cancelar</button>` : ''} <button class="btn btn-slate" onclick="imprimir(${p.id})">Imprimir</button></td></tr>`).join('') || '<tr><td colspan="8" class="mut">nenhum pedido</td></tr>'}
+  <div class="table-wrap"><table class="main-t"><thead><tr><th>#</th><th>Loja</th><th>Criado</th><th class="r">Itens</th><th class="r">Caixas</th><th class="r">Custo</th><th>Andamento</th><th>Conferência</th><th>Ação</th></tr></thead><tbody>
+  ${vis.map(p => { const R = resumoDiv(p); const aberto = PABERTO === p.id; return `<tr class="lst${aberto ? ' open' : ''}" onclick="PABERTO=PABERTO===${p.id}?null:${p.id};renderPedidos()"><td>${p.id}</td><td><b>L${p.loja}</b> ${p.lojaNome}</td><td>${new Date(p.criadoEm).toLocaleString('pt-BR')}<div class="s2">${p.criadoPor || ''}</div></td><td class="r">${p.itens.length}</td><td class="r">${fmtN(p.totais.caixas)}</td><td class="r">${fmtR(p.totais.custo)}</td>
+    <td><span class="pill ${ST[p.status][1]}">${ST[p.status][0]}</span>${p.expedicao ? '<div class="s2">separação ' + p.expedicao.nPedido + ' · ' + (p.expedicao.data || '').split('-').reverse().join('/') + '</div>' : ''}${p.recebimento ? '<div class="s2">nota(s) ' + p.recebimento.notas.map(n => n.nNota).join(', ') + '</div>' : ''}</td>
+    <td>${p.status === 'aberto' ? '<span class="mut">aguardando CD</span>' : ['cancelado', 'expirado'].includes(p.status) ? '<span class="mut">—</span>' : R.div ? `<span class="neg">${R.div} item(ns) com divergência</span><div class="s2">faltam ${fmtN(R.faltaCx)} cx</div>` : '<span class="pos">✓ tudo conferido</span>'}</td>
+    <td onclick="event.stopPropagation()">${['aberto', 'separado', 'recebido_parcial', 'expirado'].includes(p.status) ? `<button class="btn btn-slate" onclick="cancelar(${p.id})">Cancelar</button>` : ''} <button class="btn btn-slate" onclick="imprimir(${p.id})">Imprimir</button></td></tr>${aberto ? detalhePedido(p) : ''}`; }).join('') || '<tr><td colspan="9" class="mut">nenhum pedido</td></tr>'}
   </tbody></table></div>`;
 }
-function abrirPedido(id) {
-  const p = PEDIDOS.find(x => x.id === id); if (!p) return;
-  $('#ov-body').innerHTML = `<h2 style="font-size:16px">Pedido #${p.id} · L${p.loja} ${p.lojaNome} <span class="pill ${ST[p.status][1]}">${ST[p.status][0]}</span></h2>
-  <p class="mut" style="font-size:11px;margin:4px 0 10px">criado ${new Date(p.criadoEm).toLocaleString('pt-BR')} por ${p.criadoPor || '–'}</p>
-  <table class="main-t"><thead><tr><th>Produto</th><th class="c">Un/cx</th><th class="r">Pedidas (cx)</th><th class="r">Separadas</th><th class="r">Recebidas</th><th>Situação</th></tr></thead><tbody>
-  ${p.itens.map(i => `<tr><td class="lc">${i.descricao}<div class="sub">${i.unidade ? i.codigoCD + ' → ' + i.unidade : i.codigoCD + ' · <b>produto novo</b> (sem vínculo, pela caixa)'}</div></td><td class="c">${i.unPorCaixa}</td><td class="r">${i.caixas}</td><td class="r">${i.separadas || 0}</td><td class="r">${i.recebidas || 0}</td>
-    <td>${!p.recebimento ? '<span class="mut">aguardando</span>' : i.recebidas >= i.caixas ? '<span class="pos">✓</span>' : i.recebidas > 0 ? `<span class="neg">veio ${i.recebidas} de ${i.caixas} cx</span>` : '<span class="neg">não veio</span>'}</td></tr>`).join('')}
-  </tbody></table><div style="text-align:right;margin-top:12px"><button class="btn btn-slate" onclick="$('#ov').classList.remove('on')">Fechar</button></div>`;
-  $('#ov').classList.add('on');
+function detalhePedido(p) {
+  const R = resumoDiv(p);
+  const itens = p.itens.slice().sort((a, b) => { const da = divItem(p, a)[0] === 'neg' ? 0 : 1, db = divItem(p, b)[0] === 'neg' ? 0 : 1; return da - db || a.descricao.localeCompare(b.descricao, 'pt-BR'); });
+  return `<tr class="det"><td colspan="9"><div class="box"><div class="hd"><div>Pedido <b>#${p.id}</b> · L${p.loja} ${p.lojaNome} · <span class="pill ${ST[p.status][1]}">${ST[p.status][0]}</span> · ${p.itens.length} itens · <b>${fmtN(p.totais.caixas)}</b> cx pedidas${p.expedicao ? ' · separação <b>' + p.expedicao.nPedido + '</b> em ' + (p.expedicao.data || '').split('-').reverse().join('/') : ''}${p.recebimento ? ' · nota(s) <b>' + p.recebimento.notas.map(n => n.nNota).join(', ') + '</b>' : ''}</div>
+    <div>${R.div ? `<span style="color:#FF8FA3;font-weight:800">${R.div} com divergência · faltam ${fmtN(R.faltaCx)} cx</span>` : (p.status === 'aberto' ? '<span style="color:#AEB8CE">aguardando separação no CD</span>' : '<span style="color:#7BE0A6;font-weight:800">tudo conferido</span>')} <button class="btn btn-slate btn-sm" style="margin-left:10px" onclick="event.stopPropagation();imprimir(${p.id})">Imprimir</button></div></div>
+    <table><thead><tr><th>Código CD</th><th>Produto</th><th class="r">Un/cx</th><th class="r">Pedidas (cx)</th><th class="r">Separadas no CD</th><th class="r">Recebidas na loja</th><th class="r">Custo</th><th>Conferência</th></tr></thead><tbody>
+    ${itens.map(i => { const [cls, txt] = divItem(p, i); return `<tr class="${cls === 'neg' ? 'risco' : ''}"><td class="mono" style="font-family:ui-monospace,Consolas,monospace;font-size:11px;color:#4E5A72">${i.codigoCD}</td><td class="desc" style="white-space:normal">${esc(i.descricao)}${i.semVinculo ? ' <span class="pill p-flag">produto novo</span>' : ''}${i.unidade ? `<div class="s2">unidade ${i.unidade}</div>` : ''}</td><td class="r">${i.unPorCaixa}</td><td class="r"><b>${fmtN(i.caixas)}</b></td><td class="r">${p.expedicao ? fmtN(i.separadas || 0) : '<span class="mut">—</span>'}</td><td class="r">${p.recebimento ? fmtN(i.recebidas || 0) : '<span class="mut">—</span>'}</td><td class="r">${i.custoUn ? fmtR(i.caixas * i.unPorCaixa * i.custoUn) : '—'}</td><td class="${cls}">${txt}</td></tr>`; }).join('')}
+    </tbody></table></div></td></tr>`;
 }
 async function cancelar(id) { if (!confirm('Cancelar o pedido #' + id + '?')) return; try { await api('/api/pedidos-cd/pedidos/' + id + '/cancelar', { method: 'POST' }); await carregarPedidos(); carregar(false); } catch (e) { alert(e.message); } }
 async function verificar() { try { const r = await api('/api/pedidos-cd/verificar', { method: 'POST' }); await carregarPedidos(); alert(`Verificados ${r.verificados} · separados ${r.separados} · recebidos ${r.recebidos}`); } catch (e) { alert(e.message); } }
@@ -418,6 +433,7 @@ async function salvarCfg() {
 }
 carregar(false);
 carregarVinculos().catch(e => alert(e.message));
+{ const t = new URLSearchParams(location.search).get('tab'); if (t) { const b = document.querySelector('[data-tab=' + t + ']'); if (b) b.click(); } }
 carregarPedidos().catch(e => alert(e.message));
 </script>
 </body>
