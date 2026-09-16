@@ -815,17 +815,19 @@ function resumoFin(itens){
     if (!it.ativo) continue; let tem = false;
     for (const l of it.lojas) {
       if (l.desativado) continue; const q = l.sug_loja || 0; if (q <= 0) continue;
-      tem = true; cap += q * ((l.custo > 0 ? l.custo : it.preco_und) || 0); rec += q * (l.preco_atual || 0); cx += Math.ceil(q / (it.emb || 1));
+      tem = true; cap += q * (it.preco_digitado > 0 ? it.preco_digitado : ((l.custo > 0 ? l.custo : it.preco_und) || 0)); rec += q * (l.preco_atual || 0); cx += Math.ceil(q / (it.emb || 1));
       if (l.media > 0) { cobS += ((l.estoque > 0 ? l.estoque : 0) + q) / l.media; cobN++; }
     }
     if (tem) nItens++;
   }
-  return { cap, rec, margem: rec > 0 ? (rec - cap) / rec * 100 : null, cx, cob: cobN ? cobS / cobN : null, nItens };
+  const estimado = itens.some(it => it.ativo && it.quantidade > 0 && !(it.preco_digitado > 0));
+  return { cap, rec, margem: rec > 0 ? (rec - cap) / rec * 100 : null, cx, cob: cobN ? cobS / cobN : null, nItens, estimado };
 }
 function renderConsTotais(){
   const r = resumoFin(CONS.s.itens);
   const set = (id, v, cls) => { const e = document.getElementById(id); e.textContent = v; e.className = cls || ''; };
-  set('t-compra', 'R$ ' + fmtN(r.cap), 'pos'); set('t-receita', 'R$ ' + fmtN(r.rec), '');
+  set('t-compra', 'R$ ' + fmtN(r.cap) + (r.estimado ? ' *' : ''), 'pos'); document.getElementById('t-compra').title = r.estimado ? 'Estimado pelo último custo — o Dlinks só soma depois que o fornecedor digita o preço' : 'Preço digitado pelo fornecedor';
+  set('t-receita', 'R$ ' + fmtN(r.rec), '');
   set('t-itens', r.nItens, 'inf'); set('t-volumes', r.cx, 'inf');
   set('t-margem', r.margem == null ? '—' : fmtN(r.margem, 1) + '%', r.margem == null ? 'vazio' : r.margem >= 20 ? 'pos' : '');
   set('t-cob', r.cob == null ? '—' : fmtN(r.cob, 0) + ' dias', r.cob == null ? 'vazio' : 'inf');
