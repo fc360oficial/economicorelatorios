@@ -48,6 +48,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--ink);min-height:10
 .btn-gerar.sec:hover{background:var(--surface-2)}
 .btn-gerar.sec .spinner-ico{border-color:rgba(14,22,38,.25);border-top-color:var(--ink)}
 
+.fmt{display:flex;align-items:center;gap:10px;margin-bottom:16px;font-size:12px;color:var(--ink-2);font-weight:600}
+.seg{display:inline-flex;border:1px solid var(--border-strong);border-radius:8px;overflow:hidden;background:var(--surface)}
+.seg button{border:none;background:transparent;font-family:var(--font);font-size:12.5px;font-weight:700;color:var(--ink-2);padding:7px 16px;cursor:pointer}
+.seg button.on{background:var(--ink);color:#fff}
 .sep{margin:22px 0 16px;border-top:1px solid var(--border)}
 .sub-title{font-size:13px;font-weight:800;color:var(--ink);margin-bottom:4px}
 .sub-desc{font-size:12px;color:var(--ink-2);line-height:1.5;margin-bottom:12px}
@@ -68,7 +72,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--ink);min-height:10
   </div>
 
   <div class="card">
-    <h2>O que vai no Excel</h2>
+    <h2>O que vai no arquivo</h2>
     <p class="desc">O arquivo é gerado na hora, direto do ERP — sempre reflete os produtos e preços mais recentes cadastrados (inclusive itens novos).</p>
 
     <div class="tabelas-list">
@@ -81,14 +85,21 @@ body{font-family:var(--font);background:var(--bg);color:var(--ink);min-height:10
       <div class="row"><span class="dot"></span>Tabela Entrega Cartão/Pix</div>
     </div>
 
-    <button class="btn-gerar" type="button" data-tabela="" data-label="Gerar Excel completo">
+    <div class="fmt">Formato:
+      <div class="seg" id="segFmt">
+        <button type="button" data-fmt="xlsx" class="on">Excel</button>
+        <button type="button" data-fmt="pdf">PDF</button>
+      </div>
+    </div>
+
+    <button class="btn-gerar" type="button" data-tabela="" data-label="Gerar completo">
       <svg><use href="/icons.svg#download"/></svg>
-      <span>Gerar Excel completo</span>
+      <span>Gerar <b id="fmtNome">Excel</b> completo</span>
     </button>
 
     <div class="sep"></div>
     <div class="sub-title">Gerar separado por tabela</div>
-    <div class="sub-desc">Cada botão gera um Excel só com a coluna de preço daquela tabela — útil pra mandar ao cliente só a condição que ele usa.</div>
+    <div class="sub-desc">Cada botão gera um arquivo só com a coluna de preço daquela tabela — útil pra mandar ao cliente só a condição que ele usa.</div>
     <div class="btn-grid" id="btnGrid"></div>
 
     <div class="status" id="status"></div>
@@ -102,6 +113,16 @@ body{font-family:var(--font);background:var(--bg);color:var(--ink);min-height:10
   var status = document.getElementById('status');
   var grid = document.getElementById('btnGrid');
   var ICON = '<svg><use href="/icons.svg#download"/></svg>';
+  var fmt = 'xlsx';
+  var FMT_NOME = { xlsx: 'Excel', pdf: 'PDF' };
+
+  document.getElementById('segFmt').addEventListener('click', function (ev) {
+    var b = ev.target.closest('button[data-fmt]');
+    if (!b) return;
+    fmt = b.getAttribute('data-fmt');
+    document.querySelectorAll('#segFmt button').forEach(function (x) { x.classList.toggle('on', x === b); });
+    document.getElementById('fmtNome').textContent = FMT_NOME[fmt];
+  });
 
   function nomeArquivo(res, fallback) {
     var cd = res.headers.get('Content-Disposition') || '';
@@ -119,28 +140,29 @@ body{font-family:var(--font);background:var(--bg);color:var(--ink);min-height:10
     status.className = 'status';
 
     try {
-      var url = '/api/cahu-distribuidora/tabela-precos.xlsx' + (tabela ? '?tabela=' + encodeURIComponent(tabela) : '');
+      var url = '/api/cahu-distribuidora/tabela-precos.' + fmt + (tabela ? '?tabela=' + encodeURIComponent(tabela) : '');
       var r = await fetch(url);
       if (!r.ok) {
         var e = await r.json().catch(function () { return {}; });
-        throw new Error(e.error || 'Falha ao gerar o Excel.');
+        throw new Error(e.error || 'Falha ao gerar o arquivo.');
       }
       var blob = await r.blob();
       var hoje = new Date().toISOString().slice(0, 10);
       var a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = nomeArquivo(r, 'Tabela_Precos_CAHU_Distribuidora_' + hoje + '.xlsx');
+      a.download = nomeArquivo(r, 'Tabela_Precos_CAHU_Distribuidora_' + hoje + '.' + fmt);
       document.body.appendChild(a);
       a.click();
       a.remove();
       URL.revokeObjectURL(a.href);
-      status.textContent = (tabela ? label : 'Excel completo') + ' gerado e baixado com sucesso.';
+      status.textContent = FMT_NOME[fmt] + ' ' + (tabela ? label : 'completo') + ' gerado e baixado com sucesso.';
       status.className = 'status ok';
     } catch (err) {
-      status.textContent = err.message || 'Erro ao gerar o Excel.';
+      status.textContent = err.message || 'Erro ao gerar o arquivo.';
       status.className = 'status err';
     } finally {
-      btn.innerHTML = ICON + '<span>' + label + '</span>';
+      btn.innerHTML = tabela ? ICON + '<span>' + label + '</span>'
+                             : ICON + '<span>Gerar <b id="fmtNome">' + FMT_NOME[fmt] + '</b> completo</span>';
       todos.forEach(function (b) { b.disabled = false; });
     }
   }

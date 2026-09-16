@@ -4497,45 +4497,56 @@ app.get('/api/cahu-distribuidora/tabelas-preco', (req, res) => {
   res.json(CAHU_TABELAS_PRECO);
 });
 
+// Resolve ?tabela=<cod> → { tabelas, tabelaUnica } ou null se inválida.
+function resolverTabelasCahu(query) {
+  if (query.tabela === undefined) return { tabelas: CAHU_TABELAS_PRECO, tabelaUnica: null };
+  const t = CAHU_TABELAS_PRECO.find(x => String(x.cod) === String(query.tabela));
+  return t ? { tabelas: [t], tabelaUnica: t } : null;
+}
+
+// Carrega os produtos (com preço por tabela) usados no Excel e no PDF.
+async function carregarTabelaPrecosCahu(tabelas) {
+  const codigosTabela = tabelas.map(t => t.cod);
+  const phTab = codigosTabela.map(() => '?').join(',');
+  // status_item é por tabela (um produto pode estar inativo só numa tabela
+  // específica, ex: fora da Retirada mas ativo nas de Entrega) — filtra aqui
+  // pra não trazer preço de item que o ERP já considera inativo naquela tabela.
+  // CodDesativado é o cadastro geral do produto (itens), independente de tabela.
+  const [precos, estoque] = await Promise.all([
+    q(`
+      SELECT s.codigobarra, s.descricao, s.cod_tabela, s.preco
+      FROM central.s_tabela_item s
+      JOIN central.itens i ON i.CodigoBarra = s.codigobarra
+      WHERE s.cod_tabela IN (${phTab}) AND s.status_item = 0 AND i.CodDesativado = 0
+    `, codigosTabela),
+    q(`SELECT CodigoBarra, Qtd FROM central.estoquen10 WHERE Qtd > 0`, [])
+  ]);
+  const estoquePositivo = new Set(estoque.map(e => e.CodigoBarra));
+  const produtos = new Map();
+  for (const r of precos) {
+    if (!estoquePositivo.has(r.codigobarra)) continue;
+    if (!produtos.has(r.codigobarra)) {
+      produtos.set(r.codigobarra, { codigobarra: r.codigobarra, descricao: r.descricao });
+    }
+    produtos.get(r.codigobarra)[r.cod_tabela] = Number(r.preco);
+  }
+  return [...produtos.values()].sort((a, b) => a.descricao.localeCompare(b.descricao, 'pt-BR'));
+}
+
+function slugTabelaCahu(tabelaUnica) {
+  return tabelaUnica
+    ? tabelaUnica.label.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '')
+    : 'Tabela_Precos_Completa';
+}
+
+const CAHU_LOGO_EXCEL = path.join(__dirname, 'public', 'logo-cahu-excel.png');
+
 app.get('/api/cahu-distribuidora/tabela-precos.xlsx', async (req, res) => {
   try {
-    // ?tabela=<cod> gera o Excel de UMA tabela só (uma coluna de preço);
-    // sem o parâmetro gera o completo com todas as tabelas lado a lado.
-    let tabelas = CAHU_TABELAS_PRECO;
-    let tabelaUnica = null;
-    if (req.query.tabela !== undefined) {
-      tabelaUnica = CAHU_TABELAS_PRECO.find(t => String(t.cod) === String(req.query.tabela));
-      if (!tabelaUnica) return res.status(400).json({ error: 'Tabela de preço inválida.' });
-      tabelas = [tabelaUnica];
-    }
-    const codigosTabela = tabelas.map(t => t.cod);
-    const phTab = codigosTabela.map(() => '?').join(',');
-
-    // status_item é por tabela (um produto pode estar inativo só numa tabela
-    // específica, ex: fora da Retirada mas ativo nas de Entrega) — filtra aqui
-    // pra não trazer preço de item que o ERP já considera inativo naquela tabela.
-    // CodDesativado é o cadastro geral do produto (itens), independente de tabela.
-    const [precos, estoque] = await Promise.all([
-      q(`
-        SELECT s.codigobarra, s.descricao, s.cod_tabela, s.preco
-        FROM central.s_tabela_item s
-        JOIN central.itens i ON i.CodigoBarra = s.codigobarra
-        WHERE s.cod_tabela IN (${phTab}) AND s.status_item = 0 AND i.CodDesativado = 0
-      `, codigosTabela),
-      q(`SELECT CodigoBarra, Qtd FROM central.estoquen10 WHERE Qtd > 0`, [])
-    ]);
-
-    const estoquePositivo = new Set(estoque.map(e => e.CodigoBarra));
-
-    const produtos = new Map();
-    for (const r of precos) {
-      if (!estoquePositivo.has(r.codigobarra)) continue;
-      if (!produtos.has(r.codigobarra)) {
-        produtos.set(r.codigobarra, { codigobarra: r.codigobarra, descricao: r.descricao });
-      }
-      produtos.get(r.codigobarra)[r.cod_tabela] = Number(r.preco);
-    }
-    const lista = [...produtos.values()].sort((a, b) => a.descricao.localeCompare(b.descricao, 'pt-BR'));
+    const sel = resolverTabelasCahu(req.query);
+    if (!sel) return res.status(400).json({ error: 'Tabela de preço inválida.' });
+    const { tabelas, tabelaUnica } = sel;
+    const lista = await carregarTabelaPrecosCahu(tabelas);
 
     // Amarelo CIMED com letras pretas (pedido do Tiago, 16/09/26)
     const NAVY = 'FFFFCB05', NAVY_LIGHT = 'FFFFE066', GOLD = 'FF000000';
@@ -4547,7 +4558,7 @@ app.get('/api/cahu-distribuidora/tabela-precos.xlsx', async (req, res) => {
     const wb = new ExcelJS.Workbook();
     wb.creator = 'Econômico Relatórios';
     wb.created = new Date();
-    const ws = wb.addWorksheet(tabelaUnica ? tabelaUnica.label.slice(0, 31) : 'Tabelas de Preço', {
+    const ws = wb.addWorksheet(tabelaUnica ? tabelaUnica.label.replace(/[\/?*\[\]:]/g, '-').slice(0, 31) : 'Tabelas de Preço', {
       views: [{ showGridLines: false }],
       pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1 }
     });
@@ -4568,9 +4579,8 @@ CAHU DISTRIBUIDORA`
     titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: NAVY } };
     ws.getRow(1).height = tabelaUnica ? 62 : 54;
     try {
-      const logoPath = path.join(__dirname, 'public', 'logo-cahu-excel.png');
-      if (fs.existsSync(logoPath)) {
-        const logoBuf = fs.readFileSync(logoPath);
+      if (fs.existsSync(CAHU_LOGO_EXCEL)) {
+        const logoBuf = fs.readFileSync(CAHU_LOGO_EXCEL);
         const logoId = wb.addImage({ buffer: logoBuf, extension: 'png' });
         const pw = logoBuf.readUInt32BE(16), ph = logoBuf.readUInt32BE(20);
         const h = 56, w = Math.round(h * pw / ph);
@@ -4638,9 +4648,7 @@ CAHU DISTRIBUIDORA`
     footerCell.alignment = { horizontal: 'right' };
 
     const hoje = new Date().toISOString().slice(0, 10);
-    const slug = tabelaUnica
-      ? tabelaUnica.label.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '')
-      : 'Tabela_Precos_Completa';
+    const slug = slugTabelaCahu(tabelaUnica);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="${slug}_CAHU_Distribuidora_${hoje}.xlsx"`);
     await wb.xlsx.write(res);
@@ -4648,6 +4656,108 @@ CAHU DISTRIBUIDORA`
   } catch (e) {
     console.error('[CAHU-TABELA-PRECOS-ERR]', e.message);
     res.status(500).json({ error: 'Falha ao gerar o Excel: ' + e.message });
+  }
+});
+
+// PDF da Tabela de Preços — mesmos dados/filtros do Excel, dois modos
+// (completo em paisagem, tabela única em retrato). Faixa amarelo CIMED + logo.
+app.get('/api/cahu-distribuidora/tabela-precos.pdf', async (req, res) => {
+  try {
+    const sel = resolverTabelasCahu(req.query);
+    if (!sel) return res.status(400).json({ error: 'Tabela de preço inválida.' });
+    const { tabelas, tabelaUnica } = sel;
+    const lista = await carregarTabelaPrecosCahu(tabelas);
+
+    const PDFDocument = require('pdfkit');
+    const AMARELO = '#FFCB05', AMARELO_CLARO = '#FFE066', ZEBRA = '#FFF8DC', LINHA = '#E0D6A0', PRETO = '#000000';
+    const MARGEM = 28;
+    const doc = new PDFDocument({
+      size: 'A4', layout: tabelaUnica ? 'portrait' : 'landscape', margin: MARGEM, bufferPages: true,
+      info: { Title: tabelaUnica ? tabelaUnica.label : 'Tabela de Preços — CAHU Distribuidora', Author: 'Econômico Relatórios' }
+    });
+    const slug = slugTabelaCahu(tabelaUnica);
+    const hoje = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${slug}_CAHU_Distribuidora_${hoje}.pdf"`);
+    doc.pipe(res);
+
+    const W = doc.page.width, H = doc.page.height, larguraUtil = W - 2 * MARGEM;
+    const fmtBRL = v => (v == null ? '' : 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+    const logoBuf = fs.existsSync(CAHU_LOGO_EXCEL) ? fs.readFileSync(CAHU_LOGO_EXCEL) : null;
+
+    // colunas: código | descrição (flex) | preços
+    const wCod = tabelaUnica ? 110 : 92;
+    const wPreco = tabelaUnica ? 100 : 70;
+    const wDesc = larguraUtil - wCod - wPreco * tabelas.length;
+    const cols = [
+      { titulo: 'Código de Barras', w: wCod, align: 'center' },
+      { titulo: 'Descrição', w: wDesc, align: 'left' },
+      ...tabelas.map(t => ({ titulo: t.label.replace(/^Tabela /, ''), w: wPreco, align: 'center', cod: t.cod }))
+    ];
+
+    const ALT_FAIXA = 52, ALT_SUB = 16, ALT_CAB = 32, ALT_LINHA = 15, ALT_RODAPE = 18;
+    const FONTE_LINHA = tabelaUnica ? 9 : 8.2;
+
+    function cabecalhoPagina() {
+      let y = MARGEM;
+      // faixa amarela com logo + título
+      doc.rect(MARGEM, y, larguraUtil, ALT_FAIXA).fill(AMARELO);
+      let xTitulo = MARGEM + 10, wTitulo = larguraUtil - 20;
+      if (logoBuf) {
+        const hLogo = ALT_FAIXA - 12, wLogo = Math.round(hLogo * 774 / 316);
+        doc.image(logoBuf, MARGEM + 8, y + 6, { height: hLogo });
+        xTitulo = MARGEM + 8 + wLogo + 10; wTitulo = larguraUtil - (xTitulo - MARGEM) - 10;
+      }
+      doc.fillColor(PRETO).font('Helvetica-Bold').fontSize(tabelaUnica ? 13 : 17)
+        .text(tabelaUnica ? `${tabelaUnica.label.toUpperCase()} — CAHU DISTRIBUIDORA` : 'TABELA DE PREÇOS — CAHU DISTRIBUIDORA',
+          xTitulo, y + (ALT_FAIXA - (tabelaUnica ? 13 : 17)) / 2 - 2, { width: wTitulo, align: 'center', lineBreak: false });
+      y += ALT_FAIXA;
+      doc.rect(MARGEM, y, larguraUtil, ALT_SUB).fill(AMARELO_CLARO);
+      doc.fillColor(PRETO).font('Helvetica-Oblique').fontSize(8.5)
+        .text(`Somente itens com estoque positivo no CD — gerado em ${new Date().toLocaleDateString('pt-BR')}`,
+          MARGEM, y + 4, { width: larguraUtil, align: 'center', lineBreak: false });
+      y += ALT_SUB + 4;
+      // cabeçalho da tabela
+      doc.rect(MARGEM, y, larguraUtil, ALT_CAB).fill(AMARELO);
+      doc.moveTo(MARGEM, y + ALT_CAB).lineTo(MARGEM + larguraUtil, y + ALT_CAB).lineWidth(1).stroke(PRETO);
+      let x = MARGEM;
+      doc.fillColor(PRETO).font('Helvetica-Bold').fontSize(8.5);
+      for (const c of cols) {
+        doc.text(c.titulo, x + 3, y + (c.titulo.length > 16 ? 6 : 11), { width: c.w - 6, align: 'center', height: ALT_CAB - 4 });
+        x += c.w;
+      }
+      return y + ALT_CAB;
+    }
+
+    let y = cabecalhoPagina();
+    const limiteY = H - MARGEM - ALT_RODAPE;
+    lista.forEach((p, idx) => {
+      if (y + ALT_LINHA > limiteY) { doc.addPage(); y = cabecalhoPagina(); }
+      if (idx % 2 === 1) doc.rect(MARGEM, y, larguraUtil, ALT_LINHA).fill(ZEBRA);
+      doc.moveTo(MARGEM, y + ALT_LINHA).lineTo(MARGEM + larguraUtil, y + ALT_LINHA).lineWidth(0.3).stroke(LINHA);
+      let x = MARGEM;
+      doc.fillColor(PRETO).font('Helvetica').fontSize(FONTE_LINHA);
+      for (const c of cols) {
+        const txt = c.cod ? fmtBRL(p[c.cod]) : (c.align === 'left' ? p.descricao : p.codigobarra);
+        doc.text(txt, x + 4, y + 4, { width: c.w - 8, align: c.align, lineBreak: false, ellipsis: true });
+        x += c.w;
+      }
+      y += ALT_LINHA;
+    });
+
+    // rodapé em todas as páginas: total + numeração
+    const range = doc.bufferedPageRange();
+    for (let i = range.start; i < range.start + range.count; i++) {
+      doc.switchToPage(i);
+      doc.fillColor('#555555').font('Helvetica-Oblique').fontSize(8);
+      doc.text(`Total de produtos: ${lista.length}`, MARGEM, H - MARGEM - 10, { width: larguraUtil / 2, align: 'left', lineBreak: false });
+      doc.text(`Página ${i - range.start + 1} de ${range.count}`, MARGEM + larguraUtil / 2, H - MARGEM - 10, { width: larguraUtil / 2, align: 'right', lineBreak: false });
+    }
+    doc.end();
+  } catch (e) {
+    console.error('[CAHU-TABELA-PRECOS-PDF-ERR]', e.message);
+    if (!res.headersSent) res.status(500).json({ error: 'Falha ao gerar o PDF: ' + e.message });
+    else res.end();
   }
 });
 
