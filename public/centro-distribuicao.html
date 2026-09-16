@@ -193,10 +193,13 @@ function linha(item, lojasCols) {
     <td class="r ${item.custoUn ? '' : 'mut'}">${item.custoUn ? fmtR(item.custoUn) : '—'}</td>
     <td class="r"><b>${fmtR(tot * upc * item.custoUn)}</b></td></tr>`;
 }
+const normTxt = t => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 function itensVisiveis() {
-  const f = FILTRO.toLowerCase();
-  let vis = todosItens().filter(i => !f || (i.descricaoCD + ' ' + (i.descricaoUn || '') + ' ' + i.codigoCD + ' ' + (i.unidade || '')).toLowerCase().includes(f));
-  if (SOQTD) vis = vis.filter(i => FLOJA ? cxDe(i, FLOJA) > 0 : totCx(i) > 0);
+  // busca por palavras em qualquer ordem, sem acento; com busca digitada ignora o "só itens com quantidade"
+  const termos = normTxt(FILTRO).split(/[\s%]+/).filter(Boolean);
+  let vis = todosItens().filter(i => !termos.length || (() => { const txt = normTxt(i.descricaoCD + ' ' + (i.descricaoUn || '') + ' ' + i.codigoCD + ' ' + (i.unidade || '')); return termos.every(t => txt.includes(t)); })());
+  if (SOQTD && !termos.length) vis = vis.filter(i => FLOJA ? cxDe(i, FLOJA) > 0 : totCx(i) > 0);
+  else if (FLOJA && !termos.length) vis = vis.filter(i => cxDe(i, FLOJA) > 0);
   const urg = i => i.cdInsuficiente ? 0 : (i.origem === 'novo' ? 3 : (cobClass(i)[1] === 'crítico' ? 1 : 2));
   if (ORDEM === 'az') vis.sort((a, b) => a.descricaoCD.localeCompare(b.descricaoCD));
   else vis.sort((a, b) => urg(a) - urg(b) || ((a.coberturaTotal ?? 9999) - (b.coberturaTotal ?? 9999)) || a.descricaoCD.localeCompare(b.descricaoCD));
@@ -231,7 +234,7 @@ function renderPedido() {
     <div class="table-wrap"><table class="main-t"><thead><tr><th class="c"><input type="checkbox" ${vis.length && vis.every(i => SEL.has(i.codigoCD)) ? 'checked' : ''} onchange="selTodos('todos',this.checked)"></th><th>Código</th>
       <th style="min-width:300px"><div style="display:flex;align-items:center;gap:10px"><span>Produto</span><input class="hin" placeholder="buscar por código ou descrição…" value="${FILTRO}" oninput="FILTRO=this.value;renderPedido()" style="flex:1;min-width:200px;max-width:420px"></div></th>
       <th class="r">Est. CD (cx)</th><th class="r">Est. lojas (un)</th><th class="r">Trânsito</th><th>Quantidade por loja (cx)</th><th class="r">Total</th><th class="r">Último custo</th><th class="r">R$</th></tr></thead>
-    <tbody>${vis.map(i => linha(i, lojasCols)).join('') || `<tr><td colspan="10" class="mut" style="padding:18px">Nenhum item${FLOJA ? ' na L' + FLOJA : ''}${SOQTD ? ' com quantidade — desmarque "só itens com quantidade" pra ver todos' : ''}.</td></tr>`}</tbody></table></div>`;
+    <tbody>${vis.map(i => linha(i, lojasCols)).join('') || `<tr><td colspan="10" class="mut" style="padding:18px">${FILTRO.trim() ? 'Nenhum produto do CD com "' + esc(FILTRO) + '" — a busca aceita palavras em qualquer ordem (ex.: "walker red")' : 'Nenhum item' + (FLOJA ? ' na L' + FLOJA : '') + (SOQTD ? ' com quantidade — desmarque "só itens com quantidade" pra ver todos' : '')}.</td></tr>`}</tbody></table></div>`;
   // mantém o foco na busca enquanto digita
   if (document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('hin')) { const el = $('#tab-pedido .hin'); if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); } }
 }
