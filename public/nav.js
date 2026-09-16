@@ -57,7 +57,8 @@
     { id: 'financeiro', ic: 'bank', txt: 'Financeiro', sub: [
         { href: '/conciliador.html', ic: 'bank', txt: 'Conciliação de Saídas' },
         { href: '/conciliador-entradas.html', ic: 'bank', txt: 'Conciliação de Entradas' },
-        { href: '/conciliador-cd.html', ic: 'bank', txt: 'CD' }
+        { href: '/conciliador-cd.html', ic: 'bank', txt: 'CD' },
+        { href: '/dre.html', ic: 'chart', txt: 'DRE' }
       ]},
     { id: 'compras', ic: 'bag', txt: 'Gestão de Compras', sub: [
         { href: '/centro-distribuicao.html', ic: 'cart',  txt: 'Centro Distribuição' },
