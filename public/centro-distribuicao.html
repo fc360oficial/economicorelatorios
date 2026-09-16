@@ -214,7 +214,7 @@ function renderVinculos() {
     <td>${v.codigoCD}</td><td class="lc">${i.descricaoCD || v.descricaoCD || ''}</td><td class="r">${fmtN(i.estoqueCDcx ?? v.estoqueCx)}${v.estoqueUn != null ? '<div class="s2">' + fmtN(v.estoqueUn) + ' un</div>' : ''}</td>
     <td class="c"><input class="cx" id="upc-${v.codigoCD}" type="number" min="1" value="${upc}"></td>
     <td class="lc">${v.status === 'confirmado' ? `<b>${v.unidade}</b><div class="sub">${i.descricaoUn || ''}</div>` : v.candidato ? `<span class="pill p-breve">sugerido${v.origem === 'descricao' ? ' pela descrição' : ''}</span> ${v.candidato}<div class="sub">${v.descricaoCandidato || descAlt(v, v.candidato)}</div>` : (v.alternativas || []).length ? `<span class="pill p-cinza">parecidos</span><div class="alts">${v.alternativas.map(a => `<a href="#" onclick="confirmarVinc('${v.codigoCD}','${a.cod}');return false" title="vincular a esta unidade">${a.cod} · ${a.descricao}</a>`).join('')}</div>` : '<span class="pill p-hoje">sem vínculo</span>'}
-      <div class="busca-un" id="bu-${v.codigoCD}"><input placeholder="buscar: código ou nescau%180" style="width:100%;min-width:260px" oninput="buscarUn('${v.codigoCD}',this.value)"><ul hidden></ul></div></td>
+      <div class="busca-un" id="bu-${v.codigoCD}"><input placeholder="bipar a unidade ou buscar: código / nescau%180" style="width:100%;min-width:260px" oninput="buscarUn('${v.codigoCD}',this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();biparUn('${v.codigoCD}',this)}"><ul hidden></ul></div></td>
     <td>${({ igual: 'mesmo código', dun14: 'código de barras', descricao: 'descrição', manual: 'manual' })[v.origem] || '–'}${v.confirmadoPor ? '<div class="s2">' + v.confirmadoPor + '</div>' : ''}</td>
     <td>${v.status === 'sugerido' ? `<button class="btn btn-amber" onclick="confirmarVinc('${v.codigoCD}','${v.candidato}')">Confirmar</button>` : ''}${v.status === 'confirmado' ? `${v.origem !== 'igual' ? `<button class="btn btn-slate" onclick="removerVinc('${v.codigoCD}')">Remover</button> ` : ''}<button class="btn btn-slate" onclick="confirmarVinc('${v.codigoCD}','${v.unidade}')">Salvar un/cx</button>` : ''}</td></tr>`; }).join('')}
   </tbody></table></div>`;
@@ -233,6 +233,17 @@ async function confirmarTodosSugeridos() {
   }
   await carregarVinculos(); carregar(true);
   if (erros.length) alert('Não confirmados: ' + erros.join(' | '));
+}
+// leitor de código de barras: digita o código e manda Enter → se a unidade existe no cadastro, vincula na hora
+async function biparUn(cod, inp) {
+  clearTimeout(buscaT); const txt = inp.value.trim();
+  if (!/^\d{8,14}$/.test(txt)) return;   // texto livre: segue a busca normal
+  try {
+    const r = await api('/api/pedidos-cd/buscar-unidade?q=' + encodeURIComponent(txt));
+    const exato = r.find(x => String(x.cod) === txt);
+    if (!exato) { inp.select(); return alert('Código ' + txt + ' não encontrado como unidade ativa no cadastro.'); }
+    await confirmarVinc(cod, exato.cod);
+  } catch (e) { alert(e.message); }
 }
 let buscaT = null;
 function buscarUn(cod, txt) {
