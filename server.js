@@ -2913,14 +2913,15 @@ app.get('/api/sugestoes-compra', async (req, res) => {
     const busca = (req.query.busca || '').trim();
     const comDesativadas = req.query.desativadas === '1';
 
-    // sugestões criadas no Fluxo (JSON local) — sempre disponíveis, mesmo com o ERP fora
+    // sugestões criadas no Fluxo (JSON local) — sempre disponíveis, mesmo com o ERP fora.
+    // status_pedido = status do pedido ligado (aguardando/digitacao/finalizado/aprovado/...), que vira o "Status Web" no Monitor
     const fluxo = sugestaoManual.listar()
       .filter(s => comDesativadas || s.status !== 'desativada')
       .filter(s => !busca || String(s.lista.id) === busca || s.id.toLowerCase() === busca.toLowerCase() || (s.lista.fornecedor || '').toLowerCase().includes(busca.toLowerCase()))
       .map(s => ({
         origem: 'fluxo', sugestao: s.id, lista: s.lista.id, fornecedor: s.lista.fornecedor, cnpj: s.lista.cnpj, descricao: s.lista.nome,
         lojas: s.parametros.lojas, status_web: 0, status: 0, desativada: s.status === 'desativada', status_fluxo: s.status,
-        pedido: s.pedido_id, data: new Date(s.criado_em).toLocaleDateString('pt-BR'),
+        pedido: s.pedido_id, status_pedido: s.pedido_id ? (pedidosFornec.obter(s.pedido_id)?.status || null) : null, data: new Date(s.criado_em).toLocaleDateString('pt-BR'),
         periodo_venda: `${s.parametros.data_ini.split('-').reverse().join('/')} a ${s.parametros.data_fim.split('-').reverse().join('/')}`,
         cobertura: s.parametros.cobertura, itens: s.itens.filter(i => i.ativo).length,
         total: +s.itens.filter(i => i.ativo).reduce((a, i) => a + i.quantidade * (i.preco_und || 0), 0).toFixed(2),
@@ -6270,11 +6271,18 @@ app.post('/api/sugestao-manual', async (req, res) => {
     res.json(s);
   } catch (err) { res.status(err.message.startsWith('Lista') || err.message.startsWith('Escolha') ? 400 : 500).json({ error: err.message }); }
 });
+// resumo do pedido pro cliente da Consolidação (sem itens); PUBLIC_URL é definida mais abaixo, mas só é lida em runtime
+function resumoPedidoSugestao(p) {
+  if (!p) return null;
+  return { id: p.id, status: p.status, token: p.token, link: `${PUBLIC_URL}/pedido/${p.token}`, vendedor: p.vendedor || null, lista_nome: p.lista_nome, fornecedor: p.fornecedor, itens: (p.itens || []).length, totais: p.totais || null, avarias_txt: pedidosFornec.textoAvarias(p) };
+}
 app.get('/api/sugestao-manual/:id', async (req, res) => {
   try {
     const id = String(req.params.id); if (!/^[FD]-\d+$/.test(id)) return res.status(400).json({ error: 'Id inválido' });
     const s = id.startsWith('D-') ? await sugestaoManual.montarDoERP(id.slice(2), req.query.refresh === '1') : sugestaoManual.obter(id);
     if (!s) return res.status(404).json({ error: 'Sugestão não encontrada' });
+    // pedido ligado à sugestão (link do vendedor): é ele que dá o "Status Web" da sugestão manual
+    s.pedido = s.pedido_id ? resumoPedidoSugestao(pedidosFornec.obter(s.pedido_id)) : null;
     res.json(s);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -6504,6 +6512,19 @@ app.post('/api/pedidos-fornecedor/:id/aprovar', (req, res) => {
   if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
   if (p.erro) return res.status(409).json({ error: p.erro });
   res.json({ ok: true, status: p.status, aprovadoEm: p.aprovadoEm });
+});
+// "Fechar / Abrir Solicitar Preço Web" (Consolidação da Sugestão Manual)
+app.post('/api/pedidos-fornecedor/:id/fechar', (req, res) => {
+  const p = pedidosFornec.fechar(parseInt(req.params.id), req.session.user?.nome || null);
+  if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
+  if (p.erro) return res.status(409).json({ error: p.erro });
+  res.json({ ok: true, status: p.status });
+});
+app.post('/api/pedidos-fornecedor/:id/reabrir', (req, res) => {
+  const p = pedidosFornec.reabrir(parseInt(req.params.id), req.session.user?.nome || null);
+  if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
+  if (p.erro) return res.status(409).json({ error: p.erro });
+  res.json({ ok: true, status: p.status });
 });
 app.post('/api/pedidos-fornecedor/:id/enviar', (req, res) => {
   const p = pedidosFornec.enviar(parseInt(req.params.id), req.session.user?.nome || null);

@@ -112,6 +112,19 @@ table.mon-t tbody tr.desativada td{color:#98A0B3}
 .mon-aviso-exemplo{background:#FCEFDC;border:1px solid #E5C98A;color:#8A6200;font-size:11.5px;font-weight:700;border-radius:8px;padding:9px 13px;margin-bottom:12px}
 
 .ns-overlay{position:fixed;inset:0;z-index:9999;background:rgba(14,22,38,.6);display:flex;align-items:center;justify-content:center;padding:20px}
+/* overlay do link do vendedor (Consolidação › Enviar Link) */
+.lk-card{background:var(--crd);color:var(--ink);border-radius:12px;width:min(640px,100%);box-shadow:0 20px 60px rgba(0,0,0,.35);padding:18px 22px 20px}
+.lk-head{display:flex;align-items:flex-start;gap:12px;margin-bottom:10px}
+.lk-head h2{margin:2px 0 0;font-size:17px}
+.lk-head .cx-x{margin-left:auto;color:var(--ink2)}
+.lk-eyebrow{font-size:9.5px;font-weight:800;letter-spacing:.8px;color:#137A48}
+.lk-sub{font-size:11.5px;color:var(--ink2);margin-bottom:8px}
+.lk-sub .neg{color:var(--neg);font-weight:700}
+.lk-box input{width:100%;font:inherit;font-size:11.5px;padding:8px 10px;border:1px solid var(--ln2);border-radius:6px;background:var(--wsh);color:var(--ink)}
+.lk-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.lk-nota{font-size:10.5px;color:var(--ink3);margin-top:12px;line-height:1.5}
+.lk-acts .btn{text-decoration:none;font-size:12px;padding:8px 14px}
+.lk-acts .btn-amber{background:var(--am);color:#6B4E00}.lk-acts .btn-amber:hover{background:#E5AC00}
 .ns-modal{background:#FFFFFF;border-radius:12px;width:720px;max-width:100%;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)}
 .ns-hdr{background:#101B33;color:#fff;padding:14px 18px;border-radius:12px 12px 0 0;display:flex;align-items:center;justify-content:space-between;font-weight:800;font-size:14px}
 .ns-x{background:transparent;border:none;color:#B7C0D6;font-size:14px;cursor:pointer;padding:2px 6px}
@@ -493,9 +506,9 @@ table.cx-itens tbody tr.promo td.desc,table.cx-itens tbody tr.rebaixa td.desc,ta
             <option value="sem_sug">Sem Sugestão Sistema</option><option value="sem_sug_est">Sem Sugestão &amp; Estoque</option><option value="sem_giro">Dias Sem Venda</option><option value="criticos">Críticos</option>
           </select>
         </label>
-        <button class="cxb" disabled title="Em breve">Abrir Solicitar Preço Web</button>
-        <button class="cxb" disabled title="Em breve">Fechar Solicitar Preço Web</button>
-        <button class="cxb" disabled title="Em breve">✈ Enviar Link</button>
+        <button class="cxb" id="c-btn-abrir-web" disabled onclick="abrirPrecoWeb()">Abrir Solicitar Preço Web</button>
+        <button class="cxb" id="c-btn-fechar-web" disabled onclick="fecharPrecoWeb()">Fechar Solicitar Preço Web</button>
+        <button class="cxb" id="c-btn-enviar" disabled onclick="enviarLinkConsolidacao()">✈ Enviar Link</button>
         <button class="cxb" id="c-btn-desativar" onclick="alternarItemAtivo(false)">Excluir/Desativar Item(ns)</button>
         <button class="cxb" id="c-btn-ativar" onclick="alternarItemAtivo(true)">Ativar Item(ns)</button>
         <button class="cxb" onclick="atualizarConsolidacao()">⟳ [F5] Atualizar</button>
@@ -563,6 +576,13 @@ table.cx-itens tbody tr.promo td.desc,table.cx-itens tbody tr.rebaixa td.desc,ta
 
 </div>
 
+<!-- link do vendedor (Enviar Link da Consolidação) -->
+<div class="ns-overlay" id="lk-overlay" style="display:none" onclick="if(event.target===this) fecharLinkOverlay()">
+  <div class="lk-card">
+    <div class="lk-head"><div><div class="lk-eyebrow">LINK PRO VENDEDOR</div><h2>Sugestão pronta pra enviar</h2></div><button class="cx-x" onclick="fecharLinkOverlay()" title="Fechar">✕</button></div>
+    <div id="lk-body"></div>
+  </div>
+</div>
 <div class="ns-overlay" id="ns-overlay" style="display:none" onclick="if(event.target===this) fecharNovaSugestao()">
   <div class="ns-modal">
     <div class="ns-hdr"><span>Sugestão de Compras</span><button class="ns-x" onclick="fecharNovaSugestao()">✕</button></div>
@@ -727,11 +747,21 @@ function voltarMonitor(){
 // (confirmado 15/09/26 contra print do ERP). Em Digitação = qualquer outro
 // valor (nenhum exemplo no banco ainda). Desativada = CodDesativado=1.
 let ultimoMonitorReq = 0;
+// status do pedido (lib pedidos-fornecedor) → Status Web igual ao do Dlinks
+function statusPedidoWeb(st, pedidoId){
+  const n = pedidoId ? '#' + pedidoId : null;
+  if (!st || st === 'cancelado') return { cls:'nenhum', label: st === 'cancelado' ? 'Sem link (pedido cancelado)' : 'Sem link', extra: st === 'cancelado' ? n : null };
+  if (st === 'aguardando') return { cls:'aberto', label:'Em Aberto', extra:n };
+  if (st === 'digitacao') return { cls:'digitacao', label:'Em Digitação', extra:n };
+  if (st === 'finalizado') return { cls:'fechado', label:'Fechado', extra:n };
+  return { cls:'pedido', label:'Pedido Gerado', extra:n };   // aprovado / recebido / recebido_parcial
+}
+const PEDIDO_FECHADO_OU_ALEM = st => ['finalizado', 'aprovado', 'recebido', 'recebido_parcial'].includes(st);
 function statusInfo(s){
   if (s.origem === 'fluxo') {
     if (s.status_fluxo === 'desativada') return { cls:'desativada', label:'Desativada', extra:null };
-    if (s.status_fluxo === 'pedido_gerado' || s.pedido) return { cls:'pedido', label:'Pedido Gerado', extra:s.pedido ? '#'+s.pedido : null };
-    return { cls:'aberto', label:'Aberta', extra:null };
+    // Sugestão manual: o "Status Web" é o status do pedido ligado (link do vendedor), mesmo ciclo do Dlinks
+    return statusPedidoWeb(s.status_pedido, s.pedido);
   }
   if (s.desativada) return { cls:'desativada', label:'Desativada', extra:null };
   if (s.pedido) return { cls:'pedido', label:'Pedido Gerado', extra:'#'+s.pedido };
@@ -785,8 +815,18 @@ function renderConsCabecalho(){
   // P/M (confirmado na 4380: 30,47 x 30,71 do Dlinks): média dos dias de cobertura das lojas com venda, limitada à cobertura alvo
   let cs = 0, cn = 0; for (const it of s.itens) for (const l of it.lojas) if (!l.desativado && l.media > 0 && l.dias_cob != null) { cs += Math.min(l.dias_cob, p.cobertura || 0); cn++; }
   document.getElementById('c-pm').textContent = cn ? fmtN(cs / cn, 1) + ' Dias' : '—';
-  const st = s.status === 'pedido_gerado' ? `Pedido Gerado #${s.pedido_id}` : s.status === 'desativada' ? 'Desativada' : (s.origem === 'dlinks' ? ({1:'Em Aberto',2:'Fechado'}[s.status_web] || 'Sem link') : 'Em Aberto');
+  const pst = s.pedido ? s.pedido.status : null;
+  const st = s.status === 'desativada' ? 'Desativada'
+    : s.pedido ? (statusPedidoWeb(pst, s.pedido.id).label + ' #' + s.pedido.id)
+    : (s.origem === 'dlinks' ? ({1:'Em Aberto',2:'Fechado'}[s.status_web] || 'Sem link') : 'Sem link');
   document.getElementById('c-status').textContent = st;
+  // botões do ciclo do link (mesmos nomes do Dlinks): Enviar Link cria o pedido + link; Fechar encerra a digitação; Abrir reabre
+  const desat = s.status === 'desativada', semPedido = !s.pedido || pst === 'cancelado';
+  const bEnv = document.getElementById('c-btn-enviar'), bAbrir = document.getElementById('c-btn-abrir-web'), bFechar = document.getElementById('c-btn-fechar-web');
+  bEnv.disabled = desat || PEDIDO_FECHADO_OU_ALEM(pst); bEnv.textContent = semPedido ? '✈ Enviar Link' : '✈ Reenviar Link'; bEnv.title = semPedido ? 'Cria o pedido e o link pro vendedor digitar os preços' : 'Mostra de novo o link do vendedor (WhatsApp / e-mail / copiar)';
+  bFechar.disabled = !(pst === 'aguardando' || pst === 'digitacao'); bFechar.title = 'Encerra a digitação do vendedor: a sugestão vira Fechado e vai pra aprovação em Pedidos de Compra';
+  bAbrir.disabled = pst !== 'finalizado'; bAbrir.title = 'Reabre a digitação: o link do vendedor volta a aceitar preços';
+  const bG = document.getElementById('c-gerar'); bG.textContent = semPedido ? '🛒 Gerar Pedido' : `🛒 Ver Pedido #${s.pedido.id}`;
   const op = document.getElementById('c-origem'); op.className = 'origem-pill ' + s.origem; op.textContent = s.origem === 'fluxo' ? 'FLUXO' : 'DLINKS';
   document.getElementById('c-recalc').style.display = s.origem === 'fluxo' && !consTravada() ? '' : 'none';
   document.getElementById('c-gerar').disabled = consTravada() || s.status === 'desativada';
@@ -1047,14 +1087,16 @@ async function recalcularConsolidacao(){
   if (j.error) { alert(j.error); return; }
   abrirConsolidacao(j.id, j);
 }
-async function gerarPedidoConsolidacao(){
-  const s = CONS.s; if (!s || consTravada()) return;
+// Cria o pedido (link do vendedor) a partir das quantidades da Consolidação — usado por "Gerar Pedido" e "Enviar Link".
+// Devolve o resumo do pedido criado ou null se cancelou.
+async function criarPedidoConsolidacao(btn, textoAcao){
+  const s = CONS.s; if (!s || consTravada()) return null;
   const ajustes = {}; let nItens = 0, nUn = 0;
   for (const it of s.itens) { if (!it.ativo) continue; const r = {}; for (const l of it.lojas) if (l.sug_loja > 0) r[l.loja] = l.sug_loja; if (Object.keys(r).length) { ajustes[it.codigo] = r; nItens++; nUn += it.quantidade; } }
-  if (!nItens) { alert('Nenhum item com quantidade. Digite a quantidade nos produtos antes de gerar o pedido.'); return; }
+  if (!nItens) { alert('Nenhum item com quantidade. Digite a quantidade nos produtos antes.'); return null; }
   const lojasTxt = [...new Set(Object.values(ajustes).flatMap(r => Object.keys(r)))].sort().map(l => 'L' + l).join(', ');
-  if (!confirm(`Gerar pedido da sugestão ${s.id} (lista ${s.lista.id} · ${s.lista.fornecedor || ''})?\n\n${nItens} produto(s) · ${nUn} un · lojas ${lojasTxt}\n\nO pedido vai pra Pedidos de Compra com o link pro vendedor digitar os preços. Depois disso a sugestão fica travada.`)) return;
-  const btn = document.getElementById('c-gerar'); btn.disabled = true; btn.textContent = 'Criando pedido...';
+  if (!confirm(`${textoAcao} da sugestão ${s.id} (lista ${s.lista.id} · ${s.lista.fornecedor || ''})?\n\n${nItens} produto(s) · ${nUn} un · lojas ${lojasTxt}\n\nO pedido vai pra Pedidos de Compra com o link pro vendedor digitar os preços. Depois disso a sugestão fica travada.`)) return null;
+  const txt0 = btn.textContent; btn.disabled = true; btn.textContent = 'Criando pedido...';
   try {
     const corpo = conf => JSON.stringify({ listas: [s.lista.id], ajustes: { [s.lista.id]: ajustes }, substituir: true, origem: 'sugestao-manual', confirmar_excesso: conf });
     let r = await fetch('/api/pedidos-fornecedor', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: corpo(false) });
@@ -1070,10 +1112,54 @@ async function gerarPedidoConsolidacao(){
     if (!p) throw new Error((j.sem_itens || []).map(x => x.motivo).join('; ') || 'Pedido não foi criado');
     let travou = true;
     try { const rp = await fetch('/api/sugestao-manual/' + encodeURIComponent(s.id), { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'pedido_gerado', pedido_id: p.id }) }); const jp = await rp.json().catch(() => ({})); if (!rp.ok || jp.error) travou = false; } catch (e) { travou = false; }
-    s.status = 'pedido_gerado'; s.pedido_id = p.id; renderConsCabecalho(); renderConsItens(); renderConsDetalhe();
-    alert(`Pedido #${p.id} criado · ${p.itens} item(ns)` + (j.nao_encontrados && j.nao_encontrados.length ? `\n${j.nao_encontrados.length} código(s) fora da lista do Radar foram ignorados` : '') + `\n\nLink pro vendedor:\n${p.link}\n\nAbrindo Pedidos de Compra...` + (travou ? '' : '\n\nATENÇÃO: o pedido foi criado, mas não consegui marcar a sugestão como "pedido gerado". Não gere de novo — avise o suporte.'));
-    location.href = '/pedidos-compra.html';
-  } catch (e) { alert(e.message); btn.disabled = false; btn.textContent = 'Gerar Pedido'; }
+    s.status = 'pedido_gerado'; s.pedido_id = p.id;
+    s.pedido = { id: p.id, status: 'aguardando', link: p.link, vendedor: p.vendedor || null, lista_nome: p.lista_nome, fornecedor: p.fornecedor, itens: p.itens, totais: p.totais, avarias_txt: p.avarias_txt || '' };
+    renderConsCabecalho(); renderConsItens(); renderConsDetalhe();
+    if (j.nao_encontrados && j.nao_encontrados.length) alert(`${j.nao_encontrados.length} código(s) fora da lista do Radar foram ignorados no pedido.`);
+    if (!travou) alert('ATENÇÃO: o pedido foi criado, mas não consegui marcar a sugestão como "pedido gerado". Não gere de novo — avise o suporte.');
+    return s.pedido;
+  } catch (e) { alert(e.message); btn.disabled = false; btn.textContent = txt0; return null; }
+}
+async function gerarPedidoConsolidacao(){
+  const s = CONS.s; if (!s) return;
+  if (s.pedido && s.pedido.status !== 'cancelado') { location.href = '/pedidos-compra.html'; return; }   // "Ver Pedido #N"
+  const p = await criarPedidoConsolidacao(document.getElementById('c-gerar'), 'Gerar pedido');
+  if (p) location.href = '/pedidos-compra.html';
+}
+// "Enviar Link": cria o pedido se ainda não existe e mostra o link do vendedor (WhatsApp / e-mail / copiar), igual ao Radar
+async function enviarLinkConsolidacao(){
+  const s = CONS.s; if (!s) return;
+  let p = s.pedido && s.pedido.status !== 'cancelado' ? s.pedido : null;
+  if (!p) p = await criarPedidoConsolidacao(document.getElementById('c-btn-enviar'), 'Enviar link ao vendedor');
+  if (!p) return;
+  const msg = encodeURIComponent('Olá' + (p.vendedor?.nome ? ' ' + p.vendedor.nome : '') + ', segue a sugestão de compra da lista ' + (p.lista_nome || s.lista.id) + ' (ECONOMICO SUPERMERCADO - REDE CAHU). Por favor, preencha os preços no link:\n' + p.link + (p.avarias_txt ? '\n\n' + p.avarias_txt : ''));
+  const wpp = (p.vendedor?.whats || '').replace(/\D/g, '');
+  document.getElementById('lk-body').innerHTML = `
+    <div class="lk-sub">${escH(p.fornecedor || s.lista.fornecedor || '')} · pedido <b>#${p.id}</b> · ${p.itens} item(ns)${p.vendedor?.nome ? ' · vendedor: <b>' + escH(p.vendedor.nome) + '</b>' + (p.vendedor.whats ? ' ' + escH(p.vendedor.whats) : '') : ' · <span class="neg">sem vendedor no cadastro da lista</span>'}</div>
+    <div class="lk-box"><input readonly id="lk-link" value="${escH(p.link)}" onclick="this.select()"></div>
+    <div class="lk-acts">
+      ${wpp.length >= 10 ? `<a class="btn btn-amber" target="_blank" rel="noopener" href="https://wa.me/55${wpp}?text=${msg}">WhatsApp do vendedor</a>` : `<a class="btn btn-amber" target="_blank" rel="noopener" href="https://wa.me/?text=${msg}">WhatsApp (escolher contato)</a>`}
+      ${p.vendedor?.email ? `<a class="btn btn-slate" href="mailto:${escH(p.vendedor.email)}?subject=${encodeURIComponent('Sugestão de compra ' + (p.lista_nome || s.lista.id) + ' - Econômico')}&body=${msg}">E-mail</a>` : ''}
+      <button class="btn btn-slate" onclick="navigator.clipboard.writeText(document.getElementById('lk-link').value);this.textContent='Copiado'">Copiar link</button>
+      <a class="btn btn-slate" target="_blank" rel="noopener" href="${escH(p.link)}">Abrir como vendedor</a>
+    </div>
+    <div class="lk-nota">Ao abrir o link o status vira <b>Em Digitação</b>; quando o vendedor finalizar (ou você clicar em Fechar Solicitar Preço Web) vira <b>Fechado</b> e a aprovação é feita em Pedidos de Compra.</div>`;
+  document.getElementById('lk-overlay').style.display = 'flex';
+}
+function fecharLinkOverlay(){ document.getElementById('lk-overlay').style.display = 'none'; }
+async function fecharPrecoWeb(){
+  const s = CONS.s; if (!s || !s.pedido) return;
+  if (!confirm(`Fechar a digitação do vendedor no pedido #${s.pedido.id}?\n\nO link para de aceitar preços e a sugestão vira "Fechado".`)) return;
+  const r = await fetch('/api/pedidos-fornecedor/' + s.pedido.id + '/fechar', { method: 'POST' }); const j = await r.json().catch(() => ({}));
+  if (!r.ok || j.error) { alert(j.error || 'Não consegui fechar'); return; }
+  s.pedido.status = j.status; renderConsCabecalho();
+}
+async function abrirPrecoWeb(){
+  const s = CONS.s; if (!s || !s.pedido) return;
+  if (!confirm(`Reabrir a digitação do vendedor no pedido #${s.pedido.id}?\n\nO link volta a aceitar preços e a sugestão volta pra "Em Digitação".`)) return;
+  const r = await fetch('/api/pedidos-fornecedor/' + s.pedido.id + '/reabrir', { method: 'POST' }); const j = await r.json().catch(() => ({}));
+  if (!r.ok || j.error) { alert(j.error || 'Não consegui reabrir'); return; }
+  s.pedido.status = j.status; renderConsCabecalho();
 }
 function exportarExcelConsolidacao(){
   const s = CONS.s; if (!s) return;
@@ -1096,7 +1182,11 @@ function mudarAbaMonitor(aba){
 // Mesmas abas do Dlinks: "Finalizado" = Fechado ou Pedido Gerado;
 // "Aberto/Digitação" = link enviado e ainda não fechado (StatusWeb 1 ou outro)
 function passaNaAba(s){
-  if (s.origem === 'fluxo') { if (abaMonitor === 'todos') return true; const fin = s.status_fluxo === 'pedido_gerado'; return abaMonitor === 'finalizados' ? fin : !fin; }
+  if (s.origem === 'fluxo') {
+    if (abaMonitor === 'todos') return true;
+    const st = s.status_pedido; const fin = PEDIDO_FECHADO_OU_ALEM(st);
+    return abaMonitor === 'finalizados' ? fin : (st === 'aguardando' || st === 'digitacao');   // "Sem link" só aparece em Todos, igual ao Dlinks
+  }
   if (abaMonitor === 'todos') return true;
   const fin = s.status_web === 2 || !!s.pedido;
   if (abaMonitor === 'finalizados') return fin;
