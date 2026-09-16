@@ -13,18 +13,23 @@ const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLat
 const DB         = { host:'192.168.2.252', port:3306, user:'root', password:'1900', database:'central', connectTimeout:15000 };
 const GRUPO_NOME = 'CENTRAL ( Aux ) PREVENÇÃO DE PERDAS';
 
-// Mensagem enviada no grupo logo depois dos PDFs, orientando a devolução.
-// Sem link de propósito: link em bot não oficial é sinal de spam pro WhatsApp.
-// O app Contagem já fica instalado no celular do auxiliar.
-const MSG_INSTRUCAO = [
-  '📱 *COMO DEVOLVER A CONTAGEM*',
-  '',
-  'Abra o app *Contagem* no celular: a lista de hoje da sua loja já está lá.',
-  'Digite *Depósito* e *Loja* em cada item. Se o produto não existe na loja, toque em *Não achei*.',
-  'No fim, toque em *Concluir contagem*. A central recebe na hora.',
-  '',
-  '📄 A folha em PDF é só apoio pra contar no corredor. Se o app não abrir, preencha a folha e mande *uma foto por folha* com os *3 quadrados pretos* dos cantos aparecendo.',
-].join('\n');
+// Aviso diário no grupo. Sem link de propósito: link em bot não oficial é
+// sinal de spam pro WhatsApp. O app Contagem já fica instalado no celular.
+// ENVIAR_PDF=true volta a mandar a folha em PDF junto (modo antigo).
+const ENVIAR_PDF = process.env.NEGATIVOS_ENVIAR_PDF === '1';
+function msgAvisoContagem(porLoja, dataStr) {
+  const linhas = [1,2,3,4,5,6].filter(ln => (porLoja[ln] || []).length)
+    .map(ln => `• Loja ${ln} (${NOMES_LOJA[ln]}): *${porLoja[ln].length}* ${porLoja[ln].length === 1 ? 'item' : 'itens'}`);
+  return [
+    `📋 *CONTAGEM DE NEGATIVOS — ${dataStr}*`,
+    '',
+    ...linhas,
+    '',
+    'Abra o app *Contagem* no celular: a lista da sua loja já está lá.',
+    'Digite *Depósito* e *Loja* em cada item. Se o produto não existe na loja, toque em *Não achei*.',
+    'No fim, toque em *Concluir contagem*. A central recebe na hora.',
+  ].join('\n');
+}
 const LOGO_PATH  = path.join(__dirname, '..', 'public', 'logo.png');
 const logger     = pino({ level:'info' });
 const NOMES_LOJA = { 1:'CAHU', 2:'MURIBECA', 3:'PONTE', 4:'ATACAREJO', 5:'PORTA LARGA', 6:'JARDIM JORDAO' };
@@ -548,13 +553,11 @@ async function enviarPDFsLojas(porLoja) {
   const hoje     = new Date();
   const dataStr  = hoje.toLocaleDateString('pt-BR');
   const dataNome = hoje.toISOString().slice(0, 10);
-  let enviados = 0;
 
   for (let ln = 1; ln <= 6; ln++) {
     const itens = porLoja[ln] || [];
     logger.info(`Loja ${ln} (${NOMES_LOJA[ln]}): ${itens.length} negativo(s)`);
-    if (!itens.length) continue;
-
+    if (!itens.length || !ENVIAR_PDF) continue;
     try {
       const { buffer, total } = await gerarPDFLoja(itens, ln, hoje);
       const nomeLoja = (NOMES_LOJA[ln]||'LOJA'+ln).replace(/\s+/g,'_');
@@ -565,22 +568,15 @@ async function enviarPDFsLojas(porLoja) {
         caption:  `*Estoque Negativo — Loja ${ln} (${NOMES_LOJA[ln]}) — ${dataStr}*\n${total} produto(s) negativos`,
       });
       logger.info(`Loja ${ln}: PDF enviado (${total} itens)`);
-      enviados++;
       await new Promise(r => setTimeout(r, 3000));
     } catch (err) {
       logger.error({ err }, `Erro ao enviar Loja ${ln}`);
     }
   }
 
-  // Instrução de devolução: uma única mensagem depois de todos os PDFs
-  if (enviados > 0) {
-    try {
-      await sock.sendMessage(jid, { text: MSG_INSTRUCAO });
-      logger.info('Mensagem de instrução (foto a foto) enviada');
-    } catch (err) {
-      logger.error({ err }, 'Erro ao enviar mensagem de instrução');
-    }
-  }
+  // Aviso único no grupo: quantos itens por loja + como contar no app
+  await sock.sendMessage(jid, { text: msgAvisoContagem(porLoja, dataStr) });
+  logger.info('Aviso de contagem enviado no grupo');
 }
 
 // ── Rotina ────────────────────────────────────────────────────────────────────
