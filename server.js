@@ -6432,6 +6432,13 @@ app.get('/api/diag-abc', async (req, res) => {
       const pc = await q(`SELECT nConsolidado, nLoja, nReg, Status, nPedido FROM central.pedidocompra WHERE nConsolidado IN (${ids.map(() => '?').join(',')})`, ids);
       return res.json({ lista_consolidadas: lc, pedidocompra: pc });
     }
+    if (req.query.itens) {   // campos M{loja} de central.itens (ABC por loja segundo o Dlinks: 1=A 2=B 3=C)
+      const cods = String(req.query.itens).split(',').map(x => x.trim()).filter(Boolean);
+      const cols = await q(`SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='central' AND TABLE_NAME='itens' AND COLUMN_NAME REGEXP '^M[0-9]+$' ORDER BY COLUMN_NAME`);
+      const mcols = cols.map(c => c.COLUMN_NAME);
+      const rows = await q(`SELECT Codigo, CodigoBarra, Descricao${mcols.length ? ', ' + mcols.map(c => '`' + c + '`').join(', ') : ''} FROM central.itens WHERE CodigoBarra IN (${cods.map(() => '?').join(',')})`, cods);
+      return res.json({ colunas_M: mcols, itens: rows });
+    }
     const n = parseInt(req.query.n), cod = String(req.query.cod || '');
     const [cab] = await q(`SELECT Data, DataVenda1, DataVenda2, QtdCobertura FROM central.lista_consolidadas WHERE nConsolidado=?`, [n]);
     if (!cab) return res.status(404).json({ error: 'sugestão não encontrada' });
