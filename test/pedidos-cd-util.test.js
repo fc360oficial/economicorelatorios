@@ -132,3 +132,11 @@ test('mediaMensal: média por dia dos meses com venda, ignora meses zerados', ()
   assert.deepEqual(u.mediaMensal({}), { vq: 0, meses: 0, ultimo: null });
   assert.deepEqual(u.mediaMensal(undefined), { vq: 0, meses: 0, ultimo: null });
 });
+
+test('embalagemEhPeso: SC20KG com embalagem 20 é quilo (un/cx 1); 27 pro sabão em pó 400g não é', () => {
+  assert.equal(u.embalagemEhPeso('RACAO PEDIGREE ADULTO CARNE E VEGETAIS SC20KG', 20), true);
+  assert.equal(u.embalagemEhPeso('RACAO WHISKAS CARNE SC15KG', 15), true);
+  assert.equal(u.embalagemEhPeso('RACAO WHISKAS CARNE SC10,1KG', 1), false);
+  assert.equal(u.embalagemEhPeso('BEM TE VI LAVA ROUPAS EM PO 400G COCO', 27), false);
+  assert.equal(u.embalagemEhPeso('OLHO DAGUA ACUCAR CRISTAL 1KG', 10), false);
+});
