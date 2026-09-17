@@ -50,3 +50,11 @@ test('trânsito de produto sem vínculo fica só no próprio código, não soma 
   const a = r.novos.find(i => i.codigoCD === '77900204333763'), bb = r.novos.find(i => i.codigoCD === '67909510420139');
   assert.equal(a.lojas[1].transito, 12); assert.equal(bb.lojas[1].transito, 0);
 });
+
+// Tiago, 17/09/2026: produto novo já pedido (6 cx a caminho) era sugerido de novo na semana seguinte
+test('novos: loja com trânsito (CD ou fornecedor) não recebe nova caixa até chegar', () => {
+  const { novos } = cd.calcularSugestao(base, vinc, cfg, { '17509546679171|1': 72, '17509546679171|3': 72 });
+  const n = novos[0];
+  assert.deepEqual([1, 2, 3, 4, 5, 6].map(ln => n.lojas[ln].cx), [0, 1, 0, 1, 1, 1]);
+  assert.equal(n.lojas[1].transito, 72);
+});
