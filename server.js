@@ -6435,9 +6435,10 @@ app.get('/api/diag-promo', async (req, res) => {
     for (const t of ['promocao', 'promocao_capa', 'promocao_produtos']) {
       out[t + '_colunas'] = (await q(`SELECT COLUMN_NAME c, DATA_TYPE t FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='central' AND TABLE_NAME=? ORDER BY ORDINAL_POSITION`, [t])).map(r => r.c + ':' + r.t);
     }
-    out.promocao = await q(`SELECT * FROM central.promocao WHERE CodigoBarra IN (${ph}) AND DataFinal >= ? AND DataInicial <= ? ORDER BY DataInicial`, [...cods, dIni, dFim]).catch(e => 'ERR ' + e.message);
-    out.promocao_produtos = await q(`SELECT * FROM central.promocao_produtos WHERE CodigoBarra IN (${ph}) LIMIT 50`, cods).catch(e => 'ERR ' + e.message);
-    out.promocao_capa_amostra = await q(`SELECT * FROM central.promocao_capa ORDER BY 1 DESC LIMIT 5`).catch(e => 'ERR ' + e.message);
+    out.promocao = await q(`SELECT * FROM central.promocao WHERE Codigo IN (${ph}) AND DataFinal >= ? AND DataInicial <= ? ORDER BY DataInicial`, [...cods, dIni, dFim]).catch(e => 'ERR ' + e.message);
+    out.promocao_produtos_capa = await q(`SELECT pp.codigobarra, pp.nreg_promo, pp.preco_promo, pp.status st_prod, pp.nloja nloja_prod, c.descricao, c.data_inicio, c.data_fim, c.nloja nloja_capa, c.status st_capa, c.finalizada
+      FROM central.promocao_produtos pp INNER JOIN central.promocao_capa c ON c.nreg = pp.nreg_promo
+      WHERE pp.codigobarra IN (${ph}) AND c.data_fim >= ? AND c.data_inicio <= ? ORDER BY c.data_inicio`, [...cods, dIni, dFim]).catch(e => 'ERR ' + e.message);
     res.json(out);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
