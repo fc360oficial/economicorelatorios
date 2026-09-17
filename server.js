@@ -6422,17 +6422,6 @@ app.post('/api/sugestao-manual', async (req, res) => {
     res.json(s);
   } catch (err) { res.status(err.message.startsWith('Lista') || err.message.startsWith('Escolha') ? 400 : 500).json({ error: err.message }); }
 });
-// DIAG TEMPORÁRIO (17/09/26): linhas cruas de avariaconsumo dos itens de uma sugestão no período de vendas. Só SELECT. Remover depois.
-app.get('/api/diag-avaria', async (req, res) => {
-  try {
-    const n = parseInt(req.query.n);
-    const [cab] = await q(`SELECT DataVenda1, DataVenda2 FROM central.lista_consolidadas WHERE nConsolidado=?`, [n]);
-    const iso = d => { const m = /^(\d{2})\/(\d{2})\/(\d{4})/.exec(String(d)); return m ? `${m[3]}-${m[2]}-${m[1]}` : String(d).slice(0, 10); };
-    const cods = (await q(`SELECT CodigoBarra FROM central.lista_consolidado_itens WHERE nConsolidado=?`, [n])).map(r => String(r.CodigoBarra));
-    const rows = await q(`SELECT * FROM central.avariaconsumo WHERE DataLan BETWEEN ? AND ? AND CodigoBarras IN (${cods.map(() => '?').join(',')}) ORDER BY DataLan`, [iso(cab.DataVenda1), iso(cab.DataVenda2), ...cods]);
-    res.json({ periodo: [iso(cab.DataVenda1), iso(cab.DataVenda2)], rows });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
 // resumo do pedido pro cliente da Consolidação (sem itens); PUBLIC_URL é definida mais abaixo, mas só é lida em runtime
 function resumoPedidoSugestao(p) {
   if (!p) return null;
