@@ -6411,7 +6411,7 @@ function transitoDaLista(listaId) {
   return (cod, ln) => m[`${cod}|${ln}`] || 0;
 }
 sugestaoManual.init();
-sugestaoManual.initERP({ q, mesDB, curvaASet: radarPedidos.curvaASet, transitoDe: () => 0 });
+sugestaoManual.initERP({ q, mesDB, transitoDe: () => 0 });
 
 app.post('/api/sugestao-manual', async (req, res) => {
   try {
@@ -6421,53 +6421,6 @@ app.post('/api/sugestao-manual', async (req, res) => {
     const s = await sugestaoManual.calcularNova({ listaId, data_ini: b.data_ini, data_fim: b.data_fim, cobertura: Math.max(1, parseInt(b.cobertura) || 20), lojas: b.lojas, obs: b.obs, usuario: req.session.user?.comprador_nome || req.session.user?.nome || null, transitoDe: transitoDaLista(listaId) });
     res.json(s);
   } catch (err) { res.status(err.message.startsWith('Lista') || err.message.startsWith('Escolha') ? 400 : 500).json({ error: err.message }); }
-});
-// DIAG TEMPORÁRIO (16/09/26): testa se o ABC do Dlinks = ranking da loja inteira nos N dias de cobertura da sugestão.
-// GET /api/diag-abc?n=4380&cod=7891010087722[&dias=40][&fim=venda|data|hoje]  — só SELECT. Remover depois de validar.
-app.get('/api/diag-abc', async (req, res) => {
-  try {
-    if (req.query.rows) {   // linhas cruas de lista_consolidadas + pedidocompra pra achar o campo do "Pedido Gerado"
-      const ids = String(req.query.rows).split(',').map(x => parseInt(x)).filter(Boolean);
-      const lc = await q(`SELECT * FROM central.lista_consolidadas WHERE nConsolidado IN (${ids.map(() => '?').join(',')})`, ids);
-      const pc = await q(`SELECT nConsolidado, nLoja, nReg, Status, nPedido FROM central.pedidocompra WHERE nConsolidado IN (${ids.map(() => '?').join(',')})`, ids);
-      return res.json({ lista_consolidadas: lc, pedidocompra: pc });
-    }
-    if (req.query.itens) {   // campos M{loja} de central.itens (ABC por loja segundo o Dlinks: 1=A 2=B 3=C)
-      const cods = String(req.query.itens).split(',').map(x => x.trim()).filter(Boolean);
-      const cols = await q(`SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='central' AND TABLE_NAME='itens' AND COLUMN_NAME REGEXP '^M[0-9]+$' ORDER BY COLUMN_NAME`);
-      const mcols = cols.map(c => c.COLUMN_NAME);
-      const rows = await q(`SELECT Codigo, CodigoBarra, Descricao${mcols.length ? ', ' + mcols.map(c => '`' + c + '`').join(', ') : ''} FROM central.itens WHERE CodigoBarra IN (${cods.map(() => '?').join(',')})`, cods);
-      return res.json({ colunas_M: mcols, itens: rows });
-    }
-    const n = parseInt(req.query.n), cod = String(req.query.cod || '');
-    const [cab] = await q(`SELECT Data, DataVenda1, DataVenda2, QtdCobertura FROM central.lista_consolidadas WHERE nConsolidado=?`, [n]);
-    if (!cab) return res.status(404).json({ error: 'sugestão não encontrada' });
-    const dias = parseInt(req.query.dias) || +cab.QtdCobertura || 40;
-    // datas do ERP vêm como texto 'dd/mm/aaaa' (ou Date, no caso de Data)
-    const fmt = d => { if (d instanceof Date) return d.toISOString().slice(0, 10); const m = String(d).match(/^(\d{2})\/(\d{2})\/(\d{4})/); return m ? `${m[3]}-${m[2]}-${m[1]}` : String(d).slice(0, 10); };
-    const fimTipo = req.query.fim || 'venda';
-    const dFim = fimTipo === 'hoje' ? new Date().toISOString().slice(0, 10) : fmt(fimTipo === 'data' ? cab.Data : cab.DataVenda2);
-    const dIni = new Date(new Date(dFim + 'T00:00:00').getTime() - (dias - 1) * 86400000).toISOString().slice(0, 10);
-    const lojas = (await q(`SELECT DISTINCT nLoja FROM central.lista_consolidado_historico WHERE nConsolidado=? ORDER BY nLoja`, [n])).map(r => +r.nLoja);
-    const meses = [...new Set(sugestaoManual.mesesDoPeriodo(dIni, dFim))];
-    const out = { n, cod, dias, periodo: [dIni, dFim], cobertura: +cab.QtdCobertura, lojas: {} };
-    for (const ln of lojas) {
-      const t0 = Date.now(); const acc = {};
-      for (const m of meses) {
-        const rows = await q(`SELECT Codigo, SUM(QtdNovo) qtd, SUM(ValorTotalNovo) valor FROM \`ln${ln}${mesDB(m)}\`.zcupomitens WHERE Data BETWEEN ? AND ? AND IndCancel='N' GROUP BY Codigo`, [dIni, dFim]);
-        for (const r of rows) { const a = acc[r.Codigo] || (acc[r.Codigo] = { qtd: 0, valor: 0 }); a.qtd += +r.qtd; a.valor += +r.valor; }
-      }
-      const cls = (arr, key) => {
-        const ord = Object.entries(acc).filter(([, v]) => v[key] > 0).sort((a, b) => b[1][key] - a[1][key]);
-        const N = ord.length, idx = ord.findIndex(([c]) => c === cod); const tot = ord.reduce((s, [, v]) => s + v[key], 0);
-        let acum = 0, cum = null; for (let i = 0; i < ord.length; i++) { acum += ord[i][1][key]; if (i === idx) { cum = acum / tot; break; } }
-        const pos = idx < 0 ? null : (idx + 1) / N;
-        return { N, pos_rank: idx < 0 ? null : idx + 1, pct_pos: pos == null ? null : +pos.toFixed(3), abc_posicao: pos == null ? 'sem venda' : pos <= .2 ? 'A' : pos <= .5 ? 'B' : 'C', pct_acum: cum == null ? null : +cum.toFixed(3), abc_acumulado: cum == null ? 'sem venda' : cum <= .8 ? 'A' : cum <= .95 ? 'B' : 'C', valor_item: acc[cod] ? +acc[cod][key].toFixed(2) : 0 };
-      };
-      out.lojas[ln] = { ms: Date.now() - t0, valor: cls(acc, 'valor'), quantidade: cls(acc, 'qtd') };
-    }
-    res.json(out);
-  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 // resumo do pedido pro cliente da Consolidação (sem itens); PUBLIC_URL é definida mais abaixo, mas só é lida em runtime
 function resumoPedidoSugestao(p) {

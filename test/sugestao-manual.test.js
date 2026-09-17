@@ -150,6 +150,17 @@ test('montarDeLinhas: monta D-N a partir das linhas do ERP e aplica ajustes', ()
   assert.equal(it.lojas[0].abc, null);
 });
 
+test('montarDeLinhas: ABC por loja vem de central.itens.M{loja} (1=A 2=B 3=C, outro=vazio)', () => {
+  const cab = { nConsolidado: 4380, nLista: 444, CodFornec: 1, NomeFornec: 'X', CNPJ: '', Data: new Date('2026-09-15'), DataVenda1: '15/08/2026', DataVenda2: '15/09/2026', QtdCobertura: 40, StatusWeb: 0, CodDesativado: 0 };
+  const itens = [{ CodigoBarra: '7891010087722', Descricao: 'CAREFREE', Unid: 'UN', QtdEmb: 12, QTotal: 9, Preco: 0, Obs: '' }];
+  const h = ln => ({ nLoja: ln, CodigoBarra: '7891010087722', QtdSug: 1, QTdCompra: 1, SaidaMedia: '0,1', Cobertura: 1, Estoque: 1, QtdVendas: 1, PMV: 1, Transito: 0, QtdLoja: 0 });
+  const abc = sm.mapaABC([{ CodigoBarra: '7891010087722', M1: '2.00', M3: '3.00', M4: '2.00', M5: 0, M6: '10.00' }]);
+  const s = sm.montarDeLinhas(cab, itens, [h(1), h(3), h(4), h(5), h(6)], null, abc);
+  const porLoja = Object.fromEntries(s.itens[0].lojas.map(l => [l.loja, l.abc]));
+  assert.deepEqual(porLoja, { 1: 'B', 3: 'C', 4: 'B', 5: null, 6: null });   // igual ao print do Dlinks da 4380
+  assert.equal(sm.abcDoM(1), 'A');
+});
+
 test('montarDeLinhas: sem ajustes usa QTdCompra; inativo vem dos ajustes', () => {
   const cab = { nConsolidado: 1, nLista: 2, CodFornec: 3, NomeFornec: 'F', CNPJ: '0', Data: null, DataVenda1: '01/09/2026', DataVenda2: '11/09/2026', QtdCobertura: 10, StatusWeb: 0, CodDesativado: 0 };
   const itens = [{ CodigoBarra: '1', Descricao: 'A', Unid: 'UN', QtdEmb: 12, QTotal: '0.000', Preco: '0.000', Ql1: '0.000', Obs: '0' }];
@@ -176,7 +187,8 @@ test('montarItens: calcula por loja, quantidade = soma, ABC e P/M', () => {
          3: { estoque: 3, qtdVenda: 0, valorVenda: 0, diasVenda: 0, ultimaVenda: null, custo: 1, ultimaCompra: null, precoAtual: 2, transito: 0 } },
     2: { 1: { estoque: 2, qtdVenda: 15, valorVenda: 150, diasVenda: 8, ultimaVenda: null, custo: 7.9, ultimaCompra: null, precoAtual: 12.49, transito: 0 } },
   };
-  const r = sm.montarItens(base, porLoja, { dias: 30, cobertura: 20, obs: { sem_estoque: false, transito: true, dias_com_venda: false }, curvaA: new Set(['2']) });
+  base[0].abc = { 1: 'B', 2: 'A' }; base[1].abc = { 1: 'A' };   // central.itens.M{loja}; item 3 sem M → vazio
+  const r = sm.montarItens(base, porLoja, { dias: 30, cobertura: 20, obs: { sem_estoque: false, transito: true, dias_com_venda: false } });
   const i1 = r.itens[0];
   assert.equal(i1.lojas[0].sug_sistema, 11);          // 20×1 − 5 − 4
   assert.equal(i1.lojas[1].sug_sistema, 8);           // 20×0,5 − 2
@@ -184,9 +196,10 @@ test('montarItens: calcula por loja, quantidade = soma, ABC e P/M', () => {
   assert.equal(i1.lojas[0].sug_loja, 11);
   assert.equal(i1.preco_und, 7.9);                    // maior custo entre as lojas
   assert.equal(i1.lojas[0].pmv, 10);                  // 300/30
-  assert.equal(i1.lojas[0].abc, 'B');                 // maior venda R$ da lista: acumulado antes dele = 0% < 80% → B
-  assert.equal(r.itens[1].lojas[0].abc, 'A');         // curva A do Radar
-  assert.equal(r.itens[2].lojas[0].abc, 'C');         // sem venda
+  assert.equal(i1.lojas[0].abc, 'B');                 // itens.M1 = 2
+  assert.equal(i1.lojas[1].abc, 'A');                 // itens.M2 = 1
+  assert.equal(r.itens[1].lojas[0].abc, 'A');
+  assert.equal(r.itens[2].lojas[0].abc, null);        // sem M{loja} → vazio, como no Dlinks
   assert.equal(r.itens[2].lojas[0].dias_cob, null);
   assert.equal(r.pm, +(500 / 55).toFixed(2));
 });
@@ -242,7 +255,7 @@ test('montarDeLinhas: loja participante sem histórico do item vira linha desati
 test('montarItens: loja da sugestão onde o produto não está na lista vira desativada', () => {
   const base = [{ codigo: '1', descricao: 'A', und: 'UN', emb: 1, lojas: [2] }];
   const porLoja = { 2: { 1: { estoque: 0, qtdVenda: 10, valorVenda: 50, diasVenda: 5, ultimaVenda: null, custo: 2, ultimaCompra: null, precoAtual: 5, transito: 0 } } };
-  const r = sm.montarItens(base, porLoja, { dias: 10, cobertura: 10, obs: { sem_estoque: false, transito: false, dias_com_venda: false }, curvaA: null, lojas: [1, 2] });
+  const r = sm.montarItens(base, porLoja, { dias: 10, cobertura: 10, obs: { sem_estoque: false, transito: false, dias_com_venda: false }, lojas: [1, 2] });
   assert.deepEqual(r.itens[0].lojas.map(l => [l.loja, !!l.desativado]), [[1, true], [2, false]]);
   assert.equal(r.itens[0].quantidade, 10);
 });
