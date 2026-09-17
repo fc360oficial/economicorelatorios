@@ -133,6 +133,17 @@ table.mon-t tbody tr.desativada td{color:#98A0B3}
 .ns-sec{margin-bottom:16px}
 .ns-sec h4{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:#98A0B3;margin-bottom:9px;border-bottom:1px solid #EBEBE9;padding-bottom:5px}
 .ns-grid{display:grid;grid-template-columns:1fr 1.2fr;gap:22px}
+.log-modal{width:1100px}
+.log-filtros{display:flex;gap:14px;align-items:flex-end;padding:14px 18px;border-bottom:1px solid #DADAD6;flex-wrap:wrap}
+.log-filtros .fg input{padding:7px 9px;border:1px solid #C9CBD3;border-radius:6px;font:inherit;font-size:13px}
+.log-filtros .fg:nth-child(3){flex:1;min-width:220px}
+.log-periodo{font-size:12px;color:#4E5A72;white-space:nowrap}
+.log-body{overflow:auto;flex:1;min-height:200px}
+.log-body table.mon-t thead th{position:sticky;top:0}
+.log-body td.mov{font-weight:700;color:#1F5FBF}
+.log-body tr.fluxo td.mov{color:#2E7D32}
+.log-body .orig{font-size:10px;font-weight:800;letter-spacing:.4px;padding:2px 6px;border-radius:4px;background:#EBEBE9;color:#4E5A72}
+.log-body tr.fluxo .orig{background:#E3F1E4;color:#2E7D32}
 .ns-grid .fg{margin-bottom:9px}
 .ns-lojas-wrap{border:1px solid #DADAD6;border-radius:8px;max-height:190px;overflow-y:auto}
 .ns-loja-row{display:flex;align-items:center;gap:9px;padding:7px 11px;font-size:12px;border-bottom:1px solid #EBEBE9}
@@ -387,6 +398,7 @@ table.cx-itens tbody tr.promo td.desc,table.cx-itens tbody tr.rebaixa td.desc,ta
       <div class="actions">
         <button class="btn btn-blue" onclick="abrirNovaSugestao()">+ Nova Sugestão</button>
         <button class="btn btn-danger-out" id="btn-desativar-sugestao" disabled onclick="desativarSugestoesSelecionadas()">✕ Desativar</button>
+        <button class="btn btn-slate" onclick="abrirLog()" title="Histórico de movimentações das sugestões (Dlinks + Fluxo)">🗒 Log</button>
       </div>
     </div>
 
@@ -579,6 +591,20 @@ table.cx-itens tbody tr.promo td.desc,table.cx-itens tbody tr.rebaixa td.desc,ta
   <div class="lk-card">
     <div class="lk-head"><div><div class="lk-eyebrow">LINK PRO VENDEDOR</div><h2>Sugestão pronta pra enviar</h2></div><button class="cx-x" onclick="fecharLinkOverlay()" title="Fechar">✕</button></div>
     <div id="lk-body"></div>
+  </div>
+</div>
+<div class="ns-overlay" id="log-overlay" style="display:none" onclick="if(event.target===this) fecharLog()">
+  <div class="ns-modal log-modal">
+    <div class="ns-hdr"><span>Log de Sugestões</span><button class="ns-x" onclick="fecharLog()">✕</button></div>
+    <div class="log-filtros">
+      <div class="fg"><label>Data Inicial</label><input type="date" id="log-de" onchange="carregarLog()"></div>
+      <div class="fg"><label>Data Final</label><input type="date" id="log-ate" onchange="carregarLog()"></div>
+      <div class="fg"><label>Buscar</label><input type="text" id="log-busca" placeholder="Fornecedor, nº, operador, movimentação..." oninput="renderLog()"></div>
+      <span class="log-periodo" id="log-periodo"></span>
+      <div class="actions"><button class="btn btn-slate" onclick="exportarLog()">📊 Excel</button></div>
+    </div>
+    <div id="log-aviso" class="empty" style="display:none">⚠️ Dlinks indisponível agora — mostrando só as movimentações do Fluxo.</div>
+    <div class="log-body"><table class="mon-t" id="log-tabela"><thead><tr><th>Loja</th><th>Data</th><th>Hora</th><th>Movimentação</th><th class="r">Sugestão</th><th>Fornecedor</th><th>Operador</th><th>Origem</th></tr></thead><tbody></tbody></table></div>
   </div>
 </div>
 <div class="ns-overlay" id="ns-overlay" style="display:none" onclick="if(event.target===this) fecharNovaSugestao()">
@@ -1279,6 +1305,46 @@ function atualizarBotaoDesativar(){
 // segue o layout da tela "Listas > Sugestão de Compras" do Dlinks desktop,
 // mas o Confirmar só abre o cálculo de cobertura já existente (só leitura).
 let lojasNSCarregadas = [];
+// ── Log de Sugestões (botão "Log" da capa do Dlinks): Dlinks + Fluxo, por período ──
+let LOG = { linhas: [] };
+function abrirLog(){
+  const hoje = new Date(); const iso = d => d.toISOString().slice(0, 10);
+  if (!document.getElementById('log-de').value) { document.getElementById('log-de').value = iso(new Date(hoje.getFullYear(), hoje.getMonth(), 1)); document.getElementById('log-ate').value = iso(hoje); }
+  document.getElementById('log-overlay').style.display = 'flex';
+  carregarLog();
+}
+function fecharLog(){ document.getElementById('log-overlay').style.display = 'none'; }
+async function carregarLog(){
+  const de = document.getElementById('log-de').value, ate = document.getElementById('log-ate').value;
+  const tb = document.querySelector('#log-tabela tbody'); tb.innerHTML = '<tr><td colspan="8" class="empty">Carregando...</td></tr>';
+  try {
+    const r = await fetch(`/api/sugestoes-compra/log?de=${de}&ate=${ate}`); const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    LOG = d; document.getElementById('log-aviso').style.display = d.dlinks_erro ? '' : 'none';
+    document.getElementById('log-periodo').textContent = `Período: ${fmtDataBR(de)} até ${fmtDataBR(ate)}`;
+    renderLog();
+  } catch (e) { tb.innerHTML = `<tr><td colspan="8" class="empty">Erro: ${escH(e.message)}</td></tr>`; }
+}
+function fmtDataBR(iso){ const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || ''); return m ? `${m[3]}/${m[2]}/${m[1]}` : (iso || ''); }
+function logFiltradas(){
+  const b = (document.getElementById('log-busca').value || '').trim().toLowerCase();
+  return (LOG.linhas || []).filter(l => !b || [l.fornecedor, l.sugestao, l.operador, l.movimentacao].some(x => String(x || '').toLowerCase().includes(b)));
+}
+function renderLog(){
+  const tb = document.querySelector('#log-tabela tbody'); const L = logFiltradas();
+  if (!L.length) { tb.innerHTML = '<tr><td colspan="8" class="empty">Nenhuma movimentação no período</td></tr>'; return; }
+  tb.innerHTML = L.map(l => { const d = l.data ? new Date(l.data) : null;
+    return `<tr class="${l.origem}"><td>${l.loja ?? '—'}</td><td>${d ? d.toLocaleDateString('pt-BR') : '—'}</td><td>${d ? d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—'}</td><td class="mov">${escH(l.movimentacao)}</td><td class="r">${escH(l.sugestao)}</td><td>${escH(l.fornecedor)}</td><td>${escH(l.operador || '—')}</td><td><span class="orig">${l.origem === 'dlinks' ? 'DLINKS' : 'FLUXO'}</span></td></tr>`; }).join('');
+  document.getElementById('log-periodo').textContent += '';
+}
+function exportarLog(){
+  const L = logFiltradas(); if (!L.length) { alert('Nada pra exportar'); return; }
+  const linhas = [['Loja', 'Data', 'Hora', 'Movimentação', 'Sugestão', 'Fornecedor', 'Operador', 'Origem']];
+  for (const l of L) { const d = l.data ? new Date(l.data) : null; linhas.push([l.loja ?? '', d ? d.toLocaleDateString('pt-BR') : '', d ? d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '', l.movimentacao, l.sugestao, l.fornecedor, l.operador || '', l.origem === 'dlinks' ? 'Dlinks' : 'Fluxo']); }
+  const csv = linhas.map(r => r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(';')).join('\r\n');
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' }); const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = `log-sugestoes-${document.getElementById('log-de').value}-a-${document.getElementById('log-ate').value}.csv`; a.click(); URL.revokeObjectURL(url);
+}
 function abrirNovaSugestao(listaId){
   document.getElementById('ns-lista').value = listaId || '';
   document.getElementById('ns-cobertura').value = 20;

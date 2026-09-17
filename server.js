@@ -6422,17 +6422,40 @@ app.post('/api/sugestao-manual', async (req, res) => {
     res.json(s);
   } catch (err) { res.status(err.message.startsWith('Lista') || err.message.startsWith('Escolha') ? 400 : 500).json({ error: err.message }); }
 });
-// DIAG TEMPORÁRIO (17/09/26): achar a tabela do Log de sugestões do Dlinks. Só SELECT. Remover depois.
-app.get('/api/diag-log', async (req, res) => {
+// Log de Sugestão de Compras (botão "Log" da capa do Dlinks): central.log_sugestao_compras (loja, data/hora, operador,
+// movimentação, nº sugestão, fornecedor) + eventos das sugestões do Fluxo (F-N e ajustes em D-N) e do link do vendedor ligado.
+// Só leitura no ERP. GET /api/sugestoes-compra/log?de=aaaa-mm-dd&ate=aaaa-mm-dd
+app.get('/api/sugestoes-compra/log', async (req, res) => {
   try {
-    const out = {};
-    out.colunas_moviment = await q(`SELECT TABLE_NAME t, COLUMN_NAME c FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='central' AND (COLUMN_NAME LIKE '%moviment%' OR COLUMN_NAME LIKE '%operador%') ORDER BY TABLE_NAME`);
-    out.tabelas_log = (await q(`SELECT TABLE_NAME t, TABLE_ROWS r FROM information_schema.TABLES WHERE TABLE_SCHEMA='central' AND (TABLE_NAME LIKE '%log%' OR TABLE_NAME LIKE '%consolid%')`)).map(r => r.t + ':' + r.r);
-    if (req.query.tab) {
-      out.colunas = (await q(`SELECT COLUMN_NAME c, DATA_TYPE t FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='central' AND TABLE_NAME=? ORDER BY ORDINAL_POSITION`, [req.query.tab])).map(r => r.c + ':' + r.t);
-      out.amostra = await q(`SELECT * FROM central.\`${String(req.query.tab).replace(/[^\w]/g, '')}\` ORDER BY 1 DESC LIMIT ${parseInt(req.query.n) || 15}`).catch(e => 'ERR ' + e.message);
+    const hoje = new Date(); const iso = d => d.toISOString().slice(0, 10);
+    const ok = s => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ''));
+    const ate = ok(req.query.ate) ? req.query.ate : iso(hoje);
+    const de = ok(req.query.de) ? req.query.de : iso(new Date(hoje.getFullYear(), hoje.getMonth(), 1));
+    const out = []; let dlinksErro = null;
+    try {
+      const rows = await q(`SELECT nLoja, Data, Operador, Movimentacao, nSugestao, Fornecedor FROM central.log_sugestao_compras WHERE Data >= ? AND Data < DATE_ADD(?, INTERVAL 1 DAY) ORDER BY Data DESC, nReg DESC LIMIT 5000`, [de, ate]);
+      for (const r of rows) out.push({ origem: 'dlinks', loja: +r.nLoja || null, data: r.Data ? new Date(r.Data).toISOString() : null, operador: String(r.Operador || '').trim() || null, movimentacao: String(r.Movimentacao || '').trim(), sugestao: String(r.nSugestao || ''), fornecedor: String(r.Fornecedor || '').trim() });
+    } catch (e) { dlinksErro = e.message; console.error('[SUGESTOES] log dlinks:', e.message); }
+    // eventos do Fluxo: sugestão criada aqui + ciclo do link do vendedor (pedido ligado à sugestão F-N ou D-N)
+    const dentro = t => t && t.slice(0, 10) >= de && t.slice(0, 10) <= ate;
+    const ev = (t, s, mov, quem) => { if (dentro(t)) out.push({ origem: 'fluxo', loja: null, data: t, operador: quem || null, movimentacao: mov, sugestao: s.id.startsWith('D-') ? s.id.slice(2) : s.id, fornecedor: (s.lista && s.lista.fornecedor) || '' }); };
+    const todas = sugestaoManual.listar();
+    try { for (const f of fs.readdirSync(sugestaoManual.DIR)) if (/^D-\d+\.json$/.test(f)) { const d = sugestaoManual.obter(f.slice(0, -5)); if (d) todas.push(d); } } catch (e) { /* pasta ainda não existe */ }
+    for (const s of todas) {
+      if (s.origem === 'fluxo') ev(s.criado_em, s, 'NOVA SUGESTÃO (FLUXO)', s.criado_por);
+      if (s.recalculado_em) ev(s.recalculado_em, s, 'RECALCULAR SUGESTÃO', null);
+      const p = s.pedido_id ? pedidosFornec.obter(s.pedido_id) : null;
+      if (!p) continue;
+      ev(p.enviadoEm || p.criadoEm, s, 'ENVIAR LINK DIGITAÇÃO PREÇO', p.enviadoPor || p.criadoPor);
+      ev(p.abertoEm, s, 'FORNECEDOR ABRIU O LINK', p.vendedor && p.vendedor.nome);
+      ev(p.reabertoEm, s, 'ABRIR SOLICITAR PREÇO WEB', p.reabertoPor);
+      ev(p.finalizadoEm, s, 'FECHAR SOLICITAR PREÇO WEB', p.finalizadoPor);
+      ev(p.aprovadoEm, s, 'PEDIDO GERADO', p.aprovadoPor);
+      ev(p.canceladoEm, s, 'CANCELAR LINK', p.canceladoPor);
     }
-    res.json(out);
+    out.sort((x, y) => String(y.data || '').localeCompare(String(x.data || '')));
+    if (dlinksErro) res.set('X-Dlinks-Erro', '1');
+    res.json({ de, ate, total: out.length, dlinks_erro: dlinksErro ? true : false, linhas: out });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 // resumo do pedido pro cliente da Consolidação (sem itens); PUBLIC_URL é definida mais abaixo, mas só é lida em runtime
