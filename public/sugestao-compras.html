@@ -864,7 +864,9 @@ function rupturaInfo(l){
 function capitalParado(l, meta){ const ideal = (l.media || 0) * meta; const exc = Math.max(0, (l.estoque || 0) - ideal); if (exc < 0.5) return null; return { valor: exc * (l.custo || 0), un: Math.round(exc) }; }
 function motivoIA(l, meta){
   const m = []; const d = l.media > 0 ? Math.floor((l.estoque > 0 ? l.estoque : 0) / l.media) : 999;
-  if (!(l.estoque > 0)) m.push('Estoque zerado'); else if (d <= 5) m.push(`Ruptura em ${d} dia(s)`);
+  // estoque 0 é sempre CRÍTICO (decisão do Tiago 17/09: item da lista sem estoque é ruptura, vendendo ou não); o motivo diz qual caso é
+  if (!(l.estoque > 0)) m.push((l.qtd_venda || 0) > 0 ? 'Estoque zerado, vendeu no período' : l.ultima_venda ? `Estoque zerado, sem venda no período (última ${l.ultima_venda})` : 'Estoque zerado, sem venda há 12 meses');
+  else if (d <= 5) m.push(`Ruptura em ${d} dia(s)`);
   if (l.media > 0) m.push(`Venda média ${fmtN(l.media * 30, 1)} un/mês`);
   if ((l.sug_sistema || 0) > 0) m.push(`Sistema sugere ${l.sug_sistema} un`);
   if (l.dias_cob != null && l.dias_cob < meta) m.push(`Cobertura ${fmtN(l.dias_cob, 0)}d < meta ${meta}d`);
