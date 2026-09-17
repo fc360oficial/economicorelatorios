@@ -140,3 +140,17 @@ test('embalagemEhPeso: SC20KG com embalagem 20 é quilo (un/cx 1); 27 pro sabão
   assert.equal(u.embalagemEhPeso('BEM TE VI LAVA ROUPAS EM PO 400G COCO', 27), false);
   assert.equal(u.embalagemEhPeso('OLHO DAGUA ACUCAR CRISTAL 1KG', 10), false);
 });
+
+// Produto novo que começou a vender há poucos dias: dividir por 40 lia 8x menos que a velocidade real
+// (24 un em 5 dias = 0,6/dia em vez de 4,8). Tiago, 17/09/2026: "vendeu 24 em 5 dias, manda 2".
+test('vendaDiaNova: produto novo divide pelos dias desde a primeira venda (piso 7), antigo divide pela janela', () => {
+  // vendeu 24 un, primeira venda 12/09, janela até 16/09 (5 dias) → piso 7 dias
+  assert.deepEqual(u.vendaDiaNova(24, '2026-09-12', '2026-09-16', 40, false), { vq: +(24 / 7).toFixed(3), dias: 7, nova: true });
+  // primeira venda há 20 dias → divide por 20
+  assert.deepEqual(u.vendaDiaNova(40, '2026-08-28', '2026-09-16', 40, false), { vq: 2, dias: 20, nova: true });
+  // primeira venda dentro da janela mas o produto já vendia em meses anteriores (ficou em falta): regra normal
+  assert.deepEqual(u.vendaDiaNova(24, '2026-09-12', '2026-09-16', 40, true), { vq: 0.6, dias: 40, nova: false });
+  // primeira venda no início da janela (ou antes): regra normal
+  assert.deepEqual(u.vendaDiaNova(80, '2026-08-08', '2026-09-16', 40, false), { vq: 2, dias: 40, nova: false });
+  assert.deepEqual(u.vendaDiaNova(0, null, '2026-09-16', 40, false), { vq: 0, dias: 40, nova: false });
+});
