@@ -117,6 +117,9 @@ test('pedido ganha token e porTokens acha por um ou vários', () => {
 });
 
 test('trânsito: pedido separado conta só o que o CD separou; o que faltou volta pra sugestão', () => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pcd-tr-'));   // pasta própria: sem pedidos das outras etapas
+  cd.init({ q: fakeQ, mesDB: m => String(m).padStart(2, '0'), dataDir });
+  cd.salvarVinculo({ codigoCD: '17896037913143', unidade: '7896037913146', unPorCaixa: 12, usuario: 't' });
   cd._setBaseParaTeste({ hoje: '2026-09-14', cd: { '17896037913143': { descricao: 'VINHO CX12', estoqueCx: 5 } }, un: { '7896037913146': { descricao: 'VINHO', custo: 20, porLoja: {} } }, lead: {} });
   const [p] = cd.criarPedidos({ lojas: { 2: [{ codigoCD: '17896037913143', caixas: 5 }] }, usuario: 't' });
   let t = cd.transitoPedidos(); assert.equal(t['7896037913146|2'], 60);          // aberto: 5 cx × 12
