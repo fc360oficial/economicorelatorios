@@ -207,3 +207,25 @@ test('verificar: não casa pedido do CD cujos itens não batem com o pedido do a
   assert.equal(x.noCD.nPedido, '6593');
   assert.equal(x.noCD.statusCD, 1);
 });
+
+// Os 6 pedidos de 16/09/2026 foram casados pela regra antiga (por data) com pedidos avulsos 6571–6576.
+// A conferência revalida pelos itens, desfaz e casa com o pedido certo na mesma rodada.
+test('verificar: expedição casada com pedido cujos itens não batem é desfeita e recasada', async () => {
+  const dataDir6 = fs.mkdtempSync(path.join(os.tmpdir(), 'pcd6-'));
+  cd.init({ q: fakeQ, mesDB: m => String(m).padStart(2, '0'), dataDir: dataDir6 });
+  cd.salvarVinculo({ codigoCD: '17896037913143', unidade: '7896037913146', unPorCaixa: 12, usuario: 't' });
+  cd._setBaseParaTeste({ hoje: '2026-09-14', cd: { '17896037913143': { descricao: 'VINHO CX12', estoqueCx: 5 } }, un: { '7896037913146': { descricao: 'VINHO', custo: 20, porLoja: {} } }, lead: {} });
+  const [p] = cd.criarPedidos({ lojas: { 5: [{ codigoCD: '17896037913143', caixas: 2 }] }, usuario: 'tiago' });
+  const arq = path.join(dataDir6, 'pedidos-cd', p.id + '.json');
+  const d = JSON.parse(fs.readFileSync(arq, 'utf8')); d.status = 'separado'; d.expedicao = { nPedido: '6574', data: '2026-09-16' }; d.itens[0].separadas = 0;
+  fs.writeFileSync(arq, JSON.stringify(d));
+
+  itensCD = { 6574: ['17896005217495'], 6593: ['17896037913143'] }; statusPainel = { 6574: 4, 6593: 1 }; semNota = true;
+  deliverySeq = [[{ nPedido: '6574', d: '2026-09-16', hora: '13:56:05' }, { nPedido: '6593', d: '2026-09-17', hora: '10:07:11' }]];
+  await cd.verificar();
+  deliverySeq = null; semNota = false;
+  const x = cd.obterPedido(p.id);
+  assert.equal(x.status, 'aberto');
+  assert.ok(!x.expedicao);
+  assert.equal(x.noCD.nPedido, '6593');
+});
