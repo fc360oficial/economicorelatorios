@@ -115,3 +115,12 @@ test('pedido ganha token e porTokens acha por um ou vários', () => {
   assert.equal(cd.porTokens(ps[0].token + ',' + ps[1].token).length, 2);
   assert.equal(cd.porTokens('xx').length, 0);
 });
+
+test('trânsito: pedido separado conta só o que o CD separou; o que faltou volta pra sugestão', () => {
+  cd._setBaseParaTeste({ hoje: '2026-09-14', cd: { '17896037913143': { descricao: 'VINHO CX12', estoqueCx: 5 } }, un: { '7896037913146': { descricao: 'VINHO', custo: 20, porLoja: {} } }, lead: {} });
+  const [p] = cd.criarPedidos({ lojas: { 2: [{ codigoCD: '17896037913143', caixas: 5 }] }, usuario: 't' });
+  let t = cd.transitoPedidos(); assert.equal(t['7896037913146|2'], 60);          // aberto: 5 cx × 12
+  const x = cd.obterPedido(p.id); x.status = 'separado'; x.itens[0].separadas = 3; require('fs').writeFileSync(require('path').join(dataDir, 'pedidos-cd', p.id + '.json'), JSON.stringify(x));
+  t = cd.transitoPedidos(); assert.equal(t['7896037913146|2'], 36);              // separado: só 3 cx × 12
+  cd.cancelarPedido(p.id, 't');
+});
