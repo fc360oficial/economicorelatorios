@@ -6422,26 +6422,6 @@ app.post('/api/sugestao-manual', async (req, res) => {
     res.json(s);
   } catch (err) { res.status(err.message.startsWith('Lista') || err.message.startsWith('Escolha') ? 400 : 500).json({ error: err.message }); }
 });
-// DIAG TEMPORÁRIO (17/09/26): promoções dos itens de uma sugestão cruzando o período de vendas. Só SELECT. Remover depois.
-app.get('/api/diag-promo', async (req, res) => {
-  try {
-    const n = parseInt(req.query.n);
-    const [cab] = await q(`SELECT DataVenda1, DataVenda2 FROM central.lista_consolidadas WHERE nConsolidado=?`, [n]);
-    const iso = d => { const m = /^(\d{2})\/(\d{2})\/(\d{4})/.exec(String(d)); return m ? `${m[3]}-${m[2]}-${m[1]}` : String(d).slice(0, 10); };
-    const dIni = iso(cab.DataVenda1), dFim = iso(cab.DataVenda2);
-    const cods = (await q(`SELECT CodigoBarra FROM central.lista_consolidado_itens WHERE nConsolidado=?`, [n])).map(r => String(r.CodigoBarra));
-    const ph = cods.map(() => '?').join(',');
-    const out = { periodo: [dIni, dFim] };
-    for (const t of ['promocao', 'promocao_capa', 'promocao_produtos']) {
-      out[t + '_colunas'] = (await q(`SELECT COLUMN_NAME c, DATA_TYPE t FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='central' AND TABLE_NAME=? ORDER BY ORDINAL_POSITION`, [t])).map(r => r.c + ':' + r.t);
-    }
-    out.promocao = await q(`SELECT * FROM central.promocao WHERE Codigo IN (${ph}) AND DataFinal >= ? AND DataInicial <= ? ORDER BY DataInicial`, [...cods, dIni, dFim]).catch(e => 'ERR ' + e.message);
-    out.promocao_produtos_capa = await q(`SELECT pp.codigobarra, pp.nreg_promo, pp.preco_promo, pp.status st_prod, pp.nloja nloja_prod, c.descricao, c.data_inicio, c.data_fim, c.nloja nloja_capa, c.status st_capa, c.finalizada
-      FROM central.promocao_produtos pp INNER JOIN central.promocao_capa c ON c.nreg = pp.nreg_promo
-      WHERE pp.codigobarra IN (${ph}) AND c.data_fim >= ? AND c.data_inicio <= ? ORDER BY c.data_inicio`, [...cods, dIni, dFim]).catch(e => 'ERR ' + e.message);
-    res.json(out);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
 // resumo do pedido pro cliente da Consolidação (sem itens); PUBLIC_URL é definida mais abaixo, mas só é lida em runtime
 function resumoPedidoSugestao(p) {
   if (!p) return null;
