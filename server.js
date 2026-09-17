@@ -6422,6 +6422,27 @@ app.post('/api/sugestao-manual', async (req, res) => {
     res.json(s);
   } catch (err) { res.status(err.message.startsWith('Lista') || err.message.startsWith('Escolha') ? 400 : 500).json({ error: err.message }); }
 });
+// DIAG TEMPORÁRIO (17/09/26): rebaixa de preço (promocaodatacritica) dos itens de uma sugestão. Só SELECT. Remover depois.
+app.get('/api/diag-rebaixa', async (req, res) => {
+  try {
+    const n = parseInt(req.query.n);
+    const [cab] = await q(`SELECT DataVenda1, DataVenda2 FROM central.lista_consolidadas WHERE nConsolidado=?`, [n]);
+    const iso = d => { const m = /^(\d{2})\/(\d{2})\/(\d{4})/.exec(String(d)); return m ? `${m[3]}-${m[2]}-${m[1]}` : String(d).slice(0, 10); };
+    const dIni = iso(cab.DataVenda1), dFim = iso(cab.DataVenda2);
+    const cods = (await q(`SELECT CodigoBarra FROM central.lista_consolidado_itens WHERE nConsolidado=?`, [n])).map(r => String(r.CodigoBarra));
+    const out = { periodo: [dIni, dFim] };
+    out.tabelas = (await q(`SELECT TABLE_NAME t, TABLE_ROWS r FROM information_schema.TABLES WHERE TABLE_SCHEMA='central' AND TABLE_NAME LIKE '%critic%'`)).map(r => r.t + ':' + r.r);
+    const tab = req.query.tab || (out.tabelas[0] || '').split(':')[0];
+    if (tab) {
+      out.tabela = tab;
+      out.colunas = (await q(`SELECT COLUMN_NAME c, DATA_TYPE t FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='central' AND TABLE_NAME=? ORDER BY ORDINAL_POSITION`, [tab])).map(r => r.c + ':' + r.t);
+      out.amostra = await q(`SELECT * FROM central.\`${tab}\` ORDER BY 1 DESC LIMIT 5`).catch(e => 'ERR ' + e.message);
+      const colCod = out.colunas.map(c => c.split(':')[0]).find(c => /codigo/i.test(c));
+      if (colCod && req.query.where) out.rows = await q(`SELECT * FROM central.\`${tab}\` WHERE \`${colCod}\` IN (${cods.map(() => '?').join(',')}) AND ${String(req.query.where).replace(/[^\w\s()'",.<>=%-]/g, '')} LIMIT 300`, cods).catch(e => 'ERR ' + e.message);
+    }
+    res.json(out);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 // resumo do pedido pro cliente da Consolidação (sem itens); PUBLIC_URL é definida mais abaixo, mas só é lida em runtime
 function resumoPedidoSugestao(p) {
   if (!p) return null;
