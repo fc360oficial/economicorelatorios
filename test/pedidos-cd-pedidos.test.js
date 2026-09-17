@@ -5,12 +5,17 @@ const fs = require('fs'); const os = require('os'); const path = require('path')
 const cd = require('../lib/pedidos-cd');
 
 let sql = []; let params = [];
-let painelSeq = null; // fila opcional de retornos sucessivos p/ painel_televendas
+let painelSeq = null; // fila opcional de retornos sucessivos p/ painel_televendas (null na fila = sem linha)
+let fornecedorCnpj = null; // CNPJ devolvido por central.fornecedor (null = cadastro sem CNPJ)
+let painelPendente = null; // linha do painel ainda não liberada (Status<4)
+let semNota = false; // true = loja ainda não recebeu nota do CD
 const fakeQ = async (s, p) => {
   sql.push(s); params.push(p);
-  if (s.includes('painel_televendas')) { if (painelSeq && painelSeq.length) return [painelSeq.shift()]; return [{ nPedido: '6400', d: '2026-09-15' }]; }
+  if (s.includes('central.fornecedor')) return fornecedorCnpj ? [{ cnpj: fornecedorCnpj }] : [];
+  if (s.includes('painel_televendas') && s.includes('Status<4')) return painelPendente ? [painelPendente] : [];
+  if (s.includes('painel_televendas')) { if (painelSeq && painelSeq.length) { const x = painelSeq.shift(); return x ? [x] : []; } return [{ nPedido: '6400', d: '2026-09-15' }]; }
   if (s.includes('conferencia_televendas')) return [{ cod: '17896037913143', cx: 3 }];
-  if (s.includes('FROM central.compras c')) return [{ cod: '7896037913146', cx: 2, nNota: 4900, d: '2026-09-16' }];
+  if (s.includes('FROM central.compras c')) return semNota ? [] : [{ cod: '7896037913146', cx: 2, nNota: 4900, d: '2026-09-16' }];
   return [];
 };
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pcd-'));
@@ -126,4 +131,48 @@ test('trânsito: pedido separado conta só o que o CD separou; o que faltou volt
   const x = cd.obterPedido(p.id); x.status = 'separado'; x.itens[0].separadas = 3; require('fs').writeFileSync(require('path').join(dataDir, 'pedidos-cd', p.id + '.json'), JSON.stringify(x));
   t = cd.transitoPedidos(); assert.equal(t['7896037913146|2'], 36);              // separado: só 3 cx × 12
   cd.cancelarPedido(p.id, 't');
+});
+
+// Desde 03/09/2026 o painel do Televendas grava o CNPJ do cliente em CodFornec (antes era o código 828/899…).
+// A loja precisa casar pelos dois: código de cliente E CNPJ do cadastro (central.fornecedor).
+test('verificar: casa o painel do CD pelo código de cliente OU pelo CNPJ do cadastro', async () => {
+  const dataDir3 = fs.mkdtempSync(path.join(os.tmpdir(), 'pcd3-'));
+  cd.init({ q: fakeQ, mesDB: m => String(m).padStart(2, '0'), dataDir: dataDir3 });
+  cd.salvarVinculo({ codigoCD: '17896037913143', unidade: '7896037913146', unPorCaixa: 12, usuario: 't' });
+  cd._setBaseParaTeste({ hoje: '2026-09-14', cd: { '17896037913143': { descricao: 'VINHO CX12', estoqueCx: 5 } }, un: { '7896037913146': { descricao: 'VINHO', custo: 20, porLoja: {} } }, lead: {} });
+  cd.criarPedidos({ lojas: { 5: [{ codigoCD: '17896037913143', caixas: 2 }] }, usuario: 'tiago' });
+
+  fornecedorCnpj = '51632927000185';
+  sql = []; params = [];
+  await cd.verificar();
+  fornecedorCnpj = null;
+
+  const painel = sql.map((s, i) => ({ s, p: params[i] })).find(x => x.s.includes('painel_televendas') && x.s.includes('Status=4'));
+  assert.ok(painel.s.includes('CodFornec IN ('));
+  assert.ok(painel.p.includes(1684));            // código de cliente da L5 PORTA LARGA
+  assert.ok(painel.p.includes('51632927000185')); // CNPJ da L5 no cadastro de fornecedores
+});
+
+test('verificar: pedido digitado no CD mas não liberado aparece como "no CD" e continua aberto', async () => {
+  const dataDir4 = fs.mkdtempSync(path.join(os.tmpdir(), 'pcd4-'));
+  cd.init({ q: fakeQ, mesDB: m => String(m).padStart(2, '0'), dataDir: dataDir4 });
+  cd.salvarVinculo({ codigoCD: '17896037913143', unidade: '7896037913146', unPorCaixa: 12, usuario: 't' });
+  cd._setBaseParaTeste({ hoje: '2026-09-14', cd: { '17896037913143': { descricao: 'VINHO CX12', estoqueCx: 5 } }, un: { '7896037913146': { descricao: 'VINHO', custo: 20, porLoja: {} } }, lead: {} });
+  const [p] = cd.criarPedidos({ lojas: { 5: [{ codigoCD: '17896037913143', caixas: 2 }] }, usuario: 'tiago' });
+
+  // 1ª rodada: nada liberado (Status=4 vazio), mas existe pedido 6593 digitado (Status 0)
+  painelSeq = [null]; painelPendente = { nPedido: '6593', statusCD: 0, d: '2026-09-17', hora: '14:10' }; semNota = true;
+  await cd.verificar();
+  let x = cd.obterPedido(p.id);
+  assert.equal(x.status, 'aberto');
+  assert.ok(!x.expedicao);
+  assert.deepEqual(x.noCD, { nPedido: '6593', statusCD: 0, data: '2026-09-17', hora: '14:10' });
+
+  // 2ª rodada: CD liberou (Status 4) → vira separado e o "no CD" some
+  painelSeq = [{ nPedido: '6593', d: '2026-09-17' }]; painelPendente = null; semNota = false;
+  await cd.verificar();
+  painelSeq = null;
+  x = cd.obterPedido(p.id);
+  assert.equal(x.expedicao.nPedido, '6593');
+  assert.equal(x.noCD, undefined);
 });
