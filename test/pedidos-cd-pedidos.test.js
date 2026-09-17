@@ -5,15 +5,20 @@ const fs = require('fs'); const os = require('os'); const path = require('path')
 const cd = require('../lib/pedidos-cd');
 
 let sql = []; let params = [];
-let painelSeq = null; // fila opcional de retornos sucessivos p/ painel_televendas (null na fila = sem linha)
+// Pedidos digitados pelo CD no Televendas (central.delivery + delivery_produtos) e situação no painel.
+// deliverySeq: fila opcional de listas de candidatos por chamada; itensCD: nPedido → códigos digitados;
+// statusPainel: nPedido → Status do painel (4 liberado; undefined = ainda não mandado pro painel).
+let deliverySeq = null;
+let itensCD = { 6400: ['17896037913143'] };
+let statusPainel = { 6400: 4 };
 let fornecedorCnpj = null; // CNPJ devolvido por central.fornecedor (null = cadastro sem CNPJ)
-let painelPendente = null; // linha do painel ainda não liberada (Status<4)
 let semNota = false; // true = loja ainda não recebeu nota do CD
 const fakeQ = async (s, p) => {
   sql.push(s); params.push(p);
   if (s.includes('central.fornecedor')) return fornecedorCnpj ? [{ cnpj: fornecedorCnpj }] : [];
-  if (s.includes('painel_televendas') && s.includes('Status<4')) return painelPendente ? [painelPendente] : [];
-  if (s.includes('painel_televendas')) { if (painelSeq && painelSeq.length) { const x = painelSeq.shift(); return x ? [x] : []; } return [{ nPedido: '6400', d: '2026-09-15' }]; }
+  if (s.includes('FROM central.delivery d')) { if (deliverySeq && deliverySeq.length) return deliverySeq.shift(); return [{ nPedido: '6400', d: '2026-09-15', hora: '10:07:11' }]; }
+  if (s.includes('delivery_produtos')) return (itensCD[p[0]] || []).map(cod => ({ cod }));
+  if (s.includes('painel_televendas')) { const st = statusPainel[p[0]]; return st === undefined ? [] : [{ statusCD: st, dl: st === 4 ? '2026-09-15' : null, he: '14:10' }]; }
   if (s.includes('conferencia_televendas')) return [{ cod: '17896037913143', cx: 3 }];
   if (s.includes('FROM central.compras c')) return semNota ? [] : [{ cod: '7896037913146', cx: 2, nNota: 4900, d: '2026-09-16' }];
   return [];
@@ -84,16 +89,17 @@ test('verificar: casa expedição do pedido mais antigo primeiro e não reusa no
   fs.writeFileSync(arqA, JSON.stringify(dA));
   const [pB] = cd.criarPedidos({ lojas: { 1: [{ codigoCD: '17896037913143', caixas: 2 }] }, usuario: 'tiago' }); // B mais novo (criadoEm real)
 
-  painelSeq = [{ nPedido: '7400', d: '2026-09-15' }, { nPedido: '7401', d: '2026-09-16' }];
+  itensCD = { 7400: ['17896037913143'], 7401: ['17896037913143'] }; statusPainel = { 7400: 4, 7401: 4 };
+  deliverySeq = [[{ nPedido: '7400', d: '2026-09-15', hora: '10:00:00' }], [{ nPedido: '7401', d: '2026-09-16', hora: '10:00:00' }]];
   sql = []; params = [];
   await cd.verificar();
-  painelSeq = null;
+  deliverySeq = null;
 
-  const painelCalls = sql.map((s, i) => ({ s, p: params[i] })).filter(x => x.s.includes('painel_televendas'));
-  assert.equal(painelCalls.length, 2);
-  assert.ok(!painelCalls[0].p.includes('7400')); // A processado primeiro (mais antigo), sem exclusão ainda
-  assert.ok(painelCalls[1].s.includes('NOT IN'));
-  assert.ok(painelCalls[1].p.includes('7400')); // B não pode casar com o nPedido já atribuído ao A
+  const delivCalls = sql.map((s, i) => ({ s, p: params[i] })).filter(x => x.s.includes('FROM central.delivery d'));
+  assert.equal(delivCalls.length, 2);
+  assert.ok(!delivCalls[0].p.includes('7400')); // A processado primeiro (mais antigo), sem exclusão ainda
+  assert.ok(delivCalls[1].s.includes('NOT IN'));
+  assert.ok(delivCalls[1].p.includes('7400')); // B não pode casar com o nPedido já atribuído ao A
 
   const comprasCalls = sql.map((s, i) => ({ s, p: params[i] })).filter(x => x.s.includes('FROM central.compras c'));
   assert.equal(comprasCalls.length, 2);
@@ -133,9 +139,9 @@ test('trânsito: pedido separado conta só o que o CD separou; o que faltou volt
   cd.cancelarPedido(p.id, 't');
 });
 
-// Desde 03/09/2026 o painel do Televendas grava o CNPJ do cliente em CodFornec (antes era o código 828/899…).
-// A loja precisa casar pelos dois: código de cliente E CNPJ do cadastro (central.fornecedor).
-test('verificar: casa o painel do CD pelo código de cliente OU pelo CNPJ do cadastro', async () => {
+// Desde 03/09/2026 o Televendas grava o CNPJ do cliente (antes era o código 828/899…). A loja precisa casar
+// pelos dois: código de cliente (delivery.CodCliente) E CNPJ do cadastro central.fornecedor (delivery.CPF).
+test('verificar: casa o pedido do CD pelo código de cliente OU pelo CNPJ do cadastro', async () => {
   const dataDir3 = fs.mkdtempSync(path.join(os.tmpdir(), 'pcd3-'));
   cd.init({ q: fakeQ, mesDB: m => String(m).padStart(2, '0'), dataDir: dataDir3 });
   cd.salvarVinculo({ codigoCD: '17896037913143', unidade: '7896037913146', unPorCaixa: 12, usuario: 't' });
@@ -147,10 +153,10 @@ test('verificar: casa o painel do CD pelo código de cliente OU pelo CNPJ do cad
   await cd.verificar();
   fornecedorCnpj = null;
 
-  const painel = sql.map((s, i) => ({ s, p: params[i] })).find(x => x.s.includes('painel_televendas') && x.s.includes('Status=4'));
-  assert.ok(painel.s.includes('CodFornec IN ('));
-  assert.ok(painel.p.includes(1684));            // código de cliente da L5 PORTA LARGA
-  assert.ok(painel.p.includes('51632927000185')); // CNPJ da L5 no cadastro de fornecedores
+  const deliv = sql.map((s, i) => ({ s, p: params[i] })).find(x => x.s.includes('FROM central.delivery d'));
+  assert.ok(deliv.s.includes('d.CodCliente IN (') && deliv.s.includes('d.CPF IN ('));
+  assert.ok(deliv.p.includes(1684));            // código de cliente da L5 PORTA LARGA
+  assert.ok(deliv.p.includes('51632927000185')); // CNPJ da L5 no cadastro de fornecedores
 });
 
 test('verificar: pedido digitado no CD mas não liberado aparece como "no CD" e continua aberto', async () => {
@@ -160,8 +166,9 @@ test('verificar: pedido digitado no CD mas não liberado aparece como "no CD" e 
   cd._setBaseParaTeste({ hoje: '2026-09-14', cd: { '17896037913143': { descricao: 'VINHO CX12', estoqueCx: 5 } }, un: { '7896037913146': { descricao: 'VINHO', custo: 20, porLoja: {} } }, lead: {} });
   const [p] = cd.criarPedidos({ lojas: { 5: [{ codigoCD: '17896037913143', caixas: 2 }] }, usuario: 'tiago' });
 
-  // 1ª rodada: nada liberado (Status=4 vazio), mas existe pedido 6593 digitado (Status 0)
-  painelSeq = [null]; painelPendente = { nPedido: '6593', statusCD: 0, d: '2026-09-17', hora: '14:10' }; semNota = true;
+  // 1ª rodada: CD digitou o pedido 6593 (itens batem) e ele está no painel com Status 0 (ainda não liberado)
+  itensCD = { 6593: ['17896037913143'] }; statusPainel = { 6593: 0 }; semNota = true;
+  deliverySeq = [[{ nPedido: '6593', d: '2026-09-17', hora: '10:07:11' }]];
   await cd.verificar();
   let x = cd.obterPedido(p.id);
   assert.equal(x.status, 'aberto');
@@ -169,10 +176,34 @@ test('verificar: pedido digitado no CD mas não liberado aparece como "no CD" e 
   assert.deepEqual(x.noCD, { nPedido: '6593', statusCD: 0, data: '2026-09-17', hora: '14:10' });
 
   // 2ª rodada: CD liberou (Status 4) → vira separado e o "no CD" some
-  painelSeq = [{ nPedido: '6593', d: '2026-09-17' }]; painelPendente = null; semNota = false;
+  statusPainel = { 6593: 4 }; semNota = true;
+  deliverySeq = [[{ nPedido: '6593', d: '2026-09-17', hora: '10:07:11' }]];
   await cd.verificar();
-  painelSeq = null;
+  deliverySeq = null; semNota = false;
   x = cd.obterPedido(p.id);
   assert.equal(x.expedicao.nPedido, '6593');
+  assert.equal(x.status, 'separado');
   assert.equal(x.noCD, undefined);
+});
+
+// Caso real de 16-17/09/2026: a loja também faz pedidos avulsos ao CD; o primeiro pedido depois da criação
+// tinha 1 item que não estava no app e mesmo assim era casado (casamento por data). Agora é pelos itens.
+test('verificar: não casa pedido do CD cujos itens não batem com o pedido do app', async () => {
+  const dataDir5 = fs.mkdtempSync(path.join(os.tmpdir(), 'pcd5-'));
+  cd.init({ q: fakeQ, mesDB: m => String(m).padStart(2, '0'), dataDir: dataDir5 });
+  cd.salvarVinculo({ codigoCD: '17896037913143', unidade: '7896037913146', unPorCaixa: 12, usuario: 't' });
+  cd.salvarVinculo({ codigoCD: '17898657832675', unidade: '7898657832678', unPorCaixa: 21, usuario: 't' });
+  cd._setBaseParaTeste({ hoje: '2026-09-14', cd: { '17896037913143': { descricao: 'VINHO CX12', estoqueCx: 5 }, '17898657832675': { descricao: 'CAPRICCHE CX21', estoqueCx: 9 } }, un: { '7896037913146': { descricao: 'VINHO', custo: 20, porLoja: {} }, '7898657832678': { descricao: 'CAPRICCHE', custo: 1.67, porLoja: {} } }, lead: {} });
+  const [p] = cd.criarPedidos({ lojas: { 5: [{ codigoCD: '17896037913143', caixas: 2 }, { codigoCD: '17898657832675', caixas: 9 }] }, usuario: 'tiago' });
+
+  // 6574 = pedido avulso de 1 item (liberado), 6593 = o pedido do app (1 item pelo código do CD, outro pela unidade)
+  itensCD = { 6574: ['17896005217495'], 6593: ['17896037913143', '7898657832678'] }; statusPainel = { 6574: 4, 6593: 1 }; semNota = true;
+  deliverySeq = [[{ nPedido: '6574', d: '2026-09-16', hora: '13:56:05' }, { nPedido: '6593', d: '2026-09-17', hora: '10:07:11' }]];
+  await cd.verificar();
+  deliverySeq = null; semNota = false;
+  const x = cd.obterPedido(p.id);
+  assert.equal(x.status, 'aberto');
+  assert.ok(!x.expedicao);
+  assert.equal(x.noCD.nPedido, '6593');
+  assert.equal(x.noCD.statusCD, 1);
 });
