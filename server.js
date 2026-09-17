@@ -6422,6 +6422,19 @@ app.post('/api/sugestao-manual', async (req, res) => {
     res.json(s);
   } catch (err) { res.status(err.message.startsWith('Lista') || err.message.startsWith('Escolha') ? 400 : 500).json({ error: err.message }); }
 });
+// DIAG TEMPORÁRIO (17/09/26): achar a tabela do Log de sugestões do Dlinks. Só SELECT. Remover depois.
+app.get('/api/diag-log', async (req, res) => {
+  try {
+    const out = {};
+    out.colunas_moviment = await q(`SELECT TABLE_NAME t, COLUMN_NAME c FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='central' AND (COLUMN_NAME LIKE '%moviment%' OR COLUMN_NAME LIKE '%operador%') ORDER BY TABLE_NAME`);
+    out.tabelas_log = (await q(`SELECT TABLE_NAME t, TABLE_ROWS r FROM information_schema.TABLES WHERE TABLE_SCHEMA='central' AND (TABLE_NAME LIKE '%log%' OR TABLE_NAME LIKE '%consolid%')`)).map(r => r.t + ':' + r.r);
+    if (req.query.tab) {
+      out.colunas = (await q(`SELECT COLUMN_NAME c, DATA_TYPE t FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='central' AND TABLE_NAME=? ORDER BY ORDINAL_POSITION`, [req.query.tab])).map(r => r.c + ':' + r.t);
+      out.amostra = await q(`SELECT * FROM central.\`${String(req.query.tab).replace(/[^\w]/g, '')}\` ORDER BY 1 DESC LIMIT ${parseInt(req.query.n) || 15}`).catch(e => 'ERR ' + e.message);
+    }
+    res.json(out);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 // resumo do pedido pro cliente da Consolidação (sem itens); PUBLIC_URL é definida mais abaixo, mas só é lida em runtime
 function resumoPedidoSugestao(p) {
   if (!p) return null;
