@@ -252,8 +252,6 @@ table.cx-itens tbody tr.sel td{background:var(--amw)!important}
 table.cx-itens tbody tr.sel td:first-child{box-shadow:inset 4px 0 0 var(--am)}
 table.cx-itens td.cod{font-family:ui-monospace,Consolas,monospace;font-size:10.5px}
 table.cx-itens td.desc{font-weight:600}
-table.cx-itens tbody tr.critico td.cod,table.cx-itens tbody tr.critico td.desc{color:var(--neg);font-weight:700}
-table.cx-itens tbody tr.critico td{background:var(--negw)}
 table.cx-itens tbody tr.inativo td{color:var(--neg);text-decoration:line-through;background:var(--crd)!important}
 table.cx-itens tbody tr.inativo td input{text-decoration:none}
 table.cx-itens td.col-qtd{background:var(--amw);padding:2px}
@@ -783,6 +781,15 @@ function corItem(it){
   if (it.avaria) return 'avaria';
   return '';
 }
+// texto do hover explicando a cor da linha (avaria: lojas, qtd e R$ no período de vendas)
+function tituloCor(it){
+  if (!CONS.cores) return '';
+  const t = [];
+  if (it.avaria) t.push(`Avarias no período: loja(s) ${it.avaria.lojas.join(', ')} · ${fmtN(it.avaria.qtd, 0)} un · R$ ${fmtN(it.avaria.total)}`);
+  if (it.rebaixa) t.push('Rebaixa de preço no período');
+  if (it.promocao) t.push('Promoção no período');
+  return t.join('\n');
+}
 const fmtN = (v, d = 2) => v == null ? '—' : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
 const escH = v => String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 const escJ = v => String(v ?? '').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;').replace(/</g,'\\x3c');
@@ -923,7 +930,7 @@ function renderConsItens(){
   document.getElementById('c-itens-tbody').innerHTML = its.length ? its.map(it => {
     const pr = prioItem(it);
     return `
-    <tr class="${it.codigo === CONS.sel ? 'sel' : ''} ${it.ativo ? '' : 'inativo'} ${pr === 'critico' && it.ativo ? 'critico' : ''} ${corItem(it)}" onclick="selecionarItem('${escJ(it.codigo)}')">
+    <tr class="${it.codigo === CONS.sel ? 'sel' : ''} ${it.ativo ? '' : 'inativo'} ${corItem(it)}" title="${escH(tituloCor(it))}" onclick="selecionarItem('${escJ(it.codigo)}')">
       <td class="cod l">${escH(it.codigo)}</td><td class="desc l">${escH(it.descricao)}</td><td class="c dim">${escH(it.und || '')}</td><td class="c dim">${it.emb}</td>
       <td class="c col-qtd ${it.quantidade > 0 ? 'cheio' : ''}"><input type="number" min="0" class="qtd ${it.quantidade ? '' : 'zero'}" value="${it.quantidade}" ${(!it.ativo || trav) ? 'disabled' : ''} onclick="event.stopPropagation()" onchange="editarQuantidade('${escJ(it.codigo)}', this.value)"></td>
       <td class="c">${prioBadge(pr)}</td>
