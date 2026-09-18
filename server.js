@@ -8,6 +8,7 @@ const bcrypt = require('bcryptjs');
 const fs = require('fs');
 const crypto = require('crypto');
 const { exec } = require('child_process');
+const modulos = require('./lib/modulos');
 const { parseSaidas, parseSaidasOfx, parseSaidasApi, parseEntradas, parseEntradasOfx, parseEntradasApi } = require('./lib/extrato-parser');
 const { conciliar, addDias, similaridadeNome, normalizarNome, TOLERANCIA_DIAS: TOLERANCIA_CONCILIADOR, chaveSaida, aplicarAvulsos, aplicarRegras } = require('./lib/conciliador');
 const { conciliarEntradas } = require('./lib/conciliador-entradas');
@@ -234,6 +235,12 @@ app.use((req, res, next) => {
       if (req.path.startsWith('/api/')) return res.status(403).json({ error: 'Sem permissão' });
       return res.redirect('/index.html');
     }
+    // Acesso por módulo (lib/modulos.js): rota de módulo não liberado pro usuário
+    // → API 403, página vai pra primeira página permitida.
+    if (!modulos.podeAcessar(req.session.user, req.path)) {
+      if (req.path.startsWith('/api/')) return res.status(403).json({ error: 'Sem permissão' });
+      return res.redirect(modulos.primeiraPagina(req.session.user) || '/login.html');
+    }
     return next();
   }
   if (req.path.startsWith('/api/')) return res.status(401).json({ error: 'Não autenticado' });
@@ -259,8 +266,8 @@ app.post('/api/login', async (req, res) => {
   const ok = await bcrypt.compare(String(senha), user.senha_hash);
   if (!ok) return res.status(401).json({ error: 'Usuário ou senha inválidos.' });
   const perfil = user.perfil || 'gerente';
-  req.session.user = { id: user.id, nome: user.nome, usuario: user.usuario, perfil, comprador_nome: user.comprador_nome || null, loja_id: user.loja_id || null };
-  let redirect = '/index.html';
+  req.session.user = { id: user.id, nome: user.nome, usuario: user.usuario, perfil, comprador_nome: user.comprador_nome || null, loja_id: user.loja_id || null, modulos: Array.isArray(user.modulos) ? user.modulos : null };
+  const redirect = modulos.primeiraPagina(req.session.user) || '/index.html';
   res.json({ ok: true, nome: user.nome, perfil, redirect });
 });
 
@@ -270,7 +277,7 @@ app.get('/api/logout', (req, res) => {
 
 app.get('/api/me', (req, res) => {
   if (!req.session?.user) return res.status(401).json({ error: 'Não autenticado' });
-  res.json(req.session.user);
+  res.json({ ...req.session.user, modulos: modulos.modulosDoUsuario(req.session.user) });
 });
 
 // ── ADMIN: CRUD de usuários ──────────────────────────────────
@@ -282,17 +289,26 @@ function salvarUsuarios() {
   fs.writeFileSync(usuariosPath, JSON.stringify(usuarios, null, 2));
 }
 
-app.get('/api/admin/usuarios', requireAdmin, (req, res) => {
-  res.json(usuarios.map(u => ({ id: u.id, nome: u.nome, usuario: u.usuario, perfil: u.perfil || 'gerente', comprador_nome: u.comprador_nome || null, loja_id: u.loja_id || null })));
+app.get('/api/admin/modulos', requireAdmin, (req, res) => {
+  res.json(modulos.MODULOS.map(m => ({ id: m.id, nome: m.nome })));
 });
 
+app.get('/api/admin/usuarios', requireAdmin, (req, res) => {
+  res.json(usuarios.map(u => ({ id: u.id, nome: u.nome, usuario: u.usuario, perfil: u.perfil || 'gerente', comprador_nome: u.comprador_nome || null, loja_id: u.loja_id || null, modulos: Array.isArray(u.modulos) ? u.modulos : null })));
+});
+
+// Lista de módulos vinda do cadastro: array de ids válidos, ou null (= todos, cadastro antigo).
+function modulosDoBody(v) {
+  return Array.isArray(v) ? v.filter(modulos.idValido) : null;
+}
+
 app.post('/api/admin/usuarios', requireAdmin, async (req, res) => {
-  const { nome, usuario, senha, perfil, comprador_nome, loja_id } = req.body || {};
+  const { nome, usuario, senha, perfil, comprador_nome, loja_id, modulos: modulosBody } = req.body || {};
   if (!nome || !usuario || !senha || !perfil) return res.status(400).json({ error: 'Campos obrigatórios: nome, usuario, senha, perfil' });
   if (usuarios.find(u => u.usuario === usuario.toLowerCase().trim())) return res.status(400).json({ error: 'Usuário já existe' });
   const hash = await bcrypt.hash(String(senha), 10);
   const novoId = Math.max(...usuarios.map(u => u.id), 0) + 1;
-  usuarios.push({ id: novoId, nome: nome.trim(), usuario: usuario.toLowerCase().trim(), senha_hash: hash, perfil, comprador_nome: comprador_nome || null, loja_id: loja_id ? parseInt(loja_id) : null });
+  usuarios.push({ id: novoId, nome: nome.trim(), usuario: usuario.toLowerCase().trim(), senha_hash: hash, perfil, comprador_nome: comprador_nome || null, loja_id: loja_id ? parseInt(loja_id) : null, modulos: modulosDoBody(modulosBody) });
   salvarUsuarios();
   res.json({ ok: true, id: novoId });
 });
@@ -301,7 +317,7 @@ app.put('/api/admin/usuarios/:id', requireAdmin, async (req, res) => {
   const id = parseInt(req.params.id);
   const idx = usuarios.findIndex(u => u.id === id);
   if (idx === -1) return res.status(404).json({ error: 'Usuário não encontrado' });
-  const { nome, usuario, senha, perfil, comprador_nome, loja_id } = req.body || {};
+  const { nome, usuario, senha, perfil, comprador_nome, loja_id, modulos: modulosBody } = req.body || {};
   if (nome) usuarios[idx].nome = nome.trim();
   if (usuario) {
     if (usuarios.find(u => u.usuario === usuario.toLowerCase().trim() && u.id !== id)) return res.status(400).json({ error: 'Usuário já existe' });
@@ -311,6 +327,8 @@ app.put('/api/admin/usuarios/:id', requireAdmin, async (req, res) => {
   if (perfil) usuarios[idx].perfil = perfil;
   usuarios[idx].comprador_nome = comprador_nome || null;
   usuarios[idx].loja_id = loja_id ? parseInt(loja_id) : null;
+  // undefined = campo não veio (ex.: troca de senha), mantém; null = todos; array = lista.
+  if (modulosBody !== undefined) usuarios[idx].modulos = modulosDoBody(modulosBody);
   salvarUsuarios();
   res.json({ ok: true });
 });
