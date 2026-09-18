@@ -75,7 +75,8 @@
           ] }
       ]},
     { id: 'precificacao', ic: 'trend', txt: 'Precificação', sub: [
-        { href: '/formacao-de-preco.html', ic: 'trend', txt: 'Formação de Preços' }
+        { href: '/formacao-de-preco.html', ic: 'trend', txt: 'Formação de Preços' },
+        { href: '/precificacao-central.html', ic: 'trend', txt: 'Precificação' }
       ]},
     { id: 'prevencao', ic: 'shield', txt: 'Prevenção', sub: [
         { href: '/prevencao.html', ic: 'shield', txt: 'Fechamento de Mês' }
