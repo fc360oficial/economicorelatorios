@@ -994,34 +994,38 @@ async function renderAvaria(id, loja, mes, ano, body) {
     <div class="d-table-wrap">
       <table class="d-t">
         <thead><tr>
-          <th>Produto</th>
-          <th class="r">Loja</th>
+          <th>Loja / Produto</th>
           <th class="r">Qtd</th>
           <th class="r">Valor R$</th>
           <th class="r">Data</th>
         </tr></thead>
         <tbody>
-          ${av.produtos.map(p=>{
-            // uma linha por loja (pra achar bipagem errada); subtotal do produto só quando tem mais de uma loja
-            const ls = (p.lojas && p.lojas.length) ? p.lojas : [{loja:'—', qtd:p.qtd, total:p.total, ultima:p.ultima}];
-            const multi = ls.length > 1;
-            let h = '';
-            if (multi) h += `<tr style="background:#F5F6F8">
-              <td class="desc" style="font-weight:700">${p.descricao||p.codigo}</td>
-              <td class="r" style="color:#98A0B3;font-size:11px">${ls.length} lojas</td>
-              <td class="r" style="color:#4E5A72;font-weight:700">${fmtN(p.qtd)}</td>
-              <td class="r" style="color:#C22F49;font-weight:700">${fmt(p.total)}</td>
-              <td class="r" style="color:#4E5A72">${p.ultima||'—'}</td>
-            </tr>`;
-            h += ls.map(l=>`<tr>
-              <td class="desc" style="${multi?'padding-left:22px;color:#4E5A72;font-size:12px':''}">${multi?'↳ ':''}${multi?'Loja '+l.loja:(p.descricao||p.codigo)}</td>
-              <td class="r" style="font-weight:700;color:#0B1F3A">${l.loja}</td>
-              <td class="r" style="color:#4E5A72">${fmtN(l.qtd)}</td>
-              <td class="r" style="color:#C22F49;font-weight:${multi?'500':'700'}">${fmt(l.total)}</td>
-              <td class="r" style="color:#4E5A72">${l.ultima||'—'}</td>
-            </tr>`).join('');
-            return h;
-          }).join('')}
+          ${(()=>{
+            // agrupa por loja: cabeçalho da loja com subtotal e, embaixo, os produtos dela (pra achar bipagem errada)
+            const porLoja = {};
+            for (const p of av.produtos) {
+              const ls = (p.lojas && p.lojas.length) ? p.lojas : [{loja:'—', qtd:p.qtd, total:p.total, ultima:p.ultima}];
+              for (const l of ls) {
+                const g = porLoja[l.loja] || (porLoja[l.loja] = { loja:l.loja, qtd:0, total:0, itens:[] });
+                g.qtd += l.qtd; g.total += l.total;
+                g.itens.push({ descricao:p.descricao||p.codigo, qtd:l.qtd, total:l.total, ultima:l.ultima });
+              }
+            }
+            return Object.values(porLoja).sort((a,b)=>b.total-a.total).map(g=>{
+              g.itens.sort((a,b)=>b.total-a.total);
+              return `<tr style="background:#0B1F3A;color:#fff">
+                <td class="desc" style="font-weight:700;color:#fff">Loja ${g.loja} <span style="font-weight:400;opacity:.7;font-size:11px">· ${g.itens.length} produto${g.itens.length>1?'s':''}</span></td>
+                <td class="r" style="font-weight:700;color:#fff">${fmtN(+g.qtd.toFixed(3))}</td>
+                <td class="r" style="font-weight:700;color:#F5B942">${fmt(g.total)}</td>
+                <td></td>
+              </tr>` + g.itens.map(i=>`<tr>
+                <td class="desc" style="padding-left:22px">${i.descricao}</td>
+                <td class="r" style="color:#4E5A72">${fmtN(i.qtd)}</td>
+                <td class="r" style="color:#C22F49;font-weight:700">${fmt(i.total)}</td>
+                <td class="r" style="color:#4E5A72">${i.ultima||'—'}</td>
+              </tr>`).join('');
+            }).join('');
+          })()}
         </tbody>
       </table>
     </div>`;
