@@ -6395,12 +6395,18 @@ radarPedidos.agendar();
 const sortimento = require('./lib/sortimento');
 sortimento.init({ q, getNregsComprador: () => NREGS_COMPRADOR });
 sortimento.agendar();
+// filtros da aba Sortimento (loja/comprador/classe/lista/busca + faixas por coluna: v6, v12, meses12, est, valorEst, cob, ent6 como "min,max"; ult_de/ult_ate AAAA-MM ou ult_de=nunca)
+function sorFiltro(qq) {
+  const faixas = {};
+  for (const k of ['v6', 'v12', 'meses12', 'est', 'valorEst', 'cob', 'ent6']) { const v = String(qq[k] || ''); if (v) { const [mi, ma] = v.split(',').map(x => x.replace(/\./g, '').replace(',', '.').trim()); faixas[k] = { min: mi, max: ma }; } }
+  return { loja: qq.loja, comprador: qq.comprador, classe: qq.classe, lista: qq.lista, busca: qq.busca, faixas, ultDe: qq.ult_de || '', ultAte: qq.ult_ate || '' };
+}
 app.get('/api/listas-compra/sortimento', (req, res) => {
   try {
-    const f = { loja: req.query.loja, comprador: req.query.comprador, classe: req.query.classe, lista: req.query.lista, busca: req.query.busca };
+    const f = sorFiltro(req.query);
     const rows = sortimento.filtrar(f);
-    const ord = req.query.ordem || 'valorEst';
-    rows.sort((a, b) => (b[ord] || 0) - (a[ord] || 0) || a.descricao.localeCompare(b.descricao, 'pt-BR'));
+    const ord = req.query.ordem || 'valorEst', asc = req.query.dir === 'asc';
+    rows.sort((a, b) => { const d = ((a[ord] ?? 0) > (b[ord] ?? 0) ? 1 : (a[ord] ?? 0) < (b[ord] ?? 0) ? -1 : 0); return (asc ? d : -d) || a.descricao.localeCompare(b.descricao, 'pt-BR'); });
     const limite = Math.min(2000, parseInt(req.query.limite) || 500);
     res.json({ estado: sortimento.estado(), resumo: sortimento.resumo(rows), total: rows.length, rows: rows.slice(0, limite) });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -6411,7 +6417,7 @@ app.get('/api/listas-compra/sortimento/item', (req, res) => {
 });
 app.get('/api/listas-compra/sortimento/export.csv', (req, res) => {
   try {
-    const f = { loja: req.query.loja, comprador: req.query.comprador, classe: req.query.classe, lista: req.query.lista, busca: req.query.busca };
+    const f = sorFiltro(req.query);
     const rows = sortimento.filtrar(f).sort((a, b) => a.loja - b.loja || (a.nome || '').localeCompare(b.nome || '', 'pt-BR') || b.valorEst - a.valorEst);
     const nome = ['sortimento', f.loja ? 'L' + f.loja : '', f.comprador ? f.comprador.replace(/\W+/g, '_') : '', f.classe || ''].filter(Boolean).join('-') + '.csv';
     res.setHeader('Content-Type', 'text/csv; charset=utf-8'); res.setHeader('Content-Disposition', `attachment; filename="${nome}"`);
