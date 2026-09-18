@@ -154,3 +154,12 @@ test('vendaDiaNova: produto novo divide pelos dias desde a primeira venda (piso 
   assert.deepEqual(u.vendaDiaNova(80, '2026-08-08', '2026-09-16', 40, false), { vq: 2, dias: 40, nova: false });
   assert.deepEqual(u.vendaDiaNova(0, null, '2026-09-16', 40, false), { vq: 0, dias: 40, nova: false });
 });
+
+test('caixasPorValor: valor fecha em inteiro → caixas; senão unidades ÷ un/cx', () => {
+  assert.equal(u.caixasPorValor(308, 44, 7, 10), 7);        // Emoções: loja lançou Qtd 7 × Emb 1, R$ 308 = 7 fardos de R$ 44
+  assert.equal(u.caixasPorValor(40.77, 40.77, 1, 10), 1);   // POP arroz: 1 fardo
+  assert.equal(u.caixasPorValor(58.86, 58.86, 27, 27), 1);  // Bem te vi: 27 un = 1 cx
+  assert.equal(u.caixasPorValor(0, 44, 70, 10), 7);         // sem valor: 70 un ÷ 10
+  assert.equal(u.caixasPorValor(250, 44, 7, 10), 0.7);      // valor não fecha em inteiro (5,68): cai na quantidade
+  assert.equal(u.caixasPorValor(44, 0, 10, 10), 1);         // sem custo
+});
