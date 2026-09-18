@@ -39,6 +39,7 @@ body{font-family:'InterVar','Segoe UI',sans-serif;background:#EBEBE9;color:#0E16
 .tab.on .n{background:#FFF6D9;color:#6B4E00}
 .busca-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
 .busca-row input{flex:1;max-width:380px;border:1px solid #C9C9C4;border-radius:8px;padding:8px 12px;font-size:12.5px;font-family:inherit}
+.legenda{margin:0 0 10px;font-size:12px}.legenda summary{cursor:pointer;color:#98A0B3;font-weight:600;font-size:11.5px}.leg-grid{display:grid;grid-template-columns:max-content 1fr;gap:6px 12px;margin-top:8px;align-items:center}.leg-grid .s2{display:block;font-size:11px;color:#98A0B3}.leg-grid>div:nth-child(even){color:#AEB8CE}
 .busca-row .contagem{font-size:11.5px;color:#98A0B3;font-weight:600}
 .table-wrap{overflow-x:auto;border-radius:12px;border:1px solid #DADAD6;background:#FFFFFF;box-shadow:0 1px 3px rgba(14,22,38,.07);margin-bottom:18px}
 table.main-t{width:100%;border-collapse:collapse;font-size:12px;table-layout:auto}
@@ -401,7 +402,19 @@ function renderPedidosInner() {
   const vis = PEDIDOS.filter(p => PF === 'todos' || (PF === 'divergencia' ? (['separado', 'recebido', 'recebido_parcial'].includes(p.status) && resumoDiv(p).div > 0) : PF === 'aberto' ? (p.status === 'aberto' && !p.noCD) : PF === 'nocd' ? (p.status === 'aberto' && !!p.noCD) : p.status === PF));
   const cardsK = ['todos', 'aberto', 'nocd', ...Object.keys(ST).filter(k => k !== 'aberto'), 'divergencia'];
   $('#tab-pedidos').innerHTML = `<div class="cards">${cardsK.map(k => `<div class="card ${PF === k ? 'on' : ''}" onclick="PF='${k}';renderPedidos()"><div class="v ${k === 'divergencia' && cont[k] ? 'neg' : ''}">${cont[k]}</div><div class="l">${k === 'todos' ? 'todos' : k === 'divergencia' ? 'com divergência' : k === 'aberto' ? 'Aguardando CD' : k === 'nocd' ? 'No CD (digitado / separando)' : ST[k][0]}</div></div>`).join('')}</div>
-  <p class="mut" style="font-size:11.5px;margin:0 0 8px">Conferência automática a cada 30 min: <b>digitado / em separação / conferido no CD</b> = o CD já lançou o pedido no Televendas mas ainda não liberou; <b>separado</b> = pedido liberado no painel do Televendas do CD; <b>chegou</b> = nota do CD recebida na loja. Clique no pedido pra ver item a item o que foi pedido, separado e recebido.</p>
+  <details class="legenda"><summary>O que significa cada status (conferência automática a cada 5 min, ou no botão "Verificar agora")</summary>
+    <div class="leg-grid">
+      <div><span class="pill p-breve">Aberto</span><span class="s2">aguardando CD</span></div><div>pedido fechado aqui, o CD ainda não digitou no Televendas. Botão "Enviar" manda o link pro CD.</div>
+      <div><span class="pill p-breve">Aberto</span><span class="s2">digitado / no painel / em separação / conferido no CD</span></div><div>o CD já lançou o pedido no Televendas (mostra o nº e a hora), mas ainda não liberou. Continua contando como trânsito.</div>
+      <div><span class="pill p-flag">Separado no CD</span></div><div>pedido liberado no painel do Televendas do CD: está a caminho da loja. "Tudo conferido" = o CD separou todas as caixas; "divergência" = separou menos do que foi pedido.</div>
+      <div><span class="pill p-hoje">Chegou parcial</span></div><div>a loja lançou a nota de entrada do CD no ERP, mas nem todos os itens casaram: ou vieram menos caixas, ou o item não tem vínculo caixa↔unidade (aba Vínculos) e a nota usa o código de unidade da loja. Vincule o produto e clique em "Verificar agora".</div>
+      <div><span class="pill p-ok">Chegou na loja</span></div><div>nota de entrada do CD lançada na loja com todas as caixas pedidas. Sai do trânsito.</div>
+      <div><span class="pill p-cinza">Expirado</span></div><div>30 dias sem nota de entrada: sai do trânsito e a sugestão volta a pedir o produto.</div>
+      <div><span class="pill p-cinza">Cancelado</span></div><div>cancelado à mão aqui. Não conta como trânsito.</div>
+    </div>
+    <p class="mut" style="font-size:11.5px;margin:6px 0 0">"Chegou" depende de a loja lançar a nota do CD (fornecedor 2157) no ERP; enquanto a nota não é lançada, o pedido fica em "Separado no CD" mesmo com a mercadoria já na loja. Clique no pedido pra ver item a item o que foi pedido, separado e recebido.</p>
+  </details>
+
   <div class="busca-row"><button class="btn btn-slate" onclick="verificar()">Verificar agora</button>${aEnviar.length ? `<button class="btn btn-amber" onclick="enviarCD(PEDIDOS.filter(p => p.status === 'aberto' && !p.noCD))" title="Um link só com os pedidos que o CD ainda não digitou, pra mandar por WhatsApp pra pessoa do CD">Enviar pro CD (${aEnviar.length} ainda não digitado${aEnviar.length === 1 ? '' : 's'})</button>` : (cont.aberto ? '<span class="contagem pos">todos os abertos já estão no CD</span>' : '')}<span class="contagem">${CFGCD.whatsCD ? 'WhatsApp do CD: ' + CFGCD.whatsCD : 'WhatsApp do CD não cadastrado (aba Regras) — o link abre no seu WhatsApp pra você escolher o contato'}</span></div>
   <div class="table-wrap"><table class="main-t"><thead><tr><th>#</th><th>Loja</th><th>Criado</th><th class="r">Itens</th><th class="r">Caixas</th><th class="r">Custo</th><th>Andamento</th><th>Conferência</th><th>Ação</th></tr></thead><tbody>
   ${vis.map(p => { const R = resumoDiv(p); const aberto = PABERTO === p.id; return `<tr class="lst${aberto ? ' open' : ''}" onclick="PABERTO=PABERTO===${p.id}?null:${p.id};PDBUSCA='';renderPedidos()"><td>${p.id}</td><td><b>L${p.loja}</b> ${p.lojaNome}</td><td>${new Date(p.criadoEm).toLocaleString('pt-BR')}<div class="s2">${p.criadoPor || ''}</div></td><td class="r">${p.itens.length}</td><td class="r">${fmtN(p.totais.caixas)}</td><td class="r">${fmtR(p.totais.custo)}</td>

@@ -6560,7 +6560,7 @@ const pedidosCD = require('./lib/pedidos-cd');
 pedidosCD.init({ q, mesDB });
 pedidosCD.agendar();
 setTimeout(() => pedidosCD.verificar().catch(e => console.error('[PEDIDOS-CD] verificar:', e.message)), 150 * 1000);
-setInterval(() => pedidosCD.verificar().catch(e => console.error('[PEDIDOS-CD] verificar:', e.message)), 30 * 60 * 1000);
+setInterval(() => pedidosCD.verificar().catch(e => console.error('[PEDIDOS-CD] verificar:', e.message)), 5 * 60 * 1000); // 5 min: nota lançada na loja aparece logo (era 30 min, 18/09/2026)
 
 app.get('/api/pedidos-cd', async (req, res) => {
   try {
