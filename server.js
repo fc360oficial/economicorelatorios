@@ -6416,7 +6416,7 @@ sortimento.agendar();
 // filtros da aba Sortimento (loja/comprador/classe/lista/busca + faixas por coluna: v6, v12, meses12, est, valorEst, cob, ent6 como "min,max"; ult_de/ult_ate AAAA-MM ou ult_de=nunca)
 function sorFiltro(qq) {
   const faixas = {};
-  for (const k of ['v6', 'v12', 'meses12', 'est', 'valorEst', 'cob', 'ent6']) { const v = String(qq[k] || ''); if (v) { const [mi, ma] = v.split(',').map(x => x.replace(/\./g, '').replace(',', '.').trim()); faixas[k] = { min: mi, max: ma }; } }
+  for (const k of ['v6', 'v12', 'meses12', 'est', 'valorEst', 'cob', 'ent6', 'custo', 'preco', 'margemCad', 'margemApl']) { const v = String(qq[k] || ''); if (v) { const [mi, ma] = v.split(',').map(x => x.replace(/\./g, '').replace(',', '.').trim()); faixas[k] = { min: mi, max: ma }; } }
   return { loja: qq.loja, comprador: qq.comprador, classe: qq.classe, lista: qq.lista, busca: qq.busca, faixas, ultDe: qq.ult_de || '', ultAte: qq.ult_ate || '' };
 }
 app.get('/api/listas-compra/sortimento', (req, res) => {
