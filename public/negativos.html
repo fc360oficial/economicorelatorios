@@ -39,7 +39,8 @@ th{text-align:left;font-size:10.5px;font-weight:700;letter-spacing:.9px;text-tra
 td{padding:10px 14px;border-top:1px solid var(--ln);vertical-align:middle;white-space:nowrap}
 td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 .pill{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px}
-.pill.ok{background:var(--posw);color:var(--pos)}.pill.run{background:var(--amw);color:var(--amk)}.pill.wait{background:var(--wsh);color:var(--ink2)}.pill.late{background:var(--negw);color:var(--neg)}.pill.none{background:transparent;color:var(--ink3);border:1px dashed var(--ln2)}
+.pill.ok{background:var(--posw);color:var(--pos)}.pill.run{background:var(--amw);color:var(--amk)}.pill.wait{background:var(--wsh);color:var(--ink2)}.pill.late{background:var(--negw);color:var(--neg)}.pill.none{background:transparent;color:var(--ink3);border:1px dashed var(--ln2)}.pill.done{background:var(--pos);color:#fff}
+.feito{display:inline-flex;align-items:center;gap:8px;white-space:nowrap}.feito .undo{font-size:11px;color:var(--ink3);background:none;border:none;cursor:pointer;font-family:var(--font);padding:0}.feito .undo:hover{color:var(--neg);text-decoration:underline}
 .who{font-size:11.5px;color:var(--ink3)}
 .mini{height:5px;background:var(--wsh);border-radius:999px;overflow:hidden;width:110px;display:inline-block;vertical-align:middle;margin-right:8px}
 .mini i{display:block;height:100%;background:var(--am)}
@@ -120,7 +121,7 @@ tr.loja{cursor:pointer}tr.loja:hover td{background:var(--wsh)}tr.loja.sel td{bac
 <script>
 const $ = id => document.getElementById(id);
 let v = null, selLoja = null, soDif = false;
-const PILL = { concluida: ['ok', 'Concluída'], andamento: ['run', 'Em andamento'], nao_iniciada: ['wait', 'Não iniciada'], sem_negativos: ['none', 'Sem negativos'] };
+const PILL = { ajustada: ['done', 'Ajustada'], concluida: ['ok', 'Concluída'], andamento: ['run', 'Em andamento'], nao_iniciada: ['wait', 'Não iniciada'], sem_negativos: ['none', 'Sem negativos'] };
 const hora = iso => iso ? new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—';
 const dataBr = d => d ? d.split('-').reverse().join('/') : '';
 const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
@@ -145,7 +146,7 @@ function render() {
   const ativas = v.lojas.filter(l => !l.semNegativos);
   const late = l => l.status === 'nao_iniciada' && v.criadoEm && (Date.now() - new Date(v.criadoEm)) > 2 * 3600e3 && v.data === new Date().toISOString().slice(0, 10);
   $('tLojas').innerHTML = v.lojas.map(l => {
-    let [c, t] = PILL[l.status]; if (late(l)) { c = 'late'; t = 'Sem resposta há +2h'; }
+    let [c, t] = PILL[l.ajustadoEm ? 'ajustada' : l.status]; if (late(l)) { c = 'late'; t = 'Sem resposta há +2h'; }
     const pct = l.itens ? Math.round(l.contados / l.itens * 100) : 0;
     return `<tr class="loja ${l.loja === selLoja ? 'sel' : ''}" onclick="selLoja=${l.loja};render()">
       <td><b>Loja ${l.loja}</b> · ${l.nome}</td>
@@ -154,7 +155,9 @@ function render() {
       <td class="num mono">${l.itens || '—'}</td><td class="num mono">${l.semNegativos ? '—' : l.contados}</td><td class="num mono">${l.semNegativos ? '—' : l.zerados}</td>
       <td class="num mono">${l.semNegativos ? '—' : '+' + l.diferenca}</td>
       <td class="who">${esc(l.resp) || '—'}</td><td class="mono" style="font-size:12px">${hora(l.iniciadoEm)}</td><td class="mono" style="font-size:12px">${hora(l.concluidoEm)}</td>
-      <td>${l.status === 'concluida' ? `<button class="btn btn-ghost" style="height:28px;padding:0 8px;font-size:11.5px" onclick="event.stopPropagation();reabrir(${l.loja})">Reabrir</button>` : ''}</td></tr>`;
+      <td>${l.ajustadoEm
+        ? `<span class="feito"><span class="pill done">✔ Feito</span><span class="who">${esc(l.ajustadoPor) || '—'} · ${hora(l.ajustadoEm)}</span><button class="undo" title="Desmarcar" onclick="event.stopPropagation();ajustado(${l.loja}, true)">desfazer</button></span>`
+        : l.status === 'concluida' ? `<button class="btn btn-primary" style="height:28px;padding:0 10px;font-size:11.5px" onclick="event.stopPropagation();ajustado(${l.loja})">Feito</button> <button class="btn btn-ghost" style="height:28px;padding:0 8px;font-size:11.5px" onclick="event.stopPropagation();reabrir(${l.loja})">Reabrir</button>` : ''}</td></tr>`;
   }).join('');
   const itens = ativas.reduce((s, l) => s + l.itens, 0), cont = ativas.reduce((s, l) => s + l.contados, 0), ok = ativas.filter(l => l.status === 'concluida').length, dif = ativas.reduce((s, l) => s + l.diferenca, 0);
   $('kItens').textContent = itens; $('kCont').textContent = cont; $('kLojas').textContent = `${ok} / ${ativas.length}`; $('kDif').textContent = '+' + dif;
@@ -163,7 +166,7 @@ function render() {
   const d = $('detail');
   if (!l || l.semNegativos) { d.innerHTML = '<div class="empty">Clique numa loja pra ver os itens.</div>'; return; }
   const linhas = l.linhas.filter(x => !soDif || (x.diferenca !== null && x.diferenca !== 0));
-  d.innerHTML = `<h3>Loja ${l.loja} · ${l.nome} <span class="who">${l.resp ? esc(l.resp) + ' · ' : ''}${l.iniciadoEm ? 'começou ' + hora(l.iniciadoEm) : 'não começou'}${l.concluidoEm ? ' · concluída ' + hora(l.concluidoEm) : ''}</span>
+  d.innerHTML = `<h3>Loja ${l.loja} · ${l.nome} <span class="who">${l.resp ? esc(l.resp) + ' · ' : ''}${l.iniciadoEm ? 'começou ' + hora(l.iniciadoEm) : 'não começou'}${l.concluidoEm ? ' · concluída ' + hora(l.concluidoEm) : ''}${l.ajustadoEm ? ' · <b style="color:var(--pos)">ajustada no ERP por ' + esc(l.ajustadoPor) + ' ' + hora(l.ajustadoEm) + '</b>' : ''}</span>
       <span class="filtro"><label><input type="checkbox" ${soDif ? 'checked' : ''} onchange="soDif=this.checked;render()"> só itens com ajuste</label></span></h3>
     <div class="tblwrap"><table class="dtbl"><thead><tr><th>Produto</th><th>Mercadológico</th><th class="num">Sistema</th><th class="num">Depósito</th><th class="num">Loja</th><th class="num">Contado</th><th class="num">Ajuste</th><th>Quando</th></tr></thead><tbody>
     ${linhas.map(x => `<tr><td class="desc"><span class="cod">${esc(x.cod)}</span>${esc(x.desc)}</td><td style="color:var(--ink3);font-size:12px">${esc(x.grupo)} › ${esc(x.sub)}</td>
@@ -179,12 +182,16 @@ async function copiarLink() {
   const b = $('btnCopiar'); b.textContent = 'Copiado ✔'; setTimeout(() => b.textContent = 'Copiar link', 1800);
 }
 function exportar() { const d = $('selDia').value; if (d) location.href = `/api/contagem/${d}/csv`; }
-async function post(url, msgOk) {
+async function post(url, msgOk, body) {
   $('status').textContent = 'Enviando...';
-  try { const r = await fetch(url, { method: 'POST' }); const j = await r.json(); $('status').textContent = r.ok ? (j.msg || msgOk) : ('Falhou: ' + (j.error || r.status)); return r.ok; }
+  try { const r = await fetch(url, { method: 'POST', headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined }); const j = await r.json(); $('status').textContent = r.ok ? (j.msg || msgOk) : ('Falhou: ' + (j.error || r.status)); return r.ok; }
   catch (e) { $('status').textContent = 'Falhou: ' + e.message; return false; }
 }
 async function cobrar() { if (!v) return; if (!confirm('Mandar lembrete no grupo pras lojas pendentes?')) return; await post(`/api/contagem/${v.data}/cobrar`, 'Lembrete enviado no grupo.'); }
+async function ajustado(ln, desfazer) {
+  if (desfazer && !confirm(`Desmarcar o "Feito" da Loja ${ln}?`)) return;
+  if (await post(`/api/contagem/${v.data}/${ln}/ajustado`, desfazer ? 'Desmarcado.' : 'Marcado como feito.', { desfazer: !!desfazer })) carregar();
+}
 async function reabrir(ln) { if (!confirm(`Reabrir a contagem da Loja ${ln}? O auxiliar poderá editar de novo.`)) return; if (await post(`/api/contagem/${v.data}/${ln}/reabrir`, 'Reaberta.')) carregar(); }
 async function reenviar() {
   const btn = $('btnReenviar'); btn.disabled = true;

@@ -5052,6 +5052,11 @@ app.post('/api/contagem/:data/:loja/reabrir', (req, res) => {
   try { res.json(contagemNeg.reabrir(req.params.data, parseInt(req.params.loja, 10))); }
   catch (err) { res.status(400).json({ error: err.message }); }
 });
+// "Feito": quem está na central marca que já ajustou o estoque no ERP com essa contagem
+app.post('/api/contagem/:data/:loja/ajustado', (req, res) => {
+  try { res.json(contagemNeg.marcarAjustado(req.params.data, parseInt(req.params.loja, 10), req.session.user.nome, !!req.body?.desfazer)); }
+  catch (err) { res.status(400).json({ error: err.message }); }
+});
 // Cobrar lojas pendentes: manda texto no grupo via o bot (sem link)
 app.post('/api/contagem/:data/cobrar', async (req, res) => {
   const v = contagemNeg.visaoCentral(req.params.data);
