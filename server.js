@@ -6411,13 +6411,13 @@ radarPedidos.init({ q, mesDB, getNregsComprador: () => NREGS_COMPRADOR });
 radarPedidos.agendar();
 // Sortimento lista × loja (aba na Lista de Compra): calculado de madrugada a partir do histórico de 24 m do Radar
 const sortimento = require('./lib/sortimento');
-sortimento.init({ q, getNregsComprador: () => NREGS_COMPRADOR });
+sortimento.init({ q, getNregsComprador: () => NREGS_COMPRADOR, radar: radarPedidos });
 sortimento.agendar();
 // filtros da aba Sortimento (loja/comprador/classe/lista/busca + faixas por coluna: v6, v12, meses12, est, valorEst, cob, ent6 como "min,max"; ult_de/ult_ate AAAA-MM ou ult_de=nunca)
 function sorFiltro(qq) {
   const faixas = {};
   for (const k of ['v6', 'v12', 'meses12', 'est', 'valorEst', 'cob', 'ent6', 'custo', 'preco', 'margemCad', 'margemApl']) { const v = String(qq[k] || ''); if (v) { const [mi, ma] = v.split(',').map(x => x.replace(/\./g, '').replace(',', '.').trim()); faixas[k] = { min: mi, max: ma }; } }
-  return { loja: qq.loja, comprador: qq.comprador, classe: qq.classe, lista: qq.lista, busca: qq.busca, faixas, ultDe: qq.ult_de || '', ultAte: qq.ult_ate || '', consumo: qq.consumo === '1' };
+  return { loja: qq.loja, comprador: qq.comprador, classe: qq.classe, lista: qq.lista, busca: qq.busca, faixas, ultDe: qq.ult_de || '', ultAte: qq.ult_ate || '', consumo: qq.consumo === '1', escopo: qq.escopo || 'listas' };
 }
 app.get('/api/listas-compra/sortimento', (req, res) => {
   try {
