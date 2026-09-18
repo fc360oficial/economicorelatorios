@@ -66,6 +66,9 @@ html,body{height:100%;font-family:'Segoe UI',system-ui,sans-serif;background:var
 .field input,.field select{width:100%;background:#F1F2F0;border:1px solid #E6E7E3;border-radius:8px;color:var(--text);padding:10px 12px;font-size:13px;outline:none;transition:border-color .15s;font-family:inherit}
 .field input:focus,.field select:focus{border-color:#FFC600}
 .field select option{background:#F7F7F5}
+.mods{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;margin-top:4px}
+.mods label{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;color:var(--text2);cursor:pointer;margin:0}
+.mods input{width:15px;height:15px;accent-color:#16233F;margin:0}
 .field-hint{font-size:10px;color:var(--text3);margin-top:4px}
 .modal-btns{display:flex;gap:8px;margin-top:20px;justify-content:flex-end}
 .btn-cancelar{background:none;border:1px solid var(--border2);color:var(--text2);border-radius:8px;padding:9px 18px;font-size:12px;font-weight:700;cursor:pointer;transition:all .15s}
@@ -100,7 +103,7 @@ html,body{height:100%;font-family:'Segoe UI',system-ui,sans-serif;background:var
   <div class="tbl-wrap">
     <table class="tbl">
       <thead><tr>
-        <th>#</th><th>Nome</th><th>Usuário</th><th>Perfil</th><th>Vínculo</th><th>Ações</th>
+        <th>#</th><th>Nome</th><th>Usuário</th><th>Perfil</th><th>Vínculo</th><th>Módulos</th><th>Ações</th>
       </tr></thead>
       <tbody id="tbody">
         <tr><td colspan="6" class="empty"><div class="empty-icon">⏳</div>Carregando...</td></tr>
@@ -160,6 +163,11 @@ html,body{height:100%;font-family:'Segoe UI',system-ui,sans-serif;background:var
         <option value="6">Loja 6</option>
       </select>
     </div>
+    <div class="field" id="field-modulos">
+      <label>Módulos liberados</label>
+      <div class="mods" id="f-modulos"></div>
+      <div class="field-hint">Marcou o módulo, o usuário vê todas as telas dele. Admin vê tudo.</div>
+    </div>
     <div class="msg-erro" id="modal-erro"></div>
     <div class="msg-ok" id="modal-ok"></div>
     <div class="modal-btns">
@@ -173,10 +181,33 @@ html,body{height:100%;font-family:'Segoe UI',system-ui,sans-serif;background:var
 let usuarios = [];
 let modoEdicao = false;
 
+let MODULOS = [];
+function renderModulosForm() {
+  document.getElementById('f-modulos').innerHTML = MODULOS.map(m => `<label><input type="checkbox" value="${m.id}"> ${m.nome}</label>`).join('');
+}
+// null = todos marcados (admin, gerencial ou cadastro antigo sem a lista)
+function setModulos(lista) {
+  const todos = !Array.isArray(lista);
+  document.querySelectorAll('#f-modulos input').forEach(i => { i.checked = todos || lista.includes(i.value); });
+}
+function getModulos() {
+  return [...document.querySelectorAll('#f-modulos input:checked')].map(i => i.value);
+}
+function etiquetasModulos(u) {
+  const cinza = t => `<span style="color:var(--text3);font-size:11px">${t}</span>`;
+  if (u.perfil === 'admin') return cinza('todos');
+  if (u.perfil === 'gerencial') return cinza('Gestão Gerencial');
+  if (!Array.isArray(u.modulos)) return cinza('todos');
+  if (!u.modulos.length) return '<span style="color:#B42318;font-size:11px;font-weight:700">nenhum</span>';
+  return u.modulos.map(id => `<span class="comp-tag">${(MODULOS.find(m => m.id === id) || { nome: id }).nome}</span>`).join(' ');
+}
+
 async function carregar() {
   const r = await fetch('/api/admin/usuarios');
   if (!r.ok) { window.location.href = '/hub.html'; return; }
   usuarios = await r.json();
+  try { MODULOS = await (await fetch('/api/admin/modulos')).json(); } catch (e) { MODULOS = []; }
+  renderModulosForm();
   renderStats();
   renderTabela();
 }
@@ -206,7 +237,7 @@ function badgePerfil(p) {
 function renderTabela() {
   const tb = document.getElementById('tbody');
   if (!usuarios.length) {
-    tb.innerHTML = '<tr><td colspan="6" class="empty"><div class="empty-icon">👤</div>Nenhum usuário cadastrado</td></tr>';
+    tb.innerHTML = '<tr><td colspan="7" class="empty"><div class="empty-icon">👤</div>Nenhum usuário cadastrado</td></tr>';
     return;
   }
   tb.innerHTML = usuarios.map((u, i) => `
@@ -216,6 +247,7 @@ function renderTabela() {
       <td><div class="u-login">${u.usuario}</div></td>
       <td>${badgePerfil(u.perfil)}</td>
       <td>${u.perfil==='comprador'&&u.comprador_nome ? `<div class="comp-tag">▸ ${u.comprador_nome}</div>` : u.perfil==='gerencial'&&u.loja_id ? `<div class="comp-tag" style="color:#158A4A">▸ Loja ${u.loja_id}</div>` : '<span style="color:var(--text3);font-size:11px">—</span>'}</td>
+      <td>${etiquetasModulos(u)}</td>
       <td>
         <div class="acoes">
           <button class="btn-acao btn-edit" onclick="editarUsuario(${u.id})">✏ Editar</button>
@@ -231,6 +263,7 @@ function toggleExtraFields() {
   const p = document.getElementById('f-perfil').value;
   document.getElementById('field-comprador').style.display = p === 'comprador' ? '' : 'none';
   document.getElementById('field-loja').style.display = p === 'gerencial' ? '' : 'none';
+  document.getElementById('field-modulos').style.display = (p === 'admin' || p === 'gerencial') ? 'none' : '';
 }
 
 function abrirModal(titulo = '👤 Novo Usuário') {
@@ -243,6 +276,7 @@ function abrirModal(titulo = '👤 Novo Usuário') {
   document.getElementById('f-perfil').value = 'gerente';
   document.getElementById('f-comprador').value = '';
   document.getElementById('f-loja').value = '';
+  setModulos(null);
   document.getElementById('f-senha-label').textContent = 'Senha';
   document.getElementById('f-senha-hint').textContent = '';
   document.getElementById('f-senha').placeholder = '••••••••';
@@ -266,6 +300,7 @@ function editarUsuario(id) {
   document.getElementById('f-perfil').value = u.perfil;
   document.getElementById('f-comprador').value = u.comprador_nome || '';
   document.getElementById('f-loja').value = u.loja_id || '';
+  setModulos(u.modulos);
   document.getElementById('f-senha-label').textContent = 'Nova Senha (deixe em branco para não alterar)';
   document.getElementById('f-senha-hint').textContent = 'Opcional — só preencha se quiser trocar a senha';
   document.getElementById('f-senha').placeholder = 'deixe em branco para manter';
@@ -287,6 +322,7 @@ function trocarSenha(id) {
   document.getElementById('f-perfil').value = u.perfil;
   document.getElementById('f-comprador').value = u.comprador_nome || '';
   document.getElementById('f-loja').value = u.loja_id || '';
+  setModulos(u.modulos);
   document.getElementById('f-senha-label').textContent = 'Nova Senha';
   document.getElementById('f-senha-hint').textContent = '';
   document.getElementById('f-senha').placeholder = 'Digite a nova senha';
@@ -329,7 +365,7 @@ async function salvar() {
   btn.textContent = 'Salvando...';
 
   try {
-    const body = { nome, usuario, perfil, comprador_nome, loja_id };
+    const body = { nome, usuario, perfil, comprador_nome, loja_id, modulos: (perfil === 'admin' || perfil === 'gerencial') ? null : getModulos() };
     if (senha) body.senha = senha;
 
     const url = modoEdicao ? `/api/admin/usuarios/${editId}` : '/api/admin/usuarios';

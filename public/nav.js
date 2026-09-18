@@ -45,11 +45,12 @@
   }).catch(function () {});
 
   var ITENS = [
-    { sec: 'Análise' },
-    { href: '/index.html',        ic: 'dashboard', txt: 'Dashboard' },
-    { href: '/comparativos.html', ic: 'chart',     txt: 'Comparativos' },
-    { href: '/consulta.html',     ic: 'search',    txt: 'Consulta de Vendas' },
-    { href: '/itens.html',        ic: 'list',      txt: 'Mercadológico' },
+    /* mod = id do módulo em lib/modulos.js (acesso por usuário); grupos usam o próprio id */
+    { sec: 'Análise', mod: 'analise' },
+    { href: '/index.html',        ic: 'dashboard', txt: 'Dashboard',          mod: 'analise' },
+    { href: '/comparativos.html', ic: 'chart',     txt: 'Comparativos',       mod: 'analise' },
+    { href: '/consulta.html',     ic: 'search',    txt: 'Consulta de Vendas', mod: 'analise' },
+    { href: '/itens.html',        ic: 'list',      txt: 'Mercadológico',      mod: 'analise' },
     { sec: 'Operação' }, // itens abaixo em ordem alfabética por txt — manter ao adicionar novos
     { id: 'cahu-distribuidora', ic: 'store', txt: 'CAHU Distribuidora', sub: [
         { href: '/cahu-tabela-precos.html', ic: 'download', txt: 'Tabela de Preços' }
@@ -239,11 +240,12 @@
     ITENS.forEach(function (it) {
       var g = it.grupo ? ' data-grupo="' + it.grupo + '"' : '';
       var esconder = it.grupo === 'admin' ? ' style="display:none"' : '';
-      if (it.sec) { html += '<div class="dn-sec"' + g + esconder + '>' + it.sec + '</div>'; return; }
+      var mod = it.mod ? ' data-mod="' + it.mod + '"' : '';
+      if (it.sec) { html += '<div class="dn-sec"' + g + esconder + mod + '>' + it.sec + '</div>'; return; }
       if (it.sub) {
         var ativoSub = it.sub.some(function (s) { return path === s.href; });
         var aberto = ativoSub;
-        html += '<div class="dn-group' + (aberto ? ' open' : '') + '" data-grupo-id="' + it.id + '">'
+        html += '<div class="dn-group' + (aberto ? ' open' : '') + '" data-grupo-id="' + it.id + '" data-mod="' + it.id + '">'
           + '<div class="dn-group-hd' + (ativoSub ? ' on' : '') + '">'
           +   icon(it.ic) + '<span class="lbl">' + it.txt + '</span>' + icon('chevron-right', 'dn-chev')
           + '</div>'
@@ -259,7 +261,7 @@
       }
       var on = path === it.href ? ' on' : '';
       var alvo = it.blank ? ' target="_blank" rel="noopener"' : '';
-      html += '<a class="dn-item' + on + '"' + g + esconder + ' href="' + it.href + '"' + alvo + '>' + icon(it.ic) + '<span class="lbl">' + it.txt + '</span></a>';
+      html += '<a class="dn-item' + on + '"' + g + esconder + mod + ' href="' + it.href + '"' + alvo + '>' + icon(it.ic) + '<span class="lbl">' + it.txt + '</span></a>';
     });
     html += '</div>'
       + '<div class="dn-foot">'
@@ -344,6 +346,23 @@
         document.getElementById('dn-nome').textContent = u.nome;
         var ini = u.nome.trim().split(/\s+/).map(function (p) { return p[0]; }).slice(0, 2).join('').toUpperCase();
         document.getElementById('dn-ava').textContent = ini;
+      }
+      /* acesso por módulo: esconde seção/grupo/item cujo módulo não está
+         liberado pro usuário (lista vem do /api/me, admin recebe todos) */
+      if (u && Array.isArray(u.modulos)) {
+        var podeVer = function (id) { return u.modulos.indexOf(id) !== -1; };
+        aside.querySelectorAll('[data-mod]').forEach(function (el) {
+          if (!podeVer(el.getAttribute('data-mod'))) el.style.display = 'none';
+        });
+        var grupoVisivel = aside.querySelector('.dn-group[data-mod]:not([style*="display: none"])');
+        var secOperacao = aside.querySelector('.dn-sec:not([data-mod])');
+        if (secOperacao && !grupoVisivel) secOperacao.style.display = 'none';
+        if (!podeVer('analise')) {
+          var marca = document.getElementById('dn-brand');
+          var primeiro = grupoVisivel ? grupoVisivel.querySelector('.dn-item') : null;
+          if (primeiro) marca.setAttribute('href', primeiro.getAttribute('href'));
+          else { marca.removeAttribute('href'); marca.style.cursor = 'default'; }
+        }
       }
       /* perfil gerencial fica travado na própria Gestão Gerencial —
          esconde os itens de navegação e desativa o clique na marca
