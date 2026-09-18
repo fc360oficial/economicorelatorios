@@ -8,13 +8,13 @@ const cd = require('../lib/pedidos-cd');
 // pedido: caixa SEM vínculo (sandália) + caixa COM vínculo pra LIMAO, mas a loja deu entrada como MACA
 let notaCD = false; let notaFechada = false;
 let linhas = [
-  { nNota: '4990', d: '2026-09-18', item: 29, codLoja: '7900204450027', cx: 1, codCD: '77900204348705' },
-  { nNota: '4990', d: '2026-09-18', item: 16, codLoja: '7898031170341', cx: 1, codCD: '17898031170355' },
+  { nNota: '4990', d: '2026-09-18', item: 29, codLoja: '7900204450027', un: 6, codCD: '77900204348705' },
+  { nNota: '4990', d: '2026-09-18', item: 16, codLoja: '7898031170341', un: 24, codCD: '17898031170355' },
   // copos 150 e 180 bipados com o MESMO código na loja: ambíguo, recebe mas não sugere vínculo
-  { nNota: '4990', d: '2026-09-18', item: 6, codLoja: '7898505140221', cx: 1, codCD: '17898505140211' },
-  { nNota: '4990', d: '2026-09-18', item: 7, codLoja: '7898505140221', cx: 1, codCD: '17898505140228' },
+  { nNota: '4990', d: '2026-09-18', item: 6, codLoja: '7898505140221', un: 25, codCD: '17898505140211' },
+  { nNota: '4990', d: '2026-09-18', item: 7, codLoja: '7898505140221', un: 25, codCD: '17898505140228' },
   // nota avulsa do dia 16 com 1 item só (menos da metade do pedido): não é a entrega deste pedido
-  { nNota: '4942', d: '2026-09-16', item: 11, codLoja: '7898031170341', cx: 1, codCD: '17898031170355' },
+  { nNota: '4942', d: '2026-09-16', item: 11, codLoja: '7898031170341', un: 24, codCD: '17898031170355' },
 ];
 const fakeQ = async (s, p) => {
   if (s.includes('central.fornecedor')) return [];
@@ -27,7 +27,7 @@ const fakeQ = async (s, p) => {
   if (s.includes('/*nf-cd*/')) return notaCD ? [{ nNota: '5002', d: '2026-09-18', n: 4 }] : [];
   if (s.includes('/*nf-linhas*/')) return linhas.filter(l => !(s.includes('nNota NOT IN') && p.includes(l.nNota)));
   // por código de unidade: só o que a loja bipou com o MESMO código do vínculo
-  if (s.includes('FROM central.compras c')) return linhas.filter(l => p.includes(l.codLoja)).map(l => ({ cod: l.codLoja, cx: l.cx, nNota: l.nNota, d: l.d }));
+  if (s.includes('FROM central.compras c')) return linhas.filter(l => p.includes(l.codLoja)).map(l => ({ cod: l.codLoja, un: l.un, nNota: l.nNota, d: l.d }));
   if (s.includes('FROM central.itens')) return [{ cod: '7900204450027', descricao: 'IPANEMA CLASSICA AZ/PR 33A40' }, { cod: '7898031170341', descricao: 'INVICTO LAVA LOUCAS 500ML MACA' }];
   return [];
 };
@@ -63,6 +63,7 @@ test('verificar: recebe pela linha da nota do CD mesmo sem vínculo e aprende o 
   notaFechada = true; await cd.verificar(); notaFechada = false;
   const r2 = cd.obterPedido(p.id);
   assert.equal(r2.recebimento.fechada, true); assert.equal(r2.recebimento.notas[0].statusNota, 'F'); assert.equal(r2.recebimento.notas[0].conferencia.operadorCentral, 'SUZYCLEA');
+  assert.equal(r2.status, 'finalizado');
 
   const v = cd.getVinculos();
   // sem vínculo → sugerido pela nota, com descrição da unidade

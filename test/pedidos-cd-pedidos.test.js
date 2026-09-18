@@ -20,7 +20,7 @@ const fakeQ = async (s, p) => {
   if (s.includes('delivery_produtos')) return (itensCD[p[0]] || []).map(cod => ({ cod }));
   if (s.includes('painel_televendas')) { const st = statusPainel[p[0]]; return st === undefined ? [] : [{ statusCD: st, dl: st === 4 ? '2026-09-15' : null, he: '14:10' }]; }
   if (s.includes('conferencia_televendas')) return [{ cod: '17896037913143', cx: 3 }];
-  if (s.includes('FROM central.compras c')) return semNota ? [] : [{ cod: '7896037913146', cx: 2, nNota: 4900, d: '2026-09-16' }];
+  if (s.includes('FROM central.compras c')) return semNota ? [] : [{ cod: '7896037913146', un: 24, nNota: 4900, d: '2026-09-16' }];
   return [];
 };
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pcd-'));
