@@ -62,6 +62,27 @@ body{font-family:var(--font);background:var(--bg);color:var(--ink);min-height:10
 .status.err{color:var(--red)}
 
 .hint{margin-top:22px;font-size:11px;color:var(--ink-3);border-top:1px solid var(--border);padding-top:14px}
+
+.card + .card{margin-top:16px}
+.wpp-top{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:14px}
+.wpp-top .spacer{flex:1}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;border-radius:999px;padding:4px 10px;background:var(--surface-2);color:var(--ink-2)}
+.pill::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--ink-3)}
+.pill.on{background:var(--green-bg);color:var(--green)} .pill.on::before{background:var(--green)}
+.pill.off{background:var(--red-bg);color:var(--red)} .pill.off::before{background:var(--red)}
+.wpp-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:14px}
+.kv{background:var(--surface-2);border-radius:9px;padding:10px 12px}
+.kv .k{font-size:10.5px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em}
+.kv .v{font-size:13px;font-weight:700;color:var(--ink);margin-top:2px}
+.toggles{display:flex;flex-wrap:wrap;gap:14px;font-size:12.5px;color:var(--ink-2);font-weight:600;margin-bottom:14px}
+.toggles label{display:inline-flex;align-items:center;gap:7px;cursor:pointer}
+.toggles input{width:16px;height:16px;accent-color:var(--brand-ink)}
+.log{font-size:11.5px;border-top:1px solid var(--border);max-height:220px;overflow:auto}
+.log div{display:grid;grid-template-columns:118px 110px 1fr;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);color:var(--ink-2)}
+.log .t{color:var(--ink-3);font-variant-numeric:tabular-nums}
+.log .tp{font-weight:700;color:var(--ink)}
+.log .err{color:var(--red)}
+.wpp-preview{white-space:pre-wrap;font-size:12px;background:var(--surface-2);border-radius:9px;padding:12px;margin-top:12px;color:var(--ink);line-height:1.45;max-height:260px;overflow:auto}
 </style>
 </head>
 <body>
@@ -99,6 +120,35 @@ body{font-family:var(--font);background:var(--bg);color:var(--ink);min-height:10
     <div class="status" id="status"></div>
 
     <div class="hint">Somente produtos com estoque positivo no Centro de Distribuição (loja 10) entram no arquivo.</div>
+  </div>
+
+  <div class="card" id="wppCard">
+    <h2>Envio automático no WhatsApp</h2>
+    <p class="desc">Todo dia, de segunda a sábado: às <b>07:00</b> o robô manda o PDF da tabela completa (sem Delivery) pro grupo dos vendedores, junto com o que mudou desde a última tabela (saiu por falta de estoque, voltou, mudou de preço de → para). Às <b>09h, 12h, 15h e 18h</b> ele confere de novo e avisa só item da tabela do dia que zerou no CD ou mudou de preço — um aviso por item por dia.</p>
+
+    <div class="wpp-top">
+      <button class="btn-gerar" type="button" id="btnEnviarAgora"><svg><use href="/icons.svg#download"/></svg><span>Enviar tabela agora</span></button>
+      <button class="btn-gerar sec" type="button" id="btnChecarAgora"><span>Checar estoque/preço agora</span></button>
+      <span class="spacer"></span>
+      <span class="pill" id="pillBot">carregando…</span>
+    </div>
+
+    <div class="wpp-grid">
+      <div class="kv"><div class="k">Último envio</div><div class="v" id="kvUltimo">—</div></div>
+      <div class="kv"><div class="k">Tabela de referência</div><div class="v" id="kvFoto">—</div></div>
+      <div class="kv"><div class="k">Itens avisados hoje</div><div class="v" id="kvAvisos">—</div></div>
+    </div>
+
+    <div class="toggles">
+      <label><input type="checkbox" id="cfgAtivo"> Envio ligado <span class="sub-desc" style="margin:0;font-weight:500">(desligado: só grava a foto do dia, não manda nada)</span></label>
+      <label><input type="checkbox" id="cfgSeparadas"> Mandar também os PDFs separados por tabela <span class="sub-desc" style="margin:0;font-weight:500">(ligar depois dos primeiros 15 dias)</span></label>
+    </div>
+
+    <div class="status" id="wppStatus"></div>
+    <div class="wpp-preview" id="wppPreview" hidden></div>
+
+    <div class="sub-title" style="margin-top:16px">Histórico</div>
+    <div class="log" id="wppLog"></div>
   </div>
 </div>
 
@@ -185,6 +235,51 @@ body{font-family:var(--font);background:var(--bg);color:var(--ink);min-height:10
     .catch(function () {
       grid.innerHTML = '<span class="sub-desc" style="color:var(--red)">Não foi possível carregar a lista de tabelas.</span>';
     });
+
+  // ── Envio automático no WhatsApp ──
+  var wppStatus = document.getElementById('wppStatus'), wppPreview = document.getElementById('wppPreview');
+  function dh(iso) { if (!iso) return '—'; var d = new Date(iso); return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); }
+  function carregarEstado() {
+    return fetch('/api/cahu-distribuidora/wpp/estado').then(function (r) { return r.json(); }).then(function (e) {
+      var pill = document.getElementById('pillBot');
+      if (!e.bot || !e.bot.online) { pill.className = 'pill off'; pill.textContent = 'Bot WhatsApp desligado (nada é enviado, a foto do dia é gravada)'; }
+      else if (!e.bot.conectado) { pill.className = 'pill off'; pill.textContent = 'Bot ligado, WhatsApp não conectado'; }
+      else { pill.className = 'pill on'; pill.textContent = 'WhatsApp conectado · grupo: ' + (e.bot.grupo || '?'); }
+      document.getElementById('kvUltimo').textContent = dh(e.ultimoEnvio);
+      document.getElementById('kvFoto').textContent = e.fotoManha ? dh(e.fotoManha.em) + ' · ' + e.fotoManha.itens + ' itens' : 'ainda não gravada';
+      document.getElementById('kvAvisos').textContent = e.avisosHoje;
+      document.getElementById('cfgAtivo').checked = !!e.config.ativo;
+      document.getElementById('cfgSeparadas').checked = !!e.config.separadas;
+      document.getElementById('wppLog').innerHTML = (e.log || []).map(function (l) {
+        return '<div><span class="t">' + dh(l.em) + '</span><span class="tp">' + l.tipo + '</span><span class="' + (l.ok ? '' : 'err') + '">' + l.msg.replace(/</g, '&lt;') + '</span></div>';
+      }).join('') || '<div><span class="t">—</span><span class="tp"></span><span>Nenhuma execução ainda.</span></div>';
+    }).catch(function () { wppStatus.textContent = 'Não foi possível carregar o estado do envio automático.'; wppStatus.className = 'status err'; });
+  }
+  function salvarCfg() {
+    fetch('/api/cahu-distribuidora/wpp/config', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ativo: document.getElementById('cfgAtivo').checked, separadas: document.getElementById('cfgSeparadas').checked }) })
+      .then(carregarEstado);
+  }
+  document.getElementById('cfgAtivo').addEventListener('change', salvarCfg);
+  document.getElementById('cfgSeparadas').addEventListener('change', salvarCfg);
+  function acao(btn, url, rotulo) {
+    var html = btn.innerHTML; btn.disabled = true; btn.innerHTML = '<span class="spinner-ico"></span><span>' + rotulo + '…</span>';
+    wppStatus.textContent = ''; wppStatus.className = 'status'; wppPreview.hidden = true;
+    fetch(url, { method: 'POST' }).then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'falhou'); return j; }); })
+      .then(function (j) {
+        wppStatus.textContent = j.enviado ? 'Enviado pro grupo.' : ('Nada enviado' + (j.motivo ? ': ' + j.motivo : (j.texto === null ? ': sem novidade desde a última mensagem.' : '.')));
+        wppStatus.className = 'status ' + (j.enviado ? 'ok' : '');
+        var prev = j.resumo || j.texto; if (prev) { wppPreview.textContent = prev; wppPreview.hidden = false; }
+      })
+      .catch(function (e) { wppStatus.textContent = e.message; wppStatus.className = 'status err'; })
+      .then(function () { btn.disabled = false; btn.innerHTML = html; carregarEstado(); });
+  }
+  document.getElementById('btnEnviarAgora').addEventListener('click', function () {
+    if (!confirm('Mandar a tabela completa pro grupo dos vendedores AGORA (ou só gravar a foto, se o bot estiver desligado)?')) return;
+    acao(this, '/api/cahu-distribuidora/wpp/enviar-tabela', 'Gerando e enviando');
+  });
+  document.getElementById('btnChecarAgora').addEventListener('click', function () { acao(this, '/api/cahu-distribuidora/wpp/checar', 'Conferindo'); });
+  carregarEstado();
 })();
 </script>
 </body>

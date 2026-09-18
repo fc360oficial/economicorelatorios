@@ -4727,13 +4727,9 @@ app.get('/api/cahu-distribuidora/tabela-precos.xlsx', async (req, res) => {
 
 // PDF da Tabela de Preços — mesmos dados/filtros do Excel, dois modos
 // (completo em paisagem, tabela única em retrato). Faixa amarelo CIMED + logo.
-app.get('/api/cahu-distribuidora/tabela-precos.pdf', async (req, res) => {
-  try {
-    const sel = await resolverTabelasCahu(req.query);
-    if (!sel) return res.status(400).json({ error: 'Tabela de preço inválida.' });
-    const { tabelas, tabelaUnica } = sel;
-    const lista = await carregarTabelaPrecosCahu(tabelas);
-
+// Monta o PDF (completo ou de uma tabela) e devolve o PDFDocument já finalizado (doc.end() chamado) — quem chama
+// decide se faz pipe na resposta HTTP ou junta num Buffer (envio pelo WhatsApp, lib/cahu-tabela-wpp.js).
+function montarPdfTabelaCahu(tabelas, tabelaUnica, lista) {
     const PDFDocument = require('pdfkit');
     const AMARELO = '#FFCB05', AMARELO_CLARO = '#FFE066', ZEBRA = '#FFF8DC', LINHA = '#E0D6A0', PRETO = '#000000';
     const MARGEM = 28;
@@ -4741,12 +4737,6 @@ app.get('/api/cahu-distribuidora/tabela-precos.pdf', async (req, res) => {
       size: 'A4', layout: tabelaUnica ? 'portrait' : 'landscape', margin: MARGEM, bufferPages: true,
       info: { Title: tabelaUnica ? tabelaUnica.label : 'Tabela de Preços — CAHU Distribuidora', Author: 'Econômico Relatórios' }
     });
-    const slug = slugTabelaCahu(tabelaUnica);
-    const hoje = new Date().toISOString().slice(0, 10);
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${slug}_CAHU_Distribuidora_${hoje}.pdf"`);
-    doc.pipe(res);
-
     const W = doc.page.width, H = doc.page.height, larguraUtil = W - 2 * MARGEM;
     const fmtBRL = v => (v == null ? '' : 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
     const logoBuf = fs.existsSync(CAHU_LOGO_EXCEL) ? fs.readFileSync(CAHU_LOGO_EXCEL) : null;
@@ -4822,11 +4812,54 @@ app.get('/api/cahu-distribuidora/tabela-precos.pdf', async (req, res) => {
       doc.text(`Página ${i - range.start + 1} de ${range.count}`, MARGEM + larguraUtil / 2, H - MARGEM - 10, { width: larguraUtil / 2, align: 'right', lineBreak: false });
     }
     doc.end();
+    return doc;
+}
+
+function pdfTabelaCahuBuffer(tabelas, tabelaUnica, lista) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    const doc = montarPdfTabelaCahu(tabelas, tabelaUnica, lista);
+    doc.on('data', c => chunks.push(c));
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
+  });
+}
+
+app.get('/api/cahu-distribuidora/tabela-precos.pdf', async (req, res) => {
+  try {
+    const sel = await resolverTabelasCahu(req.query);
+    if (!sel) return res.status(400).json({ error: 'Tabela de preço inválida.' });
+    const { tabelas, tabelaUnica } = sel;
+    const lista = await carregarTabelaPrecosCahu(tabelas);
+    const slug = slugTabelaCahu(tabelaUnica);
+    const hoje = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${slug}_CAHU_Distribuidora_${hoje}.pdf"`);
+    montarPdfTabelaCahu(tabelas, tabelaUnica, lista).pipe(res);
   } catch (e) {
     console.error('[CAHU-TABELA-PRECOS-PDF-ERR]', e.message);
     if (!res.headersSent) res.status(500).json({ error: 'Falha ao gerar o PDF: ' + e.message });
     else res.end();
   }
+});
+
+// ── Envio automático pro WhatsApp dos vendedores (lib/cahu-tabela-wpp.js) ─────
+// 07:00 seg–sáb: PDF completo + resumo do que mudou; 09/12/15/18: item que zerou no CD ou mudou de preço.
+// Quem fala com o WhatsApp é o processo cahu-wpp/ (número novo), em localhost:3011.
+const cahuWpp = require('./lib/cahu-tabela-wpp');
+cahuWpp.init({ q, listarTabelas: listarTabelasPrecoCahu, carregarTabela: carregarTabelaPrecosCahu, gerarPdf: pdfTabelaCahuBuffer });
+cahuWpp.agendar();
+app.get('/api/cahu-distribuidora/wpp/estado', async (req, res) => {
+  try { res.json(await cahuWpp.estado()); } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/cahu-distribuidora/wpp/config', (req, res) => {
+  try { res.json(cahuWpp.salvarConfig(req.body || {})); } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/cahu-distribuidora/wpp/enviar-tabela', async (req, res) => {
+  try { res.json(await cahuWpp.rotinaManha({ manual: true })); } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/cahu-distribuidora/wpp/checar', async (req, res) => {
+  try { res.json(await cahuWpp.checagem({ manual: true })); } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.get('/api/painel-cd', withCache(1), async (req, res) => {
