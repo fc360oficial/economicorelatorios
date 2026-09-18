@@ -4529,15 +4529,43 @@ const CAHU_TABELAS_PRECO = [
   { cod: 14, label: 'Tabela Entrega Cartão/Pix' }
 ];
 
+// Nome de cada tabela vem do ERP (s_codigo_tabela_preco.descricao) na hora —
+// se o Tiago renomear no ERP, reflete aqui sem mexer no código. O label fixo
+// acima é só fallback caso a consulta falhe ou a tabela não exista mais.
+function formatarNomeTabelaCahu(descricao) {
+  const d = String(descricao || '').trim().replace(/\s+/g, ' ');
+  if (!d) return '';
+  // ERP guarda em CAIXA ALTA ("TABELA ENTREGA BOLETO 14 DIAS") — vira Title Case,
+  // mantendo siglas/abreviações curtas (PIX, CD, 7D) como estão.
+  const cap = w => (/\d/.test(w) && w.length <= 3) ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1);
+  return d.toLowerCase().split(' ').map(w => w.split('/').map(cap).join('/')).join(' ');
+}
+
+async function listarTabelasPrecoCahu() {
+  try {
+    const cods = CAHU_TABELAS_PRECO.map(t => t.cod);
+    const rows = await q(
+      `SELECT nReg, descricao FROM central.s_codigo_tabela_preco WHERE nReg IN (${cods.map(() => '?').join(',')})`,
+      cods
+    );
+    const nomes = new Map(rows.map(r => [Number(r.nReg), formatarNomeTabelaCahu(r.descricao)]));
+    return CAHU_TABELAS_PRECO.map(t => ({ cod: t.cod, label: nomes.get(t.cod) || t.label }));
+  } catch (e) {
+    console.error('[CAHU tabelas-preco] falha ao ler nomes no ERP, usando fallback:', e.message);
+    return CAHU_TABELAS_PRECO;
+  }
+}
+
 // Lista das tabelas disponíveis (pra página montar um botão por tabela).
-app.get('/api/cahu-distribuidora/tabelas-preco', (req, res) => {
-  res.json(CAHU_TABELAS_PRECO);
+app.get('/api/cahu-distribuidora/tabelas-preco', async (req, res) => {
+  res.json(await listarTabelasPrecoCahu());
 });
 
 // Resolve ?tabela=<cod> → { tabelas, tabelaUnica } ou null se inválida.
-function resolverTabelasCahu(query) {
-  if (query.tabela === undefined) return { tabelas: CAHU_TABELAS_PRECO, tabelaUnica: null };
-  const t = CAHU_TABELAS_PRECO.find(x => String(x.cod) === String(query.tabela));
+async function resolverTabelasCahu(query) {
+  const tabelas = await listarTabelasPrecoCahu();
+  if (query.tabela === undefined) return { tabelas, tabelaUnica: null };
+  const t = tabelas.find(x => String(x.cod) === String(query.tabela));
   return t ? { tabelas: [t], tabelaUnica: t } : null;
 }
 
@@ -4580,7 +4608,7 @@ const CAHU_LOGO_EXCEL = path.join(__dirname, 'public', 'logo-cahu-excel.png');
 
 app.get('/api/cahu-distribuidora/tabela-precos.xlsx', async (req, res) => {
   try {
-    const sel = resolverTabelasCahu(req.query);
+    const sel = await resolverTabelasCahu(req.query);
     if (!sel) return res.status(400).json({ error: 'Tabela de preço inválida.' });
     const { tabelas, tabelaUnica } = sel;
     const lista = await carregarTabelaPrecosCahu(tabelas);
@@ -4699,7 +4727,7 @@ app.get('/api/cahu-distribuidora/tabela-precos.xlsx', async (req, res) => {
 // (completo em paisagem, tabela única em retrato). Faixa amarelo CIMED + logo.
 app.get('/api/cahu-distribuidora/tabela-precos.pdf', async (req, res) => {
   try {
-    const sel = resolverTabelasCahu(req.query);
+    const sel = await resolverTabelasCahu(req.query);
     if (!sel) return res.status(400).json({ error: 'Tabela de preço inválida.' });
     const { tabelas, tabelaUnica } = sel;
     const lista = await carregarTabelaPrecosCahu(tabelas);
