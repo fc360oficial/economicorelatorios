@@ -6,7 +6,7 @@ const fs = require('fs'); const os = require('os'); const path = require('path')
 const cd = require('../lib/pedidos-cd');
 
 // pedido: caixa SEM vínculo (sandália) + caixa COM vínculo pra LIMAO, mas a loja deu entrada como MACA
-let notaCD = false;
+let notaCD = false; let notaFechada = false;
 let linhas = [
   { nNota: '4990', d: '2026-09-18', item: 29, codLoja: '7900204450027', cx: 1, codCD: '77900204348705' },
   { nNota: '4990', d: '2026-09-18', item: 16, codLoja: '7898031170341', cx: 1, codCD: '17898031170355' },
@@ -22,6 +22,8 @@ const fakeQ = async (s, p) => {
   if (s.includes('delivery_produtos')) return ['77900204348705', '17898031170355', '17898505140211', '17898505140228'].map(cod => ({ cod }));
   if (s.includes('painel_televendas')) return [{ statusCD: 4, dl: '2026-09-17', he: '14:10' }];
   if (s.includes('conferencia_televendas')) return [{ cod: '77900204348705', cx: 1 }, { cod: '17898031170355', cx: 1 }, { cod: '17898505140211', cx: 1 }, { cod: '17898505140228', cx: 1 }];
+  if (s.includes('/*nota-hdr*/')) return p.includes('4990') ? [{ nNota: '4990', st: notaFechada ? 'F' : 'E', nc: 182468, op: 'SUZYCLEA', cst: notaFechada ? 2 : 1, opLoja: 'DAYANE SUB1', opCentral: notaFechada ? 'SUZYCLEA' : null, de: '2026-09-18', he: '11:11:21', dl: notaFechada ? '2026-09-18' : null, hl: notaFechada ? '13:20:56' : null }] : [];
+  if (s.includes('/*conf-itens*/')) return [{ chave: 182468, cod: '7900204450027', un: 6, ok: 1, n: 1 }, { chave: 182468, cod: '7898031170341', un: 24, ok: 1, n: 1 }];
   if (s.includes('/*nf-cd*/')) return notaCD ? [{ nNota: '5002', d: '2026-09-18', n: 4 }] : [];
   if (s.includes('/*nf-linhas*/')) return linhas.filter(l => !(s.includes('nNota NOT IN') && p.includes(l.nNota)));
   // por código de unidade: só o que a loja bipou com o MESMO código do vínculo
@@ -51,6 +53,16 @@ test('verificar: recebe pela linha da nota do CD mesmo sem vínculo e aprende o 
   assert.equal(inv.recebidas, 1); assert.equal(inv.recebidoComo, '7898031170341');
   assert.equal(r.itens.find(i => i.codigoCD === '17898505140211').recebidas, 1);
   assert.equal(r.itens.find(i => i.codigoCD === '17898505140228').recebidas, 1);
+
+  // conferência da loja: nota aberta, em conferência, 2 itens bipados; conferidas em caixas (6 un / 6 = 1 cx)
+  const n = r.recebimento.notas[0];
+  assert.equal(n.statusNota, 'E'); assert.equal(n.conferencia.status, 1); assert.equal(n.conferencia.operadorLoja, 'DAYANE SUB1'); assert.equal(n.conferencia.itens, 2);
+  assert.equal(sand.conferidas, 1); assert.equal(inv.conferidas, 1); assert.equal(r.itens.find(i => i.codigoCD === '17898505140211').conferidas, undefined);
+  assert.equal(r.recebimento.fechada, undefined);
+  // nota fecha na loja: pedido 'recebido' continua sendo acompanhado e ganha fechada
+  notaFechada = true; await cd.verificar(); notaFechada = false;
+  const r2 = cd.obterPedido(p.id);
+  assert.equal(r2.recebimento.fechada, true); assert.equal(r2.recebimento.notas[0].statusNota, 'F'); assert.equal(r2.recebimento.notas[0].conferencia.operadorCentral, 'SUZYCLEA');
 
   const v = cd.getVinculos();
   // sem vínculo → sugerido pela nota, com descrição da unidade
