@@ -6,7 +6,7 @@ const fs = require('fs'); const os = require('os'); const path = require('path')
 const cd = require('../lib/pedidos-cd');
 
 // pedido: caixa SEM vínculo (sandália) + caixa COM vínculo pra LIMAO, mas a loja deu entrada como MACA
-let notaCD = false; let notaFechada = false;
+let notaCD = false; let notaFechada = false; let semNotaLoja = false;
 let linhas = [
   { nNota: '4990', d: '2026-09-18', item: 29, codLoja: '7900204450027', un: 6, codCD: '77900204348705' },
   { nNota: '4990', d: '2026-09-18', item: 16, codLoja: '7898031170341', un: 24, codCD: '17898031170355' },
@@ -25,6 +25,7 @@ const fakeQ = async (s, p) => {
   if (s.includes('/*nota-hdr*/')) return p.includes('4990') ? [{ nNota: '4990', st: notaFechada ? 'F' : 'E', nc: 182468, op: 'SUZYCLEA', cst: notaFechada ? 2 : 1, opLoja: 'DAYANE SUB1', opCentral: notaFechada ? 'SUZYCLEA' : null, de: '2026-09-18', he: '11:11:21', dl: notaFechada ? '2026-09-18' : null, hl: notaFechada ? '13:20:56' : null }] : [];
   if (s.includes('/*conf-itens*/')) return [{ chave: 182468, cod: '7900204450027', un: 6, ok: 1, n: 1, val: '2030-09-18' }, { chave: 182468, cod: '7898031170341', un: 24, ok: 1, n: 1, val: '2027-04-25' }];
   if (s.includes('/*nf-cd*/')) return notaCD ? [{ nNota: '5002', d: '2026-09-18', n: 4 }] : [];
+  if (semNotaLoja && (s.includes('/*nf-linhas*/') || s.includes('FROM central.compras c'))) return [];
   if (s.includes('/*nf-linhas*/')) return linhas.filter(l => !(s.includes('nNota NOT IN') && p.includes(l.nNota)));
   // por código de unidade: só o que a loja bipou com o MESMO código do vínculo
   if (s.includes('FROM central.compras c')) return linhas.filter(l => p.includes(l.codLoja)).map(l => ({ cod: l.codLoja, un: l.un, nNota: l.nNota, d: l.d }));
@@ -102,4 +103,18 @@ test('nota de venda emitida pelo CD aparece como notaCD enquanto a loja não dá
   const r = cd.obterPedido(p.id);
   assert.deepEqual(r.notaCD, { nNota: '5002', data: '2026-09-18' });
   notaCD = false;
+});
+
+test('nota apagada na loja: recebimento é desfeito e o pedido volta pra separado; nota nova recasa', async () => {
+  linhas = [{ nNota: '4990', d: '2026-09-18', item: 16, codLoja: '7898031170341', un: 24, codCD: '17898031170355' }];
+  const [p] = cd.criarPedidos({ lojas: { 4: [{ codigoCD: '17898031170355', caixas: 1 }] }, usuario: 'tiago' });
+  await cd.verificar();
+  assert.equal(cd.obterPedido(p.id).status, 'recebido');
+  semNotaLoja = true; await cd.verificar(); semNotaLoja = false;
+  const r = cd.obterPedido(p.id);
+  assert.equal(r.status, 'aberto'); /* sem expedição casada neste mock (nPedido 6597 já usado) → aberto; com expedição seria separado */ assert.equal(r.recebimento, undefined); assert.equal(r.itens[0].recebidas, 0); assert.equal(r.itens[0].conferidas, undefined);
+  linhas = [{ nNota: '5010', d: '2026-09-18', item: 3, codLoja: '7898031170341', un: 24, codCD: '17898031170355' }];
+  await cd.verificar();
+  const r2 = cd.obterPedido(p.id);
+  assert.equal(r2.status, 'recebido'); assert.deepEqual(r2.recebimento.notas.map(n => n.nNota), ['5010']);
 });
