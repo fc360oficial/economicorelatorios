@@ -4526,7 +4526,9 @@ const CAHU_TABELAS_PRECO = [
   { cod: 5, label: 'Tabela Entrega Boleto 14 dias' },
   { cod: 7, label: 'Tabela Entrega Boleto 21 dias' },
   { cod: 10, label: 'Tabela Entrega Boleto 28 dias' },
-  { cod: 14, label: 'Tabela Entrega Cartão/Pix' }
+  // Delivery (14) fica FORA da tabela completa que vai pros vendedores —
+  // só sai no arquivo separado dela (pedido do Tiago, 18/09/26).
+  { cod: 14, label: 'Delivery', somenteSeparado: true }
 ];
 
 // Nome de cada tabela vem do ERP (s_codigo_tabela_preco.descricao) na hora —
@@ -4549,7 +4551,7 @@ async function listarTabelasPrecoCahu() {
       cods
     );
     const nomes = new Map(rows.map(r => [Number(r.nReg), formatarNomeTabelaCahu(r.descricao)]));
-    return CAHU_TABELAS_PRECO.map(t => ({ cod: t.cod, label: nomes.get(t.cod) || t.label }));
+    return CAHU_TABELAS_PRECO.map(t => ({ ...t, label: nomes.get(t.cod) || t.label }));
   } catch (e) {
     console.error('[CAHU tabelas-preco] falha ao ler nomes no ERP, usando fallback:', e.message);
     return CAHU_TABELAS_PRECO;
@@ -4564,7 +4566,7 @@ app.get('/api/cahu-distribuidora/tabelas-preco', async (req, res) => {
 // Resolve ?tabela=<cod> → { tabelas, tabelaUnica } ou null se inválida.
 async function resolverTabelasCahu(query) {
   const tabelas = await listarTabelasPrecoCahu();
-  if (query.tabela === undefined) return { tabelas, tabelaUnica: null };
+  if (query.tabela === undefined) return { tabelas: tabelas.filter(t => !t.somenteSeparado), tabelaUnica: null };
   const t = tabelas.find(x => String(x.cod) === String(query.tabela));
   return t ? { tabelas: [t], tabelaUnica: t } : null;
 }
