@@ -23,7 +23,7 @@ const fakeQ = async (s, p) => {
   if (s.includes('painel_televendas')) return [{ statusCD: 4, dl: '2026-09-17', he: '14:10' }];
   if (s.includes('conferencia_televendas')) return [{ cod: '77900204348705', cx: 1 }, { cod: '17898031170355', cx: 1 }, { cod: '17898505140211', cx: 1 }, { cod: '17898505140228', cx: 1 }];
   if (s.includes('/*nota-hdr*/')) return p.includes('4990') ? [{ nNota: '4990', st: notaFechada ? 'F' : 'E', nc: 182468, op: 'SUZYCLEA', cst: notaFechada ? 2 : 1, opLoja: 'DAYANE SUB1', opCentral: notaFechada ? 'SUZYCLEA' : null, de: '2026-09-18', he: '11:11:21', dl: notaFechada ? '2026-09-18' : null, hl: notaFechada ? '13:20:56' : null }] : [];
-  if (s.includes('/*conf-itens*/')) return [{ chave: 182468, cod: '7900204450027', un: 6, ok: 1, n: 1 }, { chave: 182468, cod: '7898031170341', un: 24, ok: 1, n: 1 }];
+  if (s.includes('/*conf-itens*/')) return [{ chave: 182468, cod: '7900204450027', un: 6, ok: 1, n: 1, val: '2030-09-18' }, { chave: 182468, cod: '7898031170341', un: 24, ok: 1, n: 1, val: '2027-04-25' }];
   if (s.includes('/*nf-cd*/')) return notaCD ? [{ nNota: '5002', d: '2026-09-18', n: 4 }] : [];
   if (s.includes('/*nf-linhas*/')) return linhas.filter(l => !(s.includes('nNota NOT IN') && p.includes(l.nNota)));
   // por código de unidade: só o que a loja bipou com o MESMO código do vínculo
@@ -57,7 +57,7 @@ test('verificar: recebe pela linha da nota do CD mesmo sem vínculo e aprende o 
   // conferência da loja: nota aberta, em conferência, 2 itens bipados; conferidas em caixas (6 un / 6 = 1 cx)
   const n = r.recebimento.notas[0];
   assert.equal(n.statusNota, 'E'); assert.equal(n.conferencia.status, 1); assert.equal(n.conferencia.operadorLoja, 'DAYANE SUB1'); assert.equal(n.conferencia.itens, 2);
-  assert.equal(sand.conferidas, 1); assert.equal(inv.conferidas, 1); assert.equal(r.itens.find(i => i.codigoCD === '17898505140211').conferidas, undefined);
+  assert.equal(sand.conferidas, 1); assert.equal(inv.conferidas, 1); assert.equal(sand.validadeLoja, '2030-09-18'); assert.equal(inv.validadeLoja, '2027-04-25'); assert.equal(r.itens.find(i => i.codigoCD === '17898505140211').conferidas, undefined);
   assert.equal(r.recebimento.fechada, undefined);
   // nota fecha na loja: pedido 'recebido' continua sendo acompanhado e ganha fechada
   notaFechada = true; await cd.verificar(); notaFechada = false;
