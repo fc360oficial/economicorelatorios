@@ -76,7 +76,8 @@
       ]},
     { id: 'precificacao', ic: 'trend', txt: 'Precificação', sub: [
         { href: '/formacao-de-preco.html', ic: 'trend', txt: 'Formação de Preços' },
-        { href: '/precificacao-central.html', ic: 'trend', txt: 'Precificação' }
+        { href: '/precificacao-central.html', ic: 'trend', txt: 'Precificação' },
+        { href: '/promocoes.html', ic: 'tag', txt: 'Promoções' }
       ]},
     { id: 'prevencao', ic: 'shield', txt: 'Prevenção', sub: [
         { href: '/prevencao.html', ic: 'shield', txt: 'Fechamento de Mês' }
@@ -101,6 +102,7 @@
     + '<symbol id="nvic-download" viewBox="0 0 24 24"><path d="M12 3v11m0 0 4-4m-4 4-4-4M5 17v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2"/></symbol>'
     + '<symbol id="nvic-cart" viewBox="0 0 24 24"><circle cx="9" cy="20" r="1.6"/><circle cx="17" cy="20" r="1.6"/><path d="M3 4h2l2.5 11.5a1.6 1.6 0 0 0 1.6 1.3h7.6a1.6 1.6 0 0 0 1.6-1.2L20.5 8H6"/></symbol>'
     + '<symbol id="nvic-trend" viewBox="0 0 24 24"><path d="M3 17 9 11l4 4 8-8M21 7v6h-6"/></symbol>'
+    + '<symbol id="nvic-tag" viewBox="0 0 24 24"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8Z"/><circle cx="7.5" cy="7.5" r="1.3"/></symbol>'
     + '<symbol id="nvic-alert" viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></symbol>'
     + '<symbol id="nvic-chevron-right" viewBox="0 0 24 24"><polyline points="9,6 15,12 9,18"/></symbol>'
     + '<symbol id="nvic-logout" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></symbol>'
