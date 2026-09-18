@@ -3466,6 +3466,29 @@ async function coletarValidadePendente(listaId) {
 }
 
 // Produtos que estão em DUAS OU MAIS listas de compra (risco de pedir duas vezes o mesmo item pra mesma loja)
+// Listas de compra INCOMPLETAS (Tiago, 18/09): confere TODAS as listas do ERP e devolve só as que estão
+// sem comprador (c_cotacao_agenda_comprador vazia) e/ou sem faturamento mínimo (PedidoMinimo vazio/0).
+app.get('/api/listas-compra/incompletas', async (req, res) => {
+  try {
+    const rows = await q(`SELECT l.nReg id, TRIM(l.Nome) nome, TRIM(l.NomeFornec) fornecedor, l.CodFornec cod_fornec, l.PedidoMinimo minimo, l.CodPrazoPag cod_prazo,
+                            (SELECT p.Descricao FROM central.pedidoprazos p WHERE p.nReg=l.CodPrazoPag LIMIT 1) prazo,
+                            (SELECT MAX(TRIM(c.nome)) FROM central.c_cotacao_agenda_comprador c WHERE c.nLista=l.nReg) comprador,
+                            (SELECT MAX(a.Nome) FROM central.c_cotacao_agenda a WHERE a.nLista=l.nReg) vendedor,
+                            (SELECT MAX(a.whats) FROM central.c_cotacao_agenda a WHERE a.nLista=l.nReg) vendedor_whats,
+                            (SELECT COUNT(DISTINCT i.Codigobarra) FROM central.c_cotacao_lista_itens i JOIN central.itens it ON it.CodigoBarra=i.Codigobarra AND it.CodDesativado=0 WHERE i.nCotacao=l.nReg) itens
+                          FROM central.c_cotacao_lista l ORDER BY l.Nome`);
+    const num = v => { const n = parseFloat(String(v ?? '').replace(',', '.')); return isFinite(n) ? n : 0; };
+    const listas = rows.map(r => {
+      const comprador = (r.comprador || '').trim() || null, minimo = num(r.minimo);
+      return { id: r.id, nome: r.nome || '', fornecedor: r.fornecedor || '', cod_fornec: r.cod_fornec, comprador, minimo, prazo: (r.prazo || '').trim() || null,
+               vendedor: (r.vendedor || '').trim() || null, vendedor_whats: (r.vendedor_whats || '').trim() || null, itens: +r.itens || 0,
+               sem_comprador: !comprador, sem_minimo: !(minimo > 0) };
+    });
+    const incompletas = listas.filter(l => l.sem_comprador || l.sem_minimo);
+    res.json({ total_listas: listas.length, completas: listas.length - incompletas.length, listas: incompletas });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/api/listas-compra/repetidos', async (req, res) => {
   try {
     const rows = await q(`SELECT i.Codigobarra cod, TRIM(it.Descricao) descricao, i.nCotacao lista, TRIM(l.Nome) nome, TRIM(l.NomeFornec) fornecedor, i.l1, i.l2, i.l3, i.l4, i.l5, i.l6
@@ -6424,7 +6447,14 @@ app.get('/api/listas-compra/sortimento', (req, res) => {
     const f = sorFiltro(req.query);
     const rows = sortimento.filtrar(f);
     const ord = req.query.ordem || 'valorEst', asc = req.query.dir === 'asc';
-    rows.sort((a, b) => { const d = ((a[ord] ?? 0) > (b[ord] ?? 0) ? 1 : (a[ord] ?? 0) < (b[ord] ?? 0) ? -1 : 0); return (asc ? d : -d) || a.descricao.localeCompare(b.descricao, 'pt-BR'); });
+    // qualquer coluna ordena (número, data ou texto); vazio/nulo fica sempre no fim, em qualquer direção
+    const vazio = v => v == null || v === '';
+    rows.sort((a, b) => {
+      const x = a[ord], y = b[ord], ex = vazio(x), ey = vazio(y);
+      if (ex || ey) return ex && ey ? a.descricao.localeCompare(b.descricao, 'pt-BR') : (ex ? 1 : -1);
+      const d = (typeof x === 'string' || typeof y === 'string') ? String(x).localeCompare(String(y), 'pt-BR') : (x > y ? 1 : x < y ? -1 : 0);
+      return (asc ? d : -d) || a.descricao.localeCompare(b.descricao, 'pt-BR');
+    });
     const limite = Math.min(2000, parseInt(req.query.limite) || 500);
     res.json({ estado: sortimento.estado(), resumo: sortimento.resumo(rows), total: rows.length, rows: rows.slice(0, limite) });
   } catch (err) { res.status(500).json({ error: err.message }); }
