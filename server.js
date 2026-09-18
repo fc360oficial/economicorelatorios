@@ -1100,13 +1100,13 @@ app.get('/api/fornecedores/resumo', async (req, res) => {
       q(`SELECT a.CodFornec, SUM(a.Total) as total, COUNT(*) as qtd
          FROM central.avariaconsumo a
          INNER JOIN central.fornecedoritens fi ON fi.CodigoBarra = a.CodigoBarras AND fi.CodFornecedor = a.CodFornec AND fi.Backup = 0
-         WHERE a.nLoja IN (${lojasPh}) AND a.DataLan BETWEEN ? AND ? AND a.CodFornec>0
+         WHERE a.nLoja IN (${lojasPh}) AND a.DataLan BETWEEN ? AND ? AND a.CodFornec>0 AND a.Status<>9
          GROUP BY a.CodFornec`, [...lojasList, dIni, dFim]).catch(() => []),
       q(`SELECT SUM(CASE WHEN Status=0 THEN Total ELSE 0 END) as em_aberto,
                 SUM(CASE WHEN Status=2 THEN Total ELSE 0 END) as em_tramite,
                 SUM(CASE WHEN Status IN (3,4) THEN Total ELSE 0 END) as ja_emitido,
                 SUM(Total) as total_geral
-         FROM central.avariaconsumo WHERE nLoja IN (${lojasPh}) AND DataLan BETWEEN ? AND ?`,
+         FROM central.avariaconsumo WHERE nLoja IN (${lojasPh}) AND DataLan BETWEEN ? AND ? AND Status<>9`,
         [...lojasList, dIni, dFim]).catch(() => [{}]),
       (async () => {
         const allNRegs = Object.values(NREGS_COMPRADOR).flat();
@@ -2255,17 +2255,28 @@ app.get('/api/fornecedores/:id/avarias', async (req, res) => {
     const dIni    = `${anoSel}-${String(mesSel).padStart(2,'0')}-01`;
     const dFim    = dFimMes(anoSel, mesSel);
 
-    const rows = await q(`
-      SELECT a.CodigoBarras, a.Descricao, SUM(a.Qtd) as qtd, SUM(a.Total) as total,
+    // Status 9 = lançamento cancelado/rejeitado no ERP (bipagem errada) — nunca entra na soma.
+    // Quebra por loja pra dar pra achar bipagem errada (qtd absurda numa loja só).
+    const rowsLoja = await q(`
+      SELECT a.CodigoBarras, a.Descricao, a.nLoja, SUM(a.Qtd) as qtd, SUM(a.Total) as total,
              MAX(a.DataLan) as ultima
       FROM central.avariaconsumo a
       ${listaSel
         ? 'INNER JOIN central.c_cotacao_lista_itens cli ON cli.Codigobarra = a.CodigoBarras AND cli.nCotacao = ?' + lojaFlag
         : 'INNER JOIN central.fornecedoritens fi ON fi.CodigoBarra = a.CodigoBarras AND fi.CodFornecedor = a.CodFornec AND fi.Backup = 0'}
-      WHERE a.nLoja IN (${lojasPh}) AND a.CodFornec=? AND a.DataLan BETWEEN ? AND ?
-      GROUP BY a.CodigoBarras, a.Descricao
+      WHERE a.nLoja IN (${lojasPh}) AND a.CodFornec=? AND a.DataLan BETWEEN ? AND ? AND a.Status<>9
+      GROUP BY a.CodigoBarras, a.Descricao, a.nLoja
       ORDER BY total DESC
     `, listaSel ? [listaSel, ...lojas, id, dIni, dFim] : [...lojas, id, dIni, dFim]);
+    const porProd = {};
+    for (const r of rowsLoja) {
+      const p = porProd[r.CodigoBarras] || (porProd[r.CodigoBarras] = { CodigoBarras: r.CodigoBarras, Descricao: r.Descricao, qtd: 0, total: 0, ultima: null, lojas: [] });
+      p.qtd += parseFloat(r.qtd); p.total += parseFloat(r.total);
+      if (!p.ultima || new Date(r.ultima) > new Date(p.ultima)) p.ultima = r.ultima;
+      p.lojas.push({ loja: r.nLoja, qtd: +parseFloat(r.qtd).toFixed(3), total: +parseFloat(r.total).toFixed(2), ultima: r.ultima ? new Date(r.ultima).toLocaleDateString('pt-BR') : null });
+    }
+    const rows = Object.values(porProd).sort((a, b) => b.total - a.total);
+    for (const p of rows) p.lojas.sort((a, b) => a.loja - b.loja);
 
     // Enrich with NF-e descriptions from central.itens
     const avCodigos = [...new Set(rows.map(r => r.CodigoBarras))];
@@ -2308,7 +2319,8 @@ app.get('/api/fornecedores/:id/avarias', async (req, res) => {
         descricao: r.Descricao?.trim(),
         qtd:       +parseFloat(r.qtd).toFixed(3),
         total:     +parseFloat(r.total).toFixed(2),
-        ultima:    r.ultima ? new Date(r.ultima).toLocaleDateString('pt-BR') : null
+        ultima:    r.ultima ? new Date(r.ultima).toLocaleDateString('pt-BR') : null,
+        lojas:     r.lojas
       }))
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -2361,7 +2373,7 @@ app.get('/api/fornecedores/:id/lojas', async (req, res) => {
         qtd   = parseFloat(vr?.qtd || 0);
       } catch (e) {}
       try {
-        const [ar] = await q(`SELECT SUM(Total) v FROM central.avariaconsumo WHERE nLoja=? AND CodFornec=? AND DataLan BETWEEN ? AND ?${listaSel ? ` AND CodigoBarras IN (${ph})` : ''}`,
+        const [ar] = await q(`SELECT SUM(Total) v FROM central.avariaconsumo WHERE nLoja=? AND CodFornec=? AND DataLan BETWEEN ? AND ? AND Status<>9${listaSel ? ` AND CodigoBarras IN (${ph})` : ''}`,
           listaSel ? [ln, id, dIni, dFim, ...codigos] : [ln, id, dIni, dFim]);
         avaria = parseFloat(ar?.v || 0);
       } catch (e) {}
@@ -3155,6 +3167,24 @@ app.get('/api/listas-compra/margem-resumo', async (req, res) => {
     }
     const barcodesSet = new Set(Object.keys(barcodeToListas));
 
+    // Avaria por lista: só os itens DAQUELA lista lançados contra o fornecedor
+    // da lista (mesma regra do drawer). Status 9 = cancelado no ERP, fica fora.
+    const listaFornec = {};
+    for (const r of await q(`SELECT nReg, CodFornec FROM central.c_cotacao_lista`).catch(() => [])) listaFornec[r.nReg] = r.CodFornec;
+    const avariaLista = {};
+    try {
+      const lojasPhAv = lojas.map(() => '?').join(',');
+      const avRows = await q(`SELECT CodFornec, CodigoBarras, SUM(Total) total FROM central.avariaconsumo
+        WHERE nLoja IN (${lojasPhAv}) AND DataLan BETWEEN ? AND ? AND Status<>9 AND CodFornec>0
+        GROUP BY CodFornec, CodigoBarras`, [...lojas, dataInicio, dataFim]);
+      for (const r of avRows) {
+        for (const listaId of barcodeToListas[r.CodigoBarras] || []) {
+          if (listaFornec[listaId] !== r.CodFornec) continue;
+          avariaLista[listaId] = (avariaLista[listaId] || 0) + parseFloat(r.total || 0);
+        }
+      }
+    } catch (e) {}
+
     // Vendas do mês: query simples sem filtro de código (mais rápido), filtra em memória
     const vendas = {};
     for (const ln of lojas) {
@@ -3214,7 +3244,10 @@ app.get('/api/listas-compra/margem-resumo', async (req, res) => {
     }
 
     const result = {};
+    // lista com avaria mas sem venda no mês também precisa aparecer
+    for (const listaId of Object.keys(avariaLista)) if (!listaMargens[listaId]) listaMargens[listaId] = { venda: 0, com_venda: 0, fat: 0, custo_total: 0, lucro: 0, prods: 0 };
     for (const [listaId, m] of Object.entries(listaMargens)) {
+      const av = avariaLista[listaId] || 0;
       result[parseInt(listaId)] = {
         venda: parseFloat(m.venda.toFixed(2)),
         com_venda: m.com_venda,
@@ -3222,7 +3255,9 @@ app.get('/api/listas-compra/margem-resumo', async (req, res) => {
         msc: m.custo_total > 0 ? parseFloat((m.lucro / m.custo_total * 100).toFixed(2)) : 0,
         faturamento: parseFloat(m.fat.toFixed(2)),
         lucro: parseFloat(m.lucro.toFixed(2)),
-        produtos_vendidos: m.prods
+        produtos_vendidos: m.prods,
+        avaria: +av.toFixed(2),
+        pct_av: m.venda > 0 ? +(av / m.venda * 100).toFixed(2) : 0
       };
     }
     res.json(result);

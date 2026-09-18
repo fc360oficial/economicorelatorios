@@ -636,8 +636,8 @@ function valorOrdenacao(r, col) {
     case 'venda':    return m.venda || 0;
     case 'msv':      return m.msv || 0;
     case 'msc':      return m.msc || 0;
-    case 'avaria':   return s.avaria || 0;
-    case 'pctav':    return s.pct_av || 0;
+    case 'avaria':   return m.avaria || 0;
+    case 'pctav':    return m.pct_av || 0;
     case 'itens':    return itensDaLista(r);
     case 'comvenda': return m.com_venda || 0;
     default:         return 0;
@@ -697,7 +697,8 @@ function renderListasComDados(lista, filtroMsg) {
     const venda  = m.venda  || 0;
     const msv    = m.msv    || 0;
     const msc    = m.msc    || 0;
-    const avaria = s.avaria || 0;
+    const avaria = m.avaria || 0;   // avaria só dos itens DESTA lista (não do fornecedor inteiro)
+    const pctAv  = m.pct_av || 0;
     const pct    = (venda / maxVenda * 100).toFixed(1);
     const sid    = s.id;
     html += `<tr class="${sel}" id="row-${r.id}">
@@ -711,8 +712,8 @@ function renderListasComDados(lista, filtroMsg) {
       <td class="td-r"><span class="td-venda" onclick="${sid?`abrirDrawer(${sid},'venda',${r.id})`:'void(0)'}" title="Ver detalhes de venda">${venda>0?fmt(venda):'—'}</span></td>
       <td class="td-r"><span class="td-margem ${msvClass(msv)}" onclick="${sid?`abrirDrawer(${sid},'margem',${r.id})`:'void(0)'}" title="Ver rentabilidade">${venda>0?pctFmt(msv):'—'}</span></td>
       <td class="td-r"><span class="td-margem ${msvClass(msc)}" onclick="${sid?`abrirDrawer(${sid},'margem',${r.id})`:'void(0)'}" title="Ver rentabilidade">${venda>0?pctFmt(msc):'—'}</span></td>
-      <td class="td-r"><span class="td-avaria ${avClass(s.pct_av)}" onclick="${sid?`abrirDrawer(${sid},'avaria',${r.id})`:'void(0)'}" title="Ver avarias">${avaria>0?fmt(avaria):'—'}</span></td>
-      <td class="td-r ${avClass(s.pct_av)}">${avaria>0?pctFmt(s.pct_av):'—'}</td>
+      <td class="td-r"><span class="td-avaria ${avClass(pctAv)}" onclick="${sid?`abrirDrawer(${sid},'avaria',${r.id})`:'void(0)'}" title="Ver avarias loja a loja">${avaria>0?fmt(avaria):'—'}</span></td>
+      <td class="td-r ${avClass(pctAv)}">${avaria>0&&venda>0?pctFmt(pctAv):'—'}</td>
       <td class="td-r"><span class="itens-badge" title="${params().loja==='todas' ? 'Total de itens da lista' : `Itens da lista na Loja ${params().loja} (total da lista: ${r.total_itens})`}">${itensDaLista(r)}</span></td>
       <td class="td-r" style="color:#4E5A72">${fmtN(m.com_venda||0)}</td>
     </tr>`;
@@ -994,17 +995,33 @@ async function renderAvaria(id, loja, mes, ano, body) {
       <table class="d-t">
         <thead><tr>
           <th>Produto</th>
+          <th class="r">Loja</th>
           <th class="r">Qtd</th>
           <th class="r">Valor R$</th>
           <th class="r">Data</th>
         </tr></thead>
         <tbody>
-          ${av.produtos.map(p=>`<tr>
-            <td class="desc">${p.descricao||p.codigo}</td>
-            <td class="r" style="color:#4E5A72">${fmtN(p.qtd)}</td>
-            <td class="r" style="color:#C22F49;font-weight:700">${fmt(p.total)}</td>
-            <td class="r" style="color:#4E5A72">${p.ultima||'—'}</td>
-          </tr>`).join('')}
+          ${av.produtos.map(p=>{
+            // uma linha por loja (pra achar bipagem errada); subtotal do produto só quando tem mais de uma loja
+            const ls = (p.lojas && p.lojas.length) ? p.lojas : [{loja:'—', qtd:p.qtd, total:p.total, ultima:p.ultima}];
+            const multi = ls.length > 1;
+            let h = '';
+            if (multi) h += `<tr style="background:#F5F6F8">
+              <td class="desc" style="font-weight:700">${p.descricao||p.codigo}</td>
+              <td class="r" style="color:#98A0B3;font-size:11px">${ls.length} lojas</td>
+              <td class="r" style="color:#4E5A72;font-weight:700">${fmtN(p.qtd)}</td>
+              <td class="r" style="color:#C22F49;font-weight:700">${fmt(p.total)}</td>
+              <td class="r" style="color:#4E5A72">${p.ultima||'—'}</td>
+            </tr>`;
+            h += ls.map(l=>`<tr>
+              <td class="desc" style="${multi?'padding-left:22px;color:#4E5A72;font-size:12px':''}">${multi?'↳ ':''}${multi?'Loja '+l.loja:(p.descricao||p.codigo)}</td>
+              <td class="r" style="font-weight:700;color:#0B1F3A">${l.loja}</td>
+              <td class="r" style="color:#4E5A72">${fmtN(l.qtd)}</td>
+              <td class="r" style="color:#C22F49;font-weight:${multi?'500':'700'}">${fmt(l.total)}</td>
+              <td class="r" style="color:#4E5A72">${l.ultima||'—'}</td>
+            </tr>`).join('');
+            return h;
+          }).join('')}
         </tbody>
       </table>
     </div>`;
