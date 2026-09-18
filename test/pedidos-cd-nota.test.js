@@ -6,6 +6,7 @@ const fs = require('fs'); const os = require('os'); const path = require('path')
 const cd = require('../lib/pedidos-cd');
 
 // pedido: caixa SEM vínculo (sandália) + caixa COM vínculo pra LIMAO, mas a loja deu entrada como MACA
+let notaCD = false;
 let linhas = [
   { nNota: '4990', d: '2026-09-18', item: 29, codLoja: '7900204450027', cx: 1, codCD: '77900204348705' },
   { nNota: '4990', d: '2026-09-18', item: 16, codLoja: '7898031170341', cx: 1, codCD: '17898031170355' },
@@ -21,6 +22,7 @@ const fakeQ = async (s, p) => {
   if (s.includes('delivery_produtos')) return ['77900204348705', '17898031170355', '17898505140211', '17898505140228'].map(cod => ({ cod }));
   if (s.includes('painel_televendas')) return [{ statusCD: 4, dl: '2026-09-17', he: '14:10' }];
   if (s.includes('conferencia_televendas')) return [{ cod: '77900204348705', cx: 1 }, { cod: '17898031170355', cx: 1 }, { cod: '17898505140211', cx: 1 }, { cod: '17898505140228', cx: 1 }];
+  if (s.includes('/*nf-cd*/')) return notaCD ? [{ nNota: '5002', d: '2026-09-18', n: 4 }] : [];
   if (s.includes('/*nf-linhas*/')) return linhas.filter(l => !(s.includes('nNota NOT IN') && p.includes(l.nNota)));
   // por código de unidade: só o que a loja bipou com o MESMO código do vínculo
   if (s.includes('FROM central.compras c')) return linhas.filter(l => p.includes(l.codLoja)).map(l => ({ cod: l.codLoja, cx: l.cx, nNota: l.nNota, d: l.d }));
@@ -78,4 +80,13 @@ test('divergência some quando o vínculo passa a bater com a nota', async () =>
   await cd.verificar();
   assert.equal(cd.obterPedido(p.id).status, 'recebido');
   assert.equal(cd.getVinculos()['17898031170355'].divergenciaNota, undefined);
+});
+
+test('nota de venda emitida pelo CD aparece como notaCD enquanto a loja não dá entrada', async () => {
+  notaCD = true; linhas = [];
+  const [p] = cd.criarPedidos({ lojas: { 3: [{ codigoCD: '17898031170355', caixas: 1 }] }, usuario: 'tiago' });
+  await cd.verificar();
+  const r = cd.obterPedido(p.id);
+  assert.deepEqual(r.notaCD, { nNota: '5002', data: '2026-09-18' });
+  notaCD = false;
 });
