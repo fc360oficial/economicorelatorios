@@ -361,7 +361,7 @@ function renderProduto() {
       '<td>' + fmtDt(l.ultimaVenda) + (l.ultimaVenda ? '<span class="sub">' + (dv === 0 ? 'hoje' : dv + ' d atrás') + (l.ultimaVendaQtd ? ' · ' + fmtN(l.ultimaVendaQtd) + ' un no dia' : '') + '</span>' : '<span class="sub">sem venda em 12 m</span>') + '</td>' +
       '<td>' + (l.qtd90 > 0 ? fmtN(Math.round(l.qtd90)) + '<span class="sub">' + fmtRS(l.venda90) + '</span><span class="sub media" title="unidades por dia nos últimos ' + p.abc_dias + ' dias">' + fmtMedia(l.qtd90 / p.abc_dias) + ' un/dia</span>' : '<span style="color:var(--ink-3)">0</span>') + '</td>' +
       '<td class="c"><span class="abc ' + (l.abc && l.abc !== '—' ? l.abc : 'x') + '" title="' + (l.rank ? 'posição ' + l.rank + ' na loja' : 'sem venda no período') + '">' + (l.abc == null ? '…' : l.abc) + '</span></td>' +
-      '<td class="novo"><input class="np" type="text" inputmode="decimal" placeholder="0,00" value="' + (np != null ? fmtR(np) : '') + '" data-loja="' + l.loja + '" oninput="onSug(this)" onkeydown="if(event.key===\'Enter\'){this.blur()}"></td>' +
+      '<td class="novo"><input class="np" type="text" inputmode="numeric" placeholder="0,00" title="Digite só os números: 2498 vira 24,98" value="' + (np != null ? fmtR(np) : '') + '" data-loja="' + l.loja + '" oninput="onSug(this)" onkeydown="if(event.key===\'Enter\'){this.blur()}"></td>' +
       '<td class="novo nm mg ' + mgCls(nm) + '" id="nm-' + l.loja + '">' + (nm != null ? nm.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + '%' : '<span style="color:var(--ink-3);font-weight:500">—</span>') +
         (varp != null ? '<span class="var">' + (varp >= 0 ? '+' : '') + varp.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + '% vs atual</span>' : '') + '</td>' +
       '</tr>';
@@ -376,8 +376,17 @@ function renderProduto() {
     '<div class="pnl-nota"><b>Como usar:</b> digite o novo preço na loja (ou em todas, embaixo) e a margem nova aparece na hora, com a variação em relação ao preço atual. Isso é só análise — nada é gravado no ERP. ' +
     '<b>Preço final 8</b> = promoção em loja. <b>Estoque a custo</b> = estoque × custo da loja. Dados do ERP em tempo real; ABC de ' + (p.abc_calculadoEm ? new Date(p.abc_calculadoEm).toLocaleString('pt-BR') : '—') + '.</div>';
 }
+// máscara: o usuário digita só números e a vírgula/ponto entram sozinhos (2498 → 24,98 · 249800 → 2.498,00)
+function mascara(inp) {
+  const d = String(inp.value || '').replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+  if (!d) { inp.value = ''; return 0; }
+  const v = parseInt(d, 10) / 100;
+  inp.value = v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  try { inp.setSelectionRange(inp.value.length, inp.value.length); } catch (e) {}
+  return v;
+}
 function onSug(inp) {
-  const ln = +inp.dataset.loja; const v = num(inp.value); const all = lerSug(); const s = all[PROD.cod] || (all[PROD.cod] = {});
+  const ln = +inp.dataset.loja; const v = mascara(inp); const all = lerSug(); const s = all[PROD.cod] || (all[PROD.cod] = {});
   if (v > 0) s[ln] = +v.toFixed(2); else delete s[ln]; if (!Object.keys(s).length) delete all[PROD.cod]; gravarSug(all);
   const l = PROD.lojas.find(x => x.loja === ln); const cel = document.getElementById('nm-' + ln);
   const nm = v > 0 && l.custo > 0 ? ((v - l.custo) / l.custo) * 100 : null; const varp = v > 0 && l.preco > 0 ? ((v - l.preco) / l.preco) * 100 : null;
@@ -385,7 +394,7 @@ function onSug(inp) {
   cel.innerHTML = (nm != null ? nm.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + '%' : '<span style="color:var(--ink-3);font-weight:500">—</span>') + (varp != null ? '<span class="var">' + (varp >= 0 ? '+' : '') + varp.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + '% vs atual</span>' : '');
 }
 function aplicarTodas() {
-  const v = num(document.getElementById('p-todas').value); if (!(v > 0) || !PROD) return;
+  const v = mascara(document.getElementById('p-todas')); if (!(v > 0) || !PROD) return;
   const all = lerSug(); all[PROD.cod] = Object.fromEntries(PROD.lojas.map(l => [l.loja, +v.toFixed(2)])); gravarSug(all); renderProduto();
 }
 function limparSugestoes() { if (!PROD) return; const all = lerSug(); delete all[PROD.cod]; gravarSug(all); document.getElementById('p-todas').value = ''; renderProduto(); }
@@ -411,7 +420,7 @@ carregar(false);
   <div class="pnl-bd" id="p-body"><div class="spinner"></div></div>
   <div class="pnl-ft">
     <span>Novo preço em <b>todas as lojas</b>:</span>
-    <input type="text" id="p-todas" placeholder="0,00" inputmode="decimal" onkeydown="if(event.key==='Enter')aplicarTodas()">
+    <input type="text" id="p-todas" placeholder="0,00" inputmode="numeric" oninput="mascara(this)" onkeydown="if(event.key==='Enter')aplicarTodas()" title="Digite só os números: 2498 vira 24,98">
     <button class="btn btn-amber" onclick="aplicarTodas()">Aplicar</button>
     <button class="btn" onclick="limparSugestoes()" title="Apaga as sugestões deste produto">Limpar</button>
     <span class="sp" id="p-salvo">As sugestões ficam guardadas neste navegador e aparecem de novo ao abrir o produto.</span>
