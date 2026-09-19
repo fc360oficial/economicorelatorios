@@ -6447,6 +6447,77 @@ function sorFiltro(qq) {
   for (const k of ['v6', 'v12', 'meses12', 'est', 'valorEst', 'cob', 'ent6', 'custo', 'preco', 'margemCad', 'margemApl']) { const v = String(qq[k] || ''); if (v) { const [mi, ma] = v.split(',').map(x => x.replace(/\./g, '').replace(',', '.').trim()); faixas[k] = { min: mi, max: ma }; } }
   return { loja: qq.loja, comprador: qq.comprador, classe: qq.classe, lista: qq.lista, busca: qq.busca, faixas, ultDe: qq.ult_de || '', ultAte: qq.ult_ate || '', consumo: qq.consumo === '1', escopo: qq.escopo || 'listas' };
 }
+// ─── PROMOÇÕES (Precificação > Promoções) ───────────────────────────────────
+// Tiago (18/09/2026): toda promoção em loja é marcada com preço de venda terminado em 8 (ex.: 9,98).
+// Lista TODOS os produtos ativos com preço final 8 em alguma loja: código de barras, descrição,
+// estoque de cada loja, custo e preço de venda por loja. Só leitura no ERP. Cache de 10 min.
+let _promoCache = null;
+async function coletarPromocoesFinal8(force) {
+  if (!force && _promoCache && Date.now() - _promoCache.ts < 10 * 60 * 1000) return _promoCache.data;
+  const LOJAS = [1, 2, 3, 4, 5, 6];
+  const pp = v => { const n = parseFloat(String(v ?? '').replace(',', '.')); return isFinite(n) ? n : 0; };
+  const final8 = p => p > 0 && Math.round(p * 100) % 10 === 8;
+  const chunk = (a, n) => { const o = []; for (let i = 0; i < a.length; i += n) o.push(a.slice(i, i + n)); return o; };
+  const itens = await q(`SELECT i.CodigoBarra cod, TRIM(i.Descricao) descricao, i.Unid unid, i.TipoBalanca balanca,
+                                i.P1, i.P2, i.P3, i.P4, i.P5, i.P6, gs.Descricao subgrupo, g.Descricao grupo
+                         FROM central.itens i
+                         LEFT JOIN central.gruposub gs ON gs.CodSubGrupo = i.CodGrupoSub
+                         LEFT JOIN central.grupo g ON g.CodGrupo = gs.CodGrupo
+                         WHERE i.CodDesativado = 0`);
+  const promo = [];
+  for (const it of itens) {
+    const precos = {}; let tem = false;
+    for (const ln of LOJAS) { const p = pp(it['P' + ln]); precos[ln] = p; if (final8(p)) tem = true; }
+    if (tem) promo.push({ cod: String(it.cod || '').trim(), descricao: it.descricao || '', unid: (it.unid || '').trim(), balanca: it.balanca === 'P',
+                          grupo: (it.grupo || '').trim() || null, subgrupo: (it.subgrupo || '').trim() || null, precos });
+  }
+  const cods = promo.map(p => p.cod);
+  const est = {}, custo = {};
+  for (const ln of LOJAS) { est[ln] = {}; custo[ln] = {};
+    for (const ch of chunk(cods, 4000)) { const ph = ch.map(() => '?').join(',');
+      for (const r of await q(`SELECT CodigoBarra cod, Qtd FROM central.estoquen${ln} WHERE CodigoBarra IN (${ph})`, ch).catch(() => [])) est[ln][String(r.cod).trim()] = pp(r.Qtd);
+      for (const r of await q(`SELECT CodigoBarra cod, Custo FROM central.custoloja${ln} WHERE CodigoBarra IN (${ph})`, ch).catch(() => [])) custo[ln][String(r.cod).trim()] = pp(r.Custo); } }
+  const rows = promo.map(p => {
+    const lojas = {}; const promoLojas = []; let estPromo = 0, valPromo = 0;
+    for (const ln of LOJAS) {
+      const preco = p.precos[ln], e = est[ln][p.cod] || 0, c = custo[ln][p.cod] || 0, isPromo = final8(preco);
+      lojas[ln] = { estoque: +e.toFixed(3), custo: +c.toFixed(2), preco: +preco.toFixed(2), promo: isPromo,
+                    margem: (isPromo && c > 0 && preco > 0) ? +(((preco - c) / c) * 100).toFixed(1) : null };
+      if (isPromo) { promoLojas.push(ln); estPromo += Math.max(0, e); valPromo += Math.max(0, e) * c; }
+    }
+    return { cod: p.cod, descricao: p.descricao, unid: p.unid, balanca: p.balanca, grupo: p.grupo, subgrupo: p.subgrupo, lojas, promoLojas,
+             estoquePromo: +estPromo.toFixed(3), valorPromo: +valPromo.toFixed(2) };
+  }).sort((a, b) => a.descricao.localeCompare(b.descricao, 'pt-BR'));
+  const data = { geradoEm: new Date().toISOString(), ativos_conferidos: itens.length, total_produtos: rows.length,
+                 por_loja: Object.fromEntries(LOJAS.map(ln => [ln, rows.filter(r => r.lojas[ln].promo).length])),
+                 itens_loja: rows.reduce((s, r) => s + r.promoLojas.length, 0), valor_estoque_promo: +rows.reduce((s, r) => s + r.valorPromo, 0).toFixed(2), rows };
+  _promoCache = { ts: Date.now(), data };
+  return data;
+}
+app.get('/api/promocoes/final-8', async (req, res) => {
+  try { res.json(await coletarPromocoesFinal8(req.query.refresh === '1')); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.get('/api/promocoes/final-8.csv', async (req, res) => {
+  try {
+    const d = await coletarPromocoesFinal8(false);
+    const loja = parseInt(req.query.loja) || 0;
+    const esc = v => { const s = String(v ?? ''); return /[;"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+    const n = v => v == null ? '' : String(v).replace('.', ',');
+    const head = ['Código de barras', 'Descrição', 'Unid', 'Grupo', 'Subgrupo'];
+    for (const ln of [1, 2, 3, 4, 5, 6]) head.push(`Estoque L${ln}`, `Custo L${ln}`, `Preço L${ln}`, `Promo L${ln}`);
+    head.push('Lojas em promoção', 'Estoque em promoção', 'R$ custo em promoção');
+    const rows = d.rows.filter(r => !loja || r.lojas[loja].promo).map(r => {
+      const o = [r.cod, r.descricao, r.unid, r.grupo || '', r.subgrupo || ''];
+      for (const ln of [1, 2, 3, 4, 5, 6]) { const l = r.lojas[ln]; o.push(n(l.estoque), n(l.custo), n(l.preco), l.promo ? 'SIM' : ''); }
+      o.push(r.promoLojas.map(x => 'L' + x).join(' '), n(r.estoquePromo), n(r.valorPromo));
+      return o.map(esc).join(';');
+    });
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8'); res.setHeader('Content-Disposition', `attachment; filename="promocoes-final-8${loja ? '-L' + loja : ''}.csv"`);
+    res.send('\ufeff' + [head.map(esc).join(';')].concat(rows).join('\r\n'));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/api/listas-compra/sortimento', (req, res) => {
   try {
     const f = sorFiltro(req.query);
