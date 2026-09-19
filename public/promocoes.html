@@ -238,10 +238,10 @@ table.pt tfoot td small{font-weight:500;color:var(--ink-3)}
   <div class="page-hdr">
     <div>
       <h1>Promoções</h1>
-      <p>Produtos ativos com preço de venda terminado em <b>8</b> em alguma loja (marca de promoção em loja) · estoque, custo e preço por loja · só leitura no ERP</p>
+      <p>Produtos ativos com preço de venda terminado em <b id="dig">8</b> em alguma loja (marca de promoção em loja) · estoque, custo e preço por loja · só leitura no ERP</p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <a class="btn" id="btn-csv" href="/api/promocoes/final-8.csv" target="_blank" title="Baixa em CSV (Excel) a lista completa ou a da loja filtrada">Exportar CSV</a>
+      <a class="btn" id="btn-csv" href="/api/promocoes/final-8.csv?d=8" target="_blank" title="Baixa em CSV (Excel) a lista completa ou a da loja filtrada">Exportar CSV</a>
       <button class="btn off-n" onclick="abrirPdf()" title="Gera o PDF (tudo ou só os itens com preço off alterado) pra imprimir ou mandar no WhatsApp">📄 PDF / WhatsApp<span class="n" id="btn-off-n" hidden></span></button>
       <button class="btn btn-amber" onclick="carregar(true)" title="Busca de novo no ERP (a lista fica em cache por 10 min)">↻ Atualizar</button>
     </div>
@@ -297,6 +297,27 @@ table.pt tfoot td small{font-weight:500;color:var(--ink-3)}
 </div>
 
 <script>
+// Radar Prevenção (Tiago, 19/09/2026): a MESMA página serve /promocoes.html (final 8) e /radar-prevencao.html (final 7).
+// O dígito vai nas rotas (?d=7) e os textos "promoção / final 8" são traduzidos na tela (menos a sidebar).
+const PREV = /radar-prevencao/i.test(location.pathname);
+const CFG = PREV ? { d: 7, key: 'prevencao', nome: 'Radar Prevenção', q: '?d=7' } : { d: 8, key: 'promocoes', nome: 'Promoções', q: '?d=8' };
+function tradTexto(t) {
+  return t.replace(/final 8/g, 'final 7').replace(/Final 8/g, 'Final 7').replace(/FINAL 8/g, 'FINAL 7')
+    .replace(/Promoções/g, 'Radar Prevenção').replace(/PROMOÇÕES/g, 'RADAR PREVENÇÃO').replace(/promoções/g, 'prevenções')
+    .replace(/Promoção/g, 'Prevenção').replace(/PROMOÇÃO/g, 'PREVENÇÃO').replace(/promoção/g, 'prevenção')
+    .replace(/\b(em|de) promo\b/g, '$1 prev.');
+}
+function tradNo(node) {
+  if (node.nodeType === 3) { const p = node.parentElement; if (p && p.closest('#dsnav')) return; const v = tradTexto(node.nodeValue); if (v !== node.nodeValue) node.nodeValue = v; return; }
+  if (node.nodeType !== 1 || node.id === 'dsnav' || node.closest('#dsnav')) return;
+  for (const at of ['title', 'placeholder']) { const v = node.getAttribute(at); if (v) { const nv = tradTexto(v); if (nv !== v) node.setAttribute(at, nv); } }
+  for (const c of Array.from(node.childNodes)) tradNo(c);
+}
+if (PREV) {
+  document.title = 'Radar Prevenção — Econômico Relatórios';
+  new MutationObserver(ms => { for (const m of ms) { if (m.type === 'characterData') tradNo(m.target); else m.addedNodes.forEach(tradNo); } }).observe(document.documentElement, { childList: true, subtree: true, characterData: true });
+  document.addEventListener('DOMContentLoaded', () => { const d = document.getElementById('dig'); if (d) d.textContent = '7'; tradNo(document.body); });
+}
 const LOJAS = [1, 2, 3, 4, 5, 6];
 const NOMES = { 1: 'CAHU', 2: 'MURIBECA', 3: 'PONTE', 4: 'ATACAREJO', 5: 'PORTA LARGA', 6: 'JARDIM JORDÃO' };
 let DATA = null, ORD = 'valorPromo', DIR = 'desc', SIT = '';
@@ -310,7 +331,7 @@ async function carregar(force) {
   const tb = document.getElementById('tbody');
   tb.innerHTML = '<tr><td colspan="12"><div class="spinner"></div></td></tr>';
   try {
-    const r = await fetch('/api/promocoes/final-8' + (force ? '?refresh=1' : ''));
+    const r = await fetch('/api/promocoes/final-8' + CFG.q + (force ? '&refresh=1' : ''));
     const j = await r.json(); if (j.error) throw new Error(j.error);
     DATA = j; await carregarProg();
     const grupos = [...new Set(DATA.rows.map(r => r.grupo).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
@@ -383,7 +404,7 @@ function render() {
     '</div>';
   document.getElementById('kpis').innerHTML = LOJAS.map(ln => card(ln, porLoja[ln], NOMES[ln])).join('') + card(0, agg, 'Todas as lojas');
   document.getElementById('info').innerHTML = '<b>' + fmtN(rows.length) + '</b> de ' + fmtN(DATA.total_produtos) + ' produtos' + (loja ? ' · L' + loja + ' ' + NOMES[loja] : '') + '<br>ERP em ' + geradoEm + ' · ' + fmtN(DATA.ativos_conferidos) + ' ativos conferidos';
-  document.getElementById('btn-csv').href = '/api/promocoes/final-8.csv' + (loja ? '?loja=' + loja : '');
+  document.getElementById('btn-csv').href = '/api/promocoes/final-8.csv' + CFG.q + (loja ? '&loja=' + loja : '');
 
   const tb = document.getElementById('tbody');
   if (!rows.length) { tb.innerHTML = '<tr><td colspan="12" class="empty">Nenhum produto com preço final 8 nesse filtro.</td></tr>'; return; }
@@ -416,7 +437,7 @@ function render() {
 
 // ── painel do produto: 6 lojas + sugestão de novo preço (guardada em localStorage por código) ──
 let PROD = null;
-const SUG_KEY = 'promocoes.sugestoes.v1';
+const SUG_KEY = CFG.key + '.sugestoes.v1';
 function lerSug() { try { return JSON.parse(localStorage.getItem(SUG_KEY) || '{}'); } catch (e) { return {}; } }
 function gravarSug(all) { try { localStorage.setItem(SUG_KEY, JSON.stringify(all)); } catch (e) {} }
 function offDe(cod, ln) { const s = lerSug()[cod]; const v = s && +s[ln]; return v > 0 ? v : null; }
@@ -433,7 +454,7 @@ async function abrirProduto(cod) {
   document.getElementById('p-nome').textContent = 'Carregando…'; document.getElementById('p-sub').textContent = cod;
   document.getElementById('p-body').innerHTML = '<div class="spinner"></div>'; document.getElementById('p-todas').value = '';
   try {
-    const r = await fetch('/api/promocoes/produto/' + encodeURIComponent(cod)); const j = await r.json(); if (j.error) throw new Error(j.error);
+    const r = await fetch('/api/promocoes/produto/' + encodeURIComponent(cod) + CFG.q); const j = await r.json(); if (j.error) throw new Error(j.error);
     PROD = j; renderProduto();
   } catch (e) { document.getElementById('p-body').innerHTML = '<div class="empty">Erro: ' + esc(e.message) + '</div>'; }
 }
@@ -508,7 +529,7 @@ carregar(false);
 // ── PDF / WhatsApp dos preços off ──
 // ── oferta programada (relógio) ──
 let PROG = {}, HOJE = new Date().toLocaleDateString('sv-SE'), PG = null;
-async function carregarProg() { try { const r = await fetch('/api/promocoes/programadas'); const j = await r.json(); PROG = j.programadas || {}; HOJE = j.hoje || HOJE; } catch (e) {} }
+async function carregarProg() { try { const r = await fetch('/api/promocoes/programadas' + CFG.q); const j = await r.json(); PROG = j.programadas || {}; HOJE = j.hoje || HOJE; } catch (e) {} }
 function progVencida(cod) { const p = PROG[cod]; return !!(p && p.ate && p.ate < HOJE); }
 const SVG_REL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9" fill="#fff"/><path d="M12 7v5l3.5 2"/></svg>';
 function relogio(r) {
@@ -520,7 +541,7 @@ async function abrirProg(cod) {
   document.getElementById('pg-ov').classList.add('open');
   document.getElementById('pg-nome').textContent = 'Carregando…'; document.getElementById('pg-sub').textContent = cod; document.getElementById('pg-body').innerHTML = '<div class="spinner"></div>';
   try {
-    const r = await fetch('/api/promocoes/produto/' + encodeURIComponent(cod)); const j = await r.json(); if (j.error) throw new Error(j.error);
+    const r = await fetch('/api/promocoes/produto/' + encodeURIComponent(cod) + CFG.q); const j = await r.json(); if (j.error) throw new Error(j.error);
     PG = { prod: j, cod, prog: JSON.parse(JSON.stringify(PROG[cod] || { ate: null, inicio: null, lojas: {}, obs: '' })) };
     renderProg();
   } catch (e) { document.getElementById('pg-body').innerHTML = '<div class="empty">Erro: ' + esc(e.message) + '</div>'; }
@@ -563,13 +584,13 @@ function progTodas() { const a = num(document.getElementById('pg-t-promo').value
   for (const l of PG.prod.lojas) { const s = PG.prog.lojas[l.loja] || (PG.prog.lojas[l.loja] = {}); if (a > 0) s.promo = +a.toFixed(2); if (b > 0) s.fim = +b.toFixed(2); } renderProg(); }
 async function salvarProg() {
   if (!PG) return; const g = PG.prog;
-  try { const r = await fetch('/api/promocoes/programadas/' + encodeURIComponent(PG.cod), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ descricao: PG.prod.descricao, ate: g.ate, inicio: g.inicio, lojas: g.lojas, obs: g.obs }) });
+  try { const r = await fetch('/api/promocoes/programadas/' + encodeURIComponent(PG.cod) + CFG.q, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ descricao: PG.prod.descricao, ate: g.ate, inicio: g.inicio, lojas: g.lojas, obs: g.obs }) });
     const j = await r.json(); if (j.error) throw new Error(j.error); PROG[PG.cod] = j.programada; toast('Oferta programada salva.'); fecharProg(); if (DATA) render(); }
   catch (e) { toast('Erro: ' + e.message); }
 }
 async function excluirProg() {
   if (!PG || !PROG[PG.cod]) { fecharProg(); return; }
-  try { const r = await fetch('/api/promocoes/programadas/' + encodeURIComponent(PG.cod), { method: 'DELETE' }); const j = await r.json(); if (j.error) throw new Error(j.error); delete PROG[PG.cod]; toast('Programação removida.'); fecharProg(); if (DATA) render(); }
+  try { const r = await fetch('/api/promocoes/programadas/' + encodeURIComponent(PG.cod) + CFG.q, { method: 'DELETE' }); const j = await r.json(); if (j.error) throw new Error(j.error); delete PROG[PG.cod]; toast('Programação removida.'); fecharProg(); if (DATA) render(); }
   catch (e) { toast('Erro: ' + e.message); }
 }
 function usarProgComoOff() { // leva os preços da oferta pro "preço off" (pra sair no PDF)
@@ -581,7 +602,7 @@ function usarFimComoOff() { // quando a oferta acabar: leva os preços "quando a
   all[PG.cod] = s; gravarSug(all); toast('Preços de fim da oferta copiados pro preço off (PDF).'); if (DATA) render();
 }
 
-const WA_KEY = 'promocoes.whatsapp.numeros.v1';
+const WA_KEY = CFG.key + '.whatsapp.numeros.v1';
 let PDF = null;
 function abrirPdf() {
   const nOff = Object.keys(lerSug()).filter(c => temSugestao(c)).length;
@@ -599,7 +620,7 @@ async function gerarPdf() {
   const loja = parseInt(document.getElementById('f-loja').value) || 0;
   const b = document.getElementById('md-gerar'); b.disabled = true; b.textContent = 'Gerando…';
   try {
-    const r = await fetch('/api/promocoes/pdf', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ modo, loja, sugestoes: lerSug() }) });
+    const r = await fetch('/api/promocoes/pdf', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ modo, loja, d: CFG.d, sugestoes: lerSug() }) });
     const j = await r.json(); if (j.error) throw new Error(j.error);
     PDF = j;
     const com = j.lojas.filter(x => x.url);
@@ -613,7 +634,7 @@ async function gerarPdf() {
 }
 function textoWa(ln) {
   const com = PDF.lojas.filter(x => x.url && (!ln || x.loja === ln));
-  return 'Promoções · preços para alterar no ERP (' + new Date().toLocaleDateString('pt-BR') + ')' + (com.length === 1 ? ' · L' + com[0].loja + ' ' + com[0].nome + ': ' + com[0].url : ':\n' + com.map(x => 'L' + x.loja + ' ' + x.nome + ': ' + x.url).join('\n'));
+  return CFG.nome + ' · preços para alterar no ERP (' + new Date().toLocaleDateString('pt-BR') + ')' + (com.length === 1 ? ' · L' + com[0].loja + ' ' + com[0].nome + ': ' + com[0].url : ':\n' + com.map(x => 'L' + x.loja + ' ' + x.nome + ': ' + x.url).join('\n'));
 }
 function waAbrir(num, ln) { const t = encodeURIComponent(textoWa(ln || 0)); window.open(num ? 'https://wa.me/' + num + '?text=' + t : 'https://wa.me/?text=' + t, '_blank'); depoisDeEnviar(); }
 function numsLista() { return (document.getElementById('md-nums').value || '').split(/[\n,;]+/).map(s => s.replace(/\D/g, '')).filter(s => s.length >= 10).map(s => s.length <= 11 ? '55' + s : s); }

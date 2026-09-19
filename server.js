@@ -6453,17 +6453,24 @@ function sorFiltro(qq) {
 // Tiago (18/09/2026): toda promoção em loja é marcada com preço de venda terminado em 8 (ex.: 9,98).
 // Lista TODOS os produtos ativos com preço final 8 em alguma loja: código de barras, descrição,
 // estoque de cada loja, custo e preço de venda por loja. Só leitura no ERP. Cache de 10 min.
-let _promoCache = null;
-const PROMO_VISTOS = path.join(__dirname, 'data', 'promocoes-vistos.json');
+// Radar Prevenção (Tiago, 19/09/2026): mesma tela/rotas com preço final 7. Tudo abaixo é parametrizado pelo dígito:
+// cache, arquivo de "vistos", programadas e PDF ficam separados por dígito. `?d=7` nas rotas (ou `d` no body).
+const PROMO_DIGITOS = [8, 7];
+const PROMO_ROTULO = { 8: { nome: 'PROMOÇÕES', tipo: 'PROMOÇÃO', arq: 'promocoes' }, 7: { nome: 'RADAR PREVENÇÃO', tipo: 'PREVENÇÃO', arq: 'prevencao' } };
+const digitoDe = req => (+((req.query && req.query.d) || (req.body && req.body.d) || 8) === 7 ? 7 : 8);
+const _promoCache = {};
+const promoVistosPath = d => path.join(__dirname, 'data', d === 8 ? 'promocoes-vistos.json' : `promocoes-vistos-${d}.json`);
 const PROMO_NOVO_DIAS = 10;
 // atualiza de hora em hora em segundo plano pra registrar a data em que o produto virou final 8 mesmo sem ninguém abrir a tela
-setTimeout(() => coletarPromocoesFinal8(true).catch(e => console.error('[PROMO]', e.message)), 5 * 60 * 1000);
-setInterval(() => coletarPromocoesFinal8(true).catch(e => console.error('[PROMO]', e.message)), 60 * 60 * 1000);
-async function coletarPromocoesFinal8(force) {
-  if (!force && _promoCache && Date.now() - _promoCache.ts < 10 * 60 * 1000) return _promoCache.data;
+setTimeout(() => { for (const d of PROMO_DIGITOS) coletarPromocoesFinal8(true, d).catch(e => console.error('[PROMO]', d, e.message)); }, 5 * 60 * 1000);
+setInterval(() => { for (const d of PROMO_DIGITOS) coletarPromocoesFinal8(true, d).catch(e => console.error('[PROMO]', d, e.message)); }, 60 * 60 * 1000);
+async function coletarPromocoesFinal8(force, digito = 8) {
+  digito = digito === 7 ? 7 : 8;
+  const PROMO_VISTOS = promoVistosPath(digito);
+  if (!force && _promoCache[digito] && Date.now() - _promoCache[digito].ts < 10 * 60 * 1000) return _promoCache[digito].data;
   const LOJAS = [1, 2, 3, 4, 5, 6];
   const pp = v => { const n = parseFloat(String(v ?? '').replace(',', '.')); return isFinite(n) ? n : 0; };
-  const final8 = p => p > 0 && Math.round(p * 100) % 10 === 8;
+  const final8 = p => p > 0 && Math.round(p * 100) % 10 === digito;
   const chunk = (a, n) => { const o = []; for (let i = 0; i < a.length; i += n) o.push(a.slice(i, i + n)); return o; };
   const itens = await q(`SELECT i.CodigoBarra cod, TRIM(i.Descricao) descricao, i.Unid unid, i.TipoBalanca balanca,
                                 i.P1, i.P2, i.P3, i.P4, i.P5, i.P6, gs.Descricao subgrupo, g.Descricao grupo
@@ -6526,11 +6533,12 @@ async function coletarPromocoesFinal8(force) {
   const data = { geradoEm: new Date().toISOString(), ativos_conferidos: itens.length, total_produtos: rows.length, novos: rows.filter(r => r.novo).length, atualizados: rows.filter(r => r.atualizado).length, novo_dias: PROMO_NOVO_DIAS,
                  por_loja: Object.fromEntries(LOJAS.map(ln => [ln, rows.filter(r => r.lojas[ln].promo).length])),
                  itens_loja: rows.reduce((s, r) => s + r.promoLojas.length, 0), valor_estoque_promo: +rows.reduce((s, r) => s + r.valorPromo, 0).toFixed(2), rows };
-  _promoCache = { ts: Date.now(), data };
+  data.digito = digito;
+  _promoCache[digito] = { ts: Date.now(), data };
   return data;
 }
 app.get('/api/promocoes/final-8', async (req, res) => {
-  try { res.json(await coletarPromocoesFinal8(req.query.refresh === '1')); }
+  try { res.json(await coletarPromocoesFinal8(req.query.refresh === '1', digitoDe(req))); }
   catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -6601,7 +6609,7 @@ app.get('/api/promocoes/produto/:cod', async (req, res) => {
       const abc = _abcLojasCache ? (_abcLojasCache.porLoja[ln].mapa[cod] || null) : null;
       return { loja: ln, preco: +preco.toFixed(2), custo: +custo.toFixed(2), estoque: +estoque.toFixed(3),
                margem: (custo > 0 && preco > 0) ? +(((preco - custo) / custo) * 100).toFixed(1) : null,
-               promo: preco > 0 && Math.round(preco * 100) % 10 === 8,
+               promo: preco > 0 && Math.round(preco * 100) % 10 === digitoDe(req),
                ultimaCompra: isoDt(c && c.UltimaCompra), ultimaVenda: ultVenda, ultimaVendaQtd: ultVendaQtd,
                abc: abc ? abc.abc : (_abcLojasCache ? '—' : null), rank: abc ? abc.rank : null, venda90: abc ? abc.valor90 : 0, qtd90: abc ? abc.qtd90 : 0 };
     }));
@@ -6621,7 +6629,8 @@ app.post('/api/promocoes/pdf', async (req, res) => {
     const { modo, sugestoes, loja } = req.body || {};
     const sug = sugestoes && typeof sugestoes === 'object' ? sugestoes : {};
     const lojaF = parseInt(loja) || 0;
-    const d = await coletarPromocoesFinal8(false);
+    const dg = digitoDe(req), RT = PROMO_ROTULO[dg];
+    const d = await coletarPromocoesFinal8(false, dg);
     const NOMES = { 1: 'CAHU', 2: 'MURIBECA', 3: 'PONTE', 4: 'ATACAREJO', 5: 'PORTA LARGA', 6: 'JARDIM JORDÃO' };
     const novoDe = (cod, ln) => { const v = sug[cod] && +sug[cod][ln]; return v > 0 ? +v : null; };
     const soAlterados = modo === 'alterados';
@@ -6639,7 +6648,7 @@ app.post('/api/promocoes/pdf', async (req, res) => {
       rows.sort((x, y) => (x.grupo || '').localeCompare(y.grupo || '', 'pt-BR') || x.descricao.localeCompare(y.descricao, 'pt-BR'));
       const token = require('crypto').randomBytes(16).toString('hex');
       const arq = path.join(PROMO_PDF_DIR, token + '.pdf');
-      const titulo = soAlterados ? 'PREÇOS PARA ALTERAR NO ERP' : 'PROMOÇÕES · PREÇO FINAL 8';
+      const titulo = soAlterados ? 'PREÇOS PARA ALTERAR NO ERP' : `${RT.nome} · PREÇO FINAL ${dg}`;
       const doc = new PDFDocument({ size: 'A4', margin: 30, bufferPages: true, info: { Title: `Loja ${ln} ${NOMES[ln]} · ${titulo}` } });
       const out = fs.createWriteStream(arq); doc.pipe(out);
       const W = doc.page.width - 60, H = doc.page.height, X0 = 30;
@@ -6651,14 +6660,14 @@ app.post('/api/promocoes/pdf', async (req, res) => {
         doc.rect(X0, 30, W, 74).fill(NAVY);
         doc.roundedRect(X0 + 10, 37, 60, 60, 8).fill('#FFFFFF');
         try { doc.image(path.join(__dirname, 'public', 'logo-supermercados.png'), X0 + 14, 41, { fit: [52, 52], align: 'center', valign: 'center' }); } catch (e) {}
-        doc.fillColor(AMBER).font('Helvetica-Bold').fontSize(8.5).text('ECONÔMICO SUPERMERCADOS · REDE CAHU', X0 + 82, 42, { lineBreak: false });
+        doc.fillColor(AMBER).font('Helvetica-Bold').fontSize(8.5).text('ECONÔMICO SUPERMERCADOS · REDE CAHU · ' + RT.nome, X0 + 82, 42, { lineBreak: false });
         doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(20).text(`LOJA ${ln} · ${NOMES[ln]}`, X0 + 82, 54, { lineBreak: false });
         doc.fillColor('#C9CDD6').font('Helvetica').fontSize(10).text(titulo, X0 + 82, 80, { lineBreak: false });
         // caixa de resumo à direita
         const bw = 150, bx = X0 + W - bw - 10;
         doc.roundedRect(bx, 40, bw, 54, 6).fill('#1B2A4A');
         doc.fillColor(AMBER).font('Helvetica-Bold').fontSize(16).text(String(rows.length), bx + 10, 47, { width: bw - 20, lineBreak: false });
-        doc.fillColor('#C9CDD6').font('Helvetica').fontSize(7.5).text(soAlterados ? 'PRODUTO(S) PARA ALTERAR' : 'PRODUTO(S) EM PROMOÇÃO', bx + 10, 66, { width: bw - 20, lineBreak: false });
+        doc.fillColor('#C9CDD6').font('Helvetica').fontSize(7.5).text(soAlterados ? 'PRODUTO(S) PARA ALTERAR' : 'PRODUTO(S) EM ' + RT.tipo, bx + 10, 66, { width: bw - 20, lineBreak: false });
         doc.fillColor('#8E98AE').fontSize(7).text(geradoEm, bx + 10, 78, { width: bw - 20, lineBreak: false });
         // cabeçalho das colunas
         let y = 114;
@@ -6697,7 +6706,7 @@ app.post('/api/promocoes/pdf', async (req, res) => {
       for (let i = 0; i < total; i++) {
         doc.switchToPage(i);
         doc.moveTo(X0, H - 46).lineTo(X0 + W, H - 46).lineWidth(0.4).strokeColor(LINE).stroke();
-        doc.font('Helvetica').fontSize(7).fillColor(INK3).text((nNovos ? 'Preço em destaque = preço novo a colocar no ERP (o antigo aparece pequeno ao lado). ' : 'Preço = preço atual em promoção (final 8). ') + 'Marque OK ao alterar.', X0, H - 42, { width: W - 90, lineBreak: false });
+        doc.font('Helvetica').fontSize(7).fillColor(INK3).text((nNovos ? 'Preço em destaque = preço novo a colocar no ERP (o antigo aparece pequeno ao lado). ' : 'Preço = preço atual em ' + RT.tipo.toLowerCase() + ' (final ' + dg + '). ') + 'Marque OK ao alterar.', X0, H - 42, { width: W - 90, lineBreak: false });
         doc.font('Helvetica-Bold').fontSize(7.5).fillColor(INK2).text(`Loja ${ln} · página ${i + 1} de ${total}`, X0 + W - 90, H - 42, { width: 90, align: 'right', lineBreak: false });
       }
       doc.end();
@@ -6718,10 +6727,10 @@ app.get('/promocoes/pdf/:token.pdf', (req, res) => {
 // Tiago (18/09/2026): por produto, guardar até quando a oferta dura e, por loja, o preço da oferta e o preço que
 // volta quando acabar (com as margens calculadas na tela). Fica no servidor pra valer em qualquer navegador.
 // Só planejamento — nada é gravado no ERP.
-const PROMO_PROG = path.join(__dirname, 'data', 'promocoes-programadas.json');
-function lerProgramadas() { try { return JSON.parse(fs.readFileSync(PROMO_PROG, 'utf8')); } catch (e) { return {}; } }
-function gravarProgramadas(o) { fs.mkdirSync(path.dirname(PROMO_PROG), { recursive: true }); fs.writeFileSync(PROMO_PROG, JSON.stringify(o, null, 1)); }
-app.get('/api/promocoes/programadas', (req, res) => { res.json({ programadas: lerProgramadas(), hoje: new Date().toLocaleDateString('sv-SE') }); });
+const promoProgPath = d => path.join(__dirname, 'data', d === 8 ? 'promocoes-programadas.json' : `promocoes-programadas-${d}.json`);
+function lerProgramadas(d) { try { return JSON.parse(fs.readFileSync(promoProgPath(d), 'utf8')); } catch (e) { return {}; } }
+function gravarProgramadas(o, d) { const f = promoProgPath(d); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, JSON.stringify(o, null, 1)); }
+app.get('/api/promocoes/programadas', (req, res) => { res.json({ programadas: lerProgramadas(digitoDe(req)), hoje: new Date().toLocaleDateString('sv-SE'), digito: digitoDe(req) }); });
 app.put('/api/promocoes/programadas/:cod', (req, res) => {
   try {
     const cod = String(req.params.cod || '').trim(); const b = req.body || {};
@@ -6731,19 +6740,19 @@ app.put('/api/promocoes/programadas/:cod', (req, res) => {
     const lojas = {};
     for (const ln of [1, 2, 3, 4, 5, 6]) { const l = (b.lojas || {})[ln] || {}; const promo = +l.promo || 0, fim = +l.fim || 0; if (promo > 0 || fim > 0) lojas[ln] = { promo: +promo.toFixed(2) || null, fim: +fim.toFixed(2) || null }; }
     if (!Object.keys(lojas).length && !ate) return res.status(400).json({ error: 'Informe pelo menos um preço ou a data de fim.' });
-    const all = lerProgramadas(); const ant = all[cod] || {};
+    const dg = digitoDe(req); const all = lerProgramadas(dg); const ant = all[cod] || {};
     all[cod] = { descricao: String(b.descricao || ant.descricao || '').slice(0, 120), inicio, ate, lojas, obs: String(b.obs || '').slice(0, 300),
                  criadoEm: ant.criadoEm || new Date().toISOString(), atualizadoEm: new Date().toISOString(), por: (req.session && req.session.user && req.session.user.nome) || null };
-    gravarProgramadas(all); res.json({ ok: true, programada: all[cod] });
+    gravarProgramadas(all, dg); res.json({ ok: true, programada: all[cod] });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.delete('/api/promocoes/programadas/:cod', (req, res) => {
-  try { const all = lerProgramadas(); delete all[String(req.params.cod || '').trim()]; gravarProgramadas(all); res.json({ ok: true }); }
+  try { const dg = digitoDe(req); const all = lerProgramadas(dg); delete all[String(req.params.cod || '').trim()]; gravarProgramadas(all, dg); res.json({ ok: true }); }
   catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.get('/api/promocoes/final-8.csv', async (req, res) => {
   try {
-    const d = await coletarPromocoesFinal8(false);
+    const dg = digitoDe(req); const d = await coletarPromocoesFinal8(false, dg);
     const loja = parseInt(req.query.loja) || 0;
     const esc = v => { const s = String(v ?? ''); return /[;"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
     const n = v => v == null ? '' : String(v).replace('.', ',');
@@ -6756,10 +6765,13 @@ app.get('/api/promocoes/final-8.csv', async (req, res) => {
       o.push(r.promoLojas.map(x => 'L' + x).join(' '), n(r.estoquePromo), n(r.valorPromo), r.novoDesde || '', (r.novoLojas || []).map(x => 'L' + x).join(' '), r.atualizadoEm || '', (r.atualizadoLojas || []).map(x => 'L' + x).join(' '));
       return o.map(esc).join(';');
     });
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8'); res.setHeader('Content-Disposition', `attachment; filename="promocoes-final-8${loja ? '-L' + loja : ''}.csv"`);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8'); res.setHeader('Content-Disposition', `attachment; filename="${PROMO_ROTULO[dg].arq}-final-${dg}${loja ? '-L' + loja : ''}.csv"`);
     res.send('\ufeff' + [head.map(esc).join(';')].concat(rows).join('\r\n'));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+
+// Radar Prevenção (grupo Prevenção da sidebar): mesma página de Promoções, que lê o dígito 7 pela própria URL
+app.get('/radar-prevencao.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'promocoes.html')));
 
 app.get('/api/listas-compra/sortimento', (req, res) => {
   try {

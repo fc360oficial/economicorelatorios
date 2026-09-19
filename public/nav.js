@@ -79,7 +79,8 @@
         { href: '/promocoes.html', ic: 'tag', txt: 'Promoções' }
       ]},
     { id: 'prevencao', ic: 'shield', txt: 'Prevenção', sub: [
-        { href: '/prevencao.html', ic: 'shield', txt: 'Fechamento de Mês' }
+        { href: '/prevencao.html', ic: 'shield', txt: 'Fechamento de Mês' },
+        { href: '/radar-prevencao.html', ic: 'shield', txt: 'Radar Prevenção' }
       ]},
     { id: 'processos', ic: 'folder', txt: 'Processos', sub: [
         { href: '/pendencias.html', ic: 'alert', txt: 'Pendências' },
