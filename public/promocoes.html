@@ -130,6 +130,7 @@ table.pt td.preco{font-weight:800;font-size:14px}
 table.pt td.preco.promo{color:var(--brand-ink)}
 table.pt td.preco .tag{display:inline-block;font-size:9px;font-weight:800;background:#FFF6D9;color:var(--brand-ink);border:1px solid #F5B80066;border-radius:4px;padding:0 5px;margin-left:5px;vertical-align:2px}
 table.pt td .sub{display:block;font-size:10.5px;color:var(--ink-3);font-weight:500}
+table.pt td .sub.media{color:#2E5E8C;font-weight:700}
 table.pt .mg{font-weight:700}
 table.pt .mg.alta{color:#137A48}.mg.media{color:#B45C00}.mg.baixa{color:#C22F49}
 table.pt .abc{display:inline-block;width:24px;height:24px;line-height:24px;border-radius:6px;font-weight:800;text-align:center}
@@ -323,6 +324,7 @@ function temSugestao(cod) { const s = lerSug()[cod]; return !!(s && Object.value
 const num = v => { let s = String(v ?? '').trim(); if (!s) return 0; if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.'); else if ((s.match(/\./g) || []).length > 1) s = s.replace(/\./g, ''); const n = parseFloat(s); return isFinite(n) ? n : 0; };   // aceita 9,98 · 9.98 · 1.234,56
 const numSimples = v => { const n = parseFloat(String(v ?? '').replace(',', '.')); return isFinite(n) ? n : 0; };
 const mgCls = m => m == null ? '' : (m < 10 ? 'baixa' : (m < 25 ? 'media' : 'alta'));
+const fmtMedia = v => (+v || 0).toLocaleString('pt-BR', { minimumFractionDigits: v >= 10 ? 0 : 1, maximumFractionDigits: v >= 10 ? 0 : 1 });
 const fmtDt = s => s ? s.slice(8, 10) + '/' + s.slice(5, 7) + '/' + s.slice(0, 4) : '—';
 const diasDesde = s => s ? Math.round((Date.now() - new Date(s + 'T12:00:00').getTime()) / 86400000) : null;
 
@@ -357,7 +359,7 @@ function renderProduto() {
       '<td' + (l.estoque < 0 ? ' style="color:#C22F49;font-weight:700"' : (l.estoque > 0 ? ' style="font-weight:700"' : ' style="color:var(--ink-3)"')) + '>' + fmtN(l.estoque) + (l.estoque > 0 && l.custo > 0 ? '<span class="sub">' + fmtRS(l.estoque * l.custo) + ' a custo</span>' : '') + '</td>' +
       '<td>' + fmtDt(l.ultimaCompra) + '</td>' +
       '<td>' + fmtDt(l.ultimaVenda) + (l.ultimaVenda ? '<span class="sub">' + (dv === 0 ? 'hoje' : dv + ' d atrás') + (l.ultimaVendaQtd ? ' · ' + fmtN(l.ultimaVendaQtd) + ' un no dia' : '') + '</span>' : '<span class="sub">sem venda em 12 m</span>') + '</td>' +
-      '<td>' + (l.qtd90 > 0 ? fmtN(Math.round(l.qtd90)) + '<span class="sub">' + fmtRS(l.venda90) + '</span>' : '<span style="color:var(--ink-3)">0</span>') + '</td>' +
+      '<td>' + (l.qtd90 > 0 ? fmtN(Math.round(l.qtd90)) + '<span class="sub">' + fmtRS(l.venda90) + '</span><span class="sub media" title="unidades por dia nos últimos ' + p.abc_dias + ' dias">' + fmtMedia(l.qtd90 / p.abc_dias) + ' un/dia</span>' : '<span style="color:var(--ink-3)">0</span>') + '</td>' +
       '<td class="c"><span class="abc ' + (l.abc && l.abc !== '—' ? l.abc : 'x') + '" title="' + (l.rank ? 'posição ' + l.rank + ' na loja' : 'sem venda no período') + '">' + (l.abc == null ? '…' : l.abc) + '</span></td>' +
       '<td class="novo"><input class="np" type="text" inputmode="decimal" placeholder="0,00" value="' + (np != null ? fmtR(np) : '') + '" data-loja="' + l.loja + '" oninput="onSug(this)" onkeydown="if(event.key===\'Enter\'){this.blur()}"></td>' +
       '<td class="novo nm mg ' + mgCls(nm) + '" id="nm-' + l.loja + '">' + (nm != null ? nm.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + '%' : '<span style="color:var(--ink-3);font-weight:500">—</span>') +
@@ -367,10 +369,10 @@ function renderProduto() {
   const ls = p.lojas; const estT = ls.reduce((s, l) => s + Math.max(0, l.estoque), 0), custoT = ls.reduce((s, l) => s + Math.max(0, l.estoque) * l.custo, 0), q90 = ls.reduce((s, l) => s + l.qtd90, 0), v90 = ls.reduce((s, l) => s + l.venda90, 0);
   const mgs = ls.filter(l => l.margem != null); const mgMed = mgs.length ? mgs.reduce((s, l) => s + l.margem, 0) / mgs.length : null;
   document.getElementById('p-body').innerHTML = '<table class="pt"><thead><tr>' +
-    '<th>Loja</th><th>Preço atual</th><th>Preço de compra</th><th title="(preço − custo) ÷ custo">Margem s/ custo</th><th>Estoque atual</th><th title="custoloja.UltimaCompra do ERP">Última compra</th><th title="último cupom com o produto na loja (até 12 meses)">Última venda</th><th title="unidades vendidas nos últimos 90 dias; embaixo, em R$">Venda 90 d</th><th class="c">ABC</th>' +
+    '<th>Loja</th><th>Preço atual</th><th>Preço de compra</th><th title="(preço − custo) ÷ custo">Margem s/ custo</th><th>Estoque atual</th><th title="custoloja.UltimaCompra do ERP">Última compra</th><th title="último cupom com o produto na loja (até 12 meses)">Última venda</th><th title="unidades vendidas nos últimos 90 dias; embaixo, em R$ e a média de unidades por dia">Venda 90 d</th><th class="c">ABC</th>' +
     '<th class="novo">Novo preço</th><th class="novo" title="margem sobre o custo se o novo preço valer">Margem nova</th></tr></thead>' +
     '<tbody>' + ls.map(linha).join('') + '</tbody>' +
-    '<tfoot><tr><td>Total</td><td></td><td></td><td class="mg ' + mgCls(mgMed) + '">' + (mgMed != null ? mgMed.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + '%<small> média</small>' : '—') + '</td><td>' + fmtN(estT) + '<span class="sub">' + fmtRS(custoT) + ' a custo</span></td><td></td><td></td><td>' + fmtN(Math.round(q90)) + '<span class="sub">' + fmtRS(v90) + '</span></td><td></td><td class="novo"></td><td class="novo"></td></tr></tfoot></table>' +
+    '<tfoot><tr><td>Total</td><td></td><td></td><td class="mg ' + mgCls(mgMed) + '">' + (mgMed != null ? mgMed.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + '%<small> média</small>' : '—') + '</td><td>' + fmtN(estT) + '<span class="sub">' + fmtRS(custoT) + ' a custo</span></td><td></td><td></td><td>' + fmtN(Math.round(q90)) + '<span class="sub">' + fmtRS(v90) + '</span><span class="sub media">' + fmtMedia(q90 / p.abc_dias) + ' un/dia</span></td><td></td><td class="novo"></td><td class="novo"></td></tr></tfoot></table>' +
     '<div class="pnl-nota"><b>Como usar:</b> digite o novo preço na loja (ou em todas, embaixo) e a margem nova aparece na hora, com a variação em relação ao preço atual. Isso é só análise — nada é gravado no ERP. ' +
     '<b>Preço final 8</b> = promoção em loja. <b>Estoque a custo</b> = estoque × custo da loja. Dados do ERP em tempo real; ABC de ' + (p.abc_calculadoEm ? new Date(p.abc_calculadoEm).toLocaleString('pt-BR') : '—') + '.</div>';
 }
