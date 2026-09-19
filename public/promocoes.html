@@ -106,6 +106,11 @@ td.desc .novo-tag small{font-weight:600;opacity:.85;margin-left:3px}
 tr.novo td.cod{border-left:3px solid #C22F49}
 td.lj .nv{display:inline-block;font-size:8.5px;font-weight:800;color:#fff;background:#C22F49;border-radius:3px;padding:0 4px;margin-left:4px;vertical-align:2px}
 .chip.novos{border-color:#C22F49;color:#C22F49}.chip.novos.on{background:#C22F49;border-color:#C22F49;color:#fff}
+td.desc .novo-tag.atu{background:#2E5E8C}
+tr.atualizado td.cod{border-left:3px solid #2E5E8C}
+td.lj .nv.atu{background:#2E5E8C}
+td.lj .antes{display:block;font-size:9.5px;color:#2E5E8C;font-weight:600;text-decoration:line-through;line-height:1}
+.chip.atus{border-color:#2E5E8C;color:#2E5E8C}.chip.atus.on{background:#2E5E8C;border-color:#2E5E8C;color:#fff}
 td.desc .sug{display:inline-block;font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:4px;margin-left:6px;vertical-align:1px;background:#E9EEF6;color:#2E5E8C;border:1px solid #2E5E8C33}
 
 /* painel do produto (precificar de novo) */
@@ -191,6 +196,7 @@ table.pt tfoot td small{font-weight:500;color:var(--ink-3)}
       <span class="chip" data-sit="parcial" onclick="setSit('parcial')" title="Preço final 8 só em algumas lojas">Só em algumas lojas</span>
       <span class="chip" data-sit="sem-estoque" onclick="setSit('sem-estoque')" title="Em promoção mas sem estoque nas lojas em promoção">Sem estoque</span>
       <span class="chip novos" data-sit="novos" onclick="setSit('novos')" title="Produtos que apareceram com preço final 8 nos últimos 10 dias">★ Novos <span id="chip-novos-n"></span></span>
+      <span class="chip atus" data-sit="atualizados" onclick="setSit('atualizados')" title="Já estavam em promoção e o preço mudou (continuando final 8) nos últimos 10 dias">↻ Atualizados <span id="chip-atus-n"></span></span>
       <span class="chip" data-sit="margem-baixa" onclick="setSit('margem-baixa')" title="Alguma loja em promoção com margem sobre o custo abaixo de 10%">Margem &lt; 10%</span>
     </div>
     <label title="Só mostra produtos com estoque maior que zero em alguma loja em promoção"><input type="checkbox" id="f-com-estoque" onchange="render()"> só com estoque</label>
@@ -217,7 +223,7 @@ table.pt tfoot td small{font-weight:500;color:var(--ink-3)}
       <tbody id="tbody"><tr><td colspan="11"><div class="spinner"></div></td></tr></tbody>
     </table>
   </div>
-  <div class="legenda"><span><span class="sw"></span>amarelo = preço final 8 (promoção) na loja</span><span><b style="color:#C22F49">★ NOVO</b> = apareceu com final 8 nos últimos 10 dias (fica no topo)</span><span>em cada loja: <b>preço</b> · estoque · custo · margem s/ custo</span><span>margem: <b style="color:#137A48">verde ≥ 25%</b> · <b style="color:#B45C00">laranja 10–25%</b> · <b style="color:#C22F49">vermelha &lt; 10%</b></span><span>cartões: itens com final 8 na loja · estoque × custo / × preço · margem média simples</span></div>
+  <div class="legenda"><span><span class="sw"></span>amarelo = preço final 8 (promoção) na loja</span><span><b style="color:#C22F49">★ NOVO</b> = apareceu com final 8 nos últimos 10 dias (fica no topo)</span><span><b style="color:#2E5E8C">↻ ATUALIZADO</b> = já era promoção e o preço mudou (continua final 8) nos últimos 10 dias · preço anterior riscado na loja</span><span>em cada loja: <b>preço</b> · estoque · custo · margem s/ custo</span><span>margem: <b style="color:#137A48">verde ≥ 25%</b> · <b style="color:#B45C00">laranja 10–25%</b> · <b style="color:#C22F49">vermelha &lt; 10%</b></span><span>cartões: itens com final 8 na loja · estoque × custo / × preço · margem média simples</span></div>
 </div>
 
 <script>
@@ -257,6 +263,7 @@ function render() {
     if (SIT === 'parcial') return r.promoLojas.length > 0 && r.promoLojas.length < LOJAS.length;
     if (SIT === 'sem-estoque') return r.estoquePromo <= 0;
     if (SIT === 'novos') return !!r.novo;
+    if (SIT === 'atualizados') return !!r.atualizado;
     if (SIT === 'margem-baixa') return r.promoLojas.some(ln => r.lojas[ln].margem != null && r.lojas[ln].margem < 10);
     return true;
   };
@@ -271,8 +278,10 @@ function render() {
     if (/^l\d$/.test(ORD)) { const l = r.lojas[ORD[1]]; return l.promo ? l.preco : -1; }
     return r[ORD];
   };
-  rows.sort((a, b2) => { if (!!a.novo !== !!b2.novo) return a.novo ? -1 : 1; const x = val(a), y = val(b2); const c = typeof x === 'string' ? x.localeCompare(y, 'pt-BR') : (x - y); return DIR === 'asc' ? c : -c; });
+  const pri = r => r.novo ? 0 : (r.atualizado ? 1 : 2);
+  rows.sort((a, b2) => { if (pri(a) !== pri(b2)) return pri(a) - pri(b2); const x = val(a), y = val(b2); const c = typeof x === 'string' ? x.localeCompare(y, 'pt-BR') : (x - y); return DIR === 'asc' ? c : -c; });
   const nNovos = DATA.rows.filter(r => r.novo).length; const cn = document.getElementById('chip-novos-n'); if (cn) cn.textContent = nNovos ? '(' + nNovos + ')' : '';
+  const nAtus = DATA.rows.filter(r => r.atualizado).length; const ca = document.getElementById('chip-atus-n'); if (ca) ca.textContent = nAtus ? '(' + nAtus + ')' : '';
   document.querySelectorAll('#tabela th').forEach(th => th.classList.toggle('sorted', th.dataset.ord === ORD));
 
   // KPIs
@@ -308,13 +317,15 @@ function render() {
     const mgCls = l.margem == null ? '' : (l.margem < 10 ? ' baixa' : (l.margem < 25 ? ' media' : ''));
     const mg = l.promo && l.margem != null ? '<span class="mg' + mgCls + '" title="margem sobre o custo">' + l.margem.toLocaleString('pt-BR', { maximumFractionDigits: 0 }) + '%</span>' : '';
     return '<td class="lj' + (l.promo ? ' promo' : '') + '" title="' + (l.promo ? 'EM PROMOÇÃO (preço final 8) · estoque ' + fmtN(l.estoque) + ' · custo ' + fmtR(l.custo) : 'preço normal · estoque ' + fmtN(l.estoque) + ' · custo ' + fmtR(l.custo)) + '">' +
-      '<div class="p">' + fmtR(l.preco) + (l.novo ? '<span class="nv" title="final 8 nesta loja desde ' + fmtDt(l.desde) + '">novo</span>' : '') + '</div>' +
+      '<div class="p">' + fmtR(l.preco) + (l.novo ? '<span class="nv" title="final 8 nesta loja desde ' + fmtDt(l.desde) + '">novo</span>' : (l.atualizado ? '<span class="nv atu" title="preço mudou em ' + fmtDt(l.atualizadoEm) + ' (antes ' + fmtR(l.precoAnterior) + ')">atualizado</span>' : '')) + '</div>' +
+      (l.atualizado && l.precoAnterior > 0 ? '<span class="antes" title="preço anterior">' + fmtR(l.precoAnterior) + '</span>' : '') +
       '<div class="s"><span title="estoque">' + est + '</span><span title="custo">' + (l.custo > 0 ? fmtR(l.custo) : '<span class="zero">s/ custo</span>') + '</span>' + mg + '</div></td>';
   };
   const tag = r => r.promoLojas.length === LOJAS.length ? '<span class="lj-tag todas" title="preço final 8 nas 6 lojas">6 lojas</span>'
     : '<span class="lj-tag" title="lojas com preço final 8">' + r.promoLojas.map(x => 'L' + x).join(' ') + '</span>';
-  const novoTag = r => r.novo ? '<span class="novo-tag" title="apareceu com preço final 8 em ' + fmtDt(r.novoDesde) + (r.novoLojas.length < r.promoLojas.length ? ' · lojas novas: ' + r.novoLojas.map(x => 'L' + x).join(' ') : '') + '">★ NOVO<small>' + fmtDt(r.novoDesde).slice(0, 5) + '</small></span>' : '';
-  tb.innerHTML = rows.map((r, i) => '<tr' + (r.novo ? ' class="novo"' : '') + '>' +
+  const novoTag = r => r.novo ? '<span class="novo-tag" title="apareceu com preço final 8 em ' + fmtDt(r.novoDesde) + (r.novoLojas.length < r.promoLojas.length ? ' · lojas novas: ' + r.novoLojas.map(x => 'L' + x).join(' ') : '') + '">★ NOVO<small>' + fmtDt(r.novoDesde).slice(0, 5) + '</small></span>'
+    : (r.atualizado ? '<span class="novo-tag atu" title="preço mudou continuando com final 8 em ' + fmtDt(r.atualizadoEm) + ' · lojas: ' + r.atualizadoLojas.map(x => 'L' + x).join(' ') + '">↻ ATUALIZADO<small>' + fmtDt(r.atualizadoEm).slice(0, 5) + '</small></span>' : '');
+  tb.innerHTML = rows.map((r, i) => '<tr' + (r.novo ? ' class="novo"' : (r.atualizado ? ' class="atualizado"' : '')) + '>' +
     '<td style="color:var(--ink-3)">' + (i + 1) + '</td>' +
     '<td class="cod">' + esc(r.cod) + '</td>' +
     '<td class="desc"><span class="nome" onclick="abrirProduto(\'' + esc(r.cod) + '\')" title="Abrir as 6 lojas e precificar de novo">' + esc(r.descricao) + '</span>' + novoTag(r) + tag(r) + (temSugestao(r.cod) ? '<span class="sug" title="tem sugestão de preço salva">sugestão</span>' : '') + '<small>' + [r.unid, r.grupo, r.subgrupo, r.balanca ? 'balança' : ''].filter(Boolean).map(esc).join(' · ') + '</small></td>' +

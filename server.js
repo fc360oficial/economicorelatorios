@@ -6502,17 +6502,26 @@ async function coletarPromocoesFinal8(force) {
     let vistos = null; try { vistos = JSON.parse(fs.readFileSync(PROMO_VISTOS, 'utf8')); } catch (e) {}
     const primeira = !vistos || !vistos.itens; if (primeira) vistos = { base: hojeStr, itens: {} };
     const atuais = new Set(); let mudou = primeira;
-    for (const r of rows) for (const ln of r.promoLojas) { const k = r.cod + '|' + ln; atuais.add(k);
-      if (!vistos.itens[k]) { vistos.itens[k] = primeira ? { desde: hojeStr, base: true } : { desde: hojeStr }; mudou = true; } }
+    // ATUALIZADO (Tiago, 18/09): já estava em promoção e o preço mudou continuando com final 8 → marca por 10 dias, com o preço anterior
+    for (const r of rows) for (const ln of r.promoLojas) { const k = r.cod + '|' + ln; atuais.add(k); const pr = r.lojas[ln].preco;
+      const v = vistos.itens[k];
+      if (!v) { vistos.itens[k] = primeira ? { desde: hojeStr, base: true, preco: pr } : { desde: hojeStr, preco: pr }; mudou = true; }
+      else if (v.preco == null) { v.preco = pr; mudou = true; }                                   // registro antigo, sem preço guardado: só aprende
+      else if (Math.abs(v.preco - pr) >= 0.005) { v.precoAnterior = v.preco; v.preco = pr; v.alteradoEm = hojeStr; mudou = true; } }
     for (const k of Object.keys(vistos.itens)) if (!atuais.has(k)) { delete vistos.itens[k]; mudou = true; }
     if (mudou) { try { fs.mkdirSync(path.dirname(PROMO_VISTOS), { recursive: true }); fs.writeFileSync(PROMO_VISTOS, JSON.stringify(vistos)); } catch (e) { console.error('[PROMO] gravar vistos:', e.message); } }
     const dias = d => Math.floor((Date.parse(hojeStr) - Date.parse(d)) / 86400000);
     for (const r of rows) { let novoDesde = null;
       for (const ln of r.promoLojas) { const v = vistos.itens[r.cod + '|' + ln]; const l = r.lojas[ln]; l.desde = v ? v.desde : null;
-        l.novo = !!(v && !v.base && dias(v.desde) < PROMO_NOVO_DIAS); if (l.novo && (!novoDesde || v.desde < novoDesde)) novoDesde = v.desde; }
-      r.novo = !!novoDesde; r.novoDesde = novoDesde; r.novoLojas = r.promoLojas.filter(ln => r.lojas[ln].novo); }
+        l.novo = !!(v && !v.base && dias(v.desde) < PROMO_NOVO_DIAS); if (l.novo && (!novoDesde || v.desde < novoDesde)) novoDesde = v.desde;
+        l.atualizado = !!(v && v.alteradoEm && !l.novo && dias(v.alteradoEm) < PROMO_NOVO_DIAS);
+        l.atualizadoEm = l.atualizado ? v.alteradoEm : null; l.precoAnterior = l.atualizado ? v.precoAnterior : null; }
+      r.novo = !!novoDesde; r.novoDesde = novoDesde; r.novoLojas = r.promoLojas.filter(ln => r.lojas[ln].novo);
+      r.atualizadoLojas = r.promoLojas.filter(ln => r.lojas[ln].atualizado);
+      r.atualizado = !r.novo && r.atualizadoLojas.length > 0;
+      r.atualizadoEm = r.atualizado ? r.atualizadoLojas.map(ln => r.lojas[ln].atualizadoEm).sort().pop() : null; }
   } catch (e) { console.error('[PROMO] novos:', e.message); }
-  const data = { geradoEm: new Date().toISOString(), ativos_conferidos: itens.length, total_produtos: rows.length, novos: rows.filter(r => r.novo).length, novo_dias: PROMO_NOVO_DIAS,
+  const data = { geradoEm: new Date().toISOString(), ativos_conferidos: itens.length, total_produtos: rows.length, novos: rows.filter(r => r.novo).length, atualizados: rows.filter(r => r.atualizado).length, novo_dias: PROMO_NOVO_DIAS,
                  por_loja: Object.fromEntries(LOJAS.map(ln => [ln, rows.filter(r => r.lojas[ln].promo).length])),
                  itens_loja: rows.reduce((s, r) => s + r.promoLojas.length, 0), valor_estoque_promo: +rows.reduce((s, r) => s + r.valorPromo, 0).toFixed(2), rows };
   _promoCache = { ts: Date.now(), data };
@@ -6607,11 +6616,11 @@ app.get('/api/promocoes/final-8.csv', async (req, res) => {
     const n = v => v == null ? '' : String(v).replace('.', ',');
     const head = ['Código de barras', 'Descrição', 'Unid', 'Grupo', 'Subgrupo'];
     for (const ln of [1, 2, 3, 4, 5, 6]) head.push(`Estoque L${ln}`, `Custo L${ln}`, `Preço L${ln}`, `Promo L${ln}`);
-    head.push('Lojas em promoção', 'Estoque em promoção', 'R$ custo em promoção', 'Novo desde', 'Lojas novas');
+    head.push('Lojas em promoção', 'Estoque em promoção', 'R$ custo em promoção', 'Novo desde', 'Lojas novas', 'Atualizado em', 'Lojas atualizadas');
     const rows = d.rows.filter(r => !loja || r.lojas[loja].promo).map(r => {
       const o = [r.cod, r.descricao, r.unid, r.grupo || '', r.subgrupo || ''];
       for (const ln of [1, 2, 3, 4, 5, 6]) { const l = r.lojas[ln]; o.push(n(l.estoque), n(l.custo), n(l.preco), l.promo ? 'SIM' : ''); }
-      o.push(r.promoLojas.map(x => 'L' + x).join(' '), n(r.estoquePromo), n(r.valorPromo), r.novoDesde || '', (r.novoLojas || []).map(x => 'L' + x).join(' '));
+      o.push(r.promoLojas.map(x => 'L' + x).join(' '), n(r.estoquePromo), n(r.valorPromo), r.novoDesde || '', (r.novoLojas || []).map(x => 'L' + x).join(' '), r.atualizadoEm || '', (r.atualizadoLojas || []).map(x => 'L' + x).join(' '));
       return o.map(esc).join(';');
     });
     res.setHeader('Content-Type', 'text/csv; charset=utf-8'); res.setHeader('Content-Disposition', `attachment; filename="promocoes-final-8${loja ? '-L' + loja : ''}.csv"`);
