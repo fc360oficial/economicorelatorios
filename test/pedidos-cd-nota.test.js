@@ -118,3 +118,15 @@ test('nota apagada na loja: recebimento é desfeito e o pedido volta pra separad
   const r2 = cd.obterPedido(p.id);
   assert.equal(r2.status, 'recebido'); assert.deepEqual(r2.recebimento.notas.map(n => n.nNota), ['5010']);
 });
+
+test('nota avulsa da loja que só tem 1 item do pedido não entra no recebimento (casamento por código)', async () => {
+  // pedido com 4 itens vinculados; a nota 4942 (avulsa) só bate com o INVICTO → cobre 1/4, fica de fora; sem outra nota → segue sem recebimento
+  cd.salvarVinculo({ codigoCD: '17898505140211', unidade: '7898505140221', unPorCaixa: 25, usuario: 't' });
+  cd.salvarVinculo({ codigoCD: '17898505140228', unidade: '7898505140222', unPorCaixa: 25, usuario: 't' });
+  cd.salvarVinculo({ codigoCD: '77900204348705', unidade: '7900204450027', unPorCaixa: 6, usuario: 't' });
+  linhas = [{ nNota: '4942', d: '2026-09-16', item: 11, codLoja: '7898031170341', un: 24, codCD: '17898031170355' }];
+  const [p] = cd.criarPedidos({ lojas: { 6: [{ codigoCD: '77900204348705', caixas: 1 }, { codigoCD: '17898031170355', caixas: 1 }, { codigoCD: '17898505140211', caixas: 1 }, { codigoCD: '17898505140228', caixas: 1 }] }, usuario: 'tiago' });
+  await cd.verificar();
+  const r = cd.obterPedido(p.id);
+  assert.ok(!r.recebimento); assert.equal(r.itens.find(i => i.codigoCD === '17898031170355').recebidas, 0);
+});
