@@ -221,6 +221,8 @@ app.use((req, res, next) => {
   if (/^\/cd\/[a-f0-9]{32}(,[a-f0-9]{32}){0,20}$/.test(req.path) || /^\/api\/cd-publico\/[a-f0-9]{32}(,[a-f0-9]{32}){0,20}$/.test(req.path)) return next();
   // Link do fornecedor na Cotação: mesmo esquema (token de 32 hex por fornecedor convidado)
   if (/^\/cotacao\/[a-f0-9]{32}$/.test(req.path) || /^\/api\/cotacao-publica\/[a-f0-9]{32}(\/|$)/.test(req.path)) return next();
+  // PDF de promoções/preços off: público por token de 32 hex (pra mandar no WhatsApp)
+  if (/^\/promocoes\/pdf\/[a-f0-9]{32}\.pdf$/.test(req.path)) return next();
   // App de contagem de negativos no celular do auxiliar: entra por PIN da loja,
   // depois manda o token (32 hex) em toda chamada — validado dentro da rota
   if (req.path === '/contagem.html' || req.path === '/contagem' || req.path === '/manifest-contagem.json' || req.path.startsWith('/api/contagem-publica/')) return next();
@@ -6607,6 +6609,84 @@ app.get('/api/promocoes/produto/:cod', async (req, res) => {
                grupo: (it.grupo || '').trim() || null, subgrupo: (it.subgrupo || '').trim() || null,
                abc_calculadoEm: _abcLojasCache ? _abcLojasCache.calculadoEm : null, abc_pendente: !_abcLojasCache, abc_dias: 90, abc_cortes: ABC_LOJAS_CORTES, lojas });
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── PROMOÇÕES: PDF dos preços off (tudo ou só alterados) com link público pra WhatsApp ──────────────────────────
+// Tiago (18/09/2026): os preços novos são digitados "off" na tela (não vão pro ERP). Gera um PDF de tudo ou só dos
+// itens alterados, com link público por token (mesmo esquema do /pedido/<token>), pra imprimir ou mandar no WhatsApp
+// e alterar manualmente no ERP. PDFs ficam em data/promocoes-pdf/, apagados depois de 30 dias.
+const PROMO_PDF_DIR = path.join(__dirname, 'data', 'promocoes-pdf');
+app.post('/api/promocoes/pdf', async (req, res) => {
+  try {
+    const { modo, sugestoes, loja } = req.body || {};
+    const sug = sugestoes && typeof sugestoes === 'object' ? sugestoes : {};
+    const lojaF = parseInt(loja) || 0;
+    const d = await coletarPromocoesFinal8(false);
+    const NOMES = { 1: 'CAHU', 2: 'MURIBECA', 3: 'PONTE', 4: 'ATACAREJO', 5: 'PORTA LARGA', 6: 'JARDIM JORDÃO' };
+    const novoDe = (cod, ln) => { const v = sug[cod] && +sug[cod][ln]; return v > 0 ? +v : null; };
+    const soAlterados = modo === 'alterados';
+    fs.mkdirSync(PROMO_PDF_DIR, { recursive: true });
+    try { const lim = Date.now() - 30 * 86400000; for (const f of fs.readdirSync(PROMO_PDF_DIR)) { const fp = path.join(PROMO_PDF_DIR, f); if (fs.statSync(fp).mtimeMs < lim) fs.unlinkSync(fp); } } catch (e) {}
+    const PDFDocument = require('pdfkit');
+    const f2 = v => Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const geradoEm = new Date().toLocaleString('pt-BR');
+    const lojasPdf = lojaF ? [lojaF] : [1, 2, 3, 4, 5, 6];
+    const saida = [];
+    for (const ln of lojasPdf) {
+      // Tiago (18/09): cada PDF é de UMA loja e só tem código de barras · descrição · preço de venda (o novo, se houver preço off; senão o atual)
+      let rows = d.rows.filter(r => soAlterados ? !!novoDe(r.cod, ln) : (r.lojas[ln].promo || novoDe(r.cod, ln)));
+      if (!rows.length) { saida.push({ loja: ln, nome: NOMES[ln], produtos: 0, url: null, path: null }); continue; }
+      rows.sort((x, y) => (x.grupo || '').localeCompare(y.grupo || '', 'pt-BR') || x.descricao.localeCompare(y.descricao, 'pt-BR'));
+      const token = require('crypto').randomBytes(16).toString('hex');
+      const arq = path.join(PROMO_PDF_DIR, token + '.pdf');
+      const titulo = `LOJA ${ln} · ${NOMES[ln]} · ${soAlterados ? 'PREÇOS PARA ALTERAR NO ERP' : 'PROMOÇÕES (PREÇO FINAL 8)'}`;
+      const doc = new PDFDocument({ size: 'A4', margin: 30, info: { Title: titulo } });
+      const out = fs.createWriteStream(arq); doc.pipe(out);
+      const W = doc.page.width - 60, H = doc.page.height;
+      const cCod = 112, cPreco = 88, cOk = 26, cProd = W - cCod - cPreco - cOk;
+      const nNovos = rows.filter(r => novoDe(r.cod, ln)).length;
+      const cab = () => {
+        doc.rect(30, 30, W, 44).fill('#101B33');
+        try { doc.image(path.join(__dirname, 'public', 'logo-supermercados.png'), 38, 36, { height: 20 }); } catch (e) {}
+        doc.fillColor('#FFC933').font('Helvetica-Bold').fontSize(7.5).text('ECONOMICO SUPERMERCADO · REDE CAHU · PROMOÇÕES', 70, 37);
+        doc.fillColor('#FFFFFF').fontSize(13).text(titulo, 70, 49);
+        doc.font('Helvetica').fontSize(7.5).fillColor('#AEB8CE').text(`${rows.length} produto(s)${nNovos ? ' · ' + nNovos + ' preço(s) novo(s)' : ''} · ${geradoEm}`, 38, 62, { width: W - 16, align: 'right', lineBreak: false });
+        let y = 84; doc.rect(30, y, W, 18).fill('#EBEBE9');
+        doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#4E5A72');
+        doc.text('CÓDIGO DE BARRAS', 34, y + 6, { width: cCod - 4, lineBreak: false });
+        doc.text('PRODUTO', 34 + cCod, y + 6, { width: cProd - 4, lineBreak: false });
+        doc.text('PREÇO DE VENDA', 34 + cCod + cProd, y + 6, { width: cPreco - 8, align: 'right', lineBreak: false });
+        doc.text('OK', 34 + cCod + cProd + cPreco, y + 6, { width: cOk - 4, align: 'center', lineBreak: false });
+        return y + 22;
+      };
+      let y = cab(); const RH = 17; let k = 0, grupoAtual = null;
+      for (const r of rows) {
+        if (y > H - 50) { doc.addPage(); y = cab(); }
+        if ((r.grupo || '') !== grupoAtual) { grupoAtual = r.grupo || ''; if (y > H - 70) { doc.addPage(); y = cab(); }
+          doc.rect(30, y, W, 12).fill('#F5F0E6'); doc.fillColor('#6B4E00').font('Helvetica-Bold').fontSize(7).text((grupoAtual || 'SEM GRUPO').toUpperCase(), 36, y + 3, { lineBreak: false }); y += 14; }
+        const l = r.lojas[ln], nv = novoDe(r.cod, ln), preco = nv || l.preco;
+        if (k++ % 2) doc.rect(30, y - 2, W, RH).fill('#FAFAF8');
+        doc.font('Helvetica').fontSize(9).fillColor('#4E5A72').text(r.cod, 34, y + 3, { width: cCod - 4, lineBreak: false });
+        doc.font('Helvetica-Bold').fontSize(9).fillColor('#0E1626').text(r.descricao, 34 + cCod, y + 3, { width: cProd - 6, lineBreak: false, ellipsis: true });
+        if (nv) { doc.font('Helvetica').fontSize(7).fillColor('#98A0B3').text(l.preco > 0 ? f2(l.preco) : '', 34 + cCod + cProd - 40, y + 5, { width: 38, align: 'right', lineBreak: false }); }
+        doc.font('Helvetica-Bold').fontSize(nv ? 11 : 10).fillColor(nv ? '#0E1626' : '#6B4E00').text(f2(preco), 34 + cCod + cProd, y + 1, { width: cPreco - 8, align: 'right', lineBreak: false });
+        doc.rect(34 + cCod + cProd + cPreco + 6, y + 2, 9, 9).lineWidth(0.7).strokeColor('#0E1626').stroke();
+        y += RH;
+        doc.moveTo(30, y - 2).lineTo(30 + W, y - 2).lineWidth(0.3).strokeColor('#E4E4E1').stroke();
+      }
+      doc.font('Helvetica').fontSize(6.5).fillColor('#98A0B3').text((nNovos ? 'Preço em preto = preço novo (off) a colocar no ERP; o antigo aparece pequeno ao lado. ' : '') + 'Preço em marrom = preço atual (final 8). Marque OK ao alterar no ERP.', 30, H - 40, { width: W, align: 'center', lineBreak: false });
+      doc.end();
+      await new Promise((ok, err) => { out.on('finish', ok); out.on('error', err); });
+      saida.push({ loja: ln, nome: NOMES[ln], produtos: rows.length, precos_novos: nNovos, url: `${PUBLIC_URL}/promocoes/pdf/${token}.pdf`, path: `/promocoes/pdf/${token}.pdf` });
+    }
+    if (!saida.some(x => x.url)) return res.status(400).json({ error: soAlterados ? 'Nenhum item com preço off alterado.' : 'Nenhum item pra gerar.' });
+    res.json({ ok: true, modo: soAlterados ? 'alterados' : 'tudo', geradoEm, lojas: saida });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.get('/promocoes/pdf/:token.pdf', (req, res) => {
+  const t = String(req.params.token || ''); if (!/^[a-f0-9]{32}$/.test(t)) return res.status(404).end();
+  const f = path.join(PROMO_PDF_DIR, t + '.pdf'); if (!fs.existsSync(f)) return res.status(404).send('PDF não encontrado (expira em 30 dias).');
+  res.sendFile(f, { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': 'inline; filename="promocoes-' + t.slice(0, 8) + '.pdf"' } });
 });
 app.get('/api/promocoes/final-8.csv', async (req, res) => {
   try {

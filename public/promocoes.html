@@ -111,6 +111,42 @@ tr.atualizado td.cod{border-left:3px solid #2E5E8C}
 td.lj .nv.atu{background:#2E5E8C}
 td.lj .antes{display:block;font-size:9.5px;color:#2E5E8C;font-weight:600;text-decoration:line-through;line-height:1}
 .chip.atus{border-color:#2E5E8C;color:#2E5E8C}.chip.atus.on{background:#2E5E8C;border-color:#2E5E8C;color:#fff}
+td.lj .off{display:block;font-size:11px;font-weight:800;color:#2E5E8C;margin-top:1px}
+td.lj .off small{font-weight:600;color:#2E5E8C;opacity:.8}
+.md-ov{position:fixed;inset:0;background:#0E162699;z-index:950;display:none;align-items:center;justify-content:center;padding:16px}
+.md-ov.open{display:flex}
+.md{background:var(--surface);border-radius:14px;width:min(640px,100%);max-height:92vh;overflow:auto;box-shadow:0 20px 60px rgba(14,22,38,.35)}
+.md-hd{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;background:#FAFAF8;border-radius:14px 14px 0 0}
+.md-hd h3{font-size:15px;font-weight:800}
+.md-hd .x{margin-left:auto;font:inherit;font-size:20px;background:none;border:none;color:var(--ink-3);cursor:pointer}
+.md-bd{padding:16px 18px}
+.md-bd h4{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-3);margin:12px 0 6px}
+.md-bd h4:first-child{margin-top:0}
+.opt{display:flex;gap:8px;flex-wrap:wrap}
+.opt label{flex:1;min-width:200px;border:1px solid var(--border-strong);border-radius:10px;padding:10px 12px;cursor:pointer;font-size:12.5px;display:flex;gap:8px;align-items:flex-start}
+.opt label:has(input:checked){background:#FFF6D9;border-color:var(--brand)}
+.opt label b{display:block;font-size:13px}
+.opt label small{color:var(--ink-3);font-size:11px}
+.opt label input{margin-top:3px;accent-color:var(--brand)}
+.md-acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;align-items:center}
+.md-lojas{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
+.md-loja{display:flex;gap:10px;align-items:center;border:1px solid var(--border);border-radius:10px;padding:8px 12px;font-size:12.5px}
+.md-loja b{min-width:130px}
+.md-loja span{color:var(--ink-3);flex:1;font-size:11.5px}
+.md-loja.vazia{opacity:.55}
+.md-link{display:flex;gap:6px;align-items:center;margin-top:8px}
+.md-link input{flex:1;font:inherit;font-size:12px;padding:7px 10px;border:1px solid var(--border-strong);border-radius:8px;background:#FAFAF8;color:var(--ink-2)}
+.md-nums textarea{width:100%;font:inherit;font-size:12.5px;padding:8px 10px;border:1px solid var(--border-strong);border-radius:8px;min-height:64px;resize:vertical}
+.md-nums .lista{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.btn-wa{background:#25D366;border-color:#25D366;color:#fff;font-weight:700}
+.btn-wa:hover{background:#1EBE5A}
+.btn-wa.sent{background:#E7F5EC;border-color:#137A48;color:#137A48}
+.md-note{font-size:11px;color:var(--ink-3);margin-top:10px;line-height:1.5}
+.md-note b{color:var(--ink-2)}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;font-size:12.5px;z-index:999;box-shadow:0 6px 20px rgba(14,22,38,.3);display:none}
+.toast.on{display:block}
+.btn.off-n{position:relative}
+.btn.off-n .n{display:inline-block;background:#2E5E8C;color:#fff;border-radius:999px;font-size:10px;padding:1px 7px;margin-left:6px;vertical-align:1px}
 td.desc .sug{display:inline-block;font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:4px;margin-left:6px;vertical-align:1px;background:#E9EEF6;color:#2E5E8C;border:1px solid #2E5E8C33}
 
 /* painel do produto (precificar de novo) */
@@ -175,7 +211,7 @@ table.pt tfoot td small{font-weight:500;color:var(--ink-3)}
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <a class="btn" id="btn-csv" href="/api/promocoes/final-8.csv" target="_blank" title="Baixa em CSV (Excel) a lista completa ou a da loja filtrada">Exportar CSV</a>
-      <button class="btn" onclick="window.print()">Imprimir</button>
+      <button class="btn off-n" onclick="abrirPdf()" title="Gera o PDF (tudo ou só os itens com preço off alterado) pra imprimir ou mandar no WhatsApp">📄 PDF / WhatsApp<span class="n" id="btn-off-n" hidden></span></button>
       <button class="btn btn-amber" onclick="carregar(true)" title="Busca de novo no ERP (a lista fica em cache por 10 min)">↻ Atualizar</button>
     </div>
   </div>
@@ -280,6 +316,7 @@ function render() {
   };
   const pri = r => r.novo ? 0 : (r.atualizado ? 1 : 2);
   rows.sort((a, b2) => { if (pri(a) !== pri(b2)) return pri(a) - pri(b2); const x = val(a), y = val(b2); const c = typeof x === 'string' ? x.localeCompare(y, 'pt-BR') : (x - y); return DIR === 'asc' ? c : -c; });
+  const nOff = Object.keys(lerSug()).filter(c => temSugestao(c)).length; const bo = document.getElementById('btn-off-n'); if (bo) { bo.hidden = !nOff; bo.textContent = nOff + ' off'; }
   const nNovos = DATA.rows.filter(r => r.novo).length; const cn = document.getElementById('chip-novos-n'); if (cn) cn.textContent = nNovos ? '(' + nNovos + ')' : '';
   const nAtus = DATA.rows.filter(r => r.atualizado).length; const ca = document.getElementById('chip-atus-n'); if (ca) ca.textContent = nAtus ? '(' + nAtus + ')' : '';
   document.querySelectorAll('#tabela th').forEach(th => th.classList.toggle('sorted', th.dataset.ord === ORD));
@@ -310,7 +347,7 @@ function render() {
 
   const tb = document.getElementById('tbody');
   if (!rows.length) { tb.innerHTML = '<tr><td colspan="11" class="empty">Nenhum produto com preço final 8 nesse filtro.</td></tr>'; return; }
-  const cel = l => {
+  const cel = (l, r) => {
     if (soPromo && !l.promo) return '<td class="lj vazio"><div class="p">·</div></td>';
     if (!l.promo && !(l.preco > 0)) return '<td class="lj vazio" title="sem preço nesta loja"><div class="p">—</div></td>';
     const est = l.estoque < 0 ? '<span class="neg" title="estoque negativo">' + fmtN(l.estoque) + '</span>' : (l.estoque > 0 ? '<b>' + fmtN(l.estoque) + '</b>' : '<span class="zero">0</span>');
@@ -319,6 +356,7 @@ function render() {
     return '<td class="lj' + (l.promo ? ' promo' : '') + '" title="' + (l.promo ? 'EM PROMOÇÃO (preço final 8) · estoque ' + fmtN(l.estoque) + ' · custo ' + fmtR(l.custo) : 'preço normal · estoque ' + fmtN(l.estoque) + ' · custo ' + fmtR(l.custo)) + '">' +
       '<div class="p">' + fmtR(l.preco) + (l.novo ? '<span class="nv" title="final 8 nesta loja desde ' + fmtDt(l.desde) + '">novo</span>' : (l.atualizado ? '<span class="nv atu" title="preço mudou em ' + fmtDt(l.atualizadoEm) + ' (antes ' + fmtR(l.precoAnterior) + ')">atualizado</span>' : '')) + '</div>' +
       (l.atualizado && l.precoAnterior > 0 ? '<span class="antes" title="preço anterior">' + fmtR(l.precoAnterior) + '</span>' : '') +
+      (offDe(r.cod, l.loja) ? '<span class="off" title="preço off digitado na tela (não está no ERP)">» ' + fmtR(offDe(r.cod, l.loja)) + (l.custo > 0 ? ' <small>' + Math.round(((offDe(r.cod, l.loja) - l.custo) / l.custo) * 100) + '%</small>' : '') + '</span>' : '') +
       '<div class="s"><span title="estoque">' + est + '</span><span title="custo">' + (l.custo > 0 ? fmtR(l.custo) : '<span class="zero">s/ custo</span>') + '</span>' + mg + '</div></td>';
   };
   const tag = r => r.promoLojas.length === LOJAS.length ? '<span class="lj-tag todas" title="preço final 8 nas 6 lojas">6 lojas</span>'
@@ -328,8 +366,8 @@ function render() {
   tb.innerHTML = rows.map((r, i) => '<tr' + (r.novo ? ' class="novo"' : (r.atualizado ? ' class="atualizado"' : '')) + '>' +
     '<td style="color:var(--ink-3)">' + (i + 1) + '</td>' +
     '<td class="cod">' + esc(r.cod) + '</td>' +
-    '<td class="desc"><span class="nome" onclick="abrirProduto(\'' + esc(r.cod) + '\')" title="Abrir as 6 lojas e precificar de novo">' + esc(r.descricao) + '</span>' + novoTag(r) + tag(r) + (temSugestao(r.cod) ? '<span class="sug" title="tem sugestão de preço salva">sugestão</span>' : '') + '<small>' + [r.unid, r.grupo, r.subgrupo, r.balanca ? 'balança' : ''].filter(Boolean).map(esc).join(' · ') + '</small></td>' +
-    LOJAS.map(ln => cel(r.lojas[ln])).join('') +
+    '<td class="desc"><span class="nome" onclick="abrirProduto(\'' + esc(r.cod) + '\')" title="Abrir as 6 lojas e precificar de novo">' + esc(r.descricao) + '</span>' + novoTag(r) + tag(r) + (temSugestao(r.cod) ? '<span class="sug" title="tem preço off digitado (não está no ERP)">preço off</span>' : '') + '<small>' + [r.unid, r.grupo, r.subgrupo, r.balanca ? 'balança' : ''].filter(Boolean).map(esc).join(' · ') + '</small></td>' +
+    LOJAS.map(ln => cel(r.lojas[ln], r)).join('') +
     '<td class="r tot' + (r.estoquePromo > 0 ? '' : ' zero') + '">' + fmtN(r.estoquePromo) + '</td>' +
     '<td class="r tot' + (r.valorPromo > 0 ? '' : ' zero') + '">' + fmtRS(r.valorPromo) + (r.valorPromo > 0 ? '<small>venda ' + fmtRS(r.promoLojas.reduce((s, ln) => s + Math.max(0, r.lojas[ln].estoque) * r.lojas[ln].preco, 0)) + '</small>' : '') + '</td>' +
     '</tr>').join('');
@@ -340,6 +378,7 @@ let PROD = null;
 const SUG_KEY = 'promocoes.sugestoes.v1';
 function lerSug() { try { return JSON.parse(localStorage.getItem(SUG_KEY) || '{}'); } catch (e) { return {}; } }
 function gravarSug(all) { try { localStorage.setItem(SUG_KEY, JSON.stringify(all)); } catch (e) {} }
+function offDe(cod, ln) { const s = lerSug()[cod]; const v = s && +s[ln]; return v > 0 ? v : null; }
 function temSugestao(cod) { const s = lerSug()[cod]; return !!(s && Object.values(s).some(v => v > 0)); }
 const num = v => { let s = String(v ?? '').trim(); if (!s) return 0; if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.'); else if ((s.match(/\./g) || []).length > 1) s = s.replace(/\./g, ''); const n = parseFloat(s); return isFinite(n) ? n : 0; };   // aceita 9,98 · 9.98 · 1.234,56
 const numSimples = v => { const n = parseFloat(String(v ?? '').replace(',', '.')); return isFinite(n) ? n : 0; };
@@ -425,7 +464,94 @@ document.querySelectorAll('#tabela th[data-ord]').forEach(th => th.addEventListe
   render();
 }));
 carregar(false);
+// ── PDF / WhatsApp dos preços off ──
+const WA_KEY = 'promocoes.whatsapp.numeros.v1';
+let PDF = null;
+function abrirPdf() {
+  const nOff = Object.keys(lerSug()).filter(c => temSugestao(c)).length;
+  document.getElementById('md-n-off').textContent = nOff; document.getElementById('md-n-tudo').textContent = DATA ? fmtN(DATA.total_produtos) : '—';
+  const loja = parseInt(document.getElementById('f-loja').value) || 0;
+  document.getElementById('md-loja').textContent = loja ? 'Só a loja filtrada (L' + loja + ' ' + NOMES[loja] + ')' : 'Todas as lojas (nenhum filtro de loja)';
+  document.getElementById('md-modo-alt').checked = nOff > 0; document.getElementById('md-modo-tudo').checked = !nOff;
+  document.getElementById('md-res').hidden = true; document.getElementById('md-gerar').disabled = false; PDF = null;
+  try { document.getElementById('md-nums').value = localStorage.getItem(WA_KEY) || ''; } catch (e) {}
+  document.getElementById('md-ov').classList.add('open');
+}
+function fecharPdf() { document.getElementById('md-ov').classList.remove('open'); }
+async function gerarPdf() {
+  const modo = document.getElementById('md-modo-alt').checked ? 'alterados' : 'tudo';
+  const loja = parseInt(document.getElementById('f-loja').value) || 0;
+  const b = document.getElementById('md-gerar'); b.disabled = true; b.textContent = 'Gerando…';
+  try {
+    const r = await fetch('/api/promocoes/pdf', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ modo, loja, sugestoes: lerSug() }) });
+    const j = await r.json(); if (j.error) throw new Error(j.error);
+    PDF = j;
+    const com = j.lojas.filter(x => x.url);
+    document.getElementById('md-link').value = com.map(x => 'L' + x.loja + ' ' + x.nome + ': ' + x.url).join('\n');
+    document.getElementById('md-res-info').innerHTML = '<b>' + com.length + '</b> PDF(s), um por loja · ' + (j.modo === 'alterados' ? 'só itens alterados' : 'tudo');
+    document.getElementById('md-lojas').innerHTML = j.lojas.map(x => '<div class="md-loja' + (x.url ? '' : ' vazia') + '"><b>L' + x.loja + ' ' + esc(x.nome) + '</b><span>' + (x.url ? fmtN(x.produtos) + ' produto(s)' + (x.precos_novos ? ' · ' + x.precos_novos + ' novo(s)' : '') : 'nada a imprimir') + '</span>' +
+      (x.url ? '<button class="btn btn-amber" onclick="imprimirPdf(\'' + x.path + '\')">🖨 Abrir / Imprimir</button><button class="btn btn-wa" onclick="waAbrir(\'\',' + x.loja + ')" title="WhatsApp só com o PDF desta loja">WhatsApp</button>' : '') + '</div>').join('');
+    document.getElementById('md-res').hidden = false; renderNums();
+  } catch (e) { toast('Erro: ' + e.message); }
+  b.disabled = false; b.textContent = 'Gerar PDF';
+}
+function textoWa(ln) {
+  const com = PDF.lojas.filter(x => x.url && (!ln || x.loja === ln));
+  return 'Promoções · preços para alterar no ERP (' + new Date().toLocaleDateString('pt-BR') + ')' + (com.length === 1 ? ' · L' + com[0].loja + ' ' + com[0].nome + ': ' + com[0].url : ':\n' + com.map(x => 'L' + x.loja + ' ' + x.nome + ': ' + x.url).join('\n'));
+}
+function waAbrir(num, ln) { const t = encodeURIComponent(textoWa(ln || 0)); window.open(num ? 'https://wa.me/' + num + '?text=' + t : 'https://wa.me/?text=' + t, '_blank'); depoisDeEnviar(); }
+function numsLista() { return (document.getElementById('md-nums').value || '').split(/[\n,;]+/).map(s => s.replace(/\D/g, '')).filter(s => s.length >= 10).map(s => s.length <= 11 ? '55' + s : s); }
+function renderNums() {
+  try { localStorage.setItem(WA_KEY, document.getElementById('md-nums').value || ''); } catch (e) {}
+  const el = document.getElementById('md-nums-lista'); const ns = numsLista();
+  el.innerHTML = ns.length ? ns.map(n => '<button class="btn btn-wa" onclick="waAbrir(\'' + n + '\');this.classList.add(\'sent\');this.textContent=\'✓ \'+this.textContent.replace(/^✓ /,\'\')">' + fmtFone(n) + '</button>').join('') : '<span style="font-size:11.5px;color:var(--ink-3)">Digite os números acima (um por linha) pra ter um botão por pessoa.</span>';
+}
+function fmtFone(n) { const s = n.replace(/^55/, ''); return s.length === 11 ? '(' + s.slice(0, 2) + ') ' + s.slice(2, 7) + '-' + s.slice(7) : s; }
+function copiarLink() { const i = document.getElementById('md-link'); i.select(); try { navigator.clipboard.writeText(i.value); toast('Link copiado.'); } catch (e) { document.execCommand('copy'); toast('Link copiado.'); } depoisDeEnviar(); }
+function imprimirPdf(p) { if (!p) return; window.open(p, '_blank'); depoisDeEnviar(); }
+let _voltou = false;
+function depoisDeEnviar() {
+  if (_voltou || !document.getElementById('md-voltar').checked) return;
+  const n = Object.keys(lerSug()).filter(c => temSugestao(c)).length; if (!n) return;
+  gravarSug({}); _voltou = true; if (DATA) render();
+  toast('Preços off de ' + n + ' produto(s) voltaram ao preço do ERP. O PDF continua no link.');
+}
+function toast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('on'), 4500); }
 </script>
+
+<div class="md-ov" id="md-ov" onclick="if(event.target===this)fecharPdf()">
+  <div class="md">
+    <div class="md-hd"><h3>📄 PDF dos preços · imprimir ou mandar no WhatsApp</h3><button class="x" onclick="fecharPdf()">×</button></div>
+    <div class="md-bd">
+      <h4>O que vai no PDF</h4>
+      <div class="opt">
+        <label><input type="radio" name="md-modo" id="md-modo-alt"><span><b>Só os itens alterados <span id="md-n-off">0</span></b><small>produtos com preço off digitado · mostra atual » novo, custo, margem e uma caixa pra marcar quando alterar no ERP</small></span></label>
+        <label><input type="radio" name="md-modo" id="md-modo-tudo"><span><b>Tudo <span id="md-n-tudo">—</span></b><small>todos os produtos em promoção (final 8), com os preços off onde houver</small></span></label>
+      </div>
+      <div class="md-note" id="md-loja"></div>
+      <div class="md-acts">
+        <button class="btn btn-amber" id="md-gerar" onclick="gerarPdf()">Gerar PDF</button>
+        <label style="font-size:12px;color:var(--ink-2);display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="md-voltar" checked style="accent-color:var(--brand)"> depois de imprimir ou enviar, os preços off voltam ao preço do ERP</label>
+      </div>
+      <div id="md-res" hidden>
+        <h4>PDF pronto · <span id="md-res-info" style="text-transform:none;letter-spacing:0;font-weight:600"></span></h4>
+        <div id="md-lojas" class="md-lojas"></div>
+        <div class="md-acts">
+          <button class="btn btn-wa" onclick="waAbrir('')" title="Abre o WhatsApp pra você escolher um ou mais contatos; a mensagem leva o link de todas as lojas">WhatsApp · escolher contatos (todas as lojas)</button>
+          <button class="btn" onclick="copiarLink()">Copiar links</button>
+        </div>
+        <div class="md-link"><textarea id="md-link" readonly onclick="this.select()" rows="3" style="flex:1;font:inherit;font-size:11.5px;padding:7px 10px;border:1px solid var(--border-strong);border-radius:8px;background:#FAFAF8;color:var(--ink-2);resize:vertical"></textarea></div>
+        <h4>Enviar pra várias pessoas</h4>
+        <div class="md-nums">
+          <textarea id="md-nums" placeholder="um número por linha, com DDD · ex.: 81999998888&#10;os números ficam salvos neste navegador" oninput="renderNums()"></textarea>
+          <div class="lista" id="md-nums-lista"></div>
+        </div>
+        <div class="md-note">Cada botão abre o WhatsApp já com a mensagem e o link do PDF pra aquela pessoa. O link é público e vale por 30 dias. <b>Nada é alterado no ERP</b>: o PDF é o roteiro pra alterar à mão.</div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
 
 <div class="ov" id="ov" onclick="fecharProduto()"></div>
 <div class="pnl" id="pnl" role="dialog" aria-modal="true">
