@@ -6498,6 +6498,83 @@ app.get('/api/promocoes/final-8', async (req, res) => {
   try { res.json(await coletarPromocoesFinal8(req.query.refresh === '1')); }
   catch (err) { res.status(500).json({ error: err.message }); }
 });
+
+// ─── PROMOÇÕES: painel do produto por loja (precificar de novo) ──────────────
+// Tiago (18/09/2026): ao clicar na descrição, ver as 6 lojas com preço atual, custo, margem s/ custo, estoque,
+// última compra, última venda e curva ABC, e uma coluna pra sugerir preço novo (a margem nova é calculada na tela).
+// Curva ABC do ERP (itens.ABC) está abandonada (48 itens "A", DataABC de 2018) — calculada aqui por loja com a venda
+// em R$ dos últimos 90 dias (cupons): A = primeiros 80% do faturamento, B até 95%, C o resto (corte clássico, igual à getCurvaABC),
+// "—" = sem venda no período. Cache de 6 h, calculado em segundo plano.
+const ABC_LOJAS_CORTES = { A: 0.8, B: 0.95 };   // mesmo corte clássico da getCurvaABC (80/95/100)
+let _abcLojasCache = null, _abcLojasCalculando = null;
+function _mesesUltimos(dias) {
+  const hoje = new Date(), ini = new Date(hoje); ini.setDate(ini.getDate() - dias);
+  const out = []; const d = new Date(ini.getFullYear(), ini.getMonth(), 1);
+  while (d <= hoje) { const y = d.getFullYear(), m = d.getMonth() + 1; const dIni = new Date(Math.max(d, ini)), dFim = new Date(Math.min(new Date(y, m, 0), hoje));
+    const f = x => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
+    out.push({ y, m, dIni: f(dIni), dFim: f(dFim) }); d.setMonth(d.getMonth() + 1); }
+  return out;
+}
+async function calcularAbcLojas() {
+  if (_abcLojasCalculando) return _abcLojasCalculando;
+  _abcLojasCalculando = (async () => {
+    const t0 = Date.now(); const meses = _mesesUltimos(90); const porLoja = {};
+    for (const ln of [1, 2, 3, 4, 5, 6]) {
+      const acc = {};
+      for (const ms of meses) {
+        const rows = await q(`SELECT Codigo cod, SUM(ValorTotalNovo) v, SUM(QtdNovo) qt FROM \`ln${ln}${mesDB(ms.m)}\`.zcupomitens WHERE Data BETWEEN ? AND ? AND IndCancel='N' GROUP BY Codigo`, [ms.dIni, ms.dFim]).catch(e => { console.error('[ABC] loja', ln, ms.m, e.message); return []; });
+        for (const r of rows) { const k = String(r.cod || '').trim(); const a = acc[k] || (acc[k] = { v: 0, q: 0 }); a.v += +r.v || 0; a.q += +r.qt || 0; }
+      }
+      const lista = Object.entries(acc).filter(([, a]) => a.v > 0).sort((a, b) => b[1].v - a[1].v);
+      const total = lista.reduce((s, [, a]) => s + a.v, 0); let cum = 0; const mapa = {};
+      lista.forEach(([cod, a], i) => { cum += a.v; const f = cum / total; mapa[cod] = { abc: f <= ABC_LOJAS_CORTES.A ? 'A' : (f <= ABC_LOJAS_CORTES.B ? 'B' : 'C'), rank: i + 1, valor90: +a.v.toFixed(2), qtd90: +a.q.toFixed(3) }; });
+      porLoja[ln] = { mapa, produtos: lista.length, total: +total.toFixed(2) };
+    }
+    _abcLojasCache = { ts: Date.now(), calculadoEm: new Date().toISOString(), dias: 90, porLoja };
+    console.log(`[ABC] curva por loja calculada em ${Math.round((Date.now() - t0) / 1000)}s`);
+    return _abcLojasCache;
+  })().finally(() => { _abcLojasCalculando = null; });
+  return _abcLojasCalculando;
+}
+setTimeout(() => calcularAbcLojas().catch(e => console.error('[ABC]', e.message)), 3 * 60 * 1000);
+setInterval(() => calcularAbcLojas().catch(e => console.error('[ABC]', e.message)), 6 * 60 * 60 * 1000);
+
+app.get('/api/promocoes/produto/:cod', async (req, res) => {
+  try {
+    const cod = String(req.params.cod || '').trim(); if (!cod) return res.status(400).json({ error: 'código vazio' });
+    const LOJAS = [1, 2, 3, 4, 5, 6];
+    const pp = v => { const n = parseFloat(String(v ?? '').replace(',', '.')); return isFinite(n) ? n : 0; };
+    const isoDt = v => { if (!v) return null; if (v instanceof Date) return isNaN(v) ? null : `${v.getFullYear()}-${String(v.getMonth() + 1).padStart(2, '0')}-${String(v.getDate()).padStart(2, '0')}`; const m = String(v).match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? m[1] + '-' + m[2] + '-' + m[3] : null; };
+    const [it] = await q(`SELECT i.CodigoBarra cod, TRIM(i.Descricao) descricao, i.Unid unid, i.TipoBalanca balanca, i.CodDesativado desativado,
+                                 i.P1, i.P2, i.P3, i.P4, i.P5, i.P6, gs.Descricao subgrupo, g.Descricao grupo
+                          FROM central.itens i LEFT JOIN central.gruposub gs ON gs.CodSubGrupo = i.CodGrupoSub LEFT JOIN central.grupo g ON g.CodGrupo = gs.CodGrupo
+                          WHERE i.CodigoBarra = ? LIMIT 1`, [cod]);
+    if (!it) return res.status(404).json({ error: 'produto não encontrado no ERP' });
+    if (!_abcLojasCache && !_abcLojasCalculando) calcularAbcLojas().catch(() => {});
+    const meses = _mesesUltimos(365).reverse(); // do mês atual pra trás (bancos mensais rotativos: 12 meses)
+    const lojas = await Promise.all(LOJAS.map(async ln => {
+      const [e] = await q(`SELECT Qtd FROM central.estoquen${ln} WHERE CodigoBarra = ? LIMIT 1`, [cod]).catch(() => []);
+      const [c] = await q(`SELECT Custo, UltimaCompra FROM central.custoloja${ln} WHERE CodigoBarra = ? LIMIT 1`, [cod]).catch(() => []);
+      let ultVenda = null, ultVendaQtd = null;
+      for (const ms of meses) {
+        const [r] = await q(`SELECT DATE_FORMAT(MAX(Data),'%Y-%m-%d') d FROM \`ln${ln}${mesDB(ms.m)}\`.zcupomitens WHERE Codigo = ? AND IndCancel='N' AND Data BETWEEN ? AND ?`, [cod, ms.dIni, ms.dFim]).catch(() => []);
+        if (r && r.d) { ultVenda = r.d;
+          const [qd] = await q(`SELECT SUM(QtdNovo) qt FROM \`ln${ln}${mesDB(ms.m)}\`.zcupomitens WHERE Codigo = ? AND IndCancel='N' AND Data = ?`, [cod, r.d]).catch(() => []);
+          ultVendaQtd = qd ? +(+qd.qt || 0).toFixed(3) : null; break; }
+      }
+      const preco = pp(it['P' + ln]), custo = pp(c && c.Custo), estoque = pp(e && e.Qtd);
+      const abc = _abcLojasCache ? (_abcLojasCache.porLoja[ln].mapa[cod] || null) : null;
+      return { loja: ln, preco: +preco.toFixed(2), custo: +custo.toFixed(2), estoque: +estoque.toFixed(3),
+               margem: (custo > 0 && preco > 0) ? +(((preco - custo) / custo) * 100).toFixed(1) : null,
+               promo: preco > 0 && Math.round(preco * 100) % 10 === 8,
+               ultimaCompra: isoDt(c && c.UltimaCompra), ultimaVenda: ultVenda, ultimaVendaQtd: ultVendaQtd,
+               abc: abc ? abc.abc : (_abcLojasCache ? '—' : null), rank: abc ? abc.rank : null, venda90: abc ? abc.valor90 : 0, qtd90: abc ? abc.qtd90 : 0 };
+    }));
+    res.json({ cod: String(it.cod).trim(), descricao: it.descricao, unid: (it.unid || '').trim(), balanca: it.balanca === 'P', desativado: +it.desativado || 0,
+               grupo: (it.grupo || '').trim() || null, subgrupo: (it.subgrupo || '').trim() || null,
+               abc_calculadoEm: _abcLojasCache ? _abcLojasCache.calculadoEm : null, abc_pendente: !_abcLojasCache, abc_dias: 90, abc_cortes: ABC_LOJAS_CORTES, lojas });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 app.get('/api/promocoes/final-8.csv', async (req, res) => {
   try {
     const d = await coletarPromocoesFinal8(false);

@@ -99,8 +99,53 @@ td.tot.zero{color:var(--ink-3);font-weight:500}
 @keyframes spin{to{transform:rotate(360deg)}}
 .legenda{font-size:11px;color:var(--ink-3);margin:8px 2px 0;display:flex;gap:14px;flex-wrap:wrap}
 .legenda .sw{display:inline-block;width:12px;height:12px;background:#FFF6D9;border:1px solid #F5B80088;border-radius:3px;vertical-align:-2px;margin-right:4px}
+td.desc .nome{cursor:pointer}
+td.desc .nome:hover{color:var(--brand-ink);text-decoration:underline}
+td.desc .sug{display:inline-block;font-size:9.5px;font-weight:700;padding:1px 6px;border-radius:4px;margin-left:6px;vertical-align:1px;background:#E9EEF6;color:#2E5E8C;border:1px solid #2E5E8C33}
+
+/* painel do produto (precificar de novo) */
+.ov{position:fixed;inset:0;background:#0E162666;z-index:900;display:none}
+.ov.open{display:block}
+.pnl{position:fixed;top:0;right:0;height:100vh;width:min(1180px,96vw);background:var(--surface);border-left:1px solid var(--border);z-index:901;transform:translateX(100%);transition:transform .25s ease;display:flex;flex-direction:column;box-shadow:-8px 0 30px rgba(14,22,38,.18)}
+.pnl.open{transform:translateX(0)}
+.pnl-hd{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;gap:14px;align-items:flex-start;background:#FAFAF8}
+.pnl-hd h2{font-size:16px;font-weight:800;color:var(--ink);line-height:1.2}
+.pnl-hd .sub{font-size:11.5px;color:var(--ink-3);margin-top:3px}
+.pnl-hd .sub b{color:var(--ink-2)}
+.pnl-x{margin-left:auto;font:inherit;font-size:20px;line-height:1;background:transparent;border:none;color:var(--ink-3);cursor:pointer;padding:2px 6px}
+.pnl-x:hover{color:var(--ink)}
+.pnl-bd{padding:14px 20px;overflow:auto;flex:1}
+.pnl-ft{padding:10px 20px;border-top:1px solid var(--border);display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:#FAFAF8;font-size:12px;color:var(--ink-2)}
+.pnl-ft input{font:inherit;font-size:13px;padding:6px 10px;border:1px solid var(--border-strong);border-radius:8px;width:110px;text-align:right}
+.pnl-ft .sp{margin-left:auto;font-size:11px;color:var(--ink-3)}
+table.pt{width:100%;border-collapse:collapse;font-size:12.5px}
+table.pt th{padding:8px 9px;text-align:right;color:var(--ink-2);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--border);background:var(--surface-2);white-space:nowrap}
+table.pt th:first-child,table.pt td:first-child{text-align:left}
+table.pt th.c,table.pt td.c{text-align:center}
+table.pt th.novo,table.pt td.novo{background:#FFF6D9;border-left:2px solid #F5B800}
+table.pt td{padding:8px 9px;border-bottom:1px solid var(--border);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+table.pt td.loja{font-weight:800}
+table.pt td.loja small{display:block;font-weight:600;color:var(--ink-3);font-size:10px}
+table.pt td.preco{font-weight:800;font-size:14px}
+table.pt td.preco.promo{color:var(--brand-ink)}
+table.pt td.preco .tag{display:inline-block;font-size:9px;font-weight:800;background:#FFF6D9;color:var(--brand-ink);border:1px solid #F5B80066;border-radius:4px;padding:0 5px;margin-left:5px;vertical-align:2px}
+table.pt td .sub{display:block;font-size:10.5px;color:var(--ink-3);font-weight:500}
+table.pt .mg{font-weight:700}
+table.pt .mg.alta{color:#137A48}.mg.media{color:#B45C00}.mg.baixa{color:#C22F49}
+table.pt .abc{display:inline-block;width:24px;height:24px;line-height:24px;border-radius:6px;font-weight:800;text-align:center}
+table.pt .abc.A{background:#137A48;color:#fff}.abc.B{background:#F5B800;color:#6B4E00}.abc.C{background:#E4E4E1;color:#4E5A72}.abc.x{background:transparent;color:var(--ink-3)}
+table.pt input.np{font:inherit;font-size:14px;font-weight:700;padding:6px 8px;border:1px solid var(--border-strong);border-radius:8px;width:96px;text-align:right;color:var(--ink);background:#fff}
+table.pt input.np:focus{outline:2px solid #F5B80088;border-color:var(--brand)}
+table.pt td.nm{font-weight:800;font-size:14px}
+table.pt td.nm .var{display:block;font-size:10.5px;font-weight:600;color:var(--ink-3)}
+table.pt tfoot td{background:#FAFAF8;font-weight:700;border-top:2px solid var(--border-strong)}
+table.pt tfoot td small{font-weight:500;color:var(--ink-3)}
+.pnl-nota{font-size:11px;color:var(--ink-3);margin-top:10px;line-height:1.5}
+.pnl-nota b{color:var(--ink-2)}
 @media print{
-  #dsnav,.toolbar,.btn,.legenda{display:none!important}
+  #dsnav,.toolbar,.btn,.legenda,.ov{display:none!important}
+  .pnl{position:static;width:auto;height:auto;transform:none;box-shadow:none;border:none}
+  body.pnl-print .main{display:none}
   .main{padding:0}
   .table-wrap{border:none;box-shadow:none;overflow:visible}
   table.t{min-width:0;font-size:10px}
@@ -262,12 +307,86 @@ function render() {
   tb.innerHTML = rows.map((r, i) => '<tr>' +
     '<td style="color:var(--ink-3)">' + (i + 1) + '</td>' +
     '<td class="cod">' + esc(r.cod) + '</td>' +
-    '<td class="desc">' + esc(r.descricao) + tag(r) + '<small>' + [r.unid, r.grupo, r.subgrupo, r.balanca ? 'balança' : ''].filter(Boolean).map(esc).join(' · ') + '</small></td>' +
+    '<td class="desc"><span class="nome" onclick="abrirProduto(\'' + esc(r.cod) + '\')" title="Abrir as 6 lojas e precificar de novo">' + esc(r.descricao) + '</span>' + tag(r) + (temSugestao(r.cod) ? '<span class="sug" title="tem sugestão de preço salva">sugestão</span>' : '') + '<small>' + [r.unid, r.grupo, r.subgrupo, r.balanca ? 'balança' : ''].filter(Boolean).map(esc).join(' · ') + '</small></td>' +
     LOJAS.map(ln => cel(r.lojas[ln])).join('') +
     '<td class="r tot' + (r.estoquePromo > 0 ? '' : ' zero') + '">' + fmtN(r.estoquePromo) + '</td>' +
     '<td class="r tot' + (r.valorPromo > 0 ? '' : ' zero') + '">' + fmtRS(r.valorPromo) + (r.valorPromo > 0 ? '<small>venda ' + fmtRS(r.promoLojas.reduce((s, ln) => s + Math.max(0, r.lojas[ln].estoque) * r.lojas[ln].preco, 0)) + '</small>' : '') + '</td>' +
     '</tr>').join('');
 }
+
+// ── painel do produto: 6 lojas + sugestão de novo preço (guardada em localStorage por código) ──
+let PROD = null;
+const SUG_KEY = 'promocoes.sugestoes.v1';
+function lerSug() { try { return JSON.parse(localStorage.getItem(SUG_KEY) || '{}'); } catch (e) { return {}; } }
+function gravarSug(all) { try { localStorage.setItem(SUG_KEY, JSON.stringify(all)); } catch (e) {} }
+function temSugestao(cod) { const s = lerSug()[cod]; return !!(s && Object.values(s).some(v => v > 0)); }
+const num = v => { let s = String(v ?? '').trim(); if (!s) return 0; if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.'); else if ((s.match(/\./g) || []).length > 1) s = s.replace(/\./g, ''); const n = parseFloat(s); return isFinite(n) ? n : 0; };   // aceita 9,98 · 9.98 · 1.234,56
+const numSimples = v => { const n = parseFloat(String(v ?? '').replace(',', '.')); return isFinite(n) ? n : 0; };
+const mgCls = m => m == null ? '' : (m < 10 ? 'baixa' : (m < 25 ? 'media' : 'alta'));
+const fmtDt = s => s ? s.slice(8, 10) + '/' + s.slice(5, 7) + '/' + s.slice(0, 4) : '—';
+const diasDesde = s => s ? Math.round((Date.now() - new Date(s + 'T12:00:00').getTime()) / 86400000) : null;
+
+async function abrirProduto(cod) {
+  document.getElementById('ov').classList.add('open'); document.getElementById('pnl').classList.add('open');
+  document.getElementById('p-nome').textContent = 'Carregando…'; document.getElementById('p-sub').textContent = cod;
+  document.getElementById('p-body').innerHTML = '<div class="spinner"></div>'; document.getElementById('p-todas').value = '';
+  try {
+    const r = await fetch('/api/promocoes/produto/' + encodeURIComponent(cod)); const j = await r.json(); if (j.error) throw new Error(j.error);
+    PROD = j; renderProduto();
+  } catch (e) { document.getElementById('p-body').innerHTML = '<div class="empty">Erro: ' + esc(e.message) + '</div>'; }
+}
+function fecharProduto() { document.getElementById('ov').classList.remove('open'); document.getElementById('pnl').classList.remove('open'); if (DATA) render(); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') fecharProduto(); });
+function imprimirProduto() { document.body.classList.add('pnl-print'); window.print(); setTimeout(() => document.body.classList.remove('pnl-print'), 500); }
+
+function renderProduto() {
+  const p = PROD; const sug = lerSug()[p.cod] || {};
+  document.getElementById('p-nome').textContent = p.descricao;
+  document.getElementById('p-sub').innerHTML = '<b>' + esc(p.cod) + '</b> · ' + [p.unid, p.grupo, p.subgrupo, p.balanca ? 'balança' : '', p.desativado ? '<span style="color:#C22F49;font-weight:700">DESATIVADO</span>' : ''].filter(Boolean).join(' · ') +
+    ' · curva ABC por loja pela venda em R$ dos últimos ' + p.abc_dias + ' dias (A até 80% · B até 95% · C o resto)' + (p.abc_pendente ? ' · <span style="color:#B45C00;font-weight:700">ABC calculando, reabra em 1 min</span>' : '');
+  const linha = l => {
+    const np = sug[l.loja] > 0 ? sug[l.loja] : null;
+    const nm = np != null && l.custo > 0 ? ((np - l.custo) / l.custo) * 100 : null;
+    const varp = np != null && l.preco > 0 ? ((np - l.preco) / l.preco) * 100 : null;
+    const dv = diasDesde(l.ultimaVenda);
+    return '<tr>' +
+      '<td class="loja">L' + l.loja + '<small>' + NOMES[l.loja] + '</small></td>' +
+      '<td class="preco' + (l.promo ? ' promo' : '') + '">' + (l.preco > 0 ? fmtR(l.preco) : '—') + (l.promo ? '<span class="tag">final 8</span>' : '') + '</td>' +
+      '<td>' + (l.custo > 0 ? fmtR(l.custo) : '<span style="color:var(--ink-3)">s/ custo</span>') + '</td>' +
+      '<td class="mg ' + mgCls(l.margem) + '">' + (l.margem != null ? l.margem.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + '%' : '—') + '</td>' +
+      '<td' + (l.estoque < 0 ? ' style="color:#C22F49;font-weight:700"' : (l.estoque > 0 ? ' style="font-weight:700"' : ' style="color:var(--ink-3)"')) + '>' + fmtN(l.estoque) + (l.estoque > 0 && l.custo > 0 ? '<span class="sub">' + fmtRS(l.estoque * l.custo) + ' a custo</span>' : '') + '</td>' +
+      '<td>' + fmtDt(l.ultimaCompra) + '</td>' +
+      '<td>' + fmtDt(l.ultimaVenda) + (l.ultimaVenda ? '<span class="sub">' + (dv === 0 ? 'hoje' : dv + ' d atrás') + (l.ultimaVendaQtd ? ' · ' + fmtN(l.ultimaVendaQtd) + ' un no dia' : '') + '</span>' : '<span class="sub">sem venda em 12 m</span>') + '</td>' +
+      '<td>' + (l.qtd90 > 0 ? fmtN(Math.round(l.qtd90)) + '<span class="sub">' + fmtRS(l.venda90) + '</span>' : '<span style="color:var(--ink-3)">0</span>') + '</td>' +
+      '<td class="c"><span class="abc ' + (l.abc && l.abc !== '—' ? l.abc : 'x') + '" title="' + (l.rank ? 'posição ' + l.rank + ' na loja' : 'sem venda no período') + '">' + (l.abc == null ? '…' : l.abc) + '</span></td>' +
+      '<td class="novo"><input class="np" type="text" inputmode="decimal" placeholder="0,00" value="' + (np != null ? fmtR(np) : '') + '" data-loja="' + l.loja + '" oninput="onSug(this)" onkeydown="if(event.key===\'Enter\'){this.blur()}"></td>' +
+      '<td class="novo nm mg ' + mgCls(nm) + '" id="nm-' + l.loja + '">' + (nm != null ? nm.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + '%' : '<span style="color:var(--ink-3);font-weight:500">—</span>') +
+        (varp != null ? '<span class="var">' + (varp >= 0 ? '+' : '') + varp.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + '% vs atual</span>' : '') + '</td>' +
+      '</tr>';
+  };
+  const ls = p.lojas; const estT = ls.reduce((s, l) => s + Math.max(0, l.estoque), 0), custoT = ls.reduce((s, l) => s + Math.max(0, l.estoque) * l.custo, 0), q90 = ls.reduce((s, l) => s + l.qtd90, 0), v90 = ls.reduce((s, l) => s + l.venda90, 0);
+  const mgs = ls.filter(l => l.margem != null); const mgMed = mgs.length ? mgs.reduce((s, l) => s + l.margem, 0) / mgs.length : null;
+  document.getElementById('p-body').innerHTML = '<table class="pt"><thead><tr>' +
+    '<th>Loja</th><th>Preço atual</th><th>Preço de compra</th><th title="(preço − custo) ÷ custo">Margem s/ custo</th><th>Estoque atual</th><th title="custoloja.UltimaCompra do ERP">Última compra</th><th title="último cupom com o produto na loja (até 12 meses)">Última venda</th><th title="unidades vendidas nos últimos 90 dias; embaixo, em R$">Venda 90 d</th><th class="c">ABC</th>' +
+    '<th class="novo">Novo preço</th><th class="novo" title="margem sobre o custo se o novo preço valer">Margem nova</th></tr></thead>' +
+    '<tbody>' + ls.map(linha).join('') + '</tbody>' +
+    '<tfoot><tr><td>Total</td><td></td><td></td><td class="mg ' + mgCls(mgMed) + '">' + (mgMed != null ? mgMed.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + '%<small> média</small>' : '—') + '</td><td>' + fmtN(estT) + '<span class="sub">' + fmtRS(custoT) + ' a custo</span></td><td></td><td></td><td>' + fmtN(Math.round(q90)) + '<span class="sub">' + fmtRS(v90) + '</span></td><td></td><td class="novo"></td><td class="novo"></td></tr></tfoot></table>' +
+    '<div class="pnl-nota"><b>Como usar:</b> digite o novo preço na loja (ou em todas, embaixo) e a margem nova aparece na hora, com a variação em relação ao preço atual. Isso é só análise — nada é gravado no ERP. ' +
+    '<b>Preço final 8</b> = promoção em loja. <b>Estoque a custo</b> = estoque × custo da loja. Dados do ERP em tempo real; ABC de ' + (p.abc_calculadoEm ? new Date(p.abc_calculadoEm).toLocaleString('pt-BR') : '—') + '.</div>';
+}
+function onSug(inp) {
+  const ln = +inp.dataset.loja; const v = num(inp.value); const all = lerSug(); const s = all[PROD.cod] || (all[PROD.cod] = {});
+  if (v > 0) s[ln] = +v.toFixed(2); else delete s[ln]; if (!Object.keys(s).length) delete all[PROD.cod]; gravarSug(all);
+  const l = PROD.lojas.find(x => x.loja === ln); const cel = document.getElementById('nm-' + ln);
+  const nm = v > 0 && l.custo > 0 ? ((v - l.custo) / l.custo) * 100 : null; const varp = v > 0 && l.preco > 0 ? ((v - l.preco) / l.preco) * 100 : null;
+  cel.className = 'novo nm mg ' + mgCls(nm);
+  cel.innerHTML = (nm != null ? nm.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + '%' : '<span style="color:var(--ink-3);font-weight:500">—</span>') + (varp != null ? '<span class="var">' + (varp >= 0 ? '+' : '') + varp.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + '% vs atual</span>' : '');
+}
+function aplicarTodas() {
+  const v = num(document.getElementById('p-todas').value); if (!(v > 0) || !PROD) return;
+  const all = lerSug(); all[PROD.cod] = Object.fromEntries(PROD.lojas.map(l => [l.loja, +v.toFixed(2)])); gravarSug(all); renderProduto();
+}
+function limparSugestoes() { if (!PROD) return; const all = lerSug(); delete all[PROD.cod]; gravarSug(all); document.getElementById('p-todas').value = ''; renderProduto(); }
 
 document.querySelectorAll('#tabela th[data-ord]').forEach(th => th.addEventListener('click', () => {
   const o = th.dataset.ord; if (o === 'n') return;
@@ -276,6 +395,26 @@ document.querySelectorAll('#tabela th[data-ord]').forEach(th => th.addEventListe
 }));
 carregar(false);
 </script>
+
+<div class="ov" id="ov" onclick="fecharProduto()"></div>
+<div class="pnl" id="pnl" role="dialog" aria-modal="true">
+  <div class="pnl-hd">
+    <div>
+      <h2 id="p-nome">—</h2>
+      <div class="sub" id="p-sub"></div>
+    </div>
+    <button class="btn" onclick="imprimirProduto()" style="margin-left:auto">Imprimir</button>
+    <button class="pnl-x" onclick="fecharProduto()" title="Fechar (Esc)">×</button>
+  </div>
+  <div class="pnl-bd" id="p-body"><div class="spinner"></div></div>
+  <div class="pnl-ft">
+    <span>Novo preço em <b>todas as lojas</b>:</span>
+    <input type="text" id="p-todas" placeholder="0,00" inputmode="decimal" onkeydown="if(event.key==='Enter')aplicarTodas()">
+    <button class="btn btn-amber" onclick="aplicarTodas()">Aplicar</button>
+    <button class="btn" onclick="limparSugestoes()" title="Apaga as sugestões deste produto">Limpar</button>
+    <span class="sp" id="p-salvo">As sugestões ficam guardadas neste navegador e aparecem de novo ao abrir o produto.</span>
+  </div>
+</div>
 
 </body>
 </html>
