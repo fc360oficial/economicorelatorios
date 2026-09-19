@@ -351,7 +351,8 @@ function render() {
     if (/^l\d$/.test(ORD)) { const l = r.lojas[ORD[1]]; return l.promo ? l.preco : -1; }
     return r[ORD];
   };
-  const pri = r => progVencida(r.cod) ? -1 : (r.novo ? 0 : (r.atualizado ? 1 : 2));
+  // topo da lista: vencidas, depois programadas (relógio) e novos juntos, depois atualizados, depois o resto
+  const pri = r => progVencida(r.cod) ? -1 : ((PROG[r.cod] || r.novo) ? 0 : (r.atualizado ? 1 : 2));
   const np = DATA.rows.filter(r => PROG[r.cod]).length, nv = DATA.rows.filter(r => progVencida(r.cod)).length;
   const cp = document.getElementById('chip-prog-n'); if (cp) cp.textContent = np ? '(' + np + ')' : ''; const cv = document.getElementById('chip-venc-n'); if (cv) cv.textContent = nv ? '(' + nv + ')' : '';
   rows.sort((a, b2) => { if (pri(a) !== pri(b2)) return pri(a) - pri(b2); const x = val(a), y = val(b2); const c = typeof x === 'string' ? x.localeCompare(y, 'pt-BR') : (x - y); return DIR === 'asc' ? c : -c; });
