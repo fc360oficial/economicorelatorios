@@ -28,18 +28,26 @@ body{font-family:var(--font);background:var(--bg);color:var(--ink);min-height:10
 .btn-amber{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
 .btn-amber:hover{background:#E0A800}
 
-.kpis{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
-.kpi{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px;min-width:120px}
-.kpi .v{font-size:20px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums}
-.kpi .v.amber{color:var(--brand-ink)}
-.kpi .l{font-size:9.5px;color:var(--ink-3);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-top:2px}
-.kpi.lojas{display:flex;gap:10px;align-items:center}
-.kpi.lojas .lj{text-align:center;cursor:pointer;padding:2px 6px;border-radius:6px}
-.kpi.lojas .lj:hover{background:var(--surface-2)}
-.kpi.lojas .lj.on{background:var(--brand);color:var(--brand-ink)}
-.kpi.lojas .lj b{display:block;font-size:15px;font-variant-numeric:tabular-nums}
-.kpi.lojas .lj span{font-size:9.5px;font-weight:700;color:var(--ink-3)}
-.kpi.lojas .lj.on span{color:var(--brand-ink)}
+.kpis{display:grid;grid-template-columns:repeat(7,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+@media (max-width:1400px){.kpis{grid-template-columns:repeat(4,minmax(150px,1fr))}}
+@media (max-width:800px){.kpis{grid-template-columns:repeat(2,minmax(140px,1fr))}}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;cursor:pointer;transition:border-color .12s,box-shadow .12s}
+.kpi:hover{border-color:var(--border-strong);box-shadow:0 2px 6px rgba(14,22,38,.08)}
+.kpi.on{border-color:var(--brand);box-shadow:0 0 0 2px #F5B80055;background:#FFFBEE}
+.kpi.todas{background:var(--ink);border-color:var(--ink);color:#fff;cursor:default}
+.kpi .nm{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-2);display:flex;justify-content:space-between;align-items:baseline}
+.kpi .nm small{font-weight:600;color:var(--ink-3);text-transform:none;letter-spacing:0}
+.kpi.todas .nm,.kpi.todas .nm small{color:#F5B800}
+.kpi .v{font-size:22px;font-weight:800;color:var(--brand-ink);font-variant-numeric:tabular-nums;margin-top:4px;line-height:1.1}
+.kpi.todas .v{color:#fff}
+.kpi .v small{font-size:10px;font-weight:700;color:var(--ink-3);margin-left:4px}
+.kpi.todas .v small{color:#98A0B3}
+.kpi .row{display:flex;justify-content:space-between;gap:8px;margin-top:8px;font-size:11px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.kpi .row b{color:var(--ink);font-weight:700}
+.kpi.todas .row{color:#C9CDD6}.kpi.todas .row b{color:#fff}
+.kpi .row .mg.baixa{color:#C22F49}
+.kpi .row .lbl{display:block;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--ink-3)}
+.kpi.todas .row .lbl{color:#98A0B3}
 
 .toolbar{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
 .toolbar select,.toolbar input{font:inherit;font-size:12.5px;padding:7px 11px;border:1px solid var(--border-strong);border-radius:8px;background:#fff;color:var(--ink)}
@@ -131,11 +139,12 @@ td.tot{font-weight:700;font-variant-numeric:tabular-nums}
       <tbody id="tbody"><tr><td colspan="11"><div class="spinner"></div></td></tr></tbody>
     </table>
   </div>
-  <div class="legenda"><span class="sw"></span>célula amarela = preço final 8 (promoção) nessa loja · em cada loja: <b>preço</b>, embaixo estoque · custo · margem sobre o custo (vermelha quando abaixo de 10%)</div>
+  <div class="legenda">Nos cartões: itens = produtos com preço final 8 na loja; estoque a custo/venda = estoque × custo/preço desses itens; margem média = média simples da margem sobre o custo desses itens (só com custo cadastrado). <span class="sw"></span>célula amarela = preço final 8 (promoção) nessa loja · em cada loja: <b>preço</b>, embaixo estoque · custo · margem sobre o custo (vermelha quando abaixo de 10%)</div>
 </div>
 
 <script>
 const LOJAS = [1, 2, 3, 4, 5, 6];
+const NOMES = { 1: 'CAHU', 2: 'MURIBECA', 3: 'PONTE', 4: 'ATACAREJO', 5: 'PORTA LARGA', 6: 'JARDIM JORDÃO' };
 let DATA = null, ORD = 'descricao', DIR = 'asc';
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const fmtN = v => (+v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 });
@@ -173,13 +182,26 @@ function render() {
 
   // KPIs
   const geradoEm = new Date(DATA.geradoEm).toLocaleString('pt-BR');
-  document.getElementById('kpis').innerHTML =
-    '<div class="kpi"><div class="v amber">' + fmtN(DATA.total_produtos) + '</div><div class="l">produtos com final 8</div></div>' +
-    '<div class="kpi"><div class="v">' + fmtN(DATA.itens_loja) + '</div><div class="l">produto × loja em promoção</div></div>' +
-    '<div class="kpi"><div class="v">' + fmtRS(DATA.valor_estoque_promo) + '</div><div class="l">estoque a custo em promoção</div></div>' +
-    '<div class="kpi lojas" title="Produtos em promoção por loja · clique pra filtrar">' + LOJAS.map(ln => '<div class="lj' + (loja === ln ? ' on' : '') + '" onclick="setLoja(' + ln + ')"><b>' + fmtN(DATA.por_loja[ln]) + '</b><span>L' + ln + '</span></div>').join('') + '</div>' +
-    '<div class="kpi"><div class="v" style="font-size:12px;font-weight:600;color:var(--ink-2)">' + geradoEm + '</div><div class="l">dados do ERP em · ' + fmtN(DATA.ativos_conferidos) + ' ativos conferidos</div></div>';
-  document.getElementById('info').textContent = fmtN(rows.length) + ' produto(s) na lista' + (loja ? ' · L' + loja : '');
+  // cartões: por loja e consolidado — só produtos em promoção (preço final 8) naquela loja
+  const agg = { itens: 0, custo: 0, venda: 0, mgSoma: 0, mgN: 0 };
+  const porLoja = {};
+  for (const ln of LOJAS) {
+    const a = { itens: 0, custo: 0, venda: 0, mgSoma: 0, mgN: 0 };
+    for (const r of DATA.rows) { const l = r.lojas[ln]; if (!l.promo) continue;
+      a.itens++; const e = Math.max(0, l.estoque); a.custo += e * l.custo; a.venda += e * l.preco;
+      if (l.margem != null) { a.mgSoma += l.margem; a.mgN++; } }
+    porLoja[ln] = a; agg.itens += a.itens; agg.custo += a.custo; agg.venda += a.venda; agg.mgSoma += a.mgSoma; agg.mgN += a.mgN;
+  }
+  const mg = a => a.mgN ? a.mgSoma / a.mgN : null;
+  const fmtMg = v => v == null ? '—' : v.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + '%';
+  const card = (ln, a, nome) => '<div class="kpi' + (ln ? (loja === ln ? ' on' : '') : ' todas') + '"' + (ln ? ' onclick="setLoja(' + ln + ')" title="Clique pra ver só a ' + nome + '"' : '') + '>' +
+    '<div class="nm"><span>' + nome + '</span>' + (ln ? '<small>L' + ln + '</small>' : '<small>' + LOJAS.length + ' lojas</small>') + '</div>' +
+    '<div class="v">' + fmtN(a.itens) + '<small>itens em promoção</small></div>' +
+    '<div class="row"><span><span class="lbl">Estoque a custo</span><b>' + fmtRS(a.custo) + '</b></span><span style="text-align:right"><span class="lbl">Margem média</span><b class="mg' + (mg(a) != null && mg(a) < 10 ? ' baixa' : '') + '">' + fmtMg(mg(a)) + '</b></span></div>' +
+    '<div class="row"><span><span class="lbl">Estoque a venda</span><b>' + fmtRS(a.venda) + '</b></span>' + (ln ? '' : '<span style="text-align:right"><span class="lbl">Produtos distintos</span><b>' + fmtN(DATA.total_produtos) + '</b></span>') + '</div>' +
+    '</div>';
+  document.getElementById('kpis').innerHTML = LOJAS.map(ln => card(ln, porLoja[ln], NOMES[ln])).join('') + card(0, agg, 'Todas as lojas');
+  document.getElementById('info').textContent = fmtN(rows.length) + ' produto(s) na lista' + (loja ? ' · L' + loja + ' ' + NOMES[loja] : '') + ' · dados do ERP em ' + geradoEm + ' · ' + fmtN(DATA.ativos_conferidos) + ' ativos conferidos';
   document.getElementById('btn-csv').href = '/api/promocoes/final-8.csv' + (loja ? '?loja=' + loja : '');
 
   const tb = document.getElementById('tbody');
