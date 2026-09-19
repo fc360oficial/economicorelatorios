@@ -6713,6 +6713,34 @@ app.get('/promocoes/pdf/:token.pdf', (req, res) => {
   const f = path.join(PROMO_PDF_DIR, t + '.pdf'); if (!fs.existsSync(f)) return res.status(404).send('PDF não encontrado (expira em 30 dias).');
   res.sendFile(f, { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': 'inline; filename="promocoes-' + t.slice(0, 8) + '.pdf"' } });
 });
+
+// ─── PROMOÇÕES: oferta programada (relógio na coluna Funções) ─────────────────────────────────────────────────
+// Tiago (18/09/2026): por produto, guardar até quando a oferta dura e, por loja, o preço da oferta e o preço que
+// volta quando acabar (com as margens calculadas na tela). Fica no servidor pra valer em qualquer navegador.
+// Só planejamento — nada é gravado no ERP.
+const PROMO_PROG = path.join(__dirname, 'data', 'promocoes-programadas.json');
+function lerProgramadas() { try { return JSON.parse(fs.readFileSync(PROMO_PROG, 'utf8')); } catch (e) { return {}; } }
+function gravarProgramadas(o) { fs.mkdirSync(path.dirname(PROMO_PROG), { recursive: true }); fs.writeFileSync(PROMO_PROG, JSON.stringify(o, null, 1)); }
+app.get('/api/promocoes/programadas', (req, res) => { res.json({ programadas: lerProgramadas(), hoje: new Date().toLocaleDateString('sv-SE') }); });
+app.put('/api/promocoes/programadas/:cod', (req, res) => {
+  try {
+    const cod = String(req.params.cod || '').trim(); const b = req.body || {};
+    if (!cod) return res.status(400).json({ error: 'código vazio' });
+    const ate = /^\d{4}-\d{2}-\d{2}$/.test(b.ate || '') ? b.ate : null;
+    const inicio = /^\d{4}-\d{2}-\d{2}$/.test(b.inicio || '') ? b.inicio : null;
+    const lojas = {};
+    for (const ln of [1, 2, 3, 4, 5, 6]) { const l = (b.lojas || {})[ln] || {}; const promo = +l.promo || 0, fim = +l.fim || 0; if (promo > 0 || fim > 0) lojas[ln] = { promo: +promo.toFixed(2) || null, fim: +fim.toFixed(2) || null }; }
+    if (!Object.keys(lojas).length && !ate) return res.status(400).json({ error: 'Informe pelo menos um preço ou a data de fim.' });
+    const all = lerProgramadas(); const ant = all[cod] || {};
+    all[cod] = { descricao: String(b.descricao || ant.descricao || '').slice(0, 120), inicio, ate, lojas, obs: String(b.obs || '').slice(0, 300),
+                 criadoEm: ant.criadoEm || new Date().toISOString(), atualizadoEm: new Date().toISOString(), por: (req.session && req.session.user && req.session.user.nome) || null };
+    gravarProgramadas(all); res.json({ ok: true, programada: all[cod] });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.delete('/api/promocoes/programadas/:cod', (req, res) => {
+  try { const all = lerProgramadas(); delete all[String(req.params.cod || '').trim()]; gravarProgramadas(all); res.json({ ok: true }); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
 app.get('/api/promocoes/final-8.csv', async (req, res) => {
   try {
     const d = await coletarPromocoesFinal8(false);

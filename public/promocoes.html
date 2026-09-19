@@ -105,6 +105,37 @@ td.desc .novo-tag{display:inline-block;font-size:9.5px;font-weight:800;padding:1
 td.desc .novo-tag small{font-weight:600;opacity:.85;margin-left:3px}
 tr.novo td.cod{border-left:3px solid #C22F49}
 td.lj .nv{display:inline-block;font-size:8.5px;font-weight:800;color:#fff;background:#C22F49;border-radius:3px;padding:0 4px;margin-left:4px;vertical-align:2px}
+td.fn{text-align:center;border-left:1px solid var(--border)}
+.rel{display:inline-flex;flex-direction:column;align-items:center;gap:1px;cursor:pointer;color:var(--ink-3);border:none;background:transparent;font:inherit;padding:2px 4px;border-radius:8px}
+.rel:hover{background:var(--surface-2);color:var(--ink)}
+.rel svg{width:22px;height:22px}
+.rel.on{color:#B45C00}
+.rel.on svg circle{fill:#FFF6D9}
+.rel.venc{color:#C22F49}
+.rel.venc svg circle{fill:#FDE8EC}
+.rel small{font-size:9px;font-weight:700;line-height:1;white-space:nowrap}
+.chip.prog{border-color:#B45C00;color:#B45C00}.chip.prog.on{background:#B45C00;border-color:#B45C00;color:#fff}
+.chip.prog.venc{border-color:#C22F49;color:#C22F49}.chip.prog.venc.on{background:#C22F49;border-color:#C22F49;color:#fff}
+/* janela de programar oferta */
+.pg-top{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px}
+.pg-top label{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--ink-3);display:flex;flex-direction:column;gap:4px}
+.pg-top input[type=date],.pg-top input[type=text]{font:inherit;font-size:13px;padding:7px 10px;border:1px solid var(--border-strong);border-radius:8px}
+.pg-top .dias{font-size:12px;color:var(--ink-2);padding-bottom:8px}
+table.pg{width:100%;border-collapse:collapse;font-size:12.5px}
+table.pg th{padding:8px 8px;text-align:right;color:var(--ink-2);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--border);background:var(--surface-2);white-space:nowrap}
+table.pg th:first-child,table.pg td:first-child{text-align:left}
+table.pg td{padding:7px 8px;border-bottom:1px solid var(--border);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+table.pg td.loja{font-weight:800}
+table.pg td.loja small{display:block;font-weight:600;color:var(--ink-3);font-size:10px}
+table.pg th.of,table.pg td.of{background:#FFF6D9;border-left:2px solid #F5B800}
+table.pg th.fi,table.pg td.fi{background:#E9EEF6;border-left:2px solid #2E5E8C}
+table.pg input.np{font:inherit;font-size:14px;font-weight:700;padding:6px 8px;border:1px solid var(--border-strong);border-radius:8px;width:92px;text-align:right;background:#fff}
+table.pg input.np:focus{outline:2px solid #F5B80088;border-color:var(--brand)}
+table.pg td.mg{font-weight:800;font-size:13px}
+table.pg td.mg .var{display:block;font-size:10px;font-weight:600;color:var(--ink-3)}
+table.pg .mg.alta{color:#137A48}.pg .mg.media{color:#B45C00}.pg .mg.baixa{color:#C22F49}
+.pg-todas{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px;font-size:12px;color:var(--ink-2)}
+.pg-todas input{font:inherit;font-size:13px;padding:6px 10px;border:1px solid var(--border-strong);border-radius:8px;width:100px;text-align:right}
 .chip.novos{border-color:#C22F49;color:#C22F49}.chip.novos.on{background:#C22F49;border-color:#C22F49;color:#fff}
 td.desc .novo-tag.atu{background:#2E5E8C}
 tr.atualizado td.cod{border-left:3px solid #2E5E8C}
@@ -231,6 +262,8 @@ table.pt tfoot td small{font-weight:500;color:var(--ink-3)}
       <span class="chip" data-sit="todas" onclick="setSit('todas')" title="Preço final 8 nas 6 lojas">Em todas as lojas</span>
       <span class="chip" data-sit="parcial" onclick="setSit('parcial')" title="Preço final 8 só em algumas lojas">Só em algumas lojas</span>
       <span class="chip" data-sit="sem-estoque" onclick="setSit('sem-estoque')" title="Em promoção mas sem estoque nas lojas em promoção">Sem estoque</span>
+      <span class="chip prog" data-sit="programadas" onclick="setSit('programadas')" title="Produtos com oferta programada (relógio)">⏰ Programadas <span id="chip-prog-n"></span></span>
+      <span class="chip prog venc" data-sit="vencidas" onclick="setSit('vencidas')" title="Oferta programada que já passou da data: hora de voltar o preço">⏰ Vencidas <span id="chip-venc-n"></span></span>
       <span class="chip novos" data-sit="novos" onclick="setSit('novos')" title="Produtos que apareceram com preço final 8 nos últimos 10 dias">★ Novos <span id="chip-novos-n"></span></span>
       <span class="chip atus" data-sit="atualizados" onclick="setSit('atualizados')" title="Já estavam em promoção e o preço mudou (continuando final 8) nos últimos 10 dias">↻ Atualizados <span id="chip-atus-n"></span></span>
       <span class="chip" data-sit="margem-baixa" onclick="setSit('margem-baixa')" title="Alguma loja em promoção com margem sobre o custo abaixo de 10%">Margem &lt; 10%</span>
@@ -242,11 +275,12 @@ table.pt tfoot td small{font-weight:500;color:var(--ink-3)}
 
   <div class="table-wrap">
     <table class="t" id="tabela">
-      <colgroup><col style="width:36px"><col style="width:132px"><col style="width:300px"><col style="width:132px"><col style="width:132px"><col style="width:132px"><col style="width:132px"><col style="width:132px"><col style="width:132px"><col style="width:110px"><col style="width:120px"></colgroup>
+      <colgroup><col style="width:36px"><col style="width:132px"><col style="width:300px"><col style="width:74px"><col style="width:132px"><col style="width:132px"><col style="width:132px"><col style="width:132px"><col style="width:132px"><col style="width:132px"><col style="width:110px"><col style="width:120px"></colgroup>
       <thead><tr>
         <th data-ord="n">#</th>
         <th data-ord="cod">Código de barras</th>
         <th data-ord="descricao">Descrição</th>
+        <th class="c" data-ord="prog" title="Relógio = programar oferta (até quando dura, preço da oferta e preço quando acabar)">Funções</th>
         <th class="c" data-ord="l1">L1 CAHU</th>
         <th class="c" data-ord="l2">L2 MURIBECA</th>
         <th class="c" data-ord="l3">L3 PONTE</th>
@@ -256,7 +290,7 @@ table.pt tfoot td small{font-weight:500;color:var(--ink-3)}
         <th class="r" data-ord="estoquePromo" title="Soma do estoque nas lojas em que o produto está em promoção">Estoque<br>em promo</th>
         <th class="r" data-ord="valorPromo" title="Estoque × custo nas lojas em promoção; embaixo, a preço de venda">R$ custo<br>em promo</th>
       </tr></thead>
-      <tbody id="tbody"><tr><td colspan="11"><div class="spinner"></div></td></tr></tbody>
+      <tbody id="tbody"><tr><td colspan="12"><div class="spinner"></div></td></tr></tbody>
     </table>
   </div>
   <div class="legenda"><span><span class="sw"></span>amarelo = preço final 8 (promoção) na loja</span><span><b style="color:#C22F49">★ NOVO</b> = apareceu com final 8 nos últimos 10 dias (fica no topo)</span><span><b style="color:#2E5E8C">↻ ATUALIZADO</b> = já era promoção e o preço mudou (continua final 8) nos últimos 10 dias · preço anterior riscado na loja</span><span>em cada loja: <b>preço</b> · estoque · custo · margem s/ custo</span><span>margem: <b style="color:#137A48">verde ≥ 25%</b> · <b style="color:#B45C00">laranja 10–25%</b> · <b style="color:#C22F49">vermelha &lt; 10%</b></span><span>cartões: itens com final 8 na loja · estoque × custo / × preço · margem média simples</span></div>
@@ -274,16 +308,16 @@ const fmtRS = v => 'R$ ' + (+v || 0).toLocaleString('pt-BR', { minimumFractionDi
 
 async function carregar(force) {
   const tb = document.getElementById('tbody');
-  tb.innerHTML = '<tr><td colspan="11"><div class="spinner"></div></td></tr>';
+  tb.innerHTML = '<tr><td colspan="12"><div class="spinner"></div></td></tr>';
   try {
     const r = await fetch('/api/promocoes/final-8' + (force ? '?refresh=1' : ''));
     const j = await r.json(); if (j.error) throw new Error(j.error);
-    DATA = j;
+    DATA = j; await carregarProg();
     const grupos = [...new Set(DATA.rows.map(r => r.grupo).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
     const sg = document.getElementById('f-grupo'); const atual = sg.value;
     sg.innerHTML = '<option value="">Todos os grupos</option>' + grupos.map(g => '<option value="' + esc(g) + '">' + esc(g) + '</option>').join(''); sg.value = atual;
     render();
-  } catch (e) { tb.innerHTML = '<tr><td colspan="11" class="empty">Erro: ' + esc(e.message) + '</td></tr>'; }
+  } catch (e) { tb.innerHTML = '<tr><td colspan="12" class="empty">Erro: ' + esc(e.message) + '</td></tr>'; }
 }
 
 function setLoja(ln) { const s = document.getElementById('f-loja'); s.value = s.value == ln ? '0' : String(ln); render(); }
@@ -298,6 +332,8 @@ function render() {
     if (SIT === 'todas') return r.promoLojas.length === LOJAS.length;
     if (SIT === 'parcial') return r.promoLojas.length > 0 && r.promoLojas.length < LOJAS.length;
     if (SIT === 'sem-estoque') return r.estoquePromo <= 0;
+    if (SIT === 'programadas') return !!PROG[r.cod];
+    if (SIT === 'vencidas') return progVencida(r.cod);
     if (SIT === 'novos') return !!r.novo;
     if (SIT === 'atualizados') return !!r.atualizado;
     if (SIT === 'margem-baixa') return r.promoLojas.some(ln => r.lojas[ln].margem != null && r.lojas[ln].margem < 10);
@@ -311,10 +347,13 @@ function render() {
   // ordenação
   const val = r => {
     if (ORD === 'n') return 0;
+    if (ORD === 'prog') return PROG[r.cod] ? (progVencida(r.cod) ? 2 : 1) : 0;
     if (/^l\d$/.test(ORD)) { const l = r.lojas[ORD[1]]; return l.promo ? l.preco : -1; }
     return r[ORD];
   };
-  const pri = r => r.novo ? 0 : (r.atualizado ? 1 : 2);
+  const pri = r => progVencida(r.cod) ? -1 : (r.novo ? 0 : (r.atualizado ? 1 : 2));
+  const np = DATA.rows.filter(r => PROG[r.cod]).length, nv = DATA.rows.filter(r => progVencida(r.cod)).length;
+  const cp = document.getElementById('chip-prog-n'); if (cp) cp.textContent = np ? '(' + np + ')' : ''; const cv = document.getElementById('chip-venc-n'); if (cv) cv.textContent = nv ? '(' + nv + ')' : '';
   rows.sort((a, b2) => { if (pri(a) !== pri(b2)) return pri(a) - pri(b2); const x = val(a), y = val(b2); const c = typeof x === 'string' ? x.localeCompare(y, 'pt-BR') : (x - y); return DIR === 'asc' ? c : -c; });
   const nOff = Object.keys(lerSug()).filter(c => temSugestao(c)).length; const bo = document.getElementById('btn-off-n'); if (bo) { bo.hidden = !nOff; bo.textContent = nOff + ' off'; }
   const nNovos = DATA.rows.filter(r => r.novo).length; const cn = document.getElementById('chip-novos-n'); if (cn) cn.textContent = nNovos ? '(' + nNovos + ')' : '';
@@ -346,7 +385,7 @@ function render() {
   document.getElementById('btn-csv').href = '/api/promocoes/final-8.csv' + (loja ? '?loja=' + loja : '');
 
   const tb = document.getElementById('tbody');
-  if (!rows.length) { tb.innerHTML = '<tr><td colspan="11" class="empty">Nenhum produto com preço final 8 nesse filtro.</td></tr>'; return; }
+  if (!rows.length) { tb.innerHTML = '<tr><td colspan="12" class="empty">Nenhum produto com preço final 8 nesse filtro.</td></tr>'; return; }
   const cel = (l, r) => {
     if (soPromo && !l.promo) return '<td class="lj vazio"><div class="p">·</div></td>';
     if (!l.promo && !(l.preco > 0)) return '<td class="lj vazio" title="sem preço nesta loja"><div class="p">—</div></td>';
@@ -367,6 +406,7 @@ function render() {
     '<td style="color:var(--ink-3)">' + (i + 1) + '</td>' +
     '<td class="cod">' + esc(r.cod) + '</td>' +
     '<td class="desc"><span class="nome" onclick="abrirProduto(\'' + esc(r.cod) + '\')" title="Abrir as 6 lojas e precificar de novo">' + esc(r.descricao) + '</span>' + novoTag(r) + tag(r) + (temSugestao(r.cod) ? '<span class="sug" title="tem preço off digitado (não está no ERP)">preço off</span>' : '') + '<small>' + [r.unid, r.grupo, r.subgrupo, r.balanca ? 'balança' : ''].filter(Boolean).map(esc).join(' · ') + '</small></td>' +
+    '<td class="fn">' + relogio(r) + '</td>' +
     LOJAS.map(ln => cel(r.lojas[ln], r)).join('') +
     '<td class="r tot' + (r.estoquePromo > 0 ? '' : ' zero') + '">' + fmtN(r.estoquePromo) + '</td>' +
     '<td class="r tot' + (r.valorPromo > 0 ? '' : ' zero') + '">' + fmtRS(r.valorPromo) + (r.valorPromo > 0 ? '<small>venda ' + fmtRS(r.promoLojas.reduce((s, ln) => s + Math.max(0, r.lojas[ln].estoque) * r.lojas[ln].preco, 0)) + '</small>' : '') + '</td>' +
@@ -465,6 +505,81 @@ document.querySelectorAll('#tabela th[data-ord]').forEach(th => th.addEventListe
 }));
 carregar(false);
 // ── PDF / WhatsApp dos preços off ──
+// ── oferta programada (relógio) ──
+let PROG = {}, HOJE = new Date().toLocaleDateString('sv-SE'), PG = null;
+async function carregarProg() { try { const r = await fetch('/api/promocoes/programadas'); const j = await r.json(); PROG = j.programadas || {}; HOJE = j.hoje || HOJE; } catch (e) {} }
+function progVencida(cod) { const p = PROG[cod]; return !!(p && p.ate && p.ate < HOJE); }
+const SVG_REL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9" fill="#fff"/><path d="M12 7v5l3.5 2"/></svg>';
+function relogio(r) {
+  const p = PROG[r.cod]; const venc = progVencida(r.cod);
+  const t = p ? (venc ? 'OFERTA VENCIDA em ' + fmtDt(p.ate) + ' · voltar o preço' : 'Oferta programada' + (p.ate ? ' até ' + fmtDt(p.ate) : '') + ' · clique pra editar') : 'Programar oferta: até quando, preço da oferta e preço quando acabar';
+  return '<button class="rel' + (p ? (venc ? ' venc' : ' on') : '') + '" onclick="abrirProg(\'' + esc(r.cod) + '\')" title="' + esc(t) + '">' + SVG_REL + (p ? '<small>' + (venc ? 'venceu' : (p.ate ? 'até ' + fmtDt(p.ate).slice(0, 5) : 'sem data')) + '</small>' : '') + '</button>';
+}
+async function abrirProg(cod) {
+  document.getElementById('pg-ov').classList.add('open');
+  document.getElementById('pg-nome').textContent = 'Carregando…'; document.getElementById('pg-sub').textContent = cod; document.getElementById('pg-body').innerHTML = '<div class="spinner"></div>';
+  try {
+    const r = await fetch('/api/promocoes/produto/' + encodeURIComponent(cod)); const j = await r.json(); if (j.error) throw new Error(j.error);
+    PG = { prod: j, cod, prog: JSON.parse(JSON.stringify(PROG[cod] || { ate: null, inicio: null, lojas: {}, obs: '' })) };
+    renderProg();
+  } catch (e) { document.getElementById('pg-body').innerHTML = '<div class="empty">Erro: ' + esc(e.message) + '</div>'; }
+}
+function fecharProg() { document.getElementById('pg-ov').classList.remove('open'); PG = null; }
+function renderProg() {
+  const p = PG.prod, g = PG.prog; const venc = g.ate && g.ate < HOJE;
+  document.getElementById('pg-nome').textContent = p.descricao;
+  document.getElementById('pg-sub').innerHTML = '<b>' + esc(p.cod) + '</b> · ' + [p.unid, p.grupo, p.subgrupo].filter(Boolean).map(esc).join(' · ') + (venc ? ' · <span style="color:#C22F49;font-weight:800">OFERTA VENCIDA — voltar o preço</span>' : '');
+  const dias = g.ate ? Math.round((new Date(g.ate + 'T12:00:00') - new Date(HOJE + 'T12:00:00')) / 86400000) : null;
+  const mgTd = (preco, custo, atual, cls) => { const m = preco > 0 && custo > 0 ? ((preco - custo) / custo) * 100 : null; const v = preco > 0 && atual > 0 ? ((preco - atual) / atual) * 100 : null;
+    return '<td class="mg ' + cls + ' ' + mgCls(m) + '">' + (m != null ? m.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + '%' : '<span style="color:var(--ink-3);font-weight:500">—</span>') + (v != null ? '<span class="var">' + (v >= 0 ? '+' : '') + v.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + '% vs atual</span>' : '') + '</td>'; };
+  const linha = l => { const s = g.lojas[l.loja] || {};
+    return '<tr><td class="loja">L' + l.loja + '<small>' + NOMES[l.loja] + '</small></td>' +
+      '<td>' + (l.custo > 0 ? fmtR(l.custo) : '<span style="color:var(--ink-3)">s/ custo</span>') + '</td>' +
+      '<td style="font-weight:800' + (l.promo ? ';color:var(--brand-ink)' : '') + '">' + (l.preco > 0 ? fmtR(l.preco) : '—') + (l.promo ? ' <span style="font-size:9px;font-weight:800;background:#FFF6D9;color:var(--brand-ink);border:1px solid #F5B80066;border-radius:4px;padding:0 4px">final 8</span>' : '') + '</td>' +
+      '<td class="mg ' + mgCls(l.margem) + '">' + (l.margem != null ? l.margem.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + '%' : '—') + '</td>' +
+      '<td class="of"><input class="np" type="text" inputmode="numeric" placeholder="0,00" value="' + (s.promo > 0 ? fmtR(s.promo) : '') + '" data-loja="' + l.loja + '" data-k="promo" oninput="onProgPreco(this)"></td>' +
+      mgTd(s.promo, l.custo, l.preco, 'of') +
+      '<td class="fi"><input class="np" type="text" inputmode="numeric" placeholder="0,00" value="' + (s.fim > 0 ? fmtR(s.fim) : '') + '" data-loja="' + l.loja + '" data-k="fim" oninput="onProgPreco(this)"></td>' +
+      mgTd(s.fim, l.custo, l.preco, 'fi') + '</tr>'; };
+  document.getElementById('pg-body').innerHTML =
+    '<div class="pg-top">' +
+      '<label>Início da oferta<input type="date" id="pg-inicio" value="' + (g.inicio || '') + '" onchange="PG.prog.inicio=this.value||null"></label>' +
+      '<label>Oferta até (fim)<input type="date" id="pg-ate" value="' + (g.ate || '') + '" onchange="PG.prog.ate=this.value||null;renderProg()"></label>' +
+      '<span class="dias">' + (dias == null ? 'sem data de fim' : (dias < 0 ? '<b style="color:#C22F49">venceu há ' + (-dias) + ' dia(s)</b>' : (dias === 0 ? '<b>termina hoje</b>' : 'faltam <b>' + dias + '</b> dia(s)'))) + '</span>' +
+      '<label style="flex:1;min-width:200px">Observação<input type="text" id="pg-obs" value="' + esc(g.obs || '') + '" placeholder="ex.: encarte de setembro" oninput="PG.prog.obs=this.value"></label>' +
+    '</div>' +
+    '<table class="pg"><thead><tr><th>Loja</th><th>Custo atual</th><th>Preço atual</th><th>Margem atual</th><th class="of">Preço da oferta</th><th class="of">Margem na oferta</th><th class="fi">Preço quando acabar</th><th class="fi">Margem depois</th></tr></thead><tbody>' +
+    p.lojas.map(linha).join('') + '</tbody></table>' +
+    '<div class="pg-todas">Em todas as lojas: <span>oferta</span> <input type="text" id="pg-t-promo" inputmode="numeric" placeholder="0,00" oninput="mascara(this)"> <span>quando acabar</span> <input type="text" id="pg-t-fim" inputmode="numeric" placeholder="0,00" oninput="mascara(this)"> <button class="btn" onclick="progTodas()">Aplicar</button>' +
+      '<span style="margin-left:auto;font-size:11px;color:var(--ink-3)">Digite só os números (2498 = 24,98). Nada é gravado no ERP.</span></div>';
+}
+function onProgPreco(inp) { const v = mascara(inp); const ln = +inp.dataset.loja, k = inp.dataset.k; const s = PG.prog.lojas[ln] || (PG.prog.lojas[ln] = {}); if (v > 0) s[k] = +v.toFixed(2); else delete s[k];
+  // recalcula só a célula de margem ao lado, sem perder o foco
+  const l = PG.prod.lojas.find(x => x.loja === ln); const td = inp.parentElement.nextElementSibling; const m = v > 0 && l.custo > 0 ? ((v - l.custo) / l.custo) * 100 : null; const va = v > 0 && l.preco > 0 ? ((v - l.preco) / l.preco) * 100 : null;
+  td.className = 'mg ' + (k === 'promo' ? 'of' : 'fi') + ' ' + mgCls(m);
+  td.innerHTML = (m != null ? m.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + '%' : '<span style="color:var(--ink-3);font-weight:500">—</span>') + (va != null ? '<span class="var">' + (va >= 0 ? '+' : '') + va.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + '% vs atual</span>' : ''); }
+function progTodas() { const a = num(document.getElementById('pg-t-promo').value), b = num(document.getElementById('pg-t-fim').value); if (!(a > 0) && !(b > 0)) return;
+  for (const l of PG.prod.lojas) { const s = PG.prog.lojas[l.loja] || (PG.prog.lojas[l.loja] = {}); if (a > 0) s.promo = +a.toFixed(2); if (b > 0) s.fim = +b.toFixed(2); } renderProg(); }
+async function salvarProg() {
+  if (!PG) return; const g = PG.prog;
+  try { const r = await fetch('/api/promocoes/programadas/' + encodeURIComponent(PG.cod), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ descricao: PG.prod.descricao, ate: g.ate, inicio: g.inicio, lojas: g.lojas, obs: g.obs }) });
+    const j = await r.json(); if (j.error) throw new Error(j.error); PROG[PG.cod] = j.programada; toast('Oferta programada salva.'); fecharProg(); if (DATA) render(); }
+  catch (e) { toast('Erro: ' + e.message); }
+}
+async function excluirProg() {
+  if (!PG || !PROG[PG.cod]) { fecharProg(); return; }
+  try { const r = await fetch('/api/promocoes/programadas/' + encodeURIComponent(PG.cod), { method: 'DELETE' }); const j = await r.json(); if (j.error) throw new Error(j.error); delete PROG[PG.cod]; toast('Programação removida.'); fecharProg(); if (DATA) render(); }
+  catch (e) { toast('Erro: ' + e.message); }
+}
+function usarProgComoOff() { // leva os preços da oferta pro "preço off" (pra sair no PDF)
+  if (!PG) return; const all = lerSug(); const s = {}; for (const [ln, v] of Object.entries(PG.prog.lojas)) if (v.promo > 0) s[ln] = v.promo; if (!Object.keys(s).length) { toast('Nenhum preço de oferta digitado.'); return; }
+  all[PG.cod] = s; gravarSug(all); toast('Preços da oferta copiados pro preço off (PDF).'); if (DATA) render();
+}
+function usarFimComoOff() { // quando a oferta acabar: leva os preços "quando acabar" pro preço off
+  if (!PG) return; const all = lerSug(); const s = {}; for (const [ln, v] of Object.entries(PG.prog.lojas)) if (v.fim > 0) s[ln] = v.fim; if (!Object.keys(s).length) { toast('Nenhum preço "quando acabar" digitado.'); return; }
+  all[PG.cod] = s; gravarSug(all); toast('Preços de fim da oferta copiados pro preço off (PDF).'); if (DATA) render();
+}
+
 const WA_KEY = 'promocoes.whatsapp.numeros.v1';
 let PDF = null;
 function abrirPdf() {
@@ -548,6 +663,19 @@ function toast(msg) { const t = document.getElementById('toast'); t.textContent 
         </div>
         <div class="md-note">Cada botão abre o WhatsApp já com a mensagem e o link do PDF pra aquela pessoa. O link é público e vale por 30 dias. <b>Nada é alterado no ERP</b>: o PDF é o roteiro pra alterar à mão.</div>
       </div>
+    </div>
+  </div>
+</div>
+<div class="md-ov" id="pg-ov" onclick="if(event.target===this)fecharProg()">
+  <div class="md" style="width:min(1060px,100%)">
+    <div class="md-hd"><div><h3 id="pg-nome">—</h3><div class="sub" id="pg-sub" style="font-size:11.5px;color:var(--ink-3);margin-top:2px"></div></div><button class="x" onclick="fecharProg()">×</button></div>
+    <div class="md-bd" id="pg-body"><div class="spinner"></div></div>
+    <div class="pnl-ft" style="border-radius:0 0 14px 14px">
+      <button class="btn btn-amber" onclick="salvarProg()">Salvar programação</button>
+      <button class="btn" onclick="usarProgComoOff()" title="Copia os preços da oferta pro preço off, pra gerar o PDF de alteração">Levar oferta pro PDF</button>
+      <button class="btn" onclick="usarFimComoOff()" title="Quando a oferta acabar: copia os preços de volta pro preço off, pra gerar o PDF">Levar preço de fim pro PDF</button>
+      <button class="btn" onclick="excluirProg()" style="color:#C22F49">Excluir</button>
+      <span class="sp">Fica gravado no servidor (vale pra todo mundo). Vencida = passou da data de fim: aparece em vermelho e no topo da lista.</span>
     </div>
   </div>
 </div>
