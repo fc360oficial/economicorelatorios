@@ -6639,42 +6639,67 @@ app.post('/api/promocoes/pdf', async (req, res) => {
       rows.sort((x, y) => (x.grupo || '').localeCompare(y.grupo || '', 'pt-BR') || x.descricao.localeCompare(y.descricao, 'pt-BR'));
       const token = require('crypto').randomBytes(16).toString('hex');
       const arq = path.join(PROMO_PDF_DIR, token + '.pdf');
-      const titulo = `LOJA ${ln} · ${NOMES[ln]} · ${soAlterados ? 'PREÇOS PARA ALTERAR NO ERP' : 'PROMOÇÕES (PREÇO FINAL 8)'}`;
-      const doc = new PDFDocument({ size: 'A4', margin: 30, info: { Title: titulo } });
+      const titulo = soAlterados ? 'PREÇOS PARA ALTERAR NO ERP' : 'PROMOÇÕES · PREÇO FINAL 8';
+      const doc = new PDFDocument({ size: 'A4', margin: 30, bufferPages: true, info: { Title: `Loja ${ln} ${NOMES[ln]} · ${titulo}` } });
       const out = fs.createWriteStream(arq); doc.pipe(out);
-      const W = doc.page.width - 60, H = doc.page.height;
-      const cCod = 112, cPreco = 88, cOk = 26, cProd = W - cCod - cPreco - cOk;
+      const W = doc.page.width - 60, H = doc.page.height, X0 = 30;
+      const cCod = 118, cPreco = 96, cOk = 30, cProd = W - cCod - cPreco - cOk;
       const nNovos = rows.filter(r => novoDe(r.cod, ln)).length;
+      const NAVY = '#101B33', AMBER = '#FFC933', INK = '#0E1626', INK2 = '#4E5A72', INK3 = '#98A0B3', LINE = '#DADAD6';
       const cab = () => {
-        doc.rect(30, 30, W, 44).fill('#101B33');
-        try { doc.image(path.join(__dirname, 'public', 'logo-supermercados.png'), 38, 36, { height: 20 }); } catch (e) {}
-        doc.fillColor('#FFC933').font('Helvetica-Bold').fontSize(7.5).text('ECONOMICO SUPERMERCADO · REDE CAHU · PROMOÇÕES', 70, 37);
-        doc.fillColor('#FFFFFF').fontSize(13).text(titulo, 70, 49);
-        doc.font('Helvetica').fontSize(7.5).fillColor('#AEB8CE').text(`${rows.length} produto(s)${nNovos ? ' · ' + nNovos + ' preço(s) novo(s)' : ''} · ${geradoEm}`, 38, 62, { width: W - 16, align: 'right', lineBreak: false });
-        let y = 84; doc.rect(30, y, W, 18).fill('#EBEBE9');
-        doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#4E5A72');
-        doc.text('CÓDIGO DE BARRAS', 34, y + 6, { width: cCod - 4, lineBreak: false });
-        doc.text('PRODUTO', 34 + cCod, y + 6, { width: cProd - 4, lineBreak: false });
-        doc.text('PREÇO DE VENDA', 34 + cCod + cProd, y + 6, { width: cPreco - 8, align: 'right', lineBreak: false });
-        doc.text('OK', 34 + cCod + cProd + cPreco, y + 6, { width: cOk - 4, align: 'center', lineBreak: false });
-        return y + 22;
+        // faixa azul-marinho com a logo do Econômico numa caixa branca à esquerda
+        doc.rect(X0, 30, W, 74).fill(NAVY);
+        doc.roundedRect(X0 + 10, 37, 60, 60, 8).fill('#FFFFFF');
+        try { doc.image(path.join(__dirname, 'public', 'logo-supermercados.png'), X0 + 14, 41, { fit: [52, 52], align: 'center', valign: 'center' }); } catch (e) {}
+        doc.fillColor(AMBER).font('Helvetica-Bold').fontSize(8.5).text('ECONÔMICO SUPERMERCADOS · REDE CAHU', X0 + 82, 42, { lineBreak: false });
+        doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(20).text(`LOJA ${ln} · ${NOMES[ln]}`, X0 + 82, 54, { lineBreak: false });
+        doc.fillColor('#C9CDD6').font('Helvetica').fontSize(10).text(titulo, X0 + 82, 80, { lineBreak: false });
+        // caixa de resumo à direita
+        const bw = 150, bx = X0 + W - bw - 10;
+        doc.roundedRect(bx, 40, bw, 54, 6).fill('#1B2A4A');
+        doc.fillColor(AMBER).font('Helvetica-Bold').fontSize(16).text(String(rows.length), bx + 10, 47, { width: bw - 20, lineBreak: false });
+        doc.fillColor('#C9CDD6').font('Helvetica').fontSize(7.5).text(soAlterados ? 'PRODUTO(S) PARA ALTERAR' : 'PRODUTO(S) EM PROMOÇÃO', bx + 10, 66, { width: bw - 20, lineBreak: false });
+        doc.fillColor('#8E98AE').fontSize(7).text(geradoEm, bx + 10, 78, { width: bw - 20, lineBreak: false });
+        // cabeçalho das colunas
+        let y = 114;
+        doc.rect(X0, y, W, 20).fill('#E4E4E1');
+        doc.font('Helvetica-Bold').fontSize(8).fillColor(INK2);
+        doc.text('CÓDIGO DE BARRAS', X0 + 6, y + 6, { width: cCod - 6, lineBreak: false });
+        doc.text('PRODUTO', X0 + 6 + cCod, y + 6, { width: cProd - 6, lineBreak: false });
+        doc.text(nNovos ? 'PREÇO NOVO' : 'PREÇO DE VENDA', X0 + cCod + cProd, y + 6, { width: cPreco - 6, align: 'right', lineBreak: false });
+        doc.text('OK', X0 + cCod + cProd + cPreco, y + 6, { width: cOk, align: 'center', lineBreak: false });
+        return y + 24;
       };
-      let y = cab(); const RH = 17; let k = 0, grupoAtual = null;
+      let y = cab(); const RH = 21; let k = 0, grupoAtual = null;
       for (const r of rows) {
-        if (y > H - 50) { doc.addPage(); y = cab(); }
-        if ((r.grupo || '') !== grupoAtual) { grupoAtual = r.grupo || ''; if (y > H - 70) { doc.addPage(); y = cab(); }
-          doc.rect(30, y, W, 12).fill('#F5F0E6'); doc.fillColor('#6B4E00').font('Helvetica-Bold').fontSize(7).text((grupoAtual || 'SEM GRUPO').toUpperCase(), 36, y + 3, { lineBreak: false }); y += 14; }
+        if (y > H - 70) { doc.addPage(); y = cab(); }
+        if ((r.grupo || '') !== grupoAtual) { grupoAtual = r.grupo || ''; if (y > H - 90) { doc.addPage(); y = cab(); }
+          doc.rect(X0, y, W, 14).fill('#F5F0E6'); doc.rect(X0, y, 3, 14).fill(AMBER);
+          doc.fillColor('#6B4E00').font('Helvetica-Bold').fontSize(8).text((grupoAtual || 'SEM GRUPO').toUpperCase(), X0 + 8, y + 4, { lineBreak: false }); y += 17; k = 0; }
         const l = r.lojas[ln], nv = novoDe(r.cod, ln), preco = nv || l.preco;
-        if (k++ % 2) doc.rect(30, y - 2, W, RH).fill('#FAFAF8');
-        doc.font('Helvetica').fontSize(9).fillColor('#4E5A72').text(r.cod, 34, y + 3, { width: cCod - 4, lineBreak: false });
-        doc.font('Helvetica-Bold').fontSize(9).fillColor('#0E1626').text(r.descricao, 34 + cCod, y + 3, { width: cProd - 6, lineBreak: false, ellipsis: true });
-        if (nv) { doc.font('Helvetica').fontSize(7).fillColor('#98A0B3').text(l.preco > 0 ? f2(l.preco) : '', 34 + cCod + cProd - 40, y + 5, { width: 38, align: 'right', lineBreak: false }); }
-        doc.font('Helvetica-Bold').fontSize(nv ? 11 : 10).fillColor(nv ? '#0E1626' : '#6B4E00').text(f2(preco), 34 + cCod + cProd, y + 1, { width: cPreco - 8, align: 'right', lineBreak: false });
-        doc.rect(34 + cCod + cProd + cPreco + 6, y + 2, 9, 9).lineWidth(0.7).strokeColor('#0E1626').stroke();
+        if (k++ % 2) doc.rect(X0, y - 3, W, RH).fill('#F7F7F5');
+        doc.font('Helvetica').fontSize(9.5).fillColor(INK2).text(r.cod, X0 + 6, y + 3, { width: cCod - 6, lineBreak: false });
+        doc.font('Helvetica-Bold').fontSize(10).fillColor(INK).text(r.descricao, X0 + 6 + cCod, y + 3, { width: cProd - (nv && l.preco > 0 ? 56 : 8), height: 12, ellipsis: true });
+        const px = X0 + cCod + cProd;
+        if (nv) {
+          doc.font('Helvetica').fontSize(7.5).fillColor(INK3).text(l.preco > 0 ? 'de ' + f2(l.preco) : '', px - 46, y + 5, { width: 44, align: 'right', lineBreak: false });
+          doc.roundedRect(px + 4, y - 1, cPreco - 10, 17, 4).fill('#FFF6D9');
+          doc.font('Helvetica-Bold').fontSize(12).fillColor(INK).text(f2(nv), px + 4, y + 2, { width: cPreco - 16, align: 'right', lineBreak: false });
+        } else {
+          doc.font('Helvetica-Bold').fontSize(11).fillColor('#6B4E00').text(f2(preco), px + 4, y + 2, { width: cPreco - 16, align: 'right', lineBreak: false });
+        }
+        doc.roundedRect(px + cPreco + 9, y + 1, 12, 12, 2).lineWidth(0.8).strokeColor(INK).stroke();
         y += RH;
-        doc.moveTo(30, y - 2).lineTo(30 + W, y - 2).lineWidth(0.3).strokeColor('#E4E4E1').stroke();
+        doc.moveTo(X0, y - 3).lineTo(X0 + W, y - 3).lineWidth(0.4).strokeColor(LINE).stroke();
       }
-      doc.font('Helvetica').fontSize(6.5).fillColor('#98A0B3').text((nNovos ? 'Preço em preto = preço novo (off) a colocar no ERP; o antigo aparece pequeno ao lado. ' : '') + 'Preço em marrom = preço atual (final 8). Marque OK ao alterar no ERP.', 30, H - 40, { width: W, align: 'center', lineBreak: false });
+      // rodapé em todas as páginas: legenda + página X de Y
+      const total = doc.bufferedPageRange().count;
+      for (let i = 0; i < total; i++) {
+        doc.switchToPage(i);
+        doc.moveTo(X0, H - 46).lineTo(X0 + W, H - 46).lineWidth(0.4).strokeColor(LINE).stroke();
+        doc.font('Helvetica').fontSize(7).fillColor(INK3).text((nNovos ? 'Preço em destaque = preço novo a colocar no ERP (o antigo aparece pequeno ao lado). ' : 'Preço = preço atual em promoção (final 8). ') + 'Marque OK ao alterar.', X0, H - 42, { width: W - 90, lineBreak: false });
+        doc.font('Helvetica-Bold').fontSize(7.5).fillColor(INK2).text(`Loja ${ln} · página ${i + 1} de ${total}`, X0 + W - 90, H - 42, { width: 90, align: 'right', lineBreak: false });
+      }
       doc.end();
       await new Promise((ok, err) => { out.on('finish', ok); out.on('error', err); });
       saida.push({ loja: ln, nome: NOMES[ln], produtos: rows.length, precos_novos: nNovos, url: `${PUBLIC_URL}/promocoes/pdf/${token}.pdf`, path: `/promocoes/pdf/${token}.pdf` });
