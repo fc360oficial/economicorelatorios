@@ -67,21 +67,21 @@ test('verificar: recebe pela linha da nota do CD mesmo sem vínculo e aprende o 
   assert.equal(r2.status, 'finalizado');
 
   const v = cd.getVinculos();
-  // sem vínculo → sugerido pela nota, com descrição da unidade
-  assert.equal(v['77900204348705'].status, 'sugerido'); assert.equal(v['77900204348705'].origem, 'nota');
-  assert.equal(v['77900204348705'].candidato, '7900204450027'); assert.equal(v['77900204348705'].descricaoCandidato, 'IPANEMA CLASSICA AZ/PR 33A40');
+  // sem vínculo → continua PENDENTE, com o código bipado só como dica (sugestaoNota), não como candidato
+  assert.equal(v['77900204348705'].status, 'pendente'); assert.equal(v['77900204348705'].candidato, null);
+  assert.equal(v['77900204348705'].sugestaoNota.unidade, '7900204450027'); assert.equal(v['77900204348705'].sugestaoNota.descricao, 'IPANEMA CLASSICA AZ/PR 33A40');
   assert.equal(v['77900204348705'].sugestaoNota.loja, 1);
   // confirmado com outra unidade → continua confirmado, marca divergência
   assert.equal(v['17898031170355'].status, 'confirmado'); assert.equal(v['17898031170355'].unidade, '7898031170358');
   assert.equal(v['17898031170355'].divergenciaNota.unidade, '7898031170341');
   // ambíguo (mesmo código da loja em duas caixas) → sem sugestão
-  assert.ok(!v['17898505140211'] || v['17898505140211'].status !== 'sugerido'); assert.ok(!v['17898505140228'] || v['17898505140228'].status !== 'sugerido');
+  assert.ok(!v['17898505140211'] || !v['17898505140211'].sugestaoNota); assert.ok(!v['17898505140228'] || !v['17898505140228'].sugestaoNota);
 });
 
-test('sincronizarVinculos preserva a sugestão vinda da nota; confirmar pela sugestão fica com origem nota', () => {
+test('sincronizarVinculos preserva a dica da nota sem virar candidato; confirmar pela dica fica com origem nota', () => {
   cd.sincronizarVinculos([{ codigoCD: '77900204348705', unPorCaixa: 6, unidadeExiste: null, candidatoDescricao: null, alternativas: [], descricaoCD: 'SANDALIA' }]);
   const v = cd.getVinculos()['77900204348705'];
-  assert.equal(v.status, 'sugerido'); assert.equal(v.candidato, '7900204450027'); assert.equal(v.origem, 'nota');
+  assert.equal(v.status, 'pendente'); assert.equal(v.candidato, null); assert.equal(v.sugestaoNota.unidade, '7900204450027');
   const c = cd.salvarVinculo({ codigoCD: '77900204348705', unidade: '7900204450027', unPorCaixa: 6, usuario: 't' });
   assert.equal(c.status, 'confirmado'); assert.equal(c.origem, 'nota');
   // vínculo confirmado igual ao que a loja bipou: divergência some na próxima verificação
