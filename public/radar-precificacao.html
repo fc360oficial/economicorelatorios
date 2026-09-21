@@ -79,7 +79,7 @@ table.dir .bar{display:inline-block;height:6px;background:#F5B800;border-radius:
 .chip.bad{border-color:var(--bad);color:var(--bad)}.chip.bad.on{background:var(--bad);color:#fff}
 .chip.warn{border-color:var(--warn);color:var(--warn)}.chip.warn.on{background:var(--warn);color:#fff}
 .table-wrap{overflow-x:auto;border-radius:12px;border:1px solid var(--border);background:var(--surface);box-shadow:0 1px 3px rgba(14,22,38,.07)}
-table.t{width:100%;border-collapse:collapse;font-size:12.5px;min-width:1700px;table-layout:fixed}
+table.t{width:100%;border-collapse:collapse;font-size:12.5px;min-width:1440px;table-layout:fixed}
 table.t thead{background:var(--surface-2);position:sticky;top:0;z-index:5}
 table.t th{padding:9px 10px;text-align:left;color:var(--ink-2);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;border-bottom:1px solid var(--border);cursor:pointer;user-select:none}
 table.t th.c{text-align:center}
@@ -93,8 +93,10 @@ table.t tbody tr.ignorada td{opacity:.55}
 td.desc{white-space:normal;font-weight:600;line-height:1.25}
 td.desc small{display:block;font-weight:400;color:var(--ink-3);font-size:10.5px;margin-top:1px}
 td.desc .nome{cursor:pointer}td.desc .nome:hover{color:var(--brand-ink);text-decoration:underline}
-td.sub{font-size:10.5px;color:var(--ink-3);display:block;font-weight:500}
-td .s2{display:block;font-size:10.5px;color:var(--ink-3);font-weight:500;line-height:1.2}
+td .sub{font-size:10px;color:var(--ink-3);display:block;font-weight:600;line-height:1.1;margin-top:1px;white-space:normal}
+td .s2{display:block;font-size:10.5px;color:var(--ink-3);font-weight:500;line-height:1.25;white-space:normal}
+table.t td.w{white-space:normal}
+td .lj{font-size:14px;font-weight:800}
 .abc{display:inline-block;font-size:10px;font-weight:800;padding:1px 6px;border-radius:4px;min-width:20px;text-align:center}
 .abc.A{background:#E7F5EC;color:var(--ok)}.abc.B{background:#FFF6D9;color:var(--brand-ink)}.abc.C{background:#EBEBE9;color:var(--ink-2)}.abc.x{background:#F5F5F3;color:var(--ink-3)}
 .papel{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap}
@@ -192,11 +194,11 @@ table.pg input.pm{font:inherit;font-size:12.5px;padding:4px 6px;border:1px solid
     <select id="f-grupo" onchange="setGrupo(this.value)"><option value="">Todos os departamentos</option></select>
     <select id="f-papel" onchange="carregar()" title="Papel do item na loja, pela curva ABC">
       <option value="">Todos os papéis</option>
-      <option value="sensivel">Sensível — curva A em quantidade (cliente compara preço)</option>
-      <option value="forte">Forte — curva A em R$ (ticket alto)</option>
-      <option value="normal">Normal — curva B</option>
-      <option value="cauda">Cauda — curva C (carrega margem)</option>
-      <option value="parado">Parado — estoque sem venda em 90 d</option>
+      <option value="sensivel">Sensível (A em qtd)</option>
+      <option value="forte">Forte (A em R$)</option>
+      <option value="normal">Normal (B)</option>
+      <option value="cauda">Cauda (C)</option>
+      <option value="parado">Parado (estoque sem venda)</option>
     </select>
     <input type="text" id="f-busca" placeholder="código de barras, descrição, departamento" oninput="buscaDebounce()">
     <div class="chips" id="chips">
@@ -218,24 +220,23 @@ table.pg input.pm{font:inherit;font-size:12.5px;padding:4px 6px;border:1px solid
 
   <div class="table-wrap">
     <table class="t" id="tabela">
-      <colgroup><col style="width:36px"><col style="width:70px"><col style="width:290px"><col style="width:70px"><col style="width:110px"><col style="width:130px"><col style="width:80px"><col style="width:80px"><col style="width:110px"><col style="width:60px"><col style="width:150px"><col style="width:140px"><col style="width:80px"><col style="width:120px"></colgroup>
+      <colgroup><col style="width:30px"><col style="width:92px"><col style="width:250px"><col style="width:112px"><col style="width:160px"><col style="width:80px"><col style="width:86px"><col style="width:132px"><col style="width:58px"><col style="width:150px"><col style="width:132px"><col style="width:72px"><col style="width:96px"></colgroup>
       <thead><tr>
         <th>#</th>
         <th data-ord="loja">Loja</th>
         <th data-ord="descricao">Produto</th>
-        <th class="c" data-ord="abcQ" title="Curva ABC da loja: por quantidade / por R$ (80% A · 95% B)">Curva<br>qtd · R$</th>
-        <th data-ord="papel">Papel</th>
+        <th data-ord="papel" title="Papel do item na loja pela curva ABC (80% A · 95% B); embaixo, a curva por quantidade e por R$">Papel · curva</th>
         <th class="r" data-ord="v90" title="Quantidade e R$ vendidos nos cupons em 90 dias; embaixo, os últimos 30 dias">Venda 90 d</th>
         <th class="r" data-ord="custo" title="Custo de cadastro na loja (custoloja)">Custo</th>
-        <th class="r" data-ord="preco" title="Preço de venda de cadastro na loja (P1..P6)">Preço</th>
-        <th class="r" data-ord="margem" title="Margem s/ venda = (preço − custo) ÷ preço · embaixo, markup s/ custo (o 'margem' do ERP) e a margem realizada nos cupons">Margem<br>markup</th>
+        <th class="r" data-ord="preco" title="Preço de venda de cadastro na loja (P1..P6); embaixo, o markup de cadastro do ERP">Preço</th>
+        <th class="r" data-ord="margem" title="Margem s/ venda = (preço − custo) ÷ preço · embaixo, markup s/ custo (o 'margem' do ERP) e a margem realizada nos cupons">Margem</th>
         <th class="r" data-ord="meta" title="Meta do departamento ajustada pelo papel (sensível −5, forte −2, cauda +4)">Meta</th>
         <th class="r" data-ord="delta" title="Preço sugerido pela meta, limitado ao aumento máximo do papel e à redução máxima; edite e aceite">Sugerido</th>
-        <th class="r" data-ord="dLucro" title="Projeção 90 dias com elasticidade por papel: Δ venda / Δ lucro bruto">Projeção 90 d</th>
+        <th class="r" data-ord="dLucro" title="Projeção 90 dias com elasticidade por papel: Δ lucro bruto e Δ venda">Projeção 90 d</th>
         <th class="r" data-ord="est">Estoque</th>
         <th class="c">Decisão</th>
       </tr></thead>
-      <tbody id="tbody"><tr><td colspan="14"><div class="spinner"></div></td></tr></tbody>
+      <tbody id="tbody"><tr><td colspan="13"><div class="spinner"></div></td></tr></tbody>
     </table>
   </div>
   <div class="legenda">
@@ -299,8 +300,9 @@ const ACAO = { subir: '▲ Subir', baixar: '▼ Baixar', manter: 'Manter', abaix
 const F = { loja: 0, grupo: '', acao: '', ordem: 'v90', dir: 'desc' };
 let DADOS = null, LOJAS = null, META = 30, PARAMS = null, _bt = null;
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const money = v => 'R$ ' + (+v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const moneyK = v => { const a = Math.abs(+v || 0); return (v < 0 ? '−' : '') + (a >= 1e6 ? 'R$ ' + (a / 1e6).toLocaleString('pt-BR', { maximumFractionDigits: 2 }) + ' mi' : a >= 1e3 ? 'R$ ' + (a / 1e3).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' mil' : money(a)); };
+const NB = String.fromCharCode(160);
+const money = v => 'R$' + NB + (+v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const moneyK = v => { const a = Math.abs(+v || 0); return ((v < 0 ? '−' : '') + (a >= 1e6 ? 'R$ ' + (a / 1e6).toLocaleString('pt-BR', { maximumFractionDigits: 2 }) + ' mi' : a >= 1e3 ? 'R$ ' + (a / 1e3).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' mil' : money(a))).split(' ').join(NB); };
 const sign = v => (v > 0 ? '+' : '') + moneyK(v);
 const pct = (v, d = 1) => v == null ? '—' : (+v).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d }) + '%';
 const qtd = v => (+v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
@@ -343,7 +345,7 @@ function renderKpis() {
       + '<div class="v ' + cls + '">' + pct(R.margemReal) + '<small>margem real 90 d</small></div>'
       + '<div class="row"><span><span class="lbl">markup</span><b>' + pct(R.markupReal) + '</b></span><span><span class="lbl">venda 90 d</span><b>' + moneyK(R.venda90) + '</b></span><span><span class="lbl">tabela</span><b>' + pct(R.margemTab) + '</b></span></div>'
       + '<div class="row"><span><span class="lbl">se aplicar tudo</span><b class="' + mgCls(R.margemProj, R.meta) + '">' + pct(R.margemProj) + '</b> <span class="' + (R.dLucro >= 0 ? 'pos' : 'neg') + '">' + sign(R.dLucro) + '</span></span><span><span class="lbl">aceitas</span><b>' + R.aceitas + '</b> ' + (R.aceitas ? '<span class="' + (R.dLucroAceitas >= 0 ? 'pos' : 'neg') + '">' + sign(R.dLucroAceitas) + '</span>' : '') + '</span></div>'
-      + '<div class="row"><span><span class="lbl">subir / baixar</span><b>' + R.subir + '</b> / <b>' + R.baixar + '</b></span><span><span class="lbl">abaixo custo</span><b class="' + (R.abaixoCusto ? 'neg' : '') + '">' + R.abaixoCusto + '</b></span><span><span class="lbl">negativos</span><b class="' + (R.negativos ? 'neg' : '') + '">' + R.negativos + '</b></span></div>'
+      + '<div class="row"><span><span class="lbl">subir·baixar</span><b>' + R.subir + '</b>·<b>' + R.baixar + '</b></span><span><span class="lbl">&lt; custo</span><b class="' + (R.abaixoCusto ? 'neg' : '') + '">' + R.abaixoCusto + '</b></span><span><span class="lbl">negativos</span><b class="' + (R.negativos ? 'neg' : '') + '">' + R.negativos + '</b></span></div>'
       + '</div>';
   };
   let h = card(0, LOJAS.total, '');
@@ -353,13 +355,13 @@ function renderKpis() {
 
 async function carregar() {
   const tb = document.getElementById('tbody');
-  tb.innerHTML = '<tr><td colspan="14"><div class="spinner"></div></td></tr>';
+  tb.innerHTML = '<tr><td colspan="13"><div class="spinner"></div></td></tr>';
   try {
     const r = await fetch('/api/radar-precificacao?' + params()); const j = await r.json(); if (j.error) throw new Error(j.error);
     DADOS = j; renderGrupos(j); renderTabela(j);
     if (!document.getElementById('f-grupo').options.length || document.getElementById('f-grupo').options.length === 1) { const s = document.getElementById('f-grupo'); for (const g of j.estado.grupos) { const o = document.createElement('option'); o.value = g; o.textContent = g; s.appendChild(o); } s.value = F.grupo; }
     document.getElementById('info').innerHTML = '<b>' + j.total.toLocaleString('pt-BR') + '</b> produto×loja' + (j.total > j.rows.length ? ' · mostrando ' + j.rows.length : '') + ' · margem real <b>' + pct(j.resumo.margemReal) + '</b> · se aplicar tudo <b>' + pct(j.resumo.margemProj) + '</b> (' + sign(j.resumo.dLucro) + ' lucro / ' + sign(j.resumo.dVenda) + ' venda em 90 d) · só subidas <b class="pos">' + sign(j.resumo.lucroSubir) + '</b> · só reduções <b class="' + (j.resumo.lucroBaixar >= 0 ? 'pos' : 'neg') + '">' + sign(j.resumo.lucroBaixar) + '</b>';
-  } catch (e) { tb.innerHTML = '<tr><td colspan="14" class="empty" style="color:var(--bad)">' + esc(e.message) + '</td></tr>'; }
+  } catch (e) { tb.innerHTML = '<tr><td colspan="13" class="empty" style="color:var(--bad)">' + esc(e.message) + '</td></tr>'; }
 }
 let DIR_ORD = 'v90', DIR_DIR = 'desc';
 function renderGrupos(j) {
@@ -381,26 +383,26 @@ document.querySelectorAll('#tabela th[data-ord]').forEach(th => th.addEventListe
 function renderTabela(j) {
   document.querySelectorAll('#tabela th[data-ord]').forEach(th => { th.classList.toggle('sorted', th.dataset.ord === F.ordem); th.innerHTML = th.innerHTML.replace(/ [▲▼]$/, '') + (th.dataset.ord === F.ordem ? (F.dir === 'desc' ? ' ▼' : ' ▲') : ''); });
   const tb = document.getElementById('tbody');
-  if (!j.rows.length) { tb.innerHTML = '<tr><td colspan="14" class="empty">Nenhum produto nessa seleção.</td></tr>'; return; }
+  if (!j.rows.length) { tb.innerHTML = '<tr><td colspan="13" class="empty">Nenhum produto nessa seleção.</td></tr>'; return; }
   tb.innerHTML = j.rows.map((r, k) => {
     const d = r.decisao, pSug = d && d.status === 'aceita' && d.preco ? d.preco : r.precoSug;
     const dif = Math.abs(pSug - r.preco) >= 0.005;
     const key = r.loja + '|' + r.cod;
+    const manter = r.acao === 'manter', semSug = r.acao === 'excluido' || r.acao === 'sem_dados' || r.acao === 'sem_venda';
     return '<tr class="' + (d ? d.status : '') + '" id="tr-' + key.replace('|', '-') + '">'
-      + '<td style="color:var(--ink-3)">' + (k + 1) + '</td><td><b>L' + r.loja + '</b><span class="sub">' + NOMES[r.loja] + '</span></td>'
+      + '<td style="color:var(--ink-3)">' + (k + 1) + '</td><td class="w"><span class="lj">L' + r.loja + '</span><span class="sub">' + NOMES[r.loja] + '</span></td>'
       + '<td class="desc"><span class="nome" onclick="abrirProduto(\'' + r.cod + '\')" title="Ver nas 6 lojas">' + esc(r.descricao) + '</span><small>' + esc(r.cod) + (r.unid ? ' · ' + esc(r.unid) : '') + (r.grupo ? ' · ' + esc(r.grupo) : '') + (r.subgrupo ? ' › ' + esc(r.subgrupo) : '') + '</small></td>'
-      + '<td style="text-align:center"><span class="abc ' + (r.abcQ === '-' ? 'x' : r.abcQ) + '">' + r.abcQ + '</span> <span class="abc ' + (r.abcR === '-' ? 'x' : r.abcR) + '">' + r.abcR + '</span></td>'
-      + '<td><span class="papel ' + r.papel + '">' + (PAPEL[r.papel] || r.papel) + '</span></td>'
-      + '<td class="r"><b>' + qtd(r.q90) + '</b> ' + (r.unid ? '<span style="color:var(--ink-3);font-size:10.5px">' + esc(r.unid) + '</span>' : '') + ' · ' + moneyK(r.v90) + '<span class="s2">30 d: ' + qtd(r.q30) + ' · ' + moneyK(r.v30) + (r.dias90 ? ' · ' + r.dias90 + ' dias c/ venda' : '') + '</span></td>'
+      + '<td class="w"><span class="papel ' + r.papel + '">' + (PAPEL[r.papel] || r.papel) + '</span><span class="s2">qtd <span class="abc ' + (r.abcQ === '-' ? 'x' : r.abcQ) + '">' + r.abcQ + '</span> · R$ <span class="abc ' + (r.abcR === '-' ? 'x' : r.abcR) + '">' + r.abcR + '</span></span></td>'
+      + '<td class="r w"><span style="white-space:nowrap"><b>' + qtd(r.q90) + '</b>' + (r.unid ? ' <span style="color:var(--ink-3);font-size:10.5px">' + esc(r.unid) + '</span>' : '') + ' · ' + moneyK(r.v90) + '</span><span class="s2">30 d: ' + qtd(r.q30) + ' · ' + moneyK(r.v30) + (r.dias90 ? '<br>' + r.dias90 + ' dias c/ venda' : '') + '</span></td>'
       + '<td class="r">' + (r.custo > 0 ? money(r.custo) : '<span style="color:var(--bad)">sem custo</span>') + '</td>'
-      + '<td class="r"><b>' + (r.preco > 0 ? money(r.preco) : '<span style="color:var(--bad)">sem preço</span>') + '</b></td>'
-      + '<td class="r"><b class="' + mgCls(r.margem, r.meta) + '" style="font-size:13px">' + pct(r.margem) + '</b><span class="s2">markup ' + pct(r.markup) + (r.margemReal != null ? ' · real ' + pct(r.margemReal) : '') + (r.margemCad != null ? ' · cad. ' + pct(r.margemCad, 0) : '') + '</span></td>'
-      + '<td class="r"><b>' + pct(r.meta, 0) + '</b><span class="s2">' + (r.metaGrupo !== r.meta ? 'depto ' + pct(r.metaGrupo, 0) : '') + '</span></td>'
-      + '<td class="r">' + (r.acao === 'excluido' || r.acao === 'sem_dados' || r.acao === 'sem_venda' ? '<span class="acao ' + r.acao + '">' + ACAO[r.acao] + '</span>'
-          : '<input class="np' + (dif ? ' dif' : '') + '" id="np-' + key.replace('|', '-') + '" value="' + pSug.toFixed(2).replace('.', ',') + '" onkeydown="if(event.key===\'Enter\')aceitar(' + r.loja + ',\'' + r.cod + '\')" title="Edite o preço e aceite"><span class="s2"><span class="acao ' + r.acao + '">' + ACAO[r.acao] + '</span> ' + (r.delta ? '<b class="' + (r.delta > 0 ? 'pos' : 'neg') + '">' + (r.delta > 0 ? '+' : '') + pct(r.delta) + '</b>' : '') + (r.margemSug != null && r.acao !== 'manter' ? ' → ' + pct(r.margemSug) : '') + '</span>') + '</td>'
-      + '<td class="r">' + (r.q90 > 0 && r.preco > 0 && r.custo > 0 ? '<span class="' + (r.dLucro >= 0 ? 'pos' : 'neg') + '">' + sign(r.dLucro) + '</span> lucro<span class="s2">' + sign(r.dVenda) + ' venda · ' + qtd(r.qProj) + ' un</span>' : '<span style="color:var(--ink-3)">—</span>') + '</td>'
-      + '<td class="r ' + (r.negativo ? 'neg' : '') + '">' + qtd(r.est) + (r.parado ? '<span class="s2" style="color:var(--warn)">parado</span>' : r.negativo ? '<span class="s2" style="color:var(--bad)">negativo</span>' : '') + '</td>'
-      + '<td>' + (r.acao === 'excluido' || r.acao === 'sem_dados' ? '' : '<div class="acts"><button class="btn btn-sm btn-ok" onclick="aceitar(' + r.loja + ',\'' + r.cod + '\')" title="Aceitar o preço digitado">✓</button><button class="btn btn-sm btn-no" onclick="decidir(' + r.loja + ',\'' + r.cod + '\',null,\'ignorada\')" title="Ignorar (não mexer)">✕</button>' + (d ? '<button class="btn btn-sm" onclick="decidir(' + r.loja + ',\'' + r.cod + '\',null,null)" title="Desfazer">↶</button>' : '') + '</div>'
+      + '<td class="r w"><b>' + (r.preco > 0 ? money(r.preco) : '<span style="color:var(--bad)">sem preço</span>') + '</b>' + (r.margemCad != null ? '<span class="s2" title="markup de cadastro no ERP">cad. ' + pct(r.margemCad, 0) + '</span>' : '') + '</td>'
+      + '<td class="r w"><b class="' + mgCls(r.margem, r.meta) + '" style="font-size:13px">' + pct(r.margem) + '</b><span class="s2">markup ' + pct(r.markup) + (r.margemReal != null ? '<br>real ' + pct(r.margemReal) : '') + '</span></td>'
+      + '<td class="r w"><b>' + pct(r.meta, 0) + '</b>' + (r.metaGrupo !== r.meta ? '<span class="s2">depto ' + pct(r.metaGrupo, 0) + '</span>' : '') + '</td>'
+      + '<td class="r w">' + (semSug ? '<span class="acao ' + r.acao + '">' + ACAO[r.acao] + '</span>'
+          : '<input class="np' + (dif ? ' dif' : '') + '" id="np-' + key.replace('|', '-') + '" value="' + pSug.toFixed(2).replace('.', ',') + '" onkeydown="if(event.key===\'Enter\')aceitar(' + r.loja + ',\'' + r.cod + '\')" title="Edite o preço e aceite"><span class="s2"><span class="acao ' + r.acao + '">' + ACAO[r.acao] + '</span>' + (r.delta ? ' <b class="' + (r.delta > 0 ? 'pos' : 'neg') + '">' + (r.delta > 0 ? '+' : '') + pct(r.delta) + '</b>' : '') + (r.margemSug != null && !manter ? ' → ' + pct(r.margemSug) : '') + '</span>') + '</td>'
+      + '<td class="r w">' + (r.q90 > 0 && r.preco > 0 && r.custo > 0 && !manter && !semSug ? '<b class="' + (r.dLucro >= 0 ? 'pos' : 'neg') + '">' + sign(r.dLucro) + '</b> lucro<span class="s2">' + sign(r.dVenda) + ' venda<br>' + qtd(r.qProj) + ' un proj.</span>' : '<span style="color:var(--ink-3)">—</span>') + '</td>'
+      + '<td class="r w ' + (r.negativo ? 'neg' : '') + '">' + qtd(r.est) + (r.parado ? '<span class="s2" style="color:var(--warn)">parado</span>' : r.negativo ? '<span class="s2" style="color:var(--bad)">negativo</span>' : '') + '</td>'
+      + '<td class="w">' + (r.acao === 'excluido' || r.acao === 'sem_dados' ? '' : '<div class="acts"><button class="btn btn-sm btn-ok" onclick="aceitar(' + r.loja + ',\'' + r.cod + '\')" title="Aceitar o preço digitado">✓</button><button class="btn btn-sm btn-no" onclick="decidir(' + r.loja + ',\'' + r.cod + '\',null,\'ignorada\')" title="Ignorar (não mexer)">✕</button>' + (d ? '<button class="btn btn-sm" onclick="decidir(' + r.loja + ',\'' + r.cod + '\',null,null)" title="Desfazer">↶</button>' : '') + '</div>'
           + (d ? '<span class="dec ' + d.status + '">' + (d.status === 'aceita' ? '✓ ' + money(d.preco) : 'ignorada') + (d.usuario ? ' · ' + esc(d.usuario.split(' ')[0]) : '') + '</span>' : '')) + '</td>'
       + '</tr>';
   }).join('');
