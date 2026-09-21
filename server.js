@@ -7793,6 +7793,38 @@ app.post('/api/cotacoes/:id/pre-pedido/:codFornec/realizar', async (req, res) =>
     res.json(cotDetalhe(r));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+// mensagem da compradora + WhatsApp dela (fica fixa no topo da página do vendedor; só quem está logado edita)
+app.post('/api/cotacoes/:id/mensagem', (req, res) => {
+  const id = cotId(req); if (!id) return res.status(400).json({ error: 'id inválido' });
+  const r = cotacao.setMensagem(id, req.body || {}, cotUser(req));
+  if (!r) return res.status(404).json({ error: 'cotação não encontrada' });
+  res.json(cotDetalhe(r));
+});
+// estoque e trânsito por loja dos itens da cotação, AO VIVO (estoquen{ln} + sugestões abertas no ERP via Radar),
+// pra tela de pré-pedido (Tiago, 21/09: "em cada item preciso visualizar o estoque da loja e o que está em trânsito")
+const _cotEstoque = {};
+app.get('/api/cotacoes/:id/estoque', async (req, res) => {
+  try {
+    const id = cotId(req); if (!id) return res.status(400).json({ error: 'id inválido' });
+    const c = cotacao.obter(id); if (!c) return res.status(404).json({ error: 'cotação não encontrada' });
+    const cache = _cotEstoque[id]; if (cache && Date.now() - cache.em < 5 * 60 * 1000 && req.query.refresh !== '1') return res.json(cache.dados);
+    const cods = c.itens.map(i => i.cod), out = {};
+    for (const cod of cods) out[cod] = { estoque: 0, transito: 0, lojas: {} };
+    for (const ln of [1, 2, 3, 4, 5, 6]) for (const ch of radarPedidos.chunk(cods, 2000)) {
+      const rows = await q(`SELECT CodigoBarra cod, Qtd FROM central.estoquen${ln} WHERE CodigoBarra IN (${ch.map(() => '?').join(',')})`, ch).catch(() => []);
+      for (const r of rows) { const o = out[r.cod]; if (!o) continue; const v = radarPedidos.num(r.Qtd); o.lojas[ln] = { estoque: v, transito: 0 }; o.estoque += v; }
+    }
+    try {
+      const det = c.lista ? radarPedidos.itensLista(c.lista, radarPedidos.TETO_PADRAO, 0, undefined, false) : null;
+      if (det) for (const it of det.itens) { const o = out[it.cod]; if (!o) continue; o.venda_dia = it.venda_dia; o.cobertura_dias = it.cobertura_dias;
+        for (const [ln, d] of Object.entries(it.lojas_det || {})) { const L = o.lojas[ln] = o.lojas[ln] || { estoque: 0, transito: 0 }; L.transito = +d.transito || 0; L.venda_dia = d.venda_dia; L.cobertura_dias = d.cobertura_dias; o.transito += +d.transito || 0; } }
+    } catch (e) { console.error('[COTACAO] transito:', e.message); }
+    for (const o of Object.values(out)) { o.estoque = +o.estoque.toFixed(2); o.transito = +o.transito.toFixed(2); }
+    const dados = { itens: out, em: new Date().toISOString() };
+    _cotEstoque[id] = { em: Date.now(), dados };
+    res.json(dados);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 app.post('/api/cotacoes/:id/cancelar', (req, res) => {
   const id = cotId(req); if (!id) return res.status(400).json({ error: 'id inválido' });
   const r = cotacao.cancelar(id, cotUser(req));
