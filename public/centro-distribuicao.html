@@ -388,15 +388,46 @@ const noCdTxt = p => p.noCD ? `${NO_CD[p.noCD.statusCD] || 'em andamento no CD'}
 const ST = { aberto: ['Aberto', 'p-breve'], separado: ['Liberado no CD', 'p-flag'], recebido: ['Chegou na loja', 'p-ok'], finalizado: ['Finalizado na loja', 'p-ok'], recebido_parcial: ['Chegou parcial', 'p-hoje'], cancelado: ['Cancelado', 'p-cinza'], expirado: ['Expirado (30 d sem nota)', 'p-cinza'] };
 let PABERTO = null, CFGCD = {};
 // envio pro CD: link público (token por pedido, vários juntos separados por vírgula) por WhatsApp — igual ao link do vendedor
-function enviarCD(ps) {
+let ENVIO_IDS = [];
+function psDe(ids) { return ids.map(id => PEDIDOS.find(p => p.id === id)).filter(Boolean); }
+function linkCD(ids) { return location.origin + '/cd/' + psDe(ids).map(p => p.token).join(','); }
+function textoCD(ids) {
+  const ps = psDe(ids), link = linkCD(ids), cx = ps.reduce((a, p) => a + p.totais.caixas, 0);
+  return `Pedido ao CD · ${ps.map(p => 'L' + p.loja + ' ' + p.lojaNome).join(', ')} · ${fmtN(cx)} caixas · ${ps.length} pedido${ps.length > 1 ? 's' : ''}\n${link}\nDigitar no Televendas no cliente de cada loja, código CD e quantidade em caixas.`;
+}
+function copiarLinkCD(ids, btn) {
+  const link = linkCD(ids);
+  try { navigator.clipboard && navigator.clipboard.writeText(link); } catch (e) {}
+  if (btn) { const t = btn.textContent; btn.textContent = 'Copiado!'; setTimeout(() => btn.textContent = t, 1500); }
+}
+function whatsCD(ids) {
+  const w = (CFGCD.whatsCD || '').replace(/\D/g, '');
+  window.open((w.length >= 10 ? 'https://wa.me/55' + w : 'https://wa.me/') + '?text=' + encodeURIComponent(textoCD(ids)), '_blank');
+}
+// tela antes de mandar: copiar link, enviar todos juntos (1 mensagem) ou por loja (uma mensagem por pedido) —
+// pra não sair direto pro WhatsApp sem o Tiago decidir como quer mandar (21/09/2026)
+function abrirEnvioCD(ps) {
   ps = (ps || []).filter(p => p && p.token); if (!ps.length) return alert('Pedido sem link. Recarregue a tela.');
   ps.sort((a, b) => a.loja - b.loja);
-  const link = location.origin + '/cd/' + ps.map(p => p.token).join(',');
-  const cx = ps.reduce((a, p) => a + p.totais.caixas, 0);
-  const texto = `Pedido ao CD · ${ps.map(p => 'L' + p.loja + ' ' + p.lojaNome).join(', ')} · ${fmtN(cx)} caixas · ${ps.length} pedido${ps.length > 1 ? 's' : ''}\n${link}\nDigitar no Televendas no cliente de cada loja, código CD e quantidade em caixas.`;
-  const w = (CFGCD.whatsCD || '').replace(/\D/g, '');
-  try { navigator.clipboard && navigator.clipboard.writeText(link); } catch (e) {}
-  window.open((w.length >= 10 ? 'https://wa.me/55' + w : 'https://wa.me/') + '?text=' + encodeURIComponent(texto), '_blank');
+  ENVIO_IDS = ps.map(p => p.id);
+  renderEnvioCD(false);
+  $('#ov').classList.add('on');
+}
+function renderEnvioCD(porLoja) {
+  const ps = psDe(ENVIO_IDS), cx = ps.reduce((a, p) => a + p.totais.caixas, 0);
+  $('#ov-body').innerHTML = `<h2 style="font-size:16px;margin:0">Enviar pro CD</h2>
+    <p class="mut" style="font-size:12px;margin:4px 0 14px">${ps.map(p => 'L' + p.loja + ' ' + p.lojaNome).join(', ')} · ${fmtN(cx)} caixas · ${ps.length} pedido${ps.length > 1 ? 's' : ''}</p>
+    ${!porLoja ? `<div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-slate" onclick="copiarLinkCD(ENVIO_IDS,this)">Copiar link${ps.length > 1 ? ' (todos)' : ''}</button>
+      <button class="btn btn-amber" onclick="whatsCD(ENVIO_IDS)">Enviar${ps.length > 1 ? ' todos (1 mensagem)' : ''}</button>
+      ${ps.length > 1 ? `<button class="btn btn-slate" onclick="renderEnvioCD(true)">Enviar por loja</button>` : ''}
+    </div>` : `<div class="table-wrap"><table class="main-t"><thead><tr><th>Loja</th><th class="r">Caixas</th><th>Ação</th></tr></thead><tbody>
+      ${ps.map(p => `<tr><td><b>L${p.loja}</b> ${p.lojaNome}</td><td class="r">${fmtN(p.totais.caixas)}</td><td>
+        <button class="btn btn-slate btn-sm" onclick="copiarLinkCD([${p.id}],this)">Copiar link</button>
+        <button class="btn btn-amber btn-sm" onclick="whatsCD([${p.id}])">Enviar</button></td></tr>`).join('')}
+      </tbody></table></div>
+      <div style="margin-top:10px"><button class="btn btn-slate btn-sm" onclick="renderEnvioCD(false)">← voltar</button></div>`}
+    <div style="text-align:right;margin-top:14px"><button class="btn btn-slate" onclick="$('#ov').classList.remove('on')">Fechar</button></div>`;
 }
 // divergência por item: pedido × separado no CD × recebido na loja
 // situação da nota de entrada na loja (ERP): aberta em conferência / conferida aguardando central / fechada
@@ -454,12 +485,12 @@ function renderPedidosInner() {
     <p class="mut" style="font-size:11.5px;margin:6px 0 0">"Chegou" depende de a loja lançar a nota do CD (fornecedor 2157) no ERP; enquanto a nota não é lançada, o pedido fica em "Liberado no CD" mesmo com a mercadoria já na loja. Clique no pedido pra ver item a item o que foi pedido, separado e recebido.</p>
   </details>
 
-  <div class="busca-row"><button class="btn btn-slate" onclick="verificar()">Verificar agora</button>${aEnviar.length ? `<button class="btn btn-amber" onclick="enviarCD(PEDIDOS.filter(p => p.status === 'aberto' && !p.noCD))" title="Um link só com os pedidos que o CD ainda não digitou, pra mandar por WhatsApp pra pessoa do CD">Enviar pro CD (${aEnviar.length} ainda não digitado${aEnviar.length === 1 ? '' : 's'})</button>` : (cont.aberto ? '<span class="contagem pos">todos os abertos já estão no CD</span>' : '')}<span class="contagem">${CFGCD.whatsCD ? 'WhatsApp do CD: ' + CFGCD.whatsCD : 'WhatsApp do CD não cadastrado (aba Regras) — o link abre no seu WhatsApp pra você escolher o contato'}</span></div>
+  <div class="busca-row"><button class="btn btn-slate" onclick="verificar()">Verificar agora</button>${aEnviar.length ? `<button class="btn btn-amber" onclick="abrirEnvioCD(PEDIDOS.filter(p => p.status === 'aberto' && !p.noCD))" title="Escolher como mandar pro CD: link único, tudo numa mensagem ou uma por loja">Enviar pro CD (${aEnviar.length} ainda não digitado${aEnviar.length === 1 ? '' : 's'})</button>` : (cont.aberto ? '<span class="contagem pos">todos os abertos já estão no CD</span>' : '')}<span class="contagem">${CFGCD.whatsCD ? 'WhatsApp do CD: ' + CFGCD.whatsCD : 'WhatsApp do CD não cadastrado (aba Regras) — o link abre no seu WhatsApp pra você escolher o contato'}</span></div>
   <div class="table-wrap"><table class="main-t"><thead><tr><th>#</th><th>Loja</th><th>Criado</th><th class="r">Itens</th><th class="r">Caixas</th><th class="r">Custo</th><th>Andamento</th><th>Conferência</th><th>Ação</th></tr></thead><tbody>
   ${vis.map(p => { const R = resumoDiv(p); const aberto = PABERTO === p.id; return `<tr class="lst${aberto ? ' open' : ''}" onclick="PABERTO=PABERTO===${p.id}?null:${p.id};PDBUSCA='';renderPedidos()"><td>${p.id}</td><td><b>L${p.loja}</b> ${p.lojaNome}</td><td>${new Date(p.criadoEm).toLocaleString('pt-BR')}<div class="s2">${p.criadoPor || ''}</div></td><td class="r">${p.itens.length}</td><td class="r">${fmtN(p.totais.caixas)}</td><td class="r">${fmtR(p.totais.custo)}</td>
     <td><span class="pill ${ST[p.status][1]}">${ST[p.status][0]}</span>${p.expedicao ? '<div class="s2">CD: separação ' + p.expedicao.nPedido + ' · ' + (p.expedicao.data || '').split('-').reverse().join('/') + '</div>' : ''}${p.notaCD && !p.recebimento ? '<div class="s2" title="o CD emitiu a nota de venda: a mercadoria saiu do CD, falta a loja dar entrada no ERP">NF ' + p.notaCD.nNota + ' do CD em ' + (p.notaCD.data || '').split('-').reverse().slice(0, 2).join('/') + ' · falta entrada na loja</div>' : ''}${p.recebimento ? p.recebimento.notas.map(n => '<div class="s2">Loja: nota ' + n.nNota + notaLojaTxt(n) + '</div>').join('') : ''}</td>
     <td>${p.status === 'aberto' ? (p.noCD ? '<span class="pos">' + noCdTxt(p) + '</span>' : '<span class="mut">aguardando CD</span>') : ['cancelado', 'expirado'].includes(p.status) ? '<span class="mut">—</span>' : R.div ? `<span class="neg">${R.div} item(ns) com divergência</span><div class="s2">faltam ${fmtN(R.faltaCx)} cx</div>` : '<span class="pos">✓ tudo conferido</span>'}</td>
-    <td onclick="event.stopPropagation()">${['aberto', 'separado', 'recebido_parcial', 'expirado'].includes(p.status) ? `<button class="btn btn-slate" onclick="cancelar(${p.id})">Cancelar</button>` : ''} <button class="btn btn-slate" onclick="imprimir(${p.id})">Imprimir</button> ${p.status === 'aberto' && !p.noCD ? `<button class="btn btn-slate" onclick="enviarCD([PEDIDOS.find(x => x.id === ${p.id})])" title="link deste pedido por WhatsApp">Enviar</button>` : ''}</td></tr>${aberto ? detalhePedido(p) : ''}`; }).join('') || '<tr><td colspan="9" class="mut">nenhum pedido</td></tr>'}
+    <td onclick="event.stopPropagation()">${['aberto', 'separado', 'recebido_parcial', 'expirado'].includes(p.status) ? `<button class="btn btn-slate" onclick="cancelar(${p.id})">Cancelar</button>` : ''} <button class="btn btn-slate" onclick="imprimir(${p.id})">Imprimir</button> ${p.status === 'aberto' && !p.noCD ? `<button class="btn btn-slate" onclick="abrirEnvioCD([PEDIDOS.find(x => x.id === ${p.id})])" title="link deste pedido por WhatsApp">Enviar</button>` : ''}</td></tr>${aberto ? detalhePedido(p) : ''}`; }).join('') || '<tr><td colspan="9" class="mut">nenhum pedido</td></tr>'}
   </tbody></table></div>`;
 }
 let PDBUSCA = '';
