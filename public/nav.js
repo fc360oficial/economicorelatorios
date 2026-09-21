@@ -55,6 +55,9 @@
     { id: 'cahu-distribuidora', ic: 'store', txt: 'CAHU Distribuidora', sub: [
         { href: '/cahu-tabela-precos.html', ic: 'download', txt: 'Tabela de Preços' }
       ]},
+    { id: 'dedo-duro', ic: 'alert', txt: 'Dedo Duro', sub: [
+        { href: '/dedo-duro.html', ic: 'alert', txt: 'Dedo Duro' }
+      ]},
     { id: 'financeiro', ic: 'bank', txt: 'Financeiro', sub: [
         { href: '/conciliador.html', ic: 'bank', txt: 'Conciliação de Saídas' },
         { href: '/conciliador-entradas.html', ic: 'bank', txt: 'Conciliação de Entradas' },

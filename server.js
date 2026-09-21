@@ -6477,6 +6477,23 @@ sortimento.agendar();
 // com projeção. Regras e fontes em lib/radar-precificacao.js. SÓ LEITURA no ERP; decisões e
 // parâmetros ficam em data/radar-precificacao-*.json e saem em CSV pra digitar no ERP.
 // ═══════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════
+// DEDO DURO (Operação > Dedo Duro, 21/09/2026): as 28 checagens de auditoria do relatório 152 do WinThor
+// mapeadas pro ERP. Regras e fontes em lib/dedo-duro.js. Só leitura no ERP.
+// ═══════════════════════════════════════════════════
+const dedoDuro = require('./lib/dedo-duro');
+dedoDuro.init({ q });
+app.get('/api/dedo-duro/checks', (req, res) => res.json({ checks: dedoDuro.lista(), nomes: dedoDuro.NOMES }));
+app.get('/api/dedo-duro/run/:n', async (req, res) => {
+  try {
+    const hoje = new Date().toLocaleDateString('sv-SE');
+    const de = /^\d{4}-\d{2}-\d{2}$/.test(req.query.de || '') ? req.query.de : hoje.slice(0, 8) + '01';
+    const ate = /^\d{4}-\d{2}-\d{2}$/.test(req.query.ate || '') ? req.query.ate : hoje;
+    const params = {}; for (const [k, v] of Object.entries(req.query)) if (k.startsWith('p_')) params[k.slice(2)] = v;
+    res.json(await dedoDuro.rodar(req.params.n, { loja: parseInt(req.query.loja) || 0, de, ate, params, limite: Math.min(5000, parseInt(req.query.limite) || 2000) }));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 const radarPrecif = require('./lib/radar-precificacao');
 radarPrecif.init({ q });
 radarPrecif.agendar();
