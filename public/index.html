@@ -7,655 +7,327 @@
 <link rel="stylesheet" href="/design-system.css">
 <script src="/nav.js" defer></script>
 <style>
-  /* layout específico do dashboard — componentes vêm do design system */
-  .db-body{padding:20px 22px 28px;max-width:1600px;margin:0 auto}
-  .db-crumb{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+  /* Dashboard em 6 segmentos (21/09/2026): faturamento · comercial · abastecimento · estoque · operação · financeiro */
+  .db-body{padding:20px 22px 40px;max-width:1700px;margin:0 auto}
+  .db-crumb{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
   .db-crumb .sub{font-size:12px;color:var(--ink3)}
-  .db-fresh{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:11.5px;
-    color:var(--pos);font-weight:600;background:var(--posw);border-radius:20px;padding:4px 12px}
+  .db-fresh{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--pos);font-weight:600;background:var(--posw);border-radius:20px;padding:4px 12px}
   .db-fresh i{width:6px;height:6px;border-radius:50%;background:var(--pos)}
-  .db-row{display:grid;gap:14px;margin-top:14px}
-  .db-row.c21{grid-template-columns:2fr 1fr}
-  .db-row.c11{grid-template-columns:1fr 1fr}
-  .chart-wrap{position:relative;min-height:280px}
-  .chart-wrap canvas{max-height:280px}
-  .chart-wrap.tall{min-height:320px}
-  .chart-wrap.tall canvas{max-height:320px}
+  .db-fresh.old{color:var(--neg);background:var(--negw)}.db-fresh.old i{background:var(--neg)}
   .appbar-right{display:flex;align-items:center;gap:12px;margin-left:auto}
-  .appbar-user{display:flex;align-items:center;gap:9px}
-  .appbar-user small{color:var(--ink3);display:block;font-size:10px}
-  .appbar-user .nm{font-size:12px;font-weight:700;text-align:right}
   #g-search-wrap{flex:1;max-width:420px}
-  #refresh-countdown{font-size:10px;color:var(--ink3);text-align:center;margin-top:3px}
-  .logo-img{height:36px;display:block}
-  @media (max-width:1100px){
-    .db-row.c21,.db-row.c11{grid-template-columns:1fr}
-  }
-  @media (max-width:820px){
-    .ds-appbar{height:auto;flex-wrap:wrap;padding:10px 14px;gap:10px}
-    #g-search-wrap{order:5;max-width:none;width:100%;flex-basis:100%}
-    .appbar-right{margin-left:auto}
-    .db-body{padding:12px}
-    .chart-wrap canvas{max-height:230px}
-  }
+  .seg-nav{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 14px;position:sticky;top:0;z-index:20;background:var(--wsh,#EBEBE9);padding:8px 0}
+  .seg-nav a{font-size:11.5px;font-weight:700;padding:6px 12px;border-radius:999px;border:1px solid var(--ln2,#C9C9C4);background:#fff;color:var(--ink2);text-decoration:none;white-space:nowrap}
+  .seg-nav a:hover{background:#FFF6D9;border-color:var(--am,#F5B800)}
+  .seg-nav a b{display:inline-block;min-width:18px;text-align:center;background:var(--negw);color:var(--neg);border-radius:999px;padding:0 6px;margin-left:6px;font-size:10.5px}
+  .seg-nav a b.ok{background:var(--posw);color:var(--pos)}
+  .seg{margin-top:22px;scroll-margin-top:60px}
+  .seg-hd{display:flex;align-items:baseline;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+  .seg-hd .n{width:26px;height:26px;border-radius:8px;background:var(--ink);color:#F5B800;font-weight:800;font-size:13px;display:inline-flex;align-items:center;justify-content:center}
+  .seg-hd h2{font-size:16px;font-weight:800;margin:0}
+  .seg-hd small{font-size:11.5px;color:var(--ink3)}
+  .seg-hd .lk{margin-left:auto;font-size:11.5px;font-weight:700;color:var(--amk,#6B4E00);text-decoration:none}
+  .seg-hd .lk:hover{text-decoration:underline}
+  .row{display:grid;gap:12px}
+  .row.c7{grid-template-columns:repeat(7,minmax(150px,1fr))}
+  .row.c6{grid-template-columns:repeat(6,minmax(150px,1fr))}
+  .row.c3{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .row.c2{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .row.c21{grid-template-columns:2fr 1fr}
+  @media (max-width:1400px){.row.c7,.row.c6{grid-template-columns:repeat(4,minmax(150px,1fr))}.row.c3{grid-template-columns:1fr 1fr}}
+  @media (max-width:900px){.row.c7,.row.c6,.row.c3,.row.c2,.row.c21{grid-template-columns:1fr}}
+  .lj{background:#fff;border:1px solid var(--ln,#DADAD6);border-radius:12px;padding:12px 14px}
+  .lj.rede{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .lj .nm{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--ink2);display:flex;justify-content:space-between}
+  .lj.rede .nm{color:#F5B800}
+  .lj .v{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:4px;line-height:1.1}
+  .lj .v small{font-size:10px;font-weight:700;color:var(--ink3);margin-left:4px}
+  .lj .r{display:flex;justify-content:space-between;gap:8px;margin-top:7px;font-size:11px;color:var(--ink2);font-variant-numeric:tabular-nums}
+  .lj .r b{color:var(--ink);font-weight:700}
+  .lj.rede .r{color:#C9CDD6}.lj.rede .r b{color:#fff}
+  .lj .r .l{display:block;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--ink3)}
+  .lj.rede .r .l{color:#98A0B3}
+  .up{color:var(--pos)!important;font-weight:700}.dn{color:var(--neg)!important;font-weight:700}.wn{color:#B45C00!important;font-weight:700}
+  .lj.rede .up{color:#5BD48F!important}.lj.rede .dn{color:#FF7A8E!important}.lj.rede .wn{color:#F5B800!important}
+  .card{background:#fff;border:1px solid var(--ln,#DADAD6);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;min-height:120px}
+  .card-hd{padding:9px 14px;border-bottom:1px solid var(--ln,#DADAD6);display:flex;align-items:center;gap:8px;background:#FAFAF8;flex-wrap:wrap}
+  .card-hd h3{font-size:12.5px;font-weight:800;margin:0}
+  .card-hd small{font-size:10.5px;color:var(--ink3)}
+  .card-hd .k{margin-left:auto;font-size:11px;font-weight:800;padding:2px 9px;border-radius:999px;background:var(--negw);color:var(--neg)}
+  .card-hd .k.ok{background:var(--posw);color:var(--pos)}.card-hd .k.nt{background:#EBEBE9;color:var(--ink2)}
+  .card-bd{padding:6px 0;overflow:auto;max-height:420px}
+  table.m{width:100%;border-collapse:collapse;font-size:12px}
+  table.m th{padding:6px 9px;text-align:left;font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--ink3);border-bottom:1px solid var(--ln,#DADAD6);white-space:nowrap;position:sticky;top:0;background:#fff}
+  table.m th.r,table.m td.r{text-align:right}
+  table.m td{padding:5px 9px;border-bottom:1px solid #F0F0EE;vertical-align:middle;font-variant-numeric:tabular-nums;white-space:nowrap;max-width:320px;overflow:hidden;text-overflow:ellipsis}
+  table.m td.p{font-weight:600;white-space:normal;line-height:1.25}
+  table.m td.p small{display:block;font-weight:400;color:var(--ink3);font-size:10.5px}
+  table.m tr:hover td{background:#F6F6F4}
+  table.m tr.bad td{background:#FFF5F6}
+  .pill{display:inline-block;font-size:10px;font-weight:800;padding:2px 8px;border-radius:6px;white-space:nowrap}
+  .pill.bad{background:var(--negw);color:var(--neg)}.pill.ok{background:var(--posw);color:var(--pos)}.pill.wn{background:#FFF1E0;color:#B45C00}.pill.nt{background:#EBEBE9;color:var(--ink2)}.pill.inf{background:#E9EEF6;color:#2E5E8C}
+  .bar{display:inline-block;height:7px;background:#F5B800;border-radius:4px;vertical-align:middle;margin-right:6px}
+  .bar.neg{background:#C22F49}
+  .empty{padding:26px 14px;text-align:center;color:var(--ink3);font-size:12px}
+  .nosrc{padding:16px 14px;font-size:12px;color:var(--ink2);line-height:1.5}
+  .nosrc b{color:var(--ink)}
+  .spin{width:24px;height:24px;border:3px solid var(--ln,#DADAD6);border-top-color:#F5B800;border-radius:50%;animation:spin .8s linear infinite;margin:30px auto}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .lojas-tag{display:inline-flex;gap:3px;flex-wrap:wrap}
+  .lojas-tag i{font-style:normal;font-size:10px;font-weight:800;padding:1px 5px;border-radius:4px;background:var(--negw);color:var(--neg)}
+  .lojas-tag i.ok{background:var(--posw);color:var(--pos)}
+  .md-ov{position:fixed;inset:0;background:#0E162699;z-index:950;display:none;align-items:center;justify-content:center;padding:16px}
+  .md-ov.open{display:flex}
+  .md{background:#fff;border-radius:14px;width:min(640px,100%);max-height:92vh;overflow:auto;box-shadow:0 20px 60px rgba(14,22,38,.35)}
+  .md-hd{padding:14px 18px;border-bottom:1px solid var(--ln,#DADAD6);display:flex;align-items:center;gap:10px;background:#FAFAF8}
+  .md-hd h3{font-size:15px;font-weight:800;margin:0}.md-hd small{color:var(--ink3);font-size:11.5px}
+  .md-hd .x{margin-left:auto;font:inherit;font-size:20px;background:none;border:none;color:var(--ink3);cursor:pointer}
+  .md-bd{padding:16px 18px}
+  .md-bd input.np{font:inherit;font-size:13px;font-weight:700;padding:6px 8px;border:1px solid var(--ln2,#C9C9C4);border-radius:7px;width:130px;text-align:right}
+  .md-note{font-size:11px;color:var(--ink3);margin-top:10px;line-height:1.5}
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;font-size:12.5px;z-index:999;display:none}
+  .toast.on{display:block}
+  .op-pdv{display:inline-block;font-size:10px;font-weight:700;padding:2px 6px;border-radius:5px;background:#EBEBE9;color:var(--ink2);margin:1px}
+  .op-pdv.bad{background:var(--negw);color:var(--neg)}
+  @media (max-width:820px){.ds-appbar{height:auto;flex-wrap:wrap;padding:10px 14px;gap:10px}#g-search-wrap{order:5;max-width:none;width:100%;flex-basis:100%}.db-body{padding:12px}}
 </style>
 </head>
 <body class="ds">
 
 <header class="ds-appbar">
-    <div class="ds-search" id="g-search-wrap">
+  <div class="ds-search" id="g-search-wrap">
     <svg class="ds-ic"><use href="/icons.svg#search"/></svg>
     <input class="ds-input" id="g-search" placeholder="Buscar produto em todas as lojas...  (Ctrl K)">
   </div>
-  <select class="ds-select" id="fil-loja" onchange="carregarKPIs(); carregarProdutosSemana(); carregarFaturamentoMensal(); carregarTopVendidos(); carregarFormasPagamento(); carregarMercadologico()">
-    <option value="todas">Todas as Lojas</option>
-    <option value="1">Loja 1</option><option value="2">Loja 2</option>
-    <option value="3">Loja 3</option><option value="4">Loja 4</option>
-    <option value="5">Loja 5</option><option value="6">Loja 6</option>
-  </select>
-  <select class="ds-select" id="fil-mes" onchange="carregarKPIs(); carregarTopVendidos(); carregarFormasPagamento(); carregarMercadologico()">
-    <option value="1">Janeiro</option><option value="2">Fevereiro</option>
-    <option value="3">Março</option><option value="4">Abril</option>
-    <option value="5">Maio</option><option value="6">Junho</option>
-    <option value="7">Julho</option><option value="8">Agosto</option>
-    <option value="9">Setembro</option><option value="10">Outubro</option>
-    <option value="11">Novembro</option><option value="12">Dezembro</option>
-  </select>
   <div class="appbar-right">
-    <div>
-      <button class="ds-btn ds-btn-primary" id="btn-refresh" onclick="carregarTudo()">
-        <svg class="ds-ic sm"><use href="/icons.svg#refresh"/></svg>Atualizar
-      </button>
-      <div id="refresh-countdown">↺ 180:00</div>
-    </div>
+    <button class="ds-btn ds-btn-secondary" onclick="abrirMetas()" title="Meta de faturamento do mês por loja (se não digitar, vale ano passado + %)">🎯 Metas</button>
+    <button class="ds-btn ds-btn-primary" id="btn-refresh" onclick="atualizar()"><svg class="ds-ic sm"><use href="/icons.svg#refresh"/></svg>Atualizar</button>
   </div>
 </header>
 
-
 <main class="db-body">
-
   <div class="db-crumb">
     <span class="ds-h1">Visão geral</span>
-    <span class="sub" id="crumb-sub">Todas as lojas · carregando…</span>
-    <span class="db-fresh" id="db-fresh"><i></i>Dados de hoje, <span id="clock">--:--</span></span>
+    <span class="sub" id="crumb-sub">carregando…</span>
+    <span class="db-fresh" id="db-fresh"><i></i><span id="fresh-txt">…</span></span>
   </div>
+  <nav class="seg-nav" id="seg-nav">
+    <a href="#s1">1 · Faturamento</a><a href="#s2">2 · Comercial <b id="n2"></b></a><a href="#s3">3 · Abastecimento <b id="n3"></b></a>
+    <a href="#s4">4 · Estoque <b id="n4"></b></a><a href="#s5">5 · Operação <b id="n5"></b></a><a href="#s6">6 · Financeiro <b id="n6"></b></a>
+  </nav>
 
-  <!-- KPIs -->
-  <div class="ds-kpi-grid">
-    <div class="ds-kpi">
-      <div class="ds-label">Faturamento do mês</div>
-      <div class="ds-kpi-v" id="kpi-fat-mes"><span class="ds-skel" style="display:inline-block;height:26px;width:150px"></span></div>
-      <div class="ds-kpi-foot"><span id="kpi-fat-var"></span><span id="kpi-fat-sub">carregando…</span></div>
-      <div class="ds-kpi-foot" id="kpi-dias-mes" style="margin-top:4px"></div>
-      <svg class="spark" id="spark-fat" width="72" height="26" viewBox="0 0 72 26"></svg>
-    </div>
-    <div class="ds-kpi">
-      <div class="ds-label" id="kpi-ant-label">Ano anterior — mesmo período</div>
-      <div class="ds-kpi-v" id="kpi-fat-ant"><span class="ds-skel" style="display:inline-block;height:26px;width:150px"></span></div>
-      <div class="ds-kpi-foot" id="kpi-ant-sub">mês completo: …</div>
-    </div>
-    <div class="ds-kpi">
-      <div class="ds-label">Ticket médio</div>
-      <div class="ds-kpi-v" id="kpi-ticket-medio"><span class="ds-skel" style="display:inline-block;height:26px;width:100px"></span></div>
-      <div class="ds-kpi-foot" id="kpi-ticket-sub">cupons do mês</div>
-    </div>
-    <div class="ds-kpi">
-      <div class="ds-label">Margem s/ venda — NFC-e</div>
-      <div class="ds-kpi-v" id="kpi-margem-sc"><span class="ds-skel" style="display:inline-block;height:26px;width:80px"></span></div>
-      <div class="ds-kpi-foot" id="kpi-margem-sv-sub">S/C: …%</div>
-    </div>
-  </div>
+  <!-- 1 FATURAMENTO -->
+  <section class="seg" id="s1">
+    <div class="seg-hd"><span class="n">1</span><h2>Faturamento</h2><small id="s1-sub">mês atual até hoje × mesmo período do ano passado · margem s/ venda · markup s/ custo · ticket · cupons</small><a class="lk" href="/comparativos.html">Comparativos →</a></div>
+    <div class="row c7" id="fat-cards"><div class="spin"></div></div>
+  </section>
 
-  <!-- Faturamento por loja + Formas de pagamento -->
-  <div class="db-row c21">
-    <div class="ds-card">
-      <div class="ds-panel-hd">
-        <span class="ds-h2">Faturamento por loja</span>
-        <span class="ds-pill ds-pill-neutral">Mês a mês · 2026</span>
-      </div>
-      <div class="ds-panel-bd chart-wrap tall" id="wrap-lojas"><div class="ds-spinner"></div></div>
+  <!-- 2 COMERCIAL -->
+  <section class="seg" id="s2">
+    <div class="seg-hd"><span class="n">2</span><h2>Comercial</h2><small>lojas abaixo da meta (projeção no ritmo atual) · departamentos com queda de margem contra o mês anterior</small><a class="lk" href="/radar-precificacao.html">Radar Precificação →</a></div>
+    <div class="row c2">
+      <div class="card"><div class="card-hd"><h3>Lojas × meta do mês</h3><small id="meta-sub"></small><span class="k" id="k-meta"></span></div><div class="card-bd" id="c-meta"><div class="spin"></div></div></div>
+      <div class="card"><div class="card-hd"><h3>Departamentos com queda de margem</h3><small id="setor-sub">rede · mês atual × mês anterior</small><select class="ds-select" id="setor-loja" onchange="renderSetores()" style="margin-left:auto;font-size:11px;padding:3px 8px"><option value="0">Rede</option><option value="1">L1 CAHU</option><option value="2">L2 MURIBECA</option><option value="3">L3 PONTE</option><option value="4">L4 ATACAREJO</option><option value="5">L5 PORTA LARGA</option><option value="6">L6 JARDIM JORDÃO</option></select></div><div class="card-bd" id="c-setores"><div class="spin"></div></div></div>
     </div>
-    <div class="ds-card">
-      <div class="ds-panel-hd">
-        <span class="ds-h2">Formas de pagamento</span>
-        <span class="ds-pill ds-pill-neutral" id="badge-pagto">…</span>
-      </div>
-      <div class="ds-panel-bd chart-wrap tall" id="wrap-pagto"><div class="ds-spinner"></div></div>
-    </div>
-  </div>
+  </section>
 
-  <!-- Top 10 produtos (tabela assinatura) -->
-  <div class="db-row">
-    <div class="ds-card">
-      <div class="ds-panel-hd">
-        <span class="ds-h2">Top 10 produtos do mês</span>
-        <span class="ds-pill ds-pill-neutral" id="badge-top-vendidos">…</span>
-        <div class="ds-seg" style="margin-left:auto">
-          <button id="btn-top-qtd" class="on" onclick="setModoTop('qtd')">Quantidade</button>
-          <button id="btn-top-val" onclick="setModoTop('val')">Valor R$</button>
-        </div>
-      </div>
-      <div id="wrap-top-vendidos"><div class="ds-spinner"></div></div>
+  <!-- 3 ABASTECIMENTO -->
+  <section class="seg" id="s3">
+    <div class="seg-hd"><span class="n">3</span><h2>Abastecimento</h2><small>produtos principais (curva A) em falta · listas pra pedir hoje ou atrasadas · pendências do CD · pedidos ao fornecedor parados</small><a class="lk" href="/radar-pedidos.html">Radar de Pedidos →</a></div>
+    <div class="row c3">
+      <div class="card"><div class="card-hd"><h3>Curva A em falta</h3><small>produto zerado em loja ou zerando antes do pedido</small><span class="k" id="k-curva"></span></div><div class="card-bd" id="c-curva"><div class="spin"></div></div></div>
+      <div class="card"><div class="card-hd"><h3>Listas pra pedir hoje / atrasadas</h3><small>Radar de Pedidos</small><span class="k" id="k-listas"></span></div><div class="card-bd" id="c-listas"><div class="spin"></div></div></div>
+      <div class="card"><div class="card-hd"><h3>CD e fornecedores</h3><small>caixas que faltaram do CD · pedidos ao fornecedor sem resposta</small><span class="k" id="k-cd"></span></div><div class="card-bd" id="c-cd"><div class="spin"></div></div></div>
     </div>
-  </div>
+  </section>
 
-  <!-- Evolução mensal -->
-  <div class="db-row">
-    <div class="ds-card">
-      <div class="ds-panel-hd">
-        <span class="ds-h2">Evolução do faturamento</span>
-        <span class="ds-pill ds-pill-neutral">2026 · mês a mês</span>
-      </div>
-      <div class="ds-panel-bd chart-wrap" id="wrap-mensal"><div class="ds-spinner"></div></div>
+  <!-- 4 ESTOQUE -->
+  <section class="seg" id="s4">
+    <div class="seg-hd"><span class="n">4</span><h2>Estoque</h2><small>excesso (cobertura acima de 120 dias) · vencimentos nos próximos 30 dias · transferências entre lojas</small><a class="lk" href="/fornecedores.html">Sortimento →</a></div>
+    <div class="row c3">
+      <div class="card"><div class="card-hd"><h3>Excesso de estoque</h3><small id="exc-sub"></small><span class="k" id="k-exc"></span></div><div class="card-bd" id="c-exc"><div class="spin"></div></div></div>
+      <div class="card"><div class="card-hd"><h3>Vencimentos próximos</h3><small>lotes do coletor com validade em até 30 dias e estoque na loja</small><span class="k" id="k-venc"></span></div><div class="card-bd" id="c-venc"><div class="spin"></div></div></div>
+      <div class="card"><div class="card-hd"><h3>Transferir entre lojas</h3><small>curva A zerada numa loja com estoque em outra</small><span class="k" id="k-transf"></span></div><div class="card-bd" id="c-transf"><div class="spin"></div></div></div>
     </div>
-  </div>
+  </section>
 
-  <!-- Semana + Mercadológico -->
-  <div class="db-row c11">
-    <div class="ds-card">
-      <div class="ds-panel-hd">
-        <span class="ds-h2">Top produtos da semana</span>
-        <span class="ds-pill ds-pill-neutral">últimos 7 dias</span>
-      </div>
-      <div class="ds-panel-bd chart-wrap" id="wrap-semana"><div class="ds-spinner"></div></div>
+  <!-- 5 OPERAÇÃO -->
+  <section class="seg" id="s5">
+    <div class="seg-hd"><span class="n">5</span><h2>Operação</h2><small id="op-sub">caixas ativos e parados hoje · cupons na última hora · refrigeração</small></div>
+    <div class="row c21">
+      <div class="card"><div class="card-hd"><h3>Caixas hoje</h3><small id="op-hora"></small><span class="k" id="k-op"></span></div><div class="card-bd" id="c-op"><div class="spin"></div></div></div>
+      <div class="card"><div class="card-hd"><h3>Refrigeração e filas</h3><span class="k nt">sem fonte</span></div><div class="nosrc" id="c-refri">O ERP não tem leitura de temperatura das câmaras/balcões nem contagem de fila. Quando os sensores de refrigeração forem integrados (API ou planilha), este cartão mostra câmara por câmara: temperatura atual, limite e tempo fora da faixa. Filas: hoje o que dá pra ver é o ritmo de cupons por caixa na última hora, no cartão ao lado.</div></div>
     </div>
-    <div class="ds-card">
-      <div class="ds-panel-hd">
-        <span class="ds-h2">Top 15 mercadológico</span>
-        <span class="ds-pill ds-pill-neutral" id="badge-merc">…</span>
-        <div class="ds-seg" style="margin-left:auto">
-          <button id="btn-merc-val" class="on" onclick="setModoMerc('val')">Valor R$</button>
-          <button id="btn-merc-qtd" onclick="setModoMerc('qtd')">Qtd</button>
-        </div>
-      </div>
-      <div class="ds-panel-bd chart-wrap" id="wrap-merc"><div class="ds-spinner"></div></div>
-    </div>
-  </div>
+  </section>
 
+  <!-- 6 FINANCEIRO -->
+  <section class="seg" id="s6">
+    <div class="seg-hd"><span class="n">6</span><h2>Financeiro</h2><small>compromissos dos próximos 7 dias e vencidos em aberto (contas a pagar do ERP) · posição de caixa</small><a class="lk" href="/conciliador.html">Conciliação →</a></div>
+    <div class="row c3">
+      <div class="card"><div class="card-hd"><h3>Próximos 7 dias</h3><small>a pagar em aberto, por dia</small><span class="k" id="k-fin"></span></div><div class="card-bd" id="c-fin-dias"><div class="spin"></div></div></div>
+      <div class="card"><div class="card-hd"><h3>Por loja</h3><small>vencidos · hoje · 7 dias</small></div><div class="card-bd" id="c-fin-lojas"><div class="spin"></div></div></div>
+      <div class="card"><div class="card-hd"><h3>Maiores títulos dos 7 dias</h3></div><div class="card-bd" id="c-fin-maiores"><div class="spin"></div></div></div>
+    </div>
+    <div class="row" style="margin-top:12px"><div class="card"><div class="card-hd"><h3>Posição de caixa consolidada</h3><span class="k nt">sem fonte</span></div><div class="nosrc" id="c-caixa">Saldo bancário ainda não vem pro sistema. A integração com a API do Itaú hoje só traz o extrato (lançamentos); pra mostrar a posição de caixa consolidada é preciso puxar o saldo de cada conta das 6 lojas. Enquanto isso, o que está aqui é o lado dos compromissos: vencidos, hoje e próximos 7 dias.</div></div></div>
+  </section>
 </main>
 
-<script src="/chart.min.js"></script>
+<div class="md-ov" id="md-metas" onclick="if(event.target===this)fechar('md-metas')">
+  <div class="md">
+    <div class="md-hd"><div><h3>Metas de faturamento</h3><small id="metas-sub">mês atual · por loja · se ficar em branco vale o ano passado + crescimento</small></div><button class="x" onclick="fechar('md-metas')">×</button></div>
+    <div class="md-bd">
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;font-size:12.5px">Crescimento padrão sobre o ano passado: <input class="np" id="m-cresc" type="number" step="0.5" style="width:80px"> %</div>
+      <table class="m"><thead><tr><th>Loja</th><th class="r">Ano passado (mês cheio)</th><th class="r">Meta automática</th><th class="r">Meta digitada (R$)</th></tr></thead><tbody id="m-body"></tbody></table>
+      <div style="display:flex;gap:8px;margin-top:14px"><button class="ds-btn ds-btn-primary" onclick="salvarMetas()">Salvar</button><button class="ds-btn ds-btn-secondary" onclick="fechar('md-metas')">Cancelar</button></div>
+      <div class="md-note">A meta vale pro mês atual. "Abaixo da meta" compara a <b>projeção</b> (venda até hoje ÷ dias passados × dias do mês) com a meta.</div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
 <script>
-const fmt = v => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 }).format(v);
-const fmtN = v => new Intl.NumberFormat('pt-BR').format(v);
-
-const charts = {};
-
-/* ── Paleta de gráficos · Executive Ink ── */
-const CX = {
-  grid: 'rgba(14,22,38,.07)',
-  gridSoft: 'rgba(14,22,38,.04)',
-  tick: '#4E5A72',
-  label: '#0E1626',
-  ink: '#0E1626',
-  inkSoft: 'rgba(14,22,38,.10)',
-  am: '#F5B800',
-  categorico: ['#0E1626','#F5B800','#137A48','#C22F49','#5B8AA6','#8A6FB0'],
-};
-if (window.Chart) {
-  Chart.defaults.font.family = "'InterVar',Inter,'Segoe UI',system-ui,sans-serif";
-  Chart.defaults.font.size = 11;
-  Chart.defaults.color = CX.tick;
-}
-
-function loading(id) {
-  document.getElementById(id).innerHTML = '<div class="ds-spinner"></div>';
-}
-function erro(id, msg) {
-  document.getElementById(id).innerHTML = `<div class="ds-empty"><div class="t">Sem dados</div>${msg}</div>`;
-}
-
-const mesesNomes = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const NOMES = { 1: 'CAHU', 2: 'MURIBECA', 3: 'PONTE', 4: 'ATACAREJO', 5: 'PORTA LARGA', 6: 'JARDIM JORDÃO', 10: 'CENTRAL/CD' };
+const MESES = ['', 'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+let D = null;
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const NB = String.fromCharCode(160);
+const money = v => 'R$' + NB + (+v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const moneyK = v => { const a = Math.abs(+v || 0), s = v < 0 ? '−' : ''; return (a >= 1e6 ? s + 'R$' + NB + (a / 1e6).toLocaleString('pt-BR', { maximumFractionDigits: 2 }) + NB + 'mi' : a >= 1e3 ? s + 'R$' + NB + (a / 1e3).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + NB + 'mil' : s + money(a)); };
+const pct = (v, d = 1) => v == null ? '—' : (+v).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d }) + '%';
+const sgn = v => v == null ? '—' : (v > 0 ? '+' : '') + pct(v);
+const nf = v => (+v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+const df = v => v ? String(v).slice(0, 10).split('-').reverse().slice(0, 2).join('/') : '';
+const cls = v => v == null ? '' : v > 0 ? 'up' : v < 0 ? 'dn' : '';
+const lojaTag = ln => '<b>L' + ln + '</b> <span style="color:var(--ink3);font-size:10.5px">' + (NOMES[ln] || '') + '</span>';
+function toast(t) { const e = document.getElementById('toast'); e.textContent = t; e.classList.add('on'); clearTimeout(toast._t); toast._t = setTimeout(() => e.classList.remove('on'), 2600); }
+function fechar(id) { document.getElementById(id).classList.remove('open'); }
+const k = (id, n, ok) => { const e = document.getElementById(id); if (!e) return; e.textContent = n; e.className = 'k' + (ok ? ' ok' : ''); };
+const badge = (id, n) => { const e = document.getElementById(id); e.textContent = n || ''; e.className = n ? '' : 'ok'; if (!n) e.textContent = '✓'; };
+const empty = t => '<div class="empty">' + t + '</div>';
 
 /* ── Busca global (Ctrl+K) → consulta.html ── */
-document.addEventListener('keydown', e => {
-  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
-    e.preventDefault();
-    document.getElementById('g-search').focus();
-  }
-});
-document.getElementById('g-search').addEventListener('keydown', e => {
-  if (e.key === 'Enter') {
-    const q = e.target.value.trim();
-    if (!q) return;
-    localStorage.setItem('consulta_ultima', JSON.stringify({
-      loja: 'todas', periodo: 'mes', ordenar: 'qtd', top: 50, produto: q
-    }));
-    window.location.href = '/consulta.html';
-  }
-});
+document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); document.getElementById('g-search').focus(); } });
+document.getElementById('g-search').addEventListener('keydown', e => { if (e.key === 'Enter') { const q = e.target.value.trim(); if (!q) return; localStorage.setItem('consulta_ultima', JSON.stringify({ loja: 'todas', periodo: 'mes', ordenar: 'qtd', top: 50, produto: q })); window.location.href = '/consulta.html'; } });
 
-/* ── KPIs ── */
-async function carregarKPIs() {
-  const loja = document.getElementById('fil-loja').value;
-  const mes = document.getElementById('fil-mes').value;
-
-  const lojaLabel = loja === 'todas' ? 'Todas as lojas' : 'Loja ' + loja;
-  document.getElementById('crumb-sub').textContent =
-    lojaLabel + ' · ' + mesesNomes[parseInt(mes)] + ' 2026 · comparado a ' + mesesNomes[parseInt(mes)] + ' 2025';
-
+async function carregar() {
   try {
-    const r = await fetch(`/api/kpis?loja=${loja}&mes=${mes}`);
-    const d = await r.json();
-    if (d.error) return;
+    const r = await fetch('/api/dashboard'); const j = await r.json(); if (j.error) throw new Error(j.error);
+    D = j; render();
+    if (j.calculando) setTimeout(carregar, 30000);
+  } catch (e) { document.getElementById('crumb-sub').textContent = 'erro: ' + e.message; }
+}
+async function atualizar() { await fetch('/api/dashboard/atualizar', { method: 'POST' }); toast('Recalculando… leva 1 a 2 minutos'); setTimeout(carregar, 20000); }
 
-    const mesSel  = parseInt(mes);
-    const mesNome = mesesNomes[mesSel];
-    const hoje2   = new Date();
-    const mesAtual = hoje2.getMonth() + 1;
-    const diasNoMes = new Date(hoje2.getFullYear(), mesSel, 0).getDate();
-    const diaAte  = mesSel === mesAtual ? hoje2.getDate() : (mesSel < mesAtual ? diasNoMes : 0);
-    const pctMes  = +(diaAte / diasNoMes * 100).toFixed(1);
-
-    document.getElementById('kpi-fat-mes').textContent = fmt(d.faturamento_mes);
-    const vAnoFat = d.variacao_percentual;
-    document.getElementById('kpi-fat-var').innerHTML =
-      `<span class="ds-chip ${vAnoFat >= 0 ? 'ds-chip-up' : 'ds-chip-dn'}">${vAnoFat >= 0 ? '▲' : '▼'} ${Math.abs(vAnoFat)}%</span>`;
-    const antAteDia = d.fat_ano_ant_ate_dia ?? 0;
-    const pctVsAnt  = antAteDia > 0 ? +(d.faturamento_mes / antAteDia * 100).toFixed(1) : pctMes;
-    document.getElementById('kpi-dias-mes').textContent =
-      antAteDia > 0
-        ? `${pctVsAnt}% vs ${mesNome}/${d.ano_ant} até dia ${diaAte}`
-        : `Dia ${diaAte} de ${diasNoMes} · ${pctMes}% do mês`;
-    document.getElementById('kpi-fat-sub').textContent = `${mesNome} até dia ${diaAte} · ${lojaLabel}`;
-
-    document.getElementById('kpi-fat-ant').textContent = fmt(d.fat_ano_ant_ate_dia ?? 0);
-    document.getElementById('kpi-ant-label').textContent = `${mesNome}/${d.ano_ant} — até dia ${d.dia_ate}`;
-    document.getElementById('kpi-ant-sub').textContent =
-      `mês completo ${d.ano_ant}: ${fmt(d.fat_ano_ant_mes_total ?? 0)}`;
-
-    document.getElementById('kpi-ticket-medio').textContent = fmt(d.ticket_medio);
-    document.getElementById('kpi-ticket-sub').textContent = fmtN(d.total_cupons) + ' cupons no mês';
-    const msv = d.margem_sv ?? 0;
-    const elM = document.getElementById('kpi-margem-sc');
-    elM.textContent = msv.toFixed(1) + '%';
-    elM.style.color = msv >= 30 ? 'var(--pos)' : msv >= 20 ? 'var(--ink)' : 'var(--neg)';
-    document.getElementById('kpi-margem-sv-sub').textContent = 'S/C: ' + (d.margem_sc ?? 0).toFixed(1) + '%';
-  } catch(e) {}
+function render() {
+  const f = D.faturamento;
+  const at = D.atualizadoEm ? new Date(D.atualizadoEm) : null;
+  document.getElementById('fresh-txt').textContent = at ? 'atualizado ' + at.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) + (D.calculando ? ' · recalculando…' : '') : 'calculando…';
+  document.getElementById('db-fresh').className = 'db-fresh' + (at && Date.now() - at.getTime() > 20 * 60000 ? ' old' : '');
+  document.getElementById('crumb-sub').textContent = f ? MESES[f.mes] + ' de ' + f.ano + ' · dia ' + f.dia + ' de ' + f.ultimoDia + (D.demo ? ' · DADOS DE EXEMPLO' : '') : '';
+  renderFat(); renderMeta(); renderSetores(); renderAbast(); renderEstoque(); renderOp(); renderFin();
+}
+function renderFat() {
+  const f = D.faturamento; if (!f) { document.getElementById('fat-cards').innerHTML = empty('Faturamento não calculado'); return; }
+  document.getElementById('s1-sub').textContent = '01 a ' + df(f.ate) + ' × 01 a ' + String(f.dia).padStart(2, '0') + '/' + String(f.mes).padStart(2, '0') + '/' + f.anoAnt + ' · margem s/ venda · markup s/ custo · ticket · cupons';
+  const card = l => '<div class="lj' + (l.loja === 0 ? ' rede' : '') + '"><div class="nm"><span>' + (l.loja ? 'L' + l.loja + ' ' + l.nome : 'REDE · 6 lojas') + '</span><span class="' + cls(l.var) + '">' + sgn(l.var) + '</span></div>'
+    + '<div class="v">' + moneyK(l.venda) + '<small>mês</small></div>'
+    + '<div class="r"><span><span class="l">ano passado</span><b>' + moneyK(l.vendaAnt) + '</b></span><span><span class="l">hoje</span><b>' + moneyK(l.hoje) + '</b></span><span><span class="l">projeção</span><b>' + moneyK(l.projecao) + '</b></span></div>'
+    + '<div class="r"><span><span class="l">margem</span><b class="' + (l.margem != null && l.margemAnt != null ? (l.margem >= l.margemAnt ? 'up' : 'dn') : '') + '">' + pct(l.margem) + '</b> <span style="font-size:10px">' + (l.margemAnt != null ? 'ant ' + pct(l.margemAnt) : '') + '</span></span><span><span class="l">markup</span><b>' + pct(l.markup) + '</b></span></div>'
+    + '<div class="r"><span><span class="l">ticket</span><b>' + money(l.ticket) + '</b> <span style="font-size:10px">' + (l.ticketAnt ? 'ant ' + money(l.ticketAnt) : '') + '</span></span><span><span class="l">cupons</span><b>' + l.cupons.toLocaleString('pt-BR') + '</b> <span class="' + cls(l.varCupons) + '" style="font-size:10px">' + sgn(l.varCupons) + '</span></span></div>'
+    + '</div>';
+  document.getElementById('fat-cards').innerHTML = card(f.rede) + f.lojas.map(card).join('');
+}
+function renderMeta() {
+  const c = D.comercial; if (!c) { document.getElementById('c-meta').innerHTML = empty('sem dados'); return; }
+  const abaixo = c.lojas.filter(l => l.abaixo).length; k('k-meta', abaixo ? abaixo + ' abaixo' : 'todas na meta', !abaixo); badge('n2', abaixo + (c.setores || []).filter(s => s.queda <= -1).length);
+  document.getElementById('meta-sub').textContent = 'meta = digitada ou ano passado +' + c.crescimento + '% · projeção no ritmo atual';
+  const row = l => '<tr class="' + (l.abaixo ? 'bad' : '') + '"><td>' + (l.loja ? lojaTag(l.loja) : '<b>REDE</b>') + '</td><td class="r">' + moneyK(l.venda) + '</td><td class="r">' + moneyK(l.meta) + (l.origem && l.loja ? '<br><span style="font-size:9.5px;color:var(--ink3)">' + esc(l.origem) + '</span>' : '') + '</td><td class="r"><span class="bar' + (l.pctMeta < 100 ? '' : '') + '" style="width:' + Math.min(70, Math.round((l.pctMeta || 0) * 0.7)) + 'px"></span>' + pct(l.pctMeta, 0) + '</td><td class="r"><b class="' + (l.abaixo ? 'dn' : 'up') + '">' + moneyK(l.projecao) + '</b><br><span style="font-size:10px">' + pct(l.pctProj, 0) + ' da meta</span></td><td class="r">' + (l.abaixo ? '<span class="pill bad">falta ' + moneyK(l.falta) + '</span>' : '<span class="pill ok">na meta</span>') + '</td></tr>';
+  document.getElementById('c-meta').innerHTML = '<table class="m"><thead><tr><th>Loja</th><th class="r">Venda até hoje</th><th class="r">Meta do mês</th><th class="r">% já feito</th><th class="r">Projeção</th><th class="r">Situação</th></tr></thead><tbody>' + row({ ...c.rede, loja: 0 }) + c.lojas.map(row).join('') + '</tbody></table>';
+}
+function renderSetores() {
+  const c = D.comercial; if (!c) { document.getElementById('c-setores').innerHTML = empty('sem dados'); return; }
+  const ln = +document.getElementById('setor-loja').value;
+  const rows = (ln ? c.setoresPorLoja.filter(s => s.loja === ln) : c.setores).filter(s => s.vA > 1000);
+  document.getElementById('setor-sub').textContent = (ln ? 'L' + ln + ' ' + NOMES[ln] : 'rede') + ' · ' + df(c.periodoAtual.de) + ' a ' + df(c.periodoAtual.ate) + ' × ' + MESES[+c.periodoAnt.de.slice(5, 7)];
+  if (!rows.length) { document.getElementById('c-setores').innerHTML = empty('Sem comparação ainda (o cálculo de departamentos leva alguns minutos após o boot).'); return; }
+  const queda = rows.filter(s => s.queda <= -1);
+  document.getElementById('c-setores').innerHTML = '<table class="m"><thead><tr><th>Departamento</th><th class="r">Venda mês</th><th class="r">Margem</th><th class="r">Mês ant.</th><th class="r">Δ pts</th><th class="r">Impacto</th></tr></thead><tbody>'
+    + rows.slice(0, 40).map(s => '<tr class="' + (s.queda <= -1 ? 'bad' : '') + '"><td class="p">' + esc(s.grupo) + '</td><td class="r">' + moneyK(s.vA) + '</td><td class="r"><b>' + pct(s.margem) + '</b></td><td class="r">' + pct(s.margemAnt) + '</td><td class="r"><b class="' + cls(s.queda) + '">' + sgn(s.queda) + '</b></td><td class="r ' + cls(s.impacto) + '">' + (s.impacto > 0 ? '+' : '') + moneyK(s.impacto) + '</td></tr>').join('')
+    + '</tbody></table>' + (queda.length ? '' : '<div class="empty">Nenhum departamento com queda de 1 ponto ou mais.</div>');
+}
+function renderAbast() {
+  const a = D.abastecimento || {}; let n3 = 0;
+  const ca = a.curvaA;
+  if (!ca) document.getElementById('c-curva').innerHTML = empty('Radar de Pedidos ainda não calculou');
+  else { n3 += ca.itens.length; k('k-curva', ca.itens.length ? ca.itens.length + ' produtos' : 'ok', !ca.itens.length);
+    document.getElementById('c-curva').innerHTML = ca.itens.length ? '<table class="m"><thead><tr><th>Produto</th><th>Zerado em</th><th class="r">Venda/dia</th><th class="r">Cob.</th><th>Lista</th></tr></thead><tbody>' + ca.itens.map(i => '<tr><td class="p">' + esc(i.descricao) + '<small>#' + i.rank + ' curva A · ' + esc(i.fornecedor || '') + '</small></td><td><span class="lojas-tag">' + (i.lojas_zeradas.length ? i.lojas_zeradas.map(l => '<i>L' + l + '</i>').join('') : '<i class="ok">zera antes</i>') + '</span></td><td class="r">' + money(i.venda_dia_valor) + '</td><td class="r">' + nf(i.cobertura_dias) + ' d</td><td><span class="pill ' + (i.fazer_em <= 0 ? 'bad' : 'nt') + '">' + esc(i.lista_nome || i.lista) + (i.fazer_em != null ? ' · ' + (i.fazer_em <= 0 ? 'pedir hoje' : 'em ' + i.fazer_em + ' d') : '') + '</span></td></tr>').join('') + '</tbody></table>' : empty('Nenhum produto de curva A em falta. ✓'); }
+  const ls = a.listas;
+  if (!ls) document.getElementById('c-listas').innerHTML = empty('Radar de Pedidos ainda não calculou');
+  else { n3 += ls.pedirHoje; k('k-listas', ls.pedirHoje ? ls.pedirHoje + ' hoje · ' + moneyK(ls.valorHoje) : 'em dia', !ls.pedirHoje);
+    document.getElementById('c-listas').innerHTML = (ls.itens.length ? '<table class="m"><thead><tr><th>Lista</th><th>Comprador</th><th class="r">Pedido</th><th class="r">Rupturas</th><th>Quando</th></tr></thead><tbody>' + ls.itens.map(l => '<tr class="' + (l.fazer_em < 0 ? 'bad' : '') + '"><td class="p">' + esc(l.nome) + '<small>' + esc(l.fornecedor || '') + '</small></td><td>' + esc(l.comprador || '—') + '</td><td class="r">' + moneyK(l.pedido_valor) + '</td><td class="r ' + (l.rupturas ? 'dn' : '') + '">' + (l.rupturas || '') + '</td><td>' + (l.fazer_em < 0 ? '<span class="pill bad">atrasada ' + (-l.fazer_em) + ' d</span>' : '<span class="pill wn">hoje</span>') + '</td></tr>').join('') + '</tbody></table>' : empty('Nenhuma lista pra pedir hoje. ✓')) + '<div class="empty" style="padding:8px">' + ls.proximos7 + ' listas nos próximos 7 dias · ' + ls.rupturas + ' rupturas nas listas</div>'; }
+  const cd = a.cd, fo = a.fornecedores; let h = '';
+  if (cd) { n3 += cd.pendencias + cd.atrasados; h += '<div style="padding:6px 12px;font-size:11px;color:var(--ink2)"><b>CD:</b> ' + (cd.pendencias ? cd.pendencias + ' itens com ' + cd.caixasFaltando + ' cx faltando na entrega' : 'sem caixas faltando') + ' · ' + cd.abertos + ' pedidos abertos' + (cd.atrasados ? ' · <b class="dn">' + cd.atrasados + ' há mais de 3 dias</b>' : '') + '</div>';
+    if (cd.itens.length) h += '<table class="m"><thead><tr><th>Item do CD</th><th>Loja</th><th class="r">Faltou (cx)</th><th>Pedido</th></tr></thead><tbody>' + cd.itens.map(i => '<tr><td class="p">' + esc(i.descricao) + '</td><td>' + lojaTag(i.loja) + '</td><td class="r dn">' + i.faltaCx + '</td><td>#' + i.pedidoId + ' · ' + df(i.criadoEm) + '</td></tr>').join('') + '</tbody></table>'; }
+  if (fo) { n3 += fo.parados; h += '<div style="padding:6px 12px;font-size:11px;color:var(--ink2);border-top:1px solid #F0F0EE"><b>Fornecedores:</b> ' + fo.total + ' pedidos em andamento' + (fo.parados ? ' · <b class="dn">' + fo.parados + ' parados</b> (sem resposta há 2+ dias ou aprovado há 5+ dias sem nota)' : ' · nenhum parado') + '</div>';
+    if (fo.itens.length) h += '<table class="m"><thead><tr><th>Fornecedor</th><th>Status</th><th class="r">Dias</th><th class="r">Valor</th></tr></thead><tbody>' + fo.itens.map(p => '<tr class="bad"><td class="p">' + esc(p.fornecedor) + '<small>' + esc(p.lista || '') + ' · pedido #' + p.id + '</small></td><td><span class="pill nt">' + esc(p.status) + '</span></td><td class="r dn">' + p.dias + '</td><td class="r">' + moneyK(p.valor) + '</td></tr>').join('') + '</tbody></table>'; }
+  k('k-cd', (cd ? cd.pendencias + cd.atrasados : 0) + (fo ? fo.parados : 0) || 'ok', !((cd ? cd.pendencias + cd.atrasados : 0) + (fo ? fo.parados : 0)));
+  document.getElementById('c-cd').innerHTML = h || empty('CD e pedidos ao fornecedor sem dados');
+  badge('n3', n3);
+}
+function renderEstoque() {
+  const e = D.estoque || {}; let n4 = 0;
+  const ex = e.excesso;
+  if (!ex) document.getElementById('c-exc').innerHTML = empty('Sortimento ainda não calculado (roda de madrugada)');
+  else { n4 += ex.itens; k('k-exc', ex.itens ? ex.itens + ' itens · ' + moneyK(ex.valor) : 'ok', !ex.itens); document.getElementById('exc-sub').textContent = 'Sortimento · ' + (ex.calculadoEm ? 'calculado ' + new Date(ex.calculadoEm).toLocaleDateString('pt-BR') : '');
+    const pl = Object.entries(ex.porLoja || {}).map(([ln, x]) => '<span class="op-pdv" title="' + moneyK(x.valorCobExc) + '">L' + ln + ' ' + x.cobExc + '</span>').join('');
+    document.getElementById('c-exc').innerHTML = '<div style="padding:6px 12px;font-size:11px;color:var(--ink2)">por loja: ' + pl + ' · parados: ' + ex.parados + ' (' + moneyK(ex.valorParados) + ')</div>' + (ex.top.length ? '<table class="m"><thead><tr><th>Produto</th><th>Loja</th><th class="r">Estoque</th><th class="r">R$</th><th class="r">Cob.</th></tr></thead><tbody>' + ex.top.map(r => '<tr><td class="p">' + esc(r.descricao) + '<small>' + esc(r.nome || '') + '</small></td><td>' + lojaTag(r.loja) + '</td><td class="r">' + nf(r.est) + '</td><td class="r"><b>' + moneyK(r.valorEst) + '</b></td><td class="r dn">' + (r.cob >= 9999 ? '∞' : nf(r.cob) + ' d') + '</td></tr>').join('') + '</tbody></table>' : empty('Sem excesso. ✓')); }
+  const vc = e.vencimentos;
+  if (!vc) document.getElementById('c-venc').innerHTML = empty('sem dados');
+  else { n4 += vc.buckets.d7; k('k-venc', vc.itens ? vc.itens + ' itens · ' + moneyK(vc.valor) : 'ok', !vc.itens);
+    const pl = Object.entries(vc.porLoja || {}).map(([ln, x]) => '<span class="op-pdv" title="' + moneyK(x.valor) + '">L' + ln + ' ' + x.itens + '</span>').join('');
+    document.getElementById('c-venc').innerHTML = '<div style="padding:6px 12px;font-size:11px;color:var(--ink2)"><b class="dn">' + vc.buckets.d7 + '</b> em 7 dias · <b class="wn">' + vc.buckets.d15 + '</b> em 15 · ' + vc.buckets.d30 + ' em 30 · por loja: ' + pl + '</div>' + (vc.top.length ? '<table class="m"><thead><tr><th>Produto</th><th>Loja</th><th>Vence</th><th class="r">Estoque</th><th class="r">R$ custo</th></tr></thead><tbody>' + vc.top.map(r => '<tr class="' + (r.dias <= 7 ? 'bad' : '') + '"><td class="p">' + esc(r.descricao) + '</td><td>' + lojaTag(r.loja) + '</td><td><span class="pill ' + (r.dias <= 7 ? 'bad' : r.dias <= 15 ? 'wn' : 'nt') + '">' + df(r.validade) + ' · ' + r.dias + ' d</span></td><td class="r">' + nf(r.est) + '</td><td class="r"><b>' + moneyK(r.valor) + '</b></td></tr>').join('') + '</tbody></table>' : empty('Nada vencendo em 30 dias. ✓')); }
+  const tr = (D.abastecimento || {}).curvaA ? D.abastecimento.curvaA.transferir : null;
+  if (!tr) document.getElementById('c-transf').innerHTML = empty('Radar de Pedidos ainda não calculou');
+  else { n4 += tr.length; k('k-transf', tr.length ? tr.length + ' produtos' : 'ok', !tr.length);
+    document.getElementById('c-transf').innerHTML = tr.length ? '<table class="m"><thead><tr><th>Produto</th><th>Falta em</th><th>Tem em</th><th class="r">Venda/dia</th></tr></thead><tbody>' + tr.map(i => '<tr><td class="p">' + esc(i.descricao) + '</td><td><span class="lojas-tag">' + i.lojas_zeradas.map(l => '<i>L' + l + '</i>').join('') + '</span></td><td><span class="lojas-tag">' + (i.lojas_com_estoque || []).map(l => '<i class="ok" title="' + (i.lojas_det && i.lojas_det[l] ? nf(i.lojas_det[l].estoque) + ' un · ' + nf(i.lojas_det[l].cobertura_dias) + ' d' : '') + '">L' + l + '</i>').join('') + '</span></td><td class="r">' + money(i.venda_dia_valor) + '</td></tr>').join('') + '</tbody></table>' : empty('Nenhuma transferência sugerida. ✓'); }
+  badge('n4', n4);
+}
+function renderOp() {
+  const o = D.operacao; if (!o) { document.getElementById('c-op').innerHTML = empty('sem dados'); return; }
+  const parados = o.lojas.reduce((s, l) => s + l.parados, 0); badge('n5', parados); k('k-op', parados ? parados + ' caixas parados' : 'ok', !parados);
+  document.getElementById('op-hora').textContent = 'às ' + o.hora + (o.lojaAberta ? ' · parado = sem cupom há mais de ' + o.limiteParadoMin + ' min' : ' · fora do horário de loja');
+  document.getElementById('c-op').innerHTML = '<table class="m"><thead><tr><th>Loja</th><th class="r">Caixas ativos</th><th class="r">Cupons hoje</th><th class="r">Última hora</th><th class="r">Parados</th><th>Caixas (último cupom)</th></tr></thead><tbody>' + o.lojas.map(l => '<tr class="' + (l.parados ? 'bad' : '') + '"><td>' + lojaTag(l.loja) + '</td><td class="r"><b>' + l.caixasAtivos + '</b></td><td class="r">' + l.cupons.toLocaleString('pt-BR') + '</td><td class="r">' + l.ultHora + '</td><td class="r ' + (l.parados ? 'dn' : '') + '">' + (l.parados || '—') + '</td><td style="white-space:normal">' + l.pdvs.map(p => '<span class="op-pdv' + (p.parado ? ' bad' : '') + '" title="' + esc(p.operador) + ' · ' + p.cupons + ' cupons · última hora ' + p.ultHora + '">PDV ' + p.pdv + ' ' + p.ult + '</span>').join('') + '</td></tr>').join('') + '</tbody></table>';
+}
+function renderFin() {
+  const f = D.financeiro; if (!f) { document.getElementById('c-fin-dias').innerHTML = empty('sem dados'); return; }
+  k('k-fin', moneyK(f.sete.v) + ' em 7 d' + (f.vencidos.n ? ' · ' + moneyK(f.vencidos.v) + ' vencidos' : ''), !f.vencidos.n); badge('n6', f.vencidos.n);
+  const max = Math.max(...f.dias.map(d => d.v), 1);
+  document.getElementById('c-fin-dias').innerHTML = '<table class="m"><thead><tr><th>Dia</th><th class="r">Títulos</th><th class="r">Valor</th><th></th></tr></thead><tbody>'
+    + (f.vencidos.n ? '<tr class="bad"><td><b>Vencidos em aberto</b></td><td class="r">' + f.vencidos.n + '</td><td class="r"><b class="dn">' + moneyK(f.vencidos.v) + '</b></td><td></td></tr>' : '')
+    + f.dias.map((d, i) => '<tr><td>' + (i === 0 ? '<b>Hoje</b> ' : '') + df(d.data) + ' <span style="color:var(--ink3);font-size:10px">' + ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'][new Date(d.data + 'T12:00:00').getDay()] + '</span></td><td class="r">' + (d.n || '') + '</td><td class="r"><b>' + (d.v ? moneyK(d.v) : '—') + '</b></td><td><span class="bar" style="width:' + Math.round(d.v / max * 90) + 'px"></span></td></tr>').join('')
+    + '<tr><td><b>Total 7 dias</b></td><td class="r">' + f.sete.n + '</td><td class="r"><b>' + moneyK(f.sete.v) + '</b></td><td></td></tr></tbody></table>';
+  document.getElementById('c-fin-lojas').innerHTML = f.porLoja.length ? '<table class="m"><thead><tr><th>Loja</th><th class="r">Vencidos</th><th class="r">Hoje</th><th class="r">7 dias</th></tr></thead><tbody>' + f.porLoja.map(l => '<tr><td>' + lojaTag(l.loja) + '</td><td class="r ' + (l.vencidos ? 'dn' : '') + '">' + (l.vencidos ? moneyK(l.vencidos) : '—') + '</td><td class="r">' + (l.hoje ? moneyK(l.hoje) : '—') + '</td><td class="r"><b>' + moneyK(l.sete) + '</b></td></tr>').join('') + '</tbody></table>' : empty('Nada em aberto.');
+  document.getElementById('c-fin-maiores').innerHTML = f.maiores.length ? '<table class="m"><thead><tr><th>Fornecedor</th><th>Loja</th><th>Vence</th><th class="r">Valor</th></tr></thead><tbody>' + f.maiores.map(m => '<tr><td class="p">' + esc(m.fornecedor) + '<small>doc ' + esc(m.doc || '') + '</small></td><td>' + lojaTag(m.loja) + '</td><td>' + df(m.data) + '</td><td class="r"><b>' + moneyK(m.valor) + '</b></td></tr>').join('') + '</tbody></table>' : empty('—');
 }
 
-/* ── Sparkline do faturamento (dados reais da série mensal) ── */
-function desenharSparkFat(serie) {
-  const svg = document.getElementById('spark-fat');
-  if (!serie || serie.length < 2) { svg.innerHTML = ''; return; }
-  const vals = serie.map(d => d.total);
-  const max = Math.max(...vals), min = Math.min(...vals);
-  const range = (max - min) || 1;
-  const W = 72, H = 26, pad = 3;
-  const pts = vals.map((v, i) => {
-    const x = (i / (vals.length - 1)) * W;
-    const y = pad + (1 - (v - min) / range) * (H - pad * 2);
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  });
-  const last = pts[pts.length - 1].split(',');
-  svg.innerHTML = `<polyline points="${pts.join(' ')}" fill="none" stroke="#0E1626" stroke-width="1.6"/>
-    <circle cx="${last[0]}" cy="${last[1]}" r="2.4" fill="#F5B800"/>`;
+async function abrirMetas() {
+  if (!D || !D.comercial) { toast('Aguarde o cálculo'); return; }
+  const c = D.comercial, f = D.faturamento;
+  document.getElementById('metas-sub').textContent = MESES[f.mes] + ' de ' + f.ano + ' · por loja · em branco vale ano passado + crescimento';
+  document.getElementById('m-cresc').value = c.crescimento;
+  const dig = (D.metas && D.metas.lojas && D.metas.lojas[c.chave]) || {};
+  document.getElementById('m-body').innerHTML = f.lojas.map(l => '<tr><td>' + lojaTag(l.loja) + '</td><td class="r">' + money(l.mesAntCompleto) + '</td><td class="r">' + money(l.mesAntCompleto * (1 + c.crescimento / 100)) + '</td><td class="r"><input class="np" data-loja="' + l.loja + '" value="' + (dig[l.loja] ? String(dig[l.loja].toFixed(2)).replace('.', ',') : '') + '" placeholder="automática"></td></tr>').join('');
+  document.getElementById('md-metas').classList.add('open');
 }
-
-/* ── Evolução mensal (linha) ── */
-async function carregarFaturamentoMensal() {
-  const wid = 'wrap-mensal';
-  loading(wid);
-  try {
-    const loja = document.getElementById('fil-loja').value;
-    const r = await fetch(`/api/faturamento-mensal?loja=${loja}`);
-    const data = await r.json();
-    if (!data.length) { erro(wid, 'Sem dados de faturamento'); return; }
-
-    desenharSparkFat(data);
-
-    const canvas = document.createElement('canvas');
-    document.getElementById(wid).innerHTML = '';
-    document.getElementById(wid).appendChild(canvas);
-
-    if (charts.mensal) charts.mensal.destroy();
-    charts.mensal = new Chart(canvas, {
-      type: 'line',
-      data: {
-        labels: data.map(d => d.mes),
-        datasets: [{
-          label: 'Faturamento',
-          data: data.map(d => d.total),
-          borderColor: CX.ink,
-          backgroundColor: CX.inkSoft,
-          pointBackgroundColor: CX.am,
-          pointBorderColor: CX.ink,
-          pointBorderWidth: 1.5,
-          pointRadius: 4.5,
-          tension: 0.4,
-          fill: true,
-        }]
-      },
-      options: {
-        responsive: true,
-        plugins: {
-          legend: { display: false },
-          tooltip: { callbacks: { label: ctx => ` ${fmt(ctx.raw)}` } }
-        },
-        scales: {
-          x: { grid: { color: CX.gridSoft }, ticks: { color: CX.tick } },
-          y: {
-            grid: { color: CX.grid },
-            ticks: {
-              color: CX.tick,
-              callback: v => 'R$ ' + (v >= 1000000 ? (v/1000000).toFixed(1)+'M' : v >= 1000 ? (v/1000).toFixed(0)+'K' : v)
-            }
-          }
-        }
-      }
-    });
-  } catch (e) { erro(wid, 'Erro ao carregar'); }
+async function salvarMetas() {
+  const lojas = {}; document.querySelectorAll('#m-body input[data-loja]').forEach(i => { lojas[i.dataset.loja] = parseFloat(String(i.value).replace(/\./g, '').replace(',', '.')) || 0; });
+  const body = { mes: D.comercial.chave, crescimento: parseFloat(document.getElementById('m-cresc').value), lojas };
+  const r = await fetch('/api/dashboard/metas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); const j = await r.json();
+  if (j.error) { toast('Erro: ' + j.error); return; }
+  toast('Metas salvas'); fechar('md-metas'); carregar();
 }
-
-/* ── Faturamento por loja (barras agrupadas) ── */
-async function carregarFaturamentoLojas() {
-  const wid = 'wrap-lojas';
-  loading(wid);
-  try {
-    const r = await fetch('/api/faturamento-lojas');
-    const d = await r.json();
-    if (d.error || !d.meses?.length) { erro(wid, d.error || 'Sem dados por loja'); return; }
-
-    const nomesLojas = ['Loja 1','Loja 2','Loja 3','Loja 4','Loja 5','Loja 6'];
-    const datasets = d.lojas.map((ln, idx) => ({
-      label: nomesLojas[idx],
-      data: d.meses.map(m => d.dados[m]?.[ln] || 0),
-      backgroundColor: CX.categorico[idx % CX.categorico.length] + 'D9',
-      borderColor: CX.categorico[idx % CX.categorico.length],
-      borderWidth: 1,
-      borderRadius: 4,
-      borderSkipped: false,
-    }));
-
-    const canvas = document.createElement('canvas');
-    document.getElementById(wid).innerHTML = '';
-    document.getElementById(wid).appendChild(canvas);
-
-    if (charts.lojas) charts.lojas.destroy();
-    charts.lojas = new Chart(canvas, {
-      type: 'bar',
-      data: { labels: d.meses, datasets },
-      options: {
-        responsive: true,
-        plugins: {
-          legend: { position: 'bottom', labels: { color: CX.tick, padding: 12, boxWidth: 11, boxHeight: 11 } },
-          tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${fmt(ctx.raw)}` } }
-        },
-        scales: {
-          x: { grid: { color: CX.gridSoft }, ticks: { color: CX.tick } },
-          y: {
-            grid: { color: CX.grid },
-            ticks: {
-              color: CX.tick,
-              callback: v => 'R$ ' + (v >= 1000000 ? (v/1000000).toFixed(1)+'M' : v >= 1000 ? (v/1000).toFixed(0)+'K' : v)
-            }
-          }
-        }
-      }
-    });
-  } catch (e) { erro(wid, 'Erro ao carregar'); }
-}
-
-/* ── Top 10 produtos — tabela assinatura ── */
-let _topData = [];
-let _topModo = 'qtd';
-
-function setModoTop(modo) {
-  _topModo = modo;
-  document.getElementById('btn-top-qtd').className = modo==='qtd' ? 'on' : '';
-  document.getElementById('btn-top-val').className = modo==='val' ? 'on' : '';
-  renderTopVendidos(_topData);
-}
-
-function renderTopVendidos(data) {
-  const wid = 'wrap-top-vendidos';
-  if (!data.length) { erro(wid, 'Sem dados para este período'); return; }
-  const isVal = _topModo === 'val';
-  const sorted = [...data].sort((a,b) => isVal ? b.faturamento - a.faturamento : b.qtd - a.qtd).slice(0, 10);
-  const max = isVal ? sorted[0].faturamento : sorted[0].qtd;
-
-  let html = `<div class="ds-table-wrap" style="border:none;border-radius:0"><table class="ds-table">
-    <thead><tr>
-      <th style="width:44px">#</th><th>Produto</th>
-      <th class="r">Qtd vendida</th><th class="r">Faturamento</th>
-    </tr></thead><tbody>`;
-  sorted.forEach((p, i) => {
-    const v = isVal ? p.faturamento : p.qtd;
-    const w = max > 0 ? Math.max(4, v / max * 100) : 0;
-    html += `<tr>
-      <td><span class="ds-rk${i===0?' top':''}">${i+1}</span></td>
-      <td class="p">${p.descricao}<span class="ds-cellbar${i===0?' top':''}"><i style="width:${w.toFixed(0)}%"></i></span></td>
-      <td class="r"${!isVal?' style="font-weight:700;color:var(--ink)"':''}>${fmtN(p.qtd)}</td>
-      <td class="r"${isVal?' style="font-weight:700;color:var(--ink)"':''}>${fmt(p.faturamento)}</td>
-    </tr>`;
-  });
-  html += '</tbody></table></div>';
-  document.getElementById(wid).innerHTML = html;
-}
-
-async function carregarTopVendidos() {
-  const wid = 'wrap-top-vendidos';
-  loading(wid);
-  try {
-    const loja = document.getElementById('fil-loja').value;
-    const mes  = document.getElementById('fil-mes').value;
-    const lojaLabel = loja === 'todas' ? 'Todas' : 'Loja ' + loja;
-    document.getElementById('badge-top-vendidos').textContent = mesesNomes[parseInt(mes)] + ' · ' + lojaLabel;
-    const ano = new Date().getFullYear();
-    const r = await fetch(`/api/top-vendidos?loja=${loja}&mes=${mes}&ano=${ano}`);
-    const data = await r.json();
-    if (!Array.isArray(data) || !data.length) { erro(wid, 'Sem dados para este período'); return; }
-    _topData = data;
-    renderTopVendidos(data);
-  } catch (e) { erro(wid, 'Erro ao carregar'); }
-}
-
-/* ── Formas de pagamento (rosca) ── */
-async function carregarFormasPagamento() {
-  const wid = 'wrap-pagto';
-  loading(wid);
-  try {
-    const loja = document.getElementById('fil-loja').value;
-    const mes  = document.getElementById('fil-mes').value;
-    const ano  = new Date().getFullYear();
-    const MA = ['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-    const badge = document.getElementById('badge-pagto');
-    if (badge) badge.textContent = `${MA[+mes]}/${ano}`;
-    const r = await fetch(`/api/formas-pagamento?loja=${loja}&mes=${mes}&ano=${ano}`);
-    const data = await r.json();
-    if (!data.length) { erro(wid, 'Sem dados'); return; }
-
-    const canvas = document.createElement('canvas');
-    document.getElementById(wid).innerHTML = '';
-    document.getElementById(wid).appendChild(canvas);
-
-    if (charts.pagto) charts.pagto.destroy();
-    charts.pagto = new Chart(canvas, {
-      type: 'doughnut',
-      data: {
-        labels: data.map(d => d.tipo),
-        datasets: [{
-          data: data.map(d => d.total),
-          backgroundColor: CX.categorico,
-          borderColor: '#FFFFFF',
-          borderWidth: 3,
-          hoverOffset: 8,
-        }]
-      },
-      options: {
-        responsive: true,
-        cutout: '62%',
-        plugins: {
-          legend: { position: 'bottom', labels: { color: CX.tick, padding: 12, boxWidth: 11, boxHeight: 11 } },
-          tooltip: { callbacks: { label: ctx => ` ${fmt(ctx.raw)} (${(ctx.parsed / ctx.dataset.data.reduce((a,b)=>a+b,0)*100).toFixed(1)}%)` } }
-        }
-      }
-    });
-  } catch (e) { erro(wid, 'Erro ao carregar'); }
-}
-
-/* ── Top produtos semana (barras horizontais) ── */
-async function carregarProdutosSemana() {
-  const wid = 'wrap-semana';
-  loading(wid);
-  try {
-    const loja = document.getElementById('fil-loja').value;
-    const r = await fetch(`/api/produtos-semana?loja=${loja}`);
-    const data = await r.json();
-    if (!data.length) { erro(wid, 'Sem dados para esta semana'); return; }
-
-    const labels = data.map(d => d.descricao?.substring(0, 25) || d.codigobarras);
-    const values = data.map(d => d.total_semana);
-
-    const canvas = document.createElement('canvas');
-    document.getElementById(wid).innerHTML = '';
-    document.getElementById(wid).appendChild(canvas);
-
-    if (charts.semana) charts.semana.destroy();
-    charts.semana = new Chart(canvas, {
-      type: 'bar',
-      data: {
-        labels,
-        datasets: [{
-          label: 'Qtd vendida',
-          data: values,
-          backgroundColor: values.map((_, i) => i === 0 ? CX.am : `rgba(14,22,38,${Math.max(.25, .85 - i * 0.055)})`),
-          borderRadius: 5,
-          borderSkipped: false,
-        }]
-      },
-      options: {
-        indexAxis: 'y',
-        responsive: true,
-        plugins: {
-          legend: { display: false },
-          tooltip: { callbacks: { label: ctx => ` ${fmtN(ctx.raw)} unidades` } }
-        },
-        scales: {
-          x: { grid: { color: CX.grid }, ticks: { color: CX.tick } },
-          y: { grid: { display: false }, ticks: { color: CX.label, font: { size: 10.5 } } }
-        }
-      }
-    });
-  } catch (e) { erro(wid, 'Erro ao carregar'); }
-}
-
-/* ── Mercadológico (barras horizontais) ── */
-let _mercData = [];
-let _mercModo = 'val';
-
-function setModoMerc(modo) {
-  _mercModo = modo;
-  document.getElementById('btn-merc-val').className = modo==='val' ? 'on' : '';
-  document.getElementById('btn-merc-qtd').className = modo==='qtd' ? 'on' : '';
-  renderMercadologico(_mercData);
-}
-
-function renderMercadologico(data) {
-  const wid = 'wrap-merc';
-  if (!data.length) { erro(wid, 'Sem dados'); return; }
-  const isVal = _mercModo === 'val';
-  const sorted = [...data].sort((a,b) => isVal ? b.valor - a.valor : b.qtd - a.qtd);
-  const canvas = document.createElement('canvas');
-  document.getElementById(wid).innerHTML = '';
-  document.getElementById(wid).appendChild(canvas);
-  if (charts.merc) charts.merc.destroy();
-  charts.merc = new Chart(canvas, {
-    type: 'bar',
-    data: {
-      labels: sorted.map(d => d.descricao),
-      datasets: [{
-        label: isVal ? 'Faturamento' : 'Qtd',
-        data: sorted.map(d => isVal ? d.valor : d.qtd),
-        backgroundColor: sorted.map((_, i) => i === 0 ? CX.am : `rgba(14,22,38,${Math.max(.22, .85 - i * 0.045)})`),
-        borderRadius: 5,
-        borderSkipped: false,
-      }]
-    },
-    options: {
-      indexAxis: 'y',
-      responsive: true,
-      plugins: {
-        legend: { display: false },
-        tooltip: { callbacks: {
-          label: ctx => {
-            const d = sorted[ctx.dataIndex];
-            return isVal
-              ? [` ${fmt(ctx.raw)}`, ` ${fmtN(d.qtd)} unidades`]
-              : [` ${fmtN(ctx.raw)} unidades`, ` ${fmt(d.valor)}`];
-          }
-        }}
-      },
-      scales: {
-        x: { grid: { color: CX.grid }, ticks: { color: CX.tick, callback: v => isVal ? 'R$'+fmtN(v) : fmtN(v) } },
-        y: { grid: { display: false }, ticks: { color: CX.label, font: { size: 10.5 } } }
-      }
-    }
-  });
-}
-
-async function carregarMercadologico() {
-  const wid = 'wrap-merc';
-  loading(wid);
-  try {
-    const loja = document.getElementById('fil-loja').value;
-    const mes  = document.getElementById('fil-mes').value;
-    const ano  = new Date().getFullYear();
-    const lojaLabel = loja === 'todas' ? 'Todas' : 'Loja ' + loja;
-    document.getElementById('badge-merc').textContent = mesesNomes[parseInt(mes)] + ' · ' + lojaLabel;
-    const r = await fetch(`/api/top-mercadologico?loja=${loja}&mes=${mes}&ano=${ano}`);
-    const data = await r.json();
-    if (!Array.isArray(data) || !data.length) { erro(wid, 'Sem dados'); return; }
-    _mercData = data;
-    renderMercadologico(data);
-  } catch(e) { erro(wid, 'Erro ao carregar'); }
-}
-
-/* ── Atualizar tudo ── */
-async function carregarTudo() {
-  const btn = document.getElementById('btn-refresh');
-  btn.disabled = true;
-  btn.innerHTML = '<div class="ds-spinner" style="width:14px;height:14px;border-width:2px;margin:0"></div> Atualizando…';
-  try {
-    await Promise.all([
-      carregarKPIs(),
-      carregarProdutosSemana(),
-      carregarFaturamentoMensal(),
-      carregarFaturamentoLojas(),
-      carregarTopVendidos(),
-      carregarFormasPagamento(),
-      carregarMercadologico(),
-    ]);
-    ultimaAtualizacao = Date.now();
-  } catch(e) {
-    console.error('carregarTudo erro:', e);
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = '<svg class="ds-ic sm"><use href="/icons.svg#refresh"/></svg>Atualizar';
-  }
-}
-
-/* ── Relógio + auto-refresh (180 min) ── */
-let ultimaAtualizacao = Date.now();
-const INTERVALO_MS = 180 * 60 * 1000;
-
-function atualizarRelogio() {
-  const now = new Date();
-  document.getElementById('clock').textContent =
-    now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-  const restante = Math.max(0, INTERVALO_MS - (Date.now() - ultimaAtualizacao));
-  const mm = String(Math.floor(restante / 60000)).padStart(2,'0');
-  const ss = String(Math.floor((restante % 60000) / 1000)).padStart(2,'0');
-  const el = document.getElementById('refresh-countdown');
-  if (el) el.textContent = `↺ ${mm}:${ss}`;
-}
-setInterval(atualizarRelogio, 1000);
-atualizarRelogio();
-setInterval(() => { ultimaAtualizacao = Date.now(); carregarTudo(); }, INTERVALO_MS);
-
-document.getElementById('fil-mes').value = new Date().getMonth() + 1;
-
-carregarTudo();
+carregar();
+setInterval(carregar, 5 * 60 * 1000);
 </script>
 </body>
 </html>

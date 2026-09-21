@@ -6497,6 +6497,20 @@ app.get('/api/dedo-duro/run/:n', async (req, res) => {
 const radarPrecif = require('./lib/radar-precificacao');
 radarPrecif.init({ q });
 radarPrecif.agendar();
+
+// ═══════════════════════════════════════════════════
+// DASHBOARD (index.html, refeito 21/09/2026): 6 segmentos calculados no servidor, cache de 5 min.
+// Fontes e regras em lib/dashboard.js. Só leitura no ERP; grava só data/dashboard-metas.json.
+// ═══════════════════════════════════════════════════
+const dashboardNovo = require('./lib/dashboard');
+dashboardNovo.init({ q, radarPedidos, sortimento, get pedidosCd() { return pedidosCD; }, get pedidosFornecedor() { return pedidosFornec; } });
+dashboardNovo.agendar();
+app.get('/api/dashboard', async (req, res) => {
+  try { res.json(await dashboardNovo.dados()); } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.post('/api/dashboard/atualizar', (req, res) => { dashboardNovo.calcular().catch(e => console.error('[DASHBOARD]', e.message)); res.json({ ok: true }); });
+app.get('/api/dashboard/metas', (req, res) => res.json(dashboardNovo.getMetas()));
+app.post('/api/dashboard/metas', (req, res) => { try { res.json(dashboardNovo.setMetas(req.body || {})); } catch (err) { res.status(500).json({ error: err.message }); } });
 function rpFiltro(qq) {
   return { loja: parseInt(qq.loja) || 0, grupo: qq.grupo || '', papel: qq.papel || '', abc: qq.abc || '', acao: qq.acao || '', busca: qq.busca || '',
            comVenda: qq.com_venda === '1', estoque: qq.estoque || '', incluirExcluidos: qq.excluidos === '1' };
