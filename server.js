@@ -7627,7 +7627,7 @@ async function criarCotacaoTeste(usuario, cenario, diasAtras, seq) {
     { codFornec: 999002, nome: 'FORNECEDOR TESTE 2 (ATACADO NORDESTE)', vendedor: { nome: 'Érico Teste', whats: '5581999990002', email: 'teste2@exemplo.com' }, faturamento_minimo: 400, condicao: '21 dias boleto', prazo_entrega: 5 },
     { codFornec: 999003, nome: 'FORNECEDOR TESTE 3 (DISTRIB. DO VALE)', vendedor: { nome: 'Carlos Teste', whats: '', email: 'teste3@exemplo.com' }, faturamento_minimo: null, condicao: '14 dias', prazo_entrega: 2 },
     { codFornec: 999004, nome: 'FORNECEDOR TESTE 4 (MEGA ATACADO)', vendedor: { nome: 'Ana Teste', whats: '5581999990004', email: 'teste4@exemplo.com' }, faturamento_minimo: 1000, condicao: '30 dias', prazo_entrega: 4 }
-  ].slice(0, 2 + (seq % 3));
+  ].slice(0, cenario === 'prepedido' ? 4 : 2 + (seq % 3));
   const criado = new Date(); criado.setDate(criado.getDate() - diasAtras); criado.setHours(9 + seq, 15 * seq, 0, 0);
   const prazo = new Date(criado); prazo.setDate(prazo.getDate() + 2);
   const nomes = { fechada: 'Cotação de Alimentos', analise: 'Cotação Mercearia Seca', digitacao: 'Cotação Bebidas', aguardando: 'Cotação Limpeza', cancelada: 'Cotação Perecíveis', prepedido: 'Cotação Pré-pedido (exemplo)' };
@@ -7646,7 +7646,7 @@ async function criarCotacaoTeste(usuario, cenario, diasAtras, seq) {
   else if (cenario === 'prepedido') {
     // todos cotam tudo, com preços cruzados (cada fornecedor ganha alguns itens) → 3 situações na aba Pré-pedidos:
     // 1º fornecedor: quantidades ajustadas na tela, entrega e tipo definidos · 2º: pedido já realizado · demais: pendentes
-    F.forEach((f, n) => cota(f, () => true, k => 0.86 + ((k * 7 + n * 3) % 6) * 0.03, 3 + n, f.condicao_padrao));
+    F.forEach((f, n) => cota(f, () => true, k => ((k + n) % F.length === 0 ? 0.85 : 0.88 + ((k * 3 + n) % 4) * 0.02), 3 + n, f.condicao_padrao));   // cada fornecedor ganha alguns itens
     const cmp = cotacao.comparativo(cotacao.obter(c.id)), venc = cmp.fornecedores.filter(x => x.itens_vencedor > 0);
     if (venc[0]) {
       const its = cmp.itens.filter(i => i.vencedor && i.vencedor.codFornec === venc[0].codFornec), lq = {};
