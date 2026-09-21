@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="/design-system.css">
+<script src="/nav.js" defer></script>
+<title>Radar Precificação — Econômico Relatórios</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#EBEBE9;--surface:#FFFFFF;--surface-2:#E4E4E1;--border:#DADAD6;--border-strong:#C9C9C4;--ink:#0E1626;--ink-2:#4E5A72;--ink-3:#98A0B3;--brand:#F5B800;--brand-ink:#6B4E00;--ok:#137A48;--warn:#B45C00;--bad:#C22F49;--info:#2E5E8C;--font:'InterVar','Inter','Segoe UI',system-ui,-apple-system,sans-serif}
+body{font-family:var(--font);background:var(--bg);color:var(--ink);min-height:100vh}
+.main{padding:24px}
+.page-hdr{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.page-hdr h1{font-size:21px;font-weight:800}
+.page-hdr p{font-size:12px;color:var(--ink-3);margin-top:2px;max-width:900px}
+.btn{font:inherit;font-size:12.5px;font-weight:600;padding:8px 14px;border-radius:8px;border:1px solid var(--border-strong);background:#fff;color:var(--ink);cursor:pointer;text-decoration:none;display:inline-block}
+.btn:hover{background:var(--surface-2)}
+.btn-amber{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}.btn-amber:hover{background:#E0A800}
+.btn-sm{font-size:11px;padding:4px 8px;border-radius:6px}
+.btn-ok{background:#E7F5EC;border-color:#137A4855;color:var(--ok)}.btn-ok:hover{background:#D3EEDC}
+.btn-no{background:#FDE8EC;border-color:#C22F4955;color:var(--bad)}.btn-no:hover{background:#F9D4DB}
+.status{font-size:11px;color:var(--ink-3);margin-bottom:10px;display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.status b{color:var(--ink-2)}
+.kpis{display:grid;grid-template-columns:repeat(7,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+@media (max-width:1400px){.kpis{grid-template-columns:repeat(4,minmax(150px,1fr))}}
+@media (max-width:800px){.kpis{grid-template-columns:repeat(2,minmax(140px,1fr))}}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;cursor:pointer;transition:border-color .12s,box-shadow .12s}
+.kpi:hover{border-color:var(--border-strong);box-shadow:0 2px 6px rgba(14,22,38,.08)}
+.kpi.on{border-color:var(--brand);box-shadow:0 0 0 2px #F5B80055;background:#FFFBEE}
+.kpi.todas{background:var(--ink);border-color:var(--ink);color:#fff}
+.kpi.todas.on{box-shadow:0 0 0 2px #F5B800}
+.kpi .nm{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-2);display:flex;justify-content:space-between;align-items:baseline}
+.kpi .nm small{font-weight:600;color:var(--ink-3);text-transform:none;letter-spacing:0}
+.kpi.todas .nm,.kpi.todas .nm small{color:#F5B800}
+.kpi .v{font-size:24px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:4px;line-height:1.1}
+.kpi .v small{font-size:10px;font-weight:700;color:var(--ink-3);margin-left:4px}
+.kpi.todas .v small{color:#98A0B3}
+.kpi .row{display:flex;justify-content:space-between;gap:8px;margin-top:7px;font-size:11px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.kpi .row b{color:var(--ink);font-weight:700}
+.kpi.todas .row{color:#C9CDD6}.kpi.todas .row b{color:#fff}
+.kpi .row .lbl{display:block;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--ink-3)}
+.kpi.todas .row .lbl{color:#98A0B3}
+.mg-ok{color:var(--ok)}.mg-warn{color:var(--warn)}.mg-bad{color:var(--bad)}
+.kpi.todas .mg-ok{color:#5BD48F}.kpi.todas .mg-warn{color:#F5B800}.kpi.todas .mg-bad{color:#FF7A8E}
+.pos{color:var(--ok);font-weight:700}.neg{color:var(--bad);font-weight:700}
+.grid2{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;margin-bottom:12px}
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.panel-hd{padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#FAFAF8}
+.panel-hd h2{font-size:13px;font-weight:800}
+.panel-hd small{font-size:11px;color:var(--ink-3)}
+.panel-hd .sp{margin-left:auto}
+table.dir{width:100%;border-collapse:collapse;font-size:12px}
+table.dir th{padding:7px 10px;text-align:right;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--ink-2);background:var(--surface-2);border-bottom:1px solid var(--border);white-space:nowrap;cursor:pointer}
+table.dir th:first-child,table.dir td:first-child{text-align:left}
+table.dir td{padding:6px 10px;text-align:right;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums;white-space:nowrap}
+table.dir tbody tr{cursor:pointer}
+table.dir tbody tr:hover td{background:#F1F1EE}
+table.dir tbody tr.on td{background:#FFF6D9}
+table.dir td.g{font-weight:700}
+table.dir .bar{display:inline-block;height:6px;background:#F5B800;border-radius:3px;vertical-align:middle;margin-right:6px}
+.toolbar{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.toolbar select,.toolbar input[type=text]{font:inherit;font-size:12.5px;padding:7px 11px;border:1px solid var(--border-strong);border-radius:8px;background:#fff;color:var(--ink)}
+.toolbar input[type=text]{min-width:240px}
+.toolbar label{font-size:11.5px;color:var(--ink-2);display:inline-flex;gap:5px;align-items:center;white-space:nowrap;cursor:pointer;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:#fff}
+.toolbar label:has(input:checked){background:#FFF6D9;border-color:#F5B80088;color:var(--brand-ink);font-weight:600}
+.toolbar label input{margin:0;accent-color:var(--brand)}
+.toolbar .info{font-size:11px;color:var(--ink-3);margin-left:auto;text-align:right}
+.toolbar .info b{color:var(--ink);font-weight:700}
+.chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.chip{font-size:11px;font-weight:600;padding:5px 10px;border-radius:999px;border:1px solid var(--border-strong);background:#fff;color:var(--ink-2);cursor:pointer;user-select:none;white-space:nowrap}
+.chip:hover{background:var(--surface-2)}
+.chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.chip.up{border-color:var(--ok);color:var(--ok)}.chip.up.on{background:var(--ok);color:#fff}
+.chip.dn{border-color:var(--info);color:var(--info)}.chip.dn.on{background:var(--info);color:#fff}
+.chip.bad{border-color:var(--bad);color:var(--bad)}.chip.bad.on{background:var(--bad);color:#fff}
+.chip.warn{border-color:var(--warn);color:var(--warn)}.chip.warn.on{background:var(--warn);color:#fff}
+.table-wrap{overflow-x:auto;border-radius:12px;border:1px solid var(--border);background:var(--surface);box-shadow:0 1px 3px rgba(14,22,38,.07)}
+table.t{width:100%;border-collapse:collapse;font-size:12.5px;min-width:1700px;table-layout:fixed}
+table.t thead{background:var(--surface-2);position:sticky;top:0;z-index:5}
+table.t th{padding:9px 10px;text-align:left;color:var(--ink-2);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;border-bottom:1px solid var(--border);cursor:pointer;user-select:none}
+table.t th.c{text-align:center}
+table.t th.r,table.t td.r{text-align:right}
+table.t th.sorted{color:var(--ink)}
+table.t td{padding:6px 10px;border-bottom:1px solid var(--border);vertical-align:middle;white-space:nowrap;font-variant-numeric:tabular-nums}
+table.t tbody tr:nth-child(even) td{background:#FAFAF8}
+table.t tbody tr:hover td{background:#F1F1EE}
+table.t tbody tr.aceita td{background:#EDF8F1}
+table.t tbody tr.ignorada td{opacity:.55}
+td.desc{white-space:normal;font-weight:600;line-height:1.25}
+td.desc small{display:block;font-weight:400;color:var(--ink-3);font-size:10.5px;margin-top:1px}
+td.desc .nome{cursor:pointer}td.desc .nome:hover{color:var(--brand-ink);text-decoration:underline}
+td.sub{font-size:10.5px;color:var(--ink-3);display:block;font-weight:500}
+td .s2{display:block;font-size:10.5px;color:var(--ink-3);font-weight:500;line-height:1.2}
+.abc{display:inline-block;font-size:10px;font-weight:800;padding:1px 6px;border-radius:4px;min-width:20px;text-align:center}
+.abc.A{background:#E7F5EC;color:var(--ok)}.abc.B{background:#FFF6D9;color:var(--brand-ink)}.abc.C{background:#EBEBE9;color:var(--ink-2)}.abc.x{background:#F5F5F3;color:var(--ink-3)}
+.papel{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.papel.sensivel{background:#FDE8EC;color:var(--bad)}.papel.forte{background:#E9EEF6;color:var(--info)}.papel.normal{background:#EBEBE9;color:var(--ink-2)}.papel.cauda{background:#F5F5F3;color:var(--ink-3)}.papel.parado{background:#FFF1E0;color:var(--warn)}.papel.sem_venda{background:#F5F5F3;color:var(--ink-3)}
+.acao{display:inline-block;font-size:10px;font-weight:800;padding:2px 8px;border-radius:6px;white-space:nowrap}
+.acao.subir{background:#E7F5EC;color:var(--ok)}.acao.baixar{background:#E9EEF6;color:var(--info)}.acao.manter{background:#F5F5F3;color:var(--ink-3)}.acao.abaixo_custo{background:var(--bad);color:#fff}.acao.parado{background:#FFF1E0;color:var(--warn)}.acao.sem_venda,.acao.sem_dados,.acao.excluido{background:#F5F5F3;color:var(--ink-3)}
+input.np{font:inherit;font-size:13px;font-weight:700;padding:5px 7px;border:1px solid var(--border-strong);border-radius:7px;width:84px;text-align:right;background:#fff}
+input.np:focus{outline:2px solid #F5B80088;border-color:var(--brand)}
+input.np.dif{border-color:var(--brand);background:#FFFBEE}
+.acts{display:flex;gap:4px;align-items:center;justify-content:center}
+.dec{font-size:10px;font-weight:700;display:block;text-align:center;margin-top:2px}
+.dec.aceita{color:var(--ok)}.dec.ignorada{color:var(--ink-3)}
+.empty{padding:40px;text-align:center;color:var(--ink-3)}
+.spinner{width:28px;height:28px;border:3px solid var(--border);border-top-color:var(--brand);border-radius:50%;animation:spin .8s linear infinite;margin:40px auto}
+@keyframes spin{to{transform:rotate(360deg)}}
+.legenda{font-size:11px;color:var(--ink-3);margin:8px 2px 0;display:flex;gap:14px;flex-wrap:wrap;line-height:1.5}
+.legenda b{color:var(--ink-2)}
+.md-ov{position:fixed;inset:0;background:#0E162699;z-index:950;display:none;align-items:center;justify-content:center;padding:16px}
+.md-ov.open{display:flex}
+.md{background:var(--surface);border-radius:14px;width:min(900px,100%);max-height:92vh;overflow:auto;box-shadow:0 20px 60px rgba(14,22,38,.35)}
+.md-hd{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;background:#FAFAF8;border-radius:14px 14px 0 0;position:sticky;top:0;z-index:2}
+.md-hd h3{font-size:15px;font-weight:800}
+.md-hd small{color:var(--ink-3);font-size:11.5px}
+.md-hd .x{margin-left:auto;font:inherit;font-size:20px;background:none;border:none;color:var(--ink-3);cursor:pointer}
+.md-bd{padding:16px 18px}
+.md-bd h4{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-3);margin:14px 0 6px}
+.md-bd h4:first-child{margin-top:0}
+table.pg{width:100%;border-collapse:collapse;font-size:12.5px}
+table.pg th{padding:8px 8px;text-align:right;color:var(--ink-2);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--border);background:var(--surface-2);white-space:nowrap}
+table.pg th:first-child,table.pg td:first-child{text-align:left}
+table.pg td{padding:7px 8px;border-bottom:1px solid var(--border);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+table.pg td.loja{font-weight:800}table.pg td.loja small{display:block;font-weight:600;color:var(--ink-3);font-size:10px}
+table.pg input.np{width:92px}
+table.pg input.pm{font:inherit;font-size:12.5px;padding:4px 6px;border:1px solid var(--border-strong);border-radius:6px;width:64px;text-align:right}
+.md-acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;align-items:center}
+.md-note{font-size:11px;color:var(--ink-3);margin-top:10px;line-height:1.5}
+.md-note b{color:var(--ink-2)}
+.prm{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+.prm label{display:flex;flex-direction:column;gap:4px;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--ink-3);border:1px solid var(--border);border-radius:10px;padding:8px 10px}
+.prm label input,.prm label select{font:inherit;font-size:13px;font-weight:700;padding:6px 8px;border:1px solid var(--border-strong);border-radius:7px;text-transform:none;letter-spacing:0}
+.prm label small{font-weight:500;text-transform:none;letter-spacing:0;color:var(--ink-3);font-size:10.5px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;font-size:12.5px;z-index:999;box-shadow:0 6px 20px rgba(14,22,38,.3);display:none}
+.toast.on{display:block}
+</style>
+</head>
+<body class="ds">
+
+<div class="main">
+  <div class="page-hdr">
+    <div>
+      <h1>Radar Precificação</h1>
+      <p>Margem e markup de cada produto em cada loja (últimos <b id="h-dias">90</b> dias), curva ABC por quantidade e por R$, meta de margem por departamento e <b>sugestão de preço com projeção</b> de venda e lucro. Só leitura no ERP: o que você aceitar aqui sai em CSV pra digitar.</p>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn" onclick="abrirParams()" title="Meta geral, meta por departamento, elasticidade, limites de aumento/redução, terminação de preço">⚙ Metas e regras</button>
+      <a class="btn" id="btn-csv-ac" href="#" onclick="exportar('aceitas');return false" title="CSV (Excel) só com os preços que você aceitou na tela, pra digitar no ERP">⬇ Aceitas (CSV)</a>
+      <a class="btn" id="btn-csv-sug" href="#" onclick="exportar('sugestoes');return false" title="CSV com todas as sugestões da seleção atual">⬇ Sugestões (CSV)</a>
+      <button class="btn btn-amber" onclick="recalcular()" title="Busca de novo no ERP (vendas de 90 dias das 6 lojas, custo, preço, estoque). Leva alguns minutos; roda sozinho às 05:20">↻ Recalcular</button>
+    </div>
+  </div>
+  <div class="status" id="status"></div>
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="grid2">
+    <div class="panel">
+      <div class="panel-hd">
+        <h2>Direcionamento por departamento</h2>
+        <small id="dir-sub">margem realizada × meta · onde subir, onde baixar · impacto projetado em 90 dias</small>
+        <span class="sp"></span>
+        <button class="btn btn-sm" onclick="setGrupo('')" id="btn-todos-grupos" style="display:none">✕ todos os departamentos</button>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="dir" id="dir">
+          <thead><tr>
+            <th data-ord="grupo">Departamento</th><th data-ord="v90" title="Venda realizada nos cupons, 90 dias">Venda 90 d</th><th data-ord="share">% da loja</th>
+            <th data-ord="margemReal" title="(venda − custo vendido) ÷ venda, dos cupons">Margem real</th><th data-ord="margemTab" title="Margem da tabela de preço atual, ponderada pela quantidade vendida">Margem tabela</th>
+            <th data-ord="meta" title="Referência de mercado, editável em Metas e regras">Meta</th><th data-ord="gap" title="Meta − margem real (positivo = falta margem)">Gap</th>
+            <th data-ord="subir">Subir</th><th data-ord="baixar">Baixar</th><th data-ord="abaixoCusto" title="Preço de venda abaixo do custo">Abaixo custo</th>
+            <th data-ord="margemProj" title="Margem se aplicar todas as sugestões do departamento">Margem proj.</th><th data-ord="dLucro" title="Lucro bruto a mais (ou a menos) em 90 dias se aplicar as sugestões">Δ lucro 90 d</th><th data-ord="dVenda" title="Venda a mais (ou a menos) em 90 dias, pela elasticidade">Δ venda 90 d</th>
+            <th data-ord="negativos">Negativos</th><th data-ord="parados" title="Com estoque e sem venda em 90 dias">Parados</th>
+          </tr></thead>
+          <tbody id="dir-body"><tr><td colspan="15"><div class="spinner"></div></td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <select id="f-loja" onchange="setLoja(+this.value)">
+      <option value="0">Todas as lojas</option>
+      <option value="1">L1 CAHU</option><option value="2">L2 MURIBECA</option><option value="3">L3 PONTE</option>
+      <option value="4">L4 ATACAREJO</option><option value="5">L5 PORTA LARGA</option><option value="6">L6 JARDIM JORDÃO</option>
+    </select>
+    <select id="f-grupo" onchange="setGrupo(this.value)"><option value="">Todos os departamentos</option></select>
+    <select id="f-papel" onchange="carregar()" title="Papel do item na loja, pela curva ABC">
+      <option value="">Todos os papéis</option>
+      <option value="sensivel">Sensível — curva A em quantidade (cliente compara preço)</option>
+      <option value="forte">Forte — curva A em R$ (ticket alto)</option>
+      <option value="normal">Normal — curva B</option>
+      <option value="cauda">Cauda — curva C (carrega margem)</option>
+      <option value="parado">Parado — estoque sem venda em 90 d</option>
+    </select>
+    <input type="text" id="f-busca" placeholder="código de barras, descrição, departamento" oninput="buscaDebounce()">
+    <div class="chips" id="chips">
+      <span class="chip on" data-acao="" onclick="setAcao('')">Tudo</span>
+      <span class="chip" data-acao="sugestao" onclick="setAcao('sugestao')" title="Só itens com sugestão de mudança (subir, baixar ou abaixo do custo)">Com sugestão</span>
+      <span class="chip up" data-acao="subir" onclick="setAcao('subir')">▲ Subir</span>
+      <span class="chip dn" data-acao="baixar" onclick="setAcao('baixar')">▼ Baixar</span>
+      <span class="chip bad" data-acao="abaixo_custo" onclick="setAcao('abaixo_custo')" title="Preço de venda menor que o custo">Abaixo do custo</span>
+      <span class="chip" data-acao="manter" onclick="setAcao('manter')">Manter</span>
+      <span class="chip bad" data-acao="negativo" onclick="setAcao('negativo')" title="Estoque negativo na loja">Negativos</span>
+      <span class="chip warn" data-acao="parado" onclick="setAcao('parado')" title="Tem estoque e não vendeu em 90 dias">Parados</span>
+      <span class="chip up" data-acao="aceitas" onclick="setAcao('aceitas')">✓ Aceitas</span>
+      <span class="chip" data-acao="ignoradas" onclick="setAcao('ignoradas')">Ignoradas</span>
+    </div>
+    <label title="Esconde itens sem venda nos 90 dias"><input type="checkbox" id="f-com-venda" onchange="carregar()"> só com venda</label>
+    <label title="Ao aceitar ou ignorar um preço, grava a mesma decisão nas 6 lojas"><input type="checkbox" id="f-todas-lojas"> decisão vale pras 6 lojas</label>
+    <span class="info" id="info"></span>
+  </div>
+
+  <div class="table-wrap">
+    <table class="t" id="tabela">
+      <colgroup><col style="width:36px"><col style="width:70px"><col style="width:290px"><col style="width:70px"><col style="width:110px"><col style="width:130px"><col style="width:80px"><col style="width:80px"><col style="width:110px"><col style="width:60px"><col style="width:150px"><col style="width:140px"><col style="width:80px"><col style="width:120px"></colgroup>
+      <thead><tr>
+        <th>#</th>
+        <th data-ord="loja">Loja</th>
+        <th data-ord="descricao">Produto</th>
+        <th class="c" data-ord="abcQ" title="Curva ABC da loja: por quantidade / por R$ (80% A · 95% B)">Curva<br>qtd · R$</th>
+        <th data-ord="papel">Papel</th>
+        <th class="r" data-ord="v90" title="Quantidade e R$ vendidos nos cupons em 90 dias; embaixo, os últimos 30 dias">Venda 90 d</th>
+        <th class="r" data-ord="custo" title="Custo de cadastro na loja (custoloja)">Custo</th>
+        <th class="r" data-ord="preco" title="Preço de venda de cadastro na loja (P1..P6)">Preço</th>
+        <th class="r" data-ord="margem" title="Margem s/ venda = (preço − custo) ÷ preço · embaixo, markup s/ custo (o 'margem' do ERP) e a margem realizada nos cupons">Margem<br>markup</th>
+        <th class="r" data-ord="meta" title="Meta do departamento ajustada pelo papel (sensível −5, forte −2, cauda +4)">Meta</th>
+        <th class="r" data-ord="delta" title="Preço sugerido pela meta, limitado ao aumento máximo do papel e à redução máxima; edite e aceite">Sugerido</th>
+        <th class="r" data-ord="dLucro" title="Projeção 90 dias com elasticidade por papel: Δ venda / Δ lucro bruto">Projeção 90 d</th>
+        <th class="r" data-ord="est">Estoque</th>
+        <th class="c">Decisão</th>
+      </tr></thead>
+      <tbody id="tbody"><tr><td colspan="14"><div class="spinner"></div></td></tr></tbody>
+    </table>
+  </div>
+  <div class="legenda">
+    <span><b>Margem</b> = (preço − custo) ÷ preço · <b>markup</b> = (preço − custo) ÷ custo (é o que o ERP chama de "margem") · <b>margem real</b> = dos cupons de 90 dias.</span>
+    <span><b>Papel</b>: <span class="papel sensivel">sensível</span> curva A em quantidade — o cliente compara, meta menor e aumento curto · <span class="papel forte">forte</span> curva A em R$ · <span class="papel normal">normal</span> curva B · <span class="papel cauda">cauda</span> curva C, carrega margem.</span>
+    <span><b>Sugestão</b> = custo ÷ (1 − meta), arredondado na terminação, limitado ao aumento máximo do papel e à redução máxima; piso no custo + markup mínimo. Acima da meta só baixa item sensível/forte com folga; normal/cauda acima da meta mantém (é lucro). <b>Projeção</b> usa elasticidade por papel (Δ% qtd por 1% de preço).</span>
+    <span>Nada é gravado no ERP. Aceite os preços, exporte o CSV e digite no sistema.</span>
+  </div>
+</div>
+
+<div class="md-ov" id="md-prod" onclick="if(event.target===this)fechar('md-prod')">
+  <div class="md">
+    <div class="md-hd"><div><h3 id="mp-nome">Produto</h3><small id="mp-sub"></small></div><button class="x" onclick="fechar('md-prod')">×</button></div>
+    <div class="md-bd">
+      <table class="pg"><thead><tr><th>Loja</th><th>Curva</th><th>Papel</th><th>Venda 90 d</th><th>Custo</th><th>Preço</th><th>Margem · markup</th><th>Real</th><th>Meta</th><th>Sugerido</th><th>Proj. Δ lucro</th><th>Estoque</th><th>Decisão</th></tr></thead><tbody id="mp-body"></tbody></table>
+      <div class="md-acts">
+        <span style="font-size:12px;color:var(--ink-2)">Mesmo preço nas 6 lojas:</span>
+        <input class="np" id="mp-todas" placeholder="R$" style="width:100px">
+        <button class="btn btn-sm btn-ok" onclick="aceitarTodas()">✓ Aceitar nas 6 lojas</button>
+        <button class="btn btn-sm" onclick="desfazerTodas()">Desfazer decisões</button>
+      </div>
+      <div class="md-note">Aceitar grava a decisão só aqui (não vai pro ERP). Depois é exportar o CSV de aceitas e digitar.</div>
+    </div>
+  </div>
+</div>
+
+<div class="md-ov" id="md-params" onclick="if(event.target===this)fechar('md-params')">
+  <div class="md">
+    <div class="md-hd"><div><h3>Metas e regras</h3><small>margem sobre a venda · referência de mercado, ajuste como quiser · recalcula na hora, sem ir no ERP</small></div><button class="x" onclick="fechar('md-params')">×</button></div>
+    <div class="md-bd">
+      <div class="prm">
+        <label>Meta geral <small>margem s/ venda, quando o departamento não tem meta própria</small><input type="number" step="0.5" id="p-metaGeral"></label>
+        <label>Terminação do preço <small>centavo final do sugerido</small><select id="p-terminacao"><option value="9">,x9</option><option value="5">,x5</option><option value="nenhum">sem regra</option></select></label>
+        <label>Redução máxima (%) <small>numa rodada, qualquer papel</small><input type="number" step="1" id="p-maxReducao"></label>
+        <label>Markup mínimo (%) <small>piso: nunca sugerir abaixo de custo + isso</small><input type="number" step="1" id="p-markupMinimo"></label>
+        <label>Folga pra baixar (pontos) <small>só baixa item sensível/forte se a margem passar da meta + isso; normal/cauda acima da meta mantém</small><input type="number" step="0.5" id="p-folgaBaixar"></label>
+        <label>Δ mínimo (%) <small>diferença menor que isso = manter</small><input type="number" step="0.5" id="p-deltaMinimo"></label>
+      </div>
+      <h4>Por papel do item</h4>
+      <table class="pg"><thead><tr><th>Papel</th><th>Ajuste na meta (pontos)</th><th>Aumento máx. (%)</th><th>Elasticidade (Δ% qtd por 1% preço)</th></tr></thead>
+        <tbody id="p-papel"></tbody></table>
+      <h4>Meta por departamento (margem s/ venda, %)</h4>
+      <table class="pg"><thead><tr><th>Departamento</th><th>Venda 90 d (todas)</th><th>Margem real</th><th>Meta</th><th>Referência</th></tr></thead><tbody id="p-grupos"></tbody></table>
+      <h4>Departamentos fora da análise</h4>
+      <input type="text" id="p-excluir" style="width:100%;font:inherit;font-size:12.5px;padding:7px 10px;border:1px solid var(--border-strong);border-radius:8px" placeholder="separados por vírgula">
+      <div class="md-acts">
+        <button class="btn btn-amber" onclick="salvarParams()">Salvar e recalcular</button>
+        <button class="btn" onclick="resetParams()">Voltar ao padrão</button>
+      </div>
+      <div class="md-note"><b>Referência de mercado</b> (supermercado/atacarejo, Nordeste): commodities e itens que o cliente compara (arroz, feijão, óleo, leite, refrigerante) rodam com 18–25%; mercearia doce, limpeza e higiene 30–33%; perfumaria, utilidades, festa e bazar 36–45%; padaria 45–50%; açougue 25%. A meta da empresa (30%) sai da mistura: subir onde o cliente não compara e segurar onde compara.</div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const NOMES = { 1: 'CAHU', 2: 'MURIBECA', 3: 'PONTE', 4: 'ATACAREJO', 5: 'PORTA LARGA', 6: 'JARDIM JORDÃO' };
+const PAPEL = { sensivel: 'Sensível', forte: 'Forte', normal: 'Normal', cauda: 'Cauda', parado: 'Parado', sem_venda: 'Sem venda' };
+const ACAO = { subir: '▲ Subir', baixar: '▼ Baixar', manter: 'Manter', abaixo_custo: 'ABAIXO DO CUSTO', parado: 'Parado', sem_venda: 'Sem venda', sem_dados: 'Sem custo/preço', excluido: 'Fora' };
+const F = { loja: 0, grupo: '', acao: '', ordem: 'v90', dir: 'desc' };
+let DADOS = null, LOJAS = null, META = 30, PARAMS = null, _bt = null;
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const money = v => 'R$ ' + (+v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const moneyK = v => { const a = Math.abs(+v || 0); return (v < 0 ? '−' : '') + (a >= 1e6 ? 'R$ ' + (a / 1e6).toLocaleString('pt-BR', { maximumFractionDigits: 2 }) + ' mi' : a >= 1e3 ? 'R$ ' + (a / 1e3).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' mil' : money(a)); };
+const sign = v => (v > 0 ? '+' : '') + moneyK(v);
+const pct = (v, d = 1) => v == null ? '—' : (+v).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d }) + '%';
+const qtd = v => (+v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+const mgCls = (m, meta) => m == null ? '' : m >= meta ? 'mg-ok' : m >= meta - 5 ? 'mg-warn' : 'mg-bad';
+function toast(t) { const e = document.getElementById('toast'); e.textContent = t; e.classList.add('on'); clearTimeout(toast._t); toast._t = setTimeout(() => e.classList.remove('on'), 2600); }
+function fechar(id) { document.getElementById(id).classList.remove('open'); }
+
+function params() {
+  const p = new URLSearchParams();
+  if (F.loja) p.set('loja', F.loja); if (F.grupo) p.set('grupo', F.grupo); if (F.acao) p.set('acao', F.acao);
+  const pa = document.getElementById('f-papel').value; if (pa) p.set('papel', pa);
+  const b = document.getElementById('f-busca').value.trim(); if (b) p.set('busca', b);
+  if (document.getElementById('f-com-venda').checked) p.set('com_venda', '1');
+  p.set('ordem', F.ordem); p.set('dir', F.dir);
+  return p;
+}
+function buscaDebounce() { clearTimeout(_bt); _bt = setTimeout(carregar, 300); }
+function setLoja(l) { F.loja = l; document.getElementById('f-loja').value = l; document.querySelectorAll('.kpi').forEach(k => k.classList.toggle('on', +k.dataset.loja === l)); carregar(); }
+function setGrupo(g) { F.grupo = g; document.getElementById('f-grupo').value = g; document.getElementById('btn-todos-grupos').style.display = g ? '' : 'none'; carregar(); }
+function setAcao(a) { F.acao = a; document.querySelectorAll('#chips .chip').forEach(c => c.classList.toggle('on', c.dataset.acao === a)); carregar(); }
+
+async function carregarLojas() {
+  try {
+    const r = await fetch('/api/radar-precificacao/lojas'); const j = await r.json(); if (j.error) throw new Error(j.error);
+    LOJAS = j; META = j.total.meta; renderKpis(); renderStatus(j.estado);
+  } catch (e) { document.getElementById('kpis').innerHTML = '<div class="kpi" style="grid-column:1/-1;color:var(--bad)">' + esc(e.message) + '</div>'; }
+}
+function renderStatus(es) {
+  const el = document.getElementById('status');
+  if (!es.calculadoEm) { el.innerHTML = es.calculando ? '<b>Calculando pela primeira vez…</b> leva alguns minutos (vendas de 90 dias das 6 lojas). A tela recarrega sozinha.' : 'Ainda não calculado. Clique em <b>Recalcular</b>.'; if (es.calculando) setTimeout(init, 20000); return; }
+  document.getElementById('h-dias').textContent = es.dias;
+  el.innerHTML = 'Calculado em <b>' + new Date(es.calculadoEm).toLocaleString('pt-BR') + '</b> · período <b>' + es.de.split('-').reverse().join('/') + ' a ' + es.ate.split('-').reverse().join('/') + '</b> · <b>' + es.linhas.toLocaleString('pt-BR') + '</b> produto×loja avaliados' + (es.calculando ? ' · <b style="color:var(--warn)">recalculando agora…</b>' : '');
+  if (es.calculando) setTimeout(carregarLojas, 30000);
+}
+function renderKpis() {
+  const card = (ln, R, nome) => {
+    const cls = mgCls(R.margemReal, R.meta);
+    return '<div class="kpi' + (ln === 0 ? ' todas' : '') + (F.loja === ln ? ' on' : '') + '" data-loja="' + ln + '" onclick="setLoja(' + ln + ')" title="Clique pra filtrar a tabela">'
+      + '<div class="nm"><span>' + (ln ? 'L' + ln + ' ' + nome : 'Grupo · 6 lojas') + '</span><small>meta ' + pct(R.meta, 0) + '</small></div>'
+      + '<div class="v ' + cls + '">' + pct(R.margemReal) + '<small>margem real 90 d</small></div>'
+      + '<div class="row"><span><span class="lbl">markup</span><b>' + pct(R.markupReal) + '</b></span><span><span class="lbl">venda 90 d</span><b>' + moneyK(R.venda90) + '</b></span><span><span class="lbl">tabela</span><b>' + pct(R.margemTab) + '</b></span></div>'
+      + '<div class="row"><span><span class="lbl">se aplicar tudo</span><b class="' + mgCls(R.margemProj, R.meta) + '">' + pct(R.margemProj) + '</b> <span class="' + (R.dLucro >= 0 ? 'pos' : 'neg') + '">' + sign(R.dLucro) + '</span></span><span><span class="lbl">aceitas</span><b>' + R.aceitas + '</b> ' + (R.aceitas ? '<span class="' + (R.dLucroAceitas >= 0 ? 'pos' : 'neg') + '">' + sign(R.dLucroAceitas) + '</span>' : '') + '</span></div>'
+      + '<div class="row"><span><span class="lbl">subir / baixar</span><b>' + R.subir + '</b> / <b>' + R.baixar + '</b></span><span><span class="lbl">abaixo custo</span><b class="' + (R.abaixoCusto ? 'neg' : '') + '">' + R.abaixoCusto + '</b></span><span><span class="lbl">negativos</span><b class="' + (R.negativos ? 'neg' : '') + '">' + R.negativos + '</b></span></div>'
+      + '</div>';
+  };
+  let h = card(0, LOJAS.total, '');
+  for (const ln of [1, 2, 3, 4, 5, 6]) h += card(ln, LOJAS.lojas[ln], NOMES[ln]);
+  document.getElementById('kpis').innerHTML = h;
+}
+
+async function carregar() {
+  const tb = document.getElementById('tbody');
+  tb.innerHTML = '<tr><td colspan="14"><div class="spinner"></div></td></tr>';
+  try {
+    const r = await fetch('/api/radar-precificacao?' + params()); const j = await r.json(); if (j.error) throw new Error(j.error);
+    DADOS = j; renderGrupos(j); renderTabela(j);
+    if (!document.getElementById('f-grupo').options.length || document.getElementById('f-grupo').options.length === 1) { const s = document.getElementById('f-grupo'); for (const g of j.estado.grupos) { const o = document.createElement('option'); o.value = g; o.textContent = g; s.appendChild(o); } s.value = F.grupo; }
+    document.getElementById('info').innerHTML = '<b>' + j.total.toLocaleString('pt-BR') + '</b> produto×loja' + (j.total > j.rows.length ? ' · mostrando ' + j.rows.length : '') + ' · margem real <b>' + pct(j.resumo.margemReal) + '</b> · se aplicar tudo <b>' + pct(j.resumo.margemProj) + '</b> (' + sign(j.resumo.dLucro) + ' lucro / ' + sign(j.resumo.dVenda) + ' venda em 90 d) · só subidas <b class="pos">' + sign(j.resumo.lucroSubir) + '</b> · só reduções <b class="' + (j.resumo.lucroBaixar >= 0 ? 'pos' : 'neg') + '">' + sign(j.resumo.lucroBaixar) + '</b>';
+  } catch (e) { tb.innerHTML = '<tr><td colspan="14" class="empty" style="color:var(--bad)">' + esc(e.message) + '</td></tr>'; }
+}
+let DIR_ORD = 'v90', DIR_DIR = 'desc';
+function renderGrupos(j) {
+  document.getElementById('dir-sub').textContent = (F.loja ? 'L' + F.loja + ' ' + NOMES[F.loja] : 'as 6 lojas') + ' · margem realizada × meta · impacto projetado em 90 dias se aplicar as sugestões';
+  const gs = j.grupos.slice().sort((a, b) => { const x = a[DIR_ORD], y = b[DIR_ORD]; if (x == null) return 1; if (y == null) return -1; const d = typeof x === 'string' ? x.localeCompare(y, 'pt-BR') : x - y; return DIR_DIR === 'asc' ? d : -d; });
+  const max = Math.max(...gs.map(g => g.share), 1);
+  document.querySelectorAll('#dir th').forEach(th => th.style.color = th.dataset.ord === DIR_ORD ? 'var(--ink)' : '');
+  document.getElementById('dir-body').innerHTML = gs.length ? gs.map(g => '<tr class="' + (F.grupo && F.grupo.toUpperCase() === g.grupo.toUpperCase() ? 'on' : '') + '" onclick="setGrupo(' + JSON.stringify(g.grupo).replace(/"/g, '&quot;') + ')" title="Clique pra ver só esse departamento">'
+    + '<td class="g">' + esc(g.grupo) + ' <span class="s2" style="display:inline;color:var(--ink-3);font-weight:500">' + g.itens + ' itens</span></td><td>' + moneyK(g.v90) + '</td><td><span class="bar" style="width:' + Math.round(g.share / max * 60) + 'px"></span>' + pct(g.share) + '</td>'
+    + '<td class="' + mgCls(g.margemReal, g.meta) + '" style="font-weight:800">' + pct(g.margemReal) + '</td><td>' + pct(g.margemTab) + '</td><td><b>' + pct(g.meta, 0) + '</b></td><td class="' + (g.gap > 0 ? 'neg' : 'pos') + '">' + (g.gap == null ? '—' : (g.gap > 0 ? '+' : '') + pct(g.gap)) + '</td>'
+    + '<td>' + (g.subir || '') + '</td><td>' + (g.baixar || '') + '</td><td class="' + (g.abaixoCusto ? 'neg' : '') + '">' + (g.abaixoCusto || '') + '</td>'
+    + '<td class="' + mgCls(g.margemProj, g.meta) + '">' + pct(g.margemProj) + '</td><td class="' + (g.dLucro >= 0 ? 'pos' : 'neg') + '">' + sign(g.dLucro) + '</td><td class="' + (g.dVenda >= 0 ? 'pos' : 'neg') + '">' + sign(g.dVenda) + '</td>'
+    + '<td class="' + (g.negativos ? 'neg' : '') + '">' + (g.negativos || '') + '</td><td>' + (g.parados || '') + '</td></tr>').join('')
+    : '<tr><td colspan="15" class="empty">Nada nessa seleção.</td></tr>';
+}
+document.querySelectorAll('#dir th').forEach(th => th.addEventListener('click', () => { const o = th.dataset.ord; if (DIR_ORD === o) DIR_DIR = DIR_DIR === 'desc' ? 'asc' : 'desc'; else { DIR_ORD = o; DIR_DIR = o === 'grupo' ? 'asc' : 'desc'; } if (DADOS) renderGrupos(DADOS); }));
+document.querySelectorAll('#tabela th[data-ord]').forEach(th => th.addEventListener('click', () => { const o = th.dataset.ord; if (F.ordem === o) F.dir = F.dir === 'desc' ? 'asc' : 'desc'; else { F.ordem = o; F.dir = (o === 'descricao' || o === 'loja' || o === 'papel') ? 'asc' : 'desc'; } carregar(); }));
+
+function renderTabela(j) {
+  document.querySelectorAll('#tabela th[data-ord]').forEach(th => { th.classList.toggle('sorted', th.dataset.ord === F.ordem); th.innerHTML = th.innerHTML.replace(/ [▲▼]$/, '') + (th.dataset.ord === F.ordem ? (F.dir === 'desc' ? ' ▼' : ' ▲') : ''); });
+  const tb = document.getElementById('tbody');
+  if (!j.rows.length) { tb.innerHTML = '<tr><td colspan="14" class="empty">Nenhum produto nessa seleção.</td></tr>'; return; }
+  tb.innerHTML = j.rows.map((r, k) => {
+    const d = r.decisao, pSug = d && d.status === 'aceita' && d.preco ? d.preco : r.precoSug;
+    const dif = Math.abs(pSug - r.preco) >= 0.005;
+    const key = r.loja + '|' + r.cod;
+    return '<tr class="' + (d ? d.status : '') + '" id="tr-' + key.replace('|', '-') + '">'
+      + '<td style="color:var(--ink-3)">' + (k + 1) + '</td><td><b>L' + r.loja + '</b><span class="sub">' + NOMES[r.loja] + '</span></td>'
+      + '<td class="desc"><span class="nome" onclick="abrirProduto(\'' + r.cod + '\')" title="Ver nas 6 lojas">' + esc(r.descricao) + '</span><small>' + esc(r.cod) + (r.unid ? ' · ' + esc(r.unid) : '') + (r.grupo ? ' · ' + esc(r.grupo) : '') + (r.subgrupo ? ' › ' + esc(r.subgrupo) : '') + '</small></td>'
+      + '<td style="text-align:center"><span class="abc ' + (r.abcQ === '-' ? 'x' : r.abcQ) + '">' + r.abcQ + '</span> <span class="abc ' + (r.abcR === '-' ? 'x' : r.abcR) + '">' + r.abcR + '</span></td>'
+      + '<td><span class="papel ' + r.papel + '">' + (PAPEL[r.papel] || r.papel) + '</span></td>'
+      + '<td class="r"><b>' + qtd(r.q90) + '</b> ' + (r.unid ? '<span style="color:var(--ink-3);font-size:10.5px">' + esc(r.unid) + '</span>' : '') + ' · ' + moneyK(r.v90) + '<span class="s2">30 d: ' + qtd(r.q30) + ' · ' + moneyK(r.v30) + (r.dias90 ? ' · ' + r.dias90 + ' dias c/ venda' : '') + '</span></td>'
+      + '<td class="r">' + (r.custo > 0 ? money(r.custo) : '<span style="color:var(--bad)">sem custo</span>') + '</td>'
+      + '<td class="r"><b>' + (r.preco > 0 ? money(r.preco) : '<span style="color:var(--bad)">sem preço</span>') + '</b></td>'
+      + '<td class="r"><b class="' + mgCls(r.margem, r.meta) + '" style="font-size:13px">' + pct(r.margem) + '</b><span class="s2">markup ' + pct(r.markup) + (r.margemReal != null ? ' · real ' + pct(r.margemReal) : '') + (r.margemCad != null ? ' · cad. ' + pct(r.margemCad, 0) : '') + '</span></td>'
+      + '<td class="r"><b>' + pct(r.meta, 0) + '</b><span class="s2">' + (r.metaGrupo !== r.meta ? 'depto ' + pct(r.metaGrupo, 0) : '') + '</span></td>'
+      + '<td class="r">' + (r.acao === 'excluido' || r.acao === 'sem_dados' || r.acao === 'sem_venda' ? '<span class="acao ' + r.acao + '">' + ACAO[r.acao] + '</span>'
+          : '<input class="np' + (dif ? ' dif' : '') + '" id="np-' + key.replace('|', '-') + '" value="' + pSug.toFixed(2).replace('.', ',') + '" onkeydown="if(event.key===\'Enter\')aceitar(' + r.loja + ',\'' + r.cod + '\')" title="Edite o preço e aceite"><span class="s2"><span class="acao ' + r.acao + '">' + ACAO[r.acao] + '</span> ' + (r.delta ? '<b class="' + (r.delta > 0 ? 'pos' : 'neg') + '">' + (r.delta > 0 ? '+' : '') + pct(r.delta) + '</b>' : '') + (r.margemSug != null && r.acao !== 'manter' ? ' → ' + pct(r.margemSug) : '') + '</span>') + '</td>'
+      + '<td class="r">' + (r.q90 > 0 && r.preco > 0 && r.custo > 0 ? '<span class="' + (r.dLucro >= 0 ? 'pos' : 'neg') + '">' + sign(r.dLucro) + '</span> lucro<span class="s2">' + sign(r.dVenda) + ' venda · ' + qtd(r.qProj) + ' un</span>' : '<span style="color:var(--ink-3)">—</span>') + '</td>'
+      + '<td class="r ' + (r.negativo ? 'neg' : '') + '">' + qtd(r.est) + (r.parado ? '<span class="s2" style="color:var(--warn)">parado</span>' : r.negativo ? '<span class="s2" style="color:var(--bad)">negativo</span>' : '') + '</td>'
+      + '<td>' + (r.acao === 'excluido' || r.acao === 'sem_dados' ? '' : '<div class="acts"><button class="btn btn-sm btn-ok" onclick="aceitar(' + r.loja + ',\'' + r.cod + '\')" title="Aceitar o preço digitado">✓</button><button class="btn btn-sm btn-no" onclick="decidir(' + r.loja + ',\'' + r.cod + '\',null,\'ignorada\')" title="Ignorar (não mexer)">✕</button>' + (d ? '<button class="btn btn-sm" onclick="decidir(' + r.loja + ',\'' + r.cod + '\',null,null)" title="Desfazer">↶</button>' : '') + '</div>'
+          + (d ? '<span class="dec ' + d.status + '">' + (d.status === 'aceita' ? '✓ ' + money(d.preco) : 'ignorada') + (d.usuario ? ' · ' + esc(d.usuario.split(' ')[0]) : '') + '</span>' : '')) + '</td>'
+      + '</tr>';
+  }).join('');
+}
+function aceitar(loja, cod) {
+  const inp = document.getElementById('np-' + loja + '-' + cod); const v = parseFloat(String(inp.value).replace(',', '.'));
+  if (!(v > 0)) { toast('Preço inválido'); return; }
+  decidir(loja, cod, v, 'aceita');
+}
+async function decidir(loja, cod, preco, status) {
+  const todas = document.getElementById('f-todas-lojas').checked;
+  try {
+    const r = await fetch('/api/radar-precificacao/decisao', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ loja, cod, preco, status, todasLojas: todas }) });
+    const j = await r.json(); if (j.error) throw new Error(j.error);
+    toast(status === 'aceita' ? 'Preço aceito' + (todas ? ' nas 6 lojas' : ' na L' + loja) : status === 'ignorada' ? 'Ignorado' : 'Decisão desfeita');
+    carregar(); carregarLojas();
+  } catch (e) { toast('Erro: ' + e.message); }
+}
+
+let PROD = null;
+async function abrirProduto(cod) {
+  const ov = document.getElementById('md-prod'); ov.classList.add('open');
+  document.getElementById('mp-body').innerHTML = '<tr><td colspan="13"><div class="spinner"></div></td></tr>';
+  try {
+    const r = await fetch('/api/radar-precificacao/produto/' + encodeURIComponent(cod)); const j = await r.json(); if (j.error) throw new Error(j.error);
+    PROD = { cod, lojas: j.lojas };
+    const a = j.lojas[0] || {};
+    document.getElementById('mp-nome').textContent = a.descricao || cod;
+    document.getElementById('mp-sub').textContent = cod + (a.grupo ? ' · ' + a.grupo : '') + (a.subgrupo ? ' › ' + a.subgrupo : '');
+    const by = {}; for (const l of j.lojas) by[l.loja] = l;
+    document.getElementById('mp-body').innerHTML = [1, 2, 3, 4, 5, 6].map(ln => { const r = by[ln]; if (!r) return '<td class="loja">L' + ln + '<small>' + NOMES[ln] + '</small></td><td colspan="12" style="text-align:left;color:var(--ink-3)">sem venda e sem estoque</td>'.replace(/^/, '<tr>') + '</tr>';
+      const d = r.decisao;
+      return '<tr><td class="loja">L' + ln + '<small>' + NOMES[ln] + '</small></td><td><span class="abc ' + (r.abcQ === '-' ? 'x' : r.abcQ) + '">' + r.abcQ + '</span> <span class="abc ' + (r.abcR === '-' ? 'x' : r.abcR) + '">' + r.abcR + '</span></td><td><span class="papel ' + r.papel + '">' + (PAPEL[r.papel] || r.papel) + '</span></td>'
+        + '<td>' + qtd(r.q90) + ' · ' + moneyK(r.v90) + '</td><td>' + money(r.custo) + '</td><td><b>' + money(r.preco) + '</b></td><td class="' + mgCls(r.margem, r.meta) + '" style="font-weight:800">' + pct(r.margem) + ' <span style="font-weight:500;color:var(--ink-3)">· ' + pct(r.markup) + '</span></td><td>' + pct(r.margemReal) + '</td><td>' + pct(r.meta, 0) + '</td>'
+        + '<td><input class="np" id="mp-np-' + ln + '" value="' + (d && d.status === 'aceita' && d.preco ? d.preco : r.precoSug).toFixed(2).replace('.', ',') + '"> <span class="acao ' + r.acao + '">' + (ACAO[r.acao] || r.acao) + '</span></td>'
+        + '<td class="' + (r.dLucro >= 0 ? 'pos' : 'neg') + '">' + sign(r.dLucro) + '</td><td class="' + (r.negativo ? 'neg' : '') + '">' + qtd(r.est) + '</td>'
+        + '<td><div class="acts"><button class="btn btn-sm btn-ok" onclick="mpAceitar(' + ln + ')">✓</button><button class="btn btn-sm btn-no" onclick="mpDecidir(' + ln + ',null,\'ignorada\')">✕</button></div>' + (d ? '<span class="dec ' + d.status + '">' + (d.status === 'aceita' ? '✓ ' + money(d.preco) : 'ignorada') + '</span>' : '') + '</td></tr>';
+    }).join('');
+  } catch (e) { document.getElementById('mp-body').innerHTML = '<tr><td colspan="13" style="color:var(--bad)">' + esc(e.message) + '</td></tr>'; }
+}
+function mpAceitar(ln) { const v = parseFloat(String(document.getElementById('mp-np-' + ln).value).replace(',', '.')); if (!(v > 0)) { toast('Preço inválido'); return; } mpDecidir(ln, v, 'aceita'); }
+async function mpDecidir(ln, preco, status, todas) {
+  try {
+    const r = await fetch('/api/radar-precificacao/decisao', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ loja: ln, cod: PROD.cod, preco, status, todasLojas: !!todas }) });
+    const j = await r.json(); if (j.error) throw new Error(j.error);
+    toast(status === 'aceita' ? 'Preço aceito' : status ? 'Ignorado' : 'Desfeito'); abrirProduto(PROD.cod); carregar(); carregarLojas();
+  } catch (e) { toast('Erro: ' + e.message); }
+}
+function aceitarTodas() { const v = parseFloat(String(document.getElementById('mp-todas').value).replace(',', '.')); if (!(v > 0)) { toast('Digite o preço'); return; } mpDecidir(1, v, 'aceita', true); }
+function desfazerTodas() { mpDecidir(1, null, null, true); }
+
+async function abrirParams() {
+  const ov = document.getElementById('md-params'); ov.classList.add('open');
+  const r = await fetch('/api/radar-precificacao/params'); PARAMS = await r.json();
+  const p = PARAMS;
+  document.getElementById('p-metaGeral').value = p.metaGeral; document.getElementById('p-terminacao').value = p.terminacao;
+  document.getElementById('p-maxReducao').value = p.maxReducao; document.getElementById('p-markupMinimo').value = p.markupMinimo; document.getElementById('p-deltaMinimo').value = p.deltaMinimo; document.getElementById('p-folgaBaixar').value = p.folgaBaixar;
+  document.getElementById('p-papel').innerHTML = ['sensivel', 'forte', 'normal', 'cauda'].map(k => '<tr><td style="text-align:left"><span class="papel ' + k + '">' + PAPEL[k] + '</span></td><td><input class="pm" id="pa-' + k + '" type="number" step="0.5" value="' + p.ajustePapel[k] + '"></td><td><input class="pm" id="pu-' + k + '" type="number" step="1" value="' + p.maxAumento[k] + '"></td><td><input class="pm" id="pe-' + k + '" type="number" step="0.1" value="' + p.elasticidade[k] + '"></td></tr>').join('');
+  // departamentos: os do cálculo + os que já têm meta
+  let gs = [];
+  try { const rr = await fetch('/api/radar-precificacao?limite=1'); const jj = await rr.json(); gs = jj.grupos || []; } catch (e) {}
+  const nomes = new Set(gs.map(g => g.grupo.toUpperCase())); for (const k of Object.keys(p.metasGrupo)) nomes.add(k.toUpperCase());
+  const byG = {}; for (const g of gs) byG[g.grupo.toUpperCase()] = g;
+  document.getElementById('p-grupos').innerHTML = [...nomes].sort((a, b) => ((byG[b] || {}).v90 || 0) - ((byG[a] || {}).v90 || 0)).map(k => { const g = byG[k] || {}; const meta = p.metasGrupo[k]; return '<tr><td style="text-align:left;font-weight:700">' + esc(k) + '</td><td>' + (g.v90 ? moneyK(g.v90) : '—') + '</td><td class="' + mgCls(g.margemReal, meta ?? p.metaGeral) + '">' + pct(g.margemReal) + '</td><td><input class="pm" data-grupo="' + esc(k) + '" type="number" step="0.5" value="' + (meta ?? '') + '" placeholder="' + p.metaGeral + '"></td><td style="color:var(--ink-3)">' + (p.padrao.metasGrupo[k] != null ? pct(p.padrao.metasGrupo[k], 0) : 'geral') + '</td></tr>'; }).join('');
+  document.getElementById('p-excluir').value = (p.excluirGrupos || []).join(', ');
+}
+async function salvarParams() {
+  const g = id => parseFloat(document.getElementById(id).value);
+  const body = { metaGeral: g('p-metaGeral'), terminacao: document.getElementById('p-terminacao').value, maxReducao: g('p-maxReducao'), markupMinimo: g('p-markupMinimo'), deltaMinimo: g('p-deltaMinimo'), folgaBaixar: g('p-folgaBaixar'), ajustePapel: {}, maxAumento: {}, elasticidade: {}, metasGrupo: {},
+    excluirGrupos: document.getElementById('p-excluir').value.split(',').map(s => s.trim()).filter(Boolean) };
+  for (const k of ['sensivel', 'forte', 'normal', 'cauda']) { body.ajustePapel[k] = g('pa-' + k); body.maxAumento[k] = g('pu-' + k); body.elasticidade[k] = g('pe-' + k); }
+  document.querySelectorAll('#p-grupos input[data-grupo]').forEach(i => { const v = parseFloat(i.value); if (isFinite(v)) body.metasGrupo[i.dataset.grupo] = v; });
+  // grupo apagado na tela = volta pra meta geral: manda o mapa inteiro (o servidor substitui o objeto)
+  try {
+    const r = await fetch('/api/radar-precificacao/params', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const j = await r.json(); if (j.error) throw new Error(j.error);
+    toast('Metas salvas, sugestões recalculadas'); fechar('md-params'); carregar(); carregarLojas();
+  } catch (e) { toast('Erro: ' + e.message); }
+}
+async function resetParams() { if (!confirm('Voltar todas as metas e regras pro padrão de referência?')) return; await fetch('/api/radar-precificacao/params/reset', { method: 'POST' }); toast('Padrão restaurado'); fechar('md-params'); carregar(); carregarLojas(); }
+async function recalcular() {
+  if (!confirm('Buscar de novo no ERP (vendas de 90 dias das 6 lojas, custo, preço, estoque)? Leva alguns minutos.')) return;
+  await fetch('/api/radar-precificacao/recalcular', { method: 'POST' }); toast('Recalculando… a tela avisa quando terminar'); setTimeout(carregarLojas, 5000);
+}
+function exportar(so) { const p = params(); if (so === 'aceitas') p.set('so', 'aceitas'); window.open('/api/radar-precificacao/export.csv?' + p, '_blank'); }
+function init() { carregarLojas(); carregar(); }
+init();
+</script>
+</body>
+</html>

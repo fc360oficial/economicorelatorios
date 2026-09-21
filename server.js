@@ -6443,6 +6443,73 @@ radarPedidos.agendar();
 const sortimento = require('./lib/sortimento');
 sortimento.init({ q, getNregsComprador: () => NREGS_COMPRADOR, radar: radarPedidos });
 sortimento.agendar();
+
+// ═══════════════════════════════════════════════════
+// RADAR PRECIFICAÇÃO (Precificação > Radar Precificação, 21/09/2026)
+// Margem/markup produto × loja, curva ABC, papel do item, meta por departamento, sugestão de preço
+// com projeção. Regras e fontes em lib/radar-precificacao.js. SÓ LEITURA no ERP; decisões e
+// parâmetros ficam em data/radar-precificacao-*.json e saem em CSV pra digitar no ERP.
+// ═══════════════════════════════════════════════════
+const radarPrecif = require('./lib/radar-precificacao');
+radarPrecif.init({ q });
+radarPrecif.agendar();
+function rpFiltro(qq) {
+  return { loja: parseInt(qq.loja) || 0, grupo: qq.grupo || '', papel: qq.papel || '', abc: qq.abc || '', acao: qq.acao || '', busca: qq.busca || '',
+           comVenda: qq.com_venda === '1', incluirExcluidos: qq.excluidos === '1' };
+}
+app.get('/api/radar-precificacao', (req, res) => {
+  try {
+    const f = rpFiltro(req.query);
+    const rows = radarPrecif.filtrar(f);
+    const ord = req.query.ordem || 'v90', asc = req.query.dir === 'asc';
+    const vazio = v => v == null || v === '' || v === '-';
+    rows.sort((a, b) => {
+      const x = a[ord], y = b[ord], ex = vazio(x), ey = vazio(y);
+      if (ex || ey) return ex && ey ? 0 : (ex ? 1 : -1);
+      const d = (typeof x === 'string' || typeof y === 'string') ? String(x).localeCompare(String(y), 'pt-BR') : (x > y ? 1 : x < y ? -1 : 0);
+      return (asc ? d : -d) || b.v90 - a.v90;
+    });
+    const limite = Math.min(3000, parseInt(req.query.limite) || 400);
+    res.json({ estado: radarPrecif.estado(), resumo: radarPrecif.resumo(rows), grupos: radarPrecif.grupos(rows), total: rows.length,
+               rows: rows.slice(0, limite).map(r => ({ ...r, decisao: radarPrecif.decisao(r) })) });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+// cartões: uma linha por loja + total
+app.get('/api/radar-precificacao/lojas', (req, res) => {
+  try {
+    const lojas = {};
+    for (const ln of radarPrecif.LOJAS) lojas[ln] = radarPrecif.resumo(radarPrecif.filtrar({ loja: ln }));
+    res.json({ estado: radarPrecif.estado(), lojas, total: radarPrecif.resumo(radarPrecif.filtrar({})), nomes: radarPrecif.NOMES });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.post('/api/radar-precificacao/recalcular', (req, res) => {
+  radarPrecif.calcular().catch(e => console.error('[RADAR-PRECIF]', e.message));
+  res.json({ ok: true, estado: radarPrecif.estado() });
+});
+app.get('/api/radar-precificacao/params', (req, res) => res.json(radarPrecif.getParams()));
+app.post('/api/radar-precificacao/params', (req, res) => {
+  try { res.json(radarPrecif.setParams(req.body || {})); } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.post('/api/radar-precificacao/params/reset', (req, res) => res.json(radarPrecif.resetParams()));
+app.post('/api/radar-precificacao/decisao', (req, res) => {
+  try {
+    const b = req.body || {};
+    if (!b.cod || !b.loja) return res.status(400).json({ error: 'loja e cod obrigatórios' });
+    const usuario = req.session && req.session.user ? (req.session.user.nome || req.session.user.usuario) : null;
+    res.json({ ok: true, gravadas: radarPrecif.setDecisao({ loja: b.loja, cod: String(b.cod), preco: b.preco, status: b.status || null, usuario, todasLojas: !!b.todasLojas }) });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.get('/api/radar-precificacao/produto/:cod', (req, res) => {
+  try { res.json({ lojas: radarPrecif.produto(String(req.params.cod)), nomes: radarPrecif.NOMES }); } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.get('/api/radar-precificacao/export.csv', (req, res) => {
+  try {
+    const rows = radarPrecif.filtrar(rpFiltro(req.query)).sort((a, b) => a.loja - b.loja || b.v90 - a.v90);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="radar-precificacao-${req.query.so === 'aceitas' ? 'aceitas' : 'sugestoes'}-${new Date().toISOString().slice(0, 10)}.csv"`);
+    res.send(radarPrecif.csv(rows, req.query.so === 'aceitas'));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 // filtros da aba Sortimento (loja/comprador/classe/lista/busca + faixas por coluna: v6, v12, meses12, est, valorEst, cob, ent6 como "min,max"; ult_de/ult_ate AAAA-MM ou ult_de=nunca)
 function sorFiltro(qq) {
   const faixas = {};

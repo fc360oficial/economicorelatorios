@@ -76,7 +76,8 @@
       ]},
     { id: 'precificacao', ic: 'trend', txt: 'Precificação', sub: [
         { href: '/formacao-de-preco.html', ic: 'trend', txt: 'Formação de Preços' },
-        { href: '/promocoes.html', ic: 'tag', txt: 'Promoções' }
+        { href: '/promocoes.html', ic: 'tag', txt: 'Promoções' },
+        { href: '/radar-precificacao.html', ic: 'chart', txt: 'Radar Precificação' }
       ]},
     { id: 'prevencao', ic: 'shield', txt: 'Prevenção', sub: [
         { href: '/prevencao.html', ic: 'shield', txt: 'Fechamento de Mês' },
