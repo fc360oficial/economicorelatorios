@@ -6455,7 +6455,7 @@ radarPrecif.init({ q });
 radarPrecif.agendar();
 function rpFiltro(qq) {
   return { loja: parseInt(qq.loja) || 0, grupo: qq.grupo || '', papel: qq.papel || '', abc: qq.abc || '', acao: qq.acao || '', busca: qq.busca || '',
-           comVenda: qq.com_venda === '1', incluirExcluidos: qq.excluidos === '1' };
+           comVenda: qq.com_venda === '1', estoque: qq.estoque || '', incluirExcluidos: qq.excluidos === '1' };
 }
 app.get('/api/radar-precificacao', (req, res) => {
   try {
