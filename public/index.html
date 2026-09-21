@@ -37,6 +37,9 @@
   @media (max-width:1400px){.row.c7,.row.c6{grid-template-columns:repeat(4,minmax(150px,1fr))}.row.c3{grid-template-columns:1fr 1fr}}
   @media (max-width:900px){.row.c7,.row.c6,.row.c3,.row.c2,.row.c21{grid-template-columns:1fr}}
   .lj{background:#fff;border:1px solid var(--ln,#DADAD6);border-radius:12px;padding:12px 14px}
+  .lj{cursor:pointer;transition:box-shadow .12s}
+  .lj:hover{box-shadow:0 2px 8px rgba(14,22,38,.12)}
+  .lj.on{border-color:#F5B800;box-shadow:0 0 0 3px #F5B80066}
   .lj.rede{background:var(--ink);color:#fff;border-color:var(--ink)}
   .lj .nm{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--ink2);display:flex;justify-content:space-between}
   .lj.rede .nm{color:#F5B800}
@@ -188,7 +191,7 @@
 <script>
 const NOMES = { 1: 'CAHU', 2: 'MURIBECA', 3: 'PONTE', 4: 'ATACAREJO', 5: 'PORTA LARGA', 6: 'JARDIM JORDÃO', 10: 'CENTRAL/CD' };
 const MESES = ['', 'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
-let D = null;
+let D = null, V = null, LOJA = 0;   // LOJA = 0 rede; clicando num cartão de loja, todos os segmentos mostram só ela
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const NB = String.fromCharCode(160);
 const money = v => 'R$' + NB + (+v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -218,18 +221,39 @@ async function carregar() {
 }
 async function atualizar() { await fetch('/api/dashboard/atualizar', { method: 'POST' }); toast('Recalculando… leva 1 a 2 minutos'); setTimeout(carregar, 20000); }
 
+function setLoja(ln) { LOJA = LOJA === ln ? 0 : ln; if (LOJA) document.getElementById('setor-loja').value = LOJA; else document.getElementById('setor-loja').value = 0; render(); }
+// cópia do D só com a loja escolhida em cada segmento
+function vista() {
+  if (!LOJA || !D) return D;
+  const L = LOJA, c = JSON.parse(JSON.stringify(D)), tem = a => Array.isArray(a) && a.includes(L);
+  if (c.comercial) { c.comercial.lojas = c.comercial.lojas.filter(l => l.loja === L); c.comercial.soLoja = true; }
+  const a = c.abastecimento || {};
+  if (a.curvaA) { a.curvaA.itens = a.curvaA.itens.filter(i => tem(i.lojas_zeradas)); a.curvaA.transferir = a.curvaA.transferir.filter(i => tem(i.lojas_zeradas) || tem(i.lojas_com_estoque)); }
+  if (a.cd) { a.cd.itens = a.cd.itens.filter(i => i.loja === L); a.cd.pedidosAtrasados = (a.cd.pedidosAtrasados || []).filter(p => p.loja === L); a.cd.pendencias = a.cd.itens.length; a.cd.caixasFaltando = a.cd.itens.reduce((s, i) => s + i.faltaCx, 0); a.cd.atrasados = a.cd.pedidosAtrasados.length; }
+  if (a.fornecedores) { a.fornecedores.itens = a.fornecedores.itens.filter(p => tem(p.lojas)); a.fornecedores.parados = a.fornecedores.itens.length; }
+  const e = c.estoque || {};
+  if (e.excesso) { e.excesso.top = e.excesso.top.filter(r => r.loja === L); const pl = (e.excesso.porLoja || {})[L] || {}; e.excesso.itens = pl.cobExc || 0; e.excesso.valor = pl.valorCobExc || 0; e.excesso.parados = pl.parado || 0; e.excesso.valorParados = pl.valorParado || 0; e.excesso.porLoja = { [L]: pl }; }
+  if (e.vencimentos) { const t = e.vencimentos.top.filter(r => r.loja === L); e.vencimentos.top = t; const pl = (e.vencimentos.porLoja || {})[L] || { itens: 0, valor: 0 }; e.vencimentos.itens = pl.itens; e.vencimentos.valor = pl.valor; e.vencimentos.porLoja = { [L]: pl }; e.vencimentos.buckets = { d7: t.filter(r => r.dias <= 7).length, d15: t.filter(r => r.dias > 7 && r.dias <= 15).length, d30: t.filter(r => r.dias > 15).length }; }
+  if (c.operacao) c.operacao.lojas = c.operacao.lojas.filter(l => l.loja === L);
+  const fi = c.financeiro;
+  if (fi) { const ls = (fi.linhas || []).filter(r => r.loja === L), hoje = D.hoje; const venc = { n: 0, v: 0 }, hj = { n: 0, v: 0 }, st = { n: 0, v: 0 }, porDia = {};
+    for (const r of ls) { if (r.data < hoje) { venc.n += r.n; venc.v += r.v; } else { st.n += r.n; st.v += r.v; if (r.data === hoje) { hj.n += r.n; hj.v += r.v; } porDia[r.data] = { data: r.data, n: r.n, v: r.v }; } }
+    fi.vencidos = venc; fi.hoje = hj; fi.sete = st; fi.dias = fi.dias.map(d => porDia[d.data] || { data: d.data, n: 0, v: 0 }); fi.porLoja = fi.porLoja.filter(l => l.loja === L); fi.maiores = fi.maiores.filter(m => m.loja === L); }
+  return c;
+}
 function render() {
+  V = vista();
   const f = D.faturamento;
   const at = D.atualizadoEm ? new Date(D.atualizadoEm) : null;
   document.getElementById('fresh-txt').textContent = at ? 'atualizado ' + at.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) + (D.calculando ? ' · recalculando…' : '') : 'calculando…';
   document.getElementById('db-fresh').className = 'db-fresh' + (at && Date.now() - at.getTime() > 20 * 60000 ? ' old' : '');
-  document.getElementById('crumb-sub').textContent = f ? MESES[f.mes] + ' de ' + f.ano + ' · dia ' + f.dia + ' de ' + f.ultimoDia + (D.demo ? ' · DADOS DE EXEMPLO' : '') : '';
+  document.getElementById('crumb-sub').innerHTML = f ? MESES[f.mes] + ' de ' + f.ano + ' · dia ' + f.dia + ' de ' + f.ultimoDia + (LOJA ? ' · <b style="color:var(--amk,#6B4E00)">só L' + LOJA + ' ' + NOMES[LOJA] + '</b> <a href="#" onclick="setLoja(0);return false" style="font-size:11px">(ver a rede)</a>' : ' · clique numa loja pra filtrar tudo') + (D.demo ? ' · DADOS DE EXEMPLO' : '') : '';
   renderFat(); renderMeta(); renderSetores(); renderAbast(); renderEstoque(); renderOp(); renderFin();
 }
 function renderFat() {
   const f = D.faturamento; if (!f) { document.getElementById('fat-cards').innerHTML = empty('Faturamento não calculado'); return; }
   document.getElementById('s1-sub').textContent = '01 a ' + df(f.ate) + ' × 01 a ' + String(f.dia).padStart(2, '0') + '/' + String(f.mes).padStart(2, '0') + '/' + f.anoAnt + ' · margem s/ venda · markup s/ custo · ticket · cupons';
-  const card = l => '<div class="lj' + (l.loja === 0 ? ' rede' : '') + '"><div class="nm"><span>' + (l.loja ? 'L' + l.loja + ' ' + l.nome : 'REDE · 6 lojas') + '</span><span class="' + cls(l.var) + '">' + sgn(l.var) + '</span></div>'
+  const card = l => '<div class="lj' + (l.loja === 0 ? ' rede' : '') + (LOJA === l.loja ? ' on' : '') + '" onclick="setLoja(' + l.loja + ')" title="' + (l.loja ? 'Mostrar só esta loja em todos os segmentos (clique de novo pra voltar)' : 'Ver a rede inteira') + '"><div class="nm"><span>' + (l.loja ? 'L' + l.loja + ' ' + l.nome : 'REDE · 6 lojas') + '</span><span class="' + cls(l.var) + '">' + sgn(l.var) + '</span></div>'
     + '<div class="v">' + moneyK(l.venda) + '<small>mês</small></div>'
     + '<div class="r"><span><span class="l">ano passado</span><b>' + moneyK(l.vendaAnt) + '</b></span><span><span class="l">hoje</span><b>' + moneyK(l.hoje) + '</b></span><span><span class="l">projeção</span><b>' + moneyK(l.projecao) + '</b></span></div>'
     + '<div class="r"><span><span class="l">margem</span><b class="' + (l.margem != null && l.margemAnt != null ? (l.margem >= l.margemAnt ? 'up' : 'dn') : '') + '">' + pct(l.margem) + '</b> <span style="font-size:10px">' + (l.margemAnt != null ? 'ant ' + pct(l.margemAnt) : '') + '</span></span><span><span class="l">markup</span><b>' + pct(l.markup) + '</b></span></div>'
@@ -238,15 +262,15 @@ function renderFat() {
   document.getElementById('fat-cards').innerHTML = card(f.rede) + f.lojas.map(card).join('');
 }
 function renderMeta() {
-  const c = D.comercial; if (!c) { document.getElementById('c-meta').innerHTML = empty('sem dados'); return; }
-  const abaixo = c.lojas.filter(l => l.abaixo).length; k('k-meta', abaixo ? abaixo + ' abaixo' : 'todas na meta', !abaixo); badge('n2', abaixo + (c.setores || []).filter(s => s.queda <= -1).length);
+  const c = V.comercial; if (!c) { document.getElementById('c-meta').innerHTML = empty('sem dados'); return; }
+  const abaixo = c.lojas.filter(l => l.abaixo).length; k('k-meta', abaixo ? abaixo + ' abaixo' : (c.soLoja ? 'na meta' : 'todas na meta'), !abaixo); badge('n2', abaixo + (c.setores || []).filter(s => s.queda <= -1).length);
   document.getElementById('meta-sub').textContent = 'meta = digitada ou ano passado +' + c.crescimento + '% · projeção no ritmo atual';
   const row = l => '<tr class="' + (l.abaixo ? 'bad' : '') + '"><td>' + (l.loja ? lojaTag(l.loja) : '<b>REDE</b>') + '</td><td class="r">' + moneyK(l.venda) + '</td><td class="r">' + moneyK(l.meta) + (l.origem && l.loja ? '<br><span style="font-size:9.5px;color:var(--ink3)">' + esc(l.origem) + '</span>' : '') + '</td><td class="r"><span class="bar' + (l.pctMeta < 100 ? '' : '') + '" style="width:' + Math.min(70, Math.round((l.pctMeta || 0) * 0.7)) + 'px"></span>' + pct(l.pctMeta, 0) + '</td><td class="r"><b class="' + (l.abaixo ? 'dn' : 'up') + '">' + moneyK(l.projecao) + '</b><br><span style="font-size:10px">' + pct(l.pctProj, 0) + ' da meta</span></td><td class="r">' + (l.abaixo ? '<span class="pill bad">falta ' + moneyK(l.falta) + '</span>' : '<span class="pill ok">na meta</span>') + '</td></tr>';
-  document.getElementById('c-meta').innerHTML = '<table class="m"><thead><tr><th>Loja</th><th class="r">Venda até hoje</th><th class="r">Meta do mês</th><th class="r">% já feito</th><th class="r">Projeção</th><th class="r">Situação</th></tr></thead><tbody>' + row({ ...c.rede, loja: 0 }) + c.lojas.map(row).join('') + '</tbody></table>';
+  document.getElementById('c-meta').innerHTML = '<table class="m"><thead><tr><th>Loja</th><th class="r">Venda até hoje</th><th class="r">Meta do mês</th><th class="r">% já feito</th><th class="r">Projeção</th><th class="r">Situação</th></tr></thead><tbody>' + (c.soLoja ? '' : row({ ...c.rede, loja: 0 })) + c.lojas.map(row).join('') + '</tbody></table>';
 }
 function renderSetores() {
-  const c = D.comercial; if (!c) { document.getElementById('c-setores').innerHTML = empty('sem dados'); return; }
-  const ln = +document.getElementById('setor-loja').value;
+  const c = V.comercial; if (!c) { document.getElementById('c-setores').innerHTML = empty('sem dados'); return; }
+  const ln = LOJA || +document.getElementById('setor-loja').value;
   const rows = (ln ? c.setoresPorLoja.filter(s => s.loja === ln) : c.setores).filter(s => s.vA > 1000);
   document.getElementById('setor-sub').textContent = (ln ? 'L' + ln + ' ' + NOMES[ln] : 'rede') + ' · ' + df(c.periodoAtual.de) + ' a ' + df(c.periodoAtual.ate) + ' × ' + MESES[+c.periodoAnt.de.slice(5, 7)];
   if (!rows.length) { document.getElementById('c-setores').innerHTML = empty('Sem comparação ainda (o cálculo de departamentos leva alguns minutos após o boot).'); return; }
@@ -256,7 +280,7 @@ function renderSetores() {
     + '</tbody></table>' + (queda.length ? '' : '<div class="empty">Nenhum departamento com queda de 1 ponto ou mais.</div>');
 }
 function renderAbast() {
-  const a = D.abastecimento || {}; let n3 = 0;
+  const a = V.abastecimento || {}; let n3 = 0;
   const ca = a.curvaA;
   if (!ca) document.getElementById('c-curva').innerHTML = empty('Radar de Pedidos ainda não calculou');
   else { n3 += ca.itens.length; k('k-curva', ca.itens.length ? ca.itens.length + ' produtos' : 'ok', !ca.itens.length);
@@ -275,31 +299,31 @@ function renderAbast() {
   badge('n3', n3);
 }
 function renderEstoque() {
-  const e = D.estoque || {}; let n4 = 0;
+  const e = V.estoque || {}; let n4 = 0;
   const ex = e.excesso;
   if (!ex) document.getElementById('c-exc').innerHTML = empty('Sortimento ainda não calculado (roda de madrugada)');
   else { n4 += ex.itens; k('k-exc', ex.itens ? ex.itens + ' itens · ' + moneyK(ex.valor) : 'ok', !ex.itens); document.getElementById('exc-sub').textContent = 'Sortimento · ' + (ex.calculadoEm ? 'calculado ' + new Date(ex.calculadoEm).toLocaleDateString('pt-BR') : '');
-    const pl = Object.entries(ex.porLoja || {}).map(([ln, x]) => '<span class="op-pdv" title="' + moneyK(x.valorCobExc) + '">L' + ln + ' ' + x.cobExc + '</span>').join('');
+    const pl = Object.entries(ex.porLoja || {}).map(([ln, x]) => '<span class="op-pdv" title="' + moneyK(x.valorCobExc) + '">L' + ln + ' ' + (x.cobExc || 0) + '</span>').join('');
     document.getElementById('c-exc').innerHTML = '<div style="padding:6px 12px;font-size:11px;color:var(--ink2)">por loja: ' + pl + ' · parados: ' + ex.parados + ' (' + moneyK(ex.valorParados) + ')</div>' + (ex.top.length ? '<table class="m"><thead><tr><th>Produto</th><th>Loja</th><th class="r">Estoque</th><th class="r">R$</th><th class="r">Cob.</th></tr></thead><tbody>' + ex.top.map(r => '<tr><td class="p">' + esc(r.descricao) + '<small>' + esc(r.nome || '') + '</small></td><td>' + lojaTag(r.loja) + '</td><td class="r">' + nf(r.est) + '</td><td class="r"><b>' + moneyK(r.valorEst) + '</b></td><td class="r dn">' + (r.cob >= 9999 ? '∞' : nf(r.cob) + ' d') + '</td></tr>').join('') + '</tbody></table>' : empty('Sem excesso. ✓')); }
   const vc = e.vencimentos;
   if (!vc) document.getElementById('c-venc').innerHTML = empty('sem dados');
   else { n4 += vc.buckets.d7; k('k-venc', vc.itens ? vc.itens + ' itens · ' + moneyK(vc.valor) : 'ok', !vc.itens);
-    const pl = Object.entries(vc.porLoja || {}).map(([ln, x]) => '<span class="op-pdv" title="' + moneyK(x.valor) + '">L' + ln + ' ' + x.itens + '</span>').join('');
+    const pl = Object.entries(vc.porLoja || {}).map(([ln, x]) => '<span class="op-pdv" title="' + moneyK(x.valor) + '">L' + ln + ' ' + (x.itens || 0) + '</span>').join('');
     document.getElementById('c-venc').innerHTML = '<div style="padding:6px 12px;font-size:11px;color:var(--ink2)"><b class="dn">' + vc.buckets.d7 + '</b> em 7 dias · <b class="wn">' + vc.buckets.d15 + '</b> em 15 · ' + vc.buckets.d30 + ' em 30 · por loja: ' + pl + '</div>' + (vc.top.length ? '<table class="m"><thead><tr><th>Produto</th><th>Loja</th><th>Vence</th><th class="r">Estoque</th><th class="r">R$ custo</th></tr></thead><tbody>' + vc.top.map(r => '<tr class="' + (r.dias <= 7 ? 'bad' : '') + '"><td class="p">' + esc(r.descricao) + '</td><td>' + lojaTag(r.loja) + '</td><td><span class="pill ' + (r.dias <= 7 ? 'bad' : r.dias <= 15 ? 'wn' : 'nt') + '">' + df(r.validade) + ' · ' + r.dias + ' d</span></td><td class="r">' + nf(r.est) + '</td><td class="r"><b>' + moneyK(r.valor) + '</b></td></tr>').join('') + '</tbody></table>' : empty('Nada vencendo em 30 dias. ✓')); }
-  const tr = (D.abastecimento || {}).curvaA ? D.abastecimento.curvaA.transferir : null;
+  const tr = (V.abastecimento || {}).curvaA ? V.abastecimento.curvaA.transferir : null;
   if (!tr) document.getElementById('c-transf').innerHTML = empty('Radar de Pedidos ainda não calculou');
   else { n4 += tr.length; k('k-transf', tr.length ? tr.length + ' produtos' : 'ok', !tr.length);
     document.getElementById('c-transf').innerHTML = tr.length ? '<table class="m"><thead><tr><th>Produto</th><th>Falta em</th><th>Tem em</th><th class="r">Venda/dia</th></tr></thead><tbody>' + tr.map(i => '<tr><td class="p">' + esc(i.descricao) + '</td><td><span class="lojas-tag">' + i.lojas_zeradas.map(l => '<i>L' + l + '</i>').join('') + '</span></td><td><span class="lojas-tag">' + (i.lojas_com_estoque || []).map(l => '<i class="ok" title="' + (i.lojas_det && i.lojas_det[l] ? nf(i.lojas_det[l].estoque) + ' un · ' + nf(i.lojas_det[l].cobertura_dias) + ' d' : '') + '">L' + l + '</i>').join('') + '</span></td><td class="r">' + money(i.venda_dia_valor) + '</td></tr>').join('') + '</tbody></table>' : empty('Nenhuma transferência sugerida. ✓'); }
   badge('n4', n4);
 }
 function renderOp() {
-  const o = D.operacao; if (!o) { document.getElementById('c-op').innerHTML = empty('sem dados'); return; }
+  const o = V.operacao; if (!o) { document.getElementById('c-op').innerHTML = empty('sem dados'); return; }
   const parados = o.lojas.reduce((s, l) => s + l.parados, 0); badge('n5', parados); k('k-op', parados ? parados + ' caixas parados' : 'ok', !parados);
   document.getElementById('op-hora').textContent = 'às ' + o.hora + (o.lojaAberta ? ' · parado = sem cupom há mais de ' + o.limiteParadoMin + ' min' : ' · fora do horário de loja');
   document.getElementById('c-op').innerHTML = '<table class="m"><thead><tr><th>Loja</th><th class="r">Caixas ativos</th><th class="r">Cupons hoje</th><th class="r">Última hora</th><th class="r">Parados</th><th>Caixas (último cupom)</th></tr></thead><tbody>' + o.lojas.map(l => '<tr class="' + (l.parados ? 'bad' : '') + '"><td>' + lojaTag(l.loja) + '</td><td class="r"><b>' + l.caixasAtivos + '</b></td><td class="r">' + l.cupons.toLocaleString('pt-BR') + '</td><td class="r">' + l.ultHora + '</td><td class="r ' + (l.parados ? 'dn' : '') + '">' + (l.parados || '—') + '</td><td style="white-space:normal">' + l.pdvs.map(p => '<span class="op-pdv' + (p.parado ? ' bad' : '') + '" title="' + esc(p.operador) + ' · ' + p.cupons + ' cupons · última hora ' + p.ultHora + '">PDV ' + p.pdv + ' ' + p.ult + '</span>').join('') + '</td></tr>').join('') + '</tbody></table>';
 }
 function renderFin() {
-  const f = D.financeiro; if (!f) { document.getElementById('c-fin-dias').innerHTML = empty('sem dados'); return; }
+  const f = V.financeiro; if (!f) { document.getElementById('c-fin-dias').innerHTML = empty('sem dados'); return; }
   k('k-fin', moneyK(f.sete.v) + ' em 7 d' + (f.vencidos.n ? ' · ' + moneyK(f.vencidos.v) + ' vencidos' : ''), !f.vencidos.n); badge('n6', f.vencidos.n);
   const max = Math.max(...f.dias.map(d => d.v), 1);
   document.getElementById('c-fin-dias').innerHTML = '<table class="m"><thead><tr><th>Dia</th><th class="r">Títulos</th><th class="r">Valor</th><th></th></tr></thead><tbody>'
@@ -326,6 +350,7 @@ async function salvarMetas() {
   if (j.error) { toast('Erro: ' + j.error); return; }
   toast('Metas salvas'); fechar('md-metas'); carregar();
 }
+LOJA = +(new URLSearchParams(location.search).get('loja')) || 0;   // /index.html?loja=4 abre já filtrado
 carregar();
 setInterval(carregar, 5 * 60 * 1000);
 </script>
