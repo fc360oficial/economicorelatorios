@@ -42,6 +42,16 @@ input.obs:focus{outline:none;border-color:#F5B800}
 .btn-amber{background:#F5B800;color:#6B4E00}.btn-amber:hover{background:#E5AC00}.btn:disabled{opacity:.45;cursor:default}
 .fim{background:#E7F5EC;border:1px solid #BFE3CC;color:#137A48;border-radius:12px;padding:14px 16px;font-size:13px;margin-bottom:12px;line-height:1.5}
 .fim.av{background:#FFF6D9;border-color:#EFD98F;color:#6B4E00}
+.msgc{position:sticky;top:0;z-index:20;background:#FFF6D9;border:1px solid #EFD98F;border-radius:12px;padding:12px 16px;margin-bottom:12px;display:flex;gap:14px;align-items:flex-start;box-shadow:0 4px 14px rgba(14,22,38,.10)}
+.msgc .ic{width:34px;height:34px;border-radius:50%;background:#F5B800;color:#241a00;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none;font-size:15px}
+.msgc .t{flex:1;min-width:0}
+.msgc .t .l{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#6B4E00}
+.msgc .t .m{font-size:13.5px;color:#241a00;line-height:1.5;white-space:pre-wrap;margin-top:2px}
+.msgc .t .q{font-size:11px;color:#8A6A00;margin-top:4px}
+.wa-c{display:inline-flex;align-items:center;gap:7px;background:#25D366;color:#fff;border-radius:9px;padding:9px 13px;font-weight:800;font-size:12.5px;text-decoration:none;white-space:nowrap;flex:none}
+.wa-c:hover{background:#1EBE5A}
+.wa-c.off{background:#DADAD6;color:#4E5A72;cursor:default}
+.fim a.wl{color:#0F6239;font-weight:800}
 .empty{padding:60px 20px;text-align:center;color:#98A0B3}
 @media(max-width:640px){.wrap{padding:10px 8px 110px}td,th{padding:8px 6px}input.preco{width:92px}.cond{grid-template-columns:1fr}}
 </style>
@@ -65,8 +75,11 @@ function atualizarTot(){const {t,n}=totais();$('#tot').innerHTML='<span>'+n+' de
 function render(){
   const fin=P.fornecedor.status==='finalizado', enc=P.status!=='aberta', lock=fin||enc;
   let h='<div class="top"><div class="tophd"><img class="logo" src="/logo-supermercados.png" alt="Econômico Supermercados"><div class="ey">COTAÇÃO DE PREÇOS · ECONOMICO SUPERMERCADO - REDE CAHU</div></div><h1>'+esc(P.nome)+'</h1><div class="sub">Fornecedor: <b>'+esc(P.fornecedor.nome||'')+'</b>'+(P.comprador?.nome?' · Comprador(a): <b>'+esc(P.comprador.nome)+'</b>'+(P.comprador.whats?' · '+esc(P.comprador.whats):''):'')+(P.prazo?' · Prazo pra resposta: <b>'+dd(P.prazo)+'</b>':'')+'<br>Enviada em '+dt(P.criadoEm)+' · Lojas: '+(P.lojas||[]).map(l=>'L'+l+' '+(P.lojas_nomes[l]||'')).join(', ')+'</div><span class="st '+(enc?'st-enc':(fin?'st-fin':'st-dig'))+'">'+(enc?'COTAÇÃO ENCERRADA':(fin?'PROPOSTA ENVIADA':'EM DIGITAÇÃO'))+'</span></div>';
+  // bloco fixo no topo: recado da compradora + WhatsApp dela (só ela edita, pelo Acompanhamento da cotação)
+  const waC = P.comprador && P.comprador.whats ? 'https://wa.me/' + (P.comprador.whats.length <= 11 ? '55' + P.comprador.whats : P.comprador.whats) + '?text=' + encodeURIComponent('Olá' + (P.comprador.nome ? ', ' + P.comprador.nome : '') + '! Sobre a cotação #' + P.id + ' (' + P.nome + '), fornecedor ' + (P.fornecedor.nome || '') + ': ') : null;
+  h+='<div class="msgc"><div class="ic">'+(P.mensagem?'💬':'👤')+'</div><div class="t"><div class="l">'+(P.mensagem?'Recado da compradora':'Compradora')+(P.comprador&&P.comprador.nome?' · '+esc(P.comprador.nome):'')+'</div>'+(P.mensagem?'<div class="m">'+esc(P.mensagem)+'</div>':'<div class="m" style="color:#8A6A00">Dúvida sobre algum item, prazo ou condição? Fale direto com a compradora pelo WhatsApp.</div>')+(P.mensagemEm?'<div class="q">atualizado em '+dt(P.mensagemEm)+'</div>':'')+'</div>'+(waC?'<a class="wa-c" href="'+waC+'" target="_blank" rel="noopener">🟢 WhatsApp da compradora</a>':'<span class="wa-c off" title="A compradora ainda não cadastrou o WhatsApp nesta cotação">WhatsApp não informado</span>')+'</div>';
   if(enc&&!fin) h+='<div class="fim av"><b>Esta cotação já foi encerrada pela compradora.</b> Não é mais possível enviar preços.</div>';
-  else if(fin) h+='<div class="fim"><b>Proposta enviada'+(P.fornecedor.finalizadoEm?' em '+dt(P.fornecedor.finalizadoEm):'')+'.</b> Obrigado! A compradora já recebeu seus preços. Se precisar corrigir algo, fale com ela.</div>';
+  else if(fin) h+='<div class="fim"><b>Proposta enviada'+(P.fornecedor.finalizadoEm?' em '+dt(P.fornecedor.finalizadoEm):'')+'.</b> Obrigado! A compradora já recebeu seus preços. Se precisar corrigir algo, '+(waC?'<a class="wl" href="'+waC+'" target="_blank" rel="noopener">fale com ela no WhatsApp</a>':'fale com ela')+'.</div>';
   else h+='<div class="fim av">Preencha o <b>preço unitário</b> de cada item (por unidade, não por caixa) e, se quiser, uma observação. Tudo salva sozinho. Quando terminar, clique em <b>Enviar proposta</b> no rodapé. Item sem preço = você não cota esse item.</div>';
   h+='<div class="card"><div class="hd">Itens da cotação <span>'+P.itens.length+' itens</span></div><div style="overflow-x:auto"><table><thead><tr><th>Produto</th><th class="r">Preço unit. (R$)</th><th>Observação</th></tr></thead><tbody>';
   for(const i of P.itens){
