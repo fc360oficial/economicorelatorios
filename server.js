@@ -7443,7 +7443,7 @@ const linkCotacao = f => `${PUBLIC_URL}/cotacao/${f.token}`;
 const cotUser = req => req.session.user?.nome || null;
 const cotId = req => { const id = parseInt(req.params.id, 10); return Number.isInteger(id) && id > 0 ? id : null; };
 // detalhe pra compradora: comparativo pronto + link de cada fornecedor (sem o mapa cru de preços)
-const cotDetalhe = c => { const antes = new Set(cotacao.listar().filter(x => x.id !== c.id && x.criadoEm < c.criadoEm && !x.teste).flatMap(x => x.fornecedores.map(f => f.codFornec))); return { ...c, comparativo: cotacao.comparativo(c), fornecedores: c.fornecedores.map(f => ({ ...f, precos: undefined, link: linkCotacao(f), cotados: c.itens.filter(i => f.precos[i.cod]?.preco != null).length, novo: !antes.has(f.codFornec) })) }; };
+const cotDetalhe = c => { const antes = new Set(cotacao.listar().filter(x => x.id !== c.id && x.criadoEm < c.criadoEm && !x.teste).flatMap(x => x.fornecedores.map(f => f.codFornec))); return { ...c, comparativo: cotacao.comparativo(c), prePedidos: cotacao.prePedidos(c), fornecedores: c.fornecedores.map(f => ({ ...f, precos: undefined, link: linkCotacao(f), cotados: c.itens.filter(i => f.precos[i.cod]?.preco != null).length, novo: !antes.has(f.codFornec) })) }; };
 
 app.get('/api/cotacoes', (req, res) => {
   try {
@@ -7594,14 +7594,14 @@ app.post('/api/cotacoes/fornecedores/importar', uploadPlanilhaCot.single('planil
 // itens reais da lista 277 (se o Radar já calculou; senão amostra), 3 fornecedores de teste — 2 com preços digitados
 // (um com observações e itens faltando), 1 só com o link aberto. Nada vai pro ERP nem pra vendedor real.
 // pedido gerado ao fechar uma cotação (usado pelo fechar real e pelos exemplos de teste)
-async function criarPedidoDaCotacao(f, itens, c, usuario) {
+async function criarPedidoDaCotacao(f, itens, c, usuario, extra) {
   const detalhe = { fazer_em: 0, gatilho: 'lista', fazer_em_lista: 0, itens: itens.map(i => ({ cod: i.cod, descricao: i.descricao, unid: i.unid, emb: i.emb, qtd: i.qtd, volumes: i.volumes, lojas_qtd: i.lojas_qtd, custo: i.ultimo_custo || 0, curva_a: !!i.curva_a, risco_a: false, cobertura_dias: i.cobertura_dias ?? null })) };
   const lista = { lista: c.lista, nome: `${c.nome} · ${f.nome}`, fornecedor: f.nome, codFornec: f.codFornec, pedidoMinimo: null };
   const cadastro = { vendedor: (f.vendedor?.nome || f.vendedor?.whats) ? { nome: f.vendedor.nome, whats: f.vendedor.whats, email: f.vendedor.email } : null, comprador: c.comprador || null, prazo_pagamento: f.condicao || null };
   const p = pedidosFornec.criar({ lista, cadastro, detalhe, teto: c.parametros?.cobertura || radarPedidos.TETO_PADRAO, embMeses: c.parametros?.embMeses ?? undefined, usuario, modo: 'completa', origem: 'cotacao' });
   pedidosFornec.salvarPrecos(p.token, itens.map(i => ({ cod: i.cod, preco: i.preco, obs: i.obs || '' })));
   pedidosFornec.finalizar(p.token, `Cotação #${c.id}`);
-  pedidosFornec.vincularCotacao(p.id, { id: c.id, nome: c.nome });
+  pedidosFornec.vincularCotacao(p.id, { id: c.id, nome: c.nome, entrega: extra?.entrega || null, tipo_entrega: extra?.tipo_entrega || null, obs: extra?.obs || null });
   if (!c.teste) { try { await pedidosFornec.anexarAvarias(pedidosFornec.obter(p.id)); } catch (e) { console.error('[COTACAO] avarias:', e.message); } }
   const fin = pedidosFornec.obter(p.id);
   return { id: fin.id, fornecedor: f.nome, codFornec: f.codFornec, vendedor: fin.vendedor, itens: fin.itens.length, total: fin.totais.digitado, lojas: fin.lojas, status: fin.status, link: linkPedido(fin), avarias: fin.avarias ? { n: fin.avarias.n, total: fin.avarias.total } : null };
@@ -7720,6 +7720,25 @@ app.post('/api/cotacoes/:id/vencedores', (req, res) => {
   if (r.erro) return res.status(409).json({ error: r.erro });
   res.json(cotDetalhe(r));
 });
+// pré-pedido por fornecedor: quantidade por loja, entrega, tipo de entrega, obs
+app.post('/api/cotacoes/:id/pre-pedido/:codFornec', (req, res) => {
+  const id = cotId(req); if (!id) return res.status(400).json({ error: 'id inválido' });
+  const r = cotacao.salvarPrePedido(id, req.params.codFornec, req.body || {});
+  if (!r) return res.status(404).json({ error: 'cotação não encontrada' });
+  if (r.erro) return res.status(409).json({ error: r.erro });
+  res.json(cotDetalhe(r));
+});
+// Realizar Pedido de um fornecedor só (pré-pedido → pedido em Pedidos de Compra)
+app.post('/api/cotacoes/:id/pre-pedido/:codFornec/realizar', async (req, res) => {
+  try {
+    const id = cotId(req); if (!id) return res.status(400).json({ error: 'id inválido' });
+    const usuario = cotUser(req);
+    const r = await cotacao.realizarPedido(id, req.params.codFornec, usuario, (f, itens, c, extra) => criarPedidoDaCotacao(f, itens, c, usuario, extra));
+    if (!r) return res.status(404).json({ error: 'cotação não encontrada' });
+    if (r.erro) return res.status(409).json({ error: r.erro });
+    res.json(cotDetalhe(r));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 app.post('/api/cotacoes/:id/cancelar', (req, res) => {
   const id = cotId(req); if (!id) return res.status(400).json({ error: 'id inválido' });
   const r = cotacao.cancelar(id, cotUser(req));
@@ -7733,18 +7752,7 @@ app.post('/api/cotacoes/:id/fechar', async (req, res) => {
   try {
     const id = cotId(req); if (!id) return res.status(400).json({ error: 'id inválido' });
     const usuario = cotUser(req);
-    const r = await cotacao.fechar(id, usuario, async (f, itens, c) => {
-      const detalhe = { fazer_em: 0, gatilho: 'lista', fazer_em_lista: 0, itens: itens.map(i => ({ cod: i.cod, descricao: i.descricao, unid: i.unid, emb: i.emb, qtd: i.qtd, volumes: i.volumes, lojas_qtd: i.lojas_qtd, custo: i.ultimo_custo || 0, curva_a: !!i.curva_a, risco_a: false, cobertura_dias: i.cobertura_dias ?? null })) };
-      const lista = { lista: c.lista, nome: `${c.nome} · ${f.nome}`, fornecedor: f.nome, codFornec: f.codFornec, pedidoMinimo: null };
-      const cadastro = { vendedor: (f.vendedor?.nome || f.vendedor?.whats) ? { nome: f.vendedor.nome, whats: f.vendedor.whats, email: f.vendedor.email } : null, comprador: c.comprador || null, prazo_pagamento: f.condicao || null };
-      const p = pedidosFornec.criar({ lista, cadastro, detalhe, teto: c.parametros?.cobertura || radarPedidos.TETO_PADRAO, embMeses: c.parametros?.embMeses ?? undefined, usuario, modo: 'completa', origem: 'cotacao' });
-      pedidosFornec.salvarPrecos(p.token, itens.map(i => ({ cod: i.cod, preco: i.preco, obs: i.obs || '' })));
-      pedidosFornec.finalizar(p.token, `Cotação #${c.id}`);
-      pedidosFornec.vincularCotacao(p.id, { id: c.id, nome: c.nome });
-      try { await pedidosFornec.anexarAvarias(pedidosFornec.obter(p.id)); } catch (e) { console.error('[COTACAO] avarias:', e.message); }
-      const fin = pedidosFornec.obter(p.id);
-      return { id: fin.id, fornecedor: f.nome, codFornec: f.codFornec, vendedor: fin.vendedor, itens: fin.itens.length, total: fin.totais.digitado, lojas: fin.lojas, status: fin.status, link: linkPedido(fin), avarias: fin.avarias ? { n: fin.avarias.n, total: fin.avarias.total } : null };
-    });
+    const r = await cotacao.fechar(id, usuario, (f, itens, c, extra) => criarPedidoDaCotacao(f, itens, c, usuario, extra));
     if (!r) return res.status(404).json({ error: 'cotação não encontrada' });
     if (r.erro) return res.status(409).json({ error: r.erro });
     res.json(cotDetalhe(r));
