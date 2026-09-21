@@ -6502,6 +6502,33 @@ radarPrecif.agendar();
 // DASHBOARD (index.html, refeito 21/09/2026): 6 segmentos calculados no servidor, cache de 5 min.
 // Fontes e regras em lib/dashboard.js. Só leitura no ERP; grava só data/dashboard-metas.json.
 // ═══════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════
+// DRE gerencial (Financeiro > DRE, 21/09/2026): loja a loja e consolidada. Regras, mapeamento do plano de
+// contas e sugestões em lib/dre.js. Só leitura no ERP; grava data/dre-params.json e data/dre-cache.json.
+// ═══════════════════════════════════════════════════
+const dre = require('./lib/dre');
+dre.init({ q });
+dre.agendar();
+const _dreCache = {};
+app.get('/api/dre', async (req, res) => {
+  try {
+    const p = String(req.query.periodo || '').trim();
+    const hoje = new Date(), mesAnt = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1);
+    const periodo = /^(\d{4}-\d{2}|\d{4}|12m)$/.test(p) ? p : mesAnt.getFullYear() + '-' + String(mesAnt.getMonth() + 1).padStart(2, '0');
+    const c = _dreCache[periodo];
+    if (c && Date.now() - c.em < 10 * 60 * 1000 && req.query.refresh !== '1') return res.json(c.dados);
+    const dados = await dre.montar(periodo);
+    _dreCache[periodo] = { em: Date.now(), dados };
+    res.json(dados);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.get('/api/dre/tendencia', async (req, res) => {
+  try { const c = _dreCache.__tend; if (c && Date.now() - c.em < 30 * 60 * 1000) return res.json(c.dados); const dados = await dre.tendencia(); _dreCache.__tend = { em: Date.now(), dados }; res.json(dados); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.get('/api/dre/params', (req, res) => res.json({ params: dre.getParams(), mapa: dre.MAPA, linhas: dre.LINHAS }));
+app.post('/api/dre/params', (req, res) => { try { const p = dre.setParams(req.body || {}); for (const k of Object.keys(_dreCache)) delete _dreCache[k]; res.json(p); } catch (err) { res.status(500).json({ error: err.message }); } });
+
 const dashboardNovo = require('./lib/dashboard');
 dashboardNovo.init({ q, radarPedidos, sortimento, get pedidosCd() { return pedidosCD; }, get pedidosFornecedor() { return pedidosFornec; } });
 dashboardNovo.agendar();
