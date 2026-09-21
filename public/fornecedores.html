@@ -376,6 +376,7 @@ table.comp-t tr:hover td{background:#ffffff05}
     <button class="mtab" id="tab-validade" onclick="trocarAba('validade')" title="Listas com produto sem validade cadastrada no ERP (vazio, 0 ou 1 dia — o 1 é o padrão de quem não preencheu)">📅 Sem Validade</button>
     <button class="mtab" id="tab-sortimento" onclick="trocarAba('sortimento')" title="Lista × loja: o que não precisa estar na loja, parado, estoque demais, compra que não vende — 24 meses, atualizado de madrugada">📦 Sortimento</button>
     <button class="mtab" id="tab-incompletas" onclick="trocarAba('incompletas')" title="Confere todas as listas de compra do ERP e mostra só as que estão sem comprador e/ou sem faturamento mínimo cadastrado">🚫 Sem Comprador / Mínimo</button>
+    <button class="mtab" id="tab-desativados" onclick="trocarAba('desativados')" title="Produtos que estão dentro de alguma lista de compra mas estão desativados (ou nem existem mais) no cadastro de produtos do ERP">⛔ Desativados na Lista</button>
     <button class="mtab" id="tab-repetidos" onclick="trocarAba('repetidos')" title="Produtos cadastrados em duas ou mais listas de compra — risco de pedir o mesmo item duas vezes pra mesma loja">🔁 Em 2 Listas</button>
   </div>
 
@@ -442,6 +443,25 @@ table.comp-t tr:hover td{background:#ffffff05}
   <!-- SEÇÃO SEM VALIDADE -->
   <style>table#sor-table{table-layout:fixed;min-width:1880px}table#sor-table td{white-space:normal;word-wrap:break-word;vertical-align:middle}table#sor-table td:last-child,table#sor-table td.erp{white-space:nowrap}table#sor-table td.r,table#sor-table th.r{text-align:right}table#sor-table th{white-space:nowrap;line-height:1.2;vertical-align:middle}table.main-t th.erp{background:#F5F0E6;color:#2E5E8C;text-align:center;line-height:1.15}table.main-t td.erp{color:#1D6FB8;font-weight:700;font-variant-numeric:tabular-nums;background:#FFFDF5}table.main-t td.erp.r{text-align:right}table.main-t td.erp .erp-sub{font-size:10.5px;font-weight:500;color:#4E5A72}.sor-filt th{padding:6px 6px;vertical-align:top}.sor-filt .sf{display:flex;gap:3px;justify-content:flex-end}.sor-filt .sf.col{flex-direction:column;align-items:stretch}.sor-filt .sf input{width:100%;min-width:44px;max-width:80px;font:inherit;font-size:11px;padding:4px 5px;border:1px solid #C9C9C4;border-radius:6px}.sor-filt .sf input[type=month]{max-width:none;min-width:0;width:100%;font-size:10.5px;padding:3px 4px}</style>
   <!-- SEÇÃO LISTAS INCOMPLETAS (sem comprador / sem faturamento mínimo) -->
+  <!-- SEÇÃO PRODUTOS DESATIVADOS DENTRO DE LISTA -->
+  <div id="sec-desativados" style="display:none">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <div id="des-kpi" style="display:flex;gap:12px;flex-wrap:wrap"></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input id="des-busca" placeholder="filtrar produto, código, lista ou fornecedor" oninput="renderDesativados()" style="font:inherit;font-size:12.5px;padding:7px 11px;border:1px solid #C9C9C4;border-radius:8px;min-width:260px">
+        <label style="font-size:11.5px;color:#4E5A72;display:flex;gap:5px;align-items:center;white-space:nowrap" title="Só produtos desativados que ainda têm estoque em alguma loja"><input type="checkbox" id="des-com-estoque" onchange="renderDesativados()"> só com estoque</label>
+        <button class="btn-print" onclick="_desCache=null;carregarDesativados()" title="Busca de novo no ERP">↻ Atualizar</button>
+      </div>
+    </div>
+    <div style="font-size:11px;color:#4E5A72;margin-bottom:10px;max-width:820px">Produto que está <b>dentro de uma lista de compra</b> mas está <b>desativado</b> no cadastro de produtos (ou o código nem existe mais no cadastro). O Radar e a compradora ignoram esses itens, mas eles poluem a lista e podem ter estoque parado: tire da lista ou reative o cadastro. Estoque mostrado por loja marcada na lista.</div>
+    <div class="table-wrap">
+      <table class="main-t" id="des-table">
+        <thead><tr><th style="width:30px">#</th><th>Produto</th><th>Lista</th><th>Comprador</th><th>Lojas na lista</th><th class="r">Estoque (6 lojas)</th><th>Situação</th><th>Alterado no ERP</th></tr></thead>
+        <tbody id="des-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
   <div id="sec-incompletas" style="display:none">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
       <div id="inc-kpi" style="display:flex;gap:12px;flex-wrap:wrap"></div>
@@ -1382,7 +1402,8 @@ function trocarAba(aba) {
   const repetidos = aba === 'repetidos';
   const sortimento = aba === 'sortimento';
   const incompletas = aba === 'incompletas';
-  const semBusca = soCompras || pendente || validade || repetidos || sortimento || incompletas;
+  const desativados = aba === 'desativados';
+  const semBusca = soCompras || pendente || validade || repetidos || sortimento || incompletas || desativados;
   document.getElementById('fg-fornecedor').style.display = semBusca ? 'none' : '';
   document.getElementById('fg-comprador').style.display  = soCompras ? 'none' : '';
   document.getElementById('btn-buscar').style.display    = semBusca ? 'none' : '';
@@ -1393,6 +1414,7 @@ function trocarAba(aba) {
   document.getElementById('sec-repetidos').style.display = repetidos ? '' : 'none';
   document.getElementById('sec-sortimento').style.display = sortimento ? '' : 'none';
   document.getElementById('sec-incompletas').style.display = incompletas ? '' : 'none';
+  document.getElementById('sec-desativados').style.display = desativados ? '' : 'none';
   document.querySelectorAll('.mtab').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + aba).classList.add('active');
   if (soCompras) carregarCompras();
@@ -1401,6 +1423,7 @@ function trocarAba(aba) {
   if (repetidos) carregarRepetidos();
   if (sortimento) carregarSortimento();
   if (incompletas) carregarIncompletas();
+  if (desativados) carregarDesativados();
 }
 
 function onFiltroCompradorChange() {
@@ -1409,6 +1432,42 @@ function onFiltroCompradorChange() {
   if (_abaAtiva === 'repetidos') carregarRepetidos();
   if (_abaAtiva === 'sortimento') carregarSortimento();
   if (_abaAtiva === 'incompletas') renderIncompletas();
+  if (_abaAtiva === 'desativados') renderDesativados();
+}
+
+// ── PRODUTOS DESATIVADOS DENTRO DE LISTA DE COMPRA ──
+let _desCache = null;
+async function carregarDesativados() {
+  const tbody = document.getElementById('des-tbody');
+  if (!_desCache) {
+    tbody.innerHTML = '<tr><td colspan="8" style="padding:40px;text-align:center"><div class="spinner"></div></td></tr>';
+    try { const r = await fetch('/api/listas-compra/desativados'); _desCache = await r.json(); if (_desCache.error) throw new Error(_desCache.error); }
+    catch (e) { _desCache = null; tbody.innerHTML = '<tr><td colspan="8" style="padding:20px;color:#C22F49">' + e.message + '</td></tr>'; return; }
+  }
+  renderDesativados();
+}
+function renderDesativados() {
+  if (!_desCache) return;
+  const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const comprador = (document.getElementById('fil-comprador').value || '').toUpperCase();
+  const b = (document.getElementById('des-busca').value || '').toLowerCase(), soEst = document.getElementById('des-com-estoque').checked;
+  const rows = _desCache.itens.filter(x => (!comprador || (x.comprador || '').toUpperCase() === comprador) && (!soEst || x.estoque_total > 0)
+    && (!b || (x.descricao || '').toLowerCase().includes(b) || String(x.cod).includes(b) || (x.nome || '').toLowerCase().includes(b) || (x.fornecedor || '').toLowerCase().includes(b) || String(x.lista).includes(b)));
+  const kpi = (v, l, cls) => '<div style="background:#fff;border:1px solid #DADAD6;border-radius:10px;padding:8px 14px"><div style="font-size:18px;font-weight:800;' + (cls ? 'color:#C22F49' : '') + '">' + v + '</div><div style="font-size:9.5px;color:#98A0B3;font-weight:700;text-transform:uppercase;letter-spacing:.4px">' + l + '</div></div>';
+  document.getElementById('des-kpi').innerHTML = kpi(rows.length, 'produtos desativados em lista', true) + kpi(new Set(rows.map(x => x.lista)).size, 'listas afetadas') + kpi(rows.filter(x => x.situacao === 'nao_cadastrado').length, 'código sem cadastro') + kpi(rows.filter(x => x.estoque_total > 0).length, 'ainda com estoque', true);
+  const tbody = document.getElementById('des-tbody');
+  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="8" style="padding:30px;text-align:center;color:#98A0B3">Nenhum produto desativado dentro de lista com esse filtro.</td></tr>'; return; }
+  const fq = v => (+v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+  tbody.innerHTML = rows.slice(0, 1000).map((x, k) => {
+    const estLojas = [1, 2, 3, 4, 5, 6].filter(n => (x.estoque[n] || 0) !== 0).map(n => 'L' + n + ' <b' + ((x.estoque[n] || 0) < 0 ? ' style="color:#C22F49"' : '') + '>' + fq(x.estoque[n]) + '</b>').join(' · ');
+    return '<tr><td>' + (k + 1) + '</td><td><b>' + (x.descricao ? esc(x.descricao) : '<span style="color:#C22F49">código não existe no cadastro</span>') + '</b><div style="font-size:10.5px;color:#98A0B3">' + esc(x.cod) + '</div></td>'
+      + '<td><a href="#" onclick="abrirCadastroLista(' + x.lista + ');return false" style="font-weight:700">' + x.lista + '</a> · ' + esc(x.nome) + '<div style="font-size:10.5px;color:#98A0B3">' + esc(x.fornecedor) + '</div></td>'
+      + '<td>' + (x.comprador ? esc(x.comprador) : '<span style="color:#98A0B3">—</span>') + '</td>'
+      + '<td>' + (x.lojas.length ? x.lojas.map(n => 'L' + n).join(', ') : '<span style="color:#98A0B3">nenhuma</span>') + '</td>'
+      + '<td class="r">' + (x.estoque_total !== 0 || estLojas ? '<b' + (x.estoque_total < 0 ? ' style="color:#C22F49"' : '') + '>' + fq(x.estoque_total) + '</b><div style="font-size:10.5px;color:#4E5A72">' + estLojas + '</div>' : '<span style="color:#98A0B3">0</span>') + '</td>'
+      + '<td>' + (x.situacao === 'nao_cadastrado' ? '<span style="background:#FDE8EC;color:#C22F49;font-weight:700;padding:2px 8px;border-radius:6px;font-size:11px">sem cadastro</span>' : '<span style="background:#FFF1E0;color:#B45C00;font-weight:700;padding:2px 8px;border-radius:6px;font-size:11px">desativado</span>') + '</td>'
+      + '<td>' + (x.alterado ? x.alterado.split('-').reverse().join('/') + (x.alterado_por ? '<div style="font-size:10.5px;color:#98A0B3">' + esc(x.alterado_por) + '</div>' : '') : '<span style="color:#98A0B3">—</span>') + '</td></tr>';
+  }).join('');
 }
 
 // ── LISTAS INCOMPLETAS (sem comprador / sem faturamento mínimo) ──

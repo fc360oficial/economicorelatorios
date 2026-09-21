@@ -3468,6 +3468,33 @@ async function coletarValidadePendente(listaId) {
 }
 
 // Produtos que estão em DUAS OU MAIS listas de compra (risco de pedir duas vezes o mesmo item pra mesma loja)
+// Produtos DESATIVADOS no cadastro (itens.CodDesativado <> 0) ou que não existem mais no cadastro, mas que ainda
+// estão dentro de alguma lista de compra (Tiago, 21/09). Traz o estoque atual das 6 lojas pra ver se sobrou mercadoria.
+app.get('/api/listas-compra/desativados', async (req, res) => {
+  try {
+    const rows = await q(`SELECT i.nCotacao lista, TRIM(l.Nome) nome, TRIM(l.NomeFornec) fornecedor, i.Codigobarra cod, TRIM(it.Descricao) descricao,
+                            it.CodDesativado desativado, DATE_FORMAT(it.DataHoraAlteracao, '%Y-%m-%d') alterado, TRIM(it.NomeAlteracao) alterado_por,
+                            i.l1, i.l2, i.l3, i.l4, i.l5, i.l6
+                          FROM central.c_cotacao_lista_itens i JOIN central.c_cotacao_lista l ON l.nReg = i.nCotacao
+                          LEFT JOIN central.itens it ON it.CodigoBarra = i.Codigobarra
+                          WHERE it.CodigoBarra IS NULL OR it.CodDesativado <> 0 ORDER BY l.Nome, it.Descricao`);
+    const cods = [...new Set(rows.map(r => r.cod).filter(Boolean))];
+    const est = {};
+    for (const ln of [1, 2, 3, 4, 5, 6]) for (let i = 0; i < cods.length; i += 2000) {
+      const ch = cods.slice(i, i + 2000);
+      for (const r of await q(`SELECT CodigoBarra cod, Qtd FROM central.estoquen${ln} WHERE CodigoBarra IN (${ch.map(() => '?').join(',')})`, ch).catch(() => [])) {
+        const v = parseFloat(String(r.Qtd ?? '0').replace(',', '.')) || 0; (est[r.cod] = est[r.cod] || {})[ln] = v;
+      }
+    }
+    const _nRegToComp = {};
+    for (const [comp, nRegs] of Object.entries(NREGS_COMPRADOR)) for (const nReg of nRegs) _nRegToComp[nReg] = comp;
+    const itens = rows.map(r => ({ lista: r.lista, nome: r.nome || '', fornecedor: r.fornecedor || '', comprador: _nRegToComp[r.lista] || null, cod: r.cod, descricao: r.descricao || null,
+      situacao: r.descricao == null ? 'nao_cadastrado' : 'desativado', alterado: r.alterado || null, alterado_por: r.alterado_por || null,
+      lojas: [1, 2, 3, 4, 5, 6].filter(n => r['l' + n]), estoque: est[r.cod] || {}, estoque_total: Object.values(est[r.cod] || {}).reduce((s, v) => s + v, 0) }));
+    res.json({ total: itens.length, listas: new Set(itens.map(x => x.lista)).size, nao_cadastrados: itens.filter(x => x.situacao === 'nao_cadastrado').length, com_estoque: itens.filter(x => x.estoque_total > 0).length, itens });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // Listas de compra INCOMPLETAS (Tiago, 18/09): confere TODAS as listas do ERP e devolve só as que estão
 // sem comprador (c_cotacao_agenda_comprador vazia) e/ou sem faturamento mínimo (PedidoMinimo vazio/0).
 app.get('/api/listas-compra/incompletas', async (req, res) => {
