@@ -118,6 +118,11 @@ table.forntab tr.off td:last-child{opacity:1}
 .lj input{width:54px;border:1px solid var(--ln2);border-radius:6px;padding:4px 5px;font-family:inherit;font-size:12px;text-align:center}
 .lj input.ed{border-color:var(--am);background:var(--amw)}
 .lj input.z{color:var(--ink3)}
+/* estoque e trânsito da loja embaixo da caixa de quantidade, igual ao pré-pedido (Tiago, 21/09) */
+.lj .lj-est{font-size:10px;color:var(--ink2);white-space:nowrap;line-height:1.2}
+.lj .lj-est b{color:var(--ink)}
+.lj .lj-est b.zero{color:var(--neg)}
+.lj .lj-est .tr{color:var(--inf);font-weight:800}
 .sug thead th,.sug tbody td{padding:9px 10px}
 .sug td.mini{font-size:10.5px;color:var(--ink3)}
 .sug .lj input{width:50px}
@@ -917,7 +922,7 @@ function renderSugestao(){
   if (!rows.length) { tb.innerHTML = '<tr><td colspan="9" class="empty">Nenhum item' + (LOJA_F ? ' na loja L' + LOJA_F : '') + (soQtd ? ' com quantidade — desmarque "só itens com quantidade" pra ver a lista inteira e digitar' : '') + '.</td></tr>'; atualizarResumoW1(); return; }
   tb.innerHTML = rows.slice(0, 1500).map(function(i){
     var band = coberturaBand(i.cobertura_dias), q = LOJA_F ? qtdLoja(i, LOJA_F) : qtdItem(i);
-    var lojas = LOJAS_ALL.filter(function(ln){ return !LOJA_F || String(ln) === String(LOJA_F); }).map(function(ln){ var d = (i.lojas_det || {})[ln] || {}; return '<span class="lj" title="L' + ln + ' ' + (LOJAS_NOMES[ln] || '') + ': estoque ' + fmtN(d.estoque, 0) + ' · venda/dia ' + fmtN(d.venda_dia, 2) + (d.cobertura_dias != null ? ' · cobertura ' + fmtN(d.cobertura_dias, 0) + ' d' : '') + (d.transito ? ' · trânsito ' + fmtN(d.transito, 0) : '') + '"><small>L' + ln + '</small><input type="text" inputmode="numeric" data-ln="' + ln + '" value="' + qtdLoja(i, ln) + '" onchange="setQtd(\'' + esc(i.cod) + '\',\'' + ln + '\',this.value)"></span>'; }).join('');
+    var lojas = LOJAS_ALL.filter(function(ln){ return !LOJA_F || String(ln) === String(LOJA_F); }).map(function(ln){ var d = (i.lojas_det || {})[ln] || {}; return '<span class="lj" title="L' + ln + ' ' + (LOJAS_NOMES[ln] || '') + ': estoque ' + fmtN(d.estoque, 0) + ' · venda/dia ' + fmtN(d.venda_dia, 2) + (d.cobertura_dias != null ? ' · cobertura ' + fmtN(d.cobertura_dias, 0) + ' d' : '') + (d.transito ? ' · trânsito ' + fmtN(d.transito, 0) : '') + '"><small>L' + ln + '</small><input type="text" inputmode="numeric" data-ln="' + ln + '" value="' + qtdLoja(i, ln) + '" onchange="setQtd(\'' + esc(i.cod) + '\',\'' + ln + '\',this.value)">' + (d.estoque != null ? '<div class="lj-est">est <b' + (d.estoque <= 0 ? ' class="zero"' : '') + '>' + fmtN(d.estoque, 0) + '</b>' + (d.transito ? ' · trâns <span class="tr">' + fmtN(d.transito, 0) + '</span>' : '') + '</div>' : '') + '</span>'; }).join('');
     return '<tr id="sg-' + esc(i.cod) + '" class="' + (SEL[i.cod] ? '' : 'off') + '">' +
       '<td><input type="checkbox" class="check" ' + (SEL[i.cod] ? 'checked' : '') + ' onchange="SEL[\'' + esc(i.cod) + '\']=this.checked;atualizarLinha(SUG.itens.find(function(x){return x.cod===\'' + esc(i.cod) + '\'}));atualizarResumoW1()"></td>' +
       '<td class="mini">' + esc(i.cod) + '</td>' +
