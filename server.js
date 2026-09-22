@@ -3639,7 +3639,7 @@ app.get('/api/listas-compra', async (req, res) => {
     const filtro = where.length ? 'WHERE ' + where.join(' AND ') : '';
 
     let sql = `
-      SELECT l.nReg, l.Nome, l.NomeFornec, l.CodFornec, l.OperadorLista, l.Obs,
+      SELECT l.nReg, l.Nome, l.NomeFornec, l.CodFornec, l.OperadorLista, l.Obs, MAX(f.CNPJ) AS CNPJ,
              l.l1, l.l2, l.l3, l.l4, l.l5, l.l6,
              COUNT(DISTINCT i.nReg) as total_linhas,
              COUNT(DISTINCT CASE WHEN it.CodigoBarra IS NOT NULL THEN i.nReg END) as total_itens,
@@ -3652,6 +3652,7 @@ app.get('/api/listas-compra', async (req, res) => {
              COUNT(DISTINCT CASE WHEN i.l1=0 AND i.l2=0 AND i.l3=0 AND i.l4=0 AND i.l5=0 AND i.l6=0
                                   AND it.CodigoBarra IS NOT NULL THEN i.nReg END) as sem_loja
       FROM central.c_cotacao_lista l
+      LEFT JOIN central.fornecedor f ON f.CodFornec = l.CodFornec
       LEFT JOIN central.c_cotacao_lista_itens i ON i.nCotacao = l.nReg
       -- só produto ATIVO conta (mesmo critério do drawer, que faz INNER JOIN itens CodDesativado=0);
       -- total_linhas guarda a contagem bruta pra mostrar "N desativado(s) no ERP"
@@ -3674,6 +3675,7 @@ app.get('/api/listas-compra', async (req, res) => {
       nome: r.Nome?.trim(),
       fornecedor: r.NomeFornec?.trim(),
       codFornec: r.CodFornec,
+      cnpj: r.CNPJ ? String(r.CNPJ).replace(/D/g, '') : null,
       operador: r.OperadorLista && r.OperadorLista !== '0' ? r.OperadorLista : null,
       obs: r.Obs?.trim(),
       total_itens: r.total_itens,
