@@ -175,13 +175,27 @@ const LOJAS = [1, 2, 3, 4, 5, 6];
 const LOJAS_NOMES = { 1: 'CAHU', 2: 'MURIBECA', 3: 'PONTE', 4: 'ATACAREJO', 5: 'PORTA LARGA', 6: 'JARDIM JORDÃO' };
 let ESTOPEN = new Set(), DADOS = null, EDITS = {}, SEL = new Set(), FILTRO = '', FLOJA = 0, VIS = {}, PEDIDOS = [], VINC = {}, VF = 'pendentes', SOQTD = true, ORDEM = 'az', SELINIT = false;
 
-document.querySelectorAll('.tab').forEach(b => b.onclick = () => { document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === b)); ['pedido', 'vinculos', 'pedidos', 'regras'].forEach(t => $('#tab-' + t).hidden = t !== b.dataset.tab); });
+document.querySelectorAll('.tab').forEach(b => b.onclick = () => { document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === b)); ['pedido', 'vinculos', 'pedidos', 'regras'].forEach(t => $('#tab-' + t).hidden = t !== b.dataset.tab); if (b.dataset.tab === 'pedido' && DADOS) carregar(false); });
+// aba deixada aberta (vínculo feito em outra janela, por exemplo): ao voltar pra ela, busca o estado atual do servidor
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && DADOS) { carregar(false); carregarVinculos().catch(() => {}); } });
 
 async function api(url, opt) { const r = await fetch(url, opt); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || r.statusText); return j; }
 
+let RECALC = false;   // recálculo (~30 s no ERP) em curso: uma leitura simples não pode sobrescrever o aviso
 async function carregar(refresh) {
+  if (!refresh && RECALC) return;
+  if (refresh) RECALC = true;
   $('#estado').innerHTML = refresh ? '<span class="calc">recalculando…</span>' : 'carregando…';
-  try { DADOS = await api('/api/pedidos-cd' + (refresh ? '?refresh=1' : '')); } catch (e) { $('#estado').innerHTML = '<span class="neg">' + e.message + '</span>'; return; }
+  try { DADOS = await api('/api/pedidos-cd' + (refresh ? '?refresh=1' : '')); }
+  catch (e) {
+    if (refresh) RECALC = false;
+    $('#estado').innerHTML = '<span class="neg">' + e.message + '</span>';
+    // o recálculo falhou (ERP fora, serviço reiniciado no meio): mostra pelo menos o estado atual do servidor em vez de ficar com a tela velha
+    if (refresh) setTimeout(() => carregar(false), 3000);
+    return;
+  }
+  if (refresh) RECALC = false;
+  aplicarVinculos();
   const es = DADOS.estado;
   const avisos = es.avisos && es.avisos.length ? ` · <span class="neg">${es.avisos.length} aviso(s): ${esc(es.avisos.join('; '))}</span>` : '';
   $('#estado').innerHTML = es.status === 'calculando' || !es.atualizadoEm ? '<span class="calc">calculando… (até 1 min)</span>' : `dados de <b>${new Date(es.atualizadoEm).toLocaleString('pt-BR')}</b>${es.erro ? ' · <span class="neg">ERP indisponível: ' + esc(es.erro) + '</span>' : ''} · <b>${es.produtosCD}</b> produtos no CD${avisos}`;
@@ -221,7 +235,7 @@ function linha(item, lojasCols) {
     <td class="c" onclick="event.stopPropagation()"><input type="checkbox" ${sel ? 'checked' : ''} onchange="toggleSel('${item.codigoCD}',this.checked)"></td>
     <td class="cod">${item.codigoCD}</td>
     <td><div class="prod-cell"><div class="nm">${item.descricaoCD}</div>
-      <div class="prod-meta">${metaCx(item)}${item.origem === 'repor' ? `<span>Venda/dia ${fmtN(item.vqTotal, 2)}</span><span class="${cc}">Cobertura ${item.coberturaTotal == null ? '–' : '~' + fmtN(item.coberturaTotal, 0) + ' d'} · ${ct}</span>${item.vendaNova ? `<span class="m-warn" title="começou a vender há pouco (L${item.vendaNova.lojas.join(', L')}): venda/dia calculada pelos dias desde a primeira venda (mín. 7), não pelos 40 dias; volta ao normal sozinha">em venda desde ${item.vendaNova.desde.split('-').reverse().slice(0, 2).join('/')} · venda/dia por ${item.vendaNova.dias} d</span>` : ''}${item.vendaAntiga ? `<span class="m-warn" title="nenhuma loja vendeu nos últimos 40 dias (ficou em falta); venda/dia = média dos meses com venda nos últimos 24 meses">sem venda há 40+ d · média de ${item.vendaAntiga.meses} meses (últ. ${item.vendaAntiga.ultimo.split('-').reverse().join('/')})</span>` : ''}` : (item.jaChegouLoja ? `<span class="pill p-flag" title="já chegou em alguma loja; venda/cobertura só aparecem depois de vincular o produto">sem venda ainda</span>` : `<span class="pill p-flag" title="sem venda nas lojas: 1 caixa por loja, entra como produto novo">produto novo</span>`)}${item.cdInsuficiente ? `<span class="m-bad">faltam ${item.faltaCx} cx no CD</span>` : ''}${pendLojas.length ? `<span class="m-warn" title="${pendLojas.map(ln => 'L' + ln + ': faltaram ' + item.lojas[ln].pendenciaAnterior.faltaCx + ' cx no pedido #' + item.lojas[ln].pendenciaAnterior.pedidoId + ' (nota já fechada, não vai chegar)').join(' · ')}">pendência CD: L${pendLojas.join(' L')}</span>` : ''}</div>
+      <div class="prod-meta">${metaCx(item)}${item.origem === 'repor' ? `<span>Venda/dia ${fmtN(item.vqTotal, 2)}</span><span class="${cc}">Cobertura ${item.coberturaTotal == null ? '–' : '~' + fmtN(item.coberturaTotal, 0) + ' d'} · ${ct}</span>${item.vendaNova ? `<span class="m-warn" title="começou a vender há pouco (L${item.vendaNova.lojas.join(', L')}): venda/dia calculada pelos dias desde a primeira venda (mín. 7), não pelos 40 dias; volta ao normal sozinha">em venda desde ${item.vendaNova.desde.split('-').reverse().slice(0, 2).join('/')} · venda/dia por ${item.vendaNova.dias} d</span>` : ''}${item.vendaAntiga ? `<span class="m-warn" title="nenhuma loja vendeu nos últimos 40 dias (ficou em falta); venda/dia = média dos meses com venda nos últimos 24 meses">sem venda há 40+ d · média de ${item.vendaAntiga.meses} meses (últ. ${item.vendaAntiga.ultimo.split('-').reverse().join('/')})</span>` : ''}` : (item.aguardaRecalculo ? `<span class="pill p-breve" title="vínculo confirmado agora; venda/dia e cobertura aparecem quando o recálculo terminar (≈ 30 s) ou no ↻ Recalcular">vinculado · calculando venda…</span>` : item.jaChegouLoja ? `<span class="pill p-flag" title="já chegou em alguma loja; venda/cobertura só aparecem depois de vincular o produto">sem venda ainda</span>` : `<span class="pill p-flag" title="sem venda nas lojas: 1 caixa por loja, entra como produto novo">produto novo</span>`)}${item.cdInsuficiente ? `<span class="m-bad">faltam ${item.faltaCx} cx no CD</span>` : ''}${pendLojas.length ? `<span class="m-warn" title="${pendLojas.map(ln => 'L' + ln + ': faltaram ' + item.lojas[ln].pendenciaAnterior.faltaCx + ' cx no pedido #' + item.lojas[ln].pendenciaAnterior.pedidoId + ' (nota já fechada, não vai chegar)').join(' · ')}">pendência CD: L${pendLojas.join(' L')}</span>` : ''}</div>
       <div class="prod-meta">${item.unidade ? `<span>${item.unidade} · ${item.descricaoUn || ''}</span>` : `<span class="m-bad">sem vínculo · <a onclick="event.stopPropagation();irVinculo('${item.codigoCD}')">vincular</a></span>`}</div></div></td>
     <td class="r" title="${item.estoqueCDem === 'un' ? 'o CD conta em unidades: ' + fmtN(item.estoqueCDun) + ' un ÷ ' + (item.unPorCaixa || 1) + ' = caixas' : 'o CD já conta em caixas/fardos'}">${fmtN(item.estoqueCDcx)}${item.estoqueCDem === 'un' ? `<div class="s2">${fmtN(item.estoqueCDun)} un</div>` : ''}</td>
     <td class="r" style="cursor:pointer" title="clique pra ver por loja" onclick="event.stopPropagation();ESTOPEN.has('${item.codigoCD}')?ESTOPEN.delete('${item.codigoCD}'):ESTOPEN.add('${item.codigoCD}');renderPedido()">${fmtN(estLojas)} <span class="mut">▾</span>${ESTOPEN.has(item.codigoCD) ? '<div class="s2" style="text-align:right">' + LOJAS.map(ln => 'L' + ln + ' ' + fmtN(item.lojas[ln].est || 0)).join('<br>') + '</div>' : ''}</td>
@@ -329,7 +343,20 @@ async function fecharPedido() {
     SEL.clear(); EDITS = {}; await carregarPedidos(); document.querySelector('[data-tab=pedidos]').click(); alert(ps.length + ' pedido(s) criado(s).'); carregar(false);
   } catch (e) { alert(e.message); }
 }
-async function carregarVinculos() { const r = await api('/api/pedidos-cd/vinculos'); VINC = r.vinculos; renderVinculos(); if (DADOS) renderPedido(); }
+// a capa (Pedido da semana) passa a refletir o vínculo NA HORA: a sugestão vem do último recálculo (~30 s no ERP) e, até ele
+// terminar, a linha continuava "sem vínculo · produto novo" mesmo com o vínculo já confirmado (Tiago, 22/09/2026).
+// Venda/dia e cobertura só aparecem depois do recálculo; aqui só o vínculo, o un/cx e a descrição da unidade.
+function aplicarVinculos() {
+  if (!DADOS) return;
+  for (const item of DADOS.repor.concat(DADOS.novos)) {
+    const v = VINC[item.codigoCD];
+    if (v && v.status === 'confirmado' && v.unidade) {
+      if (item.unidade !== v.unidade) { item.unidade = v.unidade; item.descricaoUn = v.candidato === v.unidade ? (v.descricaoCandidato || null) : ((v.alternativas || []).find(a => a.cod === v.unidade) || {}).descricao || (v.sugestaoNota && v.sugestaoNota.unidade === v.unidade ? v.sugestaoNota.descricao : null) || null; item.semVinculo = false; item.aguardaRecalculo = item.origem === 'novo'; }
+      if (v.unPorCaixa >= 1) item.unPorCaixa = v.unPorCaixa;
+    } else if (v && item.unidade) { item.unidade = null; item.descricaoUn = null; item.semVinculo = true; }
+  }
+}
+async function carregarVinculos() { const r = await api('/api/pedidos-cd/vinculos'); VINC = r.vinculos; renderVinculos(); if (DADOS) { aplicarVinculos(); renderPedido(); } }
 let VBUSCA = '';
 function irVinculo(cod) { VF = 'todos'; VBUSCA = cod; renderVinculos(); document.querySelector('[data-tab=vinculos]').click(); setTimeout(() => $('#bu-' + cod + ' input')?.focus(), 50); }
 function renderVinculos() {
