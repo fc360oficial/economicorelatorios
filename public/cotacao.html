@@ -474,6 +474,9 @@ table.ppg th.lj small{display:block;color:var(--pos);font-weight:800;font-size:1
 table.ppg td{padding:9px 8px;background:#fff;white-space:nowrap;border-bottom:1px solid #F0F0EE;vertical-align:middle;font-variant-numeric:tabular-nums;font-size:14px}
 table.ppg td.c:nth-child(n+7){border-left:1px solid #F0F0EE}
 table.ppg tr.nm td{font-size:14px;font-weight:800;background:#FAFAF8;padding:10px 10px 6px;text-transform:none;border-bottom:none;white-space:normal}
+.pp-prod{cursor:pointer;border-bottom:1px dashed var(--ln2)}
+.pp-prod:hover{color:var(--amk);border-bottom-color:var(--am)}
+.pp-prod small{font-size:11px;font-weight:700;color:var(--inf);margin-left:4px}
 table.ppg tr.vl:nth-child(4n+1) td{background:#fff}
 table.ppg .vlr{font-size:14.5px;padding:5px 10px}
 table.ppg input.q{width:76px;font-size:14.5px;font-weight:700;padding:7px 8px}
@@ -1341,6 +1344,17 @@ function renderPrePedidos(){
   });
   return h + '</tbody></table></div>';
 }
+// no pré-pedido: clicar no nome do produto abre todos os fornecedores que cotaram o item, pra trocar (Tiago, 21/09)
+function ppTrocarForn(cod){
+  var it = CUR.comparativo.itens.find(function(x){ return x.cod === cod; }); if (!it) return;
+  var cots = Object.keys(it.precos).map(function(cf){ var f = CUR.comparativo.fornecedores.find(function(x){ return String(x.codFornec) === String(cf); }) || {}; return {codFornec: +cf, nome: f.nome || cf, vendedor: f.vendedor && f.vendedor.nome || '', condicao: f.condicao || f.condicao_padrao || '—', prazo: f.prazo_entrega, fat: f.faturamento_minimo, preco: it.precos[cf].preco, marca: it.precos[cf].marca, obs: it.precos[cf].obs}; }).sort(function(a, b){ return a.preco - b.preco; });
+  var venc = it.vencedor ? it.vencedor.codFornec : null, ult = it.ultimo_custo || 0;
+  var h = '<p class="mini" style="margin:0 0 10px">Quantidade da cotação: <b>' + fmtN(it.qtd) + '</b> ' + esc(it.unid || 'UN') + (ult > 0 ? ' · última compra <b>' + fmtR(ult) + '</b>' : '') + '. O menor preço vem marcado; escolha outro se a condição, o prazo ou a marca compensarem.</p>' +
+    '<table><thead><tr><th></th><th>Fornecedor</th><th>Marca</th><th>Condição</th><th style="text-align:right">Prazo</th><th style="text-align:right">Fat. mín.</th><th style="text-align:right">Preço unit.</th><th style="text-align:right">× últ. compra</th><th style="text-align:right">Total</th><th>Obs.</th><th></th></tr></thead><tbody>' +
+    cots.map(function(c){ var win = c.codFornec === venc, d = ult > 0 ? (c.preco - ult) / ult * 100 : null; return '<tr' + (win ? ' style="background:var(--posw)"' : '') + '><td>' + (win ? '✅' : '') + '</td><td><b>' + esc(c.nome) + '</b>' + (c.vendedor ? '<br><span class="mini">' + esc(c.vendedor) + '</span>' : '') + '</td><td>' + (esc(c.marca) || '<span class="mini">—</span>') + '</td><td>' + esc(c.condicao) + '</td><td class="price">' + (c.prazo ? c.prazo + ' d' : '—') + '</td><td class="price">' + (c.fat ? fmtR(c.fat) : '—') + '</td><td class="price"><b>' + fmtR(c.preco) + '</b></td><td class="price">' + (d == null ? '—' : '<span class="' + (d > 0.05 ? 'eco-neg' : 'eco-pos') + '">' + (d > 0.05 ? '▲ +' : d < -0.05 ? '▼ ' : '= ') + Math.abs(d).toFixed(1).replace('.', ',') + '%</span>') + '</td><td class="price">' + fmtR(c.preco * it.qtd) + '</td><td class="mini">' + esc(c.obs || '') + '</td><td>' + (win ? '<span class="status-pill finalizada">atual</span>' : '<button class="btn sm primary" onclick="ppEscolher(\'' + cod + '\',' + c.codFornec + ');fecharModal()">Escolher</button>') + '</td></tr>'; }).join('') + '</tbody></table>' +
+    '<div class="mini" style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">Ao trocar, o item sai deste pré-pedido e vai pro pré-pedido do fornecedor escolhido, com as quantidades por loja da cotação.<button class="btn sm ghost" onclick="ppEscolher(\'' + cod + '\',\'nao\');fecharModal()">Não comprar este item</button><button class="btn sm ghost" onclick="ppEscolher(\'' + cod + '\',\'auto\');fecharModal()">Voltar pro menor preço</button></div>';
+  abrirModal('Trocar fornecedor · ' + it.descricao, h, true);
+}
 async function ppEscolher(cod, codFornec){ try { CUR = await post('/api/cotacoes/' + CUR.id + '/vencedores', {cod: cod, codFornec: codFornec}); renderTudo(); toastMsg('Item passou pra outro fornecedor'); } catch(e) { toastMsg('Erro: ' + e.message); } }
 var PP_EST = {};
 function abrirPrePedido(codFornec){ PP_DET = codFornec; PP_EDIT = {}; renderComparativoItens(); window.scrollTo(0, 0); ppCarregarEstoque(); }
@@ -1369,7 +1383,7 @@ function renderPrePedidoDet(){
     var qt = 0; lojas.forEach(function(ln){ qt += ppQtd(i, ln); });
     var E = ppEstItem(i), EE = PP_EST[CUR.id];
     var estTot = E ? '<span class="pp-tot">estoque nas lojas <b>' + fmtN(E.estoque) + '</b>' + (E.transito > 0 ? ' · em trânsito <span class="tr">' + fmtN(E.transito) + '</span>' : '') + (E.cobertura_dias != null ? ' · cobertura <b>' + fmtN(E.cobertura_dias) + ' d</b>' : '') + '</span>' : (EE && EE.carregando ? '<span class="pp-tot">carregando estoque…</span>' : '');
-    h += '<tr class="nm"><td colspan="' + (6 + lojas.length) + '">' + esc(i.descricao) + ' <span style="font-weight:400;color:var(--ink2)">' + esc(i.cod) + (i.marca ? ' · ' + esc(i.marca) : '') + '</span>' + (i.obs ? ' <span class="pp-flag" title="Observação do vendedor: ' + esc(i.obs) + '">🚩 ' + esc(i.obs) + '</span>' : '') + estTot + '</td></tr>';
+    h += '<tr class="nm"><td colspan="' + (6 + lojas.length) + '">' + (real ? esc(i.descricao) : '<span class="pp-prod" onclick="ppTrocarForn(\'' + i.cod + '\')" title="Clique pra ver todos os fornecedores que cotaram este item e trocar">' + esc(i.descricao) + ' <small>▾ trocar fornecedor</small></span>') + ' <span style="font-weight:400;color:var(--ink2)">' + esc(i.cod) + (i.marca ? ' · ' + esc(i.marca) : '') + '</span>' + (i.obs ? ' <span class="pp-flag" title="Observação do vendedor: ' + esc(i.obs) + '">🚩 ' + esc(i.obs) + '</span>' : '') + estTot + '</td></tr>';
     var dif = i.ultimo_custo > 0 ? i.preco - i.ultimo_custo : null, pv = dif != null ? Math.abs(dif) / i.ultimo_custo * 100 : 0, pvs = pv.toFixed(1).replace('.', ',');
     var arw = dif == null ? '<span class="pp-arw eq" title="sem compra anterior pra comparar">—</span>' : (Math.abs(dif) < 0.005 ? '<span class="pp-arw eq" title="mesmo preço da última compra">=</span>' : dif > 0 ? '<span class="pp-arw up" title="subiu ' + fmtR(dif) + ' (' + pvs + '%) em relação à última compra">▲ ' + pvs + '%</span>' : '<span class="pp-arw dn" title="baixou ' + fmtR(-dif) + ' (' + pvs + '%) em relação à última compra">▼ ' + pvs + '%</span>');
     h += '<tr class="vl"><td class="c"><span class="vlr ' + (dif != null && dif > 0.004 ? 'up' : dif != null && dif < -0.004 ? 'dn' : 'eq') + '">' + fmtR(i.preco) + '</span></td><td class="c">' + arw + '</td><td class="r">' + fmtR(i.ultimo_custo || 0) + '</td><td class="r" id="pp-q-' + i.cod + '"><b>' + fmtN(qt) + '</b></td><td class="c">' + esc(i.unid || 'UN') + ' ' + i.emb + '</td><td class="r" id="pp-t-' + i.cod + '"><b>' + fmtR(qt * i.preco) + '</b></td>' +
