@@ -445,14 +445,18 @@ table.sug .lj{margin-right:6px;gap:3px}
 table.sug .lj small{font-size:10.5px}
 table.sug .lj input{width:64px;font-size:14.5px;font-weight:700;padding:7px 6px}
 table.sug .lj .lj-est{font-size:11.5px}
-table.sug td:nth-child(5){text-align:center}
+table.sug td:nth-child(6){text-align:center}
+table.sug thead th:nth-child(4),table.sug tbody td:nth-child(4){text-align:center;width:104px;padding-left:6px;padding-right:6px;white-space:nowrap}
+.si{display:inline-block;font-size:17px;margin:0 3px;filter:grayscale(1);opacity:.28;cursor:help;transition:opacity .15s}
+.si.on{filter:none;opacity:1}
+.si.on.now{text-shadow:0 0 0 var(--am);transform:scale(1.12)}
 /* Total, Último custo e R$: cabeçalho e valores encostados na mesma borda direita, mesmo recuo */
-table.sug thead th:nth-child(n+6),table.sug tbody td:nth-child(n+6){text-align:right;padding-left:8px;padding-right:16px;white-space:nowrap}
+table.sug thead th:nth-child(n+7),table.sug tbody td:nth-child(n+7){text-align:right;padding-left:8px;padding-right:16px;white-space:nowrap}
 table.sug tbody td.q-tot .mini{display:block;text-align:right}
 table.sug thead th:nth-child(2),table.sug tbody td:nth-child(2){text-align:left;padding-left:10px}
 /* Trânsito: cabeçalho e células centralizados na mesma coluna (Tiago, 21/09) */
-table.sug thead th:nth-child(4),table.sug tbody td:nth-child(4){text-align:center;width:96px;padding-left:6px;padding-right:6px}
-table.sug tbody td:nth-child(4) .mini{display:inline-block;width:100%;text-align:center}
+table.sug thead th:nth-child(5),table.sug tbody td:nth-child(5){text-align:center;width:96px;padding-left:6px;padding-right:6px}
+table.sug tbody td:nth-child(5) .mini{display:inline-block;width:100%;text-align:center}
 table.sug td.q-tot{font-size:15px;font-weight:800}
 table.sug td.q-tot a,table.sug td.q-tot span{font-size:12px;font-weight:600}
 table.sug td.q-val{font-weight:800}
@@ -620,7 +624,7 @@ table.ppg input.q{width:76px;font-size:14.5px;font-weight:700;padding:7px 8px}
       </div>
       <div class="tablewrap">
         <table class="sug">
-          <thead><tr><th></th><th>Código</th><th style="vertical-align:middle;min-width:320px"><div style="display:flex;align-items:center;gap:12px"><span>Produto</span><input type="text" id="ns-busca" placeholder="buscar por código de barras ou descrição…" oninput="renderSugestao()" class="hin" style="flex:1;min-width:220px;max-width:460px"></div></th><th style="text-align:center" title="Sugestão/pedido aberto no ERP ainda não recebido">Trânsito</th><th style="text-align:center">Quantidade por loja <span class="mini" style="text-transform:none;letter-spacing:0;font-weight:600">· embaixo: est = estoque da loja · trâns = a caminho</span></th><th style="text-align:right">Total</th><th style="text-align:right">Último custo</th><th style="text-align:right">R$</th></tr></thead>
+          <thead><tr><th></th><th>Código</th><th style="vertical-align:middle;min-width:320px"><div style="display:flex;align-items:center;gap:12px"><span>Produto</span><input type="text" id="ns-busca" placeholder="buscar por código de barras ou descrição…" oninput="renderSugestao()" class="hin" style="flex:1;min-width:220px;max-width:460px"></div></th><th style="text-align:center" title="Ícones acesos = o produto passou por isso nos últimos 90 dias: 🏷️ promoção (preço final 8) · 💔 avaria · 🔻 rebaixa de preço pedida pela loja">Situação</th><th style="text-align:center" title="Sugestão/pedido aberto no ERP ainda não recebido">Trânsito</th><th style="text-align:center">Quantidade por loja <span class="mini" style="text-transform:none;letter-spacing:0;font-weight:600">· embaixo: est = estoque da loja · trâns = a caminho</span></th><th style="text-align:right">Total</th><th style="text-align:right">Último custo</th><th style="text-align:right">R$</th></tr></thead>
           <tbody id="w1-tbody"></tbody>
         </table>
       </div>
@@ -864,6 +868,7 @@ async function calcularSugestao(manter){
     var anterior = manter === true && SUG && SUG.lista.lista === lista ? {edit: EDIT, sel: SEL} : null;
     SUG = await api('/api/cotacoes/sugestao/' + lista + '?cobertura=' + ($('#ns-cob').value || 28) + '&ponto=' + ($('#ns-ponto').value || 0) + '&emb=' + ($('#ns-emb').value || 36));
     EDIT = {}; SEL = {}; SUG.itens.forEach(function(i){ if (i.qtd > 0) SEL[i.cod] = true; });
+    carregarSituacao();
     var la = {}; SUG.itens.forEach(function(i){ (i.lojas || []).forEach(function(ln){ la[ln] = 1; }); }); LOJAS_ALL = Object.keys(la).sort(function(a, b){ return a - b; });
     if (anterior) {
       // recálculo depois de achar caixa padrão: mantém marcação e quantidades digitadas, arredondadas pra nova caixa
@@ -957,7 +962,7 @@ function renderSugestao(){
   var rows = SUG.itens.filter(function(i){ var qf = LOJA_F ? qtdLoja(i, LOJA_F) : qtdItem(i); if (soQtd && qf <= 0 && !SEL[i.cod]) return false; if (b && i.descricao.toLowerCase().indexOf(b) === -1 && String(i.cod).indexOf(b) === -1) return false; var estF = LOJA_F ? (((i.lojas_det || {})[LOJA_F] || {}).estoque || 0) : i.estoque; if (fEst === 'com' && !(estF > 0)) return false; if (fEst === 'sem' && estF > 0) return false; if (fCx === 'sem' && !semCaixa(i)) return false; if (fCx === 'com' && semCaixa(i)) return false; return true; });
   if (ordem === 'az' || ordem === 'za') { rows = rows.slice().sort(function(x, y){ return (x.descricao || '').localeCompare(y.descricao || '', 'pt-BR'); }); if (ordem === 'za') rows.reverse(); }
   var tb = $('#w1-tbody');
-  if (!rows.length) { tb.innerHTML = '<tr><td colspan="8" class="empty">Nenhum item' + (LOJA_F ? ' na loja L' + LOJA_F : '') + (soQtd ? ' com quantidade — desmarque "só itens com quantidade" pra ver a lista inteira e digitar' : '') + '.</td></tr>'; atualizarResumoW1(); return; }
+  if (!rows.length) { tb.innerHTML = '<tr><td colspan="9" class="empty">Nenhum item' + (LOJA_F ? ' na loja L' + LOJA_F : '') + (soQtd ? ' com quantidade — desmarque "só itens com quantidade" pra ver a lista inteira e digitar' : '') + '.</td></tr>'; atualizarResumoW1(); return; }
   tb.innerHTML = rows.slice(0, 1500).map(function(i){
     var band = coberturaBand(i.cobertura_dias), q = LOJA_F ? qtdLoja(i, LOJA_F) : qtdItem(i);
     var lojas = LOJAS_ALL.filter(function(ln){ return !LOJA_F || String(ln) === String(LOJA_F); }).map(function(ln){ var d = (i.lojas_det || {})[ln] || {}; return '<span class="lj" title="L' + ln + ' ' + (LOJAS_NOMES[ln] || '') + ': estoque ' + fmtN(d.estoque, 0) + ' · venda/dia ' + fmtN(d.venda_dia, 2) + (d.cobertura_dias != null ? ' · cobertura ' + fmtN(d.cobertura_dias, 0) + ' d' : '') + (d.transito ? ' · trânsito ' + fmtN(d.transito, 0) : '') + '"><small>L' + ln + '</small><input type="text" inputmode="numeric" data-ln="' + ln + '" value="' + qtdLoja(i, ln) + '" onchange="setQtd(\'' + esc(i.cod) + '\',\'' + ln + '\',this.value)">' + (d.estoque != null ? '<div class="lj-est">est <b' + (d.estoque <= 0 ? ' class="zero"' : '') + '>' + fmtN(d.estoque, 0) + '</b>' + (d.transito ? ' · trâns <span class="tr">' + fmtN(d.transito, 0) + '</span>' : '') + '</div>' : '') + '</span>'; }).join('');
@@ -965,13 +970,32 @@ function renderSugestao(){
       '<td><input type="checkbox" class="check" ' + (SEL[i.cod] ? 'checked' : '') + ' onchange="SEL[\'' + esc(i.cod) + '\']=this.checked;atualizarLinha(SUG.itens.find(function(x){return x.cod===\'' + esc(i.cod) + '\'}));atualizarResumoW1()"></td>' +
       '<td class="mini">' + esc(i.cod) + '</td>' +
       '<td><div class="prod-cell"><b>' + esc(i.descricao) + (i.curva_a ? ' <span class="an-badge bad" style="font-size:9.5px;padding:1px 6px">curva A</span>' : '') + '</b><span class="prod-meta">' + embLabel(i) + '<span>Venda/dia ' + fmtN(i.venda_dia, 2) + '</span><span class="m-' + band.cls + '">Cobertura ' + (i.cobertura_dias != null ? '~' + fmtN(i.cobertura_dias, 0) + ' d' : '—') + ' · ' + band.label + '</span>' + (i.flag ? '<span class="m-warn">' + esc(i.flag) + '</span>' : '') + '</span></div></td>' +
-      '<td class="price">' + colTransito(i) + '</td>' +
+      '<td class="sit" data-cod="' + esc(i.cod) + '">' + sitIcons(i.cod) + '</td><td class="price">' + colTransito(i) + '</td>' +
       '<td>' + lojas + '</td>' +
       '<td class="price q-tot">' + fmtN(q) + '<br>' + cxLink(i, q) + '</td>' +
       '<td class="price">' + fmtR(i.custo) + '</td>' +
       '<td class="price q-val">' + fmtR(q * i.custo) + '</td></tr>';
-  }).join('') + (rows.length > 1500 ? '<tr><td colspan="8" class="empty">Mostrando 1.500 de ' + rows.length + ' — use a busca.</td></tr>' : '');
+  }).join('') + (rows.length > 1500 ? '<tr><td colspan="9" class="empty">Mostrando 1.500 de ' + rows.length + ' — use a busca.</td></tr>' : '');
   atualizarResumoW1();
+}
+// Situação do item (Tiago, 21/09): 🏷️ promoção · 💔 avaria · 🔻 rebaixa — cinza = não passou; colorido = passou nos últimos 90 dias
+var SIT = {}, SIT_DIAS = 90, SIT_SEQ = 0;
+function dtBr(d){ return d ? String(d).slice(0, 10).split('-').reverse().join('/') : ''; }
+function sitIcons(cod){
+  var s = SIT[cod], carregado = SIT.__ok;
+  var p = s && s.promo, a = s && s.avaria, r = s && s.rebaixa;
+  var tp = p ? (p.agora ? 'EM PROMOÇÃO agora (final 8) em L' + p.lojas.join(', L') + ' · ' + p.precos.map(function(x){ return fmtR(x); }).join(' / ') : '') + (p.passou ? (p.agora ? ' · ' : '') + 'passou por promoção: ' + p.passou + ' mudança(s) de preço final 8 nos últimos ' + SIT_DIAS + ' d, última ' + dtBr(p.ultima) + (p.lojasLog ? ' (L' + p.lojasLog.join(', L') + ')' : '') : '') : (carregado ? 'sem promoção nos últimos ' + SIT_DIAS + ' dias' : 'carregando…');
+  var ta = a ? 'AVARIA: ' + a.n + ' lançamento(s) · ' + fmtN(a.qtd) + ' un · ' + fmtR(a.valor) + ' em ' + a.lojas + ' loja(s) · última ' + dtBr(a.ultima) : (carregado ? 'sem avaria nos últimos ' + SIT_DIAS + ' dias' : 'carregando…');
+  var tr = r ? 'REBAIXA: ' + r.n + ' solicitação(ões) de preço em ' + r.lojas + ' loja(s) · última ' + dtBr(r.ultima) + (r.atual > 0 && r.solic > 0 ? ' · ' + fmtR(r.atual) + ' → ' + fmtR(r.solic) : '') + (r.motivo ? ' · ' + r.motivo : '') : (carregado ? 'sem rebaixa nos últimos ' + SIT_DIAS + ' dias' : 'carregando…');
+  return '<span class="si' + (p ? ' on' + (p.agora ? ' now' : '') : '') + '" title="' + esc(tp) + '">🏷️</span><span class="si' + (a ? ' on' : '') + '" title="' + esc(ta) + '">💔</span><span class="si' + (r ? ' on' : '') + '" title="' + esc(tr) + '">🔻</span>';
+}
+async function carregarSituacao(){
+  if (!SUG) return; var seq = ++SIT_SEQ, cods = SUG.itens.map(function(i){ return i.cod; }); SIT = {};
+  try {
+    for (var k = 0; k < cods.length; k += 1500) { var r = await post('/api/cotacoes/situacao-itens', {cods: cods.slice(k, k + 1500), dias: SIT_DIAS}); if (seq !== SIT_SEQ) return; Object.keys(r.itens || {}).forEach(function(c){ SIT[c] = r.itens[c]; }); }
+    SIT.__ok = true;
+  } catch(e) { toastMsg('Situação dos itens: ' + e.message); SIT.__ok = true; }
+  document.querySelectorAll('#w1-tbody td.sit').forEach(function(td){ td.innerHTML = sitIcons(td.getAttribute('data-cod')); });
 }
 function marcarTodos(v){ if (!SUG) return; SUG.itens.forEach(function(i){ if (qtdItem(i) > 0 || !v) SEL[i.cod] = v; }); renderSugestao(); }
 // Estoque e Trânsito no formato do Radar: total + ▾ que abre o detalhe por loja (estoque negativo do ERP em vermelho;

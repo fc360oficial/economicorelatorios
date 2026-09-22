@@ -7535,6 +7535,35 @@ app.get('/api/cotacoes/sugestao/:lista', async (req, res) => {
       itens, com_qtd: itens.filter(i => i.qtd > 0).length, total: det.total, volumes: det.volumes, estado: radarPedidos.getEstado() });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+// Situação do item na sugestão (Tiago, 21/09): ícones que acendem se o produto passou por PROMOÇÃO (preço final 8
+// hoje em alguma loja, ou preço novo final 8 no log de preços do período), AVARIA (central.avariaconsumo Tipo 1,
+// Status 9 é lixo) ou REBAIXA (solicitação de preço da loja em central.solicitacaopreco) nos últimos N dias.
+app.post('/api/cotacoes/situacao-itens', async (req, res) => {
+  try {
+    const dias = Math.max(7, Math.min(365, parseInt(req.body?.dias) || 90));
+    const cods = [...new Set((req.body?.cods || []).map(c => String(c || '').trim()).filter(Boolean))].slice(0, 6000);
+    const out = {}; if (!cods.length) return res.json({ dias, itens: out });
+    const g = c => out[c] || (out[c] = { promo: null, avaria: null, rebaixa: null });
+    const num = v => parseFloat(String(v ?? '').replace(',', '.')) || 0, final8 = p => p > 0 && Math.round(p * 100) % 10 === 8;
+    for (const ch of radarPedidos.chunk(cods, 1500)) {
+      const ph = ch.map(() => '?').join(',');
+      for (const r of await q(`SELECT CodigoBarra cod, P1, P2, P3, P4, P5, P6 FROM central.itens WHERE CodigoBarra IN (${ph})`, ch).catch(() => [])) {
+        const lojas = [1, 2, 3, 4, 5, 6].filter(l => final8(num(r['P' + l])));
+        if (lojas.length) g(String(r.cod).trim()).promo = { agora: true, lojas, precos: lojas.map(l => num(r['P' + l])) };
+      }
+      for (const r of await q(`SELECT CodigoBarras cod, nLoja loja, DATE_FORMAT(Data,'%Y-%m-%d') data, PrecoNovo FROM central.logpreco2 WHERE Data>=DATE_SUB(CURDATE(), INTERVAL ? DAY) AND CodigoBarras IN (${ph}) ORDER BY Data`, [dias, ...ch]).catch(() => [])) {
+        if (!final8(num(r.PrecoNovo))) continue;
+        const s = g(String(r.cod).trim()); const p = s.promo || (s.promo = { agora: false, lojas: [], precos: [] });
+        p.passou = (p.passou || 0) + 1; p.ultima = r.data; if (!p.lojasLog) p.lojasLog = []; if (p.lojasLog.indexOf(r.loja) < 0) p.lojasLog.push(r.loja);
+      }
+      for (const r of await q(`SELECT CodigoBarras cod, COUNT(*) n, SUM(Qtd) qtd, SUM(Total) valor, DATE_FORMAT(MAX(DataLan),'%Y-%m-%d') ultima, COUNT(DISTINCT nLoja) lojas FROM central.avariaconsumo WHERE Tipo=1 AND Status<>9 AND DataLan>=DATE_SUB(CURDATE(), INTERVAL ? DAY) AND CodigoBarras IN (${ph}) GROUP BY CodigoBarras`, [dias, ...ch]).catch(() => []))
+        g(String(r.cod).trim()).avaria = { n: +r.n, qtd: num(r.qtd), valor: +num(r.valor).toFixed(2), ultima: r.ultima, lojas: +r.lojas };
+      for (const r of await q(`SELECT CodigoBarra cod, COUNT(*) n, DATE_FORMAT(MAX(DataSolicitacao),'%Y-%m-%d') ultima, COUNT(DISTINCT nLoja) lojas, SUBSTRING_INDEX(GROUP_CONCAT(IFNULL(Motivo,'') ORDER BY DataSolicitacao DESC SEPARATOR '|'), '|', 1) motivo, MAX(PrecoAtual) atual, MIN(PrecoSolicitado) solic FROM central.solicitacaopreco WHERE DataSolicitacao>=DATE_SUB(CURDATE(), INTERVAL ? DAY) AND CodigoBarra IN (${ph}) GROUP BY CodigoBarra`, [dias, ...ch]).catch(() => []))
+        g(String(r.cod).trim()).rebaixa = { n: +r.n, ultima: r.ultima, lojas: +r.lojas, motivo: (r.motivo || '').trim(), atual: num(r.atual), solic: num(r.solic) };
+    }
+    res.json({ dias, itens: out });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 // Botão "Buscar caixa padrão" da sugestão (Tiago, 14/09): pros itens sem embalagem (ou os informados em cods),
 // vasculha todas as fontes de entrada (notas de qualquer época/fornecedor, XML da NF-e, Embalagem Vendas,
 // DUN-14, sugestão do ERP), grava data/emb-padrao.json e o Radar passa a usar (recalcule a sugestão depois)
