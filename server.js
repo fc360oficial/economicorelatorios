@@ -7558,7 +7558,7 @@ app.post('/api/cotacoes/situacao-itens', async (req, res) => {
       }
       for (const r of await q(`SELECT CodigoBarras cod, COUNT(*) n, SUM(Qtd) qtd, SUM(Total) valor, DATE_FORMAT(MAX(DataLan),'%Y-%m-%d') ultima, COUNT(DISTINCT nLoja) lojas FROM central.avariaconsumo WHERE Tipo=1 AND Status<>9 AND DataLan>=DATE_SUB(CURDATE(), INTERVAL ? DAY) AND CodigoBarras IN (${ph}) GROUP BY CodigoBarras`, [dias, ...ch]).catch(() => []))
         g(String(r.cod).trim()).avaria = { n: +r.n, qtd: num(r.qtd), valor: +num(r.valor).toFixed(2), ultima: r.ultima, lojas: +r.lojas };
-      for (const r of await q(`SELECT CodigoBarra cod, COUNT(*) n, DATE_FORMAT(MAX(DataSolicitacao),'%Y-%m-%d') ultima, COUNT(DISTINCT nLoja) lojas, SUBSTRING_INDEX(GROUP_CONCAT(IFNULL(Motivo,'') ORDER BY DataSolicitacao DESC SEPARATOR '|'), '|', 1) motivo, MAX(PrecoAtual) atual, MIN(PrecoSolicitado) solic FROM central.solicitacaopreco WHERE DataSolicitacao>=DATE_SUB(CURDATE(), INTERVAL ? DAY) AND CodigoBarra IN (${ph}) GROUP BY CodigoBarra`, [dias, ...ch]).catch(() => []))
+      for (const r of await q(`SELECT CodigoBarra cod, COUNT(*) n, DATE_FORMAT(MAX(DataSolicitacao),'%Y-%m-%d') ultima, COUNT(DISTINCT nLoja) lojas, SUBSTRING_INDEX(GROUP_CONCAT(IFNULL(Motivo,'') ORDER BY DataSolicitacao DESC SEPARATOR '|'), '|', 1) motivo, MAX(PrecoAtual) atual, MIN(NULLIF(PrecoSolicitado,0)) solic FROM central.solicitacaopreco WHERE DataSolicitacao>=DATE_SUB(CURDATE(), INTERVAL ? DAY) AND CodigoBarra IN (${ph}) GROUP BY CodigoBarra`, [dias, ...ch]).catch(() => []))
         g(String(r.cod).trim()).rebaixa = { n: +r.n, ultima: r.ultima, lojas: +r.lojas, motivo: (r.motivo || '').trim(), atual: num(r.atual), solic: num(r.solic) };
     }
     res.json({ dias, itens: out });
