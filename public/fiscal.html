@@ -150,6 +150,7 @@ const hh=s=>s?String(s).slice(0,5):'';
 const hojeISO=()=>{const d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10)};
 const DOW=['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado'];
 const SIT={aguardando_coletor:'Aguardando coletor',em_contagem:'Em contagem',pronto:'Pronto p/ liberar',conferido:'Conferido · aguardando fiscal',excecao:'Com exceção',reconferir:'Reconferir',liberado:'Liberado p/ armazenagem',cancelado:'Cancelado',bloqueado:'Bloqueado / devolver'};
+const LJ=n=>+n===10?'CD':'E'+n;   // rótulo de loja: E1..E6, CD (regra do Tiago, 22/09/26)
 const CHK=[['xml','XML'],['pedido','PED'],['coletor','QTD'],['validade','VAL'],['boleto','BOL'],['margem','MRG'],['cadastro','CAD']];
 let ABRIR=null, CFG=null, LOJAS={}, DADOS=null, DOCS=null, MARG=null, tab='receb', filtro='fila', aberto=null, DET={}, CONTATOS=null, fMov='', fMarg='todos';
 
@@ -161,7 +162,7 @@ function qs(){const {de,ate}=periodo();return'?de='+de+'&ate='+ate+($('#loja').v
 async function boot(){
   const c=await fetch('/api/fiscal/config').then(r=>r.json());
   CFG=c.config;LOJAS=c.lojas;$('#btnRmTeste').hidden=!c.testes;
-  const sel=$('#loja');for(const [n,nome] of Object.entries(LOJAS))sel.insertAdjacentHTML('beforeend','<option value="'+n+'">L'+n+' '+esc(nome)+'</option>');
+  const sel=$('#loja');for(const [n,nome] of Object.entries(LOJAS))sel.insertAdjacentHTML('beforeend','<option value="'+n+'">'+LJ(n)+' '+esc(nome)+'</option>');
   const u=new URLSearchParams(location.search);if(u.get('loja'))sel.value=u.get('loja');if(u.get('de'))$('#de').value=u.get('de');if(u.get('filtro'))filtro=u.get('filtro');ABRIR=+u.get('abrir')||null;if(ABRIR)filtro='todos';
   carregar();
 }
@@ -201,9 +202,9 @@ function renderReceb(){
   h+='<div class="table-wrap"><table class="t"><thead><tr><th>Conf.</th><th>Entrada</th><th>Fornecedor · notas</th><th>Coletor</th><th>Cruzamento automático</th><th class="r">Valor NF-e</th><th>Boleto</th><th>Situação</th><th>Ação</th></tr></thead><tbody>';
   let lojaAtual=null;
   for(const r of lista){
-    if(todas&&r.loja!==lojaAtual){lojaAtual=r.loja;const dl=all.filter(x=>x.loja===r.loja);h+='<tr class="loja"><td colspan="9"><b>L'+r.loja+'</b>'+esc(r.loja_nome)+'<span>'+dl.length+' recebimentos · '+dl.filter(FILA).length+' precisam de você · '+dl.filter(x=>x.situacao==='pronto').length+' prontos · '+dl.filter(x=>x.situacao==='liberado').length+' liberados</span></td></tr>';}
+    if(todas&&r.loja!==lojaAtual){lojaAtual=r.loja;const dl=all.filter(x=>x.loja===r.loja);h+='<tr class="loja"><td colspan="9"><b>'+LJ(r.loja)+'</b>'+esc(r.loja_nome)+'<span>'+dl.length+' recebimentos · '+dl.filter(FILA).length+' precisam de você · '+dl.filter(x=>x.situacao==='pronto').length+' prontos · '+dl.filter(x=>x.situacao==='liberado').length+' liberados</span></td></tr>';}
     const op=r.open;
-    h+='<tr class="row'+(aberto===r.nReg?' open':'')+(r.teste?' teste':'')+'" onclick="toggle('+r.nReg+')"><td><span class="nm mono">'+r.nReg+'</span>'+(todas?'':'<span class="erp">L'+r.loja+'</span>')+'</td>';
+    h+='<tr class="row'+(aberto===r.nReg?' open':'')+(r.teste?' teste':'')+'" onclick="toggle('+r.nReg+')"><td><span class="nm mono">'+r.nReg+'</span>'+(todas?'':'<span class="erp">'+LJ(r.loja)+'</span>')+'</td>';
     h+='<td><span class="nm">'+hh(r.hora_entrada)+'</span><span class="erp">'+dbr2(r.entrada)+' · '+esc(r.operador_loja||'')+'</span></td>';
     h+='<td class="forn"><span class="nm">'+esc(r.fornecedor)+'</span><div class="sub">'+(r.notas.length?r.notas.map(n=>'NF '+(n.nNota||'?')+(n.movimentacao&&n.movimentacao!=='COMPRA'?' <span class="warn">'+esc(n.movimentacao)+'</span>':'')+(n.xml?'':' <span class="neg">sem XML</span>')).join(' · '):'<span class="mut">nenhuma nota associada</span>')+(r.pedidos.length?' · <span class="mut">pedido '+r.pedidos.map(p=>p.nPedido).join(', ')+'</span>':'')+'</div></td>';
     h+='<td>'+(r.qtd_itens_coletor?'<span class="nm">'+r.qtd_itens_coletor+' itens</span><span class="erp">de '+r.qtd_itens_xml+' na nota</span>':'<span class="mut">—</span>')+'</td>';
@@ -300,7 +301,7 @@ function renderDocs(){
   h+='<div class="table-wrap"><table class="t"><thead><tr><th>Nº doc</th><th>Conf.</th><th>Entrada</th><th>Emissão</th><th>Lançamento</th><th>Fornecedor</th><th class="r">Valor</th><th>Movimentação</th><th>Status</th><th>Operador</th></tr></thead><tbody>';
   let lj=null;
   for(const d of lista){
-    if(todas&&d.loja!==lj){lj=d.loja;const dl=lista.filter(x=>x.loja===lj);h+='<tr class="loja"><td colspan="10"><b>L'+lj+'</b>'+esc(d.loja_nome)+'<span>'+dl.length+' documentos · '+money(dl.reduce((s,x)=>s+x.valor,0))+'</span></td></tr>';}
+    if(todas&&d.loja!==lj){lj=d.loja;const dl=lista.filter(x=>x.loja===lj);h+='<tr class="loja"><td colspan="10"><b>'+LJ(lj)+'</b>'+esc(d.loja_nome)+'<span>'+dl.length+' documentos · '+money(dl.reduce((s,x)=>s+x.valor,0))+'</span></td></tr>';}
     h+='<tr><td><b>'+esc(d.nNota)+'</b> <span class="mut">s'+esc(d.serie||'')+'</span>'+(d.chave?'':'<span class="erp neg">sem XML</span>')+'</td><td class="mono">'+(d.conferencia||'<span class="mut">—</span>')+'</td><td>'+dbr(d.entrada)+'</td><td>'+dbr(d.emissao)+'</td><td>'+dbr(d.lancamento)+'</td><td class="forn"><span class="nm">'+esc(d.fornecedor)+'</span>'+(d.pedido?'<span class="erp">pedido '+d.pedido+'</span>':'')+'</td><td class="r">'+money(d.valor)+'</td><td>'+esc(d.movimentacao)+' <span class="mut">'+esc(d.tipo||'')+'</span></td><td><span class="pill '+(d.status==='F'?'st-liberado':d.status==='C'?'st-cancelado':'st-em_contagem')+'">'+esc(d.status_nome)+'</span></td><td class="mut">'+esc(d.operador||'')+'</td></tr>';
   }
   h+='</tbody></table></div>';$('#view').innerHTML=h;
@@ -315,7 +316,7 @@ function renderMargem(){
   let h='<div class="tools" style="margin-top:-4px"><div class="radios">'+[['todos','Todos'],['negativa','Margem negativa'],['baixa','Abaixo do mínimo'],['diverge','Abaixo do cadastro'],['custo','Custo subiu'],['semvenda','Sem preço de venda']].map(([k,l])=>'<label class="'+(fMarg===k?'on':'')+'" onclick="fMarg=\''+k+'\';render()">'+l+' <span class="mut">'+MARG.filter(f[k]).length+'</span></label>').join('')+'</div><button class="btn btn-slate btn-sm" onclick="csvMargem()">Exportar CSV</button></div>';
   if(!lista.length){$('#view').innerHTML=h+'<div class="empty">Nenhum item nesse filtro.</div>';return;}
   h+='<div class="table-wrap"><table class="t"><thead><tr><th>Loja</th><th>Conf.</th><th>Fornecedor</th><th>EAN · descrição</th><th class="r">Custo NF</th><th class="r">Compra ant.</th><th class="r">Var.</th><th class="r">Venda</th><th class="r">Margem</th><th class="r">Mrg cad.</th></tr></thead><tbody>';
-  for(const i of lista)h+='<tr'+(i.teste?' class="teste"':'')+'><td>L'+i.loja+'</td><td class="mono"><a href="#" onclick="event.preventDefault();$(\'#q\').value=\''+i.nReg+'\';setTab(\'receb\')">'+i.nReg+'</a></td><td class="forn sub">'+esc(i.fornecedor)+'</td><td class="forn"><span class="mono mut">'+esc(i.ean)+'</span> <b>'+esc(i.descricao)+'</b></td><td class="r"><b>'+money(i.custo)+'</b></td><td class="r">'+(i.ultimo_custo?money(i.ultimo_custo):'—')+'</td><td class="r">'+(i.custo_var_pct!=null?'<span class="'+(i.custo_var_pct>CFG.custo_aumento_pct?'neg':i.custo_var_pct<0?'pos':'mut')+'">'+(i.custo_var_pct>0?'+':'')+fmt(i.custo_var_pct,1)+'%</span>':'—')+'</td><td class="r">'+(i.venda?money(i.venda):'—')+'</td><td class="r">'+(i.margem!=null?'<span class="'+(i.margem<0?'neg':i.margem<CFG.margem_min_pct?'warn':'pos')+'">'+fmt(i.margem,1)+'%</span>':'—')+'</td><td class="r mut">'+(i.margem_cad!=null?fmt(i.margem_cad,1)+'%':'—')+'</td></tr>';
+  for(const i of lista)h+='<tr'+(i.teste?' class="teste"':'')+'><td>'+LJ(i.loja)+'</td><td class="mono"><a href="#" onclick="event.preventDefault();$(\'#q\').value=\''+i.nReg+'\';setTab(\'receb\')">'+i.nReg+'</a></td><td class="forn sub">'+esc(i.fornecedor)+'</td><td class="forn"><span class="mono mut">'+esc(i.ean)+'</span> <b>'+esc(i.descricao)+'</b></td><td class="r"><b>'+money(i.custo)+'</b></td><td class="r">'+(i.ultimo_custo?money(i.ultimo_custo):'—')+'</td><td class="r">'+(i.custo_var_pct!=null?'<span class="'+(i.custo_var_pct>CFG.custo_aumento_pct?'neg':i.custo_var_pct<0?'pos':'mut')+'">'+(i.custo_var_pct>0?'+':'')+fmt(i.custo_var_pct,1)+'%</span>':'—')+'</td><td class="r">'+(i.venda?money(i.venda):'—')+'</td><td class="r">'+(i.margem!=null?'<span class="'+(i.margem<0?'neg':i.margem<CFG.margem_min_pct?'warn':'pos')+'">'+fmt(i.margem,1)+'%</span>':'—')+'</td><td class="r mut">'+(i.margem_cad!=null?fmt(i.margem_cad,1)+'%':'—')+'</td></tr>';
   h+='</tbody></table></div>';$('#view').innerHTML=h;
 }
 function csvMargem(){
