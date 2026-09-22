@@ -903,7 +903,7 @@ function atualizarResumoW1(){
 function semCaixa(i){ return !(i.emb > 1) && !(i.emb_manual >= 1); }
 function embLabel(i){
   var e = i.emb || 1;
-  if (semCaixa(i)) return '<span class="m-bad">sem caixa padrão · digite: <input type="text" inputmode="numeric" class="qtyinput" style="width:44px;padding:2px 5px;font-size:11px" placeholder="un/cx" onchange="definirCaixa(\'' + esc(i.cod) + '\',\'' + esc(i.unid || 'UN') + '\',this.value)" onclick="event.stopPropagation()"></span>';
+  if (semCaixa(i)) return '<span class="m-bad">sem caixa padrão · digite: <input type="text" inputmode="numeric" class="qtyinput cxin" data-cod="' + esc(i.cod) + '" style="width:52px;padding:4px 6px;font-size:13px;font-weight:700" placeholder="un/cx" onchange="definirCaixa(\'' + esc(i.cod) + '\',\'' + esc(i.unid || 'UN') + '\',this.value)" onkeydown="cxKey(event,this)" onclick="event.stopPropagation()"></span>';
   var fonte = i.emb_manual && e === i.emb_manual ? 'manual' : (i.emb_compra && e === i.emb_compra ? 'notas' : (i.emb_padrao && e === i.emb_padrao.emb ? (i.emb_padrao.fonte || 'padrão') : (e === i.emb_cadastro ? 'cadastro' : '')));
   var nomes = {manual:'corrigida à mão', notas:'notas de entrada', xml:'XML da NF-e', vendas:'Embalagem Vendas', dun14:'código de caixa', erp:'sugestão do ERP', cadastro:'cadastro'};
   return '<span title="fonte: ' + (nomes[fonte] || fonte || '—') + '">Cx ' + e + (fonte ? ' <i style="font-style:normal;color:var(--ink3)">(' + (nomes[fonte] || fonte) + ')</i>' : '') + '</span>';
@@ -924,10 +924,24 @@ async function buscarCaixaPadrao(){
 // "N cx de E" clicável na coluna Total: ajusta a caixa padrão do produto na hora (grava como correção manual, vale no Radar)
 function cxLink(i, q){ return '<span class="mini" style="cursor:pointer;border-bottom:1px dashed var(--ln2)" title="Clique pra ajustar a caixa padrão deste produto" onclick="event.stopPropagation();ajustarCaixa(\x27' + esc(i.cod) + '\x27,\x27' + esc(i.unid || 'UN') + '\x27,' + i.emb + ')">' + Math.ceil(q / i.emb) + ' cx de ' + i.emb + ' ✎</span>'; }
 function ajustarCaixa(cod, unid, atual){ var i = SUG && SUG.itens.find(function(x){ return x.cod === cod; }); var v = prompt('Caixa padrão (unidades por caixa) de\n' + (i ? i.descricao : cod) + '\n\nHoje: ' + atual, atual); if (v === null) return; definirCaixa(cod, unid, v); }
+// Digitação rápida da caixa (Tiago, 21/09): Enter grava e o cursor já cai no próximo item sem caixa; ↓/↑ andam sem gravar.
+function cxIrPara(alvo){ if (!alvo) return; alvo.focus(); alvo.select(); try { alvo.scrollIntoView({block: 'center'}); } catch(e) {} }
+function cxVizinho(el, dir){ var L = Array.prototype.slice.call(document.querySelectorAll('#w1-tbody .cxin')), k = L.indexOf(el); return k < 0 ? null : L[k + dir] || null; }
+function cxKey(ev, el){
+  if (ev.key === 'ArrowDown') { ev.preventDefault(); cxIrPara(cxVizinho(el, 1)); return; }
+  if (ev.key === 'ArrowUp') { ev.preventDefault(); cxIrPara(cxVizinho(el, -1)); return; }
+  if (ev.key === 'Enter') { ev.preventDefault(); var v = String(el.value || '').trim(); if (!v) { cxIrPara(cxVizinho(el, 1)); return; } var px = cxVizinho(el, 1); CX_PROX = px ? px.getAttribute('data-cod') : null; el.blur(); }
+}
+var CX_PROX = null;
 async function definirCaixa(cod, unid, v){
   var e = Math.round(parseFloat(String(v).replace(',', '.'))); if (!(e >= 1)) return;
+  var prox = CX_PROX; CX_PROX = null;
+  if (!prox) { var el = document.querySelector('#w1-tbody .cxin[data-cod="' + cod + '"]'), px = el ? cxVizinho(el, 1) : null; prox = px ? px.getAttribute('data-cod') : null; }
   try { await post('/api/itens/unidade-embalagem', {codigo: cod, unidade: unid || 'UN', embalagem: e}); toastMsg('Caixa de ' + e + ' gravada pro produto ' + cod + ' (vale no Radar também)'); await calcularSugestao(true); }
-  catch(err) { toastMsg('Erro: ' + err.message); }
+  catch(err) { toastMsg('Erro: ' + err.message); return; }
+  // depois do recálculo a tabela é redesenhada: devolve o cursor pro próximo item sem caixa
+  var n = prox ? document.querySelector('#w1-tbody .cxin[data-cod="' + prox + '"]') : null;
+  cxIrPara(n || document.querySelector('#w1-tbody .cxin'));
 }
 function renderSugestao(){
   if (!SUG) return;
