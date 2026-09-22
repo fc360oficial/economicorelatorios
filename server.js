@@ -6554,6 +6554,11 @@ dashboardNovo.agendar();
 app.get('/api/dashboard', async (req, res) => {
   try { res.json(await dashboardNovo.dados()); } catch (err) { res.status(500).json({ error: err.message }); }
 });
+app.get('/api/dashboard/resumo', (req, res) => { try { res.json(dashboardNovo.resumo()); } catch (err) { res.status(500).json({ error: err.message }); } });
+app.get('/api/dashboard/seg/:nome', async (req, res) => {
+  try { const r = await dashboardNovo.segmento(req.params.nome); res.json({ ...r, nomes: dashboardNovo.NOMES, metas: dashboardNovo.getMetas() }); }
+  catch (err) { res.status(400).json({ error: err.message }); }
+});
 app.post('/api/dashboard/atualizar', (req, res) => { dashboardNovo.calcular().catch(e => console.error('[DASHBOARD]', e.message)); res.json({ ok: true }); });
 app.get('/api/dashboard/metas', (req, res) => res.json(dashboardNovo.getMetas()));
 app.post('/api/dashboard/metas', (req, res) => { try { res.json(dashboardNovo.setMetas(req.body || {})); } catch (err) { res.status(500).json({ error: err.message }); } });
