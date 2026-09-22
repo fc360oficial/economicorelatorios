@@ -362,7 +362,16 @@ const pagtoLabels = {
   '04': 'POS', '98': 'Dinheiro', '99': 'Outros'
 };
 
-async function q(sql, params = []) {
+// 21/09/26: o suporte do ERP rodou um ALTER TABLE em central.axml que durou horas e, no MySQL 5.0 do .252, toda
+// consulta nessa tabela fica esperando o lock sem limite. Cada chamada nossa (Radar, Pedidos do CD, Fiscal) virava
+// uma conexão pendurada e o Radar ficava "calculando" pra sempre. Regra: consulta que toca axml* desiste em 20 s
+// (fecha o socket) e, depois de um estouro, nem tenta de novo por 5 min. Qualquer chamada pode passar {timeoutMs}.
+const TABELAS_SENSIVEIS = /\baxml\w*\b/i, TIMEOUT_SENSIVEL = 20000, PAUSA_APOS_ESTOURO = 5 * 60 * 1000;
+let travadaAte = 0;
+async function q(sql, params = [], opt = {}) {
+  const sensivel = TABELAS_SENSIVEIS.test(sql);
+  const timeoutMs = opt.timeoutMs || (sensivel ? TIMEOUT_SENSIVEL : 0);
+  if (sensivel && Date.now() < travadaAte) throw new Error('ERP: tabela axml travada no .252 (manutenção/ALTER TABLE); consulta pulada por mais ' + Math.ceil((travadaAte - Date.now()) / 60000) + ' min');
   let conn;
   try {
     conn = await mysql.createConnection(dbConfig);
@@ -371,13 +380,21 @@ async function q(sql, params = []) {
     throw new Error(connErr.message || connErr.code || JSON.stringify(connErr));
   }
   try {
-    const [rows] = await conn.query(sql, params);
-    return rows;
+    const exec = conn.query(sql, params);
+    let timer = null;
+    const res = timeoutMs
+      ? await Promise.race([exec, new Promise((_, rej) => { timer = setTimeout(() => rej(Object.assign(new Error('tempo esgotado (' + Math.round(timeoutMs / 1000) + ' s): o ERP não respondeu, a tabela deve estar travada'), { code: 'TIMEOUT' })), timeoutMs); })]).finally(() => clearTimeout(timer))
+      : await exec;
+    return res[0];
   } catch(queryErr) {
+    if (queryErr.code === 'TIMEOUT') {
+      if (sensivel) travadaAte = Date.now() + PAUSA_APOS_ESTOURO;
+      try { conn.destroy(); } catch(e) {} conn = null;
+    }
     console.error('[DB-QUERY-ERR]', queryErr.code, queryErr.message, sql.substring(0,80));
     throw new Error(queryErr.message || queryErr.code || JSON.stringify(queryErr));
   } finally {
-    await conn.end().catch(()=>{});
+    if (conn) await conn.end().catch(()=>{});
   }
 }
 
