@@ -643,6 +643,7 @@ function goScreen(id){
   window.scrollTo(0,0);
   if (CUR) history.replaceState(null, '', '?id=' + CUR.id + '&tela=' + id); else if (id !== 's2') history.replaceState(null, '', location.pathname);
   if (id === 's1') carregarMonitor();
+  if (id === 's2') carregarListasErp();   // pré-carrega as listas pra busca responder na hora
   if (!CUR && id === 's3') renderAcomp(); else if (!CUR && id === 's4') renderComparativo(); else if (!CUR && id === 's5') renderPedidos();   // sem cotação escolhida: painel de escolha
   // aba aberta direto sem cotação escolhida: lista as cotações (ou oferece criar exemplos) em vez de ficar vazia
   if (!CUR && (id === 's3' || id === 's4' || id === 's5')) renderVazio($('#' + id + '-main'));
@@ -750,7 +751,7 @@ async function monObs(id){
 function replicar(lista){ if (!lista) { goScreen('s2'); return; } setLista(lista); goScreen('s2'); calcularSugestao(); }
 // ── busca de lista de compra (Tiago, 21/09: "abrir uma pesquisa pra procurar a lista onde vou selecionar")
 var LISTAS_ERP = null, _lt = null;
-async function carregarListasErp(){ if (LISTAS_ERP) return LISTAS_ERP; try { LISTAS_ERP = await api('/api/listas-compra'); } catch(e) { LISTAS_ERP = []; toastMsg('Erro ao carregar as listas: ' + e.message); } return LISTAS_ERP; }
+async function carregarListasErp(){ if (LISTAS_ERP) return LISTAS_ERP; try { var rl = await api('/api/listas-compra'); LISTAS_ERP = Array.isArray(rl) ? rl : (rl.listas || []); } catch(e) { LISTAS_ERP = []; toastMsg('Erro ao carregar as listas: ' + e.message); } return LISTAS_ERP; }
 function setLista(id, nome){ $('#ns-lista').value = id || ''; var L = (LISTAS_ERP || []).find(function(x){ return String(x.id) === String(id); }); $('#ns-lista-busca').value = id ? ('#' + id + ' ' + (nome || (L ? L.nome : '') || '')).trim() : ''; fecharListas(); }
 function fecharListas(){ var r = $('#ns-lista-res'); if (r) r.style.display = 'none'; }
 function buscarLista(v){
