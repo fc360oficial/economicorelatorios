@@ -105,6 +105,7 @@
   .fat-tb .ant{display:block;font-size:10px;color:var(--ink3);font-weight:500;margin-top:1px}
   .fat-tb .bar{display:block;height:4px;border-radius:2px;background:#EEEEEA;margin:5px 0 0 auto;width:90px}.fat-tb .bar i{display:block;height:4px;border-radius:2px;background:#F5B800}
   .fat-tb td.hoje{font-weight:800;font-size:13.5px}
+  .fat-tb tr.cd td{background:#FAFAF8;border-top:2px solid var(--ln,#DADAD6)}
   .fat-tb tfoot td{background:#FAFAF8;font-weight:800;border-top:2px solid var(--ln,#DADAD6);cursor:default}
   .card{background:#fff;border:1px solid var(--ln,#DADAD6);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;min-height:120px}
   .card-hd{padding:9px 14px;border-bottom:1px solid var(--ln,#DADAD6);display:flex;align-items:center;gap:8px;background:#FAFAF8;flex-wrap:wrap}
@@ -354,8 +355,9 @@ function renderFat() {
   const n0 = v => (v || 0).toLocaleString('pt-BR');
   const antP = (v, a) => v != null && a != null ? '<span class="' + (v >= a ? 'up' : 'dn') + '">' + pct(v) + '</span><span class="ant">ant ' + pct(a) + '</span>' : pct(v);
   const r = f.rede, on = ln => LOJA === ln ? ' on' : '';
+  const NF = r.nfe || { n: 0, v: 0, vh: 0, nh: 0, var: null }, nfeDe = l => l.nfe || { n: 0, v: 0, vh: 0, nh: 0, var: null };
   const hero = '<div class="lj rede hero' + on(0) + '" onclick="setLoja(0)" title="Ver a rede inteira">'
-    + '<div class="nm"><span>REDE · ' + f.lojas.length + ' lojas</span><span>mês até hoje</span></div>'
+    + '<div class="nm"><span>REDE · ' + f.lojas.filter(l => !l.cd).length + ' lojas</span><span>mês até hoje</span></div>'
     + '<div class="v">' + moneyK(r.venda) + '<small>mês</small></div>'
     + '<div class="var">' + moneyK(r.vendaAnt) + '<span>ano anterior</span> <span class="' + cls(r.var) + '" style="margin-left:2px">' + sgn(r.var) + '</span></div>'
     + '<div class="hero-g">'
@@ -363,20 +365,22 @@ function renderFat() {
     + '<div><span class="l">margem s/ venda</span><span class="' + (r.margem != null && r.margemAnt != null ? (r.margem >= r.margemAnt ? 'up' : 'dn') : '') + '">' + pct(r.margem) + '</span>' + (r.margemAnt != null ? '<small>ant ' + pct(r.margemAnt) + '</small>' : '') + '</div><div><span class="l">markup s/ custo</span><span class="' + (r.markup != null && r.markupAnt != null ? (r.markup >= r.markupAnt ? 'up' : 'dn') : '') + '">' + pct(r.markup) + '</span>' + (r.markupAnt != null ? '<small>ant ' + pct(r.markupAnt) + '</small>' : '') + '</div>'
     + '<div><span class="l">ticket médio</span>' + money(r.ticket) + '</div><div><span class="l">ticket médio ano anterior</span>' + (r.ticketAnt ? money(r.ticketAnt) + '<small class="' + cls(r.ticket - r.ticketAnt) + '">' + sgn((r.ticket / r.ticketAnt - 1) * 100) + '</small>' : '—') + '</div>'
     + '<div><span class="l">cupons</span>' + n0(r.cupons) + '</div><div><span class="l">cupons ano anterior</span>' + (r.cuponsAnt ? n0(r.cuponsAnt) + '<small class="' + cls(r.varCupons) + '">' + sgn(r.varCupons) + '</small>' : '—') + '</div>'
-    + '</div><div class="hero-sh"><div class="t">participação no mês</div>' + f.lojas.map(l => { const p = r.venda > 0 ? (l.venda || 0) / r.venda * 100 : 0; return '<div class="s"><span>L' + l.loja + ' ' + l.nome + '</span><i><b style="width:' + Math.min(100, p * 2.5).toFixed(1) + '%"></b></i><span>' + pct(p) + '</span></div>'; }).join('') + '</div></div>';
-  const linha = l => '<tr class="' + on(l.loja) + '" onclick="setLoja(' + l.loja + ')" title="Mostrar só esta loja em todos os segmentos (clique de novo pra voltar)">'
+    + '<div><span class="l">nf-e hoje</span>' + moneyK(NF.vh) + '<small>' + n0(NF.nh) + ' notas</small></div><div><span class="l">nf-e no mês</span>' + moneyK(NF.v) + '<small>' + n0(NF.n) + ' notas' + (NF.var != null ? ' · <b class="' + cls(NF.var) + '">' + sgn(NF.var) + '</b>' : '') + '</small></div>'
+    + '</div><div class="hero-sh"><div class="t">participação no mês</div>' + f.lojas.filter(l => !l.cd).map(l => { const p = r.venda > 0 ? (l.venda || 0) / r.venda * 100 : 0; return '<div class="s"><span>L' + l.loja + ' ' + l.nome + '</span><i><b style="width:' + Math.min(100, p * 2.5).toFixed(1) + '%"></b></i><span>' + pct(p) + '</span></div>'; }).join('') + '</div></div>';
+  const linha = l => '<tr class="' + on(l.loja) + (l.cd ? ' cd' : '') + '" onclick="setLoja(' + l.loja + ')" title="Mostrar só esta loja em todos os segmentos (clique de novo pra voltar)">'
     + '<td class="lj-nm"><i>L' + l.loja + '</i>' + l.nome + '</td>'
     + '<td class="r hoje">' + moneyK(l.hoje) + '</td>'
     + '<td class="r sep">' + antP(l.margem, l.margemAnt) + '</td><td class="r">' + antP(l.markup, l.markupAnt) + '</td>'
-    + '<td class="r sep">' + money(l.ticket) + (l.ticketAnt ? '<span class="ant">ant ' + money(l.ticketAnt) + ' · <b class="' + cls(l.ticket - l.ticketAnt) + '">' + sgn((l.ticket / l.ticketAnt - 1) * 100) + '</b></span>' : '') + '</td>'
-    + '<td class="r">' + n0(l.cupons) + '<span class="ant">' + (l.cuponsAnt ? 'ant ' + n0(l.cuponsAnt) + ' · ' : '') + '<b class="' + cls(l.varCupons) + '">' + sgn(l.varCupons) + '</b></span></td>'
+    + (l.cd ? '<td class="r sep mut">—</td><td class="r mut">—</td>' : '<td class="r sep">' + money(l.ticket) + (l.ticketAnt ? '<span class="ant">ant ' + money(l.ticketAnt) + ' · <b class="' + cls(l.ticket - l.ticketAnt) + '">' + sgn((l.ticket / l.ticketAnt - 1) * 100) + '</b></span>' : '') + '</td>'
+    + '<td class="r">' + n0(l.cupons) + '<span class="ant">' + (l.cuponsAnt ? 'ant ' + n0(l.cuponsAnt) + ' · ' : '') + '<b class="' + cls(l.varCupons) + '">' + sgn(l.varCupons) + '</b></span></td>')
+    + '<td class="r sep">' + moneyK(nfeDe(l).vh) + '<span class="ant">' + n0(nfeDe(l).nh) + ' notas</span></td><td class="r">' + moneyK(nfeDe(l).v) + '<span class="ant">' + n0(nfeDe(l).n) + ' notas' + (nfeDe(l).var != null ? ' · <b class="' + cls(nfeDe(l).var) + '">' + sgn(nfeDe(l).var) + '</b>' : '') + '</span></td>'
     + '<td class="r sep"><span class="big">' + moneyK(l.venda) + '</span></td>'
     + '<td class="r">' + moneyK(l.vendaAnt) + '<span class="ant"><b class="' + cls(l.var) + '">' + sgn(l.var) + '</b></span></td></tr>';
   const tabela = '<div class="fat-tb"><table class="m"><thead>'
-    + '<tr><th rowspan="2">Loja</th><th class="r" rowspan="2">Venda hoje</th><th class="grp" colspan="2">Rentabilidade</th><th class="grp" colspan="2">Clientes</th><th class="grp" colspan="2">Mês</th></tr>'
-    + '<tr><th class="r sep">Margem</th><th class="r">Markup</th><th class="r sep">Ticket</th><th class="r">Cupons</th><th class="r sep">Venda até hoje</th><th class="r">Ano anterior</th></tr></thead><tbody>'
+    + '<tr><th rowspan="2">Loja</th><th class="r" rowspan="2">Venda hoje</th><th class="grp" colspan="2">Rentabilidade</th><th class="grp" colspan="2">Clientes (cupons)</th><th class="grp" colspan="2">NF-e (venda por nota)</th><th class="grp" colspan="2">Mês</th></tr>'
+    + '<tr><th class="r sep">Margem</th><th class="r">Markup</th><th class="r sep">Ticket</th><th class="r">Cupons</th><th class="r sep">Hoje</th><th class="r">Mês</th><th class="r sep">Venda até hoje</th><th class="r">Ano anterior</th></tr></thead><tbody>'
     + f.lojas.map(linha).join('')
-    + '</tbody><tfoot><tr><td>Rede</td><td class="r">' + moneyK(r.hoje) + '</td><td class="r sep">' + pct(r.margem) + '</td><td class="r">' + pct(r.markup) + '</td><td class="r sep">' + money(r.ticket) + '</td><td class="r">' + n0(r.cupons) + '</td><td class="r sep">' + moneyK(r.venda) + '</td><td class="r">' + moneyK(r.vendaAnt) + '<span class="ant"><b class="' + cls(r.var) + '">' + sgn(r.var) + '</b></span></td></tr></tfoot></table></div>';
+    + '</tbody><tfoot><tr><td>Rede · 6 lojas</td><td class="r">' + moneyK(r.hoje) + '</td><td class="r sep">' + pct(r.margem) + '</td><td class="r">' + pct(r.markup) + '</td><td class="r sep">' + money(r.ticket) + '</td><td class="r">' + n0(r.cupons) + '</td><td class="r sep">' + moneyK(NF.vh) + '</td><td class="r">' + moneyK(NF.v) + '</td><td class="r sep">' + moneyK(r.venda) + '</td><td class="r">' + moneyK(r.vendaAnt) + '<span class="ant"><b class="' + cls(r.var) + '">' + sgn(r.var) + '</b></span></td></tr></tfoot></table></div>';
   document.getElementById('fat-cards').innerHTML = hero + tabela;
 }
 function renderMeta() {
