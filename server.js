@@ -7596,6 +7596,41 @@ app.get('/api/cotacoes/fornecedor/:codFornec/contato', async (req, res) => {
 // Fornecedores DA LISTA (Tiago, 15/09): os que ele escolheu ficam guardados por lista (data/cotacoes-fornecedores.json)
 // e o ERP sugere quem atende os produtos da lista (fornecedoritens), com vendedor/whats de c_cotacao_agenda.
 const COT_FORN_PATH = path.join(__dirname, 'data', 'cotacoes-fornecedores.json');
+// Conciliação planilha × ERP aprovada/recusada pela compradora (Tiago, 22/09: "aprovando você já entende daqui pra frente").
+// { aprovados: { NOME_NORMALIZADO: { codFornec, nome_erp, em, por } }, recusados: { NOME_NORMALIZADO: [codFornec…] } }
+// Semente com o que o Tiago ensinou na mão: DLP = Distribuidora e Logística de Pernambuco (206), CADAN = Comercial Vita
+// Norte (31), STYLO OURO = Gold Style Imp. e Exp. Alimentos (1311).
+const COT_CONC_PATH = path.join(__dirname, 'data', 'cotacoes-conciliacao.json');
+const COT_CONC_SEED = { 'DLP': 206, 'CADAN': 31, 'STYLO OURO': 1311 };
+function lerConciliacao() {
+  let c = null; try { c = JSON.parse(fs.readFileSync(COT_CONC_PATH, 'utf8')); } catch (e) {}
+  c = c && typeof c === 'object' ? c : {}; c.aprovados = c.aprovados || {}; c.recusados = c.recusados || {};
+  for (const [k, cod] of Object.entries(COT_CONC_SEED)) { const n = cotImport.norm(k); if (!c.aprovados[n] && !(c.recusados[n] || []).includes(cod)) c.aprovados[n] = { codFornec: cod, nome_erp: null, em: null, por: 'seed' }; }
+  return c;
+}
+function salvarConciliacao(c) { fs.mkdirSync(path.dirname(COT_CONC_PATH), { recursive: true }); fs.writeFileSync(COT_CONC_PATH, JSON.stringify(c, null, 2)); }
+// aplica as aprovadas nos fornecedores salvos de uma lista que ficaram sem vínculo (codFornec 0)
+async function aplicarConciliacaoSalvos(salvos) {
+  try {
+    const c = lerConciliacao(); const pend = (salvos || []).filter(f => !f.codFornec && c.aprovados[cotImport.norm(f.nome_planilha || f.nome)]);
+    if (!pend.length) return;
+    const cods = [...new Set(pend.map(f => c.aprovados[cotImport.norm(f.nome_planilha || f.nome)].codFornec))];
+    const rows = await q(`SELECT CodFornec, Nome, NomeCompleto, CNPJ FROM central.fornecedor WHERE CodFornec IN (${cods.map(() => '?').join(',')})`, cods).catch(() => []);
+    const por = {}; for (const r of rows) por[+r.CodFornec] = r;
+    for (const f of pend) { const a = c.aprovados[cotImport.norm(f.nome_planilha || f.nome)], r = por[a.codFornec]; if (!r) continue; f.nome_planilha = f.nome_planilha || f.nome; f.codFornec = +r.CodFornec; f.nome = String(r.NomeCompleto || r.Nome || '').trim(); f.cnpj = String(r.CNPJ || '').replace(/\D/g, '') || null; f.casou = 'aprovado'; }
+  } catch (e) { console.error('[COT-CONC]', e.message); }
+}
+app.post('/api/cotacoes/conciliacao', (req, res) => {
+  try {
+    const nome = cotImport.norm(req.body?.nome_planilha || ''), cod = parseInt(req.body?.codFornec) || 0, acao = req.body?.acao;
+    if (!nome) return res.status(400).json({ error: 'nome da planilha vazio' });
+    const c = lerConciliacao();
+    if (acao === 'aprovar') { if (!cod) return res.status(400).json({ error: 'sem fornecedor do ERP' }); c.aprovados[nome] = { codFornec: cod, nome_erp: String(req.body?.nome_erp || '').slice(0, 120) || null, em: new Date().toISOString(), por: cotUser(req) }; c.recusados[nome] = (c.recusados[nome] || []).filter(x => x !== cod); }
+    else if (acao === 'recusar') { if (c.aprovados[nome] && (!cod || c.aprovados[nome].codFornec === cod)) delete c.aprovados[nome]; if (cod) { c.recusados[nome] = [...new Set([...(c.recusados[nome] || []), cod])]; } }
+    else return res.status(400).json({ error: 'ação inválida' });
+    salvarConciliacao(c); res.json({ ok: true, aprovados: Object.keys(c.aprovados).length, recusados: Object.keys(c.recusados).length });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 const lerCotForn = () => { try { return JSON.parse(fs.readFileSync(COT_FORN_PATH, 'utf8')); } catch (e) { return {}; } };
 app.get('/api/cotacoes/lista/:lista/fornecedores', async (req, res) => {
   try {
@@ -7621,13 +7656,14 @@ app.get('/api/cotacoes/lista/:lista/fornecedores', async (req, res) => {
         erp = top.map(([cf, n]) => ({ codFornec: +cf, nome: nomeDe[+cf] || ('Fornecedor ' + cf), atende: n, total: cods.length, vendedor: vendDe[+cf] || null }));
       }
     }
+    await aplicarConciliacaoSalvos(salvos);
     res.json({ lista: id, salvos, da_ultima_cotacao: daUltima, ultima_cotacao: ult ? { id: ult.id, nome: ult.nome, criadoEm: ult.criadoEm } : null, erp, total_itens: cods.length });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.post('/api/cotacoes/lista/:lista/fornecedores', (req, res) => {
   try {
     const id = parseInt(req.params.lista); if (!(id > 0)) return res.status(400).json({ error: 'nº da lista inválido' });
-    const lista = (Array.isArray(req.body?.fornecedores) ? req.body.fornecedores : []).map(f => ({ codFornec: parseInt(f.codFornec) || 0, nome: String(f.nome || '').slice(0, 120), nome_planilha: f.nome_planilha ? String(f.nome_planilha).slice(0, 120) : null, cnpj: f.cnpj ? String(f.cnpj).replace(/\D/g, '').slice(0, 14) : null, casou: f.casou || null, outros: Array.isArray(f.outros) ? f.outros.slice(0, 10).map(String) : null, inativo: !!f.inativo, inativo_em: f.inativo ? (f.inativo_em || new Date().toISOString()) : null, faturamento_minimo: (parseFloat(String(f.faturamento_minimo ?? '').replace(/\./g, '').replace(',', '.')) || null), condicao: f.condicao ? String(f.condicao).slice(0, 80) : null, prazo_entrega: parseInt(f.prazo_entrega) || null, obs: f.obs ? String(f.obs).slice(0, 300) : null, vendedor: { nome: String(f.vendedor?.nome || '').slice(0, 80), whats: String(f.vendedor?.whats || '').replace(/\D/g, '').slice(0, 20), email: String(f.vendedor?.email || '').slice(0, 120) } })).filter(f => f.codFornec > 0 || f.nome);
+    const lista = (Array.isArray(req.body?.fornecedores) ? req.body.fornecedores : []).map(f => ({ codFornec: parseInt(f.codFornec) || 0, nome: String(f.nome || '').slice(0, 120), nome_planilha: f.nome_planilha ? String(f.nome_planilha).slice(0, 120) : null, cnpj: f.cnpj ? String(f.cnpj).replace(/\D/g, '').slice(0, 14) : null, vendedores: (Array.isArray(f.vendedores) ? f.vendedores : []).map(v => ({ nome: String(v.nome || '').trim().slice(0, 80), whats: String(v.whats || '').replace(/\D/g, '').slice(0, 20), email: String(v.email || '').trim().slice(0, 120) })).filter(v => v.nome || v.whats || v.email).slice(0, 6), casou: f.casou || null, outros: Array.isArray(f.outros) ? f.outros.slice(0, 10).map(String) : null, inativo: !!f.inativo, inativo_em: f.inativo ? (f.inativo_em || new Date().toISOString()) : null, faturamento_minimo: (parseFloat(String(f.faturamento_minimo ?? '').replace(/\./g, '').replace(',', '.')) || null), condicao: f.condicao ? String(f.condicao).slice(0, 80) : null, prazo_entrega: parseInt(f.prazo_entrega) || null, obs: f.obs ? String(f.obs).slice(0, 300) : null, vendedor: { nome: String(f.vendedor?.nome || '').slice(0, 80), whats: String(f.vendedor?.whats || '').replace(/\D/g, '').slice(0, 20), email: String(f.vendedor?.email || '').slice(0, 120) } })).filter(f => f.codFornec > 0 || f.nome);
     const todos = lerCotForn(); todos[id] = lista; todos[id + '_em'] = new Date().toISOString(); todos[id + '_por'] = cotUser(req);
     fs.mkdirSync(path.dirname(COT_FORN_PATH), { recursive: true }); fs.writeFileSync(COT_FORN_PATH, JSON.stringify(todos, null, 2));
     res.json({ ok: true, salvos: lista.length });
@@ -7641,8 +7677,12 @@ app.post('/api/cotacoes/fornecedores/importar', uploadPlanilhaCot.single('planil
   try {
     if (!req.file) return res.status(400).json({ error: 'Envie a planilha (.xlsx) no campo "planilha"' });
     const p = await cotImport.parsePlanilha(req.file.buffer);
-    const forn = await q('SELECT CodFornec, Nome, NomeCompleto, CNPJ FROM central.fornecedor').catch(() => []);
-    const casados = cotImport.casar(p.linhas, forn);
+    const forn = await q('SELECT CodFornec, Nome, NomeCompleto, CNPJ, Fone, Celular, CelularCotacao FROM central.fornecedor').catch(() => []);
+    // telefones dos vendedores que já cotaram listas (agenda do ERP) → fornecedor: casa por WhatsApp quando o nome não ajuda
+    const telefones = {};
+    for (const r of await q('SELECT l.CodFornec cf, a.whats FROM central.c_cotacao_agenda a JOIN central.c_cotacao_lista l ON l.nReg=a.nLista WHERE l.CodFornec>0').catch(() => [])) { const k = cotImport.fone8(r.whats); if (k && !telefones[k]) telefones[k] = +r.cf; }
+    const conc = lerConciliacao();
+    const casados = cotImport.casar(p.linhas, forn, { telefones, aprovados: Object.fromEntries(Object.entries(conc.aprovados).map(([k, v]) => [k, v.codFornec])), recusados: conc.recusados });
     // vendedor/whats do ERP pra quem casou e veio sem contato na planilha
     const cfs = [...new Set(casados.filter(c => c.codFornec).map(c => c.codFornec))];
     const vendDe = {};
