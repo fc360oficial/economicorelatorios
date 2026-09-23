@@ -566,6 +566,7 @@ table.ppg tr.vl:nth-child(4n+1) td{background:#fff}
 table.ppg .vlr{font-size:14.5px;padding:5px 10px}
 table.ppg input.q{width:76px;font-size:14.5px;font-weight:700;padding:7px 8px}
 .pp-est{font-size:11.5px;margin-top:4px;text-align:center}
+.cdtag{display:inline-block;background:#101B33;color:#FFC933;font-size:9px;font-weight:800;letter-spacing:.3px;padding:1px 5px;border-radius:5px;margin-left:5px;vertical-align:middle;line-height:1.4}
 </style>
 </head>
 <body>
@@ -725,6 +726,10 @@ table.ppg input.q{width:76px;font-size:14.5px;font-weight:700;padding:7px 8px}
 <div id="toast"></div>
 
 <script>
+
+// Sigla CD: produto com estoque no CD (loja 10) — /api/estoque-cd (Tiago, 23/09/2026)
+var CDSET=null;fetch('/api/estoque-cd').then(function(r){return r.json()}).then(function(j){CDSET=j.cods||{};document.querySelectorAll('.cdtag[data-cd]').forEach(function(e){var q=CDSET[e.getAttribute('data-cd')];if(q>0){e.hidden=false;e.title='Tem '+q+' no CD';}});}).catch(function(){CDSET={};});
+function cdTag(cod){cod=String(cod||'').trim();if(CDSET===null)return '<span class="cdtag" data-cd="'+cod+'" hidden>CD</span>';var q=CDSET[cod];return q>0?'<span class="cdtag" title="Tem '+q+' no CD">CD</span>':'';}
 // ───────── helpers
 var $ = function(s){ return document.querySelector(s); };
 var esc = function(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); };
@@ -1419,7 +1424,7 @@ function renderComparativoItens(){
   h += itens.map(function(i){
     var u = U[i.cod], base = (u && u.preco) || i.ultimo_custo || 0, v = i.vencedor, q = L ? (i.lojas_qtd[L] || 0) : i.qtd, rec = !!CI_REC[i.cod], k = K[i.cod];
     var quem = F.filter(function(f){ return i.precos[f.codFornec]; }), naoCot = F.filter(function(f){ return !i.precos[f.codFornec]; });
-    var x = '<div class="citem club' + (rec ? ' rec' : '') + '" id="ci-' + esc(i.cod) + '"><div class="cihd" onclick="ciRec(\'' + esc(i.cod) + '\')"><div><span class="chev">⌄</span> <b>' + esc(i.descricao) + '</b> <span class="mini" style="color:var(--amk)">' + esc(i.unid || 'UN') + '|' + i.emb + '</span>' + (i.curva_a ? ' <span class="an-badge bad" style="padding:1px 7px">curva A</span>' : '') + (k && k.grupo ? ' <span class="mini" style="color:var(--amk)">· ' + esc(k.grupo) + (k.subgrupo ? ' / ' + esc(k.subgrupo) : '') + '</span>' : '') + '<br><span class="cod">Código: ' + esc(i.cod) + '</span>' + (i.nao_comprar ? ' <span class="mini" style="color:var(--neg);font-weight:700">· não comprar</span>' : '') + '</div>' +
+    var x = '<div class="citem club' + (rec ? ' rec' : '') + '" id="ci-' + esc(i.cod) + '"><div class="cihd" onclick="ciRec(\'' + esc(i.cod) + '\')"><div><span class="chev">⌄</span> <b>' + esc(i.descricao) + '</b>' + cdTag(i.cod) + ' <span class="mini" style="color:var(--amk)">' + esc(i.unid || 'UN') + '|' + i.emb + '</span>' + (i.curva_a ? ' <span class="an-badge bad" style="padding:1px 7px">curva A</span>' : '') + (k && k.grupo ? ' <span class="mini" style="color:var(--amk)">· ' + esc(k.grupo) + (k.subgrupo ? ' / ' + esc(k.subgrupo) : '') + '</span>' : '') + '<br><span class="cod">Código: ' + esc(i.cod) + '</span>' + (i.nao_comprar ? ' <span class="mini" style="color:var(--neg);font-weight:700">· não comprar</span>' : '') + '</div>' +
       '<div style="text-align:right" onclick="event.stopPropagation()"><span style="font-size:15px">Quantidade: <b>' + fmtN(q) + '</b></span>' + (i.emb > 1 ? ' <span class="mini">(' + Math.ceil(q / i.emb) + ' cx de ' + i.emb + ')</span>' : '') + (L ? '' : (Object.keys(i.lojas_qtd || {}).length > 1 ? '<br><span class="mini">' + Object.keys(i.lojas_qtd).map(function(l){ return 'L' + l + ' ' + i.lojas_qtd[l]; }).join(' · ') + '</span>' : '')) +
       (i.fechado ? '<br><span class="lock-pill" title="Este item já está num pedido realizado. Pedido fechado não muda.">🔒 pedido #' + i.pedidoId + ' realizado</span>' : aberta ? '<br><span class="sel-vc" style="justify-content:flex-end"><button class="' + (!i.manual && !i.nao_comprar ? 'on' : '') + '" onclick="escolher(\'' + esc(i.cod) + '\',\'auto\')">auto (menor)</button><button class="' + (i.nao_comprar ? 'on' : '') + '" onclick="escolher(\'' + esc(i.cod) + '\',\'nao\')">não comprar</button></span>' : '') + '</div></div><div class="cibody">';
     x += '<div class="ciult"><span>Dados da ultima compra: <span class="ico2">▪</span></span>' + (u ? '<span>Valor: ' + (u.preco ? fmtN(u.preco, 2) : '—') + '</span><span>Fornecedor: ' + esc(u.fornecedor || ('cód. ' + u.cf)) + '</span><span>Data: ' + dd(u.data) + '</span><span>Quantidade: ' + fmtN(u.qtd) + (u.loja ? ' <span class="mini">(L' + u.loja + ')</span>' : '') + '</span>' : '<span>sem nota de entrada nos últimos 24 meses</span><span>Último custo (cadastro): ' + (i.ultimo_custo > 0 ? fmtN(i.ultimo_custo, 2) : '—') + '</span>') + '</div>';

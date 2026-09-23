@@ -7000,6 +7000,11 @@ app.post('/api/listas-compra/sortimento/recalcular', async (req, res) => {
   catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Produtos com estoque no CD (loja 10) — sigla "CD" nas telas de pedido/sugestão (Tiago, 23/09/2026). Só leitura.
+app.get('/api/estoque-cd', withCache(5), async (req, res) => {
+  try { const rows = await q(`SELECT CodigoBarra cod, Qtd FROM central.estoquen10 WHERE Qtd > 0`); const cods = {}; for (const r of rows) cods[String(r.cod).trim()] = +Number(r.Qtd).toFixed(3); res.json({ cods, n: rows.length }); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
 app.get('/api/radar-pedidos', async (req, res) => {
   try {
     if (req.query.refresh === '1') await radarPedidos.recalcular(req.query.lead === '1');
