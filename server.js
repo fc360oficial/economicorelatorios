@@ -7977,7 +7977,8 @@ app.post('/api/cotacoes/fornecedores/importar', uploadPlanilhaCot.single('planil
 // pedido gerado ao fechar uma cotação (usado pelo fechar real e pelos exemplos de teste)
 async function criarPedidoDaCotacao(f, itens, c, usuario, extra) {
   const detalhe = { fazer_em: 0, gatilho: 'lista', fazer_em_lista: 0, itens: itens.map(i => ({ cod: i.cod, descricao: i.descricao, unid: i.unid, emb: i.emb, qtd: i.qtd, volumes: i.volumes, lojas_qtd: i.lojas_qtd, custo: i.ultimo_custo || 0, curva_a: !!i.curva_a, risco_a: false, cobertura_dias: i.cobertura_dias ?? null })) };
-  const lista = { lista: c.lista, nome: `${c.nome} · ${f.nome}`, fornecedor: f.nome, codFornec: f.codFornec, pedidoMinimo: null };
+  // codFornecErp = fornecedor do ERP (avarias, XML por CNPJ, histórico); codFornec pode ser a chave do concorrente (empresa com vários vendedores)
+  const lista = { lista: c.lista, nome: `${c.nome} · ${f.nome}`, fornecedor: f.nome, codFornec: f.codFornecErp || f.codFornec, pedidoMinimo: null };
   const cadastro = { vendedor: (f.vendedor?.nome || f.vendedor?.whats) ? { nome: f.vendedor.nome, whats: f.vendedor.whats, email: f.vendedor.email } : null, comprador: c.comprador || null, prazo_pagamento: f.condicao || null };
   const p = pedidosFornec.criar({ lista, cadastro, detalhe, teto: c.parametros?.cobertura || radarPedidos.TETO_PADRAO, embMeses: c.parametros?.embMeses ?? undefined, usuario, modo: 'completa', origem: 'cotacao' });
   pedidosFornec.salvarPrecos(p.token, itens.map(i => ({ cod: i.cod, preco: i.preco, obs: i.obs || '' })));
@@ -8009,9 +8010,15 @@ async function criarCotacaoTeste(usuario, cenario, diasAtras, seq) {
     { codFornec: 999003, nome: 'FORNECEDOR TESTE 3 (DISTRIB. DO VALE)', vendedor: { nome: 'Carlos Teste', whats: '', email: 'teste3@exemplo.com' }, faturamento_minimo: null, condicao: '14 dias', prazo_entrega: 2 },
     { codFornec: 999004, nome: 'FORNECEDOR TESTE 4 (MEGA ATACADO)', vendedor: { nome: 'Ana Teste', whats: '5581999990004', email: 'teste4@exemplo.com' }, faturamento_minimo: 1000, condicao: '30 dias', prazo_entrega: 4 }
   ].slice(0, cenario === 'prepedido' ? 4 : 2 + (seq % 3));
+  if (cenario === 'vendedores') {
+    // empresa com 3 vendedores → vira 3 concorrentes "DIA · Fulano" (cada um com link e preços próprios) + 1 concorrente comum
+    forns.length = 0;
+    forns.push({ codFornec: 999005, nome: 'DIA DISTRIBUIDORA (TESTE)', vendedor: { nome: 'Ana Teste', whats: '5581999990005', email: 'ana@dia.teste' }, vendedores: [{ nome: 'Bruno Teste', whats: '5581999990006', email: '' }, { nome: 'Clara Teste', whats: '5581999990007', email: 'clara@dia.teste' }], faturamento_minimo: 500, condicao: 'Boleto 28 dias', prazo_entrega: 3 },
+               { codFornec: 999001, nome: 'FORNECEDOR TESTE 1 (SABOR & CIA)', vendedor: { nome: 'Maria Teste', whats: '5581999990001', email: 'teste1@exemplo.com' }, faturamento_minimo: 600, condicao: '28 dias', prazo_entrega: 3 });
+  }
   const criado = new Date(); criado.setDate(criado.getDate() - diasAtras); criado.setHours(9 + seq, 15 * seq, 0, 0);
   const prazo = new Date(criado); prazo.setDate(prazo.getDate() + 2);
-  const nomes = { fechada: 'Cotação de Alimentos', analise: 'Cotação Mercearia Seca', digitacao: 'Cotação Bebidas', aguardando: 'Cotação Limpeza', cancelada: 'Cotação Perecíveis', prepedido: 'Cotação Pré-pedido (exemplo)' };
+  const nomes = { fechada: 'Cotação de Alimentos', analise: 'Cotação Mercearia Seca', digitacao: 'Cotação Bebidas', aguardando: 'Cotação Limpeza', cancelada: 'Cotação Perecíveis', prepedido: 'Cotação Pré-pedido (exemplo)', vendedores: 'Cotação DIA · 3 vendedores (exemplo)' };
   const c0 = cotacao.criar({ nome: (nomes[cenario] || 'Cotação') + ' (TESTE) ' + criado.toLocaleDateString('pt-BR'), lista: det ? det.lista.lista : 277, lista_nome: det ? det.lista.nome : 'COTAÇÃO DE ALIMENTOS', comprador: { nome: usuario || 'Compradora Teste', whats: null }, prazo: prazo.toISOString().slice(0, 10), parametros: { cobertura: 28, ponto: 3, embMeses: 36, teste: true, cenario }, itens, fornecedores: forns, usuario });
   cotacao.marcarTeste(c0.id);
   cotacao.patchTeste(c0.id, { criadoEm: criado.toISOString() });
@@ -8023,6 +8030,12 @@ async function criarCotacaoTeste(usuario, cenario, diasAtras, seq) {
   } else if (cenario === 'digitacao') {
     cota(F[0], () => true, k => 0.92 + (k % 4) * 0.03, 5, F[0].condicao_padrao);
     cotacao.abrir(F[1].token); cotacao.salvarPrecos(F[1].token, c.itens.slice(0, 2).map(i => ({ cod: i.cod, preco: r2(i.ultimo_custo * 0.97) })), {});
+  } else if (cenario === 'vendedores') {
+    // Ana (DIA) respondeu tudo · Bruno (DIA) está digitando e já bateu o preço em 2 itens · Clara (DIA) nem abriu · Teste 1 respondeu
+    const ana = F.find(x => x.codFornec === 999005), bruno = F.find(x => x.codFornec === 999005000001), t1 = F.find(x => x.codFornec === 999001);
+    if (ana) cota(ana, () => true, k => 0.9 + (k % 4) * 0.03, 4, ana.condicao_padrao);
+    if (t1) cota(t1, () => true, k => 0.88 + ((k + 1) % 4) * 0.04, 5, t1.condicao_padrao);
+    if (bruno) { cotacao.abrir(bruno.token); cotacao.salvarPrecos(bruno.token, c.itens.slice(0, 2).map(i => ({ cod: i.cod, preco: r2(i.ultimo_custo * 0.86), obs: 'preço só pra hoje' })), {}); }
   } else if (cenario === 'cancelada') { cotacao.cancelar(c.id, usuario); }
   else if (cenario === 'prepedido') {
     // todos cotam tudo, com preços cruzados (cada fornecedor ganha alguns itens) → 3 situações na aba Pré-pedidos:
@@ -8042,8 +8055,8 @@ async function criarCotacaoTeste(usuario, cenario, diasAtras, seq) {
 app.post('/api/cotacoes/teste', async (req, res) => {
   try {
     const usuario = cotUser(req);
-    const cenarios = req.body?.cenario ? [req.body.cenario] : ['fechada', 'analise', 'digitacao', 'aguardando', 'cancelada', 'prepedido'];
-    const dias = { fechada: 21, analise: 6, digitacao: 2, aguardando: 0, cancelada: 12, prepedido: 1 };
+    const cenarios = req.body?.cenario ? [req.body.cenario] : ['fechada', 'analise', 'digitacao', 'aguardando', 'cancelada', 'prepedido', 'vendedores'];
+    const dias = { fechada: 21, analise: 6, digitacao: 2, aguardando: 0, cancelada: 12, prepedido: 1, vendedores: 0 };
     const criadas = [];
     for (let k = 0; k < cenarios.length; k++) { const c = await criarCotacaoTeste(usuario, cenarios[k], dias[cenarios[k]] ?? 0, k); criadas.push({ id: c.id, nome: c.nome, status: c.status, cenario: cenarios[k] }); }
     res.json({ criadas });
