@@ -58,3 +58,19 @@ test('novos: loja com trânsito (CD ou fornecedor) não recebe nova caixa até c
   assert.deepEqual([1, 2, 3, 4, 5, 6].map(ln => n.lojas[ln].cx), [0, 1, 0, 1, 1, 1]);
   assert.equal(n.lojas[1].transito, 72);
 });
+
+// Tiago, 22/09/2026: Fandangos com 1.187 un na L1 e venda zero caía em "produto novo" com 1 cx sem aviso nenhum.
+// Mantém a caixa, mas sinaliza o estoque parado pra conferir no ERP/loja (e zerar no ERP se não existir).
+test('novos: produto com estoque parado na loja (sem venda) mantém 1 cx e sinaliza a loja', () => {
+  const vinc2 = { ...vinc, '17892840825079': { codigoCD: '17892840825079', unidade: '7892840825072', unPorCaixa: 50, status: 'confirmado' } };
+  const b2 = { ...base,
+    cd: { ...base.cd, '17892840825079': { descricao: 'FANDANGOS CX50', estoqueCx: 23, unPorCaixaCadastro: 50 } },
+    un: { ...base.un, '7892840825072': { descricao: 'FANDANGOS 21G', validade: 0, custo: 0.76, porLoja: { 1: { vq: 0, est: 1187 }, 2: { vq: 0, est: 0 } } } } };
+  const { novos } = cd.calcularSugestao(b2, vinc2, cfg, {});
+  const n = novos.find(i => i.codigoCD === '17892840825079');
+  assert.equal(n.origem, 'novo');
+  assert.equal(n.lojas[1].cx, 1);
+  assert.deepEqual(n.estoqueParado, [{ ln: 1, est: 1187 }]);
+  const semEstoque = novos.find(i => i.codigoCD === '17509546679171');
+  assert.equal(semEstoque.estoqueParado, null);
+});
