@@ -934,6 +934,9 @@ function exportarModalCsv(){
 }
 
 // ───────── NOVA COTAÇÃO — sugestão de compra (topo)
+// Hora do último cálculo do Radar (Tiago, 23/09/26): depois de um restart o servidor serve a base anterior até o recálculo
+// terminar (1 a 8 min); sem isso parecia que uma correção "não tinha mudado nada".
+function radarEstadoHtml(e){ if (!e) return ''; var t = e.atualizadoEm ? new Date(e.atualizadoEm) : null; var hh = t ? t.toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'}) : '—'; var dia = t && t.toDateString() !== new Date().toDateString() ? t.toLocaleDateString('pt-BR').slice(0, 5) + ' ' : ''; if (e.status === 'calculando') return '<span class="warn" title="O Radar está recalculando a base do ERP; até terminar, a sugestão usa o cálculo anterior. Clique em Calcular sugestão de novo daqui a pouco.">Radar recalculando… (mostrando o cálculo de ' + dia + hh + ')</span>'; return '<span title="Estoque, venda e trânsito vêm do último cálculo do Radar">Radar calculado ' + dia + hh + '</span>'; }
 async function calcularSugestao(manter){
   var lista = parseInt($('#ns-lista').value); if (!(lista > 0)) { toastMsg('Escolha a lista de compra na busca'); $('#ns-lista-busca').focus(); return; }
   var btn = $('#ns-btn'); btn.disabled = true; btn.textContent = 'Calculando…'; $('#ns-info').innerHTML = '';
@@ -954,7 +957,7 @@ async function calcularSugestao(manter){
       (L.fornecedor ? '<span>Fornecedor da lista: <b>' + esc(L.fornecedor) + '</b></span>' : '') +
       (L.comprador ? '<span>Comprador(a): <b>' + esc(L.comprador) + '</b></span>' : '') +
       '<span>Produtos: <b>' + SUG.itens.length + '</b> · com quantidade: <b>' + SUG.com_qtd + '</b> · volumes: <b>' + fmtN(SUG.volumes) + '</b> · a custo: <b>' + fmtR(SUG.total) + '</b></span>' +
-      (SUG.sem_lead ? '<span class="warn">Lista sem lead time no ERP: usando cobertura ' + SUG.parametros.cobertura + ' d + prazo ' + SUG.parametros.ponto + ' d</span>' : (P ? '<span>Lead real: ponto ' + fmtN(P.ponto, 1) + ' d · alvo ' + fmtN(P.alvoLista, 1) + ' d</span>' : ''));
+      (SUG.sem_lead ? '<span class="warn">Lista sem lead time no ERP: usando cobertura ' + SUG.parametros.cobertura + ' d + prazo ' + SUG.parametros.ponto + ' d</span>' : (P ? '<span>Lead real: ponto ' + fmtN(P.ponto, 1) + ' d · alvo ' + fmtN(P.alvoLista, 1) + ' d</span>' : '')) + radarEstadoHtml(SUG.estado);
     var nomeSug = 'Cotação ' + (L.nome || 'lista ' + L.lista) + ' ' + new Date().toLocaleDateString('pt-BR');
     $('#ns-nome').value = nomeSug;
     $('#ns-comprador').value = (SUG.cadastro && SUG.cadastro.comprador && SUG.cadastro.comprador.nome) || L.comprador || '';
