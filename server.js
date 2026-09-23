@@ -7463,13 +7463,13 @@ app.get('/api/pedido-publico/:token', (req, res) => {
   res.json(pedidosFornec.visaoVendedor(p));
 });
 app.post('/api/pedido-publico/:token/salvar', (req, res) => {
-  const p = pedidosFornec.salvarPrecos(req.params.token, req.body.itens, req.body.avaria_resposta);
+  const p = pedidosFornec.salvarPrecos(req.params.token, req.body.itens, req.body.avaria_resposta, typeof req.body.obs_pedido === 'string' ? req.body.obs_pedido : undefined);
   if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
   if (p.erro) return res.status(409).json({ error: p.erro });
   res.json({ ok: true, status: p.status, atualizadoEm: p.atualizadoEm });
 });
 app.post('/api/pedido-publico/:token/finalizar', (req, res) => {
-  const p0 = pedidosFornec.salvarPrecos(req.params.token, req.body.itens || [], typeof req.body.avaria_resposta === 'string' ? req.body.avaria_resposta : undefined);
+  const p0 = pedidosFornec.salvarPrecos(req.params.token, req.body.itens || [], typeof req.body.avaria_resposta === 'string' ? req.body.avaria_resposta : undefined, typeof req.body.obs_pedido === 'string' ? req.body.obs_pedido : undefined);
   if (!p0) return res.status(404).json({ error: 'Pedido não encontrado' });
   // Regra do Tiago (23/09/2026): pedido com avaria pendente só finaliza depois que o vendedor responde sobre as avarias
   if ((p0.avarias?.itens || []).length && !String(p0.avarias.resposta_vendedor || '').trim()) return res.status(400).json({ error: 'Responda sobre as avarias pendentes antes de finalizar o pedido.' });

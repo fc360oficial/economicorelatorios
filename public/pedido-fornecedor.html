@@ -77,7 +77,8 @@ function render(){
       '<td class="r">'+(fin?'<b>'+(i.preco!=null?'R$ '+fmt(i.preco):'—')+'</b>':'<input class="preco'+(i.preco!=null?' ok':'')+'" inputmode="decimal" data-cod="'+esc(i.cod)+'" value="'+(i.preco!=null?fmt(i.preco):'')+'" placeholder="0,00">')+'</td>'+
       '<td>'+(fin?esc(i.obs||'')||'<span style="color:#98A0B3">—</span>':'<input class="obs" data-cod="'+esc(i.cod)+'" value="'+esc(i.obs||'')+'" placeholder="ex.: sem estoque, substituir por…" maxlength="200">')+'</td></tr>';
   }
-  h+='</tbody></table></div><div class="tot" id="tot"></div></div>';
+  h+='</tbody></table></div><div class="tot" id="tot"></div>'
+    +'<div style="padding:10px 14px;border-top:1px solid #EEEEEA"><label style="font-size:11px;font-weight:800;color:#4E5A72;text-transform:uppercase;letter-spacing:.04em">Observação sobre o pedido</label>'+(fin?'<div style="margin-top:4px">'+(esc(P.obs_vendedor)||'<span style="color:#98A0B3">—</span>')+'</div>':'<input class="obs" id="obsped" value="'+esc(P.obs_vendedor||'')+'" placeholder="ex.: entrega na quinta / faltou item X, substituo por Y / prazo especial" maxlength="600" style="margin-top:4px">')+'</div></div>';
   // AVARIAS PENDENTES: bloco separado, embaixo dos itens. Pedido só é autorizado com a resolução.
   if(P.avarias&&P.avarias.itens.length){
     const A=P.avarias;
@@ -113,13 +114,13 @@ function render(){
   } else { const {t,n}=totais(); $('#tot').innerHTML='<span>'+n+' de '+P.itens.length+' itens com preço</span><span>Total: <b>R$ '+fmt(t)+'</b></span>'; }
 }
 function agendarSave(){clearTimeout(saveTimer);saveTimer=setTimeout(salvar,900);}
-async function salvar(){if(!dirty)return;dirty=false;try{await fetch('/api/pedido-publico/'+token+'/salvar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({itens:itensForm(),avaria_resposta:(document.getElementById('avresp')||{}).value})});}catch(e){dirty=true;}}
+async function salvar(){if(!dirty)return;dirty=false;try{await fetch('/api/pedido-publico/'+token+'/salvar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({itens:itensForm(),avaria_resposta:(document.getElementById('avresp')||{}).value,obs_pedido:(document.getElementById('obsped')||{}).value})});}catch(e){dirty=true;}}
 $('#btnFim').onclick=async()=>{
   const {n}=totais();
   const av=document.getElementById('avresp'); if(P.avarias&&P.avarias.itens&&P.avarias.itens.length&&av&&!av.value.trim()){ alert('Responda sobre as avarias pendentes (campo "Sua resposta sobre as avarias") antes de finalizar o pedido.'); av.focus(); try{av.scrollIntoView({block:'center'});}catch(e){} return; }
   if(!confirm(n<P.itens.length?'Ainda tem '+(P.itens.length-n)+' item(ns) sem preço. Finalizar mesmo assim?':'Finalizar o pedido? Depois disso não dá mais pra alterar.')) return;
   $('#btnFim').disabled=true;
-  try{const r=await fetch('/api/pedido-publico/'+token+'/finalizar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({itens:itensForm(),nome:(P.vendedor&&P.vendedor.nome)||'',avaria_resposta:(document.getElementById('avresp')||{}).value})});const j=await r.json();if(!r.ok||j.error){alert(j.error||'Não foi possível finalizar.');$('#btnFim').disabled=false;return;}P=j;render();window.scrollTo(0,0);}
+  try{const r=await fetch('/api/pedido-publico/'+token+'/finalizar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({itens:itensForm(),nome:(P.vendedor&&P.vendedor.nome)||'',avaria_resposta:(document.getElementById('avresp')||{}).value,obs_pedido:(document.getElementById('obsped')||{}).value})});const j=await r.json();if(!r.ok||j.error){alert(j.error||'Não foi possível finalizar.');$('#btnFim').disabled=false;return;}P=j;render();window.scrollTo(0,0);}
   catch(e){alert('Não foi possível finalizar. Tente de novo.');$('#btnFim').disabled=false;}
 };
 window.addEventListener('beforeunload',()=>{if(dirty)salvar();});
