@@ -8,6 +8,8 @@ test('moduloDaRota: página, api, fora do mapa', () => {
   assert.equal(m.moduloDaRota('/api/comparativo-lojas?mes=1'), 'analise');
   assert.equal(m.moduloDaRota('/sugestao-compras.html'), 'compras');
   assert.equal(m.moduloDaRota('/api/pendencias'), 'processos');
+  assert.equal(m.moduloDaRota('/log.html'), 'processos');
+  assert.equal(m.moduloDaRota('/api/log-erp/executar'), 'processos');
   assert.equal(m.moduloDaRota('/gestao-gerencial.html'), null);
   assert.equal(m.moduloDaRota('/api/admin/usuarios'), null);
   assert.equal(m.moduloDaRota('/api/me'), null);

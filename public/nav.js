@@ -91,7 +91,8 @@
       ]},
     { id: 'processos', ic: 'folder', txt: 'Processos', sub: [
         { href: '/pendencias.html', ic: 'alert', txt: 'Pendências' },
-        { href: '/negativos.html', ic: 'alert', txt: 'Negativos' }
+        { href: '/negativos.html', ic: 'alert', txt: 'Negativos' },
+        { href: '/log.html', ic: 'list', txt: 'Log' }
       ]}
   ];
 

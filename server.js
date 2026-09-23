@@ -368,6 +368,53 @@ const ESCRITA_PERMITIDA = /^\s*(?:insert\s+into|create\s+table\s+if\s+not\s+exis
 function ehLeitura(sql) { sql = String(sql); return SQL_SOMENTE_LEITURA.test(sql) || ESCRITA_PERMITIDA.test(sql); }
 console.log('[DB] ERP em ' + dbConfig.host + (ERP_PROTEGIDO ? ' (produção, SOMENTE LEITURA)' : ' (escrita liberada)'));
 
+// ── ESCRITA NO MYSQL DE TESTE (.254) + LOG ──────────────────────────────────
+// Toda mudança de teste passa por escreverERP (lib/escrever-erp.js), que conecta em dbTeste
+// (127.0.0.1 no .254, nunca o .252), grava antes/depois e registra em data/log-erp/AAAA-MM.jsonl.
+// Tela: Processos > Log (public/log.html). Spec: docs/superpowers/specs/2026-09-23-log-mudancas-erp-design.md
+const { criarEscreverERP } = require('./lib/escrever-erp');
+const logErp = require('./lib/log-erp');
+const dbTeste = { host: process.env.DB_TESTE_HOST || '127.0.0.1', port: 3306, user: 'root', password: '1900', connectTimeout: 15000 };
+const LOG_ERP_DIR = path.join(__dirname, 'data', 'log-erp');
+const escreverERP = criarEscreverERP({ config: dbTeste, criarConexao: cfg => mysql.createConnection(cfg), dirLog: LOG_ERP_DIR });
+console.log('[DB] MySQL de teste (escrita + log) em ' + dbTeste.host);
+
+const hojeIso = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+const dataOk = s => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ''));
+function filtrosLog(req) {
+  const de = dataOk(req.query.de) ? req.query.de : hojeIso().slice(0, 8) + '01';
+  const ate = dataOk(req.query.ate) ? req.query.ate : hojeIso();
+  return { de, ate, tabela: req.query.tabela || '', usuario: req.query.usuario || '', status: req.query.status || '' };
+}
+
+app.post('/api/log-erp/executar', async (req, res) => {
+  try {
+    const b = req.body || {};
+    const r = await escreverERP({ usuario: req.session.user.nome, motivo: b.motivo, banco: b.banco, tabela: b.tabela, operacao: b.operacao, where: b.where, valores: b.valores, limite: b.limite });
+    res.status(r.status === 'ok' ? 200 : r.status === 'recusado' ? 400 : 502).json(r);
+  } catch (err) { res.status(500).json({ ok: false, status: 'erro', erro: err.message }); }
+});
+
+app.get('/api/log-erp', (req, res) => {
+  try { res.json(logErp.ler(LOG_ERP_DIR, filtrosLog(req))); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/log-erp/csv', (req, res) => {
+  try {
+    const f = filtrosLog(req);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="log-erp_${f.de}_${f.ate}.csv"`);
+    res.send(logErp.csv(logErp.ler(LOG_ERP_DIR, f).itens));
+  } catch (err) { res.status(500).send(err.message); }
+});
+
+app.get('/api/log-erp/:id', (req, res) => {
+  const e = logErp.porId(LOG_ERP_DIR, req.params.id);
+  if (!e) return res.status(404).json({ error: 'Entrada não encontrada' });
+  res.json(e);
+});
+
 // Mapeamento baseado em central.tipo_finalizadora
 const pagtoLabels = {
   '01': 'PIX / Débito', '02': 'Crédito', '03': 'Voucher',
