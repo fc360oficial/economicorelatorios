@@ -7124,6 +7124,22 @@ app.get('/api/radar-pedidos/:listaId/itens', (req, res) => {
 // ═══════════════════════════════════════════════════
 const pedidosFornec = require('./lib/pedidos-fornecedor');
 pedidosFornec.init();
+// Exclusão agendada de pedidos (roda uma vez ao subir): data/pedidos-excluir-no-boot.json = [{ id, lista }].
+// Serve pra apagar pedido de teste sem login na produção (Tiago, 23/09/2026). Só exclui se o pedido existir, for da
+// lista indicada e ainda não estiver aprovado/recebido (regra do excluir). O arquivo é apagado depois de rodar.
+try {
+  const arqEx = path.join(__dirname, 'data', 'pedidos-excluir-no-boot.json');
+  if (fs.existsSync(arqEx)) {
+    for (const e of JSON.parse(fs.readFileSync(arqEx, 'utf8'))) {
+      const p = pedidosFornec.obter(+e.id);
+      if (!p) { console.log('[PEDIDOS] exclusão agendada #' + e.id + ': não existe (já excluído?)'); continue; }
+      if (+p.lista !== +e.lista) { console.log('[PEDIDOS] exclusão agendada #' + e.id + ': lista ' + p.lista + ' ≠ ' + e.lista + ', ignorado'); continue; }
+      const r = pedidosFornec.excluir(+e.id, 'sistema · exclusão agendada (pedido do Tiago)');
+      console.log('[PEDIDOS] exclusão agendada #' + e.id + ':', r && r.erro ? r.erro : 'excluído');
+    }
+    fs.unlinkSync(arqEx);
+  }
+} catch (e) { console.error('[PEDIDOS] exclusão agendada:', e.message); }
 pedidosFornec.initERP(q, radarPedidos);
 
 // ═══════════════════════════════════════════════════
