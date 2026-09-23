@@ -637,7 +637,7 @@ table.ppg input.q{width:76px;font-size:14.5px;font-weight:700;padding:7px 8px}
       <div class="wizfoot top"><span class="mini">Edite as quantidades por loja se quiser. Item sem quantidade não entra na cotação. Regra só da cotação: loja marcada na lista com estoque zero e sem sugestão recebe 1 caixa (marcado "zerado (cotação)").</span><button class="btn ghost sm" onclick="irFornecedores()">Próximo: destinatários →</button></div>
       <div class="kpis" id="w1-lojas" style="grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:14px"></div>
       <div class="toolbar">
-        <div class="l"><span id="w1-resumo"></span><label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" class="check" id="ns-so-qtd" checked onchange="renderSugestao()">só itens com quantidade</label><select id="ns-ordem" class="hin" onchange="renderSugestao()" title="Ordem dos produtos"><option value="az">Ordem: A → Z</option><option value="za">Ordem: Z → A</option><option value="radar">Ordem do Radar (curva A e urgência primeiro)</option></select><select id="ns-cx" class="hin" onchange="renderSugestao()" title="Filtrar por caixa padrão"><option value="">Caixa: todas</option><option value="sem">Sem caixa padrão</option><option value="com">Com caixa padrão</option></select><select id="ns-est" class="hin" onchange="renderSugestao()" title="Filtrar por estoque (soma das lojas)"><option value="">Estoque: todos</option><option value="com">Com estoque</option><option value="sem">Sem estoque</option></select></div>
+        <div class="l"><span id="w1-resumo"></span><label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" class="check" id="ns-so-qtd" checked onchange="renderSugestao()">só itens com quantidade</label><label style="display:flex;gap:6px;align-items:center;cursor:pointer" title="Ligada: produto com estoque no CD (CAHU Distribuidora) fica desmarcado e não entra na cotação — a loja pede pro CD. Marcar todos respeita. Desligue pra voltar a marcar."><input type="checkbox" class="check" id="ns-sem-cd" onchange="toggleSemCD(this.checked)">não marcar quem tem no CD</label><select id="ns-ordem" class="hin" onchange="renderSugestao()" title="Ordem dos produtos"><option value="az">Ordem: A → Z</option><option value="za">Ordem: Z → A</option><option value="radar">Ordem do Radar (curva A e urgência primeiro)</option></select><select id="ns-cx" class="hin" onchange="renderSugestao()" title="Filtrar por caixa padrão"><option value="">Caixa: todas</option><option value="sem">Sem caixa padrão</option><option value="com">Com caixa padrão</option></select><select id="ns-est" class="hin" onchange="renderSugestao()" title="Filtrar por estoque (soma das lojas)"><option value="">Estoque: todos</option><option value="com">Com estoque</option><option value="sem">Sem estoque</option></select></div>
         <div class="l"><button class="btn ghost sm" id="btn-emb" onclick="buscarCaixaPadrao()" title="Vasculha notas de entrada de qualquer época e fornecedor, XML das NF-e, Embalagem Vendas, código de caixa (DUN-14) e a sugestão do ERP pra achar a caixa padrão dos itens que estão sem">↻ Buscar caixa padrão</button><button class="btn ghost sm" onclick="marcarTodos(true)">Marcar todos</button><button class="btn ghost sm" onclick="marcarTodos(false)">Desmarcar</button><button class="btn primary sm" onclick="irFornecedores()">Próximo: destinatários →</button></div>
       </div>
       <div class="tablewrap">
@@ -731,8 +731,17 @@ function copiarTexto(txt,btn,ok){const done=()=>{if(btn){const t=btn.textContent
 // Sigla CD: produto com estoque no CD (loja 10) — /api/estoque-cd (Tiago, 23/09/2026)
 var CDSET=null,CDTXT={},CDDET={};
 function cdTxt(cod){var d=CDDET[cod];if(d)return d.un!=null?fmtN(d.un)+' un':fmtN(d.cx)+' cx';var q=CDSET&&CDSET[cod];return q>0?fmtN(q):'';}
-fetch('/api/estoque-cd').then(function(r){return r.json()}).then(function(j){CDSET=j.cods||{};CDTXT=j.txt||{};CDDET=j.det||{};document.querySelectorAll('.cdtag[data-cd]').forEach(function(e){var c=e.getAttribute('data-cd'),q=CDSET[c];if(q>0){e.hidden=false;e.textContent='CD '+cdTxt(c);e.title='Tem '+(CDTXT[c]||q)+' no CD (CAHU Distribuidora)';}});}).catch(function(){CDSET={};});
+fetch('/api/estoque-cd').then(function(r){return r.json()}).then(function(j){CDSET=j.cods||{};CDTXT=j.txt||{};CDDET=j.det||{};if(SEM_CD&&SUG){aplicarSemCD();renderSugestao();}document.querySelectorAll('.cdtag[data-cd]').forEach(function(e){var c=e.getAttribute('data-cd'),q=CDSET[c];if(q>0){e.hidden=false;e.textContent='CD '+cdTxt(c);e.title='Tem '+(CDTXT[c]||q)+' no CD (CAHU Distribuidora)';}});}).catch(function(){CDSET={};});
 function cdTag(cod){cod=String(cod||'').trim();if(CDSET===null)return '<span class="cdtag" data-cd="'+cod+'" hidden>CD</span>';var q=CDSET[cod];return q>0?'<span class="cdtag" title="Tem '+(CDTXT[cod]||q)+' no CD (CAHU Distribuidora)">CD '+cdTxt(cod)+'</span>':'';}
+// Flag "não marcar quem tem no CD" (Tiago, 23/09/2026): ligada, produto com estoque no CD fica DESMARCADO na sugestão da
+// Nova Cotação (a loja pede pro CD em vez de comprar do fornecedor); "Marcar todos" respeita; desligar devolve a marcação
+// de quem a flag tirou (CD_OFF). Escolha guardada no navegador. Só nesta tela.
+var SEM_CD = false, CD_OFF = {};
+try { SEM_CD = localStorage.getItem('cotacao.semCD') === '1'; } catch(e) {}
+try { var _cb = document.getElementById('ns-sem-cd'); if (_cb) _cb.checked = SEM_CD; } catch(e) {}
+function temCD(cod){ return !!(CDSET && CDSET[String(cod)] > 0); }
+function aplicarSemCD(){ if (!SUG) return 0; var n = 0; SUG.itens.forEach(function(i){ if (SEM_CD) { if (temCD(i.cod) && SEL[i.cod]) { SEL[i.cod] = false; CD_OFF[i.cod] = true; n++; } } else if (CD_OFF[i.cod]) { delete CD_OFF[i.cod]; if (qtdItem(i) > 0) SEL[i.cod] = true; } }); return n; }
+function toggleSemCD(v){ SEM_CD = !!v; try { localStorage.setItem('cotacao.semCD', SEM_CD ? '1' : '0'); } catch(e) {} var n = aplicarSemCD(); renderSugestao(); toastMsg(SEM_CD ? (CDSET === null ? 'Flag ligada: assim que o estoque do CD chegar, quem tem no CD é desmarcado' : n + ' produto(s) com estoque no CD desmarcado(s)') : 'Produtos com estoque no CD voltaram a ser marcados'); }
 // ───────── helpers
 var $ = function(s){ return document.querySelector(s); };
 var esc = function(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); };
@@ -900,6 +909,7 @@ async function calcularSugestao(manter){
       // recálculo depois de achar caixa padrão: mantém marcação e quantidades digitadas, arredondadas pra nova caixa
       SUG.itens.forEach(function(i){ if (anterior.sel[i.cod] != null) SEL[i.cod] = anterior.sel[i.cod]; var e = anterior.edit[i.cod]; if (!e) return; EDIT[i.cod] = {}; Object.keys(e).forEach(function(ln){ var v = e[ln]; EDIT[i.cod][ln] = v > 0 && i.emb > 1 ? Math.ceil(v / i.emb) * i.emb : v; }); });
     }
+    CD_OFF = {}; aplicarSemCD();
     var L = SUG.lista, P = SUG.params;
     $('#ns-info').innerHTML =
       '<span>Lista <b>' + L.lista + ' · ' + esc(L.nome) + '</b></span>' +
@@ -993,7 +1003,7 @@ function renderSugestao(){
     var band = coberturaBand(i.cobertura_dias), q = LOJA_F ? qtdLoja(i, LOJA_F) : qtdItem(i);
     var lojas = LOJAS_ALL.filter(function(ln){ return !LOJA_F || String(ln) === String(LOJA_F); }).map(function(ln){ var d = (i.lojas_det || {})[ln] || {}; return '<span class="lj" title="' + LJ(ln) + ' ' + (LOJAS_NOMES[ln] || '') + ': estoque ' + fmtN(d.estoque, 0) + ' · venda/dia ' + fmtN(d.venda_dia, 2) + (d.cobertura_dias != null ? ' · cobertura ' + fmtN(d.cobertura_dias, 0) + ' d' : '') + (d.transito ? ' · trânsito ' + fmtN(d.transito, 0) : '') + '"><small>' + LJ(ln) + '</small><input type="text" inputmode="numeric" data-ln="' + ln + '" value="' + qtdLoja(i, ln) + '" onchange="setQtd(\'' + esc(i.cod) + '\',\'' + ln + '\',this.value)">' + (d.estoque != null ? '<div class="lj-est">est <b' + (d.estoque <= 0 ? ' class="zero"' : '') + '>' + fmtN(d.estoque, 0) + '</b>' + (d.transito ? ' · trâns <span class="tr">' + fmtN(d.transito, 0) + '</span>' : '') + '</div>' : '') + '</span>'; }).join('');
     return '<tr id="sg-' + esc(i.cod) + '" class="' + (SEL[i.cod] ? '' : 'off') + '">' +
-      '<td><input type="checkbox" class="check" ' + (SEL[i.cod] ? 'checked' : '') + ' onchange="SEL[\'' + esc(i.cod) + '\']=this.checked;atualizarLinha(SUG.itens.find(function(x){return x.cod===\'' + esc(i.cod) + '\'}));atualizarResumoW1()"></td>' +
+      '<td><input type="checkbox" class="check" ' + (SEL[i.cod] ? 'checked' : '') + ' onchange="SEL[\'' + esc(i.cod) + '\']=this.checked;delete CD_OFF[\'' + esc(i.cod) + '\'];atualizarLinha(SUG.itens.find(function(x){return x.cod===\'' + esc(i.cod) + '\'}));atualizarResumoW1()"></td>' +
       '<td class="mini">' + esc(i.cod) + '</td>' +
       '<td><div class="prod-cell"><b>' + esc(i.descricao) + (i.curva_a ? ' <span class="an-badge bad" style="font-size:9.5px;padding:1px 6px">curva A</span>' : '') + cdTag(i.cod) + '</b><span class="prod-meta">' + embLabel(i) + '<span>Venda/dia ' + fmtN(i.venda_dia, 2) + '</span><span class="m-' + band.cls + '">Cobertura ' + (i.cobertura_dias != null ? '~' + fmtN(i.cobertura_dias, 0) + ' d' : '—') + ' · ' + band.label + '</span>' + (i.flag ? '<span class="m-warn">' + esc(i.flag) + '</span>' : '') + '</span></div></td>' +
       '<td class="sit" data-cod="' + esc(i.cod) + '">' + sitIcons(i.cod) + '</td><td class="price">' + colTransito(i) + '</td>' +
@@ -1023,7 +1033,7 @@ async function carregarSituacao(){
   } catch(e) { toastMsg('Situação dos itens: ' + e.message); SIT.__ok = true; }
   document.querySelectorAll('#w1-tbody td.sit').forEach(function(td){ td.innerHTML = sitIcons(td.getAttribute('data-cod')); });
 }
-function marcarTodos(v){ if (!SUG) return; SUG.itens.forEach(function(i){ if (qtdItem(i) > 0 || !v) SEL[i.cod] = v; }); renderSugestao(); }
+function marcarTodos(v){ if (!SUG) return; SUG.itens.forEach(function(i){ if (v && SEM_CD && temCD(i.cod)) { SEL[i.cod] = false; CD_OFF[i.cod] = true; return; } if (qtdItem(i) > 0 || !v) SEL[i.cod] = v; }); renderSugestao(); }
 // Estoque e Trânsito no formato do Radar: total + ▾ que abre o detalhe por loja (estoque negativo do ERP em vermelho;
 // trânsito com nº da sugestão aberta no ERP e NF-e já chegada, clicável = DANFE)
 function toggleTrn(el){ var d = el.nextElementSibling; d.hidden = !d.hidden; el.classList.toggle('on', !d.hidden); }
