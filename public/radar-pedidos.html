@@ -123,6 +123,7 @@ input.qin{width:46px;text-align:right;font:inherit;font-size:11.5px;font-weight:
 .det .box .hd>div:last-child{display:flex;align-items:center;gap:4px 10px;flex-wrap:wrap}
 .det .box .hd .btn-sm{margin-left:0}
 .det .s2{font-size:10px}
+.cxl{cursor:pointer;border-bottom:1px dashed #C9C9C4;display:inline-block}.cxl:hover{color:#0E1626;border-bottom-color:#F5B800}
 .det .qtd{font-size:12.5px}
 input.qin::-webkit-outer-spin-button,input.qin::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 input.qin:focus{outline:none;border-color:#F5B800;background:#FFFDF3}
@@ -338,6 +339,18 @@ function renderTabela(rows,vazio){
   document.querySelectorAll('input.selrow').forEach(cb=>cb.onchange=()=>{const id=+cb.dataset.l;if(cb.checked)SEL.add(id);else SEL.delete(id);atualizarSel(rows);});
   const sa=document.getElementById('selall'); if(sa) sa.onchange=()=>{for(const r of rows){if(sa.checked)SEL.add(r.lista);else SEL.delete(r.lista);}render();};
 }
+// Caixa padrão do produto (Tiago, 23/09): mesmo atalho da Cotação. Grava em /api/itens/unidade-embalagem (vale no
+// Radar, na Cotação e nos pedidos) e recarrega os itens da lista aberta.
+function cxLinha(i){ return '<div class="s2 cxl" title="Clique pra ajustar a caixa padrão deste produto" onclick="ajustarCaixaRadar(event,\''+esc(i.cod)+'\',\''+esc(i.unid||'UN')+'\','+(i.emb||1)+')">'+(i.emb>1?i.volumes+' vol × '+i.emb:'caixa?')+' ✎</div>'; }
+async function ajustarCaixaRadar(ev, cod, unid, atual){
+  ev.stopPropagation();
+  const box=ev.target.closest('[id^="det-"]'), tr=ev.target.closest('tr'), desc=tr?(tr.querySelector('.desc')||{}).textContent||'':'';
+  const v=prompt('Caixa padrão (unidades por caixa) de\n'+(desc||cod).trim()+'\n\nHoje: '+atual, atual); if(v===null) return;
+  const e=Math.round(parseFloat(String(v).replace(',','.'))); if(!(e>=1)) return;
+  try{ const r=await fetch('/api/itens/unidade-embalagem',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({codigo:cod,unidade:unid||'UN',embalagem:e})}); const j=await r.json().catch(()=>({})); if(!r.ok||j.error) throw new Error(j.error||('HTTP '+r.status)); }
+  catch(err){ alert('Erro ao gravar a caixa: '+err.message); return; }
+  if(box) await carregarItens(box.id.slice(4));
+}
 async function carregarItens(id){
   const box=document.getElementById('det-'+id); if(!box) return;
   try{
@@ -360,7 +373,7 @@ async function carregarItens(id){
       h+='<tr class="'+(i.qtd>0?'pede':'zero')+(i.risco_a?' risco':(i.zera_antes?' falta':''))+'"><td class="desc">'+(i.curva_a?'<span class="pill '+(i.risco_a?'p-a':'p-a soft')+'" style="font-size:9px;padding:1px 5px;margin-right:4px" title="Curva A · posição '+i.rank_a+' na venda">A</span>':'')+esc(i.descricao)+'<span class="cod">'+esc(i.cod)+' · L'+i.lojas.join(' L')+'</span>'+(obs.length?'<div class="obsl">'+obs.join(' · ')+'</div>':'')+'</td><td class="r">'+fmt(i.venda_dia,2)+'</td><td class="r"><span class="trn" title="Clique pra ver o estoque por loja" onclick="event.stopPropagation();const d=this.nextElementSibling;d.hidden=!d.hidden;this.classList.toggle(&quot;on&quot;,!d.hidden)">'+fmt(i.estoque,0)+(i.estoque_bruto<0?' <span class="neg" title="Estoque negativo no ERP (a soma das lojas negativas dá '+fmt(i.estoque_bruto,0)+'); o cálculo trata como zero">('+fmt(i.estoque_bruto,0)+')</span>':'')+' <small>▾</small></span><div class="s2 trn-lj" hidden>'+Object.entries(i.lojas_det||{}).map(([l,d])=>'<div'+(d.estoque<=0&&d.venda_dia>0?' class="neg"':'')+'>L'+l+' '+(LOJAS_NOMES[l]||'')+': <b>'+fmt(d.estoque,0)+'</b>'+(d.estoque_bruto<0?' <span class="neg" title="negativo no ERP, tratado como zero">(ERP '+fmt(d.estoque_bruto,0)+')</span>':'')+(d.cobertura_dias!=null?' · '+fmt(d.cobertura_dias,0)+' d':'')+'</div>').join('')+'</div></td><td class="r">'+(i.transito?'<span class="trn" title="Clique pra ver em quais lojas está chegando" onclick="event.stopPropagation();const d=this.nextElementSibling;d.hidden=!d.hidden;this.classList.toggle(&quot;on&quot;,!d.hidden)">'+fmt(i.transito,0)+' <small>▾</small></span><div class="s2 trn-lj" hidden>'+Object.entries(i.lojas_det||{}).map(([l,d])=>'<div'+(d.transito>0?'':' style="color:#98A0B3"')+'>L'+l+' '+(LOJAS_NOMES[l]||'')+': <b>'+fmt(d.transito,0)+'</b>'+(d.transito_det||[]).map(t=>'<div style="padding-left:8px;color:#4E5A72">sug. '+t.sugestao+(t.data?' de '+t.data.split('-').reverse().join('/').slice(0,5):'')+' · '+fmt(t.und,0)+' un'+(t.nfe&&t.nfe.length?' · NF-e '+t.nfe.map(n=>'<a href="#" class="nfe" onclick="event.preventDefault();event.stopPropagation();abrirNfe(\''+n.chave+'\')" title="XML já no ERP (emitida '+n.data.split('-').reverse().join('/')+'), ainda não importada. Clique pra abrir a nota.">'+n.nNota+'</a>').join(', '):' · <span style="color:#98A0B3">sem NF-e ainda</span>')+'</div>').join('')+'</div>').join('')+'</div>':'<span class="mut">—</span>')+'</td>'+
         '<td class="r '+(i.abaixo_ponto?'neg':'')+'">'+(i.cobertura_dias==null?'—':fmt(i.cobertura_dias,0)+' d')+'</td><td class="r">'+(i.alvo_dias?fmt(i.alvo_dias,0)+' d':'—')+'</td>'+
         LJ.map(ln=>{const q=i.lojas_qtd[ln]||0;const d=i.lojas_det[ln];const tip=d?('loja '+ln+': estoque '+fmt(d.estoque,0)+(d.transito?' + trânsito '+fmt(d.transito,0):'')+' · venda/dia '+fmt(d.venda_dia,2)+' · cobertura '+(d.cobertura_dias==null?'—':fmt(d.cobertura_dias,0)+' d')+' · edite a quantidade se precisar'):'não participa';return '<td class="r lj'+(q?' tem':'')+'" title="'+tip+'">'+(d?'<input class="qin'+(EDITS[id]?.[i.cod]?.[ln]!=null?' ed':'')+'" type="number" min="0" step="1" data-cod="'+esc(i.cod)+'" data-ln="'+ln+'" value="'+(q||'')+'" placeholder="·">':'')+'</td>';}).join('')+
-        '<td class="r" id="tq-'+esc(i.cod)+'"><span class="qtd">'+(i.qtd?fmt(i.qtd,0):'')+'</span>'+(i.qtd?' '+esc(i.unid)+(i.emb>1?'<div class="s2">'+i.volumes+' vol × '+i.emb+'</div>':''):'')+'</td><td class="r" id="tt-'+esc(i.cod)+'">'+(i.total?money2(i.total):'')+'<div class="s2">'+fmt(i.custo,2)+' un</div></td></tr>';
+        '<td class="r" id="tq-'+esc(i.cod)+'"><span class="qtd">'+(i.qtd?fmt(i.qtd,0):'')+'</span>'+(i.qtd?' '+esc(i.unid)+cxLinha(i):'')+'</td><td class="r" id="tt-'+esc(i.cod)+'">'+(i.total?money2(i.total):'')+'<div class="s2">'+fmt(i.custo,2)+' un</div></td></tr>';
     }
     h+='</tbody></table></div>';
     box.innerHTML=h;
@@ -552,7 +565,7 @@ function aplicarEdicao(id,inp){
   it.qtd=Object.values(it.lojas_qtd).reduce((s,x)=>s+(x||0),0); it.volumes=it.qtd?Math.ceil(it.qtd/(it.emb||1)):0; it.total=+(it.qtd*it.custo).toFixed(2);
   inp.classList.add('ed'); inp.value=v||''; inp.closest('td').classList.toggle('tem',v>0);
   const tq=document.getElementById('tq-'+cod), tt=document.getElementById('tt-'+cod);
-  if(tq) tq.innerHTML='<span class="qtd">'+(it.qtd?fmt(it.qtd,0):'')+'</span>'+(it.qtd?' '+esc(it.unid)+(it.emb>1?'<div class="s2">'+it.volumes+' vol × '+it.emb+'</div>':''):'');
+  if(tq) tq.innerHTML='<span class="qtd">'+(it.qtd?fmt(it.qtd,0):'')+'</span>'+(it.qtd?' '+esc(it.unid)+cxLinha(it):'');
   if(tt) tt.innerHTML=(it.total?money2(it.total):'')+'<div class="s2">'+fmt(it.custo,2)+' un</div>';
   inp.closest('tr').className=it.qtd>0?'pede':'zero';
   recalcLista(j);
