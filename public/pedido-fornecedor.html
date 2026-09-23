@@ -46,7 +46,22 @@ input.obs:focus{outline:none;border-color:#F5B800}
 .avt{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:99px;background:#FBEAED;color:#C22F49;font-size:10px;font-weight:800;vertical-align:middle}
 .nome{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .nome input{font:inherit;font-size:13px;padding:8px 10px;border:1px solid #DADAD6;border-radius:9px;min-width:220px}
-@media(max-width:640px){th.lj,td.lj{display:none}.wrap{padding:10px 8px 110px}td,th{padding:8px 6px}input.preco{width:92px}}
+@media(max-width:640px){
+  th.lj,td.lj{display:none}.wrap{padding:8px 8px 110px}
+  .top{padding:12px 14px 14px;border-radius:12px}.tophd{gap:10px;margin-bottom:8px}.top .logo{width:44px;height:44px}.top h1{font-size:17px}.top .sub{font-size:12px;line-height:1.5}
+  .fim{padding:10px 12px;font-size:12px;line-height:1.45}
+  /* tabela dos itens vira lista de blocos */
+  #itens-t thead{display:none}
+  #itens-t tr{display:grid;grid-template-columns:112px 1fr;gap:6px 8px;padding:9px 10px;border-top:1px solid #EEEEEA;align-items:center}
+  #itens-t td{display:block;padding:0!important;border:0!important}
+  #itens-t td.desc{grid-column:1 / -1;font-size:13px}#itens-t .cod{white-space:normal;line-height:1.7}
+  #itens-t input.preco{width:100%;font-size:16px}#itens-t input.obs{min-width:0;width:100%}
+  input.embv{width:82px;margin-left:6px}
+  /* avarias: rola na horizontal */
+  .card > div[style*='overflow-x']{-webkit-overflow-scrolling:touch}
+  .bar{padding:8px 10px}.bar .info{font-size:11.5px}
+  .thanks{margin:14px 0;padding:22px 16px 20px}.thanks h1{font-size:21px}
+}
 .zap{color:#25D366;font-weight:700;text-decoration:none;white-space:nowrap}.zap:hover{text-decoration:underline}
 .avsub td{background:#FAFAF8;font-weight:800;font-size:12px;border-top:1px solid #DADAD6;border-bottom:2px solid #DADAD6}
 .thanks{max-width:720px;margin:40px auto;background:#101B33;color:#fff;border-radius:16px;padding:34px 34px 28px;text-align:center;box-shadow:0 20px 60px -20px rgba(0,0,0,.5)}
@@ -95,7 +110,7 @@ function render(){
   let h='<div class="top"><div class="tophd"><img class="logo" src="/logo-supermercados.png" alt="Econômico Supermercados"><div class="ey">PEDIDO DE COMPRA · ECONOMICO SUPERMERCADO - REDE CAHU</div></div><h1>'+esc(P.lista_nome)+'</h1><div class="sub">Fornecedor: <b>'+esc(P.fornecedor||'')+'</b>'+(P.comprador?.nome?' · Comprador(a): <b>'+esc(P.comprador.nome)+'</b>'+(P.comprador.whats?' · <a class="zap" target="_blank" rel="noopener" href="https://wa.me/'+zapNum(P.comprador.whats)+'?text='+encodeURIComponent('Olá '+P.comprador.nome+', sobre o pedido '+(P.lista_nome||'')+' ('+(P.fornecedor||'')+'): ')+'" title="Falar com o comprador no WhatsApp">💬 '+esc(P.comprador.whats)+' · falar no WhatsApp</a>':''):'')+(P.prazo_pagamento?' · Prazo: <b>'+esc(P.prazo_pagamento)+'</b>':'')+'<br>Enviado em '+new Date(P.criadoEm).toLocaleString('pt-BR')+' · Lojas: '+P.lojas.map(l=>LJ(l)+' '+(P.lojas_nomes[l]||'')).join(', ')+'</div><span class="st '+(fin?'st-fin':'st-dig')+'">'+(fin?'FINALIZADO':'EM DIGITAÇÃO')+'</span></div>';
   if(fin) h+='<div class="fim"><b>Pedido finalizado'+(P.finalizadoEm?' em '+new Date(P.finalizadoEm).toLocaleString('pt-BR'):'')+'.</b> Obrigado! A compradora já recebeu os preços. Se precisar corrigir algo, fale com ela.</div>';
   else h+='<div class="fim" style="background:#FFF6D9;border-color:#EFD98F;color:#6B4E00">Preencha o <b>preço unitário</b> de cada item (por unidade, não por caixa) e, se quiser, uma observação. Tudo salva sozinho. <b>Digite o preço e aperte Enter (ou Tab):</b> o cursor já pula pro próximo item. Quando terminar, clique em <b>Finalizar pedido</b> no rodapé.<br><b>Confira o código de barras de cada item:</b> o produto que vai chegar precisa ter exatamente o código que está no pedido. <b>Só recebemos mercadoria com o código de barras conciliado com o pedido</b>; se o código do seu produto for outro (nova embalagem, outro EAN), avise na observação do item antes de finalizar.</div>';
-  h+='<div class="card"><div class="hd">Itens do pedido <span>'+P.itens.length+' itens</span></div><div style="overflow-x:auto"><table><thead><tr><th>Produto</th><th class="r">Preço unit. (R$)</th><th>Observação</th></tr></thead><tbody>';
+  h+='<div class="card"><div class="hd">Itens do pedido <span>'+P.itens.length+' itens</span></div><div style="overflow-x:auto"><table id="itens-t"><thead><tr><th>Produto</th><th class="r">Preço unit. (R$)</th><th>Observação</th></tr></thead><tbody>';
   // itens em ordem alfabética (Tiago, 23/09/2026)
   for(const i of [...P.itens].sort((x,y)=>String(x.descricao||'').localeCompare(String(y.descricao||''),'pt-BR'))){
     // quantidade NÃO aparece pro vendedor (pedido do Tiago, 11/09/2026): ele só cota o preço unitário
