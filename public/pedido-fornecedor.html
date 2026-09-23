@@ -48,6 +48,7 @@ input.obs:focus{outline:none;border-color:#F5B800}
 .nome input{font:inherit;font-size:13px;padding:8px 10px;border:1px solid #DADAD6;border-radius:9px;min-width:220px}
 @media(max-width:640px){th.lj,td.lj{display:none}.wrap{padding:10px 8px 110px}td,th{padding:8px 6px}input.preco{width:92px}}
 .zap{color:#25D366;font-weight:700;text-decoration:none;white-space:nowrap}.zap:hover{text-decoration:underline}
+.avsub td{background:#FAFAF8;font-weight:800;font-size:12px;border-top:1px solid #DADAD6;border-bottom:2px solid #DADAD6}
 </style>
 </head>
 <body>
@@ -85,7 +86,12 @@ function render(){
     h+='<div class="card av"><div class="hd" style="background:#FBEAED;color:#7A1A2C;border-color:#E5B4BD">Avarias pendentes com o fornecedor <span style="color:#C22F49;font-weight:800">'+A.n+(A.n>1?' itens':' item')+' · R$ '+fmt(A.total)+'</span></div>';
     h+='<div class="avn"><b>Atenção:</b> este pedido só será autorizado pela compradora com a resolução das avarias abaixo (troca, bonificação ou nota de devolução). Se já resolveu ou tem previsão, escreva na resposta no fim. <b>Sem a resposta o pedido não pode ser finalizado.</b></div>';
     h+='<div style="overflow-x:auto"><table><thead><tr><th>Loja</th><th>Produto</th><th class="r">Qtd</th><th class="r">Valor</th><th>Lançada em</th><th>Situação</th></tr></thead><tbody>';
-    for(const a of A.itens) h+='<tr><td><b>'+LJ(a.loja)+'</b> '+esc(P.lojas_nomes[a.loja]||'')+'</td><td class="desc">'+esc(a.descricao)+'<span class="cod">'+esc(a.cod)+'</span></td><td class="r">'+fmt(a.qtd,a.qtd%1?3:0)+' '+esc(a.und||'')+'</td><td class="r">R$ '+fmt(a.total)+'</td><td>'+String(a.data).split('-').reverse().join('/')+'</td><td><span class="avt" style="margin:0'+(a.status==='em trâmite'?';background:#FFF6D9;color:#6B4E00':'')+'">'+esc(a.status)+'</span></td></tr>';
+    // subtotal por loja (Tiago, 23/09/2026): os itens já vêm ordenados por loja
+    const subLoja=(ln,n,t)=>'<tr class="avsub"><td colspan="3">Total '+LJ(ln)+' '+esc(P.lojas_nomes[ln]||'')+' · '+n+(n>1?' itens':' item')+'</td><td class="r">R$ '+fmt(t)+'</td><td colspan="2"></td></tr>';
+    let lnAt=null,nLn=0,tLn=0; const its=[...A.itens].sort((x,y)=>x.loja-y.loja);
+    for(const a of its){ if(lnAt!==null&&a.loja!==lnAt){ h+=subLoja(lnAt,nLn,tLn); nLn=0; tLn=0; } lnAt=a.loja; nLn++; tLn+=(+a.total||0);
+    h+='<tr><td><b>'+LJ(a.loja)+'</b> '+esc(P.lojas_nomes[a.loja]||'')+'</td><td class="desc">'+esc(a.descricao)+'<span class="cod">'+esc(a.cod)+'</span></td><td class="r">'+fmt(a.qtd,a.qtd%1?3:0)+' '+esc(a.und||'')+'</td><td class="r">R$ '+fmt(a.total)+'</td><td>'+String(a.data).split('-').reverse().join('/')+'</td><td><span class="avt" style="margin:0'+(a.status==='em trâmite'?';background:#FFF6D9;color:#6B4E00':'')+'">'+esc(a.status)+'</span></td></tr>';}
+    if(lnAt!==null) h+=subLoja(lnAt,nLn,tLn);
     h+='</tbody></table></div>';
     h+='<div style="padding:10px 14px;border-top:1px solid #EEEEEA"><label style="font-size:11px;font-weight:800;color:#4E5A72;text-transform:uppercase;letter-spacing:.04em">Sua resposta sobre as avarias</label>'+(fin?'<div style="margin-top:4px">'+(esc(A.resposta_vendedor)||'<span style="color:#98A0B3">—</span>')+'</div>':'<input class="obs" id="avresp" value="'+esc(A.resposta_vendedor||'')+'" placeholder="ex.: vamos bonificar na próxima entrega / troca agendada dia 15" maxlength="500" style="margin-top:4px">')+'</div></div>';
   }
