@@ -7445,7 +7445,7 @@ app.get('/api/pedidos-fornecedor', (req, res) => {
 app.get('/api/pedidos-fornecedor/:id', (req, res) => {
   const p = pedidosFornec.obter(parseInt(req.params.id));
   if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
-  res.json({ ...p, por_loja: pedidosFornec.porLoja(p), link: linkPedido(p), avarias_txt: pedidosFornec.textoAvarias(p) });
+  res.json({ ...p, por_loja: pedidosFornec.porLoja(p), link: linkPedido(p), avarias_txt: pedidosFornec.textoAvarias(p), observacoes: pedidosFornec.observacoesPedido(p) });
 });
 
 app.post('/api/pedidos-fornecedor/:id/aprovar', (req, res) => {

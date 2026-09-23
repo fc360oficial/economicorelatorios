@@ -391,8 +391,8 @@ function prePedido(id){
   const t=totLojas(p,null);
   let h='<div class="pv-top"><div><h2>Pré-pedido #'+p.id+' · '+esc(p.lista_nome)+'</h2><div class="pv-sub">'+esc(p.fornecedor||'')+(p.vendedor?.nome?' · vendedor '+esc(p.vendedor.nome)+(p.vendedor.whats?' '+esc(p.vendedor.whats):''):'')+(p.prazo_pagamento?' · prazo '+esc(p.prazo_pagamento):'')+' · <span class="pill st-'+p.status+'">'+(ST[p.status]||p.status)+'</span></div></div><div style="display:flex;gap:8px;flex-wrap:wrap">'+(p.pdf?'<a class="btn btn-slate" target="_blank" href="/api/pedidos-fornecedor/'+p.id+'/pdf">Abrir PDF</a>':'')+'<button class="btn btn-slate" onclick="fecharPv()">Fechar</button></div></div>';
   h+='<div class="lojatot" style="border:1px solid #DADAD6;border-radius:10px;margin-bottom:12px">'+lojaTotaisHtml(p,null)+'</div>';
-  if(p.obs_fiscal) h+='<div class="oq" style="margin:0 0 10px"><span class="t">Observação da compradora (fornecedor e recebimento)</span>'+esc(p.obs_fiscal)+'</div>';
-  if(p.obs_vendedor) h+='<div class="oq" style="margin:0 0 10px;background:#E9EEF6;border-color:#C9D6E6;color:#2E5E8C"><span class="t">Observação do vendedor</span>'+esc(p.obs_vendedor)+'</div>';
+  const obsL=p.observacoes||[];
+  if(obsL.length) h+='<div class="oq" style="margin:0 0 10px"><span class="t" style="display:block;margin-bottom:4px">Observações (iguais no PDF do pedido aprovado)</span>'+obsL.map(o=>'<div style="margin-top:3px"><b>'+esc(o.rotulo)+':</b> '+(o.vazio?'<span class="neg">'+esc(o.vazioTexto)+'</span>':esc(o.texto))+(o.por?' <span class="mut">('+esc(o.por)+')</span>':'')+'</div>').join('')+'</div>';
   for(const l of t.lojas){
     const its=p.itens.filter(i=>(i.lojas_qtd[l.ln]||0)>0).sort((a,b)=>String(a.descricao||'').localeCompare(String(b.descricao||''),'pt-BR'));
     h+='<div class="pp-sec"><div class="h"><span>'+ETQ(l.ln)+' · '+esc(LOJAS_NOMES[l.ln]||'')+'</span><span>'+l.itens+' itens · '+l.vol+' volumes · <b>'+money2(l.total)+'</b></span></div><table><thead><tr><th>Código</th><th>Produto</th><th class="r">Emb</th><th class="r">Vol</th><th class="r">Qtd</th><th class="r">Preço</th><th class="r">Total</th><th>Obs.</th></tr></thead><tbody>';
