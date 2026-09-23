@@ -400,7 +400,20 @@ function prePedido(id){
     h+='</tbody><tfoot><tr><td colspan="6" class="r"><b>Total '+ETQ(l.ln)+'</b></td><td class="r"><b>'+money2(l.total)+'</b></td><td></td></tr></tfoot></table></div>';
   }
   h+='<div class="pp-sec"><div class="h"><span>TODAS AS LOJAS</span><span>'+t.tot.itens+' itens · '+t.tot.vol+' volumes · <b>'+money2(t.tot.total)+'</b></span></div></div>'+(t.tot.semPreco?'<div class="mut" style="font-size:11px;margin-top:8px">* '+t.tot.semPreco+' item(ns) sem preço digitado: o valor usa o último custo do ERP.</div>':'');
-  if(p.avarias&&p.avarias.n) h+='<div class="oq" style="margin-top:10px;background:#FBEAED;border-color:#E5B4BD;color:#7A1A2C"><span class="t">Avarias pendentes</span>'+p.avarias.n+' item(ns) · R$ '+fmt(p.avarias.total,2)+(p.avarias.resposta_vendedor?' · resposta do vendedor: '+esc(p.avarias.resposta_vendedor):' · sem resposta do vendedor')+'</div>';
+  const avs=(p.avarias&&p.avarias.itens||[]).slice().sort((x,y)=>(x.loja-y.loja)||String(x.descricao||'').localeCompare(String(y.descricao||''),'pt-BR'));
+  if(avs.length){
+    const totAv=avs.reduce((s,a)=>s+(+a.total||0),0);
+    h+='<div class="pp-sec" style="border-color:#E5B4BD"><div class="h" style="background:#7A1A2C"><span>AVARIAS PENDENTES COM O FORNECEDOR</span><span>'+avs.length+' item(ns) · <b>'+money2(totAv)+'</b></span></div>'
+      +'<div style="padding:8px 12px;background:#FFF6D9;color:#6B4E00;font-size:11.5px;border-bottom:1px solid #EFD98F">O pedido só é autorizado com a resolução das avarias (troca, bonificação ou nota de devolução). O vendedor vê esta lista no link e ela vai no PDF.</div>'
+      +'<table><thead><tr><th>Loja</th><th>Produto</th><th class="r">Qtd</th><th class="r">Valor un.</th><th class="r">Total</th><th>Lançada em</th><th>Situação</th></tr></thead><tbody>';
+    let lnAt=null,nLn=0,tLn=0; const sub=(ln,n,t)=>'<tr style="background:#FAFAF8;font-weight:800"><td colspan="4">Total '+ETQ(ln)+' '+esc(LOJAS_NOMES[ln]||'')+' · '+n+(n>1?' itens':' item')+'</td><td class="r">'+money2(t)+'</td><td colspan="2"></td></tr>';
+    for(const a of avs){ if(lnAt!==null&&a.loja!==lnAt){h+=sub(lnAt,nLn,tLn);nLn=0;tLn=0;} lnAt=a.loja;nLn++;tLn+=(+a.total||0);
+      h+='<tr><td><b>'+ETQ(a.loja)+'</b> <span class="mut">'+esc(LOJAS_NOMES[a.loja]||'')+'</span></td><td>'+esc(a.descricao)+' <span class="mono mut">'+esc(a.cod)+'</span></td><td class="r">'+fmt(a.qtd,a.qtd%1?3:0)+' '+esc(a.und||'')+'</td><td class="r">'+fmt(a.valor,2)+'</td><td class="r"><b>'+money2(a.total)+'</b></td><td>'+String(a.data||'').split('-').reverse().join('/')+(a.data?' <span class="mut">('+Math.round((Date.now()-new Date(a.data))/864e5)+' d)</span>':'')+'</td><td><span class="avpill'+(a.status==='em trâmite'?'" style="background:#FFF6D9;color:#6B4E00':'')+'">'+esc(a.status||'')+'</span></td></tr>';
+    }
+    if(lnAt!==null) h+=sub(lnAt,nLn,tLn);
+    h+='</tbody><tfoot><tr><td colspan="4" class="r"><b>Total das avarias</b></td><td class="r"><b>'+money2(totAv)+'</b></td><td colspan="2"></td></tr></tfoot></table>'
+      +'<div style="padding:10px 12px;border-top:1px solid #DADAD6;font-size:12px"><b>Resposta do vendedor sobre as avarias:</b> '+(p.avarias.resposta_vendedor?esc(p.avarias.resposta_vendedor):'<span class="neg">ainda sem resposta</span>')+'</div></div>';
+  }
   abrirPv(h);
 }
 async function salvarQtd(inp){
