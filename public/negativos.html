@@ -80,6 +80,8 @@ tr.loja{cursor:pointer;user-select:none}tr.loja:hover td{background:var(--wsh)}t
 .res ul{margin:8px 0 0 18px;font-size:12.5px;color:var(--neg)}
 td.mud{background:var(--amw);color:var(--amk);font-weight:700}
 td.acoes{white-space:normal;min-width:200px}
+tr.det td{padding:0;white-space:normal;background:var(--pap)}tr.det:hover td{background:var(--pap)}
+tr.det .detail{padding:0 18px 18px;border-bottom:1px solid var(--ln)}
 .acoes-w{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .acoes-w .btn{height:28px;padding:0 10px;font-size:11.5px}
 </style>
@@ -178,16 +180,19 @@ function render() {
         ? `<span class="feito"><span class="pill done">✔ Feito</span><span class="who">${esc(l.ajustadoPor) || '—'} · ${hora(l.ajustadoEm)}</span><button class="undo" title="Desmarcar" onclick="event.stopPropagation();ajustado(${l.loja}, true)">desfazer</button></span>`
         : l.status === 'concluida' ? `<button class="btn btn-primary" onclick="event.stopPropagation();ajustado(${l.loja})">Feito</button><button class="btn btn-ghost" onclick="event.stopPropagation();reabrir(${l.loja})">Reabrir</button>` : ''}
         ${l.status === 'concluida' && !l.aprovadoEm ? `<button class="btn btn-secondary" onclick="event.stopPropagation();previa(${l.loja}, false)">Aprovar ajuste teste no .254</button>` : ''}
-        ${l.aprovadoEm && l.pendentes && l.pendentes.length ? `<button class="btn btn-secondary" onclick="event.stopPropagation();previa(${l.loja}, true)">Reprocessar pendentes</button>` : ''}</div></td></tr>`;
+        ${l.aprovadoEm && l.pendentes && l.pendentes.length ? `<button class="btn btn-secondary" onclick="event.stopPropagation();previa(${l.loja}, true)">Reprocessar pendentes</button>` : ''}</div></td></tr>`
+      + (l.loja === selLoja && !l.semNegativos ? `<tr class="det"><td colspan="11"><div class="detail">${detalheHtml(l)}</div></td></tr>` : '');
   }).join('');
   const itens = ativas.reduce((s, l) => s + l.itens, 0), cont = ativas.reduce((s, l) => s + l.contados, 0), ok = ativas.filter(l => l.status === 'concluida').length, dif = ativas.reduce((s, l) => s + l.diferenca, 0);
   $('kItens').textContent = itens; $('kCont').textContent = cont; $('kLojas').textContent = `${ok} / ${ativas.length}`; $('kDif').textContent = '+' + dif;
   $('btnCobrar').disabled = ok === ativas.length;
   const l = v.lojas.find(x => x.loja === selLoja);
-  const d = $('detail');
-  if (!l || l.semNegativos) { d.innerHTML = '<div class="empty">Clique numa loja pra ver os itens.</div>'; return; }
+  $('detail').innerHTML = (!l || l.semNegativos) ? '<div class="empty">Clique numa loja pra ver os itens.</div>' : '';
+}
+// Itens da loja: renderizado numa linha logo abaixo da loja clicada (não no rodapé)
+function detalheHtml(l) {
   const linhas = l.linhas.filter(x => !soDif || (x.diferenca !== null && x.diferenca !== 0));
-  d.innerHTML = `<h3>Loja ${l.loja} · ${l.nome} <span class="who">${l.resp ? esc(l.resp) + ' · ' : ''}${l.iniciadoEm ? 'começou ' + hora(l.iniciadoEm) : 'não começou'}${l.concluidoEm ? ' · concluída ' + hora(l.concluidoEm) : ''}${l.ajustadoEm ? ' · <b style="color:var(--pos)">ajustada no ERP por ' + esc(l.ajustadoPor) + ' ' + hora(l.ajustadoEm) + '</b>' : ''}</span>
+  return `<h3>Loja ${l.loja} · ${l.nome} <span class="who">${l.resp ? esc(l.resp) + ' · ' : ''}${l.iniciadoEm ? 'começou ' + hora(l.iniciadoEm) : 'não começou'}${l.concluidoEm ? ' · concluída ' + hora(l.concluidoEm) : ''}${l.ajustadoEm ? ' · <b style="color:var(--pos)">ajustada no ERP por ' + esc(l.ajustadoPor) + ' ' + hora(l.ajustadoEm) + '</b>' : ''}</span>
       <span class="filtro"><label><input type="checkbox" ${soDif ? 'checked' : ''} onchange="soDif=this.checked;render()"> só itens com ajuste</label></span></h3>
     <div class="tblwrap"><table class="dtbl"><thead><tr><th>Produto</th><th>Mercadológico</th><th class="num">Sistema</th><th class="num">Depósito</th><th class="num">Loja</th><th class="num">Contado</th><th class="num">Ajuste</th><th>Quando</th></tr></thead><tbody>
     ${linhas.map(x => `<tr><td class="desc"><span class="cod">${esc(x.cod)}</span>${esc(x.desc)}</td><td style="color:var(--ink3);font-size:12px">${esc(x.grupo)} › ${esc(x.sub)}</td>
