@@ -25,6 +25,9 @@ th.r,td.r{text-align:right}
 td{padding:9px 10px;border-top:1px solid #EEEEEA;vertical-align:middle}
 .desc{font-weight:600;line-height:1.3}
 .cod{display:block;font-size:11px;color:#98A0B3;font-weight:500;margin-top:3px;white-space:nowrap}.cod i{font-style:normal;color:#4E5A72;font-weight:600;margin-left:8px}
+.embv{width:96px;font:inherit;font-size:11px;padding:2px 6px;border:1px dashed #C9C9C4;border-radius:6px;margin-left:8px;color:#0E1626;background:#fff;vertical-align:middle}
+.embv:focus{outline:none;border-color:#F5B800;background:#FFFDF3}
+.cod i.embv-ok{color:#8A6A00;background:#FFF6D6;border-radius:5px;padding:1px 6px}
 .qtd{font-weight:800;font-size:15px;white-space:nowrap}.qtd small{font-size:11px;color:#4E5A72;font-weight:600;display:block}
 input.preco{width:104px;font:inherit;font-size:15px;font-weight:700;text-align:right;padding:8px 10px;border:2px solid #C9C9C4;border-radius:9px;background:#fff;color:#0E1626}
 input.preco:focus{outline:none;border-color:#F5B800;background:#FFFDF3}
@@ -68,7 +71,7 @@ const dt=s=>s?new Date(s).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',
 const dd=s=>s?String(s).slice(0,10).split('-').reverse().join('/'):'';
 let P=null, dirty=false, saveTimer=null;
 function precoNum(v){const n=parseFloat(String(v).replace(/\./g,'').replace(',','.'));return isFinite(n)?n:null;}
-function itensForm(){return P.itens.map(i=>{const el=document.querySelector('input.preco[data-cod="'+i.cod+'"]');const ob=document.querySelector('input.obs[data-cod="'+i.cod+'"]');const mk=document.querySelector('input.marca[data-cod="'+i.cod+'"]');return {cod:i.cod,preco:el?(el.value.trim()===''?'':precoNum(el.value)):i.preco,obs:ob?ob.value:i.obs,marca:mk?mk.value:(i.marca||'')};});}
+function itensForm(){return P.itens.map(i=>{const el=document.querySelector('input.preco[data-cod="'+i.cod+'"]');const ob=document.querySelector('input.obs[data-cod="'+i.cod+'"]');const mk=document.querySelector('input.marca[data-cod="'+i.cod+'"]');const ev=document.querySelector('input.embv[data-cod="'+i.cod+'"]');return {cod:i.cod,preco:el?(el.value.trim()===''?'':precoNum(el.value)):i.preco,obs:ob?ob.value:i.obs,marca:mk?mk.value:(i.marca||''),emb_vendedor:ev?ev.value:(i.emb_vendedor||'')};});}
 function extras(){return {condicao:($('#cond')||{}).value,obs:($('#obsg')||{}).value};}
 function totais(){let t=0,n=0;for(const i of itensForm()){if(i.preco!=null&&i.preco!==''){t+=i.preco*(P.itens.find(x=>x.cod===i.cod)?.qtd||0);n++;}}return {t,n};}
 function atualizarTot(){const {t,n}=totais();$('#tot').innerHTML='<span>'+n+' de '+P.itens.length+' itens com preço</span><span>Total da proposta: <b>R$ '+fmt(t)+'</b></span>';$('#barinfo').innerHTML=n<P.itens.length?'Faltam <b>'+(P.itens.length-n)+'</b> itens sem preço. Você pode enviar mesmo assim (item sem preço = não cotado).':'Todos os itens com preço.';}
@@ -83,7 +86,7 @@ function render(){
   else h+='<div class="fim av">Preencha o <b>preço unitário</b> de cada item (por unidade, não por caixa) e, se quiser, uma observação. Tudo salva sozinho. Quando terminar, clique em <b>Enviar proposta</b> no rodapé. Item sem preço = você não cota esse item.</div>';
   h+='<div class="card"><div class="hd">Itens da cotação <span>'+P.itens.length+' itens</span></div><div style="overflow-x:auto"><table><thead><tr><th>Produto</th><th class="r">Preço unit. (R$)</th><th>Observação</th></tr></thead><tbody>';
   for(const i of P.itens){
-    h+='<tr><td class="desc">'+esc(i.descricao)+'<span class="cod">'+esc(i.cod)+(i.emb>1?'<i>Emb. '+i.emb+'</i>':'')+'</span></td>'+
+    h+='<tr><td class="desc">'+esc(i.descricao)+'<span class="cod">'+esc(i.cod)+'<i>Emb. '+(i.emb>1?i.emb:1)+'</i>'+(lock?(i.emb_vendedor?'<i class="embv-ok" title="Embalagem informada por você">sua emb.: '+esc(i.emb_vendedor)+'</i>':''):'<input class="embv" data-cod="'+esc(i.cod)+'" value="'+esc(i.emb_vendedor||'')+'" placeholder="emb. correta?" maxlength="20" title="Se a embalagem do seu produto for diferente da nossa, informe aqui (só observação; a compradora decide)">')+'</span></td>'+
       '<td class="r">'+(lock?'<b>'+(i.preco!=null?'R$ '+fmt(i.preco):'—')+'</b>':'<input class="preco'+(i.preco!=null?' ok':'')+'" inputmode="numeric" data-cod="'+esc(i.cod)+'" value="'+(i.preco!=null?fmt(i.preco):'')+'" placeholder="0,00">')+'</td>'+
       '<td>'+(lock?esc(i.obs||'')||'<span style="color:#98A0B3">—</span>':'<input class="obs" data-cod="'+esc(i.cod)+'" value="'+esc(i.obs||'')+'" placeholder="ex.: sem estoque, validade…" maxlength="200">')+'</td></tr>';
   }
@@ -94,7 +97,7 @@ function render(){
   if(!lock){
     // Preço "em centavos", como maquininha: só números, os 2 últimos são os centavos (545 -> 5,45). Enter grava e pula pro próximo.
     const precos=[...document.querySelectorAll('input.preco')];
-    document.querySelectorAll('input.preco,input.obs').forEach(el=>{
+    document.querySelectorAll('input.preco,input.obs,input.embv').forEach(el=>{
       const isPreco=el.classList.contains('preco');
       el.addEventListener('input',()=>{
         if(isPreco){const d=el.value.replace(/\D/g,'').replace(/^0+(?=\d)/,'').slice(0,9);el.value=d?fmt(parseInt(d,10)/100):'';}

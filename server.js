@@ -7981,7 +7981,7 @@ async function criarPedidoDaCotacao(f, itens, c, usuario, extra) {
   const lista = { lista: c.lista, nome: `${c.nome} · ${f.nome}`, fornecedor: f.nome, codFornec: f.codFornecErp || f.codFornec, pedidoMinimo: null };
   const cadastro = { vendedor: (f.vendedor?.nome || f.vendedor?.whats) ? { nome: f.vendedor.nome, whats: f.vendedor.whats, email: f.vendedor.email } : null, comprador: c.comprador || null, prazo_pagamento: f.condicao || null };
   const p = pedidosFornec.criar({ lista, cadastro, detalhe, teto: c.parametros?.cobertura || radarPedidos.TETO_PADRAO, embMeses: c.parametros?.embMeses ?? undefined, usuario, modo: 'completa', origem: 'cotacao' });
-  pedidosFornec.salvarPrecos(p.token, itens.map(i => ({ cod: i.cod, preco: i.preco, obs: i.obs || '' })));
+  pedidosFornec.salvarPrecos(p.token, itens.map(i => ({ cod: i.cod, preco: i.preco, obs: i.obs || '', emb_vendedor: i.emb_vendedor || '' })));
   pedidosFornec.finalizar(p.token, `Cotação #${c.id}`);
   pedidosFornec.vincularCotacao(p.id, { id: c.id, nome: c.nome, entrega: extra?.entrega || null, tipo_entrega: extra?.tipo_entrega || null, obs: extra?.obs || null });
   if (!c.teste) { try { await pedidosFornec.anexarAvarias(pedidosFornec.obter(p.id)); } catch (e) { console.error('[COTACAO] avarias:', e.message); } }
