@@ -7884,6 +7884,23 @@ app.post('/api/cotacoes/conciliacao', (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 const lerCotForn = () => { try { return JSON.parse(fs.readFileSync(COT_FORN_PATH, 'utf8')); } catch (e) { return {}; } };
+// O que o vendedor preencheu em "Estamos atualizando nosso cadastro" vai pro cadastro da lista (aba Fornecedores) ao enviar a
+// proposta (Tiago, 23/09/26): e-mail do vendedor, condição "Boleto N dias", prazo de entrega e faturamento mínimo.
+function aplicarCadastroVendedor(c, f) {
+  try {
+    const cv = f && f.cadastro_vendedor; if (!cv || !c || !c.lista) return;
+    const todos = lerCotForn(); const lista = todos[c.lista]; if (!Array.isArray(lista)) return;
+    const codErp = f.codFornecErp || f.codFornec; const cad = lista.find(x => codErp && x.codFornec === codErp) || lista.find(x => x.nome === (f.empresa || f.nome)); if (!cad) return;
+    const w = String(f.vendedor?.whats || '').replace(/\D/g, ''), nm = String(f.vendedor?.nome || '').trim().toLowerCase();
+    const alvo = [cad.vendedor].concat(cad.vendedores || []).find(v => v && ((w && String(v.whats || '').replace(/\D/g, '') === w) || (nm && String(v.nome || '').trim().toLowerCase() === nm))) || cad.vendedor;
+    if (alvo && cv.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cv.email)) alvo.email = cv.email;
+    if (cv.prazo_pagamento) cad.condicao = 'Boleto ' + cv.prazo_pagamento + ' dias';
+    if (cv.prazo_entrega != null) cad.prazo_entrega = cv.prazo_entrega;
+    if (cv.pedido_minimo != null) cad.faturamento_minimo = cv.pedido_minimo;
+    cad.cadastro_vendedor_em = new Date().toISOString(); cad.cadastro_vendedor_por = f.vendedor?.nome || null;
+    fs.mkdirSync(path.dirname(COT_FORN_PATH), { recursive: true }); fs.writeFileSync(COT_FORN_PATH, JSON.stringify(todos, null, 2));
+  } catch (e) { console.error('[COTACAO] cadastro do vendedor:', e.message); }
+}
 app.get('/api/cotacoes/lista/:lista/fornecedores', async (req, res) => {
   try {
     const id = parseInt(req.params.lista); if (!(id > 0)) return res.status(400).json({ error: 'nº da lista inválido' });
@@ -8219,16 +8236,19 @@ app.get('/api/cotacao-publica/:token', (req, res) => {
   res.json(cotacao.visaoVendedor(r.c, r.f));
 });
 app.post('/api/cotacao-publica/:token/salvar', (req, res) => {
-  const r = cotacao.salvarPrecos(req.params.token, req.body?.itens, { condicao: req.body?.condicao, obs: req.body?.obs });
+  const r = cotacao.salvarPrecos(req.params.token, req.body?.itens, { condicao: req.body?.condicao, obs: req.body?.obs, cadastro: req.body?.cadastro });
   if (!r) return res.status(404).json({ error: 'Cotação não encontrada' });
   if (r.erro) return res.status(409).json({ error: r.erro });
+  aplicarCadastroVendedor(r.c, r.f);   // regra do Tiago: preencheu, já alimenta o cadastro da lista
   res.json({ ok: true, status: r.f.status, atualizadoEm: r.f.atualizadoEm });
 });
 app.post('/api/cotacao-publica/:token/finalizar', (req, res) => {
-  const r0 = cotacao.salvarPrecos(req.params.token, req.body?.itens || [], { condicao: req.body?.condicao, obs: req.body?.obs });
+  const r0 = cotacao.salvarPrecos(req.params.token, req.body?.itens || [], { condicao: req.body?.condicao, obs: req.body?.obs, cadastro: req.body?.cadastro });
   if (!r0) return res.status(404).json({ error: 'Cotação não encontrada' });
   if (r0.erro) return res.status(409).json({ error: r0.erro });
   const r = cotacao.finalizar(req.params.token, req.body?.nome);
+  if (r.erro) return res.status(409).json({ error: r.erro });
+  aplicarCadastroVendedor(r.c, r.f);
   res.json(cotacao.visaoVendedor(r.c, r.f));
 });
 
