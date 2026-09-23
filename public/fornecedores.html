@@ -542,6 +542,7 @@ table.comp-t tr:hover td{background:#ffffff05}
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <input id="div-busca" placeholder="filtrar lista, fornecedor ou grupo" oninput="renderDivisao()" style="font:inherit;font-size:12.5px;padding:7px 11px;border:1px solid #C9C9C4;border-radius:8px;min-width:240px">
         <select id="div-modo" onchange="renderDivisao()" style="font:inherit;font-size:12.5px;padding:7px 11px;border:1px solid #C9C9C4;border-radius:8px;background:#fff"><option value="comprador">Por compradora</option><option value="lista">Por lista (quebra)</option></select>
+        <select id="div-sit" onchange="renderDivisao()" title="Filtra as listas pela situação na proposta" style="font:inherit;font-size:12.5px;padding:7px 11px;border:1px solid #C9C9C4;border-radius:8px;background:#fff"><option value="">Todas as situações</option><option value="dela">Já é dela</option><option value="migrar">Migra a lista inteira</option><option value="dividir">Só a parte do grupo (lista nova)</option><option value="muda">Só o que muda (migra ou divide)</option></select>
         <label id="div-lab-mudam" style="font-size:11.5px;color:#4E5A72;display:none;gap:5px;align-items:center"><input type="checkbox" id="div-so-mudam" checked onchange="renderDivisao()"> só listas que mudam</label>
         <button class="btn btn-slate" onclick="divExemplos()" title="Monta a relação de exemplo: cada grupo vai pra compradora que já compra a maior parte dele hoje (40% ou mais dos itens do grupo). Depois ajuste à vontade">🧪 Criar exemplos de teste</button>
         <button class="btn btn-slate" onclick="divCsv()" title="Baixa a visão por compradora em CSV (abre no Excel)">⬇ CSV</button>
@@ -1686,6 +1687,9 @@ function renderDivisao() {
   const modo = document.getElementById('div-modo').value, comprador = document.getElementById('fil-comprador').value;
   const q = (document.getElementById('div-busca').value || '').toLowerCase();
   document.getElementById('div-lab-mudam').style.display = modo === 'lista' ? 'flex' : 'none';
+  document.getElementById('div-sit').style.display = modo === 'comprador' ? '' : 'none';
+  const sit = document.getElementById('div-sit').value;
+  const bateSit = l => !sit || l.situacao === sit || (sit === 'muda' && l.situacao !== 'dela');
   const R = _divRes.resumo;
   const kpi = (v, l, cor) => '<div style="background:#fff;border:1px solid #DADAD6;border-radius:10px;padding:8px 14px"><div style="font-size:18px;font-weight:800;' + (cor ? 'color:' + cor : '') + '">' + v + '</div><div style="font-size:9.5px;color:#98A0B3;font-weight:700;text-transform:uppercase;letter-spacing:.4px">' + l + '</div></div>';
   document.getElementById('div-kpi').innerHTML = kpi(R.compradoras, 'compradoras na relação') + kpi(R.gruposCobertos + ' / ' + R.gruposTotal, 'grupos com dona') + kpi(R.listasQueMudam + ' / ' + R.listasTotal, 'listas que mudam de mão', '#6B4E00') + kpi(R.listasNovas, 'listas novas (migram ou dividem)', '#2E5E8C') + kpi(fmtN(R.itensSemDono), 'itens sem dona na relação', R.itensSemDono ? '#C22F49' : '');
@@ -1695,8 +1699,9 @@ function renderDivisao() {
   if (modo === 'comprador') {
     const cards = _divRes.porComprador.filter(c => !comprador || c.comprador === comprador);
     if (!cards.length) { corpo.innerHTML = '<div class="empty">Nenhuma compradora na relação' + (comprador ? ' com o filtro ' + divEsc(comprador) : '') + '. Adicione acima ou clique em <b>🧪 Criar exemplos de teste</b>.</div>'; return; }
-    corpo.innerHTML = cards.map(c => {
-      const rows = c.listas.filter(l => bate(l, l.grupos.map(g => g.rotulo).join(' ')));
+    const htmlCards = cards.map(c => {
+      const rows = c.listas.filter(l => bateSit(l) && bate(l, l.grupos.map(g => g.rotulo).join(' ')));
+      if ((sit || q) && !rows.length) return '';   // com filtro ligado, compradora sem lista nessa situação some
       return '<div style="margin-bottom:18px">'
         + '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px"><div style="font-size:15px;font-weight:800">' + divEsc(c.comprador) + ' <span style="color:#98A0B3">→</span> ' + c.grupos.map(g => '<span style="background:#FFF6D9;color:#6B4E00;border:1px solid #EFD98F;border-radius:99px;padding:1px 9px;font-size:12px;font-weight:700" title="' + divEsc(g.nome) + '">' + divEsc(g.rotulo) + '</span>').join(' ') + (c.grupos.length ? '' : '<span style="font-size:12px;color:#98A0B3">(sem grupo — escolha na relação acima)</span>') + '</div>'
         + '<div style="font-size:11.5px;color:#4E5A72">' + c.listasHoje + ' listas hoje · <b>' + c.listas.length + '</b> na proposta (' + c.dela + ' já dela · <b style="color:#6B4E00">' + c.migrar + '</b> migram inteiras · <b style="color:#2E5E8C">' + c.dividir + '</b> só a parte) · ' + fmtN(c.itens) + ' itens</div></div>'
@@ -1704,7 +1709,8 @@ function renderDivisao() {
         + (rows.length ? rows.map((l, k) => { const s = SIT[l.situacao]; return '<tr><td>' + (k + 1) + '</td><td style="color:#98A0B3">#' + l.id + '</td><td><b>' + divEsc(l.nomeNovo) + '</b>' + (l.situacao === 'dividir' ? '<div style="font-size:10.5px;color:#98A0B3">de: ' + divEsc(l.nome) + ' · ' + l.grupos.map(g => divEsc(g.rotulo) + ' ' + g.n).join(', ') + '</div>' : '') + '</td><td style="font-size:11.5px">' + divEsc(l.fornecedor) + '</td><td>' + (l.compradorHoje ? '<span class="comp-tag">' + divEsc(l.compradorHoje) + '</span>' : '<span style="color:#98A0B3">—</span>') + '</td><td class="r"><b>' + l.itensGrupo + '</b></td><td class="r">' + l.total + '</td><td class="r">' + l.pct + '%</td><td style="font-size:11px"><span style="background:' + s[1] + ';color:' + s[2] + ';padding:2px 8px;border-radius:99px;font-weight:700">' + s[0] + '</span></td></tr>'; }).join('')
           : '<tr><td colspan="9" class="empty">Nenhuma lista com item desses grupos' + (q ? ' nesse filtro' : '') + '.</td></tr>')
         + '</tbody></table></div></div>';
-    }).join('');
+    }).filter(Boolean);
+    corpo.innerHTML = htmlCards.length ? htmlCards.join('') : '<div class="empty">Nenhuma lista nessa situação' + (q ? ' com esse filtro' : '') + '.</div>';
   } else {
     const soMudam = document.getElementById('div-so-mudam').checked;
     const rows = _divRes.porLista.filter(l => (!comprador || l.comprador === comprador) && (!soMudam || l.muda) && bate(l, l.partes.map(p => p.comprador + ' ' + p.grupos.map(g => g.rotulo).join(' ')).join(' ')));
