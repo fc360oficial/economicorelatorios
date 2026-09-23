@@ -170,6 +170,7 @@ table.main-t td.sel input,table.main-t th.sel input{width:15px;height:15px;accen
 
 .det table td.lj,.det table th.lj{text-align:center!important;vertical-align:middle}.det table td.lj input.qin{display:block;margin:0 auto;text-align:center}.det table td{vertical-align:middle}
 .cdtag{display:inline-block;background:#101B33;color:#FFC933;font-size:9px;font-weight:800;letter-spacing:.3px;padding:1px 5px;border-radius:5px;margin-left:5px;vertical-align:middle;line-height:1.4}
+.pill.p-ped{background:#101B33;color:#FFC933;text-decoration:none;font-weight:800}.pill.p-ped:hover{background:#0E1626}
 </style>
 </head>
 <body>
@@ -233,7 +234,7 @@ async function carregar(refresh){
   $('#view').innerHTML='<div class="spinner"></div>';
   const p=params(); if(refresh)p.set('refresh','1');
   try{
-    const r=await fetch('/api/radar-pedidos?'+p.toString()); const j=await r.json();
+    const r=await fetch('/api/radar-pedidos?'+p.toString()); const j=await r.json(); PED_ABERTOS=j.pedidos_abertos||{};
     if(j.error) throw new Error(j.error);
     DATA=j; CURVAA=null; renderEstado(); renderTotais(); preencherCompradores(); render(); carregarCurvaA();
     if(ABRIR_LISTA&&j.estado.status==='ok'){ const id=ABRIR_LISTA; ABRIR_LISTA=null; if(DATA.listas.some(l=>l.lista===id)) abrirLista(id); else alert('Lista '+id+' não está no Radar (sem loja marcada, desativada ou sem itens ativos).'); }
@@ -292,8 +293,12 @@ function pillDia(l){
   if(l.fazer_em<=3) return '<span class="pill p-breve">'+l.fazer_em+' d · '+l.dow+'</span>'+a+de;
   return '<span class="pill p-ok">'+l.fazer_em+' d · '+l.dow+' '+br(l.data).slice(0,5)+'</span>'+a+de;
 }
+let PED_ABERTOS={};
+const ST_PED={sugestao:'sugestão de ruptura',aguardando:'enviado ao vendedor · aguardando digitação',digitacao:'vendedor digitando preços',finalizado:'finalizado · aguardando sua aprovação',aprovado:'aprovado · aguardando NF-e'};
+const dtCurta=s=>s?new Date(s).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
+function pedidosAbertosHtml(lista){ return (PED_ABERTOS[lista]||[]).map(p=>'<a class="pill p-ped" href="/pedidos-compra.html" onclick="event.stopPropagation()" title="Já existe pedido em andamento pra esta lista — não gere a sugestão de novo. Clique pra abrir Pedidos de Compra.">⏳ pedido #'+p.id+' · '+(ST_PED[p.status]||p.status)+(p.vendedor?' · '+esc(p.vendedor):'')+' · '+dtCurta(p.finalizadoEm||p.enviadoEm||p.criadoEm)+'</a>').join(' '); }
 function flagsHtml(l){
-  const f=[]; if(l.abaixo_minimo)f.push('<span class="pill p-flag" title="Valor abaixo do pedido mínimo do fornecedor">abaixo do mínimo</span>');
+  const f=[]; const pa=pedidosAbertosHtml(l.lista); if(pa) f.push(pa); if(l.abaixo_minimo)f.push('<span class="pill p-flag" title="Valor abaixo do pedido mínimo do fornecedor">abaixo do mínimo</span>');
   if(l.flags&&l.flags.teto)f.push('<span class="pill p-flag" title="Itens em que a quantidade bateu no teto (alvo + ciclo): conferir estoque/venda atípica">'+l.flags.teto+' no teto</span>');
   if(l.perecivel)f.push('<span class="pill p-flag" title="Alvo limitado a 60% da validade de cadastro">perecível</span>');
   return f.join(' ');
@@ -581,6 +586,8 @@ function aplicarEdicao(id,inp){
 // ---- enviar pro fornecedor: cria 1 pedido por lista selecionada e abre os links ----
 async function enviarSelecionadas(){
   const ids=[...SEL]; if(!ids.length) return;
+  const jaTem=ids.filter(id=>(PED_ABERTOS[id]||[]).length);
+  if(jaTem.length&&!confirm('ATENÇÃO: '+jaTem.length+' lista'+(jaTem.length>1?'s':'')+' selecionada'+(jaTem.length>1?'s':'')+' JÁ '+(jaTem.length>1?'TÊM':'TEM')+' pedido em andamento:\n'+jaTem.map(id=>'• #'+id+': '+(PED_ABERTOS[id]||[]).map(p=>'pedido #'+p.id+' ('+(ST_PED[p.status]||p.status)+')').join(', ')).join('\n')+'\n\nGerar OUTRO pedido mesmo assim?')) return;
   if(!confirm('Gerar '+ids.length+' pedido'+(ids.length>1?'s':'')+' pro fornecedor ('+ids.length+' lista'+(ids.length>1?'s':'')+' selecionada'+(ids.length>1?'s':'')+')? Cada um ganha um link próprio; você escolhe pra quem enviar depois.')) return;
   const b=document.getElementById('btnEnviar'); if(b){b.disabled=true;b.textContent='Gerando…';}
   try{

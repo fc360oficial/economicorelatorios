@@ -7023,7 +7023,10 @@ app.get('/api/radar-pedidos', async (req, res) => {
       rupturas: ok.reduce((a, r) => a + r.rupturas, 0), perecivel: ok.filter(r => r.perecivel).length,
       compradores: [...new Set(listas.map(r => r.comprador).filter(Boolean))].sort()
     };
-    res.json({ estado: radarPedidos.getEstado(), teto, resumo, listas, curvaA: usarCurvaA });
+    // pedidos em andamento por lista (pedidos-fornecedor): a tela avisa e pede confirmação antes de gerar de novo
+    const pedidosAbertos = {};
+    for (const p of pedidosFornec.listar()) { if (p.teste || !['sugestao', 'aguardando', 'digitacao', 'finalizado', 'aprovado'].includes(p.status)) continue; (pedidosAbertos[p.lista] || (pedidosAbertos[p.lista] = [])).push({ id: p.id, status: p.status, criadoEm: p.criadoEm, enviadoEm: p.enviadoEm || null, finalizadoEm: p.finalizadoEm || null, vendedor: p.vendedor?.nome || null }); }
+    res.json({ estado: radarPedidos.getEstado(), teto, resumo, listas, curvaA: usarCurvaA, pedidos_abertos: pedidosAbertos });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -7421,6 +7424,12 @@ app.post('/api/pedidos-fornecedor/:id/quantidades', (req, res) => {
   if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
   if (p.erro) return res.status(409).json({ error: p.erro });
   res.json({ ok: true, totais: p.totais, lojas: p.lojas });
+});
+app.post('/api/pedidos-fornecedor/:id/excluir', (req, res) => {
+  const p = pedidosFornec.excluir(parseInt(req.params.id), req.session.user?.nome || null);
+  if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
+  if (p.erro) return res.status(409).json({ error: p.erro });
+  res.json({ ok: true });
 });
 app.post('/api/pedidos-fornecedor/:id/cancelar', (req, res) => {
   const p = pedidosFornec.cancelar(parseInt(req.params.id), req.session.user?.nome || null, req.body.motivo);
