@@ -583,6 +583,7 @@ table.forntab.cad9 td:last-child .cad-acoes{display:flex;gap:2px;justify-content
 table.forntab.cad9 td:last-child .link-btn{display:inline-block;margin:0;font-size:12px;line-height:1.6;padding:1px 6px}
 table.forntab.cad9 td .vx.vx0{margin-top:0}
 table.forntab.cad9 td .vx .zap{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:7px;flex:none;text-decoration:none}table.forntab.cad9 td .vx .zap:hover{background:#E9F9EF}
+#cad-btn-salvar.dirty{box-shadow:0 0 0 3px var(--amw);animation:cadpulse 1.6s ease-in-out infinite}@keyframes cadpulse{0%,100%{box-shadow:0 0 0 3px var(--amw)}50%{box-shadow:0 0 0 6px var(--amw)}}
 </style>
 </head>
 <body>
@@ -719,7 +720,7 @@ table.forntab.cad9 td .vx .zap{display:inline-flex;align-items:center;justify-co
       <div class="suginfo" id="cad-info"></div>
     </div>
     <div id="cad" style="display:none">
-      <div class="toolbar" style="align-items:center;gap:12px;flex-wrap:wrap"><span style="color:var(--ink2);font-size:12px;flex:1;min-width:240px">Fornecedores desta lista com vendedor, WhatsApp e e-mail. Na Nova Cotação eles já aparecem marcados; é só tirar quem não deve receber.</span><span class="mini" id="cad-cont"></span><span class="mini" id="cad-salvo"></span><button class="btn primary" onclick="salvarFornLista()">Salvar fornecedores desta lista</button></div>
+      <div class="toolbar" style="align-items:center;gap:12px;flex-wrap:wrap"><span style="color:var(--ink2);font-size:12px;flex:1;min-width:240px">Fornecedores desta lista com vendedor, WhatsApp e e-mail. Na Nova Cotação eles já aparecem marcados; é só tirar quem não deve receber.</span><span class="mini" id="cad-cont"></span><span class="mini" id="cad-salvo"></span><button class="btn primary" id="cad-btn-salvar" onclick="salvarFornLista()">Salvar fornecedores desta lista</button></div>
       <div class="tablewrap">
         <table class="forntab cad9">
           <colgroup><col style="width:24%"><col style="width:13%"><col style="width:11%"><col style="width:15%"><col style="width:9%"><col style="width:8%"><col style="width:12%"><col style="width:196px"></colgroup>
@@ -1160,7 +1161,7 @@ async function importarExcel(inp){
   } catch(e) { info.textContent = ''; toastMsg('Erro na importação: ' + e.message); }
 }
 function addTodosErp(){ ERP_FORN.forEach(function(f){ addFornecedorErp(f.codFornec); }); }
-async function salvarFornLista(){ if (!CAD_LISTA) return; try { var r = await post('/api/cotacoes/lista/' + CAD_LISTA + '/fornecedores', {fornecedores: CAD.map(function(f){ return {codFornec:f.codFornec, nome:f.nome, vendedor:f.vendedor, faturamento_minimo:f.faturamento_minimo||null, condicao:f.condicao||null, prazo_entrega:f.prazo_entrega||null, obs:f.obs||null, nome_planilha:f.nome_planilha||null, cnpj:f.cnpj||null, casou:f.casou||null, outros:f.outros||null, inativo:!!f.inativo, inativo_em:f.inativo_em||null, vendedores:f.vendedores||[]}; })}); toastMsg(r.salvos + ' fornecedores guardados pra lista ' + CAD_LISTA); $('#cad-salvo').textContent = 'Salvo ' + new Date().toLocaleTimeString('pt-BR').slice(0,5) + ' · ' + r.salvos + ' fornecedores'; if (SUG && SUG.lista.lista === CAD_LISTA) FORN = []; } catch(e) { toastMsg('Erro: ' + e.message); } }
+async function salvarFornLista(){ if (!CAD_LISTA) return; try { var r = await post('/api/cotacoes/lista/' + CAD_LISTA + '/fornecedores', {fornecedores: CAD.map(function(f){ return {codFornec:f.codFornec, nome:f.nome, vendedor:f.vendedor, faturamento_minimo:f.faturamento_minimo||null, condicao:f.condicao||null, prazo_entrega:f.prazo_entrega||null, obs:f.obs||null, nome_planilha:f.nome_planilha||null, cnpj:f.cnpj||null, casou:f.casou||null, outros:f.outros||null, inativo:!!f.inativo, inativo_em:f.inativo_em||null, vendedores:f.vendedores||[]}; })}); cadLimpo(); toastMsg(r.salvos + ' fornecedores guardados pra lista ' + CAD_LISTA); $('#cad-salvo').textContent = 'Salvo ' + new Date().toLocaleTimeString('pt-BR').slice(0,5) + ' · ' + r.salvos + ' fornecedores'; if (SUG && SUG.lista.lista === CAD_LISTA) FORN = []; } catch(e) { toastMsg('Erro: ' + e.message); } }
 
 var _srchT = null;
 function buscarFornecedor(v){
@@ -1222,10 +1223,15 @@ async function salvarCadForn(){
   var dados = {codFornec: cod, nome: nome, cnpj: $('#cf-cnpj').value || null, vendedor: {nome: $('#cf-vend').value.trim(), whats: whats, email: $('#cf-email').value.trim()}, faturamento_minimo: fat, condicao: $('#cf-cond').value.trim() || null, prazo_entrega: prazo, obs: $('#cf-obs').value.trim() || null};
   if (CAD_EDIT) { Object.assign(CAD_EDIT, dados); }
   else { if (CAD.some(function(f){ return cod ? f.codFornec === cod : f.nome === nome; })) { toastMsg('Esse fornecedor já está na lista'); return; } CAD.push(Object.assign({telefones: []}, dados)); }
-  CAD_EDIT = null; fecharModal(); renderFornecedores();
+  CAD_EDIT = null; fecharModal(); cadTocado(); renderFornecedores();
   await salvarFornLista();
 }
-function inativarFornecedor(cod, nome, v){ var f = CAD.find(function(x){ return cod ? x.codFornec === cod : x.nome === nome; }); if (!f) return; f.inativo = !!v; f.inativo_em = v ? new Date().toISOString() : null; renderFornecedores(); toastMsg((v ? 'Inativado: ' : 'Reativado: ') + f.nome + ' — clique em Salvar pra gravar'); }
+// Alterações ficam só em memória até "Salvar fornecedores desta lista": cadTocado() destaca o botão e avisa se fechar a aba
+var CAD_DIRTY = false;
+function cadTocado(){ CAD_DIRTY = true; var b = $('#cad-btn-salvar'); if (b) { b.classList.add('dirty'); b.textContent = 'Salvar fornecedores desta lista •'; } }
+function cadLimpo(){ CAD_DIRTY = false; var b = $('#cad-btn-salvar'); if (b) { b.classList.remove('dirty'); b.textContent = 'Salvar fornecedores desta lista'; } }
+window.addEventListener('beforeunload', function(e){ if (CAD_DIRTY) { e.preventDefault(); e.returnValue = 'Há alterações nos fornecedores não salvas.'; } });
+function inativarFornecedor(cod, nome, v){ var f = CAD.find(function(x){ return cod ? x.codFornec === cod : x.nome === nome; }); if (!f) return; cadTocado(); f.inativo = !!v; f.inativo_em = v ? new Date().toISOString() : null; renderFornecedores(); toastMsg((v ? 'Inativado: ' : 'Reativado: ') + f.nome + ' — clique em Salvar pra gravar'); }
 // Conciliação planilha × ERP (Tiago, 22/09): ✔ aprova (grava e passa a casar direto) · ✖ recusa (desfaz o vínculo e nunca mais sugere esse par)
 function fornBy(cod, nome){ return CAD.find(function(x){ return cod ? x.codFornec === cod : x.nome === nome; }); }
 async function conciliar(cod, nome, acao){
@@ -1236,12 +1242,12 @@ async function conciliar(cod, nome, acao){
   renderFornecedores(); salvarFornLista();
 }
 // Vários vendedores na mesma empresa (Tiago, 22/09): todos recebem o link da cotação
-function addFornExtra(cod, nome){ var f = fornBy(cod, nome); if (!f) return; f.vendedores = f.vendedores || []; f.vendedores.push({nome: '', whats: '', email: ''}); renderFornecedores(); }
-function rmFornExtra(cod, nome, k){ var f = fornBy(cod, nome); if (!f || !f.vendedores) return; f.vendedores.splice(k, 1); renderFornecedores(); }
+function addFornExtra(cod, nome){ var f = fornBy(cod, nome); if (!f) return; cadTocado(); f.vendedores = f.vendedores || []; f.vendedores.push({nome: '', whats: '', email: ''}); renderFornecedores(); }
+function rmFornExtra(cod, nome, k){ var f = fornBy(cod, nome); if (!f || !f.vendedores) return; cadTocado(); f.vendedores.splice(k, 1); renderFornecedores(); }
 // Tirar o vendedor PRINCIPAL (Tiago, 23/09/26: "tenho que ter a opção de excluir um dos dois"): o próximo da lista sobe pra
 // principal; sem outro, os campos ficam em branco. Como o resto da tabela, só grava em "Salvar fornecedores desta lista".
-function rmFornPrincipal(cod, nome){ var f = fornBy(cod, nome); if (!f) return; var ex = f.vendedores || []; if (!ex.length) { toastMsg('Só dá pra tirar um vendedor quando o fornecedor tem dois'); return; } var quem = f.vendedor.nome || 'este vendedor'; if (!confirm('Tirar ' + quem + '? ' + (ex.length ? (ex[0].nome || 'o próximo vendedor') + ' vira o principal.' : 'Os campos de vendedor ficam em branco.'))) return; f.vendedor = ex.length ? ex.shift() : {nome: '', whats: '', email: ''}; f.vendedores = ex; renderFornecedores(); }
-function setFornExtra(cod, nome, k, campo, v){ var f = fornBy(cod, nome); if (!f || !f.vendedores || !f.vendedores[k]) return; f.vendedores[k][campo] = campo === 'whats' ? String(v || '').replace(/\D/g, '') : String(v || '').trim(); if (campo === 'whats') renderFornecedores(); }
+function rmFornPrincipal(cod, nome){ var f = fornBy(cod, nome); if (!f) return; var ex = f.vendedores || []; if (!ex.length) { toastMsg('Só dá pra tirar um vendedor quando o fornecedor tem dois'); return; } var quem = f.vendedor.nome || 'este vendedor'; if (!confirm('Tirar ' + quem + '? ' + (ex.length ? (ex[0].nome || 'o próximo vendedor') + ' vira o principal.' : 'Os campos de vendedor ficam em branco.'))) return; f.vendedor = ex.length ? ex.shift() : {nome: '', whats: '', email: ''}; f.vendedores = ex; cadTocado(); renderFornecedores(); }
+function setFornExtra(cod, nome, k, campo, v){ var f = fornBy(cod, nome); if (!f || !f.vendedores || !f.vendedores[k]) return; cadTocado(); f.vendedores[k][campo] = campo === 'whats' ? String(v || '').replace(/\D/g, '') : String(v || '').trim(); if (campo === 'whats') renderFornecedores(); }
 // planilha com 2+ vendedores na mesma empresa: quebra em vendedores automaticamente (Tiago, 22/09: "não deixa só um não")
 function separarOutros(cod, nome, silencioso){
   var f = fornBy(cod, nome); if (!f || !f.outros) return; f.vendedores = f.vendedores || [];
@@ -1250,15 +1256,15 @@ function separarOutros(cod, nome, silencioso){
 }
 function separarTodosOutros(){ var n = 0; CAD.forEach(function(f){ if (f.outros && f.outros.length) { separarOutros(f.codFornec, f.nome, true); n++; } }); return n; }
 function waBtns(f){ var vs = [f.vendedor].concat(f.vendedores || []).filter(function(v){ return v && v.whats; }); if (!vs.length) return '<span class="wa off" title="sem WhatsApp do vendedor">💬 sem nº</span>'; return vs.map(function(v){ return '<a class="wa" href="' + waLink(v.whats, msgWhats(f, v)) + '" target="_blank" onclick="marcarEnviado(' + f.codFornec + ')" title="' + esc(v.whats) + '">💬 ' + (vs.length > 1 ? esc(String(v.nome || v.whats).split(' ')[0]) : 'WhatsApp') + '</a>'; }).join(''); }
-function rmFornecedor(cod, nome){ CAD = CAD.filter(function(f){ return cod ? f.codFornec !== cod : f.nome !== nome; }); renderFornecedores(); renderErpForn(); }
+function rmFornecedor(cod, nome){ cadTocado(); CAD = CAD.filter(function(f){ return cod ? f.codFornec !== cod : f.nome !== nome; }); renderFornecedores(); renderErpForn(); }
 // Dinheiro digitado de qualquer jeito (600, 600,5, 600.50, 1.500,00, R$ 1.500) → número; fmtMoedaInput devolve "1.500,00" pro campo
 // (Tiago, 23/09/26: "quando colocar o número já ser na moeda real, com ponto e vírgula")
 function parseMoeda(v){ var t = String(v == null ? '' : v).replace(/[^\d.,-]/g, ''); if (!t) return null; if (t.indexOf(',') >= 0) t = t.replace(/\./g, '').replace(',', '.'); else if (/^-?\d+\.\d{1,2}$/.test(t)) { /* 600.50 = decimal */ } else t = t.replace(/\./g, ''); var n = parseFloat(t); return isFinite(n) ? n : null; }
 function fmtMoedaInput(v){ var n = parseMoeda(v); return n == null ? '' : fmtN(n, 2); }
 function boletoDias(c){ var m = String(c || '').match(/\d+/); return m ? m[0] : ''; }
 function setBoleto(cod, nome, el){ var n = parseInt(String(el.value || '').replace(/\D/g, '')) || 0; setFornCampo(cod, nome, 'condicao', n ? 'Boleto ' + n + ' dias' : ''); el.value = n || ''; }
-function setFornCampo(cod, nome, campo, v){ var f = CAD.find(function(x){ return cod ? x.codFornec === cod : x.nome === nome; }); if (!f) return; if (campo === 'faturamento_minimo') f[campo] = parseMoeda(v); else if (campo === 'prazo_entrega') f[campo] = parseInt(v) || null; else f[campo] = String(v).trim() || null; toastMsg('Alterado — clique em Salvar pra gravar'); }
-function setForn(cod, campo, v, nome){ var f = CAD.find(function(x){ return cod ? x.codFornec === cod : x.nome === nome; }); if (f) f.vendedor[campo] = campo === 'whats' ? String(v).replace(/\D/g, '') : v; }
+function setFornCampo(cod, nome, campo, v){ var f = CAD.find(function(x){ return cod ? x.codFornec === cod : x.nome === nome; }); if (!f) return; cadTocado(); if (campo === 'faturamento_minimo') f[campo] = parseMoeda(v); else if (campo === 'prazo_entrega') f[campo] = parseInt(v) || null; else f[campo] = String(v).trim() || null; toastMsg('Alterado — clique em Salvar pra gravar'); }
+function setForn(cod, campo, v, nome){ var f = CAD.find(function(x){ return cod ? x.codFornec === cod : x.nome === nome; }); if (f) cadTocado(); if (f) f.vendedor[campo] = campo === 'whats' ? String(v).replace(/\D/g, '') : v; }
 function renderFornecedores(){
   separarTodosOutros();
   var tb = $('#cad-tbody');
