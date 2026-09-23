@@ -101,3 +101,24 @@ test('coletarCD: emb_multipla=0 conta o estoque do CD em fardos; =1 em unidades;
   assert.equal(r['17896221600156'].custoCDcx, 19.08); assert.equal(r['7896012303115'].custoCDcx, 44); assert.equal(r['7891150097575'].custoCDcx, 58.86); assert.equal(r['039800014009'].custoCDcx, 0);
   cdm.init({ q: async () => [], mesDB: m => String(m).padStart(2, '0'), dataDir: dir });
 });
+
+// Tiago, 22/09/2026: Fandangos vendeu 13 un na L1 no próprio dia e a tela dizia "sem venda" — a janela parava em ontem.
+// A janela inclui HOJE (dia parcial): a primeira venda conta na hora e o produto sai de "novo" no próximo recálculo.
+test('coletarUnidades: venda de hoje entra na janela e vira venda/dia (produto novo, piso 7 d)', async () => {
+  const params = [];
+  const fake = async (sql, p) => {
+    if (sql.includes('FROM central.itens WHERE CodigoBarra IN')) return [{ cod: '7892840825072', descricao: 'FANDANGOS 21G', validade: 120 }];
+    if (sql.includes('estoquen1 ')) return [{ cod: '7892840825072', Qtd: 1187 }];
+    if (sql.includes('zcupomitens') && sql.includes('ln109')) { params.push(p.slice(0, 2)); return p[1] >= '2026-09-22' ? [{ cod: '7892840825072', qtd: 13, primeira: '2026-09-22' }] : []; }
+    return [];
+  };
+  const cdm = require('../lib/pedidos-cd');
+  cdm.init({ q: fake, mesDB: m => String(m).padStart(2, '0'), dataDir: dir });
+  const { un } = await cdm._coletarUnidadesParaTeste(['7892840825072'], '2026-09-22');
+  assert.ok(params.length && params.every(([, fim]) => fim === '2026-09-22'), 'janela termina em hoje');
+  assert.ok(params.every(([ini]) => ini === '2026-08-14'), 'janela de 40 dias contando hoje');
+  const L1 = un['7892840825072'].porLoja[1];
+  assert.equal(L1.est, 1187);
+  assert.equal(L1.vq, +(13 / 7).toFixed(3));
+  assert.deepEqual(L1.vendaNova, { desde: '2026-09-22', dias: 7 });
+});
