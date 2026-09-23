@@ -47,6 +47,8 @@ tr.ev{cursor:pointer;user-select:none}tr.ev:hover td{background:var(--wsh)}tr.ev
 .pill.prod{background:var(--negw);color:var(--neg)}
 .empty{padding:36px 18px;text-align:center;color:var(--ink3);font-size:13px}
 .detail{padding:0 18px 18px;border-top:1px solid var(--ln)}
+tr.det > td{padding:0;white-space:normal;background:var(--crd);cursor:default}tr.det:hover > td{background:var(--crd)}
+tr.det .detail{border-top:none;border-bottom:1px solid var(--ln)}
 .detail h3{font-size:13px;font-weight:800;margin:16px 0 8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .detail .meta{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--ink2);margin-bottom:12px}
 .detail .meta b{color:var(--ink)}
@@ -154,24 +156,26 @@ function render() {
     <td>${esc((e.operacao || '').toUpperCase())}</td>
     <td class="num mono">${e.afetados ?? '—'}</td>
     <td><span class="pill ${esc(e.status)}">${({ ok: 'OK', erro: 'Erro', recusado: 'Recusado' })[e.status] || esc(e.status)}</span></td>
-    <td class="motivo">${esc(e.motivo)}</td></tr>`).join('');
-  if (selId && !itens.some(e => e.id === selId)) { selId = null; $('detail').hidden = true; }
+    <td class="motivo">${esc(e.motivo)}</td></tr>`
+    + (e.id === selId ? `<tr class="det"><td colspan="8"><div class="detail">${detHtml}</div></td></tr>` : '')).join('');
+  if (selId && !itens.some(e => e.id === selId)) { selId = null; detHtml = ''; }
 }
 
 function servidor(e) {
   return e.host === '192.168.2.252' ? '<span class="pill prod">Produção .252</span>' : '<span class="pill teste">Teste .254</span>';
 }
 
+// Detalhe abre numa linha logo abaixo da linha clicada (não no rodapé); 2º clique fecha
+let detHtml = '';
 async function abrir(id) {
-  if (selId === id) { selId = null; $('detail').hidden = true; $('detail').innerHTML = ''; render(); return; } // 2º clique fecha
-  selId = id; render();
-  const d = $('detail'); d.hidden = false; d.innerHTML = '<p class="aviso" style="padding:14px 0">Carregando…</p>';
+  if (selId === id) { selId = null; detHtml = ''; render(); return; }
+  selId = id; detHtml = '<p class="aviso" style="padding:14px 0">Carregando…</p>'; render();
   try {
     const r = await fetch('/api/log-erp/' + encodeURIComponent(id));
     if (!r.ok) throw new Error('não encontrado');
     const e = await r.json();
     const mud = new Set(e.colunas_mudadas || []);
-    d.innerHTML = `
+    detHtml = `
       <h3>${esc(e.banco)}.${esc(e.tabela)} · ${esc((e.operacao || '').toUpperCase())} <span class="pill ${esc(e.status)}">${esc(e.status)}</span> ${servidor(e)}</h3>
       <div class="meta">
         <span>Quando <b class="mono">${dh(e.quando)}</b></span><span>Usuário <b>${esc(e.usuario)}</b></span>
@@ -185,8 +189,8 @@ async function abrir(id) {
       </div>
       <div class="label" style="margin:14px 0 6px">SQL</div>
       <pre class="sql">${esc(e.sql || '—')}\n\nparâmetros: ${esc(JSON.stringify(e.params))}\nwhere: ${esc(JSON.stringify(e.where))}\nvalores: ${esc(JSON.stringify(e.valores))}</pre>`;
-    d.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  } catch (err) { d.innerHTML = `<div class="erro-box" style="margin-top:14px">${esc(err.message)}</div>`; }
+    render();
+  } catch (err) { detHtml = `<div class="erro-box" style="margin-top:14px">${esc(err.message)}</div>`; render(); }
 }
 
 function tabela(rows, mud) {
