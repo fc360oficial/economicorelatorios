@@ -581,6 +581,7 @@ table.forntab.cad9 td .vx-add .link-btn{font-size:11px}
 table.forntab.cad9 td:last-child{padding-right:8px}
 table.forntab.cad9 td:last-child .cad-acoes{display:flex;gap:2px;justify-content:flex-end;align-items:center}
 table.forntab.cad9 td:last-child .link-btn{display:inline-block;margin:0;font-size:12px;line-height:1.6;padding:1px 6px}
+table.forntab.cad9 td .vx.vx0{margin-top:0}
 </style>
 </head>
 <body>
@@ -709,10 +710,10 @@ table.forntab.cad9 td:last-child .link-btn{display:inline-block;margin:0;font-si
     <div class="pagehead"><div><h1>Fornecedores por lista</h1><p>Cadastro de quem cota cada lista do ERP: fornecedor, vendedor, WhatsApp e e-mail. Muda pouco; a Nova Cotação só escolhe quem recebe desta vez.</p></div><button class="btn primary" onclick="abrirCadastroForn()">+ Cadastrar fornecedor</button></div>
     <div class="sugtop">
       <h3>Lista do ERP</h3>
-      <p>Digite o nº da lista (ex.: <b>277</b> Cotação de Alimentos). Se ainda não houver cadastro, o sistema sugere quem o ERP conhece pra esses produtos e quem entrou na última cotação.</p>
+      <p>Busque a lista por nº, nome, fornecedor ou compradora (ex.: <b>277</b> Cotação de Alimentos). Se ainda não houver cadastro, o sistema sugere quem o ERP conhece pra esses produtos e quem entrou na última cotação.</p>
       <div class="row">
-        <div class="fld big"><label>Nº da lista</label><input type="number" id="cad-lista" placeholder="277" min="1" onkeydown="if(event.key==='Enter')carregarCadastro()"></div>
-        <button class="btn primary" id="cad-btn" onclick="carregarCadastro()">Carregar</button>
+        <div class="fld big srch" style="min-width:420px;flex:1"><label>Lista de compra</label><input type="text" id="cad-lista-busca" placeholder="nº da lista, nome, fornecedor, CNPJ ou compradora (ex.: 277, alimentos, ambev, fátima)" autocomplete="off" oninput="buscarLista(this.value, LISTA_CFG_CAD)" onfocus="buscarLista(this.value, LISTA_CFG_CAD)" onkeydown="if(event.key==='Enter'){event.preventDefault();escolherListaEnter(LISTA_CFG_CAD);}if(event.key==='Escape')fecharListas(LISTA_CFG_CAD)" style="width:100%;font-size:14px;font-weight:600"><input type="hidden" id="cad-lista"><div class="res" id="cad-lista-res" style="display:none"></div></div>
+        <button class="btn primary" id="cad-btn" onclick="escolherListaEnter(LISTA_CFG_CAD)">Carregar</button>
       </div>
       <div class="suginfo" id="cad-info"></div>
     </div>
@@ -888,20 +889,26 @@ function replicar(lista){ if (!lista) { goScreen('s2'); return; } setLista(lista
 var LISTAS_ERP = null, _lt = null;
 async function carregarListasErp(){ if (LISTAS_ERP) return LISTAS_ERP; try { var rl = await api('/api/listas-compra'); LISTAS_ERP = Array.isArray(rl) ? rl : (rl.listas || []); } catch(e) { LISTAS_ERP = []; toastMsg('Erro ao carregar as listas: ' + e.message); } return LISTAS_ERP; }
 function setLista(id, nome){ $('#ns-lista').value = id || ''; var L = (LISTAS_ERP || []).find(function(x){ return String(x.id) === String(id); }); $('#ns-lista-busca').value = id ? ('#' + id + ' ' + (nome || (L ? L.nome : '') || '')).trim() : ''; fecharListas(); }
-function fecharListas(){ var r = $('#ns-lista-res'); if (r) r.style.display = 'none'; }
-function buscarLista(v){
+// A busca de lista serve às duas telas (Tiago, 23/09/26: "na aba Fornecedores faz assim para pesquisar lista"): cfg diz onde está o campo,
+// o dropdown e qual função recebe a lista escolhida. Sem cfg = Nova Cotação.
+var LISTA_CFG_NS = { busca: '#ns-lista-busca', res: '#ns-lista-res', pick: 'escolherLista' };
+var LISTA_CFG_CAD = { busca: '#cad-lista-busca', res: '#cad-lista-res', pick: 'escolherListaCad' };
+function fecharListas(cfg){ var r = $((cfg || LISTA_CFG_NS).res); if (r) r.style.display = 'none'; }
+function setListaCad(id, nome){ $('#cad-lista').value = id || ''; var L = (LISTAS_ERP || []).find(function(x){ return String(x.id) === String(id); }); $('#cad-lista-busca').value = id ? ('#' + id + ' ' + (nome || (L ? L.nome : '') || '')).trim() : ''; fecharListas(LISTA_CFG_CAD); }
+function escolherListaCad(id){ var L = (LISTAS_ERP || []).find(function(x){ return x.id === id; }); setListaCad(id, L ? L.nome : ''); carregarCadastro(); }
+function buscarLista(v, cfg){ cfg = cfg || LISTA_CFG_NS;
   clearTimeout(_lt); _lt = setTimeout(async function(){
-    var L = await carregarListasErp(), b = String(v || '').trim().toLowerCase().replace(/^#/, ''), r = $('#ns-lista-res');
+    var L = await carregarListasErp(), b = String(v || '').trim().toLowerCase().replace(/^#/, ''), r = $(cfg.res);
     var bd = b.replace(/D/g, ''); var hits = L.filter(function(x){ if (!b) return true; return String(x.id) === b || String(x.id).indexOf(b) === 0 || (x.nome || '').toLowerCase().indexOf(b) >= 0 || (x.fornecedor || '').toLowerCase().indexOf(b) >= 0 || (x.compradores || '').toLowerCase().indexOf(b) >= 0 || (x.obs || '').toLowerCase().indexOf(b) >= 0 || (x.operador || '').toLowerCase().indexOf(b) >= 0 || (bd.length >= 4 && (x.cnpj || '').indexOf(bd) >= 0) || (x.codFornec && String(x.codFornec) === b); });
     hits.sort(function(a, c){ var ea = String(a.id) === b ? 0 : 1, ec = String(c.id) === b ? 0 : 1; return ea - ec || (c.total_itens || 0) - (a.total_itens || 0); });
     if (!hits.length) { r.innerHTML = '<div class="mini" style="padding:10px 12px">Nenhuma lista com "' + esc(v) + '"</div>'; r.style.display = 'block'; return; }
-    r.innerHTML = hits.slice(0, 14).map(function(x){ return '<button type="button" onclick="escolherLista(' + x.id + ')"><b>#' + x.id + '</b> ' + esc(x.nome || '') + '<span class="mini"> · ' + esc(x.fornecedor || 'sem fornecedor') + (x.cnpj ? ' · CNPJ ' + x.cnpj.replace(/^(d{2})(d{3})(d{3})(d{4})(d{2})$/, '../-') : '') + ' · ' + (x.total_itens || 0) + ' itens' + (x.compradores ? ' · ' + esc(x.compradores) : '') + '</span></button>'; }).join('') + (hits.length > 14 ? '<div class="mini" style="padding:8px 12px">+ ' + (hits.length - 14) + ' listas — refine a busca</div>' : '');
+    r.innerHTML = hits.slice(0, 14).map(function(x){ return '<button type="button" onclick="' + cfg.pick + '(' + x.id + ')"><b>#' + x.id + '</b> ' + esc(x.nome || '') + '<span class="mini"> · ' + esc(x.fornecedor || 'sem fornecedor') + (x.cnpj ? ' · CNPJ ' + x.cnpj.replace(/^(d{2})(d{3})(d{3})(d{4})(d{2})$/, '../-') : '') + ' · ' + (x.total_itens || 0) + ' itens' + (x.compradores ? ' · ' + esc(x.compradores) : '') + '</span></button>'; }).join('') + (hits.length > 14 ? '<div class="mini" style="padding:8px 12px">+ ' + (hits.length - 14) + ' listas — refine a busca</div>' : '');
     r.style.display = 'block';
   }, 150);
 }
 function escolherLista(id){ var L = (LISTAS_ERP || []).find(function(x){ return x.id === id; }); setLista(id, L ? L.nome : ''); calcularSugestao(); }
-async function escolherListaEnter(){ var v = String($('#ns-lista-busca').value || '').trim().replace(/^#/, ''); var L = await carregarListasErp(); var hit = L.find(function(x){ return String(x.id) === v; }); if (!hit && v) { var b = v.toLowerCase(); hit = L.find(function(x){ return (x.nome || '').toLowerCase().indexOf(b) >= 0 || (x.fornecedor || '').toLowerCase().indexOf(b) >= 0; }); } if (hit) escolherLista(hit.id); else if (/^\d+$/.test(v)) { setLista(+v, ''); calcularSugestao(); } else toastMsg('Escolha uma lista na busca'); }
-document.addEventListener('click', function(e){ if (!e.target.closest('#ns-lista-busca') && !e.target.closest('#ns-lista-res')) fecharListas(); });
+async function escolherListaEnter(cfg){ cfg = cfg || LISTA_CFG_NS; var v = String($(cfg.busca).value || '').trim().replace(/^#/, ''); var L = await carregarListasErp(); var hit = L.find(function(x){ return String(x.id) === v; }); if (!hit && v) { var b = v.toLowerCase(); hit = L.find(function(x){ return (x.nome || '').toLowerCase().indexOf(b) >= 0 || (x.fornecedor || '').toLowerCase().indexOf(b) >= 0; }); } if (hit) window[cfg.pick](hit.id); else if (/^\d+$/.test(v)) window[cfg.pick](+v); else toastMsg('Escolha uma lista na busca'); }
+document.addEventListener('click', function(e){ if (!e.target.closest('#ns-lista-busca') && !e.target.closest('#ns-lista-res')) fecharListas(); if (!e.target.closest('#cad-lista-busca') && !e.target.closest('#cad-lista-res')) fecharListas(LISTA_CFG_CAD); });
 async function cancelarMon(id){ if (!confirm('Cancelar a cotação #' + id + '?')) return; try { await post('/api/cotacoes/' + id + '/cancelar'); toastMsg('Cotação cancelada'); carregarMonitor(); } catch(e) { toastMsg('Erro: ' + e.message); } }
 function exportarModalCsv(){
   var t = $('#modal-body').querySelector('table'); if (!t) return; var rows = [];
@@ -1110,9 +1117,9 @@ var ERP_FORN = [];
 // fornecedores guardados pra lista (última vez salva / última cotação) + quem o ERP diz que atende os produtos da lista
 // ───────── ABA FORNECEDORES — cadastro por lista
 function mapForn(f){ return {codFornec:f.codFornec, nome:f.nome, nome_planilha:f.nome_planilha||null, cnpj:f.cnpj||null, casou:f.casou||null, outros:f.outros||null, inativo:!!f.inativo, inativo_em:f.inativo_em||null, faturamento_minimo:f.faturamento_minimo||null, condicao:f.condicao||null, prazo_entrega:f.prazo_entrega||null, obs:f.obs||null, vendedor:{nome:(f.vendedor&&f.vendedor.nome)||'', whats:String((f.vendedor&&f.vendedor.whats)||'').replace(/\D/g,''), email:(f.vendedor&&f.vendedor.email)||''}, vendedores:f.vendedores||[], telefones:[]}; }
-function goCadastro(lista){ if (lista) $('#cad-lista').value = lista; goScreen('s6'); if (lista && lista !== CAD_LISTA) carregarCadastro(); }
+function goCadastro(lista){ if (lista) { setListaCad(lista, ''); carregarListasErp().then(function(){ if (String($('#cad-lista').value) === String(lista)) setListaCad(lista, ''); }); } goScreen('s6'); if (lista && lista !== CAD_LISTA) carregarCadastro(); }
 async function carregarCadastro(){
-  var lista = parseInt($('#cad-lista').value); if (!(lista > 0)) { toastMsg('Digite o nº da lista do ERP'); $('#cad-lista').focus(); return; }
+  var lista = parseInt($('#cad-lista').value); if (!(lista > 0)) { toastMsg('Busque e escolha a lista do ERP'); $('#cad-lista-busca').focus(); return; }
   var btn = $('#cad-btn'); btn.disabled = true; btn.textContent = 'Carregando…'; $('#cad-info').innerHTML = ''; $('#cad-salvo').textContent = '';
   try {
     var r = await api('/api/cotacoes/lista/' + lista + '/fornecedores');
@@ -1182,7 +1189,7 @@ function formCadForn(f){
     '</div><div style="display:flex;justify-content:flex-end;gap:8px;margin-top:6px"><button class="btn ghost" onclick="fecharModal()">Cancelar</button><button class="btn primary" onclick="salvarCadForn()">Salvar fornecedor</button></div>';
 }
 function abrirCadastroForn(){
-  if (!CAD_LISTA) { toastMsg('Carregue a lista primeiro'); $('#cad-lista').focus(); return; }
+  if (!CAD_LISTA) { toastMsg('Carregue a lista primeiro'); $('#cad-lista-busca').focus(); return; }
   CAD_EDIT = null; abrirModal('Cadastrar fornecedor na lista ' + CAD_LISTA, formCadForn(null));
   setTimeout(function(){ var i = $('#f-srch'); if (i) i.focus(); }, 50);
 }
@@ -1226,6 +1233,9 @@ async function conciliar(cod, nome, acao){
 // Vários vendedores na mesma empresa (Tiago, 22/09): todos recebem o link da cotação
 function addFornExtra(cod, nome){ var f = fornBy(cod, nome); if (!f) return; f.vendedores = f.vendedores || []; f.vendedores.push({nome: '', whats: '', email: ''}); renderFornecedores(); }
 function rmFornExtra(cod, nome, k){ var f = fornBy(cod, nome); if (!f || !f.vendedores) return; f.vendedores.splice(k, 1); renderFornecedores(); }
+// Tirar o vendedor PRINCIPAL (Tiago, 23/09/26: "tenho que ter a opção de excluir um dos dois"): o próximo da lista sobe pra
+// principal; sem outro, os campos ficam em branco. Como o resto da tabela, só grava em "Salvar fornecedores desta lista".
+function rmFornPrincipal(cod, nome){ var f = fornBy(cod, nome); if (!f) return; var ex = f.vendedores || []; var quem = f.vendedor.nome || 'este vendedor'; if (!confirm('Tirar ' + quem + '? ' + (ex.length ? (ex[0].nome || 'o próximo vendedor') + ' vira o principal.' : 'Os campos de vendedor ficam em branco.'))) return; f.vendedor = ex.length ? ex.shift() : {nome: '', whats: '', email: ''}; f.vendedores = ex; renderFornecedores(); }
 function setFornExtra(cod, nome, k, campo, v){ var f = fornBy(cod, nome); if (!f || !f.vendedores || !f.vendedores[k]) return; f.vendedores[k][campo] = campo === 'whats' ? String(v || '').replace(/\D/g, '') : String(v || '').trim(); }
 // planilha com 2+ vendedores na mesma empresa: quebra em vendedores automaticamente (Tiago, 22/09: "não deixa só um não")
 function separarOutros(cod, nome, silencioso){
@@ -1249,7 +1259,7 @@ function renderFornecedores(){
     var idArgs = f.codFornec + ',\'' + esc(f.nome).replace(/'/g, '') + '\''; var VX = f.vendedores || [];
     var vx = function(campo, ph){ return VX.map(function(v, k){ return '<div class="vx"><input class="finp" value="' + esc(v[campo] || '') + '" placeholder="' + ph + ' ' + (k + 2) + '" onchange="setFornExtra(' + idArgs + ',' + k + ',\'' + campo + '\',this.value)">' + (campo === 'nome' ? '<button class="link-btn x" title="tirar este vendedor" onclick="rmFornExtra(' + idArgs + ',' + k + ')">×</button>' : '') + '</div>'; }).join(''); };
     return '<tr' + (f.inativo ? ' class="off" title="Inativo desde ' + dd(f.inativo_em) + ': não aparece na Nova Cotação"' : '') + '><td><b>' + esc(f.nome) + '</b>' + (f.inativo ? ' <span class="status-pill cancel" style="margin-left:4px">Inativo</span>' : '') + '<br><span class="mini">' + (f.codFornec ? 'cód. ' + f.codFornec + (f.cnpj ? ' · CNPJ ' + esc(f.cnpj) : '') : 'sem cadastro') + (f.telefones && f.telefones.length ? ' · cadastro: ' + f.telefones.map(function(t){ return esc(t.valor); }).join(', ') : '') + (f.lista_origem ? ' · vendedor veio da lista ' + esc(f.lista_origem) : '') + (f.codFornec && (f.casou === 'parcial' || f.casou === 'sigla' || f.casou === 'telefone') ? ' <span class="conc-tag" title="O sistema conciliou o nome da planilha (' + esc(f.nome_planilha || '') + ') com este fornecedor do ERP' + (f.casou === 'telefone' ? ' pelo telefone do vendedor' : f.casou === 'sigla' ? ' pela sigla' : ' pelo nome parecido') + '. Aprove se estiver certo: da próxima vez casa direto. Recuse se não for ele.">conciliado' + (f.casou === 'telefone' ? ' pelo fone' : f.casou === 'sigla' ? ' pela sigla' : '') + ' <button class="ok" title="Está certo: aprovar" onclick="conciliar(' + idArgs + ',\'aprovar\')">✔</button><button class="no" title="Não é esse fornecedor: desfazer" onclick="conciliar(' + idArgs + ',\'recusar\')">✖</button></span>' : '') + (!f.codFornec ? ' · <span style="color:var(--neg);font-weight:700">não achado no ERP</span>' : '') + '' + '</span></td>' +
-      '<td><input class="finp" value="' + esc(f.vendedor.nome) + '" placeholder="nome do vendedor" onchange="setForn(' + f.codFornec + ',\'nome\',this.value)">' + vx('nome', 'vendedor') + '<div class="vx-add"><button class="link-btn" onclick="addFornExtra(' + idArgs + ')">+ vendedor</button>' + (f.outros && f.outros.length ? '<button class="link-btn" style="color:var(--amk)" title="' + esc(f.outros.join(' · ')) + '" onclick="separarOutros(' + idArgs + ')">separar ' + f.outros.length + ' da planilha</button>' : '') + '</div></td>' +
+      '<td><div class="vx vx0"><input class="finp" value="' + esc(f.vendedor.nome) + '" placeholder="nome do vendedor" onchange="setForn(' + f.codFornec + ',\'nome\',this.value)">' + (f.vendedor.nome || VX.length ? '<button class="link-btn x" title="tirar este vendedor' + (VX.length ? ' (o próximo vira o principal)' : '') + '" onclick="rmFornPrincipal(' + idArgs + ')">×</button>' : '') + '</div>' + vx('nome', 'vendedor') + '<div class="vx-add"><button class="link-btn" onclick="addFornExtra(' + idArgs + ')">+ vendedor</button>' + (f.outros && f.outros.length ? '<button class="link-btn" style="color:var(--amk)" title="' + esc(f.outros.join(' · ')) + '" onclick="separarOutros(' + idArgs + ')">separar ' + f.outros.length + ' da planilha</button>' : '') + '</div></td>' +
       '<td><input class="finp" value="' + esc(f.vendedor.whats) + '" placeholder="5581999990000"' + (f.vendedor.whats ? '' : ' style="border-color:var(--neg);background:var(--negw)"') + ' onchange="setForn(' + f.codFornec + ',\'whats\',this.value);renderFornecedores()">' + (f.vendedor.whats ? '' : '<div class="mini" style="color:var(--neg);margin-top:3px">sem WhatsApp: o link vai ter que ser copiado à mão</div>') + vx('whats', 'whats') + '</td>' +
       '<td><input class="finp" value="' + esc(f.vendedor.email) + '" placeholder="opcional" onchange="setForn(' + f.codFornec + ',\'email\',this.value)">' + vx('email', 'e-mail') + '</td>' +
       '<td><input class="finp" style="min-width:90px" inputmode="decimal" value="' + (f.faturamento_minimo != null ? fmtN(f.faturamento_minimo, 2) : '') + '" placeholder="0,00" onchange="setFornCampo(' + idArgs + ',\'faturamento_minimo\',this.value)"></td>' +
