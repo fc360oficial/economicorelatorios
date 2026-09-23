@@ -7634,8 +7634,11 @@ app.get('/api/cotacoes/sugestao/:lista', async (req, res) => {
       qtd: i.qtd, volumes: i.volumes, custo: i.custo, total: i.total, flag: i.flag, lojas_qtd: i.lojas_qtd,
       lojas_det: Object.fromEntries(Object.entries(i.lojas_det || {}).map(([ln, d]) => [ln, { estoque: d.estoque, estoque_bruto: d.estoque_bruto, venda_dia: d.venda_dia, cobertura_dias: d.cobertura_dias, transito: d.transito, transito_det: d.transito_det || [], ja_vendeu: d.ja_vendeu }]))
     }));
+    // regra só da cotação: loja marcada, estoque+trânsito zero e sem sugestão → 1 caixa (Tiago, 23/09/2026); ver lib/cotacao.zeradoCotacao
+    const zerados = cotacao.zeradoCotacao(itens);
     res.json({ lista: det.lista, cadastro: cad, sem_lead: !det.lead, params: det.params, parametros: { cobertura, ponto, embMeses: embMeses ?? null },
-      itens, com_qtd: itens.filter(i => i.qtd > 0).length, total: det.total, volumes: det.volumes, estado: radarPedidos.getEstado() });
+      itens, com_qtd: itens.filter(i => i.qtd > 0).length, zerados_cotacao: zerados,
+      total: +itens.reduce((a, i) => a + (i.total || 0), 0).toFixed(2), volumes: itens.reduce((a, i) => a + (i.volumes || 0), 0), estado: radarPedidos.getEstado() });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 // Situação do item na sugestão (Tiago, 21/09): ícones que acendem se o produto passou por PROMOÇÃO (preço final 8
