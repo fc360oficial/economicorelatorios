@@ -105,7 +105,7 @@
   .fat-tb .ant{display:block;font-size:10px;color:var(--ink3);font-weight:500;margin-top:1px}
   .fat-tb .bar{display:block;height:4px;border-radius:2px;background:#EEEEEA;margin:5px 0 0 auto;width:90px}.fat-tb .bar i{display:block;height:4px;border-radius:2px;background:#F5B800}
   .fat-tb td.hoje{font-weight:800;font-size:13.5px}
-  .fat-tb tr.cd td{background:#FAFAF8;border-top:2px solid var(--ln,#DADAD6)}
+  .cd-box{margin-top:12px;cursor:pointer}.cd-box.on{border-color:#F5B800;box-shadow:0 0 0 3px #F5B80066}.cd-box table.m th{background:#F3F3F1}
   .fat-tb tfoot td{background:#FAFAF8;font-weight:800;border-top:2px solid var(--ln,#DADAD6);cursor:default}
   .fat-tb tfoot td .ant{font-weight:500}
   .card{background:#fff;border:1px solid var(--ln,#DADAD6);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;min-height:120px}
@@ -378,7 +378,7 @@ function renderFat() {
     + '<div><span class="l">margem s/ venda</span><span class="' + (r.margem != null && r.margemAnt != null ? (r.margem >= r.margemAnt ? 'up' : 'dn') : '') + '">' + pct(r.margem) + '</span>' + (r.margemAnt != null ? '<small>ant ' + pct(r.margemAnt) + '</small>' : '') + '</div><div><span class="l">markup s/ custo</span><span class="' + (r.markup != null && r.markupAnt != null ? (r.markup >= r.markupAnt ? 'up' : 'dn') : '') + '">' + pct(r.markup) + '</span>' + (r.markupAnt != null ? '<small>ant ' + pct(r.markupAnt) + '</small>' : '') + '</div>'
     + '<div><span class="l">ticket médio</span>' + money(r.ticket) + '</div><div><span class="l">ticket médio ano anterior</span>' + (r.ticketAnt ? money(r.ticketAnt) + '<small class="' + cls(r.ticket - r.ticketAnt) + '">' + sgn((r.ticket / r.ticketAnt - 1) * 100) + '</small>' : '—') + '</div>'
     + '<div><span class="l">cupons</span>' + n0(r.cupons) + '</div><div><span class="l">cupons ano anterior</span>' + (r.cuponsAnt ? n0(r.cuponsAnt) + '<small class="' + cls(r.varCupons) + '">' + sgn(r.varCupons) + '</small>' : '—') + '</div>'
-    + '</div><div class="hero-sh"><div class="t">participação no mês (6 lojas + CD)</div>' + f.lojas.map(l => { const base = f.lojas.reduce((s, x) => s + (x.venda || 0), 0); const p = base > 0 ? (l.venda || 0) / base * 100 : 0; return '<div class="s"><span>' + LJ(l.loja) + ' ' + (l.cd ? 'CAHU DISTRIBUIDORA' : l.nome) + '</span><i><b style="width:' + Math.min(100, p * 2.5).toFixed(1) + '%"></b></i><span>' + pct(p) + '</span></div>'; }).join('') + '</div></div>';
+    + '</div><div class="hero-sh"><div class="t">participação no mês</div>' + f.lojas.filter(l => !l.cd).map(l => { const p = r.venda > 0 ? (l.venda || 0) / r.venda * 100 : 0; return '<div class="s"><span>' + LJ(l.loja) + ' ' + (l.cd ? 'CAHU DISTRIBUIDORA' : l.nome) + '</span><i><b style="width:' + Math.min(100, p * 2.5).toFixed(1) + '%"></b></i><span>' + pct(p) + '</span></div>'; }).join('') + '</div></div>';
   const linha = l => '<tr class="' + on(l.loja) + (l.cd ? ' cd' : '') + '" onclick="setLoja(' + l.loja + ')" title="Mostrar só esta loja em todos os segmentos (clique de novo pra voltar)">'
     + '<td class="lj-nm"><i>' + LJ(l.loja) + '</i>' + l.nome + '</td>'
     + '<td class="r hoje">' + moneyK(l.hoje) + '</td>'
@@ -391,9 +391,12 @@ function renderFat() {
   const tabela = '<div class="fat-tb"><table class="m"><thead>'
     + '<tr><th rowspan="2">Loja</th><th class="r" rowspan="2">Venda hoje</th><th class="grp" colspan="2">Rentabilidade</th><th class="grp" colspan="2">Clientes</th><th class="grp" colspan="2">Mês</th></tr>'
     + '<tr><th class="r sep">Margem</th><th class="r">Markup</th><th class="r sep">Ticket</th><th class="r">Cupons</th><th class="r sep">Venda até hoje</th><th class="r">Ano anterior</th></tr></thead><tbody>'
-    + f.lojas.map(linha).join('')
+    + f.lojas.filter(l => !l.cd).map(linha).join('')
     + '</tbody><tfoot><tr><td>Rede · 6 lojas</td><td class="r">' + moneyK(r.hoje) + (r.hojeAnt ? '<span class="ant">ant ' + moneyK(r.hojeAnt) + ' · <b class="' + cls(r.hoje - r.hojeAnt) + '">' + sgn((r.hoje / r.hojeAnt - 1) * 100) + '</b></span>' : '') + '</td><td class="r sep">' + antP(r.margem, r.margemAnt) + '</td><td class="r">' + antP(r.markup, r.markupAnt) + '</td><td class="r sep">' + money(r.ticket) + (r.ticketAnt ? '<span class="ant">ant ' + money(r.ticketAnt) + ' · <b class="' + cls(r.ticket - r.ticketAnt) + '">' + sgn((r.ticket / r.ticketAnt - 1) * 100) + '</b></span>' : '') + '</td><td class="r">' + n0(r.cupons) + '<span class="ant">' + (r.cuponsAnt ? 'ant ' + n0(r.cuponsAnt) + ' · ' : '') + '<b class="' + cls(r.varCupons) + '">' + sgn(r.varCupons) + '</b></span></td><td class="r sep">' + moneyK(r.venda) + '</td><td class="r">' + moneyK(r.vendaAnt) + '<span class="ant"><b class="' + cls(r.var) + '">' + sgn(r.var) + '</b></span></td></tr></tfoot></table></div>';
-  document.getElementById('fat-cards').innerHTML = hero + tabela;
+  const cd = f.lojas.find(l => l.cd);
+  const cdCard = cd ? '<div class="fat-tb cd-box' + on(cd.loja) + '" onclick="setLoja(' + cd.loja + ')" title="Mostrar só o CD em todos os segmentos (clique de novo pra voltar)"><table class="m"><thead><tr><th>CD · CAHU Distribuidora <span class="mut" style="font-weight:500;text-transform:none;letter-spacing:0">· venda por NF-e, separada das lojas</span></th><th class="r">Venda hoje</th><th class="r sep">Margem</th><th class="r">Markup</th><th class="r sep">Notas no mês</th><th class="r sep">Venda até hoje</th><th class="r">Ano anterior</th></tr></thead><tbody>'
+    + '<tr><td class="lj-nm"><i>CD</i>CAHU DISTRIBUIDORA</td><td class="r hoje">' + moneyK(cd.hoje) + '</td><td class="r sep">' + pct(cd.margem) + '</td><td class="r">' + pct(cd.markup) + '</td><td class="r sep">' + n0(nfeDe(cd).n) + '<span class="ant">' + n0(nfeDe(cd).nh) + ' hoje</span></td><td class="r sep"><span class="big">' + moneyK(cd.venda) + '</span></td><td class="r">' + (cd.vendaAnt ? moneyK(cd.vendaAnt) + '<span class="ant"><b class="' + cls(cd.var) + '">' + sgn(cd.var) + '</b></span>' : '<span class="mut">—</span>') + '</td></tr></tbody></table></div>' : '';
+  document.getElementById('fat-cards').innerHTML = hero + '<div>' + tabela + cdCard + '</div>';
 }
 function renderMeta() {
   const c = V.comercial; if (!c) { document.getElementById('c-meta').innerHTML = empty('sem dados'); return; }
