@@ -7485,6 +7485,12 @@ app.post('/api/pedidos-fornecedor/:id/quantidades', (req, res) => {
   if (p.erro) return res.status(409).json({ error: p.erro });
   res.json({ ok: true, totais: p.totais, lojas: p.lojas });
 });
+app.post('/api/pedidos-fornecedor/:id/obs-fiscal', (req, res) => {
+  const p = pedidosFornec.obsFiscal(parseInt(req.params.id), req.body?.obs, req.session.user?.nome || null);
+  if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
+  if (p.erro) return res.status(409).json({ error: p.erro });
+  res.json({ ok: true, obs_fiscal: p.obs_fiscal });
+});
 app.post('/api/pedidos-fornecedor/:id/excluir', (req, res) => {
   const p = pedidosFornec.excluir(parseInt(req.params.id), req.session.user?.nome || null);
   if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
@@ -7553,7 +7559,7 @@ app.post('/api/pedido-publico/:token/finalizar', (req, res) => {
 // (liberar/reconferir/bloquear), tolerâncias e exemplos em data/fiscal/. Ver lib/fiscal.js.
 // ═══════════════════════════════════════════════════
 const fiscal = require('./lib/fiscal');
-fiscal.init(q);
+fiscal.init(q, { pedidos: () => pedidosFornec.listar() });
 const fiscalPeriodo = req => { const ok = v => /^d{4}-d{2}-d{2}$/.test(v || ''); const de = ok(req.query.de) ? req.query.de : new Date().toISOString().slice(0, 10); const ate = ok(req.query.ate) && req.query.ate >= de ? req.query.ate : de; const loja = parseInt(req.query.loja) || null; return { de, ate, loja }; };
 const fiscalReg = req => { const n = parseInt(req.params.nReg, 10); return Number.isInteger(n) && n > 0 ? n : null; };
 app.get('/api/fiscal/recebimentos', async (req, res) => {

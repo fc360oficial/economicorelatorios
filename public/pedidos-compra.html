@@ -351,7 +351,7 @@ async function carregarDetalhe(key){
     h+='</tbody></table></div>';
     h+=secaoAvarias(p,LN);
     h+=secaoXml(p,LN);
-    h+='<div class="acoes">'+
+    h+=(p.status!=='cancelado'?'<div class="oq" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="t">Obs. pro Fiscal</span><input id="obsf-'+p.id+'" value="'+esc(p.obs_fiscal||'')+'" maxlength="600" placeholder="ex.: conferir validade mínima 60 d / recusar caixa avariada / entrega só até 10h" style="flex:1;min-width:260px;font:inherit;font-size:12px;padding:6px 10px;border:1px solid #EFD98F;border-radius:8px;background:#fff" onclick="event.stopPropagation()"><button class="btn btn-slate btn-sm" style="margin:0" onclick="event.stopPropagation();salvarObsFiscal('+p.id+')">Salvar</button><span style="font-size:10.5px;color:#98A0B3">sai no PDF pro fornecedor e aparece no Fiscal · Recebimento'+(p.obs_fiscal_por?' · '+esc(p.obs_fiscal_por):'')+'</span></div>':'')+'<div class="acoes">'+
       (p.status==='sugestao'?'<button class="btn btn-green" onclick="enviarSugestao('+p.id+')">Enviar ao vendedor</button><span>Sugestão criada pelo sistema com o que <b>faltou</b> na entrega do pedido #'+(p.origem?.pedidoId||'')+'. Revise e envie: vira "Aguardando vendedor" e o link é o mesmo fluxo.</span>':'')+
       (p.status==='finalizado'?'<button class="btn btn-green" onclick="aprovar('+p.id+')">Aprovar pedido</button><span>Confere os preços e aprova. O pedido passa pra aba Aprovados e o sistema passa a esperar a nota no ERP.</span>':'')+
       (p.status==='aprovado'?'<span>'+(p.xml&&p.xml.status==='parcial'?'XML já conferido em '+Object.entries(p.xml.lojas).filter(([,x])=>x.status!=='aguardando').map(([l])=>ETQ(l)).join(', ')+'; aguardando a nota das outras lojas.':'Aguardando a NF-e (XML) do fornecedor entrar no ERP, loja a loja.')+'</span>':'')+
@@ -464,6 +464,11 @@ async function aprovar(id){
   const r=await fetch('/api/pedidos-fornecedor/'+id+'/aprovar',{method:'POST'}); const j=await r.json();
   if(j.error){alert(j.error);return;} await carregar(); aberto=id; render(); carregarDetalhe(id);
   try{const r2=await fetch('/api/pedidos-fornecedor/'+id);const p=await r2.json();if(!p.error)modalPdf(p);}catch(e){}
+}
+async function salvarObsFiscal(id){
+  const el=document.getElementById('obsf-'+id); if(!el) return;
+  const r=await fetch('/api/pedidos-fornecedor/'+id+'/obs-fiscal',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({obs:el.value})}); const j=await r.json();
+  if(j.error){alert(j.error);return;} el.style.borderColor='#137A48'; setTimeout(()=>{el.style.borderColor='#EFD98F';},1500); if(PED[id]) PED[id].obs_fiscal=j.obs_fiscal;
 }
 async function excluir(id){
   if(!confirm('Excluir o pedido #'+id+'? Ele some da lista (fica guardado numa pasta de excluídos no servidor).')) return;
