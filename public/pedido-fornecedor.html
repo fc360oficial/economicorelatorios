@@ -72,7 +72,8 @@ function render(){
   if(fin) h+='<div class="fim"><b>Pedido finalizado'+(P.finalizadoEm?' em '+new Date(P.finalizadoEm).toLocaleString('pt-BR'):'')+'.</b> Obrigado! A compradora já recebeu os preços. Se precisar corrigir algo, fale com ela.</div>';
   else h+='<div class="fim" style="background:#FFF6D9;border-color:#EFD98F;color:#6B4E00">Preencha o <b>preço unitário</b> de cada item (por unidade, não por caixa) e, se quiser, uma observação. Tudo salva sozinho. Quando terminar, clique em <b>Finalizar pedido</b> no rodapé.<br><b>Confira o código de barras de cada item:</b> o produto que vai chegar precisa ter exatamente o código que está no pedido. <b>Só recebemos mercadoria com o código de barras conciliado com o pedido</b>; se o código do seu produto for outro (nova embalagem, outro EAN), avise na observação do item antes de finalizar.</div>';
   h+='<div class="card"><div class="hd">Itens do pedido <span>'+P.itens.length+' itens</span></div><div style="overflow-x:auto"><table><thead><tr><th>Produto</th><th class="r">Preço unit. (R$)</th><th>Observação</th></tr></thead><tbody>';
-  for(const i of P.itens){
+  // itens em ordem alfabética (Tiago, 23/09/2026)
+  for(const i of [...P.itens].sort((x,y)=>String(x.descricao||'').localeCompare(String(y.descricao||''),'pt-BR'))){
     // quantidade NÃO aparece pro vendedor (pedido do Tiago, 11/09/2026): ele só cota o preço unitário
     h+='<tr><td class="desc">'+esc(i.descricao)+'<span class="cod">'+esc(i.cod)+(i.emb>1?'<i>Emb. '+i.emb+'</i>':'')+'</span></td>'+
       '<td class="r">'+(fin?'<b>'+(i.preco!=null?'R$ '+fmt(i.preco):'—')+'</b>':'<input class="preco'+(i.preco!=null?' ok':'')+'" inputmode="decimal" data-cod="'+esc(i.cod)+'" value="'+(i.preco!=null?fmt(i.preco):'')+'" placeholder="0,00">')+'</td>'+
