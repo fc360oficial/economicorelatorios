@@ -8031,11 +8031,11 @@ async function criarCotacaoTeste(usuario, cenario, diasAtras, seq) {
     cota(F[0], () => true, k => 0.92 + (k % 4) * 0.03, 5, F[0].condicao_padrao);
     cotacao.abrir(F[1].token); cotacao.salvarPrecos(F[1].token, c.itens.slice(0, 2).map(i => ({ cod: i.cod, preco: r2(i.ultimo_custo * 0.97) })), {});
   } else if (cenario === 'vendedores') {
-    // Ana (DIA) respondeu tudo · Bruno (DIA) está digitando e já bateu o preço em 2 itens · Clara (DIA) nem abriu · Teste 1 respondeu
+    // Mesma empresa, produtos diferentes: Ana (DIA) cotou a metade dela · Bruno (DIA) está digitando a outra metade · Clara (DIA) nem abriu · Teste 1 cotou tudo
     const ana = F.find(x => x.codFornec === 999005), bruno = F.find(x => x.codFornec === 999005000001), t1 = F.find(x => x.codFornec === 999001);
-    if (ana) cota(ana, () => true, k => 0.9 + (k % 4) * 0.03, 4, ana.condicao_padrao);
+    if (ana) cota(ana, (i, k) => k % 2 === 0, k => 0.9 + (k % 4) * 0.03, 4, ana.condicao_padrao);
     if (t1) cota(t1, () => true, k => 0.88 + ((k + 1) % 4) * 0.04, 5, t1.condicao_padrao);
-    if (bruno) { cotacao.abrir(bruno.token); cotacao.salvarPrecos(bruno.token, c.itens.slice(0, 2).map(i => ({ cod: i.cod, preco: r2(i.ultimo_custo * 0.86), obs: 'preço só pra hoje' })), {}); }
+    if (bruno) { cotacao.abrir(bruno.token); cotacao.salvarPrecos(bruno.token, c.itens.filter((i, k) => k % 2 === 1).slice(0, 2).map(i => ({ cod: i.cod, preco: r2(i.ultimo_custo * 0.93), obs: 'linha do Bruno' })), {}); }
   } else if (cenario === 'cancelada') { cotacao.cancelar(c.id, usuario); }
   else if (cenario === 'prepedido') {
     // todos cotam tudo, com preços cruzados (cada fornecedor ganha alguns itens) → 3 situações na aba Pré-pedidos:
