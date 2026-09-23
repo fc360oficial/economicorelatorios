@@ -652,6 +652,7 @@ table.cx-itens tbody tr.promo td.desc,table.cx-itens tbody tr.rebaixa td.desc,ta
 </div>
 
 <script>
+function copiarTexto(txt,btn,ok){const done=()=>{if(btn){const t=btn.textContent;btn.textContent=ok||'Copiado';setTimeout(()=>{btn.textContent=t;},2500);}};const fallback=()=>{try{const ta=document.createElement('textarea');ta.value=txt;ta.setAttribute('readonly','');ta.style.cssText='position:fixed;top:0;left:0;opacity:0';document.body.appendChild(ta);ta.select();ta.setSelectionRange(0,txt.length);const r=document.execCommand('copy');document.body.removeChild(ta);if(r)done();else window.prompt('Copie o link:',txt);}catch(e){window.prompt('Copie o link:',txt);}};if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(txt).then(done).catch(fallback);}else fallback();}
 
 // Sigla CD: produto com estoque no CD (loja 10) — /api/estoque-cd (Tiago, 23/09/2026)
 var CDSET=null;fetch('/api/estoque-cd').then(function(r){return r.json()}).then(function(j){CDSET=j.cods||{};document.querySelectorAll('.cdtag[data-cd]').forEach(function(e){var q=CDSET[e.getAttribute('data-cd')];if(q>0){e.hidden=false;e.title='Tem '+q+' no CD';}});}).catch(function(){CDSET={};});
@@ -1181,7 +1182,7 @@ async function enviarLinkConsolidacao(){
     <div class="lk-acts">
       ${wpp.length >= 10 ? `<a class="btn btn-amber" target="_blank" rel="noopener" href="https://wa.me/55${wpp}?text=${msg}">WhatsApp do vendedor</a>` : `<a class="btn btn-amber" target="_blank" rel="noopener" href="https://wa.me/?text=${msg}">WhatsApp (escolher contato)</a>`}
       ${p.vendedor?.email ? `<a class="btn btn-slate" href="mailto:${escH(p.vendedor.email)}?subject=${encodeURIComponent('Sugestão de compra ' + (p.lista_nome || s.lista.id) + ' - Econômico')}&body=${msg}">E-mail</a>` : ''}
-      <button class="btn btn-slate" onclick="navigator.clipboard.writeText(document.getElementById('lk-link').value);this.textContent='Copiado'">Copiar link</button>
+      <button class="btn btn-slate" onclick="copiarTexto(document.getElementById('lk-link').value,this,'Copiado')">Copiar link</button>
       <a class="btn btn-slate" target="_blank" rel="noopener" href="${escH(p.link)}">Abrir como vendedor</a>
     </div>
     <div class="lk-nota">Ao abrir o link o status vira <b>Em Digitação</b>; quando o vendedor finalizar (ou você clicar em Fechar Solicitar Preço Web) vira <b>Fechado</b> e a aprovação é feita em Pedidos de Compra.</div>`;
