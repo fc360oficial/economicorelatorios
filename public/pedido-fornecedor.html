@@ -60,6 +60,7 @@ input.obs:focus{outline:none;border-color:#F5B800}
 .btn-zap{background:#25D366;color:#fff;text-decoration:none}.btn-zap:hover{background:#1EBE5B}
 .thanks .btn-slate{background:#fff;color:#0E1626;border:none}
 .tk-foot{margin-top:22px;font-size:11px;color:#98A0B3}
+input.embv{width:96px;font:inherit;font-size:11px;padding:2px 6px;border:1px dashed #C9C9C4;border-radius:6px;margin-left:8px;color:#0E1626;background:#fff;vertical-align:middle}input.embv:focus{outline:none;border-color:#F5B800;background:#FFFDF3}i.embv{margin-left:8px;color:#B45C00;font-weight:700}
 </style>
 </head>
 <body>
@@ -74,7 +75,7 @@ const fmt=(v,d=2)=>v==null?'—':Number(v).toLocaleString('pt-BR',{minimumFracti
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 let P=null, dirty=false, saveTimer=null;
 function precoNum(v){const n=parseFloat(String(v).replace(/\./g,'').replace(',','.'));return isFinite(n)?n:null;}
-function itensForm(){return P.itens.map(i=>{const el=document.querySelector('input.preco[data-cod="'+i.cod+'"]');const ob=document.querySelector('input.obs[data-cod="'+i.cod+'"]');return {cod:i.cod,preco:el?(el.value.trim()===''?'':precoNum(el.value)):i.preco,obs:ob?ob.value:i.obs};});}
+function itensForm(){return P.itens.map(i=>{const el=document.querySelector('input.preco[data-cod="'+i.cod+'"]');const ob=document.querySelector('input.obs[data-cod="'+i.cod+'"]');const ev=document.querySelector('input.embv[data-cod="'+i.cod+'"]');return {cod:i.cod,preco:el?(el.value.trim()===''?'':precoNum(el.value)):i.preco,obs:ob?ob.value:i.obs,emb_vendedor:ev?ev.value:i.emb_vendedor};});}
 function totais(){let t=0,n=0;for(const i of itensForm()){if(i.preco!=null&&i.preco!==''){t+=i.preco*(P.itens.find(x=>x.cod===i.cod)?.qtd||0);n++;}}return {t,n};}
 function atualizarTot(){const {t,n}=totais();$('#tot').innerHTML='<span>'+n+' de '+P.itens.length+' itens com preço</span>';$('#barinfo').innerHTML=n<P.itens.length?'Faltam <b>'+(P.itens.length-n)+'</b> itens sem preço. Você pode finalizar mesmo assim.':'Todos os itens com preço.';}
 function agradecer(){
@@ -98,7 +99,7 @@ function render(){
   // itens em ordem alfabética (Tiago, 23/09/2026)
   for(const i of [...P.itens].sort((x,y)=>String(x.descricao||'').localeCompare(String(y.descricao||''),'pt-BR'))){
     // quantidade NÃO aparece pro vendedor (pedido do Tiago, 11/09/2026): ele só cota o preço unitário
-    h+='<tr><td class="desc">'+esc(i.descricao)+'<span class="cod">'+esc(i.cod)+(i.emb>1?'<i>Emb. '+i.emb+'</i>':'')+'</span></td>'+
+    h+='<tr><td class="desc">'+esc(i.descricao)+'<span class="cod">'+esc(i.cod)+(i.emb>1?'<i>Emb. '+i.emb+'</i>':'<i>Emb. 1</i>')+(fin?(i.emb_vendedor?'<i class="embv" title="Embalagem informada pelo vendedor">vendedor: emb. '+esc(i.emb_vendedor)+'</i>':''):'<input class="embv" data-cod="'+esc(i.cod)+'" value="'+esc(i.emb_vendedor||'')+'" placeholder="emb. correta?" maxlength="20" title="Se a embalagem do seu produto for diferente da nossa, informe aqui (só observação)">')+'</span></td>'+
       '<td class="r">'+(fin?'<b>'+(i.preco!=null?'R$ '+fmt(i.preco):'—')+'</b>':'<input class="preco'+(i.preco!=null?' ok':'')+'" inputmode="decimal" data-cod="'+esc(i.cod)+'" value="'+(i.preco!=null?fmt(i.preco):'')+'" placeholder="0,00">')+'</td>'+
       '<td>'+(fin?esc(i.obs||'')||'<span style="color:#98A0B3">—</span>':'<input class="obs" data-cod="'+esc(i.cod)+'" value="'+esc(i.obs||'')+'" placeholder="ex.: sem estoque, substituir por…" maxlength="200">')+'</td></tr>';
   }
@@ -112,7 +113,7 @@ function render(){
     h+='<div style="overflow-x:auto"><table><thead><tr><th>Loja</th><th>Produto</th><th class="r">Qtd</th><th class="r">Valor</th><th>Lançada em</th></tr></thead><tbody>';
     // subtotal por loja (Tiago, 23/09/2026): os itens já vêm ordenados por loja
     const subLoja=(ln,n,t)=>'<tr class="avsub"><td colspan="3">Total '+LJ(ln)+' '+esc(P.lojas_nomes[ln]||'')+' · '+n+(n>1?' itens':' item')+'</td><td class="r">R$ '+fmt(t)+'</td><td></td></tr>';
-    let lnAt=null,nLn=0,tLn=0; const its=[...A.itens].sort((x,y)=>x.loja-y.loja);
+    let lnAt=null,nLn=0,tLn=0; const its=[...A.itens].sort((x,y)=>(x.loja-y.loja)||String(x.descricao||'').localeCompare(String(y.descricao||''),'pt-BR'));
     for(const a of its){ if(lnAt!==null&&a.loja!==lnAt){ h+=subLoja(lnAt,nLn,tLn); nLn=0; tLn=0; } lnAt=a.loja; nLn++; tLn+=(+a.total||0);
     h+='<tr><td><b>'+LJ(a.loja)+'</b> '+esc(P.lojas_nomes[a.loja]||'')+'</td><td class="desc">'+esc(a.descricao)+'<span class="cod">'+esc(a.cod)+'</span></td><td class="r">'+fmt(a.qtd,a.qtd%1?3:0)+' '+esc(a.und||'')+'</td><td class="r">R$ '+fmt(a.total)+'</td><td>'+String(a.data).split('-').reverse().join('/')+'</td></tr>';}
     if(lnAt!==null) h+=subLoja(lnAt,nLn,tLn);
