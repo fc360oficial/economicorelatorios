@@ -364,7 +364,7 @@ const ERP_PROTEGIDO = dbConfig.host === ERP_PRODUCAO && process.env.ERP_WRITE_OK
 const SQL_SOMENTE_LEITURA = /^\s*(?:\/\*[\s\S]*?\*\/\s*|--[^\n]*\n\s*)*(?:\(\s*)*(select|show|describe|desc|explain)\b/i;
 // Única exceção: central.prevencao_bonif é tabela do próprio Econômico Relatórios (bonificação da Prevenção),
 // criada e gravada por ele desde o BUILD 210. Nenhuma tabela do Dlinks entra aqui.
-const ESCRITA_PERMITIDA = /^\s*(?:insert\s+into|create\s+table\s+if\s+not\s+exists)\s+central\.prevencao_bonif/i;
+const ESCRITA_PERMITIDA = /^\s*(?:insert\s+into|create\s+table\s+if\s+not\s+exists)\s+central\.prevencao_bonif\b/i;
 function ehLeitura(sql) { sql = String(sql); return SQL_SOMENTE_LEITURA.test(sql) || ESCRITA_PERMITIDA.test(sql); }
 console.log('[DB] ERP em ' + dbConfig.host + (ERP_PROTEGIDO ? ' (produção, SOMENTE LEITURA)' : ' (escrita liberada)'));
 
