@@ -8147,6 +8147,14 @@ app.post('/api/cotacoes/:id/pre-pedido/:codFornec/realizar', async (req, res) =>
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 // mensagem da comprador(a) + WhatsApp dela (fica fixa no topo da página do vendedor; só quem está logado edita)
+// prazo da cotação com data e hora; adiar libera os vendedores bloqueados (Tiago, 23/09/26)
+app.post('/api/cotacoes/:id/prazo', (req, res) => {
+  const id = cotId(req); if (!id) return res.status(400).json({ error: 'id inválido' });
+  const r = cotacao.setPrazo(id, req.body?.prazo, cotUser(req));
+  if (!r) return res.status(404).json({ error: 'cotação não encontrada' });
+  if (r.erro) return res.status(409).json({ error: r.erro });
+  res.json(cotDetalhe(r));
+});
 app.post('/api/cotacoes/:id/mensagem', (req, res) => {
   const id = cotId(req); if (!id) return res.status(400).json({ error: 'id inválido' });
   const r = cotacao.setMensagem(id, req.body || {}, cotUser(req));
