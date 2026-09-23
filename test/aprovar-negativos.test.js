@@ -21,6 +21,13 @@ test('itensParaGravar: somente pendentes', () => {
   assert.deepEqual(r.gravar.map(x => x.cod), ['789002']);
 });
 
+test('itensParaGravar: desmarcados na tela ficam fora', () => {
+  const r = A.itensParaGravar(linhas, null, ['789001']);
+  assert.deepEqual(r.gravar.map(x => x.cod), ['789002']);
+  assert.deepEqual(r.desmarcados.map(x => x.cod), ['789001']);
+  assert.deepEqual(r.semContagem.map(x => x.cod), ['789003']);
+});
+
 test('motivoAjuste tem data BR, loja e nome', () => {
   assert.equal(A.motivoAjuste('2026-09-23', 3, 'PONTE'), 'Ajuste de negativos — contagem 23/09/2026, loja 3 (PONTE)');
 });

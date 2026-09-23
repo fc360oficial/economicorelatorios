@@ -5183,7 +5183,8 @@ app.get('/api/contagem/:data/:loja/previa-ajuste', async (req, res) => {
   try {
     const { l, ln } = lojaDaContagem(req);
     const somente = req.query.pendentes === '1' ? l.pendentes : null;
-    const { gravar, semContagem } = aprovarNeg.itensParaGravar(l.linhas, somente);
+    const excluir = String(req.query.excluir || '').split(',').filter(Boolean);
+    const { gravar, semContagem, desmarcados } = aprovarNeg.itensParaGravar(l.linhas, somente, excluir);
     // estoque ATUAL no MySQL de teste, pra avisar se a cópia mudou desde a contagem
     let atual = {}, erroTeste = null;
     if (gravar.length) {
@@ -5197,7 +5198,7 @@ app.get('/api/contagem/:data/:loja/previa-ajuste', async (req, res) => {
       } catch (e) { erroTeste = 'MySQL de teste do .254 não respondeu (' + (e.code || e.message) + ')'; }
     }
     const itens = gravar.map(x => ({ ...x, atual: atual[x.cod] ?? null, mudou: atual[x.cod] !== undefined && Number(atual[x.cod]) !== Number(x.sys), semRegistro: !erroTeste && atual[x.cod] === undefined }));
-    res.json({ loja: ln, nome: l.nome, data: req.params.data, status: l.status, aprovadoEm: l.aprovadoEm, pendentes: l.pendentes, itens, semContagem, mudaram: itens.filter(x => x.mudou).length, semRegistro: itens.filter(x => x.semRegistro).length, erroTeste, motivo: aprovarNeg.motivoAjuste(req.params.data, ln, l.nome) });
+    res.json({ loja: ln, nome: l.nome, data: req.params.data, status: l.status, aprovadoEm: l.aprovadoEm, pendentes: l.pendentes, itens, semContagem, desmarcados, mudaram: itens.filter(x => x.mudou).length, semRegistro: itens.filter(x => x.semRegistro).length, erroTeste, motivo: aprovarNeg.motivoAjuste(req.params.data, ln, l.nome) });
   } catch (err) { res.status(400).json({ error: err.message }); }
 });
 app.post('/api/contagem/:data/:loja/aprovar', async (req, res) => {
@@ -5206,7 +5207,8 @@ app.post('/api/contagem/:data/:loja/aprovar', async (req, res) => {
     if (l.status !== 'concluida') return res.status(400).json({ error: 'A loja ainda não concluiu a contagem.' });
     const somentePendentes = !!(req.body && req.body.somentePendentes);
     if (l.aprovadoEm && !somentePendentes) return res.status(400).json({ error: 'Essa loja já foi aprovada. Use "Reprocessar pendentes".' });
-    const { gravar } = aprovarNeg.itensParaGravar(l.linhas, somentePendentes ? l.pendentes : null);
+    const excluir = Array.isArray(req.body && req.body.excluir) ? req.body.excluir.map(String) : [];
+    const { gravar } = aprovarNeg.itensParaGravar(l.linhas, somentePendentes ? l.pendentes : null, excluir);
     if (!gravar.length) return res.status(400).json({ error: 'Nenhum item com contagem pra gravar.' });
     const r = await aprovarNeg.aprovarLoja({ escrever: escreverERP, itens: gravar, usuario: req.session.user.nome, data: req.params.data, ln, nomeLoja: l.nome });
     const m = contagemNeg.marcarAprovado(req.params.data, ln, { nome: req.session.user.nome, ids: r.ids, pendentes: r.erros.map(e => e.cod) });
