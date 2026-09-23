@@ -1182,11 +1182,11 @@ function formCadForn(f){
   f = f || {codFornec:0, nome:'', cnpj:'', vendedor:{nome:'', whats:'', email:''}};
   var v = f.vendedor || {};
   var fld = function(id, label, val, ph, extra){ return '<div class="fld"><label>' + label + '</label><input class="hin" id="' + id + '" value="' + esc(val == null ? '' : val) + '" placeholder="' + (ph || '') + '"' + (extra || '') + '></div>'; };
-  return '<div id="cf-busca"' + (f.codFornec ? ' style="display:none"' : '') + '><p class="mini" style="margin:0 0 6px">Busque no cadastro de fornecedores do ERP (traz razão social, código e CNPJ). Se não estiver no ERP, preencha o nome à mão.</p><div class="srch"><input type="text" id="f-srch" placeholder="Nome ou razão social…" autocomplete="off" oninput="buscarFornecedor(this.value)" style="width:100%;box-sizing:border-box;border:1px solid var(--ln2);border-radius:9px;padding:10px 12px;font-family:inherit;font-size:13px"><div class="res" id="f-res" style="display:none;position:static;margin-top:8px;max-height:220px"></div></div></div>' +
-    '<div id="cf-erp" class="mini" style="margin:10px 0 4px">' + (f.codFornec ? 'ERP: cód. <b>' + f.codFornec + '</b>' + (f.cnpj ? ' · CNPJ <b>' + esc(f.cnpj) + '</b>' : '') + ' <button class="link-btn" onclick="cfTrocarErp()">trocar</button>' : '<span style="color:var(--amk)">sem vínculo com o ERP (cadastro só aqui)</span>') + '</div>' +
+  return '<div id="cf-busca"' + (f.codFornec ? ' style="display:none"' : '') + '><p class="mini" style="margin:0 0 6px">Busque no cadastro de fornecedores do ERP (traz razão social, código e CNPJ). Só entra fornecedor cadastrado no ERP.</p><div class="srch"><input type="text" id="f-srch" placeholder="Nome ou razão social…" autocomplete="off" oninput="buscarFornecedor(this.value)" style="width:100%;box-sizing:border-box;border:1px solid var(--ln2);border-radius:9px;padding:10px 12px;font-family:inherit;font-size:13px"><div class="res" id="f-res" style="display:none;position:static;margin-top:8px;max-height:220px"></div></div></div>' +
+    '<div id="cf-erp" class="mini" style="margin:10px 0 4px">' + (f.codFornec ? 'ERP: cód. <b>' + f.codFornec + '</b>' + (f.cnpj ? ' · CNPJ <b>' + esc(f.cnpj) + '</b>' : '') + ' <button class="link-btn" onclick="cfTrocarErp()">trocar</button>' : '<span style="color:var(--neg)">escolha um fornecedor do ERP na busca acima</span>') + '</div>' +
     '<input type="hidden" id="cf-cod" value="' + (f.codFornec || 0) + '"><input type="hidden" id="cf-cnpj" value="' + esc(f.cnpj || '') + '">' +
     '<div class="formgrid" style="grid-template-columns:repeat(2,1fr);margin-top:8px">' +
-    fld('cf-nome', 'Fornecedor (razão social)', f.nome, 'nome do fornecedor') + fld('cf-vend', 'Vendedor', v.nome, 'nome do vendedor') +
+    fld('cf-nome', 'Fornecedor (razão social)', f.nome, 'vem da busca do ERP', ' readonly style="background:var(--wsh)" title="Preenchido pela busca do ERP"') + fld('cf-vend', 'Vendedor', v.nome, 'nome do vendedor') +
     fld('cf-whats', 'Número do zap (só números, com DDD)', v.whats, '5581999990000', ' inputmode="numeric"') + fld('cf-email', 'E-mail', v.email, 'vendas@fornecedor.com.br') +
     fld('cf-fat', 'Faturamento mínimo (R$)', f.faturamento_minimo != null ? fmtN(f.faturamento_minimo, 2) : '', 'ex.: 600,00', ' inputmode="decimal"') + fld('cf-cond', 'Condição de pagamento', f.condicao, 'ex.: 28 dias boleto') +
     fld('cf-prazo', 'Prazo de entrega (dias)', f.prazo_entrega, 'ex.: 3', ' inputmode="numeric"') + fld('cf-obs', 'Observação', f.obs, 'ex.: entrega só terça e quinta') +
@@ -1198,7 +1198,7 @@ function abrirCadastroForn(){
   setTimeout(function(){ var i = $('#f-srch'); if (i) i.focus(); }, 50);
 }
 function editarFornecedor(cod, nome){ var f = CAD.find(function(x){ return cod ? x.codFornec === cod : x.nome === nome; }); if (!f) return; CAD_EDIT = f; abrirModal('Editar fornecedor · ' + f.nome, formCadForn(f)); }
-function cfTrocarErp(){ $('#cf-busca').style.display = 'block'; $('#cf-cod').value = 0; $('#cf-cnpj').value = ''; $('#cf-erp').innerHTML = '<span style="color:var(--amk)">sem vínculo com o ERP (cadastro só aqui)</span>'; setTimeout(function(){ var i = $('#f-srch'); if (i) i.focus(); }, 30); }
+function cfTrocarErp(){ $('#cf-busca').style.display = 'block'; $('#cf-cod').value = 0; $('#cf-cnpj').value = ''; $('#cf-erp').innerHTML = '<span style="color:var(--neg)">escolha um fornecedor do ERP na busca acima</span>'; setTimeout(function(){ var i = $('#f-srch'); if (i) i.focus(); }, 30); }
 async function addFornecedor(cod, nome){
   // clique num resultado da busca: preenche o formulário (não adiciona direto)
   $('#f-res').style.display = 'none'; $('#f-srch').value = '';
@@ -1217,6 +1217,7 @@ async function addFornecedor(cod, nome){
 async function salvarCadForn(){
   var nome = $('#cf-nome').value.trim(); if (!nome) { toastMsg('Informe o nome do fornecedor'); $('#cf-nome').focus(); return; }
   var cod = parseInt($('#cf-cod').value) || 0, whats = $('#cf-whats').value.replace(/\D/g, '');
+  if (!cod) { toastMsg('Só entra fornecedor do ERP: busque e escolha na lista'); var bx = $('#cf-busca'); if (bx) bx.style.display = 'block'; var sr = $('#f-srch'); if (sr) sr.focus(); return; }
   var fat = parseMoeda($('#cf-fat').value), prazo = parseInt($('#cf-prazo').value) || null;
   var dados = {codFornec: cod, nome: nome, cnpj: $('#cf-cnpj').value || null, vendedor: {nome: $('#cf-vend').value.trim(), whats: whats, email: $('#cf-email').value.trim()}, faturamento_minimo: fat, condicao: $('#cf-cond').value.trim() || null, prazo_entrega: prazo, obs: $('#cf-obs').value.trim() || null};
   if (CAD_EDIT) { Object.assign(CAD_EDIT, dados); }
