@@ -35,6 +35,9 @@ input.preco.ok{border-color:#137A48}
 input.obs{width:100%;min-width:140px;font:inherit;font-size:12.5px;padding:8px 10px;border:1px solid #DADAD6;border-radius:9px;background:#fff}
 input.obs:focus{outline:none;border-color:#F5B800}
 .cond{display:grid;grid-template-columns:1fr 2fr;gap:10px;padding:12px 14px}
+.ftb{display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:8px 14px;border-bottom:1px solid #EEEEEA;background:#FAFAF8}
+.ftb input[type=search]{flex:1;min-width:200px;border:1px solid #DADAD6;border-radius:8px;padding:7px 10px;font:inherit;font-size:13px}
+.ftb label{display:flex;gap:6px;align-items:center;font-size:12.5px;cursor:pointer;white-space:nowrap;font-weight:600;color:#4E5A72}
 .cond.cad4{grid-template-columns:2fr 1fr 1fr 1fr}
 @media(max-width:700px){.cond.cad4{grid-template-columns:1fr 1fr}}
 .cond label{display:block;font-size:10.5px;font-weight:800;color:#4E5A72;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
@@ -89,11 +92,11 @@ function render(){
   else if(fin) h+='<div class="fim"><b>Proposta enviada'+(P.fornecedor.finalizadoEm?' em '+dt(P.fornecedor.finalizadoEm):'')+'.</b> Obrigado! A comprador(a) já recebeu seus preços. Se precisar corrigir algo, '+(waC?'<a class="wl" href="'+waC+'" target="_blank" rel="noopener">fale com ela no WhatsApp</a>':'fale com ela')+'.</div>';
   else if(venc) h+='<div class="fim av"><b>Prazo encerrado em '+dtp(P.prazo)+'.</b> Não é mais possível digitar. Se precisar de mais tempo, fale com o(a) comprador(a)'+(waC?' <a class="wl" href="'+waC+'" target="_blank" rel="noopener">pelo WhatsApp</a>':'')+' pra liberar a cotação.</div>';
   else h+='<div class="fim av">Preencha o <b>preço unitário</b> de cada item (por unidade, não por caixa) e, se quiser, uma observação. Tudo salva sozinho. Quando terminar, clique em <b>Enviar proposta</b> no rodapé. Item sem preço = você não cota esse item.</div>';
-  h+='<div class="card"><div class="hd">Itens da cotação <span>'+P.itens.length+' itens</span></div><div style="overflow-x:auto"><table><thead><tr><th>Produto</th><th class="r">Preço unit. (R$)</th><th>Observação</th></tr></thead><tbody>';
+  h+='<div class="card"><div class="hd">Itens da cotação <span id="f-cont">'+P.itens.length+' itens</span></div><div class="ftb"><input type="search" id="f-busca" placeholder="buscar produto ou código…" autocomplete="off" oninput="filtrarItens()"><label><input type="checkbox" id="f-so-preco" onchange="filtrarItens()"> só com preço</label><label><input type="checkbox" id="f-so-obs" onchange="filtrarItens()"> só com observação</label></div><div style="overflow-x:auto"><table><thead><tr><th>Produto</th><th class="r">Preço unit. (R$)</th><th>Observação</th></tr></thead><tbody>';
   // ordem alfabética (Tiago, 23/09/26)
   const itensOrd=P.itens.slice().sort((a,b)=>String(a.descricao||'').localeCompare(String(b.descricao||''),'pt-BR'));
   for(const i of itensOrd){
-    h+='<tr><td class="desc">'+esc(i.descricao)+'<span class="cod">'+esc(i.cod)+'<i>Emb. '+(i.emb>1?i.emb:1)+'</i>'+(lock?(i.emb_vendedor?'<i class="embv-ok" title="Embalagem informada por você">sua emb.: '+esc(i.emb_vendedor)+'</i>':''):'<input class="embv" data-cod="'+esc(i.cod)+'" value="'+esc(i.emb_vendedor||'')+'" placeholder="emb. correta?" maxlength="20" title="Se a embalagem do seu produto for diferente da nossa, informe aqui (só observação; a comprador(a) decide)">')+'</span></td>'+
+    h+='<tr data-cod="'+esc(i.cod)+'" data-txt="'+esc(String(i.descricao||'').toLowerCase()+' '+i.cod)+'"><td class="desc">'+esc(i.descricao)+'<span class="cod">'+esc(i.cod)+'<i>Emb. '+(i.emb>1?i.emb:1)+'</i>'+(lock?(i.emb_vendedor?'<i class="embv-ok" title="Embalagem informada por você">sua emb.: '+esc(i.emb_vendedor)+'</i>':''):'<input class="embv" data-cod="'+esc(i.cod)+'" value="'+esc(i.emb_vendedor||'')+'" placeholder="emb. correta?" maxlength="20" title="Se a embalagem do seu produto for diferente da nossa, informe aqui (só observação; a comprador(a) decide)">')+'</span></td>'+
       '<td class="r">'+(lock?'<b>'+(i.preco!=null?'R$ '+fmt(i.preco):'—')+'</b>':'<input class="preco'+(i.preco!=null?' ok':'')+'" inputmode="numeric" data-cod="'+esc(i.cod)+'" value="'+(i.preco!=null?fmt(i.preco):'')+'" placeholder="0,00">')+'</td>'+
       '<td>'+(lock?esc(i.obs||'')||'<span style="color:#98A0B3">—</span>':'<input class="obs" data-cod="'+esc(i.cod)+'" value="'+esc(i.obs||'')+'" placeholder="ex.: sem estoque, validade…" maxlength="200">')+'</td></tr>';
   }
@@ -108,6 +111,7 @@ function render(){
     '<div><label>Pedido mínimo (R$)</label>'+(lock?ro(pre.min?'R$ '+pre.min:''):'<input class="obs cad" id="cad-min" inputmode="decimal" value="'+esc(pre.min)+'" placeholder="ex.: 500,00 (0 = sem mínimo)" maxlength="14">')+'</div>'+
     '<div style="grid-column:1/-1"><label>Observação geral (opcional)</label>'+(lock?ro(P.fornecedor.obs):'<input class="obs" id="obsg" value="'+esc(P.fornecedor.obs||'')+'" placeholder="ex.: entrega só de segunda a sexta" maxlength="500">')+'</div></div></div>';
   $('#app').innerHTML=h;
+  filtrarItens();
   $('#bar').hidden=lock;
   if(!lock){
     // Preço "em centavos", como maquininha: só números, os 2 últimos são os centavos (545 -> 5,45). Enter grava e pula pro próximo.
@@ -121,13 +125,19 @@ function render(){
         if(e.key!=='Enter')return;e.preventDefault();
         clearTimeout(saveTimer);salvar();
         const i=isPreco?precos.indexOf(el):precos.findIndex(p=>p.dataset.cod===el.dataset.cod);
-        const prox=precos[i+1];if(prox){prox.focus();prox.select();prox.scrollIntoView({block:'center',behavior:'smooth'});}else el.blur();
+        let j=i+1;while(precos[j]&&precos[j].closest('tr')&&precos[j].closest('tr').hidden)j++;const prox=precos[j];if(prox){prox.focus();prox.select();prox.scrollIntoView({block:'center',behavior:'smooth'});}else el.blur();
       });
       if(isPreco)el.addEventListener('focus',()=>setTimeout(()=>el.select(),0));
     });
     atualizarTot();
   } else { const t=P.itens.reduce((a,i)=>a+(i.preco!=null?i.preco*i.qtd:0),0), n=P.itens.filter(i=>i.preco!=null).length; $('#tot').innerHTML='<span>'+n+' de '+P.itens.length+' itens com preço</span><span>Total: <b>R$ '+fmt(t)+'</b></span>'; }
 }
+// Busca + flags (Tiago, 23/09/26): esconde linhas sem perder o que já foi digitado; "só com preço" / "só com observação" olham o campo atual
+function filtrarItens(){const b=(($('#f-busca')||{}).value||'').trim().toLowerCase(), sp=!!(($('#f-so-preco')||{}).checked), so=!!(($('#f-so-obs')||{}).checked);let n=0,t=0;
+  document.querySelectorAll('tr[data-cod]').forEach(tr=>{t++;const cod=tr.dataset.cod, it=P.itens.find(x=>x.cod===cod)||{};const ip=tr.querySelector('input.preco'), io=tr.querySelector('input.obs[data-cod]');
+    const temPreco=ip?ip.value.trim()!=='':it.preco!=null, temObs=io?io.value.trim()!=='':!!(it.obs&&String(it.obs).trim());
+    const ok=(!b||(tr.dataset.txt||'').indexOf(b)>=0)&&(!sp||temPreco)&&(!so||temObs);tr.hidden=!ok;if(ok)n++;});
+  const c=$('#f-cont');if(c)c.textContent=(n===t?t+' itens':n+' de '+t+' itens');}
 function agendarSave(){clearTimeout(saveTimer);saveTimer=setTimeout(salvar,900);}
 async function salvar(){if(!dirty)return;dirty=false;try{const r=await fetch('/api/cotacao-publica/'+token+'/salvar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({itens:itensForm(),...extras()})});if(r.status===409){const j=await r.json().catch(()=>({}));alert(j.error||'Cotação encerrada');location.reload();}}catch(e){dirty=true;}}
 $('#btnFim').onclick=async()=>{
