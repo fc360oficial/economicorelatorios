@@ -8035,18 +8035,27 @@ async function criarCotacaoTeste(usuario, cenario, diasAtras, seq) {
   }
   const criado = new Date(); criado.setDate(criado.getDate() - diasAtras); criado.setHours(9 + seq, 15 * seq, 0, 0);
   const prazo = new Date(criado); prazo.setDate(prazo.getDate() + 2);
-  const nomes = { fechada: 'Cotação de Alimentos', analise: 'Cotação Mercearia Seca', digitacao: 'Cotação Bebidas', aguardando: 'Cotação Limpeza', cancelada: 'Cotação Perecíveis', prepedido: 'Cotação Pré-pedido (exemplo)', vendedores: 'Cotação DIA · 3 vendedores (exemplo)' };
+  const nomes = { fechada: 'Cotação de Alimentos', analise: 'Cotação Mercearia Seca', digitacao: 'Cotação Bebidas', aguardando: 'Cotação Limpeza', cancelada: 'Cotação Perecíveis', prepedido: 'Cotação Pré-pedido (exemplo)', vendedores: 'Cotação DIA · 3 vendedores (exemplo)', prazo: 'Cotação Prazo encerrado (exemplo)' };
   const c0 = cotacao.criar({ nome: (nomes[cenario] || 'Cotação') + ' (TESTE) ' + criado.toLocaleDateString('pt-BR'), lista: det ? det.lista.lista : 277, lista_nome: det ? det.lista.nome : 'COTAÇÃO DE ALIMENTOS', comprador: { nome: usuario || 'Comprador(a) Teste', whats: null }, prazo: prazo.toISOString().slice(0, 10), parametros: { cobertura: 28, ponto: 3, embMeses: 36, teste: true, cenario }, itens, fornecedores: forns, usuario });
   cotacao.marcarTeste(c0.id);
   cotacao.patchTeste(c0.id, { criadoEm: criado.toISOString() });
   const c = cotacao.obter(c0.id); const F = c.fornecedores; const r2 = v => Math.round(v * 100) / 100;
-  const cota = (f, filtro, fator, obsCada, cond) => { cotacao.abrir(f.token); cotacao.salvarPrecos(f.token, c.itens.filter(filtro).map((i, k) => ({ cod: i.cod, preco: r2(i.ultimo_custo * fator(k)), obs: k % obsCada === 0 ? ['cx fechada', 'marca similar', 'entrega parcial'][k % 3] : '' })), { condicao: cond }); cotacao.finalizar(f.token, f.vendedor.nome); };
+  const cota = (f, filtro, fator, obsCada, cond) => { cotacao.abrir(f.token); cotacao.salvarPrecos(f.token, c.itens.filter(filtro).map((i, k) => ({ cod: i.cod, preco: r2(i.ultimo_custo * fator(k)), obs: k % obsCada === 0 ? ['cx fechada', 'marca similar', 'entrega parcial'][k % 3] : '', emb_vendedor: k % 5 === 1 ? ['cx 24', 'fardo 12', 'cx 6'][k % 3] : '' })), { condicao: cond, cadastro: { email: (f.vendedor && f.vendedor.email) || (String(f.vendedor && f.vendedor.nome || 'vendas').toLowerCase().split(' ')[0] + '@' + String(f.empresa || f.nome).toLowerCase().replace(/[^a-z]/g, '').slice(0, 12) + '.com.br'), prazo_pagamento: parseInt(cond) || 28, prazo_entrega: f.prazo_entrega || 3, pedido_minimo: f.faturamento_minimo || 0 } }); cotacao.finalizar(f.token, f.vendedor.nome); };
   if (cenario === 'fechada' || cenario === 'analise') {
     F.forEach((f, n) => cota(f, (i, k) => n === 1 ? k % 3 !== 2 : true, k => (n === 0 ? 0.9 + (k % 5) * 0.035 : 0.87 + ((k + 2 + n) % 4) * 0.05), 4 + n, f.condicao_padrao));
     if (cenario === 'fechada') { const rf = await cotacao.fechar(c.id, usuario, (f, its, cc) => criarPedidoDaCotacao(f, its, cc, usuario)); if (rf && rf.pedidos) for (const p of rf.pedidos.slice(0, 1)) { try { pedidosFornec.aprovar(p.id, usuario); } catch (e) {} } cotacao.patchTeste(c.id, { fechadaEm: new Date(prazo.getTime() + 3600e3).toISOString() }); }
   } else if (cenario === 'digitacao') {
     cota(F[0], () => true, k => 0.92 + (k % 4) * 0.03, 5, F[0].condicao_padrao);
     cotacao.abrir(F[1].token); cotacao.salvarPrecos(F[1].token, c.itens.slice(0, 2).map(i => ({ cod: i.cod, preco: r2(i.ultimo_custo * 0.97) })), {});
+  } else if (cenario === 'prazo') {
+    // prazo encerrado ontem às 17:00: Teste 1 enviou a tempo · Teste 2 ficou no meio (agora bloqueado) · Teste 3 nem abriu.
+    // Preenche com o prazo no futuro e depois volta o prazo pra ontem (patchTeste), senão o próprio bloqueio impede montar o exemplo.
+    cotacao.setPrazo(c.id, '2099-12-31T18:00', usuario);
+    cota(F[0], () => true, k => 0.9 + (k % 4) * 0.03, 4, F[0].condicao_padrao);
+    if (F[1]) { cotacao.abrir(F[1].token); cotacao.salvarPrecos(F[1].token, c.itens.slice(0, Math.max(1, Math.floor(c.itens.length / 2))).map(i => ({ cod: i.cod, preco: r2(i.ultimo_custo * 0.95) })), { cadastro: { email: 'erico@atacadonordeste.com.br', prazo_pagamento: 21, prazo_entrega: 5, pedido_minimo: 400 } }); }
+    const ontem = new Date(); ontem.setDate(ontem.getDate() - 1); ontem.setHours(17, 0, 0, 0);
+    const pl = new Date(ontem.getTime() - ontem.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    cotacao.patchTeste(c.id, { prazo: pl, historicoPrazo: [], prazoAlteradoEm: null, prazoAlteradoPor: null });
   } else if (cenario === 'vendedores') {
     // Mesma empresa, produtos diferentes: Ana (DIA) cotou a metade dela · Bruno (DIA) está digitando a outra metade · Clara (DIA) nem abriu · Teste 1 cotou tudo
     const ana = F.find(x => x.codFornec === 999005), bruno = F.find(x => x.codFornec === 999005000001), t1 = F.find(x => x.codFornec === 999001);
@@ -8072,8 +8081,8 @@ async function criarCotacaoTeste(usuario, cenario, diasAtras, seq) {
 app.post('/api/cotacoes/teste', async (req, res) => {
   try {
     const usuario = cotUser(req);
-    const cenarios = req.body?.cenario ? [req.body.cenario] : ['fechada', 'analise', 'digitacao', 'aguardando', 'cancelada', 'prepedido', 'vendedores'];
-    const dias = { fechada: 21, analise: 6, digitacao: 2, aguardando: 0, cancelada: 12, prepedido: 1, vendedores: 0 };
+    const cenarios = req.body?.cenario ? [req.body.cenario] : ['fechada', 'analise', 'digitacao', 'aguardando', 'cancelada', 'prepedido', 'vendedores', 'prazo'];
+    const dias = { fechada: 21, analise: 6, digitacao: 2, aguardando: 0, cancelada: 12, prepedido: 1, vendedores: 0, prazo: 3 };
     const criadas = [];
     for (let k = 0; k < cenarios.length; k++) { const c = await criarCotacaoTeste(usuario, cenarios[k], dias[cenarios[k]] ?? 0, k); criadas.push({ id: c.id, nome: c.nome, status: c.status, cenario: cenarios[k] }); }
     res.json({ criadas });
