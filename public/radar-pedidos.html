@@ -198,6 +198,7 @@ table.main-t td.sel input,table.main-t th.sel input{width:15px;height:15px;accen
 
   <div class="tabs">
     <button class="tab on" data-tab="hoje">Pedidos do dia <span class="n" id="nHoje">0</span></button>
+    <button class="tab" data-tab="aprov" title="Listas com pedido aprovado aguardando a NF-e. Saem de Pedidos do dia até a nota chegar (conferência XML em Pedidos de Compra).">Pedidos aprovados <span class="n" id="nAprov">0</span></button>
     <button class="tab" data-tab="cal">Calendário <span class="n" id="nCal">0</span></button>
     <button class="tab" data-tab="curvaa" title="Produtos de curva A em risco, independente da lista">Curva A em risco <span class="n" id="nA">…</span></button>
     <button class="tab" data-tab="acomp">Acompanhamento</button>
@@ -262,7 +263,7 @@ function renderTotais(){
     '<div class="tkpi" title="'+money(r.estoque_alvo)+'"><div class="v">'+moneyK(r.estoque_alvo)+'</div><div class="l">Estoque no alvo ('+DATA.teto+'d teto)</div></div>'+
     '<div class="tkpi" title="'+money(d)+'"><div class="v '+(d<0?'pos':'neg')+'">'+(d<0?'−':'+')+moneyK(Math.abs(d))+'</div><div class="l">Diferença (alvo − hoje)</div></div>'+
     '<div class="tkpi"><div class="v neg">'+r.rupturas+'</div><div class="l">Produtos c/ venda e estoque zero</div></div>';
-  $('#nHoje').textContent=r.pedir_hoje; $('#nCal').textContent=r.com_calculo;
+  const LS=(DATA&&DATA.listas)||[]; $('#nHoje').textContent=LS.filter(l=>((l.ok&&l.fazer_em===0)||l.nova_ate)&&!temAprovado(l)).length; $('#nCal').textContent=r.com_calculo; $('#nAprov').textContent=LS.filter(temAprovado).length;
 }
 
 function listasFiltradas(){
@@ -294,6 +295,7 @@ function pillDia(l){
   return '<span class="pill p-ok">'+l.fazer_em+' d · '+l.dow+' '+br(l.data).slice(0,5)+'</span>'+a+de;
 }
 let PED_ABERTOS={};
+const temAprovado=l=>(PED_ABERTOS[l.lista]||[]).some(p=>p.status==='aprovado');
 const ST_PED={sugestao:'sugestão de ruptura',aguardando:'enviado ao vendedor · aguardando digitação',digitacao:'vendedor digitando preços',finalizado:'finalizado · aguardando sua aprovação',aprovado:'aprovado · aguardando NF-e'};
 const dtCurta=s=>s?new Date(s).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
 function pedidosAbertosHtml(lista){ return (PED_ABERTOS[lista]||[]).map(p=>'<a class="pill p-ped" href="/pedidos-compra.html" onclick="event.stopPropagation()" title="Já existe pedido em andamento pra esta lista — não gere a sugestão de novo. Clique pra abrir Pedidos de Compra.">⏳ pedido #'+p.id+' · '+(ST_PED[p.status]||p.status)+(p.vendedor?' · '+esc(p.vendedor):'')+' · '+dtCurta(p.finalizadoEm||p.enviadoEm||p.criadoEm)+'</a>').join(' '); }
@@ -310,7 +312,8 @@ function render(){
     $('#view').innerHTML='<div class="empty"><div class="spinner"></div><b style="color:#0E1626">O radar está calculando</b><br>Logo depois que o sistema sobe ele recoleta lead time, venda, estoque e trânsito de todas as listas (1 a 3 minutos). Esta tela atualiza sozinha quando terminar.'+(DATA.estado.erro?'<br><br><span class="neg">Último erro: '+esc(DATA.estado.erro)+'</span>':'')+'</div>';
     return;
   }
-  if(tab==='hoje') return renderTabela(listasFiltradas().filter(l=>(l.ok&&l.fazer_em===0)||l.nova_ate),'Nenhuma lista precisa ser feita hoje com esse teto.');
+  if(tab==='hoje') return renderTabela(listasFiltradas().filter(l=>((l.ok&&l.fazer_em===0)||l.nova_ate)&&!temAprovado(l)),'Nenhuma lista precisa ser feita hoje com esse teto.');
+  if(tab==='aprov') return renderTabela(listasFiltradas().filter(temAprovado),'Nenhuma lista com pedido aprovado aguardando a nota.');
   if(tab==='cal') return renderTabela(listasFiltradas(),'Nenhuma lista.');
   if(tab==='curvaa') return renderCurvaA();
   if(tab==='acomp') return renderAcomp();
