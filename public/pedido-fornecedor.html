@@ -47,12 +47,15 @@ input.obs:focus{outline:none;border-color:#F5B800}
 .nome{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .nome input{font:inherit;font-size:13px;padding:8px 10px;border:1px solid #DADAD6;border-radius:9px;min-width:220px}
 @media(max-width:640px){th.lj,td.lj{display:none}.wrap{padding:10px 8px 110px}td,th{padding:8px 6px}input.preco{width:92px}}
+.zap{color:#25D366;font-weight:700;text-decoration:none;white-space:nowrap}.zap:hover{text-decoration:underline}
 </style>
 </head>
 <body>
 <div class="wrap" id="app"><div class="empty">Carregando pedido…</div></div>
 <div class="bar" id="bar" hidden><div class="info" id="barinfo"></div><button class="btn btn-amber" id="btnFim">Finalizar pedido</button></div>
 <script>
+const LJ=n=>+n===10?'CD':'E'+n;   // rótulo de loja: E1..E6, CD (regra do Tiago)
+const zapNum=v=>{let d=String(v||'').replace(/D/g,'');if(d.length<=11&&!d.startsWith('55'))d='55'+d;return d;};
 const token=location.pathname.split('/').pop();
 const $=s=>document.querySelector(s);
 const fmt=(v,d=2)=>v==null?'—':Number(v).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
@@ -64,7 +67,7 @@ function totais(){let t=0,n=0;for(const i of itensForm()){if(i.preco!=null&&i.pr
 function atualizarTot(){const {t,n}=totais();$('#tot').innerHTML='<span>'+n+' de '+P.itens.length+' itens com preço</span>';$('#barinfo').innerHTML=n<P.itens.length?'Faltam <b>'+(P.itens.length-n)+'</b> itens sem preço. Você pode finalizar mesmo assim.':'Todos os itens com preço.';}
 function render(){
   const fin=P.status==='finalizado';
-  let h='<div class="top"><div class="tophd"><img class="logo" src="/logo-supermercados.png" alt="Econômico Supermercados"><div class="ey">PEDIDO DE COMPRA · ECONOMICO SUPERMERCADO - REDE CAHU</div></div><h1>'+esc(P.lista_nome)+'</h1><div class="sub">Fornecedor: <b>'+esc(P.fornecedor||'')+'</b>'+(P.comprador?.nome?' · Comprador(a): <b>'+esc(P.comprador.nome)+'</b>'+(P.comprador.whats?' · '+esc(P.comprador.whats):''):'')+(P.prazo_pagamento?' · Prazo: <b>'+esc(P.prazo_pagamento)+'</b>':'')+'<br>Enviado em '+new Date(P.criadoEm).toLocaleString('pt-BR')+' · Lojas: '+P.lojas.map(l=>'L'+l+' '+(P.lojas_nomes[l]||'')).join(', ')+'</div><span class="st '+(fin?'st-fin':'st-dig')+'">'+(fin?'FINALIZADO':'EM DIGITAÇÃO')+'</span></div>';
+  let h='<div class="top"><div class="tophd"><img class="logo" src="/logo-supermercados.png" alt="Econômico Supermercados"><div class="ey">PEDIDO DE COMPRA · ECONOMICO SUPERMERCADO - REDE CAHU</div></div><h1>'+esc(P.lista_nome)+'</h1><div class="sub">Fornecedor: <b>'+esc(P.fornecedor||'')+'</b>'+(P.comprador?.nome?' · Comprador(a): <b>'+esc(P.comprador.nome)+'</b>'+(P.comprador.whats?' · <a class="zap" target="_blank" rel="noopener" href="https://wa.me/'+zapNum(P.comprador.whats)+'?text='+encodeURIComponent('Olá '+P.comprador.nome+', sobre o pedido '+(P.lista_nome||'')+' ('+(P.fornecedor||'')+'): ')+'" title="Falar com o comprador no WhatsApp">💬 '+esc(P.comprador.whats)+' · falar no WhatsApp</a>':''):'')+(P.prazo_pagamento?' · Prazo: <b>'+esc(P.prazo_pagamento)+'</b>':'')+'<br>Enviado em '+new Date(P.criadoEm).toLocaleString('pt-BR')+' · Lojas: '+P.lojas.map(l=>LJ(l)+' '+(P.lojas_nomes[l]||'')).join(', ')+'</div><span class="st '+(fin?'st-fin':'st-dig')+'">'+(fin?'FINALIZADO':'EM DIGITAÇÃO')+'</span></div>';
   if(fin) h+='<div class="fim"><b>Pedido finalizado'+(P.finalizadoEm?' em '+new Date(P.finalizadoEm).toLocaleString('pt-BR'):'')+'.</b> Obrigado! A compradora já recebeu os preços. Se precisar corrigir algo, fale com ela.</div>';
   else h+='<div class="fim" style="background:#FFF6D9;border-color:#EFD98F;color:#6B4E00">Preencha o <b>preço unitário</b> de cada item (por unidade, não por caixa) e, se quiser, uma observação. Tudo salva sozinho. Quando terminar, clique em <b>Finalizar pedido</b> no rodapé.</div>';
   h+='<div class="card"><div class="hd">Itens do pedido <span>'+P.itens.length+' itens</span></div><div style="overflow-x:auto"><table><thead><tr><th>Produto</th><th class="r">Preço unit. (R$)</th><th>Observação</th></tr></thead><tbody>';
@@ -81,7 +84,7 @@ function render(){
     h+='<div class="card av"><div class="hd" style="background:#FBEAED;color:#7A1A2C;border-color:#E5B4BD">Avarias pendentes com o fornecedor <span style="color:#C22F49;font-weight:800">'+A.n+(A.n>1?' itens':' item')+' · R$ '+fmt(A.total)+'</span></div>';
     h+='<div class="avn"><b>Atenção:</b> este pedido só será autorizado pela compradora com a resolução das avarias abaixo (troca, bonificação ou nota de devolução). Se já resolveu ou tem previsão, escreva na resposta no fim.</div>';
     h+='<div style="overflow-x:auto"><table><thead><tr><th>Loja</th><th>Produto</th><th class="r">Qtd</th><th class="r">Valor</th><th>Lançada em</th><th>Situação</th></tr></thead><tbody>';
-    for(const a of A.itens) h+='<tr><td><b>L'+a.loja+'</b> '+esc(P.lojas_nomes[a.loja]||'')+'</td><td class="desc">'+esc(a.descricao)+'<span class="cod">'+esc(a.cod)+'</span></td><td class="r">'+fmt(a.qtd,a.qtd%1?3:0)+' '+esc(a.und||'')+'</td><td class="r">R$ '+fmt(a.total)+'</td><td>'+String(a.data).split('-').reverse().join('/')+'</td><td><span class="avt" style="margin:0'+(a.status==='em trâmite'?';background:#FFF6D9;color:#6B4E00':'')+'">'+esc(a.status)+'</span></td></tr>';
+    for(const a of A.itens) h+='<tr><td><b>'+LJ(a.loja)+'</b> '+esc(P.lojas_nomes[a.loja]||'')+'</td><td class="desc">'+esc(a.descricao)+'<span class="cod">'+esc(a.cod)+'</span></td><td class="r">'+fmt(a.qtd,a.qtd%1?3:0)+' '+esc(a.und||'')+'</td><td class="r">R$ '+fmt(a.total)+'</td><td>'+String(a.data).split('-').reverse().join('/')+'</td><td><span class="avt" style="margin:0'+(a.status==='em trâmite'?';background:#FFF6D9;color:#6B4E00':'')+'">'+esc(a.status)+'</span></td></tr>';
     h+='</tbody></table></div>';
     h+='<div style="padding:10px 14px;border-top:1px solid #EEEEEA"><label style="font-size:11px;font-weight:800;color:#4E5A72;text-transform:uppercase;letter-spacing:.04em">Sua resposta sobre as avarias</label>'+(fin?'<div style="margin-top:4px">'+(esc(A.resposta_vendedor)||'<span style="color:#98A0B3">—</span>')+'</div>':'<input class="obs" id="avresp" value="'+esc(A.resposta_vendedor||'')+'" placeholder="ex.: vamos bonificar na próxima entrega / troca agendada dia 15" maxlength="500" style="margin-top:4px">')+'</div></div>';
   }
