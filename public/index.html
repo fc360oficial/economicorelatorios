@@ -115,7 +115,8 @@
   .card-hd .k{margin-left:auto;font-size:11px;font-weight:800;padding:2px 9px;border-radius:999px;background:var(--negw);color:var(--neg)}
   .card-hd .k.ok{background:var(--posw);color:var(--pos)}.card-hd .k.nt{background:#EBEBE9;color:var(--ink2)}
   .card-bd{padding:6px 0;overflow:auto;max-height:420px}
-  .card-bd.comp-bd{max-height:none;padding:12px}
+  .card-bd.comp-bd{max-height:none;padding:0}
+  .comp-t td,.comp-t th{padding:9px 14px!important;font-size:12.5px}.comp-t tr.cp{cursor:pointer}.comp-t tr.cp.open td{background:var(--amw,#FFF6D9)}.comp-t tr.cp-det>td{padding:0 14px 14px 32px!important;background:#FAFAF8}.comp-t tr.cp-det table.m{background:#fff;border:1px solid var(--ln,#DADAD6);border-radius:8px}.comp-t tfoot td{font-weight:800;background:#FAFAF8;border-top:2px solid var(--ln,#DADAD6)}.comp-t .ant{display:block;font-size:10px;color:var(--ink3);font-weight:500}.comp-t .ant.dn{color:var(--neg)}
   .comp-tot{display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:var(--ink2);margin-bottom:12px}.comp-tot b{color:var(--ink);font-size:14px;display:block}
   .comp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(440px,1fr));gap:12px}
   @media (max-width:900px){.comp-grid{grid-template-columns:1fr}}
@@ -214,7 +215,7 @@
     <div class="seg-hd"><span class="n">2</span><h2>Comercial</h2><small>lojas abaixo da meta (projeção no ritmo atual) · departamentos com queda de margem contra o mês anterior</small><a class="lk" href="/radar-precificacao.html">Radar Precificação →</a></div>
     <div class="row c2">
       <div class="card"><div class="card-hd"><h3>Lojas × meta do mês</h3><small id="meta-sub"></small><span class="k" id="k-meta"></span></div><div class="card-bd" id="c-meta"><div class="spin"></div></div></div>
-      <div class="card"><div class="card-hd"><h3>Departamentos com queda de margem</h3><small id="setor-sub">rede · mês atual × mês anterior</small><select class="ds-select" id="setor-loja" onchange="renderSetores()" style="margin-left:auto;font-size:11px;padding:3px 8px"><option value="0">Rede</option><option value="1">L1 CAHU</option><option value="2">L2 MURIBECA</option><option value="3">L3 PONTE</option><option value="4">L4 ATACAREJO</option><option value="5">L5 PORTA LARGA</option><option value="6">L6 JARDIM JORDÃO</option></select></div><div class="card-bd" id="c-setores"><div class="spin"></div></div></div>
+      <div class="card"><div class="card-hd"><h3>Departamentos com queda de margem</h3><small id="setor-sub">rede · mês atual × mês anterior</small><select class="ds-select" id="setor-loja" onchange="renderSetores()" style="margin-left:auto;font-size:11px;padding:3px 8px"><option value="0">Rede</option><option value="1">E1 CAHU</option><option value="2">E2 MURIBECA</option><option value="3">E3 PONTE</option><option value="4">E4 ATACAREJO</option><option value="5">E5 PORTA LARGA</option><option value="6">E6 JARDIM JORDÃO</option></select></div><div class="card-bd" id="c-setores"><div class="spin"></div></div></div>
     </div>
     <div class="card" style="margin-top:12px"><div class="card-hd"><h3>Compradores · mês até hoje</h3><small id="comp-sub">por comprador e por lista: quanto comprou, margem e markup que a lista está deixando na venda, avaria</small><span class="k" id="k-comp"></span></div><div class="card-bd comp-bd" id="c-comp"><div class="spin"></div></div></div>
 </section>
@@ -287,7 +288,7 @@ const sgn = v => v == null ? '—' : (v > 0 ? '+' : '') + pct(v);
 const nf = v => (+v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
 const df = v => v ? String(v).slice(0, 10).split('-').reverse().slice(0, 2).join('/') : '';
 const cls = v => v == null ? '' : v > 0 ? 'up' : v < 0 ? 'dn' : '';
-const lojaTag = ln => '<b>L' + ln + '</b> <span style="color:var(--ink3);font-size:10.5px">' + (NOMES[ln] || '') + '</span>';
+const lojaTag = ln => '<b>' + LJ(ln) + '</b> <span style="color:var(--ink3);font-size:10.5px">' + (NOMES[ln] || '') + '</span>';
 function toast(t) { const e = document.getElementById('toast'); e.textContent = t; e.classList.add('on'); clearTimeout(toast._t); toast._t = setTimeout(() => e.classList.remove('on'), 2600); }
 function fechar(id) { document.getElementById(id).classList.remove('open'); }
 const k = (id, n, ok) => { const e = document.getElementById(id); if (!e) return; e.textContent = n; e.className = 'k' + (ok ? ' ok' : ''); };
@@ -404,29 +405,30 @@ function renderMeta() {
   const row = l => '<tr class="' + (l.abaixo ? 'bad' : '') + '"><td>' + (l.loja ? lojaTag(l.loja) : '<b>REDE</b>') + '</td><td class="r">' + moneyK(l.venda) + '</td><td class="r">' + moneyK(l.meta) + (l.origem && l.loja ? '<br><span style="font-size:9.5px;color:var(--ink3)">' + esc(l.origem) + '</span>' : '') + '</td><td class="r"><span class="bar' + (l.pctMeta < 100 ? '' : '') + '" style="width:' + Math.min(70, Math.round((l.pctMeta || 0) * 0.7)) + 'px"></span>' + pct(l.pctMeta, 0) + '</td><td class="r"><b class="' + (l.abaixo ? 'dn' : 'up') + '">' + moneyK(l.projecao) + '</b><br><span style="font-size:10px">' + pct(l.pctProj, 0) + ' da meta</span></td><td class="r">' + (l.abaixo ? '<span class="pill bad">falta ' + moneyK(l.falta) + '</span>' : '<span class="pill ok">na meta</span>') + '</td></tr>';
   document.getElementById('c-meta').innerHTML = '<table class="m"><thead><tr><th>Loja</th><th class="r">Venda até hoje</th><th class="r">Meta do mês</th><th class="r">% já feito</th><th class="r">Projeção</th><th class="r">Situação</th></tr></thead><tbody>' + (c.soLoja ? '' : row({ ...c.rede, loja: 0 })) + c.lojas.map(row).join('') + '</tbody></table>';
 }
+let COMP_ABERTO = null;
 function renderComp() {
   const el = document.getElementById('c-comp'), c = (D.comercial || {}).compradores;
   if (!c) { el.innerHTML = empty('Calculando por comprador (leva ~1 minuto)… a tela atualiza sozinha.'); k('k-comp', '', true); if (!window._compRetry) window._compRetry = setTimeout(() => { window._compRetry = null; if (SEG === 's2') carregarSeg('comercial'); }, 40000); return; }
   const t = c.total || {}; k('k-comp', c.compradores.length + ' compradores', true);
-  document.getElementById('comp-sub').textContent = '01 a ' + df(c.ate) + ' · rede (sem filtro de loja) · venda e custo pelos cupons, compra pelas notas lançadas, avaria a custo · item em 2 listas rateia';
+  document.getElementById('comp-sub').textContent = '01 a ' + df(c.ate) + ' · rede · faturamento = venda das listas do comprador nos cupons · comprado = notas lançadas · avaria a custo · clique no comprador pra ver as listas';
   const mg = v => v == null ? '<span class="mut">—</span>' : '<b class="' + (v < 0 ? 'dn' : '') + '">' + pct(v) + '</b>';
-  const avp = (v, p) => v ? moneyK(v) + (p != null ? ' <small class="' + (p >= 2 ? 'dn' : 'mut') + '">' + pct(p) + '</small>' : '') : '<span class="mut">—</span>';
-  let h = '<div class="comp-tot"><div><span>Comprado no mês</span><b>' + moneyK(t.comprado) + '</b></div><div><span>Venda das listas</span><b>' + moneyK(t.venda) + '</b></div><div><span>Margem</span><b>' + pct(t.margem) + '</b></div><div><span>Markup</span><b>' + pct(t.markup) + '</b></div><div><span>Avaria</span><b>' + moneyK(t.avaria) + ' <small>' + pct(t.avariaPct) + ' da venda</small></b></div></div>';
-  h += '<div class="comp-grid">' + c.compradores.map(cp => {
-    const top = cp.listas.slice(0, 10), resto = cp.listas.length - top.length;
-    return '<div class="comp"><div class="hd"><b>' + esc(cp.comprador) + '</b><small>' + cp.qtdListas + ' listas</small></div>'
-      + '<div class="kp"><div><span>Comprado</span>' + moneyK(cp.comprado) + '</div><div><span>Venda</span>' + moneyK(cp.venda) + '</div><div><span>Margem</span>' + mg(cp.margem) + '</div><div><span>Markup</span>' + pct(cp.markup) + '</div><div><span>Avaria</span>' + avp(cp.avaria, cp.avariaPct) + '</div></div>'
-      + '<table class="m"><thead><tr><th>Lista</th><th class="r">Comprado</th><th class="r">Venda</th><th class="r">Margem</th><th class="r">Markup</th><th class="r">Avaria</th></tr></thead><tbody>'
-      + top.map(l => '<tr class="' + ((l.margem != null && l.margem < 15) || (l.avariaPct != null && l.avariaPct >= 2) ? 'bad' : '') + '"><td class="p">' + esc(l.nome) + '<small>' + esc(l.fornecedor || '') + '</small></td><td class="r">' + moneyK(l.comprado) + '</td><td class="r">' + moneyK(l.venda) + '</td><td class="r">' + mg(l.margem) + '</td><td class="r">' + pct(l.markup) + '</td><td class="r">' + avp(l.avaria, l.avariaPct) + '</td></tr>').join('')
-      + '</tbody></table>' + (resto > 0 ? '<div class="mais">+ ' + resto + ' listas menores (' + moneyK(cp.listas.slice(10).reduce((s, l) => s + l.venda, 0)) + ' de venda)</div>' : '') + '</div>';
-  }).join('') + '</div>';
-  el.innerHTML = h;
+  const avp = (v, p) => v ? '<b>' + moneyK(v) + '</b>' + (p != null ? '<span class="ant ' + (p >= 2 ? 'dn' : '') + '">' + pct(p) + ' da venda</span>' : '') : '<span class="mut">—</span>';
+  const cab = '<tr><th>Comprador</th><th class="r">Listas</th><th class="r">Faturamento</th><th class="r">Comprado</th><th class="r">Margem</th><th class="r">Markup</th><th class="r">Avaria / perda</th></tr>';
+  let html = '<table class="m comp-t"><thead>' + cab + '</thead><tbody>';
+  for (const cp of c.compradores) {
+    const ab = COMP_ABERTO === cp.comprador;
+    html += '<tr class="cp' + (ab ? ' open' : '') + '" onclick="COMP_ABERTO = COMP_ABERTO === \'' + esc(cp.comprador).replace(/'/g, '') + '\' ? null : \'' + esc(cp.comprador).replace(/'/g, '') + '\'; renderComp()"><td class="p"><b>' + esc(cp.comprador) + '</b></td><td class="r">' + cp.qtdListas + '</td><td class="r"><b>' + moneyK(cp.venda) + '</b></td><td class="r">' + moneyK(cp.comprado) + '</td><td class="r">' + mg(cp.margem) + '</td><td class="r">' + pct(cp.markup) + '</td><td class="r">' + avp(cp.avaria, cp.avariaPct) + '</td></tr>';
+    if (ab) html += '<tr class="cp-det"><td colspan="7"><table class="m"><thead><tr><th>Lista</th><th class="r">Faturamento</th><th class="r">Comprado</th><th class="r">Margem</th><th class="r">Markup</th><th class="r">Avaria / perda</th></tr></thead><tbody>'
+      + cp.listas.map(l => '<tr class="' + ((l.margem != null && l.margem < 15) || (l.avariaPct != null && l.avariaPct >= 2) ? 'bad' : '') + '"><td class="p">' + esc(l.nome) + '<small>' + esc(l.fornecedor || '') + '</small></td><td class="r">' + moneyK(l.venda) + '</td><td class="r">' + moneyK(l.comprado) + '</td><td class="r">' + mg(l.margem) + '</td><td class="r">' + pct(l.markup) + '</td><td class="r">' + avp(l.avaria, l.avariaPct) + '</td></tr>').join('') + '</tbody></table></td></tr>';
+  }
+  html += '</tbody><tfoot><tr><td><b>Total</b></td><td class="r">' + c.compradores.reduce((s, x) => s + x.qtdListas, 0) + '</td><td class="r"><b>' + moneyK(t.venda) + '</b></td><td class="r">' + moneyK(t.comprado) + '</td><td class="r">' + mg(t.margem) + '</td><td class="r">' + pct(t.markup) + '</td><td class="r">' + avp(t.avaria, t.avariaPct) + '</td></tr></tfoot></table>';
+  el.innerHTML = html;
 }
 function renderSetores() {
   const c = V.comercial; if (!c) { document.getElementById('c-setores').innerHTML = empty('sem dados'); return; }
   const ln = LOJA || +document.getElementById('setor-loja').value;
   const rows = (ln ? c.setoresPorLoja.filter(s => s.loja === ln) : c.setores).filter(s => s.vA > 1000);
-  document.getElementById('setor-sub').textContent = (ln ? 'L' + ln + ' ' + NOMES[ln] : 'rede') + ' · ' + df(c.periodoAtual.de) + ' a ' + df(c.periodoAtual.ate) + ' × ' + MESES[+c.periodoAnt.de.slice(5, 7)];
+  document.getElementById('setor-sub').textContent = (ln ? LJ(ln) + ' ' + NOMES[ln] : 'rede') + ' · ' + df(c.periodoAtual.de) + ' a ' + df(c.periodoAtual.ate) + ' × ' + MESES[+c.periodoAnt.de.slice(5, 7)];
   if (!rows.length) { document.getElementById('c-setores').innerHTML = empty('Sem comparação ainda (o cálculo de departamentos leva alguns minutos após o boot).'); return; }
   const queda = rows.filter(s => s.queda <= -1);
   document.getElementById('c-setores').innerHTML = '<table class="m"><thead><tr><th>Departamento</th><th class="r">Venda mês</th><th class="r">Margem</th><th class="r">Mês ant.</th><th class="r">Δ pts</th><th class="r">Impacto</th></tr></thead><tbody>'
@@ -438,7 +440,7 @@ function renderAbast() {
   const ca = a.curvaA;
   if (!ca) document.getElementById('c-curva').innerHTML = empty('Radar de Pedidos ainda não calculou');
   else { n3 += ca.itens.length; k('k-curva', ca.itens.length ? ca.itens.length + ' produtos' : 'ok', !ca.itens.length);
-    document.getElementById('c-curva').innerHTML = ca.itens.length ? '<table class="m"><thead><tr><th>Produto</th><th>Zerado em</th><th class="r">Venda/dia</th><th class="r">Cob.</th><th>Lista</th></tr></thead><tbody>' + ca.itens.map(i => '<tr><td class="p">' + esc(i.descricao) + '<small>#' + i.rank + ' curva A · ' + esc(i.fornecedor || '') + '</small></td><td><span class="lojas-tag">' + (i.lojas_zeradas.length ? i.lojas_zeradas.map(l => '<i>L' + l + '</i>').join('') : '<i class="ok">zera antes</i>') + '</span></td><td class="r">' + money(i.venda_dia_valor) + '</td><td class="r">' + nf(i.cobertura_dias) + ' d</td><td><span class="pill ' + (i.fazer_em <= 0 ? 'bad' : 'nt') + '">' + esc(i.lista_nome || i.lista) + (i.fazer_em != null ? ' · ' + (i.fazer_em <= 0 ? 'pedir hoje' : 'em ' + i.fazer_em + ' d') : '') + '</span></td></tr>').join('') + '</tbody></table>' : empty('Nenhum produto de curva A em falta. ✓'); }
+    document.getElementById('c-curva').innerHTML = ca.itens.length ? '<table class="m"><thead><tr><th>Produto</th><th>Zerado em</th><th class="r">Venda/dia</th><th class="r">Cob.</th><th>Lista</th></tr></thead><tbody>' + ca.itens.map(i => '<tr><td class="p">' + esc(i.descricao) + '<small>#' + i.rank + ' curva A · ' + esc(i.fornecedor || '') + '</small></td><td><span class="lojas-tag">' + (i.lojas_zeradas.length ? i.lojas_zeradas.map(l => '<i>' + LJ(l) + '</i>').join('') : '<i class="ok">zera antes</i>') + '</span></td><td class="r">' + money(i.venda_dia_valor) + '</td><td class="r">' + nf(i.cobertura_dias) + ' d</td><td><span class="pill ' + (i.fazer_em <= 0 ? 'bad' : 'nt') + '">' + esc(i.lista_nome || i.lista) + (i.fazer_em != null ? ' · ' + (i.fazer_em <= 0 ? 'pedir hoje' : 'em ' + i.fazer_em + ' d') : '') + '</span></td></tr>').join('') + '</tbody></table>' : empty('Nenhum produto de curva A em falta. ✓'); }
   const ls = a.listas;
   if (!ls) document.getElementById('c-listas').innerHTML = empty('Radar de Pedidos ainda não calculou');
   else { n3 += ls.pedirHoje; k('k-listas', ls.pedirHoje ? ls.pedirHoje + ' hoje · ' + moneyK(ls.valorHoje) : 'em dia', !ls.pedirHoje);
@@ -457,17 +459,17 @@ function renderEstoque() {
   const ex = e.excesso;
   if (!ex) document.getElementById('c-exc').innerHTML = empty('Sortimento ainda não calculado (roda de madrugada)');
   else { n4 += ex.itens; k('k-exc', ex.itens ? ex.itens + ' itens · ' + moneyK(ex.valor) : 'ok', !ex.itens); document.getElementById('exc-sub').textContent = 'Sortimento · ' + (ex.calculadoEm ? 'calculado ' + new Date(ex.calculadoEm).toLocaleDateString('pt-BR') : '');
-    const pl = Object.entries(ex.porLoja || {}).map(([ln, x]) => '<span class="op-pdv" title="' + moneyK(x.valorCobExc) + '">L' + ln + ' ' + (x.cobExc || 0) + '</span>').join('');
+    const pl = Object.entries(ex.porLoja || {}).map(([ln, x]) => '<span class="op-pdv" title="' + moneyK(x.valorCobExc) + '">' + LJ(ln) + ' ' + (x.cobExc || 0) + '</span>').join('');
     document.getElementById('c-exc').innerHTML = '<div style="padding:6px 12px;font-size:11px;color:var(--ink2)">por loja: ' + pl + ' · parados: ' + ex.parados + ' (' + moneyK(ex.valorParados) + ')</div>' + (ex.top.length ? '<table class="m"><thead><tr><th>Produto</th><th>Loja</th><th class="r">Estoque</th><th class="r">R$</th><th class="r">Cob.</th></tr></thead><tbody>' + ex.top.map(r => '<tr><td class="p">' + esc(r.descricao) + '<small>' + esc(r.nome || '') + '</small></td><td>' + lojaTag(r.loja) + '</td><td class="r">' + nf(r.est) + '</td><td class="r"><b>' + moneyK(r.valorEst) + '</b></td><td class="r dn">' + (r.cob >= 9999 ? '∞' : nf(r.cob) + ' d') + '</td></tr>').join('') + '</tbody></table>' : empty('Sem excesso. ✓')); }
   const vc = e.vencimentos;
   if (!vc) document.getElementById('c-venc').innerHTML = empty('sem dados');
   else { n4 += vc.buckets.d7; k('k-venc', vc.itens ? vc.itens + ' itens · ' + moneyK(vc.valor) : 'ok', !vc.itens);
-    const pl = Object.entries(vc.porLoja || {}).map(([ln, x]) => '<span class="op-pdv" title="' + moneyK(x.valor) + '">L' + ln + ' ' + (x.itens || 0) + '</span>').join('');
+    const pl = Object.entries(vc.porLoja || {}).map(([ln, x]) => '<span class="op-pdv" title="' + moneyK(x.valor) + '">' + LJ(ln) + ' ' + (x.itens || 0) + '</span>').join('');
     document.getElementById('c-venc').innerHTML = '<div style="padding:6px 12px;font-size:11px;color:var(--ink2)"><b class="dn">' + vc.buckets.d7 + '</b> em 7 dias · <b class="wn">' + vc.buckets.d15 + '</b> em 15 · ' + vc.buckets.d30 + ' em 30 · por loja: ' + pl + '</div>' + (vc.top.length ? '<table class="m"><thead><tr><th>Produto</th><th>Loja</th><th>Vence</th><th class="r">Estoque</th><th class="r">R$ custo</th></tr></thead><tbody>' + vc.top.map(r => '<tr class="' + (r.dias <= 7 ? 'bad' : '') + '"><td class="p">' + esc(r.descricao) + '</td><td>' + lojaTag(r.loja) + '</td><td><span class="pill ' + (r.dias <= 7 ? 'bad' : r.dias <= 15 ? 'wn' : 'nt') + '">' + df(r.validade) + ' · ' + r.dias + ' d</span></td><td class="r">' + nf(r.est) + '</td><td class="r"><b>' + moneyK(r.valor) + '</b></td></tr>').join('') + '</tbody></table>' : empty('Nada vencendo em 30 dias. ✓')); }
   const tr = (V.abastecimento || {}).curvaA ? V.abastecimento.curvaA.transferir : null;
   if (!tr) document.getElementById('c-transf').innerHTML = empty('Radar de Pedidos ainda não calculou');
   else { n4 += tr.length; k('k-transf', tr.length ? tr.length + ' produtos' : 'ok', !tr.length);
-    document.getElementById('c-transf').innerHTML = tr.length ? '<table class="m"><thead><tr><th>Produto</th><th>Falta em</th><th>Tem em</th><th class="r">Venda/dia</th></tr></thead><tbody>' + tr.map(i => '<tr><td class="p">' + esc(i.descricao) + '</td><td><span class="lojas-tag">' + i.lojas_zeradas.map(l => '<i>L' + l + '</i>').join('') + '</span></td><td><span class="lojas-tag">' + (i.lojas_com_estoque || []).map(l => '<i class="ok" title="' + (i.lojas_det && i.lojas_det[l] ? nf(i.lojas_det[l].estoque) + ' un · ' + nf(i.lojas_det[l].cobertura_dias) + ' d' : '') + '">L' + l + '</i>').join('') + '</span></td><td class="r">' + money(i.venda_dia_valor) + '</td></tr>').join('') + '</tbody></table>' : empty('Nenhuma transferência sugerida. ✓'); }
+    document.getElementById('c-transf').innerHTML = tr.length ? '<table class="m"><thead><tr><th>Produto</th><th>Falta em</th><th>Tem em</th><th class="r">Venda/dia</th></tr></thead><tbody>' + tr.map(i => '<tr><td class="p">' + esc(i.descricao) + '</td><td><span class="lojas-tag">' + i.lojas_zeradas.map(l => '<i>' + LJ(l) + '</i>').join('') + '</span></td><td><span class="lojas-tag">' + (i.lojas_com_estoque || []).map(l => '<i class="ok" title="' + (i.lojas_det && i.lojas_det[l] ? nf(i.lojas_det[l].estoque) + ' un · ' + nf(i.lojas_det[l].cobertura_dias) + ' d' : '') + '">' + LJ(l) + '</i>').join('') + '</span></td><td class="r">' + money(i.venda_dia_valor) + '</td></tr>').join('') + '</tbody></table>' : empty('Nenhuma transferência sugerida. ✓'); }
   badge('n4', n4);
 }
 function renderOp() {
