@@ -347,7 +347,7 @@ table.cx-itens tbody tr.promo td.desc,table.cx-itens tbody tr.rebaixa td.desc,ta
 .cxb.cxb-pedido:hover:not(:disabled){background:#254B70}
 .cxb.cxb-excel{border-color:var(--pos);background:var(--posw);color:var(--pos);font-weight:800}
 @media print{#consolidacao-view{position:static}.cx-barra,.cx-busca,.cx-cols,.cx-x,#c-recalc,.cx-ia{display:none}.cx-lista,.cx-det-wrap{overflow:visible;height:auto}.cx-det{max-height:none}.cx-divisor{display:none}}
-.cdtag{display:inline-block;background:#101B33;color:#FFC933;font-size:9px;font-weight:800;letter-spacing:.3px;padding:1px 5px;border-radius:5px;margin-left:5px;vertical-align:middle;line-height:1.4}
+.cdtag{display:inline-block;background:#101B33;color:#FFC933;font-size:9px;font-weight:800;letter-spacing:.3px;padding:1px 5px;border-radius:5px;margin-left:5px;vertical-align:middle;line-height:1.4}.cdtag[hidden]{display:none}
 </style>
 </head>
 <body class="ds">
@@ -655,8 +655,8 @@ table.cx-itens tbody tr.promo td.desc,table.cx-itens tbody tr.rebaixa td.desc,ta
 function copiarTexto(txt,btn,ok){const done=()=>{if(btn){const t=btn.textContent;btn.textContent=ok||'Copiado';setTimeout(()=>{btn.textContent=t;},2500);}};const fallback=()=>{try{const ta=document.createElement('textarea');ta.value=txt;ta.setAttribute('readonly','');ta.style.cssText='position:fixed;top:0;left:0;opacity:0';document.body.appendChild(ta);ta.select();ta.setSelectionRange(0,txt.length);const r=document.execCommand('copy');document.body.removeChild(ta);if(r)done();else window.prompt('Copie o link:',txt);}catch(e){window.prompt('Copie o link:',txt);}};if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(txt).then(done).catch(fallback);}else fallback();}
 
 // Sigla CD: produto com estoque no CD (loja 10) — /api/estoque-cd (Tiago, 23/09/2026)
-var CDSET=null;fetch('/api/estoque-cd').then(function(r){return r.json()}).then(function(j){CDSET=j.cods||{};document.querySelectorAll('.cdtag[data-cd]').forEach(function(e){var q=CDSET[e.getAttribute('data-cd')];if(q>0){e.hidden=false;e.title='Tem '+q+' no CD';}});}).catch(function(){CDSET={};});
-function cdTag(cod){cod=String(cod||'').trim();if(CDSET===null)return '<span class="cdtag" data-cd="'+cod+'" hidden>CD</span>';var q=CDSET[cod];return q>0?'<span class="cdtag" title="Tem '+q+' no CD">CD</span>':'';}
+var CDSET=null,CDTXT={};fetch('/api/estoque-cd').then(function(r){return r.json()}).then(function(j){CDSET=j.cods||{};CDTXT=j.txt||{};document.querySelectorAll('.cdtag[data-cd]').forEach(function(e){var c=e.getAttribute('data-cd'),q=CDSET[c];if(q>0){e.hidden=false;e.title='Tem '+(CDTXT[c]||q)+' no CD (CAHU Distribuidora)';}});}).catch(function(){CDSET={};});
+function cdTag(cod){cod=String(cod||'').trim();if(CDSET===null)return '<span class="cdtag" data-cd="'+cod+'" hidden>CD</span>';var q=CDSET[cod];return q>0?'<span class="cdtag" title="Tem '+(CDTXT[cod]||q)+' no CD (CAHU Distribuidora)">CD</span>':'';}
 const mesesNomes = {1:'Janeiro',2:'Fevereiro',3:'Março',4:'Abril',5:'Maio',6:'Junho',7:'Julho',8:'Agosto',9:'Setembro',10:'Outubro',11:'Novembro',12:'Dezembro'};
 function fmt(v){ return 'R$ ' + (v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
 function pctFmt(v){ return (v==null?'—':v.toFixed(1).replace('.',',')+'%'); }

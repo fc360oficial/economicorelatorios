@@ -102,7 +102,7 @@ input.qin:focus{outline:none;border-color:#F5B800;background:#FFFDF3}input.qin.e
 @media print{.tools,.totais,.fluxo,.btn,.acoes{display:none!important}.main{padding:0}}
 
 .det table td.lj,.det table th.lj{text-align:center!important;vertical-align:middle}.det table td.lj input.qin{display:block;margin:0 auto;text-align:center}.det table td{vertical-align:middle}
-.cdtag{display:inline-block;background:#101B33;color:#FFC933;font-size:9px;font-weight:800;letter-spacing:.3px;padding:1px 5px;border-radius:5px;margin-left:5px;vertical-align:middle;line-height:1.4}
+.cdtag{display:inline-block;background:#101B33;color:#FFC933;font-size:9px;font-weight:800;letter-spacing:.3px;padding:1px 5px;border-radius:5px;margin-left:5px;vertical-align:middle;line-height:1.4}.cdtag[hidden]{display:none}
 </style>
 </head>
 <body>
@@ -126,8 +126,8 @@ input.qin:focus{outline:none;border-color:#F5B800;background:#FFFDF3}input.qin.e
 function copiarTexto(txt,btn,ok){const done=()=>{if(btn){const t=btn.textContent;btn.textContent=ok||'Copiado';setTimeout(()=>{btn.textContent=t;},2500);}};const fallback=()=>{try{const ta=document.createElement('textarea');ta.value=txt;ta.setAttribute('readonly','');ta.style.cssText='position:fixed;top:0;left:0;opacity:0';document.body.appendChild(ta);ta.select();ta.setSelectionRange(0,txt.length);const r=document.execCommand('copy');document.body.removeChild(ta);if(r)done();else window.prompt('Copie o link:',txt);}catch(e){window.prompt('Copie o link:',txt);}};if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(txt).then(done).catch(fallback);}else fallback();}
 
 // Sigla CD: produto com estoque no CD (loja 10) — /api/estoque-cd (Tiago, 23/09/2026)
-var CDSET=null;fetch('/api/estoque-cd').then(function(r){return r.json()}).then(function(j){CDSET=j.cods||{};document.querySelectorAll('.cdtag[data-cd]').forEach(function(e){var q=CDSET[e.getAttribute('data-cd')];if(q>0){e.hidden=false;e.title='Tem '+q+' no CD';}});}).catch(function(){CDSET={};});
-function cdTag(cod){cod=String(cod||'').trim();if(CDSET===null)return '<span class="cdtag" data-cd="'+cod+'" hidden>CD</span>';var q=CDSET[cod];return q>0?'<span class="cdtag" title="Tem '+q+' no CD">CD</span>':'';}
+var CDSET=null,CDTXT={};fetch('/api/estoque-cd').then(function(r){return r.json()}).then(function(j){CDSET=j.cods||{};CDTXT=j.txt||{};document.querySelectorAll('.cdtag[data-cd]').forEach(function(e){var c=e.getAttribute('data-cd'),q=CDSET[c];if(q>0){e.hidden=false;e.title='Tem '+(CDTXT[c]||q)+' no CD (CAHU Distribuidora)';}});}).catch(function(){CDSET={};});
+function cdTag(cod){cod=String(cod||'').trim();if(CDSET===null)return '<span class="cdtag" data-cd="'+cod+'" hidden>CD</span>';var q=CDSET[cod];return q>0?'<span class="cdtag" title="Tem '+(CDTXT[cod]||q)+' no CD (CAHU Distribuidora)">CD</span>':'';}
 const $=s=>document.querySelector(s);
 const fmt=(v,d=1)=>v==null||isNaN(v)?'—':Number(v).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
 const money=v=>v==null?'—':'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:0});

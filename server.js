@@ -7001,8 +7001,52 @@ app.post('/api/listas-compra/sortimento/recalcular', async (req, res) => {
 });
 
 // Produtos com estoque no CD (loja 10) — sigla "CD" nas telas de pedido/sugestão (Tiago, 23/09/2026). Só leitura.
+// O CD estoca boa parte em CAIXA (DUN-14, 14 dígitos) e as listas/pedidos usam o código de UNIDADE (EAN-13), então
+// casar só pelo código do CD deixava a caixa de fora. Resolve pelo vínculo caixa↔unidade do Pedidos do CD
+// (data/cd-vinculos.json: confirmado, ou sugerido pelo próprio DUN-14), senão pela conta DUN-14 → EAN-13.
+// Resposta: cods[código] = quantidade (unidades quando o un/cx é conhecido, senão caixas; >0 = tem no CD),
+// txt[código] = texto pronto ("93 cx · 4.650 un"), det[código] = { cx, un, upc, codCD }. Chave pelo código de
+// unidade E pelo código do CD, então a lista acha por qualquer um dos dois.
 app.get('/api/estoque-cd', withCache(5), async (req, res) => {
-  try { const rows = await q(`SELECT CodigoBarra cod, Qtd FROM central.estoquen10 WHERE Qtd > 0`); const cods = {}; for (const r of rows) cods[String(r.cod).trim()] = +Number(r.Qtd).toFixed(3); res.json({ cods, n: rows.length }); }
+  try {
+    const { dun14ParaEan13 } = require('./lib/pedidos-cd-util');
+    const rows = await q(`SELECT e.CodigoBarra cod, e.Qtd, i.qtdemb FROM central.estoquen10 e LEFT JOIN central.itens i ON i.CodigoBarra=e.CodigoBarra WHERE e.Qtd > 0`);
+    const V = pedidosCD.getVinculos() || {};
+    const fmt = n => Number(n).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+    const det = {};
+    const add = (k, d) => {
+      k = String(k || '').trim(); if (!k) return;
+      const a = det[k]; if (!a) { det[k] = { ...d }; return; }
+      a.cx = a.cx == null && d.cx == null ? null : (a.cx || 0) + (d.cx || 0);
+      a.un = a.un == null && d.un == null ? null : (a.un || 0) + (d.un || 0);
+      if (!a.upc && d.upc) a.upc = d.upc;
+      if (a.codCD !== d.codCD) a.codCD = a.codCD + ',' + d.codCD;
+    };
+    for (const r of rows) {
+      const c = String(r.cod).trim(); const qtd = +Number(r.Qtd).toFixed(3); if (!(qtd > 0)) continue;
+      const v = V[c]; const conf = !!(v && v.status === 'confirmado');
+      let upc = (v && v.unPorCaixa >= 1) ? +v.unPorCaixa : null, unidade = c, cx = null, un = null;
+      if (c.length === 14) {
+        // caixa: o estoque do CD já está em caixas; unidade pelo vínculo (confirmado ou sugerido pelo DUN-14), senão pela conta
+        unidade = (conf && v.unidade) || (v && v.origem === 'dun14' && v.candidato) || dun14ParaEan13(c) || c;
+        cx = qtd; un = upc ? +(qtd * upc).toFixed(3) : null;
+      } else if (conf && v.estoqueCx != null && v.estoqueUn == null && upc) {
+        // código de unidade que o CD conta em fardo/caixa (Itens App sem o "X") — mesma regra de pedidos-cd.coletarCD
+        cx = qtd; un = +(qtd * upc).toFixed(3);
+      } else {
+        if (!upc && Number(r.qtdemb) > 1) upc = Number(r.qtdemb);
+        un = qtd; cx = upc > 1 && qtd >= upc ? Math.floor(qtd / upc) : null;
+      }
+      const d = { cx, un, upc, codCD: c };
+      add(unidade, d); if (String(unidade) !== c) add(c, d);
+    }
+    const cods = {}, txt = {};
+    for (const k of Object.keys(det)) {
+      const d = det[k]; cods[k] = d.un != null ? d.un : d.cx;
+      txt[k] = d.cx != null && d.un != null ? `${fmt(d.cx)} cx · ${fmt(d.un)} un` : (d.un != null ? `${fmt(d.un)} un` : `${fmt(d.cx)} cx`);
+    }
+    res.json({ cods, txt, det, n: rows.length });
+  }
   catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.get('/api/radar-pedidos', async (req, res) => {
