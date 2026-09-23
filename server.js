@@ -345,16 +345,28 @@ app.delete('/api/admin/usuarios/:id', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
-// Host do MySQL configurável via variável de ambiente DB_HOST — permite
-// apontar para o banco espelho de outro servidor sem editar código.
-// Se DB_HOST não estiver definida, usa o servidor atual (192.168.2.252).
+// Host do MySQL configurável via variável de ambiente DB_HOST.
+// Regra (23/09/26): PRODUÇÃO lê sempre o ERP do .252 (padrão quando DB_HOST não existe).
+// O MySQL de teste no .254 (cópia do ERP, snapshot de 17/09) é só sandbox: pra usar,
+// subir uma instância separada com DB_HOST=127.0.0.1 — nunca trocar a produção.
+const ERP_PRODUCAO = '192.168.2.252';
 const dbConfig = {
-  host: process.env.DB_HOST || '192.168.2.252',
+  host: process.env.DB_HOST || ERP_PRODUCAO,
   port: 3306,
   user: 'root',
   password: '1900',
   connectTimeout: 15000
 };
+// Trava de escrita: contra o ERP de produção só passa leitura (SELECT/SHOW/DESCRIBE/EXPLAIN).
+// Qualquer INSERT/UPDATE/DELETE/ALTER etc. no .252 é recusado antes de abrir conexão, mesmo que
+// alguém esqueça o DB_HOST num teste. Só libera com ERP_WRITE_OK=1 e autorização explícita do Tiago.
+const ERP_PROTEGIDO = dbConfig.host === ERP_PRODUCAO && process.env.ERP_WRITE_OK !== '1';
+const SQL_SOMENTE_LEITURA = /^\s*(?:\/\*[\s\S]*?\*\/\s*|--[^\n]*\n\s*)*(?:\(\s*)*(select|show|describe|desc|explain)\b/i;
+// Única exceção: central.prevencao_bonif é tabela do próprio Econômico Relatórios (bonificação da Prevenção),
+// criada e gravada por ele desde o BUILD 210. Nenhuma tabela do Dlinks entra aqui.
+const ESCRITA_PERMITIDA = /^\s*(?:insert\s+into|create\s+table\s+if\s+not\s+exists)\s+central\.prevencao_bonif/i;
+function ehLeitura(sql) { sql = String(sql); return SQL_SOMENTE_LEITURA.test(sql) || ESCRITA_PERMITIDA.test(sql); }
+console.log('[DB] ERP em ' + dbConfig.host + (ERP_PROTEGIDO ? ' (produção, SOMENTE LEITURA)' : ' (escrita liberada)'));
 
 // Mapeamento baseado em central.tipo_finalizadora
 const pagtoLabels = {
@@ -369,6 +381,10 @@ const pagtoLabels = {
 const TABELAS_SENSIVEIS = /\baxml\w*\b/i, TIMEOUT_SENSIVEL = 20000, PAUSA_APOS_ESTOURO = 5 * 60 * 1000;
 let travadaAte = 0;
 async function q(sql, params = [], opt = {}) {
+  if (ERP_PROTEGIDO && !ehLeitura(sql)) {
+    console.error('[DB-BLOQUEADO] tentativa de escrita no ERP de produção (' + ERP_PRODUCAO + '): ' + String(sql).substring(0, 120));
+    throw new Error('ERP de produção é somente leitura; escrita bloqueada. Teste no MySQL do .254 (DB_HOST=127.0.0.1).');
+  }
   const sensivel = TABELAS_SENSIVEIS.test(sql);
   const timeoutMs = opt.timeoutMs || (sensivel ? TIMEOUT_SENSIVEL : 0);
   if (sensivel && Date.now() < travadaAte) throw new Error('ERP: tabela axml travada no .252 (manutenção/ALTER TABLE); consulta pulada por mais ' + Math.ceil((travadaAte - Date.now()) / 60000) + ' min');
