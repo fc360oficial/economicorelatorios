@@ -5168,6 +5168,51 @@ app.post('/api/contagem/:data/:loja/ajustado', (req, res) => {
   try { res.json(contagemNeg.marcarAjustado(req.params.data, parseInt(req.params.loja, 10), req.session.user.nome, !!req.body?.desfazer)); }
   catch (err) { res.status(400).json({ error: err.message }); }
 });
+// ── Aprovar ajuste de negativos no MySQL de TESTE (.254) ─────────────────────
+// Grava a quantidade contada de cada item em central.estoquen{loja}, item a item, via escreverERP
+// (tudo vai pro Processos > Log). Nunca toca o .252. Spec: 2026-09-23-negativos-aprovar-ajuste-design.md
+const aprovarNeg = require('./lib/aprovar-negativos');
+function lojaDaContagem(req) {
+  const v = contagemNeg.visaoCentral(req.params.data);
+  const ln = parseInt(req.params.loja, 10);
+  const l = v && v.lojas.find(x => x.loja === ln);
+  if (!l || l.semNegativos) throw new Error('Contagem não encontrada.');
+  return { v, l, ln };
+}
+app.get('/api/contagem/:data/:loja/previa-ajuste', async (req, res) => {
+  try {
+    const { l, ln } = lojaDaContagem(req);
+    const somente = req.query.pendentes === '1' ? l.pendentes : null;
+    const { gravar, semContagem } = aprovarNeg.itensParaGravar(l.linhas, somente);
+    // estoque ATUAL no MySQL de teste, pra avisar se a cópia mudou desde a contagem
+    let atual = {}, erroTeste = null;
+    if (gravar.length) {
+      try {
+        const c = await mysql.createConnection(dbTeste);
+        try {
+          const cods = gravar.map(x => x.cod);
+          const [rows] = await c.query(`SELECT CodigoBarra, Qtd FROM central.estoquen${ln} WHERE CodigoBarra IN (${cods.map(() => '?').join(',')})`, cods);
+          for (const r of rows) atual[String(r.CodigoBarra)] = r.Qtd;
+        } finally { await c.end().catch(() => {}); }
+      } catch (e) { erroTeste = 'MySQL de teste do .254 não respondeu (' + (e.code || e.message) + ')'; }
+    }
+    const itens = gravar.map(x => ({ ...x, atual: atual[x.cod] ?? null, mudou: atual[x.cod] !== undefined && Number(atual[x.cod]) !== Number(x.sys), semRegistro: !erroTeste && atual[x.cod] === undefined }));
+    res.json({ loja: ln, nome: l.nome, data: req.params.data, status: l.status, aprovadoEm: l.aprovadoEm, pendentes: l.pendentes, itens, semContagem, mudaram: itens.filter(x => x.mudou).length, semRegistro: itens.filter(x => x.semRegistro).length, erroTeste, motivo: aprovarNeg.motivoAjuste(req.params.data, ln, l.nome) });
+  } catch (err) { res.status(400).json({ error: err.message }); }
+});
+app.post('/api/contagem/:data/:loja/aprovar', async (req, res) => {
+  try {
+    const { l, ln } = lojaDaContagem(req);
+    if (l.status !== 'concluida') return res.status(400).json({ error: 'A loja ainda não concluiu a contagem.' });
+    const somentePendentes = !!(req.body && req.body.somentePendentes);
+    if (l.aprovadoEm && !somentePendentes) return res.status(400).json({ error: 'Essa loja já foi aprovada. Use "Reprocessar pendentes".' });
+    const { gravar } = aprovarNeg.itensParaGravar(l.linhas, somentePendentes ? l.pendentes : null);
+    if (!gravar.length) return res.status(400).json({ error: 'Nenhum item com contagem pra gravar.' });
+    const r = await aprovarNeg.aprovarLoja({ escrever: escreverERP, itens: gravar, usuario: req.session.user.nome, data: req.params.data, ln, nomeLoja: l.nome });
+    const m = contagemNeg.marcarAprovado(req.params.data, ln, { nome: req.session.user.nome, ids: r.ids, pendentes: r.erros.map(e => e.cod) });
+    res.json({ ok: r.erros.length === 0, gravados: r.gravados, erros: r.erros, ids: r.ids, tabela: r.tabela, aprovadoEm: m.aprovadoEm });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 // Cobrar lojas pendentes: manda texto no grupo via o bot (sem link)
 app.post('/api/contagem/:data/cobrar', async (req, res) => {
   const v = contagemNeg.visaoCentral(req.params.data);

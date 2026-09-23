@@ -198,9 +198,11 @@ function tabela(rows, mud) {
 function exportar() { window.location = '/api/log-erp/csv?' + params(); }
 
 (function init() {
-  const h = new Date();
-  $('fDe').value = iso(new Date(h.getFullYear(), h.getMonth(), 1));
-  $('fAte').value = iso(h);
+  const h = new Date(), u = new URLSearchParams(location.search), ok = s => /^\d{4}-\d{2}-\d{2}$/.test(s || '');
+  $('fDe').value = ok(u.get('de')) ? u.get('de') : iso(new Date(h.getFullYear(), h.getMonth(), 1));
+  $('fAte').value = ok(u.get('ate')) ? u.get('ate') : iso(h);
+  // filtro por tabela vindo do link (ex.: "Ver no Log" da aprovação de negativos)
+  if (u.get('tabela')) { const s = $('fTabela'); s.innerHTML += `<option value="${esc(u.get('tabela'))}">${esc(u.get('tabela'))}</option>`; s.value = u.get('tabela'); filtrosPreenchidos = true; }
   carregar();
 })();
 </script>

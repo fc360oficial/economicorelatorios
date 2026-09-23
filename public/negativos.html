@@ -65,6 +65,20 @@ tr.loja{cursor:pointer;user-select:none}tr.loja:hover td{background:var(--wsh)}t
 .pins b{font-family:ui-monospace,Consolas,monospace;color:var(--ink);font-size:13px}
 .filtro{display:flex;gap:8px;align-items:center;margin-left:auto}
 .filtro label{font-size:12px;color:var(--ink2);display:flex;align-items:center;gap:5px;cursor:pointer}
+.pill.aprov{background:var(--pos);color:#fff}.pill.aprovp{background:var(--amw);color:var(--amk)}
+.ov{position:fixed;inset:0;background:rgba(10,20,40,.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px}
+.md{background:var(--crd);border-radius:var(--r-lg);box-shadow:var(--sh-md);width:min(980px,100%);max-height:92vh;display:flex;flex-direction:column;overflow:hidden}
+.md-h{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:16px 18px;border-bottom:1px solid var(--ln)}
+.md-h h2{font-size:16px;font-weight:800}
+.md-b{overflow:auto;padding:0 18px}
+.md-f{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:14px 18px;border-top:1px solid var(--ln)}
+.md-f input{height:36px;width:120px;border-radius:var(--r);border:1px solid var(--ln2);background:var(--pap);color:var(--ink);font-family:var(--font);font-size:13px;padding:0 10px}
+.md .kpis{grid-template-columns:repeat(4,1fr);margin:0 -18px}
+.aviso{font-size:12.5px;color:var(--amk);background:var(--amw);border-radius:var(--r);padding:8px 12px;margin:12px 0}
+.aviso.neg{color:var(--neg);background:var(--negw)}
+.res{padding:14px 0}.res h3{font-size:14px;font-weight:800;margin-bottom:8px}
+.res ul{margin:8px 0 0 18px;font-size:12.5px;color:var(--neg)}
+td.mud{background:var(--amw);color:var(--amk);font-weight:700}
 </style>
 </head>
 <body class="ds">
@@ -117,6 +131,7 @@ tr.loja{cursor:pointer;user-select:none}tr.loja:hover td{background:var(--wsh)}t
   </div>
 
 </div>
+<div id="modal"></div>
 
 <script>
 const $ = id => document.getElementById(id);
@@ -147,6 +162,7 @@ function render() {
   const late = l => l.status === 'nao_iniciada' && v.criadoEm && (Date.now() - new Date(v.criadoEm)) > 2 * 3600e3 && v.data === new Date().toISOString().slice(0, 10);
   $('tLojas').innerHTML = v.lojas.map(l => {
     let [c, t] = PILL[l.ajustadoEm ? 'ajustada' : l.status]; if (late(l)) { c = 'late'; t = 'Sem resposta há +2h'; }
+    if (l.aprovadoEm) { [c, t] = (l.pendentes && l.pendentes.length) ? ['aprovp', `Aprovada c/ ${l.pendentes.length} pendente(s)`] : ['aprov', 'Aprovada no teste']; }
     const pct = l.itens ? Math.round(l.contados / l.itens * 100) : 0;
     return `<tr class="loja ${l.loja === selLoja ? 'sel' : ''}" onclick="toggleLoja(${l.loja})">
       <td><b>Loja ${l.loja}</b> · ${l.nome}</td>
@@ -157,7 +173,9 @@ function render() {
       <td class="who">${esc(l.resp) || '—'}</td><td class="mono" style="font-size:12px">${hora(l.iniciadoEm)}</td><td class="mono" style="font-size:12px">${hora(l.concluidoEm)}</td>
       <td>${l.ajustadoEm
         ? `<span class="feito"><span class="pill done">✔ Feito</span><span class="who">${esc(l.ajustadoPor) || '—'} · ${hora(l.ajustadoEm)}</span><button class="undo" title="Desmarcar" onclick="event.stopPropagation();ajustado(${l.loja}, true)">desfazer</button></span>`
-        : l.status === 'concluida' ? `<button class="btn btn-primary" style="height:28px;padding:0 10px;font-size:11.5px" onclick="event.stopPropagation();ajustado(${l.loja})">Feito</button> <button class="btn btn-ghost" style="height:28px;padding:0 8px;font-size:11.5px" onclick="event.stopPropagation();reabrir(${l.loja})">Reabrir</button>` : ''}</td></tr>`;
+        : l.status === 'concluida' ? `<button class="btn btn-primary" style="height:28px;padding:0 10px;font-size:11.5px" onclick="event.stopPropagation();ajustado(${l.loja})">Feito</button> <button class="btn btn-ghost" style="height:28px;padding:0 8px;font-size:11.5px" onclick="event.stopPropagation();reabrir(${l.loja})">Reabrir</button>` : ''}
+        ${l.status === 'concluida' && !l.aprovadoEm ? `<button class="btn btn-secondary" style="height:28px;padding:0 10px;font-size:11.5px;margin-left:6px" onclick="event.stopPropagation();previa(${l.loja}, false)">Aprovar ajuste</button>` : ''}
+        ${l.aprovadoEm && l.pendentes && l.pendentes.length ? `<button class="btn btn-secondary" style="height:28px;padding:0 10px;font-size:11.5px;margin-left:6px" onclick="event.stopPropagation();previa(${l.loja}, true)">Reprocessar pendentes</button>` : ''}</td></tr>`;
   }).join('');
   const itens = ativas.reduce((s, l) => s + l.itens, 0), cont = ativas.reduce((s, l) => s + l.contados, 0), ok = ativas.filter(l => l.status === 'concluida').length, dif = ativas.reduce((s, l) => s + l.diferenca, 0);
   $('kItens').textContent = itens; $('kCont').textContent = cont; $('kLojas').textContent = `${ok} / ${ativas.length}`; $('kDif').textContent = '+' + dif;
@@ -193,6 +211,68 @@ async function ajustado(ln, desfazer) {
   if (await post(`/api/contagem/${v.data}/${ln}/ajustado`, desfazer ? 'Desmarcado.' : 'Marcado como feito.', { desfazer: !!desfazer })) carregar();
 }
 async function reabrir(ln) { if (!confirm(`Reabrir a contagem da Loja ${ln}? O auxiliar poderá editar de novo.`)) return; if (await post(`/api/contagem/${v.data}/${ln}/reabrir`, 'Reaberta.')) carregar(); }
+
+// ── Aprovar ajuste no MySQL de teste (.254) ──────────────────────────────────
+let pv = null;
+async function previa(ln, pendentes) {
+  $('status').textContent = 'Montando prévia...';
+  try {
+    const r = await fetch(`/api/contagem/${v.data}/${ln}/previa-ajuste${pendentes ? '?pendentes=1' : ''}`);
+    const j = await r.json();
+    if (!r.ok) { $('status').textContent = 'Falhou: ' + (j.error || r.status); return; }
+    pv = { ...j, pendentesSo: pendentes };
+    $('status').textContent = '';
+    renderPrevia();
+  } catch (e) { $('status').textContent = 'Falhou: ' + e.message; }
+}
+function renderPrevia() {
+  const p = pv, tab = 'estoquen' + p.loja;
+  const linhas = p.itens.map(x => `<tr><td class="desc"><span class="cod">${esc(x.cod)}</span>${esc(x.desc)}</td>
+    <td class="num mono" style="color:var(--neg)">${x.sys}</td><td class="num mono${x.mudou ? ' mud' : ''}">${x.atual ?? (x.semRegistro ? 'sem registro' : '—')}</td>
+    <td class="num mono">${x.contado}</td><td class="num mono"><b>${esc(x.novo)}</b></td></tr>`).join('');
+  $('modal').innerHTML = `<div class="ov" onclick="if(event.target===this)fecharPrevia()"><div class="md">
+    <div class="md-h"><h2>${p.pendentesSo ? 'Reprocessar pendentes' : 'Aprovar ajuste'} — Loja ${p.loja} · ${esc(p.nome)}</h2><button class="btn btn-ghost" onclick="fecharPrevia()">Fechar</button></div>
+    <div class="md-b">
+      <div class="kpis">
+        <div class="kpi"><div class="label">Itens a gravar</div><div class="v">${p.itens.length}</div></div>
+        <div class="kpi"><div class="label">Sem contagem (ficam fora)</div><div class="v">${p.semContagem.length}</div></div>
+        <div class="kpi"><div class="label">Estoque mudou desde a contagem</div><div class="v ${p.mudaram ? 'neg' : ''}">${p.mudaram}</div></div>
+        <div class="kpi"><div class="label">Tabela</div><div class="v" style="font-size:15px">central.${tab}</div></div>
+      </div>
+      ${p.erroTeste ? `<div class="aviso neg">${esc(p.erroTeste)} — não dá pra gravar agora.</div>` : ''}
+      ${p.mudaram ? `<div class="aviso">${p.mudaram} item(ns) com estoque atual no .254 diferente do dia da contagem (coluna destacada). O contado é gravado mesmo assim: é o que existe fisicamente na loja.</div>` : ''}
+      ${p.semRegistro ? `<div class="aviso neg">${p.semRegistro} item(ns) sem registro na tabela ${tab} do .254 — o UPDATE vai afetar 0 linhas e entra no Log como OK com 0 registros.</div>` : ''}
+      <div class="aviso" style="background:var(--wsh);color:var(--ink2)">Motivo que vai no Log: <b>${esc(p.motivo)}</b>. Grava só no MySQL de teste do .254; o ERP (.252) não é tocado.</div>
+      <div class="tblwrap"><table class="dtbl"><thead><tr><th>Produto</th><th class="num">Sistema (contagem)</th><th class="num">Atual no .254</th><th class="num">Contado</th><th class="num">Vai gravar</th></tr></thead>
+      <tbody>${linhas || '<tr><td colspan="5" class="empty">Nenhum item com contagem.</td></tr>'}</tbody></table></div>
+      ${p.semContagem.length ? `<p class="who" style="padding:10px 0">Sem contagem (não serão ajustados): ${p.semContagem.map(x => esc(x.cod)).join(', ')}</p>` : ''}
+      <div id="resAprov"></div>
+    </div>
+    <div class="md-f">
+      <span class="who">Digite o número da loja pra confirmar:</span><input id="confLoja" inputmode="numeric" placeholder="${p.loja}">
+      <button class="btn btn-primary" id="btnGravar" onclick="gravarAjuste()" ${p.erroTeste || !p.itens.length ? 'disabled' : ''}>Gravar no teste .254</button>
+      <button class="btn btn-secondary" onclick="fecharPrevia()">Cancelar</button>
+      <span id="progAprov" class="who"></span>
+    </div></div></div>`;
+}
+function fecharPrevia() { $('modal').innerHTML = ''; pv = null; }
+async function gravarAjuste() {
+  if ($('confLoja').value.trim() !== String(pv.loja)) { $('progAprov').textContent = 'Número da loja não confere.'; return; }
+  const b = $('btnGravar'); b.disabled = true; $('progAprov').textContent = `Gravando ${pv.itens.length} item(ns), aguarde…`;
+  try {
+    const r = await fetch(`/api/contagem/${v.data}/${pv.loja}/aprovar`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ somentePendentes: !!pv.pendentesSo }) });
+    const j = await r.json();
+    if (!r.ok) { $('progAprov').textContent = 'Falhou: ' + (j.error || r.status); b.disabled = false; return; }
+    const hoje = new Date().toISOString().slice(0, 10);
+    const lnk = `/log.html?tabela=${j.tabela}&de=${hoje}&ate=${hoje}`;
+    $('progAprov').textContent = '';
+    $('resAprov').innerHTML = `<div class="res"><h3 style="color:${j.erros.length ? 'var(--amk)' : 'var(--pos)'}">${j.gravados} gravado(s), ${j.erros.length} com erro</h3>
+      <a class="btn btn-secondary" href="${lnk}" style="text-decoration:none">Ver no Log</a>
+      ${j.erros.length ? '<ul>' + j.erros.map(e => `<li><span class="mono">${esc(e.cod)}</span> ${esc(e.desc || '')}: ${esc(e.erro)}</li>`).join('') + '</ul>' : ''}</div>`;
+    $('resAprov').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    carregar();
+  } catch (e) { $('progAprov').textContent = 'Falhou: ' + e.message; b.disabled = false; }
+}
 async function reenviar() {
   const btn = $('btnReenviar'); btn.disabled = true;
   await post('/api/negativos/reenviar-ui', 'Reenviado no grupo.');
