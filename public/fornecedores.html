@@ -378,6 +378,7 @@ table.comp-t tr:hover td{background:#ffffff05}
     <button class="mtab" id="tab-incompletas" onclick="trocarAba('incompletas')" title="Confere todas as listas de compra do ERP e mostra só as que estão sem comprador e/ou sem faturamento mínimo cadastrado">🚫 Sem Comprador / Mínimo</button>
     <button class="mtab" id="tab-desativados" onclick="trocarAba('desativados')" title="Produtos DESATIVADOS no cadastro de produtos do ERP (Cadastro > Produtos) que ainda estão dentro de alguma lista de compra">⛔ Desativados no Cadastro</button>
     <button class="mtab" id="tab-repetidos" onclick="trocarAba('repetidos')" title="Produtos cadastrados em duas ou mais listas de compra — risco de pedir o mesmo item duas vezes pra mesma loja">🔁 Em 2 Listas</button>
+    <button class="mtab" id="tab-divisao" onclick="trocarAba('divisao')" title="EXEMPLO de nova divisão das listas por categoria: uma relação compradora → grupos (ex.: Patricia → Bebidas) e, em todas as listas de hoje, o que cada compradora passaria a comprar. Nada é gravado no ERP">🧭 Divisão por Categoria</button>
   </div>
 
   <!-- SEÇÃO RANKING (atual) -->
@@ -532,6 +533,23 @@ table.comp-t tr:hover td{background:#ffffff05}
         <tbody id="rep-tbody"></tbody>
       </table>
     </div>
+  </div>
+
+  <!-- SEÇÃO DIVISÃO POR CATEGORIA (exemplos, só leitura — 23/09/2026) -->
+  <div id="sec-divisao" style="display:none">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <div id="div-kpi" style="display:flex;gap:12px;flex-wrap:wrap"></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input id="div-busca" placeholder="filtrar lista, fornecedor ou grupo" oninput="renderDivisao()" style="font:inherit;font-size:12.5px;padding:7px 11px;border:1px solid #C9C9C4;border-radius:8px;min-width:240px">
+        <select id="div-modo" onchange="renderDivisao()" style="font:inherit;font-size:12.5px;padding:7px 11px;border:1px solid #C9C9C4;border-radius:8px;background:#fff"><option value="comprador">Por compradora</option><option value="lista">Por lista (quebra)</option></select>
+        <label id="div-lab-mudam" style="font-size:11.5px;color:#4E5A72;display:none;gap:5px;align-items:center"><input type="checkbox" id="div-so-mudam" checked onchange="renderDivisao()"> só listas que mudam</label>
+        <button class="btn btn-slate" onclick="divExemplos()" title="Monta a relação de exemplo: cada grupo vai pra compradora que já compra a maior parte dele hoje (40% ou mais dos itens do grupo). Depois ajuste à vontade">🧪 Criar exemplos de teste</button>
+        <button class="btn btn-slate" onclick="divCsv()" title="Baixa a visão por compradora em CSV (abre no Excel)">⬇ CSV</button>
+      </div>
+    </div>
+    <div style="font-size:11px;color:#4E5A72;margin-bottom:10px;max-width:960px"><b>Como ler:</b> é um <b>exemplo</b> de nova divisão das listas por categoria — nada é gravado no ERP. Monte a <b>relação</b> abaixo (ex.: <b>PATRICIA → BEBIDAS</b>) e a tela olha <b>todas as listas de hoje</b> e mostra, por compradora, cada lista onde há item dos grupos dela: <b>já é dela</b>, <b>migra inteira</b> (60% ou mais dos itens são dos grupos dela) ou <b>só a parte do grupo</b> (vira uma lista nova, "FORNECEDOR · BEBIDAS", só com os itens daquele grupo). Em <b>Por lista</b> aparece a quebra de cada lista de hoje entre as compradoras. Conta só produto ativo com loja marcada na lista. A relação fica guardada neste navegador.</div>
+    <div id="div-relacao" style="margin-bottom:14px"></div>
+    <div id="div-corpo"></div>
   </div>
 
   <div id="sec-validade" style="display:none">
@@ -1403,7 +1421,8 @@ function trocarAba(aba) {
   const sortimento = aba === 'sortimento';
   const incompletas = aba === 'incompletas';
   const desativados = aba === 'desativados';
-  const semBusca = soCompras || pendente || validade || repetidos || sortimento || incompletas || desativados;
+  const divisao = aba === 'divisao';
+  const semBusca = soCompras || pendente || validade || repetidos || sortimento || incompletas || desativados || divisao;
   document.getElementById('fg-fornecedor').style.display = semBusca ? 'none' : '';
   document.getElementById('fg-comprador').style.display  = soCompras ? 'none' : '';
   document.getElementById('btn-buscar').style.display    = semBusca ? 'none' : '';
@@ -1415,6 +1434,7 @@ function trocarAba(aba) {
   document.getElementById('sec-sortimento').style.display = sortimento ? '' : 'none';
   document.getElementById('sec-incompletas').style.display = incompletas ? '' : 'none';
   document.getElementById('sec-desativados').style.display = desativados ? '' : 'none';
+  document.getElementById('sec-divisao').style.display = divisao ? '' : 'none';
   document.querySelectorAll('.mtab').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + aba).classList.add('active');
   if (soCompras) carregarCompras();
@@ -1424,9 +1444,11 @@ function trocarAba(aba) {
   if (sortimento) carregarSortimento();
   if (incompletas) carregarIncompletas();
   if (desativados) carregarDesativados();
+  if (divisao) carregarDivisao();
 }
 
 function onFiltroCompradorChange() {
+  if (_abaAtiva === 'divisao') renderDivisao();
   if (_abaAtiva === 'pendente') carregarPendente();
   if (_abaAtiva === 'validade') carregarValidade();
   if (_abaAtiva === 'repetidos') carregarRepetidos();
@@ -1597,6 +1619,107 @@ function renderRepetidos() {
   const tbody = document.getElementById('rep-tbody');
   if (!rows.length) { tbody.innerHTML = '<tr><td colspan="6" style="padding:30px;text-align:center;color:#98A0B3">Nenhum produto repetido com esse filtro.</td></tr>'; return; }
   tbody.innerHTML = rows.slice(0, 800).map((p, k) => '<tr><td>' + (k + 1) + '</td><td><b>' + esc(p.descricao) + '</b><div style="font-size:10.5px;color:#98A0B3">' + esc(p.cod) + '</div></td><td class="r"><b>' + p.n_listas + '</b></td><td>' + p.listas.map(l => '<div style="font-size:11.5px"><b>' + esc(l.nome) + '</b> <span style="color:#98A0B3">#' + l.id + '</span> · ' + esc(l.fornecedor || '') + (l.comprador ? ' · <span style="color:#4E5A72">' + esc(l.comprador) + '</span>' : '') + ' · <span style="color:#2E5E8C">L' + l.lojas.join(' L') + '</span></div>').join('') + '</td><td>' + (p.lojas_em_comum.length ? '<span style="color:#C22F49;font-weight:800">L' + p.lojas_em_comum.join(' L') + '</span>' : '<span style="color:#98A0B3">—</span>') + '</td><td style="font-size:11px">' + (p.mesmo_fornecedor ? '<span style="background:#FBEAED;color:#C22F49;padding:2px 8px;border-radius:99px;font-weight:700">duplicado no mesmo fornecedor</span>' : (p.lojas_em_comum.length ? '<span style="background:#FFF6D9;color:#6B4E00;padding:2px 8px;border-radius:99px;font-weight:700">fornecedores diferentes, mesma loja</span>' : '<span style="color:#98A0B3">lojas diferentes, ok</span>')) + '</td></tr>').join('') + (rows.length > 800 ? '<tr><td colspan="6" style="padding:10px;color:#98A0B3">Mostrando 800 de ' + rows.length + '. Use o filtro.</td></tr>' : '');
+}
+
+// ── DIVISÃO POR CATEGORIA (23/09/2026) ──
+// EXEMPLO de nova divisão das listas por grupo do ERP: relação "compradora → grupos" (ex.: PATRICIA → BEBIDAS),
+// editável aqui e guardada só neste navegador; o servidor simula em todas as listas (lib/listas-por-grupo.js).
+// Nada é gravado no ERP.
+let _divBase = null, _divRelacao = null, _divRes = null, _divSeq = 0;
+const DIV_KEY = 'listas_divisao_relacao_v1';
+const divEsc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+function divSalvar() { try { localStorage.setItem(DIV_KEY, JSON.stringify(_divRelacao)); } catch (e) {} }
+async function carregarDivisao() {
+  const corpo = document.getElementById('div-corpo');
+  if (!_divBase) {
+    corpo.innerHTML = '<div style="padding:40px;text-align:center"><div class="spinner"></div></div>';
+    try { const r = await fetch('/api/listas-compra/por-grupo'); const j = await r.json(); if (j.error) throw new Error(j.error); _divBase = j; }
+    catch (e) { corpo.innerHTML = '<div class="empty" style="color:#C22F49">Erro: ' + e.message + '</div>'; return; }
+  }
+  if (!_divRelacao) { try { _divRelacao = JSON.parse(localStorage.getItem(DIV_KEY) || 'null'); } catch (e) { _divRelacao = null; } }
+  if (!Array.isArray(_divRelacao) || !_divRelacao.length) _divRelacao = JSON.parse(JSON.stringify(_divBase.relacaoExemplo || []));
+  await divSimular();
+}
+async function divSimular() {
+  const seq = ++_divSeq;
+  divSalvar();
+  renderDivRelacao();
+  try {
+    const r = await fetch('/api/listas-compra/divisao', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ relacao: _divRelacao }) });
+    const j = await r.json(); if (j.error) throw new Error(j.error);
+    if (seq !== _divSeq) return;
+    _divRes = j;
+  } catch (e) { document.getElementById('div-corpo').innerHTML = '<div class="empty" style="color:#C22F49">Erro: ' + e.message + '</div>'; return; }
+  renderDivisao();
+}
+function divExemplos() {
+  _divRelacao = JSON.parse(JSON.stringify(_divBase?.relacaoExemplo || []));
+  divSimular();
+}
+// editor da relação: uma linha por compradora, grupos em chips; cada grupo só pode ter uma dona
+function renderDivRelacao() {
+  const el = document.getElementById('div-relacao');
+  if (!_divBase) return;
+  const G = {}; for (const g of _divBase.grupos) G[g.cg] = g;
+  const usados = new Set(_divRelacao.flatMap(r => r.grupos));
+  const optGrupos = _divBase.grupos.filter(g => !usados.has(g.cg)).map(g => '<option value="' + g.cg + '">' + divEsc(g.rotulo) + ' · ' + g.total + ' itens' + (g.dominante ? ' · hoje ' + divEsc(g.dominante.split(' ')[0]) + ' ' + g.pctDominante + '%' : '') + '</option>').join('');
+  const compradoresLivres = _divBase.compradores.filter(c => !_divRelacao.some(r => r.comprador === c));
+  const sel = 'font:inherit;font-size:12px;padding:5px 9px;border:1px solid #C9C9C4;border-radius:7px;background:#fff';
+  el.innerHTML = '<div style="background:#fff;border:1px solid #DADAD6;border-radius:12px;padding:10px 14px">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px"><div style="font-size:11px;font-weight:800;color:#4E5A72;text-transform:uppercase;letter-spacing:.4px">Relação compradora → grupos</div>'
+    + '<div style="display:flex;gap:6px;align-items:center"><select id="div-add-comp" style="' + sel + '"><option value="">+ compradora…</option>' + compradoresLivres.map(c => '<option value="' + divEsc(c) + '">' + divEsc(c) + '</option>').join('') + '</select><button class="btn btn-slate" style="padding:5px 10px;font-size:12px" onclick="divAddComp()">Adicionar</button>'
+    + (_divRelacao.length ? '<button class="btn btn-slate" style="padding:5px 10px;font-size:12px" onclick="_divRelacao=[];divSimular()" title="Começar do zero">Limpar</button>' : '') + '</div></div>'
+    + (_divRelacao.length ? _divRelacao.map((r, i) => '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 0;border-top:1px solid #EBEBE9">'
+        + '<b style="min-width:150px;font-size:12.5px">' + divEsc(r.comprador) + '</b><span style="color:#98A0B3">→</span>'
+        + r.grupos.map(cg => '<span style="display:inline-flex;align-items:center;gap:4px;background:#FFF6D9;color:#6B4E00;border:1px solid #EFD98F;border-radius:99px;padding:2px 9px;font-size:11.5px;font-weight:700" title="' + divEsc(G[cg]?.nome || cg) + '">' + divEsc(G[cg]?.rotulo || cg) + '<span onclick="divRmGrupo(' + i + ',' + cg + ')" style="cursor:pointer;color:#98A0B3" title="tirar">✕</span></span>').join('')
+        + '<select onchange="divAddGrupo(' + i + ',this.value)" style="font:inherit;font-size:11.5px;padding:3px 7px;border:1px dashed #C9C9C4;border-radius:7px;background:#fff;color:#4E5A72"><option value="">+ grupo…</option>' + optGrupos + '</select>'
+        + '<span onclick="divRmComp(' + i + ')" style="cursor:pointer;color:#98A0B3;font-size:11px;margin-left:auto" title="tirar a compradora da relação">remover</span></div>').join('')
+      : '<div style="font-size:12px;color:#98A0B3;padding:8px 0">Nenhuma compradora na relação. Adicione uma acima ou clique em <b>🧪 Criar exemplos de teste</b>.</div>')
+    + '</div>';
+}
+function divAddComp() { const c = document.getElementById('div-add-comp').value; if (!c) return; _divRelacao.push({ comprador: c, grupos: [] }); divSimular(); }
+function divRmComp(i) { _divRelacao.splice(i, 1); divSimular(); }
+function divAddGrupo(i, cg) { cg = +cg; if (!cg) return; for (const r of _divRelacao) r.grupos = r.grupos.filter(x => x !== cg); _divRelacao[i].grupos.push(cg); divSimular(); }
+function divRmGrupo(i, cg) { _divRelacao[i].grupos = _divRelacao[i].grupos.filter(x => x !== cg); divSimular(); }
+function renderDivisao() {
+  if (!_divRes) return;
+  const modo = document.getElementById('div-modo').value, comprador = document.getElementById('fil-comprador').value;
+  const q = (document.getElementById('div-busca').value || '').toLowerCase();
+  document.getElementById('div-lab-mudam').style.display = modo === 'lista' ? 'flex' : 'none';
+  const R = _divRes.resumo;
+  const kpi = (v, l, cor) => '<div style="background:#fff;border:1px solid #DADAD6;border-radius:10px;padding:8px 14px"><div style="font-size:18px;font-weight:800;' + (cor ? 'color:' + cor : '') + '">' + v + '</div><div style="font-size:9.5px;color:#98A0B3;font-weight:700;text-transform:uppercase;letter-spacing:.4px">' + l + '</div></div>';
+  document.getElementById('div-kpi').innerHTML = kpi(R.compradoras, 'compradoras na relação') + kpi(R.gruposCobertos + ' / ' + R.gruposTotal, 'grupos com dona') + kpi(R.listasQueMudam + ' / ' + R.listasTotal, 'listas que mudam de mão', '#6B4E00') + kpi(R.listasNovas, 'listas novas (migram ou dividem)', '#2E5E8C') + kpi(fmtN(R.itensSemDono), 'itens sem dona na relação', R.itensSemDono ? '#C22F49' : '');
+  const corpo = document.getElementById('div-corpo');
+  const SIT = { dela: ['já é dela', '#EBEBE9', '#4E5A72'], migrar: ['migra a lista inteira', '#FFF6D9', '#6B4E00'], dividir: ['só a parte do grupo → lista nova', '#E3EEF8', '#2E5E8C'] };
+  const bate = (l, extra) => !q || l.nome.toLowerCase().includes(q) || (l.fornecedor || '').toLowerCase().includes(q) || String(l.id) === q || (extra || '').toLowerCase().includes(q);
+  if (modo === 'comprador') {
+    const cards = _divRes.porComprador.filter(c => !comprador || c.comprador === comprador);
+    if (!cards.length) { corpo.innerHTML = '<div class="empty">Nenhuma compradora na relação' + (comprador ? ' com o filtro ' + divEsc(comprador) : '') + '. Adicione acima ou clique em <b>🧪 Criar exemplos de teste</b>.</div>'; return; }
+    corpo.innerHTML = cards.map(c => {
+      const rows = c.listas.filter(l => bate(l, l.grupos.map(g => g.rotulo).join(' ')));
+      return '<div style="margin-bottom:18px">'
+        + '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px"><div style="font-size:15px;font-weight:800">' + divEsc(c.comprador) + ' <span style="color:#98A0B3">→</span> ' + c.grupos.map(g => '<span style="background:#FFF6D9;color:#6B4E00;border:1px solid #EFD98F;border-radius:99px;padding:1px 9px;font-size:12px;font-weight:700" title="' + divEsc(g.nome) + '">' + divEsc(g.rotulo) + '</span>').join(' ') + (c.grupos.length ? '' : '<span style="font-size:12px;color:#98A0B3">(sem grupo — escolha na relação acima)</span>') + '</div>'
+        + '<div style="font-size:11.5px;color:#4E5A72">' + c.listasHoje + ' listas hoje · <b>' + c.listas.length + '</b> na proposta (' + c.dela + ' já dela · <b style="color:#6B4E00">' + c.migrar + '</b> migram inteiras · <b style="color:#2E5E8C">' + c.dividir + '</b> só a parte) · ' + fmtN(c.itens) + ' itens</div></div>'
+        + '<div class="table-wrap"><table class="main-t"><thead><tr><th style="width:30px">#</th><th style="width:64px">Nº lista</th><th>Lista (nome sugerido)</th><th>Fornecedor</th><th>Compradora hoje</th><th class="r">Itens do grupo</th><th class="r">Itens lista</th><th class="r">%</th><th>Situação</th></tr></thead><tbody>'
+        + (rows.length ? rows.map((l, k) => { const s = SIT[l.situacao]; return '<tr><td>' + (k + 1) + '</td><td style="color:#98A0B3">#' + l.id + '</td><td><b>' + divEsc(l.nomeNovo) + '</b>' + (l.situacao === 'dividir' ? '<div style="font-size:10.5px;color:#98A0B3">de: ' + divEsc(l.nome) + ' · ' + l.grupos.map(g => divEsc(g.rotulo) + ' ' + g.n).join(', ') + '</div>' : '') + '</td><td style="font-size:11.5px">' + divEsc(l.fornecedor) + '</td><td>' + (l.compradorHoje ? '<span class="comp-tag">' + divEsc(l.compradorHoje) + '</span>' : '<span style="color:#98A0B3">—</span>') + '</td><td class="r"><b>' + l.itensGrupo + '</b></td><td class="r">' + l.total + '</td><td class="r">' + l.pct + '%</td><td style="font-size:11px"><span style="background:' + s[1] + ';color:' + s[2] + ';padding:2px 8px;border-radius:99px;font-weight:700">' + s[0] + '</span></td></tr>'; }).join('')
+          : '<tr><td colspan="9" class="empty">Nenhuma lista com item desses grupos' + (q ? ' nesse filtro' : '') + '.</td></tr>')
+        + '</tbody></table></div></div>';
+    }).join('');
+  } else {
+    const soMudam = document.getElementById('div-so-mudam').checked;
+    const rows = _divRes.porLista.filter(l => (!comprador || l.comprador === comprador) && (!soMudam || l.muda) && bate(l, l.partes.map(p => p.comprador + ' ' + p.grupos.map(g => g.rotulo).join(' ')).join(' ')));
+    corpo.innerHTML = '<div class="table-wrap"><table class="main-t"><thead><tr><th style="width:30px">#</th><th style="width:64px">Nº lista</th><th>Lista / fornecedor</th><th>Compradora hoje</th><th class="r">Itens</th><th>Quebra proposta (listas novas)</th><th class="r" title="Itens de grupos que não estão na relação: ficam como estão">Sem dona</th></tr></thead><tbody>'
+      + (rows.length ? rows.map((l, k) => '<tr' + (l.muda ? '' : ' style="opacity:.6"') + '><td>' + (k + 1) + '</td><td style="color:#98A0B3">#' + l.id + '</td><td><b>' + divEsc(l.nome) + '</b><div style="font-size:10.5px;color:#98A0B3">' + divEsc(l.fornecedor) + '</div></td><td>' + (l.comprador ? '<span class="comp-tag">' + divEsc(l.comprador) + '</span>' : '<span style="color:#98A0B3">—</span>') + '</td><td class="r">' + l.total + '</td><td>' + (l.partes.length ? l.partes.map(p => '<div style="font-size:11.5px;padding:1px 0"><span style="color:#98A0B3">→</span> <b style="color:' + (p.comprador === l.comprador ? '#4E5A72' : '#6B4E00') + '">' + divEsc(p.comprador) + '</b> · <b>' + divEsc(p.nomeNovo) + '</b> <span style="color:#4E5A72">' + p.itens + ' itens (' + p.pct + '%)</span> <span style="color:#98A0B3">' + p.grupos.map(g => divEsc(g.rotulo) + ' ' + g.n).join(', ') + '</span></div>').join('') : '<span style="color:#98A0B3">nenhum grupo da relação</span>') + '</td><td class="r"' + (l.semDono ? ' style="color:#C22F49;font-weight:700"' : '') + '>' + (l.semDono || '—') + '</td></tr>').join('')
+        : '<tr><td colspan="7" class="empty">Nenhuma lista nesse filtro.</td></tr>')
+      + '</tbody></table></div>';
+  }
+}
+async function divCsv() {
+  try {
+    const r = await fetch('/api/listas-compra/divisao?csv=1', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ relacao: _divRelacao || [] }) });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const b = await r.blob(); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'divisao-por-categoria.csv'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  } catch (e) { alert('Erro ao gerar CSV: ' + e.message); }
 }
 
 // ── SEM VALIDADE ──

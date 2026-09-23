@@ -3622,6 +3622,50 @@ app.get('/api/listas-compra/repetidos', async (req, res) => {
     res.json({ itens, compradores, total: itens.length, com_loja_em_comum: itens.filter(p => p.lojas_em_comum.length).length, mesmo_fornecedor: itens.filter(p => p.mesmo_fornecedor).length });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+
+// ── DIVISÃO POR CATEGORIA (23/09/2026, pedido do Tiago) ──
+// EXEMPLO de nova divisão das listas por grupo do ERP ("PATRICIA → BEBIDAS"): a relação vem do navegador,
+// o servidor simula em cima de todas as listas (lib/listas-por-grupo.js). Base cacheada 10 min — uma
+// consulta agregada no .252, só produto ativo com loja marcada na lista. SOMENTE LEITURA.
+const listasPorGrupo = require('./lib/listas-por-grupo');
+let _lpgBase = null, _lpgTs = 0;
+async function baseListasPorGrupo() {
+  if (_lpgBase && Date.now() - _lpgTs < 10 * 60 * 1000) return _lpgBase;
+  const [listas, grupos, itens] = await Promise.all([
+    q(`SELECT nReg, TRIM(Nome) nome, TRIM(NomeFornec) fornecedor, CodFornec FROM central.c_cotacao_lista`),
+    q(`SELECT CodGrupo, TRIM(Descricao) d FROM central.grupo`),
+    q(`SELECT i.nCotacao lista, gs.CodGrupo cg, COUNT(*) n
+       FROM central.c_cotacao_lista_itens i
+       JOIN central.itens it ON it.CodigoBarra=i.Codigobarra AND it.CodDesativado=0
+       JOIN central.gruposub gs ON gs.CodSubGrupo=it.CodGrupoSub
+       WHERE (i.l1=1 OR i.l2=1 OR i.l3=1 OR i.l4=1 OR i.l5=1 OR i.l6=1)
+       GROUP BY i.nCotacao, gs.CodGrupo`),
+  ]);
+  const compradorPorLista = {};
+  for (const [comp, nRegs] of Object.entries(NREGS_COMPRADOR)) for (const nReg of nRegs) compradorPorLista[nReg] = comp;
+  _lpgBase = listasPorGrupo.montarBase({ listas, grupos, itens, compradorPorLista });
+  _lpgTs = Date.now();
+  return _lpgBase;
+}
+app.get('/api/listas-compra/por-grupo', async (req, res) => {
+  try {
+    const base = await baseListasPorGrupo();
+    res.json({ grupos: base.grupos, compradores: base.compradores, listas: base.listas.length, relacaoExemplo: listasPorGrupo.relacaoExemplo(base) });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.post('/api/listas-compra/divisao', async (req, res) => {
+  try {
+    const base = await baseListasPorGrupo();
+    const r = listasPorGrupo.dividir(base, req.body?.relacao || []);
+    if (req.query.csv) {
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="divisao-por-categoria.csv"');
+      return res.send(listasPorGrupo.csv(r));
+    }
+    res.json(r);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/api/listas-compra/validade-pendente', async (req, res) => {
   try {
     const { comprador } = req.query;
