@@ -7725,14 +7725,16 @@ app.get('/api/cotacoes/sugestao/:lista', async (req, res) => {
     const cobertura = Math.max(3, Math.min(120, parseFloat(req.query.cobertura) || radarPedidos.TETO_PADRAO));
     const ponto = Math.max(0, Math.min(60, req.query.ponto == null || req.query.ponto === '' ? 3 : (parseFloat(req.query.ponto) || 0)));
     const embMeses = req.query.emb == null || req.query.emb === '' ? undefined : Math.max(0, Math.min(36, parseInt(req.query.emb) || 0));
-    const det = radarPedidos.itensLista(id, cobertura, 0, embMeses, false, { alvo: cobertura, ponto });
+    // trânsito que a compradora mandou NÃO contar (tag "não conto" na tela): "cod:loja,cod:loja"
+    const ignorarTransito = new Set(String(req.query.sem_transito || '').split(',').map(s => s.trim()).filter(Boolean).slice(0, 500).map(s => { const [c, l] = s.split(':'); return String(c || '').trim() + '|' + (parseInt(l) || 0); }));
+    const det = radarPedidos.itensLista(id, cobertura, 0, embMeses, false, { alvo: cobertura, ponto }, { ignorarTransito });
     if (!det) return res.status(404).json({ error: radarPedidos.getEstado().status === 'ok' ? 'Lista ' + id + ' não encontrada no Radar (confira o nº no ERP; lista sem nenhuma loja marcada não entra)' : 'Radar ainda calculando, tente em instantes', estado: radarPedidos.getEstado() });
     const cad = await cadastroLista(id).catch(() => null);
     const itens = det.itens.map(i => ({
       cod: i.cod, descricao: i.descricao, unid: i.unid, emb: i.emb, emb_cadastro: i.emb_cadastro, emb_compra: i.emb_compra, emb_manual: i.emb_manual, emb_padrao: i.emb_padrao, lojas: i.lojas, curva_a: i.curva_a, validade: i.validade,
       venda_dia: i.venda_dia, estoque: i.estoque, estoque_bruto: i.estoque_bruto, transito: i.transito, cobertura_dias: i.cobertura_dias, alvo_dias: i.alvo_dias,
       qtd: i.qtd, volumes: i.volumes, custo: i.custo, total: i.total, flag: i.flag, lojas_qtd: i.lojas_qtd,
-      lojas_det: Object.fromEntries(Object.entries(i.lojas_det || {}).map(([ln, d]) => [ln, { estoque: d.estoque, estoque_bruto: d.estoque_bruto, venda_dia: d.venda_dia, cobertura_dias: d.cobertura_dias, transito: d.transito, transito_det: d.transito_det || [], ja_vendeu: d.ja_vendeu }]))
+      lojas_det: Object.fromEntries(Object.entries(i.lojas_det || {}).map(([ln, d]) => [ln, { estoque: d.estoque, estoque_bruto: d.estoque_bruto, venda_dia: d.venda_dia, cobertura_dias: d.cobertura_dias, transito: d.transito, transito_det: d.transito_det || [], transito_ignorado: !!d.transito_ignorado, ja_vendeu: d.ja_vendeu }]))
     }));
     // regra só da cotação: loja marcada, estoque+trânsito zero e sem sugestão → 1 caixa (Tiago, 23/09/2026); ver lib/cotacao.zeradoCotacao
     const zerados = cotacao.zeradoCotacao(itens);
