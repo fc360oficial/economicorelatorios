@@ -44,7 +44,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 .who{font-size:11.5px;color:var(--ink3)}
 .mini{height:5px;background:var(--wsh);border-radius:999px;overflow:hidden;width:110px;display:inline-block;vertical-align:middle;margin-right:8px}
 .mini i{display:block;height:100%;background:var(--am)}
-tr.loja{cursor:pointer}tr.loja:hover td{background:var(--wsh)}tr.loja.sel td{background:var(--amw)}
+tr.loja{cursor:pointer;user-select:none}tr.loja:hover td{background:var(--wsh)}tr.loja.sel td{background:var(--amw)}
 .detail{padding:0 18px 18px}
 .detail h3{font-size:13px;font-weight:800;margin:16px 0 8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .detail h3 .who{font-weight:500}
@@ -139,16 +139,16 @@ async function carregar() {
   const r = await fetch('/api/contagem/' + d);
   if (!r.ok) { $('status').textContent = 'Não carregou: ' + r.status; return; }
   v = await r.json();
-  if (selLoja === null) { const first = v.lojas.find(l => !l.semNegativos && l.status !== 'concluida') || v.lojas.find(l => !l.semNegativos); selLoja = first ? first.loja : null; }
   render();
 }
+function toggleLoja(ln) { selLoja = selLoja === ln ? null : ln; render(); } // 2º clique fecha
 function render() {
   const ativas = v.lojas.filter(l => !l.semNegativos);
   const late = l => l.status === 'nao_iniciada' && v.criadoEm && (Date.now() - new Date(v.criadoEm)) > 2 * 3600e3 && v.data === new Date().toISOString().slice(0, 10);
   $('tLojas').innerHTML = v.lojas.map(l => {
     let [c, t] = PILL[l.ajustadoEm ? 'ajustada' : l.status]; if (late(l)) { c = 'late'; t = 'Sem resposta há +2h'; }
     const pct = l.itens ? Math.round(l.contados / l.itens * 100) : 0;
-    return `<tr class="loja ${l.loja === selLoja ? 'sel' : ''}" onclick="selLoja=${l.loja};render()">
+    return `<tr class="loja ${l.loja === selLoja ? 'sel' : ''}" onclick="toggleLoja(${l.loja})">
       <td><b>Loja ${l.loja}</b> · ${l.nome}</td>
       <td><span class="pill ${c}">${t}</span></td>
       <td>${l.semNegativos ? '—' : `<span class="mini"><i style="width:${pct}%"></i></span><span class="mono" style="font-size:12px;color:var(--ink2)">${pct}%</span>`}</td>
