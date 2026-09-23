@@ -94,13 +94,13 @@ function render(){
   const fin=P.status==='finalizado';
   let h='<div class="top"><div class="tophd"><img class="logo" src="/logo-supermercados.png" alt="Econômico Supermercados"><div class="ey">PEDIDO DE COMPRA · ECONOMICO SUPERMERCADO - REDE CAHU</div></div><h1>'+esc(P.lista_nome)+'</h1><div class="sub">Fornecedor: <b>'+esc(P.fornecedor||'')+'</b>'+(P.comprador?.nome?' · Comprador(a): <b>'+esc(P.comprador.nome)+'</b>'+(P.comprador.whats?' · <a class="zap" target="_blank" rel="noopener" href="https://wa.me/'+zapNum(P.comprador.whats)+'?text='+encodeURIComponent('Olá '+P.comprador.nome+', sobre o pedido '+(P.lista_nome||'')+' ('+(P.fornecedor||'')+'): ')+'" title="Falar com o comprador no WhatsApp">💬 '+esc(P.comprador.whats)+' · falar no WhatsApp</a>':''):'')+(P.prazo_pagamento?' · Prazo: <b>'+esc(P.prazo_pagamento)+'</b>':'')+'<br>Enviado em '+new Date(P.criadoEm).toLocaleString('pt-BR')+' · Lojas: '+P.lojas.map(l=>LJ(l)+' '+(P.lojas_nomes[l]||'')).join(', ')+'</div><span class="st '+(fin?'st-fin':'st-dig')+'">'+(fin?'FINALIZADO':'EM DIGITAÇÃO')+'</span></div>';
   if(fin) h+='<div class="fim"><b>Pedido finalizado'+(P.finalizadoEm?' em '+new Date(P.finalizadoEm).toLocaleString('pt-BR'):'')+'.</b> Obrigado! A compradora já recebeu os preços. Se precisar corrigir algo, fale com ela.</div>';
-  else h+='<div class="fim" style="background:#FFF6D9;border-color:#EFD98F;color:#6B4E00">Preencha o <b>preço unitário</b> de cada item (por unidade, não por caixa) e, se quiser, uma observação. Tudo salva sozinho. Quando terminar, clique em <b>Finalizar pedido</b> no rodapé.<br><b>Confira o código de barras de cada item:</b> o produto que vai chegar precisa ter exatamente o código que está no pedido. <b>Só recebemos mercadoria com o código de barras conciliado com o pedido</b>; se o código do seu produto for outro (nova embalagem, outro EAN), avise na observação do item antes de finalizar.</div>';
+  else h+='<div class="fim" style="background:#FFF6D9;border-color:#EFD98F;color:#6B4E00">Preencha o <b>preço unitário</b> de cada item (por unidade, não por caixa) e, se quiser, uma observação. Tudo salva sozinho. <b>Digite o preço e aperte Enter (ou Tab):</b> o cursor já pula pro próximo item. Quando terminar, clique em <b>Finalizar pedido</b> no rodapé.<br><b>Confira o código de barras de cada item:</b> o produto que vai chegar precisa ter exatamente o código que está no pedido. <b>Só recebemos mercadoria com o código de barras conciliado com o pedido</b>; se o código do seu produto for outro (nova embalagem, outro EAN), avise na observação do item antes de finalizar.</div>';
   h+='<div class="card"><div class="hd">Itens do pedido <span>'+P.itens.length+' itens</span></div><div style="overflow-x:auto"><table><thead><tr><th>Produto</th><th class="r">Preço unit. (R$)</th><th>Observação</th></tr></thead><tbody>';
   // itens em ordem alfabética (Tiago, 23/09/2026)
   for(const i of [...P.itens].sort((x,y)=>String(x.descricao||'').localeCompare(String(y.descricao||''),'pt-BR'))){
     // quantidade NÃO aparece pro vendedor (pedido do Tiago, 11/09/2026): ele só cota o preço unitário
     h+='<tr><td class="desc">'+esc(i.descricao)+'<span class="cod">'+esc(i.cod)+(i.emb>1?'<i>Emb. '+i.emb+'</i>':'<i>Emb. 1</i>')+(fin?(i.emb_vendedor?'<i class="embv" title="Embalagem informada pelo vendedor">vendedor: emb. '+esc(i.emb_vendedor)+'</i>':''):'<input class="embv" data-cod="'+esc(i.cod)+'" value="'+esc(i.emb_vendedor||'')+'" placeholder="emb. correta?" maxlength="20" title="Se a embalagem do seu produto for diferente da nossa, informe aqui (só observação)">')+'</span></td>'+
-      '<td class="r">'+(fin?'<b>'+(i.preco!=null?'R$ '+fmt(i.preco):'—')+'</b>':'<input class="preco'+(i.preco!=null?' ok':'')+'" inputmode="decimal" data-cod="'+esc(i.cod)+'" value="'+(i.preco!=null?fmt(i.preco):'')+'" placeholder="0,00">')+'</td>'+
+      '<td class="r">'+(fin?'<b>'+(i.preco!=null?'R$ '+fmt(i.preco):'—')+'</b>':'<input class="preco'+(i.preco!=null?' ok':'')+'" inputmode="decimal" enterkeyhint="next" data-cod="'+esc(i.cod)+'" value="'+(i.preco!=null?fmt(i.preco):'')+'" placeholder="0,00">')+'</td>'+
       '<td>'+(fin?esc(i.obs||'')||'<span style="color:#98A0B3">—</span>':'<input class="obs" data-cod="'+esc(i.cod)+'" value="'+esc(i.obs||'')+'" placeholder="ex.: sem estoque, substituir por…" maxlength="200">')+'</td></tr>';
   }
   h+='</tbody></table></div><div class="tot" id="tot"></div>'
@@ -133,11 +133,16 @@ function render(){
       el.addEventListener('input',()=>{
         if(isPreco){const d=el.value.replace(/\D/g,'').replace(/^0+(?=\d)/,'').slice(0,9);el.value=d?fmt(parseInt(d,10)/100):'';}
         dirty=true;el.classList.toggle('ok',isPreco&&precoNum(el.value)!=null);atualizarTot();agendarSave();});
+      if(isPreco) el.addEventListener('focus',()=>{ setTimeout(()=>el.select(),0); });
       el.addEventListener('keydown',e=>{
+        const i=isPreco?precos.indexOf(el):precos.findIndex(p=>p.dataset.cod===el.dataset.cod);
+        const ir=(alvo)=>{ if(alvo){alvo.focus();alvo.select();alvo.scrollIntoView({block:'center',behavior:'smooth'});} else el.blur(); };
+        if(isPreco&&e.key==='ArrowDown'){e.preventDefault();ir(precos[i+1]);return;}
+        if(isPreco&&e.key==='ArrowUp'){e.preventDefault();ir(precos[i-1]);return;}
+        if(isPreco&&e.key==='Tab'&&!e.shiftKey){e.preventDefault();clearTimeout(saveTimer);salvar();ir(precos[i+1]);return;}
         if(e.key!=='Enter')return;e.preventDefault();
         clearTimeout(saveTimer);salvar();
-        const i=isPreco?precos.indexOf(el):precos.findIndex(p=>p.dataset.cod===el.dataset.cod);
-        const prox=precos[i+1];if(prox){prox.focus();prox.select();prox.scrollIntoView({block:'center',behavior:'smooth'});}else el.blur();
+        ir(precos[i+1]);
       });
       if(isPreco){el.setAttribute('inputmode','numeric');el.addEventListener('focus',()=>setTimeout(()=>el.select(),0));}
     });
