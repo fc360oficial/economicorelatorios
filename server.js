@@ -6549,7 +6549,7 @@ app.get('/api/dre/params', (req, res) => res.json({ params: dre.getParams(), map
 app.post('/api/dre/params', (req, res) => { try { const p = dre.setParams(req.body || {}); for (const k of Object.keys(_dreCache)) delete _dreCache[k]; res.json(p); } catch (err) { res.status(500).json({ error: err.message }); } });
 
 const dashboardNovo = require('./lib/dashboard');
-dashboardNovo.init({ q, radarPedidos, sortimento, get pedidosCd() { return pedidosCD; }, get pedidosFornecedor() { return pedidosFornec; } });
+dashboardNovo.init({ q, radarPedidos, sortimento, getNregsComprador: () => NREGS_COMPRADOR, get pedidosCd() { return pedidosCD; }, get pedidosFornecedor() { return pedidosFornec; } });
 dashboardNovo.agendar();
 app.get('/api/dashboard', async (req, res) => {
   try { res.json(await dashboardNovo.dados()); } catch (err) { res.status(500).json({ error: err.message }); }
