@@ -35,6 +35,8 @@ input.preco.ok{border-color:#137A48}
 input.obs{width:100%;min-width:140px;font:inherit;font-size:12.5px;padding:8px 10px;border:1px solid #DADAD6;border-radius:9px;background:#fff}
 input.obs:focus{outline:none;border-color:#F5B800}
 .cond{display:grid;grid-template-columns:1fr 2fr;gap:10px;padding:12px 14px}
+.cond.cad4{grid-template-columns:2fr 1fr 1fr 1fr}
+@media(max-width:700px){.cond.cad4{grid-template-columns:1fr 1fr}}
 .cond label{display:block;font-size:10.5px;font-weight:800;color:#4E5A72;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
 .tot{padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:12.5px;color:#4E5A72}
 .tot b{color:#0E1626;font-size:16px}
@@ -73,7 +75,8 @@ const dtp=s=>{if(!s)return '';const t=String(s);return t.length>10?new Date(t).t
 let P=null, dirty=false, saveTimer=null;
 function precoNum(v){const n=parseFloat(String(v).replace(/\./g,'').replace(',','.'));return isFinite(n)?n:null;}
 function itensForm(){return P.itens.map(i=>{const el=document.querySelector('input.preco[data-cod="'+i.cod+'"]');const ob=document.querySelector('input.obs[data-cod="'+i.cod+'"]');const mk=document.querySelector('input.marca[data-cod="'+i.cod+'"]');const ev=document.querySelector('input.embv[data-cod="'+i.cod+'"]');return {cod:i.cod,preco:el?(el.value.trim()===''?'':precoNum(el.value)):i.preco,obs:ob?ob.value:i.obs,marca:mk?mk.value:(i.marca||''),emb_vendedor:ev?ev.value:(i.emb_vendedor||'')};});}
-function extras(){return {condicao:($('#cond')||{}).value,obs:($('#obsg')||{}).value};}
+function extras(){const g=id=>($('#'+id)||{}).value;const pp=parseInt(g('cad-prazo'))||0;return {condicao:pp>0?'Boleto '+pp+' dias':((P.fornecedor&&P.fornecedor.condicao)||''),obs:g('obsg'),cadastro:{email:g('cad-email'),prazo_pagamento:g('cad-prazo'),prazo_entrega:g('cad-tempo'),pedido_minimo:g('cad-min')}};}
+function cadastroFaltando(){const x=extras().cadastro;const f=[];if(!x.email||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x.email))f.push('e-mail');if(!(parseInt(x.prazo_pagamento)>0))f.push('prazo de pagamento');if(x.prazo_entrega===''||x.prazo_entrega==null||!(parseInt(x.prazo_entrega)>=0))f.push('tempo de entrega');if(x.pedido_minimo===''||x.pedido_minimo==null)f.push('pedido mínimo');return f;}
 function totais(){let t=0,n=0;for(const i of itensForm()){if(i.preco!=null&&i.preco!==''){t+=i.preco*(P.itens.find(x=>x.cod===i.cod)?.qtd||0);n++;}}return {t,n};}
 function atualizarTot(){const {t,n}=totais();$('#tot').innerHTML='<span>'+n+' de '+P.itens.length+' itens com preço</span><span>Total da proposta: <b>R$ '+fmt(t)+'</b></span>';$('#barinfo').innerHTML=n<P.itens.length?'Faltam <b>'+(P.itens.length-n)+'</b> itens sem preço. Você pode enviar mesmo assim (item sem preço = não cotado).':'Todos os itens com preço.';}
 function render(){
@@ -95,13 +98,21 @@ function render(){
       '<td>'+(lock?esc(i.obs||'')||'<span style="color:#98A0B3">—</span>':'<input class="obs" data-cod="'+esc(i.cod)+'" value="'+esc(i.obs||'')+'" placeholder="ex.: sem estoque, validade…" maxlength="200">')+'</td></tr>';
   }
   h+='</tbody></table></div><div class="tot" id="tot"></div></div>';
-  h+='<div class="card"><div class="hd">Condições da proposta <span>opcional</span></div><div class="cond"><div><label>Condição de pagamento</label>'+(lock?'<div>'+(esc(P.fornecedor.condicao)||'<span style="color:#98A0B3">—</span>')+'</div>':'<input class="obs" id="cond" value="'+esc(P.fornecedor.condicao||'')+'" placeholder="ex.: 28 dias, boleto" maxlength="80">')+'</div><div><label>Observação geral</label>'+(lock?'<div>'+(esc(P.fornecedor.obs)||'<span style="color:#98A0B3">—</span>')+'</div>':'<input class="obs" id="obsg" value="'+esc(P.fornecedor.obs||'')+'" placeholder="ex.: entrega em 3 dias, pedido mínimo R$ 500" maxlength="500">')+'</div></div></div>';
+  // "Estamos atualizando nosso cadastro de fornecedor" (obrigatório pra enviar) — Tiago, 23/09/26
+  const cv=P.fornecedor.cadastro||{}, pad=(P.fornecedor.condicao_padrao||'').match(/\d+/), pre={email:cv.email||(P.fornecedor.vendedor&&P.fornecedor.vendedor.email)||'',prazo:cv.prazo_pagamento||(pad?pad[0]:''),tempo:cv.prazo_entrega!=null?cv.prazo_entrega:(P.fornecedor.prazo_entrega||''),min:cv.pedido_minimo!=null?fmt(cv.pedido_minimo):(P.fornecedor.faturamento_minimo!=null?fmt(P.fornecedor.faturamento_minimo):'')};
+  const ro=v=>'<div>'+(esc(v)||'<span style="color:#98A0B3">—</span>')+'</div>';
+  h+='<div class="card"><div class="hd">Estamos atualizando nosso cadastro de fornecedor <span'+(lock?'':' style="color:#B45309;font-weight:700"')+'>'+(lock?'enviado':'preencha pra enviar a proposta')+'</span></div><div class="cond cad4">'+
+    '<div><label>E-mail do vendedor</label>'+(lock?ro(pre.email):'<input class="obs cad" id="cad-email" type="email" value="'+esc(pre.email)+'" placeholder="vendas@empresa.com.br" maxlength="120">')+'</div>'+
+    '<div><label>Prazo de pagamento (dias de boleto)</label>'+(lock?ro(pre.prazo?pre.prazo+' dias':''):'<input class="obs cad" id="cad-prazo" inputmode="numeric" value="'+esc(pre.prazo)+'" placeholder="ex.: 28" maxlength="3">')+'</div>'+
+    '<div><label>Tempo de entrega (dias)</label>'+(lock?ro(pre.tempo!==''?pre.tempo+' dias':''):'<input class="obs cad" id="cad-tempo" inputmode="numeric" value="'+esc(pre.tempo)+'" placeholder="ex.: 3" maxlength="3">')+'</div>'+
+    '<div><label>Pedido mínimo (R$)</label>'+(lock?ro(pre.min?'R$ '+pre.min:''):'<input class="obs cad" id="cad-min" inputmode="decimal" value="'+esc(pre.min)+'" placeholder="ex.: 500,00 (0 = sem mínimo)" maxlength="14">')+'</div>'+
+    '<div style="grid-column:1/-1"><label>Observação geral (opcional)</label>'+(lock?ro(P.fornecedor.obs):'<input class="obs" id="obsg" value="'+esc(P.fornecedor.obs||'')+'" placeholder="ex.: entrega só de segunda a sexta" maxlength="500">')+'</div></div></div>';
   $('#app').innerHTML=h;
   $('#bar').hidden=lock;
   if(!lock){
     // Preço "em centavos", como maquininha: só números, os 2 últimos são os centavos (545 -> 5,45). Enter grava e pula pro próximo.
     const precos=[...document.querySelectorAll('input.preco')];
-    document.querySelectorAll('input.preco,input.obs,input.embv').forEach(el=>{
+    document.querySelectorAll('input.preco,input.obs,input.embv,input.cad').forEach(el=>{
       const isPreco=el.classList.contains('preco');
       el.addEventListener('input',()=>{
         if(isPreco){const d=el.value.replace(/\D/g,'').replace(/^0+(?=\d)/,'').slice(0,9);el.value=d?fmt(parseInt(d,10)/100):'';}
@@ -121,6 +132,7 @@ function agendarSave(){clearTimeout(saveTimer);saveTimer=setTimeout(salvar,900);
 async function salvar(){if(!dirty)return;dirty=false;try{const r=await fetch('/api/cotacao-publica/'+token+'/salvar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({itens:itensForm(),...extras()})});if(r.status===409){const j=await r.json().catch(()=>({}));alert(j.error||'Cotação encerrada');location.reload();}}catch(e){dirty=true;}}
 $('#btnFim').onclick=async()=>{
   const {n}=totais();
+  const faltam=cadastroFaltando(); if(faltam.length){alert('Antes de enviar, preencha no bloco "Estamos atualizando nosso cadastro de fornecedor": '+faltam.join(', ')+'.');const el=document.querySelector('input.cad');if(el){el.scrollIntoView({block:'center',behavior:'smooth'});el.focus();}return;}
   if(!confirm(n<P.itens.length?'Ainda tem '+(P.itens.length-n)+' item(ns) sem preço (não cotados). Enviar a proposta mesmo assim?':'Enviar a proposta? Depois disso não dá mais pra alterar os preços.')) return;
   $('#btnFim').disabled=true;
   try{const r=await fetch('/api/cotacao-publica/'+token+'/finalizar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({itens:itensForm(),...extras(),nome:(P.fornecedor.vendedor&&P.fornecedor.vendedor.nome)||''})});const j=await r.json();if(j.error)throw new Error(j.error);P=j;render();window.scrollTo(0,0);}
