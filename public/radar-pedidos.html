@@ -184,6 +184,7 @@ table.main-t td.sel input,table.main-t th.sel input{width:15px;height:15px;accen
   </div>
 
   <div class="filtros">
+    <div class="fg"><label>Loja</label><select id="fLoja" title="Vê o Radar inteiro só por esta loja: quantidades, cobertura, estoque e curva A da loja. Combina com o comprador."><option value="">Todas</option><option value="1">L1 CAHU</option><option value="2">L2 MURIBECA</option><option value="3">L3 PONTE</option><option value="4">L4 ATACAREJO</option><option value="5">L5 PORTA LARGA</option><option value="6">L6 JARDIM JORDÃO</option></select></div>
     <div class="fg"><label>Comprador</label><select id="fComp"><option value="">Todos</option></select></div>
     <div class="fg"><label>Teto de cobertura (dias)</label><input type="number" id="fTeto" min="3" max="90" value="28"></div>
     <div class="fg"><label title="Arredonda o pedido pela embalagem em que o produto de fato chegou nas notas de entrada nesse período. 0 = usar só a embalagem do cadastro.">Embalagem real (meses)</label><input type="number" id="fEmb" min="0" max="36" value="36"></div>
@@ -228,7 +229,7 @@ let DATA=null, tab='hoje', sortK='fazer_em', sortD=1, aberta=null, SOMBRA=null;
 // vindo da Sugestão de Compras: ?lista=ID abre o detalhe da lista (mesma forma e regras do Radar, por loja); origem marca o pedido
 const URLP=new URLSearchParams(location.search); let ABRIR_LISTA=parseInt(URLP.get('lista'))||null; const ORIGEM=URLP.get('origem')==='sugestao'?'sugestao':null;
 
-function params(){const p=new URLSearchParams();const c=$('#fComp').value;if(c)p.set('comprador',c);p.set('alvo',$('#fTeto').value||28);p.set('emb',$('#fEmb').value===''?36:$('#fEmb').value);if(!$('#fCurvaA').checked)p.set('curvaA','0');return p;}
+function params(){const p=new URLSearchParams();const lj=$('#fLoja').value;if(lj)p.set('loja',lj);const c=$('#fComp').value;if(c)p.set('comprador',c);p.set('alvo',$('#fTeto').value||28);p.set('emb',$('#fEmb').value===''?36:$('#fEmb').value);if(!$('#fCurvaA').checked)p.set('curvaA','0');return p;}
 const money2=v=>v==null?'—':'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 
 async function carregar(refresh){
@@ -594,7 +595,7 @@ async function enviarSelecionadas(){
   if(!confirm('Gerar '+ids.length+' pedido'+(ids.length>1?'s':'')+' pro fornecedor ('+ids.length+' lista'+(ids.length>1?'s':'')+' selecionada'+(ids.length>1?'s':'')+')? Cada um ganha um link próprio; você escolhe pra quem enviar depois.')) return;
   const b=document.getElementById('btnEnviar'); if(b){b.disabled=true;b.textContent='Gerando…';}
   try{
-    const corpo=(conf)=>JSON.stringify({listas:ids,teto:$('#fTeto').value||28,emb:$('#fEmb').value===''?36:$('#fEmb').value,ajustes:EDITS,modo:MODO,curvaA:$('#fCurvaA').checked,confirmar_excesso:conf,origem:ORIGEM});
+    const corpo=(conf)=>JSON.stringify({listas:ids,teto:$('#fTeto').value||28,emb:$('#fEmb').value===''?36:$('#fEmb').value,ajustes:EDITS,modo:MODO,curvaA:$('#fCurvaA').checked,loja:$('#fLoja').value||null,confirmar_excesso:conf,origem:ORIGEM});
     let r=await fetch('/api/pedidos-fornecedor',{method:'POST',headers:{'Content-Type':'application/json'},body:corpo(false)});
     let j=await r.json();
     if(r.status===409&&j.bloqueados){
@@ -734,6 +735,7 @@ carregarFiltros();
 $('#btnAplicar').onclick=()=>{aberta=null;salvarFiltros();carregar(false);};
 $('#fBusca').addEventListener('input',()=>{if(DATA)render();});
 $('#fComp').addEventListener('change',()=>{aberta=null;carregar(false);});
+$('#fLoja').addEventListener('change',()=>{aberta=null;carregar(false);});
 $('#fCurvaA').addEventListener('change',()=>{aberta=null;salvarFiltros();carregar(false);});
 $('#fTeto').addEventListener('keydown',e=>{if(e.key==='Enter'){salvarFiltros();carregar(false);}});
 $('#fEmb').addEventListener('keydown',e=>{if(e.key==='Enter'){salvarFiltros();carregar(false);}});
