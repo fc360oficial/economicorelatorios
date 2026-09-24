@@ -98,7 +98,7 @@ pre.sql{background:var(--wsh);border:1px solid var(--ln);border-radius:var(--r);
     </div>
     <div class="tblwrap">
       <table>
-        <thead><tr><th>Data/Hora</th><th>Usuário</th><th>Servidor</th><th>Tabela</th><th>Operação</th><th class="num">Registros</th><th>Status</th><th>Motivo</th></tr></thead>
+        <thead><tr><th>Data/Hora</th><th>Usuário</th><th>Referência</th><th>Servidor</th><th>Tabela</th><th>Operação</th><th class="num">Registros</th><th>Status</th><th>Motivo</th></tr></thead>
         <tbody id="tb"></tbody>
       </table>
       <div class="empty" id="vazio" hidden>Nenhuma mudança registrada no período.</div>
@@ -154,16 +154,26 @@ function render() {
   $('tb').innerHTML = itens.map(e => `<tr class="ev${e.id === selId ? ' sel' : ''}" onclick="abrir('${esc(e.id)}')">
     <td class="mono">${dh(e.quando)}</td>
     <td>${esc(e.usuario)}</td>
+    <td>${refHtml(e)}</td>
     <td>${servidor(e)}</td>
     <td class="mono">${esc(e.banco)}.${esc(e.tabela)}</td>
     <td>${esc((e.operacao || '').toUpperCase())}</td>
     <td class="num mono">${e.afetados ?? '—'}</td>
     <td><span class="pill ${esc(e.status)}">${({ ok: 'OK', erro: 'Erro', recusado: 'Recusado' })[e.status] || esc(e.status)}</span></td>
     <td class="motivo">${esc(e.motivo)}</td></tr>`
-    + (e.id === selId ? `<tr class="det"><td colspan="8"><div class="detail">${detHtml}</div></td></tr>` : '')).join('');
+    + (e.id === selId ? `<tr class="det"><td colspan="9"><div class="detail">${detHtml}</div></td></tr>` : '')).join('');
   if (selId && !itens.some(e => e.id === selId)) { selId = null; detHtml = ''; }
 }
 
+// Referência: de onde veio a mudança (pedido do Radar, contagem de negativos), com link pra tela
+function refHtml(e) {
+  const m = String(e.motivo || '');
+  let r = m.match(/pedido #(\d+) (.*?) → ERP teste, loja (\d+)/);
+  if (r) return `<a href="/pedidos-compra.html?pedido=${r[1]}" onclick="event.stopPropagation()" style="color:var(--inf);font-weight:700;text-decoration:none">Pedido #${r[1]}</a> <span style="color:var(--ink2)">· ${esc(r[2].trim())} · Loja ${r[3]}</span>`;
+  r = m.match(/Ajuste de negativos — contagem (\d{2}\/\d{2}\/\d{4}), loja (\d+) \((.*?)\)/);
+  if (r) return `<a href="/negativos.html" onclick="event.stopPropagation()" style="color:var(--inf);font-weight:700;text-decoration:none">Negativos ${r[1]}</a> <span style="color:var(--ink2)">· Loja ${r[2]} ${esc(r[3])}</span>`;
+  return '<span style="color:var(--ink3)">—</span>';
+}
 function servidor(e) {
   return e.host === '192.168.2.252' ? '<span class="pill prod">Produção .252</span>' : '<span class="pill teste">Teste .254</span>';
 }

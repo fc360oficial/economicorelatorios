@@ -123,7 +123,7 @@ input.qin:focus{outline:none;border-color:#F5B800;background:#FFFDF3}input.qin.e
   <div class="fluxo"><span class="pill st-aguardando">Aguardando vendedor</span>→<span class="pill st-digitacao">Em digitação</span>→<span class="pill st-finalizado">Finalizado · aguardando aprovação</span>→<span class="pill st-aprovado">Aprovado</span>→<span class="xml aguardando" style="margin:0">Aguardando conferência XML</span>→<span class="xml conciliado" style="margin:0">Conciliado</span> ou <span class="xml consistencia" style="margin:0">Consistência XML</span> <span style="margin-left:10px">·</span> <span class="pill st-sugestao">Sugestão · ruptura de entrega</span> = criada pelo sistema quando a nota chegou com falta</div>
   <div class="totais" id="totais"></div>
   <div id="cd-card" hidden style="margin:-6px 0 14px"></div>
-  <div class="tools"><input id="q" placeholder="Buscar lista, fornecedor ou vendedor" style="min-width:280px"><select id="fComp"><option value="">Todos compradores</option></select><select id="fLoja" onchange="aberto=null;render()"><option value="">Todas as lojas</option><option value="1">E1 CAHU</option><option value="2">E2 MURIBECA</option><option value="3">E3 PONTE</option><option value="4">E4 ATACAREJO</option><option value="5">E5 PORTA LARGA</option><option value="6">E6 JARDIM JORDÃO</option></select><span class="cnt" id="cnt"></span><button class="btn btn-amber" id="btnTodos" onclick="enviarTodos()" title="Lista todos os pedidos Aguardando vendedor com o botão de WhatsApp de cada um">Enviar pra todos</button><button class="btn btn-slate" id="btnVer" onclick="verificarAgora()" title="Procura agora, no ERP, as NF-e (XML) dos pedidos aprovados, loja a loja, e confere quantidade, preço e boletos (o sistema faz isso sozinho a cada 30 min)">Conferir XML agora</button><button class="btn btn-slate" onclick="removerTestesXml()" title="Apaga os pedidos de teste (XML e avaria) e as sugestões que eles geraram">Remover testes</button><button class="btn btn-slate" id="btnAtu">Atualizar</button></div>
+  <div class="tools"><input id="q" placeholder="Buscar lista, fornecedor ou vendedor" style="min-width:280px"><select id="fComp"><option value="">Todos compradores</option></select><select id="fLoja" onchange="aberto=null;render()"><option value="">Todas as lojas</option><option value="1">E1 CAHU</option><option value="2">E2 MURIBECA</option><option value="3">E3 PONTE</option><option value="4">E4 ATACAREJO</option><option value="5">E5 PORTA LARGA</option><option value="6">E6 JARDIM JORDÃO</option></select><span class="cnt" id="cnt"></span><button class="btn btn-amber" id="btnTodos" onclick="enviarTodos()" title="Lista todos os pedidos Aguardando vendedor com o botão de WhatsApp de cada um">Enviar pra todos</button><button class="btn btn-slate" id="btnVer" onclick="verificarAgora()" title="Procura agora, no ERP, as NF-e (XML) dos pedidos aprovados, loja a loja, e confere quantidade, preço e boletos (o sistema faz isso sozinho a cada 30 min)">Conferir XML agora</button><button class="btn btn-slate" id="btnAtu">Atualizar</button></div>
   <div id="view"><div class="spinner"></div></div>
 </div>
 <div id="pv" hidden><div class="pv-card" id="pv-body"></div></div>
@@ -579,7 +579,11 @@ async function cancelar(id){
   if(j.error){alert(j.error);return;} aberto=null; await carregar();
 }
 $('#q').addEventListener('input',render); $('#fComp').addEventListener('change',render); $('#btnAtu').onclick=carregar;
-carregar();
+(async () => {
+  await carregar();
+  const id = new URLSearchParams(location.search).get('pedido');
+  if (id && /^\d+$/.test(id)) { filtro = 'todos'; $('#q').value = id; aberto = String(id); renderTotais(); render(); carregarDetalhe(aberto); }
+})();
 </script>
 </body>
 </html>
