@@ -113,8 +113,6 @@ tr.det td{background:#FAFAF8;padding:0 12px 14px;white-space:normal;cursor:defau
       <p>Toda nota bipada nas lojas aparece aqui. O sistema cruza sozinho o XML da NF-e com o pedido de compra, a contagem do coletor (conferência cega), a validade lida, os boletos e a margem de cada item. <b>Quem bate em tudo já fica pronto pra liberar; você só olha as exceções.</b> Nada é gravado no ERP.</p>
     </div>
     <div class="hdr-btns">
-      <button class="btn btn-slate" id="btnTeste" onclick="criarTestes()" title="Cria 12 recebimentos de FORNECEDOR TESTE, um por cenário (tudo OK, aguardando coletor, falta/sobra, validade curta, preço acima do pedido, margem negativa, boleto divergente, sem XML, sem cadastro, reconferir, bonificação)">🧪 Criar exemplos de teste</button>
-      <button class="btn btn-slate" id="btnRmTeste" onclick="removerTestes()" hidden>Remover testes</button>
       <button class="btn btn-slate" onclick="abrirConfig()" title="Tolerâncias do cruzamento automático">⚙ Tolerâncias</button>
       <button class="btn btn-amber" onclick="carregar()">Atualizar</button>
     </div>
@@ -161,7 +159,7 @@ function qs(){const {de,ate}=periodo();return'?de='+de+'&ate='+ate+($('#loja').v
 
 async function boot(){
   const c=await fetch('/api/fiscal/config').then(r=>r.json());
-  CFG=c.config;LOJAS=c.lojas;$('#btnRmTeste').hidden=!c.testes;
+  CFG=c.config;LOJAS=c.lojas;
   const sel=$('#loja');for(const [n,nome] of Object.entries(LOJAS))sel.insertAdjacentHTML('beforeend','<option value="'+n+'">'+LJ(n)+' '+esc(nome)+'</option>');
   const u=new URLSearchParams(location.search);if(u.get('loja'))sel.value=u.get('loja');if(u.get('de'))$('#de').value=u.get('de');if(u.get('filtro'))filtro=u.get('filtro');ABRIR=+u.get('abrir')||null;if(ABRIR)filtro='todos';
   carregar();
@@ -327,8 +325,6 @@ function csvMargem(){
 }
 
 /* ── TESTES / CONFIG ── */
-async function criarTestes(){const r=await fetch('/api/fiscal/testes',{method:'POST'}).then(r=>r.json());if(r.error)return alert(r.error);$('#btnRmTeste').hidden=false;filtro='todos';carregar();}
-async function removerTestes(){if(!confirm('Remover os exemplos de teste?'))return;await fetch('/api/fiscal/testes',{method:'DELETE'});$('#btnRmTeste').hidden=true;carregar();}
 const CFG_CAMPOS=[['tol_qtd_pct','Tolerância de quantidade','Diferença coletor × nota aceita sem virar erro (%).'],['tol_peso_pct','Tolerância de balança (kg)','Item pesado: diferença de pesagem/quebra aceita (%).'],['tol_preco_pct','Preço acima do pedido','Quanto o preço do XML pode passar do pedido antes de virar erro (%).'],['custo_aumento_pct','Custo subiu','Custo da nota acima do último custo do ERP gera aviso a partir de (%).'],['validade_min_dias','Validade mínima (dias)','Piso: validade lida no coletor menor que isso vira erro, seja o item que for.'],['validade_min_pct','Validade mínima (% do normal)','Ou menor que essa fração da referência: validade de cadastro do item ou, sem cadastro, a validade normal dele nas entradas anteriores.'],['boleto_min_dias','Boleto mínimo (dias)','1º boleto vencendo antes disso, contado da entrada, gera aviso.'],['margem_min_pct','Margem mínima (%)','Venda de cadastro × custo da nota abaixo disso vira erro.'],['margem_diverg_pp','Margem abaixo do cadastro (pontos)','Margem calculada tantos pontos abaixo da margem de cadastro gera aviso.'],['exigir_pedido','Exigir pedido de compra','Marcado: nota de compra sem pedido vira erro (senão só aviso).'],['auto_liberar','Marcar "pronto" automaticamente','Marcado: cruzamento 100% OK já aparece como Pronto p/ liberar sem ninguém abrir.']];
 function abrirConfig(){
   $('#modal-body').innerHTML='<h2>⚙ Tolerâncias do cruzamento automático</h2><p class="sub" style="margin-bottom:12px">Tudo que passa dentro das tolerâncias não chama você. Ajuste conforme a política da rede.</p><div class="cfg">'+CFG_CAMPOS.map(([k,l,d])=>'<label for="c-'+k+'"><b>'+l+'</b>'+d+'</label>'+(typeof CFG[k]==='boolean'?'<input type="checkbox" id="c-'+k+'"'+(CFG[k]?' checked':'')+'>':'<input type="number" step="0.5" id="c-'+k+'" value="'+CFG[k]+'">')).join('')+'</div><div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px"><button class="btn btn-slate" onclick="$(\'#modal\').hidden=true">Cancelar</button><button class="btn btn-amber" onclick="salvarConfig()">Salvar e recalcular</button></div>';
