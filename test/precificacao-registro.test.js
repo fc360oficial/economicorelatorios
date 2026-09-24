@@ -273,3 +273,34 @@ test('recalcular doERP: item sai de bloqueado quando a margem é cadastrada, e e
     assert.equal(a.manual, true);
   } finally { margemB = null; }
 });
+
+test('enviarCarga: lista fechada vai pro ERP teste em 1 lote, vira aplicado e verifica no .254', async () => {
+  const p = JSON.parse(JSON.stringify(pedido)); p.id = 49;
+  await pr.criarDeConciliacao(p, 2);
+  const chamadas = [];
+  const escreverFake = { lote: async (op) => { chamadas.push(op); return { ok: true, status: 'ok', id: 'LOG-1', ids: [] }; } };
+  assert.match((await pr.enviarCarga('49-L2', 'tiago', escreverFake)).erro, /Feche a lista/);
+  pr.fechar('49-L2', 'tiago', { ignorarBloqueados: true });
+  const r = await pr.enviarCarga('49-L2', 'tiago', escreverFake);
+  assert.equal(r.status, 'aplicado');
+  assert.deepEqual(r.erp_teste.cods, ['A']); assert.equal(r.erp_teste.logId, 'LOG-1');
+  assert.equal(chamadas.length, 1); assert.equal(chamadas[0].banco, 'central'); assert.equal(chamadas[0].limite, 1);
+  assert.deepEqual(chamadas[0].passos.map(x => x.tabela), ['itens', 'logpreco2']);
+  assert.equal(chamadas[0].passos[0].valores.P2, '14,39');
+  assert.match((await pr.enviarCarga('49-L2', 'tiago', escreverFake)).erro, /já foi enviada/);
+  // verificação lê o MySQL de teste (qTeste), não o .252
+  const qT = async (sql) => /FROM central\.itens /.test(sql) ? [{ CodigoBarra: 'A', P: '14,39', A: '0', CodDesativado: 0 }] : [];
+  pr.initERP(qFake, radarOk, qT);
+  const v = await pr.verificar('49-L2');
+  assert.equal(v.status, 'conferido'); assert.equal(v.divergentes, 0);
+  const re = pr.reabrir('49-L2', 'tiago');
+  assert.equal(re.erp_teste, undefined); assert.equal(re.erp_teste_anterior[0].logId, 'LOG-1');
+});
+
+test('enviarCarga: recusa do ERP teste não muda o status', async () => {
+  const p = JSON.parse(JSON.stringify(pedido)); p.id = 50;
+  await pr.criarDeConciliacao(p, 2); pr.fechar('50-L2', 'tiago', { ignorarBloqueados: true });
+  const r = await pr.enviarCarga('50-L2', 'tiago', { lote: async () => ({ ok: false, status: 'erro', erro: 'MySQL de teste do .254 não respondeu', id: 'LOG-2' }) });
+  assert.match(r.erro, /não respondeu/);
+  assert.equal(pr.obter('50-L2').status, 'precificado');
+});

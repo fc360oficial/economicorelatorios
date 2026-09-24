@@ -378,6 +378,11 @@ const dbTeste = { host: process.env.DB_TESTE_HOST || '127.0.0.1', port: 3306, us
 const LOG_ERP_DIR = path.join(__dirname, 'data', 'log-erp');
 const escreverERP = criarEscreverERP({ config: dbTeste, criarConexao: cfg => mysql.createConnection(cfg), dirLog: LOG_ERP_DIR });
 console.log('[DB] MySQL de teste (escrita + log) em ' + dbTeste.host);
+// SELECT no MySQL de teste (conexão por chamada; só pra conferir o que foi gravado lá)
+async function qTeste(sql, params) {
+  const c = await mysql.createConnection(dbTeste);
+  try { const [rows] = await c.query(sql, params); return rows; } finally { await c.end().catch(() => {}); }
+}
 
 const hojeIso = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 const dataOk = s => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ''));
@@ -7411,7 +7416,7 @@ setInterval(() => pedidosFornec.verificarRecebimentos().catch(e => console.error
 // ── Formação de Preço (sidebar "Precificação"): registro por pedido×loja quando a loja concilia o XML
 const precificacao = require('./lib/precificacao');
 precificacao.init();
-precificacao.initERP(q, radarPedidos);
+precificacao.initERP(q, radarPedidos, qTeste);
 pedidosFornec.setHooks({ onConciliado: (p, ln) => precificacao.criarDeConciliacao(p, ln).catch(e => console.error('[PRECIF] criar', p.id, ln, e.message)) });
 setTimeout(() => precificacao.verificarTodos().catch(e => console.error('[PRECIF] verificar:', e.message)), 120 * 1000);
 setInterval(() => precificacao.verificarTodos().catch(e => console.error('[PRECIF] verificar:', e.message)), 60 * 60 * 1000);
@@ -8346,7 +8351,7 @@ app.get('/api/precificacao', (req, res) => {
   let regs = precificacao.listar();
   if (req.query.status) regs = regs.filter(r => r.status === req.query.status);
   if (req.query.loja) regs = regs.filter(r => r.loja === parseInt(req.query.loja));
-  res.json({ padrao: precificacao.getPadrao(), registros: regs.map(r => ({ id: r.id, pedidoId: r.pedidoId, loja: r.loja, lista: r.lista, lista_nome: r.lista_nome, fornecedor: r.fornecedor, teste: r.teste, status: r.status, criadoEm: r.criadoEm, conciliadoEm: r.conciliadoEm, aplicadoEm: r.aplicadoEm || null, parametros: r.parametros, resumo: r.resumo, divergentes: r.divergentes ?? null, rateio_disponivel: !!r.rateio?.disponivel })) });
+  res.json({ padrao: precificacao.getPadrao(), registros: regs.map(r => ({ id: r.id, pedidoId: r.pedidoId, loja: r.loja, lista: r.lista, lista_nome: r.lista_nome, fornecedor: r.fornecedor, teste: r.teste, status: r.status, criadoEm: r.criadoEm, conciliadoEm: r.conciliadoEm, aplicadoEm: r.aplicadoEm || null, erp_teste: r.erp_teste || null, parametros: r.parametros, resumo: r.resumo, divergentes: r.divergentes ?? null, rateio_disponivel: !!r.rateio?.disponivel })) });
 });
 app.post('/api/precificacao/padrao', (req, res) => res.json(precificacao.setPadrao(req.body || {})));
 app.post('/api/precificacao/verificar', async (req, res) => { try { res.json(await precificacao.verificarTodos()); } catch (e) { res.status(500).json({ error: e.message }); } });
@@ -8359,6 +8364,14 @@ app.post('/api/precificacao/:id/recalcular', async (req, res) => { try { precifR
 app.post('/api/precificacao/:id/fechar', (req, res) => precifResp(res, precificacao.fechar(req.params.id, precifUser(req), { ignorarBloqueados: !!req.body?.ignorarBloqueados })));
 app.post('/api/precificacao/:id/reabrir', (req, res) => precifResp(res, precificacao.reabrir(req.params.id, precifUser(req))));
 app.post('/api/precificacao/:id/aplicar', (req, res) => precifResp(res, precificacao.aplicar(req.params.id, precifUser(req))));
+// Lista fechada → Carga de Itens do Dlinks no MySQL de TESTE (.254), via escreverERP.lote (Processos > Log).
+app.post('/api/precificacao/:id/enviar-carga', async (req, res) => {
+  try {
+    const reg = precificacao.obter(req.params.id); if (!reg) return res.status(404).json({ error: 'Registro não encontrado' });
+    if (String(req.body?.confirmaLoja || '') !== String(reg.loja)) return res.status(400).json({ error: 'Confirme digitando o número da loja (' + reg.loja + ')' });
+    precifResp(res, await precificacao.enviarCarga(req.params.id, precifUser(req), escreverERP));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
 app.post('/api/precificacao/:id/verificar', async (req, res) => { try { precifResp(res, await precificacao.verificar(req.params.id)); } catch (e) { res.status(500).json({ error: e.message }); } });
 app.get('/api/precificacao/:id/pdf', (req, res) => {
   const r = precificacao.obter(req.params.id); if (!r) return res.status(404).json({ error: 'Registro não encontrado' });
