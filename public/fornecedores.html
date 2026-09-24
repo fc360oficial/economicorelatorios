@@ -369,7 +369,7 @@ table.comp-t tr:hover td{background:#ffffff05}
         <option value="">Todos</option>
       </select>
     </div>
-    <button class="btn btn-blue" id="btn-buscar" onclick="carregar()">🔍 Buscar</button>
+    <button class="btn btn-blue" id="btn-buscar" onclick="carregar()" title="Relê tudo do ERP agora: listas, compradores, venda, margem e avaria">🔍 Buscar</button><span id="erp-hora" style="align-self:center;font-size:11.5px;color:#4E5A72;margin-left:4px"></span>
   </div>
 
   <div class="main-tabs">
@@ -668,7 +668,7 @@ async function carregar() {
   // margem-resumo soma só os produtos de cada lista — o resumo por fornecedor
   // (dados) daria o mesmo número pra todas as listas de um mesmo fornecedor.
   try {
-    const url = `/api/listas-compra?busca=${encodeURIComponent(p.busca)}&comprador=${encodeURIComponent(p.comprador)}`;
+    const url = `/api/listas-compra?busca=${encodeURIComponent(p.busca)}&comprador=${encodeURIComponent(p.comprador)}&refresh=1`;   // refresh=1: relê comprador→lista do ERP na hora
     const [r, rm] = await Promise.all([
       fetch(url),
       fetch(`/api/listas-compra/margem-resumo?loja=${p.loja}&mes=${p.mes}&ano=${p.ano}`).catch(() => null)
@@ -685,6 +685,8 @@ async function carregar() {
         json.compradores.map(c => `<option value="${c}"${c===cur?' selected':''}>${c}</option>`).join('');
     }
     renderListas();
+    const ba = document.getElementById('btn-buscar'); if (ba) ba.title = 'Lido do ERP às ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) + ' (listas, compradores, venda, margem e avaria são lidos do ERP a cada Buscar)';
+    const ha = document.getElementById('erp-hora'); if (ha) ha.textContent = 'ERP lido às ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
   } catch(e) {
     document.getElementById('main-tbody').innerHTML = `<tr><td colspan="10" class="empty">Erro: ${e.message}</td></tr>`;
   }

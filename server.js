@@ -3751,6 +3751,9 @@ app.get('/api/listas-compra/:id/cadastro-pendente', async (req, res) => {
 app.get('/api/listas-compra', async (req, res) => {
   try {
     const { busca, comprador } = req.query;
+    // Tiago (24/09): 'atualizar essas informações junto com o ERP' — a relação comprador→lista (agenda do ERP) ficava
+    // até 10 min atrás; agora o Buscar da tela manda refresh=1 e relê na hora (e qualquer chamada relê se passou de 60 s)
+    if (req.query.refresh === '1' || Date.now() - _nregsCompradorTs > 60 * 1000) await refreshNregsComprador();
 
     let where = [];
     let params = [];
