@@ -8001,6 +8001,7 @@ async function criarPedidoDaCotacao(f, itens, c, usuario, extra) {
   pedidosFornec.salvarPrecos(p.token, itens.map(i => ({ cod: i.cod, preco: i.preco, obs: i.obs || '', emb_vendedor: i.emb_vendedor || '' })));
   pedidosFornec.finalizar(p.token, `Cotação #${c.id}`);
   pedidosFornec.vincularCotacao(p.id, { id: c.id, nome: c.nome, entrega: extra?.entrega || null, tipo_entrega: extra?.tipo_entrega || null, obs: extra?.obs || null });
+  if (c.teste) pedidosFornec.marcarTeste(p.id); // pedido de exemplo: some junto com "Remover testes" (Cotação ou Pedidos)
   if (!c.teste) { try { await pedidosFornec.anexarAvarias(pedidosFornec.obter(p.id)); } catch (e) { console.error('[COTACAO] avarias:', e.message); } }
   const fin = pedidosFornec.obter(p.id);
   return { id: fin.id, fornecedor: f.nome, codFornec: f.codFornec, vendedor: fin.vendedor, itens: fin.itens.length, total: fin.totais.digitado, lojas: fin.lojas, status: fin.status, link: linkPedido(fin), avarias: fin.avarias ? { n: fin.avarias.n, total: fin.avarias.total } : null };
@@ -8089,7 +8090,8 @@ app.post('/api/cotacoes/teste', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.post('/api/cotacoes/testes/remover', (req, res) => {
-  try { res.json({ removidas: cotacao.removerTestes() }); } catch (err) { res.status(500).json({ error: err.message }); }
+  // apaga as cotações de exemplo E os pedidos que elas geraram (Pedidos de Compra); a ordem importa: pedidos primeiro, que consultam c.teste
+  try { const pedidos = pedidosFornec.removerTestesXml(); res.json({ removidas: cotacao.removerTestes(), pedidos_removidos: pedidos }); } catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.get('/api/cotacoes/historico/:cod', (req, res) => {
   try { res.json(cotacao.historicoProduto(req.params.cod)); } catch (err) { res.status(500).json({ error: err.message }); }
