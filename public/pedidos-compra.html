@@ -531,7 +531,9 @@ function erpTesteHtml(p){
   const lojas=(p.lojas||[]), pend=lojas.filter(l=>!(feitas[l]&&feitas[l].nReg));
   let h='<span class="erpt" style="display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap">';
   for(const l of lojas){ const f=feitas[l]; if(f&&f.nReg) h+='<span class="pill" style="background:#E3ECFA;color:#2E5E8C" title="Log '+esc(f.logId||'')+'">ERP teste · '+ETQ(l)+' · nº '+f.nReg+' ('+f.itens+' itens)</span>'; }
-  if(pend.length) h+='<button class="btn btn-sm" style="background:#FFF6D9;color:#6B4E00;border:1px solid #EFD98F" onclick="erpTeste('+p.id+')">Gerar pedido no ERP teste (.254)'+(pend.length<lojas.length?' · '+pend.map(ETQ).join(', '):'')+'</button>';
+  const erros=(et&&et.erros)||[];
+  for(const e of erros){ if(feitas[e.loja]&&feitas[e.loja].nReg) continue; h+='<span class="pill" style="background:#FBEAED;color:#C22F49;white-space:normal" title="'+esc(e.erro||'')+'">ERRO no ERP teste · '+(e.loja?ETQ(e.loja):'')+' · '+esc(String(e.erro||'').slice(0,90))+(e.logId?' · <a href="/log.html?de='+String(e.em||'').slice(0,10)+'&ate='+String(e.em||'').slice(0,10)+'&status=erro" style="color:#C22F49;font-weight:800">ver no Log</a>':'')+'</span>'; }
+  if(pend.length) h+='<button class="btn btn-sm" style="background:#FFF6D9;color:#6B4E00;border:1px solid #EFD98F" onclick="erpTeste('+p.id+')">'+(erros.length?'Reenviar pro ERP teste (.254)':'Gerar pedido no ERP teste (.254)')+(pend.length<lojas.length?' · '+pend.map(ETQ).join(', '):'')+'</button>';
   if(Object.keys(feitas).length){ const hoje=new Date().toISOString().slice(0,10); h+='<a class="btn btn-sm btn-slate" href="/log.html?tabela=pedidocompra&de='+hoje+'&ate='+hoje+'" style="text-decoration:none">Ver no Log</a>'; }
   return h+'</span>';
 }
@@ -548,10 +550,16 @@ async function erpTeste(id){
     alert((ok.length?'Criado no ERP teste:\n'+ok.join('\n'):'Nada criado.')+(er.length?'\n\nErros:\n'+er.join('\n'):''));
   }catch(e){ alert('Falhou: '+e.message); }
 }
+async function aprovarMsgErp(j){
+  const e=j&&j.erp_teste; if(!e) return '';
+  const ok=Object.entries(e.lojas||{}).map(([l,x])=>ETQ(l)+' → nº '+x.nReg); const er=(e.erros||[]).map(x=>ETQ(x.loja)+': '+x.erro);
+  return '\n\nERP teste (.254): '+(ok.length?ok.join(', '):'nada gravado')+(er.length?'\nERROS: '+er.join(' | ')+'\n(veja na tela do pedido e em Processos > Log)':'');
+}
 async function aprovar(id){
   const pa=PED[id]?.avarias; if(!confirm('Aprovar o pedido #'+id+'?'+(pa&&pa.n?'\n\nATENÇÃO: '+pa.n+' avaria(s) pendente(s) com este fornecedor (R$ '+fmt(pa.total,2)+'). '+(pa.resposta_vendedor?'Resposta do vendedor: "'+pa.resposta_vendedor+'"':'O vendedor NÃO respondeu sobre as avarias.')+'\nAprovar mesmo assim?':''))) return;
   const r=await fetch('/api/pedidos-fornecedor/'+id+'/aprovar',{method:'POST'}); const j=await r.json();
   if(j.error){alert(j.error);return;} await carregar(); aberto=id; render(); carregarDetalhe(id);
+  const msgErp=await aprovarMsgErp(j); if(msgErp) alert('Pedido #'+id+' aprovado.'+msgErp);
   try{const r2=await fetch('/api/pedidos-fornecedor/'+id);const p=await r2.json();if(!p.error)modalPdf(p);}catch(e){}
 }
 async function ajustarCaixaPedido(pid, cod, unid, atual, desc){

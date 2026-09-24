@@ -7589,46 +7589,58 @@ app.get('/api/pedidos-fornecedor/:id', (req, res) => {
   res.json({ ...p, por_loja: pedidosFornec.porLoja(p), link: linkPedido(p), avarias_txt: pedidosFornec.textoAvarias(p), observacoes: pedidosFornec.observacoesPedido(p) });
 });
 
-app.post('/api/pedidos-fornecedor/:id/aprovar', (req, res) => {
+app.post('/api/pedidos-fornecedor/:id/aprovar', async (req, res) => {
   const p = pedidosFornec.aprovar(parseInt(req.params.id), req.session.user?.nome || null);
   if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
   if (p.erro) return res.status(409).json({ error: p.erro });
-  res.json({ ok: true, status: p.status, aprovadoEm: p.aprovadoEm });
+  // Regra do Tiago (24/09/26): aprovou, vai pro ERP de TESTE (.254) na hora. Erro por loja fica em p.erp_teste.erros
+  // e aparece na tela do pedido com link pro Log; o botão "Gerar pedido no ERP teste" serve pra reenviar.
+  let erp = null;
+  try { erp = await gerarPedidoErpTeste(p, req.session.user?.nome || null); }
+  catch (e) { erp = { lojas: {}, erros: [{ loja: 0, erro: e.message }] }; }
+  res.json({ ok: true, status: p.status, aprovadoEm: p.aprovadoEm, erp_teste: erp });
 });
 // "Fechar / Abrir Solicitar Preço Web" (Consolidação da Sugestão Manual)
 // ── Gerar o pedido aprovado no ERP de TESTE (.254) ───────────────────────────
 // 1 cabeçalho por loja em central.pedidocompra + itens + envio, tudo via escreverERP.lote (Processos > Log).
 // Nunca toca o .252. Formato em lib/pedido-erp.js. Guarda em p.erp_teste = { em, por, lojas: { ln: { nReg, logId } } }.
 const pedidoErp = require('./lib/pedido-erp');
+/** Manda o pedido aprovado pro ERP de TESTE, 1 lote por loja. Grava p.erp_teste = { em, por, lojas:{ln:{nReg,...}}, erros:[{loja,erro,logId,em}] }. */
+async function gerarPedidoErpTeste(p, usuario, lojasPedidas) {
+  lojasPedidas = Array.isArray(lojasPedidas) && lojasPedidas.length ? lojasPedidas.map(Number) : (p.lojas || []);
+  const feitas = (p.erp_teste && p.erp_teste.lojas) || {};
+  const lojas = lojasPedidas.filter(ln => !(feitas[ln] && feitas[ln].nReg));
+  const resultado = { lojas: {}, erros: [] };
+  if (!lojas.length) return resultado;
+  // fornecedor (CNPJ, prazo, celular) lido do ERP de produção — só leitura
+  let fornecedor = {};
+  if (p.codFornec) {
+    const [f] = await q('SELECT CodFornec, Nome, CNPJ, CodPrazo, Celular FROM central.fornecedor WHERE CodFornec = ?', [p.codFornec]).catch(() => []);
+    fornecedor = f || {};
+  }
+  for (const ln of lojas) {
+    let montado;
+    try { montado = pedidoErp.montarPassosPedido({ p, ln, fornecedor, usuario }); }
+    catch (e) { resultado.erros.push({ loja: ln, erro: e.message, em: new Date().toISOString() }); continue; }
+    const r = await escreverERP.lote({ usuario, motivo: pedidoErp.motivoPedido(p, ln), banco: 'central', passos: montado.passos, limite: 50 });
+    if (r.ok) resultado.lojas[ln] = { nReg: r.ids[0], itens: montado.itens.length, total: montado.total, logId: r.id, em: new Date().toISOString() };
+    else resultado.erros.push({ loja: ln, erro: r.erro, logId: r.id, em: new Date().toISOString() });
+  }
+  // erros antigos das lojas que agora deram certo saem; os novos entram
+  const errosAntigos = ((p.erp_teste && p.erp_teste.erros) || []).filter(e => !resultado.lojas[e.loja] && !resultado.erros.some(x => x.loja === e.loja));
+  p.erp_teste = { em: new Date().toISOString(), por: usuario, lojas: { ...feitas, ...resultado.lojas }, erros: [...errosAntigos, ...resultado.erros] };
+  pedidosFornec.salvar(p);
+  return resultado;
+}
 app.post('/api/pedidos-fornecedor/:id/erp-teste', async (req, res) => {
   try {
     const p = pedidosFornec.obter(+req.params.id);
     if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
     if (!['aprovado', 'recebido', 'recebido_parcial'].includes(p.status)) return res.status(400).json({ error: 'Só pedido aprovado pode ir pro ERP teste (status atual: ' + p.status + ')' });
-    const usuario = req.session.user.nome;
-    const lojasPedidas = Array.isArray(req.body && req.body.lojas) && req.body.lojas.length ? req.body.lojas.map(Number) : (p.lojas || []);
     const feitas = (p.erp_teste && p.erp_teste.lojas) || {};
-    const lojas = lojasPedidas.filter(ln => !(feitas[ln] && feitas[ln].nReg));
-    if (!lojas.length) return res.status(400).json({ error: 'Todas as lojas desse pedido já estão no ERP teste.' });
-    // fornecedor (CNPJ, prazo, celular) lido do ERP de produção — só leitura
-    let fornecedor = {};
-    if (p.codFornec) {
-      const [f] = await q('SELECT CodFornec, Nome, CNPJ, CodPrazo, Celular FROM central.fornecedor WHERE CodFornec = ?', [p.codFornec]).catch(() => []);
-      fornecedor = f || {};
-    }
-    const resultado = { lojas: {}, erros: [] };
-    for (const ln of lojas) {
-      let montado;
-      try { montado = pedidoErp.montarPassosPedido({ p, ln, fornecedor, usuario }); }
-      catch (e) { resultado.erros.push({ loja: ln, erro: e.message }); continue; }
-      const r = await escreverERP.lote({ usuario, motivo: pedidoErp.motivoPedido(p, ln), banco: 'central', passos: montado.passos, limite: 50 });
-      if (r.ok) resultado.lojas[ln] = { nReg: r.ids[0], itens: montado.itens.length, total: montado.total, logId: r.id, em: new Date().toISOString() };
-      else resultado.erros.push({ loja: ln, erro: r.erro, logId: r.id });
-    }
-    if (Object.keys(resultado.lojas).length) {
-      p.erp_teste = { em: new Date().toISOString(), por: usuario, lojas: { ...feitas, ...resultado.lojas } };
-      pedidosFornec.salvar(p);
-    }
+    const pedidas = Array.isArray(req.body && req.body.lojas) && req.body.lojas.length ? req.body.lojas.map(Number) : (p.lojas || []);
+    if (!pedidas.some(ln => !(feitas[ln] && feitas[ln].nReg))) return res.status(400).json({ error: 'Todas as lojas desse pedido já estão no ERP teste.' });
+    const resultado = await gerarPedidoErpTeste(p, req.session.user.nome, pedidas);
     res.status(resultado.erros.length && !Object.keys(resultado.lojas).length ? 502 : 200).json({ ok: !resultado.erros.length, ...resultado, erp_teste: p.erp_teste || null });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
