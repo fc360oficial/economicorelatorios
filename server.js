@@ -7217,7 +7217,8 @@ app.get('/api/radar-pedidos', async (req, res) => {
     const embMeses = req.query.emb == null ? undefined : Math.max(0, Math.min(36, parseInt(req.query.emb) || 0));
     const usarCurvaA = req.query.curvaA !== '0';
     const lojaRadar = [1, 2, 3, 4, 5, 6].includes(parseInt(req.query.loja)) ? parseInt(req.query.loja) : null;   // filtro por loja (Tiago, 24/09)
-    const listas = radarPedidos.politica(teto, comprador, embMeses, usarCurvaA, lojaRadar);
+    const gatilhoRadar = req.query.gatilho ? Math.max(1, Math.min(100, parseFloat(req.query.gatilho) || 20)) / 100 : null;   // % da venda da lista (por loja) no ponto de pedido
+    const listas = radarPedidos.politica(teto, comprador, embMeses, usarCurvaA, lojaRadar, gatilhoRadar);
     const ok = listas.filter(r => r.ok);
     const resumo = {
       listas: listas.length, com_calculo: ok.length, curva_a_antecipadas: ok.filter(r => r.gatilho === 'curva_a').length,
@@ -7231,7 +7232,7 @@ app.get('/api/radar-pedidos', async (req, res) => {
     // pedidos em andamento por lista (pedidos-fornecedor): a tela avisa e pede confirmação antes de gerar de novo
     const pedidosAbertos = {};
     for (const p of pedidosFornec.listar()) { if (p.teste || !['sugestao', 'aguardando', 'digitacao', 'finalizado', 'aprovado'].includes(p.status)) continue; (pedidosAbertos[p.lista] || (pedidosAbertos[p.lista] = [])).push({ id: p.id, status: p.status, criadoEm: p.criadoEm, enviadoEm: p.enviadoEm || null, finalizadoEm: p.finalizadoEm || null, vendedor: p.vendedor?.nome || null }); }
-    res.json({ estado: radarPedidos.getEstado(), teto, resumo, listas, curvaA: usarCurvaA, loja: lojaRadar, pedidos_abertos: pedidosAbertos });
+    res.json({ estado: radarPedidos.getEstado(), teto, resumo, listas, curvaA: usarCurvaA, loja: lojaRadar, gatilho: gatilhoRadar, pedidos_abertos: pedidosAbertos });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -7242,7 +7243,8 @@ app.get('/api/radar-pedidos/curva-a', (req, res) => {
     const comprador = req.query.comprador ? resolveComprador(req.query.comprador) : null;
     const embMeses = req.query.emb == null ? undefined : Math.max(0, Math.min(36, parseInt(req.query.emb) || 0));
     const lojaRadar = [1, 2, 3, 4, 5, 6].includes(parseInt(req.query.loja)) ? parseInt(req.query.loja) : null;
-    res.json(radarPedidos.curvaARisco(teto, comprador, embMeses, req.query.curvaA !== '0', lojaRadar));
+    const gatilhoRadar = req.query.gatilho ? Math.max(1, Math.min(100, parseFloat(req.query.gatilho) || 20)) / 100 : null;
+    res.json(radarPedidos.curvaARisco(teto, comprador, embMeses, req.query.curvaA !== '0', lojaRadar, gatilhoRadar));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -7275,7 +7277,8 @@ app.get('/api/radar-pedidos/:listaId/itens', (req, res) => {
     const teto = Math.max(3, Math.min(90, parseFloat(req.query.alvo) || radarPedidos.TETO_PADRAO));
     const embMeses = req.query.emb == null ? undefined : Math.max(0, Math.min(36, parseInt(req.query.emb) || 0));
     const lojaRadar = [1, 2, 3, 4, 5, 6].includes(parseInt(req.query.loja)) ? parseInt(req.query.loja) : null;
-    const r = radarPedidos.itensLista(parseInt(req.params.listaId), teto, null, embMeses, req.query.curvaA !== '0', null, lojaRadar ? { loja: lojaRadar } : null);
+    const gatilhoRadar = req.query.gatilho ? Math.max(1, Math.min(100, parseFloat(req.query.gatilho) || 20)) / 100 : null;
+    const r = radarPedidos.itensLista(parseInt(req.params.listaId), teto, null, embMeses, req.query.curvaA !== '0', null, { loja: lojaRadar, gatilho: gatilhoRadar });
     if (!r) return res.status(404).json({ error: radarPedidos.getEstado().status === 'ok' ? 'Lista não encontrada' : 'Radar ainda calculando, tente em instantes' });
     res.json(r);   // (alerta vermelho do Sortimento no Radar retirado a pedido do Tiago em 14/09/2026; a aba Sortimento segue na Lista de Compra)
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -7529,7 +7532,7 @@ app.post('/api/pedidos-fornecedor', async (req, res) => {
     const bloqueados = [], naoEncontrados = [];
     const lojaPedido = [1, 2, 3, 4, 5, 6].includes(parseInt(req.body.loja)) ? parseInt(req.body.loja) : null;   // Radar filtrado por loja: pedido só daquela loja
     for (const id of listas) {
-      const det = radarPedidos.itensLista(id, teto, null, embMeses, req.body.curvaA !== false && req.body.curvaA !== '0', null, lojaPedido ? { loja: lojaPedido } : null);
+      const det = radarPedidos.itensLista(id, teto, null, embMeses, req.body.curvaA !== false && req.body.curvaA !== '0', null, { loja: lojaPedido, gatilho: req.body.gatilho ? Math.max(1, Math.min(100, parseFloat(req.body.gatilho) || 20)) / 100 : null });
       if (!det) { semItens.push({ lista: id, motivo: 'lista não encontrada ou radar calculando' }); continue; }
       const soCurvaA = (modo[id] || modo[String(id)]) === 'curva_a';
       if (soCurvaA) for (const it of det.itens) if (!it.bloco_a) { for (const ln of Object.keys(it.lojas_qtd)) it.lojas_qtd[ln] = 0; it.qtd = 0; it.volumes = 0; it.total = 0; }
