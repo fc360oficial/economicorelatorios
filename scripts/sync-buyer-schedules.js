@@ -114,7 +114,7 @@ function syncServerJs() {
   }
   const newBlock = `const NREGS_COMPRADOR = {\n${lines.join('\n')}\n};`;
   const re = /const NREGS_COMPRADOR = \{[\s\S]*?\n\};/;
-  if (!re.test(server)) throw new Error('NREGS_COMPRADOR block not found in server.js');
+  if (!re.test(server)) { console.log('- server.js: NREGS_COMPRADOR agora vem do ERP (c_cotacao_agenda_comprador), nada a sincronizar'); return; }
   server = server.replace(re, newBlock);
   fs.writeFileSync(P.server, server, 'utf8');
   console.log('✓ server.js (NREGS_COMPRADOR) atualizado');
