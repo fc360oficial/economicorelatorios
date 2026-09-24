@@ -293,7 +293,7 @@ async function carregar() {
   try {
     const [dRup, dMap] = await Promise.all([
       fetch('/api/ruptura').then(r=>r.json()),
-      fetch('/api/ruptura/comprador-listas').then(r=>r.json()),
+      fetch('/api/ruptura/comprador-listas?detalhe=1').then(r=>r.json()),
     ]);
 
     const ranking = dRup.ranking_fornec || [];
@@ -303,7 +303,6 @@ async function carregar() {
     document.getElementById('kpi-u').textContent = resumo.urgencia ?? '—';
     document.getElementById('kpi-e').textContent = resumo.em_risco ?? '—';
     document.getElementById('kpi-x').textContent = resumo.excesso ?? '—';
-    document.getElementById('kpi-f').textContent = ranking.length;
     document.getElementById('kpi-hora').textContent = 'Atualizado: ' + new Date().toLocaleTimeString('pt-BR');
 
     const ORDEM = ['FATIMA','KELLY','STHEPHANNY','CRISLANE','PATRICIA'];
@@ -314,11 +313,18 @@ async function carregar() {
     const ALIAS = { FATIMA:'FATIMA PEREIRA', KELLY:'ANA KELLY', STHEPHANNY:'STEPHANNY',
                     CRISLANE:'CRISLANE CECILIA', PATRICIA:'PATRICIA PEREIRA' };
     const listasDe = n => dMap[ALIAS[n]] || dMap[n];
+    // Tudo por LISTA (Tiago 24/09): o card mostra todas as listas da compradora no ERP,
+    // com ocorrência primeiro (ordem do ranking) e as sem ocorrência hoje no fim, zeradas.
+    const porLista = {}; ranking.forEach(f => { porLista[f.listaId] = f; });
     _grupos = ORDEM.filter(n => listasDe(n)).map(nome => {
-      const listaSet = new Set(listasDe(nome));
-      const fornecs  = ranking.filter(f => listaSet.has(f.listaId));
-      return { nome, fornecs, color: COMP_COLORS[nome] || '#64748b' };
+      const listas = listasDe(nome);
+      const comOc  = listas.map(l => porLista[l.id]).filter(Boolean)
+                       .sort((a,b) => ranking.indexOf(a) - ranking.indexOf(b));
+      const semOc  = listas.filter(l => !porLista[l.id])
+                       .map(l => ({ listaId: l.id, fornecedor: l.nome || 'N/I', codFornec: l.codFornec, rupturas:0, urgencia:0, em_risco:0, excesso:0, lojas:'' }));
+      return { nome, fornecs: comOc.concat(semOc), color: COMP_COLORS[nome] || '#64748b' };
     }).filter(g => g.fornecs.length > 0);
+    document.getElementById('kpi-f').textContent = _grupos.reduce((s,g) => s + g.fornecs.length, 0);
 
     if (!_grupos.length) {
       document.getElementById('cards-area').innerHTML =

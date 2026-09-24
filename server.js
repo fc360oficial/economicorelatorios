@@ -5454,6 +5454,20 @@ app.get('/api/margem-tv/comprador', withCache(5), async (req, res) => {
 
 app.get('/api/ruptura/comprador-listas', withCache(60), async (req, res) => {
   const result = {};
+  // ?detalhe=1 → cada lista vem com nome/CodFornec (o painel de Rupturas mostra TODAS as listas da
+  // compradora, inclusive as sem ocorrência hoje — Tiago 24/09: "na tela é tudo por LISTA")
+  if (req.query.detalhe === '1') {
+    const all = Object.values(NREGS_COMPRADOR).flat();
+    let info = {};
+    if (all.length) {
+      const ph = all.map(() => '?').join(',');
+      const rows = await q(`SELECT nReg, TRIM(Nome) nome, CodFornec FROM central.c_cotacao_lista WHERE nReg IN (${ph})`, all).catch(() => []);
+      for (const r of rows) info[r.nReg] = { nome: r.nome || '', codFornec: r.CodFornec || 0 };
+    }
+    for (const [nome, nRegs] of Object.entries(NREGS_COMPRADOR))
+      result[nome] = nRegs.map(id => ({ id, nome: info[id]?.nome || '', codFornec: info[id]?.codFornec || 0 }));
+    return res.json(result);
+  }
   for (const [nome, nRegs] of Object.entries(NREGS_COMPRADOR)) result[nome] = nRegs;
   res.json(result);
 });
@@ -5720,7 +5734,7 @@ app.get('/api/ruptura', withCache(10), async (req, res) => {
       alertas: alertas.slice(0, 100),
       plano,
       lojas: Object.values(lojasMap).sort((a, b) => b.perda - a.perda),
-      ranking_fornec: rankingFornec.slice(0, 200),
+      ranking_fornec: rankingFornec.slice(0, 1000), // era 200: cortava listas com ocorrência no painel por compradora
       previsao: {
         hoje: rupturas.length,
         amanha: emRisco.filter(x => x.risco === 'CRITICO').length,
