@@ -7650,6 +7650,13 @@ app.post('/api/pedidos-fornecedor/:id/fechar', (req, res) => {
   if (p.erro) return res.status(409).json({ error: p.erro });
   res.json({ ok: true, status: p.status });
 });
+// "Gerar com Custo (Grupo de Lojas)": fecha o pedido já com os custos da sugestão como preço, sem link do vendedor
+app.post('/api/pedidos-fornecedor/:id/fechar-com-custo', (req, res) => {
+  const p = pedidosFornec.fecharComCusto(parseInt(req.params.id), (req.body || {}).precos, req.session.user?.nome || null);
+  if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
+  if (p.erro) return res.status(409).json({ error: p.erro });
+  res.json({ ok: true, status: p.status, totais: p.totais });
+});
 app.post('/api/pedidos-fornecedor/:id/reabrir', (req, res) => {
   const p = pedidosFornec.reabrir(parseInt(req.params.id), req.session.user?.nome || null);
   if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });

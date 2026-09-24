@@ -152,6 +152,14 @@ table.mon-t tbody tr.desativada td{color:#98A0B3}
 .ns-obs-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 16px}
 .ns-obs-grid label{display:flex;align-items:center;gap:7px;font-size:12px;color:#0E1626}
 .ns-obs-grid label.off{color:#B7BEC9}
+.ns-busca-wrap{position:relative}
+.ns-busca-drop{position:absolute;left:0;right:0;top:100%;z-index:20;background:#fff;border:1px solid #DADAD6;border-radius:8px;box-shadow:0 8px 24px rgba(15,23,42,.14);max-height:240px;overflow-y:auto}
+.ns-busca-drop div{padding:7px 10px;font-size:13px;cursor:pointer;display:flex;gap:8px;align-items:baseline;border-bottom:1px solid #F1F1EF}
+.ns-busca-drop div:last-child{border-bottom:0}
+.ns-busca-drop div:hover,.ns-busca-drop div.ativo{background:#FFF6DB}
+.ns-busca-drop b{min-width:44px;color:#0F1F3D}
+.ns-busca-drop small{color:#98A0B3;margin-left:auto;white-space:nowrap}
+.ns-busca-sel{font-size:12px;color:#5B6478;margin-top:4px;min-height:14px}
 .ns-hint{font-size:11.5px;color:#B23A3A;font-weight:700;min-height:14px}
 .ns-ftr{padding:14px 18px;border-top:1px solid #DADAD6;display:flex;justify-content:flex-end;gap:10px}
 .mon-rodape{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:12px 16px;border-top:1px solid #DADAD6;background:#FFFFFF;font-size:11.5px;color:#4E5A72;font-weight:600}
@@ -614,7 +622,9 @@ table.cx-itens tbody tr.promo td.desc,table.cx-itens tbody tr.rebaixa td.desc,ta
     <div class="ns-body">
       <div class="ns-sec">
         <h4>Lista</h4>
-        <div class="fg"><label>Número da Lista</label><input type="number" id="ns-lista" oninput="carregarLojasNS()"></div>
+        <div class="fg ns-busca-wrap"><label>Lista (número ou nome)</label><input type="text" id="ns-lista" autocomplete="off" placeholder="Nº da lista, nome da lista ou fornecedor" oninput="buscarListaNS()" onkeydown="teclaListaNS(event)" onfocus="buscarListaNS()">
+          <div class="ns-busca-drop" id="ns-busca-drop" style="display:none"></div>
+          <div class="ns-busca-sel" id="ns-busca-sel"></div></div>
       </div>
       <div class="ns-grid">
         <div class="ns-sec">
@@ -635,10 +645,10 @@ table.cx-itens tbody tr.promo td.desc,table.cx-itens tbody tr.rebaixa td.desc,ta
         <div class="ns-obs-grid">
           <label><input type="checkbox" id="ns-obs1"> Não considerar estoque do Sistema.</label>
           <label><input type="checkbox" id="ns-obs-transito"> Considerar itens em trânsito.</label>
-          <label><input type="checkbox" id="ns-obs2" disabled title="Ainda não disponível"> Utilizar lista recebida da Indústria.</label>
+          <label class="off" title="Ainda não disponível no Fluxo (cotação recebida da indústria)"><input type="checkbox" id="ns-obs2" disabled> Utilizar lista recebida da Indústria.</label>
           <label class="off"><input type="checkbox" disabled> Utilizar Custo Consolidado Lista(s) Indústria</label>
           <label class="off"><input type="checkbox" disabled> Gerar com Custo (Única Loja)</label>
-          <label class="off"><input type="checkbox" disabled> Gerar com Custo (Grupo de Lojas)</label>
+          <label title="Igual ao Dlinks: o pedido nasce com o último custo como preço e já Fechado, sem link pro vendedor digitar preço"><input type="checkbox" id="ns-obs-custo"> Gerar com Custo (Grupo de Lojas)</label>
           <label><input type="checkbox" id="ns-obs3"> Não usar dias de vendas corrido.</label>
         </div>
       </div>
@@ -863,7 +873,8 @@ function renderConsCabecalho(){
   // botões do ciclo do link (mesmos nomes do Dlinks): Enviar Link cria o pedido + link; Fechar encerra a digitação; Abrir reabre
   const desat = s.status === 'desativada', semPedido = !s.pedido || pst === 'cancelado';
   const bEnv = document.getElementById('c-btn-enviar'), bAbrir = document.getElementById('c-btn-abrir-web'), bFechar = document.getElementById('c-btn-fechar-web');
-  bEnv.disabled = desat || PEDIDO_FECHADO_OU_ALEM(pst); bEnv.textContent = semPedido ? '✈ Enviar Link' : '✈ Reenviar Link'; bEnv.title = semPedido ? 'Cria o pedido e o link pro vendedor digitar os preços' : 'Mostra de novo o link do vendedor (WhatsApp / e-mail / copiar)';
+  const comCustoS = !!(s.parametros && s.parametros.obs && s.parametros.obs.com_custo);
+  bEnv.disabled = desat || comCustoS || PEDIDO_FECHADO_OU_ALEM(pst); bEnv.textContent = semPedido ? '✈ Enviar Link' : '✈ Reenviar Link'; if (comCustoS) bEnv.title = 'Sugestão marcada "Gerar com Custo": o pedido fecha com o custo, sem link do vendedor'; bEnv.title = semPedido ? 'Cria o pedido e o link pro vendedor digitar os preços' : 'Mostra de novo o link do vendedor (WhatsApp / e-mail / copiar)';
   bFechar.disabled = !(pst === 'aguardando' || pst === 'digitacao'); bFechar.title = 'Encerra a digitação do vendedor: a sugestão vira Fechado e vai pra aprovação em Pedidos de Compra';
   bAbrir.disabled = pst !== 'finalizado'; bAbrir.title = 'Reabre a digitação: o link do vendedor volta a aceitar preços';
   const bG = document.getElementById('c-gerar'); bG.textContent = semPedido ? '🛒 Gerar Pedido' : `🛒 Ver Pedido #${s.pedido.id}`;
@@ -1137,7 +1148,9 @@ async function criarPedidoConsolidacao(btn, textoAcao){
   for (const it of s.itens) { if (!it.ativo) continue; const r = {}; for (const l of it.lojas) if (l.sug_loja > 0) r[l.loja] = l.sug_loja; if (Object.keys(r).length) { ajustes[it.codigo] = r; nItens++; nUn += it.quantidade; } }
   if (!nItens) { alert('Nenhum item com quantidade. Digite a quantidade nos produtos antes.'); return null; }
   const lojasTxt = [...new Set(Object.values(ajustes).flatMap(r => Object.keys(r)))].sort().map(l => 'L' + l).join(', ');
-  if (!confirm(`${textoAcao} da sugestão ${s.id} (lista ${s.lista.id} · ${s.lista.fornecedor || ''})?\n\n${nItens} produto(s) · ${nUn} un · lojas ${lojasTxt}\n\nO pedido vai pra Pedidos de Compra com o link pro vendedor digitar os preços. Depois disso a sugestão fica travada.`)) return null;
+  const comCusto = !!(s.parametros && s.parametros.obs && s.parametros.obs.com_custo);
+  const rodape = comCusto ? 'GERAR COM CUSTO: o pedido vai pra Pedidos de Compra já Fechado, com o custo da sugestão como preço (sem link pro vendedor). Depois disso a sugestão fica travada.' : 'O pedido vai pra Pedidos de Compra com o link pro vendedor digitar os preços. Depois disso a sugestão fica travada.';
+  if (!confirm(`${textoAcao} da sugestão ${s.id} (lista ${s.lista.id} · ${s.lista.fornecedor || ''})?\n\n${nItens} produto(s) · ${nUn} un · lojas ${lojasTxt}\n\n${rodape}`)) return null;
   const txt0 = btn.textContent; btn.disabled = true; btn.textContent = 'Criando pedido...';
   try {
     const corpo = conf => JSON.stringify({ listas: [s.lista.id], ajustes: { [s.lista.id]: ajustes }, substituir: true, origem: 'sugestao-manual', confirmar_excesso: conf });
@@ -1152,10 +1165,15 @@ async function criarPedidoConsolidacao(btn, textoAcao){
     if (j.error) throw new Error(j.error);
     const p = (j.criados || [])[0];
     if (!p) throw new Error((j.sem_itens || []).map(x => x.motivo).join('; ') || 'Pedido não foi criado');
+    let stPedido = 'aguardando';
+    if (comCusto) {
+      const precos = {}; for (const it of s.itens) if (it.ativo && it.preco_und > 0) precos[it.codigo] = it.preco_und;
+      try { const rc = await fetch('/api/pedidos-fornecedor/' + p.id + '/fechar-com-custo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ precos }) }); const jc = await rc.json().catch(() => ({})); if (rc.ok && !jc.error) { stPedido = jc.status || 'finalizado'; if (jc.totais) p.totais = jc.totais; } else alert('Pedido #' + p.id + ' criado, mas não fechou com custo: ' + (jc.error || rc.status) + '. Feche pelo botão Fechar Solicitar Preço Web.'); } catch (e) { alert('Pedido #' + p.id + ' criado, mas não fechou com custo: ' + e.message); }
+    }
     let travou = true;
     try { const rp = await fetch('/api/sugestao-manual/' + encodeURIComponent(s.id), { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'pedido_gerado', pedido_id: p.id }) }); const jp = await rp.json().catch(() => ({})); if (!rp.ok || jp.error) travou = false; } catch (e) { travou = false; }
     s.status = 'pedido_gerado'; s.pedido_id = p.id;
-    s.pedido = { id: p.id, status: 'aguardando', link: p.link, vendedor: p.vendedor || null, lista_nome: p.lista_nome, fornecedor: p.fornecedor, itens: p.itens, totais: p.totais, avarias_txt: p.avarias_txt || '' };
+    s.pedido = { id: p.id, status: stPedido, link: p.link, vendedor: p.vendedor || null, lista_nome: p.lista_nome, fornecedor: p.fornecedor, itens: p.itens, totais: p.totais, avarias_txt: p.avarias_txt || '' };
     renderConsCabecalho(); renderConsItens(); renderConsDetalhe();
     if (j.nao_encontrados && j.nao_encontrados.length) alert(`${j.nao_encontrados.length} código(s) fora da lista do Radar foram ignorados no pedido.`);
     if (!travou) alert('ATENÇÃO: o pedido foi criado, mas não consegui marcar a sugestão como "pedido gerado". Não gere de novo — avise o suporte.');
@@ -1353,7 +1371,12 @@ function exportarLog(){
 }
 function abrirNovaSugestao(listaId){
   document.getElementById('ns-lista').value = listaId || '';
+  document.getElementById('ns-lista').dataset.id = listaId || '';
+  document.getElementById('ns-busca-sel').textContent = '';
+  document.getElementById('ns-busca-drop').style.display = 'none';
+  if (!listas.length) carregarListas().catch(() => {});
   document.getElementById('ns-cobertura').value = 20;
+  document.getElementById('ns-obs-custo').checked = false;
   document.getElementById('ns-obs1').checked = false;
   document.getElementById('ns-obs-transito').checked = false;
   document.getElementById('ns-obs2').checked = false;
@@ -1380,8 +1403,35 @@ function recalcQtdDiasNS(){
   document.getElementById('ns-qtd-dias').value = dias;
 }
 let ultNsLojasReq = 0;
+// Busca da lista por número, nome ou fornecedor (mesma base da aba Listas); escolher preenche o id e carrega as lojas
+let nsBuscaIdx = -1;
+function nsListaId(){ const el = document.getElementById('ns-lista'); return parseInt(el.dataset.id) || (/^\d+$/.test(el.value.trim()) ? parseInt(el.value) : 0); }
+function buscarListaNS(){
+  const el = document.getElementById('ns-lista'), drop = document.getElementById('ns-busca-drop'), sel = document.getElementById('ns-busca-sel');
+  const termo = el.value.trim(); el.dataset.id = ''; sel.textContent = ''; nsBuscaIdx = -1;
+  if (/^\d+$/.test(termo)) { drop.style.display = 'none'; const l = listas.find(x => String(x.id) === termo); if (l) { el.dataset.id = l.id; sel.textContent = `${l.nome || ''} · ${l.fornecedor || ''}`; } carregarLojasNS(); return; }
+  if (termo.length < 2) { drop.style.display = 'none'; carregarLojasNS(); return; }
+  const hits = listas.filter(l => bateBusca(l.nome, termo) || bateBusca(l.fornecedor, termo)).slice(0, 30);
+  if (!hits.length) { drop.innerHTML = '<div style="color:#98A0B3;cursor:default">Nenhuma lista com esse nome</div>'; drop.style.display = ''; return; }
+  drop.innerHTML = hits.map(l => `<div data-id="${l.id}" onmousedown="escolherListaNS(${l.id})"><b>${l.id}</b> ${escH(l.nome || '')} <small>${escH(l.fornecedor || '')}</small></div>`).join('');
+  drop.style.display = '';
+}
+function escolherListaNS(id){
+  const l = listas.find(x => String(x.id) === String(id)); if (!l) return;
+  const el = document.getElementById('ns-lista'); el.value = l.id; el.dataset.id = l.id;
+  document.getElementById('ns-busca-sel').textContent = `${l.nome || ''} · ${l.fornecedor || ''}`;
+  document.getElementById('ns-busca-drop').style.display = 'none';
+  carregarLojasNS();
+}
+function teclaListaNS(ev){
+  const drop = document.getElementById('ns-busca-drop'); if (drop.style.display === 'none') return;
+  const ops = [...drop.querySelectorAll('div[data-id]')]; if (!ops.length) return;
+  if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') { ev.preventDefault(); nsBuscaIdx = (nsBuscaIdx + (ev.key === 'ArrowDown' ? 1 : -1) + ops.length) % ops.length; ops.forEach((o, i) => o.classList.toggle('ativo', i === nsBuscaIdx)); ops[nsBuscaIdx].scrollIntoView({ block: 'nearest' }); }
+  else if (ev.key === 'Enter') { ev.preventDefault(); escolherListaNS(parseInt(ops[nsBuscaIdx >= 0 ? nsBuscaIdx : 0].dataset.id)); }
+  else if (ev.key === 'Escape') drop.style.display = 'none';
+}
 async function carregarLojasNS(){
-  const id = parseInt(document.getElementById('ns-lista').value);
+  const id = nsListaId();
   const wrap = document.getElementById('ns-lojas');
   document.getElementById('ns-hint').textContent = '';
   if (!id) { wrap.innerHTML = '<div class="empty" style="padding:20px 0">Informe o número da lista</div>'; lojasNSCarregadas = []; return; }
@@ -1403,7 +1453,7 @@ async function carregarLojasNS(){
   }
 }
 async function confirmarNovaSugestao(){
-  const id = parseInt(document.getElementById('ns-lista').value);
+  const id = nsListaId();
   const hint = document.getElementById('ns-hint');
   if (!id) { hint.textContent = 'Informe o número da lista.'; return; }
   const lojas = [...document.querySelectorAll('.ns-chk-loja:checked')].map(c => parseInt(c.value));
@@ -1414,7 +1464,7 @@ async function confirmarNovaSugestao(){
     data_fim: document.getElementById('ns-data-fim').value,
     cobertura: parseInt(document.getElementById('ns-cobertura').value) || 20,
     lojas,
-    obs: { sem_estoque: document.getElementById('ns-obs1').checked, transito: document.getElementById('ns-obs-transito').checked, dias_com_venda: document.getElementById('ns-obs3').checked }
+    obs: { sem_estoque: document.getElementById('ns-obs1').checked, transito: document.getElementById('ns-obs-transito').checked, dias_com_venda: document.getElementById('ns-obs3').checked, com_custo: document.getElementById('ns-obs-custo').checked }
   };
   const btn = document.querySelector('#ns-overlay .btn-blue'); btn.disabled = true; btn.textContent = 'Calculando...'; hint.textContent = '';
   try {
