@@ -48,7 +48,9 @@ tr.ev{cursor:pointer;user-select:none}tr.ev:hover td{background:var(--wsh)}tr.ev
 .empty{padding:36px 18px;text-align:center;color:var(--ink3);font-size:13px}
 .detail{padding:0 18px 18px;border-top:1px solid var(--ln)}
 tr.det > td{padding:0;white-space:normal;background:var(--crd);cursor:default}tr.det:hover > td{background:var(--crd)}
-tr.det .detail{border-top:none;border-bottom:1px solid var(--ln)}
+tr.det .detail{border-top:none;border-bottom:1px solid var(--ln);width:1px;min-width:100%;box-sizing:border-box}
+.cols.uma{grid-template-columns:1fr}
+.box{max-height:420px}
 .detail h3{font-size:13px;font-weight:800;margin:16px 0 8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .detail .meta{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--ink2);margin-bottom:12px}
 .detail .meta b{color:var(--ink)}
@@ -183,16 +185,20 @@ async function abrir(id) {
       </div>
       <div class="meta"><span>Motivo: <b>${esc(e.motivo)}</b></span></div>
       ${e.erro ? `<div class="erro-box">${esc(e.erro)}</div>` : ''}
-      <div class="cols">
-        <div><div class="label" style="margin-bottom:6px">Antes (${(e.antes || []).length})</div>${tabela(e.antes, mud)}</div>
-        <div><div class="label" style="margin-bottom:6px">Depois (${(e.depois || []).length})</div>${tabela(e.depois, mud)}</div>
+      <div class="cols${!(e.antes||[]).length || !(e.depois||[]).length ? ' uma' : ''}">
+        ${(e.antes||[]).length || !(e.depois||[]).length ? `<div><div class="label" style="margin-bottom:6px">Antes (${(e.antes || []).length})</div>${tabela(e.antes, mud)}</div>` : ''}
+        ${(e.depois||[]).length || !(e.antes||[]).length ? `<div><div class="label" style="margin-bottom:6px">Depois (${(e.depois || []).length})</div>${tabela(e.depois, mud)}</div>` : ''}
       </div>
       <div class="label" style="margin:14px 0 6px">SQL</div>
-      <pre class="sql">${esc(e.sql || '—')}\n\nparâmetros: ${esc(JSON.stringify(e.params))}\nwhere: ${esc(JSON.stringify(e.where))}\nvalores: ${esc(JSON.stringify(e.valores))}</pre>`;
+      <pre class="sql">${sqlHtml(e)}</pre>`;
     render();
   } catch (err) { detHtml = `<div class="erro-box" style="margin-top:14px">${esc(err.message)}</div>`; render(); }
 }
 
+function sqlHtml(e) {
+  if (Array.isArray(e.sql)) return e.sql.map((s, i) => `-- passo ${i}\n${esc(s)}\nparâmetros: ${esc(JSON.stringify((e.params || [])[i]))}`).join('\n\n') + (e.ids_gerados ? `\n\nids gerados: ${esc(JSON.stringify(e.ids_gerados))}` : '');
+  return `${esc(e.sql || '—')}\n\nparâmetros: ${esc(JSON.stringify(e.params))}\nwhere: ${esc(JSON.stringify(e.where))}\nvalores: ${esc(JSON.stringify(e.valores))}`;
+}
 function tabela(rows, mud) {
   if (!rows || !rows.length) return '<div class="empty" style="padding:18px">Sem registros</div>';
   const cols = [...new Set(rows.flatMap(r => Object.keys(r)))];
