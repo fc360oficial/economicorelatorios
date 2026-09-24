@@ -171,6 +171,10 @@ table.main-t td.sel input,table.main-t th.sel input{width:15px;height:15px;accen
 .det table td.lj,.det table th.lj{text-align:center!important;vertical-align:middle}.det table td.lj input.qin{display:block;margin:0 auto;text-align:center}.det table td{vertical-align:middle}
 .cdtag{display:inline-block;background:#101B33;color:#FFC933;font-size:9px;font-weight:800;letter-spacing:.3px;padding:1px 5px;border-radius:5px;margin-left:5px;vertical-align:middle;line-height:1.4}.cdtag[hidden]{display:none}
 .pill.p-ped{background:#101B33;color:#FFC933;text-decoration:none;font-weight:800}.pill.p-ped:hover{background:#0E1626}
+.lojas-chk{display:flex;gap:4px;flex-wrap:wrap;align-items:center;min-height:36px}
+.lojas-chk label{display:inline-flex;align-items:center;gap:4px;padding:6px 9px;border:1px solid #C9C9C4;border-radius:999px;background:#fff;font-size:12px;font-weight:700;cursor:pointer;user-select:none}
+.lojas-chk label:has(input:checked){background:#0E1626;color:#fff;border-color:#0E1626}
+.lojas-chk input{margin:0;width:13px;height:13px;accent-color:#F5B800}
 </style>
 </head>
 <body>
@@ -184,7 +188,7 @@ table.main-t td.sel input,table.main-t th.sel input{width:15px;height:15px;accen
   </div>
 
   <div class="filtros">
-    <div class="fg"><label>Loja</label><select id="fLoja" title="Vê o Radar inteiro só por esta loja: quantidades, cobertura, estoque e curva A da loja. Combina com o comprador."><option value="">Todas</option><option value="1">L1 CAHU</option><option value="2">L2 MURIBECA</option><option value="3">L3 PONTE</option><option value="4">L4 ATACAREJO</option><option value="5">L5 PORTA LARGA</option><option value="6">L6 JARDIM JORDÃO</option></select></div>
+    <div class="fg"><label title="Marque uma ou mais lojas: o Radar calcula só com elas (dia pela loja mais apertada, quantidade loja a loja). Nenhuma marcada = todas. Combina com o comprador.">Lojas</label><div class="lojas-chk" id="fLoja"><label title="CAHU"><input type="checkbox" value="1">L1</label><label title="MURIBECA"><input type="checkbox" value="2">L2</label><label title="PONTE"><input type="checkbox" value="3">L3</label><label title="ATACAREJO"><input type="checkbox" value="4">L4</label><label title="PORTA LARGA"><input type="checkbox" value="5">L5</label><label title="JARDIM JORDÃO"><input type="checkbox" value="6">L6</label></div></div>
     <div class="fg"><label>Comprador</label><select id="fComp"><option value="">Todos</option></select></div>
     <div class="fg"><label>Teto de cobertura (dias)</label><input type="number" id="fTeto" min="3" max="90" value="28"></div>
     <div class="fg"><label title="A lista cai pra HOJE numa loja quando os produtos que estão no ponto de pedido (ou zerados) nessa loja somam esta fatia da venda da lista na loja. Avaliado loja a loja; em 'Todas' a lista assume o dia da loja mais apertada. Curva A antecipa sozinha, sem depender disso.">Gatilho (% da venda)</label><input type="number" id="fGatilho" min="1" max="100" value="20"></div>
@@ -230,7 +234,8 @@ let DATA=null, tab='hoje', sortK='fazer_em', sortD=1, aberta=null, SOMBRA=null;
 // vindo da Sugestão de Compras: ?lista=ID abre o detalhe da lista (mesma forma e regras do Radar, por loja); origem marca o pedido
 const URLP=new URLSearchParams(location.search); let ABRIR_LISTA=parseInt(URLP.get('lista'))||null; const ORIGEM=URLP.get('origem')==='sugestao'?'sugestao':null;
 
-function params(){const p=new URLSearchParams();const lj=$('#fLoja').value;if(lj)p.set('loja',lj);const g=$('#fGatilho').value;if(g&&+g!==20)p.set('gatilho',g);const c=$('#fComp').value;if(c)p.set('comprador',c);p.set('alvo',$('#fTeto').value||28);p.set('emb',$('#fEmb').value===''?36:$('#fEmb').value);if(!$('#fCurvaA').checked)p.set('curvaA','0');return p;}
+function lojasSel(){return [...document.querySelectorAll('#fLoja input:checked')].map(i=>i.value);}
+function params(){const p=new URLSearchParams();const lj=lojasSel();if(lj.length&&lj.length<6)p.set('loja',lj.join(','));const g=$('#fGatilho').value;if(g&&+g!==20)p.set('gatilho',g);const c=$('#fComp').value;if(c)p.set('comprador',c);p.set('alvo',$('#fTeto').value||28);p.set('emb',$('#fEmb').value===''?36:$('#fEmb').value);if(!$('#fCurvaA').checked)p.set('curvaA','0');return p;}
 const money2=v=>v==null?'—':'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 
 async function carregar(refresh){
@@ -291,7 +296,7 @@ function pillA(l){
 }
 function pillDia(l){
   if(!l.ok) return '<span class="pill p-cinza">'+esc(l.motivo)+'</span>';
-  const pux=(l.lojas_puxam&&l.lojas_puxam.length&&!$('#fLoja').value)?'<div class="s2" title="'+esc('Dia de cada loja: '+Object.entries(l.fazer_em_lojas||{}).map(([k,v])=>'L'+k+' '+v+' d').join(' · '))+'">puxada por L'+l.lojas_puxam.join(', L')+'</div>':'';
+  const pux=(l.lojas_puxam&&l.lojas_puxam.length&&lojasSel().length!==1)?'<div class="s2" title="'+esc('Dia de cada loja: '+Object.entries(l.fazer_em_lojas||{}).map(([k,v])=>'L'+k+' '+v+' d').join(' · '))+'">puxada por L'+l.lojas_puxam.join(', L')+'</div>':'';
   const a=pux, de=l.gatilho==='curva_a'?'<div class="s2" title="Dia previsto pela regra do gatilho (% da venda no ponto)">era '+l.fazer_em_lista+' d</div>':'';
   if(l.fazer_em===0) return '<span class="pill p-hoje">HOJE</span>'+a+de;
   if(l.fazer_em<=3) return '<span class="pill p-breve">'+l.fazer_em+' d · '+l.dow+'</span>'+a+de;
@@ -597,7 +602,7 @@ async function enviarSelecionadas(){
   if(!confirm('Gerar '+ids.length+' pedido'+(ids.length>1?'s':'')+' pro fornecedor ('+ids.length+' lista'+(ids.length>1?'s':'')+' selecionada'+(ids.length>1?'s':'')+')? Cada um ganha um link próprio; você escolhe pra quem enviar depois.')) return;
   const b=document.getElementById('btnEnviar'); if(b){b.disabled=true;b.textContent='Gerando…';}
   try{
-    const corpo=(conf)=>JSON.stringify({listas:ids,teto:$('#fTeto').value||28,emb:$('#fEmb').value===''?36:$('#fEmb').value,ajustes:EDITS,modo:MODO,curvaA:$('#fCurvaA').checked,loja:$('#fLoja').value||null,gatilho:$('#fGatilho').value||20,confirmar_excesso:conf,origem:ORIGEM});
+    const corpo=(conf)=>JSON.stringify({listas:ids,teto:$('#fTeto').value||28,emb:$('#fEmb').value===''?36:$('#fEmb').value,ajustes:EDITS,modo:MODO,curvaA:$('#fCurvaA').checked,loja:lojasSel().join(',')||null,gatilho:$('#fGatilho').value||20,confirmar_excesso:conf,origem:ORIGEM});
     let r=await fetch('/api/pedidos-fornecedor',{method:'POST',headers:{'Content-Type':'application/json'},body:corpo(false)});
     let j=await r.json();
     if(r.status===409&&j.bloqueados){

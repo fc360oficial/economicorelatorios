@@ -7209,6 +7209,8 @@ app.get('/api/estoque-cd', withCache(5), async (req, res) => {
   }
   catch (err) { res.status(500).json({ error: err.message }); }
 });
+// ?loja=3 ou ?loja=1,2 (várias lojas juntas); nada = todas
+const lojasRadarDe = v => { const s = radarPedidos.lojasSet(v); return s.length ? s : null; };
 app.get('/api/radar-pedidos', async (req, res) => {
   try {
     if (req.query.refresh === '1') await radarPedidos.recalcular(req.query.lead === '1');
@@ -7216,7 +7218,7 @@ app.get('/api/radar-pedidos', async (req, res) => {
     const comprador = req.query.comprador ? resolveComprador(req.query.comprador) : null;
     const embMeses = req.query.emb == null ? undefined : Math.max(0, Math.min(36, parseInt(req.query.emb) || 0));
     const usarCurvaA = req.query.curvaA !== '0';
-    const lojaRadar = [1, 2, 3, 4, 5, 6].includes(parseInt(req.query.loja)) ? parseInt(req.query.loja) : null;   // filtro por loja (Tiago, 24/09)
+    const lojaRadar = lojasRadarDe(req.query.loja);   // filtro por loja(s) (Tiago, 24/09)
     const gatilhoRadar = req.query.gatilho ? Math.max(1, Math.min(100, parseFloat(req.query.gatilho) || 20)) / 100 : null;   // % da venda da lista (por loja) no ponto de pedido
     const listas = radarPedidos.politica(teto, comprador, embMeses, usarCurvaA, lojaRadar, gatilhoRadar);
     const ok = listas.filter(r => r.ok);
@@ -7242,7 +7244,7 @@ app.get('/api/radar-pedidos/curva-a', (req, res) => {
     const teto = Math.max(3, Math.min(90, parseFloat(req.query.alvo) || radarPedidos.TETO_PADRAO));
     const comprador = req.query.comprador ? resolveComprador(req.query.comprador) : null;
     const embMeses = req.query.emb == null ? undefined : Math.max(0, Math.min(36, parseInt(req.query.emb) || 0));
-    const lojaRadar = [1, 2, 3, 4, 5, 6].includes(parseInt(req.query.loja)) ? parseInt(req.query.loja) : null;
+    const lojaRadar = lojasRadarDe(req.query.loja);
     const gatilhoRadar = req.query.gatilho ? Math.max(1, Math.min(100, parseFloat(req.query.gatilho) || 20)) / 100 : null;
     res.json(radarPedidos.curvaARisco(teto, comprador, embMeses, req.query.curvaA !== '0', lojaRadar, gatilhoRadar));
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -7276,7 +7278,7 @@ app.get('/api/radar-pedidos/:listaId/itens', (req, res) => {
   try {
     const teto = Math.max(3, Math.min(90, parseFloat(req.query.alvo) || radarPedidos.TETO_PADRAO));
     const embMeses = req.query.emb == null ? undefined : Math.max(0, Math.min(36, parseInt(req.query.emb) || 0));
-    const lojaRadar = [1, 2, 3, 4, 5, 6].includes(parseInt(req.query.loja)) ? parseInt(req.query.loja) : null;
+    const lojaRadar = lojasRadarDe(req.query.loja);
     const gatilhoRadar = req.query.gatilho ? Math.max(1, Math.min(100, parseFloat(req.query.gatilho) || 20)) / 100 : null;
     const r = radarPedidos.itensLista(parseInt(req.params.listaId), teto, null, embMeses, req.query.curvaA !== '0', null, { loja: lojaRadar, gatilho: gatilhoRadar });
     if (!r) return res.status(404).json({ error: radarPedidos.getEstado().status === 'ok' ? 'Lista não encontrada' : 'Radar ainda calculando, tente em instantes' });
@@ -7530,7 +7532,7 @@ app.post('/api/pedidos-fornecedor', async (req, res) => {
     const substituir = req.body.substituir === true;
     const origemPedido = ['sugestao', 'sugestao-manual'].includes(req.body.origem) ? req.body.origem : 'radar';
     const bloqueados = [], naoEncontrados = [];
-    const lojaPedido = [1, 2, 3, 4, 5, 6].includes(parseInt(req.body.loja)) ? parseInt(req.body.loja) : null;   // Radar filtrado por loja: pedido só daquela loja
+    const lojaPedido = lojasRadarDe(req.body.loja);   // Radar filtrado por loja(s): pedido só dessas lojas
     for (const id of listas) {
       const det = radarPedidos.itensLista(id, teto, null, embMeses, req.body.curvaA !== false && req.body.curvaA !== '0', null, { loja: lojaPedido, gatilho: req.body.gatilho ? Math.max(1, Math.min(100, parseFloat(req.body.gatilho) || 20)) / 100 : null });
       if (!det) { semItens.push({ lista: id, motivo: 'lista não encontrada ou radar calculando' }); continue; }
