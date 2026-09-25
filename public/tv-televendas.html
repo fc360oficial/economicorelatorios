@@ -148,17 +148,22 @@ function montarSequencia(produtos, cfg) {
   return seq;
 }
 
+const NOME_EMB = { CX: 'Caixa', FD: 'Fardo', PACK: 'Pack', PC: 'Pacote', PCT: 'Pacote', DP: 'Display', CT: 'Cartela', ENG: 'Engradado' };
 const foto = (p, cls) => p.imagem ? `<img src="${esc(p.imagem)}" alt="">` : `<img class="semfoto" src="${LOGO}" alt="">`;
 function foot(txt, cnt) { const h = new Date().toTimeString().slice(0, 5); return `<div class="foot"><img src="${LOGO}" alt="CAHU"><span class="txt">${txt}</span><span class="sp"></span><span class="cnt">${cnt}</span><span class="clk">${h}</span></div>`; }
 function rProd(s, pos) {
-  const p = s.item; const unit = p.qtdEmbalagem > 1 ? `<div class="sub">Caixa com <b>${p.qtdEmbalagem} un</b> · sai a <b>R$ ${fmt(p.preco / p.qtdEmbalagem)}</b> a unidade</div>` : '';
+  const p = s.item; const emb = NOME_EMB[p.unidade] || p.unidade;
+  // com "X" no Cadastro Embalagem Vendas o preço é por unidade e a venda é em múltiplos da embalagem
+  const unit = p.multiplo && p.qtdEmbalagem > 1 ? `<div class="sub">Vendido em ${emb} fechada com <b>${p.qtdEmbalagem} un</b> · ${emb} sai a <b>R$ ${fmt(p.preco * p.qtdEmbalagem)}</b></div>`
+    : (p.qtdEmbalagem > 1 ? `<div class="sub">${emb} com <b>${p.qtdEmbalagem} un</b> · sai a <b>R$ ${fmt(p.preco / p.qtdEmbalagem)}</b> a unidade</div>` : '');
+  const un = p.multiplo ? 'UN' : p.unidade;
   const n = PRODUTOS.indexOf(p) + 1;
-  return `<div class="prod${s.t === 'destaque' ? ' destaque' : ''}"><div class="main"><div class="foto">${s.t === 'destaque' ? '<div class="ribbon">Destaque da semana</div>' : ''}${foto(p)}</div><div class="info">${p.categoria ? `<span class="chip">${esc(p.categoria)}</span>` : ''}<h2 class="nome">${esc(p.nome)}</h2><div class="eyebrow">Tabela Retirada · preço de hoje</div><div class="preco"><span class="rs">R$</span><span class="v">${fmt(p.preco)}</span>${p.unidade ? `<span class="un">/ ${esc(p.unidade)}</span>` : ''}</div>${unit}</div></div>${foot('CAHU Distribuidora · <b>Tabela Retirada</b> · retire no CD e economize', `${n} / ${PRODUTOS.length}`)}</div>`;
+  return `<div class="prod${s.t === 'destaque' ? ' destaque' : ''}"><div class="main"><div class="foto">${s.t === 'destaque' ? '<div class="ribbon">Destaque da semana</div>' : ''}${foto(p)}</div><div class="info">${p.categoria ? `<span class="chip">${esc(p.categoria)}</span>` : ''}<h2 class="nome">${esc(p.nome)}</h2><div class="eyebrow">Tabela Retirada · preço de hoje</div><div class="preco"><span class="rs">R$</span><span class="v">${fmt(p.preco)}</span>${un ? `<span class="un">/ ${esc(un)}</span>` : ''}</div>${unit}</div></div>${foot('CAHU Distribuidora · <b>Tabela Retirada</b> · retire no CD e economize', `${n} / ${PRODUTOS.length}`)}</div>`;
 }
 function rGrade(s) {
   const cats = [...new Set(s.itens.map(p => p.categoria).filter(Boolean))].slice(0, 3).map(esc).join(' · ');
   const ini = PRODUTOS.indexOf(s.itens[0]) + 1, fim = PRODUTOS.indexOf(s.itens[s.itens.length - 1]) + 1;
-  return `<div class="grade"><div class="top"><h2>Tabela Retirada</h2><span class="pg">página ${s.pagina} de ${s.paginas}</span><span class="cat">${cats}</span></div><div class="cards">${s.itens.map(p => `<div class="card${CFG.modo === 'misto' && p.destaque ? ' hot' : ''}"><div class="im">${foto(p)}</div><div class="tx"><div class="n">${esc(p.nome)}</div><div class="p"><span class="rs">R$</span><span class="v">${fmt(p.preco)}</span>${p.unidade ? `<span class="u">/${esc(p.unidade)}</span>` : ''}</div></div></div>`).join('')}</div>${foot('CAHU Distribuidora · <b>Tabela Retirada</b> · preços de hoje', `${ini}–${fim} / ${PRODUTOS.length}`)}</div>`;
+  return `<div class="grade"><div class="top"><h2>Tabela Retirada</h2><span class="pg">página ${s.pagina} de ${s.paginas}</span><span class="cat">${cats}</span></div><div class="cards">${s.itens.map(p => `<div class="card${CFG.modo === 'misto' && p.destaque ? ' hot' : ''}"><div class="im">${foto(p)}</div><div class="tx"><div class="n">${esc(p.nome)}</div><div class="p"><span class="rs">R$</span><span class="v">${fmt(p.preco)}</span><span class="u">/${p.multiplo ? 'UN' : esc(p.unidade || 'UN')}${p.multiplo && p.qtdEmbalagem > 1 ? ` · ${esc(p.unidade)} c/ ${p.qtdEmbalagem}` : ''}</span></div></div></div>`).join('')}</div>${foot('CAHU Distribuidora · <b>Tabela Retirada</b> · preços de hoje', `${ini}–${fim} / ${PRODUTOS.length}`)}</div>`;
 }
 function rApp() {
   const a = CFG.app || {}; const am = PRODUTOS.filter(p => p.imagem).slice(0, 4);

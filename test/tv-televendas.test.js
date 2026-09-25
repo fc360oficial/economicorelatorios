@@ -47,11 +47,12 @@ const EV = { Codigobarra: '555', Und_venda: 'CX', Qtd_venda: 12, emb_multipla: 1
 
 test('embalagemDoItem: cadastro Embalagem Vendas manda; sem cadastro cai no nome', () => {
   const e = m.embalagemDoItem;
-  assert.deepEqual(e({ ...EV }, 'X'), { unidade: 'CX', qtdEmbalagem: 12, origemEmb: 'cadastro' });
-  assert.deepEqual(e({ UndVenda: 'un', Qtd_venda: 20 }, 'RACAO SC20KG'), { unidade: 'UN', qtdEmbalagem: 1, origemEmb: 'cadastro' });   // UN ignora a qtd (é peso)
-  assert.deepEqual(e({ Und_venda: 'FD', Qtd_venda: '10' }, 'ARROZ FD10'), { unidade: 'FD', qtdEmbalagem: 10, origemEmb: 'cadastro' });
-  assert.deepEqual(e({ Und_venda: null, Qtd_venda: null, Unid: 'UN' }, 'NESCAU CX27'), { unidade: 'CX', qtdEmbalagem: 27, origemEmb: 'nome' });
-  assert.deepEqual(e({ Unid: 'UN' }, 'ALA 400G'), { unidade: 'UN', qtdEmbalagem: 1, origemEmb: 'nome' });   // Unid do cadastro geral não conta
+  assert.deepEqual(e({ ...EV }, 'X'), { unidade: 'CX', qtdEmbalagem: 12, multiplo: true, origemEmb: 'cadastro' });          // com "X": preço por unidade, vende em múltiplos de 12
+  assert.deepEqual(e({ ...EV, emb_multipla: 0 }, 'X'), { unidade: 'CX', qtdEmbalagem: 12, multiplo: false, origemEmb: 'cadastro' });   // sem "X": preço da caixa
+  assert.deepEqual(e({ UndVenda: 'un', Qtd_venda: 20, emb_multipla: 1 }, 'RACAO SC20KG'), { unidade: 'UN', qtdEmbalagem: 1, multiplo: false, origemEmb: 'cadastro' });   // UN ignora a qtd (é peso)
+  assert.deepEqual(e({ Und_venda: 'FD', Qtd_venda: '10' }, 'ARROZ FD10'), { unidade: 'FD', qtdEmbalagem: 10, multiplo: false, origemEmb: 'cadastro' });
+  assert.deepEqual(e({ Und_venda: null, Qtd_venda: null, Unid: 'UN' }, 'NESCAU CX27'), { unidade: 'CX', qtdEmbalagem: 27, multiplo: false, origemEmb: 'nome' });
+  assert.deepEqual(e({ Unid: 'UN' }, 'ALA 400G'), { unidade: 'UN', qtdEmbalagem: 1, multiplo: false, origemEmb: 'nome' });   // Unid do cadastro geral não conta
 });
 const CAT = new Map([
   ['111', { nome: 'Nescau', categoria: 'Mercearia', unidade: 'CX', qtdEmbalagem: 27, imagem: 'https://x/1.jpg' }],
