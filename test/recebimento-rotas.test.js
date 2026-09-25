@@ -128,3 +128,70 @@ test('/terminei manda status 3 (Status=3) pro ERP quando a conferência bate e t
   assert.equal(passos[0].tabela, 'conferencia');
   assert.equal(passos[0].valores.Status, 3);
 });
+
+test('/abrir e /cadastro/:cod devolvem erro 500 em JSON em vez de deixar a promise sem catch', async () => {
+  // /abrir: força um erro síncrono dentro do handler (depois de todos os awaits) simulando uma falha
+  // inesperada em recebimento.visaoLoja — sem try/catch, isso vira um throw dentro de um handler async
+  // (unhandled rejection); com o fix, cai no catch e devolve JSON.
+  { const { routes } = montarAmbiente();
+    const cfg = recebimento.config(); const t = cfg.lojas[3].token;
+    const original = recebimento.visaoLoja;
+    recebimento.visaoLoja = () => { throw new Error('falha simulada em visaoLoja'); };
+    try {
+      const r = res();
+      await assert.doesNotReject(routes['POST /api/recebimento-publico/abrir'](req({ query: { t }, body: { chave: 'F'.repeat(44), nNota: '9', fornecedor: 'F', codFornec: 1, nome: 'ana' } }), r));
+      assert.equal(r.statusCode, 500);
+      assert.match(r.body.error, /falha simulada/);
+    } finally { recebimento.visaoLoja = original; }
+  }
+
+  // /cadastro/:cod: força `q` a explodir de forma síncrona (não uma promise rejeitada) — o `.catch()`
+  // encadeado em cadastroItem nem chega a existir nesse caso, então sem try/catch na rota isso também
+  // seria uma promise rejeitada sem tratamento.
+  { const qQueExplode = () => { throw new Error('banco fora do ar'); };
+    const { routes } = montarAmbiente({ q: qQueExplode });
+    const cfg = recebimento.config(); const t = cfg.lojas[3].token;
+    const r = res();
+    await assert.doesNotReject(routes['GET /api/recebimento-publico/cadastro/:cod'](req({ query: { t }, params: { cod: '789' } }), r));
+    assert.equal(r.statusCode, 500);
+    assert.match(r.body.error, /banco fora do ar/);
+  }
+});
+
+test('devolucoes só aparece na visão pública depois de Terminei (terminada/liberada), nunca antes', async () => {
+  // validade curta o bastante pra bloquear (validar:30 dias, chega faltando só 5) — a quantidade bipada
+  // bate 100% com o pedido (5un), então termina (bateu=true) mesmo com o item bloqueado por validade,
+  // que é exatamente o que gera 1 linha de devolução (origem 'coletor').
+  const daqui5dias = new Date(Date.now() + 5 * 864e5).toISOString().slice(0, 10);
+  const cad = { '789': { cod: '789', descricao: 'PRODUTO TESTE', qtdemb: 1, emb: 'UN', validar: 30 } };
+  const xmlLoja = () => ({ itens: [{ cod: '789', descricao: 'PRODUTO TESTE', un: 5 }], naoPedidos: [], status: 'consistencia' });
+  const q = async () => [];
+  const { routes } = montarAmbiente({ q });
+  recebimento.init({ dir: fs.mkdtempSync(path.join(os.tmpdir(), 'rec-rotas-')), cadastro: async c => cad[c] || null, xmlLoja });
+  const cfg = recebimento.config(); const t = cfg.lojas[3].token;
+
+  const rAbrir = res();
+  await routes['POST /api/recebimento-publico/abrir'](req({ query: { t }, body: { chave: 'G'.repeat(44), nNota: '4', fornecedor: 'F', codFornec: 1, nome: 'ana' } }), rAbrir);
+  const id = rAbrir.body.id;
+  assert.ok(!('devolucoes' in rAbrir.body), 'antes de bipar, sem devolucoes na visão');
+
+  const rBip = res();
+  await routes['POST /api/recebimento-publico/bipar'](req({ query: { t }, body: { id, cod: '789', quant: 5, emb: 1, validade: daqui5dias } }), rBip);
+  assert.equal(rBip.body.resultado, 'bloqueado_validade');
+
+  const rAntes = res();
+  await routes['GET /api/recebimento-publico/conferencia/:id'](req({ query: { t }, params: { id } }), rAntes);
+  assert.ok(!('devolucoes' in rAntes.body), 'ainda bipando (não terminou) — sem devolucoes na visão pública');
+
+  const rTerm = res();
+  await routes['POST /api/recebimento-publico/terminei'](req({ query: { t }, body: { id } }), rTerm);
+  assert.equal(rTerm.body.bateu, true);
+  assert.equal(rTerm.body.status, 'terminada');
+  assert.ok(Array.isArray(rTerm.body.devolucoes), 'resposta de /terminei traz devolucoes quando termina');
+  assert.ok(rTerm.body.devolucoes.some(d => d.cod === '789' && d.origem === 'coletor'), 'devolução por validade curta (bloqueado_validade)');
+  for (const d of rTerm.body.devolucoes) assert.ok('cod' in d && 'descricao' in d && 'qtd' in d && 'origem' in d && 'motivo' in d);
+
+  const rDepois = res();
+  await routes['GET /api/recebimento-publico/conferencia/:id'](req({ query: { t }, params: { id } }), rDepois);
+  assert.ok(Array.isArray(rDepois.body.devolucoes), 'depois de terminar, a visão pública já traz devolucoes');
+});
