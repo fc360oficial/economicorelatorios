@@ -116,6 +116,8 @@ td.col-cel{cursor:pointer}
 .ecomsg{font-size:11.5px;font-weight:700}
 .colerro{color:var(--neg);font-weight:800;text-transform:none;letter-spacing:0}
 #drwBack{position:fixed;inset:0;background:rgba(14,22,38,.35);z-index:1099}
+#ftoast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#0E1626;color:#fff;padding:10px 16px;border-radius:10px;font-size:12.5px;font-weight:700;z-index:1200;box-shadow:0 10px 30px -10px rgba(0,0,0,.5);opacity:0;transition:.18s;pointer-events:none;max-width:90vw;text-align:center}
+#ftoast.show{opacity:1}#ftoast.ruim{background:var(--neg)}
 #drw{position:fixed;top:0;right:0;bottom:0;width:430px;max-width:100vw;background:var(--crd);border-left:1px solid var(--ln);box-shadow:-18px 0 44px -22px rgba(14,22,38,.55);z-index:1100;display:flex;flex-direction:column}
 #drw .dh{background:#101B33;color:#fff;padding:12px 16px;line-height:1.35}
 #drw .dh b{color:#FFC933;font-size:13.5px}
@@ -160,7 +162,7 @@ td.col-cel{cursor:pointer}
   </div>
 
   <div class="tools">
-    <span class="dnav"><button onclick="mudarDia(-1)" title="Dia anterior">‹</button><input type="date" id="de" onchange="carregar()"><button onclick="mudarDia(1)" title="Próximo dia">›</button><span class="dow" id="dow"></span></span>
+    <span class="dnav"><button onclick="mudarDia(-1)" title="Dia anterior">‹</button><input type="date" id="de" onchange="colDiaMudou();carregar()"><button onclick="mudarDia(1)" title="Próximo dia">›</button><span class="dow" id="dow"></span></span>
     <select id="periodo" onchange="carregar()"><option value="dia">Só o dia</option><option value="7">Últimos 7 dias</option><option value="30">Últimos 30 dias</option></select>
     <select id="loja" onchange="carregar()"><option value="">Todas as lojas</option></select>
     <input id="q" placeholder="Buscar fornecedor, nº da conferência ou nota" style="min-width:270px" oninput="render()">
@@ -171,6 +173,7 @@ td.col-cel{cursor:pointer}
 </div>
 <div id="modal" hidden><div class="card" id="modal-body"></div></div>
 <div id="drw-wrap" hidden></div>
+<div id="ftoast"></div>
 
 <script>
 const $=s=>document.querySelector(s);
@@ -189,7 +192,7 @@ const CHK=[['xml','XML'],['pedido','PED'],['coletor','QTD'],['validade','VAL'],[
 let ABRIR=null, CFG=null, LOJAS={}, DADOS=null, DOCS=null, MARG=null, tab='receb', filtro='fila', aberto=null, DET={}, CONTATOS=null, fMov='', fMarg='todos';
 
 $('#de').value=hojeISO();
-function mudarDia(n){const d=new Date($('#de').value+'T12:00:00');d.setDate(d.getDate()+n);$('#de').value=d.toISOString().slice(0,10);carregar();}
+function mudarDia(n){const d=new Date($('#de').value+'T12:00:00');d.setDate(d.getDate()+n);$('#de').value=d.toISOString().slice(0,10);colDiaMudou();carregar();}
 function periodo(){const de=$('#de').value;const p=$('#periodo').value;if(p==='dia')return{de,ate:de};const d=new Date(de+'T12:00:00');d.setDate(d.getDate()-(+p-1));return{de:d.toISOString().slice(0,10),ate:de};}
 function qs(){const {de,ate}=periodo();return'?de='+de+'&ate='+ate+($('#loja').value?'&loja='+$('#loja').value:'');}
 
@@ -212,7 +215,9 @@ async function carregar(){
   }catch(e){$('#view').innerHTML='<div class="empty">Erro ao carregar: '+esc(e.message)+'</div>';}
 }
 function setTab(t){tab=t;document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x.dataset.tab===t));colTimerSync();carregar();}
-function render(){if(tab==='receb')renderReceb();else if(tab==='docs')renderDocs();else renderMargem();}
+function render(){if(tab==='receb')renderReceb();else if(tab==='docs')renderDocs();else renderMargem();renderColErro();}
+/* o <th> da coluna é refeito em todo render (busca, filtro, carregar), então o aviso de
+   "sem atualização" some junto: repintar sempre, no fim do render. */
 
 /* ── RECEBIMENTOS ── */
 function passaBusca(r){const q=$('#q').value.trim().toLowerCase();if(!q)return true;return String(r.nReg).includes(q)||(r.fornecedor||'').toLowerCase().includes(q)||(r.notas||[]).some(n=>String(n.nNota).includes(q));}
@@ -451,6 +456,8 @@ const COL_MOTIVO={codigo_nao_cadastrado:'Código não cadastrado',avaria:'Avaria
 const COL_BTN={pode_receber:'btn-green',devolver:'btn-red',liberar_validade:'btn-amber',aguarde:'btn-slate'};
 let COL=[],COLIDX={},colTotalChamados=null,colTimer=null,colDrw=null,colMudo=false;
 let colErro=false,colBusy=false,drwCod=null;   /* drwCod = código QUE ESTÁ NA TELA do painel */
+let drwRender=null;   /* o que o painel está mostrando agora, pra não refazer à toa */
+function colDiaMudou(){colTotalChamados=null;}   /* outro dia = outra contagem de chamados */
 try{colMudo=localStorage.getItem('fiscal_col_mudo')==='1';}catch(e){}
 
 /* chamados em aberto = mensagens da loja depois da última resposta da central */
@@ -509,9 +516,11 @@ async function colPoll(){
   if(colTotalChamados!==null&&agora>colTotalChamados)colBeep();
   colTotalChamados=agora;
   colAtualizarCelulas();
-  /* re-renderiza o painel INTEIRO (não só as mensagens): se a loja mandou outro produto, o
-     "Vai anexado" tem que acompanhar, senão "Devolver" sai no item errado. */
-  if(colDrw){if(colPorId(colDrw))renderDrw();else fecharDrw();}
+  /* O painel precisa acompanhar (se a loja mandou outro produto, o "Vai anexado" tem que mudar,
+     senão "Devolver" sai no item errado), mas refazer o innerHTML a cada 15 s mataria o
+     textarea em foco e comeria o que o fiscal estivesse digitando. Por isso: só refaz quando a
+     impressão digital muda, e renderDrw() devolve foco e seleção depois da troca. */
+  if(colDrw){const c=colPorId(colDrw);if(!c)fecharDrw();else if(drwFing(c)!==drwRender)renderDrw();}
 }
 /* Ao voltar pra aba, o poll roda na hora e compara com o último total conhecido: o que chegou
    com a aba escondida bipa uma vez só, em vez de passar batido. */
@@ -519,9 +528,11 @@ document.addEventListener('visibilitychange',function(){colTimerSync();if(!docum
 
 /* painel lateral: histórico da nota + respostas rápidas (ações no topo) */
 function abrirDrw(id){colDrw=id;renderDrw();}
-function fecharDrw(){colDrw=null;drwCod=null;const w=$('#drw-wrap');w.hidden=true;w.innerHTML='';}
+function fecharDrw(){colDrw=null;drwCod=null;drwRender=null;const w=$('#drw-wrap');w.hidden=true;w.innerHTML='';}
 function drwUltimoCod(){const c=colPorId(colDrw);if(!c)return null;const ms=(c.mensagens||[]).filter(m=>m.de==='loja'&&m.cod);return ms.length?ms[ms.length-1].cod:null;}
 function drwDesc(c,cod){if(!cod)return '';const i=(c.itens||{})[cod];return (i&&i.descricao)||'';}
+/* tudo que o painel mostra: nº de mensagens, data da última, produto anexado e o cabeçalho */
+function drwFing(c){const ms=c.mensagens||[];return [c.id,ms.length,ms.length?ms[ms.length-1].em:'',drwUltimoCod()||'',c.status,c.nome||'',c.fornecedor||'',c.nNota||''].join('|');}
 function drwMsgsHtml(c){
   const ms=(c.mensagens||[]).map(function(m){
     const central=m.de==='central';
@@ -545,7 +556,10 @@ function renderDrw(){
   const prod=cod
     ?'📦 Vai anexado: <b>'+esc(drwDesc(c,cod)||cod)+'</b> <span class="mono mut">'+esc(cod)+'</span>'
     :'<span class="mut">A loja não mandou código de produto nesta conversa.</span>';
-  const txt=(($('#drwTxt')||{}).value)||'';
+  const ta=$('#drwTxt');
+  const txt=ta?ta.value:'';
+  const focado=!!ta&&document.activeElement===ta;
+  const selI=ta?ta.selectionStart:0,selF=ta?ta.selectionEnd:0;
   w.innerHTML='<div id="drwBack" onclick="fecharDrw()"></div><div id="drw">'
     +'<div class="dh"><button class="x" onclick="fecharDrw()" title="Fechar">×</button><b>'+esc(c.fornecedor||'—')+'</b>'
     +'<div style="font-size:11.5px;color:#B8C0D4;margin-top:3px">NF-e '+esc(c.nNota)+' · '+LJ(c.loja)+' · conferente '+esc(c.nome||'—')+' · <span class="col-st col-'+esc(c.status)+'">'+esc(COL_ST[c.status]||c.status)+'</span></div></div>'
@@ -556,7 +570,12 @@ function renderDrw(){
     +'<div class="dmsgs" id="drwMsgs">'+drwMsgsHtml(c)+'</div></div>';
   w.hidden=false;
   const el=$('#drwMsgs');if(el)el.scrollTop=perto?el.scrollHeight:topo;
+  /* o textarea é outro elemento depois do innerHTML: devolve o cursor onde estava */
+  const ta2=$('#drwTxt');
+  if(ta2&&focado){ta2.focus();try{ta2.setSelectionRange(selI,selF);}catch(e){}}
+  drwRender=drwFing(c);
 }
+function ftoast(m,ruim){const t=$('#ftoast');if(!t)return;t.textContent=m;t.className=(ruim?'ruim ':'')+'show';clearTimeout(t._x);t._x=setTimeout(function(){t.className='';},3600);}
 async function responderDrw(acao){
   const c=colPorId(colDrw);if(!c)return;
   const texto=(($('#drwTxt')||{}).value||'').trim();
@@ -567,7 +586,9 @@ async function responderDrw(acao){
     if(r&&r.error)throw new Error(r.error);
   }catch(e){alert('Não deu pra responder a loja: '+e.message);return;}
   const t=$('#drwTxt');if(t)t.value='';
-  await colCarregar();
+  /* a resposta JÁ foi gravada; se a releitura falhar, não dá pra redesenhar como se tivesse
+     atualizado — avisa e deixa na tela o que se sabe, sem inventar. */
+  if(!await colCarregar()){ftoast('Resposta enviada, lista sem atualização.',true);return;}
   if(!document.hidden)colTotalChamados=colTotal();   /* baseline só se a aba estiver à vista */
   colAtualizarCelulas();renderDrw();
 }
