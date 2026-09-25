@@ -41,8 +41,18 @@ const ERP = [
   { codigobarra: '111', descricao: 'ACHOC LIQ NESCAU 180ML CX27', preco: '39.54', Qtd: 10, Unid: 'CX', qtdemb: 27 },
   { codigobarra: '222', descricao: 'AGUA SANITARIA X 1L CX12', preco: '21.21', Qtd: 3, Unid: null, qtdemb: 0 },   // ERP sem unidade → usa o app
   { codigobarra: '333', descricao: 'SEM FOTO NO APP CX6', preco: '5.00', Qtd: 1, Unid: '', qtdemb: 0 },
-  { codigobarra: '444', descricao: 'ALA LAVA ROUPAS 400G', preco: '8.90', Qtd: 5, Unid: 'UN ', qtdemb: 27 },   // UN no ERP manda, mesmo com qtdemb e app dizendo CX
+  { codigobarra: '444', descricao: 'ALA LAVA ROUPAS 400G', preco: '8.90', Qtd: 5, Unid: 'UN ', qtdemb: 27 },   // sem cadastro na Embalagem Vendas → nome → UN
 ];
+const EV = { Codigobarra: '555', Und_venda: 'CX', Qtd_venda: 12, emb_multipla: 1 };
+
+test('embalagemDoItem: cadastro Embalagem Vendas manda; sem cadastro cai no nome', () => {
+  const e = m.embalagemDoItem;
+  assert.deepEqual(e({ ...EV }, 'X'), { unidade: 'CX', qtdEmbalagem: 12, origemEmb: 'cadastro' });
+  assert.deepEqual(e({ UndVenda: 'un', Qtd_venda: 20 }, 'RACAO SC20KG'), { unidade: 'UN', qtdEmbalagem: 1, origemEmb: 'cadastro' });   // UN ignora a qtd (é peso)
+  assert.deepEqual(e({ Und_venda: 'FD', Qtd_venda: '10' }, 'ARROZ FD10'), { unidade: 'FD', qtdEmbalagem: 10, origemEmb: 'cadastro' });
+  assert.deepEqual(e({ Und_venda: null, Qtd_venda: null, Unid: 'UN' }, 'NESCAU CX27'), { unidade: 'CX', qtdEmbalagem: 27, origemEmb: 'nome' });
+  assert.deepEqual(e({ Unid: 'UN' }, 'ALA 400G'), { unidade: 'UN', qtdEmbalagem: 1, origemEmb: 'nome' });   // Unid do cadastro geral não conta
+});
 const CAT = new Map([
   ['111', { nome: 'Nescau', categoria: 'Mercearia', unidade: 'CX', qtdEmbalagem: 27, imagem: 'https://x/1.jpg' }],
   ['222', { nome: 'Agua', categoria: 'Limpeza', unidade: 'CX', qtdEmbalagem: 12, imagem: 'https://x/2.jpg' }],
