@@ -59,6 +59,10 @@
     { id: 'dedo-duro', ic: 'alert', txt: 'Dedo Duro', sub: [
         { href: '/dedo-duro.html', ic: 'alert', txt: 'Dedo Duro' }
       ]},
+    { id: 'dp-rh', ic: 'folder', txt: 'DP / RH', sub: [
+        { href: '/rh.html', ic: 'list', txt: 'Recursos Humanos (RH)' },
+        { href: '/dp.html', ic: 'list', txt: 'Departamento Pessoal (DP)' }
+      ]},
     { id: 'financeiro', ic: 'bank', txt: 'Financeiro', sub: [
         { href: '/conciliador.html', ic: 'bank', txt: 'Conciliação de Saídas' },
         { href: '/conciliador-entradas.html', ic: 'bank', txt: 'Conciliação de Entradas' },
