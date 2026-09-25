@@ -219,6 +219,8 @@ app.use((req, res, next) => {
   if (/^\/pedido\/[a-f0-9]{32}(\/pdf)?$/.test(req.path) || /^\/api\/pedido-publico\/[a-f0-9]{32}(\/|$)/.test(req.path)) return next();
   // Link do CD (Centro de Distribuição): pedido(s) das lojas por token(s) de 32 hex, sem login
   if (/^\/cd\/[a-f0-9]{32}(,[a-f0-9]{32}){0,20}$/.test(req.path) || /^\/api\/cd-publico\/[a-f0-9]{32}(,[a-f0-9]{32}){0,20}$/.test(req.path)) return next();
+  // TV do televendas da CAHU: página e API públicas por token de 32 hex (só leitura, preço da Tabela Retirada)
+  if (/^\/tv-televendas\/[a-f0-9]{32}$/.test(req.path) || /^\/api\/tv-televendas-publico\/[a-f0-9]{32}$/.test(req.path)) return next();
   // Link do fornecedor na Cotação: mesmo esquema (token de 32 hex por fornecedor convidado)
   if (/^\/cotacao\/[a-f0-9]{32}$/.test(req.path) || /^\/api\/cotacao-publica\/[a-f0-9]{32}(\/|$)/.test(req.path)) return next();
   // PDF de promoções/preços off: público por token de 32 hex (pra mandar no WhatsApp)
@@ -7453,6 +7455,9 @@ setInterval(() => precificacao.verificarTodos().catch(e => console.error('[PRECI
 // ═══════════════════════════════════════════════════
 const pedidosCD = require('./lib/pedidos-cd');
 pedidosCD.init({ q, mesDB });
+// TV do televendas da CAHU (aba "TV Televendas" do Centro de Distribuição) — lib/tv-televendas.js
+const tvTelevendas = require('./lib/tv-televendas');
+tvTelevendas.init({ q });
 pedidosCD.agendar();
 setTimeout(() => pedidosCD.verificar().catch(e => console.error('[PEDIDOS-CD] verificar:', e.message)), 150 * 1000);
 setInterval(() => pedidosCD.verificar().catch(e => console.error('[PEDIDOS-CD] verificar:', e.message)), 5 * 60 * 1000); // 5 min: nota lançada na loja aparece logo (era 30 min, 18/09/2026)
@@ -7510,6 +7515,38 @@ app.post('/api/pedidos-cd/pedidos/:id/cancelar', (req, res) => {
 });
 app.post('/api/pedidos-cd/verificar', async (req, res) => {
   try { res.json(await pedidosCD.verificar()); } catch (err) { res.status(500).json({ error: err.message }); }
+});
+// ── TV Televendas (CAHU) ─────────────────────────────────────────────────────
+app.get('/api/pedidos-cd/tv-config', async (req, res) => {
+  const c = tvTelevendas.getConfig();
+  try { await tvTelevendas.carregarProdutos(false); } catch (e) { console.error('[TV-TELEVENDAS] produtos:', e.message); }
+  res.json({ config: c, linkTV: `${PUBLIC_URL}/tv-televendas/${c.token}`, totais: tvTelevendas.totais() });
+});
+app.post('/api/pedidos-cd/tv-config', (req, res) => {
+  try { const c = tvTelevendas.salvarConfig(req.body || {}, req.session.user?.nome || null); res.json({ config: c, linkTV: `${PUBLIC_URL}/tv-televendas/${c.token}` }); }
+  catch (err) { res.status(400).json({ error: err.message }); }
+});
+app.post('/api/pedidos-cd/tv-config/novo-token', (req, res) => {
+  const c = tvTelevendas.novoToken();
+  res.json({ config: c, linkTV: `${PUBLIC_URL}/tv-televendas/${c.token}` });
+});
+app.get('/api/pedidos-cd/tv-config/produtos', async (req, res) => {
+  try { res.json(await tvTelevendas.buscarProdutos(req.query.q)); }
+  catch (err) { res.status(503).json({ error: 'ERP indisponível: ' + err.message }); }
+});
+app.get('/tv-televendas/:token', (req, res) => {
+  if (!tvTelevendas.tokenValido(req.params.token)) return res.status(404).send('Link inválido. Gere um novo link na aba TV Televendas do Centro de Distribuição.');
+  res.set('Cache-Control', 'no-store');
+  res.sendFile(path.join(__dirname, 'public', 'tv-televendas.html'));
+});
+app.get('/api/tv-televendas-publico/:token', async (req, res) => {
+  if (!tvTelevendas.tokenValido(req.params.token)) return res.status(404).json({ error: 'Link inválido' });
+  res.set('Cache-Control', 'no-store');
+  try {
+    const produtos = await tvTelevendas.carregarProdutos(false);
+    const { token, atualizadoPor, ...config } = tvTelevendas.getConfig();
+    res.json({ config, produtos, geradoEm: (tvTelevendas.totais() || {}).geradoEm || null });
+  } catch (err) { res.status(503).json({ error: 'Sem dados no momento: ' + err.message }); }
 });
 app.get('/api/pedidos-cd/config', (req, res) => res.json(pedidosCD.getConfig()));
 app.post('/api/pedidos-cd/config', (req, res) => {

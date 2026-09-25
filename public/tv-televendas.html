@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TV Televendas · CAHU Distribuidora</title>
+<!-- TV do televendas da CAHU: loop com preços da Tabela Retirada + tela do app.
+     Aberta por link com token (sem login). Config vem da aba "TV Televendas" do
+     Centro de Distribuição e é relida a cada 60 s. Abrir com ?kiosk=1 esconde o
+     botão de tela cheia (Chrome em modo quiosque já abre em tela cheia). -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700;800&family=Barlow:wght@400;500;600&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+:root{--ink:#141414;--paper:#f6f4ec;--amarelo:#FFD500;--fd:"Barlow Condensed","Arial Narrow",Impact,sans-serif;--fb:"Barlow","Segoe UI",Arial,sans-serif}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:#000;color:var(--paper);font-family:var(--fb);overflow:hidden;cursor:none}
+#tv{position:fixed;inset:0;background:#000}
+.slide{position:absolute;inset:0;opacity:0;transition:opacity .6s ease;font-size:calc(var(--u) * 1px)}
+.slide>div{position:absolute;inset:0;display:flex;flex-direction:column}
+.slide.on{opacity:1}
+@media (prefers-reduced-motion:reduce){.slide{transition:none}}
+.foot{display:flex;align-items:center;gap:1.8em;padding:0 2.6em;height:7em;background:var(--ink);border-top:.15em solid var(--amarelo);flex:none}
+.foot img{height:5.2em;width:auto;background:#fff;border-radius:.5em;padding:.6em 1.1em}
+.foot .txt{font:500 1.35em var(--fb);color:#d8d5ca}
+.foot .txt b{color:var(--amarelo);font-weight:600}
+.foot .sp{flex:1}
+.foot .cnt{font:700 1.7em var(--fd);color:#fff;letter-spacing:.04em;font-variant-numeric:tabular-nums}
+.foot .clk{font:700 1.7em var(--fd);color:var(--amarelo);font-variant-numeric:tabular-nums}
+.prog{position:absolute;left:0;bottom:0;height:.35em;font-size:calc(var(--u) * 1px);background:var(--amarelo);width:0;z-index:3}
+/* produto */
+.prod{background:radial-gradient(120% 100% at 0% 0%,#232323 0,#0f0f0f 60%)}
+.prod .main{flex:1;display:grid;grid-template-columns:44fr 56fr;gap:3em;padding:3em 4em 2.4em;min-height:0}
+.prod .foto{background:#fff;border-radius:1.4em;display:flex;align-items:center;justify-content:center;padding:2.4em;min-height:0;position:relative}
+.prod .foto img{max-width:100%;max-height:100%;width:100%;height:100%;object-fit:contain}
+.prod .foto img.semfoto{opacity:.15;width:50%;height:auto}
+.prod .info{display:flex;flex-direction:column;justify-content:center;gap:1.2em;min-width:0}
+.chip{display:inline-flex;align-self:flex-start;font:700 1.35em var(--fd);letter-spacing:.14em;text-transform:uppercase;padding:.35em .9em;border:.12em solid var(--amarelo);color:var(--amarelo);border-radius:.4em}
+.nome{font:800 4.6em/.98 var(--fd);text-transform:uppercase;text-wrap:balance;color:#fff;margin:0}
+.eyebrow{font:600 1.5em var(--fb);letter-spacing:.2em;text-transform:uppercase;color:#a5a196}
+.preco{display:flex;align-items:baseline;gap:.25em;margin-top:-.2em}
+.preco .rs{font:700 3.2em var(--fd);color:var(--amarelo)}
+.preco .v{font:800 10.5em/.9 var(--fd);color:var(--amarelo);letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.preco .un{font:700 2.4em var(--fd);color:#e8e5da;text-transform:uppercase;letter-spacing:.04em;margin-left:.3em}
+.sub{font:500 1.75em var(--fb);color:#bfbbae}.sub b{color:#fff;font-weight:600}
+.ribbon{position:absolute;top:1.4em;left:-.6em;background:var(--amarelo);color:var(--ink);font:800 1.7em var(--fd);letter-spacing:.14em;text-transform:uppercase;padding:.35em 1.1em .35em 1.3em;box-shadow:.2em .3em 0 rgba(0,0,0,.35);z-index:1}
+.prod.destaque{background:radial-gradient(110% 100% at 100% 0%,#4a3d00 0,#0f0f0f 65%)}
+.prod.destaque .foto{outline:.35em solid var(--amarelo);outline-offset:.4em}
+/* grade */
+.grade{background:#0f0f0f}
+.grade .top{display:flex;align-items:baseline;gap:1.2em;padding:2em 4em 0}
+.grade .top h2{font:800 3.2em/1 var(--fd);text-transform:uppercase;margin:0;color:#fff;letter-spacing:.02em}
+.grade .top .pg{font:700 1.8em var(--fd);color:var(--amarelo);letter-spacing:.06em;font-variant-numeric:tabular-nums}
+.grade .top .cat{margin-left:auto;font:600 1.3em var(--fb);letter-spacing:.18em;text-transform:uppercase;color:#a5a196}
+.grade .cards{flex:1;display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(2,1fr);gap:1.6em;padding:1.8em 4em 2em;min-height:0}
+.card{background:#fff;color:var(--ink);border-radius:1em;display:flex;flex-direction:column;overflow:hidden;min-height:0}
+.card .im{flex:1;display:flex;align-items:center;justify-content:center;padding:1.2em 1.2em .4em;min-height:0}
+.card .im img{max-height:100%;max-width:100%;object-fit:contain;height:100%}
+.card .im img.semfoto{opacity:.15;height:40%}
+.card .tx{padding:.5em 1.1em 1em;display:flex;flex-direction:column;gap:.35em}
+.card .n{font:600 1.15em/1.15 var(--fb);text-transform:uppercase;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.3em;color:#333}
+.card .p{display:flex;align-items:baseline;gap:.2em;font-variant-numeric:tabular-nums}
+.card .p .rs{font:700 1.3em var(--fd);color:#6b6a63}
+.card .p .v{font:800 3em/1 var(--fd);color:var(--ink)}
+.card .p .u{font:600 1.05em var(--fb);color:#6b6a63;margin-left:.3em;text-transform:uppercase}
+.card.hot{outline:.3em solid var(--amarelo);outline-offset:-.3em}
+.card.hot .p .v{color:#9a7b00}
+/* app */
+.app{background:var(--amarelo);color:var(--ink);overflow:hidden}
+.app .main{flex:1;display:grid;grid-template-columns:58fr 42fr;padding:3em 4em 2em;gap:2em;align-items:center;min-height:0;position:relative;z-index:1}
+.app .logo{height:7em;width:auto;background:#fff;padding:1em 1.6em;border-radius:.8em;box-shadow:0 .6em 1.6em rgba(0,0,0,.18)}
+.app .kicker{font:800 1.9em var(--fd);letter-spacing:.2em;text-transform:uppercase;background:var(--ink);color:var(--amarelo);display:inline-block;padding:.35em 1em;border-radius:.3em;margin-top:1.4em}
+.app h2{font:800 8.2em/.9 var(--fd);text-transform:uppercase;margin:.15em 0 .1em;text-wrap:balance}
+.app h2 span{color:#fff;-webkit-text-stroke:.03em var(--ink);text-shadow:.06em .06em 0 var(--ink)}
+.app p{font:500 2.1em/1.25 var(--fb);margin:.2em 0 0;max-width:22em}
+.app ul{list-style:none;margin:1.2em 0 0;padding:0;display:flex;gap:1.2em;flex-wrap:wrap}
+.app li{font:700 1.5em var(--fd);letter-spacing:.06em;text-transform:uppercase;border:.13em solid var(--ink);border-radius:2em;padding:.35em 1em}
+.phone{justify-self:center;width:19em;height:38em;background:var(--ink);border-radius:3em;padding:1em;box-shadow:0 2em 4em rgba(0,0,0,.3);transform:rotate(-5deg);position:relative}
+.phone .scr{background:#fff;border-radius:2.2em;height:100%;overflow:hidden;display:flex;flex-direction:column}
+.phone .ph{background:var(--amarelo);padding:2.2em 1.2em .9em;display:flex;align-items:center;gap:.6em}
+.phone .ph img{height:2em;background:#fff;border-radius:.3em;padding:.15em .3em}
+.phone .ph b{font:800 1.4em var(--fd);color:var(--ink);text-transform:uppercase}
+.phone .pg{display:grid;grid-template-columns:1fr 1fr;gap:.6em;padding:.8em}
+.phone .pc{border:.1em solid #e5e2d8;border-radius:.7em;padding:.5em;display:flex;flex-direction:column;gap:.3em}
+.phone .pc img{height:5em;object-fit:contain}
+.phone .pc i{font:500 .75em/1.1 var(--fb);color:#444;font-style:normal;text-transform:uppercase;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.phone .pc b{font:800 1.2em var(--fd);color:var(--ink)}
+.phone .btn{margin:auto .8em .8em;background:var(--amarelo);border-radius:.6em;text-align:center;font:800 1.1em var(--fd);padding:.6em;text-transform:uppercase;letter-spacing:.06em}
+.qr{position:absolute;right:4em;bottom:8.4em;width:9em;height:9em;background:#fff;border-radius:.6em;display:flex;align-items:center;justify-content:center;text-align:center;font:700 1.3em var(--fd);letter-spacing:.1em;text-transform:uppercase;color:#777;padding:.6em;box-shadow:0 .4em 1.2em rgba(0,0,0,.2);z-index:2}
+.qr img,.qr canvas{width:100%!important;height:100%!important}
+.app .foot{background:var(--ink)}
+.stripes{position:absolute;inset:0;background:repeating-linear-gradient(-35deg,transparent 0 3em,rgba(0,0,0,.05) 3em 3.6em);pointer-events:none}
+/* tema amarelo */
+.am .prod,.am .prod.destaque{background:var(--amarelo)}
+.am .prod .foto{box-shadow:0 1em 2.5em rgba(0,0,0,.18)}
+.am .prod.destaque .foto{outline-color:var(--ink)}
+.am .chip{border-color:var(--ink);color:var(--ink)}
+.am .nome{color:var(--ink)}.am .eyebrow{color:#5a4d00}
+.am .preco .rs,.am .preco .v{color:var(--ink)}.am .preco .un{color:#3a3200}
+.am .sub{color:#4a4000}.am .sub b{color:var(--ink)}
+.am .ribbon{background:var(--ink);color:var(--amarelo)}
+.am .grade{background:var(--amarelo)}
+.am .grade .top h2{color:var(--ink)}.am .grade .top .pg,.am .grade .top .cat{color:#5a4d00}
+.am .card{box-shadow:0 .5em 1.4em rgba(0,0,0,.14)}.am .card.hot{outline-color:var(--ink)}
+.am .app{background:var(--ink);color:#fff}
+.am .app .kicker{background:var(--amarelo);color:var(--ink)}
+.am .app h2 span{color:var(--amarelo);-webkit-text-stroke:0;text-shadow:none}
+.am .app li{border-color:var(--amarelo);color:var(--amarelo)}
+.am .stripes{background:repeating-linear-gradient(-35deg,transparent 0 3em,rgba(255,255,255,.04) 3em 3.6em)}
+.am .phone{background:var(--amarelo)}
+/* avisos e tela cheia */
+.msg{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.5em;font-size:calc(var(--u) * 1px);background:#000;z-index:5}
+.msg img{height:8em;background:#fff;padding:1em 1.8em;border-radius:.8em}
+.msg h1{font:800 4em var(--fd);text-transform:uppercase;margin:0;color:var(--amarelo);text-align:center}
+.msg p{font:500 1.8em var(--fb);color:#bfbbae;margin:0;text-align:center;max-width:30em}
+#fs{position:absolute;inset:0;z-index:6;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);cursor:pointer}
+#fs button{font:800 calc(var(--u) * 3.2px) var(--fd);letter-spacing:.08em;text-transform:uppercase;background:var(--amarelo);color:var(--ink);border:0;border-radius:.4em;padding:.6em 1.6em;cursor:pointer;box-shadow:0 1em 3em rgba(0,0,0,.6)}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div id="tv"><div class="slide" id="A"></div><div class="slide" id="B"></div><div class="prog" id="prog"></div><div id="aviso" class="msg" hidden></div><div id="fs" hidden><button type="button">Tela cheia</button></div></div>
+<script>
+const TOKEN = location.pathname.split('/').pop();
+const KIOSK = new URLSearchParams(location.search).get('kiosk') === '1';
+const LOGO = '/logo-cahu-nova.png';
+const fmt = v => Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const $ = s => document.querySelector(s);
+
+let CFG = null, PRODUTOS = [], SEQ = [], idx = 0, front = 'A', timer = null, assinatura = '';
+
+// mesma regra de lib/tv-televendas.js montarSequencia
+function montarSequencia(produtos, cfg) {
+  const seq = []; let n = 0; const cada = Math.max(2, Number(cfg.appCada) || 5);
+  const app = () => seq.push({ t: 'app' });
+  const conta = () => { if (++n % cada === 0) app(); };
+  if (cfg.modo === 'individual') produtos.forEach(p => { seq.push({ t: 'prod', item: p }); conta(); });
+  else {
+    const dest = cfg.modo === 'misto' ? produtos.filter(p => p.destaque) : [];
+    const paginas = Math.ceil(produtos.length / 8); let d = 0;
+    for (let k = 0; k < paginas; k++) {
+      seq.push({ t: 'grade', itens: produtos.slice(k * 8, (k + 1) * 8), pagina: k + 1, paginas }); conta();
+      if (dest.length && (k + 1) % 2 === 0) { seq.push({ t: 'destaque', item: dest[d++ % dest.length] }); conta(); }
+    }
+  }
+  if (!seq.length) app();
+  return seq;
+}
+
+const foto = (p, cls) => p.imagem ? `<img src="${esc(p.imagem)}" alt="">` : `<img class="semfoto" src="${LOGO}" alt="">`;
+function foot(txt, cnt) { const h = new Date().toTimeString().slice(0, 5); return `<div class="foot"><img src="${LOGO}" alt="CAHU"><span class="txt">${txt}</span><span class="sp"></span><span class="cnt">${cnt}</span><span class="clk">${h}</span></div>`; }
+function rProd(s, pos) {
+  const p = s.item; const unit = p.qtdEmbalagem > 1 ? `<div class="sub">Caixa com <b>${p.qtdEmbalagem} un</b> · sai a <b>R$ ${fmt(p.preco / p.qtdEmbalagem)}</b> a unidade</div>` : '';
+  const n = PRODUTOS.indexOf(p) + 1;
+  return `<div class="prod${s.t === 'destaque' ? ' destaque' : ''}"><div class="main"><div class="foto">${s.t === 'destaque' ? '<div class="ribbon">Destaque da semana</div>' : ''}${foto(p)}</div><div class="info">${p.categoria ? `<span class="chip">${esc(p.categoria)}</span>` : ''}<h2 class="nome">${esc(p.nome)}</h2><div class="eyebrow">Tabela Retirada · preço de hoje</div><div class="preco"><span class="rs">R$</span><span class="v">${fmt(p.preco)}</span>${p.unidade ? `<span class="un">/ ${esc(p.unidade)}</span>` : ''}</div>${unit}</div></div>${foot('CAHU Distribuidora · <b>Tabela Retirada</b> · retire no CD e economize', `${n} / ${PRODUTOS.length}`)}</div>`;
+}
+function rGrade(s) {
+  const cats = [...new Set(s.itens.map(p => p.categoria).filter(Boolean))].slice(0, 3).map(esc).join(' · ');
+  const ini = PRODUTOS.indexOf(s.itens[0]) + 1, fim = PRODUTOS.indexOf(s.itens[s.itens.length - 1]) + 1;
+  return `<div class="grade"><div class="top"><h2>Tabela Retirada</h2><span class="pg">página ${s.pagina} de ${s.paginas}</span><span class="cat">${cats}</span></div><div class="cards">${s.itens.map(p => `<div class="card${CFG.modo === 'misto' && p.destaque ? ' hot' : ''}"><div class="im">${foto(p)}</div><div class="tx"><div class="n">${esc(p.nome)}</div><div class="p"><span class="rs">R$</span><span class="v">${fmt(p.preco)}</span>${p.unidade ? `<span class="u">/${esc(p.unidade)}</span>` : ''}</div></div></div>`).join('')}</div>${foot('CAHU Distribuidora · <b>Tabela Retirada</b> · preços de hoje', `${ini}–${fim} / ${PRODUTOS.length}`)}</div>`;
+}
+function rApp() {
+  const a = CFG.app || {}; const am = PRODUTOS.filter(p => p.imagem).slice(0, 4);
+  const titulo = esc(a.titulo || 'Vem aí o app CAHU Delivery').replace(/\bapp\b/i, '<span>app</span>');
+  return `<div class="app"><div class="stripes"></div><div class="main"><div><img class="logo" src="${LOGO}" alt="CAHU"><div><span class="kicker">Em breve</span></div><h2>${titulo}</h2><p>${esc(a.frase || '')}</p><ul>${(a.chamadas || []).map(c => `<li>${esc(c)}</li>`).join('')}</ul></div><div class="phone"><div class="scr"><div class="ph"><img src="${LOGO}" alt=""><b>CAHU Delivery</b></div><div class="pg">${am.map(p => `<div class="pc"><img src="${esc(p.imagem)}" alt=""><i>${esc(p.nome)}</i><b>R$ ${fmt(p.preco)}</b></div>`).join('')}</div><div class="btn">Fazer pedido</div></div></div></div><div class="qr" id="qr">${a.qrUrl ? '' : 'Em breve'}</div>${foot('<b>Aguarde o lançamento</b> · pergunte ao seu vendedor', '')}</div>`;
+}
+function render(s) { return s.t === 'app' ? rApp() : s.t === 'grade' ? rGrade(s) : rProd(s); }
+
+function mostrar() {
+  if (!SEQ.length) return;
+  const s = SEQ[idx % SEQ.length]; const nxt = front === 'A' ? 'B' : 'A'; const el = document.getElementById(nxt);
+  el.innerHTML = render(s);
+  if (s.t === 'app' && CFG.app && CFG.app.qrUrl && window.QRCode) { try { new QRCode(el.querySelector('#qr'), { text: CFG.app.qrUrl, width: 512, height: 512, correctLevel: QRCode.CorrectLevel.M }); } catch (e) {} }
+  requestAnimationFrame(() => { el.classList.add('on'); document.getElementById(front).classList.remove('on'); front = nxt; });
+  const pr = $('#prog'); pr.style.transition = 'none'; pr.style.width = '0';
+  requestAnimationFrame(() => requestAnimationFrame(() => { pr.style.transition = `width ${CFG.segundos * 1000}ms linear`; pr.style.width = '100%'; }));
+  clearTimeout(timer); timer = setTimeout(() => { idx++; mostrar(); }, CFG.segundos * 1000);
+}
+
+function aplicar(dados) {
+  const cfgNova = JSON.stringify(dados.config);
+  const prodNovo = JSON.stringify(dados.produtos.map(p => [p.ean, p.preco, p.destaque, p.imagem]));
+  const recomeca = cfgNova !== JSON.stringify(CFG) || prodNovo !== assinatura;
+  CFG = dados.config; PRODUTOS = dados.produtos; assinatura = prodNovo;
+  document.getElementById('tv').classList.toggle('am', CFG.tema === 'amarelo');
+  $('#aviso').hidden = true;
+  if (recomeca || !SEQ.length) { SEQ = montarSequencia(PRODUTOS, CFG); idx = 0; mostrar(); }
+}
+function aviso(titulo, texto) { $('#aviso').innerHTML = `<img src="${LOGO}" alt="CAHU"><h1>${esc(titulo)}</h1><p>${esc(texto)}</p>`; $('#aviso').hidden = false; }
+
+async function carregar() {
+  try {
+    const r = await fetch(`/api/tv-televendas-publico/${TOKEN}`, { cache: 'no-store' });
+    if (r.status === 404) { clearTimeout(timer); SEQ = []; return aviso('Link inválido', 'Gere um novo link na aba TV Televendas do Centro de Distribuição e abra ele na TV.'); }
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.statusText);
+    aplicar(await r.json());
+  } catch (e) {
+    if (!SEQ.length) aviso('Sem dados no momento', 'A TV tenta de novo em 1 minuto. ' + e.message);
+  }
+}
+function fit() { const w = innerWidth, h = innerHeight; const u = Math.min(w / 100, h / 56.25); document.getElementById('tv').style.setProperty('--u', u.toFixed(3)); }
+addEventListener('resize', fit); fit();
+
+// tela cheia: o navegador só libera com um toque; em quiosque (?kiosk=1) o botão nem aparece
+function fsOk() { return document.fullscreenElement || KIOSK || !document.documentElement.requestFullscreen; }
+function pedirFs() { document.documentElement.requestFullscreen().catch(() => {}); $('#fs').hidden = true; }
+$('#fs').onclick = pedirFs;
+document.addEventListener('keydown', e => { if (e.key === 'f' || e.key === 'F') pedirFs(); });
+document.addEventListener('fullscreenchange', () => { $('#fs').hidden = fsOk(); });
+$('#fs').hidden = fsOk();
+// relógio do rodapé sem esperar o próximo slide
+setInterval(() => { document.querySelectorAll('.slide.on .clk').forEach(c => c.textContent = new Date().toTimeString().slice(0, 5)); }, 15000);
+
+carregar();
+setInterval(carregar, 60000);
+</script>
+</body>
+</html>
