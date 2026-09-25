@@ -7,7 +7,7 @@ function setup() { const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rec-')); R
 test('PIN/token por loja', () => { setup(); const c = R.config(); assert.equal(Object.keys(c.lojas).length, 6); const t = R.lojaPorPin(3, c.lojas[3].pin); assert.equal(t.loja, 3); assert.equal(R.lojaPorToken(t.token).loja, 3); assert.equal(R.lojaPorPin(3, '0000'), null); });
 test('abrir + bipar: ok / recusado / bloqueado validade / não cadastrado / não está na nota', async () => {
   setup(); const c = R.abrirNota({ loja: 3, nome: 'MAYRA', chave: '2626'.padEnd(44, '0'), nNota: '911217', fornecedor: 'M DIAS', codFornec: 540 });
-  assert.equal(c.status, 'bipando'); assert.equal(c.id, '2026-09-25-3-911217');
+  assert.equal(c.status, 'bipando'); assert.match(c.id, /^2026-09-25-3-[0-9a-f]{10}$/);   // id = dia-loja-hash da chave (I4)
   let r = await R.bipar(c.id, { cod: '7896213007386', quant: 10, emb: 24, validade: '2027-03-28', nome: 'MAYRA' });
   assert.equal(r.resultado, 'ok'); assert.equal(r.item.un, 240); assert.equal(r.item.estado, 'ok'); assert.equal(r.item.emb_label, 'FD');
   r = await R.bipar(c.id, { cod: '7896213007386', quant: 1, emb: 24, validade: '2027-03-28' }); assert.equal(r.item.un, 264); assert.equal(r.item.bipagens, 2);
