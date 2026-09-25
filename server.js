@@ -7878,7 +7878,7 @@ app.get('/api/dp/ponto/resumo', async (req, res) => {
 // (liberar/reconferir/bloquear), tolerâncias e exemplos em data/fiscal/. Ver lib/fiscal.js.
 // ═══════════════════════════════════════════════════
 const fiscal = require('./lib/fiscal');
-fiscal.init(q, { pedidos: () => pedidosFornec.listar() });
+fiscal.init(q, { pedidos: () => pedidosFornec.listar(), recebimento: require('./lib/recebimento') });
 const fiscalPeriodo = req => { const ok = v => /^d{4}-d{2}-d{2}$/.test(v || ''); const de = ok(req.query.de) ? req.query.de : new Date().toISOString().slice(0, 10); const ate = ok(req.query.ate) && req.query.ate >= de ? req.query.ate : de; const loja = parseInt(req.query.loja) || null; return { de, ate, loja }; };
 const fiscalReg = req => { const n = parseInt(req.params.nReg, 10); return Number.isInteger(n) && n > 0 ? n : null; };
 app.get('/api/fiscal/recebimentos', async (req, res) => {

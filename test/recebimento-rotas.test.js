@@ -11,7 +11,7 @@ function fakeApp() {
   return { app: { get: (p, ...h) => registrar('GET', p, ...h), post: (p, ...h) => registrar('POST', p, ...h) }, routes };
 }
 function req({ query = {}, body = {}, params = {}, headers = {}, session = {} } = {}) { return { query, body, params, headers, session }; }
-function res() { const r = { statusCode: 200 }; r.status = c => { r.statusCode = c; return r; }; r.json = b => { r.body = b; return r; }; return r; }
+function res() { const r = { statusCode: 200 }; r.status = c => { r.statusCode = c; return r; }; r.json = b => { r.body = b; return r; }; r.sendFile = (f, o) => { r.arquivo = f; r.opcoes = o; return r; }; return r; }
 
 // Monta um ambiente novo (tmp dir isolado) com mocks de dependências externas (ERP de teste, ERP .252
 // via q, log coletor). Devolve routes + espiões pra inspecionar chamadas nos testes.
@@ -20,13 +20,14 @@ function montarAmbiente({ q, loteImpl, cnpj = '11222333000199' } = {}) {
   const dirBase = fs.mkdtempSync(path.join(os.tmpdir(), 'rec-rotas-'));
   const loteChamadas = [];
   const logs = [];
+  const pdfs = [];
   const escreverERP = { lote: async (args) => { loteChamadas.push(args); return loteImpl ? loteImpl(args) : { ok: true, id: 'LOG1', ids: ['NREG1'] }; } };
-  const pedidosFornec = { listar: () => [] };
+  const pedidosFornec = { listar: () => [], gerarPdfDevolucao: (p, ln, usuario, extras) => { pdfs.push({ p, ln, usuario, extras }); return path.join(dirBase, 'fake-devolucao.pdf'); } };
   const conferenciaXml = { LOJA_CNPJ: { 3: cnpj } };
   const logColetor = { registrar: (dir, ev) => logs.push(ev) };
   const qFn = q || (async () => []);
   montarRotasRecebimento(app, { q: qFn, path, escreverERP, pedidosFornec, conferenciaXml, logColetor, LOG_COLETOR_DIR: dirBase, __dirname: dirBase });
-  return { routes, loteChamadas, logs };
+  return { routes, loteChamadas, logs, pdfs };
 }
 
 test('/entrar com PIN errado devolve 401', async () => {
@@ -194,4 +195,48 @@ test('devolucoes só aparece na visão pública depois de Terminei (terminada/li
   const rDepois = res();
   await routes['GET /api/recebimento-publico/conferencia/:id'](req({ query: { t }, params: { id } }), rDepois);
   assert.ok(Array.isArray(rDepois.body.devolucoes), 'depois de terminar, a visão pública já traz devolucoes');
+});
+
+test('PDF de devolução: 404 sem conferência, 409 antes de Terminei, 200 com as 3 origens depois', async () => {
+  const daqui5dias = new Date(Date.now() + 5 * 864e5).toISOString().slice(0, 10);
+  const cad = { '789': { cod: '789', descricao: 'PRODUTO TESTE', qtdemb: 1, emb: 'UN', validar: 30 }, '456': { cod: '456', descricao: 'OUTRO PRODUTO', qtdemb: 1, emb: 'UN', validar: 0 } };
+  // nota com 2 itens: '789' (bipado com validade curta -> devolução 'coletor') e '456' (não veio -> 'falta')
+  const xmlLoja = () => ({ itens: [{ cod: '789', descricao: 'PRODUTO TESTE', un: 5 }, { cod: '456', descricao: 'OUTRO PRODUTO', un: 2 }], naoPedidos: [], status: 'consistencia' });
+  const { routes, pdfs } = montarAmbiente({ q: async () => [] });
+  recebimento.init({ dir: fs.mkdtempSync(path.join(os.tmpdir(), 'rec-rotas-')), cadastro: async c => cad[c] || null, xmlLoja });
+  const cfg = recebimento.config(); const t = cfg.lojas[3].token;
+  const rota = routes['GET /api/recebimento/:id/devolucao/pdf'];
+  assert.ok(rota, 'rota do PDF registrada');
+
+  const rNao = res();
+  await rota(req({ params: { id: '2000-01-01-3-999' } }), rNao);
+  assert.equal(rNao.statusCode, 404);
+
+  const rAbrir = res();
+  await routes['POST /api/recebimento-publico/abrir'](req({ query: { t }, body: { chave: 'H'.repeat(44), nNota: '77', fornecedor: 'FORN', codFornec: 1, nome: 'ana' } }), rAbrir);
+  const id = rAbrir.body.id;
+  await routes['POST /api/recebimento-publico/bipar'](req({ query: { t }, body: { id, cod: '789', quant: 5, emb: 1, validade: daqui5dias } }), res());
+
+  const rAntes = res();
+  await rota(req({ params: { id } }), rAntes);
+  assert.ok([403, 409].includes(rAntes.statusCode), 'sem Terminei não gera o PDF (403/409)');
+  assert.equal(pdfs.length, 0);
+
+  // a loja termina assim mesmo (item '456' não veio -> falta)
+  await routes['POST /api/recebimento-publico/terminei'](req({ query: { t }, body: { id } }), res());
+  await routes['POST /api/recebimento-publico/enviar'](req({ query: { t }, body: { id } }), res());
+
+  const rOk = res();
+  await rota(req({ params: { id }, session: { user: { nome: 'FISCAL' } } }), rOk);
+  assert.equal(rOk.statusCode, 200);
+  assert.ok(rOk.arquivo, 'streamou o arquivo do PDF');
+  assert.match(rOk.opcoes.headers['Content-Type'], /pdf/);
+  assert.equal(pdfs.length, 1, 'chamou gerarPdfDevolucao uma vez');
+  const ex = pdfs[0].extras;
+  assert.ok(ex && Array.isArray(ex.itens), 'passou extras com a lista de devolução (e não recusasLoja)');
+  assert.equal(pdfs[0].p, null);
+  assert.equal(ex.loja, 3); assert.equal(ex.motorista, true); assert.equal(ex.id, id);
+  assert.equal(ex.nota.nNota, '77'); assert.equal(ex.nota.fornecedor, 'FORN');
+  assert.ok(ex.itens.some(d => d.cod === '789' && d.origem === 'coletor'), 'validade curta -> origem coletor');
+  assert.ok(ex.itens.some(d => d.cod === '456' && d.origem === 'falta'), 'item da nota não bipado -> origem falta');
 });
