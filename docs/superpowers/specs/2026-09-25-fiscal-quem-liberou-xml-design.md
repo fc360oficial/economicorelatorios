@@ -12,8 +12,7 @@ Compra (aceitar/recusar) ou fechou a loja com motivo, o fiscal não vê isso e n
 - Acrescenta-se uma linha extra por item, só informativa:
   - item aceito: `✓ Liberado por <nome> em dd/mm (item a mais | item não pedido | preço)`
   - item recusado: `↩ Recusado por <nome> em dd/mm — devolver`
-- Loja fechada com "Aceitar e fechar Loja N": o check **Pedido de compra** ganha
-  `· consistência aceita por <nome> em dd/mm: <motivo>`.
+- Loja fechada com "Aceitar e fechar Loja N": NÃO aparece no card (Tiago 25/09: ficava grande e feio); `aceitos` fica disponível em `pedidoAppPorCod` sem uso na tela.
 - Fonte: `p.xml.lojas[ln].itens[].decisao` / `nao_pedidos[].decisao` / `lojas[ln].aceito` dos JSONs de
   `data/pedidos-fornecedor` (já gravados por `decidirItemXml` e `aceitarLojaXml`). Nada no ERP.
 - Vale também quando o ERP tem pedido próprio: a decisão do app é anexada ao item mesmo assim.
