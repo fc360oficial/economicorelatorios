@@ -141,6 +141,13 @@
   .empty{padding:26px 14px;text-align:center;color:var(--ink3);font-size:12px}
   .nosrc{padding:16px 14px;font-size:12px;color:var(--ink2);line-height:1.5}
   .nosrc b{color:var(--ink)}
+  .fin-big{padding:10px 14px 4px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}.fin-big b{font-size:22px;font-weight:800;letter-spacing:-.3px}.fin-big small{font-size:11px;color:var(--ink3)}
+  .fin-comp{padding:0 14px 8px;font-size:11px;color:var(--ink2);display:flex;gap:12px;flex-wrap:wrap}.fin-comp b{color:var(--ink)}
+  .fin-alert{margin:8px 14px 4px;padding:8px 10px;border-radius:8px;background:var(--negw);color:var(--neg);font-size:11.5px;line-height:1.4}.fin-alert b{font-weight:800}
+  .fin-note{padding:8px 14px;font-size:11px;color:var(--ink3);border-top:1px solid #F0F0EE}
+  .fin-mut{color:var(--ink3);font-size:10px;font-weight:400}
+  table.m tr.fin-hl td{background:var(--amw,#FFF6D9);box-shadow:inset 3px 0 0 #F5B800}
+  table.m tr.fin-tot td{border-top:2px solid var(--ln,#DADAD6);font-weight:700}
   .spin{width:24px;height:24px;border:3px solid var(--ln,#DADAD6);border-top-color:#F5B800;border-radius:50%;animation:spin .8s linear infinite;margin:30px auto}
   @keyframes spin{to{transform:rotate(360deg)}}
   .lojas-tag{display:inline-flex;gap:3px;flex-wrap:wrap}
@@ -193,7 +200,7 @@
       <a class="home-card" href="#s3"><span class="n">3</span><b>Abastecimento</b><small>Curva A em falta, listas pra pedir hoje, pendências do CD e pedidos ao fornecedor</small><i class="st" id="st-abastecimento"></i></a>
       <a class="home-card" href="#s4"><span class="n">4</span><b>Estoque</b><small>Excesso de cobertura, vencimentos nos próximos 30 dias e transferências entre lojas</small><i class="st" id="st-estoque"></i></a>
       <a class="home-card" href="#s5"><span class="n">5</span><b>Operação</b><small>Caixas ativos e parados agora e cupons na última hora, loja a loja</small><i class="st" id="st-operacao"></i></a>
-      <a class="home-card" href="#s6"><span class="n">6</span><b>Financeiro</b><small>Compromissos a pagar nos próximos 7 dias, por dia e por loja</small><i class="st" id="st-financeiro"></i></a>
+      <a class="home-card" href="#s6"><span class="n">6</span><b>Financeiro</b><small>A pagar pelo dia em que a loja paga: hoje, esta semana e as seguintes (sáb, dom e seg pagam na segunda)</small><i class="st" id="st-financeiro"></i></a>
     </div>
     <p class="home-foot">Cada bloco carrega só quando você clica. <b>Atualizar</b> recalcula tudo em segundo plano.</p>
   </section>
@@ -251,13 +258,17 @@
 
   <!-- 6 FINANCEIRO -->
   <section class="seg" id="s6">
-    <div class="seg-hd"><span class="n">6</span><h2>Financeiro</h2><small>compromissos dos próximos 7 dias e vencidos em aberto (contas a pagar do ERP) · posição de caixa</small><a class="lk" href="/conciliador.html">Conciliação →</a></div>
+    <div class="seg-hd"><span class="n">6</span><h2>Financeiro</h2><small>contas a pagar do ERP em aberto, pelo dia em que a loja paga · sáb, dom e seg pagam na segunda · ter a sex no próprio dia · só leitura</small><a class="lk" href="/conciliador.html">Conciliação →</a></div>
     <div class="row c3">
-      <div class="card"><div class="card-hd"><h3>Próximos 7 dias</h3><small>a pagar em aberto, por dia</small><span class="k" id="k-fin"></span></div><div class="card-bd" id="c-fin-dias"><div class="spin"></div></div></div>
-      <div class="card"><div class="card-hd"><h3>Por loja</h3><small>vencidos · hoje · 7 dias</small></div><div class="card-bd" id="c-fin-lojas"><div class="spin"></div></div></div>
-      <div class="card"><div class="card-hd"><h3>Maiores títulos dos 7 dias</h3></div><div class="card-bd" id="c-fin-maiores"><div class="spin"></div></div></div>
+      <div class="card"><div class="card-hd"><h3 id="fin-hoje-t">Hoje</h3><small id="fin-hoje-s">a pagar no dia</small><span class="k" id="k-fin"></span></div><div class="card-bd" id="c-fin-hoje"><div class="spin"></div></div></div>
+      <div class="card"><div class="card-hd"><h3>Esta semana</h3><small id="fin-sem-s">segunda a sexta · por dia de pagamento</small></div><div class="card-bd" id="c-fin-semana"><div class="spin"></div></div></div>
+      <div class="card"><div class="card-hd"><h3>Semanas seguintes</h3><small>da próxima semana em diante · por semana de pagamento</small></div><div class="card-bd" id="c-fin-proximas"><div class="spin"></div></div></div>
     </div>
-    <div class="row" style="margin-top:12px"><div class="card"><div class="card-hd"><h3>Posição de caixa consolidada</h3><span class="k nt">sem fonte</span></div><div class="nosrc" id="c-caixa">Saldo bancário ainda não vem pro sistema. A integração com a API do Itaú hoje só traz o extrato (lançamentos); pra mostrar a posição de caixa consolidada é preciso puxar o saldo de cada conta das 6 lojas. Enquanto isso, o que está aqui é o lado dos compromissos: vencidos, hoje e próximos 7 dias.</div></div></div>
+    <div class="row c2" style="margin-top:12px">
+      <div class="card"><div class="card-hd"><h3>Por loja</h3><small>vencidos · hoje · resto da semana · próxima semana · depois</small></div><div class="card-bd" id="c-fin-lojas"><div class="spin"></div></div></div>
+      <div class="card"><div class="card-hd"><h3>Maiores títulos</h3><small>de hoje até o fim da próxima semana</small></div><div class="card-bd" id="c-fin-maiores"><div class="spin"></div></div></div>
+    </div>
+    <div class="row" style="margin-top:12px"><div class="card"><div class="card-hd"><h3>Posição de caixa consolidada</h3><span class="k nt">sem fonte</span></div><div class="nosrc" id="c-caixa">Saldo bancário ainda não vem pro sistema. A integração com a API do Itaú hoje só traz o extrato (lançamentos); pra mostrar a posição de caixa consolidada é preciso puxar o saldo de cada conta das 6 lojas. Enquanto isso, o que está aqui é o lado dos compromissos: vencidos, hoje, esta semana e as seguintes.</div></div></div>
   </section>
 </main>
 
@@ -348,10 +359,8 @@ function vista() {
   if (e.excesso) { e.excesso.top = e.excesso.top.filter(r => r.loja === L); const pl = (e.excesso.porLoja || {})[L] || {}; e.excesso.itens = pl.cobExc || 0; e.excesso.valor = pl.valorCobExc || 0; e.excesso.parados = pl.parado || 0; e.excesso.valorParados = pl.valorParado || 0; e.excesso.porLoja = { [L]: pl }; }
   if (e.vencimentos) { const t = e.vencimentos.top.filter(r => r.loja === L); e.vencimentos.top = t; const pl = (e.vencimentos.porLoja || {})[L] || { itens: 0, valor: 0 }; e.vencimentos.itens = pl.itens; e.vencimentos.valor = pl.valor; e.vencimentos.porLoja = { [L]: pl }; e.vencimentos.buckets = { d7: t.filter(r => r.dias <= 7).length, d15: t.filter(r => r.dias > 7 && r.dias <= 15).length, d30: t.filter(r => r.dias > 15).length }; }
   if (c.operacao) c.operacao.lojas = c.operacao.lojas.filter(l => l.loja === L);
-  const fi = c.financeiro;
-  if (fi) { const ls = (fi.linhas || []).filter(r => r.loja === L), hoje = D.hoje; const venc = { n: 0, v: 0 }, hj = { n: 0, v: 0 }, st = { n: 0, v: 0 }, porDia = {};
-    for (const r of ls) { if (r.data < hoje) { venc.n += r.n; venc.v += r.v; } else { st.n += r.n; st.v += r.v; if (r.data === hoje) { hj.n += r.n; hj.v += r.v; } porDia[r.data] = { data: r.data, n: r.n, v: r.v }; } }
-    fi.vencidos = venc; fi.hoje = hj; fi.sete = st; fi.dias = fi.dias.map(d => porDia[d.data] || { data: d.data, n: 0, v: 0 }); fi.porLoja = fi.porLoja.filter(l => l.loja === L); fi.maiores = fi.maiores.filter(m => m.loja === L); }
+  const fi = c.financeiro;   // linhas já vêm por loja × vencimento; a tela recalcula tudo a partir delas
+  if (fi) { fi.linhas = (fi.linhas || []).filter(r => r.loja === L); fi.maiores = (fi.maiores || []).filter(m => m.loja === L); }
   return c;
 }
 function render() {
@@ -479,15 +488,58 @@ function renderOp() {
   document.getElementById('c-op').innerHTML = '<table class="m"><thead><tr><th>Loja</th><th class="r">Caixas ativos</th><th class="r">Cupons hoje</th><th class="r">Última hora</th><th class="r">Parados</th><th>Caixas (último cupom)</th></tr></thead><tbody>' + o.lojas.map(l => '<tr class="' + (l.parados ? 'bad' : '') + '"><td>' + lojaTag(l.loja) + '</td><td class="r"><b>' + l.caixasAtivos + '</b></td><td class="r">' + l.cupons.toLocaleString('pt-BR') + '</td><td class="r">' + l.ultHora + '</td><td class="r ' + (l.parados ? 'dn' : '') + '">' + (l.parados || '—') + '</td><td style="white-space:normal">' + l.pdvs.map(p => '<span class="op-pdv' + (p.parado ? ' bad' : '') + '" title="' + esc(p.operador) + ' · ' + p.cupons + ' cupons · última hora ' + p.ultHora + '">PDV ' + p.pdv + ' ' + p.ult + '</span>').join('') + '</td></tr>').join('') + '</tbody></table>';
 }
 function renderFin() {
-  const f = V.financeiro; if (!f) { document.getElementById('c-fin-dias').innerHTML = empty('sem dados'); return; }
-  k('k-fin', moneyK(f.sete.v) + ' em 7 d' + (f.vencidos.n ? ' · ' + moneyK(f.vencidos.v) + ' vencidos' : ''), !f.vencidos.n); badge('n6', f.vencidos.n);
-  const max = Math.max(...f.dias.map(d => d.v), 1);
-  document.getElementById('c-fin-dias').innerHTML = '<table class="m"><thead><tr><th>Dia</th><th class="r">Títulos</th><th class="r">Valor</th><th></th></tr></thead><tbody>'
-    + (f.vencidos.n ? '<tr class="bad"><td><b>Vencidos em aberto</b></td><td class="r">' + f.vencidos.n + '</td><td class="r"><b class="dn">' + moneyK(f.vencidos.v) + '</b></td><td></td></tr>' : '')
-    + f.dias.map((d, i) => '<tr><td>' + (i === 0 ? '<b>Hoje</b> ' : '') + df(d.data) + ' <span style="color:var(--ink3);font-size:10px">' + ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'][new Date(d.data + 'T12:00:00').getDay()] + '</span></td><td class="r">' + (d.n || '') + '</td><td class="r"><b>' + (d.v ? moneyK(d.v) : '—') + '</b></td><td><span class="bar" style="width:' + Math.round(d.v / max * 90) + 'px"></span></td></tr>').join('')
-    + '<tr><td><b>Total 7 dias</b></td><td class="r">' + f.sete.n + '</td><td class="r"><b>' + moneyK(f.sete.v) + '</b></td><td></td></tr></tbody></table>';
-  document.getElementById('c-fin-lojas').innerHTML = f.porLoja.length ? '<table class="m"><thead><tr><th>Loja</th><th class="r">Vencidos</th><th class="r">Hoje</th><th class="r">7 dias</th></tr></thead><tbody>' + f.porLoja.map(l => '<tr><td>' + lojaTag(l.loja) + '</td><td class="r ' + (l.vencidos ? 'dn' : '') + '">' + (l.vencidos ? moneyK(l.vencidos) : '—') + '</td><td class="r">' + (l.hoje ? moneyK(l.hoje) : '—') + '</td><td class="r"><b>' + moneyK(l.sete) + '</b></td></tr>').join('') + '</tbody></table>' : empty('Nada em aberto.');
-  document.getElementById('c-fin-maiores').innerHTML = f.maiores.length ? '<table class="m"><thead><tr><th>Fornecedor</th><th>Loja</th><th>Vence</th><th class="r">Valor</th></tr></thead><tbody>' + f.maiores.map(m => '<tr><td class="p">' + esc(m.fornecedor) + '<small>doc ' + esc(m.doc || '') + '</small></td><td>' + lojaTag(m.loja) + '</td><td>' + df(m.data) + '</td><td class="r"><b>' + moneyK(m.valor) + '</b></td></tr>').join('') + '</tbody></table>' : empty('—');
+  const ids = ['c-fin-hoje', 'c-fin-semana', 'c-fin-proximas', 'c-fin-lojas', 'c-fin-maiores'];
+  const f = V.financeiro; if (!f || !f.linhas) { ids.forEach(id => { document.getElementById(id).innerHTML = empty('sem dados'); }); return; }
+  const hoje = f.hoje, semIni = f.semIni, semFim = f.semFim, proxIni = f.proxIni, proxFim = f.proxFim, L = f.linhas;
+  const DS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'], dow = d => new Date(d + 'T12:00:00').getDay();
+  const add = (d, n) => { const x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + n); return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); };
+  const soma = pred => L.reduce((a, r) => pred(r) ? { n: a.n + r.n, v: a.v + r.v } : a, { n: 0, v: 0 });
+  const fds = hoje < semIni, diaRef = fds ? semIni : hoje;   // sáb/dom: o dia de pagamento em foco é a segunda
+  const venc = soma(r => r.pag < hoje), hj = soma(r => r.pag === diaRef), sem = soma(r => r.pag >= hoje && r.pag <= semFim);
+  k('k-fin', moneyK(hj.v) + (fds ? ' na segunda' : ' hoje') + ' · ' + moneyK(sem.v) + ' até sexta' + (venc.n ? ' · ' + moneyK(venc.v) + ' vencidos' : ''), !venc.n); badge('n6', venc.n);
+  const barra = (v, max, neg) => '<span class="bar' + (neg ? ' neg' : '') + '" style="width:' + Math.round((v || 0) / (max || 1) * 70) + 'px"></span>';
+  const plural = (n, s) => n + ' ' + s + (n === 1 ? '' : 's');
+
+  // Hoje (ou a segunda, se for fim de semana): total, composição por vencimento e por loja
+  document.getElementById('fin-hoje-t').textContent = fds ? 'Segunda ' + df(diaRef) : 'Hoje';
+  document.getElementById('fin-hoje-s').textContent = fds ? 'hoje é ' + DS[dow(hoje)] + ' · sáb, dom e seg pagam na segunda' : DS[dow(hoje)] + ' ' + df(hoje) + (dow(hoje) === 1 ? ' · inclui o que venceu sáb e dom' : ' · vence hoje, paga hoje');
+  const pl = {}, pv = {};
+  for (const r of L) if (r.pag === diaRef) { const a = pl[r.loja] || (pl[r.loja] = { loja: r.loja, n: 0, v: 0 }); a.n += r.n; a.v += r.v; const b = pv[r.venc] || (pv[r.venc] = { venc: r.venc, n: 0, v: 0 }); b.n += r.n; b.v += r.v; }
+  const lojasDia = Object.values(pl).sort((a, b) => a.loja - b.loja), maxL = Math.max(...lojasDia.map(l => l.v), 1), vencs = Object.values(pv).sort((a, b) => a.venc < b.venc ? -1 : 1);
+  let h = '<div class="fin-big"><b>' + money(hj.v) + '</b><small>' + plural(hj.n, 'título') + ' a pagar' + (fds ? ' na segunda' : ' hoje') + '</small></div>';
+  if (vencs.length > 1) h += '<div class="fin-comp">' + vencs.map(x => '<span>venc. ' + DS[dow(x.venc)] + ' ' + df(x.venc) + ': <b>' + moneyK(x.v) + '</b></span>').join('') + '</div>';
+  h += lojasDia.length ? '<table class="m"><thead><tr><th>Loja</th><th class="r">Títulos</th><th class="r">Valor</th><th></th></tr></thead><tbody>' + lojasDia.map(l => '<tr><td>' + lojaTag(l.loja) + '</td><td class="r">' + l.n + '</td><td class="r"><b>' + moneyK(l.v) + '</b></td><td>' + barra(l.v, maxL) + '</td></tr>').join('') + '</tbody></table>' : empty('Nada a pagar ' + (fds ? 'na segunda' : 'hoje') + '.');
+  if (venc.n) h += '<div class="fin-alert"><b>' + plural(venc.n, 'vencido') + ' em aberto · ' + money(venc.v) + '</b><br>dia de pagamento já passou: atrasado ou baixa ainda não lançada no ERP</div>';
+  document.getElementById('c-fin-hoje').innerHTML = h;
+
+  // Esta semana: segunda a sexta (dia de pagamento); dia que já passou mostra só o que ficou em aberto
+  const dias = []; for (let i = 0; i < 5; i++) { const d = add(semIni, i); dias.push({ d, ...soma(r => r.pag === d), passado: d < hoje, ehHoje: d === hoje }); }
+  const maxD = Math.max(...dias.map(x => x.v), 1);
+  document.getElementById('fin-sem-s').textContent = df(semIni) + ' a ' + df(semFim) + ' · por dia de pagamento';
+  document.getElementById('c-fin-semana').innerHTML = '<table class="m"><thead><tr><th>Paga em</th><th class="r">Títulos</th><th class="r">Valor</th><th></th></tr></thead><tbody>'
+    + dias.map(x => { const atras = x.passado && x.n > 0; return '<tr class="' + (x.ehHoje ? 'fin-hl' : atras ? 'bad' : '') + '"><td>' + (x.ehHoje ? '<b>Hoje</b> · ' : '') + '<b>' + DS[dow(x.d)] + '</b> ' + df(x.d) + (dow(x.d) === 1 ? ' <span class="fin-mut">sáb + dom + seg</span>' : '') + (x.passado ? ' <span class="fin-mut">' + (x.n ? 'ficou em aberto' : 'nada em aberto') + '</span>' : '') + '</td><td class="r">' + (x.n || '') + '</td><td class="r"><b' + (atras ? ' class="dn"' : '') + '>' + (x.v ? moneyK(x.v) : '—') + '</b></td><td>' + barra(x.v, maxD, atras) + '</td></tr>'; }).join('')
+    + '<tr class="fin-tot"><td>A pagar até sexta <span class="fin-mut">de ' + (fds ? 'segunda' : 'hoje') + ' em diante</span></td><td class="r">' + sem.n + '</td><td class="r"><b>' + moneyK(sem.v) + '</b></td><td></td></tr></tbody></table>';
+
+  // Semanas seguintes: 8 semanas (seg a sex) e o resto depois
+  const sems = []; for (let w = 1; w <= 8; w++) { const a = add(semIni, 7 * w), b = add(a, 4); sems.push({ a, b, ...soma(r => r.pag >= a && r.pag <= b) }); }
+  const fim8 = add(semIni, 7 * 8 + 4), depois = soma(r => r.pag > fim8), totProx = soma(r => r.pag >= proxIni), maxS = Math.max(...sems.map(s => s.v), depois.v, 1);
+  document.getElementById('c-fin-proximas').innerHTML = '<table class="m"><thead><tr><th>Semana</th><th class="r">Títulos</th><th class="r">Valor</th><th></th></tr></thead><tbody>'
+    + sems.map((s, i) => '<tr><td>' + (i === 0 ? '<b>Próxima</b> · ' : '') + df(s.a) + ' a ' + df(s.b) + '</td><td class="r">' + (s.n || '') + '</td><td class="r"><b>' + (s.v ? moneyK(s.v) : '—') + '</b></td><td>' + barra(s.v, maxS) + '</td></tr>').join('')
+    + (depois.n ? '<tr><td>Depois de ' + df(fim8) + '</td><td class="r">' + depois.n + '</td><td class="r"><b>' + moneyK(depois.v) + '</b></td><td>' + barra(depois.v, maxS) + '</td></tr>' : '')
+    + '<tr class="fin-tot"><td>Da próxima semana em diante</td><td class="r">' + totProx.n + '</td><td class="r"><b>' + moneyK(totProx.v) + '</b></td><td></td></tr></tbody></table>'
+    + (f.alem && f.alem.n && !LOJA ? '<div class="fin-note">' + plural(f.alem.n, 'título') + ' (' + moneyK(f.alem.v) + ') com vencimento além de 1 ano ficaram de fora: data provavelmente errada no ERP.</div>' : '');
+
+  // Por loja: matriz loja × (vencidos · hoje · resto da semana · próxima · depois · total)
+  const lojas = [...new Set(L.map(r => r.loja))].sort((a, b) => a - b);
+  const cols = [['Vencidos', r => r.pag < hoje, 'dn'], [fds ? 'Segunda' : 'Hoje', r => r.pag === diaRef], ['Resto da semana', r => r.pag > diaRef && r.pag <= semFim], ['Próx. semana', r => r.pag >= proxIni && r.pag <= proxFim], ['Depois', r => r.pag > proxFim], ['Total', () => true]];
+  const cel = (pred, ln) => L.reduce((s, r) => (ln == null || r.loja === ln) && pred(r) ? s + r.v : s, 0);
+  document.getElementById('c-fin-lojas').innerHTML = lojas.length ? '<table class="m"><thead><tr><th>Loja</th>' + cols.map(c => '<th class="r">' + c[0] + '</th>').join('') + '</tr></thead><tbody>'
+    + lojas.map(ln => '<tr><td>' + lojaTag(ln) + '</td>' + cols.map((c, i) => { const v = cel(c[1], ln); return '<td class="r' + (v && c[2] ? ' ' + c[2] : '') + '">' + (i === cols.length - 1 ? '<b>' + moneyK(v) + '</b>' : v ? moneyK(v) : '—') + '</td>'; }).join('') + '</tr>').join('')
+    + (lojas.length > 1 ? '<tr class="fin-tot"><td>Rede</td>' + cols.map(c => { const v = cel(c[1]); return '<td class="r' + (v && c[2] ? ' ' + c[2] : '') + '"><b>' + (v ? moneyK(v) : '—') + '</b></td>'; }).join('') + '</tr>' : '') + '</tbody></table>' : empty('Nada em aberto.');
+
+  // Maiores títulos de hoje até o fim da próxima semana
+  const ms = (f.maiores || []).slice(0, 25);
+  document.getElementById('c-fin-maiores').innerHTML = ms.length ? '<table class="m"><thead><tr><th>Fornecedor</th><th>Loja</th><th>Vence</th><th>Paga</th><th class="r">Valor</th></tr></thead><tbody>' + ms.map(m => '<tr class="' + (m.pag === diaRef ? 'fin-hl' : '') + '"><td class="p">' + esc(m.fornecedor) + '<small>doc ' + esc(m.doc || '') + '</small></td><td>' + lojaTag(m.loja) + '</td><td>' + DS[dow(m.venc)] + ' ' + df(m.venc) + '</td><td>' + (m.pag === m.venc ? '<span class="fin-mut">mesmo dia</span>' : '<b>' + DS[dow(m.pag)] + ' ' + df(m.pag) + '</b>') + '</td><td class="r"><b>' + moneyK(m.valor) + '</b></td></tr>').join('') + '</tbody></table>' : empty('Nada em aberto nesse período.');
 }
 
 async function abrirMetas() {
