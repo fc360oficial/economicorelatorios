@@ -1,5 +1,5 @@
 const test = require('node:test'); const assert = require('node:assert/strict');
-const fiscal = require('../lib/fiscal');
+const fiscal = require('../lib/fiscal-coletor');
 
 // Mescla do Coletor Econômico (lib/recebimento.js) na linha do Fiscal: funções puras, sem ERP.
 // `row` é o que cruzar() devolve (só os campos usados); `conf` é uma conferência nossa.
