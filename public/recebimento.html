@@ -246,7 +246,7 @@ body{font-family:var(--font);background:var(--pap);color:var(--ink);font-size:14
 <script>
 'use strict';
 // ── constantes / sessão ────────────────────────────────────────────────────
-const LS_SESSAO = 'rec_sessao', LS_FILA = 'rec_fila', LS_CAD = 'rec_cadastros';
+const LS_SESSAO = 'rec_sessao', LS_FILA = 'rec_fila', LS_CAD = 'rec_cadastros', LS_DESCARTES = 'rec_descartes';
 const NOMES_LOJA = { 1: 'CAHU', 2: 'MURIBECA', 3: 'PONTE', 4: 'ATACAREJO', 5: 'PORTA LARGA', 6: 'JARDIM JORDÃO' };
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
@@ -346,16 +346,22 @@ function setNet(on) {
 }
 
 // ── tela 2 · notas da loja ─────────────────────────────────────────────────
+let notasEm = null; // hora da última lista que realmente veio do servidor (pra marcar dado velho)
 async function carregarNotas(manual) {
   try {
     notas = await api('/api/recebimento-publico/notas?t=' + sess.token);
     setNet(true);
-    $('nHora').innerHTML = 'atualizado<br>' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    notasEm = new Date();
+    $('nHora').innerHTML = 'atualizado<br>' + notasEm.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     if (manual) toast('Atualizado');
   } catch (e) {
     // erro do servidor (tem status) é diferente de estar sem rede: o primeiro precisa aparecer
     // sempre, com a mensagem que veio, senão a lista fica velha e ninguém sabe por quê.
-    if (e.status) { setNet(true); toast(e.message || 'A central não respondeu.', true); }
+    if (e.status) {
+      setNet(true); toast(e.message || 'A central não respondeu.', true);
+      // a lista na tela continua sendo a última que carregou — deixa isso visível, não silencioso.
+      $('nHora').innerHTML = 'dados de<br>' + (notasEm ? notasEm.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—');
+    }
     else { setNet(false); if (manual) toast('Sem sinal pra atualizar', true); }
   }
   renderNotas();
@@ -414,10 +420,11 @@ async function abrirNota(i) {
   try {
     visao = await post('abrir', { chave: n.chave, nNota: n.nNota, fornecedor: n.fornecedor, codFornec: n.codFornec, nome: sess.nome });
     notaAtual = n; ultimoBipado = null;
+    limparDescartes(); // o aviso é da nota anterior; não faz sentido carregar pra outra
     mostrar('bipagem'); renderBip();
   } catch (e) { toast(e.message || 'Não deu pra abrir a nota', true); }
 }
-function voltarNotas() { cartao = null; ultimoBipado = null; $('cartao').innerHTML = ''; mostrar('notas'); carregarNotas(); }
+function voltarNotas() { cartao = null; ultimoBipado = null; $('cartao').innerHTML = ''; limparDescartes(); mostrar('notas'); carregarNotas(); }
 
 // ── tela 3 · bipagem cega ──────────────────────────────────────────────────
 const ESTADO = {
@@ -577,8 +584,9 @@ async function recarregarVisao() {
 }
 
 // bipes da fila que a central recusou (4xx): ficam à vista até o conferente dar ok, senão ele acha
-// que enviou e a quantidade no ERP fica menor do que ele contou.
-let descartes = [];
+// que enviou e a quantidade no ERP fica menor do que ele contou. Persiste no coletor porque um
+// reload não pode apagar o aviso sozinho — só o conferente ou abrir outra nota faz isso.
+let descartes = []; try { descartes = JSON.parse(localStorage.getItem(LS_DESCARTES) || '[]'); } catch (e) {}
 function renderDescartes() {
   const el = $('pDescartes'); if (!el) return;
   el.hidden = !descartes.length;
@@ -587,7 +595,7 @@ function renderDescartes() {
   el.innerHTML = '<span><b>' + esc(txt) + '</b>' + esc(descartes.map(d => d.cod + ' — ' + d.erro).join(' · ')) + ' Bipe de novo.</span>' +
     '<button class="x" type="button" onclick="limparDescartes()" title="Entendi">×</button>';
 }
-function limparDescartes() { descartes = []; renderDescartes(); }
+function limparDescartes() { descartes = []; guardar(LS_DESCARTES, descartes); renderDescartes(); }
 
 let enviandoFila = false;
 async function flush() {
@@ -603,6 +611,7 @@ async function flush() {
         recusou = true;
         descartes.push({ cod: (f.body && f.body.cod) || f.acao, erro: r.recusado });
         if (descartes.length > 6) descartes = descartes.slice(-6);
+        guardar(LS_DESCARTES, descartes);
         continue;
       }
       if (r && r.visao && visao && r.visao.id === visao.id) visao = r.visao;
@@ -655,7 +664,7 @@ function naoLidas() {
   if (!vis) return nCentrais(visao);
   return msgsDe(visao).filter(m => m.de === 'central' && String(m.em) > vis).length;
 }
-function marcarLidas() { if (!visao) return; const em = ultimaCentralEm(visao); if (em) vistos[visao.id] = em; salvarVistos(); atualizarBadge(); }
+function marcarLidas() { if (!visao || !chatAberto) return; const em = ultimaCentralEm(visao); if (em) vistos[visao.id] = em; salvarVistos(); atualizarBadge(); }
 function atualizarBadge() {
   const b = $('btnChat'); if (!b) return;
   const n = naoLidas();
@@ -720,7 +729,9 @@ function rolarChat() { const m = $('chatMsgs'); if (m) m.scrollTop = m.scrollHei
 async function enviarChat() {
   if (!visao) return;
   const texto = (($('chatTxt') || {}).value || '').trim();
-  const corpo = { id: visao.id, motivo: chatMotivo, texto, cod: chatCod || null };
+  // msgId igual ao bipeId: se a fila reenviar essa mensagem depois de a rede cair no meio da resposta,
+  // o servidor pode reconhecer o mesmo id e não duplicar o post no chat.
+  const corpo = { id: visao.id, motivo: chatMotivo, texto, cod: chatCod || null, msgId: novoBipeId() };
   const b = $('btnEnviarChat'); if (b) b.disabled = true;
   try {
     const m = await post('chat', corpo);
@@ -803,7 +814,7 @@ function renderFim() {
   }
   const n = (f.recontar || []).length;
   $('fAcoes').innerHTML = '<button class="btn btn-primary" onclick="voltarBipagem()">Recontar</button>' +
-    (f.podeEnviar ? '<button class="btn btn-secondary" onclick="enviarAssim()">Enviar assim mesmo</button>' : '');
+    (f.podeEnviar ? '<button class="btn btn-secondary" onclick="enviarAssim()">Recontei, está assim mesmo · enviar pra central</button>' : '');
   $('fCorpo').innerHTML = `<div class="aviso"><b>${n} ${n === 1 ? 'produto não bateu' : 'produtos não bateram'} com a nota.</b> Reconte só ${n === 1 ? 'ele' : 'esses'}. A quantidade da nota continua escondida.</div>
     <div class="card"><div class="t">Recontar</div>${(f.recontar || []).map(r => {
       const p = MOT_PILL[r.motivo] || ['mut', r.motivo];
@@ -825,7 +836,7 @@ async function enviarAssim() {
 // qualquer painel novo derruba a flag do chat: só abrirChat() a liga de novo, logo depois. Assim
 // marcarLidas() e o refoco do bipe nunca acham que a conversa está à vista quando não está.
 function abrirModal(html) { chatAberto = false; $('modal').innerHTML = `<div class="modal" onclick="if(event.target===this)fecharModal()"><div class="sheet">${html}</div></div>`; }
-function fecharModal() { if (chatAberto) { chatAberto = false; marcarLidas(); } $('modal').innerHTML = ''; focarBip(); }
+function fecharModal() { if (chatAberto) { marcarLidas(); chatAberto = false; } $('modal').innerHTML = ''; focarBip(); }
 function toast(m, ruim) {
   const t = $('toast'); t.textContent = m; t.className = 'toast show' + (ruim ? ' ruim' : '');
   clearTimeout(t._x); t._x = setTimeout(() => { t.className = 'toast'; }, ruim ? 4000 : 2600);
