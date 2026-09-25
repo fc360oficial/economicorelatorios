@@ -537,6 +537,9 @@ table.ppg td{padding:9px 8px;background:#fff;white-space:nowrap;border-bottom:1p
 table.ppg td.c:nth-child(n+8){border-left:1px solid #F0F0EE}
 /* uma linha por produto */
 table.ppg.one{min-width:1180px}
+table.ppg.one thead th{white-space:normal;line-height:1.2;font-size:10.5px;padding:9px 6px;vertical-align:bottom}
+table.ppg.one thead th.lj{font-size:10.5px;padding:8px 4px}
+table.ppg.one thead th.lj small{font-size:11.5px;margin-top:3px}
 table.ppg.one th.l{text-align:left;padding-left:12px}
 table.ppg.one td.prod{white-space:normal;text-align:left;vertical-align:middle;padding:8px 10px 8px 12px;line-height:1.3}
 table.ppg.one td.prod b{font-size:13.5px;color:var(--ink)}
@@ -547,8 +550,8 @@ table.ppg.one tr.vl td{border-bottom:1px solid #E6E6E2;vertical-align:middle}
 table.ppg.one tr.vl.alt td{background:#FAFAF8}
 table.ppg.one tr.vl.open td{background:#FFFBEE}
 table.ppg.one td.c:nth-child(n+8){border-left:none}
-table.ppg.one td.lj{border-left:1px solid #ECECE8;padding:6px 6px}
-table.ppg.one input.q{width:64px}
+table.ppg.one td.st{border-left:1px solid #ECECE8;padding:6px 5px}
+table.ppg.one input.q{width:60px;font-size:14px;padding:6px 6px}
 table.ppg.one .pp-est{font-size:10.5px;margin-top:3px;white-space:nowrap}
 table.ppg.one .vlr{font-size:14px;padding:4px 8px}
 .pp-est .tr.zero{color:var(--ink3);font-weight:600}
@@ -1831,7 +1834,7 @@ function renderPrePedidoDet(){
   // tabela do pré-pedido: colunas fixas com o cabeçalho em cima de cada coluna (Tiago, 21/09)
   // Tabela do pré-pedido (Tiago, 25/09: "harmônico e de fácil análise"): UMA linha por produto — produto à esquerda,
   // colunas numéricas no meio, lojas à direita; cada valor fica embaixo do seu título.
-  h += '<div class="tablewrap" style="overflow:auto"><table class="ppg one"><colgroup><col style="width:300px"><col style="width:96px"><col style="width:90px"><col style="width:92px"><col style="width:74px"><col style="width:68px"><col style="width:72px"><col style="width:104px">' + lojas.map(function(){ return '<col style="width:116px">'; }).join('') + '</colgroup>' +
+  h += '<div class="tablewrap" style="overflow:auto"><table class="ppg one"><colgroup><col style="width:240px"><col style="width:96px"><col style="width:92px"><col style="width:92px"><col style="width:70px"><col style="width:64px"><col style="width:66px"><col style="width:96px">' + lojas.map(function(){ return '<col style="width:104px">'; }).join('') + '</colgroup>' +
     '<thead><tr><th class="l">Produto</th><th class="c">Preço cotado</th><th class="c" title="Variação entre o preço cotado e a última compra">× últ. compra</th><th class="r">Últ. compra</th><th class="r" title="Quantidade a caminho pra este item (sugestões/pedidos abertos no ERP ainda não recebidos), somando as lojas">Trânsito</th><th class="r">Qtd</th><th class="c">Emb</th><th class="r">Total</th>' +
     lojas.map(function(ln){ return '<th class="lj">' + esc(LOJAS_NOMES[ln] || LJ(ln)) + '<small id="pp-tl-' + ln + '">' + fmtR(T.porLoja[ln]) + '</small></th>'; }).join('') + '</tr></thead><tbody>';
   p.itens.forEach(function(i, idx){
@@ -1846,7 +1849,7 @@ function renderPrePedidoDet(){
       '<td class="c"><span class="vlr ' + (dif != null && dif > 0.004 ? 'up' : dif != null && dif < -0.004 ? 'dn' : 'eq') + '">' + fmtR(i.preco) + '</span></td><td class="c">' + arw + '</td><td class="r">' + fmtR(i.ultimo_custo || 0) + '</td><td class="r">' + (E ? (E.transito > 0 ? '<span class="tr" style="font-weight:800;color:var(--inf)">' + fmtN(E.transito) + '</span>' : '<span style="color:var(--ink3)">0</span>') : '<span class="mini">…</span>') + '</td><td class="r" id="pp-q-' + i.cod + '"><b>' + fmtN(qt) + '</b></td><td class="c">' + esc(i.unid || 'UN') + ' ' + i.emb + '</td><td class="r" id="pp-t-' + i.cod + '"><b>' + fmtR(qt * i.preco) + '</b></td>' +
       lojas.map(function(ln){ var q = ppQtd(i, ln), L = E && E.lojas ? E.lojas[ln] : null;
         var est = L ? '<div class="pp-est" title="estoque atual na loja' + (L.transito > 0 ? ' · em trânsito = sugestão/pedido aberto no ERP ainda não recebido' : '') + (L.cobertura_dias != null ? ' · cobertura ' + fmtN(L.cobertura_dias) + ' dias' : '') + '">est <b' + (L.estoque <= 0 ? ' class="zero"' : '') + '>' + fmtN(L.estoque) + '</b> · trâns <span class="tr' + (L.transito > 0 ? '' : ' zero') + '">' + fmtN(L.transito) + '</span></div>' : '';
-        return '<td class="c lj">' + (real ? '<b>' + (q || '') + '</b>' : '<input class="q' + (PP_EDIT[i.cod] && PP_EDIT[i.cod][ln] != null ? ' ed' : '') + '" inputmode="numeric" value="' + (q || '') + '" placeholder="" onchange="ppSetQtd(\'' + i.cod + '\',' + ln + ',this.value)">') + est + '</td>'; }).join('') + '</tr>';
+        return '<td class="c st">' + (real ? '<b>' + (q || '') + '</b>' : '<input class="q' + (PP_EDIT[i.cod] && PP_EDIT[i.cod][ln] != null ? ' ed' : '') + '" inputmode="numeric" value="' + (q || '') + '" placeholder="" onchange="ppSetQtd(\'' + i.cod + '\',' + ln + ',this.value)">') + est + '</td>'; }).join('') + '</tr>';
     if (!real && PP_FORN_OPEN[i.cod]) h += '<tr class="fx"><td colspan="' + (8 + lojas.length) + '">' + ppFornInline(i.cod, qt) + '</td></tr>';
   });
   h += '</tbody></table></div><div class="mini" style="margin-top:8px">Quantidade em unidades por loja. Embaixo de cada caixa: <b>est</b> = estoque atual da loja no ERP · <b>trâns</b> = em trânsito (sugestão/pedido aberto ainda não recebido). A caixa é a embalagem do item; o Radar fecha caixa no pedido. Alterações são salvas na hora e valem só pra este fornecedor.</div>';
