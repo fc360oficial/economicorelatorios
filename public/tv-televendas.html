@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>TV Televendas · CAHU Distribuidora</title>
 <!-- TV do televendas da CAHU: loop com preços da Tabela Retirada + tela do app.
-     Aberta por link com token (sem login). Config vem da aba "TV Televendas" do
-     Centro de Distribuição e é relida a cada 60 s. Abrir com ?kiosk=1 esconde o
+     Aberta por link com token (sem login). Config vem da página CAHU Distribuidora →
+     TV Televendas e é relida a cada 10 s. Abrir com ?kiosk=1 esconde o
      botão de tela cheia (Chrome em modo quiosque já abre em tela cheia). -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700;800&family=Barlow:wght@400;500;600&display=swap">
@@ -191,12 +191,12 @@ function aviso(titulo, texto) { $('#aviso').innerHTML = `<img src="${LOGO}" alt=
 
 async function carregar() {
   try {
-    const r = await fetch(`/api/tv-televendas-publico/${TOKEN}`, { cache: 'no-store' });
+    const r = await fetch(`/api/tv-televendas-publico/${TOKEN}?t=${Date.now()}`, { cache: 'no-store' });   // ?t= fura cache de navegador de TV
     if (r.status === 404) { clearTimeout(timer); SEQ = []; return aviso('Link inválido', 'Gere um novo link na aba TV Televendas do Centro de Distribuição e abra ele na TV.'); }
     if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.statusText);
     aplicar(await r.json());
   } catch (e) {
-    if (!SEQ.length) aviso('Sem dados no momento', 'A TV tenta de novo em 1 minuto. ' + e.message);
+    if (!SEQ.length) aviso('Sem dados no momento', 'A TV tenta de novo em alguns segundos. ' + e.message);
   }
 }
 function fit() { const w = innerWidth, h = innerHeight; const u = Math.min(w / 100, h / 56.25); document.getElementById('tv').style.setProperty('--u', u.toFixed(3)); }
@@ -213,7 +213,7 @@ $('#fs').hidden = fsOk();
 setInterval(() => { document.querySelectorAll('.slide.on .clk').forEach(c => c.textContent = new Date().toTimeString().slice(0, 5)); }, 15000);
 
 carregar();
-setInterval(carregar, 60000);
+setInterval(carregar, 10000);   // relê config/preços a cada 10 s (o servidor guarda os preços em cache de 10 min)
 </script>
 </body>
 </html>
