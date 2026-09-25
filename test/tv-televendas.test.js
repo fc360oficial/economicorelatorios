@@ -74,6 +74,8 @@ test('embalagem vem da descrição do ERP (Unid e app não são confiáveis)', (
   assert.deepEqual(e('ALA LAVA ROUPAS EM PO 400G COCO'), { unidade: 'UN', qtdEmbalagem: 1 });
   assert.deepEqual(e('BEM TE VI LAVA ROUPAS EM PO 4KG'), { unidade: 'UN', qtdEmbalagem: 1 });
   assert.deepEqual(e('SABAO YPE CX'), { unidade: 'CX', qtdEmbalagem: 1 });
+  assert.deepEqual(e('AMAC DOWNY VERAO TROPICAL 500ML CX/12'), { unidade: 'CX', qtdEmbalagem: 12 });
+  assert.deepEqual(e('LAVA ROUPAS ARIEL LIQ 2LT CX/6'), { unidade: 'CX', qtdEmbalagem: 6 });
 });
 
 test('cruzar ignora estoque zerado e ordena por descrição', () => {
