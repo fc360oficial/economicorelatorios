@@ -620,6 +620,22 @@ async function rotina() {
 // do reenvio sem depender de mensagem de WhatsApp — chamado pelo server.js
 // principal (que já tem domínio público via Caddy) num endpoint próprio.
 http.createServer(async (req, res) => {
+  // Cotação (Tiago, 25/09): manda a mensagem com o link da cotação pra um vendedor avulso, pelo número do robô.
+  if (req.url === '/mensagem' && req.method === 'POST') {
+    let body = ''; req.on('data', c => body += c);
+    req.on('end', async () => {
+      try {
+        const { numero, texto } = JSON.parse(body || '{}');
+        const dig = String(numero || '').replace(/\D/g, '');
+        if (!texto || dig.length < 10) { res.writeHead(400); res.end(JSON.stringify({ error: 'Informe numero (com DDI/DDD) e texto.' })); return; }
+        if (!sock || !sock.user) { res.writeHead(503); res.end(JSON.stringify({ error: 'WhatsApp não conectado.' })); return; }
+        const jid = (dig.startsWith('55') ? dig : '55' + dig) + '@s.whatsapp.net';
+        await sock.sendMessage(jid, { text: texto });
+        res.writeHead(200); res.end(JSON.stringify({ ok: true, jid }));
+      } catch (err) { res.writeHead(500); res.end(JSON.stringify({ error: err.message })); }
+    });
+    return;
+  }
   if (req.url === '/mensagem-grupo' && req.method === 'POST') {
     let body = ''; req.on('data', c => body += c);
     req.on('end', async () => {

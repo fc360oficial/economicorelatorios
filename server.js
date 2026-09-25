@@ -8388,6 +8388,35 @@ app.post('/api/cotacoes/:id/fornecedores', (req, res) => {
   if (r.erro) return res.status(409).json({ error: r.erro });
   res.json(cotDetalhe(r.c));
 });
+// Enviar pelo robô do WhatsApp da loja (Tiago, 25/09: "enviar para todos que faltam, só dessa vez"): manda a mensagem
+// com o link pra cada vendedor pendente pelo número do robô (negativos-wpp em 127.0.0.1:3010), 6 s entre uma e outra
+// pra não parecer disparo em massa, e marca "enviado". Só funciona se o serviço NegativosWpp estiver com a rota /mensagem.
+const ENVIO_ROBO = {};   // id → { total, feitos, erros:[], em_andamento, iniciadoEm, terminadoEm }
+app.post('/api/cotacoes/:id/enviar-robo', (req, res) => {
+  const id = cotId(req); if (!id) return res.status(400).json({ error: 'id inválido' });
+  const c = cotacao.obter(id); if (!c) return res.status(404).json({ error: 'cotação não encontrada' });
+  if (c.status !== 'aberta') return res.status(409).json({ error: 'Cotação ' + c.status });
+  if (ENVIO_ROBO[id] && ENVIO_ROBO[id].em_andamento) return res.status(409).json({ error: 'Já tem um envio em andamento pra esta cotação' });
+  const pend = c.fornecedores.filter(f => f.vendedor && f.vendedor.whats && !f.enviadoEm);
+  if (!pend.length) return res.json({ ok: true, total: 0 });
+  const st = ENVIO_ROBO[id] = { total: pend.length, feitos: 0, erros: [], em_andamento: true, iniciadoEm: new Date().toISOString(), terminadoEm: null };
+  res.json({ ok: true, total: pend.length });
+  (async () => {
+    for (const f of pend) {
+      const v = f.vendedor || {};
+      const texto = 'Olá' + (v.nome ? ', ' + v.nome : '') + '! Cotação #' + c.id + ' – ' + c.nome + ' do Econômico Supermercado (Rede Cahu). Por favor, preencha seus preços neste link: ' + linkCotacao(f) + (c.prazo ? ' . Prazo pra resposta: ' + String(c.prazo).slice(0, 16).replace('T', ' ').replace(/^(\d{4})-(\d{2})-(\d{2})/, '$3/$2/$1') : '') + ' . Obrigado(a)! (mensagem enviada pelo WhatsApp da loja; responda ' + (c.comprador && c.comprador.nome ? 'a ' + c.comprador.nome : 'a comprador(a)') + (c.comprador && c.comprador.whats ? ' no ' + c.comprador.whats : '') + ')';
+      try {
+        const r = await fetch('http://127.0.0.1:3010/mensagem', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ numero: v.whats, texto }) });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok || j.error) throw new Error(j.error || ('HTTP ' + r.status));
+        cotacao.marcarEnviado(id, f.codFornec); st.feitos++;
+      } catch (e) { st.erros.push({ fornecedor: f.nome, whats: v.whats, erro: e.message }); if (/não conectado|ECONNREFUSED|404/i.test(e.message)) { st.erros.push({ fornecedor: '(parado)', erro: 'robô indisponível: ' + e.message }); break; } }
+      await new Promise(r => setTimeout(r, 6000));
+    }
+    st.em_andamento = false; st.terminadoEm = new Date().toISOString();
+  })();
+});
+app.get('/api/cotacoes/:id/enviar-robo', (req, res) => { const id = cotId(req); res.json(ENVIO_ROBO[id] || { total: 0, feitos: 0, erros: [], em_andamento: false }); });
 app.post('/api/cotacoes/:id/enviado', (req, res) => {
   const id = cotId(req); if (!id) return res.status(400).json({ error: 'id inválido' });
   const c = cotacao.marcarEnviado(id, req.body?.codFornec);
