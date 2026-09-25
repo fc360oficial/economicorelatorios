@@ -5193,6 +5193,7 @@ app.use('/negativos-agent', (req, res) => {
 const contagemNeg = require('./lib/contagem-negativos');
 contagemNeg.init();
 app.get('/contagem', (req, res) => res.redirect('/contagem.html'));
+app.get('/recebimento', (req, res) => res.redirect('/recebimento.html'));
 
 // -- público (celular) --
 const cnLoja = req => contagemNeg.lojaPorToken(req.query.t || req.body?.t);

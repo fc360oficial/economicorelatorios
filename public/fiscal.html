@@ -101,6 +101,14 @@ tr.det td{background:#FAFAF8;padding:0 12px 14px;white-space:normal;cursor:defau
 .cfg{display:grid;grid-template-columns:1fr auto;gap:8px 14px;align-items:center;font-size:12px}.cfg label{color:var(--ink2);line-height:1.35}.cfg label b{color:var(--ink);display:block;font-size:12.5px}
 .cfg input[type=number]{width:90px;font:inherit;font-size:13px;font-weight:700;padding:6px 8px;border:1px solid var(--ln2);border-radius:8px;text-align:right}
 .cfg input[type=checkbox]{width:18px;height:18px}
+/* card do Coletor na aba Recebimentos: botões SEMPRE acima do conteúdo (regra do Tiago) */
+.colcfg{display:block!important}
+.colcfg .btns{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.colcfg h3{font-size:13px;font-weight:800;margin-bottom:2px}
+.colcfg .pins{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 8px}
+.colcfg .pin{background:var(--wsh);border:1px solid var(--ln2);border-radius:8px;padding:6px 10px;font-size:12px}
+.colcfg .pin b{font-size:14px;letter-spacing:1px;display:block}
+.colcfg code{background:var(--wsh);border:1px solid var(--ln2);border-radius:6px;padding:2px 6px;font-size:11.5px}
 /* ── Coletor Econômico: status da conferência cega + conversa presa à nota ── */
 .col-st{display:inline-block;padding:2px 8px;border-radius:99px;font-size:10.5px;font-weight:700;white-space:nowrap}
 .col-bipando{background:#E9EEF6;color:#2E5E8C}.col-recontando{background:#FFF1E3;color:#B45C00}
@@ -233,6 +241,7 @@ function renderReceb(){
   h+='<div class="kpis">'+kp.map(([k,l,v,s])=>'<div class="kpi k-'+k+(filtro===k?' on':'')+'" onclick="filtro=\''+k+'\';aberto=null;render()"><div class="v">'+v+'</div><div class="l">'+l+'</div><div class="s">'+s+'</div></div>').join('')+'</div>';
   h+='<div class="auto"><span>🤖 <b>Cruzamento automático:</b> '+all.length+' recebimento(s) analisados · <span class="pos">'+autoOk+' sem divergência</span> · <span class="neg">'+all.filter(r=>r.veredito==='divergente').length+' com divergência</span> · '+all.filter(r=>r.veredito==='pendente').length+' aguardando dados.</span><span class="mut" style="font-size:11px">Tolerâncias: qtd ±'+CFG.tol_qtd_pct+'% (balança ±'+CFG.tol_peso_pct+'%) · preço vs pedido +'+CFG.tol_preco_pct+'% · validade mín. '+CFG.validade_min_dias+' d ou '+CFG.validade_min_pct+'% do normal · boleto mín. '+CFG.boleto_min_dias+' d · margem mín. '+CFG.margem_min_pct+'%'+(DADOS.gerado_em?' · gerado '+new Date(DADOS.gerado_em).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'')+'</span></div>';
   h+='<div class="legend"><span class="chk"><i class="ok">OK</i></span> bate <span class="chk"><i class="aviso">AVISO</i></span> olhar depois <span class="chk"><i class="erro">ERRO</i></span> precisa de decisão <span class="chk"><i class="pendente">…</i></span> ainda sem dado &nbsp;·&nbsp; XML=nota capturada · PED=pedido de compra · QTD=coletor × nota · VAL=validade · BOL=boletos · MRG=margem/custo · CAD=cadastro</div>';
+  h+=colcfgHtml();
   let lista=all.filter(passaBusca).filter(r=>filtro==='todos'||(filtro==='fila'?FILA(r):filtro==='aguardando'?['aguardando_coletor','em_contagem'].includes(r.situacao):r.situacao===filtro));
   const ordem={excecao:0,reconferir:1,conferido:2,pronto:3,em_contagem:4,aguardando_coletor:5,bloqueado:6,liberado:7,cancelado:8};
   lista.sort((a,b)=>(a.loja-b.loja)||(ordem[a.situacao]-ordem[b.situacao])||String(a.hora_entrada||'').localeCompare(String(b.hora_entrada||'')));
@@ -461,6 +470,30 @@ function csvMargem(){
 }
 
 /* ── TESTES / CONFIG ── */
+/* ── Coletor · configuração (spec §9): PINs por loja, régua do coletor e link do app.
+   Os PINs vêm de GET /api/recebimento/config, que só devolve o pin (nunca o token da loja). */
+let COLCFG=null, colcfgAberto=false;
+const COLCFG_CAMPOS=[['validade_pct_min','Validade mínima (% do Validar)','Bloqueia o item quando a validade lida é menor que essa fração do prazo de cadastro do item.'],['recontagens_min','Recontagens mínimas','Quantas vezes a loja precisa apertar Terminei antes de poder enviar assim mesmo.'],['janela_dias_axml','Janela de notas (dias)','Quantos dias pra trás a lista de notas do coletor procura NF-e no ERP.']];
+async function colcfgToggle(){colcfgAberto=!colcfgAberto;if(colcfgAberto&&!COLCFG){try{COLCFG=await fetch('/api/recebimento/config').then(r=>r.json());}catch(e){COLCFG={error:e.message};}}render();}
+function colcfgLink(){const l=location.origin+'/recebimento.html';if(navigator.clipboard)navigator.clipboard.writeText(l).then(function(){ftoast('Link do app copiado.');},function(){ftoast(l);});else ftoast(l);}
+function colcfgHtml(){
+  if(!colcfgAberto)return '<div class="auto" style="border-left-color:var(--am)"><span>📱 <b>Coletor · configuração</b> — PINs das lojas, régua de validade, recontagens e link do app.</span><button class="btn btn-slate btn-sm" onclick="colcfgToggle()">Abrir</button></div>';
+  if(!COLCFG)return '<div class="auto" style="border-left-color:var(--am)"><span>Carregando configuração do coletor…</span></div>';
+  if(COLCFG.error)return '<div class="auto" style="border-left-color:var(--neg)"><span class="neg">Coletor: '+esc(COLCFG.error)+'</span><button class="btn btn-slate btn-sm" onclick="colcfgToggle()">Fechar</button></div>';
+  const link=location.origin+'/recebimento.html';
+  let h='<div class="auto colcfg" style="border-left-color:var(--am)">';
+  h+='<div class="btns"><button class="btn btn-amber btn-sm" onclick="colcfgSalvar()">Salvar</button><button class="btn btn-slate btn-sm" onclick="colcfgLink()">Copiar link do app</button><a class="btn btn-slate btn-sm" href="/recebimento.html" target="_blank" rel="noopener">Abrir o app</a><button class="btn btn-slate btn-sm" onclick="colcfgToggle()">Fechar</button></div>';
+  h+='<h3>📱 Coletor · configuração</h3><div class="mut" style="font-size:11.5px;margin-bottom:10px">O conferente entra em <code>'+esc(link)+'</code> com o PIN da loja. Troque o PIN direto no arquivo de config do servidor se vazar.</div>';
+  h+='<div class="cfg">'+COLCFG_CAMPOS.map(function(c){return '<label for="k-'+c[0]+'"><b>'+c[1]+'</b>'+c[2]+'</label><input type="number" step="1" min="0" id="k-'+c[0]+'" value="'+esc(COLCFG[c[0]])+'">';}).join('')+'</div>';
+  h+='<div class="pins">'+Object.keys(COLCFG.lojas||{}).map(function(n){return '<div class="pin">'+LJ(n)+'<b>'+esc(COLCFG.lojas[n].pin)+'</b></div>';}).join('')+'</div>';
+  return h+'</div>';
+}
+async function colcfgSalvar(){
+  const body={};for(const c of COLCFG_CAMPOS){const el=$('#k-'+c[0]);if(el&&el.value!=='')body[c[0]]=+el.value;}
+  try{const r=await fetch('/api/recebimento/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(x){return x.json();});
+    if(r.error)throw new Error(r.error);COLCFG=r;ftoast('Configuração do coletor salva.');render();}
+  catch(e){ftoast('Não salvou: '+e.message,true);}
+}
 const CFG_CAMPOS=[['tol_qtd_pct','Tolerância de quantidade','Diferença coletor × nota aceita sem virar erro (%).'],['tol_peso_pct','Tolerância de balança (kg)','Item pesado: diferença de pesagem/quebra aceita (%).'],['tol_preco_pct','Preço acima do pedido','Quanto o preço do XML pode passar do pedido antes de virar erro (%).'],['custo_aumento_pct','Custo subiu','Custo da nota acima do último custo do ERP gera aviso a partir de (%).'],['validade_min_dias','Validade mínima (dias)','Piso: validade lida no coletor menor que isso vira erro, seja o item que for.'],['validade_min_pct','Validade mínima (% do normal)','Ou menor que essa fração da referência: validade de cadastro do item ou, sem cadastro, a validade normal dele nas entradas anteriores.'],['boleto_min_dias','Boleto mínimo (dias)','1º boleto vencendo antes disso, contado da entrada, gera aviso.'],['margem_min_pct','Margem mínima (%)','Venda de cadastro × custo da nota abaixo disso vira erro.'],['margem_diverg_pp','Margem abaixo do cadastro (pontos)','Margem calculada tantos pontos abaixo da margem de cadastro gera aviso.'],['exigir_pedido','Exigir pedido de compra','Marcado: nota de compra sem pedido vira erro (senão só aviso).'],['auto_liberar','Marcar "pronto" automaticamente','Marcado: cruzamento 100% OK já aparece como Pronto p/ liberar sem ninguém abrir.']];
 function abrirConfig(){
   $('#modal-body').innerHTML='<h2>⚙ Tolerâncias do cruzamento automático</h2><p class="sub" style="margin-bottom:12px">Tudo que passa dentro das tolerâncias não chama você. Ajuste conforme a política da rede.</p><div class="cfg">'+CFG_CAMPOS.map(([k,l,d])=>'<label for="c-'+k+'"><b>'+l+'</b>'+d+'</label>'+(typeof CFG[k]==='boolean'?'<input type="checkbox" id="c-'+k+'"'+(CFG[k]?' checked':'')+'>':'<input type="number" step="0.5" id="c-'+k+'" value="'+CFG[k]+'">')).join('')+'</div><div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px"><button class="btn btn-slate" onclick="$(\'#modal\').hidden=true">Cancelar</button><button class="btn btn-amber" onclick="salvarConfig()">Salvar e recalcular</button></div>';
