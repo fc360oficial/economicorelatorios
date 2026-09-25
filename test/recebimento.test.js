@@ -9,7 +9,7 @@ test('abrir + bipar: ok / recusado / bloqueado validade / não cadastrado / não
   setup(); const c = R.abrirNota({ loja: 3, nome: 'MAYRA', chave: '2626'.padEnd(44, '0'), nNota: '911217', fornecedor: 'M DIAS', codFornec: 540 });
   assert.equal(c.status, 'bipando'); assert.equal(c.id, '2026-09-25-3-911217');
   let r = await R.bipar(c.id, { cod: '7896213007386', quant: 10, emb: 24, validade: '2027-03-28', nome: 'MAYRA' });
-  assert.equal(r.resultado, 'ok'); assert.equal(r.item.un, 240); assert.equal(r.item.estado, 'ok');
+  assert.equal(r.resultado, 'ok'); assert.equal(r.item.un, 240); assert.equal(r.item.estado, 'ok'); assert.equal(r.item.emb_label, 'FD');
   r = await R.bipar(c.id, { cod: '7896213007386', quant: 1, emb: 24, validade: '2027-03-28' }); assert.equal(r.item.un, 264); assert.equal(r.item.bipagens, 2);
   r = await R.bipar(c.id, { cod: '7896213007386', quant: 1, emb: 24, validade: '2026-12-01' }); assert.equal(r.resultado, 'bloqueado_validade'); assert.equal(r.item.origem_devolucao, 'coletor');
   r = await R.bipar(c.id, { cod: '222', quant: 6, emb: 1, validade: null }); assert.equal(r.resultado, 'recusado'); assert.equal(r.item.origem_devolucao, 'compras');
