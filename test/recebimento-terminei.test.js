@@ -32,23 +32,38 @@ test('devolução coletor (validade curta e avaria via chat); terminei não reco
   assert.equal(r.resultado, 'bloqueado_validade');
   let t = R.terminei(c.id); assert.equal(t.bateu, true); assert.equal(R.obter(c.id).status, 'terminada');
   let dev = R.devolucoes(R.obter(c.id));
-  let coletor = dev.find(d => d.cod === '7896213007386' && d.origem === 'coletor');
-  assert.ok(coletor); assert.ok(coletor.motivo.includes('2026-10-01'));
+  assert.equal(dev.length, 1); // uma linha só: item recebido (bloqueado) não é "falta"
+  assert.equal(dev[0].cod, '7896213007386'); assert.equal(dev[0].origem, 'coletor'); assert.ok(dev[0].motivo.includes('2026-10-01'));
 
   R.mensagem(c.id, { de: 'central', nome: 'JOSE', acao: 'devolver', cod: '7896213007386' });
   assert.equal(R.obter(c.id).itens['7896213007386'].estado, 'avaria');
   dev = R.devolucoes(R.obter(c.id));
-  coletor = dev.find(d => d.cod === '7896213007386' && d.origem === 'coletor');
-  assert.ok(coletor); assert.equal(coletor.motivo, 'avaria');
+  assert.equal(dev.length, 1);
+  assert.equal(dev[0].origem, 'coletor'); assert.equal(dev[0].motivo, 'avaria');
 
   t = R.terminei(c.id); assert.equal(t.bateu, true); assert.equal(t.recontar.length, 0); // item em avaria não volta pra recontagem
 
   const rec = R.reconferir(c.id, { nome: 'CENTRAL' });
   assert.equal(rec.status, 'bipando'); assert.equal(rec.recontagens, 0);
+  assert.equal(rec.termineiEm, undefined);
   const ultima = rec.mensagens[rec.mensagens.length - 1];
   assert.equal(ultima.de, 'central'); assert.equal(ultima.acao, 'aguarde');
 
   R.terminei(c.id); R.liberar(c.id, { nome: 'JOSE' });
   assert.equal(R.obter(c.id).status, 'liberada');
   assert.throws(() => R.reconferir(c.id, { nome: 'JOSE' }), /liberada/);
+});
+
+test('devolução: item bloqueado bipado a menos que a nota gera coletor + falta separados', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rec-'));
+  const xmlUmItem = { itens: [{ cod: '7896213007386', descricao: 'CREAM CRACKER', un: 240 }], naoPedidos: [], status: 'conciliado', pedidoId: 14, ln: 3 };
+  R.init({ dir, cadastro: async c => CAD[c] || null, xmlLoja: () => xmlUmItem, agora: () => new Date('2026-09-25T08:00:00') });
+  const c = R.abrirNota({ loja: 3, nome: 'MAYRA', chave: 'K4', nNota: '4', fornecedor: 'F', codFornec: 1 });
+
+  const r = await R.bipar(c.id, { cod: '7896213007386', quant: 200, emb: 1, validade: '2026-10-01' }); // 200 < 240, validade curta
+  assert.equal(r.resultado, 'bloqueado_validade');
+  const t = R.terminei(c.id); assert.equal(t.bateu, true); assert.equal(R.obter(c.id).status, 'terminada'); // bloqueado_validade não entra na checagem de qtd
+
+  const dev = R.devolucoes(R.obter(c.id));
+  assert.deepEqual(dev.map(d => d.origem + ':' + d.cod + ':' + d.qtd).sort(), ['coletor:7896213007386:200', 'falta:7896213007386:40']);
 });
