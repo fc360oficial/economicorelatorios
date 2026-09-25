@@ -533,12 +533,28 @@ function erpTesteHtml(p){
   const et=p.erp_teste, feitas=et&&et.lojas?et.lojas:{};
   const lojas=(p.lojas||[]), pend=lojas.filter(l=>!(feitas[l]&&feitas[l].nReg));
   let h='<span class="erpt" style="display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap">';
-  for(const l of lojas){ const f=feitas[l]; if(f&&f.nReg) h+='<span class="pill" style="background:#E3ECFA;color:#2E5E8C" title="Log '+esc(f.logId||'')+'">ERP teste · '+ETQ(l)+' · nº '+f.nReg+' ('+f.itens+' itens)</span>'; }
+  const xmlL=(p.xml&&p.xml.lojas)||{}; let pendReceb=[];
+  for(const l of lojas){ const f=feitas[l]; if(!(f&&f.nReg)) continue;
+    const x=xmlL[l]; const conf=x&&['conciliado','divergente','falta','parcial'].includes(x.status);
+    if(f.recebidoEm) h+='<span class="pill" style="background:#E7F5EC;color:#1E7B45" title="NF '+esc(f.recebidoNota||'')+' · Log '+esc(f.recebidoLogId||'')+'">ERP teste · '+ETQ(l)+' · nº '+f.nReg+' · '+(f.recebidoStatus===7?'recebido parcial':'recebido')+'</span>';
+    else { h+='<span class="pill" style="background:#E3ECFA;color:#2E5E8C" title="Log '+esc(f.logId||'')+'">ERP teste · '+ETQ(l)+' · nº '+f.nReg+' ('+f.itens+' itens)'+(conf?' · aguardando espelhar recebimento':'')+'</span>'; if(conf) pendReceb.push(l); }
+  }
+  if(pendReceb.length) h+='<button class="btn btn-sm" style="background:#E7F5EC;color:#1E7B45;border:1px solid #BFE3CC" onclick="erpTesteReceb('+p.id+')">Espelhar recebimento no ERP teste · '+pendReceb.map(ETQ).join(', ')+'</button>';
   const erros=(et&&et.erros)||[];
   for(const e of erros){ if(feitas[e.loja]&&feitas[e.loja].nReg) continue; h+='<span class="pill" style="background:#FBEAED;color:#C22F49;white-space:normal" title="'+esc(e.erro||'')+'">ERRO no ERP teste · '+(e.loja?ETQ(e.loja):'')+' · '+esc(String(e.erro||'').slice(0,90))+(e.logId?' · <a href="/log.html?de='+String(e.em||'').slice(0,10)+'&ate='+String(e.em||'').slice(0,10)+'&status=erro" style="color:#C22F49;font-weight:800">ver no Log</a>':'')+'</span>'; }
   if(pend.length) h+='<button class="btn btn-sm" style="background:#FFF6D9;color:#6B4E00;border:1px solid #EFD98F" onclick="erpTeste('+p.id+')">'+(erros.length?'Reenviar pro ERP teste (.254)':'Gerar pedido no ERP teste (.254)')+(pend.length<lojas.length?' · '+pend.map(ETQ).join(', '):'')+'</button>';
   if(Object.keys(feitas).length){ const hoje=new Date().toISOString().slice(0,10); h+='<a class="btn btn-sm btn-slate" href="/log.html?tabela=pedidocompra&de='+hoje+'&ate='+hoje+'" style="text-decoration:none">Ver no Log</a>'; }
   return h+'</span>';
+}
+async function erpTesteReceb(id){
+  try{
+    const r=await fetch('/api/pedidos-fornecedor/'+id+'/erp-teste-recebimento',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    const j=await r.json(); if(j.error) throw new Error(j.error);
+    const ok=Object.entries(j.lojas||{}).map(([l,x])=>ETQ(l)+' → '+(x.status===7?'recebido parcial':'recebido'));
+    const er=(j.erros||[]).map(e=>ETQ(e.loja)+': '+e.erro);
+    await carregar(); render();
+    alert((ok.length?'Recebimento espelhado no ERP teste:\n'+ok.join('\n'):'Nada espelhado.')+(er.length?'\n\nErros:\n'+er.join('\n'):''));
+  }catch(e){ alert('Falhou: '+e.message); }
 }
 async function erpTeste(id){
   const p=PED[id]; if(!p) return;

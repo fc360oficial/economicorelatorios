@@ -7446,8 +7446,8 @@ app.post('/api/sugestao-manual/:id/desativar', (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 // confere recebimento dos pedidos aprovados (nota no ERP × pedido) e gera sugestão de ruptura de entrega
-setTimeout(() => pedidosFornec.verificarRecebimentos().catch(e => console.error('[PEDIDOS] verificar:', e.message)), 120 * 1000);
-setInterval(() => pedidosFornec.verificarRecebimentos().catch(e => console.error('[PEDIDOS] verificar:', e.message)), 30 * 60 * 1000);
+setTimeout(() => pedidosFornec.verificarRecebimentos().then(() => espelharRecebimentosPendentes()).catch(e => console.error('[PEDIDOS] verificar:', e.message)), 120 * 1000);
+setInterval(() => pedidosFornec.verificarRecebimentos().then(() => espelharRecebimentosPendentes()).catch(e => console.error('[PEDIDOS] verificar:', e.message)), 30 * 60 * 1000);
 
 // ── Formação de Preço (sidebar "Precificação"): registro por pedido×loja quando a loja concilia o XML
 const precificacao = require('./lib/precificacao');
@@ -7739,6 +7739,56 @@ app.post('/api/pedidos-fornecedor/:id/erp-teste', async (req, res) => {
     res.status(resultado.erros.length && !Object.keys(resultado.lojas).length ? 502 : 200).json({ ok: !resultado.erros.length, ...resultado, erp_teste: p.erp_teste || null });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+// ── Espelhar o RECEBIMENTO no ERP de TESTE (.254) ─────────────────────────────
+// Quando o XML de uma loja é conciliado pelo app e aquela loja já tem pedido no ERP teste, grava lá o que o
+// Dlinks gravaria na entrada da nota: Status 2/7 no cabeçalho, QtdFaturada por item e pedidoitensconferidos.
+// Formato em lib/recebimento-erp.js. Roda sozinho depois de cada verificação de XML e pelo botão da tela.
+const recebErp = require('./lib/recebimento-erp');
+const XML_CONFERIDO = ['conciliado', 'divergente', 'falta', 'parcial'];
+async function espelharRecebimentoErpTeste(p, usuario, lojas) {
+  const et = p.erp_teste || { lojas: {}, erros: [] };
+  const resultado = { lojas: {}, erros: [] };
+  const alvo = (Array.isArray(lojas) && lojas.length ? lojas.map(Number) : (p.lojas || [])).filter(ln => {
+    const f = et.lojas && et.lojas[ln]; const x = p.xml && p.xml.lojas && p.xml.lojas[ln];
+    return f && f.nReg && !f.recebidoEm && x && XML_CONFERIDO.includes(x.status) && (x.itens || []).length;
+  });
+  if (!alvo.length) return resultado;
+  for (const ln of alvo) {
+    const x = p.xml.lojas[ln], f = et.lojas[ln];
+    let m;
+    try { m = recebErp.montarPassosRecebimento({ nRegTeste: f.nReg, xmlLoja: x, faltas: (p.recebimento && p.recebimento[ln] && p.recebimento[ln].faltas) || 0 }); }
+    catch (e) { resultado.erros.push({ loja: ln, erro: 'recebimento: ' + e.message, em: new Date().toISOString() }); continue; }
+    const r = await escreverERP.lote({ usuario, motivo: recebErp.motivoRecebimento(p, ln, m.nNota), banco: 'central', passos: m.passos, limite: 200 });
+    if (r.ok) { f.recebidoEm = new Date().toISOString(); f.recebidoStatus = m.status; f.recebidoLogId = r.id; f.recebidoNota = m.nNota; resultado.lojas[ln] = { status: m.status, logId: r.id }; }
+    else resultado.erros.push({ loja: ln, erro: 'recebimento: ' + r.erro, logId: r.id, em: new Date().toISOString() });
+  }
+  const errosAntigos = (et.erros || []).filter(e => !resultado.lojas[e.loja] && !resultado.erros.some(x => x.loja === e.loja));
+  p.erp_teste = { ...et, em: new Date().toISOString(), por: usuario, erros: [...errosAntigos, ...resultado.erros] };
+  pedidosFornec.salvar(p);
+  return resultado;
+}
+/** Varre os pedidos com nº no ERP teste e XML conferido que ainda não foram espelhados (roda após cada verificação de XML). */
+async function espelharRecebimentosPendentes() {
+  let n = 0;
+  for (const resumo of pedidosFornec.listar()) {
+    if (!resumo.erp_teste || !resumo.erp_teste.lojas) continue;
+    const p = pedidosFornec.obter(resumo.id); if (!p) continue;
+    const r = await espelharRecebimentoErpTeste(p, 'sistema (conferência XML)');
+    n += Object.keys(r.lojas).length;
+    if (r.erros.length) console.error('[ERP-TESTE] recebimento pedido #' + p.id + ':', JSON.stringify(r.erros));
+  }
+  if (n) console.log('[ERP-TESTE] recebimentos espelhados:', n);
+  return n;
+}
+app.post('/api/pedidos-fornecedor/:id/erp-teste-recebimento', async (req, res) => {
+  try {
+    const p = pedidosFornec.obter(+req.params.id);
+    if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
+    const r = await espelharRecebimentoErpTeste(p, req.session.user.nome, req.body && req.body.lojas);
+    if (!Object.keys(r.lojas).length && !r.erros.length) return res.status(400).json({ error: 'Nenhuma loja com XML conferido e pedido no ERP teste pendente de espelhar.' });
+    res.status(r.erros.length && !Object.keys(r.lojas).length ? 502 : 200).json({ ok: !r.erros.length, ...r, erp_teste: p.erp_teste });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 app.post('/api/pedidos-fornecedor/:id/fechar', (req, res) => {
   const p = pedidosFornec.fechar(parseInt(req.params.id), req.session.user?.nome || null);
   if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
@@ -7765,7 +7815,7 @@ app.post('/api/pedidos-fornecedor/:id/enviar', (req, res) => {
   res.json({ ok: true, status: p.status, link: linkPedido(p) });
 });
 app.post('/api/pedidos-fornecedor/verificar-recebimentos', async (req, res) => {
-  try { res.json(await pedidosFornec.verificarRecebimentos()); } catch (err) { res.status(500).json({ error: err.message }); }
+  try { const r = await pedidosFornec.verificarRecebimentos(); r.erp_teste_recebimentos = await espelharRecebimentosPendentes().catch(e => 'erro: ' + e.message); res.json(r); } catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.post('/api/pedidos-fornecedor/alertas-vistos', (req, res) => {
   pedidosFornec.verAlertas(req.body.ids, req.session.user?.nome || null); res.json({ ok: true });
