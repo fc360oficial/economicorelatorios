@@ -9,7 +9,7 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:Inter,'Segoe UI',system-ui,sans-serif;background:#EBEBE9;color:#0E1626;font-size:14px;font-variant-numeric:tabular-nums}
 .wrap{max-width:980px;margin:0 auto;padding:18px 14px 90px}
-.top{position:sticky;top:0;z-index:30;background:#101B33;color:#fff;border-radius:14px;padding:14px 18px 16px;margin-bottom:14px;transition:padding .15s}
+.top{background:#101B33;color:#fff;border-radius:14px;padding:14px 18px 16px;margin-bottom:14px;transition:padding .15s}
 .top.compact{padding:8px 14px 9px;border-radius:0 0 12px 12px;box-shadow:0 6px 18px rgba(14,22,38,.25)}
 .top.compact .sub,.top.compact .ey{display:none}
 .top.compact .tophd{margin-bottom:0;float:left;margin-right:10px}
@@ -88,20 +88,18 @@ input.obs:focus{outline:none;border-color:#F5B800}
   .msgc .t .m.curto{max-height:none}.msgc .t .m.curto::after{display:none}
   .msgc .mais{display:inline-block;margin-top:4px;font-size:12px;font-weight:800;color:#6B4E00;background:none;border:none;padding:0;cursor:pointer;text-decoration:underline}
   .msgc .wa-c{width:100%;justify-content:center;box-sizing:border-box;margin-top:2px}
-  /* tabela vira cartões */
-  table,tbody{display:block}thead{display:none}
-  tr{display:block;border-top:1px solid #DADAD6;padding:10px 10px 12px}
+  /* itens: mesmo desenho da digitação do pedido ao fornecedor (Radar) — bloco por produto, preço à esquerda, observação à direita */
+  thead{display:none}
+  table,tbody{display:block}
+  tr{display:grid;grid-template-columns:112px 1fr;gap:6px 8px;padding:9px 10px;border-top:1px solid #EEEEEA;align-items:center}
   tr:first-child{border-top:none}
-  td{display:block;padding:0;border-top:none}
-  td.desc{font-size:14px;margin-bottom:8px}
+  td{display:block;padding:0!important;border:0!important}
+  td.desc{grid-column:1 / -1;font-size:13px}
   .cod{white-space:normal;line-height:1.7}.cod i{margin-left:0;margin-right:8px}
-  .embv{width:120px;margin-left:0;font-size:12px;padding:4px 8px}
-  td.r{text-align:left;display:flex;align-items:center;gap:10px;margin:6px 0}
-  td.r::before{content:'Preço unit. (R$)';font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:#4E5A72;flex:1}
-  td.r b{font-size:16px}
-  input.preco{width:140px;font-size:17px;padding:10px 12px}
-  td:last-child::before{content:'Observação';display:block;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:#4E5A72;margin:4px 0 4px}
-  input.obs{width:100%;min-width:0;box-sizing:border-box;font-size:14px;padding:10px 12px}
+  .embv{width:82px;margin-left:0;font-size:11px;padding:2px 6px}
+  td.r{text-align:left}
+  input.preco{width:100%;box-sizing:border-box;font-size:16px;padding:9px 10px}
+  input.obs{min-width:0;width:100%;box-sizing:border-box;font-size:13px;padding:9px 10px}
   .tot{flex-direction:column;align-items:flex-start;gap:4px}
   .bar{padding:10px 12px;flex-direction:column;align-items:stretch}
   .bar .btn{width:100%;padding:14px}
@@ -143,7 +141,7 @@ function render(){
   const itensOrd=P.itens.slice().sort((a,b)=>String(a.descricao||'').localeCompare(String(b.descricao||''),'pt-BR'));
   for(const i of itensOrd){
     h+='<tr data-cod="'+esc(i.cod)+'" data-txt="'+esc(String(i.descricao||'').toLowerCase()+' '+i.cod)+'"><td class="desc">'+esc(i.descricao)+'<span class="cod">'+esc(i.cod)+'<i>Emb. '+(i.emb>1?i.emb:1)+'</i>'+(lock?(i.emb_vendedor?'<i class="embv-ok" title="Embalagem informada por você">sua emb.: '+esc(i.emb_vendedor)+'</i>':''):'<input class="embv" data-cod="'+esc(i.cod)+'" value="'+esc(i.emb_vendedor||'')+'" placeholder="emb. correta?" maxlength="20" title="Se a embalagem do seu produto for diferente da nossa, informe aqui (só observação; a comprador(a) decide)">')+'</span></td>'+
-      '<td class="r">'+(lock?'<b>'+(i.preco!=null?'R$ '+fmt(i.preco):'—')+'</b>':'<input class="preco'+(i.preco!=null?' ok':'')+'" inputmode="numeric" data-cod="'+esc(i.cod)+'" value="'+(i.preco!=null?fmt(i.preco):'')+'" placeholder="0,00">')+'</td>'+
+      '<td class="r">'+(lock?'<b>'+(i.preco!=null?'R$ '+fmt(i.preco):'—')+'</b>':'<input class="preco'+(i.preco!=null?' ok':'')+'" inputmode="numeric" enterkeyhint="next" data-cod="'+esc(i.cod)+'" value="'+(i.preco!=null?fmt(i.preco):'')+'" placeholder="0,00">')+'</td>'+
       '<td>'+(lock?esc(i.obs||'')||'<span style="color:#98A0B3">—</span>':'<input class="obs" data-cod="'+esc(i.cod)+'" value="'+esc(i.obs||'')+'" placeholder="ex.: sem estoque, validade…" maxlength="200">')+'</td></tr>';
   }
   h+='</tbody></table></div><div class="tot" id="tot"></div></div>';
@@ -168,7 +166,7 @@ function render(){
         if(isPreco){const d=el.value.replace(/\D/g,'').replace(/^0+(?=\d)/,'').slice(0,9);el.value=d?fmt(parseInt(d,10)/100):'';}
         dirty=true;el.classList.toggle('ok',isPreco&&precoNum(el.value)!=null);atualizarTot();agendarSave();});
       el.addEventListener('keydown',e=>{
-        if(e.key!=='Enter')return;e.preventDefault();
+        if(!(e.key==='Enter'||(isPreco&&e.key==='Tab'&&!e.shiftKey)))return;e.preventDefault();   // Enter, Tab ou "próximo" do teclado do celular
         clearTimeout(saveTimer);salvar();
         const i=isPreco?precos.indexOf(el):precos.findIndex(p=>p.dataset.cod===el.dataset.cod);
         let j=i+1;while(precos[j]&&precos[j].closest('tr')&&precos[j].closest('tr').hidden)j++;const prox=precos[j];if(prox){prox.focus();prox.select();prox.scrollIntoView({block:'center',behavior:'smooth'});}else el.blur();
