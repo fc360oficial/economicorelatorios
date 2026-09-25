@@ -535,6 +535,14 @@ table.tst tr.fail td{background:var(--negw)}table.tst tr.fail td.det{color:var(-
 table.tst tr.warn td.det{color:var(--amk)}
 .lock-pill{display:inline-block;padding:2px 9px;border-radius:6px;background:var(--posw);color:var(--pos);font-size:11.5px;font-weight:800;white-space:nowrap;vertical-align:middle}
 table.fxt tr.lock td{opacity:.7;cursor:not-allowed}
+/* Recado aos fornecedores (Tiago, 25/09: "organizar layout"): mensagem em cima ocupando a largura, embaixo nome · WhatsApp · botão alinhados */
+.rc-grid{display:grid;grid-template-columns:minmax(220px,2fr) minmax(180px,1fr) auto;gap:10px 12px;align-items:end}
+.rc-grid .rc-msg{grid-column:1 / -1}
+.rc-grid textarea{width:100%;box-sizing:border-box;border:1px solid var(--ln2);border-radius:8px;padding:9px 11px;font-family:inherit;font-size:13.5px;resize:vertical;min-height:76px}
+.rc-grid .rc-cnt{display:block;text-align:right;margin-top:3px}
+.rc-grid input{width:100%;box-sizing:border-box;font-size:13.5px;padding:9px 11px}
+.rc-grid .rc-btn .btn{white-space:nowrap;padding:10px 18px}
+@media(max-width:760px){.rc-grid{grid-template-columns:1fr}.rc-grid .rc-btn .btn{width:100%}}
 .prazo-card .pc-hd{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
 .prazo-card .pc-hd h3{margin:0}
 .prazo-card .pc-hd .mini{flex-basis:100%;margin-top:-4px}
@@ -1434,6 +1442,7 @@ function diaSemana(v){ var d = new Date(v); if (isNaN(d)) return ''; return ['do
 function durTxt(ms){ var m = Math.round(Math.abs(ms) / 60000); if (m < 60) return m + ' min'; var h = Math.floor(m / 60), d = Math.floor(h / 24); if (d < 1) return h + 'h' + (m % 60 ? String(m % 60).padStart(2, '0') : ''); h = h % 24; return d + ' dia' + (d > 1 ? 's' : '') + (h ? ' e ' + h + 'h' : ''); }
 function restanteTxt(prazo){ var d = new Date(prazoLocal(prazo)); if (isNaN(d)) return '—'; var ms = d.getTime() - Date.now(); return ms >= 0 ? durTxt(ms) : 'há ' + durTxt(ms); }
 function decorridoTxt(v){ var d = new Date(v); if (isNaN(d)) return '—'; return durTxt(Date.now() - d.getTime()); }
+document.addEventListener('input', function(e){ if (e.target && e.target.id === 'ac-msg') { var n = document.getElementById('ac-msg-n'); if (n) n.textContent = e.target.value.length; } });
 async function salvarPrazo(v){ if (!CUR) return; if (!v) { toastMsg('Informe data e hora'); return; } try { CUR = await post('/api/cotacoes/' + CUR.id + '/prazo', {prazo: v}); renderTudo(); toastMsg('Prazo: ' + dtp(CUR.prazo) + (prazoVencidoCli(CUR.prazo) ? ' — atenção: já passou, vendedores continuam bloqueados' : ' — vendedores liberados até essa hora')); } catch(e) { toastMsg('Erro: ' + e.message); } }
 function adiarPrazo(dias){ if (!CUR) return; var base = CUR.prazo ? new Date(prazoLocal(CUR.prazo)) : new Date(); if (base.getTime() < Date.now()) { base = new Date(); base.setHours(18, 0, 0, 0); } base.setDate(base.getDate() + dias); salvarPrazo(localIso(base)); }
 // Enviar para todos, um por um (Tiago, 23/09/26): abre o WhatsApp do próximo vendedor pendente a cada clique. O envio continua sendo
@@ -1468,10 +1477,10 @@ function renderAcomp(){
     '<div class="suginfo">' + (pv ? '<span class="warn"><b>Vendedores bloqueados desde ' + dtFull(CUR.prazo) + '.</b> Escolha uma data e hora à frente e salve pra liberar a digitação.</span>' : '') + (CUR.prazoAlteradoEm ? '<span>Último ajuste do prazo em <b>' + dtFull(CUR.prazoAlteradoEm) + '</b>' + (CUR.prazoAlteradoPor ? ' por <b>' + esc(CUR.prazoAlteradoPor) + '</b>' : '') + '</span>' : '<span>Prazo não alterado desde a abertura.</span>') + '</div></div>';
   if (aberta) h += '<div class="acoes-row" style="margin-bottom:14px;align-items:center"><button class="btn primary" onclick="enviarTodos()">📨 Enviar para todos (um por um)</button><span class="mini">abre o WhatsApp de cada vendedor pendente, um de cada vez, com a mensagem pronta; você confere e envia no seu WhatsApp</span></div>';
   h += '<div class="sugtop" style="margin-bottom:14px"><h3>💬 Recado aos fornecedores <span class="mini" style="font-weight:600">· aparece fixo no topo da página de todos os vendedores desta cotação · só a comprador(a) altera</span></h3>' +
-    '<div class="row" style="align-items:stretch"><div class="fld" style="flex:1;min-width:280px"><label>Mensagem</label><textarea id="ac-msg" rows="3" style="border:1px solid var(--ln2);border-radius:8px;padding:8px 10px;font-family:inherit;font-size:12.5px;resize:vertical" placeholder="ex.: Preços válidos até sexta. Entrega no CD (Jaboatão). Dúvidas, me chame no WhatsApp." maxlength="600">' + esc(CUR.mensagem || '') + '</textarea></div>' +
-    '<div class="fld"><label>Comprador(a)</label><input type="text" id="ac-nome" value="' + esc(CUR.comprador && CUR.comprador.nome || '') + '" placeholder="nome"></div>' +
-    '<div class="fld"><label>WhatsApp da comprador(a)</label><input type="text" id="ac-whats" value="' + esc(CUR.comprador && CUR.comprador.whats || '') + '" placeholder="5581999990000" inputmode="numeric"></div>' +
-    '<div class="fld"><label>&nbsp;</label><button class="btn primary" onclick="salvarMensagem()">Salvar recado</button></div></div>' +
+    '<div class="rc-grid"><div class="fld rc-msg"><label>Mensagem</label><textarea id="ac-msg" rows="3" placeholder="ex.: Preços válidos até sexta. Entrega no CD (Jaboatão). Dúvidas, me chame no WhatsApp." maxlength="600">' + esc(CUR.mensagem || '') + '</textarea><span class="mini rc-cnt"><span id="ac-msg-n">' + String(CUR.mensagem || '').length + '</span>/600</span></div>' +
+    '<div class="fld rc-nome"><label>Comprador(a)</label><input type="text" id="ac-nome" value="' + esc(CUR.comprador && CUR.comprador.nome || '') + '" placeholder="nome da compradora"></div>' +
+    '<div class="fld rc-whats"><label>WhatsApp da comprador(a)</label><input type="text" id="ac-whats" value="' + esc(CUR.comprador && CUR.comprador.whats || '') + '" placeholder="5581999990000" inputmode="numeric"></div>' +
+    '<div class="fld rc-btn"><label>&nbsp;</label><button class="btn primary" onclick="salvarMensagem()">Salvar recado</button></div></div>' +
     '<div class="suginfo">' + (CUR.mensagemEm ? '<span>Atualizado ' + dt(CUR.mensagemEm) + (CUR.mensagemPor ? ' por <b>' + esc(CUR.mensagemPor) + '</b>' : '') + '</span>' : '<span class="warn">Sem recado ainda: o vendedor vê só o botão de WhatsApp.</span>') + (CUR.comprador && CUR.comprador.whats ? '<span>WhatsApp: <b>' + esc(CUR.comprador.whats) + '</b> (o vendedor clica e já cai na sua conversa)</span>' : '<span class="warn">Sem WhatsApp: o vendedor não consegue te chamar.</span>') + '</div></div>';
   h += '<div class="tablewrap"><table><thead><tr><th>Fornecedor</th><th>Vendedor</th><th>Status</th><th>Itens cotados</th><th>Enviado / aberto / respondido</th><th>Condição</th><th>Ações</th></tr></thead><tbody>';
   var prevE = null;
