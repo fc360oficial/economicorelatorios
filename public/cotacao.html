@@ -1563,7 +1563,7 @@ function analiseItem(i){
 }
 // ───────── COMPARATIVO POR ITEM (estilo Club da Cotação, pedido do Tiago 15/09): cada item num bloco, dados da
 // última compra do ERP e, embaixo, cada vendedor que digitou aquele item; checkbox marca o vencedor
-var VISTA = localStorage.getItem('cot-vista') || 'itens', ULT = {}, CI_F = {busca:'', forn:'', loja:'', cat:'', soObs:false, soSemPreco:false, soComPreco:true, soManual:false, soComprados:false, soNaoComprados:false, soNovos:false, varTipo:'pct', var:''}, CI_ABA = 'produtos', CI_REC = {}, CATS = {};
+var VISTA = localStorage.getItem('cot-vista') || 'itens', ULT = {}, CI_F = {busca:'', forn:'', loja:'', cat:'', soObs:false, soSemPreco:false, soComPreco:true, soManual:false, soComprados:false, soNaoComprados:false, soNovos:false, varTipo:'pct', var:'', varOn:false}, CI_ABA = 'produtos', CI_REC = {}, CATS = {};
 function setVista(v){ VISTA = v; localStorage.setItem('cot-vista', v); renderComparativo(); }
 function renderComparativo(){ if (VISTA === 'matriz') return renderComparativoMatriz(); return renderComparativoItens(); }
 async function carregarUltimas(){
@@ -1572,13 +1572,13 @@ async function carregarUltimas(){
   if (VISTA !== 'matriz' && document.getElementById('s4').classList.contains('on')) renderComparativoItens();
 }
 var CI_LIM = 100;
-function ciSet(k, v){ CI_LIM = 100; CI_F[k] = v; if (k === 'soComPreco' && v) CI_F.soSemPreco = false; if (k === 'soSemPreco' && v) CI_F.soComPreco = false; renderComparativoItens(); }   // "Apenas digitados" e "Não digitados" são excludentes
+function ciSet(k, v){ CI_LIM = 100; CI_F[k] = v; if (k === 'varOn' && v && !(parseFloat(String(CI_F.var).replace(',', '.')) > 0)) CI_F.var = CI_F.varTipo === 'rs' ? '1,00' : '5'; if (k === 'soComPreco' && v) CI_F.soSemPreco = false; if (k === 'soSemPreco' && v) CI_F.soComPreco = false; renderComparativoItens(); }   // "Apenas digitados" e "Não digitados" são excludentes
 var CI_VT = null; function ciVarDigitando(){ clearTimeout(CI_VT); CI_VT = setTimeout(ciFiltrar, 500); }
 function dataPrevista(dias){ if (!dias) return '—'; var d = new Date(); d.setDate(d.getDate() + (+dias)); return d.toLocaleDateString('pt-BR'); }
 function ciAba(a){ CI_ABA = a; renderComparativoItens(); }
 function ciRec(cod){ CI_REC[cod] = !CI_REC[cod]; var el = document.getElementById('ci-' + cod); if (el) { el.classList.toggle('rec', !!CI_REC[cod]); } }
 function ciRecTodos(v){ CUR.comparativo.itens.forEach(function(i){ CI_REC[i.cod] = v; }); renderComparativoItens(); }
-function ciFiltrar(){ CI_LIM = 100; CI_F.var = ($('#ci-var') || {}).value || ''; renderComparativoItens(); }
+function ciFiltrar(){ CI_LIM = 100; CI_F.var = ($('#ci-var') || {}).value || ''; CI_F.varOn = parseFloat(String(CI_F.var).replace(',', '.')) > 0; renderComparativoItens(); }
 function renderComparativoItens(){
   var m = $('#s4-main'); if (!CUR) { renderVazio(m); return; }
   var C = CUR.comparativo, R = C.resumo, F = C.fornecedores, aberta = CUR.status === 'aberta', U = ULT[CUR.id] || {}, K = CATS[CUR.id] || {};
@@ -1602,7 +1602,7 @@ function renderComparativoItens(){
     '<div><div class="ftit">Empresa</div><select class="fin" onchange="ciSet(\'loja\',this.value)"><option value="">Selecione a empresa</option>' + lojas.map(function(l){ return '<option value="' + l + '"' + (String(CI_F.loja) === String(l) ? ' selected' : '') + '>' + LJ(l) + ' ' + esc(LOJAS_NOMES[l] || '') + '</option>'; }).join('') + '</select></div></div>' +
     '<div class="clubchecks"><div><label><input type="checkbox" class="check"' + (CI_F.soNovos ? ' checked' : '') + ' onchange="ciSet(\'soNovos\',this.checked)"> Novos Fornecedores</label><label><input type="checkbox" class="check"' + (CI_F.soComprados ? ' checked' : '') + ' onchange="ciSet(\'soComprados\',this.checked)"> Apenas comprados</label></div>' +
     '<div><label><input type="checkbox" class="check"' + (CI_F.soObs ? ' checked' : '') + ' onchange="ciSet(\'soObs\',this.checked)"> Itens com Observações</label><label><input type="checkbox" class="check"' + (CI_F.soNaoComprados ? ' checked' : '') + ' onchange="ciSet(\'soNaoComprados\',this.checked)"> Não Comprados</label><label><input type="checkbox" class="check"' + (CI_F.soComPreco ? ' checked' : '') + ' onchange="ciSet(\'soComPreco\',this.checked)" title="Só itens em que pelo menos um fornecedor digitou preço (marcado por padrão)"> Apenas digitados</label><label><input type="checkbox" class="check"' + (CI_F.soSemPreco ? ' checked' : '') + ' onchange="ciSet(\'soSemPreco\',this.checked)"> Não Digitados</label></div>' +
-    '<div><label style="color:var(--ink2);font-weight:600">Alta variação de Preços</label><label><input type="radio" name="ci-vt"' + (CI_F.varTipo === 'pct' ? ' checked' : '') + ' onchange="ciSet(\'varTipo\',\'pct\')"> Em percentual (%)</label><label><input type="radio" name="ci-vt"' + (CI_F.varTipo === 'rs' ? ' checked' : '') + ' onchange="ciSet(\'varTipo\',\'rs\')"> Em valor (R$)</label></div>' +
+    '<div><label style="font-weight:700"><input type="checkbox" class="check"' + (CI_F.varOn ? ' checked' : '') + ' onchange="ciSet(\'varOn\',this.checked)" title="Liga o filtro de variação: só itens cuja diferença entre o menor preço cotado e a última compra é maior ou igual ao valor informado"> Alta variação de Preços</label><label><input type="radio" name="ci-vt"' + (CI_F.varTipo === 'pct' ? ' checked' : '') + ' onchange="ciSet(\'varTipo\',\'pct\')"> Em percentual (%)</label><label><input type="radio" name="ci-vt"' + (CI_F.varTipo === 'rs' ? ' checked' : '') + ' onchange="ciSet(\'varTipo\',\'rs\')"> Em valor (R$)</label></div>' +
     '<div class="clubfiltrar"><input type="text" id="ci-var" class="fin" inputmode="decimal" value="' + esc(CI_F.var) + '" placeholder="' + (CI_F.varTipo === 'rs' ? 'ex.: 0,50 (R$)' : 'ex.: 5 (%)') + '" title="Mostra só itens cuja variação entre o menor preço cotado e a última compra é maior ou igual a este valor, em % ou em R$ conforme o botão ao lado" oninput="ciVarDigitando()" onkeydown="if(event.key===\'Enter\')ciFiltrar()"><button class="cbtn" style="font-weight:800" onclick="ciFiltrar()">Filtrar</button></div></div></div>';
   var b = CI_F.busca.trim().toLowerCase(), varMin = parseFloat(String(CI_F.var).replace(/\./g, '').replace(',', '.')) || 0, L = CI_F.loja;
   var itens = C.itens.filter(function(i){
@@ -1617,7 +1617,7 @@ function renderComparativoItens(){
     if (CI_F.soComprados && !i.vencedor) return false;
     if (CI_F.soNaoComprados && i.vencedor) return false;
     if (CI_F.soNovos && !Object.keys(i.precos).some(function(k){ return novos[k]; })) return false;
-    if (varMin > 0) { var base = (U[i.cod] && U[i.cod].preco) || i.ultimo_custo; if (!(base > 0) || !i.melhor) return false; var d = CI_F.varTipo === 'rs' ? Math.abs(i.melhor.preco - base) : Math.abs((i.melhor.preco - base) / base * 100); if (d < varMin) return false; }
+    if (CI_F.varOn && varMin > 0) { var base = (U[i.cod] && U[i.cod].preco) || i.ultimo_custo; if (!(base > 0) || !i.melhor) return false; var d = CI_F.varTipo === 'rs' ? Math.abs(i.melhor.preco - base) : Math.abs((i.melhor.preco - base) / base * 100); if (d < varMin) return false; }
     return true;
   });
   h += '<p class="mini" style="margin:12px 0 8px">' + itens.length + ' de ' + C.itens.length + ' itens' + (L ? ' · quantidades da Loja ' + L : '') + '</p>';
