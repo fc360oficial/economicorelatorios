@@ -145,6 +145,19 @@ body{font-family:var(--font);background:var(--pap);color:var(--ink);font-size:14
 .msg{border:1px solid var(--ln);border-radius:var(--r-sm);padding:7px 9px;font-size:12.5px;background:var(--pap)}
 .msg.central{background:var(--infw);border-color:var(--inf)}
 .msg .w{font-size:10.5px;color:var(--ink3);font-weight:700;text-transform:uppercase;letter-spacing:.6px}
+/* ── conversa com a central (presa à nota) ── */
+.msgs{gap:8px;padding:2px 0}
+.msg{max-width:88%;border-radius:12px;line-height:1.35;word-break:break-word}
+.msg.loja{align-self:flex-end;background:var(--amw);border-color:var(--am-ln);border-bottom-right-radius:4px}
+.msg.central{align-self:flex-start;background:var(--navy2);border-color:var(--navy2);color:#fff;border-bottom-left-radius:4px}
+.msg.central .w{color:#AEB8CE}
+.msg .h{font-size:10px;color:var(--ink3);margin-top:3px}
+.msg.central .h{color:#8C97B0}
+.msg .ac{display:inline-block;margin-top:4px;font-size:10.5px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;background:var(--am);color:var(--amk);border-radius:999px;padding:2px 9px}
+.chip{display:flex;align-items:center;gap:7px;background:var(--wsh);border:1px solid var(--ln2);border-radius:999px;padding:6px 8px 6px 12px;font-size:11.5px;color:var(--ink3);min-width:0}
+.chip b{color:var(--ink);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+.chip .x{margin-left:auto;border:0;background:transparent;color:var(--ink2);font:inherit;font-size:17px;font-weight:700;line-height:1;cursor:pointer;padding:0 6px;flex:none}
+.bdg{display:inline-block;min-width:18px;padding:1px 6px;border-radius:999px;background:var(--neg);color:#fff;font-size:10.5px;font-weight:800;text-align:center;line-height:16px}
 #camBox{position:fixed;inset:0;background:#000;z-index:35;display:flex;flex-direction:column}
 #camBox video{flex:1;width:100%;object-fit:cover;min-height:0}
 #camBox .btn{margin:10px}
@@ -197,7 +210,7 @@ body{font-family:var(--font);background:var(--pap);color:var(--ink);font-size:14
   </div>
   <div class="acoes">
     <button class="btn btn-secondary" onclick="escolherCorrigir()">Corrigir qtd</button>
-    <button class="btn btn-secondary" onclick="abrirChat()">Chamar central</button>
+    <button class="btn btn-secondary" id="btnChat" onclick="abrirChat()">Chamar central</button>
     <button class="btn btn-primary" onclick="terminei()">Terminei a nota</button>
   </div>
   <div class="corpo">
@@ -257,6 +270,8 @@ let fimDados = null;         // resposta do /terminei
 let cartao = null;           // { cod, descricao, emb, modo:'bipar'|'corrigir' }
 let tela = 'login';
 let timerNotas = null;
+let timerVisao = null;        // poll de 5 s da conferência aberta (chat + estado dos itens)
+let ultimoBipado = null;      // { cod, descricao } do último produto bipado — vai anexado no chat
 
 // ── tela de login ──────────────────────────────────────────────────────────
 $('lojas').innerHTML = Object.keys(NOMES_LOJA).map(n =>
@@ -301,8 +316,9 @@ function mostrar(t) {
   $('telaBip').hidden = t !== 'bipagem';
   $('telaFim').hidden = t !== 'fim';
   clearInterval(timerNotas); timerNotas = null;
+  clearInterval(timerVisao); timerVisao = null;
   if (t === 'notas') timerNotas = setInterval(() => carregarNotas(), 60000);
-  if (t === 'bipagem') focarBip();
+  if (t === 'bipagem') { timerVisao = setInterval(pollVisao, 5000); focarBip(); }
 }
 
 // ── rede ───────────────────────────────────────────────────────────────────
@@ -387,11 +403,11 @@ async function abrirNota(i) {
   const n = notas[i]; if (!n) return;
   try {
     visao = await post('abrir', { chave: n.chave, nNota: n.nNota, fornecedor: n.fornecedor, codFornec: n.codFornec, nome: sess.nome });
-    notaAtual = n;
+    notaAtual = n; ultimoBipado = null;
     mostrar('bipagem'); renderBip();
   } catch (e) { toast(e.message || 'Não deu pra abrir a nota', true); }
 }
-function voltarNotas() { cartao = null; $('cartao').innerHTML = ''; mostrar('notas'); carregarNotas(); }
+function voltarNotas() { cartao = null; ultimoBipado = null; $('cartao').innerHTML = ''; mostrar('notas'); carregarNotas(); }
 
 // ── tela 3 · bipagem cega ──────────────────────────────────────────────────
 const ESTADO = {
@@ -418,6 +434,7 @@ function renderBip() {
       <div><div class="d">${esc(i.descricao)}</div><div class="c">${esc(meta)}</div></div>
       <div class="q"><b>${num(i.un)} un</b><small>${num(i.quant)} × ${num(i.emb)}</small></div></div>`;
   }).join('') : '<div class="vazio">Bipe o primeiro produto. Só o que você bipar aparece aqui.</div>';
+  atualizarBadge();
   setNet(navigator.onLine);
 }
 const dataBr = s => { const p = String(s || '').split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0].slice(2) : String(s || ''); };
@@ -442,6 +459,9 @@ $('bip').addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preven
 async function lerCodigo(cod) {
   if (!visao) return;
   pararDigitar();
+  // guarda o último código lido mesmo quando o produto não existe no cadastro: é justamente esse
+  // caso que o conferente manda pra central ("código não cadastrado").
+  ultimoBipado = { cod, descricao: ((visao.itens || []).find(i => i.cod === cod) || {}).descricao || (cads[cod] || {}).descricao || '' };
   const jaTem = (visao.itens || []).find(i => i.cod === cod);
   if (jaTem) { await enviarBipe('bipar', { cod, quant: 1, emb: jaTem.emb }); return; }
   let cad;
@@ -500,6 +520,7 @@ const AVISO_RESULTADO = {
 async function enviarBipe(acao, body) {
   const corpo = { id: visao.id, cod: body.cod, quant: body.quant, emb: body.emb, validade: body.validade || '' };
   aplicarLocal(acao, corpo);  // mostra na hora; a visão do servidor sobrescreve quando responder
+  ultimoBipado = { cod: corpo.cod, descricao: ((visao.itens || []).find(i => i.cod === corpo.cod) || {}).descricao || (cads[corpo.cod] || {}).descricao || '' };
   renderBip(); focarBip();
   try {
     const r = await post(acao, corpo);
@@ -563,18 +584,58 @@ function corrigirItem(cod) {
   abrirCartao({ cod: i.cod, descricao: i.descricao, emb: i.emb, quant: i.quant, validade: i.validade || '', modo: 'corrigir' });
 }
 
-// ── chat mínimo com a central (Task 7 estende) ─────────────────────────────
+// ── conversa com a central, presa à nota aberta ────────────────────────────
 const MOTIVOS = [['codigo_nao_cadastrado', 'Código não cadastrado'], ['avaria', 'Avaria'], ['validade', 'Validade'], ['nao_esta_na_nota', 'Não está na nota'], ['outro', 'Outro']];
-let chatMotivo = 'outro';
+const MOTIVO_TXT = Object.fromEntries(MOTIVOS);
+const ACAO_TXT = { pode_receber: 'Pode receber', devolver: 'Devolver', liberar_validade: 'Validade liberada', aguarde: 'Aguarde' };
+const LS_VISTOS = 'rec_chat_vistos';
+let vistos = {}; try { vistos = JSON.parse(localStorage.getItem(LS_VISTOS) || '{}'); } catch (e) {}
+let chatMotivo = 'outro', chatAberto = false, chatCod = null;
+
+const msgsDe = v => (v && v.mensagens) || [];
+const nCentrais = v => msgsDe(v).filter(m => m.de === 'central').length;
+function salvarVistos() {
+  const ks = Object.keys(vistos); if (ks.length > 200) for (const k of ks.slice(0, 100)) delete vistos[k];
+  try { localStorage.setItem(LS_VISTOS, JSON.stringify(vistos)); } catch (e) {}
+}
+function naoLidas() { return !visao ? 0 : Math.max(0, nCentrais(visao) - (+vistos[visao.id] || 0)); }
+function marcarLidas() { if (!visao) return; vistos[visao.id] = nCentrais(visao); salvarVistos(); atualizarBadge(); }
+function atualizarBadge() {
+  const b = $('btnChat'); if (!b) return;
+  const n = naoLidas();
+  b.innerHTML = 'Chamar central' + (n ? ' <span class="bdg">' + n + '</span>' : '');
+}
+
+const horaMsg = em => { try { return new Date(em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; } };
+function descCod(cod) {
+  if (!cod) return '';
+  const i = (visao && visao.itens || []).find(x => x.cod === cod);
+  return (i && i.descricao) || (cads[cod] || {}).descricao || (ultimoBipado && ultimoBipado.cod === cod ? ultimoBipado.descricao : '') || '';
+}
+function threadHtml() {
+  const ms = msgsDe(visao);
+  if (!ms.length) return '<div class="tip">Nenhuma mensagem ainda. Escolha o motivo e chame a central.</div>';
+  return ms.map(m => {
+    const central = m.de === 'central';
+    const quem = central ? 'Central' + (m.nome ? ' · ' + esc(m.nome) : '') : esc(m.nome || 'Loja');
+    const mot = m.motivo ? ' · ' + esc(MOTIVO_TXT[m.motivo] || m.motivo) : '';
+    const prod = m.cod ? `<div class="h">${esc(m.cod)}${descCod(m.cod) ? ' · ' + esc(descCod(m.cod)) : ''}</div>` : '';
+    const ac = m.acao ? `<div><span class="ac">${esc(ACAO_TXT[m.acao] || m.acao)}</span></div>` : '';
+    return `<div class="msg ${central ? 'central' : 'loja'}"><div class="w">${quem}${mot}</div>${esc(m.texto || '')}${ac}${prod}<div class="h">${esc(horaMsg(m.em))}</div></div>`;
+  }).join('');
+}
+
 function abrirChat() {
-  chatMotivo = 'outro';
-  const msgs = (visao && visao.mensagens) || [];
+  if (!visao) return;
+  chatMotivo = 'outro'; chatCod = ultimoBipado ? ultimoBipado.cod : null; chatAberto = true;
   abrirModal(`<h3>Chamar a central</h3>
-    <div class="msgs">${msgs.length ? msgs.map(m => `<div class="msg ${m.de === 'central' ? 'central' : ''}"><div class="w">${esc(m.de === 'central' ? 'Central' : m.nome || 'Loja')}${m.motivo ? ' · ' + esc(m.motivo) : ''}${m.acao ? ' · ' + esc(m.acao) : ''}</div>${esc(m.texto || '')}</div>`).join('') : '<div class="tip">Nenhuma mensagem ainda.</div>'}</div>
-    <div class="motivos" id="chatMotivos">${MOTIVOS.map(m => `<button class="btn btn-secondary" data-m="${m[0]}" aria-pressed="false" onclick="selMotivo('${m[0]}')">${esc(m[1])}</button>`).join('')}</div>
+    <div class="tip">NF-e ${esc(visao.nNota)} · ${esc(visao.fornecedor || '')}</div>
+    <div class="msgs" id="chatMsgs">${threadHtml()}</div>
+    <div id="chatProd"></div>
+    <div class="motivos" id="chatMotivos">${MOTIVOS.map(m => `<button class="btn btn-secondary" type="button" data-m="${m[0]}" aria-pressed="false" onclick="selMotivo('${m[0]}')">${esc(m[1])}</button>`).join('')}</div>
     <textarea id="chatTxt" placeholder="Escreva se precisar (opcional)"></textarea>
-    <div class="row2"><button class="btn btn-secondary" onclick="fecharModal()">Fechar</button><button class="btn btn-primary" onclick="enviarChat()">Enviar</button></div>`);
-  selMotivo('outro');
+    <div class="row2"><button class="btn btn-secondary" type="button" onclick="fecharModal()">Fechar</button><button class="btn btn-primary" type="button" id="btnEnviarChat" onclick="enviarChat()">Enviar</button></div>`);
+  selMotivo('outro'); renderChatProd(); rolarChat(); marcarLidas();
 }
 function selMotivo(m) {
   chatMotivo = m;
@@ -584,13 +645,71 @@ function selMotivo(m) {
     b.className = on ? 'btn btn-primary' : 'btn btn-secondary';
   }
 }
+function renderChatProd() {
+  const el = $('chatProd'); if (!el) return;
+  if (!chatCod) {
+    el.innerHTML = ultimoBipado
+      ? `<button class="btn btn-secondary blk" type="button" onclick="anexarUltimo()">Anexar ${esc(ultimoBipado.descricao || ultimoBipado.cod)}</button>`
+      : '<div class="tip">Nenhum produto bipado ainda pra anexar.</div>';
+    return;
+  }
+  const d = descCod(chatCod);
+  el.innerHTML = `<div class="chip">📦 <b>${esc(d || chatCod)}</b> <span>${esc(chatCod)}</span><button class="x" type="button" onclick="tirarProduto()" title="Tirar o produto da mensagem">×</button></div>`;
+}
+function anexarUltimo() { if (ultimoBipado) { chatCod = ultimoBipado.cod; renderChatProd(); } }
+function tirarProduto() { chatCod = null; renderChatProd(); }
+function rolarChat() { const m = $('chatMsgs'); if (m) m.scrollTop = m.scrollHeight; }
+
 async function enviarChat() {
-  const texto = ($('chatTxt') || {}).value || '';
+  if (!visao) return;
+  const texto = (($('chatTxt') || {}).value || '').trim();
+  const corpo = { id: visao.id, motivo: chatMotivo, texto, cod: chatCod || null };
+  const b = $('btnEnviarChat'); if (b) b.disabled = true;
   try {
-    const m = await post('chat', { id: visao.id, motivo: chatMotivo, texto, cod: null });
-    visao.mensagens = (visao.mensagens || []).concat([m]);
-    fecharModal(); toast('Central avisada.');
-  } catch (e) { toast('Sem sinal pra avisar a central.', true); }
+    const m = await post('chat', corpo);
+    visao.mensagens = msgsDe(visao).concat([m]);
+    const t = $('chatTxt'); if (t) t.value = '';
+    chatCod = null; renderChatProd();
+    const el = $('chatMsgs'); if (el) { el.innerHTML = threadHtml(); rolarChat(); }
+    marcarLidas(); setNet(true); toast('Central avisada.');
+  } catch (e) {
+    if (e.status) { toast(e.message || 'A central não recebeu a mensagem.', true); }
+    else {
+      // mesma fila offline do bipe: a rota /chat aceita o mesmo corpo quando a rede voltar
+      fila.push({ acao: 'chat', body: corpo, em: Date.now() });
+      try { localStorage.setItem(LS_FILA, JSON.stringify(fila)); } catch (x) {}
+      setNet(false); toast('Sem sinal · aviso guardado, sai sozinho quando a rede voltar.');
+      fecharModal();
+    }
+  } finally { if (b) b.disabled = false; }
+}
+
+// poll de 5 s enquanto a nota está aberta: traz resposta da central e o estado novo dos itens
+// (um item liberado pela central muda de cor sem o conferente fazer nada).
+async function pollVisao() {
+  if (!visao || tela !== 'bipagem') return;
+  const id = visao.id;
+  let v;
+  try { v = await api('/api/recebimento-publico/conferencia/' + encodeURIComponent(id) + '?t=' + sess.token); }
+  catch (e) { setNet(false); return; }
+  if (!v || !visao || visao.id !== id || v.id !== id || tela !== 'bipagem') return;
+  const antes = nCentrais(visao);
+  // com bipe na fila ou cartão aberto a visão local vale mais que a do servidor: só as mensagens entram
+  const podeTrocar = !fila.length && !cartao;
+  if (podeTrocar) visao = v; else visao.mensagens = v.mensagens || visao.mensagens;
+  setNet(true);
+  if (nCentrais(visao) > antes) {
+    const m = msgsDe(visao).filter(x => x.de === 'central').pop() || {};
+    const corpoMsg = [ACAO_TXT[m.acao] || '', m.texto || ''].filter(Boolean).join(' · ') || 'respondeu.';
+    toast('Central: ' + corpoMsg);
+    try { if (navigator.vibrate) navigator.vibrate(120); } catch (e) {}
+  }
+  if (podeTrocar) renderBip(); else atualizarBadge();
+  if (chatAberto) {
+    const el = $('chatMsgs');
+    if (el) { const perto = el.scrollHeight - el.scrollTop - el.clientHeight < 40; el.innerHTML = threadHtml(); if (perto) rolarChat(); }
+    marcarLidas();
+  }
 }
 
 // ── tela 4 · terminei ──────────────────────────────────────────────────────
@@ -640,7 +759,7 @@ async function enviarAssim() {
 
 // ── modal / toast ──────────────────────────────────────────────────────────
 function abrirModal(html) { $('modal').innerHTML = `<div class="modal" onclick="if(event.target===this)fecharModal()"><div class="sheet">${html}</div></div>`; }
-function fecharModal() { $('modal').innerHTML = ''; focarBip(); }
+function fecharModal() { if (chatAberto) { chatAberto = false; marcarLidas(); } $('modal').innerHTML = ''; focarBip(); }
 function toast(m, ruim) {
   const t = $('toast'); t.textContent = m; t.className = 'toast show' + (ruim ? ' ruim' : '');
   clearTimeout(t._x); t._x = setTimeout(() => { t.className = 'toast'; }, ruim ? 4000 : 2600);

@@ -101,8 +101,34 @@ tr.det td{background:#FAFAF8;padding:0 12px 14px;white-space:normal;cursor:defau
 .cfg{display:grid;grid-template-columns:1fr auto;gap:8px 14px;align-items:center;font-size:12px}.cfg label{color:var(--ink2);line-height:1.35}.cfg label b{color:var(--ink);display:block;font-size:12.5px}
 .cfg input[type=number]{width:90px;font:inherit;font-size:13px;font-weight:700;padding:6px 8px;border:1px solid var(--ln2);border-radius:8px;text-align:right}
 .cfg input[type=checkbox]{width:18px;height:18px}
+/* ── Coletor Econômico: status da conferência cega + conversa presa à nota ── */
+.col-st{display:inline-block;padding:2px 8px;border-radius:99px;font-size:10.5px;font-weight:700;white-space:nowrap}
+.col-bipando{background:#E9EEF6;color:#2E5E8C}.col-recontando{background:#FFF1E3;color:#B45C00}
+.col-terminada{background:var(--posw);color:var(--pos);border:1px solid #BFE3CD}.col-liberada{background:var(--pos);color:#fff}
+.chamados{display:inline-block;margin-top:3px;background:var(--neg);color:#fff;border-radius:99px;padding:1px 8px;font-size:10px;font-weight:800}
+td.col-cel{cursor:pointer}
+#drwBack{position:fixed;inset:0;background:rgba(14,22,38,.35);z-index:1099}
+#drw{position:fixed;top:0;right:0;bottom:0;width:430px;max-width:100vw;background:var(--crd);border-left:1px solid var(--ln);box-shadow:-18px 0 44px -22px rgba(14,22,38,.55);z-index:1100;display:flex;flex-direction:column}
+#drw .dh{background:#101B33;color:#fff;padding:12px 16px;line-height:1.35}
+#drw .dh b{color:#FFC933;font-size:13.5px}
+#drw .dh .x{float:right;background:transparent;border:0;color:#B8C0D4;font:inherit;font-size:20px;font-weight:800;cursor:pointer;line-height:1;padding:0 2px}
+#drw .dacoes{padding:10px 14px;border-bottom:1px solid var(--ln);background:#FAFAF8;display:flex;flex-direction:column;gap:8px}
+#drw .qr{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+#drw .qr .btn{justify-content:center}
+#drw textarea{width:100%;font:inherit;font-size:12.5px;padding:8px 10px;border:1px solid var(--ln2);border-radius:8px;resize:vertical;min-height:54px;background:#fff;color:var(--ink)}
+#drw .prod{font-size:11px;color:var(--ink2);padding:7px 14px;border-bottom:1px solid var(--ln);background:#fff;line-height:1.4}
+#drw .dmsgs{flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:8px;background:var(--pap)}
+#drw .m{max-width:88%;border:1px solid var(--ln);border-radius:12px;padding:7px 10px;font-size:12px;line-height:1.4;background:#fff;word-break:break-word}
+#drw .m.loja{align-self:flex-start;background:var(--amw);border-color:var(--am-ln);border-bottom-left-radius:4px}
+#drw .m.central{align-self:flex-end;background:#101B33;color:#fff;border-color:#101B33;border-bottom-right-radius:4px}
+#drw .m .w{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--ink3)}
+#drw .m.central .w{color:#B8C0D4}
+#drw .m .h{font-size:9.5px;color:var(--ink3);margin-top:3px}
+#drw .m.central .h{color:#8C97B0}
+#drw .m .ac{display:inline-block;margin-top:4px;background:#FFC933;color:#3A2E00;border-radius:99px;padding:1px 8px;font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.3px}
+@media(max-width:560px){#drw{width:100vw}}
 @media(max-width:820px){html,body{overflow-x:hidden}.main{padding:12px;min-width:0;max-width:100vw}.page-hdr h1{font-size:18px}.kpi .v{font-size:18px}.tools input#q{min-width:0;flex:1}.auto{font-size:11.5px}}
-@media print{.tools,.kpis,.hdr-btns,.tabs,.acoes,.btn{display:none!important}.main{padding:0}}
+@media print{.tools,.kpis,.hdr-btns,.tabs,.acoes,.btn,#drw,#drwBack{display:none!important}.main{padding:0}}
 </style>
 </head>
 <body>
@@ -113,6 +139,7 @@ tr.det td{background:#FAFAF8;padding:0 12px 14px;white-space:normal;cursor:defau
       <p>Toda nota bipada nas lojas aparece aqui. O sistema cruza sozinho o XML da NF-e com o pedido de compra, a contagem do coletor (conferência cega), a validade lida, os boletos e a margem de cada item. <b>Quem bate em tudo já fica pronto pra liberar; você só olha as exceções.</b> Nada é gravado no ERP.</p>
     </div>
     <div class="hdr-btns">
+      <button class="btn btn-slate" id="btnMudo" onclick="toggleMudo()">🔔 Som do coletor</button>
       <button class="btn btn-slate" onclick="abrirConfig()" title="Tolerâncias do cruzamento automático">⚙ Tolerâncias</button>
       <button class="btn btn-amber" onclick="carregar()">Atualizar</button>
     </div>
@@ -135,6 +162,7 @@ tr.det td{background:#FAFAF8;padding:0 12px 14px;white-space:normal;cursor:defau
   <div id="view"><div class="spinner"></div></div>
 </div>
 <div id="modal" hidden><div class="card" id="modal-body"></div></div>
+<div id="drw-wrap" hidden></div>
 
 <script>
 const $=s=>document.querySelector(s);
@@ -169,13 +197,13 @@ async function carregar(){
   aberto=null;DET={};DADOS=null;DOCS=null;MARG=null;$('#nDocs').textContent='';$('#nMargem').textContent='';
   $('#view').innerHTML='<div class="spinner"></div>';
   try{
-    if(tab==='receb'){DADOS=await fetch('/api/fiscal/recebimentos'+qs()).then(r=>r.json());if(DADOS.error)throw new Error(DADOS.error);CFG=DADOS.config;$('#nReceb').textContent=DADOS.recebimentos.length;if(ABRIR){const n=ABRIR;ABRIR=null;await toggle(n);return;}}
+    if(tab==='receb'){DADOS=await fetch('/api/fiscal/recebimentos'+qs()).then(r=>r.json());if(DADOS.error)throw new Error(DADOS.error);CFG=DADOS.config;$('#nReceb').textContent=DADOS.recebimentos.length;await colCarregar();colTotalChamados=colTotal();if(ABRIR){const n=ABRIR;ABRIR=null;await toggle(n);return;}}
     else if(tab==='docs'){DOCS=await fetch('/api/fiscal/documentos'+qs()).then(r=>r.json());if(DOCS.error)throw new Error(DOCS.error);$('#nDocs').textContent=DOCS.length;}
     else{MARG=await fetch('/api/fiscal/margem'+qs()).then(r=>r.json());if(MARG.error)throw new Error(MARG.error);$('#nMargem').textContent=MARG.length;}
     render();
   }catch(e){$('#view').innerHTML='<div class="empty">Erro ao carregar: '+esc(e.message)+'</div>';}
 }
-function setTab(t){tab=t;document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x.dataset.tab===t));carregar();}
+function setTab(t){tab=t;document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x.dataset.tab===t));colTimerSync();carregar();}
 function render(){if(tab==='receb')renderReceb();else if(tab==='docs')renderDocs();else renderMargem();}
 
 /* ── RECEBIMENTOS ── */
@@ -197,21 +225,22 @@ function renderReceb(){
   $('#cnt').textContent=lista.length+' de '+all.length;
   if(!lista.length){h+='<div class="empty">'+(all.length?'Nada nesse filtro.':'Nenhuma conferência bipada nas lojas nesse período.')+'</div>';$('#view').innerHTML=h;return;}
   const todas=!$('#loja').value;
-  h+='<div class="table-wrap"><table class="t"><thead><tr><th>Conf.</th><th>Entrada</th><th>Fornecedor · notas</th><th>Coletor</th><th>Cruzamento automático</th><th class="r">Valor NF-e</th><th>Boleto</th><th>Situação</th><th>Ação</th></tr></thead><tbody>';
+  h+='<div class="table-wrap"><table class="t"><thead><tr><th>Conf.</th><th>Entrada</th><th>Fornecedor · notas</th><th>Coletor</th><th>Coletor Econômico</th><th>Cruzamento automático</th><th class="r">Valor NF-e</th><th>Boleto</th><th>Situação</th><th>Ação</th></tr></thead><tbody>';
   let lojaAtual=null;
   for(const r of lista){
-    if(todas&&r.loja!==lojaAtual){lojaAtual=r.loja;const dl=all.filter(x=>x.loja===r.loja);h+='<tr class="loja"><td colspan="9"><b>'+LJ(r.loja)+'</b>'+esc(r.loja_nome)+'<span>'+dl.length+' recebimentos · '+dl.filter(FILA).length+' precisam de você · '+dl.filter(x=>x.situacao==='pronto').length+' prontos · '+dl.filter(x=>x.situacao==='liberado').length+' liberados</span></td></tr>';}
+    if(todas&&r.loja!==lojaAtual){lojaAtual=r.loja;const dl=all.filter(x=>x.loja===r.loja);h+='<tr class="loja"><td colspan="10"><b>'+LJ(r.loja)+'</b>'+esc(r.loja_nome)+'<span>'+dl.length+' recebimentos · '+dl.filter(FILA).length+' precisam de você · '+dl.filter(x=>x.situacao==='pronto').length+' prontos · '+dl.filter(x=>x.situacao==='liberado').length+' liberados</span></td></tr>';}
     const op=r.open;
     h+='<tr class="row'+(aberto===r.nReg?' open':'')+(r.teste?' teste':'')+'" onclick="toggle('+r.nReg+')"><td><span class="nm mono">'+r.nReg+'</span>'+(todas?'':'<span class="erp">'+LJ(r.loja)+'</span>')+'</td>';
     h+='<td><span class="nm">'+hh(r.hora_entrada)+'</span><span class="erp">'+dbr2(r.entrada)+' · '+esc(r.operador_loja||'')+'</span></td>';
     h+='<td class="forn"><span class="nm">'+esc(r.fornecedor)+'</span>'+(r.obs_compradora?'<div class="sub" style="color:#6B4E00;background:#FFF6D9;border:1px solid #EFD98F;border-radius:6px;padding:2px 6px;margin-top:3px" title="Observação do(a) comprador(a) no pedido de compra">💬 <b>Comprador(a):</b> '+esc(r.obs_compradora)+'</div>':'')+'<div class="sub">'+(r.notas.length?r.notas.map(n=>'NF '+(n.nNota||'?')+(n.movimentacao&&n.movimentacao!=='COMPRA'?' <span class="warn">'+esc(n.movimentacao)+'</span>':'')+(n.xml?'':' <span class="neg">sem XML</span>')).join(' · '):'<span class="mut">nenhuma nota associada</span>')+(r.pedidos.length?' · <span class="mut">pedido '+r.pedidos.map(p=>p.nPedido).join(', ')+'</span>':'')+'</div></td>';
     h+='<td>'+(r.qtd_itens_coletor?'<span class="nm">'+r.qtd_itens_coletor+' itens</span><span class="erp">de '+r.qtd_itens_xml+' na nota</span>':'<span class="mut">—</span>')+'</td>';
+    h+='<td class="col-cel" id="colcel-'+r.nReg+'" onclick="event.stopPropagation();colClick('+r.nReg+')" title="Conversa da loja com a central neste recebimento">'+colCelula(r)+'</td>';
     h+='<td><span class="chk">'+CHK.map(([k,l])=>'<i class="'+r.checks[k].nivel+'" title="'+esc(r.checks[k].msg)+'">'+l+'</i>').join('')+'</span>'+(r.erros?'<span class="erp" style="color:var(--neg)">'+r.excecoes.length+' item(ns) com erro</span>':'')+'</td>';
     h+='<td class="r">'+(r.valor_xml?money(r.valor_xml):'<span class="mut">—</span>')+'</td>';
     h+='<td>'+(r.boletos.length?'<span class="nm">'+dbr2(r.boletos[0].vencimento)+'</span><span class="erp">'+r.boletos.length+' parc. · '+r.primeiro_boleto_dias+' d</span>':'<span class="mut">—</span>')+'</td>';
     h+='<td><span class="pill st-'+r.situacao+'">'+SIT[r.situacao]+'</span><span class="erp">ERP: '+esc(r.status_erp_nome)+(r.decisao?' · '+esc(r.decisao.por||'fiscal')+' '+r.decisao.acao:'')+'</span></td>';
     h+='<td class="acao" onclick="event.stopPropagation()">'+botoes(r,true)+'</td></tr>';
-    if(aberto===r.nReg)h+='<tr class="det"><td colspan="9" onclick="event.stopPropagation()">'+(DET[r.nReg]?detalhe(DET[r.nReg]):'<div class="spinner"></div>')+'</td></tr>';
+    if(aberto===r.nReg)h+='<tr class="det"><td colspan="10" onclick="event.stopPropagation()">'+(DET[r.nReg]?detalhe(DET[r.nReg]):'<div class="spinner"></div>')+'</td></tr>';
   }
   h+='</tbody></table></div>';
   $('#view').innerHTML=h;
@@ -336,7 +365,121 @@ async function salvarConfig(){
   if(r.error)return alert(r.error);CFG=r.config;$('#modal').hidden=true;carregar();
 }
 $('#modal').addEventListener('click',e=>{if(e.target.id==='modal')$('#modal').hidden=true;});
-boot();
+/* ── COLETOR ECONÔMICO · conversa presa à nota (coletor ↔ Fiscal) ── */
+const COL_ST={bipando:'Bipando',recontando:'Recontando',terminada:'Terminada',liberada:'Liberada'};
+const COL_ACAO=[['pode_receber','Pode receber'],['devolver','Devolver'],['liberar_validade','Liberar validade'],['aguarde','Aguarde']];
+const COL_ACAO_TXT=Object.fromEntries(COL_ACAO);
+const COL_MOTIVO={codigo_nao_cadastrado:'Código não cadastrado',avaria:'Avaria',validade:'Validade',nao_esta_na_nota:'Não está na nota',outro:'Outro'};
+const COL_BTN={pode_receber:'btn-green',devolver:'btn-red',liberar_validade:'btn-amber',aguarde:'btn-slate'};
+let COL=[],COLIDX={},colTotalChamados=null,colTimer=null,colDrw=null,colMudo=false;
+try{colMudo=localStorage.getItem('fiscal_col_mudo')==='1';}catch(e){}
+
+/* chamados em aberto = mensagens da loja depois da última resposta da central */
+function colChamados(c){const ms=c.mensagens||[];let i=ms.length-1;for(;i>=0;i--)if(ms[i].de==='central')break;return ms.slice(i+1).filter(m=>m.de==='loja').length;}
+function colTotal(){return COL.reduce((s,c)=>s+colChamados(c),0);}
+function colIndexar(){COLIDX={};for(const c of COL){const nr=c.erp&&c.erp.nReg;if(nr!=null&&nr!=='')COLIDX['n:'+String(nr)]=c;COLIDX['f:'+c.loja+':'+String(c.nNota)]=c;}}
+/* casa pelo nReg do ERP quando existe; senão pelo número da NF-e + loja */
+function colDe(r){if(!COL.length)return null;const a=COLIDX['n:'+String(r.nReg)];if(a)return a;for(const n of (r.notas||[])){const b=COLIDX['f:'+r.loja+':'+String(n.nNota)];if(b)return b;}return null;}
+function colPorId(id){return COL.find(c=>c.id===id)||null;}
+async function colCarregar(){
+  try{const d=await fetch('/api/recebimento?data='+encodeURIComponent($('#de').value)).then(r=>r.json());COL=Array.isArray(d)?d:[];}
+  catch(e){COL=[];}
+  colIndexar();
+}
+function colCelula(r){
+  const c=colDe(r);
+  if(!c)return '<span class="mut">—</span>';
+  const n=colChamados(c);
+  return '<span class="col-st col-'+esc(c.status)+'">'+esc(COL_ST[c.status]||c.status)+'</span>'
+    +'<span class="erp">'+esc(c.nome||'')+(c.recontagens?' · '+c.recontagens+' recont.':'')+'</span>'
+    +(n?'<span class="chamados">'+n+' chamado'+(n>1?'s':'')+'</span>':'');
+}
+function colClick(nReg){const r=((DADOS&&DADOS.recebimentos)||[]).find(x=>x.nReg===nReg);const c=r?colDe(r):null;if(c)abrirDrw(c.id);}
+function colAtualizarCelulas(){for(const r of ((DADOS&&DADOS.recebimentos)||[])){const el=document.getElementById('colcel-'+r.nReg);if(el)el.innerHTML=colCelula(r);}}
+
+/* bipe curto quando o total de chamados em aberto sobe entre dois polls */
+function colBeep(){
+  if(colMudo)return;
+  try{
+    const A=window.AudioContext||window.webkitAudioContext;if(!A)return;
+    const ctx=new A(),o=ctx.createOscillator(),g=ctx.createGain(),t=ctx.currentTime;
+    o.type='sine';o.frequency.setValueAtTime(880,t);o.frequency.setValueAtTime(660,t+.1);
+    g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.16,t+.02);g.gain.exponentialRampToValueAtTime(.0001,t+.2);
+    o.connect(g);g.connect(ctx.destination);o.start(t);o.stop(t+.22);
+    setTimeout(function(){try{ctx.close();}catch(e){}},600);
+  }catch(e){}
+}
+function toggleMudo(){colMudo=!colMudo;try{localStorage.setItem('fiscal_col_mudo',colMudo?'1':'0');}catch(e){}renderMudo();}
+function renderMudo(){const b=$('#btnMudo');if(!b)return;b.textContent=colMudo?'🔇 Som do coletor':'🔔 Som do coletor';b.title=colMudo?'Som desligado — clique pra ligar':'Toca um bipe quando a loja chama a central';}
+
+function colTimerSync(){clearInterval(colTimer);colTimer=null;if(tab==='receb'&&!document.hidden)colTimer=setInterval(colPoll,15000);}
+async function colPoll(){
+  if(tab!=='receb'||document.hidden)return;
+  await colCarregar();
+  const agora=colTotal();
+  if(colTotalChamados!==null&&agora>colTotalChamados)colBeep();
+  colTotalChamados=agora;
+  colAtualizarCelulas();
+  if(colDrw){
+    const c=colPorId(colDrw),el=$('#drwMsgs');
+    if(!c)fecharDrw();
+    else if(el){const perto=el.scrollHeight-el.scrollTop-el.clientHeight<40;el.innerHTML=drwMsgsHtml(c);if(perto)el.scrollTop=el.scrollHeight;}
+  }
+}
+document.addEventListener('visibilitychange',colTimerSync);
+
+/* painel lateral: histórico da nota + respostas rápidas (ações no topo) */
+function abrirDrw(id){colDrw=id;renderDrw();}
+function fecharDrw(){colDrw=null;const w=$('#drw-wrap');w.hidden=true;w.innerHTML='';}
+function drwUltimoCod(){const c=colPorId(colDrw);if(!c)return null;const ms=(c.mensagens||[]).filter(m=>m.de==='loja'&&m.cod);return ms.length?ms[ms.length-1].cod:null;}
+function drwDesc(c,cod){if(!cod)return '';const i=(c.itens||{})[cod];return (i&&i.descricao)||'';}
+function drwMsgsHtml(c){
+  const ms=(c.mensagens||[]).map(function(m){
+    const central=m.de==='central';
+    const quem=central?('Central'+(m.nome?' · '+esc(m.nome):'')):esc(m.nome||'Loja');
+    const mot=m.motivo?' · '+esc(COL_MOTIVO[m.motivo]||m.motivo):'';
+    const prod=m.cod?'<div class="h">'+esc(m.cod)+(drwDesc(c,m.cod)?' · '+esc(drwDesc(c,m.cod)):'')+'</div>':'';
+    const ac=m.acao?'<div><span class="ac">'+esc(COL_ACAO_TXT[m.acao]||m.acao)+'</span></div>':'';
+    let hora='';try{hora=new Date(m.em).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});}catch(e){}
+    return '<div class="m '+(central?'central':'loja')+'"><div class="w">'+quem+mot+'</div>'+esc(m.texto||'')+ac+prod+'<div class="h">'+esc(hora)+'</div></div>';
+  }).join('');
+  return ms||'<div class="empty" style="padding:26px 8px">Nenhuma mensagem nesta nota ainda.</div>';
+}
+function renderDrw(){
+  const w=$('#drw-wrap'),c=colPorId(colDrw);
+  if(!c){w.hidden=true;w.innerHTML='';return;}
+  const cod=drwUltimoCod();
+  const prod=cod
+    ?'📦 Vai anexado: <b>'+esc(drwDesc(c,cod)||cod)+'</b> <span class="mono mut">'+esc(cod)+'</span>'
+    :'<span class="mut">A loja não mandou código de produto nesta conversa.</span>';
+  const txt=(($('#drwTxt')||{}).value)||'';
+  w.innerHTML='<div id="drwBack" onclick="fecharDrw()"></div><div id="drw">'
+    +'<div class="dh"><button class="x" onclick="fecharDrw()" title="Fechar">×</button><b>'+esc(c.fornecedor||'—')+'</b>'
+    +'<div style="font-size:11.5px;color:#B8C0D4;margin-top:3px">NF-e '+esc(c.nNota)+' · '+LJ(c.loja)+' · conferente '+esc(c.nome||'—')+' · <span class="col-st col-'+esc(c.status)+'">'+esc(COL_ST[c.status]||c.status)+'</span></div></div>'
+    +'<div class="dacoes"><div class="qr">'+COL_ACAO.map(function(x){return '<button class="btn '+COL_BTN[x[0]]+' btn-sm" onclick="responderDrw(\''+x[0]+'\')">'+x[1]+'</button>';}).join('')+'</div>'
+    +'<textarea id="drwTxt" placeholder="Escreva pra loja (opcional — vai junto com o botão)">'+esc(txt)+'</textarea>'
+    +'<button class="btn btn-slate btn-sm" onclick="responderDrw(null)">Enviar só o texto</button></div>'
+    +'<div class="prod">'+prod+'</div>'
+    +'<div class="dmsgs" id="drwMsgs">'+drwMsgsHtml(c)+'</div></div>';
+  w.hidden=false;
+  const el=$('#drwMsgs');if(el)el.scrollTop=el.scrollHeight;
+}
+async function responderDrw(acao){
+  const c=colPorId(colDrw);if(!c)return;
+  const texto=(($('#drwTxt')||{}).value||'').trim();
+  if(!acao&&!texto){alert('Escreva alguma coisa ou use um dos botões.');return;}
+  const body={cod:drwUltimoCod(),texto};if(acao)body.acao=acao;
+  try{
+    const r=await fetch('/api/recebimento/'+encodeURIComponent(c.id)+'/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(x){return x.json();});
+    if(r&&r.error)throw new Error(r.error);
+  }catch(e){alert('Não deu pra responder a loja: '+e.message);return;}
+  const t=$('#drwTxt');if(t)t.value='';
+  await colCarregar();colTotalChamados=colTotal();colAtualizarCelulas();renderDrw();
+}
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&colDrw)fecharDrw();});
+renderMudo();
+
+boot();colTimerSync();
 </script>
 </body>
 </html>
