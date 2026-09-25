@@ -32,8 +32,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--ink);min-height:10
 .chk{display:flex;gap:6px;align-items:center;font-size:12.5px;padding-bottom:9px}
 .links{display:grid;grid-template-columns:auto 1fr auto;gap:8px 12px;align-items:center;font-size:12.5px}
 .links .lb{font-size:10px;color:var(--ink-2);font-weight:700;text-transform:uppercase;letter-spacing:.5px}
-.links code{background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:8px 11px;font-size:14px;font-family:ui-monospace,Consolas,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.links code.g{font-size:16px;font-weight:700;border-color:var(--brand);background:#FFF8DE}
+.links .lk{background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:8px 11px;font-size:14px;font-family:ui-monospace,Consolas,monospace;color:var(--ink);width:100%;outline:none;cursor:text}
+.links .lk.g{font-size:16px;font-weight:700;border-color:var(--brand);background:#FFF8DE}.links .lk:focus{border-color:var(--brand)}
 .como{font-size:12px;color:var(--ink-2);line-height:1.55;margin-top:12px}.como code{background:var(--bg);padding:1px 5px;border-radius:4px}
 .dest{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}.dest .d{display:flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:9px;padding:5px 8px;font-size:12px;background:#FAFAF8}.dest .d img{width:32px;height:32px;object-fit:contain;background:#fff;border-radius:5px}.dest .d b{font-variant-numeric:tabular-nums}.dest .d button{border:none;background:none;color:var(--red);font-weight:700;cursor:pointer;font-family:inherit;font-size:16px}
 .res{max-height:280px;overflow:auto;margin-top:8px}.res .r{display:flex;align-items:center;gap:10px;padding:6px 4px;border-bottom:1px solid var(--bg);font-size:12px}.res .r img{width:28px;height:28px;object-fit:contain;background:#fff;border:1px solid var(--bg);border-radius:4px}.res .r span{flex:1}
@@ -67,9 +67,9 @@ function renderTV() {
   <div class="acoes"><button class="btn btn-amber" onclick="salvarTV()">Salvar</button><button class="btn btn-sec" onclick="window.open(TV.linkTV, '_blank')">Abrir a TV</button><span class="status" id="tv-status">${t ? `${t.erp} produtos na Retirada com estoque · ${t.comFoto} com foto · <b>${t.exibidos} na TV</b>` : 'sem dados do ERP ainda'}</span></div>
   <div class="card"><h2>Link da TV</h2>
     <div class="links">
-      <span class="lb">Digitar na TV</span><code class="g">${esc(TV.linkCurto)}</code><button class="btn btn-sec btn-sm" onclick="copiar(TV.linkCurto)">Copiar</button>
-      <span class="lb">Na rede da loja</span><code>${esc(TV.linkLan)}</code><button class="btn btn-sec btn-sm" onclick="copiar(TV.linkLan)">Copiar</button>
-      <span class="lb">Completo</span><code title="Com o código de segurança">${esc(TV.linkTV)}</code><button class="btn btn-sec btn-sm" onclick="novoTokenTV()" title="O link completo antigo para de funcionar; os atalhos curtos continuam">Gerar novo código</button>
+      <span class="lb">Digitar na TV</span><input class="lk g" id="lk-curto" readonly value="${esc(TV.linkCurto)}" onclick="this.select()"><button class="btn btn-sec btn-sm" onclick="copiar(TV.linkCurto, 'lk-curto')">Copiar</button>
+      <span class="lb">Na rede da loja</span><input class="lk" id="lk-lan" readonly value="${esc(TV.linkLan)}" onclick="this.select()"><button class="btn btn-sec btn-sm" onclick="copiar(TV.linkLan, 'lk-lan')">Copiar</button>
+      <span class="lb">Completo</span><input class="lk" id="lk-full" readonly title="Com o código de segurança" value="${esc(TV.linkTV)}" onclick="this.select()"><button class="btn btn-sec btn-sm" onclick="novoTokenTV()" title="O link completo antigo para de funcionar; os atalhos curtos continuam">Gerar novo código</button>
     </div>
     <p class="como"><b>Tela cheia:</b> abra o link na TV (ou no PC ligado nela) e toque no botão <b>Tela cheia</b> que aparece, ou tecla F. Pra já ligar em tela cheia, crie um atalho do Chrome com <code>chrome.exe --kiosk "${esc(TV.linkCurto)}/kiosk"</code>. Também dá pra entrar pela tela de login escolhendo <b>Painel TV — Televendas CAHU</b>.</p></div>
   <div class="card"><h2>Como passa</h2><div class="linha">
@@ -120,7 +120,16 @@ async function novoTokenTV() {
   if (!confirm('Gerar um novo código? O link completo atual para de funcionar. Os atalhos /tvcahu continuam valendo.')) return;
   try { const r = await api(API + '/novo-token', { method: 'POST' }); TV.linkTV = r.linkTV; TV.config.token = r.config.token; renderTV(); } catch (e) { alert(e.message); }
 }
-function copiar(txt) { navigator.clipboard.writeText(txt).then(() => { $('#tv-status').innerHTML = '<span class="pos">Copiado</span>'; }, () => alert(txt)); }
+// Em http (endereço interno) o navigator.clipboard não existe — cai no execCommand com um textarea temporário.
+function copiar(txt, inputId) {
+  const ok = () => { $('#tv-status').innerHTML = '<span class="pos">Copiado: ' + esc(txt) + '</span>'; };
+  const fallback = () => {
+    const ta = document.createElement('textarea'); ta.value = txt; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select();
+    let feito = false; try { feito = document.execCommand('copy'); } catch (e) {} document.body.removeChild(ta);
+    if (feito) ok(); else { const inp = inputId && $('#' + inputId); if (inp) { inp.focus(); inp.select(); } $('#tv-status').innerHTML = '<span class="neg">Não deu pra copiar sozinho — o link está selecionado, use Ctrl+C</span>'; }
+  };
+  if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(txt).then(ok, fallback); else fallback();
+}
 carregarTV();
 </script>
 </body>
