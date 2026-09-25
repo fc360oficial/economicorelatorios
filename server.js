@@ -8384,6 +8384,7 @@ app.get('/cotacao/:token', (req, res) => {
   const r = cotacao.porToken(req.params.token);
   if (!r) return res.status(404).send('Cotação não encontrada');
   if (r.c.status === 'cancelada') return res.status(410).send('<!doctype html><meta charset=utf-8><body style="font-family:sans-serif;padding:40px;text-align:center;color:#4E5A72"><h2>Esta cotação foi cancelada</h2><p>O link não está mais válido. Em caso de dúvida, fale com a comprador(a).</p></body>');
+  res.set('Cache-Control', 'no-store, max-age=0');   // link do vendedor abre no navegador do WhatsApp, que guarda a página velha (Tiago, 25/09: 'não subiu ainda')
   res.sendFile(path.join(__dirname, 'public', 'cotacao-fornecedor.html'));
 });
 app.get('/api/cotacao-publica/:token', (req, res) => {
