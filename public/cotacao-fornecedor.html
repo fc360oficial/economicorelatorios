@@ -63,7 +63,43 @@ input.obs:focus{outline:none;border-color:#F5B800}
 .wa-c.off{background:#DADAD6;color:#4E5A72;cursor:default}
 .fim a.wl{color:#0F6239;font-weight:800}
 .empty{padding:60px 20px;text-align:center;color:#98A0B3}
-@media(max-width:640px){.wrap{padding:10px 8px 110px}td,th{padding:8px 6px}input.preco{width:92px}.cond{grid-template-columns:1fr}}
+.msgc .mais{display:none}
+/* MOBILE (Tiago, 25/09): recado deixa de ser fixo (cobria os produtos), itens viram cartões, campos ocupam a largura */
+@media(max-width:640px){
+  .wrap{padding:8px 8px 120px}
+  .card .hd{padding:10px 12px}
+  .cond{grid-template-columns:1fr;padding:10px 12px}
+  .cond.cad4{grid-template-columns:1fr}
+  .ftb{padding:8px 10px;gap:8px}
+  .ftb input[type=search]{min-width:0;width:100%;flex-basis:100%}
+  /* recado: rola com a página, texto resumido com "ler tudo" */
+  .msgc{position:static;flex-direction:column;gap:8px;padding:10px 12px;box-shadow:none}
+  .msgc .ic{width:28px;height:28px;font-size:13px}
+  .msgc .t .m{max-height:6.2em;overflow:hidden;position:relative}
+  .msgc .t .m::after{content:'';position:absolute;left:0;right:0;bottom:0;height:2.2em;background:linear-gradient(rgba(255,246,217,0),#FFF6D9)}
+  .msgc.open .t .m{max-height:none}.msgc.open .t .m::after{display:none}
+  .msgc .t .m.curto{max-height:none}.msgc .t .m.curto::after{display:none}
+  .msgc .mais{display:inline-block;margin-top:4px;font-size:12px;font-weight:800;color:#6B4E00;background:none;border:none;padding:0;cursor:pointer;text-decoration:underline}
+  .msgc .wa-c{width:100%;justify-content:center;box-sizing:border-box;margin-top:2px}
+  /* tabela vira cartões */
+  table,tbody{display:block}thead{display:none}
+  tr{display:block;border-top:1px solid #DADAD6;padding:10px 10px 12px}
+  tr:first-child{border-top:none}
+  td{display:block;padding:0;border-top:none}
+  td.desc{font-size:14px;margin-bottom:8px}
+  .cod{white-space:normal;line-height:1.7}.cod i{margin-left:0;margin-right:8px}
+  .embv{width:120px;margin-left:0;font-size:12px;padding:4px 8px}
+  td.r{text-align:left;display:flex;align-items:center;gap:10px;margin:6px 0}
+  td.r::before{content:'Preço unit. (R$)';font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:#4E5A72;flex:1}
+  td.r b{font-size:16px}
+  input.preco{width:140px;font-size:17px;padding:10px 12px}
+  td:last-child::before{content:'Observação';display:block;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:#4E5A72;margin:4px 0 4px}
+  input.obs{width:100%;min-width:0;box-sizing:border-box;font-size:14px;padding:10px 12px}
+  .tot{flex-direction:column;align-items:flex-start;gap:4px}
+  .bar{padding:10px 12px;flex-direction:column;align-items:stretch}
+  .bar .btn{width:100%;padding:14px}
+  .bar .info{text-align:center}
+}
 .msgc .m{white-space:pre-line;line-height:1.5}
 </style>
 </head>
@@ -153,6 +189,11 @@ $('#btnFim').onclick=async()=>{
 };
 window.addEventListener('beforeunload',()=>{if(dirty)salvar();});
 (async()=>{try{const r=await fetch('/api/cotacao-publica/'+token);const j=await r.json();if(j.error)throw new Error(j.error);P=j;render();}catch(e){$('#app').innerHTML='<div class="empty">Cotação não encontrada ou link inválido.</div>';}})();
+</script>
+<script>
+// celular: recado resumido com "ler tudo" (Tiago, 25/09: recado fixo cobria os produtos)
+document.addEventListener('click', function(e){ var b = e.target.closest && e.target.closest('.msgc .mais'); if (!b) return; var c = b.closest('.msgc'); c.classList.toggle('open'); b.textContent = c.classList.contains('open') ? 'mostrar menos' : 'ler tudo'; });
+new MutationObserver(function(){ document.querySelectorAll('.msgc .t .m').forEach(function(m){ if (m.dataset.mais) return; m.dataset.mais = '1'; if (m.textContent.length < 160) { m.classList.add('curto'); return; } var b = document.createElement('button'); b.className = 'mais'; b.type = 'button'; b.textContent = 'ler tudo'; m.insertAdjacentElement('afterend', b); }); }).observe(document.body, { childList: true, subtree: true });
 </script>
 </body>
 </html>
