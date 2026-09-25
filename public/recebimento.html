@@ -90,6 +90,10 @@ body{font-family:var(--font);background:var(--pap);color:var(--ink);font-size:14
 .scan input{flex:1;border:0;background:transparent;font-family:var(--font);font-size:16px;color:var(--ink);outline:0;min-width:0}
 .scan .ico{font-size:15px;letter-spacing:-1px}
 .scan .cam{border:0;background:transparent;font-size:17px;cursor:pointer;padding:0 2px;color:var(--ink2)}
+.scan .dig{border:1px solid var(--ln2);background:var(--crd);color:var(--ink2);border-radius:var(--r-sm);font-family:var(--font);font-size:11px;font-weight:700;padding:5px 8px;cursor:pointer;white-space:nowrap;flex:none}
+.scan .dig[aria-pressed="true"]{background:var(--am);border-color:var(--am);color:var(--amk)}
+.dev .kv b{white-space:nowrap}
+.dev .kv span{line-height:1.25}
 .prog{display:flex;justify-content:space-between;gap:10px;font-size:11.5px;color:var(--ink2)}
 .prog b{color:var(--ink);font-variant-numeric:tabular-nums}
 .itens{display:flex;flex-direction:column;gap:6px}
@@ -200,6 +204,7 @@ body{font-family:var(--font);background:var(--pap);color:var(--ink);font-size:14
     <div class="scan" id="scanBox">
       <span class="ico">▮▯▮</span>
       <input id="bip" placeholder="Bipe o código de barras" autocomplete="off" inputmode="none" enterkeyhint="done">
+      <button class="dig" id="btnDigitar" type="button" aria-pressed="false" onclick="toggleDigitar()" title="Digitar o código à mão">Digitar código</button>
       <button class="cam" id="btnCam" onclick="abrirCamera()" title="Ler com a câmera" hidden>📷</button>
     </div>
     <div class="prog">
@@ -417,6 +422,18 @@ function renderBip() {
 }
 const dataBr = s => { const p = String(s || '').split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0].slice(2) : String(s || ''); };
 
+// O leitor do coletor bipa como teclado, então o #bip fica com inputmode="none" pra não abrir o
+// teclado do Android por cima da tela. "Digitar código" liga o teclado numérico e desliga sozinho
+// assim que um código entra.
+let digitando = false;
+function aplicarDigitar() {
+  const b = $('bip');
+  b.setAttribute('inputmode', digitando ? 'numeric' : 'none');
+  $('btnDigitar').setAttribute('aria-pressed', String(digitando));
+  b.blur(); b.focus();
+}
+function toggleDigitar() { digitando = !digitando; aplicarDigitar(); }
+function pararDigitar() { if (digitando) { digitando = false; aplicarDigitar(); } }
 function focarBip() { const b = $('bip'); if (b && !cartao && tela === 'bipagem') { b.focus(); $('scanBox').classList.add('focus'); } }
 $('bip').addEventListener('blur', () => { $('scanBox').classList.remove('focus'); setTimeout(focarBip, 100); });
 $('bip').addEventListener('focus', () => $('scanBox').classList.add('focus'));
@@ -424,6 +441,7 @@ $('bip').addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preven
 
 async function lerCodigo(cod) {
   if (!visao) return;
+  pararDigitar();
   const jaTem = (visao.itens || []).find(i => i.cod === cod);
   if (jaTem) { await enviarBipe('bipar', { cod, quant: 1, emb: jaTem.emb }); return; }
   let cad;
@@ -576,6 +594,13 @@ async function enviarChat() {
 }
 
 // ── tela 4 · terminei ──────────────────────────────────────────────────────
+const ORIGEM_DEV = { compras: 'Compras', coletor: 'Coletor', falta: 'Falta' };
+function cardDevolucao(devs) {
+  if (!Array.isArray(devs) || !devs.length) return '';
+  return `<div class="card dev"><div class="t">Devolução · um aviso só pro motorista</div>
+    ${devs.map(d => `<div class="kv"><span>${esc(d.descricao || d.cod)}</span><b>${esc(ORIGEM_DEV[d.origem] || d.origem)} · ${num(d.qtd)} un</b></div>`).join('')}
+    <div class="tip" style="text-align:left"><b>Compras</b> decidiu antes do caminhão (preço, não pedido, a mais). <b>Validade/avaria</b> nasce no coletor. <b>Falta</b> é o que a nota diz e não veio: sai por nota de devolução também, o motorista só assina.</div></div>`;
+}
 const MOT_PILL = { recontar: ['bad', 'recontar'], nao_bipado: ['warn', 'não bipado'], nao_esta_na_nota: ['warn', 'não está na nota'] };
 async function terminei() {
   if (fila.length) { await flush(); if (fila.length) { toast('Sem sinal: ainda tem bipe pra enviar.', true); return; } }
@@ -590,7 +615,7 @@ function renderFim() {
   $('fSub').textContent = (visao.fornecedor || '') + ' · NF-e ' + visao.nNota;
   if (f.bateu) {
     $('fAcoes').innerHTML = '<button class="btn btn-primary blk" onclick="voltarNotas()">Voltar às notas</button>';
-    $('fCorpo').innerHTML = '<div class="aviso ok"><b>Tudo certo, enviado pra central liberar.</b><br>Pode liberar o motorista assim que a central confirmar.</div>';
+    $('fCorpo').innerHTML = '<div class="aviso ok"><b>Tudo certo, enviado pra central liberar.</b><br>Pode liberar o motorista assim que a central confirmar.</div>' + cardDevolucao(f.devolucoes);
     return;
   }
   const n = (f.recontar || []).length;
@@ -600,7 +625,7 @@ function renderFim() {
     <div class="card"><div class="t">Recontar</div>${(f.recontar || []).map(r => {
       const p = MOT_PILL[r.motivo] || ['mut', r.motivo];
       return `<div class="kv"><span>${esc(r.descricao || r.cod)}</span><span class="pill ${p[0]}">${esc(p[1])}</span></div>`;
-    }).join('')}</div>`;
+    }).join('')}</div>` + cardDevolucao(f.devolucoes);
 }
 async function voltarBipagem() {
   await recarregarVisao();
@@ -608,8 +633,8 @@ async function voltarBipagem() {
 }
 async function enviarAssim() {
   try {
-    await post('enviar', { id: visao.id });
-    fimDados = { bateu: true }; renderFim(); toast('Enviado pra central.');
+    const r = await post('enviar', { id: visao.id });
+    fimDados = { bateu: true, devolucoes: r && r.devolucoes }; renderFim(); toast('Enviado pra central.');
   } catch (e) { toast(e.message || 'Não deu pra enviar', true); }
 }
 
