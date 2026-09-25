@@ -232,6 +232,9 @@ app.use((req, res, next) => {
   // App de contagem de negativos no celular do auxiliar: entra por PIN da loja,
   // depois manda o token (32 hex) em toda chamada — validado dentro da rota
   if (req.path === '/contagem.html' || req.path === '/contagem' || req.path === '/manifest-contagem.json' || req.path.startsWith('/api/contagem-publica/')) return next();
+  // Coletor de Recebimento no celular do conferente: mesmo esquema (PIN pra entrar, depois token
+  // de 32 hex validado dentro da rota)
+  if (req.path === '/recebimento.html' || req.path === '/recebimento' || req.path.startsWith('/api/recebimento-publico/')) return next();
   // Pré-aquecimento interno (somente localhost)
   if (req.headers['x-internal-warmup'] === 'fc360warmup2026' && ['::1', '127.0.0.1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress)) return next();
   const ext = req.path.split('.').pop().toLowerCase();
@@ -7317,6 +7320,9 @@ app.get('/api/radar-pedidos/:listaId/itens', (req, res) => {
 // ═══════════════════════════════════════════════════
 const pedidosFornec = require('./lib/pedidos-fornecedor');
 pedidosFornec.init();
+// Coletor de Recebimento (conferência cega): rotas públicas por token + internas do fiscal.
+// Fica aqui (depois de pedidosFornec.init()) porque xmlPorChave usa pedidosFornec.listar().
+require('./lib/recebimento-rotas')(app, { q, path, escreverERP, pedidosFornec, conferenciaXml: require('./lib/conferencia-xml'), logColetor, LOG_COLETOR_DIR, __dirname });
 // Exclusão agendada de pedidos (roda uma vez ao subir): data/pedidos-excluir-no-boot.json = [{ id, lista }].
 // Serve pra apagar pedido de teste sem login na produção (Tiago, 23/09/2026). Só exclui se o pedido existir, for da
 // lista indicada e ainda não estiver aprovado/recebido (regra do excluir). O arquivo é apagado depois de rodar.
