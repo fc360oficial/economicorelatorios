@@ -605,6 +605,17 @@ table.fxt tr.lock td{opacity:.7;cursor:not-allowed}
 .emp-tot{min-width:180px;text-align:center}
 table.forntab.cad9 td:nth-child(3) .finp{min-width:0;width:calc(100% - 30px)}
 .kpi .val{letter-spacing:-.3px}
+/* Acompanhamento: tabela de fornecedores compacta (Tiago, 25/09: "ainda continua fora de layout") */
+table.acomp-t{table-layout:auto;width:100%}
+table.acomp-t td:nth-child(1){white-space:normal;max-width:300px;line-height:1.3}
+table.acomp-t td:nth-child(2){white-space:normal;max-width:200px}
+table.acomp-t td:nth-child(5){white-space:nowrap;font-size:12px}
+table.acomp-t td:nth-child(6){white-space:normal;max-width:240px;font-size:12.5px}
+table.acomp-t td:last-child{white-space:nowrap;width:1%}
+table.acomp-t .acoes-row{display:flex;flex-wrap:nowrap;gap:6px;align-items:center}
+table.acomp-t .acoes-row .btn.sm{padding:6px 10px;font-size:12px}
+table.acomp-t .acoes-row .wa{padding:6px 10px;font-size:12px}
+table.acomp-t tbody td{padding:10px 10px;vertical-align:middle}
 .pp-prod{cursor:pointer;user-select:none}
 .pp-prod:hover{color:var(--amk)}
 .pp-prod .chev{display:inline-block;width:18px;font-style:normal;font-weight:900;color:var(--am);font-size:16px;line-height:1;vertical-align:-1px}
@@ -1534,7 +1545,7 @@ function renderAcomp(){
     '<div class="fld rc-whats"><label>WhatsApp do(a) comprador(a)</label><input type="text" id="ac-whats" value="' + esc(CUR.comprador && CUR.comprador.whats || '') + '" placeholder="5581999990000" inputmode="numeric"></div>' +
     '<div class="fld rc-btn"><label>&nbsp;</label><button class="btn primary" onclick="salvarMensagem()">Salvar recado</button></div></div>' +
     '<div class="suginfo">' + (CUR.mensagemEm ? '<span>Atualizado ' + dt(CUR.mensagemEm) + (CUR.mensagemPor ? ' por <b>' + esc(CUR.mensagemPor) + '</b>' : '') + '</span>' : '<span class="warn">Sem recado ainda: o vendedor vê só o botão de WhatsApp.</span>') + (CUR.comprador && CUR.comprador.whats ? '<span>WhatsApp: <b>' + esc(CUR.comprador.whats) + '</b> (o vendedor clica e já cai na sua conversa)</span>' : '<span class="warn">Sem WhatsApp: o vendedor não consegue te chamar.</span>') + '</div></div>';
-  h += '<div class="tablewrap"><table><thead><tr><th>Fornecedor</th><th>Vendedor</th><th>Status</th><th>Itens cotados</th><th>Enviado / aberto / respondido</th><th>Condição</th><th>Ações</th></tr></thead><tbody>';
+  h += '<div class="tablewrap"><table class="acomp-t"><thead><tr><th>Fornecedor</th><th>Vendedor</th><th>Status</th><th>Itens cotados</th><th title="Enviado / abriu o link / respondeu">Env. / abriu / resp.</th><th>Condição</th><th>Ações</th></tr></thead><tbody>';
   var prevE = null;
   h += ordenarPorEmpresa(CUR.fornecedores).map(function(f){
     var wa = f.vendedor && f.vendedor.whats ? waLink(f.vendedor.whats, msgWhats(f)) : null;
@@ -1545,7 +1556,7 @@ function renderAcomp(){
       '<td>' + f.cotados + ' de ' + CUR.itens.length + (f.status === 'finalizado' ? ' <button class="link-btn" onclick="verProposta(' + f.codFornec + ')">ver proposta</button>' : '') + '</td>' +
       '<td class="mini">' + dt(f.enviadoEm) + ' / ' + dt(f.abertoEm) + ' / ' + dt(f.finalizadoEm) + '</td>' +
       '<td>' + esc(f.condicao || '—') + (f.obs ? '<br><span class="mini">' + esc(f.obs) + '</span>' : '') + (f.cadastro_vendedor ? '<br><span class="mini" title="Preenchido pelo vendedor na página dele; ao enviar a proposta, foi pro cadastro da lista">📋 ' + esc(f.cadastro_vendedor.email || '') + (f.cadastro_vendedor.prazo_entrega != null ? ' · entrega ' + f.cadastro_vendedor.prazo_entrega + ' d' : '') + (f.cadastro_vendedor.pedido_minimo != null ? ' · mín ' + fmtR(f.cadastro_vendedor.pedido_minimo) : '') + '</span>' : '') + '</td>' +
-      '<td><div class="acoes-row">' + waBtns(f) + '<button class="btn ghost sm" onclick="copiar(\'' + f.link + '\')">Copiar link</button><a class="btn ghost sm" href="' + f.link + '" target="_blank">Abrir</a></div></td></tr>';
+      '<td><div class="acoes-row">' + waBtns(f) + '<button class="btn ghost sm" onclick="copiar(\'' + f.link + '\')" title="Copiar o link da cotação deste fornecedor">Copiar</button><a class="btn ghost sm" href="' + f.link + '" target="_blank" title="Abrir a página do vendedor">Abrir</a></div></td></tr>';
   }).join('');
   h += '</tbody></table></div>';
   if (aberta) h += '<div class="pubcard" style="margin-top:18px"><b>Adicionar fornecedor</b> <span class="mini">(a cotação já está aberta; o novo convidado recebe o próprio link)</span><div class="srch" style="max-width:520px;margin-top:10px"><input type="text" id="a-srch" placeholder="Buscar no cadastro da lista (empresa, vendedor, WhatsApp) ou no ERP…" autocomplete="off" oninput="buscarFornecedorAcomp(this.value)" onfocus="buscarFornecedorAcomp(this.value)" style="width:100%;border:1px solid var(--ln2);border-radius:9px;padding:9px 12px;font-family:inherit;font-size:13px"><div class="res" id="a-res" style="display:none"></div></div></div>';
