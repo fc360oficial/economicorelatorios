@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="stylesheet" href="/design-system.css">
 <script src="/nav.js" defer></script>
-<title>Log — Econômico Relatórios</title>
+<title>Logs — Econômico Relatórios</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -69,46 +69,97 @@ td.mud{background:var(--amw);color:var(--amk);font-weight:700}
 pre.sql{background:var(--wsh);border:1px solid var(--ln);border-radius:var(--r);padding:10px 12px;font-family:ui-monospace,Consolas,monospace;font-size:12px;white-space:pre-wrap;word-break:break-all;color:var(--ink)}
 .erro-box{background:var(--negw);color:var(--neg);border-radius:var(--r);padding:10px 12px;font-size:12.5px;margin-bottom:12px}
 .aviso{font-size:12px;color:var(--ink3)}
+.ds-tabs{display:flex;gap:4px;border-bottom:2px solid var(--ln);flex-wrap:wrap}
+.ds-tab{padding:9px 16px;font-size:12.5px;font-weight:700;color:var(--ink2);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px;white-space:nowrap;background:transparent;border-top:none;border-left:none;border-right:none;font-family:var(--font)}
+.ds-tab:hover{color:var(--ink)}
+.ds-tab.on{color:var(--ink);border-bottom-color:var(--am)}
+td.msg{white-space:normal;min-width:200px;color:var(--ink2)}
 </style>
 </head>
 <body class="ds">
 <div class="main">
   <div class="page-hdr">
     <div>
-      <h1>Log de mudanças</h1>
-      <p>Toda escrita que o sistema faz no MySQL de teste do .254 — quem, quando, tabela, valor antes e depois. O ERP de produção (.252) nunca é alterado.</p>
-    </div>
-    <div>
-      <div class="btns">
-        <input class="inp" type="date" id="fDe" onchange="carregar()">
-        <input class="inp" type="date" id="fAte" onchange="carregar()">
-        <select class="sel" id="fTabela" onchange="carregar()"><option value="">Todas as tabelas</option></select>
-        <select class="sel" id="fUsuario" onchange="carregar()"><option value="">Todos os usuários</option></select>
-        <select class="sel" id="fStatus" onchange="carregar()">
-          <option value="">Todos os status</option><option value="ok">OK</option><option value="erro">Erro</option><option value="recusado">Recusado</option>
-        </select>
-        <button class="btn btn-secondary" onclick="exportar()">Exportar CSV</button>
-        <button class="btn btn-primary" onclick="carregar()">Atualizar</button>
-      </div>
-      <div id="status"></div>
+      <h1>Logs</h1>
+      <p id="pageDesc">Toda escrita que o sistema faz no MySQL de teste do .254 — quem, quando, tabela, valor antes e depois. O ERP de produção (.252) nunca é alterado.</p>
     </div>
   </div>
 
-  <div class="card">
-    <div class="kpis">
-      <div class="kpi"><div class="label">Mudanças no período</div><div class="v" id="kTotal">–</div></div>
-      <div class="kpi"><div class="label">Com sucesso</div><div class="v pos" id="kOk">–</div></div>
-      <div class="kpi"><div class="label">Erros / recusadas</div><div class="v neg" id="kRuim">–</div></div>
-      <div class="kpi"><div class="label">Registros alterados</div><div class="v" id="kReg">–</div></div>
+  <div class="ds-tabs" id="logTabs"></div>
+
+  <!-- ── ABA: Log ERP (teste) ────────────────────────────────────────── -->
+  <div id="tabErp">
+    <div class="page-hdr">
+      <div></div>
+      <div>
+        <div class="btns">
+          <input class="inp" type="date" id="fDe" onchange="carregar()">
+          <input class="inp" type="date" id="fAte" onchange="carregar()">
+          <select class="sel" id="fTabela" onchange="carregar()"><option value="">Todas as tabelas</option></select>
+          <select class="sel" id="fUsuario" onchange="carregar()"><option value="">Todos os usuários</option></select>
+          <select class="sel" id="fStatus" onchange="carregar()">
+            <option value="">Todos os status</option><option value="ok">OK</option><option value="erro">Erro</option><option value="recusado">Recusado</option>
+          </select>
+          <button class="btn btn-secondary" onclick="exportar()">Exportar CSV</button>
+          <button class="btn btn-primary" onclick="carregar()">Atualizar</button>
+        </div>
+        <div id="status"></div>
+      </div>
     </div>
-    <div class="tblwrap">
-      <table>
-        <thead><tr><th>Data/Hora</th><th>Usuário</th><th>Referência</th><th>Servidor</th><th>Tabela</th><th>Operação</th><th class="num">Registros</th><th>Status</th><th>Motivo</th></tr></thead>
-        <tbody id="tb"></tbody>
-      </table>
-      <div class="empty" id="vazio" hidden>Nenhuma mudança registrada no período.</div>
+
+    <div class="card">
+      <div class="kpis">
+        <div class="kpi"><div class="label">Mudanças no período</div><div class="v" id="kTotal">–</div></div>
+        <div class="kpi"><div class="label">Com sucesso</div><div class="v pos" id="kOk">–</div></div>
+        <div class="kpi"><div class="label">Erros / recusadas</div><div class="v neg" id="kRuim">–</div></div>
+        <div class="kpi"><div class="label">Registros alterados</div><div class="v" id="kReg">–</div></div>
+      </div>
+      <div class="tblwrap">
+        <table>
+          <thead><tr><th>Data/Hora</th><th>Usuário</th><th>Referência</th><th>Servidor</th><th>Tabela</th><th>Operação</th><th class="num">Registros</th><th>Status</th><th>Motivo</th></tr></thead>
+          <tbody id="tb"></tbody>
+        </table>
+        <div class="empty" id="vazio" hidden>Nenhuma mudança registrada no período.</div>
+      </div>
+      <div class="detail" id="detail" hidden></div>
     </div>
-    <div class="detail" id="detail" hidden></div>
+  </div>
+
+  <!-- ── ABA: LOG Coletor ────────────────────────────────────────────── -->
+  <div id="tabColetor" hidden>
+    <div class="page-hdr">
+      <div></div>
+      <div>
+        <div class="btns">
+          <input class="inp" type="date" id="cDia" onchange="coletorCarregar()">
+          <input class="inp" type="number" id="cLoja" placeholder="Loja" style="width:90px" onchange="coletorCarregar()">
+          <select class="sel" id="cTipo" onchange="coletorCarregar()">
+            <option value="">Todos os eventos</option>
+            <option value="entrar">entrar</option><option value="abrir_nota">abrir_nota</option><option value="bipe">bipe</option>
+            <option value="corrigir">corrigir</option><option value="terminei">terminei</option><option value="chat">chat</option>
+            <option value="liberar">liberar</option><option value="reconferir">reconferir</option><option value="erp">erp</option>
+          </select>
+          <input class="inp" id="cNfe" placeholder="NF-e" style="width:110px" onchange="coletorCarregar()">
+          <input class="inp" id="cNome" placeholder="Nome" style="width:130px" onchange="coletorCarregar()">
+          <button class="btn btn-secondary" onclick="coletorExportar()">Exportar CSV</button>
+          <button class="btn btn-primary" onclick="coletorCarregar()">Atualizar</button>
+        </div>
+        <div id="cStatus"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="tblwrap">
+        <table>
+          <thead><tr>
+            <th>Hora</th><th>Loja</th><th>Nome</th><th>Evento</th><th>NF-e</th><th>Produto</th>
+            <th class="num">Quant×Emb=Un</th><th>Validade</th><th>Resultado</th><th>Msg</th><th>Log ERP</th>
+          </tr></thead>
+          <tbody id="cTb"></tbody>
+        </table>
+        <div class="empty" id="cVazio" hidden>Nenhum evento registrado no período.</div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -116,6 +167,7 @@ pre.sql{background:var(--wsh);border:1px solid var(--ln);border-radius:var(--r);
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 const dh = iso => { if (!iso) return '—'; const d = new Date(iso); return isNaN(d) ? esc(iso) : d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }); };
+const hora = iso => { if (!iso) return '—'; const d = new Date(iso); return isNaN(d) ? esc(iso) : d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }); };
 const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 let itens = [], selId = null, filtrosPreenchidos = false;
 
@@ -146,6 +198,9 @@ async function carregar() {
     }
     render();
     $('status').textContent = (j.total > itens.length ? `Mostrando ${itens.length} de ${j.total}. ` : '') + (j.linhas_invalidas ? `${j.linhas_invalidas} linha(s) do arquivo ilegível(is), puladas.` : '');
+    // vindo do link "Log ERP" da aba Coletor: abre a entrada direto
+    const idAbrir = new URLSearchParams(location.search).get('id');
+    if (idAbrir && itens.some(e => e.id === idAbrir)) abrir(idAbrir);
   } catch (e) { $('status').textContent = 'Erro: ' + e.message; }
 }
 
@@ -229,13 +284,80 @@ function tabela(rows, mud) {
 
 function exportar() { window.location = '/api/log-erp/csv?' + params(); }
 
+// ── LOG Coletor ──────────────────────────────────────────────────────────
+let coletorItens = [];
+function coletorParams() {
+  const dia = $('cDia').value;
+  const p = new URLSearchParams({ de: dia, ate: dia });
+  for (const [k, id] of [['loja', 'cLoja'], ['tipo', 'cTipo'], ['nfe', 'cNfe'], ['nome', 'cNome']]) if ($(id).value) p.set(k, $(id).value);
+  return p.toString();
+}
+async function coletorCarregar() {
+  $('cStatus').textContent = 'Carregando…';
+  try {
+    const r = await fetch('/api/log-coletor?' + coletorParams());
+    if (!r.ok) throw new Error((await r.json()).error || r.status);
+    coletorItens = await r.json();
+    coletorRender();
+    $('cStatus').textContent = '';
+  } catch (e) { $('cStatus').textContent = 'Erro: ' + e.message; }
+}
+function coletorRender() {
+  $('cVazio').hidden = coletorItens.length > 0;
+  $('cTb').innerHTML = coletorItens.map(e => `<tr>
+    <td class="mono">${hora(e.em)}</td>
+    <td>${esc(e.loja)}</td>
+    <td>${esc(e.nome)}</td>
+    <td>${esc(e.tipo)}</td>
+    <td class="mono">${esc(e.nfe)}</td>
+    <td class="tab">${esc(e.descricao || e.cod || '')}</td>
+    <td class="num mono">${e.quant != null || e.emb != null || e.un != null ? `${esc(e.quant ?? '—')}×${esc(e.emb ?? '—')}=${esc(e.un ?? '—')}` : '—'}</td>
+    <td class="mono">${esc(e.validade)}</td>
+    <td>${esc(e.resultado)}</td>
+    <td class="msg">${esc(e.msg || e.erro || '')}</td>
+    <td>${e.logErpId ? `<a href="/log.html?log=erp&id=${encodeURIComponent(e.logErpId)}" style="color:var(--inf);font-weight:700;text-decoration:none">ver</a>` : '<span style="color:var(--ink3)">—</span>'}</td>
+  </tr>`).join('');
+}
+function coletorExportar() { window.location = '/api/log-coletor/csv?' + coletorParams(); }
+
+// ── Abas ─────────────────────────────────────────────────────────────────
+const DESCS = {
+  erp: 'Toda escrita que o sistema faz no MySQL de teste do .254 — quem, quando, tabela, valor antes e depois. O ERP de produção (.252) nunca é alterado.',
+  coletor: 'Eventos do Coletor de Recebimento (celular do conferente): entrada, abertura de nota, bipagem, correções e liberação.',
+};
+let logAtual = 'erp';
+function trocarAba(id) {
+  logAtual = id;
+  document.querySelectorAll('.ds-tab').forEach(b => b.classList.toggle('on', b.dataset.log === id));
+  $('tabErp').hidden = id !== 'erp';
+  $('tabColetor').hidden = id !== 'coletor';
+  $('pageDesc').textContent = DESCS[id] || '';
+  const u = new URL(location.href); u.searchParams.set('log', id);
+  if (id !== 'erp') u.searchParams.delete('id');
+  history.replaceState(null, '', u);
+  if (id === 'coletor' && !coletorItens.length) coletorCarregar();
+}
+
+async function initTabs() {
+  const u = new URLSearchParams(location.search);
+  const alvo = u.get('log') || 'erp';
+  try {
+    const r = await fetch('/api/logs');
+    const logs = await r.json();
+    $('logTabs').innerHTML = logs.map(l => `<button type="button" class="ds-tab${l.id === alvo ? ' on' : ''}" data-log="${esc(l.id)}" onclick="trocarAba('${esc(l.id)}')">${esc(l.nome)}</button>`).join('');
+  } catch (e) { $('logTabs').innerHTML = ''; }
+  trocarAba(alvo);
+}
+
 (function init() {
   const h = new Date(), u = new URLSearchParams(location.search), ok = s => /^\d{4}-\d{2}-\d{2}$/.test(s || '');
   $('fDe').value = ok(u.get('de')) ? u.get('de') : iso(new Date(h.getFullYear(), h.getMonth(), 1));
   $('fAte').value = ok(u.get('ate')) ? u.get('ate') : iso(h);
   // filtro por tabela vindo do link (ex.: "Ver no Log" da aprovação de negativos)
   if (u.get('tabela')) { const s = $('fTabela'); s.innerHTML += `<option value="${esc(u.get('tabela'))}">${esc(u.get('tabela'))}</option>`; s.value = u.get('tabela'); filtrosPreenchidos = true; }
+  $('cDia').value = ok(u.get('de')) ? u.get('de') : iso(h);
   carregar();
+  initTabs();
 })();
 </script>
 </body>

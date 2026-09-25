@@ -420,6 +420,25 @@ app.get('/api/log-erp/:id', (req, res) => {
   res.json(e);
 });
 
+// LOG Coletor: eventos do Coletor de Recebimento (celular), mesmo padrão do Log ERP acima.
+// A página log.html vira um hub com abas; cada log novo entra na lista de /api/logs.
+const logColetor = require('./lib/log-coletor');
+const LOG_COLETOR_DIR = path.join(__dirname, 'data', 'log-coletor');
+const LOGS = [
+  { id: 'erp', nome: 'Log ERP (teste)', api: '/api/log-erp' },
+  { id: 'coletor', nome: 'LOG Coletor', api: '/api/log-coletor' },
+];
+app.get('/api/logs', (req, res) => res.json(LOGS));
+app.get('/api/log-coletor', (req, res) => {
+  try { res.json(logColetor.ler(LOG_COLETOR_DIR, req.query)); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.get('/api/log-coletor/csv', (req, res) => {
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="log-coletor.csv"');
+  res.send(logColetor.csv(logColetor.ler(LOG_COLETOR_DIR, req.query)));
+});
+
 // Mapeamento baseado em central.tipo_finalizadora
 const pagtoLabels = {
   '01': 'PIX / Débito', '02': 'Crédito', '03': 'Voucher',
