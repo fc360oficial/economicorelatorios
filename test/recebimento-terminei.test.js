@@ -21,3 +21,34 @@ test('terminei: recontagem sem revelar qtd; falta e recusa viram devolução; ch
   const lib = R.liberar(c.id, { nome: 'JOSE' }); assert.equal(lib.status, 'liberada'); assert.equal(lib.devolucoes.length, 2);
   assert.throws(() => R.terminei(c.id), /liberada/);
 });
+
+test('devolução coletor (validade curta e avaria via chat); terminei não recobra item em avaria; reconferir', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rec-'));
+  const xmlUmItem = { itens: [{ cod: '7896213007386', descricao: 'CREAM CRACKER', un: 240 }], naoPedidos: [], status: 'conciliado', pedidoId: 13, ln: 3 };
+  R.init({ dir, cadastro: async c => CAD[c] || null, xmlLoja: () => xmlUmItem, agora: () => new Date('2026-09-25T08:00:00') });
+  const c = R.abrirNota({ loja: 3, nome: 'MAYRA', chave: 'K3', nNota: '3', fornecedor: 'F', codFornec: 1 });
+
+  const r = await R.bipar(c.id, { cod: '7896213007386', quant: 10, emb: 24, validade: '2026-10-01' }); // bate 240 mas validade curta
+  assert.equal(r.resultado, 'bloqueado_validade');
+  let t = R.terminei(c.id); assert.equal(t.bateu, true); assert.equal(R.obter(c.id).status, 'terminada');
+  let dev = R.devolucoes(R.obter(c.id));
+  let coletor = dev.find(d => d.cod === '7896213007386' && d.origem === 'coletor');
+  assert.ok(coletor); assert.ok(coletor.motivo.includes('2026-10-01'));
+
+  R.mensagem(c.id, { de: 'central', nome: 'JOSE', acao: 'devolver', cod: '7896213007386' });
+  assert.equal(R.obter(c.id).itens['7896213007386'].estado, 'avaria');
+  dev = R.devolucoes(R.obter(c.id));
+  coletor = dev.find(d => d.cod === '7896213007386' && d.origem === 'coletor');
+  assert.ok(coletor); assert.equal(coletor.motivo, 'avaria');
+
+  t = R.terminei(c.id); assert.equal(t.bateu, true); assert.equal(t.recontar.length, 0); // item em avaria não volta pra recontagem
+
+  const rec = R.reconferir(c.id, { nome: 'CENTRAL' });
+  assert.equal(rec.status, 'bipando'); assert.equal(rec.recontagens, 0);
+  const ultima = rec.mensagens[rec.mensagens.length - 1];
+  assert.equal(ultima.de, 'central'); assert.equal(ultima.acao, 'aguarde');
+
+  R.terminei(c.id); R.liberar(c.id, { nome: 'JOSE' });
+  assert.equal(R.obter(c.id).status, 'liberada');
+  assert.throws(() => R.reconferir(c.id, { nome: 'JOSE' }), /liberada/);
+});
