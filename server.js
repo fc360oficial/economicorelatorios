@@ -135,6 +135,10 @@ app.get('/api/versao', (req, res) => res.json({ versao: APP_VERSAO }));
 
 // Atalho curto pra digitar em controle de TV (teclado na tela é lento/chato)
 app.get('/tv', (req, res) => res.redirect('/painel-compras.html'));
+// Atalho curto pra digitar na TV do televendas da CAHU: /tvcahu → link completo com token
+// (o token continua sendo o que vale; o atalho só evita digitar 32 caracteres na TV).
+app.get('/tvcahu', (req, res) => res.redirect(`/tv-televendas/${tvTelevendas.getConfig().token}`));
+app.get('/tvcahu/kiosk', (req, res) => res.redirect(`/tv-televendas/${tvTelevendas.getConfig().token}?kiosk=1`));
 
 // ── CACHE EM MEMÓRIA ─────────────────────────────────────
 const _cache = new Map();
@@ -213,7 +217,7 @@ app.use((req, res, next) => {
     '/margem-comprador.html', '/api/margem-tv/comprador',
     '/painel-diretoria.html',
     '/painel-cd.html', '/api/painel-cd',
-    '/painel-compras.html', '/tv'];
+    '/painel-compras.html', '/tv', '/tvcahu', '/tvcahu/kiosk'];
   if (publico.includes(req.path)) return next();
   // Link do vendedor (pedido ao fornecedor): público por token de 32 hex, sem login
   if (/^\/pedido\/[a-f0-9]{32}(\/pdf)?$/.test(req.path) || /^\/api\/pedido-publico\/[a-f0-9]{32}(\/|$)/.test(req.path)) return next();
@@ -7520,7 +7524,7 @@ app.post('/api/pedidos-cd/verificar', async (req, res) => {
 app.get('/api/pedidos-cd/tv-config', async (req, res) => {
   const c = tvTelevendas.getConfig();
   try { await tvTelevendas.carregarProdutos(false); } catch (e) { console.error('[TV-TELEVENDAS] produtos:', e.message); }
-  res.json({ config: c, linkTV: `${PUBLIC_URL}/tv-televendas/${c.token}`, totais: tvTelevendas.totais() });
+  res.json({ config: c, linkTV: `${PUBLIC_URL}/tv-televendas/${c.token}`, linkCurto: `${PUBLIC_URL}/tvcahu`, linkLan: `http://192.168.2.254:3003/tvcahu`, totais: tvTelevendas.totais() });
 });
 app.post('/api/pedidos-cd/tv-config', (req, res) => {
   try { const c = tvTelevendas.salvarConfig(req.body || {}, req.session.user?.nome || null); res.json({ config: c, linkTV: `${PUBLIC_URL}/tv-televendas/${c.token}` }); }
