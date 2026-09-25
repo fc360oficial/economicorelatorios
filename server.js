@@ -7459,7 +7459,7 @@ setInterval(() => precificacao.verificarTodos().catch(e => console.error('[PRECI
 // ═══════════════════════════════════════════════════
 const pedidosCD = require('./lib/pedidos-cd');
 pedidosCD.init({ q, mesDB });
-// TV do televendas da CAHU (aba "TV Televendas" do Centro de Distribuição) — lib/tv-televendas.js
+// TV do televendas da CAHU (página cahu-tv-televendas.html, menu CAHU Distribuidora) — lib/tv-televendas.js
 const tvTelevendas = require('./lib/tv-televendas');
 tvTelevendas.init({ q });
 pedidosCD.agendar();
@@ -7521,20 +7521,20 @@ app.post('/api/pedidos-cd/verificar', async (req, res) => {
   try { res.json(await pedidosCD.verificar()); } catch (err) { res.status(500).json({ error: err.message }); }
 });
 // ── TV Televendas (CAHU) ─────────────────────────────────────────────────────
-app.get('/api/pedidos-cd/tv-config', async (req, res) => {
+app.get('/api/cahu-distribuidora/tv-config', async (req, res) => {
   const c = tvTelevendas.getConfig();
   try { await tvTelevendas.carregarProdutos(false); } catch (e) { console.error('[TV-TELEVENDAS] produtos:', e.message); }
   res.json({ config: c, linkTV: `${PUBLIC_URL}/tv-televendas/${c.token}`, linkCurto: `${PUBLIC_URL}/tvcahu`, linkLan: `http://192.168.2.254:3003/tvcahu`, totais: tvTelevendas.totais() });
 });
-app.post('/api/pedidos-cd/tv-config', (req, res) => {
+app.post('/api/cahu-distribuidora/tv-config', (req, res) => {
   try { const c = tvTelevendas.salvarConfig(req.body || {}, req.session.user?.nome || null); res.json({ config: c, linkTV: `${PUBLIC_URL}/tv-televendas/${c.token}` }); }
   catch (err) { res.status(400).json({ error: err.message }); }
 });
-app.post('/api/pedidos-cd/tv-config/novo-token', (req, res) => {
+app.post('/api/cahu-distribuidora/tv-config/novo-token', (req, res) => {
   const c = tvTelevendas.novoToken();
   res.json({ config: c, linkTV: `${PUBLIC_URL}/tv-televendas/${c.token}` });
 });
-app.get('/api/pedidos-cd/tv-config/produtos', async (req, res) => {
+app.get('/api/cahu-distribuidora/tv-config/produtos', async (req, res) => {
   try { res.json(await tvTelevendas.buscarProdutos(req.query.q)); }
   catch (err) { res.status(503).json({ error: 'ERP indisponível: ' + err.message }); }
 });

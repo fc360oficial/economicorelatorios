@@ -53,7 +53,8 @@
     { href: '/itens.html',        ic: 'list',      txt: 'Mercadológico',      mod: 'analise' },
     { sec: 'Operação' }, // itens abaixo em ordem alfabética por txt — manter ao adicionar novos
     { id: 'cahu-distribuidora', ic: 'store', txt: 'CAHU Distribuidora', sub: [
-        { href: '/cahu-tabela-precos.html', ic: 'download', txt: 'Tabela de Preços' }
+        { href: '/cahu-tabela-precos.html', ic: 'download', txt: 'Tabela de Preços' },
+        { href: '/cahu-tv-televendas.html', ic: 'store', txt: 'TV Televendas' }
       ]},
     { id: 'dedo-duro', ic: 'alert', txt: 'Dedo Duro', sub: [
         { href: '/dedo-duro.html', ic: 'alert', txt: 'Dedo Duro' }
