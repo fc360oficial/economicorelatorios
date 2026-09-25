@@ -1571,13 +1571,14 @@ async function carregarUltimas(){
   try { var r = await api('/api/cotacoes/' + CUR.id + '/ultimas-compras'); ULT[CUR.id] = r.ultimas || {}; CATS[CUR.id] = r.categorias || {}; } catch(e) { ULT[CUR.id] = {}; CATS[CUR.id] = {}; }
   if (VISTA !== 'matriz' && document.getElementById('s4').classList.contains('on')) renderComparativoItens();
 }
-function ciSet(k, v){ CI_F[k] = v; if (k === 'soComPreco' && v) CI_F.soSemPreco = false; if (k === 'soSemPreco' && v) CI_F.soComPreco = false; renderComparativoItens(); }   // "Apenas digitados" e "Não digitados" são excludentes
+var CI_LIM = 100;
+function ciSet(k, v){ CI_LIM = 100; CI_F[k] = v; if (k === 'soComPreco' && v) CI_F.soSemPreco = false; if (k === 'soSemPreco' && v) CI_F.soComPreco = false; renderComparativoItens(); }   // "Apenas digitados" e "Não digitados" são excludentes
 var CI_VT = null; function ciVarDigitando(){ clearTimeout(CI_VT); CI_VT = setTimeout(ciFiltrar, 500); }
 function dataPrevista(dias){ if (!dias) return '—'; var d = new Date(); d.setDate(d.getDate() + (+dias)); return d.toLocaleDateString('pt-BR'); }
 function ciAba(a){ CI_ABA = a; renderComparativoItens(); }
 function ciRec(cod){ CI_REC[cod] = !CI_REC[cod]; var el = document.getElementById('ci-' + cod); if (el) { el.classList.toggle('rec', !!CI_REC[cod]); } }
 function ciRecTodos(v){ CUR.comparativo.itens.forEach(function(i){ CI_REC[i.cod] = v; }); renderComparativoItens(); }
-function ciFiltrar(){ CI_F.var = ($('#ci-var') || {}).value || ''; renderComparativoItens(); }
+function ciFiltrar(){ CI_LIM = 100; CI_F.var = ($('#ci-var') || {}).value || ''; renderComparativoItens(); }
 function renderComparativoItens(){
   var m = $('#s4-main'); if (!CUR) { renderVazio(m); return; }
   var C = CUR.comparativo, R = C.resumo, F = C.fornecedores, aberta = CUR.status === 'aberta', U = ULT[CUR.id] || {}, K = CATS[CUR.id] || {};
@@ -1621,7 +1622,8 @@ function renderComparativoItens(){
   });
   h += '<p class="mini" style="margin:12px 0 8px">' + itens.length + ' de ' + C.itens.length + ' itens' + (L ? ' · quantidades da Loja ' + L : '') + '</p>';
   if (!itens.length) h += '<div class="empty">Nenhum item com esse filtro.</div>';
-  h += itens.map(function(i){
+  // Paginação (Tiago, 25/09: "muito lento quando clico na flag"): desenha 100 cartões por vez; "Mostrar mais" traz o resto
+  h += itens.slice(0, CI_LIM).map(function(i){
     var u = U[i.cod], base = (u && u.preco) || i.ultimo_custo || 0, v = i.vencedor, q = L ? (i.lojas_qtd[L] || 0) : i.qtd, rec = !!CI_REC[i.cod], k = K[i.cod];
     var quem = F.filter(function(f){ return i.precos[f.codFornec]; }), naoCot = F.filter(function(f){ return !i.precos[f.codFornec]; });
     var x = '<div class="citem club' + (rec ? ' rec' : '') + '" id="ci-' + esc(i.cod) + '"><div class="cihd" onclick="ciRec(\'' + esc(i.cod) + '\')"><div><span class="chev">⌄</span> <b>' + esc(i.descricao) + '</b>' + cdTag(i.cod) + ' <span class="mini" style="color:var(--amk)">' + esc(i.unid || 'UN') + '|' + i.emb + '</span>' + (i.curva_a ? ' <span class="an-badge bad" style="padding:1px 7px">curva A</span>' : '') + (k && k.grupo ? ' <span class="mini" style="color:var(--amk)">· ' + esc(k.grupo) + (k.subgrupo ? ' / ' + esc(k.subgrupo) : '') + '</span>' : '') + '<br><span class="cod">Código: ' + esc(i.cod) + '</span>' + (i.nao_comprar ? ' <span class="mini" style="color:var(--neg);font-weight:700">· não comprar</span>' : '') + '</div>' +
@@ -1642,6 +1644,7 @@ function renderComparativoItens(){
     if (naoCot.length) x += '<div class="cifoot">Não digitaram este item: ' + (function(){ var g = {}, ord = []; naoCot.forEach(function(f){ var k = empresaKey(f); if (!g[k]) { g[k] = { emp: empresaDe(f), v: [] }; ord.push(k); } if (multiVend(F, f) && f.vendedor && f.vendedor.nome) g[k].v.push(String(f.vendedor.nome).split(' ')[0]); }); return ord.map(function(k){ return esc(g[k].emp) + (g[k].v.length ? ' <span style="color:var(--ink3)">(' + esc(g[k].v.join(', ')) + ')</span>' : ''); }).join(' · '); })() + '</div>';
     return x + '</div></div>';
   }).join('');
+  if (itens.length > CI_LIM) h += '<div style="text-align:center;margin:14px 0 6px"><button class="btn" onclick="CI_LIM += 200; renderComparativoItens()">Mostrar mais ' + Math.min(200, itens.length - CI_LIM) + ' itens (' + (itens.length - CI_LIM) + ' restantes)</button> <button class="btn ghost" onclick="CI_LIM = 1e9; renderComparativoItens()">Mostrar todos</button></div>';
   m.innerHTML = h;
 }
 // aba "Pedidos: R$" do comparativo — o que vai virar pedido, por fornecedor vencedor, item a item
