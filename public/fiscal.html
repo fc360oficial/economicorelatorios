@@ -78,7 +78,7 @@ tr.det td{background:#FAFAF8;padding:0 12px 14px;white-space:normal;cursor:defau
 .box table td{padding:5px 9px;border-top:1px solid #EEEEEA;white-space:nowrap;vertical-align:top}
 .box table td.r,.box table th.r{text-align:right}.box table td.desc{white-space:normal;min-width:200px}
 .box table tr.err td{background:#FFF3F5}.box table tr.warn td{background:#FFFBEB}
-.fl{display:block;font-size:10px;font-weight:700;margin-top:2px;white-space:normal}.fl.erro{color:var(--neg)}.fl.aviso{color:#B45C00}
+.fl{display:block;font-size:10px;font-weight:700;margin-top:2px;white-space:normal}.fl.erro{color:var(--neg)}.fl.aviso{color:#B45C00}.fl.info{color:#137A48;font-weight:600}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}@media(max-width:900px){.grid2{grid-template-columns:1fr}}
 .chks{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;margin-top:10px}
 .chkc{border:1px solid var(--ln);border-left:4px solid var(--ln);border-radius:8px;padding:8px 10px;background:#fff;font-size:11.5px;line-height:1.4}
@@ -249,11 +249,11 @@ function detalhe(d){
   h+='</tbody></table>';
   h+='<div class="timeline"><span>Entrada (loja)<b>'+dbr2(d.entrada)+' '+hh(d.hora_entrada)+' · '+esc(d.operador_loja||'—')+'</b></span><span>Conferido<b>'+(d.conferido?dbr2(d.conferido)+' '+hh(d.hora_conferido):'—')+'</b></span><span>Liberação (ERP)<b>'+(d.liberacao?dbr2(d.liberacao)+' '+hh(d.hora_liberacao)+' · '+esc(d.operador_liberacao||d.operador_central||''):'—')+'</b></span>'+(d.pedidos.length?'<span>Pedido<b>'+d.pedidos.map(p=>'#'+p.nPedido+' '+dbr2(p.data)+' · '+esc(p.solicitante||'')+' · '+money(p.total)).join('<br>')+'</b></span>':'')+(d.obs?'<span>Obs<b>'+esc(d.obs)+'</b></span>':'')+'</div></div></div>';
   // itens
-  const its=[...d.itens].sort((a,b)=>(b.flags.some(f=>f.nivel==='erro')-a.flags.some(f=>f.nivel==='erro'))||(b.flags.length-a.flags.length)||a.descricao.localeCompare(b.descricao));
-  h+='<div class="box"><div class="hd"><span><b>Itens</b> '+d.itens.length+' · cruzamento coletor × XML × pedido × cadastro</span><span class="mut">'+d.itens.filter(i=>i.flags.some(f=>f.nivel==='erro')).length+' com erro · '+d.itens.filter(i=>i.flags.length&&!i.flags.some(f=>f.nivel==='erro')).length+' com aviso</span></div><div style="overflow-x:auto"><table><thead><tr><th>EAN · descrição</th><th class="r">Nota</th><th class="r">Coletor</th><th class="r">Dif.</th><th>Validade</th><th class="r">Pedido R$</th><th class="r">Custo NF</th><th class="r">Compra ant.</th><th class="r">Venda</th><th class="r">Margem</th><th class="r">Mrg cad.</th></tr></thead><tbody>';
+  const its=[...d.itens].sort((a,b)=>(b.flags.some(f=>f.nivel==='erro')-a.flags.some(f=>f.nivel==='erro'))||(b.flags.filter(f=>f.nivel!=='info').length-a.flags.filter(f=>f.nivel!=='info').length)||a.descricao.localeCompare(b.descricao));
+  h+='<div class="box"><div class="hd"><span><b>Itens</b> '+d.itens.length+' · cruzamento coletor × XML × pedido × cadastro</span><span class="mut">'+d.itens.filter(i=>i.flags.some(f=>f.nivel==='erro')).length+' com erro · '+d.itens.filter(i=>i.flags.some(f=>f.nivel==='aviso')&&!i.flags.some(f=>f.nivel==='erro')).length+' com aviso</span></div><div style="overflow-x:auto"><table><thead><tr><th>EAN · descrição</th><th class="r">Nota</th><th class="r">Coletor</th><th class="r">Dif.</th><th>Validade</th><th class="r">Pedido R$</th><th class="r">Custo NF</th><th class="r">Compra ant.</th><th class="r">Venda</th><th class="r">Margem</th><th class="r">Mrg cad.</th></tr></thead><tbody>';
   for(const i of its){
-    const err=i.flags.some(f=>f.nivel==='erro'),warn=i.flags.length&&!err;
-    h+='<tr class="'+(err?'err':warn?'warn':'')+'"><td class="desc"><span class="mono mut">'+esc(i.ean)+'</span> <b>'+esc(i.descricao)+'</b>'+i.flags.map(f=>'<span class="fl '+f.nivel+'">'+(f.nivel==='erro'?'✖ ':'▲ ')+esc(f.msg)+'</span>').join('')+'</td>';
+    const err=i.flags.some(f=>f.nivel==='erro'),warn=!err&&i.flags.some(f=>f.nivel==='aviso');
+    h+='<tr class="'+(err?'err':warn?'warn':'')+'"><td class="desc"><span class="mono mut">'+esc(i.ean)+'</span> <b>'+esc(i.descricao)+'</b>'+i.flags.map(f=>'<span class="fl '+f.nivel+'">'+(f.nivel==='erro'?'✖ ':f.nivel==='info'?'✓ ':'▲ ')+esc(f.msg)+'</span>').join('')+'</td>';
     h+='<td class="r">'+(i.xml_qtd!=null?qtd(i.xml_qtd)+' <span class="mut">'+esc(i.xml_und||'')+'</span>'+(i.xml_und_com?'<span class="erp">'+qtd(i.xml_qtd_com)+' '+esc(i.xml_und_com)+'</span>':''):'<span class="mut">—</span>')+'</td>';
     h+='<td class="r">'+(i.col_qtd!=null?qtd(i.col_qtd)+(i.col_bipagens>1?'<span class="erp">'+i.col_bipagens+' bipagens</span>':''):'<span class="mut">—</span>')+'</td>';
     h+='<td class="r">'+(i.dif_qtd==null?'<span class="mut">—</span>':i.fator_emb?'<span class="warn">×'+i.fator_emb+'</span>':Math.abs(i.dif_qtd)<0.001?'<span class="pos">=</span>':'<span class="neg">'+(i.dif_qtd>0?'+':'')+qtd(i.dif_qtd)+'</span>')+'</td>';
