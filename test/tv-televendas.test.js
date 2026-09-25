@@ -38,23 +38,27 @@ test('novoToken invalida o anterior', () => {
 });
 
 const ERP = [
-  { codigobarra: '111', descricao: 'ACHOC LIQ NESCAU 180ML CX27', preco: '39.54', Qtd: 10 },
-  { codigobarra: '222', descricao: 'AGUA SANITARIA X 1L CX12', preco: '21.21', Qtd: 3 },
-  { codigobarra: '333', descricao: 'SEM FOTO NO APP CX6', preco: '5.00', Qtd: 1 },
+  { codigobarra: '111', descricao: 'ACHOC LIQ NESCAU 180ML CX27', preco: '39.54', Qtd: 10, Unid: 'CX', qtdemb: 27 },
+  { codigobarra: '222', descricao: 'AGUA SANITARIA X 1L CX12', preco: '21.21', Qtd: 3, Unid: null, qtdemb: 0 },   // ERP sem unidade → usa o app
+  { codigobarra: '333', descricao: 'SEM FOTO NO APP CX6', preco: '5.00', Qtd: 1, Unid: '', qtdemb: 0 },
+  { codigobarra: '444', descricao: 'ALA LAVA ROUPAS 400G', preco: '8.90', Qtd: 5, Unid: 'UN ', qtdemb: 27 },   // UN no ERP manda, mesmo com qtdemb e app dizendo CX
 ];
 const CAT = new Map([
   ['111', { nome: 'Nescau', categoria: 'Mercearia', unidade: 'CX', qtdEmbalagem: 27, imagem: 'https://x/1.jpg' }],
   ['222', { nome: 'Agua', categoria: 'Limpeza', unidade: 'CX', qtdEmbalagem: 12, imagem: 'https://x/2.jpg' }],
+  ['444', { nome: 'Ala', categoria: 'Limpeza', unidade: 'CX', qtdEmbalagem: 27, imagem: 'https://x/4.jpg' }],
 ]);
 
 test('cruzar junta ERP com catálogo, respeita soComFoto e marca destaques', () => {
   const com = m.cruzar(ERP, CAT, { soComFoto: true, destaques: ['222'] });
-  assert.deepEqual(com.map(p => p.ean), ['111', '222']);
+  assert.deepEqual(com.map(p => p.ean), ['111', '222', '444']);
+  assert.equal(com[2].unidade, 'UN'); assert.equal(com[2].qtdEmbalagem, 1);   // ERP diz UN → por unidade, sem "sai a R$ X a unidade"
+  assert.equal(com[1].unidade, 'CX'); assert.equal(com[1].qtdEmbalagem, 12);  // ERP sem unidade → app
   assert.equal(com[0].preco, 39.54); assert.equal(com[0].qtdEmbalagem, 27); assert.equal(com[0].imagem, 'https://x/1.jpg');
   assert.equal(com[0].nome, 'ACHOC LIQ NESCAU 180ML CX27');   // nome é o do ERP
   assert.equal(com[1].destaque, true); assert.equal(com[0].destaque, false);
   const sem = m.cruzar(ERP, CAT, { soComFoto: false, destaques: [] });
-  assert.equal(sem.length, 3);
+  assert.equal(sem.length, 4);
   const s = sem.find(p => p.ean === '333');
   assert.equal(s.imagem, null); assert.equal(s.unidade, 'CX'); assert.equal(s.qtdEmbalagem, 1);
 });
@@ -94,9 +98,9 @@ test('carregarProdutos usa cache e cai no último resultado se o ERP falhar', as
   m.init({ q: async () => { chamadas++; if (chamadas > 1) throw new Error('ERP fora'); return ERP; }, dataDir: DIR, fetchCatalogo: async () => CAT, cacheMs: 0 });
   m.salvarConfig({ soComFoto: true, destaques: [] });
   const a = await m.carregarProdutos();
-  assert.equal(a.length, 2);
+  assert.equal(a.length, 3);   // 111, 222 e 444 têm foto
   const b = await m.carregarProdutos();       // ERP falha → último cache
-  assert.equal(b.length, 2);
+  assert.equal(b.length, 3);
   assert.equal(chamadas, 2);
 });
 
