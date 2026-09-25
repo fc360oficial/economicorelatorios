@@ -8227,7 +8227,10 @@ async function criarPedidoDaCotacao(f, itens, c, usuario, extra) {
   pedidosFornec.finalizar(p.token, `Cotação #${c.id}`);
   pedidosFornec.vincularCotacao(p.id, { id: c.id, nome: c.nome, entrega: extra?.entrega || null, tipo_entrega: extra?.tipo_entrega || null, obs: extra?.obs || null });
   if (c.teste) pedidosFornec.marcarTeste(p.id); // pedido de exemplo: some junto com "Remover testes" (Cotação ou Pedidos)
-  if (!c.teste) { try { await pedidosFornec.anexarAvarias(pedidosFornec.obter(p.id)); } catch (e) { console.error('[COTACAO] avarias:', e.message); } }
+  // Regra do Tiago (25/09/2026): o pedido já foi aprovado DENTRO da cotação (comparativo/pré-pedido), então entra em
+  // Pedidos de Compra já APROVADO, quebrado por loja, com o selo COTAÇÃO. Avarias NÃO são consultadas pra pedido de
+  // cotação (regra só deles; Radar/Sugestão continuam trazendo) — anexarAvarias também ignora origem 'cotacao'.
+  try { const ap = pedidosFornec.aprovar(p.id, usuario); if (ap && ap.erro) console.error('[COTACAO] aprovar pedido ' + p.id + ':', ap.erro); } catch (e) { console.error('[COTACAO] aprovar:', e.message); }
   const fin = pedidosFornec.obter(p.id);
   return { id: fin.id, fornecedor: f.nome, codFornec: f.codFornec, vendedor: fin.vendedor, itens: fin.itens.length, total: fin.totais.digitado, lojas: fin.lojas, status: fin.status, link: linkPedido(fin), avarias: fin.avarias ? { n: fin.avarias.n, total: fin.avarias.total } : null };
 }

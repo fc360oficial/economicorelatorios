@@ -70,8 +70,11 @@ vão pra tela de Pedidos de Compra pra conferir do mesmo jeito do Radar".
 - **Comparativo** = menor preço vence por item; compradora clica pra trocar vencedor ou marcar
   "não comprar" (`c.vencedores[cod]`); economia × último custo do ERP; total por fornecedor.
 - **Fechar** = `POST /api/cotacoes/:id/fechar` → 1 pedido por vencedor via `pedidosFornec.criar` +
-  `salvarPrecos` + `finalizar` (já chega "finalizado" com os preços) → compradora aprova em Pedidos
-  de Compra; PDF, XML, ruptura, avarias iguais ao Radar.
+  `salvarPrecos` + `finalizar` + `aprovar` → **entra em Pedidos de Compra JÁ APROVADO, uma linha por
+  loja**, com `parametros.origem='cotacao'` + `p.cotacao` (selo COTAÇÃO #id na lista). A aprovação já
+  aconteceu dentro da cotação (comparativo / pré-pedido). PDF, XML e ruptura iguais ao Radar;
+  **avarias NÃO são consultadas pra pedido de cotação** (regra 25/09/26, só deles: `anexarAvarias`
+  ignora origem 'cotacao', inclusive no Reconsultar).
 
 Pendente: testar com a lista 277 real no .254 (Radar precisa estar calculado); envio ao vendedor é
 WhatsApp manual (igual aos pedidos); histórico de preço por produto olha só cotações anteriores do app.
