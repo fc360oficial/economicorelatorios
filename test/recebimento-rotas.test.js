@@ -240,3 +240,22 @@ test('PDF de devolução: 404 sem conferência, 409 antes de Terminei, 200 com a
   assert.ok(ex.itens.some(d => d.cod === '789' && d.origem === 'coletor'), 'validade curta -> origem coletor');
   assert.ok(ex.itens.some(d => d.cod === '456' && d.origem === 'falta'), 'item da nota não bipado -> origem falta');
 });
+
+test('gerarPdfDevolucaoColetor escreve o arquivo de verdade e resolve no fim do stream', async () => {
+  const pedidosFornec = require('../lib/pedidos-fornecedor');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rec-pdf-'));
+  const itens = [
+    { cod: '789', descricao: 'ARROZ TIPO 1 PACOTE 5KG MARCA COM NOME BEM COMPRIDO', qtd: 5, origem: 'coletor', motivo: 'validade curta (2026-09-30)' },
+    { cod: '456', descricao: 'FEIJAO CARIOCA 1KG', qtd: 2, origem: 'falta', motivo: 'na nota, não veio' },
+    { cod: '123', descricao: 'ACUCAR 1KG', qtd: 1, origem: 'compras', motivo: 'recusado pelo(a) comprador(a)' }
+  ];
+  const ret = pedidosFornec.gerarPdfDevolucao(null, 3, 'FISCAL', { id: '2026-09-25-3-4501/../x', dir, itens, loja: 3, motorista: true, nota: { nNota: '4501', chave: 'H'.repeat(44), fornecedor: 'FORN' } });
+  assert.ok(ret && typeof ret.then === 'function', 'com extras o retorno é uma Promise');
+  const arquivo = await ret;
+  assert.equal(path.dirname(arquivo), dir, 'não escapa do diretório (nome sanitizado)');
+  assert.match(path.basename(arquivo), /^[\w.-]+-devolucao\.pdf$/);
+  const st = fs.statSync(arquivo);
+  assert.ok(st.size > 1000, 'PDF com conteúdo (' + st.size + ' bytes)');
+  assert.equal(fs.readFileSync(arquivo).slice(0, 4).toString(), '%PDF');
+  fs.rmSync(dir, { recursive: true, force: true });
+});

@@ -188,7 +188,8 @@ const hojeISO=()=>{const d=new Date();return new Date(d.getTime()-d.getTimezoneO
 const DOW=['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado'];
 const SIT={aguardando_coletor:'Aguardando coletor',em_contagem:'Em contagem',pronto:'Pronto p/ liberar',conferido:'Conferido · aguardando fiscal',excecao:'Com exceção',reconferir:'Reconferir',liberado:'Liberado p/ armazenagem',cancelado:'Cancelado',bloqueado:'Bloqueado / devolver'};
 const LJ=n=>+n===10?'CD':'E'+n;   // rótulo de loja: E1..E6, CD (regra do Tiago, 22/09/26)
-const CHK=[['xml','XML'],['pedido','PED'],['coletor','QTD'],['validade','VAL'],['boleto','BOL'],['margem','MRG'],['cadastro','CAD']];
+const CHK=[['xml','XML'],['pedido','PED'],['coletor','QTD'],['fisico','FIS'],['validade','VAL'],['boleto','BOL'],['margem','MRG'],['cadastro','CAD']];
+/* 'fisico' só existe na linha que tem conferência do nosso coletor: filtrar antes de pintar */
 let ABRIR=null, CFG=null, LOJAS={}, DADOS=null, DOCS=null, MARG=null, tab='receb', filtro='fila', aberto=null, DET={}, CONTATOS=null, fMov='', fMarg='todos';
 
 $('#de').value=hojeISO();
@@ -248,7 +249,7 @@ function renderReceb(){
     h+='<td class="forn"><span class="nm">'+esc(r.fornecedor)+'</span>'+(r.obs_compradora?'<div class="sub" style="color:#6B4E00;background:#FFF6D9;border:1px solid #EFD98F;border-radius:6px;padding:2px 6px;margin-top:3px" title="Observação do(a) comprador(a) no pedido de compra">💬 <b>Comprador(a):</b> '+esc(r.obs_compradora)+'</div>':'')+'<div class="sub">'+(r.notas.length?r.notas.map(n=>'NF '+(n.nNota||'?')+(n.movimentacao&&n.movimentacao!=='COMPRA'?' <span class="warn">'+esc(n.movimentacao)+'</span>':'')+(n.xml?'':' <span class="neg">sem XML</span>')).join(' · '):'<span class="mut">nenhuma nota associada</span>')+(r.pedidos.length?' · <span class="mut">pedido '+r.pedidos.map(p=>p.nPedido).join(', ')+'</span>':'')+'</div></td>';
     h+='<td>'+(r.qtd_itens_coletor?'<span class="nm">'+r.qtd_itens_coletor+' itens</span><span class="erp">de '+r.qtd_itens_xml+' na nota</span>':'<span class="mut">—</span>')+'</td>';
     h+='<td class="col-cel" id="colcel-'+r.nReg+'" onclick="event.stopPropagation();colClick('+r.nReg+')" title="Conversa da loja com a central neste recebimento">'+colCelula(r)+'</td>';
-    h+='<td><span class="chk">'+CHK.map(([k,l])=>'<i class="'+r.checks[k].nivel+'" title="'+esc(r.checks[k].msg)+'">'+l+'</i>').join('')+'</span>'+(r.erros?'<span class="erp" style="color:var(--neg)">'+r.excecoes.length+' item(ns) com erro</span>':'')+'</td>';
+    h+='<td><span class="chk">'+CHK.filter(([k])=>r.checks[k]).map(([k,l])=>'<i class="'+r.checks[k].nivel+'" title="'+esc(r.checks[k].msg)+'">'+l+'</i>').join('')+'</span>'+(r.erros?'<span class="erp" style="color:var(--neg)">'+r.excecoes.length+' item(ns) com erro</span>':'')+'</td>';
     h+='<td class="r">'+(r.valor_xml?money(r.valor_xml):'<span class="mut">—</span>')+'</td>';
     h+='<td>'+(r.boletos.length?'<span class="nm">'+dbr2(r.boletos[0].vencimento)+'</span><span class="erp">'+r.boletos.length+' parc. · '+r.primeiro_boleto_dias+' d</span>':'<span class="mut">—</span>')+'</td>';
     h+='<td><span class="pill st-'+r.situacao+'">'+SIT[r.situacao]+'</span><span class="erp">ERP: '+esc(r.status_erp_nome)+(r.decisao?' · '+esc(r.decisao.por||'fiscal')+' '+r.decisao.acao:'')+'</span></td>';
@@ -277,7 +278,7 @@ function detalhe(d){
   if(d.erro)return '<div class="empty">'+esc(d.erro)+'</div>';
   let h='';
   for(const pc of (d.pedidos_compra||[])) h+='<div class="dec" style="background:#FFF6D9;color:#6B4E00;border:1px solid #EFD98F;margin-top:10px">🧾 <b>Pedido de compra #'+pc.id+'</b> · '+esc(pc.lista_nome||'')+(pc.vendedor?' · vendedor '+esc(pc.vendedor):'')+(pc.aprovadoEm?' · aprovado '+new Date(pc.aprovadoEm).toLocaleDateString("pt-BR"):'')+' · <span class="mut">vínculo pela '+(pc.vinculo==='nota'?'NF-e':'lista do fornecedor')+'</span>'+(pc.obs_fiscal?'<div style="margin-top:4px;font-size:13px;color:#0E1626">💬 <b>Observação do(a) comprador(a)'+(pc.obs_fiscal_por?' ('+esc(pc.obs_fiscal_por)+')':'')+':</b> '+esc(pc.obs_fiscal)+'</div>':'')+' <a href="/pedidos-compra.html" style="font-size:11px">abrir pedidos</a></div>';
-  h+='<div class="chks">'+CHK.map(([k,l])=>'<div class="chkc '+d.checks[k].nivel+'"><div class="t">'+{xml:'XML da NF-e',pedido:'Pedido de compra',coletor:'Coletor × nota (cega)',validade:'Validade',boleto:'Boletos',margem:'Margem / custo',cadastro:'Cadastro'}[k]+'</div>'+esc(d.checks[k].msg)+'</div>').join('')+'<div class="chkc '+d.checks.valor.nivel+'"><div class="t">Valor lançado</div>'+esc(d.checks.valor.msg)+'</div></div>';
+  h+='<div class="chks">'+CHK.filter(([k])=>d.checks[k]).map(([k,l])=>'<div class="chkc '+d.checks[k].nivel+'"><div class="t">'+{xml:'XML da NF-e',pedido:'Pedido de compra',coletor:'Coletor × nota (cega)',fisico:'Físico × nota (Econômico)',validade:'Validade',boleto:'Boletos',margem:'Margem / custo',cadastro:'Cadastro'}[k]+'</div>'+esc(d.checks[k].msg)+'</div>').join('')+'<div class="chkc '+d.checks.valor.nivel+'"><div class="t">Valor lançado</div>'+esc(d.checks.valor.msg)+'</div></div>';
   if(d.decisao)h+='<div class="dec '+d.decisao.acao+'">✓ <b>'+({liberado:'Liberado',reconferir:'Mandado reconferir',bloqueado:'Bloqueado'}[d.decisao.acao])+'</b> por '+esc(d.decisao.por||'fiscal')+' em '+new Date(d.decisao.em).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+(d.decisao.obs?' — '+esc(d.decisao.obs):'')+'</div>';
   // notas e boletos
   h+='<div class="grid2"><div class="box"><div class="hd"><span><b>Notas fiscais</b> '+d.notas.length+'</span><span class="mut">XML '+money(d.valor_xml)+(d.valor_lancado?' · lançado '+money(d.valor_lancado):'')+'</span></div><table><thead><tr><th>Nº · série</th><th>Emissão</th><th>Mov.</th><th class="r">XML</th><th class="r">Lançado</th><th>Chave</th></tr></thead><tbody>';
@@ -325,10 +326,12 @@ function ecoSecao(d){
   if(!e)return '<div class="box" style="margin-top:12px"><div class="hd"><span><b>Coletor Econômico</b></span><span class="mut">conferência cega da loja</span></div><div class="acoes"><span class="mut">Esta nota ainda não foi aberta no coletor do Econômico.</span></div></div>';
   const dev=e.devolucoes||[],its=e.itens||[],fis=e.fisico||{nivel:'pendente',msg:''};
   let h='<div class="box" style="margin-top:12px"><div class="hd"><span><b>Coletor Econômico</b> · <span class="col-st col-'+esc(e.status)+'">'+esc(COL_ST[e.status]||e.status)+'</span> · '+e.recontagens+' recontagem(ns) · conferente '+esc(e.conferente||'—')+'</span><span class="mut">'+(e.erp.nReg?'conferência '+esc(String(e.erp.nReg))+' no ERP de teste':'sem nº de conferência no ERP de teste')+(e.erp.erros?' · <span class="neg">'+e.erp.erros+' gravação(ões) com erro</span>':'')+'</span></div>';
-  h+='<div class="acoes" style="border-top:0;border-bottom:1px solid var(--ln)">';
-  h+='<button class="btn btn-green btn-sm"'+(e.status==='terminada'?'':' disabled title="Só depois que a loja terminar a contagem"')+' onclick="ecoLiberar('+d.nReg+')">Liberar</button>';
-  h+='<button class="btn btn-slate btn-sm"'+(e.status==='liberada'?' disabled title="Nota já liberada"':'')+' onclick="ecoReconferir('+d.nReg+')">Reconferir</button>';
-  if(dev.length)h+='<a class="btn btn-red btn-sm" href="/api/recebimento/'+encodeURIComponent(e.id)+'/devolucao/pdf" target="_blank" rel="noopener">PDF Aviso de devolução</a>';
+  const ocupado=ecoBusy===d.nReg, fechada=['terminada','liberada'].includes(e.status);
+  h+='<div class="acoes" id="ecoacoes-'+d.nReg+'" style="border-top:0;border-bottom:1px solid var(--ln)">';
+  h+='<button class="btn btn-green btn-sm"'+(e.status==='terminada'&&!ocupado?'':' disabled title="'+(ocupado?'Aguarde a gravação terminar':'Só depois que a loja terminar a contagem')+'"')+' onclick="ecoLiberar('+d.nReg+')">Liberar</button>';
+  h+='<button class="btn btn-slate btn-sm"'+(e.status!=='liberada'&&!ocupado?'':' disabled title="'+(ocupado?'Aguarde a gravação terminar':'Nota já liberada')+'"')+' onclick="ecoReconferir('+d.nReg+')">Reconferir</button>';
+  /* o PDF só existe depois que a contagem fecha (antes disso a devolução nem está calculada) */
+  if(fechada&&dev.length)h+='<a class="btn btn-red btn-sm" href="/api/recebimento/'+encodeURIComponent(e.id)+'/devolucao/pdf" target="_blank" rel="noopener">PDF Aviso de devolução</a>';
   h+='<span class="ecomsg" id="ecomsg-'+d.nReg+'">'+(ECOMSG[d.nReg]||'')+'</span></div>';
   h+='<div class="'+(fis.nivel==='erro'?'neg':fis.nivel==='ok'?'pos':'mut')+'" style="padding:8px 14px;font-size:11.5px;border-bottom:1px solid var(--ln)">'+(fis.nivel==='erro'?'✖ ':fis.nivel==='ok'?'✓ ':'• ')+esc(fis.msg||'')+'</div>';
   if(e.motivos&&e.motivos.length)h+='<div class="mut" style="padding:7px 14px;font-size:11.5px;border-bottom:1px solid var(--ln)">Falta pra ficar pronto: '+e.motivos.map(m=>esc(m)).join(' · ')+'</div>';
@@ -345,41 +348,62 @@ function ecoSecao(d){
 }
 function ecoMsg(n,html){ECOMSG[n]=html;const el=document.getElementById('ecomsg-'+n);if(el)el.innerHTML=html;}
 function ecoDe(n){const d=DET[n];return d&&d.economico?d.economico:null;}
+/* Uma ação por vez: sem isso o duplo clique manda dois POST e a resposta do segundo (erro de
+   "nota já liberada") apagaria o nº do Log que o primeiro acabou de mostrar. */
+let ecoBusy=null;
+function ecoTravar(n,ligado){
+  ecoBusy=ligado?n:null;
+  const el=document.getElementById('ecoacoes-'+n);
+  if(el)el.querySelectorAll('button').forEach(b=>{b.disabled=ligado;});
+}
 async function ecoPost(id,rota){
   try{return await fetch('/api/recebimento/'+encodeURIComponent(id)+'/'+rota,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}).then(x=>x.json());}
   catch(err){return {error:err.message};}
 }
+/* releitura sem fechar o detalhe: o detalhe (situação, físico, devolução), a lista (a situação da
+   linha muda depois de liberar) e a coluna do coletor. */
 async function ecoRecarregar(n){
   try{const d=await fetch('/api/fiscal/recebimentos/'+n).then(r=>r.json());if(!d.error)DET[n]=d;}catch(e){}
+  try{const l=await fetch('/api/fiscal/recebimentos'+qs()).then(r=>r.json());if(l&&!l.error){DADOS=l;CFG=l.config;$('#nReceb').textContent=l.recebimentos.length;}}catch(e){}
   try{await colCarregar();}catch(e){}
   if(aberto===n)render();
 }
 async function ecoLiberar(n){
-  const e=ecoDe(n);if(!e)return;
+  const e=ecoDe(n);if(!e||ecoBusy)return;
   if(e.status!=='terminada'){alert('A loja ainda não terminou a contagem desta nota.');return;}
   if(!confirm('Liberar a NF-e '+e.nNota+' no Coletor Econômico?\n\nIsso grava a liberação e a devolução no ERP de teste (.254), com Log.'+(e.devolucoes.length?'\n\n'+e.devolucoes.length+' item(ns) vão pra devolução (compras/coletor/falta).':'')))return;
+  ecoTravar(n,true);
   ecoMsg(n,'<span class="mut">Gravando no ERP de teste…</span>');
-  const r=await ecoPost(e.id,'liberar');
-  if(r.error)ecoMsg(n,'<span class="neg">'+esc(r.error)+'</span>');
-  else if(r.erp&&r.erp.logId)ecoMsg(n,'<span class="pos">✓ Gravado no ERP de teste · Log nº '+esc(String(r.erp.logId))+'</span> <a href="/log.html?log=erp&id='+encodeURIComponent(r.erp.logId)+'" target="_blank" rel="noopener">ver log</a>');
-  else ecoMsg(n,'<span class="neg">✖ Liberado aqui, mas o ERP de teste recusou: '+esc((r.erp&&r.erp.erro)||'erro desconhecido')+'</span> <button class="btn btn-amber btn-sm" onclick="ecoReenviar('+n+')">Reenviar pro ERP</button>');
+  try{
+    const r=await ecoPost(e.id,'liberar');
+    if(r.error)ecoMsg(n,'<span class="neg">'+esc(r.error)+'</span>');
+    else if(r.erp&&r.erp.logId)ecoMsg(n,'<span class="pos">✓ Gravado no ERP de teste · Log nº '+esc(String(r.erp.logId))+'</span> <a href="/log.html?log=erp&id='+encodeURIComponent(r.erp.logId)+'" target="_blank" rel="noopener">ver log</a>');
+    else ecoMsg(n,'<span class="neg">✖ Liberado aqui, mas o ERP de teste recusou: '+esc((r.erp&&r.erp.erro)||'erro desconhecido')+'</span> <button class="btn btn-amber btn-sm" onclick="ecoReenviar('+n+')">Reenviar pro ERP</button>');
+  }finally{ecoTravar(n,false);}
   await ecoRecarregar(n);
 }
 async function ecoReconferir(n){
-  const e=ecoDe(n);if(!e)return;
+  const e=ecoDe(n);if(!e||ecoBusy)return;
   if(!confirm('Pedir pra loja reconferir a NF-e '+e.nNota+'?\n\nA contagem volta do zero no coletor da loja.'))return;
+  ecoTravar(n,true);
   ecoMsg(n,'<span class="mut">Mandando reconferir…</span>');
-  const r=await ecoPost(e.id,'reconferir');
-  ecoMsg(n,r.error?'<span class="neg">'+esc(r.error)+'</span>':'<span class="mut">Loja avisada: reconferir.</span>');
+  try{
+    const r=await ecoPost(e.id,'reconferir');
+    ecoMsg(n,r.error?'<span class="neg">'+esc(r.error)+'</span>':'<span class="mut">Loja avisada: reconferir.</span>');
+  }finally{ecoTravar(n,false);}
   await ecoRecarregar(n);
 }
 async function ecoReenviar(n){
-  const e=ecoDe(n);if(!e)return;
+  const e=ecoDe(n);if(!e||ecoBusy)return;
+  ecoTravar(n,true);
   ecoMsg(n,'<span class="mut">Reenviando pro ERP de teste…</span>');
-  const r=await ecoPost(e.id,'reenviar-erp');
-  if(r.error)ecoMsg(n,'<span class="neg">'+esc(r.error)+'</span>');
-  else if(r.erros)ecoMsg(n,'<span class="neg">✖ Ainda '+r.erros+' gravação(ões) com erro</span> <button class="btn btn-amber btn-sm" onclick="ecoReenviar('+n+')">Reenviar pro ERP</button>');
-  else ecoMsg(n,'<span class="pos">✓ Reenviado pro ERP de teste ('+r.reenviados+' passo(s))</span>');
+  try{
+    const r=await ecoPost(e.id,'reenviar-erp');
+    if(r.error)ecoMsg(n,'<span class="neg">'+esc(r.error)+'</span>');
+    else if(r.erros)ecoMsg(n,'<span class="neg">✖ Ainda '+r.erros+' gravação(ões) com erro</span> <button class="btn btn-amber btn-sm" onclick="ecoReenviar('+n+')">Reenviar pro ERP</button>');
+    else if(!r.reenviados)ecoMsg(n,'<span class="mut">Não havia gravação pendente pra reenviar.</span>');
+    else ecoMsg(n,'<span class="pos">✓ Reenviado pro ERP de teste ('+r.reenviados+' passo(s))</span>');
+  }finally{ecoTravar(n,false);}
   await ecoRecarregar(n);
 }
 async function decidir(n,acao){
