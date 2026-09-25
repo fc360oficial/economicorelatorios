@@ -26,7 +26,26 @@ body{font-family:'InterVar','Segoe UI',sans-serif;background:var(--pap);color:va
 <div class="main">
   <div class="page-hdr"><div><h1>Departamento Pessoal<span>DP</span></h1><p>Rotina legal e folha: ponto, férias, afastamentos, encargos e documentos, loja a loja (E1 a E6) e CD.</p></div></div>
   <div class="aviso">Tela criada em 25/09/2026, ainda sem dados. Os blocos abaixo são a proposta do que entra aqui — diga o que quer primeiro e de onde vem a informação (ERP, planilha, sistema de ponto).</div>
+  <div class="card" id="pc-card" style="margin-bottom:14px;display:none"><div class="hd">Integração PontoCerto (sistema de ponto)</div><div class="bd">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px 12px;align-items:end">
+      <label>URL base da API<br><input id="pc-url" placeholder="https://api.pontocerto.com.br/v1" style="width:100%"></label>
+      <label>Token<br><input id="pc-token" type="password" placeholder="cole o token aqui" style="width:100%"></label>
+      <label>Como o token vai<br><select id="pc-auth" style="width:100%"><option value="bearer">Authorization: Bearer &lt;token&gt;</option><option value="header">Cabeçalho próprio (nome ao lado)</option><option value="query">Parâmetro na URL (nome ao lado)</option></select></label>
+      <label>Nome do cabeçalho / parâmetro<br><input id="pc-header" placeholder="Authorization" style="width:100%"></label>
+      <label>Empresa / cliente (se a API pedir)<br><input id="pc-empresa" style="width:100%"></label>
+      <div><button class="btn" onclick="pcSalvar()" style="background:var(--am);color:var(--amk);border:none;border-radius:8px;padding:9px 16px;font-weight:700;cursor:pointer">Salvar</button> <span id="pc-st" style="font-size:11.5px;color:var(--ink3)"></span></div>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><span style="font-weight:700">Testar chamada:</span><select id="pc-met" style="padding:6px"><option>GET</option><option>POST</option></select><input id="pc-path" placeholder="/funcionarios  ·  /marcacoes?de=2026-09-01&ate=2026-09-25" style="flex:1;min-width:260px;padding:7px 10px;border:1px solid var(--ln2);border-radius:8px"><button class="btn" onclick="pcTestar()" style="background:#101B33;color:#FFC933;border:none;border-radius:8px;padding:8px 14px;font-weight:700;cursor:pointer">Testar</button></div>
+    <pre id="pc-out" style="margin-top:10px;background:#0E1626;color:#DCE3F0;border-radius:10px;padding:12px;font-size:11.5px;max-height:360px;overflow:auto;white-space:pre-wrap;display:none"></pre>
+  </div></div>
   <div class="grid"><div class="card"><div class="hd">Folha e encargos</div><div class="bd"><ul><li>Custo da folha por loja e % sobre a venda (liga com o DRE)</li><li>Horas extras e adicional noturno</li><li>Encargos e provisões (13º, férias)</li></ul></div></div><div class="card"><div class="hd">Ponto e escala</div><div class="bd"><ul><li>Faltas, atrasos e horas extras por loja</li><li>Banco de horas</li><li>Escala do dia / domingos e feriados</li></ul></div></div><div class="card"><div class="hd">Férias e afastamentos</div><div class="bd"><ul><li>Férias vencendo e programadas</li><li>Atestados e afastamentos (INSS)</li><li>Calendário do mês</li></ul></div></div><div class="card"><div class="hd">Documentos e prazos</div><div class="bd"><ul><li>ASO e exames periódicos vencendo</li><li>eSocial: eventos pendentes</li><li>Contratos de experiência e rescisões no prazo</li></ul></div></div></div>
 </div>
+<script>
+const $=s=>document.querySelector(s);
+async function pcCarregar(){ try{ const r=await fetch('/api/dp/pontocerto/config'); if(r.status===403) return; const c=await r.json(); $('#pc-card').style.display=''; $('#pc-url').value=c.url||''; $('#pc-auth').value=c.auth||'bearer'; $('#pc-header').value=c.header||''; $('#pc-empresa').value=c.empresa||''; $('#pc-token').placeholder=c.tem_token?'guardado: '+c.token_mascarado+' (cole só se for trocar)':'cole o token aqui'; $('#pc-st').textContent=c.atualizadoEm?'configurado em '+new Date(c.atualizadoEm).toLocaleString('pt-BR')+(c.ultimo_teste?' · último teste '+c.ultimo_teste.caminho+' → HTTP '+c.ultimo_teste.status:''):'ainda não configurado'; }catch(e){} }
+async function pcSalvar(){ const body={url:$('#pc-url').value,token:$('#pc-token').value,auth:$('#pc-auth').value,header:$('#pc-header').value,empresa:$('#pc-empresa').value}; const r=await fetch('/api/dp/pontocerto/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); const j=await r.json(); if(j.error){alert(j.error);return;} $('#pc-token').value=''; pcCarregar(); }
+async function pcTestar(){ const out=$('#pc-out'); out.style.display=''; out.textContent='chamando…'; const r=await fetch('/api/dp/pontocerto/testar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({caminho:$('#pc-path').value,metodo:$('#pc-met').value})}); const j=await r.json(); if(j.error||j.erro){ out.textContent='ERRO: '+(j.error||j.erro)+(j.url?'\nURL: '+j.url:''); return; } out.textContent='HTTP '+j.status+' '+(j.ok?'OK':'')+' · '+j.tipo+' · '+j.ms+' ms\nURL: '+j.url+(j.itens!=null?'\nitens: '+j.itens:'')+(j.json_chaves?'\ncampos: '+j.json_chaves.join(', '):'')+'\n\n'+j.corpo; pcCarregar(); }
+pcCarregar();
+</script>
 </body>
 </html>

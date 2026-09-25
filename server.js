@@ -7843,6 +7843,15 @@ app.post('/api/pedido-publico/:token/finalizar', (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════
+// DP / RH — integração PontoCerto (25/09/2026). Config só no servidor (data/pontocerto.json); rotas de config e teste
+// são de admin. Quando a API for mapeada, os relatórios do DP entram aqui em cima desta base.
+// ═══════════════════════════════════════════════════
+const pontocerto = require('./lib/pontocerto');
+const soAdmin = (req, res) => { if (req.session.user?.perfil !== 'admin') { res.status(403).json({ error: 'Só administrador' }); return false; } return true; };
+app.get('/api/dp/pontocerto/config', (req, res) => { if (!soAdmin(req, res)) return; res.json(pontocerto.getConfig()); });
+app.post('/api/dp/pontocerto/config', (req, res) => { if (!soAdmin(req, res)) return; try { res.json(pontocerto.setConfig(req.body || {}, req.session.user?.nome || null)); } catch (err) { res.status(400).json({ error: err.message }); } });
+app.post('/api/dp/pontocerto/testar', async (req, res) => { if (!soAdmin(req, res)) return; try { res.json(await pontocerto.testar(String(req.body?.caminho || ''), String(req.body?.metodo || 'GET').toUpperCase() === 'POST' ? 'POST' : 'GET')); } catch (err) { res.status(500).json({ error: err.message }); } });
+// ═══════════════════════════════════════════════════
 // FISCAL — Recebimento de notas nas lojas (21/09/2026, pedido do Tiago).
 // Cruza sozinho conferência do coletor × XML da NF-e × pedido de compra × validade ×
 // boletos × margem/custo, e só chama o fiscal pra exceção. ERP só leitura; decisões
