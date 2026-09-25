@@ -9,7 +9,14 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:Inter,'Segoe UI',system-ui,sans-serif;background:#EBEBE9;color:#0E1626;font-size:14px;font-variant-numeric:tabular-nums}
 .wrap{max-width:980px;margin:0 auto;padding:18px 14px 90px}
-.top{background:#101B33;color:#fff;border-radius:14px;padding:14px 18px 16px;margin-bottom:14px}.tophd{display:flex;align-items:center;gap:12px;margin-bottom:10px}.top .logo{width:56px;height:56px;border-radius:12px;background:#fff;object-fit:contain;padding:4px;flex:none}
+.top{position:sticky;top:0;z-index:30;background:#101B33;color:#fff;border-radius:14px;padding:14px 18px 16px;margin-bottom:14px;transition:padding .15s}
+.top.compact{padding:8px 14px 9px;border-radius:0 0 12px 12px;box-shadow:0 6px 18px rgba(14,22,38,.25)}
+.top.compact .sub,.top.compact .ey{display:none}
+.top.compact .tophd{margin-bottom:0;float:left;margin-right:10px}
+.top.compact .logo{width:32px;height:32px;padding:3px}
+.top.compact h1{font-size:14px;margin:6px 0 0;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.top.compact .st{position:absolute;right:14px;top:10px;transform:none}
+.top.compact::after{content:'';display:block;clear:both}.tophd{display:flex;align-items:center;gap:12px;margin-bottom:10px}.top .logo{width:56px;height:56px;border-radius:12px;background:#fff;object-fit:contain;padding:4px;flex:none}
 .top .ey{font-size:10px;font-weight:800;letter-spacing:.1em;color:#FFC933}
 .top h1{font-size:18px;font-weight:800;letter-spacing:-.2px;margin-top:0}
 .top .sub{font-size:12px;color:#AEB8CE;margin-top:4px;line-height:1.5}
@@ -52,7 +59,7 @@ input.obs:focus{outline:none;border-color:#F5B800}
 .btn-amber{background:#F5B800;color:#6B4E00}.btn-amber:hover{background:#E5AC00}.btn:disabled{opacity:.45;cursor:default}
 .fim{background:#E7F5EC;border:1px solid #BFE3CC;color:#137A48;border-radius:12px;padding:14px 16px;font-size:13px;margin-bottom:12px;line-height:1.5}
 .fim.av{background:#FFF6D9;border-color:#EFD98F;color:#6B4E00}
-.msgc{position:sticky;top:0;z-index:20;background:#FFF6D9;border:1px solid #EFD98F;border-radius:12px;padding:12px 16px;margin-bottom:12px;display:flex;gap:14px;align-items:flex-start;box-shadow:0 4px 14px rgba(14,22,38,.10)}
+.msgc{position:static;background:#FFF6D9;border:1px solid #EFD98F;border-radius:12px;padding:12px 16px;margin-bottom:12px;display:flex;gap:14px;align-items:flex-start;box-shadow:0 4px 14px rgba(14,22,38,.10)}
 .msgc .ic{width:34px;height:34px;border-radius:50%;background:#F5B800;color:#241a00;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none;font-size:15px}
 .msgc .t{flex:1;min-width:0}
 .msgc .t .l{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#6B4E00}
@@ -191,6 +198,8 @@ window.addEventListener('beforeunload',()=>{if(dirty)salvar();});
 (async()=>{try{const r=await fetch('/api/cotacao-publica/'+token);const j=await r.json();if(j.error)throw new Error(j.error);P=j;render();}catch(e){$('#app').innerHTML='<div class="empty">Cotação não encontrada ou link inválido.</div>';}})();
 </script>
 <script>
+// cabeçalho fixo e compacto ao rolar (Tiago, 25/09: "fixa o cabeçalho, mas o recado não; PC e celular")
+(function(){ var last = null; function upd(){ var t = document.querySelector('.top'); if (!t) return; var c = window.scrollY > 60; if (c !== last) { t.classList.toggle('compact', c); last = c; } } window.addEventListener('scroll', upd, { passive: true }); setInterval(upd, 500); })();
 // celular: recado resumido com "ler tudo" (Tiago, 25/09: recado fixo cobria os produtos)
 document.addEventListener('click', function(e){ var b = e.target.closest && e.target.closest('.msgc .mais'); if (!b) return; var c = b.closest('.msgc'); c.classList.toggle('open'); b.textContent = c.classList.contains('open') ? 'mostrar menos' : 'ler tudo'; });
 new MutationObserver(function(){ document.querySelectorAll('.msgc .t .m').forEach(function(m){ if (m.dataset.mais) return; m.dataset.mais = '1'; if (m.textContent.length < 160) { m.classList.add('curto'); return; } var b = document.createElement('button'); b.className = 'mais'; b.type = 'button'; b.textContent = 'ler tudo'; m.insertAdjacentElement('afterend', b); }); }).observe(document.body, { childList: true, subtree: true });
