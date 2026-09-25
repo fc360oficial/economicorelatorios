@@ -76,6 +76,9 @@ test('embalagem vem da descrição do ERP (Unid e app não são confiáveis)', (
   assert.deepEqual(e('SABAO YPE CX'), { unidade: 'CX', qtdEmbalagem: 1 });
   assert.deepEqual(e('AMAC DOWNY VERAO TROPICAL 500ML CX/12'), { unidade: 'CX', qtdEmbalagem: 12 });
   assert.deepEqual(e('LAVA ROUPAS ARIEL LIQ 2LT CX/6'), { unidade: 'CX', qtdEmbalagem: 6 });
+  assert.deepEqual(e('GUARDANAPO MALU  21X23CM F48'), { unidade: 'FD', qtdEmbalagem: 48 });
+  assert.deepEqual(e('PAPEL HIGIE NEUTRO MAX PURE 30M C4 F16'), { unidade: 'FD', qtdEmbalagem: 16 });
+  assert.deepEqual(e('CARTELA GILLETTE UG FIX C2 CHAMPIONS'), { unidade: 'UN', qtdEmbalagem: 1 });   // "C2" solto no meio não é embalagem
 });
 
 test('cruzar ignora estoque zerado e ordena por descrição', () => {
