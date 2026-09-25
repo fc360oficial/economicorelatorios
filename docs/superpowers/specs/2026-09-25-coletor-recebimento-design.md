@@ -139,6 +139,22 @@ Fonte da verdade do estado durante a conferência é o JSON do Econômico; o ERP
 - `public/fiscal.html`: coluna/badges novos, botões Liberar/Reconferir, chat.
 - Testes: `test/recebimento.test.js` (comparação em unidade, regra de validade, 3 origens de devolução, recontagem, montagem dos passos ERP com `criarConexao` fake).
 
+## 8b. LOG Coletor (pedido do Tiago, 25/09/26)
+
+Aba própria **"LOG Coletor"** em Processos > Log (`public/log.html`), ao lado do log de escritas no ERP. Registra **todo evento do coletor**, não só o que vira escrita no ERP:
+
+| Evento | Campos |
+|---|---|
+| entrar | loja, nome, aparelho (user-agent curto), hora |
+| abrir_nota | loja, nome, NF-e, fornecedor, nReg da conferência |
+| bipe / corrigir | loja, nome, NF-e, código, descrição, quant × emb = un, validade, resultado (ok / recusado / bloqueado validade / não está na nota / não cadastrado) |
+| terminei | loja, nome, NF-e, produtos, unidades, resultado (bateu / N recontar), nº da recontagem |
+| chat | loja, quem, mensagem, resposta, quem respondeu |
+| liberar / reconferir | central, NF-e, devoluções (item, qtd, origem) |
+| erp | id do Log de escrita (`data/log-erp`) ligado ao evento, ou erro + "reenviado" |
+
+Armazenamento: `data/log-coletor/AAAA-MM.jsonl` (append-only, mesmo padrão de `lib/log-erp.js`). Tela: filtros por dia, loja, NF-e, nome, tipo de evento; exportar CSV; link do evento `erp` abre a entrada correspondente no Log ERP. Rota `GET /api/log-coletor` (+ `/csv`), módulo Processos.
+
 ## 9. Configurações (em `data/recebimento-config.json`, editáveis na tela Fiscal)
 
 | Chave | Padrão | Uso |
