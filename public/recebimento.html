@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0E1626">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Recebimento">
+<link rel="manifest" href="/manifest-recebimento.json">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<link rel="stylesheet" href="/design-system.css">
+<title>Recebimento — Econômico</title>
+<style>
+:root{--navy:#0E1626;--navy2:#1B2A4A}
+*{box-sizing:border-box;margin:0;padding:0}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{font-family:var(--font);background:var(--pap);color:var(--ink);font-size:14px;line-height:1.45;display:flex;flex-direction:column;min-height:100dvh}
+.mono{font-variant-numeric:tabular-nums}
+.btn{height:42px;padding:0 14px;border-radius:var(--r);border:1px solid transparent;font-family:var(--font);font-size:13px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap}
+.btn:focus-visible{outline:2px solid var(--am);outline-offset:1px}
+.btn:disabled{opacity:.55;cursor:default}
+.btn-primary{background:var(--am);color:var(--amk)}
+.btn-primary:hover{background:var(--am-hover)}
+.btn-secondary{background:var(--crd);color:var(--ink2);border-color:var(--ln2)}
+.btn-ghost{background:transparent;color:var(--ink2)}
+.btn.blk{width:100%}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+
+/* ── login ── */
+#login{flex:1;display:flex;align-items:center;justify-content:center;padding:24px 16px}
+.lbox{background:var(--crd);border:1px solid var(--ln);border-radius:var(--r-lg);box-shadow:var(--sh-md);padding:22px 20px;width:100%;max-width:380px}
+.lbox img{height:34px;margin-bottom:14px}
+.lbox h1{font-size:19px;font-weight:800}
+.lbox p{font-size:12.5px;color:var(--ink3);margin:4px 0 16px}
+.fld{margin-bottom:12px}
+.fld label{display:block;font-size:10.5px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--ink3);margin-bottom:5px}
+.fld input{width:100%;height:46px;border-radius:var(--r);border:1.5px solid var(--ln2);background:var(--pap);color:var(--ink);font-family:var(--font);font-size:16px;padding:0 12px;outline:none}
+.fld input:focus{border-color:var(--am)}
+.fld input.pin{font-variant-numeric:tabular-nums;font-size:24px;letter-spacing:8px;text-align:center;font-weight:700}
+.lojas{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.lojas button{border:1.5px solid var(--ln2);border-radius:var(--r-sm);padding:10px 0;text-align:center;font-weight:700;font-size:13px;background:var(--pap);color:var(--ink);font-family:var(--font);cursor:pointer;line-height:1.15}
+.lojas button small{display:block;font-size:9.5px;font-weight:600;color:var(--ink3);letter-spacing:.3px}
+.lojas button[aria-pressed="true"]{border-color:var(--am);background:var(--amw);color:var(--amk)}
+.lojas button[aria-pressed="true"] small{color:var(--amk)}
+.erro{color:var(--neg);font-size:12.5px;font-weight:600;margin:-4px 0 10px;min-height:16px}
+.tip{font-size:11.5px;color:var(--ink3)}
+
+/* ── telas do app ── */
+.tela{flex:1;display:flex;flex-direction:column;min-height:0}
+.bar{background:var(--navy);color:#fff;padding:10px 14px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:5}
+.bar .logo{width:28px;height:28px;border-radius:7px;background:var(--am);display:grid;place-items:center;color:#0E1626;font-weight:800;font-size:12px;flex:none}
+.bar .t{font-size:13.5px;font-weight:700;line-height:1.15}
+.bar .s{font-size:11px;color:#AEB8CE}
+.bar .right{margin-left:auto;font-size:11px;color:#AEB8CE;text-align:right;flex:none}
+.bar .voltar{background:transparent;border:0;color:#AEB8CE;font:inherit;font-size:19px;font-weight:700;cursor:pointer;padding:0 6px 0 0;flex:none}
+.acoes{display:flex;gap:8px;padding:10px 12px 2px}
+.acoes .btn{flex:1}
+.corpo{flex:1;overflow-y:auto;padding:10px 12px 24px;display:flex;flex-direction:column;gap:10px}
+
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;padding:3px 8px;border-radius:999px;white-space:nowrap}
+.pill i{width:6px;height:6px;border-radius:50%;background:currentColor;display:block}
+.pill.ok{background:var(--posw);color:var(--pos)}
+.pill.bad{background:var(--negw);color:var(--neg)}
+.pill.warn{background:var(--amw);color:var(--amk);border:1px solid var(--am-ln)}
+.pill.mut{background:var(--wsh);color:var(--ink2)}
+
+.hero{background:var(--navy2);color:#fff;border-radius:var(--r);padding:14px;display:flex;flex-direction:column;gap:4px}
+.hero .big{font-size:26px;font-weight:800;letter-spacing:-.5px;line-height:1}
+.hero .s{font-size:11.5px;color:#AEB8CE}
+.hero .kp{display:flex;gap:16px;margin-top:6px}
+.hero .kp div{font-size:11px;color:#AEB8CE}
+.hero .kp b{display:block;color:#fff;font-size:15px}
+
+.sec{font-size:10.5px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--ink3);margin:6px 0 -4px;display:flex;justify-content:space-between;gap:8px}
+.sec span{color:var(--ink2);letter-spacing:0;text-transform:none;font-weight:600}
+.nota{border:1px solid var(--ln);border-radius:var(--r);padding:10px 11px;display:grid;grid-template-columns:1fr auto;gap:4px 8px;background:var(--crd);text-align:left;font-family:var(--font);color:var(--ink);cursor:pointer;width:100%;box-shadow:var(--sh-sm)}
+.nota .f{font-weight:700;font-size:13.5px;line-height:1.2;grid-column:1}
+.nota .m{font-size:11.5px;color:var(--ink3);grid-column:1}
+.nota .m b{color:var(--ink2);font-weight:600}
+.nota .st{grid-column:2;grid-row:1/span 2;align-self:center}
+.nota .why{grid-column:1/-1;font-size:11.5px;color:var(--neg);border-top:1px dashed var(--ln);padding-top:6px;margin-top:2px}
+.nota .why.w{color:var(--amk)}
+.nota .why.i{color:var(--ink2)}
+
+/* ── bipagem ── */
+.scan{display:flex;gap:8px;align-items:center;background:var(--wsh);border:1.5px solid var(--ln2);border-radius:var(--r);padding:9px 10px}
+.scan.focus{border-color:var(--am);background:var(--amw)}
+.scan input{flex:1;border:0;background:transparent;font-family:var(--font);font-size:16px;color:var(--ink);outline:0;min-width:0}
+.scan .ico{font-size:15px;letter-spacing:-1px}
+.scan .cam{border:0;background:transparent;font-size:17px;cursor:pointer;padding:0 2px;color:var(--ink2)}
+.prog{display:flex;justify-content:space-between;gap:10px;font-size:11.5px;color:var(--ink2)}
+.prog b{color:var(--ink);font-variant-numeric:tabular-nums}
+.itens{display:flex;flex-direction:column;gap:6px}
+.it{display:grid;grid-template-columns:4px 1fr auto;gap:0 9px;border:1px solid var(--ln);border-radius:var(--r-sm);padding:7px 9px 7px 0;background:var(--crd);align-items:center;text-align:left;width:100%;font-family:var(--font);color:var(--ink)}
+.it .stripe{align-self:stretch;border-radius:0 2px 2px 0;background:var(--ln2)}
+.it.e-ok .stripe{background:var(--pos)}
+.it.e-bad .stripe{background:var(--neg)}
+.it.e-warn .stripe{background:var(--am)}
+.it .d{font-size:12.5px;font-weight:600;line-height:1.2}
+.it .c{font-size:10.5px;color:var(--ink3);font-variant-numeric:tabular-nums}
+.it.e-bad .c{color:var(--neg)}
+.it.e-warn .c{color:var(--amk)}
+.it .q{text-align:right;font-variant-numeric:tabular-nums;line-height:1.15}
+.it .q b{font-size:16px;font-weight:800;display:block}
+.it .q small{font-size:10.5px;color:var(--ink3)}
+.it.e-bad .q b{color:var(--neg)}
+.it.e-warn .q b{color:var(--amk)}
+
+.card{border:1px solid var(--ln);border-radius:var(--r);padding:10px 11px;display:flex;flex-direction:column;gap:7px;background:var(--crd)}
+.card .t{font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--ink3)}
+.card.am{border-color:var(--am);background:var(--amw)}
+.card.am .t{color:var(--amk);font-size:13px;letter-spacing:0;text-transform:none}
+.kv{display:flex;justify-content:space-between;gap:8px;font-size:12.5px}
+.kv b{font-variant-numeric:tabular-nums}
+.f2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.f2 label,.f1 label{display:block;font-size:10.5px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--ink3);margin-bottom:4px}
+.f2 input,.f1 input{width:100%;height:46px;border-radius:var(--r-sm);border:1.5px solid var(--am-ln);background:var(--crd);color:var(--ink);font-family:var(--font);font-size:18px;font-weight:700;padding:0 10px;outline:none;font-variant-numeric:tabular-nums}
+.f2 input:focus,.f1 input:focus{border-color:var(--am)}
+.aviso{background:var(--negw);border:1px solid var(--neg);border-radius:var(--r);padding:10px 12px;font-size:12.5px;color:var(--ink)}
+.aviso b{color:var(--neg)}
+.aviso.ok{background:var(--posw);border-color:var(--pos)}
+.aviso.ok b{color:var(--pos)}
+.vazio{padding:36px 20px;text-align:center;color:var(--ink3);font-size:13.5px}
+.vazio b{display:block;color:var(--ink);font-size:15.5px;margin-bottom:6px}
+.foot{background:var(--crd);border-top:1px solid var(--ln);padding:8px 14px;display:flex;justify-content:space-between;align-items:center;font-size:11.5px;color:var(--ink3);gap:8px}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--pos);margin-right:5px;vertical-align:middle}
+.dot.off{background:var(--neg)}
+.dot.pend{background:var(--am)}
+.toast{position:fixed;left:14px;right:14px;bottom:18px;background:var(--ink);color:var(--pap);padding:11px 14px;border-radius:var(--r);font-size:13px;font-weight:600;box-shadow:var(--sh-md);opacity:0;transform:translateY(8px);transition:.2s;pointer-events:none;z-index:40}
+.toast.show{opacity:1;transform:none}
+.toast.ruim{background:var(--neg);color:#fff}
+.modal{position:fixed;inset:0;background:rgba(14,22,38,.55);display:flex;align-items:flex-end;justify-content:center;z-index:30;padding:0}
+.modal .sheet{background:var(--crd);border-radius:var(--r-lg) var(--r-lg) 0 0;width:100%;max-width:520px;max-height:86dvh;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px}
+.modal h3{font-size:15px;font-weight:800}
+.motivos{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.modal textarea{width:100%;min-height:70px;border-radius:var(--r-sm);border:1.5px solid var(--ln2);background:var(--pap);color:var(--ink);font-family:var(--font);font-size:15px;padding:9px 10px;outline:none;resize:vertical}
+.modal textarea:focus{border-color:var(--am)}
+.msgs{display:flex;flex-direction:column;gap:6px;max-height:34dvh;overflow-y:auto}
+.msg{border:1px solid var(--ln);border-radius:var(--r-sm);padding:7px 9px;font-size:12.5px;background:var(--pap)}
+.msg.central{background:var(--infw);border-color:var(--inf)}
+.msg .w{font-size:10.5px;color:var(--ink3);font-weight:700;text-transform:uppercase;letter-spacing:.6px}
+#camBox{position:fixed;inset:0;background:#000;z-index:35;display:flex;flex-direction:column}
+#camBox video{flex:1;width:100%;object-fit:cover;min-height:0}
+#camBox .btn{margin:10px}
+@media (prefers-reduced-motion:reduce){.toast{transition:none}}
+</style>
+</head>
+<body class="ds">
+
+<!-- ═══ 1 · Entrar ═══ -->
+<div id="login">
+  <form class="lbox" onsubmit="entrar(event)">
+    <img src="/logo.png" alt="Econômico">
+    <h1>Recebimento</h1>
+    <p>Escolha sua loja e digite o PIN. Só precisa uma vez neste coletor.</p>
+    <div class="fld"><label>Loja</label>
+      <div class="lojas" id="lojas"></div></div>
+    <div class="fld"><label for="pin">PIN da loja</label><input id="pin" class="pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" required></div>
+    <div class="fld"><label for="nome">Seu nome (vai pro ERP como operador)</label><input id="nome" type="text" autocomplete="name" placeholder="Como aparece pra central" required></div>
+    <div class="erro" id="lerro"></div>
+    <p class="tip" style="margin:0 0 12px">O leitor do coletor bipa como teclado. Não precisa configurar nada.</p>
+    <button class="btn btn-primary blk" style="height:46px" type="submit" id="btnEntrar">Entrar</button>
+  </form>
+</div>
+
+<!-- ═══ 2 · Notas da loja ═══ -->
+<div id="telaNotas" class="tela" hidden>
+  <div class="bar">
+    <div class="logo">E</div>
+    <div><div class="t" id="nTitulo">Loja</div><div class="s" id="nSub">—</div></div>
+    <div class="right" id="nHora">—</div>
+  </div>
+  <div class="acoes">
+    <button class="btn btn-secondary" onclick="carregarNotas(true)">↻ Atualizar</button>
+    <button class="btn btn-secondary" id="btnConferidas" onclick="verConferidas()">Já conferidas hoje (0)</button>
+  </div>
+  <div class="corpo" id="nLista"></div>
+  <div class="foot">
+    <span><span class="dot" id="netDot"></span><span id="netTxt">—</span></span>
+    <span><span id="quem"></span> · <button class="btn btn-ghost" style="height:auto;padding:0;font-size:11.5px" onclick="sair()">sair</button></span>
+  </div>
+</div>
+
+<!-- ═══ 3 · Bipando às cegas ═══ -->
+<div id="telaBip" class="tela" hidden>
+  <div class="bar">
+    <button class="voltar" onclick="voltarNotas()" title="Voltar">‹</button>
+    <div class="logo">E</div>
+    <div><div class="t" id="bTitulo">—</div><div class="s" id="bSub">—</div></div>
+    <div class="right" id="bPill"></div>
+  </div>
+  <div class="acoes">
+    <button class="btn btn-secondary" onclick="escolherCorrigir()">Corrigir qtd</button>
+    <button class="btn btn-secondary" onclick="abrirChat()">Chamar central</button>
+    <button class="btn btn-primary" onclick="terminei()">Terminei a nota</button>
+  </div>
+  <div class="corpo">
+    <div class="scan" id="scanBox">
+      <span class="ico">▮▯▮</span>
+      <input id="bip" placeholder="Bipe o código de barras" autocomplete="off" inputmode="none" enterkeyhint="done">
+      <button class="cam" id="btnCam" onclick="abrirCamera()" title="Ler com a câmera" hidden>📷</button>
+    </div>
+    <div class="prog">
+      <div>Você bipou <b id="pProd">0</b> produtos · <b id="pUn">0</b> unidades</div>
+      <div id="pFila" style="color:var(--amk)"></div>
+    </div>
+    <div id="cartao"></div>
+    <div class="itens" id="bItens"></div>
+  </div>
+</div>
+
+<!-- ═══ 4 · Terminei ═══ -->
+<div id="telaFim" class="tela" hidden>
+  <div class="bar">
+    <button class="voltar" onclick="voltarNotas()" title="Voltar">‹</button>
+    <div class="logo">E</div>
+    <div><div class="t" id="fTitulo">Terminei</div><div class="s" id="fSub">—</div></div>
+  </div>
+  <div class="acoes" id="fAcoes"></div>
+  <div class="corpo" id="fCorpo"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div id="modal"></div>
+<div id="camBox" hidden><video id="camVideo" playsinline muted></video><button class="btn btn-secondary" onclick="fecharCamera()">Fechar câmera</button></div>
+
+<script>
+'use strict';
+// ── constantes / sessão ────────────────────────────────────────────────────
+const LS_SESSAO = 'rec_sessao', LS_FILA = 'rec_fila', LS_CAD = 'rec_cadastros';
+const NOMES_LOJA = { 1: 'CAHU', 2: 'MURIBECA', 3: 'PONTE', 4: 'ATACAREJO', 5: 'PORTA LARGA', 6: 'JARDIM JORDÃO' };
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+const num = n => { const v = +n || 0; return Number.isInteger(v) ? String(v) : String(+v.toFixed(3)); };
+
+let sess = null; try { sess = JSON.parse(localStorage.getItem(LS_SESSAO) || 'null'); } catch (e) {}
+let fila = []; try { fila = JSON.parse(localStorage.getItem(LS_FILA) || '[]'); } catch (e) {}
+// cadastro já visto neste coletor: deixa bipar sem rede um produto que o coletor já conhece
+let cads = {}; try { cads = JSON.parse(localStorage.getItem(LS_CAD) || '{}'); } catch (e) {}
+function guardarCad(cod, c) {
+  cads[cod] = { descricao: c.descricao, qtdemb: c.qtdemb, emb: c.emb };
+  const ks = Object.keys(cads); if (ks.length > 3000) for (const k of ks.slice(0, 500)) delete cads[k];
+  try { localStorage.setItem(LS_CAD, JSON.stringify(cads)); } catch (e) {}
+}
+let lojaSel = null;          // loja escolhida na tela de login
+let notas = [];              // /notas
+let visao = null;            // visão da conferência aberta (cega)
+let notaAtual = null;        // nota da lista que abriu a conferência
+let fimDados = null;         // resposta do /terminei
+let cartao = null;           // { cod, descricao, emb, modo:'bipar'|'corrigir' }
+let tela = 'login';
+let timerNotas = null;
+
+// ── tela de login ──────────────────────────────────────────────────────────
+$('lojas').innerHTML = Object.keys(NOMES_LOJA).map(n =>
+  `<button type="button" aria-pressed="false" data-loja="${n}" onclick="selLoja(${n})">${n}<small>${esc(NOMES_LOJA[n])}</small></button>`).join('');
+function selLoja(n) {
+  lojaSel = n;
+  for (const b of $('lojas').querySelectorAll('button')) b.setAttribute('aria-pressed', String(+b.dataset.loja === n));
+  $('btnEntrar').textContent = 'Entrar na Loja ' + n;
+  $('pin').focus();
+}
+async function entrar(ev) {
+  ev.preventDefault(); $('lerro').textContent = '';
+  const pin = $('pin').value.trim(), nome = $('nome').value.trim();
+  if (!lojaSel) { $('lerro').textContent = 'Escolha a loja.'; return; }
+  try {
+    const r = await fetch('/api/recebimento-publico/entrar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ loja: lojaSel, pin, nome }) });
+    const j = await r.json();
+    if (!r.ok) { $('lerro').textContent = j.error || 'Não foi possível entrar.'; return; }
+    sess = { loja: j.loja, token: j.token, nome: j.nome || nome.toUpperCase() };
+    localStorage.setItem(LS_SESSAO, JSON.stringify(sess));
+    iniciar();
+  } catch (e) { $('lerro').textContent = 'Sem conexão. Tente de novo quando tiver sinal.'; }
+}
+function sair() {
+  if (!confirm('Sair deste coletor? Vai precisar do PIN de novo.')) return;
+  localStorage.removeItem(LS_SESSAO); location.reload();
+}
+
+function iniciar() {
+  $('login').hidden = true;
+  $('quem').textContent = sess.nome;
+  mostrar('notas');
+  carregarNotas();
+  window.addEventListener('online', flush);
+  setInterval(() => { if (fila.length) flush(); }, 15000);
+}
+
+function mostrar(t) {
+  tela = t;
+  $('login').hidden = t !== 'login';
+  $('telaNotas').hidden = t !== 'notas';
+  $('telaBip').hidden = t !== 'bipagem';
+  $('telaFim').hidden = t !== 'fim';
+  clearInterval(timerNotas); timerNotas = null;
+  if (t === 'notas') timerNotas = setInterval(() => carregarNotas(), 60000);
+  if (t === 'bipagem') focarBip();
+}
+
+// ── rede ───────────────────────────────────────────────────────────────────
+async function api(caminho, opts) {
+  const r = await fetch(caminho, opts);
+  if (r.status === 401) { localStorage.removeItem(LS_SESSAO); location.reload(); throw new Error('sessão'); }
+  let j = null; try { j = await r.json(); } catch (e) {}
+  if (!r.ok) { const err = new Error((j && j.error) || 'Falhou'); err.status = r.status; err.corpo = j; throw err; }
+  return j;
+}
+const post = (rota, body) => api('/api/recebimento-publico/' + rota, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, t: sess.token }) });
+
+function setNet(on) {
+  const dot = $('netDot'), tx = $('netTxt');
+  const h = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  if (!on) { dot.className = 'dot off'; tx.textContent = fila.length ? 'Sem sinal · ' + fila.length + ' pra enviar' : 'Sem sinal'; }
+  else if (fila.length) { dot.className = 'dot pend'; tx.textContent = 'Enviando ' + fila.length + '…'; }
+  else { dot.className = 'dot'; tx.textContent = 'Online · ' + h; }
+  $('pFila').textContent = fila.length ? fila.length + ' bipes aguardando rede' : '';
+}
+
+// ── tela 2 · notas da loja ─────────────────────────────────────────────────
+async function carregarNotas(manual) {
+  try {
+    notas = await api('/api/recebimento-publico/notas?t=' + sess.token);
+    setNet(true);
+    $('nHora').innerHTML = 'atualizado<br>' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    if (manual) toast('Atualizado');
+  } catch (e) { setNet(false); if (manual) toast('Sem sinal pra atualizar', true); }
+  renderNotas();
+}
+const pendente = n => !n.conferencia || n.conferencia.status === 'bipando' || n.conferencia.status === 'recontando';
+const PILL = { liberada: ['ok', 'Liberada'], divergente: ['bad', 'Divergente'], sem_pedido: ['warn', 'Sem pedido'] };
+const PORQUE = {
+  divergente: ['', 'Central já sabe o motivo. Confira normal.'],
+  sem_pedido: ['w', 'Nenhum pedido. Confira e a central decide.']
+};
+function linhaNota(n, i) {
+  const p = PILL[n.veredito] || ['mut', n.veredito];
+  const w = PORQUE[n.veredito];
+  const emAndamento = n.conferencia && n.conferencia.status === 'bipando' ? 'Você já começou esta nota. Toque pra continuar.'
+    : n.conferencia && n.conferencia.status === 'recontando' ? 'Falta recontar. Toque pra continuar.' : null;
+  return `<button class="nota" onclick="abrirNota(${i})">
+    <div class="f">${esc(n.fornecedor)}</div>
+    <div class="m">NF-e <b>${esc(n.nNota)}</b>${n.pedidoId ? ' · Pedido <b>#' + esc(n.pedidoId) + '</b>' : ''}</div>
+    <div class="st"><span class="pill ${p[0]}"><i></i>${esc(p[1])}</span></div>
+    ${w ? `<div class="why ${w[0]}">${esc(w[1])}</div>` : ''}
+    ${emAndamento ? `<div class="why i">${esc(emAndamento)}</div>` : ''}
+  </button>`;
+}
+function renderNotas() {
+  $('nTitulo').textContent = 'Loja ' + sess.loja + ' · ' + (NOMES_LOJA[sess.loja] || '');
+  const abertas = notas.filter(pendente);
+  const conferidas = notas.filter(n => !pendente(n));
+  $('nSub').textContent = sess.nome + ' · ' + abertas.length + (abertas.length === 1 ? ' nota' : ' notas');
+  $('btnConferidas').textContent = 'Já conferidas hoje (' + conferidas.length + ')';
+  $('btnConferidas').disabled = !conferidas.length;
+  const podeConferir = abertas.filter(n => n.veredito === 'liberada');
+  const atencao = abertas.filter(n => n.veredito !== 'liberada');
+  let h = `<div class="hero">
+    <div class="big">${abertas.length} ${abertas.length === 1 ? 'nota' : 'notas'}</div>
+    <div class="s">NF-e recebidas do fornecedor e ainda não conferidas</div>
+    <div class="kp">
+      <div><b>${podeConferir.length}</b>liberadas</div>
+      <div><b>${abertas.filter(n => n.veredito === 'divergente').length}</b>divergentes</div>
+      <div><b>${abertas.filter(n => n.veredito === 'sem_pedido').length}</b>sem pedido</div>
+    </div></div>`;
+  if (!abertas.length) h += '<div class="vazio"><b>Nenhuma nota pra conferir</b>Assim que a NF-e do fornecedor chegar no ERP, ela aparece aqui.</div>';
+  if (podeConferir.length) h += '<div class="sec">Pode conferir <span>bate com o pedido</span></div>' + podeConferir.map(n => linhaNota(n, notas.indexOf(n))).join('');
+  if (atencao.length) h += '<div class="sec">Atenção <span>central já avisada</span></div>' + atencao.map(n => linhaNota(n, notas.indexOf(n))).join('');
+  $('nLista').innerHTML = h;
+}
+function verConferidas() {
+  const c = notas.filter(n => !pendente(n));
+  abrirModal(`<h3>Notas já conferidas hoje (${c.length})</h3>` +
+    (c.length ? c.map(n => `<div class="msg"><div class="w">NF-e ${esc(n.nNota)} · ${esc(n.conferencia.status === 'liberada' ? 'liberada pela central' : 'aguardando a central')}</div>${esc(n.fornecedor)}</div>`).join('')
+      : '<div class="tip">Nenhuma ainda.</div>') +
+    '<button class="btn btn-secondary blk" onclick="fecharModal()">Fechar</button>');
+}
+
+async function abrirNota(i) {
+  const n = notas[i]; if (!n) return;
+  try {
+    visao = await post('abrir', { chave: n.chave, nNota: n.nNota, fornecedor: n.fornecedor, codFornec: n.codFornec, nome: sess.nome });
+    notaAtual = n;
+    mostrar('bipagem'); renderBip();
+  } catch (e) { toast(e.message || 'Não deu pra abrir a nota', true); }
+}
+function voltarNotas() { cartao = null; $('cartao').innerHTML = ''; mostrar('notas'); carregarNotas(); }
+
+// ── tela 3 · bipagem cega ──────────────────────────────────────────────────
+const ESTADO = {
+  ok: ['e-ok', ''],
+  recusado: ['e-bad', 'recusado · devolver'],
+  bloqueado_validade: ['e-bad', 'validade curta · bloqueado'],
+  avaria: ['e-bad', 'avaria · devolver'],
+  sem_validade: ['e-warn', 'sem validade'],
+  nao_esta_na_nota: ['e-warn', 'não está na nota']
+};
+function renderBip() {
+  if (!visao) return;
+  const v = notaAtual ? notaAtual.veredito : null;
+  $('bTitulo').textContent = visao.fornecedor || '—';
+  $('bSub').textContent = 'NF-e ' + visao.nNota + ' · Loja ' + sess.loja;
+  $('bPill').innerHTML = v && PILL[v] ? `<span class="pill ${PILL[v][0]}"><i></i>${esc(PILL[v][1])}</span>` : '';
+  $('pProd').textContent = visao.produtos;
+  $('pUn').textContent = num(visao.unidades);
+  const itens = (visao.itens || []).slice().reverse();
+  $('bItens').innerHTML = itens.length ? itens.map(i => {
+    const e = ESTADO[i.estado] || ['', ''];
+    const meta = [i.cod, i.validade ? 'vence ' + dataBr(i.validade) : null, e[1] || null].filter(Boolean).join(' · ');
+    return `<div class="it ${e[0]}"><div class="stripe"></div>
+      <div><div class="d">${esc(i.descricao)}</div><div class="c">${esc(meta)}</div></div>
+      <div class="q"><b>${num(i.un)} un</b><small>${num(i.quant)} × ${num(i.emb)}</small></div></div>`;
+  }).join('') : '<div class="vazio">Bipe o primeiro produto. Só o que você bipar aparece aqui.</div>';
+  setNet(navigator.onLine);
+}
+const dataBr = s => { const p = String(s || '').split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0].slice(2) : String(s || ''); };
+
+function focarBip() { const b = $('bip'); if (b && !cartao && tela === 'bipagem') { b.focus(); $('scanBox').classList.add('focus'); } }
+$('bip').addEventListener('blur', () => { $('scanBox').classList.remove('focus'); setTimeout(focarBip, 100); });
+$('bip').addEventListener('focus', () => $('scanBox').classList.add('focus'));
+$('bip').addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); const c = $('bip').value.trim(); $('bip').value = ''; if (c) lerCodigo(c); } });
+
+async function lerCodigo(cod) {
+  if (!visao) return;
+  const jaTem = (visao.itens || []).find(i => i.cod === cod);
+  if (jaTem) { await enviarBipe('bipar', { cod, quant: 1, emb: jaTem.emb }); return; }
+  let cad;
+  try { cad = await api('/api/recebimento-publico/cadastro/' + encodeURIComponent(cod) + '?t=' + sess.token); guardarCad(cod, cad); }
+  catch (e) {
+    if (e.status === 404) { toast(e.message || 'Produto não cadastrado. Chame a central.', true); return; }
+    cad = cads[cod];
+    if (!cad) { toast('Sem sinal pra buscar o cadastro. Bipe de novo quando voltar a rede.', true); return; }
+    setNet(false);
+  }
+  abrirCartao({ cod, descricao: cad.descricao, emb: cad.qtdemb || 1, quant: '', validade: '', modo: 'bipar' });
+}
+
+function abrirCartao(c) {
+  cartao = c;
+  $('cartao').innerHTML = `<div class="card am">
+    <div class="t">${esc(c.descricao)}</div>
+    <div class="f2">
+      <div><label for="cQuant">Quant</label><input id="cQuant" type="text" inputmode="decimal" autocomplete="off" value="${esc(c.quant)}"></div>
+      <div><label for="cEmb">Emb</label><input id="cEmb" type="text" inputmode="decimal" autocomplete="off" value="${esc(c.emb)}"></div>
+    </div>
+    <div class="kv" style="font-size:13px"><span>Total</span><b id="cTot">0 un</b></div>
+    <div class="tip" style="color:var(--ink2)">Tanto faz digitar 10 × 24 ou 240 × 1.</div>
+    <div class="f1"><label for="cVal">Vence em</label><input id="cVal" type="date" value="${esc(c.validade)}"></div>
+    <div class="tip">Enter em cada campo: Quant → Emb → Validade → grava e volta pro bipe.</div>
+    <div class="row2"><button class="btn btn-secondary" onclick="fecharCartao()">Cancelar</button><button class="btn btn-primary" onclick="gravarCartao()">Gravar</button></div>
+  </div>`;
+  const q = $('cQuant'), e = $('cEmb'), vd = $('cVal');
+  const tot = () => { $('cTot').textContent = num((+String(q.value).replace(',', '.') || 0) * (+String(e.value).replace(',', '.') || 0)) + ' un'; };
+  q.addEventListener('input', tot); e.addEventListener('input', tot); tot();
+  q.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); e.focus(); e.select(); } });
+  e.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); vd.focus(); } });
+  vd.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); gravarCartao(); } });
+  q.focus(); q.select();
+  $('cartao').scrollIntoView({ block: 'nearest' });
+}
+function fecharCartao() { cartao = null; $('cartao').innerHTML = ''; focarBip(); }
+function gravarCartao() {
+  if (!cartao) return;
+  const c = cartao;
+  const quant = +String(($('cQuant') || {}).value || '').replace(',', '.') || 0;
+  const emb = +String(($('cEmb') || {}).value || '').replace(',', '.') || +c.emb || 1;
+  const validade = ($('cVal') || {}).value || '';
+  if (!quant) { toast('Digite a quantidade.', true); $('cQuant').focus(); return; }
+  fecharCartao();
+  enviarBipe(c.modo === 'corrigir' ? 'corrigir' : 'bipar', { cod: c.cod, quant, emb, validade });
+}
+
+const AVISO_RESULTADO = {
+  recusado: ['A central recusou este item. Separe pra devolução.', true],
+  bloqueado_validade: ['Validade curta: bloqueado. Separe pra devolução.', true],
+  nao_esta_na_nota: ['Este produto não está na nota. Chame a central.', true],
+  sem_validade: ['Faltou a validade deste produto.', true],
+  nao_cadastrado: ['Produto não cadastrado. Chame a central.', true]
+};
+async function enviarBipe(acao, body) {
+  const corpo = { id: visao.id, cod: body.cod, quant: body.quant, emb: body.emb, validade: body.validade || '' };
+  aplicarLocal(acao, corpo);  // mostra na hora; a visão do servidor sobrescreve quando responder
+  renderBip(); focarBip();
+  try {
+    const r = await post(acao, corpo);
+    if (r.visao) visao = r.visao;
+    const av = AVISO_RESULTADO[r.resultado];
+    if (av) toast(av[0], true);
+    else if (r.item) toast(String(r.item.descricao || r.item.cod) + ' · ' + num(r.item.quant) + ' × ' + num(r.item.emb) + ' = ' + num(r.item.un) + ' un');
+    renderBip(); setNet(true);
+  } catch (e) {
+    if (e.status) { toast(e.message || 'Bipe recusado', true); await recarregarVisao(); return; }
+    fila.push({ acao, body: corpo, em: Date.now() });
+    localStorage.setItem(LS_FILA, JSON.stringify(fila));
+    setNet(false);
+    toast('Sem sinal · guardado no coletor');
+  }
+}
+
+// aplica o bipe localmente (offline / eco imediato), sem inventar estado do servidor
+function aplicarLocal(acao, c) {
+  if (!visao) return;
+  visao.itens = visao.itens || [];
+  const it = visao.itens.find(i => i.cod === c.cod);
+  const un = +((+c.quant || 0) * (+c.emb || 1)).toFixed(3);
+  if (!it) visao.itens.push({ cod: c.cod, descricao: (cartao && cartao.cod === c.cod ? cartao.descricao : (cads[c.cod] || {}).descricao || c.cod), quant: +c.quant || 0, emb: +c.emb || 1, un, validade: c.validade || null, estado: 'ok', aviso: null });
+  else if (acao === 'corrigir') { it.quant = +c.quant || 0; it.emb = +c.emb || 1; it.un = un; it.validade = c.validade || null; }
+  else { it.quant = +(it.quant + (+c.quant || 0)).toFixed(3); it.emb = +c.emb || it.emb; it.un = +(it.un + un).toFixed(3); if (c.validade && (!it.validade || c.validade < it.validade)) it.validade = c.validade; }
+  visao.produtos = visao.itens.length;
+  visao.unidades = +visao.itens.reduce((a, i) => a + (+i.un || 0), 0).toFixed(3);
+}
+async function recarregarVisao() {
+  if (!visao) return;
+  try { visao = await api('/api/recebimento-publico/conferencia/' + encodeURIComponent(visao.id) + '?t=' + sess.token); renderBip(); } catch (e) {}
+}
+
+let enviandoFila = false;
+async function flush() {
+  if (enviandoFila || !fila.length) return;
+  enviandoFila = true;
+  try {
+    while (fila.length) {
+      const f = fila[0];
+      const r = await post(f.acao, f.body).catch(err => { if (err.status) return { descartar: true }; throw err; });
+      fila.shift(); localStorage.setItem(LS_FILA, JSON.stringify(fila));
+      if (r && r.visao && visao && r.visao.id === visao.id) visao = r.visao;
+    }
+    setNet(true); if (tela === 'bipagem') renderBip();
+  } catch (e) { setNet(false); }
+  finally { enviandoFila = false; }
+}
+
+function escolherCorrigir() {
+  const itens = (visao && visao.itens) || [];
+  if (!itens.length) { toast('Nada bipado ainda.'); return; }
+  abrirModal('<h3>Corrigir qual produto?</h3>' + itens.slice().reverse().map(i =>
+    `<button class="nota" data-cod="${esc(i.cod)}" onclick="corrigirItem(this.dataset.cod)"><div class="f">${esc(i.descricao)}</div><div class="m">${esc(i.cod)} · <b>${num(i.un)} un</b> (${num(i.quant)} × ${num(i.emb)})</div></button>`).join('') +
+    '<button class="btn btn-secondary blk" onclick="fecharModal()">Cancelar</button>');
+}
+function corrigirItem(cod) {
+  const i = (visao.itens || []).find(x => x.cod === cod); if (!i) return;
+  fecharModal();
+  abrirCartao({ cod: i.cod, descricao: i.descricao, emb: i.emb, quant: i.quant, validade: i.validade || '', modo: 'corrigir' });
+}
+
+// ── chat mínimo com a central (Task 7 estende) ─────────────────────────────
+const MOTIVOS = [['codigo_nao_cadastrado', 'Código não cadastrado'], ['avaria', 'Avaria'], ['validade', 'Validade'], ['nao_esta_na_nota', 'Não está na nota'], ['outro', 'Outro']];
+let chatMotivo = 'outro';
+function abrirChat() {
+  chatMotivo = 'outro';
+  const msgs = (visao && visao.mensagens) || [];
+  abrirModal(`<h3>Chamar a central</h3>
+    <div class="msgs">${msgs.length ? msgs.map(m => `<div class="msg ${m.de === 'central' ? 'central' : ''}"><div class="w">${esc(m.de === 'central' ? 'Central' : m.nome || 'Loja')}${m.motivo ? ' · ' + esc(m.motivo) : ''}${m.acao ? ' · ' + esc(m.acao) : ''}</div>${esc(m.texto || '')}</div>`).join('') : '<div class="tip">Nenhuma mensagem ainda.</div>'}</div>
+    <div class="motivos" id="chatMotivos">${MOTIVOS.map(m => `<button class="btn btn-secondary" data-m="${m[0]}" aria-pressed="false" onclick="selMotivo('${m[0]}')">${esc(m[1])}</button>`).join('')}</div>
+    <textarea id="chatTxt" placeholder="Escreva se precisar (opcional)"></textarea>
+    <div class="row2"><button class="btn btn-secondary" onclick="fecharModal()">Fechar</button><button class="btn btn-primary" onclick="enviarChat()">Enviar</button></div>`);
+  selMotivo('outro');
+}
+function selMotivo(m) {
+  chatMotivo = m;
+  for (const b of $('chatMotivos').querySelectorAll('button')) {
+    const on = b.dataset.m === m;
+    b.setAttribute('aria-pressed', String(on));
+    b.className = on ? 'btn btn-primary' : 'btn btn-secondary';
+  }
+}
+async function enviarChat() {
+  const texto = ($('chatTxt') || {}).value || '';
+  try {
+    const m = await post('chat', { id: visao.id, motivo: chatMotivo, texto, cod: null });
+    visao.mensagens = (visao.mensagens || []).concat([m]);
+    fecharModal(); toast('Central avisada.');
+  } catch (e) { toast('Sem sinal pra avisar a central.', true); }
+}
+
+// ── tela 4 · terminei ──────────────────────────────────────────────────────
+const MOT_PILL = { recontar: ['bad', 'recontar'], nao_bipado: ['warn', 'não bipado'], nao_esta_na_nota: ['warn', 'não está na nota'] };
+async function terminei() {
+  if (fila.length) { await flush(); if (fila.length) { toast('Sem sinal: ainda tem bipe pra enviar.', true); return; } }
+  try {
+    fimDados = await post('terminei', { id: visao.id });
+    mostrar('fim'); renderFim();
+  } catch (e) { toast(e.message || 'Não deu pra terminar', true); }
+}
+function renderFim() {
+  const f = fimDados || {};
+  $('fTitulo').textContent = f.bateu ? 'Conferência enviada' : 'Conferência não bateu';
+  $('fSub').textContent = (visao.fornecedor || '') + ' · NF-e ' + visao.nNota;
+  if (f.bateu) {
+    $('fAcoes').innerHTML = '<button class="btn btn-primary blk" onclick="voltarNotas()">Voltar às notas</button>';
+    $('fCorpo').innerHTML = '<div class="aviso ok"><b>Tudo certo, enviado pra central liberar.</b><br>Pode liberar o motorista assim que a central confirmar.</div>';
+    return;
+  }
+  const n = (f.recontar || []).length;
+  $('fAcoes').innerHTML = '<button class="btn btn-primary" onclick="voltarBipagem()">Recontar</button>' +
+    (f.podeEnviar ? '<button class="btn btn-secondary" onclick="enviarAssim()">Recontei, está assim mesmo · enviar pra central</button>' : '');
+  $('fCorpo').innerHTML = `<div class="aviso"><b>${n} ${n === 1 ? 'produto não bateu' : 'produtos não bateram'} com a nota.</b> Reconte só ${n === 1 ? 'ele' : 'esses'}. A quantidade da nota continua escondida.</div>
+    <div class="card"><div class="t">Recontar</div>${(f.recontar || []).map(r => {
+      const p = MOT_PILL[r.motivo] || ['mut', r.motivo];
+      return `<div class="kv"><span>${esc(r.descricao || r.cod)}</span><span class="pill ${p[0]}">${esc(p[1])}</span></div>`;
+    }).join('')}</div>`;
+}
+async function voltarBipagem() {
+  await recarregarVisao();
+  mostrar('bipagem'); renderBip();
+}
+async function enviarAssim() {
+  try {
+    await post('enviar', { id: visao.id });
+    fimDados = { bateu: true }; renderFim(); toast('Enviado pra central.');
+  } catch (e) { toast(e.message || 'Não deu pra enviar', true); }
+}
+
+// ── modal / toast ──────────────────────────────────────────────────────────
+function abrirModal(html) { $('modal').innerHTML = `<div class="modal" onclick="if(event.target===this)fecharModal()"><div class="sheet">${html}</div></div>`; }
+function fecharModal() { $('modal').innerHTML = ''; focarBip(); }
+function toast(m, ruim) {
+  const t = $('toast'); t.textContent = m; t.className = 'toast show' + (ruim ? ' ruim' : '');
+  clearTimeout(t._x); t._x = setTimeout(() => { t.className = 'toast'; }, ruim ? 4000 : 2600);
+}
+
+// ── câmera (opcional; só onde o navegador tem BarcodeDetector) ─────────────
+let camStream = null, camParar = false;
+if ('BarcodeDetector' in window && navigator.mediaDevices) $('btnCam').hidden = false;
+async function abrirCamera() {
+  try {
+    const Det = window.BarcodeDetector;
+    const det = new Det({ formats: ['ean_13', 'ean_8', 'code_128', 'itf', 'upc_a'] });
+    camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    const v = $('camVideo'); v.srcObject = camStream; await v.play();
+    $('camBox').hidden = false; camParar = false;
+    const laco = async () => {
+      if (camParar) return;
+      try { const cods = await det.detect(v); if (cods && cods.length) { const c = String(cods[0].rawValue || '').trim(); fecharCamera(); if (c) lerCodigo(c); return; } } catch (e) {}
+      requestAnimationFrame(laco);
+    };
+    laco();
+  } catch (e) { toast('Câmera indisponível. Use o leitor do coletor.', true); fecharCamera(); }
+}
+function fecharCamera() {
+  camParar = true; $('camBox').hidden = true;
+  if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; }
+  focarBip();
+}
+
+// ── PWA ────────────────────────────────────────────────────────────────────
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+window.addEventListener('online', () => setNet(true));
+window.addEventListener('offline', () => setNet(false));
+
+if (sess && sess.token) iniciar();
+</script>
+</body>
+</html>

@@ -234,7 +234,7 @@ app.use((req, res, next) => {
   if (req.path === '/contagem.html' || req.path === '/contagem' || req.path === '/manifest-contagem.json' || req.path.startsWith('/api/contagem-publica/')) return next();
   // Coletor de Recebimento no celular do conferente: mesmo esquema (PIN pra entrar, depois token
   // de 32 hex validado dentro da rota)
-  if (req.path === '/recebimento.html' || req.path === '/recebimento' || req.path.startsWith('/api/recebimento-publico/')) return next();
+  if (req.path === '/recebimento.html' || req.path === '/recebimento' || req.path === '/manifest-recebimento.json' || req.path.startsWith('/api/recebimento-publico/')) return next();
   // Pré-aquecimento interno (somente localhost)
   if (req.headers['x-internal-warmup'] === 'fc360warmup2026' && ['::1', '127.0.0.1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress)) return next();
   const ext = req.path.split('.').pop().toLowerCase();
