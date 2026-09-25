@@ -535,6 +535,19 @@ table.tst tr.fail td{background:var(--negw)}table.tst tr.fail td.det{color:var(-
 table.tst tr.warn td.det{color:var(--amk)}
 .lock-pill{display:inline-block;padding:2px 9px;border-radius:6px;background:var(--posw);color:var(--pos);font-size:11.5px;font-weight:800;white-space:nowrap;vertical-align:middle}
 table.fxt tr.lock td{opacity:.7;cursor:not-allowed}
+.prazo-card .pc-hd{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.prazo-card .pc-hd h3{margin:0}
+.prazo-card .pc-hd .mini{flex-basis:100%;margin-top:-4px}
+.pc-sit{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11.5px;font-weight:800;letter-spacing:.2px}
+.pc-sit.ok{background:var(--posw);color:var(--pos)}.pc-sit.urg{background:var(--amw);color:var(--amk)}.pc-sit.enc{background:var(--negw);color:var(--neg)}.pc-sit.sem{background:var(--wsh);color:var(--ink2)}
+.pc-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+@media(max-width:900px){.pc-grid{grid-template-columns:repeat(2,1fr)}}
+.pc-box{background:#fff;border:1px solid var(--ln);border-radius:10px;padding:10px 12px;min-height:74px}
+.pc-box small{display:block;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--ink3);margin-bottom:4px}
+.pc-box b{display:block;font-size:16px;color:var(--ink);line-height:1.25}
+.pc-box span{display:block;font-size:11.5px;color:var(--ink2);margin-top:3px}
+.pc-bar{height:6px;border-radius:999px;background:var(--wsh);margin:6px 0 2px;overflow:hidden}.pc-bar i{display:block;height:100%;background:var(--pos)}
+.pc-edit{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px dashed var(--ln)}
 .pp-prod{cursor:pointer;user-select:none}
 .pp-prod:hover{color:var(--amk)}
 .pp-prod .chev{display:inline-block;width:18px;font-style:normal;font-weight:900;color:var(--am);font-size:16px;line-height:1;vertical-align:-1px}
@@ -1416,6 +1429,11 @@ function cabecalho(sub){
     '<p>Lista ERP <b>' + (CUR.lista || '—') + '</b> ' + esc(CUR.lista_nome || '') + ' · comprador(a) <b>' + esc(CUR.comprador && CUR.comprador.nome || '—') + '</b> · criada ' + dt(CUR.criadoEm) + (CUR.prazo ? ' · prazo pra resposta <b>' + dtp(CUR.prazo) + '</b>' + (CUR.status === 'aberta' && prazoVencidoCli(CUR.prazo) ? ' <span class="status-pill cancel">prazo encerrado</span>' : '') : '') + (CUR.fechadaEm ? ' · fechada ' + dt(CUR.fechadaEm) + (CUR.fechadaPor ? ' por ' + esc(CUR.fechadaPor) : '') : '') + ' · lojas ' + (CUR.lojas || []).map(function(l){ return LJ(l); }).join(' ') + '</p></div><div style="display:flex;gap:8px;flex-wrap:wrap">' + (sub || '') + '</div></div>';
 }
 function msgWhats(f, v){ v = v || f.vendedor; return 'Olá' + (v && v.nome ? ', ' + v.nome : '') + '! Cotação #' + CUR.id + ' – ' + CUR.nome + ' do Econômico Supermercado (Rede Cahu). Por favor, preencha seus preços neste link: ' + f.link + (CUR.prazo ? ' . Prazo pra resposta: ' + dtp(CUR.prazo) : '') + ' . Obrigado(a)!'; }
+function dtFull(v){ if (!v) return '—'; var d = new Date(v); if (isNaN(d)) return esc(String(v)); return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear() + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+function diaSemana(v){ var d = new Date(v); if (isNaN(d)) return ''; return ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'][d.getDay()]; }
+function durTxt(ms){ var m = Math.round(Math.abs(ms) / 60000); if (m < 60) return m + ' min'; var h = Math.floor(m / 60), d = Math.floor(h / 24); if (d < 1) return h + 'h' + (m % 60 ? String(m % 60).padStart(2, '0') : ''); h = h % 24; return d + ' dia' + (d > 1 ? 's' : '') + (h ? ' e ' + h + 'h' : ''); }
+function restanteTxt(prazo){ var d = new Date(prazoLocal(prazo)); if (isNaN(d)) return '—'; var ms = d.getTime() - Date.now(); return ms >= 0 ? durTxt(ms) : 'há ' + durTxt(ms); }
+function decorridoTxt(v){ var d = new Date(v); if (isNaN(d)) return '—'; return durTxt(Date.now() - d.getTime()); }
 async function salvarPrazo(v){ if (!CUR) return; if (!v) { toastMsg('Informe data e hora'); return; } try { CUR = await post('/api/cotacoes/' + CUR.id + '/prazo', {prazo: v}); renderTudo(); toastMsg('Prazo: ' + dtp(CUR.prazo) + (prazoVencidoCli(CUR.prazo) ? ' — atenção: já passou, vendedores continuam bloqueados' : ' — vendedores liberados até essa hora')); } catch(e) { toastMsg('Erro: ' + e.message); } }
 function adiarPrazo(dias){ if (!CUR) return; var base = CUR.prazo ? new Date(prazoLocal(CUR.prazo)) : new Date(); if (base.getTime() < Date.now()) { base = new Date(); base.setHours(18, 0, 0, 0); } base.setDate(base.getDate() + dias); salvarPrazo(localIso(base)); }
 // Enviar para todos, um por um (Tiago, 23/09/26): abre o WhatsApp do próximo vendedor pendente a cada clique. O envio continua sendo
@@ -1433,11 +1451,21 @@ function renderAcomp(){
   // recado da comprador(a): fica fixo no topo da página de cada vendedor; só quem está logado aqui edita
   // prazo com hora: abertura (criadoEm) e fechamento editável; adiar libera os vendedores (Tiago, 23/09/26)
   var pv = CUR.prazo && prazoVencidoCli(CUR.prazo);
-  h += '<div class="sugtop" style="margin-bottom:14px"><h3>⏱ Prazo da cotação <span class="mini" style="font-weight:600">· depois do fechamento o vendedor não digita mais; pra liberar, adie a data/hora e salve</span></h3>' +
-    '<div class="row" style="align-items:flex-end"><div class="fld"><label>Abertura</label><div style="padding:9px 0;font-weight:700">' + dt(CUR.criadoEm) + '</div></div>' +
-    '<div class="fld"><label>Fechamento (data e hora)</label><input type="datetime-local" id="ac-prazo" value="' + esc(prazoLocal(CUR.prazo)) + '"' + (aberta ? '' : ' disabled') + '></div>' +
-    (aberta ? '<div class="fld"><label>&nbsp;</label><div class="acoes-row"><button class="btn primary" onclick="salvarPrazo($(\'#ac-prazo\').value)">' + (pv ? 'Liberar com este prazo' : 'Salvar prazo') + '</button><button class="btn ghost" onclick="adiarPrazo(1)">+1 dia</button><button class="btn ghost" onclick="adiarPrazo(2)">+2 dias</button></div></div>' : '') + '</div>' +
-    '<div class="suginfo">' + (CUR.prazo ? (pv ? '<span class="warn"><b>Encerrado em ' + dtp(CUR.prazo) + '</b>: vendedores bloqueados. Escolha uma data/hora à frente e salve pra liberar.</span>' : '<span>Fecha em <b>' + dtp(CUR.prazo) + '</b> · vendedores digitam até essa hora</span>') : '<span class="warn">Sem prazo: vendedores digitam até você fechar a cotação.</span>') + (CUR.prazoAlteradoEm ? '<span>Último ajuste ' + dt(CUR.prazoAlteradoEm) + (CUR.prazoAlteradoPor ? ' por <b>' + esc(CUR.prazoAlteradoPor) + '</b>' : '') + '</span>' : '') + '</div></div>';
+  // Prazo da cotação (Tiago, 25/09: "mais profissional e mais detalhado"; datas com dia, mês e ano)
+  var F = CUR.fornecedores || [], nConv = F.length, nResp = F.filter(function(x){ return x.finalizadoEm; }).length, nAb = F.filter(function(x){ return x.abertoEm && !x.finalizadoEm; }).length, nEnv = F.filter(function(x){ return x.enviadoEm && !x.abertoEm && !x.finalizadoEm; }).length, nPend = nConv - nResp - nAb - nEnv;
+  var pct = nConv ? Math.round(nResp / nConv * 100) : 0;
+  var rest = CUR.prazo ? restanteTxt(CUR.prazo) : null;
+  var sit = !CUR.prazo ? {cls: 'sem', txt: 'Sem prazo definido'} : pv ? {cls: 'enc', txt: 'Encerrada ' + rest} : (rest.indexOf('h') === 0 || /^\d+ min/.test(rest) || /^[0-9]h/.test(rest) ? {cls: 'urg', txt: 'Fecha em ' + rest} : {cls: 'ok', txt: 'Fecha em ' + rest});
+  h += '<div class="sugtop prazo-card" style="margin-bottom:14px">' +
+    '<div class="pc-hd"><h3>⏱ Prazo da cotação</h3><span class="pc-sit ' + sit.cls + '">' + sit.txt + '</span><span class="mini">Depois do fechamento o vendedor não digita mais. Pra liberar, escolha uma data e hora à frente e salve.</span></div>' +
+    '<div class="pc-grid">' +
+      '<div class="pc-box"><small>Abertura</small><b>' + dtFull(CUR.criadoEm) + '</b><span>' + diaSemana(CUR.criadoEm) + (CUR.criadoPor ? ' · por ' + esc(CUR.criadoPor) : '') + '</span></div>' +
+      '<div class="pc-box"><small>Fechamento</small><b>' + (CUR.prazo ? dtFull(CUR.prazo) : '—') + '</b><span>' + (CUR.prazo ? diaSemana(CUR.prazo) + ' · vendedores digitam até essa hora' : 'vendedores digitam até você fechar a cotação') + '</span></div>' +
+      '<div class="pc-box"><small>Tempo</small><b>' + (CUR.prazo ? (pv ? 'Encerrado' : rest) : '—') + '</b><span>' + (CUR.prazo ? (pv ? 'encerrado ' + rest : 'restante até o fechamento · aberta há ' + decorridoTxt(CUR.criadoEm)) : 'aberta há ' + decorridoTxt(CUR.criadoEm)) + '</span></div>' +
+      '<div class="pc-box"><small>Fornecedores</small><b>' + nResp + ' de ' + nConv + ' responderam</b><div class="pc-bar"><i style="width:' + pct + '%"></i></div><span>' + (nAb ? nAb + ' abriram sem finalizar · ' : '') + (nEnv ? nEnv + ' receberam o link · ' : '') + (nPend > 0 ? nPend + ' ainda sem envio' : (nAb || nEnv ? '' : 'todos tratados')) + '</span></div>' +
+    '</div>' +
+    (aberta ? '<div class="pc-edit"><div class="fld"><label>Novo fechamento (data e hora)</label><input type="datetime-local" id="ac-prazo" value="' + esc(prazoLocal(CUR.prazo)) + '" style="min-width:230px"></div><div class="fld"><label>&nbsp;</label><div class="acoes-row"><button class="btn primary" onclick="salvarPrazo($(\'#ac-prazo\').value)">' + (pv ? 'Liberar com este prazo' : 'Salvar prazo') + '</button><button class="btn ghost" onclick="adiarPrazo(1)">+1 dia</button><button class="btn ghost" onclick="adiarPrazo(2)">+2 dias</button><button class="btn ghost" onclick="adiarPrazo(7)">+1 semana</button></div></div></div>' : '<div class="mini" style="margin-top:8px">Cotação ' + esc(CUR.status) + ': o prazo não pode mais ser alterado.</div>') +
+    '<div class="suginfo">' + (pv ? '<span class="warn"><b>Vendedores bloqueados desde ' + dtFull(CUR.prazo) + '.</b> Escolha uma data e hora à frente e salve pra liberar a digitação.</span>' : '') + (CUR.prazoAlteradoEm ? '<span>Último ajuste do prazo em <b>' + dtFull(CUR.prazoAlteradoEm) + '</b>' + (CUR.prazoAlteradoPor ? ' por <b>' + esc(CUR.prazoAlteradoPor) + '</b>' : '') + '</span>' : '<span>Prazo não alterado desde a abertura.</span>') + '</div></div>';
   if (aberta) h += '<div class="acoes-row" style="margin-bottom:14px;align-items:center"><button class="btn primary" onclick="enviarTodos()">📨 Enviar para todos (um por um)</button><span class="mini">abre o WhatsApp de cada vendedor pendente, um de cada vez, com a mensagem pronta; você confere e envia no seu WhatsApp</span></div>';
   h += '<div class="sugtop" style="margin-bottom:14px"><h3>💬 Recado aos fornecedores <span class="mini" style="font-weight:600">· aparece fixo no topo da página de todos os vendedores desta cotação · só a comprador(a) altera</span></h3>' +
     '<div class="row" style="align-items:stretch"><div class="fld" style="flex:1;min-width:280px"><label>Mensagem</label><textarea id="ac-msg" rows="3" style="border:1px solid var(--ln2);border-radius:8px;padding:8px 10px;font-family:inherit;font-size:12.5px;resize:vertical" placeholder="ex.: Preços válidos até sexta. Entrega no CD (Jaboatão). Dúvidas, me chame no WhatsApp." maxlength="600">' + esc(CUR.mensagem || '') + '</textarea></div>' +
