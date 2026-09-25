@@ -206,11 +206,12 @@ async function removerTestesXml(){
 const br=s=>s?String(s).slice(0,10).split('-').reverse().join('/'):'';
 // linha do tempo (coluna Andamento): chegou = data da entrada no ERP + hora do coletor (ou hora em que o app viu a nota);
 // finalizado = hora de liberação/conferido do coletor (ou hora em que o app viu o Status F)
-function horaDe(s){ if(!s) return ''; const d=new Date(String(s).includes('T')?s:s.replace(' ','T')); return isNaN(d)?'':d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); }
+// mesmo formato das outras linhas (dt): "25/09, 10:14". "~" = hora em que o sistema viu, não a do ERP (o ERP só guarda a data).
+function dtLocal(s){ if(!s) return ''; return dt(String(s).includes('T')?s:String(s).replace(' ','T')); }
 function chegouTl(c){
-  const hEnt=c.horaEntrada?horaDe(c.horaEntrada):(c.detectadoEm?'~'+horaDe(c.detectadoEm):'');
-  let s='<div class="chg"><span>chegou</span> '+br(c.em)+(hEnt?', '+hEnt:'')+'</div>';
-  if(c.fechada) s+='<div class="chg fim"><span>finalizado</span> '+(c.fechadaEm?dt(c.fechadaEm):'')+(!c.horaFecho&&c.fechadaEm?' <i title="hora em que o sistema viu a nota fechada no ERP">~</i>':'')+'</div>';
+  const quando = c.horaEntrada ? dtLocal(c.horaEntrada) : (c.detectadoEm ? dtLocal(c.detectadoEm)+' <i title="hora em que o sistema viu a nota lançada; o ERP só guarda a data">~</i>' : br(c.em).slice(0,5));
+  let s='<div class="chg"><span>chegou</span> '+quando+'</div>';
+  if(c.fechada) s+='<div class="chg fim"><span>finalizado</span> '+(c.fechadaEm?dtLocal(c.fechadaEm):'')+(!c.horaFecho&&c.fechadaEm?' <i title="hora em que o sistema viu a nota fechada no ERP">~</i>':'')+'</div>';
   return s;
 }
 function chegouTxt(x){const c=x.chegou;if(!c)return'';return (c.fechada?'Nota fechada na loja':'Nota lançada na loja')+(c.em?' em '+br(c.em):'')+(c.de>1?' · '+c.notas+' de '+c.de+' notas':'')+(c.fechada?'':' · aguardando fechamento pela central');}
