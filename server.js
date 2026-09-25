@@ -7320,6 +7320,23 @@ app.get('/api/radar-pedidos/:listaId/itens', (req, res) => {
 // ═══════════════════════════════════════════════════
 const pedidosFornec = require('./lib/pedidos-fornecedor');
 pedidosFornec.init();
+// Migração única (Tiago, 25/09/2026): pedidos nascidos de COTAÇÃO antes da regra nova ficaram no formato antigo
+// (status "finalizado", linha única, avarias anexadas). Converte pra aprovado (uma linha por loja) e tira as avarias.
+// Roda uma vez; deixa a marca em data/migracao-cotacao-aprovado.json com o que mudou.
+(() => {
+  const marca = path.join(__dirname, 'data', 'migracao-cotacao-aprovado.json');
+  if (fs.existsSync(marca)) return;
+  const feitos = [];
+  for (const p of pedidosFornec.listar()) {
+    if (p.parametros?.origem !== 'cotacao' || p.teste) continue;
+    let mudou = false;
+    if (p.avarias) { delete p.avarias; pedidosFornec.salvar(p); mudou = true; }
+    if (p.status === 'finalizado') { const r = pedidosFornec.aprovar(p.id, 'migração cotação'); if (r && !r.erro) mudou = true; }
+    if (mudou) feitos.push({ id: p.id, cotacao: p.cotacao?.id || null, fornecedor: p.fornecedor, status: pedidosFornec.obter(p.id).status, lojas: p.lojas });
+  }
+  fs.writeFileSync(marca, JSON.stringify({ em: new Date().toISOString(), pedidos: feitos }, null, 2));
+  console.log('[PEDIDOS] migração cotação→aprovado por loja:', feitos.length, 'pedido(s)', feitos.map(x => '#' + x.id).join(' '));
+})();
 // Coletor de Recebimento (conferência cega): rotas públicas por token + internas do fiscal.
 // Fica aqui (depois de pedidosFornec.init()) porque xmlPorChave usa pedidosFornec.listar().
 require('./lib/recebimento-rotas')(app, { q, path, escreverERP, pedidosFornec, conferenciaXml: require('./lib/conferencia-xml'), logColetor, LOG_COLETOR_DIR, __dirname });
