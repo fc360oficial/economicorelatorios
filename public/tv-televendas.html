@@ -178,14 +178,21 @@ function mostrar() {
   clearTimeout(timer); timer = setTimeout(() => { idx++; mostrar(); }, CFG.segundos * 1000);
 }
 
+let VERSAO = null;
 function aplicar(dados) {
-  const cfgNova = JSON.stringify(dados.config);
-  const prodNovo = JSON.stringify(dados.produtos.map(p => [p.ean, p.preco, p.destaque, p.imagem]));
-  const recomeca = cfgNova !== JSON.stringify(CFG) || prodNovo !== assinatura;
+  // página nova publicada no servidor → recarrega a TV sozinha (sem ninguém ir lá apertar F5)
+  if (dados.versao) { if (VERSAO === null) VERSAO = dados.versao; else if (dados.versao !== VERSAO) { location.reload(); return; } }
+  const cfgMudou = JSON.stringify(dados.config) !== JSON.stringify(CFG);
+  const prodNovo = JSON.stringify(dados.produtos.map(p => [p.ean, p.preco, p.destaque, p.imagem, p.unidade, p.qtdEmbalagem]));
+  const prodMudou = prodNovo !== assinatura;
+  $('#aviso').hidden = true;
+  if (!cfgMudou && !prodMudou && SEQ.length) return;      // nada mudou: não mexe na lista que os slides estão usando
   CFG = dados.config; PRODUTOS = dados.produtos; assinatura = prodNovo;
   document.getElementById('tv').classList.toggle('am', CFG.tema === 'amarelo');
-  $('#aviso').hidden = true;
-  if (recomeca || !SEQ.length) { SEQ = montarSequencia(PRODUTOS, CFG); idx = 0; mostrar(); }
+  const pos = SEQ.length ? idx % SEQ.length : 0;
+  SEQ = montarSequencia(PRODUTOS, CFG);
+  idx = cfgMudou ? 0 : Math.min(pos, SEQ.length - 1);   // config nova recomeça; só preço/foto novos continuam de onde estava
+  mostrar();
 }
 function aviso(titulo, texto) { $('#aviso').innerHTML = `<img src="${LOGO}" alt="CAHU"><h1>${esc(titulo)}</h1><p>${esc(texto)}</p>`; $('#aviso').hidden = false; }
 

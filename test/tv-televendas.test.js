@@ -52,15 +52,28 @@ const CAT = new Map([
 test('cruzar junta ERP com catálogo, respeita soComFoto e marca destaques', () => {
   const com = m.cruzar(ERP, CAT, { soComFoto: true, destaques: ['222'] });
   assert.deepEqual(com.map(p => p.ean), ['111', '222', '444']);
-  assert.equal(com[2].unidade, 'UN'); assert.equal(com[2].qtdEmbalagem, 1);   // ERP diz UN → por unidade, sem "sai a R$ X a unidade"
-  assert.equal(com[1].unidade, 'CX'); assert.equal(com[1].qtdEmbalagem, 12);  // ERP sem unidade → app
+  assert.equal(com[2].unidade, 'UN'); assert.equal(com[2].qtdEmbalagem, 1);   // sem marcação no nome → por unidade, sem "sai a R$ X a unidade"
+  assert.equal(com[1].unidade, 'CX'); assert.equal(com[1].qtdEmbalagem, 12);  // "CX12" no nome
   assert.equal(com[0].preco, 39.54); assert.equal(com[0].qtdEmbalagem, 27); assert.equal(com[0].imagem, 'https://x/1.jpg');
   assert.equal(com[0].nome, 'ACHOC LIQ NESCAU 180ML CX27');   // nome é o do ERP
   assert.equal(com[1].destaque, true); assert.equal(com[0].destaque, false);
   const sem = m.cruzar(ERP, CAT, { soComFoto: false, destaques: [] });
   assert.equal(sem.length, 4);
   const s = sem.find(p => p.ean === '333');
-  assert.equal(s.imagem, null); assert.equal(s.unidade, 'CX'); assert.equal(s.qtdEmbalagem, 1);
+  assert.equal(s.imagem, null); assert.equal(s.unidade, 'CX'); assert.equal(s.qtdEmbalagem, 6);   // "CX6" no nome
+});
+
+test('embalagem vem da descrição do ERP (Unid e app não são confiáveis)', () => {
+  const e = m.embalagemDaDescricao;
+  assert.deepEqual(e('ACHOC NESCAU LIQ 180ML CX27'), { unidade: 'CX', qtdEmbalagem: 27 });
+  assert.deepEqual(e('AMAC DOWNY 1,5L VERAO TROPICAL CX C/9'), { unidade: 'CX', qtdEmbalagem: 9 });
+  assert.deepEqual(e('PACK COCA COLA SPRITE 350ML FD6'), { unidade: 'FD', qtdEmbalagem: 6 });   // marcação com número ganha da solta
+  assert.deepEqual(e('REFRI COCA COLA 350ML FD6'), { unidade: 'FD', qtdEmbalagem: 6 });
+  assert.deepEqual(e('ANTARCTICA PACK C2 GUARANA DE 1L'), { unidade: 'PACK', qtdEmbalagem: 2 });
+  assert.deepEqual(e('ABS BASICO ALWAYS C/A SUAVE CX 8PCT C32'), { unidade: 'CX', qtdEmbalagem: 8 });
+  assert.deepEqual(e('ALA LAVA ROUPAS EM PO 400G COCO'), { unidade: 'UN', qtdEmbalagem: 1 });
+  assert.deepEqual(e('BEM TE VI LAVA ROUPAS EM PO 4KG'), { unidade: 'UN', qtdEmbalagem: 1 });
+  assert.deepEqual(e('SABAO YPE CX'), { unidade: 'CX', qtdEmbalagem: 1 });
 });
 
 test('cruzar ignora estoque zerado e ordena por descrição', () => {

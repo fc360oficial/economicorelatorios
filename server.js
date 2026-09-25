@@ -7549,7 +7549,8 @@ app.get('/api/tv-televendas-publico/:token', async (req, res) => {
   try {
     const produtos = await tvTelevendas.carregarProdutos(false);
     const { token, atualizadoPor, ...config } = tvTelevendas.getConfig();
-    res.json({ config, produtos, geradoEm: (tvTelevendas.totais() || {}).geradoEm || null });
+    let versao = null; try { versao = fs.statSync(path.join(__dirname, 'public', 'tv-televendas.html')).mtimeMs; } catch (e) {}
+    res.json({ config, produtos, geradoEm: (tvTelevendas.totais() || {}).geradoEm || null, versao });
   } catch (err) { res.status(503).json({ error: 'Sem dados no momento: ' + err.message }); }
 });
 app.get('/api/pedidos-cd/config', (req, res) => res.json(pedidosCD.getConfig()));
