@@ -70,3 +70,24 @@ test('sem cadastro de validade (Validar=0) só avisa, item continua ok', async (
   assert.equal(r.item.estado, 'ok');
   assert.equal(r.item.aviso, 'sem_cadastro_validade');
 });
+
+test('bipeId repetido (fila offline reenviando): não soma de novo e devolve repetido:true', async () => {
+  setup(); const c = R.abrirNota({ loja: 3, nome: 'MAYRA', chave: '2626'.padEnd(44, '0'), nNota: '911219', fornecedor: 'M DIAS', codFornec: 540 });
+  const bipeId = 'bipe-1';
+  const r1 = await R.bipar(c.id, { cod: '7896213007386', quant: 10, emb: 24, validade: '2027-03-28', bipeId });
+  assert.equal(r1.resultado, 'ok'); assert.equal(r1.item.un, 240); assert.equal(r1.item.bipagens, 1); assert.ok(!r1.repetido);
+  const r2 = await R.bipar(c.id, { cod: '7896213007386', quant: 10, emb: 24, validade: '2027-03-28', bipeId });
+  assert.equal(r2.repetido, true); assert.equal(r2.resultado, 'ok');
+  const it = R.obter(c.id).itens['7896213007386'];
+  assert.equal(it.bipagens, 1); assert.equal(it.un, 240); assert.equal(it.quant, 10);
+  // bipeId novo continua somando normalmente
+  const r3 = await R.bipar(c.id, { cod: '7896213007386', quant: 1, emb: 24, validade: '2027-03-28', bipeId: 'bipe-2' });
+  assert.ok(!r3.repetido); assert.equal(r3.item.un, 264); assert.equal(r3.item.bipagens, 2);
+  // corrigir também é idempotente pelo bipeId
+  const c1 = await R.corrigir(c.id, { cod: '7896213007386', quant: 5, emb: 24, validade: '2027-03-28', bipeId: 'corr-1' });
+  assert.ok(!c1.repetido); assert.equal(R.obter(c.id).itens['7896213007386'].un, 120);
+  const c2 = await R.corrigir(c.id, { cod: '7896213007386', quant: 5, emb: 24, validade: '2027-03-28', bipeId: 'corr-1' });
+  assert.equal(c2.repetido, true); assert.equal(R.obter(c.id).itens['7896213007386'].un, 120);
+  // a visão da loja não vaza o controle interno de bipes
+  assert.ok(!('bipes_vistos' in R.visaoLoja(3, c.id)));
+});

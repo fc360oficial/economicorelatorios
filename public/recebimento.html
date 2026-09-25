@@ -56,7 +56,7 @@ body{font-family:var(--font);background:var(--pap);color:var(--ink);font-size:14
 .bar .right{margin-left:auto;font-size:11px;color:#AEB8CE;text-align:right;flex:none}
 .bar .voltar{background:transparent;border:0;color:#AEB8CE;font:inherit;font-size:19px;font-weight:700;cursor:pointer;padding:0 6px 0 0;flex:none}
 .acoes{display:flex;gap:8px;padding:10px 12px 2px}
-.acoes .btn{flex:1}
+.acoes .btn{flex:1;min-width:0;white-space:normal;height:auto;min-height:42px;padding:8px 10px;line-height:1.2}
 .corpo{flex:1;overflow-y:auto;padding:10px 12px 24px;display:flex;flex-direction:column;gap:10px}
 
 .pill{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;padding:3px 8px;border-radius:999px;white-space:nowrap}
@@ -96,10 +96,11 @@ body{font-family:var(--font);background:var(--pap);color:var(--ink);font-size:14
 .dev .kv span{line-height:1.25}
 .prog{display:flex;justify-content:space-between;gap:10px;font-size:11.5px;color:var(--ink2)}
 .prog b{color:var(--ink);font-variant-numeric:tabular-nums}
+.descartes{background:var(--negw);border:1px solid var(--neg);border-radius:var(--r-sm);padding:8px 10px;font-size:12px;color:var(--ink);display:flex;gap:8px;align-items:flex-start}
+.descartes .x{margin-left:auto;border:0;background:transparent;color:var(--neg);font-size:16px;font-weight:800;cursor:pointer;line-height:1;padding:0 2px;flex:none}
 .itens{display:flex;flex-direction:column;gap:6px}
 .it{display:grid;grid-template-columns:4px 1fr auto;gap:0 9px;border:1px solid var(--ln);border-radius:var(--r-sm);padding:7px 9px 7px 0;background:var(--crd);align-items:center;text-align:left;width:100%;font-family:var(--font);color:var(--ink)}
 .it .stripe{align-self:stretch;border-radius:0 2px 2px 0;background:var(--ln2)}
-.it.e-ok .stripe{background:var(--pos)}
 .it.e-bad .stripe{background:var(--neg)}
 .it.e-warn .stripe{background:var(--am)}
 .it .d{font-size:12.5px;font-weight:600;line-height:1.2}
@@ -224,6 +225,7 @@ body{font-family:var(--font);background:var(--pap);color:var(--ink);font-size:14
       <div>Você bipou <b id="pProd">0</b> produtos · <b id="pUn">0</b> unidades</div>
       <div id="pFila" style="color:var(--amk)"></div>
     </div>
+    <div id="pDescartes" class="descartes" hidden></div>
     <div id="cartao"></div>
     <div class="itens" id="bItens"></div>
   </div>
@@ -252,6 +254,12 @@ const NOMES_LOJA = { 1: 'CAHU', 2: 'MURIBECA', 3: 'PONTE', 4: 'ATACAREJO', 5: 'P
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 const num = n => { const v = +n || 0; return Number.isInteger(v) ? String(v) : String(+v.toFixed(3)); };
+// Coletor com armazenamento cheio (ou modo privado) faz setItem lançar. Nunca pode derrubar o fluxo:
+// avisa e segue — o que está na memória continua valendo e o envio pela rede acontece do mesmo jeito.
+function guardar(chave, valor) {
+  try { localStorage.setItem(chave, JSON.stringify(valor)); return true; }
+  catch (e) { toast('Sem espaço pra guardar offline', true); return false; }
+}
 
 let sess = null; try { sess = JSON.parse(localStorage.getItem(LS_SESSAO) || 'null'); } catch (e) {}
 let fila = []; try { fila = JSON.parse(localStorage.getItem(LS_FILA) || '[]'); } catch (e) {}
@@ -260,7 +268,7 @@ let cads = {}; try { cads = JSON.parse(localStorage.getItem(LS_CAD) || '{}'); } 
 function guardarCad(cod, c) {
   cads[cod] = { descricao: c.descricao, qtdemb: c.qtdemb, emb: c.emb };
   const ks = Object.keys(cads); if (ks.length > 3000) for (const k of ks.slice(0, 500)) delete cads[k];
-  try { localStorage.setItem(LS_CAD, JSON.stringify(cads)); } catch (e) {}
+  guardar(LS_CAD, cads);
 }
 let lojaSel = null;          // loja escolhida na tela de login
 let notas = [];              // /notas
@@ -291,7 +299,7 @@ async function entrar(ev) {
     const j = await r.json();
     if (!r.ok) { $('lerro').textContent = j.error || 'Não foi possível entrar.'; return; }
     sess = { loja: j.loja, token: j.token, nome: j.nome || nome.toUpperCase() };
-    localStorage.setItem(LS_SESSAO, JSON.stringify(sess));
+    guardar(LS_SESSAO, sess);
     iniciar();
   } catch (e) { $('lerro').textContent = 'Sem conexão. Tente de novo quando tiver sinal.'; }
 }
@@ -347,7 +355,12 @@ async function carregarNotas(manual) {
     setNet(true);
     $('nHora').innerHTML = 'atualizado<br>' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     if (manual) toast('Atualizado');
-  } catch (e) { setNet(false); if (manual) toast('Sem sinal pra atualizar', true); }
+  } catch (e) {
+    // erro do servidor (tem status) é diferente de estar sem rede: o primeiro precisa aparecer
+    // sempre, com a mensagem que veio, senão a lista fica velha e ninguém sabe por quê.
+    if (e.status) { setNet(true); toast(e.message || 'A central não respondeu.', true); }
+    else { setNet(false); if (manual) toast('Sem sinal pra atualizar', true); }
+  }
   renderNotas();
 }
 const pendente = n => !n.conferencia || n.conferencia.status === 'bipando' || n.conferencia.status === 'recontando';
@@ -394,7 +407,7 @@ function renderNotas() {
 function verConferidas() {
   const c = notas.filter(n => !pendente(n));
   abrirModal(`<h3>Notas já conferidas hoje (${c.length})</h3>` +
-    (c.length ? c.map(n => `<div class="msg"><div class="w">NF-e ${esc(n.nNota)} · ${esc(n.conferencia.status === 'liberada' ? 'liberada pela central' : 'aguardando a central')}</div>${esc(n.fornecedor)}</div>`).join('')
+    (c.length ? c.map(n => `<div class="msg"><div class="w">NF-e ${esc(n.nNota)} · aguardando a central</div>${esc(n.fornecedor)}</div>`).join('')
       : '<div class="tip">Nenhuma ainda.</div>') +
     '<button class="btn btn-secondary blk" onclick="fecharModal()">Fechar</button>');
 }
@@ -411,7 +424,7 @@ function voltarNotas() { cartao = null; ultimoBipado = null; $('cartao').innerHT
 
 // ── tela 3 · bipagem cega ──────────────────────────────────────────────────
 const ESTADO = {
-  ok: ['e-ok', ''],
+  ok: ['', ''],
   recusado: ['e-bad', 'recusado · devolver'],
   bloqueado_validade: ['e-bad', 'validade curta · bloqueado'],
   avaria: ['e-bad', 'avaria · devolver'],
@@ -434,7 +447,7 @@ function renderBip() {
       <div><div class="d">${esc(i.descricao)}</div><div class="c">${esc(meta)}</div></div>
       <div class="q"><b>${num(i.un)} un</b><small>${num(i.quant)} × ${num(i.emb)}</small></div></div>`;
   }).join('') : '<div class="vazio">Bipe o primeiro produto. Só o que você bipar aparece aqui.</div>';
-  atualizarBadge();
+  atualizarBadge(); renderDescartes();
   setNet(navigator.onLine);
 }
 const dataBr = s => { const p = String(s || '').split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0].slice(2) : String(s || ''); };
@@ -451,7 +464,12 @@ function aplicarDigitar() {
 }
 function toggleDigitar() { digitando = !digitando; aplicarDigitar(); }
 function pararDigitar() { if (digitando) { digitando = false; aplicarDigitar(); } }
-function focarBip() { const b = $('bip'); if (b && !cartao && tela === 'bipagem') { b.focus(); $('scanBox').classList.add('focus'); } }
+// Só devolve o foco pro leitor quando não há NADA na frente: cartão de quantidade, painel (chat ou
+// "corrigir qual produto"), câmera. Sem essa trava o refoco de 100 ms rouba cada tecla do chat.
+function podeFocarBip() {
+  return tela === 'bipagem' && !cartao && !chatAberto && !$('modal').innerHTML && $('camBox').hidden;
+}
+function focarBip() { if (!podeFocarBip()) return; const b = $('bip'); if (b) { b.focus(); $('scanBox').classList.add('focus'); } }
 $('bip').addEventListener('blur', () => { $('scanBox').classList.remove('focus'); setTimeout(focarBip, 100); });
 $('bip').addEventListener('focus', () => $('scanBox').classList.add('focus'));
 $('bip').addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); const c = $('bip').value.trim(); $('bip').value = ''; if (c) lerCodigo(c); } });
@@ -517,8 +535,14 @@ const AVISO_RESULTADO = {
   sem_validade: ['Faltou a validade deste produto.', true],
   nao_cadastrado: ['Produto não cadastrado. Chame a central.', true]
 };
+// Um id por bipe: se a rede cair depois do servidor aplicar mas antes da resposta chegar, o reenvio
+// da fila carrega o mesmo bipeId e o servidor devolve o resultado guardado em vez de somar de novo.
+const novoBipeId = () => {
+  try { if (crypto && crypto.randomUUID) return crypto.randomUUID(); } catch (e) {}
+  return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+};
 async function enviarBipe(acao, body) {
-  const corpo = { id: visao.id, cod: body.cod, quant: body.quant, emb: body.emb, validade: body.validade || '' };
+  const corpo = { id: visao.id, cod: body.cod, quant: body.quant, emb: body.emb, validade: body.validade || '', bipeId: novoBipeId() };
   aplicarLocal(acao, corpo);  // mostra na hora; a visão do servidor sobrescreve quando responder
   ultimoBipado = { cod: corpo.cod, descricao: ((visao.itens || []).find(i => i.cod === corpo.cod) || {}).descricao || (cads[corpo.cod] || {}).descricao || '' };
   renderBip(); focarBip();
@@ -532,7 +556,7 @@ async function enviarBipe(acao, body) {
   } catch (e) {
     if (e.status) { toast(e.message || 'Bipe recusado', true); await recarregarVisao(); return; }
     fila.push({ acao, body: corpo, em: Date.now() });
-    localStorage.setItem(LS_FILA, JSON.stringify(fila));
+    guardar(LS_FILA, fila);
     setNet(false);
     toast('Sem sinal · guardado no coletor');
   }
@@ -555,20 +579,42 @@ async function recarregarVisao() {
   try { visao = await api('/api/recebimento-publico/conferencia/' + encodeURIComponent(visao.id) + '?t=' + sess.token); renderBip(); } catch (e) {}
 }
 
+// bipes da fila que a central recusou (4xx): ficam à vista até o conferente dar ok, senão ele acha
+// que enviou e a quantidade no ERP fica menor do que ele contou.
+let descartes = [];
+function renderDescartes() {
+  const el = $('pDescartes'); if (!el) return;
+  el.hidden = !descartes.length;
+  if (!descartes.length) { el.innerHTML = ''; return; }
+  const txt = descartes.length === 1 ? '1 bipe não entrou: ' : descartes.length + ' bipes não entraram: ';
+  el.innerHTML = '<span><b>' + esc(txt) + '</b>' + esc(descartes.map(d => d.cod + ' — ' + d.erro).join(' · ')) + ' Bipe de novo.</span>' +
+    '<button class="x" type="button" onclick="limparDescartes()" title="Entendi">×</button>';
+}
+function limparDescartes() { descartes = []; renderDescartes(); }
+
 let enviandoFila = false;
 async function flush() {
   if (enviandoFila || !fila.length) return;
   enviandoFila = true;
+  let recusou = false;
   try {
     while (fila.length) {
       const f = fila[0];
-      const r = await post(f.acao, f.body).catch(err => { if (err.status) return { descartar: true }; throw err; });
-      fila.shift(); localStorage.setItem(LS_FILA, JSON.stringify(fila));
+      const r = await post(f.acao, f.body).catch(err => { if (err.status) return { recusado: err.message || 'recusado pela central' }; throw err; });
+      fila.shift(); guardar(LS_FILA, fila);
+      if (r && r.recusado) {
+        recusou = true;
+        descartes.push({ cod: (f.body && f.body.cod) || f.acao, erro: r.recusado });
+        if (descartes.length > 6) descartes = descartes.slice(-6);
+        continue;
+      }
       if (r && r.visao && visao && r.visao.id === visao.id) visao = r.visao;
     }
-    setNet(true); if (tela === 'bipagem') renderBip();
+    setNet(true);
+    if (recusou) { toast(descartes[descartes.length - 1].erro, true); await recarregarVisao(); }
+    if (tela === 'bipagem') renderBip();
   } catch (e) { setNet(false); }
-  finally { enviandoFila = false; }
+  finally { enviandoFila = false; renderDescartes(); }
 }
 
 function escolherCorrigir() {
@@ -596,7 +642,7 @@ const msgsDe = v => (v && v.mensagens) || [];
 const nCentrais = v => msgsDe(v).filter(m => m.de === 'central').length;
 function salvarVistos() {
   const ks = Object.keys(vistos); if (ks.length > 200) for (const k of ks.slice(0, 100)) delete vistos[k];
-  try { localStorage.setItem(LS_VISTOS, JSON.stringify(vistos)); } catch (e) {}
+  guardar(LS_VISTOS, vistos);
 }
 function naoLidas() { return !visao ? 0 : Math.max(0, nCentrais(visao) - (+vistos[visao.id] || 0)); }
 function marcarLidas() { if (!visao) return; vistos[visao.id] = nCentrais(visao); salvarVistos(); atualizarBadge(); }
@@ -677,7 +723,7 @@ async function enviarChat() {
     else {
       // mesma fila offline do bipe: a rota /chat aceita o mesmo corpo quando a rede voltar
       fila.push({ acao: 'chat', body: corpo, em: Date.now() });
-      try { localStorage.setItem(LS_FILA, JSON.stringify(fila)); } catch (x) {}
+      guardar(LS_FILA, fila);
       setNet(false); toast('Sem sinal · aviso guardado, sai sozinho quando a rede voltar.');
       fecharModal();
     }
@@ -713,11 +759,18 @@ async function pollVisao() {
 }
 
 // ── tela 4 · terminei ──────────────────────────────────────────────────────
+// origem 'coletor' cobre validade curta e avaria — o motivo do servidor diz qual, e é isso que o
+// motorista precisa ler no aviso.
 const ORIGEM_DEV = { compras: 'Compras', coletor: 'Coletor', falta: 'Falta' };
+function rotuloOrigem(d) {
+  const m = String((d && d.motivo) || '').toLowerCase();
+  if (d && d.origem === 'coletor') return /avaria/.test(m) ? 'Avaria' : /validade/.test(m) ? 'Validade' : 'Coletor';
+  return ORIGEM_DEV[d && d.origem] || (d && d.origem) || '';
+}
 function cardDevolucao(devs) {
   if (!Array.isArray(devs) || !devs.length) return '';
   return `<div class="card dev"><div class="t">Devolução · um aviso só pro motorista</div>
-    ${devs.map(d => `<div class="kv"><span>${esc(d.descricao || d.cod)}</span><b>${esc(ORIGEM_DEV[d.origem] || d.origem)} · ${num(d.qtd)} un</b></div>`).join('')}
+    ${devs.map(d => `<div class="kv"><span>${esc(d.descricao || d.cod)}</span><b>${esc(rotuloOrigem(d))} · ${num(d.qtd)} un</b></div>`).join('')}
     <div class="tip" style="text-align:left"><b>Compras</b> decidiu antes do caminhão (preço, não pedido, a mais). <b>Validade/avaria</b> nasce no coletor. <b>Falta</b> é o que a nota diz e não veio: sai por nota de devolução também, o motorista só assina.</div></div>`;
 }
 const MOT_PILL = { recontar: ['bad', 'recontar'], nao_bipado: ['warn', 'não bipado'], nao_esta_na_nota: ['warn', 'não está na nota'] };
@@ -739,7 +792,7 @@ function renderFim() {
   }
   const n = (f.recontar || []).length;
   $('fAcoes').innerHTML = '<button class="btn btn-primary" onclick="voltarBipagem()">Recontar</button>' +
-    (f.podeEnviar ? '<button class="btn btn-secondary" onclick="enviarAssim()">Recontei, está assim mesmo · enviar pra central</button>' : '');
+    (f.podeEnviar ? '<button class="btn btn-secondary" onclick="enviarAssim()">Enviar assim mesmo</button>' : '');
   $('fCorpo').innerHTML = `<div class="aviso"><b>${n} ${n === 1 ? 'produto não bateu' : 'produtos não bateram'} com a nota.</b> Reconte só ${n === 1 ? 'ele' : 'esses'}. A quantidade da nota continua escondida.</div>
     <div class="card"><div class="t">Recontar</div>${(f.recontar || []).map(r => {
       const p = MOT_PILL[r.motivo] || ['mut', r.motivo];
