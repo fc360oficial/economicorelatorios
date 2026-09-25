@@ -217,7 +217,7 @@ async function carregar(){
   aberto=null;DET={};DADOS=null;DOCS=null;MARG=null;$('#nDocs').textContent='';$('#nMargem').textContent='';
   $('#view').innerHTML='<div class="spinner"></div>';
   try{
-    if(tab==='receb'){DADOS=await fetch('/api/fiscal/recebimentos'+qs()).then(r=>r.json());if(DADOS.error)throw new Error(DADOS.error);CFG=DADOS.config;$('#nReceb').textContent=DADOS.recebimentos.length;await colCarregar();if(colTotalChamados===null)colTotalChamados=colTotal();if(ABRIR){const n=ABRIR;ABRIR=null;await toggle(n);return;}}
+    if(tab==='receb'){DADOS=await fetch('/api/fiscal/recebimentos'+qs()).then(r=>r.json());if(DADOS.error)throw new Error(DADOS.error);CFG=DADOS.config;$('#nReceb').textContent=DADOS.recebimentos.length;await colAtivoSync();if(COL_ATIVO){await colCarregar();if(colTotalChamados===null)colTotalChamados=colTotal();}if(ABRIR){const n=ABRIR;ABRIR=null;await toggle(n);return;}}
     else if(tab==='docs'){DOCS=await fetch('/api/fiscal/documentos'+qs()).then(r=>r.json());if(DOCS.error)throw new Error(DOCS.error);$('#nDocs').textContent=DOCS.length;}
     else{MARG=await fetch('/api/fiscal/margem'+qs()).then(r=>r.json());if(MARG.error)throw new Error(MARG.error);$('#nMargem').textContent=MARG.length;}
     render();
@@ -241,29 +241,29 @@ function renderReceb(){
   h+='<div class="kpis">'+kp.map(([k,l,v,s])=>'<div class="kpi k-'+k+(filtro===k?' on':'')+'" onclick="filtro=\''+k+'\';aberto=null;render()"><div class="v">'+v+'</div><div class="l">'+l+'</div><div class="s">'+s+'</div></div>').join('')+'</div>';
   h+='<div class="auto"><span>🤖 <b>Cruzamento automático:</b> '+all.length+' recebimento(s) analisados · <span class="pos">'+autoOk+' sem divergência</span> · <span class="neg">'+all.filter(r=>r.veredito==='divergente').length+' com divergência</span> · '+all.filter(r=>r.veredito==='pendente').length+' aguardando dados.</span><span class="mut" style="font-size:11px">Tolerâncias: qtd ±'+CFG.tol_qtd_pct+'% (balança ±'+CFG.tol_peso_pct+'%) · preço vs pedido +'+CFG.tol_preco_pct+'% · validade mín. '+CFG.validade_min_dias+' d ou '+CFG.validade_min_pct+'% do normal · boleto mín. '+CFG.boleto_min_dias+' d · margem mín. '+CFG.margem_min_pct+'%'+(DADOS.gerado_em?' · gerado '+new Date(DADOS.gerado_em).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'')+'</span></div>';
   h+='<div class="legend"><span class="chk"><i class="ok">OK</i></span> bate <span class="chk"><i class="aviso">AVISO</i></span> olhar depois <span class="chk"><i class="erro">ERRO</i></span> precisa de decisão <span class="chk"><i class="pendente">…</i></span> ainda sem dado &nbsp;·&nbsp; XML=nota capturada · PED=pedido de compra · QTD=coletor × nota · VAL=validade · BOL=boletos · MRG=margem/custo · CAD=cadastro</div>';
-  h+=colcfgHtml();
+  if(COL_ATIVO)h+=colcfgHtml();
   let lista=all.filter(passaBusca).filter(r=>filtro==='todos'||(filtro==='fila'?FILA(r):filtro==='aguardando'?['aguardando_coletor','em_contagem'].includes(r.situacao):r.situacao===filtro));
   const ordem={excecao:0,reconferir:1,conferido:2,pronto:3,em_contagem:4,aguardando_coletor:5,bloqueado:6,liberado:7,cancelado:8};
   lista.sort((a,b)=>(a.loja-b.loja)||(ordem[a.situacao]-ordem[b.situacao])||String(a.hora_entrada||'').localeCompare(String(b.hora_entrada||'')));
   $('#cnt').textContent=lista.length+' de '+all.length;
   if(!lista.length){h+='<div class="empty">'+(all.length?'Nada nesse filtro.':'Nenhuma conferência bipada nas lojas nesse período.')+'</div>';$('#view').innerHTML=h;return;}
   const todas=!$('#loja').value;
-  h+='<div class="table-wrap"><table class="t"><thead><tr><th>Conf.</th><th>Entrada</th><th>Fornecedor · notas</th><th>Coletor</th><th>Coletor Econômico<span class="colerro" id="colAviso" hidden> · sem atualização</span></th><th>Cruzamento automático</th><th class="r">Valor NF-e</th><th>Boleto</th><th>Situação</th><th>Ação</th></tr></thead><tbody>';
+  h+='<div class="table-wrap"><table class="t"><thead><tr><th>Conf.</th><th>Entrada</th><th>Fornecedor · notas</th><th>Coletor</th>'+(COL_ATIVO?'<th>Coletor Econômico<span class="colerro" id="colAviso" hidden> · sem atualização</span></th>':'')+'<th>Cruzamento automático</th><th class="r">Valor NF-e</th><th>Boleto</th><th>Situação</th><th>Ação</th></tr></thead><tbody>';
   let lojaAtual=null;
   for(const r of lista){
-    if(todas&&r.loja!==lojaAtual){lojaAtual=r.loja;const dl=all.filter(x=>x.loja===r.loja);h+='<tr class="loja"><td colspan="10"><b>'+LJ(r.loja)+'</b>'+esc(r.loja_nome)+'<span>'+dl.length+' recebimentos · '+dl.filter(FILA).length+' precisam de você · '+dl.filter(x=>x.situacao==='pronto').length+' prontos · '+dl.filter(x=>x.situacao==='liberado').length+' liberados</span></td></tr>';}
+    if(todas&&r.loja!==lojaAtual){lojaAtual=r.loja;const dl=all.filter(x=>x.loja===r.loja);h+='<tr class="loja"><td colspan="'+(COL_ATIVO?10:9)+'"><b>'+LJ(r.loja)+'</b>'+esc(r.loja_nome)+'<span>'+dl.length+' recebimentos · '+dl.filter(FILA).length+' precisam de você · '+dl.filter(x=>x.situacao==='pronto').length+' prontos · '+dl.filter(x=>x.situacao==='liberado').length+' liberados</span></td></tr>';}
     const op=r.open;
     h+='<tr class="row'+(aberto===r.nReg?' open':'')+(r.teste?' teste':'')+'" onclick="toggle('+r.nReg+')"><td><span class="nm mono">'+r.nReg+'</span>'+(todas?'':'<span class="erp">'+LJ(r.loja)+'</span>')+'</td>';
     h+='<td><span class="nm">'+hh(r.hora_entrada)+'</span><span class="erp">'+dbr2(r.entrada)+' · '+esc(r.operador_loja||'')+'</span></td>';
     h+='<td class="forn"><span class="nm">'+esc(r.fornecedor)+'</span>'+(r.obs_compradora?'<div class="sub" style="color:#6B4E00;background:#FFF6D9;border:1px solid #EFD98F;border-radius:6px;padding:2px 6px;margin-top:3px" title="Observação do(a) comprador(a) no pedido de compra">💬 <b>Comprador(a):</b> '+esc(r.obs_compradora)+'</div>':'')+'<div class="sub">'+(r.notas.length?r.notas.map(n=>'NF '+(n.nNota||'?')+(n.movimentacao&&n.movimentacao!=='COMPRA'?' <span class="warn">'+esc(n.movimentacao)+'</span>':'')+(n.xml?'':' <span class="neg">sem XML</span>')).join(' · '):'<span class="mut">nenhuma nota associada</span>')+(r.pedidos.length?' · <span class="mut">pedido '+r.pedidos.map(p=>p.nPedido).join(', ')+'</span>':'')+'</div></td>';
     h+='<td>'+(r.qtd_itens_coletor?'<span class="nm">'+r.qtd_itens_coletor+' itens</span><span class="erp">de '+r.qtd_itens_xml+' na nota</span>':'<span class="mut">—</span>')+'</td>';
-    h+='<td class="col-cel" id="colcel-'+r.nReg+'" onclick="event.stopPropagation();colClick('+r.nReg+')" title="Conversa da loja com a central neste recebimento">'+colCelula(r)+'</td>';
+    if(COL_ATIVO)h+='<td class="col-cel" id="colcel-'+r.nReg+'" onclick="event.stopPropagation();colClick('+r.nReg+')" title="Conversa da loja com a central neste recebimento">'+colCelula(r)+'</td>';
     h+='<td><span class="chk">'+CHK.filter(([k])=>r.checks[k]).map(([k,l])=>'<i class="'+r.checks[k].nivel+'" title="'+esc(r.checks[k].msg)+'">'+l+'</i>').join('')+'</span>'+(r.erros?'<span class="erp" style="color:var(--neg)">'+r.excecoes.length+' item(ns) com erro</span>':'')+'</td>';
     h+='<td class="r">'+(r.valor_xml?money(r.valor_xml):'<span class="mut">—</span>')+'</td>';
     h+='<td>'+(r.boletos.length?'<span class="nm">'+dbr2(r.boletos[0].vencimento)+'</span><span class="erp">'+r.boletos.length+' parc. · '+r.primeiro_boleto_dias+' d</span>':'<span class="mut">—</span>')+'</td>';
     h+='<td><span class="pill st-'+r.situacao+'">'+SIT[r.situacao]+'</span><span class="erp">ERP: '+esc(r.status_erp_nome)+(r.decisao?' · '+esc(r.decisao.por||'fiscal')+' '+r.decisao.acao:'')+'</span></td>';
     h+='<td class="acao" onclick="event.stopPropagation()">'+botoes(r,true)+'</td></tr>';
-    if(aberto===r.nReg)h+='<tr class="det"><td colspan="10" onclick="event.stopPropagation()">'+(DET[r.nReg]?detalhe(DET[r.nReg]):'<div class="spinner"></div>')+'</td></tr>';
+    if(aberto===r.nReg)h+='<tr class="det"><td colspan="'+(COL_ATIVO?10:9)+'" onclick="event.stopPropagation()">'+(DET[r.nReg]?detalhe(DET[r.nReg]):'<div class="spinner"></div>')+'</td></tr>';
   }
   h+='</tbody></table></div>';
   $('#view').innerHTML=h;
@@ -318,7 +318,7 @@ function detalhe(d){
   if(!d.itens.length)h+='<tr><td colspan="8" class="mut">Sem itens: nem XML nem contagem do coletor ainda.</td></tr>';
   h+='</tbody></table></div>';
   h+='<div class="acoes"><input id="obs-'+d.nReg+'" placeholder="Observação (opcional) — vai junto com a decisão">'+botoes(d,false)+'</div></div>';
-  h+=ecoSecao(d);
+  if(COL_ATIVO)h+=ecoSecao(d);
   return h;
 }
 /* ── Coletor Econômico no detalhe da nota: itens bipados, devolução e ações ──
@@ -509,7 +509,8 @@ const COL_ACAO=[['pode_receber','Pode receber'],['devolver','Devolver'],['libera
 const COL_ACAO_TXT=Object.fromEntries(COL_ACAO);
 const COL_MOTIVO={codigo_nao_cadastrado:'Código não cadastrado',avaria:'Avaria',validade:'Validade',nao_esta_na_nota:'Não está na nota',outro:'Outro'};
 const COL_BTN={pode_receber:'btn-green',devolver:'btn-red',liberar_validade:'btn-amber',aguarde:'btn-slate'};
-let COL=[],COLIDX={},colTotalChamados=null,colTimer=null,colDrw=null,colMudo=false;
+let COL=[],COLIDX={},colTotalChamados=null,colTimer=null,colDrw=null,colMudo=false,COL_ATIVO=false; /* COL_ATIVO: integração do Coletor Econômico no Fiscal (chave fiscal_ativo em data/recebimento/recebimento-config.json). Desligada = tela igual à de antes, só Dlinks. */
+async function colAtivoSync(){try{const c=await fetch('/api/recebimento/config').then(r=>r.json());COL_ATIVO=!!(c&&c.fiscal_ativo);}catch(e){COL_ATIVO=false;}}
 let colErro=false,colBusy=false,drwCod=null;   /* drwCod = código QUE ESTÁ NA TELA do painel */
 let drwRender=null;   /* o que o painel está mostrando agora, pra não refazer à toa */
 function colDiaMudou(){colTotalChamados=null;}   /* outro dia = outra contagem de chamados */
@@ -561,7 +562,7 @@ function colBeep(){
 function toggleMudo(){colMudo=!colMudo;try{localStorage.setItem('fiscal_col_mudo',colMudo?'1':'0');}catch(e){}renderMudo();}
 function renderMudo(){const b=$('#btnMudo');if(!b)return;b.textContent=colMudo?'🔇 Som do coletor':'🔔 Som do coletor';b.title=colMudo?'Som desligado — clique pra ligar':'Toca um bipe quando a loja chama a central';}
 
-function colTimerSync(){clearInterval(colTimer);colTimer=null;if(tab==='receb'&&!document.hidden)colTimer=setInterval(colPoll,15000);}
+function colTimerSync(){clearInterval(colTimer);colTimer=null;if(COL_ATIVO&&tab==='receb'&&!document.hidden)colTimer=setInterval(colPoll,15000);}
 async function colPoll(){
   if(tab!=='receb'||document.hidden||colBusy)return;   /* colBusy: nunca dois polls em voo */
   colBusy=true;
@@ -579,7 +580,7 @@ async function colPoll(){
 }
 /* Ao voltar pra aba, o poll roda na hora e compara com o último total conhecido: o que chegou
    com a aba escondida bipa uma vez só, em vez de passar batido. */
-document.addEventListener('visibilitychange',function(){colTimerSync();if(!document.hidden&&tab==='receb')colPoll();});
+document.addEventListener('visibilitychange',function(){colTimerSync();if(COL_ATIVO&&!document.hidden&&tab==='receb')colPoll();});
 
 /* painel lateral: histórico da nota + respostas rápidas (ações no topo) */
 function abrirDrw(id){colDrw=id;renderDrw();}
