@@ -7572,7 +7572,7 @@ async function cadastroLista(id) {
 
 // cria 1 pedido por lista selecionada
 // Link público dos pedidos ao fornecedor: SEMPRE o endereço externo (DDNS via Caddy), nunca o
-// endereço que a comprador(a) usou pra abrir o sistema (se ela entrou por IP interno, o vendedor
+// endereço que o(a) comprador(a) usou pra abrir o sistema (se ela entrou por IP interno, o vendedor
 // receberia um link que não abre de fora). Troque PUBLIC_URL no ambiente quando houver domínio próprio.
 const PUBLIC_URL = (process.env.PUBLIC_URL || 'https://hhk0a8gt2cn.sn.mynetname.net').replace(/\/$/, '');
 const linkPedido = p => `${PUBLIC_URL}/pedido/${p.token}`;
@@ -7598,7 +7598,7 @@ app.post('/api/pedidos-fornecedor', async (req, res) => {
       if (!det) { semItens.push({ lista: id, motivo: 'lista não encontrada ou radar calculando' }); continue; }
       const soCurvaA = (modo[id] || modo[String(id)]) === 'curva_a';
       if (soCurvaA) for (const it of det.itens) if (!it.bloco_a) { for (const ln of Object.keys(it.lojas_qtd)) it.lojas_qtd[ln] = 0; it.qtd = 0; it.volumes = 0; it.total = 0; }
-      // quantidades editadas pela comprador(a) na tela (por produto e loja) sobrepõem o cálculo
+      // quantidades editadas pelo(a) comprador(a) na tela (por produto e loja) sobrepõem o cálculo
       const aj = ajustes[id] || ajustes[String(id)] || {};
       if (substituir) { for (const it of det.itens) { for (const ln of Object.keys(it.lojas_qtd)) it.lojas_qtd[ln] = 0; it.qtd = 0; it.volumes = 0; it.total = 0; } for (const c of Object.keys(aj)) if (!det.itens.some(i => String(i.cod) === String(c))) naoEncontrados.push(c); }
       for (const it of det.itens) {
@@ -7818,7 +7818,7 @@ app.get('/pedido/:token/pdf', (req, res) => {
 app.get('/pedido/:token', (req, res) => {
   const pt = pedidosFornec.porToken(req.params.token);
   if (!pt) return res.status(404).send('Pedido não encontrado');
-  if (pt.status === 'cancelado') return res.status(410).send('<!doctype html><meta charset=utf-8><body style="font-family:sans-serif;padding:40px;text-align:center;color:#4E5A72"><h2>Este pedido foi cancelado</h2><p>O link não está mais válido. Em caso de dúvida, fale com a comprador(a).</p></body>');
+  if (pt.status === 'cancelado') return res.status(410).send('<!doctype html><meta charset=utf-8><body style="font-family:sans-serif;padding:40px;text-align:center;color:#4E5A72"><h2>Este pedido foi cancelado</h2><p>O link não está mais válido. Em caso de dúvida, fale com o(a) comprador(a).</p></body>');
   res.sendFile(path.join(__dirname, 'public', 'pedido-fornecedor.html'));
 });
 app.get('/api/pedido-publico/:token', (req, res) => {
@@ -7915,7 +7915,7 @@ app.get('/api/cotacoes/sugestao/:lista', async (req, res) => {
     const cobertura = Math.max(3, Math.min(120, parseFloat(req.query.cobertura) || radarPedidos.TETO_PADRAO));
     const ponto = Math.max(0, Math.min(60, req.query.ponto == null || req.query.ponto === '' ? 3 : (parseFloat(req.query.ponto) || 0)));
     const embMeses = req.query.emb == null || req.query.emb === '' ? undefined : Math.max(0, Math.min(36, parseInt(req.query.emb) || 0));
-    // trânsito que a comprador(a) mandou NÃO contar (tag "não conto" na tela): "cod:loja,cod:loja"
+    // trânsito que o(a) comprador(a) mandou NÃO contar (tag "não conto" na tela): "cod:loja,cod:loja"
     const ignorarTransito = new Set(String(req.query.sem_transito || '').split(',').map(s => s.trim()).filter(Boolean).slice(0, 500).map(s => { const [c, l] = s.split(':'); return String(c || '').trim() + '|' + (parseInt(l) || 0); }));
     const det = radarPedidos.itensLista(id, cobertura, 0, embMeses, false, { alvo: cobertura, ponto }, { ignorarTransito });
     if (!det) return res.status(404).json({ error: radarPedidos.getEstado().status === 'ok' ? 'Lista ' + id + ' não encontrada no Radar (confira o nº no ERP; lista sem nenhuma loja marcada não entra)' : 'Radar ainda calculando, tente em instantes', estado: radarPedidos.getEstado() });
@@ -7994,7 +7994,7 @@ app.get('/api/cotacoes/fornecedor/:codFornec/contato', async (req, res) => {
 // Fornecedores DA LISTA (Tiago, 15/09): os que ele escolheu ficam guardados por lista (data/cotacoes-fornecedores.json)
 // e o ERP sugere quem atende os produtos da lista (fornecedoritens), com vendedor/whats de c_cotacao_agenda.
 const COT_FORN_PATH = path.join(__dirname, 'data', 'cotacoes-fornecedores.json');
-// Conciliação planilha × ERP aprovada/recusada pela comprador(a) (Tiago, 22/09: "aprovando você já entende daqui pra frente").
+// Conciliação planilha × ERP aprovada/recusada pelo(a) comprador(a) (Tiago, 22/09: "aprovando você já entende daqui pra frente").
 // { aprovados: { NOME_NORMALIZADO: { codFornec, nome_erp, em, por } }, recusados: { NOME_NORMALIZADO: [codFornec…] } }
 // Semente com o que o Tiago ensinou na mão: DLP = Distribuidora e Logística de Pernambuco (206), CADAN = Comercial Vita
 // Norte (31), STYLO OURO = Gold Style Imp. e Exp. Alimentos (1311).
@@ -8320,7 +8320,7 @@ app.post('/api/cotacoes/:id/pre-pedido/:codFornec/realizar', async (req, res) =>
     res.json(cotDetalhe(r));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
-// mensagem da comprador(a) + WhatsApp dela (fica fixa no topo da página do vendedor; só quem está logado edita)
+// mensagem do(a) comprador(a) + WhatsApp dela (fica fixa no topo da página do vendedor; só quem está logado edita)
 // prazo da cotação com data e hora; adiar libera os vendedores bloqueados (Tiago, 23/09/26)
 app.post('/api/cotacoes/:id/prazo', (req, res) => {
   const id = cotId(req); if (!id) return res.status(400).json({ error: 'id inválido' });
@@ -8368,7 +8368,7 @@ app.post('/api/cotacoes/:id/cancelar', (req, res) => {
   res.json(cotDetalhe(r));
 });
 // Fechar: 1 pedido por fornecedor vencedor, já com os preços digitados → "finalizado" em Pedidos de Compra
-// (a comprador(a) aprova lá; PDF, conferência XML e ruptura de entrega seguem iguais ao Radar)
+// (o(a) comprador(a) aprova lá; PDF, conferência XML e ruptura de entrega seguem iguais ao Radar)
 app.post('/api/cotacoes/:id/fechar', async (req, res) => {
   try {
     const id = cotId(req); if (!id) return res.status(400).json({ error: 'id inválido' });
@@ -8383,7 +8383,7 @@ app.post('/api/cotacoes/:id/fechar', async (req, res) => {
 app.get('/cotacao/:token', (req, res) => {
   const r = cotacao.porToken(req.params.token);
   if (!r) return res.status(404).send('Cotação não encontrada');
-  if (r.c.status === 'cancelada') return res.status(410).send('<!doctype html><meta charset=utf-8><body style="font-family:sans-serif;padding:40px;text-align:center;color:#4E5A72"><h2>Esta cotação foi cancelada</h2><p>O link não está mais válido. Em caso de dúvida, fale com a comprador(a).</p></body>');
+  if (r.c.status === 'cancelada') return res.status(410).send('<!doctype html><meta charset=utf-8><body style="font-family:sans-serif;padding:40px;text-align:center;color:#4E5A72"><h2>Esta cotação foi cancelada</h2><p>O link não está mais válido. Em caso de dúvida, fale com o(a) comprador(a).</p></body>');
   res.set('Cache-Control', 'no-store, max-age=0');   // link do vendedor abre no navegador do WhatsApp, que guarda a página velha (Tiago, 25/09: 'não subiu ainda')
   res.sendFile(path.join(__dirname, 'public', 'cotacao-fornecedor.html'));
 });
