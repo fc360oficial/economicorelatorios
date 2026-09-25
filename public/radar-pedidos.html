@@ -184,7 +184,7 @@ table.main-t td.sel input,table.main-t th.sel input{width:15px;height:15px;accen
   <div class="page-hdr">
     <div>
       <h1>Radar de Pedidos</h1>
-      <p>Calcula, pra todas as listas, em que dia a lista precisa ser feita e quanto pedir pra manter a cobertura alvo. Nada é gravado no ERP: a compradora confere e lança no Dlinks como hoje. Todo dia o sistema guarda o que pediria (modo sombra) pra comparar com o que foi pedido de verdade.</p>
+      <p>Calcula, pra todas as listas, em que dia a lista precisa ser feita e quanto pedir pra manter a cobertura alvo. Nada é gravado no ERP: a comprador(a) confere e lança no Dlinks como hoje. Todo dia o sistema guarda o que pediria (modo sombra) pra comparar com o que foi pedido de verdade.</p>
     </div>
     <div class="estado" id="estado">carregando…</div>
   </div>
@@ -479,13 +479,13 @@ function renderSombra(){
   if(!SOMBRA){ $('#view').innerHTML='<div class="spinner"></div>'; carregarSombra().then(()=>{ if(tab==='sombra') renderSombra(); }); return; }
   const comp=$('#fComp').value; const linhas=SOMBRA.linhas.filter(l=>!comp||l.comprador===comp);
   const t={ambos:0,so_sistema:0,so_compradora:0,sis:0,real:0}; for(const l of linhas){t[l.caso]++;t.sis+=l.sistema;t.real+=l.real;}
-  let h='<div class="aviso"><b>Fase 0, modo sombra.</b> Todo dia o radar grava o que pediria. Aqui isso é comparado com as sugestões que as compradoras criaram no ERP no mesmo dia (valor da sugestão, a preço do ERP; o do sistema é a custo, então compare a ordem de grandeza e o <i>momento</i>, não o centavo). Snapshots guardados: <b>'+SOMBRA.snapshots+'</b>'+(SOMBRA.erro?' · erro: '+esc(SOMBRA.erro):'')+'</div>';
-  h+='<div class="totais"><div class="tkpi"><div class="v">'+t.ambos+'</div><div class="l">Sistema e compradora no mesmo dia</div></div><div class="tkpi"><div class="v amb">'+t.so_sistema+'</div><div class="l">Só o sistema pediria</div></div><div class="tkpi"><div class="v">'+t.so_compradora+'</div><div class="l">Só a compradora pediu</div></div><div class="tkpi"><div class="v">'+money(t.sis)+'</div><div class="l">Total sistema (custo)</div></div><div class="tkpi"><div class="v">'+money(t.real)+'</div><div class="l">Total compradoras (ERP)</div></div></div>';
+  let h='<div class="aviso"><b>Fase 0, modo sombra.</b> Todo dia o radar grava o que pediria. Aqui isso é comparado com as sugestões que as compradores(as) criaram no ERP no mesmo dia (valor da sugestão, a preço do ERP; o do sistema é a custo, então compare a ordem de grandeza e o <i>momento</i>, não o centavo). Snapshots guardados: <b>'+SOMBRA.snapshots+'</b>'+(SOMBRA.erro?' · erro: '+esc(SOMBRA.erro):'')+'</div>';
+  h+='<div class="totais"><div class="tkpi"><div class="v">'+t.ambos+'</div><div class="l">Sistema e comprador(a) no mesmo dia</div></div><div class="tkpi"><div class="v amb">'+t.so_sistema+'</div><div class="l">Só o sistema pediria</div></div><div class="tkpi"><div class="v">'+t.so_compradora+'</div><div class="l">Só a comprador(a) pediu</div></div><div class="tkpi"><div class="v">'+money(t.sis)+'</div><div class="l">Total sistema (custo)</div></div><div class="tkpi"><div class="v">'+money(t.real)+'</div><div class="l">Total compradores(as) (ERP)</div></div></div>';
   if(!linhas.length){ h+='<div class="empty">Ainda sem dias pra comparar. O primeiro snapshot é gravado no primeiro cálculo do radar; a comparação ganha sentido depois de 1 a 2 semanas.</div>'; $('#view').innerHTML=h; return; }
-  h+='<div class="table-wrap"><table class="main-t"><thead><tr><th>Dia</th><th>Lista</th><th>Comprador</th><th>Caso</th><th class="r">Sistema pediria (custo)</th><th class="r">Itens</th><th class="r">Compradora pediu (ERP)</th><th class="r">Lojas</th><th class="r">Cobertura no dia</th><th class="r">Rupturas no dia</th></tr></thead><tbody>';
+  h+='<div class="table-wrap"><table class="main-t"><thead><tr><th>Dia</th><th>Lista</th><th>Comprador</th><th>Caso</th><th class="r">Sistema pediria (custo)</th><th class="r">Itens</th><th class="r">Comprador(a) pediu (ERP)</th><th class="r">Lojas</th><th class="r">Cobertura no dia</th><th class="r">Rupturas no dia</th></tr></thead><tbody>';
   const ORD={ambos:0,so_sistema:1,so_compradora:2};
   for(const l of linhas.sort((a,b)=>b.dia.localeCompare(a.dia)||(ORD[a.caso]-ORD[b.caso])||b.real-a.real)){
-    const caso=l.caso==='ambos'?'<span class="pill p-ok">ambos</span>':l.caso==='so_sistema'?'<span class="pill p-breve">só sistema</span>':'<span class="pill p-cinza">só compradora</span>';
+    const caso=l.caso==='ambos'?'<span class="pill p-ok">ambos</span>':l.caso==='so_sistema'?'<span class="pill p-breve">só sistema</span>':'<span class="pill p-cinza">só comprador(a)</span>';
     const key=l.dia+'|'+l.lista;
     h+='<tr class="lst'+(sombraAberta===key?' open':'')+'" data-key="'+key+'"><td>'+br(l.dia)+'</td><td><div class="nm">'+esc(l.nome)+'<span>#'+l.lista+'</span></div></td><td>'+esc(l.comprador||'—')+'</td><td>'+caso+'</td><td class="r">'+(l.sistema?money(l.sistema):'<span class="mut">—</span>')+'</td><td class="r">'+(l.sistema_itens||'')+'</td><td class="r">'+(l.real?money(l.real):'<span class="mut">—</span>')+'</td><td class="r">'+(l.real_lojas||'')+'</td><td class="r">'+fmt(l.cobertura,0)+' d</td><td class="r '+(l.rupturas?'neg':'')+'">'+l.rupturas+'</td></tr>';
     if(sombraAberta===key) h+='<tr class="det"><td colspan="10"><div class="box" id="sdet"><div class="spinner"></div></div></td></tr>';
@@ -500,11 +500,11 @@ async function carregarSombraDetalhe(key){
   try{
     const r=await fetch('/api/radar-pedidos/sombra/'+dia+'/'+lista); const j=await r.json(); if(j.error) throw new Error(j.error);
     const t=j.totais;
-    let h='<div class="hd"><div><b>'+esc(j.lista.nome||('#'+lista))+'</b> · '+br(dia)+' · compradora × sistema, produto a produto</div><div>compradora <b>'+money(t.compradora)+'</b> ('+t.itens_compradora+' itens) · sistema <b>'+money(t.sistema)+'</b> ('+t.itens_sistema+' itens) · em comum <b>'+t.ambos+'</b></div></div>';
+    let h='<div class="hd"><div><b>'+esc(j.lista.nome||('#'+lista))+'</b> · '+br(dia)+' · comprador(a) × sistema, produto a produto</div><div>comprador(a) <b>'+money(t.compradora)+'</b> ('+t.itens_compradora+' itens) · sistema <b>'+money(t.sistema)+'</b> ('+t.itens_sistema+' itens) · em comum <b>'+t.ambos+'</b></div></div>';
     if(!j.tem_itens_sistema) h+='<div class="aviso" style="margin:10px 14px">Este dia não tem as quantidades do sistema guardadas (snapshot anterior a essa versão). A partir de hoje todo snapshot guarda produto a produto.</div>';
-    h+='<div style="overflow-x:auto"><table><thead><tr><th>Produto</th><th class="r">Estoque</th><th class="r">Cobertura</th><th class="r">Venda/dia</th><th class="r">Compradora pediu</th><th class="r">R$ ERP</th><th class="r">Sistema pediria</th><th class="r">R$ custo</th><th class="r">Diferença</th><th class="obs">Leitura</th></tr></thead><tbody>';
+    h+='<div style="overflow-x:auto"><table><thead><tr><th>Produto</th><th class="r">Estoque</th><th class="r">Cobertura</th><th class="r">Venda/dia</th><th class="r">Comprador(a) pediu</th><th class="r">R$ ERP</th><th class="r">Sistema pediria</th><th class="r">R$ custo</th><th class="r">Diferença</th><th class="obs">Leitura</th></tr></thead><tbody>';
     for(const l of j.linhas){
-      const leitura = l.caso==='so_compradora' ? (l.cobertura!=null&&l.cobertura>28?'compradora pediu com '+fmt(l.cobertura,0)+' d de cobertura':'só a compradora') : l.caso==='so_sistema' ? (l.estoque===0?'sistema pediria: estoque zero':'só o sistema') : (Math.abs(l.diff)<=(l.emb||1)?'bateu':(l.diff>0?'compradora pediu mais':'sistema pediria mais'));
+      const leitura = l.caso==='so_compradora' ? (l.cobertura!=null&&l.cobertura>28?'comprador(a) pediu com '+fmt(l.cobertura,0)+' d de cobertura':'só a comprador(a)') : l.caso==='so_sistema' ? (l.estoque===0?'sistema pediria: estoque zero':'só o sistema') : (Math.abs(l.diff)<=(l.emb||1)?'bateu':(l.diff>0?'comprador(a) pediu mais':'sistema pediria mais'));
       h+='<tr class="'+(l.caso==='ambos'?'pede':'')+'"><td class="desc">'+esc(l.descricao)+cdTag(l.cod)+'<span class="cod">'+esc(l.cod)+(l.compradora_lojas?' · L'+l.compradora_lojas.replace(/,/g,' L'):'')+'</span></td><td class="r">'+(l.estoque==null?'—':fmt(l.estoque,0))+'</td><td class="r '+(l.cobertura!=null&&l.cobertura<=3?'neg':'')+'">'+(l.cobertura==null?'—':fmt(l.cobertura,0)+' d')+'</td><td class="r">'+(l.venda_dia==null?'—':fmt(l.venda_dia,2))+'</td>'+
         '<td class="r"><span class="qtd">'+(l.compradora_qtd?fmt(l.compradora_qtd,0):'')+'</span></td><td class="r">'+(l.compradora_total?money(l.compradora_total):'')+'</td><td class="r"><span class="qtd">'+(l.sistema_qtd?fmt(l.sistema_qtd,0):'')+'</span></td><td class="r">'+(l.sistema_total?money(l.sistema_total):'')+'</td>'+
         '<td class="r '+(l.diff>0?'neg':(l.diff<0?'pos':''))+'">'+(l.diff?(l.diff>0?'+':'')+fmt(l.diff,0):'')+'</td><td class="mut obs">'+leitura+'</td></tr>';
@@ -532,7 +532,7 @@ function renderRegras(){
   '<div><b>Piso</b>: nunca menos que o consumo de 1 ciclo. <b>Teto</b>: nunca mais que (alvo + ciclo) × venda/dia; se bater, aparece "TETO: conferir" (estoque negativo ou venda atípica).</div>'+
   '<div><b>Estoque acima do alvo</b> não gera pedido de redução. A lista só volta a ser pedida quando cruzar o ponto: o excesso desce sozinho com a venda.</div>'+
   '</div></div><div class="card"><h3>Fontes e limites</h3><div class="meth">'+
-  '<div><b>Venda</b>: NFC-e das 6 lojas nos últimos 40 dias, só nas lojas marcadas na lista. Sem sazonalidade nem promoção: em semana atípica, a compradora ajusta.</div>'+
+  '<div><b>Venda</b>: NFC-e das 6 lojas nos últimos 40 dias, só nas lojas marcadas na lista. Sem sazonalidade nem promoção: em semana atípica, a comprador(a) ajusta.</div>'+
   '<div><b>Estoque</b>: posição atual do ERP por loja; negativo é tratado como zero e sinalizado no detalhe.</div>'+
   '<div><b>Trânsito</b>: sugestões abertas no ERP (Status 0 e 1) dos últimos 30 dias, por produto e loja.</div>'+
   '<div><b>Custo</b>: custo de cadastro por loja; onde falta, 75% do preço médio de venda.</div>'+
@@ -687,7 +687,7 @@ async function abrirSortimento(lista,cod,loja){
         'Produto morto nesta loja. Devolver ao fornecedor, transferir pra loja onde vende, ou fazer promoção de saída. Enquanto isso, não repor.'],
       nao_merece:['Produto sem procura nesta loja',
         'Nos últimos 12 meses a '+nomeLoja+' vendeu este produto em <b>'+s.meses12+' de 12 meses</b>, num total de <b>'+fmt(s.v12,0)+' un no ano</b> (menos de 12, ou seja, menos de 1 por mês). Última venda: <b>'+brm(s.ultVenda)+'</b>. Estoque hoje: '+fmt(s.est,0)+' un. Entradas nos últimos 24 meses: '+fmt(s.ent24,0)+' un.',
-        'Tirar o produto do sortimento desta loja: desmarcar a loja neste item da lista no Dlinks. Não repor automaticamente. Se a loja quiser trabalhar com ele de propósito (lançamento, cliente específico), aí a compradora confirma no Radar.'],
+        'Tirar o produto do sortimento desta loja: desmarcar a loja neste item da lista no Dlinks. Não repor automaticamente. Se a loja quiser trabalhar com ele de propósito (lançamento, cliente específico), aí a comprador(a) confirma no Radar.'],
       compra_e_nao_vende:['Está comprando muito mais do que vende',
         'Nos últimos 6 meses entraram <b>'+fmt(s.ent6,0)+' un</b> na '+nomeLoja+' (última entrada '+brm(s.ultEnt)+') e venderam só <b>'+fmt(s.v6,0)+' un</b>. Entrou mais de 3 vezes o que saiu. Estoque hoje: '+fmt(s.est,0)+' un, cobertura '+cobTxt+'.',
         'Parar de comprar pra esta loja e revisar a quantidade sugerida. Provável erro de embalagem (caixa × unidade) na sugestão ou compra por oferta sem giro.'],

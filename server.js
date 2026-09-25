@@ -5485,7 +5485,7 @@ app.get('/api/margem-tv/comprador', withCache(5), async (req, res) => {
 app.get('/api/ruptura/comprador-listas', withCache(60), async (req, res) => {
   const result = {};
   // ?detalhe=1 → cada lista vem com nome/CodFornec (o painel de Rupturas mostra TODAS as listas da
-  // compradora, inclusive as sem ocorrência hoje — Tiago 24/09: "na tela é tudo por LISTA")
+  // comprador(a), inclusive as sem ocorrência hoje — Tiago 24/09: "na tela é tudo por LISTA")
   if (req.query.detalhe === '1') {
     const all = Object.values(NREGS_COMPRADOR).flat();
     let info = {};
@@ -5764,7 +5764,7 @@ app.get('/api/ruptura', withCache(10), async (req, res) => {
       alertas: alertas.slice(0, 100),
       plano,
       lojas: Object.values(lojasMap).sort((a, b) => b.perda - a.perda),
-      ranking_fornec: rankingFornec.slice(0, 1000), // era 200: cortava listas com ocorrência no painel por compradora
+      ranking_fornec: rankingFornec.slice(0, 1000), // era 200: cortava listas com ocorrência no painel por comprador(a)
       previsao: {
         hoje: rupturas.length,
         amanha: emRisco.filter(x => x.risco === 'CRITICO').length,
