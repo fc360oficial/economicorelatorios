@@ -7844,13 +7844,26 @@ app.post('/api/pedido-publico/:token/finalizar', (req, res) => {
 
 // ═══════════════════════════════════════════════════
 // DP / RH — integração PontoCerto (25/09/2026). Config só no servidor (data/pontocerto.json); rotas de config e teste
-// são de admin. Quando a API for mapeada, os relatórios do DP entram aqui em cima desta base.
+// são de admin. A API é a do Pontomais (mapeada em 25/09/2026): relatórios em lib/pontocerto.js → /api/dp/ponto/*.
 // ═══════════════════════════════════════════════════
 const pontocerto = require('./lib/pontocerto');
 const soAdmin = (req, res) => { if (req.session.user?.perfil !== 'admin') { res.status(403).json({ error: 'Só administrador' }); return false; } return true; };
 app.get('/api/dp/pontocerto/config', (req, res) => { if (!soAdmin(req, res)) return; res.json(pontocerto.getConfig()); });
 app.post('/api/dp/pontocerto/config', (req, res) => { if (!soAdmin(req, res)) return; try { res.json(pontocerto.setConfig(req.body || {}, req.session.user?.nome || null)); } catch (err) { res.status(400).json({ error: err.message }); } });
 app.post('/api/dp/pontocerto/testar', async (req, res) => { if (!soAdmin(req, res)) return; try { res.json(await pontocerto.testar(String(req.body?.caminho || ''), String(req.body?.metodo || 'GET').toUpperCase() === 'POST' ? 'POST' : 'GET')); } catch (err) { res.status(500).json({ error: err.message }); } });
+// Relatórios do ponto (Pontomais) pra qualquer usuário do módulo DP / RH: resumo por loja no período (E1..E6, CD).
+// Padrão: do dia 1º do mês até hoje; máximo 92 dias. ?force=1 (admin) limpa o cache de 20 min.
+app.get('/api/dp/ponto/resumo', async (req, res) => {
+  const d = new Date(); const hoje = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  const ok = v => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''));
+  const de = ok(req.query.de) ? req.query.de : hoje.slice(0, 7) + '-01';
+  const ate = ok(req.query.ate) ? req.query.ate : hoje;
+  if (ate < de) return res.status(400).json({ error: 'Período inválido (fim antes do início).' });
+  if ((new Date(ate) - new Date(de)) / 86400000 > 92) return res.status(400).json({ error: 'Período máximo de 92 dias.' });
+  if (String(req.query.force) === '1' && req.session.user?.perfil === 'admin') pontocerto.limparCache();
+  try { res.json(await pontocerto.resumo({ de, ate })); }
+  catch (err) { console.error('[dp/ponto]', err.message); res.status(/não configurado/.test(err.message) ? 409 : 502).json({ error: err.message }); }
+});
 // ═══════════════════════════════════════════════════
 // FISCAL — Recebimento de notas nas lojas (21/09/2026, pedido do Tiago).
 // Cruza sozinho conferência do coletor × XML da NF-e × pedido de compra × validade ×
