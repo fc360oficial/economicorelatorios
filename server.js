@@ -6766,7 +6766,7 @@ app.get('/api/dashboard/seg/:nome', async (req, res) => {
 });
 // títulos de uma loja num dia de pagamento (detalhe da linha da loja no bloco Financeiro), só leitura
 app.get('/api/dashboard/financeiro/titulos', async (req, res) => {
-  try { res.json(await dashboardNovo.titulosFinanceiro({ loja: parseInt(req.query.loja) || 0, pag: String(req.query.pag || '').slice(0, 10), venc: String(req.query.venc || '').slice(0, 10), pagIni: String(req.query.pag_ini || '').slice(0, 10), pagFim: String(req.query.pag_fim || '').slice(0, 10) })); }
+  try { res.json(await dashboardNovo.titulosFinanceiro({ loja: parseInt(req.query.loja) || 0, pag: String(req.query.pag || '').slice(0, 10), venc: String(req.query.venc || '').slice(0, 10), pagIni: String(req.query.pag_ini || '').slice(0, 10), pagFim: String(req.query.pag_fim || '').slice(0, 10), ord: String(req.query.ord || '').slice(0, 10) })); }
   catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.post('/api/dashboard/atualizar', (req, res) => { dashboardNovo.calcular().catch(e => console.error('[DASHBOARD]', e.message)); res.json({ ok: true }); });

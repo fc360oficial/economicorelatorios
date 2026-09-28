@@ -519,7 +519,11 @@ function renderFin() {
   let h = '<div class="fin-big"><b>' + money(hj.v) + '</b><small>' + plural(hj.n, 'título') + ' a pagar' + (fds ? ' na segunda' : ' hoje') + '</small></div>';
   if (vencs.length > 1) { const maxV = Math.max(...vencs.map(x => x.v), 1); h += '<div class="fin-sec">Por vencimento <span class="fin-mut">o que entra no pagamento de ' + (fds ? 'segunda' : 'hoje') + '</span></div><table class="m fin-al">' + CG + '<tbody>' + vencs.map(x => '<tr><td>venc. <b>' + DS[dow(x.venc)] + '</b> ' + df(x.venc) + '</td><td class="r">' + x.n + '</td><td class="r"><b>' + money(x.v) + '</b></td><td>' + barra(x.v, maxV) + '</td></tr>').join('') + '</tbody></table>'; }
   h += lojasDia.length ? '<div class="fin-sec">Por loja <span class="fin-mut">clique pra ver os títulos</span></div><table class="m fin-al">' + CG + '<thead><tr><th>Loja</th><th class="r">Títulos</th><th class="r">Valor</th><th></th></tr></thead><tbody>' + lojasDia.map(l => '<tr class="fin-lj" data-loja="' + l.loja + '" data-pag="' + diaRef + '" onclick="finDetalhe(this)" title="clique pra ver os títulos"><td><span class="fin-car">▸</span>' + lojaTag(l.loja) + '</td><td class="r">' + l.n + '</td><td class="r"><b>' + money(l.v) + '</b></td><td>' + barra(l.v, maxL) + '</td></tr>').join('') + '</tbody></table>' : empty('Nada a pagar ' + (fds ? 'na segunda' : 'hoje') + '.');
-  if (venc.n) h += '<div class="fin-alert"><b>' + plural(venc.n, 'vencido') + ' em aberto · ' + money(venc.v) + '</b><br>dia de pagamento já passou: atrasado ou baixa ainda não lançada no ERP</div>';
+  if (venc.n) h += '<div class="fin-alert" style="cursor:pointer" onclick="finVencToggle()" title="Clique pra ver os vencidos por loja"><b>' + plural(venc.n, 'vencido') + ' em aberto · ' + money(venc.v) + '</b><br>dia de pagamento já passou: atrasado ou baixa ainda não lançada no ERP</div>';
+  // vencidos por loja (Tiago, 28/09: "uma maneira de clicar e trazer o que não foi pago"): escondido até clicar na caixa vermelha;
+  // clique na loja abre os títulos do mais antigo pro mais novo
+  if (venc.n) { const plV = {}; for (const r of L) if (r.pag < hoje) { const a = plV[r.loja] || (plV[r.loja] = { loja: r.loja, n: 0, v: 0 }); a.n += r.n; a.v += r.v; } const lv = Object.values(plV).sort((a, b) => a.loja - b.loja), mv = Math.max(...lv.map(l => l.v), 1), ontem = add(hoje, -1);
+    h += '<div id="fin-venc-lojas" style="display:none"><div class="fin-sec">Vencidos por loja <span class="fin-mut">clique na loja pra ver os títulos, do mais antigo pro mais novo</span></div><table class="m fin-al">' + CG + '<thead><tr><th>Loja</th><th class="r">Títulos</th><th class="r">Valor</th><th></th></tr></thead><tbody>' + lv.map(l => '<tr class="fin-lj" data-loja="' + l.loja + '" data-pag-ini="2000-01-01" data-pag-fim="' + ontem + '" data-ord="venc" onclick="finDetalhe(this)" title="clique pra ver os títulos vencidos desta loja"><td><span class="fin-car">▸</span>' + lojaTag(l.loja) + '</td><td class="r">' + l.n + '</td><td class="r"><b class="dn">' + money(l.v) + '</b></td><td>' + barra(l.v, mv, true) + '</td></tr>').join('') + '</tbody></table></div>'; }
   document.getElementById('c-fin-hoje').innerHTML = h;
 
   // Esta semana: segunda a sexta (dia de pagamento); dia que já passou mostra só o que ficou em aberto
@@ -538,10 +542,15 @@ function renderFin() {
   // Semanas seguintes: 8 semanas (seg a sex) e o resto depois
   const sems = []; for (let w = 1; w <= 8; w++) { const a = add(semIni, 7 * w), b = add(a, 4); sems.push({ a, b, ...soma(r => r.pag >= a && r.pag <= b) }); }
   const fim8 = add(semIni, 7 * 8 + 4), depois = soma(r => r.pag > fim8), totProx = soma(r => r.pag >= proxIni), maxS = Math.max(...sems.map(s => s.v), depois.v, 1);
-  document.getElementById('c-fin-proximas').innerHTML = '<table class="m fin-al">' + CG + '<thead><tr><th>Semana</th><th class="r">Títulos</th><th class="r">Valor</th><th></th></tr></thead><tbody>'
+  // Semanas seguintes no mesmo desenho (Tiago, 28/09): total grande, por semana e por loja (da próxima semana em diante, clique abre os títulos)
+  const plPx = {}; for (const r of L) if (r.pag >= proxIni) { const a = plPx[r.loja] || (plPx[r.loja] = { loja: r.loja, n: 0, v: 0 }); a.n += r.n; a.v += r.v; }
+  const lojasPx = Object.values(plPx).sort((a, b) => a.loja - b.loja), maxLP = Math.max(...lojasPx.map(l => l.v), 1);
+  document.getElementById('c-fin-proximas').innerHTML = '<div class="fin-big"><b>' + money(totProx.v) + '</b><small>' + plural(totProx.n, 'título') + ' a pagar da próxima semana em diante</small></div>'
+    + '<div class="fin-sec">Por semana de pagamento</div><table class="m fin-al">' + CG + '<thead><tr><th>Semana</th><th class="r">Títulos</th><th class="r">Valor</th><th></th></tr></thead><tbody>'
     + sems.map((s, i) => '<tr><td>' + (i === 0 ? '<b>Próxima</b> · ' : '') + df(s.a) + ' a ' + df(s.b) + '</td><td class="r">' + (s.n || '') + '</td><td class="r"><b>' + (s.v ? moneyK(s.v) : '—') + '</b></td><td>' + barra(s.v, maxS) + '</td></tr>').join('')
     + (depois.n ? '<tr><td>Depois de ' + df(fim8) + '</td><td class="r">' + depois.n + '</td><td class="r"><b>' + moneyK(depois.v) + '</b></td><td>' + barra(depois.v, maxS) + '</td></tr>' : '')
     + '<tr class="fin-tot"><td>Da próxima semana em diante</td><td class="r">' + totProx.n + '</td><td class="r"><b>' + moneyK(totProx.v) + '</b></td><td></td></tr></tbody></table>'
+    + (lojasPx.length ? '<div class="fin-sec">Por loja <span class="fin-mut">da próxima semana em diante · clique pra ver os títulos</span></div><table class="m fin-al">' + CG + '<thead><tr><th>Loja</th><th class="r">Títulos</th><th class="r">Valor</th><th></th></tr></thead><tbody>' + lojasPx.map(l => '<tr class="fin-lj" data-loja="' + l.loja + '" data-pag-ini="' + proxIni + '" data-pag-fim="9999-12-31" onclick="finDetalhe(this)" title="clique pra ver os títulos da próxima semana em diante"><td><span class="fin-car">▸</span>' + lojaTag(l.loja) + '</td><td class="r">' + l.n + '</td><td class="r"><b>' + money(l.v) + '</b></td><td>' + barra(l.v, maxLP) + '</td></tr>').join('') + '</tbody></table>' : '')
     + (f.alem && f.alem.n && !LOJA ? '<div class="fin-note">' + plural(f.alem.n, 'título') + ' (' + moneyK(f.alem.v) + ') com vencimento além de 1 ano ficaram de fora: data provavelmente errada no ERP.</div>' : '');
 
   // Por loja: matriz loja × (vencidos · hoje · resto da semana · próxima · depois · total)
@@ -558,6 +567,7 @@ function renderFin() {
 }
 
 // clique na linha da loja (bloco Financeiro › Hoje): abre embaixo os títulos daquele dia de pagamento (Tiago, 28/09/26)
+function finVencToggle() { const d = document.getElementById('fin-venc-lojas'); if (d) d.style.display = d.style.display === 'none' ? '' : 'none'; }
 async function finDetalhe(tr) {
   const nx = tr.nextElementSibling;
   if (nx && nx.classList.contains('fin-det')) { nx.remove(); tr.classList.remove('open'); return; }
@@ -565,11 +575,11 @@ async function finDetalhe(tr) {
   const det = document.createElement('tr'); det.className = 'fin-det'; det.innerHTML = '<td colspan="' + tr.children.length + '"><div class="spin"></div></td>';
   tr.after(det); tr.classList.add('open');
   try {
-    const r = await fetch('/api/dashboard/financeiro/titulos?loja=' + loja + (pag ? '&pag=' + pag : '') + (rng ? '&pag_ini=' + pagIni + '&pag_fim=' + pagFim : '')); const j = await r.json(); if (j.error) throw new Error(j.error);
+    const r = await fetch('/api/dashboard/financeiro/titulos?loja=' + loja + (pag ? '&pag=' + pag : '') + (rng ? '&pag_ini=' + pagIni + '&pag_fim=' + pagFim : '') + (tr.dataset.ord ? '&ord=' + tr.dataset.ord : '')); const j = await r.json(); if (j.error) throw new Error(j.error);
     if (!det.isConnected) return;
     const ts = j.titulos || [];
     det.firstChild.innerHTML = ts.length
-      ? '<div class="fin-det-h"><b>' + LJ(loja) + ' ' + (NOMES[loja] || '') + '</b> · ' + ts.length + ' título' + (ts.length === 1 ? '' : 's') + ' · ' + (rng ? 'paga de ' + df(pagIni) + ' a ' + df(pagFim) : 'paga ' + DS[dow(pag)] + ' ' + df(pag)) + ' · maior valor primeiro</div>'
+      ? '<div class="fin-det-h"><b>' + LJ(loja) + ' ' + (NOMES[loja] || '') + '</b> · ' + ts.length + ' título' + (ts.length === 1 ? '' : 's') + ' · ' + (rng ? (pagIni <= '2001-01-01' ? 'vencidos: dia de pagamento até ' + df(pagFim) : pagFim >= '9999-01-01' ? 'paga de ' + df(pagIni) + ' em diante' : 'paga de ' + df(pagIni) + ' a ' + df(pagFim)) :'paga ' + DS[dow(pag)] + ' ' + df(pag)) + ' · ' + (tr.dataset.ord === 'venc' ? 'mais antigo primeiro' : 'maior valor primeiro') + '</div>'
         + '<table class="m"><thead><tr><th>Vence</th>' + (rng ? '<th>Paga</th>' : '') + '<th>Fornecedor</th><th>Documento</th><th class="r">Valor</th></tr></thead><tbody>'
         + ts.map(t => '<tr><td>' + DS[dow(t.venc)] + ' ' + df(t.venc) + '</td>' + (rng ? '<td><b>' + DS[dow(t.pag)] + '</b> ' + df(t.pag) + '</td>' : '') + '<td class="p">' + esc(t.fornecedor || '—') + '</td><td>' + esc(t.doc || '') + '</td><td class="r"><b>' + money(t.valor) + '</b></td></tr>').join('')
         + '</tbody><tfoot><tr class="fin-tot"><td colspan="' + (rng ? 4 : 3) + '">Total</td><td class="r">' + money(j.total) + '</td></tr></tfoot></table>'
