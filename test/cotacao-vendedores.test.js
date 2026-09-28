@@ -29,3 +29,17 @@ test('sem código do ERP (legado): extras ficam com codFornec 0 e nomes distinto
   assert.deepEqual(r.map(f => f.codFornec), [0, 0]);
   assert.deepEqual(r.map(f => f.nome), ['BRF BRASIL · altemir', 'BRF BRASIL · joana']);
 });
+
+// Preço zero não é preço (Tiago, 28/09/26): vendedor digitou "0,00" e ganhava o item de graça
+test('preço zero gravado não concorre nem vence; conta como não cotado', () => {
+  const { comparativo } = require('../lib/cotacao');
+  const c = { id: 1, status: 'aberta', itens: [{ cod: '789', descricao: 'MUCILON 180G', qtd: 216, emb: 12, ultimo_custo: 5.77 }],
+    fornecedores: [
+      { codFornec: 1, nome: 'DPC', status: 'finalizado', precos: { '789': { preco: 0, obs: '' } } },
+      { codFornec: 2, nome: 'NESTLE', status: 'finalizado', precos: { '789': { preco: 5.57, obs: '' } } }] };
+  const cmp = comparativo(c), it = cmp.itens[0];
+  assert.equal(it.vencedor.codFornec, 2); assert.equal(it.vencedor.preco, 5.57);
+  assert.deepEqual(Object.keys(it.precos), ['2']);
+  assert.equal(cmp.fornecedores.find(f => f.codFornec === 1).cotados, 0);
+  assert.equal(cmp.fornecedores.find(f => f.codFornec === 2).cotados, 1);
+});

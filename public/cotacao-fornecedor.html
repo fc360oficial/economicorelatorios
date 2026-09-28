@@ -121,7 +121,7 @@ const dd=s=>s?String(s).slice(0,10).split('-').reverse().join('/'):'';
 const dtp=s=>{if(!s)return '';const t=String(s);return t.length>10?new Date(t).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):dd(t)+' 23:59';};
 let P=null, dirty=false, saveTimer=null; const DIRTY=new Set(); let extraDirty=false;   // DIRTY = códigos dos itens mexidos nesta tela (só eles vão no salvar)
 function precoNum(v){const n=parseFloat(String(v).replace(/\./g,'').replace(',','.'));return isFinite(n)?n:null;}
-function itensForm(so){return P.itens.filter(i=>!so||so.has(i.cod)).map(i=>{const el=document.querySelector('input.preco[data-cod="'+i.cod+'"]');const ob=document.querySelector('input.obs[data-cod="'+i.cod+'"]');const mk=document.querySelector('input.marca[data-cod="'+i.cod+'"]');const ev=document.querySelector('input.embv[data-cod="'+i.cod+'"]');return {cod:i.cod,preco:el?(el.value.trim()===''?'':precoNum(el.value)):i.preco,obs:ob?ob.value:i.obs,marca:mk?mk.value:(i.marca||''),emb_vendedor:ev?ev.value:(i.emb_vendedor||'')};});}
+function itensForm(so){return P.itens.filter(i=>!so||so.has(i.cod)).map(i=>{const el=document.querySelector('input.preco[data-cod="'+i.cod+'"]');const ob=document.querySelector('input.obs[data-cod="'+i.cod+'"]');const mk=document.querySelector('input.marca[data-cod="'+i.cod+'"]');const ev=document.querySelector('input.embv[data-cod="'+i.cod+'"]');return {cod:i.cod,preco:el?(precoNum(el.value)>0?precoNum(el.value):''):i.preco,obs:ob?ob.value:i.obs,marca:mk?mk.value:(i.marca||''),emb_vendedor:ev?ev.value:(i.emb_vendedor||'')};});}
 function extras(){const g=id=>($('#'+id)||{}).value;const pp=parseInt(g('cad-prazo'))||0;return {condicao:pp>0?'Boleto '+pp+' dias':((P.fornecedor&&P.fornecedor.condicao)||''),obs:g('obsg'),cadastro:{email:g('cad-email'),prazo_pagamento:g('cad-prazo'),prazo_entrega:g('cad-tempo'),pedido_minimo:g('cad-min')}};}
 function cadastroFaltando(){const x=extras().cadastro;const f=[];if(!x.email||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x.email))f.push('e-mail');if(!(parseInt(x.prazo_pagamento)>0))f.push('prazo de pagamento');if(x.prazo_entrega===''||x.prazo_entrega==null||!(parseInt(x.prazo_entrega)>=0))f.push('tempo de entrega');if(x.pedido_minimo===''||x.pedido_minimo==null)f.push('pedido mínimo');return f;}
 function totais(){let t=0,n=0;for(const i of itensForm()){if(i.preco!=null&&i.preco!==''){t+=i.preco*(P.itens.find(x=>x.cod===i.cod)?.qtd||0);n++;}}return {t,n};}
@@ -164,7 +164,7 @@ function render(){
       const isPreco=el.classList.contains('preco');
       el.addEventListener('input',()=>{
         if(isPreco){const d=el.value.replace(/\D/g,'').replace(/^0+(?=\d)/,'').slice(0,9);el.value=d?fmt(parseInt(d,10)/100):'';}
-        dirty=true;if(el.dataset.cod)DIRTY.add(el.dataset.cod);else extraDirty=true;el.classList.toggle('ok',isPreco&&precoNum(el.value)!=null);atualizarTot();agendarSave();});
+        dirty=true;if(el.dataset.cod)DIRTY.add(el.dataset.cod);else extraDirty=true;el.classList.toggle('ok',isPreco&&precoNum(el.value)>0);atualizarTot();agendarSave();});
       el.addEventListener('keydown',e=>{
         if(!(e.key==='Enter'||(isPreco&&e.key==='Tab'&&!e.shiftKey)))return;e.preventDefault();   // Enter, Tab ou "próximo" do teclado do celular
         clearTimeout(saveTimer);salvar();
