@@ -1755,6 +1755,21 @@ function renderComparativoItens(opts){
 // Aba Pedidos no desenho do Club (Tiago, 25/09): "Empresas" + uma linha por loja com CNPJ, total, PDF, Excel e Exportar
 // planilha; o chevron abre os itens daquela loja (pedidos realizados desta cotação, quantidade da loja × preço).
 var PED_LOJA = '', PED_OPEN = {};
+var PED_FORN_OPEN = {};   // Tiago, 28/09: na aba Pedidos, itens da loja agrupados por fornecedor; clica no fornecedor pra abrir os itens
+function pedFornToggle(k){ PED_FORN_OPEN[k] = !PED_FORN_OPEN[k]; renderComparativoItens(); }
+function pedLojaPorForn(ln, d){
+  var grupos = {}, ordem = [];
+  d.itens.forEach(function(i){ var k = String(i.pedidoId); if (!grupos[k]) { grupos[k] = { forn: i.forn, pedidoId: i.pedidoId, entrega: i.entrega, itens: [], total: 0 }; ordem.push(k); } grupos[k].itens.push(i); grupos[k].total += i.total; });
+  ordem.sort(function(a, b){ return String(grupos[a].forn).localeCompare(String(grupos[b].forn), 'pt-BR'); });
+  var h = '<table class="pp"><thead><tr><th style="width:30px"></th><th>Fornecedor</th><th>Pedido</th><th>Entrega</th><th style="text-align:right">Itens</th><th style="text-align:right">Total</th></tr></thead><tbody>';
+  ordem.forEach(function(k){ var g = grupos[k], key = ln + '|' + k, ab = !!PED_FORN_OPEN[key];
+    h += '<tr class="forn" style="cursor:pointer" onclick="pedFornToggle(\'' + key + '\')" title="Clique pra ver os itens deste fornecedor"><td><span class="chev">' + (ab ? '⌄' : '›') + '</span></td><td><b>' + esc(g.forn) + '</b></td><td class="mini">pedido #' + g.pedidoId + '</td><td class="mini">' + (g.entrega ? String(g.entrega).slice(0, 10).split('-').reverse().join('/') : '—') + '</td><td class="price">' + g.itens.length + '</td><td class="price"><b>' + fmtR(g.total) + '</b></td></tr>';
+    if (!ab) return;
+    h += '<tr class="q"><td></td><td colspan="5"><table class="pp" style="border:1px solid var(--ln);border-radius:8px"><thead><tr><th>Código</th><th>Produto</th><th>Observação do vendedor</th><th style="text-align:right">Qtd</th><th style="text-align:right">Emb</th><th style="text-align:right">Valor unit.</th><th style="text-align:right">Total</th></tr></thead><tbody>' +
+      g.itens.map(function(i){ return '<tr><td class="mini">' + esc(i.cod) + '</td><td>' + esc(i.descricao) + cdTag(i.cod) + '</td><td style="white-space:normal;max-width:260px">' + (i.obs ? '<span class="pp-flag" style="margin:0;max-width:none;white-space:normal">🚩 ' + esc(i.obs) + '</span>' : '<span class="mini">—</span>') + '</td><td class="price">' + fmtN(i.qtd) + '</td><td class="price">' + esc(i.unid) + ' ' + i.emb + '</td><td class="price">' + fmtR(i.preco) + '</td><td class="price"><b>' + fmtR(i.total) + '</b></td></tr>'; }).join('') + '</tbody></table></td></tr>';
+  });
+  return h + '</tbody></table>';
+}
 var LOJAS_CNPJ = { 1: '21425302000181', 2: '30148015000162', 3: '39762002000153', 4: '43358448000194', 5: '51632927000185', 6: '59890722000101' };
 function fmtCnpj(c){ c = String(c || '').replace(/\D/g, ''); return c.length === 14 ? c.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5') : c; }
 function pedLojaDados(ln){
@@ -1789,7 +1804,7 @@ function renderPedidosResumo(C, R, F, aberta){
   h += lojas.filter(function(ln){ return !PED_LOJA || String(PED_LOJA) === String(ln); }).map(function(ln){
     var d = pedLojaDados(ln), ab = !!PED_OPEN[ln];
     var x = '<div class="emp-card"><div class="emp-hd" onclick="PED_OPEN[' + ln + ']=!PED_OPEN[' + ln + '];renderComparativoItens()"><span class="chev">' + (ab ? '⌄' : '›') + '</span><div class="emp-nm">EMPRESA: SUP. ECONÔMICO (' + esc(d.nome) + ')<br><span class="mini">CNPJ: ' + fmtCnpj(d.cnpj) + ' · ' + d.itens.length + ' itens</span></div><span class="emp-tot">Total: <b>' + fmtR(d.total) + '</b></span><button class="cbtn" onclick="event.stopPropagation();pedLojaPdf(' + ln + ')">📄 PDF</button><button class="cbtn" onclick="event.stopPropagation();pedLojaCsv(' + ln + ')">📊 Excel</button><button class="cbtn" onclick="event.stopPropagation();pedLojaCsv(' + ln + ')">⬆ Exportar planilha</button></div>';
-    if (ab) x += '<div class="emp-tb">' + (d.itens.length ? '<table><thead><tr><th>Fornecedor</th><th>Código</th><th>Produto</th><th>Observação do vendedor</th><th style="text-align:right">Qtd</th><th style="text-align:right">Emb</th><th style="text-align:right">Valor unit.</th><th style="text-align:right">Total</th></tr></thead><tbody>' + d.itens.map(function(i){ return '<tr><td>' + esc(i.forn) + '<br><span class="mini">pedido #' + i.pedidoId + '</span></td><td class="mini">' + esc(i.cod) + '</td><td>' + esc(i.descricao) + cdTag(i.cod) + '</td><td style="white-space:normal;max-width:260px">' + (i.obs ? '<span class="pp-flag" style="margin:0;max-width:none;white-space:normal">🚩 ' + esc(i.obs) + '</span>' : '<span class="mini">—</span>') + '</td><td class="price">' + fmtN(i.qtd) + '</td><td class="price">' + esc(i.unid) + ' ' + i.emb + '</td><td class="price">' + fmtR(i.preco) + '</td><td class="price"><b>' + fmtR(i.total) + '</b></td></tr>'; }).join('') + '</tbody></table>' : '<div class="empty" style="padding:14px">Nenhum pedido realizado pra esta loja nesta cotação.</div>') + '</div>';
+    if (ab) x += '<div class="emp-tb">' + (d.itens.length ? pedLojaPorForn(ln, d) : '<div class="empty" style="padding:14px">Nenhum pedido realizado pra esta loja nesta cotação.</div>') + '</div>';
     return x + '</div>';
   }).join('');
   if (aberta && pend.length) h += '<div style="text-align:right;margin-top:8px"><button class="btn primary" id="btn-fechar" onclick="fecharCotacao()">Fechar cotação e gerar ' + pend.length + ' pedido' + (pend.length > 1 ? 's' : '') + ' →</button></div>';
