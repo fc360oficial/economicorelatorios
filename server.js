@@ -8487,6 +8487,13 @@ app.get('/api/cotacoes/:id/estoque', async (req, res) => {
       for (const r of rows) { const o = out[r.cod]; if (!o) continue; const v = radarPedidos.num(r.Qtd); o.lojas[ln] = { estoque: v, transito: 0 }; o.estoque += v; }
     }
     try {
+      // ativo por loja na lista de compra do ERP (c_cotacao_lista_itens.l1..l6 = "Ativar/Desativar Itens da Lista").
+      // Tiago, 28/09: "esse item deve estar desativado em todas as lojas e só ativo na loja 4 — coloca alguma informação"
+      if (c.lista) for (const ch of radarPedidos.chunk(cods, 2000)) {
+        const rows = await q(`SELECT Codigobarra cod, l1, l2, l3, l4, l5, l6 FROM central.c_cotacao_lista_itens WHERE nCotacao = ? AND Codigobarra IN (${ch.map(() => '?').join(',')})`, [c.lista, ...ch]).catch(() => []);
+        for (const r of rows) { const o = out[String(r.cod)]; if (!o) continue; o.lojas_inativas = [];
+          for (const ln of [1, 2, 3, 4, 5, 6]) { const L = o.lojas[ln] = o.lojas[ln] || { estoque: 0, transito: 0 }; L.ativa = parseInt(r['l' + ln]) === 1; if (!L.ativa) o.lojas_inativas.push(ln); } }
+      }
       const det = c.lista ? radarPedidos.itensLista(c.lista, radarPedidos.TETO_PADRAO, 0, undefined, false) : null;
       if (det) for (const it of det.itens) { const o = out[it.cod]; if (!o) continue; o.venda_dia = it.venda_dia; o.cobertura_dias = it.cobertura_dias;
         for (const [ln, d] of Object.entries(it.lojas_det || {})) { const L = o.lojas[ln] = o.lojas[ln] || { estoque: 0, transito: 0 }; L.transito = +d.transito || 0; L.venda_dia = d.venda_dia; L.cobertura_dias = d.cobertura_dias; o.transito += +d.transito || 0; } }
