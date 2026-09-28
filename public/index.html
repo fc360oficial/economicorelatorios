@@ -146,6 +146,9 @@
   .fin-alert{margin:8px 14px 4px;padding:8px 10px;border-radius:8px;background:var(--negw);color:var(--neg);font-size:11.5px;line-height:1.4}.fin-alert b{font-weight:800}
   .fin-note{padding:8px 14px;font-size:11px;color:var(--ink3);border-top:1px solid #F0F0EE}
   .fin-mut{color:var(--ink3);font-size:10px;font-weight:400}
+  /* Financeiro (Tiago, 28/09: "alinha linhas e colunas"): mesma grade de colunas em todas as tabelas dos cartões + título de seção */
+  .fin-sec{padding:9px 14px 2px;font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--ink3)}
+  table.m.fin-al{table-layout:fixed}table.m.fin-al th,table.m.fin-al td{overflow:hidden;text-overflow:ellipsis}
   table.m tr.fin-hl td{background:var(--amw,#FFF6D9);box-shadow:inset 3px 0 0 #F5B800}
   table.m tr.fin-tot td{border-top:2px solid var(--ln,#DADAD6);font-weight:700}
   table.m tr.fin-lj{cursor:pointer}table.m tr.fin-lj.open td{background:var(--amw,#FFF6D9);box-shadow:inset 3px 0 0 #F5B800}
@@ -504,6 +507,7 @@ function renderFin() {
   k('k-fin', moneyK(hj.v) + (fds ? ' na segunda' : ' hoje') + ' · ' + moneyK(sem.v) + ' até sexta' + (venc.n ? ' · ' + moneyK(venc.v) + ' vencidos' : ''), !venc.n); badge('n6', venc.n);
   const barra = (v, max, neg) => '<span class="bar' + (neg ? ' neg' : '') + '" style="width:' + Math.round((v || 0) / (max || 1) * 70) + 'px"></span>';
   const plural = (n, s) => n + ' ' + s + (n === 1 ? '' : 's');
+  const CG = '<colgroup><col><col style="width:62px"><col style="width:118px"><col style="width:86px"></colgroup>';   // mesma grade em todos os cartões
 
   // Hoje (ou a segunda, se for fim de semana): total, composição por vencimento e por loja
   document.getElementById('fin-hoje-t').textContent = fds ? 'Segunda ' + df(diaRef) : 'Hoje';
@@ -512,8 +516,8 @@ function renderFin() {
   for (const r of L) if (r.pag === diaRef) { const a = pl[r.loja] || (pl[r.loja] = { loja: r.loja, n: 0, v: 0 }); a.n += r.n; a.v += r.v; const b = pv[r.venc] || (pv[r.venc] = { venc: r.venc, n: 0, v: 0 }); b.n += r.n; b.v += r.v; }
   const lojasDia = Object.values(pl).sort((a, b) => a.loja - b.loja), maxL = Math.max(...lojasDia.map(l => l.v), 1), vencs = Object.values(pv).sort((a, b) => a.venc < b.venc ? -1 : 1);
   let h = '<div class="fin-big"><b>' + money(hj.v) + '</b><small>' + plural(hj.n, 'título') + ' a pagar' + (fds ? ' na segunda' : ' hoje') + '</small></div>';
-  if (vencs.length > 1) h += '<div class="fin-comp">' + vencs.map(x => '<span>venc. ' + DS[dow(x.venc)] + ' ' + df(x.venc) + ': <b>' + moneyK(x.v) + '</b></span>').join('') + '</div>';
-  h += lojasDia.length ? '<table class="m"><thead><tr><th>Loja</th><th class="r">Títulos</th><th class="r">Valor</th><th></th></tr></thead><tbody>' + lojasDia.map(l => '<tr class="fin-lj" data-loja="' + l.loja + '" data-pag="' + diaRef + '" onclick="finDetalhe(this)" title="clique pra ver os títulos"><td><span class="fin-car">▸</span>' + lojaTag(l.loja) + '</td><td class="r">' + l.n + '</td><td class="r"><b>' + money(l.v) + '</b></td><td>' + barra(l.v, maxL) + '</td></tr>').join('') + '</tbody></table>' : empty('Nada a pagar ' + (fds ? 'na segunda' : 'hoje') + '.');
+  if (vencs.length > 1) { const maxV = Math.max(...vencs.map(x => x.v), 1); h += '<div class="fin-sec">Por vencimento <span class="fin-mut">o que entra no pagamento de ' + (fds ? 'segunda' : 'hoje') + '</span></div><table class="m fin-al">' + CG + '<tbody>' + vencs.map(x => '<tr><td>venc. <b>' + DS[dow(x.venc)] + '</b> ' + df(x.venc) + '</td><td class="r">' + x.n + '</td><td class="r"><b>' + money(x.v) + '</b></td><td>' + barra(x.v, maxV) + '</td></tr>').join('') + '</tbody></table>'; }
+  h += lojasDia.length ? '<div class="fin-sec">Por loja <span class="fin-mut">clique pra ver os títulos</span></div><table class="m fin-al">' + CG + '<thead><tr><th>Loja</th><th class="r">Títulos</th><th class="r">Valor</th><th></th></tr></thead><tbody>' + lojasDia.map(l => '<tr class="fin-lj" data-loja="' + l.loja + '" data-pag="' + diaRef + '" onclick="finDetalhe(this)" title="clique pra ver os títulos"><td><span class="fin-car">▸</span>' + lojaTag(l.loja) + '</td><td class="r">' + l.n + '</td><td class="r"><b>' + money(l.v) + '</b></td><td>' + barra(l.v, maxL) + '</td></tr>').join('') + '</tbody></table>' : empty('Nada a pagar ' + (fds ? 'na segunda' : 'hoje') + '.');
   if (venc.n) h += '<div class="fin-alert"><b>' + plural(venc.n, 'vencido') + ' em aberto · ' + money(venc.v) + '</b><br>dia de pagamento já passou: atrasado ou baixa ainda não lançada no ERP</div>';
   document.getElementById('c-fin-hoje').innerHTML = h;
 
@@ -521,14 +525,19 @@ function renderFin() {
   const dias = []; for (let i = 0; i < 5; i++) { const d = add(semIni, i); dias.push({ d, ...soma(r => r.pag === d), passado: d < hoje, ehHoje: d === hoje }); }
   const maxD = Math.max(...dias.map(x => x.v), 1);
   document.getElementById('fin-sem-s').textContent = df(semIni) + ' a ' + df(semFim) + ' · por dia de pagamento';
-  document.getElementById('c-fin-semana').innerHTML = '<table class="m"><thead><tr><th>Paga em</th><th class="r">Títulos</th><th class="r">Valor</th><th></th></tr></thead><tbody>'
+  // Esta semana no mesmo desenho do Hoje (Tiago, 28/09): total grande, por dia de pagamento e por loja (clique abre os títulos da semana)
+  const plSem = {}; for (const r of L) if (r.pag >= hoje && r.pag <= semFim) { const a = plSem[r.loja] || (plSem[r.loja] = { loja: r.loja, n: 0, v: 0 }); a.n += r.n; a.v += r.v; }
+  const lojasSem = Object.values(plSem).sort((a, b) => a.loja - b.loja), maxLS = Math.max(...lojasSem.map(l => l.v), 1);
+  document.getElementById('c-fin-semana').innerHTML = '<div class="fin-big"><b>' + money(sem.v) + '</b><small>' + plural(sem.n, 'título') + ' a pagar até sexta · de ' + (fds ? 'segunda' : 'hoje') + ' em diante</small></div>'
+    + '<div class="fin-sec">Por dia de pagamento</div><table class="m fin-al">' + CG + '<thead><tr><th>Paga em</th><th class="r">Títulos</th><th class="r">Valor</th><th></th></tr></thead><tbody>'
     + dias.map(x => { const atras = x.passado && x.n > 0; return '<tr class="' + (x.ehHoje ? 'fin-hl' : atras ? 'bad' : '') + '"><td>' + (x.ehHoje ? '<b>Hoje</b> · ' : '') + '<b>' + DS[dow(x.d)] + '</b> ' + df(x.d) + (dow(x.d) === 1 ? ' <span class="fin-mut">sáb + dom + seg</span>' : '') + (x.passado ? ' <span class="fin-mut">' + (x.n ? 'ficou em aberto' : 'nada em aberto') + '</span>' : '') + '</td><td class="r">' + (x.n || '') + '</td><td class="r"><b' + (atras ? ' class="dn"' : '') + '>' + (x.v ? moneyK(x.v) : '—') + '</b></td><td>' + barra(x.v, maxD, atras) + '</td></tr>'; }).join('')
-    + '<tr class="fin-tot"><td>A pagar até sexta <span class="fin-mut">de ' + (fds ? 'segunda' : 'hoje') + ' em diante</span></td><td class="r">' + sem.n + '</td><td class="r"><b>' + moneyK(sem.v) + '</b></td><td></td></tr></tbody></table>';
+    + '<tr class="fin-tot"><td>A pagar até sexta <span class="fin-mut">de ' + (fds ? 'segunda' : 'hoje') + ' em diante</span></td><td class="r">' + sem.n + '</td><td class="r"><b>' + moneyK(sem.v) + '</b></td><td></td></tr></tbody></table>'
+    + (lojasSem.length ? '<div class="fin-sec">Por loja <span class="fin-mut">semana toda · clique pra ver os títulos</span></div><table class="m fin-al">' + CG + '<thead><tr><th>Loja</th><th class="r">Títulos</th><th class="r">Valor</th><th></th></tr></thead><tbody>' + lojasSem.map(l => '<tr class="fin-lj" data-loja="' + l.loja + '" data-pag-ini="' + hoje + '" data-pag-fim="' + semFim + '" onclick="finDetalhe(this)" title="clique pra ver os títulos da semana"><td><span class="fin-car">▸</span>' + lojaTag(l.loja) + '</td><td class="r">' + l.n + '</td><td class="r"><b>' + money(l.v) + '</b></td><td>' + barra(l.v, maxLS) + '</td></tr>').join('') + '</tbody></table>' : '');
 
   // Semanas seguintes: 8 semanas (seg a sex) e o resto depois
   const sems = []; for (let w = 1; w <= 8; w++) { const a = add(semIni, 7 * w), b = add(a, 4); sems.push({ a, b, ...soma(r => r.pag >= a && r.pag <= b) }); }
   const fim8 = add(semIni, 7 * 8 + 4), depois = soma(r => r.pag > fim8), totProx = soma(r => r.pag >= proxIni), maxS = Math.max(...sems.map(s => s.v), depois.v, 1);
-  document.getElementById('c-fin-proximas').innerHTML = '<table class="m"><thead><tr><th>Semana</th><th class="r">Títulos</th><th class="r">Valor</th><th></th></tr></thead><tbody>'
+  document.getElementById('c-fin-proximas').innerHTML = '<table class="m fin-al">' + CG + '<thead><tr><th>Semana</th><th class="r">Títulos</th><th class="r">Valor</th><th></th></tr></thead><tbody>'
     + sems.map((s, i) => '<tr><td>' + (i === 0 ? '<b>Próxima</b> · ' : '') + df(s.a) + ' a ' + df(s.b) + '</td><td class="r">' + (s.n || '') + '</td><td class="r"><b>' + (s.v ? moneyK(s.v) : '—') + '</b></td><td>' + barra(s.v, maxS) + '</td></tr>').join('')
     + (depois.n ? '<tr><td>Depois de ' + df(fim8) + '</td><td class="r">' + depois.n + '</td><td class="r"><b>' + moneyK(depois.v) + '</b></td><td>' + barra(depois.v, maxS) + '</td></tr>' : '')
     + '<tr class="fin-tot"><td>Da próxima semana em diante</td><td class="r">' + totProx.n + '</td><td class="r"><b>' + moneyK(totProx.v) + '</b></td><td></td></tr></tbody></table>'
@@ -551,18 +560,18 @@ function renderFin() {
 async function finDetalhe(tr) {
   const nx = tr.nextElementSibling;
   if (nx && nx.classList.contains('fin-det')) { nx.remove(); tr.classList.remove('open'); return; }
-  const loja = +tr.dataset.loja, pag = tr.dataset.pag, DS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'], dow = d => new Date(d + 'T12:00:00').getDay();
+  const loja = +tr.dataset.loja, pag = tr.dataset.pag || '', pagIni = tr.dataset.pagIni || '', pagFim = tr.dataset.pagFim || pagIni, rng = !pag && !!pagIni, DS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'], dow = d => new Date(d + 'T12:00:00').getDay();
   const det = document.createElement('tr'); det.className = 'fin-det'; det.innerHTML = '<td colspan="' + tr.children.length + '"><div class="spin"></div></td>';
   tr.after(det); tr.classList.add('open');
   try {
-    const r = await fetch('/api/dashboard/financeiro/titulos?loja=' + loja + '&pag=' + pag); const j = await r.json(); if (j.error) throw new Error(j.error);
+    const r = await fetch('/api/dashboard/financeiro/titulos?loja=' + loja + (pag ? '&pag=' + pag : '') + (rng ? '&pag_ini=' + pagIni + '&pag_fim=' + pagFim : '')); const j = await r.json(); if (j.error) throw new Error(j.error);
     if (!det.isConnected) return;
     const ts = j.titulos || [];
     det.firstChild.innerHTML = ts.length
-      ? '<div class="fin-det-h"><b>' + LJ(loja) + ' ' + (NOMES[loja] || '') + '</b> · ' + ts.length + ' título' + (ts.length === 1 ? '' : 's') + ' · paga ' + DS[dow(pag)] + ' ' + df(pag) + ' · maior valor primeiro</div>'
-        + '<table class="m"><thead><tr><th>Vence</th><th>Fornecedor</th><th>Documento</th><th class="r">Valor</th></tr></thead><tbody>'
-        + ts.map(t => '<tr><td>' + DS[dow(t.venc)] + ' ' + df(t.venc) + '</td><td class="p">' + esc(t.fornecedor || '—') + '</td><td>' + esc(t.doc || '') + '</td><td class="r"><b>' + money(t.valor) + '</b></td></tr>').join('')
-        + '</tbody><tfoot><tr class="fin-tot"><td colspan="3">Total</td><td class="r">' + money(j.total) + '</td></tr></tfoot></table>'
+      ? '<div class="fin-det-h"><b>' + LJ(loja) + ' ' + (NOMES[loja] || '') + '</b> · ' + ts.length + ' título' + (ts.length === 1 ? '' : 's') + ' · ' + (rng ? 'paga de ' + df(pagIni) + ' a ' + df(pagFim) : 'paga ' + DS[dow(pag)] + ' ' + df(pag)) + ' · maior valor primeiro</div>'
+        + '<table class="m"><thead><tr><th>Vence</th>' + (rng ? '<th>Paga</th>' : '') + '<th>Fornecedor</th><th>Documento</th><th class="r">Valor</th></tr></thead><tbody>'
+        + ts.map(t => '<tr><td>' + DS[dow(t.venc)] + ' ' + df(t.venc) + '</td>' + (rng ? '<td><b>' + DS[dow(t.pag)] + '</b> ' + df(t.pag) + '</td>' : '') + '<td class="p">' + esc(t.fornecedor || '—') + '</td><td>' + esc(t.doc || '') + '</td><td class="r"><b>' + money(t.valor) + '</b></td></tr>').join('')
+        + '</tbody><tfoot><tr class="fin-tot"><td colspan="' + (rng ? 4 : 3) + '">Total</td><td class="r">' + money(j.total) + '</td></tr></tfoot></table>'
       : empty('Nenhum título em aberto.');
   } catch (e) { if (det.isConnected) det.firstChild.innerHTML = '<div class="empty">erro: ' + esc(e.message) + '</div>'; }
 }
