@@ -270,6 +270,7 @@ table.pt tfoot td small{font-weight:500;color:var(--ink-3)}
     </div>
     <label title="Só mostra produtos com estoque maior que zero em alguma loja em promoção"><input type="checkbox" id="f-com-estoque" onchange="render()"> só com estoque</label>
     <label title="Deixa em branco as colunas das lojas em que o produto NÃO está em promoção"><input type="checkbox" id="f-so-promo" onchange="render()"> esconder preço normal</label>
+    <label title="Lista tudo de A a Z pela descrição, sem separar novos, programadas e atualizados no topo (clicar numa coluna desliga)"><input type="checkbox" id="f-alfa" onchange="setAlfa(this.checked)"> ordem alfabética</label>
     <span class="info" id="info"></span>
   </div>
 
@@ -376,11 +377,13 @@ function render() {
   const pri = r => progVencida(r.cod) ? -1 : ((PROG[r.cod] || r.novo) ? 0 : (r.atualizado ? 1 : 2));
   const np = DATA.rows.filter(r => PROG[r.cod]).length, nv = DATA.rows.filter(r => progVencida(r.cod)).length;
   const cp = document.getElementById('chip-prog-n'); if (cp) cp.textContent = np ? '(' + np + ')' : ''; const cv = document.getElementById('chip-venc-n'); if (cv) cv.textContent = nv ? '(' + nv + ')' : '';
-  rows.sort((a, b2) => { if (pri(a) !== pri(b2)) return pri(a) - pri(b2); const x = val(a), y = val(b2); const c = typeof x === 'string' ? x.localeCompare(y, 'pt-BR') : (x - y); return DIR === 'asc' ? c : -c; });
+  // "ordem alfabética" ligada: tudo de A a Z pela descrição, sem os grupos do topo (vencidas / novos / atualizados)
+  if (ALFA) rows.sort((a, b2) => a.descricao.localeCompare(b2.descricao, 'pt-BR') || a.cod.localeCompare(b2.cod));
+  else rows.sort((a, b2) => { if (pri(a) !== pri(b2)) return pri(a) - pri(b2); const x = val(a), y = val(b2); const c = typeof x === 'string' ? x.localeCompare(y, 'pt-BR') : (x - y); return DIR === 'asc' ? c : -c; });
   const nOff = Object.keys(lerSug()).filter(c => temSugestao(c)).length; const bo = document.getElementById('btn-off-n'); if (bo) { bo.hidden = !nOff; bo.textContent = nOff + ' off'; }
   const nNovos = DATA.rows.filter(r => r.novo).length; const cn = document.getElementById('chip-novos-n'); if (cn) cn.textContent = nNovos ? '(' + nNovos + ')' : '';
   const nAtus = DATA.rows.filter(r => r.atualizado).length; const ca = document.getElementById('chip-atus-n'); if (ca) ca.textContent = nAtus ? '(' + nAtus + ')' : '';
-  document.querySelectorAll('#tabela th').forEach(th => th.classList.toggle('sorted', th.dataset.ord === ORD));
+  document.querySelectorAll('#tabela th').forEach(th => th.classList.toggle('sorted', th.dataset.ord === (ALFA ? 'descricao' : ORD)));
 
   // KPIs
   const geradoEm = new Date(DATA.geradoEm).toLocaleString('pt-BR');
@@ -520,8 +523,15 @@ function aplicarTodas() {
 }
 function limparSugestoes() { if (!PROD) return; const all = lerSug(); delete all[PROD.cod]; gravarSug(all); document.getElementById('p-todas').value = ''; renderProduto(); }
 
+// ordem alfabética (Tiago, 28/09/2026): caixinha na barra; fica lembrada por tela (promoções / prevenção) no navegador
+const ALFA_KEY = 'econ_' + CFG.key + '_alfa';
+let ALFA = false; try { ALFA = localStorage.getItem(ALFA_KEY) === '1'; } catch (e) {}
+document.getElementById('f-alfa').checked = ALFA;
+function setAlfa(on) { ALFA = !!on; try { localStorage.setItem(ALFA_KEY, ALFA ? '1' : '0'); } catch (e) {} render(); }
 document.querySelectorAll('#tabela th[data-ord]').forEach(th => th.addEventListener('click', () => {
   const o = th.dataset.ord; if (o === 'n') return;
+  // clicar numa coluna volta pra ordenação normal (com novos/programadas no topo) e desliga a caixinha
+  if (ALFA) { ALFA = false; document.getElementById('f-alfa').checked = false; try { localStorage.setItem(ALFA_KEY, '0'); } catch (e) {} ORD = o; DIR = (o === 'cod' || o === 'descricao') ? 'asc' : 'desc'; render(); return; }
   if (ORD === o) DIR = DIR === 'asc' ? 'desc' : 'asc'; else { ORD = o; DIR = (o === 'cod' || o === 'descricao') ? 'asc' : 'desc'; }
   render();
 }));
