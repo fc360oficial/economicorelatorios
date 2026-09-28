@@ -1663,9 +1663,14 @@ function dataPrevista(dias){ if (!dias) return '—'; var d = new Date(); d.setD
 function ciAba(a){ CI_ABA = a; renderComparativoItens(); }
 function ciRec(cod){ CI_REC[cod] = !CI_REC[cod]; var el = document.getElementById('ci-' + cod); if (el) { el.classList.toggle('rec', !!CI_REC[cod]); } }
 function ciRecTodos(v){ CUR.comparativo.itens.forEach(function(i){ CI_REC[i.cod] = v; }); renderComparativoItens(); }
+// busca por descrição (Tiago, 28/09: "toda vez que eu digito demora muito"): antes cada tecla redesenhava a tela inteira
+// (cabeçalho, filtros e 100 cartões) e a caixa perdia o foco. Agora espera a pessoa parar de digitar (250 ms) e redesenha só a lista.
+var CI_BUSCA_T = null;
+function ciBuscaDigitando(v){ CI_F.busca = v; CI_LIM = 100; clearTimeout(CI_BUSCA_T); CI_BUSCA_T = setTimeout(function(){ renderComparativoItens({ soLista: true }); }, 250); }
 function ciFiltrar(){ CI_LIM = 100; CI_F.var = ($('#ci-var') || {}).value || ''; CI_F.varOn = parseFloat(String(CI_F.var).replace(',', '.')) > 0; renderComparativoItens(); }
-function renderComparativoItens(){
+function renderComparativoItens(opts){
   var m = $('#s4-main'); if (!CUR) { renderVazio(m); return; }
+  var soLista = !!(opts && opts.soLista && $('#ci-list'));   // busca (Tiago, 28/09: "demora muito"): redesenha só a lista, a caixa de busca fica onde está, com o foco
   var C = CUR.comparativo, R = C.resumo, F = C.fornecedores, aberta = CUR.status === 'aberta', U = ULT[CUR.id] || {}, K = CATS[CUR.id] || {};
   var novos = {}; (CUR.fornecedores || []).forEach(function(f){ if (f.novo) novos[f.codFornec] = true; });
   var cats = {}; C.itens.forEach(function(i){ var k = K[i.cod]; if (k && k.grupo) cats[k.grupo] = (cats[k.grupo] || 0) + 1; });
@@ -1681,7 +1686,7 @@ function renderComparativoItens(){
   // filtros com títulos grandes (Descrição do Produto · Fornecedor · Categoria · Empresa)
   var lojas = CUR.lojas || [];
   h += '<div class="cfilt clubfilt"><div class="clubgrid">' +
-    '<div><div class="ftit">Descrição do Produto</div><input type="text" class="fin" value="' + esc(CI_F.busca) + '" placeholder="Digite o nome" oninput="ciSet(\'busca\',this.value)"></div>' +
+    '<div><div class="ftit">Descrição do Produto</div><input type="text" class="fin" id="ci-busca" value="' + esc(CI_F.busca) + '" placeholder="Digite o nome" oninput="ciBuscaDigitando(this.value)"></div>' +
     '<div><div class="ftit">Fornecedor</div><select class="fin" onchange="ciSet(\'forn\',this.value)"><option value="">Selecione o fornecedor</option>' + F.map(function(f){ return '<option value="' + f.codFornec + '"' + (String(CI_F.forn) === String(f.codFornec) ? ' selected' : '') + '>' + esc(f.nome) + '</option>'; }).join('') + '</select></div>' +
     '<div><div class="ftit">Categoria</div><select class="fin" onchange="ciSet(\'cat\',this.value)"><option value="">Selecione a categoria</option>' + Object.keys(cats).sort().map(function(g){ return '<option value="' + esc(g) + '"' + (CI_F.cat === g ? ' selected' : '') + '>' + esc(g) + ' (' + cats[g] + ')</option>'; }).join('') + (Object.keys(cats).length ? '' : '<option disabled>sem categoria do ERP pra estes itens</option>') + '</select></div>' +
     '<div><div class="ftit">Empresa</div><select class="fin" onchange="ciSet(\'loja\',this.value)"><option value="">Selecione a empresa</option>' + lojas.map(function(l){ return '<option value="' + l + '"' + (String(CI_F.loja) === String(l) ? ' selected' : '') + '>' + LJ(l) + ' ' + esc(LOJAS_NOMES[l] || '') + '</option>'; }).join('') + '</select></div></div>' +
@@ -1697,6 +1702,7 @@ function renderComparativoItens(){
     '<div class="clubvar"><label class="on"><input type="checkbox" class="check"' + (CI_F.varOn ? ' checked' : '') + ' onchange="ciSet(\'varOn\',this.checked)" title="Liga o filtro de variação: só itens cuja diferença entre o menor preço cotado e a última compra é maior ou igual ao valor informado"> Alta variação de Preços</label>' +
     '<label><input type="radio" name="ci-vt"' + (CI_F.varTipo === 'pct' ? ' checked' : '') + ' onchange="ciSet(\'varTipo\',\'pct\')"> Em percentual (%)</label><label><input type="radio" name="ci-vt"' + (CI_F.varTipo === 'rs' ? ' checked' : '') + ' onchange="ciSet(\'varTipo\',\'rs\')"> Em valor (R$)</label>' +
     '<div class="clubfiltrar"><input type="text" id="ci-var" class="fin" inputmode="decimal" value="' + esc(CI_F.var) + '" placeholder="' + (CI_F.varTipo === 'rs' ? 'ex.: 0,50 (R$)' : 'ex.: 5 (%)') + '" title="Mostra só itens cuja variação entre o menor preço cotado e a última compra é maior ou igual a este valor" oninput="ciVarDigitando()" onkeydown="if(event.key===\'Enter\')ciFiltrar()"><button class="cbtn" style="font-weight:800" onclick="ciFiltrar()">Filtrar</button></div></div></div>';
+  var hHead = h;   // tudo até aqui é cabeçalho + filtros; o que vem depois é a lista (#ci-list), que a busca redesenha sozinha
   var b = CI_F.busca.trim().toLowerCase(), varMin = parseFloat(String(CI_F.var).replace(/\./g, '').replace(',', '.')) || 0, L = CI_F.loja;
   var itens = C.itens.filter(function(i){
     if (b && i.descricao.toLowerCase().indexOf(b) === -1 && String(i.cod).indexOf(b) === -1) return false;
@@ -1738,7 +1744,9 @@ function renderComparativoItens(){
     return x + '</div></div>';
   }).join('');
   if (itens.length > CI_LIM) h += '<div style="text-align:center;margin:14px 0 6px"><button class="btn" onclick="CI_LIM += 200; renderComparativoItens()">Mostrar mais ' + Math.min(200, itens.length - CI_LIM) + ' itens (' + (itens.length - CI_LIM) + ' restantes)</button> <button class="btn ghost" onclick="CI_LIM = 1e9; renderComparativoItens()">Mostrar todos</button></div>';
-  m.innerHTML = h;
+  var hLista = h.slice(hHead.length);
+  if (soLista) { $('#ci-list').innerHTML = hLista; return; }
+  m.innerHTML = hHead + '<div id="ci-list">' + hLista + '</div>';
 }
 // aba "Pedidos: R$" do comparativo — o que vai virar pedido, por fornecedor vencedor, item a item
 // Aba Pedidos no desenho do Club (Tiago, 25/09): "Empresas" + uma linha por loja com CNPJ, total, PDF, Excel e Exportar
