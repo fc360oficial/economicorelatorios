@@ -1689,10 +1689,10 @@ function renderComparativoItens(){
     '<div class="clubflags">' +
     '<label><input type="checkbox" class="check"' + (CI_F.soNovos ? ' checked' : '') + ' onchange="ciSet(\'soNovos\',this.checked)"> Novos Fornecedores</label>' +
     '<label><input type="checkbox" class="check"' + (CI_F.soComprados ? ' checked' : '') + ' onchange="ciSet(\'soComprados\',this.checked)"> Apenas comprados</label>' +
-    '<label><input type="checkbox" class="check"' + (CI_F.soNaoComprados ? ' checked' : '') + ' onchange="ciSet(\'soNaoComprados\',this.checked)"> Não Comprados</label>' +
-    '<label><input type="checkbox" class="check"' + (CI_F.soObs ? ' checked' : '') + ' onchange="ciSet(\'soObs\',this.checked)"> Itens com Observações</label>' +
-    '<label><input type="checkbox" class="check"' + (CI_F.soComPreco ? ' checked' : '') + ' onchange="ciSet(\'soComPreco\',this.checked)" title="Só itens em que pelo menos um fornecedor digitou preço (marcado por padrão)"> Apenas digitados</label>' +
-    '<label><input type="checkbox" class="check"' + (CI_F.soSemPreco ? ' checked' : '') + ' onchange="ciSet(\'soSemPreco\',this.checked)"> Não Digitados</label>' +
+    '<label><input type="checkbox" class="check"' + (CI_F.soNaoComprados ? ' checked' : '') + ' onchange="ciSet(\'soNaoComprados\',this.checked)" title="Algum vendedor digitou preço, mas eu desmarquei e não comprei de nenhum"> Não Comprados</label>' +
+    '<label><input type="checkbox" class="check"' + (CI_F.soObs ? ' checked' : '') + ' onchange="ciSet(\'soObs\',this.checked)" title="Algum vendedor colocou uma observação neste item"> Itens com Observações</label>' +
+    '<label><input type="checkbox" class="check"' + (CI_F.soComPreco ? ' checked' : '') + ' onchange="ciSet(\'soComPreco\',this.checked)" title="Produtos em que alguém colocou preço (marcado por padrão)"> Apenas digitados</label>' +
+    '<label><input type="checkbox" class="check"' + (CI_F.soSemPreco ? ' checked' : '') + ' onchange="ciSet(\'soSemPreco\',this.checked)" title="Produtos em que ninguém colocou preço"> Não Digitados</label>' +
     '</div>' +
     '<div class="clubvar"><label class="on"><input type="checkbox" class="check"' + (CI_F.varOn ? ' checked' : '') + ' onchange="ciSet(\'varOn\',this.checked)" title="Liga o filtro de variação: só itens cuja diferença entre o menor preço cotado e a última compra é maior ou igual ao valor informado"> Alta variação de Preços</label>' +
     '<label><input type="radio" name="ci-vt"' + (CI_F.varTipo === 'pct' ? ' checked' : '') + ' onchange="ciSet(\'varTipo\',\'pct\')"> Em percentual (%)</label><label><input type="radio" name="ci-vt"' + (CI_F.varTipo === 'rs' ? ' checked' : '') + ' onchange="ciSet(\'varTipo\',\'rs\')"> Em valor (R$)</label>' +
@@ -1708,7 +1708,7 @@ function renderComparativoItens(){
     if (CI_F.soComPreco && !temPreco) return false;
     if (CI_F.soObs && !Object.keys(i.precos).some(function(k){ return i.precos[k].obs; })) return false;
     if (CI_F.soComprados && !i.vencedor) return false;
-    if (CI_F.soNaoComprados && i.vencedor) return false;
+    if (CI_F.soNaoComprados && !(i.nao_comprar && temPreco)) return false;   // Tiago, 28/09: alguém digitou preço, mas eu desmarquei e não comprei de ninguém (item sem preço nenhum não é "não comprado", é "não digitado")
     if (CI_F.soNovos && !Object.keys(i.precos).some(function(k){ return novos[k]; })) return false;
     if (CI_F.varOn && varMin > 0) { var base = (U[i.cod] && U[i.cod].preco) || i.ultimo_custo; if (!(base > 0) || !i.melhor) return false; var d = CI_F.varTipo === 'rs' ? Math.abs(i.melhor.preco - base) : Math.abs((i.melhor.preco - base) / base * 100); if (d < varMin) return false; }
     return true;
