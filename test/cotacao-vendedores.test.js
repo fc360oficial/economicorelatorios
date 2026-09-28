@@ -43,3 +43,18 @@ test('preço zero gravado não concorre nem vence; conta como não cotado', () =
   assert.equal(cmp.fornecedores.find(f => f.codFornec === 1).cotados, 0);
   assert.equal(cmp.fornecedores.find(f => f.codFornec === 2).cotados, 1);
 });
+
+// Preço negociado pelo(a) comprador(a) (Tiago, 28/09/26): vale no lugar do digitado, o do vendedor fica guardado
+test('preço negociado entra no comparativo no lugar do digitado e pode virar o vencedor', () => {
+  const { comparativo } = require('../lib/cotacao');
+  const c = { id: 2, status: 'aberta', itens: [{ cod: '111', descricao: 'ITEM', qtd: 10, emb: 1, ultimo_custo: 6 }],
+    fornecedores: [
+      { codFornec: 1, nome: 'A', status: 'finalizado', precos: { '111': { preco: 5.05 } } },
+      { codFornec: 2, nome: 'B', status: 'finalizado', precos: { '111': { preco: 5.5 } } }],
+    negociados: { '111': { 2: { preco: 4.9, por: 'Tiago', em: '2026-09-28T15:00:00.000Z' } } } };
+  const it = comparativo(c).itens[0];
+  assert.equal(it.vencedor.codFornec, 2); assert.equal(it.vencedor.preco, 4.9);
+  assert.equal(it.precos[2].negociado, true); assert.equal(it.precos[2].preco_vendedor, 5.5);
+  assert.equal(it.precos[1].negociado, false); assert.equal(it.precos[1].preco_vendedor, 5.05);
+  assert.equal(it.total_vencedor, 49);
+});

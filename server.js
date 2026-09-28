@@ -8431,6 +8431,14 @@ app.post('/api/cotacoes/:id/vencedores', (req, res) => {
   res.json(cotDetalhe(r));
 });
 // pré-pedido por fornecedor: quantidade por loja, entrega, tipo de entrega, obs
+// preço negociado pelo(a) comprador(a) (Tiago, 28/09/26): fica na cotação, o preço do vendedor não muda; preco vazio desfaz
+app.post('/api/cotacoes/:id/negociar', (req, res) => {
+  const id = cotId(req); if (!id) return res.status(400).json({ error: 'id inválido' });
+  const r = cotacao.negociarPreco(id, req.body?.cod, req.body?.codFornec, req.body?.preco, req.session.user?.nome || null);
+  if (!r) return res.status(404).json({ error: 'cotação não encontrada' });
+  if (r.erro) return res.status(409).json({ error: r.erro });
+  res.json(cotDetalhe(r));
+});
 app.post('/api/cotacoes/:id/pre-pedido/:codFornec', (req, res) => {
   const id = cotId(req); if (!id) return res.status(400).json({ error: 'id inválido' });
   const r = cotacao.salvarPrePedido(id, req.params.codFornec, req.body || {});
