@@ -7870,23 +7870,23 @@ app.post('/api/pedidos-fornecedor/:id/cancelar', (req, res) => {
 });
 
 // PDF do pedido aprovado (interno, por id) — gera na hora se ainda não existir
-app.get('/api/pedidos-fornecedor/:id/pdf', (req, res) => {
+app.get('/api/pedidos-fornecedor/:id/pdf', async (req, res) => {
   const p = pedidosFornec.obter(parseInt(req.params.id));
   if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
   const ln = parseInt(req.query.loja) || 0;   // ?loja=N → PDF só daquela loja
   let f = pedidosFornec.caminhoPdf(p.id, ln);
-  if (!f || req.query.refazer === '1') { try { f = pedidosFornec.gerarPdf(p, ln); } catch (e) { return res.status(500).json({ error: e.message }); } }
-  setTimeout(() => res.sendFile(f, { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="pedido-${p.id}${ln ? '-L' + ln : ''}.pdf"` } }), 150);
+  if (!f || req.query.refazer === '1') { try { f = await pedidosFornec.gerarPdf(p, ln); } catch (e) { return res.status(500).json({ error: e.message }); } }   // espera o arquivo ficar inteiro
+  res.sendFile(f, { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="pedido-${p.id}${ln ? '-L' + ln : ''}.pdf"` } });
 });
 // PDF público pelo token (link que vai no WhatsApp pro vendedor/comprador) — só pedido aprovado ou posterior
-app.get('/pedido/:token/pdf', (req, res) => {
+app.get('/pedido/:token/pdf', async (req, res) => {
   const p = pedidosFornec.porToken(req.params.token);
   if (!p) return res.status(404).send('Pedido não encontrado');
   if (!['aprovado', 'recebido', 'recebido_parcial'].includes(p.status)) return res.status(403).send('O PDF só fica disponível depois que o pedido é aprovado.');
   const ln = parseInt(req.query.loja) || 0;
   let f = pedidosFornec.caminhoPdf(p.id, ln);
-  if (!f) { try { f = pedidosFornec.gerarPdf(p, ln); } catch (e) { return res.status(500).send(e.message); } }
-  setTimeout(() => res.sendFile(f, { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="pedido-${p.id}${ln ? '-L' + ln : ''}.pdf"` } }), 150);
+  if (!f) { try { f = await pedidosFornec.gerarPdf(p, ln); } catch (e) { return res.status(500).send(e.message); } }   // espera o arquivo ficar inteiro
+  res.sendFile(f, { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="pedido-${p.id}${ln ? '-L' + ln : ''}.pdf"` } });
 });
 
 // --- lado do vendedor (público por token; ver bypass no middleware de auth) ---
