@@ -1965,11 +1965,13 @@ function ppTotais(p){ var tl = {}, tot = 0; (ppData().lojas || []).forEach(funct
 // depois de Realizar Pedido: o pedido já entra APROVADO em Pedidos de Compra; aqui ficam os links pro fornecedor (link do pedido, WhatsApp) e pra tela de Pedidos
 function ppLinksPedido(p){
   var ped = (CUR.pedidos || []).find(function(x){ return x.codFornec === p.codFornec; }) || {};
-  var id = ped.id || p.pedidoId, link = ped.link || '', v = p.vendedor || {};
-  var wa = v.whats ? waLink(v.whats, 'Olá' + (v.nome ? ' ' + v.nome : '') + ', segue o pedido #' + id + ' da cotação #' + CUR.id + ' (ECONOMICO SUPERMERCADO - REDE CAHU)' + (link ? ':\n' + link : '')) : null;
+  // Tiago, 28/09: todo link enviado daqui (link do fornecedor, copiar, WhatsApp) é o PEDIDO COMO ESTÁ NO PDF — /pedido/<token>/pdf,
+  // público pelo token, o mesmo arquivo do botão PDF. A página interativa do vendedor (/pedido/<token>) não vai mais por aqui.
+  var id = ped.id || p.pedidoId, link = ped.link ? ped.link.replace(/\/+$/, '') + '/pdf' : '', v = p.vendedor || {};
+  var wa = v.whats ? waLink(v.whats, 'Olá' + (v.nome ? ' ' + v.nome : '') + ', segue o pedido #' + id + ' da cotação #' + CUR.id + ' (ECONOMICO SUPERMERCADO - REDE CAHU) em PDF' + (link ? ':\n' + link : '')) : null;
   return '<div class="pp-links" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0;padding:10px 12px;border:1px solid #B9CCF2;border-radius:10px;background:#E4ECFF;color:#1F4E79;font-size:12.5px"><b>Pedido #' + id + ' realizado</b> · entrou em Pedidos de Compra já aprovado, por loja, com o selo COTAÇÃO'
     + '<span style="flex:1"></span>'
-    + (link ? '<a class="cbtn" target="_blank" rel="noopener" href="' + link + '" style="text-decoration:none">🔗 Link do fornecedor</a><button class="cbtn" onclick="copiar(\'' + link + '\')">Copiar link</button>' : '<span class="mini">sem link (pedido antigo)</span>')
+    + (link ? '<a class="cbtn" target="_blank" rel="noopener" href="' + link + '" style="text-decoration:none" title="Abre o pedido em PDF, o mesmo que vai pro fornecedor">🔗 Link do fornecedor (PDF)</a><button class="cbtn" onclick="copiar(\'' + link + '\')" title="Copia o link do PDF do pedido">Copiar link</button>' : '<span class="mini">sem link (pedido antigo)</span>')
     + (wa ? '<a class="cbtn" target="_blank" rel="noopener" href="' + wa + '" style="text-decoration:none;color:#128C7E;font-weight:700">🟢 WhatsApp</a>' : '')
     + '<a class="cbtn" href="/pedidos-compra.html" style="text-decoration:none">⇅ Pedidos de Compra</a>'
     + (id ? '<a class="cbtn" target="_blank" rel="noopener" href="/api/pedidos-fornecedor/' + id + '/pdf" style="text-decoration:none">📄 PDF</a>' : '') + '</div>';
