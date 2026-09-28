@@ -2043,7 +2043,7 @@ async function ppRealizar(){
   var P = ppData(), p = P.fornecedores.find(function(x){ return x.codFornec === PP_DET; }); if (!p) return;
   var T = ppTotais(p);
   if (!confirm('Realizar o pedido de ' + p.nome + '?\n\n' + p.itens.filter(function(i){ var q = 0; (P.lojas || []).forEach(function(l){ q += ppQtd(i, l); }); return q > 0; }).length + ' itens · ' + fmtR(T.total) + (p.abaixo_minimo ? '\n\nATENÇÃO: abaixo do faturamento mínimo (' + fmtR(p.faturamento_minimo) + ').' : '') + '\n\nO pedido entra em Pedidos de Compra JÁ APROVADO, um por loja, com os preços da cotação e o selo COTAÇÃO (sem consulta de avarias).')) return;
-  try { CUR = await post('/api/cotacoes/' + CUR.id + '/pre-pedido/' + PP_DET + '/realizar'); renderTudo(); var ped = (CUR.pedidos || []).find(function(x){ return x.codFornec === PP_DET; }); toastMsg('Pedido #' + (ped ? ped.id : '?') + ' realizado: entrou em Pedidos de Compra já aprovado. Links do fornecedor logo abaixo.'); if (CUR.status !== 'aberta') goScreen('s5'); }
+  try { CUR = await post('/api/cotacoes/' + CUR.id + '/pre-pedido/' + PP_DET + '/realizar'); renderTudo(); var ped = (CUR.pedidos || []).find(function(x){ return x.codFornec === PP_DET; }); toastMsg('Pedido #' + (ped ? ped.id : '?') + ' realizado: entrou em Pedidos de Compra já aprovado. Links do fornecedor logo abaixo.' + (CUR.status !== 'aberta' ? ' Era o último fornecedor: a cotação foi fechada.' : '')); }   // Tiago, 28/09: fica nesta tela (antes, quando era o último pedido, pulava pra tela de Pedidos)
   catch(e) { toastMsg('Erro: ' + e.message); }
 }
 function naoDigitados(){
