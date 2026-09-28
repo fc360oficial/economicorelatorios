@@ -119,9 +119,9 @@ const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&g
 const dt=s=>s?new Date(s).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):'';
 const dd=s=>s?String(s).slice(0,10).split('-').reverse().join('/'):'';
 const dtp=s=>{if(!s)return '';const t=String(s);return t.length>10?new Date(t).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):dd(t)+' 23:59';};
-let P=null, dirty=false, saveTimer=null;
+let P=null, dirty=false, saveTimer=null; const DIRTY=new Set(); let extraDirty=false;   // DIRTY = códigos dos itens mexidos nesta tela (só eles vão no salvar)
 function precoNum(v){const n=parseFloat(String(v).replace(/\./g,'').replace(',','.'));return isFinite(n)?n:null;}
-function itensForm(){return P.itens.map(i=>{const el=document.querySelector('input.preco[data-cod="'+i.cod+'"]');const ob=document.querySelector('input.obs[data-cod="'+i.cod+'"]');const mk=document.querySelector('input.marca[data-cod="'+i.cod+'"]');const ev=document.querySelector('input.embv[data-cod="'+i.cod+'"]');return {cod:i.cod,preco:el?(el.value.trim()===''?'':precoNum(el.value)):i.preco,obs:ob?ob.value:i.obs,marca:mk?mk.value:(i.marca||''),emb_vendedor:ev?ev.value:(i.emb_vendedor||'')};});}
+function itensForm(so){return P.itens.filter(i=>!so||so.has(i.cod)).map(i=>{const el=document.querySelector('input.preco[data-cod="'+i.cod+'"]');const ob=document.querySelector('input.obs[data-cod="'+i.cod+'"]');const mk=document.querySelector('input.marca[data-cod="'+i.cod+'"]');const ev=document.querySelector('input.embv[data-cod="'+i.cod+'"]');return {cod:i.cod,preco:el?(el.value.trim()===''?'':precoNum(el.value)):i.preco,obs:ob?ob.value:i.obs,marca:mk?mk.value:(i.marca||''),emb_vendedor:ev?ev.value:(i.emb_vendedor||'')};});}
 function extras(){const g=id=>($('#'+id)||{}).value;const pp=parseInt(g('cad-prazo'))||0;return {condicao:pp>0?'Boleto '+pp+' dias':((P.fornecedor&&P.fornecedor.condicao)||''),obs:g('obsg'),cadastro:{email:g('cad-email'),prazo_pagamento:g('cad-prazo'),prazo_entrega:g('cad-tempo'),pedido_minimo:g('cad-min')}};}
 function cadastroFaltando(){const x=extras().cadastro;const f=[];if(!x.email||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x.email))f.push('e-mail');if(!(parseInt(x.prazo_pagamento)>0))f.push('prazo de pagamento');if(x.prazo_entrega===''||x.prazo_entrega==null||!(parseInt(x.prazo_entrega)>=0))f.push('tempo de entrega');if(x.pedido_minimo===''||x.pedido_minimo==null)f.push('pedido mínimo');return f;}
 function totais(){let t=0,n=0;for(const i of itensForm()){if(i.preco!=null&&i.preco!==''){t+=i.preco*(P.itens.find(x=>x.cod===i.cod)?.qtd||0);n++;}}return {t,n};}
@@ -164,7 +164,7 @@ function render(){
       const isPreco=el.classList.contains('preco');
       el.addEventListener('input',()=>{
         if(isPreco){const d=el.value.replace(/\D/g,'').replace(/^0+(?=\d)/,'').slice(0,9);el.value=d?fmt(parseInt(d,10)/100):'';}
-        dirty=true;el.classList.toggle('ok',isPreco&&precoNum(el.value)!=null);atualizarTot();agendarSave();});
+        dirty=true;if(el.dataset.cod)DIRTY.add(el.dataset.cod);else extraDirty=true;el.classList.toggle('ok',isPreco&&precoNum(el.value)!=null);atualizarTot();agendarSave();});
       el.addEventListener('keydown',e=>{
         if(!(e.key==='Enter'||(isPreco&&e.key==='Tab'&&!e.shiftKey)))return;e.preventDefault();   // Enter, Tab ou "próximo" do teclado do celular
         clearTimeout(saveTimer);salvar();
@@ -183,13 +183,16 @@ function filtrarItens(){const b=(($('#f-busca')||{}).value||'').trim().toLowerCa
     const ok=(!b||(tr.dataset.txt||'').indexOf(b)>=0)&&(!sp||temPreco)&&(!so||temObs);tr.hidden=!ok;if(ok)n++;});
   const c=$('#f-cont');if(c)c.textContent=(n===t?t+' itens':n+' de '+t+' itens');}
 function agendarSave(){clearTimeout(saveTimer);saveTimer=setTimeout(salvar,900);}
-async function salvar(){if(!dirty)return;dirty=false;try{const r=await fetch('/api/cotacao-publica/'+token+'/salvar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({itens:itensForm(),...extras()})});if(r.status===409){const j=await r.json().catch(()=>({}));alert(j.error||'Cotação encerrada');location.reload();}}catch(e){dirty=true;}}
+// Salva SÓ o que foi mexido nesta tela (28/09/26). Antes mandava o formulário inteiro a cada digitação: uma segunda cópia do link
+// aberta (celular + PC, ou o navegador do WhatsApp restaurando a página velha) mandava os campos vazios dela e apagava preço e
+// observação já digitados na outra. O servidor só mexe nos itens que recebe, então o que não foi tocado aqui fica como está.
+async function salvar(){if(!dirty)return;dirty=false;const cods=new Set(DIRTY),ex=extraDirty;DIRTY.clear();extraDirty=false;try{const r=await fetch('/api/cotacao-publica/'+token+'/salvar',{method:'POST',headers:{'Content-Type':'application/json'},keepalive:true,body:JSON.stringify(Object.assign({itens:itensForm(cods)},ex?extras():{}))});if(r.status===409){const j=await r.json().catch(()=>({}));alert(j.error||'Cotação encerrada');location.reload();}}catch(e){dirty=true;cods.forEach(c=>DIRTY.add(c));if(ex)extraDirty=true;}}
 $('#btnFim').onclick=async()=>{
   const {n}=totais();
   const faltam=cadastroFaltando(); if(faltam.length){alert('Antes de enviar, preencha no bloco "Estamos atualizando nosso cadastro de fornecedor": '+faltam.join(', ')+'.');const el=document.querySelector('input.cad');if(el){el.scrollIntoView({block:'center',behavior:'smooth'});el.focus();}return;}
   if(!confirm(n<P.itens.length?'Ainda tem '+(P.itens.length-n)+' item(ns) sem preço (não cotados). Enviar a proposta mesmo assim?':'Enviar a proposta? Depois disso não dá mais pra alterar os preços.')) return;
   $('#btnFim').disabled=true;
-  try{const r=await fetch('/api/cotacao-publica/'+token+'/finalizar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({itens:itensForm(),...extras(),nome:(P.fornecedor.vendedor&&P.fornecedor.vendedor.nome)||''})});const j=await r.json();if(j.error)throw new Error(j.error);P=j;render();window.scrollTo(0,0);}
+  try{clearTimeout(saveTimer);const cods=new Set(DIRTY);const r=await fetch('/api/cotacao-publica/'+token+'/finalizar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({itens:itensForm(cods),...extras(),nome:(P.fornecedor.vendedor&&P.fornecedor.vendedor.nome)||''})});const j=await r.json();if(j.error)throw new Error(j.error);dirty=false;DIRTY.clear();extraDirty=false;P=j;render();window.scrollTo(0,0);}
   catch(e){alert('Não foi possível enviar: '+e.message);$('#btnFim').disabled=false;}
 };
 window.addEventListener('beforeunload',()=>{if(dirty)salvar();});
