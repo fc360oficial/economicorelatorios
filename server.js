@@ -6764,6 +6764,11 @@ app.get('/api/dashboard/seg/:nome', async (req, res) => {
   try { const r = await dashboardNovo.segmento(req.params.nome); res.json({ ...r, nomes: dashboardNovo.NOMES, metas: dashboardNovo.getMetas() }); }
   catch (err) { res.status(400).json({ error: err.message }); }
 });
+// títulos de uma loja num dia de pagamento (detalhe da linha da loja no bloco Financeiro), só leitura
+app.get('/api/dashboard/financeiro/titulos', async (req, res) => {
+  try { res.json(await dashboardNovo.titulosFinanceiro({ loja: parseInt(req.query.loja) || 0, pag: String(req.query.pag || '').slice(0, 10), venc: String(req.query.venc || '').slice(0, 10) })); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
 app.post('/api/dashboard/atualizar', (req, res) => { dashboardNovo.calcular().catch(e => console.error('[DASHBOARD]', e.message)); res.json({ ok: true }); });
 app.get('/api/dashboard/metas', (req, res) => res.json(dashboardNovo.getMetas()));
 app.post('/api/dashboard/metas', (req, res) => { try { res.json(dashboardNovo.setMetas(req.body || {})); } catch (err) { res.status(500).json({ error: err.message }); } });

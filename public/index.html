@@ -148,6 +148,11 @@
   .fin-mut{color:var(--ink3);font-size:10px;font-weight:400}
   table.m tr.fin-hl td{background:var(--amw,#FFF6D9);box-shadow:inset 3px 0 0 #F5B800}
   table.m tr.fin-tot td{border-top:2px solid var(--ln,#DADAD6);font-weight:700}
+  table.m tr.fin-lj{cursor:pointer}table.m tr.fin-lj.open td{background:var(--amw,#FFF6D9);box-shadow:inset 3px 0 0 #F5B800}
+  .fin-car{display:inline-block;width:13px;color:var(--ink3);font-size:10px;transition:transform .15s}tr.fin-lj.open .fin-car{transform:rotate(90deg)}
+  table.m tr.fin-det>td{padding:0 12px 12px 22px;background:#FAFAF8;white-space:normal;max-width:none;overflow:visible}table.m tr.fin-det:hover>td{background:#FAFAF8}
+  tr.fin-det table.m{background:#fff;border:1px solid var(--ln,#DADAD6);border-radius:8px}tr.fin-det table.m th{position:static}tr.fin-det table.m td.p{max-width:260px}
+  .fin-det-h{font-size:11px;color:var(--ink3);padding:8px 0 6px}.fin-det-h b{color:var(--ink)}
   .spin{width:24px;height:24px;border:3px solid var(--ln,#DADAD6);border-top-color:#F5B800;border-radius:50%;animation:spin .8s linear infinite;margin:30px auto}
   @keyframes spin{to{transform:rotate(360deg)}}
   .lojas-tag{display:inline-flex;gap:3px;flex-wrap:wrap}
@@ -508,7 +513,7 @@ function renderFin() {
   const lojasDia = Object.values(pl).sort((a, b) => a.loja - b.loja), maxL = Math.max(...lojasDia.map(l => l.v), 1), vencs = Object.values(pv).sort((a, b) => a.venc < b.venc ? -1 : 1);
   let h = '<div class="fin-big"><b>' + money(hj.v) + '</b><small>' + plural(hj.n, 'título') + ' a pagar' + (fds ? ' na segunda' : ' hoje') + '</small></div>';
   if (vencs.length > 1) h += '<div class="fin-comp">' + vencs.map(x => '<span>venc. ' + DS[dow(x.venc)] + ' ' + df(x.venc) + ': <b>' + moneyK(x.v) + '</b></span>').join('') + '</div>';
-  h += lojasDia.length ? '<table class="m"><thead><tr><th>Loja</th><th class="r">Títulos</th><th class="r">Valor</th><th></th></tr></thead><tbody>' + lojasDia.map(l => '<tr><td>' + lojaTag(l.loja) + '</td><td class="r">' + l.n + '</td><td class="r"><b>' + moneyK(l.v) + '</b></td><td>' + barra(l.v, maxL) + '</td></tr>').join('') + '</tbody></table>' : empty('Nada a pagar ' + (fds ? 'na segunda' : 'hoje') + '.');
+  h += lojasDia.length ? '<table class="m"><thead><tr><th>Loja</th><th class="r">Títulos</th><th class="r">Valor</th><th></th></tr></thead><tbody>' + lojasDia.map(l => '<tr class="fin-lj" data-loja="' + l.loja + '" data-pag="' + diaRef + '" onclick="finDetalhe(this)" title="clique pra ver os títulos"><td><span class="fin-car">▸</span>' + lojaTag(l.loja) + '</td><td class="r">' + l.n + '</td><td class="r"><b>' + money(l.v) + '</b></td><td>' + barra(l.v, maxL) + '</td></tr>').join('') + '</tbody></table>' : empty('Nada a pagar ' + (fds ? 'na segunda' : 'hoje') + '.');
   if (venc.n) h += '<div class="fin-alert"><b>' + plural(venc.n, 'vencido') + ' em aberto · ' + money(venc.v) + '</b><br>dia de pagamento já passou: atrasado ou baixa ainda não lançada no ERP</div>';
   document.getElementById('c-fin-hoje').innerHTML = h;
 
@@ -540,6 +545,26 @@ function renderFin() {
   // Maiores títulos de hoje até o fim da próxima semana
   const ms = (f.maiores || []).slice(0, 25);
   document.getElementById('c-fin-maiores').innerHTML = ms.length ? '<table class="m"><thead><tr><th>Fornecedor</th><th>Loja</th><th>Vence</th><th>Paga</th><th class="r">Valor</th></tr></thead><tbody>' + ms.map(m => '<tr class="' + (m.pag === diaRef ? 'fin-hl' : '') + '"><td class="p">' + esc(m.fornecedor) + '<small>doc ' + esc(m.doc || '') + '</small></td><td>' + lojaTag(m.loja) + '</td><td>' + DS[dow(m.venc)] + ' ' + df(m.venc) + '</td><td>' + (m.pag === m.venc ? '<span class="fin-mut">mesmo dia</span>' : '<b>' + DS[dow(m.pag)] + ' ' + df(m.pag) + '</b>') + '</td><td class="r"><b>' + moneyK(m.valor) + '</b></td></tr>').join('') + '</tbody></table>' : empty('Nada em aberto nesse período.');
+}
+
+// clique na linha da loja (bloco Financeiro › Hoje): abre embaixo os títulos daquele dia de pagamento (Tiago, 28/09/26)
+async function finDetalhe(tr) {
+  const nx = tr.nextElementSibling;
+  if (nx && nx.classList.contains('fin-det')) { nx.remove(); tr.classList.remove('open'); return; }
+  const loja = +tr.dataset.loja, pag = tr.dataset.pag, DS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'], dow = d => new Date(d + 'T12:00:00').getDay();
+  const det = document.createElement('tr'); det.className = 'fin-det'; det.innerHTML = '<td colspan="' + tr.children.length + '"><div class="spin"></div></td>';
+  tr.after(det); tr.classList.add('open');
+  try {
+    const r = await fetch('/api/dashboard/financeiro/titulos?loja=' + loja + '&pag=' + pag); const j = await r.json(); if (j.error) throw new Error(j.error);
+    if (!det.isConnected) return;
+    const ts = j.titulos || [];
+    det.firstChild.innerHTML = ts.length
+      ? '<div class="fin-det-h"><b>' + LJ(loja) + ' ' + (NOMES[loja] || '') + '</b> · ' + ts.length + ' título' + (ts.length === 1 ? '' : 's') + ' · paga ' + DS[dow(pag)] + ' ' + df(pag) + ' · maior valor primeiro</div>'
+        + '<table class="m"><thead><tr><th>Vence</th><th>Fornecedor</th><th>Documento</th><th class="r">Valor</th></tr></thead><tbody>'
+        + ts.map(t => '<tr><td>' + DS[dow(t.venc)] + ' ' + df(t.venc) + '</td><td class="p">' + esc(t.fornecedor || '—') + '</td><td>' + esc(t.doc || '') + '</td><td class="r"><b>' + money(t.valor) + '</b></td></tr>').join('')
+        + '</tbody><tfoot><tr class="fin-tot"><td colspan="3">Total</td><td class="r">' + money(j.total) + '</td></tr></tfoot></table>'
+      : empty('Nenhum título em aberto.');
+  } catch (e) { if (det.isConnected) det.firstChild.innerHTML = '<div class="empty">erro: ' + esc(e.message) + '</div>'; }
 }
 
 async function abrirMetas() {
