@@ -1761,11 +1761,11 @@ function pedLojaPorForn(ln, d){
   var grupos = {}, ordem = [];
   d.itens.forEach(function(i){ var k = String(i.pedidoId); if (!grupos[k]) { grupos[k] = { forn: i.forn, pedidoId: i.pedidoId, entrega: i.entrega, itens: [], total: 0 }; ordem.push(k); } grupos[k].itens.push(i); grupos[k].total += i.total; });
   ordem.sort(function(a, b){ return String(grupos[a].forn).localeCompare(String(grupos[b].forn), 'pt-BR'); });
-  var h = '<table class="pp"><thead><tr><th style="width:30px"></th><th>Fornecedor</th><th>Pedido</th><th>Entrega</th><th style="text-align:right">Itens</th><th style="text-align:right">Total</th></tr></thead><tbody>';
-  ordem.forEach(function(k){ var g = grupos[k], key = ln + '|' + k, ab = !!PED_FORN_OPEN[key];
-    h += '<tr class="forn" style="cursor:pointer" onclick="pedFornToggle(\'' + key + '\')" title="Clique pra ver os itens deste fornecedor"><td><span class="chev">' + (ab ? '⌄' : '›') + '</span></td><td><b>' + esc(g.forn) + '</b></td><td class="mini">pedido #' + g.pedidoId + '</td><td class="mini">' + (g.entrega ? String(g.entrega).slice(0, 10).split('-').reverse().join('/') : '—') + '</td><td class="price">' + g.itens.length + '</td><td class="price"><b>' + fmtR(g.total) + '</b></td></tr>';
+  var h = '<table class="pp"><thead><tr><th style="width:30px"></th><th>Fornecedor</th><th>Pedido</th><th>Entrega</th><th style="text-align:right">Itens</th><th style="text-align:right">Total</th><th></th></tr></thead><tbody>';
+  ordem.forEach(function(k){ var g = grupos[k], key = ln + '|' + k, ab = !!PED_FORN_OPEN[key], ped = (CUR.pedidos || []).find(function(x){ return String(x.id) === String(g.pedidoId); }), cf = ped ? ped.codFornec : null;
+    h += '<tr class="forn" style="cursor:pointer" onclick="pedFornToggle(\'' + key + '\')" title="Clique pra ver os itens deste fornecedor"><td><span class="chev">' + (ab ? '⌄' : '›') + '</span></td><td><b>' + esc(g.forn) + '</b></td><td class="mini">pedido #' + g.pedidoId + '</td><td class="mini">' + (g.entrega ? String(g.entrega).slice(0, 10).split('-').reverse().join('/') : '—') + '</td><td class="price">' + g.itens.length + '</td><td class="price"><b>' + fmtR(g.total) + '</b></td><td style="text-align:right">' + (cf != null ? '<button class="cbtn" onclick="event.stopPropagation();CI_ABA=\'prepedidos\';abrirPrePedido(' + cf + ')" title="Abre o pedido deste fornecedor: itens por loja, PDF, link e WhatsApp do vendedor">Abrir pedido →</button>' : '') + '</td></tr>';
     if (!ab) return;
-    h += '<tr class="q"><td></td><td colspan="5"><table class="pp" style="border:1px solid var(--ln);border-radius:8px"><thead><tr><th>Código</th><th>Produto</th><th>Observação do vendedor</th><th style="text-align:right">Qtd</th><th style="text-align:right">Emb</th><th style="text-align:right">Valor unit.</th><th style="text-align:right">Total</th></tr></thead><tbody>' +
+    h += '<tr class="q"><td></td><td colspan="6"><table class="pp" style="border:1px solid var(--ln);border-radius:8px"><thead><tr><th>Código</th><th>Produto</th><th>Observação do vendedor</th><th style="text-align:right">Qtd</th><th style="text-align:right">Emb</th><th style="text-align:right">Valor unit.</th><th style="text-align:right">Total</th></tr></thead><tbody>' +
       g.itens.map(function(i){ return '<tr><td class="mini">' + esc(i.cod) + '</td><td>' + esc(i.descricao) + cdTag(i.cod) + '</td><td style="white-space:normal;max-width:260px">' + (i.obs ? '<span class="pp-flag" style="margin:0;max-width:none;white-space:normal">🚩 ' + esc(i.obs) + '</span>' : '<span class="mini">—</span>') + '</td><td class="price">' + fmtN(i.qtd) + '</td><td class="price">' + esc(i.unid) + ' ' + i.emb + '</td><td class="price">' + fmtR(i.preco) + '</td><td class="price"><b>' + fmtR(i.total) + '</b></td></tr>'; }).join('') + '</tbody></table></td></tr>';
   });
   return h + '</tbody></table>';
@@ -1836,12 +1836,13 @@ function ppObsItem(i){
 }
 function renderPrePedidos(){
   if (PP_DET != null) return renderPrePedidoDet();
-  var P = ppData(), F = P.fornecedores.slice(); if (PP_SORT) F.sort(function(a, b){ return b.total - a.total; });
+  // Tiago, 28/09 ("quando eu realizo o pedido ele some daqui e vai pra tela de Pedidos"): realizado sai desta lista; fica na aba Pedidos
+  var P = ppData(), F = P.fornecedores.filter(function(p){ return p.status !== 'realizado'; }); if (PP_SORT) F.sort(function(a, b){ return b.total - a.total; });
   var lojaNome = CUR.lojas && CUR.lojas.length === 1 ? ' (' + (LOJAS_NOMES[CUR.lojas[0]] || LJ(CUR.lojas[0])) + ')' : ' (CAHU)';
   var h = '<h2 class="clubh1" style="font-size:22px;margin:6px 0 10px">Empresas</h2><div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin-bottom:6px"><select class="fin" style="max-width:520px"><option>GRUPO - SUPERMERCADO ECONÔMICO' + esc(lojaNome) + '</option></select>' +
     '<label style="font-size:13px;color:var(--ink)"><input type="checkbox" checked disabled> Por Fornecedor</label><label style="font-size:13px;color:var(--ink)"><input type="checkbox"' + (PP_SORT ? ' checked' : '') + ' onchange="PP_SORT=this.checked;renderComparativoItens()"> Ordenar por valor</label></div>';
   h += '<div class="pp-card"><div class="pp-hd">Empresa: GRUPO - SUPERMERCADO ECONÔMICO' + esc(lojaNome) + '<span class="tot">Total: ' + fmtR(P.total_pre) + '</span></div>';
-  if (!F.length) return h + '<div class="empty">Nenhum fornecedor vencedor ainda. Quando os vendedores digitarem, o pré-pedido de cada um aparece aqui.</div></div>' + ppNaoComprados();
+  if (!F.length) return h + '<div class="empty">' + (P.fornecedores.length ? 'Todos os pré-pedidos já viraram pedido. Veja na aba <b>Pedidos</b>.' : 'Nenhum fornecedor vencedor ainda. Quando os vendedores digitarem, o pré-pedido de cada um aparece aqui.') + '</div></div>' + ppNaoComprados();
   h += '<table class="pp"><thead><tr><th style="width:30px"></th><th>Fornecedor</th><th>Data Entrega</th><th>Cond. de Pgto.</th><th>Valor</th><th>Fat. Min.</th><th>Tipo de Entrega</th><th>Status</th></tr></thead><tbody>';
   F.forEach(function(p){
     var k = String(p.codFornec), ab = !!PP_OPEN[k];   // (Tiago, 28/09: observação geral do vendedor NÃO aparece nesta linha; fica só na tabela de quem digitou o item)
