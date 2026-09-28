@@ -8439,6 +8439,18 @@ app.post('/api/cotacoes/:id/negociar', (req, res) => {
   if (r.erro) return res.status(409).json({ error: r.erro });
   res.json(cotDetalhe(r));
 });
+// embalagem (un/cx) de um item da cotação, ajustada no carrinho (Tiago, 28/09/26): grava o override global do produto
+// (igual ao "un/cx" da sugestão: vale no Radar e nas próximas cotações) E a caixa do item nesta cotação
+app.post('/api/cotacoes/:id/emb', (req, res) => {
+  const id = cotId(req); if (!id) return res.status(400).json({ error: 'id inválido' });
+  const emb = Math.round(parseFloat(String(req.body?.emb ?? '').replace(',', '.')));
+  if (!(emb >= 1)) return res.status(400).json({ error: 'Embalagem inválida (mínimo 1)' });
+  const r = cotacao.setEmbItem(id, req.body?.cod, emb);
+  if (!r) return res.status(404).json({ error: 'cotação não encontrada' });
+  if (r.erro) return res.status(409).json({ error: r.erro });
+  try { const ov = carregarUnidadeEmbOverrides(); ov[String(req.body.cod)] = { unidade: String(req.body?.unidade || 'UN').trim().toUpperCase() || 'UN', embalagem: emb }; salvarUnidadeEmbOverrides(ov); radarPedidos.recarregarEmbPadrao(); } catch (e) { console.error('[COTACAO] emb override:', e.message); }
+  res.json(cotDetalhe(r));
+});
 app.post('/api/cotacoes/:id/pre-pedido/:codFornec', (req, res) => {
   const id = cotId(req); if (!id) return res.status(400).json({ error: 'id inválido' });
   const r = cotacao.salvarPrePedido(id, req.params.codFornec, req.body || {});
