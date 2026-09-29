@@ -46,8 +46,10 @@ async function conectar() {
     }, 3000);
   }
 
+  // Pareando (sem registro) dá até 10 min pro Tiago digitar o código; depois disso 2 min por conexão.
+  const limite = state.creds.registered ? 120000 : 600000;
   await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('Timeout conexão WA')), 120000);
+    const timer = setTimeout(() => reject(new Error('Timeout conexão WA')), limite);
     let resolvido = false;
     sock.ev.on('connection.update', ({ connection, lastDisconnect }) => {
       if (connection === 'open') {
@@ -61,8 +63,11 @@ async function conectar() {
           logger.error('Sessão encerrada pelo WhatsApp. Apague a pasta auth_info e reinicie pra parear de novo.');
           if (!resolvido) { clearTimeout(timer); reject(new Error('Deslogado')); } else process.exit(1);
         } else {
-          logger.warn('Reconectando...');
-          if (resolvido) setTimeout(conectar, 5000);
+          // 515 (restartRequired) é o normal logo após digitar o código de pareamento: reconecta SEMPRE,
+          // mesmo antes do 1º 'open', senão o celular fica em "conectando..." e desiste.
+          logger.warn(`Conexão fechou (código ${code ?? '?'}). Reconectando...`);
+          setTimeout(conectar, code === DisconnectReason.restartRequired ? 1000 : 5000);
+          if (!resolvido) { resolvido = true; clearTimeout(timer); resolve(); }
         }
       }
     });
