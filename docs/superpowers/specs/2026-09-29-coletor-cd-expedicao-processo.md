@@ -36,6 +36,11 @@ e no "Terminei" o app compara com o pedido.
 
 Lojas 1–6 não veem a escolha: entram direto no Recebimento, como hoje.
 
+## Aviso na hora do bipe (Tiago, 29/09/26)
+Diferente do Recebimento (que só compara no Terminei), na Expedição o app avisa **na hora**, sem revelar a quantidade do pedido:
+- bipou 9 e o pedido tem 10 → "Quantidade diferente do pedido, confira" (pode corrigir ali ou seguir; no Terminei entra na recontagem);
+- bipou código que não está no pedido → "Este produto não é do pedido", não soma, fica marcado como "fora do pedido" pra tirar do caminhão.
+
 ## Decisões já tomadas
 1. Expedição **cega** (não separação assistida). O papel impresso é a separação.
 2. Quem fecha a expedição é o **próprio CD** ao terminar; a divergência vai como aviso pro Televendas (não passa pelo Fiscal da central).
