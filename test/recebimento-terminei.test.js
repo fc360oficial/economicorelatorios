@@ -10,9 +10,10 @@ test('terminei: recontagem sem revelar qtd; falta e recusa viram devolução; ch
   await R.bipar(c.id, { cod: '7896213007386', quant: 8, emb: 24, validade: '2027-03-28' });   // 192 ≠ 240
   await R.bipar(c.id, { cod: '222', quant: 6, emb: 1 });                                       // recusado pela compradora
   let t = R.terminei(c.id); assert.equal(t.bateu, false); assert.deepEqual(t.recontar.map(r => r.motivo).sort(), ['nao_bipado', 'recontar']);
-  assert.ok(!JSON.stringify(t).includes('240')); assert.equal(R.obter(c.id).status, 'recontando'); assert.equal(t.podeEnviar, true);
+  assert.ok(!JSON.stringify(t).includes('240')); assert.equal(R.obter(c.id).status, 'recontando'); assert.equal(t.podeEnviar, false, '1º Terminei: precisa recontar antes');
+  assert.throws(() => R.enviarAssimMesmo(c.id), /Reconte/);
   await R.corrigir(c.id, { cod: '7896213007386', quant: 10, emb: 24, validade: '2027-03-28' });
-  t = R.terminei(c.id); assert.equal(t.bateu, false); assert.equal(t.recontar.length, 1); // falta o 333
+  t = R.terminei(c.id); assert.equal(t.bateu, false); assert.equal(t.recontar.length, 1); assert.equal(t.podeEnviar, true, 'já recontou 1x'); // falta o 333
   R.enviarAssimMesmo(c.id); assert.equal(R.obter(c.id).status, 'terminada');
   const dev = R.devolucoes(R.obter(c.id)); assert.deepEqual(dev.map(d => d.origem + ':' + d.cod + ':' + d.qtd).sort(), ['compras:222:6', 'falta:333:12']);
   R.mensagem(c.id, { de: 'loja', nome: 'MAYRA', motivo: 'validade', cod: '7896213007386' });

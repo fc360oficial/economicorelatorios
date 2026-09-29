@@ -293,7 +293,8 @@ test('PDF de devolução: 404 sem conferência, 409 antes de Terminei, 200 com a
   assert.ok([403, 409].includes(rAntes.statusCode), 'sem Terminei não gera o PDF (403/409)');
   assert.equal(pdfs.length, 0);
 
-  // a loja termina assim mesmo (item '456' não veio -> falta)
+  // a loja termina, reconta (2º Terminei, obrigatório desde 29/09) e envia assim mesmo (item '456' não veio -> falta)
+  await routes['POST /api/recebimento-publico/terminei'](req({ query: { t }, body: { id } }), res());
   await routes['POST /api/recebimento-publico/terminei'](req({ query: { t }, body: { id } }), res());
   await routes['POST /api/recebimento-publico/enviar'](req({ query: { t }, body: { id } }), res());
 
@@ -531,6 +532,9 @@ test('I8 — linha de devolução por FALTA vai pra loja sem quantidade (o Fisca
   const id = rAbrir.body.id;
   await routes['POST /api/recebimento-publico/bipar'](req({ query: { t }, body: { id, cod: '789', quant: 3, emb: 1, validade: '2027-06-01' } }), res());
   await routes['POST /api/recebimento-publico/terminei'](req({ query: { t }, body: { id } }), res());
+  const rSem = res(); await routes['POST /api/recebimento-publico/enviar'](req({ query: { t }, body: { id } }), rSem);
+  assert.notEqual(rSem.statusCode, 200, 'sem recontar não envia');
+  await routes['POST /api/recebimento-publico/terminei'](req({ query: { t }, body: { id } }), res()); // recontagem
   const rEnv = res();
   await routes['POST /api/recebimento-publico/enviar'](req({ query: { t }, body: { id } }), rEnv);
 
