@@ -5225,6 +5225,8 @@ app.post('/api/contagem-publica/concluir', (req, res) => {
 });
 
 // -- central (sessão) --
+// link público do app de contagem (as lojas entram de fora; location.origin na central mostraria o IP interno)
+app.get('/api/contagem/link', (req, res) => res.json({ link: `${PUBLIC_URL}/contagem.html` }));
 app.get('/api/contagem/dias', (req, res) => res.json(contagemNeg.listarDias().slice(0, 60)));
 app.get('/api/contagem/config', (req, res) => {
   if (req.session.user.perfil !== 'admin') return res.status(403).json({ error: 'Só admin.' });
