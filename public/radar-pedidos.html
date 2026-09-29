@@ -58,7 +58,7 @@ table.main-t tbody tr.open{background:#FFF6D9}
 .sub{font-size:10.5px;color:#4E5A72;white-space:normal}
 .pill{display:inline-block;padding:2px 8px;border-radius:99px;font-size:10.5px;font-weight:700;letter-spacing:.3px}
 .p-hoje{background:#FBEAED;color:#C22F49}.p-breve{background:#FFF6D9;color:#6B4E00;border:1px solid #EFD98F}.p-ok{background:#E7F5EC;color:#137A48}.p-cinza{background:#EBEBE9;color:#4E5A72}
-.p-flag{background:#E9EEF6;color:#2E5E8C}
+.p-flag{background:#E9EEF6;color:#2E5E8C}.p-transito{background:#E6EEFA;color:#1F4E9E}
 .p-nova{background:#137A48;color:#fff;font-weight:900;letter-spacing:.5px;animation:novapulse 1.6s ease-in-out infinite}@keyframes novapulse{50%{opacity:.55}}
 .p-a{background:#C22F49;color:#fff;font-weight:800}
 .lc .fl.top{margin:0 0 4px}.lc .fl.top .pill{font-size:10px;letter-spacing:.3px}.p-a.soft{background:#FBEAED;color:#C22F49}
@@ -309,6 +309,14 @@ const temAprovado=l=>(PED_ABERTOS[l.lista]||[]).some(p=>p.status==='aprovado');
 const ST_PED={sugestao:'sugestão de ruptura',aguardando:'enviado ao vendedor · aguardando digitação',digitacao:'vendedor digitando preços',finalizado:'finalizado · aguardando sua aprovação',aprovado:'aprovado · aguardando NF-e'};
 const dtCurta=s=>s?new Date(s).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
 function pedidosAbertosHtml(lista){ return (PED_ABERTOS[lista]||[]).map(p=>'<a class="pill p-ped" href="/pedidos-compra.html" onclick="event.stopPropagation()" title="Já existe pedido em andamento pra esta lista — não gere a sugestão de novo. Clique pra abrir Pedidos de Compra.">⏳ pedido #'+p.id+' · '+(ST_PED[p.status]||p.status)+(p.vendedor?' · '+esc(p.vendedor):'')+' · '+dtCurta(p.finalizadoEm||p.enviadoEm||p.criadoEm)+'</a>').join(' '); }
+// coluna Trânsito: o que a lista já tem pedido no ERP (sugestão aberta) e ainda não entrou; "c/ NF-e" = fornecedor já faturou
+const etqLoja=n=>+n===10?'CD':'E'+n;
+function transitoHtml(l){
+  if(!l.transito_itens) return '<span class="mut" title="Nenhum produto desta lista com pedido aberto no ERP (sugestão Status 0/1 nos últimos 30 dias)">—</span>';
+  const lojas=(l.transito_lojas||[]).map(etqLoja).join(', ');
+  const t='Já pedido no ERP e ainda não entrou: '+l.transito_itens+' produto(s) · '+fmt(l.transito_und,0)+' un · '+money(l.transito_valor)+' a custo · '+lojas+(l.transito_nfe?' · '+l.transito_nfe+' produto×loja com NF-e já emitida':'')+'. O radar já desconta isso do que pedir. Clique na lista pra ver por produto.';
+  return '<span class="pill p-transito" title="'+esc(t)+'">⏳ '+money(l.transito_valor)+'</span><div class="s2">'+l.transito_itens+' '+(l.transito_itens>1?'itens':'item')+' · '+lojas+(l.transito_nfe?' · <span class="pos">'+l.transito_nfe+' c/ NF-e</span>':'')+'</div>';
+}
 function flagsHtml(l){
   const f=[]; const pa=pedidosAbertosHtml(l.lista); if(pa) f.push(pa); if(l.abaixo_minimo)f.push('<span class="pill p-flag" title="Valor abaixo do pedido mínimo do fornecedor">abaixo do mínimo</span>');
   if(l.flags&&l.flags.teto)f.push('<span class="pill p-flag" title="Itens em que a quantidade bateu no teto (alvo + ciclo): conferir estoque/venda atípica">'+l.flags.teto+' no teto</span>');
@@ -332,7 +340,7 @@ function render(){
 }
 const COLS=[
   ['nome','Lista / fornecedor',''],['comprador','Comprador',''],['fazer_em','Fazer em','c'],['pedido_valor','Pedido (custo)','r'],
-  ['cobertura_dias','Cobertura · ponto · alvo','r'],['venda_dia','Venda R$/dia','r'],['estoque_hoje','Estoque · vs alvo','r'],['rupturas','Rupt.','r'],['lead','Lead','r']
+  ['cobertura_dias','Cobertura · ponto · alvo','r'],['venda_dia','Venda R$/dia','r'],['estoque_hoje','Estoque · vs alvo','r'],['transito_valor','Trânsito','r'],['rupturas','Rupt.','r'],['lead','Lead','r']
 ];
 function renderTabela(rows,vazio){
   rows=ordenar(rows);
@@ -352,6 +360,7 @@ function renderTabela(rows,vazio){
       '<td class="r"><span class="'+(l.ok&&l.cobertura_dias<=l.ponto?'neg':'')+'">'+(l.ok?fmt(l.cobertura_dias)+' d':'—')+'</span>'+(l.ok?'<div class="s2">ponto '+fmt(l.ponto)+' · alvo '+fmt(l.alvo)+' · ciclo '+fmt(l.ciclo)+'</div>':'')+'</td>'+
       '<td class="r">'+(l.ok?fmt(l.venda_dia,0):'—')+'</td>'+
       '<td class="r">'+(l.ok?money(l.estoque_hoje):'—')+(l.ok?'<div class="s2 '+(l.diferenca>0?'neg':'pos')+'">'+(l.diferenca>0?'+':'−')+money(Math.abs(l.diferenca))+'</div>':'')+'</td>'+
+      '<td class="r">'+transitoHtml(l)+'</td>'+
       '<td class="r '+(l.rupturas?'neg':'')+'">'+(l.ok?l.rupturas:'—')+'</td>'+
       '<td class="r">'+(lead&&lead.lead_medio!=null?fmt(lead.lead_medio)+' d<div class="s2">máx '+lead.lead_max+' · '+lead.sugestoes+' sug.</div>':'—')+'</td></tr>';
     if(aberta===l.lista) h+='<tr class="det"><td colspan="'+(COLS.length+1)+'"><div class="box" id="det-'+l.lista+'"><div class="spinner"></div></div></td></tr>';
@@ -528,6 +537,7 @@ function renderRegras(){
   '<div><b>Sem venda nos 40 dias</b>: se a loja vendeu o produto em pelo menos 3 dos últimos 6 meses (ruptura recente), usa a média desses 6 meses, nunca acima da média das outras lojas (marcado "venda 6 m"). Loja que não vende há mais tempo fica na regra de 1 caixa. <b>Sazonal (2 anos)</b>: o mês que vem precisa se destacar nos DOIS anos anteriores, 50% acima da média do ano (ou 33% abaixo); aí a venda/dia é multiplicada pela média dos dois anos de (mês alvo ÷ mês atual), entre 0,5 e 2,0 (marcado "sazonal ×1,6"). Um ano só não conta: pode ser promoção. Histórico calculado de madrugada, em cache.</div>'+
   '<div><b>Lista nova</b>: lista que aparece no cadastro do ERP pela primeira vez fica marcada <b>LISTA NOVA</b> por 24 h, no topo de Pedidos do dia e do Calendário, mesmo sem histórico de lead. Depois segue o fluxo normal.</div>'+
   '<div><b>Trânsito</b>: sugestões abertas no ERP por loja; quando o fornecedor já emitiu a NF-e (XML no ERP, ainda não importada), o número da nota aparece e abre a nota ao clicar.</div>'+
+  '<div><b>Coluna Trânsito</b>: valor a custo do que a lista já tem pedido no ERP e ainda não entrou, com quantos itens e em que lojas; "c/ NF-e" conta os produtos cuja nota o fornecedor já emitiu. Traço = nada em trânsito. Ordena ao clicar no título.</div>'+
   '<div><b>Loja zerada sem venda</b>: loja <b>marcada na lista</b> pro produto, com estoque zero, nada em trânsito e sem venda nos 40 dias recebe <b>1 caixa</b>, desde que já tenha vendido o produto alguma vez nos últimos 24 meses. Loja que nunca vendeu aparece como "nunca vendeu" e não recebe a caixa (a marcação da lista costuma ser mais larga que o sortimento real da loja).</div>'+
   '<div><b>Piso</b>: nunca menos que o consumo de 1 ciclo. <b>Teto</b>: nunca mais que (alvo + ciclo) × venda/dia; se bater, aparece "TETO: conferir" (estoque negativo ou venda atípica).</div>'+
   '<div><b>Estoque acima do alvo</b> não gera pedido de redução. A lista só volta a ser pedida quando cruzar o ponto: o excesso desce sozinho com a venda.</div>'+
