@@ -237,7 +237,7 @@ app.use((req, res, next) => {
   if (pathMin === '/contagem.html' || pathMin === '/contagem' || pathMin === '/manifest-contagem.json' || pathMin.startsWith('/api/contagem-publica/')) return next();
   // Coletor de Recebimento no celular do conferente: mesmo esquema (PIN pra entrar, depois token
   // de 32 hex validado dentro da rota)
-  if (pathMin === '/recebimento.html' || pathMin === '/recebimento' || pathMin === '/manifest-recebimento.json' || pathMin.startsWith('/api/recebimento-publico/')) return next();
+  if (pathMin === '/recebimento.html' || pathMin === '/recebimento' || pathMin === '/manifest-recebimento.json' || pathMin.startsWith('/api/recebimento-publico/') || pathMin.startsWith('/api/expedicao-publico/')) return next();
   // Pré-aquecimento interno (somente localhost)
   if (req.headers['x-internal-warmup'] === 'fc360warmup2026' && ['::1', '127.0.0.1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress)) return next();
   const ext = req.path.split('.').pop().toLowerCase();
@@ -7370,7 +7370,15 @@ pedidosFornec.init();
 })();
 // Coletor de Recebimento (conferência cega): rotas públicas por token + internas do fiscal.
 // Fica aqui (depois de pedidosFornec.init()) porque xmlPorChave usa pedidosFornec.listar().
-require('./lib/recebimento-rotas')(app, { q, path, escreverERP, pedidosFornec, conferenciaXml: require('./lib/conferencia-xml'), logColetor, LOG_COLETOR_DIR, __dirname });
+const rotasRecebimento = require('./lib/recebimento-rotas')(app, { q, path, escreverERP, pedidosFornec, conferenciaXml: require('./lib/conferencia-xml'), logColetor, LOG_COLETOR_DIR, __dirname });
+// Expedição do CD (loja 10): conferência cega de saída do pedido do Televendas, com lote. Fica depois do
+// coletor (usa o cadastro dele) e do Pedidos do CD (vínculo caixa → unidade). Spec 2026-09-29-coletor-cd-expedicao-processo.
+{
+  const expedicao = require('./lib/expedicao');
+  expedicao.init({ dir: path.join(__dirname, 'data', 'expedicao'), cadastro: rotasRecebimento.cadastroItem,
+    vinculo: async cod => { const v = pedidosCD.getVinculos()[String(cod)]; return v && v.unidade && v.unidade !== String(cod) ? { cod: String(v.unidade), emb: +v.unPorCaixa || 1 } : null; } });
+  require('./lib/expedicao-rotas')(app, { q, escreverERP, recebimento: require('./lib/recebimento'), expedicao, logColetor, LOG_COLETOR_DIR });
+}
 // Exclusão agendada de pedidos (roda uma vez ao subir): data/pedidos-excluir-no-boot.json = [{ id, lista }].
 // Serve pra apagar pedido de teste sem login na produção (Tiago, 23/09/2026). Só exclui se o pedido existir, for da
 // lista indicada e ainda não estiver aprovado/recebido (regra do excluir). O arquivo é apagado depois de rodar.
