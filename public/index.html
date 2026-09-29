@@ -21,6 +21,7 @@
   .seg-nav a:hover{background:#FFF6D9;border-color:var(--am,#F5B800)}
   .seg-nav a b{display:inline-block;min-width:18px;text-align:center;background:var(--negw);color:var(--neg);border-radius:999px;padding:0 6px;margin-left:6px;font-size:10.5px}
   .seg-nav a b.ok{background:var(--posw);color:var(--pos)}
+  .fin-sec-row td{background:var(--wsh,#EBEBE9);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--ink2);padding:7px 10px}
   .seg{margin-top:22px;scroll-margin-top:60px;display:none}
   .seg.on{display:block}
   .seg.loading{opacity:.55;pointer-events:none}
@@ -278,7 +279,7 @@
     </div>
     <div class="row c2" style="margin-top:12px">
       <div class="card"><div class="card-hd"><h3>Por loja</h3><small>vencidos · hoje · resto da semana · próxima semana · depois</small></div><div class="card-bd" id="c-fin-lojas"><div class="spin"></div></div></div>
-      <div class="card"><div class="card-hd"><h3>Maiores títulos</h3><small>de hoje até o fim da próxima semana</small></div><div class="card-bd" id="c-fin-maiores"><div class="spin"></div></div></div>
+      <div class="card"><div class="card-hd"><h3>O que a loja paga</h3><small>boletos de fornecedor (nota fiscal) × outras operações: folha, impostos, energia, serviços…</small></div><div class="card-bd" id="c-fin-cats"><div class="spin"></div></div></div>
     </div>
     <div class="row" style="margin-top:12px"><div class="card"><div class="card-hd"><h3>Posição de caixa consolidada</h3><span class="k nt">sem fonte</span></div><div class="nosrc" id="c-caixa">Saldo bancário ainda não vem pro sistema. A integração com a API do Itaú hoje só traz o extrato (lançamentos); pra mostrar a posição de caixa consolidada é preciso puxar o saldo de cada conta das 6 lojas. Enquanto isso, o que está aqui é o lado dos compromissos: vencidos, hoje, esta semana e as seguintes.</div></div></div>
   </section>
@@ -372,7 +373,7 @@ function vista() {
   if (e.vencimentos) { const t = e.vencimentos.top.filter(r => r.loja === L); e.vencimentos.top = t; const pl = (e.vencimentos.porLoja || {})[L] || { itens: 0, valor: 0 }; e.vencimentos.itens = pl.itens; e.vencimentos.valor = pl.valor; e.vencimentos.porLoja = { [L]: pl }; e.vencimentos.buckets = { d7: t.filter(r => r.dias <= 7).length, d15: t.filter(r => r.dias > 7 && r.dias <= 15).length, d30: t.filter(r => r.dias > 15).length }; }
   if (c.operacao) c.operacao.lojas = c.operacao.lojas.filter(l => l.loja === L);
   const fi = c.financeiro;   // linhas já vêm por loja × vencimento; a tela recalcula tudo a partir delas
-  if (fi) { fi.linhas = (fi.linhas || []).filter(r => r.loja === L); fi.maiores = (fi.maiores || []).filter(m => m.loja === L); }
+  if (fi) { fi.linhas = (fi.linhas || []).filter(r => r.loja === L); fi.maiores = (fi.maiores || []).filter(m => m.loja === L); fi.categorias = (fi.categorias || []).filter(r => r.loja === L); }
   return c;
 }
 function render() {
@@ -501,7 +502,7 @@ function renderOp() {
   document.getElementById('c-op').innerHTML = '<table class="m"><thead><tr><th>Loja</th><th class="r">Caixas ativos</th><th class="r">Cupons hoje</th><th class="r">Última hora</th><th class="r">Parados</th><th>Caixas (último cupom)</th></tr></thead><tbody>' + o.lojas.map(l => '<tr class="' + (l.parados ? 'bad' : '') + '"><td>' + lojaTag(l.loja) + '</td><td class="r"><b>' + l.caixasAtivos + '</b></td><td class="r">' + l.cupons.toLocaleString('pt-BR') + '</td><td class="r">' + l.ultHora + '</td><td class="r ' + (l.parados ? 'dn' : '') + '">' + (l.parados || '—') + '</td><td style="white-space:normal">' + l.pdvs.map(p => '<span class="op-pdv' + (p.parado ? ' bad' : '') + '" title="' + esc(p.operador) + ' · ' + p.cupons + ' cupons · última hora ' + p.ultHora + '">PDV ' + p.pdv + ' ' + p.ult + '</span>').join('') + '</td></tr>').join('') + '</tbody></table>';
 }
 function renderFin() {
-  const ids = ['c-fin-hoje', 'c-fin-semana', 'c-fin-proximas', 'c-fin-lojas', 'c-fin-maiores'];
+  const ids = ['c-fin-hoje', 'c-fin-semana', 'c-fin-proximas', 'c-fin-lojas', 'c-fin-cats'];
   const f = V.financeiro; if (!f || !f.linhas) { ids.forEach(id => { document.getElementById(id).innerHTML = empty('sem dados'); }); return; }
   const hoje = f.hoje, semIni = f.semIni, semFim = f.semFim, proxIni = f.proxIni, proxFim = f.proxFim, L = f.linhas;
   const DS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'], dow = d => new Date(d + 'T12:00:00').getDay();
@@ -565,9 +566,20 @@ function renderFin() {
     + lojas.map(ln => '<tr><td>' + lojaTag(ln) + '</td>' + cols.map((c, i) => { const v = cel(c[1], ln); return '<td class="r' + (v && c[2] ? ' ' + c[2] : '') + '">' + (i === cols.length - 1 ? '<b>' + moneyK(v) + '</b>' : v ? moneyK(v) : '—') + '</td>'; }).join('') + '</tr>').join('')
     + (lojas.length > 1 ? '<tr class="fin-tot"><td>Rede</td>' + cols.map(c => { const v = cel(c[1]); return '<td class="r' + (v && c[2] ? ' ' + c[2] : '') + '"><b>' + (v ? moneyK(v) : '—') + '</b></td>'; }).join('') + '</tr>' : '') + '</tbody></table>' : empty('Nada em aberto.');
 
-  // Maiores títulos de hoje até o fim da próxima semana
-  const ms = (f.maiores || []).slice(0, 25);
-  document.getElementById('c-fin-maiores').innerHTML = ms.length ? '<table class="m"><thead><tr><th>Fornecedor</th><th>Loja</th><th>Vence</th><th>Paga</th><th class="r">Valor</th></tr></thead><tbody>' + ms.map(m => '<tr class="' + (m.pag === diaRef ? 'fin-hl' : '') + '"><td class="p">' + finForn(m) + '<small>doc ' + esc(m.doc || '') + '</small></td><td>' + lojaTag(m.loja) + '</td><td>' + DS[dow(m.venc)] + ' ' + df(m.venc) + '</td><td>' + (m.pag === m.venc ? '<span class="fin-mut">mesmo dia</span>' : '<b>' + DS[dow(m.pag)] + ' ' + df(m.pag) + '</b>') + '</td><td class="r"><b>' + moneyK(m.valor) + '</b></td></tr>').join('') + '</tbody></table>' : empty('Nada em aberto nesse período.');
+  // O que a loja paga (Tiago, 29/09): boletos de fornecedor (grupo 4 do plano de contas) × outras operações, com o nome
+  // do grupo do ERP, nas mesmas colunas do "Por loja"
+  const CATS = f.categorias || [], GN = f.grupos || {};
+  const NOME_GRUPO = { 4: 'Boletos de fornecedor (nota fiscal)', 12: 'Colaboradores (folha, encargos)', 11: 'Despesas dos sócios', 1: 'Despesas administrativas (energia, água, aluguel…)', 2: 'Veículos da empresa', 3: 'Marketing', 5: 'Operações de checkout', 6: 'Diversos', 8: 'Impostos federais', 9: 'Impostos estaduais', 10: 'Impostos municipais', 13: 'Despesas do CD', 0: 'Sem classificação no ERP' };
+  const nomeG = g => NOME_GRUPO[g] || (GN[g] ? GN[g].charAt(0) + GN[g].slice(1).toLowerCase() : 'Grupo ' + g);
+  const celC = (pred, g) => CATS.reduce((s, r) => (g == null ? r.grupo !== 4 : r.grupo === g) && pred(r) ? s + r.v : s, 0);
+  const linhaC = (rot, g, cls) => '<tr' + (cls ? ' class="' + cls + '"' : '') + '><td>' + rot + '</td>' + cols.map((c, i) => { const v = celC(c[1], g); return '<td class="r' + (v && c[2] ? ' ' + c[2] : '') + '">' + (i === cols.length - 1 ? '<b>' + (v ? moneyK(v) : '—') + '</b>' : v ? moneyK(v) : '—') + '</td>'; }).join('') + '</tr>';
+  const outros = [...new Set(CATS.filter(r => r.grupo !== 4).map(r => r.grupo))].map(g => ({ g, tot: celC(() => true, g) })).filter(x => x.tot > 0).sort((a, b) => b.tot - a.tot);
+  document.getElementById('c-fin-cats').innerHTML = CATS.length ? '<table class="m"><thead><tr><th>Tipo</th>' + cols.map(c => '<th class="r">' + c[0] + '</th>').join('') + '</tr></thead><tbody>'
+    + linhaC('<b>Boletos de fornecedor</b> <span class="fin-mut">nota fiscal · grupo Fornecedor</span>', 4, 'fin-hl')
+    + '<tr class="fin-sec-row"><td colspan="' + (cols.length + 1) + '">Outras operações <span class="fin-mut">pelo grupo do plano de contas do ERP</span></td></tr>'
+    + outros.map(x => linhaC(nomeG(x.g), x.g)).join('')
+    + (outros.length ? linhaC('<b>Total das outras operações</b>', null, 'fin-tot') : '')
+    + '</tbody></table>' : empty('Nada em aberto.');
 }
 
 // clique na linha da loja (bloco Financeiro › Hoje): abre embaixo os títulos daquele dia de pagamento (Tiago, 28/09/26)
