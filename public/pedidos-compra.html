@@ -231,7 +231,7 @@ async function abrirNfe(chave){
   }catch(e){ document.getElementById('pv-body').insertAdjacentHTML('beforeend','<div class="empty">Erro: '+esc(e.message)+'</div>'); }
 }
 const XML_ST={aguardando:'Aguardando conferência XML',parcial:'XML parcial',conciliado:'Conciliado XML',consistencia:'Consistência XML'};
-const XML_PROB={falta:'falta',a_mais:'veio a mais',nao_pedido:'item não pedido',preco:'preço',sem_boleto:'sem boleto',boleto:'boleto ≠ NF-e',valor:'valor ≠ esperado',unidade:'unidade da nota'};
+const XML_PROB={falta:'falta',a_mais:'veio a mais',nao_pedido:'item não pedido',preco:'preço',sem_boleto:'sem boleto',boleto:'boleto ≠ NF-e',valor:'valor ≠ esperado',unidade:'unidade da nota',afinidade:'conferir se é este pedido'};
 const probTxt=a=>(a||[]).map(t=>XML_PROB[t]||t).join(', ');
 // o que fazer em cada tipo de problema (quem resolve)
 const O_QUE_FAZER={
@@ -242,7 +242,8 @@ const O_QUE_FAZER={
   boleto:['Financeiro','Boletos não batem com a NF-e: não pagar até o fornecedor corrigir.'],
   sem_boleto:['Comprador(a)','Pedir o boleto/duplicata ao vendedor antes do vencimento.'],
   valor:['Comprador(a)','Valor da NF-e diferente do esperado: conferir frete, IPI, ST ou desconto que não estava combinado.'],
-  unidade:['Comprador(a)','A nota veio em caixa/fardo sem a unidade tributável e o pedido não tem embalagem: confira quantas unidades tem a caixa antes de julgar falta ou preço.']
+  unidade:['Comprador(a)','A nota veio em caixa/fardo sem a unidade tributável e o pedido não tem embalagem: confira quantas unidades tem a caixa antes de julgar falta ou preço.'],
+  afinidade:['Comprador(a)','Menos da metade dos itens da nota está neste pedido (troca de marca ou nota de outro pedido do mesmo fornecedor): confirme se a nota é deste pedido antes de aceitar ou recusar itens.']
 };
 function msgCobranca(p,ln,x){
   const L=[];
@@ -280,7 +281,7 @@ async function decidir(id,ln,cod,acao){
 }
 function wppTexto(p,texto){const w=(p.vendedor?.whats||'').replace(/\D/g,'');const m=encodeURIComponent(texto);return w.length>=10?'https://wa.me/55'+w+'?text='+m:'https://wa.me/?text='+m;}
 // motivo sugerido automaticamente a partir dos problemas da loja (o(a) comprador(a) edita se quiser)
-const MOTIVO_AUTO={preco:'Preço divergente acertado com o vendedor (nota de devolução / boleto ajustado)',boleto:'Boleto corrigido pelo fornecedor conforme a NF-e',sem_boleto:'Boleto recebido do fornecedor',falta:'Falta tratada pela sugestão de ruptura',a_mais:'Excedente recusado na entrega, nota de devolução emitida',nao_pedido:'Item não pedido recusado na entrega',valor:'Diferença de valor conferida (frete / IPI / ST / desconto)',unidade:'Unidade da nota conferida com a embalagem'};
+const MOTIVO_AUTO={preco:'Preço divergente acertado com o vendedor (nota de devolução / boleto ajustado)',boleto:'Boleto corrigido pelo fornecedor conforme a NF-e',sem_boleto:'Boleto recebido do fornecedor',falta:'Falta tratada pela sugestão de ruptura',a_mais:'Excedente recusado na entrega, nota de devolução emitida',nao_pedido:'Item não pedido recusado na entrega',valor:'Diferença de valor conferida (frete / IPI / ST / desconto)',unidade:'Unidade da nota conferida com a embalagem',afinidade:'Nota conferida: é deste pedido'};
 async function aceitarLoja(id,ln){
   const x=PED[id]?.xml?.lojas?.[ln]; const tipos=[...new Set((x?.problemas||[]).map(z=>z.tipo))];
   const sugerido=tipos.map(t=>MOTIVO_AUTO[t]||t).join('; ');
