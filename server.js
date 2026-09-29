@@ -7362,6 +7362,7 @@ require('./lib/recebimento-rotas')(app, { q, path, escreverERP, pedidosFornec, c
 // Exclusão agendada de pedidos (roda uma vez ao subir): data/pedidos-excluir-no-boot.json = [{ id, lista }].
 // Serve pra apagar pedido de teste sem login na produção (Tiago, 23/09/2026). Só exclui se o pedido existir, for da
 // lista indicada e ainda não estiver aprovado/recebido (regra do excluir). O arquivo é apagado depois de rodar.
+// { id, lista, remover_lojas: [2] } tira só essas lojas do pedido em vez de excluir (sugestão de ruptura meio falsa, 29/09/2026).
 try {
   const arqEx = path.join(__dirname, 'data', 'pedidos-excluir-no-boot.json');
   if (fs.existsSync(arqEx)) {
@@ -7369,8 +7370,10 @@ try {
       const p = pedidosFornec.obter(+e.id);
       if (!p) { console.log('[PEDIDOS] exclusão agendada #' + e.id + ': não existe (já excluído?)'); continue; }
       if (+p.lista !== +e.lista) { console.log('[PEDIDOS] exclusão agendada #' + e.id + ': lista ' + p.lista + ' ≠ ' + e.lista + ', ignorado'); continue; }
-      const r = pedidosFornec.excluir(+e.id, 'sistema · exclusão agendada (pedido do Tiago)');
-      console.log('[PEDIDOS] exclusão agendada #' + e.id + ':', r && r.erro ? r.erro : 'excluído');
+      const r = Array.isArray(e.remover_lojas) && e.remover_lojas.length
+        ? pedidosFornec.removerLojas(+e.id, e.remover_lojas, 'sistema · exclusão agendada (pedido do Tiago)')
+        : pedidosFornec.excluir(+e.id, 'sistema · exclusão agendada (pedido do Tiago)');
+      console.log('[PEDIDOS] exclusão agendada #' + e.id + ':', r && r.erro ? r.erro : (e.remover_lojas ? 'lojas ' + e.remover_lojas.join(',') + ' removidas' : 'excluído'));
     }
     fs.unlinkSync(arqEx);
   }
