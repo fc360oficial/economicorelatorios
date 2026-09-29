@@ -103,6 +103,19 @@ test('/entrar com PIN certo devolve token da loja', async () => {
   assert.match(r.body.token, /^[a-f0-9]{32}$/);
 });
 
+test('/notas: devolução (finNFe 4) vem com tipo devolucao; nota com lançamento finalizado em compras some mesmo com Importado=0', async () => {
+  const chDev = 'D'.repeat(44), chLanc = 'F'.repeat(44), chNova = 'N'.repeat(44);
+  const q = async (sql, params) => {
+    if (sql.includes('FROM central.axml')) return [chDev, chLanc, chNova].map((chave, i) => ({ chave, nNota: String(i + 1), CNPJemit: '11222333000199', Data: '2026-09-29' }));
+    if (sql.includes('FROM central.compras WHERE nLoja=?')) { assert.equal(params[0], 3); return [{ chave: chLanc }]; }
+    if (sql.includes('FROM central.arquivoxml')) return [{ chave: chDev, fin: '4', natOp: 'DEVOLUCAO-S' }, { chave: chNova, fin: '1', natOp: 'VENDA' }];
+    return [];
+  };
+  const { routes } = montarAmbiente({ q });
+  const r = res(); await routes['GET /api/recebimento-publico/notas'](req({ query: { t: recebimento.config().lojas[3].token } }), r);
+  assert.deepEqual(r.body.map(n => n.nNota + ':' + n.tipo), ['1:devolucao', '3:compra']);
+});
+
 test('/notas: nota já liberada no Dlinks (conferencia.Status 2) some da lista; conferência aberta no ERP vem avisada em n.erp', async () => {
   const chaveLib = 'L'.repeat(44), chaveAberta = 'A'.repeat(44), chaveNova = 'N'.repeat(44);
   const q = async (sql, params) => {

@@ -472,14 +472,15 @@ async function carregarNotas(manual) {
   renderNotas();
 }
 const pendente = n => !n.conferencia || n.conferencia.status === 'bipando' || n.conferencia.status === 'recontando';
-const PILL = { liberada: ['ok', 'Liberada'], divergente: ['bad', 'Divergente'], sem_pedido: ['warn', 'Sem pedido'] };
+const PILL = { liberada: ['ok', 'Liberada'], divergente: ['bad', 'Divergente'], sem_pedido: ['warn', 'Sem pedido'], devolucao: ['info', 'Devolução de cliente'] };
 const PORQUE = {
   divergente: ['', 'Central já sabe o motivo. Confira normal.'],
   sem_pedido: ['w', 'Nenhum pedido. Confira e a central decide.']
 };
 function linhaNota(n, i) {
-  const p = PILL[n.veredito] || ['mut', n.veredito];
-  const w = PORQUE[n.veredito];
+  const dev = n.tipo === 'devolucao';
+  const p = dev ? PILL.devolucao : (PILL[n.veredito] || ['mut', n.veredito]);
+  const w = dev ? ['i', 'Mercadoria voltando de ' + (n.fornecedor || 'cliente') + ' pro CD. Confere igual, a central decide.'] : PORQUE[n.veredito];
   const emAndamento = n.conferencia && n.conferencia.status === 'bipando' ? 'Você já começou esta nota. Toque pra continuar.'
     : n.conferencia && n.conferencia.status === 'recontando' ? 'Falta recontar. Toque pra continuar.' : null;
   return `<button class="nota" onclick="abrirNota(${i})">
