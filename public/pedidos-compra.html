@@ -316,13 +316,13 @@ async function carregarCD(){
   try{
     const r=await fetch('/api/pedidos-cd/pedidos'); if(!r.ok) return; const ps=await r.json(); if(!Array.isArray(ps)) return;
     const c=k=>ps.filter(p=>p.status===k).length; const ab=c('aberto'), sep=c('separado'), par=c('recebido_parcial');
-    const div=ps.filter(p=>['separado','recebido','recebido_parcial'].includes(p.status)&&p.itens.some(i=>(p.recebimento?(i.recebidas||0):(i.separadas||0))<i.caixas)).length;
+    const div=ps.filter(p=>p.situacao&&p.situacao.resolver).length; // regra 29/09: só o que saiu do CD e não entrou na loja
     const el=$('#cd-card'); if(!el) return; if(!ps.length){el.hidden=true;return;}
     el.hidden=false;
     el.innerHTML='<a href="/centro-distribuicao.html?tab=pedidos" style="text-decoration:none;color:inherit;display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:#fff;border:1px solid #DADAD6;border-left:4px solid #F5B800;border-radius:10px;padding:10px 16px;font-size:12.5px">'
       +'<b style="font-size:13px">Pedidos ao CD</b><span style="color:#4E5A72">lojas → Centro de Distribuição · conferência automática (separado no CD / chegou na loja)</span>'
       +'<span style="margin-left:auto;display:flex;gap:14px;font-weight:700"><span title="aguardando separação no CD">'+ab+' aberto'+(ab===1?'':'s')+'</span><span title="separado no CD, a caminho da loja">'+sep+' separado'+(sep===1?'':'s')+'</span><span title="chegou parcial na loja">'+par+' parcia'+(par===1?'l':'is')+'</span>'
-      +(div?'<span style="color:#C22F49" title="pedido separado/recebido com item faltando">'+div+' com divergência</span>':'')+'<span style="color:#6B4E00">abrir →</span></span></a>';
+      +(div?'<span style="color:#C22F49" title="mercadoria saiu do CD e não entrou na loja: resolver com motivo">'+div+' pra resolver</span>':'')+'<span style="color:#6B4E00">abrir →</span></span></a>';
   }catch(e){}
 }
 let FIN=[];

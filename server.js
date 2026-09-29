@@ -7553,7 +7553,7 @@ app.delete('/api/pedidos-cd/vinculos/:codigoCD', (req, res) => {
 app.get('/api/pedidos-cd/buscar-unidade', async (req, res) => {
   try { res.json(await pedidosCD.buscarUnidade(req.query.q)); } catch (err) { res.status(500).json({ error: err.message }); }
 });
-app.get('/api/pedidos-cd/pedidos', (req, res) => res.json(pedidosCD.listarPedidos()));
+app.get('/api/pedidos-cd/pedidos', (req, res) => res.json(pedidosCD.listarPedidos().map(p => ({ ...p, situacao: pedidosCD.situacao(p) }))));
 // --- lado do CD (público por token, igual ao link do vendedor) ---
 app.get('/cd/:tokens', (req, res) => {
   const ps = pedidosCD.porTokens(req.params.tokens);
@@ -7580,6 +7580,12 @@ app.post('/api/pedidos-cd/pedidos/:id/cancelar', (req, res) => {
   const id = parseInt(req.params.id, 10);
   if (!Number.isInteger(id) || id < 1) return res.status(400).json({ error: 'id inválido' });
   try { res.json(pedidosCD.cancelarPedido(id, req.session.user?.nome || null)); }
+  catch (err) { res.status(400).json({ error: err.message }); }
+});
+app.post('/api/pedidos-cd/pedidos/:id/resolver', (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isInteger(id) || id < 1) return res.status(400).json({ error: 'id inválido' });
+  try { res.json(pedidosCD.resolverPedido(id, req.body || {}, req.session.user?.nome || null)); }
   catch (err) { res.status(400).json({ error: err.message }); }
 });
 app.post('/api/pedidos-cd/verificar', async (req, res) => {
