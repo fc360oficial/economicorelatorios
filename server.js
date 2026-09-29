@@ -308,7 +308,7 @@ app.get('/api/admin/modulos', requireAdmin, (req, res) => {
 });
 
 app.get('/api/admin/usuarios', requireAdmin, (req, res) => {
-  res.json(usuarios.map(u => ({ id: u.id, nome: u.nome, usuario: u.usuario, perfil: u.perfil || 'gerente', comprador_nome: u.comprador_nome || null, loja_id: u.loja_id || null, modulos: Array.isArray(u.modulos) ? u.modulos : null })));
+  res.json(usuarios.map(u => ({ id: u.id, nome: u.nome, usuario: u.usuario, perfil: u.perfil || 'gerente', comprador_nome: u.comprador_nome || null, loja_id: u.loja_id || null, dlinks_usuario: u.dlinks_usuario || null, modulos: Array.isArray(u.modulos) ? u.modulos : null })));
 });
 
 // Lista de módulos vinda do cadastro: array de ids válidos, ou null (= todos, cadastro antigo).
@@ -317,12 +317,12 @@ function modulosDoBody(v) {
 }
 
 app.post('/api/admin/usuarios', requireAdmin, async (req, res) => {
-  const { nome, usuario, senha, perfil, comprador_nome, loja_id, modulos: modulosBody } = req.body || {};
+  const { nome, usuario, senha, perfil, comprador_nome, loja_id, dlinks_usuario, modulos: modulosBody } = req.body || {};
   if (!nome || !usuario || !senha || !perfil) return res.status(400).json({ error: 'Campos obrigatórios: nome, usuario, senha, perfil' });
   if (usuarios.find(u => u.usuario === usuario.toLowerCase().trim())) return res.status(400).json({ error: 'Usuário já existe' });
   const hash = await bcrypt.hash(String(senha), 10);
   const novoId = Math.max(...usuarios.map(u => u.id), 0) + 1;
-  usuarios.push({ id: novoId, nome: nome.trim(), usuario: usuario.toLowerCase().trim(), senha_hash: hash, perfil, comprador_nome: comprador_nome || null, loja_id: loja_id ? parseInt(loja_id) : null, modulos: modulosDoBody(modulosBody) });
+  usuarios.push({ id: novoId, nome: nome.trim(), usuario: usuario.toLowerCase().trim(), senha_hash: hash, perfil, comprador_nome: comprador_nome || null, loja_id: loja_id ? parseInt(loja_id) : null, dlinks_usuario: String(dlinks_usuario || '').trim().toUpperCase() || null, modulos: modulosDoBody(modulosBody) });
   salvarUsuarios();
   res.json({ ok: true, id: novoId });
 });
@@ -331,7 +331,7 @@ app.put('/api/admin/usuarios/:id', requireAdmin, async (req, res) => {
   const id = parseInt(req.params.id);
   const idx = usuarios.findIndex(u => u.id === id);
   if (idx === -1) return res.status(404).json({ error: 'Usuário não encontrado' });
-  const { nome, usuario, senha, perfil, comprador_nome, loja_id, modulos: modulosBody } = req.body || {};
+  const { nome, usuario, senha, perfil, comprador_nome, loja_id, dlinks_usuario, modulos: modulosBody } = req.body || {};
   if (nome) usuarios[idx].nome = nome.trim();
   if (usuario) {
     if (usuarios.find(u => u.usuario === usuario.toLowerCase().trim() && u.id !== id)) return res.status(400).json({ error: 'Usuário já existe' });
@@ -341,10 +341,47 @@ app.put('/api/admin/usuarios/:id', requireAdmin, async (req, res) => {
   if (perfil) usuarios[idx].perfil = perfil;
   usuarios[idx].comprador_nome = comprador_nome || null;
   usuarios[idx].loja_id = loja_id ? parseInt(loja_id) : null;
+  // undefined = campo não veio (troca de senha), mantém
+  if (dlinks_usuario !== undefined) usuarios[idx].dlinks_usuario = String(dlinks_usuario || '').trim().toUpperCase() || null;
   // undefined = campo não veio (ex.: troca de senha), mantém; null = todos; array = lista.
   if (modulosBody !== undefined) usuarios[idx].modulos = modulosDoBody(modulosBody);
   salvarUsuarios();
   res.json({ ok: true });
+});
+
+// ── Usuário do Dlinks de quem envia pelo app ─────────────────────────────────
+// O Dlinks grava quem fez a sugestão em pedidocompra.NomeAutorizacao/CodAutorizacao (= central.usuarios nome + codOperadorLoja
+// da CENTRAL, nLoja 10). Pra aparecer lá o login do Dlinks da pessoa, cada usuário do app pode ter "dlinks_usuario" no cadastro;
+// sem isso, tenta casar pelo nome (nome completo, depois comprador vinculado, depois primeiro nome se for único). Só leitura no ERP.
+let _erpUsuariosCache = null, _erpUsuariosTs = 0;
+async function usuariosDoErp() {
+  if (_erpUsuariosCache && Date.now() - _erpUsuariosTs < 10 * 60 * 1000) return _erpUsuariosCache;
+  const rows = await q(`SELECT nReg, nome, codOperadorLoja, nLoja, desativar FROM central.usuarios WHERE nome <> '' ORDER BY (nLoja = 10) DESC, desativar ASC, nReg ASC`).catch(() => []);
+  const vistos = new Map();
+  for (const r of rows) { const nome = String(r.nome || '').trim().toUpperCase(); if (!vistos.has(nome)) vistos.set(nome, { nome, cod: Number(r.codOperadorLoja) || 0, loja: Number(r.nLoja), desativado: !!Number(r.desativar) }); }
+  _erpUsuariosCache = [...vistos.values()]; _erpUsuariosTs = Date.now();
+  return _erpUsuariosCache;
+}
+const semAcento = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/\s+/g, ' ').trim();
+async function usuarioDlinksDe(sessionUser) {
+  if (!sessionUser) return null;
+  const cad = usuarios.find(u => u.id === sessionUser.id) || sessionUser;
+  const lista = await usuariosDoErp();
+  const porNome = nome => { const n = semAcento(nome); return n ? lista.find(u => semAcento(u.nome) === n) : null; };
+  let achado = cad.dlinks_usuario ? porNome(cad.dlinks_usuario) : null;
+  if (!achado && cad.dlinks_usuario) achado = { nome: String(cad.dlinks_usuario).toUpperCase(), cod: 0 }; // cadastrado à mão mas não está no ERP: grava o nome mesmo assim
+  if (!achado) achado = porNome(cad.nome) || porNome(cad.comprador_nome);
+  if (!achado) { const pn = semAcento(cad.nome).split(' ')[0]; const c = pn ? lista.filter(u => semAcento(u.nome) === pn) : []; if (c.length === 1) achado = c[0]; }
+  return achado ? { nome: achado.nome, cod: achado.cod || 0 } : null;
+}
+app.get('/api/admin/erp-usuarios', requireAdmin, async (req, res) => {
+  try { res.json((await usuariosDoErp()).filter(u => !u.desativado).map(u => u.nome).sort()); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.get('/api/admin/usuarios/:id/dlinks', requireAdmin, async (req, res) => {
+  const u = usuarios.find(x => x.id === parseInt(req.params.id));
+  if (!u) return res.status(404).json({ error: 'Usuário não encontrado' });
+  try { res.json({ dlinks: await usuarioDlinksDe(u) }); } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 app.delete('/api/admin/usuarios/:id', requireAdmin, (req, res) => {
@@ -7759,7 +7796,7 @@ app.post('/api/pedidos-fornecedor/:id/aprovar', async (req, res) => {
   // Regra do Tiago (24/09/26): aprovou, vai pro ERP de TESTE (.254) na hora. Erro por loja fica em p.erp_teste.erros
   // e aparece na tela do pedido com link pro Log; o botão "Gerar pedido no ERP teste" serve pra reenviar.
   let erp = null;
-  try { erp = await gerarPedidoErpTeste(p, req.session.user?.nome || null); }
+  try { erp = await gerarPedidoErpTeste(p, req.session.user?.nome || null, null, req.session.user); }
   catch (e) { erp = { lojas: {}, erros: [{ loja: 0, erro: e.message }] }; }
   res.json({ ok: true, status: p.status, aprovadoEm: p.aprovadoEm, erp_teste: erp });
 });
@@ -7769,7 +7806,7 @@ app.post('/api/pedidos-fornecedor/:id/aprovar', async (req, res) => {
 // Nunca toca o .252. Formato em lib/pedido-erp.js. Guarda em p.erp_teste = { em, por, lojas: { ln: { nReg, logId } } }.
 const pedidoErp = require('./lib/pedido-erp');
 /** Manda o pedido aprovado pro ERP de TESTE, 1 lote por loja. Grava p.erp_teste = { em, por, lojas:{ln:{nReg,...}}, erros:[{loja,erro,logId,em}] }. */
-async function gerarPedidoErpTeste(p, usuario, lojasPedidas) {
+async function gerarPedidoErpTeste(p, usuario, lojasPedidas, sessionUser) {
   lojasPedidas = Array.isArray(lojasPedidas) && lojasPedidas.length ? lojasPedidas.map(Number) : (p.lojas || []);
   const feitas = (p.erp_teste && p.erp_teste.lojas) || {};
   const lojas = lojasPedidas.filter(ln => !(feitas[ln] && feitas[ln].nReg));
@@ -7781,9 +7818,10 @@ async function gerarPedidoErpTeste(p, usuario, lojasPedidas) {
     const [f] = await q('SELECT CodFornec, Nome, CNPJ, CodPrazo, Celular FROM central.fornecedor WHERE CodFornec = ?', [p.codFornec]).catch(() => []);
     fornecedor = f || {};
   }
+  const dlinks = await usuarioDlinksDe(sessionUser).catch(() => null);
   for (const ln of lojas) {
     let montado;
-    try { montado = pedidoErp.montarPassosPedido({ p, ln, fornecedor, usuario }); }
+    try { montado = pedidoErp.montarPassosPedido({ p, ln, fornecedor, usuario, dlinks }); }
     catch (e) { resultado.erros.push({ loja: ln, erro: e.message, em: new Date().toISOString() }); continue; }
     const r = await escreverERP.lote({ usuario, motivo: pedidoErp.motivoPedido(p, ln), banco: 'central', passos: montado.passos, limite: 50 });
     if (r.ok) resultado.lojas[ln] = { nReg: r.ids[0], itens: montado.itens.length, total: montado.total, logId: r.id, em: new Date().toISOString() };
@@ -7791,7 +7829,7 @@ async function gerarPedidoErpTeste(p, usuario, lojasPedidas) {
   }
   // erros antigos das lojas que agora deram certo saem; os novos entram
   const errosAntigos = ((p.erp_teste && p.erp_teste.erros) || []).filter(e => !resultado.lojas[e.loja] && !resultado.erros.some(x => x.loja === e.loja));
-  p.erp_teste = { em: new Date().toISOString(), por: usuario, lojas: { ...feitas, ...resultado.lojas }, erros: [...errosAntigos, ...resultado.erros] };
+  p.erp_teste = { em: new Date().toISOString(), por: usuario, dlinks: dlinks ? dlinks.nome : null, lojas: { ...feitas, ...resultado.lojas }, erros: [...errosAntigos, ...resultado.erros] };
   pedidosFornec.salvar(p);
   return resultado;
 }
@@ -7803,7 +7841,7 @@ app.post('/api/pedidos-fornecedor/:id/erp-teste', async (req, res) => {
     const feitas = (p.erp_teste && p.erp_teste.lojas) || {};
     const pedidas = Array.isArray(req.body && req.body.lojas) && req.body.lojas.length ? req.body.lojas.map(Number) : (p.lojas || []);
     if (!pedidas.some(ln => !(feitas[ln] && feitas[ln].nReg))) return res.status(400).json({ error: 'Todas as lojas desse pedido já estão no ERP teste.' });
-    const resultado = await gerarPedidoErpTeste(p, req.session.user.nome, pedidas);
+    const resultado = await gerarPedidoErpTeste(p, req.session.user.nome, pedidas, req.session.user);
     res.status(resultado.erros.length && !Object.keys(resultado.lojas).length ? 502 : 200).json({ ok: !resultado.erros.length, ...resultado, erp_teste: p.erp_teste || null });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

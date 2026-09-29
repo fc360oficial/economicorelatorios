@@ -28,7 +28,7 @@ test('montarPassosPedido: cabeçalho + itens + envio no formato do Dlinks', () =
   assert.equal(cab.valores.nLoja, 2); assert.equal(cab.valores.CodFornec, 48); assert.equal(cab.valores.CNPJFornec, '02678694000227');
   assert.equal(cab.valores.Total, 197.04); assert.equal(cab.valores.Status, 1); assert.equal(cab.valores.nLista, 484);
   assert.equal(cab.valores.whats, '81987056602'); assert.equal(cab.valores.CodPrazo, 3); assert.equal(cab.valores.Vendedor, 'SUENE');
-  assert.equal(cab.valores.Obs, 'Radar #77'); assert.equal(cab.valores.DataPedido, '2026-09-24'); assert.equal(cab.valores.NomeAutorizacao, 'Tiago');
+  assert.equal(cab.valores.Obs, 'Radar #77'); assert.equal(cab.valores.DataPedido, '2026-09-24'); assert.equal(cab.valores.NomeAutorizacao, 'Tiago'); assert.equal(cab.valores.CodAutorizacao, 0); assert.equal(cab.valores.CodAutorizacao, 0);
   const it = r.passos[1];
   assert.equal(it.tabela, 'pedidocompraproduto'); assert.deepEqual(it.valores.nPedido, { $id: 0 });
   assert.equal(it.valores.CodigoBarra, '7898279790387'); assert.equal(it.valores.Qtd, 24); assert.equal(it.valores.ValorUnit, 5.56); assert.equal(it.valores.Total, 133.44); assert.equal(it.valores.nSeq, 1); assert.equal(it.valores.nLoja, 2);
@@ -36,6 +36,13 @@ test('montarPassosPedido: cabeçalho + itens + envio no formato do Dlinks', () =
   const env = r.passos[3];
   assert.equal(env.tabela, 'pedidocompraenvio'); assert.deepEqual(env.valores, { nPedido: { $id: 0 }, email: 0, whats: 1 });
   assert.equal(r.total, 197.04);
+});
+
+test('montarPassosPedido: com usuário do Dlinks grava NomeAutorizacao/CodAutorizacao como o Dlinks e deixa usuario/Solicitante vazios', () => {
+  const r = P.montarPassosPedido({ p, ln: 2, fornecedor: forn, usuario: 'Rodrigo Cahu', dlinks: { nome: 'DONATO', cod: 33 }, hoje: '2026-09-29' });
+  const v = r.passos[0].valores;
+  assert.equal(v.NomeAutorizacao, 'DONATO'); assert.equal(v.CodAutorizacao, 33);
+  assert.equal(v.usuario, ''); assert.equal(v.Solicitante, '');
 });
 
 test('montarPassosPedido: loja sem item lança', () => {

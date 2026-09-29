@@ -165,6 +165,11 @@ html,body{height:100%;font-family:'Segoe UI',system-ui,sans-serif;background:var
         <option value="6">Loja 6</option>
       </select>
     </div>
+    <div class="field">
+      <label>Usuário no Dlinks</label>
+      <select id="f-dlinks"><option value="">-- automático (pelo nome) --</option></select>
+      <div class="field-hint">Quem aparece no ERP como autor dos pedidos que esta pessoa envia pelo app. Em branco, o app casa pelo nome.</div>
+    </div>
     <div class="field" id="field-modulos">
       <label>Módulos liberados</label>
       <div class="mods" id="f-modulos"></div>
@@ -252,7 +257,7 @@ function renderTabela() {
       <td><div class="u-login">${u.usuario}</div></td>
       <td>${badgePerfil(u.perfil)}</td>
       <td>${u.perfil==='comprador'&&u.comprador_nome ? `<div class="comp-tag">▸ ${u.comprador_nome}</div>` : u.perfil==='gerencial'&&u.loja_id ? `<div class="comp-tag" style="color:#158A4A">▸ Loja ${u.loja_id}</div>` : '<span style="color:var(--text3);font-size:11px">—</span>'}</td>
-      <td>${etiquetasModulos(u)}</td>
+      <td>${etiquetasModulos(u)}${u.dlinks_usuario ? `<div class="comp-tag" style="margin-top:4px" title="Usuário no Dlinks">Dlinks: ${u.dlinks_usuario}</div>` : ''}</td>
       <td>
         <div class="acoes">
           <button class="btn-acao btn-edit" onclick="editarUsuario(${u.id})">✏ Editar</button>
@@ -263,6 +268,21 @@ function renderTabela() {
     </tr>
   `).join('');
 }
+
+let ERP_USUARIOS = null;
+async function carregarErpUsuarios() {
+  if (ERP_USUARIOS) return ERP_USUARIOS;
+  try { const r = await fetch('/api/admin/erp-usuarios'); ERP_USUARIOS = r.ok ? await r.json() : []; } catch { ERP_USUARIOS = []; }
+  const sel = document.getElementById('f-dlinks');
+  for (const n of ERP_USUARIOS) { const o = document.createElement('option'); o.value = n; o.textContent = n; sel.appendChild(o); }
+  return ERP_USUARIOS;
+}
+function setDlinks(v) {
+  const sel = document.getElementById('f-dlinks');
+  if (v && ![...sel.options].some(o => o.value === v)) { const o = document.createElement('option'); o.value = v; o.textContent = v; sel.appendChild(o); }
+  sel.value = v || '';
+}
+carregarErpUsuarios();
 
 function toggleExtraFields() {
   const p = document.getElementById('f-perfil').value;
@@ -281,6 +301,7 @@ function abrirModal(titulo = '👤 Novo Usuário') {
   document.getElementById('f-perfil').value = 'usuario';
   document.getElementById('f-comprador').value = '';
   document.getElementById('f-loja').value = '';
+  setDlinks(null);
   setModulos(null);
   document.getElementById('f-senha-label').textContent = 'Senha';
   document.getElementById('f-senha-hint').textContent = '';
@@ -305,6 +326,7 @@ function editarUsuario(id) {
   document.getElementById('f-perfil').value = u.perfil;
   document.getElementById('f-comprador').value = u.comprador_nome || '';
   document.getElementById('f-loja').value = u.loja_id || '';
+  setDlinks(u.dlinks_usuario);
   setModulos(u.modulos);
   document.getElementById('f-senha-label').textContent = 'Nova Senha (deixe em branco para não alterar)';
   document.getElementById('f-senha-hint').textContent = 'Opcional — só preencha se quiser trocar a senha';
@@ -327,6 +349,7 @@ function trocarSenha(id) {
   document.getElementById('f-perfil').value = u.perfil;
   document.getElementById('f-comprador').value = u.comprador_nome || '';
   document.getElementById('f-loja').value = u.loja_id || '';
+  setDlinks(u.dlinks_usuario);
   setModulos(u.modulos);
   document.getElementById('f-senha-label').textContent = 'Nova Senha';
   document.getElementById('f-senha-hint').textContent = '';
@@ -358,6 +381,7 @@ async function salvar() {
   const perfil = document.getElementById('f-perfil').value;
   const comprador_nome = perfil === 'comprador' ? document.getElementById('f-comprador').value : null;
   const loja_id = perfil === 'gerencial' ? document.getElementById('f-loja').value : null;
+  const dlinks_usuario = document.getElementById('f-dlinks').value || null;
   const editId = document.getElementById('edit-id').value;
 
   if (!nome) { mostrarErroModal('Informe o nome.'); return; }
@@ -370,7 +394,7 @@ async function salvar() {
   btn.textContent = 'Salvando...';
 
   try {
-    const body = { nome, usuario, perfil, comprador_nome, loja_id, modulos: (perfil === 'admin' || perfil === 'gerencial') ? null : getModulos() };
+    const body = { nome, usuario, perfil, comprador_nome, loja_id, dlinks_usuario, modulos: (perfil === 'admin' || perfil === 'gerencial') ? null : getModulos() };
     if (senha) body.senha = senha;
 
     const url = modoEdicao ? `/api/admin/usuarios/${editId}` : '/api/admin/usuarios';
