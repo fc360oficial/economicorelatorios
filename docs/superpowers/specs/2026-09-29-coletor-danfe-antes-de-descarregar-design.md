@@ -7,7 +7,7 @@ A loja seleciona a nota no coletor, descarrega o caminhão inteiro e só depois 
 nota que chegou (ou nem existe). Precisa de uma trava com o caminhão ainda fechado.
 
 ## Fluxo
-1. Tela de notas ganha o campo **"Bipar DANFE do caminhão"** no topo. A loja pode bipar ali direto ou tocar numa nota da lista.
+1. A loja toca na nota da lista (o campo de bipar DANFE direto na lista foi retirado no mesmo dia a pedido do Tiago: confundia).
 2. Tocar numa nota **sem conferência começada** leva à tela **"Confira a DANFE"** (fornecedor + NF-e + campo esperando a chave de 44 dígitos). Não tem "pular".
 3. `POST /api/recebimento-publico/danfe {chave, nome}` devolve um de três resultados:
    - `confere` → chave existe na `axml` e é da loja do token. Servidor guarda "DANFE validada" (loja+chave, 2 h). App abre a conferência (`/abrir`).

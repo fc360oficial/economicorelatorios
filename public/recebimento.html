@@ -191,12 +191,6 @@ body{font-family:var(--font);background:var(--pap);color:var(--ink);font-size:14
     <button class="btn btn-secondary" onclick="carregarNotas(true)">↻ Atualizar</button>
     <button class="btn btn-secondary" id="btnConferidas" onclick="verConferidas()">Já conferidas hoje (0)</button>
   </div>
-  <div style="padding:8px 12px 0">
-    <div class="scan" id="scanDanfeLista">
-      <span class="ico">▮▯▮</span>
-      <input id="bipDanfeLista" placeholder="Bipar DANFE do caminhão" autocomplete="off" inputmode="none" enterkeyhint="done">
-    </div>
-  </div>
   <div class="corpo" id="nLista"></div>
   <div class="foot">
     <span><span class="dot" id="netDot"></span><span id="netTxt">—</span></span>
@@ -463,12 +457,12 @@ async function abrirConferencia(n) {
 // ── tela 2b · DANFE antes de descarregar ───────────────────────────────────
 // A loja bipa a chave da DANFE que veio com o motorista. O servidor diz se o XML dessa chave está no
 // ERP e é desta loja; só então /abrir aceita. XML errado é descoberto com o caminhão fechado.
-let danfeAlvo = null;        // nota da lista que a loja tocou (null = bipou direto no campo da lista)
+let danfeAlvo = null;        // nota da lista que a loja tocou
 let danfeBloqueio = null;    // última resposta ruim (sem_xml / outra_loja), pra manter a tela vermelha
 let danfePendente = null;    // nota confirmada no modal "DANFE de outra nota"
 function irParaDanfe(n) { danfeAlvo = n || null; danfeBloqueio = null; renderDanfe(); mostrar('danfe'); }
 function renderDanfe() {
-  $('dSub').textContent = danfeAlvo ? (danfeAlvo.fornecedor || '') + ' · NF-e ' + danfeAlvo.nNota : 'Loja ' + sess.loja + ' · qualquer nota da lista';
+  $('dSub').textContent = danfeAlvo ? (danfeAlvo.fornecedor || '') + ' · NF-e ' + danfeAlvo.nNota : 'Loja ' + sess.loja;
   $('dInstrucao').hidden = !!danfeBloqueio;
   if (!danfeBloqueio) { $('dResultado').innerHTML = ''; return; }
   const r = danfeBloqueio;
@@ -500,9 +494,6 @@ function focarDanfe() { if (tela !== 'danfe' || $('modal').innerHTML) return; co
 function toggleDigitarDanfe() { const b = $('bipDanfe'), on = b.inputMode !== 'text'; b.inputMode = on ? 'text' : 'none'; $('btnDigitarDanfe').setAttribute('aria-pressed', String(on)); b.focus(); }
 $('bipDanfe').addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); const c = $('bipDanfe').value; $('bipDanfe').value = ''; conferirDanfe(c); } });
 $('bipDanfe').addEventListener('blur', () => { $('scanDanfe').classList.remove('focus'); setTimeout(focarDanfe, 100); });
-$('bipDanfeLista').addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); const c = $('bipDanfeLista').value; $('bipDanfeLista').value = ''; danfeAlvo = null; conferirDanfe(c); } });
-$('bipDanfeLista').addEventListener('focus', () => $('scanDanfeLista').classList.add('focus'));
-$('bipDanfeLista').addEventListener('blur', () => $('scanDanfeLista').classList.remove('focus'));
 function voltarNotas() { cartao = null; ultimoBipado = null; $('cartao').innerHTML = ''; limparDescartes(); mostrar('notas'); carregarNotas(); }
 
 // ── tela 3 · bipagem cega ──────────────────────────────────────────────────
