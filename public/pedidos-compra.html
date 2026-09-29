@@ -354,6 +354,7 @@ function _render(){
   const q=($('#q').value||'').toLowerCase(), comp=$('#fComp').value, fl=+($('#fLoja').value||0);
   let rows=linhas().filter(r=>filtro==='todos'||(filtro==='andamento'?EM_ANDAMENTO.includes(r._grupo):r._grupo===filtro));
   rows=rows.filter(p=>(!q||p.lista_nome.toLowerCase().includes(q)||(p.fornecedor||'').toLowerCase().includes(q)||(p.vendedor?.nome||'').toLowerCase().includes(q)||String(p.id)===q||String(p.lista)===q)&&(!comp||p.comprador?.nome===comp)&&(!fl||(p._ln?p._ln===fl:p.lojas.includes(fl))));
+  if(fl) rows=rows.map(p=>p._ln?p:{...p,_ln:fl,_key:p.id+"-"+fl});   // filtro de loja: pedido ainda nao aprovado (sugestao/aguardando/digitacao) tambem abre so com a loja escolhida
   $('#cnt').textContent=rows.length+' linha'+(rows.length===1?'':'s')+' ('+new Set(rows.map(p=>p.id)).size+' pedido'+(new Set(rows.map(p=>p.id)).size===1?'':'s')+')';
   if(!rows.length){$('#view').innerHTML='<div class="empty">Nenhum pedido aqui.'+(filtro==='andamento'||filtro==='todos'?' Gere um no Radar de Pedidos: selecione as listas e clique em "Enviar pro fornecedor".':'')+'</div>';return;}
   let h='<div class="table-wrap"><table class="main-t"><thead><tr><th>#</th><th>Lista / fornecedor</th><th>Comprador / vendedor</th><th>Status</th><th>Andamento</th><th class="r" title="Com preço / itens">Preço / itens</th><th class="r">Último custo</th><th class="r">Digitado</th><th>Ação</th></tr></thead><tbody>';
