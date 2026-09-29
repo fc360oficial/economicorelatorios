@@ -358,7 +358,7 @@ async function usuariosDoErp() {
   if (_erpUsuariosCache && Date.now() - _erpUsuariosTs < 10 * 60 * 1000) return _erpUsuariosCache;
   const rows = await q(`SELECT nReg, nome, codOperadorLoja, nLoja, desativar FROM central.usuarios WHERE nome <> '' ORDER BY (nLoja = 10) DESC, desativar ASC, nReg ASC`).catch(() => []);
   const vistos = new Map();
-  for (const r of rows) { const nome = String(r.nome || '').trim().toUpperCase(); if (!vistos.has(nome)) vistos.set(nome, { nome, cod: Number(r.codOperadorLoja) || 0, loja: Number(r.nLoja), desativado: !!Number(r.desativar) }); }
+  for (const r of rows) { const nome = String(r.nome || '').trim().toUpperCase(); const chave = semAcento(nome); if (chave && !vistos.has(chave)) vistos.set(chave, { nome, cod: Number(r.codOperadorLoja) || 0, loja: Number(r.nLoja), desativado: !!Number(r.desativar) }); }
   _erpUsuariosCache = [...vistos.values()]; _erpUsuariosTs = Date.now();
   return _erpUsuariosCache;
 }
