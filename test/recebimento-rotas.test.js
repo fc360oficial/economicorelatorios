@@ -156,7 +156,7 @@ test('/bipar loga evento "bipe" e só chama o espelho no ERP quando a conferênc
     await routes['POST /api/recebimento-publico/abrir'](req({ query: { t }, body: { chave: 'C'.repeat(44), nNota: '1', fornecedor: 'F', codFornec: 1, nome: 'ana' } }), rAbrir);
     assert.equal(loteChamadas.length, 1, 'abrir deve ter espelhado no ERP');
     const rBip = res();
-    await routes['POST /api/recebimento-publico/bipar'](req({ query: { t }, body: { id: rAbrir.body.id, cod: '789', quant: 3, emb: 1 } }), rBip);
+    await routes['POST /api/recebimento-publico/bipar'](req({ query: { t }, body: { id: rAbrir.body.id, cod: '789', quant: 3, emb: 1, validade: '2027-06-01' } }), rBip);
     assert.equal(rBip.body.resultado, 'ok');
     assert.equal(loteChamadas.length, 2, 'bipar com nReg setado deve espelhar o item no ERP');
     assert.ok(logs.some(e => e.tipo === 'bipe' && e.cod === '789'), 'deve logar evento "bipe"');
@@ -170,7 +170,7 @@ test('/bipar loga evento "bipe" e só chama o espelho no ERP quando a conferênc
     await routes['POST /api/recebimento-publico/abrir'](req({ query: { t }, body: { chave: 'D'.repeat(44), nNota: '2', fornecedor: 'F', codFornec: 1, nome: 'ana' } }), rAbrir);
     assert.equal(loteChamadas.length, 1, 'abrir tentou e falhou');
     const rBip = res();
-    await routes['POST /api/recebimento-publico/bipar'](req({ query: { t }, body: { id: rAbrir.body.id, cod: '789', quant: 3, emb: 1 } }), rBip);
+    await routes['POST /api/recebimento-publico/bipar'](req({ query: { t }, body: { id: rAbrir.body.id, cod: '789', quant: 3, emb: 1, validade: '2027-06-01' } }), rBip);
     assert.equal(rBip.body.resultado, 'ok');
     assert.equal(loteChamadas.length, 1, 'sem nReg, bipar não deve chamar o ERP de novo');
     assert.ok(logs.some(e => e.tipo === 'bipe'), 'ainda assim loga o bipe');
@@ -187,7 +187,7 @@ test('/terminei manda status 3 (Status=3) pro ERP quando a conferência bate e t
 
   const rAbrir = res();
   await routes['POST /api/recebimento-publico/abrir'](req({ query: { t }, body: { chave: 'E'.repeat(44), nNota: '3', fornecedor: 'F', codFornec: 1, nome: 'ana' } }), rAbrir);
-  await routes['POST /api/recebimento-publico/bipar'](req({ query: { t }, body: { id: rAbrir.body.id, cod: '789', quant: 3, emb: 1 } }), res());
+  await routes['POST /api/recebimento-publico/bipar'](req({ query: { t }, body: { id: rAbrir.body.id, cod: '789', quant: 3, emb: 1, validade: '2027-06-01' } }), res());
 
   const antes = loteChamadas.length;
   const rTerm = res();
@@ -360,7 +360,7 @@ test('C3 — nota SEM pedido do app é conferível: os itens vêm de central.axm
 
   // item da nota bipado certo = ok (antes caía em nao_esta_na_nota, porque só havia pedido do app)
   const rBip = res();
-  await routes['POST /api/recebimento-publico/bipar'](req({ query: { t }, body: { id, cod: '789', quant: 3, emb: 1 } }), rBip);
+  await routes['POST /api/recebimento-publico/bipar'](req({ query: { t }, body: { id, cod: '789', quant: 3, emb: 1, validade: '2027-06-01' } }), rBip);
   assert.equal(rBip.body.resultado, 'ok');
 
   // o 2º item da nota (só com ocEanTrib, oqTrib 0 → cai no Qtd comercial) ainda falta: não bate
@@ -406,7 +406,7 @@ test('C2/I1/I3 — abrir que falha no ERP enfileira tudo e /reenviar-erp replica
   const id = rAbrir.body.id;
   assert.equal(recebimento.obter(id).erp.nReg, null);
 
-  await routes['POST /api/recebimento-publico/bipar'](req({ query: { t }, body: { id, cod: '789', quant: 3, emb: 1 } }), res());
+  await routes['POST /api/recebimento-publico/bipar'](req({ query: { t }, body: { id, cod: '789', quant: 3, emb: 1, validade: '2027-06-01' } }), res());
   await routes['POST /api/recebimento-publico/terminei'](req({ query: { t }, body: { id } }), res());
 
   let c = recebimento.obter(id);
@@ -529,7 +529,7 @@ test('I8 — linha de devolução por FALTA vai pra loja sem quantidade (o Fisca
   const rAbrir = res();
   await routes['POST /api/recebimento-publico/abrir'](req({ query: { t }, body: { chave: CHAVE_A, nome: 'ana' } }), rAbrir);
   const id = rAbrir.body.id;
-  await routes['POST /api/recebimento-publico/bipar'](req({ query: { t }, body: { id, cod: '789', quant: 3, emb: 1 } }), res());
+  await routes['POST /api/recebimento-publico/bipar'](req({ query: { t }, body: { id, cod: '789', quant: 3, emb: 1, validade: '2027-06-01' } }), res());
   await routes['POST /api/recebimento-publico/terminei'](req({ query: { t }, body: { id } }), res());
   const rEnv = res();
   await routes['POST /api/recebimento-publico/enviar'](req({ query: { t }, body: { id } }), rEnv);

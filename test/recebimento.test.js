@@ -60,15 +60,16 @@ test('sem_validade: item com Validar>0 bipado sem data de validade fica sem_vali
   assert.equal(r.item.estado, 'ok');
 });
 
-test('sem cadastro de validade (Validar=0) só avisa, item continua ok', async () => {
+test('sem cadastro de validade (Validar=0): validade continua obrigatória (29/09/26), sem data fica sem_validade', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rec-'));
   const xmlComSemValidar = { itens: [{ cod: '111', descricao: 'SEM VALIDAR', un: 3 }], naoPedidos: [], status: 'conciliado', pedidoId: 12, ln: 3 };
   R.init({ dir, cadastro: async c => CAD[c] || null, xmlLoja: () => xmlComSemValidar, agora: () => new Date('2026-09-25T08:00:00') });
   const c = R.abrirNota({ loja: 3, nome: 'MAYRA', chave: '2626'.padEnd(44, '0'), nNota: '911221', fornecedor: 'M DIAS', codFornec: 540 });
   const r = await R.bipar(c.id, { cod: '111', quant: 3, emb: 1, validade: null });
-  assert.equal(r.resultado, 'ok');
-  assert.equal(r.item.estado, 'ok');
-  assert.equal(r.item.aviso, 'sem_cadastro_validade');
+  assert.equal(r.resultado, 'sem_validade');
+  assert.equal(r.item.estado, 'sem_validade');
+  const r2 = await R.bipar(c.id, { cod: '111', quant: 3, emb: 1, validade: '2027-06-01' });
+  assert.equal(r2.resultado, 'ok'); assert.equal(r2.item.aviso, 'sem_cadastro_validade');
 });
 
 test('bipeId repetido (fila offline reenviando): não soma de novo e devolve repetido:true', async () => {
