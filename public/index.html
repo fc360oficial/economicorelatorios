@@ -226,6 +226,11 @@
   table.m tr.fin-det>td{padding:0 12px 12px 22px;background:#FAFAF8;white-space:normal;max-width:none;overflow:visible}table.m tr.fin-det:hover>td{background:#FAFAF8}
   tr.fin-det table.m{background:#fff;border:1px solid var(--ln,#DADAD6);border-radius:8px}tr.fin-det table.m th{position:static}tr.fin-det table.m td.p{max-width:260px}
   .fin-det-h{font-size:11px;color:var(--ink3);padding:8px 0 6px}.fin-det-h b{color:var(--ink)}
+  /* 3º nível (loja → operação → títulos) cabe no cartão: sem recuo extra, fonte e espaçamento menores, datas sem quebrar */
+  table.m tr.fin-det tr.fin-det>td{padding:0 0 10px 0}
+  tr.fin-det tr.fin-det table.m{font-size:11px}tr.fin-det tr.fin-det table.m th,tr.fin-det tr.fin-det table.m td{padding:5px 6px}
+  tr.fin-det tr.fin-det table.m td:nth-child(1),tr.fin-det tr.fin-det table.m td:nth-child(2){white-space:nowrap}
+  tr.fin-det tr.fin-det .fin-det-h{padding:6px 0 4px}
   .par-tabs{display:flex;gap:6px;align-items:center;padding:2px 0 8px}.par-tabs button{font:inherit;font-size:11px;font-weight:700;padding:3px 10px;border-radius:6px;border:1px solid var(--ln,#DADAD6);background:#fff;cursor:pointer;color:var(--ink2)}.par-tabs button.on{background:var(--ink);color:#F5B800;border-color:var(--ink)}
   /* fornecedor do título vira link pro PDF da nota (Tiago, 29/09) */
   a.fin-nf{color:var(--inf,#2E5E8C);text-decoration:none;border-bottom:1px dashed rgba(46,94,140,.45)}a.fin-nf:hover{color:#B45C00;border-bottom-color:#F5B800}
@@ -746,13 +751,18 @@ function finTipoDet(tr) {
   const tot = som('todos'), forn = som(4), outras = som(null);
   const grupos = [...new Set(rows.filter(r => r.grupo !== 4).map(r => r.grupo))].map(g => ({ g, ...som(g) })).filter(x => x.v > 0).sort((a, b) => b.v - a.v);
   const max = Math.max(forn.v, ...grupos.map(x => x.v), 1), bar = v => '<span class="bar" style="width:' + Math.round((v || 0) / max * 70) + 'px"></span>';
-  const li = (rot, o, cls) => '<tr' + (cls ? ' class="' + cls + '"' : '') + '><td>' + rot + '</td><td class="r">' + (o.n || '') + '</td><td class="r"><b>' + (o.v ? money(o.v) : '—') + '</b></td><td>' + (cls === 'fin-tot' ? '' : bar(o.v)) + '</td></tr>';
+  // Tiago, 29/09: "quando eu clicar na operação mostra detalhado também" → linha de fornecedor e cada operação abrem os títulos
+  // (finDetalhe, mesma lista dos quadros de cima, filtrada por loja + período + grupo do plano de contas)
+  const per = C.per || {}, attrPer = per.pag ? ' data-pag="' + per.pag + '"' : ' data-pag-ini="' + (per.pagIni || '') + '" data-pag-fim="' + (per.pagFim || '') + '"';
+  const li = (rot, o, cls, g, gnome) => g == null
+    ? '<tr' + (cls ? ' class="' + cls + '"' : '') + '><td>' + rot + '</td><td class="r">' + (o.n || '') + '</td><td class="r"><b>' + (o.v ? money(o.v) : '—') + '</b></td><td>' + (cls === 'fin-tot' ? '' : bar(o.v)) + '</td></tr>'
+    : '<tr class="fin-lj' + (cls ? ' ' + cls : '') + '" data-loja="' + (loja == null ? '' : loja) + '"' + attrPer + ' data-grupo="' + g + '" data-gnome="' + esc(gnome || '') + '" onclick="finDetalhe(this)" title="clique pra ver os títulos"><td><span class="fin-car">▸</span>' + rot + '</td><td class="r">' + (o.n || '') + '</td><td class="r"><b>' + (o.v ? money(o.v) : '—') + '</b></td><td>' + bar(o.v) + '</td></tr>';
   const det = document.createElement('tr'); det.className = 'fin-det';
   det.innerHTML = '<td colspan="' + tr.children.length + '"><div class="fin-det-h"><b>' + (loja == null ? 'Todas as lojas' : LJ(loja) + ' ' + (NOMES[loja] || '')) + '</b> · ' + tot.n + ' título' + (tot.n === 1 ? '' : 's') + ' · ' + C.rotulo + ' · boletos de fornecedor × outras operações</div>'
     + '<table class="m fin-al fin-tipo"><colgroup><col><col style="width:62px"><col style="width:118px"><col style="width:86px"></colgroup><thead><tr><th>Tipo</th><th class="r">Títulos</th><th class="r">Valor</th><th></th></tr></thead><tbody>'
-    + li('<b>Boletos de fornecedor</b><br><span class="fin-mut">nota fiscal · grupo Fornecedor</span>', forn, 'fin-hl')
+    + li('<b>Boletos de fornecedor</b><br><span class="fin-mut">nota fiscal · grupo Fornecedor</span>', forn, 'fin-hl', 4, 'Boletos de fornecedor')
     + '<tr class="fin-sec-row"><td colspan="4">Outras operações <span class="fin-mut">grupo do plano de contas</span></td></tr>'
-    + grupos.map(x => li(finNomeGrupo(x.g), x)).join('')
+    + grupos.map(x => li(finNomeGrupo(x.g), x, '', x.g, finNomeGrupo(x.g))).join('')
     + (grupos.length ? li('<b>Total das outras operações</b>', outras, 'fin-tot') : '')
     + li('<b>Total</b>', tot, 'fin-tot') + '</tbody></table></td>';
   tr.after(det); tr.classList.add('open');
@@ -819,8 +829,8 @@ function renderFin() {
   // Tiago, 29/09 (2ª vez): "faz que nem em cima: bota por loja e clicando na loja mostra essa informação" → cada quadro lista as
   // lojas (mesma grade dos de cima) e o clique abre, embaixo da loja, boletos de fornecedor × outras operações (finTipoDet)
   const CATS = f.categorias || []; FIN_TIPO.grupos = f.grupos || {};
-  const tipoCard = (id, key, pred, rotuloTot) => {
-    const rows = CATS.filter(pred); FIN_TIPO[key] = { rows, rotulo: rotuloTot };
+  const tipoCard = (id, key, pred, rotuloTot, per) => {
+    const rows = CATS.filter(pred); FIN_TIPO[key] = { rows, rotulo: rotuloTot, per };
     const pl = {}; for (const r of rows) { const a = pl[r.loja] || (pl[r.loja] = { loja: r.loja, n: 0, v: 0 }); a.n += r.n; a.v += r.v; }
     const lojas = Object.values(pl).sort((a, b) => a.loja - b.loja), max = Math.max(...lojas.map(l => l.v), 1), tot = lojas.reduce((s, l) => ({ n: s.n + l.n, v: s.v + l.v }), { n: 0, v: 0 });
     document.getElementById(id).innerHTML = rows.length
@@ -834,9 +844,9 @@ function renderFin() {
   document.getElementById('fin-tipo-hoje-t').textContent = fds ? 'O que paga na segunda' : 'O que paga hoje';
   document.getElementById('fin-tipo-hoje-s').textContent = 'por loja · boletos de fornecedor × outras operações · ' + (fds ? 'segunda ' + df(diaRef) + ' (sáb, dom e seg)' : DS[dow(hoje)] + ' ' + df(hoje));
   document.getElementById('fin-tipo-sem-s').textContent = 'por loja · boletos de fornecedor × outras operações · ' + df(hoje) + ' a ' + df(semFim);
-  tipoCard('c-fin-tipo-hoje', 'hoje', r => r.pag === diaRef, fds ? 'na segunda' : 'hoje');
-  tipoCard('c-fin-tipo-sem', 'sem', r => r.pag >= hoje && r.pag <= semFim, 'de ' + (fds ? 'segunda' : 'hoje') + ' até sexta');
-  tipoCard('c-fin-tipo-prox', 'prox', r => r.pag >= proxIni, 'da próxima semana em diante');
+  tipoCard('c-fin-tipo-hoje', 'hoje', r => r.pag === diaRef, fds ? 'na segunda' : 'hoje', { pag: diaRef });
+  tipoCard('c-fin-tipo-sem', 'sem', r => r.pag >= hoje && r.pag <= semFim, 'de ' + (fds ? 'segunda' : 'hoje') + ' até sexta', { pagIni: hoje, pagFim: semFim });
+  tipoCard('c-fin-tipo-prox', 'prox', r => r.pag >= proxIni, 'da próxima semana em diante', { pagIni: proxIni, pagFim: '9999-12-31' });
   if (venc.n) { const vf = CATS.reduce((s, r) => r.pag < hoje && r.grupo === 4 ? s + r.v : s, 0), vo = venc.v - vf; document.getElementById('c-fin-tipo-hoje').insertAdjacentHTML('beforeend', '<div class="fin-note">Vencidos em aberto: <b>' + money(vf) + '</b> de fornecedor · <b>' + money(vo) + '</b> de outras operações (veja o quadro Hoje, acima).</div>'); }
 }
 
@@ -852,15 +862,15 @@ function finForn(t) {
 async function finDetalhe(tr) {
   const nx = tr.nextElementSibling;
   if (nx && nx.classList.contains('fin-det')) { nx.remove(); tr.classList.remove('open'); return; }
-  const loja = +tr.dataset.loja, pag = tr.dataset.pag || '', pagIni = tr.dataset.pagIni || '', pagFim = tr.dataset.pagFim || pagIni, rng = !pag && !!pagIni, DS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'], dow = d => new Date(d + 'T12:00:00').getDay();
+  const loja = +tr.dataset.loja || 0, grupo = tr.dataset.grupo, gnome = tr.dataset.gnome || '', pag = tr.dataset.pag || '', pagIni = tr.dataset.pagIni || '', pagFim = tr.dataset.pagFim || pagIni, rng = !pag && !!pagIni, DS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'], dow = d => new Date(d + 'T12:00:00').getDay();
   const det = document.createElement('tr'); det.className = 'fin-det'; det.innerHTML = '<td colspan="' + tr.children.length + '"><div class="spin"></div></td>';
   tr.after(det); tr.classList.add('open');
   try {
-    const r = await fetch('/api/dashboard/financeiro/titulos?loja=' + loja + (pag ? '&pag=' + pag : '') + (rng ? '&pag_ini=' + pagIni + '&pag_fim=' + pagFim : '') + (tr.dataset.ord ? '&ord=' + tr.dataset.ord : '')); const j = await r.json(); if (j.error) throw new Error(j.error);
+    const r = await fetch('/api/dashboard/financeiro/titulos?loja=' + loja + (grupo != null && grupo !== '' ? '&grupo=' + grupo : '') + (pag ? '&pag=' + pag : '') + (rng ? '&pag_ini=' + pagIni + '&pag_fim=' + pagFim : '') + (tr.dataset.ord ? '&ord=' + tr.dataset.ord : '')); const j = await r.json(); if (j.error) throw new Error(j.error);
     if (!det.isConnected) return;
     const ts = j.titulos || [];
     det.firstChild.innerHTML = ts.length
-      ? '<div class="fin-det-h"><b>' + LJ(loja) + ' ' + (NOMES[loja] || '') + '</b> · ' + ts.length + ' título' + (ts.length === 1 ? '' : 's') + ' · ' + (rng ? (pagIni <= '2001-01-01' ? 'vencidos: dia de pagamento até ' + df(pagFim) : pagFim >= '9999-01-01' ? 'paga de ' + df(pagIni) + ' em diante' : 'paga de ' + df(pagIni) + ' a ' + df(pagFim)) :'paga ' + DS[dow(pag)] + ' ' + df(pag)) + ' · ' + (tr.dataset.ord === 'venc' ? 'mais antigo primeiro' : rng ? 'por vencimento, maior valor primeiro' : 'maior valor primeiro') + ' · clique no fornecedor pra abrir o PDF da nota</div>'
+      ? '<div class="fin-det-h"><b>' + (loja ? LJ(loja) + ' ' + (NOMES[loja] || '') : 'Todas as lojas') + (gnome ? ' · ' + esc(gnome) : '') + '</b> · ' + ts.length + ' título' + (ts.length === 1 ? '' : 's') + ' · ' + (rng ? (pagIni <= '2001-01-01' ? 'vencidos: dia de pagamento até ' + df(pagFim) : pagFim >= '9999-01-01' ? 'paga de ' + df(pagIni) + ' em diante' : 'paga de ' + df(pagIni) + ' a ' + df(pagFim)) :'paga ' + DS[dow(pag)] + ' ' + df(pag)) + ' · ' + (tr.dataset.ord === 'venc' ? 'mais antigo primeiro' : rng ? 'por vencimento, maior valor primeiro' : 'maior valor primeiro') + ' · clique no fornecedor pra abrir o PDF da nota</div>'
         + '<table class="m"><thead><tr><th>Vence</th>' + (rng ? '<th>Paga</th>' : '') + '<th>Fornecedor</th><th>Documento</th><th class="r">Valor</th></tr></thead><tbody>'
         + ts.map(t => '<tr><td>' + DS[dow(t.venc)] + ' ' + df(t.venc) + '</td>' + (rng ? '<td><b>' + DS[dow(t.pag)] + '</b> ' + df(t.pag) + '</td>' : '') + '<td class="p">' + finForn(t) + '</td><td>' + esc(t.doc || '') + '</td><td class="r"><b>' + money(t.valor) + '</b></td></tr>').join('')
         + '</tbody><tfoot><tr class="fin-tot"><td colspan="' + (rng ? 4 : 3) + '">Total</td><td class="r">' + money(j.total) + '</td></tr></tfoot></table>'
