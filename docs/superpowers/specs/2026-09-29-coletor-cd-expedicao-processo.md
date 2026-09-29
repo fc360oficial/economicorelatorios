@@ -1,6 +1,6 @@
 # Coletor no CD (loja 10): recebimento × expedição — como é hoje e como vai ficar
 
-**Data:** 2026-09-29 · **Status:** proposta de processo, NÃO implementada · **Pergunta do Tiago:** no CD tem duas conferências
+**Data:** 2026-09-29 · **Status:** IMPLEMENTADO 29/09/26 à noite (commits 7b47562 → 96ba918), em produção no .254 · **Pergunta do Tiago:** no CD tem duas conferências
 (a de recebimento, igual às lojas, e a de saída, em que se digita `000` + nº do pedido). Como diferenciar no nosso coletor?
 
 ## Como funciona hoje no Dlinks (lido no ERP em 29/09/26, só leitura)
@@ -65,3 +65,12 @@ O CD precisa saber o que tem **por lote**. Só na loja 10; nas lojas 1–6 conti
 4. `painel_televendas.Status` não é mexido; o espelho grava só os bipes em `conferencia_televendas` (teste).
 
 Mockup: https://claude.ai/artifact/X8GGMLQW8dSfQVGc6rHpcr · Escrita no `.252` continua fechada; espelho só no MySQL de teste do `.254`.
+
+## Como ficou implementado (29/09/26)
+- `lib/expedicao.js` (estado), `lib/expedicao-erp.js` (espelho), `lib/expedicao-rotas.js` (rotas), telas no `public/recebimento.html`, abas em `public/centro-distribuicao.html`.
+- **Quantidade do pedido:** `delivery_produtos.Qtd` já vem em unidades do código (ex.: "4 FD c/27" = 108); a comparação usa Qtd direto. Bipe da caixa (DUN-14) cai no código da unidade pelo vínculo caixa → unidade do Pedidos do CD.
+- **Lista de pedidos:** `delivery nLoja=10`, últimos 3 dias, Status 0/1 e sem NFe; some quando fecha 100 % no coletor.
+- **Espelho no ERP de teste:** só ao fechar, uma linha por código × lote em `conferencia_televendas` (Qtd em caixas, QtdEmb). O lote da saída fica só no Econômico.
+- **Sem fila offline** na expedição (CD tem rede); o bipe vai direto.
+- **Retaguarda:** Centro Distribuição › Expedição (pendências "verificar pallet" com botão "Verifiquei o pallet", pedidos conferidos) e › Lotes no CD (entrou × saiu × saldo por lote, busca).
+- **Pendente de validação real:** primeiro pedido conferido no Autoid Q8; conferir com o Televendas se algum item é pedido em código diferente do que está na caixa.
