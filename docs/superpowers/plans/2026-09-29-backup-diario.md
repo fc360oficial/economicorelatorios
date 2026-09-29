@@ -57,7 +57,7 @@
 
 ### Task 3: rclone + Google Drive (crypt) — só no servidor
 
-- [ ] **Step 1:** no `.254`: `C:\fc360\tools\rclone\` com `rclone.exe` baixado de `https://downloads.rclone.org/rclone-current-windows-amd64.zip` (curl + tar -xf).
+- [ ] **Step 1:** no servidor: `C:\fc360\tools\rclone\` com `rclone.exe` baixado de `https://downloads.rclone.org/rclone-current-windows-amd64.zip` (curl + tar -xf).
 - [ ] **Step 2:** no PC do Tiago: `rclone authorize "drive"` → Tiago loga com `processosredeeconomico@gmail.com` → token.
 - [ ] **Step 3:** `rclone.conf` no servidor: `[gdrive]` type drive, scope drive, token; `[gdrive-crypt]` type crypt, remote `gdrive:Backups/EconomicoRelatorios`, password/password2 via `rclone obscure`. ACL restrita com `icacls`. Senha do crypt vai pro cofre do Tiago (não pro repo).
 - [ ] **Step 4:** `rclone lsd gdrive-crypt:` ok → `POST /api/backup/executar` → `nuvem.status === 'ok'` e arquivo em `rclone lsl gdrive-crypt:`.
@@ -65,7 +65,7 @@
 ### Task 4: `docs/RESTAURAR.md` + teste de restauração
 
 - [ ] **Step 1:** roteiro: pré-requisitos (Git, Node 24, NSSM, Caddy via winget); `git clone` do repo; `npm ci`; pegar zip (Drive via rclone ou `D:\backups\economico`) e `tar -xf` sobre a pasta do app + externos; serviço NSSM porta 3003 com variáveis; Caddy + DDNS; validar login/Negativos/Log; onde estão a senha do crypt e o token de deploy.
-- [ ] **Step 2:** teste real no `.254`: `C:\fc360\restore-teste` = clone + extrair zip mais recente + subir em outra porta → `/api/versao` 200 e login com usuário restaurado. Apagar a pasta.
+- [ ] **Step 2:** teste real no servidor: `C:\fc360\restore-teste` = clone + extrair zip mais recente + subir em outra porta → `/api/versao` 200 e login com usuário restaurado. Apagar a pasta.
 - [ ] **Step 3:** commit `docs: roteiro RESTAURAR.md`.
 
 ### Task 5: deploy e verificação em produção

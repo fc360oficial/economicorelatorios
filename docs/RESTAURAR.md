@@ -1,6 +1,6 @@
 # Como restaurar o Econômico Relatórios do zero
 
-Roteiro pra quando o servidor `.254` (Servidor_BI) morrer, for trocado ou precisar ser reinstalado.
+Roteiro pra quando o servidor de aplicação morrer, for trocado ou precisar ser reinstalado.
 Tempo estimado: 1 a 2 horas. Precisa de: acesso de Administrador no Windows novo, a conta do GitHub
 `fc360oficial`, e o zip de backup mais recente (ver passo 3).
 
@@ -10,7 +10,7 @@ Tempo estimado: 1 a 2 horas. Precisa de: acesso de Administrador no Windows novo
 |---|---|---|
 | Código do sistema | GitHub `fc360oficial/economicorelatorios` | `git clone` |
 | Dados (data/), usuários, WhatsApp, Itaú, Caddy, Firebase das etiquetas | zip diário `economico-AAAA-MM-DD.zip` | extrair o zip (passo 4) |
-| Dados do ERP (vendas, estoque, cadastro) | MySQL do `.252`, responsabilidade do Dlinks | não faz parte deste backup |
+| Dados do ERP (vendas, estoque, cadastro) | MySQL do ERP, responsabilidade do Dlinks | não faz parte deste backup |
 
 O zip diário fica em dois lugares:
 - `D:\backups\economico\` no próprio servidor (30 dias);
@@ -81,7 +81,7 @@ nssm install EconomicoRelatorios "C:\Program Files\nodejs\node.exe" "C:\fc360\cl
 nssm set EconomicoRelatorios AppDirectory C:\fc360\claude_code_
 nssm set EconomicoRelatorios AppStdout C:\fc360\claude_code_\server-out.log
 nssm set EconomicoRelatorios AppStderr C:\fc360\claude_code_\server-err.log
-nssm set EconomicoRelatorios AppEnvironmentExtra DB_HOST=192.168.2.252 DB_TESTE_HOST=127.0.0.1 PUBLIC_URL=https://hhk0a8gt2cn.sn.mynetname.net
+nssm set EconomicoRelatorios AppEnvironmentExtra DB_HOST=<ip-do-mysql-do-erp> DB_TESTE_HOST=127.0.0.1 PUBLIC_URL=https://<dominio-publico>
 nssm start EconomicoRelatorios
 ```
 
@@ -98,13 +98,13 @@ nssm install Caddy "C:\Program Files\Caddy\caddy.exe" "run --config C:\fc360\cla
 nssm start Caddy
 ```
 
-O `Caddyfile` já veio no zip. O domínio `hhk0a8gt2cn.sn.mynetname.net` é o DDNS do MikroTik (Winbox → IP →
+O `Caddyfile` já veio no zip. O domínio `<dominio-publico>` é o DDNS do MikroTik (Winbox → IP →
 Cloud), que aponta pro IP público da central. No roteador, as regras de NAT precisam mandar as portas 80 e 443
 pro IP do servidor novo. Só 80 e 443. Nunca abrir 3003, 3306 ou 3389 pra internet.
 
 ## 7. Validar
 
-1. Abrir `https://hhk0a8gt2cn.sn.mynetname.net/login.html` e logar com um usuário de verdade (os hashes vieram
+1. Abrir `https://<dominio-publico>/login.html` e logar com um usuário de verdade (os hashes vieram
    no `usuarios.json`).
 2. Processos › Negativos: contagens antigas aparecem.
 3. Processos › Log: histórico do ERP aparece.
@@ -118,9 +118,3 @@ Recriar `C:\fc360\tools\rclone\rclone.conf` como no passo 3 (mesmos nomes `gdriv
 senha do cofre). O sistema detecta o arquivo sozinho e volta a enviar às 04:00. Conferir na tela Processos ›
 Backup o card "Google Drive: Enviado".
 
-## Pendências de segurança conhecidas (decisão do Tiago, 29/09/2026)
-
-- O repositório do GitHub é público e o token da rota `/deploy` está no `server.js`. Tornar privado e mover o
-  token pra variável de ambiente quando decidir.
-- As portas 3003, 3000 e 3306 aparecem abertas na internet pelo roteador. Fechar quando decidir (confirmar no
-  MikroTik antes; o Dlinks pode depender da 3306).

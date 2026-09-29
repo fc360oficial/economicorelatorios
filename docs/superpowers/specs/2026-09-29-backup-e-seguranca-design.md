@@ -4,17 +4,14 @@ Data: 2026-09-29. Servidor: `.254` (Servidor_BI, Windows 11), app em `C:\fc360\c
 
 ## Problema
 
-O código está no GitHub, mas **todo o estado do sistema fica só no disco C: do .254, sem nenhuma cópia**:
+O código está no GitHub, mas **todo o estado do sistema fica só no disco C: do servidor, sem nenhuma cópia**:
 `data/` (~150 MB de JSON: contagens, cotações, precificação, sugestões manuais, pedidos CD/fornecedor,
 conciliações, regras, log do ERP, DRE, metas, expedição, recebimento), `usuarios.json`, pareamento dos dois
 WhatsApp (`negativos-wpp/`, `cahu-wpp/`), certificado/config do Itaú (`data/itau/`), `.env` + service account
 do Firebase (`C:\fc360\etiquetas-api`), `Caddyfile` e os `.caddy` do CAHU. Um HD queimado ou um ransomware
 zera tudo isso.
 
-Achados de segurança (registrados, **sem ação por decisão do Tiago em 29/09**):
-- repositório `fc360oficial/economicorelatorios` é público e o token do `/deploy` está no `server.js`;
-- portas 3003 (app sem HTTPS), 3000 (API CAHU) e 3306 (MySQL) parecem redirecionadas no MikroTik
-  (teste feito de dentro da LAN da CAHU; confirmar nas regras de NAT do roteador antes de fechar).
+Achados de segurança ficam fora deste documento (registrados na memória do agente e com o Tiago).
 
 ## Objetivo
 
@@ -63,7 +60,7 @@ numa pasta separada (`C:\fc360\restore-teste`) e subir na porta 3999, conferir l
 
 ### Fora de escopo (fase 2/3, decisão depois)
 
-Repo privado + token do deploy em variável de ambiente; fechar 3000/3003/3306 no MikroTik; monitor externo
+Endurecimento de acesso (decisão do Tiago); monitor externo
 (UptimeRobot); migrar JSON pra PostgreSQL.
 
 ## Erros e limites
