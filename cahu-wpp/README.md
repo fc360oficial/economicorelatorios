@@ -1,6 +1,6 @@
 # cahu-wpp — bot do número "Central Rede Cahu"
 
-Processo separado do `negativos-wpp` (número antigo). Só recebe pedidos do `server.js` em `127.0.0.1:3011`
+Processo separado do `negativos-wpp` (número antigo). Só recebe pedidos do `server.js` em `127.0.0.1:3012`
 e manda pro grupo dos vendedores da CAHU. Quem agenda (07:00 tabela, 09/12/15/18 checagens) é `lib/cahu-tabela-wpp.js`.
 
 ## Instalar no .254 (uma vez)
@@ -22,7 +22,7 @@ nssm start CahuWpp
 
 ## Testar sem esperar as 07:00
 Na página CAHU Distribuidora > Tabela de Preços há o painel "Envio automático no WhatsApp" com "Enviar tabela agora" e "Checar agora".
-Ou: `curl -X POST http://127.0.0.1:3011/mensagem-grupo -H "Content-Type: application/json" -d "{\"texto\":\"teste\"}"`.
+Ou: `curl -X POST http://127.0.0.1:3012/mensagem-grupo -H "Content-Type: application/json" -d "{\"texto\":\"teste\"}"`.
 
 ## Se o número cair (loggedOut)
 Apagar a pasta `auth_info`, reiniciar o serviço, olhar o log pra pegar o código novo. Nunca parear por QR.

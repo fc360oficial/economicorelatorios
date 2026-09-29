@@ -1,6 +1,6 @@
 'use strict';
 // Bot WhatsApp do número novo "Central Rede Cahu" (18/09/2026). Só faz UMA coisa: recebe pedidos do server.js
-// (localhost:3011) e manda texto/documento pro grupo dos vendedores da CAHU. Não responde ninguém, não lê grupo.
+// (localhost:3012) e manda texto/documento pro grupo dos vendedores da CAHU. Não responde ninguém, não lê grupo.
 // Quem decide O QUE mandar e QUANDO é lib/cahu-tabela-wpp.js no processo principal.
 //
 // Separado do negativos-wpp de propósito: número diferente (o negativos continua no número antigo — Fase 1).
@@ -17,7 +17,7 @@ const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLat
 
 const logger = pino({ level: 'info' });
 const CONFIG_PATH = path.join(__dirname, 'config.json');
-const PORTA = 3011;
+const PORTA = 3012;
 
 function lerConfig() {
   try { return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8')); }
