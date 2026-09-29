@@ -92,3 +92,23 @@ test('bipeId repetido (fila offline reenviando): não soma de novo e devolve rep
   // a visão da loja não vaza o controle interno de bipes
   assert.ok(!('bipes_vistos' in R.visaoLoja(3, c.id)));
 });
+
+test('lote (loja 10): bipe sem lote fica sem_lote; com lote vira linha por lote; loja 3 não exige', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rec-'));
+  const xml = { itens: [{ cod: '111', descricao: 'SEM VALIDAR', un: 30 }], naoPedidos: [], status: 'conciliado', pedidoId: 12, ln: 10 };
+  R.init({ dir, cadastro: async c => CAD[c] || null, xmlLoja: () => xml, agora: () => new Date('2026-09-29T08:00:00') });
+  assert.equal(R.exigeLote(10), true); assert.equal(R.exigeLote(3), false);
+  const c = R.abrirNota({ loja: 10, nome: 'CARMEM', chave: '2626'.padEnd(44, '0'), nNota: '77', fornecedor: 'F', codFornec: 1 });
+  let r = await R.bipar(c.id, { cod: '111', quant: 10, emb: 1, validade: '2027-03-01' });
+  assert.equal(r.resultado, 'sem_lote'); assert.equal(r.item.estado, 'sem_lote');
+  await R.corrigir(c.id, { cod: '111', quant: 10, emb: 1, validade: '2027-03-01', lote: ' l123a ' });
+  r = await R.bipar(c.id, { cod: '111', quant: 20, emb: 1, validade: '2027-05-01', lote: 'L124B' });
+  assert.equal(r.resultado, 'ok'); assert.equal(r.item.un, 30); assert.equal(r.item.validade, '2027-03-01', 'pior validade continua a do item');
+  assert.deepEqual(r.item.lotes.map(l => l.lote + ':' + l.un + ':' + l.validade), ['L123A:10:2027-03-01', 'L124B:20:2027-05-01']);
+  const v = R.visaoLoja(10, c.id); assert.equal(v.exige_lote, true); assert.equal(v.itens[0].lotes.length, 2);
+  // loja 3: sem lote segue ok
+  const xml3 = { ...xml, ln: 3 }; R.init({ dir, cadastro: async c => CAD[c] || null, xmlLoja: () => xml3, agora: () => new Date('2026-09-29T08:00:00') });
+  const c3 = R.abrirNota({ loja: 3, nome: 'MAYRA', chave: '3636'.padEnd(44, '0'), nNota: '78', fornecedor: 'F', codFornec: 1 });
+  r = await R.bipar(c3.id, { cod: '111', quant: 30, emb: 1, validade: '2027-03-01' });
+  assert.equal(r.resultado, 'ok'); assert.equal(R.visaoLoja(3, c3.id).exige_lote, false);
+});

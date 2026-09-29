@@ -503,6 +503,7 @@ const ESTADO = {
   bloqueado_validade: ['e-bad', 'validade curta · bloqueado'],
   avaria: ['e-bad', 'avaria · devolver'],
   sem_validade: ['e-warn', 'sem validade'],
+  sem_lote: ['e-warn', 'sem lote'],
   nao_esta_na_nota: ['e-warn', 'não está na nota']
 };
 function renderBip() {
@@ -516,7 +517,8 @@ function renderBip() {
   const itens = (visao.itens || []).slice().reverse();
   $('bItens').innerHTML = itens.length ? itens.map(i => {
     const e = ESTADO[i.estado] || ['', ''];
-    const meta = [i.cod, i.validade ? 'vence ' + dataBr(i.validade) : null, e[1] || null].filter(Boolean).join(' · ');
+    const lotes = (i.lotes || []).filter(l => l.lote);
+    const meta = [i.cod, lotes.length ? 'lote ' + lotes.map(l => l.lote + (lotes.length > 1 ? ' (' + num(l.un) + ')' : '') + (l.validade ? ' vence ' + dataBr(l.validade) : '')).join(', ') : (i.validade ? 'vence ' + dataBr(i.validade) : null), e[1] || null].filter(Boolean).join(' · ');
     return `<div class="it ${e[0]}"><div class="stripe"></div>
       <div><div class="d">${esc(i.descricao)}</div><div class="c">${esc(meta)}</div></div>
       <div class="q"><b>${num(i.un)} un</b><small>${num(i.quant)} × ${num(i.emb)}</small></div></div>`;
@@ -555,7 +557,9 @@ async function lerCodigo(cod) {
   // caso que o conferente manda pra central ("código não cadastrado").
   ultimoBipado = { cod, descricao: ((visao.itens || []).find(i => i.cod === cod) || {}).descricao || (cads[cod] || {}).descricao || '' };
   const jaTem = (visao.itens || []).find(i => i.cod === cod);
-  if (jaTem) { await enviarBipe('bipar', { cod, quant: 1, emb: jaTem.emb }); return; }
+  // Loja com lote (CD): bipar de novo abre o cartão, porque a caixa pode ser de outro lote/validade.
+  if (jaTem && !exigeLote()) { await enviarBipe('bipar', { cod, quant: 1, emb: jaTem.emb }); return; }
+  if (jaTem) { abrirCartao({ cod, descricao: jaTem.descricao, emb: jaTem.emb || 1, quant: '', validade: '', lote: '', modo: 'bipar' }); return; }
   let cad;
   try { cad = await api('/api/recebimento-publico/cadastro/' + encodeURIComponent(cod) + '?t=' + sess.token); guardarCad(cod, cad); }
   catch (e) {
@@ -564,8 +568,9 @@ async function lerCodigo(cod) {
     if (!cad) { toast('Sem sinal pra buscar o cadastro. Bipe de novo quando voltar a rede.', true); return; }
     setNet(false);
   }
-  abrirCartao({ cod, descricao: cad.descricao, emb: cad.qtdemb || 1, quant: '', validade: '', modo: 'bipar' });
+  abrirCartao({ cod, descricao: cad.descricao, emb: cad.qtdemb || 1, quant: '', validade: '', lote: '', modo: 'bipar' });
 }
+const exigeLote = () => !!(visao && visao.exige_lote) || (sess && +sess.loja === 10);
 
 function abrirCartao(c) {
   cartao = c;
@@ -578,15 +583,17 @@ function abrirCartao(c) {
     <div class="kv" style="font-size:13px"><span>Total</span><b id="cTot">0 un</b></div>
     <div class="tip" style="color:var(--ink2)">Tanto faz digitar 10 × 24 ou 240 × 1.</div>
     <div class="f1"><label for="cVal">Vence em</label><input id="cVal" type="date" value="${esc(c.validade)}"></div>
-    <div class="tip">Enter em cada campo: Quant → Emb → Validade → grava e volta pro bipe.</div>
+    ${exigeLote() ? `<div class="f1"><label for="cLote">Lote (bipe ou digite)</label><input id="cLote" type="text" autocomplete="off" autocapitalize="characters" value="${esc(c.lote || '')}"></div>` : ''}
+    <div class="tip">Enter em cada campo: Quant → Emb → Validade${exigeLote() ? ' → Lote' : ''} → grava e volta pro bipe.</div>
     <div class="row2"><button class="btn btn-secondary" onclick="fecharCartao()">Cancelar</button><button class="btn btn-primary" onclick="gravarCartao()">Gravar</button></div>
   </div>`;
-  const q = $('cQuant'), e = $('cEmb'), vd = $('cVal');
+  const q = $('cQuant'), e = $('cEmb'), vd = $('cVal'), lt = $('cLote');
   const tot = () => { $('cTot').textContent = num((+String(q.value).replace(',', '.') || 0) * (+String(e.value).replace(',', '.') || 0)) + ' un'; };
   q.addEventListener('input', tot); e.addEventListener('input', tot); tot();
   q.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); e.focus(); e.select(); } });
   e.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); vd.focus(); } });
-  vd.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); gravarCartao(); } });
+  vd.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); if (lt) { lt.focus(); lt.select(); } else gravarCartao(); } });
+  if (lt) lt.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); gravarCartao(); } });
   q.focus(); q.select();
   $('cartao').scrollIntoView({ block: 'nearest' });
 }
@@ -597,9 +604,11 @@ function gravarCartao() {
   const quant = +String(($('cQuant') || {}).value || '').replace(',', '.') || 0;
   const emb = +String(($('cEmb') || {}).value || '').replace(',', '.') || +c.emb || 1;
   const validade = ($('cVal') || {}).value || '';
+  const lote = String((($('cLote') || {}).value || '')).trim().toUpperCase();
   if (!quant) { toast('Digite a quantidade.', true); $('cQuant').focus(); return; }
+  if (exigeLote() && !lote) { toast('Bipe ou digite o lote da caixa.', true); if ($('cLote')) $('cLote').focus(); return; }
   fecharCartao();
-  enviarBipe(c.modo === 'corrigir' ? 'corrigir' : 'bipar', { cod: c.cod, quant, emb, validade });
+  enviarBipe(c.modo === 'corrigir' ? 'corrigir' : 'bipar', { cod: c.cod, quant, emb, validade, lote });
 }
 
 const AVISO_RESULTADO = {
@@ -607,6 +616,7 @@ const AVISO_RESULTADO = {
   bloqueado_validade: ['Validade curta: bloqueado. Separe pra devolução.', true],
   nao_esta_na_nota: ['Este produto não está na nota. Chame a central.', true],
   sem_validade: ['Faltou a validade deste produto.', true],
+  sem_lote: ['Faltou o lote desta caixa. Corrija a quantidade e informe o lote.', true],
   nao_cadastrado: ['Produto não cadastrado. Chame a central.', true]
 };
 // Um id por bipe: se a rede cair depois do servidor aplicar mas antes da resposta chegar, o reenvio
@@ -616,7 +626,7 @@ const novoBipeId = () => {
   return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
 };
 async function enviarBipe(acao, body) {
-  const corpo = { id: visao.id, cod: body.cod, quant: body.quant, emb: body.emb, validade: body.validade || '', bipeId: novoBipeId() };
+  const corpo = { id: visao.id, cod: body.cod, quant: body.quant, emb: body.emb, validade: body.validade || '', lote: body.lote || '', bipeId: novoBipeId() };
   aplicarLocal(acao, corpo);  // mostra na hora; a visão do servidor sobrescreve quando responder
   ultimoBipado = { cod: corpo.cod, descricao: ((visao.itens || []).find(i => i.cod === corpo.cod) || {}).descricao || (cads[corpo.cod] || {}).descricao || '' };
   renderBip(); focarBip();
