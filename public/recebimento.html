@@ -183,6 +183,7 @@ body{font-family:var(--font);background:var(--pap);color:var(--ink);font-size:14
 <!-- ═══ 2 · Notas da loja ═══ -->
 <div id="telaNotas" class="tela" hidden>
   <div class="bar">
+    <button class="voltar" id="btnVoltarEscolha" onclick="irEscolha()" title="Voltar" hidden>‹</button>
     <div class="logo">E</div>
     <div><div class="t" id="nTitulo">Loja</div><div class="s" id="nSub">—</div></div>
     <div class="right" id="nHora">—</div>
@@ -196,6 +197,82 @@ body{font-family:var(--font);background:var(--pap);color:var(--ink);font-size:14
     <span><span class="dot" id="netDot"></span><span id="netTxt">—</span></span>
     <span><span id="quem"></span> · <button class="btn btn-ghost" style="height:auto;padding:0;font-size:11.5px" onclick="sair()">sair</button></span>
   </div>
+</div>
+
+<!-- ═══ 1b · Escolha (só o CD, loja 10) ═══ -->
+<div id="telaEscolha" class="tela" hidden>
+  <div class="bar">
+    <div class="logo">E</div>
+    <div><div class="t" id="eTitulo">Loja 10 · CD DISTRIBUIDORA</div><div class="s" id="eSub">—</div></div>
+  </div>
+  <div class="corpo">
+    <div style="font-size:18px;font-weight:800">O que você vai conferir?</div>
+    <button class="nota" onclick="irRecebimento()">
+      <div class="f">Recebimento</div>
+      <div class="m">Nota de fornecedor chegando. Toca na nota, bipa a DANFE do caminhão e confere às cegas, com lote.</div>
+      <div class="st"><span class="pill ok"><i></i><span id="eNotas">—</span></span></div>
+    </button>
+    <button class="nota" onclick="irExpedicao()">
+      <div class="f">Expedição</div>
+      <div class="m">Pedido separado pelo papel indo pro caminhão. Toca no pedido e bipa às cegas pra bater com o Televendas.</div>
+      <div class="st"><span class="pill warn"><i></i><span id="ePedidos">—</span></span></div>
+    </button>
+  </div>
+  <div class="foot">
+    <span><span class="dot"></span><span>Online</span></span>
+    <span><span id="quemE"></span> · <button class="btn btn-ghost" style="height:auto;padding:0;font-size:11.5px" onclick="sair()">sair</button></span>
+  </div>
+</div>
+
+<!-- ═══ 5 · Expedição · pedidos do Televendas ═══ -->
+<div id="telaPedidos" class="tela" hidden>
+  <div class="bar">
+    <button class="voltar" onclick="irEscolha()" title="Voltar">‹</button>
+    <div class="logo">E</div>
+    <div><div class="t">Expedição · CD</div><div class="s" id="pSub">—</div></div>
+    <div class="right" id="pHora">—</div>
+  </div>
+  <div class="acoes">
+    <button class="btn btn-secondary" onclick="carregarPedidos(true)">↻ Atualizar</button>
+  </div>
+  <div class="corpo" id="pLista"></div>
+</div>
+
+<!-- ═══ 6 · Expedição · conferência cega de saída ═══ -->
+<div id="telaExp" class="tela" hidden>
+  <div class="bar">
+    <button class="voltar" onclick="voltarPedidos()" title="Voltar">‹</button>
+    <div class="logo">E</div>
+    <div><div class="t" id="xTitulo">—</div><div class="s" id="xSub">—</div></div>
+    <div class="right"><span class="pill warn"><i></i>Cega</span></div>
+  </div>
+  <div class="acoes">
+    <button class="btn btn-secondary" onclick="escolherTirar()">Tirar da coletagem</button>
+    <button class="btn btn-primary" onclick="termineiExp()">Terminei o pedido</button>
+  </div>
+  <div class="corpo">
+    <div class="aviso ok" style="font-size:12px">O pedido foi separado pelo papel. Bipe <b>o que está indo no caminhão</b>. A quantidade do pedido fica escondida.</div>
+    <div class="scan" id="scanExp">
+      <span class="ico">▮▯▮</span>
+      <input id="bipExp" placeholder="Bipe a caixa (DUN-14) ou a unidade" autocomplete="off" inputmode="none" enterkeyhint="done">
+      <button class="dig" id="btnDigitarExp" type="button" aria-pressed="false" onclick="toggleDigitarExp()" title="Digitar o código à mão">Digitar código</button>
+    </div>
+    <div class="prog"><div>Você bipou <b id="xProd">0</b> produtos · <b id="xUn">0</b> unidades</div><div id="xTir" style="color:var(--amk)"></div></div>
+    <div id="xCartao"></div>
+    <div id="xFora"></div>
+    <div class="itens" id="xItens"></div>
+  </div>
+</div>
+
+<!-- ═══ 7 · Expedição · Terminei ═══ -->
+<div id="telaExpFim" class="tela" hidden>
+  <div class="bar">
+    <button class="voltar" onclick="mostrar('exp'); renderExp()" title="Voltar">‹</button>
+    <div class="logo">E</div>
+    <div><div class="t" id="xfTitulo">Terminei</div><div class="s" id="xfSub">—</div></div>
+  </div>
+  <div class="acoes" id="xfAcoes"></div>
+  <div class="corpo" id="xfCorpo"></div>
 </div>
 
 <!-- ═══ 2b · Confira a DANFE (antes de descarregar) ═══ -->
@@ -325,9 +402,8 @@ function sair() {
 
 function iniciar() {
   $('login').hidden = true;
-  $('quem').textContent = sess.nome;
-  mostrar('notas');
-  carregarNotas();
+  $('quem').textContent = sess.nome; $('quemE').textContent = sess.nome;
+  if (ehCD()) { irEscolha(); } else { mostrar('notas'); carregarNotas(); }
   window.addEventListener('online', flush);
   setInterval(() => { if (fila.length) flush(); }, 15000);
 }
@@ -336,6 +412,10 @@ function mostrar(t) {
   tela = t;
   $('login').hidden = t !== 'login';
   $('telaNotas').hidden = t !== 'notas';
+  $('telaEscolha').hidden = t !== 'escolha';
+  $('telaPedidos').hidden = t !== 'pedidos';
+  $('telaExp').hidden = t !== 'exp';
+  $('telaExpFim').hidden = t !== 'expFim';
   $('telaDanfe').hidden = t !== 'danfe';
   $('telaBip').hidden = t !== 'bipagem';
   $('telaFim').hidden = t !== 'fim';
@@ -344,6 +424,8 @@ function mostrar(t) {
   if (t === 'notas') timerNotas = setInterval(() => carregarNotas(), 60000);
   if (t === 'bipagem') { timerVisao = setInterval(pollVisao, 5000); focarBip(); }
   if (t === 'danfe') focarDanfe();
+  if (t === 'pedidos') timerNotas = setInterval(() => carregarPedidos(), 60000);
+  if (t === 'exp') { timerVisao = setInterval(pollExp, 5000); focarExp(); }
 }
 
 // ── rede ───────────────────────────────────────────────────────────────────
@@ -452,6 +534,161 @@ async function abrirConferencia(n) {
     if (e.status === 409 && e.corpo && e.corpo.danfe) return irParaDanfe(n);
     toast(e.message || 'Não deu pra abrir a nota', true);
   }
+}
+
+// ── CD (loja 10): escolha Recebimento × Expedição ──────────────────────────
+// Só o CD tem expedição (conferência cega de saída do pedido do Televendas, com lote). As lojas
+// 1-6 nunca veem a escolha. Spec: docs/superpowers/specs/2026-09-29-coletor-cd-expedicao-processo.md
+const ehCD = () => !!sess && +sess.loja === 10;
+function irEscolha() { clearInterval(timerNotas); timerNotas = null; $('eSub').textContent = sess.nome; mostrar('escolha'); contarEscolha(); }
+async function contarEscolha() {
+  try { const n = await api('/api/recebimento-publico/notas?t=' + sess.token); $('eNotas').textContent = n.length + (n.length === 1 ? ' nota na fila' : ' notas na fila'); } catch (e) { $('eNotas').textContent = 'notas'; }
+  try { const p = await api('/api/expedicao-publico/pedidos?t=' + sess.token); $('ePedidos').textContent = p.length + (p.length === 1 ? ' pedido pra conferir' : ' pedidos pra conferir'); } catch (e) { $('ePedidos').textContent = 'pedidos'; }
+}
+function irRecebimento() { $('btnVoltarEscolha').hidden = false; mostrar('notas'); carregarNotas(); }
+function irExpedicao() { mostrar('pedidos'); carregarPedidos(); }
+
+// ── tela 5 · pedidos do Televendas ─────────────────────────────────────────
+let pedidos = [], pedidosEm = null, visaoExp = null, pedidoAtual = null, cartaoExp = null;
+const postExp = (rota, body) => api('/api/expedicao-publico/' + rota, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, t: sess.token }) });
+async function carregarPedidos(manual) {
+  try {
+    pedidos = await api('/api/expedicao-publico/pedidos?t=' + sess.token); setNet(true); pedidosEm = new Date();
+    $('pHora').innerHTML = 'atualizado<br>' + pedidosEm.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    if (manual) toast('Atualizado');
+  } catch (e) { if (e.status) toast(e.message || 'A central não respondeu.', true); else setNet(false); }
+  renderPedidos();
+}
+const PAINEL = { 0: 'No painel', 1: 'Em separação', 2: 'Conferido no Dlinks', 4: 'Liberado no Dlinks' };
+function renderPedidos() {
+  $('pSub').textContent = sess.nome + ' · ' + pedidos.length + (pedidos.length === 1 ? ' pedido sem nota' : ' pedidos sem nota');
+  $('pLista').innerHTML = pedidos.length ? pedidos.map((p, i) => {
+    const c = p.conferencia; const st = c ? (c.status === 'fechada' ? ['ok', 'Conferido · bateu'] : ['warn', 'Você já começou · toque pra continuar']) : ['mut', p.painel != null && PAINEL[p.painel] ? PAINEL[p.painel] : 'Separado no papel'];
+    return `<button class="nota" onclick="abrirPedido(${i})">
+      <div class="f">${esc(p.cliente)}</div>
+      <div class="m">Pedido <b>#${esc(p.nPedido)}</b> · ${p.itens} ${p.itens === 1 ? 'item' : 'itens'} · ${esc(p.data ? dataBr(p.data) : '')} ${esc(p.hora)}</div>
+      <div class="st"><span class="pill ${st[0]}"><i></i>${esc(st[1])}</span></div>
+    </button>`;
+  }).join('') : '<div class="vazio">Nenhum pedido do Televendas aguardando conferência de saída.</div>';
+}
+async function abrirPedido(i) {
+  const p = pedidos[i]; if (!p) return;
+  try { visaoExp = await postExp('abrir', { nPedido: p.nPedido, nome: sess.nome }); pedidoAtual = p; cartaoExp = null; $('xCartao').innerHTML = ''; mostrar('exp'); renderExp(); }
+  catch (e) { toast(e.message || 'Não deu pra abrir o pedido', true); }
+}
+function voltarPedidos() { cartaoExp = null; $('xCartao').innerHTML = ''; mostrar('pedidos'); carregarPedidos(); }
+async function pollExp() { if (!visaoExp || cartaoExp || $('modal').innerHTML) return; try { const v = await api('/api/expedicao-publico/visao/' + visaoExp.id + '?t=' + sess.token); visaoExp = v; renderExp(); setNet(true); } catch (e) { if (!e.status) setNet(false); } }
+
+// ── tela 6 · conferência cega de saída ─────────────────────────────────────
+const ESTADO_EXP = { ok: ['', 'bate com o pedido'], diferente: ['e-warn', 'diferente do pedido · confira'], fora: ['e-bad', 'não é do pedido · tire do caminhão'] };
+function renderExp() {
+  if (!visaoExp) return;
+  $('xTitulo').textContent = visaoExp.cliente || '—'; $('xSub').textContent = 'Pedido #' + visaoExp.nPedido + ' · Saída · CD';
+  $('xProd').textContent = visaoExp.produtos; $('xUn').textContent = num(visaoExp.unidades);
+  $('xTir').textContent = visaoExp.tirados ? visaoExp.tirados + (visaoExp.tirados === 1 ? ' retirada registrada pro fiscal' : ' retiradas registradas pro fiscal') : '';
+  const fora = visaoExp.fora || [];
+  $('xFora').innerHTML = fora.length ? `<div class="aviso"><b>${fora.length === 1 ? '1 produto bipado não é do pedido.' : fora.length + ' produtos bipados não são do pedido.'}</b> Tire do caminhão e use "Tirar da coletagem".</div>` + fora.map(f => `<div class="it e-bad"><div class="stripe"></div><div><div class="d">${esc(f.descricao)}</div><div class="c">${esc(f.cod)} · fora do pedido · lote ${esc((f.lotes || []).map(l => l.lote).join(', '))}</div></div><div class="q"><b>${num(f.un)} un</b><small>${num(f.quant)} × ${num(f.emb)}</small></div></div>`).join('') : '';
+  const itens = (visaoExp.itens || []).slice().reverse();
+  $('xItens').innerHTML = itens.length ? itens.map(i => { const e = ESTADO_EXP[i.estado] || ['', '']; const lotes = (i.lotes || []).map(l => l.lote + (i.lotes.length > 1 ? ' (' + num(l.un) + ')' : '')).join(', ');
+    return `<div class="it ${e[0]}"><div class="stripe"></div><div><div class="d">${esc(i.descricao)}</div><div class="c">${esc([i.cod, lotes ? 'lote ' + lotes : null, e[1]].filter(Boolean).join(' · '))}</div></div><div class="q"><b>${num(i.un)} un</b><small>${num(i.quant)} × ${num(i.emb)}</small></div></div>`; }).join('')
+    : '<div class="vazio">Bipe a primeira caixa. Só o que você bipar aparece aqui.</div>';
+  setNet(navigator.onLine);
+}
+function focarExp() { if (tela !== 'exp' || cartaoExp || $('modal').innerHTML) return; const b = $('bipExp'); b.focus(); $('scanExp').classList.add('focus'); }
+function toggleDigitarExp() { const b = $('bipExp'), on = b.inputMode !== 'text'; b.inputMode = on ? 'text' : 'none'; $('btnDigitarExp').setAttribute('aria-pressed', String(on)); b.focus(); }
+$('bipExp').addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); const c = $('bipExp').value.trim(); $('bipExp').value = ''; if (c) lerCodigoExp(c); } });
+$('bipExp').addEventListener('blur', () => { $('scanExp').classList.remove('focus'); setTimeout(focarExp, 100); });
+async function lerCodigoExp(cod) {
+  if (!visaoExp) return;
+  const jaTem = (visaoExp.itens || []).find(i => i.cod === cod) || (visaoExp.fora || []).find(i => i.cod === cod);
+  let descricao = jaTem ? jaTem.descricao : '', emb = jaTem ? jaTem.emb : 1;
+  if (!jaTem) { try { const cad = await api('/api/recebimento-publico/cadastro/' + encodeURIComponent(cod) + '?t=' + sess.token); descricao = cad.descricao; emb = cad.qtdemb || 1; } catch (e) { descricao = 'Código ' + cod; } }
+  abrirCartaoExp({ cod, descricao, emb, quant: '', lote: '' });
+}
+function abrirCartaoExp(c) {
+  cartaoExp = c;
+  $('xCartao').innerHTML = `<div class="card am">
+    <div class="t">${esc(c.descricao)}</div>
+    <div class="f2">
+      <div><label for="xQuant">Quant</label><input id="xQuant" type="text" inputmode="decimal" autocomplete="off" value="${esc(c.quant)}"></div>
+      <div><label for="xEmb">Emb</label><input id="xEmb" type="text" inputmode="decimal" autocomplete="off" value="${esc(c.emb)}"></div>
+    </div>
+    <div class="kv" style="font-size:13px"><span>Total</span><b id="xTot">0 un</b></div>
+    <div class="f1"><label for="xLote">Lote (bipe ou digite)</label><input id="xLote" type="text" autocomplete="off" autocapitalize="characters" value="${esc(c.lote || '')}"></div>
+    <div class="tip">Enter em cada campo: Quant → Emb → Lote → grava e volta pro bipe.</div>
+    <div class="row2"><button class="btn btn-secondary" onclick="fecharCartaoExp()">Cancelar</button><button class="btn btn-primary" onclick="gravarCartaoExp()">Gravar</button></div>
+  </div>`;
+  const q = $('xQuant'), e = $('xEmb'), lt = $('xLote');
+  const tot = () => { $('xTot').textContent = num((+String(q.value).replace(',', '.') || 0) * (+String(e.value).replace(',', '.') || 0)) + ' un'; };
+  q.addEventListener('input', tot); e.addEventListener('input', tot); tot();
+  q.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); e.focus(); e.select(); } });
+  e.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); lt.focus(); lt.select(); } });
+  lt.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); gravarCartaoExp(); } });
+  q.focus(); q.select(); $('xCartao').scrollIntoView({ block: 'nearest' });
+}
+function fecharCartaoExp() { cartaoExp = null; $('xCartao').innerHTML = ''; focarExp(); }
+const AVISO_EXP = { ok: ['Bateu com o pedido.', false], qtd_diferente: ['Quantidade diferente do pedido. Confira: falta ou sobra? A quantidade do pedido continua escondida.', true], fora_do_pedido: ['Este produto NÃO é do pedido. Tire do caminhão e use "Tirar da coletagem".', true], sem_lote: ['Faltou o lote. Bipe ou digite o lote da caixa.', true] };
+async function gravarCartaoExp() {
+  if (!cartaoExp) return; const c = cartaoExp;
+  const quant = +String(($('xQuant') || {}).value || '').replace(',', '.') || 0;
+  const emb = +String(($('xEmb') || {}).value || '').replace(',', '.') || +c.emb || 1;
+  const lote = String((($('xLote') || {}).value || '')).trim().toUpperCase();
+  if (!quant) { toast('Digite a quantidade.', true); $('xQuant').focus(); return; }
+  if (!lote) { toast('Bipe ou digite o lote da caixa.', true); $('xLote').focus(); return; }
+  fecharCartaoExp();
+  try {
+    const r = await postExp('bipar', { id: visaoExp.id, cod: c.cod, quant, emb, lote, bipeId: novoBipeId() });
+    if (r.visao) visaoExp = r.visao; renderExp(); const a = AVISO_EXP[r.resultado]; if (a) toast(a[0], a[1]); setNet(true);
+  } catch (e) { toast(e.message || 'Não deu pra gravar o bipe', true); if (!e.status) setNet(false); }
+  focarExp();
+}
+function escolherTirar() {
+  const todos = [...(visaoExp.fora || []).map(f => ({ ...f, fora: true })), ...(visaoExp.itens || [])];
+  if (!todos.length) { toast('Nada bipado ainda.', true); return; }
+  abrirModal(`<div class="t">Tirar da coletagem</div><p style="font-size:12.5px;color:var(--ink2)">Escolha o produto que você tirou do caminhão. Fica registrado pro fiscal do CD conferir o pallet.</p>` +
+    todos.map(i => `<button class="btn btn-secondary blk" style="justify-content:space-between;margin-bottom:6px" onclick="fecharModal();tirarItem(${JSON.stringify(i.cod)},${!!i.fora})"><span>${esc(i.descricao)}${i.fora ? ' · fora do pedido' : ''}</span><b>${num(i.un)} un</b></button>`).join('') +
+    `<button class="btn btn-ghost blk" onclick="fecharModal();focarExp()">Cancelar</button>`);
+}
+function tirarItem(cod, fora) {
+  const it = (fora ? visaoExp.fora : visaoExp.itens).find(i => i.cod === cod); if (!it) return;
+  const lotes = it.lotes || [];
+  abrirModal(`<div class="t">${esc(it.descricao)}</div>
+    <div class="f2"><div><label for="tQuant">Quantas (${esc(fora ? 'tudo = ' + num(it.quant) : 'bipadas: ' + num(it.quant))})</label><input id="tQuant" type="text" inputmode="decimal" autocomplete="off" value="${fora ? esc(num(it.quant)) : ''}"></div>
+    <div><label for="tLote">Lote</label><select id="tLote"><option value="">todos</option>${lotes.map(l => `<option value="${esc(l.lote)}">${esc(l.lote)} (${num(l.quant)})</option>`).join('')}</select></div></div>
+    <div class="f1"><label for="tMotivo">Motivo (opcional)</label><input id="tMotivo" type="text" autocomplete="off" placeholder="sobrou, caixa errada…"></div>
+    <div class="row2"><button class="btn btn-secondary" onclick="fecharModal();focarExp()">Cancelar</button><button class="btn btn-primary" onclick="confirmarTirar(${JSON.stringify(cod)})">Tirar</button></div>`);
+  setTimeout(() => { const q = $('tQuant'); if (q) { q.focus(); q.select(); } }, 50);
+}
+async function confirmarTirar(cod) {
+  const quant = +String(($('tQuant') || {}).value || '').replace(',', '.') || 0; const lote = ($('tLote') || {}).value || ''; const motivo = ($('tMotivo') || {}).value || '';
+  fecharModal();
+  try { const r = await postExp('tirar', { id: visaoExp.id, cod, quant: quant || undefined, lote, motivo, nome: sess.nome }); if (r.visao) visaoExp = r.visao; renderExp(); toast('Retirada registrada. O fiscal do CD vai conferir o pallet.'); }
+  catch (e) { toast(e.message || 'Não deu pra tirar', true); }
+  focarExp();
+}
+
+// ── tela 7 · Terminei (só fecha 100 %) ─────────────────────────────────────
+const MOT_EXP = { nao_bipado: ['bad', 'não bipado'], a_menos: ['warn', 'falta · bipe o certo'], a_mais: ['warn', 'sobra · tire da coletagem'] };
+async function termineiExp() {
+  if (!visaoExp) return;
+  try {
+    const r = await postExp('terminei', { id: visaoExp.id, nome: sess.nome }); if (r.visao) visaoExp = r.visao;
+    $('xfSub').textContent = (visaoExp.cliente || '') + ' · Pedido #' + visaoExp.nPedido;
+    if (r.fechou) {
+      $('xfTitulo').textContent = 'Pedido conferido';
+      $('xfAcoes').innerHTML = '<button class="btn btn-primary blk" onclick="voltarPedidos()">Voltar aos pedidos</button>';
+      $('xfCorpo').innerHTML = '<div class="aviso ok"><b>Bateu 100 % com o pedido.</b><br>Pode fechar o caminhão. O Televendas já vê o pedido como conferido.</div>';
+    } else {
+      const n = r.pendentes.length + r.fora.length;
+      $('xfTitulo').textContent = 'Não bateu com o pedido';
+      $('xfAcoes').innerHTML = '<button class="btn btn-primary blk" onclick="mostrar(\'exp\'); renderExp()">Voltar e acertar</button>';
+      $('xfCorpo').innerHTML = `<div class="aviso"><b>${n} ${n === 1 ? 'item não bate' : 'itens não batem'} com o pedido.</b> O pedido só fecha 100 % certo. A quantidade do pedido continua escondida.</div>
+        ${r.pendentes.length ? `<div class="card"><div class="t">Acertar</div>${r.pendentes.map(p => { const m = MOT_EXP[p.motivo] || ['mut', p.motivo]; return `<div class="kv"><span>${esc(p.descricao || p.cod)}</span><span class="pill ${m[0]}">${esc(m[1])}</span></div>`; }).join('')}</div>` : ''}
+        ${r.fora.length ? `<div class="card"><div class="t">Fora do pedido · tire do caminhão</div>${r.fora.map(f => `<div class="kv"><span>${esc(f.descricao || f.cod)}</span><span class="pill bad">${num(f.un)} un</span></div>`).join('')}</div>` : ''}
+        <div class="tip">Faltou estoque? O Televendas exclui o item do pedido no Dlinks e ele some daqui.</div>`;
+    }
+    mostrar('expFim');
+  } catch (e) { toast(e.message || 'Não deu pra terminar', true); }
 }
 
 // ── tela 2b · DANFE antes de descarregar ───────────────────────────────────
