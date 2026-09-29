@@ -5080,9 +5080,10 @@ app.get('/api/cahu-distribuidora/tabela-precos.pdf', async (req, res) => {
 
 // ── Envio automático pro WhatsApp dos vendedores (lib/cahu-tabela-wpp.js) ─────
 // 07:00 seg–sáb: PDF completo + resumo do que mudou; 09/12/15/18: item que zerou no CD ou mudou de preço.
-// Quem fala com o WhatsApp é o processo cahu-wpp/ (número novo), em localhost:3011.
+// Quem fala com o WhatsApp é o processo cahu-wpp/ (número novo), em localhost:3012 — subido e mantido vivo daqui (iniciarBot).
 const cahuWpp = require('./lib/cahu-tabela-wpp');
 cahuWpp.init({ q, listarTabelas: listarTabelasPrecoCahu, carregarTabela: carregarTabelaPrecosCahu, gerarPdf: pdfTabelaCahuBuffer });
+cahuWpp.iniciarBot();
 cahuWpp.agendar();
 app.get('/api/cahu-distribuidora/wpp/estado', async (req, res) => {
   try { res.json(await cahuWpp.estado()); } catch (e) { res.status(500).json({ error: e.message }); }
