@@ -31,15 +31,58 @@ function montarAmbiente({ q, loteImpl, cnpj = '11222333000199', notas = {}, nota
   // qEstatico é SÍNCRONO de propósito: um `q` de teste que estoura de forma síncrona tem que
   // continuar estourando de forma síncrona (é justamente o que um dos testes verifica).
   const qEstatico = (sql, params) => {
-    if (sql.includes('FROM central.axml WHERE Chave=?')) return [{ Chave: params[0], nNota: notas[params[0]] || '1', CNPJemit: '11222333000199', CNPJdest: cnpjDest === undefined ? cnpj : cnpjDest, NomeEmit: fornecedorNome }];
+    if (sql.includes('FROM central.axml WHERE Chave=?')) return notas[params[0]] === null ? [] : [{ Chave: params[0], nNota: notas[params[0]] || '1', CNPJemit: '11222333000199', CNPJdest: cnpjDest === undefined ? cnpj : cnpjDest, NomeEmit: fornecedorNome }];
     if (sql.includes('FROM central.axmlprodutos')) return notaItens;
     if (sql.includes('FROM central.fornecedor WHERE LEFT(CNPJ,8)=?')) return [{ cod: 77, nome: fornecedorNome }];
     return null;
   };
   const qFn = (sql, params) => { const r = qEstatico(sql, params); return r === null ? (q ? q(sql, params) : Promise.resolve([])) : Promise.resolve(r); };
   const api = montarRotasRecebimento(app, { q: qFn, path, escreverERP, pedidosFornec, conferenciaXml, logColetor, LOG_COLETOR_DIR: dirBase, __dirname: dirBase });
-  return { routes, loteChamadas, logs, pdfs, ...api };
+  // Desde 29/09/26 /abrir exige DANFE bipada antes (rota /danfe). Os testes antigos abrem direto, então o
+  // ambiente bipa a DANFE sozinho; `abrirSemDanfe` é a rota crua, pros testes do próprio gate.
+  const abrirSemDanfe = routes['POST /api/recebimento-publico/abrir'];
+  routes['POST /api/recebimento-publico/abrir'] = async (rq, rs) => {
+    if (rq.body && rq.body.chave) await routes['POST /api/recebimento-publico/danfe'](req({ query: rq.query, body: { chave: rq.body.chave, nome: rq.body.nome } }), res());
+    return abrirSemDanfe(rq, rs);
+  };
+  return { routes, abrirSemDanfe, loteChamadas, logs, pdfs, ...api };
 }
+
+test('/danfe: confere (loja certa), outra_loja, sem_xml e chave curta; cada bipe vira evento danfe no log', async () => {
+  const CH = '2'.repeat(44), OUTRA = '3'.repeat(44), NADA = '4'.repeat(44);
+  const { routes, logs } = montarAmbiente({ notas: { [CH]: '501', [NADA]: null } });
+  const t = recebimento.config().lojas[3].token;
+  let r = res(); await routes['POST /api/recebimento-publico/danfe'](req({ query: { t }, body: { chave: CH, nome: 'ana' } }), r);
+  assert.equal(r.statusCode, 200); assert.equal(r.body.resultado, 'confere'); assert.equal(r.body.nNota, '501'); assert.equal(r.body.fornecedor, 'FORNECEDOR TESTE');
+  r = res(); await routes['POST /api/recebimento-publico/danfe'](req({ query: { t }, body: { chave: NADA, nome: 'ana' } }), r);
+  assert.equal(r.statusCode, 200); assert.equal(r.body.resultado, 'sem_xml'); assert.ok(!('nNota' in r.body));
+  r = res(); await routes['POST /api/recebimento-publico/danfe'](req({ query: { t }, body: { chave: '123', nome: 'ana' } }), r);
+  assert.equal(r.statusCode, 400);
+  const ev = logs.filter(e => e.tipo === 'danfe');
+  assert.deepEqual(ev.map(e => e.resultado), ['confere', 'sem_xml']);
+  assert.equal(ev[1].chave, NADA); assert.equal(ev[1].nome, 'ANA'); assert.match(ev[1].msg, /NÃO DESCARREGAR/); assert.match(ev[1].descricao, /emitente CNPJ 4{14}/);
+  // nota de outra loja (destinatário diferente do CNPJ da loja do token); espaço/quebra no bipe são ignorados
+  const amb2 = montarAmbiente({ cnpjDest: '99999999000199' }); const t2 = recebimento.config().lojas[3].token;
+  r = res(); await amb2.routes['POST /api/recebimento-publico/danfe'](req({ query: { t: t2 }, body: { chave: '  ' + OUTRA + String.fromCharCode(10), nome: 'ana' } }), r);
+  assert.equal(r.body.resultado, 'outra_loja'); assert.match(amb2.logs.find(e => e.tipo === 'danfe').msg, /outra loja/);
+});
+
+test('/abrir exige DANFE bipada (409); com DANFE abre e guarda quem bipou; retomar conferência aberta não pede de novo', async () => {
+  const CH = '5'.repeat(44);
+  const { routes, abrirSemDanfe, danfeLimpar } = montarAmbiente({ notas: { [CH]: '600' } });
+  const t = recebimento.config().lojas[3].token;
+  let r = res(); await abrirSemDanfe(req({ query: { t }, body: { chave: CH, nome: 'ana' } }), r);
+  assert.equal(r.statusCode, 409); assert.equal(r.body.danfe, true);
+  r = res(); await routes['POST /api/recebimento-publico/danfe'](req({ query: { t }, body: { chave: CH, nome: 'ana' } }), r);
+  assert.equal(r.body.resultado, 'confere');
+  r = res(); await abrirSemDanfe(req({ query: { t }, body: { chave: CH, nome: 'ana' } }), r);
+  assert.equal(r.statusCode, 200); const id = r.body.id;
+  const c = recebimento.obter(id); assert.equal(c.danfe.nome, 'ANA'); assert.ok(c.danfe.em);
+  // servidor reiniciou (cache da DANFE vazio) e a loja retoma a mesma nota: não exige DANFE de novo
+  danfeLimpar();
+  r = res(); await abrirSemDanfe(req({ query: { t }, body: { chave: CH, nome: 'ana' } }), r);
+  assert.equal(r.statusCode, 200); assert.equal(r.body.id, id);
+});
 
 test('/entrar com PIN errado devolve 401', async () => {
   const { routes } = montarAmbiente();
