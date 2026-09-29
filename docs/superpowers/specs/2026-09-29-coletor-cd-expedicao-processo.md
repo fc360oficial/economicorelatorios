@@ -16,26 +16,30 @@ Nos últimos 90 dias todas as 363 chaves de conferência da loja 10 são NF-e de
 4. Cada bipe vai pra `conferencia_televendas` (`nLoja`, `nPedido`, `Codigobarra` DUN-14 ou unidade, `Qtd` em caixas, `QtdEmb`, `Data`, `Status_Conferencia`).
 5. CD emite a nota de VENDA pra loja (o Pedidos do CD já lê `conferencia_televendas` e `painel_televendas` pra mostrar "separado").
 
-## Como vai ficar no nosso coletor
+## Como vai ficar no nosso coletor (decisão do Tiago, 29/09/26 à tarde)
+
+**Separação continua no papel.** O CD tem um coletor só: o Televendas digita o pedido, o CD imprime e separa olhando o papel, como hoje.
+O coletor entra **uma vez só, na saída**, e a conferência é **cega**: o conferente bipa o que está no caminhão sem ver a quantidade do pedido,
+e no "Terminei" o app compara com o pedido.
 
 **Diferenciação é por tela, não por código.** Só a loja 10 vê, depois do PIN, a escolha:
 
-| | Recebimento | Expedição |
+| | Recebimento | Expedição (saída) |
 |---|---|---|
-| O que é | nota de fornecedor chegando | pedido de loja/cliente saindo |
-| Lista | NF-e da `axml` sem entrada (igual às lojas) | pedidos do dia em `delivery nLoja=10` que estão no painel (Status 1 ou 2), com cliente, nº e hora |
+| O que é | nota de fornecedor chegando | pedido separado saindo pro caminhão |
+| Lista | NF-e da `axml` sem entrada (igual às lojas) | pedidos do dia em `delivery nLoja=10` ainda sem nota de venda, com cliente, nº e hora |
 | Abrir | tocar na nota → **bipar a DANFE** | tocar no pedido (sem digitar zero nenhum) |
-| Bipagem | cega, unidade, validade | por caixa (DUN-14) ou unidade, mostra o que falta separar (é separação, não recebimento) |
-| Terminei | recontagem (1×) → central libera no Fiscal | resumo separado × pedido; falta vira aviso pro Televendas |
-| Espelho no ERP de teste | `conferencia` + `conferenciachave` (como hoje) | `conferencia_televendas`, no formato do Dlinks |
+| Bipagem | cega, unidade, validade | **cega**, por caixa (DUN-14) ou unidade; o app não mostra quanto o pedido pede |
+| Terminei | recontagem (1×) → central libera no Fiscal | compara com o pedido: bateu → fecha; não bateu → lista só os itens divergentes pra recontar (1×), depois "fechar com divergência" avisa o Televendas |
+| Espelho no ERP de teste | `conferencia` + `conferenciachave` (como hoje) | `conferencia_televendas`, no formato do Dlinks (nLoja 10, nPedido, Codigobarra, Qtd cx, QtdEmb) |
 | Id interno | `AAAA-MM-DD-10-<hash da chave>` | `exp-AAAA-MM-DD-10-<nPedido>` |
 
 Lojas 1–6 não veem a escolha: entram direto no Recebimento, como hoje.
 
-## O que ainda precisa o Tiago decidir antes de implementar
-1. Expedição é **cega** (não mostra a quantidade do pedido) ou **aberta** (mostra o que falta separar)? Proposta: aberta.
-2. Quem **libera** a expedição: o próprio CD ao terminar, ou a central pelo Fiscal?
-3. Clientes externos (mercadinhos) entram na lista ou só as 6 lojas? Proposta: todos os pedidos do painel.
-4. Atualizar `painel_televendas.Status` no espelho de teste (0→1→2) ou só gravar os bipes?
+## Decisões já tomadas
+1. Expedição **cega** (não separação assistida). O papel impresso é a separação.
+2. Quem fecha a expedição é o **próprio CD** ao terminar; a divergência vai como aviso pro Televendas (não passa pelo Fiscal da central).
+3. Entram **todos** os pedidos do Televendas da loja 10 (lojas do grupo e clientes externos).
+4. `painel_televendas.Status` não é mexido; o espelho grava só os bipes em `conferencia_televendas` (teste).
 
-Escrita no `.252` continua fechada; o espelho é só no MySQL de teste do `.254`, como no recebimento.
+Mockup: https://claude.ai/artifact/X8GGMLQW8dSfQVGc6rHpcr · Escrita no `.252` continua fechada; espelho só no MySQL de teste do `.254`.
