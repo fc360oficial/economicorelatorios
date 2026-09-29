@@ -182,14 +182,12 @@ th .hin{background:#fff;border:1px solid #C9C9C4;border-radius:7px;padding:5px 9
     <button class="tab" data-tab="vinculos">Vínculos caixa → unidade <span class="n" id="n-vinc">–</span></button>
     <button class="tab" data-tab="pedidos">Pedidos <span class="n" id="n-peds">–</span></button>
     <button class="tab" data-tab="expedicao">Expedição <span class="n" id="n-exp">–</span></button>
-    <button class="tab" data-tab="lotes">Lotes no CD</button>
     <button class="tab" data-tab="regras">Regras</button>
   </div>
   <section id="tab-pedido"></section>
   <section id="tab-vinculos" hidden></section>
   <section id="tab-pedidos" hidden></section>
   <section id="tab-expedicao" hidden></section>
-  <section id="tab-lotes" hidden></section>
   <section id="tab-regras" hidden></section>
 </div>
 <div class="overlay" id="ov"><div class="modal" id="ov-body"></div></div>
@@ -203,7 +201,7 @@ const LOJAS = [1, 2, 3, 4, 5, 6];
 const LOJAS_NOMES = { 1: 'CAHU', 2: 'MURIBECA', 3: 'PONTE', 4: 'ATACAREJO', 5: 'PORTA LARGA', 6: 'JARDIM JORDÃO' };
 let ESTOPEN = new Set(), DADOS = null, EDITS = {}, SEL = new Set(), FILTRO = '', FLOJA = 0, VIS = {}, PEDIDOS = [], VINC = {}, VF = 'pendentes', SOQTD = true, ORDEM = 'az', SELINIT = false;
 
-document.querySelectorAll('.tab').forEach(b => b.onclick = () => { document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === b)); ['pedido', 'vinculos', 'pedidos', 'expedicao', 'lotes', 'regras'].forEach(t => $('#tab-' + t).hidden = t !== b.dataset.tab); if (b.dataset.tab === 'pedido' && DADOS) carregar(false); if (b.dataset.tab === 'expedicao') carregarExpedicao().catch(e => alert(e.message)); if (b.dataset.tab === 'lotes') carregarLotes().catch(e => alert(e.message)); });
+document.querySelectorAll('.tab').forEach(b => b.onclick = () => { document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === b)); ['pedido', 'vinculos', 'pedidos', 'expedicao', 'regras'].forEach(t => $('#tab-' + t).hidden = t !== b.dataset.tab); if (b.dataset.tab === 'pedido' && DADOS) carregar(false); if (b.dataset.tab === 'expedicao') carregarExpedicao().catch(e => alert(e.message)); });
 carregarExpedicao().catch(() => {});
 // aba deixada aberta (vínculo feito em outra janela, por exemplo): ao voltar pra ela, busca o estado atual do servidor
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && DADOS) { carregar(false); carregarVinculos().catch(() => {}); } });
@@ -758,18 +756,7 @@ function renderExpedicao() {
     <h3 style="font-size:13px;margin:6px 0 8px">Pedidos conferidos na saída</h3>
     <div class="table-wrap"><table class="main-t"><thead><tr><th>Aberto</th><th>Pedido</th><th>Cliente</th><th>Conferente</th><th class="r">Produtos</th><th class="r">Tentativas</th><th class="r">Retiradas</th><th>Situação</th><th>ERP teste</th></tr></thead><tbody>${linhasC}</tbody></table></div>`;
 }
-// ── Lotes no CD: o que entrou por lote (Recebimento da loja 10) × o que saiu (expedições fechadas) ──
-let LOTES = [], LOTESBUSCA = '', LOTESDIAS = 60;
-async function carregarLotes() { LOTES = await api('/api/expedicao/lotes?dias=' + LOTESDIAS); renderLotes(); }
-function renderLotes() {
-  const b = LOTESBUSCA.trim().toLowerCase(); const vis = LOTES.filter(l => !b || l.descricao.toLowerCase().includes(b) || l.cod.includes(b) || String(l.lote).toLowerCase().includes(b));
-  const foco = document.activeElement && document.activeElement.id === 'lbusca'; const pos = foco ? document.activeElement.selectionStart : 0;
-  const opts = [30, 60, 90, 180].map(d => `<option value="${d}" ${d === LOTESDIAS ? 'selected' : ''}>${d} dias</option>`).join('');
-  const linhas = vis.length ? vis.map(l => `<tr><td class="lc">${esc(l.descricao)}<div class="s2">${esc(l.cod)}</div></td><td><b>${esc(l.lote)}</b></td><td>${l.validade ? esc(l.validade.split('-').reverse().join('/')) : '<span class="mut">–</span>'}</td><td class="r">${fmtN(l.entrou, 0)}</td><td class="r">${fmtN(l.saiu, 0)}</td><td class="r ${l.saldo < 0 ? 'neg' : l.saldo > 0 ? 'pos' : 'mut'}">${fmtN(l.saldo, 0)}</td><td class="comp">${l.entradas.map(e => 'NF ' + esc(e.nfe) + ' ' + esc((e.fornecedor || '').slice(0, 18)) + ' · ' + fmtN(e.un, 0)).join('<br>') || '–'}</td><td class="comp">${l.saidas.map(s => '#' + esc(s.nPedido) + ' ' + esc((s.cliente || '').slice(0, 18)) + ' · ' + fmtN(s.un, 0)).join('<br>') || '–'}</td></tr>`).join('') : '<tr><td colspan="8" class="mut">Nenhum lote bipado no período. As entradas vêm do Recebimento da loja 10 no coletor (lote obrigatório desde 29/09).</td></tr>';
-  $('#tab-lotes').innerHTML = `<div class="busca-row"><input id="lbusca" placeholder="Produto, código ou lote" value="${esc(LOTESBUSCA)}" oninput="LOTESBUSCA=this.value;renderLotes()"><span class="contagem">${vis.length} lote(s) · entradas e saídas dos últimos <select onchange="LOTESDIAS=+this.value;carregarLotes()">${opts}</select> · saldo = o que foi bipado de verdade (sem FEFO)</span><button class="btn btn-sec" onclick="carregarLotes()">↻ Atualizar</button></div>
-    <div class="table-wrap"><table class="main-t"><thead><tr><th>Produto</th><th>Lote</th><th>Validade</th><th class="r">Entrou</th><th class="r">Saiu</th><th class="r">Saldo</th><th>Entradas</th><th>Saídas</th></tr></thead><tbody>${linhas}</tbody></table></div>`;
-  if (foco) { const el = $('#lbusca'); if (el) { el.focus(); el.setSelectionRange(pos, pos); } }
-}
+// Lotes no CD virou página própria: /lotes-cd.html (sidebar › Centro de Distribuição), 29/09/2026
 function renderRegras() {
   if (!DADOS?.regras) return; const r = DADOS.regras; const cfg = DADOS.regras;
   $('#tab-regras').innerHTML = `<div class="filtros"><div class="fg"><label>Teto (dias)</label><input type="number" id="cfg-teto" value="${r.teto}" min="3" max="90"></div><div class="fg"><label>Ciclo</label><input value="${r.ciclo} dias (segunda)" disabled></div><div class="fg"><label>Validade</label><input value="60% do cadastro" disabled></div><div class="fg"><label>WhatsApp do CD</label><input id="cfg-whats" placeholder="DDD + número" title="pra quem vai o link dos pedidos"></div><div class="fg"><label title="dias úteis que o CD tem pra digitar o pedido antes de avisar">Aviso: CD não digitou (d. úteis)</label><input type="number" id="cfg-prazoCD" min="0" max="60" style="width:70px"></div><div class="fg"><label title="dias depois da NF do CD sem entrada na loja">Aviso: loja sem entrada (dias)</label><input type="number" id="cfg-prazoEntrada" min="0" max="60" style="width:70px"></div><div class="fg"><label title="dias liberado no CD sem nota antes de avisar (expira aos 30)">Aviso: liberado sem nota (dias)</label><input type="number" id="cfg-prazoAvisoNota" min="0" max="60" style="width:70px"></div><button class="btn btn-amber" onclick="salvarCfg()">Salvar</button></div>

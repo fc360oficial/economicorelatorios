@@ -56,6 +56,10 @@
         { href: '/cahu-tabela-precos.html', ic: 'download', txt: 'Tabela de Preços' },
         { href: '/cahu-tv-televendas.html', ic: 'store', txt: 'TV Televendas' }
       ]},
+    { id: 'centro-distribuicao', ic: 'cart', txt: 'Centro de Distribuição', sub: [
+        { href: '/centro-distribuicao.html', ic: 'cart', txt: 'Pedidos ao CD' },
+        { href: '/lotes-cd.html',            ic: 'list', txt: 'Lotes no CD' }
+      ]},
     { id: 'dedo-duro', ic: 'alert', txt: 'Dedo Duro', sub: [
         { href: '/dedo-duro.html', ic: 'alert', txt: 'Dedo Duro' }
       ]},
@@ -73,7 +77,6 @@
         { href: '/fiscal.html', ic: 'list', txt: 'Recebimento de Notas' }
       ]},
     { id: 'compras', ic: 'bag', txt: 'Gestão de Compras', sub: [
-        { href: '/centro-distribuicao.html', ic: 'cart',  txt: 'Centro Distribuição' },
         { href: '/cotacao.html',             ic: 'trend', txt: 'Cotação' },
         { href: '/ruptura.html',             ic: 'trend', txt: 'Gestão de Rupturas' },
         { href: '/fornecedores.html',        ic: 'bag',   txt: 'Lista de Compra' },
