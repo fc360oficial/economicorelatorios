@@ -4,20 +4,21 @@ const fs = require('fs'); const os = require('os'); const path = require('path')
 const E = require('../lib/expedicao');
 
 const ITENS = [
-  { cod: '7891150097605', descricao: 'OLEO LIZA 900ML', qtd: 4, qtdEmb: 20, und: 'CX' },   // 80 un
-  { cod: '17898403781295', descricao: 'ACUCAR PETRIBU 1KG', qtd: 10, qtdEmb: 30, und: 'FD' }, // 300 un
+  { cod: '7891150097605', descricao: 'OLEO LIZA 900ML', qtd: 80, qtdEmb: 0, und: 'CX', conversao: '4 CX c/20' },   // 80 un
+  { cod: '17898403781295', descricao: 'ACUCAR PETRIBU 1KG', qtd: 300, qtdEmb: 30, und: 'FD' }, // 300 un
   { cod: '789', descricao: 'ITEM UNITARIO', qtd: 5, qtdEmb: 0, und: 'UN' },              // 5 un
 ];
 function setup(agora = new Date('2026-09-29T10:00:00')) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'exp-'));
-  E.init({ dir, agora: () => agora, cadastro: async cod => cod === '999' ? { descricao: 'FORA DO PEDIDO' } : null });
+  E.init({ dir, agora: () => agora, cadastro: async cod => cod === '999' ? { descricao: 'FORA DO PEDIDO' } : null, vinculo: async cod => cod === '17891150097602' ? { cod: '7891150097605', emb: 20 } : null });
   return E.abrirPedido({ nPedido: 6853, cliente: 'SERAFIM SUPERMERCADO', cnpj: '35226657000156', nome: 'carmem', itens: ITENS, total: 5558.22 });
 }
 
-test('abrirPedido: id exp-dia-10-nPedido, pedido em unidades (qtd × qtdEmb, 0 = 1), reabrir devolve a mesma', () => {
+test('abrirPedido: id exp-dia-10-nPedido, pedido em unidades (Qtd direto; emb do QtdEmb ou do "c/NN"), reabrir devolve a mesma', () => {
   const c = setup();
   assert.equal(c.id, 'exp-2026-09-29-10-6853'); assert.equal(c.status, 'bipando'); assert.equal(c.nome, 'CARMEM');
-  assert.deepEqual(Object.values(c.pedido).map(p => p.cod + ':' + p.un).sort(), ['17898403781295:300', '789:5', '7891150097605:80']);
+  assert.deepEqual(Object.values(c.pedido).map(p => p.cod + ':' + p.un).sort(), ['17898403781295:300', '7891150097605:80', '789:5']);
+  assert.equal(c.pedido['7891150097605'].emb, 20, 'emb lida do "c/20"'); assert.equal(c.pedido['17898403781295'].emb, 30);
   assert.equal(E.abrirPedido({ nPedido: '6853', cliente: 'X', itens: [] }).id, c.id);
   const v = E.visao(c.id); assert.ok(!JSON.stringify(v).includes('"un":80') && !JSON.stringify(v).includes('300'), 'visão não revela qtd do pedido');
 });
@@ -32,6 +33,9 @@ test('bipar cego: sem lote não soma; ok quando bate; qtd_diferente sem revelar;
   assert.equal(r.resultado, 'ok'); assert.equal(r.item.un, 80); assert.deepEqual(r.item.lotes.map(l => l.lote + ':' + l.quant), ['L01:3', 'L02:1']);
   r = await E.bipar(c.id, { cod: '999', quant: 2, emb: 1, lote: 'Z' });
   assert.equal(r.resultado, 'fora_do_pedido'); assert.equal(r.item.descricao, 'FORA DO PEDIDO');
+  // bipou a caixa (DUN-14) vinculada: cai no código da unidade do pedido, 1 caixa = 20 un → passou de 80
+  r = await E.bipar(c.id, { cod: '17891150097602', quant: 1, emb: 1, lote: 'L03' });
+  assert.equal(r.resultado, 'qtd_diferente'); assert.equal(r.item.cod, '7891150097605'); assert.equal(r.item.un, 100);
   const v = E.visao(c.id); assert.equal(v.itens.length, 1); assert.equal(v.fora.length, 1); assert.equal(v.fora[0].un, 2);
   // bipeId repetido (fila offline): não soma de novo
   r = await E.bipar(c.id, { cod: '789', quant: 5, emb: 1, lote: 'A', bipeId: 'b1' }); assert.equal(r.resultado, 'ok');
