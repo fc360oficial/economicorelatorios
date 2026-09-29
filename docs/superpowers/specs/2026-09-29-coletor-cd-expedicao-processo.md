@@ -29,7 +29,7 @@ e no "Terminei" o app compara com o pedido.
 | O que é | nota de fornecedor chegando | pedido separado saindo pro caminhão |
 | Lista | NF-e da `axml` sem entrada (igual às lojas) | pedidos do dia em `delivery nLoja=10` ainda sem nota de venda, com cliente, nº e hora |
 | Abrir | tocar na nota → **bipar a DANFE** | tocar no pedido (sem digitar zero nenhum) |
-| Bipagem | cega, unidade, validade | **cega**, por caixa (DUN-14) ou unidade; o app não mostra quanto o pedido pede |
+| Bipagem | cega, unidade, validade obrigatória em TODO produto (29/09) | **cega**, por caixa (DUN-14) ou unidade, **sem pedir validade** (foi conferida na entrada); o app não mostra quanto o pedido pede |
 | Terminei | recontagem (1×) → central libera no Fiscal | só fecha com 100 % batendo; não bateu → lista os itens (sem qtd) e a conferência continua aberta até o CD acertar o pallet |
 | Espelho no ERP de teste | `conferencia` + `conferenciachave` (como hoje) | `conferencia_televendas`, no formato do Dlinks (nLoja 10, nPedido, Codigobarra, Qtd cx, QtdEmb) |
 | Id interno | `AAAA-MM-DD-10-<hash da chave>` | `exp-AAAA-MM-DD-10-<nPedido>` |
