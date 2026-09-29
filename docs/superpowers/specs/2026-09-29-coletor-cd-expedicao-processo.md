@@ -43,7 +43,9 @@ Lojas 1–6 não veem a escolha: entram direto no Recebimento, como hoje.
 - bipou **código que não está no pedido** → "Este produto não é do pedido": não soma; tira do pallet e usa "Tirar da coletagem".
 - e assim por diante: o item só fica verde quando bate exatamente; o resto da bipagem nunca trava.
 
-**Fecha só 100 % certo.** O Terminei só conclui quando todo item do pedido bateu e não há nada fora. Não existe "fechar com divergência" nem "aguardando ajuste do Televendas": a conferência fica aberta até o CD acertar o pallet.
+**Fecha só 100 % certo.** O Terminei só conclui quando todo item do pedido bateu e não há nada fora. Não existe "fechar com divergência": a conferência fica aberta até o CD acertar o pallet.
+
+**Única exceção em que o pedido muda: sem estoque.** O pedido já chega 100 %. Se o CD não tem o item, o Televendas **exclui o item do pedido** no Dlinks; o app relê o pedido (o item some da conferência) e, se o conferente já tinha bipado algo dele, usa "Tirar da coletagem". O CD nunca altera quantidade pelo app.
 
 **Retaguarda: pendência "verificar pallet" pro fiscal do CD.** Todo "Tirar da coletagem" (a mais ou fora do pedido) gera evento `tirar_coletagem` com loja 10, quem, pedido, código, descrição,
 quantidade bipada antes/depois e hora. Aparece na retaguarda pro **fiscal do CD** conferir se o produto saiu mesmo do pallet — porque dá pra apagar no app e mandar o produto sem coletagem.
