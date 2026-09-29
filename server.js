@@ -4858,7 +4858,7 @@ app.get('/api/cahu-distribuidora/tabela-precos.xlsx', async (req, res) => {
     const lastCol = String.fromCharCode(64 + headers.length);
 
     const wb = new ExcelJS.Workbook();
-    wb.creator = 'Econômico Relatórios';
+    wb.creator = 'Econômico Supermercados';
     wb.created = new Date();
     const ws = wb.addWorksheet(tabelaUnica ? tabelaUnica.label.replace(/[\/?*\[\]:]/g, '-').slice(0, 31) : 'Tabelas de Preço', {
       views: [{ showGridLines: false }],
@@ -4970,7 +4970,7 @@ function montarPdfTabelaCahu(tabelas, tabelaUnica, lista) {
     const MARGEM = 28;
     const doc = new PDFDocument({
       size: 'A4', layout: tabelaUnica ? 'portrait' : 'landscape', margin: MARGEM, bufferPages: true,
-      info: { Title: tabelaUnica ? tabelaUnica.label : 'Tabela de Preços — CAHU Distribuidora', Author: 'Econômico Relatórios' }
+      info: { Title: tabelaUnica ? tabelaUnica.label : 'Tabela de Preços — CAHU Distribuidora', Author: 'Econômico Supermercados' }
     });
     const W = doc.page.width, H = doc.page.height, larguraUtil = W - 2 * MARGEM;
     const fmtBRL = v => (v == null ? '' : 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
