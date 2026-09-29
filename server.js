@@ -6788,6 +6788,12 @@ app.get('/api/dashboard/financeiro/nfe/:chave/danfe', async (req, res) => {
     require('./lib/danfe').gerarDanfe(n).pipe(res);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+// Estoque › Estoque por loja: produtos parados de uma loja numa faixa (clique na linha da loja) e recálculo manual. Só leitura no ERP.
+app.get('/api/dashboard/estoque/parados', (req, res) => {
+  try { res.json(dashboardNovo.paradosDetalhe({ loja: parseInt(req.query.loja) || 0, faixa: req.query.faixa === 'consumo' ? 'consumo' : (parseInt(req.query.faixa) || 0), limite: Math.min(2000, parseInt(req.query.limite) || 300) })); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.post('/api/dashboard/estoque/recalcular', (req, res) => { dashboardNovo.calcularParado().catch(e => console.error('[DASHBOARD] estoque', e.message)); res.json({ ok: true }); });
 app.post('/api/dashboard/atualizar', (req, res) => { dashboardNovo.calcular().catch(e => console.error('[DASHBOARD]', e.message)); res.json({ ok: true }); });
 app.get('/api/dashboard/metas', (req, res) => res.json(dashboardNovo.getMetas()));
 app.post('/api/dashboard/metas', (req, res) => { try { res.json(dashboardNovo.setMetas(req.body || {})); } catch (err) { res.status(500).json({ error: err.message }); } });

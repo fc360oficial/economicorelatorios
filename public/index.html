@@ -226,6 +226,7 @@
   table.m tr.fin-det>td{padding:0 12px 12px 22px;background:#FAFAF8;white-space:normal;max-width:none;overflow:visible}table.m tr.fin-det:hover>td{background:#FAFAF8}
   tr.fin-det table.m{background:#fff;border:1px solid var(--ln,#DADAD6);border-radius:8px}tr.fin-det table.m th{position:static}tr.fin-det table.m td.p{max-width:260px}
   .fin-det-h{font-size:11px;color:var(--ink3);padding:8px 0 6px}.fin-det-h b{color:var(--ink)}
+  .par-tabs{display:flex;gap:6px;align-items:center;padding:2px 0 8px}.par-tabs button{font:inherit;font-size:11px;font-weight:700;padding:3px 10px;border-radius:6px;border:1px solid var(--ln,#DADAD6);background:#fff;cursor:pointer;color:var(--ink2)}.par-tabs button.on{background:var(--ink);color:#F5B800;border-color:var(--ink)}
   /* fornecedor do título vira link pro PDF da nota (Tiago, 29/09) */
   a.fin-nf{color:var(--inf,#2E5E8C);text-decoration:none;border-bottom:1px dashed rgba(46,94,140,.45)}a.fin-nf:hover{color:#B45C00;border-bottom-color:#F5B800}
   a.fin-nf::after{content:'PDF';margin-left:5px;font-size:8.5px;font-weight:800;letter-spacing:.3px;color:var(--ink3);vertical-align:1px}a.fin-nf:hover::after{color:#B45C00}
@@ -609,27 +610,31 @@ function renderParado(pr) {
   const F = [['f60', '60 a 89 dias'], ['f90', '90 a 119 dias'], ['f120', '120 dias ou mais']];
   const sub2 = (n, t) => '<small class="fin-mut" style="display:block">' + n + ' ite' + (n === 1 ? 'm' : 'ns') + (t ? ' · ' + t : '') + '</small>';
   const cel = (l, k) => l.semVenda ? '<td class="r"><span class="fin-mut" title="sem venda no caixa: o CD sai por transferência">—</span></td>' : '<td class="r">' + (l[k].v ? money(l[k].v) + sub2(l[k].n) : '<span class="fin-mut">—</span>') + '</td>';
-  const linha = (l, tot) => '<tr class="' + (tot ? 'fin-tot' : 'fin-lj') + '"' + (tot ? '' : ' data-loja="' + l.loja + '" onclick="parDetalhe(this)" title="clique pra ver os produtos parados desta loja"') + '><td>' + (tot ? 'Rede' : '<span class="fin-car">▸</span>' + lojaTag(l.loja)) + (l.erro ? ' <span class="pill bad">erro</span>' : '') + '</td><td class="r">' + l.itens + '</td><td class="r"><b>' + money(l.valor) + '</b></td>'
-    + F.map(([k]) => cel(l, k)).join('') + '<td class="r">' + (l.semVenda ? '<span class="fin-mut">—</span>' : '<b' + (l.parado.v ? ' class="dn"' : '') + '>' + money(l.parado.v) + '</b>' + sub2(l.parado.n, l.valor ? pct(l.parado.v / l.valor * 100, 1) + ' do estoque' : '')) + '</td></tr>';
-  el.innerHTML = pr.lojas.length ? '<table class="m"><thead><tr><th>Loja</th><th class="r">Itens c/ estoque</th><th class="r">Estoque (custo)</th>' + F.map(([, t]) => '<th class="r">Parado ' + t + '</th>').join('') + '<th class="r">Total parado (60+)</th></tr></thead><tbody>' + pr.lojas.map(l => linha(l)).join('') + (pr.rede ? linha(pr.rede, true) : '') + '</tbody></table>' : empty('sem dados');
+  const linha = (l, tot) => '<tr class="' + (tot ? 'fin-tot' : 'fin-lj') + '"' + (tot ? '' : ' data-loja="' + l.loja + '" onclick="parDetalhe(this)" title="clique pra ver os produtos parados desta loja"') + '><td>' + (tot ? 'Rede' : '<span class="fin-car">▸</span>' + lojaTag(l.loja)) + (l.erro ? ' <span class="pill bad">erro</span>' : '') + '</td><td class="r">' + l.itens + '</td><td class="r"><b>' + money(l.valor) + '</b></td><td class="r">' + (l.consumo && l.consumo.v ? money(l.consumo.v) + sub2(l.consumo.n) : '<span class="fin-mut">—</span>') + '</td>'
+    + F.map(([k]) => cel(l, k)).join('') + '<td class="r">' + (l.semVenda ? '<span class="fin-mut">—</span>' : '<b' + (l.parado.v ? ' class="dn"' : '') + '>' + money(l.parado.v) + '</b>' + sub2(l.parado.n, l.valor ? pct(l.parado.v / Math.max(1, l.valor - (l.consumo ? l.consumo.v : 0)) * 100, 1) + ' do estoque de venda' : '')) + '</td></tr>';
+  el.innerHTML = pr.lojas.length ? '<table class="m"><thead><tr><th>Loja</th><th class="r">Itens c/ estoque</th><th class="r">Estoque (custo)</th><th class="r" title="grupo Uso e Consumo, insumos da padaria e do açougue, embalagens: não passa no caixa, então fica fora do parado">Uso e consumo / insumos</th>' + F.map(([, t]) => '<th class="r">Parado ' + t + '</th>').join('') + '<th class="r">Total parado (60+)</th></tr></thead><tbody>' + pr.lojas.map(l => linha(l)).join('') + (pr.rede ? linha(pr.rede, true) : '') + '</tbody></table>' : empty('sem dados');
   kk.textContent = pr.rede ? money(pr.rede.parado.v) + ' parado' : (pr.lojas[0] && !pr.lojas[0].semVenda ? money(pr.lojas[0].parado.v) + ' parado' : '');
-  sub.textContent = 'a custo · parado = sem venda no caixa há 60 dias ou mais · calculado ' + new Date(pr.calculadoEm).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) + (pr.calculando ? ' · recalculando…' : '') + ' · clique na loja pra ver os produtos';
+  sub.textContent = 'a custo · parado = sem venda no caixa há 60 dias ou mais · uso e consumo/insumos fora do parado · calculado ' + new Date(pr.calculadoEm).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) + (pr.calculando ? ' · recalculando…' : '') + ' · clique na loja pra ver os produtos';
 }
 async function parDetalhe(tr) {
   const nx = tr.nextElementSibling;
   if (nx && nx.classList.contains('fin-det')) { nx.remove(); tr.classList.remove('open'); return; }
-  const loja = +tr.dataset.loja, det = document.createElement('tr'); det.className = 'fin-det'; det.innerHTML = '<td colspan="' + tr.children.length + '"><div class="spin"></div></td>';
-  tr.after(det); tr.classList.add('open');
+  const det = document.createElement('tr'); det.className = 'fin-det'; det.innerHTML = '<td colspan="' + tr.children.length + '"><div class="spin"></div></td>';
+  tr.after(det); tr.classList.add('open'); parCarregar(det, +tr.dataset.loja, 0);
+}
+// faixa 0 = parados (60 dias ou mais sem venda) · 'consumo' = uso e consumo / insumos (fora do parado)
+async function parCarregar(det, loja, faixa) {
   try {
-    const r = await fetch('/api/dashboard/estoque/parados?loja=' + loja); const j = await r.json(); if (j.error) throw new Error(j.error);
+    const r = await fetch('/api/dashboard/estoque/parados?loja=' + loja + '&faixa=' + faixa); const j = await r.json(); if (j.error) throw new Error(j.error);
     if (!det.isConnected) return;
-    const its = j.itens || [], fx = { 60: '60–89 d', 90: '90–119 d', 120: '120+ d' }, q3 = v => (+v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 });
-    det.firstChild.innerHTML = its.length
-      ? '<div class="fin-det-h"><b>' + LJ(loja) + ' ' + (NOMES[loja] || '') + '</b> · ' + j.n + ' produto' + (j.n === 1 ? '' : 's') + ' parado' + (j.n === 1 ? '' : 's') + ' (60 dias ou mais sem venda) · ' + money(j.total) + ' · maior valor primeiro' + (its.length < j.n ? ' · mostrando os ' + its.length + ' maiores' : '') + '</div>'
-        + '<table class="m"><thead><tr><th>Produto</th><th>Código</th><th>Última venda</th><th class="r">Sem venda há</th><th class="r">Estoque</th><th class="r">Custo</th><th class="r">Valor</th></tr></thead><tbody>'
-        + its.map(i => '<tr><td class="p">' + esc(i.descricao) + '</td><td>' + esc(i.cod) + '</td><td>' + (i.ultVenda ? df(i.ultVenda) + '/' + String(i.ultVenda).slice(0, 4) : '<span class="fin-mut">nenhuma desde ' + (j.janelaDe ? df(j.janelaDe) : '—') + '</span>') + '</td><td class="r">' + (i.dias != null ? i.dias + ' d' : '> ' + j.janelaDias + ' d') + ' <span class="pill ' + (i.faixa === 120 ? 'bad' : i.faixa === 90 ? 'wn' : 'nt') + '">' + fx[i.faixa] + '</span></td><td class="r">' + q3(i.est) + '</td><td class="r">' + money(i.custo) + '</td><td class="r"><b>' + money(i.valor) + '</b></td></tr>').join('')
-        + '</tbody></table>'
-      : empty(j.semVenda ? 'Loja sem venda no caixa (o CD sai por transferência): não dá pra medir parado por aqui.' : 'Nenhum produto parado nesta loja.');
+    const its = j.itens || [], fx = { 60: '60–89 d', 90: '90–119 d', 120: '120+ d' }, q3 = v => (+v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 }), cons = faixa === 'consumo', R = j.resumo || { parado: { n: 0, v: 0 }, consumo: { n: 0, v: 0 } };
+    const tabs = '<div class="par-tabs"><button class="' + (cons ? '' : 'on') + '" onclick="parCarregar(this.closest(\'tr.fin-det\'), ' + loja + ', 0)">Parados 60+ dias · ' + R.parado.n + ' · ' + money(R.parado.v) + '</button><button class="' + (cons ? 'on' : '') + '" onclick="parCarregar(this.closest(\'tr.fin-det\'), ' + loja + ', \'consumo\')" title="grupo Uso e Consumo, insumos da padaria e do açougue, embalagens: não passa no caixa">Uso e consumo / insumos · ' + R.consumo.n + ' · ' + money(R.consumo.v) + '</button></div>';
+    det.firstChild.innerHTML = '<div class="fin-det-h"><b>' + LJ(loja) + ' ' + (NOMES[loja] || '') + '</b> · ' + (cons ? 'uso e consumo / insumos, fora do parado' : 'parados: 60 dias ou mais sem venda no caixa') + ' · maior valor primeiro' + (its.length < j.n ? ' · mostrando os ' + its.length + ' maiores de ' + j.n : '') + '</div>' + tabs
+      + (its.length
+        ? '<table class="m"><thead><tr><th>Produto</th><th>Código</th><th>Última venda</th><th class="r">Sem venda há</th><th class="r">Estoque</th><th class="r">Custo</th><th class="r">Valor</th></tr></thead><tbody>'
+          + its.map(i => '<tr><td class="p">' + esc(i.descricao) + '<small>' + esc((i.grupo || '—') + (i.subgrupo ? ' › ' + i.subgrupo : '')) + '</small></td><td>' + esc(i.cod) + '</td><td>' + (cons ? '<span class="fin-mut">não passa no caixa</span>' : i.ultVenda ? df(i.ultVenda) + '/' + String(i.ultVenda).slice(0, 4) : '<span class="fin-mut">nenhuma desde ' + (j.janelaDe ? df(j.janelaDe) : '—') + '</span>') + '</td><td class="r">' + (cons ? '—' : (i.dias != null ? i.dias + ' d' : '> ' + j.janelaDias + ' d') + ' <span class="pill ' + (i.faixa === 120 ? 'bad' : i.faixa === 90 ? 'wn' : 'nt') + '">' + fx[i.faixa] + '</span>') + '</td><td class="r">' + q3(i.est) + '</td><td class="r">' + money(i.custo) + '</td><td class="r"><b>' + money(i.valor) + '</b></td></tr>').join('')
+          + '</tbody><tfoot><tr class="fin-tot"><td colspan="6">Total' + (its.length < j.n ? ' dos ' + j.n : '') + '</td><td class="r">' + money(j.total) + '</td></tr></tfoot></table>'
+        : empty(j.semVenda && !cons ? 'Loja sem venda no caixa (o CD sai por transferência): não dá pra medir parado por aqui.' : cons ? 'Nenhum item de uso e consumo com estoque.' : 'Nenhum produto parado nesta loja.'));
   } catch (e) { if (det.isConnected) det.firstChild.innerHTML = '<div class="empty">erro: ' + esc(e.message) + '</div>'; }
 }
 async function recalcParado(ev) { ev.preventDefault(); await fetch('/api/dashboard/estoque/recalcular', { method: 'POST' }); toast('Recalculando estoque por loja em segundo plano… leva 1 a 2 minutos'); setTimeout(carregar, 90000); }
