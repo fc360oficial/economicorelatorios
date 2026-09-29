@@ -122,3 +122,12 @@ test('coletarUnidades: venda de hoje entra na janela e vira venda/dia (produto n
   assert.equal(L1.vq, +(13 / 7).toFixed(3));
   assert.deepEqual(L1.vendaNova, { desde: '2026-09-22', dias: 7 });
 });
+
+test('sincronizarVinculos: caixa que sumiu da coleta fica semEstoqueCD com estoque 0 e volta ao normal quando reaparece', () => {
+  cd.sincronizarVinculos([{ codigoCD: '2530', unPorCaixa: 1, descricaoCD: 'ABACAXI UND', estoqueCx: 5055, estoqueUn: 5055 }]);
+  assert.equal(cd.getVinculos()['2530'].estoqueCx, 5055);
+  cd.sincronizarVinculos([]);
+  const v = cd.getVinculos()['2530']; assert.equal(v.semEstoqueCD, true); assert.equal(v.estoqueCx, 0); assert.equal(v.status, 'confirmado');
+  cd.sincronizarVinculos([{ codigoCD: '2530', unPorCaixa: 1, descricaoCD: 'ABACAXI UND', estoqueCx: 3, estoqueUn: 3 }]);
+  assert.equal(cd.getVinculos()['2530'].semEstoqueCD, undefined); assert.equal(cd.getVinculos()['2530'].estoqueCx, 3);
+});
