@@ -559,11 +559,12 @@ async function carregarPedidos(manual) {
   } catch (e) { if (e.status) toast(e.message || 'A central não respondeu.', true); else setNet(false); }
   renderPedidos();
 }
-const PAINEL = { 0: 'No painel', 1: 'Em separação', 2: 'Conferido no Dlinks', 4: 'Liberado no Dlinks' };
+// mesmos nomes do painel de expedição do Dlinks, pra ser uma linguagem só enquanto os dois coletores convivem
+const PAINEL = { null: 'Digitado', 0: 'No painel', 1: 'Em separação', 2: 'Conferido', 4: 'Liberado' };
 function renderPedidos() {
   $('pSub').textContent = sess.nome + ' · ' + pedidos.length + (pedidos.length === 1 ? ' pedido sem nota' : ' pedidos sem nota');
   $('pLista').innerHTML = pedidos.length ? pedidos.map((p, i) => {
-    const c = p.conferencia; const st = c ? (c.status === 'fechada' ? ['ok', 'Conferido · bateu'] : ['warn', 'Você já começou · toque pra continuar']) : ['mut', p.painel != null && PAINEL[p.painel] ? PAINEL[p.painel] : 'Separado no papel'];
+    const c = p.conferencia; const st = c ? (c.status === 'fechada' ? ['ok', 'Conferido'] : ['warn', 'Em conferência · toque pra continuar']) : ['mut', PAINEL[p.painel == null ? 'null' : p.painel] || 'Digitado'];
     return `<button class="nota" onclick="abrirPedido(${i})">
       <div class="f">${esc(p.cliente)}</div>
       <div class="m">Pedido <b>#${esc(p.nPedido)}</b> · ${p.itens} ${p.itens === 1 ? 'item' : 'itens'} · ${esc(p.data ? dataBr(p.data) : '')} ${esc(p.hora)}</div>
