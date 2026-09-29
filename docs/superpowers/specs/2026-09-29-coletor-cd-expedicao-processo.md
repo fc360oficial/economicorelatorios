@@ -51,6 +51,13 @@ Lojas 1–6 não veem a escolha: entram direto no Recebimento, como hoje.
 quantidade bipada antes/depois e hora. Aparece na retaguarda pro **fiscal do CD** conferir se o produto saiu mesmo do pallet — porque dá pra apagar no app e mandar o produto sem coletagem.
 Onde: aba **Expedição** em Centro Distribuição (retaguarda), pendências por pedido, e no LOG Coletor. Fiscal marca "verifiquei" (nome + hora). Pendência aberta sinaliza o pedido na retaguarda, não trava o CD.
 
+## Lote no CD (Tiago, 29/09/26)
+O CD precisa saber o que tem **por lote**. Só na loja 10; nas lojas 1–6 continua só validade.
+- **Recebimento (loja 10):** cada bipe pede quantidade, validade **e código do lote** (campo aceita bipe ou digitação; obrigatório). Mesmo produto com dois lotes = duas linhas (qtd + validade + lote). Bloqueio de validade curta é por lote, não pelo produto inteiro.
+- **Expedição:** a conferência cega do pedido também **bipa/digita o lote** de cada caixa. Saída sem lote não fecha.
+- **Retaguarda "Lotes no CD"** (aba em Centro Distribuição): por produto, lotes com data de entrada, validade, quantidade que entrou, quantidade que saiu (por pedido) e saldo. Sem FEFO calculado: o saldo é o que foi bipado de verdade.
+- **Espelho no ERP de teste:** entrada em `conferenciaitens`/`itenscoletorvalidade` no formato do Dlinks (uma linha por lote: Codigobarra, Qtd, Data, Lote); saída em `conferencia_televendas` (o Dlinks não tem lote nessa tabela; o lote da saída fica só no Econômico).
+
 ## Decisões já tomadas
 1. Expedição **cega** (não separação assistida). O papel impresso é a separação.
 2. Quem fecha a expedição é o **próprio CD** ao terminar, e só com 100 % batendo. O pedido nunca é alterado: a menos → bipa o certo; a mais ou fora do pedido → tira do pallet e da coletagem. Cada retirada vira pendência pro fiscal do CD na retaguarda.
