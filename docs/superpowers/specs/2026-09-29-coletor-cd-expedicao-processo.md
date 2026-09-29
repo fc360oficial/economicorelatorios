@@ -30,22 +30,29 @@ e no "Terminei" o app compara com o pedido.
 | Lista | NF-e da `axml` sem entrada (igual às lojas) | pedidos do dia em `delivery nLoja=10` ainda sem nota de venda, com cliente, nº e hora |
 | Abrir | tocar na nota → **bipar a DANFE** | tocar no pedido (sem digitar zero nenhum) |
 | Bipagem | cega, unidade, validade | **cega**, por caixa (DUN-14) ou unidade; o app não mostra quanto o pedido pede |
-| Terminei | recontagem (1×) → central libera no Fiscal | compara com o pedido: bateu → fecha; não bateu → lista só os itens divergentes pra recontar (1×), depois "fechar com divergência" avisa o Televendas |
+| Terminei | recontagem (1×) → central libera no Fiscal | compara com o pedido: bateu 100 % → fecha; não bateu → lista os itens (sem qtd) e fica "aguardando ajuste do Televendas"; nunca fecha com divergência |
 | Espelho no ERP de teste | `conferencia` + `conferenciachave` (como hoje) | `conferencia_televendas`, no formato do Dlinks (nLoja 10, nPedido, Codigobarra, Qtd cx, QtdEmb) |
 | Id interno | `AAAA-MM-DD-10-<hash da chave>` | `exp-AAAA-MM-DD-10-<nPedido>` |
 
 Lojas 1–6 não veem a escolha: entram direto no Recebimento, como hoje.
 
-## Aviso na hora do bipe (Tiago, 29/09/26)
+## Aviso na hora do bipe e fechamento (Tiago, 29/09/26, versão final)
 Diferente do Recebimento (que só compara no Terminei), na Expedição o app avisa **na hora**, sem revelar a quantidade do pedido:
-- bipou 9 e o pedido tem 10 → "Quantidade diferente do pedido, conte de novo": o app pede UMA recontagem ali mesmo. Bateu, segue limpo; continuou diferente, o item fica marcado (laranja) e a bipagem do resto continua. **Não trava.** No Terminei o item volta na lista e o pedido só fecha como "fechado com divergência", com aviso pro Televendas;
-- bipou código que não está no pedido → "Este produto não é do pedido, tira do caminhão": **trava só o item** (não soma, fica registrado como "fora do pedido"); o resto do pedido segue normal.
+- bipou 9 e o pedido tem 10 → "Quantidade diferente do pedido, conte de novo": pede recontagem ali mesmo. Não trava a bipagem do resto, mas o item fica marcado enquanto não bater;
+- bipou código que não está no pedido → "Este produto não é do pedido": não soma. O conferente tem o botão **"Tirar da coletagem"** (remove o item bipado, com motivo opcional).
 
-Regra geral (Tiago, 29/09): divergência avisa e deixa continuar, mas nunca deixa fechar com divergência escondida. Travar tudo pararia o caminhão com um coletor só no CD.
+**Fecha só 100 % certo.** Não existe "fechar com divergência". O Terminei só conclui quando todo item do pedido bateu e não há nada fora do pedido.
+Se o pedido não fecha (faltou estoque, veio a mais), o caminho é o Televendas ajustar o pedido no Dlinks; o app relê o pedido e aí fecha.
+Enquanto isso o pedido fica "aguardando ajuste do Televendas", com a lista dos itens que não batem (sem quantidade).
+
+**Retaguarda: aviso de item tirado da coletagem.** Todo "Tirar da coletagem" gera um evento (`tirar_coletagem`) com loja 10, quem, pedido, código, descrição,
+quantidade que tinha sido bipada e hora. Ele aparece na retaguarda pro **fiscal do CD** conferir se o produto saiu mesmo do pallet — porque o conferente
+pode apagar no app e mandar o produto sem coletagem. Onde aparece: aba **Expedição** dentro de Centro Distribuição (retaguarda), com pendências
+"verificar pallet" por pedido, e no LOG Coletor. Fiscal marca "verifiquei" (nome + hora). Enquanto tiver pendência não verificada, o pedido fica sinalizado na retaguarda (não trava o CD).
 
 ## Decisões já tomadas
 1. Expedição **cega** (não separação assistida). O papel impresso é a separação.
-2. Quem fecha a expedição é o **próprio CD** ao terminar; a divergência vai como aviso pro Televendas (não passa pelo Fiscal da central).
+2. Quem fecha a expedição é o **próprio CD** ao terminar, e só com 100 % batendo; divergência = Televendas ajusta o pedido, nunca fecha diferente. Item tirado da coletagem vira pendência pro fiscal do CD na retaguarda.
 3. Entram **todos** os pedidos do Televendas da loja 10 (lojas do grupo e clientes externos).
 4. `painel_televendas.Status` não é mexido; o espelho grava só os bipes em `conferencia_televendas` (teste).
 
