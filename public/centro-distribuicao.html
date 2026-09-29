@@ -145,6 +145,9 @@ th .hin{background:#fff;border:1px solid #C9C9C4;border-radius:7px;padding:5px 9
 .tr-t{border-collapse:collapse;width:100%;font-size:11.5px}.tr-t th{font-size:9.5px;text-transform:uppercase;letter-spacing:.4px;color:#4E5A72;background:#EBEBE9;padding:5px 10px;text-align:left;position:static}.tr-t td{padding:5px 10px;border-top:1px solid #EEEEEA}.tr-t th.r,.tr-t td.r{text-align:right}
 .alts{display:flex;flex-direction:column;gap:2px;margin-top:3px}.alts a{font-size:11.5px;color:#0E1626;text-decoration:none;padding:2px 6px;border:1px solid #DADAD6;border-radius:6px;background:#fff}.alts a:hover,.alts a.sug{background:#FFF6D9;border-color:#F5B800}.alts a.sug:hover{background:#FFEFB8}
 .busca-un{position:relative;margin-top:4px;min-width:260px}.busca-un ul{position:absolute;z-index:50;box-shadow:0 8px 24px -8px rgba(14,22,38,.35);background:#fff;border:1px solid #DADAD6;border-radius:8px;list-style:none;max-height:260px;overflow:auto;width:100%}.busca-un li{padding:6px 10px;cursor:pointer;font-size:12px}.busca-un li:hover{background:#FFF6D9}
+.cxin{width:52px;padding:3px 6px;font:inherit;font-size:12.5px;font-weight:700;border:1px solid #C9C9C4;border-radius:6px;margin-left:4px;text-align:center}
+.cxin:focus{outline:none;border-color:#F5B800;background:#FFFDF3}
+.cxl{cursor:pointer;color:#6B4E00;font-weight:800;margin-left:2px}.cxl:hover{text-decoration:underline}
 </style>
 </head>
 <body>
@@ -217,11 +220,43 @@ function cobClass(item) {
   if (c < 14 || zeram.length) return ['m-warn', 'atenção' + (zeram.length ? ' · zera L' + zeram.join(' L') : '')];
   return ['m-good', 'normal'];
 }
+// Caixa padrão no mesmo modelo da Nova Cotação (Tiago, 29/09): sem caixa (ou "Cx 1") → campo "un/cx" na linha,
+// Enter grava e pula pro próximo; com caixa → "Cx 27 ✎" pra corrigir. Grava no vínculo do CD (cd-vinculos.json).
 function metaCx(item) {
   const v = VINC[item.codigoCD] || {};
-  if (!(item.unPorCaixa >= 1)) return `<span class="m-bad">sem un/cx · <a onclick="event.stopPropagation();irVinculo('${item.codigoCD}')">definir</a></span>`;
+  const upc = item.unPorCaixa;
+  if (!(upc > 1)) return `<span class="m-bad">sem caixa padrão · digite: <input type="text" inputmode="numeric" class="qtyinput cxin" data-cod="${item.codigoCD}" placeholder="un/cx" onchange="definirCaixaCD('${item.codigoCD}',this.value)" onkeydown="cxKeyCD(event,this)" onclick="event.stopPropagation()" title="Unidades por caixa do CD. Enter grava e vai pro próximo item sem caixa."></span>${upc === 1 ? '<span class="mut" title="o cadastro do ERP diz 1 un/cx, o que costuma ser caixa não informada">(ERP: 1)</span>' : ''}`;
   const manual = v.confirmadoPor && v.confirmadoPor !== 'sistema' && v.unPorCaixaCadastro != null && v.unPorCaixa !== v.unPorCaixaCadastro;
-  return `<span>Cx ${item.unPorCaixa} (${manual ? 'corrigida à mão' : 'embalagem ERP'})</span>`;
+  return `<span>Cx ${upc} <a class="cxl" title="Clique pra corrigir a caixa padrão (un/cx) deste produto" onclick="event.stopPropagation();ajustarCaixaCD('${item.codigoCD}',${upc})">✎</a> <span class="mut">(${manual ? 'corrigida à mão' : 'embalagem ERP'})</span></span>`;
+}
+var CX_PROX_CD = null;
+function cdToast(t){ let e = document.getElementById('cd-toast'); if (!e) { e = document.createElement('div'); e.id = 'cd-toast'; e.style.cssText = 'position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#0E1626;color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;font-weight:700;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,.25);opacity:0;transition:opacity .2s'; document.body.appendChild(e); } e.textContent = t; e.style.opacity = '1'; clearTimeout(e._t); e._t = setTimeout(() => { e.style.opacity = '0'; }, 2500); }
+function cxIrCD(alvo){ if (!alvo) return; alvo.focus(); alvo.select(); try { alvo.scrollIntoView({ block: 'center' }); } catch (e) {} }
+function cxVizinhoCD(el, dir){ const L = Array.prototype.slice.call(document.querySelectorAll('.cxin')), k = L.indexOf(el); return k < 0 ? null : L[k + dir] || null; }
+function cxKeyCD(ev, el){
+  if (ev.key === 'ArrowDown') { ev.preventDefault(); cxIrCD(cxVizinhoCD(el, 1)); return; }
+  if (ev.key === 'ArrowUp') { ev.preventDefault(); cxIrCD(cxVizinhoCD(el, -1)); return; }
+  if (ev.key === 'Enter') { ev.preventDefault(); const v = String(el.value || '').trim(); if (!v) { cxIrCD(cxVizinhoCD(el, 1)); return; } const px = cxVizinhoCD(el, 1); CX_PROX_CD = px ? px.getAttribute('data-cod') : null; el.blur(); }
+}
+async function definirCaixaCD(cod, v){
+  const upc = Math.round(parseFloat(String(v).replace(',', '.'))); if (!(upc >= 1)) return;
+  let prox = CX_PROX_CD; CX_PROX_CD = null;
+  if (!prox) { const el = document.querySelector('.cxin[data-cod="' + cod + '"]'), px = el ? cxVizinhoCD(el, 1) : null; prox = px ? px.getAttribute('data-cod') : null; }
+  const item = todosItens().find(i => i.codigoCD === cod) || {};
+  const unidade = item.unidade || (VINC[cod] && VINC[cod].unidade) || cod;   // sem vínculo: o próprio código é a unidade (caso "igual")
+  try {
+    const r = await fetch('/api/pedidos-cd/vinculos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ codigoCD: cod, unidade, unPorCaixa: upc }) });
+    const j = await r.json().catch(() => ({})); if (!r.ok || j.error) throw new Error(j.error || ('HTTP ' + r.status));
+    cdToast('Caixa de ' + upc + ' gravada pro produto ' + cod);
+    await carregarVinculos();
+  } catch (e) { alert('Erro ao gravar a caixa: ' + e.message); return; }
+  const n = prox ? document.querySelector('.cxin[data-cod="' + prox + '"]') : null;
+  cxIrCD(n || document.querySelector('.cxin'));
+}
+function ajustarCaixaCD(cod, atual){
+  const item = todosItens().find(i => i.codigoCD === cod) || {};
+  const v = prompt('Caixa padrão (unidades por caixa) de\n' + (item.descricaoCD || cod) + '\n\nHoje: ' + atual, atual); if (v === null) return;
+  definirCaixaCD(cod, v);
 }
 function linha(item, lojasCols) {
   lojasCols = lojasCols || LOJAS;
