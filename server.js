@@ -6738,6 +6738,27 @@ const sortimento = require('./lib/sortimento');
 sortimento.init({ q, getNregsComprador: () => NREGS_COMPRADOR, radar: radarPedidos });
 sortimento.agendar();
 
+// ── Backup diário (Processos › Backup): zip do estado fora do git em D:\backups\economico às 04:00,
+// cópia no Google Drive via rclone quando configurado. Ver lib/backup.js e docs/RESTAURAR.md.
+const backup = require('./lib/backup');
+backup.init({
+  appDir: __dirname,
+  dataDir: path.join(__dirname, 'data'),
+  configPath: path.join(__dirname, 'data', 'backup-config.json'),
+  estadoPath: path.join(__dirname, 'data', 'backup-estado.json'),
+});
+backup.agendar();
+app.get('/api/backup', requireAdmin, (req, res) => {
+  const c = backup.configAtual();
+  const nuvem = c.rclone && c.rclone.conf && fs.existsSync(c.rclone.conf) && fs.existsSync(c.rclone.exe) ? 'configurada' : 'nao-configurada';
+  res.json({ ...backup.estado(), alerta: backup.alerta(), retencaoDias: backup.RETENCAO_DIAS,
+    config: { destino: c.destino, itens: c.itens, externos: c.externos, excluir: c.excluir, nuvem } });
+});
+app.post('/api/backup/executar', requireAdmin, async (req, res) => {
+  try { res.json(await backup.executar({ motivo: 'manual:' + req.session.user.usuario })); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ═══════════════════════════════════════════════════
 // RADAR PRECIFICAÇÃO (Precificação > Radar Precificação, 21/09/2026)
 // Margem/markup produto × loja, curva ABC, papel do item, meta por departamento, sugestão de preço

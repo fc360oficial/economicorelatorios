@@ -96,6 +96,7 @@
         { href: '/radar-prevencao.html', ic: 'shield', txt: 'Radar Prevenção' }
       ]},
     { id: 'processos', ic: 'folder', txt: 'Processos', sub: [
+        { href: '/backup.html', ic: 'shield', txt: 'Backup' },
         { href: '/pendencias.html', ic: 'alert', txt: 'Pendências' },
         { href: '/negativos.html', ic: 'alert', txt: 'Negativos' },
         { href: '/log.html', ic: 'list', txt: 'Log' }
