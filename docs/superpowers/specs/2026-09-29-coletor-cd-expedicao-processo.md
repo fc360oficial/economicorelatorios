@@ -38,8 +38,10 @@ Lojas 1–6 não veem a escolha: entram direto no Recebimento, como hoje.
 
 ## Aviso na hora do bipe (Tiago, 29/09/26)
 Diferente do Recebimento (que só compara no Terminei), na Expedição o app avisa **na hora**, sem revelar a quantidade do pedido:
-- bipou 9 e o pedido tem 10 → "Quantidade diferente do pedido, confira" (pode corrigir ali ou seguir; no Terminei entra na recontagem);
-- bipou código que não está no pedido → "Este produto não é do pedido", não soma, fica marcado como "fora do pedido" pra tirar do caminhão.
+- bipou 9 e o pedido tem 10 → "Quantidade diferente do pedido, conte de novo": o app pede UMA recontagem ali mesmo. Bateu, segue limpo; continuou diferente, o item fica marcado (laranja) e a bipagem do resto continua. **Não trava.** No Terminei o item volta na lista e o pedido só fecha como "fechado com divergência", com aviso pro Televendas;
+- bipou código que não está no pedido → "Este produto não é do pedido, tira do caminhão": **trava só o item** (não soma, fica registrado como "fora do pedido"); o resto do pedido segue normal.
+
+Regra geral (Tiago, 29/09): divergência avisa e deixa continuar, mas nunca deixa fechar com divergência escondida. Travar tudo pararia o caminhão com um coletor só no CD.
 
 ## Decisões já tomadas
 1. Expedição **cega** (não separação assistida). O papel impresso é a separação.
