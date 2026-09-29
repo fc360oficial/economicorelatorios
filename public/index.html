@@ -157,6 +157,9 @@
   table.m tr.fin-det>td{padding:0 12px 12px 22px;background:#FAFAF8;white-space:normal;max-width:none;overflow:visible}table.m tr.fin-det:hover>td{background:#FAFAF8}
   tr.fin-det table.m{background:#fff;border:1px solid var(--ln,#DADAD6);border-radius:8px}tr.fin-det table.m th{position:static}tr.fin-det table.m td.p{max-width:260px}
   .fin-det-h{font-size:11px;color:var(--ink3);padding:8px 0 6px}.fin-det-h b{color:var(--ink)}
+  /* fornecedor do título vira link pro PDF da nota (Tiago, 29/09) */
+  a.fin-nf{color:var(--inf,#2E5E8C);text-decoration:none;border-bottom:1px dashed rgba(46,94,140,.45)}a.fin-nf:hover{color:#B45C00;border-bottom-color:#F5B800}
+  a.fin-nf::after{content:'PDF';margin-left:5px;font-size:8.5px;font-weight:800;letter-spacing:.3px;color:var(--ink3);vertical-align:1px}a.fin-nf:hover::after{color:#B45C00}
   .spin{width:24px;height:24px;border:3px solid var(--ln,#DADAD6);border-top-color:#F5B800;border-radius:50%;animation:spin .8s linear infinite;margin:30px auto}
   @keyframes spin{to{transform:rotate(360deg)}}
   .lojas-tag{display:inline-flex;gap:3px;flex-wrap:wrap}
@@ -563,11 +566,18 @@ function renderFin() {
 
   // Maiores títulos de hoje até o fim da próxima semana
   const ms = (f.maiores || []).slice(0, 25);
-  document.getElementById('c-fin-maiores').innerHTML = ms.length ? '<table class="m"><thead><tr><th>Fornecedor</th><th>Loja</th><th>Vence</th><th>Paga</th><th class="r">Valor</th></tr></thead><tbody>' + ms.map(m => '<tr class="' + (m.pag === diaRef ? 'fin-hl' : '') + '"><td class="p">' + esc(m.fornecedor) + '<small>doc ' + esc(m.doc || '') + '</small></td><td>' + lojaTag(m.loja) + '</td><td>' + DS[dow(m.venc)] + ' ' + df(m.venc) + '</td><td>' + (m.pag === m.venc ? '<span class="fin-mut">mesmo dia</span>' : '<b>' + DS[dow(m.pag)] + ' ' + df(m.pag) + '</b>') + '</td><td class="r"><b>' + moneyK(m.valor) + '</b></td></tr>').join('') + '</tbody></table>' : empty('Nada em aberto nesse período.');
+  document.getElementById('c-fin-maiores').innerHTML = ms.length ? '<table class="m"><thead><tr><th>Fornecedor</th><th>Loja</th><th>Vence</th><th>Paga</th><th class="r">Valor</th></tr></thead><tbody>' + ms.map(m => '<tr class="' + (m.pag === diaRef ? 'fin-hl' : '') + '"><td class="p">' + finForn(m) + '<small>doc ' + esc(m.doc || '') + '</small></td><td>' + lojaTag(m.loja) + '</td><td>' + DS[dow(m.venc)] + ' ' + df(m.venc) + '</td><td>' + (m.pag === m.venc ? '<span class="fin-mut">mesmo dia</span>' : '<b>' + DS[dow(m.pag)] + ' ' + df(m.pag) + '</b>') + '</td><td class="r"><b>' + moneyK(m.valor) + '</b></td></tr>').join('') + '</tbody></table>' : empty('Nada em aberto nesse período.');
 }
 
 // clique na linha da loja (bloco Financeiro › Hoje): abre embaixo os títulos daquele dia de pagamento (Tiago, 28/09/26)
 function finVencToggle() { const d = document.getElementById('fin-venc-lojas'); if (d) d.style.display = d.style.display === 'none' ? '' : 'none'; }
+// fornecedor do título: link que abre o PDF da nota (DANFE gerada do XML no ERP) quando o título tem NF-e ligada; título manual
+// (aluguel, serviço, internet) não tem nota e fica só o nome (Tiago, 29/09/26: "quando eu clicar no fornecedor abrir o pdf da nota")
+function finForn(t) {
+  return t.chave
+    ? '<a class="fin-nf" href="/api/dashboard/financeiro/nfe/' + encodeURIComponent(t.chave) + '/danfe" target="_blank" rel="noopener" title="Abre o PDF da NF-e ' + esc(t.nota || t.doc || '') + ' (DANFE gerada do XML no ERP)" onclick="event.stopPropagation()">' + esc(t.fornecedor || '—') + '</a>'
+    : esc(t.fornecedor || '—') + ' <span class="fin-mut" title="Título sem nota fiscal ligada no ERP (lançamento manual: aluguel, serviço, internet…)">sem NF-e</span>';
+}
 async function finDetalhe(tr) {
   const nx = tr.nextElementSibling;
   if (nx && nx.classList.contains('fin-det')) { nx.remove(); tr.classList.remove('open'); return; }
@@ -579,9 +589,9 @@ async function finDetalhe(tr) {
     if (!det.isConnected) return;
     const ts = j.titulos || [];
     det.firstChild.innerHTML = ts.length
-      ? '<div class="fin-det-h"><b>' + LJ(loja) + ' ' + (NOMES[loja] || '') + '</b> · ' + ts.length + ' título' + (ts.length === 1 ? '' : 's') + ' · ' + (rng ? (pagIni <= '2001-01-01' ? 'vencidos: dia de pagamento até ' + df(pagFim) : pagFim >= '9999-01-01' ? 'paga de ' + df(pagIni) + ' em diante' : 'paga de ' + df(pagIni) + ' a ' + df(pagFim)) :'paga ' + DS[dow(pag)] + ' ' + df(pag)) + ' · ' + (tr.dataset.ord === 'venc' ? 'mais antigo primeiro' : 'maior valor primeiro') + '</div>'
+      ? '<div class="fin-det-h"><b>' + LJ(loja) + ' ' + (NOMES[loja] || '') + '</b> · ' + ts.length + ' título' + (ts.length === 1 ? '' : 's') + ' · ' + (rng ? (pagIni <= '2001-01-01' ? 'vencidos: dia de pagamento até ' + df(pagFim) : pagFim >= '9999-01-01' ? 'paga de ' + df(pagIni) + ' em diante' : 'paga de ' + df(pagIni) + ' a ' + df(pagFim)) :'paga ' + DS[dow(pag)] + ' ' + df(pag)) + ' · ' + (tr.dataset.ord === 'venc' ? 'mais antigo primeiro' : 'maior valor primeiro') + ' · clique no fornecedor pra abrir o PDF da nota</div>'
         + '<table class="m"><thead><tr><th>Vence</th>' + (rng ? '<th>Paga</th>' : '') + '<th>Fornecedor</th><th>Documento</th><th class="r">Valor</th></tr></thead><tbody>'
-        + ts.map(t => '<tr><td>' + DS[dow(t.venc)] + ' ' + df(t.venc) + '</td>' + (rng ? '<td><b>' + DS[dow(t.pag)] + '</b> ' + df(t.pag) + '</td>' : '') + '<td class="p">' + esc(t.fornecedor || '—') + '</td><td>' + esc(t.doc || '') + '</td><td class="r"><b>' + money(t.valor) + '</b></td></tr>').join('')
+        + ts.map(t => '<tr><td>' + DS[dow(t.venc)] + ' ' + df(t.venc) + '</td>' + (rng ? '<td><b>' + DS[dow(t.pag)] + '</b> ' + df(t.pag) + '</td>' : '') + '<td class="p">' + finForn(t) + '</td><td>' + esc(t.doc || '') + '</td><td class="r"><b>' + money(t.valor) + '</b></td></tr>').join('')
         + '</tbody><tfoot><tr class="fin-tot"><td colspan="' + (rng ? 4 : 3) + '">Total</td><td class="r">' + money(j.total) + '</td></tr></tfoot></table>'
       : empty('Nenhum título em aberto.');
   } catch (e) { if (det.isConnected) det.firstChild.innerHTML = '<div class="empty">erro: ' + esc(e.message) + '</div>'; }

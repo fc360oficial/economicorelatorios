@@ -6769,6 +6769,16 @@ app.get('/api/dashboard/financeiro/titulos', async (req, res) => {
   try { res.json(await dashboardNovo.titulosFinanceiro({ loja: parseInt(req.query.loja) || 0, pag: String(req.query.pag || '').slice(0, 10), venc: String(req.query.venc || '').slice(0, 10), pagIni: String(req.query.pag_ini || '').slice(0, 10), pagFim: String(req.query.pag_fim || '').slice(0, 10), ord: String(req.query.ord || '').slice(0, 10) })); }
   catch (err) { res.status(500).json({ error: err.message }); }
 });
+// PDF da nota (DANFE simplificada gerada do XML no ERP) do título clicado no Financeiro (Tiago, 29/09/26). Mesma geração
+// do Radar de Pedidos, mas servida pela API do dashboard (módulo Análise): quem vê o Financeiro pode não ter Gestão de Compras.
+app.get('/api/dashboard/financeiro/nfe/:chave/danfe', async (req, res) => {
+  try {
+    const n = await radarPedidos.nfe(req.params.chave);
+    if (!n) return res.status(404).type('html').send('<p style="font:14px system-ui;padding:24px">NF-e não encontrada no XML do ERP (chave ' + String(req.params.chave).replace(/[^0-9A-Za-z]/g, '').slice(0, 44) + ').</p>');
+    res.setHeader('Content-Type', 'application/pdf'); res.setHeader('Content-Disposition', `inline; filename="danfe-${n.nNota}.pdf"`);
+    require('./lib/danfe').gerarDanfe(n).pipe(res);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 app.post('/api/dashboard/atualizar', (req, res) => { dashboardNovo.calcular().catch(e => console.error('[DASHBOARD]', e.message)); res.json({ ok: true }); });
 app.get('/api/dashboard/metas', (req, res) => res.json(dashboardNovo.getMetas()));
 app.post('/api/dashboard/metas', (req, res) => { try { res.json(dashboardNovo.setMetas(req.body || {})); } catch (err) { res.status(500).json({ error: err.message }); } });
