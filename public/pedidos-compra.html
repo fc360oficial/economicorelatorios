@@ -345,7 +345,11 @@ function textoFin(){
   if(!rows.length) L.push('Nenhuma pendência.');
   return L.join('\n');
 }
-function render(){
+// Trocar o innerHTML da tabela inteira faz o navegador perder a âncora de rolagem e a tela "subir" ao abrir um pedido
+// (Tiago, 29/09/26). Guarda a posição da janela antes de redesenhar e devolve depois do layout.
+function manterRolagem(fn){ const y=window.scrollY; fn(); window.scrollTo(0,y); requestAnimationFrame(()=>window.scrollTo(0,y)); }
+function render(){ manterRolagem(_render); }
+function _render(){
   if(filtro==='financeiro') return renderFin();
   const q=($('#q').value||'').toLowerCase(), comp=$('#fComp').value, fl=+($('#fLoja').value||0);
   let rows=linhas().filter(r=>filtro==='todos'||(filtro==='andamento'?EM_ANDAMENTO.includes(r._grupo):r._grupo===filtro));
