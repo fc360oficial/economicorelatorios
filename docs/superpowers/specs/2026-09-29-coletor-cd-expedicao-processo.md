@@ -30,29 +30,28 @@ e no "Terminei" o app compara com o pedido.
 | Lista | NF-e da `axml` sem entrada (igual às lojas) | pedidos do dia em `delivery nLoja=10` ainda sem nota de venda, com cliente, nº e hora |
 | Abrir | tocar na nota → **bipar a DANFE** | tocar no pedido (sem digitar zero nenhum) |
 | Bipagem | cega, unidade, validade | **cega**, por caixa (DUN-14) ou unidade; o app não mostra quanto o pedido pede |
-| Terminei | recontagem (1×) → central libera no Fiscal | compara com o pedido: bateu 100 % → fecha; não bateu → lista os itens (sem qtd) e fica "aguardando ajuste do Televendas"; nunca fecha com divergência |
+| Terminei | recontagem (1×) → central libera no Fiscal | só fecha com 100 % batendo; não bateu → lista os itens (sem qtd) e a conferência continua aberta até o CD acertar o pallet |
 | Espelho no ERP de teste | `conferencia` + `conferenciachave` (como hoje) | `conferencia_televendas`, no formato do Dlinks (nLoja 10, nPedido, Codigobarra, Qtd cx, QtdEmb) |
 | Id interno | `AAAA-MM-DD-10-<hash da chave>` | `exp-AAAA-MM-DD-10-<nPedido>` |
 
 Lojas 1–6 não veem a escolha: entram direto no Recebimento, como hoje.
 
 ## Aviso na hora do bipe e fechamento (Tiago, 29/09/26, versão final)
-Diferente do Recebimento (que só compara no Terminei), na Expedição o app avisa **na hora**, sem revelar a quantidade do pedido:
-- bipou 9 e o pedido tem 10 → "Quantidade diferente do pedido, conte de novo": pede recontagem ali mesmo. Não trava a bipagem do resto, mas o item fica marcado enquanto não bater;
-- bipou código que não está no pedido → "Este produto não é do pedido": não soma. O conferente tem o botão **"Tirar da coletagem"** (remove o item bipado, com motivo opcional).
+**O pedido nunca muda. Tudo se resolve no coletor até bater 100 %.** O app avisa na hora, sem revelar a quantidade do pedido:
+- bipou **a menos** (9, pedido tem 10) → "Quantidade diferente do pedido": o conferente busca o que falta e bipa o certo;
+- bipou **a mais** (12, pedido tem 10) → "Quantidade diferente do pedido": tira o excesso do pallet e usa **"Tirar da coletagem"** pra baixar a quantidade;
+- bipou **código que não está no pedido** → "Este produto não é do pedido": não soma; tira do pallet e usa "Tirar da coletagem".
+- e assim por diante: o item só fica verde quando bate exatamente; o resto da bipagem nunca trava.
 
-**Fecha só 100 % certo.** Não existe "fechar com divergência". O Terminei só conclui quando todo item do pedido bateu e não há nada fora do pedido.
-Se o pedido não fecha (faltou estoque, veio a mais), o caminho é o Televendas ajustar o pedido no Dlinks; o app relê o pedido e aí fecha.
-Enquanto isso o pedido fica "aguardando ajuste do Televendas", com a lista dos itens que não batem (sem quantidade).
+**Fecha só 100 % certo.** O Terminei só conclui quando todo item do pedido bateu e não há nada fora. Não existe "fechar com divergência" nem "aguardando ajuste do Televendas": a conferência fica aberta até o CD acertar o pallet.
 
-**Retaguarda: aviso de item tirado da coletagem.** Todo "Tirar da coletagem" gera um evento (`tirar_coletagem`) com loja 10, quem, pedido, código, descrição,
-quantidade que tinha sido bipada e hora. Ele aparece na retaguarda pro **fiscal do CD** conferir se o produto saiu mesmo do pallet — porque o conferente
-pode apagar no app e mandar o produto sem coletagem. Onde aparece: aba **Expedição** dentro de Centro Distribuição (retaguarda), com pendências
-"verificar pallet" por pedido, e no LOG Coletor. Fiscal marca "verifiquei" (nome + hora). Enquanto tiver pendência não verificada, o pedido fica sinalizado na retaguarda (não trava o CD).
+**Retaguarda: pendência "verificar pallet" pro fiscal do CD.** Todo "Tirar da coletagem" (a mais ou fora do pedido) gera evento `tirar_coletagem` com loja 10, quem, pedido, código, descrição,
+quantidade bipada antes/depois e hora. Aparece na retaguarda pro **fiscal do CD** conferir se o produto saiu mesmo do pallet — porque dá pra apagar no app e mandar o produto sem coletagem.
+Onde: aba **Expedição** em Centro Distribuição (retaguarda), pendências por pedido, e no LOG Coletor. Fiscal marca "verifiquei" (nome + hora). Pendência aberta sinaliza o pedido na retaguarda, não trava o CD.
 
 ## Decisões já tomadas
 1. Expedição **cega** (não separação assistida). O papel impresso é a separação.
-2. Quem fecha a expedição é o **próprio CD** ao terminar, e só com 100 % batendo; divergência = Televendas ajusta o pedido, nunca fecha diferente. Item tirado da coletagem vira pendência pro fiscal do CD na retaguarda.
+2. Quem fecha a expedição é o **próprio CD** ao terminar, e só com 100 % batendo. O pedido nunca é alterado: a menos → bipa o certo; a mais ou fora do pedido → tira do pallet e da coletagem. Cada retirada vira pendência pro fiscal do CD na retaguarda.
 3. Entram **todos** os pedidos do Televendas da loja 10 (lojas do grupo e clientes externos).
 4. `painel_televendas.Status` não é mexido; o espelho grava só os bipes em `conferencia_televendas` (teste).
 
