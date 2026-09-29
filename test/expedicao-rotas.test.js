@@ -19,7 +19,7 @@ function montar() {
   expedicao.init({ dir: path.join(dir, 'exp'), cadastro: async cod => ({ descricao: 'CAD ' + cod }), vinculo: async () => null });
   const logs = [], lotes = [];
   const q = async (sql, params) => {
-    if (sql.includes('FROM central.delivery d WHERE')) return [{ nPedido: 6853, cliente: CAB.Nome, cnpj: CAB.CPF, Data: CAB.Data, hora: CAB.Hora, total: CAB.Total, status: 1 }, { nPedido: 6856, cliente: 'LOJA 3 PONTE', cnpj: '1', Data: CAB.Data, hora: '10:02:00', total: '1', status: 0 }];
+    if (sql.includes('FROM central.delivery d WHERE')) return [{ nPedido: 6853, cliente: CAB.Nome, cnpj: CAB.CPF, Data: CAB.Data, hora: CAB.Hora, total: CAB.Total, status: 1 }, { nPedido: 6856, cliente: 'LOJA 3 PONTE', cnpj: '1', Data: CAB.Data, hora: '10:02:00', total: '1', status: 0 }, { nPedido: 6858, cliente: 'DIGITADO SEM PAINEL', cnpj: '1', Data: CAB.Data, hora: '10:05:00', total: '1', status: 0 }];
     if (sql.includes('FROM central.painel_televendas')) return [{ nPedido: '6853', status: 1 }, { nPedido: '6856', status: 2 }];
     if (sql.includes('FROM central.delivery_produtos WHERE nPedido IN')) return [{ nPedido: 6853, n: 2, un: 110 }];
     if (sql.includes('FROM central.delivery WHERE nLoja=?')) return String(params[1]) === '6853' ? [CAB] : [];
@@ -36,7 +36,7 @@ test('só o token da loja 10 entra; /pedidos lista pedidos abertos do Televendas
   const { routes, t10, t3 } = montar();
   let r = res(); await routes['GET /api/expedicao-publico/pedidos'](req({ query: { t: t3 } }), r); assert.equal(r.statusCode, 401);
   r = res(); await routes['GET /api/expedicao-publico/pedidos'](req({ query: { t: t10 } }), r);
-  assert.equal(r.statusCode, 200); assert.equal(r.body.length, 1, 'conferido/liberado no Dlinks (painel 2/4) some da lista');
+  assert.equal(r.statusCode, 200); assert.equal(r.body.length, 1, 'digitado sem painel, conferido (2) e liberado (4) no Dlinks somem da lista');
   const p = r.body[0]; assert.equal(p.nPedido, '6853'); assert.equal(p.cliente, 'SERAFIM SUPERMERCADO'); assert.equal(p.hora, '09:56'); assert.equal(p.itens, 2); assert.equal(p.painel, 1); assert.equal(p.conferencia, null);
   assert.ok(!('un' in p), 'lista não leva quantidade do pedido');
 });
