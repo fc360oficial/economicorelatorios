@@ -65,6 +65,8 @@ body{font-family:var(--font);background:var(--pap);color:var(--ink);font-size:14
 .pill.bad{background:var(--negw);color:var(--neg)}
 .pill.warn{background:var(--amw);color:var(--amk);border:1px solid var(--am-ln)}
 .pill.mut{background:var(--wsh);color:var(--ink2)}
+.pill.info{background:#E3EEFB;color:#1D4F91}
+.pill.amarelo{background:#FFF1B8;color:#6B4E00}
 
 .hero{background:var(--navy2);color:#fff;border-radius:var(--r);padding:14px;display:flex;flex-direction:column;gap:4px}
 .hero .big{font-size:26px;font-weight:800;letter-spacing:-.5px;line-height:1}
@@ -561,15 +563,16 @@ async function carregarPedidos(manual) {
 }
 // mesmos nomes do painel de expedição do Dlinks, pra ser uma linguagem só enquanto os dois coletores convivem
 // painel do Dlinks: 0 Para separação (amarelo) → imprime → 1 Em separação → 2 Aguardando liberação → 3 Reconferir → 4 Liberado
-const PAINEL = { null: 'Digitado', 0: 'Para separação', 1: 'Em separação', 2: 'Aguardando liberação', 3: 'Reconferir', 4: 'Liberado' };
+const PAINEL = { null: ['mut', 'Digitado'], 0: ['amarelo', 'Para separação'], 1: ['info', 'Em separação'], 2: ['ok', 'Aguardando liberação'], 3: ['bad', 'Reconferir'], 4: ['ok', 'Liberado'] };
 function renderPedidos() {
   $('pSub').textContent = sess.nome + ' · ' + pedidos.length + (pedidos.length === 1 ? ' pedido sem nota' : ' pedidos sem nota');
   $('pLista').innerHTML = pedidos.length ? pedidos.map((p, i) => {
-    const c = p.conferencia; const st = c ? (c.status === 'fechada' ? ['ok', 'Conferido'] : ['warn', 'Em conferência · toque pra continuar']) : ['mut', PAINEL[p.painel == null ? 'null' : p.painel] || 'Digitado'];
+    const c = p.conferencia; const st = c ? (c.status === 'fechada' ? ['ok', 'Conferido'] : ['warn', 'Em conferência']) : (PAINEL[p.painel == null ? 'null' : p.painel] || PAINEL.null); const cont = c && c.status !== 'fechada' ? 'Você já começou esta. Toque pra continuar.' : null;
     return `<button class="nota" onclick="abrirPedido(${i})">
       <div class="f">${esc(p.cliente)}</div>
       <div class="m">Pedido <b>#${esc(p.nPedido)}</b> · ${p.itens} ${p.itens === 1 ? 'item' : 'itens'} · ${esc(p.data ? dataBr(p.data) : '')} ${esc(p.hora)}</div>
       <div class="st"><span class="pill ${st[0]}"><i></i>${esc(st[1])}</span></div>
+      ${cont ? `<div class="why i">${esc(cont)}</div>` : ''}
     </button>`;
   }).join('') : '<div class="vazio">Nenhum pedido do Televendas aguardando conferência de saída.</div>';
 }
