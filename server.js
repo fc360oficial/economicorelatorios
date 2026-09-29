@@ -6772,6 +6772,12 @@ app.get('/api/dashboard/financeiro/titulos', async (req, res) => {
   try { res.json(await dashboardNovo.titulosFinanceiro({ loja: parseInt(req.query.loja) || 0, pag: String(req.query.pag || '').slice(0, 10), venc: String(req.query.venc || '').slice(0, 10), pagIni: String(req.query.pag_ini || '').slice(0, 10), pagFim: String(req.query.pag_fim || '').slice(0, 10), ord: String(req.query.ord || '').slice(0, 10) })); }
   catch (err) { res.status(500).json({ error: err.message }); }
 });
+// Faturamento › clique no NOME da loja (Tiago, 29/09/26): de que é feita a venda de hoje — dinheiro, PIX, débito, crédito (à vista ×
+// parcelado), voucher, maquininha — com bandeiras. loja=0 é a rede; ?data=YYYY-MM-DD pra conferir um dia fechado. Só leitura no ERP.
+app.get('/api/dashboard/faturamento/formas', async (req, res) => {
+  try { res.json(await require('./lib/dashboard-formas').formasPagto(q, { loja: parseInt(req.query.loja) || 0, data: String(req.query.data || '').slice(0, 10), nomes: dashboardNovo.NOMES })); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
 // PDF da nota (DANFE simplificada gerada do XML no ERP) do título clicado no Financeiro (Tiago, 29/09/26). Mesma geração
 // do Radar de Pedidos, mas servida pela API do dashboard (módulo Análise): quem vê o Financeiro pode não ter Gestão de Compras.
 app.get('/api/dashboard/financeiro/nfe/:chave/danfe', async (req, res) => {
