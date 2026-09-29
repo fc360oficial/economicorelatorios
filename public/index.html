@@ -348,7 +348,7 @@
     <div class="row c3" style="margin-top:12px">
       <div class="card"><div class="card-hd"><h3 id="fin-tipo-hoje-t">O que paga hoje</h3><small id="fin-tipo-hoje-s">boletos de fornecedor × outras operações · dia de pagamento de hoje</small></div><div class="card-bd" id="c-fin-tipo-hoje"><div class="spin"></div></div></div>
       <div class="card"><div class="card-hd"><h3>O que paga esta semana</h3><small id="fin-tipo-sem-s">boletos de fornecedor × outras operações · de hoje até sexta</small></div><div class="card-bd" id="c-fin-tipo-sem"><div class="spin"></div></div></div>
-      <div class="card"><div class="card-hd"><h3>O que paga daqui pra frente</h3><small>boletos de fornecedor × outras operações · da próxima semana em diante</small></div><div class="card-bd" id="c-fin-tipo-prox"><div class="spin"></div></div></div>
+      <div class="card"><div class="card-hd"><h3>O que paga daqui pra frente</h3><small>por loja · boletos de fornecedor × outras operações · da próxima semana em diante</small></div><div class="card-bd" id="c-fin-tipo-prox"><div class="spin"></div></div></div>
     </div>
     <div class="row" style="margin-top:12px"><div class="card"><div class="card-hd"><h3>Posição de caixa consolidada</h3><span class="k nt">sem fonte</span></div><div class="nosrc" id="c-caixa">Saldo bancário ainda não vem pro sistema. A integração com a API do Itaú hoje só traz o extrato (lançamentos); pra mostrar a posição de caixa consolidada é preciso puxar o saldo de cada conta das 6 lojas. Enquanto isso, o que está aqui é o lado dos compromissos: vencidos, hoje, esta semana e as seguintes.</div></div></div>
   </section>
@@ -731,6 +731,32 @@ function renderOp() {
   }).join('');
 }
 function opToggle(ln) { const d = document.getElementById('op-ot' + ln), a = document.getElementById('op-tg' + ln); if (!d) return; const on = d.style.display === 'none'; d.style.display = on ? '' : 'none'; if (a) a.textContent = on ? 'esconder as outras' : 'ver as outras ' + d.dataset.n + ' do mês'; }
+// Fornecedor × outras operações por loja nos quadros de baixo do Financeiro (Tiago, 29/09). FIN_TIPO[key] = { rows, rotulo }
+// (categorias já filtradas pelo período) e FIN_TIPO.grupos (nomes do plano de contas do ERP, pra grupo sem nome amigável)
+var FIN_TIPO = { grupos: {} };
+const NOME_GRUPO_FIN = { 4: 'Boletos de fornecedor (nota fiscal)', 12: 'Colaboradores (folha, encargos)', 11: 'Despesas dos sócios', 1: 'Despesas administrativas (energia, água, aluguel…)', 2: 'Veículos da empresa', 3: 'Marketing', 5: 'Operações de checkout', 6: 'Diversos', 8: 'Impostos federais', 9: 'Impostos estaduais', 10: 'Impostos municipais', 13: 'Despesas do CD', 0: 'Sem classificação no ERP' };
+function finNomeGrupo(g) { const GN = FIN_TIPO.grupos || {}; return NOME_GRUPO_FIN[g] || (GN[g] ? GN[g].charAt(0) + GN[g].slice(1).toLowerCase() : 'Grupo ' + g); }
+function finTipoDet(tr) {
+  const nx = tr.nextElementSibling;
+  if (nx && nx.classList.contains('fin-det')) { nx.remove(); tr.classList.remove('open'); return; }
+  tr.parentElement.querySelectorAll('tr.fin-det').forEach(d => { const p = d.previousElementSibling; if (p) p.classList.remove('open'); d.remove(); });   // um aberto por quadro
+  const key = tr.dataset.key, loja = tr.dataset.loja === '' ? null : +tr.dataset.loja, C = FIN_TIPO[key] || { rows: [], rotulo: '' };
+  const rows = loja == null ? C.rows : C.rows.filter(r => r.loja === loja);
+  const som = g => rows.reduce((s, r) => (g == null ? r.grupo !== 4 : g === 'todos' ? true : r.grupo === g) ? { n: s.n + r.n, v: s.v + r.v } : s, { n: 0, v: 0 });
+  const tot = som('todos'), forn = som(4), outras = som(null);
+  const grupos = [...new Set(rows.filter(r => r.grupo !== 4).map(r => r.grupo))].map(g => ({ g, ...som(g) })).filter(x => x.v > 0).sort((a, b) => b.v - a.v);
+  const max = Math.max(forn.v, ...grupos.map(x => x.v), 1), bar = v => '<span class="bar" style="width:' + Math.round((v || 0) / max * 70) + 'px"></span>';
+  const li = (rot, o, cls) => '<tr' + (cls ? ' class="' + cls + '"' : '') + '><td>' + rot + '</td><td class="r">' + (o.n || '') + '</td><td class="r"><b>' + (o.v ? money(o.v) : '—') + '</b></td><td>' + (cls === 'fin-tot' ? '' : bar(o.v)) + '</td></tr>';
+  const det = document.createElement('tr'); det.className = 'fin-det';
+  det.innerHTML = '<td colspan="' + tr.children.length + '"><div class="fin-det-h"><b>' + (loja == null ? 'Todas as lojas' : LJ(loja) + ' ' + (NOMES[loja] || '')) + '</b> · ' + tot.n + ' título' + (tot.n === 1 ? '' : 's') + ' · ' + C.rotulo + ' · boletos de fornecedor × outras operações</div>'
+    + '<table class="m fin-al fin-tipo"><colgroup><col><col style="width:62px"><col style="width:118px"><col style="width:86px"></colgroup><thead><tr><th>Tipo</th><th class="r">Títulos</th><th class="r">Valor</th><th></th></tr></thead><tbody>'
+    + li('<b>Boletos de fornecedor</b><br><span class="fin-mut">nota fiscal · grupo Fornecedor</span>', forn, 'fin-hl')
+    + '<tr class="fin-sec-row"><td colspan="4">Outras operações <span class="fin-mut">grupo do plano de contas</span></td></tr>'
+    + grupos.map(x => li(finNomeGrupo(x.g), x)).join('')
+    + (grupos.length ? li('<b>Total das outras operações</b>', outras, 'fin-tot') : '')
+    + li('<b>Total</b>', tot, 'fin-tot') + '</tbody></table></td>';
+  tr.after(det); tr.classList.add('open');
+}
 function renderFin() {
   const ids = ['c-fin-hoje', 'c-fin-semana', 'c-fin-proximas', 'c-fin-tipo-hoje', 'c-fin-tipo-sem', 'c-fin-tipo-prox'];
   const f = V.financeiro; if (!f || !f.linhas) { ids.forEach(id => { document.getElementById(id).innerHTML = empty('sem dados'); }); return; }
@@ -790,32 +816,27 @@ function renderFin() {
 
   // O que a loja paga (Tiago, 29/09): três quadros iguais aos de cima — hoje · esta semana · daqui pra frente —
   // separando boletos de fornecedor (grupo Fornecedor do plano de contas) das outras operações, com o nome do grupo do ERP
-  const CATS = f.categorias || [], GN = f.grupos || {};
-  const NOME_GRUPO = { 4: 'Boletos de fornecedor (nota fiscal)', 12: 'Colaboradores (folha, encargos)', 11: 'Despesas dos sócios', 1: 'Despesas administrativas (energia, água, aluguel…)', 2: 'Veículos da empresa', 3: 'Marketing', 5: 'Operações de checkout', 6: 'Diversos', 8: 'Impostos federais', 9: 'Impostos estaduais', 10: 'Impostos municipais', 13: 'Despesas do CD', 0: 'Sem classificação no ERP' };
-  const nomeG = g => NOME_GRUPO[g] || (GN[g] ? GN[g].charAt(0) + GN[g].slice(1).toLowerCase() : 'Grupo ' + g);
-  const tipoCard = (id, pred, rotuloTot) => {
-    const rows = CATS.filter(pred);
-    const som = g => rows.reduce((s, r) => (g == null ? r.grupo !== 4 : g === 'todos' ? true : r.grupo === g) ? { n: s.n + r.n, v: s.v + r.v } : s, { n: 0, v: 0 });
-    const tot = som('todos'), forn = som(4), outras = som(null);
-    const grupos = [...new Set(rows.filter(r => r.grupo !== 4).map(r => r.grupo))].map(g => ({ g, ...som(g) })).filter(x => x.v > 0).sort((a, b) => b.v - a.v);
-    const max = Math.max(forn.v, ...grupos.map(x => x.v), 1);
-    const tr = (rot, o, cls) => '<tr' + (cls ? ' class="' + cls + '"' : '') + '><td>' + rot + '</td><td class="r">' + (o.n || '') + '</td><td class="r"><b>' + (o.v ? money(o.v) : '—') + '</b></td><td>' + (cls === 'fin-tot' ? '' : barra(o.v, max)) + '</td></tr>';
+  // Tiago, 29/09 (2ª vez): "faz que nem em cima: bota por loja e clicando na loja mostra essa informação" → cada quadro lista as
+  // lojas (mesma grade dos de cima) e o clique abre, embaixo da loja, boletos de fornecedor × outras operações (finTipoDet)
+  const CATS = f.categorias || []; FIN_TIPO.grupos = f.grupos || {};
+  const tipoCard = (id, key, pred, rotuloTot) => {
+    const rows = CATS.filter(pred); FIN_TIPO[key] = { rows, rotulo: rotuloTot };
+    const pl = {}; for (const r of rows) { const a = pl[r.loja] || (pl[r.loja] = { loja: r.loja, n: 0, v: 0 }); a.n += r.n; a.v += r.v; }
+    const lojas = Object.values(pl).sort((a, b) => a.loja - b.loja), max = Math.max(...lojas.map(l => l.v), 1), tot = lojas.reduce((s, l) => ({ n: s.n + l.n, v: s.v + l.v }), { n: 0, v: 0 });
     document.getElementById(id).innerHTML = rows.length
       ? '<div class="fin-big"><b>' + money(tot.v) + '</b><small>' + plural(tot.n, 'título') + ' · ' + rotuloTot + '</small></div>'
-        + '<table class="m fin-al fin-tipo">' + CG + '<thead><tr><th>Tipo</th><th class="r">Títulos</th><th class="r">Valor</th><th></th></tr></thead><tbody>'
-        + tr('<b>Boletos de fornecedor</b><br><span class="fin-mut">nota fiscal · grupo Fornecedor</span>', forn, 'fin-hl')
-        + '<tr class="fin-sec-row"><td colspan="4">Outras operações <span class="fin-mut">grupo do plano de contas</span></td></tr>'
-        + grupos.map(x => tr(nomeG(x.g), x)).join('')
-        + (grupos.length ? tr('<b>Total das outras operações</b>', outras, 'fin-tot') : '')
-        + tr('<b>Total</b>', tot, 'fin-tot') + '</tbody></table>'
+        + '<div class="fin-sec">Por loja <span class="fin-mut">clique pra ver boletos de fornecedor × outras operações</span></div><table class="m fin-al">' + CG + '<thead><tr><th>Loja</th><th class="r">Títulos</th><th class="r">Valor</th><th></th></tr></thead><tbody>'
+        + lojas.map(l => '<tr class="fin-lj" data-key="' + key + '" data-loja="' + l.loja + '" onclick="finTipoDet(this)" title="clique pra ver boletos de fornecedor × outras operações"><td><span class="fin-car">▸</span>' + lojaTag(l.loja) + '</td><td class="r">' + l.n + '</td><td class="r"><b>' + money(l.v) + '</b></td><td>' + barra(l.v, max) + '</td></tr>').join('')
+        + (lojas.length > 1 ? '<tr class="fin-lj fin-tot" data-key="' + key + '" data-loja="" onclick="finTipoDet(this)" title="clique pra ver boletos de fornecedor × outras operações da rede"><td><span class="fin-car">▸</span>Todas as lojas</td><td class="r">' + tot.n + '</td><td class="r"><b>' + money(tot.v) + '</b></td><td></td></tr>' : '')
+        + '</tbody></table>'
       : empty('Nada a pagar ' + rotuloTot + '.');
   };
   document.getElementById('fin-tipo-hoje-t').textContent = fds ? 'O que paga na segunda' : 'O que paga hoje';
-  document.getElementById('fin-tipo-hoje-s').textContent = 'boletos de fornecedor × outras operações · ' + (fds ? 'segunda ' + df(diaRef) + ' (sáb, dom e seg)' : DS[dow(hoje)] + ' ' + df(hoje));
-  document.getElementById('fin-tipo-sem-s').textContent = 'boletos de fornecedor × outras operações · ' + df(hoje) + ' a ' + df(semFim);
-  tipoCard('c-fin-tipo-hoje', r => r.pag === diaRef, fds ? 'na segunda' : 'hoje');
-  tipoCard('c-fin-tipo-sem', r => r.pag >= hoje && r.pag <= semFim, 'de ' + (fds ? 'segunda' : 'hoje') + ' até sexta');
-  tipoCard('c-fin-tipo-prox', r => r.pag >= proxIni, 'da próxima semana em diante');
+  document.getElementById('fin-tipo-hoje-s').textContent = 'por loja · boletos de fornecedor × outras operações · ' + (fds ? 'segunda ' + df(diaRef) + ' (sáb, dom e seg)' : DS[dow(hoje)] + ' ' + df(hoje));
+  document.getElementById('fin-tipo-sem-s').textContent = 'por loja · boletos de fornecedor × outras operações · ' + df(hoje) + ' a ' + df(semFim);
+  tipoCard('c-fin-tipo-hoje', 'hoje', r => r.pag === diaRef, fds ? 'na segunda' : 'hoje');
+  tipoCard('c-fin-tipo-sem', 'sem', r => r.pag >= hoje && r.pag <= semFim, 'de ' + (fds ? 'segunda' : 'hoje') + ' até sexta');
+  tipoCard('c-fin-tipo-prox', 'prox', r => r.pag >= proxIni, 'da próxima semana em diante');
   if (venc.n) { const vf = CATS.reduce((s, r) => r.pag < hoje && r.grupo === 4 ? s + r.v : s, 0), vo = venc.v - vf; document.getElementById('c-fin-tipo-hoje').insertAdjacentHTML('beforeend', '<div class="fin-note">Vencidos em aberto: <b>' + money(vf) + '</b> de fornecedor · <b>' + money(vo) + '</b> de outras operações (veja o quadro Hoje, acima).</div>'); }
 }
 
