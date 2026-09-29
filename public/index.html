@@ -99,15 +99,16 @@
   .hero-g div .l{display:block;font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:#98A0B3;margin-bottom:2px;white-space:nowrap}
   .hero-g div small{font-size:10px;font-weight:600;color:#98A0B3;margin-left:4px}
   .fat-tb{background:#fff;border:1px solid var(--ln,#DADAD6);border-radius:12px;overflow:auto}
-  .fat-tb table.m{font-size:12.5px}
-  .fat-tb table.m th{padding:8px 10px;background:#FAFAF8}
-  .fat-tb table.m th.grp{text-align:center;color:var(--ink2);border-left:1px solid var(--ln,#DADAD6);background:#F3F3F1;padding:5px 10px;font-size:9px}
-  .fat-tb table.m td{padding:10px 10px;border-bottom:1px solid #EEEEEA;cursor:pointer}
+  .fat-tb table.m{font-size:12px}
+  .fat-tb table.m th{padding:8px 8px;background:#FAFAF8;white-space:nowrap}
+  .fat-tb table.m th.grp{text-align:center;color:var(--ink2);border-left:1px solid var(--ln,#DADAD6);background:#F3F3F1;padding:5px 8px;font-size:9px}
+  .fat-tb table.m th.grp.top{font-size:10px;color:var(--ink);background:#ECECE8;padding:6px 8px}.fat-tb table.m th.grp.top small{font-size:9px;font-weight:500;color:var(--ink3);text-transform:none;letter-spacing:0}
+  .fat-tb table.m td{padding:9px 8px;border-bottom:1px solid #EEEEEA;cursor:pointer}
   .fat-tb table.m td.sep,.fat-tb table.m th.sep{border-left:1px solid var(--ln,#DADAD6)}
   .fat-tb table.m tr.on td{background:var(--amw,#FFF6D9);box-shadow:inset 3px 0 0 #F5B800}
   .fat-tb .lj-nm{font-weight:800;font-size:12.5px;white-space:nowrap}.fat-tb .lj-nm i{font-style:normal;display:inline-block;min-width:22px;color:var(--ink3);font-weight:800;font-size:10.5px;margin-right:4px}
   .fat-tb .big{font-weight:800;font-size:13.5px}
-  .fat-tb .ant{display:block;font-size:10px;color:var(--ink3);font-weight:500;margin-top:1px}
+  .fat-tb .ant{display:block;font-size:10px;color:var(--ink3);font-weight:500;margin-top:1px;white-space:nowrap}
   .fat-tb .bar{display:block;height:4px;border-radius:2px;background:#EEEEEA;margin:5px 0 0 auto;width:90px}.fat-tb .bar i{display:block;height:4px;border-radius:2px;background:#F5B800}
   .fat-tb td.hoje{font-weight:800;font-size:13.5px}
   .fat-tb tfoot tr.cd td{background:#fff;font-weight:600;border-top:2px solid var(--ln,#DADAD6);cursor:pointer}.fat-tb tfoot tr.cd.on td{background:var(--amw,#FFF6D9);box-shadow:inset 3px 0 0 #F5B800}.fat-tb tfoot tr.cd td.hoje,.fat-tb tfoot tr.cd .big,.fat-tb tfoot tr.cd .lj-nm{font-weight:800}
@@ -395,7 +396,7 @@ function render() {
 }
 function renderFat() {
   const f = D.faturamento; if (!f) { document.getElementById('fat-cards').innerHTML = empty('Faturamento não calculado'); return; }
-  document.getElementById('s1-sub').textContent = '01 a ' + df(f.ate) + ' × 01 a ' + String(f.dia).padStart(2, '0') + '/' + String(f.mes).padStart(2, '0') + '/' + f.anoAnt + ' · margem s/ venda · markup s/ custo · ticket · cupons';
+  document.getElementById('s1-sub').textContent = 'hoje × mesmo dia da semana do ano anterior até a hora atual · mês 01 a ' + df(f.ate) + ' × 01 a ' + String(f.dia).padStart(2, '0') + '/' + String(f.mes).padStart(2, '0') + '/' + f.anoAnt + ' · margem s/ venda · markup s/ custo · ticket · cupons';
   const n0 = v => (v || 0).toLocaleString('pt-BR');
   const antP = (v, a) => v != null && a != null ? '<span class="' + (v >= a ? 'up' : 'dn') + '">' + pct(v) + '</span><span class="ant">ant ' + pct(a) + '</span>' : pct(v);
   const r = f.rede, on = ln => LOJA === ln ? ' on' : '';
@@ -411,23 +412,33 @@ function renderFat() {
     + '<div><span class="l">cupons</span>' + n0(r.cupons) + '</div><div><span class="l">cupons ano anterior</span>' + (r.cuponsAnt ? n0(r.cuponsAnt) + '<small class="' + cls(r.varCupons) + '">' + sgn(r.varCupons) + '</small>' : '—') + '</div>'
     + '</div><div class="hero-sh"><div class="t">participação no mês</div>' + f.lojas.filter(l => !l.cd).map(l => { const p = r.venda > 0 ? (l.venda || 0) / r.venda * 100 : 0; return '<div class="s"><span>' + LJ(l.loja) + ' ' + (l.cd ? 'CAHU DISTRIBUIDORA' : l.nome) + '</span><i><b style="width:' + Math.min(100, p * 2.5).toFixed(1) + '%"></b></i><span>' + pct(p) + '</span></div>'; }).join('') + '</div></div>';
   // Tiago (29/09): na tabela, valores completos com centavos (não abreviar em mil/mi)
-  const linha = l => '<tr class="' + on(l.loja) + (l.cd ? ' cd' : '') + '" onclick="setLoja(' + l.loja + ')" title="Mostrar só esta loja em todos os segmentos (clique de novo pra voltar)">'
-    + '<td class="lj-nm"><i>' + LJ(l.loja) + '</i>' + l.nome + '</td>'
-    + '<td class="r hoje">' + money(l.hoje) + '</td>'
-    + '<td class="r sep">' + antP(l.margem, l.margemAnt) + '</td><td class="r">' + antP(l.markup, l.markupAnt) + '</td>'
-    + (l.cd ? '<td class="r sep mut">—</td><td class="r">' + n0(nfeDe(l).n) + '<span class="ant">notas fiscais</span></td>' : '<td class="r sep">' + money(l.ticket) + (l.ticketAnt ? '<span class="ant">ant ' + money(l.ticketAnt) + ' · <b class="' + cls(l.ticket - l.ticketAnt) + '">' + sgn((l.ticket / l.ticketAnt - 1) * 100) + '</b></span>' : '') + '</td>'
-    + '<td class="r">' + n0(l.cupons) + '<span class="ant">' + (l.cuponsAnt ? 'ant ' + n0(l.cuponsAnt) + ' · ' : '') + '<b class="' + cls(l.varCupons) + '">' + sgn(l.varCupons) + '</b></span></td>')
-
-    + '<td class="r sep"><span class="big">' + money(l.venda) + '</span></td>'
-    + '<td class="r">' + money(l.vendaAnt) + '<span class="ant"><b class="' + cls(l.var) + '">' + sgn(l.var) + '</b></span></td></tr>';
+  // Tiago (29/09): "rentabilidade e clientes é informação do dia; faz dessa mesma forma em cima de venda até hoje" →
+  // bloco HOJE (venda · margem · markup · ticket · cupons de hoje × mesmo dia da semana do ano anterior, até a hora atual)
+  // e bloco MÊS (os mesmos indicadores de 01 até hoje × 01 até hoje do ano anterior + venda do ano anterior)
+  const antM = (v, a) => v != null && a ? '<span class="ant">ant ' + money(a) + ' · <b class="' + cls(v - a) + '">' + sgn((v / a - 1) * 100) + '</b></span>' : '';
+  const antN = (a, va) => '<span class="ant">' + (a ? 'ant ' + n0(a) + ' · ' : '') + '<b class="' + cls(va) + '">' + sgn(va) + '</b></span>';
+  const celDia = l => '<td class="r sep hoje">' + money(l.hoje) + antM(l.hoje, l.hojeAnt) + '</td>'
+    + '<td class="r">' + antP(l.margemHoje, l.margemHojeAnt) + '</td><td class="r">' + antP(l.markupHoje, l.markupHojeAnt) + '</td>'
+    + (l.cd ? '<td class="r mut">—</td><td class="r">' + n0(nfeDe(l).nh) + '<span class="ant">notas hoje</span></td>'
+      : '<td class="r">' + money(l.ticketHoje) + antM(l.ticketHoje, l.ticketHojeAnt) + '</td><td class="r">' + n0(l.cuponsHoje) + antN(l.cuponsHojeAnt, l.varCuponsHoje) + '</td>');
+  const celMes = l => '<td class="r sep"><span class="big">' + money(l.venda) + '</span></td>'
+    + '<td class="r">' + antP(l.margem, l.margemAnt) + '</td><td class="r">' + antP(l.markup, l.markupAnt) + '</td>'
+    + (l.cd ? '<td class="r mut">—</td><td class="r">' + n0(nfeDe(l).n) + '<span class="ant">notas fiscais</span></td>'
+      : '<td class="r">' + money(l.ticket) + antM(l.ticket, l.ticketAnt) + '</td><td class="r">' + n0(l.cupons) + antN(l.cuponsAnt, l.varCupons) + '</td>')
+    + '<td class="r">' + (l.vendaAnt ? money(l.vendaAnt) + '<span class="ant"><b class="' + cls(l.var) + '">' + sgn(l.var) + '</b></span>' : '<span class="mut">—</span>') + '</td>';
+  const linha = l => '<tr class="' + on(l.loja) + '" onclick="setLoja(' + l.loja + ')" title="Mostrar só esta loja em todos os segmentos (clique de novo pra voltar)"><td class="lj-nm"><i>' + LJ(l.loja) + '</i>' + l.nome + '</td>' + celDia(l) + celMes(l) + '</tr>';
+  const cd = f.lojas.find(l => l.cd), hj = String(f.dia).padStart(2, '0') + '/' + String(f.mes).padStart(2, '0');
+  const hAnt = (f.lojas[0] || {}).hojeAntHora, hjAnt = df((f.lojas[0] || {}).hojeAntData);
   const tabela = '<div class="fat-tb"><table class="m"><thead>'
-    + '<tr><th rowspan="2">Loja</th><th class="r" rowspan="2">Venda hoje</th><th class="grp" colspan="2">Rentabilidade</th><th class="grp" colspan="2">Clientes</th><th class="grp" colspan="2">Mês</th></tr>'
-    + '<tr><th class="r sep">Margem</th><th class="r">Markup</th><th class="r sep">Ticket</th><th class="r">Cupons</th><th class="r sep">Venda até hoje</th><th class="r">Ano anterior</th></tr></thead><tbody>'
+    + '<tr><th rowspan="3">Loja</th><th class="grp top" colspan="5" title="Hoje × ' + hjAnt + '/' + f.anoAnt + ' (mesmo dia da semana do ano anterior), somando só até ' + (hAnt ? hAnt.slice(0, 5) : 'a hora atual') + '">Hoje · ' + hj + ' <small>× ' + hjAnt + '/' + f.anoAnt + (hAnt ? ' até ' + hAnt.slice(0, 5) : '') + '</small></th>'
+    + '<th class="grp top" colspan="6" title="01 a ' + hj + ' × 01 a ' + hj + '/' + f.anoAnt + '">Mês · 01 a ' + hj + ' <small>× 01 a ' + hj + '/' + f.anoAnt + '</small></th></tr>'
+    + '<tr><th class="r sep" rowspan="2">Venda hoje</th><th class="grp" colspan="2">Rentabilidade</th><th class="grp" colspan="2">Clientes</th><th class="r sep" rowspan="2">Venda até hoje</th><th class="grp" colspan="2">Rentabilidade</th><th class="grp" colspan="2">Clientes</th><th class="r" rowspan="2">Ano anterior</th></tr>'
+    + '<tr><th class="r">Margem</th><th class="r">Markup</th><th class="r">Ticket</th><th class="r">Cupons</th><th class="r">Margem</th><th class="r">Markup</th><th class="r">Ticket</th><th class="r">Cupons</th></tr></thead><tbody>'
     + f.lojas.filter(l => !l.cd).map(linha).join('')
-    + '</tbody><tfoot><tr><td>Rede · 6 lojas</td><td class="r">' + money(r.hoje) + (r.hojeAnt ? '<span class="ant">ant ' + money(r.hojeAnt) + ' · <b class="' + cls(r.hoje - r.hojeAnt) + '">' + sgn((r.hoje / r.hojeAnt - 1) * 100) + '</b></span>' : '') + '</td><td class="r sep">' + antP(r.margem, r.margemAnt) + '</td><td class="r">' + antP(r.markup, r.markupAnt) + '</td><td class="r sep">' + money(r.ticket) + (r.ticketAnt ? '<span class="ant">ant ' + money(r.ticketAnt) + ' · <b class="' + cls(r.ticket - r.ticketAnt) + '">' + sgn((r.ticket / r.ticketAnt - 1) * 100) + '</b></span>' : '') + '</td><td class="r">' + n0(r.cupons) + '<span class="ant">' + (r.cuponsAnt ? 'ant ' + n0(r.cuponsAnt) + ' · ' : '') + '<b class="' + cls(r.varCupons) + '">' + sgn(r.varCupons) + '</b></span></td><td class="r sep">' + money(r.venda) + '</td><td class="r">' + money(r.vendaAnt) + '<span class="ant"><b class="' + cls(r.var) + '">' + sgn(r.var) + '</b></span></td></tr></tfoot></table></div>';
-  const cd = f.lojas.find(l => l.cd);
-  const cdRow = cd ? '<tr class="cd' + on(cd.loja) + '" onclick="setLoja(' + cd.loja + ')" title="CD vende por NF-e, separado das lojas. Clique pra filtrar os outros segmentos pelo CD"><td class="lj-nm"><i>CD</i>CAHU DISTRIBUIDORA<span class="ant">venda por NF-e · fora da rede</span></td><td class="r hoje">' + money(cd.hoje) + '</td><td class="r sep">' + pct(cd.margem) + '</td><td class="r">' + pct(cd.markup) + '</td><td class="r sep mut">—</td><td class="r">' + n0(nfeDe(cd).n) + '<span class="ant">notas · ' + n0(nfeDe(cd).nh) + ' hoje</span></td><td class="r sep"><span class="big">' + money(cd.venda) + '</span></td><td class="r">' + (cd.vendaAnt ? money(cd.vendaAnt) + '<span class="ant"><b class="' + cls(cd.var) + '">' + sgn(cd.var) + '</b></span>' : '<span class="mut">—</span>') + '</td></tr>' : '';
-  document.getElementById('fat-cards').innerHTML = hero + tabela.replace('</tr></tfoot>', '</tr>' + cdRow + '</tfoot>');
+    + '</tbody><tfoot><tr><td>Rede · ' + f.lojas.filter(l => !l.cd).length + ' lojas</td>' + celDia(r) + celMes(r) + '</tr>'
+    + (cd ? '<tr class="cd' + on(cd.loja) + '" onclick="setLoja(' + cd.loja + ')" title="CD vende por NF-e, separado das lojas. Clique pra filtrar os outros segmentos pelo CD"><td class="lj-nm"><i>CD</i>CAHU DISTRIBUIDORA<span class="ant">venda por NF-e · fora da rede</span></td>' + celDia(cd) + celMes(cd) + '</tr>' : '')
+    + '</tfoot></table></div>';
+  document.getElementById('fat-cards').innerHTML = hero + tabela;
 }
 function renderMeta() {
   const c = V.comercial; if (!c) { document.getElementById('c-meta').innerHTML = empty('sem dados'); return; }
