@@ -231,10 +231,13 @@ app.use((req, res, next) => {
   if (/^\/promocoes\/pdf\/[a-f0-9]{32}\.pdf$/.test(req.path)) return next();
   // App de contagem de negativos no celular do auxiliar: entra por PIN da loja,
   // depois manda o token (32 hex) em toda chamada — validado dentro da rota
-  if (req.path === '/contagem.html' || req.path === '/contagem' || req.path === '/manifest-contagem.json' || req.path.startsWith('/api/contagem-publica/')) return next();
+  // (comparação sem diferenciar maiúsculas: o teclado do coletor Autoid Q8 põe a 1ª letra em maiúscula
+  // e /Recebimento caía na tela de login do Econômico — 29/09/26)
+  const pathMin = req.path.toLowerCase();
+  if (pathMin === '/contagem.html' || pathMin === '/contagem' || pathMin === '/manifest-contagem.json' || pathMin.startsWith('/api/contagem-publica/')) return next();
   // Coletor de Recebimento no celular do conferente: mesmo esquema (PIN pra entrar, depois token
   // de 32 hex validado dentro da rota)
-  if (req.path === '/recebimento.html' || req.path === '/recebimento' || req.path === '/manifest-recebimento.json' || req.path.startsWith('/api/recebimento-publico/')) return next();
+  if (pathMin === '/recebimento.html' || pathMin === '/recebimento' || pathMin === '/manifest-recebimento.json' || pathMin.startsWith('/api/recebimento-publico/')) return next();
   // Pré-aquecimento interno (somente localhost)
   if (req.headers['x-internal-warmup'] === 'fc360warmup2026' && ['::1', '127.0.0.1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress)) return next();
   const ext = req.path.split('.').pop().toLowerCase();
