@@ -4,7 +4,7 @@ const R = require('../lib/recebimento');
 const CAD = { '7896213007386': { cod: '7896213007386', descricao: 'CREAM CRACKER 350G', qtdemb: 24, emb: 'FD', validar: 180 }, '111': { cod: '111', descricao: 'SEM VALIDAR', qtdemb: 1, emb: 'UN', validar: 0 } };
 const XML = { itens: [{ cod: '7896213007386', descricao: 'CREAM CRACKER', un: 240 }, { cod: '222', descricao: 'RECUSADO', un: 6, decisao: { acao: 'recusar' } }], naoPedidos: [], status: 'conciliado', pedidoId: 12, ln: 3 };
 function setup() { const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rec-')); R.init({ dir, cadastro: async c => CAD[c] || (c === '222' ? { cod: '222', descricao: 'RECUSADO', qtdemb: 1, emb: 'UN', validar: 0 } : null), xmlLoja: () => XML, agora: () => new Date('2026-09-25T08:00:00') }); return dir; }
-test('PIN/token por loja', () => { setup(); const c = R.config(); assert.equal(Object.keys(c.lojas).length, 6); const t = R.lojaPorPin(3, c.lojas[3].pin); assert.equal(t.loja, 3); assert.equal(R.lojaPorToken(t.token).loja, 3); assert.equal(R.lojaPorPin(3, '0000'), null); });
+test('PIN/token por loja', () => { setup(); const c = R.config(); assert.equal(Object.keys(c.lojas).length, 7); assert.ok(c.lojas[10].pin); const t = R.lojaPorPin(3, c.lojas[3].pin); assert.equal(t.loja, 3); assert.equal(R.lojaPorToken(t.token).loja, 3); assert.equal(R.lojaPorPin(3, '0000'), null); });
 test('abrir + bipar: ok / recusado / bloqueado validade / não cadastrado / não está na nota', async () => {
   setup(); const c = R.abrirNota({ loja: 3, nome: 'MAYRA', chave: '2626'.padEnd(44, '0'), nNota: '911217', fornecedor: 'M DIAS', codFornec: 540 });
   assert.equal(c.status, 'bipando'); assert.match(c.id, /^2026-09-25-3-[0-9a-f]{10}$/);   // id = dia-loja-hash da chave (I4)
