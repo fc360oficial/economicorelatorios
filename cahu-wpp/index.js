@@ -54,14 +54,22 @@ async function conectar() {
     sock.ev.on('connection.update', ({ connection, lastDisconnect }) => {
       if (connection === 'open') {
         logger.info('WhatsApp conectado');
+        registrado = true;
         grupoJid = null;
         if (!resolvido) { resolvido = true; clearTimeout(timer); resolve(); }
       }
       if (connection === 'close') {
         const code = lastDisconnect?.error?.output?.statusCode;
         if (code === DisconnectReason.loggedOut) {
-          logger.error('Sessão encerrada pelo WhatsApp. Apague a pasta auth_info e reinicie pra parear de novo.');
-          if (!resolvido) { clearTimeout(timer); reject(new Error('Deslogado')); } else process.exit(1);
+          if (!state.creds.registered) {
+            // 401 ANTES de completar o pareamento = WhatsApp recusou o código (ou está limitando pedidos).
+            // Não insistir: cada tentativa pede código novo e piora o bloqueio. Espera 10 min e pede de novo.
+            logger.error('WhatsApp recusou o pareamento (401). Nova tentativa de código só daqui a 10 min.');
+            if (!resolvido) { clearTimeout(timer); reject(Object.assign(new Error('Pareamento recusado'), { esperar: 600000 })); }
+          } else {
+            logger.error('Sessão encerrada pelo WhatsApp. Apague a pasta auth_info e reinicie pra parear de novo.');
+            if (!resolvido) { clearTimeout(timer); reject(new Error('Deslogado')); } else process.exit(1);
+          }
         } else {
           // 515 (restartRequired) é o normal logo após digitar o código de pareamento: reconecta SEMPRE,
           // mesmo antes do 1º 'open', senão o celular fica em "conectando..." e desiste.
@@ -89,7 +97,9 @@ async function acharGrupo() {
   return jid;
 }
 
-const conectado = () => !!(sock && sock.user);
+// sock.user já existe assim que o código é pedido; só conta como conectado depois do pareamento completo.
+let registrado = false;
+const conectado = () => !!(sock && sock.user && registrado);
 const jidNumero = n => String(n).replace(/\D/g, '') + '@s.whatsapp.net';
 
 // ── HTTP local (só 127.0.0.1) ─────────────────────────────────────────────────
@@ -142,7 +152,11 @@ http.createServer(async (req, res) => {
   logger.info('Conectando ao WhatsApp (Central Rede Cahu)...');
   for (;;) {
     try { await conectar(); break; }
-    catch (err) { logger.error({ err }, 'Falha ao conectar. Tentando de novo em 10s...'); await new Promise(r => setTimeout(r, 10000)); }
+    catch (err) {
+      const ms = err.esperar || 10000;
+      logger.error({ err: err.message }, `Falha ao conectar. Tentando de novo em ${Math.round(ms / 1000)}s...`);
+      await new Promise(r => setTimeout(r, ms));
+    }
   }
   logger.info('Pronto. Aguardando pedidos do server.js (nenhuma agenda aqui — quem agenda é lib/cahu-tabela-wpp.js).');
 })();
