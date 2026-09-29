@@ -172,11 +172,15 @@ th .hin{background:#fff;border:1px solid #C9C9C4;border-radius:7px;padding:5px 9
     <button class="tab on" data-tab="pedido">Pedido da semana <span class="n" id="n-pedido">–</span></button>
     <button class="tab" data-tab="vinculos">Vínculos caixa → unidade <span class="n" id="n-vinc">–</span></button>
     <button class="tab" data-tab="pedidos">Pedidos <span class="n" id="n-peds">–</span></button>
+    <button class="tab" data-tab="expedicao">Expedição <span class="n" id="n-exp">–</span></button>
+    <button class="tab" data-tab="lotes">Lotes no CD</button>
     <button class="tab" data-tab="regras">Regras</button>
   </div>
   <section id="tab-pedido"></section>
   <section id="tab-vinculos" hidden></section>
   <section id="tab-pedidos" hidden></section>
+  <section id="tab-expedicao" hidden></section>
+  <section id="tab-lotes" hidden></section>
   <section id="tab-regras" hidden></section>
 </div>
 <div class="overlay" id="ov"><div class="modal" id="ov-body"></div></div>
@@ -190,7 +194,8 @@ const LOJAS = [1, 2, 3, 4, 5, 6];
 const LOJAS_NOMES = { 1: 'CAHU', 2: 'MURIBECA', 3: 'PONTE', 4: 'ATACAREJO', 5: 'PORTA LARGA', 6: 'JARDIM JORDÃO' };
 let ESTOPEN = new Set(), DADOS = null, EDITS = {}, SEL = new Set(), FILTRO = '', FLOJA = 0, VIS = {}, PEDIDOS = [], VINC = {}, VF = 'pendentes', SOQTD = true, ORDEM = 'az', SELINIT = false;
 
-document.querySelectorAll('.tab').forEach(b => b.onclick = () => { document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === b)); ['pedido', 'vinculos', 'pedidos', 'regras'].forEach(t => $('#tab-' + t).hidden = t !== b.dataset.tab); if (b.dataset.tab === 'pedido' && DADOS) carregar(false); });
+document.querySelectorAll('.tab').forEach(b => b.onclick = () => { document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === b)); ['pedido', 'vinculos', 'pedidos', 'expedicao', 'lotes', 'regras'].forEach(t => $('#tab-' + t).hidden = t !== b.dataset.tab); if (b.dataset.tab === 'pedido' && DADOS) carregar(false); if (b.dataset.tab === 'expedicao') carregarExpedicao().catch(e => alert(e.message)); if (b.dataset.tab === 'lotes') carregarLotes().catch(e => alert(e.message)); });
+carregarExpedicao().catch(() => {});
 // aba deixada aberta (vínculo feito em outra janela, por exemplo): ao voltar pra ela, busca o estado atual do servidor
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && DADOS) { carregar(false); carregarVinculos().catch(() => {}); } });
 
@@ -676,6 +681,41 @@ function imprimir(id) {
   const w = window.open('', '_blank'); if (!w) return alert('O navegador bloqueou a janela de impressão. Libere pop-ups pra este site.');
   w.document.write(htmlImpressao(p)); w.document.close();
   w.onload = () => w.print(); setTimeout(() => { try { w.print(); } catch (e) {} }, 400);
+}
+// ── Expedição do CD (coletor, loja 10): pedidos conferidos na saída + pendências "verificar pallet" ──
+// Todo "Tirar da coletagem" no coletor vira pendência aqui: o fiscal do CD confere se o produto saiu mesmo do
+// pallet (dá pra apagar no app e mandar o produto sem coletagem) e marca "verifiquei". Spec 2026-09-29-coletor-cd-expedicao-processo.
+let EXP = { fechadas: [], pendencias: [] }, EXPDIAS = 7;
+const dh = s => s ? new Date(s).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '–';
+async function carregarExpedicao() {
+  const [fechadas, pendencias] = await Promise.all([api('/api/expedicao/fechadas?dias=' + EXPDIAS), api('/api/expedicao/pendencias?dias=' + EXPDIAS)]);
+  EXP = { fechadas, pendencias }; renderExpedicao();
+}
+async function verificarPallet(id, idx) { await api('/api/expedicao/verificar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, idx }) }); await carregarExpedicao(); }
+function renderExpedicao() {
+  const pend = EXP.pendencias.filter(p => !p.verificado); $('#n-exp').textContent = pend.length;
+  const abertas = EXP.fechadas.filter(c => c.status !== 'fechada'), fechadas = EXP.fechadas.filter(c => c.status === 'fechada');
+  const linhasP = EXP.pendencias.length ? EXP.pendencias.map(p => `<tr class="${p.verificado ? '' : 'open'}"><td>${dh(p.em)}</td><td>#${esc(p.nPedido)}</td><td class="lc">${esc(p.cliente)}</td><td class="lc">${esc(p.descricao)}<div class="s2">${esc(p.cod)}${p.fora ? ' · fora do pedido' : ' · a mais'}</div></td><td class="r neg">${fmtN(p.un, 0)} un</td><td class="r">${fmtN(p.antes, 0)} → ${fmtN(p.depois, 0)}</td><td>${esc(p.lote || '–')}</td><td class="lc">${esc(p.motivo || '–')}</td><td>${esc(p.nome)}</td><td>${p.verificado ? `<span class="pill p-ok">verificado</span><div class="s2">${esc(p.verificado.nome)} · ${dh(p.verificado.em)}</div>` : `<button class="btn" onclick="verificarPallet('${esc(p.id)}',${p.idx})">Verifiquei o pallet</button>`}</td></tr>`).join('') : '<tr><td colspan="10" class="mut">Nenhuma retirada registrada no período.</td></tr>';
+  const todas = [...abertas, ...fechadas];
+  const linhasC = todas.length ? todas.map(c => `<tr><td>${dh(c.abertoEm)}</td><td>#${esc(c.nPedido)}</td><td class="lc">${esc(c.cliente)}</td><td>${esc(c.nome)}</td><td class="r">${c.produtos}/${c.produtos_pedido}</td><td class="r">${c.tentativas}</td><td class="r ${c.pendentesVerificar ? 'neg' : ''}">${c.tirados}${c.pendentesVerificar ? ' (' + c.pendentesVerificar + ' a verificar)' : ''}</td><td>${c.status === 'fechada' ? `<span class="pill p-ok">fechado 100 %</span><div class="s2">${esc(c.fechadoPor || '')} · ${dh(c.fechadoEm)}</div>` : '<span class="pill p-breve">em conferência</span>'}</td><td>${c.status !== 'fechada' ? '–' : c.erpErro ? `<span class="neg" title="${esc(c.erpErro)}">erro</span>` : '<span class="pos">espelhado</span>'}</td></tr>`).join('') : '<tr><td colspan="9" class="mut">Nenhuma conferência de saída no período.</td></tr>';
+  const opts = [1, 3, 7, 15, 30].map(d => `<option value="${d}" ${d === EXPDIAS ? 'selected' : ''}>${d} dia${d > 1 ? 's' : ''}</option>`).join('');
+  $('#tab-expedicao').innerHTML = `<div class="busca-row"><span class="contagem">Conferência cega de saída no coletor do CD · últimos <select onchange="EXPDIAS=+this.value;carregarExpedicao()">${opts}</select></span><button class="btn btn-sec" onclick="carregarExpedicao()">↻ Atualizar</button></div>
+    <h3 style="font-size:13px;margin:6px 0 8px">Verificar pallet <span class="s2" style="display:inline">produto tirado da coletagem no coletor — conferir se saiu mesmo do pallet</span></h3>
+    <div class="table-wrap"><table class="main-t"><thead><tr><th>Quando</th><th>Pedido</th><th>Cliente</th><th>Produto</th><th class="r">Tirou</th><th class="r">Antes → depois</th><th>Lote</th><th>Motivo</th><th>Quem</th><th>Situação</th></tr></thead><tbody>${linhasP}</tbody></table></div>
+    <h3 style="font-size:13px;margin:6px 0 8px">Pedidos conferidos na saída</h3>
+    <div class="table-wrap"><table class="main-t"><thead><tr><th>Aberto</th><th>Pedido</th><th>Cliente</th><th>Conferente</th><th class="r">Produtos</th><th class="r">Tentativas</th><th class="r">Retiradas</th><th>Situação</th><th>ERP teste</th></tr></thead><tbody>${linhasC}</tbody></table></div>`;
+}
+// ── Lotes no CD: o que entrou por lote (Recebimento da loja 10) × o que saiu (expedições fechadas) ──
+let LOTES = [], LOTESBUSCA = '', LOTESDIAS = 60;
+async function carregarLotes() { LOTES = await api('/api/expedicao/lotes?dias=' + LOTESDIAS); renderLotes(); }
+function renderLotes() {
+  const b = LOTESBUSCA.trim().toLowerCase(); const vis = LOTES.filter(l => !b || l.descricao.toLowerCase().includes(b) || l.cod.includes(b) || String(l.lote).toLowerCase().includes(b));
+  const foco = document.activeElement && document.activeElement.id === 'lbusca'; const pos = foco ? document.activeElement.selectionStart : 0;
+  const opts = [30, 60, 90, 180].map(d => `<option value="${d}" ${d === LOTESDIAS ? 'selected' : ''}>${d} dias</option>`).join('');
+  const linhas = vis.length ? vis.map(l => `<tr><td class="lc">${esc(l.descricao)}<div class="s2">${esc(l.cod)}</div></td><td><b>${esc(l.lote)}</b></td><td>${l.validade ? esc(l.validade.split('-').reverse().join('/')) : '<span class="mut">–</span>'}</td><td class="r">${fmtN(l.entrou, 0)}</td><td class="r">${fmtN(l.saiu, 0)}</td><td class="r ${l.saldo < 0 ? 'neg' : l.saldo > 0 ? 'pos' : 'mut'}">${fmtN(l.saldo, 0)}</td><td class="comp">${l.entradas.map(e => 'NF ' + esc(e.nfe) + ' ' + esc((e.fornecedor || '').slice(0, 18)) + ' · ' + fmtN(e.un, 0)).join('<br>') || '–'}</td><td class="comp">${l.saidas.map(s => '#' + esc(s.nPedido) + ' ' + esc((s.cliente || '').slice(0, 18)) + ' · ' + fmtN(s.un, 0)).join('<br>') || '–'}</td></tr>`).join('') : '<tr><td colspan="8" class="mut">Nenhum lote bipado no período. As entradas vêm do Recebimento da loja 10 no coletor (lote obrigatório desde 29/09).</td></tr>';
+  $('#tab-lotes').innerHTML = `<div class="busca-row"><input id="lbusca" placeholder="Produto, código ou lote" value="${esc(LOTESBUSCA)}" oninput="LOTESBUSCA=this.value;renderLotes()"><span class="contagem">${vis.length} lote(s) · entradas e saídas dos últimos <select onchange="LOTESDIAS=+this.value;carregarLotes()">${opts}</select> · saldo = o que foi bipado de verdade (sem FEFO)</span><button class="btn btn-sec" onclick="carregarLotes()">↻ Atualizar</button></div>
+    <div class="table-wrap"><table class="main-t"><thead><tr><th>Produto</th><th>Lote</th><th>Validade</th><th class="r">Entrou</th><th class="r">Saiu</th><th class="r">Saldo</th><th>Entradas</th><th>Saídas</th></tr></thead><tbody>${linhas}</tbody></table></div>`;
+  if (foco) { const el = $('#lbusca'); if (el) { el.focus(); el.setSelectionRange(pos, pos); } }
 }
 function renderRegras() {
   if (!DADOS?.regras) return; const r = DADOS.regras; const cfg = DADOS.regras;
