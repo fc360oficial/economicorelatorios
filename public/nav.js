@@ -137,7 +137,13 @@
   /* só a lista de itens rola por dentro — topo (logo) e rodapé (usuário/sair)
      ficam sempre visíveis, mesmo em telas baixas (TV) ou sem scroll por
      toque/mouse disponível, sem depender de rolar até o fim pra deslogar */
-  + '#dsnav .dn-rows{flex:1;min-height:0;overflow-y:auto}'
+  + '#dsnav .dn-rows{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;scrollbar-width:none}'
+  + '#dsnav .dn-rows::-webkit-scrollbar{width:0;height:0}'
+  /* rail recolhido (64px) não tem espaço pra barra nativa — ela esmagava os ícones;
+     a rolagem continua (roda do mouse/toque) e a barra fina só aparece com o menu aberto */
+  + '#dsnav.pinned .dn-rows,#dsnav:hover .dn-rows{scrollbar-width:thin;scrollbar-color:rgba(128,136,160,.45) transparent}'
+  + '#dsnav.pinned .dn-rows::-webkit-scrollbar,#dsnav:hover .dn-rows::-webkit-scrollbar{width:6px}'
+  + '#dsnav.pinned .dn-rows::-webkit-scrollbar-thumb,#dsnav:hover .dn-rows::-webkit-scrollbar-thumb{background:rgba(128,136,160,.45);border-radius:6px}'
   + '#dsnav .dn-brand{display:flex;align-items:center;text-decoration:none;min-width:0}'
   + '#dsnav .dn-exit-mobile{display:none}'
   + '#dsnav .dn-brand img{height:46px;display:block;transition:height .15s ease;flex-shrink:0}'
