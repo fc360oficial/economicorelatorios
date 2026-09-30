@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CAHU Distribuidora — Dashboard</title>
+<link rel="stylesheet" href="/design-system.css">
+<script src="/nav.js" defer></script>
+<style>
+  /* Dashboard Distribuidora (30/09/2026): faturamento por NF-e · clientes · televendas · estoque do CD · expedição · financeiro (a receber) */
+  .db-body{padding:20px 22px 40px;max-width:1700px;margin:0 auto}
+  .db-crumb{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+  .db-crumb .sub{font-size:12px;color:var(--ink3)}
+  .db-fresh{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--pos);font-weight:600;background:var(--posw);border-radius:20px;padding:4px 12px}
+  .db-fresh i{width:6px;height:6px;border-radius:50%;background:var(--pos)}
+  .db-fresh.old{color:var(--neg);background:var(--negw)}.db-fresh.old i{background:var(--neg)}
+  .appbar-right{display:flex;align-items:center;gap:12px;margin-left:auto}
+  .appbar-t{font-size:13px;font-weight:800;color:var(--ink)}.appbar-t small{display:block;font-size:10.5px;font-weight:500;color:var(--ink3)}
+  .seg-nav{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 14px;position:sticky;top:0;z-index:20;background:var(--wsh,#EBEBE9);padding:8px 0}
+  .seg-nav a{font-size:11.5px;font-weight:700;padding:6px 12px;border-radius:999px;border:1px solid var(--ln2,#C9C9C4);background:#fff;color:var(--ink2);text-decoration:none;white-space:nowrap}
+  .seg-nav a:hover{background:#FFF6D9;border-color:var(--am,#F5B800)}
+  .seg-nav a b{display:inline-block;min-width:18px;text-align:center;background:var(--negw);color:var(--neg);border-radius:999px;padding:0 6px;margin-left:6px;font-size:10.5px}
+  .seg-nav a b.ok{background:var(--posw);color:var(--pos)}
+  .seg-nav a.on{background:var(--ink,#0E1626);color:#fff;border-color:var(--ink,#0E1626)}
+  .seg-nav a.home-lk{background:var(--wsh,#EBEBE9)}
+  .seg{margin-top:22px;scroll-margin-top:60px;display:none}.seg.on{display:block}.seg.loading{opacity:.55;pointer-events:none}
+  body.home-on .seg-nav{display:none}
+  .home{margin:6px 0 20px}
+  .home-hd{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+  .home-brand{display:flex;align-items:center;gap:14px}
+  .home-logo{width:52px;height:52px;border-radius:14px;background:var(--ink,#0E1626);color:var(--am,#F5B800);font-weight:900;font-size:26px;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 18px rgba(14,22,38,.18)}
+  .home-brand h1{margin:0;font-size:24px;letter-spacing:-.3px;color:var(--ink,#0E1626)}
+  .home-brand p{margin:3px 0 0;color:var(--ink2,#5C6473);font-size:13.5px}
+  .home-date{font-size:13px;color:var(--ink2,#5C6473);text-align:right;line-height:1.4}
+  .home-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  @media(max-width:980px){.home-grid{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:620px){.home-grid{grid-template-columns:1fr}}
+  .home-card{position:relative;display:block;background:#fff;border:1px solid var(--ln2,#C9C9C4);border-radius:14px;padding:18px 18px 16px 18px;text-decoration:none;color:var(--ink,#0E1626);min-height:132px;transition:transform .12s,box-shadow .12s,border-color .12s}
+  .home-card:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(14,22,38,.10);border-color:var(--am,#F5B800)}
+  .home-card .n{position:absolute;top:14px;right:16px;width:30px;height:30px;border-radius:50%;background:var(--amw,#FFF6D9);color:var(--amk,#6B4E00);font-weight:900;font-size:13px;display:flex;align-items:center;justify-content:center}
+  .home-card b{display:block;font-size:17px;margin:0 36px 6px 0}
+  .home-card small{display:block;font-size:13px;color:var(--ink2,#5C6473);line-height:1.45}
+  .home-card .st{position:absolute;left:18px;bottom:12px;font-size:11px;font-style:normal;font-weight:700;color:var(--ink3,#8A93A6)}.home-card .st.ok{color:var(--pos,#137A48)}
+  .home-foot{margin:14px 2px 0;font-size:12.5px;color:var(--ink2,#5C6473)}
+  .seg-hd{display:flex;align-items:baseline;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+  .seg-hd .n{width:26px;height:26px;border-radius:8px;background:var(--ink);color:#F5B800;font-weight:800;font-size:13px;display:inline-flex;align-items:center;justify-content:center}
+  .seg-hd h2{font-size:16px;font-weight:800;margin:0}.seg-hd small{font-size:11.5px;color:var(--ink3)}
+  .seg-hd .lk{margin-left:auto;font-size:11.5px;font-weight:700;color:var(--amk,#6B4E00);text-decoration:none}.seg-hd .lk:hover{text-decoration:underline}
+  .row{display:grid;gap:12px}
+  .row.c7{grid-template-columns:repeat(7,minmax(140px,1fr))}.row.c6{grid-template-columns:repeat(6,minmax(150px,1fr))}.row.c5{grid-template-columns:repeat(5,minmax(0,1fr))}
+  .row.c3{grid-template-columns:repeat(3,minmax(0,1fr))}.row.c2{grid-template-columns:repeat(2,minmax(0,1fr))}.row.c21{grid-template-columns:2fr 1fr}.row.c12{grid-template-columns:1fr 2fr}
+  @media (max-width:1400px){.row.c7,.row.c6{grid-template-columns:repeat(4,minmax(150px,1fr))}.row.c3{grid-template-columns:1fr 1fr}.row.c5{grid-template-columns:repeat(3,1fr)}}
+  @media (max-width:900px){.row.c7,.row.c6,.row.c5,.row.c3,.row.c2,.row.c21,.row.c12{grid-template-columns:1fr}}
+  .stack{display:flex;flex-direction:column;gap:12px;min-width:0}
+  .lj{background:#fff;border:1px solid var(--ln,#DADAD6);border-radius:12px;padding:12px 14px}
+  .lj .nm{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--ink2);display:flex;justify-content:space-between}
+  .lj .v{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:4px;line-height:1.1}.lj .v small{font-size:10px;font-weight:700;color:var(--ink3);margin-left:4px}
+  .lj .r{display:flex;justify-content:space-between;gap:8px;margin-top:7px;font-size:11px;color:var(--ink2);font-variant-numeric:tabular-nums;line-height:1.35}.lj .r b{color:var(--ink);font-weight:700}
+  .up{color:var(--pos)!important;font-weight:700}.dn{color:var(--neg)!important;font-weight:700}.wn{color:#B45C00!important;font-weight:700}
+  .lj.rede{background:var(--ink);color:#fff;border-color:var(--ink)}.lj.rede .nm{color:#F5B800}.lj.rede .up{color:#5BD48F!important}.lj.rede .dn{color:#FF7A8E!important}.lj.rede .wn{color:#F5B800!important}
+  .lj.hero.band{display:flex;flex-direction:row;align-items:stretch;gap:0;padding:14px 18px;margin-bottom:12px}
+  .lj.hero.band .hb-main{min-width:210px;padding-right:22px;border-right:1px solid #2A3550;display:flex;flex-direction:column;justify-content:center}
+  .lj.hero.band .v{font-size:30px;margin-top:2px;letter-spacing:-.6px}.lj.hero.band .var{font-size:12px;font-weight:800;margin-top:4px;color:#fff;line-height:1.4}.lj.hero.band .var span{font-weight:500;color:#98A0B3;margin-left:4px}
+  .hero-g{flex:1;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px 14px;padding:0 22px;align-content:center}
+  .hero-g div{font-size:16px;font-weight:700;color:#fff;font-variant-numeric:tabular-nums;line-height:1.2}
+  .hero-g div .l{display:block;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:#98A0B3;margin-bottom:3px;line-height:1.25}
+  .hero-g div small{display:block;margin:3px 0 0;font-size:10.5px;color:#98A0B3;font-weight:600}.hero-g div small b{font-weight:700}
+  .hero-sh{padding:0 0 0 22px;border-left:1px solid #2A3550;min-width:300px;max-width:360px}
+  .hero-sh .t{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#98A0B3;margin-bottom:4px}
+  .hb-bar{display:flex;height:10px;border-radius:5px;overflow:hidden;background:#2A3550;margin:6px 0 8px}.hb-bar b{display:block;height:10px;border-right:1px solid var(--ink)}
+  .hb-leg{display:grid;grid-template-columns:1fr 1fr;gap:3px 14px;font-size:10.5px;color:#C9CDD6;font-variant-numeric:tabular-nums}
+  .hb-leg span{display:flex;align-items:center;gap:6px;white-space:nowrap;overflow:hidden}.hb-leg span i{width:8px;height:8px;border-radius:2px;flex:none}.hb-leg span b{margin-left:auto;color:#fff;font-weight:700}
+  @media (max-width:1200px){.lj.hero.band{flex-wrap:wrap;gap:12px}.lj.hero.band .hb-main{border:0;padding:0;min-width:100%}.hero-g{padding:0;min-width:100%;grid-template-columns:repeat(3,1fr)}.hero-sh{border:0;padding:0;min-width:100%;max-width:none}}
+  .card{background:#fff;border:1px solid var(--ln,#DADAD6);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;min-height:120px;min-width:0}
+  .card-hd{padding:9px 14px;border-bottom:1px solid var(--ln,#DADAD6);display:flex;align-items:center;gap:8px;background:#FAFAF8;flex-wrap:wrap}
+  .card-hd h3{font-size:12.5px;font-weight:800;margin:0}.card-hd small{font-size:10.5px;color:var(--ink3)}
+  .card-hd .k{margin-left:auto;font-size:11px;font-weight:800;padding:2px 9px;border-radius:999px;background:var(--negw);color:var(--neg);white-space:nowrap}
+  .card-hd .k.ok{background:var(--posw);color:var(--pos)}.card-hd .k.nt{background:#EBEBE9;color:var(--ink2)}
+  .card-bd{padding:6px 0;overflow:auto;max-height:520px}.card-bd.tall{max-height:none}
+  table.m{width:100%;border-collapse:collapse;font-size:12px}
+  table.m th{padding:6px 9px;text-align:left;font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--ink3);border-bottom:1px solid var(--ln,#DADAD6);white-space:nowrap;position:sticky;top:0;background:#fff;z-index:1}
+  table.m th.r,table.m td.r{text-align:right}
+  table.m td{padding:5px 9px;border-bottom:1px solid #F0F0EE;vertical-align:middle;font-variant-numeric:tabular-nums;white-space:nowrap;max-width:320px;overflow:hidden;text-overflow:ellipsis}
+  table.m td.p{font-weight:600;white-space:normal;line-height:1.25}table.m td.p small{display:block;font-weight:400;color:var(--ink3);font-size:10.5px}
+  table.m tr:hover td{background:#F6F6F4}table.m tr.bad td{background:#FFF5F6}
+  table.m tr.tot td{border-top:2px solid var(--ln,#DADAD6);font-weight:800;background:#FAFAF8}
+  table.m tr.hl td{background:var(--amw,#FFF6D9);box-shadow:inset 3px 0 0 #F5B800}
+  table.m th.grp{text-align:center;color:var(--ink2);border-left:1px solid var(--ln,#DADAD6);background:#F3F3F1;padding:5px 8px;font-size:9px}
+  table.m td.sep,table.m th.sep{border-left:1px solid var(--ln,#DADAD6)}
+  table.m td.dia,table.m th.dia{background:#FFFBEE}table.m th.dia{background:#FFF3C4}
+  .ant{display:block;font-size:10px;color:var(--ink3);font-weight:500;margin-top:1px;white-space:nowrap}
+  .mut{color:var(--ink3);font-size:10.5px;font-weight:400}
+  .pill{display:inline-block;font-size:10px;font-weight:800;padding:2px 8px;border-radius:6px;white-space:nowrap}
+  .pill.bad{background:var(--negw);color:var(--neg)}.pill.ok{background:var(--posw);color:var(--pos)}.pill.wn{background:#FFF1E0;color:#B45C00}.pill.nt{background:#EBEBE9;color:var(--ink2)}.pill.inf{background:#E9EEF6;color:#2E5E8C}.pill.a{background:var(--ink);color:#F5B800}
+  .bar{display:inline-block;height:7px;background:#F5B800;border-radius:4px;vertical-align:middle;margin-right:6px}.bar.neg{background:#C22F49}.bar.inf{background:#2E5E8C}.bar.pos{background:#137A48}
+  .empty{padding:26px 14px;text-align:center;color:var(--ink3);font-size:12px}
+  .nosrc{padding:12px 14px;font-size:11.5px;color:var(--ink2);line-height:1.5}
+  .fin-big{padding:10px 14px 4px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}.fin-big b{font-size:22px;font-weight:800;letter-spacing:-.3px}.fin-big small{font-size:11px;color:var(--ink3)}
+  .fin-sec{padding:9px 14px 2px;font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--ink3)}
+  .fin-alert{margin:8px 14px 4px;padding:8px 10px;border-radius:8px;background:var(--negw);color:var(--neg);font-size:11.5px;line-height:1.4}.fin-alert b{font-weight:800}
+  .fin-note{padding:8px 14px;font-size:11px;color:var(--ink3);border-top:1px solid #F0F0EE;line-height:1.45}
+  table.m.al{table-layout:fixed}table.m.al th,table.m.al td{overflow:hidden;text-overflow:ellipsis}
+  table.m tr.cp{cursor:pointer}table.m tr.cp.open td{background:var(--amw,#FFF6D9);box-shadow:inset 3px 0 0 #F5B800}
+  .car{display:inline-block;width:13px;color:var(--ink3);font-size:10px;transition:transform .15s}tr.cp.open .car{transform:rotate(90deg)}
+  table.m tr.det>td{padding:0 12px 12px 22px;background:#FAFAF8;white-space:normal;max-width:none;overflow:visible}table.m tr.det:hover>td{background:#FAFAF8}
+  tr.det table.m{background:#fff;border:1px solid var(--ln,#DADAD6);border-radius:8px}tr.det table.m th{position:static}
+  .det-h{font-size:11px;color:var(--ink3);padding:8px 0 6px}.det-h b{color:var(--ink)}
+  a.nf{color:var(--inf,#2E5E8C);text-decoration:none;border-bottom:1px dashed rgba(46,94,140,.45)}a.nf:hover{color:#B45C00;border-bottom-color:#F5B800}
+  a.nf::after{content:'PDF';margin-left:5px;font-size:8.5px;font-weight:800;letter-spacing:.3px;color:var(--ink3);vertical-align:1px}
+  .kan{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;padding:12px}
+  @media (max-width:1100px){.kan{grid-template-columns:repeat(2,1fr)}}
+  .kan-c{border:1px solid var(--ln,#DADAD6);border-radius:10px;background:#FAFAF8;min-height:120px;overflow:hidden}
+  .kan-h{padding:8px 10px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--ink2);border-bottom:1px solid var(--ln,#DADAD6);display:flex;align-items:center;gap:6px;background:#fff}
+  .kan-h b{margin-left:auto;font-size:14px;color:var(--ink)}.kan-c.hot .kan-h{background:var(--amw,#FFF6D9)}.kan-c.bad .kan-h{background:var(--negw)}.kan-c.ok .kan-h{background:var(--posw)}
+  .kan-i{padding:5px 10px;font-size:11.5px;border-bottom:1px solid #EEEEEA;display:flex;gap:8px;white-space:nowrap;overflow:hidden}.kan-i b{font-variant-numeric:tabular-nums;flex:none}.kan-i span{overflow:hidden;text-overflow:ellipsis;color:var(--ink2)}
+  .kan-m{padding:6px 10px;font-size:10.5px;color:var(--ink3)}
+  .hbar{display:flex;align-items:flex-end;gap:2px;height:70px;padding:10px 14px 4px}.hbar div{flex:1;background:#F5B800;border-radius:3px 3px 0 0;min-height:2px;position:relative}.hbar div.off{background:#E4E4E1}.hbar div.b2{background:#2E5E8C}
+  .hbar-l{display:flex;gap:2px;padding:0 14px 8px;font-size:9px;color:var(--ink3)}.hbar-l span{flex:1;text-align:center}
+  .spin{width:24px;height:24px;border:3px solid var(--ln,#DADAD6);border-top-color:#F5B800;border-radius:50%;animation:spin .8s linear infinite;margin:30px auto}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;font-size:12.5px;z-index:999;display:none}.toast.on{display:block}
+  .demo-tag{display:inline-block;font-size:10px;font-weight:800;padding:2px 8px;border-radius:6px;background:#FFF1E0;color:#B45C00;margin-left:6px}
+  @media (max-width:820px){.ds-appbar{height:auto;flex-wrap:wrap;padding:10px 14px;gap:10px}.db-body{padding:12px}}
+</style>
+</head>
+<body class="ds">
+
+<header class="ds-appbar">
+  <div class="appbar-t">CAHU Distribuidora<small>CD · loja 10 · vende por NF-e a partir do pedido do televendas</small></div>
+  <div class="appbar-right">
+    <a class="ds-btn ds-btn-secondary" href="/cahu-tabela-precos.html" title="Tabela de Preços da CAHU Distribuidora">Tabela de Preços</a>
+    <a class="ds-btn ds-btn-secondary" href="/index.html" title="Dashboard das lojas (E1 a E6)">Dashboard Loja</a>
+    <button class="ds-btn ds-btn-primary" id="btn-refresh" onclick="atualizar()"><svg class="ds-ic sm"><use href="/icons.svg#refresh"/></svg>Atualizar</button>
+  </div>
+</header>
+
+<main class="db-body">
+  <div class="db-crumb">
+    <span class="ds-h1">Distribuidora</span>
+    <span class="sub" id="crumb-sub">carregando…</span>
+    <span class="db-fresh" id="db-fresh"><i></i><span id="fresh-txt">…</span></span>
+  </div>
+  <section id="home" class="home">
+    <div class="home-hd">
+      <div class="home-brand"><span class="home-logo">C</span><div><h1>CAHU Distribuidora</h1><p id="home-sub">Dashboard da distribuidora (CD, loja 10) · escolha o que quer analisar</p></div></div>
+      <div class="home-date" id="home-date"></div>
+    </div>
+    <div class="home-grid">
+      <a class="home-card" href="#s1"><span class="n">1</span><b>Faturamento</b><small>NF-e de venda: hoje × semana passada, mês até hoje × mês anterior, margem, ticket por nota, por vendedor e forma de pagamento</small><i class="st" id="st-faturamento"></i></a>
+      <a class="home-card" href="#s2"><span class="n">2</span><b>Clientes</b><small>Quem comprou no mês, novos, quem sumiu (30+ dias sem pedir), os maiores com curva ABC, por cidade e por vendedor</small><i class="st" id="st-clientes"></i></a>
+      <a class="home-card" href="#s3"><span class="n">3</span><b>Televendas</b><small>Pedidos do dia e do mês: abertos sem NF-e e há quanto tempo, por vendedor, forma de pagamento, hora do dia, cancelados e produtos mais vendidos</small><i class="st" id="st-televendas"></i></a>
+      <a class="home-card" href="#s4"><span class="n">4</span><b>Estoque do CD</b><small>Estoque a custo e a preço de tabela, itens da Tabela Retirada sem estoque, cobertura baixa, parados 60 / 90 / 120 dias e lotes vencendo</small><i class="st" id="st-estoque"></i></a>
+      <a class="home-card" href="#s5"><span class="n">5</span><b>Expedição</b><small>Painel do CD agora (separação → liberado), tempo de separação, pendências de dias anteriores, liberados por dia e entradas em conferência</small><i class="st" id="st-expedicao"></i></a>
+      <a class="home-card" href="#s6"><span class="n">6</span><b>Financeiro</b><small>Boletos a receber: vencidos por idade e por cliente, hoje, esta semana e as próximas · e o que o CD paga</small><i class="st" id="st-financeiro"></i></a>
+    </div>
+    <p class="home-foot">Cada bloco carrega só quando você clica. <b>Atualizar</b> recalcula tudo em segundo plano. <a href="#" onclick="demoToggle(event)" id="demo-lk">Ver com dados de exemplo (TESTE)</a></p>
+  </section>
+
+  <nav class="seg-nav" id="seg-nav">
+    <a href="#home" class="home-lk">⌂ Início</a>
+    <a href="#s1">1 · Faturamento</a><a href="#s2">2 · Clientes <b id="n2"></b></a><a href="#s3">3 · Televendas <b id="n3"></b></a>
+    <a href="#s4">4 · Estoque <b id="n4"></b></a><a href="#s5">5 · Expedição <b id="n5"></b></a><a href="#s6">6 · Financeiro <b id="n6"></b></a>
+  </nav>
+
+  <!-- 1 FATURAMENTO -->
+  <section class="seg" id="s1">
+    <div class="seg-hd"><span class="n">1</span><h2>Faturamento</h2><small id="s1-sub">NF-e de venda da distribuidora · só notas autorizadas · margem s/ venda pelo custo dos itens da nota</small><a class="lk" href="/cahu-tabela-precos.html">Tabela de Preços →</a></div>
+    <div id="fat-hero"><div class="spin"></div></div>
+    <div class="row c21">
+      <div class="card"><div class="card-hd"><h3>Por vendedor</h3><small id="fat-vend-sub">hoje à esquerda · mês até hoje × mesmo período do mês anterior à direita</small></div><div class="card-bd tall" id="c-fat-vend"><div class="spin"></div></div></div>
+      <div class="stack">
+        <div class="card"><div class="card-hd"><h3>Mês a mês</h3><small>NF-e de venda · notas e valor</small></div><div class="card-bd" id="c-fat-meses"><div class="spin"></div></div></div>
+        <div class="card"><div class="card-hd"><h3>Forma de pagamento</h3><small>notas do mês · pelo pedido do televendas</small></div><div class="card-bd" id="c-fat-formas"><div class="spin"></div></div></div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:12px"><div class="card-hd"><h3>Notas de hoje</h3><small id="fat-hoje-sub">maior valor primeiro · clique no número da nota pra abrir o PDF · clique no cliente pra ver as compras dele</small><span class="k nt" id="k-fat-hoje"></span></div><div class="card-bd tall" id="c-fat-hoje"><div class="spin"></div></div></div>
+  </section>
+
+  <!-- 2 CLIENTES -->
+  <section class="seg" id="s2">
+    <div class="seg-hd"><span class="n">2</span><h2>Clientes</h2><small id="s2-sub">quem compra da distribuidora · pedidos faturados do televendas · cadastro do ERP</small></div>
+    <div class="row c6" id="cli-kpis"></div>
+    <div class="card" style="margin-top:12px"><div class="card-hd"><h3>Maiores clientes do mês</h3><small id="cli-top-sub">curva ABC pela venda do mês · clique no cliente pra ver as notas</small><span class="k nt" id="k-cli-top"></span></div><div class="card-bd" id="c-cli-top"><div class="spin"></div></div></div>
+    <div class="row c2" style="margin-top:12px">
+      <div class="card"><div class="card-hd"><h3>Novos no mês</h3><small>primeira compra no mês</small><span class="k ok" id="k-cli-novos"></span></div><div class="card-bd" id="c-cli-novos"><div class="spin"></div></div></div>
+      <div class="card"><div class="card-hd"><h3>Sumiram</h3><small>compravam e estão há 30+ dias sem pedir · maior compra no ano primeiro</small><span class="k" id="k-cli-sumidos"></span></div><div class="card-bd" id="c-cli-sumidos"><div class="spin"></div></div></div>
+    </div>
+    <div class="row c2" style="margin-top:12px">
+      <div class="card"><div class="card-hd"><h3>Por cidade</h3><small>clientes que compraram no mês</small></div><div class="card-bd" id="c-cli-cidade"><div class="spin"></div></div></div>
+      <div class="card"><div class="card-hd"><h3>Carteira por vendedor</h3><small>clientes ativos no mês e em 90 dias · novos · sumidos</small></div><div class="card-bd" id="c-cli-vend"><div class="spin"></div></div></div>
+    </div>
+  </section>
+
+  <!-- 3 TELEVENDAS -->
+  <section class="seg" id="s3">
+    <div class="seg-hd"><span class="n">3</span><h2>Televendas</h2><small id="s3-sub">pedidos digitados pelos vendedores · aberto = ainda sem NF-e</small></div>
+    <div class="row c6" id="tv-kpis"></div>
+    <div class="row c21" style="margin-top:12px">
+      <div class="card"><div class="card-hd"><h3>Pedidos abertos · sem NF-e</h3><small>mais antigo primeiro · parado = mais de 24 h sem faturar</small><span class="k" id="k-tv-abertos"></span></div><div class="card-bd" id="c-tv-abertos"><div class="spin"></div></div></div>
+      <div class="stack">
+        <div class="card"><div class="card-hd"><h3>Forma de pagamento</h3><small>pedidos faturados no mês</small></div><div class="card-bd" id="c-tv-formas"><div class="spin"></div></div></div>
+        <div class="card"><div class="card-hd"><h3>Pedidos por hora do dia</h3><small>mês até hoje · quando os vendedores digitam</small></div><div class="card-bd" id="c-tv-horas"><div class="spin"></div></div></div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:12px"><div class="card-hd"><h3>Por vendedor</h3><small>hoje à esquerda · mês até hoje à direita · faturado = já virou NF-e</small></div><div class="card-bd tall" id="c-tv-vend"><div class="spin"></div></div></div>
+    <div class="row c21" style="margin-top:12px">
+      <div class="card"><div class="card-hd"><h3>Produtos mais vendidos no mês</h3><small>pedidos faturados · margem pelo custo atual do CD</small></div><div class="card-bd" id="c-tv-prod"><div class="spin"></div></div></div>
+      <div class="card"><div class="card-hd"><h3>Cancelados no mês</h3><small>mais recente primeiro</small><span class="k" id="k-tv-canc"></span></div><div class="card-bd" id="c-tv-canc"><div class="spin"></div></div></div>
+    </div>
+  </section>
+
+  <!-- 4 ESTOQUE -->
+  <section class="seg" id="s4">
+    <div class="seg-hd"><span class="n">4</span><h2>Estoque do CD</h2><small id="s4-sub">estoque da loja 10 a custo · Tabela Retirada · giro pelos pedidos faturados · lotes do coletor</small><a class="lk" href="/lotes-cd.html">Lotes e Validades →</a></div>
+    <div class="row c7" id="est-kpis"></div>
+    <div class="row c2" style="margin-top:12px">
+      <div class="card"><div class="card-hd"><h3>Tabela de preços sem estoque</h3><small>item ativo na Tabela Retirada e zerado no CD · quem mais vendeu nos últimos 30 dias primeiro</small><span class="k" id="k-est-rup"></span></div><div class="card-bd" id="c-est-rup"><div class="spin"></div></div></div>
+      <div class="card"><div class="card-hd"><h3>Cobertura baixa</h3><small>estoque dura menos de 10 dias no ritmo dos últimos 30</small><span class="k" id="k-est-cob"></span></div><div class="card-bd" id="c-est-cob"><div class="spin"></div></div></div>
+    </div>
+    <div class="row c2" style="margin-top:12px">
+      <div class="card"><div class="card-hd"><h3>Parados</h3><small>com estoque e sem pedido há 60 dias ou mais · maior valor primeiro</small><span class="k" id="k-est-par"></span></div><div class="card-bd" id="c-est-par"><div class="spin"></div></div></div>
+      <div class="card"><div class="card-hd"><h3>Lotes vencendo</h3><small>validade lida no coletor · só itens ainda com estoque · até 90 dias</small><span class="k" id="k-est-venc"></span></div><div class="card-bd" id="c-est-venc"><div class="spin"></div></div></div>
+    </div>
+    <div class="row c2" style="margin-top:12px">
+      <div class="card"><div class="card-hd"><h3>Por grupo</h3><small>estoque a custo e a preço de tabela</small></div><div class="card-bd" id="c-est-grp"><div class="spin"></div></div></div>
+      <div class="card"><div class="card-hd"><h3>Mais vendidos · 30 dias</h3><small>com estoque hoje · cobertura no ritmo atual</small></div><div class="card-bd" id="c-est-top"><div class="spin"></div></div></div>
+    </div>
+  </section>
+
+  <!-- 5 EXPEDIÇÃO -->
+  <section class="seg" id="s5">
+    <div class="seg-hd"><span class="n">5</span><h2>Expedição</h2><small id="s5-sub">painel do CD (mesma fonte da TV) · pedido entra pra separação e sai liberado pro carregamento</small><a class="lk" href="/painel-cd.html">Painel TV →</a></div>
+    <div class="row c6" id="exp-kpis"></div>
+    <div class="card" style="margin-top:12px"><div class="card-hd"><h3>Painel de expedição · agora</h3><small id="exp-kan-sub">pendente fica visível até ser liberado (até 7 dias) · liberado só de hoje</small></div><div id="c-exp-kan"><div class="spin"></div></div></div>
+    <div class="row c2" style="margin-top:12px">
+      <div class="card"><div class="card-hd"><h3>Movimento por hora · hoje</h3><small>amarelo = entrou pra separação · azul = liberado</small></div><div class="card-bd" id="c-exp-hora"><div class="spin"></div></div></div>
+      <div class="card"><div class="card-hd"><h3>Liberados por dia · últimos 30 dias</h3><small id="exp-dia-sub"></small></div><div class="card-bd" id="c-exp-dia"><div class="spin"></div></div></div>
+    </div>
+    <div class="row c2" style="margin-top:12px">
+      <div class="card"><div class="card-hd"><h3>Pendentes de dias anteriores</h3><small>entraram antes de hoje e ainda não foram liberados</small><span class="k" id="k-exp-pend"></span></div><div class="card-bd" id="c-exp-pend"><div class="spin"></div></div></div>
+      <div class="card"><div class="card-hd"><h3>Recebimento no CD · conferência de entrada</h3><small>notas de fornecedor em conferência (painel de entradas)</small></div><div id="c-exp-conf"><div class="spin"></div></div></div>
+    </div>
+  </section>
+
+  <!-- 6 FINANCEIRO -->
+  <section class="seg" id="s6">
+    <div class="seg-hd"><span class="n">6</span><h2>Financeiro</h2><small id="s6-sub">boletos emitidos pela distribuidora · em aberto = ainda sem retorno de liquidação no ERP · só leitura</small><a class="lk" href="/conciliador-cd.html">Conciliador CD →</a></div>
+    <div class="row c5" id="fin-kpis"></div>
+    <div class="row c3" style="margin-top:12px">
+      <div class="card"><div class="card-hd"><h3>Vencidos</h3><small>por idade · clique pra ver os boletos</small><span class="k" id="k-fin-venc"></span></div><div class="card-bd tall" id="c-fin-venc"><div class="spin"></div></div></div>
+      <div class="card"><div class="card-hd"><h3>Esta semana</h3><small id="fin-sem-sub">por dia de vencimento</small></div><div class="card-bd tall" id="c-fin-sem"><div class="spin"></div></div></div>
+      <div class="card"><div class="card-hd"><h3>Próximas semanas</h3><small>da próxima semana em diante · por semana de vencimento</small></div><div class="card-bd tall" id="c-fin-prox"><div class="spin"></div></div></div>
+    </div>
+    <div class="row c2" style="margin-top:12px">
+      <div class="card"><div class="card-hd"><h3>Maiores devedores</h3><small>boletos vencidos em aberto por cliente · clique pra ver os boletos</small><span class="k" id="k-fin-dev"></span></div><div class="card-bd tall" id="c-fin-dev"><div class="spin"></div></div></div>
+      <div class="card"><div class="card-hd"><h3>O que o CD paga</h3><small id="fin-pag-sub">contas a pagar da Filial 10 · pelo dia em que paga · clique pra ver os títulos</small></div><div class="card-bd tall" id="c-fin-pag"><div class="spin"></div></div></div>
+    </div>
+  </section>
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+const MESES = ['', 'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+const MES3 = ['', 'jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+const DS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+let D = {}, SEG = null, DEMO = /[?&]demo=1/.test(location.search);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const NB = String.fromCharCode(160);
+const money = v => 'R$' + NB + (+v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const moneyK = v => { const a = Math.abs(+v || 0), s = v < 0 ? '−' : ''; return (a >= 1e6 ? s + 'R$' + NB + (a / 1e6).toLocaleString('pt-BR', { maximumFractionDigits: 2 }) + NB + 'mi' : a >= 1e3 ? s + 'R$' + NB + (a / 1e3).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + NB + 'mil' : s + money(a)); };
+const pct = (v, d = 1) => v == null ? '—' : (+v).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d }) + '%';
+const sgn = v => v == null ? '—' : (v > 0 ? '+' : '') + pct(v);
+const n0 = v => (+v || 0).toLocaleString('pt-BR');
+const nf = v => (+v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+const df = v => v ? String(v).slice(0, 10).split('-').reverse().slice(0, 2).join('/') : '';
+const dfa = v => v ? String(v).slice(0, 10).split('-').reverse().join('/') : '';
+const dow = d => DS[new Date(String(d).slice(0, 10) + 'T12:00:00').getDay()];
+const cls = v => v == null ? '' : v > 0 ? 'up' : v < 0 ? 'dn' : '';
+const hm = h => String(h || '').slice(0, 5);
+const plural = (n, s, p) => n0(n) + ' ' + (n === 1 ? s : (p || s + 's'));
+function toast(t) { const e = document.getElementById('toast'); e.textContent = t; e.classList.add('on'); clearTimeout(toast._t); toast._t = setTimeout(() => e.classList.remove('on'), 2600); }
+const el = id => document.getElementById(id);
+const k = (id, n, ok) => { const e = el(id); if (!e) return; e.textContent = n; e.className = 'k' + (ok === true ? ' ok' : ok === 'nt' ? ' nt' : ''); };
+const badge = (id, n) => { const e = el(id); if (!e) return; e.textContent = n || ''; e.className = n ? '' : 'ok'; if (!n) e.textContent = '✓'; };
+const empty = t => '<div class="empty">' + t + '</div>';
+const tile = (t, v, s, cl) => '<div class="lj' + (cl ? ' ' + cl : '') + '"><div class="nm">' + t + '</div><div class="v">' + v + '</div><div class="r"><span>' + (s || '') + '</span></div></div>';
+const bar = (v, max, cl) => '<span class="bar' + (cl ? ' ' + cl : '') + '" style="width:' + Math.round((v || 0) / (max || 1) * 70) + 'px"></span>';
+const antTxt = (v, a, fmt) => a ? '<span class="ant">ant ' + fmt(a) + ' · <b class="' + cls(v - a) + '">' + sgn((v / a - 1) * 100) + '</b></span>' : '';
+const mg = v => v == null ? '<span class="mut">—</span>' : '<b class="' + (v < 0 ? 'dn' : v < 8 ? 'wn' : '') + '">' + pct(v) + '</b>';
+const nfLink = (nn, chave) => chave ? '<a class="nf" href="/api/dashboard-distribuidora/nfe/' + encodeURIComponent(chave) + '/danfe" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Abre o PDF da NF-e ' + esc(nn) + '">' + esc(nn) + '</a>' : esc(nn);
+const CORES = ['#F5B800', '#D99F00', '#B98600', '#F7CB4D', '#E0B23A', '#A67A00', '#8C6600', '#5C4600'];
+
+/* ── capa + carregamento por bloco (mesmo desenho do Dashboard Loja) ── */
+const SEG_KEY = { s1: 'faturamento', s2: 'clientes', s3: 'televendas', s4: 'estoque', s5: 'expedicao', s6: 'financeiro' };
+const RENDER = { faturamento: renderFat, clientes: renderCli, televendas: renderTv, estoque: renderEst, expedicao: renderExp, financeiro: renderFin };
+function rota() { const h = (location.hash || '').replace('#', ''); if (SEG_KEY[h]) abrirSeg(h); else irHome(); }
+async function irHome() {
+  SEG = null; document.body.classList.add('home-on'); el('home').style.display = '';
+  document.querySelectorAll('.seg').forEach(s => s.classList.remove('on'));
+  document.querySelector('.ds-h1').textContent = 'Início';
+  const d = new Date(); el('home-date').innerHTML = d.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }) + '<br><span id="home-fresh">…</span>';
+  el('demo-lk').textContent = DEMO ? 'Voltar pros dados reais' : 'Ver com dados de exemplo (TESTE)';
+  try { const r = await fetch('/api/dashboard-distribuidora/resumo'); const j = await r.json();
+    Object.keys(SEG_KEY).forEach(id => { const kk = SEG_KEY[id], e = el('st-' + kk); if (e) { e.textContent = j.pronto && j.pronto[kk] ? '● pronto' : '○ calcula ao abrir'; e.className = 'st' + (j.pronto && j.pronto[kk] ? ' ok' : ''); } });
+    const at = j.atualizadoEm ? new Date(j.atualizadoEm) : null; const hf = el('home-fresh'); if (hf) hf.textContent = at ? 'dados de ' + at.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) + (j.calculando ? ' · calculando…' : '') : (j.calculando ? 'calculando em segundo plano…' : 'ainda sem cálculo');
+    el('crumb-sub').textContent = 'Dashboard Distribuidora · escolha um bloco'; el('fresh-txt').textContent = at ? 'dados de ' + at.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : 'sem cálculo';
+  } catch (e) {}
+}
+async function abrirSeg(id) {
+  SEG = id; document.body.classList.remove('home-on'); el('home').style.display = 'none';
+  document.querySelectorAll('.seg').forEach(s => s.classList.toggle('on', s.id === id));
+  document.querySelectorAll('.seg-nav a').forEach(a => a.classList.toggle('on', a.getAttribute('href') === '#' + id));
+  document.querySelector('.ds-h1').textContent = 'Distribuidora';
+  window.scrollTo(0, 0); await carregarSeg(SEG_KEY[id]);
+}
+async function carregarSeg(kk) {
+  const sec = el(SEG); if (sec) sec.classList.add('loading');
+  el('crumb-sub').textContent = 'carregando ' + kk + '…';
+  try {
+    const r = await fetch('/api/dashboard-distribuidora/seg/' + kk + (DEMO ? '?demo=1' : '')); const j = await r.json(); if (j.error) throw new Error(j.error);
+    D = Object.assign(D, j); render(kk);
+  } catch (e) { el('crumb-sub').textContent = 'erro: ' + e.message; }
+  finally { if (sec) sec.classList.remove('loading'); }
+}
+async function carregar() { if (SEG) await carregarSeg(SEG_KEY[SEG]); else irHome(); }
+async function atualizar() { if (DEMO) { toast('Dados de exemplo: nada a recalcular'); return; } await fetch('/api/dashboard-distribuidora/atualizar', { method: 'POST' }); toast('Recalculando os 6 blocos em segundo plano… cerca de 1 minuto'); setTimeout(carregar, 20000); }
+function demoToggle(ev) { ev.preventDefault(); location.href = location.pathname + (DEMO ? '' : '?demo=1') + '#s1'; }
+window.addEventListener('hashchange', rota);
+function render(kk) {
+  const at = D.atualizadoEm ? new Date(D.atualizadoEm) : null;
+  el('fresh-txt').textContent = at ? 'atualizado ' + at.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : 'calculando…';
+  el('db-fresh').className = 'db-fresh' + (at && Date.now() - at.getTime() > 20 * 60000 ? ' old' : '');
+  const h = new Date(); el('crumb-sub').innerHTML = MESES[h.getMonth() + 1] + ' de ' + h.getFullYear() + ' · dia ' + h.getDate() + ' · CD · CAHU Distribuidora' + (D.demo || DEMO ? ' <span class="demo-tag">DADOS DE EXEMPLO · TESTE</span>' : '');
+  try { RENDER[kk](); } catch (e) { console.warn('[dist]', kk, e); el('crumb-sub').textContent = 'erro ao desenhar ' + kk + ': ' + e.message; }
+}
+
+/* ── 1 FATURAMENTO ── */
+function renderFat() {
+  const f = D.faturamento; if (!f) { el('fat-hero').innerHTML = empty('Faturamento não calculado'); return; }
+  const M = f.mesAtual, A = f.mesAnterior.mesmoPeriodo, AC = f.mesAnterior.completo, H = f.hoje, SA = H.semAnt;
+  const hj = String(f.dia).padStart(2, '0') + '/' + String(f.mes).padStart(2, '0');
+  el('s1-sub').textContent = 'NF-e de venda autorizadas · hoje ' + hj + ' × ' + dow(SA.data) + ' ' + df(SA.data) + ' (semana passada' + (H.corte ? ', até ' + H.corte + ' pela hora do pedido' : '') + ') · mês 01 a ' + hj + ' × 01 a ' + df(f.mesAnt.ate) + ' · margem s/ venda pelo custo dos itens da nota · ticket = valor médio por nota';
+  const kpi = (l, v, s) => '<div><span class="l">' + l + '</span>' + v + (s ? '<small>' + s + '</small>' : '') + '</div>';
+  const vsA = (v, a, fmt) => a ? 'mês ant ' + fmt(a) + ' · <b class="' + cls(v - a) + '">' + sgn((v / a - 1) * 100) + '</b>' : 'sem base no mês anterior';
+  const pp = (v, a) => '<span class="' + (v != null && a != null ? (v >= a ? 'up' : 'dn') : '') + '">' + pct(v) + '</span>';
+  const vs = f.vendedores, tot = M.v;
+  el('fat-hero').innerHTML = '<div class="lj rede hero band"><div class="hb-main"><div class="nm"><span>CAHU DISTRIBUIDORA · NF-e</span></div><div class="v">' + moneyK(M.v) + '<small>mês até hoje</small></div>'
+    + '<div class="var">' + moneyK(A.v) + '<span>mês anterior, mesmo período</span> <span class="' + cls(f.var) + '" style="margin-left:2px">' + sgn(f.var) + '</span><br><span>projeção no ritmo atual</span> ' + moneyK(M.projecao) + ' <span>· mês anterior fechou em</span> ' + moneyK(AC.v) + '</div></div>'
+    + '<div class="hero-g">'
+    + kpi('venda hoje', moneyK(H.v), SA.v ? dow(SA.data) + ' passada' + (H.corte ? ' até ' + H.corte : '') + ' ' + moneyK(SA.v) + ' · <b class="' + cls(H.var) + '">' + sgn(H.var) + '</b>' : (H.ontem && H.ontem.v ? 'ontem ' + moneyK(H.ontem.v) : ''))
+    + kpi('margem · mês', pp(M.margem, A.margem), A.margem != null ? 'mês ant ' + pct(A.margem) : '')
+    + kpi('markup · mês', pp(M.markup, A.markup), A.markup != null ? 'mês ant ' + pct(A.markup) : '')
+    + kpi('ticket por nota', money(M.ticket), vsA(M.ticket, A.ticket, money))
+    + kpi('notas no mês', n0(M.n), vsA(M.n, A.n, n0) + (M.canceladas.n ? ' · <b class="wn">' + M.canceladas.n + ' canceladas</b>' : ''))
+    + '</div><div class="hero-sh"><div class="t">participação por vendedor · mês</div><div class="hb-bar">' + vs.map((v, i) => '<b style="width:' + (tot ? (v.mes.v / tot * 100).toFixed(2) : 0) + '%;background:' + CORES[i % CORES.length] + '" title="' + esc(v.nome) + ' · ' + pct(v.pct) + '"></b>').join('') + '</div>'
+    + '<div class="hb-leg">' + vs.slice(0, 8).map((v, i) => '<span><i style="background:' + CORES[i % CORES.length] + '"></i>' + esc(v.nome.split(' ')[0]) + '<b>' + pct(v.pct) + '</b></span>').join('') + '</div></div></div>';
+  // por vendedor: hoje × semana passada não existe por vendedor; hoje | mês (notas · venda · margem · ticket · clientes) | mês anterior mesmo período
+  const linha = (v, t) => '<tr' + (t ? ' class="tot"' : '') + '><td class="p">' + esc(v.nome) + '</td>'
+    + '<td class="r sep dia">' + n0(v.hoje.n) + '</td><td class="r dia"><b>' + money(v.hoje.v) + '</b></td>'
+    + '<td class="r sep">' + n0(v.mes.n) + '</td><td class="r"><b>' + money(v.mes.v) + '</b>' + (t ? '' : '<span class="ant">' + pct(v.pct) + ' do total</span>') + '</td><td class="r">' + mg(v.mes.margem) + '</td><td class="r">' + money(v.mes.ticket) + '</td><td class="r">' + n0(v.mes.clientes) + '</td>'
+    + '<td class="r sep">' + (v.mesAnt.v ? money(v.mesAnt.v) + '<span class="ant">' + n0(v.mesAnt.n) + ' notas · <b class="' + cls(v.var) + '">' + sgn(v.var) + '</b></span>' : '<span class="mut">—</span>') + '</td></tr>';
+  el('c-fat-vend').innerHTML = vs.length ? '<table class="m"><thead><tr><th rowspan="2">Vendedor</th><th class="grp dia" colspan="2">Hoje · ' + hj + '</th><th class="grp" colspan="5">Mês · 01 a ' + hj + '</th><th class="grp" rowspan="2">Mês anterior<br>01 a ' + df(f.mesAnt.ate) + '</th></tr>'
+    + '<tr><th class="r sep dia">Notas</th><th class="r dia">Venda</th><th class="r sep">Notas</th><th class="r">Venda</th><th class="r">Margem</th><th class="r">Ticket</th><th class="r">Clientes</th></tr></thead><tbody>' + vs.map(v => linha(v)).join('')
+    + linha({ nome: 'Total', hoje: H, mes: M, mesAnt: A, var: f.var, pct: 100 }, true) + '</tbody></table>' : empty('Nenhuma nota no mês.');
+  const maxM = Math.max(...f.meses.map(m => m.v), 1);
+  el('c-fat-meses').innerHTML = f.meses.length ? '<table class="m"><thead><tr><th>Mês</th><th class="r">Notas</th><th class="r">Venda</th><th></th></tr></thead><tbody>' + f.meses.slice().reverse().map((m, i) => '<tr' + (i === 0 ? ' class="hl"' : '') + '><td>' + MES3[+m.m.slice(5, 7)] + '/' + m.m.slice(2, 4) + (i === 0 ? ' <span class="mut">até hoje</span>' : '') + '</td><td class="r">' + n0(m.n) + '</td><td class="r"><b>' + money(m.v) + '</b></td><td>' + bar(m.v, maxM) + '</td></tr>').join('') + '</tbody></table>' : empty('sem histórico');
+  el('c-fat-formas').innerHTML = f.formas.length ? '<table class="m"><thead><tr><th>Forma</th><th class="r">Notas</th><th class="r">Valor</th><th class="r">%</th></tr></thead><tbody>' + f.formas.map(x => '<tr><td>' + esc(x.nome) + '</td><td class="r">' + n0(x.n) + '</td><td class="r"><b>' + money(x.v) + '</b></td><td class="r">' + pct(x.pct) + '</td></tr>').join('') + '</tbody></table>' : empty('sem notas no mês');
+  const NH = f.notasHoje; k('k-fat-hoje', NH.length ? plural(NH.length, 'nota') + ' · ' + money(H.v) : 'nenhuma nota hoje', 'nt');
+  el('c-fat-hoje').innerHTML = NH.length ? '<table class="m"><thead><tr><th>Hora</th><th>Nota</th><th>Cliente</th><th>Vendedor</th><th>Forma</th><th class="r">Valor</th><th class="r">Custo</th><th class="r">Margem</th></tr></thead><tbody>'
+    + NH.map(n => '<tr class="cp" data-cli="' + n.cli + '" onclick="cliDetalhe(this)" title="clique pra ver as compras deste cliente"><td>' + hm(n.hora) + '</td><td>' + nfLink(n.nn, n.chave) + '</td><td class="p"><span class="car">▸</span>' + esc(n.cliente) + '</td><td>' + esc(n.vend) + '</td><td>' + esc(n.forma) + '</td><td class="r"><b>' + money(n.v) + '</b></td><td class="r">' + (n.custo != null ? money(n.custo) : '—') + '</td><td class="r">' + mg(n.margem) + '</td></tr>').join('')
+    + '<tr class="tot"><td colspan="5">Total de hoje · ' + plural(NH.length, 'nota') + '</td><td class="r">' + money(H.v) + '</td><td class="r">' + money(H.custo) + '</td><td class="r">' + mg(H.margem) + '</td></tr></tbody></table>' : empty('Nenhuma NF-e de venda autorizada hoje ainda.');
+}
+
+/* ── 2 CLIENTES ── */
+function renderCli() {
+  const c = D.clientes; if (!c) { el('cli-kpis').innerHTML = empty('Clientes não calculado'); return; }
+  el('s2-sub').textContent = 'mês 01 a ' + df(c.ate) + ' · ativo = comprou (pedido faturado) no período · sumiu = comprou nos últimos 120 dias mas não nos últimos 30';
+  badge('n2', c.sumidosN);
+  el('cli-kpis').innerHTML = tile('Clientes ativos no mês', n0(c.ativosMes), 'mês anterior ' + n0(c.ativosMesAnt) + ' · <b class="' + cls(c.ativosMes - c.ativosMesAnt) + '">' + sgn(c.ativosMesAnt ? (c.ativosMes / c.ativosMesAnt - 1) * 100 : null) + '</b>')
+    + tile('Novos no mês', '<span class="up">' + n0(c.novosMes) + '</span>', 'primeira compra no mês')
+    + tile('Sumiram', '<span class="' + (c.sumidosN ? 'dn' : 'up') + '">' + n0(c.sumidosN) + '</span>', 'sem pedido há 30+ dias')
+    + tile('Ativos em 90 dias', n0(c.ativos90), (c.cadastro != null ? 'de ' + n0(c.cadastro) + ' no cadastro' : ''))
+    + tile('Por cliente · mês', money(c.ticketCliente), nf(c.pedidosPorCliente) + ' pedidos por cliente')
+    + tile('Top 10 clientes', pct(c.top10Pct), 'da venda do mês · A ' + c.classes.A + ' · B ' + c.classes.B + ' · C ' + c.classes.C);
+  k('k-cli-top', money(c.vendaMes), 'nt');
+  el('c-cli-top').innerHTML = c.top.length ? '<table class="m"><thead><tr><th>#</th><th>Cliente</th><th>Vendedor</th><th class="r">Notas</th><th class="r">Venda</th><th class="r">Margem</th><th class="r">Ticket</th><th class="r">Mês ant.</th><th>Última</th><th class="r">Acum.</th><th>ABC</th></tr></thead><tbody>'
+    + c.top.map(x => '<tr class="cp" data-cli="' + x.cli + '" onclick="cliDetalhe(this)"><td>' + x.rank + '</td><td class="p"><span class="car">▸</span>' + esc(x.nome) + (x.nova ? ' <span class="pill ok">novo</span>' : '') + '<small>' + esc([x.cidade, x.bairro].filter(Boolean).join(' · ')) + '</small></td><td>' + esc(x.vend) + '</td><td class="r">' + n0(x.n) + '</td><td class="r"><b>' + money(x.v) + '</b><span class="ant">' + pct(x.pct) + '</span></td><td class="r">' + mg(x.margem) + '</td><td class="r">' + money(x.ticket) + '</td><td class="r">' + (x.vAnt ? money(x.vAnt) + '<span class="ant"><b class="' + cls(x.v - x.vAnt) + '">' + sgn((x.v / x.vAnt - 1) * 100) + '</b></span>' : '<span class="mut">—</span>') + '</td><td>' + df(x.ult) + '</td><td class="r">' + pct(x.acum, 0) + '</td><td><span class="pill ' + (x.classe === 'A' ? 'a' : x.classe === 'B' ? 'inf' : 'nt') + '">' + x.classe + '</span></td></tr>').join('') + '</tbody></table>' : empty('Nenhum pedido faturado no mês.');
+  k('k-cli-novos', c.novos.length, true);
+  el('c-cli-novos').innerHTML = c.novos.length ? '<table class="m"><thead><tr><th>Cliente</th><th>Vendedor</th><th>1ª compra</th><th class="r">Pedidos</th><th class="r">Valor</th></tr></thead><tbody>' + c.novos.map(x => '<tr class="cp" data-cli="' + x.cli + '" onclick="cliDetalhe(this)"><td class="p"><span class="car">▸</span>' + esc(x.nome) + '<small>' + esc(x.cidade) + '</small></td><td>' + esc(x.vend) + '</td><td>' + df(x.primeira) + '</td><td class="r">' + n0(x.n) + '</td><td class="r"><b>' + money(x.v) + '</b></td></tr>').join('') + '</tbody></table>' : empty('Nenhum cliente novo no mês.');
+  k('k-cli-sumidos', c.sumidos.length ? c.sumidos.length + ' clientes' : 'nenhum', !c.sumidos.length);
+  el('c-cli-sumidos').innerHTML = c.sumidos.length ? '<table class="m"><thead><tr><th>Cliente</th><th>Vendedor</th><th>Última</th><th class="r">Dias</th><th class="r">Pedidos no ano</th><th class="r">Comprou no ano</th></tr></thead><tbody>' + c.sumidos.map(x => '<tr class="cp bad" data-cli="' + x.cli + '" onclick="cliDetalhe(this)"><td class="p"><span class="car">▸</span>' + esc(x.nome) + '<small>' + esc(x.cidade) + '</small></td><td>' + esc(x.vend) + '</td><td>' + df(x.ult) + '</td><td class="r dn">' + x.dias + '</td><td class="r">' + n0(x.nAno) + '</td><td class="r"><b>' + money(x.vAno) + '</b><span class="ant">média ' + money(x.media) + '</span></td></tr>').join('') + '</tbody></table>' : empty('Nenhum cliente sumido. ✓');
+  const maxC = Math.max(...c.porCidade.map(x => x.v), 1);
+  el('c-cli-cidade').innerHTML = c.porCidade.length ? '<table class="m"><thead><tr><th>Cidade</th><th class="r">Clientes</th><th class="r">Pedidos</th><th class="r">Venda</th><th class="r">%</th><th></th></tr></thead><tbody>' + c.porCidade.map(x => '<tr><td class="p">' + esc(x.cidade) + '</td><td class="r">' + n0(x.clientes) + '</td><td class="r">' + n0(x.n) + '</td><td class="r"><b>' + money(x.v) + '</b></td><td class="r">' + pct(x.pct) + '</td><td>' + bar(x.v, maxC) + '</td></tr>').join('') + '</tbody></table>' : empty('sem dados');
+  el('c-cli-vend').innerHTML = c.porVendedor.length ? '<table class="m"><thead><tr><th>Vendedor</th><th class="r">Ativos no mês</th><th class="r">Ativos 90 d</th><th class="r">Novos</th><th class="r">Sumiram</th><th class="r">Venda no mês</th></tr></thead><tbody>' + c.porVendedor.map(x => '<tr><td class="p">' + esc(x.nome) + '</td><td class="r"><b>' + n0(x.ativosMes) + '</b></td><td class="r">' + n0(x.ativos90) + '</td><td class="r up">' + (x.novos || '') + '</td><td class="r dn">' + (x.sumidos || '') + '</td><td class="r"><b>' + money(x.v) + '</b></td></tr>').join('') + '</tbody></table>' : empty('sem dados');
+}
+async function cliDetalhe(tr) {
+  const nx = tr.nextElementSibling;
+  if (nx && nx.classList.contains('det')) { nx.remove(); tr.classList.remove('open'); return; }
+  const det = document.createElement('tr'); det.className = 'det'; det.innerHTML = '<td colspan="' + tr.children.length + '"><div class="spin"></div></td>';
+  tr.after(det); tr.classList.add('open');
+  try {
+    const r = await fetch('/api/dashboard-distribuidora/cliente/' + tr.dataset.cli + (DEMO ? '?demo=1' : '')); const j = await r.json(); if (j.error) throw new Error(j.error);
+    if (!det.isConnected) return;
+    const ns = j.notas || [], ab = j.abertos || [];
+    det.firstChild.innerHTML = '<div class="det-h"><b>' + plural(ns.length, 'nota') + '</b> de ' + df(j.de) + ' a ' + df(j.ate) + ' · total ' + money(j.total) + ' · mais recente primeiro' + (ab.length ? ' · <b class="wn">' + plural(ab.length, 'pedido aberto', 'pedidos abertos') + ' sem NF-e</b>' : '') + '</div>'
+      + (ns.length ? '<table class="m"><thead><tr><th>Data</th><th>Nota</th><th>Vendedor</th><th>Forma</th><th class="r">Valor</th><th class="r">Margem</th><th>Situação</th></tr></thead><tbody>' + ns.map(n => '<tr' + (n.st === 'C' ? ' class="bad"' : '') + '><td>' + dow(n.d) + ' ' + df(n.d) + (n.hora ? ' ' + hm(n.hora) : '') + '</td><td>' + nfLink(n.nn, n.chave) + '</td><td>' + esc(n.vend) + '</td><td>' + esc(n.forma) + '</td><td class="r"><b>' + money(n.v) + '</b></td><td class="r">' + mg(n.margem) + '</td><td>' + (n.st === 'C' ? '<span class="pill bad">cancelada</span>' : '<span class="pill ok">autorizada</span>') + '</td></tr>').join('') + '</tbody></table>' : '<div class="empty">Sem nota no período.</div>')
+      + (ab.length ? '<div class="det-h">Pedidos abertos</div><table class="m"><thead><tr><th>Pedido</th><th>Quando</th><th>Vendedor</th><th>Forma</th><th class="r">Valor</th></tr></thead><tbody>' + ab.map(p => '<tr><td>#' + p.ped + '</td><td>' + df(p.d) + ' ' + hm(p.hora) + '</td><td>' + esc(p.vend) + '</td><td>' + esc(p.forma) + '</td><td class="r"><b>' + money(p.v) + '</b></td></tr>').join('') + '</tbody></table>' : '');
+  } catch (e) { if (det.isConnected) det.firstChild.innerHTML = '<div class="empty">erro: ' + esc(e.message) + '</div>'; }
+}
+
+/* ── 3 TELEVENDAS ── */
+function renderTv() {
+  const t = D.televendas; if (!t) { el('tv-kpis').innerHTML = empty('Televendas não calculado'); return; }
+  el('s3-sub').textContent = 'pedidos do televendas · mês 01 a ' + df(t.ate) + ' · às ' + t.hora + ' · aberto = ainda sem NF-e · faturado no mesmo dia = NF-e emitida no dia do pedido';
+  badge('n3', t.parados);
+  el('tv-kpis').innerHTML = tile('Pedidos hoje', n0(t.hoje.n), money(t.hoje.v) + ' · ' + n0(t.hoje.clientes) + ' clientes')
+    + tile('Abertos sem NF-e', '<span class="' + (t.parados ? 'dn' : '') + '">' + n0(t.abertos.length) + '</span>', money(t.abertos.reduce((s, p) => s + p.v, 0)) + (t.parados ? ' · <b class="dn">' + t.parados + ' há mais de 24 h</b> (' + money(t.paradosV) + ')' : ' · nenhum parado'))
+    + tile('Faturados no mês', n0(t.mes.faturados.n), money(t.mes.faturados.v) + ' · ' + pct(t.mes.mesmoDiaPct, 0) + ' no mesmo dia')
+    + tile('Cancelados no mês', '<span class="' + (t.mes.taxaCancel > 5 ? 'wn' : '') + '">' + n0(t.mes.cancelados.n) + '</span>', money(t.mes.cancelados.v) + ' · ' + pct(t.mes.taxaCancel) + ' dos pedidos')
+    + tile('Ticket por pedido', money(t.mes.ticket), n0(t.mes.n) + ' pedidos · ' + n0(t.mes.clientes) + ' clientes')
+    + tile('Pedidos por dia', nf(t.mes.diasComPedido ? t.mes.n / t.mes.diasComPedido : 0), 'em ' + t.mes.diasComPedido + ' dias com pedido');
+  k('k-tv-abertos', t.abertos.length ? plural(t.abertos.length, 'pedido') + ' · ' + money(t.abertos.reduce((s, p) => s + p.v, 0)) : 'nenhum', !t.abertos.length);
+  const stP = p => p.st === 0 ? '<span class="pill nt">novo</span>' : '<span class="pill inf">em andamento</span>';
+  el('c-tv-abertos').innerHTML = t.abertos.length ? '<table class="m"><thead><tr><th>Pedido</th><th>Quando</th><th class="r">Há</th><th>Cliente</th><th>Vendedor</th><th>Forma</th><th class="r">Valor</th><th>Situação</th></tr></thead><tbody>'
+    + t.abertos.map(p => '<tr class="cp' + (p.idade > 24 ? ' bad' : '') + '" data-cli="' + p.cli + '" onclick="cliDetalhe(this)"><td>#' + p.ped + '</td><td>' + dow(p.d) + ' ' + df(p.d) + ' ' + hm(p.hora) + '</td><td class="r"><b class="' + (p.idade > 24 ? 'dn' : '') + '">' + (p.idade == null ? '—' : p.idade >= 48 ? Math.round(p.idade / 24) + ' d' : nf(p.idade) + ' h') + '</b></td><td class="p"><span class="car">▸</span>' + esc(p.cliente) + '</td><td>' + esc(p.vend) + '</td><td>' + esc(p.forma) + '</td><td class="r"><b>' + money(p.v) + '</b></td><td>' + stP(p) + '</td></tr>').join('') + '</tbody></table>' : empty('Nenhum pedido aberto: tudo faturado. ✓');
+  const AN = t.antigos || { n: 0, itens: [] };
+  if (AN.n) el('c-tv-abertos').insertAdjacentHTML('beforeend', '<div class="fin-note"><a href="#" onclick="var d=document.getElementById(\'tv-antigos\');d.style.display=d.style.display===\'none\'?\'\':\'none\';return false"><b>' + plural(AN.n, 'pedido antigo', 'pedidos antigos') + '</b> (' + money(AN.v) + ')</a> com mais de 7 dias sem NF-e ficaram fora da lista: provavelmente abandonados sem cancelar no ERP. Clique pra ver.</div>'
+    + '<div id="tv-antigos" style="display:none"><table class="m"><thead><tr><th>Pedido</th><th>Quando</th><th class="r">Há</th><th>Cliente</th><th>Vendedor</th><th class="r">Valor</th></tr></thead><tbody>' + AN.itens.map(p => '<tr class="cp" data-cli="' + p.cli + '" onclick="cliDetalhe(this)"><td>#' + p.ped + '</td><td>' + df(p.d) + ' ' + hm(p.hora) + '</td><td class="r">' + Math.round((p.idade || 0) / 24) + ' d</td><td class="p"><span class="car">▸</span>' + esc(p.cliente) + '</td><td>' + esc(p.vend) + '</td><td class="r"><b>' + money(p.v) + '</b></td></tr>').join('') + '</tbody></table></div>');
+  el('c-tv-formas').innerHTML = t.formas.length ? '<table class="m"><thead><tr><th>Forma</th><th class="r">Pedidos</th><th class="r">Valor</th><th class="r">%</th></tr></thead><tbody>' + t.formas.map(x => '<tr><td>' + esc(x.nome) + '</td><td class="r">' + n0(x.n) + '</td><td class="r"><b>' + money(x.v) + '</b></td><td class="r">' + pct(x.pct) + '</td></tr>').join('') + '</tbody></table>' : empty('sem pedidos faturados no mês');
+  const hs = t.horas.filter(h => h.h >= 6 && h.h <= 20), maxH = Math.max(...hs.map(h => h.n), 1);
+  el('c-tv-horas').innerHTML = '<div class="hbar">' + hs.map(h => '<div style="height:' + Math.max(2, Math.round(h.n / maxH * 60)) + 'px" title="' + h.h + 'h · ' + n0(h.n) + ' pedidos"></div>').join('') + '</div><div class="hbar-l">' + hs.map(h => '<span>' + h.h + '</span>').join('') + '</div>';
+  el('c-tv-vend').innerHTML = t.vendedores.length ? '<table class="m"><thead><tr><th rowspan="2">Vendedor</th><th class="grp dia" colspan="2">Hoje</th><th class="grp" colspan="7">Mês · 01 a ' + df(t.ate) + '</th></tr><tr><th class="r sep dia">Pedidos</th><th class="r dia">Valor</th><th class="r sep">Pedidos</th><th class="r">Valor</th><th class="r">Faturado</th><th class="r">Abertos</th><th class="r">Cancelados</th><th class="r">Ticket</th><th class="r">Clientes</th></tr></thead><tbody>'
+    + t.vendedores.map(v => '<tr><td class="p">' + esc(v.nome) + '</td><td class="r sep dia">' + n0(v.hoje.n) + '</td><td class="r dia"><b>' + money(v.hoje.v) + '</b></td><td class="r sep">' + n0(v.mes.n) + '</td><td class="r"><b>' + money(v.mes.v) + '</b></td><td class="r">' + money(v.faturado.v) + '<span class="ant">' + n0(v.faturado.n) + ' pedidos</span></td><td class="r ' + (v.abertos.n ? 'wn' : '') + '">' + (v.abertos.n ? n0(v.abertos.n) + '<span class="ant">' + money(v.abertos.v) + '</span>' : '—') + '</td><td class="r ' + (v.cancelados.n ? 'dn' : '') + '">' + (v.cancelados.n ? n0(v.cancelados.n) + '<span class="ant">' + money(v.cancelados.v) + '</span>' : '—') + '</td><td class="r">' + money(v.ticket) + '</td><td class="r">' + n0(v.clientes) + '</td></tr>').join('')
+    + '<tr class="tot"><td>Total</td><td class="r sep dia">' + n0(t.hoje.n) + '</td><td class="r dia">' + money(t.hoje.v) + '</td><td class="r sep">' + n0(t.mes.n) + '</td><td class="r">' + money(t.mes.v) + '</td><td class="r">' + money(t.mes.faturados.v) + '</td><td class="r">' + n0(t.mes.abertos.n) + '</td><td class="r">' + n0(t.mes.cancelados.n) + '</td><td class="r">' + money(t.mes.ticket) + '</td><td class="r">' + n0(t.mes.clientes) + '</td></tr></tbody></table>' : empty('Sem pedidos no mês.');
+  el('c-tv-prod').innerHTML = t.produtos.length ? '<table class="m"><thead><tr><th>#</th><th>Produto</th><th class="r">Qtd</th><th class="r">Pedidos</th><th class="r">Valor</th><th class="r">%</th><th class="r">Margem</th></tr></thead><tbody>' + t.produtos.map((p, i) => '<tr><td>' + (i + 1) + '</td><td class="p">' + esc(p.descricao) + '<small>' + esc(p.cod) + '</small></td><td class="r">' + nf(p.q) + ' ' + esc(p.und) + '</td><td class="r">' + n0(p.ped) + '</td><td class="r"><b>' + money(p.v) + '</b></td><td class="r">' + pct(p.pct) + '</td><td class="r">' + mg(p.margem) + '</td></tr>').join('') + '</tbody></table>' : empty('sem pedidos faturados no mês');
+  k('k-tv-canc', t.mes.cancelados.n ? n0(t.mes.cancelados.n) + ' · ' + money(t.mes.cancelados.v) : 'nenhum', !t.mes.cancelados.n);
+  el('c-tv-canc').innerHTML = t.cancelados.length ? '<table class="m"><thead><tr><th>Pedido</th><th>Data</th><th>Cliente</th><th class="r">Valor</th></tr></thead><tbody>' + t.cancelados.map(p => '<tr><td>#' + p.ped + '</td><td>' + df(p.d) + '<span class="ant">' + hm(p.hora) + '</span></td><td class="p">' + esc(p.cliente) + '<small>' + esc(p.vend) + ' · ' + esc(p.forma) + '</small></td><td class="r"><b>' + money(p.v) + '</b></td></tr>').join('') + '</tbody></table>' : empty('Nenhum pedido cancelado no mês. ✓');
+}
+
+/* ── 4 ESTOQUE ── */
+function renderEst() {
+  const e = D.estoque; if (!e) { el('est-kpis').innerHTML = empty('Estoque não calculado'); return; }
+  el('s4-sub').textContent = 'estoque da loja 10 (CD) a custo · Tabela Retirada = tabela de preços da distribuidora · giro pelos pedidos faturados · calculado ' + (D.atualizadoEm ? new Date(D.atualizadoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '');
+  badge('n4', e.rupturas.comVenda30 + e.vencendo.n30);
+  const FX = { 60: '60–89 d', 90: '90–119 d', 120: '120+ d' };
+  el('est-kpis').innerHTML = tile('Itens com estoque', n0(e.itens), 'no CD hoje')
+    + tile('Estoque a custo', moneyK(e.valor), 'valor total · ' + money(e.valor))
+    + tile('A preço de tabela', moneyK(e.valorTabela), 'itens da tabela · margem potencial ' + pct(e.margemTabela))
+    + tile('Tabela Retirada', n0(e.tabelaItens) + '<small>itens</small>', n0(e.tabelaComEstoque) + ' com estoque · ' + n0(e.tabelaItens - e.tabelaComEstoque) + ' zerados')
+    + tile('Zerados com venda', '<span class="' + (e.rupturas.comVenda30 ? 'dn' : 'up') + '">' + n0(e.rupturas.comVenda30) + '</span>', 'itens da tabela sem estoque que venderam nos últimos 30 d')
+    + tile('Parados 60+ dias', '<span class="' + (e.parados.n ? 'wn' : 'up') + '">' + n0(e.parados.n) + '</span>', money(e.parados.v) + ' · ' + pct(e.valor ? e.parados.v / e.valor * 100 : 0) + ' do estoque')
+    + tile('Vencendo em 30 dias', '<span class="' + (e.vencendo.n30 ? 'dn' : 'up') + '">' + n0(e.vencendo.n30) + '<small>lotes</small></span>', n0(e.vencendo.n60) + ' em 31–60 d' + (e.vencendo.vencidos ? ' · <b class="dn">' + e.vencendo.vencidos + ' vencidos</b>' : ''));
+  const R = e.rupturas; k('k-est-rup', R.n ? n0(R.n) + ' itens' : 'ok', !R.n);
+  el('c-est-rup').innerHTML = R.itens.length ? '<table class="m"><thead><tr><th>Produto</th><th>Grupo</th><th class="r">Preço tabela</th><th>Último pedido</th><th class="r">Vendido 30 d</th><th class="r">Pedidos 30 d</th></tr></thead><tbody>' + R.itens.map(i => '<tr' + (i.q30 > 0 ? ' class="bad"' : '') + '><td class="p">' + esc(i.descricao) + '<small>' + esc(i.cod) + '</small></td><td>' + esc(i.grupo) + '</td><td class="r">' + money(i.preco) + '</td><td>' + (i.ult ? df(i.ult) : '<span class="mut">sem pedido em 120 d</span>') + '</td><td class="r">' + (i.q30 ? '<b>' + nf(i.q30) + '</b><span class="ant">' + money(i.v30) + '</span>' : '<span class="mut">—</span>') + '</td><td class="r">' + (i.ped30 || '') + '</td></tr>').join('') + '</tbody></table>' + (R.n > R.itens.length ? '<div class="fin-note">mostrando ' + R.itens.length + ' de ' + R.n + ' · os sem venda nos últimos 120 dias ficam no fim</div>' : '') : empty('Todo item da tabela tem estoque. ✓');
+  const CB = e.cobBaixa; k('k-est-cob', CB.n ? n0(CB.n) + ' itens' : 'ok', !CB.n);
+  el('c-est-cob').innerHTML = CB.itens.length ? '<table class="m"><thead><tr><th>Produto</th><th class="r">Estoque</th><th class="r">Vendido 30 d</th><th class="r">Cobertura</th><th class="r">Custo</th><th class="r">Tabela</th></tr></thead><tbody>' + CB.itens.map(i => '<tr' + (i.cob < 3 ? ' class="bad"' : '') + '><td class="p">' + esc(i.descricao) + '<small>' + esc(i.grupo) + '</small></td><td class="r">' + nf(i.est) + '</td><td class="r">' + nf(i.q30) + '<span class="ant">' + n0(i.ped30) + ' pedidos</span></td><td class="r"><span class="pill ' + (i.cob < 3 ? 'bad' : 'wn') + '">' + nf(i.cob) + ' d</span></td><td class="r">' + money(i.custo) + '</td><td class="r">' + (i.preco ? money(i.preco) : '—') + '</td></tr>').join('') + '</tbody></table>' : empty('Nenhum item com cobertura abaixo de 10 dias. ✓');
+  const P = e.parados; k('k-est-par', P.n ? n0(P.n) + ' · ' + money(P.v) : 'ok', !P.n);
+  el('c-est-par').innerHTML = (P.n ? '<div class="nosrc">60–89 d: <b>' + n0(P.f60.n) + '</b> (' + money(P.f60.v) + ') · 90–119 d: <b>' + n0(P.f90.n) + '</b> (' + money(P.f90.v) + ') · 120+ d: <b class="dn">' + n0(P.f120.n) + '</b> (' + money(P.f120.v) + ')</div>' : '')
+    + (P.itens.length ? '<table class="m"><thead><tr><th>Produto</th><th>Grupo</th><th class="r">Estoque</th><th class="r">Custo</th><th class="r">Valor</th><th>Último pedido</th><th class="r">Sem pedido há</th></tr></thead><tbody>' + P.itens.map(i => '<tr><td class="p">' + esc(i.descricao) + '<small>' + esc(i.cod) + '</small></td><td>' + esc(i.grupo) + '</td><td class="r">' + nf(i.est) + '</td><td class="r">' + money(i.custo) + '</td><td class="r"><b>' + money(i.valor) + '</b></td><td>' + (i.ult ? df(i.ult) : '<span class="mut">nenhum em 120 d</span>') + '</td><td class="r"><span class="pill ' + (i.faixa === 120 ? 'bad' : i.faixa === 90 ? 'wn' : 'nt') + '">' + (i.dias != null ? i.dias + ' d' : '120+ d') + '</span></td></tr>').join('') + '</tbody></table>' : empty('Nenhum item parado. ✓'));
+  const V = e.vencendo; k('k-est-venc', V.n30 ? n0(V.n30) + ' em 30 d' : 'ok', !V.n30 && !V.vencidos);
+  el('c-est-venc').innerHTML = V.lotes.length ? '<table class="m"><thead><tr><th>Produto</th><th>Lote</th><th>Validade</th><th class="r">Faltam</th><th class="r">Qtd do lote</th><th class="r">Estoque hoje</th><th class="r">A custo</th></tr></thead><tbody>' + V.lotes.map(l => '<tr' + (l.dias <= 30 ? ' class="bad"' : '') + '><td class="p">' + esc(l.descricao) + '<small>' + esc(l.cod) + (l.entrada ? ' · entrou ' + df(l.entrada) : '') + '</small></td><td>' + esc(l.lote && l.lote !== '0' ? l.lote : '—') + '</td><td>' + dfa(l.validade) + '</td><td class="r"><span class="pill ' + (l.dias < 0 ? 'bad' : l.dias <= 30 ? 'bad' : l.dias <= 60 ? 'wn' : 'nt') + '">' + (l.dias < 0 ? 'venceu há ' + (-l.dias) + ' d' : l.dias + ' d') + '</span></td><td class="r">' + (l.qtd ? nf(l.qtd) + (l.caixa ? '<span class="ant">' + nf(l.caixa) + ' cx</span>' : '') : '<span class="mut" title="o coletor não gravou a quantidade deste lote">—</span>') + '</td><td class="r">' + nf(l.est) + '</td><td class="r">' + money(l.est * l.custo) + '</td></tr>').join('') + '</tbody></table>' : empty('Nenhum lote vencendo em 90 dias. ✓');
+  const maxG = Math.max(...e.grupos.map(g => g.valor), 1);
+  el('c-est-grp').innerHTML = e.grupos.length ? '<table class="m"><thead><tr><th>Grupo</th><th class="r">Itens</th><th class="r">A custo</th><th class="r">A tabela</th><th class="r">Parado</th><th class="r">%</th><th></th></tr></thead><tbody>' + e.grupos.map(g => '<tr><td class="p">' + esc(g.grupo) + '</td><td class="r">' + n0(g.itens) + '</td><td class="r"><b>' + money(g.valor) + '</b></td><td class="r">' + money(g.valorTab) + '</td><td class="r ' + (g.parado ? 'wn' : '') + '">' + (g.parado ? money(g.parado) : '—') + '</td><td class="r">' + pct(g.pct) + '</td><td>' + bar(g.valor, maxG) + '</td></tr>').join('') + '</tbody></table>' : empty('sem dados');
+  el('c-est-top').innerHTML = e.top.length ? '<table class="m"><thead><tr><th>Produto</th><th class="r">Vendido 30 d</th><th class="r">Valor 30 d</th><th class="r">Estoque</th><th class="r">Cobertura</th></tr></thead><tbody>' + e.top.map(i => '<tr><td class="p">' + esc(i.descricao) + '<small>' + esc(i.grupo) + '</small></td><td class="r">' + nf(i.q30) + '<span class="ant">' + n0(i.ped30) + ' pedidos</span></td><td class="r"><b>' + money(i.v30) + '</b></td><td class="r">' + nf(i.est) + '</td><td class="r">' + (i.cob != null ? '<span class="pill ' + (i.cob < 10 ? 'wn' : 'ok') + '">' + nf(i.cob) + ' d</span>' : '—') + '</td></tr>').join('') + '</tbody></table>' : empty('sem pedidos nos últimos 30 dias');
+}
+
+/* ── 5 EXPEDIÇÃO ── */
+function renderExp() {
+  const x = D.expedicao; if (!x) { el('exp-kpis').innerHTML = empty('Expedição não calculada'); return; }
+  el('s5-sub').textContent = 'painel de expedição do CD · ' + dfa(x.hoje) + ' às ' + x.hora + ' · pedido entra pra separação, passa pela conferência e sai liberado pro carregamento';
+  const E = Object.fromEntries(x.etapas.map(e => [e.k, e])); badge('n5', x.pendAntigos.length + (E.reconferir ? E.reconferir.n : 0));
+  const tm = m => m == null ? '—' : m >= 60 ? Math.floor(m / 60) + ' h ' + (m % 60) + ' min' : m + ' min';
+  el('exp-kpis').innerHTML = tile('No painel agora', n0(x.emAberto), 'pedidos ainda não liberados')
+    + tile('Entraram hoje', n0(x.entraramHoje), 'pra separação')
+    + tile('Liberados hoje', '<span class="up">' + n0(x.liberadosHoje) + '</span>', x.mediaDia != null ? 'média dos últimos 30 dias: ' + nf(x.mediaDia) + ' por dia' : '')
+    + tile('Tempo de separação', tm(x.tempoMedioMin), x.tempoMaxMin != null ? 'média hoje · o mais demorado ' + tm(x.tempoMaxMin) : 'entrada → liberação, só de hoje')
+    + tile('Pendentes de outros dias', '<span class="' + (x.pendAntigos.length ? 'dn' : 'up') + '">' + n0(x.pendAntigos.length) + '</span>', x.pendAntigos.length ? 'entraram antes de hoje' : 'nada ficou pra trás')
+    + tile('Reconferir', '<span class="' + (E.reconferir && E.reconferir.n ? 'wn' : 'up') + '">' + n0(E.reconferir ? E.reconferir.n : 0) + '</span>', 'pedidos com divergência na conferência');
+  const col = (e, cl) => '<div class="kan-c ' + cl + '"><div class="kan-h">' + esc(e.nome) + '<b>' + n0(e.n) + '</b></div>' + (e.pedidos || []).slice(0, 14).map(p => '<div class="kan-i"><b>#' + esc(p.pedido) + '</b><span>' + esc(p.nome) + '</span></div>').join('') + (e.n > 14 ? '<div class="kan-m">+ ' + (e.n - 14) + ' pedidos</div>' : !e.n ? '<div class="kan-m">nenhum</div>' : '') + '</div>';
+  el('c-exp-kan').innerHTML = '<div class="kan">' + x.etapas.map(e => col(e, e.k === 'reconferir' ? (e.n ? 'bad' : '') : e.k === 'liberado' ? 'ok' : e.k === 'em_separacao' ? 'hot' : '')).join('') + '</div>'
+    + (x.reconferirItens.length ? '<div class="nosrc"><b>Itens pra reconferir:</b> ' + x.reconferirItens.map(r => '#' + esc(r.pedido) + ' · ' + r.itens.map(esc).join(', ')).join(' &nbsp;|&nbsp; ') + '</div>' : '');
+  const hs = x.porHora.filter(h => h.h >= 6 && h.h <= 20), maxH = Math.max(...hs.map(h => Math.max(h.entrou, h.liberou)), 1);
+  el('c-exp-hora').innerHTML = '<div class="hbar">' + hs.map(h => '<div style="height:' + Math.max(2, Math.round(h.entrou / maxH * 60)) + 'px" title="' + h.h + 'h · entrou ' + h.entrou + '"></div><div class="b2" style="height:' + Math.max(2, Math.round(h.liberou / maxH * 60)) + 'px" title="' + h.h + 'h · liberou ' + h.liberou + '"></div>').join('') + '</div><div class="hbar-l">' + hs.map(h => '<span style="flex:2">' + h.h + 'h</span>').join('') + '</div>';
+  const maxD = Math.max(...x.porDia.map(d => d.n), 1); el('exp-dia-sub').textContent = x.mediaDia != null ? 'média ' + nf(x.mediaDia) + ' por dia (dias com liberação)' : '';
+  el('c-exp-dia').innerHTML = x.porDia.length ? '<table class="m"><thead><tr><th>Dia</th><th class="r">Liberados</th><th></th></tr></thead><tbody>' + x.porDia.slice().reverse().map(d => '<tr' + (d.d === x.hoje ? ' class="hl"' : '') + '><td>' + dow(d.d) + ' ' + df(d.d) + (d.d === x.hoje ? ' <span class="mut">hoje, até agora</span>' : '') + '</td><td class="r"><b>' + n0(d.n) + '</b></td><td>' + bar(d.n, maxD, d.d === x.hoje ? 'inf' : '') + '</td></tr>').join('') + '</tbody></table>' : empty('sem liberações nos últimos 30 dias');
+  k('k-exp-pend', x.pendAntigos.length ? n0(x.pendAntigos.length) + ' pedidos' : 'nenhum', !x.pendAntigos.length);
+  const ET = { 0: 'p/ separação', 1: 'em separação', 2: 'aguardando liberação', 3: 'reconferir' };
+  el('c-exp-pend').innerHTML = x.pendAntigos.length ? '<table class="m"><thead><tr><th>Pedido</th><th>Cliente</th><th>Entrou</th><th class="r">Há</th><th>Etapa</th></tr></thead><tbody>' + x.pendAntigos.map(p => '<tr class="bad"><td>#' + esc(p.ped) + '</td><td class="p">' + esc(p.nome) + '</td><td>' + dow(p.de) + ' ' + df(p.de) + ' ' + p.he + '</td><td class="r dn">' + p.dias + ' d</td><td><span class="pill ' + (p.st === 3 ? 'bad' : 'wn') + '">' + (ET[p.st] || p.st) + '</span></td></tr>').join('') + '</tbody></table>' : empty('Nenhum pedido de dias anteriores pendente. ✓');
+  const C = x.conferencia;
+  el('c-exp-conf').innerHTML = C ? '<div class="kan">' + C.etapas.map(e => '<div class="kan-c' + (e.k === 'reconferir' && e.n ? ' bad' : e.k === 'liberado' ? ' ok' : '') + '"><div class="kan-h">' + esc(e.nome) + '<b>' + n0(e.n) + '</b></div>' + (e.notas || []).slice(0, 8).map(p => '<div class="kan-i"><span>' + esc(p.nome) + '</span></div>').join('') + (e.n > 8 ? '<div class="kan-m">+ ' + (e.n - 8) + '</div>' : !e.n ? '<div class="kan-m">nenhuma</div>' : '') + '</div>').join('') + '</div>' : '<div class="nosrc">Painel de conferência indisponível.</div>';
+}
+
+/* ── 6 FINANCEIRO ── */
+let PAG = null;
+function renderFin() {
+  const f = D.financeiro; if (!f) { el('fin-kpis').innerHTML = empty('Financeiro não calculado'); return; }
+  const hoje = f.hoje; badge('n6', f.vencidos.n);
+  el('s6-sub').textContent = 'boletos emitidos pela distribuidora (loja 10) · em aberto = sem retorno de liquidação no ERP' + (f.ultLiq ? ' · último liquidado vencia em ' + df(f.ultLiq) : '') + ' · só leitura';
+  el('fin-kpis').innerHTML = tile('Em aberto', moneyK(f.abertos.v), plural(f.abertos.n, 'boleto') + ' · ' + money(f.abertos.v))
+    + tile('Vencidos', '<span class="' + (f.vencidos.n ? 'dn' : 'up') + '">' + moneyK(f.vencidos.v) + '</span>', plural(f.vencidos.n, 'boleto') + ' · ' + plural(f.vencidos.clientes, 'cliente'))
+    + tile('Vence hoje', moneyK(f.hojeR.v), plural(f.hojeR.n, 'boleto') + ' · ' + dow(hoje) + ' ' + df(hoje))
+    + tile('Esta semana', moneyK(f.semana.v), plural(f.semana.n, 'boleto') + ' · de hoje a ' + df(f.semFim))
+    + tile('Emitidos no mês', moneyK(f.emitidosMes.v), plural(f.emitidosMes.n, 'boleto') + ' · liquidados no mês ' + moneyK(f.liquidadosMes.v) + (f.liquidadosMes.ate ? ' até ' + df(f.liquidadosMes.ate) : ''));
+  const CG = '<colgroup><col><col style="width:62px"><col style="width:118px"><col style="width:86px"></colgroup>';
+  // Vencidos: total, por idade, por cliente (clique abre os boletos)
+  k('k-fin-venc', f.vencidos.n ? money(f.vencidos.v) : 'nenhum', !f.vencidos.n);
+  const maxA = Math.max(...f.aging.map(a => a.v), 1), ontem = addD(hoje, -1);
+  el('c-fin-venc').innerHTML = '<div class="fin-big"><b class="' + (f.vencidos.n ? 'dn' : '') + '">' + money(f.vencidos.v) + '</b><small>' + plural(f.vencidos.n, 'boleto vencido', 'boletos vencidos') + ' em aberto</small></div>'
+    + (f.vencidos.n ? '<div class="fin-sec">Por idade <span class="mut">clique pra ver os boletos</span></div><table class="m al">' + CG + '<thead><tr><th>Vencido há</th><th class="r">Boletos</th><th class="r">Valor</th><th></th></tr></thead><tbody>'
+      + f.aging.map(a => '<tr class="cp' + (a.de >= 31 && a.n ? ' bad' : '') + '" data-venc-ini="' + (a.ate >= 9999 ? '2000-01-01' : addD(hoje, -a.ate)) + '" data-venc-fim="' + addD(hoje, -a.de) + '" data-rotulo="vencidos há ' + a.rotulo + '" onclick="bolDetalhe(this)"><td><span class="car">▸</span>' + a.rotulo + '</td><td class="r">' + (a.n || '') + '</td><td class="r"><b>' + (a.v ? money(a.v) : '—') + '</b></td><td>' + bar(a.v, maxA, 'neg') + '</td></tr>').join('')
+      + '<tr class="cp tot" data-venc-ini="2000-01-01" data-venc-fim="' + ontem + '" data-rotulo="todos os vencidos" onclick="bolDetalhe(this)"><td><span class="car">▸</span>Total vencido</td><td class="r">' + f.vencidos.n + '</td><td class="r"><b>' + money(f.vencidos.v) + '</b></td><td></td></tr></tbody></table>' : empty('Nenhum boleto vencido em aberto. ✓'))
+    + '<div class="fin-note">A liquidação chega pelo retorno bancário e pode levar dias pra entrar no ERP' + (f.ultLiq ? ': o último boleto com liquidação lançada vencia em <b>' + df(f.ultLiq) + '</b>' : '') + '. Boleto vencido há poucos dias pode já estar pago no banco.</div>';
+  // Esta semana por dia de vencimento
+  el('fin-sem-sub').textContent = df(f.semIni) + ' a ' + df(f.semFim) + ' · por dia de vencimento';
+  const maxD = Math.max(...f.dias.map(d => d.v), 1);
+  el('c-fin-sem').innerHTML = '<div class="fin-big"><b>' + money(f.semana.v) + '</b><small>' + plural(f.semana.n, 'boleto') + ' vencendo de hoje a ' + DS[6] + '</small></div><div class="fin-sec">Por dia de vencimento <span class="mut">clique pra ver os boletos</span></div><table class="m al">' + CG + '<thead><tr><th>Vence em</th><th class="r">Boletos</th><th class="r">Valor</th><th></th></tr></thead><tbody>'
+    + f.dias.map(d => { const atras = d.passado && d.n > 0; return '<tr class="cp' + (d.ehHoje ? ' hl' : atras ? ' bad' : '') + '" data-venc-ini="' + d.d + '" data-venc-fim="' + d.d + '" data-rotulo="vence ' + dow(d.d) + ' ' + df(d.d) + '" onclick="bolDetalhe(this)"><td><span class="car">▸</span>' + (d.ehHoje ? '<b>Hoje</b> · ' : '') + '<b>' + dow(d.d) + '</b> ' + df(d.d) + (d.passado ? ' <span class="mut">' + (d.n ? 'ficou em aberto' : 'nada em aberto') + '</span>' : '') + '</td><td class="r">' + (d.n || '') + '</td><td class="r"><b' + (atras ? ' class="dn"' : '') + '>' + (d.v ? money(d.v) : '—') + '</b></td><td>' + bar(d.v, maxD, atras ? 'neg' : '') + '</td></tr>'; }).join('')
+    + '<tr class="tot"><td>A receber até ' + DS[6] + '</td><td class="r">' + f.semana.n + '</td><td class="r"><b>' + money(f.semana.v) + '</b></td><td></td></tr></tbody></table>';
+  // Próximas semanas
+  const maxS = Math.max(...f.semanas.map(s => s.v), f.depois.v, 1), fim8 = f.semanas.length ? f.semanas[f.semanas.length - 1].b : f.semFim;
+  el('c-fin-prox').innerHTML = '<div class="fin-big"><b>' + money(f.proximas.v) + '</b><small>' + plural(f.proximas.n, 'boleto') + ' da próxima semana em diante</small></div><div class="fin-sec">Por semana de vencimento <span class="mut">clique pra ver os boletos</span></div><table class="m al">' + CG + '<thead><tr><th>Semana</th><th class="r">Boletos</th><th class="r">Valor</th><th></th></tr></thead><tbody>'
+    + f.semanas.map((s, i) => '<tr class="cp" data-venc-ini="' + s.a + '" data-venc-fim="' + s.b + '" data-rotulo="vence de ' + df(s.a) + ' a ' + df(s.b) + '" onclick="bolDetalhe(this)"><td><span class="car">▸</span>' + (i === 0 ? '<b>Próxima</b> · ' : '') + df(s.a) + ' a ' + df(s.b) + '</td><td class="r">' + (s.n || '') + '</td><td class="r"><b>' + (s.v ? money(s.v) : '—') + '</b></td><td>' + bar(s.v, maxS) + '</td></tr>').join('')
+    + (f.depois.n ? '<tr class="cp" data-venc-ini="' + addD(fim8, 1) + '" data-venc-fim="9999-12-31" data-rotulo="vence depois de ' + df(fim8) + '" onclick="bolDetalhe(this)"><td><span class="car">▸</span>Depois de ' + df(fim8) + '</td><td class="r">' + f.depois.n + '</td><td class="r"><b>' + money(f.depois.v) + '</b></td><td>' + bar(f.depois.v, maxS) + '</td></tr>' : '')
+    + '<tr class="tot"><td>Da próxima semana em diante</td><td class="r">' + f.proximas.n + '</td><td class="r"><b>' + money(f.proximas.v) + '</b></td><td></td></tr></tbody></table>';
+  // Maiores devedores
+  k('k-fin-dev', f.devedores.length ? n0(f.devedores.length) + ' clientes' : 'nenhum', !f.devedores.length);
+  const maxV = Math.max(...f.devedores.map(d => d.v), 1);
+  el('c-fin-dev').innerHTML = f.devedores.length ? '<table class="m"><thead><tr><th>Cliente</th><th class="r">Boletos</th><th>Mais antigo</th><th class="r">Dias</th><th class="r">Valor vencido</th><th></th></tr></thead><tbody>' + f.devedores.map(d => '<tr class="cp' + (d.dias > 30 ? ' bad' : '') + '" data-cnpj="' + esc(d.cnpj) + '" data-situacao="vencidos" data-rotulo="' + esc(d.nome) + ' · vencidos" onclick="bolDetalhe(this)"><td class="p"><span class="car">▸</span>' + esc(d.nome) + '<small>' + esc(d.cidade) + '</small></td><td class="r">' + n0(d.n) + '</td><td>' + df(d.maisAntigo) + '</td><td class="r dn">' + d.dias + '</td><td class="r"><b>' + money(d.v) + '</b></td><td>' + bar(d.v, maxV, 'neg') + '</td></tr>').join('') + '</tbody></table>' : empty('Nenhum cliente com boleto vencido. ✓');
+  // O que o CD paga
+  const P = f.pagar; PAG = P;
+  if (!P) { el('c-fin-pag').innerHTML = '<div class="nosrc">Contas a pagar da Filial 10 indisponíveis agora (o Dashboard Loja ainda está calculando o Financeiro). Abra de novo em instantes.</div>'; return; }
+  el('fin-pag-sub').textContent = 'contas a pagar da Filial 10 (CD) · pelo dia em que paga · sáb, dom e seg pagam na segunda · clique pra ver os títulos';
+  const linha = (rot, o, attrs, cl) => '<tr class="cp' + (cl ? ' ' + cl : '') + '" ' + attrs + ' onclick="pagDetalhe(this)"><td><span class="car">▸</span>' + rot + '</td><td class="r">' + (o.n || '') + '</td><td class="r"><b>' + (o.v ? money(o.v) : '—') + '</b></td><td>' + bar(o.v, Math.max(P.vencidos.v, P.hojeP.v, P.semana.v, P.proximas.v, 1), '') + '</td></tr>';
+  const NG = { 4: 'Boletos de fornecedor', 12: 'Colaboradores (folha, encargos)', 11: 'Despesas dos sócios', 1: 'Despesas administrativas', 2: 'Veículos', 3: 'Marketing', 5: 'Operações de checkout', 6: 'Diversos', 8: 'Impostos federais', 9: 'Impostos estaduais', 10: 'Impostos municipais', 13: 'Despesas do CD', 0: 'Sem classificação' };
+  const nomeG = g => NG[g] || (P.grupos[g] ? P.grupos[g].charAt(0) + P.grupos[g].slice(1).toLowerCase() : 'Grupo ' + g);
+  const gs = {}; for (const c of P.categorias) if (c.pag >= P.hoje) { const x = gs[c.grupo] || (gs[c.grupo] = { g: c.grupo, n: 0, v: 0 }); x.n += c.n; x.v += c.v; }
+  const grupos = Object.values(gs).sort((a, b) => b.v - a.v), maxG = Math.max(...grupos.map(g => g.v), 1);
+  el('c-fin-pag').innerHTML = '<div class="fin-big"><b>' + money(P.hojeP.v) + '</b><small>' + plural(P.hojeP.n, 'título') + ' a pagar ' + (P.fds ? 'na segunda' : 'hoje') + '</small></div><table class="m al">' + CG + '<thead><tr><th>Quando</th><th class="r">Títulos</th><th class="r">Valor</th><th></th></tr></thead><tbody>'
+    + (P.vencidos.n ? linha('<b class="dn">Vencidos</b> <span class="mut">dia de pagamento já passou</span>', P.vencidos, 'data-pag-ini="2000-01-01" data-pag-fim="' + addD(P.hoje, -1) + '" data-ord="venc" data-rotulo="vencidos"', 'bad') : '')
+    + linha((P.fds ? '<b>Segunda</b> ' + df(P.diaRef) : '<b>Hoje</b> · ' + dow(P.hoje) + ' ' + df(P.hoje)), P.hojeP, 'data-pag="' + P.diaRef + '" data-rotulo="paga ' + df(P.diaRef) + '"', 'hl')
+    + linha('Esta semana <span class="mut">de hoje a ' + df(P.semFim) + '</span>', P.semana, 'data-pag-ini="' + P.hoje + '" data-pag-fim="' + P.semFim + '" data-rotulo="paga de ' + df(P.hoje) + ' a ' + df(P.semFim) + '"')
+    + linha('Da próxima semana em diante', P.proximas, 'data-pag-ini="' + P.proxIni + '" data-pag-fim="9999-12-31" data-rotulo="paga de ' + df(P.proxIni) + ' em diante"') + '</tbody></table>'
+    + (grupos.length ? '<div class="fin-sec">Por tipo <span class="mut">de hoje em diante · grupo do plano de contas</span></div><table class="m al">' + CG + '<thead><tr><th>Tipo</th><th class="r">Títulos</th><th class="r">Valor</th><th></th></tr></thead><tbody>' + grupos.map(g => '<tr class="cp" data-pag-ini="' + P.hoje + '" data-pag-fim="9999-12-31" data-grupo="' + g.g + '" data-rotulo="' + esc(nomeG(g.g)) + ' · de hoje em diante" onclick="pagDetalhe(this)"><td><span class="car">▸</span>' + esc(nomeG(g.g)) + '</td><td class="r">' + g.n + '</td><td class="r"><b>' + money(g.v) + '</b></td><td>' + bar(g.v, maxG) + '</td></tr>').join('') + '</tbody></table>' : '');
+}
+function addD(d, n) { const x = new Date(String(d).slice(0, 10) + 'T12:00:00'); x.setDate(x.getDate() + n); return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); }
+async function bolDetalhe(tr) {
+  const nx = tr.nextElementSibling;
+  if (nx && nx.classList.contains('det')) { nx.remove(); tr.classList.remove('open'); return; }
+  tr.parentElement.querySelectorAll('tr.det').forEach(d => { const p = d.previousElementSibling; if (p) p.classList.remove('open'); d.remove(); });
+  const det = document.createElement('tr'); det.className = 'det'; det.innerHTML = '<td colspan="' + tr.children.length + '"><div class="spin"></div></td>';
+  tr.after(det); tr.classList.add('open');
+  const ds = tr.dataset, qs = new URLSearchParams(); if (ds.cnpj) qs.set('cnpj', ds.cnpj); if (ds.situacao) qs.set('situacao', ds.situacao); if (ds.vencIni) qs.set('venc_ini', ds.vencIni); if (ds.vencFim) qs.set('venc_fim', ds.vencFim); if (DEMO) qs.set('demo', '1');
+  try {
+    const r = await fetch('/api/dashboard-distribuidora/boletos?' + qs); const j = await r.json(); if (j.error) throw new Error(j.error);
+    if (!det.isConnected) return;
+    const hoje = (D.financeiro || {}).hoje || new Date().toISOString().slice(0, 10);
+    det.firstChild.innerHTML = '<div class="det-h"><b>' + esc(ds.rotulo || '') + '</b> · ' + plural(j.n, 'boleto') + ' · ' + money(j.total) + ' · vencimento mais antigo primeiro</div>'
+      + (j.boletos.length ? '<table class="m"><thead><tr><th>Vence</th><th class="r">Dias</th><th>Cliente</th><th>Nota</th><th>Banco</th><th class="r">Valor</th></tr></thead><tbody>' + j.boletos.map(b => '<tr' + (b.venc < hoje ? ' class="bad"' : '') + '><td>' + dow(b.venc) + ' ' + df(b.venc) + '</td><td class="r ' + (b.dias > 0 ? 'dn' : '') + '">' + (b.dias > 0 ? '+' + b.dias : b.dias === 0 ? 'hoje' : b.dias) + '</td><td class="p">' + esc(b.nome) + '<small>' + esc(b.cidade) + '</small></td><td>' + esc(b.nn) + (b.parcelas > 1 ? ' <span class="mut">' + b.parcela + '/' + b.parcelas + '</span>' : '') + '</td><td>' + esc(b.banco || '—') + '</td><td class="r"><b>' + money(b.v) + '</b></td></tr>').join('') + '</tbody></table>' : '<div class="empty">Nenhum boleto.</div>');
+  } catch (e) { if (det.isConnected) det.firstChild.innerHTML = '<div class="empty">erro: ' + esc(e.message) + '</div>'; }
+}
+async function pagDetalhe(tr) {
+  const nx = tr.nextElementSibling;
+  if (nx && nx.classList.contains('det')) { nx.remove(); tr.classList.remove('open'); return; }
+  tr.parentElement.querySelectorAll('tr.det').forEach(d => { const p = d.previousElementSibling; if (p) p.classList.remove('open'); d.remove(); });
+  const det = document.createElement('tr'); det.className = 'det'; det.innerHTML = '<td colspan="' + tr.children.length + '"><div class="spin"></div></td>';
+  tr.after(det); tr.classList.add('open');
+  const ds = tr.dataset, qs = new URLSearchParams({ loja: '10' }); if (ds.pag) qs.set('pag', ds.pag); if (ds.pagIni) { qs.set('pag_ini', ds.pagIni); qs.set('pag_fim', ds.pagFim || ds.pagIni); } if (ds.grupo != null && ds.grupo !== '') qs.set('grupo', ds.grupo); if (ds.ord) qs.set('ord', ds.ord);
+  try {
+    if (DEMO) throw new Error('detalhe indisponível nos dados de exemplo');
+    const r = await fetch('/api/dashboard/financeiro/titulos?' + qs); const j = await r.json(); if (j.error) throw new Error(j.error);
+    if (!det.isConnected) return;
+    const ts = j.titulos || [];
+    det.firstChild.innerHTML = '<div class="det-h"><b>CD · ' + esc(ds.rotulo || '') + '</b> · ' + plural(ts.length, 'título') + ' · ' + money(j.total) + '</div>'
+      + (ts.length ? '<table class="m"><thead><tr><th>Vence</th><th>Paga</th><th>Fornecedor</th><th>Documento</th><th class="r">Valor</th></tr></thead><tbody>' + ts.map(t => '<tr><td>' + df(t.venc) + '</td><td>' + df(t.pag) + '</td><td class="p">' + (t.chave ? '<a class="nf" href="/api/dashboard/financeiro/nfe/' + encodeURIComponent(t.chave) + '/danfe" target="_blank" rel="noopener" onclick="event.stopPropagation()">' + esc(t.fornecedor || '—') + '</a>' : esc(t.fornecedor || '—')) + '</td><td>' + esc(t.doc || '') + '</td><td class="r"><b>' + money(t.valor) + '</b></td></tr>').join('') + '</tbody></table>' : '<div class="empty">Nenhum título.</div>');
+  } catch (e) { if (det.isConnected) det.firstChild.innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; }
+}
+
+rota();
+setInterval(() => { if (SEG && !DEMO) carregarSeg(SEG_KEY[SEG]); }, 5 * 60 * 1000);
+</script>
+</body>
+</html>

@@ -47,7 +47,8 @@
   var ITENS = [
     /* mod = id do módulo em lib/modulos.js (acesso por usuário); grupos usam o próprio id */
     { sec: 'Análise', mod: 'analise' },
-    { href: '/index.html',        ic: 'dashboard', txt: 'Dashboard',          mod: 'analise' },
+    { href: '/index.html',        ic: 'dashboard', txt: 'Dashboard Loja',     mod: 'analise' },
+    { href: '/dashboard-distribuidora.html', ic: 'store', txt: 'Dashboard Distribuidora', mod: 'analise' },
     { href: '/comparativos.html', ic: 'chart',     txt: 'Comparativos',       mod: 'analise' },
     { href: '/consulta.html',     ic: 'search',    txt: 'Consulta de Vendas', mod: 'analise' },
     { href: '/itens.html',        ic: 'list',      txt: 'Mercadológico',      mod: 'analise' },

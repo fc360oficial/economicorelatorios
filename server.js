@@ -6858,6 +6858,41 @@ app.post('/api/dashboard/estoque/recalcular', (req, res) => { dashboardNovo.calc
 app.post('/api/dashboard/atualizar', (req, res) => { dashboardNovo.calcular().catch(e => console.error('[DASHBOARD]', e.message)); res.json({ ok: true }); });
 app.get('/api/dashboard/metas', (req, res) => res.json(dashboardNovo.getMetas()));
 app.post('/api/dashboard/metas', (req, res) => { try { res.json(dashboardNovo.setMetas(req.body || {})); } catch (err) { res.status(500).json({ error: err.message }); } });
+
+// ═══════════════════════════════════════════════════
+// DASHBOARD DISTRIBUIDORA (dashboard-distribuidora.html, 30/09/2026, Tiago: "dashboard loja e cria outro dashboard distribuidora").
+// A CAHU Distribuidora é a loja 10 (CD) e vende por NF-e a partir do pedido do televendas. 6 blocos calculados quando a tela
+// pede, cache de 5 min; fontes e regras em lib/dashboard-distribuidora.js. Só leitura no ERP. Módulo Análise, como o Dashboard Loja.
+// ?demo=1 devolve dados de exemplo (TESTE) pra olhar o layout sem depender do ERP.
+// ═══════════════════════════════════════════════════
+const dashDist = require('./lib/dashboard-distribuidora');
+dashDist.init({ q, dashboard: dashboardNovo, listaExpedicao: montarListaExpedicao, listaConferencia: montarListaConferencia });
+dashDist.agendar();
+app.get('/api/dashboard-distribuidora/resumo', (req, res) => { try { res.json(dashDist.resumo()); } catch (err) { res.status(500).json({ error: err.message }); } });
+app.get('/api/dashboard-distribuidora/seg/:nome', async (req, res) => {
+  try {
+    if (req.query.demo === '1') return res.json({ [req.params.nome]: dashDist.demo(req.params.nome), demo: true, atualizadoEm: new Date().toISOString() });
+    res.json(await dashDist.segmento(req.params.nome));
+  } catch (err) { res.status(400).json({ error: err.message }); }
+});
+app.post('/api/dashboard-distribuidora/atualizar', (req, res) => { dashDist.calcular().catch(e => console.error('[DASH-DIST]', e.message)); res.json({ ok: true }); });
+// clique no cliente: notas dele no período · clique nas linhas do Financeiro: boletos em aberto filtrados
+app.get('/api/dashboard-distribuidora/cliente/:cod', async (req, res) => {
+  try { res.json(await dashDist.notasCliente(parseInt(req.params.cod) || 0)); } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.get('/api/dashboard-distribuidora/boletos', async (req, res) => {
+  try { res.json(await dashDist.boletos({ cnpj: String(req.query.cnpj || '').replace(/\D/g, '').slice(0, 14), vencIni: String(req.query.venc_ini || '').slice(0, 10), vencFim: String(req.query.venc_fim || '').slice(0, 10), situacao: String(req.query.situacao || '').slice(0, 20) })); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+// PDF da NF-e de venda (DANFE simplificada gerada do XML no ERP), mesma geração do Financeiro do Dashboard Loja
+app.get('/api/dashboard-distribuidora/nfe/:chave/danfe', async (req, res) => {
+  try {
+    const n = await radarPedidos.nfe(req.params.chave);
+    if (!n) return res.status(404).type('html').send('<p style="font:14px system-ui;padding:24px">NF-e não encontrada no XML do ERP (chave ' + String(req.params.chave).replace(/[^0-9A-Za-z]/g, '').slice(0, 44) + ').</p>');
+    res.setHeader('Content-Type', 'application/pdf'); res.setHeader('Content-Disposition', `inline; filename="danfe-${n.nNota}.pdf"`);
+    require('./lib/danfe').gerarDanfe(n).pipe(res);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 function rpFiltro(qq) {
   return { loja: parseInt(qq.loja) || 0, grupo: qq.grupo || '', papel: qq.papel || '', abc: qq.abc || '', acao: qq.acao || '', busca: qq.busca || '',
            comVenda: qq.com_venda === '1', estoque: qq.estoque || '', incluirExcluidos: qq.excluidos === '1' };
