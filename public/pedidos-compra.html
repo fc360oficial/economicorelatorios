@@ -118,6 +118,11 @@ input.qin:focus{outline:none;border-color:#F5B800;background:#FFFDF3}input.qin.e
 .cxl{cursor:pointer;border-bottom:1px dashed #C9C9C4;display:inline-block}.cxl:hover{color:#0E1626;border-bottom-color:#F5B800}
 /* caixa padrão digitada na linha (Tiago, 30/09/26): "N vol × [12]" — Enter/Tab/↓ grava e pula pro produto de baixo, igual à Cotação */
 .cxe{display:flex;justify-content:flex-end;align-items:center;gap:4px;white-space:nowrap;margin-top:2px}
+/* filtro em cima da tabela do pedido (Tiago, 30/09/26): Todos · Com preço · Com quantidade e sem preço */
+.itf{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:7px 12px;background:#F6F6F4;border-bottom:1px solid #DADAD6;font-size:11.5px}
+.itf .l{color:#4E5A72;font-weight:800;text-transform:uppercase;letter-spacing:.4px;font-size:10px;margin-right:4px}
+.itf button{font:inherit;font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:99px;border:1px solid #DADAD6;background:#fff;color:#0E1626;cursor:pointer}.itf button:hover{border-color:#101B33}
+.itf button .n{opacity:.7;font-weight:600;margin-left:5px}.itf button.on{background:#101B33;color:#fff;border-color:#101B33}.itf button.on.sp{background:#C22F49;border-color:#C22F49}
 input.embi{width:42px;text-align:center;font:inherit;font-size:11px;font-weight:700;padding:2px 4px;border:1px dashed #C9C9C4;border-radius:5px;background:#fff;color:#0E1626}
 input.embi:focus{outline:none;border:1px solid #F5B800;background:#FFFDF3}input.embi.ok{border:1px solid #137A48;background:#EAF6EF}input.embi.warn{border:1px solid #C22F49;background:#FBEAED}
 .lojatot{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 12px;border-top:1px solid #EEEEEA;background:#FAFAF8}.lojatot .lt-t{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:#98A0B3;margin-right:4px}.lojatot .lt{background:#fff;border:1px solid #DADAD6;border-radius:8px;padding:5px 10px;font-size:11px;color:#4E5A72}.lojatot .lt b{display:block;font-size:13px;color:#0E1626;font-variant-numeric:tabular-nums}.lojatot .lt.tot{background:#101B33;border-color:#101B33;color:#B8C0D4}.lojatot .lt.tot b{color:#FFC933}.lojatot .lt-n{font-size:10.5px;color:#98A0B3;margin-left:auto}
@@ -395,7 +400,7 @@ async function carregarDetalhe(key){
     let h='<div class="hd"><div>'+(LN?'<span class="lojatag" style="margin:0 8px 0 0">'+ETQ(LN)+' · '+(LOJAS_NOMES[LN]||'')+' · só os itens desta loja</span>':'')+'<b class="lnk" title="Abrir cadastro da lista no ERP" onclick="event.stopPropagation();abrirCadastro('+p.lista+')">'+esc(p.lista_nome)+' ↗</b> · <span class="pill st-'+p.status+'">'+(ST[p.status]||p.status)+'</span>'+orig+(p.vendedor?.nome?' · vendedor '+esc(p.vendedor.nome)+(p.vendedor.whats?' '+esc(p.vendedor.whats):''):'')+(p.finalizadoPor?' · finalizado por '+esc(p.finalizadoPor):'')+(p.prazo_pagamento?' · prazo '+esc(p.prazo_pagamento):'')+(p.obs_vendedor?'<div style="margin-top:4px;font-weight:500">💬 <b>Obs. do vendedor:</b> '+esc(p.obs_vendedor)+'</div>':'')+'</div>'+
       '<div>último custo <b>'+money2(p.totais.ultimo_custo)+'</b> · digitado <b>'+(p.totais.com_preco?money2(p.totais.digitado):'—')+'</b> ('+p.totais.com_preco+'/'+p.totais.itens+' itens) '+seta(p.totais.com_preco?p.totais.digitado:null,ultProp(p),true)+'</div></div>';
     const LJ=LN?[LN]:[...new Set(p.itens.flatMap(i=>Object.keys(i.lojas_qtd||{}).map(Number)))].sort((a,b)=>a-b); const editavel=['sugestao','aguardando','digitacao','finalizado'].includes(p.status); PED[p.id]=p;
-    h+='<div style="overflow-x:auto"><table><thead><tr><th>Produto</th><th class="r">Qtd</th>'+(editavel?LJ.map(l=>'<th class="r lj">'+ETQ(l)+'</th>').join(''):'<th>Por loja</th>')+'<th class="r">Último custo (ERP)</th><th class="r">Preço digitado</th><th class="r">Variação</th><th class="r">Total últ. custo</th><th class="r">Total digitado</th><th class="obs">Obs. do vendedor</th></tr></thead><tbody>';
+    h+=itfHtml(p,LN)+'<div style="overflow-x:auto" id="itt-'+p.id+'"><table><thead><tr><th>Produto</th><th class="r">Qtd</th>'+(editavel?LJ.map(l=>'<th class="r lj">'+ETQ(l)+'</th>').join(''):'<th>Por loja</th>')+'<th class="r">Último custo (ERP)</th><th class="r">Preço digitado</th><th class="r">Variação</th><th class="r">Total últ. custo</th><th class="r">Total digitado</th><th class="obs">Obs. do vendedor</th></tr></thead><tbody>';
     for(const i of [...p.itens].filter(i=>!LN||(i.lojas_qtd?.[LN]||0)>0).sort((x,y)=>String(x.descricao||'').localeCompare(String(y.descricao||''),'pt-BR'))){
       const lj=Object.entries(i.lojas_qtd||{}).filter(([l,q])=>q>0&&(!LN||+l===LN)).map(([l,q])=>{
         const rc=i.recebido?.[l]; const ru=i.ruptura?.[l];
@@ -404,7 +409,7 @@ async function carregarDetalhe(key){
         return ETQ(l)+': '+fmt(q,0);
       }).join(' · ');
       const cel=editavel?LJ.map(l=>{const q=i.lojas_qtd[l]||0;const ru=i.ruptura?.[l];return '<td class="r lj'+(q?' tem':'')+'"><input class="qin" type="number" min="0" step="1" data-id="'+p.id+'" data-cod="'+esc(i.cod)+'" data-ln="'+l+'" value="'+(q||'')+'" placeholder="·"'+(ru?' title="ruptura: '+(ru.tipo==='total'?'não veio nada':'veio '+fmt(ru.recebida,0)+' de '+fmt(ru.pedida,0))+'"':'')+'></td>';}).join(''):'<td class="mut" style="font-size:11px">'+lj+'</td>';
-      h+='<tr class="'+(i.preco!=null||p.status==='sugestao'?'pede':'zero')+'"><td class="desc">'+esc(i.descricao)+cdTag(i.cod)+(i.emb_vendedor?' <span class="pill st-aguardando" style="font-size:9.5px;padding:1px 6px" title="O vendedor informou uma embalagem diferente da nossa">vendedor: emb. '+esc(i.emb_vendedor)+'</span>':'')+(i.origem_item==='ruptura'?' <span class="pill st-sugestao" style="font-size:9.5px;padding:1px 6px" title="Faltou na entrega do pedido de origem">ruptura</span>':(i.origem_item==='radar'?' <span class="pill st-digitacao" style="font-size:9.5px;padding:1px 6px" title="Trazido do radar: já estava abaixo do ponto de pedido">radar</span>':(i.origem_item==='curva_a'?' <span class="pill" style="font-size:9.5px;padding:1px 6px;background:#C22F49;color:#fff;font-weight:800" title="Produto de curva A em risco (zerava antes do dia da lista ou já estava no ponto de pedido)">curva A</span>':'')))+(i.avaria?' <span class="avpill" style="margin:0" title="'+esc(Object.entries(i.avaria).map(([l,a])=>ETQ(l)+': '+a.qtd_pedido+' un de reposição ('+a.status+')').join(' · '))+'">reposição de avaria'+(i.origem_item==='avaria'?'':' (parte)')+'</span>':'')+'<span class="cod">'+esc(i.cod)+'</span></td><td class="r" id="pq-'+p.id+'-'+esc(i.cod)+'">'+pqHtml(p,i,LN)+'</td>'+cel+'<td class="r">'+fmt(i.ultimo_custo,2)+'</td><td class="r"><b>'+(i.preco!=null?fmt(i.preco,2):'<span class="mut">—</span>')+'</b></td><td class="r">'+seta(i.preco,i.ultimo_custo,false)+'</td><td class="r">'+money2((LN?(i.lojas_qtd[LN]||0):i.qtd)*i.ultimo_custo)+'</td><td class="r">'+(i.preco!=null?money2((LN?(i.lojas_qtd[LN]||0):i.qtd)*i.preco):'')+'</td><td class="mut obs">'+esc(i.obs||'')+'</td></tr>';
+      h+='<tr class="'+(i.preco!=null||p.status==='sugestao'?'pede':'zero')+'" data-f="'+itemF(i,LN)+'"><td class="desc">'+esc(i.descricao)+cdTag(i.cod)+(i.emb_vendedor?' <span class="pill st-aguardando" style="font-size:9.5px;padding:1px 6px" title="O vendedor informou uma embalagem diferente da nossa">vendedor: emb. '+esc(i.emb_vendedor)+'</span>':'')+(i.origem_item==='ruptura'?' <span class="pill st-sugestao" style="font-size:9.5px;padding:1px 6px" title="Faltou na entrega do pedido de origem">ruptura</span>':(i.origem_item==='radar'?' <span class="pill st-digitacao" style="font-size:9.5px;padding:1px 6px" title="Trazido do radar: já estava abaixo do ponto de pedido">radar</span>':(i.origem_item==='curva_a'?' <span class="pill" style="font-size:9.5px;padding:1px 6px;background:#C22F49;color:#fff;font-weight:800" title="Produto de curva A em risco (zerava antes do dia da lista ou já estava no ponto de pedido)">curva A</span>':'')))+(i.avaria?' <span class="avpill" style="margin:0" title="'+esc(Object.entries(i.avaria).map(([l,a])=>ETQ(l)+': '+a.qtd_pedido+' un de reposição ('+a.status+')').join(' · '))+'">reposição de avaria'+(i.origem_item==='avaria'?'':' (parte)')+'</span>':'')+'<span class="cod">'+esc(i.cod)+'</span></td><td class="r" id="pq-'+p.id+'-'+esc(i.cod)+'">'+pqHtml(p,i,LN)+'</td>'+cel+'<td class="r">'+fmt(i.ultimo_custo,2)+'</td><td class="r"><b>'+(i.preco!=null?fmt(i.preco,2):'<span class="mut">—</span>')+'</b></td><td class="r">'+seta(i.preco,i.ultimo_custo,false)+'</td><td class="r">'+money2((LN?(i.lojas_qtd[LN]||0):i.qtd)*i.ultimo_custo)+'</td><td class="r">'+(i.preco!=null?money2((LN?(i.lojas_qtd[LN]||0):i.qtd)*i.preco):'')+'</td><td class="mut obs">'+esc(i.obs||'')+'</td></tr>';
     }
     h+='</tbody></table></div>';
     h+='<div class="lojatot" id="lt-'+p.id+'" data-ln="'+(LN||'')+'">'+lojaTotaisHtml(p,LN,true)+'</div>';
@@ -426,7 +431,7 @@ async function carregarDetalhe(key){
       (p.status!=='aprovado'&&p.status!=='cancelado'?'<button class="btn btn-red btn-sm" onclick="cancelar('+p.id+')">Cancelar</button>':'')+
       (!['aprovado','recebido','recebido_parcial'].includes(p.status)?'<button class="btn btn-red btn-sm" onclick="excluir('+p.id+')" title="Apaga o pedido da lista (fica guardado em data/pedidos-fornecedor/excluidos). Só antes da aprovação.">Excluir</button>':'')+
       '</div>';
-    box.innerHTML=h;
+    box.innerHTML=h; filtrarItensPedido(p.id,FILT_IT[p.id]||'todos');
     box.querySelectorAll('input.qin').forEach(inp=>{inp.addEventListener('click',e=>e.stopPropagation());inp.addEventListener('change',()=>salvarQtd(inp));inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();inp.blur();}});});
   }catch(e){ box.innerHTML='<div class="empty">'+esc(e.message)+'</div>'; }
 }
@@ -477,6 +482,7 @@ async function salvarQtd(inp){
   const id=+inp.dataset.id, cod=inp.dataset.cod, ln=+inp.dataset.ln, v=Math.max(0,Math.round(parseFloat(inp.value)||0));
   const p=PED[id]; const it=p&&p.itens.find(i=>i.cod===cod); if(!it) return;
   it.lojas_qtd[ln]=v; it.qtd=Object.values(it.lojas_qtd).reduce((s,x)=>s+(x||0),0); it.volumes=it.qtd?Math.ceil(it.qtd/(it.emb||1)):0;
+  const trF=inp.closest('tr'); if(trF) trF.dataset.f=itemF(it,lnDetalhe(id)); atualizarItf(id);
   inp.value=v||''; inp.closest('td').classList.toggle('tem',v>0); inp.classList.add('ed');
   const c=document.getElementById('pq-'+id+'-'+cod); if(c) c.innerHTML=pqHtml(p,it,lnDetalhe(id));
   const lt=document.getElementById('lt-'+id); if(lt) lt.innerHTML=lojaTotaisHtml(p, lt.dataset.ln?+lt.dataset.ln:null, true);
@@ -636,6 +642,21 @@ function pqHtml(p,i,LN){
   return '<b>'+fmt(q,0)+'</b> '+esc(i.unid)+'<div class="s2 cxe" onclick="event.stopPropagation()">'+(e?'<span>'+Math.ceil(q/e)+' vol ×</span>':'<span class="mut">caixa?</span>')
     +'<input class="embi" type="text" inputmode="numeric" maxlength="5" value="'+(e||'')+'" data-last="'+(e||'')+'" data-pid="'+p.id+'" data-cod="'+esc(i.cod)+'" data-unid="'+esc(i.unid||'UN')+'" placeholder="cx" title="Caixa padrão (unidades por caixa). Digite e dê Enter: grava e pula pro produto de baixo (↑ ↓ andam na lista). Vale no Radar e na Cotação; se o pedido ainda não foi aprovado, as quantidades por loja fecham na caixa nova." onkeydown="embKey(event,this)" onchange="embChange(this)"></div>';
 }
+// Filtro em cima da tabela do pedido (Tiago, 30/09/26): "Todos · Com preço · Com quantidade e sem preço". Depois que o vendedor
+// finaliza, mostra rápido o que ele deixou sem preço (as linhas sem preço já eram cinza; o filtro só esconde as outras). Só na
+// tela, nada gravado; a escolha fica por pedido enquanto a página está aberta.
+const FILT_IT={};
+function itemF(i,LN){ const q=LN?(i.lojas_qtd?.[LN]||0):i.qtd; return i.preco!=null?'cp':(q>0?'sp':'zq'); }
+function itfHtml(p,LN){
+  const its=p.itens.filter(i=>!LN||(i.lojas_qtd?.[LN]||0)>0), n={todos:its.length,cp:0,sp:0,zq:0}; its.forEach(i=>n[itemF(i,LN)]++);
+  const m=FILT_IT[p.id]||'todos', b=(k,l,t)=>'<button class="'+k+(m===k?' on':'')+'" title="'+t+'" onclick="event.stopPropagation();filtrarItensPedido('+p.id+',\''+k+'\')">'+l+'<span class="n">'+n[k]+'</span></button>';
+  return '<div class="itf" id="itf-'+p.id+'" onclick="event.stopPropagation()"><span class="l">Mostrar</span>'+b('todos','Todos','Todos os itens do pedido')+b('cp','Com preço','Itens em que o vendedor digitou preço')+b('sp','Com quantidade e sem preço','Itens pedidos que o vendedor deixou sem preço: cobrar do vendedor ou zerar a quantidade')+(n.zq?b('zq','Sem quantidade','Itens zerados (não vão no pedido)'):'')+'</div>';
+}
+function filtrarItensPedido(pid,modo){
+  FILT_IT[pid]=modo; const f=document.getElementById('itf-'+pid); if(f) f.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.classList.contains(modo)));
+  document.querySelectorAll('#itt-'+pid+' tbody tr[data-f]').forEach(tr=>{ tr.hidden=modo!=='todos'&&tr.dataset.f!==modo; });
+}
+function atualizarItf(pid){ const f=document.getElementById('itf-'+pid), p=PED[pid]; if(f&&p) f.outerHTML=itfHtml(p,lnDetalhe(pid)); }
 function lnDetalhe(id){ const lt=document.getElementById('lt-'+id); return lt&&lt.dataset.ln?+lt.dataset.ln:0; }
 function embViz(el,dir){ const L=[...document.querySelectorAll('input.embi')], k=L.indexOf(el); return k<0?null:(L[k+dir]||null); }
 function embIr(n){ if(!n) return; n.focus(); n.select(); try{ n.scrollIntoView({block:'center',behavior:'smooth'}); }catch(e){} }
