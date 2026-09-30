@@ -104,10 +104,10 @@ html,body{height:100%;font-family:'Segoe UI',system-ui,sans-serif;background:var
   <div class="tbl-wrap">
     <table class="tbl">
       <thead><tr>
-        <th>#</th><th>Nome</th><th>Usuário</th><th>Perfil</th><th>Vínculo</th><th>Módulos</th><th>Ações</th>
+        <th>#</th><th>Nome</th><th>Usuário</th><th>Perfil</th><th>Vínculo</th><th>Módulos</th><th>Lojas</th><th>Ações</th>
       </tr></thead>
       <tbody id="tbody">
-        <tr><td colspan="6" class="empty"><div class="empty-icon">⏳</div>Carregando...</td></tr>
+        <tr><td colspan="8" class="empty"><div class="empty-icon">⏳</div>Carregando...</td></tr>
       </tbody>
     </table>
   </div>
@@ -170,6 +170,20 @@ html,body{height:100%;font-family:'Segoe UI',system-ui,sans-serif;background:var
       <select id="f-dlinks"><option value="">-- automático (pelo nome) --</option></select>
       <div class="field-hint">Quem aparece no ERP como autor dos pedidos que esta pessoa envia pelo app. Em branco, o app casa pelo nome.</div>
     </div>
+    <div class="field" id="field-lojas">
+      <label>Lojas liberadas</label>
+      <div class="mods" id="f-lojas">
+        <label><input type="checkbox" value="todas" checked onchange="lojasTodasMudou()"> Todas as lojas</label>
+        <label><input type="checkbox" value="1"> E1</label>
+        <label><input type="checkbox" value="2"> E2</label>
+        <label><input type="checkbox" value="3"> E3</label>
+        <label><input type="checkbox" value="4"> E4</label>
+        <label><input type="checkbox" value="5"> E5</label>
+        <label><input type="checkbox" value="6"> E6</label>
+        <label><input type="checkbox" value="10"> CD</label>
+      </div>
+      <div class="field-hint">O usuário só enxerga as lojas marcadas nas telas que filtram por loja (hoje: Fiscal). Vale no próximo login.</div>
+    </div>
     <div class="field" id="field-modulos">
       <label>Módulos liberados</label>
       <div class="mods" id="f-modulos"></div>
@@ -207,6 +221,27 @@ function etiquetasModulos(u) {
   if (!Array.isArray(u.modulos)) return cinza('todos');
   if (!u.modulos.length) return '<span style="color:#B42318;font-size:11px;font-weight:700">nenhum</span>';
   return u.modulos.map(id => `<span class="comp-tag">${(MODULOS.find(m => m.id === id) || { nome: id }).nome}</span>`).join(' ');
+}
+
+// ── Lojas liberadas (lib/escopo.js): null = todas ──
+function lojasTodasMudou() {
+  const todas = document.querySelector('#f-lojas input[value="todas"]').checked;
+  document.querySelectorAll('#f-lojas input:not([value="todas"])').forEach(i => { i.disabled = todas; if (todas) i.checked = false; });
+}
+function setLojas(lista) {
+  const todas = !Array.isArray(lista) || !lista.length;
+  document.querySelector('#f-lojas input[value="todas"]').checked = todas;
+  document.querySelectorAll('#f-lojas input:not([value="todas"])').forEach(i => { i.checked = !todas && lista.map(String).includes(i.value); });
+  lojasTodasMudou();
+}
+function getLojas() {
+  if (document.querySelector('#f-lojas input[value="todas"]').checked) return null;
+  return [...document.querySelectorAll('#f-lojas input:not([value="todas"]):checked')].map(i => +i.value);
+}
+const LJ = n => +n === 10 ? 'CD' : 'E' + n;
+function etiquetasLojas(u) {
+  if (u.perfil === 'admin' || u.perfil === 'gerencial' || !Array.isArray(u.lojas) || !u.lojas.length) return '<span style="color:var(--text3);font-size:11px">todas</span>';
+  return u.lojas.map(n => `<span class="comp-tag">${LJ(n)}</span>`).join(' ');
 }
 
 async function carregar() {
@@ -247,7 +282,7 @@ function badgePerfil(p) {
 function renderTabela() {
   const tb = document.getElementById('tbody');
   if (!usuarios.length) {
-    tb.innerHTML = '<tr><td colspan="7" class="empty"><div class="empty-icon">👤</div>Nenhum usuário cadastrado</td></tr>';
+    tb.innerHTML = '<tr><td colspan="8" class="empty"><div class="empty-icon">👤</div>Nenhum usuário cadastrado</td></tr>';
     return;
   }
   tb.innerHTML = usuarios.map((u, i) => `
@@ -258,6 +293,7 @@ function renderTabela() {
       <td>${badgePerfil(u.perfil)}</td>
       <td>${u.perfil==='comprador'&&u.comprador_nome ? `<div class="comp-tag">▸ ${u.comprador_nome}</div>` : u.perfil==='gerencial'&&u.loja_id ? `<div class="comp-tag" style="color:#158A4A">▸ Loja ${u.loja_id}</div>` : '<span style="color:var(--text3);font-size:11px">—</span>'}</td>
       <td>${etiquetasModulos(u)}${u.dlinks_usuario ? `<div class="comp-tag" style="margin-top:4px" title="Usuário no Dlinks">Dlinks: ${u.dlinks_usuario}</div>` : ''}</td>
+      <td>${etiquetasLojas(u)}</td>
       <td>
         <div class="acoes">
           <button class="btn-acao btn-edit" onclick="editarUsuario(${u.id})">✏ Editar</button>
@@ -289,6 +325,7 @@ function toggleExtraFields() {
   document.getElementById('field-comprador').style.display = p === 'comprador' ? '' : 'none';
   document.getElementById('field-loja').style.display = p === 'gerencial' ? '' : 'none';
   document.getElementById('field-modulos').style.display = (p === 'admin' || p === 'gerencial') ? 'none' : '';
+  document.getElementById('field-lojas').style.display = (p === 'admin' || p === 'gerencial') ? 'none' : '';
 }
 
 function abrirModal(titulo = '👤 Novo Usuário') {
@@ -303,6 +340,7 @@ function abrirModal(titulo = '👤 Novo Usuário') {
   document.getElementById('f-loja').value = '';
   setDlinks(null);
   setModulos(null);
+  setLojas(null);
   document.getElementById('f-senha-label').textContent = 'Senha';
   document.getElementById('f-senha-hint').textContent = '';
   document.getElementById('f-senha').placeholder = '••••••••';
@@ -328,6 +366,7 @@ function editarUsuario(id) {
   document.getElementById('f-loja').value = u.loja_id || '';
   setDlinks(u.dlinks_usuario);
   setModulos(u.modulos);
+  setLojas(u.lojas);
   document.getElementById('f-senha-label').textContent = 'Nova Senha (deixe em branco para não alterar)';
   document.getElementById('f-senha-hint').textContent = 'Opcional — só preencha se quiser trocar a senha';
   document.getElementById('f-senha').placeholder = 'deixe em branco para manter';
@@ -351,6 +390,7 @@ function trocarSenha(id) {
   document.getElementById('f-loja').value = u.loja_id || '';
   setDlinks(u.dlinks_usuario);
   setModulos(u.modulos);
+  setLojas(u.lojas);
   document.getElementById('f-senha-label').textContent = 'Nova Senha';
   document.getElementById('f-senha-hint').textContent = '';
   document.getElementById('f-senha').placeholder = 'Digite a nova senha';
@@ -389,12 +429,14 @@ async function salvar() {
   if (!modoEdicao && !senha) { mostrarErroModal('Informe a senha.'); return; }
   if (perfil === 'comprador' && !comprador_nome) { mostrarErroModal('Selecione o comprador vinculado.'); return; }
   if (perfil === 'gerencial' && !loja_id) { mostrarErroModal('Selecione a loja vinculada.'); return; }
+  const lojas = (perfil === 'admin' || perfil === 'gerencial') ? null : getLojas();
+  if (Array.isArray(lojas) && !lojas.length) { mostrarErroModal('Marque ao menos uma loja ou "Todas as lojas".'); return; }
 
   btn.disabled = true;
   btn.textContent = 'Salvando...';
 
   try {
-    const body = { nome, usuario, perfil, comprador_nome, loja_id, dlinks_usuario, modulos: (perfil === 'admin' || perfil === 'gerencial') ? null : getModulos() };
+    const body = { nome, usuario, perfil, comprador_nome, loja_id, dlinks_usuario, modulos: (perfil === 'admin' || perfil === 'gerencial') ? null : getModulos(), lojas };
     if (senha) body.senha = senha;
 
     const url = modoEdicao ? `/api/admin/usuarios/${editId}` : '/api/admin/usuarios';
