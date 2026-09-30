@@ -8058,7 +8058,8 @@ app.post('/api/pedidos-fornecedor/:id/emb', (req, res) => {
   const p = pedidosFornec.ajustarEmb(parseInt(req.params.id), req.body?.cod, req.body?.emb, req.session.user?.nome || null);
   if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
   if (p.erro) return res.status(409).json({ error: p.erro });
-  res.json({ ok: true });
+  // devolve o item já fechado na caixa nova + totais: a tela redesenha só a linha, sem recarregar (caixinha da embalagem, 30/09/26)
+  res.json({ ok: true, item: p.itens.find(i => String(i.cod) === String(req.body?.cod)) || null, totais: p.totais, lojas: p.lojas });
 });
 app.post('/api/pedidos-fornecedor/:id/obs-fiscal', (req, res) => {
   const p = pedidosFornec.obsFiscal(parseInt(req.params.id), req.body?.obs, req.session.user?.nome || null);

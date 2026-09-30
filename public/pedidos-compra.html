@@ -116,6 +116,10 @@ input.qin:focus{outline:none;border-color:#F5B800;background:#FFFDF3}input.qin.e
 .det table td.lj,.det table th.lj{text-align:center!important;vertical-align:middle}.det table td.lj input.qin{display:block;margin:0 auto;text-align:center}.det table td{vertical-align:middle}
 .cdtag{display:inline-block;background:#101B33;color:#FFC933;font-size:9px;font-weight:800;letter-spacing:.3px;padding:1px 5px;border-radius:5px;margin-left:5px;vertical-align:middle;line-height:1.4}.cdtag[hidden]{display:none}
 .cxl{cursor:pointer;border-bottom:1px dashed #C9C9C4;display:inline-block}.cxl:hover{color:#0E1626;border-bottom-color:#F5B800}
+/* caixa padrão digitada na linha (Tiago, 30/09/26): "N vol × [12]" — Enter/Tab/↓ grava e pula pro produto de baixo, igual à Cotação */
+.cxe{display:flex;justify-content:flex-end;align-items:center;gap:4px;white-space:nowrap;margin-top:2px}
+input.embi{width:42px;text-align:center;font:inherit;font-size:11px;font-weight:700;padding:2px 4px;border:1px dashed #C9C9C4;border-radius:5px;background:#fff;color:#0E1626}
+input.embi:focus{outline:none;border:1px solid #F5B800;background:#FFFDF3}input.embi.ok{border:1px solid #137A48;background:#EAF6EF}input.embi.warn{border:1px solid #C22F49;background:#FBEAED}
 .lojatot{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 12px;border-top:1px solid #EEEEEA;background:#FAFAF8}.lojatot .lt-t{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:#98A0B3;margin-right:4px}.lojatot .lt{background:#fff;border:1px solid #DADAD6;border-radius:8px;padding:5px 10px;font-size:11px;color:#4E5A72}.lojatot .lt b{display:block;font-size:13px;color:#0E1626;font-variant-numeric:tabular-nums}.lojatot .lt.tot{background:#101B33;border-color:#101B33;color:#B8C0D4}.lojatot .lt.tot b{color:#FFC933}.lojatot .lt-n{font-size:10.5px;color:#98A0B3;margin-left:auto}
 .lojatot .lt[onclick]{transition:box-shadow .12s,border-color .12s}.lojatot .lt[onclick]:hover{border-color:#F5B800;box-shadow:0 0 0 3px #F5B80055}.lojatot .lt[onclick] span::after{content:" ›";color:#98A0B3;font-weight:800}
 .pp-sec{border:1px solid #DADAD6;border-radius:10px;margin-top:10px;overflow:hidden}.pp-sec .h{background:#101B33;color:#fff;padding:7px 12px;font-weight:700;font-size:12px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}.pp-sec .h b{color:#FFC933}.pp-sec table{width:100%;border-collapse:collapse;font-size:11.5px}.pp-sec th{font-size:9.5px;text-transform:uppercase;letter-spacing:.4px;color:#4E5A72;background:#EBEBE9;padding:6px 9px;text-align:left}.pp-sec td{padding:5px 9px;border-top:1px solid #EEEEEA;white-space:nowrap}.pp-sec td.r,.pp-sec th.r{text-align:right}.pp-sec tr.zero td{color:#4E5A72}.pp-sec tfoot td{background:#FAFAF8;border-top:2px solid #DADAD6}
@@ -400,7 +404,7 @@ async function carregarDetalhe(key){
         return ETQ(l)+': '+fmt(q,0);
       }).join(' · ');
       const cel=editavel?LJ.map(l=>{const q=i.lojas_qtd[l]||0;const ru=i.ruptura?.[l];return '<td class="r lj'+(q?' tem':'')+'"><input class="qin" type="number" min="0" step="1" data-id="'+p.id+'" data-cod="'+esc(i.cod)+'" data-ln="'+l+'" value="'+(q||'')+'" placeholder="·"'+(ru?' title="ruptura: '+(ru.tipo==='total'?'não veio nada':'veio '+fmt(ru.recebida,0)+' de '+fmt(ru.pedida,0))+'"':'')+'></td>';}).join(''):'<td class="mut" style="font-size:11px">'+lj+'</td>';
-      h+='<tr class="'+(i.preco!=null||p.status==='sugestao'?'pede':'zero')+'"><td class="desc">'+esc(i.descricao)+cdTag(i.cod)+(i.emb_vendedor?' <span class="pill st-aguardando" style="font-size:9.5px;padding:1px 6px" title="O vendedor informou uma embalagem diferente da nossa">vendedor: emb. '+esc(i.emb_vendedor)+'</span>':'')+(i.origem_item==='ruptura'?' <span class="pill st-sugestao" style="font-size:9.5px;padding:1px 6px" title="Faltou na entrega do pedido de origem">ruptura</span>':(i.origem_item==='radar'?' <span class="pill st-digitacao" style="font-size:9.5px;padding:1px 6px" title="Trazido do radar: já estava abaixo do ponto de pedido">radar</span>':(i.origem_item==='curva_a'?' <span class="pill" style="font-size:9.5px;padding:1px 6px;background:#C22F49;color:#fff;font-weight:800" title="Produto de curva A em risco (zerava antes do dia da lista ou já estava no ponto de pedido)">curva A</span>':'')))+(i.avaria?' <span class="avpill" style="margin:0" title="'+esc(Object.entries(i.avaria).map(([l,a])=>ETQ(l)+': '+a.qtd_pedido+' un de reposição ('+a.status+')').join(' · '))+'">reposição de avaria'+(i.origem_item==='avaria'?'':' (parte)')+'</span>':'')+'<span class="cod">'+esc(i.cod)+'</span></td><td class="r" id="pq-'+p.id+'-'+esc(i.cod)+'"><b>'+fmt(LN?(i.lojas_qtd[LN]||0):i.qtd,0)+'</b> '+esc(i.unid)+'<div class="s2 cxl" title="Clique pra ajustar a caixa padrão deste produto (vale no Radar e na Cotação; se o pedido ainda não foi aprovado, o volume aqui também muda)" onclick="event.stopPropagation();ajustarCaixaPedido('+p.id+',\''+esc(i.cod)+'\',\''+esc(i.unid||'UN')+'\','+(i.emb||1)+',\''+esc(i.descricao).replace(/'/g,'')+'\')">'+(i.emb>1?Math.ceil((LN?(i.lojas_qtd[LN]||0):i.qtd)/i.emb)+' vol × '+i.emb:'caixa?')+' ✎</div></td>'+cel+'<td class="r">'+fmt(i.ultimo_custo,2)+'</td><td class="r"><b>'+(i.preco!=null?fmt(i.preco,2):'<span class="mut">—</span>')+'</b></td><td class="r">'+seta(i.preco,i.ultimo_custo,false)+'</td><td class="r">'+money2((LN?(i.lojas_qtd[LN]||0):i.qtd)*i.ultimo_custo)+'</td><td class="r">'+(i.preco!=null?money2((LN?(i.lojas_qtd[LN]||0):i.qtd)*i.preco):'')+'</td><td class="mut obs">'+esc(i.obs||'')+'</td></tr>';
+      h+='<tr class="'+(i.preco!=null||p.status==='sugestao'?'pede':'zero')+'"><td class="desc">'+esc(i.descricao)+cdTag(i.cod)+(i.emb_vendedor?' <span class="pill st-aguardando" style="font-size:9.5px;padding:1px 6px" title="O vendedor informou uma embalagem diferente da nossa">vendedor: emb. '+esc(i.emb_vendedor)+'</span>':'')+(i.origem_item==='ruptura'?' <span class="pill st-sugestao" style="font-size:9.5px;padding:1px 6px" title="Faltou na entrega do pedido de origem">ruptura</span>':(i.origem_item==='radar'?' <span class="pill st-digitacao" style="font-size:9.5px;padding:1px 6px" title="Trazido do radar: já estava abaixo do ponto de pedido">radar</span>':(i.origem_item==='curva_a'?' <span class="pill" style="font-size:9.5px;padding:1px 6px;background:#C22F49;color:#fff;font-weight:800" title="Produto de curva A em risco (zerava antes do dia da lista ou já estava no ponto de pedido)">curva A</span>':'')))+(i.avaria?' <span class="avpill" style="margin:0" title="'+esc(Object.entries(i.avaria).map(([l,a])=>ETQ(l)+': '+a.qtd_pedido+' un de reposição ('+a.status+')').join(' · '))+'">reposição de avaria'+(i.origem_item==='avaria'?'':' (parte)')+'</span>':'')+'<span class="cod">'+esc(i.cod)+'</span></td><td class="r" id="pq-'+p.id+'-'+esc(i.cod)+'">'+pqHtml(p,i,LN)+'</td>'+cel+'<td class="r">'+fmt(i.ultimo_custo,2)+'</td><td class="r"><b>'+(i.preco!=null?fmt(i.preco,2):'<span class="mut">—</span>')+'</b></td><td class="r">'+seta(i.preco,i.ultimo_custo,false)+'</td><td class="r">'+money2((LN?(i.lojas_qtd[LN]||0):i.qtd)*i.ultimo_custo)+'</td><td class="r">'+(i.preco!=null?money2((LN?(i.lojas_qtd[LN]||0):i.qtd)*i.preco):'')+'</td><td class="mut obs">'+esc(i.obs||'')+'</td></tr>';
     }
     h+='</tbody></table></div>';
     h+='<div class="lojatot" id="lt-'+p.id+'" data-ln="'+(LN||'')+'">'+lojaTotaisHtml(p,LN,true)+'</div>';
@@ -474,7 +478,7 @@ async function salvarQtd(inp){
   const p=PED[id]; const it=p&&p.itens.find(i=>i.cod===cod); if(!it) return;
   it.lojas_qtd[ln]=v; it.qtd=Object.values(it.lojas_qtd).reduce((s,x)=>s+(x||0),0); it.volumes=it.qtd?Math.ceil(it.qtd/(it.emb||1)):0;
   inp.value=v||''; inp.closest('td').classList.toggle('tem',v>0); inp.classList.add('ed');
-  const c=document.getElementById('pq-'+id+'-'+cod); if(c) c.innerHTML='<b>'+fmt(it.qtd,0)+'</b> '+esc(it.unid)+(it.emb>1?'<div class="s2">'+it.volumes+' vol × '+it.emb+'</div>':'');
+  const c=document.getElementById('pq-'+id+'-'+cod); if(c) c.innerHTML=pqHtml(p,it,lnDetalhe(id));
   const lt=document.getElementById('lt-'+id); if(lt) lt.innerHTML=lojaTotaisHtml(p, lt.dataset.ln?+lt.dataset.ln:null, true);
   try{const r=await fetch('/api/pedidos-fornecedor/'+id+'/quantidades',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ajustes:{[cod]:{[ln]:v}}})});const j=await r.json();if(j.error)throw new Error(j.error);const L=LISTA.find(x=>x.id===id);if(L){L.totais=j.totais;L.lojas=j.lojas;}}
   catch(e){alert('Não salvou: '+e.message);}
@@ -625,14 +629,45 @@ async function aprovar(id){
   const msgErp=await aprovarMsgErp(j); if(msgErp) alert('Pedido #'+id+' aprovado.'+msgErp);
   try{const r2=await fetch('/api/pedidos-fornecedor/'+id);const p=await r2.json();if(!p.error)modalPdf(p);}catch(e){}
 }
-async function ajustarCaixaPedido(pid, cod, unid, atual, desc){
-  const v=prompt('Caixa padrão (unidades por caixa) de\n'+desc+'\n\nHoje: '+atual, atual); if(v===null) return;
-  const e=Math.round(parseFloat(String(v).replace(',','.'))); if(!(e>=1)) return;
+// Célula da quantidade do item: total + "N vol × [caixa]" com a caixa numa caixinha de digitar (Tiago, 30/09/26: "que nem na
+// Cotação": digita a embalagem e Enter/Tab/↓ grava e já pula pro produto de baixo; antes era um prompt() no ✎).
+function pqHtml(p,i,LN){
+  const q=LN?(i.lojas_qtd[LN]||0):i.qtd, e=i.emb>1?i.emb:0;
+  return '<b>'+fmt(q,0)+'</b> '+esc(i.unid)+'<div class="s2 cxe" onclick="event.stopPropagation()">'+(e?'<span>'+Math.ceil(q/e)+' vol ×</span>':'<span class="mut">caixa?</span>')
+    +'<input class="embi" type="text" inputmode="numeric" maxlength="5" value="'+(e||'')+'" data-last="'+(e||'')+'" data-pid="'+p.id+'" data-cod="'+esc(i.cod)+'" data-unid="'+esc(i.unid||'UN')+'" placeholder="cx" title="Caixa padrão (unidades por caixa). Digite e dê Enter: grava e pula pro produto de baixo (↑ ↓ andam na lista). Vale no Radar e na Cotação; se o pedido ainda não foi aprovado, as quantidades por loja fecham na caixa nova." onkeydown="embKey(event,this)" onchange="embChange(this)"></div>';
+}
+function lnDetalhe(id){ const lt=document.getElementById('lt-'+id); return lt&&lt.dataset.ln?+lt.dataset.ln:0; }
+function embViz(el,dir){ const L=[...document.querySelectorAll('input.embi')], k=L.indexOf(el); return k<0?null:(L[k+dir]||null); }
+function embIr(n){ if(!n) return; n.focus(); n.select(); try{ n.scrollIntoView({block:'center',behavior:'smooth'}); }catch(e){} }
+function embNum(el){ return Math.round(parseFloat(String(el.value||'').trim().replace(',','.'))); }
+function embKey(ev,el){
+  if(ev.key==='ArrowDown'){ ev.preventDefault(); embIr(embViz(el,1)); return; }
+  if(ev.key==='ArrowUp'){ ev.preventDefault(); embIr(embViz(el,-1)); return; }
+  if(ev.key==='Enter'||(ev.key==='Tab'&&!ev.shiftKey)){
+    ev.preventDefault(); const px=embViz(el,1);
+    if(String(el.value||'').trim()) salvarEmb(el);   // Enter no mesmo número também vale: fecha as quantidades na caixa (regra do ajustarEmb)
+    if(px) embIr(px); else el.blur();
+  }
+}
+function embChange(el){ const e=embNum(el); if(!(e>=1)){ el.value=el.dataset.last||''; return; } if(String(e)===el.dataset.last) return; salvarEmb(el); }   // o Enter já gravou: não grava 2×
+async function salvarEmb(el){
+  const pid=+el.dataset.pid, cod=el.dataset.cod, unid=el.dataset.unid||'UN', e=embNum(el);
+  if(!(e>=1)){ el.value=el.dataset.last||''; return; }
+  el.dataset.last=String(e); el.classList.remove('warn','ok'); el.title='';
+  const p=PED[pid], it=p&&p.itens.find(i=>String(i.cod)===String(cod));
   try{
-    let r=await fetch('/api/itens/unidade-embalagem',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({codigo:cod,unidade:unid||'UN',embalagem:e})}); let j=await r.json().catch(()=>({})); if(!r.ok||j.error) throw new Error(j.error||('HTTP '+r.status));
-    r=await fetch('/api/pedidos-fornecedor/'+pid+'/emb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cod,emb:e})}); j=await r.json().catch(()=>({})); if(j.error) alert(j.error);
-  }catch(err){ alert('Erro ao gravar a caixa: '+err.message); return; }
-  await carregar(); if(aberto) carregarDetalhe(aberto);   // carregar() redesenha a lista com o detalhe em spinner; sem isto ficava assim até clicar de novo
+    let r=await fetch('/api/itens/unidade-embalagem',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({codigo:cod,unidade:unid,embalagem:e})}); let j=await r.json().catch(()=>({})); if(!r.ok||j.error) throw new Error(j.error||('HTTP '+r.status));
+    r=await fetch('/api/pedidos-fornecedor/'+pid+'/emb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cod,emb:e})}); j=await r.json().catch(()=>({}));
+    if(j.error){ el.classList.add('warn'); el.title=j.error; return; }   // pedido aprovado/recebido: a caixa ficou gravada no cadastro, o pedido não muda mais
+    if(!it) return;
+    if(j.item){ it.emb=j.item.emb; it.qtd=j.item.qtd; it.volumes=j.item.volumes; if(j.item.lojas_qtd) it.lojas_qtd=j.item.lojas_qtd; } else { it.emb=e; it.volumes=it.qtd?Math.ceil(it.qtd/e):0; }
+    if(j.totais) p.totais=j.totais;
+    // redesenha só o que mudou (célula, caixas por loja, totais) — sem carregar() pra não perder o cursor no produto de baixo
+    const c=document.getElementById('pq-'+pid+'-'+cod); if(c){ c.innerHTML=pqHtml(p,it,lnDetalhe(pid)); const n=c.querySelector('input.embi'); if(n) n.classList.add('ok'); }
+    document.querySelectorAll('input.qin[data-id="'+pid+'"][data-cod="'+cod+'"]').forEach(q=>{ const v=it.lojas_qtd[q.dataset.ln]||0; if(String(q.value)!==String(v||'')){ q.value=v||''; q.classList.add('ed'); } q.closest('td').classList.toggle('tem',v>0); });
+    const lt=document.getElementById('lt-'+pid); if(lt) lt.innerHTML=lojaTotaisHtml(p, lt.dataset.ln?+lt.dataset.ln:null, true);
+    const L=LISTA.find(x=>x.id===pid); if(L&&j.totais){ L.totais=j.totais; L.lojas=j.lojas; }
+  }catch(err){ el.classList.add('warn'); el.title='Erro ao gravar a caixa: '+err.message; }
 }
 async function salvarObsFiscal(id){
   const el=document.getElementById('obsf-'+id); if(!el) return;
