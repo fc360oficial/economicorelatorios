@@ -130,7 +130,7 @@ input.qin:focus{outline:none;border-color:#F5B800;background:#FFFDF3}input.qin.e
     <a class="btn btn-amber" href="/radar-pedidos.html">Gerar novo pedido no Radar</a>
   </div>
   <div id="banner"></div>
-  <div class="fluxo"><span class="pill st-aguardando">Aguardando vendedor</span>→<span class="pill st-digitacao">Em digitação</span>→<span class="pill st-finalizado">Finalizado · aguardando aprovação</span>→<span class="pill st-aprovado">Aprovado</span>→<span class="xml aguardando" style="margin:0">Aguardando conferência XML</span>→<span class="xml conciliado" style="margin:0">Conciliado</span> ou <span class="xml consistencia" style="margin:0">Consistência XML</span> <span style="margin-left:10px">·</span> <span class="pill st-sugestao">Sugestão · ruptura de entrega</span> = criada pelo sistema quando a nota chegou com falta</div>
+  <div class="fluxo"><span class="pill st-aguardando">Aguardando vendedor</span>→<span class="pill st-digitacao">Em digitação</span>→<span class="pill st-finalizado">Finalizado · aguardando aprovação</span>→<span class="pill st-aprovado">Aprovado</span>→<span class="xml aguardando" style="margin:0">Aguardando conferência XML</span>→<span class="xml conciliado" style="margin:0">Conciliado</span> ou <span class="xml consistencia" style="margin:0">Consistência XML</span> <span style="margin-left:10px">·</span> <span class="pill st-sugestao">Sugestão · ruptura de entrega</span> = criada pelo sistema quando a nota chegou com falta <span style="margin-left:10px">·</span> <span class="pill st-chegou">Chegou na loja</span> / <span class="pill st-chegou fim">Finalizado na loja</span> = nota lançada / fechada no ERP (cruza com qualquer status de XML)</div>
   <div class="totais" id="totais"></div>
   <div id="cd-card" hidden style="margin:-6px 0 14px"></div>
   <div class="tools"><input id="q" placeholder="Buscar lista, fornecedor ou vendedor" style="min-width:280px"><select id="fComp"><option value="">Todos compradores</option></select><select id="fLoja" onchange="aberto=null;render()"><option value="">Todas as lojas</option><option value="1">E1 CAHU</option><option value="2">E2 MURIBECA</option><option value="3">E3 PONTE</option><option value="4">E4 ATACAREJO</option><option value="5">E5 PORTA LARGA</option><option value="6">E6 JARDIM JORDÃO</option></select><span class="cnt" id="cnt"></span><button class="btn btn-amber" id="btnTodos" onclick="enviarTodos()" title="Lista todos os pedidos Aguardando vendedor com o botão de WhatsApp de cada um">Enviar pra todos</button><button class="btn btn-slate" id="btnVer" onclick="verificarAgora()" title="Procura agora, no ERP, as NF-e (XML) dos pedidos aprovados, loja a loja, e confere quantidade, preço e boletos (o sistema faz isso sozinho a cada 30 min)">Conferir XML agora</button><button class="btn btn-slate" id="btnAtu">Atualizar</button></div>
@@ -306,14 +306,17 @@ function pillXml(p,ln){
 // antes da aprovação é uma linha por pedido. Cards, filtros e tabela usam a mesma expansão.
 function linhas(){
   return LISTA.flatMap(p=>POS_APROV.includes(p.status)
-    ? p.lojas.map(l=>{const x=p.xml?.lojas?.[l]; const st=x?x.status:'aguardando'; return {...p,_ln:l,_key:p.id+'-'+l,_xst:st,_grupo:st==='conciliado'?'recebido':st==='consistencia'?'xml_consistencia':'aprovado'};})
+    ? p.lojas.map(l=>{const x=p.xml?.lojas?.[l]; const st=x?x.status:'aguardando'; return {...p,_ln:l,_key:p.id+'-'+l,_xst:st,_grupo:st==='conciliado'?'recebido':st==='consistencia'?'xml_consistencia':'aprovado',_loja:x?.chegou?(x.chegou.fechada?'finalizado_loja':'chegou'):null};})
     : [{...p,_key:String(p.id),_grupo:p.status}]);
 }
 const EM_ANDAMENTO=['sugestao','aguardando','digitacao','finalizado','aprovado','xml_consistencia'];
+// filtros transversais (a nota já entrou no ERP): chegou = lançada na loja, finalizado_loja = fechada na loja. Cruzam com qualquer status de XML.
+const POR_LOJA=['chegou','finalizado_loja'];
+const passaFiltro=r=>filtro==='todos'||(filtro==='andamento'?EM_ANDAMENTO.includes(r._grupo):POR_LOJA.includes(filtro)?r._loja===filtro:r._grupo===filtro);
 function renderTotais(){
-  const L=linhas(); const c=k=>L.filter(r=>r._grupo===k).length;
-  const cards=[['andamento','Em andamento',L.filter(r=>EM_ANDAMENTO.includes(r._grupo)).length],['sugestao','Ruptura de entrega',c('sugestao')],['aguardando','Aguardando vendedor',c('aguardando')],['digitacao','Em digitação',c('digitacao')],['finalizado','Aguardando aprovação',c('finalizado')],['aprovado','Aguardando XML',c('aprovado')],['xml_consistencia','Consistência XML',c('xml_consistencia')],['recebido','Conciliados',c('recebido')],['financeiro','Financeiro · conferir antes de pagar',FIN.length],['todos','Todos',L.length]];
-  $('#totais').innerHTML=cards.map(([k,l,n])=>'<div class="tkpi'+(filtro===k?' on':'')+'" data-f="'+k+'"><div class="v'+((k==='finalizado'||k==='sugestao'||k==='xml_consistencia'||k==='financeiro')&&n?' neg':'')+'">'+n+'</div><div class="l">'+l+'</div></div>').join('');
+  const L=linhas(); const c=k=>L.filter(r=>r._grupo===k).length, cl=k=>L.filter(r=>r._loja===k).length;
+  const cards=[['andamento','Em andamento',L.filter(r=>EM_ANDAMENTO.includes(r._grupo)).length],['sugestao','Ruptura de entrega',c('sugestao')],['aguardando','Aguardando vendedor',c('aguardando')],['digitacao','Em digitação',c('digitacao')],['finalizado','Aguardando aprovação',c('finalizado')],['aprovado','Aguardando XML',c('aprovado')],['xml_consistencia','Consistência XML',c('xml_consistencia')],['chegou','Chegou na loja',cl('chegou')],['finalizado_loja','Finalizado na loja',cl('finalizado_loja')],['recebido','Conciliados',c('recebido')],['financeiro','Financeiro · conferir antes de pagar',FIN.length],['todos','Todos',L.length]];
+  $('#totais').innerHTML=cards.map(([k,l,n])=>'<div class="tkpi'+(filtro===k?' on':'')+'" data-f="'+k+'"><div class="v'+((k==='finalizado'||k==='sugestao'||k==='xml_consistencia'||k==='financeiro')&&n?' neg':k==='chegou'&&n?' pos':'')+'">'+n+'</div><div class="l">'+l+'</div></div>').join('');
   document.querySelectorAll('.tkpi').forEach(t=>t.onclick=()=>{filtro=t.dataset.f;aberto=null;renderTotais();render();});
 }
 // Pedidos ao CD (Centro de Distribuição) em andamento — só um resumo com link; o acompanhamento fica na tela do CD
@@ -357,7 +360,7 @@ function render(){ manterRolagem(_render); }
 function _render(){
   if(filtro==='financeiro') return renderFin();
   const q=($('#q').value||'').toLowerCase(), comp=$('#fComp').value, fl=+($('#fLoja').value||0);
-  let rows=linhas().filter(r=>filtro==='todos'||(filtro==='andamento'?EM_ANDAMENTO.includes(r._grupo):r._grupo===filtro));
+  let rows=linhas().filter(passaFiltro);
   rows=rows.filter(p=>(!q||p.lista_nome.toLowerCase().includes(q)||(p.fornecedor||'').toLowerCase().includes(q)||(p.vendedor?.nome||'').toLowerCase().includes(q)||String(p.id)===q||String(p.lista)===q)&&(!comp||p.comprador?.nome===comp)&&(!fl||(p._ln?p._ln===fl:p.lojas.includes(fl))));
   if(fl) rows=rows.map(p=>p._ln?p:{...p,_ln:fl,_key:p.id+"-"+fl});   // filtro de loja: pedido ainda nao aprovado (sugestao/aguardando/digitacao) tambem abre so com a loja escolhida
   $('#cnt').textContent=rows.length+' linha'+(rows.length===1?'':'s')+' ('+new Set(rows.map(p=>p.id)).size+' pedido'+(new Set(rows.map(p=>p.id)).size===1?'':'s')+')';
