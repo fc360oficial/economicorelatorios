@@ -632,3 +632,36 @@ test('cadastroCache: TTL por timestamp, sem um setTimeout por código, e com tet
   const depois = process.getActiveResourcesInfo ? process.getActiveResourcesInfo().filter(x => x === 'Timeout').length : 0;
   assert.ok(depois - antes < 5, 'nenhum timer por código de barras (' + (depois - antes) + ')');
 });
+
+// ── Lojas liberadas por usuário (lib/escopo.js, 30/09/26) ───────────────────────────────────────
+// As rotas de sessão (/api/recebimento*) filtram pela lista de lojas do cadastro do usuário logado.
+// O app do coletor (/api/recebimento-publico/*) não entra nessa trava.
+test('escopo de loja: lista do dia só traz as lojas do usuário; ação em conferência de outra loja = 403; admin vê tudo', async () => {
+  const xmlLoja = () => ({ itens: [{ cod: '789', descricao: 'PRODUTO TESTE', un: 5 }], naoPedidos: [], status: 'consistencia' });
+  const { routes } = montarAmbiente({ q: async () => [] });
+  recebimento.init({ dir: fs.mkdtempSync(path.join(os.tmpdir(), 'rec-rotas-')), cadastro: async () => null, xmlLoja });
+  const t = recebimento.config().lojas[3].token;
+  const rAbrir = res();
+  await routes['POST /api/recebimento-publico/abrir'](req({ query: { t }, body: { chave: 'H'.repeat(44), nNota: '5', fornecedor: 'F', codFornec: 1, nome: 'ana' } }), rAbrir);
+  const id = rAbrir.body.id; assert.ok(id);
+
+  const soCD = { user: { perfil: 'usuario', lojas: [10] } }, admin = { user: { perfil: 'admin' } }, soE3 = { user: { perfil: 'usuario', lojas: [3] } };
+  let r = res(); await routes['GET /api/recebimento'](req({ session: soCD }), r);
+  assert.equal(r.statusCode, 200); assert.deepEqual(r.body, [], 'usuário só CD não vê conferência da loja 3');
+  r = res(); await routes['GET /api/recebimento'](req({ session: admin }), r);
+  assert.ok(r.body.some(c => c.id === id), 'admin vê a conferência');
+  r = res(); await routes['GET /api/recebimento'](req({ session: soE3 }), r);
+  assert.ok(r.body.some(c => c.id === id), 'usuário da loja 3 vê a conferência');
+
+  r = res(); await routes['POST /api/recebimento/:id/chat'](req({ session: soCD, params: { id }, body: { texto: 'oi' } }), r);
+  assert.equal(r.statusCode, 403);
+  r = res(); await routes['POST /api/recebimento/:id/reconferir'](req({ session: soCD, params: { id } }), r);
+  assert.equal(r.statusCode, 403);
+  r = res(); await routes['GET /api/recebimento/:id/devolucao/pdf'](req({ session: soCD, params: { id } }), r);
+  assert.equal(r.statusCode, 403);
+
+  r = res(); await routes['GET /api/recebimento/config'](req({ session: soCD }), r);
+  assert.deepEqual(Object.keys(r.body.lojas), ['10'], 'config só com a loja do usuário');
+  r = res(); await routes['GET /api/recebimento/config'](req({ session: admin }), r);
+  assert.ok(Object.keys(r.body.lojas).length > 1, 'admin recebe todas');
+});
