@@ -30,55 +30,88 @@ let sock = null;
 let grupoJid = null;
 
 // ── WhatsApp ──────────────────────────────────────────────────────────────────
+// Regras aprendidas em 29-30/09/2026 (dois dias de 401):
+//  1. O 1º código de uma conexão com CHAVES NOVAS sai limpo. Se o código vence (408) e a gente reconecta com as
+//     mesmas chaves e pede outro, o WhatsApp devolve 401 em menos de 1 s — e isso não tem a ver com o número.
+//     Então: qualquer queda ANTES de completar o pareamento apaga auth_info e nasce do zero.
+//  2. Só pode existir UMA cadeia de reconexão. Antes, o 408 agendava um conectar() e o loop principal agendava
+//     outro; dois sockets pedindo código ao mesmo tempo = 401 na certa + rejeição não tratada derrubando o processo.
+//  3. Código que ninguém digita não adianta: depois de 3 códigos vencidos seguidos, espera 30 min antes do próximo.
+const AUTH_DIR = path.join(__dirname, 'auth_info');
+let reconTimer = null;
+let codigosVencidos = 0;
+
+function limparAuth() {
+  try { fs.rmSync(AUTH_DIR, { recursive: true, force: true }); } catch (err) { logger.warn({ err: err.message }, 'não consegui apagar auth_info'); }
+}
+
+function agendarReconexao(ms, motivo) {
+  if (reconTimer) return; // já tem uma reconexão marcada — nunca duas cadeias
+  logger.warn(`${motivo} Nova conexão em ${Math.round(ms / 1000)}s.`);
+  reconTimer = setTimeout(() => {
+    reconTimer = null;
+    conectar().catch(err => {
+      logger.error({ err: err.message }, 'Falha ao conectar.');
+      agendarReconexao(10000, 'Erro na conexão.');
+    });
+  }, ms);
+}
+
 async function conectar() {
-  const { state, saveCreds } = await useMultiFileAuthState(path.join(__dirname, 'auth_info'));
+  const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
   const { version } = await fetchLatestBaileysVersion();
+  const pareando = !state.creds.registered;
+  logger.info(pareando ? 'Conectando com chaves novas pra pedir código de pareamento...' : 'Conectando com sessão salva...');
   sock = makeWASocket({ version, auth: state, logger: pino({ level: 'silent' }), printQRInTerminal: false, keepAliveIntervalMs: 15000 });
   sock.ev.on('creds.update', saveCreds);
   // Não responde nada de propósito: número novo, qualquer resposta automática é risco de bloqueio.
 
-  if (!state.creds.registered) {
+  if (pareando) {
     setTimeout(async () => {
       try {
         const codigo = await sock.requestPairingCode(cfg.numero);
         logger.info(`CÓDIGO DE PAREAMENTO: ${codigo}  (no celular: WhatsApp > Dispositivos conectados > Conectar dispositivo > Conectar com número de telefone)`);
-      } catch (err) { logger.error({ err }, 'Erro ao pedir código de pareamento'); }
+      } catch (err) { logger.error({ err: err.message }, 'Erro ao pedir código de pareamento'); }
     }, 3000);
   }
 
-  // Pareando (sem registro) dá até 10 min pro Tiago digitar o código; depois disso 2 min por conexão.
-  const limite = state.creds.registered ? 120000 : 600000;
-  await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('Timeout conexão WA')), limite);
-    let resolvido = false;
-    sock.ev.on('connection.update', ({ connection, lastDisconnect }) => {
-      if (connection === 'open') {
-        logger.info('WhatsApp conectado');
-        registrado = true;
-        grupoJid = null;
-        if (!resolvido) { resolvido = true; clearTimeout(timer); resolve(); }
+  sock.ev.on('connection.update', ({ connection, lastDisconnect }) => {
+    if (connection === 'open') {
+      logger.info('WhatsApp conectado');
+      registrado = true;
+      grupoJid = null;
+      codigosVencidos = 0;
+      return;
+    }
+    if (connection !== 'close') return;
+    const code = lastDisconnect?.error?.output?.statusCode;
+
+    // 515 (restartRequired) é o normal logo após digitar o código: o pareamento JÁ foi aceito (creds.registered
+    // vira true no creds.update). Reconecta na hora com as mesmas chaves, senão o celular fica em "conectando...".
+    if (code === DisconnectReason.restartRequired) { agendarReconexao(1000, 'Pareamento aceito (515), reiniciando a conexão.'); return; }
+
+    if (!state.creds.registered) {
+      // Caiu antes de completar o pareamento: código venceu (408) ou WhatsApp recusou (401). Chave usada = lixo.
+      limparAuth();
+      if (code === DisconnectReason.loggedOut) {
+        agendarReconexao(600000, 'WhatsApp recusou o pareamento (401). Chaves descartadas.');
+      } else {
+        codigosVencidos++;
+        const ms = codigosVencidos >= 3 ? 1800000 : 10000;
+        agendarReconexao(ms, `Código venceu sem ser digitado (fechou com ${code ?? '?'}, ${codigosVencidos}º seguido). Chaves descartadas.`);
       }
-      if (connection === 'close') {
-        const code = lastDisconnect?.error?.output?.statusCode;
-        if (code === DisconnectReason.loggedOut) {
-          if (!state.creds.registered) {
-            // 401 ANTES de completar o pareamento = WhatsApp recusou o código (ou está limitando pedidos).
-            // Não insistir: cada tentativa pede código novo e piora o bloqueio. Espera 10 min e pede de novo.
-            logger.error('WhatsApp recusou o pareamento (401). Nova tentativa de código só daqui a 10 min.');
-            if (!resolvido) { clearTimeout(timer); reject(Object.assign(new Error('Pareamento recusado'), { esperar: 600000 })); }
-          } else {
-            logger.error('Sessão encerrada pelo WhatsApp. Apague a pasta auth_info e reinicie pra parear de novo.');
-            if (!resolvido) { clearTimeout(timer); reject(new Error('Deslogado')); } else process.exit(1);
-          }
-        } else {
-          // 515 (restartRequired) é o normal logo após digitar o código de pareamento: reconecta SEMPRE,
-          // mesmo antes do 1º 'open', senão o celular fica em "conectando..." e desiste.
-          logger.warn(`Conexão fechou (código ${code ?? '?'}). Reconectando...`);
-          setTimeout(conectar, code === DisconnectReason.restartRequired ? 1000 : 5000);
-          if (!resolvido) { resolvido = true; clearTimeout(timer); resolve(); }
-        }
-      }
-    });
+      return;
+    }
+
+    if (code === DisconnectReason.loggedOut) {
+      // Sessão que já funcionava foi encerrada no celular: apaga e sai; o supervisor (server.js) sobe de novo e
+      // o processo novo já imprime um código de pareamento no log.
+      logger.error('Sessão encerrada pelo WhatsApp. auth_info apagado; reiniciando pra parear de novo.');
+      limparAuth();
+      process.exit(1);
+    }
+    registrado = false;
+    agendarReconexao(5000, `Conexão fechou (código ${code ?? '?'}).`);
   });
 }
 
@@ -148,15 +181,8 @@ http.createServer(async (req, res) => {
 }).listen(PORTA, '127.0.0.1', () => logger.info(`Bot CAHU ouvindo em 127.0.0.1:${PORTA} (grupo alvo: "${cfg.grupo}")`));
 
 // ── Inicialização ─────────────────────────────────────────────────────────────
-(async () => {
-  logger.info('Conectando ao WhatsApp (Central Rede Cahu)...');
-  for (;;) {
-    try { await conectar(); break; }
-    catch (err) {
-      const ms = err.esperar || 10000;
-      logger.error({ err: err.message }, `Falha ao conectar. Tentando de novo em ${Math.round(ms / 1000)}s...`);
-      await new Promise(r => setTimeout(r, ms));
-    }
-  }
-  logger.info('Pronto. Aguardando pedidos do server.js (nenhuma agenda aqui — quem agenda é lib/cahu-tabela-wpp.js).');
-})();
+logger.info('Bot Central Rede Cahu iniciando. Quem agenda o que mandar é lib/cahu-tabela-wpp.js no server.js.');
+conectar().catch(err => {
+  logger.error({ err: err.message }, 'Falha ao conectar.');
+  agendarReconexao(10000, 'Erro na conexão inicial.');
+});
