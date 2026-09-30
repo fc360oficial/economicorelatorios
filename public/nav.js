@@ -389,6 +389,28 @@
           else { marca.removeAttribute('href'); marca.style.cursor = 'default'; }
         }
       }
+      /* compradora (lib/escopo.js): o servidor já devolve só o que é dela; aqui o seletor
+         de comprador(a) das telas de Compras fica travado no nome dela. As telas montam o
+         seletor depois do boot (fetch), então a checagem repete por alguns segundos. */
+      if (u && u.perfil === 'comprador' && u.comprador_nome) {
+        var IDS = ['f-comprador', 'r-comprador', 'm-comprador', 'sel-comprador', 'fil-comprador', 'fComp'];
+        var nome = String(u.comprador_nome).trim().toUpperCase();
+        var tentativas = 0;
+        var travar = function () {
+          IDS.forEach(function (id) {
+            var sel = document.getElementById(id);
+            if (!sel || sel.tagName !== 'SELECT' || sel.dataset.travado) return;
+            var opts = [].slice.call(sel.options);
+            var dela = opts.filter(function (o) { return o.value && o.value.toUpperCase().indexOf(nome) !== -1; })[0];
+            if (!dela) { if (opts.length > 1) sel.dataset.travado = '1'; return; }   /* montado e sem ela: deixa como está */
+            var mudou = sel.value !== dela.value;
+            sel.value = dela.value; sel.disabled = true; sel.title = 'Você só vê o que é de ' + nome; sel.dataset.travado = '1';
+            if (mudou) sel.dispatchEvent(new Event('change', { bubbles: true }));
+          });
+          if (++tentativas < 24) setTimeout(travar, 500);
+        };
+        travar();
+      }
       /* perfil gerencial fica travado na própria Gestão Gerencial —
          esconde os itens de navegação e desativa o clique na marca
          (que levaria ao Dashboard, fora do alcance desse perfil) */

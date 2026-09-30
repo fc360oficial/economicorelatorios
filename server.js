@@ -3904,7 +3904,7 @@ app.get('/api/listas-compra', async (req, res) => {
 
     res.json({
       listas: listasMapped,
-      compradores: Object.keys(NREGS_COMPRADOR).sort()
+      compradores: soMinhasNomes(req, Object.keys(NREGS_COMPRADOR).sort())
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
