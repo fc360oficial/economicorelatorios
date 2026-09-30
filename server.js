@@ -8094,35 +8094,40 @@ app.get('/api/dp/ponto/resumo', async (req, res) => {
 // ═══════════════════════════════════════════════════
 const fiscal = require('./lib/fiscal');
 fiscal.init(q, { pedidos: () => pedidosFornec.listar(), recebimento: require('./lib/recebimento') });
-const fiscalPeriodo = req => { const ok = v => /^d{4}-d{2}-d{2}$/.test(v || ''); const de = ok(req.query.de) ? req.query.de : new Date().toISOString().slice(0, 10); const ate = ok(req.query.ate) && req.query.ate >= de ? req.query.ate : de; const loja = parseInt(req.query.loja) || null; return { de, ate, loja }; };
+const fiscalPeriodo = req => { const ok = v => /^d{4}-d{2}-d{2}$/.test(v || ''); const de = ok(req.query.de) ? req.query.de : new Date().toISOString().slice(0, 10); const ate = ok(req.query.ate) && req.query.ate >= de ? req.query.ate : de; const r = escopo.resolverLoja(req.session.user, parseInt(req.query.loja) || null); return { de, ate, loja: r.loja, lojas: r.lojas }; };
+// trava de loja por usuário (lib/escopo.js): loja fora do cadastro = 403; lista = só as permitidas
+const fiscalErr = (res, err) => res.status(err.status || 500).json({ error: err.message });
+const fiscalNegaLoja = (req, res, loja) => { if (escopo.podeLoja(req.session.user, loja)) return false; res.status(403).json({ error: 'Sem permissão pra esta loja' }); return true; };
 const fiscalReg = req => { const n = parseInt(req.params.nReg, 10); return Number.isInteger(n) && n > 0 ? n : null; };
 app.get('/api/fiscal/recebimentos', async (req, res) => {
-  try { res.json(await fiscal.listar(fiscalPeriodo(req))); } catch (err) { res.status(500).json({ error: err.message }); }
+  try { const r = await fiscal.listar(fiscalPeriodo(req)); r.recebimentos = escopo.filtrarPorLoja(req.session.user, r.recebimentos, x => x.loja); res.json(r); } catch (err) { fiscalErr(res, err); }
 });
 app.get('/api/fiscal/recebimentos/:nReg', async (req, res) => {
   try {
     const n = fiscalReg(req); if (!n) return res.status(400).json({ error: 'nº de conferência inválido' });
     const r = await fiscal.detalhe(n); if (!r) return res.status(404).json({ error: 'Conferência não encontrada' });
+    if (fiscalNegaLoja(req, res, r.loja)) return;
     r.texto_reconferencia = fiscal.textoReconferencia(r);
     res.json(r);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
-app.post('/api/fiscal/recebimentos/:nReg/decisao', (req, res) => {
+app.post('/api/fiscal/recebimentos/:nReg/decisao', async (req, res) => {
   try {
     const n = fiscalReg(req); if (!n) return res.status(400).json({ error: 'nº de conferência inválido' });
+    if (escopo.lojasDoUsuario(req.session.user)) { const r = await fiscal.detalhe(n); if (!r) return res.status(404).json({ error: 'Conferência não encontrada' }); if (fiscalNegaLoja(req, res, r.loja)) return; }
     res.json({ ok: true, decisao: fiscal.decidir(n, req.body?.acao, req.body?.obs, req.session.user?.nome || null) });
   } catch (err) { res.status(400).json({ error: err.message }); }
 });
 app.get('/api/fiscal/documentos', async (req, res) => {
-  try { res.json(await fiscal.documentos(fiscalPeriodo(req))); } catch (err) { res.status(500).json({ error: err.message }); }
+  try { res.json(escopo.filtrarPorLoja(req.session.user, await fiscal.documentos(fiscalPeriodo(req)), x => x.loja)); } catch (err) { fiscalErr(res, err); }
 });
 app.get('/api/fiscal/margem', async (req, res) => {
-  try { res.json(await fiscal.margemItens(fiscalPeriodo(req))); } catch (err) { res.status(500).json({ error: err.message }); }
+  try { res.json(escopo.filtrarPorLoja(req.session.user, await fiscal.margemItens(fiscalPeriodo(req)), x => x.loja)); } catch (err) { fiscalErr(res, err); }
 });
 app.get('/api/fiscal/contatos', async (req, res) => {
   try { res.json(await fiscal.contatos()); } catch (err) { res.status(500).json({ error: err.message }); }
 });
-app.get('/api/fiscal/config', (req, res) => res.json({ config: fiscal.getConfig(), padrao: fiscal.CONFIG_PADRAO, lojas: fiscal.LOJAS_NOMES, status: fiscal.STATUS_NOMES, testes: fiscal.temTestes() }));
+app.get('/api/fiscal/config', (req, res) => res.json({ config: fiscal.getConfig(), padrao: fiscal.CONFIG_PADRAO, lojas: escopo.filtrarLojasObj(req.session.user, fiscal.LOJAS_NOMES), status: fiscal.STATUS_NOMES, testes: fiscal.temTestes() }));
 app.post('/api/fiscal/config', (req, res) => { try { res.json({ ok: true, config: fiscal.setConfig(req.body || {}) }); } catch (err) { res.status(400).json({ error: err.message }); } });
 app.post('/api/fiscal/testes', (req, res) => { try { res.json({ ok: true, criados: fiscal.criarTestes() }); } catch (err) { res.status(500).json({ error: err.message }); } });
 app.delete('/api/fiscal/testes', (req, res) => { try { res.json({ ok: true, removidos: fiscal.removerTestes() }); } catch (err) { res.status(500).json({ error: err.message }); } });
