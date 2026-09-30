@@ -209,7 +209,12 @@ async function boot(){
   const c=await fetch('/api/fiscal/config').then(r=>r.json());
   CFG=c.config;LOJAS=c.lojas;
   const sel=$('#loja');for(const [n,nome] of Object.entries(LOJAS))sel.insertAdjacentHTML('beforeend','<option value="'+n+'">'+LJ(n)+' '+esc(nome)+'</option>');
-  const u=new URLSearchParams(location.search);if(u.get('loja'))sel.value=u.get('loja');if(u.get('de'))$('#de').value=u.get('de');if(u.get('filtro'))filtro=u.get('filtro');ABRIR=+u.get('abrir')||null;if(ABRIR)filtro='todos';
+  /* lojas liberadas no cadastro do usuário (lib/escopo.js): uma só = seletor travado; várias = "Todas as minhas" */
+  const me=await fetch('/api/me').then(r=>r.ok?r.json():{}).catch(()=>({}));
+  const minhas=Array.isArray(me.lojas)?me.lojas:null;
+  if(minhas&&minhas.length===1){sel.value=String(minhas[0]);sel.disabled=true;sel.title='Você só tem acesso a esta loja';}
+  else if(minhas){sel.querySelector('option[value=""]').textContent='Todas as minhas lojas';}
+  const u=new URLSearchParams(location.search);if(u.get('loja')&&!sel.disabled)sel.value=u.get('loja');if(u.get('de'))$('#de').value=u.get('de');if(u.get('filtro'))filtro=u.get('filtro');ABRIR=+u.get('abrir')||null;if(ABRIR)filtro='todos';
   carregar();
 }
 async function carregar(){
