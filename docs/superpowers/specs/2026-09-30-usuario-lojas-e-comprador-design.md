@@ -116,3 +116,23 @@ Feito pelo Tiago na tela Usuários em produção (o `usuarios.json` não vai pro
 - usuárias do CD: módulos CAHU Distribuidora + Fiscal, lojas = CD;
 - demais usuários novos: módulos e lojas conforme cada um, ou "Todas as lojas";
 - compradoras: perfil comprador + nome vinculado, lojas = todas.
+
+## Como ficou implementado (30/09/26, ajustes em relação ao desenho)
+- Fiscal: o filtro de loja ficou nas rotas do `server.js` (`escopo.filtrarPorLoja` sobre o resultado de
+  `lib/fiscal.js`), sem mexer nas consultas da lib. Decisão (`/decisao`) confere a loja via `detalhe`.
+- Compradora: `travaCompradora(req)` no middleware de acesso (server.js) força `?comprador=`, nega 403 por
+  lista no caminho (`listas-compra/:id`, `sugestao-compras/:id`, `radar-pedidos/:id`, `cotacoes/sugestao|lista/:id`,
+  `sombra/:dia/:id`), por `?lista=`/`?listaId=`, e por objeto (cotação, pedido ao fornecedor, sugestão manual F-,
+  ponta de gôndola). POST de criação (pedido, sugestão manual, cotação) exige listas dela.
+- Filtros de resposta: sugestões, listas desativadas/incompletas/margem-resumo, listas de compradores
+  (`/api/ruptura/compradores`, `comprador-listas`, `por-grupo`, `validade/cadastro-pendente`, `/api/listas-compra`),
+  sombra do Radar, pedidos ao fornecedor (lista e alertas financeiros), cotações, pontas de gôndola,
+  Dashboard (bloco compradores, dados e segmento), pedidos do dia/mês por fornecedor (só fornecedores das
+  listas dela).
+- Sem trava, de propósito: `/api/sugestoes-compra/log` (log do Dlinks por loja/fornecedor, sem lista),
+  `/api/compras/verificar-comprador` (legado fixo), Centro de Distribuição, Painel do CD, Fornecedores, Expedição.
+- Telas: `public/nav.js` trava o seletor de comprador(a) (`f-comprador`, `r-comprador`, `m-comprador`,
+  `sel-comprador`, `fil-comprador`, `fComp`) no nome dela quando o seletor tem a opção dela; como o servidor já
+  devolve só o que é dela, os seletores passam a listar só ela de qualquer jeito.
+- Validação em tela (usuária só CD no Fiscal; compradora nas telas de Compras) fica pra depois do deploy:
+  o app local conecta direto no MySQL do ERP e a regra é só via .254.

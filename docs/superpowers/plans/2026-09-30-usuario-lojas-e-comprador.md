@@ -23,7 +23,7 @@
 **Files:** Create `lib/escopo.js`, `test/escopo.test.js`.
 **Produces:** `LOJAS_VALIDAS`, `lojasDoBody(v)`, `lojasDoUsuario(user)`, `podeLoja(user, loja)`, `resolverLoja(user, pedida)`, `filtrarPorLoja(user, lista, getLoja)`.
 
-- [ ] Teste (`test/escopo.test.js`):
+- [x] Teste (`test/escopo.test.js`):
 ```js
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -63,8 +63,8 @@ test('filtrarPorLoja', () => {
   assert.equal(e.filtrarPorLoja({ perfil: 'admin' }, lista, x => x.loja), lista);
 });
 ```
-- [ ] Rodar `node --test test/escopo.test.js` → falha (módulo não existe).
-- [ ] Implementar `lib/escopo.js`:
+- [x] Rodar `node --test test/escopo.test.js` → falha (módulo não existe).
+- [x] Implementar `lib/escopo.js`:
 ```js
 'use strict';
 // Escopo do usuário logado: quais LOJAS ele enxerga (e, na fase 2, qual COMPRADORA).
@@ -100,23 +100,23 @@ function filtrarPorLoja(user, lista, getLoja) {
 }
 module.exports = { LOJAS_VALIDAS, lojasDoBody, lojasDoUsuario, podeLoja, resolverLoja, filtrarPorLoja, erro403 };
 ```
-- [ ] `node --test test/escopo.test.js` → 5 pass. Commit `feat(escopo): regras de lojas por usuário`.
+- [x] `node --test test/escopo.test.js` → 5 pass. Commit `feat(escopo): regras de lojas por usuário`.
 
 ### Task 2: cadastro, login e `/api/me` carregam `lojas`
 
 **Files:** Modify `server.js` (login ~283, `/api/me` ~292, GET/POST/PUT `/api/admin/usuarios` ~310-350).
-- [ ] `const escopo = require('./lib/escopo');` junto do `modulos`.
-- [ ] Login: acrescentar `lojas: escopo.lojasDoBody(user.lojas)` no objeto da sessão.
-- [ ] `/api/me`: acrescentar `lojas: escopo.lojasDoUsuario(req.session.user)`.
-- [ ] GET lista: acrescentar `lojas: escopo.lojasDoBody(u.lojas)`.
-- [ ] POST: ler `lojas: lojasBody` do body; gravar `lojas: escopo.lojasDoBody(lojasBody)`.
-- [ ] PUT: `if (lojasBody !== undefined) usuarios[idx].lojas = escopo.lojasDoBody(lojasBody);`
-- [ ] Conferir com `node --check server.js`. Commit `feat(usuarios): campo lojas no cadastro e na sessão`.
+- [x] `const escopo = require('./lib/escopo');` junto do `modulos`.
+- [x] Login: acrescentar `lojas: escopo.lojasDoBody(user.lojas)` no objeto da sessão.
+- [x] `/api/me`: acrescentar `lojas: escopo.lojasDoUsuario(req.session.user)`.
+- [x] GET lista: acrescentar `lojas: escopo.lojasDoBody(u.lojas)`.
+- [x] POST: ler `lojas: lojasBody` do body; gravar `lojas: escopo.lojasDoBody(lojasBody)`.
+- [x] PUT: `if (lojasBody !== undefined) usuarios[idx].lojas = escopo.lojasDoBody(lojasBody);`
+- [x] Conferir com `node --check server.js`. Commit `feat(usuarios): campo lojas no cadastro e na sessão`.
 
 ### Task 3: tela Usuários — bloco "Lojas liberadas"
 
 **Files:** Modify `public/admin-usuarios.html` (form antes de Módulos; `renderTabela`; helpers; `salvar`; `editarUsuario`/`trocarSenha`/`abrirModal`; `toggleExtraFields`).
-- [ ] HTML depois do campo Dlinks:
+- [x] HTML depois do campo Dlinks:
 ```html
 <div class="field" id="field-lojas">
   <label>Lojas liberadas</label>
@@ -130,7 +130,7 @@ module.exports = { LOJAS_VALIDAS, lojasDoBody, lojasDoUsuario, podeLoja, resolve
   <div class="field-hint">O usuário só enxerga as lojas marcadas nas telas que filtram por loja (hoje: Fiscal). Vale no próximo login.</div>
 </div>
 ```
-- [ ] JS:
+- [x] JS:
 ```js
 function lojasTodasMudou() {
   const todas = document.querySelector('#f-lojas input[value="todas"]').checked;
@@ -152,36 +152,36 @@ function etiquetasLojas(u) {
   return u.lojas.map(n => `<span class="comp-tag">${LJ(n)}</span>`).join(' ');
 }
 ```
-- [ ] `toggleExtraFields`: `document.getElementById('field-lojas').style.display = (p === 'admin' || p === 'gerencial') ? 'none' : '';`
-- [ ] `abrirModal`: `setLojas(null)`. `editarUsuario` e `trocarSenha`: `setLojas(u.lojas)`.
-- [ ] `salvar`: `const lojas = (perfil === 'admin' || perfil === 'gerencial') ? null : getLojas();` + validação `if (Array.isArray(lojas) && !lojas.length) { mostrarErroModal('Marque ao menos uma loja ou "Todas as lojas".'); return; }` + `lojas` no body.
-- [ ] Tabela: cabeçalho ganha `<th>Lojas</th>` depois de Módulos; linha ganha `<td>${etiquetasLojas(u)}</td>`; `colspan` 7→8.
-- [ ] Commit `feat(usuarios): bloco Lojas liberadas na tela`.
+- [x] `toggleExtraFields`: `document.getElementById('field-lojas').style.display = (p === 'admin' || p === 'gerencial') ? 'none' : '';`
+- [x] `abrirModal`: `setLojas(null)`. `editarUsuario` e `trocarSenha`: `setLojas(u.lojas)`.
+- [x] `salvar`: `const lojas = (perfil === 'admin' || perfil === 'gerencial') ? null : getLojas();` + validação `if (Array.isArray(lojas) && !lojas.length) { mostrarErroModal('Marque ao menos uma loja ou "Todas as lojas".'); return; }` + `lojas` no body.
+- [x] Tabela: cabeçalho ganha `<th>Lojas</th>` depois de Módulos; linha ganha `<td>${etiquetasLojas(u)}</td>`; `colspan` 7→8.
+- [x] Commit `feat(usuarios): bloco Lojas liberadas na tela`.
 
 ### Task 4: trava de loja nas rotas do Fiscal e do Recebimento (sessão)
 
 **Files:** Modify `server.js` (`fiscalPeriodo` e rotas `/api/fiscal/*`), `lib/recebimento-rotas.js` (rotas de sessão `/api/recebimento*`).
-- [ ] `server.js`: `fiscalPeriodo` passa a resolver a loja pela sessão:
+- [x] `server.js`: `fiscalPeriodo` passa a resolver a loja pela sessão:
 ```js
 const fiscalPeriodo = req => { const ok = v => /^\d{4}-\d{2}-\d{2}$/.test(v || ''); const de = ok(req.query.de) ? req.query.de : new Date().toISOString().slice(0, 10); const ate = ok(req.query.ate) && req.query.ate >= de ? req.query.ate : de; const r = escopo.resolverLoja(req.session.user, parseInt(req.query.loja) || null); return { de, ate, loja: r.loja, lojas: r.lojas }; };
 const fiscalErr = (res, err) => res.status(err.status || 500).json({ error: err.message });
 ```
   (o regex original `/^d{4}-d{2}-d{2}$/` está sem `\` — bug pré-existente; corrigir junto.)
-- [ ] `/api/fiscal/recebimentos`: `const f = fiscalPeriodo(req); const r = await fiscal.listar(f); r.recebimentos = escopo.filtrarPorLoja(req.session.user, r.recebimentos, x => x.loja); res.json(r);` com `catch (err) { fiscalErr(res, err); }`.
-- [ ] `/documentos` e `/margem`: mesmo padrão, `filtrarPorLoja(..., x => x.loja)`.
-- [ ] `/recebimentos/:nReg` (GET) e `/decisao` (POST): depois de obter `r = await fiscal.detalhe(n)`, `if (!escopo.podeLoja(req.session.user, r.loja)) return res.status(403).json({ error: 'Sem permissão pra esta loja' });` (no POST, chamar `detalhe` antes de `decidir`).
-- [ ] `/api/fiscal/config`: `lojas` = só as permitidas:
+- [x] `/api/fiscal/recebimentos`: `const f = fiscalPeriodo(req); const r = await fiscal.listar(f); r.recebimentos = escopo.filtrarPorLoja(req.session.user, r.recebimentos, x => x.loja); res.json(r);` com `catch (err) { fiscalErr(res, err); }`.
+- [x] `/documentos` e `/margem`: mesmo padrão, `filtrarPorLoja(..., x => x.loja)`.
+- [x] `/recebimentos/:nReg` (GET) e `/decisao` (POST): depois de obter `r = await fiscal.detalhe(n)`, `if (!escopo.podeLoja(req.session.user, r.loja)) return res.status(403).json({ error: 'Sem permissão pra esta loja' });` (no POST, chamar `detalhe` antes de `decidir`).
+- [x] `/api/fiscal/config`: `lojas` = só as permitidas:
 ```js
 const l = escopo.lojasDoUsuario(req.session.user);
 const lojas = l ? Object.fromEntries(Object.entries(fiscal.LOJAS_NOMES).filter(([k]) => l.includes(+k))) : fiscal.LOJAS_NOMES;
 ```
-- [ ] `lib/recebimento-rotas.js`: `const escopo = require('./escopo');`. `GET /api/recebimento`: `escopo.filtrarPorLoja(req.session.user, recebimento.listarDia(data), c => c.loja)`. `GET /api/recebimento/config`: `lojas` só as permitidas. Rotas `/:id/liberar|reconferir|chat|devolucao/pdf|reenviar-erp`: helper `travaLoja(req, res)` que devolve `true` se bloqueou (`recebimento.obter(id)`; se existe e `!escopo.podeLoja(...)` → 403).
-- [ ] `node --check server.js lib/recebimento-rotas.js`; `node --test test/` (só a falha pré-existente). Commit `feat(fiscal): trava de loja por usuário nas rotas do Fiscal e Recebimento`.
+- [x] `lib/recebimento-rotas.js`: `const escopo = require('./escopo');`. `GET /api/recebimento`: `escopo.filtrarPorLoja(req.session.user, recebimento.listarDia(data), c => c.loja)`. `GET /api/recebimento/config`: `lojas` só as permitidas. Rotas `/:id/liberar|reconferir|chat|devolucao/pdf|reenviar-erp`: helper `travaLoja(req, res)` que devolve `true` se bloqueou (`recebimento.obter(id)`; se existe e `!escopo.podeLoja(...)` → 403).
+- [x] `node --check server.js lib/recebimento-rotas.js`; `node --test test/` (só a falha pré-existente). Commit `feat(fiscal): trava de loja por usuário nas rotas do Fiscal e Recebimento`.
 
 ### Task 5: tela do Fiscal — seletor travado/reduzido
 
 **Files:** Modify `public/fiscal.html` (`boot`).
-- [ ] Em `boot`, depois de montar as opções (que já vêm só com as permitidas, pelo `/config`):
+- [x] Em `boot`, depois de montar as opções (que já vêm só com as permitidas, pelo `/config`):
 ```js
 const me=await fetch('/api/me').then(r=>r.ok?r.json():{}).catch(()=>({}));
 const minhas=Array.isArray(me.lojas)?me.lojas:null;
@@ -189,7 +189,7 @@ if(minhas&&minhas.length===1){sel.value=String(minhas[0]);sel.disabled=true;sel.
 else if(minhas){sel.querySelector('option[value=""]').textContent='Todas as minhas lojas';}
 ```
   e só aplicar `u.get('loja')` se `!sel.disabled`.
-- [ ] Commit `feat(fiscal): seletor de loja respeita lojas do usuário`.
+- [x] Commit `feat(fiscal): seletor de loja respeita lojas do usuário`.
 
 ### Task 6: validação local da fase 1
 - [ ] Subir o app local, criar usuário de teste via tela Usuários com lojas = CD e módulos CAHU + Fiscal; logar; conferir: Fiscal abre com seletor travado em CD; `/api/fiscal/recebimentos?loja=3` → 403; `/api/fiscal/config` traz só a 10; `/api/recebimento/config` só a 10; admin continua vendo tudo.
@@ -199,7 +199,7 @@ else if(minhas){sel.querySelector('option[value=""]').textContent='Todas as minh
 
 **Files:** Modify `lib/escopo.js`, `test/escopo.test.js`.
 **Produces:** `compradorDoUsuario(user)`, `listasDoUsuario(user, nregsComprador, resolve)`.
-- [ ] Teste:
+- [x] Teste:
 ```js
 test('compradorDoUsuario: só perfil comprador com nome', () => {
   assert.equal(e.compradorDoUsuario({ perfil: 'comprador', comprador_nome: 'ANA KELLY' }), 'ANA KELLY');
@@ -214,7 +214,7 @@ test('listasDoUsuario: listas dela, nome que não bate = [] (falha fechada), sem
   assert.equal(e.listasDoUsuario({ perfil: 'usuario' }, nregs, resolve), null);
 });
 ```
-- [ ] Implementação:
+- [x] Implementação:
 ```js
 function compradorDoUsuario(user) {
   return user && user.perfil === 'comprador' && user.comprador_nome ? String(user.comprador_nome).trim().toUpperCase() : null;
@@ -231,24 +231,24 @@ function listasDoUsuario(user, nregsComprador, resolve = n => n) {
 ### Task 8 (fase 2): auditoria das rotas de Compras e aplicação da trava
 
 **Files:** Modify `server.js` (middleware de acesso; rotas dos prefixos de `apis` do módulo `compras` em `lib/modulos.js`; dashboard bloco `compradores`) e as libs que as rotas usam, conforme a auditoria.
-- [ ] Middleware (logo depois do check de módulos, só pra `/api/`):
+- [x] Middleware (logo depois do check de módulos, só pra `/api/`):
 ```js
 const compNome = escopo.compradorDoUsuario(req.session.user);
 if (compNome && modulos.moduloDaRota(req.path) === 'compras') req.query.comprador = compNome;
 ```
-- [ ] Auditoria: pra cada rota `app.get|post|put|delete('/api/<prefixo>` com prefixo em `compras.apis`, anotar numa tabela em `docs/superpowers/plans/2026-09-30-auditoria-compras.md`: (a) já filtra por `req.query.comprador` → só o middleware; (b) lista por lista de compra sem `comprador` → filtrar por `escopo.listasDoUsuario(req.session.user, NREGS_COMPRADOR, resolveComprador)` e negar 403 em ação sobre lista fora; (c) sem dono (CD, fornecedores, painel-cd, expedição) → deixar. Rotas que devolvem `compradores: [...]` → só ela.
-- [ ] Aplicar (b) e "só ela" rota a rota, cada uma com `node --check` e commit próprio.
-- [ ] Dashboard: bloco `comercial.compradores` filtrado pelo nome dela quando `compradorDoUsuario` não é null.
+- [x] Auditoria: pra cada rota `app.get|post|put|delete('/api/<prefixo>` com prefixo em `compras.apis`, anotar numa tabela em `docs/superpowers/plans/2026-09-30-auditoria-compras.md`: (a) já filtra por `req.query.comprador` → só o middleware; (b) lista por lista de compra sem `comprador` → filtrar por `escopo.listasDoUsuario(req.session.user, NREGS_COMPRADOR, resolveComprador)` e negar 403 em ação sobre lista fora; (c) sem dono (CD, fornecedores, painel-cd, expedição) → deixar. Rotas que devolvem `compradores: [...]` → só ela.
+- [x] Aplicar (b) e "só ela" rota a rota, cada uma com `node --check` e commit próprio.
+- [x] Dashboard: bloco `comercial.compradores` filtrado pelo nome dela quando `compradorDoUsuario` não é null.
 
 ### Task 9 (fase 2): telas de Compras escondem/travam o seletor de compradora
 
 **Files:** `public/sugestao-compras.html` (`#f-comprador`), `cotacao.html` (`#f-comprador`), `ruptura.html` (`#sel-comprador`), `ponta-gondola.html` (`#f-comprador`), `compras.html`, `comprador.html`, `analise-comprador.html`, `margem-comprador.html`, `mensal.html`, `relatorio-cronograma.html` (seletor/aba por compradora, achar por `comprador` no arquivo).
-- [ ] Helper comum em `public/nav.js` (carregado em todas as telas):
+- [x] Helper comum em `public/nav.js` (carregado em todas as telas):
 ```js
 window.travarComprador = async function(sel){ try{ const me=await fetch('/api/me').then(r=>r.json()); if(me.perfil==='comprador'&&me.comprador_nome){ if(sel){ sel.innerHTML='<option value="'+me.comprador_nome+'">'+me.comprador_nome+'</option>'; sel.value=me.comprador_nome; sel.disabled=true; } return me.comprador_nome; } }catch{} return null; };
 ```
-- [ ] Em cada tela, no boot: `await travarComprador(document.getElementById('f-comprador'))` (ou o id da tela) antes de carregar. Commit `feat(compras): seletor de compradora travado no nome dela`.
+- [x] Em cada tela, no boot: `await travarComprador(document.getElementById('f-comprador'))` (ou o id da tela) antes de carregar. Commit `feat(compras): seletor de compradora travado no nome dela`.
 
 ### Task 10 (fase 2): validação e memória
 - [ ] Logar como usuária compradora de teste (nome que bate com o ERP) e percorrer as 10 telas: só listas dela; trocar `?comprador=` na URL não muda nada; admin vê tudo.
-- [ ] Atualizar memória `feedback_economico-regras-acesso.md` (regra 5: compradora) e `project_estado-atual.md`.
+- [x] Atualizar memória `feedback_economico-regras-acesso.md` (regra 5: compradora) e `project_estado-atual.md`.
