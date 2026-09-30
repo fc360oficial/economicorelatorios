@@ -256,6 +256,12 @@ app.use((req, res, next) => {
       if (req.path.startsWith('/api/')) return res.status(403).json({ error: 'Sem permissão' });
       return res.redirect(modulos.primeiraPagina(req.session.user) || '/login.html');
     }
+    // Compradora (lib/escopo.js): perfil comprador com nome vinculado só vê o que é das listas dela.
+    // ?comprador= é sempre o nome dela; lista/cotação/pedido/sugestão/ponta de outra = 403.
+    if (req.path.startsWith('/api/') && escopo.compradorDoUsuario(req.session.user) && modulos.moduloDaRota(req.path) === 'compras') {
+      const bloqueio = travaCompradora(req);
+      if (bloqueio) return res.status(403).json({ error: bloqueio });
+    }
     return next();
   }
   if (req.path.startsWith('/api/')) return res.status(401).json({ error: 'Não autenticado' });
@@ -3174,7 +3180,7 @@ app.get('/api/sugestoes-compra', async (req, res) => {
 
     if (dlinksErro) res.set('X-Dlinks-Erro', 'indisponivel');
     const todos = [...fluxo, ...dlinks].sort((a, b) => b._ord - a._ord);
-    res.json(todos.map(({ _ord, ...x }) => x));
+    res.json(soMinhas(req, todos.map(({ _ord, ...x }) => x), x => x.lista));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -3424,6 +3430,7 @@ app.get('/api/listas-compra/margem-resumo', async (req, res) => {
     for (const listaId of Object.keys(avariaLista)) if (!listaMargens[listaId]) listaMargens[listaId] = { venda: 0, com_venda: 0, fat: 0, custo_total: 0, lucro: 0, prods: 0 };
     for (const [listaId, m] of Object.entries(listaMargens)) {
       const av = avariaLista[listaId] || 0;
+      if (!minhaLista(req, listaId)) continue;
       result[parseInt(listaId)] = {
         venda: parseFloat(m.venda.toFixed(2)),
         com_venda: m.com_venda,
@@ -3644,7 +3651,7 @@ app.get('/api/listas-compra/desativados', async (req, res) => {
     }
     const _nRegToComp = {};
     for (const [comp, nRegs] of Object.entries(NREGS_COMPRADOR)) for (const nReg of nRegs) _nRegToComp[nReg] = comp;
-    const itens = rows.map(r => ({ lista: r.lista, nome: r.nome || '', fornecedor: r.fornecedor || '', comprador: _nRegToComp[r.lista] || null, cod: r.cod, descricao: r.descricao || null,
+    const itens = soMinhas(req, rows, r => r.lista).map(r => ({ lista: r.lista, nome: r.nome || '', fornecedor: r.fornecedor || '', comprador: _nRegToComp[r.lista] || null, cod: r.cod, descricao: r.descricao || null,
       situacao: r.descricao == null ? 'nao_cadastrado' : 'desativado', alterado: r.alterado || null, alterado_por: r.alterado_por || null,
       lojas: [1, 2, 3, 4, 5, 6].filter(n => r['l' + n]), estoque: est[r.cod] || {}, estoque_total: Object.values(est[r.cod] || {}).reduce((s, v) => s + v, 0) }));
     res.json({ total: itens.length, listas: new Set(itens.map(x => x.lista)).size, nao_cadastrados: itens.filter(x => x.situacao === 'nao_cadastrado').length, com_estoque: itens.filter(x => x.estoque_total > 0).length, itens });
@@ -3670,7 +3677,8 @@ app.get('/api/listas-compra/incompletas', async (req, res) => {
                sem_comprador: !comprador, sem_minimo: !(minimo > 0) };
     });
     const incompletas = listas.filter(l => l.sem_comprador || l.sem_minimo);
-    res.json({ total_listas: listas.length, completas: listas.length - incompletas.length, listas: incompletas });
+    const listasV = soMinhas(req, listas, x => x.id), incV = soMinhas(req, incompletas, x => x.id);
+    res.json({ total_listas: listasV.length, completas: listasV.length - incV.length, listas: incV });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -3726,7 +3734,7 @@ async function baseListasPorGrupo() {
 app.get('/api/listas-compra/por-grupo', async (req, res) => {
   try {
     const base = await baseListasPorGrupo();
-    res.json({ grupos: base.grupos, compradores: base.compradores, listas: base.listas.length, relacaoExemplo: listasPorGrupo.relacaoExemplo(base) });
+    res.json({ grupos: base.grupos, compradores: soMinhasNomes(req, base.compradores), listas: base.listas.length, relacaoExemplo: listasPorGrupo.relacaoExemplo(base) });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.post('/api/listas-compra/divisao', async (req, res) => {
@@ -3763,7 +3771,7 @@ app.get('/api/listas-compra/validade-pendente', async (req, res) => {
                compradores: _nRegToComp[l.nReg] || null, ...a,
                pct: a.total_itens ? +(a.sem_validade / a.total_itens * 100).toFixed(1) : 0 };
     }).filter(l => l.sem_validade > 0);
-    const compradores = [...new Set(listas.map(l => l.compradores).filter(Boolean))].sort();
+    const compradores = soMinhasNomes(req, [...new Set(listas.map(l => l.compradores).filter(Boolean))].sort());
     if (comprador) listas = listas.filter(l => l.compradores === comprador);
     listas.sort((a, b) => b.sem_validade - a.sem_validade || (a.nome || '').localeCompare(b.nome || ''));
     res.json({ listas, compradores, total_listas: listas.length,
@@ -3805,7 +3813,7 @@ app.get('/api/listas-compra/cadastro-pendente', async (req, res) => {
       return { id: l.nReg, nome: l.Nome?.trim(), fornecedor: l.NomeFornec?.trim(), codFornec: l.CodFornec,
                compradores: _nRegToComp[l.nReg] || null, ...a };
     }).filter(l => l.total_itens > 0); // devolve TODAS as listas com item ativo (com e sem pendência) — a tela filtra Com/Sem
-    const compradores = [...new Set(listas.map(l => l.compradores).filter(Boolean))].sort();
+    const compradores = soMinhasNomes(req, [...new Set(listas.map(l => l.compradores).filter(Boolean))].sort());
     if (comprador) listas = listas.filter(l => l.compradores === comprador);
     listas.sort((a, b) => b.com_pendencia - a.com_pendencia || (a.nome || '').localeCompare(b.nome || ''));
 
@@ -4168,7 +4176,7 @@ app.get('/api/listas-compra/:id/itens', async (req, res) => {
 app.get('/api/compras/pedidos-hoje', async (req, res) => {
   try {
     const hoje = req.query.data || localDate();
-    const rows = await q(`
+    let rows = await q(`
       SELECT
         CodFornec,
         Nome                          AS nome,
@@ -4182,6 +4190,8 @@ app.get('/api/compras/pedidos-hoje', async (req, res) => {
       ORDER BY total_R DESC
     `, [hoje]);
 
+    const meus = await meusFornecedores(req);
+    if (meus) rows = rows.filter(r => meus.has(+r.CodFornec));
     const concluidos = new Set(rows.map(r => parseInt(r.CodFornec)));
 
     res.json({
@@ -4206,7 +4216,7 @@ app.get('/api/compras/fornec-por-lista', async (req, res) => {
   try {
     const { listas } = req.query;
     if (!listas) return res.json({});
-    const nRegs = String(listas).split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n) && n > 0);
+    const nRegs = String(listas).split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n) && n > 0).filter(n => minhaLista(req, n));
     if (!nRegs.length) return res.json({});
     const ph = nRegs.map(() => '?').join(',');
     const rows = await q(
@@ -4317,8 +4327,10 @@ app.get('/api/compras/pedidos-mes', async (req, res) => {
       GROUP BY DATE(DataLan), CodFornec
       ORDER BY data
     `, [ano, mes]);
+    const meusF = await meusFornecedores(req);
     const mapa = {};
     for (const r of rows) {
+      if (meusF && !meusF.has(+r.CodFornec)) continue;
       const k = String(r.data).slice(0,10);
       if (!mapa[k]) mapa[k] = [];
       mapa[k].push(parseInt(r.CodFornec));
@@ -4437,6 +4449,56 @@ const COMPRADOR_ALIASES = {
 function resolveComprador(nome) {
   const up = (nome || '').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase();
   return COMPRADOR_ALIASES[up] || up;
+}
+
+// ── Trava por compradora (lib/escopo.js, 30/09/26) ─────────────────────────────────────────
+// Usuário perfil 'comprador' com comprador_nome: só as listas dela (NREGS_COMPRADOR, agenda do ERP).
+// Quem não tem trava (admin, outros perfis) passa reto em todos os helpers.
+const NEG_LISTA = 'Sem permissão pra esta lista';
+function minhaLista(req, nReg) { return escopo.podeLista(req.session?.user, NREGS_COMPRADOR, nReg, resolveComprador); }
+function soMinhas(req, lista, getNReg) { return escopo.filtrarPorLista(req.session?.user, NREGS_COMPRADOR, lista, getNReg, resolveComprador); }
+function minhaCompradora(req, nome) { const c = escopo.compradorDoUsuario(req.session?.user); return !c || resolveComprador(nome) === resolveComprador(c); }
+function soMinhasNomes(req, nomes) { return escopo.compradorDoUsuario(req.session?.user) ? nomes.filter(n => minhaCompradora(req, n)) : nomes; }
+/** Objeto { NOME DA COMPRADORA: ... } só com a chave dela. */
+function soMinhasChaves(req, obj) { return escopo.compradorDoUsuario(req.session?.user) ? Object.fromEntries(Object.entries(obj).filter(([k]) => minhaCompradora(req, k))) : obj; }
+/** CodFornec das listas dela (Set) ou null sem trava — pra telas por fornecedor (pedidos do dia/mês). */
+async function meusFornecedores(req) {
+  const ids = escopo.listasDoUsuario(req.session?.user, NREGS_COMPRADOR, resolveComprador);
+  if (!ids) return null;
+  if (!ids.length) return new Set();
+  const rows = await q('SELECT CodFornec FROM central.c_cotacao_lista WHERE nReg IN (' + ids.map(() => '?').join(',') + ')', ids).catch(() => []);
+  return new Set(rows.map(r => +r.CodFornec));
+}
+/** Dashboard: bloco de compradores (comercial.compradores / segmento) só com a linha dela. */
+function soMinhaDashboard(req, d) {
+  if (!escopo.compradorDoUsuario(req.session?.user) || !d || typeof d !== 'object') return d;
+  const fix = o => {
+    if (!o || typeof o !== 'object' || !Array.isArray(o.compradores) || !o.compradores.every(c => c && typeof c === 'object' && 'comprador' in c)) return o;
+    const mine = o.compradores.filter(c => minhaCompradora(req, c.comprador));
+    return { ...o, compradores: mine, total: mine[0] ? { ...mine[0] } : null };
+  };
+  const out = { ...d };
+  for (const k of Object.keys(out)) { const v = out[k]; if (v && typeof v === 'object') out[k] = v.compradores && typeof v.compradores === 'object' && !Array.isArray(v.compradores) ? { ...v, compradores: fix(v.compradores) } : fix(v); }
+  return out;
+}
+const RE_LISTA_NO_PATH = [/^\/api\/(?:listas-compra|sugestao-compras|radar-pedidos)\/(\d+)(?:\/|$)/, /^\/api\/cotacoes\/(?:sugestao|lista)\/(\d+)(?:\/|$)/, /^\/api\/radar-pedidos\/sombra\/\d{4}-\d{2}-\d{2}\/(\d+)$/];
+/** Roda no middleware de acesso pra rotas /api do módulo Compras. Devolve a mensagem do 403 ou null. */
+function travaCompradora(req) {
+  const nome = escopo.compradorDoUsuario(req.session.user);
+  req.query.comprador = resolveComprador(nome);
+  const p = req.path, b = req.body || {}; let m;
+  for (const re of RE_LISTA_NO_PATH) { m = p.match(re); if (m && !minhaLista(req, m[1])) return NEG_LISTA; }
+  for (const k of ['lista', 'listaId']) if (req.query[k] && /^\d+$/.test(String(req.query[k])) && !minhaLista(req, req.query[k])) return NEG_LISTA;
+  if ((m = p.match(/^\/api\/cotacoes\/(\d+)(?:\/|$)/))) { const c = cotacao.obter(+m[1]); if (c && !minhaLista(req, c.lista)) return 'Sem permissão pra esta cotação'; }
+  if ((m = p.match(/^\/api\/pedidos-fornecedor\/(\d+)(?:\/|$)/))) { const pd = pedidosFornec.obter(+m[1]); if (pd && !minhaLista(req, pd.lista)) return 'Sem permissão pra este pedido'; }
+  if ((m = p.match(/^\/api\/sugestao-manual\/(F-\d+)(?:\/|$)/))) { const sg = sugestaoManual.obter(m[1]); if (sg && !minhaLista(req, sg.lista?.id)) return 'Sem permissão pra esta sugestão'; }
+  if ((m = p.match(/^\/api\/pontas-gondola\/(\d+)(?:\/|$)/))) { const pt = pontaGondola.carregarPontas().find(x => x.id === +m[1]); if (pt && pt.comprador && !minhaCompradora(req, pt.comprador)) return 'Sem permissão pra esta ponta'; if (req.method === 'POST' && b.comprador !== undefined) req.body.comprador = nome; }
+  if (req.method === 'POST') {
+    if (p === '/api/pedidos-fornecedor' && Array.isArray(b.listas) && !b.listas.every(n => minhaLista(req, n))) return NEG_LISTA;
+    if (p === '/api/sugestao-manual' && b.lista && !minhaLista(req, b.lista)) return NEG_LISTA;
+    if (p === '/api/cotacoes' && b.lista && !minhaLista(req, b.lista)) return NEG_LISTA;
+  }
+  return null;
 }
 
 let _analiseCache = {}, _analiseCacheTs = {};
@@ -5394,7 +5456,7 @@ app.get('/api/ruptura/debug-comprador', async (req, res) => {
 
 app.get('/api/ruptura/compradores', withCache(60), async (req, res) => {
   try {
-    res.json(Object.keys(NREGS_COMPRADOR).sort());
+    res.json(soMinhasNomes(req, Object.keys(NREGS_COMPRADOR).sort()));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -5546,10 +5608,10 @@ app.get('/api/ruptura/comprador-listas', withCache(60), async (req, res) => {
     }
     for (const [nome, nRegs] of Object.entries(NREGS_COMPRADOR))
       result[nome] = nRegs.map(id => ({ id, nome: info[id]?.nome || '', codFornec: info[id]?.codFornec || 0 }));
-    return res.json(result);
+    return res.json(soMinhasChaves(req, result));
   }
   for (const [nome, nRegs] of Object.entries(NREGS_COMPRADOR)) result[nome] = nRegs;
-  res.json(result);
+  res.json(soMinhasChaves(req, result));
 });
 
 // Distribuição por loja dos produtos de uma lista de compra
@@ -6640,7 +6702,7 @@ app.get('/api/fornecedores/buscar', async (req, res) => {
 });
 
 app.get('/api/pontas-gondola', (req, res) => {
-  const lista = pontaGondola.comPlano(pontaGondola.carregarPontas());
+  const lista = pontaGondola.comPlano(pontaGondola.carregarPontas()).filter(p => !p.comprador || minhaCompradora(req, p.comprador));
   res.json({ lojas: pontaGondola.LOJAS, pontas: lista });
 });
 
@@ -6824,11 +6886,11 @@ const dashboardNovo = require('./lib/dashboard');
 dashboardNovo.init({ q, radarPedidos, sortimento, getNregsComprador: () => NREGS_COMPRADOR, get pedidosCd() { return pedidosCD; }, get pedidosFornecedor() { return pedidosFornec; } });
 dashboardNovo.agendar();
 app.get('/api/dashboard', async (req, res) => {
-  try { res.json(await dashboardNovo.dados()); } catch (err) { res.status(500).json({ error: err.message }); }
+  try { res.json(soMinhaDashboard(req, await dashboardNovo.dados())); } catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.get('/api/dashboard/resumo', (req, res) => { try { res.json(dashboardNovo.resumo()); } catch (err) { res.status(500).json({ error: err.message }); } });
 app.get('/api/dashboard/seg/:nome', async (req, res) => {
-  try { const r = await dashboardNovo.segmento(req.params.nome); res.json({ ...r, nomes: dashboardNovo.NOMES, metas: dashboardNovo.getMetas() }); }
+  try { const r = soMinhaDashboard(req, await dashboardNovo.segmento(req.params.nome)); res.json({ ...r, nomes: dashboardNovo.NOMES, metas: dashboardNovo.getMetas() }); }
   catch (err) { res.status(400).json({ error: err.message }); }
 });
 // títulos de uma loja num dia de pagamento (detalhe da linha da loja no bloco Financeiro), só leitura
@@ -7409,7 +7471,7 @@ app.get('/api/radar-pedidos/curva-a', (req, res) => {
 });
 
 app.get('/api/radar-pedidos/sombra', async (req, res) => {
-  try { res.json(await radarPedidos.sombra(Math.max(1, Math.min(120, parseInt(req.query.dias) || 30)))); }
+  try { const sb = await radarPedidos.sombra(Math.max(1, Math.min(120, parseInt(req.query.dias) || 30))); res.json({ ...sb, linhas: soMinhas(req, sb.linhas, x => x.lista), tendencia: sb.tendencia.map(t => ({ ...t, porComprador: t.porComprador && soMinhasChaves(req, t.porComprador) })) }); }
   catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -7568,6 +7630,7 @@ app.get('/api/sugestao-manual/:id', async (req, res) => {
     const id = String(req.params.id); if (!/^[FD]-\d+$/.test(id)) return res.status(400).json({ error: 'Id inválido' });
     const s = id.startsWith('D-') ? await sugestaoManual.montarDoERP(id.slice(2), req.query.refresh === '1') : sugestaoManual.obter(id);
     if (!s) return res.status(404).json({ error: 'Sugestão não encontrada' });
+    if (!minhaLista(req, s.lista?.id)) return res.status(403).json({ error: 'Sem permissão pra esta sugestão' });
     // pedido ligado à sugestão (link do vendedor): é ele que dá o "Status Web" da sugestão manual
     s.pedido = s.pedido_id ? resumoPedidoSugestao(pedidosFornec.obter(s.pedido_id)) : null;
     res.json(s);
@@ -7795,7 +7858,7 @@ app.post('/api/pedidos-fornecedor/testes-xml', async (req, res) => {
 });
 // Financeiro: lojas com problema de pagamento na conferência XML (não pagar sem conferir)
 app.get('/api/pedidos-fornecedor/financeiro', (req, res) => {
-  try { res.json(pedidosFornec.financeiroAlertas()); } catch (err) { res.status(500).json({ error: err.message }); }
+  try { res.json(pedidosFornec.financeiroAlertas().filter(a => minhaLista(req, pedidosFornec.obter(a.pedido)?.lista))); } catch (err) { res.status(500).json({ error: err.message }); }
 });
 // Decisão por item antes da entrega (aceitar / recusar) e PDF de aviso de devolução por loja
 app.post('/api/pedidos-fornecedor/:id/xml/:loja/decidir', (req, res) => {
@@ -7839,7 +7902,7 @@ app.post('/api/pedidos-fornecedor/testes-xml/remover', (req, res) => {
   try { const n = pedidosFornec.removerTestesXml(); const np = precificacao.removerTestes(); res.json({ removidos: n, precificacao_removidos: np }); } catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.get('/api/pedidos-fornecedor', (req, res) => {
-  res.json(pedidosFornec.listar().map(p => ({ id: p.id, lista: p.lista, lista_nome: p.lista_nome, fornecedor: p.fornecedor, vendedor: p.vendedor, comprador: p.comprador, status: p.status, aprovadoEm: p.aprovadoEm || null, aprovadoPor: p.aprovadoPor || null, recebidoEm: p.recebidoEm || null, origem: p.origem || null, alerta_novo: !!p.alerta_novo,
+  res.json(soMinhas(req, pedidosFornec.listar(), p => p.lista).map(p => ({ id: p.id, lista: p.lista, lista_nome: p.lista_nome, fornecedor: p.fornecedor, vendedor: p.vendedor, comprador: p.comprador, status: p.status, aprovadoEm: p.aprovadoEm || null, aprovadoPor: p.aprovadoPor || null, recebidoEm: p.recebidoEm || null, origem: p.origem || null, alerta_novo: !!p.alerta_novo,
     recebimento: p.recebimento ? Object.fromEntries(Object.entries(p.recebimento).map(([l, r]) => [l, { faltas: r.faltas, itens_pedidos: r.itens_pedidos, notas: r.notas.map(n => n.nNota) }])) : null, criadoEm: p.criadoEm, criadoPor: p.criadoPor, abertoEm: p.abertoEm, finalizadoEm: p.finalizadoEm, lojas: p.lojas, totais: p.totais, por_loja: pedidosFornec.porLoja(p), link: linkPedido(p), teste: !!p.teste, avarias: p.avarias ? { n: p.avarias.n, total: p.avarias.total, por_loja: p.avarias.por_loja || {} } : null, xml: p.xml ? { status: p.xml.status, verificadoEm: p.xml.verificadoEm || null, lojas: Object.fromEntries(Object.entries(p.xml.lojas || {}).map(([l, x]) => [l, { status: x.status, problemas: (x.problemas || []).map(z => z.tipo), notas: (x.notas || []).length, chegou: x.chegou || null, notas_det: (x.notas || []).map(n => ({ nNota: n.nNota, chave: n.chave || null, data: n.data, importado: !!n.importado, entrada: n.entrada || null })) }])) } : null })));
 });
 app.get('/api/pedidos-fornecedor/:id', (req, res) => {
@@ -8149,7 +8212,7 @@ const cotDetalhe = c => { const antes = new Set(cotacao.listar().filter(x => x.i
 
 app.get('/api/cotacoes', (req, res) => {
   try {
-    res.json(cotacao.listar().map(c => {
+    res.json(soMinhas(req, cotacao.listar(), c => c.lista).map(c => {
       const r = cotacao.resumo(c);
       const ps = (c.pedidos || []).map(p => pedidosFornec.obter(p.id)).filter(Boolean);
       r.pedidos_status = { gerados: ps.length, aprovados: ps.filter(p => ['aprovado', 'recebido', 'recebido_parcial'].includes(p.status)).length, recebidos: ps.filter(p => ['recebido', 'recebido_parcial'].includes(p.status)).length, cancelados: ps.filter(p => p.status === 'cancelado').length };

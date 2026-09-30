@@ -35,3 +35,28 @@ test('filtrarPorLoja', () => {
   assert.deepEqual(e.filtrarPorLoja({ perfil: 'usuario', lojas: [10] }, lista, x => x.loja), [{ loja: 10 }]);
   assert.equal(e.filtrarPorLoja({ perfil: 'admin' }, lista, x => x.loja), lista);
 });
+
+// ── fase 2: compradora ──
+test('compradorDoUsuario: só perfil comprador com nome', () => {
+  assert.equal(e.compradorDoUsuario({ perfil: 'comprador', comprador_nome: 'ana kelly ' }), 'ANA KELLY');
+  assert.equal(e.compradorDoUsuario({ perfil: 'admin', comprador_nome: 'ANA KELLY' }), null);
+  assert.equal(e.compradorDoUsuario({ perfil: 'comprador' }), null);
+  assert.equal(e.compradorDoUsuario(null), null);
+});
+test('listasDoUsuario: listas dela, nome que não bate = [] (falha fechada), sem trava = null', () => {
+  const nregs = { 'ANA KELLY SILVA': [1, 2], 'PATRICIA PEREIRA': [3] };
+  const resolve = n => n === 'ANA KELLY' ? 'ANA KELLY SILVA' : n;
+  assert.deepEqual(e.listasDoUsuario({ perfil: 'comprador', comprador_nome: 'ANA KELLY' }, nregs, resolve), [1, 2]);
+  assert.deepEqual(e.listasDoUsuario({ perfil: 'comprador', comprador_nome: 'NINGUEM' }, nregs, resolve), []);
+  assert.equal(e.listasDoUsuario({ perfil: 'usuario' }, nregs, resolve), null);
+});
+test('filtrarPorLista e podeLista', () => {
+  const u = { perfil: 'comprador', comprador_nome: 'PATRICIA PEREIRA' };
+  const nregs = { 'ANA KELLY': [1, 2], 'PATRICIA PEREIRA': [3] };
+  const lista = [{ nReg: 1 }, { nReg: 3 }, { nReg: '3' }];
+  assert.deepEqual(e.filtrarPorLista(u, nregs, lista, x => x.nReg), [{ nReg: 3 }, { nReg: '3' }]);
+  assert.equal(e.filtrarPorLista({ perfil: 'admin' }, nregs, lista, x => x.nReg), lista);
+  assert.equal(e.podeLista(u, nregs, 3), true);
+  assert.equal(e.podeLista(u, nregs, 1), false);
+  assert.equal(e.podeLista({ perfil: 'usuario' }, nregs, 1), true);
+});
