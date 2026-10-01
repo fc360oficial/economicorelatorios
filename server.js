@@ -213,7 +213,7 @@ app.use((req, res, next) => {
     '/comparativo-tv.html', '/api/comparativo-tv',
     '/prevencao.html', '/api/pendencias/prevencao', '/api/pendencias/prevencao-consolidado', '/api/pendencias/prevencao-bonif',
     '/api/ruptura/debug-comprador',
-    '/api/_diag/tabelas-central',
+    '/api/_diag/tabelas-central', '/api/_diag/radar-listas',
     '/ruptura-painel.html', '/api/ruptura', '/api/ruptura/comprador-listas',
     '/margem-comprador.html', '/api/margem-tv/comprador',
     '/painel-diretoria.html',
@@ -5893,6 +5893,20 @@ q(`CREATE TABLE IF NOT EXISTS central.prevencao_bonif (
   PRIMARY KEY (nLoja, mes)) ENGINE=InnoDB`).catch(() => {});
 
 
+// Diagnóstico do Radar (só leitura, mesmo token da rota acima): resumo de todas as listas (lead usado, itens, novos) e,
+// com ?lista=N, os itens dessa lista. Serve pra conferir do agente sem login (Tiago, 01/10/26: "verifica todas as listas agora").
+app.get('/api/_diag/radar-listas', (req, res) => {
+  if (req.query.token !== 'diag2026') return res.status(403).end();
+  const estado = radarPedidos.getEstado();
+  if (req.query.lista) {
+    const j = radarPedidos.itensLista(parseInt(req.query.lista));
+    if (!j) return res.json({ estado, erro: 'lista não encontrada' });
+    return res.json({ estado, lista: j.lista, lead: j.lead, lead_fonte: j.lead_fonte, params: j.params, fazer_em: j.fazer_em, total: j.total, volumes: j.volumes,
+      itens: j.itens.map(i => ({ cod: i.cod, descricao: i.descricao, emb: i.emb, venda_dia: i.venda_dia, estoque: i.estoque, estoque_bruto: i.estoque_bruto, transito: i.transito, cobertura_dias: i.cobertura_dias, ponto_dias: i.ponto_dias, alvo_dias: i.alvo_dias, lead_fonte: i.lead_fonte, qtd: i.qtd, lojas_qtd: i.lojas_qtd, flag: i.flag, novo_ate: i.novo_ate, lojas_det: Object.fromEntries(Object.entries(i.lojas_det || {}).map(([l, d]) => [l, { est: d.estoque_bruto, vq: d.venda_dia, tr: d.transito, jv: d.ja_vendeu }])) })) });
+  }
+  const rows = radarPedidos.politica().map(r => ({ lista: r.lista, nome: r.nome, fornecedor: r.fornecedor, ok: r.ok, motivo: r.motivo || null, lead_fonte: r.lead_fonte, lead_itens: r.lead_itens || 0, ponto: r.ponto, alvo: r.alvo, fazer_em: r.fazer_em, produtos: r.produtos, com_venda: r.com_venda, pedido_itens: r.pedido_itens, pedido_valor: r.pedido_valor, flags: r.flags, itens_novos: r.itens_novos, zerados_sem_venda: r.zerados_sem_venda, nova_ate: r.nova_ate, rupturas: r.rupturas }));
+  res.json({ estado, n: rows.length, listas: rows });
+});
 app.get('/api/_diag/tabelas-central', async (req, res) => {
   if (req.query.token !== 'diag2026') return res.status(403).end();
   const t = (req.query.describe || '').replace(/[^a-z0-9_]/gi, '');
