@@ -7514,7 +7514,10 @@ app.get('/api/radar-pedidos/:listaId/itens', (req, res) => {
     const embMeses = req.query.emb == null ? undefined : Math.max(0, Math.min(36, parseInt(req.query.emb) || 0));
     const lojaRadar = lojasRadarDe(req.query.loja);
     const gatilhoRadar = req.query.gatilho ? Math.max(1, Math.min(100, parseFloat(req.query.gatilho) || 20)) / 100 : null;
-    const r = radarPedidos.itensLista(parseInt(req.params.listaId), teto, null, embMeses, req.query.curvaA !== '0', null, { loja: lojaRadar, gatilho: gatilhoRadar });
+    // Trânsito abatido × ignorado (Tiago, 01/10/26): "*" ignora todo trânsito da lista; senão lista de cod:loja (igual à Cotação)
+    const semTr = String(req.query.sem_transito || '').trim();
+    const ignorarTransito = semTr === '*' ? { size: 1, has: () => true } : new Set(semTr.split(',').map(s => s.trim()).filter(Boolean).slice(0, 500).map(s => { const [c, l] = s.split(':'); return String(c || '').trim() + '|' + (parseInt(l) || 0); }));
+    const r = radarPedidos.itensLista(parseInt(req.params.listaId), teto, null, embMeses, req.query.curvaA !== '0', null, { loja: lojaRadar, gatilho: gatilhoRadar, ignorarTransito });
     if (!r) return res.status(404).json({ error: radarPedidos.getEstado().status === 'ok' ? 'Lista não encontrada' : 'Radar ainda calculando, tente em instantes' });
     res.json(r);   // (alerta vermelho do Sortimento no Radar retirado a pedido do Tiago em 14/09/2026; a aba Sortimento segue na Lista de Compra)
   } catch (err) { res.status(500).json({ error: err.message }); }
