@@ -361,6 +361,7 @@ function itensVisiveis() {
 }
 function renderPedido() {
   if (!DADOS || !DADOS.resumo) { $('#tab-pedido').innerHTML = '<p class="mut">calculando…</p>'; return; }
+  const focoBusca = document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('hin'), posBusca = focoBusca ? document.activeElement.selectionStart : 0;
   const r = DADOS.resumo; const all = todosItens(); $('#n-pedido').textContent = r.repor + r.novos;
   if (!SELINIT) { for (const i of all) if (totCx(i) > 0) SEL.add(i.codigoCD); SELINIT = true; }
   // cards por loja: o que está SELECIONADO iria pra cada loja (com as edições)
@@ -386,11 +387,26 @@ function renderPedido() {
       <button class="btn btn-amber" ${selItens.length ? '' : 'disabled'} onclick="fecharPedido()" title="Gera um pedido por loja com as caixas dos produtos marcados (com as quantidades editadas)">Fechar pedido${FLOJA ? ' · L' + FLOJA : ''} →</button>
       <span class="contagem">${Object.keys(EDITS).length ? Object.keys(EDITS).length + ' quantidades editadas · ' : ''}${vis.length} de ${all.length} produtos</span></div>
     <div class="table-wrap"><table class="main-t"><thead><tr><th class="c"><input type="checkbox" ${vis.length && vis.every(i => SEL.has(i.codigoCD)) ? 'checked' : ''} onchange="selTodos('todos',this.checked)"></th><th>Código</th>
-      <th style="min-width:300px"><div style="display:flex;align-items:center;gap:10px"><span>Produto</span><input class="hin" placeholder="buscar por código ou descrição…" value="${FILTRO}" oninput="FILTRO=this.value;renderPedido()" style="flex:1;min-width:200px;max-width:420px"></div></th>
+      <th style="min-width:300px"><div style="display:flex;align-items:center;gap:10px"><span>Produto</span><input class="hin" placeholder="buscar por código ou descrição…" value="${esc(FILTRO)}" oninput="filtrarPedido(this.value)" style="flex:1;min-width:200px;max-width:420px"></div></th>
       <th class="r">Est. CD (cx)</th><th class="r">Est. lojas (un)</th><th class="r">Trânsito</th><th>Quantidade por loja (cx)</th><th class="r">Total</th><th class="r" title="custo de compra do CD por caixa">Custo CD (cx)</th><th class="r">R$</th></tr></thead>
-    <tbody>${vis.map(i => linha(i, lojasCols)).join('') || `<tr><td colspan="10" class="mut" style="padding:18px">${FILTRO.trim() ? 'Nenhum produto do CD com "' + esc(FILTRO) + '" — a busca aceita palavras em qualquer ordem (ex.: "walker red")' : 'Nenhum item' + (FLOJA ? ' na L' + FLOJA : '') + (SOQTD ? ' com quantidade — desmarque "só itens com quantidade" pra ver todos' : '')}.</td></tr>`}</tbody></table></div>`;
-  // mantém o foco na busca enquanto digita
-  if (document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('hin')) { const el = $('#tab-pedido .hin'); if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); } }
+    <tbody>${linhasHtml(vis, lojasCols)}</tbody></table></div>`;
+  // mantém o foco e o cursor na busca quando a aba inteira é redesenhada (recarga automática, edição de quantidade)
+  if (focoBusca) { const el = $('#tab-pedido .hin'); if (el) { el.focus(); const p = Math.min(posBusca, el.value.length); el.setSelectionRange(p, p); } }
+}
+function linhasHtml(vis, lojasCols) {
+  return vis.map(i => linha(i, lojasCols)).join('') || `<tr><td colspan="10" class="mut" style="padding:18px">${FILTRO.trim() ? 'Nenhum produto do CD com "' + esc(FILTRO) + '" — a busca aceita palavras em qualquer ordem (ex.: "walker red")' : 'Nenhum item' + (FLOJA ? ' na L' + FLOJA : '') + (SOQTD ? ' com quantidade — desmarque "só itens com quantidade" pra ver todos' : '')}.</td></tr>`;
+}
+// Busca do pedido (Tiago, 01/10/26: "cada letra que a pessoa digita sai"): antes cada tecla redesenhava a aba inteira (cards,
+// resumo, tabela com centenas de linhas) e trocava o <input> no meio da digitação — letra digitada durante o redesenho caía no
+// elemento velho e sumia. Agora o campo fica parado e só as linhas + o contador são refeitos, 120 ms depois da última tecla.
+let FILTRO_T = null;
+function filtrarPedido(v) { FILTRO = v; clearTimeout(FILTRO_T); FILTRO_T = setTimeout(renderPedidoLinhas, 120); }
+function renderPedidoLinhas() {
+  const tb = $('#tab-pedido tbody'); if (!tb || !DADOS || !DADOS.resumo) { renderPedido(); return; }
+  const all = todosItens(), vis = itensVisiveis(); VIS.todos = vis.map(i => i.codigoCD);
+  tb.innerHTML = linhasHtml(vis, FLOJA ? [FLOJA] : LOJAS);
+  const cont = $('#tab-pedido .acoes .contagem'); if (cont) cont.textContent = (Object.keys(EDITS).length ? Object.keys(EDITS).length + ' quantidades editadas · ' : '') + vis.length + ' de ' + all.length + ' produtos';
+  const chk = $('#tab-pedido thead input[type=checkbox]'); if (chk) chk.checked = !!(vis.length && vis.every(i => SEL.has(i.codigoCD)));
 }
 function toggleSel(cod, on) { on ? SEL.add(cod) : SEL.delete(cod); renderPedido(); }
 function selTodos(id, on) { for (const cod of (VIS[id] || [])) on ? SEL.add(cod) : SEL.delete(cod); renderPedido(); }
