@@ -56,7 +56,6 @@ table.main-t td.r b,table.main-t td.c .pill{font-size:12.5px}
 table.main-t th.sep,table.main-t td.sep{border-left:2px solid #E4E4E1}
 table.main-t td.semcalc{color:#98A0B3;font-size:11px;font-style:italic;white-space:normal}
 .sub .cp{color:#4E5A72;font-weight:700;font-style:normal}
-.pill.p-ped{background:#101B33;color:#FFC933;text-decoration:none}
 .fl{margin-top:4px;display:flex;gap:4px;flex-wrap:wrap}
 table.main-t tbody tr.lst{cursor:pointer}
 table.main-t tbody tr.lst:hover{background:#EBEBE955}
@@ -183,6 +182,11 @@ table.main-t td.sel input,table.main-t th.sel input{width:15px;height:15px;accen
 .det table td.lj,.det table th.lj{text-align:center!important;vertical-align:middle}.det table td.lj input.qin{display:block;margin:0 auto;text-align:center}.det table td{vertical-align:middle}
 .cdtag{display:inline-block;background:#101B33;color:#FFC933;font-size:9px;font-weight:800;letter-spacing:.3px;padding:1px 5px;border-radius:5px;margin-left:5px;vertical-align:middle;line-height:1.4}.cdtag[hidden]{display:none}
 .pill.p-ped{background:#101B33;color:#FFC933;text-decoration:none;font-weight:800}.pill.p-ped:hover{background:#0E1626}
+/* pedidos em andamento agrupados por situação (Tiago, 01/10): pílula com a contagem; clique abre os pedidos em chips curtos */
+.pedgrp{display:inline-flex;flex-wrap:wrap;gap:4px;align-items:center;max-width:100%}
+.pedgrp .pedlist{display:flex;flex-wrap:wrap;gap:3px;width:100%;padding:2px 0 2px 6px;border-left:2px solid #E4E4E1}
+.pill.p-ped i{font-style:normal;opacity:.85;margin-left:3px;font-size:9px}
+.pill.p-ped.sm{font-size:10px;padding:1px 6px;background:#E9EEF6;color:#1F3A66;font-weight:700}.pill.p-ped.sm:hover{background:#D9E3F2}
 .lojas-chk{display:flex;gap:4px;flex-wrap:wrap;align-items:center;min-height:36px}
 .lojas-chk label{display:inline-flex;align-items:center;gap:4px;padding:6px 9px;border:1px solid #C9C9C4;border-radius:999px;background:#fff;font-size:12px;font-weight:700;cursor:pointer;user-select:none}
 .lojas-chk label:has(input:checked){background:#0E1626;color:#fff;border-color:#0E1626}
@@ -318,7 +322,21 @@ let PED_ABERTOS={};
 const temAprovado=l=>(PED_ABERTOS[l.lista]||[]).some(p=>p.status==='aprovado');
 const ST_PED={sugestao:'sugestão de ruptura',aguardando:'enviado ao vendedor · aguardando digitação',digitacao:'vendedor digitando preços',finalizado:'finalizado · aguardando sua aprovação',aprovado:'aprovado · aguardando NF-e'};
 const dtCurta=s=>s?new Date(s).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
-function pedidosAbertosHtml(lista){ return (PED_ABERTOS[lista]||[]).map(p=>'<a class="pill p-ped" href="/pedidos-compra.html" onclick="event.stopPropagation()" title="'+esc('Pedido #'+p.id+' em andamento: '+(ST_PED[p.status]||p.status)+(p.vendedor?' · '+p.vendedor:'')+' · '+dtCurta(p.finalizadoEm||p.enviadoEm||p.criadoEm)+'. Não gere a sugestão de novo. Clique pra abrir Pedidos de Compra.')+'">⏳ #'+p.id+' · '+(ST_PED_CURTO[p.status]||ST_PED[p.status]||p.status)+(p.vendedor?' · '+esc(String(p.vendedor).split(' ')[0]):'')+'</a>').join(' '); }
+// Pedidos em andamento da lista (Tiago, 01/10/26: "organiza isso tá muito estranho" — a Cotação de Alimentos tem 40 pedidos, um por
+// vendedor, e cada chip virava uma linha). Até 2 pedidos: chips como antes. 3 ou mais: UMA pílula por situação com a contagem;
+// clique abre os pedidos daquela situação em chips curtos ("#69 · Monaliza", link pra Pedidos de Compra), clique de novo fecha.
+// O que está aberto fica em PED_OPEN e sobrevive ao redesenho da tabela.
+const PED_OPEN=new Set(), PED_ORDEM=['sugestao','aguardando','digitacao','finalizado','aprovado'];
+function pedChip(p,curto){ const nome=p.vendedor?esc(String(p.vendedor).trim().split(/\s+/)[0]):''; return '<a class="pill p-ped'+(curto?' sm':'')+'" href="/pedidos-compra.html" onclick="event.stopPropagation()" title="'+esc('Pedido #'+p.id+': '+(ST_PED[p.status]||p.status)+(p.vendedor?' · '+p.vendedor:'')+' · '+dtCurta(p.finalizadoEm||p.enviadoEm||p.criadoEm)+'. Clique pra abrir Pedidos de Compra.')+'">'+(curto?'#'+p.id+(nome?' · '+nome:''):'⏳ #'+p.id+' · '+(ST_PED_CURTO[p.status]||ST_PED[p.status]||p.status)+(nome?' · '+nome:''))+'</a>'; }
+function pedToggle(ev,key){ ev.stopPropagation(); ev.preventDefault(); if(PED_OPEN.has(key)) PED_OPEN.delete(key); else PED_OPEN.add(key); render(); }
+function pedidosAbertosHtml(lista){
+  const ps=PED_ABERTOS[lista]||[]; if(!ps.length) return '';
+  if(ps.length<=2) return ps.map(p=>pedChip(p,false)).join(' ');
+  const g={}; for(const p of ps) (g[p.status]=g[p.status]||[]).push(p);
+  const idx=st=>{const i=PED_ORDEM.indexOf(st);return i<0?99:i;};
+  return Object.keys(g).sort((a,b)=>idx(a)-idx(b)).map(st=>{ const L=g[st], key=lista+'|'+st, ab=PED_OPEN.has(key);
+    return '<span class="pedgrp'+(ab?' open':'')+'"><a class="pill p-ped" href="#" onclick="pedToggle(event,\''+key+'\')" title="'+esc(L.length+' pedido'+(L.length>1?'s':'')+' · '+(ST_PED[st]||st)+'. Clique pra ver quais.')+'">⏳ '+L.length+' · '+(ST_PED_CURTO[st]||ST_PED[st]||st)+'<i>'+(ab?'▲':'▼')+'</i></a>'+(ab?'<span class="pedlist">'+L.map(p=>pedChip(p,true)).join('')+'</span>':'')+'</span>'; }).join(' ');
+}
 // coluna Trânsito: o que a lista já tem pedido no ERP (sugestão aberta) e ainda não entrou; "c/ NF-e" = fornecedor já faturou
 const etqLoja=n=>+n===10?'CD':'E'+n;
 function transitoHtml(l){
