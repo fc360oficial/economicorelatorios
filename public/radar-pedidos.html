@@ -83,6 +83,16 @@ table.main-t tbody tr.open{background:#FFF6D9}
 .det .box{margin-top:8px;border:1px solid #DADAD6;border-radius:10px;overflow:hidden;background:#fff}
 .det .box .hd{display:flex;justify-content:space-between;align-items:center;gap:6px 16px;flex-wrap:wrap;padding:9px 14px;background:#101B33;color:#fff;font-size:12px;white-space:normal;line-height:1.5}
 .det .box .hd b{color:#FFC933}
+/* faixa "Pedido por loja" embaixo do cabeçalho do detalhe (Tiago, 01/10/26): quanto está dando em cada loja e no total */
+.hdlj{display:flex;flex-wrap:wrap;align-items:stretch;gap:6px;padding:8px 12px;background:#F6F6F4;border-bottom:1px solid #DADAD6}
+.hdlj .l{align-self:center;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:#4E5A72;margin-right:4px}
+.hdlj .lj{flex:1 1 118px;min-width:118px;background:#fff;border:1px solid #DADAD6;border-radius:8px;padding:5px 10px;line-height:1.3}
+.hdlj .lj .e{display:inline-block;font-weight:800;font-size:10.5px;color:#0E1626;background:#FFF6D9;border:1px solid #EFD98F;border-radius:5px;padding:0 5px;margin-right:5px}
+.hdlj .lj .n{font-size:10px;color:#4E5A72;text-transform:uppercase;letter-spacing:.3px;white-space:nowrap}
+.hdlj .lj b{display:block;font-size:14px;color:#0E1626;margin-top:1px;white-space:nowrap}
+.hdlj .lj .s{font-size:10.5px;color:#4E5A72;white-space:nowrap}
+.hdlj .lj.off{opacity:.6}.hdlj .lj.off b{color:#98A0B3;font-weight:600}
+.hdlj .lj.tot{background:#101B33;border-color:#101B33;flex-basis:150px}.hdlj .lj.tot .e{background:#FFC933;border-color:#FFC933}.hdlj .lj.tot .n{color:#C9D1E3}.hdlj .lj.tot b{color:#FFC933}.hdlj .lj.tot .s{color:#C9D1E3}
 .det table{width:100%;border-collapse:collapse;font-size:12px}
 .det table th{font-size:9.5px;text-transform:uppercase;letter-spacing:.4px;color:#4E5A72;background:#EBEBE9;padding:7px 10px;text-align:left;position:static;cursor:default}
 .det table td{padding:6px 10px;border-top:1px solid #EEEEEA;white-space:nowrap}
@@ -461,7 +471,7 @@ async function carregarItens(id){
     DETALHES[id]=j; if(!MODO[id]) MODO[id]='completa'; aplicarModo(id,MODO[id],false);
     const nRisco=j.itens.filter(i=>i.risco_a).length, nA=j.itens.filter(i=>i.bloco_a).length;
     let h='<div class="hd"><div><b class="lnk" title="Abrir cadastro da lista no ERP (fornecedor, vendedor, comprador, prazo)" onclick="event.stopPropagation();abrirCadastro('+id+')">'+esc(L.nome)+' ↗</b>'+(L.pedidoMinimo?' · pedido mínimo R$ '+fmt(L.pedidoMinimo,0):'')+(j.gatilho==='curva_a'?' · <span class="pill p-a">antecipada por curva A</span> <span style="opacity:.8">era pra '+j.fazer_em_lista+' d pela regra dos 10% da venda</span>':'')+'</div>'+
-      '<div id="hdr-'+id+'">'+hdResumo(id)+'</div></div>';
+      '<div id="hdr-'+id+'">'+hdResumo(id)+'</div></div>'+'<div class="hdlj" id="hdl-'+id+'">'+hdLojas(id)+'</div>';
     h+='<div style="overflow-x:auto"><table><thead><tr><th>Produto</th><th class="r">Venda/dia</th><th class="r">Estoque</th><th class="r">Trânsito</th><th class="r">Cobertura</th><th class="r">Alvo</th>'+LJ.map(ln=>'<th class="r lj" title="Quantidade a pedir na loja '+ln+'">L'+ln+'</th>').join('')+'<th class="r">Pedir (total)</th><th class="r">Total</th></tr></thead><tbody>';
     const NC=LJ.length+8;
     if(nA) h+='<tr class="sec'+(nRisco?' a':'')+'"><td colspan="'+NC+'">'+(nRisco?'Curva A em risco · '+nRisco+' de '+nA+' produto'+(nA>1?'s':'')+' A a pedir · em vermelho quem zera antes do dia da lista ou está no ponto de pedido (margem 1 d)':'Curva A a pedir · '+nA+' produto'+(nA>1?'s':'')+' · nenhum em risco hoje')+'</td></tr>';
@@ -486,6 +496,18 @@ function recalcLista(j){ j.total=+j.itens.reduce((a,i)=>a+i.total,0).toFixed(2);
 function leadFonteNome(f){ return f==='item'?'lead do item':f==='fornecedor'?'lead do fornecedor':f==='rede'?'lead da rede':f==='padrao'?'parâmetros digitados':''; }
 function leadFonteTitulo(f){ return f==='item'?'Produto com histórico próprio: lead = pedido → entrada deste produto (qualquer lista, 12 m); ciclo = intervalo entre as entradas dele.':f==='fornecedor'?'Lista sem pedido fechado em 12 m: ponto e alvo vêm do lead das outras listas deste fornecedor.':f==='rede'?'Lista e fornecedor sem histórico: ponto e alvo vêm da mediana das listas da rede.':f==='padrao'?'Cobertura e prazo digitados na Cotação.':''; }
 function leadFonteHtml(l){ if(!l.lead_fonte||l.lead_fonte==='lista') return '—'; return '<span class="pill p-cinza" title="'+leadFonteTitulo(l.lead_fonte)+'">'+leadFonteNome(l.lead_fonte)+'</span>'+(l.ok?'<div class="s2">ponto '+fmt(l.ponto)+' d</div>':'')+(l.lead_itens?'<div class="s2">'+l.lead_itens+(l.lead_itens>1?' itens':' item')+' c/ lead próprio</div>':''); }
+// "Pedido por loja" (Tiago, 01/10/26: "no cabeçalho deveria ser mais organizado quanto tá dando de pedido por loja e em todas
+// as lojas"): um quadro por loja com R$, itens e volumes do que está sendo pedido ali, e um quadro navy com o total da rede.
+// Recalculado a cada edição de quantidade / troca de modo (mesma hora do resumo). Loja em E1..E6 (regra do Tiago, 22/09).
+function hdLojas(id){
+  const j=DETALHES[id]; if(!j) return '';
+  const LJ=[...new Set(j.itens.flatMap(i=>i.lojas))].sort((a,b)=>a-b);
+  const por={}; for(const ln of LJ) por[ln]={itens:0,un:0,vol:0,rs:0};
+  for(const i of j.itens) for(const [ln,q0] of Object.entries(i.lojas_qtd||{})){ const q=+q0||0; if(!(q>0)||!por[ln]) continue; const p=por[ln]; p.itens++; p.un+=q; p.vol+=Math.ceil(q/(i.emb||1)); p.rs+=q*(i.custo||0); }
+  const pede=j.itens.filter(i=>i.qtd>0).length;
+  const box=(ln,p)=>'<div class="lj'+(p.rs>0?'':' off')+'" title="'+esc('Loja '+ln+' · '+(LOJAS_NOMES[ln]||'')+': '+fmt(p.un,0)+' un em '+p.itens+' itens · '+p.vol+' vol · R$ '+fmt(p.rs,2))+'"><span class="e">E'+ln+'</span><span class="n">'+esc(LOJAS_NOMES[ln]||'')+'</span><b>'+(p.rs>0?money(p.rs):'—')+'</b><span class="s">'+(p.rs>0?p.itens+(p.itens===1?' item':' itens')+' · '+p.vol+' vol':'nada a pedir')+'</span></div>';
+  return '<span class="l">Pedido por loja</span>'+LJ.map(ln=>box(ln,por[ln])).join('')+'<div class="lj tot" title="Soma de todas as lojas"><span class="e">Todas</span><span class="n">rede</span><b>'+money(j.total)+'</b><span class="s">'+pede+(pede===1?' item':' itens')+' · '+j.volumes+' vol</span></div>';
+}
 function hdResumo(id){
   const j=DETALHES[id]; if(!j) return ''; const P=j.params, L=j.lista, pede=j.itens.filter(i=>i.qtd>0).length, nRisco=j.itens.filter(i=>i.bloco_a).length;
   const min=L.pedidoMinimo&&j.total>0&&j.total<L.pedidoMinimo?' <span class="minimo" title="Total abaixo do pedido mínimo do fornecedor (R$ '+fmt(L.pedidoMinimo,0)+'). Complete com itens do bloco de baixo ou combine com o vendedor.">abaixo do mínimo (R$ '+fmt(L.pedidoMinimo,0)+')</span>':'';
@@ -675,6 +697,7 @@ function aplicarEdicao(id,inp){
   inp.closest('tr').className=it.qtd>0?'pede':'zero';
   recalcLista(j);
   const hd=document.getElementById('hdr-'+id); if(hd) hd.innerHTML=hdResumo(id);
+  const hl=document.getElementById('hdl-'+id); if(hl) hl.innerHTML=hdLojas(id);
 }
 
 // ---- enviar pro fornecedor: cria 1 pedido por lista selecionada e abre os links ----
