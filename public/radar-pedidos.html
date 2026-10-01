@@ -49,7 +49,14 @@ table.main-t th.c,table.main-t td.c{text-align:center}
 table.main-t td{padding:8px 10px;border-top:1px solid #DADAD6;white-space:nowrap;vertical-align:top;line-height:1.35}
 table.main-t td.lc{white-space:normal;min-width:200px;max-width:320px}
 table.main-t td.comp{white-space:normal;max-width:110px;font-size:11.5px}
-.s2{font-size:10.5px;color:#98A0B3;font-weight:500;margin-top:1px}
+.s2{font-size:10.5px;color:#8A93A6;font-weight:500;margin-top:2px;line-height:1.3}
+/* tabela de listas (Tiago, 01/10): comprador(a) na célula da lista, bloco 'quando e quanto' (Fazer em · Pedido) separado do bloco de situação por um fio */
+table.main-t td.r,table.main-t th.r{font-variant-numeric:tabular-nums}
+table.main-t td.r b,table.main-t td.c .pill{font-size:12.5px}
+table.main-t th.sep,table.main-t td.sep{border-left:2px solid #E4E4E1}
+table.main-t td.semcalc{color:#98A0B3;font-size:11px;font-style:italic;white-space:normal}
+.sub .cp{color:#4E5A72;font-weight:700;font-style:normal}
+.pill.p-ped{background:#101B33;color:#FFC933;text-decoration:none}
 .fl{margin-top:4px;display:flex;gap:4px;flex-wrap:wrap}
 table.main-t tbody tr.lst{cursor:pointer}
 table.main-t tbody tr.lst:hover{background:#EBEBE955}
@@ -311,7 +318,7 @@ let PED_ABERTOS={};
 const temAprovado=l=>(PED_ABERTOS[l.lista]||[]).some(p=>p.status==='aprovado');
 const ST_PED={sugestao:'sugestão de ruptura',aguardando:'enviado ao vendedor · aguardando digitação',digitacao:'vendedor digitando preços',finalizado:'finalizado · aguardando sua aprovação',aprovado:'aprovado · aguardando NF-e'};
 const dtCurta=s=>s?new Date(s).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
-function pedidosAbertosHtml(lista){ return (PED_ABERTOS[lista]||[]).map(p=>'<a class="pill p-ped" href="/pedidos-compra.html" onclick="event.stopPropagation()" title="Já existe pedido em andamento pra esta lista — não gere a sugestão de novo. Clique pra abrir Pedidos de Compra.">⏳ pedido #'+p.id+' · '+(ST_PED[p.status]||p.status)+(p.vendedor?' · '+esc(p.vendedor):'')+' · '+dtCurta(p.finalizadoEm||p.enviadoEm||p.criadoEm)+'</a>').join(' '); }
+function pedidosAbertosHtml(lista){ return (PED_ABERTOS[lista]||[]).map(p=>'<a class="pill p-ped" href="/pedidos-compra.html" onclick="event.stopPropagation()" title="'+esc('Pedido #'+p.id+' em andamento: '+(ST_PED[p.status]||p.status)+(p.vendedor?' · '+p.vendedor:'')+' · '+dtCurta(p.finalizadoEm||p.enviadoEm||p.criadoEm)+'. Não gere a sugestão de novo. Clique pra abrir Pedidos de Compra.')+'">⏳ #'+p.id+' · '+(ST_PED_CURTO[p.status]||ST_PED[p.status]||p.status)+(p.vendedor?' · '+esc(String(p.vendedor).split(' ')[0]):'')+'</a>').join(' '); }
 // coluna Trânsito: o que a lista já tem pedido no ERP (sugestão aberta) e ainda não entrou; "c/ NF-e" = fornecedor já faturou
 const etqLoja=n=>+n===10?'CD':'E'+n;
 function transitoHtml(l){
@@ -342,9 +349,12 @@ function render(){
   if(tab==='regras') return renderRegras();
 }
 const COLS=[
-  ['nome','Lista / fornecedor',''],['comprador','Comprador',''],['fazer_em','Fazer em','c'],['pedido_valor','Pedido (custo)','r'],
-  ['cobertura_dias','Cobertura · ponto · alvo','r'],['venda_dia','Venda R$/dia','r'],['estoque_hoje','Estoque · vs alvo','r'],['transito_valor','Trânsito','r'],['rupturas','Rupt.','r'],['lead','Lead','r']
+  ['nome','Lista · fornecedor · comprador(a)',''],['fazer_em','Fazer em','c'],['pedido_valor','Pedido (custo)','r'],
+  ['cobertura_dias','Cobertura','r sep'],['estoque_hoje','Estoque (custo)','r'],['venda_dia','Venda/dia','r'],['rupturas','Rupturas','r'],['transito_valor','Trânsito','r'],['lead','Lead','r']
 ];
+// Tiago, 01/10/26: tabela mais simples — um número por célula, a sublinha explica; ponto/alvo/ciclo completos ficam no hover;
+// lista sem cálculo mostra o motivo numa célula só (em vez de sete traços)
+const ST_PED_CURTO={sugestao:'sugestão de ruptura',aguardando:'com o vendedor',digitacao:'vendedor digitando',finalizado:'aguardando aprovação',aprovado:'aprovado · aguardando NF-e'};
 function renderTabela(rows,vazio){
   rows=ordenar(rows);
   if(!rows.length){$('#view').innerHTML='<div class="empty">'+vazio+'</div>';return;}
@@ -355,17 +365,26 @@ function renderTabela(rows,vazio){
   h+='</tr></thead><tbody>';
   for(const l of rows){
     const lead=l.lead, fl=l.ok?flagsHtml(l):'';
+    const pills=(l.nova_ate?'<span class="pill p-nova" title="Lista criada no ERP e vista pelo radar pela 1ª vez em '+new Date(l.vista_em).toLocaleString('pt-BR')+'. Fica no topo por 24 h; depois segue o fluxo normal.">LISTA NOVA</span> ':'')+(l.itens_novos&&!l.nova_ate?'<span class="pill p-nova" title="Produtos que entraram nesta lista no ERP nos últimos 7 dias (marcados ITEM NOVO no detalhe; loja zerada recebe 1 caixa mesmo sem histórico)">'+l.itens_novos+(l.itens_novos>1?' ITENS NOVOS':' ITEM NOVO')+'</span> ':'')+(l.ok?pillA(l).trim():'');
+    const forn=(l.fornecedor||'').trim(), mesmoNome=forn&&forn.toUpperCase()===String(l.nome||'').trim().toUpperCase();
     h+='<tr class="lst'+(aberta===l.lista?' open':'')+'" data-l="'+l.lista+'">'+
       '<td class="sel c"><input type="checkbox" class="selrow" data-l="'+l.lista+'" '+(SEL.has(l.lista)?'checked':'')+'></td>'+
-      '<td class="lc">'+((l.nova_ate||l.itens_novos||(l.ok&&pillA(l)))?'<div class="fl top">'+(l.nova_ate?'<span class="pill p-nova" title="Lista criada no ERP e vista pelo radar pela 1ª vez em '+new Date(l.vista_em).toLocaleString('pt-BR')+'. Fica no topo por 24 h; depois segue o fluxo normal.">LISTA NOVA</span> ':'')+(l.itens_novos&&!l.nova_ate?'<span class="pill p-nova" title="Produtos que entraram nesta lista no ERP nos últimos 7 dias (marcados ITEM NOVO no detalhe; loja zerada recebe 1 caixa mesmo sem histórico)">'+l.itens_novos+(l.itens_novos>1?' ITENS NOVOS':' ITEM NOVO')+'</span> ':'')+(l.ok?pillA(l).trim():'')+'</div>':'')+'<div class="nm">'+esc(l.nome)+'<span>#'+l.lista+'</span></div><div class="sub">'+esc(l.fornecedor||'')+'</div>'+(fl?'<div class="fl">'+fl+'</div>':'')+'</td>'+
-      '<td class="comp">'+esc(l.comprador||'—')+'</td><td class="c">'+pillDia(l)+'</td>'+
-      '<td class="r"><b>'+(l.ok?money(l.pedido_valor):'—')+'</b>'+(l.ok?'<div class="s2">'+l.pedido_itens+' de '+l.com_venda+' itens</div>':'')+'</td>'+
-      '<td class="r"><span class="'+(l.ok&&l.cobertura_dias<=l.ponto?'neg':'')+'">'+(l.ok?fmt(l.cobertura_dias)+' d':'—')+'</span>'+(l.ok?'<div class="s2">ponto '+fmt(l.ponto)+' · alvo '+fmt(l.alvo)+' · ciclo '+fmt(l.ciclo)+'</div>':'')+'</td>'+
-      '<td class="r">'+(l.ok?fmt(l.venda_dia,0):'—')+'</td>'+
-      '<td class="r">'+(l.ok?money(l.estoque_hoje):'—')+(l.ok?'<div class="s2 '+(l.diferenca>0?'neg':'pos')+'">'+(l.diferenca>0?'+':'−')+money(Math.abs(l.diferenca))+'</div>':'')+'</td>'+
-      '<td class="r">'+transitoHtml(l)+'</td>'+
-      '<td class="r '+(l.rupturas?'neg':'')+'">'+(l.ok?l.rupturas:'—')+'</td>'+
-      '<td class="r">'+(lead&&lead.lead_medio!=null?fmt(lead.lead_medio)+' d<div class="s2">máx '+lead.lead_max+' · '+lead.sugestoes+' sug.</div>':leadFonteHtml(l))+'</td></tr>';
+      '<td class="lc">'+(pills?'<div class="fl top">'+pills+'</div>':'')+'<div class="nm">'+esc(l.nome)+'<span>#'+l.lista+'</span></div>'+
+        '<div class="sub"><span class="cp" title="comprador(a) da lista">'+esc(l.comprador||'sem comprador(a)')+'</span>'+(forn&&!mesmoNome?' · '+esc(forn):'')+'</div>'+(fl?'<div class="fl">'+fl+'</div>':'')+'</td>'+
+      '<td class="c">'+pillDia(l)+'</td>';
+    if(!l.ok){
+      const expl=/sem venda/.test(l.motivo||'')?'nenhum item da lista vendeu nos '+((DATA.estado.janela||{}).dias||40)+' dias: nada a calcular':/sem lead/.test(l.motivo||'')?'sem pedido fechado em 12 meses nesta lista, no fornecedor e na rede: o radar não sabe o prazo de entrega':'sem cálculo pro radar';
+      h+='<td class="semcalc" colspan="'+(COLS.length-2)+'">'+expl+(l.transito_itens?' · já em trânsito '+money(l.transito_valor)+' ('+l.transito_itens+(l.transito_itens>1?' itens':' item')+')':'')+(lead&&lead.lead_medio!=null?' · lead '+fmt(lead.lead_medio)+' d':'')+'</td></tr>';
+    } else {
+      const dif=l.diferenca||0;
+      h+='<td class="r"><b>'+money(l.pedido_valor)+'</b><div class="s2">'+l.pedido_itens+' de '+l.com_venda+' itens</div></td>'+
+        '<td class="r sep" title="'+esc('ponto de pedido '+fmt(l.ponto)+' d · alvo '+fmt(l.alvo)+' d · ciclo '+fmt(l.ciclo)+' d · cobertura = estoque a custo ÷ venda/dia a custo')+'"><b class="'+(l.cobertura_dias<=l.ponto?'neg':'')+'">'+fmt(l.cobertura_dias)+' d</b><div class="s2">ponto '+fmt(l.ponto,0)+' · alvo '+fmt(l.alvo,0)+'</div></td>'+
+        '<td class="r" title="'+esc('estoque hoje a custo dos itens com venda · alvo = '+money(l.estoque_alvo))+'"><b>'+money(l.estoque_hoje)+'</b><div class="s2 '+(dif>0?'neg':'pos')+'">'+(dif>0?'falta '+money(dif)+' pro alvo':money(Math.abs(dif))+' acima do alvo')+'</div></td>'+
+        '<td class="r"><b>'+money(l.venda_dia)+'</b></td>'+
+        '<td class="r" title="produtos com venda e estoque zero">'+(l.rupturas?'<b class="neg">'+l.rupturas+'</b>':'<span class="mut">0</span>')+'</td>'+
+        '<td class="r">'+transitoHtml(l)+'</td>'+
+        '<td class="r">'+(lead&&lead.lead_medio!=null?'<b>'+fmt(lead.lead_medio)+' d</b><div class="s2" title="lead médio do pedido à nota nos últimos 12 meses · máximo '+lead.lead_max+' d">máx '+lead.lead_max+' · '+lead.sugestoes+' sug.</div>':leadFonteHtml(l))+'</td></tr>';
+    }
     if(aberta===l.lista) h+='<tr class="det"><td colspan="'+(COLS.length+1)+'"><div class="box" id="det-'+l.lista+'"><div class="spinner"></div></div></td></tr>';
   }
   h+='</tbody></table></div>';
