@@ -470,6 +470,8 @@ async function carregarItens(id){
   const box=document.getElementById('det-'+id); if(!box) return;
   try{
     const r=await fetch('/api/radar-pedidos/'+id+'/itens?'+params().toString()+trParam(id)); const j=await r.json(); if(j.error) throw new Error(j.error);
+    // Tiago, 01/10/26: "sempre deixa em ordem alfabética" — bloco Curva A em risco em cima, demais itens embaixo, cada bloco A→Z
+    j.itens.sort((a,b)=>(b.bloco_a?1:0)-(a.bloco_a?1:0)||String(a.descricao||'').localeCompare(String(b.descricao||''),'pt-BR'));
     const L=j.lista, P=j.params;
     const LJ=[...new Set(j.itens.flatMap(i=>i.lojas))].sort((a,b)=>a-b);
     // guarda as quantidades calculadas pra poder alternar "Só curva A" / "Lista completa"
@@ -787,7 +789,7 @@ async function carregarEnviado(id){
     const st=ST[p.status]||[p.status,'p-cinza'];
     let h='<div class="hd"><div><b>'+esc(p.lista_nome)+'</b> · '+esc(p.fornecedor||'')+' · <span class="pill '+st[1]+'">'+st[0]+'</span>'+(p.vendedor?.nome?' · vendedor '+esc(p.vendedor.nome):'')+(p.finalizadoPor?' · finalizado por '+esc(p.finalizadoPor):'')+'</div><div>último custo <b>'+money2(p.totais.ultimo_custo)+'</b> · digitado <b>'+(p.totais.com_preco?money2(p.totais.digitado):'—')+'</b> ('+p.totais.com_preco+'/'+p.totais.itens+' itens) <button class="btn btn-slate btn-sm" onclick="event.stopPropagation();copiarTexto(\''+p.link+'\',this,\'Link copiado\')">Copiar link</button><a class="btn btn-slate btn-sm" target="_blank" rel="noopener" href="'+p.link+'" onclick="event.stopPropagation()">Abrir como vendedor</a></div></div>';
     h+='<div style="overflow-x:auto"><table><thead><tr><th>Produto</th><th class="r">Qtd</th><th>Por loja</th><th class="r">Último custo (ERP)</th><th class="r">Preço digitado</th><th class="r">Variação</th><th class="r">Total últ. custo</th><th class="r">Total digitado</th><th class="obs">Obs. do vendedor</th></tr></thead><tbody>';
-    for(const i of p.itens){
+    for(const i of (p.itens||[]).slice().sort((a,b)=>String(a.descricao||'').localeCompare(String(b.descricao||''),'pt-BR'))){
       const lj=Object.entries(i.lojas_qtd||{}).filter(([,q])=>q>0).map(([l,q])=>'L'+l+': '+fmt(q,0)).join(' · ');
       h+='<tr class="'+(i.preco!=null?'pede':'zero')+'"><td class="desc">'+esc(i.descricao)+cdTag(i.cod)+'<span class="cod">'+esc(i.cod)+'</span></td><td class="r"><b>'+fmt(i.qtd,0)+'</b> '+esc(i.unid)+(i.emb>1?'<div class="s2">'+i.volumes+' vol × '+i.emb+'</div>':'')+'</td><td class="mut" style="font-size:11px">'+lj+'</td><td class="r">'+fmt(i.ultimo_custo,2)+'</td><td class="r"><b>'+(i.preco!=null?fmt(i.preco,2):'<span class="mut">—</span>')+'</b></td><td class="r">'+seta(i.preco,i.ultimo_custo,false)+'</td><td class="r">'+money2(i.qtd*i.ultimo_custo)+'</td><td class="r">'+(i.preco!=null?money2(i.qtd*i.preco):'')+'</td><td class="mut obs">'+esc(i.obs||'')+'</td></tr>';
     }
