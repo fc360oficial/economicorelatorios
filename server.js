@@ -222,8 +222,8 @@ app.use((req, res, next) => {
   if (publico.includes(req.path)) return next();
   // Link do vendedor (pedido ao fornecedor): público por token de 32 hex, sem login
   if (/^\/pedido\/[a-f0-9]{32}(\/pdf)?$/.test(req.path) || /^\/api\/pedido-publico\/[a-f0-9]{32}(\/|$)/.test(req.path)) return next();
-  // Link do CD (Centro de Distribuição): pedido(s) das lojas por token(s) de 32 hex, sem login
-  if (/^\/cd\/[a-f0-9]{32}(,[a-f0-9]{32}){0,20}$/.test(req.path) || /^\/api\/cd-publico\/[a-f0-9]{32}(,[a-f0-9]{32}){0,20}$/.test(req.path)) return next();
+  // Link do CD (Centro de Distribuição): pedido(s) das lojas sem login — código curto de 8 hex (links.json) ou token(s) de 32 hex (links antigos)
+  if (/^\/cd\/[a-f0-9]{8}([a-f0-9]{24})?(,[a-f0-9]{8}([a-f0-9]{24})?){0,20}$/.test(req.path) || /^\/api\/cd-publico\/[a-f0-9]{8}([a-f0-9]{24})?(,[a-f0-9]{8}([a-f0-9]{24})?){0,20}$/.test(req.path)) return next();
   // TV do televendas da CAHU: página e API públicas por token de 32 hex (só leitura, preço da Tabela Retirada)
   if (/^\/tv-televendas\/[a-f0-9]{32}$/.test(req.path) || /^\/api\/tv-televendas-publico\/[a-f0-9]{32}$/.test(req.path)) return next();
   // Link do fornecedor na Cotação: mesmo esquema (token de 32 hex por fornecedor convidado)
