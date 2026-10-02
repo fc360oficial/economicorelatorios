@@ -534,13 +534,19 @@ let PABERTO = null, CFGCD = {};
 let DIAS_FECHADOS = new Set(), DIAS_INIT = false, SOPEND = false; // agrupamento por dia de criação (1 remessa do CD = 1 dia); só o dia mais recente começa aberto
 const diaKey = iso => { const d = new Date(iso); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
 const pendente = p => { const S = p.situacao || {}; return !['finalizado', 'cancelado', 'recebido'].includes(p.status) && !(p.status === 'expirado' && p.resolucao) || !!S.resolver || S.vinculo > 0 || !!S.aviso; };
-// envio pro CD: link público (token por pedido, vários juntos separados por vírgula) por WhatsApp — igual ao link do vendedor
-let ENVIO_IDS = [];
+// envio pro CD: link público por WhatsApp — código curto do servidor (8 hex → N pedidos); se a chamada falhar,
+// cai no link antigo com um token de 32 hex por pedido, que continua válido
+let ENVIO_IDS = [], LINKS_CURTOS = {}; // 'ids ordenados' → código curto
 function psDe(ids) { return ids.map(id => PEDIDOS.find(p => p.id === id)).filter(Boolean); }
-function linkCD(ids) { return location.origin + '/cd/' + psDe(ids).map(p => p.token).join(','); }
+function linkCD(ids) {
+  const code = LINKS_CURTOS[ids.slice().sort((a, b) => a - b).join(',')];
+  return location.origin + '/cd/' + (code || psDe(ids).map(p => p.token).join(','));
+}
 function textoCD(ids) {
   const ps = psDe(ids), link = linkCD(ids), cx = ps.reduce((a, p) => a + p.totais.caixas, 0);
-  return `Pedido ao CD · ${ps.map(p => 'L' + p.loja + ' ' + p.lojaNome).join(', ')} · ${fmtN(cx)} caixas · ${ps.length} pedido${ps.length > 1 ? 's' : ''}\n${link}\nDigitar no Televendas no cliente de cada loja, código CD e quantidade em caixas.`;
+  const hoje = new Date().toLocaleDateString('pt-BR');
+  const lojas = ps.map(p => `• L${p.loja} ${p.lojaNome} — ${fmtN(p.totais.caixas)} cx`).join('\n');
+  return `*Pedido ao CD* · ${hoje}\n${ps.length > 1 ? `${ps.length} pedidos · ` : ''}${fmtN(cx)} caixas no total\n\n${lojas}\n\nLink pra separação:\n${link}\n\n_Digitar no Televendas, no cliente de cada loja, o código CD e a quantidade em caixas._`;
 }
 function copiarLinkCD(ids, btn) {
   const link = linkCD(ids);
@@ -553,10 +559,14 @@ function whatsCD(ids) {
 }
 // tela antes de mandar: copiar link, enviar todos juntos (1 mensagem) ou por loja (uma mensagem por pedido) —
 // pra não sair direto pro WhatsApp sem o Tiago decidir como quer mandar (21/09/2026)
-function abrirEnvioCD(ps) {
+async function abrirEnvioCD(ps) {
   ps = (ps || []).filter(p => p && p.token); if (!ps.length) return alert('Pedido sem link. Recarregue a tela.');
   ps.sort((a, b) => a.loja - b.loja);
   ENVIO_IDS = ps.map(p => p.id);
+  try {
+    const r = await api('/api/pedidos-cd/link-curto', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: ENVIO_IDS }) });
+    LINKS_CURTOS = r.codes || {};
+  } catch (e) { LINKS_CURTOS = {}; } // sem código curto, o link longo por tokens segue funcionando
   renderEnvioCD(false);
   $('#ov').classList.add('on');
 }

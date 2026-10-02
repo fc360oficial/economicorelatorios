@@ -7771,6 +7771,16 @@ app.post('/api/pedidos-cd/pedidos', (req, res) => {
   try { res.json(pedidosCD.criarPedidos({ lojas: req.body?.lojas || {}, usuario: req.session.user?.nome || null })); }
   catch (err) { res.status(400).json({ error: err.message }); }
 });
+// código curto pro link público (/cd/a1b2c3d4): um código pro grupo e um por pedido — o link antigo por tokens continua valendo
+app.post('/api/pedidos-cd/link-curto', (req, res) => {
+  try {
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
+    const codes = {};
+    codes[ids.map(n => parseInt(n, 10)).sort((a, b) => a - b).join(',')] = pedidosCD.codigoCurto(ids);
+    for (const id of ids) codes[String(parseInt(id, 10))] = pedidosCD.codigoCurto([id]);
+    res.json({ codes });
+  } catch (err) { res.status(400).json({ error: err.message }); }
+});
 app.get('/api/pedidos-cd/pedidos/:id', (req, res) => {
   const id = parseInt(req.params.id, 10);
   if (!Number.isInteger(id) || id < 1) return res.status(400).json({ error: 'id inválido' });
