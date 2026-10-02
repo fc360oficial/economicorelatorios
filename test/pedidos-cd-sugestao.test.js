@@ -23,8 +23,12 @@ test('repor: quantidade em caixas por loja, loja folgada pede 0', () => {
   const r = repor[0];
   assert.equal(r.unidade, '7896037913146');
   assert.equal(r.lojas[2].cx, 0);
-  assert.ok(r.lojas[1].cx >= 5);          // alvo 10 d × 6 = 60 un → 5 cx
-  assert.equal(r.cdInsuficiente, r.totalCx > 5);
+  // Desde 01/10 (loja zerada ganha 1 cx SEMPRE), L3-L6 (sem venda/estoque no cenário) também pedem 1 cx cada;
+  // com o CD curto (5 cx pra 9 pedidas) a rodada reparte 1 pra cada e a L1 (que vende 6/dia) fica com 1.
+  // Tiago, 02/10: "a regra deixa como esta no momento" — o teste cobra o comportamento vigente.
+  assert.equal(r.lojas[1].cx, 1);
+  assert.equal(r.cdInsuficiente, true);
+  assert.equal(r.faltaCx, 4);
   assert.ok(r.totalCx <= 5);              // nunca acima do estoque do CD
   assert.equal(novos.length, 1);
   assert.equal(novos[0].semVinculo, true);
@@ -73,4 +77,28 @@ test('novos: produto com estoque parado na loja (sem venda) mantém 1 cx e sinal
   assert.deepEqual(n.estoqueParado, [{ ln: 1, est: 1187 }]);
   const semEstoque = novos.find(i => i.codigoCD === '17509546679171');
   assert.equal(semEstoque.estoqueParado, null);
+});
+
+// Tiago, 02/10/26: pilhas vendem por unidade (un/cx 1) — loja zerada recebia 1 un solta; agora sobe pro mínimo de 5 un.
+// Loja com estoque folgado continua 0; loja zerada que a conta já manda ≥ 5 fica com a conta.
+test('repor: produto de unidade (un/cx 1) — loja zerada sobe pro mínimo de 5 un, loja abastecida fica 0', () => {
+  const vinc3 = { '039800015464': { codigoCD: '039800015464', unidade: '039800015464', unPorCaixa: 1, status: 'confirmado', confirmadoPor: 'Tiago' } };
+  const b3 = { ...base,
+    cd: { '039800015464': { descricao: 'PILHA AA2 MAX CT/02', estoqueCx: 2434, unPorCaixaCadastro: 1, estoqueEm: 'un' } },
+    un: { '039800015464': { descricao: 'PILHA AA2 MAX CT/02', validade: 0, custo: 5, porLoja: { 1: { vq: 0, est: 0 }, 5: { vq: 0.25, est: 87 }, 6: { vq: 0.33, est: 46 } } } } };
+  const { repor } = cd.calcularSugestao(b3, vinc3, cfg, {});
+  assert.equal(repor.length, 1);
+  const r = repor[0];
+  assert.equal(r.unPorCaixa, 1);
+  assert.equal(r.lojas[1].cx, 5);     // zerada: era 1 un, sobe pro mínimo
+  assert.equal(r.lojas[5].cx, 0);     // 348 d de cobertura: não pede
+  assert.equal(r.lojas[6].cx, 0);     // 138 d de cobertura: não pede
+});
+
+// produto de CAIXA (un/cx > 1) não muda: loja zerada continua ganhando 1 caixa, sem mínimo de unidade
+test('repor: produto de caixa (un/cx > 1) — loja zerada continua com 1 caixa, mínimo não se aplica', () => {
+  const b4 = { ...base, un: { '7896037913146': { descricao: 'VINHO 750ML', validade: 0, custo: 20, porLoja: { 1: { vq: 0, est: 0 }, 2: { vq: 6, est: 200 } } } } };
+  const { repor } = cd.calcularSugestao(b4, vinc, cfg, {});
+  const r = repor[0];
+  assert.equal(r.lojas[1].cx, 1);     // zerada: 1 caixa de 12, como sempre
 });
