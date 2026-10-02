@@ -5200,6 +5200,25 @@ app.post('/api/cahu-distribuidora/wpp/checar', async (req, res) => {
   try { res.json(await cahuWpp.checagem({ manual: true })); } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── Ranking de vendedores no WhatsApp (lib/cahu-ranking-wpp.js, 02/10/2026) ───
+// 07:30 seg–sáb: ranking do mês SEM valores pro grupo (competição) — dia 1º "nova corrida", última semana "reta final".
+// Usa o mesmo bot cahu-wpp/ da tabela (localhost:3012); /previa devolve o texto do dia sem enviar.
+const cahuRanking = require('./lib/cahu-ranking-wpp');
+cahuRanking.init({ q });
+cahuRanking.agendar();
+app.get('/api/cahu-distribuidora/ranking/estado', (req, res) => {
+  try { res.json(cahuRanking.estado()); } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.get('/api/cahu-distribuidora/ranking/previa', async (req, res) => {
+  try { res.json(await cahuRanking.previa()); } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/cahu-distribuidora/ranking/config', (req, res) => {
+  try { res.json(cahuRanking.salvarConfig(req.body || {})); } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/cahu-distribuidora/ranking/enviar', async (req, res) => {
+  try { res.json(await cahuRanking.rotinaRanking({ manual: true })); } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/api/painel-cd', withCache(1), async (req, res) => {
   try {
     const [expedicao, conferencia] = await Promise.all([

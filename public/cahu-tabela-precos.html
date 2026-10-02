@@ -150,6 +150,32 @@ body{font-family:var(--font);background:var(--bg);color:var(--ink);min-height:10
     <div class="sub-title" style="margin-top:16px">Histórico</div>
     <div class="log" id="wppLog"></div>
   </div>
+
+  <div class="card" id="rkCard">
+    <h2>Ranking de vendedores no WhatsApp</h2>
+    <p class="desc">Todo dia, de segunda a sábado às <b>07:30</b>, o robô manda pro grupo o ranking do mês <b>sem mostrar valores</b> — só as posições, pra criar a competição. No dia a dia vai a versão curta (top 3 + destaque de ontem); no <b>dia 1º</b> vai a mensagem de "novo mês, nova corrida"; na <b>última semana do mês</b> vai a "reta final" com os dias úteis que faltam.</p>
+
+    <div class="wpp-top">
+      <button class="btn-gerar" type="button" id="btnRkEnviar"><svg><use href="/icons.svg#download"/></svg><span>Enviar ranking agora</span></button>
+      <button class="btn-gerar sec" type="button" id="btnRkPrevia"><span>Ver prévia de hoje</span></button>
+      <span class="spacer"></span>
+    </div>
+
+    <div class="wpp-grid">
+      <div class="kv"><div class="k">Último envio</div><div class="v" id="kvRkUltimo">—</div></div>
+      <div class="kv"><div class="k">Horário</div><div class="v" id="kvRkHorario">—</div></div>
+    </div>
+
+    <div class="toggles">
+      <label><input type="checkbox" id="rkAtivo"> Envio ligado <span class="sub-desc" style="margin:0;font-weight:500">(desligado: não manda nada)</span></label>
+    </div>
+
+    <div class="status" id="rkStatus"></div>
+    <div class="wpp-preview" id="rkPreview" hidden></div>
+
+    <div class="sub-title" style="margin-top:16px">Histórico</div>
+    <div class="log" id="rkLog"></div>
+  </div>
 </div>
 
 <script>
@@ -280,6 +306,49 @@ body{font-family:var(--font);background:var(--bg);color:var(--ink);min-height:10
   });
   document.getElementById('btnChecarAgora').addEventListener('click', function () { acao(this, '/api/cahu-distribuidora/wpp/checar', 'Conferindo'); });
   carregarEstado();
+
+  // ── Ranking de vendedores no WhatsApp ──
+  var rkStatus = document.getElementById('rkStatus'), rkPreview = document.getElementById('rkPreview');
+  function carregarRanking() {
+    return fetch('/api/cahu-distribuidora/ranking/estado').then(function (r) { return r.json(); }).then(function (e) {
+      document.getElementById('kvRkUltimo').textContent = dh(e.ultimoEnvio);
+      document.getElementById('kvRkHorario').textContent = e.horario.envio + ' · ' + e.horario.dias;
+      document.getElementById('rkAtivo').checked = !!e.config.ativo;
+      document.getElementById('rkLog').innerHTML = (e.log || []).map(function (l) {
+        return '<div><span class="t">' + dh(l.em) + '</span><span class="tp">' + l.tipo + '</span><span class="' + (l.ok ? '' : 'err') + '">' + l.msg.replace(/</g, '&lt;') + '</span></div>';
+      }).join('') || '<div><span class="t">—</span><span class="tp"></span><span>Nenhuma execução ainda.</span></div>';
+    }).catch(function () { rkStatus.textContent = 'Não foi possível carregar o estado do ranking.'; rkStatus.className = 'status err'; });
+  }
+  document.getElementById('rkAtivo').addEventListener('change', function () {
+    fetch('/api/cahu-distribuidora/ranking/config', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ativo: this.checked }) }).then(carregarRanking);
+  });
+  document.getElementById('btnRkEnviar').addEventListener('click', function () {
+    var btn = this; btn.disabled = true;   // síncrono: segura o handler global de download (mesmo truque dos botões da tabela)
+    if (!confirm('Mandar o ranking de hoje pro grupo dos vendedores AGORA?')) { setTimeout(function () { btn.disabled = false; }, 0); return; }
+    var html = btn.innerHTML; btn.innerHTML = '<span class="spinner-ico"></span><span>Enviando…</span>';
+    rkStatus.textContent = ''; rkStatus.className = 'status'; rkPreview.hidden = true;
+    fetch('/api/cahu-distribuidora/ranking/enviar', { method: 'POST' })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'falhou'); return j; }); })
+      .then(function (j) {
+        rkStatus.textContent = j.enviado ? 'Ranking enviado pro grupo.' : ('Nada enviado' + (j.motivo ? ': ' + j.motivo : '.'));
+        rkStatus.className = 'status ' + (j.enviado ? 'ok' : '');
+        if (j.texto) { rkPreview.textContent = j.texto; rkPreview.hidden = false; }
+      })
+      .catch(function (e) { rkStatus.textContent = e.message; rkStatus.className = 'status err'; })
+      .then(function () { btn.disabled = false; btn.innerHTML = html; carregarRanking(); });
+  });
+  document.getElementById('btnRkPrevia').addEventListener('click', function () {
+    var btn = this; btn.disabled = true;
+    var html = btn.innerHTML; btn.innerHTML = '<span class="spinner-ico"></span><span>Montando…</span>';
+    rkStatus.textContent = ''; rkStatus.className = 'status'; rkPreview.hidden = true;
+    fetch('/api/cahu-distribuidora/ranking/previa')
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'falhou'); return j; }); })
+      .then(function (j) { rkPreview.textContent = j.texto; rkPreview.hidden = false; rkStatus.textContent = 'Prévia da mensagem de hoje (nada foi enviado).'; rkStatus.className = 'status ok'; })
+      .catch(function (e) { rkStatus.textContent = e.message; rkStatus.className = 'status err'; })
+      .then(function () { btn.disabled = false; btn.innerHTML = html; });
+  });
+  carregarRanking();
 })();
 </script>
 </body>
