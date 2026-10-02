@@ -17,16 +17,36 @@ const GRUPO_NOME = 'CENTRAL ( Aux ) PREVENÇÃO DE PERDAS';
 // sinal de spam pro WhatsApp. O app Contagem já fica instalado no celular.
 // ENVIAR_PDF=true volta a mandar a folha em PDF junto (modo antigo).
 const ENVIAR_PDF = process.env.NEGATIVOS_ENVIAR_PDF === '1';
-function msgAvisoContagem(porLoja, dataStr) {
+function msgAvisoContagem(porLoja, dataStr, rei = {}) {
+  const vezes = (ln, x) => (rei[ln] || {})[String(x.Codigo)] || 1;
   const linhas = [1,2,3,4,5,6].filter(ln => (porLoja[ln] || []).length)
-    .map(ln => `• Loja ${ln} (${NOMES_LOJA[ln]}): *${porLoja[ln].length}* ${porLoja[ln].length === 1 ? 'item' : 'itens'}`);
+    .map(ln => {
+      const n = porLoja[ln].length;
+      const r = porLoja[ln].filter(x => vezes(ln, x) >= 2).length;
+      return `• Loja ${ln} (${NOMES_LOJA[ln]}): *${n}* ${n === 1 ? 'item' : 'itens'}${r ? ` — ⚠ *${r}* reincidente${r > 1 ? 's' : ''}` : ''}`;
+    });
+  // Piores casos (3+ vezes em 15 dias), limitados pra mensagem não virar textão
+  const piores = [];
+  for (const ln of [1,2,3,4,5,6]) for (const x of porLoja[ln] || []) {
+    const v = vezes(ln, x);
+    if (v >= 3) piores.push({ ln, desc: x.Descricao, v });
+  }
+  piores.sort((a, b) => b.v - a.v);
+  const blocoPiores = piores.length ? [
+    '',
+    '🔴 *Vive negativando (3+ vezes em 15 dias):*',
+    ...piores.slice(0, 8).map(p => `• Loja ${p.ln} · ${p.desc} — ${p.v}ª vez`),
+    ...(piores.length > 8 ? [`…e mais ${piores.length - 8} itens marcados no app.`] : []),
+  ] : [];
   return [
     `📋 *CONTAGEM DE NEGATIVOS — ${dataStr}*`,
     '',
     ...linhas,
+    ...blocoPiores,
     '',
     'Abra o app *Contagem* no celular: a lista da sua loja já está lá.',
     'Digite *Depósito* e *Loja* em cada item. Se o produto não existe na loja, toque em *Não achei*.',
+    'Itens com ⚠ no app já negativaram outros dias: confira depósito e validade com atenção redobrada.',
     'No fim, toque em *Concluir contagem*. A central recebe na hora.',
   ].join('\n');
 }
@@ -574,8 +594,12 @@ async function enviarPDFsLojas(porLoja) {
     }
   }
 
-  // Aviso único no grupo: quantos itens por loja + como contar no app
-  await sock.sendMessage(jid, { text: msgAvisoContagem(porLoja, dataStr) });
+  // Aviso único no grupo: quantos itens por loja + como contar no app.
+  // Reincidência calculada depois do abrirDia pra contagem de hoje já entrar.
+  let rei = {};
+  try { rei = contagem.reincidencia(contagem.hojeStr()); }
+  catch (err) { logger.error({ err }, 'Erro ao calcular reincidência (aviso sai sem ⚠)'); }
+  await sock.sendMessage(jid, { text: msgAvisoContagem(porLoja, dataStr, rei) });
   logger.info('Aviso de contagem enviado no grupo');
 }
 
