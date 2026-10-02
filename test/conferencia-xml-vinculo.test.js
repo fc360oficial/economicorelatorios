@@ -67,6 +67,25 @@ test('código DUN-14 ou com zero à esquerda no XML casa com o EAN do pedido', a
   assert.deepEqual(x.itens.map(i => [i.cod, i.recebida, i.tipo]), [['7891080150453', 20, 'ok'], ['7891000416266', 24, 'ok']]);
 });
 
+test('DUN-14 de verdade (digito verificador proprio) casa com o EAN do pedido — caso Alpes/Urca Loja 4, 02/10/2026', async () => {
+  const p = pedido(9110, '2026-09-29T10:00:00.000Z', [
+    ['7896274823833', 'ALPES SABAO BARRA 800G BLUE', 20, 8.00],
+    ['7896274806577', 'ALPES SABAO BARRA UNITARIO 150G BLUE', 48, 1.60],
+    ['7896056404014', 'URCA AMACIANTE 2L LAVANDA', 6, 6.47],
+    ['7896056400047', 'URCA SABAO EM PASTA 500G', 12, 6.99]]);
+  const n = nota(66290, [
+    item('17896274823830', 'SABAO TB ALPES AZUL 900G 50X180G', 20, 8.00),      // caixa: 1 + base + verificador proprio (0, nao 3)
+    item('17896274806574', 'SABAO TB ALPES AZUL UNITARIO 48X150G', 48, 1.60),
+    item('17896056404011', 'AMACIANTE URCA LAVANDA LILAS 6X2LT', 6, 6.47),
+    item('27896056400041', 'SABAO EM PASTA URCA 12X500G', 12, 6.99)]);        // prefixo 2 (outro nivel de embalagem)
+  await rodar([p], [n]);
+  const x = p.xml.lojas[6];
+  assert.equal(x.status, 'conciliado');
+  assert.deepEqual(x.nao_pedidos, []);
+  assert.deepEqual(x.itens.map(i => [i.cod, i.recebida, i.tipo]),
+    [['7896274823833', 20, 'ok'], ['7896274806577', 48, 'ok'], ['7896056404014', 6, 'ok'], ['7896056400047', 12, 'ok']]);
+});
+
 test('menos da metade dos itens da nota no pedido: vincula, mas avisa pra conferir se é este pedido', async () => {
   const p = pedido(9106, '2026-09-28T19:33:00.000Z', [['7896079441119', 'ARROZ NAMORADO', 10, 4.55], ['7891107111927', 'SALADA OLEO CANOLA', 20, 12.1]]);
   const n = nota(2513637, [item('7896079441119', 'ARROZ NAMORADO', 10, 4.55), item('17891080150453', 'OLEO SOYA CANOLA', 20, 12.1), item('17891080150477', 'OLEO SOYA GIRASSOL', 20, 12), item('7891080150456', 'OLEO SOYA MILHO', 20, 13.45), item('07891000416266', 'NESCAFE', 24, 4.13)]);
