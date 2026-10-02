@@ -6959,6 +6959,10 @@ app.post('/api/dashboard-distribuidora/atualizar', (req, res) => { dashDist.calc
 app.get('/api/dashboard-distribuidora/cliente/:cod', async (req, res) => {
   try { res.json(await dashDist.notasCliente(parseInt(req.params.cod) || 0)); } catch (err) { res.status(500).json({ error: err.message }); }
 });
+// clique no valor de venda da tabela "Por vendedor": notas do vendedor hoje ou no mês, com cliente e nota
+app.get('/api/dashboard-distribuidora/vendedor/:cod/:periodo', async (req, res) => {
+  try { res.json(await dashDist.notasVendedor(parseInt(req.params.cod) || 0, req.params.periodo === 'hoje' ? 'hoje' : 'mes')); } catch (err) { res.status(500).json({ error: err.message }); }
+});
 app.get('/api/dashboard-distribuidora/boletos', async (req, res) => {
   try { res.json(await dashDist.boletos({ cnpj: String(req.query.cnpj || '').replace(/\D/g, '').slice(0, 14), vencIni: String(req.query.venc_ini || '').slice(0, 10), vencFim: String(req.query.venc_fim || '').slice(0, 10), situacao: String(req.query.situacao || '').slice(0, 20) })); }
   catch (err) { res.status(500).json({ error: err.message }); }

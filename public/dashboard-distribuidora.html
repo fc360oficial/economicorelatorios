@@ -101,6 +101,9 @@
   .fin-note{padding:8px 14px;font-size:11px;color:var(--ink3);border-top:1px solid #F0F0EE;line-height:1.45}
   table.m.al{table-layout:fixed}table.m.al th,table.m.al td{overflow:hidden;text-overflow:ellipsis}
   table.m tr.cp{cursor:pointer}table.m tr.cp.open td{background:var(--amw,#FFF6D9);box-shadow:inset 3px 0 0 #F5B800}
+  table.m td.vcl{cursor:pointer}table.m td.vcl>b{border-bottom:1px dashed rgba(46,94,140,.45)}
+  table.m td.vcl:hover>b{color:#B45C00;border-bottom-color:#F5B800}
+  table.m tr.open td.vcl{background:var(--amw,#FFF6D9)}
   .car{display:inline-block;width:13px;color:var(--ink3);font-size:10px;transition:transform .15s}tr.cp.open .car{transform:rotate(90deg)}
   table.m tr.det>td{padding:0 12px 12px 22px;background:#FAFAF8;white-space:normal;max-width:none;overflow:visible}table.m tr.det:hover>td{background:#FAFAF8}
   tr.det table.m{background:#fff;border:1px solid var(--ln,#DADAD6);border-radius:8px}tr.det table.m th{position:static}
@@ -167,7 +170,7 @@
     <div class="seg-hd"><span class="n">1</span><h2>Faturamento</h2><small id="s1-sub">NF-e de venda da distribuidora · só notas autorizadas · margem s/ venda pelo custo dos itens da nota</small><a class="lk" href="/cahu-tabela-precos.html">Tabela de Preços →</a></div>
     <div id="fat-hero"><div class="spin"></div></div>
     <div class="row c21">
-      <div class="card"><div class="card-hd"><h3>Por vendedor</h3><small id="fat-vend-sub">hoje à esquerda · mês até hoje × mesmo período do mês anterior à direita</small></div><div class="card-bd tall" id="c-fat-vend"><div class="spin"></div></div></div>
+      <div class="card"><div class="card-hd"><h3>Por vendedor</h3><small id="fat-vend-sub">hoje à esquerda · mês até hoje × mesmo período do mês anterior à direita · clique no valor de venda pra ver cliente e nota</small></div><div class="card-bd tall" id="c-fat-vend"><div class="spin"></div></div></div>
       <div class="stack">
         <div class="card"><div class="card-hd"><h3>Mês a mês</h3><small>NF-e de venda · notas e valor</small></div><div class="card-bd" id="c-fat-meses"><div class="spin"></div></div></div>
         <div class="card"><div class="card-hd"><h3>Forma de pagamento</h3><small>notas do mês · pelo pedido do televendas</small></div><div class="card-bd" id="c-fat-formas"><div class="spin"></div></div></div>
@@ -355,10 +358,14 @@ function renderFat() {
     + '</div><div class="hero-sh"><div class="t">participação por vendedor · mês</div><div class="hb-bar">' + vs.map((v, i) => '<b style="width:' + (tot ? (v.mes.v / tot * 100).toFixed(2) : 0) + '%;background:' + CORES[i % CORES.length] + '" title="' + esc(v.nome) + ' · ' + pct(v.pct) + '"></b>').join('') + '</div>'
     + '<div class="hb-leg">' + vs.slice(0, 8).map((v, i) => '<span><i style="background:' + CORES[i % CORES.length] + '"></i>' + esc(v.nome.split(' ')[0]) + '<b>' + pct(v.pct) + '</b></span>').join('') + '</div></div></div>';
   // por vendedor: hoje × semana passada não existe por vendedor; hoje | mês (notas · venda · margem · ticket · clientes) | mês anterior mesmo período
-  const linha = (v, t) => '<tr' + (t ? ' class="tot"' : '') + '><td class="p">' + esc(v.nome) + '</td>'
-    + '<td class="r sep dia">' + n0(v.hoje.n) + '</td><td class="r dia"><b>' + money(v.hoje.v) + '</b></td>'
-    + '<td class="r sep">' + n0(v.mes.n) + '</td><td class="r"><b>' + money(v.mes.v) + '</b>' + (t ? '' : '<span class="ant">' + pct(v.pct) + ' do total</span>') + '</td><td class="r">' + mg(v.mes.margem) + '</td><td class="r">' + money(v.mes.ticket) + '</td><td class="r">' + n0(v.mes.clientes) + '</td>'
+  // clique no valor de venda (hoje ou mês) abre as notas do vendedor com cliente e nota — vendDetalhe()
+  const linha = (v, t) => {
+    const cl = (per, n) => t || !n ? '' : ' vcl" onclick="vendDetalhe(this,\'' + per + '\')" title="clique pra ver cliente e nota de cada venda';
+    return '<tr' + (t ? ' class="tot"' : ' data-vend="' + v.cod + '"') + '><td class="p">' + esc(v.nome) + '</td>'
+    + '<td class="r sep dia">' + n0(v.hoje.n) + '</td><td class="r dia' + cl('hoje', v.hoje.n) + '"><b>' + money(v.hoje.v) + '</b></td>'
+    + '<td class="r sep">' + n0(v.mes.n) + '</td><td class="r' + cl('mes', v.mes.n) + '"><b>' + money(v.mes.v) + '</b>' + (t ? '' : '<span class="ant">' + pct(v.pct) + ' do total</span>') + '</td><td class="r">' + mg(v.mes.margem) + '</td><td class="r">' + money(v.mes.ticket) + '</td><td class="r">' + n0(v.mes.clientes) + '</td>'
     + '<td class="r sep">' + (v.mesAnt.v ? money(v.mesAnt.v) + '<span class="ant">' + n0(v.mesAnt.n) + ' notas · <b class="' + cls(v.var) + '">' + sgn(v.var) + '</b></span>' : '<span class="mut">—</span>') + '</td></tr>';
+  };
   el('c-fat-vend').innerHTML = vs.length ? '<table class="m"><thead><tr><th rowspan="2">Vendedor</th><th class="grp dia" colspan="2">Hoje · ' + hj + '</th><th class="grp" colspan="5">Mês · 01 a ' + hj + '</th><th class="grp" rowspan="2">Mês anterior<br>01 a ' + df(f.mesAnt.ate) + '</th></tr>'
     + '<tr><th class="r sep dia">Notas</th><th class="r dia">Venda</th><th class="r sep">Notas</th><th class="r">Venda</th><th class="r">Margem</th><th class="r">Ticket</th><th class="r">Clientes</th></tr></thead><tbody>' + vs.map(v => linha(v)).join('')
     + linha({ nome: 'Total', hoje: H, mes: M, mesAnt: A, var: f.var, pct: 100 }, true) + '</tbody></table>' : empty('Nenhuma nota no mês.');
@@ -392,6 +399,22 @@ function renderCli() {
   const maxC = Math.max(...c.porCidade.map(x => x.v), 1);
   el('c-cli-cidade').innerHTML = c.porCidade.length ? '<table class="m"><thead><tr><th>Cidade</th><th class="r">Clientes</th><th class="r">Pedidos</th><th class="r">Venda</th><th class="r">%</th><th></th></tr></thead><tbody>' + c.porCidade.map(x => '<tr><td class="p">' + esc(x.cidade) + '</td><td class="r">' + n0(x.clientes) + '</td><td class="r">' + n0(x.n) + '</td><td class="r"><b>' + money(x.v) + '</b></td><td class="r">' + pct(x.pct) + '</td><td>' + bar(x.v, maxC) + '</td></tr>').join('') + '</tbody></table>' : empty('sem dados');
   el('c-cli-vend').innerHTML = c.porVendedor.length ? '<table class="m"><thead><tr><th>Vendedor</th><th class="r">Ativos no mês</th><th class="r">Ativos 90 d</th><th class="r">Novos</th><th class="r">Sumiram</th><th class="r">Venda no mês</th></tr></thead><tbody>' + c.porVendedor.map(x => '<tr><td class="p">' + esc(x.nome) + '</td><td class="r"><b>' + n0(x.ativosMes) + '</b></td><td class="r">' + n0(x.ativos90) + '</td><td class="r up">' + (x.novos || '') + '</td><td class="r dn">' + (x.sumidos || '') + '</td><td class="r"><b>' + money(x.v) + '</b></td></tr>').join('') + '</tbody></table>' : empty('sem dados');
+}
+// clique no valor de venda da tabela "Por vendedor": notas do vendedor (hoje ou mês) com cliente e nota
+async function vendDetalhe(td, per) {
+  const tr = td.closest('tr'), nx = tr.nextElementSibling;
+  if (nx && nx.classList.contains('det')) { const mesmo = nx.dataset.per === per; nx.remove(); tr.classList.remove('open'); if (mesmo) return; }
+  const det = document.createElement('tr'); det.className = 'det'; det.dataset.per = per;
+  det.innerHTML = '<td colspan="' + tr.children.length + '"><div class="spin"></div></td>';
+  tr.after(det); tr.classList.add('open');
+  try {
+    const r = await fetch('/api/dashboard-distribuidora/vendedor/' + tr.dataset.vend + '/' + per + (DEMO ? '?demo=1' : '')); const j = await r.json(); if (j.error) throw new Error(j.error);
+    if (!det.isConnected) return;
+    const ns = j.notas || [];
+    det.firstChild.innerHTML = '<div class="det-h"><b>' + esc(j.nome) + '</b> · ' + (per === 'hoje' ? 'notas de hoje' : 'notas do mês · ' + df(j.de) + ' a ' + df(j.ate)) + ' · <b>' + plural(ns.length, 'nota') + '</b> · total ' + money(j.total) + (per === 'hoje' ? '' : ' · mais recente primeiro') + '</div>'
+      + (ns.length ? '<table class="m"><thead><tr><th>Data</th><th>Nota</th><th>Cliente</th><th>Forma</th><th class="r">Valor</th><th class="r">Margem</th></tr></thead><tbody>'
+        + ns.map(n => '<tr><td>' + dow(n.d) + ' ' + df(n.d) + (n.hora ? ' ' + hm(n.hora) : '') + '</td><td>' + nfLink(n.nn, n.chave) + '</td><td class="p">' + esc(n.cliente) + '</td><td>' + esc(n.forma) + '</td><td class="r"><b>' + money(n.v) + '</b></td><td class="r">' + mg(n.margem) + '</td></tr>').join('') + '</tbody></table>' : '<div class="empty">Sem nota no período.</div>');
+  } catch (e) { if (det.isConnected) det.firstChild.innerHTML = '<div class="empty">erro: ' + esc(e.message) + '</div>'; }
 }
 async function cliDetalhe(tr) {
   const nx = tr.nextElementSibling;
