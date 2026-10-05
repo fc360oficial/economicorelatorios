@@ -322,6 +322,25 @@ table.forntab td{white-space:normal;vertical-align:middle}
 table.forntab td .mini{display:block;margin-top:2px;line-height:1.35}
 table.forntab .check{width:15px;height:15px}
 .dest-warn{color:var(--neg);font-weight:700;font-size:11px}
+/* ── Análise das quantidades (Tiago, 05/10/26): 🛒 do item na tabela de quem digitou abre item × lojas, no formato do ERP ── */
+.aq-f{margin-bottom:10px}
+.aq-f label{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--ink2);margin-bottom:4px}
+.aq-f .v{background:var(--wsh);border:1px solid var(--ln);border-radius:8px;padding:9px 12px;font-size:13.5px;color:var(--ink);min-height:40px;display:flex;align-items:center;flex-wrap:wrap;gap:6px}
+.aq-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:0 14px}
+.aq-ic{margin-left:auto;border:none;background:transparent;cursor:pointer;font-size:15px;color:var(--amk);padding:0 2px;line-height:1;transition:transform .1s}
+.aq-ic:hover{transform:scale(1.2)}
+table.aq-t{width:100%;border-collapse:collapse;font-size:13px}
+table.aq-t th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink2);text-align:left;padding:9px 8px;border-bottom:1px solid var(--ln);background:var(--pap);white-space:nowrap}
+table.aq-t td{padding:7px 8px;border-bottom:1px solid var(--ln);vertical-align:middle}
+table.aq-t tr.inat td{opacity:.6}
+table.aq-t .r{text-align:right}table.aq-t .c{text-align:center}
+table.aq-t input.q{width:84px;font:inherit;font-size:14px;font-weight:700;padding:7px 8px;border:1.5px solid var(--am);border-radius:6px;text-align:center;color:var(--amk);background:var(--crd)}
+table.aq-t input.q.ed{background:var(--amw)}
+table.aq-t input.q:focus{outline:2px solid var(--am);outline-offset:1px}
+table.aq-t tfoot td{font-weight:700;background:var(--pap);border-bottom:none}
+.aq-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
+.aq-btns .cbtn{padding:9px 16px}
+@media (max-width:700px){.aq-grid{grid-template-columns:1fr 1fr}}
 #backdrop{position:fixed;inset:0;background:rgba(10,15,26,.4);display:none;z-index:600}
 #backdrop.on{display:block}
 #modal{position:fixed;top:0;right:0;bottom:0;width:820px;max-width:96vw;background:var(--crd);box-shadow:-16px 0 48px rgba(10,15,26,.25);padding:22px 26px 30px;overflow-y:auto;transform:translateX(100%);transition:transform .25s ease}
@@ -1858,7 +1877,7 @@ function renderPrePedidos(){
       var nTot = cots.length; cots = cots.filter(function(c){ return c.cotou; }); var nCot = cots.length;   // Tiago, 25/09: só quem digitou preço
       var trav = p.status === 'realizado';
       h += '<tr class="q"><td></td><td colspan="7"><table class="pp" style="border:1px solid var(--ln);border-radius:8px"><thead><tr><th style="width:30px"></th><th>Fornecedor <span class="mini" style="text-transform:none;letter-spacing:0;font-weight:600">· ' + nCot + ' de ' + nTot + ' digitaram · marcado = quem fornece · clique em outro pra trocar</span></th><th>marca</th><th>Qtd. Emb.</th><th>Forma de PGTO.</th><th>Valor Unitário</th><th>Observação</th></tr></thead><tbody>' +
-        cots.map(function(c){ var win = !!i.vencedor && c.codFornec === i.vencedor.codFornec, bloq = trav || c.realizado || !c.cotou;   /* Tiago, 28/09: quem ganhou também pode ser desmarcado → "não comprar" */ return '<tr' + (bloq ? (c.cotou ? '' : ' class="off" style="opacity:.55"') : ' style="cursor:pointer"') + ' onclick="event.stopPropagation();' + (bloq ? '' : win ? 'ppEscolher(\'' + i.cod + '\',\'nao\',\'' + k + '\')' : 'ppEscolher(\'' + i.cod + '\',' + c.codFornec + ',\'' + k + '\')') + '" title="' + (win ? (bloq ? 'vencedor' : 'Fornece este item · clique pra desmarcar: não comprar de ninguém (o item vai pra lista Não comprados, embaixo)') : !c.cotou ? 'Não digitou preço pra este item: sem preço não dá pra passar o item pra ele' : trav ? 'pedido realizado: não muda mais' : c.realizado ? 'pedido deste fornecedor já foi realizado' : 'Clique pra passar este item pra este fornecedor') + '"><td>' + (win ? '<span class="cart" title="Abrir: Realizar Pedido deste fornecedor" onclick="event.stopPropagation();abrirPrePedido(' + c.codFornec + ')">🛒</span>' : '') + '</td><td><span class="pp-chk' + (win ? ' on' : '') + '"></span>' + esc(c.nome) + (trav && win ? ' <span class="lock-pill">🔒 pedido #' + p.pedidoId + '</span>' : !win && c.realizado ? ' <span class="lock-pill">🔒 pedido #' + c.pedidoId + ' fechado</span>' : '') + '</td><td>' + (esc(c.marca) || '--') + embVendPill(c.emb_vendedor) + '</td><td>' + i.emb + '</td><td>' + esc(c.condicao) + '</td><td style="white-space:nowrap">' + (c.cotou ? ppPrecoCell(i, c, trav || c.realizado) : '<span class="mini">não digitou</span>') + '</td><td>' + (c.obs ? esc(c.obs) : (c.obsGeral ? '<span class="mini" title="observação geral do vendedor no link: vale pra proposta toda, não só pra este item">geral: ' + esc(c.obsGeral) + '</span>' : '')) + '</td></tr>'; }).join('') + '</tbody></table></td></tr>';
+        cots.map(function(c){ var win = !!i.vencedor && c.codFornec === i.vencedor.codFornec, bloq = trav || c.realizado || !c.cotou;   /* Tiago, 28/09: quem ganhou também pode ser desmarcado → "não comprar" */ return '<tr' + (bloq ? (c.cotou ? '' : ' class="off" style="opacity:.55"') : ' style="cursor:pointer"') + ' onclick="event.stopPropagation();' + (bloq ? '' : win ? 'ppEscolher(\'' + i.cod + '\',\'nao\',\'' + k + '\')' : 'ppEscolher(\'' + i.cod + '\',' + c.codFornec + ',\'' + k + '\')') + '" title="' + (win ? (bloq ? 'vencedor' : 'Fornece este item · clique pra desmarcar: não comprar de ninguém (o item vai pra lista Não comprados, embaixo)') : !c.cotou ? 'Não digitou preço pra este item: sem preço não dá pra passar o item pra ele' : trav ? 'pedido realizado: não muda mais' : c.realizado ? 'pedido deste fornecedor já foi realizado' : 'Clique pra passar este item pra este fornecedor') + '"><td>' + (win ? '<span class="cart" title="Análise das quantidades por loja: requisitado, estoque e quantidade do pedido" onclick="event.stopPropagation();abrirAnaliseQtd(\'' + i.cod + '\',' + c.codFornec + ')">🛒</span>' : '') + '</td><td><span class="pp-chk' + (win ? ' on' : '') + '"></span>' + esc(c.nome) + (trav && win ? ' <span class="lock-pill">🔒 pedido #' + p.pedidoId + '</span>' : !win && c.realizado ? ' <span class="lock-pill">🔒 pedido #' + c.pedidoId + ' fechado</span>' : '') + '</td><td>' + (esc(c.marca) || '--') + embVendPill(c.emb_vendedor) + '</td><td>' + i.emb + '</td><td>' + esc(c.condicao) + '</td><td style="white-space:nowrap">' + (c.cotou ? ppPrecoCell(i, c, trav || c.realizado) : '<span class="mini">não digitou</span>') + '</td><td>' + (c.obs ? esc(c.obs) : (c.obsGeral ? '<span class="mini" title="observação geral do vendedor no link: vale pra proposta toda, não só pra este item">geral: ' + esc(c.obsGeral) + '</span>' : '')) + '</td></tr>'; }).join('') + '</tbody></table></td></tr>';
     });
     h += '</tbody></table></td></tr>';
   });
@@ -1937,7 +1956,7 @@ function ppFornInline(cod, qtdPed){
     '<table class="fxt"><thead><tr><th style="width:34px"></th><th style="width:34px"></th><th>Fornecedor</th><th>Marca</th><th>Condição</th><th class="r">Prazo</th><th class="r">Fat. mín.</th><th class="r">Preço unit.</th><th class="r">× menor</th><th class="r">× últ. compra</th><th class="r">Total (' + fmtN(q) + ')</th><th>Obs. do vendedor</th></tr></thead><tbody>' +
     cots.map(function(c){ var win = c.codFornec === venc, d = ult > 0 ? (c.preco - ult) / ult * 100 : null, dm = menor > 0 ? (c.preco - menor) / menor * 100 : 0;
       var bloq = c.realizado;   // Tiago, 28/09: quem fornece também pode ser desmarcado → "não comprar"
-      return '<tr class="' + (win ? 'win' : c.realizado ? 'lock' : 'alt') + '" onclick="' + (bloq ? '' : win ? 'ppEscolher(\'' + cod + '\',\'nao\',\'' + PP_DET + '\')' : 'ppEscolher(\'' + cod + '\',' + c.codFornec + ',\'' + PP_DET + '\')') + '" title="' + (win ? 'Fornece este item · clique pra desmarcar: não comprar de ninguém' : c.realizado ? 'pedido deste fornecedor já foi realizado: não recebe item novo' : 'Clique pra passar este item pro pré-pedido de ' + esc(c.nome)) + '"><td class="c">' + (win ? '<span class="cart" title="Abrir: Realizar Pedido deste fornecedor" onclick="event.stopPropagation();abrirPrePedido(' + c.codFornec + ')">🛒</span>' : c.realizado ? '🔒' : '') + '</td><td class="c"><span class="pp-chk' + (win ? ' on' : '') + '"></span></td><td><b>' + esc(c.nome) + '</b>' + (c.realizado ? ' <span class="lock-pill">pedido #' + c.pedidoId + ' fechado</span>' : '') + (c.vendedor ? '<br><span class="mini">' + esc(c.vendedor) + '</span>' : '') + '</td><td>' + (esc(c.marca) || '<span class="mini">—</span>') + embVendPill(c.emb_vendedor) + '</td><td>' + esc(c.condicao) + '</td><td class="r">' + (c.prazo ? c.prazo + ' d' : '—') + '</td><td class="r">' + (c.fat ? fmtR(c.fat) : '—') + '</td><td class="r" style="white-space:nowrap">' + (c.realizado ? '' : '<button class="neg-btn' + (c.negociado ? ' on' : '') + '" title="' + (c.negociado ? 'Preço negociado (vendedor digitou ' + fmtR(c.preco_vendedor) + '): clique pra mudar, ou apague o valor pra voltar ao do vendedor' : 'Negociar: digitar o preço fechado com o vendedor') + '" onclick="event.stopPropagation();ppNegociar(\'' + cod + '\',' + c.codFornec + ',' + c.preco + ')">🤝</button>') + (c.negociado ? '<b class="neg-preco" title="negociado · vendedor digitou ' + fmtR(c.preco_vendedor) + '">' + fmtR(c.preco) + '</b> <s class="mini">' + fmtR(c.preco_vendedor) + '</s>' : '<b>' + fmtR(c.preco) + '</b>') + '</td><td class="r">' + (dm > 0.05 ? '<span class="eco-neg">+' + dm.toFixed(1).replace('.', ',') + '%</span>' : '<span class="eco-pos">menor</span>') + '</td><td class="r">' + (d == null ? '—' : '<span class="' + (d > 0.05 ? 'eco-neg' : 'eco-pos') + '">' + (d > 0.05 ? '▲ +' : d < -0.05 ? '▼ ' : '= ') + Math.abs(d).toFixed(1).replace('.', ',') + '%</span>') + '</td><td class="r"><b>' + fmtR(c.preco * q) + '</b></td><td class="mini">' + (c.obs ? '🚩 ' + esc(c.obs) : '') + '</td></tr>'; }).join('') + '</tbody></table>' +
+      return '<tr class="' + (win ? 'win' : c.realizado ? 'lock' : 'alt') + '" onclick="' + (bloq ? '' : win ? 'ppEscolher(\'' + cod + '\',\'nao\',\'' + PP_DET + '\')' : 'ppEscolher(\'' + cod + '\',' + c.codFornec + ',\'' + PP_DET + '\')') + '" title="' + (win ? 'Fornece este item · clique pra desmarcar: não comprar de ninguém' : c.realizado ? 'pedido deste fornecedor já foi realizado: não recebe item novo' : 'Clique pra passar este item pro pré-pedido de ' + esc(c.nome)) + '"><td class="c">' + (win ? '<span class="cart" title="Análise das quantidades por loja: requisitado, estoque e quantidade do pedido" onclick="event.stopPropagation();abrirAnaliseQtd(\'' + cod + '\',' + c.codFornec + ')">🛒</span>' : c.realizado ? '🔒' : '') + '</td><td class="c"><span class="pp-chk' + (win ? ' on' : '') + '"></span></td><td><b>' + esc(c.nome) + '</b>' + (c.realizado ? ' <span class="lock-pill">pedido #' + c.pedidoId + ' fechado</span>' : '') + (c.vendedor ? '<br><span class="mini">' + esc(c.vendedor) + '</span>' : '') + '</td><td>' + (esc(c.marca) || '<span class="mini">—</span>') + embVendPill(c.emb_vendedor) + '</td><td>' + esc(c.condicao) + '</td><td class="r">' + (c.prazo ? c.prazo + ' d' : '—') + '</td><td class="r">' + (c.fat ? fmtR(c.fat) : '—') + '</td><td class="r" style="white-space:nowrap">' + (c.realizado ? '' : '<button class="neg-btn' + (c.negociado ? ' on' : '') + '" title="' + (c.negociado ? 'Preço negociado (vendedor digitou ' + fmtR(c.preco_vendedor) + '): clique pra mudar, ou apague o valor pra voltar ao do vendedor' : 'Negociar: digitar o preço fechado com o vendedor') + '" onclick="event.stopPropagation();ppNegociar(\'' + cod + '\',' + c.codFornec + ',' + c.preco + ')">🤝</button>') + (c.negociado ? '<b class="neg-preco" title="negociado · vendedor digitou ' + fmtR(c.preco_vendedor) + '">' + fmtR(c.preco) + '</b> <s class="mini">' + fmtR(c.preco_vendedor) + '</s>' : '<b>' + fmtR(c.preco) + '</b>') + '</td><td class="r">' + (dm > 0.05 ? '<span class="eco-neg">+' + dm.toFixed(1).replace('.', ',') + '%</span>' : '<span class="eco-pos">menor</span>') + '</td><td class="r">' + (d == null ? '—' : '<span class="' + (d > 0.05 ? 'eco-neg' : 'eco-pos') + '">' + (d > 0.05 ? '▲ +' : d < -0.05 ? '▼ ' : '= ') + Math.abs(d).toFixed(1).replace('.', ',') + '%</span>') + '</td><td class="r"><b>' + fmtR(c.preco * q) + '</b></td><td class="mini">' + (c.obs ? '🚩 ' + esc(c.obs) : '') + '</td></tr>'; }).join('') + '</tbody></table>' +
     '<div class="fxft"><span class="mini">Ao trocar, o item sai deste pré-pedido e entra no pré-pedido do fornecedor escolhido, com as mesmas quantidades por loja.</span><button class="btn sm ghost" onclick="ppEscolher(\'' + cod + '\',\'auto\',\'' + PP_DET + '\')">Voltar pro menor preço</button><button class="btn sm ghost" onclick="ppEscolher(\'' + cod + '\',\'nao\',\'' + PP_DET + '\')">Não comprar este item</button></div>';
   return h;
 }
@@ -2063,6 +2082,96 @@ async function ppRealizar(){
   if (!confirm('Realizar o pedido de ' + p.nome + '?\n\n' + p.itens.filter(function(i){ var q = 0; (P.lojas || []).forEach(function(l){ q += ppQtd(i, l); }); return q > 0; }).length + ' itens · ' + fmtR(T.total) + (p.abaixo_minimo ? '\n\nATENÇÃO: abaixo do faturamento mínimo (' + fmtR(p.faturamento_minimo) + ').' : '') + '\n\nO pedido entra em Pedidos de Compra JÁ APROVADO, um por loja, com os preços da cotação e o selo COTAÇÃO (sem consulta de avarias).')) return;
   try { CUR = await post('/api/cotacoes/' + CUR.id + '/pre-pedido/' + PP_DET + '/realizar'); renderTudo(); var ped = (CUR.pedidos || []).find(function(x){ return x.codFornec === PP_DET; }); toastMsg('Pedido #' + (ped ? ped.id : '?') + ' realizado: entrou em Pedidos de Compra já aprovado. Links do fornecedor logo abaixo.' + (CUR.status !== 'aberta' ? ' Era o último fornecedor: a cotação foi fechada.' : '')); }   // Tiago, 28/09: fica nesta tela (antes, quando era o último pedido, pulava pra tela de Pedidos)
   catch(e) { toastMsg('Erro: ' + e.message); }
+}
+// ── Análise das quantidades (Tiago, 05/10/26): o 🛒 na linha de quem fornece o item abre o item × lojas, no formato do
+// "Análise das quantidades" do ERP — Req. = o que a cotação pediu pra loja, Est. = estoque da loja no ERP, Qtd Pedido = o que
+// vai no pré-pedido deste fornecedor (editável, salva sozinho), Total Item = qtd × preço, Total Pedido = o pré-pedido do
+// fornecedor na loja somando todos os itens. Enter pula pra loja de baixo. Nada é gravado no ERP.
+var AQ = null, AQ_T = null;
+var UNID_NOME = {UN:'UNIDADE', CX:'CAIXA', FD:'FARDO', PT:'PACOTE', PC:'PACOTE', KG:'QUILO', DP:'DISPLAY', DZ:'DÚZIA', SC:'SACO', LT:'LATA', GL:'GALÃO', BD:'BANDEJA', FR:'FRASCO', PR:'PAR'};
+function aqForn(codFornec){ return (ppData().fornecedores || []).find(function(x){ return +x.codFornec === +codFornec; }) || null; }
+function aqItem(p, cod){ return p ? (p.itens.find(function(x){ return String(x.cod) === String(cod); }) || null) : null; }
+function aqQtd(A, i, ln){ return A.edit[ln] != null ? A.edit[ln] : (i.lojas_qtd[ln] || 0); }
+function aqAtivo(A){ return AQ === A && $('#backdrop').classList.contains('on') && !!document.getElementById('aq-stp'); }
+function aqTotais(A, p, i){ var lojas = ppData().lojas || [], tl = {}, tot = 0; lojas.forEach(function(ln){ tl[ln] = 0; }); p.itens.forEach(function(x){ var meu = String(x.cod) === String(i.cod); lojas.forEach(function(ln){ var v = (meu ? aqQtd(A, i, ln) : (x.lojas_qtd[ln] || 0)) * (x.preco || 0); tl[ln] += v; tot += v; }); }); return {porLoja: tl, total: tot}; }
+function aqCx(q, emb){ if (!(emb > 1)) return ''; if (!q) return '<span class="mini">—</span>'; var cx = q / emb, fecha = Math.abs(cx - Math.round(cx)) < 1e-9; return '= <b' + (fecha ? '' : ' style="color:var(--neg)" title="não fecha a caixa de ' + emb + '"') + '>' + fmtN(cx, fecha ? 0 : 1) + ' cx</b>'; }
+function aqEstCell(L, EE){ if (!L) return EE && EE.carregando ? '<span class="mini">…</span>' : '<span class="mini">--</span>'; return '<b' + (L.estoque <= 0 ? ' style="color:var(--neg)"' : '') + ' title="estoque atual na loja' + (L.cobertura_dias != null ? ' · cobertura ' + fmtN(L.cobertura_dias) + ' dias' : '') + '">' + fmtN(L.estoque) + '</b>' + (L.transito > 0 ? '<div class="pp-est"><span class="tr" title="em trânsito: sugestão/pedido aberto no ERP ainda não recebido">+' + fmtN(L.transito) + ' trâns</span></div>' : ''); }
+function abrirAnaliseQtd(cod, codFornec){
+  var p = aqForn(codFornec), i = aqItem(p, cod);
+  if (!p || !i) { toastMsg('Este item não está no pré-pedido deste fornecedor'); return; }
+  AQ = { cod: String(cod), codFornec: +codFornec, edit: {} };
+  renderAnaliseQtd();
+  if (!PP_EST[CUR.id]) { var A = AQ; ppCarregarEstoque().then(function(){ if (aqAtivo(A)) aqAtualizarEst(); }); }
+}
+function renderAnaliseQtd(){
+  var A = AQ; if (!A) return; var p = aqForn(A.codFornec), i = aqItem(p, A.cod); if (!p || !i) { fecharModal(); return; }
+  var lojas = ppData().lojas || [], real = p.status === 'realizado', trav = real || CUR.status !== 'aberta';
+  var orig = (((CUR.comparativo || {}).itens || []).find(function(x){ return String(x.cod) === String(i.cod); }) || {}).lojas_qtd || {};
+  var E = ppEstItem(i), EE = PP_EST[CUR.id], T = aqTotais(A, p, i);
+  var fld = function(lbl, val, extra){ return '<div class="aq-f"><label>' + lbl + (extra || '') + '</label><div class="v">' + val + '</div></div>'; };
+  var h = fld('Produto', '<b>' + esc(i.descricao) + '</b><span class="mini">' + esc(i.cod) + '</span>' + cdTag(i.cod) + (i.marca ? '<span class="mini">· ' + esc(i.marca) + '</span>' : ''));
+  h += fld('Observação <span class="mini">do vendedor</span>', i.obs ? '🚩 ' + esc(i.obs) : '<span class="mini">—</span>');
+  h += '<div class="aq-grid">' +
+    fld('Embalagem', esc(i.unid || 'UN') + ' ' + i.emb + embVendPill(i.emb_vendedor), trav ? '' : '<button class="aq-ic" title="Trocar a caixa (un/cx) do produto, igual ao un/cx da sugestão: grava pro produto e fecha as quantidades na caixa nova" onclick="aqEmb()">✎</button>') +
+    fld('Preço', (i.preco == null ? '—' : i.negociado ? '<b class="neg-preco">🤝 ' + fmtR(i.preco) + '</b><s class="mini">' + fmtR(i.preco_vendedor) + '</s>' : '<b>' + fmtR(i.preco) + '</b>') + (i.ultimo_custo > 0 ? '<span class="mini">· últ. compra ' + fmtR(i.ultimo_custo) + '</span>' : ''), trav || i.preco == null ? '' : '<button class="aq-ic" title="Negociar: digitar o preço fechado com o vendedor" onclick="aqNegociar()">🤝</button>') +
+    fld('Unidade de Compra', esc(UNID_NOME[String(i.unid || 'UN').toUpperCase()] || i.unid || 'UN')) +
+    fld('Data de Entrega', p.entrega ? p.entrega.split('-').reverse().join('/') : '—') +
+    fld('Tipo de Entrega', esc(p.tipo_entrega || 'CIF')) +
+    fld('Forma de Pagamento', esc(p.condicao || '—')) + '</div>';
+  h += '<div class="tablewrap" style="overflow:auto"><table class="aq-t"><thead><tr><th>ID</th><th>Empresa</th><th class="r" title="Requisitado: o que a cotação pediu pra esta loja">Req.</th><th class="r" title="Estoque atual da loja no ERP">Est.</th><th class="c">Qtd Pedido</th><th class="r">Total Item</th><th class="r" title="Pré-pedido deste fornecedor nesta loja, somando todos os itens">Total Pedido</th></tr></thead><tbody>';
+  var sReq = 0, sQ = 0;
+  lojas.forEach(function(ln){
+    var q = aqQtd(A, i, ln), rq = orig[ln] || 0, L = E && E.lojas ? E.lojas[ln] : null; sReq += rq; sQ += q;
+    h += '<tr' + (L && L.ativa === false ? ' class="inat"' : '') + '><td class="mini">' + (real && q > 0 && p.pedidoId ? '#' + p.pedidoId : '') + '</td><td><b>' + LJ(ln) + '</b> ' + esc(LOJAS_NOMES[ln] || '') + (L && L.ativa === false ? ' <span class="pp-flag" title="desativado nesta loja na lista de compra do ERP">⛔ desativado</span>' : '') + '</td>' +
+      '<td class="r">' + (rq ? fmtN(rq) : '<span class="mini">--</span>') + '</td>' +
+      '<td class="r" id="aq-est-' + ln + '">' + aqEstCell(L, EE) + '</td>' +
+      '<td class="c">' + (trav ? '<b>' + (q || '') + '</b>' : '<input class="q aq-q' + (A.edit[ln] != null ? ' ed' : '') + '" inputmode="numeric" data-ln="' + ln + '" value="' + (q || '') + '" placeholder="0" onfocus="this.select()" onkeydown="aqEnter(event,this)" oninput="aqSetQtd(' + ln + ',this.value)">') + (i.emb > 1 ? '<div class="pp-est" id="aq-cx-' + ln + '">' + aqCx(q, i.emb) + '</div>' : '') + '</td>' +
+      '<td class="r" id="aq-ti-' + ln + '">' + fmtR(q * (i.preco || 0)) + '</td><td class="r" id="aq-tp-' + ln + '"><b>' + fmtR(T.porLoja[ln]) + '</b></td></tr>';
+  });
+  h += '</tbody><tfoot><tr><td></td><td>Total</td><td class="r">' + fmtN(sReq) + '</td><td></td><td class="c" id="aq-sq">' + fmtN(sQ) + '</td><td class="r" id="aq-st">' + fmtR(sQ * (i.preco || 0)) + '</td><td class="r" id="aq-stp">' + fmtR(T.total) + '</td></tr></tfoot></table></div>';
+  h += '<div class="mini" style="margin-top:8px">' + (trav ? (real ? 'Pedido #' + p.pedidoId + ' realizado: as quantidades não mudam mais.' : 'Cotação ' + esc(CUR.status) + ': as quantidades não mudam mais.') : 'Quantidade em unidades por loja. O que você digita salva sozinho e vale só pro pré-pedido deste fornecedor. Enter pula pra loja de baixo.') + '</div>';
+  h += '<div class="aq-btns"><button class="cbtn" onclick="fecharModal()">Fechar</button><button class="cbtn go" onclick="fecharModal();CI_ABA=\'prepedidos\';abrirPrePedido(' + p.codFornec + ')">🛒 Abrir pré-pedido de ' + esc(p.nome) + ' →</button></div>';
+  abrirModal('Análise das quantidades · forn: ' + p.nome, h);
+}
+function aqAtualizarEst(){
+  var A = AQ; if (!A) return; var p = aqForn(A.codFornec), i = aqItem(p, A.cod); if (!p || !i) return;
+  var dig = document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('aq-q');
+  if (!dig) { renderAnaliseQtd(); return; }   // ninguém digitando: redesenha inteiro (traz também o ⛔ desativado)
+  var E = ppEstItem(i), EE = PP_EST[CUR.id];
+  (ppData().lojas || []).forEach(function(ln){ var e = document.getElementById('aq-est-' + ln); if (e) e.innerHTML = aqEstCell(E && E.lojas ? E.lojas[ln] : null, EE); });
+}
+function aqEnter(ev, el){
+  if (ev.key !== 'Enter') return; ev.preventDefault();
+  var all = Array.prototype.slice.call(document.querySelectorAll('#modal-body input.aq-q')), k = all.indexOf(el);
+  if (k >= 0 && k < all.length - 1) { all[k + 1].focus(); all[k + 1].select(); } else el.blur();
+}
+function aqSetQtd(ln, v){
+  var A = AQ; if (!A) return; var p = aqForn(A.codFornec), i = aqItem(p, A.cod); if (!p || !i) return;
+  var n = Math.max(0, Math.round(parseFloat(String(v).replace(',', '.')) || 0)); A.edit[ln] = n;
+  var lojas = ppData().lojas || [], T = aqTotais(A, p, i), sQ = 0; lojas.forEach(function(l){ sQ += aqQtd(A, i, l); });
+  var set = function(id, html){ var e = document.getElementById(id); if (e) e.innerHTML = html; };
+  set('aq-ti-' + ln, fmtR(n * (i.preco || 0))); set('aq-tp-' + ln, '<b>' + fmtR(T.porLoja[ln]) + '</b>'); set('aq-cx-' + ln, aqCx(n, i.emb));
+  set('aq-sq', fmtN(sQ)); set('aq-st', fmtR(sQ * (i.preco || 0))); set('aq-stp', fmtR(T.total));
+  var inp = document.querySelector('#modal-body input.aq-q[data-ln="' + ln + '"]'); if (inp) inp.classList.add('ed');
+  clearTimeout(AQ_T); AQ_T = setTimeout(function(){ aqSalvar(A); }, 700);
+}
+async function aqSalvar(A){
+  var p = aqForn(A.codFornec), i = aqItem(p, A.cod); if (!p || !i) return;
+  var lojas = ppData().lojas || [], lq = {}, enviado = {}; lq[A.cod] = {}; lojas.forEach(function(l){ lq[A.cod][l] = aqQtd(A, i, l); }); Object.keys(A.edit).forEach(function(l){ enviado[l] = A.edit[l]; });
+  var sy = window.scrollY;
+  try { CUR = await post('/api/cotacoes/' + CUR.id + '/pre-pedido/' + A.codFornec, {lojas_qtd: lq}); }
+  catch(e) { toastMsg('Erro ao salvar a quantidade: ' + e.message); return; }
+  Object.keys(enviado).forEach(function(l){ if (A.edit[l] === enviado[l]) delete A.edit[l]; });   // o que foi digitado depois do envio continua valendo
+  if (PP_DET != null && +PP_DET === +A.codFornec) delete PP_EDIT[A.cod];
+  renderComparativoItens(); window.scrollTo(0, sy);   // a tela de trás acompanha (totais, "qtd ajustada"); o modal fica como está
+  if (aqAtivo(A)) document.querySelectorAll('#modal-body input.aq-q').forEach(function(e){ e.classList.toggle('ed', A.edit[e.dataset.ln] != null); });
+  toastMsg('Quantidade salva');
+}
+async function aqNegociar(){ var A = AQ; if (!A) return; var p = aqForn(A.codFornec), i = aqItem(p, A.cod); if (!p || !i) return; await ppNegociar(A.cod, A.codFornec, i.preco); if (aqAtivo(A)) renderAnaliseQtd(); }
+async function aqEmb(){
+  var A = AQ; if (!A) return; var p = aqForn(A.codFornec), i = aqItem(p, A.cod); if (!p || !i) return;
+  var v = prompt('Caixa (un/cx) de ' + i.descricao + ':\nigual ao un/cx da sugestão — grava pro produto e fecha as quantidades por loja na caixa nova.', String(i.emb)); if (v === null) return;
+  await ppSetEmb(A.cod, i.unid || 'UN', v); A.edit = {}; if (aqAtivo(A)) renderAnaliseQtd();
 }
 function naoDigitados(){
   var F = CUR.comparativo.fornecedores, n = CUR.itens.length;
