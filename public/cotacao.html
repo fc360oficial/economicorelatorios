@@ -1755,7 +1755,7 @@ function renderComparativoItens(opts){
       x += '<table><thead><tr><th style="width:44px"></th><th>Fornecedor</th><th>Marca</th><th>Forma De Pgto</th><th>Data Prevista</th><th>Qtd. Emb.</th><th>Valor unitário</th><th>Observação</th></tr></thead><tbody>';
       x += quem.sort(function(a, c2){ return i.precos[a.codFornec].preco - i.precos[c2.codFornec].preco; }).map(function(f){
         var p = i.precos[f.codFornec], win = v && v.codFornec === f.codFornec, varp = base > 0 ? (p.preco - base) / base * 100 : null;
-        return '<tr class="' + (win ? 'win' : '') + '"><td><input type="checkbox" class="chk" ' + (win ? 'checked' : '') + (aberta && !i.fechado && !f.realizado ? ' onclick="escolher(\'' + esc(i.cod) + '\',' + (win ? '\'auto\'' : f.codFornec) + ')"' : ' disabled') + ' title="' + (i.fechado ? 'item em pedido realizado (fechado)' : f.realizado ? 'pedido deste fornecedor já foi realizado' : win ? 'vencedor' : 'marcar como vencedor') + '"></td>' +
+        return '<tr class="' + (win ? 'win' : '') + '"><td><input type="checkbox" class="chk" ' + (win ? 'checked' : '') + (aberta && !i.fechado && !f.realizado ? ' onclick="escolher(\'' + esc(i.cod) + '\',' + (win ? '\'nao\'' : f.codFornec) + ')"' : ' disabled') + ' title="' + (i.fechado ? 'item em pedido realizado (fechado)' : f.realizado ? 'pedido deste fornecedor já foi realizado' : win ? 'Fornece este item · clique pra desmarcar: não comprar de ninguém (o item vai pra lista Não comprados)' : 'Clique pra passar este item pra este fornecedor') + '"></td>' +
           '<td>' + esc(f.nome) + (novos[f.codFornec] ? ' <span class="an-badge warn" style="padding:1px 6px">novo</span>' : '') + (win && i.manual ? ' <span class="an-badge good" style="padding:1px 6px">escolhido à mão</span>' : '') + (f.vendedor && f.vendedor.nome ? '<br><i class="mini">(' + esc(f.vendedor.nome).toUpperCase() + ')</i>' : '') + '</td>' +
           '<td>' + (esc(p.marca || '') || '—') + embVendPill(p.emb_vendedor) + '</td><td>' + esc(f.condicao || f.condicao_padrao || '—') + '</td><td>' + dataPrevista(f.prazo_entrega) + '</td><td>' + i.emb + '</td>' +
           '<td style="white-space:nowrap">' + (aberta && !i.fechado && !f.realizado ? '<button class="neg-btn' + (p.negociado ? ' on' : '') + '" title="' + (p.negociado ? 'Preço negociado (vendedor digitou ' + fmtR(p.preco_vendedor) + '): clique pra mudar, ou apague o valor pra voltar ao do vendedor' : 'Negociar: digitar o preço fechado com o vendedor') + '" onclick="event.stopPropagation();ppNegociar(\'' + esc(i.cod) + '\',' + f.codFornec + ',' + p.preco + ')">🤝</button>' : '') + (p.negociado ? '<b class="neg-preco" title="negociado · vendedor digitou ' + fmtR(p.preco_vendedor) + '">' + fmtR(p.preco) + '</b> <s class="mini">' + fmtR(p.preco_vendedor) + '</s>' : '<b>' + fmtR(p.preco) + '</b>') + (varp == null ? '' : '<br><span class="mini ' + (varp <= 0 ? 'eco-pos' : 'eco-neg') + '">' + (varp > 0 ? '+' : '') + fmtN(varp, 1) + '% · total ' + fmtR(p.preco * q) + '</span>') + '</td>' +
@@ -2216,7 +2216,14 @@ function renderComparativoMatriz(){
   m.innerHTML = h;
 }
 async function escolher(cod, codFornec){
-  try { CUR = await post('/api/cotacoes/' + CUR.id + '/vencedores', {cod:cod, codFornec:codFornec}); renderTudo(); } catch(e) { toastMsg('Erro: ' + e.message); }
+  // Tiago, 05/10 ("por que não consigo desmarcar um item desse pra não comprar?"): no cartão, desmarcar quem fornece = não comprar,
+  // igual aos Pré-pedidos. A tela fica onde estava e avisa o que aconteceu.
+  var sy = window.scrollY;
+  try { CUR = await post('/api/cotacoes/' + CUR.id + '/vencedores', {cod:cod, codFornec:codFornec}); } catch(e) { toastMsg('Erro: ' + e.message); return; }
+  renderTudo(); window.scrollTo(0, sy);
+  var it = CUR.comparativo.itens.find(function(x){ return x.cod === cod; }), nv = it && it.vencedor ? it.vencedor.codFornec : null;
+  var nf = nv != null ? (CUR.comparativo.fornecedores.find(function(x){ return String(x.codFornec) === String(nv); }) || {}).nome : null;
+  toastMsg(codFornec === 'nao' ? 'Item marcado como não comprar: foi pra lista Não comprados' : nf ? 'Item passou pra ' + nf : 'Item atualizado');
 }
 async function abrirHistorico(cod){
   var i = CUR.comparativo.itens.find(function(x){ return x.cod === cod; }); if (!i) return;
