@@ -5926,6 +5926,14 @@ app.get('/api/_diag/radar-listas', (req, res) => {
   const rows = radarPedidos.politica().map(r => ({ lista: r.lista, nome: r.nome, fornecedor: r.fornecedor, ok: r.ok, motivo: r.motivo || null, lead_fonte: r.lead_fonte, lead_itens: r.lead_itens || 0, ponto: r.ponto, alvo: r.alvo, fazer_em: r.fazer_em, produtos: r.produtos, com_venda: r.com_venda, pedido_itens: r.pedido_itens, pedido_valor: r.pedido_valor, flags: r.flags, itens_novos: r.itens_novos, zerados_sem_venda: r.zerados_sem_venda, nova_ate: r.nova_ate, rupturas: r.rupturas }));
   res.json({ estado, n: rows.length, listas: rows });
 });
+// Diagnóstico só leitura de uma cotação (05/10/26, sem SSH daqui): status e cadastro de cada fornecedor — sem token/link do vendedor.
+app.get('/api/_diag/cotacao-forn', (req, res) => {
+  if (req.query.token !== 'diag2026') return res.status(403).end();
+  const id = parseInt(req.query.id), qn = String(req.query.q || '').toLowerCase();
+  if (!id) return res.json(cotacao.listar().slice(-30).map(c => ({ id: c.id, nome: c.nome, status: c.status, criadoEm: c.criadoEm, fornecedores: (c.fornecedores || []).length })));
+  const c = cotacao.obter(id); if (!c) return res.status(404).json({ error: 'cotação não encontrada' });
+  res.json({ id: c.id, nome: c.nome, status: c.status, lista: c.lista, prazo: c.prazo, fornecedores: (c.fornecedores || []).filter(f => !qn || String(f.nome || '').toLowerCase().includes(qn) || String(f.empresa || '').toLowerCase().includes(qn)).map(f => ({ codFornec: f.codFornec, nome: f.nome, empresa: f.empresa, status: f.status, enviadoEm: f.enviadoEm, abertoEm: f.abertoEm, finalizadoEm: f.finalizadoEm, atualizadoEm: f.atualizadoEm, condicao: f.condicao, condicao_padrao: f.condicao_padrao, faturamento_minimo: f.faturamento_minimo, prazo_entrega: f.prazo_entrega, cadastro_vendedor: f.cadastro_vendedor || null, precos: Object.keys(f.precos || {}).length, vendedor: f.vendedor ? { nome: f.vendedor.nome, whats: f.vendedor.whats ? 'sim' : 'não' } : null })) });
+});
 app.get('/api/_diag/tabelas-central', async (req, res) => {
   if (req.query.token !== 'diag2026') return res.status(403).end();
   const t = (req.query.describe || '').replace(/[^a-z0-9_]/gi, '');
