@@ -2097,10 +2097,10 @@ function ppSetQtd(cod, ln, v){
   var qt = 0; (P.lojas || []).forEach(function(l){ qt += ppQtd(i, l); });
   var eq = document.getElementById('pp-q-' + cod), et = document.getElementById('pp-t-' + cod); if (eq) eq.innerHTML = '<b>' + fmtN(qt) + '</b>'; if (et) et.textContent = fmtR(qt * i.preco);
   var T = ppTotais(p); (P.lojas || []).forEach(function(l){ var e = document.getElementById('pp-tl-' + l); if (e) e.textContent = fmtR(T.porLoja[l]); }); var tt = document.getElementById('pp-total'); if (tt) tt.textContent = fmtR(T.total);
-  clearTimeout(PP_T); PP_T = setTimeout(function(){ var lq = {}; lq[cod] = {}; (P.lojas || []).forEach(function(l){ lq[cod][l] = ppQtd(i, l); }); ppSalvar({lojas_qtd: lq}, true); }, 600);
+  clearTimeout(PP_T); PP_T = setTimeout(function(){ var P2 = ppData(), p2 = P2.fornecedores.find(function(x){ return x.codFornec === PP_DET; }), i2 = (p2 && p2.itens.find(function(x){ return x.cod === cod; })) || i; var lq = {}; lq[cod] = {}; (P2.lojas || []).forEach(function(l){ if (i2.lojas_outros && i2.lojas_outros[l] != null) return; lq[cod][l] = ppQtd(i2, l); }); ppSalvar({lojas_qtd: lq}, true); }, 600);   // só as lojas deste fornecedor; loja que é de outro não vai (Tiago, 05/10)
 }
 async function ppSalvar(dados, silencioso){
-  try { var r = await post('/api/cotacoes/' + CUR.id + '/pre-pedido/' + PP_DET, dados); CUR = r; if (!silencioso) { renderComparativoItens(); toastMsg('Salvo'); } else { var ed = PP_EDIT; PP_EDIT = {}; Object.keys(ed).forEach(function(c){ if (dados.lojas_qtd && dados.lojas_qtd[c]) return; PP_EDIT[c] = ed[c]; }); } }
+  try { var r = await post('/api/cotacoes/' + CUR.id + '/pre-pedido/' + PP_DET, dados); CUR = r; if (!silencioso) { renderComparativoItens(); toastMsg('Salvo'); } else { var ed = PP_EDIT; PP_EDIT = {}; Object.keys(ed).forEach(function(c){ var env = dados.lojas_qtd && dados.lojas_qtd[c]; if (!env) { PP_EDIT[c] = ed[c]; return; } Object.keys(ed[c]).forEach(function(l){ if (ed[c][l] !== env[l]) { PP_EDIT[c] = PP_EDIT[c] || {}; PP_EDIT[c][l] = ed[c][l]; } }); }); } }   // digitado depois do envio continua valendo (Tiago, 05/10)
   catch(e) { toastMsg('Erro: ' + e.message); }
 }
 function ppGiro(){
@@ -2190,7 +2190,7 @@ function aqSetQtd(ln, v){
 }
 async function aqSalvar(A){
   var p = aqForn(A.codFornec), i = aqItem(p, A.cod); if (!p || !i) return;
-  var lojas = ppData().lojas || [], lq = {}, enviado = {}; lq[A.cod] = {}; lojas.forEach(function(l){ lq[A.cod][l] = aqQtd(A, i, l); }); Object.keys(A.edit).forEach(function(l){ enviado[l] = A.edit[l]; });
+  var lojas = ppData().lojas || [], lq = {}, enviado = {}; lq[A.cod] = {}; lojas.forEach(function(l){ if (i.lojas_outros && i.lojas_outros[l] != null) return; lq[A.cod][l] = aqQtd(A, i, l); }); Object.keys(A.edit).forEach(function(l){ enviado[l] = A.edit[l]; });
   var sy = window.scrollY;
   try { CUR = await post('/api/cotacoes/' + CUR.id + '/pre-pedido/' + A.codFornec, {lojas_qtd: lq}); }
   catch(e) { toastMsg('Erro ao salvar a quantidade: ' + e.message); return; }
