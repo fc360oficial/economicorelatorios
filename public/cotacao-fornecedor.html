@@ -55,6 +55,12 @@ input.obs:focus{outline:none;border-color:#F5B800}
 .bar[hidden]{display:none!important}.bar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid #DADAD6;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;box-shadow:0 -6px 20px -12px rgba(14,22,38,.3)}
 .bar .info{font-size:12px;color:#4E5A72}
 .bar .info b{color:#0E1626}
+/* prazo encerrado (Tiago, 05/10/26): barra fixa no rodapé que acompanha a rolagem — dia e hora do fim + WhatsApp do(a) comprador(a) */
+.barfim{background:#FFF6D9;border-top:2px solid #F5B800;z-index:20}
+.barfim .info{font-size:12.5px;color:#6B4E00;line-height:1.45}.barfim .info b{color:#241a00}
+.btn-wa{background:#25D366;color:#fff;text-decoration:none;white-space:nowrap;font-size:15px;display:inline-block}.btn-wa:hover{background:#1EBE5A}
+body.venc .wrap{padding-bottom:150px}
+.fim.fimv{font-size:13.5px;line-height:1.6}.fim.fimv .wl{font-size:15px;white-space:nowrap}
 .btn{border:none;border-radius:10px;padding:12px 20px;font:inherit;font-size:14px;font-weight:800;cursor:pointer}
 .btn-amber{background:#F5B800;color:#6B4E00}.btn-amber:hover{background:#E5AC00}.btn:disabled{opacity:.45;cursor:default}
 .fim{background:#E7F5EC;border:1px solid #BFE3CC;color:#137A48;border-radius:12px;padding:14px 16px;font-size:13px;margin-bottom:12px;line-height:1.5}
@@ -111,6 +117,7 @@ input.obs:focus{outline:none;border-color:#F5B800}
 <body>
 <div class="wrap" id="app"><div class="empty">Carregando cotação…</div></div>
 <div class="bar" id="bar" hidden><div class="info" id="barinfo"></div><button class="btn btn-amber" id="btnFim">Enviar proposta</button></div>
+<div class="bar barfim" id="barfim" hidden></div>
 <script>
 const token=location.pathname.split('/').pop();
 const $=s=>document.querySelector(s);
@@ -119,6 +126,11 @@ const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&g
 const dt=s=>s?new Date(s).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):'';
 const dd=s=>s?String(s).slice(0,10).split('-').reverse().join('/'):'';
 const dtp=s=>{if(!s)return '';const t=String(s);return t.length>10?new Date(t).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):dd(t)+' 23:59';};
+// prazo por extenso (Tiago, 05/10/26: "mensagem explicando o dia e a hora do fim da cotação"): "sexta-feira, 03/10/2026 às 18:00"
+const prazoDate=s=>{if(!s)return null;const t=String(s);const d=new Date(t.length>10?t:t.slice(0,10)+'T23:59');return isNaN(d)?null:d;};
+const dtpLong=s=>{const d=prazoDate(s);if(!d)return dtp(s);return ['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'][d.getDay()]+', '+d.toLocaleDateString('pt-BR')+' às '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');};
+// nº do WhatsApp do(a) comprador(a) legível: 5581999998888 / 81999998888 → (81) 99999-8888
+const fmtFone=v=>{let d=String(v||'').replace(/\D/g,'');if((d.length===12||d.length===13)&&d.startsWith('55'))d=d.slice(2);if(d.length===11)return '('+d.slice(0,2)+') '+d.slice(2,7)+'-'+d.slice(7);if(d.length===10)return '('+d.slice(0,2)+') '+d.slice(2,6)+'-'+d.slice(6);return d;};
 let P=null, dirty=false, saveTimer=null; const DIRTY=new Set(); let extraDirty=false;   // DIRTY = códigos dos itens mexidos nesta tela (só eles vão no salvar)
 function precoNum(v){const n=parseFloat(String(v).replace(/\./g,'').replace(',','.'));return isFinite(n)?n:null;}
 function itensForm(so){return P.itens.filter(i=>!so||so.has(i.cod)).map(i=>{const el=document.querySelector('input.preco[data-cod="'+i.cod+'"]');const ob=document.querySelector('input.obs[data-cod="'+i.cod+'"]');const mk=document.querySelector('input.marca[data-cod="'+i.cod+'"]');const ev=document.querySelector('input.embv[data-cod="'+i.cod+'"]');return {cod:i.cod,preco:el?(precoNum(el.value)>0?precoNum(el.value):''):i.preco,obs:ob?ob.value:i.obs,marca:mk?mk.value:(i.marca||''),emb_vendedor:ev?ev.value:(i.emb_vendedor||'')};});}
@@ -128,13 +140,13 @@ function totais(){let t=0,n=0;for(const i of itensForm()){if(i.preco!=null&&i.pr
 function atualizarTot(){const {t,n}=totais();$('#tot').innerHTML='<span>'+n+' de '+P.itens.length+' itens com preço</span><span>Total da proposta: <b>R$ '+fmt(t)+'</b></span>';$('#barinfo').innerHTML=n<P.itens.length?'Faltam <b>'+(P.itens.length-n)+'</b> itens sem preço. Você pode enviar mesmo assim (item sem preço = não cotado).':'Todos os itens com preço.';}
 function render(){
   const fin=P.fornecedor.status==='finalizado', enc=P.status!=='aberta', venc=!!P.prazo_vencido&&!fin&&!enc, lock=fin||enc||venc;
-  let h='<div class="top"><div class="tophd"><img class="logo" src="/logo-supermercados.png" alt="Econômico Supermercados"><div class="ey">COTAÇÃO DE PREÇOS · ECONOMICO SUPERMERCADO - REDE CAHU</div></div><h1>'+esc(P.nome)+'</h1><div class="sub">Fornecedor: <b>'+esc(P.fornecedor.nome||'')+'</b>'+(P.comprador?.nome?' · Comprador(a): <b>'+esc(P.comprador.nome)+'</b>'+(P.comprador.whats?' · '+esc(P.comprador.whats):''):'')+(P.prazo?' · Prazo pra resposta: <b>'+dtp(P.prazo)+'</b>':'')+'<br>Enviada em '+dt(P.criadoEm)+' · Lojas: '+(P.lojas||[]).map(l=>'L'+l+' '+(P.lojas_nomes[l]||'')).join(', ')+'</div><span class="st '+(enc?'st-enc':(fin?'st-fin':'st-dig'))+'">'+(enc?'COTAÇÃO ENCERRADA':(fin?'PROPOSTA ENVIADA':'EM DIGITAÇÃO'))+'</span></div>';
+  let h='<div class="top"><div class="tophd"><img class="logo" src="/logo-supermercados.png" alt="Econômico Supermercados"><div class="ey">COTAÇÃO DE PREÇOS · ECONOMICO SUPERMERCADO - REDE CAHU</div></div><h1>'+esc(P.nome)+'</h1><div class="sub">Fornecedor: <b>'+esc(P.fornecedor.nome||'')+'</b>'+(P.comprador?.nome?' · Comprador(a): <b>'+esc(P.comprador.nome)+'</b>'+(P.comprador.whats?' · 📱 '+esc(fmtFone(P.comprador.whats)):''):'')+(P.prazo?' · Prazo pra resposta: <b>'+dtp(P.prazo)+'</b>':'')+'<br>Enviada em '+dt(P.criadoEm)+' · Lojas: '+(P.lojas||[]).map(l=>'L'+l+' '+(P.lojas_nomes[l]||'')).join(', ')+'</div><span class="st '+(enc?'st-enc':(fin?'st-fin':'st-dig'))+'">'+(enc?'COTAÇÃO ENCERRADA':(fin?'PROPOSTA ENVIADA':'EM DIGITAÇÃO'))+'</span></div>';
   // bloco fixo no topo: recado do(a) comprador(a) + WhatsApp dele(a) (só ele(a) edita, pelo Acompanhamento da cotação)
   const waC = P.comprador && P.comprador.whats ? 'https://wa.me/' + (P.comprador.whats.length <= 11 ? '55' + P.comprador.whats : P.comprador.whats) + '?text=' + encodeURIComponent('Olá' + (P.comprador.nome ? ', ' + P.comprador.nome : '') + '! Sobre a cotação #' + P.id + ' (' + P.nome + '), fornecedor ' + (P.fornecedor.nome || '') + ': ') : null;
   h+='<div class="msgc"><div class="ic">'+(P.mensagem?'💬':'👤')+'</div><div class="t"><div class="l">'+(P.mensagem?'Recado do(a) comprador(a)':'Comprador(a)')+(P.comprador&&P.comprador.nome?' · '+esc(P.comprador.nome):'')+'</div>'+(P.mensagem?'<div class="m">'+esc(P.mensagem)+'</div>':'<div class="m" style="color:#8A6A00">Dúvida sobre algum item, prazo ou condição? Fale direto com o(a) comprador(a) pelo WhatsApp.</div>')+(P.mensagemEm?'<div class="q">atualizado em '+dt(P.mensagemEm)+'</div>':'')+'</div>'+(waC?'<a class="wa-c" href="'+waC+'" target="_blank" rel="noopener">🟢 WhatsApp do(a) comprador(a)</a>':'<span class="wa-c off" title="O(A) comprador(a) ainda não cadastrou o WhatsApp nesta cotação">WhatsApp não informado</span>')+'</div>';
-  if(enc&&!fin) h+='<div class="fim av"><b>Esta cotação já foi encerrada pelo(a) comprador(a).</b> Não é mais possível enviar preços.</div>';
+  if(enc&&!fin) h+='<div class="fim av"><b>Esta cotação já foi encerrada pelo(a) comprador(a).</b> Não é mais possível enviar preços.'+(waC?' Dúvidas: fale com o(a) comprador(a)'+(P.comprador.nome?' <b>'+esc(P.comprador.nome)+'</b>':'')+' pelo WhatsApp <a class="wl" href="'+waC+'" target="_blank" rel="noopener">🟢 '+esc(fmtFone(P.comprador.whats))+'</a>.':'')+'</div>';
   else if(fin) h+='<div class="fim"><b>Proposta enviada'+(P.fornecedor.finalizadoEm?' em '+dt(P.fornecedor.finalizadoEm):'')+'.</b> Obrigado! O(A) comprador(a) já recebeu seus preços. Se precisar corrigir algo, '+(waC?'<a class="wl" href="'+waC+'" target="_blank" rel="noopener">fale com ele(a) no WhatsApp</a>':'fale com ela')+'.</div>';
-  else if(venc) h+='<div class="fim av"><b>Prazo encerrado em '+dtp(P.prazo)+'.</b> Não é mais possível digitar. Se precisar de mais tempo, fale com o(a) comprador(a)'+(waC?' <a class="wl" href="'+waC+'" target="_blank" rel="noopener">pelo WhatsApp</a>':'')+' pra liberar a cotação.</div>';
+  else if(venc) h+='<div class="fim av fimv"><b>⏰ O prazo desta cotação terminou em '+esc(dtpLong(P.prazo))+'.</b><br>Não é mais possível digitar nem alterar preços: a cotação ficou bloqueada pra todos os fornecedores nesse dia e hora.<br>Se precisar de mais tempo ou tiver alguma dúvida, fale com o(a) comprador(a)'+(P.comprador&&P.comprador.nome?' <b>'+esc(P.comprador.nome)+'</b>':'')+(waC?' pelo WhatsApp <a class="wl" href="'+waC+'" target="_blank" rel="noopener">🟢 '+esc(fmtFone(P.comprador.whats))+'</a>':' (WhatsApp não informado nesta cotação)')+'. Só ele(a) pode liberar a cotação de novo.</div>';
   else h+='<div class="fim av">Preencha o <b>preço unitário</b> de cada item (por unidade, não por caixa) e, se quiser, uma observação. Tudo salva sozinho. Quando terminar, clique em <b>Enviar proposta</b> no rodapé. Item sem preço = você não cota esse item.</div>';
   h+='<div class="card"><div class="hd">Itens da cotação <span id="f-cont">'+P.itens.length+' itens</span></div><div class="ftb"><input type="search" id="f-busca" placeholder="buscar produto ou código…" autocomplete="off" oninput="filtrarItens()"><label><input type="checkbox" id="f-so-preco" onchange="filtrarItens()"> só com preço</label><label><input type="checkbox" id="f-so-obs" onchange="filtrarItens()"> só com observação</label></div><div style="overflow-x:auto"><table><thead><tr><th>Produto</th><th class="r">Preço unit. (R$)</th><th>Observação</th></tr></thead><tbody>';
   // ordem alfabética (Tiago, 23/09/26)
@@ -157,6 +169,12 @@ function render(){
   $('#app').innerHTML=h;
   filtrarItens();
   $('#bar').hidden=lock;
+  // prazo encerrado (Tiago, 05/10/26): barra fixa no rodapé, visível em qualquer ponto da lista, com dia/hora do fim e o WhatsApp do(a) comprador(a)
+  const bf=$('#barfim'); bf.hidden=!venc; document.body.classList.toggle('venc',venc);
+  if(venc) bf.innerHTML='<div class="info"><b>⏰ Prazo encerrado</b> '+esc(dtpLong(P.prazo))+'<br>Não dá mais pra digitar preço. Fale com o(a) comprador(a)'+(P.comprador&&P.comprador.nome?' <b>'+esc(P.comprador.nome)+'</b>':'')+(waC?' no WhatsApp:':' (WhatsApp não informado nesta cotação)')+'</div>'+(waC?'<a class="btn btn-wa" href="'+waC+'" target="_blank" rel="noopener">🟢 '+esc(fmtFone(P.comprador.whats))+'</a>':'');
+  // prazo vence com a página aberta: trava sozinha na hora (o servidor já recusa o preço depois do prazo; aqui a tela avisa sem precisar recarregar)
+  clearTimeout(window._tPrazo);
+  if(!lock){const d=prazoDate(P.prazo);const ms=d?d.getTime()-Date.now():-1;if(ms>0&&ms<2147000000)window._tPrazo=setTimeout(()=>{P.prazo_vencido=true;render();},ms+1000);}
   if(!lock){
     // Preço "em centavos", como maquininha: só números, os 2 últimos são os centavos (545 -> 5,45). Enter grava e pula pro próximo.
     const precos=[...document.querySelectorAll('input.preco')];
