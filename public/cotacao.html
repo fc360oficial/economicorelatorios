@@ -206,6 +206,7 @@ table.ppg tr.vl:nth-child(4n+1) td{background:#F7F7F5}
 table.ppg .vlr{display:inline-block;padding:4px 8px;border-radius:5px;font-weight:800}
 table.ppg .vlr.dn{background:var(--posw);color:var(--pos)}.ppg .vlr.up{background:var(--negw);color:var(--neg)}
 table.ppg input.q{width:66px;font:inherit;font-size:13px;padding:6px 8px;border:1px solid var(--ln2);border-radius:6px;text-align:center}
+table.ppg input.q.nn{border-color:var(--neg);background:var(--negw);color:var(--neg);font-weight:800}
 table.ppg input.q.ed{border-color:var(--amk);background:var(--amw)}
 .clubfilt{margin-bottom:12px}
 .clubgrid{display:grid;grid-template-columns:2fr 1.3fr 1.3fr 1.3fr;gap:22px;margin-bottom:14px}
@@ -1967,6 +1968,27 @@ var PP_LOJA = null;
 function ppLojasVis(){ var L = ppData().lojas || []; return PP_LOJA != null ? L.filter(function(l){ return String(l) === String(PP_LOJA); }) : L; }
 function ppVerLoja(ln){ PP_LOJA = ln == null ? null : ln; var sy = window.scrollY; renderComparativoItens(); window.scrollTo(0, sy); }
 function ppLojasOutrosFlag(i){ var o = i.lojas_outros || {}, ks = Object.keys(o); if (!ks.length) return ''; return ' <span class="pp-flag" style="background:var(--amw);color:var(--amk);margin-left:6px" title="Escolha por loja: nestas lojas o item é de outro fornecedor (ou não compra). Clique no nome da loja no cabeçalho pra mudar.">por loja · ' + ks.map(function(l){ return LJ(l) + ': ' + esc(o[l]); }).join(' · ') + '</span>'; }
+// "⚠ não precisa" (Tiago, 05/10: "tem 24 em estoque, pelo giro da mercadoria não era pra sugerir"; "se olhar estoque / entrada /
+// saída você vai ver que não precisa comprar"): a quantidade da cotação foi calculada no dia em que ela foi criada (loja zerada =
+// 1 caixa). Aqui o Radar recalcula com estoque, trânsito e giro de AGORA (E.sug_lojas, vem na rota /estoque). Loja com quantidade,
+// com estoque e pra qual o Radar hoje não sugere nada → ⚠ não precisa; o botão "Zerar N lojas sem necessidade" zera de uma vez.
+var PP_SEMNEC = [];
+function ppSemNec(ln, q, E, L){
+  if (!(q > 0) || !E || !E.sug_lojas || !L || L.venda_dia == null) return null;
+  var est = +L.estoque || 0, tr = +L.transito || 0; if (est + tr <= 0) return null;
+  if (+(E.sug_lojas[ln] || 0) > 0) return null;
+  if (L.venda_dia <= 0) return 'sem venda nos últimos 40 dias e tem ' + fmtN(est) + ' em estoque' + (tr > 0 ? ' (+ ' + fmtN(tr) + ' em trânsito)' : '');
+  return 'o estoque cobre ' + (L.cobertura_dias != null ? fmtN(L.cobertura_dias) + ' dias' : 'o período') + (E.alvo_dias ? ' (alvo ' + fmtN(E.alvo_dias) + ' d)' : '') + ': est ' + fmtN(est) + (tr > 0 ? ' + ' + fmtN(tr) + ' trâns' : '') + ' · vende ' + fmtN(L.venda_dia, 2) + '/dia';
+}
+async function ppZerarSemNec(){
+  var P = ppData(), p = P.fornecedores.find(function(x){ return x.codFornec === PP_DET; }); if (!p || !PP_SEMNEC.length) return;
+  if (!confirm('Zerar ' + PP_SEMNEC.length + ' loja(s) deste pré-pedido em que o estoque e o giro de agora não pedem compra?\n\nA quantidade dessas lojas vira 0; o item continua no pré-pedido e os outros fornecedores não mudam.')) return;
+  var lq = {};
+  PP_SEMNEC.forEach(function(x){ var i = p.itens.find(function(y){ return y.cod === x.cod; }); if (!i) return; if (!lq[x.cod]) { lq[x.cod] = {}; (P.lojas || []).forEach(function(l){ if (i.lojas_outros && i.lojas_outros[l] != null) return; lq[x.cod][l] = ppQtd(i, l); }); } lq[x.cod][x.ln] = 0; PP_EDIT[x.cod] = PP_EDIT[x.cod] || {}; PP_EDIT[x.cod][x.ln] = 0; });
+  clearTimeout(PP_T); var sy = window.scrollY, n = PP_SEMNEC.length;
+  await ppSalvar({lojas_qtd: lq}, true); Object.keys(lq).forEach(function(c){ delete PP_EDIT[c]; }); renderComparativoItens(); window.scrollTo(0, sy);
+  toastMsg(n + ' loja(s) zerada(s): ficou no pré-pedido só o que o estoque e o giro de agora pedem');
+}
 function ppTrocarForn(cod){ PP_FORN_OPEN[cod] = !PP_FORN_OPEN[cod]; renderComparativoItens(); }
 function ppFornInline(cod, qtdPed){
   var it = CUR.comparativo.itens.find(function(x){ return x.cod === cod; }); if (!it) return '';
@@ -2047,12 +2069,13 @@ function renderPrePedidoDet(){
   var P = ppData(), p = P.fornecedores.find(function(x){ return x.codFornec === PP_DET; }); if (!p) { PP_DET = null; return renderPrePedidos(); }
   if (PP_LOJA != null && !(P.lojas || []).some(function(l){ return String(l) === String(PP_LOJA); })) PP_LOJA = null;
   var lojas = ppLojasVis(), T = ppTotais(p), real = p.status === 'realizado', v = p.vendedor || {}, wa = v.whats ? waLink(v.whats, 'Olá! Pedido da cotação #' + CUR.id) : null;
+  PP_SEMNEC = []; if (!real) ppListaComFica(p).forEach(function(i){ if (i._fora) return; var E = ppEstItem(i); if (!E) return; lojas.forEach(function(ln){ if (i.lojas_outros && i.lojas_outros[ln] != null) return; if (ppSemNec(ln, ppQtd(i, ln), E, E.lojas ? E.lojas[ln] : null)) PP_SEMNEC.push({cod: i.cod, ln: ln}); }); });
   var idx = P.fornecedores.indexOf(p);
   var h = '<div class="pp-title"><h2>Realizar Pedido' + (PP_LOJA != null ? ' · <span style="color:var(--amk)">' + LJ(PP_LOJA) + ' ' + esc(LOJAS_NOMES[PP_LOJA] || '') + '</span>' : '') + '</h2><span class="mini">' + esc(p.nome) + ' · fornecedor ' + (idx + 1) + ' de ' + P.fornecedores.length + '</span>' + (PP_LOJA != null ? '<button class="cbtn" style="padding:6px 12px" onclick="ppVerLoja(null)" title="Voltar a ver todas as lojas">← Todas as lojas</button><span class="mini">nesta tela, trocar o fornecedor de um item vale só pra ' + LJ(PP_LOJA) + '</span>' : '<span class="mini" title="Um item pode ter fornecedor diferente por loja">clique no nome de uma loja no cabeçalho pra ver só ela</span>') + '<div class="pp-nav"><button class="cbtn" onclick="ppNav(-1)"' + (idx <= 0 ? ' disabled' : '') + ' title="Fornecedor anterior">⏮</button><button class="cbtn" onclick="ppNav(1)"' + (idx >= P.fornecedores.length - 1 ? ' disabled' : '') + ' title="Próximo fornecedor">⏭</button></div></div>';
   h += '<div class="pp-det"><div><h3>Comprador</h3><div class="k">Comprador:<br><b>GRUPO - SUPERMERCADO ECONÔMICO (CAHU)</b><br>' + (CUR.comprador ? 'Comprador(a): <b>' + esc(typeof CUR.comprador === 'object' ? (CUR.comprador.nome || '') : CUR.comprador) + '</b><br>' : '') + 'Lista: <b>' + (CUR.lista || '—') + ' ' + esc(CUR.lista_nome || '') + '</b><br>Lojas: <b>' + lojas.map(function(l){ return LJ(l); }).join(' · ') + '</b></div></div>' +
     '<div><h3>Fornecedor</h3><div class="k"><span class="tag">' + esc(p.nome) + '</span><br>' + (v.nome ? '<b>' + esc(v.nome) + '</b><br>' : '') + (v.email ? 'E-mail: <b>' + esc(v.email) + '</b><br>' : '') + (v.whats ? 'Fone: ' + (wa ? '<a href="' + wa + '" target="_blank" style="color:#25D366;font-weight:700">🟢 ' + esc(v.whats) + '</a>' : '<b>' + esc(v.whats) + '</b>') : '') + '</div></div>' +
     '<div><h3>Detalhe do Pedido</h3><div class="k">Entrega: ' + (real ? '<b>' + (p.entrega ? p.entrega.split('-').reverse().join('/') : '—') + '</b>' : '<input type="date" value="' + esc(p.entrega || '') + '" onchange="ppSalvar({entrega:this.value})">') + '<br>Tipo de Entrega: ' + (real ? '<b>' + esc(p.tipo_entrega) + '</b>' : '<select onchange="ppSalvar({tipo_entrega:this.value})">' + ['CIF', 'FOB', 'CIF / FOB'].map(function(t){ return '<option' + (p.tipo_entrega === t ? ' selected' : '') + '>' + t + '</option>'; }).join('') + '</select>') + '<br>Faturamento: <b' + (p.abaixo_minimo ? ' style="color:#C22F49"' : '') + '>' + (p.faturamento_minimo ? fmtR(p.faturamento_minimo) + (p.abaixo_minimo ? ' (pedido abaixo do mínimo)' : '') : '—') + '</b><br>Cond. de Pgto: <b>' + esc(p.condicao || '—') + '</b><br>Status: <b style="color:' + (real ? 'var(--pos)' : '#E8A000') + '">' + (real ? 'pedido #' + p.pedidoId + ' realizado' : 'pendente') + '</b></div></div></div>';
-  h += '<div class="pp-btns"><span class="total"><i>$</i>Valor Total: <span id="pp-total">' + fmtR(T.total) + '</span></span><span style="flex:1"></span><button class="cbtn" onclick="ppVoltar()">← Voltar</button><a class="cbtn" style="text-decoration:none" href="/pedidos-compra.html">⇅ Gestor de compra</a><button class="cbtn" onclick="ppGiro()">📈 Análise de Giro</button><button class="cbtn" onclick="ppCarregarEstoque(true)" title="Busca de novo o estoque e o trânsito no ERP">📦 Estoque agora</button><button class="cbtn" onclick="window.print()">🖨 Imprimir</button><button class="cbtn go" onclick="ppRealizar()"' + (real || CUR.status !== 'aberta' ? ' disabled' : '') + '>🛒 ' + (real ? 'Pedido realizado' : 'Realizar Pedido') + '</button></div>';
+  h += '<div class="pp-btns"><span class="total"><i>$</i>Valor Total: <span id="pp-total">' + fmtR(T.total) + '</span></span><span style="flex:1"></span><button class="cbtn" onclick="ppVoltar()">← Voltar</button><a class="cbtn" style="text-decoration:none" href="/pedidos-compra.html">⇅ Gestor de compra</a>' + (PP_SEMNEC.length ? '<button class="cbtn" style="color:var(--neg);border-color:var(--neg);font-weight:800" onclick="ppZerarSemNec()" title="Lojas com quantidade herdada da cotação, mas que hoje têm estoque e giro que não pedem compra (o Radar não sugere nada pra elas agora). Clique pra zerar essas quantidades de uma vez.">⚠ Zerar ' + PP_SEMNEC.length + ' loja(s) sem necessidade</button>' : '') + '<button class="cbtn" onclick="ppGiro()">📈 Análise de Giro</button><button class="cbtn" onclick="ppCarregarEstoque(true)" title="Busca de novo o estoque e o trânsito no ERP">📦 Estoque agora</button><button class="cbtn" onclick="window.print()">🖨 Imprimir</button><button class="cbtn go" onclick="ppRealizar()"' + (real || CUR.status !== 'aberta' ? ' disabled' : '') + '>🛒 ' + (real ? 'Pedido realizado' : 'Realizar Pedido') + '</button></div>';
   if (real) h += ppLinksPedido(p);
   // tabela do pré-pedido: colunas fixas com o cabeçalho em cima de cada coluna (Tiago, 21/09)
   // Tabela do pré-pedido (Tiago, 25/09: "harmônico e de fácil análise"): UMA linha por produto — produto à esquerda,
@@ -2075,7 +2098,9 @@ function renderPrePedidoDet(){
         if (i.lojas_outros && i.lojas_outros[ln] != null) return '<td class="c st" style="opacity:.6"><span class="mini" title="Nesta loja o item é de outro fornecedor (escolha por loja). Clique no nome da loja no cabeçalho pra mudar.">' + esc(i.lojas_outros[ln]) + '</span></td>';
         var est = L ? '<div class="pp-est" title="estoque atual na loja' + (L.transito > 0 ? ' · em trânsito = sugestão/pedido aberto no ERP ainda não recebido' : '') + (L.cobertura_dias != null ? ' · cobertura ' + fmtN(L.cobertura_dias) + ' dias' : '') + '">est <b' + (L.estoque <= 0 ? ' class="zero"' : '') + '>' + fmtN(L.estoque) + '</b> · trâns <span class="tr' + (L.transito > 0 ? '' : ' zero') + '">' + fmtN(L.transito) + '</span></div>' : '';
         if (L && L.ativa === false) est += '<div class="pp-est" style="color:var(--neg);font-weight:800" title="desativado nesta loja na lista de compra do ERP">⛔ desativado</div>';
-        return '<td class="c st' + (L && L.ativa === false ? ' inat' : '') + '">' + (real || i._fora ? '<b>' + (q || '') + '</b>' : '<input class="q' + (PP_EDIT[i.cod] && PP_EDIT[i.cod][ln] != null ? ' ed' : '') + '" inputmode="numeric" value="' + (q || '') + '" placeholder="" onchange="ppSetQtd(\'' + i.cod + '\',' + ln + ',this.value)">') + est + '</td>'; }).join('') + '</tr>';
+        var nn = (!real && !i._fora) ? ppSemNec(ln, q, E, L) : null;
+        if (nn) est += '<div class="pp-est" style="color:var(--neg);font-weight:800;white-space:normal;max-width:110px;line-height:1.25" title="Pelo estoque, trânsito e giro de AGORA o Radar não sugere nada pra esta loja: ' + esc(nn) + '. A quantidade veio do dia em que a cotação foi criada (loja zerada = 1 caixa).">⚠ não precisa</div>';
+        return '<td class="c st' + (L && L.ativa === false ? ' inat' : '') + '">' + (real || i._fora ? '<b>' + (q || '') + '</b>' : '<input class="q' + (PP_EDIT[i.cod] && PP_EDIT[i.cod][ln] != null ? ' ed' : '') + (nn ? ' nn' : '') + '" inputmode="numeric" value="' + (q || '') + '" placeholder=""' + (nn ? ' title="' + esc(nn) + '"' : '') + ' onchange="ppSetQtd(\'' + i.cod + '\',' + ln + ',this.value)">') + est + '</td>'; }).join('') + '</tr>';
     if (!real && PP_FORN_OPEN[i.cod]) h += '<tr class="fx"><td colspan="' + (8 + lojas.length) + '">' + ppFornInline(i.cod, qt) + '</td></tr>';
   });
   h += '</tbody></table></div><div class="mini" style="margin-top:8px">Quantidade em unidades por loja. Embaixo de cada caixa: <b>est</b> = estoque atual da loja no ERP · <b>trâns</b> = em trânsito (sugestão/pedido aberto ainda não recebido). A caixa é a embalagem do item; o Radar fecha caixa no pedido. Alterações são salvas na hora e valem só pra este fornecedor.</div>';
@@ -2155,9 +2180,10 @@ function renderAnaliseQtd(){
   var sReq = 0, sQ = 0;
   lojas.forEach(function(ln){
     var q = aqQtd(A, i, ln), rq = orig[ln] || 0, L = E && E.lojas ? E.lojas[ln] : null; sReq += rq; sQ += q;
+    var nn = (!trav && !(i.lojas_outros && i.lojas_outros[ln] != null)) ? ppSemNec(ln, q, E, L) : null;
     h += '<tr' + (L && L.ativa === false ? ' class="inat"' : '') + '><td class="mini">' + (real && q > 0 && p.pedidoId ? '#' + p.pedidoId : '') + '</td><td><b>' + LJ(ln) + '</b> ' + esc(LOJAS_NOMES[ln] || '') + (L && L.ativa === false ? ' <span class="pp-flag" title="desativado nesta loja na lista de compra do ERP">⛔ desativado</span>' : '') + '</td>' +
       '<td class="r">' + (rq ? fmtN(rq) : '<span class="mini">--</span>') + '</td>' +
-      '<td class="r" id="aq-est-' + ln + '">' + aqEstCell(L, EE) + '</td>' +
+      '<td class="r" id="aq-est-' + ln + '">' + aqEstCell(L, EE) + (nn ? '<div class="pp-est" style="color:var(--neg);font-weight:800" title="' + esc(nn) + '">⚠ não precisa</div>' : '') + '</td>' +
       '<td class="c">' + (i.lojas_outros && i.lojas_outros[ln] != null ? '<span class="mini" title="nesta loja o item é de outro fornecedor (escolha por loja)">' + esc(i.lojas_outros[ln]) + '</span>' : trav ? '<b>' + (q || '') + '</b>' : '<input class="q aq-q' + (A.edit[ln] != null ? ' ed' : '') + '" inputmode="numeric" data-ln="' + ln + '" value="' + (q || '') + '" placeholder="0" onfocus="this.select()" onkeydown="aqEnter(event,this)" oninput="aqSetQtd(' + ln + ',this.value)">') + (i.emb > 1 ? '<div class="pp-est" id="aq-cx-' + ln + '">' + aqCx(q, i.emb) + '</div>' : '') + '</td>' +
       '<td class="r" id="aq-ti-' + ln + '">' + fmtR(q * (i.preco || 0)) + '</td><td class="r" id="aq-tp-' + ln + '"><b>' + fmtR(T.porLoja[ln]) + '</b></td></tr>';
   });
