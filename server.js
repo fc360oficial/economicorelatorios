@@ -8691,7 +8691,7 @@ app.post('/api/cotacoes/:id/enviado', (req, res) => {
 });
 app.post('/api/cotacoes/:id/vencedores', (req, res) => {
   const id = cotId(req); if (!id) return res.status(400).json({ error: 'id inválido' });
-  const r = cotacao.definirVencedor(id, req.body?.cod, req.body?.codFornec);
+  const r = cotacao.definirVencedor(id, req.body?.cod, req.body?.codFornec, req.body?.loja);   // loja: escolha só pra essa loja (Tiago, 05/10)
   if (!r) return res.status(404).json({ error: 'cotação não encontrada' });
   if (r.erro) return res.status(409).json({ error: r.erro });
   res.json(cotDetalhe(r));
