@@ -1832,14 +1832,20 @@ function renderPedidosResumo(C, R, F, aberta){
 }
 // ───────── PRÉ-PEDIDOS (modelo Club da Cotação): lista por fornecedor → itens → cotações do item; detalhe com qtd por loja
 var PP_OPEN = {}, PP_ITEM = {}, PP_DET = null, PP_EDIT = {}, PP_SORT = true, PP_T = null;   // "Ordenar por valor" sempre marcado ao abrir (Tiago, 28/09)
-var PP_FICA = {}, PP_FICA_ID = null, PP_NC_OPEN = false;   // PP_NC_OPEN: lista "Não comprados" começa minimizada (Tiago, 28/09)   // "fornecedor|cod" dos itens que saíram de um fornecedor por clique feito na tabela dele: continuam ali, apagados (Tiago, 28/09)
+var PP_FICA = {}, PP_FICA_ID = null, PP_NC_OPEN = false, PP_FICA_FORN = {}, PP_ORDEM = null;   // PP_NC_OPEN: lista "Não comprados" começa minimizada (Tiago, 28/09)   // "fornecedor|cod" dos itens que saíram de um fornecedor por clique feito na tabela dele: continuam ali, apagados (Tiago, 28/09)
+// Tiago, 05/10 ("não é pra sumir: só quando eu for pra outro fornecedor ela atualiza, ou eu atualizar a página"): a lista de
+// pré-pedidos fica CONGELADA enquanto o(a) comprador(a) marca/desmarca — ordem dos fornecedores (PP_ORDEM) e fornecedor que
+// ficou sem nenhum item (PP_FICA_FORN = cópia dele na hora do clique) continuam na tela, apagados, com os itens em _fora.
+// Assenta (lista fresca) ao abrir um fornecedor, voltar dele, mexer no "Ordenar por valor", trocar de cotação ou recarregar.
+function ppFicaReset(){ if (PP_FICA_ID !== CUR.id) { PP_FICA = {}; PP_FICA_FORN = {}; PP_ORDEM = null; PP_FICA_ID = CUR.id; } }
+function ppAssentar(){ PP_FICA = {}; PP_FICA_FORN = {}; PP_ORDEM = null; }
 function ppData(){ return CUR.prePedidos || {fornecedores:[], lojas:[], total_pre:0, total_pedidos:0}; }
 function ppVar(preco, ult){ if (!(ult > 0)) return '<span class="pp-var no">--</span>'; var d = preco - ult; return '<span class="pp-var ' + (d > 0 ? 'up' : 'dn') + '">' + (d > 0 ? '+' : '') + d.toFixed(2).replace('.', ',') + '</span>'; }
 function ppToggle(k, cod){ if (cod) { PP_ITEM[k + '|' + cod] = !PP_ITEM[k + '|' + cod]; } else { PP_OPEN[k] = !PP_OPEN[k]; } renderComparativoItens(); }
 // Tiago, 28/09 ("estou clicando e eles já estão sumindo"): item que saiu DESTE fornecedor por um clique feito na tela dele continua
 // na lista, apagado e com pra onde foi (_fora/_destino), até a cotação ser trocada — vale pra lista de pré-pedidos e pro carrinho
 function ppListaComFica(p){
-  if (PP_FICA_ID !== CUR.id) { PP_FICA = {}; PP_FICA_ID = CUR.id; }
+  ppFicaReset();
   var k = String(p.codFornec), lista = p.itens.slice(), nomeF = function(cf){ var f = (CUR.comparativo.fornecedores || []).find(function(x){ return +x.codFornec === +cf; }); return f ? f.nome : String(cf); };
   Object.keys(PP_FICA).forEach(function(key){ if (key.indexOf(k + '|') !== 0) return; var cod = key.slice(k.length + 1); if (lista.some(function(x){ return x.cod === cod; })) return; var it = (CUR.comparativo.itens || []).find(function(x){ return x.cod === cod; }); if (!it) return;
     lista.push({ cod: it.cod, descricao: it.descricao, qtd: it.qtd, unid: it.unid, emb: it.emb, lojas_qtd: it.lojas_qtd || {}, preco: it.vencedor ? it.vencedor.preco : null, ultimo_custo: it.ultimo_custo, precos: it.precos, vencedor: it.vencedor, negociado: false, preco_vendedor: null, marca: '', emb_vendedor: '', obs: '', editado: false, _fora: true, _destino: it.vencedor ? 'agora com ' + nomeF(it.vencedor.codFornec) : (it.nao_comprar ? 'não comprar' : 'sem fornecedor') }); });
@@ -1856,16 +1862,22 @@ function ppObsItem(i){
 function renderPrePedidos(){
   if (PP_DET != null) return renderPrePedidoDet();
   // Tiago, 28/09 ("quando eu realizo o pedido ele some daqui e vai pra tela de Pedidos"): realizado sai desta lista; fica na aba Pedidos
-  var P = ppData(), F = P.fornecedores.filter(function(p){ return p.status !== 'realizado'; }); if (PP_SORT) F.sort(function(a, b){ return b.total - a.total; });
+  ppFicaReset();
+  var P = ppData(), vivos = P.fornecedores.filter(function(p){ return p.status !== 'realizado'; }); if (PP_SORT) vivos.sort(function(a, b){ return b.total - a.total; });
+  if (!PP_ORDEM) PP_ORDEM = vivos.map(function(p){ return String(p.codFornec); });
+  var byK = {}; vivos.forEach(function(p){ byK[String(p.codFornec)] = p; });
+  var F = [];
+  PP_ORDEM.forEach(function(k){ if (byK[k]) F.push(byK[k]); else if (PP_FICA_FORN[k] && Object.keys(PP_FICA).some(function(key){ return key.indexOf(k + '|') === 0; })) F.push(Object.assign({}, PP_FICA_FORN[k], { itens: [], total: 0, porLoja: {}, abaixo_minimo: false, itens_editados: 0, _fora: true })); });
+  vivos.forEach(function(p){ var k = String(p.codFornec); if (PP_ORDEM.indexOf(k) < 0) { PP_ORDEM.push(k); F.push(p); } });   // fornecedor que acabou de ganhar o 1º item entra no fim, sem mexer nos outros
   var lojaNome = CUR.lojas && CUR.lojas.length === 1 ? ' (' + (LOJAS_NOMES[CUR.lojas[0]] || LJ(CUR.lojas[0])) + ')' : ' (CAHU)';
   var h = '<h2 class="clubh1" style="font-size:22px;margin:6px 0 10px">Empresas</h2><div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin-bottom:6px"><select class="fin" style="max-width:520px"><option>GRUPO - SUPERMERCADO ECONÔMICO' + esc(lojaNome) + '</option></select>' +
-    '<label style="font-size:13px;color:var(--ink)"><input type="checkbox" checked disabled> Por Fornecedor</label><label style="font-size:13px;color:var(--ink)"><input type="checkbox"' + (PP_SORT ? ' checked' : '') + ' onchange="PP_SORT=this.checked;renderComparativoItens()"> Ordenar por valor</label></div>';
+    '<label style="font-size:13px;color:var(--ink)"><input type="checkbox" checked disabled> Por Fornecedor</label><label style="font-size:13px;color:var(--ink)"><input type="checkbox"' + (PP_SORT ? ' checked' : '') + ' onchange="PP_SORT=this.checked;PP_ORDEM=null;renderComparativoItens()"> Ordenar por valor</label></div>';
   h += '<div class="pp-card"><div class="pp-hd">Empresa: GRUPO - SUPERMERCADO ECONÔMICO' + esc(lojaNome) + '<span class="tot">Total: ' + fmtR(P.total_pre) + '</span></div>';
   if (!F.length) return h + '<div class="empty">' + (P.fornecedores.length ? 'Todos os pré-pedidos já viraram pedido. Veja na aba <b>Pedidos</b>.' : 'Nenhum fornecedor vencedor ainda. Quando os vendedores digitarem, o pré-pedido de cada um aparece aqui.') + '</div></div>' + ppNaoComprados();
   h += '<table class="pp"><thead><tr><th style="width:30px"></th><th>Fornecedor</th><th>Data Entrega</th><th>Cond. de Pgto.</th><th>Valor</th><th>Fat. Min.</th><th>Tipo de Entrega</th><th>Status</th></tr></thead><tbody>';
   F.forEach(function(p){
     var k = String(p.codFornec), ab = !!PP_OPEN[k];   // (Tiago, 28/09: observação geral do vendedor NÃO aparece nesta linha; fica só na tabela de quem digitou o item)
-    h += '<tr class="forn" onclick="ppToggle(\'' + k + '\')"><td><span class="chev">' + (ab ? '⌄' : '›') + '</span></td><td><span class="cart" title="Abrir: Realizar Pedido deste fornecedor" onclick="event.stopPropagation();abrirPrePedido(' + p.codFornec + ')">🛒</span><b>' + esc(p.nome) + '</b>' + (p.itens_editados ? ' <span class="mini">(' + p.itens_editados + ' qtd ajustada)</span>' : '') + '</td><td>' + (p.entrega ? p.entrega.split('-').reverse().join('/') : '—') + '</td><td>' + esc(p.condicao || '—') + '</td><td><b>' + fmtR(p.total) + '</b></td><td' + (p.abaixo_minimo ? ' style="color:#C22F49;font-weight:700" title="pedido abaixo do faturamento mínimo"' : '') + '>' + (p.faturamento_minimo ? fmtR(p.faturamento_minimo) : '—') + '</td><td>' + esc(p.tipo_entrega) + '</td><td>' + (p.status === 'realizado' ? '<span class="status-pill finalizada">Pedido #' + p.pedidoId + '</span>' : '<button class="btn primary" style="padding:6px 12px" onclick="event.stopPropagation();abrirPrePedido(' + p.codFornec + ')">Abrir pré-pedido →</button>') + '</td></tr>';
+    h += '<tr class="forn' + (p._fora ? ' off' : '') + '"' + (p._fora ? ' style="opacity:.55" title="Todos os itens saíram deste fornecedor. Fica aqui, apagado, até você abrir outro fornecedor ou recarregar a página."' : '') + ' onclick="ppToggle(\'' + k + '\')"><td><span class="chev">' + (ab ? '⌄' : '›') + '</span></td><td>' + (p._fora ? '' : '<span class="cart" title="Abrir: Realizar Pedido deste fornecedor" onclick="event.stopPropagation();abrirPrePedido(' + p.codFornec + ')">🛒</span>') + '<b>' + esc(p.nome) + '</b>' + (p._fora ? ' <span class="mini" style="color:var(--amk);font-weight:700">→ sem itens</span>' : '') + (p.itens_editados ? ' <span class="mini">(' + p.itens_editados + ' qtd ajustada)</span>' : '') + '</td><td>' + (p.entrega ? p.entrega.split('-').reverse().join('/') : '—') + '</td><td>' + esc(p.condicao || '—') + '</td><td><b>' + fmtR(p.total) + '</b></td><td' + (p.abaixo_minimo ? ' style="color:#C22F49;font-weight:700" title="pedido abaixo do faturamento mínimo"' : '') + '>' + (p.faturamento_minimo ? fmtR(p.faturamento_minimo) : '—') + '</td><td>' + esc(p.tipo_entrega) + '</td><td>' + (p.status === 'realizado' ? '<span class="status-pill finalizada">Pedido #' + p.pedidoId + '</span>' : p._fora ? '<span class="mini">sem itens</span>' : '<button class="btn primary" style="padding:6px 12px" onclick="event.stopPropagation();abrirPrePedido(' + p.codFornec + ')">Abrir pré-pedido →</button>') + '</td></tr>';
     if (!ab) return;
     h += '<tr class="q"><td></td><td colspan="7"><table class="pp" style="border:1px solid var(--ln);border-radius:8px"><thead><tr><th style="width:30px"></th><th>Produto</th><th>Quantidade</th><th>Embalagem</th><th>Preço</th><th>Ultima Compra</th><th>Variação</th><th title="O que o vendedor que ganhou o item escreveu ao digitar o preço no link (as observações dos outros ficam na tabela de quem digitou, ao abrir o item)">Observação do vendedor</th></tr></thead><tbody>';
     var lista = ppListaComFica(p);
@@ -1977,7 +1989,7 @@ async function ppNegociar(cod, codFornec, atual){
 // trocar fornecedor sem fechar nada (Tiago, 21/09): o item continua aberto embaixo do fornecedor novo e a tela fica onde estava
 async function ppEscolher(cod, codFornec, origem){
   var sy = window.scrollY;
-  if (origem) PP_FICA[origem + '|' + cod] = true;   // clique feito na tabela deste fornecedor: o item continua lá, apagado, mesmo indo pra outro
+  if (origem) { PP_FICA[origem + '|' + cod] = true; var pf = ppData().fornecedores.find(function(x){ return String(x.codFornec) === String(origem); }); if (pf && !PP_FICA_FORN[origem]) PP_FICA_FORN[origem] = pf; }   // clique feito na tabela deste fornecedor: o item continua lá, apagado, mesmo indo pra outro; o fornecedor também, se ficar sem itens
   try { CUR = await post('/api/cotacoes/' + CUR.id + '/vencedores', {cod: cod, codFornec: codFornec}); } catch(e) { toastMsg('Erro: ' + e.message); return; }
   var it = CUR.comparativo.itens.find(function(x){ return x.cod === cod; }), nv = it && it.vencedor ? it.vencedor.codFornec : null;
   // Tiago, 28/09: marcar/desmarcar não abre nem fecha fornecedor ou item — a tela fica exatamente como estava, só o dado muda
@@ -1986,7 +1998,7 @@ async function ppEscolher(cod, codFornec, origem){
   toastMsg(nf ? 'Item passou pra ' + nf : codFornec === 'nao' ? 'Item marcado como não comprar' : 'Item atualizado');
 }
 var PP_EST = {};
-function abrirPrePedido(codFornec){ PP_DET = codFornec; PP_EDIT = {}; renderComparativoItens(); window.scrollTo(0, 0); ppCarregarEstoque(); }
+function abrirPrePedido(codFornec){ ppAssentar(); PP_DET = codFornec; PP_EDIT = {}; renderComparativoItens(); window.scrollTo(0, 0); ppCarregarEstoque(); }
 async function ppCarregarEstoque(refresh){
   if (!CUR) return; var k = CUR.id; if (PP_EST[k] && !refresh) return;
   PP_EST[k] = { carregando: true };
@@ -1994,7 +2006,7 @@ async function ppCarregarEstoque(refresh){
   if (PP_DET != null && CI_ABA === 'prepedidos') renderComparativoItens();
 }
 function ppEstItem(i){ var E = PP_EST[CUR.id]; return E && E.itens ? E.itens[i.cod] : null; }
-function ppVoltar(){ PP_DET = null; renderComparativoItens(); }
+function ppVoltar(){ ppAssentar(); PP_DET = null; renderComparativoItens(); }
 function ppNav(d){ var P = ppData(), i = P.fornecedores.findIndex(function(x){ return x.codFornec === PP_DET; }), j = i + d; if (j < 0 || j >= P.fornecedores.length) return; abrirPrePedido(P.fornecedores[j].codFornec); }
 function ppQtd(i, ln){ var e = PP_EDIT[i.cod]; return e && e[ln] != null ? e[ln] : (i.lojas_qtd[ln] || 0); }
 function ppTotais(p){ var tl = {}, tot = 0; (ppData().lojas || []).forEach(function(ln){ tl[ln] = 0; }); p.itens.forEach(function(i){ (ppData().lojas || []).forEach(function(ln){ var v = ppQtd(i, ln) * i.preco; tl[ln] += v; tot += v; }); }); return {porLoja: tl, total: tot}; }
