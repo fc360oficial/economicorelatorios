@@ -322,7 +322,7 @@ function abrirDet(n){
   $('#detBack').hidden=false;$('#detDrw').hidden=false;
   if(abrirDet._n!==n){$('#detCorpo').scrollTop=0;abrirDet._n=n;}
 }
-function fecharDet(){if(aberto==null)return;aberto=null;render();}
+function fecharDet(){if(aberto==null)return;aberto=null;render();lstPoll();}
 function detNav(dir){const l=listaVisivel(),i=l.findIndex(x=>x.nReg===aberto),j=i+dir;if(i<0||j<0||j>=l.length)return;toggle(l[j].nReg);}
 function botoes(r,mini){
   if(['liberado','cancelado'].includes(r.situacao)&&!r.decisao)return '<span class="mut" style="font-size:10.5px">'+(r.operador_liberacao?esc(r.operador_liberacao)+' '+hh(r.hora_liberacao):'')+'</span>';
@@ -636,6 +636,22 @@ async function colPoll(){
 /* Ao voltar pra aba, o poll roda na hora e compara com o último total conhecido: o que chegou
    com a aba escondida bipa uma vez só, em vez de passar batido. */
 document.addEventListener('visibilitychange',function(){colTimerSync();if(COL_ATIVO&&!document.hidden&&tab==='receb')colPoll();});
+
+/* ── lista atualiza sozinha (Tiago, 06/10): nota nova bipada na loja aparece sem clicar "Atualizar".
+   Silencioso (sem spinner) e só quando não atrapalha: painel de detalhe fechado, aba visível,
+   sem modal de config aberto. Erro de rede é ignorado — a lista atual continua valendo. ── */
+let lstBusy=false;
+async function lstPoll(){
+  if(tab!=='receb'||document.hidden||aberto!=null||colDrw||lstBusy||!DADOS)return;
+  if(!$('#modal').hidden)return;
+  lstBusy=true;
+  try{
+    const l=await fetch('/api/fiscal/recebimentos'+qs()).then(r=>r.json());
+    if(l&&!l.error&&tab==='receb'&&aberto==null){DADOS=l;CFG=l.config;$('#nReceb').textContent=l.recebimentos.length;render();}
+  }catch(e){}finally{lstBusy=false;}
+}
+setInterval(lstPoll,90000);
+document.addEventListener('visibilitychange',function(){if(!document.hidden)lstPoll();});
 
 /* painel lateral: histórico da nota + respostas rápidas (ações no topo) */
 function abrirDrw(id){colDrw=id;renderDrw();}
