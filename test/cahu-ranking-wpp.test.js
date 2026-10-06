@@ -20,10 +20,10 @@ test('montarRanking soma por vendedor, ignora "Sem vendedor" e ordena do maior p
   assert.equal(r[0].n, 2);
 });
 
-test('texto diário: top 3 só com primeiro nome, destaque de ontem, SEM nenhum valor', () => {
+test('texto diário: TODOS os vendedores (medalha no top 3, 4º em diante numerado), primeiro nome, SEM valor', () => {
   const t = m.textoDiario(m.montarRanking(NOTAS), m.destaqueAnterior(NOTAS, '2026-10-02'), '2026-10-02');
   assert.match(t, /🏆 \*02\/10 — Ranking do mês:\*/);
-  assert.match(t, /🥇 Kleber {2}🥈 Erverson {2}🥉 Rodrigo/);
+  assert.match(t, /🥇 Kleber\n🥈 Erverson\n🥉 Rodrigo\n4º Cleber/);
   assert.match(t, /Destaque de ontem: Kleber Junior 🔥/);
   assert.match(t, /Bom dia e boas vendas! 💪/);
   assert.doesNotMatch(t, /R\$|\d+,\d{2}/);   // sem valores, nunca
@@ -55,11 +55,12 @@ test('diasUteisRestantes conta seg–sáb incluindo hoje (domingo fora)', () => 
   assert.equal(m.diasUteisRestantes('2026-10-02'), 26);  // mês inteiro pela frente → diário
 });
 
-test('última semana: reta final com top 3 e dias úteis; 2º colado no líder ganha aviso', () => {
-  const notas = [nota('2026-10-20', 1, 'KLEBER JUNIOR', 1000), nota('2026-10-20', 2, 'ERVERSON SOUZA', 900), nota('2026-10-20', 3, 'RODRIGO CAHU', 300)];
+test('última semana: reta final com TODOS os vendedores e dias úteis; 2º colado no líder ganha aviso', () => {
+  const notas = [nota('2026-10-20', 1, 'KLEBER JUNIOR', 1000), nota('2026-10-20', 2, 'ERVERSON SOUZA', 900), nota('2026-10-20', 3, 'RODRIGO CAHU', 300), nota('2026-10-20', 4, 'CLEBER HERMINIO', 100)];
   const t = m.textoDoDia('2026-10-26', notas);
   assert.match(t, /⏳ \*RETA FINAL — faltam 6 dias úteis!\*/);
   assert.match(t, /🥈 Erverson Souza — na cola do líder! 👀/);   // 900 ≥ 80% de 1000
+  assert.match(t, /4º Cleber Herminio/);                         // do 4º em diante entra numerado
   assert.match(t, /chave de ouro! 🔑/);
   assert.doesNotMatch(t, /R\$/);   // sem valores (os únicos números são os dias úteis do cabeçalho)
 });
