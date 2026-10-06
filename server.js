@@ -7884,10 +7884,33 @@ app.get('/api/pedidos-fornecedor', (req, res) => {
     parametros: { origem: p.parametros?.origem || 'radar', gatilho: p.parametros?.gatilho || null }, cotacao: p.cotacao ? { id: p.cotacao.id, nome: p.cotacao.nome || null } : null,
     recebimento: p.recebimento ? Object.fromEntries(Object.entries(p.recebimento).map(([l, r]) => [l, { faltas: r.faltas, itens_pedidos: r.itens_pedidos, notas: r.notas.map(n => n.nNota) }])) : null, criadoEm: p.criadoEm, criadoPor: p.criadoPor, abertoEm: p.abertoEm, finalizadoEm: p.finalizadoEm, lojas: p.lojas, totais: p.totais, por_loja: pedidosFornec.porLoja(p), link: linkPedido(p), teste: !!p.teste, avarias: p.avarias ? { n: p.avarias.n, total: p.avarias.total, por_loja: p.avarias.por_loja || {} } : null, xml: p.xml ? { status: p.xml.status, verificadoEm: p.xml.verificadoEm || null, lojas: Object.fromEntries(Object.entries(p.xml.lojas || {}).map(([l, x]) => [l, { status: x.status, problemas: (x.problemas || []).map(z => z.tipo), notas: (x.notas || []).length, chegou: x.chegou || null, notas_det: (x.notas || []).map(n => ({ nNota: n.nNota, chave: n.chave || null, data: n.data, importado: !!n.importado, entrada: n.entrada || null })) }])) } : null })));
 });
-app.get('/api/pedidos-fornecedor/:id', (req, res) => {
+// Lojas em que cada item do pedido está DESATIVADO na lista de compra do ERP (central.c_cotacao_lista_itens.l1..l6 =
+// "Ativar/Desativar Itens da Lista"), pra tela Pedidos de Compra marcar "⛔ desativado" igual à Cotação (Tiago, 06/10/26).
+// Cache de 5 min por pedido; ERP demorando mais de 4 s → responde sem a marca (a tela não pode esperar o .252).
+const _pedInativas = {};
+async function lojasInativasPedido(p) {
+  if (!p.lista) return {};
+  const c = _pedInativas[p.id]; if (c && Date.now() - c.em < 5 * 60 * 1000) return c.dados;
+  const cods = (p.itens || []).map(i => String(i.cod)); if (!cods.length) return {};
+  const consulta = (async () => {
+    const out = {};
+    for (const ch of radarPedidos.chunk(cods, 2000)) {
+      const rows = await q(`SELECT Codigobarra cod, l1, l2, l3, l4, l5, l6 FROM central.c_cotacao_lista_itens WHERE nCotacao = ? AND Codigobarra IN (${ch.map(() => '?').join(',')})`, [p.lista, ...ch]).catch(() => []);
+      for (const r of rows) out[String(r.cod)] = [1, 2, 3, 4, 5, 6].filter(ln => parseInt(r['l' + ln]) !== 1);
+    }
+    return out;
+  })();
+  const dados = await Promise.race([consulta, new Promise(r => setTimeout(() => r(null), 4000))]);
+  if (dados) _pedInativas[p.id] = { em: Date.now(), dados };
+  return dados || {};
+}
+app.get('/api/pedidos-fornecedor/:id', async (req, res) => {
   const p = pedidosFornec.obter(parseInt(req.params.id));
   if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
-  res.json({ ...p, por_loja: pedidosFornec.porLoja(p), link: linkPedido(p), avarias_txt: pedidosFornec.textoAvarias(p), observacoes: pedidosFornec.observacoesPedido(p) });
+  // estoque_lojas: est/trânsito por loja de cada item, da base do Radar, pra tela mostrar embaixo da caixinha (Tiago, 06/10/26)
+  let estoqueLojas = {}; try { estoqueLojas = radarPedidos.estoqueLojas((p.itens || []).map(i => i.cod)); } catch (e) {}
+  let lojasInativas = {}; try { lojasInativas = await lojasInativasPedido(p); } catch (e) {}
+  res.json({ ...p, por_loja: pedidosFornec.porLoja(p), link: linkPedido(p), avarias_txt: pedidosFornec.textoAvarias(p), observacoes: pedidosFornec.observacoesPedido(p), estoque_lojas: estoqueLojas, lojas_inativas: lojasInativas });
 });
 
 app.post('/api/pedidos-fornecedor/:id/aprovar', async (req, res) => {
