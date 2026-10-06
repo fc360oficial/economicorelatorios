@@ -59,7 +59,9 @@ test('/danfe: confere (loja certa), outra_loja, sem_xml e chave curta; cada bipe
   r = res(); await routes['POST /api/recebimento-publico/danfe'](req({ query: { t }, body: { chave: '123', nome: 'ana' } }), r);
   assert.equal(r.statusCode, 400);
   const ev = logs.filter(e => e.tipo === 'danfe');
-  assert.deepEqual(ev.map(e => e.resultado), ['confere', 'sem_xml']);
+  // o bipe inválido também vira evento (06/10/26): sem isso o log fica cego pra "bipei e nada aconteceu"
+  assert.deepEqual(ev.map(e => e.resultado), ['confere', 'sem_xml', 'chave_invalida']);
+  assert.match(ev[2].msg, /3 dígito/);
   assert.equal(ev[1].chave, NADA); assert.equal(ev[1].nome, 'ANA'); assert.match(ev[1].msg, /NÃO DESCARREGAR/); assert.match(ev[1].descricao, /emitente CNPJ 4{14}/);
   // nota de outra loja (destinatário diferente do CNPJ da loja do token); espaço/quebra no bipe são ignorados
   const amb2 = montarAmbiente({ cnpjDest: '99999999000199' }); const t2 = recebimento.config().lojas[3].token;

@@ -291,6 +291,7 @@ body{font-family:var(--font);background:var(--pap);color:var(--ink);font-size:14
       <span class="ico">▮▯▮</span>
       <input id="bipDanfe" placeholder="Bipe a chave da DANFE (44 dígitos)" autocomplete="off" inputmode="none" enterkeyhint="done">
       <button class="dig" id="btnDigitarDanfe" type="button" aria-pressed="false" onclick="toggleDigitarDanfe()" title="Digitar a chave à mão">Digitar chave</button>
+      <button class="cam" id="btnCamDanfe" onclick="abrirCamera(conferirDanfe)" title="Ler com a câmera" hidden>📷</button>
     </div>
     <div id="dResultado"></div>
   </div>
@@ -603,7 +604,7 @@ function renderExp() {
 }
 function focarExp() { if (tela !== 'exp' || cartaoExp || $('modal').innerHTML) return; const b = $('bipExp'); b.focus(); $('scanExp').classList.add('focus'); }
 function toggleDigitarExp() { const b = $('bipExp'), on = b.inputMode !== 'text'; b.inputMode = on ? 'text' : 'none'; $('btnDigitarExp').setAttribute('aria-pressed', String(on)); b.focus(); }
-$('bipExp').addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); const c = $('bipExp').value.trim(); $('bipExp').value = ''; if (c) lerCodigoExp(c); } });
+$('bipExp').addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.keyCode === 13) { ev.preventDefault(); const c = $('bipExp').value.trim(); $('bipExp').value = ''; if (c) lerCodigoExp(c); } });
 $('bipExp').addEventListener('blur', () => { $('scanExp').classList.remove('focus'); setTimeout(focarExp, 100); });
 async function lerCodigoExp(cod) {
   if (!visaoExp) return;
@@ -628,9 +629,9 @@ function abrirCartaoExp(c) {
   const q = $('xQuant'), e = $('xEmb'), lt = $('xLote');
   const tot = () => { $('xTot').textContent = num((+String(q.value).replace(',', '.') || 0) * (+String(e.value).replace(',', '.') || 0)) + ' un'; };
   q.addEventListener('input', tot); e.addEventListener('input', tot); tot();
-  q.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); e.focus(); e.select(); } });
-  e.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); lt.focus(); lt.select(); } });
-  lt.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); gravarCartaoExp(); } });
+  q.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.keyCode === 13) { ev.preventDefault(); e.focus(); e.select(); } });
+  e.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.keyCode === 13) { ev.preventDefault(); lt.focus(); lt.select(); } });
+  lt.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.keyCode === 13) { ev.preventDefault(); gravarCartaoExp(); } });
   q.focus(); q.select(); $('xCartao').scrollIntoView({ block: 'nearest' });
 }
 function fecharCartaoExp() { cartaoExp = null; $('xCartao').innerHTML = ''; focarExp(); }
@@ -715,9 +716,11 @@ function renderDanfe() {
     <div class="card"><div class="kv"><span>Chave bipada</span><span style="font-family:monospace;font-size:11px;word-break:break-all">${esc(r.chave)}</span></div></div>
     <div class="acoes" style="padding:0"><button class="btn btn-secondary" onclick="voltarNotas()">Voltar às notas</button></div>`;
 }
+let danfeEmVoo = false; // segura bipe duplo enquanto a resposta não volta
 async function conferirDanfe(chaveLida) {
-  const chave = String(chaveLida || '').replace(/\s/g, '');
-  if (!chave) return;
+  const chave = String(chaveLida || '').replace(/\D/g, ''); // digitada à mão pode vir com espaço/ponto
+  if (!chave || danfeEmVoo) return;
+  danfeEmVoo = true;
   try {
     const r = await post('danfe', { chave, nome: sess.nome });
     if (r.resultado !== 'confere') { danfeBloqueio = { ...r, chave }; if (tela !== 'danfe') { danfeAlvo = null; mostrar('danfe'); } renderDanfe(); toast('XML não confere. Não descarregue.', true); return; }
@@ -733,10 +736,20 @@ async function conferirDanfe(chaveLida) {
     }
     abrirConferencia(nota);
   } catch (e) { toast(e.message || 'Não deu pra conferir a DANFE', true); focarDanfe(); }
+  finally { danfeEmVoo = false; }
 }
-function focarDanfe() { if (tela !== 'danfe' || $('modal').innerHTML) return; const b = $('bipDanfe'); b.focus(); $('scanDanfe').classList.add('focus'); }
-function toggleDigitarDanfe() { const b = $('bipDanfe'), on = b.inputMode !== 'text'; b.inputMode = on ? 'text' : 'none'; $('btnDigitarDanfe').setAttribute('aria-pressed', String(on)); b.focus(); }
-$('bipDanfe').addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); const c = $('bipDanfe').value; $('bipDanfe').value = ''; conferirDanfe(c); } });
+function focarDanfe() { if (tela !== 'danfe' || $('modal').innerHTML || !$('camBox').hidden) return; const b = $('bipDanfe'); b.focus(); $('scanDanfe').classList.add('focus'); }
+function toggleDigitarDanfe() {
+  const b = $('bipDanfe'), on = b.getAttribute('inputmode') !== 'numeric';
+  b.setAttribute('inputmode', on ? 'numeric' : 'none'); // mesmo padrão do #bip: blur+focus reabre o teclado
+  $('btnDigitarDanfe').setAttribute('aria-pressed', String(on));
+  b.blur(); b.focus();
+}
+function enviarDanfe() { const c = $('bipDanfe').value; $('bipDanfe').value = ''; conferirDanfe(c); }
+$('bipDanfe').addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.keyCode === 13) { ev.preventDefault(); enviarDanfe(); } });
+// A chave tem tamanho fixo: no 44º dígito confere sozinho. Leitor sem sufixo Enter e teclado de
+// celular cujo "Concluído" não vira keydown deixavam a tela muda — o Enter é só atalho.
+$('bipDanfe').addEventListener('input', () => { if ($('bipDanfe').value.replace(/\D/g, '').length >= 44) enviarDanfe(); });
 $('bipDanfe').addEventListener('blur', () => { $('scanDanfe').classList.remove('focus'); setTimeout(focarDanfe, 100); });
 function voltarNotas() { cartao = null; ultimoBipado = null; $('cartao').innerHTML = ''; limparDescartes(); mostrar('notas'); carregarNotas(); }
 
@@ -792,7 +805,7 @@ function podeFocarBip() {
 function focarBip() { if (!podeFocarBip()) return; const b = $('bip'); if (b) { b.focus(); $('scanBox').classList.add('focus'); } }
 $('bip').addEventListener('blur', () => { $('scanBox').classList.remove('focus'); setTimeout(focarBip, 100); });
 $('bip').addEventListener('focus', () => $('scanBox').classList.add('focus'));
-$('bip').addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); const c = $('bip').value.trim(); $('bip').value = ''; if (c) lerCodigo(c); } });
+$('bip').addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.keyCode === 13) { ev.preventDefault(); const c = $('bip').value.trim(); $('bip').value = ''; if (c) lerCodigo(c); } });
 
 async function lerCodigo(cod) {
   if (!visao) return;
@@ -834,10 +847,10 @@ function abrirCartao(c) {
   const q = $('cQuant'), e = $('cEmb'), vd = $('cVal'), lt = $('cLote');
   const tot = () => { $('cTot').textContent = num((+String(q.value).replace(',', '.') || 0) * (+String(e.value).replace(',', '.') || 0)) + ' un'; };
   q.addEventListener('input', tot); e.addEventListener('input', tot); tot();
-  q.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); e.focus(); e.select(); } });
-  e.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); vd.focus(); } });
-  vd.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); if (lt) { lt.focus(); lt.select(); } else gravarCartao(); } });
-  if (lt) lt.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); gravarCartao(); } });
+  q.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.keyCode === 13) { ev.preventDefault(); e.focus(); e.select(); } });
+  e.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.keyCode === 13) { ev.preventDefault(); vd.focus(); } });
+  vd.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.keyCode === 13) { ev.preventDefault(); if (lt) { lt.focus(); lt.select(); } else gravarCartao(); } });
+  if (lt) lt.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.keyCode === 13) { ev.preventDefault(); gravarCartao(); } });
   q.focus(); q.select();
   $('cartao').scrollIntoView({ block: 'nearest' });
 }
@@ -1168,8 +1181,9 @@ function toast(m, ruim) {
 
 // ── câmera (opcional; só onde o navegador tem BarcodeDetector) ─────────────
 let camStream = null, camParar = false;
-if ('BarcodeDetector' in window && navigator.mediaDevices) $('btnCam').hidden = false;
-async function abrirCamera() {
+if ('BarcodeDetector' in window && navigator.mediaDevices) { $('btnCam').hidden = false; $('btnCamDanfe').hidden = false; }
+async function abrirCamera(aoLer) {
+  const entregar = typeof aoLer === 'function' ? aoLer : lerCodigo; // na tela da DANFE entrega pra conferirDanfe
   try {
     const Det = window.BarcodeDetector;
     const det = new Det({ formats: ['ean_13', 'ean_8', 'code_128', 'itf', 'upc_a'] });
@@ -1178,7 +1192,7 @@ async function abrirCamera() {
     $('camBox').hidden = false; camParar = false;
     const laco = async () => {
       if (camParar) return;
-      try { const cods = await det.detect(v); if (cods && cods.length) { const c = String(cods[0].rawValue || '').trim(); fecharCamera(); if (c) lerCodigo(c); return; } } catch (e) {}
+      try { const cods = await det.detect(v); if (cods && cods.length) { const c = String(cods[0].rawValue || '').trim(); fecharCamera(); if (c) entregar(c); return; } } catch (e) {}
       requestAnimationFrame(laco);
     };
     laco();
@@ -1187,7 +1201,7 @@ async function abrirCamera() {
 function fecharCamera() {
   camParar = true; $('camBox').hidden = true;
   if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; }
-  focarBip();
+  focarBip(); focarDanfe(); // cada um só age na própria tela
 }
 
 // ── PWA ────────────────────────────────────────────────────────────────────
