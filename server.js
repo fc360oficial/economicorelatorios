@@ -8546,6 +8546,14 @@ async function criarPedidoDaCotacao(f, itens, c, usuario, extra) {
   // Pedidos de Compra já APROVADO, quebrado por loja, com o selo COTAÇÃO. Avarias NÃO são consultadas pra pedido de
   // cotação (regra só deles; Radar/Sugestão continuam trazendo) — anexarAvarias também ignora origem 'cotacao'.
   try { const ap = pedidosFornec.aprovar(p.id, usuario); if (ap && ap.erro) console.error('[COTACAO] aprovar pedido ' + p.id + ':', ap.erro); } catch (e) { console.error('[COTACAO] aprovar:', e.message); }
+  // Mesma regra do Radar ("aprovou, vai pro ERP de teste na hora", 24/09): o pedido de cotação
+  // nasce aprovado sem passar pelo clique de Aprovar, então ficava de fora do envio (Tiago, 06/10).
+  // Erro por loja cai em p.erp_teste.erros; o botão "Gerar pedido no ERP teste" segue como reenvio.
+  // Cotação de TESTE continua fora: nada dela vai pro ERP.
+  if (!c.teste) {
+    try { await gerarPedidoErpTeste(pedidosFornec.obter(p.id), usuario || 'COTACAO', null, null); }
+    catch (e) { console.error('[COTACAO] erp teste pedido ' + p.id + ':', e.message); }
+  }
   const fin = pedidosFornec.obter(p.id);
   return { id: fin.id, fornecedor: f.nome, codFornec: f.codFornec, vendedor: fin.vendedor, itens: fin.itens.length, total: fin.totais.digitado, lojas: fin.lojas, status: fin.status, link: linkPedido(fin), avarias: fin.avarias ? { n: fin.avarias.n, total: fin.avarias.total } : null };
 }
