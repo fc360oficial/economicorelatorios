@@ -91,7 +91,8 @@
     { id: 'precificacao', ic: 'trend', txt: 'Precificação', sub: [
         { href: '/formacao-de-preco.html', ic: 'trend', txt: 'Formação de Preços' },
         { href: '/promocoes.html', ic: 'tag', txt: 'Promoções' },
-        { href: '/radar-precificacao.html', ic: 'chart', txt: 'Radar Precificação' }
+        { href: '/radar-precificacao.html', ic: 'chart', txt: 'Radar Precificação' },
+        { href: '/sem-giro.html', ic: 'tag', txt: 'Sem Giro' }
       ]},
     { id: 'prevencao', ic: 'shield', txt: 'Prevenção', sub: [
         { href: '/prevencao.html', ic: 'shield', txt: 'Fechamento de Mês' },

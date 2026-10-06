@@ -6809,6 +6809,36 @@ radarPrecif.init({ q });
 radarPrecif.agendar();
 
 // ═══════════════════════════════════════════════════
+// SEM GIRO (Precificação > Sem Giro, 06/10/2026): produtos com estoque e sem venda há 30/60/90/120+ dias por loja,
+// com última compra/venda, custo, margem aplicada × cadastrada e simulador margem ⇄ preço. Regras e fontes em
+// lib/sem-giro.js. SÓ LEITURA no ERP; preços aceitos ficam em data/sem-giro-decisoes.json e saem em CSV.
+// ═══════════════════════════════════════════════════
+const semGiro = require('./lib/sem-giro');
+semGiro.init({ q });
+semGiro.agendar();
+app.get('/api/sem-giro', (req, res) => { try { res.json(semGiro.consultar(req.query)); } catch (err) { res.status(500).json({ error: err.message }); } });
+app.get('/api/sem-giro/lojas', (req, res) => { try { res.json(semGiro.lojas(req.query)); } catch (err) { res.status(500).json({ error: err.message }); } });
+app.post('/api/sem-giro/recalcular', (req, res) => { semGiro.calcular().catch(e => console.error('[SEM-GIRO]', e.message)); res.json({ ok: true, estado: semGiro.estado() }); });
+app.post('/api/sem-giro/decisao', (req, res) => {
+  try {
+    const b = req.body || {};
+    if (!b.cod || !b.loja) return res.status(400).json({ error: 'loja e cod obrigatórios' });
+    const usuario = req.session && req.session.user ? (req.session.user.nome || req.session.user.usuario) : null;
+    res.json({ ok: true, decisao: semGiro.setDecisao({ loja: b.loja, cod: String(b.cod), preco: b.preco, origem: b.origem, usuario }) });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.get('/api/sem-giro/export.csv', (req, res) => {
+  try {
+    const rows = semGiro.filtrar(semGiro.parseFiltro(req.query)).sort((a, b) => a.loja - b.loja || b.valor - a.valor);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="sem-giro-${req.query.so === 'aceitas' ? 'precos-novos' : 'lista'}-${new Date().toISOString().slice(0, 10)}.csv"`);
+    res.send(semGiro.csv(rows, req.query.so === 'aceitas'));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.post('/api/sem-giro/exemplos', (req, res) => { try { res.json({ ok: true, n: semGiro.criarExemplos() }); } catch (err) { res.status(500).json({ error: err.message }); } });
+app.delete('/api/sem-giro/exemplos', (req, res) => { try { res.json({ ok: true, n: semGiro.removerExemplos() }); } catch (err) { res.status(500).json({ error: err.message }); } });
+
+// ═══════════════════════════════════════════════════
 // DASHBOARD (index.html, refeito 21/09/2026): 6 segmentos calculados no servidor, cache de 5 min.
 // Fontes e regras em lib/dashboard.js. Só leitura no ERP; grava só data/dashboard-metas.json.
 // ═══════════════════════════════════════════════════
