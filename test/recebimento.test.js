@@ -16,6 +16,9 @@ test('abrir + bipar: ok / recusado / bloqueado validade / não cadastrado / não
   r = await R.bipar(c.id, { cod: '111', quant: 3, emb: 1, validade: null }); assert.equal(r.resultado, 'nao_esta_na_nota');
   r = await R.bipar(c.id, { cod: '999', quant: 1, emb: 1 }); assert.equal(r.resultado, 'nao_cadastrado');
   const v = R.visaoLoja(3, c.id); assert.equal(v.produtos, 3); assert.ok(!('xml' in v)); assert.ok(!JSON.stringify(v).includes('"un":240,"pedida'));
+  // nota_itens (06/10/26): a loja vê o que veio na nota, sem quantidade e sem o recusado pelo comprador
+  assert.deepEqual(v.nota_itens, [{ cod: '7896213007386', descricao: 'CREAM CRACKER', bipado: true }]);
+  assert.ok(!JSON.stringify(v.nota_itens).includes('"un"'), 'nota_itens nunca leva quantidade');
   await R.corrigir(c.id, { cod: '7896213007386', quant: 5, emb: 24, validade: '2027-03-28' }); assert.equal(R.obter(c.id).itens['7896213007386'].un, 120);
 });
 

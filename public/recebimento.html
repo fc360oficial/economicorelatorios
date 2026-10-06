@@ -115,6 +115,8 @@ body{font-family:var(--font);background:var(--pap);color:var(--ink);font-size:14
 .it .q small{font-size:10.5px;color:var(--ink3)}
 .it.e-bad .q b{color:var(--neg)}
 .it.e-warn .q b{color:var(--amk)}
+.pendTit{margin:12px 0 0;font-size:10.5px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--ink3)}
+.it.pend{opacity:.62}
 
 .card{border:1px solid var(--ln);border-radius:var(--r);padding:10px 11px;display:flex;flex-direction:column;gap:7px;background:var(--crd)}
 .card .t{font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--ink3)}
@@ -318,12 +320,13 @@ body{font-family:var(--font);background:var(--pap);color:var(--ink);font-size:14
       <button class="cam" id="btnCam" onclick="abrirCamera()" title="Ler com a câmera" hidden>📷</button>
     </div>
     <div class="prog">
-      <div>Você bipou <b id="pProd">0</b> produtos · <b id="pUn">0</b> unidades</div>
+      <div>Você bipou <b id="pProd">0</b> produtos · <b id="pUn">0</b> unidades<span id="pNota"></span></div>
       <div id="pFila" style="color:var(--amk)"></div>
     </div>
     <div id="pDescartes" class="descartes" hidden></div>
     <div id="cartao"></div>
     <div class="itens" id="bItens"></div>
+    <div id="bNota"></div>
   </div>
 </div>
 
@@ -771,6 +774,11 @@ function renderBip() {
   $('bPill').innerHTML = v && PILL[v] ? `<span class="pill ${PILL[v][0]}"><i></i>${esc(PILL[v][1])}</span>` : '';
   $('pProd').textContent = visao.produtos;
   $('pUn').textContent = num(visao.unidades);
+  // Lista do que veio na nota (06/10/26, Tiago): só código e descrição, NUNCA quantidade — e nunca
+  // "bateu/não bateu" por item antes do Terminei, senão a quantidade vaza pelo status.
+  const naNota = visao.nota_itens || [];
+  const pend = naNota.filter(n => !n.bipado);
+  $('pNota').textContent = !naNota.length ? '' : pend.length ? ' · faltam ' + pend.length + ' da nota' : ' · todos os da nota bipados';
   const itens = (visao.itens || []).slice().reverse();
   $('bItens').innerHTML = itens.length ? itens.map(i => {
     const e = ESTADO[i.estado] || ['', ''];
@@ -779,7 +787,9 @@ function renderBip() {
     return `<div class="it ${e[0]}"><div class="stripe"></div>
       <div><div class="d">${esc(i.descricao)}</div><div class="c">${esc(meta)}</div></div>
       <div class="q"><b>${num(i.un)} un</b><small>${num(i.quant)} × ${num(i.emb)}</small></div></div>`;
-  }).join('') : '<div class="vazio">Bipe o primeiro produto. Só o que você bipar aparece aqui.</div>';
+  }).join('') : `<div class="vazio">Bipe o primeiro produto.${naNota.length ? ' O que veio na nota está listado abaixo — sem quantidades: conte de verdade.' : ' Só o que você bipar aparece aqui.'}</div>`;
+  $('bNota').innerHTML = pend.length ? '<div class="pendTit">Veio na nota · ainda não bipado (' + pend.length + ')</div><div class="itens">' +
+    pend.map(p => `<div class="it pend"><div class="stripe"></div><div><div class="d">${esc(p.descricao || p.cod)}</div><div class="c">${esc(p.cod)}</div></div><div class="q"><small>bipar</small></div></div>`).join('') + '</div>' : '';
   atualizarBadge(); renderDescartes();
   setNet(navigator.onLine);
 }
@@ -914,6 +924,7 @@ function aplicarLocal(acao, c) {
   else { it.quant = +(it.quant + (+c.quant || 0)).toFixed(3); it.emb = +c.emb || it.emb; it.un = +(it.un + un).toFixed(3); if (c.validade && (!it.validade || c.validade < it.validade)) it.validade = c.validade; }
   visao.produtos = visao.itens.length;
   visao.unidades = +visao.itens.reduce((a, i) => a + (+i.un || 0), 0).toFixed(3);
+  const ni = (visao.nota_itens || []).find(n => n.cod === c.cod); if (ni) ni.bipado = true;
 }
 async function recarregarVisao() {
   if (!visao) return;
