@@ -274,17 +274,32 @@ function semiForm(){
   const ls=[...DATA.listas].sort((a,b)=>String(a.fornecedor||a.nome).localeCompare(String(b.fornecedor||b.nome),'pt-BR'));
   const h='<div id="semi" style="margin:0 0 14px;padding:14px 16px;border:1px solid #F5B800;border-radius:12px;background:#FFF6D9">'
     +'<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#6B4E00">Sugestão semi-automática</div>'
-    +'<div style="font-size:13px;color:#4E5A72;margin:4px 0 10px">Escolha o fornecedor (lista) e quantos dias de lead você quer. A sugestão usa toda a estrutura do Radar (venda/dia, estoque, trânsito, embalagem, curva A), só que com o seu lead: ponto de pedido = lead; alvo = lead + intervalo da lista (limitado ao teto), ou a cobertura que você informar. O pedido é calculado pra hoje.</div>'
+    +'<div style="font-size:13px;color:#4E5A72;margin:4px 0 10px">Escolha o fornecedor (lista): o sistema mostra e preenche o lead de entrega dele (histórico de 12 meses: médio, máximo e intervalo entre pedidos). Você diz quantos dias de cobertura quer e a sugestão sai com toda a estrutura do Radar (venda/dia, estoque, trânsito, embalagem, curva A): ponto de pedido = lead; alvo = sua cobertura (ou lead + intervalo, limitado ao teto). O pedido é calculado pra hoje.</div>'
     +'<div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap">'
-    +'<div style="flex:2;min-width:280px"><label style="display:block;font-size:11px;font-weight:800;color:#4E5A72;margin-bottom:4px">FORNECEDOR / LISTA</label><select id="semiLista" style="width:100%;font:inherit;font-size:13px;padding:8px 10px;border:1px solid #DADAD6;border-radius:8px;background:#fff"><option value="">Selecione…</option>'+ls.map(l=>'<option value="'+l.lista+'">'+esc(l.fornecedor||'')+' · '+esc(l.nome)+' (#'+l.lista+')</option>').join('')+'</select></div>'
-    +'<div><label style="display:block;font-size:11px;font-weight:800;color:#4E5A72;margin-bottom:4px">LEAD (DIAS)</label><input id="semiLead" inputmode="numeric" placeholder="ex.: 10" style="width:110px;font:inherit;font-size:14px;font-weight:700;padding:8px 10px;border:1px solid #DADAD6;border-radius:8px;background:#fff"></div>'
-    +'<div><label style="display:block;font-size:11px;font-weight:800;color:#4E5A72;margin-bottom:4px">COBERTURA ALVO (DIAS, OPCIONAL)</label><input id="semiCob" inputmode="numeric" placeholder="auto" style="width:150px;font:inherit;font-size:14px;padding:8px 10px;border:1px solid #DADAD6;border-radius:8px;background:#fff"></div>'
+    +'<div style="flex:2;min-width:280px"><label style="display:block;font-size:11px;font-weight:800;color:#4E5A72;margin-bottom:4px">FORNECEDOR / LISTA</label><select id="semiLista" onchange="semiLead()" style="width:100%;font:inherit;font-size:13px;padding:8px 10px;border:1px solid #DADAD6;border-radius:8px;background:#fff"><option value="">Selecione…</option>'+ls.map(l=>'<option value="'+l.lista+'">'+esc(l.fornecedor||'')+' · '+esc(l.nome)+' (#'+l.lista+')</option>').join('')+'</select><div id="semiLeadInfo" style="font-size:12px;color:#6B4E00;margin-top:6px;min-height:16px">Escolha o fornecedor: o lead de entrega vem do histórico de 12 meses dele.</div></div>'
+    +'<div><label style="display:block;font-size:11px;font-weight:800;color:#4E5A72;margin-bottom:4px">LEAD DE ENTREGA (DIAS) · calculado</label><input id="semiLead" inputmode="numeric" placeholder="automático" title="Lead de entrega do fornecedor calculado pelo Radar (histórico de 12 meses). Você pode ajustar." style="width:110px;font:inherit;font-size:14px;font-weight:700;padding:8px 10px;border:1px solid #DADAD6;border-radius:8px;background:#fff"></div>'
+    +'<div><label style="display:block;font-size:11px;font-weight:800;color:#4E5A72;margin-bottom:4px">COBERTURA (DIAS QUE VOCÊ QUER)</label><input id="semiCob" inputmode="numeric" placeholder="auto = lead + intervalo" title="Quantos dias de estoque o pedido deve cobrir. Em branco: lead + intervalo entre pedidos da lista, limitado ao teto." style="width:150px;font:inherit;font-size:14px;padding:8px 10px;border:1px solid #DADAD6;border-radius:8px;background:#fff"></div>'
     +'<button class="btn btn-amber" onclick="semiCalcular()">Calcular sugestão</button></div></div>';
   document.getElementById('view').insertAdjacentHTML('beforebegin',h);
 }
+// ao escolher a lista: busca o lead calculado pelo Radar (sem lead manual) e preenche o campo; mostra médio/máximo/intervalo/fonte
+async function semiLead(){
+  const id=parseInt(document.getElementById('semiLista').value)||0, info=document.getElementById('semiLeadInfo'), inp=document.getElementById('semiLead');
+  if(!id){ info.textContent='Escolha o fornecedor: o lead de entrega vem do histórico de 12 meses dele.'; inp.value=''; return; }
+  info.textContent='Calculando o lead de entrega…'; inp.value='';
+  try{
+    const p=params(); p.delete('lead'); p.delete('cobertura');
+    const r=await fetch('/api/radar-pedidos/'+id+'/itens?'+p.toString()); const j=await r.json(); if(j.error) throw new Error(j.error);
+    const P=j.params||{}, L=j.lead||{}, lm=P.lm!=null?P.lm:(L.lead_medio!=null?L.lead_medio:null);
+    if(lm==null){ info.innerHTML='<b style="color:#C22F49">Sem lead conhecido pra esta lista</b> (nenhuma entrega nos últimos 12 meses). Informe o lead à mão.'; return; }
+    inp.value=String(Math.round(lm*10)/10).replace('.',',');
+    const fonte={lista:'da própria lista',fornecedor:'do fornecedor (outras listas dele)',rede:'da rede (média geral)',item:'dos itens'}[P.fonte]||'';
+    info.innerHTML='Lead de entrega <b>'+fmt(lm,1)+' d</b>'+(L.lead_max!=null?' · máximo <b>'+fmt(L.lead_max,0)+' d</b>':'')+(L.intervalo!=null?' · intervalo entre pedidos <b>'+fmt(L.intervalo,0)+' d</b>':'')+(L.entregues?' · '+L.entregues+' entregas em 12 meses':'')+(fonte?' · lead '+fonte:'')+(P.alvoLista!=null?' · alvo que o Radar usaria: <b>'+fmt(P.alvoLista,0)+' d</b>':'')+'. Pode ajustar o lead; diga a cobertura que quer.';
+  }catch(e){ info.innerHTML='<b style="color:#C22F49">Não consegui calcular o lead:</b> '+esc(e.message); }
+}
 function semiCalcular(){
   const id=parseInt(document.getElementById('semiLista').value)||0, lead=parseFloat(String(document.getElementById('semiLead').value).replace(',','.'))||0, cob=parseFloat(String(document.getElementById('semiCob').value).replace(',','.'))||0;
-  if(!id){ alert('Escolha o fornecedor (lista).'); return; } if(!(lead>0)){ alert('Informe o lead em dias (ex.: 10).'); return; } if(cob&&cob<=lead){ alert('A cobertura alvo tem que ser maior que o lead.'); return; }
+  if(!id){ alert('Escolha o fornecedor (lista).'); return; } if(!(lead>0)){ alert('O lead de entrega ainda não foi preenchido. Escolha o fornecedor e espere o cálculo, ou informe o lead à mão.'); return; } if(cob&&cob<=lead){ alert('A cobertura alvo tem que ser maior que o lead.'); return; }
   SEMI_LEAD=lead; SEMI_COB=cob||null; delete DETALHES[id]; abrirLista(id);
 }
 
