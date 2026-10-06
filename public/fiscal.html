@@ -228,7 +228,7 @@ const LJ=n=>+n===10?'CD':'E'+n;   // rótulo de loja: E1..E6, CD (regra do Tiago
 const CHK=[['xml','XML'],['pedido','PED'],['coletor','QTD'],['fisico','FIS'],['validade','VAL'],['boleto','BOL'],['cadastro','CAD']];
 const FL_COMPRAS=f=>/^(margem_|custo_subiu|sem_preco)/.test(f.tipo); // margem/custo: setor de compras ve na aba "Margem dos itens"
 /* 'fisico' só existe na linha que tem conferência do nosso coletor: filtrar antes de pintar */
-let ABRIR=null, CFG=null, LOJAS={}, DADOS=null, DOCS=null, MARG=null, tab='receb', filtro='fila', aberto=null, DET={}, CONTATOS=null, fMov='', fMarg='todos';
+let ABRIR=null, CFG=null, LOJAS={}, DADOS=null, DOCS=null, MARG=null, tab='receb', filtro='fila', aberto=null, DET={}, CONTATOS=null, fMov='', fMarg='todos', SEMCONF=null, scAberto=false;
 
 $('#de').value=hojeISO();
 function mudarDia(n){const d=new Date($('#de').value+'T12:00:00');d.setDate(d.getDate()+n);$('#de').value=d.toISOString().slice(0,10);colDiaMudou();carregar();}
@@ -252,7 +252,7 @@ async function carregar(){
   aberto=null;DET={};DADOS=null;DOCS=null;MARG=null;$('#nDocs').textContent='';$('#nMargem').textContent='';
   $('#view').innerHTML='<div class="spinner"></div>';
   try{
-    if(tab==='receb'){DADOS=await fetch('/api/fiscal/recebimentos'+qs()).then(r=>r.json());if(DADOS.error)throw new Error(DADOS.error);CFG=DADOS.config;$('#nReceb').textContent=DADOS.recebimentos.length;await colAtivoSync();if(COL_ATIVO){await colCarregar();if(colTotalChamados===null)colTotalChamados=colTotal();}if(ABRIR){const n=ABRIR;ABRIR=null;await toggle(n);return;}}
+    if(tab==='receb'){DADOS=await fetch('/api/fiscal/recebimentos'+qs()).then(r=>r.json());if(DADOS.error)throw new Error(DADOS.error);CFG=DADOS.config;$('#nReceb').textContent=DADOS.recebimentos.length;scCarregar();await colAtivoSync();if(COL_ATIVO){await colCarregar();if(colTotalChamados===null)colTotalChamados=colTotal();}if(ABRIR){const n=ABRIR;ABRIR=null;await toggle(n);return;}}
     else if(tab==='docs'){DOCS=await fetch('/api/fiscal/documentos'+qs()).then(r=>r.json());if(DOCS.error)throw new Error(DOCS.error);$('#nDocs').textContent=DOCS.length;}
     else{MARG=await fetch('/api/fiscal/margem'+qs()).then(r=>r.json());if(MARG.error)throw new Error(MARG.error);$('#nMargem').textContent=MARG.length;}
     render();
@@ -275,6 +275,7 @@ function renderReceb(){
   let h=DADOS.erro_erp?'<div class="auto" style="border-left-color:var(--neg)"><span class="neg">ERP indisponível:</span> '+esc(DADOS.erro_erp)+' — mostrando só o que está salvo aqui.</div>':'';
   h+='<div class="kpis">'+kp.map(([k,l,v,s])=>'<div class="kpi k-'+k+(filtro===k?' on':'')+'" onclick="filtro=\''+k+'\';aberto=null;render()"><div class="v">'+v+'</div><div class="l">'+l+'</div><div class="s">'+s+'</div></div>').join('')+'</div>';
   h+='<div class="auto"><span>🤖 <b>Cruzamento automático:</b> '+all.length+' recebimento(s) analisados · <span class="pos">'+autoOk+' sem divergência</span> · <span class="neg">'+all.filter(r=>r.veredito==='divergente').length+' com divergência</span> · '+all.filter(r=>r.veredito==='pendente').length+' aguardando dados.</span><span class="mut" style="font-size:11px">Tolerâncias: qtd ±'+CFG.tol_qtd_pct+'% (balança ±'+CFG.tol_peso_pct+'%) · preço vs pedido +'+CFG.tol_preco_pct+'% · validade mín. '+CFG.validade_min_dias+' d ou '+CFG.validade_min_pct+'% do normal · boleto mín. '+CFG.boleto_min_dias+' d'+(DADOS.gerado_em?' · gerado '+new Date(DADOS.gerado_em).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'')+'</span></div>';
+  h+=scCard();
   h+='<div class="legend"><span class="chk"><i class="ok">OK</i></span> bate <span class="chk"><i class="aviso">AVISO</i></span> olhar depois <span class="chk"><i class="erro">ERRO</i></span> precisa de decisão <span class="chk"><i class="pendente">…</i></span> ainda sem dado &nbsp;·&nbsp; XML=nota capturada · PED=pedido de compra · QTD=coletor × nota · VAL=validade · BOL=boletos · CAD=cadastro</div>';
   if(COL_ATIVO)h+=colcfgHtml();
   let lista=listaVisivel();
@@ -300,6 +301,23 @@ function renderReceb(){
   h+='</tbody></table></div>';
   $('#view').innerHTML=h;
   sincDet();
+}
+/* ── NF-e com XML capturado e NENHUMA conferência (últimos 7 dias): mercadoria pode ter entrado
+   sem conferir. Emitida hoje/ontem = normal (caminhão a caminho); 2+ dias = atenção. ── */
+async function scCarregar(){
+  try{const x=await fetch('/api/fiscal/sem-conferencia'+qs()).then(r=>r.json());SEMCONF=Array.isArray(x)?x:null;}catch(e){SEMCONF=null;}
+  if(tab==='receb'&&DADOS)render();
+}
+function scToggle(){scAberto=!scAberto;render();}
+function scCard(){
+  if(!SEMCONF||!SEMCONF.length)return '';
+  const atras=SEMCONF.filter(x=>x.dias>=2&&!x.interna).length;
+  let h='<div class="auto" style="border-left-color:'+(atras?'var(--neg)':'var(--am)')+';cursor:pointer" onclick="scToggle()"><span>📄 <b>'+SEMCONF.length+' NF-e com XML capturado e nenhuma conferência</b> (últimos 7 dias)'+(atras?' · <span class="neg">'+atras+' há 2+ dias</span>':'')+' — nota emitida contra a loja que ninguém bipou ainda.</span><span class="mut" style="font-size:11px">'+(scAberto?'ocultar ▲':'ver lista ▼')+'</span></div>';
+  if(!scAberto)return h;
+  h+='<div class="table-wrap" style="margin:-6px 0 14px"><table class="t"><thead><tr><th>Loja</th><th>NF</th><th>Emissão</th><th class="r">Dias</th><th>Emitente</th><th class="r">Valor NF-e</th><th>Situação</th></tr></thead><tbody>';
+  for(const x of SEMCONF)h+='<tr'+(x.dias>=2&&!x.interna?' style="background:#FFF3F5"':'')+'><td>'+LJ(x.loja)+'<span class="erp">'+esc(x.loja_nome||'')+'</span></td><td><span class="nm">'+x.nNota+'</span><span class="erp">s'+esc(x.serie||'')+'</span></td><td>'+dbr(x.emissao)+'</td><td class="r'+(x.dias>=2&&!x.interna?' neg':'')+'">'+x.dias+'</td><td class="forn">'+esc(x.emitente)+(x.interna?' <span class="pill" style="background:#E9EEF6;color:#2E5E8C">transferência interna</span>':'')+'</td><td class="r">'+money(x.valor)+'</td><td>'+(x.lancada?'<span class="neg">lançada no ERP sem conferência</span>':'<span class="mut">aguardando bipagem na loja</span>')+'</td></tr>';
+  h+='</tbody></table></div>';
+  return h;
 }
 function sincDet(){if(aberto!=null)abrirDet(aberto);else{$('#detBack').hidden=true;$('#detDrw').hidden=true;}}
 function listaVisivel(){
@@ -647,7 +665,7 @@ async function lstPoll(){
   lstBusy=true;
   try{
     const l=await fetch('/api/fiscal/recebimentos'+qs()).then(r=>r.json());
-    if(l&&!l.error&&tab==='receb'&&aberto==null){DADOS=l;CFG=l.config;$('#nReceb').textContent=l.recebimentos.length;render();}
+    if(l&&!l.error&&tab==='receb'&&aberto==null){DADOS=l;CFG=l.config;$('#nReceb').textContent=l.recebimentos.length;render();scCarregar();}
   }catch(e){}finally{lstBusy=false;}
 }
 setInterval(lstPoll,90000);

@@ -8162,6 +8162,10 @@ app.get('/api/fiscal/documentos', async (req, res) => {
 app.get('/api/fiscal/margem', async (req, res) => {
   try { res.json(escopo.filtrarPorLoja(req.session.user, await fiscal.margemItens(fiscalPeriodo(req)), x => x.loja)); } catch (err) { fiscalErr(res, err); }
 });
+// NF-e com XML capturado e nenhuma conferência (cartão da aba Recebimentos)
+app.get('/api/fiscal/sem-conferencia', async (req, res) => {
+  try { res.json(escopo.filtrarPorLoja(req.session.user, await fiscal.semConferencia(fiscalPeriodo(req)), x => x.loja)); } catch (err) { fiscalErr(res, err); }
+});
 app.get('/api/fiscal/contatos', async (req, res) => {
   try { res.json(await fiscal.contatos()); } catch (err) { res.status(500).json({ error: err.message }); }
 });
