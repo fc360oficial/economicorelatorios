@@ -91,6 +91,8 @@ input.embv{width:96px;font:inherit;font-size:11px;padding:2px 6px;border:1px das
 .cad5 input{width:100%;box-sizing:border-box;font:inherit;font-size:13px;padding:9px 10px;border:1px solid #DADAD6;border-radius:9px;background:#fff}
 .cad5 input:focus{outline:none;border-color:#F5B800}
 .cad5 .ro{font-size:13px;padding:6px 0}
+/* Tiago, 06/10/26: campo que falta fica vermelho com a dica embaixo depois do 1º clique em Finalizar; exemplo fixo embaixo do WhatsApp; botão pendente é cinza mas clicável */
+.cad5 input.falta,input.obs.falta{border-color:#C22F49;background:#FFF5F6}.cad-dica{font-size:11px;font-weight:700;color:#C22F49;margin-top:4px;line-height:1.3}.cad-ex{font-size:10.5px;color:#98A0B3;margin-top:4px}.cad-dica+.cad-ex{display:none}.btn.pendente{opacity:.45}.btn.pendente:hover{background:#F5B800}
 @media(max-width:700px){.cad5{grid-template-columns:1fr 1fr}}
 </style>
 </head>
@@ -109,9 +111,12 @@ function precoNum(v){const n=parseFloat(String(v).replace(/\./g,'').replace(',',
 function itensForm(){return P.itens.map(i=>{const el=document.querySelector('input.preco[data-cod="'+i.cod+'"]');const ob=document.querySelector('input.obs[data-cod="'+i.cod+'"]');const ev=document.querySelector('input.embv[data-cod="'+i.cod+'"]');return {cod:i.cod,preco:el?(el.value.trim()===''?'':precoNum(el.value)):i.preco,obs:ob?ob.value:i.obs,emb_vendedor:ev?ev.value:i.emb_vendedor};});}
 function totais(){let t=0,n=0;for(const i of itensForm()){if(i.preco!=null&&i.preco!==''){t+=i.preco*(P.itens.find(x=>x.cod===i.cod)?.qtd||0);n++;}}return {t,n};}
 function atualizarTot(){const {t,n}=totais();$('#tot').innerHTML='<span>'+n+' de '+P.itens.length+' itens com preço</span>';$('#barinfo').innerHTML=n<P.itens.length?'Faltam <b>'+(P.itens.length-n)+'</b> itens sem preço. Você pode finalizar mesmo assim.':'Todos os itens com preço.';
-  // Tiago, 06/10: "só pode clicar em Finalizar pedido após todas essas informações preenchidas" — botão travado até o bloco de cadastro estar completo
-  const falt=cadastroFaltando(), b=$('#btnFim'); if(b){ b.disabled=falt.length>0; b.title=falt.length?'Preencha o bloco "Estamos atualizando nosso cadastro de fornecedor" pra liberar':''; }
-  if(falt.length) $('#barinfo').innerHTML+=' <b style="color:#B45309">Pra finalizar, preencha no cadastro: '+esc(falt.join(', '))+'.</b>';}
+  // Tiago, 06/10: "só pode clicar em Finalizar pedido após todas essas informações preenchidas". Mesmo dia, à tarde: o botão cinza
+  // não pode ser mudo (vendedor da Somar travou sem saber por quê) — continua clicável; ao clicar com pendência avisa o que falta
+  // e como resolver, marca o campo em vermelho e leva o cursor até ele (ver #btnFim.onclick e marcarPendencias)
+  const falt=cadastroFaltando(), b=$('#btnFim'); if(b){ b.classList.toggle('pendente',falt.length>0); b.title=falt.length?'Falta: '+falt.join(', ')+'. Clique pra ver como resolver.':''; }
+  if(falt.length) $('#barinfo').innerHTML+=' <b style="color:#B45309">Pra finalizar, falta: '+esc(falt.join(', '))+'. <span style="font-weight:600">Clique em Finalizar pra ver como resolver.</span></b>';
+  marcarPendencias();}
 function agradecer(){
   const n=P.itens.filter(i=>i.preco!=null&&i.preco!=='').length, t=P.itens.reduce((s,i)=>s+((i.preco!=null&&i.preco!=='')?(+i.preco)*(i.qtd||0):0),0);
   const nome=(P.vendedor&&P.vendedor.nome)||'';
@@ -158,7 +163,7 @@ function render(){
   const pre=P.cadastro_prefill||{}, ro=v=>'<div class="ro">'+(esc(v)||'<span style="color:#98A0B3">—</span>')+'</div>';
   h+='<div class="card"><div class="hd">Estamos atualizando nosso cadastro de fornecedor <span'+(fin?'':' style="color:#B45309;font-weight:700"')+'>'+(fin?'enviado':'preencha pra finalizar o pedido')+'</span></div><div class="cad5">'+
     '<div><label>E-mail do vendedor</label>'+(fin?ro(pre.email):'<input class="cad" id="cad-email" type="email" value="'+esc(pre.email||'')+'" placeholder="vendas@empresa.com.br" maxlength="120">')+'</div>'+
-    '<div><label>WhatsApp do vendedor</label>'+(fin?ro(pre.whats):'<input class="cad" id="cad-whats" inputmode="tel" value="'+esc(pre.whats||'')+'" placeholder="DDD + número" maxlength="20">')+'</div>'+
+    '<div><label>WhatsApp do vendedor</label>'+(fin?ro(pre.whats?fmtWhats(pre.whats):''):'<input class="cad" id="cad-whats" inputmode="tel" value="'+esc(pre.whats?fmtWhats(pre.whats):'')+'" placeholder="81 99491-4809" maxlength="20"><div class="cad-ex">ex.: 81 99491-4809 (com DDD)</div>')+'</div>'+
     '<div><label>Boleto (dias)</label>'+(fin?ro(pre.prazo_pagamento?pre.prazo_pagamento+' dias':''):'<input class="cad" id="cad-prazo" inputmode="numeric" value="'+esc(pre.prazo_pagamento||'')+'" placeholder="ex.: 28" maxlength="3">')+'</div>'+
     '<div><label>Entrega (dias)</label>'+(fin?ro(pre.prazo_entrega!==''&&pre.prazo_entrega!=null?pre.prazo_entrega+' dias':''):'<input class="cad" id="cad-tempo" inputmode="numeric" value="'+esc(pre.prazo_entrega==null?'':pre.prazo_entrega)+'" placeholder="ex.: 3" maxlength="3">')+'</div>'+
     '<div><label>Pedido mínimo (R$)</label>'+(fin?ro(pre.pedido_minimo!==''&&pre.pedido_minimo!=null?'R$ '+fmt(+pre.pedido_minimo):''):'<input class="cad" id="cad-min" inputmode="decimal" value="'+esc(pre.pedido_minimo==null||pre.pedido_minimo===''?'':fmt(+pre.pedido_minimo))+'" placeholder="ex.: 500,00 (0 = sem mínimo)" maxlength="14">')+'</div></div></div>';
@@ -171,6 +176,7 @@ function render(){
     const precos=[...document.querySelectorAll('input.preco')];
     const ar=document.getElementById('avresp'); if(ar) ar.addEventListener('input',()=>{dirty=true;agendarSave();});
     document.querySelectorAll('input.cad').forEach(el=>el.addEventListener('input',()=>{dirty=true;agendarSave();atualizarTot();}));
+    { const w=document.getElementById('cad-whats'); if(w) w.addEventListener('change',()=>{ const d=normWhats(w.value); if((d.length===10||d.length===11)&&w.value!==fmtWhats(d)){ w.value=fmtWhats(d); dirty=true; agendarSave(); atualizarTot(); } }); }
     document.querySelectorAll('input.preco,input.obs').forEach(el=>{
       const isPreco=el.classList.contains('preco');
       el.addEventListener('input',()=>{
@@ -191,13 +197,35 @@ function render(){
   } else { const {t,n}=totais(); $('#tot').innerHTML='<span>'+n+' de '+P.itens.length+' itens com preço</span><span>Total: <b>R$ '+fmt(t)+'</b></span>'; }
 }
 function cadastroForm(){const g=id=>{const el=document.getElementById(id);return el?el.value:undefined;};if(g('cad-email')===undefined)return undefined;return {email:g('cad-email'),whats:g('cad-whats'),prazo_pagamento:g('cad-prazo'),prazo_entrega:g('cad-tempo'),pedido_minimo:g('cad-min')};}
-function cadastroFaltando(){const x=cadastroForm();if(!x)return [];const f=[];if(!x.email||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x.email))f.push('e-mail');if(String(x.whats||'').replace(/\D/g,'').length<10)f.push('WhatsApp');if(!(parseInt(x.prazo_pagamento)>0))f.push('boleto (dias)');if(x.prazo_entrega===''||x.prazo_entrega==null||!(parseInt(x.prazo_entrega)>=0))f.push('entrega (dias)');if(x.pedido_minimo===''||x.pedido_minimo==null)f.push('pedido mínimo');return f;}
+function cadastroFaltando(){return cadastroPendencias().map(p=>p.campo);}
+// WhatsApp (Tiago, 06/10/26): vendedor costuma digitar só o número; padrão da casa é 81 9XXXX-XXXX, então 9 dígitos ganham o 81
+// na frente e 8 dígitos ganham 81 9. Vale 10 ou 11 dígitos (com DDD); +55 na frente é tirado. O servidor faz a mesma conta.
+function normWhats(v){let d=String(v||'').replace(/\D/g,'');if(d.length===13&&d.startsWith('55'))d=d.slice(2);if(d.length===9)d='81'+d;else if(d.length===8)d='819'+d;return d;}
+function fmtWhats(v){const d=normWhats(v);return d.length===11?d.slice(0,2)+' '+d.slice(2,7)+'-'+d.slice(7):(d.length===10?d.slice(0,2)+' '+d.slice(2,6)+'-'+d.slice(6):d);}
+// o que falta pra finalizar, campo a campo, com a dica de como resolver (cadastro + resposta sobre as avarias)
+function cadastroPendencias(){
+  const x=cadastroForm(), f=[];
+  if(x){
+    if(!x.email||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x.email)) f.push({id:'cad-email',campo:'e-mail',dica:x.email?'e-mail inválido: confira, ex.: vendas@empresa.com.br':'digite o e-mail de quem recebe o pedido, ex.: vendas@empresa.com.br'});
+    const d=normWhats(x.whats); if(d.length!==10&&d.length!==11) f.push({id:'cad-whats',campo:'WhatsApp (com DDD)',dica:!d.length?'digite o número com DDD, ex.: 81 99491-4809':(d.length<10?'número incompleto: confira, ex.: 81 99491-4809':'número com dígitos a mais: confira, ex.: 81 99491-4809')});
+    if(!(parseInt(x.prazo_pagamento)>0)) f.push({id:'cad-prazo',campo:'boleto (dias)',dica:'quantos dias de prazo do boleto, ex.: 28'});
+    if(x.prazo_entrega===''||x.prazo_entrega==null||!(parseInt(x.prazo_entrega)>=0)) f.push({id:'cad-tempo',campo:'entrega (dias)',dica:'em quantos dias entrega, ex.: 3 (0 = no mesmo dia)'});
+    if(x.pedido_minimo===''||x.pedido_minimo==null) f.push({id:'cad-min',campo:'pedido mínimo',dica:'valor mínimo do pedido em R$, ex.: 500,00 (0 = sem mínimo)'});
+  }
+  const av=document.getElementById('avresp'); if(P&&P.avarias&&P.avarias.itens&&P.avarias.itens.length&&av&&!av.value.trim()) f.push({id:'avresp',campo:'resposta sobre as avarias',dica:'escreva como vai resolver as avarias (troca, bonificação ou nota de devolução)'});
+  return f;
+}
+let avisou=false;   // depois do 1º clique em Finalizar com pendência, o que falta fica marcado em vermelho até ser preenchido
+function marcarPendencias(){
+  const pend=cadastroPendencias();
+  document.querySelectorAll('.cad-dica').forEach(e=>e.remove());
+  document.querySelectorAll('input.cad,#avresp').forEach(el=>{ const p=avisou?pend.find(q=>q.id===el.id):null; el.classList.toggle('falta',!!p); if(p){ const d=document.createElement('div'); d.className='cad-dica'; d.textContent=p.dica; el.insertAdjacentElement('afterend',d); } });
+}
 function agendarSave(){clearTimeout(saveTimer);saveTimer=setTimeout(salvar,900);}
 async function salvar(){if(!dirty)return;dirty=false;try{await fetch('/api/pedido-publico/'+token+'/salvar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({itens:itensForm(),avaria_resposta:(document.getElementById('avresp')||{}).value,obs_pedido:(document.getElementById('obsped')||{}).value,cadastro:cadastroForm()})});}catch(e){dirty=true;}}
 $('#btnFim').onclick=async()=>{
   const {n}=totais();
-  const faltam=cadastroFaltando(); if(faltam.length){ alert('Antes de finalizar, preencha no bloco "Estamos atualizando nosso cadastro de fornecedor": '+faltam.join(', ')+'.'); const el=document.querySelector('input.cad'); if(el){ try{el.scrollIntoView({block:'center',behavior:'smooth'});}catch(e){} el.focus(); } return; }
-  const av=document.getElementById('avresp'); if(P.avarias&&P.avarias.itens&&P.avarias.itens.length&&av&&!av.value.trim()){ alert('Responda sobre as avarias pendentes (campo "Sua resposta sobre as avarias") antes de finalizar o pedido.'); av.focus(); try{av.scrollIntoView({block:'center'});}catch(e){} return; }
+  const pend=cadastroPendencias(); if(pend.length){ avisou=true; marcarPendencias(); alert('Pra finalizar o pedido, falta:\n\n'+pend.map(p=>'• '+p.campo.charAt(0).toUpperCase()+p.campo.slice(1)+': '+p.dica).join('\n')+'\n\nPreencha e clique em Finalizar de novo.'); const el=document.getElementById(pend[0].id); if(el){ try{el.scrollIntoView({block:'center',behavior:'smooth'});}catch(e){} el.focus(); } return; }
   if(!confirm(n<P.itens.length?'Ainda tem '+(P.itens.length-n)+' item(ns) sem preço. Finalizar mesmo assim?':'Finalizar o pedido? Depois disso não dá mais pra alterar.')) return;
   $('#btnFim').disabled=true;
   try{const r=await fetch('/api/pedido-publico/'+token+'/finalizar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({itens:itensForm(),nome:(P.vendedor&&P.vendedor.nome)||'',avaria_resposta:(document.getElementById('avresp')||{}).value,obs_pedido:(document.getElementById('obsped')||{}).value,cadastro:cadastroForm()})});const j=await r.json();if(!r.ok||j.error){alert(j.error||'Não foi possível finalizar.');$('#btnFim').disabled=false;return;}P=j;agradecer();window.scrollTo(0,0);}
