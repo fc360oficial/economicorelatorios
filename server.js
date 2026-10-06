@@ -481,9 +481,12 @@ app.get('/api/log-erp/:id', (req, res) => {
 // A página log.html vira um hub com abas; cada log novo entra na lista de /api/logs.
 const logColetor = require('./lib/log-coletor');
 const LOG_COLETOR_DIR = path.join(__dirname, 'data', 'log-coletor');
+const logPrecif = require('./lib/log-precificacao');
+const LOG_PRECIF_DIR = path.join(__dirname, 'data', 'log-precificacao');
 const LOGS = [
   { id: 'erp', nome: 'Log ERP (teste)', api: '/api/log-erp' },
   { id: 'coletor', nome: 'LOG Coletor', api: '/api/log-coletor' },
+  { id: 'precificacao', nome: 'Log Precificação', api: '/api/log-precificacao' },
 ];
 app.get('/api/logs', (req, res) => res.json(LOGS));
 app.get('/api/log-coletor', (req, res) => {
@@ -494,6 +497,15 @@ app.get('/api/log-coletor/csv', (req, res) => {
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', 'attachment; filename="log-coletor.csv"');
   res.send(logColetor.csv(logColetor.ler(LOG_COLETOR_DIR, req.query)));
+});
+app.get('/api/log-precificacao', (req, res) => {
+  try { res.json(logPrecif.ler(LOG_PRECIF_DIR, req.query)); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.get('/api/log-precificacao/csv', (req, res) => {
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="log-precificacao.csv"');
+  res.send(logPrecif.csv(logPrecif.ler(LOG_PRECIF_DIR, req.query)));
 });
 
 // Mapeamento baseado em central.tipo_finalizadora
@@ -7670,6 +7682,22 @@ setInterval(() => pedidosFornec.verificarRecebimentos().then(() => espelharReceb
 const precificacao = require('./lib/precificacao');
 precificacao.init();
 precificacao.initERP(q, radarPedidos, qTeste);
+precificacao.setLog(ev => logPrecif.registrar(LOG_PRECIF_DIR, ev));
+// Carga de preços em lote pro Dlinks (ERP teste): 3 janelas por dia. Lista fechada
+// (precificado) e ainda não enviada vai sozinha nesses horários; o resto do dia, só
+// pelo botão "Enviar pra carga" da tela. Pedido do Tiago, 06/10/2026.
+const HORAS_CARGA = ['09:00', '12:00', '15:00'];
+let ultimaCargaSlot = '';
+setInterval(() => {
+  const agora = new Date();
+  const hm = agora.toTimeString().slice(0, 5);
+  const slot = agora.toISOString().slice(0, 10) + ' ' + hm;
+  if (!HORAS_CARGA.includes(hm) || ultimaCargaSlot === slot) return;
+  ultimaCargaSlot = slot;
+  precificacao.enviarCargasPendentes(escreverERP, 'CARGA ' + hm)
+    .then(r => { if (r.enviados || r.erros || r.ids.length) console.log('[PRECIF] carga agendada ' + hm + ':', JSON.stringify(r)); })
+    .catch(e => console.error('[PRECIF] carga agendada ' + hm + ':', e.message));
+}, 30 * 1000);
 pedidosFornec.setHooks({ onConciliado: (p, ln) => precificacao.criarDeConciliacao(p, ln).catch(e => console.error('[PRECIF] criar', p.id, ln, e.message)) });
 setTimeout(() => precificacao.verificarTodos().catch(e => console.error('[PRECIF] verificar:', e.message)), 120 * 1000);
 setInterval(() => precificacao.verificarTodos().catch(e => console.error('[PRECIF] verificar:', e.message)), 60 * 60 * 1000);

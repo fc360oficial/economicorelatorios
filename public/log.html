@@ -162,6 +162,44 @@ td.msg{white-space:normal;min-width:200px;color:var(--ink2)}
       </div>
     </div>
   </div>
+
+  <!-- ── ABA: Log Precificação ───────────────────────────────────────── -->
+  <div id="tabPrecif" hidden>
+    <div class="page-hdr">
+      <div></div>
+      <div>
+        <div class="btns">
+          <input class="inp" type="date" id="pDe" onchange="precifCarregar()">
+          <input class="inp" type="date" id="pAte" onchange="precifCarregar()">
+          <input class="inp" type="number" id="pLoja" placeholder="Loja" style="width:90px" onchange="precifCarregar()">
+          <select class="sel" id="pTipo" onchange="precifCarregar()">
+            <option value="">Todos os eventos</option>
+            <option value="criado">criado</option><option value="fechar">fechar</option><option value="reabrir">reabrir</option>
+            <option value="enviar_carga">enviar_carga</option><option value="aplicar">aplicar</option>
+            <option value="verificar">verificar</option><option value="erro">erro</option>
+          </select>
+          <input class="inp" id="pRegistro" placeholder="Registro (ex.: 14-L2)" style="width:130px" onchange="precifCarregar()">
+          <input class="inp" id="pUsuario" placeholder="Usuário" style="width:120px" onchange="precifCarregar()">
+          <button class="btn btn-secondary" onclick="precifExportar()">Exportar CSV</button>
+          <button class="btn btn-primary" onclick="precifCarregar()">Atualizar</button>
+        </div>
+        <div id="pStatus"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="tblwrap">
+        <table>
+          <thead><tr>
+            <th>Data/Hora</th><th>Evento</th><th>Registro</th><th>Loja</th><th>Lista / Fornecedor</th><th>Usuário</th>
+            <th class="num">Itens</th><th class="num">Diverg.</th><th>Msg</th><th>Log ERP</th>
+          </tr></thead>
+          <tbody id="pTb"></tbody>
+        </table>
+        <div class="empty" id="pVazio" hidden>Nenhum evento registrado no período.</div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -320,10 +358,45 @@ function coletorRender() {
 }
 function coletorExportar() { window.location = '/api/log-coletor/csv?' + coletorParams(); }
 
+// ── Log Precificação ─────────────────────────────────────────────────────
+let precifItens = [];
+function precifParams() {
+  const p = new URLSearchParams({ de: $('pDe').value, ate: $('pAte').value });
+  for (const [k, id] of [['loja', 'pLoja'], ['tipo', 'pTipo'], ['registro', 'pRegistro'], ['usuario', 'pUsuario']]) if ($(id).value) p.set(k, $(id).value);
+  return p.toString();
+}
+async function precifCarregar() {
+  $('pStatus').textContent = 'Carregando…';
+  try {
+    const r = await fetch('/api/log-precificacao?' + precifParams());
+    if (!r.ok) throw new Error((await r.json()).error || r.status);
+    precifItens = await r.json();
+    precifRender();
+    $('pStatus').textContent = '';
+  } catch (e) { $('pStatus').textContent = 'Erro: ' + e.message; }
+}
+function precifRender() {
+  $('pVazio').hidden = precifItens.length > 0;
+  $('pTb').innerHTML = precifItens.map(e => `<tr>
+    <td class="mono">${dh(e.em)}</td>
+    <td>${esc(e.tipo)}${e.teste ? ' <span style="color:var(--ink3)">(teste)</span>' : ''}</td>
+    <td class="mono"><a href="/formacao-de-preco.html?id=${encodeURIComponent(e.registroId || '')}" style="color:var(--inf);font-weight:700;text-decoration:none">${esc(e.registroId)}</a></td>
+    <td>${esc(e.loja)}</td>
+    <td class="tab">${esc(e.lista_nome || e.fornecedor || '')}</td>
+    <td>${esc(e.usuario || '—')}</td>
+    <td class="num mono">${e.itens != null ? esc(e.itens) : '—'}</td>
+    <td class="num mono">${e.divergentes != null ? esc(e.divergentes) : '—'}</td>
+    <td class="msg">${esc(e.msg || e.erro || '')}</td>
+    <td>${e.logErpId ? `<a href="/log.html?log=erp&id=${encodeURIComponent(e.logErpId)}" style="color:var(--inf);font-weight:700;text-decoration:none">ver</a>` : '<span style="color:var(--ink3)">—</span>'}</td>
+  </tr>`).join('');
+}
+function precifExportar() { window.location = '/api/log-precificacao/csv?' + precifParams(); }
+
 // ── Abas ─────────────────────────────────────────────────────────────────
 const DESCS = {
   erp: 'Toda escrita que o sistema faz no MySQL de teste do .254 — quem, quando, tabela, valor antes e depois. O ERP de produção (.252) nunca é alterado.',
   coletor: 'Eventos do Coletor de Recebimento (celular do conferente): entrada, abertura de nota, bipagem, correções e liberação.',
+  precificacao: 'Linha do tempo da Formação de Preço: registro criado na conciliação do XML, lista fechada, envio pra Carga de Itens (ERP teste) e conferência.',
 };
 let logAtual = 'erp';
 function trocarAba(id) {
@@ -331,11 +404,13 @@ function trocarAba(id) {
   document.querySelectorAll('.ds-tab').forEach(b => b.classList.toggle('on', b.dataset.log === id));
   $('tabErp').hidden = id !== 'erp';
   $('tabColetor').hidden = id !== 'coletor';
+  $('tabPrecif').hidden = id !== 'precificacao';
   $('pageDesc').textContent = DESCS[id] || '';
   const u = new URL(location.href); u.searchParams.set('log', id);
   if (id !== 'erp') u.searchParams.delete('id');
   history.replaceState(null, '', u);
   if (id === 'coletor' && !coletorItens.length) coletorCarregar();
+  if (id === 'precificacao' && !precifItens.length) precifCarregar();
 }
 
 async function initTabs() {
@@ -356,6 +431,8 @@ async function initTabs() {
   // filtro por tabela vindo do link (ex.: "Ver no Log" da aprovação de negativos)
   if (u.get('tabela')) { const s = $('fTabela'); s.innerHTML += `<option value="${esc(u.get('tabela'))}">${esc(u.get('tabela'))}</option>`; s.value = u.get('tabela'); filtrosPreenchidos = true; }
   $('cDia').value = ok(u.get('de')) ? u.get('de') : iso(h);
+  $('pDe').value = ok(u.get('de')) ? u.get('de') : iso(new Date(h.getFullYear(), h.getMonth(), 1));
+  $('pAte').value = ok(u.get('ate')) ? u.get('ate') : iso(h);
   if ((u.get('log') || 'erp') === 'erp') carregar();
   initTabs();
 })();
