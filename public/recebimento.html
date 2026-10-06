@@ -360,6 +360,20 @@ function guardar(chave, valor) {
   catch (e) { toast('Sem espaço pra guardar offline', true); return false; }
 }
 
+// Alguns coletores só escrevem a leitura ATRAVÉS do teclado virtual (IME): com inputmode="none" o
+// bipe não entra no campo — só digitando. Quando uma leitura em velocidade de leitor (8+ caracteres
+// em <500 ms) completa com o teclado ligado, memoriza que este aparelho é assim: os campos de bipe
+// passam a abrir já com o teclado ligado. Desligar o "Digitar" à mão desfaz a memória.
+const LS_TECLADO = 'rec_modo_teclado';
+const modoTeclado = () => { try { return localStorage.getItem(LS_TECLADO) === '1'; } catch (e) { return false; } };
+function esquecerModoTeclado() { try { localStorage.removeItem(LS_TECLADO); } catch (e) {} }
+function vigiarLeitor(el) { el.addEventListener('input', () => { if (!el._t0 || el.value.length <= 2) el._t0 = Date.now(); el._nch = el.value.length; }); }
+function lembrarLeitorTeclado(el) {
+  const rapido = (el._nch || 0) >= 8 && el._t0 && Date.now() - el._t0 < 500;
+  if (rapido && el.getAttribute('inputmode') !== 'none' && !modoTeclado()) { try { localStorage.setItem(LS_TECLADO, '1'); } catch (e) {} }
+  el._t0 = 0; el._nch = 0;
+}
+
 let sess = null; try { sess = JSON.parse(localStorage.getItem(LS_SESSAO) || 'null'); } catch (e) {}
 let fila = []; try { fila = JSON.parse(localStorage.getItem(LS_FILA) || '[]'); } catch (e) {}
 // cadastro já visto neste coletor: deixa bipar sem rede um produto que o coletor já conhece
@@ -606,8 +620,9 @@ function renderExp() {
   setNet(navigator.onLine);
 }
 function focarExp() { if (tela !== 'exp' || cartaoExp || $('modal').innerHTML) return; const b = $('bipExp'); b.focus(); $('scanExp').classList.add('focus'); }
-function toggleDigitarExp() { const b = $('bipExp'), on = b.inputMode !== 'text'; b.inputMode = on ? 'text' : 'none'; $('btnDigitarExp').setAttribute('aria-pressed', String(on)); b.focus(); }
-$('bipExp').addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.keyCode === 13) { ev.preventDefault(); const c = $('bipExp').value.trim(); $('bipExp').value = ''; if (c) lerCodigoExp(c); } });
+function toggleDigitarExp() { const b = $('bipExp'), on = b.getAttribute('inputmode') !== 'numeric'; if (!on) esquecerModoTeclado(); b.setAttribute('inputmode', on ? 'numeric' : 'none'); $('btnDigitarExp').setAttribute('aria-pressed', String(on)); b.blur(); b.focus(); }
+$('bipExp').addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.keyCode === 13) { ev.preventDefault(); lembrarLeitorTeclado($('bipExp')); const c = $('bipExp').value.trim(); $('bipExp').value = ''; if (c) lerCodigoExp(c); } });
+$('bipExp').addEventListener('input', () => { const v = $('bipExp').value; if (/[\n\r\t]/.test(v)) { lembrarLeitorTeclado($('bipExp')); $('bipExp').value = ''; const c = v.replace(/[\n\r\t]/g, '').trim(); if (c) lerCodigoExp(c); } });
 $('bipExp').addEventListener('blur', () => { $('scanExp').classList.remove('focus'); setTimeout(focarExp, 100); });
 async function lerCodigoExp(cod) {
   if (!visaoExp) return;
@@ -744,11 +759,12 @@ async function conferirDanfe(chaveLida) {
 function focarDanfe() { if (tela !== 'danfe' || $('modal').innerHTML || !$('camBox').hidden) return; const b = $('bipDanfe'); b.focus(); $('scanDanfe').classList.add('focus'); }
 function toggleDigitarDanfe() {
   const b = $('bipDanfe'), on = b.getAttribute('inputmode') !== 'numeric';
+  if (!on) esquecerModoTeclado();
   b.setAttribute('inputmode', on ? 'numeric' : 'none'); // mesmo padrão do #bip: blur+focus reabre o teclado
   $('btnDigitarDanfe').setAttribute('aria-pressed', String(on));
   b.blur(); b.focus();
 }
-function enviarDanfe() { const c = $('bipDanfe').value; $('bipDanfe').value = ''; conferirDanfe(c); }
+function enviarDanfe() { lembrarLeitorTeclado($('bipDanfe')); const c = $('bipDanfe').value; $('bipDanfe').value = ''; conferirDanfe(c); }
 $('bipDanfe').addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.keyCode === 13) { ev.preventDefault(); enviarDanfe(); } });
 // A chave tem tamanho fixo: no 44º dígito confere sozinho. Leitor sem sufixo Enter e teclado de
 // celular cujo "Concluído" não vira keydown deixavam a tela muda — o Enter é só atalho.
@@ -805,8 +821,8 @@ function aplicarDigitar() {
   $('btnDigitar').setAttribute('aria-pressed', String(digitando));
   b.blur(); b.focus();
 }
-function toggleDigitar() { digitando = !digitando; aplicarDigitar(); }
-function pararDigitar() { if (digitando) { digitando = false; aplicarDigitar(); } }
+function toggleDigitar() { digitando = !digitando; if (!digitando) esquecerModoTeclado(); aplicarDigitar(); }
+function pararDigitar() { if (digitando && !modoTeclado()) { digitando = false; aplicarDigitar(); } }
 // Só devolve o foco pro leitor quando não há NADA na frente: cartão de quantidade, painel (chat ou
 // "corrigir qual produto"), câmera. Sem essa trava o refoco de 100 ms rouba cada tecla do chat.
 function podeFocarBip() {
@@ -815,7 +831,8 @@ function podeFocarBip() {
 function focarBip() { if (!podeFocarBip()) return; const b = $('bip'); if (b) { b.focus(); $('scanBox').classList.add('focus'); } }
 $('bip').addEventListener('blur', () => { $('scanBox').classList.remove('focus'); setTimeout(focarBip, 100); });
 $('bip').addEventListener('focus', () => $('scanBox').classList.add('focus'));
-$('bip').addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.keyCode === 13) { ev.preventDefault(); const c = $('bip').value.trim(); $('bip').value = ''; if (c) lerCodigo(c); } });
+$('bip').addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.keyCode === 13) { ev.preventDefault(); lembrarLeitorTeclado($('bip')); const c = $('bip').value.trim(); $('bip').value = ''; if (c) lerCodigo(c); } });
+$('bip').addEventListener('input', () => { const v = $('bip').value; if (/[\n\r\t]/.test(v)) { lembrarLeitorTeclado($('bip')); $('bip').value = ''; const c = v.replace(/[\n\r\t]/g, '').trim(); if (c) lerCodigo(c); } });
 
 async function lerCodigo(cod) {
   if (!visao) return;
@@ -1219,6 +1236,14 @@ function fecharCamera() {
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 window.addEventListener('online', () => setNet(true));
 window.addEventListener('offline', () => setNet(false));
+
+// aparelho já reconhecido como "leitor escreve pelo teclado": campos de bipe abrem com teclado ligado
+if (modoTeclado()) {
+  $('bipDanfe').setAttribute('inputmode', 'numeric'); $('btnDigitarDanfe').setAttribute('aria-pressed', 'true');
+  $('bipExp').setAttribute('inputmode', 'numeric'); $('btnDigitarExp').setAttribute('aria-pressed', 'true');
+  digitando = true; aplicarDigitar();
+}
+vigiarLeitor($('bipDanfe')); vigiarLeitor($('bip')); vigiarLeitor($('bipExp'));
 
 if (sess && sess.token) iniciar();
 </script>
