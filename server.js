@@ -8081,24 +8081,39 @@ app.get('/pedido/:token', (req, res) => {
   if (pt.status === 'cancelado') return res.status(410).send('<!doctype html><meta charset=utf-8><body style="font-family:sans-serif;padding:40px;text-align:center;color:#4E5A72"><h2>Este pedido foi cancelado</h2><p>O link não está mais válido. Em caso de dúvida, fale com o(a) comprador(a).</p></body>');
   res.sendFile(path.join(__dirname, 'public', 'pedido-fornecedor.html'));
 });
+// Pré-preenchimento do bloco de cadastro do vendedor no pedido (Tiago, 06/10): o que ele digitou neste pedido > cadastro do
+// fornecedor na lista (gravado por um envio anterior, cotação ou pedido) > dados que vieram do ERP ao criar o pedido.
+function prefillCadastroPedido(p) {
+  const dig = s => String(s || '').match(/\d+/)?.[0] || '';
+  const out = { email: p.vendedor?.email || '', whats: p.vendedor?.whats || '', prazo_pagamento: dig(p.prazo_pagamento), prazo_entrega: p.prazo_entrega ?? '', pedido_minimo: p.pedido_minimo ?? '' };
+  try {
+    const lista = lerCotForn()[p.lista]; const cad = Array.isArray(lista) ? (lista.find(x => x.codFornec === p.codFornec) || lista.find(x => x.nome === p.fornecedor)) : null;
+    if (cad) { const v = cad.vendedor || {}; if (v.email) out.email = v.email; if (v.whats) out.whats = v.whats; if (dig(cad.condicao)) out.prazo_pagamento = dig(cad.condicao); if (cad.prazo_entrega != null) out.prazo_entrega = cad.prazo_entrega; if (cad.faturamento_minimo != null) out.pedido_minimo = cad.faturamento_minimo; }
+  } catch (e) {}
+  const cv = p.cadastro_vendedor; if (cv) { if (cv.email) out.email = cv.email; if (cv.whats) out.whats = cv.whats; if (cv.prazo_pagamento) out.prazo_pagamento = cv.prazo_pagamento; if (cv.prazo_entrega != null) out.prazo_entrega = cv.prazo_entrega; if (cv.pedido_minimo != null) out.pedido_minimo = cv.pedido_minimo; }
+  return out;
+}
 app.get('/api/pedido-publico/:token', (req, res) => {
   const p = pedidosFornec.abrir(req.params.token);
   if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
   if (p.status === 'cancelado') return res.status(410).json({ error: 'Pedido cancelado' });
-  res.json(pedidosFornec.visaoVendedor(p));
+  res.json({ ...pedidosFornec.visaoVendedor(p), cadastro_prefill: prefillCadastroPedido(p) });
 });
 app.post('/api/pedido-publico/:token/salvar', (req, res) => {
-  const p = pedidosFornec.salvarPrecos(req.params.token, req.body.itens, req.body.avaria_resposta, typeof req.body.obs_pedido === 'string' ? req.body.obs_pedido : undefined);
+  const p = pedidosFornec.salvarPrecos(req.params.token, req.body.itens, req.body.avaria_resposta, typeof req.body.obs_pedido === 'string' ? req.body.obs_pedido : undefined, req.body.cadastro);
   if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
   if (p.erro) return res.status(409).json({ error: p.erro });
   res.json({ ok: true, status: p.status, atualizadoEm: p.atualizadoEm });
 });
 app.post('/api/pedido-publico/:token/finalizar', (req, res) => {
-  const p0 = pedidosFornec.salvarPrecos(req.params.token, req.body.itens || [], typeof req.body.avaria_resposta === 'string' ? req.body.avaria_resposta : undefined, typeof req.body.obs_pedido === 'string' ? req.body.obs_pedido : undefined);
+  const p0 = pedidosFornec.salvarPrecos(req.params.token, req.body.itens || [], typeof req.body.avaria_resposta === 'string' ? req.body.avaria_resposta : undefined, typeof req.body.obs_pedido === 'string' ? req.body.obs_pedido : undefined, req.body.cadastro);
   if (!p0) return res.status(404).json({ error: 'Pedido não encontrado' });
+  // Tiago, 06/10: igual à cotação — só finaliza com o bloco de cadastro preenchido (e-mail, WhatsApp, boleto, entrega, mínimo)
+  if (['aguardando', 'digitacao'].includes(p0.status)) { const faltam = pedidosFornec.cadastroFaltando(p0); if (faltam.length) return res.status(400).json({ error: 'Antes de finalizar, preencha no bloco "Estamos atualizando nosso cadastro de fornecedor": ' + faltam.join(', ') + '.' }); }
   // Regra do Tiago (23/09/2026): pedido com avaria pendente só finaliza depois que o vendedor responde sobre as avarias
   if ((p0.avarias?.itens || []).length && !String(p0.avarias.resposta_vendedor || '').trim()) return res.status(400).json({ error: 'Responda sobre as avarias pendentes antes de finalizar o pedido.' });
   const p = pedidosFornec.finalizar(req.params.token, req.body.nome);
+  if (p && p.cadastro_vendedor) aplicarCadastroVendedor({ lista: p.lista }, { codFornecErp: p.codFornec, codFornec: p.codFornec, empresa: p.fornecedor, nome: p.fornecedor, vendedor: p.vendedor, cadastro_vendedor: p.cadastro_vendedor });   // fica salvo no fornecedor (Tiago, 06/10)
   res.json(pedidosFornec.visaoVendedor(p));
 });
 
@@ -8326,11 +8341,13 @@ const lerCotForn = () => { try { return JSON.parse(fs.readFileSync(COT_FORN_PATH
 function aplicarCadastroVendedor(c, f) {
   try {
     const cv = f && f.cadastro_vendedor; if (!cv || !c || !c.lista) return;
-    const todos = lerCotForn(); const lista = todos[c.lista]; if (!Array.isArray(lista)) return;
-    const codErp = f.codFornecErp || f.codFornec; const cad = lista.find(x => codErp && x.codFornec === codErp) || lista.find(x => x.nome === (f.empresa || f.nome)); if (!cad) return;
+    const todos = lerCotForn(); const lista = todos[c.lista] = Array.isArray(todos[c.lista]) ? todos[c.lista] : [];
+    const codErp = f.codFornecErp || f.codFornec; let cad = lista.find(x => codErp && x.codFornec === codErp) || lista.find(x => x.nome === (f.empresa || f.nome));
+    if (!cad) { cad = { codFornec: codErp || null, nome: f.empresa || f.nome || '', vendedor: { nome: f.vendedor?.nome || '', whats: String(f.vendedor?.whats || '').replace(/\D/g, ''), email: f.vendedor?.email || '' } }; lista.push(cad); }   // Tiago, 06/10: fornecedor sem cadastro na lista ganha um (pedido do Radar)
     const w = String(f.vendedor?.whats || '').replace(/\D/g, ''), nm = String(f.vendedor?.nome || '').trim().toLowerCase();
     const alvo = [cad.vendedor].concat(cad.vendedores || []).find(v => v && ((w && String(v.whats || '').replace(/\D/g, '') === w) || (nm && String(v.nome || '').trim().toLowerCase() === nm))) || cad.vendedor;
     if (alvo && cv.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cv.email)) alvo.email = cv.email;
+    if (alvo && cv.whats && String(cv.whats).replace(/\D/g, '').length >= 10) alvo.whats = String(cv.whats).replace(/\D/g, '');
     if (cv.prazo_pagamento) cad.condicao = 'Boleto ' + cv.prazo_pagamento + ' dias';
     if (cv.prazo_entrega != null) cad.prazo_entrega = cv.prazo_entrega;
     if (cv.pedido_minimo != null) cad.faturamento_minimo = cv.pedido_minimo;

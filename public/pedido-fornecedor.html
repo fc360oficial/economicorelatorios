@@ -85,6 +85,13 @@ input.obs:focus{outline:none;border-color:#F5B800}
 .thanks .btn-slate{background:#fff;color:#0E1626;border:none}
 .tk-foot{margin-top:22px;font-size:11px;color:#98A0B3}
 input.embv{width:96px;font:inherit;font-size:11px;padding:2px 6px;border:1px dashed #C9C9C4;border-radius:6px;margin-left:8px;color:#0E1626;background:#fff;vertical-align:middle}input.embv:focus{outline:none;border-color:#F5B800;background:#FFFDF3}i.embv{margin-left:8px;color:#B45C00;font-weight:700}
+/* bloco de cadastro do vendedor (Tiago, 06/10): igual ao da cotação */
+.cad5{display:grid;grid-template-columns:2fr 1.4fr 1fr 1fr 1.2fr;gap:10px 14px;padding:12px 14px;align-items:end}
+.cad5 label{display:block;font-size:10.5px;font-weight:800;color:#4E5A72;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;white-space:nowrap}
+.cad5 input{width:100%;box-sizing:border-box;font:inherit;font-size:13px;padding:9px 10px;border:1px solid #DADAD6;border-radius:9px;background:#fff}
+.cad5 input:focus{outline:none;border-color:#F5B800}
+.cad5 .ro{font-size:13px;padding:6px 0}
+@media(max-width:700px){.cad5{grid-template-columns:1fr 1fr}}
 </style>
 </head>
 <body>
@@ -101,7 +108,10 @@ let P=null, dirty=false, saveTimer=null;
 function precoNum(v){const n=parseFloat(String(v).replace(/\./g,'').replace(',','.'));return isFinite(n)?n:null;}
 function itensForm(){return P.itens.map(i=>{const el=document.querySelector('input.preco[data-cod="'+i.cod+'"]');const ob=document.querySelector('input.obs[data-cod="'+i.cod+'"]');const ev=document.querySelector('input.embv[data-cod="'+i.cod+'"]');return {cod:i.cod,preco:el?(el.value.trim()===''?'':precoNum(el.value)):i.preco,obs:ob?ob.value:i.obs,emb_vendedor:ev?ev.value:i.emb_vendedor};});}
 function totais(){let t=0,n=0;for(const i of itensForm()){if(i.preco!=null&&i.preco!==''){t+=i.preco*(P.itens.find(x=>x.cod===i.cod)?.qtd||0);n++;}}return {t,n};}
-function atualizarTot(){const {t,n}=totais();$('#tot').innerHTML='<span>'+n+' de '+P.itens.length+' itens com preço</span>';$('#barinfo').innerHTML=n<P.itens.length?'Faltam <b>'+(P.itens.length-n)+'</b> itens sem preço. Você pode finalizar mesmo assim.':'Todos os itens com preço.';}
+function atualizarTot(){const {t,n}=totais();$('#tot').innerHTML='<span>'+n+' de '+P.itens.length+' itens com preço</span>';$('#barinfo').innerHTML=n<P.itens.length?'Faltam <b>'+(P.itens.length-n)+'</b> itens sem preço. Você pode finalizar mesmo assim.':'Todos os itens com preço.';
+  // Tiago, 06/10: "só pode clicar em Finalizar pedido após todas essas informações preenchidas" — botão travado até o bloco de cadastro estar completo
+  const falt=cadastroFaltando(), b=$('#btnFim'); if(b){ b.disabled=falt.length>0; b.title=falt.length?'Preencha o bloco "Estamos atualizando nosso cadastro de fornecedor" pra liberar':''; }
+  if(falt.length) $('#barinfo').innerHTML+=' <b style="color:#B45309">Pra finalizar, preencha no cadastro: '+esc(falt.join(', '))+'.</b>';}
 function agradecer(){
   const n=P.itens.filter(i=>i.preco!=null&&i.preco!=='').length, t=P.itens.reduce((s,i)=>s+((i.preco!=null&&i.preco!=='')?(+i.preco)*(i.qtd||0):0),0);
   const nome=(P.vendedor&&P.vendedor.nome)||'';
@@ -144,6 +154,14 @@ function render(){
     h+='</tbody></table></div>';
     h+='<div style="padding:10px 14px;border-top:1px solid #EEEEEA"><label style="font-size:11px;font-weight:800;color:#4E5A72;text-transform:uppercase;letter-spacing:.04em">Sua resposta sobre as avarias</label>'+(fin?'<div style="margin-top:4px">'+(esc(A.resposta_vendedor)||'<span style="color:#98A0B3">—</span>')+'</div>':'<input class="obs" id="avresp" value="'+esc(A.resposta_vendedor||'')+'" placeholder="ex.: vamos bonificar na próxima entrega / troca agendada dia 15" maxlength="500" style="margin-top:4px">')+'</div></div>';
   }
+  // "Estamos atualizando nosso cadastro de fornecedor" (Tiago, 06/10): obrigatório pra finalizar; vem preenchido com o último cadastro
+  const pre=P.cadastro_prefill||{}, ro=v=>'<div class="ro">'+(esc(v)||'<span style="color:#98A0B3">—</span>')+'</div>';
+  h+='<div class="card"><div class="hd">Estamos atualizando nosso cadastro de fornecedor <span'+(fin?'':' style="color:#B45309;font-weight:700"')+'>'+(fin?'enviado':'preencha pra finalizar o pedido')+'</span></div><div class="cad5">'+
+    '<div><label>E-mail do vendedor</label>'+(fin?ro(pre.email):'<input class="cad" id="cad-email" type="email" value="'+esc(pre.email||'')+'" placeholder="vendas@empresa.com.br" maxlength="120">')+'</div>'+
+    '<div><label>WhatsApp do vendedor</label>'+(fin?ro(pre.whats):'<input class="cad" id="cad-whats" inputmode="tel" value="'+esc(pre.whats||'')+'" placeholder="DDD + número" maxlength="20">')+'</div>'+
+    '<div><label>Boleto (dias)</label>'+(fin?ro(pre.prazo_pagamento?pre.prazo_pagamento+' dias':''):'<input class="cad" id="cad-prazo" inputmode="numeric" value="'+esc(pre.prazo_pagamento||'')+'" placeholder="ex.: 28" maxlength="3">')+'</div>'+
+    '<div><label>Entrega (dias)</label>'+(fin?ro(pre.prazo_entrega!==''&&pre.prazo_entrega!=null?pre.prazo_entrega+' dias':''):'<input class="cad" id="cad-tempo" inputmode="numeric" value="'+esc(pre.prazo_entrega==null?'':pre.prazo_entrega)+'" placeholder="ex.: 3" maxlength="3">')+'</div>'+
+    '<div><label>Pedido mínimo (R$)</label>'+(fin?ro(pre.pedido_minimo!==''&&pre.pedido_minimo!=null?'R$ '+fmt(+pre.pedido_minimo):''):'<input class="cad" id="cad-min" inputmode="decimal" value="'+esc(pre.pedido_minimo==null||pre.pedido_minimo===''?'':fmt(+pre.pedido_minimo))+'" placeholder="ex.: 500,00 (0 = sem mínimo)" maxlength="14">')+'</div></div></div>';
   $('#app').innerHTML=h;
   $('#bar').hidden=fin;
   if(!fin){
@@ -152,6 +170,7 @@ function render(){
     // Enter grava e pula pro preço do próximo item.
     const precos=[...document.querySelectorAll('input.preco')];
     const ar=document.getElementById('avresp'); if(ar) ar.addEventListener('input',()=>{dirty=true;agendarSave();});
+    document.querySelectorAll('input.cad').forEach(el=>el.addEventListener('input',()=>{dirty=true;agendarSave();atualizarTot();}));
     document.querySelectorAll('input.preco,input.obs').forEach(el=>{
       const isPreco=el.classList.contains('preco');
       el.addEventListener('input',()=>{
@@ -171,14 +190,17 @@ function render(){
     atualizarTot();
   } else { const {t,n}=totais(); $('#tot').innerHTML='<span>'+n+' de '+P.itens.length+' itens com preço</span><span>Total: <b>R$ '+fmt(t)+'</b></span>'; }
 }
+function cadastroForm(){const g=id=>{const el=document.getElementById(id);return el?el.value:undefined;};if(g('cad-email')===undefined)return undefined;return {email:g('cad-email'),whats:g('cad-whats'),prazo_pagamento:g('cad-prazo'),prazo_entrega:g('cad-tempo'),pedido_minimo:g('cad-min')};}
+function cadastroFaltando(){const x=cadastroForm();if(!x)return [];const f=[];if(!x.email||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x.email))f.push('e-mail');if(String(x.whats||'').replace(/\D/g,'').length<10)f.push('WhatsApp');if(!(parseInt(x.prazo_pagamento)>0))f.push('boleto (dias)');if(x.prazo_entrega===''||x.prazo_entrega==null||!(parseInt(x.prazo_entrega)>=0))f.push('entrega (dias)');if(x.pedido_minimo===''||x.pedido_minimo==null)f.push('pedido mínimo');return f;}
 function agendarSave(){clearTimeout(saveTimer);saveTimer=setTimeout(salvar,900);}
-async function salvar(){if(!dirty)return;dirty=false;try{await fetch('/api/pedido-publico/'+token+'/salvar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({itens:itensForm(),avaria_resposta:(document.getElementById('avresp')||{}).value,obs_pedido:(document.getElementById('obsped')||{}).value})});}catch(e){dirty=true;}}
+async function salvar(){if(!dirty)return;dirty=false;try{await fetch('/api/pedido-publico/'+token+'/salvar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({itens:itensForm(),avaria_resposta:(document.getElementById('avresp')||{}).value,obs_pedido:(document.getElementById('obsped')||{}).value,cadastro:cadastroForm()})});}catch(e){dirty=true;}}
 $('#btnFim').onclick=async()=>{
   const {n}=totais();
+  const faltam=cadastroFaltando(); if(faltam.length){ alert('Antes de finalizar, preencha no bloco "Estamos atualizando nosso cadastro de fornecedor": '+faltam.join(', ')+'.'); const el=document.querySelector('input.cad'); if(el){ try{el.scrollIntoView({block:'center',behavior:'smooth'});}catch(e){} el.focus(); } return; }
   const av=document.getElementById('avresp'); if(P.avarias&&P.avarias.itens&&P.avarias.itens.length&&av&&!av.value.trim()){ alert('Responda sobre as avarias pendentes (campo "Sua resposta sobre as avarias") antes de finalizar o pedido.'); av.focus(); try{av.scrollIntoView({block:'center'});}catch(e){} return; }
   if(!confirm(n<P.itens.length?'Ainda tem '+(P.itens.length-n)+' item(ns) sem preço. Finalizar mesmo assim?':'Finalizar o pedido? Depois disso não dá mais pra alterar.')) return;
   $('#btnFim').disabled=true;
-  try{const r=await fetch('/api/pedido-publico/'+token+'/finalizar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({itens:itensForm(),nome:(P.vendedor&&P.vendedor.nome)||'',avaria_resposta:(document.getElementById('avresp')||{}).value,obs_pedido:(document.getElementById('obsped')||{}).value})});const j=await r.json();if(!r.ok||j.error){alert(j.error||'Não foi possível finalizar.');$('#btnFim').disabled=false;return;}P=j;agradecer();window.scrollTo(0,0);}
+  try{const r=await fetch('/api/pedido-publico/'+token+'/finalizar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({itens:itensForm(),nome:(P.vendedor&&P.vendedor.nome)||'',avaria_resposta:(document.getElementById('avresp')||{}).value,obs_pedido:(document.getElementById('obsped')||{}).value,cadastro:cadastroForm()})});const j=await r.json();if(!r.ok||j.error){alert(j.error||'Não foi possível finalizar.');$('#btnFim').disabled=false;return;}P=j;agradecer();window.scrollTo(0,0);}
   catch(e){alert('Não foi possível finalizar. Tente de novo.');$('#btnFim').disabled=false;}
 };
 window.addEventListener('beforeunload',()=>{if(dirty)salvar();});
