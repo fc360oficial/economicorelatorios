@@ -490,21 +490,20 @@ async function carregarNotas(manual) {
   renderNotas();
 }
 const pendente = n => !n.conferencia || n.conferencia.status === 'bipando' || n.conferencia.status === 'recontando';
-const PILL = { liberada: ['ok', 'Liberada'], divergente: ['bad', 'Divergente'], sem_pedido: ['warn', 'Sem pedido'], devolucao: ['info', 'Devolução de cliente'] };
-const PORQUE = {
-  divergente: ['', 'Central já sabe o motivo. Confira normal.'],
-  sem_pedido: ['w', 'Nenhum pedido. Confira e a central decide.']
-};
+// 06/10/26 (Tiago): "Liberada/Divergente/Sem pedido" é status do processo do comprador e saiu do
+// coletor — o conferente confere igual nos três casos, e o selo vermelho ancorava a contagem cega.
+// Só a devolução de cliente segue sinalizada, porque muda o que a loja espera fisicamente.
+const PILL = { devolucao: ['info', 'Devolução de cliente'] };
 function linhaNota(n, i) {
   const dev = n.tipo === 'devolucao';
-  const p = dev ? PILL.devolucao : (PILL[n.veredito] || ['mut', n.veredito]);
-  const w = dev ? ['i', 'Mercadoria voltando de ' + (n.fornecedor || 'cliente') + ' pro CD. Confere igual, a central decide.'] : PORQUE[n.veredito];
+  const st = dev ? `<div class="st"><span class="pill ${PILL.devolucao[0]}"><i></i>${esc(PILL.devolucao[1])}</span></div>` : '';
+  const w = dev ? ['i', 'Mercadoria voltando de ' + (n.fornecedor || 'cliente') + ' pro CD. Confere igual, a central decide.'] : null;
   const emAndamento = n.conferencia && n.conferencia.status === 'bipando' ? 'Você já começou esta nota. Toque pra continuar.'
     : n.conferencia && n.conferencia.status === 'recontando' ? 'Falta recontar. Toque pra continuar.' : null;
   return `<button class="nota" onclick="abrirNota(${i})">
     <div class="f">${esc(n.fornecedor)}</div>
     <div class="m">NF-e <b>${esc(n.nNota)}</b>${n.pedidoId ? ' · Pedido <b>#' + esc(n.pedidoId) + '</b>' : ''}</div>
-    <div class="st"><span class="pill ${p[0]}"><i></i>${esc(p[1])}</span></div>
+    ${st}
     ${w ? `<div class="why ${w[0]}">${esc(w[1])}</div>` : ''}
     ${emAndamento ? `<div class="why i">${esc(emAndamento)}</div>` : ''}
     ${n.erp ? `<div class="why w">Já tem conferência aberta no ERP${n.erp.operador ? ' por ' + esc(n.erp.operador) : ''}. Confirme com a central antes de bipar.</div>` : ''}
@@ -517,19 +516,12 @@ function renderNotas() {
   $('nSub').textContent = sess.nome + ' · ' + abertas.length + (abertas.length === 1 ? ' nota' : ' notas');
   $('btnConferidas').textContent = 'Já conferidas hoje (' + conferidas.length + ')';
   $('btnConferidas').disabled = !conferidas.length;
-  const podeConferir = abertas.filter(n => n.veredito === 'liberada');
-  const atencao = abertas.filter(n => n.veredito !== 'liberada');
   let h = `<div class="hero">
     <div class="big">${abertas.length} ${abertas.length === 1 ? 'nota' : 'notas'}</div>
     <div class="s">NF-e recebidas do fornecedor e ainda não conferidas</div>
-    <div class="kp">
-      <div><b>${podeConferir.length}</b>liberadas</div>
-      <div><b>${abertas.filter(n => n.veredito === 'divergente').length}</b>divergentes</div>
-      <div><b>${abertas.filter(n => n.veredito === 'sem_pedido').length}</b>sem pedido</div>
-    </div></div>`;
+  </div>`;
   if (!abertas.length) h += '<div class="vazio"><b>Nenhuma nota pra conferir</b>Assim que a NF-e do fornecedor chegar no ERP, ela aparece aqui.</div>';
-  if (podeConferir.length) h += '<div class="sec">Pode conferir <span>bate com o pedido</span></div>' + podeConferir.map(n => linhaNota(n, notas.indexOf(n))).join('');
-  if (atencao.length) h += '<div class="sec">Atenção <span>central já avisada</span></div>' + atencao.map(n => linhaNota(n, notas.indexOf(n))).join('');
+  h += abertas.map(n => linhaNota(n, notas.indexOf(n))).join('');
   $('nLista').innerHTML = h;
 }
 function verConferidas() {
@@ -784,10 +776,9 @@ const ESTADO = {
 };
 function renderBip() {
   if (!visao) return;
-  const v = notaAtual ? notaAtual.veredito : null;
   $('bTitulo').textContent = visao.fornecedor || '—';
   $('bSub').textContent = 'NF-e ' + visao.nNota + ' · Loja ' + sess.loja;
-  $('bPill').innerHTML = v && PILL[v] ? `<span class="pill ${PILL[v][0]}"><i></i>${esc(PILL[v][1])}</span>` : '';
+  $('bPill').innerHTML = notaAtual && notaAtual.tipo === 'devolucao' ? `<span class="pill ${PILL.devolucao[0]}"><i></i>${esc(PILL.devolucao[1])}</span>` : '';
   $('pProd').textContent = visao.produtos;
   $('pUn').textContent = num(visao.unidades);
   // Lista do que veio na nota (06/10/26, Tiago): só código e descrição, NUNCA quantidade — e nunca
