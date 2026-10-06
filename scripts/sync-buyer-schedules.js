@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /*
- * Sincroniza o cronograma de compras das 5 compradoras a partir de public/mensal.html
- * (CRON_FATIMA/KELLY/STHEPHANNY/CRISLANE/PATRICIA — a fonte de verdade) para os outros
+ * Sincroniza o cronograma de compras das compradoras a partir de public/mensal.html
+ * (CRON_KELLY/STHEPHANNY/CRISLANE/PATRICIA — a fonte de verdade) para os outros
  * 4 lugares que guardam cópia própria dos mesmos dados:
  *
  *   1. server.js               -> NREGS_COMPRADOR (lista simples de nRegs por comprador)
@@ -28,9 +28,10 @@ const P = {
   relatorio: path.join(ROOT, 'public/relatorio-cronograma.html'),
 };
 
-const BUYERS = ['FATIMA', 'KELLY', 'STHEPHANNY', 'CRISLANE', 'PATRICIA'];
-const FUNCS = { FATIMA: 'fatimaHoje', KELLY: 'kellyHoje', STHEPHANNY: 'sthephannyHoje', CRISLANE: 'crislaneHoje', PATRICIA: 'patriciaHoje' };
-const KEY = { FATIMA: 'FÁTIMA', KELLY: 'KELLY', STHEPHANNY: 'STHEPHANNY', CRISLANE: 'CRISLANE', PATRICIA: 'PATRICIA' };
+// FATIMA saiu em 10/2026 (sem listas no ERP desde 24/09/2026) — se voltar, recriar CRON_FATIMA no mensal.html e readicionar aqui
+const BUYERS = ['KELLY', 'STHEPHANNY', 'CRISLANE', 'PATRICIA'];
+const FUNCS = { KELLY: 'kellyHoje', STHEPHANNY: 'sthephannyHoje', CRISLANE: 'crislaneHoje', PATRICIA: 'patriciaHoje' };
+const KEY = { KELLY: 'KELLY', STHEPHANNY: 'STHEPHANNY', CRISLANE: 'CRISLANE', PATRICIA: 'PATRICIA' };
 const DIAS = ['SEG', 'TER', 'QUA', 'QUI', 'SEX'];
 const DIA_LABEL = { SEG: 'Segunda', TER: 'Terca', QUA: 'Quarta', QUI: 'Quinta', SEX: 'Sexta' };
 

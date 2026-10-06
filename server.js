@@ -204,7 +204,6 @@ app.use((req, res, next) => {
     '/api/precificacao/margens-criticas', '/api/compras/pedidos-hoje',
     '/diretoria.html', '/api/diretoria/kpis',
     '/api/top-vendidos', '/api/top-mercadologico',
-    '/api/compras/verificar-comprador',
     '/api/compras/analise-estoque',
     '/analise-comprador.html',
     '/api/compras/fornec-por-lista',
@@ -4231,89 +4230,6 @@ app.get('/api/compras/fornec-por-lista', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ── Verificação de pedidos da semana de Fátima ──
-app.get('/api/compras/verificar-comprador', async (req, res) => {
-  try {
-    // cod = nReg da lista de compra (não CodFornec)
-    const cronFatima = {
-      SEG: [344,310,312,314,311,342,303,380,309,482,538,461,313,355,534,537],
-      TER: [347,415,332,341,417],
-      QUA: [419,457,555,543,394],
-      QUI: [573,574,572],
-      SEX: [277],
-    };
-
-    // Listas da FATIMA via NREGS_COMPRADOR (ERP)
-    const todosNRegs = [...new Set([...Object.values(cronFatima).flat(), ...(NREGS_COMPRADOR[resolveComprador('FATIMA')] || [])])];
-    const phN = todosNRegs.map(() => '?').join(',');
-
-    // Passo 2: traduz nReg → CodFornec real
-    const listas = await q(
-      `SELECT nReg, CodFornec, NomeFornec FROM central.c_cotacao_lista WHERE nReg IN (${phN})`,
-      todosNRegs
-    );
-    const listaMap = {};
-    for (const l of listas) {
-      listaMap[l.nReg] = { codFornec: l.CodFornec, nomeFornec: (l.NomeFornec||'').trim() };
-    }
-
-    const codsFornec = [...new Set(listas.map(l => l.CodFornec).filter(Boolean))];
-    if (!codsFornec.length) {
-      return res.json({ comprador: 'FATIMA', semana: Object.fromEntries(
-        Object.entries(cronFatima).map(([dia, cods]) => [dia, cods.map(cod => ({
-          cod, codFornec: null, nome: listaMap[cod]?.nomeFornec || `Lista ${cod}`,
-          status: 'PENDENTE', pedidos: []
-        }))])
-      )});
-    }
-
-    // Passo 3: busca pedidos usando CodFornec real (últimos 10 dias)
-    const phF = codsFornec.map(() => '?').join(',');
-    const pedidos = await q(`
-      SELECT DATE(DataLan) AS data, CodFornec, Nome AS nome_fornec,
-             COUNT(*) AS qtd, SUM(Total) AS total
-      FROM central.pedidocompra
-      WHERE DATE(DataLan) >= DATE_SUB(CURDATE(), INTERVAL 10 DAY)
-        AND CodFornec IN (${phF})
-      GROUP BY DATE(DataLan), CodFornec, Nome
-      ORDER BY data DESC
-    `, codsFornec);
-
-    // Indexa por CodFornec
-    const mapa = {};
-    for (const p of pedidos) {
-      const k = String(p.CodFornec);
-      if (!mapa[k]) mapa[k] = { nome: (p.nome_fornec||'').trim(), pedidos: [] };
-      mapa[k].pedidos.push({
-        data: String(p.data).slice(0,10),
-        qtd: p.qtd,
-        total: parseFloat(p.total||0).toFixed(2),
-      });
-    }
-
-    // Monta resultado por dia
-    const resultado = {};
-    for (const [dia, nRegs] of Object.entries(cronFatima)) {
-      resultado[dia] = nRegs.map(nReg => {
-        const info = listaMap[nReg];
-        const codFornec = info?.codFornec;
-        const pedidoInfo = codFornec ? mapa[String(codFornec)] : null;
-        return {
-          cod: nReg,
-          codFornec: codFornec || null,
-          nome: pedidoInfo?.nome || info?.nomeFornec || `Lista ${nReg}`,
-          status: pedidoInfo ? 'CONCLUIDO' : 'PENDENTE',
-          pedidos: pedidoInfo?.pedidos || [],
-        };
-      });
-    }
-
-    res.json({ comprador: 'FATIMA', semana: resultado });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // Pedidos do mês agrupados por data e CodFornec
 app.get('/api/compras/pedidos-mes', async (req, res) => {
   try {
@@ -4506,7 +4422,7 @@ const ANALISE_TTL = 10 * 60 * 1000;
 
 app.get('/api/compras/analise-estoque', async (req, res) => {
   try {
-    const comp = resolveComprador(req.query.comprador || 'FATIMA');
+    const comp = resolveComprador(req.query.comprador || 'KELLY');
     const nRegs = NREGS_COMPRADOR[comp];
     const vazio = { lojas:{}, variacaoCusto:[], totalProdutos:0, geradoEm:'' };
     if (!nRegs) return res.json(vazio);
