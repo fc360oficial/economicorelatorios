@@ -7464,7 +7464,9 @@ app.get('/api/radar-pedidos/:listaId/itens', (req, res) => {
     // Trânsito abatido × ignorado (Tiago, 01/10/26): "*" ignora todo trânsito da lista; senão lista de cod:loja (igual à Cotação)
     const semTr = String(req.query.sem_transito || '').trim();
     const ignorarTransito = semTr === '*' ? { size: 1, has: () => true } : new Set(semTr.split(',').map(s => s.trim()).filter(Boolean).slice(0, 500).map(s => { const [c, l] = s.split(':'); return String(c || '').trim() + '|' + (parseInt(l) || 0); }));
-    const r = radarPedidos.itensLista(parseInt(req.params.listaId), teto, null, embMeses, req.query.curvaA !== '0', null, { loja: lojaRadar, gatilho: gatilhoRadar, ignorarTransito });
+    // semi-automática (Tiago, 06/10): lead escolhido (dias) e cobertura opcional; pedido é pra HOJE (fazer_em 0)
+    const leadManual = req.query.lead ? Math.max(1, Math.min(120, parseFloat(req.query.lead) || 0)) : null, cobManual = req.query.cobertura ? Math.max(2, Math.min(180, parseFloat(req.query.cobertura) || 0)) : null;
+    const r = radarPedidos.itensLista(parseInt(req.params.listaId), teto, leadManual ? 0 : null, embMeses, req.query.curvaA !== '0', null, { loja: lojaRadar, gatilho: gatilhoRadar, ignorarTransito, lead: leadManual, alvo: cobManual });
     if (!r) return res.status(404).json({ error: radarPedidos.getEstado().status === 'ok' ? 'Lista não encontrada' : 'Radar ainda calculando, tente em instantes' });
     res.json(r);   // (alerta vermelho do Sortimento no Radar retirado a pedido do Tiago em 14/09/2026; a aba Sortimento segue na Lista de Compra)
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -7798,11 +7800,12 @@ app.post('/api/pedidos-fornecedor', async (req, res) => {
     const confirmarExcesso = req.body.confirmar_excesso === true;
     // substituir: a tela (Sugestão de Compras) manda TODAS as quantidades; o cálculo do Radar é zerado antes dos ajustes
     const substituir = req.body.substituir === true;
-    const origemPedido = ['sugestao', 'sugestao-manual'].includes(req.body.origem) ? req.body.origem : 'radar';
+    const origemPedido = ['sugestao', 'sugestao-manual', 'semi'].includes(req.body.origem) ? req.body.origem : 'radar';
+    const leadManual = req.body.lead ? Math.max(1, Math.min(120, parseFloat(req.body.lead) || 0)) : null, cobManual = req.body.cobertura ? Math.max(2, Math.min(180, parseFloat(req.body.cobertura) || 0)) : null;   // semi-automática (06/10)
     const bloqueados = [], naoEncontrados = [];
     const lojaPedido = lojasRadarDe(req.body.loja);   // Radar filtrado por loja(s): pedido só dessas lojas
     for (const id of listas) {
-      const det = radarPedidos.itensLista(id, teto, null, embMeses, req.body.curvaA !== false && req.body.curvaA !== '0', null, { loja: lojaPedido, gatilho: req.body.gatilho ? Math.max(1, Math.min(100, parseFloat(req.body.gatilho) || 20)) / 100 : null });
+      const det = radarPedidos.itensLista(id, teto, leadManual ? 0 : null, embMeses, req.body.curvaA !== false && req.body.curvaA !== '0', null, { loja: lojaPedido, gatilho: req.body.gatilho ? Math.max(1, Math.min(100, parseFloat(req.body.gatilho) || 20)) / 100 : null, lead: leadManual, alvo: cobManual });
       if (!det) { semItens.push({ lista: id, motivo: 'lista não encontrada ou radar calculando' }); continue; }
       const soCurvaA = (modo[id] || modo[String(id)]) === 'curva_a';
       if (soCurvaA) for (const it of det.itens) if (!it.bloco_a) { for (const ln of Object.keys(it.lojas_qtd)) it.lojas_qtd[ln] = 0; it.qtd = 0; it.volumes = 0; it.total = 0; }
