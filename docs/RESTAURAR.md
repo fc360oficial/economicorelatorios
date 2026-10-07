@@ -9,7 +9,8 @@ Tempo estimado: 1 a 2 horas. Precisa de: acesso de Administrador no Windows novo
 | O quê | Onde fica | Como volta |
 |---|---|---|
 | Código do sistema | GitHub `fc360oficial/economicorelatorios` | `git clone` |
-| Dados (data/), usuários, WhatsApp, Itaú, Caddy, Firebase das etiquetas | zip diário `economico-AAAA-MM-DD.zip` | extrair o zip (passo 4) |
+| Dados (data/), usuários, WhatsApp, Itaú, Caddy, Firebase das etiquetas, parâmetros/senhas dos serviços NSSM | zip diário `economico-AAAA-MM-DD.zip` | extrair o zip (passo 4) |
+| CAHU Delivery (bancos PostgreSQL, fotos, serviço) | zip próprio `cahu-AAAA-MM-DD.zip` em `D:\backups\cahu` e `gdrive-crypt:cahu/` | `C:\cahudelivery\infra\RESTAURAR-CAHU.md` |
 | Dados do ERP (vendas, estoque, cadastro) | MySQL do ERP, responsabilidade do Dlinks | não faz parte deste backup |
 
 O zip diário fica em dois lugares:
@@ -63,7 +64,8 @@ cd C:\fc360\claude_code_
 tar -xf C:\fc360\restore\economico-<data>.zip
 ```
 
-Isso recria `data\`, `usuarios.json`, `Caddyfile`, `negativos-wpp\auth`, `cahu-wpp\auth_info` e configs.
+Isso recria `data\`, `usuarios.json`, `Caddyfile`, `negativos-wpp\auth_info`, `cahu-wpp\auth_info`,
+`negativos-agent\negativos.db` (+ fotos em `negativos-agent\data`) e configs.
 Alguns itens do zip vêm de fora do app e precisam voltar pro lugar de origem:
 
 | No zip | Copiar para |
@@ -86,8 +88,10 @@ nssm start EconomicoRelatorios
 ```
 
 Variáveis que o `server.js` lê: `DB_HOST` (MySQL do ERP), `DB_TESTE_HOST` (MySQL de teste local),
-`PUBLIC_URL` (links públicos), `ERP_WRITE_OK` (só em teste). Conferir com `nssm dump <serviço>` no servidor
-antigo se ele ainda existir, e copiar os valores exatos.
+`PUBLIC_URL` (links públicos), `ERP_WRITE_OK` (só em teste). **Os valores exatos estão no zip**, em
+`data\servicos-nssm.json`: pra cada serviço (`EconomicoRelatorios`, `Caddy`, `EtiquetasAPI`, `NegativosWpp`,
+`NegativosAgent`, `FluxoAPI`, `PostgreSQL16`) vêm `Application`, `AppParameters`, `AppDirectory` e a lista
+`AppEnvironmentExtra` (variáveis com senhas). Repetir o `nssm install`/`nssm set` com esses valores pra cada um.
 
 Teste: `curl http://localhost:3003/api/versao` responde `{"versao":...}`.
 
@@ -112,7 +116,21 @@ pro IP do servidor novo. Só 80 e 443. Nunca abrir 3003, 3306 ou 3389 pra intern
 5. Bots WhatsApp (`negativos-wpp`, `cahu-wpp`): se o pareamento não voltar sozinho (o WhatsApp às vezes derruba
    sessão restaurada), parear de novo pelo código de telefone. Nunca por QR.
 
-## 8. Reativar o backup pro Drive no servidor novo
+## 8. Proteger a pasta dos zips
+
+O zip local **não é criptografado** (só o do Drive é) e carrega certificados do Itaú, Firebase e sessões do
+WhatsApp. A herança padrão do `D:` deixa qualquer usuário da máquina ler. Rodar uma vez, em PowerShell
+**como Administrador** (UAC):
+
+```powershell
+icacls "D:ackups" /inheritance:r /grant:r "*S-1-5-32-544:(OI)(CI)F" "*S-1-5-18:(OI)(CI)F"
+icacls "C:c360	oolscloneclone.conf" /inheritance:r /grant:r "*S-1-5-32-544:F" "*S-1-5-18:F"
+```
+
+(`S-1-5-32-544` = grupo Administradores, `S-1-5-18` = SYSTEM, conta dos serviços. Os SIDs valem em qualquer
+idioma do Windows.) Conferir com `icacls D:ackups`: só essas duas linhas devem aparecer.
+
+## 9. Reativar o backup pro Drive no servidor novo
 
 Recriar `C:\fc360\tools\rclone\rclone.conf` como no passo 3 (mesmos nomes `gdrive` e `gdrive-crypt`, mesma
 senha do cofre). O sistema detecta o arquivo sozinho e volta a enviar às 04:00. Conferir na tela Processos ›

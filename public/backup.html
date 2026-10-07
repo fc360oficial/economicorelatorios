@@ -53,7 +53,7 @@ td.num{text-align:right}
     </div>
   </div>
 
-  <div class="alerta" id="alerta" hidden>Os 2 últimos backups falharam. Veja o erro na tabela e avise o Tiago.</div>
+  <div class="alerta" id="alerta" hidden></div>
 
   <div class="cards">
     <div class="card kpi"><span class="label">Último backup</span><span class="v" id="kUltimo">—</span><span class="s" id="kUltimoS"></span></div>
@@ -67,6 +67,16 @@ td.num{text-align:right}
       <table>
         <thead><tr><th>Início</th><th>Motivo</th><th>Arquivo</th><th class="num">MB</th><th>Nuvem</th><th>Erro</th></tr></thead>
         <tbody id="tb"><tr><td colspan="6" class="neutro">Carregando…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card" id="cardExtras" hidden>
+    <div class="lista"><span class="label">Outros backups (zip e pasta próprios no servidor e no Drive)</span></div>
+    <div class="tblwrap">
+      <table>
+        <thead><tr><th>Sistema</th><th>Arquivo</th><th class="num">MB</th><th>Nuvem</th><th>Erro</th></tr></thead>
+        <tbody id="tbExtras"></tbody>
       </table>
     </div>
   </div>
@@ -92,6 +102,7 @@ function nuvemTxt(n) {
 function render(d) {
   const u = d.ultimo;
   $('alerta').hidden = !d.alerta;
+  $('alerta').textContent = d.alerta || '';
   $('kRet').textContent = d.retencaoDias;
   if (u) {
     $('kUltimo').textContent = fmtData(u.inicio);
@@ -112,6 +123,12 @@ function render(d) {
     const n = nuvemTxt(r.nuvem);
     return `<tr><td class="mono">${fmtData(r.inicio)}</td><td>${esc(r.motivo)}</td><td class="mono">${esc(r.arquivo ? r.arquivo.split(/[\\/]/).pop() : '—')}</td><td class="num mono">${r.arquivo ? mb(r.bytes) : '—'}</td><td class="${n.c}">${n.t}${n.s ? ' — ' + esc(n.s) : ''}</td><td class="err">${esc(r.erro || '')}</td></tr>`;
   }).join('') : '<tr><td colspan="6" class="neutro">Nenhum backup registrado ainda.</td></tr>';
+  const ex = (u && u.extras) || [];
+  $('cardExtras').hidden = !ex.length;
+  $('tbExtras').innerHTML = ex.map(x => {
+    const n = nuvemTxt(x.nuvem);
+    return `<tr><td>${esc(x.nome)}</td><td class="mono">${esc(x.arquivo ? x.arquivo.split(/[\\/]/).pop() : '—')}</td><td class="num mono">${x.arquivo ? mb(x.bytes) : '—'}</td><td class="${n.c}">${n.t}${n.s ? ' — ' + esc(n.s) : ''}</td><td class="err">${esc(x.erro || '')}</td></tr>`;
+  }).join('');
   const c = d.config;
   $('oque').innerHTML = '<span class="label">O que entra no zip</span><br>' +
     'Do sistema: ' + c.itens.map(i => '<code>' + esc(i) + '</code>').join(' ') + '<br>' +
