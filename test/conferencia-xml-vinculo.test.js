@@ -142,7 +142,7 @@ test('nome parecido mas sabor/gramatura diferente NÃO casa (Knorr carne × gali
 
 test('dois itens do pedido que não vieram casam com o mesmo nome: fica em dúvida, não vincula', async () => {
   cx.init(async () => [], { deparaPath: DEPARA_TESTE }); limparDepara();
-  const p = pedido(9121, '2026-10-06T10:00:00.000Z', [['7891150012363', 'KNORR CALDO CARNE', 20, 3.25], ['7891150012364', 'KNORR CARNE CALDO 114G', 24, 3.25], ['7891150068278', 'MAIZENA 180G', 48, 4.72]]);
+  const p = pedido(9121, '2026-10-06T10:00:00.000Z', [['7891150012363', 'KNORR CALDO CARNE 114G', 20, 3.25], ['7891150012364', 'KNORR CARNE CALDO 114G', 24, 3.25], ['7891150068278', 'MAIZENA 180G', 48, 4.72]]);
   const n = nota(70002, [item('67891150016868', 'CALDO KNORR CARNE CART 114G 1X1', 12, 3.25), item('7891150068278', 'MAIZENA 180G', 48, 4.72)]);
   await rodar([p], [n]);
   const x = p.xml.lojas[6];
