@@ -805,8 +805,8 @@ function renderFin() {
   const plSem = {}; for (const r of L) if (r.pag >= hoje && r.pag <= semFim) { const a = plSem[r.loja] || (plSem[r.loja] = { loja: r.loja, n: 0, v: 0 }); a.n += r.n; a.v += r.v; }
   const lojasSem = Object.values(plSem).sort((a, b) => a.loja - b.loja), maxLS = Math.max(...lojasSem.map(l => l.v), 1);
   document.getElementById('c-fin-semana').innerHTML = '<div class="fin-big"><b>' + money(sem.v) + '</b><small>' + plural(sem.n, 'título') + ' a pagar até sexta · de ' + (fds ? 'segunda' : 'hoje') + ' em diante</small></div>'
-    + '<div class="fin-sec">Por dia de pagamento</div><table class="m fin-al">' + CG + '<thead><tr><th>Paga em</th><th class="r">Títulos</th><th class="r">Valor</th><th></th></tr></thead><tbody>'
-    + dias.map(x => { const atras = x.passado && x.n > 0; return '<tr class="' + (x.ehHoje ? 'fin-hl' : atras ? 'bad' : '') + '"><td>' + (x.ehHoje ? '<b>Hoje</b> · ' : '') + '<b>' + DS[dow(x.d)] + '</b> ' + df(x.d) + (dow(x.d) === 1 ? ' <span class="fin-mut">sáb + dom + seg</span>' : '') + (x.passado ? ' <span class="fin-mut">' + (x.n ? 'ficou em aberto' : 'nada em aberto') + '</span>' : '') + '</td><td class="r">' + (x.n || '') + '</td><td class="r"><b' + (atras ? ' class="dn"' : '') + '>' + (x.v ? money(x.v) : '—') + '</b></td><td>' + barra(x.v, maxD, atras) + '</td></tr>'; }).join('')
+    + '<div class="fin-sec">Por dia de pagamento <span class="fin-mut">clique no dia pra ver loja a loja</span></div><table class="m fin-al">' + CG + '<thead><tr><th>Paga em</th><th class="r">Títulos</th><th class="r">Valor</th><th></th></tr></thead><tbody>'
+    + dias.map(x => { const atras = x.passado && x.n > 0; return '<tr class="' + (x.ehHoje ? 'fin-hl' : atras ? 'bad' : '') + (x.n ? ' fin-lj' : '') + '"' + (x.n ? ' data-pag="' + x.d + '" onclick="finDia(this)" title="clique pra ver loja a loja"' : '') + '><td>' + (x.n ? '<span class="fin-car">▸</span>' : '') + (x.ehHoje ? '<b>Hoje</b> · ' : '') + '<b>' + DS[dow(x.d)] + '</b> ' + df(x.d) + (dow(x.d) === 1 ? ' <span class="fin-mut">sáb + dom + seg</span>' : '') + (x.passado ? ' <span class="fin-mut">' + (x.n ? 'ficou em aberto' : 'nada em aberto') + '</span>' : '') + '</td><td class="r">' + (x.n || '') + '</td><td class="r"><b' + (atras ? ' class="dn"' : '') + '>' + (x.v ? money(x.v) : '—') + '</b></td><td>' + barra(x.v, maxD, atras) + '</td></tr>'; }).join('')
     + '<tr class="fin-tot"><td>A pagar até sexta <span class="fin-mut">de ' + (fds ? 'segunda' : 'hoje') + ' em diante</span></td><td class="r">' + sem.n + '</td><td class="r"><b>' + money(sem.v) + '</b></td><td></td></tr></tbody></table>'
     + (lojasSem.length ? '<div class="fin-sec">Por loja <span class="fin-mut">semana toda · clique pra ver os títulos</span></div><table class="m fin-al">' + CG + '<thead><tr><th>Loja</th><th class="r">Títulos</th><th class="r">Valor</th><th></th></tr></thead><tbody>' + lojasSem.map(l => '<tr class="fin-lj" data-loja="' + l.loja + '" data-pag-ini="' + hoje + '" data-pag-fim="' + semFim + '" onclick="finDetalhe(this)" title="clique pra ver os títulos da semana"><td><span class="fin-car">▸</span>' + lojaTag(l.loja) + '</td><td class="r">' + l.n + '</td><td class="r"><b>' + money(l.v) + '</b></td><td>' + barra(l.v, maxLS) + '</td></tr>').join('') + '</tbody></table>' : '');
 
@@ -852,6 +852,25 @@ function renderFin() {
 
 // clique na linha da loja (bloco Financeiro › Hoje): abre embaixo os títulos daquele dia de pagamento (Tiago, 28/09/26)
 function finVencToggle() { const d = document.getElementById('fin-venc-lojas'); if (d) d.style.display = d.style.display === 'none' ? '' : 'none'; }
+// clique no dia (Financeiro › Esta semana › Por dia de pagamento): abre embaixo as lojas daquele dia de pagamento; clique na loja abre os
+// títulos com o finDetalhe de sempre, onde o fornecedor é o link da nota (Tiago, 07/10: "clicar no dia traz loja a loja, na loja os
+// fornecedores, no fornecedor abre a nota"). Um dia aberto por vez.
+function finDia(tr) {
+  const nx = tr.nextElementSibling;
+  if (nx && nx.classList.contains('fin-det')) { nx.remove(); tr.classList.remove('open'); return; }
+  tr.parentElement.querySelectorAll(':scope > tr.fin-det').forEach(d => { const p = d.previousElementSibling; if (p) p.classList.remove('open'); d.remove(); });
+  const d = tr.dataset.pag, L = (V.financeiro && V.financeiro.linhas) || [], DS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'], dow = x => new Date(x + 'T12:00:00').getDay();
+  const pl = {}; for (const r of L) if (r.pag === d) { const a = pl[r.loja] || (pl[r.loja] = { loja: r.loja, n: 0, v: 0 }); a.n += r.n; a.v += r.v; }
+  const lojas = Object.values(pl).sort((a, b) => a.loja - b.loja), max = Math.max(...lojas.map(l => l.v), 1), tot = lojas.reduce((s, l) => ({ n: s.n + l.n, v: s.v + l.v }), { n: 0, v: 0 });
+  const bar = v => '<span class="bar" style="width:' + Math.round((v || 0) / max * 70) + 'px"></span>';
+  const det = document.createElement('tr'); det.className = 'fin-det';
+  det.innerHTML = '<td colspan="' + tr.children.length + '"><div class="fin-det-h"><b>paga ' + DS[dow(d)] + ' ' + df(d) + '</b> · ' + tot.n + ' título' + (tot.n === 1 ? '' : 's') + ' · ' + money(tot.v) + ' · por loja · clique na loja pra ver os fornecedores; no fornecedor abre a nota</div>'
+    + '<table class="m fin-al"><colgroup><col><col style="width:62px"><col style="width:118px"><col style="width:86px"></colgroup><thead><tr><th>Loja</th><th class="r">Títulos</th><th class="r">Valor</th><th></th></tr></thead><tbody>'
+    + lojas.map(l => '<tr class="fin-lj" data-loja="' + l.loja + '" data-pag="' + d + '" onclick="finDetalhe(this)" title="clique pra ver os títulos desta loja · o fornecedor abre a nota"><td><span class="fin-car">▸</span>' + lojaTag(l.loja) + '</td><td class="r">' + l.n + '</td><td class="r"><b>' + money(l.v) + '</b></td><td>' + bar(l.v) + '</td></tr>').join('')
+    + (lojas.length > 1 ? '<tr class="fin-lj fin-tot" data-loja="0" data-pag="' + d + '" onclick="finDetalhe(this)" title="clique pra ver os títulos de todas as lojas neste dia"><td><span class="fin-car">▸</span>Todas as lojas</td><td class="r">' + tot.n + '</td><td class="r"><b>' + money(tot.v) + '</b></td><td></td></tr>' : '')
+    + '</tbody></table></td>';
+  tr.after(det); tr.classList.add('open');
+}
 // fornecedor do título: link que abre o PDF da nota (DANFE gerada do XML no ERP) quando o título tem NF-e ligada; título manual
 // (aluguel, serviço, internet) não tem nota e fica só o nome (Tiago, 29/09/26: "quando eu clicar no fornecedor abrir o pdf da nota")
 function finForn(t) {
