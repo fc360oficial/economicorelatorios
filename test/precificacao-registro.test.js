@@ -304,3 +304,18 @@ test('enviarCarga: recusa do ERP teste não muda o status', async () => {
   assert.match(r.erro, /não respondeu/);
   assert.equal(pr.obter('50-L2').status, 'precificado');
 });
+
+test('carga agendada: lista "a precificar" é recalculada, fechada e enviada sozinha (Tiago, 07/10/26)', async () => {
+  const p = JSON.parse(JSON.stringify(pedido)); p.id = 51;
+  await pr.criarDeConciliacao(p, 2);
+  assert.equal(pr.obter('51-L2').status, 'a_precificar');
+  const chamadas = [];
+  const escreverFake = { lote: async (op) => { chamadas.push(op); return { ok: true, status: 'ok', id: 'LOG-' + chamadas.length, ids: [] }; } };
+  const out = await pr.enviarCargasPendentes(escreverFake, 'CARGA 12:00');
+  assert.ok(out.ids.includes('51-L2'));
+  const r = pr.obter('51-L2');
+  assert.equal(r.status, 'aplicado');            // fechou e enviou sem passar pela tela
+  assert.equal(r.fechadoPor, 'CARGA 12:00');
+  const op = chamadas.find(c => c.motivo.includes('#51 '));
+  assert.equal(op.passos[0].valores.P2, '14,39');
+});

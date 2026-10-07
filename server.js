@@ -7683,9 +7683,10 @@ const precificacao = require('./lib/precificacao');
 precificacao.init();
 precificacao.initERP(q, radarPedidos, qTeste);
 precificacao.setLog(ev => logPrecif.registrar(LOG_PRECIF_DIR, ev));
-// Carga de preços em lote pro Dlinks (ERP teste): 3 janelas por dia. Lista fechada
-// (precificado) e ainda não enviada vai sozinha nesses horários; o resto do dia, só
-// pelo botão "Enviar pra carga" da tela. Pedido do Tiago, 06/10/2026.
+// Carga de preços em lote pro Dlinks (ERP teste): 3 janelas por dia. Toda lista ainda não
+// enviada vai sozinha nesses horários — as "a precificar" são recalculadas contra o ERP e
+// fechadas automaticamente (preço da conciliação vale sem confirmação manual, Tiago 07/10/26);
+// o resto do dia, só pelo botão "Enviar pra carga" da tela. Pedido do Tiago, 06/10/2026.
 const HORAS_CARGA = ['09:00', '12:00', '15:00'];
 let ultimaCargaSlot = '';
 setInterval(() => {
