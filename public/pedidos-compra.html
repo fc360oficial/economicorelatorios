@@ -159,6 +159,16 @@ input.embi:focus{outline:none;border:1px solid #F5B800;background:#FFFDF3}input.
 .lojatot .lt[onclick]{transition:box-shadow .12s,border-color .12s}.lojatot .lt[onclick]:hover{border-color:#F5B800;box-shadow:0 0 0 3px #F5B80055}.lojatot .lt[onclick] span::after{content:" ›";color:#98A0B3;font-weight:800}
 .pp-sec{border:1px solid #DADAD6;border-radius:10px;margin-top:10px;overflow:hidden}.pp-sec .h{background:#101B33;color:#fff;padding:7px 12px;font-weight:700;font-size:12px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}.pp-sec .h b{color:#FFC933}.pp-sec table{width:100%;border-collapse:collapse;font-size:11.5px}.pp-sec th{font-size:9.5px;text-transform:uppercase;letter-spacing:.4px;color:#4E5A72;background:#EBEBE9;padding:6px 9px;text-align:left}.pp-sec td{padding:5px 9px;border-top:1px solid #EEEEEA;white-space:nowrap}.pp-sec td.r,.pp-sec th.r{text-align:right}.pp-sec tr.zero td{color:#4E5A72}.pp-sec tfoot td{background:#FAFAF8;border-top:2px solid #DADAD6}
 .btn-navy{background:#101B33;color:#FFC933}.btn-navy:hover{background:#0E1626}
+/* Período (Tiago, 07/10/26): select ao lado do status; setas ◀ ▶ só quando "Escolher dia"; cabeçalho de dia na lista em 7 dias / mês */
+.periodo{display:inline-flex;align-items:center;gap:4px}
+.tools .dia{display:inline-flex;align-items:center;gap:2px;background:#fff;border:1px solid #C9C9C4;border-radius:8px;padding:2px}
+.dia button{font:inherit;border:0;background:transparent;color:#4E5A72;font-weight:800;font-size:13px;width:28px;height:26px;border-radius:5px;cursor:pointer}
+.dia button:hover{background:#EBEBE9;color:#0E1626}.dia button:disabled{opacity:.35;cursor:default}
+.dia .lbl{font-size:12.5px;font-weight:800;color:#0E1626;min-width:104px;text-align:center}
+.dia .hoje{width:auto;padding:0 9px;font-size:11px;color:#6B4E00;background:#FFF6D9;border:1px solid #EFD98F}
+tr.grp td{background:#EBEBE9;border-top:2px solid #DADAD6;padding:7px 10px;font-weight:800;font-size:11px;color:#0E1626;cursor:pointer;user-select:none;white-space:nowrap}
+tr.grp td .arr{display:inline-block;width:14px;color:#4E5A72}tr.grp td .n{color:#98A0B3;font-weight:600;margin-left:8px}
+tr.grp td .hj{background:#F5B800;color:#6B4E00;border-radius:4px;padding:0 6px;margin-right:6px;font-size:10px}tr.grp td .on{background:#0E1626;color:#fff;border-radius:4px;padding:0 6px;margin-right:6px;font-size:10px}
 </style>
 </head>
 <body>
@@ -174,7 +184,7 @@ input.embi:focus{outline:none;border:1px solid #F5B800;background:#FFFDF3}input.
   <div class="fluxo" id="pg-fluxo"></div>
   <div class="totais" id="totais"></div>
   <div id="cd-card" hidden style="margin:-6px 0 14px"></div>
-  <div class="tools"><input id="q" placeholder="Buscar lista, fornecedor ou vendedor" style="min-width:280px"><select id="fComp"><option value="">Todos compradores</option></select><select id="fOrig" title="De onde o pedido saiu"><option value="">Todas as origens</option><option value="radar">Radar</option><option value="cotacao">Cotação</option><option value="sugestao">Sugestão manual</option><option value="semi">Sugestão semi-automática</option><option value="ruptura">Ruptura de entrega</option></select><select id="fLoja" hidden onchange="aberto=null;render()"><option value="">Todas as lojas</option><option value="1">E1 CAHU</option><option value="2">E2 MURIBECA</option><option value="3">E3 PONTE</option><option value="4">E4 ATACAREJO</option><option value="5">E5 PORTA LARGA</option><option value="6">E6 JARDIM JORDÃO</option></select><div class="lojas-seg" id="fLojaSeg" title="Loja: clique pra ver só ela; clique de novo pra voltar a todas"></div><select id="fStatus" title="Status do pedido (Tiago, 07/10)"><option value="">Todos os status</option></select><span class="cnt" id="cnt"></span><button class="btn btn-amber" id="btnTodos" onclick="enviarTodos()" title="Lista todos os pedidos Aguardando vendedor com o botão de WhatsApp de cada um">Enviar pra todos</button><button class="btn btn-slate" id="btnVer" onclick="verificarAgora()" title="Procura agora, no ERP, as NF-e (XML) dos pedidos aprovados, loja a loja, e confere quantidade, preço e boletos (o sistema faz isso sozinho a cada 30 min)">Conferir XML agora</button><button class="btn btn-slate" id="btnAtu">Atualizar</button></div>
+  <div class="tools"><input id="q" placeholder="Buscar lista, fornecedor ou vendedor" style="min-width:280px"><select id="fComp"><option value="">Todos compradores</option></select><select id="fOrig" title="De onde o pedido saiu"><option value="">Todas as origens</option><option value="radar">Radar</option><option value="cotacao">Cotação</option><option value="sugestao">Sugestão manual</option><option value="semi">Sugestão semi-automática</option><option value="ruptura">Ruptura de entrega</option></select><select id="fLoja" hidden onchange="aberto=null;render()"><option value="">Todas as lojas</option><option value="1">E1 CAHU</option><option value="2">E2 MURIBECA</option><option value="3">E3 PONTE</option><option value="4">E4 ATACAREJO</option><option value="5">E5 PORTA LARGA</option><option value="6">E6 JARDIM JORDÃO</option></select><div class="lojas-seg" id="fLojaSeg" title="Loja: clique pra ver só ela; clique de novo pra voltar a todas"></div><select id="fStatus" title="Status do pedido (Tiago, 07/10)"><option value="">Todos os status</option></select><span class="periodo"><select id="fPer" title="Período pela data de envio do pedido. 'Qualquer data' = fila normal, sem corte (Tiago, 07/10)"><option value="">Qualquer data</option><option value="hoje">Hoje</option><option value="ontem">Ontem</option><option value="7d">Últimos 7 dias</option><option value="mes">Este mês</option><option value="dia">Escolher dia…</option></select><span class="dia" id="fDia" hidden><button type="button" id="diaPrev" title="Dia anterior">◀</button><span class="lbl" id="diaLbl"></span><button type="button" id="diaNext" title="Próximo dia">▶</button><button type="button" class="hoje" id="diaHoje" title="Volta pra hoje">Hoje</button></span></span><span class="cnt" id="cnt"></span><button class="btn btn-amber" id="btnTodos" onclick="enviarTodos()" title="Lista todos os pedidos Aguardando vendedor com o botão de WhatsApp de cada um">Enviar pra todos</button><button class="btn btn-slate" id="btnVer" onclick="verificarAgora()" title="Procura agora, no ERP, as NF-e (XML) dos pedidos aprovados, loja a loja, e confere quantidade, preço e boletos (o sistema faz isso sozinho a cada 30 min)">Conferir XML agora</button><button class="btn btn-slate" id="btnAtu">Atualizar</button></div>
   <div id="view"><div class="spinner"></div></div>
 </div>
 <div id="pv" hidden><div class="pv-card" id="pv-body"></div></div>
@@ -195,6 +205,21 @@ const LOJAS_NOMES={1:'CAHU',2:'MURIBECA',3:'PONTE',4:'ATACAREJO',5:'PORTA LARGA'
 const ST={analise:'Em análise · não enviado ao vendedor',sugestao:'Sugestão · ruptura de entrega',aguardando:'Aguardando vendedor',digitacao:'Em digitação',finalizado:'Finalizado',aprovado:'Aprovado',recebido:'Recebido',recebido_parcial:'Recebido com falta',cancelado:'Cancelado'};
 const ANDAMENTO=['analise','sugestao','aguardando','digitacao','finalizado','aprovado','recebido_parcial'];   // aprovado = aguardando XML; recebido_parcial = consistência XML
 let LISTA=[], filtro='andamento', aberto=null;
+// Período pela data de envio (criadoEm) — Tiago, 07/10/26: "pedidos do dia ou por data, algo pra mudar de data com setas". A fila
+// padrão (cards) segue SEM corte de data: pedido aberto de sexta tem que continuar aparecendo na segunda. Em "7 dias" / "Este mês"
+// a lista agrupa por dia (hoje e ontem abertos, anteriores recolhidos). "Escolher dia" liga as setas ◀ ▶ ao lado do select.
+let per='', diaSel=new Date(), grpFechados={};
+const DIAS_SEM=['dom','seg','ter','qua','qui','sex','sáb'];
+const diaKey=s=>{const d=new Date(s);return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();};
+const diasAtras=d=>{const a=new Date();a.setHours(0,0,0,0);const b=new Date(d);b.setHours(0,0,0,0);return Math.round((a-b)/864e5);};
+const ddmm=d=>String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0');
+const tituloDia=(d,off)=>(off===0?'<span class="hj">HOJE</span>':off===1?'<span class="on">ONTEM</span>':'')+DIAS_SEM[d.getDay()]+' '+ddmm(d);
+function passaPeriodo(p){ if(!per) return true; if(!p.criadoEm) return false; const d=new Date(p.criadoEm), off=diasAtras(d);
+  if(per==='hoje') return off===0; if(per==='ontem') return off===1; if(per==='7d') return off>=0&&off<7;
+  if(per==='mes'){const h=new Date();return d.getMonth()===h.getMonth()&&d.getFullYear()===h.getFullYear();}
+  if(per==='dia') return diaKey(d)===diaKey(diaSel); return true; }
+function renderDia(){ const el=$('#fDia'); if(!el) return; el.hidden=per!=='dia'; if(per!=='dia') return; const off=diasAtras(diaSel);
+  $('#diaLbl').textContent=(off===0?'hoje · ':off===1?'ontem · ':'')+DIAS_SEM[diaSel.getDay()]+' '+ddmm(diaSel); $('#diaNext').disabled=off<=0; }
 // Análise de Compras × Pedidos de Compra (Tiago, 07/10/26: "lá em Pedidos de Compra só fica pedido aprovado"): a MESMA página serve as
 // duas telas (/analise-compras.html é alias no server.js). Análise = tudo ANTES da aprovação (em análise, ruptura de entrega, aguardando
 // vendedor, em digitação, finalizado aguardando aprovação, cancelado); Pedidos de Compra = aprovado em diante (XML, recebimento, financeiro).
@@ -431,11 +456,18 @@ function _render(){
   const q=($('#q').value||'').toLowerCase(), comp=$('#fComp').value, fl=+($('#fLoja').value||0), fst=$('#fStatus').value||'';
   let rows=linhas().filter(passaFiltro);
   rows=rows.filter(p=>(!q||p.lista_nome.toLowerCase().includes(q)||(p.fornecedor||'').toLowerCase().includes(q)||(p.vendedor?.nome||'').toLowerCase().includes(q)||String(p.id)===q||String(p.lista)===q)&&(!comp||p.comprador?.nome===comp)&&(!fl||(p._ln?p._ln===fl:p.lojas.includes(fl)))&&(!fst||p._grupo===fst||p._loja===fst));
-  if(fl) rows=rows.map(p=>p._ln?p:{...p,_ln:fl,_key:p.id+"-"+fl});   // filtro de loja: pedido ainda nao aprovado (sugestao/aguardando/digitacao) tambem abre so com a loja escolhida
+  if(fl) rows=rows.map(p=>p._ln?p:{...p,_ln:fl,_key:p.id+"-"+fl});
+  rows=rows.filter(passaPeriodo); renderDia();
+  const agrupa=per==='7d'||per==='mes'; if(agrupa) rows=[...rows].sort((a,b)=>String(b.criadoEm||'').localeCompare(String(a.criadoEm||'')));   // filtro de loja: pedido ainda nao aprovado (sugestao/aguardando/digitacao) tambem abre so com a loja escolhida
   $('#cnt').textContent=rows.length+' linha'+(rows.length===1?'':'s')+' ('+new Set(rows.map(p=>p.id)).size+' pedido'+(new Set(rows.map(p=>p.id)).size===1?'':'s')+')';
-  if(!rows.length){$('#view').innerHTML='<div class="empty">Nenhum pedido aqui.'+(filtro==='andamento'||filtro==='todos'?(ANALISE?' Gere um no Radar de Pedidos: selecione as listas e clique em "Enviar para Análise de Compras".':' Pedidos aprovados aparecem aqui; antes disso eles ficam em <a href="/analise-compras.html">Análise de Compras</a>.'):'')+'</div>';return;}
+  if(!rows.length){$('#view').innerHTML='<div class="empty">'+(per?'Nenhum pedido enviado neste período.':'Nenhum pedido aqui.')+(!per&&(filtro==='andamento'||filtro==='todos')?(ANALISE?' Gere um no Radar de Pedidos: selecione as listas e clique em "Enviar para Análise de Compras".':' Pedidos aprovados aparecem aqui; antes disso eles ficam em <a href="/analise-compras.html">Análise de Compras</a>.'):'')+'</div>';return;}
   let h='<div class="table-wrap"><table class="main-t"><thead><tr><th>#</th><th>Lista / fornecedor</th><th>Comprador / vendedor</th><th>Status</th><th>Andamento</th><th class="r" title="Com preço / itens">Preço / itens</th><th class="r">Último custo</th><th class="r">Digitado</th><th>Ação</th></tr></thead><tbody>';
+  let grpAtual=null, grpFechado=false;
   for(const p of rows){
+    if(agrupa){ const k=diaKey(p.criadoEm); if(k!==grpAtual){ grpAtual=k; const d=new Date(p.criadoEm), off=diasAtras(d), n=rows.filter(r=>diaKey(r.criadoEm)===k), np=new Set(n.map(r=>r.id)).size;
+      grpFechado=grpFechados[k]!==undefined?grpFechados[k]:off>1;
+      h+='<tr class="grp" data-k="'+k+'"><td colspan="9"><span class="arr">'+(grpFechado?'▸':'▾')+'</span>'+tituloDia(d,off)+'<span class="n">'+n.length+' linha'+(n.length===1?'':'s')+' · '+np+' pedido'+(np===1?'':'s')+'</span></td></tr>'; }
+      if(grpFechado) continue; }
     const rup=p.origem?.tipo==='ruptura'?'<div><span class="rup" title="Criada automaticamente pelo sistema: a nota do pedido #'+p.origem.pedidoId+' chegou com falta nas lojas '+(p.origem.lojas||[]).map(ETQ).join(' ')+'">RUPTURA DE ENTREGA · do pedido #'+p.origem.pedidoId+'</span></div>':'';
     const recS=p.recebimento?Object.entries(p.recebimento).map(([l,r])=>ETQ(l)+': '+(r.faltas?'<span class="f">'+r.faltas+' falta'+(r.faltas>1?'s':'')+'</span>':'ok')).join(' · '):'';
     const L=p._ln||0, T=L?(p.por_loja?.[L]||p.totais):p.totais, key=p._key||String(p.id);
@@ -445,6 +477,7 @@ function _render(){
   h+='</tbody></table></div>';
   $('#view').innerHTML=h;
   document.querySelectorAll('tr.lst').forEach(tr=>tr.onclick=e=>{if(e.target.closest('.btn,a,input'))return;const key=tr.dataset.id;aberto=aberto===key?null:key;render();if(aberto)carregarDetalhe(key);});
+  document.querySelectorAll('tr.grp').forEach(tr=>tr.onclick=()=>{grpFechados[tr.dataset.k]=tr.querySelector('.arr').textContent==='▾';render();});
 }
 // est · trâns embaixo da caixinha de cada loja, igual à Cotação (Tiago, 06/10/26). Vem de p.estoque_lojas, que a rota do pedido
 // anexa a partir da base do Radar (estoque líquido · trânsito = sugestões abertas no ERP); produto fora da base fica sem a linha.
@@ -829,6 +862,8 @@ async function cancelar(id){
   if(j.error){alert(j.error);return;} aberto=null; await carregar();
 }
 $('#q').addEventListener('input',render); $('#fComp').addEventListener('change',render); $('#fLojaSeg').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return; const sel=$('#fLoja'); sel.value=sel.value===b.dataset.v?'':b.dataset.v; renderLojaSeg(); sel.dispatchEvent(new Event('change')); }); $('#fOrig').addEventListener('change',()=>{aberto=null;renderTotais();render();}); $('#fStatus').addEventListener('change',()=>{filtro=$('#fStatus').value?'todos':'andamento';aberto=null;renderTotais();render();}); $('#btnAtu').onclick=carregar;
+$('#fPer').addEventListener('change',()=>{per=$('#fPer').value;if(per==='dia')diaSel=new Date();if(per&&filtro==='andamento')filtro='todos';if(!per&&filtro==='todos'&&!$('#fStatus').value)filtro='andamento';aberto=null;renderTotais();render();});
+$('#diaPrev').onclick=()=>{diaSel.setDate(diaSel.getDate()-1);aberto=null;render();}; $('#diaNext').onclick=()=>{diaSel.setDate(diaSel.getDate()+1);aberto=null;render();}; $('#diaHoje').onclick=()=>{diaSel=new Date();aberto=null;render();};
 (async () => {
   setupModo(); await carregar();
   const id = new URLSearchParams(location.search).get('pedido');
