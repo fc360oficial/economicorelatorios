@@ -169,7 +169,7 @@ input.embi:focus{outline:none;border:1px solid #F5B800;background:#FFFDF3}input.
   <div class="fluxo" id="pg-fluxo"></div>
   <div class="totais" id="totais"></div>
   <div id="cd-card" hidden style="margin:-6px 0 14px"></div>
-  <div class="tools"><input id="q" placeholder="Buscar lista, fornecedor ou vendedor" style="min-width:280px"><select id="fComp"><option value="">Todos compradores</option></select><select id="fOrig" title="De onde o pedido saiu"><option value="">Todas as origens</option><option value="radar">Radar</option><option value="cotacao">Cotação</option><option value="sugestao">Sugestão manual</option><option value="semi">Sugestão semi-automática</option><option value="ruptura">Ruptura de entrega</option></select><select id="fLoja" onchange="aberto=null;render()"><option value="">Todas as lojas</option><option value="1">E1 CAHU</option><option value="2">E2 MURIBECA</option><option value="3">E3 PONTE</option><option value="4">E4 ATACAREJO</option><option value="5">E5 PORTA LARGA</option><option value="6">E6 JARDIM JORDÃO</option></select><span class="cnt" id="cnt"></span><button class="btn btn-amber" id="btnTodos" onclick="enviarTodos()" title="Lista todos os pedidos Aguardando vendedor com o botão de WhatsApp de cada um">Enviar pra todos</button><button class="btn btn-slate" id="btnVer" onclick="verificarAgora()" title="Procura agora, no ERP, as NF-e (XML) dos pedidos aprovados, loja a loja, e confere quantidade, preço e boletos (o sistema faz isso sozinho a cada 30 min)">Conferir XML agora</button><button class="btn btn-slate" id="btnAtu">Atualizar</button></div>
+  <div class="tools"><input id="q" placeholder="Buscar lista, fornecedor ou vendedor" style="min-width:280px"><select id="fComp"><option value="">Todos compradores</option></select><select id="fOrig" title="De onde o pedido saiu"><option value="">Todas as origens</option><option value="radar">Radar</option><option value="cotacao">Cotação</option><option value="sugestao">Sugestão manual</option><option value="semi">Sugestão semi-automática</option><option value="ruptura">Ruptura de entrega</option></select><select id="fLoja" onchange="aberto=null;render()"><option value="">Todas as lojas</option><option value="1">E1 CAHU</option><option value="2">E2 MURIBECA</option><option value="3">E3 PONTE</option><option value="4">E4 ATACAREJO</option><option value="5">E5 PORTA LARGA</option><option value="6">E6 JARDIM JORDÃO</option></select><select id="fStatus" title="Status do pedido (Tiago, 07/10)"><option value="">Todos os status</option></select><span class="cnt" id="cnt"></span><button class="btn btn-amber" id="btnTodos" onclick="enviarTodos()" title="Lista todos os pedidos Aguardando vendedor com o botão de WhatsApp de cada um">Enviar pra todos</button><button class="btn btn-slate" id="btnVer" onclick="verificarAgora()" title="Procura agora, no ERP, as NF-e (XML) dos pedidos aprovados, loja a loja, e confere quantidade, preço e boletos (o sistema faz isso sozinho a cada 30 min)">Conferir XML agora</button><button class="btn btn-slate" id="btnAtu">Atualizar</button></div>
   <div id="view"><div class="spinner"></div></div>
 </div>
 <div id="pv" hidden><div class="pv-card" id="pv-body"></div></div>
@@ -196,8 +196,11 @@ let LISTA=[], filtro='andamento', aberto=null;
 const ANALISE=/analise-compras/.test(location.pathname);
 const PRE=['analise','sugestao','aguardando','digitacao','finalizado','cancelado'];
 const SO_PRE=['analise','sugestao','aguardando','digitacao','finalizado'], SO_POS=['aprovado','xml_consistencia','chegou','finalizado_loja','recebido','financeiro'];   // cards que só fazem sentido numa das telas
+// filtro de status na barra (Tiago, 07/10/26): mesmas chaves dos cards; escolher um status solta o card ("Todos") e vice-versa
+const OPC_STATUS=[['analise','Em análise · não enviado'],['sugestao','Ruptura de entrega'],['aguardando','Aguardando vendedor'],['digitacao','Em digitação'],['finalizado','Finalizado · aguardando aprovação'],['cancelado','Cancelado'],['aprovado','Aprovado · aguardando XML'],['xml_consistencia','Consistência XML'],['recebido','Conciliado'],['chegou','Chegou na loja'],['finalizado_loja','Finalizado na loja']];
 function setupModo(){
   document.title=(ANALISE?'Análise de Compras':'Pedidos de Compra')+' — Econômico Supermercados';
+  $('#fStatus').innerHTML='<option value="">Todos os status</option>'+OPC_STATUS.filter(([k])=>ANALISE?!SO_POS.includes(k):(!SO_PRE.includes(k)&&k!=='cancelado')).map(([k,l])=>'<option value="'+k+'">'+l+'</option>').join('');
   if(ANALISE){
     $('#pg-h1').textContent='Análise de Compras';
     $('#pg-sub').textContent='Pedidos que vieram do Radar pra você analisar antes de ir pro fornecedor. Confira quantidades e caixas, envie ao vendedor (ele digita os preços no link), negocie o preço e aprove. Aprovado vai pra Pedidos de Compra. Nada é gravado no ERP.';
@@ -374,7 +377,7 @@ function renderTotais(){
   const L=linhas(); const c=k=>L.filter(r=>r._grupo===k).length, cl=k=>L.filter(r=>r._loja===k).length;
   const cards=[['andamento','Em andamento',L.filter(r=>EM_ANDAMENTO.includes(r._grupo)).length],['analise','Em análise · não enviado',c('analise')],['sugestao','Ruptura de entrega',c('sugestao')],['aguardando','Aguardando vendedor',c('aguardando')],['digitacao','Em digitação',c('digitacao')],['finalizado','Aguardando aprovação',c('finalizado')],['aprovado','Aguardando XML',c('aprovado')],['xml_consistencia','Consistência XML',c('xml_consistencia')],['chegou','Chegou na loja',cl('chegou')],['finalizado_loja','Finalizado na loja',cl('finalizado_loja')],['recebido','Conciliados',c('recebido')],['financeiro','Financeiro · conferir antes de pagar',FIN.length],['todos','Todos',L.length]];
   $('#totais').innerHTML=cards.filter(([k])=>ANALISE?!SO_POS.includes(k):!SO_PRE.includes(k)).map(([k,l,n])=>'<div class="tkpi'+(filtro===k?' on':'')+'" data-f="'+k+'"><div class="v'+((k==='finalizado'||k==='xml_consistencia'||k==='financeiro')&&n?' neg':k==='chegou'&&n?' pos':'')+'">'+n+'</div><div class="l">'+l+'</div></div>').join('');
-  document.querySelectorAll('.tkpi').forEach(t=>t.onclick=()=>{filtro=t.dataset.f;aberto=null;renderTotais();render();});
+  document.querySelectorAll('.tkpi').forEach(t=>t.onclick=()=>{filtro=t.dataset.f;$('#fStatus').value='';aberto=null;renderTotais();render();});
 }
 // Pedidos ao CD (Centro de Distribuição) em andamento — só um resumo com link; o acompanhamento fica na tela do CD
 async function carregarCD(){
@@ -417,9 +420,9 @@ function manterRolagem(fn){ const y=window.scrollY; fn(); window.scrollTo(0,y); 
 function render(){ manterRolagem(_render); }
 function _render(){
   if(filtro==='financeiro') return renderFin();
-  const q=($('#q').value||'').toLowerCase(), comp=$('#fComp').value, fl=+($('#fLoja').value||0);
+  const q=($('#q').value||'').toLowerCase(), comp=$('#fComp').value, fl=+($('#fLoja').value||0), fst=$('#fStatus').value||'';
   let rows=linhas().filter(passaFiltro);
-  rows=rows.filter(p=>(!q||p.lista_nome.toLowerCase().includes(q)||(p.fornecedor||'').toLowerCase().includes(q)||(p.vendedor?.nome||'').toLowerCase().includes(q)||String(p.id)===q||String(p.lista)===q)&&(!comp||p.comprador?.nome===comp)&&(!fl||(p._ln?p._ln===fl:p.lojas.includes(fl))));
+  rows=rows.filter(p=>(!q||p.lista_nome.toLowerCase().includes(q)||(p.fornecedor||'').toLowerCase().includes(q)||(p.vendedor?.nome||'').toLowerCase().includes(q)||String(p.id)===q||String(p.lista)===q)&&(!comp||p.comprador?.nome===comp)&&(!fl||(p._ln?p._ln===fl:p.lojas.includes(fl)))&&(!fst||p._grupo===fst||p._loja===fst));
   if(fl) rows=rows.map(p=>p._ln?p:{...p,_ln:fl,_key:p.id+"-"+fl});   // filtro de loja: pedido ainda nao aprovado (sugestao/aguardando/digitacao) tambem abre so com a loja escolhida
   $('#cnt').textContent=rows.length+' linha'+(rows.length===1?'':'s')+' ('+new Set(rows.map(p=>p.id)).size+' pedido'+(new Set(rows.map(p=>p.id)).size===1?'':'s')+')';
   if(!rows.length){$('#view').innerHTML='<div class="empty">Nenhum pedido aqui.'+(filtro==='andamento'||filtro==='todos'?(ANALISE?' Gere um no Radar de Pedidos: selecione as listas e clique em "Enviar para Análise de Compras".':' Pedidos aprovados aparecem aqui; antes disso eles ficam em <a href="/analise-compras.html">Análise de Compras</a>.'):'')+'</div>';return;}
@@ -813,7 +816,7 @@ async function cancelar(id){
   const r=await fetch('/api/pedidos-fornecedor/'+id+'/cancelar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({motivo})}); const j=await r.json();
   if(j.error){alert(j.error);return;} aberto=null; await carregar();
 }
-$('#q').addEventListener('input',render); $('#fComp').addEventListener('change',render); $('#fOrig').addEventListener('change',()=>{aberto=null;renderTotais();render();}); $('#btnAtu').onclick=carregar;
+$('#q').addEventListener('input',render); $('#fComp').addEventListener('change',render); $('#fOrig').addEventListener('change',()=>{aberto=null;renderTotais();render();}); $('#fStatus').addEventListener('change',()=>{filtro=$('#fStatus').value?'todos':'andamento';aberto=null;renderTotais();render();}); $('#btnAtu').onclick=carregar;
 (async () => {
   setupModo(); await carregar();
   const id = new URLSearchParams(location.search).get('pedido');
