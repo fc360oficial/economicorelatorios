@@ -8015,6 +8015,12 @@ app.get('/api/pedidos-fornecedor/:id', async (req, res) => {
 });
 
 app.post('/api/pedidos-fornecedor/:id/aprovar', async (req, res) => {
+  // Tiago, 07/10/26: "Obs. pro Fiscal" é do(a) comprador(a) e é OBRIGATÓRIA pra aprovar (só aqui, na aprovação manual; pedido de
+  // cotação nasce aprovado por outro caminho). A tela manda o texto junto pra não depender do salvar-ao-sair-do-campo.
+  { const id = parseInt(req.params.id), usuario = req.session.user?.nome || null;
+    if (typeof req.body?.obs_fiscal === 'string' && req.body.obs_fiscal.trim()) { const r0 = pedidosFornec.obsFiscal(id, req.body.obs_fiscal, usuario); if (r0 && r0.erro) return res.status(409).json({ error: r0.erro }); }
+    const p0 = pedidosFornec.obter(id); if (!p0) return res.status(404).json({ error: 'Pedido não encontrado' });
+    if (!String(p0.obs_fiscal || '').trim()) return res.status(400).json({ error: 'Preencha a "Obs. pro Fiscal" antes de aprovar o pedido: é a orientação do(a) comprador(a) pra quem vai receber a nota.' }); }
   const p = pedidosFornec.aprovar(parseInt(req.params.id), req.session.user?.nome || null);
   if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
   if (p.erro) return res.status(409).json({ error: p.erro });

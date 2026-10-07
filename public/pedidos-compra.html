@@ -86,6 +86,7 @@ tr.novo td{background:#FFF3F5}
 .acoes .btn{margin:0}
 .det td>.oq,.det td>.acoes{position:sticky;left:12px;box-sizing:border-box;max-width:calc(100vw - 64px - 48px - 28px)}
 .det td>.oq{margin-left:0;margin-right:0}.det td>.oq input{flex:1 1 320px;max-width:720px}
+.oq input.cx.falta{border-color:#C22F49!important;background:#FFF5F6}   /* Obs. pro Fiscal vazia ao tentar aprovar (Tiago, 07/10) */
 .acoes>span:not(.erpt){flex:1 1 100%;order:-1;line-height:1.5}.acoes>span.sp{display:none}.acoes .btn-navy{margin-right:4px}
 .empty{padding:60px 20px;text-align:center;color:#98A0B3;font-size:13px}
 .spinner{width:26px;height:26px;border:3px solid #DADAD6;border-top-color:#F5B800;border-radius:50%;animation:spin .7s linear infinite;margin:40px auto}
@@ -487,10 +488,10 @@ async function carregarDetalhe(key){
     h+=secaoAvarias(p,LN);
     h+=secaoXml(p,LN);
     h+=barraRespostaAvaria(p,LN);
-    h+=(p.status!=='cancelado'?'<div class="oq barra"><span class="t">Obs. pro Fiscal</span><input class="cx" id="obsf-'+p.id+'" value="'+esc(p.obs_fiscal||'')+'" maxlength="600" placeholder="ex.: conferir validade mínima 60 d / recusar caixa avariada / entrega só até 10h" onclick="event.stopPropagation()" onchange="salvarObsFiscal('+p.id+')" onkeydown="if(event.key===&quot;Enter&quot;){event.preventDefault();this.blur();}"><span class="dica" id="obsfd-'+p.id+'">salva sozinho ao sair do campo ou dar Enter · sai no PDF pro fornecedor e aparece no Fiscal · Recebimento'+(p.obs_fiscal_por?' · '+esc(p.obs_fiscal_por):'')+'</span></div>':'')+'<div class="acoes">'+'<button class="btn btn-navy" onclick="event.stopPropagation();prePedido('+p.id+')" title="Prévia do pedido como vai pro vendedor: loja a loja, com totais e observações">Pré-pedido por loja</button>'+
+    h+=(p.status!=='cancelado'?'<div class="oq barra"><span class="t">Obs. pro Fiscal</span><input class="cx" id="obsf-'+p.id+'" value="'+esc(p.obs_fiscal||'')+'" maxlength="600" placeholder="ex.: conferir validade mínima 60 d / recusar caixa avariada / entrega só até 10h" onclick="event.stopPropagation()" onchange="salvarObsFiscal('+p.id+')" onkeydown="if(event.key===&quot;Enter&quot;){event.preventDefault();this.blur();}"><span class="dica" id="obsfd-'+p.id+'">'+(p.status==='finalizado'?'<b>obrigatória pra aprovar</b> · ':'')+'salva sozinho ao sair do campo ou dar Enter · sai no PDF pro fornecedor e aparece no Fiscal · Recebimento'+(p.obs_fiscal_por?' · '+esc(p.obs_fiscal_por):'')+'</span></div>':'')+'<div class="acoes">'+'<button class="btn btn-navy" onclick="event.stopPropagation();prePedido('+p.id+')" title="Prévia do pedido como vai pro vendedor: loja a loja, com totais e observações">Pré-pedido por loja</button>'+
       (p.status==='sugestao'?'<button class="btn btn-green" onclick="enviarSugestao('+p.id+')">Enviar ao vendedor</button><span>Sugestão criada pelo sistema com o que <b>faltou</b> na entrega do pedido #'+(p.origem?.pedidoId||'')+'. Revise e envie: vira "Aguardando vendedor" e o link é o mesmo fluxo.</span>':'')+
       (p.status==='analise'?'<button class="btn btn-green" onclick="enviarSugestao('+p.id+')">Enviar ao vendedor</button><span><b>Em análise</b>: confira quantidades, caixas e lojas (nada foi mandado ao vendedor). Ao enviar vira "Aguardando vendedor" e você recebe o link pra mandar pelo WhatsApp.</span>':'')+
-      (p.status==='finalizado'?'<button class="btn btn-green" onclick="aprovar('+p.id+')">Aprovar pedido</button><span>Confere os preços e aprova. O pedido passa pra aba Aprovados e o sistema passa a esperar a nota no ERP.</span>':'')+
+      (p.status==='finalizado'?'<button class="btn btn-green" onclick="aprovar('+p.id+')">Aprovar pedido</button><span>Confere os preços, preenche a <b>Obs. pro Fiscal</b> (obrigatória) e aprova. O pedido vai pra Pedidos de Compra e o sistema passa a esperar a nota no ERP.</span>':'')+
       (p.status==='aprovado'?'<span>'+(p.xml&&p.xml.status==='parcial'?'XML já conferido em '+Object.entries(p.xml.lojas).filter(([,x])=>x.status!=='aguardando').map(([l])=>ETQ(l)).join(', ')+'; aguardando a nota das outras lojas.':'Aguardando a NF-e (XML) do fornecedor entrar no ERP, loja a loja.')+'</span>':'')+
       (p.status==='recebido'?'<span class="pos">Conciliado 100% com o XML'+(p.recebidoEm?' em '+new Date(p.recebidoEm).toLocaleString('pt-BR'):'')+'.</span>':'')+
       (p.status==='recebido_parcial'?'<span class="neg">Consistência XML: veja a conferência por loja acima. Faltas viram sugestão de ruptura (card "Ruptura de entrega").</span>':'')+
@@ -703,9 +704,13 @@ async function aprovarMsgErp(j){
   const ok=Object.entries(e.lojas||{}).map(([l,x])=>ETQ(l)+' → nº '+x.nReg); const er=(e.erros||[]).map(x=>ETQ(x.loja)+': '+x.erro);
   return '\n\nERP teste (.254): '+(ok.length?ok.join(', '):'nada gravado')+(er.length?'\nERROS: '+er.join(' | ')+'\n(veja na tela do pedido e em Processos > Log)':'');
 }
+// Tiago, 07/10/26: "Obs. pro Fiscal" é do(a) comprador(a) e é obrigatória pra aprovar — campo vazio fica vermelho, ganha foco e o aprovar não sai
 async function aprovar(id){
+  { const el=document.getElementById('obsf-'+id), obs=String(el?el.value:(PED[id]?.obs_fiscal||'')).trim();
+    if(!obs){ if(el){ el.classList.add('falta'); try{el.scrollIntoView({block:'center',behavior:'smooth'});}catch(e){} el.focus(); const d=document.getElementById('obsfd-'+id); if(d){ d.innerHTML='<b>obrigatória pra aprovar</b>: escreva a orientação pro fiscal que vai receber a nota (ex.: conferir validade mínima 60 d / recusar caixa avariada)'; d.style.color='#C22F49'; } }
+      alert('Pra aprovar o pedido #'+id+', preencha a "Obs. pro Fiscal": é a orientação do(a) comprador(a) pra quem vai receber a nota.'); return; } }
   const pa=PED[id]?.avarias; if(!confirm('Aprovar o pedido #'+id+'?'+(pa&&pa.n?'\n\nATENÇÃO: '+pa.n+' avaria(s) pendente(s) com este fornecedor (R$ '+fmt(pa.total,2)+'). '+(pa.resposta_vendedor?'Resposta do vendedor: "'+pa.resposta_vendedor+'"':'O vendedor NÃO respondeu sobre as avarias.')+'\nAprovar mesmo assim?':''))) return;
-  const r=await fetch('/api/pedidos-fornecedor/'+id+'/aprovar',{method:'POST'}); const j=await r.json();
+  const r=await fetch('/api/pedidos-fornecedor/'+id+'/aprovar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({obs_fiscal:String((document.getElementById('obsf-'+id)||{}).value||PED[id]?.obs_fiscal||'')})}); const j=await r.json();
   if(j.error){alert(j.error);return;} await carregar(); if(ANALISE){ aberto=null; render(); } else { aberto=id; render(); carregarDetalhe(id); }   // na Análise o aprovado sai da lista: foi pra Pedidos de Compra
   const msgErp=await aprovarMsgErp(j); if(msgErp||ANALISE) alert('Pedido #'+id+' aprovado.'+(ANALISE?' Ele saiu da Análise e está em Pedidos de Compra.':'')+(msgErp||''));
   try{const r2=await fetch('/api/pedidos-fornecedor/'+id);const p=await r2.json();if(!p.error)modalPdf(p);}catch(e){}
@@ -807,7 +812,7 @@ async function salvarEmb(el){
 }
 // Tiago, 06/10/26: "tira esse nome salvar porque o que eu escrever já fica salvo" — grava no change (sair do campo / Enter), sem botão
 async function salvarObsFiscal(id){
-  const el=document.getElementById('obsf-'+id); if(!el) return;
+  const el=document.getElementById('obsf-'+id); if(!el) return; if(String(el.value||'').trim()) el.classList.remove('falta');
   if(PED[id]&&String(PED[id].obs_fiscal||'')===String(el.value||'')) return;   // nada mudou
   const r=await fetch('/api/pedidos-fornecedor/'+id+'/obs-fiscal',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({obs:el.value})}); const j=await r.json();
   if(j.error){alert(j.error);return;} el.style.borderColor='#137A48'; setTimeout(()=>{el.style.borderColor='#EFD98F';},1500); if(PED[id]) PED[id].obs_fiscal=j.obs_fiscal;
