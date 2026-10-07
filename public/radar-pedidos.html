@@ -229,6 +229,9 @@ table.main-t td.sel input,table.main-t th.sel input{width:15px;height:15px;accen
 .lojas-seg label:has(input:checked){background:#0E1626;color:#fff;box-shadow:0 1px 3px rgba(14,22,38,.2)}
 .lojas-seg label:has(input:focus-visible){outline:2px solid #F5B800;outline-offset:1px}
 .lojas-seg input{position:absolute;opacity:0;width:0;height:0;min-width:0;margin:0;padding:0;border:0;pointer-events:none}
+/* colunas Status · Lista/fornecedor · Comprador(a) (Tiago, 07/10) */
+table.main-t td.st{white-space:normal;min-width:84px;max-width:190px;vertical-align:middle}table.main-t td.st .fl{display:flex;flex-wrap:wrap;gap:3px;justify-content:center;align-items:center}
+table.main-t td.comp{white-space:normal;max-width:130px;font-size:12px;font-weight:700;color:#4E5A72;line-height:1.25}
 </style>
 <link rel="stylesheet" href="/compras-layout.css"><!-- escala comum das 3 telas de compras (Radar → Análise → Pedidos): ver CLAUDE.md -->
 </head>
@@ -372,8 +375,8 @@ function listasFiltradas(){
 function ordenar(rows){
   // na ordem por "Fazer em", dentro do mesmo dia as listas com curva A em risco vêm primeiro
   const rA=l=>l.ok&&(l.curva_a_risco||[]).length?1:0;
-  const nv=l=>l.nova_ate?1:0;
-  return rows.sort((a,b)=>{if(nv(a)!==nv(b))return nv(b)-nv(a);let x=a[sortK],y=b[sortK];if(x==null&&y==null)return 0;if(x==null)return 1;if(y==null)return -1;if(typeof x==='string')return sortD*x.localeCompare(y,'pt-BR');return sortD*(x-y)||(sortK==='fazer_em'?rA(b)-rA(a):0)||(b.venda_dia||0)-(a.venda_dia||0);});
+  const nv=l=>l.nova_ate?1:0, st=l=>(l.ok&&(l.curva_a_risco||[]).length?2:0)+(l.nova_ate||l.itens_novos?1:0)+((PED_ABERTOS[l.lista]||[]).length?1:0);
+  return rows.sort((a,b)=>{if(nv(a)!==nv(b))return nv(b)-nv(a);if(sortK==='status'){const d=st(b)-st(a);if(d)return sortD*d;return (b.venda_dia||0)-(a.venda_dia||0);}let x=a[sortK],y=b[sortK];if(x==null&&y==null)return 0;if(x==null)return 1;if(y==null)return -1;if(typeof x==='string')return sortD*x.localeCompare(y,'pt-BR');return sortD*(x-y)||(sortK==='fazer_em'?rA(b)-rA(a):0)||(b.venda_dia||0)-(a.venda_dia||0);});
 }
 function pillA(l){
   if(!l.ok) return '';
@@ -424,7 +427,6 @@ function transitoHtml(l){
 function flagsHtml(l){
   const f=[]; const pa=pedidosAbertosHtml(l.lista); if(pa) f.push(pa); if(l.abaixo_minimo)f.push('<span class="pill p-flag" title="Valor abaixo do pedido mínimo do fornecedor">abaixo do mínimo</span>');
   if(l.flags&&l.flags.teto)f.push('<span class="pill p-flag" title="Itens em que a quantidade bateu no teto (alvo + ciclo): conferir estoque/venda atípica">'+l.flags.teto+' no teto</span>');
-  if(l.perecivel)f.push('<span class="pill p-flag" title="Alvo limitado a 60% da validade de cadastro">perecível</span>');
   return f.join(' ');
 }
 
@@ -443,7 +445,7 @@ function render(){
   if(tab==='regras') return renderRegras();
 }
 const COLS=[
-  ['nome','Lista · fornecedor · comprador(a)',''],['fazer_em','Fazer em','c'],['pedido_valor','Pedido (custo)','r'],
+  ['status','Status','c st'],['nome','Lista · fornecedor',''],['comprador','Comprador(a)','comp'],['fazer_em','Fazer em','c'],['pedido_valor','Pedido (custo)','r'],
   ['cobertura_dias','Cobertura','r sep'],['estoque_hoje','Estoque (custo)','r'],['venda_dia','Venda/dia','r'],['rupturas','Rupturas','r'],['transito_valor','Trânsito','r'],['lead','Lead','r']
 ];
 // Tiago, 01/10/26: tabela mais simples — um número por célula, a sublinha explica; ponto/alvo/ciclo completos ficam no hover;
@@ -463,12 +465,13 @@ function renderTabela(rows,vazio){
     const forn=(l.fornecedor||'').trim(), mesmoNome=forn&&forn.toUpperCase()===String(l.nome||'').trim().toUpperCase();
     h+='<tr class="lst'+(aberta===l.lista?' open':'')+'" data-l="'+l.lista+'">'+
       '<td class="sel c"><input type="checkbox" class="selrow" data-l="'+l.lista+'" '+(SEL.has(l.lista)?'checked':'')+'></td>'+
-      '<td class="lc">'+(pills?'<div class="fl top">'+pills+'</div>':'')+'<div class="nm">'+esc(l.nome)+'<span>#'+l.lista+'</span></div>'+
-        '<div class="sub"><span class="cp" title="comprador(a) da lista">'+esc(l.comprador||'sem comprador(a)')+'</span>'+(forn&&!mesmoNome?' · '+esc(forn):'')+'</div>'+(fl?'<div class="fl">'+fl+'</div>':'')+'</td>'+
+      '<td class="c st">'+(pills||fl?'<div class="fl">'+pills+(fl?' '+fl:'')+'</div>':'<span class="mut">—</span>')+'</td>'+
+      '<td class="lc"><div class="nm">'+esc(l.nome)+'<span>#'+l.lista+'</span></div>'+(forn&&!mesmoNome?'<div class="sub" title="razão social do fornecedor">'+esc(forn)+'</div>':'')+'</td>'+
+      '<td class="comp" title="comprador(a) da lista">'+esc(l.comprador||'—')+'</td>'+
       '<td class="c">'+pillDia(l)+'</td>';
     if(!l.ok){
       const expl=/sem venda/.test(l.motivo||'')?'nenhum item da lista vendeu nos '+((DATA.estado.janela||{}).dias||40)+' dias: nada a calcular':/sem lead/.test(l.motivo||'')?'sem pedido fechado em 12 meses nesta lista, no fornecedor e na rede: o radar não sabe o prazo de entrega':'sem cálculo pro radar';
-      h+='<td class="semcalc" colspan="'+(COLS.length-2)+'">'+expl+(l.transito_itens?' · já em trânsito '+money(l.transito_valor)+' ('+l.transito_itens+(l.transito_itens>1?' itens':' item')+')':'')+(lead&&lead.lead_medio!=null?' · lead '+fmt(lead.lead_medio)+' d':'')+'</td></tr>';
+      h+='<td class="semcalc" colspan="'+(COLS.length-4)+'">'+expl+(l.transito_itens?' · já em trânsito '+money(l.transito_valor)+' ('+l.transito_itens+(l.transito_itens>1?' itens':' item')+')':'')+(lead&&lead.lead_medio!=null?' · lead '+fmt(lead.lead_medio)+' d':'')+'</td></tr>';
     } else {
       const dif=l.diferenca||0;
       h+='<td class="r"><b>'+money(l.pedido_valor)+'</b><div class="s2">'+l.pedido_itens+' de '+l.com_venda+' itens</div></td>'+
