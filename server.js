@@ -8532,7 +8532,7 @@ app.post('/api/cotacoes/fornecedores/importar', uploadPlanilhaCot.single('planil
 // itens reais da lista 277 (se o Radar já calculou; senão amostra), 3 fornecedores de teste — 2 com preços digitados
 // (um com observações e itens faltando), 1 só com o link aberto. Nada vai pro ERP nem pra vendedor real.
 // pedido gerado ao fechar uma cotação (usado pelo fechar real e pelos exemplos de teste)
-async function criarPedidoDaCotacao(f, itens, c, usuario, extra) {
+async function criarPedidoDaCotacao(f, itens, c, usuario, extra, sessionUser) {
   const detalhe = { fazer_em: 0, gatilho: 'lista', fazer_em_lista: 0, itens: itens.map(i => ({ cod: i.cod, descricao: i.descricao, unid: i.unid, emb: i.emb, qtd: i.qtd, volumes: i.volumes, lojas_qtd: i.lojas_qtd, custo: i.ultimo_custo || 0, curva_a: !!i.curva_a, risco_a: false, cobertura_dias: i.cobertura_dias ?? null })) };
   // codFornecErp = fornecedor do ERP (avarias, XML por CNPJ, histórico); codFornec pode ser a chave do concorrente (empresa com vários vendedores)
   const lista = { lista: c.lista, nome: `${c.nome} · ${f.nome}`, fornecedor: f.nome, codFornec: f.codFornecErp || f.codFornec, pedidoMinimo: null };
@@ -8551,7 +8551,9 @@ async function criarPedidoDaCotacao(f, itens, c, usuario, extra) {
   // Erro por loja cai em p.erp_teste.erros; o botão "Gerar pedido no ERP teste" segue como reenvio.
   // Cotação de TESTE continua fora: nada dela vai pro ERP.
   if (!c.teste) {
-    try { await gerarPedidoErpTeste(pedidosFornec.obter(p.id), usuario || 'COTACAO', null, null); }
+    // sessionUser: com ele o usuarioDlinksDe resolve o operador do Dlinks (nome MAIÚSCULO +
+    // CodAutorizacao), igual ao Aprovar do Radar — sem ele saía "Rodrigo Cahu" minúsculo, cod 0
+    try { await gerarPedidoErpTeste(pedidosFornec.obter(p.id), usuario || 'COTACAO', null, sessionUser || null); }
     catch (e) { console.error('[COTACAO] erp teste pedido ' + p.id + ':', e.message); }
   }
   const fin = pedidosFornec.obter(p.id);
@@ -8768,7 +8770,7 @@ app.post('/api/cotacoes/:id/pre-pedido/:codFornec/realizar', async (req, res) =>
   try {
     const id = cotId(req); if (!id) return res.status(400).json({ error: 'id inválido' });
     const usuario = cotUser(req);
-    const r = await cotacao.realizarPedido(id, req.params.codFornec, usuario, (f, itens, c, extra) => criarPedidoDaCotacao(f, itens, c, usuario, extra));
+    const r = await cotacao.realizarPedido(id, req.params.codFornec, usuario, (f, itens, c, extra) => criarPedidoDaCotacao(f, itens, c, usuario, extra, req.session.user));
     if (!r) return res.status(404).json({ error: 'cotação não encontrada' });
     if (r.erro) return res.status(409).json({ error: r.erro });
     res.json(cotDetalhe(r));
@@ -8834,7 +8836,7 @@ app.post('/api/cotacoes/:id/fechar', async (req, res) => {
   try {
     const id = cotId(req); if (!id) return res.status(400).json({ error: 'id inválido' });
     const usuario = cotUser(req);
-    const r = await cotacao.fechar(id, usuario, (f, itens, c, extra) => criarPedidoDaCotacao(f, itens, c, usuario, extra));
+    const r = await cotacao.fechar(id, usuario, (f, itens, c, extra) => criarPedidoDaCotacao(f, itens, c, usuario, extra, req.session.user));
     if (!r) return res.status(404).json({ error: 'cotação não encontrada' });
     if (r.erro) return res.status(409).json({ error: r.erro });
     res.json(cotDetalhe(r));
