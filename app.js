@@ -6057,19 +6057,39 @@ function renderRelRanking(_skipFetch) {
 
   var users = getUsers();
 
-  // Helper: agrega resultados de uma lista filtrada por nome do operador
-  function buildRankList(filteredRes) {
-    var map = {};
-    filteredRes.forEach(function(r){
-      if (!map[r.operador]) map[r.operador]={env:0,comp:0,soma:0,pontos:0};
-      map[r.operador].env++;
-      if (r.pct===100) map[r.operador].comp++;
-      map[r.operador].soma   += r.pct;
-      map[r.operador].pontos += calcPontos(r.pct);
+
+  // Regra (Tiago, 07/10/2026): no máximo 1 envio por dia conta no ranking.
+  // Vários envios no mesmo dia (checklists diferentes ou reenvio) viram UM envio
+  // com a média % do dia — assim 5 dias de envio nunca passam de 50 pts.
+  function _diaDe(r) { return (r.dataHora||'').split(' ')[0]; }
+  function _agregaPorDia(lista) {
+    var porDia = {};
+    lista.forEach(function(r){
+      var d = _diaDe(r);
+      if (!porDia[d]) porDia[d] = {soma:0, n:0};
+      porDia[d].soma += (r.pct||0); porDia[d].n++;
     });
-    return Object.keys(map).map(function(n){
-      var o=map[n];
-      return {nome:n, env:o.env, comp:o.comp, pontos:o.pontos, media:Math.round(o.soma/o.env)};
+    var o = {env:0, comp:0, soma:0, pontos:0};
+    Object.keys(porDia).forEach(function(d){
+      var pctDia = Math.round(porDia[d].soma / porDia[d].n);
+      o.env++;
+      if (pctDia === 100) o.comp++;
+      o.soma   += pctDia;
+      o.pontos += calcPontos(pctDia);
+    });
+    return o;
+  }
+
+  // Helper: agrega resultados de uma lista filtrada por nome do operador (1 envio/dia)
+  function buildRankList(filteredRes) {
+    var porOp = {};
+    filteredRes.forEach(function(r){
+      if (!porOp[r.operador]) porOp[r.operador]=[];
+      porOp[r.operador].push(r);
+    });
+    return Object.keys(porOp).map(function(n){
+      var o=_agregaPorDia(porOp[n]);
+      return {nome:n, env:o.env, comp:o.comp, pontos:o.pontos, media:o.env?Math.round(o.soma/o.env):0};
     }).sort(function(a,b){ return b.pontos-a.pontos || b.media-a.media; });
   }
 
@@ -6115,11 +6135,8 @@ function renderRelRanking(_skipFetch) {
   res.forEach(function(r){
     var u = users.find(function(u){ return u.nome === r.operador; });
     var loja = (r.loja && r.loja.trim()) ? r.loja.trim() : (u && u.loja && u.loja.trim()) ? u.loja.trim() : 'Sem loja';
-    if (!lojaMap[loja]) lojaMap[loja]={env:0,comp:0,soma:0,pontos:0,semFoto:0};
-    lojaMap[loja].env++;
-    if (r.pct===100) lojaMap[loja].comp++;
-    lojaMap[loja].soma   += r.pct;
-    lojaMap[loja].pontos += calcPontos(r.pct);
+    if (!lojaMap[loja]) lojaMap[loja]={lista:[],semFoto:0};
+    lojaMap[loja].lista.push(r); // pontos/env calculados por dia abaixo (1 envio/dia)
     // Conta itens que exigiram foto mas não tiveram foto enviada
     if (Array.isArray(r.itens)) {
       r.itens.forEach(function(item){
@@ -6130,8 +6147,8 @@ function renderRelRanking(_skipFetch) {
     }
   });
   var lojaList = Object.keys(lojaMap).map(function(n){
-    var o=lojaMap[n];
-    return {nome:n, env:o.env, comp:o.comp, pontos:o.pontos, media:Math.round(o.soma/o.env), semFoto:o.semFoto};
+    var o=_agregaPorDia(lojaMap[n].lista);
+    return {nome:n, env:o.env, comp:o.comp, pontos:o.pontos, media:o.env?Math.round(o.soma/o.env):0, semFoto:lojaMap[n].semFoto};
   }).sort(function(a,b){ return b.pontos-a.pontos || b.media-a.media; });
 
   buildPodio('rank-lojas-podio', lojaList);
@@ -6238,12 +6255,14 @@ function renderRelRankExtrato() {
     });
 
     // Pontos extras de envios fora do esperado (checklists sem diasObrigatorios neste dia)
-    resDia.forEach(function(r){
+    // Conta cada checklist só uma vez no dia (último envio), nunca reenvios repetidos.
+    var _extrasVistos = {};
+    resDia.slice().reverse().forEach(function(r){
       var jaContado = clEsp.some(function(cl){ return cl.id === r.checklistId; });
-      if (!jaContado) {
-        pontosObtidos += calcPontos(r.pct);
-        clEnviados++;
-      }
+      if (jaContado || _extrasVistos[r.checklistId]) return;
+      _extrasVistos[r.checklistId] = true;
+      pontosObtidos += calcPontos(r.pct);
+      clEnviados++;
     });
 
     var pontosPerdidos = clPerdidos * 10;
