@@ -182,3 +182,34 @@ test('comprador(a) diz que NÃO é o item: bloqueia o nome e o item volta a "nã
   assert.equal(r.itens.find(i => i.cod === '7891150012363').tipo, 'falta');
   assert.equal(r.itens.find(i => i.cod === '7891150012363').vinculo, undefined);
 });
+
+// 07/10/2026 — visto no .252: o XML traz o código de item do fornecedor (cProd = "11084") e central.fornecedoritens
+// (CodFornecedor 405 União, CodigoFornec 11084 → 7891150012363) já liga ao produto. É cadastro do ERP: casa direto.
+test('código de item do fornecedor (cProd) casa pelo cadastro central.fornecedoritens, sem pedir confirmação', async () => {
+  const qERP = async (sql, params) => /fornecedoritens/.test(sql) && params[0] === 405 ? [{ cf: '11084', cb: '7891150012363' }, { cf: '0407', cb: '7894000010014' }] : [];
+  cx.init(qERP, { deparaPath: DEPARA_TESTE }); limparDepara();
+  const p = knorrPedido(9130); p.codFornec = 405;
+  const n = knorrNota(); n.itens[1].codFornec = '11084';
+  const { rupturas } = await rodar([p], [n]);
+  const x = p.xml.lojas[6];
+  assert.equal(x.status, 'conciliado');
+  assert.deepEqual(x.problemas, []);
+  assert.deepEqual(x.nao_pedidos, []);
+  const knorr = x.itens.find(i => i.cod === '7891150012363');
+  assert.equal(knorr.tipo, 'ok'); assert.equal(knorr.recebida, 20);
+  assert.deepEqual(knorr.vinculo, { tipo: 'fornecedor', cod_xml: '67891150016868', descricao_xml: 'CALDO KNORR CARNE CART 114G (GRANDE) 1X1', cod_fornec: '11084' });
+  assert.deepEqual(rupturas, []);
+  cx.init(async () => [], { deparaPath: DEPARA_TESTE });
+});
+
+test('cProd que no cadastro aponta pra produto FORA do pedido não casa (cai pro nome)', async () => {
+  const qERP = async (sql, params) => /fornecedoritens/.test(sql) ? [{ cf: '11084', cb: '7891098000156' }] : [];   // Leão chá, outro fornecedor
+  cx.init(qERP, { deparaPath: DEPARA_TESTE }); limparDepara();
+  const p = knorrPedido(9131); p.codFornec = 405;
+  const n = knorrNota(); n.itens[1].codFornec = '11084';
+  await rodar([p], [n]);
+  const knorr = p.xml.lojas[6].itens.find(i => i.cod === '7891150012363');
+  assert.equal(knorr.vinculo.tipo, 'nome');
+  assert.equal(p.xml.lojas[6].status, 'consistencia');
+  cx.init(async () => [], { deparaPath: DEPARA_TESTE }); limparDepara();
+});
