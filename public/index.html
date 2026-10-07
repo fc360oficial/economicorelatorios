@@ -355,7 +355,7 @@
       <div class="card"><div class="card-hd"><h3>O que paga esta semana</h3><small id="fin-tipo-sem-s">boletos de fornecedor × outras operações · de hoje até sexta</small></div><div class="card-bd" id="c-fin-tipo-sem"><div class="spin"></div></div></div>
       <div class="card"><div class="card-hd"><h3>O que paga daqui pra frente</h3><small>por loja · boletos de fornecedor × outras operações · da próxima semana em diante</small></div><div class="card-bd" id="c-fin-tipo-prox"><div class="spin"></div></div></div>
     </div>
-    <div class="row" style="margin-top:12px"><div class="card"><div class="card-hd"><h3>Posição de caixa consolidada</h3><span class="k nt">sem fonte</span></div><div class="nosrc" id="c-caixa">Saldo bancário ainda não vem pro sistema. A integração com a API do Itaú hoje só traz o extrato (lançamentos); pra mostrar a posição de caixa consolidada é preciso puxar o saldo de cada conta das 6 lojas. Enquanto isso, o que está aqui é o lado dos compromissos: vencidos, hoje, esta semana e as seguintes.</div></div></div>
+    <div class="row" style="margin-top:12px"><div class="card"><div class="card-hd"><h3>Posição de caixa consolidada</h3><span class="k nt" id="k-caixa">Itaú</span></div><div class="nosrc" id="c-caixa">Lendo o saldo das contas…</div></div></div>
   </section>
 </main>
 
@@ -767,7 +767,46 @@ function finTipoDet(tr) {
     + li('<b>Total</b>', tot, 'fin-tot') + '</tbody></table></td>';
   tr.after(det); tr.classList.add('open');
 }
+// ── Saldo das contas Itaú (Tiago, 07/10/26): card "Posição de caixa consolidada". Lê /api/itau/saldos (memória do servidor, consulta
+// de hora em hora das 07:00 às 20:00); "Atualizar agora" força a consulta no banco (POST, trava de 30 s). Só perfil admin vê (toca
+// credencial bancária). desenharSaldosItau(json, el) é o componente: recebe o JSON do endpoint e desenha; dá pra encaixar em outra tela.
+const hhmm = s => { if (!s) return '—'; const d = new Date(s); return isNaN(d) ? '—' : d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); };
+const dhm = s => { if (!s) return '—'; const d = new Date(s); return isNaN(d) ? '—' : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + hhmm(s); };
+function desenharSaldosItau(j, el) {
+  el = el || document.getElementById('c-caixa'); if (!el) return;
+  const k = document.getElementById('k-caixa'), contas = j.contas || [], neg = v => (+v || 0) < 0;
+  if (!contas.length) { el.className = 'nosrc'; el.innerHTML = 'Ainda sem consulta ao banco (a primeira roda ~2 min depois do servidor subir, das 07:00 às 20:00). <a href="#" onclick="carregarSaldosItau(true);return false">Consultar agora</a>'; if (k) { k.className = 'k nt'; k.textContent = 'Itaú · sem consulta'; } return; }
+  const desat = contas.filter(c => c.desatualizado).length;
+  if (k) { k.className = 'k' + (desat ? '' : ' ok'); k.textContent = 'Itaú · ' + (desat ? desat + ' conta' + (desat > 1 ? 's' : '') + ' desatualizada' + (desat > 1 ? 's' : '') : 'posição ' + hhmm(j.consultadoEm)); }
+  el.className = '';
+  let h = '<div class="fin-big"><b' + (neg(j.total.disponivel) ? ' class="dn"' : '') + '>' + money(j.total.disponivel) + '</b><small>saldo disponível das ' + contas.length + ' contas' + (j.total.bloqueado ? ' · bloqueado ' + money(j.total.bloqueado) : '') + (j.total.aplicacaoAutomatica ? ' · aplicação automática ' + money(j.total.aplicacaoAutomatica) : '') + '</small></div>';
+  h += '<div class="fin-sec">Por loja <span class="fin-mut">saldo disponível ("saldo em conta") · posição do banco na hora da consulta</span></div>';
+  h += '<table class="m fin-al"><colgroup><col><col style="width:150px"><col style="width:120px"><col style="width:100px"></colgroup><thead><tr><th>Loja</th><th class="r">Disponível</th><th class="r">Bloqueado</th><th class="r">Atualizado</th></tr></thead><tbody>';
+  for (const c of contas) {
+    h += '<tr' + (c.desatualizado ? ' class="bad" title="' + esc(c.erro || 'última consulta falhou') + '"' : '') + '><td><b>' + esc(c.nome) + '</b>' + (c.desatualizado ? '<div class="fin-mut" style="color:var(--neg)">⚠ desatualizado (' + hhmm(c.erroEm) + '): ' + esc(String(c.erro || '').slice(0, 90)) + '</div>' : '') + '</td>'
+      + '<td class="r"><b' + (neg(c.disponivel) ? ' class="dn"' : '') + '>' + (c.disponivel == null ? '—' : money(c.disponivel)) + '</b></td>'
+      + '<td class="r">' + (c.bloqueado > 0 ? money(c.bloqueado) : '<span class="fin-mut">—</span>') + '</td>'
+      + '<td class="r" title="' + esc(dhm(c.atualizadoEm)) + ' · carimbo do banco">' + hhmm(c.atualizadoEm) + '</td></tr>';
+  }
+  h += '<tr class="fin-tot"><td>Total do grupo</td><td class="r"><b' + (neg(j.total.disponivel) ? ' class="dn"' : '') + '>' + money(j.total.disponivel) + '</b></td><td class="r">' + (j.total.bloqueado ? money(j.total.bloqueado) : '') + '</td><td></td></tr></tbody></table>';
+  h += '<div class="fin-note" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">última consulta ' + dhm(j.consultadoEm) + (j.origem && /^auto|^boot/.test(j.origem) ? ' (automática)' : j.origem ? ' (' + esc(j.origem) + ')' : '') + ' · o servidor consulta de hora em hora, das 07:00 às 20:00<button class="btn btn-amber btn-sm" id="btn-saldos" onclick="carregarSaldosItau(true)" style="margin-left:auto">Atualizar agora</button></div>';
+  el.innerHTML = h;
+}
+async function carregarSaldosItau(forcar) {
+  const el = document.getElementById('c-caixa'), k = document.getElementById('k-caixa'); if (!el) return;
+  const b = document.getElementById('btn-saldos'); if (forcar && b) { b.disabled = true; b.textContent = 'Consultando o banco…'; }
+  try {
+    const r = await fetch('/api/itau/saldos' + (forcar ? '/atualizar' : ''), { method: forcar ? 'POST' : 'GET' });
+    const j = await r.json().catch(() => ({}));
+    if (r.status === 403) { el.className = 'nosrc'; el.innerHTML = 'Saldo bancário só pro perfil administrador (toca credencial do banco).'; if (k) { k.className = 'k nt'; k.textContent = 'só admin'; } return; }
+    if (r.status === 429) { toast(j.error || 'Aguarde alguns segundos'); if (b) { b.disabled = false; b.textContent = 'Atualizar agora'; } return; }
+    if (!r.ok || j.error) throw new Error(j.error || ('HTTP ' + r.status));
+    desenharSaldosItau(j, el);
+    if (forcar) toast(j.comErro ? 'Consultado; ' + j.comErro + ' conta(s) com erro' : 'Saldos atualizados no banco');
+  } catch (e) { el.className = 'nosrc'; el.innerHTML = 'Não deu pra ler o saldo: ' + esc(e.message); if (k) { k.className = 'k'; k.textContent = 'erro'; } }
+}
 function renderFin() {
+  carregarSaldosItau();
   const ids = ['c-fin-hoje', 'c-fin-semana', 'c-fin-proximas', 'c-fin-tipo-hoje', 'c-fin-tipo-sem', 'c-fin-tipo-prox'];
   const f = V.financeiro; if (!f || !f.linhas) { ids.forEach(id => { document.getElementById(id).innerHTML = empty('sem dados'); }); return; }
   const hoje = f.hoje, semIni = f.semIni, semFim = f.semFim, proxIni = f.proxIni, proxFim = f.proxFim, L = f.linhas;

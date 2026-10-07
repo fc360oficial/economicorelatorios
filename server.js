@@ -6674,6 +6674,54 @@ app.get('/api/itau/extrato-teste', async (req, res) => {
   }
 });
 
+// ═══════════════════════════════════════════════════
+// SALDO DAS CONTAS ITAÚ (Tiago, 07/10/26): a resposta do extrato já traz o saldo (data[0].balances). Rotina de hora em hora,
+// das 07:00 às 20:00 (hora local do servidor), guarda em memória o último saldo bom de cada conta; conta que falha numa rodada
+// fica com o valor anterior marcado desatualizado + texto do erro, sem derrubar as outras. GET /api/itau/saldos lê da memória;
+// POST /api/itau/saldos/atualizar força a consulta no banco (trava de 30 s → 429). Só admin, como as outras rotas /api/itau.
+// Nada vai pra arquivo; saldo não vai pro log fora do nível de erro. Prefixo de erro: [ITAU-SALDOS-ERR].
+// ═══════════════════════════════════════════════════
+const SALDOS_ITAU_NOMES = { cahu: 'CAHU', muribeca: 'MURIBECA', ponte: 'PONTE', atacarejo: 'ATACAREJO', portalarga: 'PORTA LARGA', jardimjordao: 'JARDIM JORDÃO' };
+const SALDOS_ITAU = { consultadoEm: null, origem: null, contas: {}, rodando: null, ultimaForcada: 0 };
+const saldosItauHorario = () => { const h = new Date().getHours(); return h >= 7 && h < 20; };
+function atualizarSaldosItau(origem) {
+  if (SALDOS_ITAU.rodando) return SALDOS_ITAU.rodando;
+  SALDOS_ITAU.rodando = (async () => {
+    try {
+      const lista = await require('./lib/itau-extrato').buscarSaldos();
+      const agora = new Date().toISOString();
+      for (const s of lista) {
+        if (s.erro) { const ant = SALDOS_ITAU.contas[s.conta] || { conta: s.conta }; SALDOS_ITAU.contas[s.conta] = { ...ant, desatualizado: true, erro: s.erro, erroEm: agora }; console.error('[ITAU-SALDOS-ERR]', s.conta, s.erro); }
+        else SALDOS_ITAU.contas[s.conta] = { ...s, desatualizado: false, erro: null, erroEm: null };
+      }
+      SALDOS_ITAU.consultadoEm = agora; SALDOS_ITAU.origem = origem;
+    } catch (e) { console.error('[ITAU-SALDOS-ERR]', e.message); }
+    finally { SALDOS_ITAU.rodando = null; }
+  })();
+  return SALDOS_ITAU.rodando;
+}
+function saldosItauResposta() {
+  const ordem = Object.keys(SALDOS_ITAU_NOMES), pos = c => { const i = ordem.indexOf(c); return i < 0 ? 99 : i; };
+  const contas = Object.values(SALDOS_ITAU.contas).map(c => ({ ...c, nome: SALDOS_ITAU_NOMES[c.conta] || String(c.conta).toUpperCase() })).sort((a, b) => pos(a.conta) - pos(b.conta));
+  const total = contas.reduce((t, c) => { t.disponivel += +c.disponivel || 0; t.bloqueado += +c.bloqueado || 0; t.aplicacaoAutomatica += +c.aplicacaoAutomatica || 0; return t; }, { disponivel: 0, bloqueado: 0, aplicacaoAutomatica: 0 });
+  for (const k of Object.keys(total)) total[k] = +total[k].toFixed(2);
+  return { consultadoEm: SALDOS_ITAU.consultadoEm, origem: SALDOS_ITAU.origem, cicloMinutos: 60, janela: '07:00-20:00', contas, total, comErro: contas.filter(c => c.erro).length };
+}
+app.get('/api/itau/saldos', (req, res) => {
+  if (!req.session.user || req.session.user.perfil !== 'admin') return res.status(403).json({ error: 'Só admin.' });
+  res.json(saldosItauResposta());
+});
+app.post('/api/itau/saldos/atualizar', async (req, res) => {
+  if (!req.session.user || req.session.user.perfil !== 'admin') return res.status(403).json({ error: 'Só admin.' });
+  const falta = 30 * 1000 - (Date.now() - SALDOS_ITAU.ultimaForcada);
+  if (falta > 0) return res.status(429).json({ error: 'Acabou de consultar o banco: aguarde ' + Math.ceil(falta / 1000) + ' s pra consultar de novo.' });
+  SALDOS_ITAU.ultimaForcada = Date.now();
+  await atualizarSaldosItau('manual ' + (req.session.user.nome || ''));
+  res.json(saldosItauResposta());
+});
+setTimeout(() => { if (saldosItauHorario()) atualizarSaldosItau('boot'); }, 2 * 60 * 1000);
+setInterval(() => { if (saldosItauHorario()) atualizarSaldosItau('auto'); }, 60 * 60 * 1000);
+
 // ── CONTROLE DE PONTA DE GÔNDOLA ────────────────────────────────────
 // Digitaliza o painel físico da sala de compras: quem negocia, qual
 // fornecedor ocupa a ponta, vigência do acordo e o contrato assinado.
