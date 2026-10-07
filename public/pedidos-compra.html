@@ -29,6 +29,10 @@ body{font-family:'InterVar','Segoe UI',sans-serif;background:#EBEBE9;color:#0E16
 .tkpi .l{font-size:9.5px;color:#98A0B3;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-top:2px}
 .tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
 .tools input,.tools select{font:inherit;font-size:12.5px;padding:7px 11px;border:1px solid #C9C9C4;border-radius:8px;background:#fff;color:#0E1626}
+/* lojas: controle segmentado E1…E6 igual ao do Radar (Tiago, 07/10); o <select id="fLoja"> continua escondido como fonte da verdade (uma loja ou todas) */
+.lojas-seg{display:inline-flex;gap:2px;padding:3px;background:#EBEBE9;border:1px solid #DADAD6;border-radius:8px}
+.lojas-seg button{font:inherit;min-width:34px;padding:5px 8px;border:0;border-radius:5px;font-size:11.5px;font-weight:800;color:#4E5A72;background:transparent;cursor:pointer;transition:background .12s,color .12s}
+.lojas-seg button:hover{background:#fff;color:#0E1626}.lojas-seg button.on{background:#0E1626;color:#fff;box-shadow:0 1px 3px rgba(14,22,38,.2)}
 .tools .cnt{font-size:11.5px;color:#98A0B3;font-weight:600;margin-left:auto}
 .table-wrap{overflow-x:auto;border-radius:12px;border:1px solid #DADAD6;background:#FFFFFF;box-shadow:0 1px 3px rgba(14,22,38,.07);margin-bottom:18px}
 table.main-t{width:100%;border-collapse:collapse;font-size:12px}
@@ -169,7 +173,7 @@ input.embi:focus{outline:none;border:1px solid #F5B800;background:#FFFDF3}input.
   <div class="fluxo" id="pg-fluxo"></div>
   <div class="totais" id="totais"></div>
   <div id="cd-card" hidden style="margin:-6px 0 14px"></div>
-  <div class="tools"><input id="q" placeholder="Buscar lista, fornecedor ou vendedor" style="min-width:280px"><select id="fComp"><option value="">Todos compradores</option></select><select id="fOrig" title="De onde o pedido saiu"><option value="">Todas as origens</option><option value="radar">Radar</option><option value="cotacao">Cotação</option><option value="sugestao">Sugestão manual</option><option value="semi">Sugestão semi-automática</option><option value="ruptura">Ruptura de entrega</option></select><select id="fLoja" onchange="aberto=null;render()"><option value="">Todas as lojas</option><option value="1">E1 CAHU</option><option value="2">E2 MURIBECA</option><option value="3">E3 PONTE</option><option value="4">E4 ATACAREJO</option><option value="5">E5 PORTA LARGA</option><option value="6">E6 JARDIM JORDÃO</option></select><select id="fStatus" title="Status do pedido (Tiago, 07/10)"><option value="">Todos os status</option></select><span class="cnt" id="cnt"></span><button class="btn btn-amber" id="btnTodos" onclick="enviarTodos()" title="Lista todos os pedidos Aguardando vendedor com o botão de WhatsApp de cada um">Enviar pra todos</button><button class="btn btn-slate" id="btnVer" onclick="verificarAgora()" title="Procura agora, no ERP, as NF-e (XML) dos pedidos aprovados, loja a loja, e confere quantidade, preço e boletos (o sistema faz isso sozinho a cada 30 min)">Conferir XML agora</button><button class="btn btn-slate" id="btnAtu">Atualizar</button></div>
+  <div class="tools"><input id="q" placeholder="Buscar lista, fornecedor ou vendedor" style="min-width:280px"><select id="fComp"><option value="">Todos compradores</option></select><select id="fOrig" title="De onde o pedido saiu"><option value="">Todas as origens</option><option value="radar">Radar</option><option value="cotacao">Cotação</option><option value="sugestao">Sugestão manual</option><option value="semi">Sugestão semi-automática</option><option value="ruptura">Ruptura de entrega</option></select><select id="fLoja" hidden onchange="aberto=null;render()"><option value="">Todas as lojas</option><option value="1">E1 CAHU</option><option value="2">E2 MURIBECA</option><option value="3">E3 PONTE</option><option value="4">E4 ATACAREJO</option><option value="5">E5 PORTA LARGA</option><option value="6">E6 JARDIM JORDÃO</option></select><div class="lojas-seg" id="fLojaSeg" title="Loja: clique pra ver só ela; clique de novo pra voltar a todas"></div><select id="fStatus" title="Status do pedido (Tiago, 07/10)"><option value="">Todos os status</option></select><span class="cnt" id="cnt"></span><button class="btn btn-amber" id="btnTodos" onclick="enviarTodos()" title="Lista todos os pedidos Aguardando vendedor com o botão de WhatsApp de cada um">Enviar pra todos</button><button class="btn btn-slate" id="btnVer" onclick="verificarAgora()" title="Procura agora, no ERP, as NF-e (XML) dos pedidos aprovados, loja a loja, e confere quantidade, preço e boletos (o sistema faz isso sozinho a cada 30 min)">Conferir XML agora</button><button class="btn btn-slate" id="btnAtu">Atualizar</button></div>
   <div id="view"><div class="spinner"></div></div>
 </div>
 <div id="pv" hidden><div class="pv-card" id="pv-body"></div></div>
@@ -198,7 +202,10 @@ const PRE=['analise','sugestao','aguardando','digitacao','finalizado','cancelado
 const SO_PRE=['analise','sugestao','aguardando','digitacao','finalizado'], SO_POS=['aprovado','xml_consistencia','chegou','finalizado_loja','recebido','financeiro'];   // cards que só fazem sentido numa das telas
 // filtro de status na barra (Tiago, 07/10/26): mesmas chaves dos cards; escolher um status solta o card ("Todos") e vice-versa
 const OPC_STATUS=[['analise','Em análise · não enviado'],['sugestao','Ruptura de entrega'],['aguardando','Aguardando vendedor'],['digitacao','Em digitação'],['finalizado','Finalizado · aguardando aprovação'],['cancelado','Cancelado'],['aprovado','Aprovado · aguardando XML'],['xml_consistencia','Consistência XML'],['recebido','Conciliado'],['chegou','Chegou na loja'],['finalizado_loja','Finalizado na loja']];
+// segmentado de lojas (Tiago, 07/10): lê as opções do select escondido; clique marca a loja, clique na marcada volta a "todas"
+function renderLojaSeg(){ const sel=$('#fLoja'), seg=$('#fLojaSeg'); if(!sel||!seg) return; seg.innerHTML=[...sel.options].filter(o=>o.value).map(o=>'<button type="button"'+(o.value===sel.value?' class="on"':'')+' data-v="'+o.value+'" title="'+esc(o.textContent)+'">'+ETQ(o.value)+'</button>').join(''); }
 function setupModo(){
+  renderLojaSeg();
   document.title=(ANALISE?'Análise de Compras':'Pedidos de Compra')+' — Econômico Supermercados';
   $('#fStatus').innerHTML='<option value="">Todos os status</option>'+OPC_STATUS.filter(([k])=>ANALISE?!SO_POS.includes(k):(!SO_PRE.includes(k)&&k!=='cancelado')).map(([k,l])=>'<option value="'+k+'">'+l+'</option>').join('');
   if(ANALISE){
@@ -512,7 +519,7 @@ function lojaTotaisHtml(p,LN,clicavel){
   const t=totLojas(p,LN); const on=ln=>clicavel?' onclick="event.stopPropagation();verLoja('+p.id+','+(ln||0)+')" title="'+(ln?'Mostrar só esta loja':'Mostrar todas as lojas')+'" style="cursor:pointer"':'';
   return '<span class="lt-t">Total por loja</span>'+t.lojas.map(l=>'<div class="lt"'+on(l.ln)+'><span>'+ETQ(l.ln)+' '+esc(LOJAS_NOMES[l.ln]||'')+' · '+l.itens+' itens · '+l.vol+' vol</span><b>'+money2(l.total)+'</b></div>').join('')+'<div class="lt tot"'+on(0)+'><span>'+(LN?'Loja · clique pra ver todas':'Todas as lojas')+' · '+t.tot.itens+' itens · '+t.tot.vol+' vol</span><b>'+money2(t.tot.total)+'</b></div>'+(t.tot.semPreco?'<span class="lt-n">'+t.tot.semPreco+' item(ns) sem preço digitado: usa o último custo</span>':'<span class="lt-n">preço digitado pelo vendedor</span>');
 }
-function verLoja(id,ln){ const sel=document.getElementById('fLoja'); if(sel) sel.value=ln?String(ln):''; aberto=ln?id+'-'+ln:String(id); render(); carregarDetalhe(aberto); }
+function verLoja(id,ln){ const sel=document.getElementById('fLoja'); if(sel) sel.value=ln?String(ln):''; renderLojaSeg(); aberto=ln?id+'-'+ln:String(id); render(); carregarDetalhe(aberto); }
 function prePedido(id){
   const p=PED[id]; if(!p) return;
   const t=totLojas(p,null);
@@ -816,7 +823,7 @@ async function cancelar(id){
   const r=await fetch('/api/pedidos-fornecedor/'+id+'/cancelar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({motivo})}); const j=await r.json();
   if(j.error){alert(j.error);return;} aberto=null; await carregar();
 }
-$('#q').addEventListener('input',render); $('#fComp').addEventListener('change',render); $('#fOrig').addEventListener('change',()=>{aberto=null;renderTotais();render();}); $('#fStatus').addEventListener('change',()=>{filtro=$('#fStatus').value?'todos':'andamento';aberto=null;renderTotais();render();}); $('#btnAtu').onclick=carregar;
+$('#q').addEventListener('input',render); $('#fComp').addEventListener('change',render); $('#fLojaSeg').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return; const sel=$('#fLoja'); sel.value=sel.value===b.dataset.v?'':b.dataset.v; renderLojaSeg(); sel.dispatchEvent(new Event('change')); }); $('#fOrig').addEventListener('change',()=>{aberto=null;renderTotais();render();}); $('#fStatus').addEventListener('change',()=>{filtro=$('#fStatus').value?'todos':'andamento';aberto=null;renderTotais();render();}); $('#btnAtu').onclick=carregar;
 (async () => {
   setupModo(); await carregar();
   const id = new URLSearchParams(location.search).get('pedido');
