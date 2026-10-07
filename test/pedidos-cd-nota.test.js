@@ -24,11 +24,11 @@ const fakeQ = async (s, p) => {
   if (s.includes('conferencia_televendas')) return [{ cod: '77900204348705', cx: 1 }, { cod: '17898031170355', cx: 1 }, { cod: '17898505140211', cx: 1 }, { cod: '17898505140228', cx: 1 }];
   if (s.includes('/*nota-hdr*/')) return p.includes('4990') ? [{ nNota: '4990', st: notaFechada ? 'F' : 'E', nc: 182468, op: 'SUZYCLEA', cst: notaFechada ? 2 : 1, opLoja: 'DAYANE SUB1', opCentral: notaFechada ? 'SUZYCLEA' : null, de: '2026-09-18', he: '11:11:21', dl: notaFechada ? '2026-09-18' : null, hl: notaFechada ? '13:20:56' : null }] : [];
   if (s.includes('/*conf-itens*/')) return [{ chave: 182468, cod: '7900204450027', un: 6, ok: 1, n: 1, val: '2030-09-18' }, { chave: 182468, cod: '7898031170341', un: 24, ok: 1, n: 1, val: '2027-04-25' }];
-  if (s.includes('/*nf-cd*/')) return notaCD ? [{ nNota: '5002', d: '2026-09-18', n: 4 }] : [];
+  if (s.includes('/*nf-cd*/')) return notaCD ? [{ nNota: notaCD, d: '2026-09-18', n: 4 }] : [];
   if (semNotaLoja && (s.includes('/*nf-linhas*/') || s.includes('FROM central.compras c'))) return [];
   if (s.includes('/*nf-linhas*/')) return linhas.filter(l => !(s.includes('nNota NOT IN') && p.includes(l.nNota)));
   // por código de unidade: só o que a loja bipou com o MESMO código do vínculo
-  if (s.includes('FROM central.compras c')) return linhas.filter(l => p.includes(l.codLoja)).map(l => ({ cod: l.codLoja, un: l.un, nNota: l.nNota, d: l.d }));
+  if (s.includes('FROM central.compras c')) return linhas.filter(l => p.includes(l.codLoja) && !(s.includes('nNota NOT IN') && p.includes(l.nNota))).map(l => ({ cod: l.codLoja, un: l.un, nNota: l.nNota, d: l.d }));
   if (s.includes('FROM central.itens')) return [{ cod: '7900204450027', descricao: 'IPANEMA CLASSICA AZ/PR 33A40' }, { cod: '7898031170341', descricao: 'INVICTO LAVA LOUCAS 500ML MACA' }];
   return [];
 };
@@ -97,7 +97,7 @@ test('divergência some quando o vínculo passa a bater com a nota', async () =>
 });
 
 test('nota de venda emitida pelo CD aparece como notaCD enquanto a loja não dá entrada', async () => {
-  notaCD = true; linhas = [];
+  notaCD = '5002'; linhas = [];
   const [p] = cd.criarPedidos({ lojas: { 3: [{ codigoCD: '17898031170355', caixas: 1 }] }, usuario: 'tiago' });
   await cd.verificar();
   const r = cd.obterPedido(p.id);
@@ -117,6 +117,27 @@ test('nota apagada na loja: recebimento é desfeito e o pedido volta pra separad
   await cd.verificar();
   const r2 = cd.obterPedido(p.id);
   assert.equal(r2.status, 'recebido'); assert.deepEqual(r2.recebimento.notas.map(n => n.nNota), ['5010']);
+});
+
+test('nota reservada pelo notaCD: pedido antigo da mesma loja não engole a nota do pedido novo', async () => {
+  // L3 06/10/2026: #9 (já recebido pela 5056) engoliu a 5310 do #21 por repetir metade dos itens; o #21 ficou
+  // "falta entrada na loja" e as recebidas do #9 inflaram
+  linhas = [{ nNota: '6000', d: '2026-09-18', item: 3, codLoja: '7898031170341', un: 24, codCD: '17898031170355' }];
+  const [a] = cd.criarPedidos({ lojas: { 5: [{ codigoCD: '17898031170355', caixas: 1 }] }, usuario: 'tiago' });
+  await cd.verificar();
+  assert.equal(cd.obterPedido(a.id).status, 'recebido');
+  // CD emite a NF 6010 pro pedido novo (vira notaCD dele) antes de a loja dar entrada
+  notaCD = '6010';
+  const [b] = cd.criarPedidos({ lojas: { 5: [{ codigoCD: '17898031170355', caixas: 1 }] }, usuario: 'tiago' });
+  await cd.verificar();
+  assert.equal(cd.obterPedido(b.id).notaCD.nNota, '6010');
+  // loja dá entrada na 6010: mesmo cobrindo os itens do pedido antigo, ela é do pedido novo
+  linhas.push({ nNota: '6010', d: '2026-09-19', item: 3, codLoja: '7898031170341', un: 24, codCD: '17898031170355' });
+  await cd.verificar();
+  notaCD = false;
+  const ra = cd.obterPedido(a.id); const rb = cd.obterPedido(b.id);
+  assert.deepEqual(ra.recebimento.notas.map(n => n.nNota), ['6000']); assert.equal(ra.itens[0].recebidas, 1);
+  assert.deepEqual(rb.recebimento.notas.map(n => n.nNota), ['6010']); assert.equal(rb.status, 'recebido'); assert.equal(rb.itens[0].recebidas, 1);
 });
 
 test('nota avulsa da loja que só tem 1 item do pedido não entra no recebimento (casamento por código)', async () => {
