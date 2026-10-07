@@ -445,7 +445,7 @@ function render(){
   if(tab==='regras') return renderRegras();
 }
 const COLS=[
-  ['status','Status','c st'],['nome','Lista · fornecedor',''],['comprador','Comprador(a)','comp'],['fazer_em','Fazer em','c'],['pedido_valor','Pedido (custo)','r'],
+  ['status','Status','c st'],['fornecedor','Fornecedor · nº da lista',''],['comprador','Comprador(a)','comp'],['fazer_em','Fazer em','c'],['pedido_valor','Pedido (custo)','r'],
   ['cobertura_dias','Cobertura','r sep'],['estoque_hoje','Estoque (custo)','r'],['venda_dia','Venda/dia','r'],['rupturas','Rupturas','r'],['transito_valor','Trânsito','r'],['lead','Lead','r']
 ];
 // Tiago, 01/10/26: tabela mais simples — um número por célula, a sublinha explica; ponto/alvo/ciclo completos ficam no hover;
@@ -466,7 +466,7 @@ function renderTabela(rows,vazio){
     h+='<tr class="lst'+(aberta===l.lista?' open':'')+'" data-l="'+l.lista+'">'+
       '<td class="sel c"><input type="checkbox" class="selrow" data-l="'+l.lista+'" '+(SEL.has(l.lista)?'checked':'')+'></td>'+
       '<td class="c st">'+(pills||fl?'<div class="fl">'+pills+(fl?' '+fl:'')+'</div>':'<span class="mut">—</span>')+'</td>'+
-      '<td class="lc"><div class="nm">'+esc(l.nome)+'<span>#'+l.lista+'</span></div>'+(forn&&!mesmoNome?'<div class="sub" title="razão social do fornecedor">'+esc(forn)+'</div>':'')+'</td>'+
+      '<td class="lc" title="'+esc('Lista '+l.lista+': '+(l.nome||''))+'"><div class="nm">'+esc(forn||l.nome)+'<span>#'+l.lista+'</span></div></td>'+   // Tiago, 07/10: só fornecedor e nº da lista; a descrição fica no hover
       '<td class="comp" title="comprador(a) da lista">'+esc(l.comprador||'—')+'</td>'+
       '<td class="c">'+pillDia(l)+'</td>';
     if(!l.ok){
@@ -486,7 +486,7 @@ function renderTabela(rows,vazio){
   }
   h+='</tbody></table></div>';
   $('#view').innerHTML=h;
-  document.querySelectorAll('th[data-k]').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(sortK===k)sortD=-sortD;else{sortK=k;sortD=(k==='nome'||k==='comprador')?1:(k==='fazer_em'||k==='cobertura_dias'?1:-1)}render();});
+  document.querySelectorAll('th[data-k]').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(sortK===k)sortD=-sortD;else{sortK=k;sortD=(k==='nome'||k==='fornecedor'||k==='comprador')?1:(k==='fazer_em'||k==='cobertura_dias'?1:-1)}render();});
   document.querySelectorAll('tr.lst[data-l]').forEach(tr=>tr.onclick=(e)=>{if(e.target.closest('.sel'))return;const id=+tr.dataset.l;aberta=aberta===id?null:id;render();if(aberta)carregarItens(aberta);});
   document.querySelectorAll('input.selrow').forEach(cb=>cb.onchange=()=>{const id=+cb.dataset.l;if(cb.checked)SEL.add(id);else SEL.delete(id);atualizarSel(rows);});
   const sa=document.getElementById('selall'); if(sa) sa.onchange=()=>{for(const r of rows){if(sa.checked)SEL.add(r.lista);else SEL.delete(r.lista);}render();};
