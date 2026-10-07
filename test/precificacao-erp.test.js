@@ -19,13 +19,13 @@ test('só itens que sobem ou descem entram na carga', () => {
   assert.deepEqual(it.map(i => i.cod), ['7896005800010', '7896005800027']);
 });
 
-test('formato do Dlinks: itens com vírgula + logpreco2 por item, na mesma transação', () => {
+test('formato do Dlinks: itens com vírgula + flag L{loja}=0 + logpreco2 por item, na mesma transação; nada na fila cargapreco', () => {
   const { passos, itens, motivo } = montarPassosCarga({ r: reg(), usuario: 'Tiago', agora });
   assert.equal(itens.length, 2);
   assert.equal(passos.length, 4);
   const [u1, l1] = passos;
   assert.deepEqual(u1, { tabela: 'itens', operacao: 'update', where: { CodigoBarra: '7896005800010' },
-    valores: { P3: '18,99', NomeAlteracao: 'TIAGO', DataHoraAlteracao: '24/09/2026 17:05:09' } });
+    valores: { L3: 0, P3: '18,99', NomeAlteracao: 'TIAGO', DataHoraAlteracao: '24/09/2026 17:05:09' } });
   assert.equal(l1.tabela, 'logpreco2'); assert.equal(l1.operacao, 'insert');
   assert.equal(l1.valores.nLoja, 3); assert.equal(l1.valores.Data, '2026-09-24'); assert.equal(l1.valores.Hora, '17:05:09');
   assert.equal(l1.valores.CodigoBarras, '7896005800010');
@@ -43,9 +43,9 @@ test('loja 4: atacado que mudou entra mesmo com varejo sem mudança', () => {
     { cod: '2', descricao: 'Y', status: 'sobe', preco_atual: 9.99, preco_final: 10.99, custo_novo: 7, preco_atacado_atual: 8.5, atacado: { preco_final: 8.5 } },
   ] });
   const { passos } = montarPassosCarga({ r, usuario: 'leni', agora });
-  assert.deepEqual(passos[0].valores, { a4: '8,99', NomeAlteracao: 'LENI', DataHoraAlteracao: '24/09/2026 17:05:09' });
+  assert.deepEqual(passos[0].valores, { L4: 0, a4: '8,99', NomeAlteracao: 'LENI', DataHoraAlteracao: '24/09/2026 17:05:09' });
   assert.equal(passos[1].valores.PrecoNovo, '9,99'); assert.equal(passos[1].valores.PrecoAtacadoNovo, '8,99');
-  assert.deepEqual(passos[2].valores, { P4: '10,99', NomeAlteracao: 'LENI', DataHoraAlteracao: '24/09/2026 17:05:09' });
+  assert.deepEqual(passos[2].valores, { L4: 0, P4: '10,99', NomeAlteracao: 'LENI', DataHoraAlteracao: '24/09/2026 17:05:09' });
   assert.equal(passos[3].valores.PrecoAtacadoNovo, '8,50');
 });
 
