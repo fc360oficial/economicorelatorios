@@ -8224,8 +8224,14 @@ function prefillCadastroPedido(p) {
   const dig = s => String(s || '').match(/\d+/)?.[0] || '';
   const out = { email: p.vendedor?.email || '', whats: p.vendedor?.whats || '', prazo_pagamento: dig(p.prazo_pagamento), prazo_entrega: p.prazo_entrega ?? '', pedido_minimo: p.pedido_minimo ?? '' };
   try {
-    const lista = lerCotForn()[p.lista]; const cad = Array.isArray(lista) ? (lista.find(x => x.codFornec === p.codFornec) || lista.find(x => x.nome === p.fornecedor)) : null;
+    const todos = lerCotForn(); const lista = todos[p.lista]; const cad = Array.isArray(lista) ? (lista.find(x => x.codFornec === p.codFornec) || lista.find(x => x.nome === p.fornecedor)) : null;
     if (cad) { const v = cad.vendedor || {}; if (v.email) out.email = v.email; if (v.whats) out.whats = v.whats; if (dig(cad.condicao)) out.prazo_pagamento = dig(cad.condicao); if (cad.prazo_entrega != null) out.prazo_entrega = cad.prazo_entrega; if (cad.faturamento_minimo != null) out.pedido_minimo = cad.faturamento_minimo; }
+    // Tiago, 07/10/26: "uma vez preenchido fica salvo em cada fornecedor" — o cadastro é gravado por lista; o que ainda falta aqui vem do
+    // cadastro mais recente do MESMO fornecedor (codFornec) em qualquer outra lista, pra ele não digitar de novo a cada lista nova
+    if (p.codFornec) {
+      const outras = Object.values(todos).flatMap(l => Array.isArray(l) ? l : []).filter(x => x !== cad && String(x.codFornec) === String(p.codFornec) && x.cadastro_vendedor_em).sort((a, b) => String(b.cadastro_vendedor_em).localeCompare(String(a.cadastro_vendedor_em)));
+      for (const o of outras) { const v = o.vendedor || {}; if (!out.email && v.email) out.email = v.email; if (!out.whats && v.whats) out.whats = v.whats; if (!out.prazo_pagamento && dig(o.condicao)) out.prazo_pagamento = dig(o.condicao); if ((out.prazo_entrega === '' || out.prazo_entrega == null) && o.prazo_entrega != null) out.prazo_entrega = o.prazo_entrega; if ((out.pedido_minimo === '' || out.pedido_minimo == null) && o.faturamento_minimo != null) out.pedido_minimo = o.faturamento_minimo; }
+    }
   } catch (e) {}
   const cv = p.cadastro_vendedor; if (cv) { if (cv.email) out.email = cv.email; if (cv.whats) out.whats = cv.whats; if (cv.prazo_pagamento) out.prazo_pagamento = cv.prazo_pagamento; if (cv.prazo_entrega != null) out.prazo_entrega = cv.prazo_entrega; if (cv.pedido_minimo != null) out.pedido_minimo = cv.pedido_minimo; }
   return out;
