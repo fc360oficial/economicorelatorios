@@ -75,6 +75,7 @@
         { href: '/fiscal.html', ic: 'list', txt: 'Recebimento de Notas' }
       ]},
     { id: 'compras', ic: 'bag', txt: 'Gestão de Compras', sub: [
+        { href: '/analise-compras.html',     ic: 'cart',  txt: 'Análise de Compras' },
         { href: '/centro-distribuicao.html', ic: 'cart',  txt: 'Centro Distribuição' },
         { href: '/cotacao.html',             ic: 'trend', txt: 'Cotação' },
         { href: '/ruptura.html',             ic: 'trend', txt: 'Gestão de Rupturas' },

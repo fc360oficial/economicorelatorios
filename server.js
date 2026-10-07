@@ -7384,6 +7384,9 @@ app.get('/api/promocoes/final-8.csv', async (req, res) => {
 
 // Radar Prevenção (grupo Prevenção da sidebar): mesma página de Promoções, que lê o dígito 7 pela própria URL
 app.get('/radar-prevencao.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'promocoes.html')));
+// Análise de Compras (Tiago, 07/10/26) = a mesma página de Pedidos de Compra servida por outro caminho: a página olha o pathname e
+// mostra só o que vem ANTES da aprovação (em análise, ruptura, aguardando vendedor, digitação, finalizado); Pedidos de Compra fica só com aprovados
+app.get('/analise-compras.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'pedidos-compra.html')));
 
 app.get('/api/listas-compra/sortimento', (req, res) => {
   try {
@@ -7493,7 +7496,7 @@ app.get('/api/radar-pedidos', async (req, res) => {
     };
     // pedidos em andamento por lista (pedidos-fornecedor): a tela avisa e pede confirmação antes de gerar de novo
     const pedidosAbertos = {};
-    for (const p of pedidosFornec.listar()) { if (p.teste || !['sugestao', 'aguardando', 'digitacao', 'finalizado', 'aprovado'].includes(p.status)) continue; (pedidosAbertos[p.lista] || (pedidosAbertos[p.lista] = [])).push({ id: p.id, status: p.status, criadoEm: p.criadoEm, enviadoEm: p.enviadoEm || null, finalizadoEm: p.finalizadoEm || null, vendedor: p.vendedor?.nome || null }); }
+    for (const p of pedidosFornec.listar()) { if (p.teste || !['analise', 'sugestao', 'aguardando', 'digitacao', 'finalizado', 'aprovado'].includes(p.status)) continue; (pedidosAbertos[p.lista] || (pedidosAbertos[p.lista] = [])).push({ id: p.id, status: p.status, criadoEm: p.criadoEm, enviadoEm: p.enviadoEm || null, finalizadoEm: p.finalizadoEm || null, vendedor: p.vendedor?.nome || null }); }
     res.json({ estado: radarPedidos.getEstado(), teto, resumo, listas, curvaA: usarCurvaA, loja: lojaRadar, gatilho: gatilhoRadar, pedidos_abertos: pedidosAbertos });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -7897,6 +7900,8 @@ app.post('/api/pedidos-fornecedor', async (req, res) => {
     // substituir: a tela (Sugestão de Compras) manda TODAS as quantidades; o cálculo do Radar é zerado antes dos ajustes
     const substituir = req.body.substituir === true;
     const origemPedido = ['sugestao', 'sugestao-manual', 'semi'].includes(req.body.origem) ? req.body.origem : 'radar';
+    // Radar → Análise de Compras (Tiago, 07/10/26): o pedido nasce "em análise" e só vai pro vendedor quando o(a) comprador(a) mandar de lá
+    const statusInicial = req.body.destino === 'analise' ? 'analise' : 'aguardando';
     const leadManual = req.body.lead ? Math.max(1, Math.min(120, parseFloat(req.body.lead) || 0)) : null, cobManual = req.body.cobertura ? Math.max(2, Math.min(180, parseFloat(req.body.cobertura) || 0)) : null;   // semi-automática (06/10)
     const bloqueados = [], naoEncontrados = [];
     const lojaPedido = lojasRadarDe(req.body.loja);   // Radar filtrado por loja(s): pedido só dessas lojas
@@ -7916,7 +7921,7 @@ app.post('/api/pedidos-fornecedor', async (req, res) => {
       }
       if (!det.itens.some(i => i.qtd > 0)) { semItens.push({ lista: id, nome: det.lista.nome, motivo: 'nada a pedir hoje' }); continue; }
       const cad = await cadastroLista(id).catch(() => null);
-      const np = pedidosFornec.criar({ lista: det.lista, cadastro: cad, detalhe: det, teto, embMeses, usuario: req.session.user?.nome || null, modo: soCurvaA ? 'curva_a' : 'completa', origem: origemPedido });
+      const np = pedidosFornec.criar({ lista: det.lista, cadastro: cad, detalhe: det, teto, embMeses, usuario: req.session.user?.nome || null, modo: soCurvaA ? 'curva_a' : 'completa', origem: origemPedido, status: statusInicial });
       try { await pedidosFornec.anexarAvarias(np); } catch (e) { console.error('[PEDIDOS] avarias:', e.message); }
       criados.push(np);
     }
