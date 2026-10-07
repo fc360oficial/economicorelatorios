@@ -8,7 +8,7 @@ test('exporta as funções puras', () => {
 
 test('paramsLista com ciclo fixo 7 e teto 28', () => {
   const P = radar.paramsLista({}, { lead_medio: 2, lead_max: 3, intervalo: 7 }, 28);
-  assert.deepEqual(P, { lm: 2, seg: 1, ponto: 3, alvoLista: 10, ciclo: 7 });
+  assert.deepEqual(P, { lm: 2, seg: 1, ponto: 3, alvoLista: 10, ciclo: 7, fonte: 'lista' });
 });
 
 test('qtdPedido usa embFixa (un/cx) e devolve múltiplos de caixa por loja', () => {
