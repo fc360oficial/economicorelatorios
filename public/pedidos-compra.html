@@ -134,6 +134,10 @@ input.qin:focus{outline:none;border-color:#F5B800;background:#FFFDF3}input.qin.e
 .det table.ppg td.st input.qin{display:block;margin:0 auto;width:60px;font-size:14px;padding:6px 6px;text-align:center}
 .det table.ppg .pp-est{font-size:10.5px;margin-top:3px;white-space:nowrap;color:#4E5A72;font-weight:500;text-align:center}.det table.ppg .pp-est b{color:#0E1626}.det table.ppg .pp-est b.zero{color:#C22F49}.det table.ppg .pp-est .tr{color:#2E5E8C;font-weight:800}.det table.ppg .pp-est .tr.zero{color:#98A0B3;font-weight:600}
 .det table.ppg .vlr{display:inline-block;padding:4px 8px;border-radius:5px;font-weight:800;font-size:13.5px}.det table.ppg .vlr.up{background:#FBEAED;color:#C22F49}.det table.ppg .vlr.dn{background:#E7F5EC;color:#137A48}.det table.ppg .vlr.eq{background:#E4E4E1;color:#0E1626}
+/* negociar preço, igual à Cotação (Tiago, 07/10): 🤝 antes do valor; negociado fica azul com o preço do vendedor riscado embaixo */
+.det table.ppg .vlr.neg{background:#E6EEFA;color:#1D5FB4}
+.neg-btn{border:none;background:transparent;cursor:pointer;font-size:14px;padding:0 4px 0 0;opacity:.45;vertical-align:middle;line-height:1}.neg-btn:hover,.neg-btn.on{opacity:1}
+.det table.ppg .negv{font-size:10.5px;color:var(--ink3);text-decoration:line-through}
 .det table.ppg .cxe{display:inline-flex;align-items:center;gap:4px;justify-content:center}.det table.ppg .cxe .mut{font-size:11px}.det table td{vertical-align:middle}
 .cdtag{display:inline-block;background:#101B33;color:#FFC933;font-size:9px;font-weight:800;letter-spacing:.3px;padding:1px 5px;border-radius:5px;margin-left:5px;vertical-align:middle;line-height:1.4}.cdtag[hidden]{display:none}
 .cxl{cursor:pointer;border-bottom:1px dashed #C9C9C4;display:inline-block}.cxl:hover{color:#0E1626;border-bottom-color:#F5B800}
@@ -428,7 +432,7 @@ async function carregarDetalhe(key){
     const origSug=(p.parametros?.origem==='sugestao'||p.parametros?.origem==='sugestao-manual')?' · <span style="color:#1F4E79;font-weight:800">SUGESTÃO MANUAL</span> (quantidades avaliadas pelo(a) comprador(a) na Sugestão de Compras · Sugestão Manual)':(p.parametros?.origem==='cotacao'?' · <span style="color:#1F4E79;font-weight:800">COTAÇÃO #'+(p.cotacao?.id||'')+'</span> (preços do fornecedor vencedor · <a href="/cotacao.html?id='+(p.cotacao?.id||'')+'&tela=s4" style="color:#1F4E79">ver comparativo</a>)':'');
     const orig=origSug+(p.origem?.tipo==='ruptura'?' · <span class="rup" style="margin:0">RUPTURA DE ENTREGA · pedido #'+p.origem.pedidoId+' · notas '+(p.origem.notas||[]).map(n=>ETQ(n.loja)+' nº '+esc(n.nNota)).join(', ')+'</span>'+(p.resumo_origem?' · '+p.resumo_origem.ruptura+' itens da ruptura + '+p.resumo_origem.radar+' do radar (abaixo do ponto)':''):(p.resumo_origem&&p.resumo_origem.curva_a!=null?' · <span style="color:#C22F49;font-weight:800">'+(p.parametros?.modo==='curva_a'?'SÓ CURVA A':'curva A')+'</span>: '+p.resumo_origem.curva_a+' produto'+(p.resumo_origem.curva_a>1?'s':'')+' A em risco'+(p.resumo_origem.lista?' + '+p.resumo_origem.lista+' da lista':'')+(p.parametros?.gatilho==='curva_a'?' · lista antecipada (era pra '+p.parametros.fazer_em_lista+' d)':''):''));
     let h='<div class="hd"><div>'+(LN?'<span class="lojatag" style="margin:0 8px 0 0">'+ETQ(LN)+' · '+(LOJAS_NOMES[LN]||'')+' · só os itens desta loja</span>':'')+'<b class="lnk" title="Abrir cadastro da lista no ERP" onclick="event.stopPropagation();abrirCadastro('+p.lista+')">'+esc(p.lista_nome)+' ↗</b> · <span class="pill st-'+p.status+'">'+(ST[p.status]||p.status)+'</span>'+orig+(p.vendedor?.nome?' · vendedor '+esc(p.vendedor.nome)+(p.vendedor.whats?' '+esc(p.vendedor.whats):''):'')+(p.finalizadoPor?' · finalizado por '+esc(p.finalizadoPor):'')+(p.prazo_pagamento?' · prazo '+esc(p.prazo_pagamento):'')+(p.obs_vendedor?'<div style="margin-top:4px;font-weight:500">💬 <b>Obs. do vendedor:</b> '+esc(p.obs_vendedor)+'</div>':'')+'</div>'+
-      '<div>último custo <b>'+money2(p.totais.ultimo_custo)+'</b> · digitado <b>'+(p.totais.com_preco?money2(p.totais.digitado):'—')+'</b> ('+p.totais.com_preco+'/'+p.totais.itens+' itens) '+seta(p.totais.com_preco?p.totais.digitado:null,ultProp(p),true)+'</div></div>';
+      '<div id="hdig-'+p.id+'">'+hdigHtml(p)+'</div></div>';
     const LJ=LN?[LN]:[...new Set(p.itens.flatMap(i=>Object.keys(i.lojas_qtd||{}).map(Number)))].sort((a,b)=>a-b); const editavel=['sugestao','aguardando','digitacao','finalizado'].includes(p.status); PED[p.id]=p;
     // Tabela de itens no padrão da Cotação (Tiago, 06/10/26): produto · preço digitado (no lugar do "preço cotado") · × últ. compra ·
     // últ. compra · trânsito · qtd · emb · total · uma coluna por loja (nome + total no cabeçalho; caixinha com est · trâns e ⛔ desativado) · obs
@@ -446,7 +450,7 @@ async function carregarDetalhe(key){
         else if(rc!=null) est+='<div class="pp-est">'+(rc>=q-0.001?'<span style="color:var(--pos);font-weight:800">✓ recebido</span>':'recebeu <b>'+fmt(rc,0)+'</b>')+'</div>';
         return '<td class="c st lj'+(q?' tem':'')+(inat?' inat':'')+'">'+(editavel?'<input class="qin" type="number" min="0" step="1" data-id="'+p.id+'" data-cod="'+esc(i.cod)+'" data-ln="'+l+'" value="'+(q||'')+'" placeholder="·">':'<b>'+(q?fmt(q,0):'')+'</b>')+est+'</td>'; }).join('');
       h+='<tr class="'+(i.preco!=null||p.status==='sugestao'?'pede':'zero')+(idx++%2?' alt':'')+'" data-f="'+itemF(i,LN)+'"><td class="prod desc"><b>'+esc(i.descricao)+'</b>'+meta+estTot+'</td>'+
-        '<td class="c"><span class="vlr '+(dif!=null&&dif>0.004?'up':(dif!=null&&dif<-0.004?'dn':'eq'))+'">'+(pr==null?'—':fmt(pr,2))+'</span></td><td class="c">'+seta(i.preco,i.ultimo_custo,true)+'</td><td class="r">'+fmt(i.ultimo_custo,2)+'</td>'+
+        '<td class="c" id="pp-'+p.id+'-'+esc(i.cod)+'">'+precoCellHtml(p,i)+'</td><td class="c" id="ps-'+p.id+'-'+esc(i.cod)+'">'+seta(i.preco,i.ultimo_custo,true)+'</td><td class="r">'+fmt(i.ultimo_custo,2)+'</td>'+
         '<td class="r">'+(E?(E.transito>0?'<span class="tr" style="font-weight:800;color:var(--inf)">'+fmt(E.transito,0)+'</span>':'<span style="color:var(--ink3)">0</span>'):'<span class="mut">—</span>')+'</td>'+
         '<td class="r" id="pq-'+p.id+'-'+esc(i.cod)+'">'+pqHtml(p,i,LN)+'</td><td class="c">'+pembHtml(p,i)+'</td><td class="r" id="pt-'+p.id+'-'+esc(i.cod)+'">'+ptHtml(i,LN)+'</td>'+cel+'<td class="mut obs">'+esc(i.obs||'')+'</td></tr>';
     }
@@ -687,6 +691,36 @@ function pqHtml(p,i,LN){
 function pembHtml(p,i){
   const e=i.emb>1?i.emb:0;
   return '<div class="cxe" onclick="event.stopPropagation()"><span class="mut">'+esc(i.unid||'UN')+' ×</span><input class="embi" type="text" inputmode="numeric" maxlength="5" value="'+(e||'')+'" data-last="'+(e||'')+'" data-pid="'+p.id+'" data-cod="'+esc(i.cod)+'" data-unid="'+esc(i.unid||'UN')+'" placeholder="cx" title="Caixa padrão (unidades por caixa). Digite e dê Enter: grava e pula pro produto de baixo (↑ ↓ andam na lista). Vale no Radar e na Cotação; se o pedido ainda não foi aprovado, as quantidades por loja fecham na caixa nova." onkeydown="embKey(event,this)" onchange="embChange(this)"></div>';
+}
+// cabeçalho do detalhe: último custo × digitado (com id pra redesenhar quando um preço é negociado)
+function hdigHtml(p){ return 'último custo <b>'+money2(p.totais.ultimo_custo)+'</b> · digitado <b>'+(p.totais.com_preco?money2(p.totais.digitado):'—')+'</b> ('+p.totais.com_preco+'/'+p.totais.itens+' itens) '+seta(p.totais.com_preco?p.totais.digitado:null,ultProp(p),true); }
+// 🤝 negociar preço, igual à Cotação (Tiago, 07/10/26: "quando eu clico eu altero o preço que o vendedor colocou"): clique abre o preço
+// pra digitar o fechado com o vendedor; negociado fica azul com o preço do vendedor riscado; apagar o valor volta ao do vendedor.
+// Só enquanto o pedido não foi aprovado.
+function precoCellHtml(p,i){
+  const pr=i.preco!=null?i.preco:null, dif=pr!=null&&i.ultimo_custo>0?pr-i.ultimo_custo:null, ng=i.negociado||null;
+  const pode=['sugestao','aguardando','digitacao','finalizado'].includes(p.status);
+  const btn=pode?'<button class="neg-btn'+(ng?' on':'')+'" title="'+(ng?'Preço negociado (vendedor digitou '+(ng.preco_vendedor!=null?fmt(ng.preco_vendedor,2):'nada')+(ng.por?' · por '+esc(ng.por):'')+'): clique pra mudar, ou apague o valor pra voltar ao do vendedor':'Negociar: digitar o preço fechado com o vendedor')+'" onclick="event.stopPropagation();negociarPreco('+p.id+',\''+esc(i.cod)+'\')">🤝</button>':'';
+  return btn+'<span class="vlr '+(ng?'neg':(dif!=null&&dif>0.004?'up':(dif!=null&&dif<-0.004?'dn':'eq')))+'" title="'+(ng?'negociado · vendedor digitou '+(ng.preco_vendedor!=null?fmt(ng.preco_vendedor,2):'nada'):'preço digitado pelo vendedor')+'">'+(pr==null?'—':fmt(pr,2))+'</span>'+(ng?'<div class="s2"><span class="negv" title="preço que o vendedor digitou">'+(ng.preco_vendedor!=null?fmt(ng.preco_vendedor,2):'sem preço')+'</span></div>':'');
+}
+async function negociarPreco(pid,cod){
+  const p=PED[pid], it=p&&p.itens.find(i=>String(i.cod)===String(cod)); if(!it) return;
+  const atual=it.preco!=null?Number(it.preco).toFixed(2).replace('.',','):'';
+  const v=prompt('Preço negociado com o vendedor (R$ por unidade).\nDeixe em branco pra voltar ao preço que o vendedor digitou.',atual); if(v===null) return;
+  try{
+    const r=await fetch('/api/pedidos-fornecedor/'+pid+'/negociar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cod,preco:v.trim()})}); const j=await r.json().catch(()=>({}));
+    if(!r.ok||j.error) throw new Error(j.error||('HTTP '+r.status));
+    if(j.item){ it.preco=j.item.preco; it.negociado=j.item.negociado||null; } if(j.totais) p.totais=j.totais;
+    // redesenha só o que mudou: célula do preço, seta, total do item, totais por loja e do cabeçalho — a tela fica onde está
+    const LN=lnDetalhe(pid), c=document.getElementById('pp-'+pid+'-'+cod); if(c) c.innerHTML=precoCellHtml(p,it);
+    { const s=document.getElementById('ps-'+pid+'-'+cod); if(s) s.innerHTML=seta(it.preco,it.ultimo_custo,true); }
+    { const pt=document.getElementById('pt-'+pid+'-'+cod); if(pt) pt.innerHTML=ptHtml(it,LN); }
+    { const hd=document.getElementById('hdig-'+pid); if(hd) hd.innerHTML=hdigHtml(p); }
+    const tr=c&&c.closest('tr'); if(tr){ const pede=it.preco!=null||p.status==='sugestao'; tr.classList.toggle('pede',pede); tr.classList.toggle('zero',!pede); }
+    const lt=document.getElementById('lt-'+pid); if(lt) lt.innerHTML=lojaTotaisHtml(p, lt.dataset.ln?+lt.dataset.ln:null, true);
+    atualizarThLojas(pid);
+    const L=LISTA.find(x=>x.id===pid); if(L&&j.totais){ L.totais=j.totais; }
+  }catch(e){ alert('Não deu pra negociar o preço: '+e.message); }
 }
 // total do item: qtd × preço digitado (sem preço: × último custo); embaixo, o total a último custo quando difere
 function ptHtml(i,LN){ const q=LN?(i.lojas_qtd[LN]||0):i.qtd, pr=i.preco!=null?i.preco:null; return '<b>'+money2(q*(pr!=null?pr:i.ultimo_custo))+'</b>'+(pr!=null&&Math.abs(pr-i.ultimo_custo)>0.004?'<div class="s2">últ. custo '+money2(q*i.ultimo_custo)+'</div>':''); }
