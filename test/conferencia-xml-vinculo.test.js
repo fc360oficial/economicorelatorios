@@ -104,3 +104,81 @@ test('empate de itens em comum: nota vai pro pedido mais antigo', async () => {
   assert.deepEqual(velho.xml.lojas[6].notas.map(n => n.nNota), [2513640]);
   assert.equal(novo.xml.lojas[6].status, 'aguardando');
 });
+
+// 07/10/2026 — caso Knorr, Loja 5: a cartela "67891150016868" (CALDO KNORR CARNE CART 114G 1X1) é OUTRO GTIN do produto
+// "7891150012363" (KNORR CALDO 114G CARNE). Nenhuma regra de dígito resolve: casa pelo NOME e o(a) comprador(a) confirma.
+const os = require('os');
+const DEPARA_TESTE = path.join(os.tmpdir(), 'xml-depara-teste-' + process.pid + '.json');
+const limparDepara = () => { try { fs.unlinkSync(DEPARA_TESTE); } catch (e) {} };
+const knorrPedido = id => pedido(id, '2026-10-06T10:00:00.000Z', [
+  ['7891150097582', 'ALA LAVA ROUPAS EM PO 800G LAVANDA', 32, 4.94],
+  ['7891150012363', 'KNORR CALDO 114G CARNE', 20, 3.25],
+  ['7891150068278', 'MAIZENA CREMOGEMA 180G CHOCOLATE', 48, 4.72]]);
+const knorrNota = () => nota(70001, [
+  item('7891150097582', 'ALA LAVA ROUPAS PO LAVANDA 800G', 32, 4.94),
+  item('67891150016868', 'CALDO KNORR CARNE CART 114G (GRANDE) 1X1', 20, 3.25),
+  item('7891150068278', 'MAIZENA CREMOGEMA CHOCOLATE 180G', 48, 4.72)]);
+
+test('código da nota é outro GTIN do mesmo produto: casa pelo nome, marca o vínculo e pede confirmação', async () => {
+  cx.init(async () => [], { deparaPath: DEPARA_TESTE }); limparDepara();
+  const p = knorrPedido(9120);
+  const { rupturas } = await rodar([p], [knorrNota()]);
+  const x = p.xml.lojas[6];
+  assert.deepEqual(x.nao_pedidos, []);
+  const knorr = x.itens.find(i => i.cod === '7891150012363');
+  assert.equal(knorr.tipo, 'ok'); assert.equal(knorr.recebida, 20);
+  assert.deepEqual(knorr.vinculo, { tipo: 'nome', cod_xml: '67891150016868', descricao_xml: 'CALDO KNORR CARNE CART 114G (GRANDE) 1X1' });
+  assert.equal(x.status, 'consistencia');
+  assert.deepEqual(x.problemas.map(pr => pr.tipo), ['vinculo_nome']);
+  assert.deepEqual(rupturas, []);   // não é falta: não vira sugestão de ruptura
+});
+
+test('nome parecido mas sabor/gramatura diferente NÃO casa (Knorr carne × galinha, 800G × 1KG)', () => {
+  assert.equal(cx.nomeCasa('KNORR CALDO 114G CARNE', 'CALDO KNORR GALINHA CART 114G 1X1'), false);
+  assert.equal(cx.nomeCasa('ALA LAVA ROUPAS EM PO 800G LAVANDA', 'ALA LAVA ROUPAS PO LAVANDA 1KG'), false);
+  assert.equal(cx.nomeCasa('MAIZENA CREMOGEMA 380G TRAD', 'MAIZENA CREMOGEMA TRADICIONAL 380G'), true);   // prefixo vale
+  assert.equal(cx.nomeCasa('OLEO', 'OLEO SOYA 900ML'), false);   // uma palavra só não basta
+});
+
+test('dois itens do pedido que não vieram casam com o mesmo nome: fica em dúvida, não vincula', async () => {
+  cx.init(async () => [], { deparaPath: DEPARA_TESTE }); limparDepara();
+  const p = pedido(9121, '2026-10-06T10:00:00.000Z', [['7891150012363', 'KNORR CALDO CARNE', 20, 3.25], ['7891150012364', 'KNORR CARNE CALDO 114G', 24, 3.25], ['7891150068278', 'MAIZENA 180G', 48, 4.72]]);
+  const n = nota(70002, [item('67891150016868', 'CALDO KNORR CARNE CART 114G 1X1', 12, 3.25), item('7891150068278', 'MAIZENA 180G', 48, 4.72)]);
+  await rodar([p], [n]);
+  const x = p.xml.lojas[6];
+  assert.deepEqual(x.nao_pedidos.map(i => i.cod), ['67891150016868']);
+  assert.deepEqual(x.itens.filter(i => i.tipo === 'falta').map(i => i.cod), ['7891150012363', '7891150012364']);
+});
+
+test('comprador(a) confirma o vínculo: de-para gravado, loja reconferida na hora e concilia; vale pro próximo pedido', async () => {
+  cx.init(async () => [], { deparaPath: DEPARA_TESTE }); limparDepara();
+  const p = knorrPedido(9122);
+  await rodar([p], [knorrNota()]);
+  assert.equal(p.xml.lojas[6].status, 'consistencia');
+  gravar(p, [knorrNota()]);
+  cx.vincularCod('67891150016868', '7891150012363', { por: 'Tiago' });
+  const r = await cx.reconferirLoja(p, 6, {});
+  limpar([p.id]);
+  assert.equal(r.status, 'conciliado');
+  assert.deepEqual(r.problemas, []);
+  assert.equal(r.itens.find(i => i.cod === '7891150012363').vinculo.tipo, 'depara');
+  assert.equal(p.xml.status, 'conciliado'); assert.equal(p.status, 'recebido');
+  // próximo pedido do mesmo produto já nasce conciliado, sem pedir confirmação
+  const p2 = knorrPedido(9123);
+  await rodar([p2], [knorrNota()]);
+  assert.equal(p2.xml.lojas[6].status, 'conciliado');
+  assert.equal(p2.xml.lojas[6].itens.find(i => i.cod === '7891150012363').vinculo.tipo, 'depara');
+});
+
+test('comprador(a) diz que NÃO é o item: bloqueia o nome e o item volta a "não pedido" / "falta"', async () => {
+  cx.init(async () => [], { deparaPath: DEPARA_TESTE }); limparDepara();
+  const p = knorrPedido(9124);
+  await rodar([p], [knorrNota()]);
+  gravar(p, [knorrNota()]);
+  cx.vincularCod('67891150016868', null, { por: 'Tiago' });
+  const r = await cx.reconferirLoja(p, 6, {});
+  limpar([p.id]); limparDepara();
+  assert.deepEqual(r.nao_pedidos.map(i => i.cod), ['67891150016868']);
+  assert.equal(r.itens.find(i => i.cod === '7891150012363').tipo, 'falta');
+  assert.equal(r.itens.find(i => i.cod === '7891150012363').vinculo, undefined);
+});

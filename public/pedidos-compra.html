@@ -161,7 +161,7 @@ input.embi:focus{outline:none;border:1px solid #F5B800;background:#FFFDF3}input.
 .btn-navy{background:#101B33;color:#FFC933}.btn-navy:hover{background:#0E1626}
 /* Período (Tiago, 07/10/26): select ao lado do status; setas ◀ ▶ só quando "Escolher dia"; cabeçalho de dia na lista em 7 dias / mês */
 .periodo{display:inline-flex;align-items:center;gap:4px}
-.tools .dia{display:inline-flex;align-items:center;gap:2px;background:#fff;border:1px solid #C9C9C4;border-radius:8px;padding:2px}
+.tools .dia[hidden]{display:none}.tools .dia{display:inline-flex;align-items:center;gap:2px;background:#fff;border:1px solid #C9C9C4;border-radius:8px;padding:2px}
 .dia button{font:inherit;border:0;background:transparent;color:#4E5A72;font-weight:800;font-size:13px;width:28px;height:26px;border-radius:5px;cursor:pointer}
 .dia button:hover{background:#EBEBE9;color:#0E1626}.dia button:disabled{opacity:.35;cursor:default}
 .dia .lbl{font-size:12.5px;font-weight:800;color:#0E1626;min-width:104px;text-align:center}
@@ -325,7 +325,7 @@ async function abrirNfe(chave){
   }catch(e){ document.getElementById('pv-body').insertAdjacentHTML('beforeend','<div class="empty">Erro: '+esc(e.message)+'</div>'); }
 }
 const XML_ST={aguardando:'Aguardando conferência XML',parcial:'XML parcial',conciliado:'Conciliado XML',consistencia:'Consistência XML'};
-const XML_PROB={falta:'falta',a_mais:'veio a mais',nao_pedido:'item não pedido',preco:'preço',sem_boleto:'sem boleto',boleto:'boleto ≠ NF-e',valor:'valor ≠ esperado',unidade:'unidade da nota',afinidade:'conferir se é este pedido'};
+const XML_PROB={falta:'falta',a_mais:'veio a mais',nao_pedido:'item não pedido',preco:'preço',sem_boleto:'sem boleto',boleto:'boleto ≠ NF-e',valor:'valor ≠ esperado',unidade:'unidade da nota',afinidade:'conferir se é este pedido',vinculo_nome:'casado pelo nome: confirmar'};
 const probTxt=a=>(a||[]).map(t=>XML_PROB[t]||t).join(', ');
 // o que fazer em cada tipo de problema (quem resolve)
 const O_QUE_FAZER={
@@ -373,9 +373,24 @@ async function decidir(id,ln,cod,acao){
   try{const r=await fetch('/api/pedidos-fornecedor/'+id+'/xml/'+ln+'/decidir',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cod,acao})});const j=await r.json();if(j.error)throw new Error(j.error);aberto=id+'-'+ln;carregarDetalhe(aberto);}
   catch(e){alert('Erro: '+e.message);}
 }
+// Vínculo de código (07/10/2026, caso Knorr): o código da NOTA é o item `cod` do pedido (cod vazio = não é). Vale pros próximos pedidos.
+async function vincular(id,ln,codXml,cod){
+  try{const r=await fetch('/api/pedidos-fornecedor/'+id+'/xml/'+ln+'/vincular',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cod_xml:codXml,cod:cod||''})});const j=await r.json();if(j.error)throw new Error(j.error);aberto=id+'-'+ln;carregarDetalhe(aberto);}
+  catch(e){alert('Erro: '+e.message);}
+}
+// item "não pedido" → escolher qual item do pedido que NÃO VEIO ele é (lista numerada)
+async function vincularNaoPedido(id,ln,codXml){
+  let p=null; try{const r=await fetch('/api/pedidos-fornecedor/'+id); p=await r.json(); if(p.error) throw new Error(p.error);}catch(e){return alert('Erro: '+e.message);}
+  const x=p?.xml?.lojas?.[ln]; const faltas=(x?.itens||[]).filter(i=>i.tipo==='falta'||i.tipo==='parcial');
+  if(!faltas.length) return alert('Nenhum item do pedido está faltando nesta loja pra vincular.');
+  const esc2=faltas.map((f,k)=>(k+1)+') '+f.descricao+' · '+f.cod+' (pedido '+fmt(f.pedida,0)+')').join('\n');
+  const r=prompt('O item '+codXml+' da nota é qual item do pedido?\n\n'+esc2+'\n\nDigite o número (fica gravado pros próximos pedidos):','1');
+  if(r==null) return; const k=parseInt(r,10); if(!(k>=1&&k<=faltas.length)) return alert('Número inválido.');
+  vincular(id,ln,codXml,faltas[k-1].cod);
+}
 function wppTexto(p,texto){const w=(p.vendedor?.whats||'').replace(/\D/g,'');const m=encodeURIComponent(texto);return w.length>=10?'https://wa.me/55'+w+'?text='+m:'https://wa.me/?text='+m;}
 // motivo sugerido automaticamente a partir dos problemas da loja (o(a) comprador(a) edita se quiser)
-const MOTIVO_AUTO={preco:'Preço divergente acertado com o vendedor (nota de devolução / boleto ajustado)',boleto:'Boleto corrigido pelo fornecedor conforme a NF-e',sem_boleto:'Boleto recebido do fornecedor',falta:'Falta tratada pela sugestão de ruptura',a_mais:'Excedente recusado na entrega, nota de devolução emitida',nao_pedido:'Item não pedido recusado na entrega',valor:'Diferença de valor conferida (frete / IPI / ST / desconto)',unidade:'Unidade da nota conferida com a embalagem',afinidade:'Nota conferida: é deste pedido'};
+const MOTIVO_AUTO={preco:'Preço divergente acertado com o vendedor (nota de devolução / boleto ajustado)',boleto:'Boleto corrigido pelo fornecedor conforme a NF-e',sem_boleto:'Boleto recebido do fornecedor',falta:'Falta tratada pela sugestão de ruptura',a_mais:'Excedente recusado na entrega, nota de devolução emitida',nao_pedido:'Item não pedido recusado na entrega',valor:'Diferença de valor conferida (frete / IPI / ST / desconto)',unidade:'Unidade da nota conferida com a embalagem',afinidade:'Nota conferida: é deste pedido',vinculo_nome:'Item da nota conferido: é o mesmo produto do pedido (código diferente)'};
 async function aceitarLoja(id,ln){
   const x=PED[id]?.xml?.lojas?.[ln]; const tipos=[...new Set((x?.problemas||[]).map(z=>z.tipo))];
   const sugerido=tipos.map(t=>MOTIVO_AUTO[t]||t).join('; ');
@@ -640,8 +655,11 @@ function secaoXml(p,LN){
     h+='<div style="overflow-x:auto"><table><thead><tr><th>Produto</th><th class="r">Pedido</th><th class="r">Veio no XML</th><th class="r">Dif.</th><th>Situação</th><th class="r">Preço digitado</th><th class="r">Preço XML</th><th class="r">Var.</th></tr></thead><tbody>';
     const TP={ok:'✓ ok',parcial:'parcial',falta:'não veio',a_mais:'veio a mais',conferir:'conferir unidade'};
     const dec=(i,tipo)=>x.status!=='consistencia'?'':'<span class="dec"><button class="ac'+(i.decisao?.acao==='aceitar'?' on':'')+'" onclick="event.stopPropagation();decidir('+p.id+','+ln+',\''+esc(i.cod)+'\',\'aceitar\')" title="'+(tipo==='a_mais'?'Aceitar o excedente':tipo==='preco'?'Aceitar o preço da nota':'Aceitar o item')+'">Aceitar</button><button class="rc'+(i.decisao?.acao==='recusar'?' on':'')+'" onclick="event.stopPropagation();decidir('+p.id+','+ln+',\''+esc(i.cod)+'\',\'recusar\')" title="'+(tipo==='a_mais'?'Recusar só o excedente':'Recusar o item')+' · avisa o vendedor e gera nota de devolução">Recusar</button>'+(i.decisao?'<small>'+esc(i.decisao.por||'')+'</small>':'')+'</span>';
-    for(const i of x.itens) h+='<tr class="'+(i.tipo==='ok'?'':'zero')+'"><td class="desc">'+esc(i.descricao)+cdTag(i.cod)+(i.tipo==='a_mais'?dec(i,'a_mais'):(i.preco_status==='maior'?dec(i,'preco'):''))+'<span class="cod">'+esc(i.cod)+'</span></td><td class="r">'+fmt(i.pedida,0)+'</td><td class="r"><b>'+fmt(i.recebida,0)+'</b>'+xmlComoVeio(i)+'</td><td class="r '+(i.dif<0?'neg':(i.dif>0?'pos':''))+'">'+(i.dif?(i.dif>0?'+':'')+fmt(i.dif,0):'')+'</td><td class="tp-'+i.tipo+'">'+(TP[i.tipo]||i.tipo)+'</td><td class="r">'+(i.preco_digitado!=null?fmt(i.preco_digitado,2):'<span class="mut">—</span>')+'</td><td class="r"><b>'+(i.preco_xml!=null?fmt(i.preco_xml,2):'—')+'</b></td><td class="r">'+(i.preco_status?(i.preco_status==='ok'?'<span class="arw eq">=</span>':seta(i.preco_xml,i.preco_digitado,true)):'')+'</td></tr>';
-    for(const i of (x.nao_pedidos||[])) h+='<tr><td class="desc">'+esc(i.descricao)+cdTag(i.cod)+dec(i,'nao_pedido')+'<span class="cod">'+esc(i.cod)+'</span></td><td class="r">—</td><td class="r"><b>'+fmt(i.recebida,0)+'</b>'+xmlComoVeio(i)+'</td><td class="r"></td><td class="tp-nao_pedido">não pedido</td><td class="r">—</td><td class="r"><b>'+(i.preco_xml!=null?fmt(i.preco_xml,2):'—')+'</b></td><td></td></tr>';
+    // vínculo por nome/de-para (07/10/2026, caso Knorr): código da nota é outro GTIN do mesmo produto — mostra e deixa confirmar ou negar
+    const vinc=i=>!i.vinculo?'':'<span class="dec" title="Na nota veio como '+esc(i.vinculo.descricao_xml||'')+' · código '+esc(i.vinculo.cod_xml)+'"><small style="color:'+(i.vinculo.tipo==='nome'?'#B45C00;font-weight:800':'#137A48')+'">'+(i.vinculo.tipo==='nome'?'casado pelo nome':'vínculo gravado')+' · nota '+esc(i.vinculo.cod_xml)+'</small>'+(i.vinculo.tipo==='nome'&&x.status==='consistencia'?'<button class="ac" onclick="event.stopPropagation();vincular('+p.id+','+ln+',\''+esc(i.vinculo.cod_xml)+'\',\''+esc(i.cod)+'\')" title="É o mesmo produto: grava o vínculo pros próximos pedidos e reconfere a loja">Confirmar</button><button class="rc" onclick="event.stopPropagation();vincular('+p.id+','+ln+',\''+esc(i.vinculo.cod_xml)+'\',\'\')" title="Não é o mesmo produto: volta a item não pedido / falta e não casa mais pelo nome">Não é este</button>':'')+'</span>';
+    for(const i of x.itens) h+='<tr class="'+(i.tipo==='ok'?'':'zero')+'"><td class="desc">'+esc(i.descricao)+cdTag(i.cod)+(i.tipo==='a_mais'?dec(i,'a_mais'):(i.preco_status==='maior'?dec(i,'preco'):''))+vinc(i)+'<span class="cod">'+esc(i.cod)+'</span></td><td class="r">'+fmt(i.pedida,0)+'</td><td class="r"><b>'+fmt(i.recebida,0)+'</b>'+xmlComoVeio(i)+'</td><td class="r '+(i.dif<0?'neg':(i.dif>0?'pos':''))+'">'+(i.dif?(i.dif>0?'+':'')+fmt(i.dif,0):'')+'</td><td class="tp-'+i.tipo+'">'+(TP[i.tipo]||i.tipo)+'</td><td class="r">'+(i.preco_digitado!=null?fmt(i.preco_digitado,2):'<span class="mut">—</span>')+'</td><td class="r"><b>'+(i.preco_xml!=null?fmt(i.preco_xml,2):'—')+'</b></td><td class="r">'+(i.preco_status?(i.preco_status==='ok'?'<span class="arw eq">=</span>':seta(i.preco_xml,i.preco_digitado,true)):'')+'</td></tr>';
+    const temFalta=(x.itens||[]).some(i=>i.tipo==='falta'||i.tipo==='parcial');
+    for(const i of (x.nao_pedidos||[])) h+='<tr><td class="desc">'+esc(i.descricao)+cdTag(i.cod)+dec(i,'nao_pedido')+(temFalta&&x.status==='consistencia'?'<span class="dec"><button onclick="event.stopPropagation();vincularNaoPedido('+p.id+','+ln+',\''+esc(i.cod)+'\')" title="Este item da nota é um item do pedido que consta como não veio (código diferente, ex.: cartela/display). Grava pros próximos pedidos e reconfere a loja.">É item do pedido…</button></span>':'')+'<span class="cod">'+esc(i.cod)+'</span></td><td class="r">—</td><td class="r"><b>'+fmt(i.recebida,0)+'</b>'+xmlComoVeio(i)+'</td><td class="r"></td><td class="tp-nao_pedido">não pedido</td><td class="r">—</td><td class="r"><b>'+(i.preco_xml!=null?fmt(i.preco_xml,2):'—')+'</b></td><td></td></tr>';
     h+='</tbody></table></div>';
     if(x.aceito) h+='<div class="aceito">✓ Aceito e fechado por <b>'+esc(x.aceito.por||'—')+'</b> em '+new Date(x.aceito.em).toLocaleString('pt-BR')+' · motivo: <b>'+esc(x.aceito.motivo)+'</b>'+(x.aceito.problemas?.length?' · tinha: '+esc(probTxt(x.aceito.problemas.map(z=>z.tipo)))+'':'')+'</div>';
     if(x.status==='consistencia'){

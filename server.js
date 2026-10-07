@@ -7997,6 +7997,15 @@ app.post('/api/pedidos-fornecedor/:id/xml/:loja/decidir', (req, res) => {
     res.json({ ok: true, recusas: pedidosFornec.recusasLoja(r, parseInt(req.params.loja)).length });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+// Vínculo de código da nota × item do pedido (07/10/2026, caso Knorr): body { cod_xml, cod } — cod vazio = "não é item do pedido"
+app.post('/api/pedidos-fornecedor/:id/xml/:loja/vincular', async (req, res) => {
+  try {
+    const r = await pedidosFornec.vincularCodXml(parseInt(req.params.id), parseInt(req.params.loja), req.body?.cod_xml, req.body?.cod, req.session.user?.nome || null);
+    if (!r) return res.status(404).json({ error: 'Pedido não encontrado' });
+    if (r.erro) return res.status(400).json({ error: r.erro });
+    res.json({ ok: true, status: r.xml?.lojas?.[req.params.loja]?.status || null });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 app.get('/api/pedidos-fornecedor/:id/devolucao/:loja/pdf', (req, res) => {
   const p = pedidosFornec.obter(parseInt(req.params.id)); if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
   let f; try { f = pedidosFornec.gerarPdfDevolucao(p, parseInt(req.params.loja), req.session.user?.nome || null); } catch (e) { return res.status(500).json({ error: e.message }); }
