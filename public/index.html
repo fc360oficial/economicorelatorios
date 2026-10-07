@@ -352,9 +352,9 @@
       <div class="card"><div class="card-hd"><h3>Semanas seguintes</h3><small>da próxima semana em diante · por semana de pagamento</small></div><div class="card-bd" id="c-fin-proximas"><div class="spin"></div></div></div>
     </div>
     <div class="row c3" style="margin-top:12px">
-      <div class="card"><div class="card-hd"><h3 id="fin-tipo-hoje-t">O que paga hoje</h3><small id="fin-tipo-hoje-s">mercadorias × outras operações · dia de pagamento de hoje</small></div><div class="card-bd" id="c-fin-tipo-hoje"><div class="spin"></div></div></div>
-      <div class="card"><div class="card-hd"><h3>O que paga esta semana</h3><small id="fin-tipo-sem-s">mercadorias × outras operações · de hoje até sexta</small></div><div class="card-bd" id="c-fin-tipo-sem"><div class="spin"></div></div></div>
-      <div class="card"><div class="card-hd"><h3>O que paga daqui pra frente</h3><small>por loja · mercadorias × outras operações · da próxima semana em diante</small></div><div class="card-bd" id="c-fin-tipo-prox"><div class="spin"></div></div></div>
+      <div class="card"><div class="card-hd"><h3 id="fin-tipo-hoje-t">O que paga hoje</h3><small id="fin-tipo-hoje-s">só outras operações (sem mercadorias) · dia de pagamento de hoje</small></div><div class="card-bd" id="c-fin-tipo-hoje"><div class="spin"></div></div></div>
+      <div class="card"><div class="card-hd"><h3>O que paga esta semana</h3><small id="fin-tipo-sem-s">só outras operações (sem mercadorias) · de hoje até sexta</small></div><div class="card-bd" id="c-fin-tipo-sem"><div class="spin"></div></div></div>
+      <div class="card"><div class="card-hd"><h3>O que paga daqui pra frente</h3><small>por loja · só outras operações (sem mercadorias) · da próxima semana em diante</small></div><div class="card-bd" id="c-fin-tipo-prox"><div class="spin"></div></div></div>
     </div>
   </section>
 </main>
@@ -758,12 +758,10 @@ function finTipoDet(tr) {
     ? '<tr' + (cls ? ' class="' + cls + '"' : '') + '><td>' + rot + '</td><td class="r">' + (o.n || '') + '</td><td class="r"><b>' + (o.v ? money(o.v) : '—') + '</b></td><td>' + (cls === 'fin-tot' ? '' : bar(o.v)) + '</td></tr>'
     : '<tr class="fin-lj' + (cls ? ' ' + cls : '') + '" data-loja="' + (loja == null ? '' : loja) + '"' + attrPer + ' data-grupo="' + g + '" data-gnome="' + esc(gnome || '') + '" onclick="finDetalhe(this)" title="clique pra ver os títulos"><td><span class="fin-car">▸</span>' + rot + '</td><td class="r">' + (o.n || '') + '</td><td class="r"><b>' + (o.v ? money(o.v) : '—') + '</b></td><td>' + bar(o.v) + '</td></tr>';
   const det = document.createElement('tr'); det.className = 'fin-det';
-  det.innerHTML = '<td colspan="' + tr.children.length + '"><div class="fin-det-h"><b>' + (loja == null ? 'Todas as lojas' : LJ(loja) + ' ' + (NOMES[loja] || '')) + '</b> · ' + tot.n + ' título' + (tot.n === 1 ? '' : 's') + ' · ' + C.rotulo + ' · mercadorias × outras operações</div>'
+  det.innerHTML = '<td colspan="' + tr.children.length + '"><div class="fin-det-h"><b>' + (loja == null ? 'Todas as lojas' : LJ(loja) + ' ' + (NOMES[loja] || '')) + '</b> · ' + tot.n + ' título' + (tot.n === 1 ? '' : 's') + ' · ' + C.rotulo + ' · só outras operações (sem mercadorias)</div>'
     + '<table class="m fin-al fin-tipo"><colgroup><col><col style="width:62px"><col style="width:118px"><col style="width:86px"></colgroup><thead><tr><th>Tipo</th><th class="r">Títulos</th><th class="r">Valor</th><th></th></tr></thead><tbody>'
-    + li('<b>Mercadorias</b><br><span class="fin-mut">boletos de fornecedor · nota fiscal · grupo Fornecedor</span>', forn, 'fin-hl', 4, 'Mercadorias (boletos de fornecedor)')
     + '<tr class="fin-sec-row"><td colspan="4">Outras operações <span class="fin-mut">grupo do plano de contas</span></td></tr>'
     + grupos.map(x => li(finNomeGrupo(x.g), x, '', x.g, finNomeGrupo(x.g))).join('')
-    + (grupos.length ? li('<b>Total das outras operações</b>', outras, 'fin-tot') : '')
     + li('<b>Total</b>', tot, 'fin-tot') + '</tbody></table></td>';
   tr.after(det); tr.classList.add('open');
 }
@@ -879,29 +877,29 @@ function renderFin() {
   // O que a loja paga (Tiago, 29/09): três quadros iguais aos de cima — hoje · esta semana · daqui pra frente —
   // separando boletos de fornecedor (grupo Fornecedor do plano de contas) das outras operações, com o nome do grupo do ERP
   // Tiago, 29/09 (2ª vez): "faz que nem em cima: bota por loja e clicando na loja mostra essa informação" → cada quadro lista as
-  // lojas (mesma grade dos de cima) e o clique abre, embaixo da loja, mercadorias × outras operações (finTipoDet)
+  // lojas (mesma grade dos de cima) e o clique abre, embaixo da loja, só outras operações (sem mercadorias) (finTipoDet)
   const CATS = f.categorias || []; FIN_TIPO.grupos = f.grupos || {};
   const tipoCard = (id, key, pred, rotuloTot, per) => {
-    const rows = CATS.filter(pred); FIN_TIPO[key] = { rows, rotulo: rotuloTot, per };
-    // Tiago, 07/10/26 ("aqui você não aparece os valores de mercadorias"): mercadorias (grupo 4 = Fornecedor) × outras já na linha da loja e no total
-    const pl = {}; for (const r of rows) { const a = pl[r.loja] || (pl[r.loja] = { loja: r.loja, n: 0, v: 0, m: 0, o: 0 }); a.n += r.n; a.v += r.v; if (r.grupo === 4) a.m += r.v; else a.o += r.v; }
-    const lojas = Object.values(pl).sort((a, b) => a.loja - b.loja), max = Math.max(...lojas.map(l => l.v), 1), tot = lojas.reduce((s, l) => ({ n: s.n + l.n, v: s.v + l.v, m: s.m + l.m, o: s.o + l.o }), { n: 0, v: 0, m: 0, o: 0 });
-    const mo = x => '<div class="fin-mut" style="margin-top:2px">mercadorias <b style="color:var(--ink)">' + money(x.m) + '</b>' + (x.o > 0.004 ? ' · outras ' + money(x.o) : '') + '</div>';
+    // Tiago, 07/10/26 (2ª vez: "tira toda a informação de mercadorias aqui, deixa só outras operações"): estes três quadros são SÓ o
+    // que não é mercadoria — grupo 4 (FORNECEDOR / Pagamento Fornecedor) fica de fora do total, das lojas e do detalhe
+    const rows = CATS.filter(r => pred(r) && r.grupo !== 4); FIN_TIPO[key] = { rows, rotulo: rotuloTot, per };
+    const pl = {}; for (const r of rows) { const a = pl[r.loja] || (pl[r.loja] = { loja: r.loja, n: 0, v: 0 }); a.n += r.n; a.v += r.v; }
+    const lojas = Object.values(pl).sort((a, b) => a.loja - b.loja), max = Math.max(...lojas.map(l => l.v), 1), tot = lojas.reduce((s, l) => ({ n: s.n + l.n, v: s.v + l.v }), { n: 0, v: 0 });
     document.getElementById(id).innerHTML = rows.length
-      ? '<div class="fin-big"><b>' + money(tot.v) + '</b><small>' + plural(tot.n, 'título') + ' · ' + rotuloTot + '<br>mercadorias <b>' + money(tot.m) + '</b> · outras operações <b>' + money(tot.o) + '</b></small></div>'
-        + '<div class="fin-sec">Por loja <span class="fin-mut">clique pra ver mercadorias × outras operações</span></div><table class="m fin-al">' + CG + '<thead><tr><th>Loja</th><th class="r">Títulos</th><th class="r">Valor</th><th></th></tr></thead><tbody>'
-        + lojas.map(l => '<tr class="fin-lj" data-key="' + key + '" data-loja="' + l.loja + '" onclick="finTipoDet(this)" title="clique pra ver mercadorias × outras operações"><td><span class="fin-car">▸</span>' + lojaTag(l.loja) + mo(l) + '</td><td class="r">' + l.n + '</td><td class="r"><b>' + money(l.v) + '</b></td><td>' + barra(l.v, max) + '</td></tr>').join('')
-        + (lojas.length > 1 ? '<tr class="fin-lj fin-tot" data-key="' + key + '" data-loja="" onclick="finTipoDet(this)" title="clique pra ver mercadorias × outras operações da rede"><td><span class="fin-car">▸</span>Todas as lojas' + mo(tot) + '</td><td class="r">' + tot.n + '</td><td class="r"><b>' + money(tot.v) + '</b></td><td></td></tr>' : '')
+      ? '<div class="fin-big"><b>' + money(tot.v) + '</b><small>' + plural(tot.n, 'título') + ' · ' + rotuloTot + ' · só outras operações, sem mercadorias</small></div>'
+        + '<div class="fin-sec">Por loja <span class="fin-mut">clique pra ver só outras operações (sem mercadorias)</span></div><table class="m fin-al">' + CG + '<thead><tr><th>Loja</th><th class="r">Títulos</th><th class="r">Valor</th><th></th></tr></thead><tbody>'
+        + lojas.map(l => '<tr class="fin-lj" data-key="' + key + '" data-loja="' + l.loja + '" onclick="finTipoDet(this)" title="clique pra ver só outras operações (sem mercadorias)"><td><span class="fin-car">▸</span>' + lojaTag(l.loja) + '</td><td class="r">' + l.n + '</td><td class="r"><b>' + money(l.v) + '</b></td><td>' + barra(l.v, max) + '</td></tr>').join('')
+        + (lojas.length > 1 ? '<tr class="fin-lj fin-tot" data-key="' + key + '" data-loja="" onclick="finTipoDet(this)" title="clique pra ver só outras operações (sem mercadorias) da rede"><td><span class="fin-car">▸</span>Todas as lojas</td><td class="r">' + tot.n + '</td><td class="r"><b>' + money(tot.v) + '</b></td><td></td></tr>' : '')
         + '</tbody></table>'
-      : empty('Nada a pagar ' + rotuloTot + '.');
+      : empty('Nenhuma outra operação a pagar ' + rotuloTot + ' (mercadorias ficam fora deste quadro).');
   };
   document.getElementById('fin-tipo-hoje-t').textContent = fds ? 'O que paga na segunda' : 'O que paga hoje';
-  document.getElementById('fin-tipo-hoje-s').textContent = 'por loja · mercadorias × outras operações · ' + (fds ? 'segunda ' + df(diaRef) + ' (sáb, dom e seg)' : DS[dow(hoje)] + ' ' + df(hoje));
-  document.getElementById('fin-tipo-sem-s').textContent = 'por loja · mercadorias × outras operações · ' + df(hoje) + ' a ' + df(semFim);
+  document.getElementById('fin-tipo-hoje-s').textContent = 'por loja · só outras operações (sem mercadorias) · ' + (fds ? 'segunda ' + df(diaRef) + ' (sáb, dom e seg)' : DS[dow(hoje)] + ' ' + df(hoje));
+  document.getElementById('fin-tipo-sem-s').textContent = 'por loja · só outras operações (sem mercadorias) · ' + df(hoje) + ' a ' + df(semFim);
   tipoCard('c-fin-tipo-hoje', 'hoje', r => r.pag === diaRef, fds ? 'na segunda' : 'hoje', { pag: diaRef });
   tipoCard('c-fin-tipo-sem', 'sem', r => r.pag >= hoje && r.pag <= semFim, 'de ' + (fds ? 'segunda' : 'hoje') + ' até sexta', { pagIni: hoje, pagFim: semFim });
   tipoCard('c-fin-tipo-prox', 'prox', r => r.pag >= proxIni, 'da próxima semana em diante', { pagIni: proxIni, pagFim: '9999-12-31' });
-  if (venc.n) { const vf = CATS.reduce((s, r) => r.pag < hoje && r.grupo === 4 ? s + r.v : s, 0), vo = venc.v - vf; document.getElementById('c-fin-tipo-hoje').insertAdjacentHTML('beforeend', '<div class="fin-note">Vencidos em aberto: <b>' + money(vf) + '</b> de mercadorias (fornecedor) · <b>' + money(vo) + '</b> de outras operações (veja o quadro Hoje, acima).</div>'); }
+  if (venc.n) { const vf = CATS.reduce((s, r) => r.pag < hoje && r.grupo === 4 ? s + r.v : s, 0), vo = venc.v - vf; document.getElementById('c-fin-tipo-hoje').insertAdjacentHTML('beforeend', '<div class="fin-note">Vencidos em aberto de outras operações: <b>' + money(vo) + '</b> (sem mercadorias) (veja o quadro Hoje, acima).</div>'); }
 }
 
 // clique na linha da loja (bloco Financeiro › Hoje): abre embaixo os títulos daquele dia de pagamento (Tiago, 28/09/26)
