@@ -5282,6 +5282,43 @@ app.get('/api/contagem/config', (req, res) => {
   const c = contagemNeg.config();
   res.json(Object.keys(c.lojas).map(ln => ({ loja: +ln, nome: contagemNeg.LOJAS_NOMES[ln], pin: c.lojas[ln].pin })));
 });
+// Atualizar negativos (Tiago, 07/10): rebusca no ERP de produção (.252, só SELECT) e acerta a
+// lista de HOJE pra central e pro app da loja, sem mandar nada no grupo e sem perder o que já
+// foi digitado. Mesma consulta do bot negativos-wpp (buscarNegativos) — manter as duas iguais.
+async function buscarNegativosERP() {
+  const conn = await mysql.createConnection(dbConfig);
+  try {
+    const rs = await Promise.all([1, 2, 3, 4, 5, 6].map(ln => conn.query(`
+      SELECT i.CodigoBarra AS Codigo, i.Descricao,
+             COALESCE(g.Descricao, 'SEM GRUPO') AS Grupo, COALESCE(sg.Descricao, 'SEM SUBGRUPO') AS SubGrupo,
+             e.Qtd AS Estoque
+      FROM central.itens i
+      JOIN central.estoquen${ln} e ON e.CodigoBarra = i.CodigoBarra
+      LEFT JOIN central.gruposub sg ON sg.CodSubGrupo = i.CodGrupoSub
+      LEFT JOIN central.grupo g ON g.CodGrupo = sg.CodGrupo
+      WHERE i.CodDesativado = 0 AND i.Descricao NOT LIKE '% KG%' AND i.CodigoBarra IS NOT NULL
+        AND CHAR_LENGTH(i.CodigoBarra) >= 7 AND e.Qtd < 0
+      ORDER BY g.Descricao, sg.Descricao, i.Descricao`)));
+    return Object.fromEntries(rs.map(([rows], i) => [i + 1, rows]));
+  } finally { await conn.end().catch(() => {}); }
+}
+app.post('/api/contagem/atualizar', async (req, res) => {
+  let porLoja;
+  try { porLoja = await buscarNegativosERP(); }
+  catch (err) { return res.status(502).json({ error: 'ERP (.252) não respondeu: ' + (err.code || err.message) }); }
+  try {
+    const r = contagemNeg.sincronizarDia(porLoja, contagemNeg.hojeStr());
+    const soma = k => r.lojas.reduce((s, l) => s + l[k], 0);
+    const hora = new Date(r.sincronizadoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
+    const partes = [`${soma('novos')} novo(s)`, `${soma('removidos')} saíram do negativo`];
+    if (soma('sairamContados')) partes.push(`${soma('sairamContados')} já contado(s) saíram do negativo`);
+    if (soma('atualizados')) partes.push(`${soma('atualizados')} com saldo diferente`);
+    const reab = r.lojas.filter(l => l.reaberta).map(l => 'Loja ' + l.loja);
+    const msg = `Atualizado às ${hora}: ${partes.join(', ')}.` + (reab.length ? ` Reaberta(s) por item novo: ${reab.join(', ')}.` : '');
+    console.log(`[contagem] atualizar por ${req.session.user.nome}: ${msg}`);
+    res.json({ ok: true, ...r, msg });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 app.get('/api/contagem/:data', (req, res) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(req.params.data)) return res.status(400).json({ error: 'Data inválida.' });
   const v = contagemNeg.visaoCentral(req.params.data);

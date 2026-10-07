@@ -92,6 +92,10 @@ tr.det .detail{padding:0 18px 18px;border-bottom:1px solid var(--ln);width:100%;
 .rei{display:inline-block;font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;margin-left:8px;white-space:nowrap;vertical-align:1px}
 .rei.r2{background:var(--amw);color:var(--amk)}
 .rei.r3{background:var(--negw);color:var(--neg)}
+.rei.novo{background:var(--posw);color:var(--pos)}
+.rei.saiu{background:var(--wsh);color:var(--ink3);border:1px solid var(--ln2)}
+.rei-mini.novo{background:var(--posw);color:var(--pos)}
+#sinc{display:block;margin-top:4px;font-size:12px;color:var(--ink3)}
 .rei-mini{display:inline-block;font-size:10px;font-weight:800;padding:1px 7px;border-radius:999px;margin-left:6px;white-space:nowrap}
 .rei-mini.r2{background:var(--amw);color:var(--amk)}
 .rei-mini.r3{background:var(--negw);color:var(--neg)}
@@ -103,14 +107,15 @@ tr.det .dtbl tr.rei-bad td{background:var(--negw)}
   <div class="page-hdr">
     <div>
       <h1>Negativos</h1>
-      <p>Contagem digitada pelos auxiliares no app Contagem. Nada é gravado no ERP: a diferença fica pro ajuste manual.</p>
+      <p>Contagem digitada pelos auxiliares no app Contagem. Nada é gravado no ERP: a diferença fica pro ajuste manual.<span id="sinc"></span></p>
     </div>
     <div>
       <div class="btns">
         <select class="sel" id="selDia" onchange="carregar()"></select>
+        <button class="btn btn-primary" id="btnAtualizar" onclick="atualizarNeg()" title="Rebusca os negativos no ERP agora e acerta a lista de hoje aqui e no app das lojas (sem mandar nada no grupo)">Atualizar negativos</button>
         <button class="btn btn-secondary" onclick="exportar()">Exportar CSV</button>
         <button class="btn btn-secondary" id="btnCobrar" onclick="cobrar()">Cobrar pendentes</button>
-        <button class="btn btn-primary" id="btnReenviar" onclick="reenviar()">Reenviar no grupo</button>
+        <button class="btn btn-secondary" id="btnReenviar" onclick="reenviar()">Reenviar no grupo</button>
       </div>
       <div id="status"></div>
     </div>
@@ -178,6 +183,7 @@ async function carregar() {
 function toggleLoja(ln) { selLoja = selLoja === ln ? null : ln; render(); } // 2º clique fecha
 function render() {
   const ativas = v.lojas.filter(l => !l.semNegativos);
+  $('sinc').textContent = v.sincronizadoEm ? `Lista do ERP atualizada às ${hora(v.sincronizadoEm)} (${dataBr(v.data)}).` : `Lista do ERP de ${hora(v.criadoEm)} (${dataBr(v.data)}), do envio no grupo — clique em Atualizar negativos pra rebuscar.`;
   const late = l => l.status === 'nao_iniciada' && v.criadoEm && (Date.now() - new Date(v.criadoEm)) > 2 * 3600e3 && v.data === new Date().toISOString().slice(0, 10);
   $('tLojas').innerHTML = v.lojas.map(l => {
     let [c, t] = PILL[l.ajustadoEm ? 'ajustada' : l.status]; if (late(l)) { c = 'late'; t = 'Sem resposta há +2h'; }
@@ -187,7 +193,7 @@ function render() {
       <td><b>Loja ${l.loja}</b> · ${l.nome}</td>
       <td><span class="pill ${c}">${t}</span></td>
       <td>${l.semNegativos ? '—' : `<span class="mini"><i style="width:${pct}%"></i></span><span class="mono" style="font-size:12px;color:var(--ink2)">${pct}%</span>`}</td>
-      <td class="num mono">${l.itens || '—'}${l.reincidentes ? ` <span class="rei-mini ${l.linhas.some(x => x.reinc >= 3) ? 'r3' : 'r2'}" title="${l.reincidentes} item(ns) negativaram 2+ vezes nos últimos 15 dias">⚠ ${l.reincidentes}</span>` : ''}</td><td class="num mono">${l.semNegativos ? '—' : l.contados}</td><td class="num mono">${l.semNegativos ? '—' : l.zerados}</td>
+      <td class="num mono">${l.itens || '—'}${l.linhas.some(x => x.novoEm) ? ` <span class="rei-mini novo" title="Entraram no negativo depois do envio da manhã">+${l.linhas.filter(x => x.novoEm).length} novo${l.linhas.filter(x => x.novoEm).length > 1 ? 's' : ''}</span>` : ''}${l.reincidentes ? ` <span class="rei-mini ${l.linhas.some(x => x.reinc >= 3) ? 'r3' : 'r2'}" title="${l.reincidentes} item(ns) negativaram 2+ vezes nos últimos 15 dias">⚠ ${l.reincidentes}</span>` : ''}</td><td class="num mono">${l.semNegativos ? '—' : l.contados}</td><td class="num mono">${l.semNegativos ? '—' : l.zerados}</td>
       <td class="num mono">${l.semNegativos ? '—' : '+' + l.diferenca}</td>
       <td class="who">${esc(l.resp) || '—'}</td><td class="mono" style="font-size:12px">${hora(l.iniciadoEm)}</td><td class="mono" style="font-size:12px">${hora(l.concluidoEm)}</td>
       <td class="acoes"><div class="acoes-w">${l.ajustadoEm
@@ -209,7 +215,7 @@ function detalheHtml(l) {
   return `<h3>Loja ${l.loja} · ${l.nome} <span class="who">${l.resp ? esc(l.resp) + ' · ' : ''}${l.iniciadoEm ? 'começou ' + hora(l.iniciadoEm) : 'não começou'}${l.concluidoEm ? ' · concluída ' + hora(l.concluidoEm) : ''}${l.ajustadoEm ? ' · <b style="color:var(--pos)">ajustada no ERP por ' + esc(l.ajustadoPor) + ' ' + hora(l.ajustadoEm) + '</b>' : ''}</span>
       <span class="filtro"><label><input type="checkbox" ${soDif ? 'checked' : ''} onchange="soDif=this.checked;render()"> só itens com ajuste</label></span></h3>
     <div class="tblwrap"><table class="dtbl"><thead><tr><th class="chk" title="Marcado = entra na aprovação do ajuste"><input type="checkbox" ${excluidos(l.loja).size ? '' : 'checked'} onchange="marcarTodos(${l.loja}, this.checked)"></th><th>Produto</th><th>Mercadológico</th><th class="num">Sistema</th><th class="num">Depósito</th><th class="num">Loja</th><th class="num">Contado</th><th class="num">Ajuste</th><th>Quando</th></tr></thead><tbody>
-    ${linhas.map(x => `<tr class="${excluidos(l.loja).has(String(x.cod)) ? 'fora' : ''}${x.reinc >= 3 ? ' rei-bad' : ''}"><td class="chk">${x.contado === null ? '' : `<input type="checkbox" ${excluidos(l.loja).has(String(x.cod)) ? '' : 'checked'} onchange="marcarItem(${l.loja}, '${esc(x.cod)}', this.checked)">`}</td><td class="desc"><span class="cod">${esc(x.cod)}</span>${esc(x.desc)}${x.reinc >= 2 ? `<span class="rei ${x.reinc >= 3 ? 'r3' : 'r2'}" title="Apareceu negativo em ${x.reinc} dias nos últimos 15">${x.reinc}ª vez em 15d${x.reinc >= 3 ? ' · investigar' : ''}</span>` : ''}</td><td style="color:var(--ink3);font-size:12px">${esc(x.grupo)} › ${esc(x.sub)}</td>
+    ${linhas.map(x => `<tr class="${excluidos(l.loja).has(String(x.cod)) ? 'fora' : ''}${x.reinc >= 3 ? ' rei-bad' : ''}"><td class="chk">${x.contado === null ? '' : `<input type="checkbox" ${excluidos(l.loja).has(String(x.cod)) ? '' : 'checked'} onchange="marcarItem(${l.loja}, '${esc(x.cod)}', this.checked)">`}</td><td class="desc"><span class="cod">${esc(x.cod)}</span>${esc(x.desc)}${x.reinc >= 2 ? `<span class="rei ${x.reinc >= 3 ? 'r3' : 'r2'}" title="Apareceu negativo em ${x.reinc} dias nos últimos 15">${x.reinc}ª vez em 15d${x.reinc >= 3 ? ' · investigar' : ''}</span>` : ''}${x.novoEm ? `<span class="rei novo" title="Entrou no negativo depois do envio da manhã">novo · ${hora(x.novoEm)}</span>` : ''}${x.saiuEm ? `<span class="rei saiu" title="No Atualizar das ${hora(x.saiuEm)} esse item já não estava negativo no ERP; ficou porque a loja já tinha contado">já não está negativo</span>` : ''}</td><td style="color:var(--ink3);font-size:12px">${esc(x.grupo)} › ${esc(x.sub)}</td>
       <td class="num mono" style="color:var(--neg);font-weight:700">${x.sys}</td><td class="num mono">${x.contado === null ? '—' : x.dep}</td><td class="num mono">${x.contado === null ? '—' : x.loja}</td><td class="num mono"><b>${x.contado ?? '—'}</b></td>
       <td class="num mono">${x.contado === null ? '<span class="d-wait">aguardando</span>' : x.zero ? `<span class="d-zero">não achei · +${x.diferenca}</span>` : `<b>+${x.diferenca}</b>`}</td>
       <td class="mono" style="font-size:11.5px;color:var(--ink3)">${hora(x.em)}</td></tr>`).join('') || '<tr><td colspan="9" class="empty">Nenhum item com ajuste.</td></tr>'}
@@ -306,6 +312,16 @@ async function gravarAjuste() {
     $('resAprov').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     carregar();
   } catch (e) { $('progAprov').textContent = 'Falhou: ' + e.message; b.disabled = false; }
+}
+async function atualizarNeg() {
+  const b = $('btnAtualizar'); b.disabled = true; b.textContent = 'Atualizando...';
+  $('status').textContent = 'Buscando negativos no ERP...';
+  try {
+    const r = await fetch('/api/contagem/atualizar', { method: 'POST' }); const j = await r.json();
+    $('status').textContent = r.ok ? j.msg : 'Falhou: ' + (j.error || r.status);
+    if (r.ok) await init(); // o dia de hoje pode ter acabado de nascer; init recarrega a lista de dias e cai em hoje
+  } catch (e) { $('status').textContent = 'Falhou: ' + e.message; }
+  b.disabled = false; b.textContent = 'Atualizar negativos';
 }
 async function reenviar() {
   const btn = $('btnReenviar'); btn.disabled = true;

@@ -64,6 +64,8 @@ body{font-family:var(--font);background:var(--pap);color:var(--ink);font-size:14
 .item.done{border-color:var(--pos)}
 .item.zero{border-color:var(--ln2);background:var(--wsh)}
 .item .cod{font-family:ui-monospace,Consolas,monospace;font-size:11px;color:var(--ink3)}
+.item .cod .novo{display:inline-block;font-family:inherit;font-size:10px;font-weight:800;padding:1px 7px;border-radius:999px;background:var(--posw);color:var(--pos);margin-left:6px;letter-spacing:.5px}
+.item .saiu{grid-column:1/-1;font-size:11.5px;color:var(--ink3);background:var(--wsh);border-radius:6px;padding:5px 9px;line-height:1.35}
 .item .desc{font-size:13.5px;font-weight:600;line-height:1.25;margin-top:1px}
 .item .sys{text-align:right}
 .item .sys .label{font-size:9.5px}
@@ -170,7 +172,33 @@ function iniciar() {
   $('quem').textContent = sess.nome;
   carregar();
   setInterval(() => { if (fila.length) enviarFila(); }, 15000);
+  setInterval(sincronizar, 60000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) sincronizar(); });
   window.addEventListener('online', enviarFila);
+}
+
+// A central pode clicar "Atualizar negativos" no meio do dia: a lista muda (item novo,
+// item que saiu, saldo do sistema). Repuxa a cada minuto e ao voltar pro app, mas só
+// redesenha se a lista mudou e ninguém está digitando — senão o teclado perde o foco.
+const assinatura = j => (!j || j.vazio) ? 'vazio' : j.status + '|' + j.itens.map(i => i.cod + ':' + i.sys + (i.saiuEm ? 's' : '')).join(',');
+async function sincronizar() {
+  if (fila.length || (document.activeElement && document.activeElement.tagName === 'INPUT')) return;
+  try {
+    const r = await fetch('/api/contagem-publica/hoje?t=' + sess.token); if (!r.ok) return;
+    const j = await r.json();
+    if (assinatura(j) === assinatura(dia)) { setNet(true); return; }
+    const antes = new Set(dia ? dia.itens.map(i => i.cod) : []), estavaFechada = !!dia && dia.status === 'concluida';
+    dia = j.vazio ? null : j;
+    localStorage.setItem('contagem-dia', JSON.stringify(dia));
+    render(); setNet(true);
+    if (!dia) return;
+    const novos = dia.itens.filter(i => !antes.has(i.cod)).length, sairam = antes.size - (dia.itens.length - novos);
+    const m = [];
+    if (novos) m.push(novos + (novos > 1 ? ' itens novos' : ' item novo'));
+    if (sairam > 0) m.push(sairam + (sairam > 1 ? ' saíram da lista' : ' saiu da lista'));
+    if (estavaFechada && dia.status !== 'concluida') m.push('contagem reaberta — tem item novo pra contar');
+    toast(m.length ? 'Lista atualizada pela central: ' + m.join(', ') : 'Lista atualizada pela central');
+  } catch (e) {}
 }
 
 async function carregar(manual) {
@@ -220,8 +248,9 @@ function render() {
     if (g !== lastG) { lastG = g; const tot = dia.itens.filter(x => x.grupo === i.grupo && x.sub === i.sub).length, ok = dia.itens.filter(x => x.grupo === i.grupo && x.sub === i.sub && contado(dia.contagem[x.cod])).length; html += `<div class="grp"><span>${esc(g)}</span><b>${ok}/${tot}</b></div>`; }
     const c = dia.contagem[i.cod] || {}, ok = contado(c), zero = !!c.zero, t = total(c), dif = t === null ? null : t - i.sys;
     html += `<div class="item ${zero ? 'zero' : ok ? 'done' : ''}" data-cod="${i.cod}">
-      <div><div class="cod">${esc(i.cod)}</div><div class="desc">${esc(i.desc)}</div></div>
+      <div><div class="cod">${esc(i.cod)}${i.novoEm ? '<span class="novo">NOVO</span>' : ''}</div><div class="desc">${esc(i.desc)}</div></div>
       <div class="sys"><div class="label">Sistema</div><div class="v">${i.sys}</div></div>
+      ${i.saiuEm ? '<div class="saiu">Esse item já não está negativo no sistema. Sua contagem fica guardada; a central confere.</div>' : ''}
       ${(i.reinc || 1) >= 2 ? `<div class="rei ${i.reinc >= 3 ? 'r3' : 'r2'}">⚠ ${i.reinc}ª vez negativo em 15 dias${i.reinc >= 3 ? ' — vive negativando, confira depósito e validade com atenção' : ''}</div>` : ''}
       <div class="fields">
         <div><label for="d${i.cod}">Depósito</label><input id="d${i.cod}" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="0" value="${zero ? '' : (c.dep ?? '')}" ${zero || fechada ? 'disabled' : ''} oninput="setv('${i.cod}','dep',this.value)"></div>
