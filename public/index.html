@@ -862,9 +862,9 @@ function renderFin() {
   const fim8 = add(semIni, 7 * 8 + 4), depois = soma(r => r.pag > fim8), totProx = soma(r => r.pag >= proxIni), maxS = Math.max(...sems.map(s => s.v), depois.v, 1);
   // Semanas seguintes no mesmo desenho (Tiago, 28/09): total grande, por semana e por loja (da próxima semana em diante, clique abre os títulos)
   document.getElementById('c-fin-proximas').innerHTML = '<div class="fin-big"><b>' + money(totProx.v) + '</b><small>' + plural(totProx.n, 'título') + ' a pagar da próxima semana em diante</small></div>'
-    + '<div class="fin-sec">Por semana de pagamento</div><table class="m fin-al">' + CG + '<thead><tr><th>Semana</th><th class="r">Títulos</th><th class="r">Valor</th><th></th></tr></thead><tbody>'
-    + sems.map((s, i) => '<tr><td>' + (i === 0 ? '<b>Próxima</b> · ' : '') + df(s.a) + ' a ' + df(s.b) + '</td><td class="r">' + (s.n || '') + '</td><td class="r"><b>' + (s.v ? money(s.v) : '—') + '</b></td><td>' + barra(s.v, maxS) + '</td></tr>').join('')
-    + (depois.n ? '<tr><td>Depois de ' + df(fim8) + '</td><td class="r">' + depois.n + '</td><td class="r"><b>' + money(depois.v) + '</b></td><td>' + barra(depois.v, maxS) + '</td></tr>' : '')
+    + '<div class="fin-sec">Por semana de pagamento <span class="fin-mut">clique na semana pra ver loja a loja</span></div><table class="m fin-al">' + CG + '<thead><tr><th>Semana</th><th class="r">Títulos</th><th class="r">Valor</th><th></th></tr></thead><tbody>'
+    + sems.map((s, i) => '<tr' + (s.n ? ' class="fin-lj" data-pag-ini="' + s.a + '" data-pag-fim="' + s.b + '" onclick="finDia(this)" title="clique pra ver loja a loja"' : '') + '><td>' + (s.n ? '<span class="fin-car">▸</span>' : '') + (i === 0 ? '<b>Próxima</b> · ' : '') + df(s.a) + ' a ' + df(s.b) + '</td><td class="r">' + (s.n || '') + '</td><td class="r"><b>' + (s.v ? money(s.v) : '—') + '</b></td><td>' + barra(s.v, maxS) + '</td></tr>').join('')
+    + (depois.n ? '<tr class="fin-lj" data-pag-ini="' + add(fim8, 1) + '" data-pag-fim="9999-12-31" onclick="finDia(this)" title="clique pra ver loja a loja"><td><span class="fin-car">▸</span>Depois de ' + df(fim8) + '</td><td class="r">' + depois.n + '</td><td class="r"><b>' + money(depois.v) + '</b></td><td>' + barra(depois.v, maxS) + '</td></tr>' : '')
     + '<tr class="fin-tot"><td>Da próxima semana em diante</td><td class="r">' + totProx.n + '</td><td class="r"><b>' + money(totProx.v) + '</b></td><td></td></tr></tbody></table>'
     + (f.alem && f.alem.n && !LOJA ? '<div class="fin-note">' + plural(f.alem.n, 'título') + ' (' + moneyK(f.alem.v) + ') com vencimento além de 1 ano ficaram de fora: data provavelmente errada no ERP.</div>' : '');
 
@@ -905,15 +905,18 @@ function finDia(tr) {
   const nx = tr.nextElementSibling;
   if (nx && nx.classList.contains('fin-det')) { nx.remove(); tr.classList.remove('open'); return; }
   tr.parentElement.querySelectorAll(':scope > tr.fin-det').forEach(d => { const p = d.previousElementSibling; if (p) p.classList.remove('open'); d.remove(); });
-  const d = tr.dataset.pag, L = (V.financeiro && V.financeiro.linhas) || [], DS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'], dow = x => new Date(x + 'T12:00:00').getDay();
-  const pl = {}; for (const r of L) if (r.pag === d) { const a = pl[r.loja] || (pl[r.loja] = { loja: r.loja, n: 0, v: 0 }); a.n += r.n; a.v += r.v; }
+  const d = tr.dataset.pag, ini = tr.dataset.pagIni || '', fim = tr.dataset.pagFim || ini, L = (V.financeiro && V.financeiro.linhas) || [], DS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'], dow = x => new Date(x + 'T12:00:00').getDay();
+  // dia (data-pag) ou período de pagamento (data-pag-ini/fim: semana, "depois de") — Tiago, 07/10/26: mesmo drill nas Semanas seguintes
+  const noPeriodo = r => d ? r.pag === d : (r.pag >= ini && r.pag <= fim), attr = d ? ' data-pag="' + d + '"' : ' data-pag-ini="' + ini + '" data-pag-fim="' + fim + '"';
+  const rot = d ? 'paga ' + DS[dow(d)] + ' ' + df(d) : fim >= '9999-01-01' ? 'paga de ' + df(ini) + ' em diante' : 'paga de ' + df(ini) + ' a ' + df(fim);
+  const pl = {}; for (const r of L) if (noPeriodo(r)) { const a = pl[r.loja] || (pl[r.loja] = { loja: r.loja, n: 0, v: 0 }); a.n += r.n; a.v += r.v; }
   const lojas = Object.values(pl).sort((a, b) => a.loja - b.loja), max = Math.max(...lojas.map(l => l.v), 1), tot = lojas.reduce((s, l) => ({ n: s.n + l.n, v: s.v + l.v }), { n: 0, v: 0 });
   const bar = v => '<span class="bar" style="width:' + Math.round((v || 0) / max * 70) + 'px"></span>';
   const det = document.createElement('tr'); det.className = 'fin-det';
-  det.innerHTML = '<td colspan="' + tr.children.length + '"><div class="fin-det-h"><b>paga ' + DS[dow(d)] + ' ' + df(d) + '</b> · ' + tot.n + ' título' + (tot.n === 1 ? '' : 's') + ' · ' + money(tot.v) + ' · por loja · clique na loja pra ver os fornecedores; no fornecedor abre a nota</div>'
+  det.innerHTML = '<td colspan="' + tr.children.length + '"><div class="fin-det-h"><b>' + rot + '</b> · ' + tot.n + ' título' + (tot.n === 1 ? '' : 's') + ' · ' + money(tot.v) + ' · por loja · clique na loja pra ver os fornecedores; no fornecedor abre a nota</div>'
     + '<table class="m fin-al"><colgroup><col><col style="width:62px"><col style="width:118px"><col style="width:86px"></colgroup><thead><tr><th>Loja</th><th class="r">Títulos</th><th class="r">Valor</th><th></th></tr></thead><tbody>'
-    + lojas.map(l => '<tr class="fin-lj" data-loja="' + l.loja + '" data-pag="' + d + '" onclick="finDetalhe(this)" title="clique pra ver os títulos desta loja · o fornecedor abre a nota"><td><span class="fin-car">▸</span>' + lojaTag(l.loja) + '</td><td class="r">' + l.n + '</td><td class="r"><b>' + money(l.v) + '</b></td><td>' + bar(l.v) + '</td></tr>').join('')
-    + (lojas.length > 1 ? '<tr class="fin-lj fin-tot" data-loja="0" data-pag="' + d + '" onclick="finDetalhe(this)" title="clique pra ver os títulos de todas as lojas neste dia"><td><span class="fin-car">▸</span>Todas as lojas</td><td class="r">' + tot.n + '</td><td class="r"><b>' + money(tot.v) + '</b></td><td></td></tr>' : '')
+    + lojas.map(l => '<tr class="fin-lj" data-loja="' + l.loja + '"' + attr + ' onclick="finDetalhe(this)" title="clique pra ver os títulos desta loja · o fornecedor abre a nota"><td><span class="fin-car">▸</span>' + lojaTag(l.loja) + '</td><td class="r">' + l.n + '</td><td class="r"><b>' + money(l.v) + '</b></td><td>' + bar(l.v) + '</td></tr>').join('')
+    + (lojas.length > 1 ? '<tr class="fin-lj fin-tot" data-loja="0"' + attr + ' onclick="finDetalhe(this)" title="clique pra ver os títulos de todas as lojas neste período"><td><span class="fin-car">▸</span>Todas as lojas</td><td class="r">' + tot.n + '</td><td class="r"><b>' + money(tot.v) + '</b></td><td></td></tr>' : '')
     + '</tbody></table></td>';
   tr.after(det); tr.classList.add('open');
 }
