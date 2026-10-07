@@ -806,7 +806,7 @@ function desenharSaldosItau(j, el) {
   // Layout (07/10, 2ª rodada): faixa de 4 indicadores em cima, tabela com rótulo E1…E6 e colunas proporcionais embaixo.
   const F = V && V.financeiro, L = (F && F.linhas) || [], fds = F ? F.hoje < F.semIni : false, diaRef = F ? (fds ? F.semIni : F.hoje) : null;
   const pagar = {}; for (const r of L) if (r.pag === diaRef) { const a = pagar[r.loja] || (pagar[r.loja] = { n: 0, v: 0 }); a.n += r.n; a.v += r.v; }
-  const LOJA_DA_CONTA = { cahu: 1, muribeca: 2, ponte: 3, atacarejo: 4, portalarga: 5, jardimjordao: 6 };
+  const LOJA_DA_CONTA = { cahu: 1, muribeca: 2, ponte: 3, atacarejo: 4, portalarga: 5, jardimjordao: 6, distribuidora: 10, cd: 10, cahudistribuidora: 10 };   // CD = loja 10 (conta ainda não cadastrada no Itaú, 07/10)
   const rotDia = diaRef ? (fds ? 'segunda ' + df(diaRef) : 'hoje ' + df(diaRef)) : 'hoje';
   const sinal = d => (d >= -0.004 ? '+' : '−') + money(Math.abs(d)), cls = d => d >= -0.004 ? 'ok' : 'bad', tag = d => '<span class="cx-dif ' + cls(d) + '">' + sinal(d) + '</span><span class="cx-tag ' + cls(d) + '">' + (cls(d) === 'ok' ? 'sobra' : 'falta') + '</span>';
   const tp = { n: 0, v: 0 }; let saldoTot = 0; const linhas = [];
@@ -819,7 +819,7 @@ function desenharSaldosItau(j, el) {
       + '<td class="r">' + (temSaldo && F ? tag(dif) : '<span class="fin-mut">—</span>') + '</td>'
       + '<td class="r"><span title="' + esc(dhm(c.atualizadoEm)) + ' · carimbo do banco">' + hhmm(c.atualizadoEm) + '</span>' + (c.desatualizado ? '<div class="fin-mut" style="color:var(--neg)">falhou ' + hhmm(c.erroEm) + '</div>' : '') + '</td></tr>');
   }
-  if (pagar[10] && pagar[10].v) linhas.push('<tr><td>' + lojaTag(10) + '<div class="fin-mut">sem conta própria aqui · fora da diferença</div></td><td class="r"><span class="fin-mut">—</span></td><td class="r"><b>' + money(pagar[10].v) + '</b><div class="fin-mut">' + pagar[10].n + ' título' + (pagar[10].n === 1 ? '' : 's') + '</div></td><td class="r"><span class="fin-mut">—</span></td><td></td></tr>');
+  if (pagar[10] && pagar[10].v && !contas.some(c => LOJA_DA_CONTA[c.conta] === 10)) linhas.push('<tr><td>' + lojaTag(10) + '<div class="fin-mut">sem conta própria aqui · fora da diferença</div></td><td class="r"><span class="fin-mut">—</span></td><td class="r"><b>' + money(pagar[10].v) + '</b><div class="fin-mut">' + pagar[10].n + ' título' + (pagar[10].n === 1 ? '' : 's') + '</div></td><td class="r"><span class="fin-mut">—</span></td><td></td></tr>');
   const difTot = saldoTot - tp.v;
   el.className = '';
   let h = '<div class="cx-kpis">'

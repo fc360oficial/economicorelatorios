@@ -6681,7 +6681,9 @@ app.get('/api/itau/extrato-teste', async (req, res) => {
 // POST /api/itau/saldos/atualizar força a consulta no banco (trava de 30 s → 429). Só admin, como as outras rotas /api/itau.
 // Nada vai pra arquivo; saldo não vai pro log fora do nível de erro. Prefixo de erro: [ITAU-SALDOS-ERR].
 // ═══════════════════════════════════════════════════
-const SALDOS_ITAU_NOMES = { cahu: 'CAHU', muribeca: 'MURIBECA', ponte: 'PONTE', atacarejo: 'ATACAREJO', portalarga: 'PORTA LARGA', jardimjordao: 'JARDIM JORDÃO' };
+// distribuidora/cd: conta do CD (CAHU Distribuidora) — ainda NÃO cadastrada em data/itau/config.json (Tiago perguntou 07/10); quando entrar com
+// uma dessas chaves, aparece sozinha como CD e casa com os boletos da loja 10
+const SALDOS_ITAU_NOMES = { cahu: 'CAHU', muribeca: 'MURIBECA', ponte: 'PONTE', atacarejo: 'ATACAREJO', portalarga: 'PORTA LARGA', jardimjordao: 'JARDIM JORDÃO', distribuidora: 'CD · DISTRIBUIDORA', cd: 'CD · DISTRIBUIDORA', cahudistribuidora: 'CD · DISTRIBUIDORA' };
 const SALDOS_ITAU = { consultadoEm: null, origem: null, contas: {}, rodando: null, ultimaForcada: 0 };
 const saldosItauHorario = () => { const h = new Date().getHours(); return h >= 7 && h < 20; };
 function atualizarSaldosItau(origem) {
