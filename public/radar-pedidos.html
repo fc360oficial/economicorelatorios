@@ -68,7 +68,7 @@ table.main-t tbody tr.open{background:#FFF6D9}
 .p-nova{background:#137A48;color:#fff;font-weight:900;letter-spacing:.5px;animation:novapulse 1.6s ease-in-out infinite}@keyframes novapulse{50%{opacity:.55}}
 .p-a{background:#C22F49;color:#fff;font-weight:800}
 /* coluna Status compacta (Tiago, 07/10: "esse A pode diminuir") */
-.pill.p-a{font-size:10px;padding:1px 6px;line-height:1.5}.pill.p-r{background:#1D5FB4;color:#fff;font-weight:800;font-size:10px;padding:1px 6px;line-height:1.5;text-decoration:none}.pill.p-r:hover{background:#174C90}.pill.p-r i{font-style:normal;opacity:.85;margin-left:3px;font-size:9px}.pill.p-nova{font-size:10px;padding:1px 6px;letter-spacing:.3px}.pill.p-ped{font-size:10px;padding:1px 7px}
+.pill.p-a{font-size:10px;padding:1px 6px;line-height:1.5}.pill.p-r{background:#1D5FB4;color:#fff;font-weight:800;font-size:10px;padding:1px 6px;line-height:1.5;text-decoration:none}.pill.p-r:hover{background:#174C90}.pill.p-r i{font-style:normal;opacity:.85;margin-left:3px;font-size:9px}.pill.p-nova{font-size:10px;padding:1px 6px;line-height:1.5;font-weight:800;letter-spacing:0;animation:none}.pill.p-ped{font-size:10px;padding:1px 7px}
 .lc .fl.top{margin:0 0 4px}.lc .fl.top .pill{font-size:10px;letter-spacing:.3px}.p-a.soft{background:#FBEAED;color:#C22F49}
 .det table tr.sec td{background:#F4F4F1;color:#4E5A72;font-size:10px;text-transform:uppercase;letter-spacing:.5px;font-weight:800;padding:6px 10px;white-space:normal}
 .det table tr.sec.a td{background:#FBEAED;color:#C22F49}
@@ -386,9 +386,9 @@ function pillA(l){
   const lista=risco.slice(0,5).map(c=>c.descricao+' ('+fmt(c.cobertura_dias,0)+' d)').join(', ')+(risco.length>5?'…':'');
   if(l.gatilho==='curva_a'){
     const its=risco.filter(c=>c.zera_antes);
-    return ' <span class="pill p-a" title="'+esc('Antecipada: a lista cairia em '+l.fazer_em_lista+' d pela regra dos 10% da venda, mas '+its.length+' produto'+(its.length>1?'s':'')+' de curva A zera'+(its.length>1?'m':'')+' antes: '+lista)+'">A</span>';
+    return ' <span class="pill p-a" title="'+esc('A = curva A em risco. Antecipada: a lista cairia em '+l.fazer_em_lista+' d pela regra dos 10% da venda, mas '+its.length+' produto'+(its.length>1?'s':'')+' de curva A zera'+(its.length>1?'m':'')+' antes: '+lista)+'">A</span>';
   }
-  if(risco.length) return ' <span class="pill p-a" title="'+esc('Produtos de curva A em risco nesta lista (zera antes da data da lista ou está no ponto de pedido): '+lista)+'">A</span>';
+  if(risco.length) return ' <span class="pill p-a" title="'+esc('A = curva A em risco: produtos de curva A desta lista que zeram antes da data da lista ou estão no ponto de pedido: '+lista)+'">A</span>';
   return ''; // lista com A sem risco: sem pill, pra não poluir (o hover do detalhe mostra)
 }
 function pillDia(l){
@@ -408,7 +408,7 @@ const dtCurta=s=>s?new Date(s).toLocaleString('pt-BR',{day:'2-digit',month:'2-di
 // clique abre os pedidos daquela situação em chips curtos ("#69 · Monaliza", link pra Pedidos de Compra), clique de novo fecha.
 // O que está aberto fica em PED_OPEN e sobrevive ao redesenho da tabela.
 const PED_OPEN=new Set(), PED_ORDEM=['analise','sugestao','aguardando','digitacao','finalizado','aprovado'];
-function pedChip(p,curto){ const nome=p.vendedor?esc(String(p.vendedor).trim().split(/\s+/)[0]):''; return '<a class="pill '+(p.status==='sugestao'&&!curto?'p-r':'p-ped')+(curto?' sm':'')+'" href="/'+(p.status==='aprovado'?'pedidos-compra':'analise-compras')+'.html?pedido='+p.id+'" onclick="event.stopPropagation()" title="'+esc('Pedido #'+p.id+': '+(ST_PED[p.status]||p.status)+(p.vendedor?' · '+p.vendedor:'')+' · '+dtCurta(p.finalizadoEm||p.enviadoEm||p.criadoEm)+'. Clique pra abrir o pedido.')+'">'+(curto?'#'+p.id+(nome?' · '+nome:''):(p.status==='sugestao'?'R':'⏳ '+(ST_PED_MINI[p.status]||ST_PED_CURTO[p.status]||p.status)))+'</a>'; }
+function pedChip(p,curto){ const nome=p.vendedor?esc(String(p.vendedor).trim().split(/\s+/)[0]):''; return '<a class="pill '+(p.status==='sugestao'&&!curto?'p-r':'p-ped')+(curto?' sm':'')+'" href="/'+(p.status==='aprovado'?'pedidos-compra':'analise-compras')+'.html?pedido='+p.id+'" onclick="event.stopPropagation()" title="'+esc((p.status==='sugestao'?'R = sugestão de ruptura · ':'')+'Pedido #'+p.id+': '+(ST_PED[p.status]||p.status)+(p.vendedor?' · '+p.vendedor:'')+' · '+dtCurta(p.finalizadoEm||p.enviadoEm||p.criadoEm)+'. Clique pra abrir o pedido.')+'">'+(curto?'#'+p.id+(nome?' · '+nome:''):(p.status==='sugestao'?'R':'⏳ '+(ST_PED_MINI[p.status]||ST_PED_CURTO[p.status]||p.status)))+'</a>'; }
 function pedToggle(ev,key){ ev.stopPropagation(); ev.preventDefault(); if(PED_OPEN.has(key)) PED_OPEN.delete(key); else PED_OPEN.add(key); render(); }
 function pedidosAbertosHtml(lista){
   const ps=PED_ABERTOS[lista]||[]; if(!ps.length) return '';
@@ -464,7 +464,7 @@ function renderTabela(rows,vazio){
   h+='</tr></thead><tbody>';
   for(const l of rows){
     const lead=l.lead, fl=l.ok?flagsHtml(l):'';
-    const pills=(l.nova_ate?'<span class="pill p-nova" title="Lista criada no ERP e vista pelo radar pela 1ª vez em '+new Date(l.vista_em).toLocaleString('pt-BR')+'. Fica no topo por 24 h; depois segue o fluxo normal.">LISTA NOVA</span> ':'')+(l.itens_novos&&!l.nova_ate?'<span class="pill p-nova" title="Produtos que entraram nesta lista no ERP nos últimos 7 dias (marcados ITEM NOVO no detalhe; loja zerada recebe 1 caixa mesmo sem histórico)">✦ NOVO</span> ':'')+(l.ok?pillA(l).trim():'');
+    const pills=(l.nova_ate?'<span class="pill p-nova" title="N = lista nova: criada no ERP e vista pelo radar pela 1ª vez em '+new Date(l.vista_em).toLocaleString('pt-BR')+'. Fica no topo por 24 h; depois segue o fluxo normal.">N</span> ':'')+(l.itens_novos&&!l.nova_ate?'<span class="pill p-nova" title="'+esc('N = '+l.itens_novos+(l.itens_novos>1?' produtos novos':' produto novo')+' na lista: entrou no ERP nos últimos 7 dias (marcado ITEM NOVO no detalhe; loja zerada recebe 1 caixa mesmo sem histórico)')+'">N</span> ':'')+(l.ok?pillA(l).trim():'');
     const forn=(l.fornecedor||'').trim(), mesmoNome=forn&&forn.toUpperCase()===String(l.nome||'').trim().toUpperCase();
     h+='<tr class="lst'+(aberta===l.lista?' open':'')+'" data-l="'+l.lista+'">'+
       '<td class="sel c"><input type="checkbox" class="selrow" data-l="'+l.lista+'" '+(SEL.has(l.lista)?'checked':'')+'></td>'+
