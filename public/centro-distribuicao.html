@@ -733,12 +733,16 @@ function renderPedidosInner() {
   const aEnviar = PEDIDOS.filter(p => p.status === 'aberto' && !p.noCD); // aberto E o CD ainda não digitou
   cont.aberto = aEnviar.length; cont.nocd = PEDIDOS.filter(p => p.status === 'aberto' && p.noCD).length;
   cont.resolver = PEDIDOS.filter(p => sit(p).resolver).length; cont.vinculo = PEDIDOS.filter(p => sit(p).vinculo > 0).length; cont.aviso = PEDIDOS.filter(p => sit(p).aviso).length;
+  // KPIs enxutos (Tiago, 08/10/26: "tem muitos kpi, tem que ficar os mais importantes"): chegou = recebido + parcial (nota ainda aberta na loja);
+  // atenção = pra resolver + aguardando vínculo + prazo estourado + expirado sem resolução. Cancelado e os demais ficam só no "todos"
+  const atencao = p => { const S = sit(p); return !!(S.resolver || S.vinculo > 0 || S.aviso || (p.status === 'expirado' && !p.resolucao)); };
+  cont.chegou = (cont.recebido || 0) + (cont.recebido_parcial || 0); cont.atencao = PEDIDOS.filter(atencao).length;
   $('#n-peds').textContent = cont.aberto + cont.separado;
-  const passa = p => PF === 'todos' || (PF === 'resolver' ? sit(p).resolver : PF === 'vinculo' ? sit(p).vinculo > 0 : PF === 'aviso' ? !!sit(p).aviso : PF === 'aberto' ? (p.status === 'aberto' && !p.noCD) : PF === 'nocd' ? (p.status === 'aberto' && !!p.noCD) : p.status === PF);
+  const passa = p => PF === 'todos' || (PF === 'resolver' ? sit(p).resolver : PF === 'vinculo' ? sit(p).vinculo > 0 : PF === 'aviso' ? !!sit(p).aviso : PF === 'aberto' ? (p.status === 'aberto' && !p.noCD) : PF === 'nocd' ? (p.status === 'aberto' && !!p.noCD) : PF === 'chegou' ? (p.status === 'recebido' || p.status === 'recebido_parcial') : PF === 'atencao' ? atencao(p) : p.status === PF);
   const vis = PEDIDOS.filter(p => !SOPEND || pendente(p)).filter(passa);
-  const cardsK = ['todos', 'aberto', 'nocd', ...Object.keys(ST).filter(k => k !== 'aberto'), 'resolver', 'vinculo', 'aviso'];
-  const cardL = k => k === 'todos' ? 'todos' : k === 'resolver' ? 'pra resolver' : k === 'vinculo' ? 'aguardando vínculo' : k === 'aviso' ? 'prazo estourado' : k === 'aberto' ? 'Aguardando CD' : k === 'nocd' ? 'No CD (digitado / separando)' : ST[k][0];
-  $('#tab-pedidos').innerHTML = `<div class="cards">${cardsK.map(k => `<div class="card ${PF === k ? 'on' : ''}" onclick="PF='${k}';renderPedidos()"><div class="v ${k === 'resolver' && cont[k] ? 'neg' : k === 'aviso' && cont[k] ? 'amb' : ''}">${cont[k]}</div><div class="l">${cardL(k)}</div></div>`).join('')}</div>
+  const cardsK = ['todos', 'aberto', 'nocd', 'separado', 'chegou', 'finalizado', 'atencao'];
+  const cardL = k => k === 'todos' ? 'todos' : k === 'atencao' ? 'Atenção (resolver · vínculo · prazo · expirado)' : k === 'chegou' ? 'Chegou na loja (nota aberta)' : k === 'aberto' ? 'Aguardando CD' : k === 'nocd' ? 'No CD (digitado / separando)' : ST[k][0];
+  $('#tab-pedidos').innerHTML = `<div class="cards">${cardsK.map(k => `<div class="card ${PF === k ? 'on' : ''}" onclick="PF='${k}';renderPedidos()"><div class="v ${k === 'atencao' && cont[k] ? 'neg' : ''}">${cont[k] || 0}</div><div class="l">${cardL(k)}</div></div>`).join('')}</div>
   <details class="legenda"><summary>O que significa cada status e quando você precisa agir (conferência automática a cada 5 min, ou no botão "Verificar agora")</summary>
     <div class="leg-grid">
       <div><span class="pill p-breve">Aberto</span><span class="s2">aguardando CD</span></div><div>pedido fechado aqui, o CD ainda não digitou no Televendas. Botão "Enviar" manda o link pro CD. Passou de ${CFGCD.prazoCD ?? 1} dia útil sem digitar, aparece aviso em âmbar.</div>
