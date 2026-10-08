@@ -221,16 +221,21 @@ const tituloDia=(d,off)=>(off===0?'<span class="hj">HOJE</span>':off===1?'<span 
 // MOVIMENTO do pedido no dia: enviado, aberto, finalizado, aprovado, recebido, XML conferido/aceito, chegou/fechou na loja.
 // Linha por loja (p._ln) usa só os eventos daquela loja. Data 'AAAA-MM-DD' (chegou.em) é lida como dia LOCAL, senão vira véspera.
 const dLocal=s=>{ if(!s) return null; const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s)); const d=m?new Date(+m[1],+m[2]-1,+m[3]):new Date(s); return isNaN(d)?null:d; };
-function datasMov(p){ const ds=[p.criadoEm,p.abertoEm,p.finalizadoEm,p.aprovadoEm,p.recebidoEm];
+// modo = KPI escolhido: com "Chegou na loja" o período olha só a ENTRADA na loja; com "Finalizado na loja", só o FECHAMENTO.
+// Assim "Hoje + Finalizado na loja" = lojas que fecharam hoje (Tiago, 08/10: "esse hoje tá coligado junto com os kpis?").
+function datasMov(p,modo){ const ds=[];
   const lojas=p._ln?[p.xml?.lojas?.[p._ln]]:Object.values(p.xml?.lojas||{});
+  if(modo==='chegou'||modo==='finalizado_loja'){ for(const x of lojas){ const c=x?.chegou; if(!c) continue; if(modo==='chegou') ds.push(c.em,c.horaEntrada,c.detectadoEm); else if(c.fechada) ds.push(c.fechadaEm,c.horaFecho); } return ds.map(dLocal).filter(Boolean); }
+  // linha por loja: recebidoEm é do pedido INTEIRO (todas as lojas conciliadas) e não diz nada daquela loja
+  ds.push(p.criadoEm,p.abertoEm,p.finalizadoEm,p.aprovadoEm); if(!p._ln) ds.push(p.recebidoEm);
   for(const x of lojas){ if(!x) continue;
     // conferidoEm só quando conciliou (em consistência ele é reescrito a cada ciclo de 30 min e viraria "movimento" todo dia);
     // a chegada do XML conta pela data de emissão da nota
     if(x.status==='conciliado') ds.push(x.conferidoEm); ds.push(x.aceito?.em); for(const n of x.notas||[]) ds.push(n.data);
     const c=x.chegou; if(c) ds.push(c.em,c.detectadoEm,c.horaEntrada,c.fechadaEm,c.horaFecho); }
   return ds.map(dLocal).filter(Boolean); }
-const dataRef=p=>{ const ds=datasMov(p); return ds.length?new Date(Math.max(...ds)):(dLocal(p.criadoEm)||new Date(0)); };   // último movimento (ordena e agrupa)
-function passaPeriodo(p){ if(!per) return true; const ds=datasMov(p); if(!ds.length) return false;
+const dataRef=p=>{ const ds=datasMov(p,filtro); return ds.length?new Date(Math.max(...ds)):(dLocal(p.criadoEm)||new Date(0)); };   // último movimento (ordena e agrupa)
+function passaPeriodo(p,modo){ if(!per) return true; const ds=datasMov(p,modo); if(!ds.length) return false;
   if(per==='hoje') return ds.some(d=>diasAtras(d)===0); if(per==='ontem') return ds.some(d=>diasAtras(d)===1); if(per==='7d') return ds.some(d=>{const o=diasAtras(d);return o>=0&&o<7;});
   if(per==='mes'){const h=new Date();return ds.some(d=>d.getMonth()===h.getMonth()&&d.getFullYear()===h.getFullYear());}
   if(per==='dia') return ds.some(d=>diaKey(d)===diaKey(diaSel)); return true; }
@@ -440,7 +445,8 @@ const EM_ANDAMENTO=['analise','aguardando','digitacao','finalizado','aprovado','
 const POR_LOJA=['chegou','finalizado_loja'];
 const passaFiltro=r=>filtro==='todos'||(filtro==='andamento'?EM_ANDAMENTO.includes(r._grupo):POR_LOJA.includes(filtro)?r._loja===filtro:r._grupo===filtro);
 function renderTotais(){
-  const L=linhas(); const c=k=>L.filter(r=>r._grupo===k).length, cl=k=>L.filter(r=>r._loja===k).length;
+  // KPIs seguem o período escolhido (Tiago, 08/10): "Hoje" muda os números dos cards; Chegou/Finalizado na loja contam pela entrada/fechamento do dia
+  const L0=linhas(), L=L0.filter(r=>passaPeriodo(r)); const c=k=>L.filter(r=>r._grupo===k).length, cl=k=>L0.filter(r=>r._loja===k&&passaPeriodo(r,k)).length;
   const cards=[['andamento','Em andamento',L.filter(r=>EM_ANDAMENTO.includes(r._grupo)).length],['analise','Em análise · não enviado',c('analise')],['sugestao','Ruptura de entrega',c('sugestao')],['aguardando','Aguardando vendedor',c('aguardando')],['digitacao','Em digitação',c('digitacao')],['finalizado','Aguardando aprovação',c('finalizado')],['aprovado','Aguardando XML',c('aprovado')],['xml_consistencia','Consistência XML',c('xml_consistencia')],['chegou','Chegou na loja',cl('chegou')],['finalizado_loja','Finalizado na loja',cl('finalizado_loja')],['recebido','Conciliados',c('recebido')],['financeiro','Financeiro · conferir antes de pagar',FIN.length],['todos','Todos',L.length]];
   $('#totais').innerHTML=cards.filter(([k])=>ANALISE?!SO_POS.includes(k):!SO_PRE.includes(k)).map(([k,l,n])=>'<div class="tkpi'+(filtro===k?' on':'')+'" data-f="'+k+'"><div class="v'+((k==='finalizado'||k==='xml_consistencia'||k==='financeiro')&&n?' neg':k==='chegou'&&n?' pos':'')+'">'+n+'</div><div class="l">'+l+'</div></div>').join('');
   document.querySelectorAll('.tkpi').forEach(t=>t.onclick=()=>{filtro=t.dataset.f;$('#fStatus').value='';aberto=null;renderTotais();render();});
@@ -490,7 +496,7 @@ function _render(){
   let rows=linhas().filter(passaFiltro);
   rows=rows.filter(p=>(!q||p.lista_nome.toLowerCase().includes(q)||(p.fornecedor||'').toLowerCase().includes(q)||(p.vendedor?.nome||'').toLowerCase().includes(q)||String(p.id)===q||String(p.lista)===q)&&(!comp||p.comprador?.nome===comp)&&(!fl||(p._ln?p._ln===fl:p.lojas.includes(fl)))&&(!fst||p._grupo===fst||p._loja===fst));
   if(fl) rows=rows.map(p=>p._ln?p:{...p,_ln:fl,_key:p.id+"-"+fl});
-  rows=rows.filter(passaPeriodo); renderDia();
+  rows=rows.filter(r=>passaPeriodo(r,filtro)); renderDia();
   const agrupa=per==='7d'||per==='mes'; if(agrupa) rows=[...rows].sort((a,b)=>dataRef(b)-dataRef(a));   // agrupa pelo ÚLTIMO movimento, não pela data de envio   // filtro de loja: pedido ainda nao aprovado (sugestao/aguardando/digitacao) tambem abre so com a loja escolhida
   $('#cnt').textContent=rows.length+' linha'+(rows.length===1?'':'s')+' ('+new Set(rows.map(p=>p.id)).size+' pedido'+(new Set(rows.map(p=>p.id)).size===1?'':'s')+')';
   if(!rows.length){$('#view').innerHTML='<div class="empty">'+(per?'Nenhum pedido com movimento neste período.':'Nenhum pedido aqui.')+(!per&&(filtro==='andamento'||filtro==='todos')?(ANALISE?' Gere um no Radar de Pedidos: selecione as listas e clique em "Enviar para Análise de Compras".':' Pedidos aprovados aparecem aqui; antes disso eles ficam em <a href="/analise-compras.html">Análise de Compras</a>.'):'')+'</div>';return;}
