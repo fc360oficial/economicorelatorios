@@ -288,12 +288,24 @@ test('enviarCarga: lista fechada vai pro ERP teste em 1 lote, vira aplicado e ve
   assert.deepEqual(chamadas[0].passos.map(x => x.tabela), ['itens', 'logpreco2']);
   assert.equal(chamadas[0].passos[0].valores.P2, '14,39');
   assert.match((await pr.enviarCarga('49-L2', 'tiago', escreverFake)).erro, /já foi enviada/);
-  // verificação lê o MySQL de teste (qTeste), não o .252
+  // conferência de PREÇO lê o .252 (qFake: P2=12,99 ≠ 14,39 → divergente, ninguém digitou na produção);
+  // a GRAVAÇÃO da carga é conferida no .254 só pros cods enviados (Tiago, 08/10/26)
   const qT = async (sql) => /FROM central\.itens /.test(sql) ? [{ CodigoBarra: 'A', P: '14,39', A: '0', CodDesativado: 0 }] : [];
   pr.initERP(qFake, radarOk, qT);
   const v = await pr.verificar('49-L2');
-  assert.equal(v.status, 'conferido'); assert.equal(v.divergentes, 0);
+  assert.equal(v.status, 'conferido'); assert.equal(v.divergentes, 1);
+  const vA = v.itens.find(i => i.cod === 'A');
+  assert.equal(vA.erp.preco, 12.99); assert.equal(vA.erp.ok, false);
+  assert.equal(vA.carga.preco, 14.39); assert.equal(vA.carga.ok, true);
+  assert.equal(v.carga_divergentes, 0);
+  for (const i of v.itens) if (i.cod !== 'A') assert.equal(i.carga, undefined);   // não enviado: sem i.carga
+  // teste com preço diferente do enviado → falha de gravação, sem mexer em divergentes
+  pr.initERP(qFake, radarOk, async (sql) => /FROM central\.itens /.test(sql) ? [{ CodigoBarra: 'A', P: '9,99', A: '0', CodDesativado: 0 }] : []);
+  const v2 = await pr.verificar('49-L2');
+  assert.equal(v2.carga_divergentes, 1); assert.equal(v2.divergentes, 1);
+  pr.initERP(qFake, radarOk, qT);
   const re = pr.reabrir('49-L2', 'tiago');
+  assert.equal(re.carga_divergentes, undefined); for (const i of re.itens) assert.equal(i.carga, undefined);
   assert.equal(re.erp_teste, undefined); assert.equal(re.erp_teste_anterior[0].logId, 'LOG-1');
 });
 
@@ -318,4 +330,22 @@ test('carga agendada: lista "a precificar" é recalculada, fechada e enviada soz
   assert.equal(r.fechadoPor, 'CARGA 12:00');
   const op = chamadas.find(c => c.motivo.includes('#51 '));
   assert.equal(op.passos[0].valores.P2, '14,39');
+});
+
+test('enviarCarga: lista sem item que mude de preço devolve semMudanca e não registra erro no log', async () => {
+  const p = JSON.parse(JSON.stringify(pedido)); p.id = 52;
+  await pr.criarDeConciliacao(p, 2);
+  pr.editarItem('52-L2', 'A', { preco_final: 12.99 }, 'tiago');   // igual ao preço atual do ERP → nada muda
+  pr.fechar('52-L2', 'tiago', { ignorarBloqueados: true });
+  const evs = []; pr.setLog(ev => evs.push(ev));
+  try {
+    const r = await pr.enviarCarga('52-L2', 'tiago', { lote: async () => { throw new Error('não devia gravar'); } });
+    assert.equal(r.semMudanca, true); assert.match(r.erro, /nenhum item muda/);
+    assert.equal(evs.filter(e => e.tipo === 'erro').length, 0);
+    assert.equal(pr.obter('52-L2').status, 'precificado');
+    const out = await pr.enviarCargasPendentes({ lote: async () => { throw new Error('não devia gravar'); } }, 'CARGA 15:00');
+    assert.ok(out.ids.includes('52-L2 (sem mudança)')); assert.equal(out.erros, 0);
+    assert.equal(pr.obter('52-L2').status, 'aplicado');
+    assert.equal(evs.filter(e => e.tipo === 'erro').length, 0);
+  } finally { pr.setLog(null); }
 });
