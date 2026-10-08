@@ -53,7 +53,8 @@ test('avulso da loja (3 itens, todos no pedido) não casa; CD que digitou 10 de 
   notaLoja = { nNota: '5331', cods: UNS.slice(0, 10), st: 'F', tot: '1667.18' };
   await cd.verificar();
   const r3 = cd.obterPedido(p.id);
-  assert.equal(r3.status, 'recebido_parcial'); assert.deepEqual(r3.recebimento.notas.map(n => n.nNota), ['5331']);
+  // nota já FECHADA na loja (st F) com menos itens: desde 08/10/2026 o pedido parcial também vira 'finalizado', com a marca parcial
+  assert.equal(r3.status, 'finalizado'); assert.equal(r3.parcial, true); assert.deepEqual(r3.recebimento.notas.map(n => n.nNota), ['5331']);
   assert.equal(r3.recebimento.notas[0].valor, 1667.18); assert.equal(r3.recebimento.notas[0].statusNota, 'F');
   assert.equal(r3.itens.filter(i => i.recebidas === 1).length, 10);
 });
