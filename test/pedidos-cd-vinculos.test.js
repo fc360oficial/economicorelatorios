@@ -160,3 +160,13 @@ test('removerVinculo no "mesmo código": a trava semAuto sobrevive a DUAS sincro
   const v = cd.getVinculos()[cod];
   assert.notEqual(v.status, 'confirmado'); assert.equal(v.unidade, null); assert.equal(v.semAuto, true);
 });
+
+test('salvarVinculo guarda descricaoUnidade (candidato, alternativa, mesmo código) pra aba Vínculos mostrar sem depender do recálculo', () => {
+  cd.sincronizarVinculos([{ codigoCD: '17896037913199', unPorCaixa: 12, unidadeExiste: '7896037913192', descricaoUnidadeExiste: 'NESCAU 180ML UN', descricaoCD: 'NESCAU 180ML CX12' }]);
+  cd.salvarVinculo({ codigoCD: '17896037913199', unidade: '7896037913192', unPorCaixa: 12, usuario: 'T' });
+  assert.equal(cd.getVinculos()['17896037913199'].descricaoUnidade, 'NESCAU 180ML UN');
+  cd.sincronizarVinculos([{ codigoCD: '7896037913100', unPorCaixa: 6, unidadeExiste: null, descricaoCD: 'COPO AMERICANO CX24' }]);
+  cd.removerVinculo('7896037913100');
+  cd.salvarVinculo({ codigoCD: '7896037913100', unidade: '7896037913100', unPorCaixa: 24, usuario: 'T' });
+  assert.equal(cd.getVinculos()['7896037913100'].descricaoUnidade, 'COPO AMERICANO CX24');
+});
