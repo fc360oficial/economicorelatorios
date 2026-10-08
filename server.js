@@ -138,8 +138,10 @@ app.get('/api/versao', (req, res) => res.json({ versao: APP_VERSAO }));
 app.get('/tv', (req, res) => res.redirect('/painel-compras.html'));
 // Atalho curto pra digitar na TV do televendas da CAHU: /tvcahu → link completo com token
 // (o token continua sendo o que vale; o atalho só evita digitar 32 caracteres na TV).
-app.get('/tvcahu', (req, res) => res.redirect(`/tv-televendas/${tvTelevendas.getConfig().token}`));
-app.get('/tvcahu/kiosk', (req, res) => res.redirect(`/tv-televendas/${tvTelevendas.getConfig().token}?kiosk=1`));
+// Sem diferenciar maiúsculas nem barra no fim: o teclado da Smart TV põe a 1ª letra em maiúscula (/Tvcahu)
+// e caía na tela de login (Tiago, 08/10/26: "foi 192.168.2.254:3003/tvcahu aí ele pediu usuario e senha lá na tv").
+app.get(/^\/tvcahu\/?$/i, (req, res) => res.redirect(`/tv-televendas/${tvTelevendas.getConfig().token}`));
+app.get(/^\/tvcahu\/kiosk\/?$/i, (req, res) => res.redirect(`/tv-televendas/${tvTelevendas.getConfig().token}?kiosk=1`));
 
 // ── CACHE EM MEMÓRIA ─────────────────────────────────────
 const _cache = new Map();
@@ -217,14 +219,15 @@ app.use((req, res, next) => {
     '/margem-comprador.html', '/api/margem-tv/comprador',
     '/painel-diretoria.html',
     '/painel-cd.html', '/api/painel-cd',
-    '/painel-compras.html', '/tv', '/tvcahu', '/tvcahu/kiosk'];
+    '/painel-compras.html', '/tv'];
   if (publico.includes(req.path)) return next();
   // Link do vendedor (pedido ao fornecedor): público por token de 32 hex, sem login
   if (/^\/pedido\/[a-f0-9]{32}(\/pdf)?$/.test(req.path) || /^\/api\/pedido-publico\/[a-f0-9]{32}(\/|$)/.test(req.path)) return next();
   // Link do CD (Centro de Distribuição): pedido(s) das lojas sem login — código curto de 8 hex (links.json) ou token(s) de 32 hex (links antigos)
   if (/^\/cd\/[a-f0-9]{8}([a-f0-9]{24})?(,[a-f0-9]{8}([a-f0-9]{24})?){0,20}$/.test(req.path) || /^\/api\/cd-publico\/[a-f0-9]{8}([a-f0-9]{24})?(,[a-f0-9]{8}([a-f0-9]{24})?){0,20}$/.test(req.path)) return next();
   // TV do televendas da CAHU: página e API públicas por token de 32 hex (só leitura, preço da Tabela Retirada)
-  if (/^\/tv-televendas\/[a-f0-9]{32}$/.test(req.path) || /^\/api\/tv-televendas-publico\/[a-f0-9]{32}$/.test(req.path)) return next();
+  // (/tvcahu e o token sem diferenciar maiúsculas: teclado da Smart TV capitaliza a 1ª letra — 08/10/26)
+  if (/^\/tvcahu\/?(kiosk\/?)?$/i.test(req.path) || /^\/tv-televendas\/[a-f0-9]{32}$/i.test(req.path) || /^\/api\/tv-televendas-publico\/[a-f0-9]{32}$/i.test(req.path)) return next();
   // Link do fornecedor na Cotação: mesmo esquema (token de 32 hex por fornecedor convidado)
   if (/^\/cotacao\/[a-f0-9]{32}$/.test(req.path) || /^\/api\/cotacao-publica\/[a-f0-9]{32}(\/|$)/.test(req.path)) return next();
   // PDF de promoções/preços off: público por token de 32 hex (pra mandar no WhatsApp)
@@ -7897,12 +7900,12 @@ app.get('/api/cahu-distribuidora/tv-config/produtos', async (req, res) => {
   catch (err) { res.status(503).json({ error: 'ERP indisponível: ' + err.message }); }
 });
 app.get('/tv-televendas/:token', (req, res) => {
-  if (!tvTelevendas.tokenValido(req.params.token)) return res.status(404).send('Link inválido. Gere um novo link na aba TV Televendas do Centro de Distribuição.');
+  if (!tvTelevendas.tokenValido(String(req.params.token).toLowerCase())) return res.status(404).send('Link inválido. Gere um novo link na aba TV Televendas do Centro de Distribuição.');
   res.set('Cache-Control', 'no-store');
   res.sendFile(path.join(__dirname, 'public', 'tv-televendas.html'));
 });
 app.get('/api/tv-televendas-publico/:token', async (req, res) => {
-  if (!tvTelevendas.tokenValido(req.params.token)) return res.status(404).json({ error: 'Link inválido' });
+  if (!tvTelevendas.tokenValido(String(req.params.token).toLowerCase())) return res.status(404).json({ error: 'Link inválido' });
   res.set('Cache-Control', 'no-store');
   try {
     const produtos = await tvTelevendas.carregarProdutos(false);
