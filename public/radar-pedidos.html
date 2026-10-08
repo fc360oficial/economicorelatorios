@@ -68,7 +68,7 @@ table.main-t tbody tr.open{background:#FFF6D9}
 .p-nova{background:#137A48;color:#fff;font-weight:900;letter-spacing:.5px;animation:novapulse 1.6s ease-in-out infinite}@keyframes novapulse{50%{opacity:.55}}
 .p-a{background:#C22F49;color:#fff;font-weight:800}
 /* coluna Status compacta (Tiago, 07/10: "esse A pode diminuir") */
-.pill.p-a{font-size:10px;padding:1px 6px;line-height:1.5}.pill.p-nova{font-size:10px;padding:1px 6px;letter-spacing:.3px}.pill.p-ped{font-size:10px;padding:1px 7px}
+.pill.p-a{font-size:10px;padding:1px 6px;line-height:1.5}.pill.p-r{background:#1D5FB4;color:#fff;font-weight:800;font-size:10px;padding:1px 6px;line-height:1.5;text-decoration:none}.pill.p-r:hover{background:#174C90}.pill.p-r i{font-style:normal;opacity:.85;margin-left:3px;font-size:9px}.pill.p-nova{font-size:10px;padding:1px 6px;letter-spacing:.3px}.pill.p-ped{font-size:10px;padding:1px 7px}
 .lc .fl.top{margin:0 0 4px}.lc .fl.top .pill{font-size:10px;letter-spacing:.3px}.p-a.soft{background:#FBEAED;color:#C22F49}
 .det table tr.sec td{background:#F4F4F1;color:#4E5A72;font-size:10px;text-transform:uppercase;letter-spacing:.5px;font-weight:800;padding:6px 10px;white-space:normal}
 .det table tr.sec.a td{background:#FBEAED;color:#C22F49}
@@ -408,7 +408,7 @@ const dtCurta=s=>s?new Date(s).toLocaleString('pt-BR',{day:'2-digit',month:'2-di
 // clique abre os pedidos daquela situação em chips curtos ("#69 · Monaliza", link pra Pedidos de Compra), clique de novo fecha.
 // O que está aberto fica em PED_OPEN e sobrevive ao redesenho da tabela.
 const PED_OPEN=new Set(), PED_ORDEM=['analise','sugestao','aguardando','digitacao','finalizado','aprovado'];
-function pedChip(p,curto){ const nome=p.vendedor?esc(String(p.vendedor).trim().split(/\s+/)[0]):''; return '<a class="pill p-ped'+(curto?' sm':'')+'" href="/'+(p.status==='aprovado'?'pedidos-compra':'analise-compras')+'.html?pedido='+p.id+'" onclick="event.stopPropagation()" title="'+esc('Pedido #'+p.id+': '+(ST_PED[p.status]||p.status)+(p.vendedor?' · '+p.vendedor:'')+' · '+dtCurta(p.finalizadoEm||p.enviadoEm||p.criadoEm)+'. Clique pra abrir o pedido.')+'">'+(curto?'#'+p.id+(nome?' · '+nome:''):'⏳ '+(ST_PED_MINI[p.status]||ST_PED_CURTO[p.status]||p.status))+'</a>'; }
+function pedChip(p,curto){ const nome=p.vendedor?esc(String(p.vendedor).trim().split(/\s+/)[0]):''; return '<a class="pill '+(p.status==='sugestao'&&!curto?'p-r':'p-ped')+(curto?' sm':'')+'" href="/'+(p.status==='aprovado'?'pedidos-compra':'analise-compras')+'.html?pedido='+p.id+'" onclick="event.stopPropagation()" title="'+esc('Pedido #'+p.id+': '+(ST_PED[p.status]||p.status)+(p.vendedor?' · '+p.vendedor:'')+' · '+dtCurta(p.finalizadoEm||p.enviadoEm||p.criadoEm)+'. Clique pra abrir o pedido.')+'">'+(curto?'#'+p.id+(nome?' · '+nome:''):(p.status==='sugestao'?'R':'⏳ '+(ST_PED_MINI[p.status]||ST_PED_CURTO[p.status]||p.status)))+'</a>'; }
 function pedToggle(ev,key){ ev.stopPropagation(); ev.preventDefault(); if(PED_OPEN.has(key)) PED_OPEN.delete(key); else PED_OPEN.add(key); render(); }
 function pedidosAbertosHtml(lista){
   const ps=PED_ABERTOS[lista]||[]; if(!ps.length) return '';
@@ -416,7 +416,7 @@ function pedidosAbertosHtml(lista){
   const g={}; for(const p of ps) (g[p.status]=g[p.status]||[]).push(p);
   const idx=st=>{const i=PED_ORDEM.indexOf(st);return i<0?99:i;};
   return Object.keys(g).sort((a,b)=>idx(a)-idx(b)).map(st=>{ const L=g[st], key=lista+'|'+st, ab=PED_OPEN.has(key);
-    return '<span class="pedgrp'+(ab?' open':'')+'"><a class="pill p-ped" href="#" onclick="pedToggle(event,\''+key+'\')" title="'+esc(L.length+' pedido'+(L.length>1?'s':'')+' · '+(ST_PED[st]||st)+'. Clique pra ver quais.')+'">⏳ '+L.length+' '+(ST_PED_MINI[st]||ST_PED_CURTO[st]||st)+'<i>'+(ab?'▲':'▼')+'</i></a>'+(ab?'<span class="pedlist">'+L.map(p=>pedChip(p,true)).join('')+'</span>':'')+'</span>'; }).join(' ');
+    return '<span class="pedgrp'+(ab?' open':'')+'"><a class="pill '+(st==='sugestao'?'p-r':'p-ped')+'" href="#" onclick="pedToggle(event,\''+key+'\')" title="'+esc(L.length+' pedido'+(L.length>1?'s':'')+' · '+(ST_PED[st]||st)+'. Clique pra ver quais.')+'">'+(st==='sugestao'?'R '+L.length:'⏳ '+L.length+' '+(ST_PED_MINI[st]||ST_PED_CURTO[st]||st))+'<i>'+(ab?'▲':'▼')+'</i></a>'+(ab?'<span class="pedlist">'+L.map(p=>pedChip(p,true)).join('')+'</span>':'')+'</span>'; }).join(' ');
 }
 // coluna Trânsito: o que a lista já tem pedido no ERP (sugestão aberta) e ainda não entrou; "c/ NF-e" = fornecedor já faturou
 const etqLoja=n=>+n===10?'CD':'E'+n;
