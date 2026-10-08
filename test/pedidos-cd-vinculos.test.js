@@ -149,3 +149,14 @@ test('removerVinculo no "mesmo código" (sistema): some da tela e o sincronizar 
   const v2 = cd.sincronizarVinculos([{ codigoCD: '7898966818516', unPorCaixa: 12, unidadeExiste: null }]);
   assert.equal(v2['7898966818516'].status, 'confirmado'); assert.equal(v2['7898966818516'].unidade, '7898966818509'); assert.equal(v2['7898966818516'].semAuto, undefined);
 });
+
+test('removerVinculo no "mesmo código": a trava semAuto sobrevive a DUAS sincronizações seguidas (recálculo de hora em hora não recria)', () => {
+  const cod = '7898966818516';
+  cd.sincronizarVinculos([{ codigoCD: cod, unPorCaixa: 12, unidadeExiste: null, descricaoCD: 'ALCOOL BELLOBELLA 1L FD12' }]);
+  assert.equal(cd.getVinculos()[cod].status, 'confirmado');
+  cd.removerVinculo(cod);
+  assert.equal(cd.getVinculos()[cod].semAuto, true);
+  for (let i = 0; i < 3; i++) cd.sincronizarVinculos([{ codigoCD: cod, unPorCaixa: 12, unidadeExiste: null, descricaoCD: 'ALCOOL BELLOBELLA 1L FD12' }]);
+  const v = cd.getVinculos()[cod];
+  assert.notEqual(v.status, 'confirmado'); assert.equal(v.unidade, null); assert.equal(v.semAuto, true);
+});
