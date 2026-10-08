@@ -77,7 +77,7 @@ test('limparRelacao: um grupo só pode ter uma dona (a primeira que aparecer) e 
 test('csv: uma linha por lista da compradora, com BOM e ; pro Excel', () => {
   const r = L.dividir(baseFalsa(), [{ comprador: 'PATRICIA PEREIRA', grupos: [36] }]);
   const linhas = L.csv(r).split('\r\n');
-  assert.ok(linhas[0].startsWith('﻿Compradora;'));
+  assert.ok(linhas[0].startsWith('﻿Comprador(a);'));
   assert.equal(linhas.length, 4);
   assert.equal(linhas[3], 'PATRICIA PEREIRA;BEBIDAS;2;LATICINIO X · BEBIDAS;LATICINIO X LTDA;ANA KELLY;10;70;14;Só a parte do grupo (lista nova)');
 });

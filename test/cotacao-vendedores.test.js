@@ -47,7 +47,7 @@ test('preço zero gravado não concorre nem vence; conta como não cotado', () =
 // Preço negociado pelo(a) comprador(a) (Tiago, 28/09/26): vale no lugar do digitado, o do vendedor fica guardado
 test('preço negociado entra no comparativo no lugar do digitado e pode virar o vencedor', () => {
   const { comparativo } = require('../lib/cotacao');
-  const c = { id: 2, status: 'aberta', itens: [{ cod: '111', descricao: 'ITEM', qtd: 10, emb: 1, ultimo_custo: 6 }],
+  const c = { id: 2, status: 'aberta', itens: [{ cod: '111', descricao: 'ITEM', qtd: 10, emb: 1, ultimo_custo: 6, lojas_qtd: { '1': 10 } }],   // total é por loja desde 05/10/26 (vencedor por loja)
     fornecedores: [
       { codFornec: 1, nome: 'A', status: 'finalizado', precos: { '111': { preco: 5.05 } } },
       { codFornec: 2, nome: 'B', status: 'finalizado', precos: { '111': { preco: 5.5 } } }],
