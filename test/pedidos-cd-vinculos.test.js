@@ -137,3 +137,15 @@ test('sincronizarVinculos: caixa que sumiu da coleta fica semEstoqueCD com estoq
   cd.sincronizarVinculos([{ codigoCD: '2530', unPorCaixa: 1, descricaoCD: 'ABACAXI UND', estoqueCx: 3, estoqueUn: 3 }]);
   assert.equal(cd.getVinculos()['2530'].semEstoqueCD, undefined); assert.equal(cd.getVinculos()['2530'].estoqueCx, 3);
 });
+
+test('removerVinculo no "mesmo código" (sistema): some da tela e o sincronizar não recria sozinho; vincular de novo volta ao normal', () => {
+  cd.sincronizarVinculos([{ codigoCD: '7898966818516', unPorCaixa: 12, unidadeExiste: null, descricaoCD: 'ALCOOL BELLOBELLA 1L' }]);
+  assert.equal(cd.getVinculos()['7898966818516'].origem, 'igual');
+  const r = cd.removerVinculo('7898966818516');
+  assert.equal(r.status, 'pendente'); assert.equal(r.unidade, null); assert.equal(r.semAuto, true);
+  const v = cd.sincronizarVinculos([{ codigoCD: '7898966818516', unPorCaixa: 12, unidadeExiste: null, descricaoCD: 'ALCOOL BELLOBELLA 1L' }]);
+  assert.equal(v['7898966818516'].status, 'pendente'); assert.equal(v['7898966818516'].unidade, null);
+  cd.salvarVinculo({ codigoCD: '7898966818516', unidade: '7898966818509', unPorCaixa: 12, usuario: 'tiago' });
+  const v2 = cd.sincronizarVinculos([{ codigoCD: '7898966818516', unPorCaixa: 12, unidadeExiste: null }]);
+  assert.equal(v2['7898966818516'].status, 'confirmado'); assert.equal(v2['7898966818516'].unidade, '7898966818509'); assert.equal(v2['7898966818516'].semAuto, undefined);
+});
