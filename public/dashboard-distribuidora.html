@@ -248,6 +248,8 @@
   <!-- 6 FINANCEIRO -->
   <section class="seg" id="s6">
     <div class="seg-hd"><span class="n">6</span><h2>Financeiro</h2><small id="s6-sub">boletos emitidos pela distribuidora · em aberto = ainda sem retorno de liquidação no ERP · só leitura</small><a class="lk" href="/conciliador-cd.html">Conciliador CD →</a></div>
+    <!-- posição de caixa do CD (Tiago, 08/10/26: o que é do CD sai do Dashboard Loja e vem pra cá). Conta ainda não cadastrada no Itaú: entra sozinha quando chegar -->
+    <div class="row" style="margin-bottom:12px"><div class="card"><div class="card-hd"><h3>Posição de caixa do CD</h3><small>saldo da conta Itaú da Distribuidora × boletos que o CD paga hoje</small><span class="k nt" id="k-caixa-cd">Itaú</span></div><div class="nosrc" id="c-caixa-cd">Lendo o saldo…</div></div></div>
     <div class="row c5" id="fin-kpis"></div>
     <div class="row c3" style="margin-top:12px">
       <div class="card"><div class="card-hd"><h3>Vencidos</h3><small>por idade · clique pra ver os boletos</small><span class="k" id="k-fin-venc"></span></div><div class="card-bd tall" id="c-fin-venc"><div class="spin"></div></div></div>
@@ -515,7 +517,32 @@ function renderExp() {
 
 /* ── 6 FINANCEIRO ── */
 let PAG = null;
+// Posição de caixa do CD: conta do Itaú cadastrada como distribuidora / cd / cahudistribuidora em data/itau/config.json (rota /api/itau/saldos,
+// só admin). Enquanto não existe, fica a mensagem; quando entrar no cadastro, aparece sozinha com saldo × boletos do dia × diferença.
+async function carregarSaldoCD(forcar) {
+  const box = el('c-caixa-cd'), k = el('k-caixa-cd'); if (!box) return;
+  const b = el('btn-saldo-cd'); if (forcar && b) { b.disabled = true; b.textContent = 'Consultando o banco…'; }
+  const hhmm = s => { const d = new Date(s || ''); return isNaN(d) ? '—' : d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); };
+  try {
+    const r = await fetch('/api/itau/saldos' + (forcar ? '/atualizar' : ''), { method: forcar ? 'POST' : 'GET' }); const j = await r.json().catch(() => ({}));
+    if (r.status === 403) { box.className = 'nosrc'; box.innerHTML = 'Saldo bancário só pro perfil administrador (toca credencial do banco).'; if (k) { k.className = 'k nt'; k.textContent = 'só admin'; } return; }
+    if (r.status === 429) { if (b) { b.disabled = false; b.textContent = 'Atualizar agora'; } alert(j.error || 'Aguarde alguns segundos'); return; }
+    if (!r.ok || j.error) throw new Error(j.error || ('HTTP ' + r.status));
+    const c = (j.contas || []).find(x => ['distribuidora', 'cd', 'cahudistribuidora'].includes(String(x.conta).toLowerCase()));
+    const P = D && D.financeiro && D.financeiro.pagar, hojeP = P && P.hojeP || null, rot = P ? (P.fds ? 'na segunda' : 'hoje') : 'hoje';
+    if (!c) { box.className = 'nosrc'; box.innerHTML = '<b>Conta da Distribuidora ainda não cadastrada no Itaú.</b> Assim que o banco liberar a API pro CNPJ do CD e a conta entrar no cadastro do servidor, o saldo aparece aqui sozinho, com a diferença contra os boletos do dia.' + (hojeP && hojeP.v ? ' Boletos que o CD paga ' + rot + ': <b>' + money(hojeP.v) + '</b> (' + hojeP.n + ' título' + (hojeP.n === 1 ? '' : 's') + ').' : ''); if (k) { k.className = 'k nt'; k.textContent = 'Itaú · sem conta'; } return; }
+    const dif = (+c.disponivel || 0) - (hojeP ? hojeP.v : 0), ok = dif >= -0.004, cor = ok ? 'var(--pos)' : 'var(--neg)';
+    box.className = '';
+    box.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;padding:12px 14px">'
+      + '<div style="border:1px solid var(--ln,#DADAD6);border-radius:10px;padding:10px 12px"><div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3)">Saldo disponível</div><div style="font-size:22px;font-weight:800;margin-top:3px;color:' + ((+c.disponivel || 0) < 0 ? 'var(--neg)' : 'var(--ink)') + '">' + money(c.disponivel) + '</div><div style="font-size:10.5px;color:var(--ink3);margin-top:3px">posição do banco ' + hhmm(c.atualizadoEm) + (c.desatualizado ? ' · <span style="color:var(--neg)">desatualizado: ' + esc(String(c.erro || '').slice(0, 80)) + '</span>' : '') + (c.bloqueado > 0 ? ' · bloqueado ' + money(c.bloqueado) : '') + '</div></div>'
+      + '<div style="border:1px solid var(--ln,#DADAD6);border-radius:10px;padding:10px 12px"><div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3)">Boletos ' + rot + '</div><div style="font-size:22px;font-weight:800;margin-top:3px">' + (hojeP ? money(hojeP.v) : '—') + '</div><div style="font-size:10.5px;color:var(--ink3);margin-top:3px">' + (hojeP ? hojeP.n + ' título' + (hojeP.n === 1 ? '' : 's') + ' · contas a pagar da Filial 10' : 'contas a pagar ainda carregando') + '</div></div>'
+      + '<div style="border:1px solid ' + (ok ? '#BFE3CC' : '#F2C2CA') + ';background:' + (ok ? 'var(--posw)' : 'var(--negw)') + ';border-radius:10px;padding:10px 12px"><div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3)">Diferença</div><div style="font-size:22px;font-weight:800;margin-top:3px;color:' + cor + '">' + (ok ? '+' : '−') + money(Math.abs(dif)) + '</div><div style="font-size:10.5px;margin-top:3px;color:' + cor + '">' + (ok ? 'sobra depois de pagar os boletos do dia' : 'falta pra cobrir os boletos do dia') + '</div></div>'
+      + '</div><div class="nosrc" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-top:1px solid #F0F0EE">última consulta ' + hhmm(j.consultadoEm) + ' · o servidor consulta de hora em hora, das 07:00 às 20:00<button class="btn btn-amber btn-sm" id="btn-saldo-cd" onclick="carregarSaldoCD(true)" style="margin-left:auto">Atualizar agora</button></div>';
+    if (k) { k.className = 'k' + (c.desatualizado ? '' : ' ok'); k.textContent = 'Itaú · ' + (c.desatualizado ? 'desatualizado' : 'posição ' + hhmm(c.atualizadoEm)); }
+  } catch (e) { box.className = 'nosrc'; box.innerHTML = 'Não deu pra ler o saldo: ' + esc(e.message); if (k) { k.className = 'k'; k.textContent = 'erro'; } }
+}
 function renderFin() {
+  carregarSaldoCD();
   const f = D.financeiro; if (!f) { el('fin-kpis').innerHTML = empty('Financeiro não calculado'); return; }
   const hoje = f.hoje; badge('n6', f.vencidos.n);
   el('s6-sub').textContent = 'boletos emitidos pela distribuidora (loja 10) · em aberto = sem retorno de liquidação no ERP' + (f.ultLiq ? ' · último liquidado vencia em ' + df(f.ultLiq) : '') + ' · só leitura';

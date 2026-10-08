@@ -461,9 +461,19 @@ window.addEventListener('hashchange', rota);
 
 function setLoja(ln) { LOJA = LOJA === ln ? 0 : ln; if (LOJA) document.getElementById('setor-loja').value = LOJA; else document.getElementById('setor-loja').value = 0; render(); }
 // cópia do D só com a loja escolhida em cada segmento
+// Dashboard Loja = só as lojas E1..E6. O CD / Distribuidora (loja 10) tem dashboard próprio — Tiago, 08/10/26: "tira tudo que for
+// relacionado ao CD daqui e bota pro Dashboard da Distribuidora". semCD() copia os dados tirando, de qualquer lista, o item cuja loja é 10
+// (faturamento, comercial, operação, estoque, títulos, categorias…) antes do filtro por loja.
+function semCD(o) {
+  if (Array.isArray(o)) return o.filter(x => !(x && typeof x === 'object' && !Array.isArray(x) && +x.loja === 10)).map(semCD);
+  if (o && typeof o === 'object') { const r = {}; for (const k of Object.keys(o)) r[k] = semCD(o[k]); return r; }
+  return o;
+}
 function vista() {
-  if (!LOJA || !D) return D;
-  const L = LOJA, c = JSON.parse(JSON.stringify(D)), tem = a => Array.isArray(a) && a.includes(L);
+  if (!D) return D;
+  const c = semCD(D);
+  if (!LOJA) return c;
+  const L = LOJA, tem = a => Array.isArray(a) && a.includes(L);
   if (c.comercial) { c.comercial.lojas = c.comercial.lojas.filter(l => l.loja === L); c.comercial.soLoja = true; }
   const a = c.abastecimento || {};
   if (a.curvaA) { a.curvaA.itens = a.curvaA.itens.filter(i => tem(i.lojas_zeradas)); a.curvaA.transferir = a.curvaA.transferir.filter(i => tem(i.lojas_zeradas) || tem(i.lojas_com_estoque)); }
@@ -799,7 +809,8 @@ const hhmm = s => { if (!s) return '—'; const d = new Date(s); return isNaN(d)
 const dhm = s => { if (!s) return '—'; const d = new Date(s); return isNaN(d) ? '—' : d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + hhmm(s); };
 function desenharSaldosItau(j, el) {
   el = el || document.getElementById('c-caixa'); if (!el) return;
-  const k = document.getElementById('k-caixa'), contas = j.contas || [], neg = v => (+v || 0) < 0;
+  const LOJA_DA_CONTA = { cahu: 1, muribeca: 2, ponte: 3, atacarejo: 4, portalarga: 5, jardimjordao: 6, distribuidora: 10, cd: 10, cahudistribuidora: 10 };
+  const k = document.getElementById('k-caixa'), contas = (j.contas || []).filter(c => LOJA_DA_CONTA[c.conta] !== 10), neg = v => (+v || 0) < 0;   // conta do CD fica no Dashboard da Distribuidora
   if (!contas.length) { el.className = 'nosrc'; el.innerHTML = 'Ainda sem consulta ao banco (a primeira roda ~2 min depois do servidor subir, das 07:00 às 20:00). <a href="#" onclick="carregarSaldosItau(true);return false">Consultar agora</a>'; if (k) { k.className = 'k nt'; k.textContent = 'Itaú · sem consulta'; } return; }
   const desat = contas.filter(c => c.desatualizado).length;
   if (k) { k.className = 'k' + (desat ? '' : ' ok'); k.textContent = 'Itaú · ' + (desat ? desat + ' conta' + (desat > 1 ? 's' : '') + ' desatualizada' + (desat > 1 ? 's' : '') : 'posição ' + hhmm(j.consultadoEm)); }
@@ -808,7 +819,6 @@ function desenharSaldosItau(j, el) {
   // Layout (07/10, 2ª rodada): faixa de 4 indicadores em cima, tabela com rótulo E1…E6 e colunas proporcionais embaixo.
   const F = V && V.financeiro, L = (F && F.linhas) || [], fds = F ? F.hoje < F.semIni : false, diaRef = F ? (fds ? F.semIni : F.hoje) : null;
   const pagar = {}; for (const r of L) if (r.pag === diaRef) { const a = pagar[r.loja] || (pagar[r.loja] = { n: 0, v: 0 }); a.n += r.n; a.v += r.v; }
-  const LOJA_DA_CONTA = { cahu: 1, muribeca: 2, ponte: 3, atacarejo: 4, portalarga: 5, jardimjordao: 6, distribuidora: 10, cd: 10, cahudistribuidora: 10 };   // CD = loja 10 (conta ainda não cadastrada no Itaú, 07/10)
   const rotDia = diaRef ? (fds ? 'segunda ' + df(diaRef) : 'hoje ' + df(diaRef)) : 'hoje';
   const sinal = d => (d >= -0.004 ? '+' : '−') + money(Math.abs(d)), cls = d => d >= -0.004 ? 'ok' : 'bad', tag = d => '<span class="cx-dif ' + cls(d) + '">' + sinal(d) + '</span><span class="cx-tag ' + cls(d) + '">' + (cls(d) === 'ok' ? 'sobra' : 'falta') + '</span>';
   const tp = { n: 0, v: 0 }; let saldoTot = 0; const linhas = [];
@@ -821,14 +831,13 @@ function desenharSaldosItau(j, el) {
       + '<td class="r">' + (temSaldo && F ? tag(dif) : '<span class="fin-mut">—</span>') + '</td>'
       + '<td class="r"><span title="' + esc(dhm(c.atualizadoEm)) + ' · carimbo do banco">' + hhmm(c.atualizadoEm) + '</span>' + (c.desatualizado ? '<div class="fin-mut" style="color:var(--neg)">falhou ' + hhmm(c.erroEm) + '</div>' : '') + '</td></tr>');
   }
-  if (!contas.some(c => LOJA_DA_CONTA[c.conta] === 10)) { const p10 = pagar[10] || { n: 0, v: 0 }; linhas.push('<tr><td>' + lojaTag(10) + '</td><td class="r"><span class="fin-mut" title="Conta da Distribuidora ainda não cadastrada no Itaú (data/itau/config.json). Assim que o banco liberar e ela entrar no cadastro, aparece aqui sozinha.">conta ainda não cadastrada no Itaú · entra sozinha quando chegar</span></td><td class="r"><b>' + (p10.v ? money(p10.v) : '—') + '</b><div class="fin-mut">' + (p10.n ? p10.n + ' título' + (p10.n === 1 ? '' : 's') + ' · fora da diferença' : (F ? 'nada ' + (fds ? 'na segunda' : 'hoje') : '')) + '</div></td><td class="r"><span class="fin-mut">—</span></td><td class="r"><span class="fin-mut">—</span></td></tr>'); }
   const difTot = saldoTot - tp.v;
   el.className = '';
   let h = '<div class="cx-kpis">'
     + '<div class="cx-kpi"><div class="l">Saldo disponível</div><div class="v' + (neg(saldoTot) ? ' dn' : '') + '">' + money(saldoTot) + '</div><div class="s">' + contas.length + ' contas · posição do banco ' + hhmm(j.consultadoEm) + '</div></div>'
-    + '<div class="cx-kpi"><div class="l">Boletos ' + rotDia + '</div><div class="v">' + (F ? money(tp.v) : '—') + '</div><div class="s">' + (F ? tp.n + ' títulos · contas a pagar do ERP, pelo dia em que a loja paga' + (pagar[10] && pagar[10].v && !contas.some(c => LOJA_DA_CONTA[c.conta] === 10) ? ' · CD: ' + money(pagar[10].v) + ' fora da diferença (sem conta)' : '') : 'carregando o contas a pagar…') + '</div></div>'
+    + '<div class="cx-kpi"><div class="l">Boletos ' + rotDia + '</div><div class="v">' + (F ? money(tp.v) : '—') + '</div><div class="s">' + (F ? tp.n + ' títulos · contas a pagar do ERP, pelo dia em que a loja paga' : 'carregando o contas a pagar…') + '</div></div>'
     + '<div class="cx-kpi' + (F ? ' ' + cls(difTot) : '') + '"><div class="l">Diferença</div><div class="v">' + (F ? sinal(difTot) : '—') + '</div><div class="s">' + (F ? (cls(difTot) === 'ok' ? 'sobra depois de pagar os boletos do dia' : 'falta pra cobrir os boletos do dia') : '') + '</div></div>'
-    + '<div class="cx-kpi"><div class="l">Aplicação automática</div><div class="v">' + money(j.total.aplicacaoAutomatica || 0) + '</div><div class="s">' + (j.total.bloqueado ? 'bloqueado ' + money(j.total.bloqueado) : 'nada bloqueado') + '</div></div>'
+    + '<div class="cx-kpi"><div class="l">Aplicação automática</div><div class="v">' + money(contas.reduce((t, c) => t + (+c.aplicacaoAutomatica || 0), 0)) + '</div><div class="s">' + (contas.some(c => c.bloqueado > 0) ? 'bloqueado ' + money(contas.reduce((t, c) => t + (+c.bloqueado || 0), 0)) : 'nada bloqueado') + '</div></div>'
     + '</div>';
   h += '<div class="fin-sec">Por loja <span class="fin-mut">saldo do banco na hora da consulta × boletos ' + rotDia + ' · verde sobra, vermelho falta</span></div>';
   h += '<table class="m fin-al cx-t"><colgroup><col style="width:28%"><col style="width:18%"><col style="width:18%"><col style="width:22%"><col style="width:14%"></colgroup><thead><tr><th>Loja</th><th class="r">Saldo em conta</th><th class="r">Boletos ' + (fds ? 'segunda' : 'hoje') + '</th><th class="r">Diferença</th><th class="r">Atualizado</th></tr></thead><tbody>' + linhas.join('')
@@ -872,7 +881,7 @@ function renderFin() {
   const lojasDia = Object.values(pl).sort((a, b) => a.loja - b.loja), maxL = Math.max(...lojasDia.map(l => l.v), 1), vencs = Object.values(pv).sort((a, b) => a.venc < b.venc ? -1 : 1);
   let h = '<div class="fin-big"><b>' + money(hj.v) + '</b><small>' + plural(hj.n, 'título') + ' a pagar' + (fds ? ' na segunda' : ' hoje') + '</small></div>';
   if (vencs.length > 1) { const maxV = Math.max(...vencs.map(x => x.v), 1); h += '<div class="fin-sec">Por vencimento <span class="fin-mut">o que entra no pagamento de ' + (fds ? 'segunda' : 'hoje') + '</span></div><table class="m fin-al">' + CG + '<tbody>' + vencs.map(x => '<tr><td>venc. <b>' + DS[dow(x.venc)] + '</b> ' + df(x.venc) + '</td><td class="r">' + x.n + '</td><td class="r"><b>' + money(x.v) + '</b></td><td>' + barra(x.v, maxV) + '</td></tr>').join('') + '</tbody></table>'; }
-  h += lojasDia.length ? '<div class="fin-sec">Por loja <span class="fin-mut">clique pra ver os títulos</span></div><table class="m fin-al">' + CG + '<thead><tr><th>Loja</th><th class="r">Títulos</th><th class="r">Valor</th><th></th></tr></thead><tbody>' + lojasDia.map(l => '<tr class="fin-lj" data-loja="' + l.loja + '" data-pag="' + diaRef + '" onclick="finDetalhe(this)" title="clique pra ver os títulos"><td><span class="fin-car">▸</span>' + lojaTag(l.loja) + '</td><td class="r">' + l.n + '</td><td class="r"><b>' + money(l.v) + '</b></td><td>' + barra(l.v, maxL) + '</td></tr>').join('') + (lojasDia.some(l => l.loja === 10) ? '' : cdVazio(fds ? 'na segunda' : 'hoje')) + '</tbody></table>' : empty('Nada a pagar ' + (fds ? 'na segunda' : 'hoje') + '.');
+  h += lojasDia.length ? '<div class="fin-sec">Por loja <span class="fin-mut">clique pra ver os títulos</span></div><table class="m fin-al">' + CG + '<thead><tr><th>Loja</th><th class="r">Títulos</th><th class="r">Valor</th><th></th></tr></thead><tbody>' + lojasDia.map(l => '<tr class="fin-lj" data-loja="' + l.loja + '" data-pag="' + diaRef + '" onclick="finDetalhe(this)" title="clique pra ver os títulos"><td><span class="fin-car">▸</span>' + lojaTag(l.loja) + '</td><td class="r">' + l.n + '</td><td class="r"><b>' + money(l.v) + '</b></td><td>' + barra(l.v, maxL) + '</td></tr>').join('') + '</tbody></table>' : empty('Nada a pagar ' + (fds ? 'na segunda' : 'hoje') + '.');
   if (venc.n) h += '<div class="fin-alert" style="cursor:pointer" onclick="finVencToggle()" title="Clique pra ver os vencidos por loja"><b>' + plural(venc.n, 'vencido') + ' em aberto · ' + money(venc.v) + '</b><br>dia de pagamento já passou: atrasado ou baixa ainda não lançada no ERP</div>';
   // vencidos por loja (Tiago, 28/09: "uma maneira de clicar e trazer o que não foi pago"): escondido até clicar na caixa vermelha;
   // clique na loja abre os títulos do mais antigo pro mais novo
@@ -915,7 +924,7 @@ function renderFin() {
     document.getElementById(id).innerHTML = rows.length
       ? '<div class="fin-big"><b>' + money(tot.v) + '</b><small>' + plural(tot.n, 'título') + ' · ' + rotuloTot + ' · só outras operações, sem mercadorias</small></div>'
         + '<div class="fin-sec">Por loja <span class="fin-mut">clique pra ver só outras operações (sem mercadorias)</span></div><table class="m fin-al">' + CG + '<thead><tr><th>Loja</th><th class="r">Títulos</th><th class="r">Valor</th><th></th></tr></thead><tbody>'
-        + lojas.map(l => '<tr class="fin-lj" data-key="' + key + '" data-loja="' + l.loja + '" onclick="finTipoDet(this)" title="clique pra ver só outras operações (sem mercadorias)"><td><span class="fin-car">▸</span>' + lojaTag(l.loja) + '</td><td class="r">' + l.n + '</td><td class="r"><b>' + money(l.v) + '</b></td><td>' + barra(l.v, max) + '</td></tr>').join('') + (lojas.some(l => l.loja === 10) ? '' : cdVazio(rotuloTot))
+        + lojas.map(l => '<tr class="fin-lj" data-key="' + key + '" data-loja="' + l.loja + '" onclick="finTipoDet(this)" title="clique pra ver só outras operações (sem mercadorias)"><td><span class="fin-car">▸</span>' + lojaTag(l.loja) + '</td><td class="r">' + l.n + '</td><td class="r"><b>' + money(l.v) + '</b></td><td>' + barra(l.v, max) + '</td></tr>').join('')
         + (lojas.length > 1 ? '<tr class="fin-lj fin-tot" data-key="' + key + '" data-loja="" onclick="finTipoDet(this)" title="clique pra ver só outras operações (sem mercadorias) da rede"><td><span class="fin-car">▸</span>Todas as lojas</td><td class="r">' + tot.n + '</td><td class="r"><b>' + money(tot.v) + '</b></td><td></td></tr>' : '')
         + '</tbody></table>'
       : empty('Nenhuma outra operação a pagar ' + rotuloTot + ' (mercadorias ficam fora deste quadro).');
@@ -934,9 +943,6 @@ function finVencToggle() { const d = document.getElementById('fin-venc-lojas'); 
 // clique no dia (Financeiro › Esta semana › Por dia de pagamento): abre embaixo as lojas daquele dia de pagamento; clique na loja abre os
 // títulos com o finDetalhe de sempre, onde o fornecedor é o link da nota (Tiago, 07/10: "clicar no dia traz loja a loja, na loja os
 // fornecedores, no fornecedor abre a nota"). Um dia aberto por vez.
-// CD / Central (loja 10) aparece em TODO quadro do Financeiro (Tiago, 07/10: "as informações que tiver do CD coloca em todas; as que não
-// tiver deixa uma mensagem, assim que chegar já entra"): sem título no período, entra esta linha no lugar
-const cdVazio = rot => '<tr><td>' + lojaTag(10) + '</td><td class="r"><span class="fin-mut">0</span></td><td class="r"><span class="fin-mut">nada ' + rot + '</span></td><td></td></tr>';
 function finDia(tr) {
   const nx = tr.nextElementSibling;
   if (nx && nx.classList.contains('fin-det')) { nx.remove(); tr.classList.remove('open'); return; }
@@ -951,7 +957,7 @@ function finDia(tr) {
   const det = document.createElement('tr'); det.className = 'fin-det';
   det.innerHTML = '<td colspan="' + tr.children.length + '"><div class="fin-det-h"><b>' + rot + '</b> · ' + tot.n + ' título' + (tot.n === 1 ? '' : 's') + ' · ' + money(tot.v) + ' · por loja · clique na loja pra ver os fornecedores; no fornecedor abre a nota</div>'
     + '<table class="m fin-al"><colgroup><col><col style="width:70px"><col style="width:138px"><col style="width:92px"></colgroup><thead><tr><th>Loja</th><th class="r">Títulos</th><th class="r">Valor</th><th></th></tr></thead><tbody>'
-    + lojas.map(l => '<tr class="fin-lj" data-loja="' + l.loja + '"' + attr + ' onclick="finDetalhe(this)" title="clique pra ver os títulos desta loja · o fornecedor abre a nota"><td><span class="fin-car">▸</span>' + lojaTag(l.loja) + '</td><td class="r">' + l.n + '</td><td class="r"><b>' + money(l.v) + '</b></td><td>' + bar(l.v) + '</td></tr>').join('') + (lojas.some(l => l.loja === 10) ? '' : cdVazio(d ? 'neste dia' : 'neste período'))
+    + lojas.map(l => '<tr class="fin-lj" data-loja="' + l.loja + '"' + attr + ' onclick="finDetalhe(this)" title="clique pra ver os títulos desta loja · o fornecedor abre a nota"><td><span class="fin-car">▸</span>' + lojaTag(l.loja) + '</td><td class="r">' + l.n + '</td><td class="r"><b>' + money(l.v) + '</b></td><td>' + bar(l.v) + '</td></tr>').join('')
     + (lojas.length > 1 ? '<tr class="fin-lj fin-tot" data-loja="0"' + attr + ' onclick="finDetalhe(this)" title="clique pra ver os títulos de todas as lojas neste período"><td><span class="fin-car">▸</span>Todas as lojas</td><td class="r">' + tot.n + '</td><td class="r"><b>' + money(tot.v) + '</b></td><td></td></tr>' : '')
     + '</tbody></table></td>';
   tr.after(det); tr.classList.add('open');
