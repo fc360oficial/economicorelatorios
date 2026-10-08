@@ -187,3 +187,46 @@ test('extras: roda o script separado, guarda o JSON da ultima linha; erro de um 
   assert.match(st.ultimo.extras[1].erro, /pg_dump/);
   assert.match(backup.alerta(), /backup do Ruim .* falhou: pg_dump/);
 });
+
+test('extra com estado.json recente (tarefa agendada): nao roda o script, mostra o registro dele; velho: roda e avisa', async () => {
+  const m = montar(); const reg = [];
+  const script = path.join(m.raiz, 'cahu.js'); fs.writeFileSync(script, '');
+  const estadoExt = path.join(m.raiz, 'estado-cahu.json');
+  const fake = execFake(reg);
+  iniciar(m, async (cmd, args) => {
+    if (cmd === process.execPath) return { stdout: '{"inicio":"' + new Date().toISOString() + '","arquivo":"D:/x/cahu-novo.zip","bytes":10,"nuvem":{"status":"ok"}}\n' };
+    return fake(cmd, args);
+  });
+  const cfgPath = path.join(m.dataDir, 'backup-config.json');
+  const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+  cfg.extras = [{ nome: 'CAHU', script, estado: estadoExt }];
+  fs.writeFileSync(cfgPath, JSON.stringify(cfg));
+
+  // estado recente (2 h): aproveita, não dispara
+  fs.writeFileSync(estadoExt, JSON.stringify({ ultimo: { inicio: new Date(Date.now() - 2 * 36e5).toISOString(), arquivo: 'D:/x/cahu-tarefa.zip', bytes: 7, nuvem: { status: 'ok' }, erro: null } }));
+  let st = await backup.executar({ motivo: 'teste' });
+  assert.equal(reg.filter(r => r.cmd === process.execPath).length, 0, 'script não rodou');
+  assert.equal(st.ultimo.extras[0].arquivo, 'D:/x/cahu-tarefa.zip');
+  assert.equal(st.ultimo.extras[0].origem, 'tarefa');
+  assert.equal(backup.alerta(), null);
+
+  // a tarefa rodou de novo depois do nosso backup: a tela mostra o registro mais novo
+  fs.writeFileSync(estadoExt, JSON.stringify({ ultimo: { inicio: new Date().toISOString(), arquivo: 'D:/x/cahu-mais-novo.zip', bytes: 9, nuvem: { status: 'ok' }, erro: null } }));
+  assert.equal(backup.estado().ultimo.extras[0].arquivo, 'D:/x/cahu-mais-novo.zip');
+
+  // tarefa falhou: alerta vem do estado dela
+  fs.writeFileSync(estadoExt, JSON.stringify({ ultimo: { inicio: new Date().toISOString(), arquivo: null, bytes: 0, nuvem: null, erro: 'pg_dump sumiu' } }));
+  assert.match(backup.alerta(), /backup do CAHU .* falhou: pg_dump sumiu/);
+
+  // estado velho (30 h): dispara o script como antes
+  fs.writeFileSync(estadoExt, JSON.stringify({ ultimo: { inicio: new Date(Date.now() - 30 * 36e5).toISOString(), arquivo: 'D:/x/cahu-velho.zip', bytes: 7, nuvem: { status: 'ok' }, erro: null } }));
+  st = await backup.executar({ motivo: 'teste' });
+  assert.equal(reg.filter(r => r.cmd === process.execPath).length, 1, 'script rodou');
+  assert.equal(st.ultimo.extras[0].arquivo, 'D:/x/cahu-novo.zip');
+
+  // sem script e estado velho: só o aviso de que a tarefa parou
+  cfg.extras = [{ nome: 'CAHU', estado: estadoExt }];
+  fs.writeFileSync(cfgPath, JSON.stringify(cfg));
+  await backup.executar({ motivo: 'teste' });
+  assert.match(backup.alerta(), /backup do CAHU não roda há mais de 28 horas/);
+});
