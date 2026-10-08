@@ -138,6 +138,7 @@ table.ppg tr.alt td{background:#FAFAF8}table.ppg tr.pede td{font-weight:600}tabl
 table.ppg tr.lst{cursor:pointer}table.ppg tr.lst:hover td{background:#F4F4F1}
 table.ppg tr.insuf td.prod{box-shadow:inset 3px 0 0 #C22F49}
 table.ppg td.prod{white-space:normal;text-align:left;padding:5px 8px 5px 10px;line-height:1.25;overflow-wrap:anywhere}table.ppg td.prod>b{font-size:12.5px;color:#0E1626}
+table.ppg .pp-l{font-size:11px;color:#4E5A72;line-height:1.25;margin-top:1px}table.ppg .pp-l b{font-size:12.5px;color:#0E1626}table.ppg .pp-l .cod{color:#98A0B3;margin-right:5px;font-variant-numeric:tabular-nums}table.ppg .pp-l .tag{display:inline-block;font-size:8.5px;font-weight:800;letter-spacing:.4px;color:#6B4E00;background:#FFF6D9;border:1px solid #EFD98F;border-radius:4px;padding:0 4px;margin-right:5px;vertical-align:middle;line-height:1.5;min-width:30px;text-align:center}table.ppg .pp-l .mut{color:#98A0B3}
 table.ppg .pp-meta{font-size:10.5px;color:#4E5A72;margin-top:1px;font-weight:500;display:flex;flex-wrap:wrap;gap:1px 8px;align-items:center;line-height:1.2}table.ppg .pp-meta .cod{color:#98A0B3}
 table.ppg .m-good{color:#137A48}table.ppg .m-warn{color:#6B4E00}table.ppg .m-bad{color:#C22F49}table.ppg .pp-meta a{color:#C22F49;text-decoration:underline;cursor:pointer}
 table.ppg .pp-tot{display:block;font-size:10.5px;color:#4E5A72;margin-top:1px;font-weight:500;line-height:1.2}table.ppg .pp-tot b{color:#0E1626}
@@ -337,7 +338,9 @@ function linha(item, lojasCols, idx) {
   const sel = SEL.has(cod);
   const br = d => String(d || '').split('-').reverse().slice(0, 2).join('/');
   // 1ª linha embaixo do nome: código do CD · vínculo (código e descrição da unidade que a loja vende)
-  const meta1 = `<div class="pp-meta"><span class="cod" title="código do CD">${cod}</span>${item.unidade ? (item.unidade !== cod ? `<span title="unidade que a loja vende: ${esc(item.descricaoUn || '')}">→ ${item.unidade}</span>` : '') : `<span class="m-bad">sem vínculo · <a onclick="event.stopPropagation();irVinculo('${cod}')">vincular</a></span>`}</div>`;
+  // CD numa linha (código + descrição do cadastro do CD) e LOJA na outra (código + descrição da unidade vinculada) — Tiago, 08/10/26
+  const linhaCD = `<div class="pp-l"><span class="tag" title="código e descrição no cadastro do CD (caixa)">CD</span><span class="cod">${cod}</span><b>${esc(item.descricaoCD)}</b></div>`;
+  const linhaLoja = `<div class="pp-l"><span class="tag" title="código e descrição da unidade que a loja vende (vínculo caixa → unidade)">LOJA</span>${item.unidade ? `<span class="cod">${item.unidade}</span>${item.unidade === cod ? '<span class="mut">mesmo código</span>' : esc(item.descricaoUn || '')}` : `<span class="m-bad">sem vínculo · <a onclick="event.stopPropagation();irVinculo('${cod}')">vincular</a></span>`}</div>`;
   // 2ª linha: selos e avisos
   const flags = [];
   if (item.origem === 'repor') {
@@ -364,7 +367,7 @@ function linha(item, lojasCols, idx) {
   }).join('');
   return `<tr class="lst${item.cdInsuficiente ? ' insuf' : ''}${tot ? ' pede' : ' zero'}${idx % 2 ? ' alt' : ''}" data-cod="${cod}" onclick="toggleSel('${cod}',!SEL.has('${cod}'))">
     <td class="c" onclick="event.stopPropagation()"><input type="checkbox" ${sel ? 'checked' : ''} onchange="toggleSel('${cod}',this.checked)"></td>
-    <td class="prod"><b>${esc(item.descricaoCD)}</b>${meta1}${meta2}</td>
+    <td class="prod">${linhaCD}${linhaLoja}${meta2}</td>
     <td class="r" title="${item.estoqueCDem === 'un' ? (upc > 1 ? 'o CD conta em unidades: ' + fmtN(item.estoqueCDun) + ' un ÷ ' + (item.unPorCaixa || 1) + ' = caixas' : 'vende por unidade: o CD conta em unidades') : 'o CD já conta em caixas/fardos'}"><b>${fmtN(item.estoqueCDcx)}</b>${item.estoqueCDem === 'un' ? `<div class="s2">${upc > 1 ? fmtN(item.estoqueCDun) + ' un' : 'un'}</div>` : ''}</td>
     <td class="c" title="${item.custoDe === 'tabela' ? 'preço da Tabela Retirada (tabela 1 do ERP) por caixa — é o valor que vai no pedido pras lojas' : 'item SEM preço na Tabela Retirada: vai pelo custo de compra do CD; cadastre o item na tabela no ERP'}"><span class="vlr${item.custoCDcx && item.custoDe === 'tabela' ? '' : ' na'}">${item.custoCDcx ? fmtR(item.custoCDcx) : '—'}</span>${item.custoCDcx && upc > 1 ? `<div class="s2" style="text-align:center">${fmtR(item.custoCDun)}/un</div>` : ''}${item.custoCDcx && item.custoDe !== 'tabela' ? '<div class="s2" style="text-align:center;color:#C22F49;font-weight:700">sem tabela · custo</div>' : ''}</td>
     <td class="r"><b>${fmtN(tot)}</b> <span class="mut">${upc > 1 ? 'cx' : 'un'}</span>${upc > 1 ? `<div class="s2">= ${fmtN(tot * upc)} un</div>` : ''}</td>
