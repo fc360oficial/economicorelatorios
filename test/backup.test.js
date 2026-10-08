@@ -194,7 +194,10 @@ test('extra com estado.json recente (tarefa agendada): nao roda o script, mostra
   const estadoExt = path.join(m.raiz, 'estado-cahu.json');
   const fake = execFake(reg);
   iniciar(m, async (cmd, args) => {
-    if (cmd === process.execPath) return { stdout: '{"inicio":"' + new Date().toISOString() + '","arquivo":"D:/x/cahu-novo.zip","bytes":10,"nuvem":{"status":"ok"}}\n' };
+    if (cmd === process.execPath) {
+      reg.push({ cmd, args });
+      return { stdout: '{"inicio":"' + new Date().toISOString() + '","arquivo":"D:/x/cahu-novo.zip","bytes":10,"nuvem":{"status":"ok"}}\n' };
+    }
     return fake(cmd, args);
   });
   const cfgPath = path.join(m.dataDir, 'backup-config.json');
