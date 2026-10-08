@@ -56,6 +56,27 @@ body{font-family:var(--font);background:var(--pap);color:var(--ink);font-size:14
 .bar .s{font-size:11px;color:#AEB8CE}
 .bar .right{margin-left:auto;font-size:11px;color:#AEB8CE;text-align:right;flex:none}
 .bar .voltar{background:transparent;border:0;color:#AEB8CE;font:inherit;font-size:19px;font-weight:700;cursor:pointer;padding:0 6px 0 0;flex:none}
+/* layout 1 (Tiago, 08/10): totais e menu na barra, último bipe em destaque, botões fora do topo */
+.bar .ttl{min-width:0;flex:1}
+.bar .ttl .t,.bar .ttl .s{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar .tot{text-align:right;font-size:10.5px;color:#AEB8CE;line-height:1.2;flex:none;font-variant-numeric:tabular-nums}
+.bar .tot b{color:#fff;font-size:13.5px}
+.bar .menu{position:relative;flex:none;width:36px;height:36px;border-radius:8px;border:1px solid #2A3A5E;background:transparent;color:#fff;font-size:22px;font-weight:800;cursor:pointer;line-height:1;padding:0}
+.bar .menu .bdg{position:absolute;top:-7px;right:-7px}
+.ultimo{background:var(--amw);border:1.5px solid var(--am);border-radius:var(--r);padding:10px 12px;text-align:left;width:100%;font-family:var(--font);color:var(--ink);cursor:pointer;display:block}
+.ultimo .t{font-size:10.5px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--amk)}
+.ultimo .d{font-size:16px;font-weight:800;line-height:1.2;margin-top:2px}
+.ultimo .q{display:flex;align-items:baseline;gap:8px;margin-top:6px}
+.ultimo .q b{font-size:34px;font-weight:800;letter-spacing:-1px;line-height:1;font-variant-numeric:tabular-nums}
+.ultimo .q span{font-size:12px;color:var(--ink2)}
+.ultimo .m{font-size:11.5px;color:var(--ink2);margin-top:4px;font-variant-numeric:tabular-nums}
+.ultimo.e-bad{border-color:var(--neg);background:var(--negw)}
+.ultimo.e-bad .t,.ultimo.e-bad .q b{color:var(--neg)}
+.ultimo.vazio-u{background:var(--wsh);border:1.5px dashed var(--ln2);cursor:default}
+.ultimo.vazio-u .d{color:var(--ink3);font-weight:600;font-size:13.5px}
+.it[data-cod]{cursor:pointer}
+.menuAc{display:flex;flex-direction:column;gap:8px}
+.menuAc .btn{height:48px;font-size:14px}
 .acoes{display:flex;gap:8px;padding:10px 12px 2px}
 .acoes .btn{flex:1;min-width:0;white-space:normal;height:auto;min-height:42px;padding:8px 10px;line-height:1.2}
 .corpo{flex:1;overflow-y:auto;padding:10px 12px 24px;display:flex;flex-direction:column;gap:10px}
@@ -245,23 +266,21 @@ body{font-family:var(--font);background:var(--pap);color:var(--ink);font-size:14
   <div class="bar">
     <button class="voltar" onclick="voltarPedidos()" title="Voltar">‹</button>
     <div class="logo"><img src="/logo-supermercados-transp.png" alt="Econômico Supermercados"></div>
-    <div><div class="t" id="xTitulo">—</div><div class="s" id="xSub">—</div></div>
-    <div class="right"><span class="pill warn"><i></i>Cega</span></div>
-  </div>
-  <div class="acoes">
-    <button class="btn btn-secondary" onclick="escolherTirar()">Tirar da coletagem</button>
-    <button class="btn btn-primary" onclick="termineiExp()">Terminei o pedido</button>
+    <div class="ttl"><div class="t" id="xTitulo">—</div><div class="s" id="xSub">—</div></div>
+    <div class="tot"><b id="xProd">0</b> prod<br><b id="xUn">0</b> un</div>
+    <button class="menu" type="button" onclick="abrirMenuExp()" title="Terminei, tirar da coletagem">⋮</button>
   </div>
   <div class="corpo">
-    <div class="aviso ok" style="font-size:12px">Bipe <b>o que está separado</b>. A quantidade do pedido fica escondida.</div>
     <div class="scan" id="scanExp">
       <span class="ico">▮▯▮</span>
       <input id="bipExp" placeholder="Bipe a caixa (DUN-14) ou a unidade" autocomplete="off" inputmode="numeric" enterkeyhint="done">
       <button class="dig" id="btnDigitarExp" type="button" aria-pressed="true" onclick="toggleTeclado()" title="Ligar ou desligar o teclado do aparelho">Teclado</button>
     </div>
-    <div class="prog"><div>Você bipou <b id="xProd">0</b> produtos · <b id="xUn">0</b> unidades</div><div id="xTir" style="color:var(--amk)"></div></div>
+    <div class="prog"><div>Cega: a quantidade do pedido fica escondida</div><div id="xTir" style="color:var(--amk)"></div></div>
     <div id="xCartao"></div>
+    <div id="xUltimo"></div>
     <div id="xFora"></div>
+    <div class="pendTit" id="xAntesTit" hidden></div>
     <div class="itens" id="xItens"></div>
   </div>
 </div>
@@ -300,26 +319,24 @@ body{font-family:var(--font);background:var(--pap);color:var(--ink);font-size:14
   <div class="bar">
     <button class="voltar" onclick="voltarNotas()" title="Voltar">‹</button>
     <div class="logo"><img src="/logo-supermercados-transp.png" alt="Econômico Supermercados"></div>
-    <div><div class="t" id="bTitulo">—</div><div class="s" id="bSub">—</div></div>
-    <div class="right" id="bPill"></div>
-  </div>
-  <div class="acoes">
-    <button class="btn btn-secondary" onclick="escolherCorrigir()">Corrigir qtd</button>
-    <button class="btn btn-secondary" id="btnChat" onclick="abrirChat()">Chamar central</button>
-    <button class="btn btn-primary" onclick="terminei()">Terminei a nota</button>
+    <div class="ttl"><div class="t" id="bTitulo">—</div><div class="s" id="bSub">—</div></div>
+    <div class="tot"><b id="pProd">0</b> prod<br><b id="pUn">0</b> un</div>
+    <button class="menu" type="button" onclick="abrirMenuBip()" title="Terminei, central, corrigir">⋮<span class="bdg" id="bBadge" hidden></span></button>
   </div>
   <div class="corpo">
     <div class="scan" id="scanBox">
       <span class="ico">▮▯▮</span>
-      <input id="bip" placeholder="Bipe o código de barras" autocomplete="off" inputmode="numeric" enterkeyhint="done">
+      <input id="bip" placeholder="Bipe o próximo produto" autocomplete="off" inputmode="numeric" enterkeyhint="done">
       <button class="dig" id="btnDigitar" type="button" aria-pressed="true" onclick="toggleTeclado()" title="Ligar ou desligar o teclado do aparelho">Teclado</button>
     </div>
     <div class="prog">
-      <div>Você bipou <b id="pProd">0</b> produtos · <b id="pUn">0</b> unidades<span id="pNota"></span></div>
+      <div id="pNota"></div>
       <div id="pFila" style="color:var(--amk)"></div>
     </div>
     <div id="pDescartes" class="descartes" hidden></div>
     <div id="cartao"></div>
+    <div id="bUltimo"></div>
+    <div class="pendTit" id="bAntesTit" hidden></div>
     <div class="itens" id="bItens"></div>
     <div id="bNota"></div>
   </div>
@@ -625,10 +642,24 @@ function renderExp() {
   const fora = visaoExp.fora || [];
   $('xFora').innerHTML = fora.length ? `<div class="aviso"><b>${fora.length === 1 ? '1 produto bipado não é do pedido.' : fora.length + ' produtos bipados não são do pedido.'}</b> Tire do caminhão e use "Tirar da coletagem".</div>` + fora.map(f => `<div class="it e-bad"><div class="stripe"></div><div><div class="d">${esc(f.descricao)}</div><div class="c">${esc(f.cod)} · fora do pedido · lote ${esc((f.lotes || []).map(l => l.lote).join(', '))}</div></div><div class="q"><b>${num(f.un)} un</b><small>${num(f.quant)} × ${num(f.emb)}</small></div></div>`).join('') : '';
   const itens = (visaoExp.itens || []).slice().reverse();
-  $('xItens').innerHTML = itens.length ? itens.map(i => { const e = ESTADO_EXP[i.estado] || ['', '']; const lotes = (i.lotes || []).map(l => l.lote + (i.lotes.length > 1 ? ' (' + num(l.un) + ')' : '')).join(', ');
-    return `<div class="it ${e[0]}"><div class="stripe"></div><div><div class="d">${esc(i.descricao)}</div><div class="c">${esc([i.cod, lotes ? 'lote ' + lotes : null, e[1]].filter(Boolean).join(' · '))}</div></div><div class="q"><b>${num(i.un)} un</b><small>${num(i.quant)} × ${num(i.emb)}</small></div></div>`; }).join('')
-    : '<div class="vazio">Bipe a primeira caixa. Só o que você bipar aparece aqui.</div>';
+  const metaExp = i => { const e = ESTADO_EXP[i.estado] || ['', '']; const lotes = (i.lotes || []).map(l => l.lote + (i.lotes.length > 1 ? ' (' + num(l.un) + ')' : '')).join(', '); return [e[0], [i.cod, lotes ? 'lote ' + lotes : null, e[1]].filter(Boolean).join(' · ')]; };
+  // Último bipe em destaque (layout 1): o produto que acabou de entrar vira o cartão grande.
+  const ult = ultimoBipadoExp && itens.find(i => i.cod === ultimoBipadoExp);
+  $('xUltimo').innerHTML = ult ? (m => `<div class="ultimo ${m[0]}" style="cursor:default"><div class="t">Último bipe</div><div class="d">${esc(ult.descricao)}</div><div class="q"><b>${num(ult.un)}</b><span>un · ${num(ult.quant)} × ${num(ult.emb)}</span></div><div class="m">${esc(m[1])}</div></div>`)(metaExp(ult))
+    : itens.length ? '' : '<div class="ultimo vazio-u"><div class="t">Último bipe</div><div class="d">Bipe a primeira caixa. Só o que você bipar aparece aqui.</div></div>';
+  const antes = ult ? itens.filter(i => i !== ult) : itens;
+  $('xAntesTit').hidden = !antes.length; $('xAntesTit').textContent = 'Bipados antes · ' + antes.length;
+  $('xItens').innerHTML = antes.map(i => { const m = metaExp(i);
+    return `<div class="it ${m[0]}"><div class="stripe"></div><div><div class="d">${esc(i.descricao)}</div><div class="c">${esc(m[1])}</div></div><div class="q"><b>${num(i.un)} un</b><small>${num(i.quant)} × ${num(i.emb)}</small></div></div>`; }).join('');
   setNet(navigator.onLine);
+}
+let ultimoBipadoExp = null; // cod do último bipe gravado na expedição (vai pro cartão em destaque)
+function abrirMenuExp() {
+  if (!visaoExp) return;
+  abrirModal(`<h3>Pedido #${esc(visaoExp.nPedido)}</h3><div class="menuAc">
+    <button class="btn btn-primary" onclick="fecharModal();termineiExp()">Terminei o pedido</button>
+    <button class="btn btn-secondary" onclick="escolherTirar()">Tirar da coletagem</button>
+    <button class="btn btn-ghost" onclick="fecharModal();focarExp()">Voltar pro bipe</button></div>`);
 }
 function focarExp() { if (tela !== 'exp' || cartaoExp || $('modal').innerHTML) return; const b = $('bipExp'); b.focus(); $('scanExp').classList.add('focus'); }
 ligarBipe($('bipExp'), lerCodigoExp);
@@ -673,7 +704,7 @@ async function gravarCartaoExp() {
   fecharCartaoExp();
   try {
     const r = await postExp('bipar', { id: visaoExp.id, cod: c.cod, quant, emb, lote, bipeId: novoBipeId() });
-    if (r.visao) visaoExp = r.visao; renderExp(); const a = AVISO_EXP[r.resultado]; if (a) toast(a[0], a[1]); setNet(true);
+    if (r.visao) visaoExp = r.visao; ultimoBipadoExp = c.cod; renderExp(); const a = AVISO_EXP[r.resultado]; if (a) toast(a[0], a[1]); setNet(true);
   } catch (e) { toast(e.message || 'Não deu pra gravar o bipe', true); if (!e.status) setNet(false); }
   focarExp();
 }
@@ -786,28 +817,54 @@ const ESTADO = {
 function renderBip() {
   if (!visao) return;
   $('bTitulo').textContent = visao.fornecedor || '—';
-  $('bSub').textContent = 'NF-e ' + visao.nNota + ' · Loja ' + sess.loja;
-  $('bPill').innerHTML = notaAtual && notaAtual.tipo === 'devolucao' ? `<span class="pill ${PILL.devolucao[0]}"><i></i>${esc(PILL.devolucao[1])}</span>` : '';
+  $('bSub').innerHTML = esc('NF-e ' + visao.nNota + ' · Loja ' + sess.loja) + (notaAtual && notaAtual.tipo === 'devolucao' ? ` <span class="pill ${PILL.devolucao[0]}"><i></i>${esc(PILL.devolucao[1])}</span>` : '');
   $('pProd').textContent = visao.produtos;
   $('pUn').textContent = num(visao.unidades);
   // Lista do que veio na nota (06/10/26, Tiago): só código e descrição, NUNCA quantidade — e nunca
   // "bateu/não bateu" por item antes do Terminei, senão a quantidade vaza pelo status.
   const naNota = visao.nota_itens || [];
   const pend = naNota.filter(n => !n.bipado);
-  $('pNota').textContent = !naNota.length ? '' : pend.length ? ' · faltam ' + pend.length + ' da nota' : ' · todos os da nota bipados';
+  $('pNota').textContent = !naNota.length ? '' : pend.length ? 'Faltam ' + pend.length + ' da nota' : 'Todos os da nota bipados';
   const itens = (visao.itens || []).slice().reverse();
-  $('bItens').innerHTML = itens.length ? itens.map(i => {
-    const e = ESTADO[i.estado] || ['', ''];
-    const lotes = (i.lotes || []).filter(l => l.lote);
-    const meta = [i.cod, lotes.length ? 'lote ' + lotes.map(l => l.lote + (lotes.length > 1 ? ' (' + num(l.un) + ')' : '') + (l.validade ? ' vence ' + dataBr(l.validade) : '')).join(', ') : (i.validade ? 'vence ' + dataBr(i.validade) : null), e[1] || null].filter(Boolean).join(' · ');
-    return `<div class="it ${e[0]}"><div class="stripe"></div>
-      <div><div class="d">${esc(i.descricao)}</div><div class="c">${esc(meta)}</div></div>
-      <div class="q"><b>${num(i.un)} un</b><small>${num(i.quant)} × ${num(i.emb)}</small></div></div>`;
-  }).join('') : `<div class="vazio">Bipe o primeiro produto.${naNota.length ? ' O que veio na nota está listado abaixo — sem quantidades: conte de verdade.' : ' Só o que você bipar aparece aqui.'}</div>`;
+  // Último bipe em destaque (layout 1, Tiago 08/10): o produto que acabou de entrar vira o cartão
+  // grande logo abaixo do campo; os outros ficam em "Bipados antes". Toque em qualquer um corrige.
+  const ult = ultimoBipado && itens.find(i => i.cod === ultimoBipado.cod);
+  $('bUltimo').innerHTML = ult ? cartaoUltimo(ult)
+    : ultimoBipado ? `<div class="ultimo vazio-u"><div class="t">Último bipe</div><div class="d">${esc(ultimoBipado.descricao || ultimoBipado.cod)}</div><div class="m">${esc(ultimoBipado.cod)} · ainda sem quantidade</div></div>`
+    : `<div class="ultimo vazio-u"><div class="t">Último bipe</div><div class="d">Bipe o primeiro produto.${naNota.length ? ' O que veio na nota está listado abaixo, sem quantidades: conte de verdade.' : ' Só o que você bipar aparece aqui.'}</div></div>`;
+  const antes = ult ? itens.filter(i => i !== ult) : itens;
+  $('bAntesTit').hidden = !antes.length; $('bAntesTit').textContent = 'Bipados antes · ' + antes.length;
+  $('bItens').innerHTML = antes.map(i => { const e = ESTADO[i.estado] || ['', ''];
+    return `<div class="it ${e[0]}" data-cod="${esc(i.cod)}" onclick="corrigirItem(this.dataset.cod)"><div class="stripe"></div>
+      <div><div class="d">${esc(i.descricao)}</div><div class="c">${esc(metaItem(i, true))}</div></div>
+      <div class="q"><b>${num(i.un)} un</b><small>${num(i.quant)} × ${num(i.emb)}</small></div></div>`; }).join('');
   $('bNota').innerHTML = pend.length ? '<div class="pendTit">Veio na nota · ainda não bipado (' + pend.length + ')</div><div class="itens">' +
     pend.map(p => `<div class="it pend"><div class="stripe"></div><div><div class="d">${esc(p.descricao || p.cod)}</div><div class="c">${esc(p.cod)}</div></div><div class="q"><small>bipar</small></div></div>`).join('') + '</div>' : '';
   atualizarBadge(); renderDescartes();
   setNet(navigator.onLine);
+}
+function metaItem(i, comEstado) {
+  const e = ESTADO[i.estado] || ['', ''];
+  const lotes = (i.lotes || []).filter(l => l.lote);
+  return [i.cod, lotes.length ? 'lote ' + lotes.map(l => l.lote + (lotes.length > 1 ? ' (' + num(l.un) + ')' : '') + (l.validade ? ' vence ' + dataBr(l.validade) : '')).join(', ') : (i.validade ? 'vence ' + dataBr(i.validade) : null), comEstado && e[1] || null].filter(Boolean).join(' · ');
+}
+function cartaoUltimo(i) {
+  const e = ESTADO[i.estado] || ['', ''];
+  return `<button type="button" class="ultimo ${e[0]}" data-cod="${esc(i.cod)}" onclick="corrigirItem(this.dataset.cod)">
+    <div class="t">Último bipe${e[1] ? ' · ' + esc(e[1]) : ''}</div>
+    <div class="d">${esc(i.descricao)}</div>
+    <div class="q"><b>${num(i.un)}</b><span>un · ${num(i.quant)} × ${num(i.emb)}</span></div>
+    <div class="m">${esc(metaItem(i, false))} · toque pra corrigir</div></button>`;
+}
+// Menu da barra (⋮): o que antes eram três botões no topo da tela.
+function abrirMenuBip() {
+  if (!visao) return;
+  const n = naoLidas();
+  abrirModal(`<h3>NF-e ${esc(visao.nNota)}</h3><div class="menuAc">
+    <button class="btn btn-primary" onclick="fecharModal();terminei()">Terminei a nota</button>
+    <button class="btn btn-secondary" id="btnChat" onclick="abrirChat()">Chamar central${n ? ' <span class="bdg">' + n + '</span>' : ''}</button>
+    <button class="btn btn-secondary" onclick="escolherCorrigir()">Corrigir quantidade</button>
+    <button class="btn btn-ghost" onclick="fecharModal()">Voltar pro bipe</button></div>`);
 }
 const dataBr = s => { const p = String(s || '').split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0].slice(2) : String(s || ''); };
 
@@ -1017,9 +1074,9 @@ function naoLidas() {
 }
 function marcarLidas() { if (!visao || !chatAberto) return; const em = ultimaCentralEm(visao); if (em) vistos[visao.id] = em; salvarVistos(); atualizarBadge(); }
 function atualizarBadge() {
-  const b = $('btnChat'); if (!b) return;
   const n = naoLidas();
-  b.innerHTML = 'Chamar central' + (n ? ' <span class="bdg">' + n + '</span>' : '');
+  const bb = $('bBadge'); if (bb) { bb.textContent = n || ''; bb.hidden = !n; } // bolinha no ⋮ da barra
+  const b = $('btnChat'); if (b) b.innerHTML = 'Chamar central' + (n ? ' <span class="bdg">' + n + '</span>' : ''); // dentro do menu, se aberto
 }
 
 const horaMsg = em => { try { return new Date(em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; } };
