@@ -519,7 +519,7 @@ function renderTabela(rows,vazio){
         '<td class="r"><b>'+money(l.venda_dia)+'</b></td>'+
         '<td class="r" title="produtos com venda e estoque zero">'+(l.rupturas?'<b class="neg">'+l.rupturas+'</b>':'<span class="mut">0</span>')+'</td>'+
         '<td class="r">'+transitoHtml(l)+'</td>'+
-        '<td class="r">'+(lead&&lead.lead_medio!=null?'<b>'+fmt(lead.lead_medio)+' d</b><div class="s2" title="lead médio do pedido à nota nos últimos 12 meses · máximo '+lead.lead_max+' d">máx '+lead.lead_max+' · '+lead.sugestoes+' sug.</div>':leadFonteHtml(l))+'</td></tr>';
+        '<td class="r">'+(lead&&lead.lead_medio!=null?'<b>'+fmt(lead.lead_medio)+' d</b> <span class="info" title="'+esc('Lead médio do pedido à nota nos últimos 12 meses: '+fmt(lead.lead_medio)+' d · máximo '+lead.lead_max+' d · '+lead.sugestoes+' sugestões no histórico')+'">i</span>':leadFonteHtml(l))+'</td></tr>';
     }
     if(aberta===l.lista) h+='<tr class="det"><td colspan="'+(COLS.length+1)+'"><div class="box" id="det-'+l.lista+'"><div class="spinner"></div></div></td></tr>';
   }
@@ -652,7 +652,10 @@ function recalcLista(j){ j.total=+j.itens.reduce((a,i)=>a+i.total,0).toFixed(2);
 // de onde veio o ponto/alvo quando a lista não tem lead próprio (Tiago, 01/10/26: lista → item → fornecedor → rede)
 function leadFonteNome(f){ return f==='item'?'lead do item':f==='fornecedor'?'lead do fornecedor':f==='rede'?'lead da rede':f==='padrao'?'parâmetros digitados':''; }
 function leadFonteTitulo(f){ return f==='item'?'Produto com histórico próprio: lead = pedido → entrada deste produto (qualquer lista, 12 m); ciclo = intervalo entre as entradas dele.':f==='fornecedor'?'Lista sem pedido fechado em 12 m: ponto e alvo vêm do lead das outras listas deste fornecedor.':f==='rede'?'Lista e fornecedor sem histórico: ponto e alvo vêm da mediana das listas da rede.':f==='padrao'?'Cobertura e prazo digitados na Cotação.':''; }
-function leadFonteHtml(l){ if(!l.lead_fonte||l.lead_fonte==='lista') return '—'; return '<span class="pill p-cinza" title="'+leadFonteTitulo(l.lead_fonte)+'">'+leadFonteNome(l.lead_fonte)+'</span>'+(l.ok?'<div class="s2">ponto '+fmt(l.ponto)+' d</div>':'')+(l.lead_itens?'<div class="s2">'+l.lead_itens+(l.lead_itens>1?' itens':' item')+' c/ lead próprio</div>':''); }
+function leadFonteHtml(l){ if(!l.lead_fonte||l.lead_fonte==='lista') return '—';
+  // Tiago, 09/10: sublinhas cinzas viram ⓘ (mesmo padrão de Fazer em e Cobertura)
+  const t=[leadFonteTitulo(l.lead_fonte)]; if(l.ok) t.push('Ponto de pedido '+fmt(l.ponto)+' d'); if(l.lead_itens) t.push(l.lead_itens+(l.lead_itens>1?' itens':' item')+' com lead próprio');
+  return '<span class="pill p-cinza" title="'+esc(t[0])+'">'+leadFonteNome(l.lead_fonte)+'</span> <span class="info" title="'+esc(t.join(' · '))+'">i</span>'; }
 // "Pedido por loja" (Tiago, 01/10/26: "no cabeçalho deveria ser mais organizado quanto tá dando de pedido por loja e em todas
 // as lojas"): um quadro por loja com R$, itens e volumes do que está sendo pedido ali, e um quadro navy com o total da rede.
 // Recalculado a cada edição de quantidade / troca de modo (mesma hora do resumo). Loja em E1..E6 (regra do Tiago, 22/09).
