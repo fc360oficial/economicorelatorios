@@ -261,6 +261,7 @@ body.rg-on{overflow:hidden}
 /* colunas Status · Lista/fornecedor · Comprador(a) (Tiago, 07/10) */
 table.main-t td.st{white-space:normal;min-width:84px;max-width:190px;vertical-align:middle}table.main-t td.st .pill{white-space:normal;line-height:1.3;max-width:100%;text-align:center}table.main-t td.st .fl{display:flex;flex-wrap:wrap;gap:3px;justify-content:center;align-items:center}
 table.main-t td.comp{white-space:normal;max-width:130px;font-size:12px;font-weight:700;color:#4E5A72;line-height:1.25}
+table.main-t td.nl{white-space:nowrap;width:1%;font-weight:800;color:#4E5A72;font-variant-numeric:tabular-nums}
 </style>
 <link rel="stylesheet" href="/compras-layout.css"><!-- escala comum das 3 telas de compras (Radar → Análise → Pedidos): ver CLAUDE.md -->
 </head>
@@ -483,7 +484,7 @@ function render(){
   if(tab==='regras') return renderRegras();
 }
 const COLS=[
-  ['status','Status','c st'],['fornecedor','Fornecedor · nº da lista',''],['comprador','Comprador(a)','comp'],['fazer_em','Fazer em','c'],['pedido_valor','Pedido (custo)','r'],
+  ['status','Status','c st'],['lista','Nº','c nl'],['fornecedor','Fornecedor',''],['comprador','Comprador(a)','comp'],['fazer_em','Fazer em','c'],['pedido_valor','Pedido (custo)','r'],
   ['cobertura_dias','Cobertura','r sep'],['estoque_hoje','Estoque (custo)','r'],['venda_dia','Venda/dia','r'],['rupturas','Rupturas','r'],['transito_valor','Trânsito','r'],['lead','Lead','r']
 ];
 // Tiago, 01/10/26: tabela mais simples — um número por célula, a sublinha explica; ponto/alvo/ciclo completos ficam no hover;
@@ -505,12 +506,13 @@ function renderTabela(rows,vazio){
     h+='<tr class="lst'+(aberta===l.lista?' open':'')+'" data-l="'+l.lista+'">'+
       '<td class="sel c"><input type="checkbox" class="selrow" data-l="'+l.lista+'" '+(SEL.has(l.lista)?'checked':'')+'></td>'+
       '<td class="c st">'+(pills||fl?'<div class="fl">'+pills+(fl?' '+fl:'')+'</div>':'<span class="mut">—</span>')+'</td>'+
-      '<td class="lc" title="'+esc('Lista '+l.lista+': '+(l.nome||''))+'"><div class="nm">'+esc(forn||l.nome)+'<span>#'+l.lista+'</span></div></td>'+   // Tiago, 07/10: só fornecedor e nº da lista; a descrição fica no hover
+      '<td class="c nl" title="'+esc('Lista '+l.lista+': '+(l.nome||''))+'">'+l.lista+'</td>'+   // Tiago, 09/10: nº da lista em coluna própria
+      '<td class="lc" title="'+esc('Lista '+l.lista+': '+(l.nome||''))+'"><div class="nm">'+esc(forn||l.nome)+'</div></td>'+   // Tiago, 07/10: só fornecedor e nº da lista; a descrição fica no hover
       '<td class="comp" title="comprador(a) da lista">'+esc(l.comprador||'—')+'</td>'+
       '<td class="c">'+pillDia(l)+'</td>';
     if(!l.ok){
       const expl=/sem venda/.test(l.motivo||'')?'nenhum item da lista vendeu nos '+((DATA.estado.janela||{}).dias||40)+' dias: nada a calcular':/sem lead/.test(l.motivo||'')?'sem pedido fechado em 12 meses nesta lista, no fornecedor e na rede: o radar não sabe o prazo de entrega':'sem cálculo pro radar';
-      h+='<td class="semcalc" colspan="'+(COLS.length-4)+'">'+expl+(l.transito_itens?' · já em trânsito '+money(l.transito_valor)+' ('+l.transito_itens+(l.transito_itens>1?' itens':' item')+')':'')+(lead&&lead.lead_medio!=null?' · lead '+fmt(lead.lead_medio)+' d':'')+'</td></tr>';
+      h+='<td class="semcalc" colspan="'+(COLS.length-5)+'">'+expl+(l.transito_itens?' · já em trânsito '+money(l.transito_valor)+' ('+l.transito_itens+(l.transito_itens>1?' itens':' item')+')':'')+(lead&&lead.lead_medio!=null?' · lead '+fmt(lead.lead_medio)+' d':'')+'</td></tr>';
     } else {
       const dif=l.diferenca||0;
       h+='<td class="r"><b>'+money(l.pedido_valor)+'</b><div class="s2">'+l.pedido_itens+' de '+l.com_venda+' itens</div></td>'+
@@ -525,7 +527,7 @@ function renderTabela(rows,vazio){
   }
   h+='</tbody></table></div>';
   $('#view').innerHTML=h;
-  document.querySelectorAll('th[data-k]').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(sortK===k)sortD=-sortD;else{sortK=k;sortD=(k==='nome'||k==='fornecedor'||k==='comprador')?1:(k==='fazer_em'||k==='cobertura_dias'?1:-1)}render();});
+  document.querySelectorAll('th[data-k]').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(sortK===k)sortD=-sortD;else{sortK=k;sortD=(k==='nome'||k==='fornecedor'||k==='comprador'||k==='lista')?1:(k==='fazer_em'||k==='cobertura_dias'?1:-1)}render();});
   document.querySelectorAll('tr.lst[data-l]').forEach(tr=>tr.onclick=(e)=>{if(e.target.closest('.sel'))return;const id=+tr.dataset.l;aberta=aberta===id?null:id;render();if(aberta)carregarItens(aberta);});
   document.querySelectorAll('input.selrow').forEach(cb=>cb.onchange=()=>{const id=+cb.dataset.l;if(cb.checked)SEL.add(id);else SEL.delete(id);atualizarSel(rows);});
   const sa=document.getElementById('selall'); if(sa) sa.onchange=()=>{for(const r of rows){if(sa.checked)SEL.add(r.lista);else SEL.delete(r.lista);}render();};
