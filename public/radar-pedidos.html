@@ -245,11 +245,11 @@ table.main-t td.sel input,table.main-t th.sel input{width:15px;height:15px;accen
 .rg-step{display:flex;gap:12px;background:#fff;border:1px solid #DADAD6;border-radius:10px;padding:12px 14px;align-items:flex-start;min-width:0}
 .rg-step .n{flex:none;width:26px;height:26px;border-radius:8px;background:#0E1626;color:#F5B800;font-weight:800;font-size:13px;display:inline-flex;align-items:center;justify-content:center}
 .rg-step b{font-size:13.5px;display:block;margin-bottom:3px}.rg-step .t{font-size:12.5px;color:#4E5A72;line-height:1.45}.rg-step .t b{display:inline;font-size:inherit;color:#0E1626}.rg-step .pill{font-size:9.5px;padding:0 5px;margin:0 1px}
-#rg-body .grid2{grid-template-columns:3fr 1fr;gap:10px;flex:1;min-height:0;align-items:stretch}#rg-body .card{display:flex;flex-direction:column}#rg-body .card h3{font-size:13px;padding:9px 14px}
-#rg-body .meth{display:block;flex:1;font-size:12px;line-height:1.5;padding:10px 14px 6px}#rg-body .meth>div{break-inside:avoid;margin-bottom:6px}
-#rg-body .card:first-child .meth{columns:3;column-gap:20px}
-@media(max-width:1400px){#rg-body .card:first-child .meth{columns:2}}
-@media(max-width:1100px){#rg-body .grid2{grid-template-columns:1fr}.rg-steps{grid-template-columns:repeat(2,minmax(0,1fr))}}
+#rg-body .rg-rules{flex:1;min-height:0;display:flex;flex-direction:column;overflow:auto;margin-bottom:10px}
+#rg-body .rg-h{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#4E5A72;margin:2px 0 6px;break-after:avoid}
+#rg-body .meth{display:block;flex:1;font-size:clamp(12.5px,1.5vh,15px);line-height:1.55;padding:12px 16px 8px;columns:3;column-gap:26px}#rg-body .meth>div{break-inside:avoid;margin-bottom:7px}
+@media(max-width:1400px){#rg-body .meth{columns:2}}
+@media(max-width:1100px){#rg-body .meth{columns:1}.rg-steps{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .rg-insp{display:flex;gap:20px;align-items:center;padding:18px 26px;background:linear-gradient(90deg,#FFF1BF,#FFF8E1);border-top:3px solid #F5B800;flex:none}   /* Tiago, 09/10: "deixa maior, tá muito escondida" */
 .rg-insp img{width:68px;height:68px;border-radius:14px;background:#fff;object-fit:contain;padding:5px;flex:none;border:1px solid #EFD98F;box-shadow:0 4px 14px -6px rgba(107,78,0,.5)}
 .rg-insp-t{font-size:19px;font-weight:800;color:#0E1626;letter-spacing:-.3px;line-height:1.25}.rg-insp-s{font-size:14px;color:#6B4E00;margin-top:5px;line-height:1.5;max-width:140ch}
@@ -831,7 +831,13 @@ function guiaPassosHtml(){
   ];
   return '<div class="rg-steps">'+P.map((p,i)=>'<div class="rg-step"><div class="n">'+(i+1)+'</div><div><b>'+p[0]+'</b><div class="t">'+p[1]+'</div></div></div>').join('')+'</div>';
 }
-function abrirRegras(){ $('#rg-body').innerHTML='<div class="rg-sec">Como usar · 4 passos</div>'+guiaPassosHtml()+'<div class="rg-sec">Como o radar decide · fontes e limites</div>'+regrasHtml(); $('#rg').hidden=false; document.body.classList.add('rg-on'); }
+function abrirRegras(){
+  // no guia, os dois cards da aba Regras viram um bloco só em colunas equilibradas, pra preencher o card até a faixa (Tiago, 09/10)
+  const tmp=document.createElement('div'); tmp.innerHTML=regrasHtml();
+  const blocos=[...tmp.querySelectorAll('.card')].map(c=>'<div class="rg-h">'+esc(c.querySelector('h3').textContent)+'</div>'+c.querySelector('.meth').innerHTML).join('');
+  $('#rg-body').innerHTML='<div class="rg-sec">Como usar · 4 passos</div>'+guiaPassosHtml()+'<div class="rg-sec">Como o radar decide · fontes e limites</div><div class="card rg-rules"><div class="meth">'+blocos+'</div></div>';
+  $('#rg').hidden=false; document.body.classList.add('rg-on');
+}
 function fecharRegras(){ $('#rg').hidden=true; document.body.classList.remove('rg-on'); }
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&!$('#rg').hidden) fecharRegras(); });
 
