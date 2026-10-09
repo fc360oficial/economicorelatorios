@@ -67,6 +67,8 @@ test('cabeçalho: itens por nota e contagem compra × bonificação', () => {
   assert.equal(nf(2537087).itens_lancados, 2); assert.equal(nf(2537087).movimentacao, 'COMPRA');
   assert.equal(nf(2536775).itens_lancados, 2); assert.equal(nf(2536775).movimentacao, 'BONIFICACAO');
   assert.equal(r.checks.coletor.nivel, 'ok', r.checks.coletor.msg);
+  // a lista mostra o que veio na bonificação (item × quantidade), separado da compra
+  assert.deepEqual(r.bonif_itens.map(i => [i.descricao, i.qtd]).sort(), [['BOM LEITE COALHADA', 6], ['BOM LEITE POLPA', 6]].sort());
 });
 
 test('nota ainda não lançada: bonificação sai do CFOP 5910 do XML', () => {
