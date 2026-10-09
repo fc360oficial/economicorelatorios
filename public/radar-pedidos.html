@@ -258,6 +258,8 @@ table.main-t td.sel input,table.main-t th.sel input{width:15px;height:15px;accen
 .rg-foot{display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:8px 26px 10px;border-top:1px solid #DADAD6;background:#fff;font-size:11.5px;flex:none}.rg-foot .btn{padding:8px 16px;margin-left:auto;order:2}   /* botão à direita (Tiago, 09/10) */
 body.rg-on{overflow:hidden}
 @media print{#rg{display:none!important}}
+/* produto da lista desativado no cadastro do ERP (Tiago, 09/10: "tem Clorito 2L e 5L na lista e não está aqui") */
+.det .hd-des{padding:7px 14px;background:#FBEAED;color:#C22F49;font-size:12px;line-height:1.45;border-bottom:1px solid #E5B4BD}.det .hd-des .mut{color:#A64A5C}
 /* sem embalagem padrão (Tiago, 09/10): vermelho, no topo */
 .det table.ppg tr.cx-sem>td.prod>b{color:#C22F49}.det table.ppg tr.cx-sem input.embi{border:1px solid #C22F49;background:#FFF5F6;color:#C22F49}
 .det table.ppg tr.sec.semcx>td,.det table.ppg tbody tr.sec.semcx:hover>td{background:#FBEAED!important;color:#C22F49}
@@ -641,7 +643,8 @@ async function carregarItens(id){
     j.itens.sort((a,b)=>grp(a)-grp(b)||String(a.descricao||'').localeCompare(String(b.descricao||''),'pt-BR'));
     const nRisco=j.itens.filter(i=>i.risco_a).length, nA=j.itens.filter(i=>i.bloco_a).length, nX=j.itens.filter(i=>grp(i)===-1).length;
     let h='<div class="hd"><div><b class="lnk" title="Abrir cadastro da lista no ERP (fornecedor, vendedor, comprador, prazo)" onclick="event.stopPropagation();abrirCadastro('+id+')">'+esc(L.nome)+' ↗</b>'+(L.pedidoMinimo?' · pedido mínimo R$ '+fmt(L.pedidoMinimo,0):'')+(j.gatilho==='curva_a'?' · <span class="pill p-a">antecipada por curva A</span> <span style="opacity:.8">era pra '+j.fazer_em_lista+' d pela regra dos 10% da venda</span>':'')+'</div>'+
-      '<div id="hdr-'+id+'">'+hdResumo(id)+'</div></div>'+'<div class="hdlj" id="hdl-'+id+'">'+hdLojas(id)+'</div>';
+      '<div id="hdr-'+id+'">'+hdResumo(id)+'</div></div>'+'<div class="hdlj" id="hdl-'+id+'">'+hdLojas(id)+'</div>'
+      +(L.desativados&&L.desativados.length?'<div class="hd-des">⛔ '+L.desativados.length+' produto'+(L.desativados.length>1?'s':'')+' desta lista '+(L.desativados.length>1?'estão desativados':'está desativado')+' no cadastro do ERP e '+(L.desativados.length>1?'ficam':'fica')+' fora do radar: <b>'+esc(L.desativados.map(d=>d.descricao).join(', '))+'</b> <span class="mut">(reative no Dlinks pra entrar no cálculo)</span></div>':'');   // Tiago, 09/10
     const porL=porLojaR(j);
     h+='<div style="overflow-x:auto" class="cxw '+cxfClasse()+' '+cdfClasse()+'"><table class="ppg one"><thead><tr><th class="l">Produto</th><th class="r" title="Último custo de compra no ERP (o Radar não tem preço cotado)">Últ. compra</th><th class="c" title="Caixa padrão (unidades por caixa): digite e dê Enter — grava pro produto e pula pro de baixo">Emb</th>'+LJ.map(ln=>'<th class="lj" title="Quantidade a pedir na loja '+ln+' · '+esc(LOJAS_NOMES[ln]||'')+'">'+esc(LOJAS_NOMES[ln]||('E'+ln))+'<small id="th-tl-'+id+'-'+ln+'">'+(porL[ln]&&porL[ln].rs>0?money(porL[ln].rs):'—')+'</small><em class="thmin" id="th-mn-'+id+'-'+ln+'">'+minTh(L.pedidoMinimo,porL[ln]?porL[ln].rs:0)+'</em></th>').join('')+'</tr></thead><tbody>';
     const NC=LJ.length+3; let idx=0;   // Tiago, 09/10: Trânsito, Qtd e Total saíram do detalhe
