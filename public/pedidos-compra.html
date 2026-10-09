@@ -231,7 +231,8 @@ function datasMov(p,modo){ const ds=[];
   for(const x of lojas){ if(!x) continue;
     // conferidoEm só quando conciliou (em consistência ele é reescrito a cada ciclo de 30 min e viraria "movimento" todo dia);
     // a chegada do XML conta pela data de emissão da nota
-    if(x.status==='conciliado') ds.push(x.conferidoEm); ds.push(x.aceito?.em); for(const n of x.notas||[]) ds.push(n.data);
+    // na API da lista `notas` é um NÚMERO (contagem) e a lista vem em notas_det — percorrer o número quebrava a tela inteira (09/10)
+    if(x.status==='conciliado') ds.push(x.conferidoEm); ds.push(x.aceito?.em||x.aceitoEm); for(const n of (Array.isArray(x.notas)?x.notas:(x.notas_det||[]))) ds.push(n.data);
     const c=x.chegou; if(c) ds.push(c.em,c.detectadoEm,c.horaEntrada,c.fechadaEm,c.horaFecho); }
   return ds.map(dLocal).filter(Boolean); }
 const dataRef=p=>{ const ds=datasMov(p,filtro); return ds.length?new Date(Math.max(...ds)):(dLocal(p.criadoEm)||new Date(0)); };   // último movimento (ordena e agrupa)
