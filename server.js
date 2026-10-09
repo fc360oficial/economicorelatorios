@@ -8377,6 +8377,17 @@ app.get('/api/fiscal/recebimentos/:nReg', async (req, res) => {
     res.json(r);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+// PDF do Pedido de Compra do APP, dentro do módulo Fiscal (Tiago, 09/10: quem usa o Fiscal não tem a tela de
+// Pedidos de Compra — o "abrir pedido" da nota abre o PDF, por loja, em vez de mandar pra tela de Compras).
+app.get('/api/fiscal/pedido-compra/:id/pdf', async (req, res) => {
+  const p = pedidosFornec.obter(parseInt(req.params.id));
+  if (!p || p.teste || !['aprovado', 'recebido', 'recebido_parcial'].includes(p.status)) return res.status(404).json({ error: 'Pedido não encontrado' });
+  const ln = parseInt(req.query.loja) || 0;
+  if (ln && fiscalNegaLoja(req, res, ln)) return;
+  let f = pedidosFornec.caminhoPdf(p.id, ln);
+  if (!f) { try { f = await pedidosFornec.gerarPdf(p, ln); } catch (e) { return res.status(500).json({ error: e.message }); } }
+  res.sendFile(f, { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="pedido-${p.id}${ln ? '-L' + ln : ''}.pdf"` } });
+});
 app.post('/api/fiscal/recebimentos/:nReg/decisao', async (req, res) => {
   try {
     const n = fiscalReg(req); if (!n) return res.status(400).json({ error: 'nº de conferência inválido' });
