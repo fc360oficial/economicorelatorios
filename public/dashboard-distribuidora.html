@@ -76,6 +76,9 @@
   .card-hd h3{font-size:12.5px;font-weight:800;margin:0}.card-hd small{font-size:10.5px;color:var(--ink3)}
   .card-hd .k{margin-left:auto;font-size:11px;font-weight:800;padding:2px 9px;border-radius:999px;background:var(--negw);color:var(--neg);white-space:nowrap}
   .card-hd .k.ok{background:var(--posw);color:var(--pos)}.card-hd .k.nt{background:#EBEBE9;color:var(--ink2)}
+  .card-hd .tl{margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap}.card-hd .tl~.k{margin-left:0}
+  .tb{font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;border:1px solid var(--ln2,#C9C9C4);background:#fff;color:var(--ink2);cursor:pointer;font-family:inherit;line-height:1.5}
+  .tb:hover{background:#FFF6D9;border-color:var(--am,#F5B800)}select.tb{max-width:190px;padding:3px 8px}select.tb.on{background:var(--ink,#0E1626);color:#fff;border-color:var(--ink,#0E1626)}
   .card-bd{padding:6px 0;overflow:auto;max-height:520px}.card-bd.tall{max-height:none}
   table.m{width:100%;border-collapse:collapse;font-size:12px}
   table.m th{padding:6px 9px;text-align:left;font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--ink3);border-bottom:1px solid var(--ln,#DADAD6);white-space:nowrap;position:sticky;top:0;background:#fff;z-index:1}
@@ -186,7 +189,7 @@
     <div class="card" style="margin-top:12px"><div class="card-hd"><h3>Maiores clientes do mês</h3><small id="cli-top-sub">curva ABC pela venda do mês · clique no cliente pra ver as notas</small><span class="k nt" id="k-cli-top"></span></div><div class="card-bd" id="c-cli-top"><div class="spin"></div></div></div>
     <div class="row c2" style="margin-top:12px">
       <div class="card"><div class="card-hd"><h3>Novos no mês</h3><small>primeira compra no mês</small><span class="k ok" id="k-cli-novos"></span></div><div class="card-bd" id="c-cli-novos"><div class="spin"></div></div></div>
-      <div class="card"><div class="card-hd"><h3>Sumiram</h3><small>compravam e estão há 30+ dias sem pedir · maior compra no ano primeiro</small><span class="k" id="k-cli-sumidos"></span></div><div class="card-bd" id="c-cli-sumidos"><div class="spin"></div></div></div>
+      <div class="card"><div class="card-hd"><h3>Sumiram</h3><small>compravam e estão há 30+ dias sem pedir · maior compra no ano primeiro</small><div class="tl"><select class="tb" id="sum-vend" onchange="renderSumidos()" title="Mostrar só os clientes de um vendedor"><option value="">Todos os vendedores</option></select><button class="tb" onclick="imprimirSumidos()" title="Abre a lista pra imprimir — na janela de impressão escolha “Salvar como PDF”">🖨 Imprimir / PDF</button><button class="tb" onclick="baixarSumidosCSV()" title="Baixa a lista em CSV (abre no Excel)">⬇ CSV</button></div><span class="k" id="k-cli-sumidos"></span></div><div class="card-bd" id="c-cli-sumidos"><div class="spin"></div></div></div>
     </div>
     <div class="row c2" style="margin-top:12px">
       <div class="card"><div class="card-hd"><h3>Por cidade</h3><small>clientes que compraram no mês</small></div><div class="card-bd" id="c-cli-cidade"><div class="spin"></div></div></div>
@@ -396,8 +399,7 @@ function renderCli() {
     + c.top.map(x => '<tr class="cp" data-cli="' + x.cli + '" onclick="cliDetalhe(this)"><td>' + x.rank + '</td><td class="p"><span class="car">▸</span>' + esc(x.nome) + (x.nova ? ' <span class="pill ok">novo</span>' : '') + '<small>' + esc([x.cidade, x.bairro].filter(Boolean).join(' · ')) + '</small></td><td>' + esc(x.vend) + '</td><td class="r">' + n0(x.n) + '</td><td class="r"><b>' + money(x.v) + '</b><span class="ant">' + pct(x.pct) + '</span></td><td class="r">' + mg(x.margem) + '</td><td class="r">' + money(x.ticket) + '</td><td class="r">' + (x.vAnt ? money(x.vAnt) + '<span class="ant"><b class="' + cls(x.v - x.vAnt) + '">' + sgn((x.v / x.vAnt - 1) * 100) + '</b></span>' : '<span class="mut">—</span>') + '</td><td>' + df(x.ult) + '</td><td class="r">' + pct(x.acum, 0) + '</td><td><span class="pill ' + (x.classe === 'A' ? 'a' : x.classe === 'B' ? 'inf' : 'nt') + '">' + x.classe + '</span></td></tr>').join('') + '</tbody></table>' : empty('Nenhum pedido faturado no mês.');
   k('k-cli-novos', c.novos.length, true);
   el('c-cli-novos').innerHTML = c.novos.length ? '<table class="m"><thead><tr><th>Cliente</th><th>Vendedor</th><th>1ª compra</th><th class="r">Pedidos</th><th class="r">Valor</th></tr></thead><tbody>' + c.novos.map(x => '<tr class="cp" data-cli="' + x.cli + '" onclick="cliDetalhe(this)"><td class="p"><span class="car">▸</span>' + esc(x.nome) + '<small>' + esc(x.cidade) + '</small></td><td>' + esc(x.vend) + '</td><td>' + df(x.primeira) + '</td><td class="r">' + n0(x.n) + '</td><td class="r"><b>' + money(x.v) + '</b></td></tr>').join('') + '</tbody></table>' : empty('Nenhum cliente novo no mês.');
-  k('k-cli-sumidos', c.sumidos.length ? c.sumidos.length + ' clientes' : 'nenhum', !c.sumidos.length);
-  el('c-cli-sumidos').innerHTML = c.sumidos.length ? '<table class="m"><thead><tr><th>Cliente</th><th>Vendedor</th><th>Última</th><th class="r">Dias</th><th class="r">Pedidos no ano</th><th class="r">Comprou no ano</th></tr></thead><tbody>' + c.sumidos.map(x => '<tr class="cp bad" data-cli="' + x.cli + '" onclick="cliDetalhe(this)"><td class="p"><span class="car">▸</span>' + esc(x.nome) + '<small>' + esc(x.cidade) + '</small></td><td>' + esc(x.vend) + '</td><td>' + df(x.ult) + '</td><td class="r dn">' + x.dias + '</td><td class="r">' + n0(x.nAno) + '</td><td class="r"><b>' + money(x.vAno) + '</b><span class="ant">média ' + money(x.media) + '</span></td></tr>').join('') + '</tbody></table>' : empty('Nenhum cliente sumido. ✓');
+  renderSumidos(true);
   const maxC = Math.max(...c.porCidade.map(x => x.v), 1);
   el('c-cli-cidade').innerHTML = c.porCidade.length ? '<table class="m"><thead><tr><th>Cidade</th><th class="r">Clientes</th><th class="r">Pedidos</th><th class="r">Venda</th><th class="r">%</th><th></th></tr></thead><tbody>' + c.porCidade.map(x => '<tr><td class="p">' + esc(x.cidade) + '</td><td class="r">' + n0(x.clientes) + '</td><td class="r">' + n0(x.n) + '</td><td class="r"><b>' + money(x.v) + '</b></td><td class="r">' + pct(x.pct) + '</td><td>' + bar(x.v, maxC) + '</td></tr>').join('') + '</tbody></table>' : empty('sem dados');
   el('c-cli-vend').innerHTML = c.porVendedor.length ? '<table class="m"><thead><tr><th>Vendedor</th><th class="r">Ativos no mês</th><th class="r">Ativos 90 d</th><th class="r">Novos</th><th class="r">Sumiram</th><th class="r">Venda no mês</th></tr></thead><tbody>' + c.porVendedor.map(x => '<tr><td class="p">' + esc(x.nome) + '</td><td class="r"><b>' + n0(x.ativosMes) + '</b></td><td class="r">' + n0(x.ativos90) + '</td><td class="r up">' + (x.novos || '') + '</td><td class="r dn">' + (x.sumidos || '') + '</td><td class="r"><b>' + money(x.v) + '</b></td></tr>').join('') + '</tbody></table>' : empty('sem dados');
@@ -417,6 +419,53 @@ async function vendDetalhe(td, per) {
       + (ns.length ? '<table class="m"><thead><tr><th>Data</th><th>Nota</th><th>Cliente</th><th>Forma</th><th class="r">Valor</th><th class="r">Margem</th></tr></thead><tbody>'
         + ns.map(n => '<tr><td>' + dow(n.d) + ' ' + df(n.d) + (n.hora ? ' ' + hm(n.hora) : '') + '</td><td>' + nfLink(n.nn, n.chave) + '</td><td class="p">' + esc(n.cliente) + '</td><td>' + esc(n.forma) + '</td><td class="r"><b>' + money(n.v) + '</b></td><td class="r">' + mg(n.margem) + '</td></tr>').join('') + '</tbody></table>' : '<div class="empty">Sem nota no período.</div>');
   } catch (e) { if (det.isConnected) det.firstChild.innerHTML = '<div class="empty">erro: ' + esc(e.message) + '</div>'; }
+}
+/* ── Sumiram: filtro por vendedor + imprimir/PDF + CSV (Tiago, 09/10: "posso trazer por vendedor? e imprimir em pdf ou baixar?" — pra mandar a lista
+   pra cada vendedor ficar ciente dos clientes dele que pararam de comprar) ── */
+function sumidosSel() { const s = el('sum-vend'); return s ? s.value : ''; }
+function sumidosLista() { const c = (D.clientes || {}), v = sumidosSel(); return (c.sumidos || []).filter(x => !v || x.vend === v); }
+function renderSumidos(novoDado) {
+  const c = D.clientes || {}, todos = c.sumidos || [], sel = el('sum-vend');
+  if (novoDado && sel) { // repovoa o select mantendo a escolha (vendedor com mais sumidos primeiro)
+    const atual = sel.value, cnt = {}; for (const x of todos) cnt[x.vend] = (cnt[x.vend] || 0) + 1;
+    sel.innerHTML = '<option value="">Todos os vendedores</option>' + Object.entries(cnt).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([n, q]) => '<option value="' + esc(n) + '">' + esc(n) + ' (' + q + ')</option>').join('');
+    sel.value = [...sel.options].some(o => o.value === atual) ? atual : '';
+  }
+  const v = sumidosSel(), lista = sumidosLista(); if (sel) sel.classList.toggle('on', !!v);
+  k('k-cli-sumidos', !todos.length ? 'nenhum' : v ? lista.length + ' de ' + todos.length + ' clientes' : todos.length + ' clientes', !todos.length);
+  el('c-cli-sumidos').innerHTML = lista.length ? '<table class="m"><thead><tr><th>Cliente</th><th>Vendedor</th><th>Última</th><th class="r">Dias</th><th class="r">Pedidos no ano</th><th class="r">Comprou no ano</th></tr></thead><tbody>' + lista.map(x => '<tr class="cp bad" data-cli="' + x.cli + '" onclick="cliDetalhe(this)"><td class="p"><span class="car">▸</span>' + esc(x.nome) + '<small>' + esc(x.cidade) + '</small></td><td>' + esc(x.vend) + '</td><td>' + df(x.ult) + '</td><td class="r dn">' + x.dias + '</td><td class="r">' + n0(x.nAno) + '</td><td class="r"><b>' + money(x.vAno) + '</b><span class="ant">média ' + money(x.media) + '</span></td></tr>').join('') + '</tbody></table>' : empty(todos.length ? 'Nenhum cliente sumido desse vendedor. ✓' : 'Nenhum cliente sumido. ✓');
+}
+function sumidosArq() { const v = sumidosSel(); return 'sumiram-' + (v ? v.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') : 'todos') + '-' + new Date().toISOString().slice(0, 10); }
+function imprimirSumidos() {
+  const lista = sumidosLista(); if (!lista.length) return toast('Nada pra imprimir');
+  const v = sumidosSel(), c = D.clientes || {}, hoje = new Date().toLocaleDateString('pt-BR'), tot = lista.reduce((s, x) => s + x.vAno, 0), totN = lista.reduce((s, x) => s + x.nAno, 0);
+  const linhas = lista.map((x, i) => '<tr><td class="r mut">' + (i + 1) + '</td><td><b>' + esc(x.nome) + '</b><small>' + esc(x.cidade) + (x.bairro ? ' · ' + esc(x.bairro) : '') + '</small></td>' + (v ? '' : '<td>' + esc(x.vend) + '</td>') + '<td>' + dfa(x.ult) + '</td><td class="r dn">' + x.dias + '</td><td class="r">' + n0(x.nAno) + '</td><td class="r"><b>' + money(x.vAno) + '</b></td><td class="r">' + money(x.media) + '</td><td class="ob"></td></tr>').join('');
+  const html = '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Clientes que sumiram' + (v ? ' · ' + esc(v) : '') + '</title><style>'
+    + 'body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#0E1626;margin:0;padding:22px 26px;font-size:11.5px}'
+    + 'h1{font-size:17px;margin:0 0 2px}.sub{color:#6B6B66;font-size:11px;margin-bottom:12px}.sub b{color:#0E1626}'
+    + '.res{display:flex;gap:18px;margin:0 0 14px;padding:8px 12px;background:#F5F5F3;border-radius:8px}.res div{font-size:10px;color:#6B6B66;text-transform:uppercase;letter-spacing:.4px}.res div b{display:block;font-size:14px;color:#0E1626;letter-spacing:0}'
+    + 'table{width:100%;border-collapse:collapse}th{font-size:9px;text-transform:uppercase;letter-spacing:.4px;color:#6B6B66;text-align:left;padding:5px 7px;border-bottom:1.5px solid #C9C9C4;background:#EBEBE9;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
+    + 'td{padding:5px 7px;border-bottom:1px solid #E6E6E2;vertical-align:middle;font-variant-numeric:tabular-nums}td small{display:block;color:#6B6B66;font-size:9.5px}.r{text-align:right}th.r{text-align:right}.dn{color:#C0392B;font-weight:800}.mut{color:#9A9A95}td.ob{width:120px}'
+    + 'tr.tot td{border-top:2px solid #C9C9C4;font-weight:800;background:#FAFAF8}tr{break-inside:avoid}thead{display:table-header-group}'
+    + '.acts{position:fixed;top:10px;right:14px;display:flex;gap:6px}.acts button{font:inherit;font-weight:700;padding:6px 14px;border-radius:999px;border:1px solid #C9C9C4;background:#fff;cursor:pointer}.acts button.p{background:#F5B800;border-color:#F5B800}'
+    + '@media print{.acts{display:none}body{padding:0}@page{margin:12mm}}</style></head><body>'
+    + '<div class="acts"><button class="p" onclick="window.print()">Imprimir / Salvar PDF</button><button onclick="window.close()">Fechar</button></div>'
+    + '<h1>Clientes que sumiram' + (v ? ' · ' + esc(v) : '') + '</h1>'
+    + '<div class="sub">CAHU Distribuidora · compravam e estão há <b>30+ dias</b> sem pedir (última compra nos últimos 120 dias) · ordem: maior compra no ano primeiro · emitido em ' + hoje + (c.ate ? ' · dados até ' + dfa(c.ate) : '') + '</div>'
+    + '<div class="res"><div>Clientes<b>' + lista.length + '</b></div><div>Vendedor<b>' + (v ? esc(v) : 'Todos') + '</b></div><div>Compraram no ano<b>' + money(tot) + '</b></div><div>Pedidos no ano<b>' + n0(totN) + '</b></div></div>'
+    + '<table><thead><tr><th class="r">#</th><th>Cliente</th>' + (v ? '' : '<th>Vendedor</th>') + '<th>Última compra</th><th class="r">Dias</th><th class="r">Pedidos no ano</th><th class="r">Comprou no ano</th><th class="r">Média / pedido</th><th>Contato / obs.</th></tr></thead><tbody>' + linhas
+    + '<tr class="tot"><td></td><td>Total · ' + lista.length + ' clientes</td>' + (v ? '' : '<td></td>') + '<td></td><td></td><td class="r">' + n0(totN) + '</td><td class="r">' + money(tot) + '</td><td></td><td></td></tr></tbody></table></body></html>';
+  const w = window.open('', '_blank'); if (!w) return alert('O navegador bloqueou a janela de impressão. Libere pop-ups pra este site.');
+  w.document.write(html); w.document.close();
+  w.onload = () => w.print(); setTimeout(() => { try { w.print(); } catch (e) {} }, 500);
+}
+function baixarSumidosCSV() {
+  const lista = sumidosLista(); if (!lista.length) return toast('Nada pra baixar');
+  const num = n => String(Number(n || 0).toFixed(2)).replace('.', ','), cel = s => '"' + String(s == null ? '' : s).replace(/"/g, '""') + '"';
+  const ls = [['Cliente', 'Cód.', 'Cidade', 'Bairro', 'Vendedor', 'Última compra', 'Dias sem pedir', 'Pedidos no ano', 'Comprou no ano', 'Média por pedido', 'Pedidos 90 d', 'Comprou 90 d'].map(cel).join(';')]
+    .concat(lista.map(x => [x.nome, x.cli, x.cidade, x.bairro, x.vend, dfa(x.ult), x.dias, x.nAno, num(x.vAno), num(x.media), x.n90, num(x.v90)].map(cel).join(';')));
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['\ufeff' + ls.join('\r\n')], { type: 'text/csv;charset=utf-8' })); a.download = sumidosArq() + '.csv'; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000); toast(lista.length + ' clientes baixados');
 }
 async function cliDetalhe(tr) {
   const nx = tr.nextElementSibling;
