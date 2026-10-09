@@ -8358,7 +8358,9 @@ app.get('/api/dp/ponto/resumo', async (req, res) => {
 // ═══════════════════════════════════════════════════
 const fiscal = require('./lib/fiscal');
 fiscal.init(q, { pedidos: () => pedidosFornec.listar(), recebimento: require('./lib/recebimento') });
-const fiscalPeriodo = req => { const ok = v => /^d{4}-d{2}-d{2}$/.test(v || ''); const de = ok(req.query.de) ? req.query.de : new Date().toISOString().slice(0, 10); const ate = ok(req.query.ate) && req.query.ate >= de ? req.query.ate : de; const r = escopo.resolverLoja(req.session.user, parseInt(req.query.loja) || null); return { de, ate, loja: r.loja, lojas: r.lojas }; };
+// 09/10/26: a regex estava sem as barras (/^d{4}-d{2}-d{2}$/), então nenhuma data passava e o servidor
+// respondia sempre o dia de hoje — trocar o dia ou o período na tela não mudava nada.
+const fiscalPeriodo = req => { const ok = v => /^\d{4}-\d{2}-\d{2}$/.test(v || ''); const de = ok(req.query.de) ? req.query.de : new Date().toISOString().slice(0, 10); const ate = ok(req.query.ate) && req.query.ate >= de ? req.query.ate : de; const r = escopo.resolverLoja(req.session.user, parseInt(req.query.loja) || null); return { de, ate, loja: r.loja, lojas: r.lojas }; };
 // trava de loja por usuário (lib/escopo.js): loja fora do cadastro = 403; lista = só as permitidas
 const fiscalErr = (res, err) => res.status(err.status || 500).json({ error: err.message });
 const fiscalNegaLoja = (req, res, loja) => { if (escopo.podeLoja(req.session.user, loja)) return false; res.status(403).json({ error: 'Sem permissão pra esta loja' }); return true; };
