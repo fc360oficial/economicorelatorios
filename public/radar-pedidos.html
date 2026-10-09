@@ -267,6 +267,8 @@ body.rg-on{overflow:hidden}
 /* coluna Emb no padrão da Cotação (Tiago, 09/10) */
 .det table.ppg .cxe{display:inline-flex;align-items:center;gap:4px;justify-content:center;white-space:nowrap}.det table.ppg .cxe .mut{font-size:11px}
 .det table.ppg input.embi{width:50px;text-align:center;font:inherit;font-size:12.5px;font-weight:700;padding:4px 4px;border:1px dashed #C9C9C4;border-radius:5px;background:#fff;color:#0E1626}.det table.ppg input.embi:focus{outline:none;border:1px solid #F5B800;background:#FFFDF3}
+/* busca de produto no cabeçalho (Tiago, 09/10) */
+.det table.ppg th.l input.prodq{display:block;margin:4px auto 0;width:94%;max-width:340px;font:inherit;font-size:12px;font-weight:500;padding:4px 8px;border:1px solid #C9C9C4;border-radius:6px;background:#fff;text-transform:none;letter-spacing:0;text-align:left}.det table.ppg th.l input.prodq:focus{outline:none;border-color:#F5B800;background:#FFFDF3}
 /* detalhe: colunas ABC e Status (Tiago, 09/10) */
 .det table.ppg td.abc{white-space:nowrap;font-size:12.5px}.det table.ppg td.abc b{font-weight:800}.det table.ppg .abc-a{color:#C22F49}.det table.ppg .abc-b{color:#B45C00}.det table.ppg .abc-c{color:#4E5A72}
 .det table.ppg th.abc small{display:block;font-size:9px;text-transform:none;letter-spacing:0;color:#98A0B3;font-weight:700;margin-top:1px}
@@ -632,6 +634,15 @@ function atualizarThLojasR(id){ const j=DETALHES[id]; if(!j) return; const por=p
 // Tiago, 09/10: "que nem na Cotação, quando eu clicar no nome da loja traz a tela só da loja" — tile da loja filtra o detalhe
 // (coluna e produtos dela); clicar de novo, ou em "Todas", volta às lojas todas. Guardado por lista enquanto a página está aberta.
 const LJF={};
+// Tiago, 09/10: "embaixo de Produto um filtro por descrição ou código de barras; vai puxando enquanto digita" — só esconde linhas,
+// não muda o pedido; guardado por lista enquanto a página está aberta
+const PRODQ={};
+const semAcento=t=>String(t||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+function filtrarProdR(inp){
+  const box=inp.closest('[id^="det-"]'), id=box?box.id.slice(4):null; if(id) PRODQ[id]=inp.value;
+  const q=semAcento(inp.value).trim(), tb=inp.closest('table')&&inp.closest('table').tBodies[0]; if(!tb) return;
+  for(const tr of tb.rows){ if(tr.classList.contains('sec')){ tr.style.display=q?'none':''; continue; } const td=tr.querySelector('td.prod'); if(!td) continue; tr.style.display=!q||semAcento(td.textContent).includes(q)?'':'none'; }
+}
 function verLojaR(id,ln){ LJF[id]=(ln&&LJF[id]!==ln)?ln:null; carregarItens(id); }
 async function carregarItens(id){
   const box=document.getElementById('det-'+id); if(!box) return;
@@ -651,7 +662,7 @@ async function carregarItens(id){
       '<div id="hdr-'+id+'">'+hdResumo(id)+'</div></div>'+'<div class="hdlj" id="hdl-'+id+'">'+hdLojas(id)+'</div>'
       +(L.desativados&&L.desativados.length?'<div class="hd-des">⚠ '+L.desativados.length+' produto'+(L.desativados.length>1?'s':'')+' desta lista '+(L.desativados.length>1?'estão desativados':'está desativado')+' no cadastro do ERP, mas '+(L.desativados.length>1?'entram':'entra')+' no cálculo porque '+(L.desativados.length>1?'estão':'está')+' na lista de compra (marcado'+(L.desativados.length>1?'s':'')+' com <b class="pill p-d">D</b>): <b>'+esc(L.desativados.map(d=>d.descricao).join(', '))+'</b></div>':'');   // Tiago, 09/10
     const porL=porLojaR(j);
-    h+='<div style="overflow-x:auto" class="cxw '+cxfClasse()+' '+cdfClasse()+'"><table class="ppg one"><thead><tr><th class="c abc" title="Curva ABC entre todos os produtos das listas, pela venda dos últimos 40 dias: quantidade / valor em R$. A = até 80 % do acumulado, B = até 95 %, C = o resto">ABC<small>qtd / R$</small></th><th class="l">Produto</th><th class="c st2" title="Selos do produto: A curva A · N novo na lista · D desativado no cadastro · CD tem no Centro de Distribuição">Status</th><th class="r" title="Último custo de compra no ERP (o Radar não tem preço cotado)">Últ. compra</th><th class="c" title="Caixa padrão (unidades por caixa): digite e dê Enter — grava pro produto e pula pro de baixo">Emb</th>'+LJ.map(ln=>'<th class="lj" title="Quantidade a pedir na loja '+ln+' · '+esc(LOJAS_NOMES[ln]||'')+'">'+esc(LOJAS_NOMES[ln]||('E'+ln))+'<small id="th-tl-'+id+'-'+ln+'">'+(porL[ln]&&porL[ln].rs>0?money(porL[ln].rs):'—')+'</small><em class="thmin" id="th-mn-'+id+'-'+ln+'">'+minTh(L.pedidoMinimo,porL[ln]?porL[ln].rs:0)+'</em></th>').join('')+'</tr></thead><tbody>';
+    h+='<div style="overflow-x:auto" class="cxw '+cxfClasse()+' '+cdfClasse()+'"><table class="ppg one"><thead><tr><th class="c abc" title="Curva ABC entre todos os produtos das listas, pela venda dos últimos 40 dias: quantidade / valor em R$. A = até 80 % do acumulado, B = até 95 %, C = o resto">ABC<small>qtd / R$</small></th><th class="l">Produto<input class="prodq" type="search" placeholder="buscar descrição ou código" title="Filtra os produtos desta lista enquanto você digita (descrição ou código de barras)" oninput="filtrarProdR(this)" onclick="event.stopPropagation()" onkeydown="event.stopPropagation()" autocomplete="off"></th><th class="c st2" title="Selos do produto: A curva A · N novo na lista · D desativado no cadastro · CD tem no Centro de Distribuição">Status</th><th class="r" title="Último custo de compra no ERP (o Radar não tem preço cotado)">Últ. compra</th><th class="c" title="Caixa padrão (unidades por caixa): digite e dê Enter — grava pro produto e pula pro de baixo">Emb</th>'+LJ.map(ln=>'<th class="lj" title="Quantidade a pedir na loja '+ln+' · '+esc(LOJAS_NOMES[ln]||'')+'">'+esc(LOJAS_NOMES[ln]||('E'+ln))+'<small id="th-tl-'+id+'-'+ln+'">'+(porL[ln]&&porL[ln].rs>0?money(porL[ln].rs):'—')+'</small><em class="thmin" id="th-mn-'+id+'-'+ln+'">'+minTh(L.pedidoMinimo,porL[ln]?porL[ln].rs:0)+'</em></th>').join('')+'</tr></thead><tbody>';
     const NC=LJ.length+5; let idx=0;   // Tiago, 09/10: Trânsito, Qtd e Total saíram do detalhe
     const hdA=!nA?'':'<tr class="sec'+(nRisco?' a':'')+'"><td colspan="'+NC+'">'+(nRisco?'Curva A em risco · '+nRisco+' de '+nA+' produto'+(nA>1?'s':'')+' A a pedir · em vermelho quem zera antes do dia da lista ou está no ponto de pedido (margem 1 d)':'Curva A a pedir · '+nA+' produto'+(nA>1?'s':'')+' · nenhum em risco hoje')+'</td></tr>';
     let secAtual=null; const nS=j.itens.filter(i=>grp(i)===1).length, nZ=j.itens.filter(i=>grp(i)===2).length, nGrupos=(nX?1:0)+(nA?1:0)+(nS?1:0)+(nZ?1:0);
@@ -678,6 +689,7 @@ async function carregarItens(id){
     }
     h+='</tbody></table></div>';
     box.innerHTML=h;
+    { const iq=box.querySelector('input.prodq'); if(iq&&PRODQ[id]){ iq.value=PRODQ[id]; filtrarProdR(iq); } }
     box.querySelectorAll('input.qin').forEach(inp=>{inp.addEventListener('click',e=>e.stopPropagation());inp.addEventListener('change',()=>aplicarEdicao(id,inp));inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();inp.blur();}});});
   }catch(e){ box.innerHTML='<div class="empty">'+esc(e.message)+'</div>'; }
 }
