@@ -7973,6 +7973,9 @@ app.post('/api/pedidos-fornecedor', async (req, res) => {
         it.volumes = it.qtd ? Math.ceil(it.qtd / (it.emb || 1)) : 0; it.total = +(it.qtd * it.custo).toFixed(2); it.editado = true;
       }
       if (!det.itens.some(i => i.qtd > 0)) { semItens.push({ lista: id, nome: det.lista.nome, motivo: 'nada a pedir hoje' }); continue; }
+      // Tiago, 09/10/26: só vai pra Análise de Compras com todo item pedido com embalagem padrão (caixa) preenchida
+      { const semCx = det.itens.filter(i => i.qtd > 0 && !(i.emb > 1) && !(i.emb_manual >= 1));
+        if (semCx.length) return res.status(409).json({ error: 'Lista ' + id + ' (' + det.lista.nome + ') tem ' + semCx.length + ' produto' + (semCx.length > 1 ? 's' : '') + ' sem embalagem padrão: preencha a caixa (UN × cx) no Radar antes de enviar. Ex.: ' + semCx.slice(0, 3).map(i => i.descricao).join(', ') + (semCx.length > 3 ? '…' : ''), sem_embalagem: { lista: id, itens: semCx.map(i => ({ cod: i.cod, descricao: i.descricao })) } }); }
       const cad = await cadastroLista(id).catch(() => null);
       const np = pedidosFornec.criar({ lista: det.lista, cadastro: cad, detalhe: det, teto, embMeses, usuario: req.session.user?.nome || null, modo: soCurvaA ? 'curva_a' : 'completa', origem: origemPedido, status: statusInicial });
       try { await pedidosFornec.anexarAvarias(np); } catch (e) { console.error('[PEDIDOS] avarias:', e.message); }
