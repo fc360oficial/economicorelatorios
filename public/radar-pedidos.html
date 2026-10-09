@@ -245,9 +245,9 @@ table.main-t td.sel input,table.main-t th.sel input{width:15px;height:15px;accen
 .rg-step{display:flex;gap:12px;background:#fff;border:1px solid #DADAD6;border-radius:10px;padding:12px 14px;align-items:flex-start;min-width:0}
 .rg-step .n{flex:none;width:26px;height:26px;border-radius:8px;background:#0E1626;color:#F5B800;font-weight:800;font-size:13px;display:inline-flex;align-items:center;justify-content:center}
 .rg-step b{font-size:13.5px;display:block;margin-bottom:3px}.rg-step .t{font-size:12.5px;color:#4E5A72;line-height:1.45}.rg-step .t b{display:inline;font-size:inherit;color:#0E1626}.rg-step .pill{font-size:9.5px;padding:0 5px;margin:0 1px}
-#rg-body .rg-rules{flex:1;min-height:0;display:flex;flex-direction:column;overflow:auto;margin-bottom:10px}
+#rg-body .rg-rules{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;margin-bottom:10px}
 #rg-body .rg-h{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#4E5A72;margin:2px 0 6px;break-after:avoid}
-#rg-body .meth{display:block;flex:1;font-size:clamp(12.5px,1.5vh,15px);line-height:1.55;padding:12px 16px 8px;columns:3;column-gap:26px}#rg-body .meth>div{break-inside:avoid;margin-bottom:7px}
+#rg-body .meth{display:block;flex:1;min-height:0;font-size:13px;line-height:1.5;padding:12px 16px 8px;columns:3;column-gap:26px;column-fill:balance}#rg-body .meth>div{break-inside:avoid;margin-bottom:7px}
 @media(max-width:1400px){#rg-body .meth{columns:2}}
 @media(max-width:1100px){#rg-body .meth{columns:1}.rg-steps{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .rg-insp{display:flex;gap:20px;align-items:center;padding:18px 26px;background:linear-gradient(90deg,#FFF1BF,#FFF8E1);border-top:3px solid #F5B800;flex:none}   /* Tiago, 09/10: "deixa maior, tá muito escondida" */
@@ -837,7 +837,19 @@ function abrirRegras(){
   const blocos=[...tmp.querySelectorAll('.card')].map(c=>'<div class="rg-h">'+esc(c.querySelector('h3').textContent)+'</div>'+c.querySelector('.meth').innerHTML).join('');
   $('#rg-body').innerHTML='<div class="rg-sec">Como usar · 4 passos</div>'+guiaPassosHtml()+'<div class="rg-sec">Como o radar decide · fontes e limites</div><div class="card rg-rules"><div class="meth">'+blocos+'</div></div>';
   $('#rg').hidden=false; document.body.classList.add('rg-on');
+  requestAnimationFrame(ajustarRegras);
 }
+// Tiago, 09/10: "ficou com barra de rolagem, não quero assim" — o bloco das regras mede o espaço e escolhe a maior fonte que cabe
+// (de 16 px pra baixo, até 10,5 px) sem estourar nem na altura nem em colunas extras; refaz ao redimensionar a janela.
+function ajustarRegras(){
+  const card=document.querySelector('#rg .rg-rules'), m=card&&card.querySelector('.meth'); if(!m||$('#rg').hidden) return;
+  card.style.overflow='hidden';
+  const estoura=()=>m.scrollHeight>m.clientHeight+1||m.scrollWidth>m.clientWidth+1;
+  let px=16; m.style.fontSize=px+'px';
+  while(px>10.5&&estoura()){ px-=0.25; m.style.fontSize=px+'px'; }
+  if(estoura()) card.style.overflow='auto';   // tela muito pequena: melhor rolar que cortar
+}
+let _rgT=null; window.addEventListener('resize',()=>{ clearTimeout(_rgT); _rgT=setTimeout(ajustarRegras,120); });
 function fecharRegras(){ $('#rg').hidden=true; document.body.classList.remove('rg-on'); }
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&!$('#rg').hidden) fecharRegras(); });
 
