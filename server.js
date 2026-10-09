@@ -2491,7 +2491,7 @@ app.get('/api/fornecedores/:id/avarias', async (req, res) => {
     try {
       const mm   = mesDB(mesSel);
       const prods = listaSel
-        ? await q(`SELECT DISTINCT cli.Codigobarra AS CodigoBarra FROM central.c_cotacao_lista_itens cli INNER JOIN central.itens it ON it.CodigoBarra = cli.Codigobarra AND it.CodDesativado = 0 WHERE cli.nCotacao = ?${lojaFlag}`, [listaSel])
+        ? await q(`SELECT DISTINCT cli.Codigobarra AS CodigoBarra FROM central.c_cotacao_lista_itens cli INNER JOIN central.itens it ON it.CodigoBarra = cli.Codigobarra WHERE cli.nCotacao = ?${lojaFlag}`, [listaSel])
         : await q(`SELECT DISTINCT CodigoBarra FROM central.fornecedoritens WHERE CodFornecedor=? AND Backup=0`, [id]);
       if (prods.length) {
         const ph = prods.map(() => '?').join(',');
@@ -3681,7 +3681,7 @@ app.get('/api/listas-compra/incompletas', async (req, res) => {
                             (SELECT MAX(TRIM(c.nome)) FROM central.c_cotacao_agenda_comprador c WHERE c.nLista=l.nReg) comprador,
                             (SELECT MAX(a.Nome) FROM central.c_cotacao_agenda a WHERE a.nLista=l.nReg) vendedor,
                             (SELECT MAX(a.whats) FROM central.c_cotacao_agenda a WHERE a.nLista=l.nReg) vendedor_whats,
-                            (SELECT COUNT(DISTINCT i.Codigobarra) FROM central.c_cotacao_lista_itens i JOIN central.itens it ON it.CodigoBarra=i.Codigobarra AND it.CodDesativado=0 WHERE i.nCotacao=l.nReg) itens
+                            (SELECT COUNT(DISTINCT i.Codigobarra) FROM central.c_cotacao_lista_itens i JOIN central.itens it ON it.CodigoBarra=i.Codigobarra WHERE i.nCotacao=l.nReg) itens
                           FROM central.c_cotacao_lista l ORDER BY l.Nome`);
     const num = v => { const n = parseFloat(String(v ?? '').replace(',', '.')); return isFinite(n) ? n : 0; };
     const listas = rows.map(r => {
@@ -5434,7 +5434,7 @@ app.get('/api/ruptura/debug-comprador', async (req, res) => {
       const ph = listIds.map(() => '?').join(',');
       const itens = await q(`SELECT COUNT(*) as c FROM central.c_cotacao_lista_itens WHERE nCotacao IN (${ph})`, listIds).catch(() => [{ c: -1 }]);
       itensCount = itens[0]?.c ?? 0;
-      const prods = await q(`SELECT COUNT(DISTINCT i.nInterno) as c FROM central.c_cotacao_lista_itens cli JOIN central.itens i ON i.CodigoBarra = cli.Codigobarra AND i.CodDesativado = 0 WHERE cli.nCotacao IN (${ph})`, listIds).catch(() => [{ c: -1 }]);
+      const prods = await q(`SELECT COUNT(DISTINCT i.nInterno) as c FROM central.c_cotacao_lista_itens cli JOIN central.itens i ON i.CodigoBarra = cli.Codigobarra WHERE cli.nCotacao IN (${ph})`, listIds).catch(() => [{ c: -1 }]);
       prodsCount = prods[0]?.c ?? 0;
     }
     res.json({ nome, listaRows, listIds, itensCount, prodsCount });
