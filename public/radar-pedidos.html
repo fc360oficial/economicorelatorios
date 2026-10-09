@@ -369,15 +369,17 @@ function lojasSel(){return [...document.querySelectorAll('#fLoja input:checked')
 function params(){const p=new URLSearchParams();const lj=lojasSel();if(lj.length&&lj.length<6)p.set('loja',lj.join(','));const g=$('#fGatilho').value;if(g&&+g!==20)p.set('gatilho',g);const c=$('#fComp').value;if(c)p.set('comprador',c);p.set('alvo',$('#fTeto').value||28);p.set('emb',$('#fEmb').value===''?36:$('#fEmb').value);if(!$('#fCurvaA').checked)p.set('curvaA','0');if(SEMI_LEAD){p.set('lead',SEMI_LEAD);if(SEMI_COB)p.set('cobertura',SEMI_COB);}return p;}
 const money2=v=>v==null?'—':'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 
-async function carregar(refresh){
-  $('#view').innerHTML='<div class="spinner"></div>';
+async function carregar(refresh,suave){
+  // suave = atualização em segundo plano enquanto o servidor recalcula: não troca a tabela pelo spinner e não mexe numa lista aberta (Tiago, 09/10)
+  if(suave&&aberta){ setTimeout(()=>carregar(false,true),20000); return; }
+  if(!suave) $('#view').innerHTML='<div class="spinner"></div>';
   const p=params(); if(refresh)p.set('refresh','1');
   try{
     const r=await fetch('/api/radar-pedidos?'+p.toString()); const j=await r.json(); PED_ABERTOS=j.pedidos_abertos||{};
     if(j.error) throw new Error(j.error);
     DATA=j; CURVAA=null; renderEstado(); renderTotais(); preencherCompradores(); render(); carregarCurvaA(); semiForm();
     if(ABRIR_LISTA&&j.estado.status==='ok'){ const id=ABRIR_LISTA; ABRIR_LISTA=null; if(DATA.listas.some(l=>l.lista===id)) abrirLista(id); else alert('Lista '+id+' não está no Radar (sem loja marcada, desativada ou sem itens ativos).'); }
-    if(j.estado.status!=='ok' && !refresh){ setTimeout(()=>carregar(false), 15000); }
+    if(!refresh){ if(j.estado.status!=='ok') setTimeout(()=>carregar(false), 15000); else if(j.estado.recalculando) setTimeout(()=>carregar(false,true), 20000); }
   }catch(e){ $('#view').innerHTML='<div class="empty">Erro: '+esc(e.message)+'</div>'; }
 }
 function preencherCompradores(){
@@ -388,6 +390,7 @@ function renderEstado(){
   const e=DATA.estado;
   if(e.status!=='ok'){ $('#estado').innerHTML='<span class="calc">'+(e.status==='calculando'?'Calculando… (1 a 3 min, a tela atualiza sozinha)':'Aguardando primeiro cálculo')+'</span>'+(e.erro?'<br>último erro: '+esc(e.erro):''); return; }
   $('#estado').innerHTML='Dados de <b>'+br(e.hoje)+'</b> · venda de '+br(e.janela.dIni)+' a '+br(e.janela.dFim)+' ('+e.janela.dias+' dias)<br>lead time de 12 meses calculado em <b>'+br(e.leadCalculadoEm)+'</b> · '+e.produtos.toLocaleString('pt-BR')+' produtos · '+e.leadListas+' listas com lead<br>atualizado '+new Date(e.atualizadoEm).toLocaleString('pt-BR')+(e.erro?' · <span class="neg">erro no último cálculo: '+esc(e.erro)+'</span>':'');
+  if(e.recalculando) $('#estado').insertAdjacentHTML('beforeend','<br><span class="calc" title="O servidor está recoletando lead, venda, estoque e trânsito do ERP (1 a 3 min). A tela continua com o último cálculo e troca sozinha quando terminar.">⟳ atualizando os dados · a tela continua usável</span>');
 }
 function renderTotais(){
   if(DATA.estado.status!=='ok'){$('#totais').innerHTML='';$('#nHoje').textContent='…';$('#nCal').textContent='…';return;}
