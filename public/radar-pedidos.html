@@ -231,6 +231,8 @@ table.main-t td.sel input,table.main-t th.sel input{width:15px;height:15px;accen
 .lojas-seg label:has(input:checked){background:#0E1626;color:#fff;box-shadow:0 1px 3px rgba(14,22,38,.2)}
 .lojas-seg label:has(input:focus-visible){outline:2px solid #F5B800;outline-offset:1px}
 .lojas-seg input{position:absolute;opacity:0;width:0;height:0;min-width:0;margin:0;padding:0;border:0;pointer-events:none}
+/* ⓘ da coluna Fazer em (Tiago, 09/10): círculo com i, informação no hover */
+.info{display:inline-flex;width:15px;height:15px;border-radius:50%;border:1px solid #98A0B3;color:#4E5A72;background:#fff;font-size:9.5px;font-weight:800;font-style:italic;align-items:center;justify-content:center;margin-left:5px;cursor:help;vertical-align:middle;line-height:1}.info:hover{border-color:#0E1626;color:#0E1626}
 /* colunas Status · Lista/fornecedor · Comprador(a) (Tiago, 07/10) */
 table.main-t td.st{white-space:normal;min-width:84px;max-width:190px;vertical-align:middle}table.main-t td.st .pill{white-space:normal;line-height:1.3;max-width:100%;text-align:center}table.main-t td.st .fl{display:flex;flex-wrap:wrap;gap:3px;justify-content:center;align-items:center}
 table.main-t td.comp{white-space:normal;max-width:130px;font-size:12px;font-weight:700;color:#4E5A72;line-height:1.25}
@@ -393,8 +395,11 @@ function pillA(l){
 }
 function pillDia(l){
   if(!l.ok) return '<span class="pill p-cinza">'+esc(l.motivo)+'</span>';
-  const pux=(l.lojas_puxam&&l.lojas_puxam.length&&lojasSel().length!==1)?'<div class="s2" title="'+esc('Dia de cada loja: '+Object.entries(l.fazer_em_lojas||{}).map(([k,v])=>etqLoja(k)+' '+v+' d').join(' · '))+'">puxada por '+l.lojas_puxam.map(etqLoja).join(', ')+'</div>':'';
-  const a=pux, de=l.gatilho==='curva_a'?'<div class="s2" title="Dia previsto pela regra do gatilho (% da venda no ponto)">era '+l.fazer_em_lista+' d</div>':'';
+  // Tiago, 09/10: a linha cinza "puxada por…" (e o "era N d" da curva A) sai da coluna e vira um ⓘ ao lado da pílula; o texto fica no hover
+  const infos=[];
+  if(l.lojas_puxam&&l.lojas_puxam.length&&lojasSel().length!==1) infos.push('Puxada por '+l.lojas_puxam.map(etqLoja).join(', ')+'. Dia de cada loja: '+Object.entries(l.fazer_em_lojas||{}).map(([k,v])=>etqLoja(k)+' '+v+' d').join(' · '));
+  if(l.gatilho==='curva_a') infos.push('Antecipada pela curva A: pela regra do gatilho (% da venda no ponto) seria em '+l.fazer_em_lista+' d');
+  const a=infos.length?' <span class="info" title="'+esc(infos.join(' — '))+'">i</span>':'', de='';
   if(l.fazer_em===0) return '<span class="pill p-hoje">HOJE</span>'+a+de;
   if(l.fazer_em<=3) return '<span class="pill p-breve">'+l.fazer_em+' d · '+l.dow+'</span>'+a+de;
   return '<span class="pill p-ok">'+l.fazer_em+' d · '+l.dow+' '+br(l.data).slice(0,5)+'</span>'+a+de;
