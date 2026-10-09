@@ -257,7 +257,7 @@ table.main-t td.sel input,table.main-t th.sel input{width:15px;height:15px;accen
 body.rg-on{overflow:hidden}
 @media print{#rg{display:none!important}}
 /* ⓘ da coluna Fazer em (Tiago, 09/10): círculo com i, informação no hover */
-.info{display:inline-flex;width:15px;height:15px;border-radius:50%;border:1px solid #98A0B3;color:#4E5A72;background:#fff;font-size:9.5px;font-weight:800;font-style:italic;align-items:center;justify-content:center;margin-left:5px;cursor:help;vertical-align:middle;line-height:1}.info:hover{border-color:#0E1626;color:#0E1626}
+.info{display:inline-flex;width:15px;height:15px;border-radius:50%;border:1px solid #98A0B3;color:#4E5A72;background:#fff;font-size:9.5px;font-weight:800;font-style:italic;align-items:center;justify-content:center;margin-left:5px;cursor:help;vertical-align:middle;line-height:1}.info:hover{border-color:#0E1626;color:#0E1626}.info.neg{border-color:#C22F49;color:#C22F49;background:#FBEAED}.info.pos{border-color:#137A48;color:#137A48;background:#E7F5EC}
 /* colunas Status · Lista/fornecedor · Comprador(a) (Tiago, 07/10) */
 table.main-t td.st{white-space:normal;min-width:84px;max-width:190px;vertical-align:middle}table.main-t td.st .pill{white-space:normal;line-height:1.3;max-width:100%;text-align:center}table.main-t td.st .fl{display:flex;flex-wrap:wrap;gap:3px;justify-content:center;align-items:center}
 table.main-t td.comp{white-space:normal;max-width:130px;font-size:12px;font-weight:700;color:#4E5A72;line-height:1.25}
@@ -461,7 +461,7 @@ function transitoHtml(l){
   if(!l.transito_itens) return '<span class="mut" title="Nenhum produto desta lista com pedido aberto no ERP (sugestão Status 0/1 nos últimos 30 dias)">—</span>';
   const lojas=(l.transito_lojas||[]).map(etqLoja).join(', ');
   const t='Já pedido no ERP e ainda não entrou: '+l.transito_itens+' produto(s) · '+fmt(l.transito_und,0)+' un · '+money(l.transito_valor)+' a custo · '+lojas+(l.transito_nfe?' · '+l.transito_nfe+' produto×loja com NF-e já emitida':'')+'. O radar já desconta isso do que pedir. Clique na lista pra ver por produto.';
-  return '<span class="pill p-transito" title="'+esc(t)+'">⏳ '+money(l.transito_valor)+'</span><div class="s2">'+l.transito_itens+' '+(l.transito_itens>1?'itens':'item')+' · '+lojas+(l.transito_nfe?' · <span class="pos">'+l.transito_nfe+' c/ NF-e</span>':'')+'</div>';
+  return '<span class="pill p-transito" title="'+esc(t)+'">⏳ '+money(l.transito_valor)+'</span> <span class="info'+(l.transito_nfe?' pos':'')+'" title="'+esc(l.transito_itens+' '+(l.transito_itens>1?'itens':'item')+' em trânsito · lojas '+lojas+(l.transito_nfe?' · '+l.transito_nfe+' com NF-e já emitida':'')+'. '+t)+'">i</span>';
 }
 function flagsHtml(l){
   const f=[]; const pa=pedidosAbertosHtml(l.lista); if(pa) f.push(pa); if(l.abaixo_minimo)f.push('<span class="pill p-m" title="'+esc('M = pedido abaixo do mínimo do fornecedor'+(l.pedido_minimo?' (mínimo '+money(l.pedido_minimo)+')':'')+': o valor calculado não chega ao pedido mínimo cadastrado')+'">M</span>');
@@ -517,7 +517,7 @@ function renderTabela(rows,vazio){
       const dif=l.diferenca||0;
       h+='<td class="r"><b>'+money(l.pedido_valor)+'</b> <span class="info" title="'+esc(l.pedido_itens+' de '+l.com_venda+' itens com venda entram no pedido')+'">i</span></td>'+
         '<td class="r sep" title="'+esc('ponto de pedido '+fmt(l.ponto)+' d · alvo '+fmt(l.alvo)+' d · ciclo '+fmt(l.ciclo)+' d · cobertura = estoque a custo ÷ venda/dia a custo')+'"><b class="'+(l.cobertura_dias<=l.ponto?'neg':'')+'">'+fmt(l.cobertura_dias)+' d</b> <span class="info" title="'+esc('Ponto de pedido '+fmt(l.ponto)+' d · alvo '+fmt(l.alvo)+' d · ciclo '+fmt(l.ciclo)+' d. Cobertura = estoque a custo ÷ venda/dia a custo')+'">i</span></td>'+
-        '<td class="r" title="'+esc('estoque hoje a custo dos itens com venda · alvo = '+money(l.estoque_alvo))+'"><b>'+money(l.estoque_hoje)+'</b><div class="s2 '+(dif>0?'neg':'pos')+'">'+(dif>0?'falta '+money(dif)+' pro alvo':money(Math.abs(dif))+' acima do alvo')+'</div></td>'+
+        '<td class="r" title="'+esc('estoque hoje a custo dos itens com venda · alvo = '+money(l.estoque_alvo))+'"><b>'+money(l.estoque_hoje)+'</b> <span class="info '+(dif>0?'neg':'pos')+'" title="'+esc((dif>0?'Falta '+money(dif)+' pra chegar ao alvo':money(Math.abs(dif))+' acima do alvo')+' · estoque a custo hoje × alvo '+money(l.estoque_alvo))+'">i</span></td>'+
         '<td class="r"><b>'+money(l.venda_dia)+'</b></td>'+
         '<td class="r" title="produtos com venda e estoque zero">'+(l.rupturas?'<b class="neg">'+l.rupturas+'</b>':'<span class="mut">0</span>')+'</td>'+
         '<td class="r">'+transitoHtml(l)+'</td>'+
