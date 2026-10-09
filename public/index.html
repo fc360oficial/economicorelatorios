@@ -241,7 +241,13 @@
   #s6 .card-hd{padding:11px 16px}#s6 .card-hd h3{font-size:13.5px}#s6 .card-hd small{font-size:11px}
   #s6 .card-bd{max-height:560px;overflow:auto}
   /* títulos dentro do detalhe: tabela mais larga que o card rola sozinha (Tiago, 08/10: "não está tendo a barra de rolagem pra ver até o final") */
-  #s6 .fin-scroll{overflow-x:auto;max-width:100%}#s6 .fin-scroll table.m{min-width:460px}
+  #s6 .fin-scroll{overflow-x:auto;max-width:100%}
+  /* tabela de títulos cabe sempre no card (Tiago, 09/10: "não consigo ver a informação"): colunas em %, fornecedor quebra linha, datas e valor não quebram */
+  #s6 table.fin-tit{width:100%;table-layout:fixed;min-width:0}
+  #s6 table.fin-tit th,#s6 table.fin-tit td{white-space:normal;overflow:visible;text-overflow:clip;max-width:none;word-break:break-word;padding:6px 8px}
+  #s6 table.fin-tit td.p{max-width:none;font-size:11.5px;line-height:1.25}
+  #s6 table.fin-tit td.dt,#s6 table.fin-tit th.r,#s6 table.fin-tit td.r{white-space:nowrap}
+  #s6 table.fin-tit tfoot td{white-space:nowrap}
   #s6 table.m{font-size:12.5px}
   #s6 table.m th{font-size:10px;letter-spacing:.5px;padding:8px 12px;background:#FAFAF8;color:var(--ink2)}
   #s6 table.m td{padding:8px 12px;border-bottom:1px solid #ECECEA;font-variant-numeric:tabular-nums}
@@ -981,8 +987,8 @@ async function finDetalhe(tr) {
     const ts = j.titulos || [];
     det.firstChild.innerHTML = ts.length
       ? '<div class="fin-det-h"><b>' + (loja ? LJ(loja) + ' ' + (NOMES[loja] || '') : 'Todas as lojas') + (gnome ? ' · ' + esc(gnome) : '') + '</b> · ' + ts.length + ' título' + (ts.length === 1 ? '' : 's') + ' · ' + (rng ? (pagIni <= '2001-01-01' ? 'vencidos: dia de pagamento até ' + df(pagFim) : pagFim >= '9999-01-01' ? 'paga de ' + df(pagIni) + ' em diante' : 'paga de ' + df(pagIni) + ' a ' + df(pagFim)) :'paga ' + DS[dow(pag)] + ' ' + df(pag)) + ' · ' + (tr.dataset.ord === 'venc' ? 'mais antigo primeiro' : rng ? 'por vencimento, maior valor primeiro' : 'maior valor primeiro') + ' · clique no fornecedor pra abrir o PDF da nota</div>'
-        + '<div class="fin-scroll"><table class="m"><thead><tr><th>Vence</th>' + (rng ? '<th>Paga</th>' : '') + '<th>Fornecedor</th><th>Documento</th><th class="r">Valor</th></tr></thead><tbody>'
-        + ts.map(t => '<tr><td>' + DS[dow(t.venc)] + ' ' + df(t.venc) + '</td>' + (rng ? '<td><b>' + DS[dow(t.pag)] + '</b> ' + df(t.pag) + '</td>' : '') + '<td class="p">' + finForn(t) + '</td><td>' + esc(t.doc || '') + '</td><td class="r"><b>' + money(t.valor) + '</b></td></tr>').join('')
+        + '<div class="fin-scroll"><table class="m fin-tit"><colgroup><col style="width:17%">' + (rng ? '<col style="width:15%">' : '') + '<col><col style="width:16%"><col style="width:24%"></colgroup><thead><tr><th>Vence</th>' + (rng ? '<th>Paga</th>' : '') + '<th>Fornecedor</th><th>Documento</th><th class="r">Valor</th></tr></thead><tbody>'
+        + ts.map(t => '<tr><td class="dt">' + DS[dow(t.venc)] + ' ' + df(t.venc) + '</td>' + (rng ? '<td class="dt"><b>' + DS[dow(t.pag)] + '</b> ' + df(t.pag) + '</td>' : '') + '<td class="p">' + finForn(t) + '</td><td>' + esc(t.doc || '') + '</td><td class="r"><b>' + money(t.valor) + '</b></td></tr>').join('')
         + '</tbody><tfoot><tr class="fin-tot"><td colspan="' + (rng ? 4 : 3) + '">Total</td><td class="r">' + money(j.total) + '</td></tr></tfoot></table></div>'
       : empty('Nenhum título em aberto.');
   } catch (e) { if (det.isConnected) det.firstChild.innerHTML = '<div class="empty">erro: ' + esc(e.message) + '</div>'; }
