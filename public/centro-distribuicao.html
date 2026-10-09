@@ -663,8 +663,9 @@ function renderEnvioCD(porLoja) {
 // situação da nota de entrada na loja (ERP): aberta em conferência / conferida aguardando central / fechada
 function notaLojaTxt(n) {
   const dt = x => x ? ' ' + x.slice(8, 10) + '/' + x.slice(5, 7) + (x.length > 10 ? ' ' + x.slice(11) : '') : '';
-  if (n.statusNota === 'F') return ' · <span class="pos" title="nota fechada no ERP da loja">✓ fechada na loja' + (n.conferencia && n.conferencia.operadorCentral ? ' · liberada por ' + esc(n.conferencia.operadorCentral) + dt(n.conferencia.liberacao) : '') + '</span>';
   if (n.statusNota === 'C') return ' · <span class="neg">cancelada na loja</span>';
+  // fechada = Status F OU guia liberada pela central (mesma regra do servidor, Tiago 09/10/2026: duas notas na mesma guia não podem ficar uma finalizada e a outra não)
+  if (n.statusNota === 'F' || (n.conferencia && n.conferencia.status === 2)) return ' · <span class="pos" title="' + (n.statusNota === 'F' ? 'nota fechada no ERP da loja' : 'central liberou a guia de recebimento; o ERP conclui o fechamento da nota em instantes') + '">✓ fechada na loja' + (n.conferencia && (n.conferencia.operadorCentral || n.conferencia.liberacao) ? ' · liberada por ' + esc(n.conferencia.operadorCentral || 'central') + dt(n.conferencia.liberacao) : (n.statusNota !== 'F' ? ' · liberada pela central' : '')) + '</span>';
   const c = n.conferencia;
   if (!c) return n.statusNota ? ' · <span class="mut">lançada, sem conferência</span>' : '';
   const prog = c.itens ? ` · ${c.conferidos}/${c.itens} itens bipados` : '';
