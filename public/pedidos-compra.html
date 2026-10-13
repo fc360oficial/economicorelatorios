@@ -118,6 +118,7 @@ input.qin::-webkit-outer-spin-button,input.qin::-webkit-inner-spin-button{-webki
 input.qin:focus{outline:none;border-color:#F5B800;background:#FFFDF3}input.qin.ed{border-color:#2E5E8C;background:#E9EEF6}
 /* Tiago, 13/10: botão "0" no lugar da coluna Trânsito (zera o item); colunas ABC e Status iguais ao detalhe do Radar */
 .zbtn{display:inline-block;width:22px;height:22px;line-height:20px;border:1px solid #C22F49;border-radius:50%;background:#fff;color:#C22F49;font:800 11px Inter,sans-serif;cursor:pointer;padding:0;opacity:.55;vertical-align:middle}.zbtn:hover{opacity:1;background:#FBEAED}.zbtn.undo{color:#1D5FB4;border-color:#1D5FB4;margin-left:4px}.zbtn.undo:hover{background:#E6EEFA}.zbtn.off{opacity:.18;pointer-events:none}.det table.ppg td.zc{white-space:nowrap}
+.si{display:inline-block;font-size:14px;margin:0 2px;filter:grayscale(1);opacity:.28;cursor:help;transition:opacity .15s}.si.on{filter:none;opacity:1}.si.on.now{transform:scale(1.12)}.det table.ppg td.sit{white-space:nowrap}
 .det table.ppg td.abc{white-space:nowrap;font-size:12.5px}.det table.ppg td.abc b{font-weight:800}.abc-a{color:#137A48}.abc-b{color:#B45C00}.abc-c{color:#C22F49}
 .det table.ppg th.abc small{display:block;font-size:9px;text-transform:none;letter-spacing:0;color:#98A0B3;font-weight:700;margin-top:1px}
 .st2{white-space:nowrap}.st2 .pill{margin:0 1px;font-size:10px;padding:1px 6px;line-height:1.5}.st2 .cdtag{margin-left:1px}
@@ -581,7 +582,7 @@ async function carregarDetalhe(key){
     // últ. compra · trânsito · qtd · emb · total · uma coluna por loja (nome + total no cabeçalho; caixinha com est · trâns e ⛔ desativado) · obs
     const TLJ=Object.fromEntries(totLojas(p,null).lojas.map(l=>[l.ln,l]));
     h+='<div class="lojatot" id="lt-'+p.id+'" data-ln="'+(LN||'')+'">'+lojaTotaisHtml(p,LN,true)+'</div>';   // Tiago, 13/10: "esse bota lá pra cima" (igual ao Radar)
-    h+=itfHtml(p,LN)+'<div style="overflow-x:auto" id="itt-'+p.id+'"><table class="ppg one"><thead><tr><th class="c abc" title="Curva ABC entre todos os produtos das listas, pela venda dos últimos 40 dias: quantidade / valor em R$. A = até 80 % do acumulado, B = até 95 %, C = o resto">ABC<small>qtd / R$</small></th><th class="l">Produto</th><th class="c st2" title="Selos do produto: A curva A · N novo na lista · D desativado no cadastro · CD tem no Centro de Distribuição">Status</th><th class="c" title="Preço digitado pelo vendedor no link (— = ainda sem preço)">Preço digitado</th><th class="c" title="Variação entre o preço digitado e a última compra (último custo do ERP)">× últ. compra</th><th class="r" title="Último custo de compra no ERP">Últ. compra</th><th class="c" title="0 = zerar as quantidades pedidas do item (todas as lojas, ou só a loja aberta na tela) · ↶ = voltar o que estava antes de zerar">Zerar</th><th class="r">Qtd</th><th class="c" title="Caixa padrão (unidades por caixa): digite e dê Enter">Emb</th><th class="r" title="Quantidade × preço digitado (sem preço: × último custo)">Total</th>'+LJ.map(l=>'<th class="lj" title="'+(LN?'Voltar a ver todas as lojas':'Ver só '+ETQ(l)+' '+esc(LOJAS_NOMES[l]||''))+'" onclick="event.stopPropagation();verLoja('+p.id+','+(LN?0:l)+')">'+esc(LOJAS_NOMES[l]||ETQ(l))+' <span class="mini">'+(LN?'✕':'🔍')+'</span><small id="th-tl-'+p.id+'-'+l+'">'+money2(TLJ[l]?TLJ[l].total:0)+'</small><em class="thmin" id="th-mn-'+p.id+'-'+l+'">'+minTh(p.pedido_minimo,TLJ[l]?TLJ[l].total:0)+'</em></th>').join('')+'<th class="obs">Obs. do vendedor</th></tr></thead><tbody>';
+    h+=itfHtml(p,LN)+'<div style="overflow-x:auto" id="itt-'+p.id+'"><table class="ppg one"><thead><tr><th class="c abc" title="Curva ABC entre todos os produtos das listas, pela venda dos últimos 40 dias: quantidade / valor em R$. A = até 80 % do acumulado, B = até 95 %, C = o resto">ABC<small>qtd / R$</small></th><th class="l">Produto</th><th class="c st2" title="Selos do produto: A curva A · N novo na lista · D desativado no cadastro · CD tem no Centro de Distribuição">Status</th><th class="c" title="Preço digitado pelo vendedor no link (— = ainda sem preço)">Preço digitado</th><th class="c" title="Variação entre o preço digitado e a última compra (último custo do ERP)">× últ. compra</th><th class="r" title="Último custo de compra no ERP">Últ. compra</th><th class="c" title="0 = zerar as quantidades pedidas do item (todas as lojas, ou só a loja aberta na tela) · ↶ = voltar o que estava antes de zerar">Zerar</th><th class="r">Qtd</th><th class="c" title="Caixa padrão (unidades por caixa): digite e dê Enter">Emb</th><th class="c" title="Situação do produto nos últimos 90 dias, igual à Cotação: 🏷️ promoção (final 8) · 🗑️ avaria · 🔻 rebaixa de preço. Colorido = tem; apagado = não tem. Passe o mouse pra ver o detalhe">Situação</th>'+LJ.map(l=>'<th class="lj" title="'+(LN?'Voltar a ver todas as lojas':'Ver só '+ETQ(l)+' '+esc(LOJAS_NOMES[l]||''))+'" onclick="event.stopPropagation();verLoja('+p.id+','+(LN?0:l)+')">'+esc(LOJAS_NOMES[l]||ETQ(l))+' <span class="mini">'+(LN?'✕':'🔍')+'</span><small id="th-tl-'+p.id+'-'+l+'">'+money2(TLJ[l]?TLJ[l].total:0)+'</small><em class="thmin" id="th-mn-'+p.id+'-'+l+'">'+minTh(p.pedido_minimo,TLJ[l]?TLJ[l].total:0)+'</em></th>').join('')+'<th class="obs">Obs. do vendedor</th></tr></thead><tbody>';
     let idx=0;
     for(const i of [...p.itens].filter(i=>!LN||(i.lojas_qtd?.[LN]||0)>0).sort((x,y)=>String(x.descricao||'').localeCompare(String(y.descricao||''),'pt-BR'))){
       const E=p.estoque_lojas?.[i.cod]||null, IP=p.info_produtos?.[i.cod]||{}, li=p.lojas_inativas?.[i.cod]||[], pr=i.preco!=null?i.preco:null, dif=pr!=null&&i.ultimo_custo>0?pr-i.ultimo_custo:null;
@@ -595,7 +596,7 @@ async function carregarDetalhe(key){
       h+='<tr class="'+(i.preco!=null||['sugestao','analise'].includes(p.status)?'pede':'zero')+(idx++%2?' alt':'')+'" data-f="'+itemF(i,LN)+'">'+abcCel(IP)+'<td class="prod desc"><b>'+esc(i.descricao)+'</b>'+meta+'</td>'+stCel(i,IP)+
         '<td class="c" id="pp-'+p.id+'-'+esc(i.cod)+'">'+precoCellHtml(p,i)+'</td><td class="c" id="ps-'+p.id+'-'+esc(i.cod)+'">'+seta(i.preco,i.ultimo_custo,true)+'</td><td class="r">'+fmt(i.ultimo_custo,2)+'</td>'+
         zCel(p,i,LN)+
-        '<td class="r" id="pq-'+p.id+'-'+esc(i.cod)+'">'+pqHtml(p,i,LN)+'</td><td class="c">'+pembHtml(p,i)+'</td><td class="r" id="pt-'+p.id+'-'+esc(i.cod)+'">'+ptHtml(i,LN)+'</td>'+cel+'<td class="mut obs">'+esc(i.obs||'')+'</td></tr>';
+        '<td class="r" id="pq-'+p.id+'-'+esc(i.cod)+'">'+pqHtml(p,i,LN)+'</td><td class="c">'+pembHtml(p,i)+'</td><td class="c sit" data-cod="'+esc(i.cod)+'">'+sitIcons(i.cod)+'</td>'+cel+'<td class="mut obs">'+esc(i.obs||'')+'</td></tr>';
     }
     h+='</tbody></table></div>';
     h+=secaoAvarias(p,LN);
@@ -619,6 +620,7 @@ async function carregarDetalhe(key){
       '</div>';
     box.innerHTML=h; filtrarItensPedido(p.id,FILT_IT[p.id]||'todos');
     box.querySelectorAll('input.qin').forEach(inp=>{inp.addEventListener('click',e=>e.stopPropagation());inp.addEventListener('change',()=>salvarQtd(inp));inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();inp.blur();}});});
+    carregarSituacao(p.id, p.itens.map(i=>i.cod));   // Tiago, 13/10: 🏷️🗑️🔻 na coluna Situação (no lugar do Total)
   }catch(e){ box.innerHTML='<div class="empty">'+esc(e.message)+'</div>'; }
 }
 const PED={};
@@ -663,6 +665,27 @@ function prePedido(id){
       +'<div style="padding:10px 12px;border-top:1px solid #DADAD6;font-size:12px"><b>Resposta do vendedor sobre as avarias:</b> '+(p.avarias.resposta_vendedor?esc(p.avarias.resposta_vendedor):'<span class="neg">ainda sem resposta</span>')+'</div></div>';
   }
   abrirPv(h);
+}
+// Tiago, 13/10 ("tira essa coluna [Total] e coloca aquela que a gente criou em outro módulo, de status sinalizando se o produto foi
+// pra promoção, avaria, rebaixa"): mesma coluna da Cotação etapa 1 — POST /api/cotacoes/situacao-itens {cods, dias} → promo/avaria/
+// rebaixa por produto nos últimos 90 d; os ícones ficam apagados até carregar e quando não tem nada.
+var SIT={}, SIT_DIAS=90, SIT_SEQ=0;
+function dtBr(d){ return d?String(d).slice(0,10).split('-').reverse().join('/'):''; }
+function sitIcons(cod){
+  var s=SIT[cod], carregado=SIT.__ok;
+  var p=s&&s.promo, a=s&&s.avaria, r=s&&s.rebaixa;
+  var tp=p?(p.agora?'EM PROMOÇÃO agora (final 8) em '+p.lojas.map(ETQ).join(', ')+' · '+p.precos.map(function(x){ return money2(x); }).join(' / '):'')+(p.passou?(p.agora?' · ':'')+'passou por promoção: '+p.passou+' mudança(s) de preço final 8 nos últimos '+SIT_DIAS+' d, última '+dtBr(p.ultima)+(p.lojasLog?' ('+p.lojasLog.map(ETQ).join(', ')+')':''):''):(carregado?'sem promoção nos últimos '+SIT_DIAS+' dias':'carregando…');
+  var ta=a?'AVARIA: '+a.n+' lançamento(s) · '+fmt(a.qtd,0)+' un · '+money2(a.valor)+' em '+a.lojas+' loja(s) · última '+dtBr(a.ultima):(carregado?'sem avaria nos últimos '+SIT_DIAS+' dias':'carregando…');
+  var tr=r?'REBAIXA: '+r.n+' solicitação(ões) de preço em '+r.lojas+' loja(s) · última '+dtBr(r.ultima)+(r.atual>0&&r.solic>0?' · '+money2(r.atual)+' → '+money2(r.solic):'')+(r.motivo?' · '+r.motivo:''):(carregado?'sem rebaixa nos últimos '+SIT_DIAS+' dias':'carregando…');
+  return '<span class="si'+(p?' on'+(p.agora?' now':''):'')+'" title="'+esc(tp)+'">🏷️</span><span class="si'+(a?' on':'')+'" title="'+esc(ta)+'">🗑️</span><span class="si'+(r?' on':'')+'" title="'+esc(tr)+'">🔻</span>';
+}
+async function carregarSituacao(pid, cods){
+  var seq=++SIT_SEQ; SIT={};
+  try{
+    for(var k=0;k<cods.length;k+=1500){ var r=await fetch('/api/cotacoes/situacao-itens',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cods:cods.slice(k,k+1500),dias:SIT_DIAS})}); var j=await r.json(); if(j.error) throw new Error(j.error); if(seq!==SIT_SEQ) return; Object.keys(j.itens||{}).forEach(function(c){ SIT[c]=j.itens[c]; }); }
+    SIT.__ok=true;
+  }catch(e){ SIT.__ok=true; console.warn('Situação dos itens: '+e.message); }
+  document.querySelectorAll('#itt-'+pid+' .sit').forEach(function(td){ td.innerHTML=sitIcons(td.getAttribute('data-cod')); });
 }
 // Colunas ABC e Status iguais ao detalhe do Radar (Tiago, 13/10): info vem de /api/pedidos-fornecedor/:id → info_produtos (base do Radar)
 const abcCls=v=>v==='A'?'abc-a':v==='B'?'abc-b':v==='C'?'abc-c':'';
