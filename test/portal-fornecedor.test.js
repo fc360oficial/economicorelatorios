@@ -143,3 +143,12 @@ test('login obrigatório pra responder cotação: ligado por padrão, convite e 
   assert.equal(portal.setConfig({ exigeLogin: 1 }).exigeLogin, true);
   assert.equal(portal.estado().exigeLogin, true);
 });
+
+test('exemplos de teste gravados antes do PIN existir ganham o PIN padrão ao subir; criar conta com número de teste explica', () => {
+  const arq = path.join(portal.DIR, 'vendedores.json');
+  const disco = JSON.parse(fs.readFileSync(arq, 'utf8'));
+  delete disco['81900000001'].senha; fs.writeFileSync(arq, JSON.stringify(disco));
+  portal.init(deps);
+  assert.equal(portal.entrar({ whats: '81900000001', pin: portal.TESTE_PIN }).vendedor.teste, true, 'entra com o PIN padrão depois de subir');
+  assert.match(portal.criarConta({ nome: 'Tiago Teste', whats: '81 90000-0001', pin: '111111' }).erro, /exemplo de teste e já tem login.*123456/);
+});
