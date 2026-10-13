@@ -122,7 +122,7 @@ test('convite do link traz WhatsApp e e-mail inteiros (pré-preenche o cadastro)
   assert.equal(portal.convite('pedido', TOKEN_PED).vendedores[0].ja_no_portal, true);
 });
 
-test('resumo do vendedor logado traz login e cotação aberta; exemplos de teste entram com PIN 123456', () => {
+test('resumo do vendedor logado traz login e cotação aberta; estado() conta quem tem PIN', () => {
   const vt = portal.entrar({ whats: '81911111111', pin: '222222', de: { tipo: 'pedido', token: TOKEN_PED } }).vt;
   const eu = portal.resumoVendedor(vt);
   assert.equal(eu.vendedor.whats, '81911111111'); assert.equal(eu.vendedor.tem_pin, true);
@@ -152,20 +152,4 @@ test('registro de teste que sobrou no disco (vendedor TESTE de antes) é apagado
   assert.equal(portal.entrar({ whats: '81900000001', pin: '123456' }).erro, 'WhatsApp ou PIN não conferem');
   assert.equal(Object.values(JSON.parse(fs.readFileSync(arq, 'utf8'))).filter(v => v.teste).length, 0);
   assert.equal(portal.estado().vendedores, 5);
-});
-  const arq = path.join(portal.DIR, 'vendedores.json');
-  const disco = JSON.parse(fs.readFileSync(arq, 'utf8'));
-  delete disco['81900000001'].senha; fs.writeFileSync(arq, JSON.stringify(disco));
-  portal.init(deps);
-  assert.equal(portal.entrar({ whats: '81900000001', pin: portal.TESTE_PIN }).vendedor.teste, true, 'entra com o PIN padrão depois de subir');
-  assert.match(portal.criarConta({ nome: 'Tiago Teste', whats: '81 90000-0001', email: 't@t.co', pin: '111111' }).erro, /exemplo de teste e já tem login.*123456/);
-});
-
-test('entrar com número de exemplo sem os exemplos criados: cria os 3 na hora e entra', () => {
-  portal.removerTestes();
-  assert.equal(portal.estado().vendedores, 5, 'removeu só os de teste');
-  const r = portal.entrar({ whats: '81 90000-0002', pin: portal.TESTE_PIN });
-  assert.equal(r.erro, undefined); assert.equal(r.vendedor.teste, true); assert.equal(r.vendedor.nome, 'TESTE Ana Paula Ferreira');
-  assert.equal(Object.values(JSON.parse(fs.readFileSync(path.join(portal.DIR, 'vendedores.json'), 'utf8'))).filter(v => v.teste).length, 3);
-  assert.equal(portal.entrar({ whats: '81 90000-0002', pin: '000000' }).erro, 'WhatsApp ou PIN não conferem', 'PIN errado continua errado');
 });
