@@ -5902,8 +5902,9 @@ app.get('/api/_diag/radar-listas', (req, res) => {
 // Robô da cotação (cahu-wpp em 127.0.0.1:3012) está de pé e pareado? Sem SSH daqui: GET /status do bot diz online/conectado/número
 app.get('/api/_diag/robo', async (req, res) => {
   if (req.query.token !== 'diag2026') return res.status(403).end();
-  try { const r = await fetch('http://127.0.0.1:3012/status', { signal: AbortSignal.timeout(3000) }); const j = await r.json().catch(() => ({})); res.json({ robo: 'cahu-wpp (número central)', processo: 'responde', http: r.status, ...j }); }
-  catch (e) { res.json({ robo: 'cahu-wpp (número central)', processo: 'não responde', erro: e.message }); }
+  const envios = Object.fromEntries(Object.entries(ENVIO_ROBO).map(([k, s]) => [k, { ...s, erros: s.erros.map(x => ({ ...x, whats: x.whats ? String(x.whats).replace(/\d(?=\d{4})/g, '•') : undefined })) }]));   // disparos desde o último reinício
+  try { const r = await fetch('http://127.0.0.1:3012/status', { signal: AbortSignal.timeout(3000) }); const j = await r.json().catch(() => ({})); res.json({ robo: 'cahu-wpp (número central)', processo: 'responde', http: r.status, ...j, envios }); }
+  catch (e) { res.json({ robo: 'cahu-wpp (número central)', processo: 'não responde', erro: e.message, envios }); }
 });
 app.get('/api/_diag/cotacao-forn', (req, res) => {
   if (req.query.token !== 'diag2026') return res.status(403).end();
@@ -8995,12 +8996,24 @@ app.post('/api/cotacoes/:id/enviar-robo', (req, res) => {
     for (const f of pend) {
       const v = f.vendedor || {};
       const texto = 'Olá' + (v.nome ? ', ' + v.nome : '') + '! Cotação #' + c.id + ' – ' + c.nome + ' do Econômico Supermercado (Rede Cahu). ' + (portalForn.exigeLogin() ? 'Pra responder, abra o link, crie seu login no nosso Portal do Fornecedor (seu WhatsApp e um PIN de 6 números, leva 1 minuto) e preencha seus preços: ' : 'Por favor, preencha seus preços neste link: ') + linkCotacao(f) + (c.prazo ? ' . Prazo pra resposta: ' + String(c.prazo).slice(0, 16).replace('T', ' ').replace(/^(\d{4})-(\d{2})-(\d{2})/, '$3/$2/$1') : '') + ' . Obrigado(a)! (mensagem automática do número central da Rede Cahu; responda ' + (c.comprador && c.comprador.nome ? 'a ' + c.comprador.nome : 'a comprador(a)') + (c.comprador && c.comprador.whats ? ' no ' + c.comprador.whats : '') + ')';
-      try {
-        const r = await fetch('http://127.0.0.1:3012/mensagem', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ numero: v.whats, texto }) });
-        const j = await r.json().catch(() => ({}));
-        if (!r.ok || j.error) throw new Error(j.error || ('HTTP ' + r.status));
-        cotacao.marcarEnviado(id, f.codFornec); st.feitos++;
-      } catch (e) { st.erros.push({ fornecedor: f.nome, whats: v.whats, erro: e.message }); if (/não conectado|ECONNREFUSED|404/i.test(e.message)) { st.erros.push({ fornecedor: '(parado)', erro: 'robô indisponível: ' + e.message }); break; } }
+      // bot engasgado (reconectando, "WhatsApp não conectado", processo reiniciando): espera 15 s e tenta de novo o MESMO
+      // vendedor, até 4 vezes; só então registra o erro e segue pro próximo — antes a fila parava inteira no 1º erro desses
+      let ok = false, erro = null;
+      for (let tent = 1; tent <= 4 && !ok; tent++) {
+        try {
+          const r = await fetch('http://127.0.0.1:3012/mensagem', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ numero: v.whats, texto }), signal: AbortSignal.timeout(30000) });
+          const j = await r.json().catch(() => ({}));
+          if (!r.ok || j.error) throw new Error(j.error || ('HTTP ' + r.status));
+          ok = true;
+        } catch (e) {
+          erro = e.message;
+          if (!/não conectado|ECONNREFUSED|ECONNRESET|timeout|aborted|HTTP 5/i.test(erro)) break;   // erro do número (inválido etc.): não adianta insistir
+          st.esperas = (st.esperas || 0) + 1;
+          await new Promise(r => setTimeout(r, 15000));
+        }
+      }
+      if (ok) { cotacao.marcarEnviado(id, f.codFornec); st.feitos++; }
+      else st.erros.push({ fornecedor: f.nome, whats: v.whats, erro, em: new Date().toISOString() });
       await new Promise(r => setTimeout(r, 6000));
     }
     st.em_andamento = false; st.terminadoEm = new Date().toISOString();

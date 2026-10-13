@@ -129,9 +129,7 @@ test('resumo do vendedor logado traz login e cotação aberta; exemplos de teste
   assert.equal(eu.cotacoes_abertas.length, 1); assert.equal(eu.cotacoes_abertas[0].link, '/fornecedor/cotacao/' + TOKEN_ANA);
   assert.equal(eu.pedidos_pendentes.length, 1);
   assert.equal(portal.resumoVendedor('0'.repeat(32)), null);
-  portal.criarTestes();
-  assert.equal(portal.entrar({ whats: '81900000001', pin: portal.TESTE_PIN }).vendedor.teste, true);
-  assert.equal(portal.estado().comLogin, 5, 'estado() conta só os reais com PIN (Ana, Outra, Bruno, Clara, Dislub), não os de teste');
+  assert.equal(portal.estado().comLogin, 5, 'estado() conta os reais com PIN (Ana, Outra, Bruno, Clara, Dislub)');
 });
 
 test('login obrigatório pra responder cotação: ligado por padrão, convite e canais avisam, admin desliga e liga (persistido)', () => {
@@ -145,7 +143,16 @@ test('login obrigatório pra responder cotação: ligado por padrão, convite e 
   assert.equal(portal.estado().exigeLogin, true);
 });
 
-test('exemplos de teste gravados antes do PIN existir ganham o PIN padrão ao subir; criar conta com número de teste explica', () => {
+test('registro de teste que sobrou no disco (vendedor TESTE de antes) é apagado ao subir', () => {
+  const arq = path.join(portal.DIR, 'vendedores.json');
+  const disco = JSON.parse(fs.readFileSync(arq, 'utf8'));
+  disco['81900000001'] = { id: '81900000001', nome: 'TESTE Carlos Menezes', whats: '81900000001', teste: true, token: 'e'.repeat(32), empresas: [], dispositivos: [] };
+  fs.writeFileSync(arq, JSON.stringify(disco));
+  portal.init(deps);
+  assert.equal(portal.entrar({ whats: '81900000001', pin: '123456' }).erro, 'WhatsApp ou PIN não conferem');
+  assert.equal(Object.values(JSON.parse(fs.readFileSync(arq, 'utf8'))).filter(v => v.teste).length, 0);
+  assert.equal(portal.estado().vendedores, 5);
+});
   const arq = path.join(portal.DIR, 'vendedores.json');
   const disco = JSON.parse(fs.readFileSync(arq, 'utf8'));
   delete disco['81900000001'].senha; fs.writeFileSync(arq, JSON.stringify(disco));
