@@ -168,6 +168,16 @@ http.createServer(async (req, res) => {
       logger.info(`documento enviado pro grupo: ${body.fileName}`);
       return responder(res, 200, { ok: true });
     }
+    // Cotação (Tiago, 13/10): mensagem avulsa pra um número (vendedor do fornecedor) pelo número central — mesmo contrato do
+    // negativos-wpp { numero, texto }; sem 55 ganha 55. Quem espaça os envios (6 s) é o server.js.
+    if (req.url === '/mensagem') {
+      const dig = String(body.numero || '').replace(/\D/g, '');
+      if (!body.texto || dig.length < 10) return responder(res, 400, { error: 'Informe numero (com DDD) e texto.' });
+      const jid = jidNumero((dig.length === 12 || dig.length === 13) && dig.startsWith('55') ? dig : '55' + dig);
+      await sock.sendMessage(jid, { text: String(body.texto) });
+      logger.info(`mensagem avulsa enviada pra ${jid}`);
+      return responder(res, 200, { ok: true, jid });
+    }
     if (req.url === '/mensagem-alerta') {
       if (!cfg.alerta) return responder(res, 400, { error: 'config.alerta não preenchido' });
       await sock.sendMessage(jidNumero(cfg.alerta), { text: String(body.texto || 'alerta sem texto') });
