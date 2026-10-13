@@ -26,13 +26,14 @@ const deps = {
 };
 portal.init(deps);
 
-test('criar conta: valida nome, WhatsApp e PIN de 6 números; e-mail é opcional mas, se vier, tem que ser válido', () => {
-  assert.equal(portal.criarConta({ nome: 'A', whats: '81911111111', pin: '123456' }).erro, 'Informe seu nome');
-  assert.match(portal.criarConta({ nome: 'Ana Lima', whats: '12', pin: '123456' }).erro, /WhatsApp inválido/);
-  assert.equal(portal.criarConta({ nome: 'Ana Lima', whats: '81911111111', pin: '12345' }).erro, 'O PIN tem 6 números');
-  assert.equal(portal.criarConta({ nome: 'Ana Lima', whats: '81911111111', pin: '12345a' }).erro, 'O PIN tem 6 números');
-  assert.equal(portal.criarConta({ nome: 'Ana Lima', whats: '81911111111', pin: '1234567' }).erro, 'O PIN tem 6 números');
-  assert.match(portal.criarConta({ nome: 'Ana Lima', whats: '81911111111', email: 'ana-somar', pin: '123456' }).erro, /E-mail inválido/);
+test('criar conta: valida nome, WhatsApp, PIN de 6 números e e-mail obrigatório', () => {
+  assert.equal(portal.criarConta({ nome: 'Ana Lima', whats: '81911111111', pin: '123456' }).erro, 'Informe um e-mail válido');
+  assert.equal(portal.criarConta({ nome: 'A', whats: '81911111111', email: 'a@b.co', pin: '123456' }).erro, 'Informe seu nome');
+  assert.match(portal.criarConta({ nome: 'Ana Lima', whats: '12', email: 'a@b.co', pin: '123456' }).erro, /WhatsApp inválido/);
+  assert.equal(portal.criarConta({ nome: 'Ana Lima', whats: '81911111111', email: 'a@b.co', pin: '12345' }).erro, 'O PIN tem 6 números');
+  assert.equal(portal.criarConta({ nome: 'Ana Lima', whats: '81911111111', email: 'a@b.co', pin: '12345a' }).erro, 'O PIN tem 6 números');
+  assert.equal(portal.criarConta({ nome: 'Ana Lima', whats: '81911111111', email: 'a@b.co', pin: '1234567' }).erro, 'O PIN tem 6 números');
+  assert.equal(portal.criarConta({ nome: 'Ana Lima', whats: '81911111111', email: 'ana-somar', pin: '123456' }).erro, 'Informe um e-mail válido');
 });
 
 test('criar conta pelo link da cotação: guarda hash (nunca o PIN), liga a empresa e devolve a sessão (vt)', () => {
@@ -49,11 +50,10 @@ test('criar conta pelo link da cotação: guarda hash (nunca o PIN), liga a empr
   assert.equal(portal.vendedorPorToken(r.vt).id, '81911111111');
 });
 
-test('WhatsApp já com login não cria de novo; e-mail de outro vendedor não pode repetir; sem e-mail passa', () => {
-  assert.match(portal.criarConta({ nome: 'Ana de Novo', whats: '81911111111', pin: '654321' }).erro, /WhatsApp já tem login no portal/);
-  assert.match(portal.criarConta({ nome: 'Outra Pessoa', whats: '81922222222', email: 'ana@somar.com.br', pin: '654321' }).erro, /e-mail já está no cadastro de outro vendedor/);
-  const r = portal.criarConta({ nome: 'Outra Pessoa', whats: '81922222222', email: '', pin: '654321' });
-  assert.equal(r.erro, undefined); assert.equal(r.vendedor.email, null);
+test('WhatsApp já com login não cria de novo; e-mail da empresa pode repetir entre vendedores', () => {
+  assert.match(portal.criarConta({ nome: 'Ana de Novo', whats: '81911111111', email: 'x@y.co', pin: '654321' }).erro, /WhatsApp já tem login no portal/);
+  const r = portal.criarConta({ nome: 'Outra Pessoa', whats: '81922222222', email: 'ana@somar.com.br', pin: '654321' });
+  assert.equal(r.erro, undefined); assert.equal(r.vendedor.email, 'ana@somar.com.br', 'mesmo e-mail da Ana, outro WhatsApp');
 });
 
 test('entrar: WhatsApp + PIN certos devolvem o mesmo vt; errados não; 8 erros travam por 10 min; admin redefine e destrava', () => {
@@ -93,9 +93,10 @@ test('vendedor de antes do login (entrou pelo "Sou eu", sem PIN): não entra; cr
   assert.equal(portal.entrar({ whats: '81933333333', pin: '123456' }).erro, 'WhatsApp ou PIN não conferem');
   const eu = portal.resumoVendedor('d'.repeat(32));
   assert.equal(eu.vendedor.tem_pin, false, 'o portal vê que falta PIN e pede pra criar');
-  assert.equal(portal.trocarPin('d'.repeat(32), { pin_novo: '123456' }).ok, true, 'sem PIN ainda, não pede o atual');
+  assert.equal(portal.trocarPin('d'.repeat(32), { pin_novo: '123456', email: 'x' }).erro, 'Informe um e-mail válido');
+  assert.equal(portal.trocarPin('d'.repeat(32), { pin_novo: '123456' }).ok, true, 'sem PIN ainda, não pede o atual; e-mail que já tinha vale');
   assert.equal(portal.entrar({ whats: '81933333333', pin: '123456' }).vendedor.id, '81933333333');
-  const r = portal.criarConta({ nome: 'Clara Souza', whats: '81955555555', pin: '123456' });
+  const r = portal.criarConta({ nome: 'Clara Souza', whats: '81955555555', email: 'clara@x.co', pin: '123456' });
   assert.equal(r.erro, undefined); assert.equal(r.vt, 'f'.repeat(32), 'mantém a sessão/aparelhos de antes'); assert.equal(r.vendedor.dispositivos, 1); assert.equal(r.vendedor.nome, 'Clara Souza');
 });
 
@@ -150,7 +151,7 @@ test('exemplos de teste gravados antes do PIN existir ganham o PIN padrão ao su
   delete disco['81900000001'].senha; fs.writeFileSync(arq, JSON.stringify(disco));
   portal.init(deps);
   assert.equal(portal.entrar({ whats: '81900000001', pin: portal.TESTE_PIN }).vendedor.teste, true, 'entra com o PIN padrão depois de subir');
-  assert.match(portal.criarConta({ nome: 'Tiago Teste', whats: '81 90000-0001', pin: '111111' }).erro, /exemplo de teste e já tem login.*123456/);
+  assert.match(portal.criarConta({ nome: 'Tiago Teste', whats: '81 90000-0001', email: 't@t.co', pin: '111111' }).erro, /exemplo de teste e já tem login.*123456/);
 });
 
 test('entrar com número de exemplo sem os exemplos criados: cria os 3 na hora e entra', () => {

@@ -151,7 +151,7 @@ function formCriar() {
     '<label for="cw">WhatsApp com DDD</label><input id="cw" inputmode="tel" autocomplete="tel" placeholder="81 99999-0000" required><small>é o seu login: o mesmo número que a Econômico usa pra te mandar as cotações</small>' +
     campoPin('cp', 'Crie um PIN de 6 números', 'new-password', 'só números, ex. 482913') +
     campoPin('cp2', 'Repita o PIN', 'new-password') +
-    '<label for="ce">E-mail <span style="font-weight:500">(opcional)</span></label><input id="ce" type="email" inputmode="email" autocomplete="email" placeholder="seu@email.com.br"><small>só pro cadastro do fornecedor; não é usado pra entrar</small>' +
+    '<label for="ce">E-mail</label><input id="ce" type="email" inputmode="email" autocomplete="email" placeholder="seu@email.com.br" required><small>pro cadastro do fornecedor (pedidos e nota); pra entrar você usa o WhatsApp</small>' +
     '<div class="err" id="f-err"></div><button class="btn d" type="submit" id="f-ok" style="width:100%;margin-top:14px">Criar login e entrar</button></form>' +
     '<p class="links">Já tem login? <a href="#entrar" onclick="trocarModo(\'entrar\');return false">Entrar</a></p>';
 }
@@ -185,7 +185,8 @@ function entrar() {
 }
 function criar() {
   var nome = ($('#cn').value || '').trim(), whats = ($('#cw').value || '').trim(), email = ($('#ce').value || '').trim(), p1 = ($('#cp').value || '').trim(), p2 = ($('#cp2').value || '').trim();
-  if (!nome || !whats) { fErr('Preencha seu nome e seu WhatsApp.'); return; }
+  if (!nome || !whats || !email) { fErr('Preencha nome, WhatsApp e e-mail.'); return; }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { fErr('E-mail inválido.'); return; }
   if (!pinOk(p1)) { fErr('O PIN tem 6 números.'); return; }
   if (p1 !== p2) { fErr('Os dois PINs não são iguais.'); return; }
   fErr(''); ocupado(true, 'Criando…');
@@ -201,16 +202,17 @@ function logado(r) {
 function telaPin() {
   var v = D.vendedor;
   $('#app').innerHTML = topo('Olá, ' + ((v.nome || '').split(' ')[0] || 'vendedor'), 'crie seu PIN pra continuar') + '<main><div class="entrada"><h2>Crie seu PIN</h2><p>O portal agora entra com o seu WhatsApp ' + (v.whats ? '<b>' + esc(fone(v.whats)) + '</b> ' : '') + 'e um PIN de 6 números. Escolha o seu uma vez; a partir daí é só entrar, em qualquer celular.</p>' +
-    '<form class="fld" onsubmit="definirPin();return false">' + campoPin('lp1', 'PIN de 6 números', 'new-password', 'só números, ex. 482913') + campoPin('lp2', 'Repita o PIN', 'new-password') +
+    '<form class="fld" onsubmit="definirPin();return false"><label for="le">E-mail</label><input id="le" type="email" inputmode="email" autocomplete="email" value="' + esc(v.email || '') + '" placeholder="seu@email.com.br" required><small>pro cadastro do fornecedor; pra entrar você usa o WhatsApp</small>' + campoPin('lp1', 'PIN de 6 números', 'new-password', 'só números, ex. 482913') + campoPin('lp2', 'Repita o PIN', 'new-password') +
     '<div class="err" id="f-err"></div><button class="btn d" type="submit" id="f-ok" style="width:100%;margin-top:14px">Salvar e continuar</button></form>' +
     '<p class="links"><a href="#" onclick="sair();return false">Sair deste celular</a></p></div></main>';
 }
 function definirPin() {
-  var p1 = ($('#lp1').value || '').trim(), p2 = ($('#lp2').value || '').trim();
+  var p1 = ($('#lp1').value || '').trim(), p2 = ($('#lp2').value || '').trim(), em = ($('#le').value || '').trim();
+  if (!em) { fErr('Informe o e-mail.'); return; }
   if (!pinOk(p1)) { fErr('O PIN tem 6 números.'); return; }
   if (p1 !== p2) { fErr('Os dois PINs não são iguais.'); return; }
   fErr(''); ocupado(true, 'Salvando…');
-  api('/api/portal/conta/pin', { pin_novo: p1 }).then(function () { toast('PIN criado ✓'); return carregar(); }).catch(function (e) { ocupado(false, 'Salvar e continuar'); fErr(e.message); });
+  api('/api/portal/conta/pin', { pin_novo: p1, email: em }).then(function () { toast('PIN criado ✓'); return carregar(); }).catch(function (e) { ocupado(false, 'Salvar e continuar'); fErr(e.message); });
 }
 
 // ── telas ──
