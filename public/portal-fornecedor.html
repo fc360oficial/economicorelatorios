@@ -58,6 +58,8 @@ td b{font-weight:700}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:9px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:50;max-width:80vw}
 .toast.on{opacity:1}
 .cp{font-family:ui-monospace,Consolas,monospace;font-size:11px;background:#F0F0EE;border:1px solid var(--border);border-radius:6px;padding:2px 6px;word-break:break-all}
+.cfg{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:14px;font-size:12.5px}
+.cfg label{display:flex;align-items:center;gap:8px;cursor:pointer}.cfg input{width:16px;height:16px;accent-color:var(--ink)}.cfg .mini{font-size:11.5px;color:var(--ink-3)}
 </style>
 </head>
 <body class="ds">
@@ -65,7 +67,7 @@ td b{font-weight:700}
   <div class="page-hdr">
     <div>
       <h1>Portal do Fornecedor</h1>
-      <p>Quem criou login no portal do vendedor (e-mail + senha), em quantos aparelhos recebe aviso, quando entrou pela última vez e os avisos mandados (nova cotação, lembrete de prazo, pedido). <b>O vendedor entra pelo link do portal</b>: você manda o convite (botão ao lado) ou ele chega pela página da cotação; ele cria o login com e-mail e senha de no mínimo 6 dígitos e ativa os avisos. Daqui você <b>redefine a senha</b> de quem esqueceu, <b>testa</b> se o aviso chega e <b>desconecta</b> quem saiu da empresa.</p>
+      <p>Quem criou login no portal do vendedor (e-mail + senha), em quantos aparelhos recebe aviso, quando entrou pela última vez e os avisos mandados (nova cotação, lembrete de prazo, pedido). <b>O vendedor entra pelo link do portal</b>: você manda o convite (botão ao lado) ou ele chega pela página da cotação; ele cria o login com e-mail e senha de no mínimo 6 dígitos e ativa os avisos. Com <b>"Exigir login"</b> ligado, quem abre o link da cotação sem login precisa criar ou entrar antes de digitar preço. Daqui você <b>redefine a senha</b> de quem esqueceu, <b>testa</b> se o aviso chega e <b>desconecta</b> quem saiu da empresa.</p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn btn-amber" onclick="convite()" title="Copia a mensagem com o link do portal pra você colar no WhatsApp do vendedor; ele cria o login com e-mail e senha">📨 Copiar convite</button>
@@ -76,12 +78,13 @@ td b{font-weight:700}
     </div>
   </div>
   <div class="status" id="status"></div>
+  <div class="cfg" id="cfg"><label><input type="checkbox" id="cfg-exige" onchange="cfgExige(this.checked)"> <b>Exigir login pra responder cotação</b></label><span class="mini" id="cfg-txt"></span></div>
   <div class="kpis" id="kpis"></div>
 
   <div class="ajuda" id="ajuda" style="display:none"><b>Como o vendedor entra:</b>
     <ol>
       <li>Você manda o <b>convite</b> com o link do portal pelo WhatsApp (botão "Copiar convite"). Quem abrir o link de uma cotação também vê o painel "Crie seu login".</li>
-      <li>Ele cria o login com <b>nome, WhatsApp, e-mail e senha de no mínimo 6 dígitos</b>. O WhatsApp é o que casa ele com o cadastro do fornecedor nas listas.</li>
+      <li>Ele cria o login com <b>nome, WhatsApp, e-mail e senha de no mínimo 6 dígitos</b>. O WhatsApp é o que casa ele com o cadastro do fornecedor nas listas. Com "Exigir login" ligado, a página da cotação só libera os preços depois disso.</li>
       <li>Ele toca em <b>Ativar avisos</b>. Daí em diante as cotações dele chegam como aviso no celular, e no Acompanhamento da cotação o canal passa de <b>WhatsApp</b> pra <b>App</b>.</li>
     </ol>
   </div>
@@ -133,6 +136,8 @@ function render() {
     '<div class="kpi"><div class="nm">Avisos hoje</div><div class="v">' + avHoje + '</div><div class="sub">nova cotação, lembrete de prazo e pedido</div></div>' +
     '<div class="kpi ' + (E.webpush ? 'ok' : 'bad') + '"><div class="nm">Servidor de avisos</div><div class="v" style="font-size:16px">' + (E.webpush ? 'OK' : 'parado') + '</div><div class="sub">' + (E.webpush ? 'web-push carregado, chave VAPID pronta' : esc(E.erro || '')) + '</div></div>';
   $('#ajuda').style.display = reais.length ? 'none' : 'block';
+  $('#cfg-exige').checked = !!E.exigeLogin;
+  $('#cfg-txt').textContent = E.exigeLogin ? 'ligado: quem abre o link da cotação sem login vê "crie seu login" por cima e só digita preço depois de entrar (a mensagem do WhatsApp já avisa)' : 'desligado: o painel "crie seu login" aparece, mas o vendedor pode tocar em "Agora não, só cotar"';
   renderVendedores(); renderAvisos();
 }
 function renderVendedores() {
@@ -188,6 +193,10 @@ async function redefinirSenha(id) {
     await copiar(msg, 'Senha redefinida. A mensagem com login e senha foi copiada: cole no WhatsApp do vendedor.');
     carregar();
   } catch (e) { toast('Erro: ' + e.message); }
+}
+async function cfgExige(on) {
+  try { var r = await api('/api/portal-admin/config', { exigeLogin: on }); toast(r.exigeLogin ? 'Login obrigatório pra responder cotação: LIGADO' : 'Login obrigatório: desligado — o vendedor pode pular'); carregar(); }
+  catch (e) { toast('Erro: ' + e.message); carregar(); }
 }
 async function testar(id) {
   try { var r = await api('/api/portal-admin/vendedores/' + encodeURIComponent(id) + '/testar', {}); toast(r.simulado ? 'Vendedor de teste: aviso simulado.' : (r.ok ? 'Aviso de teste enviado pra ' + r.enviados + ' aparelho(s)' + (r.removidos ? ' · ' + r.removidos + ' aparelho(s) sumido(s) foram apagados' : '') : 'Nenhum aparelho recebeu: ' + (r.erro || 'reative os avisos no celular'))); carregar(); }

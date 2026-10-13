@@ -142,3 +142,15 @@ test('resumo do vendedor logado traz login e cotação aberta; exemplos de teste
   assert.equal(portal.entrar({ email: 'carlos@teste.com.br', senha: portal.TESTE_SENHA }).vendedor.teste, true);
   assert.equal(portal.estado().comLogin, 5, 'estado() conta só os reais com senha (Ana, Bruno, Sem Email, Clara, Dislub), não os de teste');
 });
+
+test('login obrigatório pra responder cotação: ligado por padrão, convite e canais avisam, admin desliga e liga (persistido)', () => {
+  assert.equal(portal.exigeLogin(), true);
+  assert.equal(portal.convite('cotacao', TOKEN_ANA).exige_login, true);
+  assert.equal(portal.resumoCanais(cot).exigeLogin, true);
+  assert.deepEqual(portal.setConfig({ exigeLogin: false }), { exigeLogin: false });
+  assert.equal(portal.exigeLogin(), false);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(portal.DIR, 'config.json'), 'utf8')).exigeLogin, false);
+  portal.init(deps); assert.equal(portal.exigeLogin(), false, 'vale depois de reiniciar');
+  assert.equal(portal.setConfig({ exigeLogin: 1 }).exigeLogin, true);
+  assert.equal(portal.estado().exigeLogin, true);
+});

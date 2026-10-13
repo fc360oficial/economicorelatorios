@@ -1,7 +1,8 @@
 // Gancho do Portal do Fornecedor nas páginas do vendedor (/cotacao/<token>, /pedido/<token> e os atalhos /fornecedor/...).
 // Sem login neste celular: painel "crie seu login no portal" (e-mail + senha de no mínimo 6 dígitos) → manda pro
 // /fornecedor/?de=cotacao/<token>#criar (ou #entrar), que volta pra cá depois de entrar, com #avisos pra oferecer os
-// avisos na hora. Já logado: refaz a inscrição de push se o navegador perdeu e lembra de ativar os avisos (1x por semana).
+// avisos na hora. Na cotação o login é OBRIGATÓRIO quando /api/portal/config diz exigeLogin (padrão; Tiago, 13/10:
+// "quero forçar já agora nessa cotação"): fundo escuro bloqueia a página desde a abertura e o painel não tem "Agora não". Já logado: refaz a inscrição de push se o navegador perdeu e lembra de ativar os avisos (1x por semana).
 // Nada aqui interfere na digitação dos preços: o painel sobe por cima, dá pra fechar e continuar como sempre.
 (function () {
   'use strict';
@@ -29,14 +30,20 @@
     '.pf-btn.p{background:#F5B800;color:#0E1626}.pf-btn.d{background:#0E1626;color:#fff}.pf-btn.g{background:#fff;border:1px solid #C9C9C4;color:#0E1626;height:46px;font-weight:600;margin-top:8px}.pf-btn[disabled]{opacity:.55;cursor:default}' +
     '.pf-ok{display:flex;gap:10px;align-items:flex-start;margin-bottom:10px;line-height:1.4}.pf-ok i{width:26px;height:26px;border-radius:13px;background:#E7F5EC;color:#137A48;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-style:normal;font-weight:800}' +
     '.pf-note{font-size:12px;color:#4E5A72;text-align:center;margin-top:12px;line-height:1.45}.pf-err{color:#C22F49;font-weight:600;margin:8px 0 0}' +
+    '.pf-back{position:fixed;left:0;top:0;right:0;bottom:0;z-index:9998;background:rgba(14,22,38,.55)}' +
     '.pf-bar{position:fixed;left:10px;right:10px;bottom:10px;z-index:9998;background:#0E1626;color:#fff;border-radius:12px;padding:10px 12px;display:flex;gap:10px;align-items:center;font-family:Inter,"Segoe UI",system-ui,sans-serif;font-size:13px;box-shadow:0 10px 30px -10px rgba(14,22,38,.6)}' +
     '.pf-bar b{color:#F5B800}.pf-bar button,.pf-bar a{font:inherit;font-weight:700;border:none;border-radius:8px;padding:9px 12px;cursor:pointer;text-decoration:none;white-space:nowrap}.pf-bar .y{background:#F5B800;color:#0E1626}.pf-bar .n{background:transparent;color:#AEB8CE}' +
     '@media(min-width:720px){.pf-sheet{left:auto;right:24px;bottom:24px;width:420px;border-radius:18px}.pf-bar{left:auto;right:24px;width:420px;box-sizing:border-box}}';
   var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
 
-  var box = null;
-  function fechar() { if (box) { box.remove(); box = null; } }
-  function painel(html) { fechar(); box = document.createElement('div'); box.className = 'pf-sheet'; box.setAttribute('role', 'dialog'); box.innerHTML = '<div class="pf-h"></div>' + html; document.body.appendChild(box); return box; }
+  var box = null, fundo = null;
+  function fechar() { if (box) { box.remove(); box = null; } semFundo(); }
+  function semFundo() { if (fundo) { fundo.remove(); fundo = null; } }
+  function comFundo() { if (!fundo) { fundo = document.createElement('div'); fundo.className = 'pf-back'; document.body.appendChild(fundo); } }
+  // bloquear = login obrigatório: fundo escuro fica por trás do painel e a página não responde a toques
+  function painel(html, bloquear) { if (box) { box.remove(); box = null; } if (bloquear) comFundo(); else semFundo(); box = document.createElement('div'); box.className = 'pf-sheet'; box.setAttribute('role', 'dialog'); box.innerHTML = '<div class="pf-h"></div>' + html; document.body.appendChild(box); return box; }
+  // sem sessão na cotação: já escurece a página na abertura, enquanto o servidor confirma se o login é obrigatório
+  if (!ls.get(KEY) && tipo === 'cotacao') comFundo();
   function adiar(dias) { ls.set(ADIADO, String(Date.now() + dias * 86400000)); fechar(); }
   function adiado() { var t = parseInt(ls.get(ADIADO) || '0', 10); return t > Date.now(); }
   var beneficios = '<div class="pf-ok"><i>✓</i><div><b>Nova cotação</b> da Econômico chega como aviso, com prazo e número de itens.</div></div>' +
@@ -58,16 +65,16 @@
       .then(function () { ls.set(SUB, '1'); return api('/api/portal/push/testar', { vt: vt }).catch(function () { return {}; }); });
   }
 
-  // ── sem login neste celular: convite pra criar o login (ou entrar) ──
-  function passoLogin() {
-    var h = '<div class="pf-top"><div class="pf-ic">E</div><div><h3>Receba as próximas cotações direto no celular</h3><p>Crie seu login no Portal do Fornecedor da Econômico: e-mail e uma senha de no mínimo 6 dígitos. Depois é só entrar, em qualquer celular.</p></div></div>' +
+  // ── sem login neste celular: convite pra criar o login (ou entrar). obrig = login obrigatório pra responder: sem "Agora não" ──
+  function passoLogin(obrig) {
+    var h = '<div class="pf-top"><div class="pf-ic">E</div><div><h3>' + (obrig ? 'Pra responder esta cotação, crie seu login no Portal do Fornecedor' : 'Receba as próximas cotações direto no celular') + '</h3><p>' + (obrig ? 'E-mail e uma senha de no mínimo 6 dígitos. Leva 1 minuto, vale pra todas as próximas cotações da Econômico, e você volta pra esta logo em seguida.' : 'Crie seu login no Portal do Fornecedor da Econômico: e-mail e uma senha de no mínimo 6 dígitos. Depois é só entrar, em qualquer celular.') + '</p></div></div>' +
       beneficios +
       '<a class="pf-btn p" href="/fornecedor/?de=' + de + '#criar">Criar meu login</a>' +
       '<a class="pf-btn g" href="/fornecedor/?de=' + de + '#entrar">Já tenho login, entrar</a>' +
-      '<button class="pf-btn g" id="pf-nao">Agora não, só ' + (tipo === 'pedido' ? 'ver o pedido' : 'cotar') + '</button>' +
+      (obrig ? '' : '<button class="pf-btn g" id="pf-nao">Agora não, só ' + (tipo === 'pedido' ? 'ver o pedido' : 'cotar') + '</button>') +
       '<div class="pf-note">Só o(a) comprador(a) da Econômico vê seus preços. Os outros fornecedores não veem nada.</div>';
-    var b = painel(h);
-    b.querySelector('#pf-nao').onclick = function () { adiar(3); };
+    var b = painel(h, !!obrig);
+    if (!obrig) b.querySelector('#pf-nao').onclick = function () { adiar(3); };
   }
 
   // ── logado: ativar avisos + instalar ──
@@ -118,20 +125,25 @@
   }
 
   // ── espera a página do vendedor carregar (P preenchido / #app com conteúdo) e decide o que mostrar ──
+  function semLogin() {
+    api('/api/portal/config').catch(function () { return {}; }).then(function (c) {
+      var obrig = tipo === 'cotacao' && !!c.exigeLogin;
+      if (obrig || !adiado()) passoLogin(obrig); else semFundo();
+    });
+  }
   function iniciar() {
     var vt = ls.get(KEY);
     if (vt) {
-      api('/api/portal/eu?vt=' + encodeURIComponent(vt)).then(function (r) { ls.set(NOME, (r.vendedor && r.vendedor.nome) || ''); jaIdentificado(vt); })
-        .catch(function (e) { if (/inválida/i.test(e.message)) { ls.del(KEY); ls.del(SUB); ls.del(NOME); if (!adiado()) passoLogin(); } });
+      api('/api/portal/eu?vt=' + encodeURIComponent(vt)).then(function (r) { ls.set(NOME, (r.vendedor && r.vendedor.nome) || ''); semFundo(); jaIdentificado(vt); })
+        .catch(function (e) { if (/inválida/i.test(e.message)) { ls.del(KEY); ls.del(SUB); ls.del(NOME); semLogin(); } else semFundo(); });
       return;
     }
-    if (adiado()) return;
-    passoLogin();
+    semLogin();
   }
   var tent = 0;
   (function esperar() {
     var app = document.getElementById('app'); var ok = app && app.children.length && !/não encontrad|link inválido/i.test(app.textContent || '');
-    if (ok) { setTimeout(iniciar, 900); return; }
-    if (++tent < 40) setTimeout(esperar, 250);
+    if (ok) { setTimeout(iniciar, ls.get(KEY) ? 900 : 100); return; }
+    if (++tent < 40) setTimeout(esperar, 250); else semFundo();   // página não carregou (link inválido): não deixa a tela escura
   })();
 })();
