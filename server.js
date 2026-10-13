@@ -214,7 +214,7 @@ app.use((req, res, next) => {
     '/comparativo-tv.html', '/api/comparativo-tv',
     '/prevencao.html', '/api/pendencias/prevencao', '/api/pendencias/prevencao-consolidado', '/api/pendencias/prevencao-bonif',
     '/api/ruptura/debug-comprador',
-    '/api/_diag/tabelas-central', '/api/_diag/radar-listas', '/api/_diag/cotacao-forn',
+    '/api/_diag/tabelas-central', '/api/_diag/radar-listas', '/api/_diag/cotacao-forn', '/api/_diag/robo',
     '/ruptura-painel.html', '/api/ruptura', '/api/ruptura/comprador-listas',
     '/margem-comprador.html', '/api/margem-tv/comprador',
     '/painel-diretoria.html',
@@ -5899,6 +5899,13 @@ app.get('/api/_diag/radar-listas', (req, res) => {
   res.json({ estado, n: rows.length, listas: rows });
 });
 // Diagnóstico só leitura de uma cotação (05/10/26, sem SSH daqui): status e cadastro de cada fornecedor — sem token/link do vendedor.
+// Robô do WhatsApp (negativos-wpp em 127.0.0.1:3010) está de pé? Sem SSH daqui: POST vazio em /mensagem devolve 400 quando o
+// processo responde (se o WhatsApp está pareado só dá pra saber mandando mensagem de verdade)
+app.get('/api/_diag/robo', async (req, res) => {
+  if (req.query.token !== 'diag2026') return res.status(403).end();
+  try { const r = await fetch('http://127.0.0.1:3010/mensagem', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); const j = await r.json().catch(() => ({})); res.json({ processo: 'responde', http: r.status, resposta: j, obs: r.status === 400 ? 'processo do robô de pé (400 esperado sem número/texto)' : null }); }
+  catch (e) { res.json({ processo: 'não responde', erro: e.message }); }
+});
 app.get('/api/_diag/cotacao-forn', (req, res) => {
   if (req.query.token !== 'diag2026') return res.status(403).end();
   const id = parseInt(req.query.id), qn = String(req.query.q || '').toLowerCase();
@@ -8970,6 +8977,7 @@ app.post('/api/cotacoes/:id/fornecedores', (req, res) => {
 // Enviar pelo robô do WhatsApp da loja (Tiago, 25/09: "enviar para todos que faltam, só dessa vez"): manda a mensagem
 // com o link pra cada vendedor pendente pelo número do robô (negativos-wpp em 127.0.0.1:3010), 6 s entre uma e outra
 // pra não parecer disparo em massa, e marca "enviado". Só funciona se o serviço NegativosWpp estiver com a rota /mensagem.
+// Com "Exigir login" ligado no Portal do Fornecedor, o texto já pede pra criar o login (Tiago, 13/10: "enviar todos de uma vez só usando o robô").
 const ENVIO_ROBO = {};   // id → { total, feitos, erros:[], em_andamento, iniciadoEm, terminadoEm }
 app.post('/api/cotacoes/:id/enviar-robo', (req, res) => {
   const id = cotId(req); if (!id) return res.status(400).json({ error: 'id inválido' });
@@ -8983,7 +8991,7 @@ app.post('/api/cotacoes/:id/enviar-robo', (req, res) => {
   (async () => {
     for (const f of pend) {
       const v = f.vendedor || {};
-      const texto = 'Olá' + (v.nome ? ', ' + v.nome : '') + '! Cotação #' + c.id + ' – ' + c.nome + ' do Econômico Supermercado (Rede Cahu). Por favor, preencha seus preços neste link: ' + linkCotacao(f) + (c.prazo ? ' . Prazo pra resposta: ' + String(c.prazo).slice(0, 16).replace('T', ' ').replace(/^(\d{4})-(\d{2})-(\d{2})/, '$3/$2/$1') : '') + ' . Obrigado(a)! (mensagem enviada pelo WhatsApp da loja; responda ' + (c.comprador && c.comprador.nome ? 'a ' + c.comprador.nome : 'a comprador(a)') + (c.comprador && c.comprador.whats ? ' no ' + c.comprador.whats : '') + ')';
+      const texto = 'Olá' + (v.nome ? ', ' + v.nome : '') + '! Cotação #' + c.id + ' – ' + c.nome + ' do Econômico Supermercado (Rede Cahu). ' + (portalForn.exigeLogin() ? 'Pra responder, abra o link, crie seu login no nosso Portal do Fornecedor (e-mail e senha, leva 1 minuto) e preencha seus preços: ' : 'Por favor, preencha seus preços neste link: ') + linkCotacao(f) + (c.prazo ? ' . Prazo pra resposta: ' + String(c.prazo).slice(0, 16).replace('T', ' ').replace(/^(\d{4})-(\d{2})-(\d{2})/, '$3/$2/$1') : '') + ' . Obrigado(a)! (mensagem enviada pelo WhatsApp da loja; responda ' + (c.comprador && c.comprador.nome ? 'a ' + c.comprador.nome : 'a comprador(a)') + (c.comprador && c.comprador.whats ? ' no ' + c.comprador.whats : '') + ')';
       try {
         const r = await fetch('http://127.0.0.1:3010/mensagem', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ numero: v.whats, texto }) });
         const j = await r.json().catch(() => ({}));
