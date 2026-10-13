@@ -1,5 +1,5 @@
 // Gancho do Portal do Fornecedor nas páginas do vendedor (/cotacao/<token>, /pedido/<token> e os atalhos /fornecedor/...).
-// Sem login neste celular: painel "crie seu login no portal" (e-mail + senha de no mínimo 6 dígitos) → manda pro
+// Sem login neste celular: painel "crie seu login no portal" (WhatsApp + PIN de 6 números) → manda pro
 // /fornecedor/?de=cotacao/<token>#criar (ou #entrar), que volta pra cá depois de entrar, com #avisos pra oferecer os
 // avisos na hora. Na cotação o login é OBRIGATÓRIO quando /api/portal/config diz exigeLogin (padrão; Tiago, 13/10:
 // "quero forçar já agora nessa cotação"): fundo escuro bloqueia a página desde a abertura e o painel não tem "Agora não". Já logado: refaz a inscrição de push se o navegador perdeu e lembra de ativar os avisos (1x por semana).
@@ -67,7 +67,7 @@
 
   // ── sem login neste celular: convite pra criar o login (ou entrar). obrig = login obrigatório pra responder: sem "Agora não" ──
   function passoLogin(obrig) {
-    var h = '<div class="pf-top"><div class="pf-ic">E</div><div><h3>' + (obrig ? 'Pra responder esta cotação, crie seu login no Portal do Fornecedor' : 'Receba as próximas cotações direto no celular') + '</h3><p>' + (obrig ? 'E-mail e uma senha de no mínimo 6 dígitos. Leva 1 minuto, vale pra todas as próximas cotações da Econômico, e você volta pra esta logo em seguida.' : 'Crie seu login no Portal do Fornecedor da Econômico: e-mail e uma senha de no mínimo 6 dígitos. Depois é só entrar, em qualquer celular.') + '</p></div></div>' +
+    var h = '<div class="pf-top"><div class="pf-ic">E</div><div><h3>' + (obrig ? 'Pra responder esta cotação, crie seu login no Portal do Fornecedor' : 'Receba as próximas cotações direto no celular') + '</h3><p>' + (obrig ? 'Seu WhatsApp e um PIN de 6 números. Leva 1 minuto, vale pra todas as próximas cotações da Econômico, e você volta pra esta logo em seguida.' : 'Crie seu login no Portal do Fornecedor da Econômico: seu WhatsApp e um PIN de 6 números. Depois é só entrar, em qualquer celular.') + '</p></div></div>' +
       beneficios +
       '<a class="pf-btn p" href="/fornecedor/?de=' + de + '#criar">Criar meu login</a>' +
       '<a class="pf-btn g" href="/fornecedor/?de=' + de + '#entrar">Já tenho login, entrar</a>' +
