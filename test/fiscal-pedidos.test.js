@@ -87,14 +87,19 @@ test('pedidosAReceber: uma linha por pedido × loja, só lojas permitidas, fecha
   const velho = { id: 1, status: 'aprovado', fornecedor: 'VELHO', lojas: [2], aprovadoEm: '2026-08-01T10:00:00.000Z', parametros: { origem: 'radar' }, itens: [{ cod: 'V', qtd: 1, lojas_qtd: { 2: 1 } }] };
   const fechado = pedCotacao({ id: 2, status: 'recebido', xml: { status: 'conciliado', lojas: { 2: xmlLoja({ status: 'conciliado', faltas: 0, chegou: { em: '2026-10-09', fechada: true } }) } } });
   const teste = pedCotacao({ id: 3, teste: true });
-  const listar = () => [pedCotacao({ xml: { status: 'consistencia', lojas: { 2: xmlLoja() } } }), radar, velho, fechado, teste];
+  // parcial (faltou item, loja fechada): fica só no pedido de cotação (o fiscal fecha); no pedido com compradora é ela quem fecha
+  const parcialCot = pedCotacao({ id: 4, status: 'recebido_parcial', xml: { status: 'consistencia', lojas: { 2: xmlLoja({ chegou: { em: '2026-10-09', fechada: true }, fiscal_liberou: { por: 'JOSE', em: '2026-10-09T14:00:00.000Z', parcial: true } }) } } });
+  const parcialRadar = { ...radar, id: 5, lojas: [2], status: 'recebido_parcial', xml: { status: 'consistencia', lojas: { 2: xmlLoja({ chegou: { em: '2026-10-09', fechada: true } }) } } };
+  const parcialVelho = pedCotacao({ id: 6, aprovadoEm: '2026-09-01T12:00:00.000Z', cotacao: null, parametros: { origem: 'cotacao' }, status: 'recebido_parcial', xml: { status: 'consistencia', lojas: { 2: xmlLoja({ chegou: { em: '2026-09-03', fechada: true } }) } } });
+  const listar = () => [pedCotacao({ xml: { status: 'consistencia', lojas: { 2: xmlLoja() } } }), radar, velho, fechado, teste, parcialCot, parcialRadar, parcialVelho];
   const rows = fp.pedidosAReceber(listar, totaisLoja, { lojas: [2], hoje: '2026-10-10' });
-  assert.deepEqual(rows.map(r => r.key), ['64462-2', '64481-2']);   // nota bipada primeiro; loja 3 fora do escopo; velho/fechado/teste fora
+  assert.deepEqual(rows.map(r => r.key), ['64462-2', '4-2', '64481-2']);   // nota bipada, parcial da cotação, aguardando; loja 3 fora do escopo; velho/fechado/teste/parcial da compradora/parcial velho fora
+  assert.equal(rows[1].situacao, 'liberado'); assert.equal(rows[1].faltas, 1);
   const c = rows[0];
   assert.equal(c.quem_decide, 'fiscal'); assert.equal(c.origem, 'cotacao'); assert.equal(c.obs.por, 'Diretor'); assert.equal(c.situacao, 'nota_bipada'); assert.equal(c.nConferencia, 184824);
   assert.equal(c.itens, 2); assert.equal(c.itens_vieram, 2); assert.equal(c.valor, 12); assert.equal(c.entrega_prevista, '2026-10-09');
   assert.equal(c.itens_lista[0].preco_status, 'maior'); assert.equal(c.itens_lista[1].tipo, 'parcial');
-  const r = rows[1];
+  const r = rows[2];
   assert.equal(r.quem_decide, 'compradora'); assert.equal(r.comprador, 'BRUNA'); assert.equal(r.situacao, 'aguardando_nota'); assert.equal(r.entrega_prevista, '2026-10-10'); assert.equal(r.atraso, 0); assert.equal(r.avisos_fiscal, 1);
   assert.equal(fp.pedidosAReceber(listar, totaisLoja, { lojas: null, loja: 3, hoje: '2026-10-10' }).length, 1);
   assert.match(fp.textoCobranca(c), /pedido #64462 \(Laticínios\) da Loja 2 · MURIBECA/);

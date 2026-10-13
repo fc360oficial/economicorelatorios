@@ -605,6 +605,8 @@ function arecFiltro(r){
   if(fArec==='cotacao')return r.quem_decide==='fiscal';
   if(fArec==='comprador')return r.quem_decide==='compradora';
   if(fArec==='atrasados')return r.atraso>0;
+  if(fArec==='parciais')return r.situacao==='liberado';
+  if(fArec==='bipadas')return r.situacao==='nota_bipada';
   return true;
 }
 function arecBusca(r){const q=$('#q').value.trim().toLowerCase();if(!q)return true;return String(r.pedido).includes(q)||(r.fornecedor||'').toLowerCase().includes(q)||(r.lista_nome||'').toLowerCase().includes(q)||(r.comprador||'').toLowerCase().includes(q);}
@@ -612,7 +614,7 @@ function renderAReceber(){
   const all=AREC||[];
   const n=f=>all.filter(f).length;
   let h='<div class="auto" style="border-left-color:#1E4FB5"><span>📦 <b>Pedidos aprovados que ainda vão chegar.</b> Só pra saber o que vem e cobrar atraso. A conferência acontece na aba Recebimentos, quando a loja bipa a nota. <b>Pedido de cotação (diretor): quem decide as divergências é você.</b> Pedido com comprador(a): ela decide em Pedidos de Compra; você só avisa.</span>'
-   +'<span class="chips">'+[['todos','Todos',all.length],['cotacao','Cotação (diretor)',n(r=>r.quem_decide==='fiscal')],['comprador','Com comprador',n(r=>r.quem_decide==='compradora')],['atrasados','Atrasados',n(r=>r.atraso>0)]].map(([k,l,v])=>'<span class="'+(fArec===k?'on':'')+'" onclick="fArec=\''+k+'\';render()">'+l+' <span class="mut">'+v+'</span></span>').join('')+'</span></div>';
+   +'<span class="chips">'+[['todos','Todos',all.length],['cotacao','Cotação (diretor)',n(r=>r.quem_decide==='fiscal')],['comprador','Com comprador',n(r=>r.quem_decide==='compradora')],['atrasados','Atrasados',n(r=>r.atraso>0)],['bipadas','Nota bipada',n(r=>r.situacao==='nota_bipada')],['parciais','Parciais (faltou)',n(r=>r.situacao==='liberado')]].map(([k,l,v])=>'<span class="'+(fArec===k?'on':'')+'" onclick="fArec=\''+k+'\';render()">'+l+' <span class="mut">'+v+'</span></span>').join('')+'</span></div>';
   const lista=all.filter(arecFiltro).filter(arecBusca);
   $('#cnt').textContent=lista.length+' de '+all.length;
   if(!lista.length){$('#view').innerHTML=h+'<div class="empty">'+(all.length?'Nenhum pedido nesse filtro.':'Nenhum pedido aprovado aguardando entrega nas suas lojas.')+'</div>';return;}
