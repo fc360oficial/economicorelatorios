@@ -8541,6 +8541,8 @@ app.get('/api/cotacoes/sugestao/:lista', async (req, res) => {
       cod: i.cod, descricao: i.descricao, unid: i.unid, emb: i.emb, emb_cadastro: i.emb_cadastro, emb_compra: i.emb_compra, emb_manual: i.emb_manual, emb_padrao: i.emb_padrao, lojas: i.lojas, curva_a: i.curva_a, validade: i.validade,
       venda_dia: i.venda_dia, estoque: i.estoque, estoque_bruto: i.estoque_bruto, transito: i.transito, cobertura_dias: i.cobertura_dias, alvo_dias: i.alvo_dias,
       qtd: i.qtd, volumes: i.volumes, custo: i.custo, total: i.total, flag: i.flag, lojas_qtd: i.lojas_qtd,
+      // Tiago, 13/10/26 ("coloca a cotação como a gente fez no Radar"): ABC, selos N/D, A em risco e estoque do CD, iguais ao detalhe do Radar
+      abc_q: i.abc_q || null, abc_v: i.abc_v || null, desativado: !!i.desativado, novo_ate: i.novo_ate || null, visto_em: i.visto_em || null, rank_a: i.rank_a || null, risco_a: !!i.risco_a, estoque_cd: i.estoque_cd == null ? null : i.estoque_cd,
       lojas_det: Object.fromEntries(Object.entries(i.lojas_det || {}).map(([ln, d]) => [ln, { estoque: d.estoque, estoque_bruto: d.estoque_bruto, venda_dia: d.venda_dia, cobertura_dias: d.cobertura_dias, transito: d.transito, transito_det: d.transito_det || [], transito_ignorado: !!d.transito_ignorado, ja_vendeu: d.ja_vendeu }]))
     }));
     // regra só da cotação: loja marcada, estoque+trânsito zero e sem sugestão → 1 caixa (Tiago, 23/09/2026); ver lib/cotacao.zeradoCotacao
