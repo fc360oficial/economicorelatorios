@@ -8049,7 +8049,7 @@ app.post('/api/pedidos-fornecedor/testes-xml/remover', (req, res) => {
   try { const n = pedidosFornec.removerTestesXml(); const np = precificacao.removerTestes(); res.json({ removidos: n, precificacao_removidos: np }); } catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.get('/api/pedidos-fornecedor', (req, res) => {
-  res.json(soMinhas(req, pedidosFornec.listar(), p => p.lista).map(p => ({ id: p.id, lista: p.lista, lista_nome: p.lista_nome, fornecedor: p.fornecedor, vendedor: p.vendedor, comprador: p.comprador, status: p.status, aprovadoEm: p.aprovadoEm || null, aprovadoPor: p.aprovadoPor || null, recebidoEm: p.recebidoEm || null, origem: p.origem || null, alerta_novo: !!p.alerta_novo,
+  res.json(soMinhas(req, pedidosFornec.listar(), p => p.lista).map(p => ({ id: p.id, lista: p.lista, lista_nome: p.lista_nome, fornecedor: p.fornecedor, vendedor: p.vendedor, comprador: p.comprador, status: p.status, aprovadoEm: p.aprovadoEm || null, aprovadoPor: p.aprovadoPor || null, canceladoEm: p.canceladoEm || null, canceladoPor: p.canceladoPor || null, motivoCancelamento: p.motivoCancelamento || null, excluidoEm: p.excluidoEm || null, excluidoPor: p.excluidoPor || null, motivoExclusao: p.motivoExclusao || null, statusAntes: p.statusAntes || null, recebidoEm: p.recebidoEm || null, origem: p.origem || null, alerta_novo: !!p.alerta_novo,
     // 13/10/2026: o Fiscal avisou a compradora que a nota está na mão dele e precisa da decisão dela (aparece no pedido)
     alerta_fiscal: p.alerta_fiscal || null, avisos_fiscal: p.avisos_fiscal || [],
     // selo e filtro de origem na tela (Radar / Cotação / Sugestão manual) — sem isto a tela mostrava RADAR em tudo
@@ -8277,7 +8277,7 @@ app.post('/api/pedidos-fornecedor/:id/obs-fiscal', (req, res) => {
   res.json({ ok: true, obs_fiscal: p.obs_fiscal });
 });
 app.post('/api/pedidos-fornecedor/:id/excluir', (req, res) => {
-  const p = pedidosFornec.excluir(parseInt(req.params.id), req.session.user?.nome || null);
+  const p = pedidosFornec.excluir(parseInt(req.params.id), req.session.user?.nome || null, req.body?.motivo);   // Tiago, 13/10: motivo fica registrado
   if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
   if (p.erro) return res.status(409).json({ error: p.erro });
   res.json({ ok: true });
