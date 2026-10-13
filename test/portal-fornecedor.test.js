@@ -152,3 +152,12 @@ test('exemplos de teste gravados antes do PIN existir ganham o PIN padrão ao su
   assert.equal(portal.entrar({ whats: '81900000001', pin: portal.TESTE_PIN }).vendedor.teste, true, 'entra com o PIN padrão depois de subir');
   assert.match(portal.criarConta({ nome: 'Tiago Teste', whats: '81 90000-0001', pin: '111111' }).erro, /exemplo de teste e já tem login.*123456/);
 });
+
+test('entrar com número de exemplo sem os exemplos criados: cria os 3 na hora e entra', () => {
+  portal.removerTestes();
+  assert.equal(portal.estado().vendedores, 5, 'removeu só os de teste');
+  const r = portal.entrar({ whats: '81 90000-0002', pin: portal.TESTE_PIN });
+  assert.equal(r.erro, undefined); assert.equal(r.vendedor.teste, true); assert.equal(r.vendedor.nome, 'TESTE Ana Paula Ferreira');
+  assert.equal(Object.values(JSON.parse(fs.readFileSync(path.join(portal.DIR, 'vendedores.json'), 'utf8'))).filter(v => v.teste).length, 3);
+  assert.equal(portal.entrar({ whats: '81 90000-0002', pin: '000000' }).erro, 'WhatsApp ou PIN não conferem', 'PIN errado continua errado');
+});
