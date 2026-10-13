@@ -82,6 +82,7 @@
         { href: '/fornecedores.html',        ic: 'bag',   txt: 'Lista de Compra' },
         { href: '/pedidos-compra.html',      ic: 'cart',  txt: 'Pedidos de Compra' },
         { href: '/ponta-gondola.html',       ic: 'store', txt: 'Ponta de Gôndola' },
+        { href: '/portal-fornecedor.html',   ic: 'store', txt: 'Portal do Fornecedor' },
         { href: '/radar-pedidos.html',       ic: 'trend', txt: 'Radar de Pedidos' },
         { href: '/sugestao-compras.html',    ic: 'trend', txt: 'Sugestão de Compras', escolha: [
             { txt: 'Sugestão por Rupturas', desc: 'Escolhe a compradora, mostra as rupturas de cada lista e cria a sugestão a partir delas.', href: '/sugestao-compras.html?tela=rupturas' },
