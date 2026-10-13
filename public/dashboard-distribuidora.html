@@ -372,12 +372,11 @@ function renderFat() {
   // t: undefined = vendedor (clicável) · 'tipo' = linha NF-e / NFC-e (quebra do total) · true = Total
   const linha = (v, t) => {
     const cl = (per, n) => t || !n ? '' : ' vcl" onclick="vendDetalhe(this,\'' + per + '\')" title="clique pra ver cliente e nota de cada venda';
-    // quebra NF-e × NFC-e curta, só na linha do vendedor e só quando ele teve NFC-e: contagem embaixo de "Notas" e o valor
-    // da NFC-e embaixo de "Venda" (o NF-e é o resto; as linhas NF-e / NFC-e antes do Total trazem a quebra completa)
-    const tem = a => !t && a.nfce && a.nfce.n > 0, qn = a => tem(a) ? '<span class="ant">' + a.nfe.n + ' NF-e · ' + a.nfce.n + ' NFC-e</span>' : '', qv = a => tem(a) ? ' · NFC-e ' + money(a.nfce.v) : '';
+    // linha do vendedor fica limpa, NF-e + NFC-e somadas (Tiago, 13/10: "pode deixar como estava e quando clicar mostrar o que foi
+    // por nota e o que foi por NFC-e"): a quebra dele aparece no detalhe (vendDetalhe) e a do total nas linhas NF-e / NFC-e
     return '<tr' + (t === true ? ' class="tot"' : t ? ' class="tipo"' : ' data-vend="' + v.cod + '"') + '><td class="p">' + esc(v.nome) + '</td>'
-    + '<td class="r sep dia">' + n0(v.hoje.n) + qn(v.hoje) + '</td><td class="r dia' + cl('hoje', v.hoje.n) + '"><b>' + money(v.hoje.v) + '</b>' + (tem(v.hoje) ? '<span class="ant">NFC-e ' + money(v.hoje.nfce.v) + '</span>' : '') + '</td>'
-    + '<td class="r sep">' + n0(v.mes.n) + qn(v.mes) + '</td><td class="r' + cl('mes', v.mes.n) + '"><b>' + money(v.mes.v) + '</b>' + (t === true ? '' : '<span class="ant">' + pct(v.pct) + (tem(v.mes) ? qv(v.mes) : ' do total') + '</span>') + '</td><td class="r">' + mg(v.mes.margem) + '</td><td class="r">' + money(v.mes.ticket) + '</td><td class="r">' + n0(v.mes.clientes) + '</td>'
+    + '<td class="r sep dia">' + n0(v.hoje.n) + '</td><td class="r dia' + cl('hoje', v.hoje.n) + '"><b>' + money(v.hoje.v) + '</b></td>'
+    + '<td class="r sep">' + n0(v.mes.n) + '</td><td class="r' + cl('mes', v.mes.n) + '"><b>' + money(v.mes.v) + '</b>' + (t === true ? '' : '<span class="ant">' + pct(v.pct) + ' do total</span>') + '</td><td class="r">' + mg(v.mes.margem) + '</td><td class="r">' + money(v.mes.ticket) + '</td><td class="r">' + n0(v.mes.clientes) + '</td>'
     + '<td class="r sep">' + (v.mesAnt.v ? money(v.mesAnt.v) + '<span class="ant">' + n0(v.mesAnt.n) + ' notas · <b class="' + cls(v.var) + '">' + sgn(v.var) + '</b></span>' : '<span class="mut">—</span>') + '</td></tr>';
   };
   const T = f.tipos || {};
@@ -427,7 +426,8 @@ async function vendDetalhe(td, per) {
     const r = await fetch('/api/dashboard-distribuidora/vendedor/' + tr.dataset.vend + '/' + per + (DEMO ? '?demo=1' : '')); const j = await r.json(); if (j.error) throw new Error(j.error);
     if (!det.isConnected) return;
     const ns = j.notas || [];
-    det.firstChild.innerHTML = '<div class="det-h"><b>' + esc(j.nome) + '</b> · ' + (per === 'hoje' ? 'notas de hoje' : 'notas do mês · ' + df(j.de) + ' a ' + df(j.ate)) + ' · <b>' + plural(ns.length, 'nota') + '</b> · total ' + money(j.total) + (j.nfe ? ' · NF-e ' + money(j.nfe.v) + ' (' + j.nfe.n + ') · NFC-e ' + money(j.nfce.v) + ' (' + j.nfce.n + ')' : '') + (per === 'hoje' ? '' : ' · mais recente primeiro') + '</div>'
+    det.firstChild.innerHTML = '<div class="det-h"><b>' + esc(j.nome) + '</b> · ' + (per === 'hoje' ? 'notas de hoje' : 'notas do mês · ' + df(j.de) + ' a ' + df(j.ate)) + ' · <b>' + plural(ns.length, 'nota') + '</b> · total ' + money(j.total) + (per === 'hoje' ? '' : ' · mais recente primeiro')
+      + (j.nfe ? ' &nbsp; <span class="pill nt" title="NF-e de venda">NF-e ' + j.nfe.n + ' · ' + money(j.nfe.v) + '</span> <span class="pill inf" title="NFC-e emitidas no caixa do CD">NFC-e ' + j.nfce.n + ' · ' + money(j.nfce.v) + '</span>' : '') + '</div>'
       + (ns.length ? '<table class="m"><thead><tr><th>Data</th><th>Nota</th><th>Cliente</th><th>Forma</th><th class="r">Valor</th><th class="r">Margem</th></tr></thead><tbody>'
         + ns.map(n => '<tr><td>' + dow(n.d) + ' ' + df(n.d) + (n.hora ? ' ' + hm(n.hora) : '') + '</td><td>' + notaCel(n) + '</td><td class="p">' + esc(n.cliente) + '</td><td>' + esc(n.forma) + '</td><td class="r"><b>' + money(n.v) + '</b></td><td class="r">' + mg(n.margem) + '</td></tr>').join('') + '</tbody></table>' : '<div class="empty">Sem nota no período.</div>');
   } catch (e) { if (det.isConnected) det.firstChild.innerHTML = '<div class="empty">erro: ' + esc(e.message) + '</div>'; }
