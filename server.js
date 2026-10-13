@@ -8353,6 +8353,20 @@ app.get('/api/dp/ponto/resumo', async (req, res) => {
   try { res.json(await pontocerto.resumo({ de, ate })); }
   catch (err) { console.error('[dp/ponto]', err.message); res.status(/não configurado/.test(err.message) ? 409 : 502).json({ error: err.message }); }
 });
+// Gente & Gestão (13/10/2026): painéis do DP e do RH cruzando o cadastro do PontoCerto com os registros próprios
+// (data/gente/*.json — ASO/exames, ocorrências, férias, vagas, treinamentos, avaliações, movimentações, quadro).
+const gente = require('./lib/gente');
+// O GET /employees do Pontomais leva ~30-40 s (4 páginas pesadas). Aquece o cache ao subir e renova a cada 18 min
+// pra tela do DP/RH abrir na hora; se o token não estiver configurado, só ignora.
+const genteAquecer = () => { gente.painelDP().catch(() => {}); };
+setTimeout(genteAquecer, 15000); setInterval(genteAquecer, 18 * 60 * 1000);
+const genteErro = (res, err, tag) => { if (!err.status) console.error('[' + tag + ']', err.message); res.status(err.status || (/não configurado/.test(err.message) ? 409 : 502)).json({ error: err.message }); };
+app.get('/api/dp/painel', async (req, res) => { try { res.json(await gente.painelDP(String(req.query.force) === '1' && req.session.user?.perfil === 'admin')); } catch (err) { genteErro(res, err, 'dp/painel'); } });
+app.get('/api/rh/painel', async (req, res) => { try { res.json(await gente.painelRH(String(req.query.force) === '1' && req.session.user?.perfil === 'admin')); } catch (err) { genteErro(res, err, 'rh/painel'); } });
+app.get('/api/gente/colaboradores', async (req, res) => { try { res.json(await pontocerto.colaboradores()); } catch (err) { genteErro(res, err, 'gente/colab'); } });
+app.get('/api/gente/:colecao', (req, res) => { try { res.json(gente.listar(req.params.colecao, req.query)); } catch (err) { genteErro(res, err, 'gente'); } });
+app.post('/api/gente/:colecao', (req, res) => { try { res.json(gente.salvar(req.params.colecao, req.body || {}, req.session.user?.nome || null)); } catch (err) { genteErro(res, err, 'gente'); } });
+app.delete('/api/gente/:colecao/:id', (req, res) => { try { res.json(gente.excluir(req.params.colecao, req.params.id, req.session.user?.nome || null)); } catch (err) { genteErro(res, err, 'gente'); } });
 // ═══════════════════════════════════════════════════
 // FISCAL — Recebimento de notas nas lojas (21/09/2026, pedido do Tiago).
 // Cruza sozinho conferência do coletor × XML da NF-e × pedido de compra × validade ×
