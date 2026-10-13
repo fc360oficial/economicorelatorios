@@ -230,6 +230,10 @@ app.use((req, res, next) => {
   if (/^\/tvcahu\/?(kiosk\/?)?$/i.test(req.path) || /^\/tv-televendas\/[a-f0-9]{32}$/i.test(req.path) || /^\/api\/tv-televendas-publico\/[a-f0-9]{32}$/i.test(req.path)) return next();
   // Link do fornecedor na Cotação: mesmo esquema (token de 32 hex por fornecedor convidado)
   if (/^\/cotacao\/[a-f0-9]{32}$/.test(req.path) || /^\/api\/cotacao-publica\/[a-f0-9]{32}(\/|$)/.test(req.path)) return next();
+  // Portal do Fornecedor (PWA em /fornecedor/, 13/10/26): página, service worker, manifest, atalhos /fornecedor/cotacao|pedido/<token>
+  // e API /api/portal/* são públicos; a identidade é o token longo do vendedor (vt), validado dentro de cada rota
+  // (lib/portal-fornecedor.js). /api/portal-admin/* fica atrás do login.
+  if (req.path === '/fornecedor' || req.path.startsWith('/fornecedor/') || req.path.startsWith('/api/portal/')) return next();
   // PDF de promoções/preços off: público por token de 32 hex (pra mandar no WhatsApp)
   if (/^\/promocoes\/pdf\/[a-f0-9]{32}\.pdf$/.test(req.path)) return next();
   // App de contagem de negativos no celular do auxiliar: entra por PIN da loja,
@@ -8018,7 +8022,7 @@ app.get('/api/pedidos-fornecedor/:id/devolucao/:loja/pdf', (req, res) => {
   setTimeout(() => res.sendFile(f, { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="devolucao-${p.id}-L${req.params.loja}.pdf"` } }), 200);
 });
 // público (vai no WhatsApp pro vendedor / CPD / fiscal)
-app.get('/pedido/:token/devolucao/:loja/pdf', (req, res) => {
+app.get(['/pedido/:token/devolucao/:loja/pdf', '/fornecedor/pedido/:token/devolucao/:loja/pdf'], (req, res) => {
   const p = pedidosFornec.porToken(req.params.token); if (!p) return res.status(404).send('Pedido não encontrado');
   const ln = parseInt(req.params.loja); if (!pedidosFornec.recusasLoja(p, ln).length) return res.status(404).send('Sem itens recusados nesta loja');
   let f; try { f = pedidosFornec.gerarPdfDevolucao(p, ln, null); } catch (e) { return res.status(500).send(e.message); }
@@ -8217,6 +8221,7 @@ app.post('/api/pedidos-fornecedor/:id/enviar', (req, res) => {
   if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
   if (p.erro) return res.status(409).json({ error: p.erro });
   res.json({ ok: true, status: p.status, link: linkPedido(p) });
+  if (!p.teste) portalForn.avisarPedido(p).catch(e => console.error('[PORTAL] avisar pedido', p.id, e.message));
 });
 app.post('/api/pedidos-fornecedor/verificar-recebimentos', async (req, res) => {
   try { const r = await pedidosFornec.verificarRecebimentos(); r.erp_teste_recebimentos = await espelharRecebimentosPendentes().catch(e => 'erro: ' + e.message); res.json(r); } catch (err) { res.status(500).json({ error: err.message }); }
@@ -8274,7 +8279,7 @@ app.get('/api/pedidos-fornecedor/:id/pdf', async (req, res) => {
   res.sendFile(f, { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="pedido-${p.id}${ln ? '-L' + ln : ''}.pdf"` } });
 });
 // PDF público pelo token (link que vai no WhatsApp pro vendedor/comprador) — só pedido aprovado ou posterior
-app.get('/pedido/:token/pdf', async (req, res) => {
+app.get(['/pedido/:token/pdf', '/fornecedor/pedido/:token/pdf'], async (req, res) => {
   const p = pedidosFornec.porToken(req.params.token);
   if (!p) return res.status(404).send('Pedido não encontrado');
   if (!['aprovado', 'recebido', 'recebido_parcial'].includes(p.status)) return res.status(403).send('O PDF só fica disponível depois que o pedido é aprovado.');
@@ -8285,7 +8290,7 @@ app.get('/pedido/:token/pdf', async (req, res) => {
 });
 
 // --- lado do vendedor (público por token; ver bypass no middleware de auth) ---
-app.get('/pedido/:token', (req, res) => {
+app.get(['/pedido/:token', '/fornecedor/pedido/:token'], (req, res) => {
   const pt = pedidosFornec.porToken(req.params.token);
   if (!pt) return res.status(404).send('Pedido não encontrado');
   if (pt.status === 'cancelado') return res.status(410).send('<!doctype html><meta charset=utf-8><body style="font-family:sans-serif;padding:40px;text-align:center;color:#4E5A72"><h2>Este pedido foi cancelado</h2><p>O link não está mais válido. Em caso de dúvida, fale com o(a) comprador(a).</p></body>');
@@ -8509,11 +8514,17 @@ app.delete('/api/fiscal/testes', (req, res) => { try { res.json({ ok: true, remo
 // ═══════════════════════════════════════════════════
 const cotacao = require('./lib/cotacao');
 cotacao.init();
+// Portal do Fornecedor (PWA /fornecedor/, 13/10/26): identidade do vendedor, avisos (Web Push) de nova cotação / prazo / pedido.
+// Avisar pelo app marca enviadoEm no fornecedor da cotação, então o "um por um" do WhatsApp lista só quem não tem o app.
+const portalForn = require('./lib/portal-fornecedor');
+try { console.log('[PORTAL] estado:', JSON.stringify(portalForn.init({ cotacao, pedidosFornec, lerCotForn: () => lerCotForn() }))); } catch (e) { console.error('[PORTAL] init:', e.message); }
+portalForn.registrarRotas(app);
+setInterval(() => portalForn.lembretesPrazo().catch(e => console.error('[PORTAL] lembretes:', e.message)), 10 * 60 * 1000);
 const linkCotacao = f => `${PUBLIC_URL}/cotacao/${f.token}`;
 const cotUser = req => req.session.user?.nome || null;
 const cotId = req => { const id = parseInt(req.params.id, 10); return Number.isInteger(id) && id > 0 ? id : null; };
 // detalhe pra compradora: comparativo pronto + link de cada fornecedor (sem o mapa cru de preços)
-const cotDetalhe = c => { const antes = new Set(cotacao.listar().filter(x => x.id !== c.id && x.criadoEm < c.criadoEm && !x.teste).flatMap(x => x.fornecedores.map(f => f.codFornec))); return { ...c, comparativo: cotacao.comparativo(c), prePedidos: cotacao.prePedidos(c), fornecedores: c.fornecedores.map(f => ({ ...f, precos: undefined, link: linkCotacao(f), cotados: c.itens.filter(i => f.precos[i.cod]?.preco > 0).length, novo: !antes.has(f.codFornec) })) }; };
+const cotDetalhe = c => { const antes = new Set(cotacao.listar().filter(x => x.id !== c.id && x.criadoEm < c.criadoEm && !x.teste).flatMap(x => x.fornecedores.map(f => f.codFornec))); return { ...c, comparativo: cotacao.comparativo(c), prePedidos: cotacao.prePedidos(c), fornecedores: c.fornecedores.map(f => ({ ...f, precos: undefined, link: linkCotacao(f), cotados: c.itens.filter(i => f.precos[i.cod]?.preco > 0).length, novo: !antes.has(f.codFornec), canal: portalForn.canalDe(c, f) })), canais: portalForn.resumoCanais(c) }; };
 
 app.get('/api/cotacoes', (req, res) => {
   try {
@@ -8784,6 +8795,7 @@ async function criarPedidoDaCotacao(f, itens, c, usuario, extra, sessionUser) {
     catch (e) { console.error('[COTACAO] erp teste pedido ' + p.id + ':', e.message); }
   }
   const fin = pedidosFornec.obter(p.id);
+  if (!c.teste) portalForn.avisarPedido(fin).catch(e => console.error('[PORTAL] avisar pedido', fin.id, e.message));
   return { id: fin.id, fornecedor: f.nome, codFornec: f.codFornec, vendedor: fin.vendedor, itens: fin.itens.length, total: fin.totais.digitado, lojas: fin.lojas, status: fin.status, link: linkPedido(fin), avarias: fin.avarias ? { n: fin.avarias.n, total: fin.avarias.total } : null };
 }
 // Cotações de TESTE (Tiago, 15/09: "atalho em cada tela pra eu analisar tela a tela" + "deixa vários exemplos na tela"):
@@ -8877,7 +8889,7 @@ app.get('/api/cotacoes/historico/:cod', (req, res) => {
   try { res.json(cotacao.historicoProduto(req.params.cod)); } catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.post('/api/cotacoes', (req, res) => {
-  try { res.json(cotDetalhe(cotacao.criar({ ...(req.body || {}), usuario: cotUser(req) }))); }
+  try { const c = cotacao.criar({ ...(req.body || {}), usuario: cotUser(req) }); res.json(cotDetalhe(c)); portalForn.avisarNovaCotacao(c).catch(e => console.error('[PORTAL] avisar cotação', c.id, e.message)); }
   catch (err) { res.status(400).json({ error: err.message }); }
 });
 // Comparativo por item (estilo Club da Cotação): "dados da última compra" de cada produto — última nota de entrada
@@ -8921,6 +8933,7 @@ app.post('/api/cotacoes/:id/fornecedores', (req, res) => {
   if (!r) return res.status(404).json({ error: 'cotação não encontrada' });
   if (r.erro) return res.status(409).json({ error: r.erro });
   res.json(cotDetalhe(r.c));
+  portalForn.avisarNovaCotacao(r.c, { codFornecs: (r.adicionados || []).map(x => x.codFornec) }).catch(e => console.error('[PORTAL] avisar fornecedor novo', id, e.message));
 });
 // Enviar pelo robô do WhatsApp da loja (Tiago, 25/09: "enviar para todos que faltam, só dessa vez"): manda a mensagem
 // com o link pra cada vendedor pendente pelo número do robô (negativos-wpp em 127.0.0.1:3010), 6 s entre uma e outra
@@ -9070,7 +9083,7 @@ app.post('/api/cotacoes/:id/fechar', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 // --- lado do fornecedor (público por token; ver bypass no middleware de auth) ---
-app.get('/cotacao/:token', (req, res) => {
+app.get(['/cotacao/:token', '/fornecedor/cotacao/:token'], (req, res) => {
   const r = cotacao.porToken(req.params.token);
   if (!r) return res.status(404).send('Cotação não encontrada');
   if (r.c.status === 'cancelada') return res.status(410).send('<!doctype html><meta charset=utf-8><body style="font-family:sans-serif;padding:40px;text-align:center;color:#4E5A72"><h2>Esta cotação foi cancelada</h2><p>O link não está mais válido. Em caso de dúvida, fale com o(a) comprador(a).</p></body>');
