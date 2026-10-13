@@ -714,6 +714,23 @@ table.forntab.cad9 td .vx .zap{display:inline-flex;align-items:center;justify-co
 @media (max-width:1100px){.sugbar-filtros{gap:6px 14px}.sugbar-grp .hin{min-width:120px}}
 .trn-lj .tr-tag{display:inline-flex;align-items:center;gap:5px;margin-left:6px;padding:1px 8px 1px 6px;border-radius:999px;border:1px solid transparent;font:inherit;font-size:10.5px;font-weight:800;cursor:pointer;vertical-align:middle;line-height:1.6}.trn-lj .tr-tag i{width:10px;height:10px;border-radius:50%;display:inline-block;background:currentColor}.trn-lj .tr-tag.on{background:var(--posw);color:var(--pos);border-color:var(--pos)}.trn-lj .tr-tag.on:hover{background:#D9F2E4}.trn-lj .tr-tag.off{background:#FDECEC;color:var(--neg)}.trn-lj .tr-tag input{margin:0;width:12px;height:12px;cursor:pointer}.trn-lj .tr-ign b{text-decoration:line-through;color:var(--ink3)}.lj .lj-est .tr.off{text-decoration:line-through;color:var(--ink3);font-weight:600}
 tr.mesma-emp td{background:#FBFBF8;border-top:1px dashed var(--ln)}
+/* Cotação, etapa 1 (Tiago, 13/10: "coloca linhas nas colunas, diminui mais esse espaçamento pra deixar mais organizado") */
+table.sug thead th+th,table.sug tbody td+td{border-left:1px solid var(--ln)}
+table.sug thead th{padding:8px 8px}
+table.sug tbody td{padding:5px 8px;font-size:13px;line-height:1.25}
+table.sug tbody td.mini{font-size:11.5px}
+table.sug td.price{font-size:13.5px}
+table.sug .prod-cell b{font-size:13.5px}
+table.sug .prod-meta{font-size:11.5px}
+table.sug .lj{margin-right:3px;gap:1px}
+table.sug .lj small{font-size:9.5px;line-height:1.1}
+table.sug .lj input{width:56px;font-size:13.5px;padding:3px 4px}
+table.sug .lj .lj-est{font-size:10.5px;line-height:1.1}
+table.sug td.q-tot{font-size:14px}
+table.sug td.q-tot a,table.sug td.q-tot span{font-size:11.5px}
+table.sug thead th:nth-child(n+7),table.sug tbody td:nth-child(n+7){padding-right:10px}
+table.sug tbody tr:nth-child(even) td{background:#F8F8F6}
+table.sug tbody tr:hover td{background:#E6EEFA}
 </style>
 </head>
 <body>
@@ -781,10 +798,10 @@ tr.mesma-emp td{background:#FBFBF8;border-top:1px dashed var(--ln)}
     </div>
 
     <div class="wizpanel on" id="w1">
-      <div class="wizfoot top"><span class="mini">Edite as quantidades por loja se quiser. Item sem quantidade não entra na cotação. Regra só da cotação: loja marcada na lista com estoque zero e sem sugestão recebe 1 caixa (marcado "zerado (cotação)").</span><button class="btn ghost sm" onclick="irFornecedores()">Próximo: destinatários →</button></div>
+      <div class="wizfoot top"><span class="mini">Edite as quantidades por loja se quiser. Item sem quantidade não entra na cotação. Regra só da cotação: loja marcada na lista com estoque zero e sem sugestão recebe 1 caixa (marcado "zerado (cotação)").</span></div>
       <div class="kpis" id="w1-lojas" style="grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:14px"></div>
       <div class="toolbar sugbar">
-        <div class="sugbar-top"><span id="w1-resumo" class="sugbar-resumo"></span><div class="sugbar-acoes"><button class="btn ghost sm" id="btn-emb" onclick="buscarCaixaPadrao()" title="Vasculha notas de entrada de qualquer época e fornecedor, XML das NF-e, Embalagem Vendas, código de caixa (DUN-14) e a sugestão do ERP pra achar a caixa padrão dos itens que estão sem">↻ Buscar caixa padrão</button><button class="btn ghost sm" onclick="marcarTodos(true)">Marcar todos</button><button class="btn ghost sm" onclick="marcarTodos(false)">Desmarcar</button><button class="btn primary sm" onclick="irFornecedores()">Próximo: destinatários →</button></div></div>
+        <div class="sugbar-top"><span id="w1-resumo" class="sugbar-resumo"></span><div class="sugbar-acoes"><button class="btn ghost sm" onclick="marcarTodos(true)">Marcar todos</button><button class="btn ghost sm" onclick="marcarTodos(false)">Desmarcar</button><button class="btn primary sm" onclick="irFornecedores()">Próximo: destinatários →</button></div></div>
         <div class="sugbar-filtros"><div class="sugbar-grp"><span class="sugbar-lbl">Mostrar</span><label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" class="check" id="ns-so-qtd" checked onchange="renderSugestao()">só itens com quantidade</label><label style="display:flex;gap:6px;align-items:center;cursor:pointer" title="Mostra só os produtos com sugestão/pedido aberto no ERP ainda não recebido (coluna Trânsito). Com uma loja selecionada no card, só o trânsito daquela loja. Não muda a marcação."><input type="checkbox" class="check" id="ns-so-tr" onchange="renderSugestao()">só produtos em trânsito</label></div><div class="sugbar-grp"><span class="sugbar-lbl">Marcação</span><label style="display:flex;gap:6px;align-items:center;cursor:pointer" title="Ligada: produto com estoque no CD (CAHU Distribuidora) fica desmarcado e não entra na cotação — a loja pede pro CD. Marcar todos respeita. Desligue pra voltar a marcar."><input type="checkbox" class="check" id="ns-sem-cd" onchange="toggleSemCD(this.checked)">não marcar quem tem no CD</label></div><div class="sugbar-grp"><span class="sugbar-lbl">Filtros</span><select id="ns-ordem" class="hin" onchange="renderSugestao()" title="Ordem dos produtos"><option value="az">Ordem: A → Z</option><option value="za">Ordem: Z → A</option><option value="radar">Ordem do Radar (curva A e urgência primeiro)</option></select><select id="ns-cx" class="hin" onchange="renderSugestao()" title="Filtrar por caixa padrão"><option value="">Caixa: todas</option><option value="sem">Sem caixa padrão</option><option value="com">Com caixa padrão</option></select><select id="ns-est" class="hin" onchange="renderSugestao()" title="Filtrar por estoque (soma das lojas)"><option value="">Estoque: todos</option><option value="com">Com estoque</option><option value="sem">Sem estoque</option></select><select id="ns-cd" class="hin" onchange="renderSugestao()" title="Filtrar pelo estoque no CD (CAHU Distribuidora): só quem tem, só quem não tem, ou tudo"><option value="">CD: todos</option><option value="com">Só quem tem no CD</option><option value="sem">Só quem não tem no CD</option></select></div></div>
       </div>
       <div class="tablewrap">
