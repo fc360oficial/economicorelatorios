@@ -438,6 +438,7 @@ table.ppg .vlr.eq{background:var(--wsh);color:var(--ink)}
 .pp-est b{color:var(--ink);font-weight:700}
 .pp-est .tr{color:var(--inf);font-weight:700}
 .pp-est .zero{color:var(--neg);font-weight:800}
+.tr-pill{display:inline-block;margin-left:4px;padding:1px 7px;border-radius:99px;background:#E9EEF6;color:#2E5E8C;font-size:10px;font-weight:800;white-space:nowrap;vertical-align:middle}
 .vbtn{background:var(--ink);color:var(--am);border-radius:8px}
 .obs-btn{background:var(--amk)}
 .mon .st{color:var(--inf)}
@@ -1734,7 +1735,7 @@ function analiseItem(i){
 }
 // ───────── COMPARATIVO POR ITEM (estilo Club da Cotação, pedido do Tiago 15/09): cada item num bloco, dados da
 // última compra do ERP e, embaixo, cada vendedor que digitou aquele item; checkbox marca o vencedor
-var VISTA = localStorage.getItem('cot-vista') || 'itens', ULT = {}, CI_F = {busca:'', forn:'', loja:'', cat:'', soObs:false, soSemPreco:false, soComPreco:true, soManual:false, soComprados:false, soNaoComprados:false, soNovos:false, varTipo:'pct', var:'', varOn:false}, CI_ABA = 'produtos', CI_REC = {}, CATS = {};
+var VISTA = localStorage.getItem('cot-vista') || 'itens', ULT = {}, CI_F = {busca:'', forn:'', loja:'', cat:'', soObs:false, soSemPreco:false, soComPreco:true, soManual:false, soComprados:false, soNaoComprados:false, soNovos:false, soTransito:false, varTipo:'pct', var:'', varOn:false}, CI_ABA = 'produtos', CI_REC = {}, CATS = {};
 function setVista(v){ VISTA = v; localStorage.setItem('cot-vista', v); renderComparativo(); }
 function renderComparativo(){ if (VISTA === 'matriz') return renderComparativoMatriz(); return renderComparativoItens(); }
 async function carregarUltimas(){
@@ -1743,7 +1744,7 @@ async function carregarUltimas(){
   if (VISTA !== 'matriz' && document.getElementById('s4').classList.contains('on')) renderComparativoItens();
 }
 var CI_LIM = 100;
-function ciSet(k, v){ CI_LIM = 100; CI_F[k] = v; if (k === 'varOn' && v && !(parseFloat(String(CI_F.var).replace(',', '.')) > 0)) CI_F.var = CI_F.varTipo === 'rs' ? '1,00' : '5'; if (k === 'soComPreco' && v) CI_F.soSemPreco = false; if (k === 'soSemPreco' && v) CI_F.soComPreco = false; renderComparativoItens(); }   // "Apenas digitados" e "Não digitados" são excludentes
+function ciSet(k, v){ CI_LIM = 100; CI_F[k] = v; if (k === 'soTransito' && v) { var pe = CUR && PP_EST[CUR.id]; if (!pe || pe.carregando || !pe.itens) { ppCarregarEstoque().then(function(){ renderComparativoItens(); }); } } if (k === 'varOn' && v && !(parseFloat(String(CI_F.var).replace(',', '.')) > 0)) CI_F.var = CI_F.varTipo === 'rs' ? '1,00' : '5'; if (k === 'soComPreco' && v) CI_F.soSemPreco = false; if (k === 'soSemPreco' && v) CI_F.soComPreco = false; renderComparativoItens(); }   // "Apenas digitados" e "Não digitados" são excludentes
 var CI_VT = null; function ciVarDigitando(){ clearTimeout(CI_VT); CI_VT = setTimeout(ciFiltrar, 500); }
 function dataPrevista(dias){ if (!dias) return '—'; var d = new Date(); d.setDate(d.getDate() + (+dias)); return d.toLocaleDateString('pt-BR'); }
 function ciPorLojaTxt(i){ var v = i.vencedores_loja || {}, ks = Object.keys(v); if (!ks.length) return ''; var F = CUR.comparativo.fornecedores; return ' <span class="mini" style="color:var(--amk);font-weight:700" title="Escolha por loja feita no pré-pedido (clique no nome da loja no cabeçalho de lá)">· por loja: ' + ks.map(function(l){ var w = v[l], f = w == null ? null : F.find(function(x){ return +x.codFornec === +w; }); return LJ(l) + ' ' + (w == null ? 'não comprar' : esc(f ? f.nome : w)); }).join(' · ') + '</span>'; }
@@ -1754,8 +1755,12 @@ function ciRecTodos(v){ CUR.comparativo.itens.forEach(function(i){ CI_REC[i.cod]
 // (cabeçalho, filtros e 100 cartões) e a caixa perdia o foco. Agora espera a pessoa parar de digitar (250 ms) e redesenha só a lista.
 var CI_BUSCA_T = null;
 function ciBuscaDigitando(v){ CI_F.busca = v; CI_LIM = 100; clearTimeout(CI_BUSCA_T); CI_BUSCA_T = setTimeout(function(){ renderComparativoItens({ soLista: true }); }, 250); }
+// selo "🚚 trâns N" no item do comparativo, com o trânsito por loja no balão (dado do /estoque, o mesmo do pré-pedido)
+function trPill(cod){ var pe = CUR && PP_EST[CUR.id], t = pe && pe.itens && pe.itens[cod]; if (!(t && t.transito > 0)) return ''; var det = Object.keys(t.lojas || {}).filter(function(l){ return t.lojas[l].transito > 0; }).map(function(l){ return LJ(l) + ' ' + fmtN(t.lojas[l].transito, 0); }).join(' · '); return ' <span class="tr-pill" title="Em trânsito: sugestão/pedido aberto no ERP ainda não recebido' + (det ? ' — ' + det : '') + '">🚚 trâns ' + fmtN(t.transito, 0) + '</span>'; }
 function ciFiltrar(){ CI_LIM = 100; CI_F.var = ($('#ci-var') || {}).value || ''; CI_F.varOn = parseFloat(String(CI_F.var).replace(',', '.')) > 0; renderComparativoItens(); }
 function renderComparativoItens(opts){
+  // estoque/trânsito ao vivo pro selo 🚚 e pro filtro "Em trânsito": carrega 1x por cotação e redesenha só a lista
+  if (CUR && !PP_EST[CUR.id]) ppCarregarEstoque().then(function(){ if (CI_ABA === 'produtos' && $('#ci-list')) renderComparativoItens({ soLista: true }); });
   var m = $('#s4-main'); if (!CUR) { renderVazio(m); return; }
   var soLista = !!(opts && opts.soLista && $('#ci-list'));   // busca (Tiago, 28/09: "demora muito"): redesenha só a lista, a caixa de busca fica onde está, com o foco
   var C = CUR.comparativo, R = C.resumo, F = C.fornecedores, aberta = CUR.status === 'aberta', U = ULT[CUR.id] || {}, K = CATS[CUR.id] || {};
@@ -1785,6 +1790,7 @@ function renderComparativoItens(opts){
     '<label><input type="checkbox" class="check"' + (CI_F.soObs ? ' checked' : '') + ' onchange="ciSet(\'soObs\',this.checked)" title="Algum vendedor colocou uma observação neste item"> Itens com Observações</label>' +
     '<label><input type="checkbox" class="check"' + (CI_F.soComPreco ? ' checked' : '') + ' onchange="ciSet(\'soComPreco\',this.checked)" title="Produtos em que alguém colocou preço (marcado por padrão)"> Apenas digitados</label>' +
     '<label><input type="checkbox" class="check"' + (CI_F.soSemPreco ? ' checked' : '') + ' onchange="ciSet(\'soSemPreco\',this.checked)" title="Produtos em que ninguém colocou preço"> Não Digitados</label>' +
+    '<label><input type="checkbox" class="check"' + (CI_F.soTransito ? ' checked' : '') + ' onchange="ciSet(\'soTransito\',this.checked)" title="Itens com sugestão ou pedido aberto no ERP ainda não recebido (em trânsito) em alguma loja da cotação — mesmo dado do pré-pedido, atualizado a cada 5 min"> Em trânsito</label>' +
     '</div>' +
     '<div class="clubvar"><label class="on"><input type="checkbox" class="check"' + (CI_F.varOn ? ' checked' : '') + ' onchange="ciSet(\'varOn\',this.checked)" title="Liga o filtro de variação: só itens cuja diferença entre o menor preço cotado e a última compra é maior ou igual ao valor informado"> Alta variação de Preços</label>' +
     '<label><input type="radio" name="ci-vt"' + (CI_F.varTipo === 'pct' ? ' checked' : '') + ' onchange="ciSet(\'varTipo\',\'pct\')"> Em percentual (%)</label><label><input type="radio" name="ci-vt"' + (CI_F.varTipo === 'rs' ? ' checked' : '') + ' onchange="ciSet(\'varTipo\',\'rs\')"> Em valor (R$)</label>' +
@@ -1803,6 +1809,7 @@ function renderComparativoItens(opts){
     if (CI_F.soComprados && !i.vencedor) return false;
     if (CI_F.soNaoComprados && !(i.nao_comprar && temPreco)) return false;   // Tiago, 28/09: alguém digitou preço, mas eu desmarquei e não comprei de ninguém (item sem preço nenhum não é "não comprado", é "não digitado")
     if (CI_F.soNovos && !Object.keys(i.precos).some(function(k){ return novos[k]; })) return false;
+    if (CI_F.soTransito) { var pe2 = CUR && PP_EST[CUR.id], te = pe2 && pe2.itens && pe2.itens[i.cod]; if (!(te && te.transito > 0)) return false; }
     if (CI_F.varOn && varMin > 0) { var base = (U[i.cod] && U[i.cod].preco) || i.ultimo_custo; if (!(base > 0) || !i.melhor) return false; var d = CI_F.varTipo === 'rs' ? Math.abs(i.melhor.preco - base) : Math.abs((i.melhor.preco - base) / base * 100); if (d < varMin) return false; }
     return true;
   });
@@ -1812,7 +1819,7 @@ function renderComparativoItens(opts){
   h += itens.slice(0, CI_LIM).map(function(i){
     var u = U[i.cod], base = (u && u.preco) || i.ultimo_custo || 0, v = i.vencedor, q = L ? (i.lojas_qtd[L] || 0) : i.qtd, rec = !!CI_REC[i.cod], k = K[i.cod];
     var quem = F.filter(function(f){ return i.precos[f.codFornec]; }), naoCot = F.filter(function(f){ return !i.precos[f.codFornec]; });
-    var x = '<div class="citem club' + (rec ? ' rec' : '') + '" id="ci-' + esc(i.cod) + '"><div class="cihd" onclick="ciRec(\'' + esc(i.cod) + '\')"><div><span class="chev">⌄</span> <b>' + esc(i.descricao) + '</b>' + cdTag(i.cod) + ' <span class="mini" style="color:var(--amk)">' + esc(i.unid || 'UN') + '|' + i.emb + '</span>' + (i.curva_a ? ' <span class="an-badge bad" style="padding:1px 7px">curva A</span>' : '') + (k && k.grupo ? ' <span class="mini" style="color:var(--amk)">· ' + esc(k.grupo) + (k.subgrupo ? ' / ' + esc(k.subgrupo) : '') + '</span>' : '') + '<br><span class="cod">Código: ' + esc(i.cod) + '</span>' + (i.nao_comprar ? ' <span class="mini" style="color:var(--neg);font-weight:700">· não comprar</span>' : '') + ciPorLojaTxt(i) + '</div>' +
+    var x = '<div class="citem club' + (rec ? ' rec' : '') + '" id="ci-' + esc(i.cod) + '"><div class="cihd" onclick="ciRec(\'' + esc(i.cod) + '\')"><div><span class="chev">⌄</span> <b>' + esc(i.descricao) + '</b>' + cdTag(i.cod) + ' <span class="mini" style="color:var(--amk)">' + esc(i.unid || 'UN') + '|' + i.emb + '</span>' + (i.curva_a ? ' <span class="an-badge bad" style="padding:1px 7px">curva A</span>' : '') + trPill(i.cod) + (k && k.grupo ? ' <span class="mini" style="color:var(--amk)">· ' + esc(k.grupo) + (k.subgrupo ? ' / ' + esc(k.subgrupo) : '') + '</span>' : '') + '<br><span class="cod">Código: ' + esc(i.cod) + '</span>' + (i.nao_comprar ? ' <span class="mini" style="color:var(--neg);font-weight:700">· não comprar</span>' : '') + ciPorLojaTxt(i) + '</div>' +
       '<div style="text-align:right" onclick="event.stopPropagation()"><span style="font-size:15px">Quantidade: <b>' + fmtN(q) + '</b></span>' + (i.emb > 1 ? ' <span class="mini">(' + Math.ceil(q / i.emb) + ' cx de ' + i.emb + ')</span>' : '') + (L ? '' : (Object.keys(i.lojas_qtd || {}).length > 1 ? '<br><span class="mini">' + Object.keys(i.lojas_qtd).map(function(l){ return LJ(l) + ' ' + i.lojas_qtd[l]; }).join(' · ') + '</span>' : '')) +
       (i.fechado ? '<br><span class="lock-pill" title="Este item já está num pedido realizado. Pedido fechado não muda.">🔒 pedido #' + i.pedidoId + ' realizado</span>' : aberta ? '<br><span class="sel-vc" style="justify-content:flex-end"><button class="' + (!i.manual && !i.nao_comprar ? 'on' : '') + '" onclick="escolher(\'' + esc(i.cod) + '\',\'auto\')">auto (menor)</button><button class="' + (i.nao_comprar ? 'on' : '') + '" onclick="escolher(\'' + esc(i.cod) + '\',\'nao\')">não comprar</button></span>' : '') + '</div></div><div class="cibody">';
     x += '<div class="ciult"><span>Dados da ultima compra: <span class="ico2">▪</span></span>' + (u ? '<span>Valor: ' + (u.preco ? fmtN(u.preco, 2) : '—') + '</span><span>Fornecedor: ' + esc(u.fornecedor || ('cód. ' + u.cf)) + '</span><span>Data: ' + dd(u.data) + '</span><span>Quantidade: ' + fmtN(u.qtd) + (u.loja ? ' <span class="mini">(' + LJ(u.loja) + ')</span>' : '') + '</span>' : '<span>sem nota de entrada nos últimos 24 meses</span><span>Último custo (cadastro): ' + (i.ultimo_custo > 0 ? fmtN(i.ultimo_custo, 2) : '—') + '</span>') + '</div>';
