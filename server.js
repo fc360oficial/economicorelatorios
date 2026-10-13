@@ -8090,8 +8090,9 @@ app.get('/api/pedidos-fornecedor/:id', async (req, res) => {
   if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
   // estoque_lojas: est/trânsito por loja de cada item, da base do Radar, pra tela mostrar embaixo da caixinha (Tiago, 06/10/26)
   let estoqueLojas = {}; try { estoqueLojas = radarPedidos.estoqueLojas((p.itens || []).map(i => i.cod)); } catch (e) {}
+  let infoProd = {}; try { infoProd = radarPedidos.infoProdutos((p.itens || []).map(i => i.cod)); } catch (e) {}   // ABC + selos (Tiago, 13/10)
   let lojasInativas = {}; try { lojasInativas = await lojasInativasPedido(p); } catch (e) {}
-  res.json({ ...p, ...pedidoMinimoTela(p), por_loja: pedidosFornec.porLoja(p), link: linkPedido(p), avarias_txt: pedidosFornec.textoAvarias(p), observacoes: pedidosFornec.observacoesPedido(p), estoque_lojas: estoqueLojas, lojas_inativas: lojasInativas });
+  res.json({ ...p, ...pedidoMinimoTela(p), por_loja: pedidosFornec.porLoja(p), link: linkPedido(p), avarias_txt: pedidosFornec.textoAvarias(p), observacoes: pedidosFornec.observacoesPedido(p), estoque_lojas: estoqueLojas, info_produtos: infoProd, lojas_inativas: lojasInativas });
 });
 
 app.post('/api/pedidos-fornecedor/:id/aprovar', async (req, res) => {

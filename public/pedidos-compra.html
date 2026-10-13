@@ -115,6 +115,12 @@ table.main-t td.dts{width:1%}
 input.qin{width:50px;text-align:right;font:inherit;font-size:11.5px;font-weight:700;padding:3px 5px;border:1px solid #DADAD6;border-radius:5px;background:#fff;color:#0E1626;-moz-appearance:textfield}
 input.qin::-webkit-outer-spin-button,input.qin::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 input.qin:focus{outline:none;border-color:#F5B800;background:#FFFDF3}input.qin.ed{border-color:#2E5E8C;background:#E9EEF6}
+/* Tiago, 13/10: botão "0" no lugar da coluna Trânsito (zera o item); colunas ABC e Status iguais ao detalhe do Radar */
+.zbtn{display:inline-block;width:22px;height:22px;line-height:20px;border:1px solid #C22F49;border-radius:50%;background:#fff;color:#C22F49;font:800 11px Inter,sans-serif;cursor:pointer;padding:0;opacity:.55;vertical-align:middle}.zbtn:hover{opacity:1;background:#FBEAED}
+.det table.ppg td.abc{white-space:nowrap;font-size:12.5px}.det table.ppg td.abc b{font-weight:800}.abc-a{color:#137A48}.abc-b{color:#B45C00}.abc-c{color:#C22F49}
+.det table.ppg th.abc small{display:block;font-size:9px;text-transform:none;letter-spacing:0;color:#98A0B3;font-weight:700;margin-top:1px}
+.st2{white-space:nowrap}.st2 .pill{margin:0 1px;font-size:10px;padding:1px 6px;line-height:1.5}.st2 .cdtag{margin-left:1px}
+.pill.p-a{background:#C22F49;color:#fff;font-weight:800}.pill.p-a.soft{background:#FBEAED;color:#C22F49}.pill.p-nova{background:#137A48;color:#fff;font-weight:800}.pill.p-d{background:#98A0B3;color:#fff;font-weight:800}
 .lnk{cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}.lnk:hover{color:#fff}
 .cad-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 24px}.cad-grid table{border-collapse:collapse;width:100%}.cad-r{padding:6px 10px;color:#98A0B3;font-size:11.5px;white-space:nowrap;vertical-align:top}.cad-v{padding:6px 10px;font-weight:600;color:#0E1626}.cad-v a{color:#2E5E8C}.cad-sec{padding:12px 10px 4px;font-size:10px;font-weight:800;letter-spacing:.5px;color:#B45C00;text-transform:uppercase}
 .aviso{background:#FFF6D9;border:1px solid #EFD98F;color:#6B4E00;border-radius:10px;padding:10px 14px;font-size:12px;margin-bottom:14px}
@@ -544,20 +550,20 @@ async function carregarDetalhe(key){
     // últ. compra · trânsito · qtd · emb · total · uma coluna por loja (nome + total no cabeçalho; caixinha com est · trâns e ⛔ desativado) · obs
     const TLJ=Object.fromEntries(totLojas(p,null).lojas.map(l=>[l.ln,l]));
     h+='<div class="lojatot" id="lt-'+p.id+'" data-ln="'+(LN||'')+'">'+lojaTotaisHtml(p,LN,true)+'</div>';   // Tiago, 13/10: "esse bota lá pra cima" (igual ao Radar)
-    h+=itfHtml(p,LN)+'<div style="overflow-x:auto" id="itt-'+p.id+'"><table class="ppg one"><thead><tr><th class="l">Produto</th><th class="c" title="Preço digitado pelo vendedor no link (— = ainda sem preço)">Preço digitado</th><th class="c" title="Variação entre o preço digitado e a última compra (último custo do ERP)">× últ. compra</th><th class="r" title="Último custo de compra no ERP">Últ. compra</th><th class="r" title="Quantidade a caminho pra este item (sugestões/pedidos abertos no ERP ainda não recebidos), somando as lojas">Trânsito</th><th class="r">Qtd</th><th class="c" title="Caixa padrão (unidades por caixa): digite e dê Enter">Emb</th><th class="r" title="Quantidade × preço digitado (sem preço: × último custo)">Total</th>'+LJ.map(l=>'<th class="lj" title="'+(LN?'Voltar a ver todas as lojas':'Ver só '+ETQ(l)+' '+esc(LOJAS_NOMES[l]||''))+'" onclick="event.stopPropagation();verLoja('+p.id+','+(LN?0:l)+')">'+esc(LOJAS_NOMES[l]||ETQ(l))+' <span class="mini">'+(LN?'✕':'🔍')+'</span><small id="th-tl-'+p.id+'-'+l+'">'+money2(TLJ[l]?TLJ[l].total:0)+'</small><em class="thmin" id="th-mn-'+p.id+'-'+l+'">'+minTh(p.pedido_minimo,TLJ[l]?TLJ[l].total:0)+'</em></th>').join('')+'<th class="obs">Obs. do vendedor</th></tr></thead><tbody>';
+    h+=itfHtml(p,LN)+'<div style="overflow-x:auto" id="itt-'+p.id+'"><table class="ppg one"><thead><tr><th class="c abc" title="Curva ABC entre todos os produtos das listas, pela venda dos últimos 40 dias: quantidade / valor em R$. A = até 80 % do acumulado, B = até 95 %, C = o resto">ABC<small>qtd / R$</small></th><th class="l">Produto</th><th class="c st2" title="Selos do produto: A curva A · N novo na lista · D desativado no cadastro · CD tem no Centro de Distribuição">Status</th><th class="c" title="Preço digitado pelo vendedor no link (— = ainda sem preço)">Preço digitado</th><th class="c" title="Variação entre o preço digitado e a última compra (último custo do ERP)">× últ. compra</th><th class="r" title="Último custo de compra no ERP">Últ. compra</th><th class="c" title="Zerar as quantidades pedidas do item em todas as lojas (o item continua no pedido, com 0)">Zerar</th><th class="r">Qtd</th><th class="c" title="Caixa padrão (unidades por caixa): digite e dê Enter">Emb</th><th class="r" title="Quantidade × preço digitado (sem preço: × último custo)">Total</th>'+LJ.map(l=>'<th class="lj" title="'+(LN?'Voltar a ver todas as lojas':'Ver só '+ETQ(l)+' '+esc(LOJAS_NOMES[l]||''))+'" onclick="event.stopPropagation();verLoja('+p.id+','+(LN?0:l)+')">'+esc(LOJAS_NOMES[l]||ETQ(l))+' <span class="mini">'+(LN?'✕':'🔍')+'</span><small id="th-tl-'+p.id+'-'+l+'">'+money2(TLJ[l]?TLJ[l].total:0)+'</small><em class="thmin" id="th-mn-'+p.id+'-'+l+'">'+minTh(p.pedido_minimo,TLJ[l]?TLJ[l].total:0)+'</em></th>').join('')+'<th class="obs">Obs. do vendedor</th></tr></thead><tbody>';
     let idx=0;
     for(const i of [...p.itens].filter(i=>!LN||(i.lojas_qtd?.[LN]||0)>0).sort((x,y)=>String(x.descricao||'').localeCompare(String(y.descricao||''),'pt-BR'))){
-      const E=p.estoque_lojas?.[i.cod]||null, li=p.lojas_inativas?.[i.cod]||[], pr=i.preco!=null?i.preco:null, dif=pr!=null&&i.ultimo_custo>0?pr-i.ultimo_custo:null;
-      const meta='<div class="pp-meta">'+esc(i.cod)+cdTag(i.cod)+inatTag(p,i.cod)+(i.emb_vendedor?' <span class="pill st-aguardando" style="font-size:9.5px;padding:1px 6px" title="O vendedor informou uma embalagem diferente da nossa">vendedor: emb. '+esc(i.emb_vendedor)+'</span>':'')+(i.origem_item==='ruptura'?' <span class="pill st-sugestao" style="font-size:9.5px;padding:1px 6px" title="Faltou na entrega do pedido de origem">ruptura</span>':(i.origem_item==='radar'?' <span class="pill st-digitacao" style="font-size:9.5px;padding:1px 6px" title="Trazido do radar: já estava abaixo do ponto de pedido">radar</span>':(i.origem_item==='curva_a'?' <span class="pill" style="font-size:9.5px;padding:1px 6px;background:#C22F49;color:#fff;font-weight:800" title="Produto de curva A em risco (zerava antes do dia da lista ou já estava no ponto de pedido)">curva A</span>':'')))+(i.avaria?' <span class="avpill" style="margin:0" title="'+esc(Object.entries(i.avaria).map(([l,a])=>ETQ(l)+': '+a.qtd_pedido+' un de reposição ('+a.status+')').join(' · '))+'">reposição de avaria'+(i.origem_item==='avaria'?'':' (parte)')+'</span>':'')+'</div>';
+      const E=p.estoque_lojas?.[i.cod]||null, IP=p.info_produtos?.[i.cod]||{}, li=p.lojas_inativas?.[i.cod]||[], pr=i.preco!=null?i.preco:null, dif=pr!=null&&i.ultimo_custo>0?pr-i.ultimo_custo:null;
+      const meta='<div class="pp-meta">'+esc(i.cod)+inatTag(p,i.cod)+(i.emb_vendedor?' <span class="pill st-aguardando" style="font-size:9.5px;padding:1px 6px" title="O vendedor informou uma embalagem diferente da nossa">vendedor: emb. '+esc(i.emb_vendedor)+'</span>':'')+(i.origem_item==='ruptura'?' <span class="pill st-sugestao" style="font-size:9.5px;padding:1px 6px" title="Faltou na entrega do pedido de origem">ruptura</span>':(i.origem_item==='radar'?' <span class="pill st-digitacao" style="font-size:9.5px;padding:1px 6px" title="Trazido do radar: já estava abaixo do ponto de pedido">radar</span>':(i.origem_item==='curva_a'?' <span class="pill" style="font-size:9.5px;padding:1px 6px;background:#C22F49;color:#fff;font-weight:800" title="Produto de curva A em risco (zerava antes do dia da lista ou já estava no ponto de pedido)">curva A</span>':'')))+(i.avaria?' <span class="avpill" style="margin:0" title="'+esc(Object.entries(i.avaria).map(([l,a])=>ETQ(l)+': '+a.qtd_pedido+' un de reposição ('+a.status+')').join(' · '))+'">reposição de avaria'+(i.origem_item==='avaria'?'':' (parte)')+'</span>':'')+'</div>';
       const cel=LJ.map(l=>{ const q=i.lojas_qtd[l]||0, L=E&&E.lojas?E.lojas[l]:null, inat=li.includes(+l), rc=i.recebido?.[l], ru=i.ruptura?.[l];
         let est=L?'<div class="pp-est" title="estoque atual na loja · trâns = sugestão/pedido aberto no ERP ainda não recebido">est <b'+(L.estoque<=0?' class="zero"':'')+'>'+fmt(L.estoque,0)+'</b> · trâns <span class="tr'+(L.transito>0?'':' zero')+'">'+fmt(L.transito,0)+'</span></div>':'';
         if(inat) est+='<div class="pp-est" style="color:var(--neg);font-weight:800" title="desativado nesta loja na lista de compra do ERP (Ativar/Desativar Itens da Lista)">⛔</div>';
         if(ru) est+='<div class="pp-est" style="color:var(--neg);font-weight:800" title="ruptura de entrega">'+(ru.tipo==='total'?'não veio nada':'veio '+fmt(ru.recebida,0)+' de '+fmt(ru.pedida,0))+'</div>';
         else if(rc!=null) est+='<div class="pp-est">'+(rc>=q-0.001?'<span style="color:var(--pos);font-weight:800">✓ recebido</span>':'recebeu <b>'+fmt(rc,0)+'</b>')+'</div>';
         return '<td class="c st lj'+(q?' tem':'')+(inat?' inat':'')+'">'+(editavel?'<input class="qin" type="number" min="0" step="1" data-id="'+p.id+'" data-cod="'+esc(i.cod)+'" data-ln="'+l+'" value="'+(q||'')+'" placeholder="·">':'<b>'+(q?fmt(q,0):'')+'</b>')+est+'</td>'; }).join('');
-      h+='<tr class="'+(i.preco!=null||['sugestao','analise'].includes(p.status)?'pede':'zero')+(idx++%2?' alt':'')+'" data-f="'+itemF(i,LN)+'"><td class="prod desc"><b>'+esc(i.descricao)+'</b>'+meta+'</td>'+
+      h+='<tr class="'+(i.preco!=null||['sugestao','analise'].includes(p.status)?'pede':'zero')+(idx++%2?' alt':'')+'" data-f="'+itemF(i,LN)+'">'+abcCel(IP)+'<td class="prod desc"><b>'+esc(i.descricao)+'</b>'+meta+'</td>'+stCel(i,IP)+
         '<td class="c" id="pp-'+p.id+'-'+esc(i.cod)+'">'+precoCellHtml(p,i)+'</td><td class="c" id="ps-'+p.id+'-'+esc(i.cod)+'">'+seta(i.preco,i.ultimo_custo,true)+'</td><td class="r">'+fmt(i.ultimo_custo,2)+'</td>'+
-        '<td class="r">'+(E?(E.transito>0?'<span class="tr" style="font-weight:800;color:var(--inf)">'+fmt(E.transito,0)+'</span>':'<span style="color:var(--ink3)">0</span>'):'<span class="mut">—</span>')+'</td>'+
+        '<td class="c">'+(editavel?'<button class="zbtn" title="Zerar as quantidades pedidas deste item'+(LN?' nesta loja':' em todas as lojas')+'" onclick="zerarItem(event,'+p.id+',&quot;'+esc(i.cod)+'&quot;)">0</button>':'<span class="mut">—</span>')+'</td>'+
         '<td class="r" id="pq-'+p.id+'-'+esc(i.cod)+'">'+pqHtml(p,i,LN)+'</td><td class="c">'+pembHtml(p,i)+'</td><td class="r" id="pt-'+p.id+'-'+esc(i.cod)+'">'+ptHtml(i,LN)+'</td>'+cel+'<td class="mut obs">'+esc(i.obs||'')+'</td></tr>';
     }
     h+='</tbody></table></div>';
@@ -626,6 +632,38 @@ function prePedido(id){
       +'<div style="padding:10px 12px;border-top:1px solid #DADAD6;font-size:12px"><b>Resposta do vendedor sobre as avarias:</b> '+(p.avarias.resposta_vendedor?esc(p.avarias.resposta_vendedor):'<span class="neg">ainda sem resposta</span>')+'</div></div>';
   }
   abrirPv(h);
+}
+// Colunas ABC e Status iguais ao detalhe do Radar (Tiago, 13/10): info vem de /api/pedidos-fornecedor/:id → info_produtos (base do Radar)
+const abcCls=v=>v==='A'?'abc-a':v==='B'?'abc-b':v==='C'?'abc-c':'';
+function abcCel(IP){ return '<td class="c abc" title="'+esc('Curva por quantidade: '+(IP.abc_q||'—')+' · por venda (R$): '+(IP.abc_v||'—')+' · entre todos os produtos das listas, últimos 40 dias (A até 80 %, B até 95 %, C o resto)')+'"><b class="'+abcCls(IP.abc_q)+'">'+(IP.abc_q||'—')+'</b><span class="mut"> / </span><b class="'+abcCls(IP.abc_v)+'">'+(IP.abc_v||'—')+'</b></td>'; }
+function stCel(i,IP){
+  const ca=i.curva_a||IP.curva_a, ra=!!i.risco_a;
+  const selos=[(ca?'<span class="pill '+(ra?'p-a':'p-a soft')+'" title="'+esc('A = curva A'+(IP.rank_a?' · posição '+IP.rank_a+' na venda':'')+(ra?' · estava em risco quando o pedido foi gerado':''))+'">A</span>':''),
+    (IP.novo_ate?'<span class="pill p-nova" title="N = entrou nesta lista no ERP em '+(IP.visto_em?new Date(IP.visto_em).toLocaleDateString('pt-BR'):'')+' (fica marcado 7 dias)">N</span>':''),
+    (IP.desativado?'<span class="pill p-d" title="D = desativado no cadastro do ERP. Entra porque está na lista de compra">D</span>':''),
+    cdTag(i.cod)].filter(Boolean);
+  return '<td class="c st2">'+(selos.length?selos.join(' '):'<span class="mut">—</span>')+'</td>';
+}
+// Tiago, 13/10 ("no lugar dessa coluna de trânsito coloca um ícone que a opção dele é zerar as quantidades pedidas daquele item"):
+// zera o item em todas as lojas do pedido (na visão de uma loja só, só nela), salva pela mesma rota da caixinha e redesenha
+// célula, caixinhas, totais por loja e cabeçalho sem recarregar. O trânsito continua embaixo de cada caixinha ("est · trâns").
+async function zerarItem(ev,pid,cod){
+  if(ev) ev.stopPropagation();
+  const p=PED[pid], it=p&&p.itens.find(i=>String(i.cod)===String(cod)); if(!it) return;
+  const LN=lnDetalhe(pid), lojas=LN?[+LN]:Object.keys(it.lojas_qtd||{}).map(Number);
+  const antes={}; lojas.forEach(l=>{ antes[l]=it.lojas_qtd[l]||0; });
+  const com=lojas.filter(l=>antes[l]>0); if(!com.length) return;
+  if(!confirm('Zerar '+(it.descricao||cod)+(LN?' em '+ETQ(LN):' em todas as lojas')+'?\n\n'+com.map(l=>ETQ(l)+' '+antes[l]).join(' · '))) return;
+  const ajustes={}; ajustes[cod]={}; lojas.forEach(l=>{ it.lojas_qtd[l]=0; ajustes[cod][l]=0; });
+  it.qtd=Object.values(it.lojas_qtd).reduce((s,x)=>s+(x||0),0); it.volumes=it.qtd?Math.ceil(it.qtd/(it.emb||1)):0;
+  const c=document.getElementById('pq-'+pid+'-'+cod); const tr=c&&c.closest('tr'); if(tr) tr.dataset.f=itemF(it,LN); atualizarItf(pid);
+  document.querySelectorAll('input.qin[data-id="'+pid+'"][data-cod="'+cod+'"]').forEach(q=>{ if(!LN||+q.dataset.ln===+LN){ q.value=''; q.classList.add('ed'); q.closest('td').classList.remove('tem'); } });
+  if(c) c.innerHTML=pqHtml(p,it,LN);
+  const pt=document.getElementById('pt-'+pid+'-'+cod); if(pt) pt.innerHTML=ptHtml(it,LN);
+  const lt=document.getElementById('lt-'+pid); if(lt) lt.innerHTML=lojaTotaisHtml(p, lt.dataset.ln?+lt.dataset.ln:null, true);
+  atualizarThLojas(pid);
+  try{ const r=await fetch('/api/pedidos-fornecedor/'+pid+'/quantidades',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ajustes})}); const j=await r.json(); if(j.error) throw new Error(j.error); const L=LISTA.find(x=>x.id===pid); if(L){L.totais=j.totais;L.lojas=j.lojas;} }
+  catch(e){ alert('Não zerou: '+e.message); lojas.forEach(l=>{ it.lojas_qtd[l]=antes[l]; }); carregarDetalhe(aberto); }
 }
 async function salvarQtd(inp){
   const id=+inp.dataset.id, cod=inp.dataset.cod, ln=+inp.dataset.ln, v=Math.max(0,Math.round(parseFloat(inp.value)||0));
