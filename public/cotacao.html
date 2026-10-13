@@ -1622,10 +1622,16 @@ function canalBarra(){ var k = CUR && CUR.canais; if (!k) return ''; return '<sp
 async function reenviarApp(){ if (!CUR) return; var n = (CUR.fornecedores || []).filter(function(f){ return f.canal && f.canal.canal === 'app' && !f.finalizadoEm; }).length; if (!n) { toastMsg('Nenhum vendedor pendente desta cotação tem o portal instalado'); return; } if (!confirm('Mandar o aviso da cotação de novo pelo app pra ' + n + ' vendedor(es) que ainda não responderam?')) return; try { var r = await post('/api/portal-admin/cotacoes/' + CUR.id + '/avisar', { soNaoAbriram: false }); toastMsg('Aviso reenviado pra ' + r.avisados + ' fornecedor(es)' + (r.falhas ? ' · ' + r.falhas + ' falha(s)' : '') + (r.semApp ? ' · ' + r.semApp + ' sem app' : '')); setTimeout(recarregar, 800); } catch(e) { toastMsg('Erro: ' + e.message); } }
 // Envio em lote pelo robô do WhatsApp (Tiago, 25/09); desde 13/10 sai pelo número central da Rede Cahu (cahu-wpp)
 async function enviarPeloRobo(){
-  if (!CUR) return; var pend = CUR.fornecedores.filter(function(f){ return f.vendedor && f.vendedor.whats && !f.enviadoEm; }).length;
-  if (!pend) { toastMsg('Nenhum vendedor pendente com WhatsApp'); return; }
-  if (!confirm('Enviar a mensagem com o link pra ' + pend + ' vendedor(es) pendente(s) pelo número CENTRAL da Rede Cahu (robô), um a cada 6 segundos?\n\nEles vão receber de um número diferente do seu; a mensagem pede que respondam a você.')) return;
-  try { var r = await post('/api/cotacoes/' + CUR.id + '/enviar-robo'); toastMsg('Disparo iniciado: ' + r.total + ' mensagens (leva uns ' + Math.ceil(r.total * 6 / 60) + ' min)'); roboStatus(); } catch(e) { toastMsg('Erro: ' + e.message); }
+  if (!CUR) return;
+  var com = CUR.fornecedores.filter(function(f){ return f.vendedor && f.vendedor.whats && f.status !== 'finalizado'; });
+  var pend = com.filter(function(f){ return !f.enviadoEm; }).length, ja = com.length - pend;
+  if (!com.length) { toastMsg('Nenhum vendedor com WhatsApp pra mandar'); return; }
+  // já tem gente marcada como enviada (disparo anterior por outro número, ou que parou no meio): oferece reenviar pra todos
+  var todos = ja > 0 && confirm(ja + ' vendedor(es) já estão marcados como enviados' + (pend ? ' e ' + pend + ' ainda estão pendentes' : '') + '.\n\nOK = reenviar pra TODOS os ' + com.length + ' (inclusive quem já recebeu)\nCancelar = mandar só pros ' + pend + ' pendentes');
+  var n = todos ? com.length : pend;
+  if (!n) { toastMsg('Nenhum vendedor pendente com WhatsApp'); return; }
+  if (!confirm('Enviar a mensagem com o link pra ' + n + ' vendedor(es) pelo número CENTRAL da Rede Cahu (robô), um a cada 6 segundos?\n\nEles vão receber de um número diferente do seu; a mensagem pede que respondam a você.')) return;
+  try { var r = await post('/api/cotacoes/' + CUR.id + '/enviar-robo', { todos: todos }); toastMsg('Disparo iniciado: ' + r.total + ' mensagens (leva uns ' + Math.ceil(r.total * 6 / 60) + ' min)'); roboStatus(); } catch(e) { toastMsg('Erro: ' + e.message); }
 }
 async function roboStatus(auto){
   try { var s = await api('/api/cotacoes/' + CUR.id + '/enviar-robo'); var el = document.getElementById('robo-st'); if (!s.total) { if (el) el.innerHTML = auto ? '' : ''; return; }

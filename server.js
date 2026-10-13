@@ -8984,10 +8984,13 @@ app.post('/api/cotacoes/:id/enviar-robo', (req, res) => {
   const c = cotacao.obter(id); if (!c) return res.status(404).json({ error: 'cotação não encontrada' });
   if (c.status !== 'aberta') return res.status(409).json({ error: 'Cotação ' + c.status });
   if (ENVIO_ROBO[id] && ENVIO_ROBO[id].em_andamento) return res.status(409).json({ error: 'Já tem um envio em andamento pra esta cotação' });
-  const pend = c.fornecedores.filter(f => f.vendedor && f.vendedor.whats && !f.enviadoEm);
+  // todos: true = reenvio pra quem já estava marcado como enviado (disparo anterior saiu por outro número ou parou no meio);
+  // quem já finalizou a proposta nunca recebe de novo
+  const todos = !!(req.body && req.body.todos);
+  const pend = c.fornecedores.filter(f => f.vendedor && f.vendedor.whats && f.status !== 'finalizado' && (todos || !f.enviadoEm));
   if (!pend.length) return res.json({ ok: true, total: 0 });
   const st = ENVIO_ROBO[id] = { total: pend.length, feitos: 0, erros: [], em_andamento: true, iniciadoEm: new Date().toISOString(), terminadoEm: null };
-  res.json({ ok: true, total: pend.length });
+  res.json({ ok: true, total: pend.length, reenvio: todos });
   (async () => {
     for (const f of pend) {
       const v = f.vendedor || {};
