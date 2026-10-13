@@ -6,9 +6,7 @@ const contagem    = require('../lib/contagem-negativos');
 const path        = require('path');
 const fs          = require('fs');
 const http        = require('http');
-const qrcode      = require('qrcode-terminal');
 const pino        = require('pino');
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
 
 const DB         = { host:'192.168.2.252', port:3306, user:'root', password:'1900', database:'central', connectTimeout:15000 };
 const GRUPO_NOME = 'CENTRAL ( Aux ) PREVENÇÃO DE PERDAS';
@@ -53,9 +51,6 @@ function msgAvisoContagem(porLoja, dataStr, rei = {}) {
 const LOGO_PATH  = path.join(__dirname, '..', 'public', 'logo.png');
 const logger     = pino({ level:'info' });
 const NOMES_LOJA = { 1:'CAHU', 2:'MURIBECA', 3:'PONTE', 4:'ATACAREJO', 5:'PORTA LARGA', 6:'JARDIM JORDAO' };
-const NUMERO_BOT = '5581991665457'; // pareamento por código, alternativa ao QR
-
-let sock = null;
 
 // ── Banco ─────────────────────────────────────────────────────────────────────
 
@@ -348,224 +343,35 @@ function gerarPDFLoja(itens, ln, hoje) {
   return new Promise(resolve => doc.on('end', () => resolve({ buffer:Buffer.concat(chunks), total:itens.length })));
 }
 
-// ── Bot de perguntas (Econômico Assistente) ─────────────────────────────────────
+// ── WhatsApp: sai pelo bot do número "Central Rede Cahu" (cahu-wpp/, 127.0.0.1:3012) ──────────────────────
+// Desde 13/10/2026 (Tiago: "tirar meu número pessoal de enviar os negativos e colocar pra enviar pelo ROBÔ CENTRAL
+// CAHU, o número novo, lá no grupo de prevenção"). Este processo NÃO conecta mais no WhatsApp: só decide O QUE e
+// QUANDO mandar e pede pro cahu-wpp (filho do server.js, número 5581987709903) entregar no grupo GRUPO_NOME —
+// o robô precisa estar como participante desse grupo. A pasta auth_info/ (sessão antiga do número pessoal do
+// Tiago, já deslogada) ficou só como histórico e não é lida. Junto saiu o "bot de perguntas" (pendentes/custo),
+// que só existia porque o processo ouvia o número pessoal.
+const BOT_URL = (process.env.CAHU_WPP_URL || 'http://127.0.0.1:3012').replace(/\/$/, '');
 
-const PENDENTES_PATH = path.join(__dirname, 'pendentes.json');
-
-function carregarPendentes() {
-  try { return JSON.parse(fs.readFileSync(PENDENTES_PATH, 'utf8')); }
-  catch (_) { return []; }
+async function botPost(rota, body) {
+  const r = await fetch(BOT_URL + rota, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  let j = {};
+  try { j = await r.json(); } catch (_) { /* resposta sem JSON */ }
+  if (!r.ok) throw new Error('cahu-wpp ' + rota + ' -> ' + r.status + ': ' + (j.error || 'erro'));
+  return j;
 }
-function salvarPendentes(lista) {
-  fs.writeFileSync(PENDENTES_PATH, JSON.stringify(lista, null, 2));
-}
-function jidBase(jid) { return (jid || '').split('@')[0].split(':')[0]; }
-
-function parsePreco(v) { return v && v !== '0' ? parseFloat(String(v).replace(',', '.')) : 0; }
-
-// Extrai o termo de busca removendo palavras comuns da pergunta de custo
-function extrairTermoCusto(texto) {
-  return texto
-    .replace(/qual|quanto|é|eh|o|a|de|da|do|custo|preço|preco|\?/gi, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-async function responderCusto(jid, texto) {
-  const termo = extrairTermoCusto(texto);
-  if (!termo) {
-    await sock.sendMessage(jid, { text: 'Me diga o nome do produto que você quer saber o custo. Ex: "custo coca 2l"' });
-    return;
-  }
-
-  const conn = await mysql.createConnection(DB);
+async function botConectado() {
   try {
-    const [rows] = await conn.query(`
-      SELECT i.CodigoBarra, TRIM(i.Descricao) as Descricao,
-        cj1.Custo as c1, cj2.Custo as c2, cj3.Custo as c3,
-        cj4.Custo as c4, cj5.Custo as c5, cj6.Custo as c6
-      FROM central.itens i
-      LEFT JOIN central.custoloja1 cj1 ON cj1.CodigoBarra = i.CodigoBarra
-      LEFT JOIN central.custoloja2 cj2 ON cj2.CodigoBarra = i.CodigoBarra
-      LEFT JOIN central.custoloja3 cj3 ON cj3.CodigoBarra = i.CodigoBarra
-      LEFT JOIN central.custoloja4 cj4 ON cj4.CodigoBarra = i.CodigoBarra
-      LEFT JOIN central.custoloja5 cj5 ON cj5.CodigoBarra = i.CodigoBarra
-      LEFT JOIN central.custoloja6 cj6 ON cj6.CodigoBarra = i.CodigoBarra
-      WHERE i.Descricao LIKE ? AND i.CodDesativado = 0
-      LIMIT 8
-    `, ['%' + termo + '%']);
-
-    if (!rows.length) {
-      await sock.sendMessage(jid, { text: `Não encontrei nenhum produto com "${termo}" no cadastro.` });
-      return;
-    }
-
-    let resp = `Encontrei ${rows.length} item(ns) de "${termo}" no cadastro:\n\n`;
-    for (const r of rows) {
-      const custos = [1,2,3,4,5,6].map(n => parsePreco(r['c'+n])).filter(v => v > 0);
-      resp += `• ${r.CodigoBarra} — ${r.Descricao}\n`;
-      if (!custos.length) { resp += `  Sem custo cadastrado\n\n`; continue; }
-      const min = Math.min(...custos), max = Math.max(...custos);
-      resp += min === max
-        ? `  Custo: R$ ${min.toFixed(2)}\n\n`
-        : `  Custo: R$ ${min.toFixed(2)} até R$ ${max.toFixed(2)} (varia por loja)\n\n`;
-    }
-    await sock.sendMessage(jid, { text: resp.trim() });
-  } finally {
-    await conn.end();
-  }
+    const r = await fetch(BOT_URL + '/status', { signal: AbortSignal.timeout(5000) });
+    const j = await r.json();
+    return j.conectado === true;
+  } catch (_) { return false; }
 }
-
-async function responderPergunta(jid, texto) {
-  const meuNumero = jidBase(sock.user.id);
-  const remetente = jidBase(jid);
-  const ehEuMesmo = remetente === meuNumero;
-
-  // Comandos de administrador — só valem vindo do "Mensagens para você mesmo"
-  if (ehEuMesmo) {
-    const mResp = texto.match(/^responder\s+(\d+)\s+([\s\S]+)/i);
-    if (mResp) {
-      const id = parseInt(mResp[1]);
-      const resposta = mResp[2].trim();
-      const pendentes = carregarPendentes();
-      const item = pendentes.find(p => p.id === id && !p.respondida);
-      if (!item) { await sock.sendMessage(jid, { text: `Não encontrei a pendência #${id} (ou já foi respondida).` }); return; }
-      await sock.sendMessage(item.jid, { text: resposta });
-      item.respondida = true;
-      salvarPendentes(pendentes);
-      await sock.sendMessage(jid, { text: `Respondido! Pendência #${id} encerrada.` });
-      return;
-    }
-    if (/^pendentes\s*$/i.test(texto.trim())) {
-      const abertas = carregarPendentes().filter(p => !p.respondida);
-      const lista = abertas.length
-        ? abertas.map(p => `#${p.id} — "${p.texto}"`).join('\n')
-        : 'Nenhuma pendência no momento.';
-      await sock.sendMessage(jid, { text: lista });
-      return;
-    }
-    // Reenvio manual do relatório de negativos — usado quando o ERP foi
-    // corrigido no meio do dia e as lojas precisam do PDF atualizado sem
-    // esperar o cron de amanhã às 8h.
-    if (/^reenviar\s+negativos\s*$/i.test(texto.trim())) {
-      await sock.sendMessage(jid, { text: 'Buscando negativos atualizados e reenviando pro grupo...' });
-      try {
-        const porLoja = await buscarNegativos();
-        const total = Object.values(porLoja).reduce((s, arr) => s + arr.length, 0);
-        if (!total) { await sock.sendMessage(jid, { text: 'Nenhum estoque negativo encontrado agora.' }); return; }
-        await enviarPDFsLojas(porLoja);
-        await sock.sendMessage(jid, { text: `Reenviado! ${total} produto(s) negativos no total.` });
-      } catch (err) {
-        logger.error({ err }, 'Erro ao reenviar negativos manualmente');
-        await sock.sendMessage(jid, { text: `Erro ao reenviar: ${err.message}` });
-      }
-      return;
-    }
-  }
-
-  // Gatilho por palavra-chave ("custo") desativado: o bot está conectado no
-  // número pessoal/comercial do Tiago, então qualquer frase comum que
-  // mencione "custo" (ex: "o custo da grifos saiu") dispara resposta
-  // automática numa conversa real — igual ao problema do bloco abaixo.
-  // Reativar só com um jeito de restringir o escopo (grupo específico,
-  // prefixo/comando explícito, etc), não texto livre.
-  //
-  // const t = texto.toLowerCase();
-  // if (t.includes('custo')) { await responderCusto(jid, texto); return; }
-
-  // Não reconhecido: o bot está conectado no número pessoal/comercial do
-  // Tiago, então NÃO deve responder automaticamente qualquer mensagem que
-  // chegue (senão interfere em conversas reais que não são pra ele) —
-  // desativado até definir um jeito de restringir isso (ex: só grupo
-  // específico, ou só mensagens com um prefixo/comando).
-  return;
-}
-
-// ── WhatsApp ──────────────────────────────────────────────────────────────────
-
-async function conectar() {
-  const { state, saveCreds } = await useMultiFileAuthState('./auth_info');
-  const { version } = await fetchLatestBaileysVersion();
-
-  sock = makeWASocket({ version, auth:state, logger:pino({level:'silent'}), printQRInTerminal:false, keepAliveIntervalMs:15000 });
-  sock.ev.on('creds.update', saveCreds);
-  sock.ev.on('messages.upsert', async ({ messages, type }) => {
-    if (type !== 'notify') return;
-    for (const msg of messages) {
-      if (msg.key.remoteJid.endsWith('@g.us')) continue; // ignora mensagens de grupo
-      // Ignora mensagens antigas reenviadas pelo Baileys numa reconexão —
-      // sem isso, toda vez que o WhatsApp cai e reconecta, o bot responde
-      // de novo a perguntas de minutos/horas atrás como se fossem novas.
-      const idadeSegundos = Date.now() / 1000 - Number(msg.messageTimestamp || 0);
-      if (idadeSegundos > 120) continue;
-      // Ignora mensagens enviadas por mim para outra pessoa (ex: as próprias
-      // respostas do bot), mas permite "Mensagens para você mesmo" — é por lá
-      // que os comandos de administrador (responder/pendentes) chegam.
-      const ehParaMimMesmo = msg.key.remoteJid.split('@')[0].split(':')[0] === sock.user.id.split('@')[0].split(':')[0];
-      if (msg.key.fromMe && !ehParaMimMesmo) continue;
-      const texto = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
-      if (!texto.trim()) continue;
-      try { await responderPergunta(msg.key.remoteJid, texto); }
-      catch (err) { logger.error({ err }, 'Erro ao responder pergunta'); }
-    }
-  });
-
-  if (!state.creds.registered) {
-    setTimeout(async () => {
-      try {
-        const codigo = await sock.requestPairingCode(NUMERO_BOT);
-        logger.info(`Código de pareamento: ${codigo}  (WhatsApp > Conectar dispositivo > Conectar com número de telefone)`);
-      } catch (err) {
-        logger.error({ err }, 'Erro ao solicitar código de pareamento');
-      }
-    }, 3000);
-  }
-
-  await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('Timeout conexão WA')), 120000);
-    let resolvido = false;
-
-    sock.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
-      if (qr) { logger.info('Escaneie o QR:'); qrcode.generate(qr, { small:true }); }
-      if (connection === 'open') {
-        logger.info('WhatsApp conectado');
-        if (!resolvido) { resolvido = true; clearTimeout(timer); resolve(); }
-      }
-      if (connection === 'close') {
-        const code = lastDisconnect?.error?.output?.statusCode;
-        if (code === DisconnectReason.loggedOut) {
-          logger.error('Sessão encerrada. Apague auth_info e reinicie.');
-          if (!resolvido) { clearTimeout(timer); reject(new Error('Deslogado')); }
-          else process.exit(1);
-        } else {
-          logger.warn('Reconectando...');
-          if (resolvido) setTimeout(conectar, 5000);
-        }
-      }
-    });
-  });
-}
-
-async function acharGrupo() {
-  const grupos = await sock.groupFetchAllParticipating();
-  let jid = Object.keys(grupos).find(id => grupos[id].subject === GRUPO_NOME);
-  if (!jid) {
-    // Busca parcial (case-insensitive) como fallback
-    jid = Object.keys(grupos).find(id => grupos[id].subject.toLowerCase().includes('prevenção') || grupos[id].subject.toLowerCase().includes('prevencao'));
-    const todosNomes = Object.values(grupos).map(g => `  • "${g.subject}"`).join('\n');
-    if (!jid) {
-      logger.error(`Grupo "${GRUPO_NOME}" não encontrado. Grupos disponíveis:\n${todosNomes}`);
-      return null;
-    }
-    logger.warn(`Grupo exato não encontrado. Usando: "${grupos[jid].subject}"\nGrupos disponíveis:\n${todosNomes}`);
-  }
-  return jid;
+async function enviarTextoGrupo(texto) { return botPost('/mensagem-grupo', { grupo: GRUPO_NOME, texto }); }
+async function enviarDocumentoGrupo({ buffer, fileName, caption, mimetype }) {
+  return botPost('/documento-grupo', { grupo: GRUPO_NOME, base64: Buffer.from(buffer).toString('base64'), fileName, caption, mimetype: mimetype || 'application/pdf' });
 }
 
 async function enviarPDFsLojas(porLoja) {
-  const jid = await acharGrupo();
-  if (!jid) return;
-
   // Abre a contagem do dia pro app do celular (não apaga o que já foi digitado)
   try { contagem.abrirDia(porLoja); logger.info('Contagem do dia aberta pro app'); }
   catch (err) { logger.error({ err }, 'Erro ao abrir contagem do dia'); }
@@ -581,9 +387,8 @@ async function enviarPDFsLojas(porLoja) {
     try {
       const { buffer, total } = await gerarPDFLoja(itens, ln, hoje);
       const nomeLoja = (NOMES_LOJA[ln]||'LOJA'+ln).replace(/\s+/g,'_');
-      await sock.sendMessage(jid, {
-        document: Buffer.from(buffer),
-        mimetype: 'application/pdf',
+      await enviarDocumentoGrupo({
+        buffer,
         fileName: `negativos_loja${ln}_${nomeLoja}_${dataNome}.pdf`,
         caption:  `*Estoque Negativo — Loja ${ln} (${NOMES_LOJA[ln]}) — ${dataStr}*\n${total} produto(s) negativos`,
       });
@@ -599,8 +404,8 @@ async function enviarPDFsLojas(porLoja) {
   let rei = {};
   try { rei = contagem.reincidencia(contagem.hojeStr()); }
   catch (err) { logger.error({ err }, 'Erro ao calcular reincidência (aviso sai sem ⚠)'); }
-  await sock.sendMessage(jid, { text: msgAvisoContagem(porLoja, dataStr, rei) });
-  logger.info('Aviso de contagem enviado no grupo');
+  await enviarTextoGrupo(msgAvisoContagem(porLoja, dataStr, rei));
+  logger.info(`Aviso de contagem enviado no grupo "${GRUPO_NOME}" pelo cahu-wpp`);
 }
 
 // ── Rotina ────────────────────────────────────────────────────────────────────
@@ -608,13 +413,15 @@ async function enviarPDFsLojas(porLoja) {
 async function rotina() {
   logger.info('Iniciando rotina de negativos...');
   try {
-    // Garante que o WhatsApp está conectado antes de rodar (espera até 1 min)
-    for (let i = 0; i < 12 && (!sock || !sock.user); i++) {
-      logger.warn('WhatsApp não conectado ainda. Aguardando 5s...');
+    // Garante que o robô (cahu-wpp) está conectado antes de rodar (espera até 1 min)
+    let ok = await botConectado();
+    for (let i = 0; i < 12 && !ok; i++) {
+      logger.warn('Robô Central Cahu (cahu-wpp:3012) não conectado ainda. Aguardando 5s...');
       await new Promise(r => setTimeout(r, 5000));
+      ok = await botConectado();
     }
-    if (!sock || !sock.user) {
-      logger.error('WhatsApp não conectou a tempo. Abortando rotina de hoje.');
+    if (!ok) {
+      logger.error('Robô Central Cahu não conectou a tempo. Abortando rotina de hoje.');
       return;
     }
     const porLoja = await buscarNegativos();
@@ -652,10 +459,9 @@ http.createServer(async (req, res) => {
         const { numero, texto } = JSON.parse(body || '{}');
         const dig = String(numero || '').replace(/\D/g, '');
         if (!texto || dig.length < 10) { res.writeHead(400); res.end(JSON.stringify({ error: 'Informe numero (com DDI/DDD) e texto.' })); return; }
-        if (!sock || !sock.user) { res.writeHead(503); res.end(JSON.stringify({ error: 'WhatsApp não conectado.' })); return; }
-        const jid = (dig.startsWith('55') ? dig : '55' + dig) + '@s.whatsapp.net';
-        await sock.sendMessage(jid, { text: texto });
-        res.writeHead(200); res.end(JSON.stringify({ ok: true, jid }));
+        if (!(await botConectado())) { res.writeHead(503); res.end(JSON.stringify({ error: 'WhatsApp não conectado.' })); return; }
+        const r = await botPost('/mensagem', { numero: dig, texto }); // repassa pro cahu-wpp (número central)
+        res.writeHead(200); res.end(JSON.stringify({ ok: true, jid: r.jid }));
       } catch (err) { res.writeHead(500); res.end(JSON.stringify({ error: err.message })); }
     });
     return;
@@ -666,10 +472,8 @@ http.createServer(async (req, res) => {
       try {
         const { texto } = JSON.parse(body || '{}');
         if (!texto) { res.writeHead(400); res.end(JSON.stringify({ error: 'Sem texto.' })); return; }
-        if (!sock || !sock.user) { res.writeHead(503); res.end(JSON.stringify({ error: 'WhatsApp não conectado.' })); return; }
-        const jid = await acharGrupo();
-        if (!jid) { res.writeHead(500); res.end(JSON.stringify({ error: 'Grupo não encontrado.' })); return; }
-        await sock.sendMessage(jid, { text: texto });
+        if (!(await botConectado())) { res.writeHead(503); res.end(JSON.stringify({ error: 'WhatsApp não conectado.' })); return; }
+        await enviarTextoGrupo(texto);
         res.writeHead(200); res.end(JSON.stringify({ ok: true }));
       } catch (err) { res.writeHead(500); res.end(JSON.stringify({ error: err.message })); }
     });
@@ -677,7 +481,7 @@ http.createServer(async (req, res) => {
   }
   if (req.url !== '/reenviar-negativos') { res.writeHead(404); res.end(); return; }
   try {
-    if (!sock || !sock.user) { res.writeHead(503); res.end(JSON.stringify({ error: 'WhatsApp não conectado.' })); return; }
+    if (!(await botConectado())) { res.writeHead(503); res.end(JSON.stringify({ error: 'WhatsApp não conectado.' })); return; }
     const porLoja = await buscarNegativos();
     const total = Object.values(porLoja).reduce((s, arr) => s + arr.length, 0);
     if (!total) { res.writeHead(200); res.end(JSON.stringify({ ok: true, total: 0, msg: 'Nenhum estoque negativo agora.' })); return; }
@@ -692,17 +496,7 @@ http.createServer(async (req, res) => {
 // ── Inicialização ─────────────────────────────────────────────────────────────
 
 (async () => {
-  logger.info('Conectando ao WhatsApp...');
-  for (;;) {
-    try {
-      await conectar();
-      logger.info('WhatsApp conectado com sucesso.');
-      break;
-    } catch (err) {
-      logger.error({ err }, 'Falha ao conectar. Tentando novamente em 10s...');
-      await new Promise(r => setTimeout(r, 10000));
-    }
-  }
+  logger.info(`Envio pelo Robô Central Cahu (${BOT_URL}) no grupo "${GRUPO_NOME}". Robô conectado agora: ${await botConectado()}`);
   cron.schedule('0 8 * * 1-5', rotina, { timezone:'America/Sao_Paulo' });
   logger.info('Agendamento ativo: seg-sex 08:00 (Brasília). Aguardando...');
 })();

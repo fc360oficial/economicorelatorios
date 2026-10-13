@@ -1,9 +1,9 @@
 'use strict';
-// Bot WhatsApp do número novo "Central Rede Cahu" (18/09/2026). Só faz UMA coisa: recebe pedidos do server.js
-// (localhost:3012) e manda texto/documento pro grupo dos vendedores da CAHU. Não responde ninguém, não lê grupo.
-// Quem decide O QUE mandar e QUANDO é lib/cahu-tabela-wpp.js no processo principal.
-//
-// Separado do negativos-wpp de propósito: número diferente (o negativos continua no número antigo — Fase 1).
+// Bot WhatsApp do número novo "Central Rede Cahu" (18/09/2026). Só faz UMA coisa: recebe pedidos locais
+// (localhost:3012) e manda texto/documento pra um grupo ou número. Não responde ninguém, não lê grupo.
+// Quem decide O QUE mandar e QUANDO é quem chama: lib/cahu-tabela-wpp.js (tabela/checagens no grupo dos vendedores),
+// server.js (cotação pros vendedores) e, desde 13/10/2026, o negativos-wpp (aviso das 08:00 no grupo de prevenção de
+// perdas, campo "grupo" no pedido) — o número pessoal do Tiago saiu de todos os envios automáticos.
 // Pareamento SEMPRE por código de telefone (nunca QR) — ver memória negativos-wpp-migracao.
 //
 // config.json (não vai pro git):
@@ -115,18 +115,22 @@ async function conectar() {
   });
 }
 
-async function acharGrupo() {
-  if (grupoJid) return grupoJid;
+// Grupo alvo: por padrão cfg.grupo (vendedores CAHU). Desde 13/10/2026 o pedido pode trazer "grupo" com outro nome —
+// é assim que o negativos-wpp manda o aviso das 08:00 no grupo de prevenção de perdas pelo mesmo número.
+const gruposJid = {}; // nome pedido → jid (cache)
+async function acharGrupo(nome) {
+  const pedido = String(nome || cfg.grupo || '').trim();
+  if (gruposJid[pedido]) return gruposJid[pedido];
   const grupos = await sock.groupFetchAllParticipating();
-  const alvo = String(cfg.grupo || '').trim().toLowerCase();
+  const alvo = pedido.toLowerCase();
   let jid = Object.keys(grupos).find(id => (grupos[id].subject || '').trim().toLowerCase() === alvo);
   if (!jid) jid = Object.keys(grupos).find(id => alvo && (grupos[id].subject || '').toLowerCase().includes(alvo));
   if (!jid) {
     const nomes = Object.values(grupos).map(g => `  • "${g.subject}"`).join('\n');
-    throw new Error(`Grupo "${cfg.grupo}" não encontrado. Grupos em que o número está:\n${nomes}`);
+    throw new Error(`Grupo "${pedido}" não encontrado. Grupos em que o número está:\n${nomes}`);
   }
-  if (grupos[jid].subject !== cfg.grupo) logger.warn(`Grupo exato não achado, usando "${grupos[jid].subject}"`);
-  grupoJid = jid;
+  if (grupos[jid].subject !== pedido) logger.warn(`Grupo exato "${pedido}" não achado, usando "${grupos[jid].subject}"`);
+  gruposJid[pedido] = jid;
   return jid;
 }
 
@@ -149,23 +153,29 @@ http.createServer(async (req, res) => {
     if (req.method === 'GET' && req.url === '/status') {
       return responder(res, 200, { online: true, conectado: conectado(), numero: conectado() ? sock.user.id.split(':')[0] : null, grupo: cfg.grupo });
     }
+    // Lista os grupos em que o número está (pra conferir se o robô já foi colocado no grupo certo)
+    if (req.method === 'GET' && req.url === '/grupos') {
+      if (!conectado()) return responder(res, 503, { error: 'WhatsApp não conectado' });
+      const grupos = await sock.groupFetchAllParticipating();
+      return responder(res, 200, { grupos: Object.values(grupos).map(g => g.subject).sort() });
+    }
     if (req.method !== 'POST') return responder(res, 404, { error: 'rota não existe' });
     const body = await lerJson(req);
     if (!conectado()) return responder(res, 503, { error: 'WhatsApp não conectado' });
 
     if (req.url === '/mensagem-grupo') {
       if (!body.texto) return responder(res, 400, { error: 'sem texto' });
-      await sock.sendMessage(await acharGrupo(), { text: String(body.texto) });
-      logger.info('texto enviado pro grupo');
+      await sock.sendMessage(await acharGrupo(body.grupo), { text: String(body.texto) });
+      logger.info(`texto enviado pro grupo "${body.grupo || cfg.grupo}"`);
       return responder(res, 200, { ok: true });
     }
     if (req.url === '/documento-grupo') {
       if (!body.base64 || !body.fileName) return responder(res, 400, { error: 'precisa de base64 e fileName' });
-      await sock.sendMessage(await acharGrupo(), {
+      await sock.sendMessage(await acharGrupo(body.grupo), {
         document: Buffer.from(body.base64, 'base64'), mimetype: body.mimetype || 'application/pdf',
         fileName: String(body.fileName), caption: body.caption ? String(body.caption) : undefined,
       });
-      logger.info(`documento enviado pro grupo: ${body.fileName}`);
+      logger.info(`documento enviado pro grupo "${body.grupo || cfg.grupo}": ${body.fileName}`);
       return responder(res, 200, { ok: true });
     }
     // Cotação (Tiago, 13/10): mensagem avulsa pra um número (vendedor do fornecedor) pelo número central — mesmo contrato do
