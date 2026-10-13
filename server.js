@@ -8524,7 +8524,19 @@ const linkCotacao = f => `${PUBLIC_URL}/cotacao/${f.token}`;
 const cotUser = req => req.session.user?.nome || null;
 const cotId = req => { const id = parseInt(req.params.id, 10); return Number.isInteger(id) && id > 0 ? id : null; };
 // detalhe pra compradora: comparativo pronto + link de cada fornecedor (sem o mapa cru de preços)
-const cotDetalhe = c => { const antes = new Set(cotacao.listar().filter(x => x.id !== c.id && x.criadoEm < c.criadoEm && !x.teste).flatMap(x => x.fornecedores.map(f => f.codFornec))); return { ...c, comparativo: cotacao.comparativo(c), prePedidos: cotacao.prePedidos(c), fornecedores: c.fornecedores.map(f => ({ ...f, precos: undefined, link: linkCotacao(f), cotados: c.itens.filter(i => f.precos[i.cod]?.preco > 0).length, novo: !antes.has(f.codFornec), canal: portalForn.canalDe(c, f) })), canais: portalForn.resumoCanais(c) }; };
+// Faturamento mínimo do fornecedor no ERP (central.fornecedor.ValorMinimo, texto "350,00"): vale no pré-pedido da Cotação
+// quando nem o vendedor (proposta) nem o cadastro do fornecedor na lista informaram mínimo — mesma fonte do ERP que o Radar
+// usa pela lista (c_cotacao_lista.PedidoMinimo). Carrega 15 s depois de subir e a cada 6 h; só leitura. (Tiago, 13/10)
+let COT_FORN_MIN = {};
+async function carregarFornMinimoErp() {
+  try {
+    const rows = await q(`SELECT CodFornec, ValorMinimo FROM central.fornecedor WHERE ValorMinimo<>'' AND ValorMinimo<>'0'`);
+    const m = {}; for (const r of rows) { let s = String(r.ValorMinimo || '').trim(); if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.'); const n = parseFloat(s); if (n > 0) m[r.CodFornec] = +n.toFixed(2); }
+    COT_FORN_MIN = m; console.log('[COTAÇÃO] faturamento mínimo do ERP: ' + Object.keys(m).length + ' fornecedores');
+  } catch (e) { console.error('[COTAÇÃO] faturamento mínimo do ERP:', e.message); }
+}
+setTimeout(carregarFornMinimoErp, 15 * 1000); setInterval(carregarFornMinimoErp, 6 * 3600 * 1000);
+const cotDetalhe = c => { const antes = new Set(cotacao.listar().filter(x => x.id !== c.id && x.criadoEm < c.criadoEm && !x.teste).flatMap(x => x.fornecedores.map(f => f.codFornec))); return { ...c, comparativo: cotacao.comparativo(c), prePedidos: cotacao.prePedidos(c, { minimoErp: COT_FORN_MIN, lista: radarPedidos.listaCadastro(c.lista) }), fornecedores: c.fornecedores.map(f => ({ ...f, precos: undefined, link: linkCotacao(f), cotados: c.itens.filter(i => f.precos[i.cod]?.preco > 0).length, novo: !antes.has(f.codFornec), canal: portalForn.canalDe(c, f) })), canais: portalForn.resumoCanais(c) }; };
 
 app.get('/api/cotacoes', (req, res) => {
   try {
