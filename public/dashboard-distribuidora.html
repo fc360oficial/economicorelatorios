@@ -355,17 +355,17 @@ function renderFat() {
   const vsA = (v, a, fmt) => a ? 'mês ant ' + fmt(a) + ' · <b class="' + cls(v - a) + '">' + sgn((v / a - 1) * 100) + '</b>' : 'sem base no mês anterior';
   const pp = (v, a) => '<span class="' + (v != null && a != null ? (v >= a ? 'up' : 'dn') : '') + '">' + pct(v) + '</span>';
   const vs = f.vendedores, tot = M.v;
-  // quebra NF-e × NFC-e em todo valor (Tiago, 13/10: "na venda tem que puxar NF-e e NFC-e, isso tem que ser quebrado")
-  const q2 = (a, fmt) => a && a.nfe ? 'NF-e ' + fmt(a.nfe.v) + ' (' + n0(a.nfe.n) + ') · NFC-e ' + fmt(a.nfce.v) + ' (' + n0(a.nfce.n) + ')' : '';
+  // quebra NF-e × NFC-e só numa linha curta embaixo do valor do mês; os KPIs ficam com o texto original, senão a legenda
+  // quebra as colunas (Tiago, 13/10: "ajustar aqui")
   el('fat-hero').innerHTML = '<div class="lj rede hero band"><div class="hb-main"><div class="nm"><span>CAHU DISTRIBUIDORA · NF-e + NFC-e</span></div><div class="v">' + moneyK(M.v) + '<small>mês até hoje</small></div>'
-    + '<div class="var"><span>NF-e</span> ' + moneyK(M.nfe ? M.nfe.v : 0) + ' <span>(' + n0(M.nfe ? M.nfe.n : 0) + ')</span> <span>· NFC-e no caixa</span> ' + moneyK(M.nfce ? M.nfce.v : 0) + ' <span>(' + n0(M.nfce ? M.nfce.n : 0) + ')</span><br>'
-    + moneyK(A.v) + '<span>mês anterior, mesmo período</span> <span class="' + cls(f.var) + '" style="margin-left:2px">' + sgn(f.var) + '</span>' + (A.nfe ? ' <span>· ' + q2(A, moneyK) + '</span>' : '') + '<br><span>projeção no ritmo atual</span> ' + moneyK(M.projecao) + ' <span>· mês anterior fechou em</span> ' + moneyK(AC.v) + '</div></div>'
+    + '<div class="var">' + (M.nfe ? '<span>NF-e</span> ' + moneyK(M.nfe.v) + ' <span>(' + n0(M.nfe.n) + ') · NFC-e no caixa</span> ' + moneyK(M.nfce.v) + ' <span>(' + n0(M.nfce.n) + ')</span><br>' : '')
+    + moneyK(A.v) + '<span>mês anterior, mesmo período</span> <span class="' + cls(f.var) + '" style="margin-left:2px">' + sgn(f.var) + '</span><br><span>projeção no ritmo atual</span> ' + moneyK(M.projecao) + ' <span>· mês anterior fechou em</span> ' + moneyK(AC.v) + '</div></div>'
     + '<div class="hero-g">'
-    + kpi('venda hoje', moneyK(H.v), q2(H, moneyK) + (SA.v ? '<br>' + dow(SA.data) + ' passada' + (H.corte ? ' até ' + H.corte : '') + ' ' + moneyK(SA.v) + ' · <b class="' + cls(H.var) + '">' + sgn(H.var) + '</b>' : (H.ontem && H.ontem.v ? '<br>ontem ' + moneyK(H.ontem.v) : '')))
+    + kpi('venda hoje', moneyK(H.v), SA.v ? dow(SA.data) + ' passada' + (H.corte ? ' até ' + H.corte : '') + ' ' + moneyK(SA.v) + ' · <b class="' + cls(H.var) + '">' + sgn(H.var) + '</b>' : (H.ontem && H.ontem.v ? 'ontem ' + moneyK(H.ontem.v) : ''))
     + kpi('margem · mês', pp(M.margem, A.margem), A.margem != null ? 'mês ant ' + pct(A.margem) : '')
     + kpi('markup · mês', pp(M.markup, A.markup), A.markup != null ? 'mês ant ' + pct(A.markup) : '')
     + kpi('ticket por nota', money(M.ticket), vsA(M.ticket, A.ticket, money))
-    + kpi('notas no mês', n0(M.n), q2(M, moneyK) + '<br>' + vsA(M.n, A.n, n0) + (M.canceladas.n ? ' · <b class="wn">' + M.canceladas.n + ' canceladas</b>' : ''))
+    + kpi('notas no mês', n0(M.n), vsA(M.n, A.n, n0) + (M.canceladas.n ? ' · <b class="wn">' + M.canceladas.n + ' canceladas</b>' : ''))
     + '</div><div class="hero-sh"><div class="t">participação por vendedor · mês</div><div class="hb-bar">' + vs.map((v, i) => '<b style="width:' + (tot ? (v.mes.v / tot * 100).toFixed(2) : 0) + '%;background:' + CORES[i % CORES.length] + '" title="' + esc(v.nome) + ' · ' + pct(v.pct) + '"></b>').join('') + '</div>'
     + '<div class="hb-leg">' + vs.slice(0, 8).map((v, i) => '<span><i style="background:' + CORES[i % CORES.length] + '"></i>' + esc(v.nome.split(' ')[0]) + '<b>' + pct(v.pct) + '</b></span>').join('') + '</div></div></div>';
   // por vendedor: hoje × semana passada não existe por vendedor; hoje | mês (notas · venda · margem · ticket · clientes) | mês anterior mesmo período
