@@ -8046,6 +8046,8 @@ app.post('/api/pedidos-fornecedor/testes-xml/remover', (req, res) => {
 });
 app.get('/api/pedidos-fornecedor', (req, res) => {
   res.json(soMinhas(req, pedidosFornec.listar(), p => p.lista).map(p => ({ id: p.id, lista: p.lista, lista_nome: p.lista_nome, fornecedor: p.fornecedor, vendedor: p.vendedor, comprador: p.comprador, status: p.status, aprovadoEm: p.aprovadoEm || null, aprovadoPor: p.aprovadoPor || null, recebidoEm: p.recebidoEm || null, origem: p.origem || null, alerta_novo: !!p.alerta_novo,
+    // 13/10/2026: o Fiscal avisou a compradora que a nota está na mão dele e precisa da decisão dela (aparece no pedido)
+    alerta_fiscal: p.alerta_fiscal || null, avisos_fiscal: p.avisos_fiscal || [],
     // selo e filtro de origem na tela (Radar / Cotação / Sugestão manual) — sem isto a tela mostrava RADAR em tudo
     parametros: { origem: p.parametros?.origem || 'radar', gatilho: p.parametros?.gatilho || null }, cotacao: p.cotacao ? { id: p.cotacao.id, nome: p.cotacao.nome || null } : null,
     recebimento: p.recebimento ? Object.fromEntries(Object.entries(p.recebimento).map(([l, r]) => [l, { faltas: r.faltas, itens_pedidos: r.itens_pedidos, notas: r.notas.map(n => n.nNota) }])) : null, criadoEm: p.criadoEm, criadoPor: p.criadoPor, abertoEm: p.abertoEm, finalizadoEm: p.finalizadoEm, lojas: p.lojas, totais: p.totais, por_loja: pedidosFornec.porLoja(p), link: linkPedido(p), teste: !!p.teste, avarias: p.avarias ? { n: p.avarias.n, total: p.avarias.total, por_loja: p.avarias.por_loja || {} } : null, xml: p.xml ? { status: p.xml.status, verificadoEm: p.xml.verificadoEm || null, lojas: Object.fromEntries(Object.entries(p.xml.lojas || {}).map(([l, x]) => [l, { status: x.status, problemas: (x.problemas || []).map(z => z.tipo), notas: (x.notas || []).length, chegou: x.chegou || null, conferidoEm: x.conferidoEm || null, aceitoEm: x.aceito?.em || null, notas_det: (x.notas || []).map(n => ({ nNota: n.nNota, chave: n.chave || null, data: n.data, importado: !!n.importado, entrada: n.entrada || null })) }])) } : null })));
@@ -8374,7 +8376,9 @@ app.delete('/api/gente/:colecao/:id', (req, res) => { try { res.json(gente.exclu
 // (liberar/reconferir/bloquear), tolerâncias e exemplos em data/fiscal/. Ver lib/fiscal.js.
 // ═══════════════════════════════════════════════════
 const fiscal = require('./lib/fiscal');
-fiscal.init(q, { pedidos: () => pedidosFornec.listar(), recebimento: require('./lib/recebimento') });
+const fiscalPedidos = require('./lib/fiscal-pedidos');
+// conferir: conferência XML sob demanda (13/10/2026) — o Fiscal abre o recebimento e o pedido do app casa na hora
+fiscal.init(q, { pedidos: () => pedidosFornec.listar(), recebimento: require('./lib/recebimento'), conferir: (codFornec, loja, chaves) => pedidosFornec.conferirFornecedor(codFornec, loja, chaves) });
 // 09/10/26: a regex estava sem as barras (/^d{4}-d{2}-d{2}$/), então nenhuma data passava e o servidor
 // respondia sempre o dia de hoje — trocar o dia ou o período na tela não mudava nada.
 const fiscalPeriodo = req => { const ok = v => /^\d{4}-\d{2}-\d{2}$/.test(v || ''); const de = ok(req.query.de) ? req.query.de : new Date().toISOString().slice(0, 10); const ate = ok(req.query.ate) && req.query.ate >= de ? req.query.ate : de; const r = escopo.resolverLoja(req.session.user, parseInt(req.query.loja) || null); return { de, ate, loja: r.loja, lojas: r.lojas }; };
@@ -8408,9 +8412,75 @@ app.get('/api/fiscal/pedido-compra/:id/pdf', async (req, res) => {
 app.post('/api/fiscal/recebimentos/:nReg/decisao', async (req, res) => {
   try {
     const n = fiscalReg(req); if (!n) return res.status(400).json({ error: 'nº de conferência inválido' });
-    if (escopo.lojasDoUsuario(req.session.user)) { const r = await fiscal.detalhe(n); if (!r) return res.status(404).json({ error: 'Conferência não encontrada' }); if (fiscalNegaLoja(req, res, r.loja)) return; }
-    res.json({ ok: true, decisao: fiscal.decidir(n, req.body?.acao, req.body?.obs, req.session.user?.nome || null) });
+    const acao = req.body?.acao, usuario = req.session.user?.nome || null;
+    // 13/10/2026 (Tiago): "Liberar" fica travado enquanto o pedido do app ligado à nota tiver divergência sem decisão — do fiscal
+    // (pedido de cotação) ou da compradora (pedido normal; sem liberação por tempo). Ao liberar, o pedido de cotação fecha a loja.
+    let det = null;
+    if (acao === 'liberado' || escopo.lojasDoUsuario(req.session.user)) { det = await fiscal.detalhe(n); if (!det) return res.status(404).json({ error: 'Conferência não encontrada' }); if (fiscalNegaLoja(req, res, det.loja)) return; }
+    if (acao === 'liberado' && det && det.pedido_app && det.pedido_app.pendentes.length) {
+      const pa = det.pedido_app, quem = pa.quem_decide === 'fiscal' ? 'sua decisão (item a item, nesta tela)' : 'a decisão da compradora' + (pa.comprador ? ' ' + pa.comprador : '') + ' em Pedidos de Compra';
+      return res.status(409).json({ error: pa.pendentes.length + ' divergência(s) do pedido #' + [...new Set(pa.pendentes.map(x => x.pedido))].join(', #') + ' aguardando ' + quem + ': ' + pa.pendentes.map(x => x.descricao + ' (' + x.motivo_txt + ')').join('; '), pendentes: pa.pendentes, quem_decide: pa.quem_decide });
+    }
+    const decisao = fiscal.decidir(n, acao, req.body?.obs, usuario);
+    const pedidos = [];
+    if (acao === 'liberado' && det && det.pedido_app) for (const p of det.pedido_app.pedidos) {
+      try { const r = pedidosFornec.fiscalLiberou(p.id, det.loja, usuario, n); pedidos.push({ id: p.id, loja: det.loja, erro: r && r.erro || null, status_loja: r && !r.erro ? (r.xml?.lojas?.[det.loja]?.status || null) : null }); }
+      catch (e) { pedidos.push({ id: p.id, loja: det.loja, erro: e.message }); }
+    }
+    res.json({ ok: true, decisao, pedidos });
   } catch (err) { res.status(400).json({ error: err.message }); }
+});
+// ── Fiscal × Pedido de Compra do app (13/10/2026) ──────────────────────────────────────────────────────
+// Aba "Pedidos a receber": pedidos aprovados que ainda vão chegar, por loja (só as lojas do usuário)
+app.get('/api/fiscal/pedidos-a-receber', (req, res) => {
+  try {
+    const r = escopo.resolverLoja(req.session.user, parseInt(req.query.loja) || null);
+    res.json({ hoje: new Date().toISOString().slice(0, 10), pedidos: fiscalPedidos.pedidosAReceber(() => pedidosFornec.listar(), pedidosFornec.totaisLoja, { lojas: r.lojas, loja: r.loja }) });
+  } catch (err) { fiscalErr(res, err); }
+});
+const fiscalPedidoLoja = (req, res) => {
+  const p = pedidosFornec.obter(parseInt(req.params.id)), ln = parseInt(req.params.loja);
+  if (!p || p.teste) { res.status(404).json({ error: 'Pedido não encontrado' }); return null; }
+  if (!(ln > 0) || !(p.lojas || []).map(Number).includes(ln)) { res.status(400).json({ error: 'Loja ' + ln + ' não está no pedido' }); return null; }
+  if (fiscalNegaLoja(req, res, ln)) return null;
+  return { p, ln };
+};
+// Decisão do FISCAL por item (só pedido de cotação: o diretor fez e não acompanha; pedido com compradora é ela quem decide)
+app.post('/api/fiscal/pedido-compra/:id/xml/:loja/decidir', (req, res) => {
+  try {
+    const q0 = fiscalPedidoLoja(req, res); if (!q0) return;
+    if (pedidosFornec.quemDecide(q0.p) !== 'fiscal') return res.status(403).json({ error: 'Pedido com compradora' + (q0.p.comprador?.nome ? ' (' + q0.p.comprador.nome + ')' : '') + ': quem decide é ela, em Pedidos de Compra. Use "Avisar compradora".' });
+    const r = pedidosFornec.decidirItemXml(q0.p.id, q0.ln, String(req.body?.cod || ''), req.body?.acao, req.session.user?.nome || null, 'fiscal');
+    if (!r) return res.status(404).json({ error: 'Pedido não encontrado' });
+    if (r.erro) return res.status(400).json({ error: r.erro });
+    res.json({ ok: true, pendentes: pedidosFornec.pendenciasLoja(r, q0.ln).pendentes.length, recusas: pedidosFornec.recusasLoja(r, q0.ln).length });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+// Fiscal avisa a compradora que a nota está na mão dela e precisa de decisão (fica registrado no pedido; devolve o WhatsApp)
+app.post('/api/fiscal/pedido-compra/:id/xml/:loja/avisar', (req, res) => {
+  try {
+    const q0 = fiscalPedidoLoja(req, res); if (!q0) return;
+    const r = pedidosFornec.avisarCompradora(q0.p.id, q0.ln, req.session.user?.nome || null, parseInt(req.body?.nReg) || null);
+    if (!r) return res.status(404).json({ error: 'Pedido não encontrado' });
+    if (r.erro) return res.status(400).json({ error: r.erro });
+    res.json(r);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+// Fiscal fecha a loja parcial do pedido de cotação: "o que faltou não vem mais"
+app.post('/api/fiscal/pedido-compra/:id/xml/:loja/fechar', (req, res) => {
+  try {
+    const q0 = fiscalPedidoLoja(req, res); if (!q0) return;
+    const r = pedidosFornec.fecharFiscal(q0.p.id, q0.ln, String(req.body?.motivo || '').trim() || null, req.session.user?.nome || null);
+    if (!r) return res.status(404).json({ error: 'Pedido não encontrado' });
+    if (r.erro) return res.status(400).json({ error: r.erro });
+    res.json({ ok: true, status: r.status, xml: r.xml?.status || null });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+// PDF do aviso de devolução por loja, dentro do módulo Fiscal (mesma geração da tela de Pedidos de Compra)
+app.get('/api/fiscal/pedido-compra/:id/devolucao/:loja/pdf', (req, res) => {
+  const q0 = fiscalPedidoLoja(req, res); if (!q0) return;
+  let f; try { f = pedidosFornec.gerarPdfDevolucao(q0.p, q0.ln, req.session.user?.nome || null); } catch (e) { return res.status(500).json({ error: e.message }); }
+  setTimeout(() => res.sendFile(f, { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="devolucao-${q0.p.id}-L${q0.ln}.pdf"` } }), 200);
 });
 app.get('/api/fiscal/documentos', async (req, res) => {
   try { res.json(escopo.filtrarPorLoja(req.session.user, await fiscal.documentos(fiscalPeriodo(req)), x => x.loja)); } catch (err) { fiscalErr(res, err); }
