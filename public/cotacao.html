@@ -731,6 +731,12 @@ table.sug td.q-tot a,table.sug td.q-tot span{font-size:11.5px}
 table.sug thead th:nth-child(n+7),table.sug tbody td:nth-child(n+7){padding-right:10px}
 table.sug tbody tr:nth-child(even) td{background:#F8F8F6}
 table.sug tbody tr:hover td{background:#E6EEFA}
+/* sem caixa padrão no topo, em vermelho (Tiago, 13/10): item da cotação sem caixa sobe e trava o envio; preencheu, volta pro lugar */
+table.sug tbody tr.sec.semcx td,table.sug tbody tr.sec.semcx:hover td{background:#FBEAED!important;color:#C22F49;font-weight:700;font-size:12px;text-align:left;padding:6px 10px}
+table.sug tbody tr.cx-sem td{background:#FFF5F6}
+table.sug tbody tr.cx-sem .prod-cell>b{color:#C22F49}
+table.sug tbody tr.cx-sem:hover td{background:#FBE3E7}
+.btn.trava{opacity:.5}
 </style>
 </head>
 <body>
@@ -801,8 +807,8 @@ table.sug tbody tr:hover td{background:#E6EEFA}
       <div class="wizfoot top"><span class="mini">Edite as quantidades por loja se quiser. Item sem quantidade não entra na cotação. Regra só da cotação: loja marcada na lista com estoque zero e sem sugestão recebe 1 caixa (marcado "zerado (cotação)").</span></div>
       <div class="kpis" id="w1-lojas" style="grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:14px"></div>
       <div class="toolbar sugbar">
-        <div class="sugbar-top"><span id="w1-resumo" class="sugbar-resumo"></span><div class="sugbar-acoes"><button class="btn ghost sm" onclick="marcarTodos(true)">Marcar todos</button><button class="btn ghost sm" onclick="marcarTodos(false)">Desmarcar</button><button class="btn primary sm" onclick="irFornecedores()">Próximo: destinatários →</button></div></div>
-        <div class="sugbar-filtros"><div class="sugbar-grp"><span class="sugbar-lbl">Mostrar</span><label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" class="check" id="ns-so-qtd" checked onchange="renderSugestao()">só itens com quantidade</label><label style="display:flex;gap:6px;align-items:center;cursor:pointer" title="Mostra só os produtos com sugestão/pedido aberto no ERP ainda não recebido (coluna Trânsito). Com uma loja selecionada no card, só o trânsito daquela loja. Não muda a marcação."><input type="checkbox" class="check" id="ns-so-tr" onchange="renderSugestao()">só produtos em trânsito</label></div><div class="sugbar-grp"><span class="sugbar-lbl">Marcação</span><label style="display:flex;gap:6px;align-items:center;cursor:pointer" title="Ligada: produto com estoque no CD (CAHU Distribuidora) fica desmarcado e não entra na cotação — a loja pede pro CD. Marcar todos respeita. Desligue pra voltar a marcar."><input type="checkbox" class="check" id="ns-sem-cd" onchange="toggleSemCD(this.checked)">não marcar quem tem no CD</label></div><div class="sugbar-grp"><span class="sugbar-lbl">Filtros</span><select id="ns-ordem" class="hin" onchange="renderSugestao()" title="Ordem dos produtos"><option value="az">Ordem: A → Z</option><option value="za">Ordem: Z → A</option><option value="radar">Ordem do Radar (curva A e urgência primeiro)</option></select><select id="ns-cx" class="hin" onchange="renderSugestao()" title="Filtrar por caixa padrão"><option value="">Caixa: todas</option><option value="sem">Sem caixa padrão</option><option value="com">Com caixa padrão</option></select><select id="ns-est" class="hin" onchange="renderSugestao()" title="Filtrar por estoque (soma das lojas)"><option value="">Estoque: todos</option><option value="com">Com estoque</option><option value="sem">Sem estoque</option></select><select id="ns-cd" class="hin" onchange="renderSugestao()" title="Filtrar pelo estoque no CD (CAHU Distribuidora): só quem tem, só quem não tem, ou tudo"><option value="">CD: todos</option><option value="com">Só quem tem no CD</option><option value="sem">Só quem não tem no CD</option></select></div></div>
+        <div class="sugbar-top"><span id="w1-resumo" class="sugbar-resumo"></span><div class="sugbar-acoes"><button class="btn ghost sm" onclick="marcarTodos(true)">Marcar todos</button><button class="btn ghost sm" onclick="marcarTodos(false)">Desmarcar</button><button class="btn primary sm" id="btn-prox" onclick="irFornecedores()">Próximo: destinatários →</button></div></div>
+        <div class="sugbar-filtros"><div class="sugbar-grp"><span class="sugbar-lbl">Mostrar</span><label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" class="check" id="ns-so-qtd" checked onchange="renderSugestao()">só itens com quantidade</label><label style="display:flex;gap:6px;align-items:center;cursor:pointer" title="Mostra só os produtos com sugestão/pedido aberto no ERP ainda não recebido (coluna Trânsito). Com uma loja selecionada no card, só o trânsito daquela loja. Não muda a marcação."><input type="checkbox" class="check" id="ns-so-tr" onchange="renderSugestao()">só produtos em trânsito</label></div><div class="sugbar-grp"><span class="sugbar-lbl">Marcação</span><label style="display:flex;gap:6px;align-items:center;cursor:pointer" title="Ligada: produto com estoque no CD (CAHU Distribuidora) fica desmarcado e não entra na cotação — a loja pede pro CD. Marcar todos respeita. Desligue pra voltar a marcar."><input type="checkbox" class="check" id="ns-sem-cd" onchange="toggleSemCD(this.checked)">não marcar quem tem no CD</label></div><div class="sugbar-grp"><span class="sugbar-lbl">Filtros</span><select id="ns-ordem" class="hin" onchange="renderSugestao()" title="Ordem dos produtos"><option value="az">Ordem: A → Z</option><option value="za">Ordem: Z → A</option><option value="radar">Ordem do Radar (curva A e urgência primeiro)</option></select><select id="ns-est" class="hin" onchange="renderSugestao()" title="Filtrar por estoque (soma das lojas)"><option value="">Estoque: todos</option><option value="com">Com estoque</option><option value="sem">Sem estoque</option></select><select id="ns-cd" class="hin" onchange="renderSugestao()" title="Filtrar pelo estoque no CD (CAHU Distribuidora): só quem tem, só quem não tem, ou tudo"><option value="">CD: todos</option><option value="com">Só quem tem no CD</option><option value="sem">Só quem não tem no CD</option></select></div></div>
       </div>
       <div class="tablewrap">
         <table class="sug">
@@ -1130,20 +1136,23 @@ function qtdItem(i){ var t = 0; LOJAS_ALL.forEach(function(ln){ t += qtdLoja(i, 
 function setQtd(cod, ln, v){ var i = SUG.itens.find(function(x){ return x.cod === cod; }); if (!i) return; EDIT[cod] = EDIT[cod] || {}; EDIT[cod][ln] = Math.max(0, Math.round(parseFloat(String(v).replace(',', '.')) || 0)); if (qtdItem(i) > 0) SEL[cod] = true; atualizarLinha(i); atualizarResumoW1(); }
 var LOJA_F = null;   // card de loja clicado em cima: mostra só essa loja (itens, caixinha, total e R$ dela)
 function filtrarLoja(ln){ LOJA_F = String(LOJA_F) === String(ln) ? null : ln; renderSugestao(); toastMsg(LOJA_F ? 'Mostrando só a loja ' + LJ(LOJA_F) + ' ' + (LOJAS_NOMES[LOJA_F] || '') : 'Mostrando todas as lojas'); }
+function ehTopoSemCaixa(i){ return !!SEL[i.cod] && qtdItem(i) > 0 && semCaixa(i); }
+function selSemCaixa(){ return SUG ? SUG.itens.filter(ehTopoSemCaixa) : []; }
 function atualizarLinha(i){
   var tr = document.getElementById('sg-' + i.cod); if (!tr) return;
+  if (ehTopoSemCaixa(i) !== tr.classList.contains('cx-sem')) { renderSugestao(); return; }
   var q = LOJA_F ? qtdLoja(i, LOJA_F) : qtdItem(i); tr.querySelector('.q-tot').innerHTML = fmtN(q) + '<br>' + cxLink(i, q);
   tr.querySelector('.q-val').textContent = fmtR(q * i.custo); tr.classList.toggle('off', !SEL[i.cod]);
   tr.querySelectorAll('.lj input').forEach(function(inp){ var ln = inp.dataset.ln, v = qtdLoja(i, ln); inp.classList.toggle('ed', !!(EDIT[i.cod] && EDIT[i.cod][ln] != null && EDIT[i.cod][ln] !== (i.lojas_qtd[ln] || 0))); inp.classList.toggle('z', v === 0); });
 }
 function atualizarResumoW1(){
   var n = 0, tot = 0, vol = 0, semPadrao = 0, porLoja = {};
-  SUG.itens.forEach(function(i){ if (semCaixa(i)) semPadrao++; if (!SEL[i.cod]) return; var q = qtdItem(i); if (q <= 0) return; n++; tot += q * i.custo; vol += Math.ceil(q / (i.emb || 1)); LOJAS_ALL.forEach(function(ln){ var ql = qtdLoja(i, ln); if (ql <= 0) return; var L = porLoja[ln] = porLoja[ln] || {valor:0, vol:0, itens:0}; L.valor += ql * i.custo; L.vol += Math.ceil(ql / (i.emb || 1)); L.itens++; }); });
+  SUG.itens.forEach(function(i){ if (!SEL[i.cod]) return; var q = qtdItem(i); if (q <= 0) return; if (semCaixa(i)) semPadrao++; n++; tot += q * i.custo; vol += Math.ceil(q / (i.emb || 1)); LOJAS_ALL.forEach(function(ln){ var ql = qtdLoja(i, ln); if (ql <= 0) return; var L = porLoja[ln] = porLoja[ln] || {valor:0, vol:0, itens:0}; L.valor += ql * i.custo; L.vol += Math.ceil(ql / (i.emb || 1)); L.itens++; }); });
   // janela por loja em cima: valor a último custo, volumes e itens de cada loja (só itens marcados)
   // card 'Todas as lojas' na frente, no mesmo padrão dos cards de loja (Tiago, 21/09); clicar nele volta a ver tudo
   var box = $('#w1-lojas'); if (box) { box.style.gridTemplateColumns = 'repeat(' + (LOJAS_ALL.length + 1) + ',1fr)'; box.innerHTML = '<div class="kpi" style="padding:10px 14px;cursor:pointer;border-left:4px solid var(--ink)' + (!LOJA_F ? ';outline:2px solid var(--am);background:var(--amw)' : '') + '" title="Total de todas as lojas · clique pra ver todas" onclick="LOJA_F=null;renderSugestao()"><div class="lbl" style="margin:0 0 2px;color:var(--ink2)">Todas as lojas' + (!LOJA_F ? ' · <b style="color:var(--amk)">vendo todas</b>' : '') + '</div><div class="val" style="font-size:17px' + (tot > 0 ? '' : ';color:var(--ink3)') + '">' + fmtR(tot) + '</div><div class="lbl">' + fmtN(vol) + ' volumes · ' + n + ' itens</div></div>' + LOJAS_ALL.map(function(ln){ var L = porLoja[ln] || {valor:0, vol:0, itens:0}; var on = String(LOJA_F) === String(ln); return '<div class="kpi" style="padding:10px 14px;cursor:pointer' + (on ? ';outline:2px solid var(--am);background:var(--amw)' : '') + '" title="' + (on ? 'Clique pra voltar a ver todas as lojas' : 'Clique pra ver só esta loja') + '" onclick="filtrarLoja(\'' + ln + '\')"><div class="lbl" style="margin:0 0 2px;color:var(--ink2)">' + LJ(ln) + ' ' + esc(LOJAS_NOMES[ln] || '') + (on ? ' · <b style="color:var(--amk)">só esta</b>' : '') + '</div><div class="val" style="font-size:17px' + (L.valor > 0 ? '' : ';color:var(--ink3)') + '">' + fmtR(L.valor) + '</div><div class="lbl">' + fmtN(L.vol) + ' volumes · ' + L.itens + ' itens</div></div>'; }).join(''); }
   $('#w1-resumo').innerHTML = '<b>' + n + '</b> itens na cotação · <b>' + fmtN(vol) + '</b> volumes · a último custo <b>' + fmtR(tot) + '</b>' + (semPadrao ? ' · <span style="color:var(--neg);font-weight:700">' + semPadrao + ' sem caixa padrão</span>' : ' · <span style="color:var(--pos);font-weight:700">todos com caixa padrão</span>');
-  var b = $('#btn-emb'); if (b) { b.textContent = '↻ Buscar caixa padrão' + (semPadrao ? ' (' + semPadrao + ')' : ''); b.disabled = !semPadrao; }
+  var bp = $('#btn-prox'); if (bp) { bp.classList.toggle('trava', semPadrao > 0); bp.title = semPadrao ? semPadrao + ' produto' + (semPadrao > 1 ? 's' : '') + ' da cotação sem caixa padrão — preencha nos itens em vermelho no topo antes de seguir' : 'Escolher quem recebe a cotação'; }
 }
 // de onde veio a embalagem do item (ordem do Radar: manual > notas do fornecedor da lista > padrão descoberto > cadastro)
 // sem caixa padrão = embalagem 1 sem ninguém ter definido; caixa 1 digitada à mão é uma embalagem normal de 1 unidade (aceita)
@@ -1159,7 +1168,7 @@ async function buscarCaixaPadrao(){
   if (!SUG) return;
   var cods = SUG.itens.filter(semCaixa).map(function(i){ return i.cod; });
   if (!cods.length) { toastMsg('Todos os itens já têm caixa padrão'); return; }
-  var b = $('#btn-emb'); b.disabled = true; b.textContent = 'Procurando em ' + cods.length + ' itens…';
+  var b = $('#btn-emb') || {}; b.disabled = true; b.textContent = 'Procurando em ' + cods.length + ' itens…';
   try {
     var r = await post('/api/cotacoes/sugestao/' + SUG.lista.lista + '/embalagens', {cods: cods});
     var f = r.fontes || {}, partes = [];
@@ -1192,15 +1201,20 @@ async function definirCaixa(cod, unid, v){
 }
 function renderSugestao(){
   if (!SUG) return;
-  var soQtd = $('#ns-so-qtd').checked, soTr = !!(($('#ns-so-tr') || {}).checked), b = ($('#ns-busca').value || '').trim().toLowerCase(), ordem = ($('#ns-ordem') || {}).value || 'az', fEst = ($('#ns-est') || {}).value || '', fCx = ($('#ns-cx') || {}).value || '', fCd = ($('#ns-cd') || {}).value || '';
-  var rows = SUG.itens.filter(function(i){ var qf = LOJA_F ? qtdLoja(i, LOJA_F) : qtdItem(i); if (soQtd && qf <= 0 && !SEL[i.cod]) return false; if (b && i.descricao.toLowerCase().indexOf(b) === -1 && String(i.cod).indexOf(b) === -1) return false; var estF = LOJA_F ? (((i.lojas_det || {})[LOJA_F] || {}).estoque || 0) : i.estoque; if (fEst === 'com' && !(estF > 0)) return false; if (fEst === 'sem' && estF > 0) return false; if (fCd === 'com' && !temCD(i.cod)) return false; if (fCd === 'sem' && temCD(i.cod)) return false; var trF = LOJA_F ? (((i.lojas_det || {})[LOJA_F] || {}).transito || 0) : (i.transito || 0); if (soTr && !(trF > 0)) return false; if (fCx === 'sem' && !semCaixa(i)) return false; if (fCx === 'com' && semCaixa(i)) return false; return true; });
+  var soQtd = $('#ns-so-qtd').checked, soTr = !!(($('#ns-so-tr') || {}).checked), b = ($('#ns-busca').value || '').trim().toLowerCase(), ordem = ($('#ns-ordem') || {}).value || 'az', fEst = ($('#ns-est') || {}).value || '', fCd = ($('#ns-cd') || {}).value || '';
+  var rows = SUG.itens.filter(function(i){ var qf = LOJA_F ? qtdLoja(i, LOJA_F) : qtdItem(i); if (soQtd && qf <= 0 && !SEL[i.cod]) return false; if (b && i.descricao.toLowerCase().indexOf(b) === -1 && String(i.cod).indexOf(b) === -1) return false; var estF = LOJA_F ? (((i.lojas_det || {})[LOJA_F] || {}).estoque || 0) : i.estoque; if (fEst === 'com' && !(estF > 0)) return false; if (fEst === 'sem' && estF > 0) return false; if (fCd === 'com' && !temCD(i.cod)) return false; if (fCd === 'sem' && temCD(i.cod)) return false; var trF = LOJA_F ? (((i.lojas_det || {})[LOJA_F] || {}).transito || 0) : (i.transito || 0); if (soTr && !(trF > 0)) return false; return true; });
   if (ordem === 'az' || ordem === 'za') { rows = rows.slice().sort(function(x, y){ return (x.descricao || '').localeCompare(y.descricao || '', 'pt-BR'); }); if (ordem === 'za') rows.reverse(); }
+  // Tiago, 13/10: item da cotação (marcado, com quantidade) sem caixa padrão fica nos primeiros, em vermelho; quando a caixa é
+  // preenchida a tabela é redesenhada e ele volta pro lugar dele na ordem
+  var topo = rows.filter(ehTopoSemCaixa), nTopo = topo.length;
+  if (nTopo) rows = topo.concat(rows.filter(function(i){ return topo.indexOf(i) < 0; }));
   var tb = $('#w1-tbody');
   if (!rows.length) { tb.innerHTML = '<tr><td colspan="9" class="empty">Nenhum item' + (fCd === 'com' ? ' com estoque no CD' : fCd === 'sem' ? ' sem estoque no CD' : '') + (soTr ? ' em trânsito' : '') + (LOJA_F ? ' na loja ' + LJ(LOJA_F) : '') + (soQtd ? ' com quantidade — desmarque "só itens com quantidade" pra ver a lista inteira e digitar' : '') + '.</td></tr>'; atualizarResumoW1(); return; }
-  tb.innerHTML = rows.slice(0, 1500).map(function(i){
+  tb.innerHTML = rows.slice(0, 1500).map(function(i, k){
     var band = coberturaBand(i.cobertura_dias), q = LOJA_F ? qtdLoja(i, LOJA_F) : qtdItem(i);
     var lojas = LOJAS_ALL.filter(function(ln){ return !LOJA_F || String(ln) === String(LOJA_F); }).map(function(ln){ var d = (i.lojas_det || {})[ln] || {}; return '<span class="lj" title="' + LJ(ln) + ' ' + (LOJAS_NOMES[ln] || '') + ': estoque ' + fmtN(d.estoque, 0) + ' · venda/dia ' + fmtN(d.venda_dia, 2) + (d.cobertura_dias != null ? ' · cobertura ' + fmtN(d.cobertura_dias, 0) + ' d' : '') + (d.transito ? ' · trânsito ' + fmtN(d.transito, 0) : '') + '"><small>' + LJ(ln) + '</small><input type="text" inputmode="numeric" data-ln="' + ln + '" value="' + qtdLoja(i, ln) + '" onchange="setQtd(\'' + esc(i.cod) + '\',\'' + ln + '\',this.value)">' + (d.estoque != null ? '<div class="lj-est">est <b' + (d.estoque <= 0 ? ' class="zero"' : '') + '>' + fmtN(d.estoque, 0) + '</b>' + (d.transito ? ' · trâns <span class="tr' + (d.transito_ignorado ? ' off" title="trânsito não está contando (tag na coluna Trânsito)' : '') + '">' + fmtN(d.transito, 0) + '</span>' : '') + '</div>' : '') + '</span>'; }).join('');
-    return '<tr id="sg-' + esc(i.cod) + '" class="' + (SEL[i.cod] ? '' : 'off') + '">' +
+    return (k === 0 && nTopo ? '<tr class="sec semcx"><td colspan="9">⚠ Sem caixa padrão · ' + nTopo + ' produto' + (nTopo > 1 ? 's' : '') + ' da cotação · digite a caixa (un/cx) e dê Enter: o produto volta pro lugar dele e o envio pros destinatários é liberado</td></tr>' : '') +
+      '<tr id="sg-' + esc(i.cod) + '" class="' + (SEL[i.cod] ? '' : 'off') + (k < nTopo ? ' cx-sem' : '') + '">' +
       '<td><input type="checkbox" class="check" ' + (SEL[i.cod] ? 'checked' : '') + ' onchange="SEL[\'' + esc(i.cod) + '\']=this.checked;delete CD_OFF[\'' + esc(i.cod) + '\'];atualizarLinha(SUG.itens.find(function(x){return x.cod===\'' + esc(i.cod) + '\'}));atualizarResumoW1()"></td>' +
       '<td class="mini">' + esc(i.cod) + '</td>' +
       '<td><div class="prod-cell"><b>' + esc(i.descricao) + (i.curva_a ? ' <span class="an-badge bad" style="font-size:9.5px;padding:1px 6px">curva A</span>' : '') + cdTag(i.cod) + '</b><span class="prod-meta">' + embLabel(i) + '<span>Venda/dia ' + fmtN(i.venda_dia, 2) + '</span><span class="m-' + band.cls + '">Cobertura ' + (i.cobertura_dias != null ? '~' + fmtN(i.cobertura_dias, 0) + ' d' : '—') + ' · ' + band.label + '</span>' + (i.flag ? '<span class="m-warn">' + esc(i.flag) + '</span>' : '') + '</span></div></td>' +
@@ -1251,7 +1265,10 @@ function itensSelecionados(){
   }).filter(function(i){ return Object.keys(i.lojas_qtd).length; });
 }
 // ───────── NOVA COTAÇÃO — passo 2: destinatários (vêm do cadastro da lista)
-function irFornecedores(){ if (!SUG) return; if (!itensSelecionados().length) { toastMsg('Marque pelo menos um item com quantidade'); return; } wizGo('w2'); carregarDestinatarios(); }
+function irFornecedores(){ if (!SUG) return; if (!itensSelecionados().length) { toastMsg('Marque pelo menos um item com quantidade'); return; }
+  var sc = selSemCaixa();   // Tiago, 13/10: só envia pros destinatários depois de pôr a caixa padrão em todos os itens da cotação
+  if (sc.length) { toastMsg('⚠ ' + sc.length + ' produto' + (sc.length > 1 ? 's' : '') + ' da cotação sem caixa padrão — preencha a caixa (un/cx) nos itens em vermelho no topo da lista antes de escolher os destinatários'); cxIrPara(document.querySelector('#w1-tbody tr.cx-sem .cxin')); return; }
+  wizGo('w2'); carregarDestinatarios(); }
 async function carregarDestinatarios(){
   var av = $('#w2-aviso'); av.innerHTML = '';
   if (FORN.length && FORN._lista === SUG.lista.lista) { renderDestinatarios(); return; }
