@@ -298,10 +298,7 @@ const antTxt = (v, a, fmt) => a ? '<span class="ant">ant ' + fmt(a) + ' · <b cl
 const mg = v => v == null ? '<span class="mut">—</span>' : '<b class="' + (v < 0 ? 'dn' : v < 8 ? 'wn' : '') + '">' + pct(v) + '</b>';
 const nfLink = (nn, chave) => chave ? '<a class="nf" href="/api/dashboard-distribuidora/nfe/' + encodeURIComponent(chave) + '/danfe" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Abre o PDF da NF-e ' + esc(nn) + '">' + esc(nn) + '</a>' : esc(nn);
 // célula "Nota": NF-e com link pro PDF quando o XML existe; NFC-e (cupom do caixa do CD) com selo e o número do cupom, sem PDF
-const notaCel = n => n.tipo === 'NFC-e' ? '<span class="pill inf" title="NFC-e emitida no caixa do CD · cupom ' + esc(n.nn) + '">NFC-e</span> ' + esc(n.nn) : notaCel(n);
-// quebra NF-e × NFC-e embaixo de um valor (só quando houve NFC-e no período)
-const quebra = (a, fmt) => a && a.nfce && a.nfce.n ? '<span class="ant">NF-e ' + (fmt || money)(a.nfe.v) + ' (' + a.nfe.n + ') · NFC-e ' + (fmt || money)(a.nfce.v) + ' (' + a.nfce.n + ')</span>' : '';
-const CORES = ['#F5B800', '#D99F00', '#B98600', '#F7CB4D', '#E0B23A', '#A67A00', '#8C6600', '#5C4600'];
+const notaCel = n => n.tipo === 'NFC-e' ? '<span class="pill inf" title="NFC-e emitida no caixa do CD · cupom ' + esc(n.nn) + '">NFC-e</span> ' + esc(n.nn) : notaCel(n);const CORES = ['#F5B800', '#D99F00', '#B98600', '#F7CB4D', '#E0B23A', '#A67A00', '#8C6600', '#5C4600'];
 
 /* ── capa + carregamento por bloco (mesmo desenho do Dashboard Loja) ── */
 const SEG_KEY = { s1: 'faturamento', s2: 'clientes', s3: 'televendas', s4: 'estoque', s5: 'expedicao', s6: 'financeiro' };
@@ -375,16 +372,18 @@ function renderFat() {
   // t: undefined = vendedor (clicável) · 'tipo' = linha NF-e / NFC-e (quebra do total) · true = Total
   const linha = (v, t) => {
     const cl = (per, n) => t || !n ? '' : ' vcl" onclick="vendDetalhe(this,\'' + per + '\')" title="clique pra ver cliente e nota de cada venda';
-    const qb = t ? '' : quebra;   // nas linhas de vendedor a quebra vai embaixo do valor; nas de tipo/total ela já é a própria linha
+    // quebra NF-e × NFC-e curta, só na linha do vendedor e só quando ele teve NFC-e: contagem embaixo de "Notas" e o valor
+    // da NFC-e embaixo de "Venda" (o NF-e é o resto; as linhas NF-e / NFC-e antes do Total trazem a quebra completa)
+    const tem = a => !t && a.nfce && a.nfce.n > 0, qn = a => tem(a) ? '<span class="ant">' + a.nfe.n + ' NF-e · ' + a.nfce.n + ' NFC-e</span>' : '', qv = a => tem(a) ? ' · NFC-e ' + money(a.nfce.v) : '';
     return '<tr' + (t === true ? ' class="tot"' : t ? ' class="tipo"' : ' data-vend="' + v.cod + '"') + '><td class="p">' + esc(v.nome) + '</td>'
-    + '<td class="r sep dia">' + n0(v.hoje.n) + '</td><td class="r dia' + cl('hoje', v.hoje.n) + '"><b>' + money(v.hoje.v) + '</b>' + (qb ? qb(v.hoje) : '') + '</td>'
-    + '<td class="r sep">' + n0(v.mes.n) + '</td><td class="r' + cl('mes', v.mes.n) + '"><b>' + money(v.mes.v) + '</b>' + (t === true ? '' : '<span class="ant">' + pct(v.pct) + ' do total</span>') + (qb ? qb(v.mes) : '') + '</td><td class="r">' + mg(v.mes.margem) + '</td><td class="r">' + money(v.mes.ticket) + '</td><td class="r">' + n0(v.mes.clientes) + '</td>'
+    + '<td class="r sep dia">' + n0(v.hoje.n) + qn(v.hoje) + '</td><td class="r dia' + cl('hoje', v.hoje.n) + '"><b>' + money(v.hoje.v) + '</b>' + (tem(v.hoje) ? '<span class="ant">NFC-e ' + money(v.hoje.nfce.v) + '</span>' : '') + '</td>'
+    + '<td class="r sep">' + n0(v.mes.n) + qn(v.mes) + '</td><td class="r' + cl('mes', v.mes.n) + '"><b>' + money(v.mes.v) + '</b>' + (t === true ? '' : '<span class="ant">' + pct(v.pct) + (tem(v.mes) ? qv(v.mes) : ' do total') + '</span>') + '</td><td class="r">' + mg(v.mes.margem) + '</td><td class="r">' + money(v.mes.ticket) + '</td><td class="r">' + n0(v.mes.clientes) + '</td>'
     + '<td class="r sep">' + (v.mesAnt.v ? money(v.mesAnt.v) + '<span class="ant">' + n0(v.mesAnt.n) + ' notas · <b class="' + cls(v.var) + '">' + sgn(v.var) + '</b></span>' : '<span class="mut">—</span>') + '</td></tr>';
   };
   const T = f.tipos || {};
   el('c-fat-vend').innerHTML = vs.length ? '<table class="m"><thead><tr><th rowspan="2">Vendedor</th><th class="grp dia" colspan="2">Hoje · ' + hj + '</th><th class="grp" colspan="5">Mês · 01 a ' + hj + '</th><th class="grp" rowspan="2">Mês anterior<br>01 a ' + df(f.mesAnt.ate) + '</th></tr>'
     + '<tr><th class="r sep dia">Notas</th><th class="r dia">Venda</th><th class="r sep">Notas</th><th class="r">Venda</th><th class="r">Margem</th><th class="r">Ticket</th><th class="r">Clientes</th></tr></thead><tbody>' + vs.map(v => linha(v)).join('')
-    + (T.nfe ? linha({ ...T.nfe, nome: 'NF-e' }, 'tipo') + linha({ ...T.nfce, nome: 'NFC-e · caixa' }, 'tipo') : '')
+    + (T.nfe ? linha({ ...T.nfe, nome: 'NF-e' }, 'tipo') + linha({ ...T.nfce, nome: 'NFC-e' }, 'tipo') : '')
     + linha({ nome: 'Total', hoje: H, mes: M, mesAnt: A, var: f.var, pct: 100 }, true) + '</tbody></table>' : empty('Nenhuma nota no mês.');
   const maxM = Math.max(...f.meses.map(m => m.v), 1), mt = (m, k) => m[k] ? n0(m[k].n) + '<span class="ant">' + money(m[k].v) + '</span>' : '—';
   el('c-fat-meses').innerHTML = f.meses.length ? '<table class="m"><thead><tr><th>Mês</th><th class="r">NF-e</th><th class="r">NFC-e</th><th class="r">Venda</th><th></th></tr></thead><tbody>' + f.meses.slice().reverse().map((m, i) => '<tr' + (i === 0 ? ' class="hl"' : '') + '><td>' + MES3[+m.m.slice(5, 7)] + '/' + m.m.slice(2, 4) + (i === 0 ? ' <span class="mut">até hoje</span>' : '') + '</td><td class="r">' + mt(m, 'nfe') + '</td><td class="r">' + mt(m, 'nfce') + '</td><td class="r"><b>' + money(m.v) + '</b><span class="ant">' + plural(m.n, 'nota') + '</span></td><td>' + bar(m.v, maxM) + '</td></tr>').join('') + '</tbody></table>' : empty('sem histórico');
