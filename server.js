@@ -8076,13 +8076,22 @@ async function lojasInativasPedido(p) {
   if (dados) _pedInativas[p.id] = { em: Date.now(), dados };
   return dados || {};
 }
+// Pedido mínimo que a tela mostra (Tiago, 13/10: mesmo padrão do Radar e da Cotação): o do pedido (PedidoMinimo da lista no
+// ERP, cadastro do fornecedor na lista ou o que o vendedor digitou no link) e, se não tem, o ValorMinimo do cadastro do
+// fornecedor no ERP (COT_FORN_MIN, carregado no bloco da Cotação mais abaixo). Vendedor que digitou 0 = sem mínimo mesmo.
+function pedidoMinimoTela(p) {
+  if (p.pedido_minimo > 0) return { pedido_minimo: p.pedido_minimo, pedido_minimo_fonte: 'pedido' };
+  if (p.cadastro_vendedor && p.cadastro_vendedor.pedido_minimo === 0) return { pedido_minimo: null, pedido_minimo_fonte: null };
+  const e = p.codFornec > 0 ? COT_FORN_MIN[p.codFornec] : null;
+  return e > 0 ? { pedido_minimo: e, pedido_minimo_fonte: 'fornecedor_erp' } : { pedido_minimo: null, pedido_minimo_fonte: null };
+}
 app.get('/api/pedidos-fornecedor/:id', async (req, res) => {
   const p = pedidosFornec.obter(parseInt(req.params.id));
   if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
   // estoque_lojas: est/trânsito por loja de cada item, da base do Radar, pra tela mostrar embaixo da caixinha (Tiago, 06/10/26)
   let estoqueLojas = {}; try { estoqueLojas = radarPedidos.estoqueLojas((p.itens || []).map(i => i.cod)); } catch (e) {}
   let lojasInativas = {}; try { lojasInativas = await lojasInativasPedido(p); } catch (e) {}
-  res.json({ ...p, por_loja: pedidosFornec.porLoja(p), link: linkPedido(p), avarias_txt: pedidosFornec.textoAvarias(p), observacoes: pedidosFornec.observacoesPedido(p), estoque_lojas: estoqueLojas, lojas_inativas: lojasInativas });
+  res.json({ ...p, ...pedidoMinimoTela(p), por_loja: pedidosFornec.porLoja(p), link: linkPedido(p), avarias_txt: pedidosFornec.textoAvarias(p), observacoes: pedidosFornec.observacoesPedido(p), estoque_lojas: estoqueLojas, lojas_inativas: lojasInativas });
 });
 
 app.post('/api/pedidos-fornecedor/:id/aprovar', async (req, res) => {
