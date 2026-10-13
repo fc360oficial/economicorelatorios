@@ -8248,6 +8248,13 @@ app.post('/api/pedidos-fornecedor/:id/quantidades', (req, res) => {
   if (p.erro) return res.status(409).json({ error: p.erro });
   res.json({ ok: true, totais: p.totais, lojas: p.lojas });
 });
+// Tiago, 13/10: botão "0" zera o item guardando o que estava; "↶" volta (lib zerarItem). body: { cod, acao: 'zerar'|'voltar', lojas? }
+app.post('/api/pedidos-fornecedor/:id/zerar-item', (req, res) => {
+  const r = pedidosFornec.zerarItem(parseInt(req.params.id), req.body?.cod, req.body?.acao === 'voltar' ? 'voltar' : 'zerar', req.body?.lojas, req.session.user?.nome || null);
+  if (!r) return res.status(404).json({ error: 'Pedido não encontrado' });
+  if (r.erro) return res.status(409).json({ error: r.erro });
+  res.json({ ok: true, item: r.item, totais: r.p.totais, lojas: r.p.lojas });
+});
 app.post('/api/pedidos-fornecedor/:id/emb', (req, res) => {
   const p = pedidosFornec.ajustarEmb(parseInt(req.params.id), req.body?.cod, req.body?.emb, req.session.user?.nome || null);
   if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });

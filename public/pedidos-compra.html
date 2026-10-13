@@ -117,7 +117,7 @@ input.qin{width:50px;text-align:right;font:inherit;font-size:11.5px;font-weight:
 input.qin::-webkit-outer-spin-button,input.qin::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 input.qin:focus{outline:none;border-color:#F5B800;background:#FFFDF3}input.qin.ed{border-color:#2E5E8C;background:#E9EEF6}
 /* Tiago, 13/10: botão "0" no lugar da coluna Trânsito (zera o item); colunas ABC e Status iguais ao detalhe do Radar */
-.zbtn{display:inline-block;width:22px;height:22px;line-height:20px;border:1px solid #C22F49;border-radius:50%;background:#fff;color:#C22F49;font:800 11px Inter,sans-serif;cursor:pointer;padding:0;opacity:.55;vertical-align:middle}.zbtn:hover{opacity:1;background:#FBEAED}
+.zbtn{display:inline-block;width:22px;height:22px;line-height:20px;border:1px solid #C22F49;border-radius:50%;background:#fff;color:#C22F49;font:800 11px Inter,sans-serif;cursor:pointer;padding:0;opacity:.55;vertical-align:middle}.zbtn:hover{opacity:1;background:#FBEAED}.zbtn.undo{color:#1D5FB4;border-color:#1D5FB4;margin-left:4px}.zbtn.undo:hover{background:#E6EEFA}.zbtn.off{opacity:.18;pointer-events:none}.det table.ppg td.zc{white-space:nowrap}
 .det table.ppg td.abc{white-space:nowrap;font-size:12.5px}.det table.ppg td.abc b{font-weight:800}.abc-a{color:#137A48}.abc-b{color:#B45C00}.abc-c{color:#C22F49}
 .det table.ppg th.abc small{display:block;font-size:9px;text-transform:none;letter-spacing:0;color:#98A0B3;font-weight:700;margin-top:1px}
 .st2{white-space:nowrap}.st2 .pill{margin:0 1px;font-size:10px;padding:1px 6px;line-height:1.5}.st2 .cdtag{margin-left:1px}
@@ -561,7 +561,7 @@ async function carregarDetalhe(key){
     // últ. compra · trânsito · qtd · emb · total · uma coluna por loja (nome + total no cabeçalho; caixinha com est · trâns e ⛔ desativado) · obs
     const TLJ=Object.fromEntries(totLojas(p,null).lojas.map(l=>[l.ln,l]));
     h+='<div class="lojatot" id="lt-'+p.id+'" data-ln="'+(LN||'')+'">'+lojaTotaisHtml(p,LN,true)+'</div>';   // Tiago, 13/10: "esse bota lá pra cima" (igual ao Radar)
-    h+=itfHtml(p,LN)+'<div style="overflow-x:auto" id="itt-'+p.id+'"><table class="ppg one"><thead><tr><th class="c abc" title="Curva ABC entre todos os produtos das listas, pela venda dos últimos 40 dias: quantidade / valor em R$. A = até 80 % do acumulado, B = até 95 %, C = o resto">ABC<small>qtd / R$</small></th><th class="l">Produto</th><th class="c st2" title="Selos do produto: A curva A · N novo na lista · D desativado no cadastro · CD tem no Centro de Distribuição">Status</th><th class="c" title="Preço digitado pelo vendedor no link (— = ainda sem preço)">Preço digitado</th><th class="c" title="Variação entre o preço digitado e a última compra (último custo do ERP)">× últ. compra</th><th class="r" title="Último custo de compra no ERP">Últ. compra</th><th class="c" title="Zerar as quantidades pedidas do item em todas as lojas (o item continua no pedido, com 0)">Zerar</th><th class="r">Qtd</th><th class="c" title="Caixa padrão (unidades por caixa): digite e dê Enter">Emb</th><th class="r" title="Quantidade × preço digitado (sem preço: × último custo)">Total</th>'+LJ.map(l=>'<th class="lj" title="'+(LN?'Voltar a ver todas as lojas':'Ver só '+ETQ(l)+' '+esc(LOJAS_NOMES[l]||''))+'" onclick="event.stopPropagation();verLoja('+p.id+','+(LN?0:l)+')">'+esc(LOJAS_NOMES[l]||ETQ(l))+' <span class="mini">'+(LN?'✕':'🔍')+'</span><small id="th-tl-'+p.id+'-'+l+'">'+money2(TLJ[l]?TLJ[l].total:0)+'</small><em class="thmin" id="th-mn-'+p.id+'-'+l+'">'+minTh(p.pedido_minimo,TLJ[l]?TLJ[l].total:0)+'</em></th>').join('')+'<th class="obs">Obs. do vendedor</th></tr></thead><tbody>';
+    h+=itfHtml(p,LN)+'<div style="overflow-x:auto" id="itt-'+p.id+'"><table class="ppg one"><thead><tr><th class="c abc" title="Curva ABC entre todos os produtos das listas, pela venda dos últimos 40 dias: quantidade / valor em R$. A = até 80 % do acumulado, B = até 95 %, C = o resto">ABC<small>qtd / R$</small></th><th class="l">Produto</th><th class="c st2" title="Selos do produto: A curva A · N novo na lista · D desativado no cadastro · CD tem no Centro de Distribuição">Status</th><th class="c" title="Preço digitado pelo vendedor no link (— = ainda sem preço)">Preço digitado</th><th class="c" title="Variação entre o preço digitado e a última compra (último custo do ERP)">× últ. compra</th><th class="r" title="Último custo de compra no ERP">Últ. compra</th><th class="c" title="0 = zerar as quantidades pedidas do item (todas as lojas, ou só a loja aberta na tela) · ↶ = voltar o que estava antes de zerar">Zerar</th><th class="r">Qtd</th><th class="c" title="Caixa padrão (unidades por caixa): digite e dê Enter">Emb</th><th class="r" title="Quantidade × preço digitado (sem preço: × último custo)">Total</th>'+LJ.map(l=>'<th class="lj" title="'+(LN?'Voltar a ver todas as lojas':'Ver só '+ETQ(l)+' '+esc(LOJAS_NOMES[l]||''))+'" onclick="event.stopPropagation();verLoja('+p.id+','+(LN?0:l)+')">'+esc(LOJAS_NOMES[l]||ETQ(l))+' <span class="mini">'+(LN?'✕':'🔍')+'</span><small id="th-tl-'+p.id+'-'+l+'">'+money2(TLJ[l]?TLJ[l].total:0)+'</small><em class="thmin" id="th-mn-'+p.id+'-'+l+'">'+minTh(p.pedido_minimo,TLJ[l]?TLJ[l].total:0)+'</em></th>').join('')+'<th class="obs">Obs. do vendedor</th></tr></thead><tbody>';
     let idx=0;
     for(const i of [...p.itens].filter(i=>!LN||(i.lojas_qtd?.[LN]||0)>0).sort((x,y)=>String(x.descricao||'').localeCompare(String(y.descricao||''),'pt-BR'))){
       const E=p.estoque_lojas?.[i.cod]||null, IP=p.info_produtos?.[i.cod]||{}, li=p.lojas_inativas?.[i.cod]||[], pr=i.preco!=null?i.preco:null, dif=pr!=null&&i.ultimo_custo>0?pr-i.ultimo_custo:null;
@@ -574,7 +574,7 @@ async function carregarDetalhe(key){
         return '<td class="c st lj'+(q?' tem':'')+(inat?' inat':'')+'">'+(editavel?'<input class="qin" type="number" min="0" step="1" data-id="'+p.id+'" data-cod="'+esc(i.cod)+'" data-ln="'+l+'" value="'+(q||'')+'" placeholder="·">':'<b>'+(q?fmt(q,0):'')+'</b>')+est+'</td>'; }).join('');
       h+='<tr class="'+(i.preco!=null||['sugestao','analise'].includes(p.status)?'pede':'zero')+(idx++%2?' alt':'')+'" data-f="'+itemF(i,LN)+'">'+abcCel(IP)+'<td class="prod desc"><b>'+esc(i.descricao)+'</b>'+meta+'</td>'+stCel(i,IP)+
         '<td class="c" id="pp-'+p.id+'-'+esc(i.cod)+'">'+precoCellHtml(p,i)+'</td><td class="c" id="ps-'+p.id+'-'+esc(i.cod)+'">'+seta(i.preco,i.ultimo_custo,true)+'</td><td class="r">'+fmt(i.ultimo_custo,2)+'</td>'+
-        '<td class="c">'+(editavel?'<button class="zbtn" title="Zerar as quantidades pedidas deste item'+(LN?' nesta loja':' em todas as lojas')+'" onclick="zerarItem(event,'+p.id+',&quot;'+esc(i.cod)+'&quot;)">0</button>':'<span class="mut">—</span>')+'</td>'+
+        zCel(p,i,LN)+
         '<td class="r" id="pq-'+p.id+'-'+esc(i.cod)+'">'+pqHtml(p,i,LN)+'</td><td class="c">'+pembHtml(p,i)+'</td><td class="r" id="pt-'+p.id+'-'+esc(i.cod)+'">'+ptHtml(i,LN)+'</td>'+cel+'<td class="mut obs">'+esc(i.obs||'')+'</td></tr>';
     }
     h+='</tbody></table></div>';
@@ -655,26 +655,40 @@ function stCel(i,IP){
     cdTag(i.cod)].filter(Boolean);
   return '<td class="c st2">'+(selos.length?selos.join(' '):'<span class="mut">—</span>')+'</td>';
 }
-// Tiago, 13/10 ("no lugar dessa coluna de trânsito coloca um ícone que a opção dele é zerar as quantidades pedidas daquele item"):
-// zera o item em todas as lojas do pedido (na visão de uma loja só, só nela), salva pela mesma rota da caixinha e redesenha
-// célula, caixinhas, totais por loja e cabeçalho sem recarregar. O trânsito continua embaixo de cada caixinha ("est · trâns").
+// Tiago, 13/10 ("no lugar dessa coluna de trânsito coloca um ícone que a opção dele é zerar as quantidades pedidas daquele item"
+// + "um botão pra zerar e outro pra voltar o que estava"): "0" zera o item em todas as lojas (na visão de uma loja só, só nela) e o
+// servidor guarda o que estava (it.zerado.antes); "↶" devolve. Redesenha célula, caixinhas, totais por loja e cabeçalho sem recarregar.
+function zCel(p,i,LN){
+  const editavel=['analise','sugestao','aguardando','digitacao','finalizado'].includes(p.status);
+  const z=i.zerado&&i.zerado.antes?i.zerado:null, cod=esc(i.cod);
+  const tit=z?'Voltar o que estava: '+Object.entries(z.antes).map(([l,v])=>ETQ(l)+' '+v).join(' · ')+(z.em?' (zerado '+dt(z.em)+(z.por?' por '+z.por:'')+')':''):'Nada pra voltar: este item não foi zerado';
+  return '<td class="c zc" id="pz-'+p.id+'-'+cod+'">'+(editavel?'<button class="zbtn" title="Zerar as quantidades pedidas deste item'+(LN?' nesta loja':' em todas as lojas')+'" onclick="zerarItem(event,'+p.id+',&quot;'+cod+'&quot;)">0</button><button class="zbtn undo'+(z?'':' off')+'" title="'+esc(tit)+'" onclick="voltarItem(event,'+p.id+',&quot;'+cod+'&quot;)">↶</button>':'<span class="mut">—</span>')+'</td>';
+}
+function zAplicar(pid,it,LN,j){   // aplica a resposta do servidor na tela, sem recarregar
+  const p=PED[pid]; if(j.item){ it.lojas_qtd=j.item.lojas_qtd||{}; it.qtd=j.item.qtd; it.volumes=j.item.volumes; it.zerado=j.item.zerado||null; }
+  const c=document.getElementById('pq-'+pid+'-'+it.cod); const tr=c&&c.closest('tr'); if(tr) tr.dataset.f=itemF(it,LN); atualizarItf(pid);
+  document.querySelectorAll('input.qin[data-id="'+pid+'"][data-cod="'+it.cod+'"]').forEach(q=>{ const v=it.lojas_qtd[q.dataset.ln]||0; q.value=v||''; q.classList.add('ed'); q.closest('td').classList.toggle('tem',v>0); });
+  if(c) c.innerHTML=pqHtml(p,it,LN);
+  const pt=document.getElementById('pt-'+pid+'-'+it.cod); if(pt) pt.innerHTML=ptHtml(it,LN);
+  const z=document.getElementById('pz-'+pid+'-'+it.cod); if(z) z.outerHTML=zCel(p,it,LN);
+  const lt=document.getElementById('lt-'+pid); if(lt) lt.innerHTML=lojaTotaisHtml(p, lt.dataset.ln?+lt.dataset.ln:null, true);
+  atualizarThLojas(pid);
+  if(j.totais){ p.totais=j.totais; const L=LISTA.find(x=>x.id===pid); if(L){L.totais=j.totais;L.lojas=j.lojas;} }
+}
 async function zerarItem(ev,pid,cod){
   if(ev) ev.stopPropagation();
   const p=PED[pid], it=p&&p.itens.find(i=>String(i.cod)===String(cod)); if(!it) return;
   const LN=lnDetalhe(pid), lojas=LN?[+LN]:Object.keys(it.lojas_qtd||{}).map(Number);
-  const antes={}; lojas.forEach(l=>{ antes[l]=it.lojas_qtd[l]||0; });
-  const com=lojas.filter(l=>antes[l]>0); if(!com.length) return;
-  if(!confirm('Zerar '+(it.descricao||cod)+(LN?' em '+ETQ(LN):' em todas as lojas')+'?\n\n'+com.map(l=>ETQ(l)+' '+antes[l]).join(' · '))) return;
-  const ajustes={}; ajustes[cod]={}; lojas.forEach(l=>{ it.lojas_qtd[l]=0; ajustes[cod][l]=0; });
-  it.qtd=Object.values(it.lojas_qtd).reduce((s,x)=>s+(x||0),0); it.volumes=it.qtd?Math.ceil(it.qtd/(it.emb||1)):0;
-  const c=document.getElementById('pq-'+pid+'-'+cod); const tr=c&&c.closest('tr'); if(tr) tr.dataset.f=itemF(it,LN); atualizarItf(pid);
-  document.querySelectorAll('input.qin[data-id="'+pid+'"][data-cod="'+cod+'"]').forEach(q=>{ if(!LN||+q.dataset.ln===+LN){ q.value=''; q.classList.add('ed'); q.closest('td').classList.remove('tem'); } });
-  if(c) c.innerHTML=pqHtml(p,it,LN);
-  const pt=document.getElementById('pt-'+pid+'-'+cod); if(pt) pt.innerHTML=ptHtml(it,LN);
-  const lt=document.getElementById('lt-'+pid); if(lt) lt.innerHTML=lojaTotaisHtml(p, lt.dataset.ln?+lt.dataset.ln:null, true);
-  atualizarThLojas(pid);
-  try{ const r=await fetch('/api/pedidos-fornecedor/'+pid+'/quantidades',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ajustes})}); const j=await r.json(); if(j.error) throw new Error(j.error); const L=LISTA.find(x=>x.id===pid); if(L){L.totais=j.totais;L.lojas=j.lojas;} }
-  catch(e){ alert('Não zerou: '+e.message); lojas.forEach(l=>{ it.lojas_qtd[l]=antes[l]; }); carregarDetalhe(aberto); }
+  if(!lojas.some(l=>(it.lojas_qtd[l]||0)>0)) return;
+  try{ const r=await fetch('/api/pedidos-fornecedor/'+pid+'/zerar-item',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cod:String(cod),acao:'zerar',lojas})}); const j=await r.json(); if(j.error) throw new Error(j.error); zAplicar(pid,it,LN,j); }
+  catch(e){ alert('Não zerou: '+e.message); }
+}
+async function voltarItem(ev,pid,cod){
+  if(ev) ev.stopPropagation();
+  const p=PED[pid], it=p&&p.itens.find(i=>String(i.cod)===String(cod)); if(!it||!it.zerado) return;
+  const LN=lnDetalhe(pid);
+  try{ const r=await fetch('/api/pedidos-fornecedor/'+pid+'/zerar-item',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cod:String(cod),acao:'voltar'})}); const j=await r.json(); if(j.error) throw new Error(j.error); zAplicar(pid,it,LN,j); }
+  catch(e){ alert('Não voltou: '+e.message); }
 }
 async function salvarQtd(inp){
   const id=+inp.dataset.id, cod=inp.dataset.cod, ln=+inp.dataset.ln, v=Math.max(0,Math.round(parseFloat(inp.value)||0));
