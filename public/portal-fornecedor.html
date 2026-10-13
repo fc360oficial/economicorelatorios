@@ -65,12 +65,14 @@ td b{font-weight:700}
   <div class="page-hdr">
     <div>
       <h1>Portal do Fornecedor</h1>
-      <p>Quem já instalou o portal do vendedor no celular, em quantos aparelhos, quando entrou pela última vez e os avisos mandados (nova cotação, lembrete de prazo, pedido). <b>O vendedor entra pelo link da cotação</b> que você manda hoje: toca em "Sou eu", ativa os avisos e pronto. Daqui você manda um <b>link de acesso</b> pra ligar um celular novo, <b>testa</b> se o aviso chega e <b>desconecta</b> quem saiu da empresa.</p>
+      <p>Quem criou login no portal do vendedor (e-mail + senha), em quantos aparelhos recebe aviso, quando entrou pela última vez e os avisos mandados (nova cotação, lembrete de prazo, pedido). <b>O vendedor entra pelo link do portal</b>: você manda o convite (botão ao lado) ou ele chega pela página da cotação; ele cria o login com e-mail e senha de no mínimo 6 dígitos e ativa os avisos. Daqui você <b>redefine a senha</b> de quem esqueceu, <b>testa</b> se o aviso chega e <b>desconecta</b> quem saiu da empresa.</p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn" id="btn-ex" onclick="exemplos()" title="Cria 3 vendedores de TESTE (WhatsApp 81 90000-000x) pra você ver a tela cheia; some com 'Remover exemplos'">Criar exemplos de teste</button>
+      <button class="btn btn-amber" onclick="convite()" title="Copia a mensagem com o link do portal pra você colar no WhatsApp do vendedor; ele cria o login com e-mail e senha">📨 Copiar convite</button>
+      <button class="btn" id="btn-ex" onclick="exemplos()" title="Cria 3 vendedores de TESTE (WhatsApp 81 90000-000x, login nome@teste.com.br, senha 123456) pra você ver a tela cheia; some com 'Remover exemplos'">Criar exemplos de teste</button>
       <a class="btn" href="/fornecedor/?demo=1" target="_blank" rel="noopener" title="Abre o portal como o vendedor vê, com dados fictícios">Ver o portal do vendedor (exemplo)</a>
-      <button class="btn btn-amber" onclick="carregar()">↻ Atualizar</button>
+      <a class="btn" href="/fornecedor/#criar" target="_blank" rel="noopener" title="Abre a tela em que o vendedor cria o login">Ver a tela de login</a>
+      <button class="btn" onclick="carregar()">↻ Atualizar</button>
     </div>
   </div>
   <div class="status" id="status"></div>
@@ -78,16 +80,16 @@ td b{font-weight:700}
 
   <div class="ajuda" id="ajuda" style="display:none"><b>Como o vendedor entra:</b>
     <ol>
-      <li>Você manda o link da cotação pelo WhatsApp, como sempre (ou o <b>link de acesso</b> desta tela, que liga o celular direto, sem cotação aberta).</li>
-      <li>Na página da cotação sobe o painel "Quem é você?" com os vendedores cadastrados do fornecedor. Ele toca em <b>Sou eu</b> e em <b>Ativar avisos</b>.</li>
-      <li>Daí em diante as cotações dele chegam como aviso no celular, e no Acompanhamento da cotação o canal dele passa de <b>WhatsApp</b> pra <b>App</b>.</li>
+      <li>Você manda o <b>convite</b> com o link do portal pelo WhatsApp (botão "Copiar convite"). Quem abrir o link de uma cotação também vê o painel "Crie seu login".</li>
+      <li>Ele cria o login com <b>nome, WhatsApp, e-mail e senha de no mínimo 6 dígitos</b>. O WhatsApp é o que casa ele com o cadastro do fornecedor nas listas.</li>
+      <li>Ele toca em <b>Ativar avisos</b>. Daí em diante as cotações dele chegam como aviso no celular, e no Acompanhamento da cotação o canal passa de <b>WhatsApp</b> pra <b>App</b>.</li>
     </ol>
   </div>
 
   <div class="sec">
-    <div class="hd"><h2>Vendedores no portal</h2><span class="mini" id="v-cont"></span><input type="search" id="v-busca" placeholder="buscar vendedor, WhatsApp, fornecedor…" oninput="renderVendedores()"></div>
+    <div class="hd"><h2>Vendedores no portal</h2><span class="mini" id="v-cont"></span><input type="search" id="v-busca" placeholder="buscar vendedor, WhatsApp, e-mail, fornecedor…" oninput="renderVendedores()"></div>
     <div class="tw"><table>
-      <thead><tr><th>Vendedor</th><th>Fornecedor(es)</th><th>Avisos</th><th>Aparelhos</th><th>Entrou em</th><th>Último acesso</th><th>Ações</th></tr></thead>
+      <thead><tr><th>Vendedor</th><th>Fornecedor(es)</th><th>Login</th><th>Avisos</th><th>Aparelhos</th><th>Entrou em</th><th>Último acesso</th><th>Ações</th></tr></thead>
       <tbody id="v-tbody"></tbody>
     </table></div>
   </div>
@@ -108,9 +110,11 @@ var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, fu
 var dt = function (s) { return s ? new Date(s).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'; };
 var fone = function (d) { d = String(d || '').replace(/\D/g, ''); if (d.length === 11) return '(' + d.slice(0, 2) + ') ' + d.slice(2, 7) + '-' + d.slice(7); if (d.length === 10) return '(' + d.slice(0, 2) + ') ' + d.slice(2, 6) + '-' + d.slice(6); return d || '—'; };
 var haTxt = function (s) { if (!s) return ''; var m = Math.round((Date.now() - new Date(s)) / 60000); if (m < 1) return 'agora'; if (m < 60) return 'há ' + m + ' min'; var h = Math.floor(m / 60); if (h < 48) return 'há ' + h + ' h'; return 'há ' + Math.floor(h / 24) + ' dias'; };
-function toast(m) { var t = $('#toast'); t.textContent = m; t.classList.add('on'); clearTimeout(window._tt); window._tt = setTimeout(function () { t.classList.remove('on'); }, 3200); }
+function toast(m) { var t = $('#toast'); t.textContent = m; t.classList.add('on'); clearTimeout(window._tt); window._tt = setTimeout(function () { t.classList.remove('on'); }, 4000); }
 async function api(url, body) { var r = await fetch(url, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : { cache: 'no-store' }); var j = {}; try { j = await r.json(); } catch (e) {} if (!r.ok || j.error) throw new Error(j.error || ('HTTP ' + r.status)); return j; }
+async function copiar(txt, okMsg) { try { await navigator.clipboard.writeText(txt); toast(okMsg); } catch (e) { prompt('Copie:', txt); } }
 var E = null;
+var LINK_PORTAL = location.origin + '/fornecedor/#criar';
 
 async function carregar() {
   try { E = await api('/api/portal-admin/estado'); render(); }
@@ -118,12 +122,12 @@ async function carregar() {
 }
 function render() {
   var vs = E.vendedores_lista || [], reais = vs.filter(function (v) { return !v.teste; });
-  var comApp = reais.filter(function (v) { return v.dispositivos > 0; }).length;
+  var comApp = reais.filter(function (v) { return v.dispositivos > 0; }).length, comLogin = reais.filter(function (v) { return v.tem_senha; }).length;
   var hoje = new Date().toISOString().slice(0, 10), avHoje = (E.avisos || []).filter(function (a) { return String(a.em).slice(0, 10) === hoje && !a.teste; }).length;
   $('#btn-ex').textContent = E.testes ? 'Remover exemplos de teste (' + E.testes + ')' : 'Criar exemplos de teste';
-  $('#status').innerHTML = (E.webpush ? '<span><b>Avisos (push):</b> funcionando' + (E.vapid ? ' · chave gerada' : '') + '</span>' : '<span class="err">Avisos desligados no servidor: ' + esc(E.erro || 'web-push não carregou') + '</span>') + '<span>Dados em <b>data/portal-fornecedor/</b> no servidor</span>';
+  $('#status').innerHTML = (E.webpush ? '<span><b>Avisos (push):</b> funcionando' + (E.vapid ? ' · chave gerada' : '') + '</span>' : '<span class="err">Avisos desligados no servidor: ' + esc(E.erro || 'web-push não carregou') + '</span>') + '<span>Link do portal: <span class="cp">' + esc(LINK_PORTAL) + '</span></span><span>Dados em <b>data/portal-fornecedor/</b> no servidor (senhas guardadas só como hash)</span>';
   $('#kpis').innerHTML =
-    '<div class="kpi"><div class="nm">Vendedores no portal</div><div class="v">' + reais.length + (E.testes ? '<small>+ ' + E.testes + ' teste</small>' : '') + '</div><div class="sub">entraram por um link de cotação ou pedido</div></div>' +
+    '<div class="kpi"><div class="nm">Vendedores no portal</div><div class="v">' + reais.length + (E.testes ? '<small>+ ' + E.testes + ' teste</small>' : '') + '</div><div class="sub">' + (comLogin < reais.length ? comLogin + ' com login (e-mail + senha); ' + (reais.length - comLogin) + ' ainda sem senha, entraram pelo "Sou eu" antigo' : 'criaram login com e-mail e senha') + '</div></div>' +
     '<div class="kpi ' + (comApp ? 'ok' : '') + '"><div class="nm">Com avisos ativos</div><div class="v">' + comApp + '<small>de ' + reais.length + '</small></div><div class="sub">têm pelo menos um aparelho inscrito; recebem cotação sem WhatsApp</div></div>' +
     '<div class="kpi"><div class="nm">Aparelhos</div><div class="v">' + E.dispositivos + '</div><div class="sub">celulares e PCs inscritos pra receber aviso</div></div>' +
     '<div class="kpi"><div class="nm">Avisos hoje</div><div class="v">' + avHoje + '</div><div class="sub">nova cotação, lembrete de prazo e pedido</div></div>' +
@@ -133,22 +137,24 @@ function render() {
 }
 function renderVendedores() {
   var vs = E.vendedores_lista || [], b = ($('#v-busca').value || '').trim().toLowerCase();
-  var vis = vs.filter(function (v) { if (!b) return true; return ((v.nome || '') + ' ' + (v.whats || '') + ' ' + fone(v.whats) + ' ' + (v.empresas || []).map(function (e) { return e.nome; }).join(' ')).toLowerCase().indexOf(b) >= 0; });
+  var vis = vs.filter(function (v) { if (!b) return true; return ((v.nome || '') + ' ' + (v.whats || '') + ' ' + fone(v.whats) + ' ' + (v.email || '') + ' ' + (v.empresas || []).map(function (e) { return e.nome; }).join(' ')).toLowerCase().indexOf(b) >= 0; });
   $('#v-cont').textContent = vs.length ? vis.length + ' de ' + vs.length : '';
-  if (!vs.length) { $('#v-tbody').innerHTML = '<tr><td colspan="7" class="empty">Ninguém entrou no portal ainda. Mande o link de uma cotação como sempre: a página do vendedor pergunta "quem é você?" e oferece os avisos. Ou clique em <b>Criar exemplos de teste</b> pra ver a tela cheia.</td></tr>'; return; }
-  if (!vis.length) { $('#v-tbody').innerHTML = '<tr><td colspan="7" class="empty">Nenhum vendedor com "' + esc(b) + '".</td></tr>'; return; }
+  if (!vs.length) { $('#v-tbody').innerHTML = '<tr><td colspan="8" class="empty">Ninguém criou login no portal ainda. Mande o <b>convite</b> pelo WhatsApp do vendedor (botão "Copiar convite"): ele cria o login com e-mail e senha e ativa os avisos. Ou clique em <b>Criar exemplos de teste</b> pra ver a tela cheia.</td></tr>'; return; }
+  if (!vis.length) { $('#v-tbody').innerHTML = '<tr><td colspan="8" class="empty">Nenhum vendedor com "' + esc(b) + '".</td></tr>'; return; }
   $('#v-tbody').innerHTML = vis.map(function (v) {
     var ap = v.aparelhos || [];
     var apTxt = ap.length ? ap.map(function (a) { return '<div>' + esc(a.navegador || 'aparelho') + ' <span class="mini">· desde ' + dt(a.criadoEm).slice(0, 8) + (a.ultimoEnvio ? ' · último aviso ' + haTxt(a.ultimoEnvio) : ' · nenhum aviso ainda') + '</span></div>'; }).join('') : '<span class="mini">nenhum</span>';
-    return '<tr' + (v.teste ? ' style="background:#FFFDF5"' : '') + '><td><b>' + esc(v.nome || '—') + '</b>' + (v.teste ? ' <span class="pill teste">TESTE</span>' : '') + '<br><span class="mini">' + esc(fone(v.whats)) + (v.email ? ' · ' + esc(v.email) : '') + '</span></td>' +
-      '<td>' + ((v.empresas || []).map(function (e) { return esc(e.nome) + ' <span class="mini">cód. ' + e.codFornec + '</span>'; }).join('<br>') || '—') + '</td>' +
+    var login = (v.email ? '<b>' + esc(v.email) + '</b><br>' : '') + (v.tem_senha ? '<span class="pill ok">com senha</span>' + (v.senhaEm ? ' <span class="mini">desde ' + dt(v.senhaEm).slice(0, 8) + '</span>' : '') : '<span class="pill bad">sem senha</span> <span class="mini">entrou pelo "Sou eu" antigo; o portal pede pra criar</span>') + (v.teste ? '<br><span class="mini">senha 123456</span>' : '');
+    return '<tr' + (v.teste ? ' style="background:#FFFDF5"' : '') + '><td><b>' + esc(v.nome || '—') + '</b>' + (v.teste ? ' <span class="pill teste">TESTE</span>' : '') + '<br><span class="mini">' + esc(fone(v.whats)) + '</span></td>' +
+      '<td>' + ((v.empresas || []).map(function (e) { return esc(e.nome) + ' <span class="mini">cód. ' + e.codFornec + '</span>'; }).join('<br>') || '<span class="mini">casa pelo WhatsApp na próxima cotação</span>') + '</td>' +
+      '<td>' + login + '</td>' +
       '<td>' + (v.dispositivos > 0 ? '<span class="pill ok">📲 ativos</span>' : '<span class="pill off">desligados</span>') + '</td>' +
       '<td>' + apTxt + '</td>' +
       '<td>' + dt(v.criadoEm) + '</td>' +
       '<td>' + dt(v.ultimoAcesso) + (v.ultimoAcesso ? '<br><span class="mini">' + haTxt(v.ultimoAcesso) + (v.navegador ? ' · ' + esc(v.navegador) : '') + '</span>' : '') + '</td>' +
-      '<td><div class="acoes"><button class="btn btn-sm" onclick="linkAcesso(\'' + esc(v.id) + '\')" title="Copia um link que liga o celular do vendedor ao portal sem precisar de cotação aberta (mande pelo WhatsApp dele)">🔗 Link de acesso</button>' +
+      '<td><div class="acoes"><button class="btn btn-sm" onclick="redefinirSenha(\'' + esc(v.id) + '\')" title="Define uma senha nova pra este vendedor (esqueceu a senha); você manda a nova pelo WhatsApp e ele troca depois no portal">🔑 Redefinir senha</button>' +
       '<button class="btn btn-sm" onclick="testar(\'' + esc(v.id) + '\')"' + (v.dispositivos > 0 ? '' : ' disabled') + ' title="Manda um aviso de teste pros aparelhos dele">🔔 Testar aviso</button>' +
-      '<button class="btn btn-sm btn-no" onclick="desconectar(\'' + esc(v.id) + '\',\'' + esc(v.nome || v.whats) + '\')" title="Zera os aparelhos e invalida o acesso deste vendedor (saiu da empresa, perdeu o celular). Ele volta entrando de novo por um link de cotação.">⛔ Desconectar</button></div></td></tr>';
+      '<button class="btn btn-sm btn-no" onclick="desconectar(\'' + esc(v.id) + '\',\'' + esc(v.nome || v.whats) + '\')" title="Zera os aparelhos e derruba a sessão deste vendedor em todos os celulares (saiu da empresa, perdeu o celular). A senha continua: ele volta entrando com e-mail e senha.">⛔ Desconectar</button></div></td></tr>';
   }).join('');
 }
 function renderAvisos() {
@@ -163,10 +169,24 @@ function renderAvisos() {
       '<td>' + esc(a.fornecedor || '—') + '</td><td>' + ((a.vendedores || []).map(esc).join(', ') || '—') + '</td><td>' + res + '</td></tr>';
   }).join('');
 }
-async function linkAcesso(id) {
-  try { var r = await api('/api/portal-admin/vendedores/' + encodeURIComponent(id) + '/link'); var url = location.origin + r.link;
-    var msg = 'Olá' + (r.nome ? ', ' + r.nome.split(' ')[0] : '') + '! Aqui é da Econômico Supermercados (Rede Cahu). Abra este link no seu celular pra receber nossas cotações direto no Portal do Fornecedor: ' + url;
-    try { await navigator.clipboard.writeText(msg); toast('Mensagem com o link de acesso copiada. Cole no WhatsApp do vendedor.'); } catch (e) { prompt('Copie o link de acesso:', url); }
+// convite genérico: mensagem pronta com o link do portal (o vendedor cria o login lá)
+function convite() {
+  var msg = 'Olá! Aqui é da Econômico Supermercados (Rede Cahu). Agora nossas cotações chegam direto no seu celular pelo Portal do Fornecedor. Abra o link, crie seu login (e-mail e uma senha de no mínimo 6 dígitos, com o mesmo WhatsApp que usamos pra te mandar as cotações) e ative os avisos: ' + LINK_PORTAL;
+  copiar(msg, 'Convite copiado. Cole no WhatsApp do vendedor.');
+}
+async function redefinirSenha(id) {
+  var v = (E.vendedores_lista || []).find(function (x) { return x.id === id; }); if (!v) return;
+  var quem = v.nome || fone(v.whats);
+  var email = v.email;
+  if (!email) { email = prompt('Este vendedor ainda não tem e-mail. Informe o e-mail que vai ser o login de ' + quem + ':'); if (!email) return; email = email.trim(); }
+  var senha = prompt('Nova senha pra ' + quem + ' (mínimo 6 dígitos). Ele(a) pode trocar depois no portal:');
+  if (senha == null) return; senha = senha.trim();
+  if (senha.length < 6) { toast('A senha precisa ter no mínimo 6 dígitos.'); return; }
+  try {
+    await api('/api/portal-admin/vendedores/' + encodeURIComponent(id) + '/senha', { senha: senha, email: v.email ? undefined : email });
+    var msg = 'Olá' + (v.nome ? ', ' + v.nome.split(' ')[0] : '') + '! Aqui é da Econômico Supermercados. Sua senha do Portal do Fornecedor foi redefinida.\nLogin: ' + email + '\nSenha: ' + senha + '\nEntre em ' + location.origin + '/fornecedor/ e troque a senha na aba Cadastro.';
+    await copiar(msg, 'Senha redefinida. A mensagem com login e senha foi copiada: cole no WhatsApp do vendedor.');
+    carregar();
   } catch (e) { toast('Erro: ' + e.message); }
 }
 async function testar(id) {
@@ -174,11 +194,11 @@ async function testar(id) {
   catch (e) { toast('Erro: ' + e.message); }
 }
 async function desconectar(id, nome) {
-  if (!confirm('Desconectar ' + nome + '?\n\nOs aparelhos dele param de receber aviso e o acesso atual deixa de valer. Pra voltar, ele entra de novo por um link de cotação ou pelo link de acesso.')) return;
+  if (!confirm('Desconectar ' + nome + '?\n\nOs aparelhos dele param de receber aviso e a sessão cai em todos os celulares. A senha continua valendo: pra voltar, ele entra de novo com e-mail e senha.')) return;
   try { await api('/api/portal-admin/vendedores/' + encodeURIComponent(id) + '/desconectar', {}); toast(nome + ' desconectado.'); carregar(); } catch (e) { toast('Erro: ' + e.message); }
 }
 async function exemplos() {
-  try { if (E && E.testes) { var r = await api('/api/portal-admin/testes/remover', {}); toast(r.removidos + ' exemplo(s) removido(s)'); } else { var c = await api('/api/portal-admin/testes', {}); toast(c.criados + ' vendedores de teste criados'); } carregar(); }
+  try { if (E && E.testes) { var r = await api('/api/portal-admin/testes/remover', {}); toast(r.removidos + ' exemplo(s) removido(s)'); } else { var c = await api('/api/portal-admin/testes', {}); toast(c.criados + ' vendedores de teste criados (login nome@teste.com.br · senha 123456)'); } carregar(); }
   catch (e) { toast('Erro: ' + e.message); }
 }
 carregar();

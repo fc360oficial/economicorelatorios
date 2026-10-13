@@ -1,6 +1,7 @@
 // Gancho do Portal do Fornecedor nas páginas do vendedor (/cotacao/<token>, /pedido/<token> e os atalhos /fornecedor/...).
-// 1ª vez neste celular: painel "quem é você?" (vendedores cadastrados do fornecedor) → "ativar avisos e instalar".
-// Já identificado: refaz a inscrição de push se o navegador perdeu, e lembra de ativar os avisos (1x por semana).
+// Sem login neste celular: painel "crie seu login no portal" (e-mail + senha de no mínimo 6 dígitos) → manda pro
+// /fornecedor/?de=cotacao/<token>#criar (ou #entrar), que volta pra cá depois de entrar, com #avisos pra oferecer os
+// avisos na hora. Já logado: refaz a inscrição de push se o navegador perdeu e lembra de ativar os avisos (1x por semana).
 // Nada aqui interfere na digitação dos preços: o painel sobe por cima, dá pra fechar e continuar como sempre.
 (function () {
   'use strict';
@@ -14,8 +15,9 @@
   var deferred = null;
   window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); deferred = e; });
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
-  function api(url, body) { return fetch(url, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {}).then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok || j.error) throw new Error(j.error || ('HTTP ' + r.status)); return j; }); }); }
+  function api(url, body) { return fetch(url, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : { cache: 'no-store' }).then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok || j.error) throw new Error(j.error || ('HTTP ' + r.status)); return j; }); }); }
   function b64(s) { var p = '='.repeat((4 - s.length % 4) % 4); var b = (s + p).replace(/-/g, '+').replace(/_/g, '/'); var raw = atob(b); var a = new Uint8Array(raw.length); for (var i = 0; i < raw.length; i++) a[i] = raw.charCodeAt(i); return a; }
+  var de = encodeURIComponent(tipo + '/' + token);   // de onde o vendedor veio: o portal volta pra cá depois do login
 
   // ── estilo do painel ──
   var css = '.pf-sheet{position:fixed;left:0;right:0;bottom:0;z-index:9999;background:#fff;color:#0E1626;border-radius:22px 22px 0 0;box-shadow:0 -12px 40px -16px rgba(14,22,38,.45);padding:12px 20px 22px;font-family:Inter,"Segoe UI",system-ui,sans-serif;font-size:14px;max-height:88vh;overflow:auto;animation:pfUp .25s ease-out}' +
@@ -23,15 +25,12 @@
     '.pf-sheet .pf-h{width:40px;height:5px;border-radius:3px;background:#DADAD6;margin:0 auto 14px}' +
     '.pf-sheet h3{font-size:18px;font-weight:700;line-height:1.2;margin:0 0 4px}.pf-sheet p{margin:0 0 12px;color:#4E5A72;line-height:1.4}' +
     '.pf-top{display:flex;gap:14px;align-items:center;margin-bottom:14px}.pf-ic{width:56px;height:56px;border-radius:14px;background:#F5B800;color:#0E1626;font-weight:800;font-size:28px;display:flex;align-items:center;justify-content:center;flex-shrink:0}' +
-    '.pf-list{border:1px solid #DADAD6;border-radius:13px;overflow:hidden;margin-bottom:14px}.pf-list label{display:flex;align-items:center;gap:12px;padding:13px 14px;border-bottom:1px solid #DADAD6;cursor:pointer}.pf-list label:last-child{border-bottom:none}.pf-list label.on{background:#FFF6D9}' +
-    '.pf-list input[type=radio]{width:20px;height:20px;margin:0;accent-color:#0E1626;flex-shrink:0}.pf-list b{display:block;font-size:15px}.pf-list small{color:#4E5A72;font-size:13px}' +
-    '.pf-sheet .pf-in{width:100%;box-sizing:border-box;height:42px;border:1px solid #C9C9C4;border-radius:9px;padding:0 12px;font:inherit;font-size:15px;margin-top:8px}' +
     '.pf-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:50px;border-radius:9px;border:none;font:inherit;font-size:15px;font-weight:700;cursor:pointer;text-decoration:none;box-sizing:border-box}' +
     '.pf-btn.p{background:#F5B800;color:#0E1626}.pf-btn.d{background:#0E1626;color:#fff}.pf-btn.g{background:#fff;border:1px solid #C9C9C4;color:#0E1626;height:46px;font-weight:600;margin-top:8px}.pf-btn[disabled]{opacity:.55;cursor:default}' +
     '.pf-ok{display:flex;gap:10px;align-items:flex-start;margin-bottom:10px;line-height:1.4}.pf-ok i{width:26px;height:26px;border-radius:13px;background:#E7F5EC;color:#137A48;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-style:normal;font-weight:800}' +
     '.pf-note{font-size:12px;color:#4E5A72;text-align:center;margin-top:12px;line-height:1.45}.pf-err{color:#C22F49;font-weight:600;margin:8px 0 0}' +
     '.pf-bar{position:fixed;left:10px;right:10px;bottom:10px;z-index:9998;background:#0E1626;color:#fff;border-radius:12px;padding:10px 12px;display:flex;gap:10px;align-items:center;font-family:Inter,"Segoe UI",system-ui,sans-serif;font-size:13px;box-shadow:0 10px 30px -10px rgba(14,22,38,.6)}' +
-    '.pf-bar b{color:#F5B800}.pf-bar button{font:inherit;font-weight:700;border:none;border-radius:8px;padding:9px 12px;cursor:pointer}.pf-bar .y{background:#F5B800;color:#0E1626}.pf-bar .n{background:transparent;color:#AEB8CE}' +
+    '.pf-bar b{color:#F5B800}.pf-bar button,.pf-bar a{font:inherit;font-weight:700;border:none;border-radius:8px;padding:9px 12px;cursor:pointer;text-decoration:none;white-space:nowrap}.pf-bar .y{background:#F5B800;color:#0E1626}.pf-bar .n{background:transparent;color:#AEB8CE}' +
     '@media(min-width:720px){.pf-sheet{left:auto;right:24px;bottom:24px;width:420px;border-radius:18px}.pf-bar{left:auto;right:24px;width:420px;box-sizing:border-box}}';
   var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
 
@@ -40,6 +39,9 @@
   function painel(html) { fechar(); box = document.createElement('div'); box.className = 'pf-sheet'; box.setAttribute('role', 'dialog'); box.innerHTML = '<div class="pf-h"></div>' + html; document.body.appendChild(box); return box; }
   function adiar(dias) { ls.set(ADIADO, String(Date.now() + dias * 86400000)); fechar(); }
   function adiado() { var t = parseInt(ls.get(ADIADO) || '0', 10); return t > Date.now(); }
+  var beneficios = '<div class="pf-ok"><i>✓</i><div><b>Nova cotação</b> da Econômico chega como aviso, com prazo e número de itens.</div></div>' +
+    '<div class="pf-ok"><i>✓</i><div><b>Lembrete 2 h antes do prazo</b> se ainda faltar item sem preço.</div></div>' +
+    '<div class="pf-ok"><i>✓</i><div><b>Pedido gerado</b> quando você vence, com o PDF e a data de entrega.</div></div>';
 
   // ── push: inscreve este aparelho pro vendedor (vt) ──
   function inscrever(vt) {
@@ -56,17 +58,27 @@
       .then(function () { ls.set(SUB, '1'); return api('/api/portal/push/testar', { vt: vt }).catch(function () { return {}; }); });
   }
 
-  // ── passo 2: ativar avisos + instalar ──
+  // ── sem login neste celular: convite pra criar o login (ou entrar) ──
+  function passoLogin() {
+    var h = '<div class="pf-top"><div class="pf-ic">E</div><div><h3>Receba as próximas cotações direto no celular</h3><p>Crie seu login no Portal do Fornecedor da Econômico: e-mail e uma senha de no mínimo 6 dígitos. Depois é só entrar, em qualquer celular.</p></div></div>' +
+      beneficios +
+      '<a class="pf-btn p" href="/fornecedor/?de=' + de + '#criar">Criar meu login</a>' +
+      '<a class="pf-btn g" href="/fornecedor/?de=' + de + '#entrar">Já tenho login, entrar</a>' +
+      '<button class="pf-btn g" id="pf-nao">Agora não, só ' + (tipo === 'pedido' ? 'ver o pedido' : 'cotar') + '</button>' +
+      '<div class="pf-note">Só o(a) comprador(a) da Econômico vê seus preços. Os outros fornecedores não veem nada.</div>';
+    var b = painel(h);
+    b.querySelector('#pf-nao').onclick = function () { adiar(3); };
+  }
+
+  // ── logado: ativar avisos + instalar ──
   function passoAvisos(vt, nome) {
     var h = '<div class="pf-top"><div class="pf-ic">E</div><div><h3>' + (nome ? esc(nome.split(' ')[0]) + ', receba' : 'Receba') + ' as próximas cotações direto no celular</h3><p>Sem esperar o link no WhatsApp. Um toque e você já está cotando.</p></div></div>' +
-      '<div class="pf-ok"><i>✓</i><div><b>Nova cotação</b> da Econômico chega como aviso, com prazo e número de itens.</div></div>' +
-      '<div class="pf-ok"><i>✓</i><div><b>Lembrete 2 h antes do prazo</b> se ainda faltar item sem preço.</div></div>' +
-      '<div class="pf-ok"><i>✓</i><div><b>Pedido gerado</b> quando você vence, com o PDF e a data de entrega.</div></div>' +
+      beneficios +
       (isIOS && !standalone
         ? '<p style="margin-top:8px"><b>No iPhone</b>: toque em <b>Compartilhar</b> (quadrado com seta) e depois em <b>Adicionar à Tela de Início</b>. Abra o app <b>Fornecedor</b> e toque em <b>Ativar avisos</b>.</p><a class="pf-btn d" href="/fornecedor/">Abrir o portal</a>'
         : '<button class="pf-btn d" id="pf-ativar">🔔 Ativar avisos' + (deferred ? ' e instalar' : '') + '</button>') +
       '<button class="pf-btn g" id="pf-nao">Agora não, só ' + (tipo === 'pedido' ? 'ver o pedido' : 'cotar') + '</button>' +
-      '<div class="pf-note">Só o(a) comprador(a) da Econômico vê seus preços. Dá pra desligar os avisos quando quiser, no portal.</div><div class="pf-err" id="pf-err"></div>';
+      '<div class="pf-note">Dá pra desligar os avisos quando quiser, no portal.</div><div class="pf-err" id="pf-err"></div>';
     var b = painel(h);
     b.querySelector('#pf-nao').onclick = function () { adiar(7); };
     var bt = b.querySelector('#pf-ativar');
@@ -85,50 +97,36 @@
     var b = painel(h); b.querySelector('#pf-fechar').onclick = fechar; ls.set(ADIADO, '0');
   }
 
-  // ── passo 1: quem é você? ──
-  function passoQuem(conv) {
-    var vs = conv.vendedores || [];
-    var h = '<h3>Você chegou pelo link ' + (conv.tipo === 'pedido' ? 'do pedido' : 'da cotação') + ' da ' + esc(conv.fornecedor || 'sua empresa') + '</h3><p>Diga quem é você. Assim as próximas cotações já vêm no seu nome, direto neste celular.</p>' +
-      '<div class="pf-list" id="pf-list">' + vs.map(function (v, k) { return '<label' + (k === 0 ? ' class="on"' : '') + '><input type="radio" name="pfv" value="' + k + '"' + (k === 0 ? ' checked' : '') + '><span><b>' + esc(v.nome || v.whats || 'Vendedor') + '</b><small>' + esc(v.whats || 'sem WhatsApp no cadastro') + (v.ja_no_portal ? ' · já usa o portal' : '') + '</small></span></label>'; }).join('') +
-      '<label' + (vs.length ? '' : ' class="on"') + '><input type="radio" name="pfv" value="novo"' + (vs.length ? '' : ' checked') + '><span><b>' + (vs.length ? 'Não estou na lista' : 'Sou eu') + '</b><small>Digite seu nome e WhatsApp</small></span></label></div>' +
-      '<div id="pf-novo" style="display:' + (vs.length ? 'none' : 'block') + ';margin:-6px 0 12px"><input class="pf-in" id="pf-nome" placeholder="Seu nome" autocomplete="name"><input class="pf-in" id="pf-whats" placeholder="WhatsApp com DDD, ex. 81 99999-0000" inputmode="tel" autocomplete="tel"></div>' +
-      '<button class="pf-btn p" id="pf-ok">Sou eu, continuar</button><button class="pf-btn g" id="pf-nao">Agora não</button>' +
-      '<div class="pf-note">Só o(a) comprador(a) da Econômico vê seus preços. Os outros fornecedores não veem nada.</div><div class="pf-err" id="pf-err"></div>';
-    var b = painel(h);
-    var rad = b.querySelectorAll('input[name=pfv]');
-    for (var i = 0; i < rad.length; i++) rad[i].addEventListener('change', function () { for (var j = 0; j < rad.length; j++) rad[j].parentNode.classList.toggle('on', rad[j].checked); b.querySelector('#pf-novo').style.display = this.value === 'novo' ? 'block' : 'none'; });
-    b.querySelector('#pf-nao').onclick = function () { adiar(3); };
-    b.querySelector('#pf-ok').onclick = function () {
-      var sel = b.querySelector('input[name=pfv]:checked'); var body = { tipo: conv.tipo, token: token };
-      if (!sel || sel.value === 'novo') { body.nome = b.querySelector('#pf-nome').value.trim(); body.whats = b.querySelector('#pf-whats').value.trim(); if (!body.nome || !body.whats) { b.querySelector('#pf-err').textContent = 'Digite seu nome e seu WhatsApp.'; return; } }
-      else body.idx = parseInt(sel.value, 10);
-      var bt = b.querySelector('#pf-ok'); bt.disabled = true; bt.textContent = 'Um momento…';
-      api('/api/portal/identificar', body).then(function (r) { ls.set(KEY, r.vt); ls.set(NOME, (r.vendedor && r.vendedor.nome) || ''); passoAvisos(r.vt, r.vendedor && r.vendedor.nome); })
-        .catch(function (e) { bt.disabled = false; bt.textContent = 'Sou eu, continuar'; b.querySelector('#pf-err').textContent = e.message; });
-    };
-  }
-
-  // ── já identificado: garante a inscrição deste aparelho; senão, lembra 1x por semana ──
+  // ── já logado: garante a inscrição deste aparelho; senão, oferece os avisos (na volta do login: na hora; depois: 1x por semana) ──
   function jaIdentificado(vt) {
-    if (!pushOk) return;
+    var voltouDoLogin = /avisos/.test(location.hash);
+    if (voltouDoLogin) history.replaceState(null, '', location.pathname + location.search);
+    var nome = ls.get(NOME) || '';
+    if (!pushOk) { if (voltouDoLogin && isIOS && !standalone) passoAvisos(vt, nome); return; }
     if (Notification.permission === 'granted') {
-      navigator.serviceWorker.register('/fornecedor/sw.js', { scope: '/fornecedor/' }).then(function (reg) { return reg.pushManager.getSubscription().then(function (s) { if (s) { if (!ls.get(SUB)) return api('/api/portal/push/inscrever', { vt: vt, subscription: s.toJSON ? s.toJSON() : s }).then(function () { ls.set(SUB, '1'); }); return; } if (adiado()) return; return api('/api/portal/vapid').then(function (k) { if (!k.chave) return; return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64(k.chave) }).then(function (ns) { return api('/api/portal/push/inscrever', { vt: vt, subscription: ns.toJSON ? ns.toJSON() : ns }); }).then(function () { ls.set(SUB, '1'); }); }); }); }).catch(function () {});
+      navigator.serviceWorker.register('/fornecedor/sw.js', { scope: '/fornecedor/' }).then(function (reg) { return reg.pushManager.getSubscription().then(function (s) { if (s) { if (!ls.get(SUB)) return api('/api/portal/push/inscrever', { vt: vt, subscription: s.toJSON ? s.toJSON() : s }).then(function () { ls.set(SUB, '1'); }); return; } if (adiado() && !voltouDoLogin) return; return api('/api/portal/vapid').then(function (k) { if (!k.chave) return; return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64(k.chave) }).then(function (ns) { return api('/api/portal/push/inscrever', { vt: vt, subscription: ns.toJSON ? ns.toJSON() : ns }); }).then(function () { ls.set(SUB, '1'); }); }); }); }).catch(function () {});
       return;
     }
-    if (Notification.permission === 'denied' || adiado() || (isIOS && !standalone)) return;
+    if (Notification.permission === 'denied' || (isIOS && !standalone)) return;
+    if (voltouDoLogin) { passoAvisos(vt, nome); return; }
+    if (adiado()) return;
     var bar = document.createElement('div'); bar.className = 'pf-bar';
     bar.innerHTML = '<div style="flex:1"><b>Avisos desligados.</b> Ative pra receber as próximas cotações neste celular.</div><button class="y" id="pf-bar-y">Ativar</button><button class="n" id="pf-bar-n">depois</button>';
     document.body.appendChild(bar);
     bar.querySelector('#pf-bar-n').onclick = function () { ls.set(ADIADO, String(Date.now() + 7 * 86400000)); bar.remove(); };
-    bar.querySelector('#pf-bar-y').onclick = function () { bar.remove(); passoAvisos(vt, ls.get(NOME) || ''); };
+    bar.querySelector('#pf-bar-y').onclick = function () { bar.remove(); passoAvisos(vt, nome); };
   }
 
   // ── espera a página do vendedor carregar (P preenchido / #app com conteúdo) e decide o que mostrar ──
   function iniciar() {
     var vt = ls.get(KEY);
-    if (vt) { api('/api/portal/eu?vt=' + encodeURIComponent(vt)).then(function () { jaIdentificado(vt); }).catch(function (e) { if (/inválida/i.test(e.message)) { ls.del(KEY); ls.del(SUB); if (!adiado()) api('/api/portal/convite/' + tipo + '/' + token).then(passoQuem).catch(function () {}); } }); return; }
+    if (vt) {
+      api('/api/portal/eu?vt=' + encodeURIComponent(vt)).then(function (r) { ls.set(NOME, (r.vendedor && r.vendedor.nome) || ''); jaIdentificado(vt); })
+        .catch(function (e) { if (/inválida/i.test(e.message)) { ls.del(KEY); ls.del(SUB); ls.del(NOME); if (!adiado()) passoLogin(); } });
+      return;
+    }
     if (adiado()) return;
-    api('/api/portal/convite/' + tipo + '/' + token).then(passoQuem).catch(function () {});
+    passoLogin();
   }
   var tent = 0;
   (function esperar() {
