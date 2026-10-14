@@ -281,7 +281,7 @@ body{font-family:var(--font);background:var(--pap);color:var(--ink);font-size:14
     <div class="scan" id="scanExp">
       <span class="ico">▮▯▮</span>
       <input id="bipExp" placeholder="Bipe a caixa (DUN-14) ou a unidade" autocomplete="off" inputmode="numeric" enterkeyhint="done">
-      <button class="dig" id="btnDigitarExp" type="button" aria-pressed="true" onclick="toggleTeclado()" title="Ligar ou desligar o teclado do aparelho">Teclado</button>
+      <button class="dig" id="btnDigitarExp" type="button" aria-pressed="false" onclick="toggleTeclado()" title="Ligar o teclado do aparelho pra digitar">Teclado</button>
     </div>
     <div class="prog"><div>Cega: a quantidade do pedido fica escondida</div><div id="xTir" style="color:var(--amk)"></div></div>
     <div id="xCartao"></div>
@@ -315,7 +315,7 @@ body{font-family:var(--font);background:var(--pap);color:var(--ink);font-size:14
     <div class="scan" id="scanDanfe">
       <span class="ico">▮▯▮</span>
       <input id="bipDanfe" placeholder="Bipe a chave da DANFE (44 dígitos)" autocomplete="off" inputmode="numeric" enterkeyhint="done">
-      <button class="dig" id="btnDigitarDanfe" type="button" aria-pressed="true" onclick="toggleTeclado()" title="Ligar ou desligar o teclado do aparelho">Teclado</button>
+      <button class="dig" id="btnDigitarDanfe" type="button" aria-pressed="false" onclick="toggleTeclado()" title="Ligar o teclado do aparelho pra digitar">Teclado</button>
     </div>
     <div id="dResultado"></div>
   </div>
@@ -334,7 +334,7 @@ body{font-family:var(--font);background:var(--pap);color:var(--ink);font-size:14
     <div class="scan" id="scanBox">
       <span class="ico">▮▯▮</span>
       <input id="bip" placeholder="Bipe o próximo produto" autocomplete="off" inputmode="numeric" enterkeyhint="done">
-      <button class="dig" id="btnDigitar" type="button" aria-pressed="true" onclick="toggleTeclado()" title="Ligar ou desligar o teclado do aparelho">Teclado</button>
+      <button class="dig" id="btnDigitar" type="button" aria-pressed="false" onclick="toggleTeclado()" title="Ligar o teclado do aparelho pra digitar">Teclado</button>
     </div>
     <div class="prog">
       <div id="pNota"></div>
@@ -378,13 +378,14 @@ function guardar(chave, valor) {
   catch (e) { toast('Sem espaço pra guardar offline', true); return false; }
 }
 
-// O scanner do coletor (Compex) escreve a leitura ATRAVÉS do teclado virtual (IME): com o teclado
-// desligado (inputmode="none") a leitura não entra no campo — foi isso que travou a chave e os
-// produtos em 06-07/10 (Tiago: "bipei a chave ele não leu", zero bipes de produto no log). Por isso
-// os campos de bipe abrem SEMPRE com o teclado ligado. O botão "Teclado" desliga (e o app lembra
-// neste aparelho) só pra coletor configurado em Emukey/eventos de tecla, que bipa sem teclado.
-const LS_SEM_TECLADO = 'rec_sem_teclado';
-let semTeclado = false; try { semTeclado = localStorage.getItem(LS_SEM_TECLADO) === '1'; } catch (e) {}
+// Os campos de bipe abrem SEM teclado (inputmode="none"): o coletor tem scanner, e o teclado virtual
+// subindo a cada toque na caixa atrapalha (Tiago, 14/10: "pode colocar desligado"). O botão "Teclado"
+// liga quando precisar digitar, e o app lembra neste aparelho (a memória é por endereço acessado).
+// Atenção: em 06-07/10 o scanner da Compex só escrevia pelo teclado virtual (IME) — sem teclado
+// nada entrava no campo. Se "não lê" com o teclado desligado, configurar no aparelho Barcode
+// Utility › Function Settings › Barcode Data Output Mode = Emukey + sufixo Enter, ou ligar o teclado.
+const LS_COM_TECLADO = 'rec_com_teclado';
+let semTeclado = true; try { semTeclado = localStorage.getItem(LS_COM_TECLADO) !== '1'; } catch (e) {}
 const CAMPOS_BIPE = [['bip', 'btnDigitar'], ['bipDanfe', 'btnDigitarDanfe'], ['bipExp', 'btnDigitarExp']];
 function aplicarTeclado(refocar) {
   for (const [i, b] of CAMPOS_BIPE) {
@@ -396,9 +397,9 @@ function aplicarTeclado(refocar) {
 }
 function toggleTeclado() {
   semTeclado = !semTeclado;
-  try { if (semTeclado) localStorage.setItem(LS_SEM_TECLADO, '1'); else localStorage.removeItem(LS_SEM_TECLADO); } catch (e) {}
+  try { if (semTeclado) localStorage.removeItem(LS_COM_TECLADO); else localStorage.setItem(LS_COM_TECLADO, '1'); } catch (e) {}
   aplicarTeclado(true);
-  toast(semTeclado ? 'Teclado desligado. Se o scanner parar de escrever, ligue de novo.' : 'Teclado ligado.');
+  toast(semTeclado ? 'Teclado desligado.' : 'Teclado ligado. Se o scanner só escrever com ele, deixe ligado.');
 }
 // Liga um campo de bipe a quem lê o código. Três jeitos de uma leitura terminar: Enter (sufixo do
 // leitor ou "Concluído" do teclado), quebra de linha/tab escrita pelo IME, ou — leitor sem sufixo —
@@ -1289,7 +1290,7 @@ if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').cat
 window.addEventListener('online', () => setNet(true));
 window.addEventListener('offline', () => setNet(false));
 
-aplicarTeclado(false); // teclado ligado por padrão; desligado só se este aparelho pediu (Emukey)
+aplicarTeclado(false); // teclado desligado por padrão (coletor com scanner); ligado só se este aparelho pediu
 
 if (sess && sess.token) iniciar();
 </script>
