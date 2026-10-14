@@ -74,3 +74,61 @@ Mockup: https://claude.ai/artifact/X8GGMLQW8dSfQVGc6rHpcr · Escrita no `.252` c
 - **Sem fila offline** na expedição (CD tem rede); o bipe vai direto.
 - **Retaguarda:** Centro Distribuição › Expedição (pendências "verificar pallet" com botão "Verifiquei o pallet", pedidos conferidos) e › Lotes no CD (entrou × saiu × saldo por lote, busca).
 - **Pendente de validação real:** primeiro pedido conferido no Autoid Q8; conferir com o Televendas se algum item é pedido em código diferente do que está na caixa.
+
+## Duas conferências na saída do CD (Tiago, 14/10/26) — SÓ loja 10, SÓ expedição. Status: IMPLEMENTADO 14/10/26 (mockup https://claude.ai/artifact/LnE2VJmn3C9m9egVGtrEoq)
+
+Como ficou: `lib/expedicao.js` (etapas `separacao`/`expedicao` dentro da mesma conferência, status separando → separada → expedindo → fechada,
+operadores com PIN pessoal em `data/expedicao/operadores.json`, trava `travaOperador`), `lib/expedicao-rotas.js` (sessão = token da loja `t` +
+token do operador `o`; `/api/expedicao/operadores`), login da loja 10 em `lib/recebimento-rotas.js` (`pinPessoal`), telas em `public/recebimento.html`
+e aba Expedição de `public/centro-distribuicao.html` (pendências, duas etapas por pedido, cadastro de operadores). Testes: `test/expedicao*.test.js`.
+**Antes de usar:** cadastrar os operadores do CD na retaguarda — sem operador ativo o coletor da loja 10 não entra.
+
+**O que muda:** a saída do pedido do Televendas passa a ter **duas conferências cegas em sequência**, as duas batendo 100 % com o pedido:
+
+| Etapa | Quem | Quando | Compara com | Fecha |
+|---|---|---|---|---|
+| 1. **Separação** | separador | enquanto monta o pallet | pedido do Televendas | só 100 % |
+| 2. **Expedição** | conferente da saída | quando o pallet entra no caminhão | pedido do Televendas | só 100 % |
+
+**O que NÃO muda:** recebimento (entrada de nota) no CD continua igual às lojas; lojas 1–6 continuam só com o recebimento;
+o híbrido com o coletor do Dlinks continua (lista segue `painel_televendas`); espelho em `conferencia_televendas` e "Lotes no CD" seguem iguais.
+
+### Regras
+- **As duas são cegas.** Nenhuma mostra a quantidade do pedido. A expedição também **não vê** o que a separação bipou (premissa do Claude em 14/10, a confirmar com o Tiago).
+- **Mesmas regras de bipe das duas:** `ok` / `qtd_diferente` / `fora_do_pedido` / `sem_lote`, "Tirar da coletagem" gera `tirar_coletagem` (pendência "verificar pallet" pro fiscal do CD) em qualquer etapa. O pedido nunca muda pelo app; a única exceção continua sendo o Televendas excluir item sem estoque no Dlinks.
+- **Ordem obrigatória:** a expedição só abre depois que a separação fechou 100 %. Pedido separado mas não expedido fica na lista do coletor como "Expedir".
+- **Batimento entre as etapas:** como as duas só fecham 100 % contra o pedido, quantidade por código bate por construção. **Lote diferente** entre separação e expedição (separou lote A, embarcou lote B) **não trava** a expedição, mas vira pendência `lote_divergente` pro fiscal do CD na retaguarda (mesma lista do "verificar pallet").
+- **Quem fecha:** cada etapa guarda quem fechou (nome do PIN) e hora. Separador e conferente podem ser a mesma pessoa; o app não impede, a retaguarda mostra.
+- **Pedido só está pronto pra nota** quando a etapa 2 fecha. O espelho em `conferencia_televendas` e a saída em "Lotes no CD" usam **os lotes da expedição** (o que de fato saiu), não os da separação.
+
+### Estado (lib/expedicao.js)
+Mesma conferência `exp-AAAA-MM-DD-10-<nPedido>`, com as duas etapas dentro:
+- `status`: `separando` → `separada` → `expedindo` → `fechada` (hoje é `bipando` → `fechada`).
+- `etapas.separacao` e `etapas.expedicao`: cada uma com `itens`, `fora`, `eventos`, `tentativas`, `abertoEm`, `fechadoEm`, `fechadoPor`, `bipes_vistos`.
+- `pedido` continua único (a verdade). `eventos` do pedido guardam `lote_divergente` e `tirar_coletagem` com o campo `etapa`.
+- Conferência gravada antes de 14/10 (sem `etapas`) continua sendo lida no modelo antigo: uma etapa só, pra não quebrar o histórico.
+
+### Coletor (public/recebimento.html, só loja 10 › Expedição)
+- Lista de pedidos ganha a etapa: **Separar** (sem conferência ou `separando`), **Expedir** (`separada`/`expedindo`). O status do painel do Dlinks continua filtrando a lista.
+- Ao tocar no pedido abre a etapa que falta; a barra mostra "SEPARAÇÃO · 6853 · SERAFIM" ou "EXPEDIÇÃO · ...".
+- "Terminei" da separação, quando fecha, volta pra lista com o pedido em "Expedir". "Terminei" da expedição fecha o pedido e ele some.
+
+### Rotas
+- `/api/expedicao-publico/abrir` passa a devolver a etapa aberta; `bipar`, `tirar`, `terminei`, `visao` agem na etapa atual da conferência (sem rota nova).
+- Internas: `/api/expedicao/pendencias` inclui `lote_divergente`; `/api/expedicao/fechadas` devolve as duas etapas (quem, hora, tentativas) pra aba Expedição da retaguarda.
+
+### Fora deste escopo
+Separação assistida (mostrar a lista pro separador), múltiplos separadores no mesmo pedido, mexer em `painel_televendas.Status`.
+
+### Trava: quem separa NÃO pode expedir (Tiago, 14/10/26)
+O app tem que **impedir** que a mesma pessoa feche as duas etapas do mesmo pedido. Hoje o coletor entra com o PIN da loja
+(um só pra loja 10) e nome digitado livre, o que não identifica ninguém. Por isso, só no CD:
+- **Operadores do CD com PIN pessoal.** Cadastro na retaguarda (Centro Distribuição › Expedição › Operadores): nome + PIN de 4 dígitos
+  por pessoa, ativo/inativo. Guardado em `data/expedicao/operadores.json` (gitignored, backup normal).
+- **Login do coletor na loja 10 muda:** depois do PIN da loja, pede o **PIN pessoal** em vez do nome livre. O nome vem do cadastro.
+  A sessão do coletor passa a carregar `operador` (id + nome). Lojas 1–6 continuam com nome digitado.
+- **Regra no servidor** (`lib/expedicao.js`, não só na tela): a expedição de um pedido **não abre nem aceita bipe/terminei** com o
+  mesmo operador que fechou a separação. Erro 409 "Quem separou não pode expedir este pedido" com o nome de quem separou.
+  Separação sem operador (histórico) não trava.
+- Quem separou fica em `etapas.separacao.operador`, quem liberou em `etapas.expedicao.operador`. Retaguarda mostra os dois.
+- Trocar de operador no mesmo aparelho = sair e entrar com outro PIN pessoal.

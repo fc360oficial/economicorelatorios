@@ -58,6 +58,11 @@ body{font-family:var(--font);background:var(--pap);color:var(--ink);font-size:14
 .bar .voltar{background:transparent;border:0;color:#AEB8CE;font:inherit;font-size:19px;font-weight:700;cursor:pointer;padding:0 6px 0 0;flex:none}
 /* layout 1 (Tiago, 08/10): totais e menu na barra, último bipe em destaque, botões fora do topo */
 .bar .ttl{min-width:0;flex:1}
+/* etiqueta da etapa na barra (duas conferências cegas na saída do CD, 14/10): SEPARAÇÃO azul · EXPEDIÇÃO âmbar */
+.etq{display:inline-block;font-size:9.5px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;padding:2px 7px;border-radius:5px;margin-right:6px;vertical-align:1px}
+.etq.sep{background:#1D4F91;color:#fff}
+.etq.exp{background:#F5B800;color:#3A2A00}
+.nota.travada{border-color:var(--neg);opacity:.85}
 .bar .ttl .t,.bar .ttl .s{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bar .tot{text-align:right;font-size:10.5px;color:#AEB8CE;line-height:1.2;flex:none;font-variant-numeric:tabular-nums}
 .bar .tot b{color:#fff;font-size:13.5px}
@@ -196,7 +201,9 @@ body{font-family:var(--font);background:var(--pap);color:var(--ink);font-size:14
     <div class="fld"><label>Loja</label>
       <div class="lojas" id="lojas"></div></div>
     <div class="fld"><label for="pin">PIN da loja</label><input id="pin" class="pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" required></div>
-    <div class="fld"><label for="nome">Seu nome (vai pro ERP como operador)</label><input id="nome" type="text" autocomplete="name" placeholder="Como aparece pra central" required></div>
+    <div class="fld" id="fldNome"><label for="nome">Seu nome (vai pro ERP como operador)</label><input id="nome" type="text" autocomplete="name" placeholder="Como aparece pra central" required></div>
+    <!-- Loja 10 (CD): PIN pessoal no lugar do nome livre (Tiago, 14/10/26) — quem separa não pode expedir o mesmo pedido -->
+    <div class="fld" id="fldPinPessoal" hidden><label for="pinPessoal">Seu PIN pessoal</label><input id="pinPessoal" class="pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off"><p class="tip" style="margin:4px 0 0">Cada pessoa do CD tem o seu, cadastrado na retaguarda. Quem separa não pode expedir o mesmo pedido.</p></div>
     <div class="erro" id="lerro"></div>
     <p class="tip" style="margin:0 0 12px">O scanner do coletor escreve no campo de bipe com o teclado ligado. Coletor Compex: em Barcode Utility › Function Settings deixe a saída em <b>Emukey</b> com <b>Enter</b> no fim.</p>
     <button class="btn btn-primary blk" style="height:46px" type="submit" id="btnEntrar">Entrar</button>
@@ -237,7 +244,7 @@ body{font-family:var(--font);background:var(--pap);color:var(--ink);font-size:14
     </button>
     <button class="nota" onclick="irExpedicao()">
       <div class="f">Expedição</div>
-      <div class="m">Pedido separado pelo papel indo pro caminhão. Toca no pedido e bipa às cegas pra bater com o Televendas.</div>
+      <div class="m">Duas conferências cegas por pedido: quem separa bipa o pallet, outra pessoa bipa o que entra no caminhão. As duas têm que bater com o Televendas.</div>
       <div class="st"><span class="pill warn"><i></i><span id="ePedidos">—</span></span></div>
     </button>
   </div>
@@ -437,17 +444,20 @@ function selLoja(n) {
   lojaSel = n;
   for (const b of $('lojas').querySelectorAll('button')) b.setAttribute('aria-pressed', String(+b.dataset.loja === n));
   $('btnEntrar').textContent = 'Entrar na Loja ' + n;
+  // CD (loja 10): PIN pessoal no lugar do nome livre
+  const cd = n === 10; $('fldNome').hidden = cd; $('nome').required = !cd; $('fldPinPessoal').hidden = !cd; $('pinPessoal').required = cd;
   $('pin').focus();
 }
 async function entrar(ev) {
   ev.preventDefault(); $('lerro').textContent = '';
-  const pin = $('pin').value.trim(), nome = $('nome').value.trim();
+  const pin = $('pin').value.trim(), nome = $('nome').value.trim(), pinPessoal = $('pinPessoal').value.trim();
   if (!lojaSel) { $('lerro').textContent = 'Escolha a loja.'; return; }
+  if (lojaSel === 10 && !/^\d{4}$/.test(pinPessoal)) { $('lerro').textContent = 'Digite seu PIN pessoal (4 dígitos).'; $('pinPessoal').focus(); return; }
   try {
-    const r = await fetch('/api/recebimento-publico/entrar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ loja: lojaSel, pin, nome }) });
+    const r = await fetch('/api/recebimento-publico/entrar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ loja: lojaSel, pin, nome, pinPessoal }) });
     const j = await r.json();
     if (!r.ok) { $('lerro').textContent = j.error || 'Não foi possível entrar.'; return; }
-    sess = { loja: j.loja, token: j.token, nome: j.nome || nome.toUpperCase() };
+    sess = { loja: j.loja, token: j.token, nome: j.nome || nome.toUpperCase(), operador: j.operador || null, opToken: j.opToken || null };
     guardar(LS_SESSAO, sess);
     iniciar();
   } catch (e) { $('lerro').textContent = 'Sem conexão. Tente de novo quando tiver sinal.'; }
@@ -600,10 +610,14 @@ function irExpedicao() { mostrar('pedidos'); carregarPedidos(); }
 
 // ── tela 5 · pedidos do Televendas ─────────────────────────────────────────
 let pedidos = [], pedidosEm = null, visaoExp = null, pedidoAtual = null, cartaoExp = null;
-const postExp = (rota, body) => api('/api/expedicao-publico/' + rota, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, t: sess.token }) });
+// t = token da loja 10 · o = token do operador (PIN pessoal): a trava "quem separou não expede" é do servidor
+const qExp = () => 't=' + sess.token + (sess.opToken ? '&o=' + sess.opToken : '');
+const postExp = (rota, body) => api('/api/expedicao-publico/' + rota, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, t: sess.token, o: sess.opToken || undefined }) });
+// sessão antiga (antes do PIN pessoal) ou operador inativado: o servidor responde 403 → entra de novo
+function erroExp(e, padrao) { if (e.status === 403) { localStorage.removeItem(LS_SESSAO); alert(e.message || 'Entre de novo com o seu PIN pessoal.'); location.reload(); return; } toast(e.message || padrao, true); if (!e.status) setNet(false); }
 async function carregarPedidos(manual) {
   try {
-    pedidos = await api('/api/expedicao-publico/pedidos?t=' + sess.token); setNet(true); pedidosEm = new Date();
+    pedidos = await api('/api/expedicao-publico/pedidos?' + qExp()); setNet(true); pedidosEm = new Date();
     $('pHora').innerHTML = 'atualizado<br>' + pedidosEm.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     if (manual) toast('Atualizado');
   } catch (e) { if (e.status) toast(e.message || 'A central não respondeu.', true); else setNet(false); }
@@ -615,28 +629,40 @@ const PAINEL = { null: ['mut', 'Digitado'], 0: ['amarelo', 'Para separação'], 
 function renderPedidos() {
   $('pSub').textContent = sess.nome + ' · ' + pedidos.length + (pedidos.length === 1 ? ' pedido sem nota' : ' pedidos sem nota');
   $('pLista').innerHTML = pedidos.length ? pedidos.map((p, i) => {
-    const c = p.conferencia; const st = c ? (c.status === 'fechada' ? ['ok', 'Conferido'] : ['warn', 'Em conferência']) : (PAINEL[p.painel == null ? 'null' : p.painel] || PAINEL.null); const cont = c && c.status !== 'fechada' ? 'Você já começou esta. Toque pra continuar.' : null;
-    return `<button class="nota" onclick="abrirPedido(${i})">
+    const c = p.conferencia; const painel = PAINEL[p.painel == null ? 'null' : p.painel] || PAINEL.null;
+    // etapa que falta (duas conferências cegas, 14/10/26): Separar → Expedir. Quem separou não expede o mesmo pedido.
+    const etapa = !c || c.etapa === 'separacao' ? ['info', 'Separar'] : c.etapa === 'expedicao' ? ['warn', 'Expedir'] : ['warn', 'Conferir'];
+    let why = null;
+    if (c && c.etapa === 'expedicao') why = c.souSeparador ? 'Você separou este pedido: outra pessoa faz a expedição.' : 'Separado por ' + (c.separadoPor || '—') + '. ' + (c.emAndamento ? 'Expedição começada. Toque pra continuar.' : 'Toque pra expedir.');
+    else if (c && c.emAndamento) why = 'Separação começada. Toque pra continuar.';
+    return `<button class="nota ${c && c.souSeparador && c.etapa === 'expedicao' ? 'travada' : ''}" onclick="abrirPedido(${i})">
       <div class="f">${esc(p.cliente)}</div>
       <div class="m">Pedido <b>#${esc(p.nPedido)}</b> · ${p.itens} ${p.itens === 1 ? 'item' : 'itens'} · ${esc(p.data ? dataBr(p.data) : '')} ${esc(p.hora)}</div>
-      <div class="st"><span class="pill ${st[0]}"><i></i>${esc(st[1])}</span></div>
-      ${cont ? `<div class="why i">${esc(cont)}</div>` : ''}
+      <div class="st"><span class="pill ${etapa[0]}"><i></i>${esc(etapa[1])}</span><span class="pill ${painel[0]}">${esc(painel[1])}</span></div>
+      ${why ? `<div class="why i">${esc(why)}</div>` : ''}
     </button>`;
-  }).join('') : '<div class="vazio">Nenhum pedido do Televendas aguardando conferência de saída.</div>';
+  }).join('') : '<div class="vazio">Nenhum pedido do Televendas aguardando separação ou expedição.</div>';
 }
 async function abrirPedido(i) {
   const p = pedidos[i]; if (!p) return;
-  try { visaoExp = await postExp('abrir', { nPedido: p.nPedido, nome: sess.nome }); pedidoAtual = p; cartaoExp = null; $('xCartao').innerHTML = ''; mostrar('exp'); renderExp(); }
-  catch (e) { toast(e.message || 'Não deu pra abrir o pedido', true); }
+  try { visaoExp = await postExp('abrir', { nPedido: p.nPedido, nome: sess.nome }); pedidoAtual = p; cartaoExp = null; ultimoBipadoExp = null; $('xCartao').innerHTML = ''; mostrar('exp'); renderExp(); }
+  catch (e) {
+    // trava do servidor: quem separou não expede o mesmo pedido
+    if (e.status === 409 && e.corpo && e.corpo.separadoPor) { abrirModal(`<div class="t">Quem separou não pode expedir</div><p style="font-size:13px;color:var(--ink2);margin:6px 0 10px">Este pedido foi separado por <b>${esc(e.corpo.separadoPor)}</b>. A conferência de saída tem que ser feita por outra pessoa: saia e entre com o PIN pessoal de quem vai expedir.</p><div class="menuAc"><button class="btn btn-secondary" onclick="fecharModal();sair()">Sair deste operador</button><button class="btn btn-ghost" onclick="fecharModal()">Voltar</button></div>`); return; }
+    erroExp(e, 'Não deu pra abrir o pedido');
+  }
 }
 function voltarPedidos() { cartaoExp = null; $('xCartao').innerHTML = ''; mostrar('pedidos'); carregarPedidos(); }
-async function pollExp() { if (!visaoExp || cartaoExp || $('modal').innerHTML) return; try { const v = await api('/api/expedicao-publico/visao/' + visaoExp.id + '?t=' + sess.token); visaoExp = v; renderExp(); setNet(true); } catch (e) { if (!e.status) setNet(false); } }
+async function pollExp() { if (!visaoExp || cartaoExp || $('modal').innerHTML) return; try { const v = await api('/api/expedicao-publico/visao/' + visaoExp.id + '?' + qExp()); visaoExp = v; renderExp(); setNet(true); } catch (e) { if (!e.status) setNet(false); } }
 
 // ── tela 6 · conferência cega de saída ─────────────────────────────────────
 const ESTADO_EXP = { ok: ['', 'bate com o pedido'], diferente: ['e-warn', 'diferente do pedido · confira'], fora: ['e-bad', 'não é do pedido · tire do caminhão'] };
 function renderExp() {
   if (!visaoExp) return;
-  $('xTitulo').textContent = visaoExp.cliente || '—'; $('xSub').textContent = 'Pedido #' + visaoExp.nPedido + ' · Saída · CD';
+  // etiqueta da etapa na barra (duas conferências cegas): SEPARAÇÃO (monta o pallet) ou EXPEDIÇÃO (entra no caminhão)
+  const et = visaoExp.etapa === 'separacao' ? ['sep', 'Separação'] : visaoExp.etapa === 'expedicao' ? ['exp', 'Expedição'] : null;
+  $('xTitulo').innerHTML = (et ? `<span class="etq ${et[0]}">${et[1]}</span>` : '') + esc(visaoExp.cliente || '—');
+  $('xSub').textContent = 'Pedido #' + visaoExp.nPedido + (visaoExp.etapa === 'expedicao' ? ' · separado por ' + (visaoExp.separadoPor || '—') : visaoExp.etapa === 'separacao' ? ' · montando o pallet' : ' · Saída · CD');
   $('xProd').textContent = visaoExp.produtos; $('xUn').textContent = num(visaoExp.unidades);
   $('xTir').textContent = visaoExp.tirados ? visaoExp.tirados + (visaoExp.tirados === 1 ? ' retirada registrada pro fiscal' : ' retiradas registradas pro fiscal') : '';
   const fora = visaoExp.fora || [];
@@ -657,7 +683,7 @@ let ultimoBipadoExp = null; // cod do último bipe gravado na expedição (vai p
 function abrirMenuExp() {
   if (!visaoExp) return;
   abrirModal(`<h3>Pedido #${esc(visaoExp.nPedido)}</h3><div class="menuAc">
-    <button class="btn btn-primary" onclick="fecharModal();termineiExp()">Terminei o pedido</button>
+    <button class="btn btn-primary" onclick="fecharModal();termineiExp()">${visaoExp.etapa === 'separacao' ? 'Terminei a separação' : visaoExp.etapa === 'expedicao' ? 'Terminei a expedição' : 'Terminei o pedido'}</button>
     <button class="btn btn-secondary" onclick="escolherTirar()">Tirar da coletagem</button>
     <button class="btn btn-ghost" onclick="fecharModal();focarExp()">Voltar pro bipe</button></div>`);
 }
@@ -705,7 +731,7 @@ async function gravarCartaoExp() {
   try {
     const r = await postExp('bipar', { id: visaoExp.id, cod: c.cod, quant, emb, lote, bipeId: novoBipeId() });
     if (r.visao) visaoExp = r.visao; ultimoBipadoExp = c.cod; renderExp(); const a = AVISO_EXP[r.resultado]; if (a) toast(a[0], a[1]); setNet(true);
-  } catch (e) { toast(e.message || 'Não deu pra gravar o bipe', true); if (!e.status) setNet(false); }
+  } catch (e) { erroExp(e, 'Não deu pra gravar o bipe'); }
   focarExp();
 }
 function escolherTirar() {
@@ -729,7 +755,7 @@ async function confirmarTirar(cod) {
   const quant = +String(($('tQuant') || {}).value || '').replace(',', '.') || 0; const lote = ($('tLote') || {}).value || ''; const motivo = ($('tMotivo') || {}).value || '';
   fecharModal();
   try { const r = await postExp('tirar', { id: visaoExp.id, cod, quant: quant || undefined, lote, motivo, nome: sess.nome }); if (r.visao) visaoExp = r.visao; renderExp(); toast('Retirada registrada. O fiscal do CD vai conferir o pallet.'); }
-  catch (e) { toast(e.message || 'Não deu pra tirar', true); }
+  catch (e) { erroExp(e, 'Não deu pra tirar'); }
   focarExp();
 }
 
@@ -739,22 +765,30 @@ async function termineiExp() {
   if (!visaoExp) return;
   try {
     const r = await postExp('terminei', { id: visaoExp.id, nome: sess.nome }); if (r.visao) visaoExp = r.visao;
-    $('xfSub').textContent = (visaoExp.cliente || '') + ' · Pedido #' + visaoExp.nPedido;
-    if (r.fechou) {
+    const rotulo = r.etapa === 'separacao' ? 'Separação' : r.etapa === 'expedicao' ? 'Expedição' : 'Conferência';
+    $('xfSub').textContent = rotulo + ' · ' + (visaoExp.cliente || '') + ' · Pedido #' + visaoExp.nPedido;
+    if (r.fechou && r.etapa === 'separacao') {
+      // etapa 1 fechou: o pedido volta pra lista como "Expedir" e OUTRA pessoa faz a conferência de saída
+      $('xfTitulo').textContent = 'Separação fechada';
+      $('xfAcoes').innerHTML = '<button class="btn btn-primary blk" onclick="voltarPedidos()">Voltar aos pedidos</button>';
+      $('xfCorpo').innerHTML = `<div class="aviso ok"><b>Separação bateu 100 % com o pedido.</b><br>O pallet vai pra expedição. <b>Outra pessoa</b> faz a conferência de saída: você separou, então o app não deixa você expedir este pedido.</div>
+        <div class="card"><div class="kv"><span>Separou</span><b>${esc(visaoExp.separadoPor || sess.nome)}</b></div><div class="kv"><span>Tentativas</span><b>${visaoExp.tentativas || 1}</b></div>${visaoExp.tirados ? `<div class="kv"><span>Retiradas</span><b>${visaoExp.tirados} · pendência pro fiscal</b></div>` : ''}</div>`;
+    } else if (r.fechou) {
       $('xfTitulo').textContent = 'Pedido conferido';
       $('xfAcoes').innerHTML = '<button class="btn btn-primary blk" onclick="voltarPedidos()">Voltar aos pedidos</button>';
-      $('xfCorpo').innerHTML = '<div class="aviso ok"><b>Bateu 100 % com o pedido.</b><br>Pode fechar o caminhão. O Televendas já vê o pedido como conferido.</div>';
+      $('xfCorpo').innerHTML = `<div class="aviso ok"><b>Bateu 100 % com o pedido.</b><br>Pode fechar o caminhão. O Televendas já vê o pedido como conferido.</div>
+        ${r.etapa === 'expedicao' ? `<div class="card"><div class="kv"><span>Separou</span><b>${esc(visaoExp.separadoPor || '—')}</b></div><div class="kv"><span>Expediu</span><b>${esc(visaoExp.expedidoPor || sess.nome)}</b></div></div>` : ''}`;
     } else {
       const n = r.pendentes.length + r.fora.length;
       $('xfTitulo').textContent = 'Não bateu com o pedido';
       $('xfAcoes').innerHTML = '<button class="btn btn-primary blk" onclick="mostrar(\'exp\'); renderExp()">Voltar e acertar</button>';
-      $('xfCorpo').innerHTML = `<div class="aviso"><b>${n} ${n === 1 ? 'item não bate' : 'itens não batem'} com o pedido.</b> O pedido só fecha 100 % certo. A quantidade do pedido continua escondida.</div>
+      $('xfCorpo').innerHTML = `<div class="aviso"><b>${n} ${n === 1 ? 'item não bate' : 'itens não batem'} com o pedido.</b> A ${rotulo.toLowerCase()} só fecha 100 % certa. A quantidade do pedido continua escondida.</div>
         ${r.pendentes.length ? `<div class="card"><div class="t">Acertar</div>${r.pendentes.map(p => { const m = MOT_EXP[p.motivo] || ['mut', p.motivo]; return `<div class="kv"><span>${esc(p.descricao || p.cod)}</span><span class="pill ${m[0]}">${esc(m[1])}</span></div>`; }).join('')}</div>` : ''}
         ${r.fora.length ? `<div class="card"><div class="t">Fora do pedido · tire do caminhão</div>${r.fora.map(f => `<div class="kv"><span>${esc(f.descricao || f.cod)}</span><span class="pill bad">${num(f.un)} un</span></div>`).join('')}</div>` : ''}
         <div class="tip">Faltou estoque? O Televendas exclui o item do pedido no Dlinks e ele some daqui.</div>`;
     }
     mostrar('expFim');
-  } catch (e) { toast(e.message || 'Não deu pra terminar', true); }
+  } catch (e) { erroExp(e, 'Não deu pra terminar'); }
 }
 
 // ── tela 2b · DANFE antes de descarregar ───────────────────────────────────
