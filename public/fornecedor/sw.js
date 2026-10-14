@@ -9,8 +9,8 @@ self.addEventListener('push', function (e) {
   try { d = e.data ? e.data.json() : {}; } catch (err) { d = { title: 'Econômico · Portal do Fornecedor', body: e.data ? e.data.text() : '' }; }
   var opts = {
     body: d.body || '',
-    icon: '/icon-192.png',
-    badge: '/icon-192.png',
+    icon: '/icon-192.png?v=2',
+    badge: '/icon-192.png?v=2',
     data: { url: d.url || '/fornecedor/' },
     vibrate: [120, 60, 120],
     requireInteraction: false
