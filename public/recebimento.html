@@ -86,7 +86,10 @@ body{font-family:var(--font);background:var(--pap);color:var(--ink);font-size:14
 .nota.travada{border-color:var(--neg);opacity:.85}
 /* tela de escolha do CD (Tiago, 14/10: "esse quadrado tá feio, deixa mais profissional"): ícone, título, uma linha, etapas em chips */
 .escT{font-size:17px;font-weight:800;margin:4px 0 2px}
-.esc{display:grid;grid-template-columns:44px 1fr auto;gap:12px;align-items:center;border:1px solid var(--ln);border-radius:var(--r-lg);padding:14px 12px 14px 14px;background:var(--crd);text-align:left;font-family:var(--font);color:var(--ink);cursor:pointer;width:100%;box-shadow:var(--sh-sm)}
+.esc{display:grid;grid-template-columns:44px minmax(0,1fr) 16px;gap:8px 12px;align-items:center;border:1px solid var(--ln);border-radius:var(--r-lg);padding:14px 12px 14px 14px;background:var(--crd);text-align:left;font-family:var(--font);color:var(--ink);cursor:pointer;width:100%;box-shadow:var(--sh-sm)}
+.esc .chev{font-size:22px;font-weight:700;color:var(--ink3);line-height:1;text-align:right}
+.esc-tx .pill{align-self:flex-start;margin-top:5px}
+.esc-steps{grid-column:2/-1}
 .esc:active{background:var(--wsh)}
 .esc-ico{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex:none}
 .esc-ico svg{width:24px;height:24px}
@@ -99,8 +102,6 @@ body{font-family:var(--font);background:var(--pap);color:var(--ink);font-size:14
 .esc-steps span{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;color:var(--ink2);background:var(--pap);border:1px solid var(--ln);border-radius:999px;padding:3px 8px 3px 4px;white-space:nowrap}
 .esc-steps i{font-style:normal;width:16px;height:16px;border-radius:50%;background:#1D4F91;color:#fff;font-size:9.5px;font-weight:800;display:inline-flex;align-items:center;justify-content:center}
 .esc-steps span:last-child i{background:#F5B800;color:#3A2A00}
-.esc-ct{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex:none}
-.esc-ct .chev{font-size:22px;font-weight:700;color:var(--ink3);line-height:1}
 .bar .ttl .t,.bar .ttl .s{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bar .tot{text-align:right;font-size:10.5px;color:#AEB8CE;line-height:1.2;flex:none;font-variant-numeric:tabular-nums}
 .bar .tot b{color:#fff;font-size:13.5px}
@@ -287,14 +288,14 @@ body{font-family:var(--font);background:var(--pap);color:var(--ink);font-size:14
     <div class="escT">O que você vai conferir?</div>
     <button class="esc" onclick="irRecebimento()">
       <span class="esc-ico in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3 8l9 5 9-5"/><path d="M12 13v8"/></svg></span>
-      <span class="esc-tx"><b>Recebimento</b><small>Nota de fornecedor: bipa a DANFE e confere às cegas.</small></span>
-      <span class="esc-ct"><span class="pill ok"><i></i><span id="eNotas">—</span></span><span class="chev">›</span></span>
+      <span class="esc-tx"><b>Recebimento</b><small>Nota de fornecedor: bipa a DANFE e confere às cegas.</small><span class="pill ok"><i></i><span id="eNotas">—</span></span></span>
+      <span class="chev">›</span>
     </button>
     <button class="esc" onclick="irExpedicao()">
       <span class="esc-ico out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6h13v10H1z"/><path d="M14 10h4l3 3v3h-7z"/><circle cx="5" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg></span>
-      <span class="esc-tx"><b>Saída de pedidos</b><small>Pedido do Televendas, em duas etapas.</small>
-        <span class="esc-steps"><span><i>1</i>Separação de Pedidos</span><span><i>2</i>Carregamento de Caminhão</span></span></span>
-      <span class="esc-ct"><span class="pill warn"><i></i><span id="ePedidos">—</span></span><span class="chev">›</span></span>
+      <span class="esc-tx"><b>Saída de pedidos</b><small>Pedido do Televendas, em duas etapas.</small><span class="pill warn"><i></i><span id="ePedidos">—</span></span></span>
+      <span class="chev">›</span>
+      <span class="esc-steps"><span><i>1</i>Separação de Pedidos</span><span><i>2</i>Carregamento de Caminhão</span></span>
     </button>
   </div>
   <div class="foot">
@@ -655,7 +656,7 @@ const ehCD = () => !!sess && +sess.loja === 10;
 function irEscolha() { clearInterval(timerNotas); timerNotas = null; $('eSub').textContent = sess.nome; mostrar('escolha'); contarEscolha(); }
 async function contarEscolha() {
   try { const n = await api('/api/recebimento-publico/notas?t=' + sess.token); $('eNotas').textContent = n.length + (n.length === 1 ? ' nota na fila' : ' notas na fila'); } catch (e) { $('eNotas').textContent = 'notas'; }
-  try { const p = await api('/api/expedicao-publico/pedidos?t=' + sess.token); $('ePedidos').textContent = p.length + (p.length === 1 ? ' pedido pra conferir' : ' pedidos pra conferir'); } catch (e) { $('ePedidos').textContent = 'pedidos'; }
+  try { const p = await api('/api/expedicao-publico/pedidos?t=' + sess.token); $('ePedidos').textContent = p.length + (p.length === 1 ? ' pedido' : ' pedidos'); } catch (e) { $('ePedidos').textContent = 'pedidos'; }
 }
 function irRecebimento() { $('btnVoltarEscolha').hidden = false; mostrar('notas'); carregarNotas(); }
 function irExpedicao() { mostrar('pedidos'); carregarPedidos(); }
