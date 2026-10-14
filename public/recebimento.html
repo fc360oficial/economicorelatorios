@@ -65,11 +65,19 @@ body{font-family:var(--font);background:var(--pap);color:var(--ink);font-size:14
 .etq.fis{background:var(--neg);color:#fff}
 /* Separação de Pedidos com lista (Tiago, 14/10 noite): 4 últimos dígitos do EAN em destaque, item tocável, separado × pedido */
 .ean4{display:inline-block;font-family:ui-monospace,Consolas,monospace;font-size:15px;font-weight:800;letter-spacing:1px;background:#1D4F91;color:#fff;border-radius:6px;padding:3px 7px;line-height:1;font-variant-numeric:tabular-nums}
-.it.sep{grid-template-columns:4px auto 1fr auto;padding-left:0;cursor:pointer}
-.it.sep .ean4{margin-left:9px}
+/* linha da separação: checkbox (marca → fica selecionado → bipe confirma) · EAN4 · produto · quantidade (toque muda) */
+.it.sep{grid-template-columns:4px 34px auto 1fr auto;padding-left:0;cursor:pointer;gap:0 8px}
+.it.sep .cb{width:26px;height:26px;border:2px solid var(--ln2);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:#fff;margin-left:6px;background:var(--crd);line-height:1}
+.it.sep.sel{border-color:var(--am);background:var(--amw);box-shadow:0 0 0 2px var(--amw)}
+.it.sep.sel .stripe{background:var(--am)}
+.it.sep.sel .cb{border-color:var(--amk);background:var(--crd);color:var(--amk)}
 .it.sep.e-ok .stripe{background:var(--pos)}
+.it.sep.e-ok .cb{border-color:var(--pos);background:var(--pos)}
 .it.sep.e-ok .q b{color:var(--pos)}
-.it.sep .q small{display:block}
+.it.sep.e-warn .cb{border-color:var(--am);background:var(--am);color:var(--amk)}
+.it.sep .q{padding:3px 7px;border-radius:7px;border:1px dashed var(--ln2);min-width:58px;background:var(--crd)}
+.it.sep .q b{font-size:17px}
+.it.sep .q small{display:block;font-size:9.5px}
 .it.sep .q .falta{color:var(--neg);font-weight:700}
 .it.sep .q .sobra{color:var(--amk);font-weight:700}
 .it.sep:active{background:var(--amw)}
@@ -86,7 +94,7 @@ body{font-family:var(--font);background:var(--pap);color:var(--ink);font-size:14
 .esc-ico.out{background:var(--amw);color:var(--amk)}
 .esc-tx{min-width:0;display:flex;flex-direction:column;gap:3px}
 .esc-tx b{font-size:15px;font-weight:800;line-height:1.2}
-.esc-tx small{font-size:11.5px;color:var(--ink3);line-height:1.35}
+.esc-tx small{font-size:11px;color:var(--ink3);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .esc-steps{display:flex;flex-wrap:wrap;gap:6px;margin-top:5px}
 .esc-steps span{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;color:var(--ink2);background:var(--pap);border:1px solid var(--ln);border-radius:999px;padding:3px 8px 3px 4px;white-space:nowrap}
 .esc-steps i{font-style:normal;width:16px;height:16px;border-radius:50%;background:#1D4F91;color:#fff;font-size:9.5px;font-weight:800;display:inline-flex;align-items:center;justify-content:center}
@@ -269,12 +277,12 @@ body{font-family:var(--font);background:var(--pap);color:var(--ink);font-size:14
     <div class="escT">O que você vai conferir?</div>
     <button class="esc" onclick="irRecebimento()">
       <span class="esc-ico in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3 8l9 5 9-5"/><path d="M12 13v8"/></svg></span>
-      <span class="esc-tx"><b>Recebimento</b><small>Nota de fornecedor chegando. Bipa a DANFE e confere às cegas, com lote.</small></span>
+      <span class="esc-tx"><b>Recebimento</b><small>Nota de fornecedor: bipa a DANFE e confere às cegas.</small></span>
       <span class="esc-ct"><span class="pill ok"><i></i><span id="eNotas">—</span></span><span class="chev">›</span></span>
     </button>
     <button class="esc" onclick="irExpedicao()">
       <span class="esc-ico out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 6h13v10H1z"/><path d="M14 10h4l3 3v3h-7z"/><circle cx="5" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg></span>
-      <span class="esc-tx"><b>Saída de pedidos</b><small>Pedido do Televendas em duas etapas, por pessoas diferentes.</small>
+      <span class="esc-tx"><b>Saída de pedidos</b><small>Pedido do Televendas, em duas etapas.</small>
         <span class="esc-steps"><span><i>1</i>Separação de Pedidos</span><span><i>2</i>Carregamento de Caminhão</span></span></span>
       <span class="esc-ct"><span class="pill warn"><i></i><span id="ePedidos">—</span></span><span class="chev">›</span></span>
     </button>
@@ -682,7 +690,7 @@ function renderPedidos() {
 async function abrirPedido(i) {
   const p = pedidos[i]; if (!p) return;
   if (p.conferencia && p.conferencia.etapa === 'fiscal') { abrirModal(`<div class="t">Aguardando o fiscal do CD</div><p style="font-size:13px;color:var(--ink2);margin:6px 0 10px">A separação do pedido <b>#${esc(p.nPedido)}</b> não bateu com o pedido e foi mandada pro fiscal do CD. Ele libera pro carregamento ou devolve pra separação. Atualize a lista daqui a pouco.</p><div class="menuAc"><button class="btn btn-ghost" onclick="fecharModal()">Voltar</button></div>`); return; }
-  try { visaoExp = await postExp('abrir', { nPedido: p.nPedido, nome: sess.nome }); pedidoAtual = p; cartaoExp = null; ultimoBipadoExp = null; $('xCartao').innerHTML = ''; mostrar('exp'); renderExp(); }
+  try { visaoExp = await postExp('abrir', { nPedido: p.nPedido, nome: sess.nome }); pedidoAtual = p; cartaoExp = null; ultimoBipadoExp = null; selSep = null; qtdSep = {}; $('xCartao').innerHTML = ''; mostrar('exp'); renderExp(); }
   catch (e) {
     // trava do servidor: quem separou não carrega o mesmo pedido
     if (e.status === 409 && e.corpo && e.corpo.separadoPor) { abrirModal(`<div class="t">Quem separou não pode carregar</div><p style="font-size:13px;color:var(--ink2);margin:6px 0 10px">Este pedido foi separado por <b>${esc(e.corpo.separadoPor)}</b>. O Carregamento de Caminhão tem que ser feito por outra pessoa: saia e entre com o PIN pessoal de quem vai carregar.</p><div class="menuAc"><button class="btn btn-secondary" onclick="fecharModal();sair()">Sair deste operador</button><button class="btn btn-ghost" onclick="fecharModal()">Voltar</button></div>`); return; }
@@ -701,23 +709,28 @@ const foraHtml = fora => fora.map(f => `<div class="it e-bad"><div class="stripe
 function renderSep() {
   const v = visaoExp, fis = v.etapa === 'fiscal', ped = v.pedido || [];
   $('xTitulo').innerHTML = `<span class="etq ${fis ? 'fis' : 'sep'}">${fis ? 'Fiscal' : 'Separação'}</span>` + esc(v.cliente || '—');
-  $('xSub').textContent = 'Pedido #' + v.nPedido + ' · ' + (v.separados || 0) + ' de ' + ped.length + ' produtos separados';
+  $('xSub').textContent = 'Pedido #' + v.nPedido + ' · ' + (v.separados || 0) + ' de ' + ped.length + ' confirmados';
   $('xProd').textContent = (v.certos || 0) + '/' + ped.length; $('xProdL').textContent = 'certos'; $('xUn').textContent = num(v.unidades);
-  $('xProg').textContent = fis ? 'Aguardando o fiscal do CD' : 'Toque no produto e digite a quantidade separada';
+  if (selSep && !ped.find(i => i.cod === selSep)) selSep = null;
+  const selIt = selSep ? ped.find(i => i.cod === selSep) : null;
+  $('xProg').innerHTML = fis ? 'Aguardando o fiscal do CD' : selIt ? `<b style="color:var(--amk)">Selecionado: ${esc(selIt.descricao)}</b> · bipe o produto pra confirmar` : 'Marque o produto, bipe pra confirmar. Toque na quantidade pra mudar.';
   $('xTir').textContent = v.tirados ? v.tirados + (v.tirados === 1 ? ' retirada registrada pro fiscal' : ' retiradas registradas pro fiscal') : '';
-  $('bipExp').placeholder = 'Bipe o produto pra achar na lista';
+  $('bipExp').placeholder = selIt ? 'Bipe o produto selecionado' : 'Bipe o produto';
   $('xAviso').innerHTML = (v.avisoFiscal ? `<div class="aviso fis"><b>Fiscal do CD devolveu pra separação:</b> ${esc(v.avisoFiscal.obs || 'acerte e mande de novo')} <span style="color:var(--ink3)">· ${esc(v.avisoFiscal.nome || '')}</span></div>` : '')
     + (fis ? `<div class="aviso"><b>Separação com divergência mandada pro fiscal do CD.</b> ${esc((v.liberacao || {}).motivo || '')} Ele libera pro carregamento ou devolve pra acertar.</div>` : '');
   const fora = v.fora || [];
   $('xFora').innerHTML = fora.length ? `<div class="aviso"><b>${fora.length === 1 ? '1 produto bipado não é do pedido.' : fora.length + ' produtos bipados não são do pedido.'}</b> Use "Tirar da coletagem".</div>` + foraHtml(fora) : '';
   $('xUltimo').innerHTML = '';
-  const linha = i => { const s = i.separado; const dif = s ? +(s.un - i.un).toFixed(3) : 0;
-    const cls = !s ? '' : s.estado === 'ok' ? 'e-ok' : 'e-warn';
-    const q = s ? `<b>${num(s.un)}</b><small>separado · ${num(s.quant)} × ${num(s.emb)}</small>${dif < 0 ? `<small class="falta">falta ${num(-dif)}</small>` : dif > 0 ? `<small class="sobra">sobra ${num(dif)}</small>` : ''}` : `<b>—</b><small>toque</small>`;
-    return `<div class="it sep ${cls}" data-cod="${esc(i.cod)}" onclick="tocarSep(${JSON.stringify(i.cod)})"><div class="stripe"></div><span class="ean4">${esc(i.ean4)}</span><div><div class="d">${esc(i.descricao)}</div><div class="c">pedido <b>${num(i.un)} un</b> · ${num(i.emb > 1 ? i.un / i.emb : i.un)} × ${num(i.emb)}${i.und ? ' ' + esc(i.und) : ''}${(s && s.lotes && s.lotes.length) ? ' · lote ' + esc(s.lotes.map(l => l.lote).join(', ')) : ''}</div></div><div class="q">${q}</div></div>`; };
+  // checkbox: vazio → marcado (selecionado, esperando o bipe) → ✓ verde (bipe confirmou, quantidade bate) / ✓ âmbar (quantidade diferente)
+  const linha = i => { const s = i.separado; const sel = i.cod === selSep; const pend = qtdSep[i.cod];
+    const un = s ? s.un : (pend != null ? pend : i.un); const dif = +(un - i.un).toFixed(3);
+    const cls = sel ? 'sel' : !s ? '' : s.estado === 'ok' ? 'e-ok' : 'e-warn';
+    const cb = s ? '✓' : sel ? '●' : '';
+    const q = `<b>${num(un)}</b><small>${s ? 'confirmado' : pend != null ? 'vai separar' : 'un pedido'}</small>${dif < 0 ? `<small class="falta">falta ${num(-dif)}</small>` : dif > 0 ? `<small class="sobra">sobra ${num(dif)}</small>` : ''}`;
+    return `<div class="it sep ${cls}" data-cod="${esc(i.cod)}" onclick="tocarSep(${JSON.stringify(i.cod)})"><div class="stripe"></div><span class="cb">${cb}</span><span class="ean4">${esc(i.ean4)}</span><div><div class="d">${esc(i.descricao)}</div><div class="c">pedido <b>${num(i.un)} un</b> · ${num(i.emb > 1 ? i.un / i.emb : i.un)} × ${num(i.emb)}${i.und ? ' ' + esc(i.und) : ''}${(s && s.lotes && s.lotes.length) ? ' · lote ' + esc(s.lotes.map(l => l.lote).join(', ')) : ''}</div></div><div class="q" onclick="event.stopPropagation();qtdSepModal(${JSON.stringify(i.cod)})">${q}</div></div>`; };
   const falta = ped.filter(i => !i.separado || i.separado.estado !== 'ok'), prontos = ped.filter(i => i.separado && i.separado.estado === 'ok');
   $('xAntesTit').hidden = true;
-  $('xItens').innerHTML = falta.map(linha).join('') + (prontos.length ? '<div class="pendTit">Separados certos · ' + prontos.length + '</div>' : '') + prontos.map(linha).join('');
+  $('xItens').innerHTML = falta.map(linha).join('') + (prontos.length ? '<div class="pendTit">Confirmados · ' + prontos.length + '</div>' : '') + prontos.map(linha).join('');
   setNet(navigator.onLine);
 }
 function renderExp() {
@@ -790,64 +803,78 @@ function fecharCartaoExp() { cartaoExp = null; $('xCartao').innerHTML = ''; foca
 const AVISO_EXP = { ok: ['Bateu com a separação.', false], qtd_diferente: ['Quantidade diferente da separação. Confira: falta ou sobra? A quantidade continua escondida.', true], fora_do_pedido: ['Este produto NÃO está na separação deste pedido. Tire do caminhão e use "Tirar da coletagem".', true], sem_lote: ['Faltou o lote. Bipe ou digite o lote da caixa.', true] };
 
 // ── Separação de Pedidos: bipe acha o produto na lista (ou avisa que não está no pedido); toque abre o cartão ──
+// Fluxo do Tiago (14/10): marca o item (checkbox) → fica selecionado → bipa o produto → o bipe confirma e grava a quantidade
+// (a do pedido, ou a que ele mudou tocando na quantidade). Bipe de outro produto = "produto errado"; fora do pedido = erro.
+let selSep = null;        // cod do item marcado, esperando o bipe
+let qtdSep = {};          // cod → unidades que ele quer separar (antes de confirmar); sem valor = quantidade do pedido
 async function acharSep(cod) {
   try {
     const r = await api('/api/expedicao-publico/produto?' + qExp() + '&id=' + encodeURIComponent(visaoExp.id) + '&cod=' + encodeURIComponent(cod)); setNet(true);
     if (r.fora) { avisoForaSep(r); return; }
-    abrirCartaoSep(r.item);
+    const it = r.item;
+    if (selSep && selSep !== it.cod) { const s = (visaoExp.pedido || []).find(i => i.cod === selSep); avisoErradoSep(s, it); return; }
+    await confirmarSep(it.cod);
   } catch (e) { erroExp(e, 'Não deu pra achar o produto'); }
 }
 let timerForaSep = null;
+function avisoSep(html) { clearTimeout(timerForaSep); $('xUltimo').innerHTML = html; if (navigator.vibrate) navigator.vibrate([120, 60, 120]); timerForaSep = setTimeout(() => { $('xUltimo').innerHTML = ''; }, 8000); focarExp(); }
 function avisoForaSep(r) {
-  clearTimeout(timerForaSep);
-  $('xUltimo').innerHTML = `<div class="ultimo e-bad" style="cursor:default"><div class="t">Não está no pedido</div><div class="d">${esc(r.descricao || r.cod)}</div><div class="m">${esc(r.cod)} · este produto não é deste pedido. Não entra no pallet.</div></div>`;
-  toast('Produto NÃO está no pedido.', true); if (navigator.vibrate) navigator.vibrate([120, 60, 120]);
-  timerForaSep = setTimeout(() => { $('xUltimo').innerHTML = ''; }, 8000);
-  focarExp();
+  avisoSep(`<div class="ultimo e-bad" style="cursor:default"><div class="t">Não está no pedido</div><div class="d">${esc(r.descricao || r.cod)}</div><div class="m">${esc(r.cod)} · este produto não é deste pedido. Não entra no pallet.</div></div>`);
+  toast('Produto NÃO está no pedido.', true);
+}
+function avisoErradoSep(sel, bip) {
+  avisoSep(`<div class="ultimo e-bad" style="cursor:default"><div class="t">Produto errado</div><div class="d">${esc(bip.descricao)}</div><div class="m">Você marcou <b>${esc(sel ? sel.descricao : '')}</b> (…${esc(sel ? sel.ean4 : '')}) e bipou …${esc(bip.ean4)}. Nada foi gravado.</div></div>`);
+  toast('Produto errado: não é o que você marcou.', true);
 }
 function tocarSep(cod) {
   if (!visaoExp || visaoExp.etapa !== 'separacao') { if (visaoExp && visaoExp.etapa === 'fiscal') toast('Aguardando o fiscal do CD.', true); return; }
-  const it = (visaoExp.pedido || []).find(i => i.cod === cod); if (it) abrirCartaoSep(it);
-}
-function abrirCartaoSep(it) {
+  const it = (visaoExp.pedido || []).find(i => i.cod === cod); if (!it) return;
   clearTimeout(timerForaSep); $('xUltimo').innerHTML = '';
-  const s = it.separado; cartaoExp = { sep: true, cod: it.cod };
-  const quant = s ? s.quant : '', emb = s ? s.emb : it.emb, lote = s && s.lotes && s.lotes[0] ? s.lotes[0].lote : '';
-  $('xCartao').innerHTML = `<div class="card am">
-    <div class="t"><span class="ean4" style="margin-right:8px">${esc(it.ean4)}</span>${esc(it.descricao)}</div>
-    <div class="kv" style="font-size:13px"><span>Pedido</span><b>${num(it.un)} un · ${num(it.emb > 1 ? it.un / it.emb : it.un)} × ${num(it.emb)}${it.und ? ' ' + esc(it.und) : ''}</b></div>
-    <div class="f2">
-      <div><label for="xQuant">Quant separada</label><input id="xQuant" type="text" inputmode="decimal" autocomplete="off" value="${esc(quant)}"></div>
-      <div><label for="xEmb">Emb</label><input id="xEmb" type="text" inputmode="decimal" autocomplete="off" value="${esc(emb)}"></div>
-    </div>
-    <div class="kv" style="font-size:13px"><span>Total separado</span><b id="xTot">0 un</b></div>
-    <div class="f1"><label for="xLote">Lote (opcional)</label><input id="xLote" type="text" autocomplete="off" autocapitalize="characters" value="${esc(lote)}"></div>
-    <div class="tip">Digite o que você separou de verdade. Se faltou, grava a menos e manda pro fiscal no "Terminei". 0 = tira o item do pallet.</div>
-    <div class="row2"><button class="btn btn-secondary" onclick="fecharCartaoExp()">Cancelar</button><button class="btn btn-primary" onclick="gravarCartaoSep()">Gravar</button></div>
-  </div>`;
-  const q = $('xQuant'), e = $('xEmb'), lt = $('xLote');
-  const tot = () => { const t = (+String(q.value).replace(',', '.') || 0) * (+String(e.value).replace(',', '.') || 0); const d = +(t - it.un).toFixed(3); $('xTot').innerHTML = num(t) + ' un' + (q.value === '' ? '' : d === 0 ? ' <span style="color:var(--pos)">· bate</span>' : d < 0 ? ' <span style="color:var(--neg)">· falta ' + num(-d) + '</span>' : ' <span style="color:var(--amk)">· sobra ' + num(d) + '</span>'); };
-  q.addEventListener('input', tot); e.addEventListener('input', tot); tot();
-  q.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.keyCode === 13) { ev.preventDefault(); gravarCartaoSep(); } });
-  e.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.keyCode === 13) { ev.preventDefault(); lt.focus(); lt.select(); } });
-  lt.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.keyCode === 13) { ev.preventDefault(); gravarCartaoSep(); } });
-  q.focus(); q.select(); $('xCartao').scrollIntoView({ block: 'nearest' });
+  if (it.separado) { // já confirmado: mudar a quantidade ou desmarcar
+    abrirModal(`<div class="t">${esc(it.descricao)}</div><p style="font-size:12.5px;color:var(--ink2);margin:6px 0 10px">Confirmado com <b>${num(it.separado.un)} un</b> (pedido ${num(it.un)}).</p><div class="menuAc">
+      <button class="btn btn-primary" onclick="fecharModal();qtdSepModal(${JSON.stringify(cod)})">Mudar a quantidade</button>
+      <button class="btn btn-secondary" onclick="fecharModal();desmarcarSep(${JSON.stringify(cod)})">Desmarcar (bipar de novo)</button>
+      <button class="btn btn-ghost" onclick="fecharModal();focarExp()">Voltar</button></div>`);
+    return;
+  }
+  selSep = selSep === cod ? null : cod; renderSep();
+  if (selSep) { toast('Marcado. Agora bipe o produto pra confirmar.'); const el = document.querySelector(`.it.sep[data-cod="${CSS.escape(cod)}"]`); if (el) el.scrollIntoView({ block: 'nearest' }); }
+  focarExp();
 }
-async function gravarCartaoSep() {
-  if (!cartaoExp || !cartaoExp.sep) return; const c = cartaoExp;
-  const txt = String(($('xQuant') || {}).value || '').trim();
-  if (txt === '') { toast('Digite a quantidade separada (0 pra tirar o item).', true); $('xQuant').focus(); return; }
-  const quant = +txt.replace(',', '.') || 0;
-  const emb = +String(($('xEmb') || {}).value || '').replace(',', '.') || 1;
-  const lote = String((($('xLote') || {}).value || '')).trim().toUpperCase();
-  fecharCartaoExp();
+function qtdSepModal(cod) {
+  if (!visaoExp || visaoExp.etapa !== 'separacao') return;
+  const it = (visaoExp.pedido || []).find(i => i.cod === cod); if (!it) return;
+  const atual = it.separado ? it.separado.un : (qtdSep[cod] != null ? qtdSep[cod] : it.un);
+  abrirModal(`<div class="t">${esc(it.descricao)}</div><p style="font-size:12.5px;color:var(--ink2);margin:6px 0 10px">Pedido: <b>${num(it.un)} un</b> (${num(it.emb > 1 ? it.un / it.emb : it.un)} × ${num(it.emb)}${it.und ? ' ' + esc(it.und) : ''}). Digite quantas unidades você separou de verdade.</p>
+    <div class="f1"><label for="qSep">Quantidade separada (un)</label><input id="qSep" type="text" inputmode="decimal" autocomplete="off" value="${esc(num(atual))}"></div>
+    <div class="tip" style="margin-top:6px">${it.separado ? 'Já confirmado: a nova quantidade grava na hora.' : 'Depois é só bipar o produto pra confirmar. 0 = não separou.'}</div>
+    <div class="row2" style="margin-top:10px"><button class="btn btn-secondary" onclick="fecharModal();focarExp()">Cancelar</button><button class="btn btn-primary" onclick="qtdSepOk(${JSON.stringify(cod)})">OK</button></div>`);
+  setTimeout(() => { const q = $('qSep'); if (q) { q.focus(); q.select(); q.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.keyCode === 13) { ev.preventDefault(); qtdSepOk(cod); } }); } }, 50);
+}
+async function qtdSepOk(cod) {
+  const txt = String(($('qSep') || {}).value || '').trim().replace(/\./g, '').replace(',', '.'); const un = +txt;
+  if (txt === '' || isNaN(un) || un < 0) { toast('Digite a quantidade em unidades.', true); return; }
+  fecharModal();
+  const it = (visaoExp.pedido || []).find(i => i.cod === cod); if (!it) return;
+  if (it.separado) { await gravarSep(cod, un); return; }   // já confirmado: regrava
+  qtdSep[cod] = un; selSep = cod; renderSep(); toast('Quantidade anotada: ' + num(un) + ' un. Agora bipe o produto pra confirmar.'); focarExp();
+}
+async function confirmarSep(cod) {
+  const it = (visaoExp.pedido || []).find(i => i.cod === cod); if (!it) return;
+  const un = qtdSep[cod] != null ? qtdSep[cod] : it.un;
+  await gravarSep(cod, un);
+}
+async function desmarcarSep(cod) { await gravarSep(cod, 0); }
+// grava em unidades: quant × emb quando divide certinho (pra mostrar "4 × 27"), senão unidades soltas
+async function gravarSep(cod, un) {
+  const it = (visaoExp.pedido || []).find(i => i.cod === cod); const emb = it && it.emb > 1 && Math.abs(un / it.emb - Math.round(un / it.emb)) < 1e-9 ? it.emb : 1;
   try {
-    const r = await postExp('separar', { id: visaoExp.id, cod: c.cod, quant, emb, lote, bipeId: novoBipeId() });
-    if (r.visao) visaoExp = r.visao; renderExp(); setNet(true);
-    if (r.resultado === 'ok') toast('Bateu com o pedido.');
-    else if (r.resultado === 'limpo') toast('Item tirado do pallet.');
+    const r = await postExp('separar', { id: visaoExp.id, cod, quant: +(un / emb).toFixed(3), emb, bipeId: novoBipeId() });
+    if (r.visao) visaoExp = r.visao; if (selSep === cod) selSep = null; delete qtdSep[cod]; renderExp(); setNet(true);
+    if (r.resultado === 'ok') { toast('Confirmado: bate com o pedido.'); if (navigator.vibrate) navigator.vibrate(60); }
+    else if (r.resultado === 'limpo') toast('Desmarcado. Bipe de novo quando separar.');
     else if (r.resultado === 'fora_do_pedido') toast('Produto NÃO está no pedido.', true);
-    else if (r.resultado === 'qtd_diferente' && r.item) { const p = (visaoExp.pedido || []).find(i => i.cod === r.item.cod); const d = p ? +(r.item.un - p.un).toFixed(3) : 0; toast(d < 0 ? 'Gravado a MENOS: falta ' + num(-d) + ' un. Se não tem estoque, mande pro fiscal no "Terminei".' : 'Gravado a MAIS: sobra ' + num(d) + ' un. Confira o pallet.', true); }
+    else if (r.resultado === 'qtd_diferente' && r.item) { const p = (visaoExp.pedido || []).find(i => i.cod === r.item.cod); const d = p ? +(r.item.un - p.un).toFixed(3) : 0; toast(d < 0 ? 'Confirmado a MENOS: falta ' + num(-d) + ' un. Sem estoque? Mande pro fiscal no "Terminei".' : 'Confirmado a MAIS: sobra ' + num(d) + ' un. Confira o pallet.', true); }
   } catch (e) { erroExp(e, 'Não deu pra gravar'); }
   focarExp();
 }
