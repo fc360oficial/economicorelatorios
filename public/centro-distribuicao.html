@@ -213,13 +213,11 @@ th .hin{background:#fff;border:1px solid #C9C9C4;border-radius:7px;padding:5px 9
     <button class="tab on" data-tab="pedido">Pedido da semana <span class="n" id="n-pedido">–</span></button>
     <button class="tab" data-tab="vinculos">Vínculos caixa → unidade <span class="n" id="n-vinc">–</span></button>
     <button class="tab" data-tab="pedidos">Pedidos <span class="n" id="n-peds">–</span></button>
-    <button class="tab" data-tab="expedicao">Expedição <span class="n" id="n-exp">–</span></button>
     <button class="tab" data-tab="regras">Regras</button>
   </div>
   <section id="tab-pedido"></section>
   <section id="tab-vinculos" hidden></section>
   <section id="tab-pedidos" hidden></section>
-  <section id="tab-expedicao" hidden></section>
   <section id="tab-regras" hidden></section>
 </div>
 <div class="overlay" id="ov"><div class="modal" id="ov-body"></div></div>
@@ -233,8 +231,9 @@ const LOJAS = [1, 2, 3, 4, 5, 6];
 const LOJAS_NOMES = { 1: 'CAHU', 2: 'MURIBECA', 3: 'PONTE', 4: 'ATACAREJO', 5: 'PORTA LARGA', 6: 'JARDIM JORDÃO' };
 let ESTOPEN = new Set(), DADOS = null, EDITS = {}, SEL = new Set(), FILTRO = '', FLOJA = 0, VIS = {}, PEDIDOS = [], VINC = {}, VF = 'pendentes', SOQTD = 'qtd', ORDEM = 'az', SELINIT = false;
 
-document.querySelectorAll('.tab').forEach(b => b.onclick = () => { document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === b)); ['pedido', 'vinculos', 'pedidos', 'expedicao', 'regras'].forEach(t => $('#tab-' + t).hidden = t !== b.dataset.tab); if (b.dataset.tab === 'pedido' && DADOS) carregar(false); if (b.dataset.tab === 'expedicao') carregarExpedicao().catch(e => alert(e.message)); });
-carregarExpedicao().catch(() => {});
+document.querySelectorAll('.tab').forEach(b => b.onclick = () => { document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === b)); ['pedido', 'vinculos', 'pedidos', 'regras'].forEach(t => $('#tab-' + t).hidden = t !== b.dataset.tab); if (b.dataset.tab === 'pedido' && DADOS) carregar(false); });
+// Expedição (saída do CD pro Televendas) saiu daqui em 14/10/26 (Tiago): é tarefa do fiscal do CD, mora em
+// /fiscal.html com a loja CD selecionada. Só o cadastro de operadores (PIN do coletor) ficou, na aba Regras.
 // aba deixada aberta (vínculo feito em outra janela, por exemplo): ao voltar pra ela, busca o estado atual do servidor
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && DADOS) { carregar(false); carregarVinculos().catch(() => {}); } });
 
@@ -855,19 +854,12 @@ function imprimir(id) {
   w.document.write(htmlImpressao(p)); w.document.close();
   w.onload = () => w.print(); setTimeout(() => { try { w.print(); } catch (e) {} }, 400);
 }
-// ── Expedição do CD (coletor, loja 10): pedidos conferidos na saída + pendências "verificar pallet" ──
-// Todo "Tirar da coletagem" no coletor vira pendência aqui: o fiscal do CD confere se o produto saiu mesmo do
-// pallet (dá pra apagar no app e mandar o produto sem coletagem) e marca "verifiquei". Spec 2026-09-29-coletor-cd-expedicao-processo.
-let EXP = { fechadas: [], pendencias: [] }, EXPDIAS = 7;
-const dh = s => s ? new Date(s).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '–';
+// ── Operadores do CD (coletor, loja 10) ──
 // Desde 14/10/26 (Tiago) a saída tem DUAS etapas cegas: separação (monta o pallet) e expedição (entra no caminhão), as duas
-// 100 % contra o pedido. Quem separou não pode expedir: os operadores do CD têm PIN pessoal, cadastrado aqui.
+// 100 % contra o pedido. Quem separou não pode expedir: os operadores do CD têm PIN pessoal, cadastrado aqui (aba Regras).
+// O acompanhamento da saída (pendências do fiscal do CD, pedidos na saída) fica no Fiscal com a loja CD selecionada.
 let OPS = [];
-async function carregarExpedicao() {
-  const [fechadas, pendencias, ops] = await Promise.all([api('/api/expedicao/fechadas?dias=' + EXPDIAS), api('/api/expedicao/pendencias?dias=' + EXPDIAS), api('/api/expedicao/operadores')]);
-  EXP = { fechadas, pendencias }; OPS = ops; renderExpedicao();
-}
-async function verificarPallet(id, idx) { await api('/api/expedicao/verificar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, idx }) }); await carregarExpedicao(); }
+async function carregarOperadores() { OPS = await api('/api/expedicao/operadores'); renderOperadores(); }
 // aviso inline (não depende de alert, que o navegador pode estar suprimindo): some sozinho em 6 s
 let OPMSG = null;
 function avisoOp(txt, erro) { OPMSG = { txt, erro }; const el = $('#op-msg'); if (el) { el.textContent = txt; el.className = 'contagem ' + (erro ? 'neg' : 'pos'); } setTimeout(() => { if (OPMSG && OPMSG.txt === txt) { OPMSG = null; const e2 = $('#op-msg'); if (e2) e2.textContent = ''; } }, 6000); }
@@ -880,34 +872,18 @@ async function salvarOperador(id) {
     const op = await api('/api/expedicao/operadores', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id || undefined, nome, pin, ativo: true }) });
     if (!id) { elN.value = ''; elP.value = ''; }
     avisoOp((id ? 'Salvo: ' : 'Cadastrado: ') + op.nome + ' · PIN ' + op.pin, false);
-    try { await carregarExpedicao(); } catch (e) { console.error('expedicao: recarregar depois de salvar operador', e); avisoOp('Salvo, mas a lista não recarregou: ' + e.message + '. Atualize a página.', true); }
-  } catch (e) { console.error('expedicao: salvar operador', e); avisoOp('Não cadastrou: ' + e.message, true); }
+    try { await carregarOperadores(); } catch (e) { console.error('operadores: recarregar depois de salvar', e); avisoOp('Salvo, mas a lista não recarregou: ' + e.message + '. Atualize a página.', true); }
+  } catch (e) { console.error('operadores: salvar', e); avisoOp('Não cadastrou: ' + e.message, true); }
 }
 async function ativarOperador(id, ativo) {
   const o = OPS.find(x => x.id === id); if (!o) return;
   if (!ativo && !confirm('Inativar ' + o.nome + '? A pessoa não entra mais no coletor do CD.')) return;
-  try { await api('/api/expedicao/operadores', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, nome: o.nome, pin: o.pin, ativo }) }); avisoOp((ativo ? 'Reativado: ' : 'Inativado: ') + o.nome, false); await carregarExpedicao(); } catch (e) { console.error(e); avisoOp(e.message, true); }
+  try { await api('/api/expedicao/operadores', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, nome: o.nome, pin: o.pin, ativo }) }); avisoOp((ativo ? 'Reativado: ' : 'Inativado: ') + o.nome, false); await carregarOperadores(); } catch (e) { console.error(e); avisoOp(e.message, true); }
 }
-const ETAPA_TXT = { separando: ['p-breve', 'em separação'], separada: ['p-flag', 'separado · falta expedir'], expedindo: ['p-breve', 'em expedição'], fechada: ['p-ok', 'fechado 100 %'], bipando: ['p-breve', 'em conferência'] };
-function renderExpedicao() {
-  const pend = EXP.pendencias.filter(p => !p.verificado); $('#n-exp').textContent = pend.length;
-  const abertas = EXP.fechadas.filter(c => c.status !== 'fechada'), fechadas = EXP.fechadas.filter(c => c.status === 'fechada');
-  const etq = e => e === 'separacao' ? '<span class="pill p-flag">separação</span>' : e === 'expedicao' ? '<span class="pill p-hoje">expedição</span>' : '';
-  const linhasP = EXP.pendencias.length ? EXP.pendencias.map(p => p.tipo === 'lote_divergente'
-    ? `<tr class="${p.verificado ? '' : 'open'}"><td>${dh(p.em)}</td><td>#${esc(p.nPedido)}</td><td class="lc">${esc(p.cliente)}</td><td class="lc">${esc(p.descricao)}<div class="s2">${esc(p.cod)} · <b>lote diferente</b> entre separação e expedição</div></td><td class="r">–</td><td class="lc" colspan="2"><div class="s2">separou: ${esc((p.separacao || []).map(l => l.lote + ' (' + fmtN(l.un, 0) + ')').join(', ') || '–')}</div><div class="s2">embarcou: ${esc((p.expedicao || []).map(l => l.lote + ' (' + fmtN(l.un, 0) + ')').join(', ') || '–')}</div></td><td class="lc">não trava · saiu o lote da expedição</td><td>${esc(p.nome)}</td><td>${p.verificado ? `<span class="pill p-ok">visto</span><div class="s2">${esc(p.verificado.nome)} · ${dh(p.verificado.em)}</div>` : `<button class="btn" onclick="verificarPallet('${esc(p.id)}',${p.idx})">Vi a divergência</button>`}</td></tr>`
-    : `<tr class="${p.verificado ? '' : 'open'}"><td>${dh(p.em)}</td><td>#${esc(p.nPedido)}</td><td class="lc">${esc(p.cliente)}</td><td class="lc">${esc(p.descricao)}<div class="s2">${esc(p.cod)}${p.fora ? ' · fora do pedido' : ' · a mais'} ${etq(p.etapa)}</div></td><td class="r neg">${fmtN(p.un, 0)} un</td><td class="r">${fmtN(p.antes, 0)} → ${fmtN(p.depois, 0)}</td><td>${esc(p.lote || '–')}</td><td class="lc">${esc(p.motivo || '–')}</td><td>${esc(p.nome)}</td><td>${p.verificado ? `<span class="pill p-ok">verificado</span><div class="s2">${esc(p.verificado.nome)} · ${dh(p.verificado.em)}</div>` : `<button class="btn" onclick="verificarPallet('${esc(p.id)}',${p.idx})">Verifiquei o pallet</button>`}</td></tr>`).join('') : '<tr><td colspan="10" class="mut">Nenhuma retirada nem divergência de lote no período.</td></tr>';
-  const todas = [...abertas, ...fechadas];
-  const celEtapa = (e, aberta) => !e ? '<span class="mut">—</span>' : e.fechadoEm ? `<b>${esc((e.operador || {}).nome || e.fechadoPor || '')}</b><div class="s2">${dh(e.fechadoEm)} · ${e.tentativas} tentativa${e.tentativas === 1 ? '' : 's'}</div>` : `<b>${esc((e.operador || {}).nome || '')}</b><div class="s2">${aberta ? 'em andamento desde ' + dh(e.abertoEm) : '–'}</div>`;
-  const linhasC = todas.length ? todas.map(c => { const et = c.etapas || {}; const st = ETAPA_TXT[c.status] || ['p-breve', c.status];
-    return `<tr><td>${dh(c.abertoEm)}</td><td>#${esc(c.nPedido)}</td><td class="lc">${esc(c.cliente)}</td><td>${et.modelo === 'duas' ? celEtapa(et.separacao, c.status === 'separando') : '<span class="mut" title="conferência de uma etapa só (antes de 14/10)">—</span>'}</td><td>${et.modelo === 'duas' ? (c.status === 'separada' ? '<span class="mut">aguardando outro operador</span>' : celEtapa(et.expedicao, c.status === 'expedindo')) : celEtapa(et.expedicao, c.status !== 'fechada')}</td><td class="r">${c.produtos}/${c.produtos_pedido}</td><td class="r ${c.pendentesVerificar ? 'neg' : ''}">${c.tirados}${c.lotesDivergentes ? ' · ' + c.lotesDivergentes + ' lote' : ''}${c.pendentesVerificar ? ' (' + c.pendentesVerificar + ' a verificar)' : ''}</td><td><span class="pill ${st[0]}">${st[1]}</span>${c.status === 'fechada' ? `<div class="s2">${esc(c.fechadoPor || '')} · ${dh(c.fechadoEm)}</div>` : ''}</td><td>${c.status !== 'fechada' ? '–' : c.erpErro ? `<span class="neg" title="${esc(c.erpErro)}">erro</span>` : '<span class="pos">espelhado</span>'}</td></tr>`; }).join('') : '<tr><td colspan="9" class="mut">Nenhuma conferência de saída no período.</td></tr>';
+function renderOperadores() {
+  const el = $('#ops-cd'); if (!el) return;
   const linhasO = OPS.map(o => `<tr class="${o.ativo ? '' : 'mut'}"><td><input class="cx" style="width:160px" id="op-nome-${o.id}" value="${esc(o.nome)}"></td><td><input class="cx" style="width:70px" id="op-pin-${o.id}" value="${esc(o.pin)}" maxlength="4" inputmode="numeric"></td><td>${o.ativo ? '<span class="pill p-ok">ativo</span>' : '<span class="pill">inativo</span>'}</td><td>${o.ativo ? `<button class="btn" onclick="salvarOperador('${esc(o.id)}')">Salvar</button> <button class="btn btn-sec" onclick="ativarOperador('${esc(o.id)}',false)">Inativar</button>` : `<button class="btn btn-sec" onclick="ativarOperador('${esc(o.id)}',true)">Reativar</button>`}</td></tr>`).join('');
-  const opts = [1, 3, 7, 15, 30].map(d => `<option value="${d}" ${d === EXPDIAS ? 'selected' : ''}>${d} dia${d > 1 ? 's' : ''}</option>`).join('');
-  $('#tab-expedicao').innerHTML = `<div class="busca-row"><span class="contagem">Saída do CD no coletor: separação e expedição, as duas cegas e 100 % contra o pedido do Televendas · últimos <select onchange="EXPDIAS=+this.value;carregarExpedicao()">${opts}</select></span><button class="btn btn-sec" onclick="carregarExpedicao()">↻ Atualizar</button></div>
-    <h3 style="font-size:13px;margin:6px 0 8px">Pendências do fiscal do CD <span class="s2" style="display:inline">produto tirado da coletagem (conferir se saiu mesmo do pallet) e lote diferente entre separação e expedição</span></h3>
-    <div class="table-wrap"><table class="main-t"><thead><tr><th>Quando</th><th>Pedido</th><th>Cliente</th><th>Produto</th><th class="r">Tirou</th><th class="r">Antes → depois</th><th>Lote</th><th>Motivo</th><th>Quem</th><th>Situação</th></tr></thead><tbody>${linhasP}</tbody></table></div>
-    <h3 style="font-size:13px;margin:6px 0 8px">Pedidos na saída</h3>
-    <div class="table-wrap"><table class="main-t"><thead><tr><th>Aberto</th><th>Pedido</th><th>Cliente</th><th>Separação</th><th>Expedição</th><th class="r">Produtos</th><th class="r">Retiradas</th><th>Situação</th><th>ERP teste</th></tr></thead><tbody>${linhasC}</tbody></table></div>
-    <h3 style="font-size:13px;margin:14px 0 8px">Operadores do CD <span class="s2" style="display:inline">nome e PIN pessoal de 4 dígitos pra entrar no coletor da loja 10 · quem separa não pode expedir o mesmo pedido · inativo não entra</span> <span id="op-msg" class="contagem ${OPMSG ? (OPMSG.erro ? 'neg' : 'pos') : ''}" style="margin-left:8px">${OPMSG ? esc(OPMSG.txt) : ''}</span></h3>
+  el.innerHTML = `<h3 style="font-size:13px;margin:6px 0 8px">Operadores do CD <span class="s2" style="display:inline">nome e PIN pessoal de 4 dígitos pra entrar no coletor da loja 10 · quem separa não pode expedir o mesmo pedido · inativo não entra · a saída é acompanhada no <a href="/fiscal.html?loja=10&tab=expedicao">Fiscal › Expedição do CD</a></span> <span id="op-msg" class="contagem ${OPMSG ? (OPMSG.erro ? 'neg' : 'pos') : ''}" style="margin-left:8px">${OPMSG ? esc(OPMSG.txt) : ''}</span></h3>
     <div class="table-wrap"><table class="main-t" style="max-width:640px"><thead><tr><th>Nome</th><th>PIN</th><th>Situação</th><th></th></tr></thead><tbody>${linhasO}<tr><td><input class="cx" style="width:160px" id="op-nome" placeholder="novo operador"></td><td><input class="cx" style="width:70px" id="op-pin" placeholder="4 dígitos" maxlength="4" inputmode="numeric"></td><td></td><td><button class="btn btn-amber" onclick="salvarOperador('')">Cadastrar</button></td></tr></tbody></table></div>`;
 }
 // Lotes no CD virou página própria: /lotes-cd.html (sidebar › CAHU Distribuidora › Lotes e Validades), 29/09/2026
@@ -918,7 +894,8 @@ function renderRegras() {
   $('#tab-regras').innerHTML = `<div class="filtros"><div class="fg"><label title="quantos dias de venda a loja deve ter depois do pedido; lead e segurança já estão dentro. Limitado ao teto">Cobertura alvo (dias)</label><input type="number" id="cfg-cobertura" value="${r.cobertura || ''}" min="2" max="90" placeholder="lead+seg+ciclo"></div><div class="fg"><label>Teto (dias)</label><input type="number" id="cfg-teto" value="${r.teto}" min="3" max="90"></div><div class="fg"><label title="dias da semana em que as lojas fecham pedido pro CD; o ciclo da sugestão vira o intervalo até o próximo pedido">Dias de pedido</label><div id="cfg-dias" style="display:flex;gap:8px;flex-wrap:wrap;padding-top:4px">${DIAS_SEM.map((n, i) => `<label class="chk-pend"><input type="checkbox" value="${i}" ${dias.includes(i) ? 'checked' : ''}> ${n.slice(0, 3)}</label>`).join('')}</div></div><div class="fg"><label>Ciclo</label><input value="${r.ciclo} dias (${DIAS_SEM[new Date(r.proximoPedido + 'T12:00:00').getDay()]} → próximo pedido)" disabled title="intervalo entre o próximo pedido e o seguinte"></div><div class="fg"><label>Validade</label><input value="60% do cadastro" disabled></div><div class="fg"><label>WhatsApp do CD</label><input id="cfg-whats" placeholder="DDD + número" title="pra quem vai o link dos pedidos"></div><div class="fg"><label title="dias úteis que o CD tem pra digitar o pedido antes de avisar">Aviso: CD não digitou (d. úteis)</label><input type="number" id="cfg-prazoCD" min="0" max="60" style="width:70px"></div><div class="fg"><label title="dias depois da NF do CD sem entrada na loja">Aviso: loja sem entrada (dias)</label><input type="number" id="cfg-prazoEntrada" min="0" max="60" style="width:70px"></div><div class="fg"><label title="dias liberado no CD sem nota antes de avisar (expira aos 30)">Aviso: liberado sem nota (dias)</label><input type="number" id="cfg-prazoAvisoNota" min="0" max="60" style="width:70px"></div><button class="btn btn-amber" onclick="salvarCfg()">Salvar</button></div>
   <div class="table-wrap"><table class="main-t"><thead><tr><th>Loja</th><th class="r">Lead médio (d)</th><th class="r">Lead máx</th><th class="r">Amostras</th><th class="r">Segurança</th><th class="r">Ponto</th><th class="r">Alvo</th><th class="c" title="Código de cliente da loja no cadastro de fornecedores do ERP. O CNPJ desse cadastro é usado junto, porque desde 03/09/2026 o Televendas grava o CNPJ no painel">Cliente no painel do CD (código; CNPJ do cadastro entra junto)</th></tr></thead><tbody>
   ${LOJAS.map(ln => { const L = r.lojas[ln]; return `<tr><td><b>L${ln}</b> ${L.nome}</td><td class="r">${L.lead ? L.lead.lead_medio : '<span class="mut">padrão</span>'}</td><td class="r">${L.lead ? L.lead.lead_max : '–'}</td><td class="r">${L.lead ? L.lead.n : 0}</td><td class="r">${L.seg}</td><td class="r">${L.ponto}</td><td class="r">${L.alvoLista}</td><td class="c"><input class="cx" style="width:80px" id="cli-${ln}" data-ln="${ln}"></td></tr>`; }).join('')}
-  </tbody></table></div><p class="mut" style="font-size:11px">Lead = dias entre o pedido da loja no painel de expedição do CD e a nota de entrada do fornecedor do CD na loja (6 meses). Alvo = ${r.cobertura ? `cobertura alvo de ${r.cobertura} dias (lead e segurança já dentro; nunca abaixo de ponto + 1)` : `lead + segurança + ciclo (${r.ciclo} agora: dias até o próximo dia de pedido)`}, limitado ao teto. Fornecedor do CD nas notas: <span id="cfg-forn"></span>.</p>`;
+  </tbody></table></div><p class="mut" style="font-size:11px">Lead = dias entre o pedido da loja no painel de expedição do CD e a nota de entrada do fornecedor do CD na loja (6 meses). Alvo = ${r.cobertura ? `cobertura alvo de ${r.cobertura} dias (lead e segurança já dentro; nunca abaixo de ponto + 1)` : `lead + segurança + ciclo (${r.ciclo} agora: dias até o próximo dia de pedido)`}, limitado ao teto. Fornecedor do CD nas notas: <span id="cfg-forn"></span>.</p><div id="ops-cd" style="margin-top:18px"></div>`;
+  carregarOperadores().catch(e => { console.error('operadores', e); const el = $('#ops-cd'); if (el) el.innerHTML = '<p class="neg">Operadores do CD: ' + esc(e.message) + '</p>'; });
   api('/api/pedidos-cd/config').then(c => { CFGCD = c; for (const ln of LOJAS) $('#cli-' + ln).value = c.clientesLoja[ln] || ''; $('#cfg-forn').textContent = c.fornecedorCD; $('#cfg-whats').value = c.whatsCD || ''; for (const k of ['prazoCD', 'prazoEntrada', 'prazoAvisoNota']) { const el = $('#cfg-' + k); if (el) el.value = c[k] ?? ''; } });
 }
 async function salvarCfg() {

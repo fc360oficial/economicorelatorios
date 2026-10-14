@@ -63,6 +63,8 @@ td.forn{white-space:normal!important;min-width:190px;max-width:300px}
 .st-aguardando_coletor{background:var(--wsh);color:var(--ink2)}.st-em_contagem{background:#E9EEF6;color:#2E5E8C}.st-pronto{background:var(--posw);color:var(--pos);border:1px solid #BFE3CD}.st-conferido{background:#E9EEF6;color:#2E5E8C}
 .st-excecao{background:var(--neg);color:#fff}.st-reconferir{background:#B45C00;color:#fff}.st-liberado{background:var(--pos);color:#fff}.st-cancelado{background:var(--wsh);color:var(--ink3)}.st-bloqueado{background:#0E1626;color:#fff}
 .erp{display:block;font-size:9.5px;color:var(--ink3);margin-top:3px;font-weight:600}
+/* Expedição do CD */
+.pe-ok{background:var(--posw);color:var(--pos);border:1px solid #BFE3CD}.pe-flag{background:var(--amw);color:var(--amk);border:1px solid var(--am-ln)}.pe-breve{background:#E9EEF6;color:#2E5E8C}.pe-hoje{background:#101B33;color:#FFC933}
 /* semáforo do cruzamento */
 .chk{display:inline-flex;gap:3px;flex-wrap:nowrap}
 .chk i{display:inline-flex;align-items:center;justify-content:center;font-style:normal;font-size:9px;font-weight:800;letter-spacing:.2px;padding:2px 6px;border-radius:5px;border:1px solid transparent;cursor:help;min-width:32px}
@@ -208,12 +210,13 @@ table.ar .obsd{max-width:250px;overflow:hidden;text-overflow:ellipsis;white-spac
     <div class="tab" data-tab="areceber" onclick="setTab('areceber')" title="Pedidos de compra aprovados que ainda vão chegar nas suas lojas">Pedidos a receber<span class="n" id="nAReceber"></span></div>
     <div class="tab" data-tab="docs" onclick="setTab('docs')">Documentos do dia<span class="n" id="nDocs"></span></div>
     <div class="tab" data-tab="margem" onclick="setTab('margem')">Margem dos itens<span class="n" id="nMargem"></span></div>
+    <div class="tab" data-tab="expedicao" id="tabExp" hidden onclick="setTab('expedicao')" title="Saída do CD no coletor: separação e expedição, as duas cegas e 100 % contra o pedido do Televendas. Só aparece com o CD selecionado.">Expedição do CD<span class="n" id="nExp"></span></div>
   </div>
 
   <div class="tools">
     <span class="dnav"><button onclick="mudarDia(-1)" title="Dia anterior">‹</button><input type="date" id="de" onchange="colDiaMudou();carregar()"><button onclick="mudarDia(1)" title="Próximo dia">›</button><span class="dow" id="dow"></span></span>
     <select id="periodo" onchange="carregar()"><option value="dia">Só o dia</option><option value="7">Últimos 7 dias</option><option value="30">Últimos 30 dias</option></select>
-    <select id="loja" onchange="carregar()"><option value="">Todas as lojas</option></select>
+    <select id="loja" onchange="lojaMudou()"><option value="">Todas as lojas</option></select>
     <input id="q" placeholder="Buscar fornecedor, nº da conferência ou nota" style="min-width:270px" oninput="render()">
     <span class="cnt" id="cnt"></span>
   </div>
@@ -270,8 +273,15 @@ async function boot(){
   if(minhas&&minhas.length===1){sel.value=String(minhas[0]);sel.disabled=true;sel.title='Você só tem acesso a esta loja';}
   else if(minhas){sel.querySelector('option[value=""]').textContent='Todas as minhas lojas';}
   const u=new URLSearchParams(location.search);if(u.get('loja')&&!sel.disabled)sel.value=u.get('loja');if(u.get('de'))$('#de').value=u.get('de');if(u.get('filtro'))filtro=u.get('filtro');ABRIR=+u.get('abrir')||null;if(ABRIR)filtro='todos';
+  expTabSync();
+  if(u.get('tab')==='expedicao'&&!$('#tabExp').hidden){setTab('expedicao');return;}
   carregar();
 }
+/* Expedição do CD (Tiago, 14/10/26): a aba só existe com o CD (loja 10) selecionado. Em "Todas as lojas" ou em E1..E6 ela nem
+   aparece, e se a loja mudar com ela aberta volta pra Recebimentos. A saída do CD é do Televendas, não tem a ver com o pedido
+   semanal das lojas, por isso saiu da página Centro de Distribuição. */
+function expTabSync(){const cd=$('#loja').value==='10';$('#tabExp').hidden=!cd;if(!cd&&tab==='expedicao'){setTab('receb');return false;}return true;}
+function lojaMudou(){if(expTabSync())carregar();}
 async function carregar(){
   $('#dow').textContent=DOW[new Date($('#de').value+'T12:00:00').getDay()];
   aberto=null;DET={};DADOS=null;DOCS=null;MARG=null;$('#nDocs').textContent='';$('#nMargem').textContent='';
@@ -280,15 +290,69 @@ async function carregar(){
     if(tab==='receb'){DADOS=await fetch('/api/fiscal/recebimentos'+qs()).then(r=>r.json());if(DADOS.error)throw new Error(DADOS.error);CFG=DADOS.config;$('#nReceb').textContent=DADOS.recebimentos.length;scCarregar();arecBadge();await colAtivoSync();if(COL_ATIVO){await colCarregar();if(colTotalChamados===null)colTotalChamados=colTotal();}if(ABRIR){const n=ABRIR;ABRIR=null;await toggle(n);return;}}
     else if(tab==='areceber'){await arecCarregar();}
     else if(tab==='docs'){DOCS=await fetch('/api/fiscal/documentos'+qs()).then(r=>r.json());if(DOCS.error)throw new Error(DOCS.error);$('#nDocs').textContent=DOCS.length;}
+    else if(tab==='expedicao'){await expCarregar();}
     else{MARG=await fetch('/api/fiscal/margem'+qs()).then(r=>r.json());if(MARG.error)throw new Error(MARG.error);$('#nMargem').textContent=MARG.length;}
     render();
   }catch(e){$('#view').innerHTML='<div class="empty">Erro ao carregar: '+esc(e.message)+'</div>';}
 }
 function setTab(t){tab=t;document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x.dataset.tab===t));
   /* Pedidos a receber não é por dia: some o navegador de data e o período (loja e busca continuam) */
-  const semDia=t==='areceber';document.querySelector('.dnav').style.display=semDia?'none':'';$('#periodo').style.display=semDia?'none':'';$('#q').placeholder=semDia?'Buscar fornecedor, nº do pedido, lista ou comprador(a)':'Buscar fornecedor, nº da conferência ou nota';
+  /* Expedição do CD conta "últimos N dias" a partir de hoje: some só o navegador de data, o período continua */
+  const semDia=t==='areceber'||t==='expedicao';document.querySelector('.dnav').style.display=semDia?'none':'';$('#periodo').style.display=t==='areceber'?'none':'';$('#q').placeholder=t==='areceber'?'Buscar fornecedor, nº do pedido, lista ou comprador(a)':t==='expedicao'?'Buscar cliente, nº do pedido ou produto':'Buscar fornecedor, nº da conferência ou nota';
   colTimerSync();carregar();}
-function render(){if(tab==='receb')renderReceb();else{if(aberto!=null){aberto=null;$('#detBack').hidden=true;$('#detDrw').hidden=true;}if(tab==='docs')renderDocs();else if(tab==='areceber')renderAReceber();else renderMargem();}renderColErro();}
+function render(){if(tab==='receb')renderReceb();else{if(aberto!=null){aberto=null;$('#detBack').hidden=true;$('#detDrw').hidden=true;}if(tab==='docs')renderDocs();else if(tab==='areceber')renderAReceber();else if(tab==='expedicao')renderExpedicao();else renderMargem();}renderColErro();}
+
+/* ── EXPEDIÇÃO DO CD (saída pro Televendas, coletor da loja 10) ──
+   Duas etapas cegas desde 14/10/26: separação (monta o pallet) e expedição (entra no caminhão), as duas 100 % contra o pedido.
+   Todo "Tirar da coletagem" no coletor vira pendência aqui: o fiscal do CD confere se o produto saiu mesmo do pallet e marca
+   "verifiquei". Lote diferente entre as duas etapas também cai aqui (não trava, só avisa). Operadores e PIN: Centro de
+   Distribuição › Regras. Spec 2026-09-29-coletor-cd-expedicao-processo. */
+let EXP=null;
+const expDias=()=>{const p=$('#periodo').value;return p==='dia'?1:+p;};
+const dh=s=>s?new Date(s).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';
+async function expCarregar(){
+  const d=expDias();
+  const [fechadas,pendencias]=await Promise.all(['/api/expedicao/fechadas?dias='+d,'/api/expedicao/pendencias?dias='+d].map(u=>fetch(u).then(r=>r.json())));
+  if(fechadas.error)throw new Error(fechadas.error);if(pendencias.error)throw new Error(pendencias.error);
+  EXP={fechadas,pendencias};$('#nExp').textContent=pendencias.filter(p=>!p.verificado).length;
+}
+async function verificarPallet(id,idx){
+  try{const r=await fetch('/api/expedicao/verificar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,idx})}).then(r=>r.json());if(r.error)throw new Error(r.error);await expCarregar();render();}
+  catch(e){alert('Não marcou: '+e.message);}
+}
+const EXP_ST={separando:['pe-breve','em separação'],separada:['pe-flag','separado · falta expedir'],expedindo:['pe-breve','em expedição'],fechada:['pe-ok','fechado 100 %'],bipando:['pe-breve','em conferência']};
+function expBusca(o){const q=$('#q').value.trim().toLowerCase();if(!q)return true;return String(o.nPedido||'').includes(q)||(o.cliente||'').toLowerCase().includes(q)||(o.descricao||'').toLowerCase().includes(q)||String(o.cod||'').includes(q);}
+function renderExpedicao(){
+  const pend=EXP.pendencias.filter(expBusca),confs=EXP.fechadas.filter(expBusca);
+  const abertas=confs.filter(c=>c.status!=='fechada'),fechadas=confs.filter(c=>c.status==='fechada');
+  $('#cnt').textContent=pend.filter(p=>!p.verificado).length+' pendência(s) · '+abertas.length+' na saída · '+fechadas.length+' fechado(s)';
+  const etq=e=>e==='separacao'?'<span class="pill pe-flag">separação</span>':e==='expedicao'?'<span class="pill pe-hoje">expedição</span>':'';
+  const lotes=ls=>esc((ls||[]).map(l=>l.lote+' ('+qtd(l.un)+')').join(', ')||'—');
+  let h='<div class="sub" style="margin-bottom:8px"><b>Pendências do fiscal do CD</b> · produto tirado da coletagem (conferir se saiu mesmo do pallet) e lote diferente entre separação e expedição</div>';
+  h+='<div class="table-wrap"><table class="t"><thead><tr><th>Quando</th><th>Pedido</th><th>Cliente</th><th>Produto</th><th class="r">Tirou</th><th class="r">Antes → depois</th><th>Lote</th><th>Motivo</th><th>Quem</th><th>Situação</th></tr></thead><tbody>';
+  if(!pend.length)h+='<tr><td colspan="10" class="mut" style="padding:18px">Nenhuma retirada nem divergência de lote no período.</td></tr>';
+  for(const p of pend){
+    const visto=p.verificado?'<span class="pill pe-ok">'+(p.tipo==='lote_divergente'?'visto':'verificado')+'</span><div class="sub">'+esc(p.verificado.nome)+' · '+dh(p.verificado.em)+'</div>':'<button class="btn btn-amber btn-sm" onclick="verificarPallet(\''+esc(p.id)+'\','+p.idx+')">'+(p.tipo==='lote_divergente'?'Vi a divergência':'Verifiquei o pallet')+'</button>';
+    if(p.tipo==='lote_divergente')h+='<tr><td>'+dh(p.em)+'</td><td>#'+esc(p.nPedido)+'</td><td class="forn">'+esc(p.cliente)+'</td><td class="forn">'+esc(p.descricao)+'<div class="sub">'+esc(p.cod)+' · <b>lote diferente</b> entre separação e expedição</div></td><td class="r">—</td><td colspan="2"><div class="sub">separou: '+lotes(p.separacao)+'</div><div class="sub">embarcou: '+lotes(p.expedicao)+'</div></td><td class="sub">não trava · saiu o lote da expedição</td><td>'+esc(p.nome)+'</td><td>'+visto+'</td></tr>';
+    else h+='<tr><td>'+dh(p.em)+'</td><td>#'+esc(p.nPedido)+'</td><td class="forn">'+esc(p.cliente)+'</td><td class="forn">'+esc(p.descricao)+'<div class="sub">'+esc(p.cod)+(p.fora?' · fora do pedido':' · a mais')+' '+etq(p.etapa)+'</div></td><td class="r neg">'+qtd(p.un)+' un</td><td class="r">'+qtd(p.antes)+' → '+qtd(p.depois)+'</td><td>'+esc(p.lote||'—')+'</td><td class="sub">'+esc(p.motivo||'—')+'</td><td>'+esc(p.nome)+'</td><td>'+visto+'</td></tr>';
+  }
+  h+='</tbody></table></div>';
+  const cel=(e,aberta)=>!e?'<span class="mut">—</span>':e.fechadoEm?'<b>'+esc((e.operador||{}).nome||e.fechadoPor||'')+'</b><div class="sub">'+dh(e.fechadoEm)+' · '+e.tentativas+' tentativa'+(e.tentativas===1?'':'s')+'</div>':'<b>'+esc((e.operador||{}).nome||'')+'</b><div class="sub">'+(aberta?'em andamento desde '+dh(e.abertoEm):'—')+'</div>';
+  h+='<div class="sub" style="margin-bottom:8px"><b>Pedidos na saída</b> · separação e expedição por operadores diferentes; fechado 100 % espelha no ERP de teste</div>';
+  h+='<div class="table-wrap"><table class="t"><thead><tr><th>Aberto</th><th>Pedido</th><th>Cliente</th><th>Separação</th><th>Expedição</th><th class="r">Produtos</th><th class="r">Retiradas</th><th>Situação</th><th>ERP teste</th></tr></thead><tbody>';
+  if(!confs.length)h+='<tr><td colspan="9" class="mut" style="padding:18px">Nenhuma conferência de saída no período.</td></tr>';
+  for(const c of [...abertas,...fechadas]){
+    const et=c.etapas||{},st=EXP_ST[c.status]||['pe-breve',c.status],duas=et.modelo==='duas';
+    h+='<tr><td>'+dh(c.abertoEm)+'</td><td>#'+esc(c.nPedido)+'</td><td class="forn">'+esc(c.cliente)+'</td>'
+      +'<td>'+(duas?cel(et.separacao,c.status==='separando'):'<span class="mut" title="conferência de uma etapa só (antes de 14/10)">—</span>')+'</td>'
+      +'<td>'+(duas?(c.status==='separada'?'<span class="mut">aguardando outro operador</span>':cel(et.expedicao,c.status==='expedindo')):cel(et.expedicao,c.status!=='fechada'))+'</td>'
+      +'<td class="r">'+c.produtos+'/'+c.produtos_pedido+'</td><td class="r'+(c.pendentesVerificar?' neg':'')+'">'+c.tirados+(c.lotesDivergentes?' · '+c.lotesDivergentes+' lote':'')+(c.pendentesVerificar?' ('+c.pendentesVerificar+' a verificar)':'')+'</td>'
+      +'<td><span class="pill '+st[0]+'">'+st[1]+'</span>'+(c.status==='fechada'?'<div class="sub">'+esc(c.fechadoPor||'')+' · '+dh(c.fechadoEm)+'</div>':'')+'</td>'
+      +'<td>'+(c.status!=='fechada'?'—':c.erpErro?'<span class="neg" title="'+esc(c.erpErro)+'">erro</span>':'<span class="pos">espelhado</span>')+'</td></tr>';
+  }
+  h+='</tbody></table></div><p class="sub">Operadores do CD (nome e PIN do coletor) ficam em <a href="/centro-distribuicao.html?tab=regras">Centro de Distribuição › Regras</a>.</p>';
+  $('#view').innerHTML=h;
+}
 /* o <th> da coluna é refeito em todo render (busca, filtro, carregar), então o aviso de
    "sem atualização" some junto: repintar sempre, no fim do render. */
 
