@@ -868,14 +868,25 @@ async function carregarExpedicao() {
   EXP = { fechadas, pendencias }; OPS = ops; renderExpedicao();
 }
 async function verificarPallet(id, idx) { await api('/api/expedicao/verificar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, idx }) }); await carregarExpedicao(); }
+// aviso inline (não depende de alert, que o navegador pode estar suprimindo): some sozinho em 6 s
+let OPMSG = null;
+function avisoOp(txt, erro) { OPMSG = { txt, erro }; const el = $('#op-msg'); if (el) { el.textContent = txt; el.className = 'contagem ' + (erro ? 'neg' : 'pos'); } setTimeout(() => { if (OPMSG && OPMSG.txt === txt) { OPMSG = null; const e2 = $('#op-msg'); if (e2) e2.textContent = ''; } }, 6000); }
 async function salvarOperador(id) {
-  const nome = $('#op-nome' + (id ? '-' + id : '')).value.trim(), pin = $('#op-pin' + (id ? '-' + id : '')).value.trim();
-  try { await api('/api/expedicao/operadores', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id || undefined, nome, pin, ativo: true }) }); await carregarExpedicao(); } catch (e) { alert(e.message); }
+  const elN = $('#op-nome' + (id ? '-' + id : '')), elP = $('#op-pin' + (id ? '-' + id : '')); if (!elN || !elP) return;
+  const nome = elN.value.trim(), pin = elP.value.trim();
+  if (!nome) { avisoOp('Digite o nome do operador.', true); elN.focus(); return; }
+  if (!/^\d{4}$/.test(pin)) { avisoOp('PIN pessoal tem que ter 4 dígitos.', true); elP.focus(); return; }
+  try {
+    const op = await api('/api/expedicao/operadores', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id || undefined, nome, pin, ativo: true }) });
+    if (!id) { elN.value = ''; elP.value = ''; }
+    avisoOp((id ? 'Salvo: ' : 'Cadastrado: ') + op.nome + ' · PIN ' + op.pin, false);
+    try { await carregarExpedicao(); } catch (e) { console.error('expedicao: recarregar depois de salvar operador', e); avisoOp('Salvo, mas a lista não recarregou: ' + e.message + '. Atualize a página.', true); }
+  } catch (e) { console.error('expedicao: salvar operador', e); avisoOp('Não cadastrou: ' + e.message, true); }
 }
 async function ativarOperador(id, ativo) {
   const o = OPS.find(x => x.id === id); if (!o) return;
   if (!ativo && !confirm('Inativar ' + o.nome + '? A pessoa não entra mais no coletor do CD.')) return;
-  try { await api('/api/expedicao/operadores', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, nome: o.nome, pin: o.pin, ativo }) }); await carregarExpedicao(); } catch (e) { alert(e.message); }
+  try { await api('/api/expedicao/operadores', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, nome: o.nome, pin: o.pin, ativo }) }); avisoOp((ativo ? 'Reativado: ' : 'Inativado: ') + o.nome, false); await carregarExpedicao(); } catch (e) { console.error(e); avisoOp(e.message, true); }
 }
 const ETAPA_TXT = { separando: ['p-breve', 'em separação'], separada: ['p-flag', 'separado · falta expedir'], expedindo: ['p-breve', 'em expedição'], fechada: ['p-ok', 'fechado 100 %'], bipando: ['p-breve', 'em conferência'] };
 function renderExpedicao() {
@@ -896,7 +907,7 @@ function renderExpedicao() {
     <div class="table-wrap"><table class="main-t"><thead><tr><th>Quando</th><th>Pedido</th><th>Cliente</th><th>Produto</th><th class="r">Tirou</th><th class="r">Antes → depois</th><th>Lote</th><th>Motivo</th><th>Quem</th><th>Situação</th></tr></thead><tbody>${linhasP}</tbody></table></div>
     <h3 style="font-size:13px;margin:6px 0 8px">Pedidos na saída</h3>
     <div class="table-wrap"><table class="main-t"><thead><tr><th>Aberto</th><th>Pedido</th><th>Cliente</th><th>Separação</th><th>Expedição</th><th class="r">Produtos</th><th class="r">Retiradas</th><th>Situação</th><th>ERP teste</th></tr></thead><tbody>${linhasC}</tbody></table></div>
-    <h3 style="font-size:13px;margin:14px 0 8px">Operadores do CD <span class="s2" style="display:inline">nome e PIN pessoal de 4 dígitos pra entrar no coletor da loja 10 · quem separa não pode expedir o mesmo pedido · inativo não entra</span></h3>
+    <h3 style="font-size:13px;margin:14px 0 8px">Operadores do CD <span class="s2" style="display:inline">nome e PIN pessoal de 4 dígitos pra entrar no coletor da loja 10 · quem separa não pode expedir o mesmo pedido · inativo não entra</span> <span id="op-msg" class="contagem ${OPMSG ? (OPMSG.erro ? 'neg' : 'pos') : ''}" style="margin-left:8px">${OPMSG ? esc(OPMSG.txt) : ''}</span></h3>
     <div class="table-wrap"><table class="main-t" style="max-width:640px"><thead><tr><th>Nome</th><th>PIN</th><th>Situação</th><th></th></tr></thead><tbody>${linhasO}<tr><td><input class="cx" style="width:160px" id="op-nome" placeholder="novo operador"></td><td><input class="cx" style="width:70px" id="op-pin" placeholder="4 dígitos" maxlength="4" inputmode="numeric"></td><td></td><td><button class="btn btn-amber" onclick="salvarOperador('')">Cadastrar</button></td></tr></tbody></table></div>`;
 }
 // Lotes no CD virou página própria: /lotes-cd.html (sidebar › CAHU Distribuidora › Lotes e Validades), 29/09/2026
