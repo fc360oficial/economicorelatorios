@@ -104,6 +104,16 @@ body{font-family:var(--font);background:var(--pap);color:var(--ink);font-size:14
 .bar .ttl .t,.bar .ttl .s{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bar .tot{text-align:right;font-size:10.5px;color:#AEB8CE;line-height:1.2;flex:none;font-variant-numeric:tabular-nums}
 .bar .tot b{color:#fff;font-size:13.5px}
+/* KPI único no cabeçalho da saída (Tiago, 14/10: "os dois kpis do início não estão legal") + barra de progresso abaixo do bipe */
+.bar .kpi{flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:52px;height:38px;padding:0 9px;border-radius:9px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.14);line-height:1}
+.bar .kpi b{color:#fff;font-size:15px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.3px}
+.bar .kpi span{color:#AEB8CE;font-size:8.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;margin-top:3px}
+.prog2{display:flex;flex-direction:column;gap:5px}
+.prog2 .trk{height:7px;border-radius:999px;background:var(--wsh);border:1px solid var(--ln);overflow:hidden}
+.prog2 .trk i{display:block;height:100%;width:0;border-radius:999px;background:var(--pos);transition:width .25s}
+.prog2 .trk i.parcial{background:var(--am)}
+.prog2 .lbl{display:flex;justify-content:space-between;font-size:11.5px;color:var(--ink2);font-variant-numeric:tabular-nums}
+.prog2 .lbl b{color:var(--ink)}
 .bar .menu{position:relative;flex:none;width:36px;height:36px;border-radius:8px;border:1px solid #2A3A5E;background:transparent;color:#fff;font-size:22px;font-weight:800;cursor:pointer;line-height:1;padding:0}
 .bar .menu .bdg{position:absolute;top:-7px;right:-7px}
 .ultimo{background:var(--amw);border:1.5px solid var(--am);border-radius:var(--r);padding:10px 12px;text-align:left;width:100%;font-family:var(--font);color:var(--ink);cursor:pointer;display:block}
@@ -313,7 +323,7 @@ body{font-family:var(--font);background:var(--pap);color:var(--ink);font-size:14
     <button class="voltar" onclick="voltarPedidos()" title="Voltar">‹</button>
     <div class="logo"><img src="/logo-supermercados-transp.png" alt="Econômico Supermercados"></div>
     <div class="ttl"><div class="t" id="xTitulo">—</div><div class="s" id="xSub">—</div></div>
-    <div class="tot"><b id="xProd">0</b> <span id="xProdL">prod</span><br><b id="xUn">0</b> un</div>
+    <div class="kpi"><b id="xProd">0</b><span id="xProdL">prod</span></div>
     <button class="menu" type="button" onclick="abrirMenuExp()" title="Terminei, tirar da coletagem">⋮</button>
   </div>
   <div class="corpo">
@@ -322,6 +332,7 @@ body{font-family:var(--font);background:var(--pap);color:var(--ink);font-size:14
       <input id="bipExp" placeholder="Bipe a caixa (DUN-14) ou a unidade" autocomplete="off" inputmode="numeric" enterkeyhint="done">
       <button class="dig" id="btnDigitarExp" type="button" aria-pressed="false" onclick="toggleTeclado()" title="Ligar o teclado do aparelho pra digitar">Teclado</button>
     </div>
+    <div class="prog2" id="xResumo" hidden><div class="trk"><i id="xBar"></i></div><div class="lbl"><span id="xResTxt"></span><span id="xUn"></span></div></div>
     <div class="prog"><div id="xProg">Cega: a quantidade do pedido fica escondida</div><div id="xTir" style="color:var(--amk)"></div></div>
     <div id="xAviso"></div>
     <div id="xCartao"></div>
@@ -710,7 +721,10 @@ function renderSep() {
   const v = visaoExp, fis = v.etapa === 'fiscal', ped = v.pedido || [];
   $('xTitulo').innerHTML = `<span class="etq ${fis ? 'fis' : 'sep'}">${fis ? 'Fiscal' : 'Separação'}</span>` + esc(v.cliente || '—');
   $('xSub').textContent = 'Pedido #' + v.nPedido + ' · ' + (v.separados || 0) + ' de ' + ped.length + ' confirmados';
-  $('xProd').textContent = (v.certos || 0) + '/' + ped.length; $('xProdL').textContent = 'certos'; $('xUn').textContent = num(v.unidades);
+  const ok = v.certos || 0, dif = (v.separados || 0) - ok;
+  $('xProd').textContent = ok + '/' + ped.length; $('xProdL').textContent = 'ok';
+  $('xResumo').hidden = false; $('xBar').style.width = (ped.length ? Math.round(ok / ped.length * 100) : 0) + '%'; $('xBar').className = dif ? 'parcial' : '';
+  $('xResTxt').innerHTML = `<b>${ok}</b> de ${ped.length} confirmados${dif ? ` · <span style="color:var(--amk)">${dif} com diferença</span>` : ''}`; $('xUn').textContent = num(v.unidades) + ' un';
   if (selSep && !ped.find(i => i.cod === selSep)) selSep = null;
   const selIt = selSep ? ped.find(i => i.cod === selSep) : null;
   $('xProg').innerHTML = fis ? 'Aguardando o fiscal do CD' : selIt ? `<b style="color:var(--amk)">Selecionado: ${esc(selIt.descricao)}</b> · bipe o produto pra confirmar` : 'Marque o produto, bipe pra confirmar. Toque na quantidade pra mudar.';
@@ -740,7 +754,9 @@ function renderExp() {
   const et = visaoExp.etapa === 'expedicao' ? ['exp', 'Carregamento'] : null;
   $('xTitulo').innerHTML = (et ? `<span class="etq ${et[0]}">${et[1]}</span>` : '') + esc(visaoExp.cliente || '—');
   $('xSub').textContent = 'Pedido #' + visaoExp.nPedido + (visaoExp.etapa === 'expedicao' ? ' · separado por ' + (visaoExp.separadoPor || '—') : ' · Saída · CD');
-  $('xProd').textContent = visaoExp.produtos; $('xProdL').textContent = 'prod'; $('xUn').textContent = num(visaoExp.unidades);
+  $('xProd').textContent = visaoExp.produtos; $('xProdL').textContent = 'prod';
+  const tot = visaoExp.produtos_pedido || 0; $('xResumo').hidden = false; $('xBar').style.width = (tot ? Math.min(100, Math.round(visaoExp.produtos / tot * 100)) : 0) + '%'; $('xBar').className = '';
+  $('xResTxt').innerHTML = `<b>${visaoExp.produtos}</b> de ${tot} produtos bipados`; $('xUn').textContent = num(visaoExp.unidades) + ' un';
   $('xProg').textContent = 'Cego: bipe o que sobe no caminhão. Tem que bater com a separação.'; $('bipExp').placeholder = 'Bipe a caixa (DUN-14) ou a unidade';
   $('xTir').textContent = visaoExp.tirados ? visaoExp.tirados + (visaoExp.tirados === 1 ? ' retirada registrada pro fiscal' : ' retiradas registradas pro fiscal') : '';
   $('xAviso').innerHTML = visaoExp.liberacao && visaoExp.liberacao.decisao === 'liberada' ? `<div class="aviso fis"><b>Separação liberada pelo fiscal com divergência.</b> O caminhão tem que bater com o que foi separado, não com o pedido.${visaoExp.liberacao.obs ? ' ' + esc(visaoExp.liberacao.obs) : ''}</div>` : '';
