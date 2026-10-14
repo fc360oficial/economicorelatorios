@@ -864,7 +864,9 @@ function tocarSep(cod) {
 // Quantidade na unidade do pedido, como na folha impressa (Tiago, 14/10: "hoje temos produtos em cx e em unidades"):
 // item com embalagem (emb > 1) mostra caixas/fardos + soltas e o total em un; item unitário só un.
 function fmtQSep(un, i) {
-  if (!(i.emb > 1)) return { n: un, l: i.und || 'UN', sub: '', cx: 0, so: un };
+  // linha em UN (mesmo com caixa conhecida) fica em unidades, como na folha; só linha em CX/FD vira caixas + soltas
+  const emCaixa = i.emCaixa != null ? i.emCaixa : (i.und && i.und !== 'UN' && i.emb > 1);
+  if (!emCaixa || !(i.emb > 1)) return { n: un, l: 'UN', sub: '', cx: 0, so: un };
   const cx = Math.floor(un / i.emb + 1e-9), so = +(un - cx * i.emb).toFixed(3);
   return { n: cx, l: (i.und || 'CX') + (so ? ' + ' + num(so) + ' un' : ''), sub: '= ' + num(un) + ' un', cx, so };
 }
@@ -873,7 +875,7 @@ function qtdSepModal(cod) {
   if (!visaoExp || visaoExp.etapa !== 'separacao') return;
   const it = (visaoExp.pedido || []).find(i => i.cod === cod); if (!it) return;
   const atual = it.separado ? it.separado.un : (qtdSep[cod] != null ? qtdSep[cod] : it.un);
-  const f = fmtQSep(atual, it), fp = fmtQSep(it.un, it), cx = it.emb > 1;
+  const f = fmtQSep(atual, it), fp = fmtQSep(it.un, it), cx = !!fp.sub;   // fp.sub só existe em linha de caixa
   abrirModal(`<div class="t">${esc(it.descricao)}</div><p style="font-size:12.5px;color:var(--ink2);margin:6px 0 10px">Pedido: <b>${num(fp.n)} ${esc(fp.l)}</b>${cx ? ' c/ ' + num(it.emb) + ' = ' + num(it.un) + ' un' : ''}. Digite o que você separou de verdade.</p>
     ${cx ? `<div class="f2"><div><label for="qCx">${esc(it.und || 'Caixas')} (c/ ${num(it.emb)})</label><input id="qCx" type="text" inputmode="decimal" autocomplete="off" value="${esc(num(f.cx))}"></div><div><label for="qSo">Unidades soltas</label><input id="qSo" type="text" inputmode="decimal" autocomplete="off" value="${esc(num(f.so))}"></div></div><div class="kv" style="font-size:13px;margin-top:6px"><span>Total</span><b id="qTot">—</b></div>`
          : `<div class="f1"><label for="qSo">Unidades</label><input id="qSo" type="text" inputmode="decimal" autocomplete="off" value="${esc(num(f.so))}"></div>`}
@@ -887,7 +889,7 @@ function qtdSepModal(cod) {
 }
 async function qtdSepOk(cod) {
   const it = (visaoExp.pedido || []).find(i => i.cod === cod); if (!it) return;
-  const cxN = it.emb > 1 ? lerNum('qCx') : 0, so = lerNum('qSo');
+  const cxN = $('qCx') ? lerNum('qCx') : 0, so = lerNum('qSo');
   if (isNaN(cxN) || isNaN(so) || cxN < 0 || so < 0) { toast('Digite números.', true); return; }
   const un = +(cxN * it.emb + so).toFixed(3);
   fecharModal();
@@ -902,8 +904,8 @@ async function confirmarSep(cod) {
 async function desmarcarSep(cod) { await gravarSep(cod, 0); }
 // grava caixas × emb + soltas (item unitário: tudo em soltas com emb 1)
 async function gravarSep(cod, un) {
-  const it = (visaoExp.pedido || []).find(i => i.cod === cod); const f = it ? fmtQSep(un, it) : { cx: 0, so: un };
-  const emb = it && it.emb > 1 ? it.emb : 1;
+  const it = (visaoExp.pedido || []).find(i => i.cod === cod); const f = it ? fmtQSep(un, it) : { cx: 0, so: un, sub: '' };
+  const emb = f.sub && it ? it.emb : 1;   // linha de caixa: caixas × emb + soltas; linha em UN: tudo em unidades
   try {
     const r = await postExp('separar', { id: visaoExp.id, cod, quant: emb > 1 ? f.cx : f.so, emb, soltas: emb > 1 ? f.so : 0, bipeId: novoBipeId() });
     if (r.visao) visaoExp = r.visao; if (selSep === cod) selSep = null; delete qtdSep[cod]; renderExp(); setNet(true);

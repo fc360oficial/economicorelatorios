@@ -11,7 +11,7 @@ function req({ query = {}, body = {}, params = {}, session = {} } = {}) { return
 function res() { const r = { statusCode: 200 }; r.status = c => { r.statusCode = c; return r; }; r.json = b => { r.body = b; return r; }; return r; }
 
 const CAB = { nPedido: 6853, Nome: 'SERAFIM SUPERMERCADO', CPF: '35226657000156', Data: '2026-09-29', Hora: '09:56:19', Total: '5451.31', Status: 1, NFe: '0' };
-const ITENS = [{ cod: '7891150097605', descricao: 'ALA ERVA DOCE', und: 'CX', qtd: '108.000', qtdEmb: '0.00', conversao: '4 FD c/27' }, { cod: '17891000457099', descricao: 'BOMBOM GAROTO CX30', und: 'CX', qtd: '2.000', qtdEmb: '0.00', conversao: '2 CX c/01' }];
+const ITENS = [{ cod: '7891150097605', descricao: 'ALA ERVA DOCE', und: 'UN', qtd: '108.000', qtdEmb: '0.00', conversao: '4 FD c/27' }, { cod: '17891000457099', descricao: 'BOMBOM GAROTO CX30', und: 'CX', qtd: '2.000', qtdEmb: '0.00', conversao: '2 CX c/01' }];
 
 function montar() {
   const { app, routes } = fakeApp();

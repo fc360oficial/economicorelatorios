@@ -5,9 +5,10 @@ const test = require('node:test'); const assert = require('node:assert');
 const fs = require('fs'); const os = require('os'); const path = require('path');
 const E = require('../lib/expedicao');
 
+// Qtd vem NA UNIDADE DA LINHA (ERP de produção, 14/10): linha em UN = unidades (código EAN-13); linha em CX/FD = CAIXAS (código DUN-14)
 const ITENS = [
-  { cod: '7891150097605', descricao: 'OLEO LIZA 900ML', qtd: 80, qtdEmb: 0, und: 'CX', conversao: '4 CX c/20' },   // 80 un
-  { cod: '17898403781295', descricao: 'ACUCAR PETRIBU 1KG', qtd: 300, qtdEmb: 30, und: 'FD' }, // 300 un
+  { cod: '7891150097605', descricao: 'OLEO LIZA 900ML', qtd: 80, qtdEmb: 0, und: 'UN', conversao: '4 CX c/20' },   // 80 un (linha em UN)
+  { cod: '17898403781295', descricao: 'ACUCAR PETRIBU 1KG', qtd: 10, qtdEmb: 30, und: 'FD' }, // 10 FD c/30 = 300 un
   { cod: '789', descricao: 'ITEM UNITARIO', qtd: 5, qtdEmb: 0, und: 'UN' },              // 5 un
 ];
 const MARIA = { id: 'op-maria', nome: 'MARIA' }, JOAO = { id: 'op-joao', nome: 'JOAO' };
@@ -29,6 +30,11 @@ test('abrirPedido: id exp-dia-10-nPedido, pedido em unidades (Qtd direto; emb do
   assert.deepEqual(c.etapas.separacao.operador, MARIA); assert.equal(c.etapas.expedicao, null);
   assert.deepEqual(Object.values(c.pedido).map(p => p.cod + ':' + p.un).sort(), ['17898403781295:300', '7891150097605:80', '789:5']);
   assert.equal(c.pedido['7891150097605'].emb, 20, 'emb lida do "c/20"'); assert.equal(c.pedido['17898403781295'].emb, 30);
+  assert.equal(c.pedido['7891150097605'].emCaixa, false); assert.equal(c.pedido['17898403781295'].emCaixa, true); assert.equal(c.pedido['17898403781295'].qtd, 10, 'linha em FD: Qtd é caixas, un = 10 × 30');
+  // linha em CX sem emb conhecida: fica em unidades; "4 FD c/16" (pedido 7222 real): 4 × 16 = 64 un
+  const c2 = E.abrirPedido({ nPedido: 7222, itens: [{ cod: '17898969564301', descricao: 'PAPEL HIG', qtd: '4.000', qtdEmb: '16.00', und: 'FD', conversao: '4 FD c/16' }, { cod: '1', descricao: 'X', qtd: 3, qtdEmb: 0, und: 'CX' }], operador: MARIA });
+  assert.equal(c2.pedido['17898969564301'].un, 64); assert.equal(c2.pedido['17898969564301'].qtd, 4); assert.equal(c2.pedido['1'].un, 3); assert.equal(c2.pedido['1'].emCaixa, false);
+  const v2 = E.visao(c2.id, MARIA); assert.equal(v2.pedido[0].qtd, 4); assert.equal(v2.pedido[0].emCaixa, true); assert.equal(v2.pedido[0].und, 'FD');
   assert.equal(E.abrirPedido({ nPedido: '6853', cliente: 'X', itens: [], operador: JOAO }).id, c.id, 'separando: qualquer um retoma');
   // Separação de Pedidos NÃO é cega (Tiago, 14/10 noite): a visão leva a lista do pedido, na ordem do pedido, com quantidade e 4 últimos do EAN
   const v = E.visao(c.id, MARIA); assert.equal(v.pedido.length, 3); assert.equal(v.separados, 0);
