@@ -947,7 +947,10 @@ var dtp = function(p){ var n = prazoLocal(p); return n ? n.slice(8, 10) + '/' + 
 var prazoVencidoCli = function(p){ var n = prazoLocal(p); return !!n && Date.now() > new Date(n).getTime(); };
 var localIso = function(d){ return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); };
 var LOJAS_NOMES = {1:'CAHU',2:'MURIBECA',3:'PONTE',4:'ATACAREJO',5:'PORTA LARGA',6:'JARDIM JORDÃO'};
-var LJ = function(n){ return +n === 10 ? 'CD' : 'E' + n; };   // rótulo de loja: E1..E6, CD (regra do Tiago, 22/09/26)
+var LJ = function(n){ return +n === 10 ? 'CD' : 'E' + n; };
+// busca de produto (Nova Cotação e comparativo): "%" expande o filtro — "bem te vi%800" acha quem tem "bem te vi" e, depois, "800",
+// nessa ordem, com qualquer coisa no meio (Tiago, 14/10). Sem "%", continua "contém" na descrição ou no código.
+function buscaOk(desc, cod, b){ var t = String(desc || '').toLowerCase(); if (b.indexOf('%') < 0) return t.indexOf(b) !== -1 || String(cod).indexOf(b) !== -1; var ps = b.split('%').map(function(x){ return x.trim(); }).filter(Boolean), pos = 0; for (var k = 0; k < ps.length; k++) { var i = t.indexOf(ps[k], pos); if (i < 0) return false; pos = i + ps[k].length; } return true; }   // rótulo de loja: E1..E6, CD (regra do Tiago, 22/09/26)
 // Vendedores da mesma empresa (Tiago, 23/09/26): cada um tem link, produtos, pedido e nota próprios, mas NÃO são concorrentes —
 // nas telas a empresa aparece uma vez e os vendedores embaixo dela.
 function empresaDe(f){ return (f && (f.empresa || String(f.nome || '').split(' · ')[0])) || ''; }
@@ -1226,7 +1229,7 @@ async function definirCaixa(cod, unid, v){
 function renderSugestao(){
   if (!SUG) return;
   var soQtd = $('#ns-so-qtd').checked, soTr = !!(($('#ns-so-tr') || {}).checked), b = ($('#ns-busca').value || '').trim().toLowerCase(), ordem = ($('#ns-ordem') || {}).value || 'az', fEst = ($('#ns-est') || {}).value || '', fCd = ($('#ns-cd') || {}).value || '';
-  var rows = SUG.itens.filter(function(i){ var qf = LOJA_F ? qtdLoja(i, LOJA_F) : qtdItem(i); if (soQtd && qf <= 0 && !SEL[i.cod]) return false; if (b && i.descricao.toLowerCase().indexOf(b) === -1 && String(i.cod).indexOf(b) === -1) return false; var estF = LOJA_F ? (((i.lojas_det || {})[LOJA_F] || {}).estoque || 0) : i.estoque; if (fEst === 'com' && !(estF > 0)) return false; if (fEst === 'sem' && estF > 0) return false; if (fCd === 'com' && !temCD(i.cod)) return false; if (fCd === 'sem' && temCD(i.cod)) return false; var trF = LOJA_F ? (((i.lojas_det || {})[LOJA_F] || {}).transito || 0) : (i.transito || 0); if (soTr && !(trF > 0)) return false; return true; });
+  var rows = SUG.itens.filter(function(i){ var qf = LOJA_F ? qtdLoja(i, LOJA_F) : qtdItem(i); if (soQtd && qf <= 0 && !SEL[i.cod]) return false; if (b && !buscaOk(i.descricao, i.cod, b)) return false; var estF = LOJA_F ? (((i.lojas_det || {})[LOJA_F] || {}).estoque || 0) : i.estoque; if (fEst === 'com' && !(estF > 0)) return false; if (fEst === 'sem' && estF > 0) return false; if (fCd === 'com' && !temCD(i.cod)) return false; if (fCd === 'sem' && temCD(i.cod)) return false; var trF = LOJA_F ? (((i.lojas_det || {})[LOJA_F] || {}).transito || 0) : (i.transito || 0); if (soTr && !(trF > 0)) return false; return true; });
   if (ordem === 'az' || ordem === 'za') { rows = rows.slice().sort(function(x, y){ return (x.descricao || '').localeCompare(y.descricao || '', 'pt-BR'); }); if (ordem === 'za') rows.reverse(); }
   // Tiago, 13/10: item da cotação (marcado, com quantidade) sem caixa padrão fica nos primeiros, em vermelho; quando a caixa é
   // preenchida a tabela é redesenhada e ele volta pro lugar dele na ordem. Depois, como no Radar: com quantidade / sem quantidade.
@@ -1778,7 +1781,7 @@ function renderComparativoItens(opts){
   // filtros com títulos grandes (Descrição do Produto · Fornecedor · Categoria · Empresa)
   var lojas = CUR.lojas || [];
   h += '<div class="cfilt clubfilt"><div class="clubgrid">' +
-    '<div><div class="ftit">Descrição do Produto</div><input type="text" class="fin" id="ci-busca" value="' + esc(CI_F.busca) + '" placeholder="Digite o nome" oninput="ciBuscaDigitando(this.value)"></div>' +
+    '<div><div class="ftit">Descrição do Produto</div><input type="text" class="fin" id="ci-busca" value="' + esc(CI_F.busca) + '" placeholder="Digite o nome (% expande: bem te vi%800)" title="Use % pra expandir: bem te vi%800 acha o que tem &quot;bem te vi&quot; e depois &quot;800&quot;" oninput="ciBuscaDigitando(this.value)"></div>' +
     '<div><div class="ftit">Fornecedor</div><select class="fin" onchange="ciSet(\'forn\',this.value)"><option value="">Selecione o fornecedor</option>' + F.map(function(f){ return '<option value="' + f.codFornec + '"' + (String(CI_F.forn) === String(f.codFornec) ? ' selected' : '') + '>' + esc(f.nome) + '</option>'; }).join('') + '</select></div>' +
     '<div><div class="ftit">Categoria</div><select class="fin" onchange="ciSet(\'cat\',this.value)"><option value="">Selecione a categoria</option>' + Object.keys(cats).sort().map(function(g){ return '<option value="' + esc(g) + '"' + (CI_F.cat === g ? ' selected' : '') + '>' + esc(g) + ' (' + cats[g] + ')</option>'; }).join('') + (Object.keys(cats).length ? '' : '<option disabled>sem categoria do ERP pra estes itens</option>') + '</select></div>' +
     '<div><div class="ftit">Empresa</div><select class="fin" onchange="ciSet(\'loja\',this.value)"><option value="">Selecione a empresa</option>' + lojas.map(function(l){ return '<option value="' + l + '"' + (String(CI_F.loja) === String(l) ? ' selected' : '') + '>' + LJ(l) + ' ' + esc(LOJAS_NOMES[l] || '') + '</option>'; }).join('') + '</select></div></div>' +
@@ -1798,7 +1801,7 @@ function renderComparativoItens(opts){
   var hHead = h;   // tudo até aqui é cabeçalho + filtros; o que vem depois é a lista (#ci-list), que a busca redesenha sozinha
   var b = CI_F.busca.trim().toLowerCase(), varMin = parseFloat(String(CI_F.var).replace(/\./g, '').replace(',', '.')) || 0, L = CI_F.loja;
   var itens = C.itens.filter(function(i){
-    if (b && i.descricao.toLowerCase().indexOf(b) === -1 && String(i.cod).indexOf(b) === -1) return false;
+    if (b && !buscaOk(i.descricao, i.cod, b)) return false;
     if (CI_F.forn && !i.precos[CI_F.forn]) return false;
     if (CI_F.cat && !(K[i.cod] && K[i.cod].grupo === CI_F.cat)) return false;
     if (L && !(i.lojas_qtd && i.lojas_qtd[L] > 0)) return false;
