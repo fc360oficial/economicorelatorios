@@ -741,8 +741,11 @@ function renderSep() {
     const un = s ? s.un : (pend != null ? pend : i.un); const dif = +(un - i.un).toFixed(3);
     const cls = sel ? 'sel' : !s ? '' : s.estado === 'ok' ? 'e-ok' : 'e-warn';
     const cb = s ? '✓' : sel ? '●' : '';
-    const q = `<b>${num(un)}</b><small>${s ? 'confirmado' : pend != null ? 'vai separar' : 'un pedido'}</small>${dif < 0 ? `<small class="falta">falta ${num(-dif)}</small>` : dif > 0 ? `<small class="sobra">sobra ${num(dif)}</small>` : ''}`;
-    return `<div class="it sep ${cls}" data-cod="${esc(i.cod)}" onclick="tocarSep(${JSON.stringify(i.cod)})"><div class="stripe"></div><span class="cb">${cb}</span><span class="ean4">${esc(i.ean4)}</span><div><div class="d">${esc(i.descricao)}</div><div class="c">pedido <b>${num(i.un)} un</b> · ${num(i.emb > 1 ? i.un / i.emb : i.un)} × ${num(i.emb)}${i.und ? ' ' + esc(i.und) : ''}${(s && s.lotes && s.lotes.length) ? ' · lote ' + esc(s.lotes.map(l => l.lote).join(', ')) : ''}</div></div><div class="q" onclick="event.stopPropagation();qtdSepModal(${JSON.stringify(i.cod)})">${q}</div></div>`; };
+    // quantidade na unidade do pedido (CX/FD/UN), como na folha de separação impressa; unidades totais em letra pequena
+    const f = fmtQSep(un, i);
+    const q = `<b>${num(f.n)}</b><small>${esc(f.l)}</small>${f.sub ? `<small>${esc(f.sub)}</small>` : ''}${dif < 0 ? `<small class="falta">falta ${num(-dif)} un</small>` : dif > 0 ? `<small class="sobra">sobra ${num(dif)} un</small>` : ''}`;
+    const fp = fmtQSep(i.un, i);
+    return `<div class="it sep ${cls}" data-cod="${esc(i.cod)}" onclick="tocarSep('${esc(i.cod)}')"><div class="stripe"></div><span class="cb">${cb}</span><span class="ean4">${esc(i.ean4)}</span><div><div class="d">${esc(i.descricao)}</div><div class="c">pedido <b>${num(fp.n)} ${esc(fp.l)}</b>${i.emb > 1 ? ' c/ ' + num(i.emb) + ' = ' + num(i.un) + ' un' : ''} · ${s ? 'confirmado' : pend != null ? 'vai separar' : sel ? 'bipe pra confirmar' : 'toque pra marcar'}${(s && s.lotes && s.lotes.length) ? ' · lote ' + esc(s.lotes.map(l => l.lote).join(', ')) : ''}</div></div><div class="q" onclick="event.stopPropagation();qtdSepModal('${esc(i.cod)}')">${q}</div></div>`; };
   const falta = ped.filter(i => !i.separado || i.separado.estado !== 'ok'), prontos = ped.filter(i => i.separado && i.separado.estado === 'ok');
   $('xAntesTit').hidden = true;
   $('xItens').innerHTML = falta.map(linha).join('') + (prontos.length ? '<div class="pendTit">Confirmados · ' + prontos.length + '</div>' : '') + prontos.map(linha).join('');
@@ -849,8 +852,8 @@ function tocarSep(cod) {
   clearTimeout(timerForaSep); $('xUltimo').innerHTML = '';
   if (it.separado) { // já confirmado: mudar a quantidade ou desmarcar
     abrirModal(`<div class="t">${esc(it.descricao)}</div><p style="font-size:12.5px;color:var(--ink2);margin:6px 0 10px">Confirmado com <b>${num(it.separado.un)} un</b> (pedido ${num(it.un)}).</p><div class="menuAc">
-      <button class="btn btn-primary" onclick="fecharModal();qtdSepModal(${JSON.stringify(cod)})">Mudar a quantidade</button>
-      <button class="btn btn-secondary" onclick="fecharModal();desmarcarSep(${JSON.stringify(cod)})">Desmarcar (bipar de novo)</button>
+      <button class="btn btn-primary" onclick="fecharModal();qtdSepModal('${esc(cod)}')">Mudar a quantidade</button>
+      <button class="btn btn-secondary" onclick="fecharModal();desmarcarSep('${esc(cod)}')">Desmarcar (bipar de novo)</button>
       <button class="btn btn-ghost" onclick="fecharModal();focarExp()">Voltar</button></div>`);
     return;
   }
@@ -858,23 +861,38 @@ function tocarSep(cod) {
   if (selSep) { toast('Marcado. Agora bipe o produto pra confirmar.'); const el = document.querySelector(`.it.sep[data-cod="${CSS.escape(cod)}"]`); if (el) el.scrollIntoView({ block: 'nearest' }); }
   focarExp();
 }
+// Quantidade na unidade do pedido, como na folha impressa (Tiago, 14/10: "hoje temos produtos em cx e em unidades"):
+// item com embalagem (emb > 1) mostra caixas/fardos + soltas e o total em un; item unitário só un.
+function fmtQSep(un, i) {
+  if (!(i.emb > 1)) return { n: un, l: i.und || 'UN', sub: '', cx: 0, so: un };
+  const cx = Math.floor(un / i.emb + 1e-9), so = +(un - cx * i.emb).toFixed(3);
+  return { n: cx, l: (i.und || 'CX') + (so ? ' + ' + num(so) + ' un' : ''), sub: '= ' + num(un) + ' un', cx, so };
+}
+const lerNum = id => { const t = String(($(id) || {}).value || '').trim().replace(/\./g, '').replace(',', '.'); return t === '' ? 0 : +t; };
 function qtdSepModal(cod) {
   if (!visaoExp || visaoExp.etapa !== 'separacao') return;
   const it = (visaoExp.pedido || []).find(i => i.cod === cod); if (!it) return;
   const atual = it.separado ? it.separado.un : (qtdSep[cod] != null ? qtdSep[cod] : it.un);
-  abrirModal(`<div class="t">${esc(it.descricao)}</div><p style="font-size:12.5px;color:var(--ink2);margin:6px 0 10px">Pedido: <b>${num(it.un)} un</b> (${num(it.emb > 1 ? it.un / it.emb : it.un)} × ${num(it.emb)}${it.und ? ' ' + esc(it.und) : ''}). Digite quantas unidades você separou de verdade.</p>
-    <div class="f1"><label for="qSep">Quantidade separada (un)</label><input id="qSep" type="text" inputmode="decimal" autocomplete="off" value="${esc(num(atual))}"></div>
-    <div class="tip" style="margin-top:6px">${it.separado ? 'Já confirmado: a nova quantidade grava na hora.' : 'Depois é só bipar o produto pra confirmar. 0 = não separou.'}</div>
-    <div class="row2" style="margin-top:10px"><button class="btn btn-secondary" onclick="fecharModal();focarExp()">Cancelar</button><button class="btn btn-primary" onclick="qtdSepOk(${JSON.stringify(cod)})">OK</button></div>`);
-  setTimeout(() => { const q = $('qSep'); if (q) { q.focus(); q.select(); q.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.keyCode === 13) { ev.preventDefault(); qtdSepOk(cod); } }); } }, 50);
+  const f = fmtQSep(atual, it), fp = fmtQSep(it.un, it), cx = it.emb > 1;
+  abrirModal(`<div class="t">${esc(it.descricao)}</div><p style="font-size:12.5px;color:var(--ink2);margin:6px 0 10px">Pedido: <b>${num(fp.n)} ${esc(fp.l)}</b>${cx ? ' c/ ' + num(it.emb) + ' = ' + num(it.un) + ' un' : ''}. Digite o que você separou de verdade.</p>
+    ${cx ? `<div class="f2"><div><label for="qCx">${esc(it.und || 'Caixas')} (c/ ${num(it.emb)})</label><input id="qCx" type="text" inputmode="decimal" autocomplete="off" value="${esc(num(f.cx))}"></div><div><label for="qSo">Unidades soltas</label><input id="qSo" type="text" inputmode="decimal" autocomplete="off" value="${esc(num(f.so))}"></div></div><div class="kv" style="font-size:13px;margin-top:6px"><span>Total</span><b id="qTot">—</b></div>`
+         : `<div class="f1"><label for="qSo">Unidades</label><input id="qSo" type="text" inputmode="decimal" autocomplete="off" value="${esc(num(f.so))}"></div>`}
+    <div class="tip" style="margin-top:6px">${it.separado ? 'Já confirmado: a nova quantidade grava na hora.' : 'Depois é só bipar o produto pra confirmar. Tudo zero = não separou.'}</div>
+    <div class="row2" style="margin-top:10px"><button class="btn btn-secondary" onclick="fecharModal();focarExp()">Cancelar</button><button class="btn btn-primary" onclick="qtdSepOk('${esc(cod)}')">OK</button></div>`);
+  setTimeout(() => {
+    const a = $('qCx'), b = $('qSo'); const tot = () => { const t = $('qTot'); if (!t) return; const u = (cx ? lerNum('qCx') * it.emb : 0) + lerNum('qSo'); const d = +(u - it.un).toFixed(3); t.innerHTML = num(u) + ' un' + (d === 0 ? ' <span style="color:var(--pos)">· bate</span>' : d < 0 ? ' <span style="color:var(--neg)">· falta ' + num(-d) + '</span>' : ' <span style="color:var(--amk)">· sobra ' + num(d) + '</span>'); };
+    for (const el of [a, b]) if (el) { el.addEventListener('input', tot); el.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.keyCode === 13) { ev.preventDefault(); if (el === a && b) { b.focus(); b.select(); } else qtdSepOk(cod); } }); }
+    tot(); const first = a || b; if (first) { first.focus(); first.select(); }
+  }, 50);
 }
 async function qtdSepOk(cod) {
-  const txt = String(($('qSep') || {}).value || '').trim().replace(/\./g, '').replace(',', '.'); const un = +txt;
-  if (txt === '' || isNaN(un) || un < 0) { toast('Digite a quantidade em unidades.', true); return; }
-  fecharModal();
   const it = (visaoExp.pedido || []).find(i => i.cod === cod); if (!it) return;
+  const cxN = it.emb > 1 ? lerNum('qCx') : 0, so = lerNum('qSo');
+  if (isNaN(cxN) || isNaN(so) || cxN < 0 || so < 0) { toast('Digite números.', true); return; }
+  const un = +(cxN * it.emb + so).toFixed(3);
+  fecharModal();
   if (it.separado) { await gravarSep(cod, un); return; }   // já confirmado: regrava
-  qtdSep[cod] = un; selSep = cod; renderSep(); toast('Quantidade anotada: ' + num(un) + ' un. Agora bipe o produto pra confirmar.'); focarExp();
+  qtdSep[cod] = un; selSep = cod; renderSep(); const f = fmtQSep(un, it); toast('Anotado: ' + num(f.n) + ' ' + f.l + '. Agora bipe o produto pra confirmar.'); focarExp();
 }
 async function confirmarSep(cod) {
   const it = (visaoExp.pedido || []).find(i => i.cod === cod); if (!it) return;
@@ -882,11 +900,12 @@ async function confirmarSep(cod) {
   await gravarSep(cod, un);
 }
 async function desmarcarSep(cod) { await gravarSep(cod, 0); }
-// grava em unidades: quant × emb quando divide certinho (pra mostrar "4 × 27"), senão unidades soltas
+// grava caixas × emb + soltas (item unitário: tudo em soltas com emb 1)
 async function gravarSep(cod, un) {
-  const it = (visaoExp.pedido || []).find(i => i.cod === cod); const emb = it && it.emb > 1 && Math.abs(un / it.emb - Math.round(un / it.emb)) < 1e-9 ? it.emb : 1;
+  const it = (visaoExp.pedido || []).find(i => i.cod === cod); const f = it ? fmtQSep(un, it) : { cx: 0, so: un };
+  const emb = it && it.emb > 1 ? it.emb : 1;
   try {
-    const r = await postExp('separar', { id: visaoExp.id, cod, quant: +(un / emb).toFixed(3), emb, bipeId: novoBipeId() });
+    const r = await postExp('separar', { id: visaoExp.id, cod, quant: emb > 1 ? f.cx : f.so, emb, soltas: emb > 1 ? f.so : 0, bipeId: novoBipeId() });
     if (r.visao) visaoExp = r.visao; if (selSep === cod) selSep = null; delete qtdSep[cod]; renderExp(); setNet(true);
     if (r.resultado === 'ok') { toast('Confirmado: bate com o pedido.'); if (navigator.vibrate) navigator.vibrate(60); }
     else if (r.resultado === 'limpo') toast('Desmarcado. Bipe de novo quando separar.');
@@ -913,7 +932,7 @@ function escolherTirar() {
   const todos = [...(visaoExp.fora || []).map(f => ({ ...f, fora: true })), ...(visaoExp.itens || [])];
   if (!todos.length) { toast('Nada bipado ainda.', true); return; }
   abrirModal(`<div class="t">Tirar da coletagem</div><p style="font-size:12.5px;color:var(--ink2)">Escolha o produto que você tirou do caminhão. Fica registrado pro fiscal do CD conferir o pallet.</p>` +
-    todos.map(i => `<button class="btn btn-secondary blk" style="justify-content:space-between;margin-bottom:6px" onclick="fecharModal();tirarItem(${JSON.stringify(i.cod)},${!!i.fora})"><span>${esc(i.descricao)}${i.fora ? ' · fora do pedido' : ''}</span><b>${num(i.un)} un</b></button>`).join('') +
+    todos.map(i => `<button class="btn btn-secondary blk" style="justify-content:space-between;margin-bottom:6px" onclick="fecharModal();tirarItem('${esc(i.cod)}',${!!i.fora})"><span>${esc(i.descricao)}${i.fora ? ' · fora do pedido' : ''}</span><b>${num(i.un)} un</b></button>`).join('') +
     `<button class="btn btn-ghost blk" onclick="fecharModal();focarExp()">Cancelar</button>`);
 }
 function tirarItem(cod, fora) {
@@ -923,7 +942,7 @@ function tirarItem(cod, fora) {
     <div class="f2"><div><label for="tQuant">Quantas (${esc(fora ? 'tudo = ' + num(it.quant) : 'bipadas: ' + num(it.quant))})</label><input id="tQuant" type="text" inputmode="decimal" autocomplete="off" value="${fora ? esc(num(it.quant)) : ''}"></div>
     <div><label for="tLote">Lote</label><select id="tLote"><option value="">todos</option>${lotes.map(l => `<option value="${esc(l.lote)}">${esc(l.lote)} (${num(l.quant)})</option>`).join('')}</select></div></div>
     <div class="f1"><label for="tMotivo">Motivo (opcional)</label><input id="tMotivo" type="text" autocomplete="off" placeholder="sobrou, caixa errada…"></div>
-    <div class="row2"><button class="btn btn-secondary" onclick="fecharModal();focarExp()">Cancelar</button><button class="btn btn-primary" onclick="confirmarTirar(${JSON.stringify(cod)})">Tirar</button></div>`);
+    <div class="row2"><button class="btn btn-secondary" onclick="fecharModal();focarExp()">Cancelar</button><button class="btn btn-primary" onclick="confirmarTirar('${esc(cod)}')">Tirar</button></div>`);
   setTimeout(() => { const q = $('tQuant'); if (q) { q.focus(); q.select(); } }, 50);
 }
 async function confirmarTirar(cod) {

@@ -141,6 +141,9 @@ test('Separação de Pedidos com lista: produto acha no pedido (caixa vinculada 
   assert.equal(r.resultado, 'ok'); assert.equal(r.item.un, 80, 'grava o total, não soma'); assert.deepEqual(r.item.lotes, [{ lote: 'L01', quant: 4, un: 80 }]); assert.equal(r.item.bipagens, 2);
   r = await E.separar(c.id, { cod: '999', quant: 1, emb: 1, operador: op });
   assert.equal(r.resultado, 'fora_do_pedido'); assert.equal(r.item, null); assert.equal(Object.keys(E.obter(c.id).etapas.separacao.fora).length, 0, 'fora do pedido não entra em lugar nenhum');
+  // caixas + soltas (Tiago, 14/10): 3 caixas de 20 + 20 soltas = 80
+  r = await E.separar(c.id, { cod: '7891150097605', quant: 3, emb: 20, soltas: 20, operador: op }); assert.equal(r.resultado, 'ok'); assert.equal(r.item.un, 80); assert.equal(r.item.soltas, 20);
+  assert.equal(E.visao(c.id, op).pedido[0].separado.soltas, 20);
   r = await E.separar(c.id, { cod: '789', quant: 5, emb: 1, operador: op }); assert.equal(r.resultado, 'ok');
   r = await E.separar(c.id, { cod: '789', quant: 0, operador: op }); assert.equal(r.resultado, 'limpo'); assert.equal(E.obter(c.id).etapas.separacao.itens['789'], undefined);
   r = await E.separar(c.id, { cod: '789', quant: 5, emb: 1, bipeId: 's1', operador: op }); r = await E.separar(c.id, { cod: '789', quant: 5, emb: 1, bipeId: 's1', operador: op }); assert.equal(r.repetido, true);
