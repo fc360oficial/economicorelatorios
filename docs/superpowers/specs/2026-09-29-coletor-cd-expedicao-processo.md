@@ -75,7 +75,38 @@ Mockup: https://claude.ai/artifact/X8GGMLQW8dSfQVGc6rHpcr · Escrita no `.252` c
 - **Retaguarda:** Centro Distribuição › Expedição (pendências "verificar pallet" com botão "Verifiquei o pallet", pedidos conferidos) e › Lotes no CD (entrou × saiu × saldo por lote, busca).
 - **Pendente de validação real:** primeiro pedido conferido no Autoid Q8; conferir com o Televendas se algum item é pedido em código diferente do que está na caixa.
 
-## Duas conferências na saída do CD (Tiago, 14/10/26) — SÓ loja 10, SÓ expedição. Status: IMPLEMENTADO 14/10/26 (mockup https://claude.ai/artifact/LnE2VJmn3C9m9egVGtrEoq)
+## Separação de Pedidos com lista + fiscal do CD + Carregamento de Caminhão (Tiago, 14/10/26 à noite). Status: IMPLEMENTADO 14/10/26
+
+Tiago, 14/10 à noite: "na primeira bipagem vamos chamar ela de **Separação de Pedidos** e a segunda bipagem vai ser **Carregamento de
+Caminhão**. Na separação quero que venha os produtos do pedido, descrição e quantidade, e no código de barra traga só os 4 últimos
+números do EAN. Ele seleciona o item e digita a quantidade; aí já tem essa conferência em cima do produto: se der erro ele já mostra que
+o produto não está no pedido. A segunda coletagem (carregamento) vai ser outra pessoa conferindo às cegas, que vai bater com a
+separação; se der divergência de separação e pedido, o fiscal do CD é que tem que liberar se continua ou não."
+
+**Muda em relação à seção abaixo (que continua valendo no resto):**
+
+| Etapa | Nome no CD | Cega? | Compara com | Fecha |
+|---|---|---|---|---|
+| 1 (`separacao`) | **Separação de Pedidos** | **não**: lista do pedido com descrição, quantidade e `…EAN4` | pedido do Televendas | 100 % → `separada`; com divergência → **fiscal do CD** |
+| 2 (`expedicao`) | **Carregamento de Caminhão** | sim | **o que a separação registrou** (não o pedido) | só 100 % |
+
+- **Separação:** o separador toca no produto (ou bipa, que só serve pra achar na lista) e **digita a quantidade separada**; grava o TOTAL do
+  item (`separar`, não soma; 0 limpa). Bipe de produto que não está no pedido mostra erro na hora ("Não está no pedido") e não grava nada
+  (`/api/expedicao-publico/produto`). Lote opcional nessa etapa. A lista traz os itens na ordem do pedido, os já certos vão pro fim.
+- **Terminei da separação com divergência:** o coletor mostra pedido × separado e o botão "Mandar pro fiscal do CD decidir" (motivo
+  opcional) → status `aguardando_fiscal`; o pedido fica travado na lista ("Aguardando fiscal"). Só a separação manda pro fiscal; se tiver
+  "fora do pedido", tira da coletagem antes.
+- **Fiscal do CD** (Centro de Distribuição › Expedição › "Separações aguardando o fiscal"): vê pedido × separado item a item, com motivo,
+  e decide: **Liberar pro carregamento assim** (separação fecha do jeito que está → `separada`; o carregamento bate com o pallet) ou
+  **Devolver pra separação** (→ `separando`, a observação aparece no coletor). Rotas `/api/expedicao/liberacoes` e `/api/expedicao/liberar`.
+  Não libera pallet vazio. Eventos `pedido_fiscal` / `liberacao_fiscal` na conferência; `c.liberacao` guarda a decisão.
+- **Carregamento:** referência = itens da separação com un > 0 (`referencia(c, et)`). Item do pedido que não foi separado, se bipado, é
+  "não está na separação" (fora). Lote obrigatório. Divergência de lote só quando a separação registrou lote naquele item.
+- **Trava** "quem separou não carrega" e o resto (PIN pessoal, tirar da coletagem, espelho no ERP com os itens do carregamento) não mudam.
+- Log do coletor: `exp_separar` (quantidade digitada), `exp_bipe` com `fora_do_pedido` na separação, `exp_fechar` com resultado `fiscal`,
+  `exp_fiscal` (decisão da retaguarda).
+
+## Duas conferências na saída do CD (Tiago, 14/10/26) — SÓ loja 10, SÓ expedição. Status: IMPLEMENTADO 14/10/26 (mockup https://claude.ai/artifact/LnE2VJmn3C9m9egVGtrEoq); separação deixou de ser cega na seção acima
 
 Como ficou: `lib/expedicao.js` (etapas `separacao`/`expedicao` dentro da mesma conferência, status separando → separada → expedindo → fechada,
 operadores com PIN pessoal em `data/expedicao/operadores.json`, trava `travaOperador`), `lib/expedicao-rotas.js` (sessão = token da loja `t` +
