@@ -868,7 +868,9 @@ function fmtQSep(un, i) {
   // QtdEmb 0 (leite de coco "14 FD c/12", Qtd 168), fica em unidades, como na folha; a conversão vai em letra pequena.
   const emCaixa = i.emCaixa != null ? i.emCaixa : (i.und && i.und !== 'UN' && i.emb > 1);
   if (!emCaixa || !(i.emb > 1)) {
-    const l = i.und && i.und !== 'UN' && !(i.emb > 1) ? i.und : 'UN';   // "10 CX" quando a caixa é a própria unidade do código
+    // "10 CX" (sem "= un") só quando o código do pedido é o da CAIXA (DUN-14, 14 dígitos) e o ERP não diz quantas unidades
+    // tem dentro: conta caixas. Código de unidade (EAN-13), mesmo com Und=CX (pilha, QtdEmb 1), é "10 UN" (Tiago, 14/10).
+    const l = i.und && i.und !== 'UN' && !(i.emb > 1) && String(i.cod || '').replace(/[^0-9]/g, '').length === 14 ? i.und : 'UN';
     const sub = l === 'UN' && i.und && i.und !== 'UN' && i.emb > 1 && Math.abs(un / i.emb - Math.round(un / i.emb)) < 1e-9 ? num(un / i.emb) + ' ' + i.und + ' c/ ' + num(i.emb) : '';
     return { n: un, l, sub, cx: 0, so: un, box: false };
   }
