@@ -32,8 +32,10 @@ test('abrirPedido: id exp-dia-10-nPedido, pedido em unidades (Qtd direto; emb do
   assert.equal(c.pedido['7891150097605'].emb, 20, 'emb lida do "c/20"'); assert.equal(c.pedido['17898403781295'].emb, 30);
   assert.equal(c.pedido['7891150097605'].emCaixa, false); assert.equal(c.pedido['17898403781295'].emCaixa, true); assert.equal(c.pedido['17898403781295'].qtd, 10, 'linha em FD: Qtd é caixas, un = 10 × 30');
   // linha em CX sem emb conhecida: fica em unidades; "4 FD c/16" (pedido 7222 real): 4 × 16 = 64 un
-  const c2 = E.abrirPedido({ nPedido: 7222, itens: [{ cod: '17898969564301', descricao: 'PAPEL HIG', qtd: '4.000', qtdEmb: '16.00', und: 'FD', conversao: '4 FD c/16' }, { cod: '1', descricao: 'X', qtd: 3, qtdEmb: 0, und: 'CX' }], operador: MARIA });
+  const c2 = E.abrirPedido({ nPedido: 7222, itens: [{ cod: '17898969564301', descricao: 'PAPEL HIG', qtd: '4.000', qtdEmb: '16.00', und: 'FD', conversao: '4 FD c/16' }, { cod: '1', descricao: 'X', qtd: 3, qtdEmb: 0, und: 'CX' },
+    { cod: '7898677310064', descricao: 'FREDAO LEITE DE COCO 500ML', qtd: '168.000', qtdEmb: '0.00', und: 'FD', conversao: '14 FD c/12' }], operador: MARIA });   // pedido 7218 real: FD mas Qtd em UNIDADES (QtdEmb 0)
   assert.equal(c2.pedido['17898969564301'].un, 64); assert.equal(c2.pedido['17898969564301'].qtd, 4); assert.equal(c2.pedido['1'].un, 3); assert.equal(c2.pedido['1'].emCaixa, false);
+  const coco = c2.pedido['7898677310064']; assert.equal(coco.un, 168, 'FD com QtdEmb 0: Qtd é unidades, não 168 fardos'); assert.equal(coco.emCaixa, false); assert.equal(coco.emb, 12, 'c/12 da conversão só informa');
   const v2 = E.visao(c2.id, MARIA); assert.equal(v2.pedido[0].qtd, 4); assert.equal(v2.pedido[0].emCaixa, true); assert.equal(v2.pedido[0].und, 'FD');
   assert.equal(E.abrirPedido({ nPedido: '6853', cliente: 'X', itens: [], operador: JOAO }).id, c.id, 'separando: qualquer um retoma');
   // Separação de Pedidos NÃO é cega (Tiago, 14/10 noite): a visão leva a lista do pedido, na ordem do pedido, com quantidade e 4 últimos do EAN
