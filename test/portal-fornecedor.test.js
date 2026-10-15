@@ -132,6 +132,16 @@ test('resumo do vendedor logado traz login e cotação aberta; estado() conta qu
   assert.equal(portal.estado().comLogin, 5, 'estado() conta os reais com PIN (Ana, Outra, Bruno, Clara, Dislub)');
 });
 
+test('fora do portal: vendedores das listas e cotações sem login, com empresa, lista e última cotação; quem tem PIN fica de fora', () => {
+  const d2 = { ...deps, lerCotForn: () => ({ 277: [{ codFornec: 1234, nome: 'SOMAR', vendedor: { nome: 'Ana Lima', whats: '81911111111', email: 'ana@somar.com.br' }, vendedores: [{ nome: 'Novo Vendedor', whats: '81 97777-6666', email: '' }] }] }) };
+  portal.init(d2);
+  const f = portal.foraDoPortal();
+  assert.ok(!f.some(x => x.whats === '81911111111'), 'Ana tem PIN: não aparece');
+  const novo = f.find(x => x.whats === '81977776666');
+  assert.ok(novo, 'vendedor da lista sem login aparece'); assert.equal(novo.nome, 'Novo Vendedor'); assert.deepEqual(novo.empresas, ['SOMAR']); assert.deepEqual(novo.listas, [277]); assert.equal(novo.sem_pin, false);
+  portal.init(deps);
+});
+
 test('login obrigatório pra responder cotação: ligado por padrão, convite e canais avisam, admin desliga e liga (persistido)', () => {
   assert.equal(portal.exigeLogin(), true);
   assert.equal(portal.resumoCanais(cot).exigeLogin, true);

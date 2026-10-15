@@ -26,7 +26,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--ink);min-height:10
 .btn:disabled{opacity:.45;cursor:not-allowed}
 .status{font-size:11px;color:var(--ink-3);margin-bottom:10px;display:flex;gap:14px;flex-wrap:wrap;align-items:center}
 .status b{color:var(--ink-2)}.status .err{color:var(--bad);font-weight:700}
-.kpis{display:grid;grid-template-columns:repeat(5,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+.kpis{display:grid;grid-template-columns:repeat(6,minmax(140px,1fr));gap:10px;margin-bottom:14px}
 @media (max-width:1100px){.kpis{grid-template-columns:repeat(3,minmax(150px,1fr))}}
 @media (max-width:700px){.kpis{grid-template-columns:repeat(2,minmax(140px,1fr))}}
 .kpi{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px}
@@ -97,6 +97,14 @@ td b{font-weight:700}
     </table></div>
   </div>
 
+  <div class="sec" id="sec-fora">
+    <div class="hd"><h2>Fora do portal</h2><span class="mini" id="f-cont"></span><span class="mini">vendedores com WhatsApp nas listas e cotações que ainda não criaram login</span><input type="search" id="f-busca" placeholder="buscar vendedor, WhatsApp, fornecedor…" oninput="renderFora()"></div>
+    <div class="tw"><table>
+      <thead><tr><th>Vendedor</th><th>WhatsApp</th><th>Fornecedor(es)</th><th>Listas</th><th>Última cotação</th><th>Ações</th></tr></thead>
+      <tbody id="f-tbody"></tbody>
+    </table></div>
+  </div>
+
   <div class="sec" id="sec-avisos">
     <div class="hd"><h2>Últimos avisos mandados</h2><span class="mini" id="a-cont"></span><span class="chip hid" id="a-chip"></span></div>
     <div class="tw"><table>
@@ -124,6 +132,7 @@ function vFiltroOk(v) { if (V_F === 'sempin') return !v.tem_pin; if (V_F === 'co
 function aFiltroOk(a) { if (A_F === 'hoje') return String(a.em).slice(0, 10) === new Date().toISOString().slice(0, 10); return true; }
 function kpiClick(k) {
   if (k === 'servidor') { toast(E.webpush ? 'Servidor de avisos OK: web-push carregado' + (E.vapid ? ', chave VAPID gerada' : '') + '. Aparelhos inscritos: ' + E.dispositivos + '.' : 'Servidor de avisos parado: ' + (E.erro || 'web-push não carregou')); return; }
+  if (k === 'fora') { document.getElementById('sec-fora').scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
   if (k === 'hoje') { A_F = A_F === 'hoje' ? '' : 'hoje'; render(); document.getElementById('sec-avisos').scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
   V_F = k === 'todos' ? '' : (V_F === k ? '' : k); render(); document.getElementById('sec-vend').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -145,11 +154,30 @@ function render() {
     card('comapp', comApp ? 'ok' : '', 'Com avisos ativos', comApp + '<small>de ' + reais.length + '</small>', 'têm pelo menos um aparelho inscrito; recebem cotação sem WhatsApp' + (semApp ? ' · <a href="#" onclick="event.stopPropagation();kpiClick(\'semapp\');return false">' + semApp + ' sem avisos</a>' : ''), 'Clique: só quem tem avisos ativos') +
     card('comapp', '', 'Aparelhos', E.dispositivos, 'celulares e PCs inscritos pra receber aviso', 'Clique: vendedores com aparelho inscrito (a coluna Aparelhos mostra cada um)') +
     card('hoje', '', 'Avisos hoje', avHoje, 'nova cotação, lembrete de prazo e pedido', 'Clique: só os avisos de hoje, na tabela de baixo') +
-    card('servidor', E.webpush ? 'ok' : 'bad', 'Servidor de avisos', '<span style="font-size:16px">' + (E.webpush ? 'OK' : 'parado') + '</span>', (E.webpush ? 'web-push carregado, chave VAPID pronta' : esc(E.erro || '')), 'Clique: detalhes do servidor de avisos');
+    card('servidor', E.webpush ? 'ok' : 'bad', 'Servidor de avisos', '<span style="font-size:16px">' + (E.webpush ? 'OK' : 'parado') + '</span>', (E.webpush ? 'web-push carregado, chave VAPID pronta' : esc(E.erro || '')), 'Clique: detalhes do servidor de avisos') +
+    card('fora', (E.fora || []).length ? 'bad' : '', 'Fora do portal', (E.fora || []).length, 'vendedores das listas e cotações que ainda não criaram login — convide pelo WhatsApp', 'Clique: lista de quem ainda não está no portal, com botão pra convidar');
   $('#ajuda').style.display = reais.length ? 'none' : 'block';
   $('#cfg-exige').checked = !!E.exigeLogin;
   $('#cfg-txt').textContent = E.exigeLogin ? 'ligado: quem abre o link da cotação sem login vê "crie seu login" por cima e só digita preço depois de entrar (a mensagem do WhatsApp já avisa)' : 'desligado: o painel "crie seu login" aparece, mas o vendedor pode tocar em "Agora não, só cotar"';
-  renderVendedores(); renderAvisos();
+  renderVendedores(); renderAvisos(); renderFora();
+}
+// quem ainda não está no portal (vendedores das listas e cotações sem login): convite direto no WhatsApp (Tiago, 15/10)
+function renderFora() {
+  var L = E.fora || [], b = ($('#f-busca').value || '').trim().toLowerCase();
+  var vis = L.filter(function (v) { if (!b) return true; return ((v.nome || '') + ' ' + v.whats + ' ' + fone(v.whats) + ' ' + (v.email || '') + ' ' + v.empresas.join(' ')).toLowerCase().indexOf(b) >= 0; });
+  $('#f-cont').textContent = L.length ? vis.length + ' de ' + L.length : '';
+  if (!L.length) { $('#f-tbody').innerHTML = '<tr><td colspan="6" class="empty">Todo vendedor com WhatsApp nas listas e cotações já está no portal.</td></tr>'; return; }
+  if (!vis.length) { $('#f-tbody').innerHTML = '<tr><td colspan="6" class="empty">Nenhum vendedor com "' + esc(b) + '".</td></tr>'; return; }
+  $('#f-tbody').innerHTML = vis.map(function (v) {
+    var ult = v.cotacoes[0];
+    return '<tr><td><b>' + esc(v.nome || '—') + '</b>' + (v.sem_pin ? ' <span class="pill bad" title="Entrou pelo &quot;Sou eu&quot; antigo e ainda não criou o PIN: o portal pede na próxima abertura">sem PIN</span>' : '') + (v.email ? '<br><span class="mini">' + esc(v.email) + '</span>' : '') + '</td>' +
+      '<td>' + esc(fone(v.whats)) + '</td>' +
+      '<td>' + (v.empresas.map(esc).join('<br>') || '—') + '</td>' +
+      '<td>' + (v.listas.length ? v.listas.map(function (l) { return '#' + l; }).join(', ') : '<span class="mini">—</span>') + '</td>' +
+      '<td>' + (ult ? '<a href="/cotacao.html" title="Abra no Acompanhamento">#' + ult.id + '</a> ' + esc(ult.nome || '') + ' <span class="mini">(' + esc(ult.status) + ')</span>' : '<span class="mini">—</span>') + '</td>' +
+      '<td><div class="acoes"><a class="btn btn-sm" target="_blank" rel="noopener" href="https://wa.me/55' + esc(v.whats) + '?text=' + encodeURIComponent(conviteMsg(v.nome)) + '" title="Abre o WhatsApp dele com o convite pronto; você só confere e envia">💬 Convidar no WhatsApp</a>' +
+      '<button class="btn btn-sm" onclick="copiar(conviteMsg(' + JSON.stringify(v.nome || '') + '), \'Convite copiado\')" title="Copia a mensagem do convite com o nome dele">📋 Copiar convite</button></div></td></tr>';
+  }).join('');
 }
 function renderVendedores() {
   var vs = (E.vendedores_lista || []).filter(vFiltroOk), b = ($('#v-busca').value || '').trim().toLowerCase();
@@ -189,10 +217,8 @@ function renderAvisos() {
   }).join('');
 }
 // convite genérico: mensagem pronta com o link do portal (o vendedor cria o login lá)
-function convite() {
-  var msg = 'Olá! Aqui é da Econômico Supermercados (Rede Cahu). Agora nossas cotações chegam direto no seu celular pelo Portal do Fornecedor. Abra o link, crie seu login com o seu WhatsApp (o mesmo que usamos pra te mandar as cotações) e um PIN de 6 números, e ative os avisos: ' + LINK_PORTAL;
-  copiar(msg, 'Convite copiado. Cole no WhatsApp do vendedor.');
-}
+function conviteMsg(nome) { return 'Olá' + (nome ? ', ' + String(nome).split(' ')[0] : '') + '! Aqui é da Econômico Supermercados (Rede Cahu). Agora nossas cotações chegam direto no seu celular pelo Portal do Fornecedor. Abra o link, crie seu login com o seu WhatsApp (o mesmo que usamos pra te mandar as cotações) e um PIN de 6 números, e ative os avisos: ' + LINK_PORTAL; }
+function convite() { copiar(conviteMsg(''), 'Convite copiado. Cole no WhatsApp do vendedor.'); }
 async function redefinirPin(id) {
   var v = (E.vendedores_lista || []).find(function (x) { return x.id === id; }); if (!v) return;
   var quem = v.nome || fone(v.whats);
