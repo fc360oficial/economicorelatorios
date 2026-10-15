@@ -2253,7 +2253,7 @@ async function ppCarregarEstoque(refresh){
   if (!CUR) return; var k = CUR.id; if (PP_EST[k] && !refresh) return;
   PP_EST[k] = { carregando: true };
   try { var r = await api('/api/cotacoes/' + k + '/estoque' + (refresh ? '?refresh=1' : '')); PP_EST[k] = r; } catch(e) { PP_EST[k] = { erro: e.message, itens: {} }; }
-  if (PP_DET != null && CI_ABA === 'prepedidos') renderComparativoItens();
+  if (PP_DET != null && CI_ABA === 'prepedidos') { renderComparativoItens(); ppAbaterTransito(); }
 }
 function ppEstItem(i){ var E = PP_EST[CUR.id]; return E && E.itens ? E.itens[i.cod] : null; }
 function ppVoltar(){ ppAssentar(); PP_DET = null; renderComparativoItens(); }
@@ -2283,6 +2283,36 @@ function ppVoltarZero(cod){   // era ppVoltar e passava por cima do "← Voltar"
   var lq = {}; lq[cod] = {}; (P.lojas || []).forEach(function(l){ if (i.lojas_outros && i.lojas_outros[l] != null) return; lq[cod][l] = ppQtd(i, l); });
   var z = {}; z[cod] = null; clearTimeout(PP_T);
   ppSalvar({ lojas_qtd: lq, zerados: z }, false);
+}
+// Abate o trânsito de HOJE na quantidade (Tiago, 15/10: "os produtos estão em trânsito e mesmo assim está tendo sugestão, não
+// pode; tem que abater"). Pra cada loja com algo a caminho, a quantidade cai pro que o Radar sugere HOJE (que já desconta
+// estoque + trânsito, sem contar duas vezes) ou, se o item não está na base do Radar, pra quantidade − trânsito. Nunca sobe,
+// arredonda pra caixa, roda 1x por item/loja (fica gravado em abatidos) e não mexe em loja que o(a) comprador(a) zerou.
+async function ppAbaterTransito(){
+  if (!CUR) return; var P = ppData(), p = P.fornecedores.find(function(x){ return x.codFornec === PP_DET; }); if (!p || p.status === 'realizado') return;
+  var pe = PP_EST[CUR.id]; if (!pe || pe.carregando || !pe.itens) return;
+  var lq = {}, ab = {}, n = 0;
+  ppListaComFica(p).forEach(function(i){
+    if (i._fora) return; var E = pe.itens[i.cod]; if (!E || !E.lojas) return;
+    (P.lojas || []).forEach(function(ln){
+      if (i.lojas_outros && i.lojas_outros[ln] != null) return; if (i.abatido && i.abatido[ln]) return; if (i.zerado && i.zerado.antes) return;
+      var L = E.lojas[ln]; if (!L || !(L.transito > 0)) return;
+      var q = ppQtd(i, ln); if (!(q > 0)) return; var emb = i.emb >= 1 ? i.emb : 1;
+      var sug = E.sug_lojas ? +(E.sug_lojas[ln] || 0) : null;
+      var nova = sug != null ? Math.min(q, sug) : Math.max(0, q - L.transito);
+      if (nova > 0 && q % emb === 0) nova = Math.ceil(nova / emb) * emb; if (nova > q) nova = q;
+      if (nova >= q) return;
+      PP_EDIT[i.cod] = PP_EDIT[i.cod] || {}; PP_EDIT[i.cod][ln] = nova; n++;
+      ab[i.cod] = ab[i.cod] || {}; ab[i.cod][ln] = { de: q, para: nova, transito: L.transito, sug: sug };
+      lq[i.cod] = lq[i.cod] || {};
+    });
+    if (lq[i.cod]) (P.lojas || []).forEach(function(l){ if (i.lojas_outros && i.lojas_outros[l] != null) return; lq[i.cod][l] = ppQtd(i, l); });
+  });
+  if (!n) return;
+  clearTimeout(PP_T);
+  await ppSalvar({ lojas_qtd: lq, abatidos: ab }, true);
+  toastMsg(n + ' quantidade(s) reduzida(s) pelo trânsito de hoje — ficam verdes, com a de antes riscada');
+  renderComparativoItens();
 }
 function ppQtd(i, ln){ var e = PP_EDIT[i.cod]; return e && e[ln] != null ? e[ln] : (i.lojas_qtd[ln] || 0); }
 // Tiago, 13/10: embaixo do total da loja, quanto falta pro faturamento mínimo (negativo, vermelho) ou quanto passa dele (azul) — igual ao detalhe do Radar; o vendedor fatura por loja (CNPJ)
@@ -2354,7 +2384,7 @@ function renderPrePedidoDet(){
         var nn = (!real && !i._fora) ? ppSemNec(ln, q, E, L) : null;
         if (nn) est += '<div class="pp-est" style="color:var(--neg);font-weight:800;white-space:normal;max-width:110px;line-height:1.25" title="Pelo estoque, trânsito e giro de AGORA o Radar não sugere nada pra esta loja: ' + esc(nn) + '. A quantidade veio do dia em que a cotação foi criada (loja zerada = 1 caixa).">⚠ não precisa</div>';
         var qo = i.lojas_qtd_orig ? (i.lojas_qtd_orig[ln] || 0) : null, mud = qo != null && (q || 0) !== qo;   // mudou em relação à cotação: verde + antes riscado
-        return '<td class="c st' + (L && L.ativa === false ? ' inat' : '') + '"><div class="st-in"><div class="st-w">' + (real || i._fora ? '<b' + (mud ? ' class="mud"' : '') + '>' + (q || '') + '</b>' : '<input class="q' + (PP_EDIT[i.cod] && PP_EDIT[i.cod][ln] != null ? ' ed' : '') + (nn ? ' nn' : '') + (mud ? ' mud' : '') + '" data-cod="' + esc(i.cod) + '" data-ln="' + ln + '" data-orig="' + (qo == null ? '' : qo) + '" inputmode="numeric" value="' + (q || '') + '" placeholder=""' + (L && L.ativa === false ? ' disabled title="Desativado nesta loja na lista de compra do ERP (Ativar/Desativar Itens da Lista): ative no ERP pra digitar quantidade"' : (nn ? ' title="' + esc(nn) + '"' : '')) + ' onchange="ppSetQtd(\'' + i.cod + '\',' + ln + ',this.value)">') + ppGiroLado(i.cod, ln) + '</div>' + (mud ? '<div class="pp-ant" title="quantidade que veio da cotação: ' + fmtN(qo) + '"><s>' + fmtN(qo) + '</s></div>' : '') + est + ppGiroSg(i.cod, ln) + '</div></td>'; }).join('') + '</tr>';
+        return '<td class="c st' + (L && L.ativa === false ? ' inat' : '') + '"><div class="st-in"><div class="st-w">' + (real || i._fora ? '<b' + (mud ? ' class="mud"' : '') + '>' + (q || '') + '</b>' : '<input class="q' + (PP_EDIT[i.cod] && PP_EDIT[i.cod][ln] != null ? ' ed' : '') + (nn ? ' nn' : '') + (mud ? ' mud' : '') + '" data-cod="' + esc(i.cod) + '" data-ln="' + ln + '" data-orig="' + (qo == null ? '' : qo) + '" inputmode="numeric" value="' + (q || '') + '" placeholder=""' + (L && L.ativa === false ? ' disabled title="Desativado nesta loja na lista de compra do ERP (Ativar/Desativar Itens da Lista): ative no ERP pra digitar quantidade"' : (nn ? ' title="' + esc(nn) + '"' : '')) + ' onchange="ppSetQtd(\'' + i.cod + '\',' + ln + ',this.value)">') + ppGiroLado(i.cod, ln) + '</div>' + (mud ? '<div class="pp-ant" title="quantidade que veio da cotação: ' + fmtN(qo) + (i.abatido && i.abatido[ln] ? ' · reduzida pelo trânsito de hoje (' + fmtN(i.abatido[ln].transito, 0) + ' a caminho' + (i.abatido[ln].sug != null ? ', Radar sugere ' + fmtN(i.abatido[ln].sug, 0) + ' hoje' : '') + ')' : '') + '"><s>' + fmtN(qo) + '</s></div>' : '') + est + ppGiroSg(i.cod, ln) + '</div></td>'; }).join('') + '</tr>';
     if (!real && PP_FORN_OPEN[i.cod]) h += '<tr class="fx"><td colspan="' + (7 + lojas.length) + '">' + ppFornInline(i.cod, qt) + '</td></tr>';
   });
   h += '</tbody></table></div><div class="mini" style="margin-top:8px">Quantidade em unidades por loja. Embaixo de cada caixa: <b>est</b> = estoque atual da loja no ERP · <b>trâns</b> = em trânsito (sugestão/pedido aberto ainda não recebido). A caixa é a embalagem do item; o Radar fecha caixa no pedido. Alterações são salvas na hora e valem só pra este fornecedor.</div>';
