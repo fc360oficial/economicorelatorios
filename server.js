@@ -9096,10 +9096,15 @@ app.get('/api/cotacoes/:id/estoque', async (req, res) => {
     const c = cotacao.obter(id); if (!c) return res.status(404).json({ error: 'cotação não encontrada' });
     const cache = _cotEstoque[id]; if (cache && Date.now() - cache.em < 5 * 60 * 1000 && req.query.refresh !== '1') return res.json(cache.dados);
     const cods = c.itens.map(i => i.cod), out = {};
-    for (const cod of cods) out[cod] = { estoque: 0, transito: 0, lojas: {} };
+    for (const cod of cods) out[cod] = { estoque: 0, transito: 0, estoque_cd: 0, lojas: {} };
     for (const ln of [1, 2, 3, 4, 5, 6]) for (const ch of radarPedidos.chunk(cods, 2000)) {
       const rows = await q(`SELECT CodigoBarra cod, Qtd FROM central.estoquen${ln} WHERE CodigoBarra IN (${ch.map(() => '?').join(',')})`, ch).catch(() => []);
       for (const r of rows) { const o = out[r.cod]; if (!o) continue; const v = radarPedidos.num(r.Qtd); o.lojas[ln] = { estoque: v, transito: 0 }; o.estoque += v; }
+    }
+    // estoque do CD (loja 10): sinal "tem no CD" nos pré-pedidos (Tiago, 15/10: "sinalizar que algum item que o vendedor ganhou tem produto em trânsito ou tem no CD")
+    for (const ch of radarPedidos.chunk(cods, 2000)) {
+      const rows = await q(`SELECT CodigoBarra cod, Qtd FROM central.estoquen10 WHERE CodigoBarra IN (${ch.map(() => '?').join(',')})`, ch).catch(() => []);
+      for (const r of rows) { const o = out[r.cod]; if (!o) continue; o.estoque_cd = +radarPedidos.num(r.Qtd).toFixed(2); }
     }
     try {
       // ativo por loja na lista de compra do ERP (c_cotacao_lista_itens.l1..l6 = "Ativar/Desativar Itens da Lista").
