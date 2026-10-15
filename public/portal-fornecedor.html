@@ -124,7 +124,12 @@ var fone = function (d) { d = String(d || '').replace(/\D/g, ''); if (d.length =
 var haTxt = function (s) { if (!s) return ''; var m = Math.round((Date.now() - new Date(s)) / 60000); if (m < 1) return 'agora'; if (m < 60) return 'há ' + m + ' min'; var h = Math.floor(m / 60); if (h < 48) return 'há ' + h + ' h'; return 'há ' + Math.floor(h / 24) + ' dias'; };
 function toast(m) { var t = $('#toast'); t.textContent = m; t.classList.add('on'); clearTimeout(window._tt); window._tt = setTimeout(function () { t.classList.remove('on'); }, 4000); }
 async function api(url, body) { var r = await fetch(url, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : { cache: 'no-store' }); var j = {}; try { j = await r.json(); } catch (e) {} if (!r.ok || j.error) throw new Error(j.error || ('HTTP ' + r.status)); return j; }
-async function copiar(txt, okMsg) { try { await navigator.clipboard.writeText(txt); toast(okMsg); } catch (e) { prompt('Copie:', txt); } }
+// copia pra área de transferência: clipboard API só existe em https; pelo IP da rede (http) usa textarea + execCommand; se nada der, prompt
+async function copiar(txt, okMsg) {
+  if (navigator.clipboard && window.isSecureContext) { try { await navigator.clipboard.writeText(txt); toast(okMsg); return; } catch (e) { /* tenta o jeito antigo */ } }
+  try { var ta = document.createElement('textarea'); ta.value = txt; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0'; document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, txt.length); var ok = document.execCommand('copy'); document.body.removeChild(ta); if (ok) { toast(okMsg); return; } } catch (e) { /* cai no prompt */ }
+  prompt('Não consegui copiar sozinho. Copie daqui (Ctrl+C):', txt);
+}
 var E = null;
 // filtros ligados pelos cartões (Tiago, 15/10): V_F na tabela de vendedores ('' todos · sempin · comapp · semapp), A_F nos avisos ('' · hoje)
 var V_F = '', A_F = '';
