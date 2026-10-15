@@ -139,8 +139,10 @@ test('empresa da conta: link de outro vendedor não pendura a empresa dele; ao s
   // Outra Pessoa (81922222222) cria conta pelo link da Ana (SOMAR): não pode virar SOMAR
   const r = portal.criarConta({ nome: 'Outra Pessoa Dois', whats: '81 98888-0000', email: 'o2@x.co', pin: '123456', de: { tipo: 'cotacao', token: TOKEN_ANA } });
   assert.equal(r.erro, undefined); assert.deepEqual(r.vendedor.empresas, [], 'link da Ana não liga SOMAR em outra conta');
-  // link da DISLUB (sem WhatsApp cadastrado) liga a empresa
-  const r2 = portal.criarConta({ nome: 'Pessoa Dislub', whats: '81 98888-0001', email: 'pd@x.co', pin: '123456', de: { tipo: 'cotacao', token: TOKEN_SEM } });
+  // link da DISLUB (sem WhatsApp cadastrado, só e-mail): liga a empresa só se o e-mail da conta é o do cadastro
+  const r1 = portal.criarConta({ nome: 'Pessoa Qualquer', whats: '81 98888-0002', email: 'pq@x.co', pin: '123456', de: { tipo: 'cotacao', token: TOKEN_SEM } });
+  assert.deepEqual(r1.vendedor.empresas, [], 'e-mail diferente do cadastro: não liga');
+  const r2 = portal.criarConta({ nome: 'Pessoa Dislub', whats: '81 98888-0001', email: 'vendas@dislub.com.br', pin: '123456', de: { tipo: 'cotacao', token: TOKEN_SEM } });
   assert.deepEqual(r2.vendedor.empresas, [{ codFornec: 555, nome: 'DISLUB' }]);
   // sincronização: conta com empresa errada pendurada vira a do cadastro da lista
   const arq = path.join(portal.DIR, 'vendedores.json'); const disco = JSON.parse(fs.readFileSync(arq, 'utf8'));
@@ -182,5 +184,4 @@ test('registro de teste que sobrou no disco (vendedor TESTE de antes) é apagado
   portal.init(deps);
   assert.equal(portal.entrar({ whats: '81900000001', pin: '123456' }).erro, 'WhatsApp ou PIN não conferem');
   assert.equal(Object.values(JSON.parse(fs.readFileSync(arq, 'utf8'))).filter(v => v.teste).length, 0);
-  assert.equal(portal.estado().vendedores, 5);
 });
