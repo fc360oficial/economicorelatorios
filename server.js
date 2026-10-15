@@ -9111,9 +9111,33 @@ app.get('/api/cotacoes/:id/estoque', async (req, res) => {
       }
       const det = c.lista ? radarPedidos.itensLista(c.lista, radarPedidos.TETO_PADRAO, 0, undefined, false) : null;
       if (det) for (const it of det.itens) { const o = out[it.cod]; if (!o) continue; o.venda_dia = it.venda_dia; o.cobertura_dias = it.cobertura_dias; o.sug_lojas = it.lojas_qtd || {}; o.sug_qtd = it.qtd || 0; o.sug_flag = it.flag || null; o.alvo_dias = it.alvo_dias != null ? it.alvo_dias : null;   // sugestão do Radar HOJE por loja → "⚠ não precisa" no pré-pedido (Tiago, 05/10)
-        for (const [ln, d] of Object.entries(it.lojas_det || {})) { const L = o.lojas[ln] = o.lojas[ln] || { estoque: 0, transito: 0 }; L.transito = +d.transito || 0; L.venda_dia = d.venda_dia; L.cobertura_dias = d.cobertura_dias; o.transito += +d.transito || 0; } }
+        for (const [ln, d] of Object.entries(it.lojas_det || {})) { const L = o.lojas[ln] = o.lojas[ln] || { estoque: 0, transito: 0 }; L.transito = +d.transito || 0; L.venda_dia = d.venda_dia; L.cobertura_dias = d.cobertura_dias; o.transito += +d.transito || 0;
+          for (const t of (d.transito_det || [])) (L.pedidos = L.pedidos || []).push({ origem: 'erp', pedido: t.sugestao, data: t.data || null, und: +t.und || 0, nfe: (t.nfe || []).map(n => ({ nNota: n.nNota, data: n.data })) }); } }
     } catch (e) { console.error('[COTACAO] transito:', e.message); }
-    for (const o of Object.values(out)) { o.estoque = +o.estoque.toFixed(2); o.transito = +o.transito.toFixed(2); }
+    // Regra de trânsito (Tiago, 15/10/26): "se tem algum pedido feito AQUI ou no ERP e não chegou ainda, sinalizar e pôr a data
+    // do pedido; quando o XML já está no radar, sinalizar a nota fiscal". Pedido daqui = Pedidos de Compra aprovado, loja sem
+    // chegada marcada e sem entrada no ERP; a NF-e dele é o XML já casado na conferência (p.xml.lojas[ln].notas).
+    try {
+      for (const p of pedidosFornec.listar()) {
+        if (p.teste || p.status !== 'aprovado') continue;
+        for (const it of p.itens || []) {
+          const o = out[String(it.cod)]; if (!o) continue;
+          for (const [ln, qn] of Object.entries(it.lojas_qtd || {})) {
+            if (!(qn > 0)) continue;
+            const x = p.xml && p.xml.lojas && p.xml.lojas[ln], et = p.entrega && p.entrega.lojas && p.entrega.lojas[ln];
+            if ((x && x.chegou) || (et && et.recebidoEm)) continue;   // já chegou / já deu entrada: não é trânsito
+            const L = o.lojas[ln] = o.lojas[ln] || { estoque: 0, transito: 0 };
+            L.transito = +((L.transito || 0) + qn).toFixed(2); o.transito += qn;
+            (L.pedidos = L.pedidos || []).push({ origem: 'aqui', pedido: p.id, data: String(p.aprovadoEm || p.enviadoEm || p.criadoEm || '').slice(0, 10) || null, und: qn, fornecedor: p.fornecedor || null, nfe: (x && x.notas ? x.notas : []).map(n => ({ nNota: n.nNota, data: n.data })) });
+          }
+        }
+      }
+    } catch (e) { console.error('[COTACAO] pedidos daqui:', e.message); }
+    for (const o of Object.values(out)) {
+      o.estoque = +o.estoque.toFixed(2); o.transito = +o.transito.toFixed(2);
+      o.pedidos = []; for (const [ln, L] of Object.entries(o.lojas)) for (const t of (L.pedidos || [])) o.pedidos.push({ ln: +ln, ...t });
+      o.tem_pedido = o.pedidos.length > 0; o.tem_nfe = o.pedidos.some(t => (t.nfe || []).length > 0);
+    }
     const dados = { itens: out, em: new Date().toISOString() };
     _cotEstoque[id] = { em: Date.now(), dados };
     res.json(dados);

@@ -439,6 +439,7 @@ table.ppg .vlr.eq{background:var(--wsh);color:var(--ink)}
 .pp-est .tr{color:var(--inf);font-weight:700}
 .pp-est .zero{color:var(--neg);font-weight:800}
 .tr-pill{display:inline-block;margin-left:4px;padding:1px 7px;border-radius:99px;background:#E9EEF6;color:#2E5E8C;font-size:10px;font-weight:800;white-space:nowrap;vertical-align:middle}
+.tr-pill.nfe{background:#E7F5EC;color:#137A48}
 .vbtn{background:var(--ink);color:var(--am);border-radius:8px}
 .obs-btn{background:var(--amk)}
 .mon .st{color:var(--inf)}
@@ -1738,7 +1739,7 @@ function analiseItem(i){
 }
 // ───────── COMPARATIVO POR ITEM (estilo Club da Cotação, pedido do Tiago 15/09): cada item num bloco, dados da
 // última compra do ERP e, embaixo, cada vendedor que digitou aquele item; checkbox marca o vencedor
-var VISTA = localStorage.getItem('cot-vista') || 'itens', ULT = {}, CI_F = {busca:'', forn:'', loja:'', cat:'', soObs:false, soSemPreco:false, soComPreco:true, soManual:false, soComprados:false, soNaoComprados:false, soNovos:false, soTransito:false, varTipo:'pct', var:'', varOn:false}, CI_ABA = 'produtos', CI_REC = {}, CATS = {};
+var VISTA = localStorage.getItem('cot-vista') || 'itens', ULT = {}, CI_F = {busca:'', forn:'', loja:'', cat:'', soObs:false, soSemPreco:false, soComPreco:true, soManual:false, soComprados:false, soNaoComprados:false, soNovos:false, soTransito:false, trModo:'qualquer', varTipo:'pct', var:'', varOn:false}, CI_ABA = 'produtos', CI_REC = {}, CATS = {};
 function setVista(v){ VISTA = v; localStorage.setItem('cot-vista', v); renderComparativo(); }
 function renderComparativo(){ if (VISTA === 'matriz') return renderComparativoMatriz(); return renderComparativoItens(); }
 async function carregarUltimas(){
@@ -1759,7 +1760,15 @@ function ciRecTodos(v){ CUR.comparativo.itens.forEach(function(i){ CI_REC[i.cod]
 var CI_BUSCA_T = null;
 function ciBuscaDigitando(v){ CI_F.busca = v; CI_LIM = 100; clearTimeout(CI_BUSCA_T); CI_BUSCA_T = setTimeout(function(){ renderComparativoItens({ soLista: true }); }, 250); }
 // selo "🚚 trâns N" no item do comparativo, com o trânsito por loja no balão (dado do /estoque, o mesmo do pré-pedido)
-function trPill(cod){ var pe = CUR && PP_EST[CUR.id], t = pe && pe.itens && pe.itens[cod]; if (!(t && t.transito > 0)) return ''; var det = Object.keys(t.lojas || {}).filter(function(l){ return t.lojas[l].transito > 0; }).map(function(l){ return LJ(l) + ' ' + fmtN(t.lojas[l].transito, 0); }).join(' · '); return ' <span class="tr-pill" title="Em trânsito: sugestão/pedido aberto no ERP ainda não recebido' + (det ? ' — ' + det : '') + '">🚚 trâns ' + fmtN(t.transito, 0) + '</span>'; }
+// Regra de trânsito (Tiago, 15/10): 📦 pedido feito (aqui ou no ERP) ainda não recebido, com a data; 🧾 NF-e já emitida (XML no radar)
+var ddm = function(s){ return s ? String(s).slice(0, 10).split('-').reverse().slice(0, 2).join('/') : '?'; };
+function trLinhas(ps){ return (ps || []).map(function(p){ return (p.ln != null ? LJ(p.ln) + ': ' : '') + (p.origem === 'aqui' ? 'pedido #' + p.pedido + ' daqui' : 'pedido ' + p.pedido + ' no ERP') + ' de ' + ddm(p.data) + ' (' + fmtN(p.und, 0) + ' un)' + ((p.nfe || []).length ? ' · NF-e ' + p.nfe.map(function(n){ return n.nNota + ' de ' + ddm(n.data); }).join(', ') : ''); }).join('\n'); }
+function trPill(cod){ var pe = CUR && PP_EST[CUR.id], t = pe && pe.itens && pe.itens[cod]; if (!t) return ''; var ps = t.pedidos || [], h = '';
+  if (ps.length) { var datas = ps.map(function(p){ return p.data; }).filter(Boolean).sort(); h += ' <span class="tr-pill" title="' + esc('Pedido feito e ainda não recebido:\n' + trLinhas(ps)) + '">📦 pedido ' + (datas.length ? ddm(datas[0]) : '') + (ps.length > 1 ? ' +' + (ps.length - 1) : '') + '</span>'; }
+  else if (t.transito > 0) h += ' <span class="tr-pill" title="Em trânsito no ERP">🚚 trâns ' + fmtN(t.transito, 0) + '</span>';
+  var nfes = []; ps.forEach(function(p){ (p.nfe || []).forEach(function(n){ nfes.push(n); }); });
+  if (nfes.length) { nfes.sort(function(a, b){ return String(b.data).localeCompare(String(a.data)); }); h += ' <span class="tr-pill nfe" title="' + esc('NF-e já emitida pelo fornecedor (XML no radar, ainda não recebida):\n' + nfes.map(function(n){ return 'NF-e ' + n.nNota + ' de ' + ddm(n.data); }).join('\n')) + '">🧾 NF-e ' + ddm(nfes[0].data) + '</span>'; }
+  return h; }
 function ciFiltrar(){ CI_LIM = 100; CI_F.var = ($('#ci-var') || {}).value || ''; CI_F.varOn = parseFloat(String(CI_F.var).replace(',', '.')) > 0; renderComparativoItens(); }
 function renderComparativoItens(opts){
   // estoque/trânsito ao vivo pro selo 🚚 e pro filtro "Em trânsito": carrega 1x por cotação e redesenha só a lista
@@ -1793,7 +1802,8 @@ function renderComparativoItens(opts){
     '<label><input type="checkbox" class="check"' + (CI_F.soObs ? ' checked' : '') + ' onchange="ciSet(\'soObs\',this.checked)" title="Algum vendedor colocou uma observação neste item"> Itens com Observações</label>' +
     '<label><input type="checkbox" class="check"' + (CI_F.soComPreco ? ' checked' : '') + ' onchange="ciSet(\'soComPreco\',this.checked)" title="Produtos em que alguém colocou preço (marcado por padrão)"> Apenas digitados</label>' +
     '<label><input type="checkbox" class="check"' + (CI_F.soSemPreco ? ' checked' : '') + ' onchange="ciSet(\'soSemPreco\',this.checked)" title="Produtos em que ninguém colocou preço"> Não Digitados</label>' +
-    '<label><input type="checkbox" class="check"' + (CI_F.soTransito ? ' checked' : '') + ' onchange="ciSet(\'soTransito\',this.checked)" title="Itens com sugestão ou pedido aberto no ERP ainda não recebido (em trânsito) em alguma loja da cotação — mesmo dado do pré-pedido, atualizado a cada 5 min"> Em trânsito</label>' +
+    '<label><input type="checkbox" class="check"' + (CI_F.soTransito ? ' checked' : '') + ' onchange="ciSet(\'soTransito\',this.checked)" title="Itens com pedido feito (aqui ou no ERP) ainda não recebido, ou com NF-e já emitida pelo fornecedor, em alguma loja da cotação — atualizado a cada 5 min"> Em trânsito</label>' +
+    (CI_F.soTransito ? '<select class="fin" style="width:auto;padding:3px 8px;font-size:12px" onchange="ciSet(\'trModo\',this.value)"><option value="qualquer"' + (CI_F.trModo === 'qualquer' ? ' selected' : '') + '>pedido feito ou NF-e emitida</option><option value="pedido"' + (CI_F.trModo === 'pedido' ? ' selected' : '') + '>só pedido feito (NF-e ainda não emitida)</option><option value="nfe"' + (CI_F.trModo === 'nfe' ? ' selected' : '') + '>só com NF-e emitida</option></select>' : '') +
     '</div>' +
     '<div class="clubvar"><label class="on"><input type="checkbox" class="check"' + (CI_F.varOn ? ' checked' : '') + ' onchange="ciSet(\'varOn\',this.checked)" title="Liga o filtro de variação: só itens cuja diferença entre o menor preço cotado e a última compra é maior ou igual ao valor informado"> Alta variação de Preços</label>' +
     '<label><input type="radio" name="ci-vt"' + (CI_F.varTipo === 'pct' ? ' checked' : '') + ' onchange="ciSet(\'varTipo\',\'pct\')"> Em percentual (%)</label><label><input type="radio" name="ci-vt"' + (CI_F.varTipo === 'rs' ? ' checked' : '') + ' onchange="ciSet(\'varTipo\',\'rs\')"> Em valor (R$)</label>' +
@@ -1812,7 +1822,7 @@ function renderComparativoItens(opts){
     if (CI_F.soComprados && !i.vencedor) return false;
     if (CI_F.soNaoComprados && !(i.nao_comprar && temPreco)) return false;   // Tiago, 28/09: alguém digitou preço, mas eu desmarquei e não comprei de ninguém (item sem preço nenhum não é "não comprado", é "não digitado")
     if (CI_F.soNovos && !Object.keys(i.precos).some(function(k){ return novos[k]; })) return false;
-    if (CI_F.soTransito) { var pe2 = CUR && PP_EST[CUR.id], te = pe2 && pe2.itens && pe2.itens[i.cod]; if (!(te && te.transito > 0)) return false; }
+    if (CI_F.soTransito) { var pe2 = CUR && PP_EST[CUR.id], te = pe2 && pe2.itens && pe2.itens[i.cod]; var okT = !!(te && (te.tem_pedido || te.transito > 0)); if (CI_F.trModo === 'nfe') okT = !!(te && te.tem_nfe); else if (CI_F.trModo === 'pedido') okT = !!(te && te.tem_pedido && !te.tem_nfe); if (!okT) return false; }
     if (CI_F.varOn && varMin > 0) { var base = (U[i.cod] && U[i.cod].preco) || i.ultimo_custo; if (!(base > 0) || !i.melhor) return false; var d = CI_F.varTipo === 'rs' ? Math.abs(i.melhor.preco - base) : Math.abs((i.melhor.preco - base) / base * 100); if (d < varMin) return false; }
     return true;
   });
@@ -2250,7 +2260,7 @@ function renderPrePedidoDet(){
       '<td class="c" style="white-space:nowrap">' + (real || i._fora || i.preco == null ? '' : '<button class="neg-btn' + (i.negociado ? ' on' : '') + '" title="' + (i.negociado ? 'Preço negociado (vendedor digitou ' + fmtR(i.preco_vendedor) + '): clique pra mudar, ou apague o valor pra voltar ao do vendedor' : 'Negociar: digitar o preço fechado com o vendedor') + '" onclick="event.stopPropagation();ppNegociar(\'' + i.cod + '\',' + PP_DET + ',' + i.preco + ')">🤝</button>') + '<span class="vlr ' + (dif != null && dif > 0.004 ? 'up' : dif != null && dif < -0.004 ? 'dn' : 'eq') + '">' + (i.preco == null ? '—' : fmtR(i.preco)) + '</span>' + (i.negociado ? ' <s class="mini">' + fmtR(i.preco_vendedor) + '</s>' : '') + '</td><td class="c">' + arw + '</td><td class="r">' + fmtR(i.ultimo_custo || 0) + '</td><td class="r">' + (E ? (E.transito > 0 ? '<span class="tr" style="font-weight:800;color:var(--inf)">' + fmtN(E.transito) + '</span>' : '<span style="color:var(--ink3)">0</span>') : '<span class="mini">…</span>') + '</td><td class="r" id="pp-q-' + i.cod + '"><b>' + fmtN(qt) + '</b></td><td class="c">' + (real || i._fora ? esc(i.unid || 'UN') + ' ' + i.emb : '<span class="mini">' + esc(i.unid || 'UN') + '</span> <input class="q emb-in" inputmode="numeric" value="' + i.emb + '" style="width:48px" title="un/cx: ajuste a embalagem, igual ao un/cx da sugestão (grava pro produto, vale no Radar também)" onchange="ppSetEmb(\'' + i.cod + '\',\'' + esc(i.unid || 'UN') + '\',this.value)" onclick="event.stopPropagation()">') + '</td><td class="r" id="pp-t-' + i.cod + '"><b>' + (i.preco == null ? '—' : fmtR(qt * i.preco)) + '</b></td>' +
       lojas.map(function(ln){ var q = ppQtd(i, ln), L = E && E.lojas ? E.lojas[ln] : null;
         if (i.lojas_outros && i.lojas_outros[ln] != null) return '<td class="c st" style="opacity:.65;max-width:104px"><span class="mini" style="display:inline-block;max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle" title="Nesta loja o item é de ' + esc(i.lojas_outros[ln]) + ' (escolha por loja). Clique no nome da loja no cabeçalho pra mudar.">' + esc(ppNomeCurto(i.lojas_outros[ln], 14)) + '</span></td>';
-        var est = L ? '<div class="pp-est" title="estoque atual na loja' + (L.transito > 0 ? ' · em trânsito = sugestão/pedido aberto no ERP ainda não recebido' : '') + (L.cobertura_dias != null ? ' · cobertura ' + fmtN(L.cobertura_dias) + ' dias' : '') + '">est <b' + (L.estoque <= 0 ? ' class="zero"' : '') + '>' + fmtN(L.estoque) + '</b> · trâns <span class="tr' + (L.transito > 0 ? '' : ' zero') + '">' + fmtN(L.transito) + '</span></div>' : '';
+        var est = L ? '<div class="pp-est" title="estoque atual na loja' + (L.transito > 0 ? ' · em trânsito = pedido feito (aqui ou no ERP) ainda não recebido' + ((L.pedidos || []).length ? ':\n' + trLinhas(L.pedidos) : '') : '') + (L.cobertura_dias != null ? ' · cobertura ' + fmtN(L.cobertura_dias) + ' dias' : '') + '">est <b' + (L.estoque <= 0 ? ' class="zero"' : '') + '>' + fmtN(L.estoque) + '</b> · trâns <span class="tr' + (L.transito > 0 ? '' : ' zero') + '">' + fmtN(L.transito) + '</span>' + ((L.pedidos || []).some(function(p){ return (p.nfe || []).length; }) ? ' <span title="NF-e já emitida (XML no radar)">🧾</span>' : '') + '</div>' : '';
         if (L && L.ativa === false) est += '<div class="pp-est" style="color:var(--neg);font-weight:800" title="desativado nesta loja na lista de compra do ERP">⛔ desativado</div>';
         var nn = (!real && !i._fora) ? ppSemNec(ln, q, E, L) : null;
         if (nn) est += '<div class="pp-est" style="color:var(--neg);font-weight:800;white-space:normal;max-width:110px;line-height:1.25" title="Pelo estoque, trânsito e giro de AGORA o Radar não sugere nada pra esta loja: ' + esc(nn) + '. A quantidade veio do dia em que a cotação foi criada (loja zerada = 1 caixa).">⚠ não precisa</div>';
