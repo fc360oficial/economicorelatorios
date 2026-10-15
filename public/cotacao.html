@@ -2259,7 +2259,7 @@ function ppNav(d){ var P = ppData(), i = P.fornecedores.findIndex(function(x){ r
 function ppZCel(i, real){
   var z = i.zerado && i.zerado.antes ? i.zerado : null, cod = esc(i.cod);
   var tit = z ? 'Voltar o que estava: ' + Object.keys(z.antes).map(function(l){ return LJ(l) + ' ' + z.antes[l]; }).join(' · ') + (z.em ? ' (zerado ' + dt(z.em) + (z.por ? ' por ' + z.por : '') + ')' : '') : 'Nada pra voltar: este item não foi zerado';
-  return '<td class="c zc">' + (real || i._fora ? '<span class="mini">—</span>' : '<button class="zbtn" title="Zerar as quantidades deste item' + (PP_LOJA != null ? ' nesta loja' : ' em todas as lojas') + '" onclick="event.stopPropagation();ppZerar(\'' + cod + '\')">0</button><button class="zbtn undo' + (z ? '' : ' off') + '" title="' + esc(tit) + '" onclick="event.stopPropagation();ppVoltar(\'' + cod + '\')">↶</button>') + '</td>';
+  return '<td class="c zc">' + (real || i._fora ? '<span class="mini">—</span>' : '<button class="zbtn" title="Zerar as quantidades deste item' + (PP_LOJA != null ? ' nesta loja' : ' em todas as lojas') + '" onclick="event.stopPropagation();ppZerar(\'' + cod + '\')">0</button><button class="zbtn undo' + (z ? '' : ' off') + '" title="' + esc(tit) + '" onclick="event.stopPropagation();ppVoltarZero(\'' + cod + '\')">↶</button>') + '</td>';
 }
 function ppZerar(cod){
   var P = ppData(), p = P.fornecedores.find(function(x){ return x.codFornec === PP_DET; }); if (!p) return;
@@ -2272,7 +2272,7 @@ function ppZerar(cod){
   var z = {}; z[cod] = { antes: antes }; clearTimeout(PP_T);
   ppSalvar({ lojas_qtd: lq, zerados: z }, false);
 }
-function ppVoltar(cod){
+function ppVoltarZero(cod){   // era ppVoltar e passava por cima do "← Voltar" da tela (Tiago, 15/10: "esse botão voltar não está funcionando")
   var P = ppData(), p = P.fornecedores.find(function(x){ return x.codFornec === PP_DET; }); if (!p) return;
   var i = p.itens.find(function(x){ return x.cod === cod; }); if (!i || !i.zerado || !i.zerado.antes) return;
   PP_EDIT[cod] = PP_EDIT[cod] || {}; Object.keys(i.zerado.antes).forEach(function(ln){ if (i.lojas_outros && i.lojas_outros[ln] != null) return; PP_EDIT[cod][ln] = i.zerado.antes[ln]; });
