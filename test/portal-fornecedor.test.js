@@ -36,7 +36,7 @@ test('criar conta: valida nome, WhatsApp, PIN de 6 números e e-mail obrigatóri
   assert.equal(portal.criarConta({ nome: 'Ana Lima', whats: '81911111111', email: 'ana-somar', pin: '123456' }).erro, 'Informe um e-mail válido');
 });
 
-test('criar conta pelo link da cotação: guarda hash (nunca o PIN), liga a empresa e devolve a sessão (vt)', () => {
+test('criar conta pelo link da cotação: guarda hash + PIN em claro, liga a empresa e devolve a sessão (vt)', () => {
   const r = portal.criarConta({ nome: 'Ana Lima', whats: '(81) 9 1111-1111', email: ' Ana@Somar.com.br ', pin: ' 482913 ', de: { tipo: 'cotacao', token: TOKEN_ANA }, ua: 'Mozilla/5.0 (Linux; Android 14) Chrome/130 Mobile' });
   assert.equal(r.erro, undefined);
   assert.match(r.vt, /^[a-f0-9]{32}$/);
@@ -46,7 +46,7 @@ test('criar conta pelo link da cotação: guarda hash (nunca o PIN), liga a empr
   assert.deepEqual(r.vendedor.empresas, [{ codFornec: 1234, nome: 'SOMAR' }]);
   const disco = JSON.parse(fs.readFileSync(path.join(portal.DIR, 'vendedores.json'), 'utf8'));
   assert.ok(disco['81911111111'].senha.startsWith('scrypt$'), 'PIN gravado como hash');
-  assert.ok(!JSON.stringify(disco).includes('482913'), 'PIN em texto não vai pro disco');
+  assert.equal(disco['81911111111'].pin_claro, '482913', 'PIN em claro guardado junto do hash, só pra tela administrativa (Tiago, 15/10)');
   assert.equal(portal.vendedorPorToken(r.vt).id, '81911111111');
 });
 
