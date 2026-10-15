@@ -165,6 +165,16 @@ test('fora do portal: vendedores das listas e cotações sem login, com empresa,
   portal.init(deps);
 });
 
+test('app instalado: marcarInstalado registra desde/em/navegador e o painel vê; quem nunca abriu pelo app fica sem', () => {
+  const vt = portal.entrar({ whats: '81911111111', pin: '222222' }).vt;
+  assert.equal(portal.listarVendedores().find(v => v.id === '81911111111').instalado, null);
+  const r = portal.marcarInstalado(vt, 'Mozilla/5.0 (Linux; Android 14) Chrome/130 Mobile Safari/537.36');
+  assert.ok(r.desde && r.em);
+  const v = portal.listarVendedores().find(v => v.id === '81911111111');
+  assert.equal(v.instalado.navegador, 'Chrome · Android'); assert.ok(portal.estado().instalados >= 1);
+  assert.equal(portal.marcarInstalado('0'.repeat(32), 'x'), null);
+});
+
 test('login obrigatório pra responder cotação: ligado por padrão, convite e canais avisam, admin desliga e liga (persistido)', () => {
   assert.equal(portal.exigeLogin(), true);
   assert.equal(portal.resumoCanais(cot).exigeLogin, true);

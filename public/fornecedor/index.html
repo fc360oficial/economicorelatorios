@@ -70,6 +70,7 @@ nav.tabs a.on{color:var(--ink);font-weight:700}nav.tabs a .i{font-size:20px;line
 .card.atual{border:2px solid var(--pos);box-shadow:0 8px 20px -14px rgba(19,122,72,.7)}.card.atual .t{font-size:17px}
 .badge-atual{display:inline-block;background:var(--pos);color:#fff;font-size:10px;font-weight:800;letter-spacing:.1em;border-radius:6px;padding:2px 8px;margin-bottom:6px}
 .card.antiga{opacity:.8}.card.antiga .t{font-size:14px}
+.card.guia .guia-p{margin-top:10px;font-size:13px}.card.guia ol{margin:4px 0 0 18px;line-height:1.6}.card.guia .t{margin-bottom:4px}
 .cad .k{font-size:12px;color:var(--ink2)}.cad .v{font-size:14px;font-weight:600;margin-bottom:8px}
 .err{color:var(--neg);font-weight:600;font-size:13px;margin-top:6px}.err:empty{display:none}
 .toast{position:fixed;left:50%;bottom:calc(92px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 14px;border-radius:9px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s;max-width:90vw;z-index:50}
@@ -100,6 +101,14 @@ var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform 
 var standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true;
 var pushOk = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
 var deferred = null; window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); deferred = e; var b = $('#btn-instalar'); if (b) b.classList.remove('hid'); });
+window.addEventListener('appinstalled', function () { if (ls.get(KEY)) api('/api/portal/instalado', {}).catch(function () {}); toast('App instalado ✓ Abra pelo ícone "Fornecedor" na tela inicial.'); });
+var GUIA = false;   // guia "como instalar" aberto?
+// passo a passo pra instalar o app no celular (Tiago, 15/10): o do aparelho primeiro
+function guiaInstalar() {
+  var and = '<div class="guia-p"><b>Android (Chrome)</b><ol><li>Toque nos três pontinhos <b>⋮</b> no canto de cima.</li><li>Toque em <b>Instalar app</b> (ou "Adicionar à tela inicial").</li><li>Confirme em <b>Instalar</b>. O ícone <b>Fornecedor</b> aparece na tela inicial.</li></ol></div>';
+  var ios = '<div class="guia-p"><b>iPhone (Safari)</b><ol><li>Toque no botão <b>Compartilhar</b> (quadrado com a seta pra cima, embaixo).</li><li>Role e toque em <b>Adicionar à Tela de Início</b>.</li><li>Toque em <b>Adicionar</b>. O ícone <b>Fornecedor</b> aparece na tela inicial.</li></ol></div>';
+  return '<div class="card guia"><div class="t">📲 Como instalar no celular</div><div class="s">Instalado, o portal abre pelo ícone, sem procurar o link, e os avisos de cotação chegam no celular.</div>' + (isIOS ? ios + and : and + ios) + '<div class="s">Depois de instalar: abra pelo ícone, entre com seu <b>WhatsApp e PIN</b> e toque em <b>Ativar avisos</b>.</div>' + (deferred ? '<div class="btns"><button class="btn d" onclick="instalar()">Instalar agora</button></div>' : '') + '</div>';
+}
 var DEMO = new URLSearchParams(location.search).get('demo') === '1';
 var D = null, TABA = ls.get(TAB) || 'cot', subAtual = null, FECH_ABRIR = false;   // FECH_ABRIR: mostrar as cotações fechadas anteriores à atual
 // de onde o vendedor veio (painel na página da cotação/pedido): pré-preenche o cadastro e volta pra lá depois de entrar
@@ -132,6 +141,7 @@ function topo(t, s) { return '<div class="top"><div class="l"><div class="ey">EC
 function entrada(msg) {
   $('#app').innerHTML = topo('Portal do Fornecedor', 'cotações e pedidos no seu celular') + '<main><div class="entrada">' + (msg ? '<div class="err" style="margin-bottom:12px">' + esc(msg) + '</div>' : '') + '<div id="de-info"></div>' +
     (MODO === 'criar' ? formCriar() : formEntrar()) +
+    (standalone ? '' : '<p class="links" style="margin-top:16px"><a href="#" onclick="GUIA=!GUIA;entrada();return false">📲 ' + (GUIA ? 'Esconder o passo a passo' : 'Como instalar o app no celular') + '</a></p>' + (GUIA ? guiaInstalar() : '')) +
     '</div></main>';
   var ew = $('#ew'); if (ew && ls.get(ULT)) ew.value = fone(ls.get(ULT));
   var f = (ew && ew.value) ? $('#sp') : (ew || $('#cn')); if (f && !DE) f.focus();
@@ -249,6 +259,8 @@ function render() {
   var h = '<div class="top"><div class="l"><div class="ey">ECONÔMICO SUPERMERCADOS · REDE CAHU</div><h1>Olá, ' + esc(nome) + '</h1><div class="sub">' + esc(emp || 'Portal do Fornecedor') + (pushOk && Notification.permission === 'granted' && subAtual ? ' · avisos ativados' : '') + '</div></div><button class="bell' + (ab.filter(function (c) { return c.f_status !== 'finalizado'; }).length || pp.length ? ' on' : '') + '" aria-label="Avisos" onclick="ativarPush()">🔔</button></div><main>';
   if (DEMO) h += '<div class="demo">EXEMPLO · dados fictícios pra mostrar como o portal fica. <a href="/fornecedor/">sair do exemplo</a></div>';
   h += pushCard();
+  // ainda abre pelo navegador: lembra de instalar, com o passo a passo (Tiago, 15/10)
+  if (!standalone && !DEMO) h += '<div class="card" style="font-size:13px;line-height:1.45">📲 <b>Instale o app no celular</b> pra abrir pelo ícone, sem procurar o link. ' + (deferred ? '<a href="#" onclick="instalar();return false">Instalar agora</a> · ' : '') + '<a href="#" onclick="GUIA=!GUIA;render();return false">' + (GUIA ? 'esconder o passo a passo' : 'ver o passo a passo') + '</a></div>' + (GUIA ? guiaInstalar() : '');
   // Cotações
   h += '<div class="sec" data-tab="cot"><div class="sec-h"><b>COTAÇÕES ABERTAS</b><span>' + ab.length + '</span></div>' + (ab.length ? ab.map(cardCot).join('') : '<div class="empty">Nenhuma cotação aberta pra você agora. Quando a Econômico abrir uma, ela aparece aqui' + (pushOk && subAtual ? ' e você recebe o aviso' : '') + '.</div>') + '</div>';
   // (pedidos pra confirmar ficam só na aba Pedidos — Tiago, 15/10: "cotação fica em cotação, pedidos fica em pedidos")
@@ -319,7 +331,7 @@ function sair() {
 function carregar() {
   if (DEMO) { D = demoDados(); subAtual = { fake: true }; render(); return Promise.resolve(); }
   if (!ls.get(KEY)) { entrada(); return Promise.resolve(); }
-  return Promise.all([api('/api/portal/eu'), lerSub()]).then(function (r) {
+  return Promise.all([api('/api/portal/eu' + (standalone ? '?app=1' : '')), lerSub()]).then(function (r) {   // app=1: abriu pelo ícone instalado → painel marca "instalado"
     D = r[0]; subAtual = r[1];
     if (D.vendedor && !D.vendedor.tem_pin) { telaPin(); return; }   // entrou pelo "Sou eu" antes do login existir
     // navegador tem inscrição mas o servidor não sabe (dados apagados no .254, celular restaurado): reenvia
