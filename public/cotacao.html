@@ -446,6 +446,9 @@ table.ppg .vlr.eq{background:var(--wsh);color:var(--ink)}
 .zbtn:hover{opacity:1;background:#FBEAED}.zbtn.undo{color:#1D5FB4;border-color:#1D5FB4;margin-left:4px}.zbtn.undo:hover{background:#E6EEFA}.zbtn.off{opacity:.18;pointer-events:none}
 table.ppg td.zc{white-space:nowrap}
 .pp-meta .emb-ed{cursor:pointer;opacity:.5;font-size:11px}.pp-meta .emb-ed:hover{opacity:1}
+/* quantidade diferente da que veio da cotação: caixinha verde e a de antes riscada embaixo (Tiago, 15/10) */
+table.ppg td.st input.q.mud{background:#E7F5EC;border-color:#137A48;color:#0E1626;font-weight:800}table.ppg td.st b.mud{color:#137A48}
+table.ppg td.st .pp-ant{font-size:11px;line-height:1.2;margin-top:2px;color:var(--ink3)}table.ppg td.st .pp-ant s{color:#C22F49;font-weight:700}
 .vbtn{background:var(--ink);color:var(--am);border-radius:8px}
 .obs-btn{background:var(--amk)}
 .mon .st{color:var(--inf)}
@@ -2317,7 +2320,8 @@ function renderPrePedidoDet(){
         if (L && L.ativa === false) est += '<div class="pp-est" style="color:var(--neg);font-weight:800" title="desativado nesta loja na lista de compra do ERP">⛔ desativado</div>';
         var nn = (!real && !i._fora) ? ppSemNec(ln, q, E, L) : null;
         if (nn) est += '<div class="pp-est" style="color:var(--neg);font-weight:800;white-space:normal;max-width:110px;line-height:1.25" title="Pelo estoque, trânsito e giro de AGORA o Radar não sugere nada pra esta loja: ' + esc(nn) + '. A quantidade veio do dia em que a cotação foi criada (loja zerada = 1 caixa).">⚠ não precisa</div>';
-        return '<td class="c st' + (L && L.ativa === false ? ' inat' : '') + '">' + (real || i._fora ? '<b>' + (q || '') + '</b>' : '<input class="q' + (PP_EDIT[i.cod] && PP_EDIT[i.cod][ln] != null ? ' ed' : '') + (nn ? ' nn' : '') + '" inputmode="numeric" value="' + (q || '') + '" placeholder=""' + (L && L.ativa === false ? ' disabled title="Desativado nesta loja na lista de compra do ERP (Ativar/Desativar Itens da Lista): ative no ERP pra digitar quantidade"' : (nn ? ' title="' + esc(nn) + '"' : '')) + ' onchange="ppSetQtd(\'' + i.cod + '\',' + ln + ',this.value)">') + est + '</td>'; }).join('') + '</tr>';
+        var qo = i.lojas_qtd_orig ? (i.lojas_qtd_orig[ln] || 0) : null, mud = qo != null && (q || 0) !== qo;   // mudou em relação à cotação: verde + antes riscado
+        return '<td class="c st' + (L && L.ativa === false ? ' inat' : '') + '">' + (real || i._fora ? '<b' + (mud ? ' class="mud"' : '') + '>' + (q || '') + '</b>' : '<input class="q' + (PP_EDIT[i.cod] && PP_EDIT[i.cod][ln] != null ? ' ed' : '') + (nn ? ' nn' : '') + (mud ? ' mud' : '') + '" data-cod="' + esc(i.cod) + '" data-ln="' + ln + '" data-orig="' + (qo == null ? '' : qo) + '" inputmode="numeric" value="' + (q || '') + '" placeholder=""' + (L && L.ativa === false ? ' disabled title="Desativado nesta loja na lista de compra do ERP (Ativar/Desativar Itens da Lista): ative no ERP pra digitar quantidade"' : (nn ? ' title="' + esc(nn) + '"' : '')) + ' onchange="ppSetQtd(\'' + i.cod + '\',' + ln + ',this.value)">') + (mud ? '<div class="pp-ant" title="quantidade que veio da cotação: ' + fmtN(qo) + '"><s>' + fmtN(qo) + '</s></div>' : '') + est + '</td>'; }).join('') + '</tr>';
     if (!real && PP_FORN_OPEN[i.cod]) h += '<tr class="fx"><td colspan="' + (7 + lojas.length) + '">' + ppFornInline(i.cod, qt) + '</td></tr>';
   });
   h += '</tbody></table></div><div class="mini" style="margin-top:8px">Quantidade em unidades por loja. Embaixo de cada caixa: <b>est</b> = estoque atual da loja no ERP · <b>trâns</b> = em trânsito (sugestão/pedido aberto ainda não recebido). A caixa é a embalagem do item; o Radar fecha caixa no pedido. Alterações são salvas na hora e valem só pra este fornecedor.</div>';
@@ -2338,6 +2342,9 @@ function ppSetQtd(cod, ln, v){
   var i = p.itens.find(function(x){ return x.cod === cod; }); if (!i) return;
   var n = Math.max(0, Math.round(parseFloat(String(v).replace(',', '.')) || 0));
   PP_EDIT[cod] = PP_EDIT[cod] || {}; PP_EDIT[cod][ln] = n;
+  // verde + antes riscado na hora, sem redesenhar (Tiago, 15/10)
+  var inp = document.querySelector('input.q[data-cod="' + cod + '"][data-ln="' + ln + '"]');
+  if (inp && inp.dataset.orig !== '') { var qo = +inp.dataset.orig, mud = n !== qo; inp.classList.toggle('mud', mud); var ant = inp.nextElementSibling && inp.nextElementSibling.classList.contains('pp-ant') ? inp.nextElementSibling : null; if (mud && !ant) inp.insertAdjacentHTML('afterend', '<div class="pp-ant" title="quantidade que veio da cotação: ' + fmtN(qo) + '"><s>' + fmtN(qo) + '</s></div>'); else if (!mud && ant) ant.remove(); }
   var qt = 0; (P.lojas || []).forEach(function(l){ qt += ppQtd(i, l); });
   var eq = document.getElementById('pp-q-' + cod), et = document.getElementById('pp-t-' + cod); if (eq) eq.innerHTML = '<b>' + fmtN(qt) + '</b>'; if (et) et.textContent = fmtR(qt * i.preco);
   var T = ppTotais(p); (P.lojas || []).forEach(function(l){ var e = document.getElementById('pp-tl-' + l); if (e) e.textContent = fmtR(T.porLoja[l]); var m = document.getElementById('pp-mn-' + l); if (m) m.innerHTML = ppMinTh(p.faturamento_minimo, T.porLoja[l]); }); var tt = document.getElementById('pp-total'); if (tt) tt.textContent = fmtR(T.total);
