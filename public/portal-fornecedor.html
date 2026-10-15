@@ -60,6 +60,7 @@ td b{font-weight:700}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:9px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:50;max-width:80vw}
 .toast.on{opacity:1}
 .cp{font-family:ui-monospace,Consolas,monospace;font-size:11px;background:#F0F0EE;border:1px solid var(--border);border-radius:6px;padding:2px 6px;word-break:break-all}
+.pinv{font-size:11px;color:var(--ink-2)}.pinv code{font-family:ui-monospace,Consolas,monospace;font-size:12px;letter-spacing:.15em;background:#F0F0EE;border:1px solid var(--border);border-radius:6px;padding:1px 6px}.eye{border:none;background:transparent;cursor:pointer;font-size:13px;padding:0 4px;vertical-align:middle}
 .cfg{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:14px;font-size:12.5px}
 .cfg label{display:flex;align-items:center;gap:8px;cursor:pointer}.cfg input{width:16px;height:16px;accent-color:var(--ink)}.cfg .mini{font-size:11.5px;color:var(--ink-3)}
 </style>
@@ -202,7 +203,7 @@ function renderVendedores() {
   $('#v-tbody').innerHTML = vis.map(function (v) {
     var ap = v.aparelhos || [];
     var apTxt = ap.length ? ap.map(function (a) { return '<div>' + esc(a.navegador || 'aparelho') + ' <span class="mini">· desde ' + dt(a.criadoEm).slice(0, 8) + (a.ultimoEnvio ? ' · último aviso ' + haTxt(a.ultimoEnvio) : ' · nenhum aviso ainda') + '</span></div>'; }).join('') : '<span class="mini">nenhum</span>';
-    var login = '<b>' + esc(fone(v.whats)) + '</b><br>' + (v.tem_pin ? '<span class="pill ok">com PIN</span>' + (v.pinEm ? ' <span class="mini">desde ' + dt(v.pinEm).slice(0, 8) + '</span>' : '') : '<span class="pill bad">sem PIN</span> <span class="mini">entrou pelo "Sou eu" antigo; o portal pede pra criar</span>');
+    var login = '<b>' + esc(fone(v.whats)) + '</b><br>' + (v.tem_pin ? '<span class="pill ok">com PIN</span>' + (v.pinEm ? ' <span class="mini">desde ' + dt(v.pinEm).slice(0, 8) + '</span>' : '') + '<br><span class="pinv" title="' + (v.pin ? 'PIN que o vendedor usa: clique no olho pra ver ou esconder' : 'PIN criado antes de 15/10: aparece aqui depois que ele entrar de novo no portal, ou quando você redefinir') + '">PIN <code id="pin-' + esc(v.id) + '">••••••</code>' + (v.pin ? '<button class="eye" onclick="verPin(\'' + esc(v.id) + '\',\'' + esc(v.pin) + '\',this)" title="Mostrar / esconder o PIN">👁</button>' : '') + '</span>' : '<span class="pill bad">sem PIN</span> <span class="mini">entrou pelo "Sou eu" antigo; o portal pede pra criar</span>');
     return '<tr><td><b>' + esc(v.nome || '—') + '</b>' + (v.email ? '<br><span class="mini">' + esc(v.email) + '</span>' : '') + '</td>' +
       '<td>' + ((v.empresas || []).map(function (e) { return esc(e.nome) + ' <span class="mini">cód. ' + e.codFornec + '</span>'; }).join('<br>') || '<span class="mini">casa pelo WhatsApp na próxima cotação</span>') + '</td>' +
       '<td>' + login + '</td>' +
@@ -232,6 +233,7 @@ function renderAvisos() {
 // convite genérico: mensagem pronta com o link do portal (o vendedor cria o login lá)
 function conviteMsg(nome) { return 'Olá' + (nome ? ', ' + String(nome).split(' ')[0] : '') + '! Aqui é da Econômico Supermercados (Rede Cahu). Agora nossas cotações chegam direto no seu celular pelo Portal do Fornecedor. Abra o link, crie seu login com o seu WhatsApp (o mesmo que usamos pra te mandar as cotações) e um PIN de 6 números, e ative os avisos: ' + LINK_PORTAL; }
 function convite() { copiar(conviteMsg(''), 'Convite copiado. Cole no WhatsApp do vendedor.'); }
+function verPin(id, pin, btn) { var el = document.getElementById('pin-' + id); if (!el) return; var oculto = el.textContent === '••••••'; el.textContent = oculto ? pin : '••••••'; btn.textContent = oculto ? '🙈' : '👁'; }
 async function redefinirPin(id) {
   var v = (E.vendedores_lista || []).find(function (x) { return x.id === id; }); if (!v) return;
   var quem = v.nome || fone(v.whats);

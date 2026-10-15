@@ -81,6 +81,9 @@ test('trocar PIN: exige o atual; o novo tem 6 números', () => {
   assert.equal(portal.trocarPin('f'.repeat(32), { pin_atual: '999999', pin_novo: '222222' }).erro, 'Sessão inválida');
   assert.equal(portal.trocarPin(vt, { pin_atual: '999999', pin_novo: '222222' }).ok, true);
   assert.equal(portal.entrar({ whats: '81911111111', pin: '222222' }).erro, undefined);
+  // PIN em claro só na lista administrativa (Tiago, 15/10: "mostra a senha que o vendedor fez"); o resumo público não leva
+  assert.equal(portal.listarVendedores().find(v => v.id === '81911111111').pin, '222222');
+  assert.equal(portal.resumoVendedor(vt).vendedor.pin, undefined);
 });
 
 test('vendedor de antes do login (entrou pelo "Sou eu", sem PIN): não entra; cria o PIN pelo vt; criar conta com o mesmo WhatsApp aproveita o registro', () => {
