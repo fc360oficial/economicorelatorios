@@ -135,6 +135,24 @@ test('resumo do vendedor logado traz login e cotação aberta; estado() conta qu
   assert.equal(portal.estado().comLogin, 5, 'estado() conta os reais com PIN (Ana, Outra, Bruno, Clara, Dislub)');
 });
 
+test('empresa da conta: link de outro vendedor não pendura a empresa dele; ao subir, a empresa vem do cadastro pelo WhatsApp', () => {
+  // Outra Pessoa (81922222222) cria conta pelo link da Ana (SOMAR): não pode virar SOMAR
+  const r = portal.criarConta({ nome: 'Outra Pessoa Dois', whats: '81 98888-0000', email: 'o2@x.co', pin: '123456', de: { tipo: 'cotacao', token: TOKEN_ANA } });
+  assert.equal(r.erro, undefined); assert.deepEqual(r.vendedor.empresas, [], 'link da Ana não liga SOMAR em outra conta');
+  // link da DISLUB (sem WhatsApp cadastrado) liga a empresa
+  const r2 = portal.criarConta({ nome: 'Pessoa Dislub', whats: '81 98888-0001', email: 'pd@x.co', pin: '123456', de: { tipo: 'cotacao', token: TOKEN_SEM } });
+  assert.deepEqual(r2.vendedor.empresas, [{ codFornec: 555, nome: 'DISLUB' }]);
+  // sincronização: conta com empresa errada pendurada vira a do cadastro da lista
+  const arq = path.join(portal.DIR, 'vendedores.json'); const disco = JSON.parse(fs.readFileSync(arq, 'utf8'));
+  disco['81977770000'] = { id: '81977770000', nome: 'Lucila Teste', whats: '81977770000', email: null, senha: 'scrypt$00$00', token: 'a1'.repeat(16), empresas: [{ codFornec: 147, nome: 'BRF S.A.' }], dispositivos: [], criadoEm: '2026-10-13T09:00:00.000Z' };
+  fs.writeFileSync(arq, JSON.stringify(disco));
+  const d2 = { ...deps, lerCotForn: () => ({ 277: [{ codFornec: 10, nome: 'KARNE KEIJO', vendedor: { nome: 'Jackson', whats: '81987700403' }, vendedores: [{ nome: 'Lucila Teste', whats: '81 97777-0000' }] }] }) };
+  const sy = portal.init(d2).sync_empresas;
+  assert.ok(sy.corrigidos >= 1);
+  assert.deepEqual(portal.listarVendedores().find(v => v.id === '81977770000').empresas, [{ codFornec: 10, nome: 'KARNE KEIJO' }]);
+  portal.init(deps);
+});
+
 test('fora do portal: vendedores das listas e cotações sem login, com empresa, lista e última cotação; quem tem PIN fica de fora', () => {
   const d2 = { ...deps, lerCotForn: () => ({ 277: [{ codFornec: 1234, nome: 'SOMAR', vendedor: { nome: 'Ana Lima', whats: '81911111111', email: 'ana@somar.com.br' }, vendedores: [{ nome: 'Novo Vendedor', whats: '81 97777-6666', email: '' }] }] }) };
   portal.init(d2);
