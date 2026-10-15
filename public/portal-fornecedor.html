@@ -80,6 +80,7 @@ td b{font-weight:700}
   <div class="status" id="status"></div>
   <div class="cfg" id="cfg"><label><input type="checkbox" id="cfg-exige" onchange="cfgExige(this.checked)"> <b>Exigir login pra responder cotação</b></label><span class="mini" id="cfg-txt"></span></div>
   <div class="kpis" id="kpis"></div>
+  <div class="mini" id="kpi-view" style="margin:-6px 0 12px;color:var(--ink-2)"></div>
 
   <div class="ajuda" id="ajuda" style="display:none"><b>Como o vendedor entra:</b>
     <ol>
@@ -130,11 +131,16 @@ var V_F = '', A_F = '';
 var V_F_NOME = { sempin: 'ainda sem PIN', comapp: 'com avisos ativos', semapp: 'sem avisos ativos' };
 function vFiltroOk(v) { if (V_F === 'sempin') return !v.tem_pin; if (V_F === 'comapp') return v.dispositivos > 0; if (V_F === 'semapp') return !(v.dispositivos > 0); return true; }
 function aFiltroOk(a) { if (A_F === 'hoje') return String(a.em).slice(0, 10) === new Date().toISOString().slice(0, 10); return true; }
+var VIEW = '';   // '' tudo · 'vend' · 'fora' · 'avisos': o cartão clicado mostra só a tabela dele (Tiago, 15/10)
+var VIEW_NOME = { vend: 'Vendedores no portal', fora: 'Fora do portal', avisos: 'Avisos mandados' };
+function kpiOn(k) { if (k === 'todos') return VIEW === 'vend' && !V_F; if (k === 'comapp' || k === 'semapp' || k === 'sempin') return V_F === k; if (k === 'hoje') return A_F === 'hoje'; if (k === 'fora') return VIEW === 'fora'; return false; }
 function kpiClick(k) {
   if (k === 'servidor') { toast(E.webpush ? 'Servidor de avisos OK: web-push carregado' + (E.vapid ? ', chave VAPID gerada' : '') + '. Aparelhos inscritos: ' + E.dispositivos + '.' : 'Servidor de avisos parado: ' + (E.erro || 'web-push não carregou')); return; }
-  if (k === 'fora') { document.getElementById('sec-fora').scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
-  if (k === 'hoje') { A_F = A_F === 'hoje' ? '' : 'hoje'; render(); document.getElementById('sec-avisos').scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
-  V_F = k === 'todos' ? '' : (V_F === k ? '' : k); render(); document.getElementById('sec-vend').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (k === 'tudo' || kpiOn(k)) { VIEW = ''; V_F = ''; A_F = ''; render(); return; }   // segundo clique no mesmo cartão (ou "ver tudo"): volta a mostrar tudo
+  if (k === 'fora') { VIEW = 'fora'; V_F = ''; A_F = ''; }
+  else if (k === 'hoje') { VIEW = 'avisos'; A_F = 'hoje'; V_F = ''; }
+  else { VIEW = 'vend'; A_F = ''; V_F = k === 'todos' ? '' : k; }
+  render(); var sec = document.getElementById('sec-' + VIEW); if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 var BASE_PUBLICA = 'https://hhk0a8gt2cn.sn.mynetname.net', LINK_PORTAL = BASE_PUBLICA + '/fornecedor/#criar';   // endereço público (o vendedor acessa de fora), igual ao PUBLIC_URL do servidor
 
@@ -148,7 +154,7 @@ function render() {
   var hoje = new Date().toISOString().slice(0, 10), avHoje = (E.avisos || []).filter(function (a) { return String(a.em).slice(0, 10) === hoje && !a.teste; }).length;
   $('#status').innerHTML = (E.webpush ? '<span><b>Avisos (push):</b> funcionando' + (E.vapid ? ' · chave gerada' : '') + '</span>' : '<span class="err">Avisos desligados no servidor: ' + esc(E.erro || 'web-push não carregou') + '</span>') + '<span>Link do portal: <a class="cp" href="' + esc(LINK_PORTAL) + '" target="_blank" rel="noopener">' + esc(LINK_PORTAL) + '</a> <button class="btn btn-sm" onclick="copiar(LINK_PORTAL, \'Link do portal copiado\')">copiar</button></span><span>Dados em <b>data/portal-fornecedor/</b> no servidor (PIN guardado só como hash)</span>';
   var semPin = reais.length - comPin, semApp = reais.length - comApp;
-  var card = function (k, cls, nm, v, sub, tit) { return '<div class="kpi ' + cls + (V_F === k || A_F === k ? ' on' : '') + '" onclick="kpiClick(\'' + k + '\')" title="' + esc(tit) + '"><div class="nm">' + nm + '</div><div class="v">' + v + '</div><div class="sub">' + sub + '</div></div>'; };
+  var card = function (k, cls, nm, v, sub, tit) { return '<div class="kpi ' + cls + (kpiOn(k) ? ' on' : '') + '" onclick="kpiClick(\'' + k + '\')" title="' + esc(tit) + '"><div class="nm">' + nm + '</div><div class="v">' + v + '</div><div class="sub">' + sub + '</div></div>'; };
   $('#kpis').innerHTML =
     card('todos', '', 'Vendedores no portal', reais.length, (semPin ? comPin + ' com PIN; <a href="#" onclick="event.stopPropagation();kpiClick(\'sempin\');return false">' + semPin + ' ainda sem PIN</a>, entraram pelo "Sou eu" antigo' : 'criaram login com WhatsApp e PIN'), 'Clique: mostra todos os vendedores na tabela') +
     card('comapp', comApp ? 'ok' : '', 'Com avisos ativos', comApp + '<small>de ' + reais.length + '</small>', 'têm pelo menos um aparelho inscrito; recebem cotação sem WhatsApp' + (semApp ? ' · <a href="#" onclick="event.stopPropagation();kpiClick(\'semapp\');return false">' + semApp + ' sem avisos</a>' : ''), 'Clique: só quem tem avisos ativos') +
@@ -156,7 +162,9 @@ function render() {
     card('hoje', '', 'Avisos hoje', avHoje, 'nova cotação, lembrete de prazo e pedido', 'Clique: só os avisos de hoje, na tabela de baixo') +
     card('servidor', E.webpush ? 'ok' : 'bad', 'Servidor de avisos', '<span style="font-size:16px">' + (E.webpush ? 'OK' : 'parado') + '</span>', (E.webpush ? 'web-push carregado, chave VAPID pronta' : esc(E.erro || '')), 'Clique: detalhes do servidor de avisos') +
     card('fora', (E.fora || []).length ? 'bad' : '', 'Fora do portal', (E.fora || []).length, 'vendedores das listas e cotações que ainda não criaram login — convide pelo WhatsApp', 'Clique: lista de quem ainda não está no portal, com botão pra convidar');
-  $('#ajuda').style.display = reais.length ? 'none' : 'block';
+  $('#ajuda').style.display = reais.length && !VIEW ? 'none' : (VIEW ? 'none' : 'block');
+  ['vend', 'fora', 'avisos'].forEach(function (x) { document.getElementById('sec-' + x).classList.toggle('hid', !!VIEW && VIEW !== x); });
+  $('#kpi-view').innerHTML = VIEW ? 'Mostrando só <b>' + VIEW_NOME[VIEW] + (V_F ? ' · ' + V_F_NOME[V_F] : '') + (A_F ? ' · só hoje' : '') + '</b> · <a href="#" onclick="kpiClick(\'tudo\');return false">ver tudo</a>' : '';
   $('#cfg-exige').checked = !!E.exigeLogin;
   $('#cfg-txt').textContent = E.exigeLogin ? 'ligado: quem abre o link da cotação sem login vê "crie seu login" por cima e só digita preço depois de entrar (a mensagem do WhatsApp já avisa)' : 'desligado: o painel "crie seu login" aparece, mas o vendedor pode tocar em "Agora não, só cotar"';
   renderVendedores(); renderAvisos(); renderFora();
