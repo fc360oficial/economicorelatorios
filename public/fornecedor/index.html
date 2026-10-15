@@ -66,6 +66,10 @@ nav.tabs a.on{color:var(--ink);font-weight:700}nav.tabs a .i{font-size:20px;line
 .links{font-size:13px;margin-top:14px;line-height:1.7}
 .de{background:var(--infw);color:var(--inf);border-radius:9px;padding:8px 12px;font-size:12.5px;margin-bottom:12px;font-weight:600;line-height:1.4}
 .mini{font-size:12.5px;color:var(--ink2)}
+/* cotação fechada mais recente em destaque; anteriores apagadas (Tiago, 15/10) */
+.card.atual{border:2px solid var(--pos);box-shadow:0 8px 20px -14px rgba(19,122,72,.7)}.card.atual .t{font-size:17px}
+.badge-atual{display:inline-block;background:var(--pos);color:#fff;font-size:10px;font-weight:800;letter-spacing:.1em;border-radius:6px;padding:2px 8px;margin-bottom:6px}
+.card.antiga{opacity:.8}.card.antiga .t{font-size:14px}
 .cad .k{font-size:12px;color:var(--ink2)}.cad .v{font-size:14px;font-weight:600;margin-bottom:8px}
 .err{color:var(--neg);font-weight:600;font-size:13px;margin-top:6px}.err:empty{display:none}
 .toast{position:fixed;left:50%;bottom:calc(92px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 14px;border-radius:9px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s;max-width:90vw;z-index:50}
@@ -97,7 +101,7 @@ var standalone = (window.matchMedia && window.matchMedia('(display-mode: standal
 var pushOk = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
 var deferred = null; window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); deferred = e; var b = $('#btn-instalar'); if (b) b.classList.remove('hid'); });
 var DEMO = new URLSearchParams(location.search).get('demo') === '1';
-var D = null, TABA = ls.get(TAB) || 'cot', subAtual = null;
+var D = null, TABA = ls.get(TAB) || 'cot', subAtual = null, FECH_ABRIR = false;   // FECH_ABRIR: mostrar as cotações fechadas anteriores à atual
 // de onde o vendedor veio (painel na página da cotação/pedido): pré-preenche o cadastro e volta pra lá depois de entrar
 var DE = (function () { var m = (new URLSearchParams(location.search).get('de') || '').match(/^(cotacao|pedido)\/([a-f0-9]{32})$/); return m ? { tipo: m[1], token: m[2] } : null; })();
 var MODO = /criar/.test(location.hash) ? 'criar' : 'entrar', CONV = null;
@@ -248,12 +252,16 @@ function render() {
   // Cotações
   h += '<div class="sec" data-tab="cot"><div class="sec-h"><b>COTAÇÕES ABERTAS</b><span>' + ab.length + '</span></div>' + (ab.length ? ab.map(cardCot).join('') : '<div class="empty">Nenhuma cotação aberta pra você agora. Quando a Econômico abrir uma, ela aparece aqui' + (pushOk && subAtual ? ' e você recebe o aviso' : '') + '.</div>') + '</div>';
   // (pedidos pra confirmar ficam só na aba Pedidos — Tiago, 15/10: "cotação fica em cotação, pedidos fica em pedidos")
-  // Cotações fechadas (Tiago, 15/10): quem ganhou itens já recebe o pedido pronto — card com "Abrir pedido" e PDF
-  h += '<div class="sec" data-tab="cot hist"><div class="sec-h"><b>COTAÇÕES FECHADAS</b><span>' + rs.length + '</span></div>' + (rs.length ? rs.slice(0, TABA === 'hist' ? 12 : 5).map(function (r) {
+  // Cotações fechadas (Tiago, 15/10): a mais recente é a ATUAL, em destaque, com a entrega e o PDF do pedido; as anteriores
+  // ficam recolhidas atrás de "Ver cotações anteriores (N)" pra o vendedor não se perder
+  var rsOrd = rs.slice().sort(function (a, b) { return (b.id || 0) - (a.id || 0); }), atual = rsOrd[0], antigas = rsOrd.slice(1);
+  var cardFechada = function (r, ehAtual) {
     var w = r.venceu, ok = !!(w && w.itens > 0);
     var st = r.status === 'cancelada' ? '<span class="pill off">cancelada</span>' : ok ? '<span class="pill pos">você ganhou ' + w.itens + ' de ' + r.itens + ' itens' + (w.total ? ' · ' + fmtR(w.total) : '') + '</span>' : (r.f_status === 'finalizado' ? '<span class="pill off">proposta enviada · não ganhou itens</span>' : '<span class="pill off">não respondida</span>');
-    return '<div class="card' + (ok ? ' pos' : '') + '"><div class="c"><div class="t">#' + r.id + ' · ' + esc(r.nome) + '</div><div class="s">' + r.itens + ' itens' + (r.finalizadoEm ? ' · proposta enviada ' + dd(r.finalizadoEm) : '') + '</div>' + st + '</div>' + (ok && w.pedidoId ? (w.pdf ? '<div class="btns"><a class="btn d" href="' + esc(w.pdf) + '" target="_blank" rel="noopener">📄 PDF do pedido #' + w.pedidoId + '</a></div>' : '<div class="s" style="margin-top:6px">pedido #' + w.pedidoId + '</div>') : '') + '</div>';
-  }).join('') : '<div class="empty">Nenhuma cotação fechada ainda. Quando a Econômico fechar uma, ela aparece aqui e, se você ganhou itens, o pedido pronto vem junto.</div>') + '</div>';
+    var ent = ok && w.entrega ? '<div class="s" style="margin-top:4px"><b>Entrega ' + esc(String(w.entrega).slice(0, 10).split('-').reverse().join('/')) + '</b>' + (w.status === 'aprovado' ? ' · pedido aprovado' : '') + '</div>' : '';
+    return '<div class="card' + (ok ? ' pos' : '') + (ehAtual ? ' atual' : ' antiga') + '">' + (ehAtual ? '<div class="badge-atual">ATUAL · MAIS RECENTE</div>' : '') + '<div class="c"><div class="t">#' + r.id + ' · ' + esc(r.nome) + '</div><div class="s">' + r.itens + ' itens' + (r.finalizadoEm ? ' · proposta enviada ' + dd(r.finalizadoEm) : '') + '</div>' + st + ent + '</div>' + (ok && w.pedidoId ? (w.pdf ? '<div class="btns"><a class="btn d" href="' + esc(w.pdf) + '" target="_blank" rel="noopener">📄 PDF do pedido #' + w.pedidoId + '</a></div>' : '<div class="s" style="margin-top:6px">pedido #' + w.pedidoId + '</div>') : '') + '</div>';
+  };
+  h += '<div class="sec" data-tab="cot hist"><div class="sec-h"><b>COTAÇÕES FECHADAS</b><span>' + rs.length + '</span></div>' + (rs.length ? cardFechada(atual, true) + (antigas.length ? '<button class="btn" style="width:100%;margin-top:4px" onclick="FECH_ABRIR=!FECH_ABRIR;render()">' + (FECH_ABRIR ? 'Esconder as anteriores' : 'Ver cotações anteriores (' + antigas.length + ')') + '</button>' + (FECH_ABRIR ? '<div style="margin-top:8px">' + antigas.slice(0, TABA === 'hist' ? 12 : 5).map(function (r) { return cardFechada(r, false); }).join('') + '</div>' : '') : '') : '<div class="empty">Nenhuma cotação fechada ainda. Quando a Econômico fechar uma, ela aparece aqui e, se você ganhou itens, o pedido pronto vem junto.</div>') + '</div>';
   // Pedidos
   // aba Pedidos (Tiago, 15/10): EM ABERTO = o vendedor ainda digita os valores e confirma (Radar / manuais), ou já confirmou e espera a
   // aprovação da Econômico; FECHADOS = aprovados, com o PDF do pedido
