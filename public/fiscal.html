@@ -168,6 +168,7 @@ td.col-cel{cursor:pointer}
 #drw .m .ac{display:inline-block;margin-top:4px;background:#FFC933;color:#3A2E00;border-radius:99px;padding:1px 8px;font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.3px}
 @media(max-width:560px){#drw{width:100vw}}
 /* ── Pedidos a receber (13/10/26) + decisão do fiscal item a item ── */
+#btnAtualizar.sync{opacity:.65}
 .chips-g{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.chips-g .lbl{font-size:11px;font-weight:800;color:var(--ink3);text-transform:uppercase;letter-spacing:.04em;min-width:86px}.chips{display:flex;gap:6px;flex-wrap:wrap}.chips span{border:1px solid var(--ln2);background:var(--crd);border-radius:99px;padding:5px 12px;font-size:12px;font-weight:700;color:var(--ink2);cursor:pointer}.chips span.on{border-color:#1E4FB5;background:#E8EEFB;color:#1E4FB5;font-weight:800}
 .quem{display:block;font-size:10.5px;font-weight:700;margin-top:2px}.quem.fiscal{color:#1E4FB5}.quem.comp{color:var(--ink3);font-weight:600}
 .obsd{display:inline-block;font-size:10.5px;color:#6B4E00;background:#FFF6D9;border:1px solid #EFD98F;border-radius:6px;padding:2px 6px;margin-top:3px;white-space:normal}
@@ -201,7 +202,7 @@ table.ar .obsd{max-width:250px;overflow:hidden;text-overflow:ellipsis;white-spac
     <div class="hdr-btns">
       <button class="btn btn-slate" id="btnMudo" onclick="toggleMudo()">🔔 Som do coletor</button>
       <button class="btn btn-slate" onclick="abrirConfig()" title="Tolerâncias do cruzamento automático">⚙ Tolerâncias</button>
-      <button class="btn btn-amber" onclick="carregar()">Atualizar</button>
+      <button class="btn btn-amber" id="btnAtualizar" onclick="carregar(true)">Atualizar</button>
     </div>
   </div>
 
@@ -282,18 +283,60 @@ async function boot(){
    semanal das lojas, por isso saiu da página Centro de Distribuição. */
 function expTabSync(){const cd=$('#loja').value==='10';$('#tabExp').hidden=!cd;if(!cd&&tab==='expedicao'){setTab('receb');return false;}return true;}
 function lojaMudou(){if(expTabSync())carregar();}
-async function carregar(){
+/* 15/10/26 (Tiago: "esse setor tem que abrir mais rápido essas abas; é um setor que não para no dia a dia"): cada aba guarda o que já
+   carregou, por dia/período/loja (TABCACHE). Trocar de aba, dia ou loja mostra o que já tem NA HORA e atualiza por trás (o botão
+   Atualizar vira "Atualizando…"). As outras abas são pré-carregadas logo depois da atual, então o primeiro clique também é instantâneo.
+   Atualizar, decisão e tolerâncias forçam busca nova (carregar(true)). A coluna do coletor chega depois da tabela, sem segurar ela. */
+const TABCACHE={};let CARGA=0,PREF=null;
+function tabKey(t){return t+'|'+(t==='areceber'?($('#loja').value||''):t==='expedicao'?(expDias()+'|'+$('#loja').value):qs());}
+async function buscar(t){
+  if(t==='receb'){const d=await fetch('/api/fiscal/recebimentos'+qs()).then(r=>r.json());if(d.error)throw new Error(d.error);return d;}
+  if(t==='areceber'){const r=await fetch('/api/fiscal/pedidos-a-receber'+($('#loja').value?'?loja='+$('#loja').value:'')).then(r=>r.json());if(r.error)throw new Error(r.error);return r.pedidos;}
+  if(t==='docs'){const d=await fetch('/api/fiscal/documentos'+qs()).then(r=>r.json());if(d.error)throw new Error(d.error);return d;}
+  if(t==='expedicao')return expBuscar();
+  const m=await fetch('/api/fiscal/margem'+qs()).then(r=>r.json());if(m.error)throw new Error(m.error);return m;
+}
+function badge(t,d){
+  if(t==='receb')$('#nReceb').textContent=d.recebimentos.length;
+  else if(t==='areceber')$('#nAReceber').textContent=d.length;
+  else if(t==='docs')$('#nDocs').textContent=d.length;
+  else if(t==='expedicao')$('#nExp').textContent=d.pendencias.filter(p=>!p.verificado).length+d.liberacoes.length;
+  else $('#nMargem').textContent=d.length;
+}
+function aplicar(t,d){
+  if(t==='receb'){DADOS=d;CFG=d.config;}else if(t==='areceber')AREC=d;else if(t==='docs')DOCS=d;else if(t==='expedicao')EXP=d;else MARG=d;
+  badge(t,d);
+}
+function syncHint(on){const b=$('#btnAtualizar');if(!b)return;b.textContent=on?'Atualizando…':'Atualizar';b.classList.toggle('sync',!!on);}
+async function carregar(force){
   $('#dow').textContent=DOW[new Date($('#de').value+'T12:00:00').getDay()];
-  aberto=null;DET={};DADOS=null;DOCS=null;MARG=null;$('#nDocs').textContent='';$('#nMargem').textContent='';
-  $('#view').innerHTML='<div class="spinner"></div>';
+  aberto=null;DET={};
+  const t=tab,k=tabKey(t),id=++CARGA;
+  const c=!force&&TABCACHE[k];
+  if(c){aplicar(t,c.dados);render();syncHint(true);}
+  else{if(t==='receb')DADOS=null;$('#view').innerHTML='<div class="spinner"></div>';}
   try{
-    if(tab==='receb'){DADOS=await fetch('/api/fiscal/recebimentos'+qs()).then(r=>r.json());if(DADOS.error)throw new Error(DADOS.error);CFG=DADOS.config;$('#nReceb').textContent=DADOS.recebimentos.length;scCarregar();arecBadge();await colAtivoSync();if(COL_ATIVO){await colCarregar();if(colTotalChamados===null)colTotalChamados=colTotal();}if(ABRIR){const n=ABRIR;ABRIR=null;await toggle(n);return;}}
-    else if(tab==='areceber'){await arecCarregar();}
-    else if(tab==='docs'){DOCS=await fetch('/api/fiscal/documentos'+qs()).then(r=>r.json());if(DOCS.error)throw new Error(DOCS.error);$('#nDocs').textContent=DOCS.length;}
-    else if(tab==='expedicao'){await expCarregar();}
-    else{MARG=await fetch('/api/fiscal/margem'+qs()).then(r=>r.json());if(MARG.error)throw new Error(MARG.error);$('#nMargem').textContent=MARG.length;}
-    render();
-  }catch(e){$('#view').innerHTML='<div class="empty">Erro ao carregar: '+esc(e.message)+'</div>';}
+    const d=await buscar(t);TABCACHE[k]={dados:d,em:Date.now()};
+    if(id!==CARGA)return;   /* já trocou de aba/dia/loja: não pisa no que está na tela */
+    aplicar(t,d);render();
+    if(t==='receb'&&ABRIR){const n=ABRIR;ABRIR=null;await toggle(n);}
+  }catch(e){if(id!==CARGA)return;if(!c)$('#view').innerHTML='<div class="empty">Erro ao carregar: '+esc(e.message)+'</div>';}
+  finally{if(id===CARGA)syncHint(false);}
+  if(t==='receb'&&DADOS)posReceb(id);
+  prefetch(t);
+}
+/* o que a aba Recebimentos busca DEPOIS da tabela estar na tela: notas sem conferência, coletor ativo e a conversa da loja */
+async function posReceb(id){
+  scCarregar();
+  const antes=COL_ATIVO;await colAtivoSync();
+  if(COL_ATIVO){await colCarregar();if(colTotalChamados===null)colTotalChamados=colTotal();}
+  if(id===CARGA&&tab==='receb'&&DADOS&&(COL_ATIVO||antes!==COL_ATIVO))render();
+}
+/* pré-carrega as outras abas (uma por vez, começando 400 ms depois da atual) pro primeiro clique nelas ser instantâneo */
+function prefetch(atual){
+  const outras=['receb','areceber','docs','margem'].concat($('#loja').value==='10'?['expedicao']:[]).filter(x=>x!==atual);
+  const tok=PREF=Symbol();
+  setTimeout(async()=>{for(const x of outras){if(PREF!==tok||document.hidden)return;const k=tabKey(x);if(TABCACHE[k]&&Date.now()-TABCACHE[k].em<60000)continue;try{const d=await buscar(x);TABCACHE[k]={dados:d,em:Date.now()};badge(x,d);}catch(e){}}},400);
 }
 function setTab(t){tab=t;document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x.dataset.tab===t));
   /* Pedidos a receber não é por dia: some o navegador de data e o período (loja e busca continuam) */
@@ -311,12 +354,13 @@ function render(){if(tab==='receb')renderReceb();else{if(aberto!=null){aberto=nu
 let EXP=null;
 const expDias=()=>{const p=$('#periodo').value;return p==='dia'?1:+p;};
 const dh=s=>s?new Date(s).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';
-async function expCarregar(){
+async function expBuscar(){
   const d=expDias();
   const [fechadas,pendencias,liberacoes]=await Promise.all(['/api/expedicao/fechadas?dias='+d,'/api/expedicao/pendencias?dias='+d,'/api/expedicao/liberacoes?dias='+d].map(u=>fetch(u).then(r=>r.json())));
   if(fechadas.error)throw new Error(fechadas.error);if(pendencias.error)throw new Error(pendencias.error);if(liberacoes.error)throw new Error(liberacoes.error);
-  EXP={fechadas,pendencias,liberacoes};$('#nExp').textContent=pendencias.filter(p=>!p.verificado).length+liberacoes.length;
+  return {fechadas,pendencias,liberacoes};
 }
+async function expCarregar(){const d=await expBuscar();TABCACHE[tabKey('expedicao')]={dados:d,em:Date.now()};aplicar('expedicao',d);}
 /* Separação de Pedidos com divergência (Tiago, 14/10 à noite): o separador viu a lista do pedido, digitou o que separou e não bateu.
    O fiscal do CD decide aqui: LIBERAR (separação fecha do jeito que está; o Carregamento de Caminhão bate com o pallet, não com o
    pedido) ou DEVOLVER (volta pra separação com a observação). */
@@ -676,7 +720,7 @@ async function decidir(n,acao){
   if(acao==='bloqueado'&&!confirm('Bloquear a conferência '+n+'? Ela fica marcada como "Bloqueado / devolver" até você desfazer.'))return;
   const r=await fetch('/api/fiscal/recebimentos/'+n+'/decisao',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({acao,obs})}).then(r=>r.json());
   if(r.error){alert(r.error);return;}
-  delete DET[n];carregar();
+  delete DET[n];carregar(true);
 }
 async function reconferir(n){
   if(!CONTATOS)CONTATOS=await fetch('/api/fiscal/contatos').then(r=>r.json()).catch(()=>[]);
@@ -687,7 +731,7 @@ async function reconferir(n){
   let alvo=null;if(fone){const idx=parseInt(fone);alvo=cts.length===1?cts[0]:cts[idx-1];}
   await fetch('/api/fiscal/recebimentos/'+n+'/decisao',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({acao:'reconferir',obs:alvo?'WhatsApp p/ '+alvo.nome:''})});
   window.open('https://wa.me/'+(alvo?'55'+alvo.fone.replace(/^55/,''):'')+'?text='+encodeURIComponent(texto),'_blank');
-  delete DET[n];carregar();
+  delete DET[n];carregar(true);
 }
 
 /* ── PEDIDOS A RECEBER (13/10/26): pedidos do app aprovados que ainda vão chegar, por loja ──
@@ -823,7 +867,7 @@ function abrirConfig(){
 async function salvarConfig(){
   const body={};for(const [k] of CFG_CAMPOS){const el=$('#c-'+k);body[k]=el.type==='checkbox'?el.checked:+el.value;}
   const r=await fetch('/api/fiscal/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json());
-  if(r.error)return alert(r.error);CFG=r.config;$('#modal').hidden=true;carregar();
+  if(r.error)return alert(r.error);CFG=r.config;$('#modal').hidden=true;carregar(true);
 }
 $('#modal').addEventListener('click',e=>{if(e.target.id==='modal')$('#modal').hidden=true;});
 /* ── COLETOR ECONÔMICO · conversa presa à nota (coletor ↔ Fiscal) ── */

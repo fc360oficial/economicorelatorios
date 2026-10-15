@@ -183,6 +183,14 @@ try {
 // reinício do servidor. Todo deploy reinicia o processo; com sessão só em
 // memória isso deslogava todo mundo, inclusive os painéis de TV que ficam
 // abertos sem ninguém pra logar de novo na sala.
+// 15/10/2026 (Tiago: "o Fiscal tem que abrir mais rápido essas abas"): toda API que passa de 1,5 s vai pro log do serviço
+// (server-err.log) com tempo, rota e status — é por aqui que se acha o gargalo real, sem adivinhar.
+app.use((req, res, next) => {
+  if (!req.path.startsWith('/api/')) return next();
+  const t0 = Date.now();
+  res.on('finish', () => { const ms = Date.now() - t0; if (ms >= 1500) console.warn('[LENTO] ' + ms + ' ms ' + req.method + ' ' + String(req.originalUrl).slice(0, 140) + ' -> ' + res.statusCode + ' ' + new Date().toISOString()); });
+  next();
+});
 app.use(session({
   store: new FileStore({
     path: path.join(__dirname, 'data', 'sessions'),
