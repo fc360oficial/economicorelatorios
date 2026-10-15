@@ -216,6 +216,11 @@ body{font-family:var(--font);background:var(--pap);color:var(--ink);font-size:14
 .toast{position:fixed;left:14px;right:14px;bottom:18px;background:var(--ink);color:var(--pap);padding:11px 14px;border-radius:var(--r);font-size:13px;font-weight:600;box-shadow:var(--sh-md);opacity:0;transform:translateY(8px);transition:.2s;pointer-events:none;z-index:40}
 .toast.show{opacity:1;transform:none}
 .toast.ruim{background:var(--neg);color:#fff}
+/* busca nas listas (15/10, item 3 da régua TOTVS/Bluesoft/SAAP): filtra na hora, por descrição, código ou 4 últimos do EAN */
+.buscaBox{position:relative;padding:8px 12px 0}
+.buscaBox .lupa{position:absolute;left:22px;top:17px;font-size:16px;color:var(--ink3);pointer-events:none}
+.busca{width:100%;height:40px;border-radius:var(--r-sm);border:1.5px solid var(--ln2);background:var(--crd);color:var(--ink);font-family:var(--font);font-size:14px;padding:0 10px 0 32px;outline:none;-webkit-appearance:none}
+.busca:focus{border-color:var(--am)}
 .dica{position:fixed;left:12px;right:12px;bottom:14px;background:var(--amw);border:1.5px solid var(--am);color:var(--ink);padding:12px 14px;border-radius:var(--r);font-size:12.5px;box-shadow:var(--sh-md);z-index:41}
 .dica b{color:var(--amk)}
 .dica .btn{height:40px}
@@ -274,6 +279,7 @@ body{font-family:var(--font);background:var(--pap);color:var(--ink);font-size:14
     <button class="btn btn-secondary" onclick="carregarNotas(true)">↻ Atualizar</button>
     <button class="btn btn-secondary" id="btnConferidas" onclick="verConferidas()">Já conferidas hoje (0)</button>
   </div>
+  <div class="buscaBox"><span class="lupa">⌕</span><input class="busca" id="buscaNotas" type="search" placeholder="Buscar nota ou fornecedor" autocomplete="off" oninput="renderNotas()"></div>
   <div class="corpo" id="nLista"></div>
   <div class="foot">
     <span><span class="dot" id="netDot"></span><span id="netTxt">—</span></span>
@@ -318,6 +324,7 @@ body{font-family:var(--font);background:var(--pap);color:var(--ink);font-size:14
   <div class="acoes">
     <button class="btn btn-secondary" onclick="carregarPedidos(true)">↻ Atualizar</button>
   </div>
+  <div class="buscaBox"><span class="lupa">⌕</span><input class="busca" id="buscaPed" type="search" placeholder="Buscar cliente ou nº do pedido" autocomplete="off" oninput="renderPedidos()"></div>
   <div class="corpo" id="pLista"></div>
 </div>
 
@@ -339,6 +346,7 @@ body{font-family:var(--font);background:var(--pap);color:var(--ink);font-size:14
     <div class="prog2" id="xResumo" hidden><div class="trk"><i id="xBar"></i></div><div class="lbl"><span id="xResTxt"></span><span id="xUn"></span></div></div>
     <div class="prog"><div id="xProg">Cega: a quantidade do pedido fica escondida</div><div id="xTir" style="color:var(--amk)"></div></div>
     <div id="xAviso"></div>
+    <div class="buscaBox" id="buscaSepBox" hidden><span class="lupa">⌕</span><input class="busca" id="buscaSep" type="search" placeholder="Buscar produto, EAN ou 4 últimos" autocomplete="off" oninput="renderSep()"></div>
     <div id="xCartao"></div>
     <div id="xUltimo"></div>
     <div id="xFora"></div>
@@ -638,7 +646,8 @@ function linhaNota(n, i) {
 }
 function renderNotas() {
   $('nTitulo').textContent = 'Loja ' + sess.loja + ' · ' + (NOMES_LOJA[sess.loja] || '');
-  const abertas = notas.filter(pendente);
+  const bn = buscaTxt('buscaNotas');
+  const abertas = notas.filter(pendente).filter(n => !bn || bate(bn, n.nNota, n.fornecedor, n.chave));
   const conferidas = notas.filter(n => !pendente(n));
   $('nSub').textContent = sess.nome + ' · ' + abertas.length + (abertas.length === 1 ? ' nota' : ' notas');
   $('btnConferidas').textContent = 'Já conferidas hoje (' + conferidas.length + ')';
@@ -709,7 +718,9 @@ async function carregarPedidos(manual) {
 const PAINEL = { null: ['mut', 'Digitado'], 0: ['amarelo', 'Para separação'], 1: ['info', 'Em separação'], 2: ['ok', 'Aguardando liberação'], 3: ['bad', 'Reconferir'], 4: ['ok', 'Liberado'] };
 function renderPedidos() {
   $('pSub').textContent = sess.nome + ' · ' + pedidos.length + (pedidos.length === 1 ? ' pedido sem nota' : ' pedidos sem nota');
-  $('pLista').innerHTML = pedidos.length ? pedidos.map((p, i) => {
+  const bp = buscaTxt('buscaPed');
+  const vis = pedidos.map((p, i) => ({ p, i })).filter(({ p }) => !bp || bate(bp, p.nPedido, p.cliente, p.cnpj));
+  $('pLista').innerHTML = vis.length ? vis.map(({ p, i }) => {
     const c = p.conferencia; const painel = PAINEL[p.painel == null ? 'null' : p.painel] || PAINEL.null;
     // etapa que falta (14/10/26): Separar (Separação de Pedidos, com lista) → Carregar (Carregamento de Caminhão, cego, outra pessoa).
     // 'fiscal' = separação com divergência aguardando o fiscal do CD liberar ou devolver.
@@ -725,7 +736,7 @@ function renderPedidos() {
       <div class="st"><span class="pill ${etapa[0]}"><i></i>${esc(etapa[1])}</span><span class="pill ${painel[0]}">${esc(painel[1])}</span></div>
       ${why ? `<div class="why ${c && c.avisoFiscal && c.etapa === 'separacao' ? 'w' : 'i'}">${esc(why)}</div>` : ''}
     </button>`;
-  }).join('') : '<div class="vazio">Nenhum pedido do Televendas aguardando separação ou carregamento.</div>';
+  }).join('') : bp ? '<div class="vazio">Nenhum pedido bate com a busca.</div>' : '<div class="vazio">Nenhum pedido do Televendas aguardando separação ou carregamento.</div>';
 }
 async function abrirPedido(i) {
   const p = pedidos[i]; if (!p) return;
@@ -774,7 +785,9 @@ function renderSep() {
     const q = `<b>${num(f.n)}</b><small>${esc(f.l)}</small>${f.sub ? `<small>${esc(f.sub)}</small>` : ''}${dif < 0 ? `<small class="falta">falta ${num(-dif)} un</small>` : dif > 0 ? `<small class="sobra">sobra ${num(dif)} un</small>` : ''}`;
     const fp = fmtQSep(i.un, i);
     return `<div class="it sep ${cls}" data-cod="${esc(i.cod)}" onclick="tocarSep('${esc(i.cod)}')"><div class="stripe"></div><span class="cb">${cb}</span><span class="ean4">${esc(i.ean4)}</span><div><div class="d">${esc(i.descricao)}</div><div class="c">pedido <b>${num(fp.n)} ${esc(fp.l)}</b>${i.emb > 1 ? ' c/ ' + num(i.emb) + ' = ' + num(i.un) + ' un' : ''} · ${s ? 'confirmado' : pend != null ? 'vai separar' : sel ? 'bipe pra confirmar' : 'toque pra marcar'}${(s && s.lotes && s.lotes.length) ? ' · lote ' + esc(s.lotes.map(l => l.lote).join(', ')) : ''}</div></div><div class="q" onclick="event.stopPropagation();qtdSepModal('${esc(i.cod)}')">${q}</div></div>`; };
-  const falta = ped.filter(i => !i.separado || i.separado.estado !== 'ok'), prontos = ped.filter(i => i.separado && i.separado.estado === 'ok');
+  $('buscaSepBox').hidden = false; const bs = buscaTxt('buscaSep');
+  const vis = bs ? ped.filter(i => bate(bs, i.descricao, i.cod, i.ean4)) : ped;
+  const falta = vis.filter(i => !i.separado || i.separado.estado !== 'ok'), prontos = vis.filter(i => i.separado && i.separado.estado === 'ok');
   $('xAntesTit').hidden = true;
   $('xItens').innerHTML = falta.map(linha).join('') + (prontos.length ? '<div class="pendTit">Confirmados · ' + prontos.length + '</div>' : '') + prontos.map(linha).join('');
   setNet(navigator.onLine);
@@ -783,6 +796,7 @@ function renderExp() {
   if (!visaoExp) return;
   if (visaoExp.etapa === 'separacao' || visaoExp.etapa === 'fiscal') return renderSep();
   // Carregamento de Caminhão: cego (não mostra pedido nem separação), só o que este operador bipou
+  $('buscaSepBox').hidden = true;
   const et = visaoExp.etapa === 'expedicao' ? ['exp', 'Carregamento'] : null;
   $('xTitulo').innerHTML = (et ? `<span class="etq ${et[0]}">${et[1]}</span>` : '') + esc(visaoExp.cliente || '—');
   $('xSub').textContent = 'Pedido #' + visaoExp.nPedido + (visaoExp.etapa === 'expedicao' ? ' · separado por ' + (visaoExp.separadoPor || '—') : ' · Saída · CD');
@@ -861,11 +875,17 @@ async function acharSep(cod) {
     if (r.fora) { avisoForaSep(r); return; }
     const it = r.item;
     if (selSep && selSep !== it.cod) { const s = (visaoExp.pedido || []).find(i => i.cod === selSep); avisoErradoSep(s, it); return; }
-    await confirmarSep(it.cod);
+    // bipe repetido SOMA (15/10): cada leitura acrescenta 1 caixa (linha que conta em caixas) ou 1 unidade; bipar a
+    // caixa (DUN-14) de uma linha em unidade acrescenta as unidades da caixa. Quantidade anotada no toque (qtdSep) vale
+    // como total e ganha do bipe (quem digitou já contou).
+    if (qtdSep[it.cod] != null) { await confirmarSep(it.cod); return; }
+    const p = (visaoExp.pedido || []).find(i => i.cod === it.cod) || it;
+    const inc = p.emCaixa ? p.emb : (r.bipouCaixa && r.embBip > 1 ? r.embBip : 1);
+    await gravarSep(it.cod, inc, true);
   } catch (e) { erroExp(e, 'Não deu pra achar o produto'); }
 }
 let timerForaSep = null;
-function avisoSep(html) { clearTimeout(timerForaSep); $('xUltimo').innerHTML = html; if (navigator.vibrate) navigator.vibrate([120, 60, 120]); timerForaSep = setTimeout(() => { $('xUltimo').innerHTML = ''; }, 8000); focarExp(); }
+function avisoSep(html) { clearTimeout(timerForaSep); $('xUltimo').innerHTML = html; feedback('erro'); timerForaSep = setTimeout(() => { $('xUltimo').innerHTML = ''; }, 8000); focarExp(); }
 function avisoForaSep(r) {
   avisoSep(`<div class="ultimo e-bad" style="cursor:default"><div class="t">Não está no pedido</div><div class="d">${esc(r.descricao || r.cod)}</div><div class="m">${esc(r.cod)} · este produto não é deste pedido. Não entra no pallet.</div></div>`);
   toast('Produto NÃO está no pedido.', true);
@@ -937,17 +957,22 @@ async function confirmarSep(cod) {
   await gravarSep(cod, un);
 }
 async function desmarcarSep(cod) { await gravarSep(cod, 0); }
-// grava caixas × emb + soltas (item unitário: tudo em soltas com emb 1)
-async function gravarSep(cod, un) {
+// grava caixas × emb + soltas (item unitário: tudo em soltas com emb 1). somando=true: `un` é o que ESTE bipe acrescenta
+// (bipe repetido soma, como nos coletores de mercado — Tiago, 15/10); senão `un` é o total do item.
+async function gravarSep(cod, un, somando) {
   const it = (visaoExp.pedido || []).find(i => i.cod === cod); const f = it ? fmtQSep(un, it) : { cx: 0, so: un, box: false };
   const emb = f.box && it ? it.emb : 1;   // linha que conta em caixas: caixas × emb + soltas; o resto tudo em unidades
   try {
-    const r = await postExp('separar', { id: visaoExp.id, cod, quant: emb > 1 ? f.cx : f.so, emb, soltas: emb > 1 ? f.so : 0, bipeId: novoBipeId() });
+    const r = await postExp('separar', { id: visaoExp.id, cod, quant: emb > 1 ? f.cx : f.so, emb, soltas: emb > 1 ? f.so : 0, somar: !!somando, bipeId: novoBipeId() });
     if (r.visao) visaoExp = r.visao; if (selSep === cod) selSep = null; delete qtdSep[cod]; renderExp(); setNet(true);
-    if (r.resultado === 'ok') { toast('Confirmado: bate com o pedido.'); if (navigator.vibrate) navigator.vibrate(60); }
-    else if (r.resultado === 'limpo') toast('Desmarcado. Bipe de novo quando separar.');
-    else if (r.resultado === 'fora_do_pedido') toast('Produto NÃO está no pedido.', true);
-    else if (r.resultado === 'qtd_diferente' && r.item) { const p = (visaoExp.pedido || []).find(i => i.cod === r.item.cod); const d = p ? +(r.item.un - p.un).toFixed(3) : 0; toast(d < 0 ? 'Confirmado a MENOS: falta ' + num(-d) + ' un. Sem estoque? Mande pro fiscal no "Terminei".' : 'Confirmado a MAIS: sobra ' + num(d) + ' un. Confira o pallet.', true); }
+    const p = r.item ? (visaoExp.pedido || []).find(i => i.cod === r.item.cod) : null; const d = p && r.item ? +(r.item.un - p.un).toFixed(3) : 0;
+    if (r.resultado === 'ok') { feedback('fim'); toast('Bateu com o pedido: ' + (p ? fmtQSep(r.item.un, p).n + ' ' + fmtQSep(r.item.un, p).l : num(r.item.un) + ' un')); }
+    else if (r.resultado === 'limpo') { feedback('aviso'); toast('Desmarcado. Bipe de novo quando separar.'); }
+    else if (r.resultado === 'fora_do_pedido') { feedback('erro'); toast('Produto NÃO está no pedido.', true); }
+    else if (r.resultado === 'qtd_diferente' && r.item) {
+      if (d < 0 && somando) { feedback('ok'); toast((p ? fmtQSep(r.item.un, p).n + ' ' + fmtQSep(r.item.un, p).l : num(r.item.un) + ' un') + ' · faltam ' + num(-d) + ' un'); }   // contando: cada bipe soma, ainda não chegou
+      else { feedback('aviso'); toast(d < 0 ? 'A MENOS: falta ' + num(-d) + ' un. Sem estoque? Mande pro fiscal no "Terminei".' : 'A MAIS: sobra ' + num(d) + ' un. Confira o pallet.', true); }
+    }
   } catch (e) { erroExp(e, 'Não deu pra gravar'); }
   focarExp();
 }
@@ -961,7 +986,7 @@ async function gravarCartaoExp() {
   fecharCartaoExp();
   try {
     const r = await postExp('bipar', { id: visaoExp.id, cod: c.cod, quant, emb, lote, bipeId: novoBipeId() });
-    if (r.visao) visaoExp = r.visao; ultimoBipadoExp = c.cod; renderExp(); const a = AVISO_EXP[r.resultado]; if (a) toast(a[0], a[1]); setNet(true);
+    if (r.visao) visaoExp = r.visao; ultimoBipadoExp = c.cod; renderExp(); const a = AVISO_EXP[r.resultado]; feedback(r.resultado === 'ok' ? 'ok' : r.resultado === 'fora_do_pedido' ? 'erro' : 'aviso'); if (a) toast(a[0], a[1]); setNet(true);
   } catch (e) { erroExp(e, 'Não deu pra gravar o bipe'); }
   focarExp();
 }
@@ -1069,8 +1094,8 @@ async function conferirDanfe(chaveLida) {
   danfeEmVoo = true;
   try {
     const r = await post('danfe', { chave, nome: sess.nome });
-    if (r.resultado !== 'confere') { danfeBloqueio = { ...r, chave }; if (tela !== 'danfe') { danfeAlvo = null; mostrar('danfe'); } renderDanfe(); toast('XML não confere. Não descarregue.', true); return; }
-    danfeBloqueio = null;
+    if (r.resultado !== 'confere') { danfeBloqueio = { ...r, chave }; if (tela !== 'danfe') { danfeAlvo = null; mostrar('danfe'); } renderDanfe(); feedback('erro'); toast('XML não confere. Não descarregue.', true); return; }
+    danfeBloqueio = null; feedback('fim');
     const daLista = notas.find(n => n.chave === r.chave);
     const nota = daLista || { chave: r.chave, nNota: r.nNota, fornecedor: r.fornecedor, codFornec: 0, veredito: 'sem_pedido', conferencia: null };
     if (danfeAlvo && danfeAlvo.chave !== r.chave) {
@@ -1249,8 +1274,8 @@ async function enviarBipe(acao, body) {
     const r = await post(acao, corpo);
     if (r.visao) visao = r.visao;
     const av = AVISO_RESULTADO[r.resultado];
-    if (av) toast(av[0], true);
-    else if (r.item) toast(String(r.item.descricao || r.item.cod) + ' · ' + num(r.item.quant) + ' × ' + num(r.item.emb) + ' = ' + num(r.item.un) + ' un');
+    if (av) { feedback(/fora|nao_cadastrado|recusad/.test(String(r.resultado)) ? 'erro' : 'aviso'); toast(av[0], true); }
+    else if (r.item) { feedback('ok'); toast(String(r.item.descricao || r.item.cod) + ' · ' + num(r.item.quant) + ' × ' + num(r.item.emb) + ' = ' + num(r.item.un) + ' un'); }
     renderBip(); setNet(true);
   } catch (e) {
     if (e.status) { toast(e.message || 'Bipe recusado', true); await recarregarVisao(); return; }
@@ -1533,6 +1558,26 @@ async function enviarAssim() {
 // marcarLidas() e o refoco do bipe nunca acham que a conversa está à vista quando não está.
 function abrirModal(html) { chatAberto = false; $('modal').innerHTML = `<div class="modal" onclick="if(event.target===this)fecharModal()"><div class="sheet">${html}</div></div>`; }
 function fecharModal() { if (chatAberto) { marcarLidas(); chatAberto = false; } $('modal').innerHTML = ''; focarBip(); }
+// ── retorno sonoro + vibração a cada bipe (Tiago, 15/10: "igual aos coletores do TOTVS/Bluesoft/SAAP") ──
+// ok = bipe curto agudo · fim = dois agudos (fechou/bateu) · aviso = dois médios (quantidade diferente, sem lote) ·
+// erro = grave comprido (produto errado / fora do pedido / DANFE não confere). Web Audio não precisa de arquivo; o
+// contexto só nasce no primeiro toque ou tecla (regra do navegador).
+let audioCtx = null;
+function destravarAudio() { try { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); if (audioCtx.state === 'suspended') audioCtx.resume(); } catch (e) {} }
+document.addEventListener('touchstart', destravarAudio, { passive: true }); document.addEventListener('keydown', destravarAudio); document.addEventListener('click', destravarAudio);
+function bip(freq, ms, vol, inicio) {
+  if (!audioCtx) return;
+  try { const o = audioCtx.createOscillator(), g = audioCtx.createGain(); o.type = 'square'; o.frequency.value = freq; g.gain.value = vol; o.connect(g); g.connect(audioCtx.destination);
+    const t = audioCtx.currentTime + (inicio || 0); o.start(t); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + ms / 1000); o.stop(t + ms / 1000 + 0.02); } catch (e) {}
+}
+const FEEDBACK = { ok: () => { bip(1400, 70, 0.25); vib(40); }, fim: () => { bip(1200, 80, 0.25); bip(1700, 120, 0.25, 0.1); vib([40, 40, 80]); },
+  aviso: () => { bip(700, 110, 0.3); bip(700, 110, 0.3, 0.16); vib([70, 50, 70]); }, erro: () => { bip(220, 380, 0.4); vib([150, 60, 150]); } };
+function vib(p) { try { if (navigator.vibrate) navigator.vibrate(p); } catch (e) {} }
+function feedback(tipo) { destravarAudio(); const f = FEEDBACK[tipo]; if (f) f(); }
+// busca nas listas: sem acento e sem caixa; cada palavra digitada tem que aparecer em algum dos campos
+const semAcento = s => String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const buscaTxt = id => semAcento((($(id) || {}).value || '')).trim();
+function bate(busca, ...campos) { const alvo = campos.map(semAcento).join(' '); return busca.split(/\s+/).every(p => alvo.includes(p)); }
 function toast(m, ruim) {
   const t = $('toast'); t.textContent = m; t.className = 'toast show' + (ruim ? ' ruim' : '');
   clearTimeout(t._x); t._x = setTimeout(() => { t.className = 'toast'; }, ruim ? 4000 : 2600);
