@@ -333,7 +333,7 @@ body{font-family:var(--font);background:var(--pap);color:var(--ink);font-size:14
   <div class="corpo">
     <div class="scan" id="scanExp">
       <span class="ico">▮▯▮</span>
-      <input id="bipExp" placeholder="Bipe a caixa (DUN-14) ou a unidade" autocomplete="off" inputmode="numeric" enterkeyhint="done">
+      <input id="bipExp" placeholder="Bipe a caixa (DUN-14) ou a unidade" autocomplete="off" inputmode="numeric" enterkeyhint="done" virtualkeyboardpolicy="manual">
       <button class="dig" id="btnDigitarExp" type="button" aria-pressed="false" onclick="toggleTeclado()" title="Ligar o teclado do aparelho pra digitar">Teclado</button>
     </div>
     <div class="prog2" id="xResumo" hidden><div class="trk"><i id="xBar"></i></div><div class="lbl"><span id="xResTxt"></span><span id="xUn"></span></div></div>
@@ -369,7 +369,7 @@ body{font-family:var(--font);background:var(--pap);color:var(--ink);font-size:14
     <div class="aviso ok" id="dInstrucao"><b>Caminhão ainda fechado?</b> Bipe o código de barras da DANFE que veio com o motorista. A bipagem dos produtos só abre depois que o XML conferir.</div>
     <div class="scan" id="scanDanfe">
       <span class="ico">▮▯▮</span>
-      <input id="bipDanfe" placeholder="Bipe a chave da DANFE (44 dígitos)" autocomplete="off" inputmode="numeric" enterkeyhint="done">
+      <input id="bipDanfe" placeholder="Bipe a chave da DANFE (44 dígitos)" autocomplete="off" inputmode="numeric" enterkeyhint="done" virtualkeyboardpolicy="manual">
       <button class="dig" id="btnDigitarDanfe" type="button" aria-pressed="false" onclick="toggleTeclado()" title="Ligar o teclado do aparelho pra digitar">Teclado</button>
     </div>
     <div id="dResultado"></div>
@@ -388,7 +388,7 @@ body{font-family:var(--font);background:var(--pap);color:var(--ink);font-size:14
   <div class="corpo">
     <div class="scan" id="scanBox">
       <span class="ico">▮▯▮</span>
-      <input id="bip" placeholder="Bipe o próximo produto" autocomplete="off" inputmode="numeric" enterkeyhint="done">
+      <input id="bip" placeholder="Bipe o próximo produto" autocomplete="off" inputmode="numeric" enterkeyhint="done" virtualkeyboardpolicy="manual">
       <button class="dig" id="btnDigitar" type="button" aria-pressed="false" onclick="toggleTeclado()" title="Ligar o teclado do aparelho pra digitar">Teclado</button>
     </div>
     <div class="prog">
@@ -446,14 +446,23 @@ function guardar(chave, valor) {
 const LS_COM_TECLADO = 'rec_com_teclado';
 let semTeclado = true; try { semTeclado = localStorage.getItem(LS_COM_TECLADO) !== '1'; } catch (e) {}
 const CAMPOS_BIPE = [['bip', 'btnDigitar'], ['bipDanfe', 'btnDigitarDanfe'], ['bipExp', 'btnDigitarExp']];
+// 15/10 (Tiago: "o leitor do coletor não lê… resolva de uma melhor forma"): o scanner da Compex escreve pelo IME, que só
+// existe num campo EDITÁVEL; inputmode="none" tira o IME junto com o teclado e a leitura morre. Com a API de teclado
+// virtual do Chrome (virtualkeyboardpolicy="manual" + navigator.virtualKeyboard) o campo fica editável (IME ligado, o
+// leitor escreve) e o teclado na tela só sobe quando a pessoa pede no botão "Teclado". Navegador sem a API cai no
+// modo antigo (inputmode none/numeric).
+const VK = 'virtualKeyboard' in navigator ? navigator.virtualKeyboard : null;
+if (VK) { try { VK.overlaysContent = true; } catch (e) {} }
 function aplicarTeclado(refocar) {
   for (const [i, b] of CAMPOS_BIPE) {
     const el = $(i);
-    el.setAttribute('inputmode', semTeclado ? 'none' : 'numeric');
+    el.setAttribute('inputmode', VK || !semTeclado ? 'numeric' : 'none');
     $(b).setAttribute('aria-pressed', String(!semTeclado));
-    if (refocar && document.activeElement === el) { el.blur(); el.focus(); } // blur+focus reabre/fecha o teclado
+    if (refocar && document.activeElement === el) { if (VK) tecladoSePedido(); else { el.blur(); el.focus(); } } // sem a API: blur+focus reabre/fecha o teclado
   }
 }
+/** Depois de focar um campo de bipe: sobe o teclado só se a pessoa ligou; senão garante que ele fica escondido. */
+function tecladoSePedido() { if (!VK) return; try { if (semTeclado) VK.hide(); else VK.show(); } catch (e) {} }
 function toggleTeclado() {
   semTeclado = !semTeclado;
   try { if (semTeclado) localStorage.removeItem(LS_COM_TECLADO); else localStorage.setItem(LS_COM_TECLADO, '1'); } catch (e) {}
@@ -805,7 +814,7 @@ function abrirMenuExp() {
     <button class="btn btn-secondary" onclick="escolherTirar()">Tirar da coletagem</button>
     <button class="btn btn-ghost" onclick="fecharModal();focarExp()">Voltar pro bipe</button></div>`);
 }
-function focarExp() { if (tela !== 'exp' || cartaoExp || $('modal').innerHTML) return; const b = $('bipExp'); b.focus(); $('scanExp').classList.add('focus'); }
+function focarExp() { if (tela !== 'exp' || cartaoExp || $('modal').innerHTML) return; const b = $('bipExp'); b.focus(); tecladoSePedido(); $('scanExp').classList.add('focus'); }
 ligarBipe($('bipExp'), lerCodigoExp);
 $('bipExp').addEventListener('blur', () => { $('scanExp').classList.remove('focus'); setTimeout(focarExp, 100); });
 async function lerCodigoExp(cod) {
@@ -1075,7 +1084,7 @@ async function conferirDanfe(chaveLida) {
   } catch (e) { toast(e.message || 'Não deu pra conferir a DANFE', true); focarDanfe(); }
   finally { danfeEmVoo = false; }
 }
-function focarDanfe() { if (tela !== 'danfe' || $('modal').innerHTML) return; const b = $('bipDanfe'); b.focus(); $('scanDanfe').classList.add('focus'); }
+function focarDanfe() { if (tela !== 'danfe' || $('modal').innerHTML) return; const b = $('bipDanfe'); b.focus(); tecladoSePedido(); $('scanDanfe').classList.add('focus'); }
 function enviarDanfe() { const c = $('bipDanfe').value; $('bipDanfe').value = ''; $('bipDanfe')._n = 0; conferirDanfe(c); }
 ligarBipe($('bipDanfe'), conferirDanfe);
 // A chave tem tamanho fixo: no 44º dígito confere sozinho, antes mesmo do Enter/pausa do leitor.
@@ -1152,7 +1161,7 @@ const dataBr = s => { const p = String(s || '').split('-'); return p.length === 
 function podeFocarBip() {
   return tela === 'bipagem' && !cartao && !chatAberto && !$('modal').innerHTML;
 }
-function focarBip() { if (!podeFocarBip()) return; const b = $('bip'); if (b) { b.focus(); $('scanBox').classList.add('focus'); } }
+function focarBip() { if (!podeFocarBip()) return; const b = $('bip'); if (b) { b.focus(); tecladoSePedido(); $('scanBox').classList.add('focus'); } }
 $('bip').addEventListener('blur', () => { $('scanBox').classList.remove('focus'); setTimeout(focarBip, 100); });
 $('bip').addEventListener('focus', () => $('scanBox').classList.add('focus'));
 ligarBipe($('bip'), lerCodigo);
