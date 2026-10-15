@@ -8946,8 +8946,12 @@ app.get('/api/cotacoes/:id/ultimas-compras', async (req, res) => {
                             WHERE cp.Movimentacao='COMPRA' AND cp.DataEntrada >= DATE_SUB(CURDATE(), INTERVAL 24 MONTH) AND cp.CodigoBarra IN (${ch.map(() => '?').join(',')}) ORDER BY cp.DataEntrada DESC`, ch).catch(() => []);
       for (const r of rows) {
         const cod = String(r.CodigoBarra);
-        let preco = null, col = null;
-        for (const [k, v] of Object.entries(r)) if (/valor|preco|custo/i.test(k) && !/total|desc|ipi|icms|frete|entrada|estoque/i.test(k) && +v > 0) { preco = +v; col = k; break; }
+        // compraprodutos grava número como texto pt-BR ("1,40"): preço unitário = Total ÷ unidades que entraram (caixa vira
+        // unidade); sem total, Preco da linha. A leitura antiga (+v na 1ª coluna valor/preco/custo) dava R$ 1,00 (Tiago, 15/10)
+        const brl = v => { if (v == null || v === '') return 0; if (typeof v === 'number') return v; const t = String(v).trim(); return (t.includes(',') ? parseFloat(t.replace(/\./g, '').replace(',', '.')) : parseFloat(t)) || 0; };
+        const tot = brl(r.Total), qe = brl(r.QtdEntradaEstoque), qn = brl(r.Qtd), pu = brl(r.Preco);
+        let preco = qe > 0 && tot > 0 ? +(tot / qe).toFixed(4) : (qn > 0 && tot > 0 ? +(tot / qn).toFixed(4) : (pu > 0 ? pu : null)), col = qe > 0 && tot > 0 ? 'Total/QtdEntradaEstoque' : (qn > 0 && tot > 0 ? 'Total/Qtd' : 'Preco');
+        if (!(preco > 0)) { preco = null; col = null; }
         const reg = { data: r.dt || null, cf: +r.cf || 0, preco, coluna_preco: col, qtd: +r.QtdEntradaEstoque || +r.Qtd || null, emb: +r.QtdEmb || null, nCompra: r.nCompra, loja: r.nLoja };
         if (!out[cod]) out[cod] = { ...reg, hist: [] };
         // 3 últimas compras (notas distintas) pro pré-pedido mostrar ao lado do preço (Tiago, 15/10)
@@ -9160,6 +9164,42 @@ app.get('/api/cotacoes/:id/estoque', async (req, res) => {
     }
     const dados = { itens: out, em: new Date().toISOString() };
     _cotEstoque[id] = { em: Date.now(), dados };
+    res.json(dados);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+// Giro por loja pro pré-pedido (Tiago, 15/10: "ao lado de cada quadrado coloca a última compra e a última venda desse item no
+// ERP e quando o produto está sem giro"): custoloja{ln}.UltimaCompra + última venda nos cupons (mês atual e 3 anteriores,
+// bancos ln{ln}mes{MM}); sem venda na janela = 120+ dias. Sem giro = 30 dias ou mais sem venda (régua do Sem Giro). Cache 10 min.
+const _cotGiro = {};
+app.get('/api/cotacoes/:id/giro', async (req, res) => {
+  try {
+    const id = cotId(req); if (!id) return res.status(400).json({ error: 'id inválido' });
+    const c = cotacao.obter(id); if (!c) return res.status(404).json({ error: 'cotação não encontrada' });
+    const cache = _cotGiro[id]; if (cache && Date.now() - cache.em < 10 * 60 * 1000 && req.query.refresh !== '1') return res.json(cache.dados);
+    const cods = c.itens.map(i => String(i.cod)), out = {}; for (const cod of cods) out[cod] = {};
+    const hoje = new Date(), pad = n => String(n).padStart(2, '0'), dHoje = `${hoje.getFullYear()}-${pad(hoje.getMonth() + 1)}-${pad(hoje.getDate())}`;
+    const isoDe = v => { if (!v) return null; if (v instanceof Date) return isNaN(v) ? null : `${v.getFullYear()}-${pad(v.getMonth() + 1)}-${pad(v.getDate())}`; const s = String(v).trim(); let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/); if (m) return m[1] + '-' + m[2] + '-' + m[3]; m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/); return m ? m[3] + '-' + m[2] + '-' + m[1] : null; };
+    const dias = d => d ? Math.max(0, Math.round((new Date(dHoje + 'T00:00:00') - new Date(d + 'T00:00:00')) / 86400000)) : null;
+    for (const ln of (c.lojas && c.lojas.length ? c.lojas.map(Number) : [1, 2, 3, 4, 5, 6])) {
+      if (!(ln >= 1 && ln <= 6)) continue;
+      for (const ch of radarPedidos.chunk(cods, 2000)) {
+        const rows = await q(`SELECT CodigoBarra cod, UltimaCompra FROM central.custoloja${ln} WHERE CodigoBarra IN (${ch.map(() => '?').join(',')})`, ch).catch(() => []);
+        for (const r of rows) { const o = out[String(r.cod).trim()]; if (!o) continue; (o[ln] = o[ln] || {}).uc = isoDe(r.UltimaCompra); }
+      }
+      let faltam = cods.slice();
+      for (let k = 0; k < 4 && faltam.length; k++) {
+        const d = new Date(hoje.getFullYear(), hoje.getMonth() - k, 1), y = d.getFullYear(), m = pad(d.getMonth() + 1);
+        const dIni = `${y}-${m}-01`, dFim = k === 0 ? dHoje : `${y}-${m}-${pad(new Date(y, d.getMonth() + 1, 0).getDate())}`;
+        for (const ch of radarPedidos.chunk(faltam, 1500)) {
+          const rows = await q(`SELECT Codigo cod, DATE_FORMAT(MAX(Data),'%Y-%m-%d') d FROM \`ln${ln}mes${m}\`.zcupomitens WHERE Data BETWEEN ? AND ? AND IndCancel='N' AND Codigo IN (${ch.map(() => '?').join(',')}) GROUP BY Codigo`, [dIni, dFim, ...ch]).catch(e => { console.error(`[COTACAO] giro ln${ln}mes${m}:`, e.message); return []; });
+          for (const r of rows) { const o = out[String(r.cod).trim()]; if (!o) continue; const L = o[ln] = o[ln] || {}; if (!L.uv || L.uv < r.d) L.uv = r.d; }
+        }
+        faltam = faltam.filter(cod => !(out[cod][ln] && out[cod][ln].uv));
+      }
+      for (const cod of cods) { const L = out[cod][ln] = out[cod][ln] || {}; L.dias = L.uv ? dias(L.uv) : null; L.sem_giro = L.uv ? L.dias >= 30 : true; }
+    }
+    const dados = { itens: out, em: new Date().toISOString(), janela_dias: 120 };
+    _cotGiro[id] = { em: Date.now(), dados };
     res.json(dados);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
