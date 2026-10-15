@@ -222,7 +222,7 @@ app.use((req, res, next) => {
     '/comparativo-tv.html', '/api/comparativo-tv',
     '/prevencao.html', '/api/pendencias/prevencao', '/api/pendencias/prevencao-consolidado', '/api/pendencias/prevencao-bonif',
     '/api/ruptura/debug-comprador',
-    '/api/_diag/tabelas-central', '/api/_diag/radar-listas', '/api/_diag/cotacao-forn', '/api/_diag/robo', '/api/_diag/giro', '/api/_diag/portal-pedidos',
+    '/api/_diag/tabelas-central', '/api/_diag/radar-listas', '/api/_diag/cotacao-forn', '/api/_diag/robo', '/api/_diag/giro', '/api/_diag/portal-pedidos', '/api/_diag/cotacao-fechar',
     '/ruptura-painel.html', '/api/ruptura', '/api/ruptura/comprador-listas',
     '/margem-comprador.html', '/api/margem-tv/comprador',
     '/painel-diretoria.html',
@@ -5946,6 +5946,16 @@ app.get('/api/_diag/portal-pedidos', async (req, res) => {
     res.json({ cotacao: c.id, enviados: out });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
+// fechar/encerrar cotação por token (sem SSH daqui): modo=completa fecha só se ninguém falta; modo=encerrar fecha sem pedido novo
+app.get('/api/_diag/cotacao-fechar', (req, res) => {
+  if (req.query.token !== 'diag2026') return res.status(403).end();
+  try {
+    const id = parseInt(req.query.id); const c0 = cotacao.obter(id); if (!c0) return res.status(404).json({ error: 'cotação não encontrada' });
+    if (!req.query.modo) return res.json({ id, nome: c0.nome, status: c0.status, pendentes: c0.status === 'aberta' ? cotacao.pendentesReais(c0, cotacao.comparativo(c0)).map(f => ({ codFornec: f.codFornec, nome: f.nome })) : [] });
+    const r = req.query.modo === 'encerrar' ? cotacao.encerrar(id, 'diag/Claude a pedido do Tiago', req.query.motivo || 'encerrada a pedido do Tiago (15/10)') : cotacao.fecharSeCompleta(id, 'diag/Claude a pedido do Tiago');
+    res.json(r && r.erro ? { id, erro: r.erro, pendentes: r.pendentes } : { id, status: r.status, fechadaEm: r.fechadaEm, encerradaSemPedidos: r.encerradaSemPedidos || null });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
 app.get('/api/_diag/robo', async (req, res) => {
   if (req.query.token !== 'diag2026') return res.status(403).end();
   const envios = Object.fromEntries(Object.entries(ENVIO_ROBO).map(([k, s]) => [k, { ...s, erros: s.erros.map(x => ({ ...x, whats: x.whats ? String(x.whats).replace(/\d(?=\d{4})/g, '•') : undefined })) }]));   // disparos desde o último reinício
@@ -9248,6 +9258,19 @@ app.get('/api/cotacoes/:id/giro', async (req, res) => {
     _cotGiro[id] = { em: Date.now(), dados };
     res.json(dados);
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+// fecha se todos os vencedores têm pedido (fornecedor zerado não conta) / encerra sem gerar pedido novo (Tiago, 15/10)
+app.post('/api/cotacoes/:id/fechar-se-completa', (req, res) => {
+  const id = cotId(req); if (!id) return res.status(400).json({ error: 'id inválido' });
+  const r = cotacao.fecharSeCompleta(id, cotUser(req)); if (!r) return res.status(404).json({ error: 'cotação não encontrada' });
+  if (r.erro) return res.status(409).json({ error: r.erro, pendentes: r.pendentes });
+  res.json(cotDetalhe(r));
+});
+app.post('/api/cotacoes/:id/encerrar', (req, res) => {
+  const id = cotId(req); if (!id) return res.status(400).json({ error: 'id inválido' });
+  const r = cotacao.encerrar(id, cotUser(req), req.body && req.body.motivo); if (!r) return res.status(404).json({ error: 'cotação não encontrada' });
+  if (r.erro) return res.status(409).json({ error: r.erro });
+  res.json(cotDetalhe(r));
 });
 app.post('/api/cotacoes/:id/cancelar', (req, res) => {
   const id = cotId(req); if (!id) return res.status(400).json({ error: 'id inválido' });
