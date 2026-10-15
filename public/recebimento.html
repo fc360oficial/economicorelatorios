@@ -454,8 +454,10 @@ function guardar(chave, valor) {
 // 15/10 (Tiago: "ele bipa, faz a zuada mas não lê"): nem com o campo editável e o teclado escondido pela API o leitor
 // da Compex entregou a chave — a entrada dele vive DENTRO do teclado visível (IME). Então o padrão volta a ser teclado
 // LIGADO (modo em que a chave leu em 07/10); o botão "Teclado" desliga e o aparelho lembra (rec_sem_teclado).
-const LS_SEM_TECLADO = 'rec_sem_teclado';
-let semTeclado = false; try { semTeclado = localStorage.getItem(LS_SEM_TECLADO) === '1'; } catch (e) {}
+// chave nova (v3): as antigas rec_sem_teclado / rec_com_teclado guardavam "desligado" de versões anteriores e faziam o
+// aparelho abrir sem teclado mesmo com o padrão ligado (log de 15/10 16:00: "teclado:off"). Só vale 'off' gravado agora.
+const LS_SEM_TECLADO = 'rec_teclado_v3';
+let semTeclado = false; try { semTeclado = localStorage.getItem(LS_SEM_TECLADO) === 'off'; localStorage.removeItem('rec_sem_teclado'); localStorage.removeItem('rec_com_teclado'); } catch (e) {}
 const CAMPOS_BIPE = [['bip', 'btnDigitar'], ['bipDanfe', 'btnDigitarDanfe'], ['bipExp', 'btnDigitarExp']];
 // 15/10 (Tiago: "o leitor do coletor não lê… resolva de uma melhor forma"): o scanner da Compex escreve pelo IME, que só
 // existe num campo EDITÁVEL; inputmode="none" tira o IME junto com o teclado e a leitura morre. Com a API de teclado
@@ -476,7 +478,7 @@ function aplicarTeclado(refocar) {
 function tecladoSePedido() { if (!VK) return; try { if (semTeclado) VK.hide(); else VK.show(); } catch (e) {} }
 function toggleTeclado() {
   semTeclado = !semTeclado;
-  try { if (semTeclado) localStorage.setItem(LS_SEM_TECLADO, '1'); else localStorage.removeItem(LS_SEM_TECLADO); } catch (e) {}
+  try { localStorage.setItem(LS_SEM_TECLADO, semTeclado ? 'off' : 'on'); } catch (e) {}
   aplicarTeclado(true); esconderDicaLeitor();
   toast(semTeclado ? 'Teclado desligado.' : 'Teclado ligado. Se o scanner só escrever com ele, deixe ligado.');
 }
