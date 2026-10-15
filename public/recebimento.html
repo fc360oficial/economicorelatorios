@@ -1579,6 +1579,18 @@ const FEEDBACK = { ok: () => { bip(1400, 70, 0.25); vib(40); }, fim: () => { bip
   aviso: () => { bip(700, 110, 0.3); bip(700, 110, 0.3, 0.16); vib([70, 50, 70]); }, erro: () => { bip(220, 380, 0.4); vib([150, 60, 150]); } };
 function vib(p) { try { if (navigator.vibrate) navigator.vibrate(p); } catch (e) {} }
 function feedback(tipo) { destravarAudio(); const f = FEEDBACK[tipo]; if (f) f(); }
+// ── leitura vinda do app nativo (Coletor Econômico, APK, 15/10): o leitor da Compex entrega por broadcast, o invólucro
+// Android captura e chama window.leitorNativo(codigo). Vai pra tela que está aberta, como se o código tivesse sido bipado
+// no campo. Fora de uma tela de bipe, avisa.
+window.leitorNativo = function (codigo) {
+  const c = String(codigo || '').trim(); if (!c) return;
+  try {
+    if (tela === 'danfe') conferirDanfe(c);
+    else if (tela === 'bipagem') lerCodigo(c);
+    else if (tela === 'exp') lerCodigoExp(c);
+    else { feedback('aviso'); toast('Lido: ' + c + ' · abra uma nota ou pedido pra bipar.', true); }
+  } catch (e) { toast('Leitura não aplicada: ' + e.message, true); }
+};
 // busca nas listas: sem acento e sem caixa; cada palavra digitada tem que aparecer em algum dos campos
 const semAcento = s => String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 const buscaTxt = id => semAcento((($(id) || {}).value || '')).trim();
