@@ -61,7 +61,7 @@ Decisão: **PWA**, não APK. Mesmo padrão de `public/contagem.html` (manifest p
 Loja (1–6) + PIN da loja + nome. Reusa `contagem-config.json`? **Não**: PIN/token próprios em `data/recebimento-config.json` (mesma geração, arquivo separado, pra trocar um sem afetar o outro). Nome vira `OperadorLoja` no ERP (maiúsculas, ≤20 chars).
 
 ### 4.2 Notas da loja
-Lista das NF-e em `central.axml` com `CNPJdest` = CNPJ da loja, `Importado`=0 ou data ≥ hoje−7 d, ainda sem conferência nossa concluída. Cada linha: fornecedor (por raiz do CNPJ em `central.fornecedor`), nº NF-e, nº do pedido no Econômico se houver, e o **veredito**:
+(15/10/26: `Importado` deixou de filtrar — no CD, "dar entrada" no Dlinks já vira Importado=1 com compras Status E e a nota ainda aberta; sai da lista só com conferência liberada (Status 2), compras F, ou Importado=1 sem lançamento em compras.) Lista das NF-e em `central.axml` com `CNPJdest` = CNPJ da loja, `Importado`=0 ou data ≥ hoje−7 d, ainda sem conferência nossa concluída. Cada linha: fornecedor (por raiz do CNPJ em `central.fornecedor`), nº NF-e, nº do pedido no Econômico se houver, e o **veredito**:
 
 | Pill | Origem |
 |---|---|

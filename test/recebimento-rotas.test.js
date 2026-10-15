@@ -105,17 +105,18 @@ test('/entrar com PIN certo devolve token da loja', async () => {
   assert.match(r.body.token, /^[a-f0-9]{32}$/);
 });
 
-test('/notas: devolução (finNFe 4) vem com tipo devolucao; nota com lançamento finalizado em compras some mesmo com Importado=0', async () => {
-  const chDev = 'D'.repeat(44), chLanc = 'F'.repeat(44), chNova = 'N'.repeat(44);
+test('/notas: devolução (finNFe 4) vem com tipo devolucao; lançamento finalizado (F) some mesmo com Importado=0; "dado entrada" no Dlinks (Importado=1, compras E) CONTINUA; Importado=1 sem compras some', async () => {
+  const chDev = 'D'.repeat(44), chLanc = 'F'.repeat(44), chNova = 'N'.repeat(44), chEntrada = 'E'.repeat(44), chImp = 'I'.repeat(44);
   const q = async (sql, params) => {
-    if (sql.includes('FROM central.axml')) return [chDev, chLanc, chNova].map((chave, i) => ({ chave, nNota: String(i + 1), CNPJemit: '11222333000199', Data: '2026-09-29' }));
-    if (sql.includes('FROM central.compras WHERE nLoja=?')) { assert.equal(params[0], 3); return [{ chave: chLanc }]; }
+    assert.ok(!/Importado=0/.test(sql), 'Importado não filtra mais na SQL (15/10)');
+    if (sql.includes('FROM central.axml')) return [[chDev, 0], [chLanc, 0], [chNova, 0], [chEntrada, 1], [chImp, 1]].map(([chave, importado], i) => ({ chave, nNota: String(i + 1), CNPJemit: '11222333000199', Data: '2026-09-29', importado }));
+    if (sql.includes('FROM central.compras WHERE nLoja=?')) { assert.equal(params[0], 3); return [{ chave: chLanc, status: 'F' }, { chave: chEntrada, status: 'E' }]; }
     if (sql.includes('FROM central.arquivoxml')) return [{ chave: chDev, fin: '4', natOp: 'DEVOLUCAO-S' }, { chave: chNova, fin: '1', natOp: 'VENDA' }];
     return [];
   };
   const { routes } = montarAmbiente({ q });
   const r = res(); await routes['GET /api/recebimento-publico/notas'](req({ query: { t: recebimento.config().lojas[3].token } }), r);
-  assert.deepEqual(r.body.map(n => n.nNota + ':' + n.tipo), ['1:devolucao', '3:compra']);
+  assert.deepEqual(r.body.map(n => n.nNota + ':' + n.tipo), ['1:devolucao', '3:compra', '4:compra'], 'nota 4 = Importado=1 com compras E (Carmem deu entrada no Dlinks, pedido 185304 de 15/10) fica na lista; 5 = importada sem lançamento some');
 });
 
 test('/notas: nota já liberada no Dlinks (conferencia.Status 2) some da lista; conferência aberta no ERP vem avisada em n.erp', async () => {
