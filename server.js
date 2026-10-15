@@ -9109,6 +9109,15 @@ app.get('/api/cotacoes/:id/estoque', async (req, res) => {
       const rows = await q(`SELECT CodigoBarra cod, Qtd FROM central.estoquen10 WHERE CodigoBarra IN (${ch.map(() => '?').join(',')})`, ch).catch(() => []);
       for (const r of rows) { const o = out[r.cod]; if (!o) continue; o.estoque_cd = +radarPedidos.num(r.Qtd).toFixed(2); }
     }
+    // + estoque das CAIXAS do CD vinculadas à unidade (Pedidos do CD): caixas × un/cx (Tiago, 15/10)
+    try {
+      const cx = pedidosCD.caixasPorUnidade(); const alvo = [];
+      for (const cod of cods) for (const v of (cx[cod] || [])) alvo.push({ un: cod, codigoCD: v.codigoCD, unPorCaixa: v.unPorCaixa });
+      for (const ch of radarPedidos.chunk([...new Set(alvo.map(a => a.codigoCD))], 2000)) {
+        const qtd = {}; for (const r of await q(`SELECT CodigoBarra cod, Qtd FROM central.estoquen10 WHERE CodigoBarra IN (${ch.map(() => '?').join(',')})`, ch).catch(() => [])) qtd[r.cod] = radarPedidos.num(r.Qtd);
+        for (const a of alvo) if (qtd[a.codigoCD] > 0) { const o = out[a.un]; o.estoque_cd = +(o.estoque_cd + qtd[a.codigoCD] * a.unPorCaixa).toFixed(2); (o.estoque_cd_cx = o.estoque_cd_cx || []).push({ codigoCD: a.codigoCD, cx: qtd[a.codigoCD], unPorCaixa: a.unPorCaixa }); }
+      }
+    } catch (e) { console.error('[COTACAO] estoque do CD pelas caixas:', e.message); }
     try {
       // ativo por loja na lista de compra do ERP (c_cotacao_lista_itens.l1..l6 = "Ativar/Desativar Itens da Lista").
       // Tiago, 28/09: "esse item deve estar desativado em todas as lojas e só ativo na loja 4 — coloca alguma informação"
