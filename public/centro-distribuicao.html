@@ -366,7 +366,9 @@ function linha(item, lojasCols, idx) {
     if (item.origem === 'novo' && L.est > 0) est += `<div class="pp-est flag" title="estoque parado no ERP, sem venda">est. parado</div>`;
     if (L.pendenciaAnterior) est += `<div class="pp-est flag w" title="faltaram ${L.pendenciaAnterior.faltaCx} cx no pedido #${L.pendenciaAnterior.pedidoId} (nota já fechada, não vai chegar)">pend. #${L.pendenciaAnterior.pedidoId}</div>`;
     if (!q && item.estoqueCDcx > 0) { const m = motivoZero(item, L, ln); if (m) est += `<div class="pp-est flag ${m.c}" title="${esc(m.t)}">${m.s}</div>`; }
-    return `<td class="c st${q ? ' tem' : ''}"><input class="q${k in EDITS ? ' ed' : ''}${q ? '' : ' z'}" type="number" min="0" value="${q}" placeholder="0" onclick="event.stopPropagation()" onchange="editar('${cod}',${ln},this.value)">${est}</td>`;
+    // a célula INTEIRA da quantidade não marca/desmarca a linha: clique ao lado da caixinha, no est/trâns ou pra sair
+    // do campo depois de digitar desmarcava o produto sem o Tiago ver (15/10/2026: vários itens sumiram do pedido)
+    return `<td class="c st${q ? ' tem' : ''}" onclick="event.stopPropagation()"><input class="q${k in EDITS ? ' ed' : ''}${q ? '' : ' z'}" type="number" min="0" value="${q}" placeholder="0" onchange="editar('${cod}',${ln},this.value)">${est}</td>`;
   }).join('');
   return `<tr class="lst${item.cdInsuficiente ? ' insuf' : ''}${tot ? ' pede' : ' zero'}${idx % 2 ? ' alt' : ''}" data-cod="${cod}" onclick="toggleSel('${cod}',!SEL.has('${cod}'))">
     <td class="c" onclick="event.stopPropagation()"><input type="checkbox" ${sel ? 'checked' : ''} onchange="toggleSel('${cod}',this.checked)"></td>
@@ -481,7 +483,8 @@ function renderPedidoLinhas() {
 }
 function toggleSel(cod, on) { on ? SEL.add(cod) : SEL.delete(cod); renderPedido(); }
 function selTodos(id, on) { for (const cod of (VIS[id] || [])) on ? SEL.add(cod) : SEL.delete(cod); renderPedido(); }
-function editar(cod, ln, v) { EDITS[cod + '|' + ln] = Math.max(0, Math.round(+v || 0)); renderPedido(); }
+// digitou quantidade > 0 = quer o produto: marca sozinho (zerar não desmarca; o checkbox continua mandando)
+function editar(cod, ln, v) { EDITS[cod + '|' + ln] = Math.max(0, Math.round(+v || 0)); if (EDITS[cod + '|' + ln] > 0) SEL.add(cod); renderPedido(); }
 async function fecharPedido() {
   const itens = DADOS.repor.concat(DADOS.novos).filter(i => SEL.has(i.codigoCD));
   const semV = itens.filter(i => i.semVinculo).length;
