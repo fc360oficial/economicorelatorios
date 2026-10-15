@@ -214,7 +214,7 @@ app.use((req, res, next) => {
     '/comparativo-tv.html', '/api/comparativo-tv',
     '/prevencao.html', '/api/pendencias/prevencao', '/api/pendencias/prevencao-consolidado', '/api/pendencias/prevencao-bonif',
     '/api/ruptura/debug-comprador',
-    '/api/_diag/tabelas-central', '/api/_diag/radar-listas', '/api/_diag/cotacao-forn', '/api/_diag/robo',
+    '/api/_diag/tabelas-central', '/api/_diag/radar-listas', '/api/_diag/cotacao-forn', '/api/_diag/robo', '/api/_diag/giro',
     '/ruptura-painel.html', '/api/ruptura', '/api/ruptura/comprador-listas',
     '/margem-comprador.html', '/api/margem-tv/comprador',
     '/painel-diretoria.html',
@@ -5900,6 +5900,26 @@ app.get('/api/_diag/radar-listas', (req, res) => {
 });
 // Diagnóstico só leitura de uma cotação (05/10/26, sem SSH daqui): status e cadastro de cada fornecedor — sem token/link do vendedor.
 // Robô da cotação (cahu-wpp em 127.0.0.1:3012) está de pé e pareado? Sem SSH daqui: GET /status do bot diz online/conectado/número
+// última venda por loja (cupons) pra poucos itens: linhas, erros e tempo por mês — pra entender o "V 120+ d" errado (15/10)
+app.get('/api/_diag/giro', async (req, res) => {
+  if (req.query.token !== 'diag2026') return res.status(403).end();
+  try {
+    const ln = parseInt(req.query.loja) || 1, cods = String(req.query.cods || '').split(',').map(x => x.trim()).filter(Boolean).slice(0, 5);
+    const c = req.query.cotacao ? cotacao.obter(parseInt(req.query.cotacao)) : null; if (c && !cods.length) cods.push(...c.itens.slice(0, 3).map(i => String(i.cod)));
+    if (!cods.length) return res.json({ erro: 'passe cods=... ou cotacao=ID' });
+    const hoje = new Date(), pad = n => String(n).padStart(2, '0'), out = { loja: ln, cods, meses: [] };
+    for (let k = 0; k < 4; k++) {
+      const d = new Date(hoje.getFullYear(), hoje.getMonth() - k, 1), y = d.getFullYear(), m = pad(d.getMonth() + 1);
+      const dIni = `${y}-${m}-01`, dFim = `${y}-${m}-${pad(new Date(y, d.getMonth() + 1, 0).getDate())}`, t0 = Date.now();
+      const r = { tabela: `ln${ln}mes${m}`, dIni, dFim };
+      try { r.rows = await q(`SELECT Codigo cod, DATE_FORMAT(MAX(Data),'%Y-%m-%d') d, COUNT(*) n FROM \`ln${ln}mes${m}\`.zcupomitens WHERE Data BETWEEN ? AND ? AND IndCancel='N' AND Codigo IN (${cods.map(() => '?').join(',')}) GROUP BY Codigo`, [dIni, dFim, ...cods]); }
+      catch (e) { r.erro = e.message; }
+      r.ms = Date.now() - t0; out.meses.push(r);
+    }
+    try { out.amostra = await q(`SELECT Codigo, Data, Qtd FROM \`ln${ln}mes${pad(hoje.getMonth() + 1)}\`.zcupomitens WHERE IndCancel='N' ORDER BY Data DESC LIMIT 3`); } catch (e) { out.amostra_erro = e.message; }
+    res.json(out);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 app.get('/api/_diag/robo', async (req, res) => {
   if (req.query.token !== 'diag2026') return res.status(403).end();
   const envios = Object.fromEntries(Object.entries(ENVIO_ROBO).map(([k, s]) => [k, { ...s, erros: s.erros.map(x => ({ ...x, whats: x.whats ? String(x.whats).replace(/\d(?=\d{4})/g, '•') : undefined })) }]));   // disparos desde o último reinício
