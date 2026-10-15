@@ -32,7 +32,8 @@ button.p{background:var(--am);border-color:var(--am)}
 <div class="box">
   <label for="campo">1 · Campo normal (teclado na tela)</label>
   <input id="campo" autocomplete="off" placeholder="bipe aqui">
-  <div class="row"><button class="p" onclick="foco('campo')">Focar campo 1</button><button onclick="foco('campo2')">Focar campo 2 (sem teclado)</button><button onclick="limpar()">Limpar</button></div>
+  <div class="row"><button class="p" onclick="foco('campo')">Focar campo 1</button><button onclick="foco('campo2')">Focar campo 2 (sem teclado)</button><button onclick="lerClip()">Ler área de transferência</button><button onclick="limpar()">Limpar</button></div>
+  <p style="margin-top:8px">Bipe um código e, logo depois, toque em "Ler área de transferência": se o código aparecer, o leitor está no modo "clipboard".</p>
   <label for="campo2" style="margin-top:8px">2 · Campo sem teclado na tela (inputmode none)</label>
   <input id="campo2" autocomplete="off" inputmode="none" placeholder="bipe aqui com o teclado escondido">
   <div id="status">Nenhuma leitura ainda.</div>
@@ -52,6 +53,10 @@ function agora() { const d = new Date(); return d.toTimeString().slice(0, 8) + '
 function log(txt, cls) { linhas.push('<span class="' + (cls || '') + '">' + agora() + ' ' + txt.replace(/</g, '&lt;') + '</span>'); if (linhas.length > 60) linhas.shift(); $('log').innerHTML = linhas.join('\n'); $('log').scrollTop = 1e9; enviar(txt); }
 function enviar(txt) { pendentes.push(txt); clearTimeout(timerEnvio); timerEnvio = setTimeout(() => { const msg = pendentes.join(' | ').slice(0, 400); pendentes = []; fetch('/api/recebimento-publico/diag', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ loja: 99, nome: 'LEITOR-TESTE', msg, resultado: 'eventos' }) }).catch(() => {}); }, 400); }
 function foco(id) { const el = $(id); el.focus(); log('foco em ' + id + ' (inputmode=' + (el.getAttribute('inputmode') || 'padrão') + ')', 'k'); }
+async function lerClip() {
+  try { const t = await navigator.clipboard.readText(); log('área de transferência: ' + JSON.stringify(t).slice(0, 120), t ? 'ok' : 'bad'); $('ultimo').textContent = t || '(vazia)'; }
+  catch (e) { log('não deu pra ler a área de transferência: ' + e.message, 'bad'); }
+}
 function limpar() { $('campo').value = ''; $('campo2').value = ''; $('ultimo').textContent = ''; }
 function liga(el) {
   el.addEventListener('keydown', e => log(el.id + ' keydown key=' + JSON.stringify(e.key) + ' code=' + e.code + ' keyCode=' + e.keyCode + (e.isComposing ? ' (compondo)' : '')));
