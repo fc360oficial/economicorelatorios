@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Teste do leitor</title>
+<style>
+/* Página de diagnóstico do leitor do coletor (15/10/2026). Mostra e grava no servidor tudo o que o aparelho entrega ao
+   bipar: tecla por tecla (keydown), texto (input), colagem (paste) e composição do teclado (IME). Sem login. */
+:root{--bg:#F6F7FA;--crd:#fff;--ln:#D8DEE9;--ink:#1B2233;--ink2:#4E5A72;--navy:#1D4F91;--am:#F5B800;--pos:#137A48;--neg:#C22F49}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,Segoe UI,Roboto,sans-serif;padding:12px}
+h1{font-size:17px;margin:0 0 4px}
+p{margin:0 0 10px;color:var(--ink2);font-size:12.5px}
+.box{background:var(--crd);border:1px solid var(--ln);border-radius:10px;padding:10px;margin-bottom:10px}
+label{display:block;font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--ink2);margin-bottom:4px}
+input,textarea{width:100%;font:16px system-ui;padding:10px;border:2px solid var(--navy);border-radius:8px;outline:none}
+input:focus,textarea:focus{border-color:var(--am)}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+button{font:14px system-ui;font-weight:700;padding:10px 12px;border-radius:8px;border:1px solid var(--ln);background:#fff;color:var(--ink)}
+button.p{background:var(--am);border-color:var(--am)}
+#status{font-size:12.5px;color:var(--ink2);margin-top:6px}
+#log{font:12px ui-monospace,Consolas,monospace;background:#0E1626;color:#DCE3F0;border-radius:8px;padding:8px;min-height:160px;max-height:45vh;overflow:auto;white-space:pre-wrap;word-break:break-all}
+.ok{color:#5CC98E}.bad{color:#F27A8E}.k{color:#F5B800}
+.big{font-size:22px;font-weight:800;color:var(--pos);margin:4px 0}
+</style>
+</head>
+<body>
+<h1>Teste do leitor do coletor</h1>
+<p>Bipe qualquer código com o campo abaixo em foco. Tudo o que o aparelho entregar aparece aqui e vai pro servidor. Se nada aparecer, o leitor não está mandando pelo teclado.</p>
+
+<div class="box">
+  <label for="campo">1 · Campo normal (teclado na tela)</label>
+  <input id="campo" autocomplete="off" placeholder="bipe aqui">
+  <div class="row"><button class="p" onclick="foco('campo')">Focar campo 1</button><button onclick="foco('campo2')">Focar campo 2 (sem teclado)</button><button onclick="limpar()">Limpar</button></div>
+  <label for="campo2" style="margin-top:8px">2 · Campo sem teclado na tela (inputmode none)</label>
+  <input id="campo2" autocomplete="off" inputmode="none" placeholder="bipe aqui com o teclado escondido">
+  <div id="status">Nenhuma leitura ainda.</div>
+  <div class="big" id="ultimo"></div>
+</div>
+
+<div class="box">
+  <label>Eventos recebidos (os últimos 60)</label>
+  <div id="log"></div>
+</div>
+<p id="info"></p>
+
+<script>
+const $ = id => document.getElementById(id);
+const linhas = []; let leituras = 0; let pendentes = []; let timerEnvio = null;
+function agora() { const d = new Date(); return d.toTimeString().slice(0, 8) + '.' + String(d.getMilliseconds()).padStart(3, '0'); }
+function log(txt, cls) { linhas.push('<span class="' + (cls || '') + '">' + agora() + ' ' + txt.replace(/</g, '&lt;') + '</span>'); if (linhas.length > 60) linhas.shift(); $('log').innerHTML = linhas.join('\n'); $('log').scrollTop = 1e9; enviar(txt); }
+function enviar(txt) { pendentes.push(txt); clearTimeout(timerEnvio); timerEnvio = setTimeout(() => { const msg = pendentes.join(' | ').slice(0, 400); pendentes = []; fetch('/api/recebimento-publico/diag', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ loja: 99, nome: 'LEITOR-TESTE', msg, resultado: 'eventos' }) }).catch(() => {}); }, 400); }
+function foco(id) { const el = $(id); el.focus(); log('foco em ' + id + ' (inputmode=' + (el.getAttribute('inputmode') || 'padrão') + ')', 'k'); }
+function limpar() { $('campo').value = ''; $('campo2').value = ''; $('ultimo').textContent = ''; }
+function liga(el) {
+  el.addEventListener('keydown', e => log(el.id + ' keydown key=' + JSON.stringify(e.key) + ' code=' + e.code + ' keyCode=' + e.keyCode + (e.isComposing ? ' (compondo)' : '')));
+  el.addEventListener('keyup', e => { if (e.key === 'Enter' || e.key === 'Tab') log(el.id + ' keyup ' + e.key); });
+  el.addEventListener('beforeinput', e => log(el.id + ' beforeinput type=' + e.inputType + ' data=' + JSON.stringify(e.data)));
+  el.addEventListener('input', e => { log(el.id + ' input type=' + (e.inputType || '?') + ' data=' + JSON.stringify(e.data) + ' valor=' + JSON.stringify(el.value), 'ok'); leituras++; $('status').textContent = leituras + ' evento(s) de texto · valor atual: ' + el.value; $('ultimo').textContent = el.value; });
+  el.addEventListener('compositionstart', () => log(el.id + ' compositionstart'));
+  el.addEventListener('compositionupdate', e => log(el.id + ' compositionupdate ' + JSON.stringify(e.data)));
+  el.addEventListener('compositionend', e => log(el.id + ' compositionend ' + JSON.stringify(e.data), 'ok'));
+  el.addEventListener('paste', e => log(el.id + ' paste ' + JSON.stringify((e.clipboardData || {}).getData ? e.clipboardData.getData('text') : ''), 'ok'));
+  el.addEventListener('focus', () => log(el.id + ' focus', 'k')); el.addEventListener('blur', () => log(el.id + ' blur', 'k'));
+}
+liga($('campo')); liga($('campo2'));
+// tecla que chega com NADA em foco (modo "eventos de tecla" do leitor entrega aqui mesmo sem campo)
+document.addEventListener('keydown', e => { if (e.target === document.body) log('DOCUMENTO keydown sem campo em foco key=' + JSON.stringify(e.key) + ' code=' + e.code, 'bad'); });
+window.addEventListener('focus', () => log('janela ganhou foco', 'k')); window.addEventListener('blur', () => log('janela perdeu foco (abriu outro app?)', 'bad'));
+document.addEventListener('visibilitychange', () => log('visibilidade: ' + document.visibilityState, 'k'));
+const info = 'navegador: ' + navigator.userAgent + ' · teclado virtual API: ' + ('virtualKeyboard' in navigator ? 'sim' : 'não') + ' · tela ' + screen.width + 'x' + screen.height;
+$('info').textContent = info; log('aberto · ' + info, 'k');
+setTimeout(() => foco('campo'), 300);
+</script>
+</body>
+</html>

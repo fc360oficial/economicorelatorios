@@ -252,7 +252,7 @@ app.use((req, res, next) => {
   if (pathMin === '/contagem.html' || pathMin === '/contagem' || pathMin === '/manifest-contagem.json' || pathMin.startsWith('/api/contagem-publica/')) return next();
   // Coletor de Recebimento no celular do conferente: mesmo esquema (PIN pra entrar, depois token
   // de 32 hex validado dentro da rota)
-  if (pathMin === '/recebimento.html' || pathMin === '/recebimento' || pathMin === '/manifest-recebimento.json' || pathMin.startsWith('/api/recebimento-publico/') || pathMin.startsWith('/api/expedicao-publico/')) return next();
+  if (pathMin === '/recebimento.html' || pathMin === '/leitor-teste.html' || pathMin === '/recebimento' || pathMin === '/manifest-recebimento.json' || pathMin.startsWith('/api/recebimento-publico/') || pathMin.startsWith('/api/expedicao-publico/')) return next();
   // Pré-aquecimento interno (somente localhost)
   if (req.headers['x-internal-warmup'] === 'fc360warmup2026' && ['::1', '127.0.0.1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress)) return next();
   const ext = req.path.split('.').pop().toLowerCase();
