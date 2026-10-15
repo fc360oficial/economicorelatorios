@@ -8945,16 +8945,19 @@ app.get('/api/cotacoes/:id/ultimas-compras', async (req, res) => {
       const rows = await q(`SELECT cp.*, DATE_FORMAT(cp.DataEntrada,'%Y-%m-%d') dt, co.CodFornec cf FROM central.compraprodutos cp LEFT JOIN central.compras co ON co.nCompra=cp.nCompra AND co.nLoja=cp.nLoja
                             WHERE cp.Movimentacao='COMPRA' AND cp.DataEntrada >= DATE_SUB(CURDATE(), INTERVAL 24 MONTH) AND cp.CodigoBarra IN (${ch.map(() => '?').join(',')}) ORDER BY cp.DataEntrada DESC`, ch).catch(() => []);
       for (const r of rows) {
-        const cod = String(r.CodigoBarra); if (out[cod]) continue;
+        const cod = String(r.CodigoBarra);
         let preco = null, col = null;
         for (const [k, v] of Object.entries(r)) if (/valor|preco|custo/i.test(k) && !/total|desc|ipi|icms|frete|entrada|estoque/i.test(k) && +v > 0) { preco = +v; col = k; break; }
-        out[cod] = { data: r.dt || null, cf: +r.cf || 0, preco, coluna_preco: col, qtd: +r.QtdEntradaEstoque || +r.Qtd || null, emb: +r.QtdEmb || null, nCompra: r.nCompra, loja: r.nLoja };
+        const reg = { data: r.dt || null, cf: +r.cf || 0, preco, coluna_preco: col, qtd: +r.QtdEntradaEstoque || +r.Qtd || null, emb: +r.QtdEmb || null, nCompra: r.nCompra, loja: r.nLoja };
+        if (!out[cod]) out[cod] = { ...reg, hist: [] };
+        // 3 últimas compras (notas distintas) pro pré-pedido mostrar ao lado do preço (Tiago, 15/10)
+        const h = out[cod].hist; if (h.length < 3 && preco > 0 && !h.some(x => x.nCompra === r.nCompra && x.loja === r.nLoja)) h.push({ data: reg.data, cf: reg.cf, preco, loja: reg.loja, nCompra: r.nCompra });
       }
     }
     const cfs = [...new Set(Object.values(out).map(x => x.cf).filter(Boolean))];
     const nomes = cfs.length ? await q(`SELECT CodFornec, Nome, NomeCompleto FROM central.fornecedor WHERE CodFornec IN (${cfs.map(() => '?').join(',')})`, cfs).catch(() => []) : [];
     const nomeDe = Object.fromEntries(nomes.map(n => [+n.CodFornec, String(n.NomeCompleto || n.Nome || '').trim()]));
-    for (const x of Object.values(out)) x.fornecedor = nomeDe[x.cf] || null;
+    for (const x of Object.values(out)) { x.fornecedor = nomeDe[x.cf] || null; for (const h of (x.hist || [])) h.fornecedor = nomeDe[h.cf] || null; }
     // categoria do mercadológico do ERP (itens.CodGrupoSub → gruposub → grupo)
     const categorias = {};
     for (const ch of radarPedidos.chunk(c.itens.map(i => String(i.cod)), 2000)) {
