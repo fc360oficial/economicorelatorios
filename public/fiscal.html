@@ -840,14 +840,17 @@ function csvMargem(){
 let COLCFG=null, colcfgAberto=false;
 const COLCFG_CAMPOS=[['validade_pct_min','Validade mínima (% do Validar)','Bloqueia o item quando a validade lida é menor que essa fração do prazo de cadastro do item.'],['recontagens_min','Recontagens mínimas','Quantas vezes a loja precisa apertar Terminei antes de poder enviar assim mesmo.'],['janela_dias_axml','Janela de notas (dias)','Quantos dias pra trás a lista de notas do coletor procura NF-e no ERP.']];
 async function colcfgToggle(){colcfgAberto=!colcfgAberto;if(colcfgAberto&&!COLCFG){try{COLCFG=await fetch('/api/recebimento/config').then(r=>r.json());}catch(e){COLCFG={error:e.message};}}render();}
-function colcfgLink(){const l=location.origin+'/recebimento.html';if(navigator.clipboard)navigator.clipboard.writeText(l).then(function(){ftoast('Link do app copiado.');},function(){ftoast(l);});else ftoast(l);}
+// Link do coletor é SEMPRE o endereço externo (Tiago, 15/10: "pode estar em outras lojas, o interno não acha"): o Caddy
+// publica a porta 3003 em hhk0a8gt2cn.sn.mynetname.net, que funciona de dentro do CD e de qualquer loja.
+const COLETOR_LINK='https://hhk0a8gt2cn.sn.mynetname.net/recebimento.html';
+function colcfgLink(){const l=COLETOR_LINK;if(navigator.clipboard)navigator.clipboard.writeText(l).then(function(){ftoast('Link do app copiado.');},function(){ftoast(l);});else ftoast(l);}
 function colcfgHtml(){
   if(!colcfgAberto)return '<div class="auto" style="border-left-color:var(--am)"><span>📱 <b>Coletor · configuração</b> — PINs das lojas, régua de validade, recontagens e link do app.</span><button class="btn btn-slate btn-sm" onclick="colcfgToggle()">Abrir</button></div>';
   if(!COLCFG)return '<div class="auto" style="border-left-color:var(--am)"><span>Carregando configuração do coletor…</span></div>';
   if(COLCFG.error)return '<div class="auto" style="border-left-color:var(--neg)"><span class="neg">Coletor: '+esc(COLCFG.error)+'</span><button class="btn btn-slate btn-sm" onclick="colcfgToggle()">Fechar</button></div>';
-  const link=location.origin+'/recebimento.html';
+  const link=COLETOR_LINK;
   let h='<div class="auto colcfg" style="border-left-color:var(--am)">';
-  h+='<div class="btns"><button class="btn btn-amber btn-sm" onclick="colcfgSalvar()">Salvar</button><button class="btn btn-slate btn-sm" onclick="colcfgLink()">Copiar link do app</button><a class="btn btn-slate btn-sm" href="/recebimento.html" target="_blank" rel="noopener">Abrir o app</a><button class="btn btn-slate btn-sm" onclick="colcfgToggle()">Fechar</button></div>';
+  h+='<div class="btns"><button class="btn btn-amber btn-sm" onclick="colcfgSalvar()">Salvar</button><button class="btn btn-slate btn-sm" onclick="colcfgLink()">Copiar link do app</button><a class="btn btn-slate btn-sm" href="'+COLETOR_LINK+'" target="_blank" rel="noopener">Abrir o app</a><button class="btn btn-slate btn-sm" onclick="colcfgToggle()">Fechar</button></div>';
   h+='<h3>📱 Coletor · configuração</h3><div class="mut" style="font-size:11.5px;margin-bottom:10px">O conferente entra em <code>'+esc(link)+'</code> com o PIN da loja. Troque o PIN direto no arquivo de config do servidor se vazar.</div>';
   h+='<div class="cfg">'+COLCFG_CAMPOS.map(function(c){return '<label for="k-'+c[0]+'"><b>'+c[1]+'</b>'+c[2]+'</label><input type="number" step="1" min="0" id="k-'+c[0]+'" value="'+esc(COLCFG[c[0]])+'">';}).join('')+'</div>';
   h+='<div class="pins">'+Object.keys(COLCFG.lojas||{}).map(function(n){return '<div class="pin">'+LJ(n)+'<b>'+esc(COLCFG.lojas[n].pin)+'</b></div>';}).join('')+'</div>';
