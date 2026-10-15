@@ -222,7 +222,7 @@ app.use((req, res, next) => {
     '/comparativo-tv.html', '/api/comparativo-tv',
     '/prevencao.html', '/api/pendencias/prevencao', '/api/pendencias/prevencao-consolidado', '/api/pendencias/prevencao-bonif',
     '/api/ruptura/debug-comprador',
-    '/api/_diag/tabelas-central', '/api/_diag/radar-listas', '/api/_diag/cotacao-forn', '/api/_diag/robo', '/api/_diag/giro',
+    '/api/_diag/tabelas-central', '/api/_diag/radar-listas', '/api/_diag/cotacao-forn', '/api/_diag/robo', '/api/_diag/giro', '/api/_diag/portal-pedidos',
     '/ruptura-painel.html', '/api/ruptura', '/api/ruptura/comprador-listas',
     '/margem-comprador.html', '/api/margem-tv/comprador',
     '/painel-diretoria.html',
@@ -5935,6 +5935,16 @@ app.get('/api/_diag/giro', async (req, res) => {
     try { out.amostra = await q(`SELECT Codigo, Data, Qtd FROM \`ln${ln}mes${pad(hoje.getMonth() + 1)}\`.zcupomitens WHERE IndCancel='N' ORDER BY Data DESC LIMIT 3`); } catch (e) { out.amostra_erro = e.message; }
     res.json(out);
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+// manda os pedidos fechados de uma cotação pro portal dos vendedores (mesma coisa do botão da tela) — sem SSH daqui (15/10)
+app.get('/api/_diag/portal-pedidos', async (req, res) => {
+  if (req.query.token !== 'diag2026') return res.status(403).end();
+  try {
+    const c = cotacao.obter(parseInt(req.query.cotacao)); if (!c) return res.status(404).json({ error: 'cotação não encontrada' });
+    if (req.query.enviar !== '1') return res.json({ cotacao: c.id, nome: c.nome, pedidos: (c.pedidos || []).map(x => { const p = pedidosFornec.obter(x.id); return p ? { id: p.id, fornecedor: p.fornecedor, status: p.status, enviadoEm: p.enviadoEm || null, portal: p.portal || null } : { id: x.id, sumiu: true }; }) });
+    const out = []; for (const x of (c.pedidos || [])) { const p = pedidosFornec.obter(x.id); if (!p || p.teste) continue; const r = await portalForn.avisarPedido(p, { reenvio: true }); out.push({ pedido: p.id, fornecedor: p.fornecedor, avisados: r.avisados || 0, portal: r.portal || 0 }); }
+    res.json({ cotacao: c.id, enviados: out });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 app.get('/api/_diag/robo', async (req, res) => {
   if (req.query.token !== 'diag2026') return res.status(403).end();

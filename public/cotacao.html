@@ -1965,9 +1965,16 @@ function pedFornDados(p){
   var lojas = {}; itens.forEach(function(i){ Object.keys(i.lojas_qtd).forEach(function(l){ if (i.lojas_qtd[l] > 0) lojas[l] = 1; }); });
   return { codFornec: p.codFornec, nome: p.nome, pedidoId: ped.id || p.pedidoId, link: ped.link ? ped.link.replace(/\/+$/, '') + '/pdf' : '', vendedor: v, entrega: p.entrega, condicao: p.condicao, tipo_entrega: p.tipo_entrega, total: p.total, itens: itens, lojas: Object.keys(lojas).map(Number).sort(function(a, b){ return a - b; }) };
 }
+// pedidos fechados desta cotação → portal de cada vendedor (Tiago, 15/10: "todos os pedidos que eu fechar na cotação você já envia direto pro portal")
+async function mandarPedidosPortal(){
+  if (!CUR) return;
+  try { var r = await post('/api/portal-admin/cotacoes/' + CUR.id + '/avisar-pedidos'); toastMsg(r.pedidos + ' pedido(s): ' + r.no_portal + ' no portal de vendedores com login · aviso em ' + r.avisados + ' aparelho(s)' + (r.sem_login ? ' · ' + r.sem_login + ' fornecedor(es) sem ninguém no portal (vai pelo WhatsApp)' : '')); }
+  catch(e) { toastMsg('Erro: ' + e.message); }
+}
 function renderPedidosPorForn(real, pend){
   var F = real.map(pedFornDados).sort(function(a, b){ return a.nome.localeCompare(b.nome, 'pt-BR'); });
   var h = '<h2 class="clubh1" style="font-size:22px;margin:6px 0 10px">Fornecedores</h2><div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:10px"><select class="fin" style="max-width:520px" onchange="PED_FORN=this.value;renderComparativoItens()"><option value="">Selecione o fornecedor</option>' + F.map(function(d){ return '<option value="' + d.codFornec + '"' + (String(PED_FORN) === String(d.codFornec) ? ' selected' : '') + '>' + esc(d.nome) + ' · pedido #' + d.pedidoId + '</option>'; }).join('') + '</select><button class="cbtn" onclick="pedExportar(\'forn\')" title="Exporta os pedidos realizados de todos os fornecedores, com a quantidade de cada loja: você escolhe Excel ou PDF">⬆ Exportar todos os fornecedores</button></div>';
+  if (F.length && CUR) h += '<div class="acoes-row" style="margin:0 0 12px;align-items:center"><button class="btn primary" onclick="mandarPedidosPortal()" title="Manda (ou remanda) o pedido fechado de cada fornecedor pro Portal do Fornecedor: aviso no celular de quem tem o app e marcado como enviado pelo portal pra quem tem login">📲 Mandar todos pro portal</button><span class="mini">regra: pedido fechado na cotação já vai sozinho pro portal do vendedor; este botão remanda o aviso</span></div>';
   if (!F.length) return h + '<div class="empty">Nenhum pedido realizado ainda. Os ' + pend.length + ' pré-pedidos pendentes estão na aba Pré-pedidos: abra o carrinho do fornecedor e clique em Realizar Pedido.</div>';
   h += F.filter(function(d){ return !PED_FORN || String(PED_FORN) === String(d.codFornec); }).map(function(d){
     var k = String(d.codFornec), ab = !!PED_FOPEN[k], v = d.vendedor || {};
