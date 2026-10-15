@@ -35,6 +35,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--ink);min-height:10
 .kpi .v small{font-size:10px;font-weight:700;color:var(--ink-3);margin-left:4px}
 .kpi .sub{font-size:11px;color:var(--ink-2);margin-top:6px;line-height:1.4}
 .kpi.ok .v{color:var(--ok)}.kpi.bad .v{color:var(--bad)}
+.kpi{cursor:pointer;transition:border-color .15s}.kpi:hover{border-color:var(--brand)}.kpi.on{border-color:var(--brand);box-shadow:0 0 0 2px #FFF6D9}.kpi .sub a{color:var(--info);font-weight:700}
+.chip{display:inline-block;font-size:11px;font-weight:700;background:#FFF6D9;color:var(--brand-ink);border:1px solid #EFD98F;border-radius:999px;padding:2px 9px}.chip a{color:var(--brand-ink);text-decoration:none;margin-left:4px;font-size:13px}.hid{display:none!important}
 .sec{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:14px;overflow:hidden}
 .sec .hd{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid var(--border);background:#F7F7F5}
 .sec .hd h2{font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-2)}
@@ -87,16 +89,16 @@ td b{font-weight:700}
     </ol>
   </div>
 
-  <div class="sec">
-    <div class="hd"><h2>Vendedores no portal</h2><span class="mini" id="v-cont"></span><input type="search" id="v-busca" placeholder="buscar vendedor, WhatsApp, e-mail, fornecedor…" oninput="renderVendedores()"></div>
+  <div class="sec" id="sec-vend">
+    <div class="hd"><h2>Vendedores no portal</h2><span class="mini" id="v-cont"></span><span class="chip hid" id="v-chip"></span><input type="search" id="v-busca" placeholder="buscar vendedor, WhatsApp, e-mail, fornecedor…" oninput="renderVendedores()"></div>
     <div class="tw"><table>
       <thead><tr><th>Vendedor</th><th>Fornecedor(es)</th><th>Login · PIN</th><th>Avisos</th><th>Aparelhos</th><th>Entrou em</th><th>Último acesso</th><th>Ações</th></tr></thead>
       <tbody id="v-tbody"></tbody>
     </table></div>
   </div>
 
-  <div class="sec">
-    <div class="hd"><h2>Últimos avisos mandados</h2><span class="mini" id="a-cont"></span></div>
+  <div class="sec" id="sec-avisos">
+    <div class="hd"><h2>Últimos avisos mandados</h2><span class="mini" id="a-cont"></span><span class="chip hid" id="a-chip"></span></div>
     <div class="tw"><table>
       <thead><tr><th>Quando</th><th>Aviso</th><th>Cotação / pedido</th><th>Fornecedor</th><th>Vendedor(es)</th><th>Resultado</th></tr></thead>
       <tbody id="a-tbody"></tbody>
@@ -115,6 +117,16 @@ function toast(m) { var t = $('#toast'); t.textContent = m; t.classList.add('on'
 async function api(url, body) { var r = await fetch(url, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : { cache: 'no-store' }); var j = {}; try { j = await r.json(); } catch (e) {} if (!r.ok || j.error) throw new Error(j.error || ('HTTP ' + r.status)); return j; }
 async function copiar(txt, okMsg) { try { await navigator.clipboard.writeText(txt); toast(okMsg); } catch (e) { prompt('Copie:', txt); } }
 var E = null;
+// filtros ligados pelos cartões (Tiago, 15/10): V_F na tabela de vendedores ('' todos · sempin · comapp · semapp), A_F nos avisos ('' · hoje)
+var V_F = '', A_F = '';
+var V_F_NOME = { sempin: 'ainda sem PIN', comapp: 'com avisos ativos', semapp: 'sem avisos ativos' };
+function vFiltroOk(v) { if (V_F === 'sempin') return !v.tem_pin; if (V_F === 'comapp') return v.dispositivos > 0; if (V_F === 'semapp') return !(v.dispositivos > 0); return true; }
+function aFiltroOk(a) { if (A_F === 'hoje') return String(a.em).slice(0, 10) === new Date().toISOString().slice(0, 10); return true; }
+function kpiClick(k) {
+  if (k === 'servidor') { toast(E.webpush ? 'Servidor de avisos OK: web-push carregado' + (E.vapid ? ', chave VAPID gerada' : '') + '. Aparelhos inscritos: ' + E.dispositivos + '.' : 'Servidor de avisos parado: ' + (E.erro || 'web-push não carregou')); return; }
+  if (k === 'hoje') { A_F = A_F === 'hoje' ? '' : 'hoje'; render(); document.getElementById('sec-avisos').scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+  V_F = k === 'todos' ? '' : (V_F === k ? '' : k); render(); document.getElementById('sec-vend').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
 var BASE_PUBLICA = 'https://hhk0a8gt2cn.sn.mynetname.net', LINK_PORTAL = BASE_PUBLICA + '/fornecedor/#criar';   // endereço público (o vendedor acessa de fora), igual ao PUBLIC_URL do servidor
 
 async function carregar() {
@@ -126,23 +138,26 @@ function render() {
   var comApp = reais.filter(function (v) { return v.dispositivos > 0; }).length, comPin = reais.filter(function (v) { return v.tem_pin; }).length;
   var hoje = new Date().toISOString().slice(0, 10), avHoje = (E.avisos || []).filter(function (a) { return String(a.em).slice(0, 10) === hoje && !a.teste; }).length;
   $('#status').innerHTML = (E.webpush ? '<span><b>Avisos (push):</b> funcionando' + (E.vapid ? ' · chave gerada' : '') + '</span>' : '<span class="err">Avisos desligados no servidor: ' + esc(E.erro || 'web-push não carregou') + '</span>') + '<span>Link do portal: <a class="cp" href="' + esc(LINK_PORTAL) + '" target="_blank" rel="noopener">' + esc(LINK_PORTAL) + '</a> <button class="btn btn-sm" onclick="copiar(LINK_PORTAL, \'Link do portal copiado\')">copiar</button></span><span>Dados em <b>data/portal-fornecedor/</b> no servidor (PIN guardado só como hash)</span>';
+  var semPin = reais.length - comPin, semApp = reais.length - comApp;
+  var card = function (k, cls, nm, v, sub, tit) { return '<div class="kpi ' + cls + (V_F === k || A_F === k ? ' on' : '') + '" onclick="kpiClick(\'' + k + '\')" title="' + esc(tit) + '"><div class="nm">' + nm + '</div><div class="v">' + v + '</div><div class="sub">' + sub + '</div></div>'; };
   $('#kpis').innerHTML =
-    '<div class="kpi"><div class="nm">Vendedores no portal</div><div class="v">' + reais.length + '</div><div class="sub">' + (comPin < reais.length ? comPin + ' com PIN; ' + (reais.length - comPin) + ' ainda sem PIN, entraram pelo "Sou eu" antigo' : 'criaram login com WhatsApp e PIN') + '</div></div>' +
-    '<div class="kpi ' + (comApp ? 'ok' : '') + '"><div class="nm">Com avisos ativos</div><div class="v">' + comApp + '<small>de ' + reais.length + '</small></div><div class="sub">têm pelo menos um aparelho inscrito; recebem cotação sem WhatsApp</div></div>' +
-    '<div class="kpi"><div class="nm">Aparelhos</div><div class="v">' + E.dispositivos + '</div><div class="sub">celulares e PCs inscritos pra receber aviso</div></div>' +
-    '<div class="kpi"><div class="nm">Avisos hoje</div><div class="v">' + avHoje + '</div><div class="sub">nova cotação, lembrete de prazo e pedido</div></div>' +
-    '<div class="kpi ' + (E.webpush ? 'ok' : 'bad') + '"><div class="nm">Servidor de avisos</div><div class="v" style="font-size:16px">' + (E.webpush ? 'OK' : 'parado') + '</div><div class="sub">' + (E.webpush ? 'web-push carregado, chave VAPID pronta' : esc(E.erro || '')) + '</div></div>';
+    card('todos', '', 'Vendedores no portal', reais.length, (semPin ? comPin + ' com PIN; <a href="#" onclick="event.stopPropagation();kpiClick(\'sempin\');return false">' + semPin + ' ainda sem PIN</a>, entraram pelo "Sou eu" antigo' : 'criaram login com WhatsApp e PIN'), 'Clique: mostra todos os vendedores na tabela') +
+    card('comapp', comApp ? 'ok' : '', 'Com avisos ativos', comApp + '<small>de ' + reais.length + '</small>', 'têm pelo menos um aparelho inscrito; recebem cotação sem WhatsApp' + (semApp ? ' · <a href="#" onclick="event.stopPropagation();kpiClick(\'semapp\');return false">' + semApp + ' sem avisos</a>' : ''), 'Clique: só quem tem avisos ativos') +
+    card('comapp', '', 'Aparelhos', E.dispositivos, 'celulares e PCs inscritos pra receber aviso', 'Clique: vendedores com aparelho inscrito (a coluna Aparelhos mostra cada um)') +
+    card('hoje', '', 'Avisos hoje', avHoje, 'nova cotação, lembrete de prazo e pedido', 'Clique: só os avisos de hoje, na tabela de baixo') +
+    card('servidor', E.webpush ? 'ok' : 'bad', 'Servidor de avisos', '<span style="font-size:16px">' + (E.webpush ? 'OK' : 'parado') + '</span>', (E.webpush ? 'web-push carregado, chave VAPID pronta' : esc(E.erro || '')), 'Clique: detalhes do servidor de avisos');
   $('#ajuda').style.display = reais.length ? 'none' : 'block';
   $('#cfg-exige').checked = !!E.exigeLogin;
   $('#cfg-txt').textContent = E.exigeLogin ? 'ligado: quem abre o link da cotação sem login vê "crie seu login" por cima e só digita preço depois de entrar (a mensagem do WhatsApp já avisa)' : 'desligado: o painel "crie seu login" aparece, mas o vendedor pode tocar em "Agora não, só cotar"';
   renderVendedores(); renderAvisos();
 }
 function renderVendedores() {
-  var vs = E.vendedores_lista || [], b = ($('#v-busca').value || '').trim().toLowerCase();
+  var vs = (E.vendedores_lista || []).filter(vFiltroOk), b = ($('#v-busca').value || '').trim().toLowerCase();
+  var chip = $('#v-chip'); chip.classList.toggle('hid', !V_F); chip.innerHTML = V_F ? 'filtro: ' + V_F_NOME[V_F] + ' <a href="#" onclick="kpiClick(\'todos\');return false" title="Limpar o filtro">×</a>' : '';
   var vis = vs.filter(function (v) { if (!b) return true; return ((v.nome || '') + ' ' + (v.whats || '') + ' ' + fone(v.whats) + ' ' + (v.email || '') + ' ' + (v.empresas || []).map(function (e) { return e.nome; }).join(' ')).toLowerCase().indexOf(b) >= 0; });
   $('#v-cont').textContent = vs.length ? vis.length + ' de ' + vs.length : '';
   if (!vs.length) { $('#v-tbody').innerHTML = '<tr><td colspan="8" class="empty">Ninguém criou login no portal ainda. Mande o <b>convite</b> pelo WhatsApp do vendedor (botão "Copiar convite"): ele cria o login com o número dele e um PIN e ativa os avisos.</td></tr>'; return; }
-  if (!vis.length) { $('#v-tbody').innerHTML = '<tr><td colspan="8" class="empty">Nenhum vendedor com "' + esc(b) + '".</td></tr>'; return; }
+  if (!vis.length) { $('#v-tbody').innerHTML = '<tr><td colspan="8" class="empty">Nenhum vendedor ' + (b ? 'com "' + esc(b) + '"' : '') + (V_F ? ' no filtro "' + V_F_NOME[V_F] + '"' : '') + '.</td></tr>'; return; }
   $('#v-tbody').innerHTML = vis.map(function (v) {
     var ap = v.aparelhos || [];
     var apTxt = ap.length ? ap.map(function (a) { return '<div>' + esc(a.navegador || 'aparelho') + ' <span class="mini">· desde ' + dt(a.criadoEm).slice(0, 8) + (a.ultimoEnvio ? ' · último aviso ' + haTxt(a.ultimoEnvio) : ' · nenhum aviso ainda') + '</span></div>'; }).join('') : '<span class="mini">nenhum</span>';
@@ -160,8 +175,10 @@ function renderVendedores() {
   }).join('');
 }
 function renderAvisos() {
-  var av = E.avisos || [];
-  $('#a-cont').textContent = av.length ? av.length + ' mais recentes' : '';
+  var av = (E.avisos || []).filter(aFiltroOk);
+  var chip = $('#a-chip'); chip.classList.toggle('hid', !A_F); chip.innerHTML = A_F ? 'filtro: só hoje <a href="#" onclick="kpiClick(\'hoje\');return false" title="Limpar o filtro">×</a>' : '';
+  $('#a-cont').textContent = av.length ? av.length + (A_F ? ' hoje' : ' mais recentes') : '';
+  if (!av.length && A_F) { $('#a-tbody').innerHTML = '<tr><td colspan="6" class="empty">Nenhum aviso mandado hoje.</td></tr>'; return; }
   if (!av.length) { $('#a-tbody').innerHTML = '<tr><td colspan="6" class="empty">Nenhum aviso mandado ainda. O primeiro sai sozinho quando você criar uma cotação com um fornecedor cujo vendedor tem o portal.</td></tr>'; return; }
   var tipo = { cotacao: '<span class="pill info">nova cotação</span>', lembrete: '<span class="pill teste">lembrete de prazo</span>', pedido: '<span class="pill ok">pedido</span>' };
   $('#a-tbody').innerHTML = av.map(function (a) {
