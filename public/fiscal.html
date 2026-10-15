@@ -706,7 +706,7 @@ function arecSit(r){
   return r.situacao!=='liberado';   /* "A chegar" = o que ainda vai chegar; parcial (faltou item, já liberado) fica no chip próprio */
 }
 function arecFiltro(r){ return arecQuem(r)&&arecSit(r); }
-function arecBusca(r){const q=$('#q').value.trim().toLowerCase();if(!q)return true;return String(r.pedido).includes(q)||(r.fornecedor||'').toLowerCase().includes(q)||(r.lista_nome||'').toLowerCase().includes(q)||(r.comprador||'').toLowerCase().includes(q);}
+function arecBusca(r){const q=$('#q').value.trim().toLowerCase();if(!q)return true;return String(r.pedido).includes(q)||(r.cotacao&&r.cotacao.id!=null&&('#'+r.cotacao.id===q||'cotacao '+r.cotacao.id===q.normalize('NFD').replace(/[̀-ͯ]/g,'')))||(r.fornecedor||'').toLowerCase().includes(q)||(r.lista_nome||'').toLowerCase().includes(q)||(r.comprador||'').toLowerCase().includes(q);}
 function renderAReceber(){
   const all=AREC||[];
   const n=f=>all.filter(f).length;
@@ -726,8 +726,8 @@ function renderAReceber(){
     if(todas&&r.loja!==lj){lj=r.loja;const dl=lista.filter(x=>x.loja===lj);h+='<tr class="loja"><td colspan="8"><b>'+LJ(lj)+'</b>'+esc(r.loja_nome)+'<span>'+dl.length+' pedidos · '+dl.filter(x=>x.situacao==='nota_bipada').length+' com nota bipada · '+dl.filter(x=>x.atraso>0).length+' atrasados</span></td></tr>';}
     const fis=r.quem_decide==='fiscal', open=!!AREC_OPEN[r.key];
     h+='<tr class="row'+(open?' open':'')+'"'+(r.atraso>0&&!open?' style="background:#FFF8E6"':'')+' onclick="arecToggle(\''+r.key+'\')"><td><span class="nm">#'+r.pedido+'</span>'+(todas?'':'<span class="erp">'+LJ(r.loja)+'</span>')+'<span class="erp">'+(r.aprovadoEm?dbr2(r.aprovadoEm.slice(0,10))+' · ':'')+(r.status==='recebido_parcial'?'recebido parcial':'aprovado')+'</span></td>';
-    h+='<td class="forn"><span class="nm">'+esc(r.fornecedor||'')+'</span>'+(r.lista_nome?'<span class="lst" title="'+esc(r.lista_nome)+'">'+esc(r.lista_nome)+'</span>':'')+(r.obs?'<div class="obsd" title="'+esc(r.obs.por||'')+': '+esc(r.obs.texto)+'">💬 '+esc(r.obs.por||'')+': “'+esc(r.obs.texto)+'”</div>':'')+'</td>';
-    h+='<td class="org">'+esc(r.origem_txt||'')+(fis?' · diretor':r.comprador?' · '+esc(r.comprador):'')+'<span class="quem '+(fis?'fiscal':'comp')+'">'+(fis?'decide: fiscal, no recebimento':'decide: Comprador (a) · Pedidos de Compra')+'</span></td>';
+    h+='<td class="forn"><span class="nm">'+esc(r.fornecedor||'')+'</span>'+(r.lista_nome?'<span class="lst" title="'+esc(r.lista_nome)+'">'+(r.cotacao&&r.cotacao.id!=null?'<b>#'+r.cotacao.id+'</b> · ':'')+esc(r.lista_nome)+'</span>':'')+(r.obs?'<div class="obsd" title="'+esc(r.obs.por||'')+': '+esc(r.obs.texto)+'">💬 '+esc(r.obs.por||'')+': “'+esc(r.obs.texto)+'”</div>':'')+'</td>';
+    h+='<td class="org">'+(r.cotacao&&r.cotacao.id!=null?'<b>Cotação #'+r.cotacao.id+'</b>':esc(r.origem_txt||''))+(fis?' · diretor':r.comprador?' · '+esc(r.comprador):'')+'<span class="quem '+(fis?'fiscal':'comp')+'">'+(fis?'decide: fiscal, no recebimento':'decide: Comprador (a) · Pedidos de Compra')+'</span></td>';
     h+='<td>'+(r.entrega_prevista?'<b'+(r.atraso>0?' class="warn"':'')+'>'+dbr2(r.entrega_prevista)+'</b>'+(r.atraso>0?'<span class="erp warn">atrasado '+r.atraso+' d</span>':''):'<span class="mut">sem prazo</span>')+'</td>';
     h+='<td class="r">'+(r.itens_vieram!=null&&r.itens_vieram<r.itens?r.itens_vieram+' <span class="mut">de '+r.itens+'</span>':r.itens)+'</td>';
     h+='<td class="r">'+money(r.valor)+(r.valor_tipo==='ultimo_custo'?'<span class="erp" title="Vendedor ainda não digitou preço: valor pelo último custo">últ. custo</span>':'')+'</td>';
