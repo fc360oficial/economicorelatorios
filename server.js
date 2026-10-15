@@ -9059,7 +9059,7 @@ app.post('/api/cotacoes/:id/emb', (req, res) => {
 });
 app.post('/api/cotacoes/:id/pre-pedido/:codFornec', (req, res) => {
   const id = cotId(req); if (!id) return res.status(400).json({ error: 'id inválido' });
-  const r = cotacao.salvarPrePedido(id, req.params.codFornec, req.body || {});
+  const r = cotacao.salvarPrePedido(id, req.params.codFornec, req.body || {}, cotUser(req));
   if (!r) return res.status(404).json({ error: 'cotação não encontrada' });
   if (r.erro) return res.status(409).json({ error: r.erro });
   res.json(cotDetalhe(r));
