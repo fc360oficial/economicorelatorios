@@ -247,13 +247,12 @@ function render() {
   h += pushCard();
   // Cotações
   h += '<div class="sec" data-tab="cot"><div class="sec-h"><b>COTAÇÕES ABERTAS</b><span>' + ab.length + '</span></div>' + (ab.length ? ab.map(cardCot).join('') : '<div class="empty">Nenhuma cotação aberta pra você agora. Quando a Econômico abrir uma, ela aparece aqui' + (pushOk && subAtual ? ' e você recebe o aviso' : '') + '.</div>') + '</div>';
-  if (pp.length) h += '<div class="sec" data-tab="cot"><div class="sec-h"><b>PEDIDO' + (pp.length > 1 ? 'S' : '') + ' PRA CONFIRMAR</b><span>' + pp.length + '</span></div>' + pp.map(function (p) { return cardPed(p, true); }).join('') + '</div>';
+  // (pedidos pra confirmar ficam só na aba Pedidos — Tiago, 15/10: "cotação fica em cotação, pedidos fica em pedidos")
   // Cotações fechadas (Tiago, 15/10): quem ganhou itens já recebe o pedido pronto — card com "Abrir pedido" e PDF
-  var pedDe = function (id) { return pp.concat(ph).find(function (p) { return p.id === id; }) || null; };
   h += '<div class="sec" data-tab="cot hist"><div class="sec-h"><b>COTAÇÕES FECHADAS</b><span>' + rs.length + '</span></div>' + (rs.length ? rs.slice(0, TABA === 'hist' ? 12 : 5).map(function (r) {
-    var w = r.venceu, ok = !!(w && w.itens > 0), pd = ok && w.pedidoId ? pedDe(w.pedidoId) : null;
+    var w = r.venceu, ok = !!(w && w.itens > 0);
     var st = r.status === 'cancelada' ? '<span class="pill off">cancelada</span>' : ok ? '<span class="pill pos">você ganhou ' + w.itens + ' de ' + r.itens + ' itens' + (w.total ? ' · ' + fmtR(w.total) : '') + '</span>' : (r.f_status === 'finalizado' ? '<span class="pill off">proposta enviada · não ganhou itens</span>' : '<span class="pill off">não respondida</span>');
-    return '<div class="card' + (ok ? ' pos' : '') + '"><div class="c"><div class="t">#' + r.id + ' · ' + esc(r.nome) + '</div><div class="s">' + r.itens + ' itens' + (r.finalizadoEm ? ' · proposta enviada ' + dd(r.finalizadoEm) : '') + '</div>' + st + '</div>' + (pd ? '<div class="btns"><a class="btn d" href="' + esc(pd.link) + '">Abrir pedido #' + pd.id + '</a><a class="btn" href="' + esc(pd.pdf) + '" target="_blank" rel="noopener">PDF</a></div>' : (ok && w.pedidoId ? '<div class="s" style="margin-top:6px">pedido #' + w.pedidoId + ' gerado · veja na aba Pedidos</div>' : '')) + '</div>';
+    return '<div class="card' + (ok ? ' pos' : '') + '"><div class="c"><div class="t">#' + r.id + ' · ' + esc(r.nome) + '</div><div class="s">' + r.itens + ' itens' + (r.finalizadoEm ? ' · proposta enviada ' + dd(r.finalizadoEm) : '') + '</div>' + st + '</div>' + (ok && w.pedidoId ? '<div class="s" style="margin-top:6px">pedido #' + w.pedidoId + ' gerado · <a href="#" onclick="aba(\'ped\');return false">veja na aba Pedidos</a></div>' : '') + '</div>';
   }).join('') : '<div class="empty">Nenhuma cotação fechada ainda. Quando a Econômico fechar uma, ela aparece aqui e, se você ganhou itens, o pedido pronto vem junto.</div>') + '</div>';
   // Pedidos
   // aba Pedidos (Tiago, 15/10): EM ABERTO = o vendedor ainda digita os valores e confirma (Radar / manuais), ou já confirmou e espera a
