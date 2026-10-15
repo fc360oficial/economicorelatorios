@@ -451,8 +451,11 @@ function guardar(chave, valor) {
 // Atenção: em 06-07/10 o scanner da Compex só escrevia pelo teclado virtual (IME) — sem teclado
 // nada entrava no campo. Se "não lê" com o teclado desligado, configurar no aparelho Barcode
 // Utility › Function Settings › Barcode Data Output Mode = Emukey + sufixo Enter, ou ligar o teclado.
-const LS_COM_TECLADO = 'rec_com_teclado';
-let semTeclado = true; try { semTeclado = localStorage.getItem(LS_COM_TECLADO) !== '1'; } catch (e) {}
+// 15/10 (Tiago: "ele bipa, faz a zuada mas não lê"): nem com o campo editável e o teclado escondido pela API o leitor
+// da Compex entregou a chave — a entrada dele vive DENTRO do teclado visível (IME). Então o padrão volta a ser teclado
+// LIGADO (modo em que a chave leu em 07/10); o botão "Teclado" desliga e o aparelho lembra (rec_sem_teclado).
+const LS_SEM_TECLADO = 'rec_sem_teclado';
+let semTeclado = false; try { semTeclado = localStorage.getItem(LS_SEM_TECLADO) === '1'; } catch (e) {}
 const CAMPOS_BIPE = [['bip', 'btnDigitar'], ['bipDanfe', 'btnDigitarDanfe'], ['bipExp', 'btnDigitarExp']];
 // 15/10 (Tiago: "o leitor do coletor não lê… resolva de uma melhor forma"): o scanner da Compex escreve pelo IME, que só
 // existe num campo EDITÁVEL; inputmode="none" tira o IME junto com o teclado e a leitura morre. Com a API de teclado
@@ -473,7 +476,7 @@ function aplicarTeclado(refocar) {
 function tecladoSePedido() { if (!VK) return; try { if (semTeclado) VK.hide(); else VK.show(); } catch (e) {} }
 function toggleTeclado() {
   semTeclado = !semTeclado;
-  try { if (semTeclado) localStorage.removeItem(LS_COM_TECLADO); else localStorage.setItem(LS_COM_TECLADO, '1'); } catch (e) {}
+  try { if (semTeclado) localStorage.setItem(LS_SEM_TECLADO, '1'); else localStorage.removeItem(LS_SEM_TECLADO); } catch (e) {}
   aplicarTeclado(true); esconderDicaLeitor();
   toast(semTeclado ? 'Teclado desligado.' : 'Teclado ligado. Se o scanner só escrever com ele, deixe ligado.');
 }
@@ -542,7 +545,7 @@ async function entrar(ev) {
   if (!lojaSel) { $('lerro').textContent = 'Escolha a loja.'; return; }
   if (lojaSel === 10 && !/^\d{4}$/.test(pinPessoal)) { $('lerro').textContent = 'Digite seu PIN pessoal (4 dígitos).'; $('pinPessoal').focus(); return; }
   try {
-    const r = await fetch('/api/recebimento-publico/entrar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ loja: lojaSel, pin, nome, pinPessoal }) });
+    const r = await fetch('/api/recebimento-publico/entrar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ loja: lojaSel, pin, nome, pinPessoal, diag: 'vk:' + ('virtualKeyboard' in navigator ? 'sim' : 'nao') + ' teclado:' + (semTeclado ? 'off' : 'on') + ' ' + String(navigator.userAgent).slice(0, 90) }) });
     const j = await r.json();
     if (!r.ok) { $('lerro').textContent = j.error || 'Não foi possível entrar.'; return; }
     sess = { loja: j.loja, token: j.token, nome: j.nome || nome.toUpperCase(), operador: j.operador || null, opToken: j.opToken || null };
@@ -1588,7 +1591,7 @@ if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').cat
 window.addEventListener('online', () => setNet(true));
 window.addEventListener('offline', () => setNet(false));
 
-aplicarTeclado(false); // teclado desligado por padrão (coletor com scanner); ligado só se este aparelho pediu
+aplicarTeclado(false); // teclado LIGADO por padrão (o leitor da Compex só entrega com ele visível); desligado só se este aparelho pediu
 
 if (sess && sess.token) iniciar();
 </script>
