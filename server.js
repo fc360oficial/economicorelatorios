@@ -8656,7 +8656,10 @@ app.get('/api/cotacoes/fornecedor/:codFornec/contato', async (req, res) => {
     const [ag] = await q(`SELECT a.Nome, a.email, a.whats, l.nReg lista, l.Nome lista_nome FROM central.c_cotacao_agenda a JOIN central.c_cotacao_lista l ON l.nReg=a.nLista WHERE l.CodFornec=? ORDER BY a.nLista DESC LIMIT 1`, [cod]).catch(() => []);
     const telefones = [];
     if (f) for (const [k, v] of Object.entries(f)) if (/fone|cel|whats|tel/i.test(k) && v && String(v).replace(/\D/g, '').length >= 8) telefones.push({ campo: k, valor: String(v).trim() });
-    res.json({ codFornec: cod, nome: f ? String(f.NomeCompleto || f.Nome || '').trim() : null, cnpj: f ? (String(f.CNPJ || '').replace(/\D/g, '') || null) : null,
+    // e-mail / cidade do cadastro do ERP (cartão "Fornecedor" do pré-pedido — Tiago, 15/10): nomes de coluna variam, procura por padrão
+    const campo = re => { if (!f) return null; const k = Object.keys(f).find(x => re.test(x) && f[x] != null && String(f[x]).trim()); return k ? String(f[k]).trim() : null; };
+    const emailErp = campo(/^e-?mail/i), cidade = campo(/^cidade/i), uf = campo(/^(uf|estado)$/i), fantasia = campo(/fantasia/i);
+    res.json({ codFornec: cod, nome: f ? String(f.NomeCompleto || f.Nome || '').trim() : null, fantasia, cnpj: f ? (String(f.CNPJ || '').replace(/\D/g, '') || null) : null, email: emailErp, cidade: cidade ? cidade + (uf ? '/' + uf : '') : null,
       vendedor: ag ? { nome: ag.Nome?.trim() || null, email: ag.email || null, whats: ag.whats || null, lista: ag.lista, lista_nome: ag.lista_nome?.trim() || null } : null, telefones });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
