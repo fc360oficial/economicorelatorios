@@ -408,7 +408,7 @@ table.pp tr.q td{padding:6px 12px}
 table.pp .chev,table.pp .cart{color:var(--amk)}
 .pp-chk{border-color:var(--amk)}.pp-chk.on{background:var(--amk)}
 .pp-det{gap:12px;margin:4px 0 12px}
-.pp-det .pp-emp{margin:6px 0 8px;padding-bottom:8px;border-bottom:1px dashed var(--ln);line-height:1.7}.pp-det .pp-vend{line-height:1.7}.pp-det .pp-cad{margin-top:8px;padding-top:8px;border-top:1px dashed var(--ln);line-height:1.7}.pp-det .pp-cad>b{color:var(--ink)}
+.pp-det .pp-emp{margin:6px 0 8px;padding-bottom:8px;border-bottom:1px dashed var(--ln);line-height:1.7}.pp-det .pp-vend{line-height:1.7}
 .pp-det>div{background:var(--crd);border:1px solid var(--ln);border-radius:12px;padding:12px 14px}
 .pp-det h3{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--ink3);margin:0 0 8px;font-weight:800}
 .pp-det .k{font-size:12.5px;color:var(--ink2);line-height:1.8}.pp-det .k b{color:var(--ink);font-weight:700}
@@ -2238,7 +2238,7 @@ function ppLinksPedido(p){
 function ppAntTag(p){ var a = p.cadastro_anterior; return a ? ' <span class="mini" title="O vendedor ainda não enviou a proposta nesta cotação: condição, pedido mínimo e prazo vieram do bloco de cadastro que ele enviou na cotação #' + a.cotacao + '">(proposta anterior, ' + dd(String(a.em).slice(0, 10)) + ')</span>' : ''; }
 function ppPropostaLinha(p, wa){ var pr = p.proposta; if (!pr) return ''; if (pr.enviada) return '<br>Proposta: <b style="color:var(--pos)">enviada' + (pr.finalizadoEm ? ' em ' + dd(String(pr.finalizadoEm).slice(0, 10)) : '') + '</b>'; return '<br>Proposta: <b style="color:var(--neg)">⚠ não enviada</b> <span class="mini">· digitou ' + (pr.cotados || 0) + ' preço(s) e não clicou em Enviar proposta (o bloco de cadastro só vem com o envio)</span>' + (wa ? ' <a href="' + wa + '" target="_blank" rel="noopener" style="color:#128C7E;font-weight:700;white-space:nowrap">🟢 cobrar no WhatsApp</a>' : ''); }
 // Cartão "Fornecedor" do pré-pedido (Tiago, 15/10): empresa (cadastro do ERP: código, CNPJ, fones, e-mail — carregado 1x por
-// fornecedor), vendedor (cadastro da lista) e o que o vendedor preencheu na cotação (e-mail, boleto, entrega, mínimo, obs)
+// fornecedor) e vendedor (cadastro da lista). O bloco "preenchido pelo vendedor na cotação" entrou e saiu no mesmo dia (Tiago: "tira isso")
 var PP_CONTATO = {};
 function ppCardForn(p, v, wa){
   var cod = p.codFornecErp || p.codFornec, ct = PP_CONTATO[cod];
@@ -2246,12 +2246,6 @@ function ppCardForn(p, v, wa){
   var h = '<span class="tag">' + esc(p.empresa || p.nome) + '</span> <span class="mini">cód. ' + esc(cod) + '</span>';
   h += '<div id="pp-emp-' + cod + '" class="pp-emp">' + (ct ? ppEmpresaErp(ct) : '<span class="mini">carregando cadastro do ERP…</span>') + '</div>';
   h += '<div class="pp-vend"><b>Vendedor:</b> ' + (v.nome ? '<b>' + esc(v.nome) + '</b>' : '—') + (v.whats ? ' · ' + (wa ? '<a href="' + wa + '" target="_blank" style="color:#25D366;font-weight:700">🟢 ' + esc(fone(v.whats)) + '</a>' : '<b>' + esc(fone(v.whats)) + '</b>') : '') + (v.email ? '<br>E-mail do cadastro: <b>' + esc(v.email) + '</b>' : '') + '</div>';
-  var cv = p.cadastro_vendedor, ant = !cv && p.cadastro_anterior && p.cadastro_anterior.cadastro ? p.cadastro_anterior.cadastro : null, c = cv || ant;
-  h += '<div class="pp-cad"><b>Preenchido pelo vendedor' + (cv ? ' nesta cotação' : ant ? ' na cotação #' + p.cadastro_anterior.cotacao : '') + '</b>';
-  if (!c) h += '<br><span class="mini">ainda não preencheu o bloco "Estamos atualizando nosso cadastro" nesta cotação</span>';
-  else h += '<br>E-mail: <b>' + esc(c.email || '—') + '</b><br>Boleto: <b>' + (c.prazo_pagamento ? c.prazo_pagamento + ' dias' : '—') + '</b> · Entrega: <b>' + (c.prazo_entrega != null ? c.prazo_entrega + ' dia(s)' : '—') + '</b> · Pedido mínimo: <b>' + (c.pedido_minimo != null ? (c.pedido_minimo > 0 ? fmtR(c.pedido_minimo) : 'sem mínimo') : '—') + '</b>';
-  if (p.obs_vendedor) h += '<br>Obs.: <i>' + esc(p.obs_vendedor) + '</i>';
-  h += '</div>';
   return h;
 }
 function ppEmpresaErp(r){ var ps = []; if (r.nome && r.nome !== (r.fantasia || '')) ps.push('<b>' + esc(r.nome) + '</b>' + (r.fantasia ? ' <span class="mini">(' + esc(r.fantasia) + ')</span>' : '')); if (r.cnpj) ps.push('CNPJ <b>' + esc(fmtCnpj(r.cnpj)) + '</b>'); if (r.cidade) ps.push(esc(r.cidade)); var tel = (r.telefones || []).map(function(t){ return fone(t.valor); }).filter(function(x, i, a){ return a.indexOf(x) === i; }); if (tel.length) ps.push('Fone: <b>' + tel.map(esc).join(' · ') + '</b>'); if (r.email) ps.push('E-mail: <b>' + esc(r.email) + '</b>'); return ps.length ? ps.join('<br>') : '<span class="mini">sem cadastro no ERP (fornecedor só da lista)</span>'; }
