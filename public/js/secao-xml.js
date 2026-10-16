@@ -62,8 +62,8 @@
     const dv = x.devolvida;
     if (dv && dv.total) h += '<div class="devolvida"><b>Esta entrega foi devolvida' + (dv.em ? ' em ' + br(dv.em) : '') + '</b> pela ' + (dv.notas || []).map(n => 'NF-e ' + nfLink(n) + ' (' + money2(n.valorNFE) + ')').join(', ') + '. A loja não ficou com a mercadoria. <b>Não pagar o boleto.</b> O pedido desta loja fica como não entregue.</div>';
     else if (dv && Object.keys(dv.itens || {}).length) h += '<div class="devolvida parcial"><b>Devolução parcial' + (dv.em ? ' em ' + br(dv.em) : '') + '</b>: ' + (dv.notas || []).map(n => 'NF-e ' + nfLink(n) + ' (' + money2(n.valorNFE) + ')').join(', ') + '. O "Veio no XML" abaixo já desconta o que voltou.</div>';
-    // outras notas do fornecedor pra loja que NÃO são entrega (devolução / contranota de outra compra): só informadas
-    else if ((x.notas_fora || []).length) h += '<br><span class="mut">Também há devolução do fornecedor nesta loja, de outra compra: ' + x.notas_fora.map(n => 'NF-e ' + nfLink(n) + ' · ' + br(n.data) + ' · ' + money2(n.valorNFE)).join(' · ') + '</span>';
+    // devoluções do fornecedor que não são desta entrega (outra compra / estoque antigo) ficam em x.notas_fora mas NÃO aparecem
+    // aqui (Tiago, 16/10/26: "eu não preciso ver as antigas, só o da cotação atual")
     // Financeiro: uma frase só quando algo não bate; batendo, um "ok" curto
     const f = x.financeiro || {};
     if (f.nfe != null) {
