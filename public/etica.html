@@ -135,7 +135,7 @@ async function abrirCaso(prot) {
   const prazos = ['triagem', 'aceite', 'providencia', 'investigacao', 'validacao', 'comunicacao'].filter(k => c.prazosTxt[k]).map(k => { const p = c.prazosTxt[k]; const cls = p.cumpridoEm ? 'ok' : p.vencidoEm ? 'neg' : (r.prazo && r.prazo.etapa === k && r.prazo.horas <= 24 ? 'warn' : ''); return '<div class="' + cls + '"><b>' + esc(p.etapaTxt) + ' · ' + esc(p.regraTxt) + '</b>' + (p.cumpridoEm ? 'cumprido ' + dBRh(p.cumpridoEm) : p.vencidoEm ? '<span style="color:var(--neg);font-weight:700">vencido ' + dBRh(p.vencidoEm) + '</span>' : 'vence ' + dBRh(p.venceEm)) + (p.prorrogadoAte ? '<span class="sub">prorrogado</span>' : '') + '</div>'; }).join('');
   const hist = (c.eventos || []).slice().reverse().map(e => '<div class="h' + (e.publico ? ' pub' : '') + '"><time>' + dBRh(e.em) + '<span class="sub">' + esc(e.por || '') + '</span></time><span><b>' + esc(e.tipo.replace(/_/g, ' ')) + '</b> · ' + esc(e.texto) + '</span></div>').join('');
   const anexos = (c.anexos || []).length ? '<ul class="anx" style="padding-left:16px;font-size:12.5px">' + c.anexos.map(a => '<li>' + (a.arquivo ? '<a href="/api/etica/casos/' + prot + '/anexos/' + a.arquivo + '" target="_blank" rel="noopener">' + esc(a.nome || a.arquivo) + '</a>' : esc(a.descricao)) + ' <span class="sub">' + esc(a.por) + ' · ' + dBRh(a.em) + (a.hash ? ' · sha256 ' + a.hash.slice(0, 10) : '') + '</span></li>').join('') + '</ul>' : '<div class="vazio sm">sem anexos</div>';
-  const ident = c.identificacao ? (c.identificacao.restrito ? '<span class="sub">identificado · identidade restrita à triagem, coordenação e responsável</span>' : '<b>' + esc(c.identificacao.nome || '') + '</b> ' + esc(c.identificacao.contato || '') + (c.identificacao.erro ? ' <span style="color:var(--neg)">' + esc(c.identificacao.erro) + '</span>' : '')) : '<span class="sub">anônimo</span>';
+  const ident = c.identificacao ? '<span id="ident-box"><span class="sub">identificado · nome e contato só com a senha de um administrador</span> ' + btn('Revelar identidade', 'gh', 'id="ident-rev"') + '</span>' : '<span class="sub">anônimo</span>';
   const A = { triar: ['Triar e encaminhar', 'am'], aceitar: ['Aceitar o caso', 'am'], impedimento: ['Declarar impedimento', 'gh neg'], redistribuicao: ['Pedir redistribuição', 'gh'], redistribuir: ['Redistribuir', 'nv'], providencia: ['Registrar providência', 'am'], evidencia: ['Registrar evidência', 'gh'], prorrogar: ['Pedir prorrogação', 'gh'], decidir_prorrogacao: ['Decidir prorrogação', 'nv'], validacao: ['Enviar para validação', 'nv'], validar: ['Validar conclusão', 'am'], reabrir: ['Reabrir', 'gh neg'] };
   ov.innerHTML = '<div class="g-md" style="max-width:1180px"><div class="hd"><div><b><span class="prot">' + esc(prot) + '</span> · ' + esc(r.categoriaTxt) + '</b><small>' + esc(unidTxt(r.unidade)) + ' · ' + esc(r.prioridadeTxt) + ' · ' + esc(r.statusTxt) + (r.risco ? ' · RISCO IMEDIATO' : '') + ' · recebido ' + dt(c.criadoEm) + '</small></div><button type="button" class="x">×</button></div><div class="bd">' +
     '<div class="cadeia" style="margin-bottom:10px">' + cadeia + '</div><div class="prazos" style="margin-bottom:10px">' + prazos + '</div>' +
@@ -155,6 +155,19 @@ async function abrirCaso(prot) {
     '</div></div></div></div>';
   document.body.appendChild(ov); ov.querySelector('.x').onclick = () => ov.remove(); ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
   ov.querySelectorAll('[data-acao]').forEach(b => b.onclick = async () => { const ok = await acao(b.dataset.acao, c); if (ok) { ov.remove(); abrirCaso(prot); abrirAba(ABA); contadores(); } });
+  const br = ov.querySelector('#ident-rev'); if (br) br.onclick = () => revelarIdentidade(prot, ov.querySelector('#ident-box'));
+}
+// identidade do denunciante: pede a senha de um administrador; a revelação fica na auditoria e no histórico do caso
+function revelarIdentidade(prot, box) {
+  const ov = document.createElement('div'); ov.className = 'g-ov';
+  ov.innerHTML = '<div class="g-md" style="max-width:460px"><div class="hd"><b>Revelar identidade do denunciante</b><button type="button" class="x">×</button></div><form class="bd"><div class="grid"><label class="fld c3"><span>Senha de um administrador do sistema</span><input type="password" id="id-senha" autocomplete="off" autofocus></label></div><div class="rod">A consulta fica registrada na auditoria e no histórico do caso com o seu usuário e o administrador que autorizou. 5 senhas erradas bloqueiam por 15 min.</div><div class="acoes"><button class="btn am" type="submit">Revelar</button><button class="btn gh" type="button" id="id-cancel">Cancelar</button></div></form></div>';
+  document.body.appendChild(ov); const fechar = () => ov.remove();
+  ov.querySelector('.x').onclick = fechar; ov.querySelector('#id-cancel').onclick = fechar; setTimeout(() => ov.querySelector('#id-senha').focus(), 30);
+  ov.querySelector('form').onsubmit = async e => {
+    e.preventDefault();
+    try { const j = await api('/api/etica/casos/' + prot + '/identidade', { body: { senha: ov.querySelector('#id-senha').value } }); fechar(); box.innerHTML = '<b>' + esc(j.nome || '') + '</b> ' + esc(j.contato || '') + (j.erro ? ' <span style="color:var(--neg)">' + esc(j.erro) + '</span>' : '') + ' <span class="sub">consulta registrada na auditoria</span>'; }
+    catch (err) { toast(err.message, 'neg'); ov.querySelector('#id-senha').value = ''; ov.querySelector('#id-senha').focus(); }
+  };
 }
 
 // ── ações (modais) ──

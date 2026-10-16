@@ -8510,7 +8510,9 @@ app.get('/api/dp/ponto/resumo', async (req, res) => {
 // (data/gente/*.json — ASO/exames, ocorrências, férias, vagas, treinamentos, avaliações, movimentações, quadro).
 const gente = require('./lib/gente');
 // Canal de Ética e Denúncias (DP / RH › Canal de Ética + portal público /etica) — regras em lib/etica.js
-require('./lib/etica-rotas')(app, { multer, publicDir: path.join(__dirname, 'public'), listarUsuarios: () => usuarios });
+require('./lib/etica-rotas')(app, { multer, publicDir: path.join(__dirname, 'public'), listarUsuarios: () => usuarios,
+  // identidade do denunciante só se revela com a senha de um administrador (Tiago, 16/10): confere contra todas as contas admin
+  validarSenhaAdmin: async senha => { for (const u of usuarios) if (u.perfil === 'admin' && u.senha_hash && await bcrypt.compare(String(senha), u.senha_hash)) return u.usuario; return null; } });
 // O GET /employees do Pontomais leva ~30-40 s (4 páginas pesadas). Aquece o cache ao subir e renova a cada 18 min
 // pra tela do DP/RH abrir na hora; se o token não estiver configurado, só ignora.
 const genteAquecer = () => { gente.painelDP().catch(() => {}); };

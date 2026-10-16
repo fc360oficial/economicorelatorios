@@ -85,6 +85,13 @@ Visibilidade por caso (`podeVer`): triagem, coordenação, revisor e independent
 casos na sua instância; investigador vê os casos em que é ou foi responsável. Pessoa envolvida ou impedida **nunca**
 vê o caso, seja qual for o papel. Toda leitura de caso e download de anexo vai pra `auditoria/`.
 
+**Identidade do denunciante** (quando ele se identificou): nunca vem no detalhe do caso. Quem pode ver o caso clica
+em "Revelar identidade" e digita a **senha de um administrador do sistema** (conferida por bcrypt contra todas as
+contas `admin` do `usuarios.json`; decisão do Tiago em 16/10). A revelação grava na auditoria quem pediu e qual
+administrador autorizou, e entra no histórico do caso. Cinco senhas erradas em 15 min bloqueiam o solicitante.
+Em disco, o arquivo `.ident.json` fica cifrado com `ETICA_KEY` (proteção do backup e de quem acessa a pasta); a
+senha do administrador é o controle de quem vê na tela.
+
 O painel mascara unidade com menos de 3 casos ("<3") pra quem não é Coordenação/Revisor.
 
 ## 5. Variáveis de ambiente

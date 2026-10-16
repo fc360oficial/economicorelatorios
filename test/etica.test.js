@@ -32,12 +32,22 @@ test('1 · registro anônimo gera protocolo aleatório e credencial; identidade 
   assert.ok(c.credencial.hash && !JSON.stringify(c).includes(r.credencial.replace(/-/g, '')), 'credencial não fica em claro');
 });
 
-test('2 · registro identificado guarda a identidade separada e cifrada; só triagem/coordenação/responsável leem', () => {
+test('2 · registro identificado guarda a identidade separada e cifrada; só se revela com senha de administrador', () => {
   const r = E.registrar(relato({ identificar: true, nome: 'Maria', contato: '81 9...' }));
   const bruto = JSON.parse(fs.readFileSync(E.P.ident(r.protocolo), 'utf8'));
   assert.ok(bruto.dados && !bruto.claro, 'cifrado com ETICA_KEY');
-  assert.deepEqual(E.detalhe(r.protocolo, U.tri).identificacao, { nome: 'Maria', contato: '81 9...' });
-  assert.deepEqual(E.detalhe(r.protocolo, U.rev).identificacao, { restrito: true });
+  const d = E.detalhe(r.protocolo, U.tri);
+  assert.deepEqual(d.identificacao, { restrito: true }); assert.ok(!JSON.stringify(d).includes('Maria'), 'detalhe nunca traz a identidade');
+  assert.throws(() => E.revelarIdentidade(r.protocolo, U.tri, null), e => e.status === 401, 'senha errada');
+  assert.throws(() => E.revelarIdentidade(r.protocolo, U.rh, 'tiago'), e => e.status === 403, 'RH não vê caso ainda em triagem: não revela nem com a senha');
+  assert.deepEqual(E.revelarIdentidade(r.protocolo, U.tri, 'tiago'), { nome: 'Maria', contato: '81 9...' });
+  assert.ok(E.auditoria({ protocolo: r.protocolo }).some(a => a.acao === 'identidade' && a.autorizadoPor === 'tiago'));
+  assert.ok(E.auditoria({ protocolo: r.protocolo }).some(a => a.acao === 'identidade_senha_errada'));
+  assert.ok(E.eventos(r.protocolo).some(e => e.tipo === 'identidade_revelada'));
+  for (let i = 0; i < 5; i++) assert.throws(() => E.revelarIdentidade(r.protocolo, U.coord, null), e => e.status === 401);
+  assert.throws(() => E.revelarIdentidade(r.protocolo, U.coord, 'tiago'), e => e.status === 429, '5 senhas erradas bloqueiam o solicitante mesmo com a senha certa');
+  const anon = E.registrar(relato());
+  assert.throws(() => E.revelarIdentidade(anon.protocolo, U.tri, 'tiago'), e => e.status === 404);
 });
 
 test('3/4 · consulta segura: credencial certa mostra só o autorizado; errada falha; 5 erros bloqueiam', () => {
