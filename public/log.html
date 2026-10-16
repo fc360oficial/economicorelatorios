@@ -74,6 +74,27 @@ pre.sql{background:var(--wsh);border:1px solid var(--ln);border-radius:var(--r);
 .ds-tab:hover{color:var(--ink)}
 .ds-tab.on{color:var(--ink);border-bottom-color:var(--am)}
 td.msg{white-space:normal;min-width:200px;color:var(--ink2)}
+/* ── Log de acessos ── */
+.a-card{margin-bottom:16px}
+.a-card .tblwrap{border-top:1px solid var(--ln)}
+.a-hd{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:14px 18px 12px;flex-wrap:wrap}
+.a-hd h2{font-size:14px;font-weight:800;color:var(--ink);display:flex;align-items:center;gap:8px;margin:0}
+.a-hd p{font-size:12px;color:var(--ink3);margin:4px 0 0;line-height:1.7}
+.a-hd p .pill{vertical-align:middle;margin-right:2px}
+.a-n{font-family:ui-monospace,Consolas,monospace;font-size:12px;font-weight:600;color:var(--ink3)}
+.a-kpis{grid-template-columns:repeat(5,1fr);border-bottom:none}
+@media (max-width:900px){.a-kpis{grid-template-columns:repeat(3,1fr)}.a-kpis .kpi{border-bottom:1px solid var(--ln)}}
+.a-kpis .kpi .v{font-size:24px;line-height:1.1;margin-top:4px}
+.a-kpis .kpi .v.dim{color:var(--ink3)}
+.a-sub{font-size:11px;color:var(--ink3);margin-top:3px}
+.u-nome{font-weight:700;color:var(--ink);white-space:nowrap}
+.u-login{display:block;font-size:11px;color:var(--ink3);font-family:ui-monospace,Consolas,monospace;margin-top:1px}
+.pill.perfil{background:var(--ln);color:var(--ink2);font-weight:600;text-transform:none}
+.pill.perfil.admin{background:var(--amw);color:var(--amk)}
+.pill.perfil.pin{background:color-mix(in srgb,var(--inf) 12%,transparent);color:var(--inf)}
+.pill.atividade{background:var(--ln);color:var(--ink2)}
+td.det{white-space:normal;min-width:180px;max-width:360px;color:var(--ink3);font-size:12px}
+td.ips{white-space:normal;max-width:200px;font-size:12px}
 </style>
 </head>
 <body class="ds">
@@ -225,33 +246,54 @@ td.msg{white-space:normal;min-width:200px;color:var(--ink2)}
       </div>
     </div>
 
-    <div class="card" style="margin-bottom:14px">
-      <div class="label" style="margin-bottom:8px">Online agora <span id="aOnlineN" class="pill ok">0</span> <span style="color:var(--ink3);font-weight:400">· atividade nos últimos 15 min · atualiza a cada 30 s</span></div>
+    <!-- Números do período -->
+    <div class="card a-card">
+      <div class="kpis a-kpis">
+        <div class="kpi"><div class="label">Online agora</div><div class="v pos" id="kOnline">0</div><div class="a-sub">últimos 15 min</div></div>
+        <div class="kpi"><div class="label">Pessoas no período</div><div class="v" id="kPessoas">0</div><div class="a-sub">com algum acesso</div></div>
+        <div class="kpi"><div class="label">Logins</div><div class="v" id="kLogins">0</div><div class="a-sub" id="kLoginsSub">entradas com senha</div></div>
+        <div class="kpi"><div class="label">Senha errada</div><div class="v" id="kFalhas">0</div><div class="a-sub">tentativas recusadas</div></div>
+        <div class="kpi"><div class="label">Telas abertas</div><div class="v" id="kPaginas">0</div><div class="a-sub" id="kPaginasSub">páginas + atividades</div></div>
+      </div>
+    </div>
+
+    <!-- Online agora -->
+    <div class="card a-card">
+      <div class="a-hd">
+        <div><h2>Online agora <span class="pill ok" id="aOnlineN">0</span></h2><p>Quem teve atividade nos últimos 15 minutos · atualiza sozinho a cada 30 s</p></div>
+      </div>
       <div class="tblwrap">
         <table>
-          <thead><tr><th>Usuário</th><th>Perfil</th><th>Entrou</th><th>Última atividade</th><th>Última página</th><th>IP</th><th>Dispositivo</th></tr></thead>
+          <thead><tr><th>Usuário</th><th>Perfil</th><th>Entrou</th><th>Última atividade</th><th>Onde está</th><th>IP</th><th>Dispositivo</th></tr></thead>
           <tbody id="aOnlineTb"></tbody>
         </table>
         <div class="empty" id="aOnlineVazio" hidden>Ninguém ativo nos últimos 15 minutos.</div>
       </div>
     </div>
 
-    <div class="card" style="margin-bottom:14px">
-      <div class="label" style="margin-bottom:8px">Resumo por usuário no período</div>
+    <!-- Resumo por usuário -->
+    <div class="card a-card">
+      <div class="a-hd">
+        <div><h2>Por usuário no período</h2><p>Uma linha por pessoa: quantas vezes entrou, telas abertas, de onde acessou</p></div>
+      </div>
       <div class="tblwrap">
         <table>
-          <thead><tr><th>Usuário</th><th>Perfil</th><th class="num">Logins</th><th class="num">Senha errada</th><th class="num">Páginas</th><th>Primeiro acesso</th><th>Último acesso</th><th>IPs</th><th>Dispositivos</th></tr></thead>
+          <thead><tr><th>Usuário</th><th>Perfil</th><th class="num">Logins</th><th class="num">Senha errada</th><th class="num">Telas</th><th class="num">Atividades</th><th>Primeiro acesso</th><th>Último acesso</th><th>IPs</th><th>Dispositivos</th></tr></thead>
           <tbody id="aResumoTb"></tbody>
         </table>
+        <div class="empty" id="aResumoVazio" hidden>Ninguém acessou no período.</div>
       </div>
     </div>
 
-    <div class="card">
-      <div class="label" style="margin-bottom:8px">Eventos <span id="aN" style="color:var(--ink3);font-weight:400"></span></div>
+    <!-- Eventos -->
+    <div class="card a-card">
+      <div class="a-hd">
+        <div><h2>Eventos <span class="a-n" id="aN"></span></h2><p>Do mais recente pro mais antigo · <span class="pill ok">login</span> entrou · <span class="pill erro">login_falha</span> senha errada · <span class="pill recusado">logout</span> saiu · <span class="pill teste">pagina</span> abriu uma tela · <span class="pill">atividade</span> reconstruído (antes de 16/10/26)</p></div>
+      </div>
       <div class="tblwrap">
         <table>
           <thead><tr>
-            <th>Data/Hora</th><th>Evento</th><th>Usuário</th><th>Nome</th><th>Perfil</th><th>Página</th><th>IP</th><th>Dispositivo</th><th>Msg</th>
+            <th>Data/Hora</th><th>Evento</th><th>Usuário</th><th>Perfil</th><th>Tela / área</th><th>IP</th><th>Dispositivo</th><th>Detalhe</th>
           </tr></thead>
           <tbody id="aTb"></tbody>
         </table>
@@ -474,45 +516,79 @@ async function acessosCarregar() {
 async function acessosOnline() {
   try { const r = await fetch('/api/log-acessos/online'); if (r.ok) acessosRenderOnline((await r.json()).usuarios || []); } catch {}
 }
-const hora = s => s ? String(s).slice(11, 19) : '—';
-const EVENTO_PILL = { login: 'ok', login_falha: 'erro', logout: 'recusado', pagina: 'teste', atividade: '' };
+const EVENTO_PILL = { login: 'ok', login_falha: 'erro', logout: 'recusado', pagina: 'teste', atividade: 'atividade' };
+const EVENTO_TXT = { login: 'login', login_falha: 'senha errada', logout: 'logout', pagina: 'tela', atividade: 'atividade' };
+// Nome em destaque + login embaixo (contagem:nome = auxiliar que entra pelo PIN, sem login)
+function userCell(nome, usuario) {
+  const u = String(usuario || '');
+  const login = u.startsWith('contagem:') ? 'app contagem · PIN' : u;
+  return `<td><span class="u-nome">${esc(nome || u)}</span>${login && login !== nome ? `<span class="u-login">${esc(login)}</span>` : ''}</td>`;
+}
+function perfilPill(p) {
+  if (!p) return '<span style="color:var(--ink3)">—</span>';
+  const cls = p === 'admin' ? 'admin' : /pin/i.test(p) ? 'pin' : '';
+  return `<span class="pill perfil ${cls}">${esc(p)}</span>`;
+}
+const dash = v => v ? esc(v) : '<span style="color:var(--ink3)">—</span>';
+// "reconstruído de data/log-erp/2026-10.jsonl (campo usuario)" → "reconstruído · log-erp" (texto inteiro no title)
+function detalhe(e) {
+  const m = String(e.msg || '');
+  if (!m) return '';
+  const r = m.match(/^reconstruído de data\/([^\/ (]+)/);
+  if (r) return `<span title="${esc(m)}">reconstruído · ${esc(r[1])}</span>`;
+  return esc(m);
+}
 function acessosRenderOnline(us) {
   $('aOnlineN').textContent = us.length;
+  $('kOnline').textContent = us.length;
+  $('kOnline').classList.toggle('dim', !us.length);
   $('aOnlineVazio').hidden = us.length > 0;
   $('aOnlineTb').innerHTML = us.map(a => `<tr>
-    <td><b>${esc(a.nome || a.usuario)}</b> <span style="color:var(--ink3)">${esc(a.usuario)}</span></td>
-    <td>${esc(a.perfil || '—')}</td>
+    ${userCell(a.nome, a.usuario)}
+    <td>${perfilPill(a.perfil)}</td>
     <td class="mono">${dh(a.desde)}</td>
     <td class="mono">${dh(a.ultima)}</td>
-    <td class="mono">${esc(a.pagina || '—')}</td>
-    <td class="mono">${esc(a.ip || '—')}</td>
-    <td>${esc(a.dispositivo || '—')}</td>
+    <td class="mono">${dash(a.pagina)}</td>
+    <td class="mono">${dash(a.ip)}</td>
+    <td>${dash(a.dispositivo)}</td>
   </tr>`).join('');
 }
 function acessosRender() {
-  $('aVazio').hidden = acessosItens.length > 0;
-  $('aN').textContent = acessosItens.length ? `· ${acessosItens.length}` : '';
-  $('aResumoTb').innerHTML = acessosResumo.map(r => `<tr>
-    <td><b>${esc(r.nome || r.usuario)}</b> <span style="color:var(--ink3)">${esc(r.usuario)}</span></td>
-    <td>${esc(r.perfil || '—')}</td>
-    <td class="num mono">${r.logins}</td>
-    <td class="num mono">${r.falhas ? `<span class="pill erro">${r.falhas}</span>` : '0'}</td>
-    <td class="num mono">${r.paginas}</td>
+  const it = acessosItens, rs = acessosResumo;
+  $('aVazio').hidden = it.length > 0;
+  $('aResumoVazio').hidden = rs.length > 0;
+  $('aN').textContent = it.length ? `· ${it.length}` : '';
+  // KPIs do período
+  const n = t => it.filter(e => e.tipo === t).length;
+  const logins = n('login'), falhas = n('login_falha'), paginas = n('pagina'), ativ = n('atividade');
+  $('kPessoas').textContent = rs.filter(r => r.logins || r.paginas || r.atividades).length;
+  $('kLogins').textContent = logins;
+  $('kLoginsSub').textContent = logins ? 'entradas com senha' : 'nenhuma entrada registrada';
+  $('kFalhas').textContent = falhas;
+  $('kFalhas').classList.toggle('neg', falhas > 0);
+  $('kPaginas').textContent = paginas + ativ;
+  $('kPaginasSub').textContent = ativ ? `${paginas} telas + ${ativ} atividades reconstruídas` : 'páginas abertas';
+  $('aResumoTb').innerHTML = rs.map(r => `<tr>
+    ${userCell(r.nome, r.usuario)}
+    <td>${perfilPill(r.perfil)}</td>
+    <td class="num mono">${r.logins || '<span style="color:var(--ink3)">0</span>'}</td>
+    <td class="num mono">${r.falhas ? `<span class="pill erro">${r.falhas}</span>` : '<span style="color:var(--ink3)">0</span>'}</td>
+    <td class="num mono">${r.paginas || '<span style="color:var(--ink3)">0</span>'}</td>
+    <td class="num mono">${r.atividades || '<span style="color:var(--ink3)">0</span>'}</td>
     <td class="mono">${dh(r.primeiro)}</td>
     <td class="mono">${dh(r.ultimo)}</td>
-    <td class="mono tab">${esc(r.ips.join(', ') || '—')}</td>
-    <td class="tab">${esc(r.dispositivos.join(', ') || '—')}</td>
+    <td class="mono ips">${dash(r.ips.join(', '))}</td>
+    <td class="ips">${dash(r.dispositivos.join(', '))}</td>
   </tr>`).join('');
-  $('aTb').innerHTML = acessosItens.map(e => `<tr>
+  $('aTb').innerHTML = it.map(e => `<tr>
     <td class="mono">${dh(e.em)}</td>
-    <td><span class="pill ${EVENTO_PILL[e.tipo] || ''}">${esc(e.tipo)}</span></td>
-    <td class="mono">${esc(e.usuario)}</td>
-    <td>${esc(e.nome || '—')}</td>
-    <td>${esc(e.perfil || '—')}</td>
-    <td class="mono">${esc(e.pagina || '—')}</td>
-    <td class="mono">${esc(e.ip || '—')}</td>
-    <td>${esc(e.dispositivo || '—')}</td>
-    <td class="msg">${esc(e.msg || '')}</td>
+    <td><span class="pill ${EVENTO_PILL[e.tipo] || ''}">${esc(EVENTO_TXT[e.tipo] || e.tipo)}</span></td>
+    ${userCell(e.nome, e.usuario)}
+    <td>${perfilPill(e.perfil)}</td>
+    <td class="${e.tipo === 'pagina' ? 'mono' : ''}">${dash(e.pagina)}</td>
+    <td class="mono">${dash(e.ip)}</td>
+    <td>${dash(e.dispositivo)}</td>
+    <td class="det">${detalhe(e)}</td>
   </tr>`).join('');
 }
 function acessosExportar() { window.location = '/api/log-acessos/csv?' + acessosParams(); }
@@ -564,7 +640,7 @@ async function initTabs() {
   $('cDia').value = ok(u.get('de')) ? u.get('de') : iso(h);
   $('pDe').value = ok(u.get('de')) ? u.get('de') : iso(new Date(h.getFullYear(), h.getMonth(), 1));
   $('pAte').value = ok(u.get('ate')) ? u.get('ate') : iso(h);
-  $('aDe').value = ok(u.get('de')) ? u.get('de') : iso(h);
+  $('aDe').value = ok(u.get('de')) ? u.get('de') : iso(new Date(h.getFullYear(), h.getMonth(), h.getDate() - 30)); // acessos: últimos 30 dias
   $('aAte').value = ok(u.get('ate')) ? u.get('ate') : iso(h);
   if ((u.get('log') || 'erp') === 'erp') carregar();
   initTabs();
