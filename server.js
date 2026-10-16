@@ -166,6 +166,10 @@ function withCache(ttlMin) {
 }
 
 // Carrega usuários do arquivo
+// Log de acessos (login, falha de senha, logout, página aberta) — data/log-acessos/AAAA-MM.jsonl.
+// Usado no middleware de autenticação, no /api/login e /api/logout; tela em Processos > Logs.
+const logAcessos = require('./lib/log-acessos');
+const LOG_ACESSOS_DIR = path.join(__dirname, 'data', 'log-acessos');
 const usuariosPath = path.join(__dirname, 'usuarios.json');
 let usuarios;
 try {
@@ -258,6 +262,14 @@ app.use((req, res, next) => {
   const ext = req.path.split('.').pop().toLowerCase();
   if (['js','css','png','jpg','jpeg','gif','svg','ico','woff','woff2','ttf','eot','map'].includes(ext)) return next();
   if (req.session && req.session.user) {
+    // Log de acessos (lib/log-acessos.js): marca o usuário como ativo em toda chamada autenticada
+    // e grava "pagina" quando ele abre uma tela (.html). Nunca derruba a requisição por erro de log.
+    try {
+      const pg = logAcessos.paginaDe(req.path);
+      const ctx = { ip: logAcessos.ipDe(req), dispositivo: logAcessos.dispositivoDe(req.headers['user-agent']), pagina: pg, desde: req.session.loginEm };
+      logAcessos.marcarAtividade(req.session.user, ctx);
+      if (pg) logAcessos.registrar(LOG_ACESSOS_DIR, { tipo: 'pagina', usuario: req.session.user.usuario, nome: req.session.user.nome, perfil: req.session.user.perfil, ip: ctx.ip, dispositivo: ctx.dispositivo, pagina: pg });
+    } catch (e) { console.warn('[log-acessos] ' + e.message); }
     // Rotas exclusivas de admin
     if ((req.path === '/admin-usuarios.html' || req.path.startsWith('/api/admin/')) &&
         req.session.user.perfil !== 'admin') {
@@ -297,16 +309,30 @@ app.post('/api/login', async (req, res) => {
   const { usuario, senha } = req.body || {};
   if (!usuario || !senha) return res.status(400).json({ error: 'Preencha usuário e senha.' });
   const user = usuarios.find(u => u.usuario === usuario.toLowerCase().trim());
-  if (!user) return res.status(401).json({ error: 'Usuário ou senha inválidos.' });
+  const ctxAcesso = { ip: logAcessos.ipDe(req), dispositivo: logAcessos.dispositivoDe(req.headers['user-agent']) };
+  const falha = msg => { try { logAcessos.registrar(LOG_ACESSOS_DIR, { tipo: 'login_falha', usuario: String(usuario).toLowerCase().trim().slice(0, 60), nome: user ? user.nome : null, ...ctxAcesso, msg }); } catch (e) { console.warn('[log-acessos] ' + e.message); } };
+  if (!user) { falha('usuário não existe'); return res.status(401).json({ error: 'Usuário ou senha inválidos.' }); }
   const ok = await bcrypt.compare(String(senha), user.senha_hash);
-  if (!ok) return res.status(401).json({ error: 'Usuário ou senha inválidos.' });
+  if (!ok) { falha('senha errada'); return res.status(401).json({ error: 'Usuário ou senha inválidos.' }); }
   const perfil = user.perfil || 'gerente';
   req.session.user = { id: user.id, nome: user.nome, usuario: user.usuario, perfil, comprador_nome: user.comprador_nome || null, loja_id: user.loja_id || null, modulos: Array.isArray(user.modulos) ? user.modulos : null, lojas: escopo.lojasDoBody(user.lojas) };
+  req.session.loginEm = logErp.agoraIso();
+  try {
+    logAcessos.registrar(LOG_ACESSOS_DIR, { tipo: 'login', usuario: user.usuario, nome: user.nome, perfil, ...ctxAcesso });
+    logAcessos.marcarAtividade(req.session.user, { ...ctxAcesso, desde: req.session.loginEm });
+  } catch (e) { console.warn('[log-acessos] ' + e.message); }
   const redirect = modulos.primeiraPagina(req.session.user) || '/index.html';
   res.json({ ok: true, nome: user.nome, perfil, redirect });
 });
 
 app.get('/api/logout', (req, res) => {
+  const u = req.session?.user;
+  if (u) {
+    try {
+      logAcessos.registrar(LOG_ACESSOS_DIR, { tipo: 'logout', usuario: u.usuario, nome: u.nome, perfil: u.perfil, ip: logAcessos.ipDe(req), dispositivo: logAcessos.dispositivoDe(req.headers['user-agent']) });
+      logAcessos.removerAtividade(u.usuario);
+    } catch (e) { console.warn('[log-acessos] ' + e.message); }
+  }
   req.session.destroy(() => res.redirect('/login.html'));
 });
 
@@ -502,8 +528,27 @@ const LOGS = [
   { id: 'erp', nome: 'Log ERP (teste)', api: '/api/log-erp' },
   { id: 'coletor', nome: 'LOG Coletor', api: '/api/log-coletor' },
   { id: 'precificacao', nome: 'Log Precificação', api: '/api/log-precificacao' },
+  { id: 'acessos', nome: 'Log de acessos', api: '/api/log-acessos' },
 ];
 app.get('/api/logs', (req, res) => res.json(LOGS));
+// Log de acessos: eventos (login, login_falha, logout, pagina) + resumo por usuário + quem está online agora
+app.get('/api/log-acessos', (req, res) => {
+  try {
+    const itens = logAcessos.ler(LOG_ACESSOS_DIR, req.query);
+    res.json({ itens, resumo: logAcessos.resumo(itens) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.get('/api/log-acessos/online', (req, res) => {
+  const min = Math.min(Math.max(parseInt(req.query.minutos) || 15, 1), 24 * 60);
+  res.json({ minutos: min, usuarios: logAcessos.online(min) });
+});
+app.get('/api/log-acessos/csv', (req, res) => {
+  try {
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="log-acessos.csv"');
+    res.send(logAcessos.csv(logAcessos.ler(LOG_ACESSOS_DIR, req.query)));
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
 app.get('/api/log-coletor', (req, res) => {
   try { res.json(logColetor.ler(LOG_COLETOR_DIR, req.query)); }
   catch (e) { res.status(500).json({ error: e.message }); }

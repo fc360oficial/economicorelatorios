@@ -200,6 +200,64 @@ td.msg{white-space:normal;min-width:200px;color:var(--ink2)}
       </div>
     </div>
   </div>
+
+  <!-- ── ABA: Log de acessos ─────────────────────────────────────────── -->
+  <div id="tabAcessos" hidden>
+    <div class="page-hdr">
+      <div></div>
+      <div>
+        <div class="btns">
+          <input class="inp" type="date" id="aDe" onchange="acessosCarregar()">
+          <input class="inp" type="date" id="aAte" onchange="acessosCarregar()">
+          <select class="sel" id="aTipo" onchange="acessosCarregar()">
+            <option value="">Todos os eventos</option>
+            <option value="login">login</option><option value="login_falha">login_falha</option>
+            <option value="logout">logout</option><option value="pagina">pagina</option>
+          </select>
+          <input class="inp" id="aUsuario" placeholder="Usuário / nome" style="width:140px" onchange="acessosCarregar()">
+          <input class="inp" id="aIp" placeholder="IP" style="width:120px" onchange="acessosCarregar()">
+          <input class="inp" id="aPagina" placeholder="Página" style="width:130px" onchange="acessosCarregar()">
+          <button class="btn btn-secondary" onclick="acessosExportar()">Exportar CSV</button>
+          <button class="btn btn-primary" onclick="acessosCarregar()">Atualizar</button>
+        </div>
+        <div id="aStatus"></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:14px">
+      <div class="label" style="margin-bottom:8px">Online agora <span id="aOnlineN" class="pill ok">0</span> <span style="color:var(--ink3);font-weight:400">· atividade nos últimos 15 min · atualiza a cada 30 s</span></div>
+      <div class="tblwrap">
+        <table>
+          <thead><tr><th>Usuário</th><th>Perfil</th><th>Entrou</th><th>Última atividade</th><th>Última página</th><th>IP</th><th>Dispositivo</th></tr></thead>
+          <tbody id="aOnlineTb"></tbody>
+        </table>
+        <div class="empty" id="aOnlineVazio" hidden>Ninguém ativo nos últimos 15 minutos.</div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:14px">
+      <div class="label" style="margin-bottom:8px">Resumo por usuário no período</div>
+      <div class="tblwrap">
+        <table>
+          <thead><tr><th>Usuário</th><th>Perfil</th><th class="num">Logins</th><th class="num">Senha errada</th><th class="num">Páginas</th><th>Primeiro acesso</th><th>Último acesso</th><th>IPs</th><th>Dispositivos</th></tr></thead>
+          <tbody id="aResumoTb"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="label" style="margin-bottom:8px">Eventos <span id="aN" style="color:var(--ink3);font-weight:400"></span></div>
+      <div class="tblwrap">
+        <table>
+          <thead><tr>
+            <th>Data/Hora</th><th>Evento</th><th>Usuário</th><th>Nome</th><th>Perfil</th><th>Página</th><th>IP</th><th>Dispositivo</th><th>Msg</th>
+          </tr></thead>
+          <tbody id="aTb"></tbody>
+        </table>
+        <div class="empty" id="aVazio" hidden>Nenhum acesso registrado no período.</div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -392,11 +450,78 @@ function precifRender() {
 }
 function precifExportar() { window.location = '/api/log-precificacao/csv?' + precifParams(); }
 
+// ── Log de acessos ───────────────────────────────────────────────────────
+let acessosItens = [], acessosResumo = [], acessosCarregou = false, acessosTimer = null;
+function acessosParams() {
+  const p = new URLSearchParams({ de: $('aDe').value, ate: $('aAte').value });
+  for (const [k, id] of [['tipo', 'aTipo'], ['usuario', 'aUsuario'], ['ip', 'aIp'], ['pagina', 'aPagina']]) if ($(id).value) p.set(k, $(id).value);
+  return p.toString();
+}
+async function acessosCarregar() {
+  $('aStatus').textContent = 'Carregando…';
+  try {
+    const [r, ro] = await Promise.all([fetch('/api/log-acessos?' + acessosParams()), fetch('/api/log-acessos/online')]);
+    if (!r.ok) throw new Error((await r.json()).error || r.status);
+    const j = await r.json();
+    acessosItens = j.itens || []; acessosResumo = j.resumo || [];
+    acessosCarregou = true;
+    acessosRender();
+    if (ro.ok) acessosRenderOnline((await ro.json()).usuarios || []);
+    $('aStatus').textContent = '';
+  } catch (e) { $('aStatus').textContent = 'Erro: ' + e.message; }
+}
+async function acessosOnline() {
+  try { const r = await fetch('/api/log-acessos/online'); if (r.ok) acessosRenderOnline((await r.json()).usuarios || []); } catch {}
+}
+const hora = s => s ? String(s).slice(11, 19) : '—';
+const EVENTO_PILL = { login: 'ok', login_falha: 'erro', logout: 'recusado', pagina: 'teste' };
+function acessosRenderOnline(us) {
+  $('aOnlineN').textContent = us.length;
+  $('aOnlineVazio').hidden = us.length > 0;
+  $('aOnlineTb').innerHTML = us.map(a => `<tr>
+    <td><b>${esc(a.nome || a.usuario)}</b> <span style="color:var(--ink3)">${esc(a.usuario)}</span></td>
+    <td>${esc(a.perfil || '—')}</td>
+    <td class="mono">${dh(a.desde)}</td>
+    <td class="mono">${dh(a.ultima)}</td>
+    <td class="mono">${esc(a.pagina || '—')}</td>
+    <td class="mono">${esc(a.ip || '—')}</td>
+    <td>${esc(a.dispositivo || '—')}</td>
+  </tr>`).join('');
+}
+function acessosRender() {
+  $('aVazio').hidden = acessosItens.length > 0;
+  $('aN').textContent = acessosItens.length ? `· ${acessosItens.length}` : '';
+  $('aResumoTb').innerHTML = acessosResumo.map(r => `<tr>
+    <td><b>${esc(r.nome || r.usuario)}</b> <span style="color:var(--ink3)">${esc(r.usuario)}</span></td>
+    <td>${esc(r.perfil || '—')}</td>
+    <td class="num mono">${r.logins}</td>
+    <td class="num mono">${r.falhas ? `<span class="pill erro">${r.falhas}</span>` : '0'}</td>
+    <td class="num mono">${r.paginas}</td>
+    <td class="mono">${dh(r.primeiro)}</td>
+    <td class="mono">${dh(r.ultimo)}</td>
+    <td class="mono tab">${esc(r.ips.join(', ') || '—')}</td>
+    <td class="tab">${esc(r.dispositivos.join(', ') || '—')}</td>
+  </tr>`).join('');
+  $('aTb').innerHTML = acessosItens.map(e => `<tr>
+    <td class="mono">${dh(e.em)}</td>
+    <td><span class="pill ${EVENTO_PILL[e.tipo] || ''}">${esc(e.tipo)}</span></td>
+    <td class="mono">${esc(e.usuario)}</td>
+    <td>${esc(e.nome || '—')}</td>
+    <td>${esc(e.perfil || '—')}</td>
+    <td class="mono">${esc(e.pagina || '—')}</td>
+    <td class="mono">${esc(e.ip || '—')}</td>
+    <td>${esc(e.dispositivo || '—')}</td>
+    <td class="msg">${esc(e.msg || '')}</td>
+  </tr>`).join('');
+}
+function acessosExportar() { window.location = '/api/log-acessos/csv?' + acessosParams(); }
+
 // ── Abas ─────────────────────────────────────────────────────────────────
 const DESCS = {
   erp: 'Toda escrita que o sistema faz no MySQL de teste do .254 — quem, quando, tabela, valor antes e depois. O ERP de produção (.252) nunca é alterado.',
   coletor: 'Eventos do Coletor de Recebimento (celular do conferente): entrada, abertura de nota, bipagem, correções e liberação.',
   precificacao: 'Linha do tempo da Formação de Preço: registro criado na conciliação do XML, lista fechada, envio pra Carga de Itens (ERP teste) e conferência.',
+  acessos: 'Quem está acessando o sistema: usuários online agora, entradas (login), tentativas com senha errada, saídas e cada tela aberta — com IP e dispositivo.',
 };
 let logAtual = 'erp';
 function trocarAba(id) {
@@ -405,12 +530,17 @@ function trocarAba(id) {
   $('tabErp').hidden = id !== 'erp';
   $('tabColetor').hidden = id !== 'coletor';
   $('tabPrecif').hidden = id !== 'precificacao';
+  $('tabAcessos').hidden = id !== 'acessos';
   $('pageDesc').textContent = DESCS[id] || '';
   const u = new URL(location.href); u.searchParams.set('log', id);
   if (id !== 'erp') u.searchParams.delete('id');
   history.replaceState(null, '', u);
   if (id === 'coletor' && !coletorItens.length) coletorCarregar();
   if (id === 'precificacao' && !precifItens.length) precifCarregar();
+  if (id === 'acessos' && !acessosCarregou) acessosCarregar();
+  // "Online agora" se atualiza sozinho enquanto a aba de acessos estiver aberta
+  clearInterval(acessosTimer); acessosTimer = null;
+  if (id === 'acessos') acessosTimer = setInterval(acessosOnline, 30000);
 }
 
 async function initTabs() {
@@ -433,6 +563,8 @@ async function initTabs() {
   $('cDia').value = ok(u.get('de')) ? u.get('de') : iso(h);
   $('pDe').value = ok(u.get('de')) ? u.get('de') : iso(new Date(h.getFullYear(), h.getMonth(), 1));
   $('pAte').value = ok(u.get('ate')) ? u.get('ate') : iso(h);
+  $('aDe').value = ok(u.get('de')) ? u.get('de') : iso(h);
+  $('aAte').value = ok(u.get('ate')) ? u.get('ate') : iso(h);
   if ((u.get('log') || 'erp') === 'erp') carregar();
   initTabs();
 })();
