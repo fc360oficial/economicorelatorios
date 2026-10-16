@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="stylesheet" href="/design-system.css">
 <script src="/nav.js" defer></script>
+<script src="/js/secao-xml.js"></script>
 <title>Fiscal · Recebimento — Econômico Supermercados</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -173,6 +174,13 @@ td.col-cel{cursor:pointer}
 .quem{display:block;font-size:10.5px;font-weight:700;margin-top:2px}.quem.fiscal{color:#1E4FB5}.quem.comp{color:var(--ink3);font-weight:600}
 .obsd{display:inline-block;font-size:10.5px;color:#6B4E00;background:#FFF6D9;border:1px solid #EFD98F;border-radius:6px;padding:2px 6px;margin-top:3px;white-space:normal}
 .st-aguardando_nota{color:#B45C00;font-weight:800}.st-nota_emitida{color:#2E5E8C;font-weight:800}.st-nota_bipada{color:var(--neg);font-weight:800}.st-bipada_sem_xml{color:#7A3E9D;font-weight:800}.st-entrega_recusada{color:var(--neg);font-weight:800}
+/* 16/10/26: bloco de conferência pedido × XML igual ao de Pedidos de Compra (/js/secao-xml.js), dentro da linha aberta */
+.arit .xl{margin:0;border:1px solid #DADAD6;border-radius:10px;overflow:hidden;background:#fff}.arit .xl .xh{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 12px;background:#EBEBE9;font-size:12px;font-weight:700}.arit .xl .xb{padding:8px 12px;font-size:11.5px;color:#4E5A72;line-height:1.6}.arit .xl .xb b{color:#0E1626}.arit .xl table{font-size:11.5px}.arit .xl .prob{color:#C22F49;font-weight:700}
+.arit .xml{display:inline-block;margin:0;padding:1px 7px;border-radius:99px;font-size:9.5px;font-weight:800;letter-spacing:.3px;white-space:nowrap}.arit .xml.aguardando,.arit .xml.parcial{background:#FFF6D9;color:#6B4E00;border:1px solid #EFD98F}.arit .xml.conciliado{background:#137A48;color:#fff}.arit .xml.consistencia{background:#FBEAED;color:#7A1A2C;border-left:3px solid #C22F49;border-radius:0 4px 4px 0;padding:3px 8px}
+.arit .tp-ok{color:#137A48;font-weight:800}.arit .tp-falta,.arit .tp-parcial{color:#C22F49;font-weight:800}.arit .tp-a_mais,.arit .tp-nao_pedido,.arit .tp-conferir{color:#B45C00;font-weight:800}.arit .xb .chegou{color:#137A48;font-weight:800;margin-bottom:4px}.arit .xb .chegou.fim{color:#0E1626}.arit .xb a.nfe{color:#1F4E79;text-decoration:underline dotted}
+.arit .arw{font-weight:800;font-size:11.5px;white-space:nowrap}.arit .arw.up{color:#137A48}.arit .arw.dn{color:#C22F49}.arit .arw.eq{color:#4E5A72}.arit .xl tr.zero td{color:#4E5A72}.arit .xl .desc{white-space:normal!important;min-width:220px;max-width:360px}.arit .xl .cod{color:#98A0B3;font-size:10px;font-family:monospace;display:block}.arit .xl .sub{display:block;font-size:10px;color:#98A0B3}
+.arit .xl .dec{display:inline-flex;gap:3px;margin-left:6px;vertical-align:middle;flex-wrap:wrap}.arit .xl .dec small{font-size:9.5px;color:#98A0B3;margin-left:4px}.arit .xl tr.vq td{background:#FFF6D9;border-top:2px solid #EFD98F;padding:7px 10px;white-space:normal;font-size:11.5px}
+.arit .xl .oq{background:#FFF6D9;border:1px solid #EFD98F;border-radius:8px;padding:8px 12px;margin:8px 12px;font-size:11.5px;color:#6B4E00;line-height:1.6}.arit .xl .oq .t{font-weight:800;text-transform:uppercase;font-size:10px;letter-spacing:.4px;margin-right:6px}.arit .xl .aceito{background:#E7F5EC;color:#137A48;border-radius:8px;padding:6px 12px;margin:8px 12px;font-size:11.5px}
 .decbox{margin-top:10px;border:1px solid #EFD98F;background:#FFF6D9;border-radius:10px;padding:10px 14px;white-space:normal}.decbox .ttl{font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#6B4E00;margin-bottom:4px}.dec-done{font-size:12px;font-weight:700;margin:8px 0 6px;white-space:normal}.dec-done.pos{color:#137A48}.dec-done.neg{color:var(--neg)}.st-liberado-ar{color:var(--pos);font-weight:800}
 tr.arit td{background:#FAFAF8;white-space:normal;cursor:default;padding:0 12px 12px}
 .dcb{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.dcb .btn{margin:0}
@@ -791,9 +799,10 @@ function arecToggle(k){AREC_OPEN[k]=!AREC_OPEN[k];render();}
 function arecAbrir(n){ABRIR=n;filtro='todos';if($('#periodo').value==='dia')$('#periodo').value='7';$('#de').value=hojeISO();setTab('receb');}
 function arecWpp(r){const w=String(r.vendedor&&r.vendedor.whats||'').replace(/\D/g,'');const prev=r.entrega_prevista?dbr(r.entrega_prevista):null;const t='Olá'+(r.vendedor&&r.vendedor.nome?' '+r.vendedor.nome:'')+', o pedido #'+r.pedido+(r.lista_nome?' ('+r.lista_nome+')':'')+' da Loja '+r.loja+' · '+(r.loja_nome||'')+' (ECONOMICO SUPERMERCADO - REDE CAHU) ainda não chegou'+(prev?' — entrega prevista pra '+prev+(r.atraso?', '+r.atraso+' dia(s) de atraso':''):'')+'. Pode nos dar uma previsão? '+r.itens+' itens · '+money(r.valor)+'. Obrigado!';return 'https://wa.me/'+(w.length>=10?'55'+w.replace(/^55/,''):'')+'?text='+encodeURIComponent(t);}
 function arecItens(r){
-  const its=r.itens_lista||[], np=r.itens_nao_pedidos||[], comNota=r.situacao!=='aguardando_nota'&&r.situacao!=='bipada_sem_xml'; const TP={ok:'✓ ok',parcial:'parcial',falta:'não veio',a_mais:'veio a mais',conferir:'conferir unidade'};
+  const its=r.itens_lista||[], np=r.itens_nao_pedidos||[], X=r.xml_loja, comNota=r.situacao!=='aguardando_nota'&&r.situacao!=='bipada_sem_xml'&&!!(X&&(X.notas||[]).length);
   /* 16/10/26 (Tiago): pedido de cotação não tem 2ª entrega. O fiscal decide AQUI, assim que o XML chega (antes do caminhão):
-     divergência item a item (Liberar / Recusar) e as faltas (Aceitar parcial = não vem mais / Recusar a entrega inteira). */
+     divergência item a item (Liberar / Recusar) e as faltas (Aceitar parcial = não vem mais / Recusar a entrega inteira).
+     Com XML, o bloco é o MESMO de Pedidos de Compra (/js/secao-xml.js): NF-e, financeiro, unidade da nota, dif., var. */
   const fis=r.quem_decide==='fiscal', aberta=comNota&&r.situacao!=='liberado'&&r.situacao!=='fechado'&&!r.entrega_recusada;
   const quando=x=>x?new Date(x).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
   const motivo=i=>i.nao_pedido?'nao_pedido':i.tipo==='a_mais'?'a_mais':i.preco_status==='maior'?'preco':(fis&&(i.tipo==='falta'||i.tipo==='parcial'))?'falta':null;
@@ -803,23 +812,33 @@ function arecItens(r){
       const t=dc.acao==='recusar'?'<span class="dcno">✖ recusado':dc.acao==='nao_vem'?'<span class="dcok" style="color:#4E5A72">✓ não vem mais':'<span class="dcok">✓ liberado';
       return t+' · '+esc(dc.por||'')+(dc.papel==='fiscal'?' (fiscal)':'')+' '+quando(dc.em)+'</span>'+(fis&&aberta&&dc.acao!=='nao_vem'?' <button class="btn btn-slate btn-sm" onclick="arecDecidir(\''+r.key+'\','+r.pedido+','+r.loja+',\''+cod+'\',\'limpar\')">Desfazer</button>':'');
     }
-    if(!m)return '<span class="mut">—</span>';
+    if(!m)return '';
     if(!fis)return '<span class="dcp">⏳ Comprador (a)</span>';
-    if(!aberta)return '<span class="mut">—</span>';
-    if(m==='falta')return '<span class="neg">aguardando o fiscal</span> <span class="mut">(decida no bloco abaixo)</span>';
+    if(!aberta)return '';
+    if(m==='falta')return '<span class="neg" style="font-size:11px">aguardando o fiscal</span> <span class="mut">(decida no bloco abaixo)</span>';
     return '<div class="dcb"><button class="btn btn-sm lib" onclick="arecDecidir(\''+r.key+'\','+r.pedido+','+r.loja+',\''+cod+'\',\'aceitar\')" title="'+(m==='a_mais'?'Aceitar o excedente':m==='preco'?'Aceitar o preço da nota':'Aceitar o item')+'">Liberar</button><button class="btn btn-sm rec" onclick="arecDecidir(\''+r.key+'\','+r.pedido+','+r.loja+',\''+cod+'\',\'recusar\')" title="'+(m==='a_mais'?'Recusar só o excedente':'Recusar o item')+' · gera o Aviso de devolução">Recusar · devolver</button></div>';
   };
-  let h='<div class="box"><div class="hd"><span><b>Itens do pedido #'+r.pedido+'</b> · '+LJ(r.loja)+' · '+its.length+' itens</span><span class="mut">preço combinado com o vendedor'+(comNota?' · o que veio na NF-e':'')+'</span></div><div style="overflow-x:auto"><table><thead><tr><th>Código · produto</th><th class="r">Pedido</th><th class="r">Preço</th>'+(comNota?'<th class="r">Veio</th><th>Situação</th><th class="r">Preço NF</th><th>Decisão</th>':'')+'<th>Obs.</th></tr></thead><tbody>';
-  for(const i of its){
-    h+='<tr'+((i.tipo&&i.tipo!=='ok')||i.preco_status==='maior'?' class="warn"':'')+'><td class="desc"><span class="mono mut">'+esc(i.cod)+'</span> <b>'+esc(i.descricao)+'</b></td><td class="r">'+qtd(i.qtd)+' <span class="mut">'+esc(i.unid||'')+(i.emb>1?' · cx '+i.emb:'')+'</span></td><td class="r">'+(i.preco!=null?money(i.preco):'<span class="mut" title="Vendedor não digitou: último custo">'+(i.ultimo_custo!=null?money(i.ultimo_custo)+' *':'—')+'</span>')+'</td>';
-    if(comNota)h+='<td class="r">'+(i.recebida!=null?qtd(i.recebida):'<span class="mut">—</span>')+'</td><td>'+(i.tipo?'<span class="'+(i.tipo==='ok'?'pos':'warn')+'">'+(TP[i.tipo]||i.tipo)+'</span>':'<span class="mut">—</span>')+(i.preco_status==='maior'?'<span class="erp neg">preço acima</span>':'')+'</td><td class="r">'+(i.preco_xml!=null?money(i.preco_xml):'<span class="mut">—</span>')+'</td><td>'+decCel(i)+'</td>';
-    h+='<td class="mut" style="white-space:normal">'+esc(i.obs||'')+'</td></tr>';
+  let h='';
+  if(comNota){
+    const OQ={falta:['Fiscal',fis?'Pedido de cotação não tem 2ª entrega: decida abaixo — Aceitar parcial (não vem mais) ou Recusar a entrega.':'Vira sugestão de ruptura pro (a) Comprador (a). Nada a decidir aqui.'],
+      a_mais:['Fiscal',fis?'Liberar o excedente ou Recusar · devolver, no item.':'Comprador (a) decide em Pedidos de Compra; use "Avisar".'],
+      nao_pedido:['Fiscal',fis?'Item que não estava no pedido: Liberar ou Recusar · devolver, no item.':'Comprador (a) decide em Pedidos de Compra; use "Avisar".'],
+      preco:['Fiscal + Financeiro',fis?'Preço da nota acima do combinado: Liberar o preço ou Recusar o item. Não pagar o preço errado.':'Comprador (a) decide; Financeiro não paga o preço errado.'],
+      boleto:['Financeiro','Boletos não batem com a NF-e: não pagar até o fornecedor corrigir.'],sem_boleto:['Financeiro','XML sem duplicata: conferir o boleto com o fornecedor antes de pagar.'],
+      valor:['Fiscal','Valor da NF-e diferente do esperado: ver preço e quantidade item a item.'],unidade:['Fiscal','A nota veio em caixa/fardo sem unidade: conferir a conversão no recebimento.'],
+      afinidade:['Fiscal','Poucos itens da nota estão neste pedido: conferir se a nota é deste pedido.'],vinculo_nome:['Fiscal','Item casado pelo nome (código diferente): confirmar no recebimento.']};
+    h+=SecaoXml.secaoXmlLoja({id:r.pedido,fornecedor:r.fornecedor},r.loja,X,{LOJAS_NOMES:{[r.loja]:r.loja_nome},abrirNfe:'arecNfe',oqueFazer:OQ,
+      dec:(i,tipo)=>{const c=decCel(tipo==='nao_pedido'?Object.assign({},i,{nao_pedido:true}):i);return c?'<span class="dec" style="display:block;margin:3px 0 0">'+c+'</span>':'';},
+      extraItem:i=>(fis&&aberta&&(i.tipo==='falta'||i.tipo==='parcial'))?'<span class="dec" style="display:block;margin:3px 0 0">'+decCel(i)+'</span>':''});
+  } else {
+    h+='<div class="box"><div class="hd"><span><b>Itens do pedido #'+r.pedido+'</b> · '+LJ(r.loja)+' · '+its.length+' itens</span><span class="mut">preço combinado com o vendedor</span></div><div style="overflow-x:auto"><table><thead><tr><th>Código · produto</th><th class="r">Pedido</th><th class="r">Preço</th><th>Obs.</th></tr></thead><tbody>';
+    for(const i of its){
+      h+='<tr><td class="desc"><span class="mono mut">'+esc(i.cod)+'</span> <b>'+esc(i.descricao)+'</b></td><td class="r">'+qtd(i.qtd)+' <span class="mut">'+esc(i.unid||'')+(i.emb>1?' · cx '+i.emb:'')+'</span></td><td class="r">'+(i.preco!=null?money(i.preco):'<span class="mut" title="Vendedor não digitou: último custo">'+(i.ultimo_custo!=null?money(i.ultimo_custo)+' *':'—')+'</span>')+'</td>';
+      h+='<td class="mut" style="white-space:normal">'+esc(i.obs||'')+'</td></tr>';
+    }
+    if(!its.length)h+='<tr><td colspan="4" class="mut">Sem itens nesta loja.</td></tr>';
+    h+='</tbody></table></div></div>';
   }
-  if(comNota)for(const i of np){
-    h+='<tr class="warn"><td class="desc"><span class="mono mut">'+esc(i.cod)+'</span> <b>'+esc(i.descricao)+'</b> <span class="erp neg">não estava no pedido</span></td><td class="r"><span class="mut">—</span></td><td class="r"><span class="mut">—</span></td><td class="r">'+qtd(i.recebida)+'</td><td><span class="warn">não pedido</span></td><td class="r">'+(i.preco_xml!=null?money(i.preco_xml):'—')+'</td><td>'+decCel(Object.assign({},i,{nao_pedido:true}))+'</td><td></td></tr>';
-  }
-  if(!its.length)h+='<tr><td colspan="8" class="mut">Sem itens nesta loja.</td></tr>';
-  h+='</tbody></table></div></div>';
   const F=r.faltas_lista||[];
   if(fis&&comNota&&F.length&&r.situacao!=='liberado'&&r.situacao!=='fechado'){
     const tot=F.reduce((s,f)=>{const it=its.find(i=>i.cod===f.cod);return s+((f.pedida-(f.recebida||0))*(it&&it.preco!=null?it.preco:0));},0);
@@ -837,6 +856,7 @@ function arecItens(r){
   }
   return h;
 }
+function arecNfe(chave){window.open('/api/radar-pedidos/nfe/'+encodeURIComponent(chave)+'/danfe','_blank');}
 function arecDecidirAbrir(k){AREC_OPEN[k]=true;render();const el=document.getElementById('decbox-'+k);if(el)el.scrollIntoView({behavior:'smooth',block:'center'});}
 async function arecPost(url,body){const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})}).then(r=>r.json()).catch(e=>({error:e.message}));if(r.error){ftoast(r.error,true);return null;}return r;}
 async function arecDecidir(k,id,ln,cod,acao){const r=await arecPost('/api/fiscal/pedido-compra/'+id+'/xml/'+ln+'/decidir',{cod,acao});if(!r)return;ftoast(acao==='recusar'?'Recusado: entra no Aviso de devolução.':acao==='aceitar'?'Liberado.':'Decisão desfeita.');await arecCarregar();render();}
