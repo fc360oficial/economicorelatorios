@@ -8115,8 +8115,11 @@ app.get('/api/pedidos-fornecedor/financeiro', (req, res) => {
   try { res.json(pedidosFornec.financeiroAlertas().filter(a => minhaLista(req, pedidosFornec.obter(a.pedido)?.lista))); } catch (err) { res.status(500).json({ error: err.message }); }
 });
 // Decisão por item antes da entrega (aceitar / recusar) e PDF de aviso de devolução por loja
+// pedido de cotação: quem decide é o Fiscal (rotas /api/fiscal/pedido-compra/...) — 16/10/2026
+const soCompradora = (req, res) => { const p = pedidosFornec.obter(parseInt(req.params.id)); if (p && pedidosFornec.quemDecide(p) === 'fiscal') { res.status(403).json({ error: 'Pedido de cotação: quem decide é o Fiscal, em Fiscal · Pedidos a receber / Recebimento.' }); return true; } return false; };
 app.post('/api/pedidos-fornecedor/:id/xml/:loja/decidir', (req, res) => {
   try {
+    if (soCompradora(req, res)) return;
     const r = pedidosFornec.decidirItemXml(parseInt(req.params.id), parseInt(req.params.loja), String(req.body?.cod || ''), req.body?.acao, req.session.user?.nome || null);
     if (!r) return res.status(404).json({ error: 'Pedido não encontrado' });
     if (r.erro) return res.status(400).json({ error: r.erro });
@@ -8147,6 +8150,7 @@ app.get(['/pedido/:token/devolucao/:loja/pdf', '/fornecedor/pedido/:token/devolu
 // Comprador(a) aceita e fecha a consistência de uma loja (motivo obrigatório)
 app.post('/api/pedidos-fornecedor/:id/xml/:loja/aceitar', (req, res) => {
   try {
+    if (soCompradora(req, res)) return;
     const r = pedidosFornec.aceitarLojaXml(parseInt(req.params.id), parseInt(req.params.loja), req.body?.motivo, req.session.user?.nome || null);
     if (!r) return res.status(404).json({ error: 'Pedido não encontrado' });
     if (r.erro) return res.status(400).json({ error: r.erro });
