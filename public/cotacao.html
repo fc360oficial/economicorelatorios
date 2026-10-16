@@ -541,6 +541,38 @@ table.ppg td.st .pp-ant{font-size:11px;line-height:1.2;margin-top:2px;color:var(
   .mon td:nth-child(4) .numgrp{flex-wrap:wrap;width:58px;row-gap:4px}
   .mon td:nth-child(5) .numgrp{flex-wrap:wrap;width:82px;row-gap:4px}
 }
+/* 16/10/26 (Tiago: "nas outras abas deixar como tava antes com só o ajuste da tela"): Acompanhamento, Comparativo, Pedidos e a lista
+   "escolha a cotação" mantêm o layout; abaixo de 1700px as tabelas apertam padding/fonte e as colunas de texto quebram linha. */
+table.cot-lista td:nth-child(1){white-space:normal;max-width:420px;line-height:1.3}
+table.cot-lista th.c-resp{min-width:160px}
+table.ped-t td:nth-child(2),table.ped-t td:nth-child(6){white-space:normal;max-width:260px}
+@media (max-width:1699px){
+  .screen:not(#s1) thead th{padding:10px 9px}
+  .screen:not(#s1) tbody td{padding:10px 9px;font-size:12.5px}
+  table.cot-lista td:nth-child(1){max-width:320px}
+  table.cot-lista th.c-resp{min-width:130px}
+  .acoes-row{flex-wrap:wrap;max-width:230px}
+  .screen:not(#s1) .btn.sm{padding:6px 9px;font-size:11.5px}
+}
+@media (max-width:1399px){
+  .screen:not(#s1) thead th{padding:9px 6px;font-size:10px;white-space:normal}
+  .screen:not(#s1) tbody td{padding:9px 6px;font-size:12px}
+  table.cot-lista td:nth-child(1){max-width:260px}
+  table.cot-lista td .mini{white-space:normal}
+  table.cot-lista th.c-resp{min-width:110px}
+  .rbar{min-width:60px}
+  .screen:not(#s1) .status-pill{font-size:10.5px;padding:3px 8px}
+  .acoes-row{max-width:215px}
+  .kpis{gap:10px}.kpi{padding:12px 14px}
+  table.acomp-t td:nth-child(1){max-width:220px}table.acomp-t td:nth-child(6){max-width:180px}
+  table.ped-t td:nth-child(2),table.ped-t td:nth-child(6){max-width:200px}
+}
+@media (max-width:1199px){
+  .kpis{grid-template-columns:repeat(2,1fr)}
+  .screen:not(#s1) thead th{padding:8px 4px}
+  .screen:not(#s1) tbody td{padding:8px 4px;font-size:11.5px}
+  table.cot-lista td:nth-child(1){max-width:200px}
+}
 .mon-legenda{display:flex;gap:6px 22px;flex-wrap:wrap;margin:10px 4px 0;font-size:12px;color:var(--ink2)}
 .mon-legenda b{color:var(--ink)}
 .mon-legenda i{display:inline-block;width:12px;height:12px;border-radius:50%;border:2px solid var(--ln2);vertical-align:-2px;margin-right:4px}
@@ -1661,7 +1693,7 @@ async function renderVazio(m){
   h += '<div class="kpis"><div class="kpi"><div class="val">' + abertas.length + '</div><div class="lbl">Cotações abertas</div></div><div class="kpi"><div class="val" style="color:var(--amk)">' + aguard.length + '</div><div class="lbl">Aguardando fornecedores</div></div><div class="kpi"><div class="val pos">' + prontas.length + '</div><div class="lbl">Prontas pra análise</div></div><div class="kpi"><div class="val ' + (vencidas.length ? 'neg' : '') + '">' + vencidas.length + '</div><div class="lbl">Prazo de resposta vencido</div></div></div>';
   var ordem = lista.slice().sort(function(a, b){ var sa = a.status === 'aberta' ? 0 : 1, sb = b.status === 'aberta' ? 0 : 1; if (sa !== sb) return sa - sb; if (sa === 0) return (a.prazo || '9') < (b.prazo || '9') ? -1 : 1; return (b.criadoEm || '').localeCompare(a.criadoEm || ''); });
   var dias = function(p){ if (!p) return '<span class="mini">sem prazo</span>'; var d = Math.round((new Date(String(p).slice(0, 10) + 'T00:00:00') - new Date(hoje + 'T00:00:00')) / 86400000); return dtp(p) + '<br><span class="mini ' + (d < 0 ? 'neg' : '') + '" style="' + (d < 0 ? 'font-weight:800' : '') + '">' + (d < 0 ? 'vencido há ' + (-d) + ' d' : d === 0 ? 'vence hoje' : 'faltam ' + d + ' d') + '</span>'; };
-  h += '<div class="tablewrap"><table><thead><tr><th>Cotação</th><th>Status</th><th>Prazo</th><th style="min-width:160px">Respostas dos fornecedores</th><th style="text-align:right">Itens</th><th style="text-align:right">Valor vencedores</th><th>Pedidos</th><th>Ações</th></tr></thead><tbody>' +
+  h += '<div class="tablewrap"><table class="cot-lista"><thead><tr><th>Cotação</th><th>Status</th><th>Prazo</th><th class="c-resp">Respostas dos fornecedores</th><th style="text-align:right">Itens</th><th style="text-align:right">Valor vencedores</th><th>Pedidos</th><th>Ações</th></tr></thead><tbody>' +
     ordem.map(function(c){ var st = statusCot(c), pct = c.convidados ? Math.round(c.responderam / c.convidados * 100) : 0, ps = c.pedidos_status || {};
       return '<tr' + (c.status !== 'aberta' ? ' style="opacity:.75"' : '') + '><td><b>#' + c.id + '</b> ' + esc(c.nome) + (c.teste ? ' <span class="status-pill" style="background:var(--amw);color:var(--amk)">TESTE</span>' : '') + '<br><span class="mini">lista ' + (c.lista || '—') + ' ' + esc(c.lista_nome || '') + (c.comprador && c.comprador.nome ? ' · ' + esc(c.comprador.nome) : '') + ' · criada ' + dt(c.criadoEm) + '</span></td>' +
         '<td><span class="status-pill ' + st.cls + '">' + st.txt + '</span></td><td>' + (c.status === 'aberta' ? dias(c.prazo) : (c.fechadaEm ? 'fechada ' + dd(c.fechadaEm.slice(0, 10)) : '—')) + '</td>' +
@@ -2678,7 +2710,7 @@ async function renderPedidos(){
   if (!CUR.pedidos || !CUR.pedidos.length) { m.innerHTML = h + '<div class="empty">' + (CUR.status === 'aberta' ? 'Nenhum pedido ainda — feche a cotação no Comparativo pra gerar um pedido por fornecedor vencedor.' : 'Nenhum pedido gerado.') + '</div>'; return; }
   var live = {};
   try { (await api('/api/pedidos-fornecedor')).forEach(function(p){ live[p.id] = p; }); } catch(e) {}
-  h += '<div class="tablewrap"><table><thead><tr><th>Pedido</th><th>Fornecedor / vendedor</th><th>Lojas</th><th style="text-align:right">Itens</th><th style="text-align:right">Valor</th><th>Status em Pedidos de Compra</th><th>Ações</th></tr></thead><tbody>';
+  h += '<div class="tablewrap"><table class="ped-t"><thead><tr><th>Pedido</th><th>Fornecedor / vendedor</th><th>Lojas</th><th style="text-align:right">Itens</th><th style="text-align:right">Valor</th><th>Status em Pedidos de Compra</th><th>Ações</th></tr></thead><tbody>';
   h += CUR.pedidos.map(function(p){
     var l = live[p.id] || {}, st = l.status || p.status;
     return '<tr><td><b>#' + p.id + '</b><br><span class="mini">cotação #' + CUR.id + '</span></td><td><b>' + esc(p.fornecedor) + '</b><br><span class="mini">' + esc(p.vendedor && p.vendedor.nome || '') + ' ' + esc(p.vendedor && p.vendedor.whats || '') + '</span></td><td>' + (p.lojas || []).map(function(x){ return LJ(x); }).join(' ') + '</td><td class="price">' + p.itens + '</td><td class="price">' + fmtR(l.totais ? l.totais.digitado : p.total) + '</td><td><span class="status-pill ' + (st === 'aprovado' || st === 'recebido' ? 'finalizada' : (st === 'cancelado' ? 'cancel' : 'andamento')) + '">' + (ST_PED[st] || st) + '</span>' + (l.xml && l.xml.status ? '<br><span class="mini">XML: ' + esc(l.xml.status) + xmlAvisoFiscal(l.xml) + '</span>' : '') + '</td><td><div class="acoes-row"><a class="btn ghost sm" href="/pedidos-compra.html">Abrir</a>' + (p.link ? '<a class="btn ghost sm" target="_blank" rel="noopener" href="' + p.link + '" title="Página do pedido que o fornecedor vê">Link do fornecedor</a><button class="btn ghost sm" onclick="copiar(\'' + p.link + '\')">Copiar link</button>' : '') + (p.vendedor && p.vendedor.whats ? '<a class="btn ghost sm" target="_blank" rel="noopener" style="color:#128C7E" href="' + waLink(p.vendedor.whats, 'Olá' + (p.vendedor.nome ? ' ' + p.vendedor.nome : '') + ', segue o pedido #' + p.id + ' da cotação #' + CUR.id + ' (ECONOMICO SUPERMERCADO - REDE CAHU)' + (p.link ? ':\n' + p.link : '')) + '">WhatsApp</a>' : '') + '</div></td></tr>';
