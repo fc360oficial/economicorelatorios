@@ -17,8 +17,8 @@
   const money2 = v => v == null ? '—' : 'R$ ' + fmt(v, 2);
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const br = s => s ? String(s).slice(0, 10).split('-').reverse().join('/') : '';
-  const XML_ST = { aguardando: 'Aguardando conferência XML', parcial: 'XML parcial', conciliado: 'Conciliado XML', consistencia: 'Consistência XML' };
-  const XML_PROB = { falta: 'falta', a_mais: 'veio a mais', nao_pedido: 'item não pedido', preco: 'preço', sem_boleto: 'sem boleto', boleto: 'boleto ≠ NF-e', valor: 'valor ≠ esperado', unidade: 'unidade da nota', afinidade: 'conferir se é este pedido', vinculo_nome: 'casado pelo nome: confirmar' };
+  const XML_ST = { aguardando: 'Aguardando conferência XML', parcial: 'XML parcial', conciliado: 'Conciliado XML', consistencia: 'Consistência XML', devolvida: 'Entrega devolvida' };
+  const XML_PROB = { falta: 'falta', a_mais: 'veio a mais', nao_pedido: 'item não pedido', preco: 'preço', sem_boleto: 'sem boleto', boleto: 'boleto ≠ NF-e', valor: 'valor ≠ esperado', unidade: 'unidade da nota', afinidade: 'conferir se é este pedido', vinculo_nome: 'casado pelo nome: confirmar', devolucao: 'devolução parcial' };
   const TP = { ok: '✓ ok', parcial: 'parcial', falta: 'não veio', a_mais: 'veio a mais', conferir: 'conferir unidade' };
   const probTxt = a => (a || []).map(t => XML_PROB[t] || t).join(', ');
   function seta(dig, ult, pct) {
@@ -56,11 +56,24 @@
       : H.nfeHref ? '<a href="' + esc(H.nfeHref(n.chave)) + '" class="nfe" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Abrir a DANFE (PDF) em outra aba">' + esc(n.nNota) + ' ↗</a>'
       : H.abrirNfe ? '<a href="#" class="nfe" onclick="event.preventDefault();event.stopPropagation();' + H.abrirNfe + '(\'' + esc(n.chave) + '\')" title="Abrir a nota (XML do ERP)">' + esc(n.nNota) + ' ↗</a>' : esc(n.nNota);
     h += '<div class="xb">' + (x.chegou ? '<div class="chegou' + (x.chegou.fechada ? ' fim' : '') + '">' + (x.chegou.fechada ? '✓ Finalizado na loja' : '✓ Chegou na loja') + ' · ' + esc(chegouTxt(x)) + '</div>' : '')
-      + (x.notas || []).map(n => 'NF-e <b>' + nfLink(n) + '</b>' + (n.serie ? '/' + esc(n.serie) : '') + ' de ' + br(n.data) + ' · ' + n.itens + ' itens · <b>' + money2(n.valorNFE) + '</b>' + (n.entrada ? ' · <span class="pos">' + esc(entradaTxt(n)) + '</span>' : (n.importado ? ' · importada no ERP' : ' · <span class="prob">ainda não importada</span>')) + (n.boletos?.length ? ' · boletos: ' + n.boletos.map(b => 'dup ' + b.dup + ' ' + br(b.vencimento) + ' <b>' + money2(b.valor) + '</b>').join(', ') : ' · <span class="prob">sem boleto no XML</span>')).join('<br>');
-    // notas do fornecedor pra loja que NÃO são entrega (devolução / contranota): fora da conferência, só informadas (16/10/2026)
-    if ((x.notas_fora || []).length) h += '<br><span class="mut">Fora do pedido (não é entrega): ' + x.notas_fora.map(n => 'NF-e ' + nfLink(n) + (n.serie ? '/' + esc(n.serie) : '') + ' de ' + br(n.data) + ' · devolução' + ((n.cfops || []).length ? ' (CFOP ' + n.cfops.join(', ') + ')' : '') + ' · ' + money2(n.valorNFE)).join(' · ') + '</span>';
+      // 16/10/2026 (Tiago: "ainda muita coisa"): uma linha curta por nota; boleto só com vencimento e valor
+      + (x.notas || []).map(n => 'NF-e <b>' + nfLink(n) + '</b> · ' + br(n.data) + ' · ' + n.itens + ' itens · <b>' + money2(n.valorNFE) + '</b>' + (n.boletos?.length ? ' · boleto ' + n.boletos.map(b => br(b.vencimento) + ' ' + money2(b.valor)).join(', ') : ' · <span class="prob">sem boleto no XML</span>') + (n.entrada ? ' · <span class="pos">' + esc(entradaTxt(n)) + '</span>' : (n.importado ? '' : ' · <span class="mut">a loja ainda não lançou</span>'))).join('<br>');
+    // entrega devolvida: a contranota do fornecedor cobre tudo que veio — a loja não ficou com a mercadoria (16/10/2026, Aujo #94)
+    const dv = x.devolvida;
+    if (dv && dv.total) h += '<div class="devolvida"><b>Esta entrega foi devolvida' + (dv.em ? ' em ' + br(dv.em) : '') + '</b> pela ' + (dv.notas || []).map(n => 'NF-e ' + nfLink(n) + ' (' + money2(n.valorNFE) + ')').join(', ') + '. A loja não ficou com a mercadoria. <b>Não pagar o boleto.</b> O pedido desta loja fica como não entregue.</div>';
+    else if (dv && Object.keys(dv.itens || {}).length) h += '<div class="devolvida parcial"><b>Devolução parcial' + (dv.em ? ' em ' + br(dv.em) : '') + '</b>: ' + (dv.notas || []).map(n => 'NF-e ' + nfLink(n) + ' (' + money2(n.valorNFE) + ')').join(', ') + '. O "Veio no XML" abaixo já desconta o que voltou.</div>';
+    // outras notas do fornecedor pra loja que NÃO são entrega (devolução / contranota de outra compra): só informadas
+    else if ((x.notas_fora || []).length) h += '<br><span class="mut">Também há devolução do fornecedor nesta loja, de outra compra: ' + x.notas_fora.map(n => 'NF-e ' + nfLink(n) + ' · ' + br(n.data) + ' · ' + money2(n.valorNFE)).join(' · ') + '</span>';
+    // Financeiro: uma frase só quando algo não bate; batendo, um "ok" curto
     const f = x.financeiro || {};
-    h += '<br>Financeiro: NF-e <b>' + money2(f.nfe) + '</b> · esperado (recebido × preço digitado; nota mais barata vale o da nota) <b>' + money2(f.esperado) + '</b> ' + seta(f.nfe, f.esperado, false) + ' · boletos <b>' + money2(f.boletos) + '</b> (' + (f.n_boletos || 0) + ')' + (Math.abs((f.boletos || 0) - (f.nfe || 0)) > 0.01 ? ' <span class="prob">≠ NF-e</span>' : ' <span class="pos">= NF-e</span>') + '</div>';
+    if (f.nfe != null) {
+      const difV = f.esperado > 0 ? (f.nfe - f.esperado) : 0, bolDif = Math.abs((f.boletos || 0) - (f.nfe || 0)) > 0.01;
+      const avisos = [];
+      if (f.esperado > 0 && Math.abs(difV) / f.esperado > 0.005) avisos.push('NF-e veio <b>' + money2(Math.abs(difV)) + ' ' + (difV > 0 ? 'acima' : 'abaixo') + '</b> do esperado pelo pedido (' + money2(f.esperado) + ')');
+      if (!f.n_boletos) avisos.push('<b>sem boleto</b> no XML'); else if (bolDif) avisos.push('boletos somam <b>' + money2(f.boletos) + '</b> e a NF-e é ' + money2(f.nfe));
+      h += '<br>Financeiro: ' + (avisos.length ? '<span class="prob">' + avisos.join(' · ') + '</span>' : '<span class="pos">✓ nota, pedido e boleto batem (' + money2(f.nfe) + ')</span>');
+    }
+    h += '</div>';
     h += '<div style="overflow-x:auto"><table><thead><tr><th>Produto</th><th class="r">Pedido</th><th class="r">Veio no XML</th><th class="r">Dif.</th><th>Situação</th><th class="r">Preço digitado</th><th class="r">Preço XML</th><th class="r">Var.</th></tr></thead><tbody>';
     for (const i of x.itens || []) h += vq(i) + '<tr class="' + (i.tipo === 'ok' ? '' : 'zero') + '"><td class="desc">' + esc(i.descricao) + cdTag(i.cod) + (i.tipo === 'a_mais' ? dec(i, 'a_mais') : (i.preco_status === 'maior' ? dec(i, 'preco') : '')) + extraItem(i) + vincTxt(i, x) + '<span class="cod">' + esc(i.cod) + '</span></td><td class="r">' + fmt(i.pedida, 0) + '</td><td class="r"><b>' + fmt(i.recebida, 0) + '</b>' + xmlComoVeio(i) + '</td><td class="r ' + (i.dif < 0 ? 'neg' : (i.dif > 0 ? 'pos' : '')) + '">' + (i.dif ? (i.dif > 0 ? '+' : '') + fmt(i.dif, 0) : '') + '</td><td class="tp-' + i.tipo + '">' + (TP[i.tipo] || i.tipo) + '</td><td class="r">' + (i.preco_digitado != null ? fmt(i.preco_digitado, 2) : '<span class="mut">—</span>') + '</td><td class="r"><b>' + (i.preco_xml != null ? fmt(i.preco_xml, 2) : '—') + '</b></td><td class="r">' + (i.preco_status ? (i.preco_status === 'ok' ? '<span class="arw eq">=</span>' : seta(i.preco_xml, i.preco_digitado, true)) : '') + '</td></tr>';
     const temFalta = (x.itens || []).some(i => i.tipo === 'falta' || i.tipo === 'parcial');

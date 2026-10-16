@@ -2725,7 +2725,7 @@ async function fecharCotacao(){
 // ───────── PEDIDOS
 var ST_PED = {sugestao:'Sugestão', aguardando:'Aguardando vendedor', digitacao:'Em digitação', finalizado:'Finalizado pelo vendedor · aprovar', aprovado:'Aprovado', recebido:'Recebido', recebido_parcial:'Recebido com falta', cancelado:'Cancelado'};
 // 16/10/26 (Tiago): pedido de cotação não tem 2ª entrega. O fiscal aceitou o parcial (item sai do pedido: cotar de novo) ou recusou a entrega da loja.
-function xmlAvisoFiscal(xml){ var L = xml && xml.lojas || {}, nv = 0, rec = []; Object.keys(L).forEach(function(k){ nv += (L[k].nao_vem || 0); if (L[k].entrega_recusada) rec.push(LJ(k)); }); return (nv ? ' · <b style="color:#B45C00">' + nv + ' item(ns) não vem mais (fiscal) · cotar de novo</b>' : '') + (rec.length ? ' · <b style="color:#B3261E">entrega recusada pelo fiscal · ' + rec.join(' ') + '</b>' : ''); }
+function xmlAvisoFiscal(xml){ var L = xml && xml.lojas || {}, nv = 0, rec = [], dv = []; Object.keys(L).forEach(function(k){ nv += (L[k].nao_vem || 0); if (L[k].entrega_recusada) rec.push(LJ(k)); if (L[k].status === 'devolvida') dv.push(LJ(k)); }); return (nv ? ' · <b style="color:#B45C00">' + nv + ' item(ns) não vem mais (fiscal) · cotar de novo</b>' : '') + (rec.length ? ' · <b style="color:#B3261E">entrega recusada pelo fiscal · ' + rec.join(' ') + '</b>' : '') + (dv.length ? ' · <b style="color:#B3261E">entrega devolvida · ' + dv.join(' ') + ' · cotar de novo</b>' : ''); }
 async function renderPedidos(){
   var m = $('#s5-main'); if (!CUR) { renderVazio(m); return; }
   var h = cabecalho('<a class="btn primary" href="/pedidos-compra.html">Abrir Pedidos de Compra →</a>');
