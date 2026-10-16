@@ -8170,7 +8170,7 @@ app.get('/api/pedidos-fornecedor', (req, res) => {
     alerta_fiscal: p.alerta_fiscal || null, avisos_fiscal: p.avisos_fiscal || [],
     // selo e filtro de origem na tela (Radar / Cotação / Sugestão manual) — sem isto a tela mostrava RADAR em tudo
     parametros: { origem: p.parametros?.origem || 'radar', gatilho: p.parametros?.gatilho || null }, cotacao: p.cotacao ? { id: p.cotacao.id, nome: p.cotacao.nome || null } : null,
-    recebimento: p.recebimento ? Object.fromEntries(Object.entries(p.recebimento).map(([l, r]) => [l, { faltas: r.faltas, itens_pedidos: r.itens_pedidos, notas: r.notas.map(n => n.nNota) }])) : null, criadoEm: p.criadoEm, criadoPor: p.criadoPor, vistoEm: p.vistoEm || null, vistoPor: p.vistoPor || null, enviadoEm: p.enviadoEm || null, enviadoPor: p.enviadoPor || null, abertoEm: p.abertoEm, finalizadoEm: p.finalizadoEm, lojas: p.lojas, totais: p.totais, por_loja: pedidosFornec.porLoja(p), link: linkPedido(p), teste: !!p.teste, avarias: p.avarias ? { n: p.avarias.n, total: p.avarias.total, por_loja: p.avarias.por_loja || {} } : null, xml: p.xml ? { status: p.xml.status, verificadoEm: p.xml.verificadoEm || null, lojas: Object.fromEntries(Object.entries(p.xml.lojas || {}).map(([l, x]) => [l, { status: x.status, problemas: (x.problemas || []).map(z => z.tipo), notas: (x.notas || []).length, chegou: x.chegou || null, conferidoEm: x.conferidoEm || null, aceitoEm: x.aceito?.em || null, notas_det: (x.notas || []).map(n => ({ nNota: n.nNota, chave: n.chave || null, data: n.data, importado: !!n.importado, entrada: n.entrada || null })) }])) } : null })));
+    recebimento: p.recebimento ? Object.fromEntries(Object.entries(p.recebimento).map(([l, r]) => [l, { faltas: r.faltas, itens_pedidos: r.itens_pedidos, notas: r.notas.map(n => n.nNota) }])) : null, criadoEm: p.criadoEm, criadoPor: p.criadoPor, vistoEm: p.vistoEm || null, vistoPor: p.vistoPor || null, enviadoEm: p.enviadoEm || null, enviadoPor: p.enviadoPor || null, abertoEm: p.abertoEm, finalizadoEm: p.finalizadoEm, lojas: p.lojas, totais: p.totais, por_loja: pedidosFornec.porLoja(p), link: linkPedido(p), teste: !!p.teste, avarias: p.avarias ? { n: p.avarias.n, total: p.avarias.total, por_loja: p.avarias.por_loja || {} } : null, xml: p.xml ? { status: p.xml.status, verificadoEm: p.xml.verificadoEm || null, lojas: Object.fromEntries(Object.entries(p.xml.lojas || {}).map(([l, x]) => [l, { status: x.status, problemas: (x.problemas || []).map(z => z.tipo), notas: (x.notas || []).length, chegou: x.chegou || null, conferidoEm: x.conferidoEm || null, aceitoEm: x.aceito?.em || null, nao_vem: (x.itens || []).filter(i => i.decisao && i.decisao.acao === 'nao_vem').length, entrega_recusada: x.entrega_recusada ? { por: x.entrega_recusada.por || null, em: x.entrega_recusada.em || null } : null, notas_det: (x.notas || []).map(n => ({ nNota: n.nNota, chave: n.chave || null, data: n.data, importado: !!n.importado, entrada: n.entrada || null })) }])) } : null })));
 });
 // Lojas em que cada item do pedido está DESATIVADO na lista de compra do ERP (central.c_cotacao_lista_itens.l1..l6 =
 // "Ativar/Desativar Itens da Lista"), pra tela Pedidos de Compra marcar "⛔ desativado" igual à Cotação (Tiago, 06/10/26).
@@ -8615,6 +8615,26 @@ app.post('/api/fiscal/pedido-compra/:id/xml/:loja/fechar', (req, res) => {
     if (!r) return res.status(404).json({ error: 'Pedido não encontrado' });
     if (r.erro) return res.status(400).json({ error: r.erro });
     res.json({ ok: true, status: r.status, xml: r.xml?.status || null });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+// 16/10/2026 (Tiago): cotação não tem 2ª entrega. Antes do caminhão, na aba Pedidos a receber, o fiscal aceita o parcial
+// (toda falta vira "não vem mais") ou recusa a entrega inteira (vendedor cobrado). body { desfazer: true } limpa.
+app.post('/api/fiscal/pedido-compra/:id/xml/:loja/aceitar-parcial', (req, res) => {
+  try {
+    const q0 = fiscalPedidoLoja(req, res); if (!q0) return;
+    const r = pedidosFornec.aceitarParcialFiscal(q0.p.id, q0.ln, req.session.user?.nome || null, !!req.body?.desfazer);
+    if (!r) return res.status(404).json({ error: 'Pedido não encontrado' });
+    if (r.erro) return res.status(400).json({ error: r.erro });
+    res.json(r);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.post('/api/fiscal/pedido-compra/:id/xml/:loja/recusar-entrega', (req, res) => {
+  try {
+    const q0 = fiscalPedidoLoja(req, res); if (!q0) return;
+    const r = pedidosFornec.recusarEntregaFiscal(q0.p.id, q0.ln, req.session.user?.nome || null, !!req.body?.desfazer);
+    if (!r) return res.status(404).json({ error: 'Pedido não encontrado' });
+    if (r.erro) return res.status(400).json({ error: r.erro });
+    res.json(r);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 // PDF do aviso de devolução por loja, dentro do módulo Fiscal (mesma geração da tela de Pedidos de Compra)

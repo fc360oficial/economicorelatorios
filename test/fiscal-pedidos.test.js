@@ -65,8 +65,9 @@ test('situação da loja: aguardando nota (atrasado), nota bipada com conferênc
   let s = fp.situacaoLoja(pedCotacao(), 2, hoje);
   assert.equal(s.codigo, 'aguardando_nota'); assert.equal(s.atraso, 1); assert.equal(s.nConferencia, null);
   s = fp.situacaoLoja(pedCotacao({ xml: { status: 'consistencia', lojas: { 2: xmlLoja() } } }), 2, hoje);
-  assert.equal(s.codigo, 'nota_bipada'); assert.equal(s.nConferencia, 184824); assert.equal(s.pendentes, 2); assert.equal(s.texto, 'Nota bipada na loja 09/10 10:10');
-  assert.match(s.sub, /conferência 184824 · 2 divergência\(s\) pra decidir/);
+  // 16/10/2026: em cotação a coalhada parcial (6 de 12) também é decisão do fiscal ("não vem mais") → 3 pendências
+  assert.equal(s.codigo, 'nota_bipada'); assert.equal(s.nConferencia, 184824); assert.equal(s.pendentes, 3); assert.equal(s.texto, 'Nota bipada na loja 09/10 10:10');
+  assert.match(s.sub, /conferência 184824 · 3 divergência\(s\) pra decidir/);
   s = fp.situacaoLoja(pedCotacao({ xml: { status: 'consistencia', lojas: { 2: xmlLoja({ chegou: null }) } } }), 2, hoje);
   assert.equal(s.codigo, 'nota_emitida');
   // fiscal liberou com falta → continua na aba como parcial
@@ -111,9 +112,9 @@ test('pedidoAppPorCod (lib/fiscal): quem decide e o que precisa de decisão por 
   F.init(async () => [], { pedidos: () => [p] });
   const r = F.pedidoAppPorCod(77, 2, ['CH1']);
   assert.deepEqual(r.ids, [64462]);
-  assert.equal(r.pedidos[0].quem_decide, 'fiscal'); assert.equal(r.pedidos[0].pendentes, 2); assert.equal(r.pedidos[0].obs.por, 'Diretor');
+  assert.equal(r.pedidos[0].quem_decide, 'fiscal'); assert.equal(r.pedidos[0].pendentes, 3); assert.equal(r.pedidos[0].obs.por, 'Diretor');
   assert.equal(r.map['7898118392864'].motivo, 'preco'); assert.equal(r.map['7898118392864'].precisa_decisao, true);
-  assert.equal(r.map['7898118391263'].motivo, null); assert.equal(r.map['7898118391263'].precisa_decisao, false);
+  assert.equal(r.map['7898118391263'].motivo, 'falta'); assert.equal(r.map['7898118391263'].precisa_decisao, true);   // 16/10/26: parcial em cotação = decisão do fiscal
   assert.equal(r.map['7898118392253'].nao_pedido, true); assert.equal(r.map['7898118392253'].motivo, 'nao_pedido');
 });
 
@@ -131,13 +132,13 @@ test('cruzar: divergências do pedido de cotação viram erro com decisão do fi
   const p = pedCotacao({ xml: { status: 'consistencia', lojas: { 2: xmlLoja() } } });
   F.init(async () => [], { pedidos: () => [p] });
   const r = F.cruzar(conf, partes([prod('7898118392864', 'FRUTY BOM SUCO 330ML UVA', 12, 1.83), prod('7898118391263', 'BOM LEITE COALHADA 140G MORANGO', 6, 2.69), prod('7898118392253', 'BOM LEITE GARRAFA 900G AMEIXA', 6, 7.39)]), cfg, null);
-  assert.equal(r.pedido_app.quem_decide, 'fiscal'); assert.equal(r.pedido_app.pendentes.length, 2);
-  assert.deepEqual(r.pedido_app.pendentes.map(x => x.motivo).sort(), ['nao_pedido', 'preco']);
-  assert.equal(r.checks.pedido.nivel, 'erro'); assert.match(r.checks.pedido.msg, /2 divergência\(s\) aguardando decisão do fiscal/);
+  assert.equal(r.pedido_app.quem_decide, 'fiscal'); assert.equal(r.pedido_app.pendentes.length, 3);
+  assert.deepEqual(r.pedido_app.pendentes.map(x => x.motivo).sort(), ['falta', 'nao_pedido', 'preco']);
+  assert.equal(r.checks.pedido.nivel, 'erro'); assert.match(r.checks.pedido.msg, /3 divergência\(s\) aguardando decisão do fiscal/);
   const suco = r.itens.find(i => i.ean === '7898118392864'), ameixa = r.itens.find(i => i.ean === '7898118392253'), coalhada = r.itens.find(i => i.ean === '7898118391263');
   assert.ok(suco.flags.some(f => f.tipo === 'preco_pedido' && f.nivel === 'erro')); assert.equal(suco.ped_app.precisa_decisao, true);
   assert.ok(ameixa.flags.some(f => f.tipo === 'nao_pedido' && f.nivel === 'erro')); assert.match(ameixa.flags.find(f => f.tipo === 'nao_pedido').msg, /Não está no pedido #64462 \(veio 6 UN a R\$ 7,39\)/);
-  assert.equal(coalhada.ped_app.precisa_decisao, false); assert.ok(!coalhada.flags.some(f => f.nivel === 'erro'));
+  assert.equal(coalhada.ped_app.precisa_decisao, true); assert.equal(coalhada.ped_app.motivo, 'falta');   // 16/10/26: parcial em cotação = "não vem mais" (fiscal)
   assert.equal(r.situacao, 'excecao');
   assert.equal(r.pedidos_compra[0].quem_decide, 'fiscal'); assert.equal(r.pedidos_compra[0].obs_fiscal_por, 'Diretor'); assert.equal(r.obs_compradora_por, 'Diretor');
 });
@@ -146,15 +147,18 @@ test('cruzar: depois que o fiscal decide, o erro vira "Liberado/Recusado por" e 
   const x = xmlLoja();
   x.itens[0].decisao = { acao: 'aceitar', por: 'JOSE', em: '2026-10-09T13:12:00.000Z', papel: 'fiscal' };
   x.nao_pedidos[0].decisao = { acao: 'recusar', por: 'JOSE', em: '2026-10-09T13:13:00.000Z', papel: 'fiscal' };
+  x.itens[1].decisao = { acao: 'nao_vem', por: 'JOSE', em: '2026-10-09T13:14:00.000Z', papel: 'fiscal' };   // 16/10/26: parcial aceito (não vem mais)
   const p = pedCotacao({ xml: { status: 'consistencia', lojas: { 2: x } } });
   F.init(async () => [], { pedidos: () => [p] });
   const r = F.cruzar(conf, partes([prod('7898118392864', 'FRUTY BOM SUCO 330ML UVA', 12, 1.83), prod('7898118391263', 'BOM LEITE COALHADA 140G MORANGO', 6, 2.69), prod('7898118392253', 'BOM LEITE GARRAFA 900G AMEIXA', 6, 7.39)]), cfg, null);
-  assert.equal(r.pedido_app.pendentes.length, 0); assert.equal(r.pedido_app.decididas, 2);
+  assert.equal(r.pedido_app.pendentes.length, 0); assert.equal(r.pedido_app.decididas, 3);
+  const coalhada = r.itens.find(i => i.ean === '7898118391263');
+  assert.ok(!coalhada.flags.some(f => f.nivel === 'erro')); assert.match(coalhada.flags.find(f => f.tipo === 'xml_decisao').msg, /^Não vem mais por JOSE em 09\/10 \(quantidade menor\) — parcial aceito pelo fiscal/);
   const suco = r.itens.find(i => i.ean === '7898118392864'), ameixa = r.itens.find(i => i.ean === '7898118392253');
   assert.ok(!suco.flags.some(f => f.nivel === 'erro')); assert.equal(suco.flags.find(f => f.tipo === 'xml_decisao').msg, 'Liberado por JOSE em 09/10 (preço)');
   assert.ok(!ameixa.flags.some(f => f.nivel === 'erro')); assert.match(ameixa.flags.find(f => f.tipo === 'xml_decisao').msg, /^Recusado por JOSE em 09\/10 \(item não pedido\) — devolver/);
   // a coalhada veio parcial (6 de 12): não trava, fica como aviso de quantidade ≠ pedido
-  assert.equal(r.checks.pedido.nivel, 'aviso'); assert.match(r.checks.pedido.msg, /2 divergência\(s\) decidida\(s\), 1 item\(ns\) com quantidade ≠ pedido/);
+  assert.equal(r.checks.pedido.nivel, 'aviso'); assert.match(r.checks.pedido.msg, /3 divergência\(s\) decidida\(s\), 1 item\(ns\) com quantidade ≠ pedido/);
   assert.equal(r.situacao, 'pronto');
 });
 
