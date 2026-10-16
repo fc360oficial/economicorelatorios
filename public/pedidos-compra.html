@@ -223,6 +223,49 @@ tr.grp td .hj{background:#F5B800;color:#6B4E00;border-radius:4px;padding:0 6px;m
 td.lj{white-space:normal;max-width:150px}td.lj .lojatag{margin:1px 2px;white-space:nowrap}
 td.org{white-space:normal;max-width:190px}td.org .pill,td.org .rup{margin-top:0}td.org>div+div{margin-top:3px}
 td.avc{white-space:nowrap}td.avc .avpill{margin:0}
+/* 16/10/26 (Tiago: "tem que reajustar automático seja qual monitor"): o que é só de Análise de Compras / Pedidos de Compra; o comum
+   das 3 telas de compras está em compras-layout.css. Monitor grande (≥1700px) fica como está; abaixo as faixas apertam a barra de
+   ferramentas, as colunas de texto (fornecedor, origem, comprador, vendedor, loja) e a tabela de itens. */
+.tools input.q{min-width:280px}
+@media (max-width:1699px){
+  /* grades de dois campos / cadastro não podem esticar a página: 1fr vira minmax(0,1fr) */
+  .ft .ft-f{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .cad-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .det table.ppg{min-width:1060px}
+  table.main-t td.lc{min-width:170px}
+  /* table.main-t td{nowrap} ganhava de td.lj/td.org/td.avc{normal} por especificidade: as etiquetas de loja, a origem e as avarias
+     passam a quebrar linha de verdade abaixo de 1700px */
+  table.main-t td.lj,table.main-t td.org,table.main-t td.avc{white-space:normal}
+  td.org .pill,td.org .rup,td.avc .avpill{white-space:normal;line-height:1.3}
+  td.lj{min-width:84px}
+  td.org{max-width:160px}td.cv{max-width:110px}
+  .xml{max-width:220px}.xml.consistencia{max-width:190px}
+  .tools input.q{min-width:220px}
+  .tools input,.tools select{padding:6px 9px;font-size:12px}
+  .det td>.oq,.det td>.acoes,.det td>.ft{max-width:calc(100vw - 64px - 40px - 28px)}
+}
+@media (max-width:1399px){
+  .det table.ppg{min-width:0}
+  table.main-t td.lc{min-width:150px}
+  td.org{max-width:130px}td.cv{max-width:95px}td.lj{max-width:120px}
+  td.org .pill,td.org .rup{white-space:normal}
+  .xml{max-width:180px}.xml.consistencia{max-width:160px}
+  .tools input.q{min-width:180px}
+  .tools{gap:6px}
+  .lojas-seg button{min-width:30px;padding:4px 6px}
+  .fluxo{font-size:11px}
+  .obs{min-width:60px;max-width:150px}
+  .desc{min-width:180px;max-width:280px}
+  .zbtn{width:20px;height:20px;line-height:18px;font-size:10px}.zbtn.undo{margin-left:1px}
+  .det td>.oq,.det td>.acoes,.det td>.ft{max-width:calc(100vw - 64px - 28px - 28px)}
+}
+@media (max-width:1199px){
+  table.main-t td.lc{min-width:130px}
+  td.org{max-width:110px}td.cv{max-width:85px}
+  .tools input.q{min-width:150px}
+  .obs{min-width:70px;max-width:140px}
+  .det td>.oq,.det td>.acoes,.det td>.ft{max-width:calc(100vw - 64px - 20px - 28px)}
+}
 </style>
 <link rel="stylesheet" href="/compras-layout.css"><!-- escala comum das 3 telas de compras (Radar → Análise → Pedidos): ver CLAUDE.md -->
 </head>
@@ -239,7 +282,7 @@ td.avc{white-space:nowrap}td.avc .avpill{margin:0}
   <div class="fluxo" id="pg-fluxo"></div>
   <div class="totais" id="totais"></div>
   <div id="cd-card" hidden style="margin:-6px 0 14px"></div>
-  <div class="tools"><input id="q" placeholder="Buscar lista, fornecedor ou vendedor" style="min-width:280px"><select id="fComp"><option value="">Todos compradores</option></select><select id="fOrig" title="De onde o pedido saiu"><option value="">Todas as origens</option><option value="radar">Radar</option><option value="cotacao">Cotação</option><option value="sugestao">Sugestão manual</option><option value="semi">Sugestão semi-automática</option><option value="ruptura">Ruptura de entrega</option></select><select id="fLoja" hidden onchange="aberto=null;render()"><option value="">Todas as lojas</option><option value="1">E1 CAHU</option><option value="2">E2 MURIBECA</option><option value="3">E3 PONTE</option><option value="4">E4 ATACAREJO</option><option value="5">E5 PORTA LARGA</option><option value="6">E6 JARDIM JORDÃO</option></select><div class="lojas-seg" id="fLojaSeg" title="Loja: clique pra ver só ela; clique de novo pra voltar a todas"></div><select id="fStatus" title="Status do pedido (Tiago, 07/10)"><option value="">Todos os status</option></select><span class="periodo"><select id="fPer" title="Período por qualquer movimento do pedido no dia: enviado, aprovado, XML conferido, chegou ou fechou na loja. 'Qualquer data' = fila normal, sem corte (Tiago, 07/10 e 08/10)"><option value="">Qualquer data</option><option value="hoje">Hoje</option><option value="ontem">Ontem</option><option value="7d">Últimos 7 dias</option><option value="mes">Este mês</option><option value="dia">Escolher dia…</option></select><span class="dia" id="fDia" title="Setas: navega dia a dia pela data de envio (entra em Escolher dia)"><button type="button" id="diaPrev" title="Dia anterior">◀</button><span class="lbl" id="diaLbl"></span><button type="button" id="diaNext" title="Próximo dia">▶</button><button type="button" class="hoje" id="diaHoje" title="Volta pra hoje">Hoje</button></span></span><span class="cnt" id="cnt"></span><button class="btn btn-amber" id="btnTodos" onclick="enviarTodos()" title="Lista todos os pedidos Aguardando vendedor com o botão de WhatsApp de cada um">Enviar pra todos</button><button class="btn btn-slate" id="btnAtu">Atualizar</button></div>
+  <div class="tools"><input id="q" class="q" placeholder="Buscar lista, fornecedor ou vendedor"><select id="fComp"><option value="">Todos compradores</option></select><select id="fOrig" title="De onde o pedido saiu"><option value="">Todas as origens</option><option value="radar">Radar</option><option value="cotacao">Cotação</option><option value="sugestao">Sugestão manual</option><option value="semi">Sugestão semi-automática</option><option value="ruptura">Ruptura de entrega</option></select><select id="fLoja" hidden onchange="aberto=null;render()"><option value="">Todas as lojas</option><option value="1">E1 CAHU</option><option value="2">E2 MURIBECA</option><option value="3">E3 PONTE</option><option value="4">E4 ATACAREJO</option><option value="5">E5 PORTA LARGA</option><option value="6">E6 JARDIM JORDÃO</option></select><div class="lojas-seg" id="fLojaSeg" title="Loja: clique pra ver só ela; clique de novo pra voltar a todas"></div><select id="fStatus" title="Status do pedido (Tiago, 07/10)"><option value="">Todos os status</option></select><span class="periodo"><select id="fPer" title="Período por qualquer movimento do pedido no dia: enviado, aprovado, XML conferido, chegou ou fechou na loja. 'Qualquer data' = fila normal, sem corte (Tiago, 07/10 e 08/10)"><option value="">Qualquer data</option><option value="hoje">Hoje</option><option value="ontem">Ontem</option><option value="7d">Últimos 7 dias</option><option value="mes">Este mês</option><option value="dia">Escolher dia…</option></select><span class="dia" id="fDia" title="Setas: navega dia a dia pela data de envio (entra em Escolher dia)"><button type="button" id="diaPrev" title="Dia anterior">◀</button><span class="lbl" id="diaLbl"></span><button type="button" id="diaNext" title="Próximo dia">▶</button><button type="button" class="hoje" id="diaHoje" title="Volta pra hoje">Hoje</button></span></span><span class="cnt" id="cnt"></span><button class="btn btn-amber" id="btnTodos" onclick="enviarTodos()" title="Lista todos os pedidos Aguardando vendedor com o botão de WhatsApp de cada um">Enviar pra todos</button><button class="btn btn-slate" id="btnAtu">Atualizar</button></div>
   <div id="view"><div class="spinner"></div></div>
 </div>
 <div id="pv" hidden><div class="pv-card" id="pv-body"></div></div>

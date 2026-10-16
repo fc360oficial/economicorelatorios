@@ -279,6 +279,43 @@ body.rg-on{overflow:hidden}
 table.main-t td.st{white-space:normal;min-width:84px;max-width:190px;vertical-align:middle}table.main-t td.st .pill{white-space:normal;line-height:1.3;max-width:100%;text-align:center}table.main-t td.st .fl{display:flex;flex-wrap:wrap;gap:3px;justify-content:center;align-items:center}
 table.main-t td.comp{white-space:normal;max-width:130px;font-size:12px;font-weight:700;color:#4E5A72;line-height:1.25}
 table.main-t td.nl{white-space:nowrap;width:1%;font-weight:800;color:#4E5A72;font-variant-numeric:tabular-nums}
+/* 16/10/26 (Tiago: "tem que reajustar automático seja qual monitor"): o que é só do Radar; o comum das 3 telas de compras está em
+   compras-layout.css. Monitor grande (≥1700px) fica como está; abaixo as faixas apertam filtros, colunas de texto e a tabela por produto. */
+.fg input.busca{min-width:220px}
+@media (max-width:1699px){
+  /* table.main-t td{nowrap} ganha de .det td{normal} por especificidade: a célula do detalhe herdava nowrap e o aviso "produto desativado"
+     virava uma linha só de 1.100px+, alargando a tabela de fora. O detalhe quebra linha; a tabela por produto continua com o nowrap dela. */
+  table.main-t tr.det>td{white-space:normal}
+  /* grades de cartões não podem esticar a página: 1fr vira minmax(0,1fr) */
+  .grid2{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .cad-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .lnkbox input{min-width:0}
+  .det table.ppg{min-width:1000px}
+  /* igual ao Pedidos de Compra (29/09): o detalhe não pode alargar a tabela de fora — width:0 + min-width:100% faz a célula colspan
+     ignorar a largura do conteúdo; se a tabela por produto não couber, rola só ela (último recurso) */
+  .det .box{width:0;min-width:100%;box-sizing:border-box}
+  table.main-t td.lc{min-width:170px;max-width:280px}
+  table.main-t td.comp{max-width:120px}
+  .fg select,.fg input{min-width:120px}.fg input.busca{min-width:180px}
+  .filtros{padding:12px 14px;gap:8px}
+}
+@media (max-width:1399px){
+  .det table.ppg{min-width:0}
+  table.main-t td.lc{min-width:150px;max-width:240px}
+  table.main-t td.comp{max-width:96px}
+  table.main-t td.st{min-width:64px}
+  /* pílula + ⓘ numa célula nowrap (Lead "lead do fornecedor", Trânsito): a pílula quebra por dentro e deixa lugar pro ⓘ */
+  table.main-t td.r .pill{max-width:calc(100% - 22px);vertical-align:middle}
+  table.main-t td.r .pill.p-transito{padding:2px 5px;letter-spacing:0}
+  .fg select,.fg input{min-width:110px;padding:6px 9px}.fg input.busca{min-width:150px}.fg input[type=number]{width:76px;min-width:0}
+  .filtros{padding:10px 12px;gap:8px;margin-bottom:12px}
+  .lojas-seg label{min-width:30px;padding:4px 6px}
+}
+@media (max-width:1199px){
+  table.main-t td.lc{min-width:130px;max-width:200px}
+  table.main-t td.comp{max-width:92px}
+  .fg input.busca{min-width:130px}
+}
 </style>
 <link rel="stylesheet" href="/compras-layout.css"><!-- escala comum das 3 telas de compras (Radar → Análise → Pedidos): ver CLAUDE.md -->
 </head>
@@ -298,7 +335,7 @@ table.main-t td.nl{white-space:nowrap;width:1%;font-weight:800;color:#4E5A72;fon
     <div class="fg"><label>Teto de cobertura (dias)</label><input type="number" id="fTeto" min="3" max="90" value="28"></div>
     <div class="fg"><label title="A lista cai pra HOJE numa loja quando os produtos que estão no ponto de pedido (ou zerados) nessa loja somam esta fatia da venda da lista na loja. Avaliado loja a loja; em 'Todas' a lista assume o dia da loja mais apertada. Curva A antecipa sozinha, sem depender disso.">Gatilho (% da venda)</label><input type="number" id="fGatilho" min="1" max="100" value="20"></div>
     <div class="fg"><label title="Arredonda o pedido pela embalagem em que o produto de fato chegou nas notas de entrada nesse período. 0 = usar só a embalagem do cadastro.">Embalagem real (meses)</label><input type="number" id="fEmb" min="0" max="36" value="36"></div>
-    <div class="fg"><label>Buscar</label><input type="text" id="fBusca" placeholder="lista ou fornecedor" style="min-width:220px"></div>
+    <div class="fg"><label>Buscar</label><input type="text" id="fBusca" class="busca" placeholder="lista ou fornecedor"></div>
     <div class="fg chk" title="Produto de curva A (os que somam 50% da venda) que vai zerar antes do dia previsto da lista antecipa a lista. Desmarque pra ver o radar só com a regra dos 10% da venda."><input type="checkbox" id="fCurvaA" checked><label for="fCurvaA">Gatilho curva A</label></div>
     <button class="btn btn-amber" id="btnAplicar" style="margin-top:14px">Aplicar</button>
     <button class="btn btn-slate" id="btnRecalc" style="margin-top:14px" title="Recoleta venda, estoque e trânsito do ERP (1 a 3 min)">Recalcular agora</button>
