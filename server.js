@@ -8641,6 +8641,30 @@ app.post('/api/fiscal/pedido-compra/:id/xml/:loja/recusar-entrega', (req, res) =
     res.json(r);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+// Painel "Cotações" da aba Pedidos a receber (16/10/2026): por cotação, quantos pedidos chegaram / faltam, por loja, e quem falta
+app.get('/api/fiscal/cotacoes-resumo', (req, res) => {
+  try {
+    const r = escopo.resolverLoja(req.session.user, parseInt(req.query.loja) || null);
+    res.json({ hoje: new Date().toISOString().slice(0, 10), cotacoes: fiscalPedidos.resumoCotacoes(() => pedidosFornec.listar(), pedidosFornec.totaisLoja, { lojas: r.lojas, loja: r.loja }) });
+  } catch (err) { fiscalErr(res, err); }
+});
+// Fecha como NÃO ENTREGUE todos os pedidos da cotação sem nota na loja (body { loja }) — cotação velha, não vem mais
+app.post('/api/fiscal/cotacao/:id/fechar-nao-entregues', (req, res) => {
+  try {
+    const cot = parseInt(req.params.id), ln = parseInt(req.body?.loja);
+    if (!(ln > 0)) return res.status(400).json({ error: 'Informe a loja' });
+    if (fiscalNegaLoja(req, res, ln)) return;
+    const hoje = new Date().toISOString().slice(0, 10);
+    let fechados = 0; const erros = [];
+    for (const p of pedidosFornec.listar()) {
+      if (p.teste || !p.cotacao || +p.cotacao.id !== cot || !(p.lojas || []).map(Number).includes(ln)) continue;
+      if (fiscalPedidos.situacaoLoja(p, ln, hoje).codigo !== 'aguardando_nota') continue;
+      const r = pedidosFornec.fecharNaoEntregueFiscal(p.id, ln, req.session.user?.nome || null, false);
+      if (r && !r.erro) fechados++; else erros.push('#' + p.id + ': ' + (r ? r.erro : 'não encontrado'));
+    }
+    res.json({ ok: true, fechados, erros });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 // PDF do aviso de devolução por loja, dentro do módulo Fiscal (mesma geração da tela de Pedidos de Compra)
 app.get('/api/fiscal/pedido-compra/:id/devolucao/:loja/pdf', (req, res) => {
   const q0 = fiscalPedidoLoja(req, res); if (!q0) return;
