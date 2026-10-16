@@ -15,3 +15,21 @@ sempre vão ser usadas em sequência, então sempre manter o layout parecido uma
   de compras reaproveita esses nomes e carrega o mesmo CSS.
 - Rótulo de loja é sempre `E1..E6` e `CD` (loja 10), em todas as telas.
 - O Dashboard (`index.html`, bloco Financeiro `#s6`) segue a mesma escala com CSS próprio.
+
+## Toda tela se adapta a qualquer monitor (regra geral, Tiago 16/10/2026)
+
+As telas foram feitas num monitor grande (diretor) e quebravam no monitor menor do Tiago ("ele tem que
+reajustar automático seja qual monitor"). Vale pra **tudo que for criado ou alterado** em `public/`:
+
+- Nenhuma tela pode depender de uma largura de monitor. Testar, antes de publicar, em pelo menos
+  **1920, 1600, 1366 e 1280 px** de largura (print headless do Chrome serve:
+  `chrome --headless=new --window-size=1366,768 --screenshot=...`). Nada de rolagem lateral na página
+  nessas larguras; rolagem só dentro de uma tabela, e só como último recurso.
+- Largura fixa (`width`/`min-width` em px grande) em coluna, card ou grid é proibida como regra única: a
+  largura base é a do monitor grande e **faixas `@media (max-width: 1599px / 1399px / 1199px)`** vão
+  apertando fonte, padding, pills e botões até caber. Largura mínima de coluna fica em classe CSS, nunca
+  em `style=""` inline (inline ganha do `@media` e trava o ajuste).
+- Grids de cards usam `repeat(auto-fit, minmax(...))` ou `flex-wrap`, não número fixo de colunas.
+- Texto de coluna (nome, empresa, status) pode quebrar linha (`white-space:normal`); número e valor não.
+- Tela nova no mesmo fluxo copia as faixas da tela irmã (ex.: Monitor de Cotações em `cotacao.html`,
+  bloco "16/10/26 ... reajustar automático").
