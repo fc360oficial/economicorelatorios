@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="/design-system.css">
+<script src="/nav.js" defer></script>
+<script src="/gente-ui.js"></script>
+<title>Canal de Ética — Econômico Supermercados</title>
+<!-- Retaguarda do Canal de Ética (DP / RH › Canal de Ética), 16/10/2026. Mesmo kit visual de rh.html/dp.html (gente-ui.js).
+     Só quem está nos designados do canal (lib/etica.js) passa da entrada; admin do sistema só cadastra os designados
+     enquanto não houver nenhum. Regras: lib/etica.js · rotas: lib/etica-rotas.js · portal público: /etica. -->
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+[hidden]{display:none!important}
+body{font-family:var(--font,'InterVar','Segoe UI',sans-serif);background:var(--pap);color:var(--ink);min-height:100vh}
+.main{padding:24px;max-width:1560px}
+.page-hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.page-hdr h1{font-size:21px;font-weight:800;letter-spacing:-.3px}.page-hdr h1 span{display:inline-block;background:#101B33;color:#FFC933;font-size:11px;padding:2px 8px;border-radius:6px;margin-left:8px;vertical-align:middle;letter-spacing:.4px}
+.page-hdr p{font-size:12.5px;color:var(--ink2);margin-top:4px;max-width:90ch;line-height:1.5}
+.page-hdr .dir{text-align:right;font-size:11.5px;color:var(--ink3);line-height:1.6}
+.sino{cursor:pointer;text-decoration:underline}.sino b{display:inline-block;margin-left:4px;background:var(--neg);color:#fff;border-radius:999px;font-size:9.5px;padding:1px 6px;vertical-align:1px}
+.prot{font-family:ui-monospace,Consolas,monospace;font-weight:800;letter-spacing:.04em}
+.pill.warn{background:#FDF0D5;color:#A35A00}
+.prazo{display:flex;flex-direction:column;gap:2px;font-size:11px}.prazo .b{height:6px;border-radius:3px;background:var(--wsh);overflow:hidden;width:120px}.prazo .b i{display:block;height:100%;background:var(--inf)}.prazo .b.warn i{background:var(--am)}.prazo .b.neg i{background:var(--neg)}
+.det{display:grid;grid-template-columns:1.1fr .9fr;gap:14px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:12.5px}.kv dt{color:var(--ink3)}.kv dd{font-weight:600}
+.relato{white-space:pre-wrap;font-size:13px;line-height:1.55;background:var(--pap);border:1px solid var(--ln);border-radius:9px;padding:10px 12px;max-height:320px;overflow:auto}
+.hist{display:grid;gap:0;font-size:12px}.hist .h{display:grid;grid-template-columns:118px 1fr;gap:10px;padding:7px 0;border-bottom:1px solid var(--ln)}.hist .h time{color:var(--ink3)}.hist .h.pub::after{content:"visível ao denunciante";font-size:10px;color:var(--pos);grid-column:2}
+.acoes-caso{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}
+.prazos{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px}.prazos div{border:1px solid var(--ln);border-radius:9px;padding:8px 10px;font-size:12px}.prazos b{display:block;font-size:11px;color:var(--ink3);text-transform:uppercase;letter-spacing:.4px}
+.prazos .ok{border-color:var(--pos)}.prazos .neg{border-color:var(--neg)}.prazos .warn{border-color:var(--am)}
+.cadeia{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:12px;font-weight:700}.cadeia span{padding:5px 10px;border-radius:7px;background:var(--wsh);color:var(--ink2)}.cadeia span.on{background:#101B33;color:#FFC933}.cadeia span.done{background:var(--posw);color:var(--pos)}.cadeia i{color:var(--ink3);font-style:normal}
+table.pol input{width:64px;padding:4px 6px;border:1px solid var(--ln2);border-radius:6px;font:inherit;font-size:12px;text-align:right}table.pol select{padding:4px;border:1px solid var(--ln2);border-radius:6px;font:inherit;font-size:11.5px}
+.notif{display:grid;gap:6px}.notif div{background:var(--crd);border:1px solid var(--ln);border-radius:9px;padding:8px 12px;font-size:12.5px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;cursor:pointer}.notif div.nl{border-left:4px solid var(--am)}.notif small{color:var(--ink3)}
+.anx a{color:var(--inf);font-weight:600}
+@media(max-width:1399px){.main{padding:18px}.det{grid-template-columns:1fr}}
+@media(max-width:820px){.main{padding:12px}.page-hdr .dir{text-align:left}.prazo .b{width:80px}}
+</style>
+</head>
+<body>
+<div class="main">
+  <div class="page-hdr">
+    <div><h1>Canal de Ética e Denúncias<span>DP / RH</span></h1><p>Triagem, apuração, prazos, escalonamento e avaliação de omissões das denúncias recebidas pelo portal público (<a href="/etica" target="_blank" rel="noopener" style="color:var(--inf)">/etica</a>). Cada caso só é visto por quem foi designado nele; toda leitura fica na auditoria do canal. O acompanhamento do denunciante é somente leitura.</p></div>
+    <div class="dir" id="rodape"></div>
+  </div>
+  <div id="msg"></div>
+  <div class="tabs" id="tabs" hidden>
+    <div class="tab on" data-t="triagem">Triagem<small id="n-triagem"></small></div>
+    <div class="tab" data-t="meus">Meus casos<small id="n-meus"></small></div>
+    <div class="tab" data-t="ativos">Todos os ativos<small id="n-ativos"></small></div>
+    <div class="tab" data-t="validar">Validação<small id="n-validar"></small></div>
+    <div class="tab" data-t="omissoes">Omissões<small id="n-omissoes"></small></div>
+    <div class="tab" data-t="painel">Painel</div>
+    <div class="tab" data-t="notificacoes">Avisos<small id="n-notificacoes"></small></div>
+    <div class="tab" data-t="prazos">Prazos e cadeia</div>
+    <div class="tab" data-t="designados">Designados</div>
+  </div>
+  <div id="v-triagem"></div><div id="v-meus" style="display:none"></div><div id="v-ativos" style="display:none"></div><div id="v-validar" style="display:none"></div><div id="v-omissoes" style="display:none"></div><div id="v-painel" style="display:none"></div><div id="v-notificacoes" style="display:none"></div><div id="v-prazos" style="display:none"></div><div id="v-designados" style="display:none"></div>
+</div>
+<script>
+const { $, $$, esc, api, pill, tabela, btn, modal, toast } = G;
+let ME = null, CFG = null, ABA = 'triagem';
+const dt = iso => iso ? new Date(iso).toLocaleDateString('pt-BR') + ' ' + new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—';
+const dBRh = iso => iso ? new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—';
+const prioCls = p => ({ critica: 'neg', alta: 'warn', media: 'inf', baixa: '' })[p] || '';
+const statusCls = s => ({ concluida: 'pos', arquivada: '', em_apuracao: 'inf', aguardando_validacao: 'am', aguardando_aceite: 'warn' })[s] || '';
+const unidTxt = cod => { const u = ME && ME.catalogos.unidades.find(x => x.cod === cod); return u ? (cod === 'NI' ? 'Não informada' : cod + ' · ' + u.nome) : cod; };
+const papel = (...p) => ME && p.some(x => ME.papeis.includes(x));
+const msg = (txt, cls) => { $('#msg').innerHTML = txt ? '<div class="aviso ' + (cls || '') + '">' + txt + '</div>' : ''; };
+function prazoHtml(r) {
+  if (!r.prazo) return '<span class="sub">—</span>';
+  const p = r.prazo; const cls = p.vencido ? 'neg' : (p.horas <= 24 ? 'warn' : '');
+  const txt = p.vencido ? 'VENCIDO' : (p.horas < 48 ? p.horas + ' h' : p.diasUteis + ' d.ú.');
+  return '<div class="prazo"><span>' + pill(cls || 'inf', p.etapaTxt + ' · ' + txt) + (p.prorrogado ? ' <span class="sub">prorrogado</span>' : '') + '</span><small class="sub">vence ' + dBRh(p.venceEm) + '</small></div>';
+}
+const colsCaso = extra => [
+  { h: 'Protocolo', f: r => '<span class="prot">' + esc(r.protocolo) + '</span><span class="sub">' + (r.anonimo ? 'anônimo' : 'identificado') + (r.risco ? ' · <b style="color:var(--neg)">risco imediato</b>' : '') + '</span>' },
+  { h: 'Tipo', cls: 'w', f: r => esc(r.categoriaTxt) },
+  { h: 'Unidade', f: r => esc(unidTxt(r.unidade)) },
+  { h: 'Recebida', f: r => dBRh(r.criadoEm) },
+  { h: 'Situação', f: r => pill(statusCls(r.status), r.statusTxt) + (r.redistribuir ? '<span class="sub" style="color:var(--neg)">precisa redistribuir</span>' : '') + (r.prorrogacaoPendente ? '<span class="sub" style="color:var(--amk)">prorrogação pendente</span>' : '') },
+  { h: 'Instância · responsável', f: r => (r.instanciaTxt ? esc(r.instanciaTxt) : '—') + '<span class="sub">' + esc(r.responsavel ? r.responsavel.nome : (r.instancia ? 'sem responsável' : '')) + '</span>' },
+  { h: 'Prazo', f: prazoHtml },
+  { h: 'Prioridade', f: r => pill(prioCls(r.prioridade), r.prioridadeTxt) + (r.escalonamentos ? '<span class="sub">' + r.escalonamentos + ' escalonamento(s)</span>' : '') },
+  ...(extra || []),
+];
+
+// ── entrada ──
+async function iniciar() {
+  try { ME = await api('/api/etica/me'); }
+  catch (e) {
+    if (e.status === 403) { msg('<b>Você não está entre os designados do Canal de Ética.</b> O acesso ao conteúdo das denúncias é individual, por designação da Coordenação Administrativa ou do Revisor independente. Ter o módulo DP / RH não basta.', 'neg'); return; }
+    msg('Erro ao abrir o canal: ' + esc(e.message), 'neg'); return;
+  }
+  CFG = await api('/api/etica/config');
+  $('#rodape').innerHTML = esc(ME.nome) + '<br>' + (ME.papeis.length ? ME.papeis.map(p => ME.papeisTxt[p]).join(' · ') : 'sem papel no canal') + '<br><span class="sino" id="sino">avisos ' + (ME.naoLidas ? '<b>' + ME.naoLidas + '</b>' : '') + '</span>';
+  $('#sino').onclick = () => abrirAba('notificacoes');
+  if (ME.bootstrap) { msg('<b>Primeiro acesso.</b> Ainda não há designados no canal. Como administrador do sistema, cadastre quem fará triagem, RH, Jurídico, Coordenação e Revisor independente. Depois disso o administrador só entra se também for designado.'); $('#tabs').hidden = false; $$('.tab').forEach(t => { if (t.dataset.t !== 'designados' && t.dataset.t !== 'prazos') t.style.display = 'none'; }); abrirAba('designados'); return; }
+  $('#tabs').hidden = false;
+  if (!papel('triagem')) $('.tab[data-t=triagem]').style.display = 'none';
+  if (!papel('revisor')) $('.tab[data-t=validar]').style.display = 'none';
+  if (!papel('triagem', 'coordenacao', 'revisor', 'independente')) $('.tab[data-t=ativos]').style.display = 'none';
+  $$('.tab').forEach(t => t.onclick = () => abrirAba(t.dataset.t));
+  abrirAba(papel('triagem') ? 'triagem' : 'meus');
+  contadores();
+}
+function abrirAba(t) { ABA = t; $$('.tab').forEach(x => x.classList.toggle('on', x.dataset.t === t)); $$('[id^=v-]').forEach(v => v.style.display = v.id === 'v-' + t ? '' : 'none'); ({ triagem: () => fila('triagem'), meus: () => fila('meus'), ativos: () => fila('ativos'), validar: () => fila('validar'), omissoes, painel, notificacoes, prazos, designados })[t](); }
+async function contadores() {
+  try {
+    const [tri, meus, val, oms, nt] = await Promise.all([papel('triagem') ? api('/api/etica/casos?fila=triagem') : [], api('/api/etica/casos?fila=meus'), papel('revisor') ? api('/api/etica/casos?fila=validar') : [], api('/api/etica/omissoes').catch(() => []), api('/api/etica/notificacoes?naoLidas=1')]);
+    const n = (id, v, neg) => { $('#n-' + id).textContent = v || ''; $('#n-' + id).className = neg && v ? 'neg' : ''; };
+    n('triagem', tri.length, tri.some(r => r.prioridade === 'critica')); n('meus', meus.length, meus.some(r => r.prazo && r.prazo.vencido)); n('validar', val.length); n('omissoes', oms.filter(o => o.status !== 'decidida').length); n('notificacoes', nt.length, nt.length);
+  } catch (e) { /* contadores são cosméticos */ }
+}
+
+// ── filas ──
+async function fila(tipo) {
+  const el = $('#v-' + (tipo === 'triagem' ? 'triagem' : tipo === 'meus' ? 'meus' : tipo === 'validar' ? 'validar' : 'ativos'));
+  el.innerHTML = '<div class="vazio">carregando…</div>';
+  let rows; try { rows = await api('/api/etica/casos?fila=' + tipo); } catch (e) { el.innerHTML = '<div class="aviso neg">' + esc(e.message) + '</div>'; return; }
+  const intro = { triagem: 'Ocorrências recebidas pelo portal aguardando classificação, verificação de conflito de interesse e encaminhamento. Crítica primeiro.', meus: 'Casos em que você é o responsável atual. Aceite dentro do prazo; a 1ª providência e a investigação têm prazos próprios.', ativos: 'Todos os casos em andamento que o seu papel autoriza ver.', validar: 'Conclusões enviadas pelos responsáveis aguardando validação do Revisor independente.' }[tipo];
+  const redistr = tipo === 'ativos' && papel('triagem', 'coordenacao') ? rows.filter(r => r.redistribuir) : [];
+  el.innerHTML = '<p class="st" style="margin-bottom:10px">' + intro + '</p>' + (redistr.length ? '<div class="aviso neg"><b>' + redistr.length + ' caso(s) sem responsável</b> (impedimento ou escalonamento sem substituto): abra o caso e use "Redistribuir".</div>' : '') +
+    tabela(colsCaso([{ h: '', f: r => btn('Abrir', 'am', 'data-abrir="' + r.protocolo + '"') }]), rows, { vazio: tipo === 'triagem' ? 'Nenhuma ocorrência aguardando triagem.' : tipo === 'meus' ? 'Você não tem casos ativos.' : 'Nada por aqui.' });
+  el.querySelectorAll('[data-abrir]').forEach(b => b.onclick = () => abrirCaso(b.dataset.abrir));
+}
+
+// ── detalhe do caso ──
+async function abrirCaso(prot) {
+  let c; try { c = await api('/api/etica/casos/' + prot); } catch (e) { toast(e.message, 'neg'); return; }
+  if (c.status === 'recebida' && papel('triagem')) { try { await api('/api/etica/casos/' + prot + '/abrir', { body: {} }); c = await api('/api/etica/casos/' + prot); } catch (e) { /* segue */ } }
+  const r = c.resumo; const ov = document.createElement('div'); ov.className = 'g-ov';
+  const cadeia = CFG.cadeia.map(i => '<span class="' + (i.id === c.instancia ? 'on' : (c.historicoResponsaveis || []).some(h => h.instancia === i.id) ? 'done' : '') + '">' + esc(i.nome) + '</span>').join('<i>›</i>');
+  const prazos = ['triagem', 'aceite', 'providencia', 'investigacao', 'validacao', 'comunicacao'].filter(k => c.prazosTxt[k]).map(k => { const p = c.prazosTxt[k]; const cls = p.cumpridoEm ? 'ok' : p.vencidoEm ? 'neg' : (r.prazo && r.prazo.etapa === k && r.prazo.horas <= 24 ? 'warn' : ''); return '<div class="' + cls + '"><b>' + esc(p.etapaTxt) + ' · ' + esc(p.regraTxt) + '</b>' + (p.cumpridoEm ? 'cumprido ' + dBRh(p.cumpridoEm) : p.vencidoEm ? '<span style="color:var(--neg);font-weight:700">vencido ' + dBRh(p.vencidoEm) + '</span>' : 'vence ' + dBRh(p.venceEm)) + (p.prorrogadoAte ? '<span class="sub">prorrogado</span>' : '') + '</div>'; }).join('');
+  const hist = (c.eventos || []).slice().reverse().map(e => '<div class="h' + (e.publico ? ' pub' : '') + '"><time>' + dBRh(e.em) + '<span class="sub">' + esc(e.por || '') + '</span></time><span><b>' + esc(e.tipo.replace(/_/g, ' ')) + '</b> · ' + esc(e.texto) + '</span></div>').join('');
+  const anexos = (c.anexos || []).length ? '<ul class="anx" style="padding-left:16px;font-size:12.5px">' + c.anexos.map(a => '<li>' + (a.arquivo ? '<a href="/api/etica/casos/' + prot + '/anexos/' + a.arquivo + '" target="_blank" rel="noopener">' + esc(a.nome || a.arquivo) + '</a>' : esc(a.descricao)) + ' <span class="sub">' + esc(a.por) + ' · ' + dBRh(a.em) + (a.hash ? ' · sha256 ' + a.hash.slice(0, 10) : '') + '</span></li>').join('') + '</ul>' : '<div class="vazio sm">sem anexos</div>';
+  const ident = c.identificacao ? (c.identificacao.restrito ? '<span class="sub">identificado · identidade restrita à triagem, coordenação e responsável</span>' : '<b>' + esc(c.identificacao.nome || '') + '</b> ' + esc(c.identificacao.contato || '') + (c.identificacao.erro ? ' <span style="color:var(--neg)">' + esc(c.identificacao.erro) + '</span>' : '')) : '<span class="sub">anônimo</span>';
+  const A = { triar: ['Triar e encaminhar', 'am'], aceitar: ['Aceitar o caso', 'am'], impedimento: ['Declarar impedimento', 'gh neg'], redistribuicao: ['Pedir redistribuição', 'gh'], redistribuir: ['Redistribuir', 'nv'], providencia: ['Registrar providência', 'am'], evidencia: ['Registrar evidência', 'gh'], prorrogar: ['Pedir prorrogação', 'gh'], decidir_prorrogacao: ['Decidir prorrogação', 'nv'], validacao: ['Enviar para validação', 'nv'], validar: ['Validar conclusão', 'am'], reabrir: ['Reabrir', 'gh neg'] };
+  ov.innerHTML = '<div class="g-md" style="max-width:1180px"><div class="hd"><div><b><span class="prot">' + esc(prot) + '</span> · ' + esc(r.categoriaTxt) + '</b><small>' + esc(unidTxt(r.unidade)) + ' · ' + esc(r.prioridadeTxt) + ' · ' + esc(r.statusTxt) + (r.risco ? ' · RISCO IMEDIATO' : '') + ' · recebido ' + dt(c.criadoEm) + '</small></div><button type="button" class="x">×</button></div><div class="bd">' +
+    '<div class="cadeia" style="margin-bottom:10px">' + cadeia + '</div><div class="prazos" style="margin-bottom:10px">' + prazos + '</div>' +
+    '<div class="acoes-caso">' + (c.acoes || []).map(a => '<button class="btn ' + A[a][1] + '" data-acao="' + a + '">' + A[a][0] + '</button>').join('') + (!(c.acoes || []).length ? '<span class="sub">nenhuma ação disponível para o seu papel neste momento</span>' : '') + '</div>' +
+    (c.redistribuir ? '<div class="aviso neg">Caso sem responsável (' + esc(c.redistribuir.motivo.replace(/_/g, ' ')) + (c.redistribuir.texto ? ': ' + esc(c.redistribuir.texto) : '') + ').</div>' : '') +
+    (c.prorrogacao && c.prorrogacao.situacao === 'pendente' ? '<div class="aviso">Prorrogação pendente de ' + esc(ME.catalogos.etapas[c.prorrogacao.etapa]) + ' até ' + dBRh(c.prorrogacao.ate) + ': ' + esc(c.prorrogacao.motivo) + ' <span class="sub">pedida por ' + esc(c.prorrogacao.por) + '</span></div>' : '') +
+    '<div class="det"><div>' +
+      '<div class="sec"><h2>Relato</h2></div><dl class="kv" style="margin-bottom:8px"><dt>Quando</dt><dd>' + esc(c.relato.quando || '—') + '</dd><dt>Local</dt><dd>' + esc(c.relato.local || '—') + '</dd><dt>Pessoas citadas</dt><dd>' + esc(c.relato.pessoas || '—') + '</dd><dt>Denunciante</dt><dd>' + ident + '</dd></dl><div class="relato">' + esc(c.relato.descricao) + '</div>' +
+      '<div class="sec"><h2>Envolvidos e impedidos</h2></div><div style="font-size:12.5px">' + ((c.envolvidos || []).length ? c.envolvidos.map(e => pill('', (e.nome || e.usuario) + (e.cargo ? ' · ' + e.cargo : '') + (e.usuario ? ' · ' + e.usuario : ''))).join(' ') : '<span class="sub">nenhum registrado</span>') + ((c.impedidos || []).length ? '<div class="sub" style="margin-top:4px">impedidos: ' + esc(c.impedidos.join(', ')) + '</div>' : '') + '</div>' +
+      (c.triagem ? '<div class="sec"><h2>Triagem</h2></div><div style="font-size:12.5px"><b>' + esc(c.triagem.por) + '</b> · ' + dt(c.triagem.em) + '<br>' + esc(c.triagem.justificativa) + (c.triagem.medidaProtetiva ? '<br><b>Medida protetiva:</b> ' + esc(c.triagem.medidaProtetiva) : '') + '</div>' : '') +
+      (c.conclusao ? '<div class="sec"><h2>Conclusão proposta</h2></div><div style="font-size:12.5px"><b>' + esc(ME.catalogos.resultados[c.conclusao.resultadoProposto]) + '</b> · ' + esc(c.conclusao.por) + ' · ' + dt(c.conclusao.em) + '<br>' + esc(c.conclusao.texto) + (c.conclusao.recomendacoes ? '<br><b>Recomendações:</b> ' + esc(c.conclusao.recomendacoes) : '') + '</div>' : '') +
+      (c.resultado ? '<div class="sec"><h2>Resultado</h2></div><div style="font-size:12.5px"><b>' + esc(ME.catalogos.resultados[c.resultado.tipo]) + '</b>' + (c.resultado.validadoPor ? ' · validado por ' + esc(c.resultado.validadoPor) : '') + '<br>' + esc(c.resultado.texto || '') + '<br><span class="sub">comunicado ao denunciante: ' + esc(c.resultado.comunicado || '') + '</span></div>' : '') +
+      '<div class="sec"><h2>Anexos e evidências <small>' + (c.anexos || []).length + '</small></h2></div>' + anexos +
+    '</div><div>' +
+      '<div class="sec"><h2>Histórico <small>' + (c.eventos || []).length + ' · cadeia ' + (c.cadeia.ok ? 'íntegra' : '<span style="color:var(--neg)">ADULTERADA</span>') + '</small></h2></div><div class="hist">' + hist + '</div>' +
+      ((c.omissoes || []).length ? '<div class="sec"><h2>Avaliações de omissão</h2></div>' + c.omissoes.map(o => '<div style="font-size:12.5px;margin-bottom:6px"><b>' + esc(o.id) + '</b> · ' + esc(ME.catalogos.etapas[o.etapa]) + ' · ' + esc(o.responsavel ? o.responsavel.nome : '—') + ' · ' + pill(o.status === 'decidida' ? 'pos' : 'am', o.status.replace(/_/g, ' ')) + '</div>').join('') : '') +
+    '</div></div></div></div>';
+  document.body.appendChild(ov); ov.querySelector('.x').onclick = () => ov.remove(); ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+  ov.querySelectorAll('[data-acao]').forEach(b => b.onclick = async () => { const ok = await acao(b.dataset.acao, c); if (ok) { ov.remove(); abrirCaso(prot); abrirAba(ABA); contadores(); } });
+}
+
+// ── ações (modais) ──
+const opDesignados = filtroPapel => CFG.designados.filter(d => !filtroPapel || (d.papeis || []).includes(filtroPapel) || (d.papeis || []).includes('investigador')).map(d => d.usuario + ' · ' + (d.nome || '') + ' (' + (d.papeis || []).join(', ') + ')');
+const usuarioDe = s => String(s || '').split(' · ')[0].trim();
+const nomeDe = s => { const d = CFG.designados.find(x => x.usuario === usuarioDe(s)); return d ? d.nome || d.usuario : usuarioDe(s); };
+async function post(prot, nome, body) { try { await api('/api/etica/casos/' + prot + '/' + nome, { body }); toast('Registrado'); return true; } catch (e) { toast(e.message, 'neg'); return false; } }
+async function acao(a, c) {
+  const prot = c.protocolo; const cat = ME.catalogos;
+  if (a === 'triar') {
+    const v = await modal({ titulo: 'Triagem · ' + prot, largura: 820, campos: [
+      { k: 'prioridade', label: 'Gravidade', tipo: 'select', opcoes: cat.prioridades.map(p => p.txt), padrao: cat.prioridades.find(p => p.id === c.prioridade).txt },
+      { k: 'categoria', label: 'Categoria confirmada', tipo: 'select', opcoes: cat.categorias.map(x => x.nome), padrao: (cat.categorias.find(x => x.id === c.categoria) || {}).nome },
+      { k: 'instancia', label: 'Encaminhar para', tipo: 'select', opcoes: CFG.cadeia.map(i => i.nome), padrao: CFG.cadeia[0].nome },
+      { k: 'envolvidos', label: 'Pessoas formalmente envolvidas', tipo: 'textarea', col: 3, linhas: 2, ajuda: 'Uma por linha: Nome · cargo · usuário no sistema (se tiver). Quem estiver aqui fica impedido de receber o caso, inclusive no escalonamento.', padrao: (c.envolvidos || []).map(e => [e.nome, e.cargo, e.usuario].filter(Boolean).join(' · ')).join('\n') },
+      { k: 'responsavel', label: 'Investigador designado', tipo: 'select', col: 2, opcoes: opDesignados(), vazio: 'escolha…', obrig: true, ajuda: 'O sistema recusa pessoa envolvida ou impedida.' },
+      { k: 'medidaProtetiva', label: 'Medida protetiva imediata', tipo: 'text', placeholder: 'ex.: separar escalas até a apuração' },
+      { k: 'justificativa', label: 'Justificativa da triagem', tipo: 'textarea', col: 3, obrig: true, ajuda: 'Obrigatória. Vai pro histórico do caso.' },
+      { k: 'arquivar', label: 'Arquivar na triagem', tipo: 'check', texto: 'arquivar (improcedente/fora do escopo) em vez de encaminhar' }, { k: 'motivoArquivo', label: 'Motivo do arquivamento', tipo: 'text', col: 2 },
+    ] });
+    if (!v) return false;
+    const envolvidos = String(v.envolvidos || '').split('\n').map(l => l.trim()).filter(Boolean).map(l => { const p = l.split('·').map(x => x.trim()); return { nome: p[0], cargo: p[1] || '', usuario: p[2] || null }; });
+    return post(prot, 'triar', { prioridade: cat.prioridades.find(p => p.txt === v.prioridade).id, categoria: (cat.categorias.find(x => x.nome === v.categoria) || {}).id, instancia: CFG.cadeia.find(i => i.nome === v.instancia).id, envolvidos, responsavel: { usuario: usuarioDe(v.responsavel), nome: nomeDe(v.responsavel) }, medidaProtetiva: v.medidaProtetiva, justificativa: v.justificativa, arquivar: v.arquivar, motivoArquivo: v.motivoArquivo });
+  }
+  if (a === 'aceitar') { const v = await modal({ titulo: 'Aceitar ' + prot, campos: [{ k: 'ok', label: 'Confirmação', tipo: 'check', col: 3, texto: 'Aceito a responsabilidade pela apuração deste caso e declaro não ter conflito de interesse.' }] }); return v && v.ok ? post(prot, 'aceitar', {}) : false; }
+  if (a === 'impedimento') { const v = await modal({ titulo: 'Declarar impedimento', campos: [{ k: 'motivo', label: 'Motivo', tipo: 'textarea', col: 3, obrig: true, ajuda: 'Você sai do caso e fica registrado como impedido. Triagem/Coordenação redistribuem.' }] }); return v ? post(prot, 'impedimento', v) : false; }
+  if (a === 'redistribuicao') { const v = await modal({ titulo: 'Pedir redistribuição', campos: [{ k: 'motivo', label: 'Motivo', tipo: 'textarea', col: 3, obrig: true }] }); return v ? post(prot, 'redistribuicao', v) : false; }
+  if (a === 'redistribuir') {
+    const v = await modal({ titulo: 'Redistribuir ' + prot, campos: [{ k: 'instancia', label: 'Instância', tipo: 'select', opcoes: CFG.cadeia.map(i => i.nome), padrao: (CFG.cadeia.find(i => i.id === c.instancia) || CFG.cadeia[0]).nome }, { k: 'responsavel', label: 'Novo responsável', tipo: 'select', col: 2, opcoes: opDesignados(), vazio: 'escolha…', obrig: true }, { k: 'motivo', label: 'Motivo', tipo: 'textarea', col: 3, obrig: true }] });
+    return v ? post(prot, 'redistribuir', { instancia: CFG.cadeia.find(i => i.nome === v.instancia).id, responsavel: { usuario: usuarioDe(v.responsavel), nome: nomeDe(v.responsavel) }, motivo: v.motivo }) : false;
+  }
+  if (a === 'providencia') { const v = await modal({ titulo: 'Registrar providência', campos: [{ k: 'tipo', label: 'Tipo', tipo: 'select', opcoes: ['Entrevista', 'Coleta de documento', 'Análise de imagens', 'Medida protetiva', 'Diligência externa', 'Outra'] }, { k: 'visibilidade', label: 'Visibilidade', tipo: 'select', col: 2, opcoes: ['Interna (RH, Jurídico, Auditoria)', 'Interna + avança a etapa visível ao denunciante'] }, { k: 'descricao', label: 'O que foi feito, com quem, quando, resultado', tipo: 'textarea', col: 3, obrig: true, linhas: 4 }], rodape: 'Registros não podem ser editados nem excluídos depois de salvos. Correção = novo registro.' }); return v ? post(prot, 'providencia', { tipo: v.tipo, descricao: v.descricao, visibilidade: v.visibilidade.startsWith('Interna +') ? 'etapa' : 'interna' }) : false; }
+  if (a === 'evidencia') return evidenciaModal(prot);
+  if (a === 'prorrogar') { const v = await modal({ titulo: 'Solicitar prorrogação', campos: [{ k: 'etapa', label: 'Etapa', tipo: 'select', opcoes: ['Investigação', '1ª providência'] }, { k: 'ate', label: 'Nova data', tipo: 'date', obrig: true }, { k: 'motivo', label: 'Fundamento', tipo: 'textarea', col: 3, obrig: true, ajuda: 'Aprovado por Coordenação ou Revisor; fica no histórico e vira texto público resumido.' }] }); return v ? post(prot, 'prorrogar', { etapa: v.etapa === 'Investigação' ? 'investigacao' : 'providencia', ate: v.ate + 'T18:00:00', motivo: v.motivo }) : false; }
+  if (a === 'decidir_prorrogacao') { const v = await modal({ titulo: 'Decidir prorrogação', campos: [{ k: 'aprovar', label: 'Decisão', tipo: 'check', texto: 'aprovar a prorrogação até ' + dBRh(c.prorrogacao.ate) }, { k: 'texto', label: 'Fundamento', tipo: 'textarea', col: 3 }] }); return v ? post(prot, 'prorrogacao', v) : false; }
+  if (a === 'validacao') { const v = await modal({ titulo: 'Enviar para validação', campos: [{ k: 'resultado', label: 'Resultado proposto', tipo: 'select', opcoes: Object.values(cat.resultados) }, { k: 'conclusao', label: 'Conclusão fundamentada', tipo: 'textarea', col: 3, obrig: true, linhas: 5 }, { k: 'recomendacoes', label: 'Medidas recomendadas', tipo: 'textarea', col: 3, linhas: 3 }] }); return v ? post(prot, 'validacao', { resultado: Object.keys(cat.resultados).find(k => cat.resultados[k] === v.resultado), conclusao: v.conclusao, recomendacoes: v.recomendacoes }) : false; }
+  if (a === 'validar') { const v = await modal({ titulo: 'Validar conclusão · ' + prot, campos: [{ k: 'aprovado', label: 'Decisão', tipo: 'check', col: 3, texto: 'aprovar a conclusão e encerrar (desmarcado = devolver para complementação)' }, { k: 'resultado', label: 'Resultado final', tipo: 'select', opcoes: Object.values(cat.resultados), padrao: cat.resultados[c.conclusao.resultadoProposto] }, { k: 'comunicado', label: 'Texto ao denunciante', tipo: 'text', col: 2, padrao: 'A apuração foi concluída e as medidas cabíveis foram adotadas.' }, { k: 'texto', label: 'Fundamento da validação (ou o que falta)', tipo: 'textarea', col: 3, obrig: true }] }); return v ? post(prot, 'validar', { aprovado: v.aprovado, resultado: Object.keys(cat.resultados).find(k => cat.resultados[k] === v.resultado), comunicado: v.comunicado, texto: v.texto }) : false; }
+  if (a === 'reabrir') { const v = await modal({ titulo: 'Reabrir ' + prot, campos: [{ k: 'motivo', label: 'Fundamento', tipo: 'textarea', col: 3, obrig: true }] }); return v ? post(prot, 'reabrir', v) : false; }
+  return false;
+}
+function evidenciaModal(prot) {
+  return new Promise(resolve => {
+    const ov = document.createElement('div'); ov.className = 'g-ov';
+    ov.innerHTML = '<div class="g-md" style="max-width:620px"><div class="hd"><b>Registrar evidência · ' + esc(prot) + '</b><button type="button" class="x">×</button></div><form class="bd"><div class="grid"><label class="fld c3"><span>Arquivos (até 5 de 25 MB)</span><input type="file" id="ev-arq" multiple></label><label class="fld c3"><span>Descrição</span><textarea id="ev-desc" rows="3" placeholder="o que é, origem, cadeia de custódia"></textarea></label></div><div class="rod">Cada arquivo recebe hash SHA-256 e fica fora da pasta pública. O acesso é registrado na auditoria.</div><div class="acoes"><button class="btn am" type="submit">Salvar</button><button class="btn gh" type="button" id="ev-cancel">Cancelar</button></div></form></div>';
+    document.body.appendChild(ov); const fechar = v => { ov.remove(); resolve(v); };
+    ov.querySelector('.x').onclick = () => fechar(false); ov.querySelector('#ev-cancel').onclick = () => fechar(false);
+    ov.querySelector('form').onsubmit = async e => {
+      e.preventDefault(); const fd = new FormData(); [...ov.querySelector('#ev-arq').files].forEach(f => fd.append('anexos', f)); fd.append('descricao', ov.querySelector('#ev-desc').value);
+      try { const r = await fetch('/api/etica/casos/' + prot + '/evidencia', { method: 'POST', body: fd }); const j = await r.json(); if (!r.ok) throw new Error(j.error); toast('Evidência registrada'); fechar(true); } catch (err) { toast(err.message, 'neg'); }
+    };
+  });
+}
+
+// ── omissões ──
+async function omissoes() {
+  const el = $('#v-omissoes'); el.innerHTML = '<div class="vazio">carregando…</div>';
+  let rows; try { rows = await api('/api/etica/omissoes'); } catch (e) { el.innerHTML = '<div class="aviso neg">' + esc(e.message) + '</div>'; return; }
+  el.innerHTML = '<div class="aviso inf">Esta aba acompanha a <b>conduta de quem apura</b>, não o conteúdo das denúncias. Prazo vencido abre um registro OM separado, com prazo de manifestação do responsável. Nenhuma penalidade é automática: a decisão é da Coordenação ou do Revisor, nunca do próprio avaliado.</div>' +
+    tabela([
+      { h: 'Registro', f: o => '<span class="prot">' + esc(o.id) + '</span><span class="sub">aberto ' + dBRh(o.abertaEm) + '</span>' },
+      { h: 'Caso de origem', f: o => '<span class="prot">' + esc(o.protocolo) + '</span><span class="sub">' + esc(ME.catalogos.prioridades.find(p => p.id === o.prioridade).txt) + ' · ' + esc(unidTxt(o.unidade)) + '</span>' },
+      { h: 'Responsável avaliado', f: o => esc(o.responsavel ? o.responsavel.nome : '—') + '<span class="sub">' + esc((CFG.cadeia.find(i => i.id === o.instancia) || {}).nome || '') + '</span>' },
+      { h: 'Fato', cls: 'w', f: o => 'Prazo de ' + esc(ME.catalogos.etapas[o.etapa]) + ' (' + esc(o.prazo.regra.h !== undefined ? o.prazo.regra.h + ' h' : o.prazo.regra.du + ' d.ú.') + ') vencido em ' + dBRh(o.prazo.venceEm) + '<span class="sub">avisos enviados: ' + (o.avisos.length ? o.avisos.map(a => a + '%').join(', ') : 'nenhum') + '</span>' },
+      { h: 'Manifestação', cls: 'w', f: o => o.manifestacao ? '<span class="sub">' + dBRh(o.manifestacao.em) + '</span>' + esc(o.manifestacao.texto) : pill('warn', 'prazo ' + dBRh(o.prazoManifestacao)) },
+      { h: 'Situação', cls: 'w', f: o => pill(o.status === 'decidida' ? 'pos' : o.status === 'em_analise' ? 'inf' : 'am', o.status.replace(/_/g, ' ')) + (o.decisao ? '<span class="sub">' + esc(ME.catalogos.desfechos[o.decisao.desfecho]) + (o.decisao.medida ? ' · ' + esc(o.decisao.medida) : '') + ' · ' + esc(o.decisao.por) + '</span>' : '') },
+      { h: '', f: o => (o.status === 'aguardando_manifestacao' && o.responsavel && o.responsavel.usuario === ME.usuario ? btn('Manifestar', 'am', 'data-man="' + o.id + '"') : '') + (o.status !== 'decidida' && papel('coordenacao', 'revisor') && !(o.responsavel && o.responsavel.usuario === ME.usuario) ? btn('Decidir', 'nv', 'data-dec="' + o.id + '"') : '') },
+    ], rows, { vazio: 'Nenhuma avaliação de omissão.' });
+  el.querySelectorAll('[data-man]').forEach(b => b.onclick = async () => { const v = await modal({ titulo: 'Manifestação · ' + b.dataset.man, campos: [{ k: 'texto', label: 'Sua justificativa', tipo: 'textarea', col: 3, obrig: true, linhas: 5 }] }); if (!v) return; try { await api('/api/etica/omissoes/' + b.dataset.man + '/manifestar', { body: v }); toast('Manifestação registrada'); omissoes(); contadores(); } catch (e) { toast(e.message, 'neg'); } });
+  el.querySelectorAll('[data-dec]').forEach(b => b.onclick = async () => { const d = ME.catalogos.desfechos; const v = await modal({ titulo: 'Decisão · ' + b.dataset.dec, campos: [{ k: 'desfecho', label: 'Desfecho', tipo: 'select', opcoes: Object.values(d) }, { k: 'medida', label: 'Medida recomendada', tipo: 'text', col: 2, placeholder: 'ex.: orientação formal; cadastrar substituto' }, { k: 'texto', label: 'Análise da justificativa / fundamento', tipo: 'textarea', col: 3, obrig: true, linhas: 4 }, { k: 'semEsperar', label: 'Prazo', tipo: 'check', col: 3, texto: 'decidir sem esperar o prazo de manifestação (justificar acima)' }], rodape: 'Sem sanção automática. Medidas observam a legislação trabalhista, proporcionalidade e o procedimento interno aprovado.' }); if (!v) return; try { await api('/api/etica/omissoes/' + b.dataset.dec + '/decidir', { body: { desfecho: Object.keys(d).find(k => d[k] === v.desfecho), medida: v.medida, texto: v.texto, semEsperar: v.semEsperar } }); toast('Decisão registrada'); omissoes(); contadores(); } catch (e) { toast(e.message, 'neg'); } });
+}
+
+// ── painel ──
+async function painel() {
+  const el = $('#v-painel'); const f = el._f || (el._f = {});
+  const u = ME.catalogos; const sel = (id, ops, v, vazio) => '<select id="' + id + '"><option value="">' + vazio + '</option>' + ops.map(o => '<option value="' + o.v + '"' + (o.v === v ? ' selected' : '') + '>' + esc(o.t) + '</option>').join('') + '</select>';
+  el.innerHTML = '<div class="bar"><input type="date" id="p-de" value="' + (f.de || '') + '"><input type="date" id="p-ate" value="' + (f.ate || '') + '">' + sel('p-unid', u.unidades.map(x => ({ v: x.cod, t: x.cod + ' · ' + x.nome })), f.unidade, 'Todas as unidades') + sel('p-cat', u.categorias.map(x => ({ v: x.id, t: x.nome })), f.categoria, 'Todas as categorias') + sel('p-prio', u.prioridades.map(x => ({ v: x.id, t: x.txt })), f.prioridade, 'Todas as prioridades') + sel('p-st', u.status.map(x => ({ v: x.id, t: x.txt })), f.status, 'Todas as situações') + '<button class="btn am sm" id="p-ok">Aplicar</button><span class="st">padrão: últimos 90 dias · sem nomes de pessoas</span></div><div id="p-corpo"><div class="vazio">carregando…</div></div>';
+  $('#p-ok').onclick = () => { Object.assign(f, { de: $('#p-de').value, ate: $('#p-ate').value, unidade: $('#p-unid').value, categoria: $('#p-cat').value, prioridade: $('#p-prio').value, status: $('#p-st').value }); painel(); };
+  let p; try { p = await api('/api/etica/painel?' + new URLSearchParams(Object.fromEntries(Object.entries(f).filter(([k, v]) => v)))); } catch (e) { $('#p-corpo').innerHTML = '<div class="aviso neg">' + esc(e.message) + '</div>'; return; }
+  const k = p.kpis; const kpi = (l, v, s, cls) => '<div class="kpi ' + (cls || '') + '"><div class="l">' + l + '</div><div class="v">' + (v == null ? '—' : v) + '</div><div class="s">' + (s || '') + '</div></div>';
+  $('#p-corpo').innerHTML = '<div class="kpis">' + kpi('Recebidas', k.recebidas, k.anonimas + ' anônimas') + kpi('Em apuração', k.emApuracao, k.criticasAtivas + ' crítica(s)', 'inf') + kpi('Concluídas', k.concluidas, k.procedentes + ' procedentes', 'pos') + kpi('Vencem em 72 h', k.vencem72h, '', k.vencem72h ? 'am' : '') + kpi('Prazos vencidos', k.vencidos, 'ativos', k.vencidos ? 'neg' : '') + kpi('Escalonamentos', k.escalonamentos, k.omissoesAbertas + ' omissões abertas') + kpi('Triagem média', k.triagemMediaH != null ? k.triagemMediaH + ' h' : null, 'horas corridas') + kpi('Investigação média', k.investigacaoMediaDu != null ? k.investigacaoMediaDu + ' d.ú.' : null, 'triagem → conclusão') + '</div>' +
+    '<div class="det"><div><div class="sec"><h2>Por unidade</h2></div>' + tabela([{ h: 'Unidade', f: r => r.cod + ' · ' + esc(r.nome) }, { h: 'Recebidas', cls: 'r', f: r => r.recebidas }, { h: 'Em apuração', cls: 'r', f: r => r.ativos }, { h: 'Vencidos', cls: 'r', f: r => r.vencidos ? '<b style="color:var(--neg)">' + r.vencidos + '</b>' : '0' }], p.porUnidade.filter(r => r.recebidas)) + '</div>' +
+    '<div><div class="sec"><h2>Por categoria</h2></div>' + tabela([{ h: 'Categoria', cls: 'w', f: r => esc(r.nome) }, { h: 'Casos', cls: 'r', f: r => r.n }], p.porCategoria, { vazio: 'Sem casos no período.' }) + '<div class="sec"><h2>Por prioridade e situação</h2></div><div class="chips">' + p.porPrioridade.map(x => '<span class="chip">' + esc(x.txt) + '<small>' + x.n + '</small></span>').join('') + p.porStatus.filter(x => x.n).map(x => '<span class="chip">' + esc(x.txt) + '<small>' + x.n + '</small></span>').join('') + '</div></div></div>' +
+    '<p class="st">Período ' + p.periodo.de + ' a ' + p.periodo.ate + '. Unidade com menos de 3 casos aparece como "&lt;3" para quem não é Coordenação ou Revisor, para não identificar denunciante por eliminação.</p>';
+}
+
+// ── avisos ──
+async function notificacoes() {
+  const el = $('#v-notificacoes'); let rows; try { rows = await api('/api/etica/notificacoes'); } catch (e) { el.innerHTML = '<div class="aviso neg">' + esc(e.message) + '</div>'; return; }
+  const naoLidas = rows.filter(n => !(n.lidasPor || []).includes(ME.usuario)).map(n => n.id);
+  el.innerHTML = '<div class="sec"><h2>Avisos do canal <small>' + rows.length + '</small></h2><div class="acoes">' + (naoLidas.length ? btn('Marcar todos como lidos', 'gh', 'id="nt-lidos"') : '') + '</div></div>' + (rows.length ? '<div class="notif">' + rows.map(n => '<div class="' + (naoLidas.includes(n.id) ? 'nl' : '') + '" data-abrir="' + esc(n.protocolo || '') + '"><small>' + dBRh(n.em) + '</small>' + pill(n.tipo === 'critica' || n.tipo === 'vencido' ? 'neg' : n.tipo === 'aviso_prazo' || n.tipo === 'omissao' ? 'am' : 'inf', n.tipo.replace(/_/g, ' ')) + (n.protocolo ? '<span class="prot">' + esc(n.protocolo) + '</span>' : '') + '<span>' + esc(n.texto) + '</span></div>').join('') + '</div>' : '<div class="vazio">Nenhum aviso.</div>') + '<p class="st">Avisos nunca carregam o conteúdo do relato. E-mail/WhatsApp (quando ligados) recebem só "há um caso aguardando você".</p>';
+  el.querySelectorAll('[data-abrir]').forEach(d => d.onclick = () => { if (d.dataset.abrir) abrirCaso(d.dataset.abrir); });
+  const b = $('#nt-lidos'); if (b) b.onclick = async () => { await api('/api/etica/notificacoes/lidas', { body: { ids: naoLidas } }); notificacoes(); contadores(); };
+}
+
+// ── prazos e cadeia (config) ──
+function prazos() {
+  const el = $('#v-prazos'); const c = CFG; const pode = papel('coordenacao', 'revisor') || ME.bootstrap; const et = ME.catalogos.etapas; const E = Object.keys(et);
+  const cel = (p, e) => { const v = c.politicas[p][e]; const un = v.h !== undefined ? 'h' : 'du'; return '<td><input type="number" min="0" step="1" data-p="' + p + '" data-e="' + e + '" value="' + (un === 'h' ? v.h : v.du) + '"' + (pode ? '' : ' disabled') + '> <select data-un="' + p + '.' + e + '"' + (pode ? '' : ' disabled') + '><option value="h"' + (un === 'h' ? ' selected' : '') + '>h corridas</option><option value="du"' + (un === 'du' ? ' selected' : '') + '>dias úteis</option></select></td>'; };
+  el.innerHTML = '<div class="aviso">' + (pode ? 'Alterações valem só para casos novos; ficam registradas com autor e data. ' : 'Somente Coordenação Administrativa e Revisor independente alteram. ') + 'Os valores iniciais são a proposta do documento V1.0 e dependem de aprovação da Direção, RH e Jurídico.</div>' +
+    '<div class="sec"><h2>Prazos por prioridade</h2></div><div class="table-wrap"><table class="t pol"><thead><tr><th>Prioridade</th>' + E.map(e => '<th>' + esc(et[e]) + '</th>').join('') + '</tr></thead><tbody>' + ME.catalogos.prioridades.map(p => '<tr><td><b>' + esc(p.txt) + '</b></td>' + E.map(e => cel(p.id, e)).join('') + '</tr>').join('') + '</tbody></table></div>' +
+    '<div class="det"><div><div class="sec"><h2>Cadeia de encaminhamento</h2></div><div class="cadeia">' + c.cadeia.map(i => '<span>' + esc(i.nome) + '<small style="opacity:.7"> · papel ' + esc(i.papel) + '</small></span>').join('<i>›</i>') + '</div><p class="st" style="margin-top:8px">Depois da última instância o caso não circula de volta ao RH. A autoridade independente é definida pela Direção (pode ser externa) e entra como designado com o papel "independente".</p>' +
+    '<div class="sec"><h2>Avisos antes do vencimento</h2></div><div class="bar"><input id="cf-marcos" value="' + esc((c.avisos.marcos || []).join(', ')) + '" placeholder="50, 80"' + (pode ? '' : ' disabled') + '><span class="st">% do prazo consumido</span></div>' +
+    '<div class="sec"><h2>Avaliação de omissão</h2></div><div class="bar"><input id="cf-om" type="number" min="1" value="' + c.omissao.prazoManifestacaoDu + '"' + (pode ? '' : ' disabled') + ' style="width:80px"><span class="st">dias úteis para o responsável se manifestar</span></div></div>' +
+    '<div><div class="sec"><h2>Calendário de dias úteis</h2></div><div class="bar"><label class="st"><input type="checkbox" id="cf-sab"' + (c.calendario.diasUteis.includes(6) ? ' checked' : '') + (pode ? '' : ' disabled') + '> sábado conta como dia útil</label></div><textarea id="cf-fer" rows="6" style="width:100%;padding:8px;border:1px solid var(--ln2);border-radius:8px;font:inherit;font-size:12px"' + (pode ? '' : ' disabled') + ' placeholder="feriados, um por linha, AAAA-MM-DD">' + esc((c.calendario.feriados || []).join('\n')) + '</textarea>' +
+    '<div class="sec"><h2>Consulta pública</h2></div><div class="bar"><input id="cf-tent" type="number" min="3" value="' + c.consulta.tentativas + '"' + (pode ? '' : ' disabled') + ' style="width:70px"><span class="st">tentativas erradas bloqueiam o protocolo por</span><input id="cf-jan" type="number" min="5" value="' + c.consulta.janelaMin + '"' + (pode ? '' : ' disabled') + ' style="width:70px"><span class="st">minutos</span></div>' +
+    (pode ? '<div style="margin-top:12px">' + btn('Salvar configuração', 'am', 'id="cf-salvar"') + '</div>' : '') + '<p class="st" style="margin-top:10px">Versão ' + c.versao + (c.alteracoes && c.alteracoes.length ? ' · última alteração ' + dBRh(c.alteracoes[c.alteracoes.length - 1].em) + ' por ' + esc(c.alteracoes[c.alteracoes.length - 1].por || '') : '') + '</p></div></div>';
+  const bs = $('#cf-salvar'); if (bs) bs.onclick = async () => {
+    const politicas = {}; for (const p of ME.catalogos.prioridades) { politicas[p.id] = {}; for (const e of E) { const n = +el.querySelector('input[data-p="' + p.id + '"][data-e="' + e + '"]').value; const un = el.querySelector('select[data-un="' + p.id + '.' + e + '"]').value; politicas[p.id][e] = un === 'h' ? { h: n } : { du: n }; } }
+    const body = { politicas, avisos: { marcos: $('#cf-marcos').value.split(',').map(x => +x.trim()).filter(x => x > 0 && x < 100) }, omissao: { prazoManifestacaoDu: +$('#cf-om').value || 2 }, calendario: { ...c.calendario, diasUteis: $('#cf-sab').checked ? [1, 2, 3, 4, 5, 6] : [1, 2, 3, 4, 5], feriados: $('#cf-fer').value.split('\n').map(x => x.trim()).filter(x => /^\d{4}-\d{2}-\d{2}$/.test(x)) }, consulta: { tentativas: +$('#cf-tent').value || 5, janelaMin: +$('#cf-jan').value || 60 } };
+    try { CFG = await api('/api/etica/config', { method: 'PUT', body }); toast('Configuração salva'); prazos(); } catch (e) { toast(e.message, 'neg'); }
+  };
+}
+
+// ── designados ──
+async function designados() {
+  const el = $('#v-designados'); const pode = papel('coordenacao', 'revisor') || ME.bootstrap; const P = ME.papeisTxt;
+  el.innerHTML = '<div class="aviso inf">Quem está aqui vê o canal conforme o papel. <b>Triagem</b> classifica e encaminha · <b>RH, Jurídico, Coordenação</b> recebem casos na sua instância · <b>Investigador</b> só recebe casos atribuídos · <b>Revisor independente</b> valida conclusões e decide omissões · <b>Autoridade independente</b> é a contingência após a 3ª instância. Pessoa citada num caso fica impedida nele, seja qual for o papel.</div>' +
+    '<div class="sec"><h2>Designados <small>' + CFG.designados.length + '</small></h2><div class="acoes">' + (pode ? btn('+ designar', 'am', 'id="dg-add"') : '') + '</div></div>' +
+    tabela([{ h: 'Usuário', f: d => '<b>' + esc(d.usuario) + '</b>' }, { h: 'Nome', cls: 'w', f: d => esc(d.nome || '') }, { h: 'Papéis', cls: 'w', f: d => (d.papeis || []).map(p => pill(p === 'revisor' || p === 'independente' ? 'inf' : p === 'coordenacao' ? 'am' : '', P[p] || p)).join(' ') }, { h: '', f: d => pode ? btn('Editar', 'gh', 'data-ed="' + esc(d.usuario) + '"') + ' ' + btn('Remover', 'gh neg', 'data-rm="' + esc(d.usuario) + '"') : '' }], CFG.designados, { vazio: 'Ninguém designado ainda.' });
+  const salvar = async lista => { try { CFG = await api('/api/etica/config', { method: 'PUT', body: { designados: lista } }); toast('Designados atualizados'); ME = await api('/api/etica/me'); if (ME.bootstrap === false && !ME.papeis.length) { msg('Designados cadastrados. Como você não está entre eles, o seu acesso ao canal termina ao sair desta tela.', ''); } designados(); } catch (e) { toast(e.message, 'neg'); } };
+  const form = async atual => {
+    let usuarios = []; try { usuarios = await api('/api/etica/usuarios'); } catch (e) { /* bootstrap sem papel: lista vazia, digita o usuário */ }
+    const v = await modal({ titulo: atual ? 'Editar designado' : 'Designar no canal', campos: [
+      atual ? { k: 'usuario', label: 'Usuário', tipo: 'text', padrao: atual.usuario } : (usuarios.length ? { k: 'usuario', label: 'Usuário do sistema', tipo: 'select', opcoes: usuarios.map(u => u.usuario + ' · ' + u.nome + ' (' + u.perfil + ')'), vazio: 'escolha…', obrig: true } : { k: 'usuario', label: 'Usuário (login do sistema)', tipo: 'text', obrig: true }),
+      { k: 'nome', label: 'Nome como aparece nos casos', tipo: 'text', col: 2, padrao: atual ? atual.nome : '' },
+      { k: 'papeis', label: 'Papéis', tipo: 'multi', col: 3, opcoes: Object.values(P), padrao: atual ? (atual.papeis || []).map(p => P[p]) : [] },
+    ] });
+    if (!v) return;
+    const usuario = usuarioDe(v.usuario); const papeis = (v.papeis || []).map(t => Object.keys(P).find(k => P[k] === t)).filter(Boolean);
+    const nome = v.nome || (usuarios.find(u => u.usuario === usuario) || {}).nome || usuario;
+    if (!usuario || !papeis.length) { toast('Informe usuário e ao menos um papel', 'neg'); return; }
+    const lista = CFG.designados.filter(d => d.usuario !== usuario).concat([{ usuario, nome, papeis }]);
+    salvar(lista);
+  };
+  const ba = $('#dg-add'); if (ba) ba.onclick = () => form(null);
+  el.querySelectorAll('[data-ed]').forEach(b => b.onclick = () => form(CFG.designados.find(d => d.usuario === b.dataset.ed)));
+  el.querySelectorAll('[data-rm]').forEach(b => b.onclick = async () => { const v = await modal({ titulo: 'Remover ' + b.dataset.rm + ' do canal?', campos: [{ k: 'ok', label: 'Confirmação', tipo: 'check', col: 3, texto: 'remover; os casos em que a pessoa é responsável precisarão ser redistribuídos' }] }); if (v && v.ok) salvar(CFG.designados.filter(d => d.usuario !== b.dataset.rm)); });
+}
+
+iniciar();
+</script>
+</body>
+</html>

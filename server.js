@@ -233,6 +233,9 @@ app.use((req, res, next) => {
     '/painel-cd.html', '/api/painel-cd',
     '/painel-compras.html', '/tv'];
   if (publico.includes(req.path)) return next();
+  // Canal de Ética (16/10/26): portal público /etica e /etica/<E1..E6|CD|ADM> (QR por unidade) + API pública; sem login,
+  // sem sessão e fora do log de acessos. A retaguarda (/etica.html, /api/etica/*) fica atrás do login + designação (lib/etica-rotas.js).
+  if (new RegExp('^/etica(/[A-Za-z0-9]{1,3})?/?$', 'i').test(req.path) || req.path === '/etica-portal.html' || req.path.startsWith('/api/etica-publico/')) return next();
   // Link do vendedor (pedido ao fornecedor): público por token de 32 hex, sem login
   if (/^\/pedido\/[a-f0-9]{32}(\/pdf)?$/.test(req.path) || /^\/api\/pedido-publico\/[a-f0-9]{32}(\/|$)/.test(req.path)) return next();
   // Link do CD (Centro de Distribuição): pedido(s) das lojas sem login — código curto de 8 hex (links.json) ou token(s) de 32 hex (links antigos)
@@ -8506,6 +8509,8 @@ app.get('/api/dp/ponto/resumo', async (req, res) => {
 // Gente & Gestão (13/10/2026): painéis do DP e do RH cruzando o cadastro do PontoCerto com os registros próprios
 // (data/gente/*.json — ASO/exames, ocorrências, férias, vagas, treinamentos, avaliações, movimentações, quadro).
 const gente = require('./lib/gente');
+// Canal de Ética e Denúncias (DP / RH › Canal de Ética + portal público /etica) — regras em lib/etica.js
+require('./lib/etica-rotas')(app, { multer, publicDir: path.join(__dirname, 'public'), listarUsuarios: () => usuarios });
 // O GET /employees do Pontomais leva ~30-40 s (4 páginas pesadas). Aquece o cache ao subir e renova a cada 18 min
 // pra tela do DP/RH abrir na hora; se o token não estiver configurado, só ignora.
 const genteAquecer = () => { gente.painelDP().catch(() => {}); };
