@@ -1091,9 +1091,19 @@ function goScreen(id){
   if (CUR) history.replaceState(null, '', '?id=' + CUR.id + '&tela=' + id); else if (id !== 's2') history.replaceState(null, '', location.pathname);
   if (id === 's1') carregarMonitor();
   if (id === 's2') carregarListasErp();   // pré-carrega as listas pra busca responder na hora
-  if (!CUR && id === 's3') renderAcomp(); else if (!CUR && id === 's4') renderComparativo(); else if (!CUR && id === 's5') renderPedidos();   // sem cotação escolhida: painel de escolha
-  // aba aberta direto sem cotação escolhida: lista as cotações (ou oferece criar exemplos) em vez de ficar vazia
-  if (!CUR && (id === 's3' || id === 's4' || id === 's5')) renderVazio($('#' + id + '-main'));
+  // aba clicada sem cotação escolhida: abre direto a última cotação usada (ou a mais recente) — Tiago, 16/10/26: "essas abas não tá abrindo
+  // como tem que abrir, só abrem quando clica em alguma coisa". A lista "escolha a cotação" (renderVazio) só aparece se não houver nenhuma.
+  if (!CUR && (id === 's3' || id === 's4' || id === 's5')) abrirUltima(id);
+}
+var ABRINDO_ULT = false;
+async function abrirUltima(tela){
+  if (ABRINDO_ULT) return; ABRINDO_ULT = true;
+  var m = $('#' + tela + '-main'); m.innerHTML = '<div class="empty">Abrindo a última cotação…</div>';
+  var id = 0; try { id = parseInt(localStorage.getItem('cot-ultima')) || 0; } catch(e) {}
+  if (!id) { try { var l = await api('/api/cotacoes'); if (l.length) id = l.slice().sort(function(a, b){ return (b.criadoEm || '').localeCompare(a.criadoEm || ''); })[0].id; } catch(e) {} }
+  if (!id) { ABRINDO_ULT = false; renderVazio(m); return; }
+  try { CUR = await api('/api/cotacoes/' + id); } catch(e) { try { localStorage.removeItem('cot-ultima'); } catch(_) {} ABRINDO_ULT = false; renderVazio(m); return; }
+  ABRINDO_ULT = false; renderTudo(); goScreen(tela);
 }
 document.querySelectorAll('.modtabs button').forEach(function(btn){ btn.addEventListener('click', function(){ if (btn.dataset.screen === 's6' && !CAD_LISTA && SUG) goCadastro(SUG.lista.lista); else goScreen(btn.dataset.screen); }); });
 function wizGo(step){
@@ -1687,6 +1697,7 @@ async function criarCotacao(){
 // ───────── cotação aberta (Acompanhamento / Comparativo / Pedidos)
 async function abrirCotacao(id, tela){
   try { CUR = await api('/api/cotacoes/' + id); } catch(e) { toastMsg('Erro: ' + e.message); return; }
+  try { localStorage.setItem('cot-ultima', String(id)); } catch(e) {}   // as abas 3/4/5 reabrem esta cotação direto (abrirUltima)
   renderTudo(); goScreen(tela || 's3');
 }
 async function recarregar(){ if (!CUR) return; try { CUR = await api('/api/cotacoes/' + CUR.id); renderTudo(); } catch(e) {} }
