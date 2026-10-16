@@ -5406,9 +5406,17 @@ app.post('/api/contagem/:data/:loja/aprovar', async (req, res) => {
     const excluir = Array.isArray(req.body && req.body.excluir) ? req.body.excluir.map(String) : [];
     const { gravar } = aprovarNeg.itensParaGravar(l.linhas, somentePendentes ? l.pendentes : null, excluir);
     if (!gravar.length) return res.status(400).json({ error: 'Nenhum item com contagem pra gravar.' });
-    const r = await aprovarNeg.aprovarLoja({ escrever: escreverERP, itens: gravar, usuario: req.session.user.nome, data: req.params.data, ln, nomeLoja: l.nome });
+    // Saldo ATUAL e unidade de cada item no .254, lidos agora: viram Estoque_Anterior/SaldoAnterior nas linhas
+    // de ajuste e da Ficha (igual ao ERP). Sem isso não dá pra montar o movimento, então falha inteira.
+    const atual = {};
+    try {
+      const cods = gravar.map(x => x.cod);
+      const rows = await qTeste(`SELECT e.CodigoBarra, e.Qtd, i.Unid FROM central.estoquen${ln} e LEFT JOIN central.itens i ON i.CodigoBarra = e.CodigoBarra WHERE e.CodigoBarra IN (${cods.map(() => '?').join(',')})`, cods);
+      for (const x of rows) atual[String(x.CodigoBarra)] = { qtd: x.Qtd, unid: x.Unid };
+    } catch (e) { return res.status(502).json({ error: 'MySQL de teste do .254 não respondeu (' + (e.code || e.message) + ')' }); }
+    const r = await aprovarNeg.aprovarLoja({ escrever: escreverERP, itens: gravar, usuario: req.session.user.nome, data: req.params.data, ln, nomeLoja: l.nome, atual });
     const m = contagemNeg.marcarAprovado(req.params.data, ln, { nome: req.session.user.nome, ids: r.ids, pendentes: r.erros.map(e => e.cod) });
-    res.json({ ok: r.erros.length === 0, gravados: r.gravados, erros: r.erros, ids: r.ids, tabela: r.tabela, aprovadoEm: m.aprovadoEm });
+    res.json({ ok: r.erros.length === 0, gravados: r.gravados, movimentados: r.movimentados, semMudanca: r.semMudanca, usuarioErp: r.usuarioErp, erros: r.erros, ids: r.ids, tabela: r.tabela, aprovadoEm: m.aprovadoEm });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 // Cobrar lojas pendentes: manda texto no grupo via o bot (sem link)

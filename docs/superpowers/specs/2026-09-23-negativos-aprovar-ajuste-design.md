@@ -61,3 +61,21 @@ Cada item vira uma linha em Processos > Log com antes/depois. O `.252` não é t
 ## Fora de escopo
 
 Escrita no `.252`; desfazer; ajustar item a item pela tela; itens sem contagem.
+
+## Atualização 16/10/2026 — movimento na Ficha igual ao ERP
+
+Tiago: "tem que trazer o que ele já traz" (Estoque › Ficha) e o log do ERP com um usuário nosso, **ECOBOOT**
+(cadastro do usuário no ERP fica pra depois; o nome já vai no campo texto). Levantamento no ERP real mostrou
+que a tela de ajuste (e a Dlinks) grava 3 coisas; o Aprovar passou a fazer o mesmo, 1 transação por item
+(`escreverERP.lote`):
+
+1. `INSERT central.estoque_ajuste` — nLoja, Tipo (1 entrada / 2 saída), CodigoBarras, Descricao, Qtd (sempre
+   positiva), CodMotivo **37 AJUSTE NEGATIVOS**, Obs `NEGATIVOS - <aprovador>`, Usuario `ECOBOOT`, Und
+   (central.itens.Unid), DataLan hoje, Status 0, Estoque_Anterior/Estoque_Final, Lote 0.
+2. `INSERT fichaproduto.ficha` — a linha da tela Ficha: Tipo E/S, SaldoAnterior/Qtd/SaldoAtual, DataAtualizacao =
+   DataLancamento = hoje, Hora HH:MM:SS, Origem `AJUSTE ESTOQUE LOJA N (Do` (o ERP corta em 25 letras),
+   nRegDoc = nReg do passo 1, nItem 0, Fornecedor '0', Lote 0, HoraAtualizacao '0'.
+3. `UPDATE central.estoquenN.Qtd` (o que já existia).
+
+Estoque_Anterior/SaldoAnterior = saldo lido no .254 na hora do Aprovar (rota lê `estoquenN` + `itens.Unid`);
+item já igual ao contado só faz o passo 3. Tudo continua no MySQL de TESTE; `.252` intocado.
