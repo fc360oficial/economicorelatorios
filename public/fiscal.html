@@ -365,7 +365,7 @@ const TABCACHE={};let CARGA=0,PREF=null;
 function tabKey(t){return t+'|'+(t==='areceber'?($('#loja').value||''):t==='expedicao'?(expDias()+'|'+$('#loja').value):qs());}
 async function buscar(t){
   if(t==='receb'){const d=await fetch('/api/fiscal/recebimentos'+qs()).then(r=>r.json());if(d.error)throw new Error(d.error);return d;}
-  if(t==='areceber'){const r=await fetch('/api/fiscal/pedidos-a-receber'+($('#loja').value?'?loja='+$('#loja').value:'')).then(r=>r.json());if(r.error)throw new Error(r.error);return r.pedidos;}
+  if(t==='areceber'){const q=$('#loja').value?'?loja='+$('#loja').value:'';const [r,c]=await Promise.all([fetch('/api/fiscal/pedidos-a-receber'+q).then(r=>r.json()),fetch('/api/fiscal/cotacoes-resumo'+q).then(r=>r.json()).catch(()=>({cotacoes:[]}))]);if(r.error)throw new Error(r.error);const P=r.pedidos;P._cot=(c&&c.cotacoes)||[];return P;}   /* 16/10/26: painel Cotações vem junto */
   if(t==='docs'){const d=await fetch('/api/fiscal/documentos'+qs()).then(r=>r.json());if(d.error)throw new Error(d.error);return d;}
   if(t==='expedicao')return expBuscar();
   const m=await fetch('/api/fiscal/margem'+qs()).then(r=>r.json());if(m.error)throw new Error(m.error);return m;
@@ -378,7 +378,7 @@ function badge(t,d){
   else $('#nMargem').textContent=d.length;
 }
 function aplicar(t,d){
-  if(t==='receb'){DADOS=d;CFG=d.config;}else if(t==='areceber')AREC=d;else if(t==='docs')DOCS=d;else if(t==='expedicao')EXP=d;else MARG=d;
+  if(t==='receb'){DADOS=d;CFG=d.config;}else if(t==='areceber'){AREC=d;AREC_COT=d._cot||[];if(fArecCot&&!AREC_COT.some(x=>x.id===fArecCot))fArecCot=null;}else if(t==='docs')DOCS=d;else if(t==='expedicao')EXP=d;else MARG=d;
   badge(t,d);
 }
 function syncHint(on){const b=$('#btnAtualizar');if(!b)return;b.textContent=on?'Atualizando…':'Atualizar';b.classList.toggle('sync',!!on);}
