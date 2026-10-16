@@ -172,7 +172,7 @@ td.col-cel{cursor:pointer}
 .chips-g{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.chips-g .lbl{font-size:11px;font-weight:800;color:var(--ink3);text-transform:uppercase;letter-spacing:.04em;min-width:86px}.chips{display:flex;gap:6px;flex-wrap:wrap}.chips span{border:1px solid var(--ln2);background:var(--crd);border-radius:99px;padding:5px 12px;font-size:12px;font-weight:700;color:var(--ink2);cursor:pointer}.chips span.on{border-color:#1E4FB5;background:#E8EEFB;color:#1E4FB5;font-weight:800}
 .quem{display:block;font-size:10.5px;font-weight:700;margin-top:2px}.quem.fiscal{color:#1E4FB5}.quem.comp{color:var(--ink3);font-weight:600}
 .obsd{display:inline-block;font-size:10.5px;color:#6B4E00;background:#FFF6D9;border:1px solid #EFD98F;border-radius:6px;padding:2px 6px;margin-top:3px;white-space:normal}
-.st-aguardando_nota{color:#B45C00;font-weight:800}.st-nota_emitida{color:#2E5E8C;font-weight:800}.st-nota_bipada{color:var(--neg);font-weight:800}.st-liberado-ar{color:var(--pos);font-weight:800}
+.st-aguardando_nota{color:#B45C00;font-weight:800}.st-nota_emitida{color:#2E5E8C;font-weight:800}.st-nota_bipada{color:var(--neg);font-weight:800}.st-bipada_sem_xml{color:#7A3E9D;font-weight:800}.st-liberado-ar{color:var(--pos);font-weight:800}
 tr.arit td{background:#FAFAF8;white-space:normal;cursor:default;padding:0 12px 12px}
 .dcb{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.dcb .btn{margin:0}
 .dcb .lib{background:#E6F5EC;border:1px solid #137A48;color:#0E5C36}.dcb .rec{background:#FFF1F1;border:1px solid #C62828;color:#A61F1F}
@@ -746,7 +746,7 @@ function arecQuem(r){ return fArecQ==='fiscal'?r.quem_decide==='fiscal':fArecQ==
 function arecSit(r){
   if(fArec==='atrasados')return r.atraso>0;
   if(fArec==='parciais')return r.situacao==='liberado';
-  if(fArec==='bipadas')return r.situacao==='nota_bipada';
+  if(fArec==='bipadas')return r.situacao==='nota_bipada'||r.situacao==='bipada_sem_xml';
   return r.situacao!=='liberado';   /* "A chegar" = o que ainda vai chegar; parcial (faltou item, já liberado) fica no chip próprio */
 }
 function arecFiltro(r){ return arecQuem(r)&&arecSit(r); }
@@ -759,7 +759,7 @@ function renderAReceber(){
   let h='<div class="auto" style="border-left-color:#1E4FB5"><span>📦 <b>Pedidos aprovados que ainda vão chegar.</b> Só pra saber o que vem e cobrar atraso; a conferência é na aba Recebimentos, quando a loja bipa a nota. <b>Divergência na nota:</b> pedido de <b>cotação</b> você decide aqui no recebimento; pedido <b>com Comprador (a)</b> ele (a) decide em Pedidos de Compra, você só avisa.</span>'
    /* 15/10/26 (Tiago: "tá meio confuso"): dois grupos de chips que se combinam; cada chip conta o que ele mostraria com o outro grupo como está */
    +'<div class="chips-g"><span class="lbl">Quem decide</span><span class="chips">'+chip('q','todos','Todos',nQ(r=>true))+chip('q','fiscal','Fiscal (cotação)',nQ(r=>r.quem_decide==='fiscal'))+chip('q','comprador','Comprador (a)',nQ(r=>r.quem_decide==='compradora'))+'</span></div>'
-   +'<div class="chips-g"><span class="lbl">Situação</span><span class="chips">'+chip('s','todos','A chegar',nS(r=>r.situacao!=='liberado'))+chip('s','atrasados','Atrasados',nS(r=>r.atraso>0))+chip('s','bipadas','Nota bipada',nS(r=>r.situacao==='nota_bipada'))+chip('s','parciais','Parciais (faltou)',nS(r=>r.situacao==='liberado'))+'</span></div></div>';
+   +'<div class="chips-g"><span class="lbl">Situação</span><span class="chips">'+chip('s','todos','A chegar',nS(r=>r.situacao!=='liberado'))+chip('s','atrasados','Atrasados',nS(r=>r.atraso>0))+chip('s','bipadas','Nota bipada',nS(r=>r.situacao==='nota_bipada'||r.situacao==='bipada_sem_xml'))+chip('s','parciais','Parciais (faltou)',nS(r=>r.situacao==='liberado'))+'</span></div></div>';
   const lista=all.filter(arecFiltro).filter(arecBusca);
   $('#cnt').textContent=lista.length+' de '+all.length;
   if(!lista.length){$('#view').innerHTML=h+'<div class="empty">'+(all.length?'Nenhum pedido nesse filtro.':'Nenhum pedido aprovado aguardando entrega nas suas lojas.')+'</div>';return;}
@@ -767,7 +767,7 @@ function renderAReceber(){
   h+='<div class="table-wrap"><table class="t ar"><thead><tr><th>Pedido</th><th>Fornecedor</th><th>Origem · quem decide</th><th>Entrega prevista</th><th class="r">Itens</th><th class="r">Valor</th><th>Situação</th><th>Ação</th></tr></thead><tbody>';
   let lj=null;
   for(const r of lista){
-    if(todas&&r.loja!==lj){lj=r.loja;const dl=lista.filter(x=>x.loja===lj);h+='<tr class="loja"><td colspan="8"><b>'+LJ(lj)+'</b>'+esc(r.loja_nome)+'<span>'+dl.length+' pedidos · '+dl.filter(x=>x.situacao==='nota_bipada').length+' com nota bipada · '+dl.filter(x=>x.atraso>0).length+' atrasados</span></td></tr>';}
+    if(todas&&r.loja!==lj){lj=r.loja;const dl=lista.filter(x=>x.loja===lj);h+='<tr class="loja"><td colspan="8"><b>'+LJ(lj)+'</b>'+esc(r.loja_nome)+'<span>'+dl.length+' pedidos · '+dl.filter(x=>x.situacao==='nota_bipada'||x.situacao==='bipada_sem_xml').length+' com nota bipada · '+dl.filter(x=>x.atraso>0).length+' atrasados</span></td></tr>';}
     const fis=r.quem_decide==='fiscal', open=!!AREC_OPEN[r.key];
     h+='<tr class="row'+(open?' open':'')+'"'+(r.atraso>0&&!open?' style="background:#FFF8E6"':'')+' onclick="arecToggle(\''+r.key+'\')"><td><span class="nm">#'+r.pedido+'</span>'+(todas?'':'<span class="erp">'+LJ(r.loja)+'</span>')+'<span class="erp">'+(r.aprovadoEm?dbr2(r.aprovadoEm.slice(0,10))+' · ':'')+(r.status==='recebido_parcial'?'recebido parcial':'aprovado')+'</span></td>';
     h+='<td class="forn"><span class="nm">'+esc(r.fornecedor||'')+'</span>'+(r.lista_nome?'<span class="lst" title="'+esc(r.lista_nome)+'">'+(r.cotacao&&r.cotacao.id!=null?'<b>#'+r.cotacao.id+'</b> · ':'')+esc(r.lista_nome)+'</span>':'')+(r.obs?'<div class="obsd" title="'+esc(r.obs.por||'')+': '+esc(r.obs.texto)+'">💬 '+esc(r.obs.por||'')+': “'+esc(r.obs.texto)+'”</div>':'')+'</td>';
@@ -787,7 +787,7 @@ function arecToggle(k){AREC_OPEN[k]=!AREC_OPEN[k];render();}
 function arecAbrir(n){ABRIR=n;filtro='todos';if($('#periodo').value==='dia')$('#periodo').value='7';$('#de').value=hojeISO();setTab('receb');}
 function arecWpp(r){const w=String(r.vendedor&&r.vendedor.whats||'').replace(/\D/g,'');const prev=r.entrega_prevista?dbr(r.entrega_prevista):null;const t='Olá'+(r.vendedor&&r.vendedor.nome?' '+r.vendedor.nome:'')+', o pedido #'+r.pedido+(r.lista_nome?' ('+r.lista_nome+')':'')+' da Loja '+r.loja+' · '+(r.loja_nome||'')+' (ECONOMICO SUPERMERCADO - REDE CAHU) ainda não chegou'+(prev?' — entrega prevista pra '+prev+(r.atraso?', '+r.atraso+' dia(s) de atraso':''):'')+'. Pode nos dar uma previsão? '+r.itens+' itens · '+money(r.valor)+'. Obrigado!';return 'https://wa.me/'+(w.length>=10?'55'+w.replace(/^55/,''):'')+'?text='+encodeURIComponent(t);}
 function arecItens(r){
-  const its=r.itens_lista||[], comNota=r.situacao!=='aguardando_nota'; const TP={ok:'✓ ok',parcial:'parcial',falta:'não veio',a_mais:'veio a mais',conferir:'conferir unidade'};
+  const its=r.itens_lista||[], comNota=r.situacao!=='aguardando_nota'&&r.situacao!=='bipada_sem_xml'; const TP={ok:'✓ ok',parcial:'parcial',falta:'não veio',a_mais:'veio a mais',conferir:'conferir unidade'};
   let h='<div class="box"><div class="hd"><span><b>Itens do pedido #'+r.pedido+'</b> · '+LJ(r.loja)+' · '+its.length+' itens</span><span class="mut">preço combinado com o vendedor'+(comNota?' · o que veio na NF-e':'')+'</span></div><div style="overflow-x:auto"><table><thead><tr><th>Código · produto</th><th class="r">Pedido</th><th class="r">Preço</th>'+(comNota?'<th class="r">Veio</th><th>Situação</th><th class="r">Preço NF</th><th>Decisão</th>':'')+'<th>Obs.</th></tr></thead><tbody>';
   for(const i of its){
     const dc=i.decisao;
