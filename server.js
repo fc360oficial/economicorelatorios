@@ -7699,13 +7699,16 @@ app.get('/api/radar-pedidos/sombra/:dia/:listaId', async (req, res) => {
 });
 
 // DANFE simplificada (PDF gerado dos dados do XML no ERP)
-app.get('/api/radar-pedidos/nfe/:chave/danfe', async (req, res) => {
+// DANFE em PDF a partir do XML do ERP. Também em /api/fiscal/nfe/:chave/danfe (16/10/2026): o Fiscal abre a nota pelo bloco de
+// conferência compartilhado e o usuário fiscal pode não ter o módulo Compras (/api/radar-pedidos).
+const danfeRota = async (req, res) => {
   try {
     const n = await radarPedidos.nfe(req.params.chave); if (!n) return res.status(404).json({ error: 'NF-e não encontrada' });
     res.setHeader('Content-Type', 'application/pdf'); res.setHeader('Content-Disposition', `inline; filename="danfe-${n.nNota}.pdf"`);
     require('./lib/danfe').gerarDanfe(n).pipe(res);
   } catch (err) { res.status(500).json({ error: err.message }); }
-});
+};
+app.get(['/api/radar-pedidos/nfe/:chave/danfe', '/api/fiscal/nfe/:chave/danfe'], danfeRota);
 app.get('/api/radar-pedidos/nfe/:chave', async (req, res) => {
   try { const n = await radarPedidos.nfe(req.params.chave); if (!n) return res.status(404).json({ error: 'NF-e não encontrada' }); res.json(n); }
   catch (err) { res.status(500).json({ error: err.message }); }

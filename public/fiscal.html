@@ -894,7 +894,7 @@ function arecItens(r){
       boleto:['Financeiro','Boletos não batem com a NF-e: não pagar até o fornecedor corrigir.'],sem_boleto:['Financeiro','XML sem duplicata: conferir o boleto com o fornecedor antes de pagar.'],
       valor:['Fiscal','Valor da NF-e diferente do esperado: ver preço e quantidade item a item.'],unidade:['Fiscal','A nota veio em caixa/fardo sem unidade: conferir a conversão no recebimento.'],
       afinidade:['Fiscal','Poucos itens da nota estão neste pedido: conferir se a nota é deste pedido.'],vinculo_nome:['Fiscal','Item casado pelo nome (código diferente): confirmar no recebimento.']};
-    h+=SecaoXml.secaoXmlLoja({id:r.pedido,fornecedor:r.fornecedor},r.loja,X,{LOJAS_NOMES:{[r.loja]:r.loja_nome},abrirNfe:'arecNfe',oqueFazer:OQ,
+    h+=SecaoXml.secaoXmlLoja({id:r.pedido,fornecedor:r.fornecedor},r.loja,X,{LOJAS_NOMES:{[r.loja]:r.loja_nome},nfeHref:ch=>'/api/fiscal/nfe/'+encodeURIComponent(ch)+'/danfe',oqueFazer:OQ,
       dec:(i,tipo)=>{const c=decCel(tipo==='nao_pedido'?Object.assign({},i,{nao_pedido:true}):i);return c?'<span class="dec" style="display:block;margin:3px 0 0">'+c+'</span>':'';},
       extraItem:i=>(fis&&aberta&&(i.tipo==='falta'||i.tipo==='parcial'))?'<span class="dec" style="display:block;margin:3px 0 0">'+decCel(i)+'</span>':''});
   } else {
@@ -923,7 +923,7 @@ function arecItens(r){
   }
   return h;
 }
-function arecNfe(chave){window.open('/api/radar-pedidos/nfe/'+encodeURIComponent(chave)+'/danfe','_blank');}
+function arecNfe(chave){window.open('/api/fiscal/nfe/'+encodeURIComponent(chave)+'/danfe','_blank');}   /* 16/10/26: link direto agora é href no bloco; isto fica só por compatibilidade */
 function arecDecidirAbrir(k){AREC_OPEN[k]=true;render();const el=document.getElementById('decbox-'+k);if(el)el.scrollIntoView({behavior:'smooth',block:'center'});}
 async function arecPost(url,body){const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})}).then(r=>r.json()).catch(e=>({error:e.message}));if(r.error){ftoast(r.error,true);return null;}return r;}
 async function arecDecidir(k,id,ln,cod,acao){const r=await arecPost('/api/fiscal/pedido-compra/'+id+'/xml/'+ln+'/decidir',{cod,acao});if(!r)return;ftoast(acao==='recusar'?'Recusado: entra no Aviso de devolução.':acao==='aceitar'?'Liberado.':'Decisão desfeita.');await arecCarregar();render();}

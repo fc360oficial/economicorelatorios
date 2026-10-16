@@ -51,7 +51,10 @@
       + (nNaoVem ? '<span class="prob" style="background:#EEF0F4;color:#4E5A72" title="Fiscal aceitou o parcial (16/10/26): pedido de cotação não tem 2ª entrega, o que faltou sai do pedido — cotar de novo">✓ ' + nNaoVem + ' item(ns) não vem mais · fiscal</span>' : '')
       + (x.entrega_recusada ? '<span class="prob" title="Fiscal recusou a entrega: a loja não recebe, vendedor cobrado">✖ entrega recusada pelo fiscal' + (x.entrega_recusada.por ? ' · ' + esc(x.entrega_recusada.por) : '') + '</span>' : '')
       + cabecalhoExtra(x) + '</div>';
-    const nfLink = n => n.chave && H.abrirNfe ? '<a href="#" class="nfe" onclick="event.preventDefault();event.stopPropagation();' + H.abrirNfe + '(\'' + esc(n.chave) + '\')" title="Abrir a nota (XML do ERP)">' + esc(n.nNota) + ' ↗</a>' : esc(n.nNota);
+    // H.abrirNfe = função global que abre a nota na própria tela (Pedidos de Compra); H.nfeHref(chave) = link direto em outra aba (Fiscal: DANFE em PDF)
+    const nfLink = n => !n.chave ? esc(n.nNota)
+      : H.nfeHref ? '<a href="' + esc(H.nfeHref(n.chave)) + '" class="nfe" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Abrir a DANFE (PDF) em outra aba">' + esc(n.nNota) + ' ↗</a>'
+      : H.abrirNfe ? '<a href="#" class="nfe" onclick="event.preventDefault();event.stopPropagation();' + H.abrirNfe + '(\'' + esc(n.chave) + '\')" title="Abrir a nota (XML do ERP)">' + esc(n.nNota) + ' ↗</a>' : esc(n.nNota);
     h += '<div class="xb">' + (x.chegou ? '<div class="chegou' + (x.chegou.fechada ? ' fim' : '') + '">' + (x.chegou.fechada ? '✓ Finalizado na loja' : '✓ Chegou na loja') + ' · ' + esc(chegouTxt(x)) + '</div>' : '')
       + (x.notas || []).map(n => 'NF-e <b>' + nfLink(n) + '</b>' + (n.serie ? '/' + esc(n.serie) : '') + ' de ' + br(n.data) + ' · ' + n.itens + ' itens · <b>' + money2(n.valorNFE) + '</b>' + (n.entrada ? ' · <span class="pos">' + esc(entradaTxt(n)) + '</span>' : (n.importado ? ' · importada no ERP' : ' · <span class="prob">ainda não importada</span>')) + (n.boletos?.length ? ' · boletos: ' + n.boletos.map(b => 'dup ' + b.dup + ' ' + br(b.vencimento) + ' <b>' + money2(b.valor) + '</b>').join(', ') : ' · <span class="prob">sem boleto no XML</span>')).join('<br>');
     const f = x.financeiro || {};
