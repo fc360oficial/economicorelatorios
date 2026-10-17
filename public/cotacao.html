@@ -877,40 +877,51 @@ table.sug tbody tr.sec td,table.sug tbody tr.sec:hover td{background:#F4F4F1!imp
 table.sug tbody tr.sec.semcx td,table.sug tbody tr.sec.semcx:hover td{background:#FBEAED!important;color:#C22F49;text-transform:none;letter-spacing:0;font-size:12px;font-weight:700}
 table.sug tbody tr:hover td.lj.tem{background:#FFE39A}
 </style>
+<link rel="stylesheet" href="/cotacao-azul.css">
 </head>
 <body>
 
-<div class="modtabs">
-  <button class="on" data-screen="s1">1. Monitor</button>
-  <button data-screen="s2">2. Nova Cotação</button>
-  <button data-screen="s3">3. Acompanhamento</button>
-  <button data-screen="s4">4. Comparativo</button>
-  <button data-screen="s5">5. Pedidos</button>
-  <button data-screen="s6">6. Fornecedores</button>
-  <span class="cur" id="cur-lbl"></span>
-</div>
+<!-- Cabeçalho do módulo (identidade azul, 17/10/26): marca + 6 módulos + cotação em uso à direita.
+     Os botões continuam .modtabs button[data-screen] — goScreen() e o clique são os mesmos de antes. -->
+<header class="azbar">
+  <a class="azbrand" href="/cotacao.html" title="Cotação · Gestão de Compras"><span class="sq" aria-hidden="true">C</span><span><b>Cotação</b><small>Gestão de Compras</small></span></a>
+  <nav class="modtabs" aria-label="Módulos da Cotação">
+    <button class="on" data-screen="s1" aria-current="page"><i>1</i>Monitor</button>
+    <button data-screen="s2"><i>2</i>Nova Cotação</button>
+    <button data-screen="s3"><i>3</i>Acompanhamento</button>
+    <button data-screen="s4"><i>4</i>Comparativo</button>
+    <button data-screen="s5"><i>5</i>Pedidos</button>
+    <button data-screen="s6"><i>6</i>Fornecedores</button>
+    <span class="cur" id="cur-lbl"></span>
+  </nav>
+</header>
 
 <!-- ═══════════ TELA 1 — MONITOR ═══════════ -->
+<!-- Identidade azul (17/10/26): indicadores no topo (clicáveis), busca + filtros, e a mesma lista de cotações em duas formas —
+     pipeline (Aguardando respostas → Prontas para análise → Pedido gerado → Concluídas) ou a tabela de antes. Os números
+     (pedidos, produtos, fornecedores) abrem os mesmos detalhes nas duas formas (filtrarMonitor / monCard). -->
 <section class="screen on" id="s1">
   <main class="main">
     <div class="crumb">Gestão de Compras <span>›</span> <b>Cotação</b></div>
     <div class="pagehead">
-      <div><h1>Monitor de Cotações</h1><p>Cotações abertas (aguardando os fornecedores), prontas pra análise e fechadas (pedidos gerados em Pedidos de Compra).</p></div>
-      <span style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" onclick="goScreen('s2')">+ Nova Cotação</button></span>
+      <div><h1>Monitor de Cotações</h1><p>Cotações aguardando os fornecedores, prontas pra análise, com pedido gerado e concluídas. Clique em qualquer número pra abrir o detalhe.</p></div>
+      <span style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost sm" onclick="criarTeste()" title="Cria cotações de EXEMPLO (marcadas TESTE) em todas as situações do pipeline, pra ajustar a tela olhando. Nada vai pra vendedor real.">Criar exemplos de teste</button><button class="btn ghost sm" id="btn-rm-teste" style="display:none" onclick="removerTestes()">Remover testes</button><button class="btn primary" onclick="goScreen('s2')">+ Nova Cotação</button></span>
     </div>
-    <div class="filters">
-      <div class="fld"><label>Nº / nome / lista</label><input type="text" id="f-busca" placeholder="ex.: 277 ou alimentos" oninput="filtrarMonitor()"></div>
-      <div class="fld"><label>Status</label><select id="f-status" onchange="filtrarMonitor()"><option value="">Todas</option><option value="aguardando">Aguardando fornecedores</option><option value="digitacao">Em digitação</option><option value="analise">Pronta p/ análise</option><option value="fechada">Pedidos gerados</option><option value="cancelada">Canceladas</option></select></div>
-      <div class="fld"><label>Comprador</label><select id="f-comprador" onchange="filtrarMonitor()"><option value="">Todos</option></select></div>
-      <button class="btn ghost sm" onclick="carregarMonitor()">↻ Atualizar</button>
+    <div class="kpis mon-k" id="mon-kpis" aria-live="polite"></div>
+    <div class="mon-tools">
+      <div class="fld grow"><label for="f-busca">Nº / nome / lista</label><input type="search" id="f-busca" placeholder="ex.: 277 ou alimentos" oninput="filtrarMonitor()"></div>
+      <div class="fld"><label for="f-status">Status</label><select id="f-status" onchange="filtrarMonitor()"><option value="">Todas</option><option value="aguardando">Aguardando fornecedores</option><option value="digitacao">Em digitação</option><option value="analise">Pronta p/ análise</option><option value="fechada">Pedidos gerados</option><option value="cancelada">Canceladas</option></select></div>
+      <div class="fld"><label for="f-comprador">Comprador(a)</label><select id="f-comprador" onchange="filtrarMonitor()"><option value="">Todos</option></select></div>
+      <div class="end"><div class="seg" id="mon-vista" role="group" aria-label="Forma de ver as cotações"><button type="button" data-v="pipeline" class="on" aria-pressed="true" onclick="monVista('pipeline')">▦ Pipeline</button><button type="button" data-v="lista" aria-pressed="false" onclick="monVista('lista')">☰ Lista</button></div><button class="btn ghost sm" onclick="carregarMonitor()">↻ Atualizar</button></div>
     </div>
-    <div class="tablewrap">
+    <div id="mon-pipe"><div class="empty">Carregando…</div></div>
+    <div class="tablewrap" id="mon-table" style="display:none">
       <table class="mon">
         <thead><tr><th>Data / nº</th><th>Empresa</th><th>Status</th><th title="Pedidos gerados · aprovados · recebidos · cancelados">Pedidos</th><th title="Produtos da cotação · com preço digitado · comprados (com vencedor)">Produtos</th><th title="Empresas convidadas · que já responderam (vários vendedores da mesma empresa contam como uma)">Fornecedores</th><th>Total</th><th>Ações</th><th>Vencedores</th><th>Observação</th></tr></thead>
         <tbody id="monitor-tbody"><tr><td colspan="10" class="empty">Carregando…</td></tr></tbody>
       </table>
     </div>
-    <div class="mon-legenda"><span><b>Pedidos:</b> <i class="c1"></i>gerados <i class="c2"></i>aprovados <i class="c3"></i>recebidos <i class="c4"></i>cancelados</span><span><b>Produtos:</b> <span class="pl">total</span> <span class="pl">com preço</span> <span class="pl">comprados</span></span><span><b>Concorrentes:</b> <span class="pl blue">convidados</span> <span class="pl blue">responderam</span></span><span><b>Total:</b> soma dos vencedores · embaixo, economia contra a última compra</span><span>Clique em qualquer número pra abrir o detalhe.</span></div>
+    <div class="mon-legenda" id="mon-legenda" style="display:none"><span><b>Pedidos:</b> <i class="c1"></i>gerados <i class="c2"></i>aprovados <i class="c3"></i>recebidos <i class="c4"></i>cancelados</span><span><b>Produtos:</b> <span class="pl">total</span> <span class="pl">com preço</span> <span class="pl">comprados</span></span><span><b>Concorrentes:</b> <span class="pl blue">convidados</span> <span class="pl blue">responderam</span></span><span><b>Total:</b> soma dos vencedores · embaixo, economia contra a última compra</span><span>Clique em qualquer número pra abrir o detalhe.</span></div>
   </main>
 </section>
 
@@ -920,15 +931,15 @@ table.sug tbody tr:hover td.lj.tem{background:#FFE39A}
     <div class="crumb">Cotação <span>›</span> <b>Nova Cotação</b></div>
     <div class="pagehead"><div><h1>Nova Cotação</h1><p>Comece pela sugestão de compra: digite o nº da lista do ERP e o sistema calcula a quantidade por loja com as regras do Radar. Depois marque quem recebe (do cadastro da aba Fornecedores) e envie os links.</p></div></div>
 
-    <div class="sugtop">
-      <h3>Sugestão de compra</h3>
+    <div class="sugtop azform">
+      <h3>Passo 1 · Sugestão de compra</h3>
       <p>Lista de compra do ERP (ex.: <b>277</b> Cotação de Alimentos). Lista com histórico de entrega usa o lead time real; lista de cotação (vários atacadistas, sem lead) usa a cobertura e o prazo de entrega abaixo. Quantidade por loja, arredondada na embalagem real de compra.</p>
-      <div class="row">
-        <div class="fld big srch" style="min-width:420px;flex:1"><label>Lista de compra</label><input type="text" id="ns-lista-busca" placeholder="nº da lista, nome, fornecedor, CNPJ ou comprador(a) (ex.: 277, alimentos, ambev, 07.526, fátima)" autocomplete="off" oninput="buscarLista(this.value)" onfocus="buscarLista(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();escolherListaEnter();}if(event.key==='Escape')fecharListas()" style="width:100%;font-size:14px;font-weight:600"><input type="hidden" id="ns-lista"><div class="res" id="ns-lista-res" style="display:none"></div></div>
+      <div class="azform-grid">
+        <div class="fld big srch az-lista"><label for="ns-lista-busca">Lista de compra</label><input type="text" id="ns-lista-busca" placeholder="nº da lista, nome, fornecedor, CNPJ ou comprador(a) (ex.: 277, alimentos, ambev, 07.526, fátima)" autocomplete="off" oninput="buscarLista(this.value)" onfocus="buscarLista(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();escolherListaEnter();}if(event.key==='Escape')fecharListas()" style="width:100%;font-size:14px;font-weight:600"><input type="hidden" id="ns-lista"><div class="res" id="ns-lista-res" style="display:none"></div></div>
         <div class="fld"><label>Cobertura (dias)</label><input type="number" id="ns-cob" value="28" min="3" max="120"></div>
         <div class="fld"><label>Prazo entrega (dias)</label><input type="number" id="ns-ponto" value="3" min="0" max="60"></div>
         <div class="fld"><label>Emb. real (meses)</label><input type="number" id="ns-emb" value="36" min="0" max="36"></div>
-        <button class="btn primary" id="ns-btn" onclick="calcularSugestao()">Calcular sugestão</button>
+        <div class="az-act"><button class="btn primary" id="ns-btn" onclick="calcularSugestao()">Calcular sugestão</button></div>
       </div>
       <div class="suginfo" id="ns-info"></div>
     </div>
@@ -944,7 +955,7 @@ table.sug tbody tr:hover td.lj.tem{background:#FFE39A}
 
     <div class="wizpanel on" id="w1">
       <div class="wizfoot top"><span class="mini">Edite as quantidades por loja se quiser. Item sem quantidade não entra na cotação. Regra só da cotação: loja marcada na lista com estoque zero e sem sugestão recebe 1 caixa (marcado "zerado (cotação)").</span></div>
-      <div class="kpis" id="w1-lojas" style="grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:14px"></div>
+      <div class="kpis" id="w1-lojas" style="grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-bottom:14px"></div>
       <div class="toolbar sugbar">
         <div class="sugbar-top"><span id="w1-resumo" class="sugbar-resumo"></span><div class="sugbar-acoes"><button class="btn ghost sm" onclick="marcarTodos(true)">Marcar todos</button><button class="btn ghost sm" onclick="marcarTodos(false)">Desmarcar</button><button class="btn primary sm" id="btn-prox" onclick="irFornecedores()">Próximo: destinatários →</button></div></div>
         <div class="sugbar-filtros"><div class="sugbar-grp"><span class="sugbar-lbl">Mostrar</span><label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" class="check" id="ns-so-qtd" checked onchange="renderSugestao()">só itens com quantidade</label><label style="display:flex;gap:6px;align-items:center;cursor:pointer" title="Mostra só os produtos com sugestão/pedido aberto no ERP ainda não recebido (coluna Trânsito). Com uma loja selecionada no card, só o trânsito daquela loja. Não muda a marcação."><input type="checkbox" class="check" id="ns-so-tr" onchange="renderSugestao()">só produtos em trânsito</label></div><div class="sugbar-grp"><span class="sugbar-lbl">Marcação</span><label style="display:flex;gap:6px;align-items:center;cursor:pointer" title="Ligada: produto com estoque no CD (CAHU Distribuidora) fica desmarcado e não entra na cotação — a loja pede pro CD. Marcar todos respeita. Desligue pra voltar a marcar."><input type="checkbox" class="check" id="ns-sem-cd" onchange="toggleSemCD(this.checked)">não marcar quem tem no CD</label></div><div class="sugbar-grp"><span class="sugbar-lbl">Filtros</span><select id="ns-ordem" class="hin" onchange="renderSugestao()" title="Ordem dos produtos"><option value="az">Ordem: A → Z</option><option value="za">Ordem: Z → A</option><option value="radar">Ordem do Radar (curva A e urgência primeiro)</option></select><select id="ns-est" class="hin" onchange="renderSugestao()" title="Filtrar por estoque (soma das lojas)"><option value="">Estoque: todos</option><option value="com">Com estoque</option><option value="sem">Sem estoque</option></select><select id="ns-cd" class="hin" onchange="renderSugestao()" title="Filtrar pelo estoque no CD (CAHU Distribuidora): só quem tem, só quem não tem, ou tudo"><option value="">CD: todos</option><option value="com">Só quem tem no CD</option><option value="sem">Só quem não tem no CD</option></select></div></div>
@@ -1002,12 +1013,12 @@ table.sug tbody tr:hover td.lj.tem{background:#FFE39A}
   <main class="main">
     <div class="crumb">Cotação <span>›</span> <b>Fornecedores</b></div>
     <div class="pagehead"><div><h1>Fornecedores por lista</h1><p>Cadastro de quem cota cada lista do ERP: fornecedor, vendedor, WhatsApp e e-mail. Muda pouco; a Nova Cotação só escolhe quem recebe desta vez.</p></div><button class="btn primary" onclick="abrirCadastroForn()">+ Cadastrar fornecedor</button></div>
-    <div class="sugtop">
+    <div class="sugtop azform one">
       <h3>Lista do ERP</h3>
       <p>Busque a lista por nº, nome, fornecedor ou comprador(a) (ex.: <b>277</b> Cotação de Alimentos). Se ainda não houver cadastro, o sistema sugere quem o ERP conhece pra esses produtos e quem entrou na última cotação.</p>
-      <div class="row">
-        <div class="fld big srch" style="min-width:420px;flex:1"><label>Lista de compra</label><input type="text" id="cad-lista-busca" placeholder="nº da lista, nome, fornecedor, CNPJ ou comprador(a) (ex.: 277, alimentos, ambev, fátima)" autocomplete="off" oninput="buscarLista(this.value, LISTA_CFG_CAD)" onfocus="buscarLista(this.value, LISTA_CFG_CAD)" onkeydown="if(event.key==='Enter'){event.preventDefault();escolherListaEnter(LISTA_CFG_CAD);}if(event.key==='Escape')fecharListas(LISTA_CFG_CAD)" style="width:100%;font-size:14px;font-weight:600"><input type="hidden" id="cad-lista"><div class="res" id="cad-lista-res" style="display:none"></div></div>
-        <button class="btn primary" id="cad-btn" onclick="escolherListaEnter(LISTA_CFG_CAD)">Carregar</button>
+      <div class="azform-grid">
+        <div class="fld big srch az-lista"><label for="cad-lista-busca">Lista de compra</label><input type="text" id="cad-lista-busca" placeholder="nº da lista, nome, fornecedor, CNPJ ou comprador(a) (ex.: 277, alimentos, ambev, fátima)" autocomplete="off" oninput="buscarLista(this.value, LISTA_CFG_CAD)" onfocus="buscarLista(this.value, LISTA_CFG_CAD)" onkeydown="if(event.key==='Enter'){event.preventDefault();escolherListaEnter(LISTA_CFG_CAD);}if(event.key==='Escape')fecharListas(LISTA_CFG_CAD)" style="width:100%;font-size:14px;font-weight:600"><input type="hidden" id="cad-lista"><div class="res" id="cad-lista-res" style="display:none"></div></div>
+        <div class="az-act"><button class="btn primary" id="cad-btn" onclick="escolherListaEnter(LISTA_CFG_CAD)">Carregar</button></div>
       </div>
       <div class="suginfo" id="cad-info"></div>
     </div>
@@ -1086,7 +1097,7 @@ $('#backdrop').addEventListener('click', function(e){ if (e.target.id === 'backd
 function goScreen(id){
   document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('on'); });
   document.getElementById(id).classList.add('on');
-  document.querySelectorAll('.modtabs button').forEach(function(b){ b.classList.toggle('on', b.dataset.screen === id); });
+  document.querySelectorAll('.modtabs button').forEach(function(b){ var on = b.dataset.screen === id; b.classList.toggle('on', on); if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
   window.scrollTo(0,0);
   if (CUR) history.replaceState(null, '', '?id=' + CUR.id + '&tela=' + id); else if (id !== 's2') history.replaceState(null, '', location.pathname);
   if (id === 's1') carregarMonitor();
@@ -1155,32 +1166,103 @@ async function removerTestes(){
   if (!confirm('Remover TODAS as cotações de teste? (as reais ficam)')) return;
   try { var r = await post('/api/cotacoes/testes/remover'); toastMsg((r.removidas || []).length + ' cotação(ões) de teste removida(s)'); if (CUR && CUR.teste) { CUR = null; renderTudo(); } carregarMonitor(); } catch(e) { toastMsg('Erro: ' + e.message); }
 }
+// ───────── MONITOR · pipeline + lista (identidade azul, 17/10/26)
+// A coluna do pipeline sai do status que já existia (statusCot) e dos pedidos gerados (pedidos_status, calculado no servidor):
+//   Aguardando respostas = ninguém respondeu ainda, ou alguns ainda digitando (aguardando / digitacao)
+//   Prontas para análise = todos os convidados responderam (analise)
+//   Pedido gerado        = cotação fechada com pedido ainda não recebido nem cancelado
+//   Concluídas           = fechada com todos os pedidos recebidos ou cancelados (ou encerrada sem pedido) · cotação cancelada
+var MON_VISTA = (function(){ try { return localStorage.getItem('cot-mon-vista') === 'lista' ? 'lista' : 'pipeline'; } catch(e) { return 'pipeline'; } })();
+var MON_COL = '';   // indicador clicado no topo: mostra só aquela coluna ('' = todas; 'vencidas' = abertas com prazo passado)
+var PIPE_COLS = [{k:'aguardando', t:'Aguardando respostas', cls:'c-ag'}, {k:'prontas', t:'Prontas para análise', cls:'c-pr'}, {k:'pedido', t:'Pedido gerado', cls:'c-pd'}, {k:'concluidas', t:'Concluídas', cls:'c-ok'}];
+function monVista(v){ MON_VISTA = v === 'lista' ? 'lista' : 'pipeline'; try { localStorage.setItem('cot-mon-vista', MON_VISTA); } catch(e) {} filtrarMonitor(); }
+function monCol(k){ MON_COL = MON_COL === k ? '' : k; filtrarMonitor(); }
+function pipeCol(c){
+  var s = statusCot(c), ps = c.pedidos_status || {gerados:0, aprovados:0, recebidos:0, cancelados:0};
+  if (s.k === 'cancelada') return 'concluidas';
+  if (s.k === 'fechada') return (!ps.gerados || ps.recebidos + ps.cancelados >= ps.gerados) ? 'concluidas' : 'pedido';
+  if (s.k === 'analise') return 'prontas';
+  return 'aguardando';
+}
+function monVencida(c){ return c.status === 'aberta' && !!c.prazo && prazoVencidoCli(c.prazo); }
+// pedaços usados pelo cartão do pipeline E pela linha da lista — o mesmo botão abre o mesmo detalhe nas duas formas
+function monStTxt(s){ return {fechada:'Pedido gerado', cancelada:'Cancelada', analise:'Pronta p/ análise', digitacao:'Em digitação', aguardando:'Não digitada'}[s.k] || s.txt; }
+// etiqueta da cotação no Monitor: fechada que já caiu em "Concluídas" vira "Concluída" (pedidos recebidos/cancelados) ou "Encerrada sem pedido"
+function monStPill(s, c){ var txt = monStTxt(s), cls = s.cls; if (s.k === 'fechada' && c && pipeCol(c) === 'concluidas') { if (c.pedidos_status && c.pedidos_status.gerados) txt = 'Concluída'; else { txt = 'Encerrada sem pedido'; cls = 'off'; } } return '<span class="status-pill ' + cls + '">' + txt + '</span>'; }
+function monEmp(c){ return 'GRUPO - SUPERMERCADO ECONÔMICO' + (c.lojas && c.lojas.length === 1 ? ' (' + (LOJAS_NOMES[c.lojas[0]] || LJ(c.lojas[0])) + ')' : ' (CAHU)'); }
+function monPedidos(c){ var ps = c.pedidos_status || {gerados:0, aprovados:0, recebidos:0, cancelados:0}; return '<div class="numgrp"><button class="numcirc c1" title="Pedidos gerados" onclick="abrirCotacao(' + c.id + ',\'s5\')">' + ps.gerados + '</button><button class="numcirc c2" title="Pedidos aprovados" onclick="abrirCotacao(' + c.id + ',\'s5\')">' + ps.aprovados + '</button><button class="numcirc c3" title="Pedidos recebidos" onclick="abrirCotacao(' + c.id + ',\'s5\')">' + ps.recebidos + '</button><button class="numcirc c4" title="Pedidos cancelados" onclick="abrirCotacao(' + c.id + ',\'s5\')">' + ps.cancelados + '</button></div>'; }
+function monProdutosBtns(c){ return '<div class="numgrp"><button class="numpill" title="Produtos da cotação" onclick="monProdutos(' + c.id + ',\'todos\')">' + c.itens + '</button><button class="numpill" title="Produtos com preço digitado" onclick="monProdutos(' + c.id + ',\'digitados\')">' + c.com_preco + '</button><button class="numpill" title="Produtos comprados (com vencedor)" onclick="monProdutos(' + c.id + ',\'comprados\')">' + (c.comprados || 0) + '</button></div>'; }
+function monFornBtns(c){ return '<div class="numgrp"><button class="numpill blue" title="Empresas convidadas' + (c.empresas != null && c.convidados !== c.empresas ? ' (' + c.convidados + ' vendedores)' : '') + '" onclick="monFornecedores(' + c.id + ',false)">' + (c.empresas != null ? c.empresas : c.convidados) + '</button><button class="numpill blue" title="Empresas que já responderam' + (c.empresas_responderam != null && c.responderam !== c.empresas_responderam ? ' (' + c.responderam + ' vendedores)' : '') + '" onclick="monFornecedores(' + c.id + ',true)">' + (c.empresas_responderam != null ? c.empresas_responderam : c.responderam) + '</button></div>'; }
+function monEco(c, cls){ return c.total_vencedores > 0 && c.economia != null ? '<span class="' + cls + ' ' + (c.economia >= 0 ? 'eco-pos' : 'eco-neg') + '" title="economia × última compra">' + (c.economia >= 0 ? 'economia ' : 'acima ') + fmtR(Math.abs(c.economia)) + '</span>' : ''; }
+function monAcoes(c){ return '<div class="numgrp"><button class="aicon" title="Ver pedidos" onclick="abrirCotacao(' + c.id + ',\'s5\')">💲</button><button class="aicon" title="Acompanhamento (fornecedores, links, WhatsApp)" onclick="abrirCotacao(' + c.id + ',\'s3\')">📈</button><button class="aicon" title="Replicar: nova cotação da mesma lista" onclick="replicar(' + (c.lista || 0) + ')">🔁</button>' + (c.status === 'aberta' ? '<button class="aicon" title="Cancelar cotação" onclick="cancelarMon(' + c.id + ')">🗑️</button>' : '') + '</div>'; }
+function monVenc(c){ return '<button class="vbtn" title="Vencedores (comparativo)" onclick="abrirCotacao(' + c.id + ',\'s4\')">🛒</button>'; }
+function monObsBtn(c){ return '<button class="obs-btn" title="Observação" onclick="monObs(' + c.id + ')">i</button>'; }
+function monDataTxt(c){ if (c.status === 'aberta' && c.prazo) return 'prazo ' + dtp(c.prazo) + (prazoVencidoCli(c.prazo) ? ' <b class="neg">vencido</b>' : ''); if (c.fechadaEm) return 'fechada ' + dt(c.fechadaEm); return 'criada ' + dt(c.criadoEm); }
+function monCard(c){
+  var s = statusCot(c), col = PIPE_COLS.filter(function(k){ return k.k === pipeCol(c); })[0] || PIPE_COLS[0];
+  var pctP = c.itens ? Math.round((c.com_preco || 0) / c.itens * 100) : 0;
+  var nConv = c.empresas != null ? c.empresas : c.convidados, nResp = c.empresas_responderam != null ? c.empresas_responderam : c.responderam, pctR = nConv ? Math.round(nResp / nConv * 100) : 0;
+  return '<article class="pcard ' + col.cls + '" aria-label="Cotação #' + c.id + '">' +
+    '<div class="pc-top"><div style="min-width:0"><span class="pc-id">#' + c.id + '</span>' + (c.teste ? ' <span class="status-pill teste">TESTE</span>' : '') + '<div class="pc-nm">' + esc(c.nome) + '</div><div class="pc-emp">' + monEmp(c) + '</div></div>' + monStPill(s, c) + '</div>' +
+    '<div class="pc-meta"><span>lista <b>' + (c.lista || '—') + '</b>' + (c.lista_nome ? ' ' + esc(c.lista_nome) : '') + '</span>' + (c.comprador && c.comprador.nome ? '<span>' + esc(c.comprador.nome) + '</span>' : '') + '<span>' + monDataTxt(c) + '</span>' + (c.lojas && c.lojas.length ? '<span>lojas ' + c.lojas.map(function(l){ return LJ(l); }).join(' ') + '</span>' : '') + '</div>' +
+    '<div class="pc-prog">' +
+      '<div class="pc-row prod"><span class="pc-lbl" title="Produtos da cotação · com preço digitado · comprados (com vencedor)">Produtos</span><div class="rbar" title="' + pctP + '% dos produtos já têm preço"><i style="width:' + pctP + '%"></i></div>' + monProdutosBtns(c) + '</div>' +
+      '<div class="pc-row resp"><span class="pc-lbl" title="Empresas convidadas · que já responderam">Respostas</span><div class="rbar" title="' + pctR + '% das empresas responderam"><i style="width:' + pctR + '%"></i></div>' + monFornBtns(c) + '</div>' +
+      '<div class="pc-row ped"><span class="pc-lbl" title="Pedidos gerados · aprovados · recebidos · cancelados">Pedidos</span>' + monPedidos(c) + '</div>' +
+    '</div>' +
+    '<div class="pc-vals"><span class="pc-tot' + (c.total_vencedores > 0 ? '' : ' none') + '" title="Soma dos vencedores">' + (c.total_vencedores > 0 ? fmtR(c.total_vencedores) : 'sem vencedor ainda') + '</span>' + monEco(c, 'pc-eco') + '</div>' +
+    '<div class="pc-acts">' + monAcoes(c) + monVenc(c) + monObsBtn(c) + '</div></article>';
+}
+function monKpis(base){
+  var n = {aguardando:0, prontas:0, pedido:0, concluidas:0}, venc = 0;
+  base.forEach(function(c){ n[pipeCol(c)]++; if (monVencida(c)) venc++; });
+  var tile = function(k, cls, val, lbl, title){ return '<div class="kpi clk' + (MON_COL === k ? ' on' : '') + '" role="button" tabindex="0" aria-pressed="' + (MON_COL === k) + '" title="' + title + '" onclick="monCol(\'' + k + '\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();monCol(\'' + k + '\');}"><div class="val ' + cls + '">' + val + '</div><div class="lbl">' + lbl + '</div></div>'; };
+  $('#mon-kpis').innerHTML = tile('aguardando', 'amb', n.aguardando, 'Aguardando respostas', 'Cotações em que ainda falta vendedor responder · clique pra ver só estas') + tile('prontas', 'blue', n.prontas, 'Prontas para análise', 'Todos os convidados responderam · clique pra ver só estas') + tile('pedido', 'navy', n.pedido, 'Pedido gerado', 'Cotações fechadas com pedido ainda não recebido · clique pra ver só estas') + tile('concluidas', 'pos', n.concluidas, 'Concluídas', 'Pedidos recebidos ou cancelados, e cotações canceladas · clique pra ver só estas') + tile('vencidas', venc ? 'neg' : '', venc, 'Prazo de resposta vencido', 'Cotações abertas com o prazo de resposta já passado · clique pra ver só estas');
+}
 function filtrarMonitor(){
   var b = ($('#f-busca').value || '').trim().toLowerCase(), st = $('#f-status').value, comp = $('#f-comprador').value;
-  var lista = COTS.filter(function(c){
-    var s = statusCot(c);
+  var base = COTS.filter(function(c){
     if (b && String(c.id).indexOf(b) === -1 && String(c.lista || '').indexOf(b) === -1 && (c.nome || '').toLowerCase().indexOf(b) === -1 && (c.lista_nome || '').toLowerCase().indexOf(b) === -1) return false;
-    if (st && s.k !== st) return false;
     if (comp && (!c.comprador || c.comprador.nome !== comp)) return false;
     return true;
   });
-  var tb = $('#monitor-tbody'); var brm = $('#btn-rm-teste'); if (brm) brm.style.display = COTS.some(function(c){ return c.teste; }) ? '' : 'none';
-  if (!lista.length) { tb.innerHTML = '<tr><td colspan="10" class="empty">' + (COTS.length ? 'Nenhuma cotação com esse filtro.' : 'Nenhuma cotação ainda. Clique em "+ Nova Cotação" e digite o nº da lista do ERP.') + '</td></tr>'; return; }
+  monKpis(base);
+  var lista = base.filter(function(c){
+    if (st && statusCot(c).k !== st) return false;
+    if (MON_COL === 'vencidas') { if (!monVencida(c)) return false; }
+    else if (MON_COL && pipeCol(c) !== MON_COL) return false;
+    return true;
+  });
+  var brm = $('#btn-rm-teste'); if (brm) brm.style.display = COTS.some(function(c){ return c.teste; }) ? '' : 'none';
+  document.querySelectorAll('#mon-vista button').forEach(function(x){ var on = x.dataset.v === MON_VISTA; x.classList.toggle('on', on); x.setAttribute('aria-pressed', on ? 'true' : 'false'); });
+  var pipe = $('#mon-pipe'), tw = $('#mon-table'), leg = $('#mon-legenda');
+  var vazio = COTS.length ? 'Nenhuma cotação com esse filtro.' : 'Nenhuma cotação ainda. Clique em "+ Nova Cotação" e digite o nº da lista do ERP.';
+  if (MON_VISTA === 'pipeline') {
+    tw.style.display = 'none'; leg.style.display = ''; pipe.style.display = '';
+    if (!lista.length) { pipe.innerHTML = '<div class="empty">' + vazio + '</div>'; return; }
+    var cols = PIPE_COLS.filter(function(k){ return !MON_COL || MON_COL === 'vencidas' || MON_COL === k.k; });
+    pipe.innerHTML = '<div class="pipe' + (cols.length === 1 ? ' one' : '') + '">' + cols.map(function(k){
+      var L = lista.filter(function(c){ return pipeCol(c) === k.k; }), tot = L.reduce(function(a, c){ return a + (c.total_vencedores > 0 ? c.total_vencedores : 0); }, 0);
+      return '<section class="pipe-col ' + k.cls + '" aria-label="' + k.t + '"><div class="pipe-hd"><i></i>' + k.t + '<span class="n">' + L.length + '</span></div>' + (tot > 0 ? '<div class="pipe-sum">' + fmtR(tot) + ' em vencedores</div>' : '') + (L.length ? L.map(monCard).join('') : '<div class="pipe-empty">Nenhuma cotação aqui</div>') + '</section>';
+    }).join('') + '</div>';
+    return;
+  }
+  pipe.style.display = 'none'; tw.style.display = ''; leg.style.display = '';
+  var tb = $('#monitor-tbody');
+  if (!lista.length) { tb.innerHTML = '<tr><td colspan="10" class="empty">' + vazio + '</td></tr>'; return; }
   tb.innerHTML = lista.map(function(c){
-    var s = statusCot(c), ps = c.pedidos_status || {gerados:0, aprovados:0, recebidos:0, cancelados:0};
-    var stTxt = {fechada:'Pedido gerado', cancelada:'Cancelada', analise:'Pronta p/ análise', digitacao:'Em digitação', aguardando:'Não digitada'}[s.k] || s.txt;
-    var emp = 'GRUPO - SUPERMERCADO ECONÔMICO' + (c.lojas && c.lojas.length === 1 ? ' (' + (LOJAS_NOMES[c.lojas[0]] || LJ(c.lojas[0])) + ')' : ' (CAHU)');
+    var s = statusCot(c);
     return '<tr>' +
-      '<td class="l c-data"><span class="dta">' + dt(c.prazo ? prazoLocal(c.prazo) + ':00' : c.criadoEm) + '</span><br><span class="num">#' + c.id + '</span>' + (c.teste ? ' <span class="status-pill" style="background:var(--amw);color:var(--amk);padding:2px 7px">TESTE</span>' : '') + '<br><span class="mini">' + esc(c.nome) + '</span></td>' +
-      '<td class="l c-emp"><span class="emp">' + emp + '</span><br><span class="mini">lista ' + (c.lista || '—') + ' · ' + esc(c.comprador && c.comprador.nome || '') + '</span></td>' +
-      '<td><span class="st" style="color:' + (s.k === 'fechada' ? '#5B5BD6' : (s.k === 'cancelada' ? 'var(--neg)' : (s.k === 'aguardando' ? 'var(--neg)' : 'var(--amk)'))) + '">' + stTxt + '</span></td>' +
-      '<td><div class="numgrp"><button class="numcirc c1" title="Pedidos gerados" onclick="abrirCotacao(' + c.id + ',\'s5\')">' + ps.gerados + '</button><button class="numcirc c2" title="Pedidos aprovados" onclick="abrirCotacao(' + c.id + ',\'s5\')">' + ps.aprovados + '</button><button class="numcirc c3" title="Pedidos recebidos" onclick="abrirCotacao(' + c.id + ',\'s5\')">' + ps.recebidos + '</button><button class="numcirc c4" title="Pedidos cancelados" onclick="abrirCotacao(' + c.id + ',\'s5\')">' + ps.cancelados + '</button></div></td>' +
-      '<td><div class="numgrp"><button class="numpill" title="Produtos da cotação" onclick="monProdutos(' + c.id + ',\'todos\')">' + c.itens + '</button><button class="numpill" title="Produtos com preço digitado" onclick="monProdutos(' + c.id + ',\'digitados\')">' + c.com_preco + '</button><button class="numpill" title="Produtos comprados (com vencedor)" onclick="monProdutos(' + c.id + ',\'comprados\')">' + (c.comprados || 0) + '</button></div></td>' +
-      '<td><div class="numgrp"><button class="numpill blue" title="Empresas convidadas' + (c.empresas != null && c.convidados !== c.empresas ? ' (' + c.convidados + ' vendedores)' : '') + '" onclick="monFornecedores(' + c.id + ',false)">' + (c.empresas != null ? c.empresas : c.convidados) + '</button><button class="numpill blue" title="Empresas que já responderam' + (c.empresas_responderam != null && c.responderam !== c.empresas_responderam ? ' (' + c.responderam + ' vendedores)' : '') + '" onclick="monFornecedores(' + c.id + ',true)">' + (c.empresas_responderam != null ? c.empresas_responderam : c.responderam) + '</button></div></td>' +
-      '<td style="white-space:nowrap;text-align:right"><span class="tot">' + (c.total_vencedores > 0 ? fmtR(c.total_vencedores) : '—') + '</span>' + (c.total_vencedores > 0 && c.economia != null ? '<span class="eco ' + (c.economia >= 0 ? 'eco-pos' : 'eco-neg') + '" title="economia × última compra">' + (c.economia >= 0 ? 'economia ' : 'acima ') + fmtR(Math.abs(c.economia)) + '</span>' : '') + '</td>' +
-      '<td><div class="numgrp"><button class="aicon" title="Ver pedidos" onclick="abrirCotacao(' + c.id + ',\'s5\')">💲</button><button class="aicon" title="Acompanhamento (fornecedores, links, WhatsApp)" onclick="abrirCotacao(' + c.id + ',\'s3\')">📈</button><button class="aicon" title="Replicar: nova cotação da mesma lista" onclick="replicar(' + (c.lista || 0) + ')">🔁</button>' + (c.status === 'aberta' ? '<button class="aicon" title="Cancelar cotação" onclick="cancelarMon(' + c.id + ')">🗑️</button>' : '') + '</div></td>' +
-      '<td><button class="vbtn" title="Vencedores (comparativo)" onclick="abrirCotacao(' + c.id + ',\'s4\')">🛒</button></td>' +
-      '<td><button class="obs-btn" title="Observação" onclick="monObs(' + c.id + ')">i</button></td></tr>';
+      '<td class="l c-data"><span class="dta">' + dt(c.prazo ? prazoLocal(c.prazo) + ':00' : c.criadoEm) + '</span><br><span class="num">#' + c.id + '</span>' + (c.teste ? ' <span class="status-pill teste" style="padding:2px 7px">TESTE</span>' : '') + '<br><span class="mini">' + esc(c.nome) + '</span></td>' +
+      '<td class="l c-emp"><span class="emp">' + monEmp(c) + '</span><br><span class="mini">lista ' + (c.lista || '—') + ' · ' + esc(c.comprador && c.comprador.nome || '') + '</span></td>' +
+      '<td>' + monStPill(s, c) + '' + (monVencida(c) ? '<br><span class="mini neg" style="font-weight:700">prazo vencido</span>' : '') + '</td>' +
+      '<td>' + monPedidos(c) + '</td>' +
+      '<td>' + monProdutosBtns(c) + '</td>' +
+      '<td>' + monFornBtns(c) + '</td>' +
+      '<td style="white-space:nowrap;text-align:right"><span class="tot">' + (c.total_vencedores > 0 ? fmtR(c.total_vencedores) : '—') + '</span>' + monEco(c, 'eco') + '</td>' +
+      '<td>' + monAcoes(c) + '</td>' +
+      '<td>' + monVenc(c) + '</td>' +
+      '<td>' + monObsBtn(c) + '</td></tr>';
   }).join('');
 }
 // ─── modais do Monitor (estilo Club): produtos, concorrentes, observação
@@ -2062,7 +2144,7 @@ function pedExportar(tipo){
 // loja, PDF / Excel / link / WhatsApp do pedido e "Abrir pedido" (pré-pedido do fornecedor). A vista fica guardada no navegador.
 var PED_VISTA = (function(){ try { return localStorage.getItem('cot-ped-vista') === 'forn' ? 'forn' : 'loja'; } catch(e) { return 'loja'; } })(), PED_FORN = '', PED_FOPEN = {};
 function pedVista(v){ PED_VISTA = v; try { localStorage.setItem('cot-ped-vista', v); } catch(e) {} renderComparativoItens(); }
-function pedVistaToggle(){ var b = function(v, t){ return '<button class="cbtn" style="' + (PED_VISTA === v ? 'background:var(--am);border-color:var(--am);color:#1a1a1a;' : '') + 'padding:8px 16px" onclick="pedVista(\'' + v + '\')">' + t + '</button>'; }; return '<div style="display:flex;gap:8px;align-items:center;margin:4px 0 10px"><span class="mini" style="font-weight:700;text-transform:uppercase;letter-spacing:.04em">Ver pedidos</span>' + b('loja', '🏬 Por loja') + b('forn', '🚚 Por fornecedor') + '</div>'; }
+function pedVistaToggle(){ var b = function(v, t){ return '<button class="cbtn' + (PED_VISTA === v ? ' on' : '') + '" style="padding:8px 16px" aria-pressed="' + (PED_VISTA === v) + '" onclick="pedVista(\'' + v + '\')">' + t + '</button>'; }; return '<div style="display:flex;gap:8px;align-items:center;margin:4px 0 10px"><span class="mini" style="font-weight:700;text-transform:uppercase;letter-spacing:.04em">Ver pedidos</span>' + b('loja', '🏬 Por loja') + b('forn', '🚚 Por fornecedor') + '</div>'; }
 function pedRodape(aberta, pend){ if (aberta && pend.length) return '<div style="text-align:right;margin-top:8px"><button class="btn primary" id="btn-fechar" onclick="fecharCotacao()">Fechar cotação e gerar ' + pend.length + ' pedido' + (pend.length > 1 ? 's' : '') + ' →</button></div>'; if (CUR.pedidos && CUR.pedidos.length) return '<div style="text-align:right;margin-top:8px"><button class="btn primary" onclick="goScreen(\'s5\')">Ver pedidos gerados →</button></div>'; return ''; }
 function pedFornDados(p){
   var ped = (CUR.pedidos || []).find(function(x){ return x.codFornec === p.codFornec; }) || {}, v = p.vendedor || {};
@@ -2726,18 +2808,30 @@ async function fecharCotacao(){
 var ST_PED = {sugestao:'Sugestão', aguardando:'Aguardando vendedor', digitacao:'Em digitação', finalizado:'Finalizado pelo vendedor · aprovar', aprovado:'Aprovado', recebido:'Recebido', recebido_parcial:'Recebido com falta', cancelado:'Cancelado'};
 // 16/10/26 (Tiago): pedido de cotação não tem 2ª entrega. O fiscal aceitou o parcial (item sai do pedido: cotar de novo) ou recusou a entrega da loja.
 function xmlAvisoFiscal(xml){ var L = xml && xml.lojas || {}, nv = 0, rec = [], dv = []; Object.keys(L).forEach(function(k){ nv += (L[k].nao_vem || 0); if (L[k].entrega_recusada) rec.push(LJ(k)); if (L[k].status === 'devolvida') dv.push(LJ(k)); }); return (nv ? ' · <b style="color:#B45C00">' + nv + ' item(ns) não vem mais (fiscal) · cotar de novo</b>' : '') + (rec.length ? ' · <b style="color:#B3261E">entrega recusada pelo fiscal · ' + rec.join(' ') + '</b>' : '') + (dv.length ? ' · <b style="color:#B3261E">entrega devolvida · ' + dv.join(' ') + ' · cotar de novo</b>' : ''); }
+// Identidade azul (17/10/26): o andamento do pedido e a situação do XML ficam em colunas separadas. p.xml.status vem de
+// lib/pedidos-fornecedor: aguardando = nenhuma loja com nota · parcial = parte das lojas com nota · conciliado = todas conferidas ·
+// consistencia = nota com divergência pra decidir. Verde = concluído, âmbar = atenção, vermelho = divergência/cancelado.
+var ST_XML = {aguardando:{t:'Aguardando XML', cls:'off'}, parcial:{t:'XML parcial', cls:'aberta'}, conciliado:{t:'Conciliado', cls:'finalizada'}, consistencia:{t:'Em consistência', cls:'cancel'}};
+function stPedPill(st){ var cls = st === 'aprovado' || st === 'recebido' ? 'finalizada' : st === 'recebido_parcial' ? 'aberta' : st === 'cancelado' ? 'cancel' : st === 'finalizado' ? 'andamento' : 'off'; return '<span class="status-pill ' + cls + '">' + esc(ST_PED[st] || st || '—') + '</span>'; }
+function xmlPill(xml, lojas){
+  if (!xml || !xml.status) return '<span class="status-pill off">Sem XML</span>';
+  var m = ST_XML[xml.status] || {t: xml.status, cls: 'off'}, L = xml.lojas || {}, n = (lojas || []).length || Object.keys(L).length;
+  var com = Object.keys(L).filter(function(k){ return L[k] && (L[k].notas > 0 || (L[k].status && L[k].status !== 'aguardando')); }).length;
+  var aviso = xmlAvisoFiscal(xml).replace(/^ · /, '');
+  return '<span class="status-pill ' + m.cls + '">' + esc(m.t) + '</span>' + (xml.status === 'parcial' && n ? '<br><span class="mini">' + com + ' de ' + n + ' loja' + (n > 1 ? 's' : '') + ' com nota</span>' : '') + (aviso ? '<br><span class="mini">' + aviso + '</span>' : '');
+}
 async function renderPedidos(){
   var m = $('#s5-main'); if (!CUR) { renderVazio(m); return; }
   var h = cabecalho('<a class="btn primary" href="/pedidos-compra.html">Abrir Pedidos de Compra →</a>');
   if (!CUR.pedidos || !CUR.pedidos.length) { m.innerHTML = h + '<div class="empty">' + (CUR.status === 'aberta' ? 'Nenhum pedido ainda — feche a cotação no Comparativo pra gerar um pedido por fornecedor vencedor.' : 'Nenhum pedido gerado.') + '</div>'; return; }
   var live = {};
   try { (await api('/api/pedidos-fornecedor')).forEach(function(p){ live[p.id] = p; }); } catch(e) {}
-  h += '<div class="tablewrap"><table class="ped-t"><thead><tr><th>Pedido</th><th>Fornecedor / vendedor</th><th>Lojas</th><th style="text-align:right">Itens</th><th style="text-align:right">Valor</th><th>Status em Pedidos de Compra</th><th>Ações</th></tr></thead><tbody>';
+  h += '<div class="tablewrap"><table class="ped-t"><thead><tr><th>Pedido</th><th>Fornecedor / vendedor</th><th>Lojas</th><th style="text-align:right">Itens</th><th style="text-align:right">Valor</th><th title="Andamento do pedido em Pedidos de Compra: aprovação, envio ao vendedor, recebimento">Status do pedido</th><th title="Conferência da NF-e por loja: aguardando, parcial ou conciliado">Situação do XML</th><th>Ações</th></tr></thead><tbody>';
   h += CUR.pedidos.map(function(p){
     var l = live[p.id] || {}, st = l.status || p.status;
-    return '<tr><td><b>#' + p.id + '</b><br><span class="mini">cotação #' + CUR.id + '</span></td><td><b>' + esc(p.fornecedor) + '</b><br><span class="mini">' + esc(p.vendedor && p.vendedor.nome || '') + ' ' + esc(p.vendedor && p.vendedor.whats || '') + '</span></td><td>' + (p.lojas || []).map(function(x){ return LJ(x); }).join(' ') + '</td><td class="price">' + p.itens + '</td><td class="price">' + fmtR(l.totais ? l.totais.digitado : p.total) + '</td><td><span class="status-pill ' + (st === 'aprovado' || st === 'recebido' ? 'finalizada' : (st === 'cancelado' ? 'cancel' : 'andamento')) + '">' + (ST_PED[st] || st) + '</span>' + (l.xml && l.xml.status ? '<br><span class="mini">XML: ' + esc(l.xml.status) + xmlAvisoFiscal(l.xml) + '</span>' : '') + '</td><td><div class="acoes-row"><a class="btn ghost sm" href="/pedidos-compra.html">Abrir</a>' + (p.link ? '<a class="btn ghost sm" target="_blank" rel="noopener" href="' + p.link + '" title="Página do pedido que o fornecedor vê">Link do fornecedor</a><button class="btn ghost sm" onclick="copiar(\'' + p.link + '\')">Copiar link</button>' : '') + (p.vendedor && p.vendedor.whats ? '<a class="btn ghost sm" target="_blank" rel="noopener" style="color:#128C7E" href="' + waLink(p.vendedor.whats, 'Olá' + (p.vendedor.nome ? ' ' + p.vendedor.nome : '') + ', segue o pedido #' + p.id + ' da cotação #' + CUR.id + ' (ECONOMICO SUPERMERCADO - REDE CAHU)' + (p.link ? ':\n' + p.link : '')) + '">WhatsApp</a>' : '') + '</div></td></tr>';
+    return '<tr><td><b>#' + p.id + '</b><br><span class="mini">cotação #' + CUR.id + '</span></td><td><b>' + esc(p.fornecedor) + '</b><br><span class="mini">' + esc(p.vendedor && p.vendedor.nome || '') + ' ' + esc(p.vendedor && p.vendedor.whats || '') + '</span></td><td>' + (p.lojas || []).map(function(x){ return LJ(x); }).join(' ') + '</td><td class="price">' + p.itens + '</td><td class="price">' + fmtR(l.totais ? l.totais.digitado : p.total) + '</td><td>' + stPedPill(st) + '</td><td>' + xmlPill(l.xml, l.lojas || p.lojas) + '</td><td><div class="acoes-row"><a class="btn ghost sm" href="/pedidos-compra.html">Abrir</a>' + (p.link ? '<a class="btn ghost sm" target="_blank" rel="noopener" href="' + p.link + '" title="Página do pedido que o fornecedor vê">Link do fornecedor</a><button class="btn ghost sm" onclick="copiar(\'' + p.link + '\')">Copiar link</button>' : '') + (p.vendedor && p.vendedor.whats ? '<a class="btn ghost sm" target="_blank" rel="noopener" style="color:#128C7E" href="' + waLink(p.vendedor.whats, 'Olá' + (p.vendedor.nome ? ' ' + p.vendedor.nome : '') + ', segue o pedido #' + p.id + ' da cotação #' + CUR.id + ' (ECONOMICO SUPERMERCADO - REDE CAHU)' + (p.link ? ':\n' + p.link : '')) + '">WhatsApp</a>' : '') + '</div></td></tr>';
   }).join('');
-  h += '</tbody></table></div><p class="mini" style="margin-top:12px">"Status" é o andamento do pedido em Pedidos de Compra (aprovação, PDF, conferência da NF-e por loja, ruptura de entrega), igual aos pedidos do Radar. Nada é escrito no ERP.</p>';
+  h += '</tbody></table></div><p class="mini" style="margin-top:12px">"Status do pedido" é o andamento em Pedidos de Compra (aprovação, PDF, envio ao vendedor, recebimento), igual aos pedidos do Radar. "Situação do XML" é a conferência da NF-e por loja: aguardando, parcial ou conciliado. Nada é escrito no ERP.</p>';
   m.innerHTML = h;
 }
 

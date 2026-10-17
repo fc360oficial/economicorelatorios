@@ -1,0 +1,368 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   COTAÇÃO · IDENTIDADE AZUL (Tiago, 17/10/2026) — módulo Cotação (public/cotacao.html)
+   Carregado DEPOIS do <style> da página, então vale sobre ele. Aqui ficam os tokens e os
+   componentes compartilhados das 6 telas (cabeçalho, indicadores, botões, campos, etiquetas de
+   status, tabelas, cartões, estados vazios) e o pipeline do Monitor. Regras de negócio, rotas,
+   cálculos e dados NÃO mudam aqui — só a aparência.
+   Briefing: cabeçalho azul-marinho #103454 · fundo #F0F6FB · cartões brancos com borda #DCE6EF ·
+   ação principal #0876F9 · verde = sucesso/economia · âmbar = atenção · vermelho = erro,
+   cancelamento ou custo acima · texto principal azul-marinho, secundário cinza-azulado.
+   → Mudou cor, fonte, respiro ou componente da Cotação? Muda AQUI, nunca só numa tela.
+   → Larguras: base é o monitor grande; faixas @media 1699 / 1399 / 1199 / 820 px apertam (CLAUDE.md).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── TOKENS ───────────────────────────────────────────────────────────────── */
+:root{
+  --navy:#103454;                       /* cabeçalho, destaques fortes */
+  --pri:#0876F9; --pri-h:#0663D6;       /* ação principal (fundo de botão) e hover */
+  --pri-t:#0B5FC5;                      /* azul pra TEXTO sobre branco (contraste AA) */
+  --pri-w:#E6F0FE; --pri-ln:#B9D4F7;    /* lavagem e borda azul suave */
+  --pap:#F0F6FB;                        /* fundo da página */
+  --crd:#FFFFFF;                        /* cartões */
+  --wsh:#EEF4FA;                        /* thead, hover, fundos suaves */
+  --ln:#DCE6EF; --ln2:#C3D3E2;          /* bordas: padrão e forte (inputs) */
+  --ink:#103454; --ink2:#4D6580; --ink3:#647A93;   /* texto principal · secundário · rótulos */
+  --am:#F59E0B; --amk:#8A5300; --amw:#FEF3DC;      /* âmbar = atenção */
+  --pos:#17874B; --posw:#E5F5EC;        /* verde = sucesso, economia */
+  --neg:#D12E3F; --negw:#FDECEE;        /* vermelho = erro, cancelado, custo acima */
+  --inf:#0B5FC5; --infw:#E6F0FE;        /* informativo = azul */
+  --shadow:0 1px 2px rgba(16,52,84,.05), 0 6px 18px rgba(16,52,84,.06);
+}
+body{background:var(--pap);color:var(--ink)}
+h1,h2,h3{color:var(--ink)}
+:focus-visible{outline:2px solid var(--pri);outline-offset:2px}
+
+/* ── CABEÇALHO DO MÓDULO (azul-marinho, 6 módulos, contexto da cotação à direita) ── */
+.azbar{position:sticky;top:0;z-index:60;display:flex;align-items:center;gap:16px;min-height:58px;padding:0 24px 0 20px;background:var(--navy);color:#fff;box-shadow:0 2px 12px rgba(16,52,84,.28)}
+.azbrand{display:flex;align-items:center;gap:10px;white-space:nowrap;text-decoration:none;color:#fff;padding-right:14px;border-right:1px solid rgba(255,255,255,.14)}
+.azbrand .sq{width:32px;height:32px;border-radius:9px;background:var(--pri);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:15px;box-shadow:inset 0 1px 0 rgba(255,255,255,.25);flex:none}
+.azbrand b{display:block;font-size:14px;line-height:1.1;letter-spacing:-.2px}
+.azbrand small{display:block;font-size:9.5px;letter-spacing:1.3px;text-transform:uppercase;font-weight:700;opacity:.65;margin-top:2px}
+.modtabs{flex:1;display:flex;align-items:center;gap:4px;padding:0;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;min-width:0}
+.modtabs::-webkit-scrollbar{display:none}
+.modtabs button{flex:none;background:transparent;border:1px solid transparent;color:rgba(255,255,255,.82);font-size:12.5px;font-weight:700;padding:0 14px;height:36px;border-radius:9px;white-space:nowrap;transition:background .12s ease,color .12s ease}
+.modtabs button:hover:not(.on){background:rgba(255,255,255,.1);color:#fff}
+.modtabs button.on{background:var(--pri);border-color:var(--pri);color:#fff;box-shadow:0 2px 8px rgba(8,118,249,.45)}
+.modtabs button:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.modtabs button i{font-style:normal;font-size:10.5px;font-weight:800;opacity:.55;margin-right:6px}   /* nº da etapa: as telas são usadas em sequência */
+.modtabs button.on i{opacity:.8}
+.modtabs .cur{margin-left:auto;flex:none;color:rgba(255,255,255,.72);font-size:12px;font-weight:600;max-width:38ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.modtabs .cur b{color:#fff}
+
+/* ── PÁGINA ───────────────────────────────────────────────────────────────── */
+.main{padding:22px 32px 60px}
+.crumb{color:var(--ink3)} .crumb b{color:var(--ink2)}
+.pagehead{margin-bottom:16px}
+.pagehead h1,.clubh1{color:var(--ink)}
+.pagehead p,.clubcrumb{color:var(--ink2)}
+.clubinfo{color:var(--ink2)}
+.mini,td .mini{color:var(--ink3)}
+.suginfo{color:var(--ink2)} .suginfo b{color:var(--ink)} .suginfo .warn{color:var(--amk)}
+
+/* ── BOTÕES ───────────────────────────────────────────────────────────────── */
+.btn{border-radius:9px;font-weight:700;transition:background .12s ease,border-color .12s ease,color .12s ease}
+.btn.primary{background:var(--pri);color:#fff}
+.btn.primary:hover{background:var(--pri-h);filter:none}
+.btn.ghost{background:#fff;border:1px solid var(--ln2);color:var(--ink)}
+.btn.ghost:hover{border-color:var(--pri);color:var(--pri-t);background:var(--pri-w)}
+.btn.danger{background:#fff;border:1px solid #F1B8BF;color:var(--neg)}
+.btn.danger:hover{background:var(--negw)}
+.btn.trava{opacity:.5}
+.cbtn{border:1px solid var(--ln2);border-radius:9px;background:#fff;color:var(--ink)}
+.cbtn:hover{background:var(--pri-w);border-color:var(--pri-ln)}
+.cbtn.on{background:var(--pri);border-color:var(--pri);color:#fff}
+.cbtn.blue{color:var(--pri-t);border-color:var(--pri-ln);background:#fff}
+.cbtn.blue.on{background:var(--pri-w);border-color:var(--pri);color:var(--pri-t)}
+.cbtn.green{color:var(--pos);border-color:#BFE3CD;background:#fff}
+.cbtn.green.on{background:var(--posw);border-color:var(--pos)}
+.cbtn.go{background:var(--pos);border-color:var(--pos);color:#fff}
+.cbtn.go:hover{background:#126C3C}
+.pp-nav .cbtn{border-color:var(--pri-ln);color:var(--pri-t)}
+.vtab{border-color:var(--ln2)} .vtab button{color:var(--ink2)} .vtab button.on{background:var(--pri);color:#fff}
+.link-btn{color:var(--pri-t)}
+.vbtn{background:var(--pri);color:#fff}
+.vbtn:hover{background:var(--pri-h);filter:none}
+.obs-btn{background:var(--navy)}
+.aicon{border-color:var(--ln2);color:var(--ink)}
+.aicon:hover{background:var(--pri-w);border-color:var(--pri-ln)}
+.numpill{background:var(--posw);color:var(--pos)}
+.numpill.blue{background:var(--infw);color:var(--pri-t)}
+.numpill.amb{background:var(--amw);color:var(--amk)}
+.numcirc{border-color:var(--ln2);color:var(--ink2)}
+.numcirc.c1{border-color:var(--pri);color:var(--pri-t)}
+.numcirc:hover,.numpill:hover{filter:none;background:var(--pri-w)}
+.numpill:hover{color:var(--pri-t)}
+.check,.chk,input[type=checkbox],input[type=radio]{accent-color:var(--pri)}
+.sel-vc button{color:var(--pri-t)} .sel-vc button.on{color:var(--ink)}
+.wa{border-radius:8px}
+.zap{color:var(--pos)}
+.zbtn.undo{color:var(--pri-t);border-color:var(--pri-t)} .zbtn.undo:hover{background:var(--pri-w)}
+.neg-btn{color:var(--ink2)}
+
+/* ── CAMPOS E FILTROS ─────────────────────────────────────────────────────── */
+.fld label,.ftit,.sugbar-lbl,.pc-box small,.pp-det h3,.rcard h4,.totfoot h4,.resumo-strip .rlabel{color:var(--ink3)}
+.fld input,.fld select,.fin,.finp,.hin,.rc-grid textarea,.pp-det input,.pp-det select,table.sug td.lj input.qin,table.ppg input.q,table.sug input.embi,.lj input{border:1px solid var(--ln2);border-radius:8px;background:#fff;color:var(--ink)}
+.fld input:focus,.fld select:focus,.fin:focus,.finp:focus,.hin:focus,.rc-grid textarea:focus,.pp-det input:focus,.pp-det select:focus,table.ppg input.q:focus,table.sug td.lj input.qin:focus,table.sug input.embi:focus,.lj input:focus{outline:none;border-color:var(--pri);box-shadow:0 0 0 3px var(--pri-w)}
+table.forntab.cad9 td .finp:focus{border-color:var(--pri);box-shadow:0 0 0 3px var(--pri-w)}
+table.aq-t input.q{border-color:var(--pri);color:var(--pri-t)}
+table.aq-t input.q:focus{outline-color:var(--pri)}
+table.aq-t input.q.ed{background:var(--amw)}
+.sugbar-filtros{background:#F6F9FC;border-color:var(--ln)}
+.cfilt.clubfilt{background:#fff;border:1px solid var(--ln);border-radius:12px;box-shadow:var(--shadow)}
+.clubchecks,.clubflags label,.clubvar label{color:var(--ink2)}
+.clubvar label.on{color:var(--ink)}
+.clubflags,.clubvar{border-top-color:var(--ln)}
+.srch .res{border-color:var(--ln);box-shadow:var(--shadow)}
+.srch .res button:hover{background:var(--pri-w)}
+.toolbar .l{color:var(--ink2)}
+
+/* ── INDICADORES (KPIs) ───────────────────────────────────────────────────── */
+.kpis{gap:12px;margin-bottom:16px}
+.kpi{background:#fff;border:1px solid var(--ln);border-radius:12px;padding:12px 14px;box-shadow:var(--shadow);min-width:0}
+.kpi .val{color:var(--ink);font-size:24px}
+.kpi .val.pos{color:var(--pos)} .kpi .val.neg{color:var(--neg)}
+.kpi .val.amb{color:var(--amk)} .kpi .val.blue{color:var(--pri-t)} .kpi .val.navy{color:var(--navy)}
+.kpi .lbl{color:var(--ink3)}
+.kpi.clk{cursor:pointer;transition:border-color .12s ease,box-shadow .12s ease}
+.kpi.clk:hover{border-color:var(--pri-ln)}
+.kpi.clk.on{border-color:var(--pri);box-shadow:0 0 0 3px var(--pri-w)}
+.kpis.mon-k{grid-template-columns:repeat(5,minmax(0,1fr))}
+.pc-box{background:#fff;border:1px solid var(--ln);border-radius:10px}
+.pc-box b{color:var(--ink)} .pc-box span{color:var(--ink2)}
+.pc-bar{background:var(--wsh)} .pc-bar i{background:var(--pos)}
+.pc-sit.ok{background:var(--posw);color:var(--pos)} .pc-sit.urg{background:var(--amw);color:var(--amk)} .pc-sit.enc{background:var(--negw);color:var(--neg)} .pc-sit.sem{background:var(--wsh);color:var(--ink2)}
+.resumo-strip .chip{color:var(--ink2)} .resumo-strip .chip b{color:var(--ink)} .resumo-strip .sep{color:var(--ln2)}
+
+/* ── ETIQUETAS DE STATUS ──────────────────────────────────────────────────── */
+.status-pill{border-radius:20px;font-weight:700}
+.status-pill.andamento{background:var(--infw);color:var(--pri-t)}
+.status-pill.aberta{background:var(--amw);color:var(--amk)}
+.status-pill.finalizada{background:var(--posw);color:var(--pos)}
+.status-pill.cancel{background:var(--negw);color:var(--neg)}
+.status-pill.off{background:var(--wsh);color:var(--ink2)}
+.status-pill.teste{background:var(--amw);color:var(--amk)}
+.an-badge.good{background:var(--posw);color:var(--pos)} .an-badge.warn{background:var(--amw);color:var(--amk)} .an-badge.bad{background:var(--negw);color:var(--neg)} .an-badge.off{background:var(--wsh);color:var(--ink2)}
+.lock-pill{background:var(--posw);color:var(--pos)}
+.tr-pill{background:var(--infw);color:var(--pri-t)}
+.tr-pill.nfe{background:var(--posw);color:var(--pos)}
+.tr-pill.cd{background:var(--amw);color:var(--amk)}
+.cdtag{background:var(--navy);color:#fff}
+.pp-var.up{background:var(--negw);color:var(--neg)} .pp-var.dn{background:var(--posw);color:var(--pos)}
+.pp-arw.up{background:var(--negw);color:var(--neg)} .pp-arw.dn{background:var(--posw);color:var(--pos)} .pp-arw.eq{background:var(--wsh);color:var(--ink2)}
+.pp-flag{color:var(--neg);background:var(--negw)}
+.conc-tag{background:var(--amw);color:var(--amk)}
+.canal-app{color:var(--pos)} .canal-wa{color:var(--amk)}
+.eco-pos{color:var(--pos)} .eco-neg{color:var(--neg)}
+.neg-preco{color:var(--pri-t)} .neg-preco.blk{background:var(--pri-w)}
+
+/* ── CARTÕES E PAINÉIS ────────────────────────────────────────────────────── */
+.sugtop,.pubcard,.rcard,.totfoot,.resumo-strip,.citem,.pp-card,.emp-card,.clubinfo,.wizsteps{background:#fff;border:1px solid var(--ln);border-radius:12px;box-shadow:var(--shadow)}
+.sugtop>h3,.prazo-card .pc-hd h3{font-size:13.5px;color:var(--ink);padding-left:10px;border-left:3px solid var(--pri);line-height:1.25}
+.sugtop>p{color:var(--ink2)}
+.cihd,.citem.club .cihd,.pp-hd{background:#F6F9FC;color:var(--ink);border-bottom:1px solid var(--ln)}
+.citem.club .cihd .cod{color:var(--ink3)}
+.citem .chev{color:var(--pri-t)}
+.ciult,.citem.club .ciult{color:var(--ink2);border-bottom-color:var(--ln)} .ciult b{color:var(--ink)}
+.cifoot{color:var(--ink3);border-top-color:var(--ln)}
+.pp-hd .tot{background:var(--navy);color:#fff}
+.emp-hd .chev{color:var(--pri-t)}
+.emp-tot{background:var(--infw);color:var(--pri-t);border-color:var(--pri-ln)}
+.clubinfo .ico{background:var(--infw);color:var(--pri-t)}
+.pp-det>div{background:#fff;border:1px solid var(--ln);border-radius:12px}
+.pp-det .k{color:var(--ink2)} .pp-det .k b{color:var(--ink)}
+.pp-det .tag{background:var(--posw);color:var(--pos)}
+.pp-btns .total{border-color:var(--ln);color:var(--ink);background:#fff} .pp-btns .total i{color:var(--pri-t)}
+.pp-chk{border-color:var(--pri)} .pp-chk.on{background:var(--pri)}
+.pp-prod:hover{color:var(--pri-t)}
+.pp-prod .chev,.pp-prod.open .chev{color:var(--pri-t)}
+.pp-zer{color:var(--ink3)} .pp-zer b{color:var(--ink2)}
+.pp-est{color:var(--ink3)} .pp-est b{color:var(--ink)} .pp-est .tr{color:var(--pri-t)} .pp-est .zero{color:var(--neg)}
+.totfoot-row{border-top-color:var(--ln)} .totfoot-row span{color:var(--ink2)}
+.totfoot-best{background:var(--posw)} .totfoot-best span,.totfoot-best b{color:var(--pos)}
+.pedido-grp{border-color:var(--ln)} .pedido-grp .it{color:var(--ink2)} .pedido-grp .tot{border-top-color:var(--ln)}
+.hist-row{border-top-color:var(--ln)}
+.chip-forn{background:var(--wsh)} .chip-forn button{color:var(--neg)}
+.prod-meta{color:var(--ink3)} .prod-meta .m-good{color:var(--pos)} .prod-meta .m-warn{color:var(--amk)} .prod-meta .m-bad{color:var(--neg)}
+.prodlink{text-decoration-color:var(--ln2)} .prodlink:hover{text-decoration-color:var(--pri)}
+.wizsteps{max-width:none;padding:12px 16px}
+.wizstep .num{background:var(--wsh);color:var(--ink3)}
+.wizstep.on .num{background:var(--pri);color:#fff}
+.wizstep.done .num{background:var(--pos);color:#fff}
+.wizstep span{color:var(--ink3)} .wizstep.on span,.wizstep.done span{color:var(--ink)}
+.wizline{background:var(--ln2)}
+.rbar{background:var(--wsh)} .rbar i{background:var(--ln2)}
+.rc-grid .rc-cnt{color:var(--ink3)}
+#cad-btn-salvar.dirty{box-shadow:0 0 0 3px var(--pri-w)}
+@keyframes cadpulse{0%,100%{box-shadow:0 0 0 3px var(--pri-w)}50%{box-shadow:0 0 0 6px var(--pri-w)}}
+
+/* formulário em blocos (Nova Cotação e Fornecedores): lista do ERP à esquerda, parâmetros e ação à direita */
+.azform .azform-grid{display:grid;grid-template-columns:minmax(260px,2.2fr) repeat(3,minmax(110px,.7fr)) auto;gap:12px;align-items:end}
+.azform.one .azform-grid{grid-template-columns:minmax(260px,1fr) auto}
+.azform .azform-grid .fld{min-width:0!important}
+.azform .azform-grid .fld input{min-width:0;width:100%;box-sizing:border-box}
+.azform .azform-grid .fld.big input{width:100%}
+.azform .az-act{display:flex;align-items:flex-end}
+.azform .az-act .btn{height:40px;white-space:nowrap}
+.azform>p{margin-bottom:12px}
+
+/* ── TABELAS ──────────────────────────────────────────────────────────────── */
+.tablewrap{background:#fff;border:1px solid var(--ln);border-radius:12px;box-shadow:var(--shadow)}
+thead th{background:#F6F9FC;color:var(--ink2);border-bottom:1px solid var(--ln)}
+tbody td{border-top:1px solid var(--ln);color:var(--ink)}
+tbody tr:hover{background:var(--wsh)}
+tr.mesma-emp td{background:#F8FBFE;border-top:1px dashed var(--ln)}
+table.pp th,.citem.club table th,table.ppg th,table.fxt th,table.ppg table.fxt th,table.tst th,table.aq-t th,table.forntab.cad9 thead th{background:#F6F9FC;color:var(--ink2)}
+.citem.club table th,.citem.club table td{border-color:var(--ln)}
+table.pp td,table.ppg td,table.fxt td,table.ppg table.fxt td,table.tst td,table.aq-t td,table.forntab.cad9 td{border-bottom-color:var(--ln)}
+table.ppg th.lj{border-left-color:var(--ln);border-bottom-color:var(--ln);background:#F6F9FC;color:var(--ink)}
+table.ppg th.lj small{color:var(--pos)}
+table.ppg td.c:nth-child(n+8){border-left-color:var(--ln)}
+table.ppg.one td.st{border-left-color:var(--ln)}
+table.ppg.one tr.vl td{border-bottom-color:var(--ln)}
+table.pp tr.forn:hover td,table.pp tr.it:nth-child(even) td,table.pp tr.q td,table.ppg.one tr.vl.alt td,table.ppg tr.nm td,table.forntab.cad9 tbody tr:nth-child(even) td,table.sug tbody tr.sec td,table.sug tbody tr.sec:hover td{background:#F8FBFE}
+table.ppg.one tr.vl.open td{background:#FFF9E8}
+table.forntab.cad9 tbody tr:hover td,table.sug tbody tr:hover td,.det table.ppg tbody tr:hover>td{background:var(--pri-w)}
+table.sug thead th+th,table.sug tbody td+td{border-left-color:var(--ln)}
+table.sug td.lj.tem{background:#FFF6DC} table.sug tbody tr:hover td.lj.tem{background:#FFE9B8}
+table.sug .pp-meta,table.sug td.lj .lj-est{color:var(--ink2)}
+table.sug .info{border-color:var(--ink3);color:var(--ink2)}
+table.pp .chev,table.pp .cart{color:var(--pri-t)}
+table.ppg tr.fx>td{background:#F6FAFF;border-bottom:2px solid var(--pri);border-left:3px solid var(--pri)}
+table.fxt{border-color:var(--ln)}
+table.fxt tr.alt:hover td,table.ppg table.fxt tr.alt:hover td{background:var(--pri-w)}
+.citem tr.win td,table.fxt tr.win td,table.ppg table.fxt tr.win td{background:var(--posw)}
+.citem tr.win td:first-child{border-left-color:var(--pos)}
+td.price.melhor{background:var(--posw);color:var(--pos)}
+td.price.vc:hover{outline-color:var(--pri)}
+td.price.manual{box-shadow:inset 0 0 0 2px var(--pri)}
+table.ppg .vlr.dn{background:var(--posw);color:var(--pos)} table.ppg .vlr.up{background:var(--negw);color:var(--neg)} table.ppg .vlr.eq{background:var(--wsh);color:var(--ink)}
+table.ppg input.q.nn{border-color:var(--neg);background:var(--negw);color:var(--neg)}
+table.ppg input.q.ed{border-color:var(--am);background:var(--amw)}
+table.tst tr.run td{background:var(--amw)} table.tst tr.fail td{background:var(--negw)}
+.fxhd{color:var(--ink2)}
+.mon .st{color:var(--pri-t)}
+.mon td .tot{color:var(--ink)}
+.mon td .mini{color:var(--ink2)}
+.mon-legenda{color:var(--ink2)} .mon-legenda b{color:var(--ink)}
+.mon-legenda i{border-color:var(--ln2)} .mon-legenda i.c1{border-color:var(--pri)} .mon-legenda i.c2{border-color:var(--am)} .mon-legenda i.c3{border-color:var(--pos)} .mon-legenda i.c4{border-color:var(--neg)}
+.mon-legenda .pl{background:var(--posw);color:var(--pos)} .mon-legenda .pl.blue{background:var(--infw);color:var(--pri-t)}
+
+/* ── MONITOR: ferramentas, indicadores e pipeline ─────────────────────────── */
+.mon-tools{display:flex;gap:10px 12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px;background:#fff;border:1px solid var(--ln);border-radius:12px;padding:12px 14px;box-shadow:var(--shadow)}
+.mon-tools .fld.grow{flex:1 1 240px;max-width:420px}
+.mon-tools .fld.grow input{width:100%;min-width:0;box-sizing:border-box}
+.mon-tools .end{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.seg{display:inline-flex;background:var(--wsh);border:1px solid var(--ln);border-radius:9px;padding:3px;gap:2px}
+.seg button{border:none;background:transparent;color:var(--ink2);font:inherit;font-size:12px;font-weight:700;padding:6px 12px;border-radius:7px;cursor:pointer;white-space:nowrap}
+.seg button.on{background:#fff;color:var(--pri-t);box-shadow:0 1px 3px rgba(16,52,84,.15)}
+.pipe{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;align-items:start}
+.pipe-col{background:#E6EEF6;border:1px solid var(--ln);border-radius:14px;padding:10px;min-height:220px;min-width:0}
+.pipe-hd{display:flex;align-items:center;gap:8px;padding:4px 6px 10px;font-weight:800;font-size:12.5px;color:var(--ink)}
+.pipe-hd i{width:10px;height:10px;border-radius:50%;background:var(--ink3);flex:none}
+.pipe-col.c-ag .pipe-hd i{background:var(--am)} .pipe-col.c-pr .pipe-hd i{background:var(--pri)} .pipe-col.c-pd .pipe-hd i{background:var(--navy)} .pipe-col.c-ok .pipe-hd i{background:var(--pos)}
+.pipe-hd .n{margin-left:auto;background:#fff;border:1px solid var(--ln);border-radius:20px;padding:1px 9px;font-size:11.5px;color:var(--ink2);font-variant-numeric:tabular-nums}
+.pipe-sum{font-size:11px;color:var(--ink2);font-weight:600;padding:0 6px 8px;margin-top:-6px;font-variant-numeric:tabular-nums}
+.pipe-empty{padding:26px 10px;text-align:center;color:var(--ink3);font-size:12px;border:1px dashed var(--ln2);border-radius:10px;background:rgba(255,255,255,.55)}
+.pcard{background:#fff;border:1px solid var(--ln);border-left:4px solid var(--ink3);border-radius:12px;padding:12px 14px;margin-bottom:10px;box-shadow:0 1px 2px rgba(16,52,84,.06);min-width:0;transition:box-shadow .12s ease}
+.pcard:last-child{margin-bottom:0}
+.pcard.c-ag{border-left-color:var(--am)} .pcard.c-pr{border-left-color:var(--pri)} .pcard.c-pd{border-left-color:var(--navy)} .pcard.c-ok{border-left-color:var(--pos)}
+.pcard:hover{box-shadow:0 6px 18px rgba(16,52,84,.12)}
+.pc-top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.pc-id{font-size:12px;font-weight:800;color:var(--pri-t)}
+.pc-nm{font-size:13.5px;font-weight:800;color:var(--ink);line-height:1.3;margin:2px 0 1px;overflow-wrap:anywhere}
+.pc-emp{font-size:11.5px;color:var(--ink2);font-weight:600;line-height:1.3;overflow-wrap:anywhere}
+.pc-top .status-pill{flex:none;white-space:normal;text-align:center;max-width:46%}
+.pc-meta{display:flex;flex-wrap:wrap;gap:3px 10px;font-size:11px;color:var(--ink3);margin-top:7px}
+.pc-meta b{color:var(--ink2)} .pc-meta b.neg{color:var(--neg)}
+.pc-prog{display:grid;gap:6px;margin-top:10px}
+.pc-row{display:grid;grid-template-columns:64px minmax(0,1fr) auto;align-items:center;gap:8px;font-size:11px;color:var(--ink2)}
+.pc-row .pc-lbl{font-weight:800;color:var(--ink3);text-transform:uppercase;font-size:9.5px;letter-spacing:.4px;white-space:nowrap}
+.pc-row .rbar{min-width:0;height:6px;flex:none}
+.pc-row .rbar i{background:var(--pri)} .pc-row.resp .rbar i{background:var(--pos)}
+.pc-row.ped .numgrp{grid-column:2 / -1;justify-content:flex-start}
+.pcard .numgrp{gap:4px;justify-content:flex-end;flex-wrap:nowrap}
+.pcard .numcirc{width:26px;height:26px;font-size:11px;border-width:1.5px}
+.pcard .numpill{font-size:11.5px;padding:3px 7px;min-width:26px}
+.pc-vals{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-top:10px;padding-top:8px;border-top:1px dashed var(--ln);flex-wrap:wrap}
+.pc-tot{font-size:15px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums}
+.pc-tot.none{color:var(--ink3);font-weight:600;font-size:12px}
+.pc-eco{font-size:11px;font-weight:700}
+.pc-acts{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.pcard .aicon{width:30px;height:30px;font-size:14px}
+.pcard .vbtn{width:34px;height:30px;font-size:14px}
+.pcard .obs-btn{width:24px;height:24px;font-size:11px}
+/* um indicador clicado: só aquela coluna, com os cartões lado a lado */
+.pipe.one{grid-template-columns:1fr}
+.pipe.one .pipe-col{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px;align-content:start}
+.pipe.one .pipe-hd,.pipe.one .pipe-sum,.pipe.one .pipe-empty{grid-column:1 / -1}
+.pipe.one .pcard{margin:0}
+
+/* ── ESTADOS VAZIOS, MODAL, TOAST ─────────────────────────────────────────── */
+.empty{color:var(--ink3);background:#fff;border:1px dashed var(--ln2);border-radius:12px;padding:34px 20px}
+.empty b{color:var(--ink2)}
+td.empty,.pipe-col .empty,.pp-card .empty,.citem .empty{border:none;background:transparent;border-radius:0}
+#backdrop{background:rgba(16,52,84,.45)}
+#modal{box-shadow:-16px 0 48px rgba(16,52,84,.25)}
+#modal h3{color:var(--ink)}
+.modal-close{border-color:var(--ln2);color:var(--ink2)} .modal-close:hover{background:var(--pri-w)}
+#toast{background:var(--navy);color:#fff}
+.dest-warn{color:var(--neg)}
+
+/* ── RESPONSIVO (a página nunca rola de lado; só tabela e pipeline rolam) ─── */
+.prod-cell .cdtag{align-self:flex-start}   /* selo CD dentro da célula em coluna: só do tamanho do texto, não a célula inteira */
+@media (max-width:1699px){
+  .kpis.mon-k{gap:10px}
+  .pcard{padding:10px 12px}
+  .pc-row{grid-template-columns:58px minmax(0,1fr) auto}
+  .mon td .status-pill{white-space:normal;line-height:1.25;text-align:center}   /* etiqueta quebra linha pra tabela do Monitor caber sem rolagem */
+}
+@media (max-width:1399px){
+  .azbar{padding:0 16px;gap:12px}
+  table.acomp-t .acoes-row{flex-wrap:wrap;max-width:210px;gap:4px}   /* ações do Acompanhamento em 2 linhas: a regra "nowrap" da página vinha depois do @media e vencia */
+  .modtabs button{padding:0 10px;font-size:12px}
+  .modtabs .cur{max-width:26ch}
+  .kpis.mon-k{grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+  .kpi{padding:10px 12px} .kpi .val{font-size:21px}
+  .pipe{gap:10px} .pipe-col{padding:8px}
+  .pc-nm{font-size:12.5px} .pc-emp{font-size:11px}
+  .pcard .numcirc{width:24px;height:24px;font-size:10.5px}
+  .pcard .numpill{font-size:11px;padding:2px 6px;min-width:22px}
+  .pcard .aicon{width:28px;height:28px;font-size:13px} .pcard .vbtn{width:32px;height:28px}
+}
+@media (max-width:1199px){
+  .azbrand small{display:none}
+  .kpis.mon-k{grid-template-columns:repeat(3,minmax(0,1fr))}
+  /* pipeline rola de lado dentro da própria faixa; a página não */
+  .pipe{display:flex;overflow-x:auto;gap:10px;padding-bottom:6px;scroll-snap-type:x proximity}
+  .pipe-col{flex:0 0 290px;scroll-snap-align:start}
+  .pipe.one{display:grid}
+  .pipe.one .pipe-col{flex:none}
+  .azform .azform-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .azform .az-lista{grid-column:1 / -1}
+}
+@media (max-width:820px){
+  /* filtros do Comparativo em telas pequenas: campos em 2 colunas, flags em 2 colunas e com quebra de linha */
+  .clubgrid{grid-template-columns:1fr 1fr}
+  .clubflags{grid-template-columns:1fr 1fr}
+  .clubflags label,.clubvar label{white-space:normal}
+  .clubchecks{grid-template-columns:1fr 1fr}
+  .azbar{position:static;padding:8px 12px;flex-wrap:wrap;min-height:0}
+  .azbrand{display:none}
+  .modtabs .cur{display:none}
+  .main{padding:16px 16px 50px}
+  .kpis.mon-k{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .mon-tools .end{margin-left:0;width:100%;justify-content:space-between}
+  .pipe-col{flex-basis:270px}
+  .azform .azform-grid{grid-template-columns:1fr 1fr}
+  .azform .az-act{grid-column:1 / -1}
+  .azform .az-act .btn{width:100%;justify-content:center}
+}
+@media (max-width:600px){
+  .clubgrid,.clubflags,.clubchecks{grid-template-columns:1fr}
+  .kpis.mon-k{grid-template-columns:1fr 1fr}
+}
+@media print{
+  .azbar,.mon-tools,#mon-kpis{display:none!important}
+  body{background:#fff}
+  .pipe{display:block} .pipe-col{break-inside:avoid;margin-bottom:12px}
+}

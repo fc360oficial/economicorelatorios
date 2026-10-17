@@ -1,0 +1,28 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>probe</title></head>
+<body style="margin:0;overflow:hidden">
+<iframe id="f" style="width:100vw;height:100vh;border:0;display:block"></iframe>
+<pre id="out" style="position:absolute;left:-9999px"></pre>
+<script>
+// Abre a tela da Cotação num iframe da mesma origem (pode pré-ajustar o localStorage via ?ls=chave:valor,chave:valor)
+// e, depois de carregar, escreve no <title> se a página rolou de lado (scrollWidth > clientWidth) e quem passou da borda.
+var q = new URLSearchParams(location.search), u = q.get('u') || '/cotacao.html';
+(q.get('ls') || '').split(',').filter(Boolean).forEach(function (kv) { var i = kv.indexOf(':'); try { localStorage.setItem(kv.slice(0, i), kv.slice(i + 1)); } catch (e) {} });
+var f = document.getElementById('f'); f.src = u;
+setTimeout(function () {
+  var txt;
+  try {
+    var d = f.contentDocument, de = d.documentElement, b = d.body;
+    var sw = Math.max(de.scrollWidth, b.scrollWidth), cw = de.clientWidth, wide = [];
+    d.querySelectorAll('body *').forEach(function (el) {
+      var r = el.getBoundingClientRect(); if (r.width <= 0 || r.right <= cw + 1) return;
+      var cs = getComputedStyle(el); if (cs.position === 'fixed') return;
+      var p = el.parentElement, dentro = false; while (p && p !== b) { var o = getComputedStyle(p).overflowX; if (o === 'auto' || o === 'scroll' || o === 'hidden') { dentro = true; break; } p = p.parentElement; }
+      if (!dentro) wide.push(el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') + '.' + String(el.className || '').split(' ').slice(0, 2).join('.') + ' right=' + Math.round(r.right));
+    });
+    txt = 'PROBE ' + u + ' scrollWidth=' + sw + ' clientWidth=' + cw + ' overflow=' + (sw > cw ? 'YES' : 'no') + (wide.length ? ' | ' + wide.slice(0, 8).join(' ; ') : '');
+  } catch (e) { txt = 'PROBE ERR ' + e.message; }
+  document.title = txt; document.getElementById('out').textContent = txt;
+}, 4000);
+</script>
+</body></html>

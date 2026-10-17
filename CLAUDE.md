@@ -33,3 +33,18 @@ reajustar automático seja qual monitor"). Vale pra **tudo que for criado ou alt
 - Texto de coluna (nome, empresa, status) pode quebrar linha (`white-space:normal`); número e valor não.
 - Tela nova no mesmo fluxo copia as faixas da tela irmã (ex.: Monitor de Cotações em `cotacao.html`,
   bloco "16/10/26 ... reajustar automático").
+
+## Cotação: identidade azul (Tiago, 17/10/2026)
+
+O módulo Cotação (`public/cotacao.html`: Monitor, Nova Cotação, Acompanhamento, Comparativo, Pedidos, Fornecedores) usa a
+identidade azul do briefing de 17/10/2026: cabeçalho #103454, fundo #F0F6FB, cartões brancos com borda #DCE6EF, ação #0876F9,
+verde = sucesso/economia, âmbar = atenção, vermelho = erro/cancelado/custo acima.
+
+- Tokens e componentes compartilhados (cabeçalho `.azbar`, indicadores `.kpi`, botões, campos, etiquetas `.status-pill`,
+  tabelas, cartões, estados vazios, pipeline `.pipe`/`.pcard`) ficam em **`public/cotacao-azul.css`**, carregado depois do
+  `<style>` da página. Cor, fonte, respiro ou componente da Cotação muda lá, nunca só numa tela.
+- Azul de texto é `--pri-t` (#0B5FC5, contraste AA sobre branco); `--pri` (#0876F9) é só fundo de botão/etiqueta ativa.
+- O Monitor tem duas formas (pipeline e lista) da mesma lista, com os mesmos botões de detalhe. A coluna do pipeline sai de
+  `statusCot` + `pedidos_status` (`pipeCol` em cotacao.html); não existe estado novo no servidor.
+- Conferência sem ERP: `node scripts/cotacao-mock/server.js` sobe a tela com cotações de exemplo (lib real, dados numa pasta
+  temporária) e `node scripts/cotacao-mock/shots.js` tira os prints nas 4 larguras e mede rolagem lateral.
