@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>Cartaz QR — Canal de Ética</title>
+<!-- Cartaz imprimível (A4 retrato) do Canal de Ética, 20/10/2026. Abre pela aba "Cartazes QR" de etica.html (atrás do login,
+     só designados). ?u=E1 … ?u=ADM = um cartaz · ?u=todos = um por unidade · ?u=GERAL = sem unidade (portal /etica).
+     O QR vem de /api/etica/qr/<COD>.svg e aponta pra <urlPublica>/etica/<COD>; a base é configurada na mesma aba. -->
+<style>
+@page{size:A4 portrait;margin:0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'InterVar',Inter,'Segoe UI',system-ui,sans-serif;background:#555;color:#0E1626;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.bar{position:sticky;top:0;z-index:5;background:#101B33;color:#fff;padding:10px 18px;display:flex;gap:12px;align-items:center;font-size:13px}
+.bar button{background:#FFC933;color:#101B33;border:0;border-radius:8px;padding:8px 16px;font:inherit;font-weight:700;cursor:pointer}
+.bar span{opacity:.75}
+.folha{width:210mm;height:297mm;margin:14px auto;background:#fff;display:flex;flex-direction:column;page-break-after:always;break-after:page;overflow:hidden;position:relative}
+.folha:last-child{page-break-after:auto;break-after:auto}
+.topo{background:#101B33;color:#fff;padding:16mm 16mm 12mm;display:flex;align-items:center;gap:8mm}
+.topo .marca{width:18mm;height:18mm;border-radius:4mm;background:rgba(255,255,255,.12);display:grid;place-items:center;font-weight:800;font-size:7mm;flex:none;border:1px solid rgba(255,255,255,.25)}
+.topo h1{font-size:9mm;line-height:1.1;font-weight:800;letter-spacing:-.2px}
+.topo p{font-size:4mm;opacity:.8;margin-top:2mm}
+.faixa{background:#FFC933;color:#101B33;padding:3.5mm 16mm;font-weight:800;font-size:5.2mm;letter-spacing:.3px;text-transform:uppercase}
+.corpo{flex:1;padding:12mm 16mm 10mm;display:grid;grid-template-columns:1fr 92mm;gap:10mm;align-items:center}
+.texto h2{font-size:7.2mm;line-height:1.2;font-weight:800;margin-bottom:6mm}
+.texto ul{list-style:none;display:grid;gap:4.2mm;font-size:4.3mm;line-height:1.4}
+.texto li{padding-left:8mm;position:relative}
+.texto li::before{content:"";position:absolute;left:0;top:1.6mm;width:4.2mm;height:4.2mm;border-radius:50%;background:#FFC933;border:1.2mm solid #101B33}
+.texto li b{font-weight:800}
+.qr{display:grid;gap:4mm;justify-items:center;text-align:center}
+.qr img{width:84mm;height:84mm;border:1.2mm solid #101B33;border-radius:4mm;padding:3mm;background:#fff}
+.qr .ap{font-size:4.6mm;font-weight:800;color:#101B33}
+.qr .url{font-size:3.6mm;color:#4E5A72;word-break:break-all;max-width:88mm;line-height:1.35}
+.unidade{margin:0 16mm;border:1.2mm solid #101B33;border-radius:4mm;padding:5mm 8mm;display:flex;justify-content:space-between;align-items:center}
+.unidade b{font-size:6.5mm;font-weight:800}
+.unidade span{font-size:3.8mm;color:#4E5A72}
+.rodape{padding:8mm 16mm 12mm;font-size:3.4mm;color:#4E5A72;line-height:1.5;display:grid;grid-template-columns:1fr auto;gap:8mm;align-items:end}
+.rodape b{color:#0E1626}
+.erro{max-width:600px;margin:60px auto;background:#fff;border-radius:12px;padding:24px;font-size:15px}
+@media print{body{background:#fff}.bar{display:none}.folha{margin:0;width:210mm;height:297mm}}
+</style>
+</head>
+<body>
+<div class="bar"><button onclick="window.print()">Imprimir</button><span id="info">Carregando…</span></div>
+<div id="folhas"></div>
+<script>
+(async function () {
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  const q = (new URLSearchParams(location.search).get('u') || 'todos').toUpperCase();
+  let d;
+  try { const r = await fetch('/api/etica/cartazes', { credentials: 'same-origin' }); if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'HTTP ' + r.status); d = await r.json(); }
+  catch (e) { document.getElementById('folhas').innerHTML = '<div class="erro"><b>Não foi possível montar o cartaz.</b><br>' + esc(e.message) + '<br><br>Entre no sistema e abra pela aba Cartazes QR do Canal de Ética.</div>'; document.getElementById('info').textContent = ''; return; }
+  const lista = q === 'TODOS' ? d.unidades : q === 'GERAL' ? [{ cod: 'GERAL', nome: 'Todas as unidades', url: d.geral }] : d.unidades.filter(u => u.cod === q);
+  if (!lista.length) { document.getElementById('folhas').innerHTML = '<div class="erro">Unidade desconhecida: ' + esc(q) + '</div>'; return; }
+  const folha = u => '<section class="folha">' +
+    '<div class="topo"><div class="marca">EC</div><div><h1>Canal de Ética e Denúncias</h1><p>Supermercado Econômico · canal independente e confidencial</p></div></div>' +
+    '<div class="faixa">Viu algo errado? Fale com segurança.</div>' +
+    '<div class="corpo"><div class="texto"><h2>Aponte a câmera do celular para o código e registre o seu relato.</h2><ul>' +
+    '<li><b>Anônimo, se você quiser.</b> Identificar-se é opcional e a sua identidade só é vista com autorização expressa.</li>' +
+    '<li><b>Sigiloso.</b> Cada relato é visto apenas pela equipe designada para apurá-lo.</li>' +
+    '<li><b>Sem retaliação.</b> Perseguir quem relata de boa-fé é falta grave e também pode ser denunciada aqui.</li>' +
+    '<li><b>Guarde o protocolo e a credencial</b> que aparecem ao final. Com eles você acompanha o andamento no mesmo endereço.</li>' +
+    '<li><b>Risco imediato?</b> Marque "risco imediato" no relato e procure também a gerência ou o 190.</li>' +
+    '</ul></div>' +
+    '<div class="qr"><img src="/api/etica/qr/' + esc(u.cod) + '.svg" alt="QR ' + esc(u.cod) + '"><div class="ap">Aponte a câmera ou acesse:</div><div class="url">' + esc(u.url) + '</div></div></div>' +
+    '<div class="unidade"><b>' + (u.cod === 'GERAL' ? 'Todas as unidades' : esc(u.cod) + ' · ' + esc(u.nome)) + '</b><span>' + (u.cod === 'GERAL' ? 'escolha a unidade no formulário' : 'unidade já selecionada ao abrir pelo código') + '</span></div>' +
+    '<div class="rodape"><div>Assédio, discriminação, fraude ou desvio, conflito de interesses, segurança alimentar ou do trabalho, descumprimento de normas e retaliação. <b>Toda denúncia recebe protocolo e prazo de resposta.</b></div><div>Econômico · Canal de Ética</div></div>' +
+    '</section>';
+  document.getElementById('folhas').innerHTML = lista.map(folha).join('');
+  document.getElementById('info').textContent = lista.length + (lista.length === 1 ? ' cartaz' : ' cartazes') + ' · A4 retrato · ' + d.base + '/etica/…';
+  document.title = 'Cartaz QR — Canal de Ética' + (lista.length === 1 ? ' · ' + lista[0].cod : '');
+})();
+</script>
+</body>
+</html>

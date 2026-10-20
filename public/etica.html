@@ -34,6 +34,7 @@ body{font-family:var(--font,'InterVar','Segoe UI',sans-serif);background:var(--p
 table.pol input{width:64px;padding:4px 6px;border:1px solid var(--ln2);border-radius:6px;font:inherit;font-size:12px;text-align:right}table.pol select{padding:4px;border:1px solid var(--ln2);border-radius:6px;font:inherit;font-size:11.5px}
 .notif{display:grid;gap:6px}.notif div{background:var(--crd);border:1px solid var(--ln);border-radius:9px;padding:8px 12px;font-size:12.5px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;cursor:pointer}.notif div.nl{border-left:4px solid var(--am)}.notif small{color:var(--ink3)}
 .anx a{color:var(--inf);font-weight:600}
+.qrs{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}.qrc{background:var(--crd);border:1px solid var(--ln);border-radius:var(--r);padding:14px;display:grid;gap:8px;justify-items:center;text-align:center;font-size:12.5px}.qrc img{width:160px;height:160px;background:#fff;border-radius:8px;padding:6px;border:1px solid var(--ln)}.qrc a{color:var(--inf);font-size:11px;word-break:break-all}.qrc .btn.gh{text-decoration:none}
 @media(max-width:1399px){.main{padding:18px}.det{grid-template-columns:1fr}}
 @media(max-width:820px){.main{padding:12px}.page-hdr .dir{text-align:left}.prazo .b{width:80px}}
 </style>
@@ -55,8 +56,9 @@ table.pol input{width:64px;padding:4px 6px;border:1px solid var(--ln2);border-ra
     <div class="tab" data-t="notificacoes">Avisos<small id="n-notificacoes"></small></div>
     <div class="tab" data-t="prazos">Prazos e cadeia</div>
     <div class="tab" data-t="designados">Designados</div>
+    <div class="tab" data-t="cartazes">Cartazes QR</div>
   </div>
-  <div id="v-triagem"></div><div id="v-meus" style="display:none"></div><div id="v-ativos" style="display:none"></div><div id="v-validar" style="display:none"></div><div id="v-omissoes" style="display:none"></div><div id="v-painel" style="display:none"></div><div id="v-notificacoes" style="display:none"></div><div id="v-prazos" style="display:none"></div><div id="v-designados" style="display:none"></div>
+  <div id="v-triagem"></div><div id="v-meus" style="display:none"></div><div id="v-ativos" style="display:none"></div><div id="v-validar" style="display:none"></div><div id="v-omissoes" style="display:none"></div><div id="v-painel" style="display:none"></div><div id="v-notificacoes" style="display:none"></div><div id="v-prazos" style="display:none"></div><div id="v-designados" style="display:none"></div><div id="v-cartazes" style="display:none"></div>
 </div>
 <script>
 const { $, $$, esc, api, pill, tabela, btn, modal, toast } = G;
@@ -105,7 +107,7 @@ async function iniciar() {
   abrirAba(papel('triagem') ? 'triagem' : 'meus');
   contadores();
 }
-function abrirAba(t) { ABA = t; $$('.tab').forEach(x => x.classList.toggle('on', x.dataset.t === t)); $$('[id^=v-]').forEach(v => v.style.display = v.id === 'v-' + t ? '' : 'none'); ({ triagem: () => fila('triagem'), meus: () => fila('meus'), ativos: () => fila('ativos'), validar: () => fila('validar'), omissoes, painel, notificacoes, prazos, designados })[t](); }
+function abrirAba(t) { ABA = t; $$('.tab').forEach(x => x.classList.toggle('on', x.dataset.t === t)); $$('[id^=v-]').forEach(v => v.style.display = v.id === 'v-' + t ? '' : 'none'); ({ triagem: () => fila('triagem'), meus: () => fila('meus'), ativos: () => fila('ativos'), validar: () => fila('validar'), omissoes, painel, notificacoes, prazos, designados, cartazes })[t](); }
 async function contadores() {
   try {
     const [tri, meus, val, oms, nt] = await Promise.all([papel('triagem') ? api('/api/etica/casos?fila=triagem') : [], api('/api/etica/casos?fila=meus'), papel('revisor') ? api('/api/etica/casos?fila=validar') : [], api('/api/etica/omissoes').catch(() => []), api('/api/etica/notificacoes?naoLidas=1')]);
@@ -279,6 +281,18 @@ function prazos() {
     const body = { politicas, avisos: { marcos: $('#cf-marcos').value.split(',').map(x => +x.trim()).filter(x => x > 0 && x < 100) }, omissao: { prazoManifestacaoDu: +$('#cf-om').value || 2 }, calendario: { ...c.calendario, diasUteis: $('#cf-sab').checked ? [1, 2, 3, 4, 5, 6] : [1, 2, 3, 4, 5], feriados: $('#cf-fer').value.split('\n').map(x => x.trim()).filter(x => /^\d{4}-\d{2}-\d{2}$/.test(x)) }, consulta: { tentativas: +$('#cf-tent').value || 5, janelaMin: +$('#cf-jan').value || 60 } };
     try { CFG = await api('/api/etica/config', { method: 'PUT', body }); toast('Configuração salva'); prazos(); } catch (e) { toast(e.message, 'neg'); }
   };
+}
+
+// ── cartazes com QR por unidade (20/10) ──
+async function cartazes() {
+  const el = $('#v-cartazes'); const pode = papel('coordenacao', 'revisor');
+  let d; try { d = await api('/api/etica/cartazes'); } catch (e) { el.innerHTML = '<div class="aviso neg">' + esc(e.message) + '</div>'; return; }
+  el.innerHTML = '<div class="aviso inf">Cada cartaz leva ao portal público já com a unidade selecionada. O código só carrega o endereço; nenhum dado da loja ou da pessoa vai no QR. ' + (d.configurada ? 'Endereço público configurado.' : '<b>Ainda sem domínio próprio</b>: o QR usa o endereço atual do servidor. Quando o domínio existir, troque aqui e reimprima.') + '</div>' +
+    '<div class="sec"><h2>Endereço público do portal</h2></div><div class="bar"><input id="qr-base" value="' + esc(d.base) + '" style="min-width:340px"' + (pode ? '' : ' disabled') + '>' + (pode ? btn('Salvar endereço', 'am', 'id="qr-salvar"') + ' ' + btn('Usar o do servidor', 'gh', 'id="qr-reset"') : '') + '<span class="st">o QR aponta para <b>' + esc(d.base) + '/etica/&lt;unidade&gt;</b></span></div>' +
+    '<div class="sec"><h2>Cartazes <small>' + d.unidades.length + ' unidades</small></h2><div class="acoes">' + btn('Imprimir todos (A4, um por unidade)', 'am', 'onclick="window.open(\'/etica-cartaz.html?u=todos\',\'_blank\')"') + ' ' + btn('Cartaz geral (sem unidade)', 'gh', 'onclick="window.open(\'/etica-cartaz.html?u=GERAL\',\'_blank\')"') + '</div></div>' +
+    '<div class="qrs">' + d.unidades.map(u => '<div class="qrc"><img src="/api/etica/qr/' + esc(u.cod) + '.svg" alt="QR ' + esc(u.cod) + '"><b>' + esc(u.cod) + ' · ' + esc(u.nome) + '</b><a href="' + esc(u.url) + '" target="_blank" rel="noopener">' + esc(u.url) + '</a><div>' + btn('Cartaz A4', 'gh', 'onclick="window.open(\'/etica-cartaz.html?u=' + esc(u.cod) + '\',\'_blank\')"') + ' <a class="btn gh" href="/api/etica/qr/' + esc(u.cod) + '.svg" download="qr-etica-' + esc(u.cod) + '.svg">Baixar SVG</a></div></div>').join('') + '</div>';
+  const bs = $('#qr-salvar'); if (bs) bs.onclick = async () => { try { CFG = await api('/api/etica/config', { method: 'PUT', body: { urlPublica: $('#qr-base').value.trim() } }); toast('Endereço salvo'); cartazes(); } catch (e) { toast(e.message, 'neg'); } };
+  const br = $('#qr-reset'); if (br) br.onclick = async () => { try { CFG = await api('/api/etica/config', { method: 'PUT', body: { urlPublica: '' } }); toast('Voltou ao endereço do servidor'); cartazes(); } catch (e) { toast(e.message, 'neg'); } };
 }
 
 // ── designados ──
