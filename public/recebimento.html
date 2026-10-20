@@ -621,7 +621,11 @@ async function carregarNotas(manual) {
     // erro do servidor (tem status) é diferente de estar sem rede: o primeiro precisa aparecer
     // sempre, com a mensagem que veio, senão a lista fica velha e ninguém sabe por quê.
     if (e.status) {
-      setNet(true); toast(e.message || 'A central não respondeu.', true);
+      setNet(true);
+      // ERP lento/travado (20/10, Tiago viu "tabela axml travada no .252" em vermelho): fala a língua do conferente e tenta de novo sozinho
+      const erp = /travad|tempo esgotado|ERP/i.test(String(e.message || ''));
+      toast(erp ? 'O ERP está lento agora. A lista é a última carregada; tento de novo em 20 s.' : (e.message || 'A central não respondeu.'), true);
+      if (erp && tela === 'notas') { clearTimeout(window._retryNotas); window._retryNotas = setTimeout(() => { if (tela === 'notas') carregarNotas(); }, 20000); }
       // a lista na tela continua sendo a última que carregou — deixa isso visível, não silencioso.
       $('nHora').innerHTML = 'dados de<br>' + (notasEm ? notasEm.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—');
     }

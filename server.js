@@ -590,7 +590,9 @@ async function q(sql, params = [], opt = {}) {
   }
   const sensivel = TABELAS_SENSIVEIS.test(sql);
   const timeoutMs = opt.timeoutMs || (sensivel ? TIMEOUT_SENSIVEL : 0);
-  if (sensivel && Date.now() < travadaAte) throw new Error('ERP: tabela axml travada no .252 (manutenção/ALTER TABLE); consulta pulada por mais ' + Math.ceil((travadaAte - Date.now()) / 60000) + ' min');
+  // opt.ignorarPausa (20/10/26): rota interativa do coletor não paga a pausa de 5 min causada por um job pesado em axml
+  // (Tiago viu "tabela axml travada no .252" em vermelho ao voltar pra lista de notas); ela tenta mesmo assim, com o timeout.
+  if (sensivel && !opt.ignorarPausa && Date.now() < travadaAte) throw new Error('ERP: tabela axml travada no .252 (manutenção/ALTER TABLE); consulta pulada por mais ' + Math.ceil((travadaAte - Date.now()) / 60000) + ' min');
   let conn;
   try {
     conn = await mysql.createConnection(dbConfig);
