@@ -210,7 +210,7 @@ app.use(session({
 
 // Middleware de autenticação (antes do static)
 app.use((req, res, next) => {
-  const publico = ['/login.html', '/api/login', '/api/logout', '/logo.png', '/deploy', '/api/versao', '/coletor-economico.apk',
+  const publico = ['/login.html', '/api/login', '/api/logout', '/logo.png', '/deploy', '/api/versao', '/coletor-economico.apk', '/api/coletor-apk/versao',
     '/api/negativos/reenviar', '/api/pendencias/congelar-manual',
     '/manifest.json', '/sw.js', '/icon-192.png', '/icon-512.png',
     '/relatorio-cronograma.html',
@@ -5314,6 +5314,11 @@ app.get('/contagem', (req, res) => res.redirect('/contagem.html'));
 app.get('/recebimento', (req, res) => res.redirect('/recebimento.html'));
 // APK do Coletor Econômico (invólucro Android do coletor web, projeto C:\fc360\coletor-android, 15/10/26): o binário
 // fica fora do git em data/apk/ (deploy não apaga arquivo não rastreado). Sem login: o coletor baixa direto no Chrome.
+// versão publicada do APK (data/apk/versao.json = { versao, build, em }): o app compara com a dele e oferece "Atualizar"
+app.get('/api/coletor-apk/versao', (req, res) => {
+  try { const arq = path.join(__dirname, 'data', 'apk', 'versao.json'); res.json(fs.existsSync(arq) ? JSON.parse(fs.readFileSync(arq, 'utf8')) : { versao: null }); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
 app.get('/coletor-economico.apk', (req, res) => {
   const arq = path.join(__dirname, 'data', 'apk', 'coletor-economico.apk');
   if (!fs.existsSync(arq)) return res.status(404).send('APK ainda não publicado');
