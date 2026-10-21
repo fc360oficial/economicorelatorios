@@ -171,7 +171,7 @@ function montarNav() {
 }
 function ir(p, sub) {
   const n = NAV.find(x => x.id === p); if (!n) return;
-  PAG = p; SUB = sub || {};
+  PAG = p; SUB = sub || {}; FICHA.id = null;
   $$('#mnav a').forEach(a => a.classList.toggle('on', a.dataset.p === p));
   $('#tb-h1').innerHTML = '<span class="crumb">DP / RH</span>' + ic('chevron-right') + esc(n.txt); $('#tb-sub').textContent = n.sub || '';
   history.replaceState(null, '', '#' + p);
@@ -320,21 +320,29 @@ async function funcionarios() {
 }
 
 // ── Ficha do funcionário ──
+// Abre em duas etapas: primeiro só o dia escolhido (relatórios já em cache → instantâneo) e, em segundo plano, os
+// 14 dias de histórico (primeira leitura no Pontomais leva até ~30 s; depois fica em cache no servidor).
+let FICHA = { id: null, aba: 'resumo' };
+const somaDias = (iso, n) => { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
 async function ficha(id, data) {
   const el = $('#page'); const n = NAV.find(x => x.id === PAG); const volta = { p: PAG, sub: { ...SUB } };
+  FICHA = { id, aba: 'resumo' };
   $('#tb-h1').innerHTML = '<span class="crumb">' + esc(n ? n.txt : 'DP / RH') + '</span>' + ic('chevron-right') + 'Funcionário'; $('#tb-sub').textContent = 'Escala, marcações, apuração e banco de horas oficial';
-  el.innerHTML = '<button class="ds-btn ds-btn-ghost" id="fc-volta" style="margin-bottom:10px;padding-left:6px">' + ic('ic-back') + 'Voltar</button>' + skel();
+  el.innerHTML = '<button class="ds-btn ds-btn-ghost" id="fc-volta" style="margin-bottom:10px;padding-left:6px">' + ic('ic-back') + 'Voltar</button><div class="note" style="margin:0 0 10px">Abrindo a ficha no PontoCerto…</div>' + skel();
   $('#fc-volta').onclick = () => ir(volta.p, volta.sub);
   const ate = data || hoje(); let F;
-  try { F = await api('/api/gp/funcionario/' + id + '?ate=' + ate); } catch (e) { el.insertAdjacentHTML('beforeend', erroBox(e)); return; }
-  desenhaFicha(F, id, volta);
+  try { F = await api('/api/gp/funcionario/' + id + '?de=' + ate + '&ate=' + ate); } catch (e) { el.insertAdjacentHTML('beforeend', erroBox(e)); return; }
+  if (FICHA.id !== id) return;
+  F.parcial = true; desenhaFicha(F, id, volta);
+  api('/api/gp/funcionario/' + id + '?de=' + somaDias(ate, -13) + '&ate=' + ate).then(F2 => { if (FICHA.id !== id || PAG !== volta.p) return; desenhaFicha(F2, id, volta, FICHA.aba); }).catch(() => { const n = $('#fc-hist-note'); if (n) n.textContent = 'Não foi possível carregar o histórico de 14 dias agora. Tente de novo em instantes.'; });
 }
 function desenhaFicha(F, id, volta, aba) {
-  const el = $('#page'); const c = F.colaborador; const C = F.central; const hojeL = F.hoje || F.dias[0]; aba = aba || 'resumo';
+  const el = $('#page'); const c = F.colaborador; const C = F.central; const hojeL = F.hoje || F.dias[0]; aba = aba || 'resumo'; FICHA.aba = aba;
+  const histNote = F.parcial ? '<div class="note" id="fc-hist-note" style="margin:0 0 10px"><span class="ds-spinner" style="display:inline-block;width:12px;height:12px;margin:0 6px -2px 0;border-width:2px"></span>Carregando o histórico de 14 dias no PontoCerto (a primeira vez pode levar até 30 s)…</div>' : '';
   const banco = c.ativo ? c.banco_horas_min : (hojeL && hojeL.banco_oficial_min);
   const lim = C.limites; const fora = banco != null && (banco > lim.positivoMin || banco < -lim.negativoMin);
   const stCls = s => /jornada|intervalo/i.test(s) ? 'ok' : /atrasad|ausente/i.test(s) ? 'bad' : 'gr';
-  el.innerHTML = '<button class="ds-btn ds-btn-ghost" id="fc-volta" style="margin-bottom:10px;padding-left:6px">' + ic('ic-back') + 'Voltar</button>' +
+  el.innerHTML = '<button class="ds-btn ds-btn-ghost" id="fc-volta" style="margin-bottom:10px;padding-left:6px">' + ic('ic-back') + 'Voltar</button>' + histNote +
     '<div class="ficha-hd"><div class="av">' + esc(ini(c.nome)) + '</div><div><h2>' + esc(c.nome) + '</h2><div class="meta">' + (c.matricula ? 'Matrícula ' + esc(c.matricula) + ' · ' : '') + esc(c.cargo) + ' · ' + esc(c.setor) + ' · ' + etq(c.loja) + esc(lojaNome(c.loja)) + (c.admissao ? ' · admitido em ' + dBR(c.admissao) + ' (' + esc(G.tempoCasa(c.admissao)) + ')' : '') + '</div></div>' +
     '<div class="end">' + (c.ativo ? sitPill(stCls(c.status_agora), c.status_agora || '—') : sitPill('gr', 'Desligado em ' + dBR(c.desligamento))) + '</div></div>' +
     '<div class="kpis k4"><div class="kpi static"><div class="ico ' + (banco == null ? 'gr' : banco >= 0 ? 'pos' : 'neg') + '">' + ic('chart') + '</div><div><div class="l">Banco de horas oficial (acumulado)</div><div class="v ' + (banco == null ? '' : banco >= 0 ? 'pos' : 'neg') + '">' + hm(banco) + '</div><div class="s' + (fora ? ' neg' : '') + '">' + (fora ? 'fora do limite de ' + hm(lim.positivoMin) + ' / ' + hm(-lim.negativoMin) : 'dentro dos limites') + (C.alerta ? ' · alerta ' + esc(C.alerta.protocolo) : '') + '</div></div></div>' +
@@ -356,6 +364,8 @@ function desenhaFicha(F, id, volta, aba) {
       '<div class="ds-card"><div class="ds-panel-hd"><span class="ds-h2">Apuração do dia (PontoCerto)</span></div><div class="ds-panel-bd">' + (d.apuracao ? '<dl class="kv"><dt>Carga prevista</dt><dd>' + esc(d.apuracao.carga || '—') + '</dd><dt>Horas normais</dt><dd>' + esc(d.apuracao.normais || '—') + '</dd><dt>Intervalo</dt><dd>' + esc(d.apuracao.intervalo || '—') + '</dd><dt>Horas extras (crédito)</dt><dd class="saldo pos">' + esc(d.apuracao.extras) + '</dd><dt>Horas faltantes (débito)</dt><dd class="saldo neg">' + esc(d.apuracao.faltantes || '0:00') + '</dd><dt>Banco após o dia</dt><dd>' + hmCls(d.apuracao.saldo_acum_min) + '</dd></dl><p class="note">Valores da apuração oficial; o débito do dia é informativo e só vira desconto/compensação pelo fluxo de aprovação.</p>' : '<div class="empty" style="padding:16px"><b>Apuração ainda não disponível</b>' + (d.data === hoje() ? 'O PontoCerto fecha a apuração ao longo do dia.' : 'Dia sem apuração no PontoCerto.') + '</div>') + '</div></div>' +
       '<div class="ds-card"><div class="ds-panel-hd"><span class="ds-h2">Banco de horas</span></div><div class="ds-panel-bd"><div class="big ' + (banco == null ? '' : banco >= 0 ? 'pos' : 'neg') + '">' + hm(banco) + '</div><p class="note" style="margin-top:4px">Saldo acumulado oficial. Não confundir com o atraso ou a H.E. de um dia.</p>' +
       (C.alerta ? '<div class="aviso' + (C.alerta.tipo === 'bh_neg' ? ' neg' : '') + '" style="margin-top:12px"><b>Alerta ' + esc(C.alerta.protocolo) + '</b> desde ' + dBR(C.alerta.identificadoEm.slice(0, 10)) + ' · ' + (C.alerta.plano ? 'plano ' + esc(C.alerta.plano.statusTxt.toLowerCase()) : 'sem plano de ação · prazo ' + dBR(C.alerta.prazoPlano)) + '</div>' : '') + '</div></div></div>';
+  } else if (aba === 'marc' && F.parcial) {
+    B.innerHTML = '<div class="empty"><b>Carregando o histórico…</b>As marcações dos últimos 14 dias aparecem aqui assim que o PontoCerto responder.</div>';
   } else if (aba === 'marc') {
     B.innerHTML = '<div class="tb"><span style="font-size:12px;color:var(--ink2)">Período</span><input type="date" class="ds-input" id="fc-de" value="' + F.de + '"><input type="date" class="ds-input" id="fc-ate" value="' + F.ate + '" max="' + hoje() + '"><button class="ds-btn ds-btn-primary" id="fc-ir">Consultar</button><span class="note" style="margin:0">máx. 92 dias</span></div>' +
       '<div class="tw"><table class="t"><thead><tr><th>Data</th><th class="c">Previsto</th><th class="c">Entrada</th><th class="c">Saída int.</th><th class="c">Retorno</th><th class="c">Saída</th><th>Situação</th><th class="r">H.E.</th><th class="r">Faltante</th><th class="r">Banco após o dia</th></tr></thead><tbody>' +
