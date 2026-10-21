@@ -64,7 +64,8 @@
     { id: 'dp-rh', ic: 'folder', txt: 'DP / RH', sub: [
         { href: '/rh.html', ic: 'list', txt: 'Recursos Humanos (RH)' },
         { href: '/dp.html', ic: 'list', txt: 'Departamento Pessoal (DP)' },
-        { href: '/etica.html', ic: 'shield', txt: 'Canal de Ética' }
+        { href: '/etica.html', ic: 'shield', txt: 'Canal de Ética' },
+        { href: '/gestao-pessoas.html', ic: 'dashboard', txt: 'Gestão de Pessoas' }
       ]},
     { id: 'financeiro', ic: 'bank', txt: 'Financeiro', sub: [
         { href: '/conciliador.html', ic: 'bank', txt: 'Conciliação de Saídas' },

@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="/design-system.css">
+<script src="/nav.js" defer></script>
+<script src="/gente-ui.js"></script>
+<title>Gestão de Pessoas — Econômico Supermercados</title>
+<!-- Central de Gestão de Pessoas (DP / RH › Gestão de Pessoas), 21/10/2026. Aba NOVA ao lado de RH/DP (que ficam como estão).
+     Regras e permissões no servidor (lib/gestao-pessoas.js, rotas em lib/gestao-pessoas-rotas.js): a tela só mostra os botões
+     que o servidor devolve em `acoes`, e o servidor recusa o resto. Kit visual de gente-ui.js (mesmo de rh/dp/etica). -->
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+[hidden]{display:none!important}
+body{font-family:var(--font,'InterVar','Segoe UI',sans-serif);background:var(--pap);color:var(--ink);min-height:100vh}
+.main{padding:24px;max-width:1640px}
+.page-hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.page-hdr h1{font-size:21px;font-weight:800;letter-spacing:-.3px}.page-hdr h1 span{display:inline-block;background:#101B33;color:#FFC933;font-size:11px;padding:2px 8px;border-radius:6px;margin-left:8px;vertical-align:middle;letter-spacing:.4px}
+.page-hdr p{font-size:12.5px;color:var(--ink2);margin-top:4px;max-width:96ch;line-height:1.5}
+.page-hdr .dir{text-align:right;font-size:11.5px;color:var(--ink3);line-height:1.6}
+.sino{cursor:pointer;text-decoration:underline}.sino b{display:inline-block;margin-left:4px;background:var(--neg);color:#fff;border-radius:999px;font-size:9.5px;padding:1px 6px;vertical-align:1px}
+.prot{font-family:ui-monospace,Consolas,monospace;font-weight:800;letter-spacing:.03em;font-size:11px}
+.pill.warn{background:#FDF0D5;color:#A35A00}
+.hm{font-weight:800;font-variant-numeric:tabular-nums}.hm.pos{color:var(--pos)}.hm.neg{color:var(--neg)}.hm.am{color:var(--amk)}
+.fluxo{display:flex;gap:4px;flex-wrap:wrap;align-items:center;font-size:11.5px;font-weight:700;margin:4px 0 12px}.fluxo span{padding:5px 10px;border-radius:7px;background:var(--wsh);color:var(--ink3)}.fluxo span.done{background:var(--posw);color:var(--pos)}.fluxo span.on{background:#101B33;color:#FFC933}.fluxo i{color:var(--ink3);font-style:normal}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:12.5px}.kv dt{color:var(--ink3)}.kv dd{font-weight:600;white-space:pre-wrap}
+.hist{display:grid;font-size:12px}.hist .h{display:grid;grid-template-columns:118px 1fr;gap:10px;padding:7px 0;border-bottom:1px solid var(--ln)}.hist .h time{color:var(--ink3)}.hist .h p{color:var(--ink2);white-space:pre-wrap;margin-top:2px}
+.det{display:grid;grid-template-columns:1.1fr .9fr;gap:16px}
+.acoes-sol{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 12px}
+.notif{display:grid;gap:6px}.notif div{background:var(--crd);border:1px solid var(--ln);border-radius:9px;padding:8px 12px;font-size:12.5px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;cursor:pointer}.notif div.nl{border-left:4px solid var(--am)}.notif small{color:var(--ink3)}
+.syncbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:11.5px;color:var(--ink3);margin-bottom:12px}.syncbar b{color:var(--ink2)}.syncbar .err{color:var(--neg);font-weight:700}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.mini{font-size:11.5px;color:var(--ink3);line-height:1.5}
+.f-ov{position:fixed;inset:0;background:rgba(10,17,32,.55);z-index:9000;display:flex;align-items:flex-start;justify-content:center;padding:40px 14px;overflow:auto}
+.f-md{background:var(--crd);color:var(--ink);border-radius:14px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.35);overflow:hidden}
+.f-md .hd{background:#101B33;color:#fff;padding:11px 16px;display:flex;justify-content:space-between;align-items:center;gap:10px}.f-md .hd b{font-size:14px}.f-md .hd small{display:block;color:#B7C0D6;font-weight:600;font-size:11.5px;margin-top:2px}
+.f-md .x{background:transparent;border:none;color:#fff;font-size:22px;cursor:pointer;line-height:1;padding:0 4px}
+.f-md .bd{padding:14px 16px}.f-md .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px 12px}
+.f-md .fld{display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:700;color:var(--ink2)}.f-md .fld.c2{grid-column:span 2}.f-md .fld.c3{grid-column:span 3}.f-md .fld small{font-weight:500;color:var(--ink3)}
+.f-md input,.f-md select,.f-md textarea{padding:7px 9px;border:1px solid var(--ln2);border-radius:8px;font-size:12.5px;font-family:inherit;color:var(--ink);background:var(--crd);width:100%}
+.f-md .multi{display:flex;flex-wrap:wrap;gap:4px 12px;padding:6px 0}.f-md .multi label{font-weight:600;display:flex;gap:4px;align-items:center}.f-md .multi input{width:auto}
+.f-md .chk{display:flex;align-items:center;gap:6px;font-weight:600;padding-top:8px}.f-md .chk input{width:auto}
+.f-md .acoes{display:flex;gap:8px;margin-top:14px;align-items:center}
+.f-md .info{grid-column:span 3;font-size:12px;color:var(--ink2);background:var(--pap);border:1px solid var(--ln);border-radius:9px;padding:8px 11px;line-height:1.5}
+table.cfg input{width:80px;padding:4px 6px;border:1px solid var(--ln2);border-radius:6px;font:inherit;font-size:12px;text-align:right}
+.des{display:grid;gap:8px}.des .d{display:grid;grid-template-columns:1.1fr 2.2fr 1.6fr auto;gap:10px;align-items:start;background:var(--crd);border:1px solid var(--ln);border-radius:10px;padding:9px 11px;font-size:12px}
+.des select{padding:6px 8px;border:1px solid var(--ln2);border-radius:7px;font:inherit;font-size:12px;width:100%}.des label{display:inline-flex;gap:4px;align-items:center;margin:0 10px 4px 0;font-weight:600}.des .x{border:none;background:transparent;color:var(--neg);font-size:18px;cursor:pointer}
+.matriz td.c{font-weight:700}.matriz td.sim{color:var(--pos)}.matriz td.nao{color:var(--ink3)}
+.rel-loja{background:var(--crd);border:1px solid var(--ln);border-radius:12px;padding:12px 14px;margin-bottom:14px}.rel-loja h3{font-size:14px;margin-bottom:8px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}.rel-loja h3 small{font-size:11.5px;color:var(--ink3);font-weight:600}
+.rel-cols{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.rel-cols ol{padding-left:18px;font-size:12px;line-height:1.6}
+@media(max-width:1599px){.main{padding:20px}}
+@media(max-width:1399px){.det{grid-template-columns:1fr}.rel-cols{grid-template-columns:1fr 1fr}}
+@media(max-width:1199px){.grid2{grid-template-columns:1fr}.des .d{grid-template-columns:1fr 1fr}}
+@media(max-width:820px){.main{padding:12px}.page-hdr .dir{text-align:left}.f-md .grid{grid-template-columns:1fr}.f-md .fld.c2,.f-md .fld.c3,.f-md .info{grid-column:span 1}.rel-cols{grid-template-columns:1fr}.des .d{grid-template-columns:1fr}.f-ov{padding:10px 6px}}
+</style>
+</head>
+<body>
+<div class="main">
+  <div class="page-hdr">
+    <div><h1>Gestão de Pessoas<span>DP / RH</span></h1><p>Central de acompanhamento preventivo: banco de horas, ponto e jornada, quadro, documentação, solicitações e planos de ação. Fluxo obrigatório <b>Gerente → RH → Coordenação Administrativa → Execução → Monitoramento</b>. Os dados de ponto vêm do PontoCerto (VR) só para leitura: nada é alterado lá, e nenhum desconto ou compensação é automático.</p></div>
+    <div class="dir" id="rodape"></div>
+  </div>
+  <div id="msg"></div>
+  <div class="syncbar" id="syncbar" hidden></div>
+  <div class="tabs" id="tabs" hidden>
+    <div class="tab on" data-t="visao">Visão geral</div>
+    <div class="tab" data-t="bh">Banco de horas<small id="n-bh"></small></div>
+    <div class="tab" data-t="ponto">Ponto e jornada<small id="n-ponto"></small></div>
+    <div class="tab" data-t="quadro">Quadro</div>
+    <div class="tab" data-t="docs">Documentação e GERI<small id="n-docs"></small></div>
+    <div class="tab" data-t="sol">Solicitações e aprovações<small id="n-sol"></small></div>
+    <div class="tab" data-t="planos">Planos de ação<small id="n-planos"></small></div>
+    <div class="tab" data-t="alertas">Alertas<small id="n-alertas"></small></div>
+    <div class="tab" data-t="ind">Indicadores</div>
+    <div class="tab" data-t="rel">Relatórios</div>
+    <div class="tab" data-t="aud">Auditoria</div>
+    <div class="tab" data-t="avisos">Avisos<small id="n-avisos"></small></div>
+    <div class="tab" data-t="cfg">Configurações</div>
+  </div>
+  <div id="views"></div>
+</div>
+<script>
+const { $, $$, esc, api, pill, tabela, btn, toast, dBR } = G;
+let ME = null, CFG = null, COLABS = null, ABA = 'visao';
+const ABAS = ['visao', 'bh', 'ponto', 'quadro', 'docs', 'sol', 'planos', 'alertas', 'ind', 'rel', 'aud', 'avisos', 'cfg'];
+$('#views').innerHTML = ABAS.map(t => '<div id="v-' + t + '"' + (t === 'visao' ? '' : ' style="display:none"') + '></div>').join('');
+const papel = (...p) => ME && p.some(x => ME.papeis.includes(x));
+const RH = ['rh_ponto', 'rh_doc', 'rh_adm'];
+const msg = (t, cls) => { $('#msg').innerHTML = t ? '<div class="aviso ' + (cls || '') + '">' + t + '</div>' : ''; };
+const lojaTxt = n => (ME && ME.catalogos.lojas.find(l => l.n === +n) || {}).txt || '—';
+const veLoja = n => !ME || ME.escopo === null || ME.escopo.includes(+n);
+const lojasVisiveis = () => ME.catalogos.lojas.filter(l => veLoja(l.n));
+const dt = iso => iso ? new Date(iso).toLocaleDateString('pt-BR') + ' ' + new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—';
+const hm = min => { if (min == null) return '—'; const s = min < 0 ? '−' : '+', a = Math.abs(Math.round(min)); return s + String(Math.floor(a / 60)).padStart(2, '0') + 'h' + String(a % 60).padStart(2, '0'); };
+const hmCls = (min, sit) => '<span class="hm ' + (sit && sit.startsWith('alerta') ? 'neg' : sit && sit.startsWith('limite') ? 'am' : min > 0 ? 'pos' : '') + '">' + hm(min) + '</span>';
+const sitPill = s => pill(s.startsWith('alerta') ? 'neg' : s.startsWith('limite') ? 'warn' : 'pos', ME.catalogos.situacao[s]);
+const stCls = s => ({ aprovado: 'pos', concluido: 'pos', em_execucao: 'inf', aguardando_coordenacao: 'am', enviado_rh: 'inf', em_analise_rh: 'inf', devolvido: 'warn', rejeitado: 'neg', vencido: 'neg', cancelado: '' })[s] || '';
+const prioPill = p => pill(p === 'alta' ? 'neg' : p === 'media' ? 'warn' : 'inf', p === 'alta' ? 'Alta' : p === 'media' ? 'Média' : 'Baixa');
+const prazoTxt = (p, venc) => p ? '<span' + (venc ? ' style="color:var(--neg);font-weight:700"' : '') + '>' + dBR(p) + (venc ? ' · vencido' : '') + '</span>' : '<span class="sub">—</span>';
+const selLojas = (v, vazio) => (vazio ? '<option value="">' + esc(vazio) + '</option>' : '') + lojasVisiveis().map(l => '<option value="' + l.n + '"' + (String(l.n) === String(v) ? ' selected' : '') + '>' + esc(l.txt) + '</option>').join('');
+
+// ── formulário (modal) ── campos: { k, label, tipo: text|textarea|date|number|select|loja|lojaDest|colab|setor|check|multi|info, opcoes:[[v,t]], obrig, col, ajuda, html }
+function formulario({ titulo, sub, campos, valor, salvar, largura }) {
+  return new Promise(resolve => {
+    valor = valor || {};
+    const ov = document.createElement('div'); ov.className = 'f-ov';
+    const campo = f => {
+      const v = valor[f.k] != null ? valor[f.k] : (f.padrao != null ? f.padrao : ''); const id = 'f-' + f.k; const req = f.obrig ? ' required' : '';
+      if (f.tipo === 'info') return '<div class="info">' + f.html + '</div>';
+      let inp;
+      if (f.tipo === 'select') inp = '<select id="' + id + '"' + req + '>' + (f.vazio ? '<option value="">' + esc(f.vazio) + '</option>' : '') + f.opcoes.map(([k, t]) => '<option value="' + esc(k) + '"' + (String(k) === String(v) ? ' selected' : '') + '>' + esc(t) + '</option>').join('') + '</select>';
+      else if (f.tipo === 'loja') inp = '<select id="' + id + '"' + req + '>' + selLojas(v, 'escolha a unidade') + '</select>';
+      else if (f.tipo === 'lojaDest') inp = '<select id="' + id + '"' + req + '><option value="">escolha</option>' + ME.catalogos.lojas.map(l => '<option value="' + l.n + '"' + (String(l.n) === String(v) ? ' selected' : '') + '>' + esc(l.txt) + '</option>').join('') + '</select>';
+      else if (f.tipo === 'textarea') inp = '<textarea id="' + id + '" rows="' + (f.linhas || 3) + '"' + req + '>' + esc(v) + '</textarea>';
+      else if (f.tipo === 'check') inp = '<label class="chk"><input type="checkbox" id="' + id + '"' + (v ? ' checked' : '') + '> ' + esc(f.texto || 'sim') + '</label>';
+      else if (f.tipo === 'multi') inp = '<div class="multi" id="' + id + '">' + f.opcoes.map(([k, t]) => '<label><input type="checkbox" value="' + esc(k) + '"' + ((v || []).map(String).includes(String(k)) ? ' checked' : '') + '> ' + esc(t) + '</label>').join('') + '</div>';
+      else if (f.tipo === 'colab') inp = '<input id="' + id + '" list="gp-colabs" autocomplete="off" placeholder="digite o nome…" value="' + esc(valor.colab_nome || '') + '"' + req + '><input type="hidden" id="f-colab_id" value="' + esc(valor.colab_id || '') + '">';
+      else if (f.tipo === 'setor') inp = '<input id="' + id + '" list="gp-setores" autocomplete="off" value="' + esc(v) + '"' + req + '>';
+      else inp = '<input id="' + id + '" type="' + (f.tipo || 'text') + '" value="' + esc(v) + '"' + req + (f.step ? ' step="' + f.step + '"' : '') + (f.tipo === 'number' ? ' min="0"' : '') + '>';
+      return '<label class="fld c' + (f.col || 1) + '"><span>' + esc(f.label) + (f.obrig ? ' *' : '') + '</span>' + inp + (f.ajuda ? '<small>' + f.ajuda + '</small>' : '') + '</label>';
+    };
+    ov.innerHTML = '<div class="f-md" style="max-width:' + (largura || 780) + 'px"><div class="hd"><div><b>' + esc(titulo) + '</b>' + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</div><button type="button" class="x">×</button></div><form class="bd"><div class="grid">' + campos.map(campo).join('') +
+      '</div><div class="acoes"><span style="flex:1"></span><button type="button" class="btn gh" data-c>Cancelar</button>' + (Array.isArray(salvar) ? salvar.map((s, i) => '<button type="submit" class="btn ' + (i ? 'am' : 'gh') + '" data-s="' + i + '">' + esc(s) + '</button>').join('') : '<button type="submit" class="btn am" data-s="0">' + esc(salvar || 'Salvar') + '</button>') + '</div></form></div>';
+    document.body.appendChild(ov);
+    const fc = campos.find(f => f.tipo === 'colab');
+    if (fc) { const el = ov.querySelector('#f-' + fc.k); el.addEventListener('input', () => { const c = (COLABS || []).find(x => x.nome === el.value); ov.querySelector('#f-colab_id').value = c ? c.id : ''; if (c && fc.aoEscolher) fc.aoEscolher(c, ov); }); }
+    let botao = 0; ov.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { botao = +b.dataset.s; });
+    const fechar = v => { ov.remove(); resolve(v); };
+    ov.querySelector('.x').onclick = () => fechar(null); ov.querySelector('[data-c]').onclick = () => fechar(null);
+    ov.addEventListener('keydown', e => { if (e.key === 'Escape') fechar(null); });
+    ov.querySelector('form').onsubmit = e => {
+      e.preventDefault(); const out = { _botao: botao };
+      for (const f of campos) { const el = ov.querySelector('#f-' + f.k); if (!el) continue;
+        if (f.tipo === 'check') out[f.k] = el.checked; else if (f.tipo === 'multi') out[f.k] = [...el.querySelectorAll('input:checked')].map(i => i.value); else if (f.tipo !== 'colab') out[f.k] = el.value; }
+      if (fc) { out.colab_id = ov.querySelector('#f-colab_id').value || null; if (fc.obrig && !out.colab_id) { toast('Escolha o funcionário na lista', 'neg'); return; } }
+      fechar(out);
+    };
+    setTimeout(() => { const first = ov.querySelector('input:not([type=hidden]),select,textarea'); if (first) first.focus(); }, 30);
+  });
+}
+function janela(titulo, sub, html, largura) {
+  const ov = document.createElement('div'); ov.className = 'f-ov';
+  ov.innerHTML = '<div class="f-md" style="max-width:' + (largura || 1040) + 'px"><div class="hd"><div><b>' + esc(titulo) + '</b>' + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</div><button type="button" class="x">×</button></div><div class="bd">' + html + '</div></div>';
+  document.body.appendChild(ov); ov.querySelector('.x').onclick = () => ov.remove(); ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+  return ov;
+}
+async function carregarColabs() {
+  if (COLABS) return COLABS; COLABS = await api('/api/gp/colaboradores').catch(() => []);
+  const dl = (id, ops) => { let d = document.getElementById(id); if (!d) { d = document.createElement('datalist'); d.id = id; document.body.appendChild(d); } d.innerHTML = ops; };
+  dl('gp-colabs', COLABS.map(c => '<option value="' + esc(c.nome) + '">' + esc(lojaTxt(c.loja)) + ' · ' + esc(c.setor) + ' · ' + esc(c.cargo) + '</option>').join(''));
+  dl('gp-setores', [...new Set(COLABS.map(c => c.setor))].sort().map(s => '<option value="' + esc(s) + '">').join(''));
+  return COLABS;
+}
+
+// ── entrada ──
+async function iniciar() {
+  try { ME = await api('/api/gp/me'); }
+  catch (e) {
+    if (e.status === 403) { msg('<b>Você não está entre os designados da Central de Gestão de Pessoas.</b> O acesso é por designação da Coordenação Administrativa (gerente da unidade, RH, Coordenação, Diretoria, Jurídico ou TI). Ter o módulo DP / RH não basta.', 'neg'); return; }
+    msg('Erro ao abrir a central: ' + esc(e.message), 'neg'); return;
+  }
+  CFG = await api('/api/gp/config');
+  const esc0 = ME.escopo === null ? 'todas as unidades' : ME.escopo.length ? ME.escopo.map(lojaTxt).join(', ') : 'nenhuma unidade';
+  $('#rodape').innerHTML = esc(ME.nome) + '<br>' + (ME.papeis.length ? ME.papeis.map(p => ME.catalogos.papeis[p]).join(' · ') : 'sem papel') + '<br>' + esc(esc0) + ' · <span class="sino" id="sino">avisos' + (ME.naoLidas ? '<b>' + ME.naoLidas + '</b>' : '') + '</span>';
+  $('#sino').onclick = () => abrirAba('avisos');
+  $('#tabs').hidden = false; $$('.tab').forEach(t => t.onclick = () => abrirAba(t.dataset.t));
+  if (ME.bootstrap) { msg('<b>Primeiro acesso.</b> Ainda não há ninguém designado. Como administrador do sistema, cadastre as pessoas e os papéis (pelo menos uma da Coordenação Administrativa). Depois disso o administrador só entra se também for designado — administrar o sistema não dá competência de aprovação.'); $$('.tab').forEach(t => { if (t.dataset.t !== 'cfg') t.style.display = 'none'; }); abrirAba('cfg'); return; }
+  if (!ME.vePainel) { // Jurídico e TI: só o que é deles
+    $$('.tab').forEach(t => { const ok = papel('juridico') ? ['sol', 'docs', 'avisos', 'cfg'].includes(t.dataset.t) : ['avisos', 'cfg'].includes(t.dataset.t); if (!ok) t.style.display = 'none'; });
+    msg(papel('juridico') ? 'Perfil Jurídico: você vê só as solicitações e atendimentos encaminhados para parecer. O parecer não substitui a aprovação da Coordenação.' : 'Perfil técnico (TI): integrações, sincronização e disponibilidade. Sem acesso aos dados de pessoas nem competência de aprovação.', 'inf');
+    abrirAba(papel('juridico') ? 'sol' : 'cfg'); syncBar(); return;
+  }
+  if (ME.soConsulta) msg('Perfil <b>Diretoria</b>: acesso exclusivamente consultivo — indicadores, relatórios, históricos e exportação. Sem botões de aprovação, rejeição ou edição.', 'inf');
+  syncBar(); abrirAba('visao'); contadores(); carregarColabs();
+}
+function abrirAba(t) {
+  ABA = t; $$('.tab').forEach(x => x.classList.toggle('on', x.dataset.t === t)); ABAS.forEach(a => { $('#v-' + a).style.display = a === t ? '' : 'none'; });
+  ({ visao, bh, ponto, quadro, docs, sol: () => solicitacoes('sol'), planos: () => solicitacoes('planos'), alertas: central, ind: indicadores, rel: relatorios, aud: auditoria, avisos, cfg: configuracoes })[t]();
+}
+async function contadores() {
+  try {
+    const [al, nt] = await Promise.all([api('/api/gp/alertas'), api('/api/gp/notificacoes?naoLidas=1')]);
+    const n = (id, v, neg) => { const el = $('#n-' + id); if (el) { el.textContent = v || ''; el.className = neg && v ? 'neg' : ''; } };
+    n('bh', al.filter(a => a.evento <= 2).length, true); n('ponto', al.filter(a => a.evento === 3 || a.evento === 4).length); n('docs', al.filter(a => a.evento === 9).length);
+    n('sol', al.filter(a => [6, 7, 10, 12].includes(a.evento) && !/^Plano/.test(a.tipo)).length); n('planos', al.filter(a => /^Plano/.test(a.tipo)).length); n('alertas', al.length, al.some(a => a.prioridade === 'alta')); n('avisos', nt.length, true);
+  } catch (e) { /* contadores são cosméticos */ }
+}
+async function syncBar() {
+  try {
+    const s = await api('/api/gp/sync'); const el = $('#syncbar'); el.hidden = false;
+    const p = (nome, x) => !x ? '<span>' + nome + ': <b>nunca sincronizado</b></span>' : '<span>' + nome + ': ' + (x.ok ? '<b>' + dt(x.em) + '</b>' : '<span class="err">falhou ' + dt(x.em) + ' (' + esc(x.erro || '') + ')</span>' + (x.ultimoOk ? ' · último ok ' + dt(x.ultimoOk) : '')) + '</span>';
+    el.innerHTML = '<span>PontoCerto (VR) · leitura a cada 30 min</span>' + p('banco de horas', s.estado.bancoHoras) + p('ponto', s.estado.ponto) + (s.rodando ? '<b>sincronizando…</b>' : '') + (!s.tokenConfigurado ? '<span class="err">token do PontoCerto não configurado</span>' : '') +
+      (papel('ti', 'coordenacao', ...RH) ? btn('Sincronizar agora', 'gh', 'id="bt-sync"') : '');
+    if ($('#bt-sync')) $('#bt-sync').onclick = async () => { $('#bt-sync').disabled = true; $('#bt-sync').textContent = 'sincronizando (pode levar 1 min)…'; try { const r = await api('/api/gp/sync', { body: { qual: 'tudo' } }); toast(r.erro ? r.erro : 'Sincronizado' + (r.bancoHoras && r.bancoHoras.novos != null ? ' · ' + r.bancoHoras.novos + ' alerta(s) novo(s)' : '') + (r.ponto && r.ponto.novas != null ? ' · ' + r.ponto.novas + ' ocorrência(s) nova(s)' : ''), r.erro ? 'neg' : ''); COLABS = null; carregarColabs(); } catch (e) { toast(e.message, 'neg'); } syncBar(); abrirAba(ABA); contadores(); };
+  } catch (e) { /* sem acesso */ }
+}
+function abrirRef(ref) {
+  if (!ref) return; document.querySelectorAll('.f-ov').forEach(o => o.remove());
+  if (ref.aba === 'sol') { abrirSol(ref.protocolo); return; }
+  if (ref.aba === 'bh') { abrirAba('bh'); if (ref.protocolo) abrirAlerta(ref.protocolo); return; }
+  if (ref.aba === 'ponto') { abrirAba('ponto'); if (ref.id) abrirOcorrencia(ref.id); return; }
+  abrirAba({ docs: 'docs', quadro: 'quadro', relatorios: 'rel' }[ref.aba] || 'visao');
+}
+
+// ── 1 · Visão geral ──
+async function visao() {
+  const el = $('#v-visao'); el.innerHTML = '<div class="vazio">carregando…</div>';
+  let v; try { v = await api('/api/gp/visao'); } catch (e) { el.innerHTML = '<div class="aviso neg">' + esc(e.message) + '</div>'; return; }
+  const i = v.indicadores, t = i.total;
+  const k = (l, val, s, cls, aba) => '<div class="kpi ' + (cls || '') + '" data-aba="' + aba + '"><div class="l">' + l + '</div><div class="v">' + val + '</div><div class="s">' + s + '</div></div>';
+  el.innerHTML = (i.data ? '' : '<div class="aviso">Ainda não há foto de saldos do banco de horas. A primeira leitura do PontoCerto acontece 2 minutos depois do sistema subir e depois a cada 30 min' + (papel('ti', 'coordenacao', ...RH) ? ' — ou use "Sincronizar agora"' : '') + '.</div>') +
+    '<div class="kpis">' +
+    k('Acima de ' + hm(i.limites.positivoMin), t.acima, 'banco de horas positivo', t.acima ? 'neg' : 'pos', 'bh') +
+    k('Abaixo de ' + hm(-i.limites.negativoMin), t.abaixo, 'banco de horas negativo', t.abaixo ? 'neg' : 'pos', 'bh') +
+    k('Ocorrências de ponto', t.oc_abertas, 'abertas · ' + t.oc_reincid + ' reincidência(s)', t.oc_abertas ? 'am' : 'pos', 'ponto') +
+    k('Planos de ação', t.planos_pend, 'pendentes · ' + (t.taxa_cumprimento == null ? 'sem conclusões' : t.taxa_cumprimento + '% cumpridos'), t.planos_pend ? 'am' : '', 'planos') +
+    k('Solicitações', t.sols_pend, 'em análise/aprovação', t.sols_pend ? 'inf' : '', 'sol') +
+    k('Efetivo', t.efetivo, t.autorizado ? 'autorizado ' + t.autorizado + ' (' + (t.efetivo - t.autorizado >= 0 ? '+' : '') + (t.efetivo - t.autorizado) + ')' : 'quadro autorizado não definido', '', 'quadro') +
+    k('Documentos', t.docs_pend + t.assin_pend, t.assin_pend + ' assinatura(s) pendente(s)', t.docs_pend + t.assin_pend ? 'am' : '', 'docs') +
+    '</div>' +
+    '<div class="grid2"><div><div class="sec"><h2>Aguardando você <small>' + v.fila.length + '</small></h2></div>' +
+    (v.fila.length ? '<div class="pend-lista">' + v.fila.slice(0, 60).map((f, n) => '<div class="pend ' + (f.kind === 'bh' ? 'neg' : f.kind === 'ponto' ? 'am' : 'inf') + '" data-f="' + n + '"><span class="grau"></span><span class="area">' + ({ sol: 'Solicitação', ponto: 'Ponto', bh: 'Banco de horas' })[f.kind] + '</span><b>' + esc(f.lojaTxt) + '</b><span class="txt">' + esc(f.texto) + ' <span class="sub">' + esc(f.status) + '</span></span><span class="ir">abrir ›</span></div>').join('') + '</div>' : '<div class="vazio">Nada esperando por você agora.</div>') +
+    '</div><div><div class="sec"><h2>Por unidade</h2></div>' +
+    tabela([{ h: 'Unidade', f: r => '<b>' + esc(r.lojaTxt) + '</b>' }, { h: 'Efetivo', cls: 'r', f: r => r.efetivo }, { h: '> limite', cls: 'r', f: r => r.acima ? '<b style="color:var(--neg)">' + r.acima + '</b>' : '0' }, { h: '< limite', cls: 'r', f: r => r.abaixo ? '<b style="color:var(--neg)">' + r.abaixo + '</b>' : '0' },
+      { h: 'Ponto', cls: 'r', f: r => r.oc_abertas }, { h: 'Planos', cls: 'r', f: r => r.planos_pend }, { h: 'Vencidas', cls: 'r', f: r => r.vencidas ? '<b style="color:var(--neg)">' + r.vencidas + '</b>' : '0' }], i.lojas) +
+    '<p class="mini">' + esc(i.aviso) + '</p></div></div>';
+  el.querySelectorAll('.kpi').forEach(x => x.onclick = () => abrirAba(x.dataset.aba));
+  el.querySelectorAll('[data-f]').forEach(x => x.onclick = () => { const f = v.fila[+x.dataset.f]; if (f.kind === 'sol') abrirSol(f.protocolo); else if (f.kind === 'ponto') { abrirAba('ponto'); abrirOcorrencia(f.protocolo); } else { abrirAba('bh'); novoPlano(null, f.protocolo); } });
+}
+
+// ── 2 · Banco de horas ──
+let BH = null, bhFiltro = { loja: '', sit: 'fora', q: '' };
+async function bh() {
+  const el = $('#v-bh'); el.innerHTML = '<div class="vazio">carregando…</div>';
+  try { BH = await api('/api/gp/bh'); } catch (e) { el.innerHTML = '<div class="aviso neg">' + esc(e.message) + '</div>'; return; }
+  if (BH.semDados) { el.innerHTML = '<div class="aviso">Ainda não há foto de saldos. ' + (BH.sync && !BH.sync.ok ? 'Última tentativa falhou: ' + esc(BH.sync.erro) : 'Aguarde a primeira sincronização.') + '</div>'; return; }
+  const L = BH.limites;
+  el.innerHTML = '<p class="st" style="margin-bottom:10px">Saldos lidos do PontoCerto em <b>' + dt(BH.em) + '</b>' + (BH.anteriorData ? ', comparados com a foto de <b>' + dBR(BH.anteriorData) + '</b> (semana anterior)' : ' — a comparação semanal aparece quando houver 7 dias de histórico') + '. Alerta quando o saldo passa de <b>' + hm(L.positivoMin) + '</b> ou fica abaixo de <b>' + hm(-L.negativoMin) + '</b>; exatamente no limite = "No limite". Limites são parâmetros internos de monitoramento e não caracterizam, sozinhos, infração trabalhista.</p>' +
+    '<div class="bar"><select id="bh-loja">' + selLojas(bhFiltro.loja, 'todas as unidades') + '</select><div class="seg" id="bh-sit">' + [['fora', 'Fora do limite'], ['limite', 'No limite'], ['todos', 'Todos']].map(([k, t]) => '<button data-k="' + k + '" class="' + (bhFiltro.sit === k ? 'on' : '') + '">' + t + '</button>').join('') + '</div><input id="bh-q" placeholder="buscar funcionário ou setor" value="' + esc(bhFiltro.q) + '"><span style="flex:1"></span>' +
+    '<a class="btn gh sm" href="/api/gp/exportar/banco-horas.csv">Exportar CSV</a>' + (!ME.soConsulta ? btn('+ Plano de ação', 'am', 'id="bh-novo"') : '') + '</div><div id="bh-tab"></div>' +
+    '<p class="mini">Não vem na API atual do PontoCerto: ' + BH.naoDisponivel.join(' · ') + '. O histórico aqui é montado pelas fotos diárias que esta central guarda.</p>';
+  $('#bh-loja').onchange = e => { bhFiltro.loja = e.target.value; bhTabela(); };
+  $('#bh-q').oninput = e => { bhFiltro.q = e.target.value; bhTabela(); };
+  $$('#bh-sit button').forEach(b => b.onclick = () => { bhFiltro.sit = b.dataset.k; $$('#bh-sit button').forEach(x => x.classList.toggle('on', x === b)); bhTabela(); });
+  if ($('#bh-novo')) $('#bh-novo').onclick = () => novoPlano();
+  bhTabela();
+}
+function bhTabela() {
+  const q = bhFiltro.q.trim().toUpperCase();
+  let rows = BH.linhas.filter(r => (!bhFiltro.loja || +r.loja === +bhFiltro.loja) && (!q || (r.nome + ' ' + r.setor + ' ' + r.cargo).toUpperCase().includes(q)));
+  if (bhFiltro.sit === 'fora') rows = rows.filter(r => r.situacao.startsWith('alerta')); else if (bhFiltro.sit === 'limite') rows = rows.filter(r => r.situacao.startsWith('limite'));
+  rows.sort((a, b) => Math.abs(b.min) - Math.abs(a.min));
+  $('#bh-tab').innerHTML = tabela([
+    { h: 'Unidade', f: r => esc(lojaTxt(r.loja)) },
+    { h: 'Funcionário', cls: 'w', f: r => '<b>' + esc(r.nome) + '</b><span class="sub">' + esc(r.setor) + (r.cargo ? ' · ' + esc(r.cargo) : '') + (r.matricula ? ' · mat. ' + esc(r.matricula) : '') + '</span>' },
+    { h: 'Saldo', cls: 'r', f: r => hmCls(r.min, r.situacao) }, { h: 'Semana ant.', cls: 'r', f: r => r.anterior == null ? '<span class="sub">—</span>' : hm(r.anterior) },
+    { h: 'Variação', cls: 'r', f: r => r.variacao == null ? '<span class="sub">—</span>' : '<span class="hm ' + (r.variacao > 0 ? 'neg' : r.variacao < 0 ? 'pos' : '') + '">' + hm(r.variacao) + '</span>' },
+    { h: 'Situação', f: r => sitPill(r.situacao) },
+    { h: 'Alerta · plano', f: r => r.alerta ? '<a href="#" data-al="' + r.alerta.protocolo + '" class="prot">' + r.alerta.protocolo + '</a><span class="sub">' + (r.plano ? 'plano ' + esc(r.plano.statusTxt.toLowerCase()) : 'sem plano · prazo ' + dBR(r.alerta.prazoPlano)) + '</span>' : '<span class="sub">—</span>' },
+    { h: '', f: r => (r.plano ? btn('Ver plano', 'gh', 'data-sol="' + r.plano.protocolo + '"') : (!ME.soConsulta && r.situacao.startsWith('alerta') ? btn('Plano de ação', 'am', 'data-pl="' + r.id + '"') : '')) }
+  ], rows, { vazio: bhFiltro.sit === 'fora' ? 'Ninguém fora dos limites. 👍' : 'Nada com esse filtro.' });
+  $$('#bh-tab [data-al]').forEach(a => a.onclick = e => { e.preventDefault(); abrirAlerta(a.dataset.al); });
+  $$('#bh-tab [data-sol]').forEach(b => b.onclick = () => abrirSol(b.dataset.sol));
+  $$('#bh-tab [data-pl]').forEach(b => b.onclick = () => novoPlano(+b.dataset.pl));
+}
+async function abrirAlerta(prot) {
+  let a; try { a = await api('/api/gp/bh/alertas/' + prot); } catch (e) { toast(e.message, 'neg'); return; }
+  const pode = !ME.soConsulta && a.status === 'aberto';
+  const ov = janela('Alerta ' + a.protocolo + ' · ' + (a.tipo === 'bh_pos' ? 'acima do limite' : 'abaixo do limite'), a.nome + ' · ' + lojaTxt(a.loja) + ' · ' + a.setor,
+    '<div class="det"><div><dl class="kv"><dt>Identificado</dt><dd>' + dt(a.identificadoEm) + ' com ' + hm(a.saldoIdentificado) + '</dd><dt>Saldo atual</dt><dd>' + hmCls(a.saldoAtual, a.situacao) + '</dd><dt>Limite</dt><dd>' + hm(a.limiteMin) + '</dd><dt>Situação</dt><dd>' + (a.status === 'aberto' ? 'Aberto' : 'Encerrado em ' + dt(a.encerradoEm) + ' — ' + esc(a.motivoEncerramento)) + '</dd><dt>Prazo do plano</dt><dd>' + dBR(a.prazoPlano) + ' (sexta)</dd><dt>Plano</dt><dd>' + (a.plano ? '<a href="#" data-sol="' + a.plano.protocolo + '">' + a.plano.protocolo + '</a> · ' + esc(a.plano.statusTxt) : 'nenhum') + '</dd><dt>Prioridade</dt><dd>' + prioPill(a.prioridade) + '</dd></dl>' +
+    (a.tipo === 'bh_neg' ? '<div class="aviso" style="margin-top:12px">Saldo negativo: analisar a origem (faltas, atrasos, ajuste de escala, falha de marcação) antes de qualquer medida de regularização. Nada é descontado automaticamente.</div>' : '') +
+    '<div class="sec"><h2>Evolução</h2></div>' + tabela([{ h: 'Quando', f: x => dt(x.em) }, { h: 'Saldo', cls: 'r', f: x => hm(x.min) }], a.evolucao.slice().reverse()) + '</div>' +
+    '<div><div class="sec"><h2>Providências adotadas</h2>' + (pode ? btn('+ Registrar', 'am', 'id="al-prov"') : '') + '</div><div class="hist">' + (a.providencias.length ? a.providencias.slice().reverse().map(p => '<div class="h"><time>' + dt(p.em) + '</time><div><b>' + esc(p.nome) + '</b><p>' + esc(p.texto) + '</p></div></div>').join('') : '<div class="vazio sm">Nenhuma providência registrada.</div>') + '</div>' +
+    (pode && !a.plano ? '<div style="margin-top:12px">' + btn('Elaborar plano de ação', 'am', 'id="al-plano"') + '</div>' : '') + '</div></div>');
+  ov.querySelectorAll('[data-sol]').forEach(x => x.onclick = e => { e.preventDefault(); ov.remove(); abrirSol(x.dataset.sol); });
+  if (ov.querySelector('#al-prov')) ov.querySelector('#al-prov').onclick = async () => { const v = await formulario({ titulo: 'Providência · ' + a.nome, campos: [{ k: 'texto', label: 'O que foi feito', tipo: 'textarea', obrig: true, col: 3 }] }); if (!v) return; try { await api('/api/gp/bh/alertas/' + a.protocolo + '/providencia', { body: { texto: v.texto } }); toast('Registrado'); ov.remove(); abrirAlerta(a.protocolo); } catch (e) { toast(e.message, 'neg'); } };
+  if (ov.querySelector('#al-plano')) ov.querySelector('#al-plano').onclick = () => { ov.remove(); novoPlano(a.colab_id); };
+}
+
+// ── solicitações: formulário por tipo (campos vêm do servidor) ──
+function camposDoTipo(tipo, dados) {
+  const T = ME.catalogos.tipos[tipo];
+  return T.campos.map(f => ({ ...f, tipo: f.tipo === 'loja' ? 'lojaDest' : f.tipo, col: f.col || 1, padrao: f.tipo === 'date' && f.k === 'inicio' ? G.hoje() : undefined,
+    aoEscolher: f.tipo === 'colab' && tipo === 'plano_bh' ? (c, ov) => { const s = ov.querySelector('#gp-saldo'); if (s) s.innerHTML = '<b>' + esc(c.nome) + '</b> · ' + esc(lojaTxt(c.loja)) + ' · saldo atual ' + hmCls(c.min, '') + (c.matricula ? ' · matrícula ' + esc(c.matricula) : ''); } : null }));
+}
+async function novoPlano(colabId, alertaProt) {
+  await carregarColabs();
+  let c = colabId ? COLABS.find(x => x.id === +colabId) : null;
+  if (!c && alertaProt) { try { const a = await api('/api/gp/bh/alertas/' + alertaProt); c = COLABS.find(x => x.id === +a.colab_id); } catch (e) {} }
+  novaSolicitacao('plano_bh', c ? { colab_id: c.id, colab_nome: c.nome } : {}, c);
+}
+async function novaSolicitacao(tipo, valor, colab) {
+  await carregarColabs();
+  if (!tipo) {
+    const ops = Object.entries(ME.catalogos.tipos).filter(([k]) => k !== 'plano_bh').map(([k, t]) => [k, t.nome]);
+    const v = await formulario({ titulo: 'Nova solicitação', campos: [{ k: 'tipo', label: 'O que você precisa pedir', tipo: 'select', opcoes: ops, obrig: true, col: 3 }, { tipo: 'info', html: 'Toda solicitação segue <b>Gerente → RH (análise técnica) → Coordenação Administrativa (decisão)</b>. Ninguém aprova a própria solicitação.' }], salvar: 'Continuar', largura: 560 });
+    if (!v) return; tipo = v.tipo;
+  }
+  const T = ME.catalogos.tipos[tipo]; const temColab = T.campos.some(f => f.tipo === 'colab');
+  const campos = [...(tipo === 'plano_bh' ? [{ tipo: 'info', html: '<span id="gp-saldo">' + (colab ? '<b>' + esc(colab.nome) + '</b> · ' + esc(lojaTxt(colab.loja)) + ' · saldo atual ' + hmCls(colab.min, '') : 'Escolha o funcionário: o saldo é lido do servidor no momento do plano.') + '</span><br>O plano vai primeiro ao <b>RH · Controle de Ponto</b> (validação técnica) e depois à <b>Coordenação</b>. Envio até <b>sexta</b>; recebimento pelo RH até sábado.' }] : []),
+    ...(!temColab ? [{ k: 'loja', label: 'Unidade', tipo: 'loja', obrig: true }] : []), ...camposDoTipo(tipo, valor)];
+  const v = await formulario({ titulo: T.nome, campos, valor: { ...(valor || {}), ...((valor && valor.dados) || {}) }, salvar: ['Salvar rascunho', 'Enviar ao RH'] });
+  if (!v) return;
+  try {
+    const r = await api('/api/gp/solicitacoes', { body: { tipo, loja: v.loja, dados: v, enviar: v._botao === 1 } });
+    toast(v._botao === 1 ? 'Enviada ao RH · ' + r.protocolo : 'Rascunho salvo · ' + r.protocolo); abrirAba(tipo === 'plano_bh' ? 'planos' : 'sol'); contadores();
+  } catch (e) { toast(e.message, 'neg'); }
+}
+
+// ── 6/7 · Solicitações e planos ──
+const solFiltro = { sol: { status: '', loja: '' }, planos: { status: '', loja: '' } };
+async function solicitacoes(qual) {
+  const el = $('#v-' + qual); const f = solFiltro[qual]; el.innerHTML = '<div class="vazio">carregando…</div>';
+  const q = new URLSearchParams({ tipo: qual === 'planos' ? 'planos' : 'outras', ...(f.status ? { status: f.status } : {}), ...(f.loja ? { loja: f.loja } : {}) });
+  let rows; try { rows = await api('/api/gp/solicitacoes?' + q); } catch (e) { el.innerHTML = '<div class="aviso neg">' + esc(e.message) + '</div>'; return; }
+  const podeCriar = !ME.soConsulta && papel('gerente', 'coordenacao', ...RH);
+  el.innerHTML = '<p class="st" style="margin-bottom:10px">' + (qual === 'planos' ? 'Planos de ação do banco de horas: o gerente elabora, o RH valida tecnicamente, a Coordenação aprova; depois da execução o RH compara os saldos (a redução do saldo sozinha não prova o cumprimento).' : 'Escalas, reposição e ampliação de quadro, transferências, lotação e movimentações. A diferença de quadro só vira vaga depois de aprovada pela Coordenação.') + '</p>' +
+    '<div class="bar"><select id="sf-status-' + qual + '"><option value="">todos os status</option>' + Object.entries(ME.catalogos.status).map(([k, t]) => '<option value="' + k + '"' + (f.status === k ? ' selected' : '') + '>' + t + '</option>').join('') + '</select><select id="sf-loja-' + qual + '">' + selLojas(f.loja, 'todas as unidades') + '</select><span style="flex:1"></span>' +
+    '<a class="btn gh sm" href="/api/gp/exportar/solicitacoes.csv?' + q + '">Exportar CSV</a>' + (podeCriar ? btn(qual === 'planos' ? '+ Novo plano de ação' : '+ Nova solicitação', 'am', 'id="sf-novo-' + qual + '"') : '') + '</div>' +
+    tabela([{ h: 'Protocolo', f: r => '<span class="prot">' + r.protocolo + '</span><span class="sub">' + dBR(r.criadoEm.slice(0, 10)) + '</span>' }, ...(qual === 'sol' ? [{ h: 'Tipo', f: r => esc(r.curto) }] : []),
+      { h: 'Unidade', f: r => esc(r.lojaTxt) }, { h: 'Funcionário / resumo', cls: 'w', f: r => (r.colab ? '<b>' + esc(r.colab) + '</b>' : '') + '<span class="sub">' + esc(String(r.resumo).slice(0, 110)) + '</span>' },
+      { h: 'Status', f: r => pill(stCls(r.status), r.statusTxt) + (r.juridico === 'pendente' ? '<span class="sub" style="color:var(--amk)">aguardando parecer jurídico</span>' : '') + (r.resultado ? '<span class="sub">' + esc(ME.catalogos.resultados[r.resultado]) + '</span>' : '') },
+      { h: 'Prazo', f: r => prazoTxt(r.prazo, r.prazoVencido) }, { h: 'Solicitante', f: r => esc(r.autor) },
+      { h: '', f: r => btn(r.acoes.filter(a => a !== 'cancelar').length ? 'Abrir · agir' : 'Abrir', r.acoes.filter(a => a !== 'cancelar').length ? 'am' : 'gh', 'data-sol="' + r.protocolo + '"') }], rows, { vazio: 'Nenhuma solicitação aqui.' });
+  $('#sf-status-' + qual).onchange = e => { f.status = e.target.value; solicitacoes(qual); };
+  $('#sf-loja-' + qual).onchange = e => { f.loja = e.target.value; solicitacoes(qual); };
+  if ($('#sf-novo-' + qual)) $('#sf-novo-' + qual).onclick = () => qual === 'planos' ? novoPlano() : novaSolicitacao();
+  el.querySelectorAll('[data-sol]').forEach(b => b.onclick = () => abrirSol(b.dataset.sol));
+}
+const FLUXO = [['Gerente', ['rascunho', 'devolvido']], ['RH', ['enviado_rh', 'em_analise_rh', 'validado_rh']], ['Coordenação', ['aguardando_coordenacao']], ['Execução', ['aprovado', 'em_execucao', 'vencido']], ['Monitoramento', ['concluido']]];
+function fluxoHtml(st) {
+  const i = FLUXO.findIndex(([, ss]) => ss.includes(st));
+  return '<div class="fluxo">' + FLUXO.map(([n], k) => '<span class="' + (k < i ? 'done' : k === i ? 'on' : '') + '">' + n + '</span>').join('<i>→</i>') + (i < 0 ? ' ' + pill(stCls(st), ME.catalogos.status[st]) : '') + '</div>';
+}
+async function abrirSol(prot) {
+  let s; try { s = await api('/api/gp/solicitacoes/' + prot); } catch (e) { toast(e.message, 'neg'); return; }
+  const vf = (f, v) => v == null || v === '' ? '<span class="sub">—</span>' : f.tipo === 'date' ? dBR(v) : f.tipo === 'loja' ? esc(lojaTxt(v)) : esc(v);
+  const dados = '<dl class="kv"><dt>Unidade</dt><dd>' + esc(s.lojaTxt) + '</dd>' + (s.dados.colab_nome ? '<dt>Funcionário</dt><dd>' + esc(s.dados.colab_nome) + (s.dados.matricula ? ' · mat. ' + esc(s.dados.matricula) : '') + ' · ' + esc(s.dados.setor_atual || '') + '</dd>' : '') +
+    (s.tipo === 'plano_bh' && s.dados.saldo_min != null ? '<dt>Saldo no plano</dt><dd>' + hmCls(s.dados.saldo_min, '') + '</dd>' : '') +
+    s.campos.filter(f => f.tipo !== 'colab').map(f => '<dt>' + esc(f.label) + '</dt><dd>' + vf(f, s.dados[f.k]) + '</dd>').join('') + '<dt>Solicitante</dt><dd>' + esc(s.autor.nome) + ' · ' + dt(s.criadoEm) + '</dd></dl>';
+  const extra = (s.decisao ? '<div class="card leve"><div class="hd">Decisão da Coordenação <small>' + esc(s.decisao.nome) + ' · ' + dt(s.decisao.em) + '</small></div><div class="bd"><b>' + (s.decisao.resultado === 'aprovado' ? 'Aprovado' : 'Rejeitado') + '</b> — ' + esc(s.decisao.texto) + '</div></div>' : '') +
+    (s.juridico ? '<div class="card leve"><div class="hd">Jurídico <small>' + (s.juridico.status === 'pendente' ? 'aguardando parecer' : 'parecer em ' + dt(s.juridico.parecerEm)) + '</small></div><div class="bd"><b>Pergunta:</b> ' + esc(s.juridico.pergunta) + (s.juridico.parecer ? '<br><b>Parecer:</b> ' + esc(s.juridico.parecer) : '') + '<br><span class="sub">O parecer não substitui a decisão da Coordenação.</span></div></div>' : '') +
+    (s.execucao && s.execucao.registros.length ? '<div class="card leve"><div class="hd">Execução <small>' + s.execucao.registros.length + ' registro(s)</small></div><div class="bd">' + s.execucao.registros.map(r => dt(r.em) + ' · <b>' + esc(r.nome) + '</b>' + (r.horas != null ? ' · ' + r.horas + ' h' : '') + ' — ' + esc(r.texto)).join('<br>') + '</div></div>' : '') +
+    (s.comparacao ? '<div class="card leve"><div class="hd">Comparação de saldos</div><div class="bd">No plano: ' + hm(s.comparacao.saldoNoPlano) + ' · na conclusão: ' + hm(s.comparacao.saldoNaConclusao) + '<br><span class="sub">' + esc(s.comparacao.nota) + '</span></div></div>' : '');
+  const acoes = s.acoes.map(a => btn(ME.catalogos.acoes[a] ? ({ editar: 'Editar', enviar: 'Enviar ao RH', cancelar: 'Cancelar', analisar: 'Iniciar análise', validar: 'Validar e enviar à Coordenação', devolver: 'Devolver para correção', aprovar: 'Aprovar', rejeitar: 'Rejeitar', ajustes: 'Pedir ajustes ao solicitante', devolver_rh: 'Devolver ao RH', juridico: 'Encaminhar ao Jurídico', parecer_juridico: 'Registrar parecer', iniciar: 'Iniciar execução', registrar_execucao: 'Registrar execução', concluir: 'Concluir acompanhamento' })[a] : a,
+    ['aprovar', 'validar', 'enviar', 'iniciar', 'concluir'].includes(a) ? 'am' : ['rejeitar', 'cancelar'].includes(a) ? 'gh neg' : 'gh', 'data-ac="' + a + '"')).join('');
+  const ov = janela(s.tipoTxt + ' · ' + s.protocolo, s.lojaTxt + ' · ' + s.statusTxt + (s.prazo ? ' · prazo ' + dBR(s.prazo) : ''),
+    fluxoHtml(s.status) + (acoes ? '<div class="acoes-sol">' + acoes + '</div>' : ME.soConsulta ? '<p class="mini" style="margin-bottom:10px">Consulta (Diretoria).</p>' : '') +
+    '<div class="det"><div>' + dados + '<div style="margin-top:12px">' + extra + '</div></div><div><div class="sec" style="margin-top:0"><h2>Histórico</h2><a class="btn gh sm" href="#" id="sol-aud">trilha de auditoria</a></div><div class="hist">' +
+    s.historico.slice().reverse().map(h => '<div class="h"><time>' + dt(h.em) + '</time><div><b>' + esc(h.acaoTxt) + '</b> · ' + esc(h.nome) + (h.de !== h.para ? ' <span class="sub">' + esc(ME.catalogos.status[h.de] || h.de) + ' → ' + esc(ME.catalogos.status[h.para] || h.para) + '</span>' : '') + (h.texto ? '<p>' + esc(h.texto) + '</p>' : '') + '</div></div>').join('') + '</div></div></div>');
+  ov.querySelector('#sol-aud').onclick = async e => { e.preventDefault(); try { const l = await api('/api/gp/auditoria?ref=' + s.protocolo + '&mes=' + new Date().toISOString().slice(0, 7)); janela('Auditoria · ' + s.protocolo, 'mês corrente', tabela([{ h: 'Quando', f: x => dt(x.em) }, { h: 'Usuário', f: x => esc(x.usuario) }, { h: 'Ação', f: x => esc(x.acao) }, { h: 'De → para', f: x => esc((x.de || '') + (x.para && x.para !== x.de ? ' → ' + x.para : '')) }], l), 760); } catch (er) { toast(er.message, 'neg'); } };
+  ov.querySelectorAll('[data-ac]').forEach(b => b.onclick = () => agirSol(s, b.dataset.ac, ov));
+}
+async function agirSol(s, acao, ov) {
+  if (acao === 'editar') { ov.remove(); await carregarColabs(); const T = ME.catalogos.tipos[s.tipo]; const v = await formulario({ titulo: 'Editar · ' + T.nome, campos: camposDoTipo(s.tipo), valor: { ...s.dados }, salvar: ['Salvar', 'Salvar e enviar ao RH'] }); if (!v) return abrirSol(s.protocolo);
+    try { await api('/api/gp/solicitacoes/' + s.protocolo, { method: 'PUT', body: { dados: v } }); if (v._botao === 1) await api('/api/gp/solicitacoes/' + s.protocolo + '/enviar', { body: {} }); toast('Salvo'); } catch (e) { toast(e.message, 'neg'); } abrirSol(s.protocolo); return; }
+  const semTexto = ['enviar', 'analisar', 'iniciar'].includes(acao);
+  const campos = [];
+  if (acao === 'aprovar' || acao === 'rejeitar') campos.push({ tipo: 'info', html: 'Decisão da <b>Coordenação Administrativa</b>. Fica registrada com seu nome, data e justificativa e não pode ser apagada.' });
+  if (acao === 'concluir') campos.push({ k: 'resultado', label: 'Resultado', tipo: 'select', obrig: true, vazio: 'escolha', opcoes: Object.entries(ME.catalogos.resultados) }, ...(s.tipo === 'plano_bh' ? [{ tipo: 'info', html: 'Compare o saldo e as compensações realmente feitas. A redução do saldo, sozinha, não prova o cumprimento.' }] : []));
+  if (acao === 'registrar_execucao') campos.push({ k: 'horas', label: 'Horas compensadas/realizadas (opcional)', tipo: 'number', step: '0.5' });
+  if (!semTexto) campos.push({ k: 'texto', label: { validar: 'Parecer técnico do RH', devolver: 'O que precisa ser corrigido', aprovar: 'Justificativa da aprovação', rejeitar: 'Motivo da rejeição', ajustes: 'Ajustes pedidos', devolver_rh: 'O que o RH deve rever', juridico: 'Pergunta ao Jurídico', parecer_juridico: 'Parecer', registrar_execucao: 'O que foi executado', concluir: 'Verificação feita', cancelar: 'Motivo do cancelamento' }[acao] || 'Observação', tipo: 'textarea', obrig: true, col: 3, linhas: 4 });
+  else if (acao === 'iniciar') campos.push({ k: 'texto', label: 'Observação (opcional)', tipo: 'textarea', col: 3 });
+  let body = {};
+  if (campos.length) { const v = await formulario({ titulo: (ME.catalogos.acoes[acao] || acao) + ' · ' + s.protocolo, campos, salvar: 'Confirmar', largura: 640 }); if (!v) return; body = v; }
+  else if (!confirm((ME.catalogos.acoes[acao] || acao) + ' — confirmar?')) return;
+  try { await api('/api/gp/solicitacoes/' + s.protocolo + '/' + acao, { body }); toast('Feito: ' + (ME.catalogos.acoes[acao] || acao)); ov.remove(); abrirSol(s.protocolo); if (ABA === 'sol' || ABA === 'planos') solicitacoes(ABA); contadores(); }
+  catch (e) { toast(e.message, 'neg'); }
+}
+
+// ── 3 · Ponto e jornada ──
+let pontoFiltro = { situacao: 'abertas', loja: '', tipo: '' };
+async function ponto() {
+  const el = $('#v-ponto'); el.innerHTML = '<div class="vazio">carregando…</div>';
+  const q = new URLSearchParams(Object.fromEntries(Object.entries(pontoFiltro).filter(([, v]) => v)));
+  let rows; try { rows = await api('/api/gp/ponto?' + q); } catch (e) { el.innerHTML = '<div class="aviso neg">' + esc(e.message) + '</div>'; return; }
+  el.innerHTML = '<p class="st" style="margin-bottom:10px">Ocorrências abertas a partir do PontoCerto (até ontem, desde ' + dBR(CFG.ponto.inicio) + '). Atraso só acima de ' + CFG.ponto.atrasoMin + ' min (tolerância). Quando boa parte da unidade fica sem marcação no mesmo dia, abre <b>uma</b> ocorrência da unidade para o RH (provável falha de relógio/registro) e ninguém leva falta individual. Tipos: <b>dias sem marcação</b> não abonados (o PontoCerto já compara com a escala de cada funcionário — folga e escala especial não entram), <b>atrasos</b>, <b>trabalho em folga/feriado</b> e <b>horas extras</b> acima de ' + hm(CFG.ponto.extraAlertaMin).slice(1) + '. Relatório que não chega por falha de sincronização não abre nada. O registro original de ponto nunca é alterado por aqui. Gerente justifica → RH analisa → Coordenação quando precisar de autorização.</p>' +
+    '<div class="bar"><div class="seg" id="pt-sit">' + [['abertas', 'Abertas'], ['fechadas', 'Encerradas'], ['', 'Todas']].map(([k, t]) => '<button data-k="' + k + '" class="' + (pontoFiltro.situacao === k ? 'on' : '') + '">' + t + '</button>').join('') + '</div><select id="pt-loja">' + selLojas(pontoFiltro.loja, 'todas as unidades') + '</select><select id="pt-tipo"><option value="">todos os tipos</option>' + Object.entries(ME.catalogos.ocTipos).map(([k, t]) => '<option value="' + k + '"' + (pontoFiltro.tipo === k ? ' selected' : '') + '>' + t + '</option>').join('') + '</select><span style="flex:1"></span><a class="btn gh sm" href="/api/gp/exportar/ponto.csv?' + q + '">Exportar CSV</a></div>' +
+    tabela([{ h: 'Protocolo', f: r => '<span class="prot">' + r.id + '</span>' + (r.reincidente ? '<span class="sub" style="color:var(--neg)">reincidente</span>' : '') }, { h: 'Data', f: r => dBR(r.data) + '<span class="sub">' + G.dSem(r.data) + '</span>' }, { h: 'Unidade', f: r => esc(r.lojaTxt) },
+      { h: 'Funcionário', cls: 'w', f: r => '<b>' + esc(r.nome) + '</b><span class="sub">' + esc(r.setor) + (r.cargo ? ' · ' + esc(r.cargo) : '') + '</span>' }, { h: 'Divergência', f: r => esc(r.tipoTxt) },
+      { h: 'Jornada prevista', cls: 'w', f: r => esc(r.previsto || '—') }, { h: 'Registrado', cls: 'w', f: r => esc(r.registrado || '—') + (r.detalhe ? '<span class="sub">' + esc(r.detalhe) + '</span>' : '') },
+      { h: 'Situação', f: r => pill(['regularizada', 'decidida'].includes(r.status) ? 'pos' : r.status === 'encaminhada' ? 'am' : r.prazoVencido ? 'neg' : 'inf', r.statusTxt) + (r.escalonamentos.length ? '<span class="sub" style="color:var(--neg)">escalonada</span>' : '') },
+      { h: 'Responsável · prazo', f: r => esc(r.responsavel) + '<span class="sub">' + (r.prazo ? prazoTxt(r.prazo, r.prazoVencido) : '') + '</span>' },
+      { h: '', f: r => btn(r.acoes.length ? 'Tratar' : 'Ver', r.acoes.length ? 'am' : 'gh', 'data-oc="' + r.id + '"') }], rows, { vazio: pontoFiltro.situacao === 'abertas' ? 'Nenhuma ocorrência aberta.' : 'Nada com esse filtro.' });
+  $$('#pt-sit button').forEach(b => b.onclick = () => { pontoFiltro.situacao = b.dataset.k; ponto(); });
+  $('#pt-loja').onchange = e => { pontoFiltro.loja = e.target.value; ponto(); };
+  $('#pt-tipo').onchange = e => { pontoFiltro.tipo = e.target.value; ponto(); };
+  el.querySelectorAll('[data-oc]').forEach(b => b.onclick = () => abrirOcorrencia(b.dataset.oc, rows));
+}
+async function abrirOcorrencia(id, rows) {
+  let o = rows && rows.find(x => x.id === id);
+  if (!o) { try { o = (await api('/api/gp/ponto?situacao=')).find(x => x.id === id); } catch (e) {} }
+  if (!o) { toast('Ocorrência não encontrada', 'neg'); return; }
+  const AC = { justificar: 'Justificar', regularizar: 'Regularizar (RH)', encaminhar: 'Encaminhar à Coordenação', devolver: 'Devolver ao gerente', decidir: 'Registrar decisão' };
+  const ov = janela('Alerta — inconsistência de ponto · ' + o.id, o.nome + ' · ' + o.lojaTxt + ' · ' + o.setor,
+    '<div class="det"><div><dl class="kv"><dt>Data</dt><dd>' + dBR(o.data) + ' (' + G.dSem(o.data) + ')</dd><dt>Divergência</dt><dd>' + esc(o.tipoTxt) + '</dd><dt>Jornada prevista</dt><dd>' + esc(o.previsto || '—') + '</dd><dt>Marcações registradas</dt><dd>' + esc(o.registrado || '—') + '</dd>' + (o.detalhe ? '<dt>Detalhe</dt><dd>' + esc(o.detalhe) + '</dd>' : '') +
+    '<dt>Situação</dt><dd>' + esc(o.statusTxt) + '</dd><dt>Responsável</dt><dd>' + esc(o.responsavel) + '</dd><dt>Prazo</dt><dd>' + prazoTxt(o.prazo, o.prazoVencido) + '</dd>' + (o.reincidente ? '<dt>Reincidência</dt><dd style="color:var(--neg)">' + CFG.ponto.reincidenciaQtd + '+ ocorrências em ' + CFG.ponto.reincidenciaDias + ' dias</dd>' : '') + '</dl>' +
+    (o.justificativa ? '<div class="card leve" style="margin-top:12px"><div class="hd">Justificativa <small>' + esc(o.justificativa.nome) + ' · ' + dt(o.justificativa.em) + '</small></div><div class="bd">' + esc(o.justificativa.texto) + '</div></div>' : '') +
+    (o.escalonamentos.length ? '<div class="aviso neg" style="margin-top:12px">' + o.escalonamentos.map(e => '<b>Escalonada</b> em ' + dt(e.em) + ' para ' + esc(e.para) + ': ' + esc(e.motivo)).join('<br>') + '</div>' : '') +
+    (o.acoes.length ? '<div class="acoes-sol">' + o.acoes.map(a => btn(AC[a], a === 'justificar' || a === 'regularizar' ? 'am' : 'gh', 'data-ac="' + a + '"')).join('') + '</div>' : '') + '</div>' +
+    '<div><div class="sec" style="margin-top:0"><h2>Histórico</h2></div><div class="hist">' + (o.historico.length ? o.historico.slice().reverse().map(h => '<div class="h"><time>' + dt(h.em) + '</time><div><b>' + esc(AC[h.acao] || h.acao) + '</b> · ' + esc(h.nome) + '<p>' + esc(h.texto) + '</p></div></div>').join('') : '<div class="vazio sm">Aberta em ' + dt(o.criadaEm) + ', sem tratamento ainda.</div>') + '</div></div></div>');
+  ov.querySelectorAll('[data-ac]').forEach(b => b.onclick = async () => {
+    const a = b.dataset.ac;
+    const v = await formulario({ titulo: AC[a] + ' · ' + o.id, campos: [...(a === 'justificar' ? [{ tipo: 'info', html: 'Explique o que aconteceu. Se foi falha do relógio/aplicativo ou de sincronização, diga — isso não é falta de marcação do funcionário. Não informe diagnóstico médico aqui: atestado vai direto ao RH.' }] : []), { k: 'texto', label: a === 'justificar' ? 'Justificativa' : 'Análise / decisão', tipo: 'textarea', obrig: true, col: 3, linhas: 4 }], salvar: 'Confirmar', largura: 620 });
+    if (!v) return;
+    try { await api('/api/gp/ponto/' + o.id + '/' + a, { body: { texto: v.texto } }); toast('Registrado'); ov.remove(); ponto(); contadores(); } catch (e) { toast(e.message, 'neg'); }
+  });
+}
+
+// ── 4 · Quadro ──
+async function quadro() {
+  const el = $('#v-quadro'); el.innerHTML = '<div class="vazio">carregando…</div>';
+  let q; try { q = await api('/api/gp/quadro'); } catch (e) { el.innerHTML = '<div class="aviso neg">' + esc(e.message) + '</div>'; return; }
+  const tot = q.linhas.reduce((s, r) => ({ atual: s.atual + r.atual, aut: s.aut + (r.autorizado || 0), af: s.af + r.afastados, fe: s.fe + r.ferias }), { atual: 0, aut: 0, af: 0, fe: 0 });
+  el.innerHTML = '<div class="kpis"><div class="kpi"><div class="l">Quadro atual</div><div class="v">' + tot.atual + '</div><div class="s">ativos no PontoCerto' + (q.aoVivo ? '' : ' (última foto)') + '</div></div><div class="kpi"><div class="l">Autorizado</div><div class="v">' + (tot.aut || '—') + '</div><div class="s">definido pela Coordenação</div></div><div class="kpi am"><div class="l">Afastados</div><div class="v">' + tot.af + '</div><div class="s">sem motivo médico exposto</div></div><div class="kpi inf"><div class="l">Em férias</div><div class="v">' + tot.fe + '</div><div class="s">agora</div></div><div class="kpi"><div class="l">Admissões · 90 d</div><div class="v">' + q.admissoes.length + '</div><div class="s">' + q.admissoesAndamento.length + ' em andamento</div></div><div class="kpi neg"><div class="l">Desligamentos · 90 d</div><div class="v">' + q.desligamentos.length + '</div><div class="s">&nbsp;</div></div></div>' +
+    '<div class="aviso inf">' + esc(q.nota) + '</div>' +
+    '<div class="sec"><h2>Por unidade e setor</h2><div class="acoes"><select id="qd-loja">' + selLojas('', 'todas as unidades') + '</select>' + (papel('coordenacao') ? btn('Editar quadro autorizado', 'am', 'id="qd-edit"') : '') + (!ME.soConsulta && papel('gerente', 'coordenacao', ...RH) ? btn('+ Solicitar reposição/ampliação', 'gh', 'id="qd-sol"') : '') + '</div></div><div id="qd-tab"></div>' +
+    '<div class="grid2"><div><div class="sec"><h2>Solicitações de contratação <small>' + q.solicitacoesContratacao.length + '</small></h2></div>' + tabSols(q.solicitacoesContratacao) + '</div><div><div class="sec"><h2>Movimentações em andamento <small>' + q.movimentacoes.length + '</small></h2></div>' + tabSols(q.movimentacoes) + '</div></div>' +
+    '<div class="grid2"><div><div class="sec"><h2>Admissões · 90 dias</h2></div>' + tabela([{ h: 'Data', f: r => dBR(r.data) }, { h: 'Unidade', f: r => esc(lojaTxt(r.loja)) }, { h: 'Nome', cls: 'w', f: r => '<b>' + esc(r.nome) + '</b><span class="sub">' + esc(r.setor) + ' · ' + esc(r.cargo) + '</span>' }], q.admissoes, { vazio: q.aoVivo ? 'Nenhuma.' : 'Cadastro ao vivo indisponível agora.' }) + '</div>' +
+    '<div><div class="sec"><h2>Desligamentos · 90 dias</h2></div>' + tabela([{ h: 'Data', f: r => dBR(r.data) }, { h: 'Unidade', f: r => esc(lojaTxt(r.loja)) }, { h: 'Nome', cls: 'w', f: r => '<b>' + esc(r.nome) + '</b><span class="sub">' + esc(r.setor) + ' · ' + esc(r.cargo) + '</span>' }], q.desligamentos, { vazio: q.aoVivo ? 'Nenhum.' : 'Cadastro ao vivo indisponível agora.' }) + '</div></div>';
+  const desenha = loja => { $('#qd-tab').innerHTML = tabela([{ h: 'Unidade', f: r => esc(r.lojaTxt) }, { h: 'Setor', f: r => '<b>' + esc(r.setor) + '</b>' }, { h: 'Atual', cls: 'r', f: r => r.atual }, { h: 'Autorizado', cls: 'r', f: r => r.autorizado == null ? '<span class="sub">—</span>' : r.autorizado },
+    { h: 'Diferença', cls: 'r', f: r => r.diferenca == null ? '<span class="sub">—</span>' : '<b style="color:' + (r.diferenca < 0 ? 'var(--neg)' : r.diferenca > 0 ? 'var(--amk)' : 'var(--pos)') + '">' + (r.diferenca > 0 ? '+' : '') + r.diferenca + '</b>' }, { h: 'Afastados', cls: 'r', f: r => r.afastados || '' }, { h: 'Férias', cls: 'r', f: r => r.ferias || '' },
+    { h: 'Funções', cls: 'w', f: r => '<span class="sub">' + r.funcoes.slice(0, 6).map(x => esc(x.cargo) + ' ' + x.n).join(' · ') + '</span>' }], q.linhas.filter(r => !loja || +r.loja === +loja)); };
+  desenha(''); $('#qd-loja').onchange = e => desenha(e.target.value);
+  el.querySelectorAll('[data-sol]').forEach(b => b.onclick = () => abrirSol(b.dataset.sol));
+  if ($('#qd-sol')) $('#qd-sol').onclick = () => novaSolicitacao();
+  if ($('#qd-edit')) $('#qd-edit').onclick = async () => {
+    const campos = q.linhas.map(r => ({ k: r.loja + '|' + r.setor, label: r.lojaTxt.split(' · ')[0] + ' · ' + r.setor + ' (atual ' + r.atual + ')', tipo: 'number' }));
+    campos.push({ tipo: 'info', html: 'Deixe vazio para "não definido". Setor novo: use o formato <b>loja|SETOR</b> na configuração (aba Configurações).' });
+    const valor = Object.fromEntries(q.linhas.filter(r => r.autorizado != null).map(r => [r.loja + '|' + r.setor, r.autorizado]));
+    const v = await formulario({ titulo: 'Quadro autorizado', sub: 'Coordenação Administrativa', campos, valor, largura: 1000 }); if (!v) return;
+    const qa = {}; for (const [k, x] of Object.entries(v)) if (k.includes('|') && x !== '') qa[k] = +x;
+    try { await api('/api/gp/config', { method: 'PUT', body: { quadro: qa } }); CFG = await api('/api/gp/config'); toast('Quadro autorizado salvo'); quadro(); } catch (e) { toast(e.message, 'neg'); }
+  };
+}
+const tabSols = rows => tabela([{ h: 'Protocolo', f: r => '<a href="#" class="prot" data-sol="' + r.protocolo + '">' + r.protocolo + '</a>' }, { h: 'Tipo', f: r => esc(r.curto) }, { h: 'Unidade', f: r => esc(r.lojaTxt) }, { h: 'Status', f: r => pill(stCls(r.status), r.statusTxt) }, { h: 'Prazo', f: r => prazoTxt(r.prazo, r.prazoVencido) }], rows, { vazio: 'Nenhuma.' });
+
+// ── 5 · Documentação e GERI ──
+async function docs() {
+  const el = $('#v-docs'); el.innerHTML = '<div class="vazio">carregando…</div>';
+  let ds = [], at = [];
+  try { [ds, at] = await Promise.all([ME.vePainel ? api('/api/gp/documentos?situacao=pendentes') : [], api('/api/gp/atendimentos')]); } catch (e) { el.innerHTML = '<div class="aviso neg">' + esc(e.message) + '</div>'; return; }
+  const rhDoc = papel('rh_doc', 'coordenacao') && !ME.soConsulta;
+  el.innerHTML = '<div class="aviso inf"><b>GERI:</b> integração ainda não verificada — não temos credencial nem documentação da API, então nada é enviado, assinado ou alterado no GERI por aqui. As pendências ficam registradas nesta central com o campo "referência no GERI" para o RH amarrar ao documento oficial. Quando a API for liberada, o primeiro passo é confirmar o que ela permite (consulta, envio, status de assinatura).</div>' +
+    (ME.vePainel ? '<div class="sec"><h2>Pendências documentais <small>' + ds.length + '</small></h2><div class="acoes">' + (rhDoc ? btn('+ Pendência', 'am', 'id="dc-novo"') + btn('Checklist admissional', 'gh', 'id="dc-check"') : '') + '</div></div>' +
+    tabela([{ h: 'Unidade', f: r => esc(r.lojaTxt) }, { h: 'Funcionário', cls: 'w', f: r => '<b>' + esc(r.nome || '—') + '</b>' }, { h: 'Tipo', f: r => esc(r.tipo) }, { h: 'Documento', cls: 'w', f: r => esc(r.descricao) + (r.geri_ref ? '<span class="sub">GERI: ' + esc(r.geri_ref) + '</span>' : '') }, { h: 'Prazo', f: r => prazoTxt(r.prazo, r.vencido) }, { h: 'Status', f: r => pill(r.vencido ? 'neg' : 'warn', r.statusTxt) + (r.assistido ? '<span class="sub">atendimento assistido</span>' : '') }, { h: '', f: r => r.pode && !ME.soConsulta ? btn('Atualizar', 'gh', 'data-dc="' + r.id + '"') : '' }], ds, { vazio: 'Nenhuma pendência documental.' }) : '') +
+    '<div class="sec"><h2>Atendimento assistido <small>' + at.length + '</small></h2><div class="acoes">' + (!ME.soConsulta && papel('gerente', 'rh_doc', 'coordenacao') ? btn('+ Solicitar atendimento', 'am', 'id="at-novo"') : '') + '</div></div>' +
+    '<p class="mini" style="margin-bottom:8px">Para quem tem dificuldade de leitura ou com o celular: o RH agenda, orienta e registra. <b>Ninguém assina por terceiros</b> sem procedimento juridicamente válido (ex.: assinatura a rogo com testemunhas, validada pelo Jurídico), e ler o documento em voz alta não substitui formalidades legais específicas.</p>' +
+    tabela([{ h: 'Pedido', f: r => '<span class="prot">' + r.id + '</span><span class="sub">' + dBR(r.criadoEm.slice(0, 10)) + '</span>' }, { h: 'Unidade', f: r => esc(r.lojaTxt) }, { h: 'Funcionário', cls: 'w', f: r => '<b>' + esc(r.nome) + '</b><span class="sub">' + esc(r.motivo) + '</span>' }, { h: 'Documento', f: r => esc(r.documento || '—') }, { h: 'Agendado', f: r => r.agendadoPara ? dBR(r.agendadoPara) : '—' }, { h: 'Responsável', f: r => esc(r.responsavel || '—') }, { h: 'Status', f: r => pill(r.status === 'realizado' ? 'pos' : 'inf', r.statusTxt) + (r.validacaoJuridica ? '<span class="sub">' + (r.parecerJuridico ? 'parecer jurídico ok' : 'aguarda Jurídico') + '</span>' : '') }, { h: '', f: r => (r.pode || (papel('juridico') && r.validacaoJuridica)) && !ME.soConsulta ? btn('Abrir', 'gh', 'data-at="' + r.id + '"') : '' }], at, { vazio: 'Nenhum atendimento.' });
+  const tipos = ME.catalogos.docTipos.map(t => [t, t]); const sts = Object.entries(ME.catalogos.docStatus);
+  const formDoc = async d => { await carregarColabs(); const v = await formulario({ titulo: d ? 'Pendência ' + d.id : 'Nova pendência documental', campos: [...(d ? [] : [{ k: 'colab', label: 'Funcionário', tipo: 'colab', obrig: true, col: 2 }]), { k: 'tipo', label: 'Tipo', tipo: 'select', opcoes: tipos, obrig: true }, { k: 'descricao', label: 'Documento', obrig: true, col: 2 }, { k: 'prazo', label: 'Prazo', tipo: 'date' }, { k: 'status', label: 'Status', tipo: 'select', opcoes: sts }, { k: 'geri_ref', label: 'Referência no GERI', col: 2 }, { k: 'assistido', label: 'Precisa de atendimento assistido', tipo: 'check' }, { k: 'obs', label: 'Observação (sem diagnóstico/atestado)', tipo: 'textarea', col: 3 }], valor: d || { status: 'pendente', tipo: 'Documento admissional' } }); if (!v) return;
+    try { await api('/api/gp/documentos', { body: { ...v, id: d && d.id } }); toast('Salvo'); docs(); contadores(); } catch (e) { toast(e.message, 'neg'); } };
+  if ($('#dc-novo')) $('#dc-novo').onclick = () => formDoc(null);
+  el.querySelectorAll('[data-dc]').forEach(b => b.onclick = () => formDoc(ds.find(x => x.id === b.dataset.dc)));
+  if ($('#dc-check')) $('#dc-check').onclick = async () => { await carregarColabs(); const v = await formulario({ titulo: 'Checklist admissional', campos: [{ k: 'colab', label: 'Funcionário', tipo: 'colab', obrig: true, col: 2 }, { k: 'prazo', label: 'Prazo', tipo: 'date', padrao: '' }, { tipo: 'info', html: 'Cria uma pendência para cada item (os que já existem não duplicam): ' + esc(CFG.checklistAdmissional.join(' · ')) }], largura: 700 }); if (!v) return;
+    try { const r = await api('/api/gp/documentos/checklist', { body: { colab_id: v.colab_id, prazo: v.prazo } }); toast(r.criados + ' item(ns) criado(s)'); docs(); } catch (e) { toast(e.message, 'neg'); } };
+  const formAt = async a => { await carregarColabs(); const rh = papel('rh_doc', 'coordenacao'); const jur = papel('juridico') && a && a.validacaoJuridica && !rh;
+    const campos = jur ? [{ tipo: 'info', html: '<b>' + esc(a.nome) + '</b> · ' + esc(a.motivo) + '<br>Orientações do RH: ' + esc(a.orientacoes || '—') }, { k: 'parecerJuridico', label: 'Parecer jurídico', tipo: 'textarea', obrig: true, col: 3 }] :
+      [...(a ? [{ tipo: 'info', html: '<b>' + esc(a.nome) + '</b> · ' + esc(a.lojaTxt) }] : [{ k: 'colab', label: 'Funcionário', tipo: 'colab', obrig: true, col: 2 }]), { k: 'documento', label: 'Documento/assunto', col: a ? 3 : 1 }, { k: 'motivo', label: 'Motivo (dificuldade de leitura, celular…)', tipo: 'textarea', obrig: true, col: 3 },
+        ...(rh ? [{ k: 'status', label: 'Status', tipo: 'select', opcoes: Object.entries(ME.catalogos.atStatus) }, { k: 'agendadoPara', label: 'Agendado para', tipo: 'date' }, { k: 'responsavel', label: 'Responsável pelo atendimento' }, { k: 'orientacoes', label: 'Orientações prestadas', tipo: 'textarea', col: 3 }, { k: 'validacaoJuridica', label: 'Precisa de validação jurídica', tipo: 'check' }] : [])];
+    const v = await formulario({ titulo: a ? 'Atendimento ' + a.id : 'Solicitar atendimento assistido', campos, valor: a || {} }); if (!v) return;
+    try { await api('/api/gp/atendimentos', { body: { ...v, id: a && a.id } }); toast('Salvo'); docs(); } catch (e) { toast(e.message, 'neg'); } };
+  if ($('#at-novo')) $('#at-novo').onclick = () => formAt(null);
+  el.querySelectorAll('[data-at]').forEach(b => b.onclick = () => formAt(at.find(x => x.id === b.dataset.at)));
+}
+
+// ── 8 · Central de alertas ──
+let alFiltro = { prioridade: '', loja: '', responsavel: '', evento: '' };
+const EVENTOS = { 1: 'BH acima de +10h', 2: 'BH abaixo de −10h', 3: 'Marcação ausente', 4: 'Jornada inconsistente', 5: 'Plano não enviado', 6: 'Aguardando RH', 7: 'Aguardando Coordenação', 8: 'Execução vencida', 9: 'Documento pendente', 10: 'Solicitação devolvida', 11: 'Quadro abaixo', 12: 'Admissão atrasada' };
+async function central() {
+  const el = $('#v-alertas'); el.innerHTML = '<div class="vazio">carregando…</div>';
+  let todos; try { todos = await api('/api/gp/alertas'); } catch (e) { el.innerHTML = '<div class="aviso neg">' + esc(e.message) + '</div>'; return; }
+  const resp = [...new Set(todos.map(a => a.responsavel))].sort();
+  const rows = todos.filter(a => (!alFiltro.prioridade || a.prioridade === alFiltro.prioridade) && (!alFiltro.loja || +a.loja === +alFiltro.loja) && (!alFiltro.responsavel || a.responsavel === alFiltro.responsavel) && (!alFiltro.evento || +a.evento === +alFiltro.evento));
+  const porEv = {}; for (const a of todos) porEv[a.evento] = (porEv[a.evento] || 0) + 1;
+  el.innerHTML = '<div class="chips" style="margin-bottom:10px"><span class="chip' + (!alFiltro.evento ? ' on' : '') + '" data-ev="">Todos<small>' + todos.length + '</small></span>' + Object.entries(EVENTOS).map(([k, t]) => '<span class="chip' + (String(alFiltro.evento) === k ? ' on' : '') + '" data-ev="' + k + '">' + t + '<small>' + (porEv[k] || 0) + '</small></span>').join('') + '</div>' +
+    '<div class="bar"><select id="al-prio"><option value="">todas as prioridades</option>' + [['alta', 'Alta'], ['media', 'Média'], ['baixa', 'Baixa']].map(([k, t]) => '<option value="' + k + '"' + (alFiltro.prioridade === k ? ' selected' : '') + '>' + t + '</option>').join('') + '</select><select id="al-loja">' + selLojas(alFiltro.loja, 'todas as unidades') + '</select><select id="al-resp"><option value="">todos os responsáveis</option>' + resp.map(r => '<option' + (alFiltro.responsavel === r ? ' selected' : '') + '>' + esc(r) + '</option>').join('') + '</select><span style="flex:1"></span><a class="btn gh sm" href="/api/gp/exportar/alertas.csv">Exportar CSV</a></div>' +
+    tabela([{ h: 'Protocolo', f: a => '<span class="prot">' + esc(a.protocolo) + '</span>' }, { h: 'Tipo', cls: 'w', f: a => '<b>' + esc(a.tipo) + '</b><span class="sub">' + esc(a.detalhe || '') + '</span>' }, { h: 'Funcionário', f: a => esc(a.colab || '—') }, { h: 'Unidade', f: a => esc(a.lojaTxt) }, { h: 'Data', f: a => dBR(a.data) },
+      { h: 'Prioridade', f: a => prioPill(a.prioridade) }, { h: 'Responsável', f: a => esc(a.responsavel) }, { h: 'Prazo', f: a => prazoTxt(a.prazo, a.prazo && a.prazo < G.hoje()) }, { h: 'Status', cls: 'w', f: a => esc(a.status) }, { h: '', f: (a, i) => btn('Abrir', 'gh', 'data-i="' + rows.indexOf(a) + '"') }], rows, { vazio: 'Nenhum alerta com esse filtro.' });
+  el.querySelectorAll('[data-ev]').forEach(c => c.onclick = () => { alFiltro.evento = c.dataset.ev; central(); });
+  $('#al-prio').onchange = e => { alFiltro.prioridade = e.target.value; central(); }; $('#al-loja').onchange = e => { alFiltro.loja = e.target.value; central(); }; $('#al-resp').onchange = e => { alFiltro.responsavel = e.target.value; central(); };
+  el.querySelectorAll('[data-i]').forEach(b => b.onclick = () => abrirRef(rows[+b.dataset.i].ref));
+}
+
+// ── 9 · Indicadores ──
+async function indicadores() {
+  const el = $('#v-ind'); el.innerHTML = '<div class="vazio">carregando…</div>';
+  let i; try { i = await api('/api/gp/indicadores'); } catch (e) { el.innerHTML = '<div class="aviso neg">' + esc(e.message) + '</div>'; return; }
+  const t = i.total; const evo = (a, b) => b == null ? '<span class="sub">—</span>' : '<span class="sub">' + (a - b >= 0 ? '▲ ' : '▼ ') + hm(a - b) + ' vs ' + dBR(i.anteriorData) + '</span>';
+  const n = v => v == null ? '<span class="sub">—</span>' : v;
+  el.innerHTML = '<p class="st" style="margin-bottom:10px">Foto de saldos de ' + (i.data ? dBR(i.data) : '—') + '. ' + esc(i.aviso) + '</p>' +
+    '<div class="sec"><h2>Banco de horas</h2></div><div class="kpis"><div class="kpi pos"><div class="l">Horas positivas</div><div class="v">' + hm(t.pos_min) + '</div><div class="s">' + evo(t.pos_min, t.pos_min_ant) + '</div></div><div class="kpi neg"><div class="l">Horas negativas</div><div class="v">' + hm(t.neg_min) + '</div><div class="s">' + evo(t.neg_min, t.neg_min_ant) + '</div></div><div class="kpi neg"><div class="l">Acima de ' + hm(i.limites.positivoMin) + '</div><div class="v">' + t.acima + '</div></div><div class="kpi neg"><div class="l">Abaixo de ' + hm(-i.limites.negativoMin) + '</div><div class="v">' + t.abaixo + '</div></div><div class="kpi am"><div class="l">Planos pendentes</div><div class="v">' + t.planos_pend + '</div></div><div class="kpi"><div class="l">Planos aprovados</div><div class="v">' + t.planos_aprov + '</div></div><div class="kpi"><div class="l">Taxa de cumprimento</div><div class="v">' + (t.taxa_cumprimento == null ? '—' : t.taxa_cumprimento + '%') + '</div></div></div>' +
+    tabela([{ h: 'Unidade', f: r => '<b>' + esc(r.lojaTxt) + '</b>' }, { h: 'Positivas', cls: 'r', f: r => hm(r.pos_min) }, { h: 'Negativas', cls: 'r', f: r => hm(r.neg_min) }, { h: 'Var. pos. semana', cls: 'r', f: r => r.pos_min_ant == null ? '—' : hm(r.pos_min - r.pos_min_ant) }, { h: '> limite', cls: 'r', f: r => r.acima }, { h: '< limite', cls: 'r', f: r => r.abaixo }, { h: 'Planos pend.', cls: 'r', f: r => r.planos_pend }, { h: 'Aprovados', cls: 'r', f: r => r.planos_aprov }, { h: 'Cumprimento', cls: 'r', f: r => r.taxa_cumprimento == null ? '—' : r.taxa_cumprimento + '%' }], i.lojas) +
+    '<div class="sec"><h2>Ponto</h2></div>' + tabela([{ h: 'Unidade', f: r => '<b>' + esc(r.lojaTxt) + '</b>' }, { h: 'Abertas', cls: 'r', f: r => r.oc_abertas }, { h: 'Regularizadas', cls: 'r', f: r => r.oc_fechadas }, { h: 'Reincidências', cls: 'r', f: r => r.oc_reincid }, { h: 'Tempo médio de resolução', cls: 'r', f: r => r.oc_resol_h == null ? '—' : r.oc_resol_h + ' h' }], i.lojas) +
+    '<div class="sec"><h2>Quadro</h2></div>' + (i.vivos ? '<div class="kpis"><div class="kpi"><div class="l">Admissões · 30 d</div><div class="v">' + i.vivos.admissoes30 + '</div></div><div class="kpi"><div class="l">Desligamentos · 30 d</div><div class="v">' + i.vivos.desligamentos30 + '</div></div><div class="kpi am"><div class="l">Afastamentos agora</div><div class="v">' + i.vivos.afastados + '</div></div><div class="kpi inf"><div class="l">Férias agora</div><div class="v">' + i.vivos.ferias + '</div></div><div class="kpi"><div class="l">Solicitações pendentes</div><div class="v">' + t.sols_pend + '</div></div></div>' : '') +
+    tabela([{ h: 'Unidade', f: r => '<b>' + esc(r.lojaTxt) + '</b>' }, { h: 'Efetivo atual', cls: 'r', f: r => r.efetivo }, { h: 'Autorizado', cls: 'r', f: r => r.autorizado || '—' }, { h: 'Diferença', cls: 'r', f: r => n(r.diferenca_quadro) }, { h: 'Solicitações pendentes', cls: 'r', f: r => r.sols_pend }, { h: 'Admissões em andamento', cls: 'r', f: r => r.admissoes_and }], i.lojas) +
+    '<div class="sec"><h2>Documentação</h2></div>' + tabela([{ h: 'Unidade', f: r => '<b>' + esc(r.lojaTxt) + '</b>' }, { h: 'Documentos pendentes', cls: 'r', f: r => r.docs_pend }, { h: 'Assinaturas pendentes', cls: 'r', f: r => r.assin_pend }, { h: 'Concluídos', cls: 'r', f: r => r.docs_concl }, { h: 'Admissões em andamento', cls: 'r', f: r => r.admissoes_and }], i.lojas) +
+    '<div class="sec"><h2>Desempenho gerencial</h2></div>' + tabela([{ h: 'Unidade', f: r => '<b>' + esc(r.lojaTxt) + '</b>' }, { h: 'Cumprimento dos planos', cls: 'r', f: r => r.taxa_cumprimento == null ? '—' : r.taxa_cumprimento + '%' }, { h: 'Prazo médio de resposta (ponto)', cls: 'r', f: r => r.resp_h == null ? '—' : r.resp_h + ' h' }, { h: 'Solicitações devolvidas', cls: 'r', f: r => r.devolvidas }, { h: 'Pendências vencidas', cls: 'r', f: r => r.vencidas ? '<b style="color:var(--neg)">' + r.vencidas + '</b>' : 0 }], i.lojas) +
+    '<p class="mini">Nenhum indicador gera penalidade automática.</p>';
+}
+
+// ── 10 · Relatórios ──
+async function relatorios(data) {
+  const el = $('#v-rel'); el.innerHTML = '<div class="vazio">carregando…</div>';
+  let salvos = [], r;
+  try { salvos = await api('/api/gp/relatorios'); r = await api('/api/gp/relatorios/semanal' + (data ? '?data=' + data : '')); } catch (e) { el.innerHTML = '<div class="aviso">' + esc(e.message) + '</div>'; return; }
+  const linha = x => '<li><b>' + esc(x.nome) + '</b> · ' + esc(x.setor) + ' · ' + hm(x.min) + (x.variacao != null ? ' <span class="sub" style="display:inline">(' + hm(x.variacao) + ' na semana)</span>' : '') + '</li>';
+  el.innerHTML = '<div class="bar"><select id="rel-data"><option value="">agora (dados atuais)</option>' + salvos.map(d => '<option value="' + d + '"' + (d === data ? ' selected' : '') + '>sexta ' + dBR(d) + ' (congelado)</option>').join('') + '</select><span class="st">Toda sexta às 8h o relatório é congelado e avisado à Coordenação, Diretoria, RH e gerentes.</span><span style="flex:1"></span><a class="btn gh sm" href="/api/gp/exportar/semanal.csv' + (data ? '?data=' + data : '') + '">Exportar CSV</a><button class="btn gh sm" onclick="window.print()">Imprimir</button></div>' +
+    '<p class="st" style="margin-bottom:10px">Foto de ' + dBR(r.data) + (r.anteriorData ? ' comparada com ' + dBR(r.anteriorData) : ' (sem foto da semana anterior ainda)') + ' · limites ' + hm(r.limites.positivoMin) + ' / ' + hm(-r.limites.negativoMin) + '</p>' +
+    r.lojas.map(l => '<div class="rel-loja"><h3>' + esc(l.lojaTxt) + '<small>' + l.colaboradores + ' colaboradores · positivas ' + hm(l.pos_min) + (l.evolucao.pos_ant != null ? ' (' + hm(l.pos_min - l.evolucao.pos_ant) + ')' : '') + ' · negativas ' + hm(l.neg_min) + (l.evolucao.neg_ant != null ? ' (' + hm(l.neg_min - l.evolucao.neg_ant) + ')' : '') + ' · planos: ' + l.planos.pendentes + ' pendentes, ' + l.planos.emExecucao + ' em execução, ' + l.planos.concluidos + ' concluídos, ' + l.planos.descumpridos + ' descumpridos</small></h3>' +
+      '<div class="rel-cols"><div><b>5 maiores positivos</b><ol>' + (l.top_pos.map(linha).join('') || '<li class="sub">nenhum</li>') + '</ol></div><div><b>5 maiores negativos</b><ol>' + (l.top_neg.map(linha).join('') || '<li class="sub">nenhum</li>') + '</ol></div><div><b>Fora dos limites (' + l.fora.length + ')</b><ol>' + (l.fora.map(linha).join('') || '<li class="sub">ninguém</li>') + '</ol></div></div></div>').join('');
+  $('#rel-data').onchange = e => relatorios(e.target.value || null);
+}
+
+// ── 11 · Auditoria ──
+async function auditoria() {
+  const el = $('#v-aud'); const mes = el.dataset.mes || new Date().toISOString().slice(0, 7); el.innerHTML = '<div class="vazio">carregando…</div>';
+  let l; try { l = await api('/api/gp/auditoria?mes=' + mes); } catch (e) { el.innerHTML = '<div class="aviso neg">' + esc(e.message) + '</div>'; return; }
+  el.innerHTML = '<div class="bar"><input type="month" id="aud-mes" value="' + mes + '"><span class="st">' + (papel('coordenacao', 'diretoria') ? 'Trilha completa: decisões, transições, leituras de solicitação, exportações e mudanças de configuração.' : 'Trilha limitada às solicitações e ocorrências que você enxerga.') + ' Registros não podem ser apagados pela tela.</span></div>' +
+    tabela([{ h: 'Quando', f: x => dt(x.em) }, { h: 'Usuário', f: x => esc(x.usuario || '—') }, { h: 'Ação', f: x => esc(x.acao) }, { h: 'Referência', f: x => x.ref ? '<span class="prot">' + esc(x.ref) + '</span>' : (x.campos ? esc(x.campos.join(', ')) : esc(x.qual || '')) }, { h: 'Transição', f: x => x.de || x.para ? esc((ME.catalogos.status[x.de] || x.de || '') + ' → ' + (ME.catalogos.status[x.para] || x.para || '')) : '' }], l, { vazio: 'Nada registrado neste mês.', limite: 1000 });
+  $('#aud-mes').onchange = e => { el.dataset.mes = e.target.value; auditoria(); };
+}
+
+// ── avisos ──
+async function avisos() {
+  const el = $('#v-avisos'); el.innerHTML = '<div class="vazio">carregando…</div>';
+  let l; try { l = await api('/api/gp/notificacoes'); } catch (e) { el.innerHTML = '<div class="aviso neg">' + esc(e.message) + '</div>'; return; }
+  el.innerHTML = '<div class="bar"><span class="st">Avisos internos desta central. E-mail/WhatsApp dependem de canal autorizado e configuração técnica.</span><span style="flex:1"></span>' + btn('Marcar todos como lidos', 'gh', 'id="nt-todos"') + '</div>' +
+    (l.length ? '<div class="notif">' + l.map((n, i) => '<div class="' + (n.lida ? '' : 'nl') + '" data-i="' + i + '"><small>' + dt(n.em) + '</small>' + esc(n.texto) + '</div>').join('') + '</div>' : '<div class="vazio">Nenhum aviso.</div>');
+  $('#nt-todos').onclick = async () => { await api('/api/gp/notificacoes/lidas', { body: { ids: ['*'] } }); avisos(); contadores(); };
+  el.querySelectorAll('[data-i]').forEach(d => d.onclick = async () => { const n = l[+d.dataset.i]; await api('/api/gp/notificacoes/lidas', { body: { ids: [n.id] } }).catch(() => {}); contadores(); abrirRef(n.ref); });
+}
+
+// ── 12 · Configurações ──
+async function configuracoes() {
+  const el = $('#v-cfg'); el.innerHTML = '<div class="vazio">carregando…</div>';
+  try { CFG = await api('/api/gp/config'); } catch (e) { el.innerHTML = '<div class="aviso neg">' + esc(e.message) + '</div>'; return; }
+  const ed = CFG.podeEditar && (papel('coordenacao') || ME.bootstrap);
+  const P = ME.catalogos.papeis; const L = ME.catalogos.lojas;
+  const num = (id, v, dis) => '<input type="number" min="0" id="' + id + '" value="' + v + '"' + (dis ? ' disabled' : '') + '>';
+  let html = '';
+  if (!ME.bootstrap) html += '<div class="grid2"><div><div class="sec"><h2>Limites e prazos</h2>' + (papel('coordenacao') ? btn('Salvar parâmetros', 'am', 'id="cf-salvar"') : '<span class="st">só a Coordenação altera</span>') + '</div>' +
+    '<div class="table-wrap"><table class="t cfg"><tbody>' +
+    '<tr><td>Alerta positivo acima de (minutos)</td><td class="r">' + num('cf-pos', CFG.limites.positivoMin, !papel('coordenacao')) + '</td><td class="sub">' + hm(CFG.limites.positivoMin) + ' — exatamente no limite não alerta</td></tr>' +
+    '<tr><td>Alerta negativo abaixo de (minutos)</td><td class="r">' + num('cf-neg', CFG.limites.negativoMin, !papel('coordenacao')) + '</td><td class="sub">' + hm(-CFG.limites.negativoMin) + '</td></tr>' +
+    [['justificativaDu', 'Prazo do gerente para justificar ponto (dias úteis)'], ['analiseRhDu', 'Prazo de análise do RH (dias úteis)'], ['coordenacaoDu', 'Prazo da Coordenação (dias úteis)'], ['admissaoDias', 'Processo admissional (dias corridos)'], ['documentoDias', 'Prazo padrão de documentos (dias)']].map(([k, t]) => '<tr><td>' + t + '</td><td class="r">' + num('cf-p-' + k, CFG.prazos[k], !papel('coordenacao')) + '</td><td></td></tr>').join('') +
+    [['atrasoMin', 'Atraso só vira ocorrência acima de (minutos)', 'tolerância CLT: 10 min no dia'], ['extraAlertaMin', 'Hora extra que abre ocorrência (minutos/dia)', ''], ['falhaColetivaPct', 'Falha coletiva: % da unidade sem marcação no mesmo dia', 'vira 1 ocorrência da unidade p/ o RH'], ['falhaColetivaMin', 'Falha coletiva: mínimo de pessoas', ''], ['diasVarredura', 'Dias lidos do ponto a cada sincronização', ''], ['reincidenciaQtd', 'Reincidência: ocorrências', ''], ['reincidenciaDias', 'Reincidência: em quantos dias', '']].map(([k, t, s]) => '<tr><td>' + t + '</td><td class="r">' + num('cf-o-' + k, CFG.ponto[k], !papel('coordenacao')) + '</td><td class="sub">' + s + '</td></tr>').join('') +
+    '<tr><td>Ocorrências a partir de</td><td class="r"><input type="date" id="cf-inicio" style="width:140px;text-align:left" value="' + (CFG.ponto.inicio || '') + '"' + (papel('coordenacao') ? '' : ' disabled') + '></td><td class="sub">datas antes disso não abrem ocorrência</td></tr>' +
+    '</tbody></table></div><p class="mini">Dias úteis = segunda a sábado. Planos de ação: envio até sexta, recebimento do RH até sábado. Limites são parâmetros internos de monitoramento.</p></div>' +
+    '<div><div class="sec"><h2>Matriz de permissões</h2></div>' + tabela([{ h: 'Funcionalidade', f: r => r[0] }, ...['Gerente', 'RH', 'Coordenação', 'Diretoria'].map((h, i) => ({ h, cls: 'c', f: r => '<span class="' + (r[i + 1] === 'Não' ? 'nao' : 'sim') + '">' + r[i + 1] + '</span>' }))],
+      [['Consultar sua unidade', 'Sim', 'Sim', 'Sim', 'Sim'], ['Consultar todas as unidades', 'Não', 'Conforme atribuição', 'Sim', 'Sim'], ['Elaborar plano', 'Sim', 'Conforme função', 'Sim', 'Não'], ['Validar tecnicamente', 'Não', 'Sim', 'Consulta', 'Não'], ['Aprovar plano', 'Não', 'Não', 'Sim', 'Não'], ['Solicitar movimentação', 'Sim', 'Sim', 'Sim', 'Não'], ['Aprovar movimentação', 'Não', 'Não', 'Sim', 'Não'], ['Analisar indicadores', 'Sua unidade', 'Conforme atribuição', 'Todas', 'Todas'], ['Alterar parâmetros de alerta', 'Não', 'Não', 'Sim', 'Não'], ['Consultar auditoria', 'Limitado', 'Conforme atribuição', 'Sim', 'Consulta']]) +
+    '<p class="mini">Aplicada no servidor (lib/gestao-pessoas.js): cada ação é checada lá, não só escondida na tela. Ninguém aprova a própria solicitação, e quem validou no RH não aprova a mesma. Jurídico só vê o que foi encaminhado e dá parecer, sem substituir a Coordenação. TI cuida da integração e não tem competência de aprovação.</p></div></div>';
+  html += '<div class="sec"><h2>Designados <small>' + CFG.designados.length + '</small></h2>' + (ed ? '<div class="acoes">' + btn('+ Pessoa', 'gh', 'id="ds-add"') + btn('Salvar designados', 'am', 'id="ds-salvar"') + '</div>' : '') + '</div>' +
+    '<p class="mini" style="margin-bottom:8px">Gerente: marque a(s) unidade(s) dele (obrigatório). RH: sem unidade marcada = todas; com unidade = só aquelas. Coordenação e Diretoria veem tudo. Diretoria não acumula outro papel. A pessoa também precisa ter o módulo DP / RH no cadastro de usuários.</p><div class="des" id="ds"></div>';
+  el.innerHTML = html;
+  let usuarios = []; if (ed) usuarios = await api('/api/gp/usuarios').catch(() => []);
+  let lista = CFG.designados.map(d => ({ ...d }));
+  const desenha = () => { $('#ds').innerHTML = lista.length ? lista.map((d, i) => '<div class="d"><div>' + (ed ? '<select data-i="' + i + '" data-k="usuario"><option value="">escolha o usuário</option>' + usuarios.map(u => '<option value="' + esc(u.usuario) + '"' + (u.usuario === d.usuario ? ' selected' : '') + '>' + esc(u.nome || u.usuario) + ' (' + esc(u.usuario) + ')</option>').join('') + '</select>' : '<b>' + esc(d.nome) + '</b>') + '</div>' +
+    '<div>' + Object.entries(P).map(([k, t]) => '<label><input type="checkbox" data-i="' + i + '" data-p="' + k + '"' + ((d.papeis || []).includes(k) ? ' checked' : '') + (ed ? '' : ' disabled') + '> ' + esc(t) + '</label>').join('') + '</div>' +
+    '<div>' + L.map(l => '<label><input type="checkbox" data-i="' + i + '" data-l="' + l.n + '"' + ((d.lojas || []).includes(l.n) ? ' checked' : '') + (ed ? '' : ' disabled') + '> ' + esc(l.txt.split(' · ')[0]) + '</label>').join('') + '</div>' + (ed ? '<button class="x" data-rm="' + i + '" title="remover">×</button>' : '<span></span>') + '</div>').join('') : '<div class="vazio">Ninguém designado ainda.</div>';
+    if (!ed) return;
+    $$('#ds [data-k=usuario]').forEach(s => s.onchange = () => { const u = usuarios.find(x => x.usuario === s.value); lista[+s.dataset.i].usuario = s.value; lista[+s.dataset.i].nome = u ? u.nome || u.usuario : s.value; });
+    $$('#ds [data-p]').forEach(c => c.onchange = () => { const d = lista[+c.dataset.i]; d.papeis = (d.papeis || []).filter(p => p !== c.dataset.p).concat(c.checked ? [c.dataset.p] : []); });
+    $$('#ds [data-l]').forEach(c => c.onchange = () => { const d = lista[+c.dataset.i]; d.lojas = (d.lojas || []).filter(n => n !== +c.dataset.l).concat(c.checked ? [+c.dataset.l] : []); });
+    $$('#ds [data-rm]').forEach(b => b.onclick = () => { lista.splice(+b.dataset.rm, 1); desenha(); });
+  };
+  desenha();
+  if ($('#ds-add')) $('#ds-add').onclick = () => { lista.push({ usuario: '', nome: '', papeis: [], lojas: [] }); desenha(); };
+  if ($('#ds-salvar')) $('#ds-salvar').onclick = async () => { try { await api('/api/gp/config', { method: 'PUT', body: { designados: lista.filter(d => d.usuario) } }); toast('Designados salvos'); location.reload(); } catch (e) { toast(e.message, 'neg'); } };
+  if ($('#cf-salvar')) $('#cf-salvar').onclick = async () => {
+    const v = id => +$('#' + id).value; const prazos = {}, pt = {};
+    for (const k of ['justificativaDu', 'analiseRhDu', 'coordenacaoDu', 'admissaoDias', 'documentoDias']) prazos[k] = v('cf-p-' + k);
+    for (const k of ['atrasoMin', 'extraAlertaMin', 'falhaColetivaPct', 'falhaColetivaMin', 'diasVarredura', 'reincidenciaQtd', 'reincidenciaDias']) pt[k] = v('cf-o-' + k);
+    if ($('#cf-inicio').value) pt.inicio = $('#cf-inicio').value;
+    try { await api('/api/gp/config', { method: 'PUT', body: { limites: { positivoMin: v('cf-pos'), negativoMin: v('cf-neg') }, prazos, ponto: pt } }); toast('Parâmetros salvos'); configuracoes(); } catch (e) { toast(e.message, 'neg'); }
+  };
+}
+iniciar();
+</script>
+</body>
+</html>
