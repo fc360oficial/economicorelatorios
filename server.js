@@ -3273,7 +3273,7 @@ app.get('/api/sugestao-compras/:listaId/itens', async (req, res) => {
     const hoje = new Date();
     const mesSel = req.query.mes ? parseInt(req.query.mes) : hoje.getMonth() + 1;
     const anoSel = req.query.ano ? parseInt(req.query.ano) : hoje.getFullYear();
-    const coberturaAlvo = Math.max(1, parseFloat(req.query.cobertura) || 20);
+    const coberturaAlvo = Math.max(1, parseFloat(req.query.cobertura) || 28);
     const lojas = req.query.loja && req.query.loja !== 'todas' ? [parseInt(req.query.loja) || 1] : [1, 2, 3, 4, 5, 6];
     const mm = mesDB(mesSel);
     const dIni = `${anoSel}-${String(mesSel).padStart(2, '0')}-01`;
@@ -7814,7 +7814,7 @@ app.post('/api/sugestao-manual', async (req, res) => {
     const b = req.body || {};
     const listaId = parseInt(b.lista); if (!listaId) return res.status(400).json({ error: 'Informe o número da lista' });
     if (!/^\d{4}-\d{2}-\d{2}$/.test(b.data_ini || '') || !/^\d{4}-\d{2}-\d{2}$/.test(b.data_fim || '')) return res.status(400).json({ error: 'Período de venda inválido' });
-    const s = await sugestaoManual.calcularNova({ listaId, data_ini: b.data_ini, data_fim: b.data_fim, cobertura: Math.max(1, parseInt(b.cobertura) || 20), lojas: b.lojas, obs: b.obs, usuario: req.session.user?.comprador_nome || req.session.user?.nome || null, transitoDe: transitoDaLista(listaId) });
+    const s = await sugestaoManual.calcularNova({ listaId, data_ini: b.data_ini, data_fim: b.data_fim, cobertura: Math.max(1, parseInt(b.cobertura) || 28), lojas: b.lojas, obs: b.obs, usuario: req.session.user?.comprador_nome || req.session.user?.nome || null, transitoDe: transitoDaLista(listaId) });
     res.json(s);
   } catch (err) { res.status(err.message.startsWith('Lista') || err.message.startsWith('Escolha') ? 400 : 500).json({ error: err.message }); }
 });
