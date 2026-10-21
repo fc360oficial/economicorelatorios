@@ -183,8 +183,12 @@ async function iniciar() {
     abrirAba(papel('juridico') ? 'sol' : 'cfg'); syncBar(); return;
   }
   if (ME.soConsulta) msg('Perfil <b>Diretoria</b>: acesso exclusivamente consultivo — indicadores, relatórios, históricos e exportação. Sem botões de aprovação, rejeição ou edição.', 'inf');
-  syncBar(); abrirAba('visao'); contadores(); carregarColabs();
+  syncBar(); abrirAba(EMBED.aba || 'visao'); contadores(); carregarColabs();
 }
+// Modo embutido (teste-tiago.html, 21/10): ?embed=1&aba=sol abre só a aba pedida, sem cabeçalho nem fila de abas —
+// a TESTE TIAGO reaproveita estas telas administrativas em vez de duplicá-las.
+const EMBED = (() => { const q = new URLSearchParams(location.search); return q.get('embed') === '1' ? { aba: ABAS.includes(q.get('aba')) ? q.get('aba') : 'visao' } : null; })();
+if (EMBED) { document.documentElement.classList.add('embed'); const st = document.createElement('style'); st.textContent = '.embed .page-hdr,.embed #syncbar,.embed #tabs,.embed #dsnav{display:none!important}.embed body{margin-left:0!important;background:transparent}.embed .main{padding:4px 2px 24px;max-width:none}'; document.head.appendChild(st); }
 function abrirAba(t) {
   ABA = t; $$('.tab').forEach(x => x.classList.toggle('on', x.dataset.t === t)); ABAS.forEach(a => { $('#v-' + a).style.display = a === t ? '' : 'none'; });
   ({ visao, bh, ponto, quadro, docs, sol: () => solicitacoes('sol'), planos: () => solicitacoes('planos'), alertas: central, ind: indicadores, rel: relatorios, aud: auditoria, avisos, cfg: configuracoes })[t]();
