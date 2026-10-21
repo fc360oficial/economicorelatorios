@@ -9,28 +9,172 @@
 <title>Gestão de Pessoas — Econômico Supermercados</title>
 <!-- Central de Gestão de Pessoas (DP / RH › Gestão de Pessoas), 21/10/2026. Aba NOVA ao lado de RH/DP (que ficam como estão).
      Regras e permissões no servidor (lib/gestao-pessoas.js, rotas em lib/gestao-pessoas-rotas.js): a tela só mostra os botões
-     que o servidor devolve em `acoes`, e o servidor recusa o resto. Kit visual de gente-ui.js (mesmo de rh/dp/etica). -->
+     que o servidor devolve em `acoes`, e o servidor recusa o resto. Kit visual de gente-ui.js (mesmo de rh/dp/etica).
+     21/10 (noite): layout no padrão dos sistemas de RH atuais, aprovado pelo Tiago no mockup claude.ai/artifact/VjNQrxyLF9W9H6zzhXd1Em —
+     menu lateral do módulo em grupos (Painel · Monitoramento · Fluxo · Pessoas · Gestão), barra superior fina com o status do
+     PontoCerto, Visão geral com 4 indicadores, Alertas como mesa de trabalho (busca, visões, chips só com ocorrência, etapa na linha,
+     gaveta de detalhe à direita), aba Pessoas com a ficha do funcionário (banco 30 d, pendências, histórico). As regras não mudaram.
+     Modo ?embed=1&aba=x (usado pela TESTE TIAGO) continua: só a aba pedida, sem menu nem barra. -->
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 [hidden]{display:none!important}
-body{font-family:var(--font,'InterVar','Segoe UI',sans-serif);background:var(--pap);color:var(--ink);min-height:100vh}
-.main{padding:24px;max-width:1640px}
-.page-hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
-.page-hdr h1{font-size:21px;font-weight:800;letter-spacing:-.3px}.page-hdr h1 span{display:inline-block;background:#101B33;color:#FFC933;font-size:11px;padding:2px 8px;border-radius:6px;margin-left:8px;vertical-align:middle;letter-spacing:.4px}
-.page-hdr p{font-size:12.5px;color:var(--ink2);margin-top:4px;max-width:96ch;line-height:1.5}
-.page-hdr .dir{text-align:right;font-size:11.5px;color:var(--ink3);line-height:1.6}
-.sino{cursor:pointer;text-decoration:underline}.sino b{display:inline-block;margin-left:4px;background:var(--neg);color:#fff;border-radius:999px;font-size:9.5px;padding:1px 6px;vertical-align:1px}
+body{font-family:var(--font,'InterVar','Segoe UI',sans-serif);background:var(--pap);color:var(--ink);min-height:100vh;font-size:13px}
+button{font-family:inherit}
+/* ── menu lateral do módulo (azul-marinho, à direita do rail do sistema; mesmo desenho da TESTE TIAGO) ── */
+.mnav{position:fixed;top:0;bottom:0;left:64px;width:224px;background:#101B33;color:#C7D0E3;display:flex;flex-direction:column;z-index:60;overflow:hidden}
+.mnav .brand{padding:16px 16px 12px;border-bottom:1px solid rgba(255,255,255,.07);display:flex;gap:10px;align-items:center}
+.mnav .brand i{width:30px;height:30px;border-radius:8px;background:#FFC933;color:#1a1300;display:grid;place-items:center;font-weight:800;font-size:13px;font-style:normal;flex:none}
+.mnav .brand b{display:block;color:#fff;font-size:13px;letter-spacing:-.2px}.mnav .brand span{display:block;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#8A97B5;font-weight:700}
+.mnav .rows{flex:1;overflow:auto;padding:6px 10px 10px;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.15) transparent}
+.mnav .sect{font-size:9.5px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:#6F7D9C;padding:14px 10px 5px}
+.mnav a{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;color:#C7D0E3;text-decoration:none;font-size:12.5px;font-weight:600;cursor:pointer}
+.mnav a .ds-ic{width:16px;height:16px;color:#8A97B5;flex:none}.mnav a:hover{background:rgba(255,255,255,.06);color:#fff}
+.mnav a.on{background:rgba(255,255,255,.08);color:#fff;box-shadow:inset 3px 0 0 #FFC933}.mnav a.on .ds-ic{color:#FFC933}
+.mnav a small{margin-left:auto;background:rgba(255,255,255,.12);color:#fff;font-size:10px;font-weight:800;padding:1px 7px;border-radius:999px;font-variant-numeric:tabular-nums}
+.mnav a small.neg{background:var(--neg)}.mnav a small.am{background:#F5B800;color:#1a1300}.mnav a small.inf{background:var(--inf)}
+.mnav .foot{padding:10px 16px 14px;border-top:1px solid rgba(255,255,255,.07);font-size:10.5px;color:#8A97B5;line-height:1.5}.mnav .foot b{color:#C7D0E3;font-weight:600}
+/* ── conteúdo e barra superior ── */
+.content{margin-left:224px;min-height:100vh;display:flex;flex-direction:column}
+.topbar{height:54px;background:var(--crd);border-bottom:1px solid var(--ln);display:flex;align-items:center;gap:10px;padding:0 22px;position:sticky;top:0;z-index:40}
+.topbar h1{font-size:15px;font-weight:800;letter-spacing:-.2px;display:flex;align-items:center;gap:6px;white-space:nowrap}.topbar h1 .crumb{color:var(--ink3);font-weight:600}.topbar h1 .ds-ic{color:var(--ink3);width:14px;height:14px}
+.topbar p{font-size:11.5px;color:var(--ink3);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:46ch}
+.topbar .end{margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.sync{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--ln);border-radius:999px;padding:4px 10px 4px 8px;font-size:11.5px;color:var(--ink2);white-space:nowrap}
+.sync i{width:8px;height:8px;border-radius:50%;background:var(--pos);box-shadow:0 0 0 3px var(--posw);flex:none}.sync i.neg{background:var(--neg);box-shadow:0 0 0 3px var(--negw)}.sync i.gr{background:var(--ink3);box-shadow:none}
+.sync b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
+.icb{width:32px;height:32px;border-radius:9px;border:1px solid var(--ln);background:var(--crd);display:inline-grid;place-items:center;position:relative;color:var(--ink2);cursor:pointer}
+.icb:hover{background:var(--wsh)}.icb .ds-ic{width:15px;height:15px}.icb b{position:absolute;top:-5px;right:-5px;background:var(--neg);color:#fff;font-size:9.5px;font-weight:800;padding:1px 5px;border-radius:999px;min-width:16px;text-align:center}
+.who{display:flex;align-items:center;gap:9px;font-size:12px}.who .av{width:30px;height:30px;background:#101B33;color:#FFC933}.who b{display:block;font-size:12.5px;line-height:1.2}.who span{color:var(--ink3);font-size:10.5px;display:block;max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.page{padding:18px 22px 40px;max-width:1700px;width:100%}
+/* ── componentes compartilhados das telas novas ── */
+.av{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:800;background:var(--wsh);color:var(--ink2);flex:none;letter-spacing:.3px}
+.sk{height:14px;border-radius:6px;background:linear-gradient(90deg,var(--wsh) 25%,var(--ln) 50%,var(--wsh) 75%);background-size:200% 100%;animation:sk 1.3s ease infinite;margin:10px 0}@keyframes sk{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.empty{padding:40px 20px;text-align:center;color:var(--ink2)}.empty .ii{width:46px;height:46px;border-radius:14px;background:var(--posw);color:var(--pos);display:grid;place-items:center;margin:0 auto 10px}.empty .ii .ds-ic{width:22px;height:22px}
+.empty b{display:block;color:var(--ink);font-size:14px;margin-bottom:3px}.empty p{font-size:12px;max-width:44ch;margin:0 auto}
+.erro{display:flex;gap:12px;align-items:flex-start;background:var(--negw);border:1px solid #F1B9C3;border-radius:12px;padding:14px 16px;margin-bottom:14px}
+.erro .ii{width:34px;height:34px;border-radius:10px;background:var(--crd);color:var(--neg);display:grid;place-items:center;flex:none}.erro .ii .ds-ic{width:17px;height:17px}
+.erro b{display:block;color:var(--neg);font-size:13px}.erro p{font-size:12px;color:var(--ink2);margin:2px 0 8px;line-height:1.5}
+.tag{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;background:var(--wsh);color:var(--ink2);white-space:nowrap;vertical-align:middle}
+.tag.neg{background:var(--negw);color:var(--neg)}.tag.am{background:#FDF0D5;color:#A35A00}.tag.inf{background:var(--infw);color:var(--inf)}.tag.pos{background:var(--posw);color:var(--pos)}
+.tag.sla{font-variant-numeric:tabular-nums}
+.hint{font-size:11px;color:var(--ink3);line-height:1.5}
+.lb{font-size:10px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--ink3)}
+.uni b{display:block;font-size:12px;line-height:1.15}.uni .sub{white-space:nowrap}
+.card{background:var(--crd);border:1px solid var(--ln);border-radius:12px;overflow:hidden;margin-bottom:14px}
 .prot{font-family:ui-monospace,Consolas,monospace;font-weight:800;letter-spacing:.03em;font-size:11px}
 .pill.warn{background:#FDF0D5;color:#A35A00}
 .hm{font-weight:800;font-variant-numeric:tabular-nums}.hm.pos{color:var(--pos)}.hm.neg{color:var(--neg)}.hm.am{color:var(--amk)}
+/* indicadores (4 por linha no monitor grande; faixas abaixo) */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:16px}
+.kpi{background:var(--crd);border:1px solid var(--ln);border-radius:12px;padding:13px 16px 11px;border-bottom:3px solid transparent;cursor:pointer;transition:box-shadow .15s}
+.kpi:hover{box-shadow:0 1px 2px rgba(14,22,38,.06),0 8px 24px -12px rgba(14,22,38,.25)}.kpi.on{border-bottom-color:var(--am)}
+.kpi .l{font-size:10px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--ink3);display:flex;justify-content:space-between;gap:8px;align-items:center}
+.kpi .l i{white-space:nowrap;font-style:normal;font-size:9.5px;letter-spacing:0;text-transform:none;font-weight:600;padding:1px 6px;border-radius:999px;background:var(--wsh);color:var(--ink2)}
+.kpi .v{font-size:26px;font-weight:800;letter-spacing:-.8px;margin-top:4px;line-height:1.1;font-variant-numeric:tabular-nums}.kpi .s{font-size:11.5px;color:var(--ink2);margin-top:3px}
+.kpi.neg .v{color:var(--neg)}.kpi.inf .v{color:var(--inf)}.kpi.pos .v{color:var(--pos)}.kpi.am .v{color:#A35A00}
+/* fila "Aguardando você" */
+.fi{display:grid;grid-template-columns:4px 32px minmax(0,1fr) auto;gap:0 12px;align-items:center;padding:9px 14px 9px 0;border-bottom:1px solid var(--ln);cursor:pointer}
+.fi:last-child{border-bottom:0}.fi:hover{background:var(--wsh)}
+.fi .rail{align-self:stretch;border-radius:0 3px 3px 0}.fi.neg .rail{background:var(--neg)}.fi.am .rail{background:var(--am)}.fi.inf .rail{background:var(--inf)}
+.fi .tx b{display:block;font-weight:700;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fi .tx span{color:var(--ink2);font-size:11.5px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.fi .ir{font-size:11.5px;color:var(--ink3);white-space:nowrap}.fi:hover .ir{color:var(--inf)}
+.sec{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:16px 0 10px;flex-wrap:wrap}
+.sec h2{font-size:13px;font-weight:800;display:flex;align-items:center;gap:8px}.sec h2 small{font-weight:600;color:var(--ink3);font-size:11px;margin:0}
+.sec a.lnk{font-size:12px;color:var(--inf);font-weight:600;text-decoration:none;cursor:pointer}
+.grid2{display:grid;grid-template-columns:1.25fr .9fr;gap:16px;align-items:start}.grid2>div{min-width:0}
+.uni-t{width:100%;font-size:12px;border-collapse:collapse}
+.uni-t th,.uni-t td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--ln);white-space:nowrap}
+.uni-t th{font-size:10px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--ink3);background:var(--wsh)}
+.uni-t td.r,.uni-t th.r{text-align:right;font-variant-numeric:tabular-nums}.uni-t tbody tr{cursor:pointer}.uni-t tbody tr:hover{background:var(--wsh)}.uni-t tbody tr:last-child td{border-bottom:0}
+.uni-t td b.n{color:var(--neg)}.uni-t td.z{color:var(--ink3)}
+.bar2{display:inline-grid;grid-template-columns:26px 1fr;gap:8px;align-items:center;width:100%;min-width:120px}.bar2 i{height:6px;border-radius:3px;background:var(--neg);display:block;opacity:.85}
+.cd{line-height:1.15}.cd b{font-size:12.5px}.cd small{display:block;color:var(--ink3);font-size:10.5px}
+.st-line{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink2);background:var(--crd);border:1px solid var(--ln);border-left:4px solid var(--inf);border-radius:10px;padding:8px 14px;margin-bottom:14px}.st-line b{color:var(--ink)}
+/* mesa de trabalho (alertas, pessoas) */
+.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.search{display:flex;align-items:center;gap:8px;background:var(--crd);border:1px solid var(--ln2);border-radius:9px;padding:0 10px;height:34px;min-width:220px;flex:1;max-width:360px}
+.search .ds-ic{width:15px;height:15px;color:var(--ink3);flex:none}.search input{border:0;background:transparent;outline:0;flex:1;min-width:0;font:inherit;font-size:12.5px;color:var(--ink)}
+.search kbd{font-family:ui-monospace,Consolas,monospace;font-size:10px;color:var(--ink3);border:1px solid var(--ln);border-radius:4px;padding:1px 5px}
+.sel{height:34px;border:1px solid var(--ln2);border-radius:9px;background:var(--crd);padding:0 10px;font:inherit;font-size:12px;font-weight:600;color:var(--ink2);max-width:220px}
+.views{display:flex;gap:2px;background:var(--wsh);padding:3px;border-radius:9px}
+.views button{border:0;background:transparent;border-radius:7px;padding:5px 10px;font-size:12px;font-weight:600;color:var(--ink2);cursor:pointer;white-space:nowrap}.views button.on{background:var(--crd);color:var(--ink);box-shadow:0 1px 2px rgba(14,22,38,.12)}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
+.chip{border:1px solid var(--ln2);background:var(--crd);border-radius:999px;padding:4px 11px;font-size:11.5px;font-weight:600;color:var(--ink2);display:inline-flex;gap:6px;align-items:center;cursor:pointer}
+.chip b{font-weight:800;font-variant-numeric:tabular-nums;color:var(--ink3)}.chip.on{background:#101B33;color:#fff;border-color:#101B33}.chip.on b{color:#FFC933}
+.chip i{width:7px;height:7px;border-radius:50%;background:var(--ink3);flex:none}.chip i.neg{background:var(--neg)}.chip i.am{background:var(--am)}.chip i.inf{background:var(--inf)}
+.chip.mais{border-style:dashed;color:var(--ink3)}
+.work{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:16px;align-items:start}.work:has(> .drawer[hidden]){grid-template-columns:minmax(0,1fr)}
+.tw{overflow-x:auto;background:var(--crd);border:1px solid var(--ln);border-radius:12px}
+table.m{width:100%;min-width:760px;border-collapse:collapse;font-size:12.5px}
+table.m th{position:sticky;top:0;background:var(--wsh);font-size:10px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--ink3);padding:9px 10px;text-align:left;border-bottom:1px solid var(--ln);white-space:nowrap;z-index:1}
+table.m td{padding:8px 10px;border-bottom:1px solid var(--ln);vertical-align:middle;white-space:nowrap}
+table.m th.r,table.m td.r{text-align:right;font-variant-numeric:tabular-nums}
+table.m tbody tr.row{cursor:pointer}table.m tbody tr:hover td{background:var(--wsh)}table.m tbody tr.sel td{background:var(--amw)}table.m tbody tr.sel td:first-child{box-shadow:inset 3px 0 0 var(--am)}
+table.m tbody tr:last-child td{border-bottom:0}
+table.m th.ac,table.m td.ac{position:sticky;right:0;z-index:2;text-align:right}table.m th.ac{background:var(--wsh)}table.m tbody tr td.ac{background:var(--crd);box-shadow:-8px 0 8px -8px rgba(14,22,38,.25)}table.m tbody tr:hover td.ac,table.m tbody tr.sel td.ac{background:var(--amw)}
+.tipo{display:flex;align-items:center;gap:9px;min-width:0}.tipo .ico{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;flex:none}.tipo .ico .ds-ic{width:15px;height:15px}
+.tipo .ico.neg{background:var(--negw);color:var(--neg)}.tipo .ico.am{background:#FDF0D5;color:#A35A00}.tipo .ico.inf{background:var(--infw);color:var(--inf)}
+.tipo b{display:block;font-weight:700;white-space:nowrap}.tipo small{display:block;color:var(--ink3);font-size:11px;font-variant-numeric:tabular-nums;white-space:normal;line-height:1.3}.tipo small.neg{color:var(--neg);font-weight:700}
+.whoc{display:flex;align-items:center;gap:9px;min-width:0}.whoc .av{width:28px;height:28px;font-size:10.5px}
+.whoc b{display:block;font-weight:600;white-space:normal;max-width:230px;line-height:1.2}.whoc small{color:var(--ink3);font-size:11px;display:block;white-space:normal}
+.whoc a{color:inherit;text-decoration:none;cursor:pointer}.whoc a:hover{color:var(--inf);text-decoration:underline}
+.et{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;color:var(--ink2);white-space:nowrap}
+.et i{width:8px;height:8px;border-radius:50%;background:var(--am);box-shadow:0 0 0 3px var(--amw);flex:none}.et i.rh{background:var(--inf);box-shadow:0 0 0 3px var(--infw)}.et i.co{background:#101B33;box-shadow:0 0 0 3px var(--wsh)}.et i.gr{background:var(--ink3);box-shadow:none}
+.prio{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;white-space:nowrap}.prio i{width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:8px solid var(--neg)}.prio.m i{border-bottom-color:#A35A00}.prio.b i{border-bottom-color:var(--ink3)}
+.tfoot{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 12px;font-size:11.5px;color:var(--ink3);flex-wrap:wrap;border-top:1px solid var(--ln)}
+.mini-bar{display:inline-block;width:56px;height:6px;border-radius:3px;background:var(--wsh);position:relative;vertical-align:middle;margin-right:6px}.mini-bar i{position:absolute;top:0;bottom:0;border-radius:3px}
+/* gaveta de detalhe */
+.drawer{position:sticky;top:66px;background:var(--crd);border:1px solid var(--ln);border-radius:12px;box-shadow:0 1px 2px rgba(14,22,38,.06),0 8px 24px -12px rgba(14,22,38,.25);overflow:hidden}
+.drawer .hd{padding:13px 16px 11px;border-bottom:1px solid var(--ln);display:grid;grid-template-columns:36px minmax(0,1fr) auto;gap:12px;align-items:center}
+.drawer .hd .av{width:36px;height:36px;font-size:12px}.drawer .hd b{display:block;font-size:13.5px;font-weight:800;letter-spacing:-.2px;white-space:normal;line-height:1.2}.drawer .hd small{color:var(--ink2);font-size:11.5px;display:block}
+.drawer .hd small a{color:var(--inf);font-weight:600;text-decoration:none;cursor:pointer}
+.drawer .hd .x{border:0;background:transparent;font-size:20px;color:var(--ink3);line-height:1;cursor:pointer}
+.drawer .alvo{padding:12px 16px;background:var(--negw);border-bottom:1px solid var(--ln);display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center}
+.drawer .alvo.am{background:#FDF0D5}.drawer .alvo.inf{background:var(--infw)}
+.drawer .alvo b{display:block;font-size:12.5px;color:var(--neg);white-space:normal}.drawer .alvo.am b{color:#A35A00}.drawer .alvo.inf b{color:var(--inf)}.drawer .alvo span{font-size:11.5px;color:var(--ink2);white-space:normal}
+.drawer .alvo .big{font-size:22px;font-weight:800;color:var(--neg);font-variant-numeric:tabular-nums;letter-spacing:-.5px}.drawer .alvo.am .big{color:#A35A00}.drawer .alvo.inf .big{color:var(--inf)}
+.drawer .bd{padding:14px 16px;display:grid;gap:14px}
+.kv2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 14px}.kv2 div{display:grid;gap:2px;min-width:0}.kv2 dd{font-size:12.5px;font-weight:600;white-space:normal}.kv2 dd.neg{color:var(--neg)}
+.flx{display:grid}.fl{display:grid;grid-template-columns:18px 1fr;gap:10px;position:relative;padding-bottom:12px}
+.fl::before{content:"";position:absolute;left:8px;top:16px;bottom:-2px;width:2px;background:var(--ln)}.fl:last-child::before{display:none}
+.fl i{width:18px;height:18px;border-radius:50%;background:var(--wsh);border:2px solid var(--ln2);display:grid;place-items:center;z-index:1}
+.fl i.ok{background:var(--pos);border-color:var(--pos)}.fl i.ok::after{content:"";width:5px;height:8px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg);margin-top:-2px}
+.fl i.cur{background:var(--am);border-color:var(--am);box-shadow:0 0 0 3px var(--amw)}.fl i.bad{background:var(--neg);border-color:var(--neg);box-shadow:0 0 0 3px var(--negw)}
+.fl b{font-size:12px;font-weight:700;display:block}.fl span{font-size:11px;color:var(--ink2);display:block}.fl span.sla{color:var(--neg);font-weight:600}
+.drawer .ft{padding:12px 16px;border-top:1px solid var(--ln);display:flex;gap:8px;flex-wrap:wrap;background:var(--pap)}.drawer .ft .btn{flex:1;text-align:center}
+/* ficha da pessoa */
+.ficha-hd{background:var(--crd);border:1px solid var(--ln);border-radius:12px;padding:16px 20px;display:grid;grid-template-columns:54px minmax(0,1fr) auto;gap:16px;align-items:center;margin-bottom:14px}
+.ficha-hd .av{width:54px;height:54px;font-size:16px;background:#101B33;color:#FFC933}
+.ficha-hd h2{font-size:18px;font-weight:800;letter-spacing:-.3px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.ficha-hd .meta{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--ink2);margin-top:4px}.ficha-hd .meta b{color:var(--ink);font-weight:600}
+.ficha-hd .acts{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.subt{display:flex;gap:2px;border-bottom:1px solid var(--ln);margin-bottom:16px;overflow-x:auto}
+.subt button{border:0;background:transparent;padding:8px 12px;font-size:12.5px;font-weight:600;color:var(--ink2);border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;display:inline-flex;gap:6px;align-items:center;cursor:pointer}
+.subt button.on{color:var(--ink);border-bottom-color:var(--am);font-weight:700}.subt button .b{font-size:10px;font-weight:800;padding:1px 6px;border-radius:999px;background:var(--wsh);color:var(--ink2)}.subt button .b.neg{background:var(--negw);color:var(--neg)}
+.f3{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:14px;align-items:start}.f3>div{min-width:0}
+.pane{background:var(--crd);border:1px solid var(--ln);border-radius:12px;padding:14px 16px}
+.pane h3{font-size:12.5px;font-weight:800;display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;gap:8px}.pane h3 small{font-weight:600;color:var(--ink3);font-size:11px}
+.saldo{display:flex;align-items:baseline;gap:10px;margin-bottom:8px;flex-wrap:wrap}.saldo .big{font-size:30px;font-weight:800;letter-spacing:-1px;font-variant-numeric:tabular-nums}.saldo .big.neg{color:var(--neg)}.saldo .big.pos{color:var(--pos)}
+.chart{width:100%;height:auto;overflow:visible;display:block}
+.chart .grid{stroke:var(--ln);stroke-width:1}.chart .lim{stroke:#A35A00;stroke-width:1;stroke-dasharray:3 3}.chart .a{fill:var(--neg);opacity:.1}.chart .a.pos{fill:var(--pos)}.chart .s{fill:none;stroke:var(--neg);stroke-width:2;stroke-linejoin:round}.chart .s.pos{stroke:var(--pos)}
+.chart text{font-size:10px;fill:var(--ink3);font-family:var(--font)}.chart circle{fill:var(--neg);stroke:var(--crd);stroke-width:2}.chart circle.pos{fill:var(--pos)}
+.li{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--ln);font-size:12px;cursor:pointer}.li:last-child{border-bottom:0}.li:hover b{color:var(--inf)}
+.li .ico{width:26px;height:26px;border-radius:7px;display:grid;place-items:center}.li .ico .ds-ic{width:13px;height:13px}
+.li .ico.am{background:#FDF0D5;color:#A35A00}.li .ico.pos{background:var(--posw);color:var(--pos)}.li .ico.inf{background:var(--infw);color:var(--inf)}.li .ico.neg{background:var(--negw);color:var(--neg)}
+.li b{display:block;font-weight:600;white-space:normal}.li small{color:var(--ink3);font-size:11px;display:block;white-space:normal}.li time{font-size:11px;color:var(--ink3);font-variant-numeric:tabular-nums;white-space:nowrap}
+.tl .t{display:grid;grid-template-columns:82px 14px minmax(0,1fr);gap:10px;align-items:start;padding:6px 0;font-size:12px;position:relative}
+.tl .t time{color:var(--ink3);font-size:11px;font-variant-numeric:tabular-nums;text-align:right;padding-top:2px}
+.tl .t i{width:10px;height:10px;border-radius:50%;background:var(--ln2);margin-top:5px;position:relative;z-index:1}.tl .t i.neg{background:var(--neg)}.tl .t i.pos{background:var(--pos)}.tl .t i.inf{background:var(--inf)}.tl .t i.am{background:var(--am)}
+.tl .t::before{content:"";position:absolute;left:96px;top:18px;bottom:-8px;width:2px;background:var(--ln)}.tl .t:last-child::before{display:none}
+.tl .t b{font-weight:600;white-space:normal}.tl .t span{display:block;color:var(--ink2);font-size:11.5px;white-space:normal}
+/* componentes das telas que ficaram como estavam (banco, ponto, solicitações, docs, quadro, relatórios, auditoria, avisos, config) */
 .fluxo{display:flex;gap:4px;flex-wrap:wrap;align-items:center;font-size:11.5px;font-weight:700;margin:4px 0 12px}.fluxo span{padding:5px 10px;border-radius:7px;background:var(--wsh);color:var(--ink3)}.fluxo span.done{background:var(--posw);color:var(--pos)}.fluxo span.on{background:#101B33;color:#FFC933}.fluxo i{color:var(--ink3);font-style:normal}
 .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:12.5px}.kv dt{color:var(--ink3)}.kv dd{font-weight:600;white-space:pre-wrap}
 .hist{display:grid;font-size:12px}.hist .h{display:grid;grid-template-columns:118px 1fr;gap:10px;padding:7px 0;border-bottom:1px solid var(--ln)}.hist .h time{color:var(--ink3)}.hist .h p{color:var(--ink2);white-space:pre-wrap;margin-top:2px}
 .det{display:grid;grid-template-columns:1.1fr .9fr;gap:16px}
 .acoes-sol{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 12px}
 .notif{display:grid;gap:6px}.notif div{background:var(--crd);border:1px solid var(--ln);border-radius:9px;padding:8px 12px;font-size:12.5px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;cursor:pointer}.notif div.nl{border-left:4px solid var(--am)}.notif small{color:var(--ink3)}
-.syncbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:11.5px;color:var(--ink3);margin-bottom:12px}.syncbar b{color:var(--ink2)}.syncbar .err{color:var(--neg);font-weight:700}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .mini{font-size:11.5px;color:var(--ink3);line-height:1.5}
 .f-ov{position:fixed;inset:0;background:rgba(10,17,32,.55);z-index:9000;display:flex;align-items:flex-start;justify-content:center;padding:40px 14px;overflow:auto}
 .f-md{background:var(--crd);color:var(--ink);border-radius:14px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.35);overflow:hidden}
@@ -43,53 +187,55 @@ body{font-family:var(--font,'InterVar','Segoe UI',sans-serif);background:var(--p
 .f-md .chk{display:flex;align-items:center;gap:6px;font-weight:600;padding-top:8px}.f-md .chk input{width:auto}
 .f-md .acoes{display:flex;gap:8px;margin-top:14px;align-items:center}
 .f-md .info{grid-column:span 3;font-size:12px;color:var(--ink2);background:var(--pap);border:1px solid var(--ln);border-radius:9px;padding:8px 11px;line-height:1.5}
+.f-md .ajuda{font-size:12.5px;line-height:1.6;color:var(--ink2);display:grid;gap:10px}.f-md .ajuda b{color:var(--ink)}
 table.cfg input{width:80px;padding:4px 6px;border:1px solid var(--ln2);border-radius:6px;font:inherit;font-size:12px;text-align:right}
 .des{display:grid;gap:8px}.des .d{display:grid;grid-template-columns:1.1fr 2.2fr 1.6fr auto;gap:10px;align-items:start;background:var(--crd);border:1px solid var(--ln);border-radius:10px;padding:9px 11px;font-size:12px}
 .des select{padding:6px 8px;border:1px solid var(--ln2);border-radius:7px;font:inherit;font-size:12px;width:100%}.des label{display:inline-flex;gap:4px;align-items:center;margin:0 10px 4px 0;font-weight:600}.des .x{border:none;background:transparent;color:var(--neg);font-size:18px;cursor:pointer}
 .matriz td.c{font-weight:700}.matriz td.sim{color:var(--pos)}.matriz td.nao{color:var(--ink3)}
-/* coluna de ação presa à direita: o botão nunca some quando a tabela é mais larga que a tela */
 table.t th.ac,table.t td.ac{position:sticky;right:0;z-index:2;text-align:right}
 table.t th.ac{background:var(--pap)}table.t tbody tr td.ac{background:var(--crd);box-shadow:-8px 0 8px -8px rgba(14,22,38,.25)}table.t tbody tr:hover td.ac{background:var(--amw)}
-.uni b{display:block;font-size:12px}.uni .sub{white-space:nowrap}
 #v-ponto table.t td.w{min-width:110px}
-@media(max-width:1399px){#v-ponto table.t td,#v-ponto table.t th,#v-alertas table.t td,#v-alertas table.t th{padding:6px 6px}#v-ponto table.t,#v-alertas table.t{font-size:11px}}
 .rel-loja{background:var(--crd);border:1px solid var(--ln);border-radius:12px;padding:12px 14px;margin-bottom:14px}.rel-loja h3{font-size:14px;margin-bottom:8px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}.rel-loja h3 small{font-size:11.5px;color:var(--ink3);font-weight:600}
 .rel-cols{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.rel-cols ol{padding-left:18px;font-size:12px;line-height:1.6}
-@media(max-width:1599px){.main{padding:20px}}
-@media(max-width:1399px){.det{grid-template-columns:1fr}.rel-cols{grid-template-columns:1fr 1fr}}
-@media(max-width:1199px){.grid2{grid-template-columns:1fr}.des .d{grid-template-columns:1fr 1fr}}
-@media(max-width:820px){.main{padding:12px}.page-hdr .dir{text-align:left}.f-md .grid{grid-template-columns:1fr}.f-md .fld.c2,.f-md .fld.c3,.f-md .info{grid-column:span 1}.rel-cols{grid-template-columns:1fr}.des .d{grid-template-columns:1fr}.f-ov{padding:10px 6px}}
+/* ── faixas de monitor (base = monitor grande; 1599 / 1399 / 1199 apertam) ── */
+@media(max-width:1599px){.page{padding:16px 18px 36px}.work{grid-template-columns:minmax(0,1fr) 360px}table.m{font-size:12px}table.m td{padding:7px 8px}table.m th{padding:8px 8px}.whoc b{max-width:190px}.kpi .v{font-size:24px}.topbar p{max-width:30ch}}
+@media(max-width:1399px){.kpi .l i{display:none}.search{max-width:280px}.uni-t th,.uni-t td{padding:7px 8px}.bar2{min-width:90px}.det{grid-template-columns:1fr}.rel-cols{grid-template-columns:1fr 1fr}.f3{grid-template-columns:1fr 1fr}.work{grid-template-columns:minmax(0,1fr) 330px}table.m{font-size:11.5px}table.m td{padding:6px 7px}.tipo .ico{display:none}.whoc .av{display:none}.whoc b{max-width:160px}.topbar p{display:none}#v-ponto table.t td,#v-ponto table.t th{padding:6px 6px}#v-ponto table.t{font-size:11px}}
+@media(max-width:1199px){.grid2{grid-template-columns:1fr}.des .d{grid-template-columns:1fr 1fr}.mnav{width:200px}.content{margin-left:200px}.topbar{padding:0 16px}.page{padding:14px 16px 32px}.work{grid-template-columns:1fr}.drawer{position:static}.kpis{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:820px){.mnav{position:static;width:auto;height:auto;flex-direction:row;overflow-x:auto;z-index:30}.topbar{position:static}.mnav .brand,.mnav .foot{display:none}.mnav .rows{display:flex;gap:2px;padding:6px 8px}.mnav .sect{display:none}.mnav a{white-space:nowrap;padding:7px 10px}.mnav a small{display:none}.content{margin-left:0}.topbar{height:auto;padding:10px 14px;flex-wrap:wrap}.topbar .end{margin-left:0}.page{padding:12px}.f3{grid-template-columns:1fr}.ficha-hd{grid-template-columns:44px 1fr}.ficha-hd .acts{grid-column:1/-1;justify-content:flex-start}.search{max-width:none}.kpis{grid-template-columns:1fr}.f-md .grid{grid-template-columns:1fr}.f-md .fld.c2,.f-md .fld.c3,.f-md .info{grid-column:span 1}.rel-cols{grid-template-columns:1fr}.des .d{grid-template-columns:1fr}.f-ov{padding:10px 6px}}
+/* modo embutido (iframe da TESTE TIAGO): só a aba pedida */
+.embed .mnav,.embed .topbar,.embed #dsnav{display:none!important}.embed body{margin-left:0!important;padding-top:0!important;background:transparent}.embed .content{margin-left:0;min-height:0}.embed .page{padding:4px 2px 24px;max-width:none}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
-<body>
-<div class="main">
-  <div class="page-hdr">
-    <div><h1>Gestão de Pessoas<span>DP / RH</span></h1><p>Central de acompanhamento preventivo: banco de horas, ponto e jornada, quadro, documentação, solicitações e planos de ação. Fluxo obrigatório <b>Gerente → RH → Coordenação Administrativa → Execução → Monitoramento</b>. Os dados de ponto vêm do PontoCerto (VR) só para leitura: nada é alterado lá, e nenhum desconto ou compensação é automático.</p></div>
-    <div class="dir" id="rodape"></div>
+<body class="dsnav-pad">
+<aside class="mnav" id="mnav">
+  <div class="brand"><i>E</i><div><b>Gestão de Pessoas</b><span>DP / RH</span></div></div>
+  <div class="rows" id="mnav-rows"></div>
+  <div class="foot" id="mnav-foot"></div>
+</aside>
+<div class="content">
+  <header class="topbar">
+    <div><h1 id="tb-h1"><span class="crumb">DP / RH</span></h1><p id="tb-sub"></p></div>
+    <div class="end" id="tb-end"></div>
+  </header>
+  <div class="page">
+    <div id="msg"></div>
+    <div id="views"></div>
   </div>
-  <div id="msg"></div>
-  <div class="syncbar" id="syncbar" hidden></div>
-  <div class="tabs" id="tabs" hidden>
-    <div class="tab on" data-t="visao">Visão geral</div>
-    <div class="tab" data-t="bh">Banco de horas<small id="n-bh"></small></div>
-    <div class="tab" data-t="ponto">Ponto e jornada<small id="n-ponto"></small></div>
-    <div class="tab" data-t="quadro">Quadro</div>
-    <div class="tab" data-t="docs">Documentação e GERI<small id="n-docs"></small></div>
-    <div class="tab" data-t="sol">Solicitações e aprovações<small id="n-sol"></small></div>
-    <div class="tab" data-t="planos">Planos de ação<small id="n-planos"></small></div>
-    <div class="tab" data-t="alertas">Alertas<small id="n-alertas"></small></div>
-    <div class="tab" data-t="ind">Indicadores</div>
-    <div class="tab" data-t="rel">Relatórios</div>
-    <div class="tab" data-t="aud">Auditoria</div>
-    <div class="tab" data-t="avisos">Avisos<small id="n-avisos"></small></div>
-    <div class="tab" data-t="cfg">Configurações</div>
-  </div>
-  <div id="views"></div>
 </div>
+<svg style="display:none"><symbol id="ic-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol><symbol id="ic-file" viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h8"/></symbol><symbol id="ic-bell" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4zM10 20a2 2 0 0 0 4 0"/></symbol><symbol id="ic-back" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol><symbol id="ic-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 0 1 5 .5c0 1.5-2.5 2-2.5 3.5"/><path d="M12 17h.01"/></symbol><symbol id="ic-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol></svg>
 <script>
 const { $, $$, esc, api, pill, tabela, btn, toast, dBR } = G;
 let ME = null, CFG = null, COLABS = null, ABA = 'visao';
-const ABAS = ['visao', 'bh', 'ponto', 'quadro', 'docs', 'sol', 'planos', 'alertas', 'ind', 'rel', 'aud', 'avisos', 'cfg'];
+// menu do módulo: 5 grupos; cnt = id do contador (vem de /api/gp/alertas); 'ficha' não está no menu, abre a partir de Pessoas / Alertas
+const NAV = [
+  { sec: 'Painel' }, { id: 'visao', txt: 'Visão geral', ic: 'dashboard', sub: 'O que precisa de atenção hoje' }, { id: 'ind', txt: 'Indicadores', ic: 'chart', sub: 'Banco, ponto, quadro e documentação por unidade' },
+  { sec: 'Monitoramento' }, { id: 'alertas', txt: 'Alertas', ic: 'alert', cnt: 'alertas', sub: 'Mesa de trabalho: tudo que está aberto, por prazo' }, { id: 'bh', txt: 'Banco de horas', ic: 'trend', cnt: 'bh', sub: 'Saldos do PontoCerto e planos de ação' }, { id: 'ponto', txt: 'Ponto e jornada', ic: 'calendar', cnt: 'ponto', sub: 'Ocorrências: gerente justifica → RH analisa → Coordenação' },
+  { sec: 'Fluxo' }, { id: 'sol', txt: 'Solicitações', ic: 'check', cnt: 'sol', sub: 'Gerente → RH → Coordenação Administrativa' }, { id: 'planos', txt: 'Planos de ação', ic: 'list', cnt: 'planos', sub: 'Planos de banco de horas por etapa' }, { id: 'docs', txt: 'Documentação e GERI', ic: 'folder', cnt: 'docs', sub: 'Pendências documentais e atendimento assistido' },
+  { sec: 'Pessoas' }, { id: 'pessoas', txt: 'Pessoas', ic: 'users', sub: 'Cadastro do PontoCerto e ficha de cada funcionário' }, { id: 'quadro', txt: 'Quadro', ic: 'store', sub: 'Efetivo × autorizado por unidade e setor' },
+  { sec: 'Gestão' }, { id: 'rel', txt: 'Relatórios', ic: 'download', sub: 'Relatório semanal do banco de horas' }, { id: 'aud', txt: 'Auditoria', ic: 'shield', sub: 'Trilha de decisões e leituras' }, { id: 'avisos', txt: 'Avisos', ic: 'ic-bell', cnt: 'avisos', sub: 'Avisos internos desta central' }, { id: 'cfg', txt: 'Configurações', ic: 'settings', sub: 'Limites, prazos, designados e permissões' }
+];
+const ABAS = NAV.filter(n => n.id).map(n => n.id).concat(['ficha']);
 $('#views').innerHTML = ABAS.map(t => '<div id="v-' + t + '"' + (t === 'visao' ? '' : ' style="display:none"') + '></div>').join('');
 const papel = (...p) => ME && p.some(x => ME.papeis.includes(x));
 const RH = ['rh_ponto', 'rh_doc', 'rh_adm'];
@@ -164,51 +310,92 @@ async function carregarColabs() {
   return COLABS;
 }
 
+// ── helpers das telas novas ──
+const ic = n => '<svg class="ds-ic"><use href="' + (n.startsWith('ic-') ? '#' + n : '/icons.svg#' + n) + '"/></svg>';
+const ini = n => String(n || '').split(' ').filter(Boolean).slice(0, 2).map(s => s[0]).join('').toUpperCase() || '—';
+const skel = () => '<div class="sk"></div><div class="sk" style="width:70%"></div><div class="sk" style="width:85%"></div>';
+const empty = (t, s, acao) => '<div class="empty"><div class="ii">' + ic('check') + '</div><b>' + esc(t) + '</b>' + (s ? '<p>' + esc(s) + '</p>' : '') + (acao || '') + '</div>';
+const erroBox = (e, titulo) => '<div class="erro"><div class="ii">' + ic('alert') + '</div><div><b>' + esc(titulo || 'Não consegui carregar') + '</b><p>' + esc(e && e.message || e) + '</p>' + btn('Tentar de novo', 'gh', 'onclick="abrirAba(ABA)"') + '</div></div>';
+const diasAte = iso => iso ? Math.round((new Date(iso + 'T12:00:00') - new Date(G.hoje() + 'T12:00:00')) / 86400000) : null;
+// prazo como as pessoas falam: "vencido há 2 d", "hoje", "amanhã", "em 4 d"
+const sla = p => { const d = diasAte(p); if (d == null) return '<span class="sub">—</span>'; const t = d < 0 ? 'vencido há ' + (-d) + ' d' : d === 0 ? 'hoje' : d === 1 ? 'amanhã' : 'em ' + d + ' d'; return '<span class="tag sla ' + (d <= 0 ? 'neg' : d <= 3 ? 'am' : '') + '" title="' + dBR(p) + '">' + t + '</span>'; };
+const lojaCod = n => lojaTxt(n).split(' · ')[0], lojaNome = n => lojaTxt(n).split(' · ')[1] || '';
+const cd = n => '<div class="cd"><b>' + esc(lojaCod(n)) + '</b><small>' + esc(lojaNome(n)) + '</small></div>';
+const somaDias = (iso, n) => { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+
 // ── entrada ──
 async function iniciar() {
+  montarNav();
   try { ME = await api('/api/gp/me'); }
   catch (e) {
     if (e.status === 403) { msg('<b>Você não está entre os designados da Central de Gestão de Pessoas.</b> O acesso é por designação da Coordenação Administrativa (gerente da unidade, RH, Coordenação, Diretoria, Jurídico ou TI). Ter o módulo DP / RH não basta.', 'neg'); return; }
     msg('Erro ao abrir a central: ' + esc(e.message), 'neg'); return;
   }
   CFG = await api('/api/gp/config');
-  const esc0 = ME.escopo === null ? 'todas as unidades' : ME.escopo.length ? ME.escopo.map(lojaTxt).join(', ') : 'nenhuma unidade';
-  $('#rodape').innerHTML = esc(ME.nome) + '<br>' + (ME.papeis.length ? ME.papeis.map(p => ME.catalogos.papeis[p]).join(' · ') : 'sem papel') + '<br>' + esc(esc0) + ' · <span class="sino" id="sino">avisos' + (ME.naoLidas ? '<b>' + ME.naoLidas + '</b>' : '') + '</span>';
-  $('#sino').onclick = () => abrirAba('avisos');
-  $('#tabs').hidden = false; $$('.tab').forEach(t => t.onclick = () => abrirAba(t.dataset.t));
-  if (ME.bootstrap) { msg('<b>Primeiro acesso.</b> Ainda não há ninguém designado. Como administrador do sistema, cadastre as pessoas e os papéis (pelo menos uma da Coordenação Administrativa). Depois disso o administrador só entra se também for designado — administrar o sistema não dá competência de aprovação.'); $$('.tab').forEach(t => { if (t.dataset.t !== 'cfg') t.style.display = 'none'; }); abrirAba('cfg'); return; }
+  const esc0 = ME.escopo === null ? 'todas as unidades' : ME.escopo.length ? ME.escopo.map(lojaCod).join(', ') : 'nenhuma unidade';
+  const pp = ME.papeis.map(p => ME.catalogos.papeis[p]);
+  $('#tb-end').innerHTML = '<span class="sync" id="tb-sync" hidden></span><span id="tb-syncbt"></span><button class="icb" id="bell" title="Avisos">' + ic('ic-bell') + (ME.naoLidas ? '<b>' + ME.naoLidas + '</b>' : '') + '</button><button class="icb" id="ajuda" title="Como funciona esta central">' + ic('ic-help') + '</button>' +
+    '<div class="who" title="' + esc(pp.join(' · ')) + '"><span class="av">' + esc(ini(ME.nome)) + '</span><div><b>' + esc(ME.nome) + '</b><span>' + esc((pp.length > 2 ? pp.slice(0, 2).join(' · ') + ' +' + (pp.length - 2) : pp.join(' · ') || 'sem papel') + ' · ' + esc0) + '</span></div></div>';
+  $('#bell').onclick = () => abrirAba('avisos'); $('#ajuda').onclick = ajuda;
+  const mostrarSo = ids => { NAV.filter(n => n.id && !ids.includes(n.id)).forEach(n => { const a = $('#mnav a[data-p="' + n.id + '"]'); if (a) a.hidden = true; }); $$('#mnav .sect').forEach(s => { let e = s.nextElementSibling, vazio = true; while (e && !e.classList.contains('sect')) { if (!e.hidden) vazio = false; e = e.nextElementSibling; } s.hidden = vazio; }); };
+  if (ME.bootstrap) { msg('<b>Primeiro acesso.</b> Ainda não há ninguém designado. Como administrador do sistema, cadastre as pessoas e os papéis (pelo menos uma da Coordenação Administrativa). Depois disso o administrador só entra se também for designado — administrar o sistema não dá competência de aprovação.'); mostrarSo(['cfg']); abrirAba('cfg'); return; }
   if (!ME.vePainel) { // Jurídico e TI: só o que é deles
-    $$('.tab').forEach(t => { const ok = papel('juridico') ? ['sol', 'docs', 'avisos', 'cfg'].includes(t.dataset.t) : ['avisos', 'cfg'].includes(t.dataset.t); if (!ok) t.style.display = 'none'; });
+    mostrarSo(papel('juridico') ? ['sol', 'docs', 'avisos', 'cfg'] : ['avisos', 'cfg']);
     msg(papel('juridico') ? 'Perfil Jurídico: você vê só as solicitações e atendimentos encaminhados para parecer. O parecer não substitui a aprovação da Coordenação.' : 'Perfil técnico (TI): integrações, sincronização e disponibilidade. Sem acesso aos dados de pessoas nem competência de aprovação.', 'inf');
     abrirAba(papel('juridico') ? 'sol' : 'cfg'); syncBar(); return;
   }
   if (ME.soConsulta) msg('Perfil <b>Diretoria</b>: acesso exclusivamente consultivo — indicadores, relatórios, históricos e exportação. Sem botões de aprovação, rejeição ou edição.', 'inf');
-  syncBar(); abrirAba(EMBED.aba || 'visao'); contadores(); carregarColabs();
+  syncBar(); contadores(); carregarColabs();
+  const h = location.hash.replace('#', ''); const mf = h.match(/^ficha-(\d+)$/);
+  if (EMBED) abrirAba(EMBED.aba); else if (mf) abrirAba('ficha', +mf[1]); else abrirAba(NAV.some(n => n.id === h) ? h : 'visao');
 }
-// Modo embutido (teste-tiago.html, 21/10): ?embed=1&aba=sol abre só a aba pedida, sem cabeçalho nem fila de abas —
+// Modo embutido (teste-tiago.html, 21/10): ?embed=1&aba=sol abre só a aba pedida, sem menu nem barra superior —
 // a TESTE TIAGO reaproveita estas telas administrativas em vez de duplicá-las.
 const EMBED = (() => { const q = new URLSearchParams(location.search); return q.get('embed') === '1' ? { aba: ABAS.includes(q.get('aba')) ? q.get('aba') : 'visao' } : null; })();
-if (EMBED) { document.documentElement.classList.add('embed'); const st = document.createElement('style'); st.textContent = '.embed .page-hdr,.embed #syncbar,.embed #tabs,.embed #dsnav{display:none!important}.embed body{margin-left:0!important;background:transparent}.embed .main{padding:4px 2px 24px;max-width:none}'; document.head.appendChild(st); }
-function abrirAba(t) {
-  ABA = t; $$('.tab').forEach(x => x.classList.toggle('on', x.dataset.t === t)); ABAS.forEach(a => { $('#v-' + a).style.display = a === t ? '' : 'none'; });
-  ({ visao, bh, ponto, quadro, docs, sol: () => solicitacoes('sol'), planos: () => solicitacoes('planos'), alertas: central, ind: indicadores, rel: relatorios, aud: auditoria, avisos, cfg: configuracoes })[t]();
+if (EMBED) document.documentElement.classList.add('embed');
+function montarNav() {
+  $('#mnav-rows').innerHTML = NAV.map(n => n.sec ? '<div class="sect">' + n.sec + '</div>' : '<a data-p="' + n.id + '">' + ic(n.ic) + '<span>' + esc(n.txt) + '</span>' + (n.cnt ? '<small id="n-' + n.cnt + '" hidden></small>' : '') + '</a>').join('');
+  $$('#mnav a').forEach(a => a.onclick = () => abrirAba(a.dataset.p));
+  document.addEventListener('keydown', e => { if (e.key === '/' && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) && !document.querySelector('.f-ov')) { e.preventDefault(); abrirAba('alertas'); setTimeout(() => { const q = $('#al-q'); if (q) q.focus(); }, 50); } });
+}
+let FICHA_VOLTA = 'pessoas';
+function abrirAba(t, arg) {
+  if (t !== 'ficha') FICHA_VOLTA = t;
+  ABA = t; $$('#mnav a').forEach(x => x.classList.toggle('on', x.dataset.p === t || (t === 'ficha' && x.dataset.p === 'pessoas')));
+  ABAS.forEach(a => { $('#v-' + a).style.display = a === t ? '' : 'none'; });
+  const n = NAV.find(x => x.id === t);
+  $('#tb-h1').innerHTML = '<span class="crumb">DP / RH</span>' + ic('chevron-right') + esc(n ? n.txt : 'Ficha do funcionário'); $('#tb-sub').textContent = n ? n.sub || '' : 'Banco de horas, ponto, documentos e histórico';
+  if (!EMBED) history.replaceState(null, '', '#' + (t === 'ficha' && arg ? 'ficha-' + arg : t));
+  window.scrollTo({ top: 0 });
+  ({ visao, bh, ponto, quadro, docs, sol: () => solicitacoes('sol'), planos: () => solicitacoes('planos'), alertas: central, ind: indicadores, rel: relatorios, aud: auditoria, avisos, cfg: configuracoes, pessoas, ficha: () => fichaPessoa(arg) })[t]();
 }
 async function contadores() {
   try {
     const [al, nt] = await Promise.all([api('/api/gp/alertas'), api('/api/gp/notificacoes?naoLidas=1')]);
-    const n = (id, v, neg) => { const el = $('#n-' + id); if (el) { el.textContent = v || ''; el.className = neg && v ? 'neg' : ''; } };
-    n('bh', al.filter(a => a.evento <= 2).length, true); n('ponto', al.filter(a => a.evento === 3 || a.evento === 4).length); n('docs', al.filter(a => a.evento === 9).length);
-    n('sol', al.filter(a => [6, 7, 10, 12].includes(a.evento) && !/^Plano/.test(a.tipo)).length); n('planos', al.filter(a => /^Plano/.test(a.tipo)).length); n('alertas', al.length, al.some(a => a.prioridade === 'alta')); n('avisos', nt.length, true);
+    const n = (id, v, cls) => { const el = $('#n-' + id); if (el) { el.textContent = v || ''; el.hidden = !v; el.className = v ? cls || '' : ''; } };
+    n('bh', al.filter(a => a.evento <= 2).length, 'neg'); n('ponto', al.filter(a => a.evento === 3 || a.evento === 4).length, 'am'); n('docs', al.filter(a => a.evento === 9).length, 'am');
+    n('sol', al.filter(a => [6, 7, 10, 12].includes(a.evento) && !/^Plano/.test(a.tipo)).length, 'inf'); n('planos', al.filter(a => /^Plano/.test(a.tipo)).length, 'inf'); n('alertas', al.length, al.some(a => a.prioridade === 'alta') ? 'neg' : 'am'); n('avisos', nt.length, '');
+    const b = $('#bell'); if (b) b.innerHTML = ic('ic-bell') + (nt.length ? '<b>' + nt.length + '</b>' : '');
   } catch (e) { /* contadores são cosméticos */ }
 }
 async function syncBar() {
   try {
-    const s = await api('/api/gp/sync'); const el = $('#syncbar'); el.hidden = false;
-    const p = (nome, x) => !x ? '<span>' + nome + ': <b>nunca sincronizado</b></span>' : '<span>' + nome + ': ' + (x.ok ? '<b>' + dt(x.em) + '</b>' : '<span class="err">falhou ' + dt(x.em) + ' (' + esc(x.erro || '') + ')</span>' + (x.ultimoOk ? ' · último ok ' + dt(x.ultimoOk) : '')) + '</span>';
-    el.innerHTML = '<span>PontoCerto (VR) · leitura a cada 30 min</span>' + p('banco de horas', s.estado.bancoHoras) + p('ponto', s.estado.ponto) + (s.rodando ? '<b>sincronizando…</b>' : '') + (!s.tokenConfigurado ? '<span class="err">token do PontoCerto não configurado</span>' : '') +
-      (papel('ti', 'coordenacao', ...RH) ? btn('Sincronizar agora', 'gh', 'id="bt-sync"') : '');
-    if ($('#bt-sync')) $('#bt-sync').onclick = async () => { $('#bt-sync').disabled = true; $('#bt-sync').textContent = 'sincronizando (pode levar 1 min)…'; try { const r = await api('/api/gp/sync', { body: { qual: 'tudo' } }); toast(r.erro ? r.erro : 'Sincronizado' + (r.bancoHoras && r.bancoHoras.novos != null ? ' · ' + r.bancoHoras.novos + ' alerta(s) novo(s)' : '') + (r.ponto && r.ponto.novas != null ? ' · ' + r.ponto.novas + ' ocorrência(s) nova(s)' : ''), r.erro ? 'neg' : ''); COLABS = null; carregarColabs(); } catch (e) { toast(e.message, 'neg'); } syncBar(); abrirAba(ABA); contadores(); };
+    const s = await api('/api/gp/sync'); const b = s.estado.bancoHoras, p = s.estado.ponto; const ok = b && b.ok && p && p.ok; const ultimo = [b, p].filter(Boolean).map(x => x.em).sort().pop();
+    const el = $('#tb-sync'); el.hidden = false;
+    el.innerHTML = '<i class="' + (ultimo ? (ok ? '' : 'neg') : 'gr') + '"></i>PontoCerto ' + (ultimo ? '<b>' + dt(ultimo) + '</b>' : 'nunca lido') + (s.rodando ? ' · <b>sincronizando…</b>' : ' · a cada 30 min') + (!s.tokenConfigurado ? ' · <b style="color:var(--neg)">token não configurado</b>' : '');
+    el.title = 'Banco de horas: ' + (b ? (b.ok ? 'ok ' + dt(b.em) : 'falhou ' + dt(b.em) + ' (' + (b.erro || '') + ')' + (b.ultimoOk ? ' · último ok ' + dt(b.ultimoOk) : '')) : 'nunca') + '\nPonto: ' + (p ? (p.ok ? 'ok ' + dt(p.em) : 'falhou ' + dt(p.em) + ' (' + (p.erro || '') + ')' + (p.ultimoOk ? ' · último ok ' + dt(p.ultimoOk) : '')) : 'nunca') + '\nSó leitura: nada é alterado no PontoCerto.';
+    $('#mnav-foot').innerHTML = 'Sincronização PontoCerto (VR)<br><b>' + (b ? 'banco ' + dt(b.em) : 'banco: nunca') + '</b><br><b>' + (p ? 'ponto ' + dt(p.em) : 'ponto: nunca') + '</b>';
+    $('#tb-syncbt').innerHTML = papel('ti', 'coordenacao', ...RH) ? btn(ic('refresh') + ' Sincronizar', 'gh', 'id="bt-sync" title="Ler agora o PontoCerto (pode levar 1 min)"') : '';
+    if ($('#bt-sync')) $('#bt-sync').onclick = async () => { $('#bt-sync').disabled = true; $('#bt-sync').textContent = 'sincronizando…'; try { const r = await api('/api/gp/sync', { body: { qual: 'tudo' } }); toast(r.erro ? r.erro : 'Sincronizado' + (r.bancoHoras && r.bancoHoras.novos != null ? ' · ' + r.bancoHoras.novos + ' alerta(s) novo(s)' : '') + (r.ponto && r.ponto.novas != null ? ' · ' + r.ponto.novas + ' ocorrência(s) nova(s)' : ''), r.erro ? 'neg' : ''); COLABS = null; carregarColabs(); } catch (e) { toast(e.message, 'neg'); } syncBar(); abrirAba(ABA); contadores(); };
   } catch (e) { /* sem acesso */ }
+}
+function ajuda() {
+  janela('Como funciona a Gestão de Pessoas', 'DP / RH · central de acompanhamento preventivo',
+    '<div class="ajuda"><p>Central de acompanhamento preventivo: banco de horas, ponto e jornada, quadro, documentação, solicitações e planos de ação.</p>' +
+    '<p><b>Fluxo obrigatório:</b></p><div class="fluxo"><span class="on">Gerente</span><i>›</i><span>RH</span><i>›</i><span>Coordenação Administrativa</span><i>›</i><span>Execução</span><i>›</i><span>Monitoramento</span></div>' +
+    '<p>Os dados de ponto vêm do <b>PontoCerto (VR)</b> só para leitura, a cada 30 minutos: nada é alterado lá, e nenhum desconto ou compensação é automático. Limites de banco de horas (' + hm(CFG.limites.positivoMin) + ' / ' + hm(-CFG.limites.negativoMin) + ') são parâmetros internos de monitoramento e não caracterizam, sozinhos, infração trabalhista.</p>' +
+    '<p>Ninguém aprova a própria solicitação, e quem validou no RH não aprova a mesma. A tela só mostra os botões que o servidor permite pro seu papel.</p>' +
+    '<p class="hint">Atalho: tecle <b>/</b> em qualquer tela pra buscar nos alertas.</p></div>', 640);
 }
 function abrirRef(ref) {
   if (!ref) return; document.querySelectorAll('.f-ov').forEach(o => o.remove());
@@ -220,27 +407,28 @@ function abrirRef(ref) {
 
 // ── 1 · Visão geral ──
 async function visao() {
-  const el = $('#v-visao'); el.innerHTML = '<div class="vazio">carregando…</div>';
-  let v; try { v = await api('/api/gp/visao'); } catch (e) { el.innerHTML = '<div class="aviso neg">' + esc(e.message) + '</div>'; return; }
-  const i = v.indicadores, t = i.total;
-  const k = (l, val, s, cls, aba) => '<div class="kpi ' + (cls || '') + '" data-aba="' + aba + '"><div class="l">' + l + '</div><div class="v">' + val + '</div><div class="s">' + s + '</div></div>';
-  el.innerHTML = (i.data ? '' : '<div class="aviso">Ainda não há foto de saldos do banco de horas. A primeira leitura do PontoCerto acontece 2 minutos depois do sistema subir e depois a cada 30 min' + (papel('ti', 'coordenacao', ...RH) ? ' — ou use "Sincronizar agora"' : '') + '.</div>') +
+  const el = $('#v-visao'); el.innerHTML = skel();
+  let v; try { v = await api('/api/gp/visao'); } catch (e) { el.innerHTML = erroBox(e); return; }
+  const i = v.indicadores, t = i.total; const fora = t.acima + t.abaixo; const docsP = t.docs_pend + t.assin_pend;
+  const k = (cls, l, val, s, aba, etq) => '<div class="kpi ' + cls + '" data-aba="' + aba + '"><div class="l">' + l + (etq ? '<i>' + etq + '</i>' : '') + '</div><div class="v">' + val + '</div><div class="s">' + s + '</div></div>';
+  el.innerHTML = (i.data ? '<div class="st-line">' + ic('ic-clock') + '<span>Foto do banco de horas de <b>' + dBR(i.data) + '</b>' + (i.anteriorData ? ', comparada com ' + dBR(i.anteriorData) : '') + ' · limites <b>' + hm(i.limites.positivoMin) + '</b> e <b>' + hm(-i.limites.negativoMin) + '</b> · nada é descontado ou compensado automaticamente.</span></div>'
+    : '<div class="aviso">Ainda não há foto de saldos do banco de horas. A primeira leitura do PontoCerto acontece 2 minutos depois do sistema subir e depois a cada 30 min' + (papel('ti', 'coordenacao', ...RH) ? ' — ou use "Sincronizar"' : '') + '.</div>') +
     '<div class="kpis">' +
-    k('Acima de ' + hm(i.limites.positivoMin), t.acima, 'banco de horas positivo', t.acima ? 'neg' : 'pos', 'bh') +
-    k('Abaixo de ' + hm(-i.limites.negativoMin), t.abaixo, 'banco de horas negativo', t.abaixo ? 'neg' : 'pos', 'bh') +
-    k('Ocorrências de ponto', t.oc_abertas, 'abertas · ' + t.oc_reincid + ' reincidência(s)', t.oc_abertas ? 'am' : 'pos', 'ponto') +
-    k('Planos de ação', t.planos_pend, 'pendentes · ' + (t.taxa_cumprimento == null ? 'sem conclusões' : t.taxa_cumprimento + '% cumpridos'), t.planos_pend ? 'am' : '', 'planos') +
-    k('Solicitações', t.sols_pend, 'em análise/aprovação', t.sols_pend ? 'inf' : '', 'sol') +
-    k('Efetivo', t.efetivo, t.autorizado ? 'autorizado ' + t.autorizado + ' (' + (t.efetivo - t.autorizado >= 0 ? '+' : '') + (t.efetivo - t.autorizado) + ')' : 'quadro autorizado não definido', '', 'quadro') +
-    k('Documentos', t.docs_pend + t.assin_pend, t.assin_pend + ' assinatura(s) pendente(s)', t.docs_pend + t.assin_pend ? 'am' : '', 'docs') +
+    k(fora ? 'neg' : 'pos', 'Fora do limite de banco', fora, t.acima + ' acima de ' + hm(i.limites.positivoMin) + ' · ' + t.abaixo + ' abaixo de ' + hm(-i.limites.negativoMin), 'bh', 'banco de horas') +
+    k(t.oc_abertas ? 'am' : 'pos', 'Ocorrências de ponto', t.oc_abertas, t.oc_reincid + ' reincidência(s) · ' + t.vencidas + ' pendência(s) vencida(s)', 'ponto', 'abertas') +
+    k(t.planos_pend ? 'am' : '', 'Planos de ação', t.planos_pend, 'pendentes · ' + (t.taxa_cumprimento == null ? 'sem conclusões ainda' : t.taxa_cumprimento + '% cumpridos'), 'planos', 'banco de horas') +
+    k(t.sols_pend ? 'inf' : '', 'Aguardando aprovação', t.sols_pend, docsP + ' documento(s) pendente(s) · efetivo ' + t.efetivo + (t.autorizado ? ' de ' + t.autorizado : ''), 'sol', 'solicitações') +
     '</div>' +
-    '<div class="grid2"><div><div class="sec"><h2>Aguardando você <small>' + v.fila.length + '</small></h2></div>' +
-    (v.fila.length ? '<div class="pend-lista">' + v.fila.slice(0, 60).map((f, n) => '<div class="pend ' + (f.kind === 'bh' ? 'neg' : f.kind === 'ponto' ? 'am' : 'inf') + '" data-f="' + n + '"><span class="grau"></span><span class="area">' + ({ sol: 'Solicitação', ponto: 'Ponto', bh: 'Banco de horas' })[f.kind] + '</span><b>' + esc(f.lojaTxt) + '</b><span class="txt">' + esc(f.texto) + ' <span class="sub">' + esc(f.status) + '</span></span><span class="ir">abrir ›</span></div>').join('') + '</div>' : '<div class="vazio">Nada esperando por você agora.</div>') +
-    '</div><div><div class="sec"><h2>Por unidade</h2></div>' +
-    tabela([{ h: 'Unidade', f: r => '<b>' + esc(r.lojaTxt) + '</b>' }, { h: 'Efetivo', cls: 'r', f: r => r.efetivo }, { h: '> limite', cls: 'r', f: r => r.acima ? '<b style="color:var(--neg)">' + r.acima + '</b>' : '0' }, { h: '< limite', cls: 'r', f: r => r.abaixo ? '<b style="color:var(--neg)">' + r.abaixo + '</b>' : '0' },
-      { h: 'Ponto', cls: 'r', f: r => r.oc_abertas }, { h: 'Planos', cls: 'r', f: r => r.planos_pend }, { h: 'Vencidas', cls: 'r', f: r => r.vencidas ? '<b style="color:var(--neg)">' + r.vencidas + '</b>' : '0' }], i.lojas) +
-    '<p class="mini">' + esc(i.aviso) + '</p></div></div>';
-  el.querySelectorAll('.kpi').forEach(x => x.onclick = () => abrirAba(x.dataset.aba));
+    '<div class="grid2"><div><div class="sec"><h2>Aguardando você <small>' + v.fila.length + '</small></h2><a class="lnk" data-aba="alertas">todos os alertas ›</a></div>' +
+    (v.fila.length ? '<div class="card">' + v.fila.slice(0, 60).map((f, n) => { const cls = f.kind === 'bh' ? 'neg' : f.kind === 'ponto' ? 'am' : 'inf'; const partes = f.texto.split(' · '); const nome = (partes[1] || '').replace(/\s*\(.*$/, '');
+      return '<div class="fi ' + cls + '" data-f="' + n + '"><span class="rail"></span><span class="av">' + esc(nome ? ini(nome) : lojaCod(f.loja)) + '</span><div class="tx"><b>' + esc(f.texto) + '</b><span><span class="tag ' + cls + '">' + ({ sol: 'Solicitação', ponto: 'Ponto', bh: 'Banco de horas' })[f.kind] + '</span>' + esc(f.lojaTxt) + ' · ' + esc(f.status) + '</span></div><span class="ir">abrir ›</span></div>'; }).join('') + '</div>'
+      : '<div class="card">' + empty('Nada esperando por você', 'Nenhuma solicitação, ocorrência ou plano aguarda a sua ação agora.') + '</div>') +
+    '</div><div><div class="sec"><h2>Por unidade</h2><a class="lnk" data-aba="ind">indicadores ›</a></div>' +
+    (() => { const max = Math.max(1, ...i.lojas.map(r => r.acima + r.abaixo)); return '<div class="card" style="overflow-x:auto"><table class="uni-t"><thead><tr><th>Unidade</th><th class="r">Efetivo</th><th>Fora do limite</th><th class="r">Ponto</th><th class="r">Planos</th><th class="r">Vencidas</th></tr></thead><tbody>' +
+      i.lojas.map(r => { const f = r.acima + r.abaixo; return '<tr data-loja="' + r.loja + '"><td>' + cd(r.loja) + '</td><td class="r">' + r.efetivo + '</td><td><span class="bar2">' + (f ? '<b class="n">' + f + '</b>' : '<span class="z">0</span>') + '<i style="width:' + Math.round(f / max * 100) + '%"></i></span></td><td class="r">' + (r.oc_abertas || '<span class="z">0</span>') + '</td><td class="r">' + (r.planos_pend || '<span class="z">0</span>') + '</td><td class="r">' + (r.vencidas ? '<b class="n">' + r.vencidas + '</b>' : '<span class="z">0</span>') + '</td></tr>'; }).join('') + '</tbody></table></div>'; })() +
+    '<p class="hint" style="margin-top:8px">Barra = pessoas fora do limite de banco de horas, proporcional à unidade com mais casos. Clique na linha pra ver os alertas da unidade. ' + esc(i.aviso) + '</p></div></div>';
+  el.querySelectorAll('[data-aba]').forEach(x => x.onclick = () => abrirAba(x.dataset.aba));
+  el.querySelectorAll('tr[data-loja]').forEach(tr => tr.onclick = () => { alFiltro.loja = tr.dataset.loja; alFiltro.visao = 'todos'; abrirAba('alertas'); });
   el.querySelectorAll('[data-f]').forEach(x => x.onclick = () => { const f = v.fila[+x.dataset.f]; if (f.kind === 'sol') abrirSol(f.protocolo); else if (f.kind === 'ponto') { abrirAba('ponto'); abrirOcorrencia(f.protocolo); } else { abrirAba('bh'); novoPlano(null, f.protocolo); } });
 }
 
@@ -480,22 +668,83 @@ async function docs() {
   el.querySelectorAll('[data-at]').forEach(b => b.onclick = () => formAt(at.find(x => x.id === b.dataset.at)));
 }
 
-// ── 8 · Central de alertas ──
-let alFiltro = { prioridade: '', loja: '', responsavel: '', evento: '' };
+// ── 8 · Alertas (mesa de trabalho) ──
+// visao: minha (o que é do meu papel) · hoje (prazo até hoje) · alta · todos. Chips só com tipo que tem ocorrência; "+N tipos" mostra os zerados.
+let alFiltro = { prioridade: '', loja: '', responsavel: '', evento: '', q: '', visao: '' }; let AL = null, alSel = null, alMais = false;
 const EVENTOS = { 1: 'BH acima de +10h', 2: 'BH abaixo de −10h', 3: 'Marcação ausente', 4: 'Jornada inconsistente', 5: 'Plano não enviado', 6: 'Aguardando RH', 7: 'Aguardando Coordenação', 8: 'Execução vencida', 9: 'Documento pendente', 10: 'Solicitação devolvida', 11: 'Quadro abaixo', 12: 'Admissão atrasada' };
+const EV_CLS = { 1: 'neg', 2: 'neg', 5: 'neg', 8: 'neg', 3: 'am', 4: 'am', 9: 'am', 12: 'am', 6: 'inf', 7: 'inf', 10: 'inf', 11: 'inf' };
+const EV_ICO = { 1: 'ic-clock', 2: 'ic-clock', 5: 'alert', 8: 'alert', 3: 'calendar', 4: 'calendar', 9: 'ic-file', 12: 'users', 6: 'check', 7: 'check', 10: 'check', 11: 'users' };
+const minhaResp = a => (papel('gerente') && a.responsavel === 'Gerente da unidade') || (papel(...RH) && /^RH/.test(a.responsavel)) || (papel('coordenacao') && a.responsavel === 'Coordenação Administrativa');
+const etapa = r => { const t = r === 'Gerente da unidade' ? 'Gerente' : r === 'Coordenação Administrativa' ? 'Coordenação' : String(r || '—').replace('RH · Controle de Ponto', 'RH · Ponto').replace('RH · Documentação', 'RH · Docs'); return '<span class="et"><i class="' + (/^Gerente/.test(r) ? '' : /^RH/.test(r) ? 'rh' : /Coordena/.test(r) ? 'co' : 'gr') + '"></i>' + esc(t) + '</span>'; };
 async function central() {
-  const el = $('#v-alertas'); el.innerHTML = '<div class="vazio">carregando…</div>';
-  let todos; try { todos = await api('/api/gp/alertas'); } catch (e) { el.innerHTML = '<div class="aviso neg">' + esc(e.message) + '</div>'; return; }
-  const resp = [...new Set(todos.map(a => a.responsavel))].sort();
-  const rows = todos.filter(a => (!alFiltro.prioridade || a.prioridade === alFiltro.prioridade) && (!alFiltro.loja || +a.loja === +alFiltro.loja) && (!alFiltro.responsavel || a.responsavel === alFiltro.responsavel) && (!alFiltro.evento || +a.evento === +alFiltro.evento));
-  const porEv = {}; for (const a of todos) porEv[a.evento] = (porEv[a.evento] || 0) + 1;
-  el.innerHTML = '<div class="chips" style="margin-bottom:10px"><span class="chip' + (!alFiltro.evento ? ' on' : '') + '" data-ev="">Todos<small>' + todos.length + '</small></span>' + Object.entries(EVENTOS).map(([k, t]) => '<span class="chip' + (String(alFiltro.evento) === k ? ' on' : '') + '" data-ev="' + k + '">' + t + '<small>' + (porEv[k] || 0) + '</small></span>').join('') + '</div>' +
-    '<div class="bar"><select id="al-prio"><option value="">todas as prioridades</option>' + [['alta', 'Alta'], ['media', 'Média'], ['baixa', 'Baixa']].map(([k, t]) => '<option value="' + k + '"' + (alFiltro.prioridade === k ? ' selected' : '') + '>' + t + '</option>').join('') + '</select><select id="al-loja">' + selLojas(alFiltro.loja, 'todas as unidades') + '</select><select id="al-resp"><option value="">todos os responsáveis</option>' + resp.map(r => '<option' + (alFiltro.responsavel === r ? ' selected' : '') + '>' + esc(r) + '</option>').join('') + '</select><span style="flex:1"></span><a class="btn gh sm" href="/api/gp/exportar/alertas.csv">Exportar CSV</a></div>' +
-    tabela([{ h: 'Protocolo', f: a => '<span class="prot">' + esc(a.protocolo) + '</span>' }, { h: 'Tipo', cls: 'w', f: a => '<b>' + esc(a.tipo) + '</b><span class="sub">' + esc(a.detalhe || '') + '</span>' }, { h: 'Funcionário', cls: 'w', f: a => esc(a.colab || '—') }, { h: 'Unidade', f: a => uni(a.loja) }, { h: 'Data', f: a => dBR(a.data) },
-      { h: 'Prioridade', f: a => prioPill(a.prioridade) }, { h: 'Responsável', f: a => esc(a.responsavel) }, { h: 'Prazo', f: a => prazoTxt(a.prazo, a.prazo && a.prazo < G.hoje()) }, { h: 'Status', cls: 'w', f: a => esc(a.status) }, { h: '', cls: 'ac', f: (a, i) => btn('Abrir', 'gh', 'data-i="' + rows.indexOf(a) + '"') }], rows, { vazio: 'Nenhum alerta com esse filtro.' });
-  el.querySelectorAll('[data-ev]').forEach(c => c.onclick = () => { alFiltro.evento = c.dataset.ev; central(); });
-  $('#al-prio').onchange = e => { alFiltro.prioridade = e.target.value; central(); }; $('#al-loja').onchange = e => { alFiltro.loja = e.target.value; central(); }; $('#al-resp').onchange = e => { alFiltro.responsavel = e.target.value; central(); };
-  el.querySelectorAll('[data-i]').forEach(b => b.onclick = () => abrirRef(rows[+b.dataset.i].ref));
+  const el = $('#v-alertas'); el.innerHTML = skel();
+  try { AL = await api('/api/gp/alertas'); } catch (e) { el.innerHTML = erroBox(e, 'Não consegui ler os alertas'); return; }
+  if (!alFiltro.visao) alFiltro.visao = AL.some(minhaResp) ? 'minha' : 'todos';
+  const resp = [...new Set(AL.map(a => a.responsavel))].sort(); const porEv = {}; for (const a of AL) porEv[a.evento] = (porEv[a.evento] || 0) + 1;
+  const temMinha = papel('gerente', 'coordenacao', ...RH);
+  el.innerHTML = '<div class="toolbar"><div class="search">' + ic('search') + '<input id="al-q" placeholder="nome, protocolo, tipo, setor…" value="' + esc(alFiltro.q) + '"><kbd>/</kbd></div>' +
+    '<div class="views" id="al-visao">' + [...(temMinha ? [['minha', 'Minha fila']] : []), ['hoje', 'Vence até hoje'], ['alta', 'Prioridade alta'], ['todos', 'Todos']].map(([k, t]) => '<button data-k="' + k + '" class="' + (alFiltro.visao === k ? 'on' : '') + '">' + t + '</button>').join('') + '</div>' +
+    '<select class="sel" id="al-loja">' + selLojas(alFiltro.loja, 'todas as unidades') + '</select><select class="sel" id="al-resp"><option value="">todos os responsáveis</option>' + resp.map(r => '<option' + (alFiltro.responsavel === r ? ' selected' : '') + '>' + esc(r) + '</option>').join('') + '</select>' +
+    '<span style="flex:1"></span><a class="btn gh sm" href="/api/gp/exportar/alertas.csv">CSV</a>' + (!ME.soConsulta && papel('gerente', 'coordenacao', ...RH) ? btn(ic('ic-plus') + ' Plano de ação', 'am', 'id="al-novo"') : '') + '</div>' +
+    '<div class="chips" id="al-chips"></div><div class="work"><div id="al-lista"></div><aside class="drawer" id="al-drawer" hidden></aside></div>';
+  const chips = () => { const ev = Object.keys(EVENTOS).filter(k => alMais || porEv[k]); const zer = Object.keys(EVENTOS).length - Object.keys(EVENTOS).filter(k => porEv[k]).length;
+    $('#al-chips').innerHTML = '<span class="chip' + (!alFiltro.evento ? ' on' : '') + '" data-ev="">Todos <b>' + AL.length + '</b></span>' + ev.map(k => '<span class="chip' + (String(alFiltro.evento) === k ? ' on' : '') + '" data-ev="' + k + '"><i class="' + EV_CLS[k] + '"></i>' + EVENTOS[k] + ' <b>' + (porEv[k] || 0) + '</b></span>').join('') + (zer && !alMais ? '<span class="chip mais" id="al-mais">+ ' + zer + ' tipo(s) sem ocorrência</span>' : alMais && zer ? '<span class="chip mais" id="al-mais">esconder zerados</span>' : '');
+    $$('#al-chips [data-ev]').forEach(c => c.onclick = () => { alFiltro.evento = c.dataset.ev; chips(); desenharAlertas(); }); if ($('#al-mais')) $('#al-mais').onclick = () => { alMais = !alMais; chips(); }; };
+  chips(); desenharAlertas();
+  $('#al-q').oninput = e => { alFiltro.q = e.target.value; desenharAlertas(); };
+  $$('#al-visao button').forEach(b => b.onclick = () => { alFiltro.visao = b.dataset.k; $$('#al-visao button').forEach(x => x.classList.toggle('on', x === b)); desenharAlertas(); });
+  $('#al-loja').onchange = e => { alFiltro.loja = e.target.value; desenharAlertas(); }; $('#al-resp').onchange = e => { alFiltro.responsavel = e.target.value; desenharAlertas(); };
+  if ($('#al-novo')) $('#al-novo').onclick = () => novoPlano();
+}
+function desenharAlertas() {
+  const hoje = G.hoje(); const q = alFiltro.q.trim().toUpperCase();
+  const rows = AL.filter(a => (!alFiltro.loja || +a.loja === +alFiltro.loja) && (!alFiltro.responsavel || a.responsavel === alFiltro.responsavel) && (!alFiltro.evento || +a.evento === +alFiltro.evento) &&
+    (alFiltro.visao === 'minha' ? minhaResp(a) : alFiltro.visao === 'hoje' ? (a.prazo && a.prazo <= hoje) : alFiltro.visao === 'alta' ? a.prioridade === 'alta' : true) &&
+    (!q || [a.colab, a.protocolo, a.tipo, a.detalhe, a.status, a.lojaTxt].join(' ').toUpperCase().includes(q)))
+    .sort((a, b) => String(a.prazo || '9').localeCompare(String(b.prazo || '9')) || (a.prioridade === 'alta' ? -1 : 1));
+  const chave = a => a.protocolo + '|' + a.evento;
+  if (alSel && !rows.some(a => chave(a) === alSel)) alSel = null;
+  const vazio = alFiltro.visao === 'minha' ? empty('Nada na sua fila', 'Nenhum alerta espera a sua ação. Os demais estão com outros responsáveis.', btn('Ver todos', 'gh', 'id="al-ver-todos"')) : empty('Nenhum alerta', 'Nada com esse filtro.');
+  $('#al-lista').innerHTML = '<div class="tw">' + (rows.length ? '<table class="m"><thead><tr><th>Alerta</th><th>Funcionário</th><th>Unidade</th><th>Prior.</th><th>Etapa</th><th>Prazo</th><th class="ac"></th></tr></thead><tbody>' +
+    rows.slice(0, 400).map(a => '<tr class="row' + (chave(a) === alSel ? ' sel' : '') + '" data-k="' + esc(chave(a)) + '"><td><div class="tipo"><span class="ico ' + EV_CLS[a.evento] + '">' + ic(EV_ICO[a.evento]) + '</span><div><b>' + esc(a.tipo) + '</b><small' + (a.evento <= 2 ? ' class="neg"' : '') + '>' + esc(a.detalhe || '') + '</small><small>' + esc(a.protocolo) + (a.data ? ' · ' + dBR(a.data) : '') + '</small></div></div></td>' +
+      '<td><div class="whoc">' + (a.colab ? '<span class="av">' + esc(ini(a.colab)) + '</span><div><b><a data-ficha="' + esc(a.colab) + '" title="abrir a ficha">' + esc(a.colab) + '</a></b></div>' : '<span class="av">' + esc(lojaCod(a.loja)) + '</span><div><b>' + esc(a.evento === 11 ? 'Setor' : 'Unidade') + '</b><small>' + esc(a.status) + '</small></div>') + '</div></td>' +
+      '<td>' + cd(a.loja) + '</td><td>' + (a.prioridade === 'alta' ? '<span class="prio"><i></i>Alta</span>' : a.prioridade === 'media' ? '<span class="prio m"><i></i>Média</span>' : '<span class="prio b"><i></i>Baixa</span>') + '</td><td>' + etapa(a.responsavel) + '</td><td>' + sla(a.prazo) + '</td><td class="ac">' + btn('Abrir', chave(a) === alSel ? 'am' : 'gh', 'data-ab="' + esc(chave(a)) + '"') + '</td></tr>').join('') + '</tbody></table>' : vazio) +
+    '<div class="tfoot"><span>' + rows.length + ' de ' + AL.length + (rows.length > 400 ? ' · mostrando 400' : '') + ' · ordenado por prazo</span><span>clique na linha pra ver o detalhe · <b>/</b> busca</span></div></div>';
+  const abrir = k => { alSel = k; desenharAlertas(); };
+  $$('#al-lista tr.row').forEach(tr => tr.onclick = e => { if (e.target.closest('[data-ficha]')) return; abrir(tr.dataset.k); });
+  $$('#al-lista [data-ab]').forEach(b => b.onclick = e => { e.stopPropagation(); abrir(b.dataset.ab); });
+  $$('#al-lista [data-ficha]').forEach(x => x.onclick = e => { e.stopPropagation(); fichaPorNome(x.dataset.ficha); });
+  if ($('#al-ver-todos')) $('#al-ver-todos').onclick = () => { alFiltro.visao = 'todos'; $$('#al-visao button').forEach(x => x.classList.toggle('on', x.dataset.k === 'todos')); desenharAlertas(); };
+  const dr = $('#al-drawer'); const a = rows.find(x => chave(x) === alSel); dr.hidden = !a; if (!a) return;
+  const fluxo = fluxoDoAlerta(a); const bhBig = a.evento <= 2 || a.evento === 5 ? (String(a.detalhe || '').match(/[+−-]?\d+h\d{2}/) || [])[0] : null;
+  dr.innerHTML = '<div class="hd"><span class="av">' + esc(a.colab ? ini(a.colab) : lojaCod(a.loja)) + '</span><div><b>' + esc(a.colab || a.tipo) + '</b><small>' + esc(a.lojaTxt) + (a.colab ? ' · <a data-ficha="' + esc(a.colab) + '">abrir ficha ›</a>' : '') + '</small></div><button class="x" title="fechar">×</button></div>' +
+    '<div class="alvo ' + EV_CLS[a.evento] + '"><div><b>' + esc(a.tipo) + '</b><span>' + (bhBig ? 'limite ' + hm(CFG.limites.positivoMin) + ' / ' + hm(-CFG.limites.negativoMin) + ' · ' : '') + esc(a.detalhe || '') + ' · <span class="prot">' + esc(a.protocolo) + '</span></span></div>' + (bhBig ? '<span class="big">' + esc(bhBig) + '</span>' : '') + '</div>' +
+    '<div class="bd"><dl class="kv2"><div><dt class="lb">Prioridade</dt><dd' + (a.prioridade === 'alta' ? ' class="neg"' : '') + '>' + ({ alta: 'Alta', media: 'Média', baixa: 'Baixa' })[a.prioridade] + '</dd></div><div><dt class="lb">Prazo</dt><dd>' + (a.prazo ? dBR(a.prazo) + ' ' + sla(a.prazo) : '—') + '</dd></div><div><dt class="lb">Responsável agora</dt><dd>' + esc(a.responsavel) + '</dd></div><div><dt class="lb">Situação</dt><dd>' + esc(a.status) + '</dd></div>' + (a.data ? '<div><dt class="lb">Desde</dt><dd>' + dBR(a.data) + '</dd></div>' : '') + '</dl>' +
+    '<div><div class="lb" style="margin-bottom:10px">Fluxo</div><div class="flx">' + fluxo.passos.map((p, i) => '<div class="fl"><i class="' + (i < fluxo.atual ? 'ok' : i === fluxo.atual ? (fluxo.vencido ? 'bad' : 'cur') : '') + '"></i><div><b>' + esc(p[0]) + '</b>' + (p[1] ? '<span' + (i === fluxo.atual && fluxo.vencido ? ' class="sla"' : '') + '>' + esc(p[1]) + '</span>' : '') + '</div></div>').join('') + '</div></div>' +
+    '<p class="hint">Dados do PontoCerto só de leitura. Nada é descontado ou compensado automaticamente; o plano de ação é do gerente da unidade.</p></div>' +
+    '<div class="ft">' + btn('Abrir ' + (({ bh: 'alerta', ponto: 'ocorrência', sol: 'solicitação', docs: 'documentação', quadro: 'quadro' })[a.ref && a.ref.aba] || 'origem'), 'am', 'id="al-ir"') + (a.evento <= 2 && /^Sem plano/.test(a.status) && !ME.soConsulta && papel('gerente', 'coordenacao', ...RH) ? btn('Plano de ação', 'gh', 'id="al-plano"') : '') + '</div>';
+  dr.querySelector('.x').onclick = () => { alSel = null; desenharAlertas(); };
+  $('#al-ir').onclick = () => abrirRef(a.ref);
+  if ($('#al-plano')) $('#al-plano').onclick = () => novoPlano(null, a.protocolo);
+  dr.querySelectorAll('[data-ficha]').forEach(x => x.onclick = () => fichaPorNome(x.dataset.ficha));
+  if (window.innerWidth < 1200) dr.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+// etapas do fluxo obrigatório, por tipo de alerta; "atual" = onde está parado
+function fluxoDoAlerta(a) {
+  const st = String(a.status || '').toLowerCase(); const venc = !!(a.prazo && a.prazo < G.hoje());
+  if (a.evento <= 2 || a.evento === 5) { const atual = /sem plano/.test(st) ? 0 : /rh|análise|analise|enviad/.test(st) ? 1 : /coordena/.test(st) ? 2 : /aprovad|execu/.test(st) ? 3 : /conclu/.test(st) ? 4 : 0;
+    return { atual, vencido: venc && atual === 0, passos: [['Gerente da unidade', atual === 0 ? (venc ? 'plano não enviado · prazo ' + dBR(a.prazo) + ' vencido' : 'elabora o plano de ação até ' + dBR(a.prazo)) : 'plano enviado'], ['RH · Controle de Ponto', 'valida tecnicamente'], ['Coordenação Administrativa', 'aprova'], ['Execução', 'gerente cumpre o plano'], ['Monitoramento', 'saldo volta pro limite']] }; }
+  if (a.evento === 3 || a.evento === 4) { const atual = /^Gerente/.test(a.responsavel) ? 0 : /^RH/.test(a.responsavel) ? 1 : /Coordena/.test(a.responsavel) ? 2 : 3;
+    return { atual, vencido: venc, passos: [['Gerente justifica', a.prazo && atual === 0 ? 'até ' + dBR(a.prazo) : ''], ['RH analisa', a.prazo && atual === 1 ? 'até ' + dBR(a.prazo) : ''], ['Coordenação decide', 'quando precisar de autorização'], ['Regularizada', 'o registro original nunca é alterado']] }; }
+  if (a.evento === 9) return { atual: /receb/.test(st) ? 1 : 0, vencido: venc, passos: [['Pendência aberta', 'RH · Documentação'], ['Recebido', ''], ['Concluído / assinado', '']] };
+  if (a.evento === 11) return { atual: 0, vencido: false, passos: [['Diferença identificada', 'não é vaga aprovada'], ['Solicitação de reposição', 'gerente pede'], ['Aprovação', 'Coordenação'], ['Admissão', 'RH']] };
+  const atual = a.evento === 10 ? 0 : a.evento === 6 ? 1 : a.evento === 7 ? 2 : 3;
+  return { atual, vencido: venc || a.evento === 8, passos: [['Gerente envia', a.evento === 10 ? 'devolvida: ajustar e reenviar' : ''], ['RH analisa', a.evento === 6 && a.prazo ? 'até ' + dBR(a.prazo) : ''], ['Coordenação decide', a.evento === 7 && a.prazo ? 'até ' + dBR(a.prazo) : ''], ['Execução', a.evento === 8 ? 'prazo vencido' : a.evento === 12 ? 'admissão atrasada' : ''], ['Concluída', '']] };
+}
+async function fichaPorNome(nome) {
+  await carregarColabs(); const n = semAc(nome); const c = (COLABS || []).find(x => semAc(x.nome) === n);
+  if (!c) { toast('Funcionário não encontrado no cadastro do PontoCerto', 'neg'); return; }
+  abrirAba('ficha', c.id);
 }
 
 // ── 9 · Indicadores ──
@@ -591,6 +840,123 @@ async function configuracoes() {
     try { await api('/api/gp/config', { method: 'PUT', body: { limites: { positivoMin: v('cf-pos'), negativoMin: v('cf-neg') }, prazos, ponto: pt } }); toast('Parâmetros salvos'); configuracoes(); } catch (e) { toast(e.message, 'neg'); }
   };
 }
+
+// ── 13 · Pessoas (cadastro do PontoCerto) e ficha do funcionário ──
+let FUNCS = null, pesF = { loja: '', setor: '', grupo: 'ativos', q: '' };
+const AFAST_RE = /afast|licen|atestad|inss|auxil/i, FERIAS_RE = /f[eé]rias/i;
+const stAgora = s => { const cls = /jornada|intervalo|trabalh/i.test(s) ? 'pos' : /atrasad|ausente/i.test(s) ? 'neg' : FERIAS_RE.test(s) ? 'inf' : AFAST_RE.test(s) ? 'warn' : ''; return '<span class="pill ' + cls + '">' + esc(s || '—') + '</span>'; };
+const bancoBar = min => { const L = CFG.limites; const esc1 = Math.max(L.positivoMin, L.negativoMin) * 2 || 1200; const w = Math.min(50, Math.abs(min || 0) / esc1 * 50); return '<span class="mini-bar"><i style="' + (min >= 0 ? 'left:50%;' : 'right:50%;') + 'width:' + w.toFixed(1) + '%;background:var(--' + ((min > L.positivoMin || min < -L.negativoMin) ? 'neg' : 'pos') + ')"></i></span>' + hmCls(min, (min > L.positivoMin || min < -L.negativoMin) ? 'alerta' : ''); };
+async function pessoas() {
+  const el = $('#v-pessoas');
+  el.innerHTML = '<div class="toolbar"><div class="search">' + ic('search') + '<input id="pe-q" placeholder="nome, matrícula, cargo…" value="' + esc(pesF.q) + '"></div><select class="sel" id="pe-loja">' + selLojas(pesF.loja, 'todas as unidades') + '</select><select class="sel" id="pe-setor"><option value="">todos os setores</option></select>' +
+    '<div class="views" id="pe-grupo"><button data-k="ativos" class="' + (pesF.grupo === 'ativos' ? 'on' : '') + '">Ativos</button><button data-k="desligados" class="' + (pesF.grupo === 'desligados' ? 'on' : '') + '">Desligados</button></div><span style="flex:1"></span>' + (papel('ti', 'coordenacao', ...RH) ? btn(ic('refresh') + ' Reler cadastro', 'gh', 'id="pe-ref" title="Lê de novo o cadastro do PontoCerto (até 1 min)"') : '') + '</div>' +
+    '<div id="pe-kpis"></div><div id="pe-body">' + skel() + '<p class="hint">Lendo o cadastro do PontoCerto. A primeira leitura do dia pode levar até 1 minuto.</p></div>';
+  const carregar = async force => { try { if (force) FUNCS = null; FUNCS = FUNCS || await api('/api/gp/funcionarios' + (force ? '?force=1' : '')); } catch (e) { $('#pe-body').innerHTML = erroBox(e, 'Não consegui ler o cadastro do PontoCerto'); return false; } return true; };
+  if (!await carregar()) return;
+  $('#pe-setor').innerHTML = '<option value="">todos os setores</option>' + [...new Set(FUNCS.ativos.filter(c => veLoja(c.loja)).map(c => c.setor).filter(Boolean))].sort().map(s => '<option' + (s === pesF.setor ? ' selected' : '') + '>' + esc(s) + '</option>').join('');
+  const desenha = () => {
+    const q = pesF.q.trim().toUpperCase(); const L = CFG.limites;
+    const base = FUNCS[pesF.grupo].filter(c => veLoja(c.loja) && (!pesF.loja || +c.loja === +pesF.loja) && (!pesF.setor || c.setor === pesF.setor));
+    const rows = base.filter(c => !q || (c.nome + ' ' + c.matricula + ' ' + c.cargo + ' ' + c.setor).toUpperCase().includes(q)).sort((a, b) => a.nome.localeCompare(b.nome));
+    if (pesF.grupo === 'ativos') { const fora = base.filter(c => c.banco_horas_min > L.positivoMin || c.banco_horas_min < -L.negativoMin).length, af = base.filter(c => AFAST_RE.test(c.status_agora || '') && !FERIAS_RE.test(c.status_agora || '')).length, fe = base.filter(c => FERIAS_RE.test(c.status_agora || '')).length;
+      const k = (cls, l, v, s) => '<div class="kpi ' + cls + '" style="cursor:default"><div class="l">' + l + '</div><div class="v">' + v + '</div><div class="s">' + s + '</div></div>';
+      $('#pe-kpis').innerHTML = '<div class="kpis">' + k('', 'Quadro ativo', base.length, pesF.loja ? lojaTxt(pesF.loja) : 'todas as unidades no seu escopo') + k(fora ? 'neg' : 'pos', 'Fora do limite de banco', fora, base.length ? Math.round(fora / base.length * 100) + '% do quadro' : '—') + k(af ? 'am' : '', 'Afastados', af, 'pelo status do PontoCerto, sem motivo exposto') + k(fe ? 'inf' : '', 'Em férias', fe, 'agora') + '</div>'; } else $('#pe-kpis').innerHTML = '';
+    $('#pe-body').innerHTML = '<div class="tw">' + (rows.length ? '<table class="m"><thead><tr><th>Pessoa</th><th>Setor · cargo</th><th>Admissão</th><th>Escala</th>' + (pesF.grupo === 'ativos' ? '<th>Agora</th><th class="r">Banco oficial</th>' : '<th>Desligamento</th>') + '</tr></thead><tbody>' +
+      rows.slice(0, 500).map(c => '<tr class="row" data-id="' + c.id + '"><td><div class="whoc"><span class="av">' + esc(ini(c.nome)) + '</span><div><b>' + esc(c.nome) + '</b><small>' + lojaCod(c.loja) + (c.matricula ? ' · mat. ' + esc(c.matricula) : '') + (c.clt ? ' · CLT' : '') + '</small></div></div></td><td><div class="cd"><b>' + esc(setorUtil(c.setor, c.loja) || lojaNome(c.loja)) + '</b><small>' + esc(c.cargo || '') + '</small></div></td>' +
+        '<td>' + dBR(c.admissao) + '<span class="sub">' + esc(G.tempoCasa(c.admissao)) + '</span></td><td><span class="sub" style="white-space:normal;max-width:180px">' + esc(c.turno || '—') + '</span></td>' + (pesF.grupo === 'ativos' ? '<td>' + stAgora(c.status_agora) + '</td><td class="r">' + bancoBar(c.banco_horas_min) + '</td>' : '<td>' + dBR(c.desligamento) + '</td>') + '</tr>').join('') + '</tbody></table>' : empty('Ninguém encontrado', 'Nada com esse filtro.')) +
+      '<div class="tfoot"><span>' + rows.length + ' pessoa(s)' + (rows.length > 500 ? ' · mostrando 500' : '') + ' · cadastro do PontoCerto lido ' + dt(FUNCS.gerado_em) + '</span><span>barra = saldo oficial do banco na escala ±' + hm(Math.max(L.positivoMin, L.negativoMin) * 2).slice(1) + ' · clique na linha pra abrir a ficha</span></div></div>';
+    $$('#pe-body tr[data-id]').forEach(tr => tr.onclick = () => abrirAba('ficha', +tr.dataset.id));
+  };
+  desenha();
+  $('#pe-q').oninput = e => { pesF.q = e.target.value; desenha(); }; $('#pe-loja').onchange = e => { pesF.loja = e.target.value; desenha(); }; $('#pe-setor').onchange = e => { pesF.setor = e.target.value; desenha(); };
+  $$('#pe-grupo button').forEach(b => b.onclick = () => { pesF.grupo = b.dataset.k; $$('#pe-grupo button').forEach(x => x.classList.toggle('on', x === b)); desenha(); });
+  if ($('#pe-ref')) $('#pe-ref').onclick = async () => { $('#pe-body').innerHTML = skel(); if (await carregar(true)) desenha(); };
+}
+
+let FICHA = null;
+async function fichaPessoa(id) {
+  const el = $('#v-ficha'); if (!id) { el.innerHTML = empty('Escolha uma pessoa', 'Abra a ficha a partir da aba Pessoas ou de um alerta.'); return; }
+  el.innerHTML = '<button class="btn gh sm" id="fc-volta">' + ic('ic-back') + ' Voltar</button>' + skel();
+  $('#fc-volta').onclick = () => abrirAba(FICHA_VOLTA);
+  const ate = G.hoje(), de = somaDias(ate, -29);
+  let F; try { F = await api('/api/gp/funcionario/' + id + '?de=' + de + '&ate=' + ate); } catch (e) { el.insertAdjacentHTML('beforeend', erroBox(e, 'Não consegui abrir a ficha')); return; }
+  FICHA = { F, id, aba: 'resumo' }; desenharFicha();
+}
+function desenharFicha() {
+  const { F, id } = FICHA; const el = $('#v-ficha'); const c = F.colaborador, C = F.central, lim = C.limites;
+  const dias = F.dias.slice().reverse().filter(d => !c.admissao || d.data >= c.admissao);   // cronológico
+  const ultimo = F.hoje || F.dias[0]; const banco = c.ativo ? c.banco_horas_min : (ultimo ? ultimo.banco_oficial_min : null);
+  const fora = banco != null && (banco > lim.positivoMin || banco < -lim.negativoMin);
+  const ocAb = C.ocorrencias.filter(o => !['regularizada', 'decidida', 'encerrada', 'cancelada'].includes(o.status)); const docsP = C.documentos.filter(d => ['pendente', 'recebido'].includes(d.status)); const solsP = C.solicitacoes.filter(s => !['concluido', 'rejeitado', 'cancelado'].includes(s.status));
+  const sub = [['resumo', 'Resumo'], ['banco', 'Banco de horas', banco != null ? hm(banco) : null, fora ? 'neg' : ''], ['ponto', 'Ponto', C.ocorrencias.length || null], ['docs', 'Documentos', C.documentos.length || null], ['sols', 'Solicitações', C.solicitacoes.length || null], ['jornada', 'Jornada · 30 d']];
+  const prim = c.ativo ? stAgora(c.status_agora) : '<span class="pill">Desligado em ' + dBR(c.desligamento) + '</span>';
+  el.innerHTML = '<button class="btn gh sm" id="fc-volta" style="margin-bottom:10px">' + ic('ic-back') + ' Voltar</button>' +
+    '<div class="ficha-hd"><span class="av">' + esc(ini(c.nome)) + '</span><div><h2>' + esc(c.nome) + ' ' + prim + (C.alerta ? '<span class="tag neg">alerta ' + esc(C.alerta.protocolo) + '</span>' : '') + (ocAb.length ? '<span class="tag am">' + ocAb.length + ' ocorrência(s) de ponto</span>' : '') + '</h2>' +
+    '<div class="meta"><span>' + esc(c.cargo || '—') + ' · <b>' + esc(c.setor || lojaNome(c.loja)) + '</b></span><span><b>' + esc(lojaTxt(c.loja)) + '</b></span>' + (c.matricula ? '<span>matrícula <b>' + esc(c.matricula) + '</b></span>' : '') + (c.admissao ? '<span>admissão <b>' + dBR(c.admissao) + '</b> · ' + esc(G.tempoCasa(c.admissao)) + '</span>' : '') + (c.turno ? '<span>escala <b>' + esc(c.turno) + '</b></span>' : '') + (c.clt ? '<span>CLT</span>' : '') + '</div></div>' +
+    '<div class="acts">' + (C.alerta && !C.alerta.plano && !ME.soConsulta && papel('gerente', 'coordenacao', ...RH) ? btn('Plano de ação', 'am', 'id="fc-plano"') : '') + (C.alerta ? btn('Alerta ' + esc(C.alerta.protocolo), 'gh', 'id="fc-alerta"') : '') + '</div></div>' +
+    '<div class="subt">' + sub.map(([k, t, b, cls]) => '<button data-s="' + k + '" class="' + (FICHA.aba === k ? 'on' : '') + '">' + t + (b ? ' <span class="b ' + (cls || '') + '">' + b + '</span>' : '') + '</button>').join('') + '</div><div id="fc-body"></div>';
+  $('#fc-volta').onclick = () => abrirAba(FICHA_VOLTA);
+  $$('.subt [data-s]').forEach(b => b.onclick = () => { FICHA.aba = b.dataset.s; $$('.subt [data-s]').forEach(x => x.classList.toggle('on', x === b)); corpo(); });
+  if ($('#fc-plano')) $('#fc-plano').onclick = () => novoPlano(id);
+  if ($('#fc-alerta')) $('#fc-alerta').onclick = () => abrirAlerta(C.alerta.protocolo);
+  const b = $('#fc-body');
+  const sitCls = s => ({ ok: 'pos', atraso: 'neg', sem_marcacao: 'warn', incompleta: 'warn', folga_trabalhada: 'warn', em_andamento: 'inf', intervalo: 'inf' })[s] || '';
+  const apur = d => d.apuracao ? ((d.apuracao.extras_min ? '<span class="hm pos">+' + esc(d.apuracao.extras) + '</span> ' : '') + (d.apuracao.faltantes_min ? '<span class="hm neg">−' + esc(d.apuracao.faltantes) + '</span>' : '') + (!d.apuracao.extras_min && !d.apuracao.faltantes_min ? '<span class="sub">0:00</span>' : '')) : '<span class="sub">' + (d.data === G.hoje() ? 'em apuração' : '—') + '</span>';
+  function corpo() {
+    const a = FICHA.aba;
+    if (a === 'resumo') {
+      const pend = [...(C.alerta ? [{ cls: 'neg', ico: 'ic-clock', t: (C.alerta.tipo === 'bh_pos' ? 'Banco acima do limite' : 'Banco abaixo do limite') + ' · ' + hm(C.alerta.saldoAtual), s: C.alerta.protocolo + ' · ' + (C.alerta.plano ? 'plano ' + C.alerta.plano.statusTxt.toLowerCase() : 'sem plano de ação · gerente'), p: C.alerta.prazoPlano, go: () => abrirAlerta(C.alerta.protocolo) }] : []),
+        ...ocAb.map(o => ({ cls: 'am', ico: 'calendar', t: o.tipoTxt + ' · ' + dBR(o.data), s: o.statusTxt + ' · ' + o.responsavel, p: o.prazo, go: () => abrirOcorrencia(o.id) })),
+        ...docsP.map(d => ({ cls: 'am', ico: 'ic-file', t: d.tipo + ' · ' + d.descricao, s: d.statusTxt + (d.geri_ref ? ' · GERI ' + d.geri_ref : ''), p: d.prazo, go: () => abrirAba('docs') })),
+        ...solsP.map(s => ({ cls: 'inf', ico: 'check', t: s.curto, s: s.statusTxt + ' · ' + s.protocolo, p: s.prazo, go: () => abrirSol(s.protocolo) }))];
+      const hist = [...C.ocorrencias.map(o => ({ em: o.data, cls: o.prazoVencido ? 'neg' : 'am', t: o.tipoTxt, s: o.statusTxt + (o.registrado ? ' · ' + o.registrado : '') })), ...C.solicitacoes.map(s => ({ em: s.criadoEm.slice(0, 10), cls: 'inf', t: s.curto + ' · ' + s.protocolo, s: s.statusTxt + ' · por ' + s.autor })),
+        ...C.documentos.map(d => ({ em: d.criadoEm.slice(0, 10), cls: d.vencido ? 'neg' : 'am', t: d.tipo + ' · ' + d.descricao, s: d.statusTxt })), ...(C.alerta ? [{ em: C.alerta.identificadoEm.slice(0, 10), cls: 'neg', t: 'Alerta de banco de horas aberto', s: 'saldo ' + hm(C.alerta.saldoIdentificado) + ' ao abrir · ' + C.alerta.protocolo }] : []),
+        ...dias.filter(d => d.situacao === 'atraso').map(d => ({ em: d.data, cls: 'am', t: 'Atraso de ' + hm(d.atraso_min).slice(1), s: 'previsto ' + (d.previsto && d.previsto.entrada || '—') + ', entrou ' + (d.entrada || '—') }))].sort((x, y) => y.em.localeCompare(x.em)).slice(0, 14);
+      b.innerHTML = '<div class="f3"><div class="pane"><h3>Banco de horas <small>oficial · últimos 30 dias</small></h3><div class="saldo"><span class="big ' + (banco == null ? '' : banco >= 0 ? (fora ? 'neg' : 'pos') : 'neg') + '">' + hm(banco) + '</span>' + (banco == null ? '' : fora ? '<span class="tag neg">fora do limite</span>' : '<span class="tag pos">dentro do limite</span>') + '<span class="hint">limites ' + hm(lim.positivoMin) + ' / ' + hm(-lim.negativoMin) + '</span></div>' + graficoBanco(dias, lim, banco) + '</div>' +
+        '<div class="pane"><h3>Precisa de atenção <small>agora</small></h3>' + (pend.length ? pend.map((p, i) => '<div class="li" data-p="' + i + '"><span class="ico ' + p.cls + '">' + ic(p.ico) + '</span><div><b>' + esc(p.t) + '</b><small>' + esc(p.s) + '</small></div>' + (p.p ? sla(p.p) : '<time></time>') + '</div>').join('') : empty('Nada pendente', 'Sem alerta, ocorrência, documento ou solicitação em aberto.')) +
+        (C.documentos.length ? '<h3 style="margin-top:16px">Documentos <small>' + (C.documentos.length - docsP.length) + ' de ' + C.documentos.length + ' concluídos</small></h3><div style="display:grid;gap:6px">' + C.documentos.slice(0, 8).map(d => '<div class="li" style="cursor:default"><span class="ico ' + (['pendente', 'recebido'].includes(d.status) ? (d.vencido ? 'neg' : 'am') : 'pos') + '">' + ic('ic-file') + '</span><div><b>' + esc(d.descricao) + '</b><small>' + esc(d.tipo) + ' · ' + esc(d.statusTxt) + '</small></div><time>' + (d.prazo ? dBR(d.prazo) : '') + '</time></div>').join('') + '</div>' : '') + '</div>' +
+        '<div class="pane"><h3>Histórico <small>o que esta central registrou</small></h3>' + (hist.length ? '<div class="tl">' + hist.map(h => '<div class="t"><time>' + dBR(h.em) + '</time><i class="' + h.cls + '"></i><div><b>' + esc(h.t) + '</b><span>' + esc(h.s) + '</span></div></div>').join('') + '</div>' : '<p class="hint">Nenhum registro ainda. O histórico começa quando houver ocorrência, solicitação, documento ou alerta desta pessoa.</p>') + '</div></div>';
+      $$('#fc-body [data-p]').forEach(x => x.onclick = () => pend[+x.dataset.p].go());
+    } else if (a === 'banco') {
+      b.innerHTML = '<p class="hint" style="margin-bottom:10px">Saldo acumulado oficial (apuração do PontoCerto) dia a dia. H.E. = horas extras do dia; faltante = horas não trabalhadas da escala. Jornada incompleta ou sem marcação não é falta nem débito: é item de análise.</p>' +
+        tabela([{ h: 'Dia', f: d => dBR(d.data) + '<span class="sub">' + G.dSem(d.data) + '</span>' }, { h: 'Situação', f: d => '<span class="pill ' + sitCls(d.situacao) + '">' + esc(d.situacaoTxt) + '</span>' }, { h: 'Apuração do dia', cls: 'r', f: apur }, { h: 'Banco acumulado', cls: 'r', f: d => d.banco_oficial_min == null ? '<span class="sub">—</span>' : hmCls(d.banco_oficial_min, (d.banco_oficial_min > lim.positivoMin || d.banco_oficial_min < -lim.negativoMin) ? 'alerta' : '') }], dias.slice().reverse(), { vazio: 'Sem apuração no período.' });
+    } else if (a === 'ponto') {
+      b.innerHTML = tabela([{ h: 'Protocolo', f: o => '<span class="prot">' + esc(o.id) + '</span>' + (o.reincidente ? '<span class="sub" style="color:var(--neg)">reincidente</span>' : '') }, { h: 'Data', f: o => dBR(o.data) + '<span class="sub">' + G.dSem(o.data) + '</span>' }, { h: 'Divergência', cls: 'w', f: o => esc(o.tipoTxt) }, { h: 'Registrado', cls: 'w', f: o => esc(o.registrado || '—') }, { h: 'Situação', f: o => pill(['regularizada', 'decidida'].includes(o.status) ? 'pos' : o.prazoVencido ? 'neg' : 'inf', o.statusTxt) }, { h: 'Responsável · prazo', cls: 'w', f: o => esc(o.responsavel) + '<span class="sub">' + (o.prazo ? prazoTxt(o.prazo, o.prazoVencido) : '') + '</span>' }, { h: '', cls: 'ac', f: o => btn(o.acoes.length ? 'Tratar' : 'Ver', o.acoes.length ? 'am' : 'gh', 'data-oc="' + o.id + '"') }], C.ocorrencias, { vazio: 'Nenhuma ocorrência de ponto registrada para esta pessoa.' });
+      $$('#fc-body [data-oc]').forEach(x => x.onclick = () => abrirOcorrencia(x.dataset.oc));
+    } else if (a === 'docs') {
+      b.innerHTML = tabela([{ h: 'Tipo', f: d => esc(d.tipo) }, { h: 'Documento', cls: 'w', f: d => esc(d.descricao) + (d.geri_ref ? '<span class="sub">GERI: ' + esc(d.geri_ref) + '</span>' : '') }, { h: 'Prazo', f: d => prazoTxt(d.prazo, d.vencido) }, { h: 'Status', f: d => pill(['pendente', 'recebido'].includes(d.status) ? (d.vencido ? 'neg' : 'warn') : 'pos', d.statusTxt) }, { h: 'Aberto em', f: d => dBR(d.criadoEm.slice(0, 10)) }], C.documentos, { vazio: 'Nenhuma pendência documental registrada.' }) + '<p class="hint">Documentos são tratados na aba Documentação e GERI.</p>';
+    } else if (a === 'sols') {
+      b.innerHTML = tabSols(C.solicitacoes); $$('#fc-body [data-sol]').forEach(x => x.onclick = e => { e.preventDefault(); abrirSol(x.dataset.sol); });
+    } else {
+      const hora = (v, cls) => v ? '<span class="hm ' + (cls || '') + '" style="font-weight:700">' + esc(v) + '</span>' : '<span class="sub">—</span>';
+      b.innerHTML = '<p class="hint" style="margin-bottom:10px">Previsto × realizado nos últimos 30 dias, pelas marcações e pela escala do PontoCerto' + (F.escala ? ' (' + esc(F.escala.nome) + ')' : '') + '.</p>' +
+        tabela([{ h: 'Dia', f: d => dBR(d.data) + '<span class="sub">' + G.dSem(d.data) + '</span>' }, { h: 'Previsto', cls: 'c', f: d => d.previsto ? (d.previsto.folga ? '<span class="sub">folga</span>' : esc(d.previsto.entrada) + ' – ' + esc(d.previsto.saida)) : '<span class="sub">—</span>' }, { h: 'Entrada', cls: 'c', f: d => hora(d.entrada, d.situacao === 'atraso' ? 'neg' : '') + (d.situacao === 'atraso' ? '<span class="sub" style="color:var(--neg)">+' + hm(d.atraso_min).slice(1) + '</span>' : '') },
+          { h: 'Intervalo', cls: 'c', f: d => d.saidaInt || d.retornoInt ? esc(d.saidaInt || '—') + ' → ' + esc(d.retornoInt || '—') : '<span class="sub">—</span>' }, { h: 'Saída', cls: 'c', f: d => hora(d.saida) }, { h: 'Situação', f: d => '<span class="pill ' + sitCls(d.situacao) + '">' + esc(d.situacaoTxt) + '</span>' }, { h: 'Apuração', cls: 'r', f: apur }, { h: 'Banco', cls: 'r', f: d => d.banco_oficial_min == null ? '<span class="sub">—</span>' : hmCls(d.banco_oficial_min, '') }], dias.slice().reverse(), { vazio: 'Sem dias no período.' });
+    }
+  }
+  corpo();
+}
+// gráfico do saldo acumulado: escala única, linha do limite tracejada, zero como base; só com dias que têm apuração
+function graficoBanco(dias, lim, atual) {
+  const pts = dias.filter(d => d.banco_oficial_min != null).map(d => ({ x: d.data, y: d.banco_oficial_min }));
+  if (pts.length < 2) return '<p class="hint" style="margin-top:6px">Ainda não há apuração diária suficiente no período pra desenhar a evolução.</p>';
+  const W = 600, H = 150, pl = 42, pr = 14, pt = 12, pb = 24; const ys = pts.map(p => p.y);
+  const yMax = Math.max(...ys, lim.positivoMin, 0) * 1.08 + 1, yMin = Math.min(...ys, -lim.negativoMin, 0) * 1.08 - 1;
+  const X = i => pl + i / (pts.length - 1) * (W - pl - pr), Y = v => pt + (yMax - v) / (yMax - yMin) * (H - pt - pb);
+  const d = pts.map((p, i) => (i ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(p.y).toFixed(1)).join(' ');
+  const cls = atual != null && atual < 0 ? 'neg' : (atual > lim.positivoMin ? '' : 'pos'); const ult = pts[pts.length - 1]; const i0 = pts[0];
+  return '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="saldo do banco de horas por dia">' +
+    '<line class="grid" x1="' + pl + '" y1="' + Y(0).toFixed(1) + '" x2="' + (W - pr) + '" y2="' + Y(0).toFixed(1) + '"/>' +
+    '<line class="lim" x1="' + pl + '" y1="' + Y(lim.positivoMin).toFixed(1) + '" x2="' + (W - pr) + '" y2="' + Y(lim.positivoMin).toFixed(1) + '"/><line class="lim" x1="' + pl + '" y1="' + Y(-lim.negativoMin).toFixed(1) + '" x2="' + (W - pr) + '" y2="' + Y(-lim.negativoMin).toFixed(1) + '"/>' +
+    '<path class="a ' + cls + '" d="' + d + ' L' + X(pts.length - 1).toFixed(1) + ' ' + Y(0).toFixed(1) + ' L' + pl + ' ' + Y(0).toFixed(1) + 'Z"/><path class="s ' + cls + '" d="' + d + '"/>' +
+    '<circle class="' + cls + '" cx="' + X(pts.length - 1).toFixed(1) + '" cy="' + Y(ult.y).toFixed(1) + '" r="3.5"/>' +
+    // rótulos do eixo só onde não se sobrepõem (precisa de 11px entre eles); o do máximo mostra a escala quando o limite fica colado no zero
+    (() => { const cand = [[yMax / 1.08, hm(Math.round(yMax / 1.08))], [lim.positivoMin, hm(lim.positivoMin)], [0, '0'], [-lim.negativoMin, hm(-lim.negativoMin)], [yMin / 1.08, hm(Math.round(yMin / 1.08))]].filter(c => Math.abs(c[0]) > 0 || c[1] === '0'); const usados = []; let out = '';
+      for (const [v, t] of cand) { const y = Y(v); if (usados.some(u => Math.abs(u - y) < 11)) continue; usados.push(y); out += '<text x="' + (pl - 4) + '" y="' + (y + 3.5).toFixed(1) + '" text-anchor="end">' + t + '</text>'; } return out; })() +
+    '<text x="' + pl + '" y="' + (H - 6) + '">' + dBR(i0.x).slice(0, 5) + '</text><text x="' + (W - pr) + '" y="' + (H - 6) + '" text-anchor="end">' + dBR(ult.x).slice(0, 5) + ' · ' + hm(ult.y) + '</text></svg>' +
+    '<p class="hint" style="margin-top:6px">' + pts.length + ' dias com apuração. Linha tracejada = limite. ' + (ys[ys.length - 1] - ys[0] > 0 ? 'Subiu ' : ys[ys.length - 1] - ys[0] < 0 ? 'Caiu ' : 'Ficou igual: ') + (ys[ys.length - 1] !== ys[0] ? hm(Math.abs(ys[ys.length - 1] - ys[0])).slice(1) + ' no período.' : '') + '</p>';
+}
+
 iniciar();
 </script>
 </body>
