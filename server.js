@@ -8617,7 +8617,9 @@ app.post('/api/fiscal/pedido-compra/:id/xml/:loja/decidir', (req, res) => {
     const r = pedidosFornec.decidirItemXml(q0.p.id, q0.ln, String(req.body?.cod || ''), req.body?.acao, req.session.user?.nome || null, 'fiscal');
     if (!r) return res.status(404).json({ error: 'Pedido não encontrado' });
     if (r.erro) return res.status(400).json({ error: r.erro });
-    res.json({ ok: true, pendentes: pedidosFornec.pendenciasLoja(r, q0.ln).pendentes.length, recusas: pedidosFornec.recusasLoja(r, q0.ln).length });
+    const pendentes = pedidosFornec.pendenciasLoja(r, q0.ln).pendentes.length, recusas = pedidosFornec.recusasLoja(r, q0.ln).length;
+    const fechou = pedidosFornec.autoFecharSeFinalizada(q0.p.id, q0.ln, req.session.user?.nome || null);   // loja já fechou no ERP → fecha junto
+    res.json({ ok: true, pendentes, recusas, loja_fechada: fechou });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 // Fiscal avisa a compradora que a nota está na mão dela e precisa de decisão (fica registrado no pedido; devolve o WhatsApp)
@@ -8648,7 +8650,7 @@ app.post('/api/fiscal/pedido-compra/:id/xml/:loja/aceitar-parcial', (req, res) =
     const r = pedidosFornec.aceitarParcialFiscal(q0.p.id, q0.ln, req.session.user?.nome || null, !!req.body?.desfazer);
     if (!r) return res.status(404).json({ error: 'Pedido não encontrado' });
     if (r.erro) return res.status(400).json({ error: r.erro });
-    res.json(r);
+    res.json({ ...r, loja_fechada: !req.body?.desfazer && pedidosFornec.autoFecharSeFinalizada(q0.p.id, q0.ln, req.session.user?.nome || null) });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.post('/api/fiscal/pedido-compra/:id/xml/:loja/recusar-entrega', (req, res) => {
