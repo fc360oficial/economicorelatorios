@@ -65,7 +65,8 @@
         { href: '/rh.html', ic: 'list', txt: 'Recursos Humanos (RH)' },
         { href: '/dp.html', ic: 'list', txt: 'Departamento Pessoal (DP)' },
         { href: '/etica.html', ic: 'shield', txt: 'Canal de Ética' },
-        { href: '/gestao-pessoas.html', ic: 'dashboard', txt: 'TESTE DONATO' }
+        { href: '/gestao-pessoas.html', ic: 'dashboard', txt: 'TESTE DONATO' },
+        { href: '/teste-tiago.html', ic: 'dashboard', txt: 'TESTE TIAGO' }
       ]},
     { id: 'financeiro', ic: 'bank', txt: 'Financeiro', sub: [
         { href: '/conciliador.html', ic: 'bank', txt: 'Conciliação de Saídas' },
