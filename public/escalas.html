@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="/design-system.css">
+<script src="/nav.js" defer></script>
+<script src="/gente-ui.js"></script>
+<title>Escalas — DP / RH · Econômico Supermercados</title>
+<!-- DP / RH › Escalas (22/10/2026). Painel da Coordenação, Visão da loja (cobertura por setor em blocos de 15 min),
+     Escala coletiva (mês), Escala individual e Configurações. Regras em lib/escalas.js, rotas em lib/escalas-rotas.js.
+     Mesma casca da TESTE TIAGO: só o rail nativo + barra de abas na página. Permissões vêm da central de pessoas. -->
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+[hidden]{display:none!important}
+body{font-family:var(--font);background:var(--pap);color:var(--ink);min-height:100vh;font-size:13px}
+.content{min-height:100vh;display:flex;flex-direction:column}
+.topbar{height:58px;background:var(--crd);border-bottom:1px solid var(--ln);display:flex;align-items:center;gap:14px;padding:0 24px;position:sticky;top:0;z-index:40}
+.topbar h1{font-size:16px;font-weight:800;letter-spacing:-.2px;display:flex;align-items:center;gap:8px}.topbar h1 .crumb{color:var(--ink3);font-weight:600}.topbar h1 .ds-ic{color:var(--ink3)}
+.topbar p{font-size:11.5px;color:var(--ink3);margin-top:1px}.topbar .end{margin-left:auto;display:flex;align-items:center;gap:12px}
+.who{display:flex;align-items:center;gap:9px;font-size:12px}.who .ds-avatar{background:#101B33;color:#FFC933}.who b{display:block;font-size:12.5px}.who span{color:var(--ink3);font-size:11px}
+.modnav{background:var(--crd);border-bottom:1px solid var(--ln);display:flex;flex-wrap:wrap;align-items:stretch;padding:0 14px;position:sticky;top:58px;z-index:39}
+.modnav a{display:flex;align-items:center;gap:6px;padding:0 12px;height:42px;font-size:12.5px;font-weight:600;color:var(--ink2);border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;user-select:none}
+.modnav a .ds-ic{width:15px;height:15px;color:var(--ink3)}.modnav a:hover{color:var(--ink)}.modnav a.on{color:var(--ink);border-bottom-color:var(--am)}.modnav a.on .ds-ic{color:var(--amk)}
+.page{padding:20px 24px 40px;max-width:1700px;width:100%}
+.tb{display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--crd);border:1px solid var(--ln);border-radius:var(--r-lg);padding:9px 10px;margin-bottom:16px}
+.tb .ds-input,.tb .ds-select{height:34px;font-size:12.5px}.tb .end{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.tb .lbl{font-size:11px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.6px}
+.aviso{background:var(--amw);border:1px solid var(--am-ln);color:var(--amk);border-radius:10px;padding:10px 14px;font-size:12.5px;margin-bottom:14px;line-height:1.5}.aviso.neg{background:var(--negw);border-color:#F1B9C3;color:var(--neg)}.aviso.inf{background:var(--infw);border-color:var(--inf);color:var(--inf)}
+.note{font-size:11.5px;color:var(--ink3);line-height:1.5;margin:10px 2px 0}
+.empty{padding:36px 20px;text-align:center;color:var(--ink3);font-size:12.5px}.empty b{display:block;color:var(--ink2);font-size:13.5px;margin-bottom:3px}
+.sk{height:14px;border-radius:6px;background:linear-gradient(90deg,var(--wsh) 25%,var(--ln) 50%,var(--wsh) 75%);background-size:200% 100%;animation:sk 1.3s ease infinite;margin:10px 14px}@keyframes sk{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;border-radius:20px;padding:3px 9px;white-space:nowrap}.pill::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor}
+.pill.ok{background:var(--posw);color:var(--pos)}.pill.bad{background:var(--negw);color:var(--neg)}.pill.warn{background:var(--amw);color:var(--amk)}.pill.info{background:var(--infw);color:var(--inf)}.pill.gr{background:var(--wsh);color:var(--ink2)}
+.etq{display:inline-block;background:#101B33;color:#FFC933;font-weight:800;font-size:10px;padding:2px 6px;border-radius:5px;margin-right:6px;vertical-align:1px}.etq.cd{background:var(--inf);color:#fff}
+/* painel */
+.lojas{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.lj{background:var(--crd);border:1px solid var(--ln);border-radius:var(--r-lg);padding:14px 16px;cursor:pointer;box-shadow:var(--sh-sm)}.lj:hover{border-color:var(--ink3)}
+.lj .hd{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px}.lj .hd b{font-size:14px}
+.lj .nums{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:10px}.lj .nums div{text-align:center}.lj .nums b{display:block;font-size:19px;font-weight:800;letter-spacing:-.5px}.lj .nums span{font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:.4px;font-weight:700}
+.lj .sets{display:flex;flex-wrap:wrap;gap:4px}.lj .sets span{font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:6px;background:var(--wsh);color:var(--ink2)}.lj .sets span.baixa{background:var(--negw);color:var(--neg)}.lj .sets span.min{background:var(--amw);color:var(--amk)}.lj .sets span.ok{background:var(--posw);color:var(--pos)}
+.lj .ft{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;font-size:11.5px;color:var(--ink2)}
+/* visão da loja */
+.grid-l{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px}
+.heat{overflow:auto;background:var(--crd);border:1px solid var(--ln);border-radius:var(--r-lg)}
+table.hm{border-collapse:collapse;font-size:11px;min-width:100%}table.hm th{position:sticky;top:0;background:var(--wsh);font-size:9.5px;color:var(--ink3);font-weight:700;padding:6px 4px;text-align:center;white-space:nowrap;z-index:1}
+table.hm th.s,table.hm td.s{text-align:left;position:sticky;left:0;background:var(--crd);z-index:2;min-width:150px;padding:6px 10px;font-weight:700;color:var(--ink);border-right:1px solid var(--ln)}table.hm th.s{background:var(--wsh)}
+table.hm td{padding:0;border-top:1px solid var(--ln);text-align:center;height:30px;min-width:18px;font-variant-numeric:tabular-nums;font-weight:700}
+table.hm td.c{cursor:default}td.ok{background:#CDEFD9;color:#0D5C34}td.min{background:#FFEBA8;color:#6B4E00}td.baixa{background:#F7C4CD;color:#8E1F33}td.neutro{background:var(--wsh);color:var(--ink3);font-weight:500}
+td.p-disponivel{background:#CDEFD9}td.p-almoco{background:#FFEBA8}td.p-fora{background:transparent}td.p-folga,td.p-ferias,td.p-afastado,td.p-feriado{background:var(--wsh)}tr.alt td.s{color:var(--inf)}tr.alt td.p-disponivel{box-shadow:inset 0 -2px 0 var(--inf)}
+table.hm tr.pessoa td.s{font-weight:600;font-size:11px;padding-left:22px;color:var(--ink2)}table.hm tr.pessoa td{height:18px}
+table.hm td.s .tg{cursor:pointer;color:var(--inf);font-size:10px;margin-left:6px}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:11px;color:var(--ink2);margin:8px 2px}.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin-right:4px}
+.sug{background:var(--crd);border:1px solid var(--ln);border-radius:var(--r-lg)}.sug .hd{padding:11px 14px;border-bottom:1px solid var(--ln);font-weight:800;font-size:13px;display:flex;justify-content:space-between}.sug .it{padding:9px 14px;border-bottom:1px solid var(--ln);font-size:12px;line-height:1.45}.sug .it b{display:block;font-size:11px;color:var(--ink3)}.sug .it:last-child{border-bottom:none}
+.sug .it.apoio{border-left:3px solid var(--inf)}.sug .it.almoco{border-left:3px solid var(--am)}.sug .it.sem_opcao{border-left:3px solid var(--neg)}.sug .it.div{border-left:3px solid var(--neg)}
+/* coletiva */
+.cal{overflow:auto;background:var(--crd);border:1px solid var(--ln);border-radius:var(--r-lg)}
+table.cal{border-collapse:collapse;font-size:11px}table.cal th{position:sticky;top:0;background:var(--wsh);font-size:9.5px;color:var(--ink3);font-weight:700;padding:5px 3px;text-align:center;white-space:nowrap;z-index:1;line-height:1.2}
+table.cal th.fds{background:#EFE9D6}table.cal th.fer{background:var(--negw);color:var(--neg)}
+table.cal th.n,table.cal td.n{text-align:left;position:sticky;left:0;background:var(--crd);z-index:2;min-width:190px;padding:5px 10px;border-right:1px solid var(--ln)}table.cal th.n{background:var(--wsh)}
+table.cal td.n b{display:block;color:var(--ink);font-weight:700;white-space:nowrap;max-width:200px;overflow:hidden;text-overflow:ellipsis}table.cal td.n span{font-size:10px;color:var(--ink3)}
+table.cal td{border-top:1px solid var(--ln);text-align:center;padding:3px 1px;min-width:38px;height:36px;vertical-align:middle;font-variant-numeric:tabular-nums;line-height:1.15;font-size:10.5px}
+table.cal td.d{cursor:pointer}table.cal td.d:hover{background:var(--amw)}table.cal td.fds{background:#FAF7EC}table.cal td.alt{color:var(--inf);font-weight:700;background:var(--infw)}
+table.cal td .a{display:block;font-size:9px;color:var(--ink3)}table.cal td.folga{color:var(--ink3)}table.cal td.ferias,table.cal td.afastado{color:var(--inf);font-weight:700}table.cal td.feriado{color:var(--neg)}
+table.cal td.tot{font-weight:800;text-align:right;padding-right:10px}
+.flx{display:flex;gap:4px;flex-wrap:wrap;align-items:center;font-size:11.5px;font-weight:700;margin-bottom:12px}.flx span{padding:5px 10px;border-radius:7px;background:var(--wsh);color:var(--ink3)}.flx span.done{background:var(--posw);color:var(--pos)}.flx span.on{background:#101B33;color:#FFC933}.flx i{color:var(--ink3);font-style:normal}
+.hist{font-size:12px;display:grid}.hist .h{display:grid;grid-template-columns:118px 1fr;gap:10px;padding:7px 0;border-bottom:1px solid var(--ln)}.hist .h time{color:var(--ink3)}.hist .h p{color:var(--ink2);white-space:pre-wrap}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}.kpi{background:var(--crd);border:1px solid var(--ln);border-radius:var(--r-lg);padding:12px 14px}.kpi .l{font-size:10.5px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.5px}.kpi .v{font-size:22px;font-weight:800;letter-spacing:-.5px;margin-top:3px}.kpi .s{font-size:11px;color:var(--ink3);margin-top:2px}
+.tw{overflow:auto;background:var(--crd);border:1px solid var(--ln);border-radius:var(--r-lg)}table.t{width:100%;border-collapse:collapse;font-size:12px}table.t th{text-align:left;font-size:10px;letter-spacing:.8px;text-transform:uppercase;color:var(--ink3);padding:8px 10px;background:var(--wsh);font-weight:700;white-space:nowrap}table.t td{padding:7px 10px;border-top:1px solid var(--ln);color:var(--ink2);vertical-align:middle}table.t th.r,table.t td.r{text-align:right}
+table.cfg input{width:70px;padding:4px 6px;border:1px solid var(--ln2);border-radius:6px;font:inherit;font-size:12px;text-align:right}
+.f-ov{position:fixed;inset:0;background:rgba(10,17,32,.55);z-index:9000;display:flex;align-items:flex-start;justify-content:center;padding:40px 14px;overflow:auto}
+.f-md{background:var(--crd);color:var(--ink);border-radius:14px;width:100%;max-width:640px;box-shadow:0 20px 60px rgba(0,0,0,.35);overflow:hidden}
+.f-md .hd{background:#101B33;color:#fff;padding:11px 16px;display:flex;justify-content:space-between;align-items:center}.f-md .hd b{font-size:14px}.f-md .hd small{display:block;color:#B7C0D6;font-size:11.5px}.f-md .x{background:transparent;border:none;color:#fff;font-size:22px;cursor:pointer}
+.f-md .bd{padding:14px 16px;display:grid;gap:10px}.f-md .row{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.f-md label{font-size:11px;font-weight:700;color:var(--ink2);display:grid;gap:4px}.f-md input,.f-md select,.f-md textarea{padding:7px 9px;border:1px solid var(--ln2);border-radius:8px;font:inherit;font-size:12.5px;width:100%}.f-md .acoes{display:flex;gap:8px;justify-content:flex-end}
+@media(max-width:1599px){.page{padding:18px 20px 36px}.lojas{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:1399px){.lojas{grid-template-columns:repeat(2,1fr)}.grid-l{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:1199px){.topbar{padding:0 16px}.page{padding:16px}.grid2{grid-template-columns:1fr}.modnav a .ds-ic{display:none}}
+@media(max-width:820px){.modnav{position:static;overflow-x:auto}.topbar{height:auto;padding:10px 14px;flex-wrap:wrap}.topbar .end{margin-left:0}.page{padding:12px}.lojas{grid-template-columns:1fr}.lj .nums{grid-template-columns:repeat(3,1fr)}.f-md .row{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body class="dsnav-pad">
+<div class="content">
+  <header class="topbar"><div><h1 id="tb-h1"><span class="crumb">DP / RH</span></h1><p id="tb-sub"></p></div><div class="end"><div class="who" id="who"></div></div></header>
+  <nav class="modnav" id="modnav"></nav>
+  <div class="page" id="page"><div class="sk"></div><div class="sk" style="width:60%"></div></div>
+</div>
+<svg style="display:none"><symbol id="ic-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol></svg>
+<script>
+const { $, $$, esc, api, toast, dBR, dSem } = G;
+let ME = null, PAG = 'coord', SUB = {};
+const hoje = () => G.hoje(); const mesDe = d => d.slice(0, 7);
+const ic = n => '<svg class="ds-ic"><use href="' + (n.startsWith('ic-') ? '#' + n : '/icons.svg#' + n) + '"/></svg>';
+const lojaTxt = n => (ME.lojas.find(l => l.n === +n) || {}).txt || '—'; const lojaCod = n => lojaTxt(n).split(' · ')[0]; const lojaNome = n => lojaTxt(n).split(' · ')[1] || '';
+const etq = n => '<span class="etq' + (+n === 10 ? ' cd' : '') + '">' + esc(lojaCod(n)) + '</span>';
+const setTxt = s => (ME.setores.find(x => x.id === s) || {}).txt || (s ? s.charAt(0) + s.slice(1).toLowerCase() : '—');
+const stPill = st => '<span class="pill ' + ({ rascunho: 'gr', enviada_rh: 'info', validada_rh: 'warn', aprovada: 'ok', devolvida: 'bad' }[st] || 'gr') + '">' + esc(ME.status[st] || st) + '</span>';
+const dt = iso => iso ? new Date(iso).toLocaleDateString('pt-BR') + ' ' + new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—';
+const skel = () => '<div class="sk"></div><div class="sk" style="width:70%"></div><div class="sk" style="width:85%"></div>';
+const erroBox = e => '<div class="aviso neg">' + esc(e.message || e) + '</div>';
+const empty = (t, s) => '<div class="empty"><b>' + esc(t) + '</b>' + (s || '') + '</div>';
+const selLoja = v => ME.lojas.map(l => '<option value="' + l.n + '"' + (String(l.n) === String(v) ? ' selected' : '') + '>' + esc(l.txt) + '</option>').join('');
+const DSEM = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+const NAV = [{ id: 'coord', txt: 'Painel da Coordenação', ic: 'dashboard', sub: 'As lojas no dia: escalados, folgas, intervalos e cobertura' }, { id: 'loja', txt: 'Visão da loja', ic: 'ic-clock', sub: 'Cobertura por setor em blocos de 15 min' }, { id: 'coletiva', txt: 'Escala coletiva', ic: 'calendar', sub: 'Mês inteiro: funcionários × dias' }, { id: 'individual', txt: 'Escala individual', ic: 'user', sub: 'Escala, ponto e divergências de uma pessoa' }, { id: 'cfg', txt: 'Configurações', ic: 'settings', sub: 'Horários, necessidade por setor, feriados e limites' }];
+function ir(p, sub) { const n = NAV.find(x => x.id === p); if (!n) return; PAG = p; SUB = { ...SUB, ...(sub || {}) }; $$('#modnav a').forEach(a => a.classList.toggle('on', a.dataset.p === p)); $('#tb-h1').innerHTML = '<span class="crumb">DP / RH · Escalas</span>' + ic('chevron-right') + esc(n.txt); $('#tb-sub').textContent = n.sub; history.replaceState(null, '', '#' + p); $('#page').innerHTML = skel(); ({ coord, loja, coletiva, individual, cfg })[p](); }
+async function iniciar() {
+  $('#modnav').innerHTML = NAV.map(n => '<a data-p="' + n.id + '">' + ic(n.ic) + '<span>' + esc(n.txt) + '</span></a>').join(''); $$('#modnav a').forEach(a => a.onclick = () => ir(a.dataset.p));
+  try { ME = await api('/api/escalas/me'); } catch (e) { $('#page').innerHTML = e.status === 403 ? '<div class="aviso neg"><b>Você não está entre os designados da central de pessoas.</b> As escalas usam os mesmos papéis (gerente da loja, RH, Coordenação, Diretoria): peça a designação em DP / RH › Gestão de Pessoas › Configurações.</div>' : erroBox(e); return; }
+  const PAP = { gerente: 'Gerente', rh_ponto: 'RH Ponto', rh_doc: 'RH Documentação', rh_adm: 'RH Admissões', coordenacao: 'Coordenação', diretoria: 'Diretoria', juridico: 'Jurídico', ti: 'TI' };
+  const pp = ME.papeis.map(p => PAP[p] || p); $('#who').innerHTML = '<div class="ds-avatar">' + esc(ME.nome.split(' ').slice(0, 2).map(s => s[0]).join('')) + '</div><div><b>' + esc(ME.nome) + '</b><span>' + esc(pp.length ? pp.join(' · ') : 'sem papel') + '</span></div>';
+  if (!ME.lojas.length) { $('#page').innerHTML = '<div class="aviso neg">Seu papel não tem unidade associada. Peça à Coordenação para designar a(s) loja(s).</div>'; return; }
+  SUB = { loja: ME.lojas[0].n, data: hoje(), mes: mesDe(hoje()) };
+  const h = location.hash.replace('#', ''); ir(NAV.some(n => n.id === h) ? h : 'coord');
+}
+const barra = (campos, extra) => '<div class="tb">' + (campos.includes('loja') ? '<span class="lbl">Loja</span><select class="ds-select" id="b-loja">' + selLoja(SUB.loja) + '</select>' : '') + (campos.includes('data') ? '<span class="lbl">Dia</span><input type="date" class="ds-input" id="b-data" value="' + SUB.data + '">' : '') + (campos.includes('mes') ? '<span class="lbl">Mês</span><input type="month" class="ds-input" id="b-mes" value="' + SUB.mes + '">' : '') + (extra || '') + '</div>';
+function ligarBarra(fn) { const l = $('#b-loja'), d = $('#b-data'), m = $('#b-mes'); if (l) l.onchange = () => { SUB.loja = +l.value; fn(); }; if (d) d.onchange = () => { SUB.data = d.value; SUB.mes = mesDe(d.value); fn(); }; if (m) m.onchange = () => { SUB.mes = m.value; if (!SUB.data.startsWith(m.value)) SUB.data = m.value + '-01'; fn(); }; }
+const semEscalaBox = (loja, mes, depois) => '<div class="empty"><b>Ainda não há escala de ' + esc(lojaTxt(loja)) + ' em ' + mes.split('-').reverse().join('/') + '</b>Ela nasce da jornada contratual de cada funcionário no PontoCerto e depois o gerente ajusta.<div style="margin-top:12px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap"><button class="ds-btn ds-btn-primary" id="esc-criar">Criar a partir do PontoCerto</button>' + (+loja === 1 ? '<button class="ds-btn ds-btn-secondary" id="esc-demo">Carregar dados demonstrativos (Socorro)</button>' : '') + '</div></div>';
+function ligarCriar(loja, mes, depois) {
+  const c = $('#esc-criar'); if (c) c.onclick = async () => { c.disabled = true; c.textContent = 'criando (lê o PontoCerto)…'; try { await api('/api/escalas/' + loja + '/' + mes + '?criar=1'); toast('Escala criada'); depois(); } catch (e) { toast(e.message, 'neg'); c.disabled = false; c.textContent = 'Criar a partir do PontoCerto'; } };
+  const d = $('#esc-demo'); if (d) d.onclick = async () => { if (!confirm('Carrega 9 funcionários fictícios (Dayse, Roberta, Milene…) só para demonstração. Não são registros oficiais. Continuar?')) return; try { await api('/api/escalas/1/' + mes + '/demo', { body: {} }); toast('Dados demonstrativos carregados'); depois(); } catch (e) { toast(e.message, 'neg'); } };
+}
+
+// ── A · Painel da Coordenação ──
+async function coord() {
+  const el = $('#page'); el.innerHTML = barra(['data']) + '<div id="c-body">' + skel() + '</div>'; ligarBarra(coord);
+  let P; try { P = await api('/api/escalas/painel?data=' + SUB.data); } catch (e) { $('#c-body').innerHTML = erroBox(e); return; }
+  $('#c-body').innerHTML = '<div class="lojas">' + P.lojas.map(l => '<div class="lj" data-l="' + l.loja + '"><div class="hd"><b>' + etq(l.loja) + esc(lojaNome(l.loja)) + '</b>' + (l.semEscala ? '<span class="pill gr">sem escala no mês</span>' : stPill(l.status) + (l.demo ? ' <span class="pill warn">demo</span>' : '')) + '</div>' +
+    (l.semEscala ? '<div class="note" style="margin:0 0 8px">Clique para criar a escala do mês a partir do PontoCerto.</div>' : '<div class="nums"><div><b>' + l.total + '</b><span>Funcion.</span></div><div><b>' + l.escalados + '</b><span>Escalados</span></div><div><b>' + l.folga + '</b><span>Folga</span></div><div><b>' + l.em_intervalo + '</b><span>Intervalo</span></div><div><b style="color:' + (l.blocos_baixa ? 'var(--neg)' : 'var(--pos)') + '">' + l.blocos_baixa + '</b><span>Blocos s/ cobert.</span></div></div>' +
+    '<div class="sets">' + l.setores.filter(s => s.min > 0 || s.escalados).map(s => '<span class="' + (s.blocos_baixa ? 'baixa' : s.blocos_min ? 'min' : s.min ? 'ok' : '') + '" title="mínimo ' + s.min + ' · ' + s.blocos_baixa + ' bloco(s) abaixo">' + esc(s.nome) + ' ' + s.escalados + '/' + s.min + '</span>').join('') + '</div>' +
+    '<div class="ft">' + (l.pendente ? '<span style="color:var(--amk);font-weight:700">aguardando aprovação</span>' : '') + (l.alterados ? '<span>' + l.alterados + ' dia(s) alterado(s)</span>' : '') + (l.ferias ? '<span>' + l.ferias + ' em férias/afastados</span>' : '') + '<span' + (l.alertas_bh ? ' style="color:var(--neg)"' : '') + '>' + l.alertas_bh + ' alerta(s) de banco</span></div>') + '</div>').join('') + '</div>' +
+    '<p class="note">Escalados, folga e intervalo são do previsto na escala de ' + dBR(P.data) + (P.data === P.hoje ? ' (intervalo = agora)' : ' (intervalo medido às 10h)') + '. Divergências com o ponto aparecem na Visão da loja. Nenhum número aqui é apuração oficial.</p>';
+  $$('.lj').forEach(c => c.onclick = () => ir('loja', { loja: +c.dataset.l }));
+}
+
+// ── B · Visão da loja ──
+async function loja() {
+  const el = $('#page'); el.innerHTML = barra(['loja', 'data'], '<div class="end"><a class="ds-btn ds-btn-secondary" id="l-col">Abrir escala coletiva</a></div>') + '<div id="l-body">' + skel() + '</div>'; ligarBarra(loja); $('#l-col').onclick = () => ir('coletiva');
+  let V; try { V = await api('/api/escalas/' + SUB.loja + '/dia/' + SUB.data); } catch (e) { $('#l-body').innerHTML = e.status === 404 ? semEscalaBox(SUB.loja, mesDe(SUB.data)) : erroBox(e); ligarCriar(SUB.loja, mesDe(SUB.data), loja); return; }
+  const aberto = SUB.abertos || {};
+  const linhas = V.setores.map(S => '<tr><td class="s">' + esc(S.nome) + ' <small style="color:var(--ink3)">' + S.escalados + ' esc. · mín ' + S.min + '</small><span class="tg" data-s="' + esc(S.setor) + '">' + (aberto[S.setor] ? '▲ fechar' : '▼ pessoas') + '</span></td>' + S.blocos.map(b => '<td class="c ' + b.status + '" title="' + esc(b.hm + ' · ' + b.disponiveis + ' disponível(is), ' + b.almoco + ' em almoço' + (b.pessoas.length ? '\n' + b.pessoas.join(', ') : '')) + '">' + (b.status === 'neutro' ? '' : b.disponiveis) + '</td>').join('') + '</tr>' +
+    (aberto[S.setor] ? S.pessoas.map(p => '<tr class="pessoa' + (p.alterado ? ' alt' : '') + '"><td class="s" title="' + esc(p.tipo === 'trabalho' ? p.entrada + '–' + p.saida + (p.almoco_ini ? ' · almoço ' + p.almoco_ini + '–' + p.almoco_fim : '') : ME.tipos[p.tipo]) + '">' + esc(p.nome) + (p.tipo !== 'trabalho' ? ' <small>' + esc(ME.tipos[p.tipo]) + '</small>' : '') + '</td>' + p.estados.map(st => '<td class="p-' + st + '"></td>').join('') + '</tr>').join('') : '')).join('');
+  $('#l-body').innerHTML = '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">' + stPill(V.status) + (V.demo ? '<span class="pill warn">dados demonstrativos</span>' : '') + '<span class="note" style="margin:0">' + esc(lojaTxt(V.loja)) + ' · ' + dBR(V.data) + ' (' + dSem(V.data) + ') · funcionamento ' + V.abre + '–' + V.fecha + '</span></div>' +
+    '<div class="grid-l"><div><div class="heat"><table class="hm"><thead><tr><th class="s">Setor</th>' + V.slots.map(h => '<th>' + (h.endsWith(':00') ? h.slice(0, 2) + 'h' : '') + '</th>').join('') + '</tr></thead><tbody>' + linhas + '</tbody></table></div>' +
+    '<div class="legend"><span><i style="background:#CDEFD9"></i>cobertura acima do mínimo</span><span><i style="background:#FFEBA8"></i>no mínimo / atenção</span><span><i style="background:#F7C4CD"></i>abaixo do mínimo</span><span><i style="background:var(--wsh)"></i>sem necessidade configurada · folga</span><span><i style="background:#fff;border:2px solid var(--inf)"></i>dia alterado (proposta)</span></div>' +
+    '<p class="note">Número = disponíveis no bloco (o almoço é descontado por inteiro). A suficiência compara com a necessidade mínima configurada por setor, não só com quem está presente.</p></div>' +
+    '<div><div class="sug"><div class="hd">Sugestões <small style="font-weight:600;color:var(--ink3)">não aplicadas</small></div>' + (V.sugestoes.length ? V.sugestoes.map(s => '<div class="it ' + s.tipo + '"><b>' + esc(s.setorTxt) + ' · ' + esc(s.faixa) + '</b>' + esc(s.texto) + '</div>').join('') : '<div class="it">Nenhum bloco abaixo do mínimo neste dia.</div>') + '</div>' +
+    '<div class="sug" style="margin-top:14px"><div class="hd">Escala × ponto</div>' + (V.divergencias === null ? '<div class="it">' + (V.pontoErro ? 'PontoCerto indisponível agora: ' + esc(V.pontoErro) : 'Comparação só para dias já ocorridos.') + '</div>' : V.divergencias.length ? V.divergencias.map(d => '<div class="it div"><b>' + esc(d.nome) + ' · ' + esc(setTxt(d.setor)) + '</b>' + d.itens.map(i => esc(i.texto)).join('<br>') + '</div>').join('') : '<div class="it">Sem divergências entre a escala e as marcações' + (V.data === V.hoje ? ' até agora' : '') + '.</div>') + '<div class="it" style="color:var(--ink3);font-size:11px">Marcações importadas do PontoCerto; a apuração oficial é a do RH.</div></div></div></div>';
+  $$('#l-body .tg').forEach(t => t.onclick = () => { SUB.abertos = { ...(SUB.abertos || {}), [t.dataset.s]: !aberto[t.dataset.s] }; loja(); });
+}
+
+// ── C · Escala coletiva ──
+async function coletiva() {
+  const el = $('#page'); el.innerHTML = barra(['loja', 'mes'], '<div class="end" id="c-acts"></div>') + '<div id="k-body">' + skel() + '</div>'; ligarBarra(coletiva);
+  let E; try { E = await api('/api/escalas/' + SUB.loja + '/' + SUB.mes); } catch (e) { $('#k-body').innerHTML = e.status === 404 ? semEscalaBox(SUB.loja, SUB.mes) : erroBox(e); ligarCriar(SUB.loja, SUB.mes, coletiva); return; }
+  const AC = { enviar: ['Enviar ao RH', 'ds-btn-primary'], validar: ['Validar (RH)', 'ds-btn-primary'], aprovar: ['Aprovar (Coordenação)', 'ds-btn-primary'], devolver: ['Devolver', 'ds-btn-secondary'] };
+  $('#c-acts').innerHTML = E.acoes.filter(a => AC[a]).map(a => '<button class="ds-btn ' + AC[a][1] + '" data-ac="' + a + '">' + AC[a][0] + '</button>').join('') + '<a class="ds-btn ds-btn-secondary" href="/api/escalas/' + E.loja + '/' + E.mes + '/exportar.csv">' + ic('download') + 'Excel</a><a class="ds-btn ds-btn-secondary" href="/api/escalas/' + E.loja + '/' + E.mes + '/exportar.pdf" target="_blank">' + ic('printer') + 'PDF</a>';
+  $$('#c-acts [data-ac]').forEach(b => b.onclick = () => fluxo(E, b.dataset.ac));
+  const FL = [['Gerente', ['rascunho', 'devolvida']], ['RH', ['enviada_rh']], ['Coordenação', ['validada_rh']], ['Aprovada', ['aprovada']]]; const fi = FL.findIndex(([, s]) => s.includes(E.status));
+  const cel = (f, d) => { const c = f.dias[d]; const cls = 'd ' + c.tipo + (c.alterado ? ' alt' : '') + ([0, 6].includes(new Date(d + 'T12:00:00').getDay()) ? ' fds' : ''); const tt = c.tipo === 'trabalho' ? c.entrada + '–' + c.saida + (c.almoco_ini ? ' · almoço ' + c.almoco_ini + '–' + c.almoco_fim : '') + ' · ' + G.hhmm(c.minutos).replace(':', 'h') : ME.tipos[c.tipo];
+    return '<td class="' + cls + '" data-f="' + f.id + '" data-d="' + d + '" title="' + esc(tt + (c.obs ? ' · ' + c.obs : '')) + '">' + (c.tipo === 'trabalho' ? c.entrada.replace(':', '') + '–' + c.saida.replace(':', '') + (c.almoco_ini ? '<span class="a">' + c.almoco_ini.replace(':', '') + '–' + c.almoco_fim.replace(':', '') + '</span>' : '') : { folga: 'F', ferias: 'FÉ', afastado: 'AF', feriado: 'FER' }[c.tipo]) + '</td>'; };
+  $('#k-body').innerHTML = '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">' + stPill(E.status) + (E.demo ? '<span class="pill warn">dados demonstrativos — não são registros oficiais</span>' : '') + '<span class="note" style="margin:0">versão ' + E.versao + ' · ' + E.funcionarios.length + ' funcionários · ' + E.alterados + ' dia(s) alterado(s) · ' + (E.podeEditar ? 'clique numa célula para alterar' : 'somente leitura para o seu papel') + '</span></div>' +
+    '<div class="flx">' + FL.map(([n], i) => '<span class="' + (i < fi ? 'done' : i === fi ? 'on' : '') + '">' + n + '</span>').join('<i>→</i>') + '</div>' +
+    '<div class="cal"><table class="cal"><thead><tr><th class="n">Funcionário</th>' + E.dias.map(d => { const w = new Date(d + 'T12:00:00').getDay(); return '<th class="' + (E.feriados.includes(d) ? 'fer' : [0, 6].includes(w) ? 'fds' : '') + '">' + d.slice(8) + '<br>' + DSEM[w] + '</th>'; }).join('') + '<th>Horas</th></tr></thead><tbody>' +
+    E.funcionarios.map(f => '<tr><td class="n"><b title="' + esc(f.nome) + '">' + esc(f.nome) + '</b><span>' + esc(setTxt(f.setor)) + ' · folga ' + (f.folga_fixa.length ? f.folga_fixa.map(x => DSEM[x]).join('/') : '—') + '</span></td>' + E.dias.map(d => cel(f, d)).join('') + '<td class="tot">' + esc(f.horas_mes) + '</td></tr>').join('') + '</tbody></table></div>' +
+    '<div class="grid2" style="margin-top:16px"><div><div class="ds-h2" style="margin-bottom:8px">Alterações <small style="color:var(--ink3)">' + E.historico.length + '</small></div><div class="hist">' + (E.historico.length ? E.historico.slice(0, 40).map(h => '<div class="h"><time>' + dt(h.em) + '</time><div><b>' + esc(h.funcionario) + '</b> · ' + dBR(h.data) + ' · ' + esc(h.nome) + ' (v' + h.versao + ')<p>' + esc(resumoDia(h.antes) + ' → ' + resumoDia(h.depois)) + (h.justificativa ? '\n“' + esc(h.justificativa) + '”' : '') + '</p></div></div>').join('') : '<div class="empty" style="padding:14px">Nenhuma alteração: a escala é a jornada contratual do PontoCerto.</div>') + '</div></div>' +
+    '<div><div class="ds-h2" style="margin-bottom:8px">Fluxo de aprovação</div><div class="hist">' + (E.fluxo.length ? E.fluxo.map(h => '<div class="h"><time>' + dt(h.em) + '</time><div><b>' + esc(ME.status[h.para] || h.para) + '</b> · ' + esc(h.nome) + (h.texto ? '<p>' + esc(h.texto) + '</p>' : '') + '</div></div>').join('') : '<div class="empty" style="padding:14px">Ainda não enviada ao RH.</div>') + (E.versoes.length ? '<p class="note">Versões aprovadas anteriores: ' + E.versoes.map(v => 'v' + v.versao + ' (' + dt(v.em) + ')').join(', ') + '</p>' : '') + '</div></div>';
+  if (E.podeEditar) $$('#k-body td.d').forEach(td => td.onclick = () => editarDia(E, +td.dataset.f, td.dataset.d));
+}
+const resumoDia = c => !c ? '—' : c.tipo === 'trabalho' ? c.entrada + '–' + c.saida + (c.almoco_ini ? ' (' + c.almoco_ini + '–' + c.almoco_fim + ')' : '') + (c.setor ? ' ' + setTxt(c.setor) : '') : ME.tipos[c.tipo];
+function editarDia(E, fid, d) {
+  const f = E.funcionarios.find(x => x.id === fid); const c = f.dias[d];
+  const ov = document.createElement('div'); ov.className = 'f-ov';
+  ov.innerHTML = '<div class="f-md"><div class="hd"><div><b>' + esc(f.nome) + '</b><small>' + dBR(d) + ' (' + dSem(d) + ') · contratual: ' + esc(resumoDia({ tipo: f.base[new Date(d + 'T12:00:00').getDay()] ? 'trabalho' : 'folga', ...(f.base[new Date(d + 'T12:00:00').getDay()] || {}) })) + '</small></div><button class="x">×</button></div><div class="bd">' +
+    '<div class="row"><label>Tipo<select id="e-tipo">' + Object.entries(ME.tipos).filter(([k]) => k !== 'feriado').map(([k, t]) => '<option value="' + k + '"' + (c.tipo === k ? ' selected' : '') + '>' + t + '</option>').join('') + '</select></label><label>Setor<select id="e-setor">' + [...new Set([f.setor, ...ME.setores.map(s => s.id)])].map(s => '<option value="' + s + '"' + ((c.setor || f.setor) === s ? ' selected' : '') + '>' + esc(setTxt(s)) + '</option>').join('') + '</select></label></div>' +
+    '<div class="row" id="e-h"><label>Entrada<input type="time" id="e-en" value="' + (c.entrada || '') + '"></label><label>Saída<input type="time" id="e-sa" value="' + (c.saida || '') + '"></label><label>Almoço início<input type="time" id="e-ai" value="' + (c.almoco_ini || '') + '"></label><label>Almoço fim<input type="time" id="e-af" value="' + (c.almoco_fim || '') + '"></label></div>' +
+    '<label>Justificativa (obrigatória para mexer em folga fixa)<textarea id="e-j" rows="2"></textarea></label><label>Observação na célula<input id="e-obs" value="' + esc(c.obs || '') + '" maxlength="200"></label><div id="e-msg"></div>' +
+    '<div class="acoes"><button class="ds-btn ds-btn-ghost" id="e-c">Cancelar</button><button class="ds-btn ds-btn-secondary" id="e-v">Verificar regras</button><button class="ds-btn ds-btn-primary" id="e-ok">Salvar</button></div></div></div>';
+  document.body.appendChild(ov); const fechar = () => ov.remove(); ov.querySelector('.x').onclick = fechar; ov.querySelector('#e-c').onclick = fechar;
+  const tipoSel = ov.querySelector('#e-tipo'); const togg = () => { ov.querySelector('#e-h').style.display = tipoSel.value === 'trabalho' ? '' : 'none'; }; tipoSel.onchange = togg; togg();
+  const body = () => ({ funcId: fid, data: d, tipo: tipoSel.value, setor: ov.querySelector('#e-setor').value, entrada: ov.querySelector('#e-en').value, saida: ov.querySelector('#e-sa').value, almoco_ini: ov.querySelector('#e-ai').value, almoco_fim: ov.querySelector('#e-af').value, justificativa: ov.querySelector('#e-j').value, obs: ov.querySelector('#e-obs').value });
+  const mostrar = v => { ov.querySelector('#e-msg').innerHTML = (v.erros || []).map(x => '<div class="aviso neg" style="margin:0 0 6px">' + esc(x) + '</div>').join('') + (v.avisos || []).map(x => '<div class="aviso" style="margin:0 0 6px">' + esc(x) + '</div>').join('') + (!(v.erros || []).length && !(v.avisos || []).length ? '<div class="aviso inf" style="margin:0">Dentro das regras configuradas.</div>' : ''); };
+  ov.querySelector('#e-v').onclick = async () => { try { mostrar(await api('/api/escalas/' + E.loja + '/' + E.mes + '/validar-dia', { body: body() })); } catch (e) { toast(e.message, 'neg'); } };
+  ov.querySelector('#e-ok').onclick = async () => { try { const r = await api('/api/escalas/' + E.loja + '/' + E.mes + '/dia', { body: body() }); toast('Salvo' + (r.avisos.length ? ' · ' + r.avisos.length + ' aviso(s)' : '')); fechar(); coletiva(); } catch (e) { mostrar({ erros: e.erros || [e.message] }); } };
+}
+async function fluxo(E, acao) {
+  const T = { enviar: 'Enviar a escala ao RH para conferência?', validar: 'Parecer técnico do RH', aprovar: 'Justificativa da aprovação (Coordenação)', devolver: 'O que precisa ser ajustado' };
+  let texto = '';
+  if (acao !== 'enviar') { texto = prompt(T[acao]); if (!texto) return; } else if (!confirm(T.enviar)) return;
+  try { const r = await api('/api/escalas/' + E.loja + '/' + E.mes + '/' + acao, { body: { texto } }); toast(r.statusTxt); coletiva(); } catch (e) { toast(e.message, 'neg'); }
+}
+
+// ── D · Escala individual ──
+async function individual() {
+  const el = $('#page'); el.innerHTML = barra(['loja', 'mes'], '<span class="lbl">Funcionário</span><select class="ds-select" id="i-f" style="min-width:260px"><option value="">carregando…</option></select><div class="end"><button class="ds-btn ds-btn-secondary" id="i-ponto">' + ic('refresh') + 'Comparar com o ponto</button></div>') + '<div id="i-body">' + skel() + '</div>'; ligarBarra(individual);
+  let E; try { E = await api('/api/escalas/' + SUB.loja + '/' + SUB.mes); } catch (e) { $('#i-body').innerHTML = e.status === 404 ? semEscalaBox(SUB.loja, SUB.mes) : erroBox(e); ligarCriar(SUB.loja, SUB.mes, individual); return; }
+  const sel = $('#i-f'); sel.innerHTML = '<option value="">escolha…</option>' + E.funcionarios.map(f => '<option value="' + f.id + '"' + (String(f.id) === String(SUB.func) ? ' selected' : '') + '>' + esc(f.nome) + ' · ' + esc(setTxt(f.setor)) + '</option>').join('');
+  sel.onchange = () => { SUB.func = sel.value; SUB.ponto = false; individual(); }; $('#i-ponto').onclick = () => { SUB.ponto = true; individual(); };
+  if (!SUB.func || !E.funcionarios.some(f => String(f.id) === String(SUB.func))) { $('#i-body').innerHTML = empty('Escolha um funcionário', 'A escala individual mostra o mês, a jornada prevista, folgas, carga horária, o ponto importado e as divergências.'); return; }
+  let F; try { F = await api('/api/escalas/' + SUB.loja + '/' + SUB.mes + '/funcionario/' + SUB.func + (SUB.ponto ? '?ponto=1' : '')); } catch (e) { $('#i-body').innerHTML = erroBox(e); return; }
+  const f = F.funcionario; const base = [1, 2, 3, 4, 5, 6, 0].map(d => '<tr><td>' + DSEM[d] + '</td><td>' + (f.base[d] ? f.base[d].entrada + '–' + f.base[d].saida : '<span style="color:var(--ink3)">folga</span>') + '</td><td>' + (f.base[d] && f.base[d].almoco_ini ? f.base[d].almoco_ini + '–' + f.base[d].almoco_fim : '—') + '</td></tr>').join('');
+  const pontoDe = d => F.ponto ? F.ponto.find(x => x.data === d) : null; const divDe = d => (F.divergencias || []).filter(x => x.data === d);
+  $('#i-body').innerHTML = '<div class="kpis"><div class="kpi"><div class="l">Horas previstas no mês</div><div class="v">' + esc(f.horas_mes) + '</div><div class="s">' + esc(f.setorTxt) + ' · ' + esc(f.cargo || '') + '</div></div><div class="kpi"><div class="l">Folga fixa</div><div class="v" style="font-size:16px;margin-top:8px">' + (f.folga_fixa.length ? f.folga_fixa.map(x => DSEM[x]).join(' · ') : '—') + '</div><div class="s">' + esc(f.turno || '') + '</div></div><div class="kpi"><div class="l">Banco de horas oficial</div><div class="v" style="color:' + (F.banco_oficial_min == null ? 'var(--ink3)' : F.banco_oficial_min >= 0 ? 'var(--pos)' : 'var(--neg)') + '">' + (F.banco_oficial_min == null ? '—' : (F.banco_oficial_min < 0 ? '−' : '+') + G.hhmm(Math.abs(F.banco_oficial_min)).replace(':', 'h')) + '</div><div class="s">' + (F.banco_oficial_min == null ? 'use "Comparar com o ponto"' : 'saldo acumulado do PontoCerto') + '</div></div><div class="kpi"><div class="l">Divergências no mês</div><div class="v">' + (F.divergencias ? F.divergencias.length : '—') + '</div><div class="s">' + (F.divergencias ? 'escala × marcações' : F.pontoErro ? 'PontoCerto indisponível' : 'use "Comparar com o ponto"') + '</div></div></div>' +
+    '<div class="grid2"><div class="tw"><table class="t"><thead><tr><th>Dia</th><th>Tipo</th><th>Previsto</th><th>Almoço</th><th class="r">Horas</th>' + (F.ponto ? '<th>Registrado</th><th>Divergência</th>' : '') + '</tr></thead><tbody>' +
+    F.dias.map(d => { const p = pontoDe(d.data), dv = divDe(d.data); return '<tr' + (d.alterado ? ' style="color:var(--inf)"' : '') + '><td><b>' + d.data.slice(8) + '</b> ' + DSEM[new Date(d.data + 'T12:00:00').getDay()] + '</td><td>' + esc(ME.tipos[d.tipo]) + (d.alterado ? ' <span class="pill info">alterado</span>' : '') + '</td><td>' + (d.tipo === 'trabalho' ? d.entrada + '–' + d.saida : '—') + '</td><td>' + (d.almoco_ini ? d.almoco_ini + '–' + d.almoco_fim : '—') + '</td><td class="r">' + (d.minutos ? G.hhmm(d.minutos).replace(':', 'h') : '') + '</td>' + (F.ponto ? '<td>' + (p && p.marcacoes.length ? p.marcacoes.join(' · ') : '<span style="color:var(--ink3)">—</span>') + '</td><td>' + (dv.length ? dv.map(x => '<span class="pill bad">' + esc(x.tipo.replace('_', ' ')) + '</span>').join(' ') : (p && p.marcacoes.length ? '<span class="pill ok">ok</span>' : '')) + '</td>' : '') + '</tr>'; }).join('') + '</tbody></table></div>' +
+    '<div><div class="tw" style="margin-bottom:14px"><table class="t"><thead><tr><th>Jornada contratual</th><th>Horário</th><th>Almoço</th></tr></thead><tbody>' + base + '</tbody></table></div>' +
+    '<div class="tw" style="margin-bottom:14px"><table class="t"><thead><tr><th>Semana (início)</th><th class="r">Horas previstas</th></tr></thead><tbody>' + F.semanas.map(s => '<tr><td>' + dBR(s.inicio) + '</td><td class="r">' + esc(s.horas) + '</td></tr>').join('') + '</tbody></table></div>' +
+    (F.divergencias && F.divergencias.length ? '<div class="sug" style="margin-bottom:14px"><div class="hd">Divergências</div>' + F.divergencias.map(x => '<div class="it div"><b>' + dBR(x.data) + '</b>' + esc(x.texto) + '</div>').join('') + '</div>' : '') +
+    '<div class="ds-h2" style="margin-bottom:8px">Histórico de alterações</div><div class="hist">' + (F.historico.length ? F.historico.map(h => '<div class="h"><time>' + dt(h.em) + '</time><div>' + dBR(h.data) + ' · ' + esc(h.nome) + '<p>' + esc(resumoDia(h.antes) + ' → ' + resumoDia(h.depois)) + (h.justificativa ? '\n“' + esc(h.justificativa) + '”' : '') + '</p></div></div>').join('') : '<div class="empty" style="padding:14px">Sem alterações: segue a jornada contratual.</div>') + '</div></div></div>' +
+    '<p class="note">Previsto = escala. Registrado = marcações importadas do PontoCerto. A apuração oficial (horas, banco) é a do RH no PontoCerto; nada aqui é cálculo definitivo.</p>';
+}
+
+// ── E · Configurações ──
+async function cfg() {
+  const el = $('#page'); const C = ME.config; const ed = ME.podeConfigurar;
+  el.innerHTML = barra(['loja']) + '<div id="g-body"></div>'; ligarBarra(cfg);
+  const L = C.lojas[SUB.loja] || { abre: '07:00', fecha: '19:00', setores: {} }; const sets = [...new Set([...ME.setores.map(s => s.id), ...Object.keys(L.setores)])];
+  $('#g-body').innerHTML = (ed ? '' : '<div class="aviso inf">Só RH e Coordenação alteram a configuração. Você vê os valores em vigor.</div>') + '<div class="grid2"><div class="tw"><table class="t cfg"><thead><tr><th>' + esc(lojaTxt(SUB.loja)) + '</th><th class="r">Valor</th></tr></thead><tbody>' +
+    '<tr><td>Abre</td><td class="r"><input type="time" id="g-abre" value="' + L.abre + '"' + (ed ? '' : ' disabled') + ' style="width:110px"></td></tr><tr><td>Fecha</td><td class="r"><input type="time" id="g-fecha" value="' + L.fecha + '"' + (ed ? '' : ' disabled') + ' style="width:110px"></td></tr>' +
+    sets.map(s => '<tr><td>Necessidade mínima · ' + esc(setTxt(s)) + '</td><td class="r"><input type="number" min="0" data-s="' + esc(s) + '" value="' + ((L.setores[s] || {}).min || 0) + '"' + (ed ? '' : ' disabled') + '></td></tr>').join('') + '</tbody></table></div>' +
+    '<div><div class="tw" style="margin-bottom:14px"><table class="t cfg"><thead><tr><th>Limites de jornada (validação)</th><th class="r">Minutos</th></tr></thead><tbody>' + [['jornadaMaxMin', 'Jornada diária máxima (líquida)'], ['jornadaComIntervaloMin', 'Jornada que exige intervalo acima de'], ['intervaloMinMin', 'Intervalo mínimo'], ['interjornadaMin', 'Descanso entre jornadas'], ['semanaMaxMin', 'Carga semanal máxima (aviso)']].map(([k, t]) => '<tr><td>' + t + '</td><td class="r"><input type="number" min="0" data-l="' + k + '" value="' + C.limites[k] + '"' + (ed ? '' : ' disabled') + '></td></tr>').join('') + '<tr><td>Tolerância escala × ponto (min)</td><td class="r"><input type="number" min="0" id="g-tol" value="' + C.tolerancias.marcacaoMin + '"' + (ed ? '' : ' disabled') + '></td></tr></tbody></table></div>' +
+    '<label style="font-size:11px;font-weight:700;color:var(--ink2)">Feriados (um por linha, AAAA-MM-DD)<textarea id="g-fer" rows="6" style="width:100%;margin-top:4px;padding:8px;border:1px solid var(--ln2);border-radius:8px;font:inherit;font-size:12px"' + (ed ? '' : ' disabled') + '>' + C.feriados.join('\n') + '</textarea></label>' +
+    (ed ? '<div style="margin-top:12px"><button class="ds-btn ds-btn-primary" id="g-salvar">Salvar configuração</button></div>' : '') + '<p class="note">Limites e tolerâncias seguem a configuração do RH e os acordos coletivos aplicáveis; a validação da escala usa exatamente estes valores.</p></div></div>';
+  if (ed) $('#g-salvar').onclick = async () => {
+    const setores = {}; $$('#g-body [data-s]').forEach(i => { setores[i.dataset.s] = +i.value; }); const limites = {}; $$('#g-body [data-l]').forEach(i => { limites[i.dataset.l] = +i.value; });
+    try { ME.config = await api('/api/escalas/config', { method: 'PUT', body: { lojas: { [SUB.loja]: { abre: $('#g-abre').value, fecha: $('#g-fecha').value, setores } }, limites, tolerancias: { marcacaoMin: +$('#g-tol').value }, feriados: $('#g-fer').value.split(/\s+/).filter(Boolean) } }); toast('Configuração salva'); cfg(); } catch (e) { toast(e.message, 'neg'); }
+  };
+}
+iniciar();
+</script>
+</body>
+</html>

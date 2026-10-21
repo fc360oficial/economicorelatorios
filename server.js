@@ -8525,6 +8525,8 @@ require('./lib/etica-rotas')(app, { multer, publicDir: path.join(__dirname, 'pub
 // Central de Gestão de Pessoas (21/10/2026, DP / RH › Gestão de Pessoas): banco de horas, ponto, quadro, documentação,
 // solicitações GERENTE → RH → COORDENAÇÃO, alertas e indicadores. Regras em lib/gestao-pessoas.js; só lê o PontoCerto.
 require('./lib/gestao-pessoas-rotas')(app, { pontocerto, listarUsuarios: () => usuarios });
+// Escalas (22/10/2026, DP / RH › Escalas): cobertura por setor, escala coletiva/individual, fluxo gerente → RH → Coordenação.
+require('./lib/escalas-rotas')(app, { pontocerto });
 // O GET /employees do Pontomais leva ~30-40 s (4 páginas pesadas). Aquece o cache ao subir e renova a cada 18 min
 // pra tela do DP/RH abrir na hora; se o token não estiver configurado, só ignora.
 const genteAquecer = () => { gente.painelDP().catch(() => {}); };
