@@ -66,7 +66,18 @@ table.cal td.tot{font-weight:800;text-align:center;padding:0 10px;background:#10
 .cal-leg{display:flex;flex-wrap:wrap;gap:8px 22px;padding:10px 12px;font-size:11px;color:var(--ink2);border-top:1px solid var(--ln);background:var(--crd)}.cal-leg>span{display:flex;align-items:center;gap:7px}.cal-leg i{width:22px;height:14px;border-radius:4px;flex:none;display:inline-block}
 .cal-leg b{display:block;color:var(--ink);font-size:11px}.cal-leg small{display:block;color:var(--ink3);font-size:10px}.cal-leg i.altx{background:var(--crd);box-shadow:inset 0 0 0 2px var(--inf)}.cal-leg i.ferx{background:var(--wsh);border-top:3px solid var(--neg)}
 .tb input.ds-input::placeholder{color:var(--ink3)}
-@media (max-width:1399px){#c-fun{min-width:130px!important;max-width:170px}#c-busca{width:150px!important}}
+/* seletor de funcionários (caixinhas) */
+.msel{position:relative}.msel .ds-btn.on{background:#101B33;color:#FFC933;border-color:#101B33}.msel-p{position:absolute;top:calc(100% + 6px);left:0;z-index:60;width:340px;background:var(--crd);border:1px solid var(--ln);border-radius:var(--r-lg);box-shadow:0 12px 32px rgba(0,0,0,.16);padding:8px}.msel-p .ds-input{width:100%;height:32px;font-size:12px;margin-bottom:6px}
+.msel-l{max-height:340px;overflow:auto}.msel-l label{display:grid;grid-template-columns:18px 1fr;gap:2px 8px;align-items:center;padding:6px 8px;border-radius:7px;cursor:pointer;font-size:12px}.msel-l label:hover{background:var(--wsh)}.msel-l label input{grid-row:span 2;width:15px;height:15px;accent-color:#101B33}.msel-l label b{font-weight:700;color:var(--ink)}.msel-l label small{font-size:10.5px;color:var(--ink3)}
+.msel-f{display:flex;gap:14px;padding:8px 8px 2px;border-top:1px solid var(--ln);margin-top:6px;font-size:11.5px;font-weight:700}.msel-f a{color:var(--inf);cursor:pointer}
+/* 22/10/26 (Tiago: "ajuste automático nos monitores", regra do CLAUDE.md): grade coletiva ocupa 100% e as faixas apertam
+   fonte, largura da célula e coluna do nome até os 31 dias caberem sem rolagem em 1600/1366/1280. Nada some: almoço quebra linha. */
+table.cal{width:100%}
+@media (max-width:1599px){table.cal td{min-width:34px;font-size:10px;padding:3px 0}table.cal td .a{font-size:8.5px}table.cal th.n,table.cal td.n{min-width:170px}table.cal td.n b{max-width:180px}table.cal td.n span{max-width:180px}table.cal th{font-size:9px;padding:5px 2px}table.cal td.tot{padding:0 6px;font-size:11px}.cal-leg{gap:6px 16px;padding:8px 10px}}
+@media (max-width:1399px){table.cal td{min-width:29px;font-size:9px}table.cal td .a{font-size:8px;line-height:1.1}table.cal th.n,table.cal td.n{min-width:150px;padding:4px 8px}table.cal td.n b{max-width:160px;font-size:10px}table.cal td.n span{max-width:160px;font-size:9.5px}table.cal th{font-size:8.5px;padding:4px 1px}table.cal th.n{font-size:10.5px}table.cal td.tot{padding:0 4px;font-size:10px}.cal-leg{font-size:10px}.cal-leg i{width:18px;height:12px}
+  #c-fun{min-width:130px!important;max-width:170px}.tb .lbl{font-size:10px}}
+@media (max-width:1299px){table.cal td{min-width:26px;font-size:8.5px}table.cal td .a{font-size:7.5px}table.cal th.n,table.cal td.n{min-width:140px;padding:3px 6px}table.cal td.n b{max-width:150px}table.cal td.n span{max-width:150px}table.cal td.tot{padding:0 3px;font-size:9.5px}table.cal th{font-size:8px;padding:4px 0}#b-loja{min-width:150px!important;width:150px}#c-fun{min-width:120px!important;max-width:140px}.tb{gap:6px}.tb .ds-btn{padding-left:9px;padding-right:9px}}
+@media (max-width:1199px){table.cal td{min-width:26px;font-size:8.5px;height:34px}table.cal td .a{font-size:7.5px}table.cal th.n,table.cal td.n{min-width:130px;padding:3px 6px}table.cal td.n b{max-width:140px;font-size:9.5px}table.cal td.n span{max-width:140px;font-size:9px}table.cal th{font-size:8px}table.cal td.tot{font-size:9.5px}#c-fun{min-width:110px!important;max-width:140px}}
 .flx{display:flex;gap:4px;flex-wrap:wrap;align-items:center;font-size:11.5px;font-weight:700;margin-bottom:12px}.flx span{padding:5px 10px;border-radius:7px;background:var(--wsh);color:var(--ink3)}.flx span.done{background:var(--posw);color:var(--pos)}.flx span.on{background:#101B33;color:#FFC933}.flx i{color:var(--ink3);font-style:normal}
 .hist{font-size:12px;display:grid}.hist .h{display:grid;grid-template-columns:118px 1fr;gap:10px;padding:7px 0;border-bottom:1px solid var(--ln)}.hist .h time{color:var(--ink3)}.hist .h p{color:var(--ink2);white-space:pre-wrap}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
@@ -154,14 +165,21 @@ async function loja() {
 
 // ── C · Escala coletiva ──
 async function coletiva() {
-  const el = $('#page'); el.innerHTML = barra(['loja', 'mes'], '<span class="lbl">Função</span><select class="ds-select" id="c-fun" style="min-width:170px"><option value="">todas</option></select><input class="ds-input" id="c-busca" placeholder="Buscar colaborador…" value="' + esc(SUB.busca || '') + '" style="width:200px"><div class="end" id="c-acts"></div>') + '<div id="k-body">' + skel() + '</div>'; ligarBarra(coletiva);
+  const el = $('#page'); el.innerHTML = barra(['loja', 'mes'], '<span class="lbl">Função</span><select class="ds-select" id="c-fun" style="min-width:170px"><option value="">todas</option></select><span class="lbl">Funcionários</span><div class="msel" id="c-sel"><button class="ds-btn ds-btn-secondary" id="c-sel-b" type="button">todos ▾</button><div class="msel-p" id="c-sel-p" hidden><input class="ds-input" id="c-sel-q" placeholder="Buscar nome, cargo, matrícula…"><div class="msel-l" id="c-sel-l"></div><div class="msel-f"><a id="c-sel-all">marcar os listados</a><a id="c-sel-none">limpar seleção</a></div></div></div><div class="end" id="c-acts"></div>') + '<div id="k-body">' + skel() + '</div>'; ligarBarra(coletiva);
   let E; try { E = await api('/api/escalas/' + SUB.loja + '/' + SUB.mes); } catch (e) { $('#k-body').innerHTML = e.status === 404 ? semEscalaBox(SUB.loja, SUB.mes) : erroBox(e); ligarCriar(SUB.loja, SUB.mes, coletiva); return; }
   // filtros (Tiago, 22/10): função = setor operacional ou cargo do PontoCerto; busca = nome/cargo/matrícula. Só escondem linhas, nada muda na escala
   const setores = [...new Set(E.funcionarios.map(f => f.setor))].sort(), cargos = [...new Set(E.funcionarios.map(f => f.cargo).filter(Boolean))].sort();
   $('#c-fun').innerHTML = '<option value="">todas (' + E.funcionarios.length + ')</option><optgroup label="Setor">' + setores.map(s => '<option value="s:' + esc(s) + '">' + esc(setTxt(s)) + ' (' + E.funcionarios.filter(f => f.setor === s).length + ')</option>').join('') + '</optgroup>' + (cargos.length ? '<optgroup label="Cargo">' + cargos.map(c => '<option value="c:' + esc(c) + '">' + esc(c) + ' (' + E.funcionarios.filter(f => f.cargo === c).length + ')</option>').join('') + '</optgroup>' : '');
   if (SUB.funcao && [...$('#c-fun').options].some(o => o.value === SUB.funcao)) $('#c-fun').value = SUB.funcao; else SUB.funcao = '';
   const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-  const visiveis = () => { const q = norm(SUB.busca), fn = SUB.funcao || ''; return E.funcionarios.filter(f => (!fn || (fn.startsWith('s:') ? f.setor === fn.slice(2) : f.cargo === fn.slice(2))) && (!q || norm(f.nome + ' ' + f.cargo + ' ' + f.matricula).includes(q))); };
+  // seleção de funcionários (Tiago, 22/10: "flag para eu selecionar 1 ou mais funcionário além da função"): caixinhas num painel com busca; vazio = todos
+  SUB.sel = (SUB.sel || []).filter(id => E.funcionarios.some(f => String(f.id) === String(id)));
+  const porFuncao = f => { const fn = SUB.funcao || ''; return !fn || (fn.startsWith('s:') ? f.setor === fn.slice(2) : f.cargo === fn.slice(2)); };
+  const visiveis = () => E.funcionarios.filter(f => porFuncao(f) && (!SUB.sel.length || SUB.sel.includes(String(f.id))));
+  const selRotulo = () => { $('#c-sel-b').textContent = (SUB.sel.length === 0 ? 'todos' : SUB.sel.length === 1 ? E.funcionarios.find(f => String(f.id) === SUB.sel[0]).nome.split(' ').slice(0, 2).join(' ') : SUB.sel.length + ' selecionados') + ' ▾'; $('#c-sel-b').classList.toggle('on', SUB.sel.length > 0); };
+  const selLista = () => { const q = norm($('#c-sel-q').value); const fs = E.funcionarios.filter(f => porFuncao(f) && (!q || norm(f.nome + ' ' + f.cargo + ' ' + f.matricula).includes(q)));
+    $('#c-sel-l').innerHTML = fs.length ? fs.map(f => '<label><input type="checkbox" value="' + f.id + '"' + (SUB.sel.includes(String(f.id)) ? ' checked' : '') + '><b>' + esc(f.nome) + '</b><small>' + esc(setTxt(f.setor)) + (f.cargo ? ' · ' + esc(f.cargo) : '') + '</small></label>').join('') : '<div class="note" style="padding:8px">Ninguém com esse texto' + (SUB.funcao ? ' nessa função' : '') + '</div>';
+    $$('#c-sel-l input').forEach(i => i.onchange = () => { SUB.sel = i.checked ? [...SUB.sel, i.value] : SUB.sel.filter(x => x !== i.value); selRotulo(); desenhar(); }); };
   const AC = { enviar: ['Enviar ao RH', 'ds-btn-primary'], validar: ['Validar (RH)', 'ds-btn-primary'], aprovar: ['Aprovar (Coordenação)', 'ds-btn-primary'], devolver: ['Devolver', 'ds-btn-secondary'] };
   $('#c-acts').innerHTML = E.acoes.filter(a => AC[a]).map(a => '<button class="ds-btn ' + AC[a][1] + '" data-ac="' + a + '">' + AC[a][0] + '</button>').join('') + '<a class="ds-btn ds-btn-secondary" href="/api/escalas/' + E.loja + '/' + E.mes + '/exportar.csv">' + ic('download') + 'Excel</a><a class="ds-btn ds-btn-secondary" href="/api/escalas/' + E.loja + '/' + E.mes + '/exportar.pdf" target="_blank">' + ic('printer') + 'PDF</a>';
   $$('#c-acts [data-ac]').forEach(b => b.onclick = () => fluxo(E, b.dataset.ac));
@@ -182,8 +200,13 @@ async function coletiva() {
     '<span><i style="background:' + TIPO_COR.afastado + '"></i><div><b>AF · FÉ</b><small>Afastamento/Atestado · Férias</small></div></span><span><i style="background:' + TIPO_COR.folga + '"></i><div><b>F</b><small>Folga</small></div></span><span><i class="ferx"></i><div><b>Feriado</b><small>' + (ferMes.length ? esc(ferMes.map(d => d.slice(8) + ' ' + ferNome(d)).join(' · ')) : 'nenhum neste mês') + '</small></div></span><span><i class="altx"></i><div><b>Borda azul</b><small>Dia alterado (proposta)</small></div></span><span><i style="background:#101B33"></i><div><b>Horas</b><small>Total no mês</small></div></span></div></div>'; };
   const desenhar = () => { $('#k-tab').innerHTML = tabela(); if (E.podeEditar) $$('#k-tab td.d').forEach(td => td.onclick = () => editarDia(E, +td.dataset.f, td.dataset.d)); };
   desenhar();
-  $('#c-fun').onchange = () => { SUB.funcao = $('#c-fun').value; desenhar(); };
-  let tb; $('#c-busca').oninput = () => { clearTimeout(tb); tb = setTimeout(() => { SUB.busca = $('#c-busca').value.trim(); desenhar(); }, 150); };
+  $('#c-fun').onchange = () => { SUB.funcao = $('#c-fun').value; selLista(); desenhar(); };
+  selRotulo(); selLista();
+  const selP = $('#c-sel-p'); const fecharSel = ev => { if (!$('#c-sel').contains(ev.target)) { selP.hidden = true; document.removeEventListener('click', fecharSel); } };
+  $('#c-sel-b').onclick = () => { selP.hidden = !selP.hidden; if (!selP.hidden) { $('#c-sel-q').focus(); setTimeout(() => document.addEventListener('click', fecharSel), 0); } };
+  let tb; $('#c-sel-q').oninput = () => { clearTimeout(tb); tb = setTimeout(selLista, 120); };
+  $('#c-sel-all').onclick = () => { SUB.sel = [...new Set([...SUB.sel, ...$$('#c-sel-l input').map(i => i.value)])]; selRotulo(); selLista(); desenhar(); };
+  $('#c-sel-none').onclick = () => { SUB.sel = []; selRotulo(); selLista(); desenhar(); };
 }
 const resumoDia = c => !c ? '—' : c.tipo === 'trabalho' ? c.entrada + '–' + c.saida + (c.almoco_ini ? ' (' + c.almoco_ini + '–' + c.almoco_fim + ')' : '') + (c.setor ? ' ' + setTxt(c.setor) : '') : ME.tipos[c.tipo];
 function editarDia(E, fid, d) {
