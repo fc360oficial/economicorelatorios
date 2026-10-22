@@ -1842,6 +1842,27 @@ app.get('/api/comparativo-mercadologico', withCache(240), async (req, res) => {
 });
 
 // ── GESTÃO GERENCIAL ──────────────────────────────────────────
+// Ticket médio mês a mês (22/10/26): o COUNT(DISTINCT cupom) leva ~25 s por loja/mês no .252 e a visão "todas"
+// disparava 120 de uma vez (passava de 3 min e martelava o ERP). Período que terminou há mais de 3 dias não muda:
+// fica salvo por loja + período; só o mês corrente vai ao ERP, no máximo 6 consultas ao mesmo tempo.
+const TICKET_CONGELADO_PATH = path.join(__dirname, 'data', 'gestao-ticket-congelado.json');
+function carregarTicketCongelado() {
+  try { return JSON.parse(fs.readFileSync(TICKET_CONGELADO_PATH, 'utf8')); } catch (e) { return {}; }
+}
+function salvarTicketCongelado(obj) {
+  fs.mkdirSync(path.dirname(TICKET_CONGELADO_PATH), { recursive: true });
+  fs.writeFileSync(TICKET_CONGELADO_PATH, JSON.stringify(obj));
+}
+function limitador(n) {
+  let ativos = 0; const fila = [];
+  const prox = () => {
+    if (ativos >= n || !fila.length) return;
+    ativos++; const { fn, ok, err } = fila.shift();
+    fn().then(ok, err).finally(() => { ativos--; prox(); });
+  };
+  return fn => new Promise((ok, err) => { fila.push({ fn, ok, err }); prox(); });
+}
+
 app.get('/api/gestao-gerencial', withCache(10), async (req, res) => {
   try {
     const hoje    = new Date();
@@ -1860,14 +1881,15 @@ app.get('/api/gestao-gerencial', withCache(10), async (req, res) => {
     const dFimAnt    = `${anoAnt}-${mesStr}-${diaCorte}`;
 
     // Vendas por Codigo — atual e ano anterior até mesmo dia
-    const vAtual = {}, vAnt = {};
+    const vAtual = {}, vAnt = {}, vLoja = {};
     await Promise.all(lojas.map(async ln => {
       const [rA, rB] = await Promise.all([
         q(`SELECT Codigo, SUM(ValorTotalNovo) v FROM \`ln${ln}${mm}\`.zcupomitens WHERE Data BETWEEN ? AND ? AND IndCancel='N' GROUP BY Codigo`, [dIni, dFimAtual]).catch(()=>[]),
         q(`SELECT Codigo, SUM(ValorTotalNovo) v FROM \`ln${ln}${mm}\`.zcupomitens WHERE Data BETWEEN ? AND ? AND IndCancel='N' GROUP BY Codigo`, [dIniAnt, dFimAnt]).catch(()=>[])
       ]);
-      for (const r of rA) vAtual[r.Codigo] = (vAtual[r.Codigo]||0) + parseFloat(r.v||0);
-      for (const r of rB) vAnt[r.Codigo]   = (vAnt[r.Codigo]  ||0) + parseFloat(r.v||0);
+      vLoja[ln] = { a: 0, b: 0 };
+      for (const r of rA) { const v = parseFloat(r.v||0); vAtual[r.Codigo] = (vAtual[r.Codigo]||0) + v; vLoja[ln].a += v; }
+      for (const r of rB) { const v = parseFloat(r.v||0); vAnt[r.Codigo]   = (vAnt[r.Codigo]  ||0) + v; vLoja[ln].b += v; }
     }));
 
     const totalAtual = Object.values(vAtual).reduce((s,v)=>s+v,0);
@@ -1941,6 +1963,20 @@ app.get('/api/gestao-gerencial', withCache(10), async (req, res) => {
 
     // Ticket médio por mês (Jan → mês selecionado), respeitando filtro de loja
     const lojasTicket = lojaSel ? [lojaSel] : [1,2,3,4,5,6];
+    const congelado = carregarTicketCongelado();
+    let congeladoMudou = false;
+    const umaPorVez = limitador(6);
+    const limiteFechado = new Date(hoje.getTime() - 3 * 86400000).toLocaleDateString('sv-SE');
+    // Falha do ERP vira zero como antes, mas não fica salva.
+    async function resumoCupons(ln, mmM, dI, dF) {
+      const chave = `${ln}|${dI}|${dF}`;
+      if (congelado[chave]) return congelado[chave];
+      const r = await umaPorVez(() => q(`SELECT COUNT(DISTINCT CONCAT(nECF,'-',CCF)) cupons, SUM(ValorTotalNovo) venda FROM \`ln${ln}${mmM}\`.zcupomitens WHERE Data BETWEEN ? AND ? AND IndCancel='N'`, [dI, dF])).catch(() => null);
+      if (!r) return { cupons: 0, venda: 0 };
+      const out = { cupons: parseInt(r[0]?.cupons || 0), venda: parseFloat(r[0]?.venda || 0) };
+      if (dF < limiteFechado) { congelado[chave] = out; congeladoMudou = true; }
+      return out;
+    }
     const ticketMeses = await Promise.all(
       Array.from({length: mes}, (_, i) => i + 1).map(async m => {
         const mmM = mesDB(m);
@@ -1952,12 +1988,9 @@ app.get('/api/gestao-gerencial', withCache(10), async (req, res) => {
         const dIA=`${anoAnt}-${msStr}-01`, dFA=`${anoAnt}-${msStr}-${corteAnt}`;
         let cupons=0, venda=0, cuponsAnt=0, vendaAnt=0;
         await Promise.all(lojasTicket.map(async ln => {
-          const [[rA],[rB]] = await Promise.all([
-            q(`SELECT COUNT(DISTINCT CONCAT(nECF,'-',CCF)) cupons, SUM(ValorTotalNovo) venda FROM \`ln${ln}${mmM}\`.zcupomitens WHERE Data BETWEEN ? AND ? AND IndCancel='N'`,[dI,dF]).catch(()=>[{cupons:0,venda:0}]),
-            q(`SELECT COUNT(DISTINCT CONCAT(nECF,'-',CCF)) cupons, SUM(ValorTotalNovo) venda FROM \`ln${ln}${mmM}\`.zcupomitens WHERE Data BETWEEN ? AND ? AND IndCancel='N'`,[dIA,dFA]).catch(()=>[{cupons:0,venda:0}])
-          ]);
-          cupons+=parseInt(rA?.cupons||0); venda+=parseFloat(rA?.venda||0);
-          cuponsAnt+=parseInt(rB?.cupons||0); vendaAnt+=parseFloat(rB?.venda||0);
+          const [rA, rB] = await Promise.all([resumoCupons(ln, mmM, dI, dF), resumoCupons(ln, mmM, dIA, dFA)]);
+          cupons+=rA.cupons; venda+=rA.venda;
+          cuponsAnt+=rB.cupons; vendaAnt+=rB.venda;
         }));
         const ticket=cupons>0?+(venda/cupons).toFixed(2):0;
         const ticketAnt=cuponsAnt>0?+(vendaAnt/cuponsAnt).toFixed(2):0;
@@ -1967,14 +2000,11 @@ app.get('/api/gestao-gerencial', withCache(10), async (req, res) => {
       })
     );
 
-    // Venda por loja no período (sempre todas as 6)
-    const vendaLojas = await Promise.all([1,2,3,4,5,6].map(async ln => {
-      const [[rA],[rB]] = await Promise.all([
-        q(`SELECT SUM(ValorTotalNovo) venda FROM \`ln${ln}${mm}\`.zcupomitens WHERE Data BETWEEN ? AND ? AND IndCancel='N'`,[dIni,dFimAtual]).catch(()=>[{venda:0}]),
-        q(`SELECT SUM(ValorTotalNovo) venda FROM \`ln${ln}${mm}\`.zcupomitens WHERE Data BETWEEN ? AND ? AND IndCancel='N'`,[dIniAnt,dFimAnt]).catch(()=>[{venda:0}])
-      ]);
-      return { loja:ln, venda:+(parseFloat(rA?.venda||0)).toFixed(2), venda_ant:+(parseFloat(rB?.venda||0)).toFixed(2) };
-    }));
+    if (congeladoMudou) { try { salvarTicketCongelado(congelado); } catch (e) { console.warn('[gestao-gerencial] ticket congelado: ' + e.message); } }
+
+    // Venda por loja no período: sai da mesma consulta por produto (antes eram mais 12 consultas). Com loja
+    // escolhida vem só ela — gerente de loja não vê a venda das outras (22/10/26).
+    const vendaLojas = lojas.map(ln => ({ loja:ln, venda:+(vLoja[ln]?.a||0).toFixed(2), venda_ant:+(vLoja[ln]?.b||0).toFixed(2) }));
 
     res.json({
       kpis:{ venda_atual:+totalAtual.toFixed(2), venda_ant:+totalAnt.toFixed(2), crescimento:cresc,
