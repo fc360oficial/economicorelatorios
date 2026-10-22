@@ -273,6 +273,12 @@ app.use((req, res, next) => {
       logAcessos.marcarAtividade(req.session.user, ctx);
       if (pg) logAcessos.registrar(LOG_ACESSOS_DIR, { tipo: 'pagina', usuario: req.session.user.usuario, nome: req.session.user.nome, perfil: req.session.user.perfil, ip: ctx.ip, dispositivo: ctx.dispositivo, pagina: pg });
     } catch (e) { console.warn('[log-acessos] ' + e.message); }
+    // Gerente de loja (lib/escopo.js): só a Gestão Gerencial da própria loja; página fora vai pra ela, API = 403
+    const bloqueioGer = escopo.bloqueioGerencial(req.session.user, req.path, req.query);
+    if (bloqueioGer) {
+      if (req.path.startsWith('/api/')) return res.status(403).json({ error: bloqueioGer });
+      return res.redirect('/gestao-gerencial.html');
+    }
     // Rotas exclusivas de admin
     if ((req.path === '/admin-usuarios.html' || req.path.startsWith('/api/admin/')) &&
         req.session.user.perfil !== 'admin') {

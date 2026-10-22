@@ -60,3 +60,20 @@ test('filtrarPorLista e podeLista', () => {
   assert.equal(e.podeLista(u, nregs, 1), false);
   assert.equal(e.podeLista({ perfil: 'usuario' }, nregs, 1), true);
 });
+
+test('bloqueioGerencial: gerente só na Gestão Gerencial e só a própria loja', () => {
+  const g = { perfil: 'gerencial', loja_id: 3 };
+  assert.equal(e.bloqueioGerencial(g, '/gestao-gerencial.html', {}), null);
+  assert.equal(e.bloqueioGerencial(g, '/api/me', {}), null);
+  assert.equal(e.bloqueioGerencial(g, '/api/gestao-gerencial', { loja: '3', mes: '10' }), null);
+  assert.equal(e.bloqueioGerencial(g, '/api/top-produtos', { loja: '3' }), null);
+  assert.ok(e.bloqueioGerencial(g, '/index.html', {}));
+  assert.ok(e.bloqueioGerencial(g, '/api/painel-cd', {}));
+  assert.ok(e.bloqueioGerencial(g, '/api/gestao-gerencial', { loja: 'todas' }));
+  assert.ok(e.bloqueioGerencial(g, '/api/gestao-gerencial', {}));
+  assert.ok(e.bloqueioGerencial(g, '/api/gestao-gerencial', { loja: '4' }));
+  assert.ok(e.bloqueioGerencial(g, '/api/gestao-gerencial', { loja: ['3', 'todas'] }));
+  assert.ok(e.bloqueioGerencial({ perfil: 'gerencial' }, '/api/gestao-gerencial', { loja: '3' }));
+  assert.equal(e.bloqueioGerencial({ perfil: 'admin' }, '/index.html', {}), null);
+  assert.equal(e.bloqueioGerencial({ perfil: 'comprador' }, '/api/gestao-gerencial', { loja: 'todas' }), null);
+});
