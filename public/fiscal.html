@@ -925,7 +925,17 @@ function arecItens(r){
 }
 function arecNfe(chave){window.open('/api/fiscal/nfe/'+encodeURIComponent(chave)+'/danfe','_blank');}   /* 16/10/26: link direto agora é href no bloco; isto fica só por compatibilidade */
 function arecDecidirAbrir(k){AREC_OPEN[k]=true;render();const el=document.getElementById('decbox-'+k);if(el)el.scrollIntoView({behavior:'smooth',block:'center'});}
-async function arecPost(url,body){const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})}).then(r=>r.json()).catch(e=>({error:e.message}));if(r.error){ftoast(r.error,true);return null;}return r;}
+// 22/10/2026: uma ação por vez — os botões travam até o servidor responder (antes o 2º clique mandava de novo e voltava erro)
+let AREC_BUSY=false;
+async function arecPost(url,body){
+  if(AREC_BUSY){ftoast('Aguarde: a ação anterior ainda está sendo gravada.',true);return null;}
+  AREC_BUSY=true;const bts=[...document.querySelectorAll('button[onclick^="arec"]')];bts.forEach(b=>{b.disabled=true;b.style.opacity='.55';});
+  try{
+    const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})}).then(r=>r.json()).catch(e=>({error:e.message}));
+    if(r.error){ftoast(r.error,true);return null;}
+    return r;
+  }finally{AREC_BUSY=false;bts.forEach(b=>{b.disabled=false;b.style.opacity='';});}
+}
 async function arecDecidir(k,id,ln,cod,acao){const r=await arecPost('/api/fiscal/pedido-compra/'+id+'/xml/'+ln+'/decidir',{cod,acao});if(!r)return;ftoast((acao==='recusar'?'Recusado: entra no Aviso de devolução.':acao==='aceitar'?'Liberado.':'Decisão desfeita.')+(r.loja_fechada?' Loja '+ln+' fechada: Conciliado XML.':''));await arecCarregar();render();}
 async function arecParcial(k,id,ln,desfazer){const r=await arecPost('/api/fiscal/pedido-compra/'+id+'/xml/'+ln+'/aceitar-parcial',{desfazer});if(!r)return;ftoast(desfazer?'Parcial desfeito.':'Parcial aceito: '+r.itens+' item(ns) não vem mais.'+(r.loja_fechada?' Loja '+ln+' fechada: Conciliado XML.':''));await arecCarregar();render();}
 async function arecRecusar(k,id,ln,desfazer){const r=await arecPost('/api/fiscal/pedido-compra/'+id+'/xml/'+ln+'/recusar-entrega',{desfazer});if(!r)return;if(!desfazer&&r.texto){const w=String(r.whats||'').replace(/\D/g,'');window.open('https://wa.me/'+(w.length>=10?'55'+w.replace(/^55/,''):'')+'?text='+encodeURIComponent(r.texto),'_blank');}ftoast(desfazer?'Recusa desfeita.':'Entrega recusada. Vendedor cobrado no WhatsApp.');await arecCarregar();render();}
