@@ -100,6 +100,63 @@ tr.det .detail{padding:0 18px 18px;border-bottom:1px solid var(--ln);width:100%;
 .rei-mini.r2{background:var(--amw);color:var(--amk)}
 .rei-mini.r3{background:var(--negw);color:var(--neg)}
 tr.det .dtbl tr.rei-bad td{background:var(--negw)}
+/* 23/10/26 (Tiago: "aqui não ajustou a tela no monitor automático"): layout é o original no monitor grande (≥1700px); abaixo disso
+   cada faixa aperta padding, fonte, barra de andamento, pills e botões pra tabela das lojas e a lista de itens caberem sem cortar
+   a coluna de ações nem as colunas Contado/Ajuste/Quando. Regra geral em CLAUDE.md. */
+td.merc{color:var(--ink3);font-size:12px}
+@media (max-width:1699px){
+  .main{padding:20px}
+  table{font-size:12.5px}
+  th{padding:9px 9px;font-size:10px;letter-spacing:.5px}
+  td{padding:9px 9px}
+  .mini{width:84px;margin-right:6px}
+  .pill{font-size:10.5px;padding:3px 8px}
+  td.who{white-space:normal;min-width:90px}
+  td.acoes{min-width:170px}
+  .acoes-w .btn{height:26px;padding:0 8px;font-size:11px}
+  .detail{padding:0 12px 14px}
+  tr.det .dtbl td{padding:7px 9px}
+  .dtbl td.desc{min-width:190px}
+  tr.det .dtbl td.merc{white-space:normal;overflow-wrap:anywhere;max-width:230px;min-width:140px;font-size:11.5px}
+  .rei{font-size:9.5px;padding:2px 6px;margin-left:6px}
+}
+@media (max-width:1399px){
+  .main{padding:16px}
+  table{font-size:12px}
+  th{padding:8px 6px;font-size:9.5px;letter-spacing:.3px}
+  td{padding:8px 6px}
+  .mini{width:64px;margin-right:5px}
+  .pill{font-size:10px;padding:2px 7px}
+  td.who{min-width:80px;font-size:11px}
+  td.acoes{min-width:150px}
+  .acoes-w{gap:4px}
+  .acoes-w .btn{height:24px;padding:0 7px;font-size:10.5px}
+  .feito{gap:5px}
+  .detail{padding:0 10px 12px}
+  .detail h3{font-size:12.5px}
+  tr.det .dtbl td{padding:6px 6px}
+  .dtbl td.desc{min-width:170px;font-size:11.5px}
+  .dtbl td .cod{font-size:10.5px}
+  tr.det .dtbl td.merc{max-width:190px;min-width:120px;font-size:11px}
+  .rei{font-size:9px;padding:1px 5px;margin-left:4px}
+  .kpi{padding:10px 14px}.kpi .v{font-size:19px}
+}
+@media (max-width:1199px){
+  .main{padding:12px}
+  table{font-size:11.5px}
+  th{padding:7px 5px;font-size:9px;letter-spacing:.2px}
+  td{padding:7px 5px}
+  .mini{width:48px;margin-right:4px}
+  .pill{font-size:9.5px;padding:2px 6px}
+  td.who{min-width:70px;font-size:10.5px}
+  td.acoes{min-width:130px}
+  .acoes-w .btn{height:22px;padding:0 6px;font-size:10px}
+  tr.det .dtbl td{padding:5px 5px}
+  .dtbl td.desc{min-width:150px;font-size:11px}
+  tr.det .dtbl td.merc{max-width:150px;min-width:100px;font-size:10.5px}
+  .kpi{padding:8px 12px}.kpi .v{font-size:17px}
+  .legend{gap:10px;font-size:11px;padding:10px 12px}
+}
 </style>
 </head>
 <body class="ds">
@@ -215,7 +272,7 @@ function detalheHtml(l) {
   return `<h3>Loja ${l.loja} · ${l.nome} <span class="who">${l.resp ? esc(l.resp) + ' · ' : ''}${l.iniciadoEm ? 'começou ' + hora(l.iniciadoEm) : 'não começou'}${l.concluidoEm ? ' · concluída ' + hora(l.concluidoEm) : ''}${l.ajustadoEm ? ' · <b style="color:var(--pos)">ajustada no ERP por ' + esc(l.ajustadoPor) + ' ' + hora(l.ajustadoEm) + '</b>' : ''}</span>
       <span class="filtro"><label><input type="checkbox" ${soDif ? 'checked' : ''} onchange="soDif=this.checked;render()"> só itens com ajuste</label></span></h3>
     <div class="tblwrap"><table class="dtbl"><thead><tr><th class="chk" title="Marcado = entra na aprovação do ajuste"><input type="checkbox" ${excluidos(l.loja).size ? '' : 'checked'} onchange="marcarTodos(${l.loja}, this.checked)"></th><th>Produto</th><th>Mercadológico</th><th class="num">Sistema</th><th class="num">Depósito</th><th class="num">Loja</th><th class="num">Contado</th><th class="num">Ajuste</th><th>Quando</th></tr></thead><tbody>
-    ${linhas.map(x => `<tr class="${excluidos(l.loja).has(String(x.cod)) ? 'fora' : ''}${x.reinc >= 3 ? ' rei-bad' : ''}"><td class="chk">${x.contado === null ? '' : `<input type="checkbox" ${excluidos(l.loja).has(String(x.cod)) ? '' : 'checked'} onchange="marcarItem(${l.loja}, '${esc(x.cod)}', this.checked)">`}</td><td class="desc"><span class="cod">${esc(x.cod)}</span>${esc(x.desc)}${x.reinc >= 2 ? `<span class="rei ${x.reinc >= 3 ? 'r3' : 'r2'}" title="Apareceu negativo em ${x.reinc} dias nos últimos 15">${x.reinc}ª vez em 15d${x.reinc >= 3 ? ' · investigar' : ''}</span>` : ''}${x.novoEm ? `<span class="rei novo" title="Entrou no negativo depois do envio da manhã">novo · ${hora(x.novoEm)}</span>` : ''}${x.saiuEm ? `<span class="rei saiu" title="No Atualizar das ${hora(x.saiuEm)} esse item já não estava negativo no ERP; ficou porque a loja já tinha contado">já não está negativo</span>` : ''}</td><td style="color:var(--ink3);font-size:12px">${esc(x.grupo)} › ${esc(x.sub)}</td>
+    ${linhas.map(x => `<tr class="${excluidos(l.loja).has(String(x.cod)) ? 'fora' : ''}${x.reinc >= 3 ? ' rei-bad' : ''}"><td class="chk">${x.contado === null ? '' : `<input type="checkbox" ${excluidos(l.loja).has(String(x.cod)) ? '' : 'checked'} onchange="marcarItem(${l.loja}, '${esc(x.cod)}', this.checked)">`}</td><td class="desc"><span class="cod">${esc(x.cod)}</span>${esc(x.desc)}${x.reinc >= 2 ? `<span class="rei ${x.reinc >= 3 ? 'r3' : 'r2'}" title="Apareceu negativo em ${x.reinc} dias nos últimos 15">${x.reinc}ª vez em 15d${x.reinc >= 3 ? ' · investigar' : ''}</span>` : ''}${x.novoEm ? `<span class="rei novo" title="Entrou no negativo depois do envio da manhã">novo · ${hora(x.novoEm)}</span>` : ''}${x.saiuEm ? `<span class="rei saiu" title="No Atualizar das ${hora(x.saiuEm)} esse item já não estava negativo no ERP; ficou porque a loja já tinha contado">já não está negativo</span>` : ''}</td><td class="merc">${esc(x.grupo)} › ${esc(x.sub)}</td>
       <td class="num mono" style="color:var(--neg);font-weight:700">${x.sys}</td><td class="num mono">${x.contado === null ? '—' : x.dep}</td><td class="num mono">${x.contado === null ? '—' : x.loja}</td><td class="num mono"><b>${x.contado ?? '—'}</b></td>
       <td class="num mono">${x.contado === null ? '<span class="d-wait">aguardando</span>' : x.zero ? `<span class="d-zero">não achei · +${x.diferenca}</span>` : `<b>+${x.diferenca}</b>`}</td>
       <td class="mono" style="font-size:11.5px;color:var(--ink3)">${hora(x.em)}</td></tr>`).join('') || '<tr><td colspan="9" class="empty">Nenhum item com ajuste.</td></tr>'}
