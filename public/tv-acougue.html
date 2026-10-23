@@ -64,21 +64,19 @@ svg.ic{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2;stroke-
 /* foto recortada (fundo branco removido): o produto fica sobre uma "bancada" escura com foco de luz e sombra
    embaixo (Tiago, 23/10: "só a carne fica estranho"), em vez de solto num retângulo cinza */
 img.rec{object-fit:contain!important;filter:drop-shadow(0 1.2em 1.6em rgba(0,0,0,.85)) saturate(1.12) contrast(1.04)!important;z-index:1}
-.bancada,.hero:has(img.rec),.full .foto:has(img.rec),.pat .foto:has(img.rec){background:
-  radial-gradient(55% 40% at 50% 34%,rgba(255,214,120,.16) 0,rgba(255,214,120,0) 100%),
-  radial-gradient(90% 70% at 50% 45%,#3b3330 0,#221e1c 45%,#100f0e 100%),
-  repeating-linear-gradient(97deg,rgba(255,255,255,.025) 0 .6em,rgba(0,0,0,.035) .6em 1.4em)}
+/* bancada = foto real de tábuas de madeira escura (CC0), já escurecida com luz quente e vinheta (public/tv-acougue-bancada.jpg) */
+.bancada,.hero:has(img.rec),.full .foto:has(img.rec),.pat .foto:has(img.rec){background:#1a110c url(/tv-acougue-bancada.jpg) center/cover no-repeat}
 .hero:has(img.rec):before,.full .foto:has(img.rec):before,.pat .foto:has(img.rec):before{content:"";position:absolute;left:10%;right:10%;top:56%;height:16%;background:radial-gradient(50% 50% at 50% 50%,rgba(0,0,0,.8) 0,rgba(0,0,0,0) 70%);pointer-events:none}
-.hero:has(img.rec):after,.full .foto:has(img.rec):after,.pat .foto:has(img.rec):after{content:"";position:absolute;inset:0;background:radial-gradient(80% 80% at 50% 45%,rgba(0,0,0,0) 55%,rgba(0,0,0,.65) 100%);pointer-events:none}
-.hero img.rec{inset:1em 1em 11em 1em;width:auto;height:auto;max-width:calc(100% - 2em);max-height:calc(100% - 12em);margin:auto}
+.hero:has(img.rec):after,.full .foto:has(img.rec):after,.pat .foto:has(img.rec):after{content:"";position:absolute;inset:0;background:radial-gradient(80% 80% at 50% 45%,rgba(0,0,0,0) 60%,rgba(0,0,0,.45) 100%);pointer-events:none}
+.hero img.rec{inset:1em 1em 11em 1em;width:calc(100% - 2em);height:calc(100% - 12em);margin:auto;object-position:center 45%}
 .hero:has(img.rec) .veu{background:linear-gradient(180deg,rgba(0,0,0,0) 52%,rgba(0,0,0,.75) 100%);z-index:1}
-.full .foto img.rec{inset:1.4em 1.4em 1.4em 6em;width:auto;height:auto;max-width:calc(100% - 7.4em);max-height:calc(100% - 2.8em);margin:auto}
+.full .foto img.rec{inset:2em 2em 2em 7em;width:calc(100% - 9em);height:calc(100% - 4em);margin:auto}
 .full .foto:has(img.rec):before{top:62%}
 .full .foto:has(img.rec) .veu{background:linear-gradient(90deg,var(--ink) 0,rgba(12,12,12,0) 30%);z-index:1}
-.pat .foto img.rec{inset:1.4em 1.4em 7em 3em;width:auto;height:auto;max-width:calc(100% - 4.4em);max-height:calc(100% - 8.4em);margin:auto}
+.pat .foto img.rec{inset:1.4em 1.4em 7em 3em;width:calc(100% - 4.4em);height:calc(100% - 8.4em);margin:auto}
 .pat .foto:has(img.rec):before{top:58%}
 .pat .foto:has(img.rec) .veu{background:none}
-.card .im img.rec{inset:.6em;width:auto;height:auto;max-width:calc(100% - 1.2em);max-height:calc(100% - 1.2em);margin:auto}
+.card .im img.rec{inset:.6em;width:calc(100% - 1.2em);height:calc(100% - 1.2em);margin:auto}
 .card .im:has(img.rec){background:radial-gradient(60% 60% at 50% 45%,#333 0,#161616 100%)}
 .tab li img.rec{object-fit:contain;background:#1c1c1c;padding:.15em}
 .vin .mosaico img.rec{object-fit:contain;background:#1a1a1a;padding:2em}
@@ -224,6 +222,14 @@ const arqPat = (a, tipo) => `/api/tv-acougue-publico/${TOKEN}/patrocinio/${a.id}
 // Fotos de catálogo vêm recortadas em fundo branco (fornecedor manda assim, 23/10). Na TV preta o retângulo branco
 // fica feio, então o navegador tira o branco uma vez (canvas, cantos ≥ 3/4 brancos = recorte) e guarda o PNG na memória.
 const PRONTAS = new Map();   // url → { src, recorte }
+// Nitidez (máscara de desfoque): as fotos de catálogo chegam em 500-1000 px e ficam moles numa TV de 1920; realça borda e textura.
+function nitidez(ctx, w, h, forca) {
+  const o = ctx.getImageData(0, 0, w, h); const p = o.data;
+  const t = document.createElement('canvas'); t.width = w; t.height = h; const tx = t.getContext('2d'); tx.filter = 'blur(1.3px)'; tx.drawImage(ctx.canvas, 0, 0); tx.filter = 'none';
+  const b = tx.getImageData(0, 0, w, h).data;
+  for (let i = 0; i < p.length; i += 4) for (let k = 0; k < 3; k++) { const v = p[i + k] + (p[i + k] - b[i + k]) * forca; p[i + k] = v < 0 ? 0 : v > 255 ? 255 : v; }
+  ctx.putImageData(o, 0, 0);
+}
 async function prepararFoto(url) {
   if (!url || PRONTAS.has(url)) return;
   PRONTAS.set(url, { src: url, recorte: false });
@@ -231,19 +237,36 @@ async function prepararFoto(url) {
     const bmp = await createImageBitmap(await (await fetch(url, { cache: 'force-cache' })).blob());
     const r = Math.min(1, 1280 / Math.max(bmp.width, bmp.height)); const w = Math.round(bmp.width * r), h = Math.round(bmp.height * r);
     const c = document.createElement('canvas'); c.width = w; c.height = h; const ctx = c.getContext('2d', { willReadFrequently: true }); ctx.drawImage(bmp, 0, 0, w, h);
+    nitidez(ctx, w, h, 0.6);
     const d = ctx.getImageData(0, 0, w, h); const px = d.data;
     const branco = (x, y) => { const i = (y * w + x) * 4; return px[i] > 238 && px[i + 1] > 238 && px[i + 2] > 238; };
     const cantos = [[2, 2], [w - 3, 2], [2, h - 3], [w - 3, h - 3]].filter(([x, y]) => branco(x, y)).length;
-    if (cantos < 3) return;
+    if (cantos < 3) { PRONTAS.set(url, { src: c.toDataURL('image/jpeg', 0.9), recorte: false }); return; }   // foto com cenário: só a nitidez
     // O "branco" do catálogo nem sempre é 255 (as fotos do fornecedor vêm em 247/247/247): o ponto de branco é lido dos
     // cantos. 1) tudo até 6 níveis abaixo dele vira transparente, com rampa curta pra não comer a gordura clara;
     // 2) erosão de 1 px tira a borda cinza do recorte.
     const cm = [[2, 2], [w - 3, 2], [2, h - 3], [w - 3, h - 3]].map(([x, y]) => { const i = (y * w + x) * 4; return Math.min(px[i], px[i + 1], px[i + 2]); }).sort((a, b) => a - b)[1];
     const corte = cm - 6, rampa = 14;
-    for (let i = 0; i < px.length; i += 4) { const m = Math.min(px[i], px[i + 1], px[i + 2]); if (m >= corte) px[i + 3] = 0; else if (m > corte - rampa) px[i + 3] = Math.round((corte - m) * 255 / rampa); }
-    const a0 = new Uint8ClampedArray(d.data.length / 4); for (let i = 0; i < a0.length; i++) a0[i] = px[i * 4 + 3];
+    // Só vira transparente o fundo que está LIGADO à borda da foto (preenchimento a partir das bordas): o brilho
+    // claro dentro do corte ou da tábua fica (antes virava furo e aparecia a madeira escura por trás).
+    const n = w * h, cand = new Uint8Array(n), alvo = new Uint8Array(n);
+    for (let i = 0; i < n; i++) { const m = Math.min(px[i * 4], px[i * 4 + 1], px[i * 4 + 2]); cand[i] = m > corte - rampa ? 1 : 0; }
+    const fila = new Int32Array(n); let ini = 0, fim = 0;
+    const semear = i => { if (cand[i] && !alvo[i]) { alvo[i] = 1; fila[fim++] = i; } };
+    for (let x = 0; x < w; x++) { semear(x); semear((h - 1) * w + x); } for (let y = 0; y < h; y++) { semear(y * w); semear(y * w + w - 1); }
+    while (ini < fim) { const i = fila[ini++]; const x = i % w; if (x > 0) semear(i - 1); if (x < w - 1) semear(i + 1); if (i >= w) semear(i - w); if (i + w < n) semear(i + w); }
+    for (let i = 0; i < n; i++) { if (!alvo[i]) continue; const m = Math.min(px[i * 4], px[i * 4 + 1], px[i * 4 + 2]); px[i * 4 + 3] = m >= corte ? 0 : Math.round((corte - m) * 255 / rampa); }
+    const a0 = new Uint8ClampedArray(n); for (let i = 0; i < n; i++) a0[i] = px[i * 4 + 3];
     for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) { const i = y * w + x; const a = Math.min(a0[i], a0[i - 1], a0[i + 1], a0[i - w], a0[i + w]); if (a < a0[i]) px[i * 4 + 3] = a; }
     ctx.putImageData(d, 0, 0);
+    // Enquadra no produto: corta a margem vazia em volta (foto de catálogo vem com muito branco) pra ele encher a área
+    let x0 = w, y0 = h, x1 = -1, y1 = -1;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (px[(y * w + x) * 4 + 3] > 20) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    if (x1 > x0 && y1 > y0) {
+      const mg = Math.round(Math.max(x1 - x0, y1 - y0) * 0.04); x0 = Math.max(0, x0 - mg); y0 = Math.max(0, y0 - mg); x1 = Math.min(w - 1, x1 + mg); y1 = Math.min(h - 1, y1 + mg);
+      const o = document.createElement('canvas'); o.width = x1 - x0 + 1; o.height = y1 - y0 + 1; o.getContext('2d').drawImage(c, x0, y0, o.width, o.height, 0, 0, o.width, o.height);
+      PRONTAS.set(url, { src: o.toDataURL('image/png'), recorte: true }); return;
+    }
     PRONTAS.set(url, { src: c.toDataURL('image/png'), recorte: true });
   } catch (e) { /* fica com a foto original */ }
 }
