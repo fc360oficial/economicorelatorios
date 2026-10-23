@@ -67,7 +67,8 @@
         { href: '/etica.html', ic: 'shield', txt: 'Canal de Ética' },
         { href: '/gestao-pessoas.html', ic: 'dashboard', txt: 'TESTE DONATO' },
         { href: '/teste-tiago.html', ic: 'dashboard', txt: 'TESTE TIAGO' },
-        { href: '/escalas.html', ic: 'list', txt: 'Escalas' }
+        { href: '/escalas.html', ic: 'list', txt: 'Escalas' },
+        { href: '/termos-escala.html', ic: 'list', txt: 'Termos de Escala' }
       ]},
     { id: 'financeiro', ic: 'bank', txt: 'Financeiro', sub: [
         { href: '/conciliador.html', ic: 'bank', txt: 'Conciliação de Saídas' },

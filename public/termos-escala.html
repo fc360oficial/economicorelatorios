@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="/design-system.css">
+<script src="/nav.js" defer></script>
+<script src="/gente-ui.js"></script>
+<title>Termos de Escala — DP / RH · Econômico Supermercados</title>
+<!-- DP / RH › Termos de Escala (23/10/2026). Termo de Ciência de Escala de Trabalho aos Domingos e Feriados: o DP escolhe
+     loja + data + tipo, marca os funcionários ativos da loja (PontoCerto) e gera UM PDF com um termo por página (A4), com
+     prévia, histórico, reimpressão e modelo de texto configurável. Regras/PDF em lib/termos-escala.js, rotas em
+     lib/termos-escala-rotas.js. Mesma casca da tela Escalas (rail nativo + abas); permissões da central de pessoas. -->
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+[hidden]{display:none!important}
+body{font-family:var(--font);background:var(--pap);color:var(--ink);min-height:100vh;font-size:13px}
+.content{min-height:100vh;display:flex;flex-direction:column}
+.topbar{height:58px;background:var(--crd);border-bottom:1px solid var(--ln);display:flex;align-items:center;gap:14px;padding:0 24px;position:sticky;top:0;z-index:40}
+.topbar h1{font-size:16px;font-weight:800;letter-spacing:-.2px;display:flex;align-items:center;gap:8px}.topbar h1 .crumb{color:var(--ink3);font-weight:600}.topbar h1 .ds-ic{color:var(--ink3)}
+.topbar p{font-size:11.5px;color:var(--ink3);margin-top:1px}.topbar .end{margin-left:auto;display:flex;align-items:center;gap:12px}
+.who{display:flex;align-items:center;gap:9px;font-size:12px}.who .ds-avatar{background:#101B33;color:#FFC933}.who b{display:block;font-size:12.5px}.who span{color:var(--ink3);font-size:11px}
+.modnav{background:var(--crd);border-bottom:1px solid var(--ln);display:flex;flex-wrap:wrap;align-items:stretch;padding:0 14px;position:sticky;top:58px;z-index:39}
+.modnav a{display:flex;align-items:center;gap:6px;padding:0 12px;height:42px;font-size:12.5px;font-weight:600;color:var(--ink2);border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;user-select:none}
+.modnav a .ds-ic{width:15px;height:15px;color:var(--ink3)}.modnav a:hover{color:var(--ink)}.modnav a.on{color:var(--ink);border-bottom-color:var(--am)}.modnav a.on .ds-ic{color:var(--amk)}
+.page{padding:20px 24px 40px;max-width:1700px;width:100%}
+.aviso{background:var(--amw);border:1px solid var(--am-ln);color:var(--amk);border-radius:10px;padding:10px 14px;font-size:12.5px;margin-bottom:14px;line-height:1.5}.aviso.neg{background:var(--negw);border-color:#F1B9C3;color:var(--neg)}.aviso.inf{background:var(--infw);border-color:var(--inf);color:var(--inf)}.aviso.ok{background:var(--posw);border-color:#B9E2C8;color:var(--pos)}
+.note{font-size:11.5px;color:var(--ink3);line-height:1.5;margin:10px 2px 0}
+.empty{padding:36px 20px;text-align:center;color:var(--ink3);font-size:12.5px}.empty b{display:block;color:var(--ink2);font-size:13.5px;margin-bottom:3px}
+.sk{height:14px;border-radius:6px;background:linear-gradient(90deg,var(--wsh) 25%,var(--ln) 50%,var(--wsh) 75%);background-size:200% 100%;animation:sk 1.3s ease infinite;margin:10px 14px}@keyframes sk{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;border-radius:20px;padding:3px 9px;white-space:nowrap}.pill::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor}
+.pill.ok{background:var(--posw);color:var(--pos)}.pill.bad{background:var(--negw);color:var(--neg)}.pill.warn{background:var(--amw);color:var(--amk)}.pill.info{background:var(--infw);color:var(--inf)}.pill.gr{background:var(--wsh);color:var(--ink2)}
+.etq{display:inline-block;background:#101B33;color:#FFC933;font-weight:800;font-size:10px;padding:2px 6px;border-radius:5px;margin-right:6px;vertical-align:1px}.etq.cd{background:var(--inf);color:#fff}
+/* nova emissão: passos à esquerda, prévia à direita */
+.emit{display:grid;grid-template-columns:minmax(0,1fr) 440px;gap:16px;align-items:start}
+.step{background:var(--crd);border:1px solid var(--ln);border-radius:var(--r-lg);box-shadow:var(--sh-sm);margin-bottom:14px}
+.step .hd{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--ln)}.step .hd b{font-size:13.5px}.step .hd small{color:var(--ink3);font-size:11.5px;margin-left:auto}
+.step .n{width:24px;height:24px;border-radius:50%;background:#101B33;color:#FFC933;font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center;flex:none}.step.done .n{background:var(--pos);color:#fff}
+.step .bd{padding:14px 16px}
+.campos{display:grid;grid-template-columns:minmax(220px,1.3fr) minmax(160px,1fr) minmax(220px,1.2fr);gap:12px}.campos label{display:grid;gap:5px;font-size:11px;font-weight:700;color:var(--ink2)}.campos label span.req{color:var(--neg)}
+.campos .ds-input,.campos .ds-select{height:36px;font-size:12.5px;width:100%}
+.radios{display:flex;gap:8px;align-items:center;height:36px}.radios label{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--ink);cursor:pointer;padding:0 12px;height:36px;border:1px solid var(--ln2);border-radius:8px;flex:1;justify-content:center}.radios label.on{background:#101B33;color:#FFC933;border-color:#101B33}.radios input{accent-color:#101B33}
+.hint{font-size:11.5px;color:var(--ink2);margin-top:8px;line-height:1.5}.hint b{color:var(--ink)}
+.ftb{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}.ftb .ds-input,.ftb .ds-select{height:34px;font-size:12.5px}.ftb .ds-input{flex:1;min-width:180px}.ftb .end{margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.tw{overflow:auto;background:var(--crd);border:1px solid var(--ln);border-radius:var(--r)}table.t{width:100%;border-collapse:collapse;font-size:12px}table.t th{text-align:left;font-size:10px;letter-spacing:.8px;text-transform:uppercase;color:var(--ink3);padding:8px 10px;background:var(--wsh);font-weight:700;white-space:nowrap;position:sticky;top:0;z-index:1}table.t td{padding:7px 10px;border-top:1px solid var(--ln);color:var(--ink2);vertical-align:middle}table.t th.r,table.t td.r{text-align:right}
+table.t td.nm{color:var(--ink);font-weight:700;white-space:normal}table.t tr.sel td{background:var(--amw)}table.t tr.off td{color:var(--ink3)}table.t input[type=checkbox]{width:15px;height:15px;accent-color:#101B33;cursor:pointer}table.t tr.cl{cursor:pointer}table.t tr.cl:hover td{background:var(--wsh)}table.t tr.sel.cl:hover td{background:#FFEFB8}
+.tw.func{max-height:460px}.cnt{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--ink2);margin-top:10px;flex-wrap:wrap}.cnt b{color:var(--ink)}
+.resumo{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}.resumo div{background:var(--wsh);border-radius:9px;padding:9px 12px}.resumo .l{font-size:10px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.5px}.resumo .v{font-size:14px;font-weight:800;margin-top:2px;white-space:normal}
+.chips{display:flex;flex-wrap:wrap;gap:5px}.chips span{font-size:11px;font-weight:600;background:var(--crd);border:1px solid var(--ln);border-radius:20px;padding:3px 9px;color:var(--ink2)}.chips span i{font-style:normal;color:var(--ink3);margin-left:4px;cursor:pointer}.chips span i:hover{color:var(--neg)}
+.acoes{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.acoes .end{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.ds-btn.big{height:44px;padding:0 20px;font-size:13.5px}.ds-btn.big small{display:block;font-weight:500;font-size:10.5px;opacity:.8}
+.prev{position:sticky;top:116px}.prev .bd{padding:10px}.prev .nav{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink2);padding:0 6px 0 0}.prev .nav b{color:var(--ink)}.prev .nav .end{margin-left:auto;display:flex;gap:6px}
+.prev iframe{width:100%;aspect-ratio:1/1.3;border:1px solid var(--ln);border-radius:8px;background:#fff;display:block}.prev .ph{aspect-ratio:1/1.3;border:1px dashed var(--ln2);border-radius:8px;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--ink3);font-size:12px;padding:20px;line-height:1.5}
+.sucesso{background:var(--posw);border:1px solid #B9E2C8;border-radius:var(--r-lg);padding:14px 16px;margin-bottom:14px}.sucesso b{display:block;font-size:14px;color:var(--pos);margin-bottom:4px}.sucesso .acoes{margin-top:10px}
+/* histórico */
+.tb{display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--crd);border:1px solid var(--ln);border-radius:var(--r-lg);padding:9px 10px;margin-bottom:16px}
+.tb .ds-input,.tb .ds-select{height:34px;font-size:12.5px}.tb .end{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap}.tb .lbl{font-size:11px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.6px}
+table.t a.lk{color:var(--inf);font-weight:700;cursor:pointer;text-decoration:none;white-space:nowrap}table.t a.lk:hover{text-decoration:underline}table.t td.ac{white-space:nowrap}table.t td.ac a{margin-right:10px}table.t td.ac a.neg{color:var(--neg)}
+table.t td.nomes{white-space:normal;max-width:360px;color:var(--ink2);font-size:11.5px;line-height:1.4}
+/* modelo */
+.mod{display:grid;grid-template-columns:minmax(0,1fr) 440px;gap:16px;align-items:start}.mod label{display:grid;gap:5px;font-size:11px;font-weight:700;color:var(--ink2);margin-bottom:12px}.mod textarea,.mod input{padding:8px 10px;border:1px solid var(--ln2);border-radius:8px;font:inherit;font-size:12.5px;font-weight:500;width:100%;line-height:1.5;background:var(--crd);color:var(--ink)}.mod textarea{resize:vertical}
+/* modal */
+.f-ov{position:fixed;inset:0;background:rgba(10,17,32,.55);z-index:9000;display:flex;align-items:flex-start;justify-content:center;padding:40px 14px;overflow:auto}
+.f-md{background:var(--crd);color:var(--ink);border-radius:14px;width:100%;max-width:720px;box-shadow:0 20px 60px rgba(0,0,0,.35);overflow:hidden}
+.f-md .hd{background:#101B33;color:#fff;padding:11px 16px;display:flex;justify-content:space-between;align-items:center}.f-md .hd b{font-size:14px}.f-md .hd small{display:block;color:#B7C0D6;font-size:11.5px}.f-md .x{background:transparent;border:none;color:#fff;font-size:22px;cursor:pointer}
+.f-md .bd{padding:14px 16px;display:grid;gap:10px}.f-md .acoes{justify-content:flex-end}.f-md textarea{padding:8px 10px;border:1px solid var(--ln2);border-radius:8px;font:inherit;font-size:12.5px;width:100%}
+/* 23/10/26 — regra do CLAUDE.md: a base é o monitor grande; as faixas apertam até caber em 1600/1366/1280 sem rolagem lateral */
+@media(max-width:1599px){.page{padding:18px 20px 36px}.emit{grid-template-columns:minmax(0,1fr) 400px}.mod{grid-template-columns:minmax(0,1fr) 400px}.resumo .v{font-size:13px}table.t td.nomes{max-width:300px}}
+@media(max-width:1399px){.emit{grid-template-columns:minmax(0,1fr) 360px}.mod{grid-template-columns:minmax(0,1fr) 360px}.campos{grid-template-columns:1fr 1fr}.campos label:last-child{grid-column:1/-1}.resumo{grid-template-columns:repeat(2,1fr)}table.t{font-size:11.5px}table.t th,table.t td{padding:6px 8px}.tb .lbl{font-size:10px}table.t td.nomes{max-width:240px}}
+@media(max-width:1299px){.emit{grid-template-columns:1fr}.prev{position:static}.mod{grid-template-columns:1fr}.tb{gap:6px}.tb .ds-btn{padding-left:9px;padding-right:9px}}
+@media(max-width:1199px){.topbar{padding:0 16px}.page{padding:16px}.modnav a .ds-ic{display:none}.tb .end{margin-left:0}}
+@media(max-width:820px){.modnav{position:static;overflow-x:auto}.topbar{height:auto;padding:10px 14px;flex-wrap:wrap}.topbar .end{margin-left:0}.page{padding:12px}.campos{grid-template-columns:1fr}.resumo{grid-template-columns:1fr 1fr}.acoes .end{margin-left:0}}
+</style>
+</head>
+<body class="dsnav-pad">
+<div class="content">
+  <header class="topbar"><div><h1 id="tb-h1"><span class="crumb">DP / RH</span></h1><p id="tb-sub"></p></div><div class="end"><div class="who" id="who"></div></div></header>
+  <nav class="modnav" id="modnav"></nav>
+  <div class="page" id="page"><div class="sk"></div><div class="sk" style="width:60%"></div></div>
+</div>
+<script>
+const { $, $$, esc, api, toast, dBR } = G;
+let ME = null, PAG = 'nova';
+const ST = { loja: null, data: null, tipo: null, info: null, funcs: [], fonte: null, sel: new Set(), busca: '', funcao: '', previaIdx: 0, previaUrl: null, sucesso: null, carregando: false };
+const H = { loja: '', func: '', de: '', ate: '', dataTrabalho: '', tipo: '', status: '' };
+const ic = n => '<svg class="ds-ic"><use href="/icons.svg#' + n + '"/></svg>';
+const lojaTxt = n => (ME.lojas.find(l => l.n === +n) || {}).txt || '—'; const lojaCod = n => lojaTxt(n).split(' · ')[0];
+const etq = n => '<span class="etq' + (+n === 10 ? ' cd' : '') + '">' + esc(lojaCod(n)) + '</span>';
+const dt = iso => iso ? new Date(iso).toLocaleDateString('pt-BR') + ' ' + new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—';
+const skel = () => '<div class="sk"></div><div class="sk" style="width:70%"></div><div class="sk" style="width:85%"></div>';
+const erroBox = e => '<div class="aviso neg">' + esc(e.message || e) + '</div>';
+const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const selLoja = (v, vazio) => (vazio ? '<option value="">' + esc(vazio) + '</option>' : '') + ME.lojas.map(l => '<option value="' + l.n + '"' + (String(l.n) === String(v) ? ' selected' : '') + '>' + esc(l.txt) + '</option>').join('');
+const NAV = [{ id: 'nova', txt: 'Nova emissão', ic: 'printer', sub: 'Unidade, data e tipo → funcionários → conferência → PDF com um termo por página', so: 'emitir' }, { id: 'hist', txt: 'Histórico de emissões', ic: 'list', sub: 'Tudo que já foi emitido: visualizar, baixar e reimprimir o PDF original' }, { id: 'modelo', txt: 'Modelo do termo', ic: 'settings', sub: 'Texto do documento (sujeito à validação do jurídico)' }];
+const navVisivel = () => NAV.filter(n => !n.so || ME[n.so]);
+function ir(p) { const n = NAV.find(x => x.id === p); if (!n || (n.so && !ME[n.so])) return; PAG = p; $$('#modnav a').forEach(a => a.classList.toggle('on', a.dataset.p === p)); $('#tb-h1').innerHTML = '<span class="crumb">DP / RH · Termos de Escala</span>' + ic('chevron-right') + esc(n.txt); $('#tb-sub').textContent = n.sub; history.replaceState(null, '', '#' + p); $('#page').innerHTML = skel(); ({ nova, hist, modelo })[p](); }
+async function iniciar() {
+  try { ME = await api('/api/termos-escala/me'); } catch (e) { $('#page').innerHTML = e.status === 403 ? '<div class="aviso neg"><b>Sem acesso aos Termos de Escala.</b> ' + esc(e.message) + '</div>' : erroBox(e); return; }
+  $('#modnav').innerHTML = navVisivel().map(n => '<a data-p="' + n.id + '">' + ic(n.ic) + '<span>' + esc(n.txt) + '</span></a>').join(''); $$('#modnav a').forEach(a => a.onclick = () => ir(a.dataset.p));
+  const PAP = { gerente: 'Gerente', rh_ponto: 'RH Ponto', rh_doc: 'RH Documentação', rh_adm: 'RH Admissões', coordenacao: 'Coordenação', diretoria: 'Diretoria', juridico: 'Jurídico', ti: 'TI' };
+  $('#who').innerHTML = '<div class="ds-avatar">' + esc(ME.nome.split(' ').slice(0, 2).map(s => s[0]).join('')) + '</div><div><b>' + esc(ME.nome) + '</b><span>' + esc(ME.papeis.map(p => PAP[p] || p).join(' · ') || 'sem papel') + '</span></div>';
+  if (!ME.lojas.length) { $('#page').innerHTML = '<div class="aviso neg">Seu papel não tem unidade associada. Peça à Coordenação para designar a(s) loja(s).</div>'; return; }
+  ST.loja = ME.lojas[0].n; ST.data = ME.proximoDomingo;
+  const h = location.hash.replace('#', ''); ir(navVisivel().some(n => n.id === h) ? h : (ME.emitir ? 'nova' : 'hist'));
+  window.addEventListener('hashchange', () => { const p = location.hash.replace('#', ''); if (p !== PAG && navVisivel().some(n => n.id === p)) ir(p); });
+}
+
+// ── Nova emissão ──
+const selValidos = () => ST.funcs.filter(f => ST.sel.has(String(f.id)));
+function nova() {
+  const el = $('#page');
+  el.innerHTML = (ME.modelo.validadoJuridico ? '' : '<div class="aviso">O texto do modelo ainda <b>não foi validado pelo setor jurídico</b> (aba Modelo do termo). Os termos saem com o texto padrão; a validação não bloqueia a emissão.</div>') +
+    '<div id="n-sucesso"></div><div class="emit"><div>' +
+    '<div class="step" id="s1"><div class="hd"><span class="n">1</span><b>Dados da emissão</b><small>uma data por emissão</small></div><div class="bd"><div class="campos">' +
+      '<label>Unidade <span class="req">*</span><select class="ds-select" id="n-loja">' + selLoja(ST.loja) + '</select></label>' +
+      '<label>Data do trabalho <span class="req">*</span><input type="date" class="ds-input" id="n-data" value="' + ST.data + '"></label>' +
+      '<label>Tipo de escala <span class="req">*</span><div class="radios" id="n-tipo"><label data-t="domingo"><input type="radio" name="tipo" value="domingo"> Domingo</label><label data-t="feriado"><input type="radio" name="tipo" value="feriado"> Feriado</label></div></label>' +
+    '</div><div class="hint" id="n-hint"></div></div></div>' +
+    '<div class="step" id="s2"><div class="hd"><span class="n">2</span><b>Selecionar funcionários</b><small id="n-fonte"></small></div><div class="bd">' +
+      '<div class="ftb"><input class="ds-input" id="n-busca" placeholder="Pesquisar por nome ou CPF (4 últimos dígitos)…" value="' + esc(ST.busca) + '"><select class="ds-select" id="n-funcao"><option value="">Todas as funções</option></select><div class="end"><button class="ds-btn ds-btn-secondary" id="n-todos" type="button">Selecionar todos</button><button class="ds-btn ds-btn-ghost" id="n-nenhum" type="button">Desmarcar todos</button></div></div>' +
+      '<div class="tw func" id="n-tab">' + skel() + '</div><div class="cnt" id="n-cnt"></div></div></div>' +
+    '<div class="step" id="s3"><div class="hd"><span class="n">3</span><b>Conferência</b><small>revise antes de gerar</small></div><div class="bd" id="n-resumo"></div></div>' +
+    '<div class="step" id="s4"><div class="hd"><span class="n">4</span><b>Emissão</b><small>um PDF, um termo por página A4</small></div><div class="bd"><div class="acoes"><span class="note" style="margin:0">A emissão fica registrada no histórico com responsável, data e hora. Nada muda na escala, no banco de horas ou no ponto.</span><div class="end"><button class="ds-btn ds-btn-secondary" id="n-previa-btn" type="button">' + ic('search') + 'Visualizar prévia</button><button class="ds-btn ds-btn-primary big" id="n-emitir" type="button" disabled>' + ic('printer') + '<span>Gerar termos em PDF<small id="n-emitir-sub">nenhum funcionário selecionado</small></span></button></div></div></div></div>' +
+    '</div><div class="step prev"><div class="hd">' + ic('search') + '<b>Prévia do documento</b><small>como vai sair no papel</small></div><div class="bd"><div class="nav" id="p-nav"></div><div id="p-box"></div></div></div></div>';
+  $('#n-loja').onchange = () => { ST.loja = +$('#n-loja').value; ST.sel.clear(); carregarFuncs(); };
+  $('#n-data').onchange = () => { ST.data = $('#n-data').value; ST.tipo = null; carregarInfo(); };
+  $$('#n-tipo input').forEach(r => r.onchange = () => { ST.tipo = r.value; pintarTipo(); atualizar(); });
+  $('#n-busca').oninput = () => { ST.busca = $('#n-busca').value; tabela(); };
+  $('#n-funcao').onchange = () => { ST.funcao = $('#n-funcao').value; tabela(); };
+  $('#n-todos').onclick = () => { listados().filter(f => f.ok).forEach(f => ST.sel.add(String(f.id))); tabela(); atualizar(); };
+  $('#n-nenhum').onclick = () => { ST.sel.clear(); tabela(); atualizar(); };
+  $('#n-previa-btn').onclick = () => { if (!selValidos().length) { toast('Selecione pelo menos um funcionário', 'neg'); return; } previa(true); $('.prev').scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+  $('#n-emitir').onclick = emitir;
+  if (ST.sucesso) mostrarSucesso();
+  carregarInfo(); carregarFuncs();
+}
+function pintarTipo() { $$('#n-tipo label').forEach(l => { l.classList.toggle('on', l.dataset.t === ST.tipo); l.querySelector('input').checked = l.dataset.t === ST.tipo; }); }
+async function carregarInfo() {
+  ST.info = null; $('#n-hint').innerHTML = '<span style="color:var(--ink3)">conferindo a data…</span>';
+  if (!ST.data) { $('#n-hint').innerHTML = '<span style="color:var(--neg)">Informe a data do trabalho.</span>'; atualizar(); return; }
+  try { ST.info = await api('/api/termos-escala/data/' + ST.data); } catch (e) { $('#n-hint').innerHTML = '<span style="color:var(--neg)">' + esc(e.message) + '</span>'; atualizar(); return; }
+  const i = ST.info; if (!ST.tipo && i.sugestao) ST.tipo = i.sugestao; pintarTipo();
+  $('#n-hint').innerHTML = '<b>' + dBR(i.data) + ' · ' + esc(i.diaSemanaTxt) + '</b>' + (i.feriado ? ' · feriado: <b>' + esc(i.nomeFeriado) + '</b>' : '') + (i.sugestao ? ' — tipo sugerido: <b>' + esc(ME.tipos[i.sugestao]) + '</b>' : '') + i.avisos.map(a => '<div style="color:var(--amk);margin-top:4px">⚠ ' + esc(a) + '</div>').join('');
+  atualizar(); previa();
+}
+async function carregarFuncs() {
+  ST.funcs = []; ST.carregando = true; $('#n-tab').innerHTML = skel(); $('#n-fonte').textContent = 'lendo o cadastro do PontoCerto…'; $('#n-cnt').innerHTML = ''; atualizar();
+  try { const r = await api('/api/termos-escala/funcionarios/' + ST.loja); ST.funcs = r.funcionarios; ST.fonte = r.gerado_em; }
+  catch (e) { ST.carregando = false; $('#n-tab').innerHTML = erroBox(e); $('#n-fonte').textContent = ''; return; }
+  ST.carregando = false; [...ST.sel].forEach(id => { if (!ST.funcs.some(f => String(f.id) === id)) ST.sel.delete(id); });
+  const funcoes = [...new Set(ST.funcs.map(f => f.cargo).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  $('#n-funcao').innerHTML = '<option value="">Todas as funções (' + ST.funcs.length + ')</option>' + funcoes.map(c => '<option value="' + esc(c) + '"' + (c === ST.funcao ? ' selected' : '') + '>' + esc(c) + ' (' + ST.funcs.filter(f => f.cargo === c).length + ')</option>').join('');
+  if (ST.funcao && !funcoes.includes(ST.funcao)) ST.funcao = '';
+  $('#n-fonte').textContent = ST.funcs.length + ' ativos em ' + lojaTxt(ST.loja) + ' · cadastro do PontoCerto' + (ST.fonte ? ' de ' + dt(ST.fonte) : '');
+  tabela(); atualizar();
+}
+const listados = () => { const q = norm(ST.busca).trim(); return ST.funcs.filter(f => !ST.funcao || f.cargo === ST.funcao).filter(f => !q || norm(f.nome).includes(q) || (f.cpf_fim || '').replace(/\D/g, '').includes(q.replace(/\D/g, '') || '§')); };
+function tabela() {
+  const L = listados();
+  if (!ST.funcs.length) { $('#n-tab').innerHTML = '<div class="empty"><b>Nenhum funcionário ativo nesta unidade</b>O cadastro vem do PontoCerto (equipe/unidade da pessoa).</div>'; $('#n-cnt').innerHTML = ''; return; }
+  const todosOk = L.filter(f => f.ok), todosSel = todosOk.length && todosOk.every(f => ST.sel.has(String(f.id)));
+  $('#n-tab').innerHTML = '<table class="t"><thead><tr><th style="width:34px"><input type="checkbox" id="n-chk-all"' + (todosSel ? ' checked' : '') + ' title="marcar/desmarcar os listados"></th><th>Nome completo</th><th>CPF</th><th>Função</th><th>Setor</th><th>Situação</th></tr></thead><tbody>' +
+    (L.length ? L.map(f => { const id = String(f.id), on = ST.sel.has(id); return '<tr class="' + (f.ok ? 'cl' : 'off') + (on ? ' sel' : '') + '" data-id="' + id + '"><td><input type="checkbox" data-id="' + id + '"' + (on ? ' checked' : '') + (f.ok ? '' : ' disabled') + '></td><td class="nm">' + esc(f.nome) + '</td><td>' + esc(f.cpf_fim || '—') + '</td><td>' + esc(f.cargo || '—') + '</td><td>' + esc(f.setor || '—') + '</td><td>' + (f.ok ? '<span class="pill ok">Ativo</span>' : '<span class="pill bad" title="' + esc(f.pendencias.join('; ')) + '">dados incompletos</span>') + '</td></tr>'; }).join('') : '<tr><td colspan="6" class="empty">Nenhum funcionário bate com a pesquisa.</td></tr>') + '</tbody></table>';
+  $('#n-chk-all').onchange = e => { todosOk.forEach(f => e.target.checked ? ST.sel.add(String(f.id)) : ST.sel.delete(String(f.id))); tabela(); atualizar(); };
+  $$('#n-tab tr.cl').forEach(tr => tr.onclick = e => { const id = tr.dataset.id; if (e.target.tagName !== 'INPUT') { ST.sel.has(id) ? ST.sel.delete(id) : ST.sel.add(id); } else { e.target.checked ? ST.sel.add(id) : ST.sel.delete(id); } tabela(); atualizar(); });
+  const inc = ST.funcs.filter(f => !f.ok).length;
+  $('#n-cnt').innerHTML = '<b>' + ST.sel.size + '</b> selecionado(s) de <b>' + ST.funcs.length + '</b> ativos' + (L.length !== ST.funcs.length ? ' · ' + L.length + ' listado(s) pela pesquisa' : '') + (inc ? ' · <span style="color:var(--neg)">' + inc + ' sem CPF ou função no PontoCerto (não recebem termo)</span>' : '');
+}
+function atualizar() {
+  const S = selValidos(); const pronto = !!(ST.loja && ST.data && ST.tipo && S.length && ST.info);
+  $('#s1').classList.toggle('done', !!(ST.loja && ST.data && ST.tipo)); $('#s2').classList.toggle('done', S.length > 0); $('#s3').classList.toggle('done', pronto);
+  const b = $('#n-emitir'); b.disabled = !pronto; $('#n-emitir-sub').textContent = !ST.tipo ? 'escolha o tipo de escala' : !S.length ? 'nenhum funcionário selecionado' : S.length + ' documento(s) · ' + lojaCod(ST.loja) + ' · ' + dBR(ST.data);
+  $('#n-resumo').innerHTML = '<div class="resumo"><div><div class="l">Unidade</div><div class="v">' + esc(lojaTxt(ST.loja)) + '</div></div><div><div class="l">Data do trabalho</div><div class="v">' + (ST.data ? dBR(ST.data) + (ST.info ? ' <small style="font-weight:600;color:var(--ink3)">' + esc(ST.info.diaSemanaTxt) + '</small>' : '') : '—') + '</div></div><div><div class="l">Tipo de escala</div><div class="v">' + (ST.tipo ? esc(ME.tipos[ST.tipo]) + (ST.tipo === 'feriado' && ST.info && ST.info.nomeFeriado ? ' <small style="font-weight:600;color:var(--ink3)">' + esc(ST.info.nomeFeriado) + '</small>' : '') : '<span style="color:var(--neg)">escolha</span>') + '</div></div><div><div class="l">Funcionários</div><div class="v">' + S.length + '</div></div></div>' +
+    (S.length ? '<div class="chips">' + S.map(f => '<span>' + esc(f.nome) + '<i data-id="' + f.id + '" title="tirar da seleção">✕</i></span>').join('') + '</div>' : '<div class="note" style="margin:0">Marque na lista acima quem vai trabalhar nesta data. Cada pessoa vira uma página do PDF.</div>');
+  $$('#n-resumo .chips i').forEach(i => i.onclick = () => { ST.sel.delete(String(i.dataset.id)); tabela(); atualizar(); });
+  if (ST.previaIdx >= S.length) ST.previaIdx = 0; previaNav();
+}
+let previaTimer = null;
+function previaNav() {
+  const S = selValidos(); const f = S[ST.previaIdx];
+  $('#p-nav').innerHTML = S.length ? '<button class="ds-btn ds-btn-ghost" id="p-ant" type="button"' + (S.length < 2 ? ' disabled' : '') + '>‹</button><span><b>' + (ST.previaIdx + 1) + '</b> de ' + S.length + ' · ' + esc(f.nome) + '</span><button class="ds-btn ds-btn-ghost" id="p-prox" type="button"' + (S.length < 2 ? ' disabled' : '') + '>›</button><div class="end"><button class="ds-btn ds-btn-secondary" id="p-abrir" type="button"' + (ST.previaUrl ? '' : ' disabled') + '>Abrir em nova aba</button></div>' : '<span style="color:var(--ink3)">Selecione funcionários para ver a prévia.</span>';
+  if (!S.length) { $('#p-box').innerHTML = '<div class="ph">A prévia mostra o termo exatamente como vai sair no PDF, com os dados do PontoCerto. Escolha a data, o tipo e marque os funcionários.</div>'; ST.previaUrl = null; return; }
+  $('#p-ant').onclick = () => { ST.previaIdx = (ST.previaIdx - 1 + S.length) % S.length; previaNav(); previa(true); }; $('#p-prox').onclick = () => { ST.previaIdx = (ST.previaIdx + 1) % S.length; previaNav(); previa(true); };
+  $('#p-abrir').onclick = () => { if (ST.previaUrl) window.open(ST.previaUrl, '_blank'); };
+  clearTimeout(previaTimer); previaTimer = setTimeout(() => previa(), 350);
+}
+async function previa(agora) {
+  const S = selValidos(); const f = S[ST.previaIdx]; if (!f || !ST.tipo || !ST.data) return;
+  const chave = [ST.loja, ST.data, ST.tipo, f.id].join('|'); if (!agora && ST.previaChave === chave && ST.previaUrl) return;
+  $('#p-box').innerHTML = '<div class="ph">gerando a prévia…</div>';
+  try {
+    const r = await fetch('/api/termos-escala/previa', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ loja: ST.loja, data: ST.data, tipo: ST.tipo, funcId: f.id }) });
+    if (!r.ok) { let j = null; try { j = await r.json(); } catch (e) {} throw new Error((j && j.error) || 'HTTP ' + r.status); }
+    const blob = await r.blob(); if (ST.previaUrl) URL.revokeObjectURL(ST.previaUrl); ST.previaUrl = URL.createObjectURL(blob); ST.previaChave = chave;
+    $('#p-box').innerHTML = '<iframe src="' + ST.previaUrl + '#toolbar=0&navpanes=0&view=FitH" title="Prévia do termo"></iframe>'; const b = $('#p-abrir'); if (b) b.disabled = false;
+  } catch (e) { $('#p-box').innerHTML = '<div class="ph" style="color:var(--neg)">' + esc(e.message) + '</div>'; }
+}
+async function emitir(confirmarDuplicado) {
+  const S = selValidos(); if (!S.length || !ST.tipo) return;
+  if (!confirmarDuplicado && !confirm('Gerar ' + S.length + ' termo(s) de ' + ME.tipos[ST.tipo].toLowerCase() + ' para ' + lojaTxt(ST.loja) + ' em ' + dBR(ST.data) + '?\n\nSai um único PDF com um termo por página, pronto para imprimir e assinar.')) return;
+  const b = $('#n-emitir'); b.disabled = true; $('#n-emitir-sub').textContent = 'gerando o PDF…';
+  try {
+    const resp = await fetch('/api/termos-escala/emitir', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ loja: ST.loja, data: ST.data, tipo: ST.tipo, funcIds: S.map(f => f.id), confirmarDuplicado: confirmarDuplicado === true }) });
+    let r = null; try { r = await resp.json(); } catch (x) {}
+    if (resp.status === 409 && r && r.duplicados) {   // já há termo para alguém nesta data: só emite de novo com confirmação explícita
+      const dup = r.duplicados, nomes = [...new Set(dup.flatMap(d => d.nomes))]; atualizar();
+      if (confirm('JÁ EXISTE TERMO EMITIDO para ' + dBR(ST.data) + ' em ' + lojaTxt(ST.loja) + ' para:\n\n• ' + nomes.slice(0, 15).join('\n• ') + (nomes.length > 15 ? '\n• … e mais ' + (nomes.length - 15) : '') + '\n\n(' + dup.map(d => d.id + ' em ' + dt(d.em)).join(', ') + ')\n\nEmitir de novo mesmo assim? Para corrigir um termo errado, cancele a emissão anterior no histórico.')) return emitir(true);
+      return;
+    }
+    if (!resp.ok) throw new Error((r && r.error) || 'HTTP ' + resp.status);
+    ST.sucesso = r; ST.sel.clear(); ST.previaIdx = 0; toast('Emissão ' + r.id + ' registrada · ' + r.qtd + ' documento(s)'); mostrarSucesso(); tabela(); atualizar();
+    const w = window.open('/api/termos-escala/emissoes/' + r.id + '/pdf', '_blank'); if (!w) toast('O navegador bloqueou a nova aba: use os botões acima para abrir o PDF', 'neg');
+  } catch (e) { toast(e.message, 'neg'); atualizar(); }
+}
+function mostrarSucesso() {
+  const r = ST.sucesso; if (!r) return;
+  $('#n-sucesso').innerHTML = '<div class="sucesso"><b>' + esc(r.id) + ' emitido · ' + r.qtd + ' documento(s)</b>' + esc(lojaTxt(r.loja)) + ' · ' + dBR(r.data) + ' · ' + esc(ME.tipos[r.tipo]) + ' · emitido em ' + dt(r.em) + ' por ' + esc(r.usuario.nome) + (r.duplicadoDe && r.duplicadoDe.length ? ' · <span style="color:var(--amk)">reemissão de ' + esc(r.duplicadoDe.join(', ')) + '</span>' : '') +
+    '<div class="acoes"><a class="ds-btn ds-btn-primary" href="/api/termos-escala/emissoes/' + r.id + '/pdf" target="_blank">' + ic('printer') + 'Abrir / imprimir PDF</a><a class="ds-btn ds-btn-secondary" href="/api/termos-escala/emissoes/' + r.id + '/pdf?download=1">' + ic('download') + 'Baixar</a><a class="ds-btn ds-btn-ghost" id="n-ir-hist">Ver no histórico</a><a class="ds-btn ds-btn-ghost" id="n-fechar-ok">Fechar</a></div></div>';
+  $('#n-ir-hist').onclick = () => ir('hist'); $('#n-fechar-ok').onclick = () => { ST.sucesso = null; $('#n-sucesso').innerHTML = ''; };
+}
+
+// ── Histórico ──
+async function hist() {
+  const el = $('#page');
+  el.innerHTML = '<div class="tb"><span class="lbl">Unidade</span><select class="ds-select" id="h-loja">' + selLoja(H.loja, 'todas') + '</select><span class="lbl">Funcionário</span><input class="ds-input" id="h-func" placeholder="nome ou nº da emissão" value="' + esc(H.func) + '" style="min-width:200px"><span class="lbl">Emitido de</span><input type="date" class="ds-input" id="h-de" value="' + H.de + '"><span class="lbl">até</span><input type="date" class="ds-input" id="h-ate" value="' + H.ate + '"><span class="lbl">Data do trabalho</span><input type="date" class="ds-input" id="h-dt" value="' + H.dataTrabalho + '"><span class="lbl">Tipo</span><select class="ds-select" id="h-tipo"><option value="">todos</option><option value="domingo"' + (H.tipo === 'domingo' ? ' selected' : '') + '>Domingo</option><option value="feriado"' + (H.tipo === 'feriado' ? ' selected' : '') + '>Feriado</option></select><select class="ds-select" id="h-st"><option value="">emitidas e canceladas</option><option value="emitida"' + (H.status === 'emitida' ? ' selected' : '') + '>só emitidas</option><option value="cancelada"' + (H.status === 'cancelada' ? ' selected' : '') + '>só canceladas</option></select><div class="end"><button class="ds-btn ds-btn-ghost" id="h-limpar" type="button">Limpar</button></div></div><div id="h-body">' + skel() + '</div>';
+  const ler = () => { H.loja = $('#h-loja').value; H.func = $('#h-func').value; H.de = $('#h-de').value; H.ate = $('#h-ate').value; H.dataTrabalho = $('#h-dt').value; H.tipo = $('#h-tipo').value; H.status = $('#h-st').value; histLista(); };
+  ['#h-loja', '#h-de', '#h-ate', '#h-dt', '#h-tipo', '#h-st'].forEach(s => $(s).onchange = ler); let t = null; $('#h-func').oninput = () => { clearTimeout(t); t = setTimeout(ler, 300); };
+  $('#h-limpar').onclick = () => { Object.keys(H).forEach(k => H[k] = ''); hist(); };
+  histLista();
+}
+async function histLista() {
+  const q = Object.entries(H).filter(([, v]) => v).map(([k, v]) => k + '=' + encodeURIComponent(v)).join('&');
+  let L; try { L = await api('/api/termos-escala/emissoes' + (q ? '?' + q : '')); } catch (e) { $('#h-body').innerHTML = erroBox(e); return; }
+  if (!L.length) { $('#h-body').innerHTML = '<div class="empty"><b>Nenhuma emissão' + (q ? ' com esses filtros' : ' ainda') + '</b>' + (ME.emitir && !q ? 'Use a aba Nova emissão para gerar os primeiros termos.' : '') + '</div>'; return; }
+  $('#h-body').innerHTML = '<div class="tw"><table class="t"><thead><tr><th>Emissão</th><th>Emitido em</th><th>Responsável</th><th>Unidade</th><th>Data do trabalho</th><th>Tipo</th><th class="r">Docs</th><th>Funcionários</th><th>Situação</th><th>Ações</th></tr></thead><tbody>' +
+    L.map(e => '<tr><td><a class="lk" data-id="' + e.id + '">' + esc(e.id) + '</a></td><td style="white-space:nowrap">' + dt(e.em) + '</td><td>' + esc(e.usuario.nome) + '</td><td style="white-space:nowrap">' + etq(e.loja) + esc(lojaTxt(e.loja).split(' · ')[1] || '') + '</td><td style="white-space:nowrap">' + dBR(e.data) + '</td><td>' + esc(ME.tipos[e.tipo]) + (e.nomeFeriado ? ' <small style="color:var(--ink3)">' + esc(e.nomeFeriado) + '</small>' : '') + '</td><td class="r"><b>' + e.qtd + '</b></td><td class="nomes" title="' + esc(e.nomes.join(', ')) + '">' + esc(e.nomes.slice(0, 3).join(', ')) + (e.nomes.length > 3 ? ' <b>+' + (e.nomes.length - 3) + '</b>' : '') + '</td><td>' + (e.status === 'cancelada' ? '<span class="pill bad" title="' + esc(e.cancelamento ? e.cancelamento.motivo : '') + '">cancelada</span>' : '<span class="pill ok">emitida</span>') + (e.reimpressoes ? ' <small style="color:var(--ink3)">' + e.reimpressoes + ' reimp.</small>' : '') + '</td>' +
+      '<td class="ac"><a class="lk" href="/api/termos-escala/emissoes/' + e.id + '/pdf" target="_blank">Visualizar</a><a class="lk" href="/api/termos-escala/emissoes/' + e.id + '/pdf?download=1">Baixar</a>' + (ME.reimprimir && e.status !== 'cancelada' ? '<a class="lk" href="/api/termos-escala/emissoes/' + e.id + '/pdf?reimpressao=1" target="_blank" title="abre o PDF original para imprimir de novo (fica registrado)">Reimprimir</a>' : '') + (ME.cancelar && e.status !== 'cancelada' ? '<a class="lk neg" data-cancel="' + e.id + '">Cancelar</a>' : '') + '</td></tr>').join('') +
+    '</tbody></table></div><p class="note">Reimprimir e Baixar entregam o PDF guardado na emissão, nunca um documento regenerado. Cancelar não apaga nada: a emissão fica marcada e o arquivo continua no histórico; para corrigir, emita de novo.</p>';
+  $$('#h-body a[data-id]').forEach(a => a.onclick = () => detalhe(a.dataset.id));
+  $$('#h-body a[data-cancel]').forEach(a => a.onclick = async () => { const m = prompt('Motivo do cancelamento de ' + a.dataset.cancel + ' (fica na auditoria):'); if (!m) return; try { await api('/api/termos-escala/emissoes/' + a.dataset.cancel + '/cancelar', { body: { motivo: m } }); toast('Emissão cancelada'); histLista(); } catch (e) { toast(e.message, 'neg'); } });
+}
+async function detalhe(id) {
+  let e; try { e = await api('/api/termos-escala/emissoes/' + id); } catch (x) { toast(x.message, 'neg'); return; }
+  const ov = document.createElement('div'); ov.className = 'f-ov';
+  ov.innerHTML = '<div class="f-md"><div class="hd"><div><b>' + esc(e.id) + '</b><small>' + esc(lojaTxt(e.loja)) + ' · ' + dBR(e.data) + ' · ' + esc(ME.tipos[e.tipo]) + (e.nomeFeriado ? ' (' + esc(e.nomeFeriado) + ')' : '') + '</small></div><button class="x" type="button">×</button></div><div class="bd">' +
+    '<div class="resumo" style="margin:0"><div><div class="l">Emitido em</div><div class="v">' + dt(e.em) + '</div></div><div><div class="l">Responsável</div><div class="v">' + esc(e.usuario.nome) + '</div></div><div><div class="l">Documentos</div><div class="v">' + e.qtd + ' página(s) · ' + Math.round((e.bytes || 0) / 1024) + ' KB</div></div><div><div class="l">Situação</div><div class="v">' + (e.status === 'cancelada' ? '<span style="color:var(--neg)">cancelada</span>' : 'emitida') + (e.reimpressoes ? ' · ' + e.reimpressoes + ' reimpressão(ões)' : '') + '</div></div></div>' +
+    (e.status === 'cancelada' && e.cancelamento ? '<div class="aviso neg" style="margin:0">Cancelada em ' + dt(e.cancelamento.em) + ' por ' + esc(e.cancelamento.nome) + ': ' + esc(e.cancelamento.motivo) + '</div>' : '') + (e.duplicadoDe && e.duplicadoDe.length ? '<div class="aviso" style="margin:0">Reemissão: já havia termo para estas pessoas nesta data em ' + esc(e.duplicadoDe.join(', ')) + '.</div>' : '') +
+    '<div class="tw" style="max-height:380px"><table class="t"><thead><tr><th>#</th><th>Colaborador</th><th>CPF</th><th>Função</th><th>Setor</th></tr></thead><tbody>' + e.funcionarios.map((f, i) => '<tr><td>' + (i + 1) + '</td><td class="nm">' + esc(f.nome) + '</td><td>' + esc(f.cpf_fim || '—') + '</td><td>' + esc(f.cargo) + '</td><td>' + esc(f.setor || '—') + '</td></tr>').join('') + '</tbody></table></div>' +
+    '<div class="acoes"><span class="note" style="margin:0">CPF completo só dentro do PDF (LGPD).</span><div class="end"><a class="ds-btn ds-btn-secondary" href="/api/termos-escala/emissoes/' + e.id + '/pdf?download=1">' + ic('download') + 'Baixar</a><a class="ds-btn ds-btn-primary" href="/api/termos-escala/emissoes/' + e.id + '/pdf' + (ME.reimprimir ? '?reimpressao=1' : '') + '" target="_blank">' + ic('printer') + (ME.reimprimir ? 'Reimprimir' : 'Visualizar') + '</a></div></div></div></div>';
+  document.body.appendChild(ov); const fechar = () => ov.remove(); ov.querySelector('.x').onclick = fechar; ov.onclick = ev => { if (ev.target === ov) fechar(); };
+}
+
+// ── Modelo do termo ──
+function modelo() {
+  const m = ME.modelo, ed = ME.configurar; const el = $('#page');
+  const ta = (k, rotulo, rows, dica) => '<label>' + rotulo + (dica ? ' <small style="font-weight:500;color:var(--ink3)">' + dica + '</small>' : '') + '<textarea data-k="' + k + '" rows="' + rows + '"' + (ed ? '' : ' disabled') + '>' + esc(m[k]) + '</textarea></label>';
+  el.innerHTML = (m.validadoJuridico ? '<div class="aviso ok">Texto validado pelo setor jurídico em ' + dt(m.validadoEm) + ' por ' + esc(m.validadoPor) + '.</div>' : '<div class="aviso">Texto ainda <b>não validado pelo setor jurídico</b>. Qualquer alteração no texto zera a validação.</div>') +
+    '<div class="mod"><div class="step"><div class="hd"><b>Texto do termo</b><small>' + (ed ? 'Coordenação e Jurídico editam' : 'somente leitura (só Coordenação e Jurídico editam)') + '</small></div><div class="bd">' +
+    '<label>Nome da empresa no documento<input data-k="empresa" value="' + esc(m.empresa) + '"' + (ed ? '' : ' disabled') + '></label>' + ta('titulo', 'Título', 2, 'uma linha por quebra') + ta('declaracao', 'Declaração de ciência', 7, 'parágrafos separados por linha em branco; {empresa} vira o nome da empresa em destaque') + ta('fundamentacao', 'Fundamentação legal', 4) + ta('nota', 'Observação final (itálico)', 3) +
+    (ed ? '<label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="m-val" style="width:16px;height:16px;accent-color:#101B33"' + (m.validadoJuridico ? ' checked' : '') + '> Texto validado pelo setor jurídico</label><div class="acoes"><div class="end"><button class="ds-btn ds-btn-secondary" id="m-previa" type="button">' + ic('search') + 'Ver prévia com este texto</button><button class="ds-btn ds-btn-primary" id="m-salvar" type="button">Salvar modelo</button></div></div>' : '<div class="acoes"><div class="end"><button class="ds-btn ds-btn-secondary" id="m-previa" type="button">' + ic('search') + 'Ver prévia</button></div></div>') +
+    '<p class="note">O documento não traz matrícula nem horários: só unidade, colaborador, CPF, função, data e tipo de escala, declaração, espaço de assinatura e fundamentação legal.' + (m.alteradoEm ? ' Última alteração: ' + dt(m.alteradoEm) + ' por ' + esc(m.alteradoPor) + '.' : '') + '</p></div></div>' +
+    '<div class="step prev"><div class="hd"><b>Prévia do modelo</b><small>dados fictícios</small></div><div class="bd"><div id="m-box"><div class="ph">Clique em "Ver prévia" para renderizar o modelo com um colaborador de exemplo.</div></div></div></div></div>';
+  const corpo = () => { const b = {}; $$('#page [data-k]').forEach(i => b[i.dataset.k] = i.value); return b; };
+  $('#m-previa').onclick = async () => {
+    $('#m-box').innerHTML = '<div class="ph">gerando…</div>';
+    try { const r = await fetch('/api/termos-escala/previa-modelo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ modelo: ed ? corpo() : null, data: ME.proximoDomingo }) }); if (!r.ok) { let j = null; try { j = await r.json(); } catch (e) {} throw new Error((j && j.error) || 'HTTP ' + r.status); } const u = URL.createObjectURL(await r.blob()); $('#m-box').innerHTML = '<iframe src="' + u + '#toolbar=0&navpanes=0&view=FitH" title="Prévia do modelo"></iframe><div class="acoes" style="margin-top:8px"><div class="end"><a class="ds-btn ds-btn-ghost" href="' + u + '" target="_blank">Abrir em nova aba</a></div></div>'; }
+    catch (e) { $('#m-box').innerHTML = '<div class="ph" style="color:var(--neg)">' + esc(e.message) + '</div>'; }
+  };
+  if (ed) $('#m-salvar').onclick = async () => { try { ME.modelo = await api('/api/termos-escala/config', { method: 'PUT', body: { ...corpo(), validadoJuridico: $('#m-val').checked } }); toast('Modelo salvo'); modelo(); } catch (e) { toast(e.message, 'neg'); } };
+}
+iniciar();
+</script>
+</body>
+</html>

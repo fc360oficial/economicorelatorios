@@ -8584,6 +8584,9 @@ require('./lib/etica-rotas')(app, { multer, publicDir: path.join(__dirname, 'pub
 require('./lib/gestao-pessoas-rotas')(app, { pontocerto, listarUsuarios: () => usuarios });
 // Escalas (22/10/2026, DP / RH › Escalas): cobertura por setor, escala coletiva/individual, fluxo gerente → RH → Coordenação.
 require('./lib/escalas-rotas')(app, { pontocerto });
+// Termos de Escala (23/10/2026, DP / RH › Termos de Escala): termo de ciência de trabalho em domingo/feriado, um por
+// funcionário num PDF só, com histórico e reimpressão. Regras e PDF em lib/termos-escala.js; só lê o PontoCerto.
+require('./lib/termos-escala-rotas')(app, { pontocerto });
 // O GET /employees do Pontomais leva ~30-40 s (4 páginas pesadas). Aquece o cache ao subir e renova a cada 18 min
 // pra tela do DP/RH abrir na hora; se o token não estiver configurado, só ignora.
 const genteAquecer = () => { gente.painelDP().catch(() => {}); };
