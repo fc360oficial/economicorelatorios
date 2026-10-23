@@ -61,16 +61,22 @@ svg.ic{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2;stroke-
 .hero img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .hero img,.full .foto img,.card .im img,.vin .mosaico img,.pat .foto img,.tab li img{filter:saturate(1.18) contrast(1.06)}
 .hero .veu{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0) 32%,rgba(0,0,0,.55) 60%,rgba(0,0,0,.94) 100%)}
-/* foto recortada (fundo branco removido): produto "flutuando" sobre o preto, com sombra, em vez de esticada */
-img.rec{object-fit:contain!important;filter:drop-shadow(0 1em 2em rgba(0,0,0,.7)) saturate(1.12)!important}
-.hero img.rec{inset:1.2em 1.2em 12em 1.2em;width:auto;height:auto;max-width:calc(100% - 2.4em);max-height:calc(100% - 13em);margin:auto;background:radial-gradient(60% 55% at 50% 45%,#2b2b2b 0,#0c0c0c 100%)}
-.hero:has(img.rec){background:radial-gradient(70% 70% at 50% 40%,#2e2e2e 0,#0c0c0c 100%)}
-.hero:has(img.rec) .veu{background:linear-gradient(180deg,rgba(0,0,0,0) 55%,rgba(0,0,0,.6) 100%)}
+/* foto recortada (fundo branco removido): o produto fica sobre uma "bancada" escura com foco de luz e sombra
+   embaixo (Tiago, 23/10: "só a carne fica estranho"), em vez de solto num retângulo cinza */
+img.rec{object-fit:contain!important;filter:drop-shadow(0 1.2em 1.6em rgba(0,0,0,.85)) saturate(1.12) contrast(1.04)!important;z-index:1}
+.bancada,.hero:has(img.rec),.full .foto:has(img.rec),.pat .foto:has(img.rec){background:
+  radial-gradient(55% 40% at 50% 34%,rgba(255,214,120,.16) 0,rgba(255,214,120,0) 100%),
+  radial-gradient(90% 70% at 50% 45%,#3b3330 0,#221e1c 45%,#100f0e 100%),
+  repeating-linear-gradient(97deg,rgba(255,255,255,.025) 0 .6em,rgba(0,0,0,.035) .6em 1.4em)}
+.hero:has(img.rec):before,.full .foto:has(img.rec):before,.pat .foto:has(img.rec):before{content:"";position:absolute;left:10%;right:10%;top:56%;height:16%;background:radial-gradient(50% 50% at 50% 50%,rgba(0,0,0,.8) 0,rgba(0,0,0,0) 70%);pointer-events:none}
+.hero:has(img.rec):after,.full .foto:has(img.rec):after,.pat .foto:has(img.rec):after{content:"";position:absolute;inset:0;background:radial-gradient(80% 80% at 50% 45%,rgba(0,0,0,0) 55%,rgba(0,0,0,.65) 100%);pointer-events:none}
+.hero img.rec{inset:1em 1em 11em 1em;width:auto;height:auto;max-width:calc(100% - 2em);max-height:calc(100% - 12em);margin:auto}
+.hero:has(img.rec) .veu{background:linear-gradient(180deg,rgba(0,0,0,0) 52%,rgba(0,0,0,.75) 100%);z-index:1}
 .full .foto img.rec{inset:1.4em 1.4em 1.4em 6em;width:auto;height:auto;max-width:calc(100% - 7.4em);max-height:calc(100% - 2.8em);margin:auto}
-.full .foto:has(img.rec){background:radial-gradient(60% 60% at 60% 45%,#2e2e2e 0,#0c0c0c 100%)}
-.full .foto:has(img.rec) .veu{background:linear-gradient(90deg,var(--ink) 0,rgba(12,12,12,0) 30%)}
+.full .foto:has(img.rec):before{top:62%}
+.full .foto:has(img.rec) .veu{background:linear-gradient(90deg,var(--ink) 0,rgba(12,12,12,0) 30%);z-index:1}
 .pat .foto img.rec{inset:1.4em 1.4em 7em 3em;width:auto;height:auto;max-width:calc(100% - 4.4em);max-height:calc(100% - 8.4em);margin:auto}
-.pat .foto:has(img.rec){background:radial-gradient(60% 60% at 55% 40%,#2e2e2e 0,#0c0c0c 100%)}
+.pat .foto:has(img.rec):before{top:58%}
 .pat .foto:has(img.rec) .veu{background:none}
 .card .im img.rec{inset:.6em;width:auto;height:auto;max-width:calc(100% - 1.2em);max-height:calc(100% - 1.2em);margin:auto}
 .card .im:has(img.rec){background:radial-gradient(60% 60% at 50% 45%,#333 0,#161616 100%)}
@@ -229,7 +235,14 @@ async function prepararFoto(url) {
     const branco = (x, y) => { const i = (y * w + x) * 4; return px[i] > 238 && px[i + 1] > 238 && px[i + 2] > 238; };
     const cantos = [[2, 2], [w - 3, 2], [2, h - 3], [w - 3, h - 3]].filter(([x, y]) => branco(x, y)).length;
     if (cantos < 3) return;
-    for (let i = 0; i < px.length; i += 4) { const m = Math.min(px[i], px[i + 1], px[i + 2]); if (m > 225) px[i + 3] = Math.max(0, Math.min(255, Math.round((248 - m) * 11))); }
+    // O "branco" do catálogo nem sempre é 255 (as fotos do fornecedor vêm em 247/247/247): o ponto de branco é lido dos
+    // cantos. 1) tudo até 6 níveis abaixo dele vira transparente, com rampa curta pra não comer a gordura clara;
+    // 2) erosão de 1 px tira a borda cinza do recorte.
+    const cm = [[2, 2], [w - 3, 2], [2, h - 3], [w - 3, h - 3]].map(([x, y]) => { const i = (y * w + x) * 4; return Math.min(px[i], px[i + 1], px[i + 2]); }).sort((a, b) => a - b)[1];
+    const corte = cm - 6, rampa = 14;
+    for (let i = 0; i < px.length; i += 4) { const m = Math.min(px[i], px[i + 1], px[i + 2]); if (m >= corte) px[i + 3] = 0; else if (m > corte - rampa) px[i + 3] = Math.round((corte - m) * 255 / rampa); }
+    const a0 = new Uint8ClampedArray(d.data.length / 4); for (let i = 0; i < a0.length; i++) a0[i] = px[i * 4 + 3];
+    for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) { const i = y * w + x; const a = Math.min(a0[i], a0[i - 1], a0[i + 1], a0[i - w], a0[i + w]); if (a < a0[i]) px[i * 4 + 3] = a; }
     ctx.putImageData(d, 0, 0);
     PRONTAS.set(url, { src: c.toDataURL('image/png'), recorte: true });
   } catch (e) { /* fica com a foto original */ }
