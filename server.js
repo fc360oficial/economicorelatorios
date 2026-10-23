@@ -247,7 +247,7 @@ app.use((req, res, next) => {
   // (/tvcahu e o token sem diferenciar maiúsculas: teclado da Smart TV capitaliza a 1ª letra — 08/10/26)
   if (/^\/tvcahu\/?(kiosk\/?)?$/i.test(req.path) || /^\/tv-televendas\/[a-f0-9]{32}$/i.test(req.path) || /^\/api\/tv-televendas-publico\/[a-f0-9]{32}$/i.test(req.path)) return next();
   // TV do açougue da loja (23/10/26): página, API e fotos dos cortes públicas por token (só leitura, preço da loja no ERP)
-  if (/^\/tvacougue\/?(kiosk\/?)?$/i.test(req.path) || /^\/tv-acougue\/[a-f0-9]{32}$/i.test(req.path) || /^\/api\/tv-acougue-publico\/[a-f0-9]{32}(\/foto\/\d{1,14})?$/i.test(req.path)) return next();
+  if (/^\/tvacougue\/?(kiosk\/?)?$/i.test(req.path) || /^\/tv-acougue\/[a-f0-9]{32}$/i.test(req.path) || /^\/api\/tv-acougue-publico\/[a-f0-9]{32}(\/foto\/\d{1,14}|\/patrocinio\/[a-f0-9]{8}\/(logo|foto))?$/i.test(req.path)) return next();
   // Link do fornecedor na Cotação: mesmo esquema (token de 32 hex por fornecedor convidado)
   if (/^\/cotacao\/[a-f0-9]{32}$/.test(req.path) || /^\/api\/cotacao-publica\/[a-f0-9]{32}(\/|$)/.test(req.path)) return next();
   // Portal do Fornecedor (PWA em /fornecedor/, 13/10/26): página, service worker, manifest, atalhos /fornecedor/cotacao|pedido/<token>
@@ -8118,13 +8118,13 @@ app.get('/api/tv-acougue/config', async (req, res) => {
   const c = tvAcougue.getConfig();
   let escolhidos = [];
   try { escolhidos = await tvAcougue.listarEscolhidos(); } catch (e) { console.error('[TV-ACOUGUE] produtos:', e.message); }
-  res.json({ config: c, lojas: tvAcougue.LOJAS, maxProdutos: tvAcougue.MAX_PRODUTOS, ...tvAcougueLinks(c), totais: tvAcougue.totais(), escolhidos });
+  res.json({ config: c, lojas: tvAcougue.LOJAS, maxProdutos: tvAcougue.MAX_PRODUTOS, ...tvAcougueLinks(c), totais: tvAcougue.totais(), escolhidos, patrocinios: tvAcougue.listarPatrocinios() });
 });
 app.post('/api/tv-acougue/config', async (req, res) => {
   try {
     const c = tvAcougue.salvarConfig(req.body || {}, req.session.user?.nome || null);
     let escolhidos = []; try { escolhidos = await tvAcougue.listarEscolhidos(); } catch (e) { console.error('[TV-ACOUGUE] produtos:', e.message); }
-    res.json({ config: c, ...tvAcougueLinks(c), totais: tvAcougue.totais(), escolhidos });
+    res.json({ config: c, ...tvAcougueLinks(c), totais: tvAcougue.totais(), escolhidos, patrocinios: tvAcougue.listarPatrocinios() });
   } catch (err) { res.status(400).json({ error: err.message }); }
 });
 app.post('/api/tv-acougue/config/novo-token', (req, res) => {
@@ -8150,6 +8150,30 @@ function enviarFotoAcougue(cod, res) {
   res.sendFile(f);
 }
 app.get('/api/tv-acougue/foto/:cod', (req, res) => enviarFotoAcougue(String(req.params.cod), res));
+// marcas parceiras (24/10/26): lista com situação, e arquivos logo (PNG/JPEG) e foto (JPEG) por marca
+app.get('/api/tv-acougue/patrocinios', async (req, res) => {
+  try { await tvAcougue.carregarProdutos(false); } catch (e) { console.error('[TV-ACOUGUE] produtos:', e.message); }
+  res.json(tvAcougue.listarPatrocinios());
+});
+app.post('/api/tv-acougue/patrocinio-arquivo', (req, res) => {
+  const b = req.body || {};
+  try { res.json(tvAcougue.salvarArquivoPatrocinio(String(b.id || ''), String(b.tipo || ''), b.dados)); }
+  catch (err) { res.status(400).json({ error: err.message }); }
+});
+app.delete('/api/tv-acougue/patrocinio-arquivo/:id/:tipo', (req, res) => {
+  try { res.json(tvAcougue.removerArquivoPatrocinio(String(req.params.id), String(req.params.tipo))); } catch (err) { res.status(400).json({ error: err.message }); }
+});
+function enviarArquivoPatrocinio(id, tipo, res) {
+  const f = tvAcougue.arquivoPatrocinio(id, tipo);
+  if (!f) return res.status(404).end();
+  res.set('Cache-Control', 'public, max-age=3600');
+  res.sendFile(f);
+}
+app.get('/api/tv-acougue/patrocinio-arquivo/:id/:tipo', (req, res) => enviarArquivoPatrocinio(String(req.params.id), String(req.params.tipo), res));
+app.get('/api/tv-acougue-publico/:token/patrocinio/:id/:tipo', (req, res) => {
+  if (!tvAcougue.tokenValido(String(req.params.token).toLowerCase())) return res.status(404).end();
+  enviarArquivoPatrocinio(String(req.params.id), String(req.params.tipo), res);
+});
 app.get('/tv-acougue/:token', (req, res) => {
   if (!tvAcougue.tokenValido(String(req.params.token).toLowerCase())) return res.status(404).send('Link inválido. Gere um novo link em Processos → TV Açougue.');
   res.set('Cache-Control', 'no-store');
