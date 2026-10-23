@@ -92,10 +92,15 @@ const erroBox = e => '<div class="aviso neg">' + esc(e.message || e) + '</div>';
 const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 const selLoja = (v, vazio) => (vazio ? '<option value="">' + esc(vazio) + '</option>' : '') + ME.lojas.map(l => '<option value="' + l.n + '"' + (String(l.n) === String(v) ? ' selected' : '') + '>' + esc(l.txt) + '</option>').join('');
 const NAV = [{ id: 'nova', txt: 'Nova emissão', ic: 'printer', sub: 'Unidade, data e tipo → funcionários → conferência → PDF com um termo por página', so: 'emitir' }, { id: 'hist', txt: 'Histórico de emissões', ic: 'list', sub: 'Tudo que já foi emitido: visualizar, baixar e reimprimir o PDF original' }, { id: 'modelo', txt: 'Modelo do termo', ic: 'settings', sub: 'Texto do documento (sujeito à validação do jurídico)' }];
-const navVisivel = () => NAV.filter(n => !n.so || ME[n.so]);
-function ir(p) { const n = NAV.find(x => x.id === p); if (!n || (n.so && !ME[n.so])) return; PAG = p; $$('#modnav a').forEach(a => a.classList.toggle('on', a.dataset.p === p)); $('#tb-h1').innerHTML = '<span class="crumb">DP / RH · Termos de Escala</span>' + ic('chevron-right') + esc(n.txt); $('#tb-sub').textContent = n.sub; history.replaceState(null, '', '#' + p); $('#page').innerHTML = skel(); ({ nova, hist, modelo })[p](); }
+// Abas de outros módulos (Cadastro Bancário, Pagamentos de Domingos e Feriados) entram por /termos-escala-modulos.js: ele
+// empurra itens em NAV (com `so` função de visibilidade e `crumb` próprio) e registra a função da página em PAGINAS.
+const PAGINAS = { nova, hist, modelo };
+const visivel = n => !n.so || (typeof n.so === 'function' ? n.so() : ME[n.so]);
+const navVisivel = () => NAV.filter(visivel);
+function ir(p) { const n = NAV.find(x => x.id === p); if (!n || !visivel(n)) return; PAG = p; $$('#modnav a').forEach(a => a.classList.toggle('on', a.dataset.p === p)); $('#tb-h1').innerHTML = '<span class="crumb">DP / RH · ' + esc(n.crumb || 'Termos de Escala') + '</span>' + ic('chevron-right') + esc(n.txt); $('#tb-sub').textContent = n.sub; history.replaceState(null, '', '#' + p); $('#page').innerHTML = skel(); PAGINAS[p](); }
 async function iniciar() {
   try { ME = await api('/api/termos-escala/me'); } catch (e) { $('#page').innerHTML = e.status === 403 ? '<div class="aviso neg"><b>Sem acesso aos Termos de Escala.</b> ' + esc(e.message) + '</div>' : erroBox(e); return; }
+  if (window.MODULOS_INIT) { try { await window.MODULOS_INIT(); } catch (e) { console.warn('módulos extras', e); } }
   $('#modnav').innerHTML = navVisivel().map(n => '<a data-p="' + n.id + '">' + ic(n.ic) + '<span>' + esc(n.txt) + '</span></a>').join(''); $$('#modnav a').forEach(a => a.onclick = () => ir(a.dataset.p));
   const PAP = { gerente: 'Gerente', rh_ponto: 'RH Ponto', rh_doc: 'RH Documentação', rh_adm: 'RH Admissões', coordenacao: 'Coordenação', diretoria: 'Diretoria', juridico: 'Jurídico', ti: 'TI' };
   $('#who').innerHTML = '<div class="ds-avatar">' + esc(ME.nome.split(' ').slice(0, 2).map(s => s[0]).join('')) + '</div><div><b>' + esc(ME.nome) + '</b><span>' + esc(ME.papeis.map(p => PAP[p] || p).join(' · ') || 'sem papel') + '</span></div>';
@@ -269,7 +274,8 @@ function modelo() {
   };
   if (ed) $('#m-salvar').onclick = async () => { try { ME.modelo = await api('/api/termos-escala/config', { method: 'PUT', body: { ...corpo(), validadoJuridico: $('#m-val').checked } }); toast('Modelo salvo'); modelo(); } catch (e) { toast(e.message, 'neg'); } };
 }
-iniciar();
+// carrega as abas dos outros módulos antes de montar a navegação (se o arquivo falhar, a tela segue só com os termos)
+(() => { const s = document.createElement('script'); s.src = '/termos-escala-modulos.js?v=' + Date.now(); s.onload = iniciar; s.onerror = iniciar; document.head.appendChild(s); })();
 </script>
 </body>
 </html>
