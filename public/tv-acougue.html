@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TV Açougue · Econômico Supermercados</title>
+<!-- TV do açougue da loja (23/10/2026): vitrine com a foto grande do corte rodando à esquerda e a tabela do dia
+     fixa à direita (quem chega no meio não espera o loop), preço por kg sempre visível, selo OFERTA pelo preço
+     com final 8 do ERP. Toda quarta abre com a vinheta "Quarta da Carne". Config em Processos → TV Açougue;
+     relida a cada 10 s. Aberta por link com token (sem login). ?kiosk=1 esconde o botão de tela cheia;
+     ?quarta=1 força a vinheta (botão "ver a vinheta agora" da configuração). -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600;700&display=swap">
+<style>
+:root{--ink:#121212;--paper:#f6f4ec;--amarelo:#FFD500;--vermelho:#C8102E;--vermelho-esc:#7E0B1C;--papel:#fff;--fd:"Barlow Condensed","Arial Narrow",Impact,sans-serif;--fb:"Barlow","Segoe UI",Arial,sans-serif}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:#000;color:var(--paper);font-family:var(--fb);overflow:hidden;cursor:none}
+#tv{position:fixed;inset:0;background:#000}
+.slide{position:absolute;inset:0;opacity:0;transition:opacity .8s ease;font-size:calc(var(--u) * 1px)}
+.slide>div{position:absolute;inset:0;display:flex;flex-direction:column}
+.slide.on{opacity:1}
+@media (prefers-reduced-motion:reduce){.slide{transition:none}}
+/* topo e rodapé */
+.top{display:flex;align-items:center;gap:1.4em;padding:0 2.4em;height:7em;flex:none;background:#0c0c0c;border-bottom:.14em solid var(--vermelho);position:relative;z-index:2}
+.top .logo{height:6em;display:flex;align-items:center;background:#fff;border-radius:.4em;padding:.35em .8em}
+.top .logo img{position:static;height:100%;width:auto;display:block;filter:none;object-fit:contain}
+.top .tit{font:800 2.6em/1 var(--fd);text-transform:uppercase;letter-spacing:.04em;color:#fff}
+.top .loja{font:600 1.25em var(--fb);letter-spacing:.16em;text-transform:uppercase;color:#cfcabb;padding-left:1.1em;border-left:.12em solid #4a4a4a;line-height:1}
+.top .qbadge{font:800 1.3em var(--fd);letter-spacing:.14em;text-transform:uppercase;background:var(--amarelo);color:var(--ink);padding:.3em .8em;border-radius:.3em}
+.top .sp{flex:1}
+.top .clk{font:700 2em var(--fd);color:var(--amarelo);font-variant-numeric:tabular-nums;letter-spacing:.04em}
+.foot{display:flex;align-items:center;gap:1.6em;padding:0 2.4em;height:3.8em;background:#0c0c0c;flex:none;position:relative;z-index:2}
+.foot .txt{font:600 1.35em var(--fb);color:#d8d3c4}
+.foot .txt b{color:var(--amarelo);font-weight:700}
+.foot .sp{flex:1}
+.foot .cnt{font:700 1.4em var(--fd);color:#8f8a7c;letter-spacing:.06em;font-variant-numeric:tabular-nums}
+.prog{position:absolute;left:0;bottom:0;height:.3em;font-size:calc(var(--u) * 1px);background:var(--amarelo);width:0;z-index:3}
+/* vitrine: foto grande à esquerda + tabela fixa à direita */
+.vit{background:#0f0f0f}
+.vit .main{flex:1;display:grid;grid-template-columns:62fr 38fr;min-height:0}
+.hero{position:relative;overflow:hidden;background:#000;display:flex;flex-direction:column;justify-content:flex-end}
+.hero img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.hero img,.full .foto img,.card .im img,.vin .mosaico img{filter:saturate(1.22) contrast(1.08)}
+.hero .veu{position:absolute;inset:0;background:radial-gradient(110% 80% at 55% 35%,rgba(0,0,0,0) 45%,rgba(0,0,0,.5) 100%),linear-gradient(180deg,rgba(0,0,0,0) 30%,rgba(0,0,0,.55) 62%,rgba(0,0,0,.92) 100%)}
+.hero.semfoto{background:radial-gradient(120% 110% at 0% 0%,#2a2a2a 0,#0e0e0e 65%)}
+.hero.semfoto.oferta{background:radial-gradient(120% 110% at 100% 100%,#5a0a10 0,#120404 65%)}
+.hero.semfoto .veu{background:none}
+.marca{position:absolute;right:-.1em;top:.2em;font:800 15em/1 var(--fd);text-transform:uppercase;color:rgba(255,255,255,.04);letter-spacing:-.02em;pointer-events:none;user-select:none;white-space:nowrap}
+.hero .tx{position:relative;z-index:1;padding:0 2.6em 2em;display:flex;flex-direction:column;gap:.5em}
+.chip{display:inline-flex;align-self:flex-start;font:700 1.2em var(--fd);letter-spacing:.16em;text-transform:uppercase;padding:.28em .8em;border:.12em solid var(--amarelo);color:var(--amarelo);border-radius:.35em;background:rgba(0,0,0,.35)}
+.hero .nome{font:800 4.8em/.95 var(--fd);text-transform:uppercase;text-wrap:balance;color:#fff;margin:0;overflow-wrap:anywhere;text-shadow:0 .06em .3em rgba(0,0,0,.6)}
+.hero .nome.longo{font-size:3.9em}
+.hero .linha{display:flex;align-items:flex-end;gap:1.4em;margin-top:.3em}
+.preco{display:flex;align-items:baseline;gap:.18em;line-height:1}
+.preco .rs{font:700 2.8em var(--fd);color:#e8e5da}
+.preco .v{font:800 9.5em/.86 var(--fd);color:#fff;letter-spacing:-.015em;font-variant-numeric:tabular-nums;text-shadow:0 .04em .25em rgba(0,0,0,.7)}
+.preco .un{font:700 2.2em var(--fd);color:#cfcabb;text-transform:uppercase;letter-spacing:.04em;margin-left:.15em}
+.selo{align-self:flex-end;margin-bottom:.9em;background:var(--vermelho);color:#fff;font:800 2.1em var(--fd);letter-spacing:.18em;text-transform:uppercase;padding:.3em 1em .26em;border-radius:.25em;box-shadow:.2em .3em 0 rgba(0,0,0,.45);transform:rotate(-2deg)}
+.hero.oferta .preco .v,.hero.oferta .preco .rs{color:var(--amarelo)}
+.hero .dica{font:600 1.35em var(--fb);letter-spacing:.14em;text-transform:uppercase;color:#d8d3c4}
+.tab{background:#161616;border-left:.14em solid #2a2a2a;display:flex;flex-direction:column;min-height:0;padding:1.4em 1.8em 1em}
+.tab h3{font:800 1.9em/1 var(--fd);text-transform:uppercase;letter-spacing:.08em;color:var(--amarelo);margin:0 0 .5em;display:flex;align-items:baseline;gap:.6em}
+.tab h3 small{font:600 .55em var(--fb);letter-spacing:.14em;color:#8f8a7c}
+.tab h3 .pg{margin-left:auto;font:600 .55em var(--fb);letter-spacing:.1em;color:#8f8a7c;font-variant-numeric:tabular-nums}
+.tab ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;flex:1;min-height:0;justify-content:space-around}
+.tab li{display:flex;align-items:center;gap:.8em;border-bottom:.06em solid #2a2a2a;padding:.25em 0}
+.tab li .n{flex:1;min-width:0;font:600 1.55em/1.05 var(--fd);text-transform:uppercase;color:#e8e5da;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tab li .p{font:800 2.3em/1 var(--fd);color:#fff;font-variant-numeric:tabular-nums;white-space:nowrap}
+.tab li .p small{font-size:.5em;color:#8f8a7c;margin-left:.15em;font-weight:700}
+.tab li.of .p{color:var(--amarelo)}
+.tab li .tag{font:800 .95em var(--fd);letter-spacing:.14em;text-transform:uppercase;background:var(--vermelho);color:#fff;padding:.2em .5em;border-radius:.2em}
+.tab li.atual{background:#242424;margin:0 -.8em;padding:.25em .8em;border-radius:.4em;border-bottom-color:transparent}
+.tab li.atual .n{color:var(--amarelo)}
+/* destaque em tela cheia */
+.full .main{flex:1;display:grid;grid-template-columns:52fr 48fr;min-height:0;background:#0f0f0f}
+.full .foto{position:relative;overflow:hidden;background:#000}
+.full .foto img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.full .foto .veu{position:absolute;inset:0;background:linear-gradient(90deg,rgba(15,15,15,0) 70%,#0f0f0f 100%)}
+.full .foto.semfoto{background:radial-gradient(120% 110% at 0% 0%,#2a2a2a 0,#0e0e0e 65%)}
+.full .foto.semfoto .veu{background:none}
+.full .info{display:flex;flex-direction:column;justify-content:center;gap:1em;padding:2em 3em 2em 1.5em;min-width:0}
+.full .nome{font:800 5.6em/.95 var(--fd);text-transform:uppercase;text-wrap:balance;color:#fff;margin:0;overflow-wrap:anywhere}
+.full .nome.longo{font-size:4.4em}
+.full .preco .v{font-size:13em;text-shadow:none}
+.full .preco .rs{font-size:3.4em}.full .preco .un{font-size:2.6em}
+.full .selo{align-self:flex-start;margin:0 0 .4em}
+.full.oferta .main{background:radial-gradient(120% 110% at 100% 100%,#4a0810 0,#0f0f0f 65%)}
+.full.oferta .foto .veu{background:linear-gradient(90deg,rgba(15,15,15,0) 70%,#1a0509 100%)}
+.full.oferta .preco .v,.full.oferta .preco .rs{color:var(--amarelo)}
+.full .dica{font:600 1.35em var(--fb);letter-spacing:.14em;text-transform:uppercase;color:#d8d3c4}
+/* grade de 3 com foto */
+.grade{background:#0f0f0f}
+.grade .cards{flex:1;display:grid;grid-template-columns:repeat(3,1fr);gap:1.4em;padding:1.6em 2.4em;min-height:0}
+.card{background:var(--papel);color:var(--ink);border-radius:.9em;display:flex;flex-direction:column;overflow:hidden;min-height:0;position:relative}
+.card .im{flex:1;min-height:0;position:relative;background:#222}
+.card .im img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.card .im.semfoto{background:radial-gradient(120% 110% at 0% 0%,#3a3a3a 0,#161616 65%)}
+.card .im.semfoto .marca{font-size:7em;color:rgba(255,255,255,.08);right:.1em;top:.3em}
+.card .tx{padding:.9em 1.2em 1em;display:flex;flex-direction:column;gap:.3em;flex:none}
+.card .sg{font:700 .95em var(--fd);letter-spacing:.18em;text-transform:uppercase;color:#8a8577}
+.card .n{font:700 1.9em/1.05 var(--fd);text-transform:uppercase;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;color:#1d1d1d;min-height:2.1em}
+.card .p{display:flex;align-items:baseline;gap:.15em;font-variant-numeric:tabular-nums;line-height:1}
+.card .p .rs{font:700 1.5em var(--fd);color:#6b6a63}
+.card .p .v{font:800 5.2em/.9 var(--fd);color:var(--ink);letter-spacing:-.01em}
+.card .p .u{font:700 1.4em var(--fd);color:#6b6a63;margin-left:.3em;text-transform:uppercase}
+.card.hot{outline:.3em solid var(--amarelo);outline-offset:-.3em;background:#fffbe6}
+.card.hot .p .v{color:var(--vermelho-esc)}
+.card .tag{position:absolute;top:1em;left:-.4em;background:var(--vermelho);color:#fff;font:800 1.3em var(--fd);letter-spacing:.18em;text-transform:uppercase;padding:.3em .9em .28em 1em;box-shadow:.15em .2em 0 rgba(0,0,0,.35);transform:rotate(-2deg);z-index:1}
+/* vinheta Quarta da Carne */
+.vin{background:#2a0407;position:relative;overflow:hidden}
+.vin .mosaico{position:absolute;inset:0;display:grid;grid-auto-flow:column;grid-auto-columns:1fr}
+.vin .mosaico img{width:100%;height:100%;object-fit:cover}
+.vin .veu{position:absolute;inset:0;background:linear-gradient(180deg,rgba(120,8,20,.55) 0,rgba(60,4,10,.78) 55%,rgba(20,2,4,.96) 100%)}
+.vin .main{flex:1;display:flex;flex-direction:column;justify-content:flex-end;padding:1.4em 3.2em 1.6em;gap:.8em;position:relative;z-index:1;min-height:0}
+.vin .krow{display:flex;align-items:center;gap:1.4em}
+.vin .kicker{font:800 1.6em var(--fd);letter-spacing:.24em;text-transform:uppercase;background:var(--amarelo);color:var(--ink);display:inline-block;padding:.3em .9em;border-radius:.25em}
+.vin .stamp{transform:rotate(-3deg);border:.22em solid var(--amarelo);color:var(--amarelo);font:800 2.2em var(--fd);letter-spacing:.2em;text-transform:uppercase;padding:.15em .6em;border-radius:.25em;background:rgba(0,0,0,.35);line-height:1}
+.vin h2{font:800 10.5em/.84 var(--fd);text-transform:uppercase;margin:0;color:#fff;letter-spacing:-.01em;text-shadow:0 .05em .3em rgba(0,0,0,.6)}
+.vin h2 span{color:var(--amarelo)}
+.vin .ofs{display:flex;gap:1em;margin-top:.4em}
+.vin .of{background:var(--papel);color:var(--ink);border-radius:.7em;overflow:hidden;display:flex;flex:1;min-width:0;box-shadow:0 .5em 1.4em rgba(0,0,0,.4)}
+.vin .of img{width:7.2em;height:100%;object-fit:cover;flex:none}
+.vin .of .tx{padding:.6em .9em .5em;display:flex;flex-direction:column;gap:.15em;min-width:0}
+.vin .of .n{font:700 1.35em/1.05 var(--fd);text-transform:uppercase;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.1em}
+.vin .of .p{font:800 3.1em/1 var(--fd);color:var(--vermelho-esc);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.vin .of .p small{font-size:.38em;color:#6b6a63;margin-left:.2em;letter-spacing:.04em}
+.vin .foot{background:#2a0407}
+/* tema vermelho */
+.vm .top{background:#7e0b1c;border-bottom-color:var(--amarelo)}
+.vm .foot{background:#5a0a14}
+.vm .tab{background:#3b0710;border-left-color:#5a0a14}
+.vm .tab li{border-bottom-color:#5a0a14}.vm .tab li.atual{background:#5a0a14}
+.vm .grade,.vm .full .main{background:#5a0a14}
+.vm .full.oferta .main{background:radial-gradient(120% 110% at 100% 100%,#9c1428 0,#4a0810 70%)}
+.vm .full .foto .veu,.vm .full.oferta .foto .veu{background:linear-gradient(90deg,rgba(90,10,20,0) 70%,#5a0a14 100%)}
+.vm .hero.semfoto{background:radial-gradient(120% 110% at 0% 0%,#a01c24 0,#5a0b10 70%)}
+/* avisos e tela cheia */
+.msg{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.5em;font-size:calc(var(--u) * 1px);background:#000;z-index:5}
+.msg img{height:9em;background:#fff;padding:.8em 1.4em;border-radius:.8em}
+.msg h1{font:800 4em var(--fd);text-transform:uppercase;margin:0;color:var(--amarelo);text-align:center}
+.msg p{font:500 1.8em var(--fb);color:#bfbbae;margin:0;text-align:center;max-width:30em}
+#fs{position:absolute;inset:0;z-index:6;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);cursor:pointer}
+#fs button{font:800 calc(var(--u) * 3.2px) var(--fd);letter-spacing:.08em;text-transform:uppercase;background:var(--amarelo);color:var(--ink);border:0;border-radius:.4em;padding:.6em 1.6em;cursor:pointer;box-shadow:0 1em 3em rgba(0,0,0,.6)}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div id="tv"><div class="slide" id="A"></div><div class="slide" id="B"></div><div class="prog" id="prog"></div><div id="aviso" class="msg" hidden></div><div id="fs" hidden><button type="button">Tela cheia</button></div></div>
+<script>
+const TOKEN = location.pathname.split('/').pop();
+const QS = new URLSearchParams(location.search);
+const KIOSK = QS.get('kiosk') === '1';
+const FORCAR_QUARTA = QS.get('quarta') === '1';
+const LOGO = '/logo-economico.png';   // logo oficial colorido (PDF vetor do Tiago, 23/10/2026)
+const POR_PAGINA = 3, TAB_LINHAS = 14;
+const fmt = v => Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const $ = s => document.querySelector(s);
+const hora = () => new Date().toTimeString().slice(0, 5);
+const hoje = () => new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+const SUB = s => { const t = String(s || '').toLowerCase(); return t ? t.charAt(0).toUpperCase() + t.slice(1) : ''; };
+const foto = p => p.foto ? `/api/tv-acougue-publico/${TOKEN}/foto/${p.cod}?v=${p.fotoV || 0}` : null;
+
+let CFG = null, LOJA = null, QUARTA = false, PRODUTOS = [], SEQ = [], idx = 0, front = 'A', timer = null, assinatura = '';
+
+// vitrine/destaque: um corte por tela · grade: 3 por tela com as ofertas em tela cheia · quarta: vinheta abre e volta a cada 6 telas
+function montarSequencia(produtos, cfg, quarta) {
+  const seq = []; const vin = () => { if (quarta) seq.push({ t: 'vin' }); };
+  vin();
+  if (cfg.modo === 'grade') {
+    const ofertas = produtos.filter(p => p.promo); const paginas = Math.ceil(produtos.length / POR_PAGINA); let d = 0;
+    for (let k = 0; k < paginas; k++) {
+      if (k > 0 && k % 2 === 0) vin();
+      seq.push({ t: 'grade', itens: produtos.slice(k * POR_PAGINA, (k + 1) * POR_PAGINA), pagina: k + 1, paginas });
+      if (ofertas.length && k % 2 === 1) seq.push({ t: 'full', item: ofertas[d++ % ofertas.length] });
+    }
+  } else {
+    produtos.forEach((p, i) => { seq.push({ t: cfg.modo === 'vitrine' ? 'vit' : 'full', item: p }); if (i % 6 === 5 && i < produtos.length - 1) vin(); });
+  }
+  return seq;
+}
+function topo() { return `<div class="top"><div class="logo"><img src="${LOGO}" alt="Econômico Supermercados"></div><span class="tit">${esc(CFG.titulo || 'Açougue')}</span><span class="loja">${esc(LOJA ? LOJA.nome : '')}</span>${QUARTA ? '<span class="qbadge">Quarta da Carne</span>' : ''}<span class="sp"></span><span class="clk">${hora()}</span></div>`; }
+function foot(cnt, txt) { return `<div class="foot"><span class="txt">${txt != null ? txt : (CFG.rodape ? esc(CFG.rodape) : `Preços por kg · válidos hoje, <b>${hoje()}</b> · confira a etiqueta no balcão`)}</span><span class="sp"></span><span class="cnt">${cnt}</span></div>`; }
+const seloTxt = () => QUARTA ? 'Quarta da Carne' : 'Oferta';
+function blocoPreco(p) { return `<div class="preco"><span class="rs">R$</span><span class="v">${fmt(p.preco)}</span><span class="un">/ ${esc(p.unidade)}</span></div>`; }
+function tabela(atual) {
+  const n = PRODUTOS.length; let itens = PRODUTOS, pg = '';
+  if (n > TAB_LINHAS) { const i = Math.max(0, PRODUTOS.indexOf(atual)); const b = Math.floor(i / TAB_LINHAS); itens = PRODUTOS.slice(b * TAB_LINHAS, (b + 1) * TAB_LINHAS); pg = `<span class="pg">${b * TAB_LINHAS + 1}–${Math.min(n, (b + 1) * TAB_LINHAS)} de ${n}</span>`; }
+  return `<div class="tab"><h3>Tabela do dia <small>preço por ${PRODUTOS.every(p => p.unidade === 'kg') ? 'kg' : 'kg ou unidade'}</small>${pg}</h3><ul>${itens.map(p => `<li class="${p.promo ? 'of' : ''}${p === atual ? ' atual' : ''}"><span class="n">${esc(p.nome)}</span>${p.promo ? `<span class="tag">${QUARTA ? 'Quarta' : 'Oferta'}</span>` : ''}<span class="p">${fmt(p.preco)}<small>/${esc(p.unidade)}</small></span></li>`).join('')}</ul></div>`;
+}
+const dica = p => `${p.promo ? (QUARTA ? 'Só hoje · ' : 'Oferta · ') : ''}${p.balanca ? 'cortado na hora · peça ao açougueiro' : 'preço de hoje'}`;
+function rVit(s) {
+  const p = s.item, n = PRODUTOS.indexOf(p) + 1, f = foto(p);
+  return `<div class="vit">${topo()}<div class="main"><div class="hero${p.promo ? ' oferta' : ''}${f ? '' : ' semfoto'}">${f ? `<img src="${f}" alt="">` : `<div class="marca">${esc(SUB(p.subgrupo) || 'Açougue')}</div>`}<div class="veu"></div><div class="tx">${p.subgrupo ? `<span class="chip">${esc(SUB(p.subgrupo))}</span>` : ''}<h2 class="nome${p.nome.length > 18 ? ' longo' : ''}">${esc(p.nome)}</h2><div class="linha">${blocoPreco(p)}${p.promo ? `<div class="selo">${seloTxt()}</div>` : ''}</div><div class="dica">${dica(p)}</div></div></div>${tabela(p)}</div>${foot(`${n} / ${PRODUTOS.length}`)}</div>`;
+}
+function rFull(s) {
+  const p = s.item, n = PRODUTOS.indexOf(p) + 1, f = foto(p);
+  return `<div class="full${p.promo ? ' oferta' : ''}">${topo()}<div class="main"><div class="foto${f ? '' : ' semfoto'}">${f ? `<img src="${f}" alt="">` : `<div class="marca">${esc(SUB(p.subgrupo) || 'Açougue')}</div>`}<div class="veu"></div></div><div class="info">${p.promo ? `<div class="selo">${seloTxt()}</div>` : ''}${p.subgrupo ? `<span class="chip">${esc(SUB(p.subgrupo))}</span>` : ''}<h2 class="nome${p.nome.length > 18 ? ' longo' : ''}">${esc(p.nome)}</h2>${blocoPreco(p)}<div class="dica">${dica(p)}</div></div></div>${foot(`${n} / ${PRODUTOS.length}`)}</div>`;
+}
+function rGrade(s) {
+  const ini = PRODUTOS.indexOf(s.itens[0]) + 1, fim = PRODUTOS.indexOf(s.itens[s.itens.length - 1]) + 1;
+  return `<div class="grade">${topo()}<div class="cards">${s.itens.map(p => { const f = foto(p); return `<div class="card${p.promo ? ' hot' : ''}"><div class="im${f ? '' : ' semfoto'}">${f ? `<img src="${f}" alt="">` : `<div class="marca">${esc(SUB(p.subgrupo) || 'Açougue')}</div>`}${p.promo ? `<span class="tag">${seloTxt()}</span>` : ''}</div><div class="tx"><span class="sg">${esc(SUB(p.subgrupo) || ' ')}</span><div class="n">${esc(p.nome)}</div><div class="p"><span class="rs">R$</span><span class="v">${fmt(p.preco)}</span><span class="u">/${esc(p.unidade)}</span></div></div></div>`; }).join('')}</div>${foot(`${ini}–${fim} / ${PRODUTOS.length}`)}</div>`;
+}
+function rVin() {
+  const ofs = PRODUTOS.filter(p => p.promo).slice(0, 4); const mos = ofs.filter(p => p.foto);
+  return `<div class="vin"><div class="mosaico">${mos.map(p => `<img src="${foto(p)}" alt="">`).join('')}</div><div class="veu"></div>${topo()}<div class="main"><div class="krow"><span class="kicker">Toda quarta-feira no Econômico</span><span class="stamp">Só hoje</span></div><h2>Quarta da <span>Carne</span></h2>${ofs.length ? `<div class="ofs">${ofs.map(p => `<div class="of">${p.foto ? `<img src="${foto(p)}" alt="">` : ''}<div class="tx"><div class="n">${esc(p.nome)}</div><div class="p">${fmt(p.preco)}<small>/${esc(p.unidade)}</small></div></div></div>`).join('')}</div>` : ''}</div>${foot('', ofs.length ? `<b>${ofs.length} oferta${ofs.length > 1 ? 's' : ''}</b> só hoje, ${hoje()} · preço por kg · enquanto durarem os estoques` : `Ofertas só hoje, ${hoje()} · enquanto durarem os estoques`)}</div>`;
+}
+const render = s => ({ vin: rVin, vit: rVit, full: rFull, grade: rGrade })[s.t](s);
+
+function mostrar() {
+  if (!SEQ.length) return;
+  const s = SEQ[idx % SEQ.length]; const nxt = front === 'A' ? 'B' : 'A'; const el = document.getElementById(nxt);
+  el.innerHTML = render(s);
+  requestAnimationFrame(() => { el.classList.add('on'); document.getElementById(front).classList.remove('on'); front = nxt; });
+  const pr = $('#prog'); pr.style.transition = 'none'; pr.style.width = '0';
+  requestAnimationFrame(() => requestAnimationFrame(() => { pr.style.transition = `width ${CFG.segundos * 1000}ms linear`; pr.style.width = '100%'; }));
+  clearTimeout(timer); timer = setTimeout(() => { idx++; mostrar(); }, CFG.segundos * 1000);
+}
+
+let VERSAO = null;
+function aplicar(dados) {
+  // página nova publicada no servidor → recarrega a TV sozinha
+  if (dados.versao) { if (VERSAO === null) VERSAO = dados.versao; else if (dados.versao !== VERSAO) { location.reload(); return; } }
+  const cfgMudou = JSON.stringify(dados.config) !== JSON.stringify(CFG) || JSON.stringify(dados.loja) !== JSON.stringify(LOJA) || !!dados.hojeQuarta !== QUARTA;
+  const prodNovo = JSON.stringify(dados.produtos.map(p => [p.cod, p.nome, p.preco, p.promo, p.unidade, p.foto, p.fotoV]));
+  const prodMudou = prodNovo !== assinatura;
+  $('#aviso').hidden = true;
+  if (!cfgMudou && !prodMudou && SEQ.length) return;      // nada mudou: não mexe na lista que os slides estão usando
+  CFG = dados.config; LOJA = dados.loja; QUARTA = !!dados.hojeQuarta; PRODUTOS = dados.produtos; assinatura = prodNovo;
+  document.getElementById('tv').classList.toggle('vm', CFG.tema === 'vermelho');
+  if (!PRODUTOS.length) { clearTimeout(timer); SEQ = []; return aviso('Nenhum corte na TV', 'Escolha os cortes em Processos → TV Açougue. Assim que salvar, eles aparecem aqui.'); }
+  const pos = SEQ.length ? idx % SEQ.length : 0;
+  SEQ = montarSequencia(PRODUTOS, CFG, QUARTA);
+  idx = cfgMudou ? 0 : Math.min(pos, SEQ.length - 1);   // config nova recomeça; só preço/foto novos continuam de onde estava
+  mostrar();
+}
+function aviso(titulo, texto) { $('#aviso').innerHTML = `<img src="${LOGO}" alt="Econômico"><h1>${esc(titulo)}</h1><p>${esc(texto)}</p>`; $('#aviso').hidden = false; }
+
+async function carregar() {
+  try {
+    const r = await fetch(`/api/tv-acougue-publico/${TOKEN}?t=${Date.now()}${FORCAR_QUARTA ? '&quarta=1' : ''}`, { cache: 'no-store' });   // ?t= fura cache de navegador de TV
+    if (r.status === 404) { clearTimeout(timer); SEQ = []; return aviso('Link inválido', 'Gere um novo link em Processos → TV Açougue e abra ele na TV.'); }
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.statusText);
+    aplicar(await r.json());
+  } catch (e) {
+    if (!SEQ.length) aviso('Sem dados no momento', 'A TV tenta de novo em alguns segundos. ' + e.message);
+  }
+}
+function fit() { const w = innerWidth, h = innerHeight; const u = Math.min(w / 100, h / 56.25); document.getElementById('tv').style.setProperty('--u', u.toFixed(3)); }
+addEventListener('resize', fit); fit();
+
+// tela cheia: o navegador só libera com um toque; em quiosque (?kiosk=1) o botão nem aparece
+function fsOk() { return document.fullscreenElement || KIOSK || !document.documentElement.requestFullscreen; }
+function pedirFs() { document.documentElement.requestFullscreen().catch(() => {}); $('#fs').hidden = true; }
+$('#fs').onclick = pedirFs;
+document.addEventListener('keydown', e => { if (e.key === 'f' || e.key === 'F') pedirFs(); });
+document.addEventListener('fullscreenchange', () => { $('#fs').hidden = fsOk(); });
+$('#fs').hidden = fsOk();
+setInterval(() => { document.querySelectorAll('.slide.on .clk').forEach(c => c.textContent = hora()); }, 15000);
+
+carregar();
+setInterval(carregar, 10000);   // relê config/preços a cada 10 s (o servidor guarda os preços em cache de 5 min)
+</script>
+</body>
+</html>

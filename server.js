@@ -142,6 +142,9 @@ app.get('/tv', (req, res) => res.redirect('/painel-compras.html'));
 // e caía na tela de login (Tiago, 08/10/26: "foi 192.168.2.254:3003/tvcahu aí ele pediu usuario e senha lá na tv").
 app.get(/^\/tvcahu\/?$/i, (req, res) => res.redirect(`/tv-televendas/${tvTelevendas.getConfig().token}`));
 app.get(/^\/tvcahu\/kiosk\/?$/i, (req, res) => res.redirect(`/tv-televendas/${tvTelevendas.getConfig().token}?kiosk=1`));
+// Mesmo esquema pra TV do açougue da loja (Processos › TV Açougue, 23/10/26): /tvacougue → link completo com token
+app.get(/^\/tvacougue\/?$/i, (req, res) => res.redirect(`/tv-acougue/${tvAcougue.getConfig().token}`));
+app.get(/^\/tvacougue\/kiosk\/?$/i, (req, res) => res.redirect(`/tv-acougue/${tvAcougue.getConfig().token}?kiosk=1`));
 
 // ── CACHE EM MEMÓRIA ─────────────────────────────────────
 const _cache = new Map();
@@ -243,6 +246,8 @@ app.use((req, res, next) => {
   // TV do televendas da CAHU: página e API públicas por token de 32 hex (só leitura, preço da Tabela Retirada)
   // (/tvcahu e o token sem diferenciar maiúsculas: teclado da Smart TV capitaliza a 1ª letra — 08/10/26)
   if (/^\/tvcahu\/?(kiosk\/?)?$/i.test(req.path) || /^\/tv-televendas\/[a-f0-9]{32}$/i.test(req.path) || /^\/api\/tv-televendas-publico\/[a-f0-9]{32}$/i.test(req.path)) return next();
+  // TV do açougue da loja (23/10/26): página, API e fotos dos cortes públicas por token (só leitura, preço da loja no ERP)
+  if (/^\/tvacougue\/?(kiosk\/?)?$/i.test(req.path) || /^\/tv-acougue\/[a-f0-9]{32}$/i.test(req.path) || /^\/api\/tv-acougue-publico\/[a-f0-9]{32}(\/foto\/\d{1,14})?$/i.test(req.path)) return next();
   // Link do fornecedor na Cotação: mesmo esquema (token de 32 hex por fornecedor convidado)
   if (/^\/cotacao\/[a-f0-9]{32}$/.test(req.path) || /^\/api\/cotacao-publica\/[a-f0-9]{32}(\/|$)/.test(req.path)) return next();
   // Portal do Fornecedor (PWA em /fornecedor/, 13/10/26): página, service worker, manifest, atalhos /fornecedor/cotacao|pedido/<token>
@@ -7997,6 +8002,9 @@ pedidosCD.init({ q, mesDB });
 // TV do televendas da CAHU (página cahu-tv-televendas.html, menu CAHU Distribuidora) — lib/tv-televendas.js
 const tvTelevendas = require('./lib/tv-televendas');
 tvTelevendas.init({ q });
+// TV do açougue da loja (página tv-acougue-config.html, menu Processos › TV Açougue, 23/10/26) — lib/tv-acougue.js
+const tvAcougue = require('./lib/tv-acougue');
+tvAcougue.init({ q });
 pedidosCD.agendar();
 setTimeout(() => pedidosCD.verificar().catch(e => console.error('[PEDIDOS-CD] verificar:', e.message)), 150 * 1000);
 setInterval(() => pedidosCD.verificar().catch(e => console.error('[PEDIDOS-CD] verificar:', e.message)), 5 * 60 * 1000); // 5 min: nota lançada na loja aparece logo (era 30 min, 18/09/2026)
@@ -8103,6 +8111,62 @@ app.get('/api/tv-televendas-publico/:token', async (req, res) => {
     let versao = null; try { versao = fs.statSync(path.join(__dirname, 'public', 'tv-televendas.html')).mtimeMs; } catch (e) {}
     res.json({ config, produtos, geradoEm: (tvTelevendas.totais() || {}).geradoEm || null, versao });
   } catch (err) { res.status(503).json({ error: 'Sem dados no momento: ' + err.message }); }
+});
+// ── TV Açougue (Processos › TV Açougue) — lib/tv-acougue.js ─────────────────────────────────
+const tvAcougueLinks = c => ({ linkTV: `${PUBLIC_URL}/tv-acougue/${c.token}`, linkCurto: `${PUBLIC_URL}/tvacougue`, linkLan: 'http://192.168.2.254:3003/tvacougue' });
+app.get('/api/tv-acougue/config', async (req, res) => {
+  const c = tvAcougue.getConfig();
+  let escolhidos = [];
+  try { escolhidos = await tvAcougue.listarEscolhidos(); } catch (e) { console.error('[TV-ACOUGUE] produtos:', e.message); }
+  res.json({ config: c, lojas: tvAcougue.LOJAS, maxProdutos: tvAcougue.MAX_PRODUTOS, ...tvAcougueLinks(c), totais: tvAcougue.totais(), escolhidos });
+});
+app.post('/api/tv-acougue/config', async (req, res) => {
+  try {
+    const c = tvAcougue.salvarConfig(req.body || {}, req.session.user?.nome || null);
+    let escolhidos = []; try { escolhidos = await tvAcougue.listarEscolhidos(); } catch (e) { console.error('[TV-ACOUGUE] produtos:', e.message); }
+    res.json({ config: c, ...tvAcougueLinks(c), totais: tvAcougue.totais(), escolhidos });
+  } catch (err) { res.status(400).json({ error: err.message }); }
+});
+app.post('/api/tv-acougue/config/novo-token', (req, res) => {
+  const c = tvAcougue.novoToken();
+  res.json({ config: c, ...tvAcougueLinks(c) });
+});
+app.get('/api/tv-acougue/config/produtos', async (req, res) => {
+  try { res.json(await tvAcougue.buscarProdutos(req.query.q)); }
+  catch (err) { res.status(503).json({ error: 'ERP indisponível: ' + err.message }); }
+});
+// banco de fotos por código (a tela já manda JPEG reduzido em data URL)
+app.post('/api/tv-acougue/foto', (req, res) => {
+  try { res.json(tvAcougue.salvarFoto(String((req.body || {}).cod || ''), (req.body || {}).dados)); }
+  catch (err) { res.status(400).json({ error: err.message }); }
+});
+app.delete('/api/tv-acougue/foto/:cod', (req, res) => {
+  try { res.json(tvAcougue.removerFoto(String(req.params.cod))); } catch (err) { res.status(400).json({ error: err.message }); }
+});
+function enviarFotoAcougue(cod, res) {
+  const f = tvAcougue.caminhoFoto(cod);
+  if (!f || !tvAcougue.temFoto(cod)) return res.status(404).end();
+  res.set('Cache-Control', 'public, max-age=3600');
+  res.sendFile(f);
+}
+app.get('/api/tv-acougue/foto/:cod', (req, res) => enviarFotoAcougue(String(req.params.cod), res));
+app.get('/tv-acougue/:token', (req, res) => {
+  if (!tvAcougue.tokenValido(String(req.params.token).toLowerCase())) return res.status(404).send('Link inválido. Gere um novo link em Processos → TV Açougue.');
+  res.set('Cache-Control', 'no-store');
+  res.sendFile(path.join(__dirname, 'public', 'tv-acougue.html'));
+});
+app.get('/api/tv-acougue-publico/:token', async (req, res) => {
+  if (!tvAcougue.tokenValido(String(req.params.token).toLowerCase())) return res.status(404).json({ error: 'Link inválido' });
+  res.set('Cache-Control', 'no-store');
+  try {
+    const dados = await tvAcougue.payloadTV({ forcarQuarta: req.query.quarta === '1' });
+    let versao = null; try { versao = fs.statSync(path.join(__dirname, 'public', 'tv-acougue.html')).mtimeMs; } catch (e) {}
+    res.json({ ...dados, versao });
+  } catch (err) { res.status(503).json({ error: 'Sem dados no momento: ' + err.message }); }
+});
+app.get('/api/tv-acougue-publico/:token/foto/:cod', (req, res) => {
+  if (!tvAcougue.tokenValido(String(req.params.token).toLowerCase())) return res.status(404).end();
+  enviarFotoAcougue(String(req.params.cod), res);
 });
 app.get('/api/pedidos-cd/config', (req, res) => res.json(pedidosCD.getConfig()));
 app.post('/api/pedidos-cd/config', (req, res) => {

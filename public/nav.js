@@ -109,6 +109,7 @@
         { href: '/backup.html', ic: 'shield', txt: 'Backup' },
         { href: '/pendencias.html', ic: 'alert', txt: 'Pendências' },
         { href: '/negativos.html', ic: 'alert', txt: 'Negativos' },
+        { href: '/tv-acougue-config.html', ic: 'store', txt: 'TV Açougue' },
         { href: '/log.html', ic: 'list', txt: 'Log' }
       ]}
   ];
