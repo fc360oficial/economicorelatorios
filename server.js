@@ -8680,6 +8680,9 @@ require('./lib/termos-escala-rotas')(app, { pontocerto });
 // pelo ponto × termos, conferência do RH, aprovação da Coordenação, relatório PDF/xlsx ao Financeiro. Ambos só leem o PontoCerto.
 require('./lib/dados-bancarios-rotas')(app, { pontocerto, multer });
 require('./lib/pagamentos-df-rotas')(app, { pontocerto });
+// Conciliação automática dos pagamentos de domingos/feriados com o extrato Itaú de cada loja (23/10/2026, Tiago: "quero que fique
+// automático"): 10 min após subir e a cada 6 h; só marca pago quem bateu por CPF + valor, o resto vira sugestão na tela do Financeiro.
+setTimeout(function agendaConciliacaoDF() { require('./lib/pagamentos-conciliacao').conciliarTodos().catch(e => console.error('[pagamentos-df] conciliação:', e.message)).finally(() => setTimeout(agendaConciliacaoDF, 6 * 3600000)); }, 10 * 60000);
 // O GET /employees do Pontomais leva ~30-40 s (4 páginas pesadas). Aquece o cache ao subir e renova a cada 18 min
 // pra tela do DP/RH abrir na hora; se o token não estiver configurado, só ignora.
 const genteAquecer = () => { gente.painelDP().catch(() => {}); };
