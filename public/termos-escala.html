@@ -81,7 +81,7 @@ table.t td.nomes{white-space:normal;max-width:360px;color:var(--ink2);font-size:
 <script>
 const { $, $$, esc, api, toast, dBR } = G;
 let ME = null, PAG = 'nova';
-const ST = { loja: null, data: null, tipo: null, info: null, funcs: [], fonte: null, sel: new Set(), busca: '', funcao: '', previaIdx: 0, previaUrl: null, sucesso: null, carregando: false };
+const ST = { loja: null, data: null, tipo: null, info: null, funcs: [], fonte: null, sel: new Set(), busca: '', funcao: '', previaUrl: null, previaChave: null, sucesso: null, carregando: false };
 const H = { loja: '', func: '', de: '', ate: '', dataTrabalho: '', tipo: '', status: '' };
 const ic = n => '<svg class="ds-ic"><use href="/icons.svg#' + n + '"/></svg>';
 const lojaTxt = n => (ME.lojas.find(l => l.n === +n) || {}).txt || '—'; const lojaCod = n => lojaTxt(n).split(' · ')[0];
@@ -173,23 +173,24 @@ function atualizar() {
   $('#n-resumo').innerHTML = '<div class="resumo"><div><div class="l">Unidade</div><div class="v">' + esc(lojaTxt(ST.loja)) + '</div></div><div><div class="l">Data do trabalho</div><div class="v">' + (ST.data ? dBR(ST.data) + (ST.info ? ' <small style="font-weight:600;color:var(--ink3)">' + esc(ST.info.diaSemanaTxt) + '</small>' : '') : '—') + '</div></div><div><div class="l">Tipo de escala</div><div class="v">' + (ST.tipo ? esc(ME.tipos[ST.tipo]) + (ST.tipo === 'feriado' && ST.info && ST.info.nomeFeriado ? ' <small style="font-weight:600;color:var(--ink3)">' + esc(ST.info.nomeFeriado) + '</small>' : '') : '<span style="color:var(--neg)">escolha</span>') + '</div></div><div><div class="l">Funcionários</div><div class="v">' + S.length + '</div></div></div>' +
     (S.length ? '<div class="chips">' + S.map(f => '<span>' + esc(f.nome) + '<i data-id="' + f.id + '" title="tirar da seleção">✕</i></span>').join('') + '</div>' : '<div class="note" style="margin:0">Marque na lista acima quem vai trabalhar nesta data. Cada pessoa vira uma página do PDF.</div>');
   $$('#n-resumo .chips i').forEach(i => i.onclick = () => { ST.sel.delete(String(i.dataset.id)); tabela(); atualizar(); });
-  if (ST.previaIdx >= S.length) ST.previaIdx = 0; previaNav();
+  previaNav();
 }
+// Prévia = o PDF inteiro da seleção (um termo por página), igual ao que vai ser emitido (Tiago, 23/10: "abre os 3 selecionados?")
 let previaTimer = null;
 function previaNav() {
-  const S = selValidos(); const f = S[ST.previaIdx];
-  $('#p-nav').innerHTML = S.length ? '<button class="ds-btn ds-btn-ghost" id="p-ant" type="button"' + (S.length < 2 ? ' disabled' : '') + '>‹</button><span><b>' + (ST.previaIdx + 1) + '</b> de ' + S.length + ' · ' + esc(f.nome) + '</span><button class="ds-btn ds-btn-ghost" id="p-prox" type="button"' + (S.length < 2 ? ' disabled' : '') + '>›</button><div class="end"><button class="ds-btn ds-btn-secondary" id="p-abrir" type="button"' + (ST.previaUrl ? '' : ' disabled') + '>Abrir em nova aba</button></div>' : '<span style="color:var(--ink3)">Selecione funcionários para ver a prévia.</span>';
-  if (!S.length) { $('#p-box').innerHTML = '<div class="ph">A prévia mostra o termo exatamente como vai sair no PDF, com os dados do PontoCerto. Escolha a data, o tipo e marque os funcionários.</div>'; ST.previaUrl = null; return; }
-  $('#p-ant').onclick = () => { ST.previaIdx = (ST.previaIdx - 1 + S.length) % S.length; previaNav(); previa(true); }; $('#p-prox').onclick = () => { ST.previaIdx = (ST.previaIdx + 1) % S.length; previaNav(); previa(true); };
+  const S = selValidos();
+  $('#p-nav').innerHTML = S.length ? '<span><b>' + S.length + '</b> documento(s) · um por página · role para ver todos</span><div class="end"><button class="ds-btn ds-btn-secondary" id="p-abrir" type="button"' + (ST.previaUrl ? '' : ' disabled') + '>Abrir em nova aba</button></div>' : '<span style="color:var(--ink3)">Selecione funcionários para ver a prévia.</span>';
+  if (!S.length) { $('#p-box').innerHTML = '<div class="ph">A prévia mostra o termo exatamente como vai sair no PDF, com os dados do PontoCerto. Escolha a data, o tipo e marque os funcionários.</div>'; ST.previaUrl = null; ST.previaChave = null; return; }
   $('#p-abrir').onclick = () => { if (ST.previaUrl) window.open(ST.previaUrl, '_blank'); };
-  clearTimeout(previaTimer); previaTimer = setTimeout(() => previa(), 350);
+  clearTimeout(previaTimer); previaTimer = setTimeout(() => previa(), 400);
 }
 async function previa(agora) {
-  const S = selValidos(); const f = S[ST.previaIdx]; if (!f || !ST.tipo || !ST.data) return;
-  const chave = [ST.loja, ST.data, ST.tipo, f.id].join('|'); if (!agora && ST.previaChave === chave && ST.previaUrl) return;
-  $('#p-box').innerHTML = '<div class="ph">gerando a prévia…</div>';
+  const S = selValidos(); if (!S.length || !ST.tipo || !ST.data) return;
+  const chave = [ST.loja, ST.data, ST.tipo, S.map(f => f.id).join(',')].join('|'); if (!agora && ST.previaChave === chave && ST.previaUrl) return;
+  $('#p-box').innerHTML = '<div class="ph">gerando a prévia de ' + S.length + ' documento(s)…</div>';
   try {
-    const r = await fetch('/api/termos-escala/previa', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ loja: ST.loja, data: ST.data, tipo: ST.tipo, funcId: f.id }) });
+    const r = await fetch('/api/termos-escala/previa', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ loja: ST.loja, data: ST.data, tipo: ST.tipo, funcIds: S.map(f => f.id) }) });
+    const S2 = selValidos(); if (S2.map(f => f.id).join(',') !== S.map(f => f.id).join(',')) return;   // seleção mudou enquanto gerava: a próxima prévia já está a caminho
     if (!r.ok) { let j = null; try { j = await r.json(); } catch (e) {} throw new Error((j && j.error) || 'HTTP ' + r.status); }
     const blob = await r.blob(); if (ST.previaUrl) URL.revokeObjectURL(ST.previaUrl); ST.previaUrl = URL.createObjectURL(blob); ST.previaChave = chave;
     $('#p-box').innerHTML = '<iframe src="' + ST.previaUrl + '#toolbar=0&navpanes=0&view=FitH" title="Prévia do termo"></iframe>'; const b = $('#p-abrir'); if (b) b.disabled = false;
@@ -208,7 +209,7 @@ async function emitir(confirmarDuplicado) {
       return;
     }
     if (!resp.ok) throw new Error((r && r.error) || 'HTTP ' + resp.status);
-    ST.sucesso = r; ST.sel.clear(); ST.previaIdx = 0; toast('Emissão ' + r.id + ' registrada · ' + r.qtd + ' documento(s)'); mostrarSucesso(); tabela(); atualizar();
+    ST.sucesso = r; ST.sel.clear(); toast('Emissão ' + r.id + ' registrada · ' + r.qtd + ' documento(s)'); mostrarSucesso(); tabela(); atualizar();
     const w = window.open('/api/termos-escala/emissoes/' + r.id + '/pdf', '_blank'); if (!w) toast('O navegador bloqueou a nova aba: use os botões acima para abrir o PDF', 'neg');
   } catch (e) { toast(e.message, 'neg'); atualizar(); }
 }
