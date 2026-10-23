@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="/design-system.css">
+<script src="/nav.js" defer></script>
+<title>Conta do Fornecedor</title>
+<style>
+/* Prevenção › Conta do fornecedor (23/10/2026). Avaria nasce e é baixada no ERP pela prevenção; aqui fica o extrato:
+   quanto cada fornecedor deve, como pagou (fiscal marca dentro da nota) e a fila do que já foi pago e falta baixar no ERP. */
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'InterVar','Segoe UI',sans-serif;background:#EBEBE9;color:#0E1626;min-height:100vh}
+.main{padding:24px}
+.page-hdr{margin-bottom:16px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.page-hdr h1{font-size:21px;font-weight:700}
+.page-hdr p{font-size:12px;color:#4E5A72;margin-top:2px;max-width:70ch}
+.hdr-acoes{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:11.5px;color:#4E5A72}
+.btn{border:1px solid #DADAD6;border-radius:8px;padding:7px 13px;font-size:12.5px;font-weight:600;cursor:pointer;background:#fff;color:#0E1626;font-family:inherit}
+.btn:hover{background:#F6F6F4}
+.btn-amber{background:#F5B800;border-color:#F5B800;color:#6B4E00}.btn-amber:hover{background:#E5AC00}
+.btn-green{background:#137A48;border-color:#137A48;color:#fff}
+.btn-sm{padding:4px 9px;font-size:11.5px}
+.btn[disabled]{opacity:.5;cursor:default}
+.kpi-row{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+.kpi{background:#fff;border:1px solid #DADAD6;border-radius:10px;padding:12px 16px;min-width:150px;flex:1}
+.kpi .v{font-size:19px;font-weight:800;font-variant-numeric:tabular-nums}
+.kpi .v.neg{color:#C22F49}.kpi .v.pos{color:#137A48}
+.kpi .l{font-size:10px;color:#4E5A72;margin-top:2px;text-transform:uppercase;letter-spacing:.4px;font-weight:700}
+.kpi .s{font-size:11px;color:#98A0B3;margin-top:3px}
+.card{background:#fff;border:1px solid #DADAD6;border-radius:12px;padding:14px 16px;margin-bottom:16px;min-width:0}
+.card h2{font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#4E5A72;margin-bottom:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.card h2 .n{background:#EBEBE9;border-radius:99px;padding:1px 8px;font-size:11px;color:#0E1626}
+.card h2 .sub{font-weight:500;text-transform:none;letter-spacing:0;color:#98A0B3;font-size:11.5px}
+.grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.5fr);gap:16px}
+@media (max-width:980px){.grid2{grid-template-columns:1fr}}
+.table-wrap{overflow-x:auto}
+table.t{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}
+table.t th{padding:7px 10px;text-align:left;color:#4E5A72;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;white-space:nowrap;border-bottom:1px solid #DADAD6;background:#F6F6F4}
+table.t td{padding:7px 10px;border-bottom:1px solid #EBEBE9;vertical-align:top}
+table.t tr:last-child td{border-bottom:0}
+table.t th.r,table.t td.r{text-align:right;white-space:nowrap}
+table.t tr.sel td{background:#FFF6D9}
+table.t tr.clk{cursor:pointer}table.t tr.clk:hover td{background:#FAFAF8}
+table.t tr.canc td{color:#98A0B3;text-decoration:line-through}
+.pill{display:inline-block;padding:2px 8px;border-radius:99px;font-size:10.5px;font-weight:700;white-space:nowrap}
+.p-neg{background:#FBEAED;color:#C22F49}.p-pos{background:#E7F5EC;color:#137A48}.p-am{background:#FFF6D9;color:#6B4E00}.p-gr{background:#EBEBE9;color:#4E5A72}.p-inf{background:#E9EEF6;color:#2E5E8C}
+.deve{color:#C22F49;font-weight:700}.credito{color:#137A48;font-weight:700}.zero{color:#98A0B3}
+.mut{color:#98A0B3}.etq{font-size:10.5px;color:#98A0B3;display:block}
+.busca{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.busca input,.busca select,.form input,.form select,.form textarea{font:inherit;font-size:12.5px;padding:6px 9px;border:1px solid #DADAD6;border-radius:7px;background:#FAFAF8;color:#0E1626;min-width:0}
+.busca input{flex:1 1 180px}
+.busca input:focus,.form input:focus,.form select:focus,.form textarea:focus{outline:none;border-color:#F5B800;background:#fff}
+.ex-hd{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid #EBEBE9}
+.ex-hd .nm{font-size:15px;font-weight:800}
+.ex-hd .saldo{font-size:14px}
+.ex-hd .sp{flex:1}
+.empty{padding:30px;text-align:center;color:#98A0B3;font-size:13px}
+.spinner{width:28px;height:28px;border:3px solid #DADAD6;border-top-color:#F5B800;border-radius:50%;animation:sp 1s linear infinite;margin:30px auto}
+@keyframes sp{to{transform:rotate(360deg)}}
+.form{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;background:#FFF6D9;border:1px solid #EFD98F;border-radius:10px;padding:12px;margin-bottom:12px}
+.form label{display:flex;flex-direction:column;gap:3px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#6B4E00}
+.form .full{grid-column:1/-1}
+.form .ac{grid-column:1/-1;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.form .ac .msg{font-size:11.5px;color:#4E5A72}
+.aloc{max-height:180px;overflow:auto;background:#fff;border:1px solid #EFD98F;border-radius:7px;padding:6px 8px;font-size:11.5px}
+.aloc label{display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;font-weight:500;color:#0E1626;font-size:11.5px;padding:2px 0}
+.aloc input{width:auto}
+#toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#0E1626;color:#fff;padding:9px 16px;border-radius:9px;font-size:12.5px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:99}
+#toast.on{opacity:1}
+@media print{.hdr-acoes,.busca,.form,.btn{display:none!important}}
+</style>
+</head>
+<body class="ds">
+<div class="main">
+  <div class="page-hdr">
+    <div>
+      <h1>🛡️ Conta do Fornecedor</h1>
+      <p>Avarias abertas no ERP viram débito do fornecedor. O fiscal marca dentro da nota como cada uma foi paga (desconto, bonificação, troca, devolução). A prevenção baixa no ERP a partir da fila abaixo. Nada aqui escreve no ERP.</p>
+    </div>
+    <div class="hdr-acoes">
+      <span id="syncInfo"></span>
+      <button class="btn" onclick="sincronizar()" id="btnSync">Ler o ERP agora</button>
+      <button class="btn" onclick="window.print()">🖨 Imprimir</button>
+    </div>
+  </div>
+  <div id="kpis" class="kpi-row"></div>
+  <div id="fila"></div>
+  <div id="semPag"></div>
+  <div class="grid2">
+    <div class="card" id="cardForn">
+      <h2>Saldo por fornecedor <span class="n" id="nForn">0</span><span class="sub">do mais antigo em aberto pro mais novo</span></h2>
+      <div class="busca"><input id="busca" placeholder="buscar fornecedor ou código" oninput="renderForn()"><select id="filSaldo" onchange="renderForn()"><option value="">todos</option><option value="deve">só devendo</option><option value="credito">só com crédito</option><option value="90">devendo há mais de 90 d</option></select></div>
+      <div class="table-wrap" id="tabForn"></div>
+    </div>
+    <div class="card" id="cardEx">
+      <h2>Extrato <span class="sub" id="exSub">escolha um fornecedor ao lado</span></h2>
+      <div id="extrato"><div class="empty">Nenhum fornecedor selecionado.</div></div>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const brl=v=>'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const num=v=>Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:3});
+const dbr=s=>s?String(s).slice(8,10)+'/'+String(s).slice(5,7)+'/'+String(s).slice(0,4):'—';
+const quando=s=>s?new Date(s).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';
+const dias=s=>s?Math.max(0,Math.round((Date.now()-new Date(s).getTime())/864e5)):0;
+let R=null, EX=null, selecionado=null, formAberto=null;
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toast._t);toast._t=setTimeout(()=>t.classList.remove('on'),2600);}
+const saldoTxt=f=>f.deve>0?'<span class="deve">deve '+brl(f.deve)+'</span>':f.credito>0?'<span class="credito">crédito '+brl(f.credito)+'</span>':'<span class="zero">zerado</span>';
+const LJ=n=>R&&R.lojas&&R.lojas[n]?R.lojas[n]:('Loja '+n);
+
+async function carregar(){
+  try{const r=await fetch('/api/conta-fornecedor/resumo');R=await r.json();if(R.error)throw new Error(R.error);}
+  catch(e){$('#kpis').innerHTML='<div class="empty">Erro: '+esc(e.message)+'</div>';return;}
+  renderKpis();renderFila();renderSemPag();renderForn();
+  const s=R.sync;$('#syncInfo').textContent=s?('ERP lido '+quando(s.em)+' · '+s.abertas+' avarias abertas'+(s.erro?' · erro: '+s.erro:'')):'ERP ainda não lido';
+  if(selecionado)abrirExtrato(selecionado,true);
+}
+function renderKpis(){
+  const k=R.kpis;
+  $('#kpis').innerHTML=
+    '<div class="kpi"><div class="v neg">'+brl(k.deve)+'</div><div class="l">Fornecedores nos devendo</div><div class="s">'+k.fornecedores_devendo+' fornecedores · '+k.lancamentos_abertos+' lançamentos em aberto</div></div>'
+   +'<div class="kpi"><div class="v pos">'+brl(k.credito)+'</div><div class="l">Crédito a favor de fornecedor</div><div class="s">'+k.fornecedores_credito+' fornecedor(es) · abate a próxima avaria sozinho</div></div>'
+   +'<div class="kpi"><div class="v">'+k.fila+'</div><div class="l">A baixar no ERP</div><div class="s">pagas, marcadas pelo fiscal, ainda abertas lá</div></div>'
+   +'<div class="kpi"><div class="v">'+(k.mais_antigo?k.mais_antigo.dias+' d':'—')+'</div><div class="l">Mais antigo em aberto</div><div class="s">'+(k.mais_antigo?esc(k.mais_antigo.fornecedor)+' · '+brl(k.mais_antigo.deve):'')+'</div></div>'
+   +'<div class="kpi"><div class="v">'+brl(k.pagos_30d)+'</div><div class="l">Pago nos últimos 30 d</div><div class="s">'+k.n_pagos_30d+' pagamento(s) confirmados pelo fiscal</div></div>';
+}
+function renderFila(){
+  const f=R.fila||[];
+  if(!f.length){$('#fila').innerHTML='<div class="card"><h2>A baixar no ERP <span class="n">0</span><span class="sub">o que o fiscal marcou como pago e a prevenção ainda não baixou</span></h2><div class="empty">Nada esperando baixa. Quando o fiscal confirmar um pagamento, a avaria aparece aqui até ser baixada no ERP.</div></div>';return;}
+  let h='<div class="card"><h2>A baixar no ERP <span class="n">'+f.length+'</span><span class="sub">o fiscal já marcou como pago: baixe no ERP e a linha some sozinha na próxima leitura (de hora em hora)</span></h2><div class="table-wrap"><table class="t"><thead><tr><th>Avaria ERP</th><th>Loja</th><th>Fornecedor</th><th>Produto</th><th class="r">Valor</th><th>Como foi pago</th><th>Fiscal</th><th>Esperando</th></tr></thead><tbody>';
+  for(const d of f){const ult=(d.pagamentos||[]).slice(-1)[0]||{};const pg=(d.pagamentos||[]).map(p=>(R.formas[p.forma]||p.forma)+(p.nota?' · NF '+p.nota:'')+' · '+brl(p.valor)).join('<br>');const dd=dias(ult.em);
+    h+='<tr class="clk" onclick="abrirExtrato('+d.codFornec+')"><td><b>'+(d.origem&&d.origem.nReg||'—')+'</b><span class="etq">'+dbr(d.data)+'</span></td><td>'+esc(d.loja_nome)+'</td><td>'+esc(d.fornecedor)+'</td><td>'+esc(d.descricao)+'<span class="etq">'+num(d.qtd)+' '+esc(d.und||'')+'</span></td><td class="r">'+brl(d.valor)+'</td><td>'+pg+'</td><td>'+esc(ult.por||pagPor(ult.id)||'—')+'<span class="etq">'+quando(ult.em)+'</span></td><td><span class="pill '+(dd>7?'p-neg':dd>2?'p-am':'p-gr')+'">'+dd+' d</span></td></tr>';}
+  $('#fila').innerHTML=h+'</tbody></table></div></div>';
+}
+function pagPor(id){const p=(EX&&EX.extrato||[]).find(x=>x.k==='pagamento'&&x.id===id);return p?p.por:null;}
+function renderSemPag(){
+  const f=R.sem_pagamento||[];
+  if(!f.length){$('#semPag').innerHTML='';return;}
+  let h='<div class="card"><h2>Baixada no ERP sem pagamento registrado <span class="n">'+f.length+'</span><span class="sub">a prevenção baixou, mas ninguém disse como o fornecedor pagou: registre o pagamento ou um ajuste</span></h2><div class="table-wrap"><table class="t"><thead><tr><th>Avaria ERP</th><th>Loja</th><th>Fornecedor</th><th>Produto</th><th class="r">Falta</th><th>Baixada</th><th></th></tr></thead><tbody>';
+  for(const d of f)h+='<tr><td><b>'+(d.origem&&d.origem.nReg||'—')+'</b><span class="etq">'+dbr(d.data)+' · ERP: '+esc(d.erp&&d.erp.nome||'')+'</span></td><td>'+esc(d.loja_nome)+'</td><td>'+esc(d.fornecedor)+'</td><td>'+esc(d.descricao)+'</td><td class="r deve">'+brl(d.restante)+'</td><td>'+quando(d.erp&&d.erp.baixado_em)+'</td><td><button class="btn btn-sm" onclick="abrirExtrato('+d.codFornec+').then(()=>abrirForm(\'pagamento\',\''+d.id+'\'))">Registrar</button></td></tr>';
+  $('#semPag').innerHTML=h+'</tbody></table></div></div>';
+}
+function renderForn(){
+  const b=($('#busca').value||'').trim().toLowerCase(),fs=$('#filSaldo').value;
+  let l=(R.fornecedores||[]).filter(f=>!b||String(f.codFornec)===b||(f.fornecedor||'').toLowerCase().includes(b));
+  if(fs==='deve')l=l.filter(f=>f.deve>0);else if(fs==='credito')l=l.filter(f=>f.credito>0);else if(fs==='90')l=l.filter(f=>f.deve>0&&f.mais_antigo_dias>90);
+  $('#nForn').textContent=l.length;
+  if(!l.length){$('#tabForn').innerHTML='<div class="empty">Nenhum fornecedor com saldo.</div>';return;}
+  let h='<table class="t"><thead><tr><th>Fornecedor</th><th class="r">Saldo</th><th class="r">Aberto há</th><th class="r">Lanç.</th></tr></thead><tbody>';
+  for(const f of l.slice(0,400))h+='<tr class="clk'+(selecionado===f.codFornec?' sel':'')+'" onclick="abrirExtrato('+f.codFornec+')"><td>'+esc(f.fornecedor)+'<span class="etq">cód. '+f.codFornec+'</span></td><td class="r">'+saldoTxt(f)+'</td><td class="r">'+(f.mais_antigo_dias!=null?'<span class="pill '+(f.mais_antigo_dias>90?'p-neg':f.mais_antigo_dias>30?'p-am':'p-gr')+'">'+f.mais_antigo_dias+' d</span>':'<span class="mut">—</span>')+'</td><td class="r">'+f.n_abertos+'</td></tr>';
+  $('#tabForn').innerHTML=h+'</tbody></table>'+(l.length>400?'<div class="mut" style="padding:6px 10px;font-size:11px">mostrando 400 de '+l.length+' · use a busca</div>':'');
+}
+async function abrirExtrato(cod,silencioso){
+  selecionado=+cod;if(!silencioso)formAberto=null;renderForn();
+  $('#extrato').innerHTML='<div class="spinner"></div>';
+  try{const r=await fetch('/api/conta-fornecedor/'+cod);EX=await r.json();if(EX.error)throw new Error(EX.error);}catch(e){$('#extrato').innerHTML='<div class="empty">Erro: '+esc(e.message)+'</div>';return;}
+  renderExtrato();
+  if(!silencioso)$('#cardEx').scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+function renderExtrato(){
+  const x=EX;$('#exSub').textContent=x.fornecedor+' · cód. '+x.codFornec;
+  let h='<div class="ex-hd"><span class="nm">'+esc(x.fornecedor)+'</span><span class="saldo">'+saldoTxt(x)+'</span>'+(x.n_abertos?'<span class="mut">'+x.n_abertos+' em aberto · mais antigo há '+x.mais_antigo_dias+' d</span>':'')+'<span class="sp"></span>'
+    +'<button class="btn btn-sm btn-amber" onclick="abrirForm(\'pagamento\')">Registrar pagamento</button><button class="btn btn-sm" onclick="abrirForm(\'ajuste\')">Ajuste manual</button></div>';
+  const pl=Object.entries(x.por_loja||{});if(pl.length>1)h+='<div class="mut" style="font-size:11.5px;margin-bottom:8px">Por loja: '+pl.map(([l,v])=>esc(LJ(l))+' '+brl(v)).join(' · ')+'</div>';
+  if(formAberto)h+=formHtml();
+  if(!x.extrato.length){$('#extrato').innerHTML=h+'<div class="empty">Sem lançamentos.</div>';return;}
+  h+='<div class="table-wrap"><table class="t"><thead><tr><th>Data</th><th>Loja</th><th>Lançamento</th><th class="r">Valor</th><th class="r">Saldo</th><th>ERP</th></tr></thead><tbody>';
+  for(const l of x.extrato){
+    if(l.k==='debito'){const canc=l.status==='cancelada';
+      h+='<tr'+(canc?' class="canc"':'')+'><td>'+dbr(l.data)+'</td><td>'+esc(l.loja_nome||'')+'</td><td><b>'+esc(l.tipo_nome)+(l.origem&&l.origem.nReg?' '+l.origem.nReg:'')+'</b> · '+esc(l.descricao)+(l.qtd?' · '+num(l.qtd)+' '+esc(l.und||''):'')
+        +'<span class="etq">'+(canc?'cancelada no ERP':l.status==='paga'?'paga':l.status==='parcial'?'paga '+brl(l.pago)+' de '+brl(l.valor)+', falta '+brl(l.restante):'em aberto há '+l.dias+' d')+(l.obs?' · '+esc(l.obs):'')+(l.criado_por&&l.criado_por!=='erp'?' · lançado por '+esc(l.criado_por):'')+'</span></td>'
+        +'<td class="r deve">+'+brl(l.valor)+'</td><td class="r">'+saldoAcum(l.saldo_acum)+'</td><td>'+(l.erp?'<span class="pill '+(l.erp.baixado_em?'p-pos':l.status==='paga'?'p-am':'p-gr')+'">'+esc(l.erp.nome||'')+(l.erp.baixado_em&&l.status!=='paga'&&!canc?' · sem pagamento':'')+'</span>':'<span class="mut">—</span>')+'</td></tr>';
+    }else{const ac=l.classificacao==='acordo';
+      h+='<tr'+(ac?' style="color:#4E5A72"':'')+'><td>'+dbr(l.data)+'</td><td>'+esc(l.loja_nome||'—')+'</td><td><b>'+esc(l.forma_nome)+'</b>'+(l.nota&&l.nota.nNota?' · NF '+esc(l.nota.nNota):'')+(ac?' · <span class="pill p-inf">fora da conta</span>'+(l.acordo&&l.acordo.pedidoId?' pedido #'+l.acordo.pedidoId:''):'')
+        +'<span class="etq">'+(ac?'bonificação por acordo comercial, não abate avaria':(l.alocacoes||[]).length?'pagou '+(l.alocacoes||[]).map(a=>esc(a.descricao||'')+' ('+brl(a.valor)+')').join(', '):'')+(l.sobra>0?' · sobra '+brl(l.sobra)+' de crédito':'')+(l.itens&&l.itens.length&&!(l.alocacoes||[]).length?' · '+l.itens.map(i=>esc(i.descricao)+' ×'+num(i.qtd)).join(', '):'')+' · '+esc(l.por||'?')+' '+quando(l.em)+(l.obs?' · '+esc(l.obs):'')+'</span></td>'
+        +'<td class="r '+(ac?'mut':'credito')+'">'+(ac?brl(l.valor):'−'+brl(l.valor))+'</td><td class="r">'+saldoAcum(l.saldo_acum)+'</td><td><button class="btn btn-sm" onclick="desfazer(\''+l.id+'\')" title="Apaga este pagamento e devolve o valor às avarias">desfazer</button></td></tr>';
+    }
+  }
+  $('#extrato').innerHTML=h+'</tbody></table></div>';
+}
+const saldoAcum=v=>v>0?'<span class="deve">deve '+brl(v)+'</span>':v<0?'<span class="credito">crédito '+brl(-v)+'</span>':'<span class="zero">zerado</span>';
+function abrirForm(tipo,debitoId){formAberto={tipo,debitoId:debitoId||null};renderExtrato();const el=$('#fValor');if(el)el.focus();}
+function formHtml(){
+  const f=formAberto,x=EX,lojas=Object.entries(R.lojas||{});
+  const lojaSel='<select id="fLoja"><option value="">—</option>'+lojas.map(([k,v])=>'<option value="'+k+'">'+esc(v)+'</option>').join('')+'</select>';
+  if(f.tipo==='ajuste')return '<div class="form"><label class="full" style="font-size:12px;text-transform:none;letter-spacing:0;color:#0E1626;font-weight:700">Ajuste manual · '+esc(x.fornecedor)+'</label>'
+    +'<label>Tipo<select id="fTipo"><option value="credito">crédito (perdoar / abater dívida)</option><option value="debito">débito (fornecedor passa a dever)</option></select></label>'
+    +'<label>Valor R$<input id="fValor" type="number" step="0.01" min="0.01"></label><label>Loja'+lojaSel+'</label>'
+    +'<label class="full">Motivo (obrigatório)<input id="fObs" maxlength="300" placeholder="ex.: acordo com o vendedor, avaria perdoada em 23/10"></label>'
+    +'<div class="ac"><button class="btn btn-sm btn-amber" onclick="enviarAjuste()">Gravar ajuste</button><button class="btn btn-sm" onclick="formAberto=null;renderExtrato()">Cancelar</button><span class="msg">Crédito é aplicado da avaria mais antiga pra mais nova. Fica registrado quem lançou.</span></div></div>';
+  const ab=x.abertos||[];
+  return '<div class="form"><label class="full" style="font-size:12px;text-transform:none;letter-spacing:0;color:#0E1626;font-weight:700">Registrar pagamento · '+esc(x.fornecedor)+'<span class="etq">Normalmente quem marca é o fiscal, dentro da nota. Use aqui quando o pagamento veio por fora (desconto no boleto, troca entregue direto) ou pra registrar avaria já baixada no ERP.</span></label>'
+    +'<label>Forma<select id="fForma">'+Object.entries(R.formas).filter(([k])=>!['credito','acordo','ajuste'].includes(k)).map(([k,v])=>'<option value="'+k+'">'+esc(v)+'</option>').join('')+'</select></label>'
+    +'<label>Valor R$<input id="fValor" type="number" step="0.01" min="0.01" value="'+(f.debitoId?(ab.find(d=>d.id===f.debitoId)||{}).restante||'':'')+'"></label><label>Loja da nota'+lojaSel+'</label><label>Nº da nota / boleto<input id="fNota" maxlength="20"></label>'
+    +'<label class="full">Aplicar em<div class="aloc">'+(ab.length?'<label><input type="radio" name="fAloc" value="" '+(f.debitoId?'':'checked')+'> da avaria mais antiga pra mais nova (o que sobrar vira crédito)</label>'+ab.slice(0,60).map(d=>'<label><input type="radio" name="fAloc" value="'+d.id+'" '+(f.debitoId===d.id?'checked':'')+'> '+(d.origem&&d.origem.nReg?'avaria '+d.origem.nReg+' · ':'')+esc(d.loja_nome)+' · '+dbr(d.data)+' · '+esc(d.descricao)+' · falta <b>'+brl(d.restante)+'</b></label>').join(''):'<span class="mut">nenhuma avaria em aberto: o valor inteiro vira crédito a favor do fornecedor</span>')+'</div></label>'
+    +'<label class="full">Observação<input id="fObs" maxlength="300"></label>'
+    +'<div class="ac"><button class="btn btn-sm btn-amber" onclick="enviarPagamento()">Gravar pagamento</button><button class="btn btn-sm" onclick="formAberto=null;renderExtrato()">Cancelar</button></div></div>';
+}
+async function enviarPagamento(){
+  const valor=+$('#fValor').value;if(!(valor>0)){toast('Informe o valor');return;}
+  const al=document.querySelector('input[name="fAloc"]:checked');const alocacoes=al&&al.value?[{debito_id:al.value,valor}]:[];
+  const body={codFornec:EX.codFornec,fornecedor:EX.fornecedor,forma:$('#fForma').value,valor,loja:$('#fLoja').value||null,nota:$('#fNota').value?{nNota:$('#fNota').value}:null,alocacoes,obs:$('#fObs').value};
+  const r=await fetch('/api/conta-fornecedor/pagamentos',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const j=await r.json();
+  if(j.error){toast(j.error);return;}
+  formAberto=null;toast('Pagamento registrado'+(j.pagamento.sobra>0?' · sobra '+brl(j.pagamento.sobra)+' de crédito':''));await carregar();
+}
+async function enviarAjuste(){
+  const valor=+$('#fValor').value;if(!(valor>0)){toast('Informe o valor');return;}
+  const body={codFornec:EX.codFornec,fornecedor:EX.fornecedor,tipo:$('#fTipo').value,valor,loja:$('#fLoja').value||null,motivo:$('#fObs').value};
+  const r=await fetch('/api/conta-fornecedor/ajuste',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const j=await r.json();
+  if(j.error){toast(j.error);return;}
+  formAberto=null;toast('Ajuste gravado');await carregar();
+}
+async function desfazer(id){
+  if(!confirm('Apagar este pagamento? O valor volta pras avarias que ele tinha pago.'))return;
+  const r=await fetch('/api/conta-fornecedor/pagamentos/'+encodeURIComponent(id),{method:'DELETE'});const j=await r.json();
+  if(j.error){toast(j.error);return;}toast('Pagamento desfeito');await carregar();
+}
+async function sincronizar(){
+  const b=$('#btnSync');b.disabled=true;b.textContent='Lendo o ERP…';
+  try{const r=await fetch('/api/conta-fornecedor/sincronizar',{method:'POST'});const j=await r.json();if(j.error)throw new Error(j.error);toast(j.abertas+' avarias abertas no ERP · '+j.novas+' novas · '+j.baixadas+' baixadas · '+j.canceladas+' canceladas');await carregar();}
+  catch(e){toast('Erro: '+e.message);}
+  b.disabled=false;b.textContent='Ler o ERP agora';
+}
+(async()=>{await carregar();const f=new URLSearchParams(location.search).get('f');if(f&&/^\d+$/.test(f))abrirExtrato(+f);})();
+</script>
+</body>
+</html>

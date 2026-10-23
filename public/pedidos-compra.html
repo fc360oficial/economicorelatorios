@@ -707,7 +707,8 @@ async function carregarDetalhe(key){
     // dois campos rotulados lado a lado (resposta do vendedor · obs. pro Fiscal) e a barra de ações com a situação em destaque.
     const ffObs=(!['cancelado','excluido'].includes(p.status)?'<div class="ff"><i>Obs. pro Fiscal</i><input class="cx" id="obsf-'+p.id+'" value="'+esc(p.obs_fiscal||'')+'" maxlength="600" placeholder="ex.: conferir validade mínima 60 d / recusar caixa avariada / entrega só até 10h" onclick="event.stopPropagation()" onchange="salvarObsFiscal('+p.id+')" onkeydown="if(event.key===&quot;Enter&quot;){event.preventDefault();this.blur();}"><small id="obsfd-'+p.id+'">'+(p.status==='finalizado'?'<b>obrigatória pra aprovar</b> · ':'')+'salva sozinho ao sair do campo ou dar Enter · sai no PDF pro fornecedor e aparece no Fiscal · Recebimento'+(p.obs_fiscal_por?' · '+esc(p.obs_fiscal_por):'')+'</small></div>':'');
     const ffAv=barraRespostaAvaria(p,LN);
-    h+='<div class="ft">'+(ffAv||ffObs?'<div class="ft-f'+(ffAv&&ffObs?'':' um')+'">'+ffAv+ffObs+'</div>':'')+'<div class="acoes">'+'<button class="btn btn-navy" onclick="event.stopPropagation();prePedido('+p.id+')" title="Prévia do pedido como vai pro vendedor: loja a loja, com totais e observações">Pré-pedido por loja</button>'+
+    const ffBon=barraBonifCombinada(p,LN);
+    h+='<div class="ft">'+(ffAv||ffObs?'<div class="ft-f'+(ffAv&&ffObs?'':' um')+'">'+ffAv+ffObs+'</div>':'')+(ffBon?'<div class="ft-f um">'+ffBon+'</div>':'')+'<div class="acoes">'+'<button class="btn btn-navy" onclick="event.stopPropagation();prePedido('+p.id+')" title="Prévia do pedido como vai pro vendedor: loja a loja, com totais e observações">Pré-pedido por loja</button>'+
       (p.status==='sugestao'?'<button class="btn btn-green" onclick="enviarSugestao('+p.id+')">Enviar ao vendedor</button><span>Sugestão criada pelo sistema com o que <b>faltou</b> na entrega do pedido #'+(p.origem?.pedidoId||'')+'. Revise e envie: vira "Aguardando vendedor" e o link é o mesmo fluxo.</span>':'')+
       (p.status==='analise'?'<button class="btn btn-green" onclick="enviarSugestao('+p.id+')">Enviar ao vendedor</button><span><b>Em análise</b>: confira quantidades, caixas e lojas (nada foi mandado ao vendedor). Ao enviar vira "Aguardando vendedor" e você recebe o link pra mandar pelo WhatsApp.</span>':'')+
       (p.status==='finalizado'?'<button class="btn btn-green" onclick="aprovar('+p.id+')">Aprovar pedido</button><span>Confere os preços, preenche a <b>Obs. pro Fiscal</b> (obrigatória) e aprova. O pedido vai pra Pedidos de Compra e o sistema passa a esperar a nota no ERP.</span>':'')+
@@ -881,6 +882,30 @@ function secaoAvarias(p,LN){
   return h;
 }
 // resposta do vendedor sobre as avarias: barra própria, igual à "Obs. pro Fiscal" (label · caixa branca · dica), logo acima dela
+/* 23/10/26 (conta do fornecedor): bonificação combinada por ACORDO COMERCIAL. Se a compradora anota aqui o que o vendedor
+   prometeu bonificado (campanha, abertura, verba), o fiscal vê "combinado pelo Compras" quando a nota chegar. Se não anotar,
+   toda bonificação desse fornecedor é tratada como pagamento de avaria. Pedido de cotação não entra (não pede avaria). */
+function barraBonifCombinada(p,LN){
+  if(origemDe(p)==='cotacao'||['cancelado','excluido'].includes(p.status))return '';
+  const lista=p.bonif_combinada||[];
+  let h='<div class="ff" onclick="event.stopPropagation()"><i>Bonificação combinada com o vendedor (acordo comercial)</i>';
+  if(lista.length)h+='<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px">'+lista.map((b,i)=>'<span style="background:#E9EEF6;color:#2E5E8C;border-radius:99px;padding:3px 10px;font-size:11.5px;font-weight:600">'+esc(b.descricao||b.cod)+' · '+Number(b.qtd).toLocaleString('pt-BR')+' un'+(b.motivo?' · '+esc(b.motivo):'')+' <a href="#" onclick="event.preventDefault();removerBonif('+p.id+','+i+')" title="Tirar" style="color:#C22F49;text-decoration:none;margin-left:4px">×</a></span>').join('')+'</div>';
+  const opts=p.itens.map(i=>'<option value="'+esc(i.cod)+'">'+esc(i.descricao)+'</option>').join('');
+  h+='<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"><select class="cx" id="bonp-'+p.id+'" style="flex:2 1 220px;width:auto"><option value="">produto…</option>'+opts+'</select><input class="cx" id="bonq-'+p.id+'" type="number" min="0.001" step="any" placeholder="qtd" style="flex:0 1 80px;width:auto"><input class="cx" id="bonm-'+p.id+'" maxlength="120" placeholder="motivo (campanha, abertura, verba…)" style="flex:2 1 200px;width:auto"><button class="btn btn-sm" onclick="adicionarBonif('+p.id+')">+ Combinar</button></div>';
+  h+='<small>Sem aviso aqui, a bonificação que chegar é tratada como pagamento de avaria. Com aviso, o fiscal confirma como acordo e ela fica fora da conta do fornecedor.'+(p.bonif_combinada_por?' · '+esc(p.bonif_combinada_por):'')+'</small></div>';
+  return h;
+}
+async function salvarBonif(id,lista){
+  const r=await fetch('/api/pedidos-fornecedor/'+id+'/bonif-combinada',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lista})});const j=await r.json();
+  if(j.error){alert(j.error);return;}
+  if(PED[id]){PED[id].bonif_combinada=j.bonif_combinada;PED[id].bonif_combinada_por=j.por;} render();
+}
+function adicionarBonif(id){
+  const p=PED[id];if(!p)return;const cod=document.getElementById('bonp-'+id).value,qtd=+document.getElementById('bonq-'+id).value,motivo=document.getElementById('bonm-'+id).value;
+  if(!cod){alert('Escolha o produto');return;} if(!(qtd>0)){alert('Informe a quantidade');return;}
+  const it=p.itens.find(i=>i.cod===cod);salvarBonif(id,[...(p.bonif_combinada||[]),{cod,descricao:it?it.descricao:'',qtd,motivo}]);
+}
+function removerBonif(id,i){const p=PED[id];if(!p)return;salvarBonif(id,(p.bonif_combinada||[]).filter((_,k)=>k!==i));}
 function barraRespostaAvaria(p,LN){
   const its=(p.avarias?.itens||[]).filter(a=>!LN||a.loja===LN); if(!its.length) return '';
   const r=p.avarias.resposta_vendedor, em=p.avarias.resposta_em?new Date(p.avarias.resposta_em).toLocaleString('pt-BR'):'';

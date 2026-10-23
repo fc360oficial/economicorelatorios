@@ -197,6 +197,17 @@ tr.arit td{background:#FAFAF8;white-space:normal;cursor:default;padding:0 12px 1
 .dcp{font-size:11px;font-weight:700;color:#B45C00;white-space:normal}.dcok{font-size:11px;font-weight:700;color:#137A48;white-space:normal}.dcno{font-size:11px;font-weight:700;color:var(--neg);white-space:normal}
 .pedbox{background:var(--crd);border:1px solid var(--ln);border-left:6px solid #1E4FB5;border-radius:10px;padding:10px 14px;margin-top:10px;display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px 16px;align-items:center;font-size:12px;line-height:1.5}
 .pedbox.comp{border-left-color:#B45C00}.pedbox b{font-size:13px}.pedbox .l2{display:block;color:var(--ink2);white-space:normal}
+/* 23/10/26: conta do fornecedor — faixa no topo da nota (fornecedor devendo em avarias; sugestão de como esta nota paga) e bolinha na lista */
+.cdot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:middle;background:#F5B800}.cdot.erro{background:var(--neg)}
+.cfx{background:var(--negw);border:1px solid var(--neg);border-left-width:6px;border-radius:10px;padding:10px 14px;margin-top:10px;font-size:12px;line-height:1.5;white-space:normal}
+.cfx.ok{background:var(--posw);border-color:var(--pos)}.cfx.cred{background:var(--posw);border-color:var(--pos)}
+.cfx .t{font-size:13.5px;font-weight:800;display:flex;gap:10px;align-items:center;flex-wrap:wrap}.cfx .t .mut{font-weight:500}
+.cfx .av{margin:6px 0 0;color:var(--ink2);max-height:120px;overflow:auto}.cfx .av div{padding:1px 0}
+.cfx .sug{background:var(--crd);border:1px solid var(--ln);border-radius:8px;padding:8px 11px;margin-top:8px;display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap}
+.cfx .sug .tx{flex:1 1 260px;min-width:0}.cfx .sug .tx b{display:block;font-size:12.5px}.cfx .sug .ac{display:flex;gap:6px;flex-wrap:wrap}
+.cfx .sug.feito{border-color:var(--pos)}.cfx .sug.sem{border-color:#EFD98F;background:#FFF6D9}
+.cfx .pago{margin-top:8px;font-size:11.5px;color:var(--pos)}.cfx .pago .btn{margin-left:6px}
+.cfx .mform{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px}.cfx .mform input,.cfx .mform select{font:inherit;font-size:12px;padding:5px 8px;border:1px solid var(--ln2);border-radius:6px;background:var(--crd);color:var(--ink)}
 .trava{font-size:11px;color:var(--neg);font-weight:700;white-space:normal}
 /* tabela da aba: fornecedor em 1 linha + lista truncada, origem curta, situação quebra, ações empilhadas (Tiago, 13/10: "ajustar layout") */
 table.ar td.forn{min-width:200px;max-width:260px}
@@ -529,7 +540,7 @@ function renderReceb(){
     const nfsCompra=r.notas.filter(n=>!n.movimentacao||n.movimentacao==='COMPRA'),nfsOutras=nfsCompra.length?r.notas.filter(n=>n.movimentacao&&n.movimentacao!=='COMPRA'):[],nfsPrincipal=nfsCompra.length?nfsCompra:r.notas;
     const itensNf=n=>n.itens_lancados||n.itens_xml||0,nfTxt=n=>'NF '+(n.nNota||'?')+(!nfsCompra.length&&n.movimentacao&&n.movimentacao!=='COMPRA'?' <span class="warn">'+esc(n.movimentacao)+'</span>':'')+(nfsPrincipal.length>1&&itensNf(n)?' <span class="mut">('+itensNf(n)+' itens)</span>':'')+(n.xml?'':' <span class="neg">sem XML</span>');
     const bonifTxt=n=>{const its=/BONIF|AMOSTRA/.test(n.movimentacao)?(r.bonif_itens||[]):[];const q=itensNf(n)||its.length;return q+(q===1?' item':' itens')+(its.length&&its.length<=2?': '+its.map(i=>esc(i.descricao)+' ×'+qtd(i.qtd)).join(', '):'')+(n.valor_xml||n.valor_lancado?' · '+money(n.valor_xml||n.valor_lancado):'')+(n.xml?'':' <span class="neg">sem XML</span>');};
-    h+='<td class="forn"><span class="nm">'+esc(r.fornecedor)+'</span>'+(r.obs_compradora?'<div class="sub" style="color:#6B4E00;background:#FFF6D9;border:1px solid #EFD98F;border-radius:6px;padding:2px 6px;margin-top:3px" title="Observação do (a) Comprador (a) no pedido de compra">💬 <b>Comprador (a):</b> '+esc(r.obs_compradora)+'</div>':'')+'<div class="sub">'+(nfsPrincipal.length?nfsPrincipal.map(nfTxt).join(' · '):'<span class="mut">nenhuma nota associada</span>')+(r.pedidos.length?' · <span class="mut">pedido '+r.pedidos.map(p=>p.nPedido).join(', ')+'</span>':'')+'</div>'+nfsOutras.map(n=>'<div class="sub" style="color:#B45C00" title="NF separada da compra: '+esc(n.movimentacao)+' — não é cobrada e não entra no pedido"><b>'+esc(n.movimentacao)+'</b> NF '+(n.nNota||'?')+' · '+bonifTxt(n)+'</div>').join('')+'</td>';
+    h+='<td class="forn"><span class="nm">'+(r.conta?'<span class="cdot '+r.conta.nivel+'" title="'+(r.conta.deve>0?'Fornecedor deve '+money(r.conta.deve)+' em avarias há '+(r.conta.dias||0)+' d':'Crédito de '+money(r.conta.credito)+' a favor do fornecedor')+(r.conta.nivel==='erro'?' · esta nota tem bonificação ou desconto pra classificar':'')+'"></span>':'')+esc(r.fornecedor)+'</span>'+(r.obs_compradora?'<div class="sub" style="color:#6B4E00;background:#FFF6D9;border:1px solid #EFD98F;border-radius:6px;padding:2px 6px;margin-top:3px" title="Observação do (a) Comprador (a) no pedido de compra">💬 <b>Comprador (a):</b> '+esc(r.obs_compradora)+'</div>':'')+'<div class="sub">'+(nfsPrincipal.length?nfsPrincipal.map(nfTxt).join(' · '):'<span class="mut">nenhuma nota associada</span>')+(r.pedidos.length?' · <span class="mut">pedido '+r.pedidos.map(p=>p.nPedido).join(', ')+'</span>':'')+'</div>'+nfsOutras.map(n=>'<div class="sub" style="color:#B45C00" title="NF separada da compra: '+esc(n.movimentacao)+' — não é cobrada e não entra no pedido"><b>'+esc(n.movimentacao)+'</b> NF '+(n.nNota||'?')+' · '+bonifTxt(n)+'</div>').join('')+'</td>';
     const soBonif=nfsOutras.length?Math.max(0,(r.qtd_itens_xml||0)-(r.qtd_itens_compra||0)):0;
     h+='<td>'+(r.qtd_itens_coletor?'<span class="nm">'+r.qtd_itens_coletor+' itens</span><span class="erp">de '+(nfsOutras.length?r.qtd_itens_compra+' na compra'+(soBonif?' + '+soBonif+' só na '+(nfsOutras.length===1?esc(nfsOutras[0].movimentacao.toLowerCase()):'outra NF'):''):r.qtd_itens_xml+(r.notas.length>1?' nas notas':' na nota')+(r.qtd_itens_bonif?' · '+r.qtd_itens_bonif+' bonif.':''))+'</span>':'<span class="mut">—</span>')+'</td>';
     if(COL_ATIVO)h+='<td class="col-cel" id="colcel-'+r.nReg+'" onclick="event.stopPropagation();colClick('+r.nReg+')" title="Conversa da loja com a central neste recebimento">'+colCelula(r)+'</td>';
@@ -603,9 +614,69 @@ async function toggle(n){
   aberto=n;render();
   if(!DET[n]){try{const d=await fetch('/api/fiscal/recebimentos/'+n).then(r=>r.json());if(d.error)throw new Error(d.error);DET[n]=d;}catch(e){DET[n]={erro:e.message};}if(aberto===n)render();}
 }
+/* 23/10/26: conta do fornecedor dentro da nota (Tiago: "ele não pode decidir isso tudo dentro da nota?"). Faixa no topo com o que o
+   fornecedor deve, o que esta nota parece pagar (bonificação: aviso do Compras → avaria do mesmo produto → sem explicação; desconto
+   no XML → avarias mais antigas) e botões pra confirmar ou trocar. Pagamento por fora (desconto só no boleto, troca, devolução) → "Marcar pagamento". */
+function faixaConta(d){
+  const c=d.conta_fornecedor; if(!c||!c.tem_pendencia) return '';
+  const s=c.saldo, sug=c.sugestoes||[], pagos=c.pagos_nesta||[];
+  const semPend=!(s.deve>0)&&!sug.length;
+  let h='<div class="cfx'+(s.deve>0?'':(s.credito>0?' cred':' ok'))+'" id="cfx-'+d.nReg+'"><div class="t">'
+    +(s.deve>0?'Este fornecedor deve '+money(s.deve)+' em avarias':s.credito>0?'Este fornecedor tem crédito de '+money(s.credito)+' (pagou a mais)':'Fornecedor sem avaria em aberto')
+    +(s.deve>0?'<span class="mut">'+s.n_abertos+' em aberto · mais antiga há '+(s.mais_antigo_dias||0)+' d</span>':'')
+    +'<span class="mut" style="flex:1"></span><a class="btn btn-slate btn-sm" href="/conta-fornecedor.html?f='+d.codFornec+'" target="_blank" rel="noopener">Conta em Prevenção</a>'
+    +(s.deve>0?'<button class="btn btn-sm" onclick="contaForm('+d.nReg+')">Marcar pagamento</button>':'')+'</div>';
+  if(s.deve>0)h+='<div class="av">'+(c.abertos||[]).slice(0,12).map(a=>'<div>avaria <b>'+(a.origem&&a.origem.nReg||a.id)+'</b> · '+esc(a.loja_nome)+' · '+dbr2(a.data)+' · '+esc(a.descricao)+' · '+qtd(a.qtd)+' '+esc(a.und||'')+' · <b>'+money(a.restante)+'</b>'+(a.status==='parcial'?' <span class="mut">(falta, de '+money(a.valor)+')</span>':'')+'</div>').join('')+(c.n_abertos>12?'<div class="mut">… e mais '+(c.n_abertos-12)+' (ver a conta)</div>':'')+'</div>';
+  h+='<div id="cform-'+d.nReg+'"></div>';
+  sug.forEach((g,i)=>{
+    const id='csug-'+d.nReg+'-'+i;
+    if(g.tipo==='acordo')h+='<div class="sug" id="'+id+'"><div class="tx"><b>'+money(g.valor)+' desta bonificação: '+esc(g.texto)+'</b><span class="mut">'+esc(g.descricao)+' · '+qtd(g.qtd)+' un'+(g.por?' · avisado por '+esc(g.por):'')+'. Confirmando, fica FORA da conta de avarias.</span></div><div class="ac"><button class="btn btn-green btn-sm" onclick="contaConfirmar('+d.nReg+','+i+',\'acordo\')">Confirmar acordo</button><button class="btn btn-sm" onclick="contaConfirmar('+d.nReg+','+i+',\'avaria\')">É avaria</button></div></div>';
+    else if(g.tipo==='avaria')h+='<div class="sug" id="'+id+'"><div class="tx"><b>'+money(g.valor)+' desta bonificação: '+esc(g.texto)+'</b><span class="mut">'+esc(g.descricao)+' · '+qtd(g.qtd)+' un · avaria de '+qtd(g.debito.qtd)+' un, falta '+money(g.debito.restante)+(g.debito.loja!==d.loja?' · a avaria é de '+esc(g.debito.loja_nome)+' e a nota chegou aqui: a conta aceita, fica registrado':'')+'</span></div><div class="ac"><button class="btn btn-green btn-sm" onclick="contaConfirmar('+d.nReg+','+i+',\'avaria\')">Confirmar avaria</button><button class="btn btn-sm" onclick="contaConfirmar('+d.nReg+','+i+',\'acordo\')">É acordo comercial</button></div></div>';
+    else if(g.tipo==='sem_explicacao')h+='<div class="sug sem" id="'+id+'"><div class="tx"><b>'+money(g.valor)+' de bonificação sem explicação</b><span class="mut">'+esc(g.descricao)+' · '+qtd(g.qtd)+' un · '+esc(g.texto)+'. Bonificação é avaria por padrão; acordo só se o Compras avisou no pedido.</span></div><div class="ac">'+(s.deve>0?'<button class="btn btn-green btn-sm" onclick="contaConfirmar('+d.nReg+','+i+',\'avaria\')">Paga avaria (mais antiga)</button>':'')+'<button class="btn btn-sm" onclick="contaConfirmar('+d.nReg+','+i+',\'acordo\')">Acordo comercial (Compras não avisou)</button></div></div>';
+    else if(g.tipo==='desconto')h+='<div class="sug" id="'+id+'"><div class="tx"><b>Desconto de '+money(g.valor)+' no XML: '+esc(g.texto)+'</b><span class="mut">'+(g.alocacoes||[]).map(a=>'avaria '+(a.nReg||'')+' '+esc(a.loja_nome)+' '+money(a.valor)).join(' · ')+'</span></div><div class="ac"><button class="btn btn-green btn-sm" onclick="contaConfirmar('+d.nReg+','+i+',\'desconto\')">Confirmar desconto</button><button class="btn btn-sm" onclick="contaIgnorar('+d.nReg+','+i+')" title="O desconto é comercial, não paga avaria">Não é avaria</button></div></div>';
+  });
+  if(pagos.length)h+='<div class="pago">'+pagos.map(p=>'✓ '+esc(p.forma_nome)+' '+money(p.valor)+(p.classificacao==='acordo'?' (acordo comercial, fora da conta)':(p.alocacoes||[]).length?' → '+p.alocacoes.map(a=>esc(a.descricao||'')+' '+money(a.valor)).join(', '):'')+(p.sobra>0?' · sobra '+money(p.sobra)+' de crédito':'')+' · '+esc(p.por||'')+'<button class="btn btn-slate btn-sm" onclick="contaDesfazer(\''+p.id+'\','+d.nReg+')">desfazer</button>').join('<br>')+'</div>';
+  if(semPend&&!pagos.length)return '';
+  return h+'</div>';
+}
+const CONTA_IGN={};
+function contaIgnorar(n,i){CONTA_IGN[n+'-'+i]=1;const el=document.getElementById('csug-'+n+'-'+i);if(el)el.remove();}
+async function contaPost(body,n){
+  const r=await fetch('/api/conta-fornecedor/pagamentos',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const j=await r.json();
+  if(j.error){alert(j.error);return false;}
+  delete DET[n];await toggle(n);await toggle(n);   // recarrega o detalhe (e a lista pega a bolinha nova na próxima atualização)
+  return true;
+}
+async function contaConfirmar(n,i,como){
+  const d=DET[n],c=d&&d.conta_fornecedor,g=c&&c.sugestoes[i]; if(!g) return;
+  const nota=(d.notas||[]).find(x=>x.cfops&&x.cfops.some(f=>/910$/.test(f)))||d.notas[0]||{};
+  const base={codFornec:d.codFornec,fornecedor:d.fornecedor,loja:d.loja,nota:{nReg:d.nReg,nNota:nota.nNota||null,chave:nota.chave||null}};
+  if(g.tipo==='desconto'){await contaPost({...base,forma:'desconto_nota',valor:g.valor,alocacoes:g.alocacoes.map(a=>({debito_id:a.debito_id,valor:a.valor})),obs:'desconto no XML'},n);return;}
+  const itens=[{cod:g.cod,descricao:g.descricao,qtd:g.qtd,valor:g.valor}];
+  if(como==='acordo'){await contaPost({...base,forma:'bonificacao',classificacao:'acordo',valor:g.valor,itens,acordo:{pedidoId:g.pedidoId||null,motivo:g.motivo||(g.tipo==='sem_explicacao'?'Compras não avisou':null)},obs:g.tipo==='sem_explicacao'?'acordo comercial sem aviso do Compras':null},n);return;}
+  await contaPost({...base,forma:'bonificacao',classificacao:'avaria',valor:g.valor,itens,alocacoes:g.debito_id?[{debito_id:g.debito_id,valor:g.valor}]:[],obs:g.tipo==='acordo'?'fiscal marcou como avaria apesar do aviso do Compras':null},n);
+}
+function contaForm(n){
+  const d=DET[n],c=d&&d.conta_fornecedor; if(!c) return; const el=document.getElementById('cform-'+n); if(!el) return;
+  if(el.innerHTML){el.innerHTML='';return;}
+  const fm=c.formas||{};
+  el.innerHTML='<div class="mform"><select id="cf-forma-'+n+'">'+['desconto_boleto','troca','devolucao','bonificacao','desconto_nota'].map(k=>'<option value="'+k+'">'+esc(fm[k]||k)+'</option>').join('')+'</select>'
+    +'<input id="cf-valor-'+n+'" type="number" step="0.01" min="0.01" placeholder="valor R$" style="width:110px"><select id="cf-deb-'+n+'"><option value="">da avaria mais antiga pra mais nova</option>'+(c.abertos||[]).map(a=>'<option value="'+a.id+'">avaria '+(a.origem&&a.origem.nReg||'')+' · '+esc(a.loja_nome)+' · '+esc(a.descricao).slice(0,40)+' · falta '+money(a.restante)+'</option>').join('')+'</select>'
+    +'<input id="cf-obs-'+n+'" maxlength="200" placeholder="nº do boleto / nota de devolução / obs" style="width:200px"><button class="btn btn-green btn-sm" onclick="contaMarcar('+n+')">Gravar</button><button class="btn btn-sm" onclick="contaForm('+n+')">Cancelar</button></div>';
+}
+async function contaMarcar(n){
+  const d=DET[n];const valor=+document.getElementById('cf-valor-'+n).value;if(!(valor>0)){alert('Informe o valor');return;}
+  const deb=document.getElementById('cf-deb-'+n).value;
+  await contaPost({codFornec:d.codFornec,fornecedor:d.fornecedor,loja:d.loja,nota:{nReg:d.nReg,nNota:(d.notas[0]||{}).nNota||null},forma:document.getElementById('cf-forma-'+n).value,valor,alocacoes:deb?[{debito_id:deb,valor}]:[],obs:document.getElementById('cf-obs-'+n).value},n);
+}
+async function contaDesfazer(id,n){
+  if(!confirm('Desfazer este pagamento? O valor volta pras avarias.'))return;
+  const r=await fetch('/api/conta-fornecedor/pagamentos/'+encodeURIComponent(id),{method:'DELETE'});const j=await r.json();if(j.error){alert(j.error);return;}
+  delete DET[n];await toggle(n);await toggle(n);
+}
 function detalhe(d){
   if(d.erro)return '<div class="empty">'+esc(d.erro)+'</div>';
-  let h='';
+  let h=faixaConta(d);
   /* 13/10/26: pedido do app ligado à nota — quem decide (fiscal no pedido de cotação; compradora no pedido normal), pendências e ações */
   for(const pc of (d.pedidos_compra||[])){
     const fis=pc.quem_decide==='fiscal', pa=d.pedido_app||{pedidos:[],pendentes:[]}, pp=pa.pedidos.find(z=>z.id===pc.id)||null, pend=pp?pp.pendentes:0, dec=pp?pp.decididas:0, nRec=recusasN(d,pc.id);

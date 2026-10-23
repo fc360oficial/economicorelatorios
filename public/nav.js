@@ -103,7 +103,8 @@
       ]},
     { id: 'prevencao', ic: 'shield', txt: 'Prevenção', sub: [
         { href: '/prevencao.html', ic: 'shield', txt: 'Fechamento de Mês' },
-        { href: '/radar-prevencao.html', ic: 'shield', txt: 'Radar Prevenção' }
+        { href: '/radar-prevencao.html', ic: 'shield', txt: 'Radar Prevenção' },
+        { href: '/conta-fornecedor.html', ic: 'shield', txt: 'Conta do Fornecedor' }
       ]},
     { id: 'processos', ic: 'folder', txt: 'Processos', sub: [
         { href: '/backup.html', ic: 'shield', txt: 'Backup' },

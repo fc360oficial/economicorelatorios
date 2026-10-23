@@ -8556,6 +8556,13 @@ app.post('/api/pedidos-fornecedor/:id/obs-fiscal', (req, res) => {
   if (p.erro) return res.status(409).json({ error: p.erro });
   res.json({ ok: true, obs_fiscal: p.obs_fiscal });
 });
+// 23/10/26: bonificação combinada por acordo comercial (conta do fornecedor) — a compradora anota, o fiscal vê na nota
+app.post('/api/pedidos-fornecedor/:id/bonif-combinada', (req, res) => {
+  const p = pedidosFornec.bonifCombinada(parseInt(req.params.id), req.body?.lista, req.session.user?.nome || null);
+  if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
+  if (p.erro) return res.status(409).json({ error: p.erro });
+  res.json({ ok: true, bonif_combinada: p.bonif_combinada, por: p.bonif_combinada_por, em: p.bonif_combinada_em });
+});
 app.post('/api/pedidos-fornecedor/:id/excluir', (req, res) => {
   const p = pedidosFornec.excluir(parseInt(req.params.id), req.session.user?.nome || null, req.body?.motivo);   // Tiago, 13/10: motivo fica registrado
   if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
@@ -8704,6 +8711,15 @@ const fiscal = require('./lib/fiscal');
 const fiscalPedidos = require('./lib/fiscal-pedidos');
 // conferir: conferência XML sob demanda (13/10/2026) — o Fiscal abre o recebimento e o pedido do app casa na hora
 fiscal.init(q, { pedidos: () => pedidosFornec.listar(), recebimento: require('./lib/recebimento'), conferir: (codFornec, loja, chaves) => pedidosFornec.conferirFornecedor(codFornec, loja, chaves) });
+// Conta do fornecedor (23/10/2026): avarias abertas do ERP viram débito, o fiscal marca como foram pagas dentro da
+// nota, a prevenção baixa no ERP a partir da fila. Tela: Prevenção › Conta do fornecedor. Ver lib/conta-fornecedor.js.
+const contaForn = require('./lib/conta-fornecedor');
+contaForn.init(q, {
+  bonifCombinada: (codFornec, loja) => pedidosFornec.bonifCombinadaDe(codFornec, loja, (pedidoId, cod) =>
+    (contaForn._estado().pagamentos || []).filter(p => p.classificacao === 'acordo' && p.acordo && +p.acordo.pedidoId === +pedidoId).reduce((s, p) => s + (p.itens || []).filter(i => i.cod === cod).reduce((a, i) => a + (+i.qtd || 0), 0), 0)),
+});
+setTimeout(() => contaForn.sincronizar('inicio').catch(e => console.error('[CONTA-FORN]', e.message)), 40 * 1000);
+setInterval(() => contaForn.sincronizar('auto').catch(e => console.error('[CONTA-FORN]', e.message)), 60 * 60 * 1000);
 // 09/10/26: a regex estava sem as barras (/^d{4}-d{2}-d{2}$/), então nenhuma data passava e o servidor
 // respondia sempre o dia de hoje — trocar o dia ou o período na tela não mudava nada.
 const fiscalPeriodo = req => { const ok = v => /^\d{4}-\d{2}-\d{2}$/.test(v || ''); const de = ok(req.query.de) ? req.query.de : new Date().toISOString().slice(0, 10); const ate = ok(req.query.ate) && req.query.ate >= de ? req.query.ate : de; const r = escopo.resolverLoja(req.session.user, parseInt(req.query.loja) || null); return { de, ate, loja: r.loja, lojas: r.lojas }; };
@@ -8712,7 +8728,12 @@ const fiscalErr = (res, err) => res.status(err.status || 500).json({ error: err.
 const fiscalNegaLoja = (req, res, loja) => { if (escopo.podeLoja(req.session.user, loja)) return false; res.status(403).json({ error: 'Sem permissão pra esta loja' }); return true; };
 const fiscalReg = req => { const n = parseInt(req.params.nReg, 10); return Number.isInteger(n) && n > 0 ? n : null; };
 app.get('/api/fiscal/recebimentos', async (req, res) => {
-  try { const r = await fiscal.listar(fiscalPeriodo(req)); r.recebimentos = escopo.filtrarPorLoja(req.session.user, r.recebimentos, x => x.loja); res.json(r); } catch (err) { fiscalErr(res, err); }
+  try {
+    const r = await fiscal.listar(fiscalPeriodo(req)); r.recebimentos = escopo.filtrarPorLoja(req.session.user, r.recebimentos, x => x.loja);
+    // 23/10/26: bolinha da conta do fornecedor — fornecedor devendo (vermelha se a nota tem bonificação/desconto pra classificar)
+    for (const x of r.recebimentos) { try { x.conta = contaForn.marcadorLista(x.codFornec, (x.qtd_itens_bonif > 0) || (x.notas || []).some(n => n.desconto > 0)); } catch (e) { x.conta = null; } }
+    res.json(r);
+  } catch (err) { fiscalErr(res, err); }
 });
 app.get('/api/fiscal/recebimentos/:nReg', async (req, res) => {
   try {
@@ -8720,6 +8741,7 @@ app.get('/api/fiscal/recebimentos/:nReg', async (req, res) => {
     const r = await fiscal.detalhe(n); if (!r) return res.status(404).json({ error: 'Conferência não encontrada' });
     if (fiscalNegaLoja(req, res, r.loja)) return;
     r.texto_reconferencia = fiscal.textoReconferencia(r);
+    try { r.conta_fornecedor = contaForn.paraNota(r); } catch (e) { console.error('[CONTA-FORN] paraNota:', e.message); r.conta_fornecedor = null; }
     res.json(r);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -8870,6 +8892,16 @@ app.get('/api/fiscal/config', (req, res) => res.json({ config: fiscal.getConfig(
 app.post('/api/fiscal/config', (req, res) => { try { res.json({ ok: true, config: fiscal.setConfig(req.body || {}) }); } catch (err) { res.status(400).json({ error: err.message }); } });
 app.post('/api/fiscal/testes', (req, res) => { try { res.json({ ok: true, criados: fiscal.criarTestes() }); } catch (err) { res.status(500).json({ error: err.message }); } });
 app.delete('/api/fiscal/testes', (req, res) => { try { res.json({ ok: true, removidos: fiscal.removerTestes() }); } catch (err) { res.status(500).json({ error: err.message }); } });
+
+// ── Conta do fornecedor (Prevenção › Conta do fornecedor · faixa dentro da nota no Fiscal · saldo em Fornecedores) ──
+const contaErr = (res, err) => { if (!err.status) console.error('[CONTA-FORN]', err.message); res.status(err.status || 500).json({ error: err.message }); };
+app.get('/api/conta-fornecedor/resumo', (req, res) => { try { res.json(contaForn.resumo()); } catch (err) { contaErr(res, err); } });
+app.get('/api/conta-fornecedor/saldo/:codFornec', (req, res) => { try { res.json(contaForn.saldoDe(parseInt(req.params.codFornec))); } catch (err) { contaErr(res, err); } });
+app.get('/api/conta-fornecedor/:codFornec', (req, res) => { try { res.json(contaForn.extrato(parseInt(req.params.codFornec), { loja: req.query.loja })); } catch (err) { contaErr(res, err); } });
+app.post('/api/conta-fornecedor/pagamentos', (req, res) => { try { res.json({ ok: true, pagamento: contaForn.registrarPagamento(req.body || {}, req.session.user?.nome || null), saldo: contaForn.saldoDe(+req.body?.codFornec) }); } catch (err) { contaErr(res, err); } });
+app.delete('/api/conta-fornecedor/pagamentos/:id', (req, res) => { try { res.json(contaForn.desfazerPagamento(String(req.params.id), req.session.user?.nome || null)); } catch (err) { contaErr(res, err); } });
+app.post('/api/conta-fornecedor/ajuste', (req, res) => { try { res.json({ ok: true, lancamento: contaForn.ajuste(req.body || {}, req.session.user?.nome || null), saldo: contaForn.saldoDe(+req.body?.codFornec) }); } catch (err) { contaErr(res, err); } });
+app.post('/api/conta-fornecedor/sincronizar', async (req, res) => { try { res.json(await contaForn.sincronizar('manual por ' + (req.session.user?.nome || '?'))); } catch (err) { contaErr(res, err); } });
 
 // ═══════════════════════════════════════════════════
 // COTAÇÃO — Gestão de Compras > Cotação. Regras em lib/cotacao.js (1 JSON por cotação em data/cotacoes/).

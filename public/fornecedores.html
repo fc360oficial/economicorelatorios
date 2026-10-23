@@ -687,6 +687,7 @@ table.main-t td.c-comp{min-width:110px}
     <div class="drawer-hdr-info">
       <h2 id="d-title">Fornecedor</h2>
       <p id="d-subtitle">Loja X · Mês/Ano</p>
+      <p id="d-conta" hidden style="margin-top:4px;font-size:12px"></p>
     </div>
     <button class="btn-print" onclick="abrirCadastroLista(listaAtivaId || listaSelecionada?.id)" title="Fornecedor, vendedor, comprador, prazo de pagamento — cadastro do ERP">📋 Cadastro</button>
     <button class="btn-print" onclick="imprimirDrawer()" title="Imprimir esta aba">🖨️ Imprimir</button>
@@ -946,6 +947,8 @@ async function abrirDrawer(id, tab, listaId) {
   const { loja, mes, ano } = params();
   document.getElementById('d-title').textContent = listaAtivaId ? `${f.nome} · Lista #${listaAtivaId}` : f.nome;
   document.getElementById('d-subtitle').textContent = `${lojaLabel(loja)} · ${mesesNomes[+mes]} ${ano}`;
+  // 23/10/26: conta do fornecedor (avarias que ele nos deve / crédito) — só a linha de saldo; o extrato fica em Prevenção
+  mostrarSaldoConta(f.id);
 
   // Tabs
   document.getElementById('d-tabs').innerHTML = TABS.map(t =>
@@ -957,6 +960,18 @@ async function abrirDrawer(id, tab, listaId) {
   document.getElementById('main').classList.add('drawer-open');
 
   await renderTab(tab);
+}
+
+async function mostrarSaldoConta(codFornec) {
+  const el = document.getElementById('d-conta'); if (!el) return; el.hidden = true;
+  try {
+    const s = await fetch('/api/conta-fornecedor/saldo/' + codFornec).then(r => r.json());
+    if (!s || s.error || (!s.deve && !s.credito)) return;
+    const brl = v => 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+    el.innerHTML = (s.deve > 0 ? '<b style="color:#C22F49">Fornecedor deve ' + brl(s.deve) + '</b> em avarias' + (s.mais_antigo_dias != null ? ' · mais antiga há ' + s.mais_antigo_dias + ' d' : '') : '<b style="color:#137A48">Crédito de ' + brl(s.credito) + ' a favor do fornecedor</b>')
+      + ' · <a href="/conta-fornecedor.html?f=' + codFornec + '" target="_blank" style="color:#1d4ed8">ver conta em Prevenção</a>';
+    el.hidden = false;
+  } catch (e) {}
 }
 
 async function mudarTab(tab) {
