@@ -8975,7 +8975,8 @@ cotacao.init();
 // Portal do Fornecedor (PWA /fornecedor/, 13/10/26): identidade do vendedor, avisos (Web Push) de nova cotação / prazo / pedido.
 // Avisar pelo app marca enviadoEm no fornecedor da cotação, então o "um por um" do WhatsApp lista só quem não tem o app.
 const portalForn = require('./lib/portal-fornecedor');
-try { console.log('[PORTAL] estado:', JSON.stringify(portalForn.init({ cotacao, pedidosFornec, lerCotForn: () => lerCotForn() }))); } catch (e) { console.error('[PORTAL] init:', e.message); }
+const vendedores = require('./lib/vendedores');   // cadastro único de vendedores (26/10): o portal lê o "fora do portal" dele e registra login novo nele; init mais abaixo, depois de lerCotForn
+try { console.log('[PORTAL] estado:', JSON.stringify(portalForn.init({ cotacao, pedidosFornec, vendedores, lerCotForn: () => lerCotForn() }))); } catch (e) { console.error('[PORTAL] init:', e.message); }
 portalForn.registrarRotas(app);
 setInterval(() => portalForn.lembretesPrazo().catch(e => console.error('[PORTAL] lembretes:', e.message)), 10 * 60 * 1000);
 const linkCotacao = f => `${PUBLIC_URL}/cotacao/${f.token}`;
@@ -9133,6 +9134,12 @@ app.post('/api/cotacoes/conciliacao', (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 const lerCotForn = () => { try { return JSON.parse(fs.readFileSync(COT_FORN_PATH, 'utf8')); } catch (e) { return {}; } };
+const gravarCotForn = todos => { fs.mkdirSync(path.dirname(COT_FORN_PATH), { recursive: true }); fs.writeFileSync(COT_FORN_PATH, JSON.stringify(todos, null, 2)); };
+// Cadastro único de vendedores — Gestão de Compras > Vendedores (Tiago, 26/10/2026: "cada vendedor tem a sua empresa, tem que
+// ser o cadastro único para cada vendedor"). Absorve os vendedores das listas / cotações / pedidos / portal ao subir; corrigir
+// ou unir na tela propaga pra todas as cópias (lib/vendedores.js). Rotas em /api/vendedores (atrás do login).
+try { console.log('[VENDEDORES]', JSON.stringify(vendedores.init({ lerCotForn: () => lerCotForn(), gravarCotForn, cotacao, pedidosFornec, portal: portalForn }))); } catch (e) { console.error('[VENDEDORES] init:', e.message); }
+vendedores.registrarRotas(app);
 // O que o vendedor preencheu em "Estamos atualizando nosso cadastro" vai pro cadastro da lista (aba Fornecedores) ao enviar a
 // proposta (Tiago, 23/09/26): e-mail do vendedor, condição "Boleto N dias", prazo de entrega e faturamento mínimo.
 function aplicarCadastroVendedor(c, f) {
@@ -9143,6 +9150,7 @@ function aplicarCadastroVendedor(c, f) {
     if (!cad) { cad = { codFornec: codErp || null, nome: f.empresa || f.nome || '', vendedor: { nome: f.vendedor?.nome || '', whats: String(f.vendedor?.whats || '').replace(/\D/g, ''), email: f.vendedor?.email || '' } }; lista.push(cad); }   // Tiago, 06/10: fornecedor sem cadastro na lista ganha um (pedido do Radar)
     const w = String(f.vendedor?.whats || '').replace(/\D/g, ''), nm = String(f.vendedor?.nome || '').trim().toLowerCase();
     const alvo = [cad.vendedor].concat(cad.vendedores || []).find(v => v && ((w && String(v.whats || '').replace(/\D/g, '') === w) || (nm && String(v.nome || '').trim().toLowerCase() === nm))) || cad.vendedor;
+    const alvoAntes = alvo ? { nome: alvo.nome, whats: alvo.whats, email: alvo.email } : null;   // pro cadastro único seguir a correção do vendedor (26/10)
     if (alvo && cv.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cv.email)) alvo.email = cv.email;
     if (alvo && cv.whats && String(cv.whats).replace(/\D/g, '').length >= 10) alvo.whats = String(cv.whats).replace(/\D/g, '');
     if (cv.prazo_pagamento) cad.condicao = 'Boleto ' + cv.prazo_pagamento + ' dias';
@@ -9150,6 +9158,7 @@ function aplicarCadastroVendedor(c, f) {
     if (cv.pedido_minimo != null) cad.faturamento_minimo = cv.pedido_minimo;
     cad.cadastro_vendedor_em = new Date().toISOString(); cad.cadastro_vendedor_por = f.vendedor?.nome || null;
     fs.mkdirSync(path.dirname(COT_FORN_PATH), { recursive: true }); fs.writeFileSync(COT_FORN_PATH, JSON.stringify(todos, null, 2));
+    if (alvo) try { vendedores.corrigirPorCopia(alvoAntes, alvo, { codFornec: codErp, empresa: cad.nome }); } catch (e2) { console.error('[VENDEDORES] cadastro do vendedor:', e2.message); }
   } catch (e) { console.error('[COTACAO] cadastro do vendedor:', e.message); }
 }
 app.get('/api/cotacoes/lista/:lista/fornecedores', async (req, res) => {
@@ -9186,6 +9195,7 @@ app.post('/api/cotacoes/lista/:lista/fornecedores', (req, res) => {
     const lista = (Array.isArray(req.body?.fornecedores) ? req.body.fornecedores : []).map(f => ({ codFornec: parseInt(f.codFornec) || 0, nome: String(f.nome || '').slice(0, 120), nome_planilha: f.nome_planilha ? String(f.nome_planilha).slice(0, 120) : null, cnpj: f.cnpj ? String(f.cnpj).replace(/\D/g, '').slice(0, 14) : null, vendedores: (Array.isArray(f.vendedores) ? f.vendedores : []).map(v => ({ nome: String(v.nome || '').trim().slice(0, 80), whats: String(v.whats || '').replace(/\D/g, '').slice(0, 20), email: String(v.email || '').trim().slice(0, 120) })).filter(v => v.nome || v.whats || v.email).slice(0, 6), casou: f.casou || null, outros: Array.isArray(f.outros) ? f.outros.slice(0, 10).map(String) : null, inativo: !!f.inativo, inativo_em: f.inativo ? (f.inativo_em || new Date().toISOString()) : null, faturamento_minimo: ((typeof f.faturamento_minimo === 'number' ? f.faturamento_minimo : parseFloat(String(f.faturamento_minimo ?? '').replace(/\./g, '').replace(',', '.'))) || null), condicao: f.condicao ? String(f.condicao).slice(0, 80) : null, prazo_entrega: parseInt(f.prazo_entrega) || null, obs: f.obs ? String(f.obs).slice(0, 300) : null, vendedor: { nome: String(f.vendedor?.nome || '').slice(0, 80), whats: String(f.vendedor?.whats || '').replace(/\D/g, '').slice(0, 20), email: String(f.vendedor?.email || '').slice(0, 120) } })).filter(f => f.codFornec > 0 || f.nome);
     const todos = lerCotForn(); todos[id] = lista; todos[id + '_em'] = new Date().toISOString(); todos[id + '_por'] = cotUser(req);
     fs.mkdirSync(path.dirname(COT_FORN_PATH), { recursive: true }); fs.writeFileSync(COT_FORN_PATH, JSON.stringify(todos, null, 2));
+    try { vendedores.registrarLista(id, lista); } catch (e) { console.error('[VENDEDORES] lista', id, e.message); }
     res.json({ ok: true, salvos: lista.length });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -9362,7 +9372,7 @@ app.get('/api/cotacoes/historico/:cod', (req, res) => {
   try { res.json(cotacao.historicoProduto(req.params.cod)); } catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.post('/api/cotacoes', (req, res) => {
-  try { const c = cotacao.criar({ ...(req.body || {}), usuario: cotUser(req) }); res.json(cotDetalhe(c)); portalForn.avisarNovaCotacao(c).catch(e => console.error('[PORTAL] avisar cotação', c.id, e.message)); }
+  try { const c = cotacao.criar({ ...(req.body || {}), usuario: cotUser(req) }); try { vendedores.registrarCotacao(c); } catch (e) { console.error('[VENDEDORES] cotação', c.id, e.message); } res.json(cotDetalhe(c)); portalForn.avisarNovaCotacao(c).catch(e => console.error('[PORTAL] avisar cotação', c.id, e.message)); }
   catch (err) { res.status(400).json({ error: err.message }); }
 });
 // Comparativo por item (estilo Club da Cotação): "dados da última compra" de cada produto — última nota de entrada
@@ -9410,6 +9420,7 @@ app.get('/api/cotacoes/:id', (req, res) => {
 app.post('/api/cotacoes/:id/fornecedores', (req, res) => {
   const id = cotId(req); if (!id) return res.status(400).json({ error: 'id inválido' });
   const r = cotacao.adicionarFornecedor(id, req.body || {});
+  if (r && r.c) try { vendedores.registrarCotacao(r.c); } catch (e) { console.error('[VENDEDORES] cotação', id, e.message); }
   if (!r) return res.status(404).json({ error: 'cotação não encontrada' });
   if (r.erro) return res.status(409).json({ error: r.erro });
   res.json(cotDetalhe(r.c));

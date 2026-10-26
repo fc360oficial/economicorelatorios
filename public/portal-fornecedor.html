@@ -79,6 +79,7 @@ td b{font-weight:700}
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn btn-amber" onclick="convite()" title="Copia a mensagem com o link do portal pra você colar no WhatsApp do vendedor; ele cria o login com o número dele e um PIN">📨 Copiar convite</button>
+      <a class="btn" href="/vendedores.html" title="Cadastro único de vendedores: nome, WhatsApp, e-mail e empresa de cada um; corrigir lá corrige em todas as listas e cotações">👤 Vendedores (cadastro)</a>
       <a class="btn" href="/fornecedor/#criar" target="_blank" rel="noopener" title="Abre a tela em que o vendedor cria o login">Ver a tela de login</a>
       <button class="btn" onclick="carregar()">↻ Atualizar</button>
     </div>
@@ -105,7 +106,7 @@ td b{font-weight:700}
   </div>
 
   <div class="sec" id="sec-fora">
-    <div class="hd"><h2>Fora do portal</h2><span class="mini" id="f-cont"></span><span class="mini">vendedores com WhatsApp nas listas e cotações que ainda não criaram login</span><input type="search" id="f-busca" placeholder="buscar vendedor, WhatsApp, fornecedor…" oninput="renderFora()"></div>
+    <div class="hd"><h2>Fora do portal</h2><span class="mini" id="f-cont"></span><span class="mini">vendedores do cadastro único (listas, cotações e pedidos) que ainda não criaram login · <a href="/vendedores.html">abrir o cadastro de vendedores</a></span><input type="search" id="f-busca" placeholder="buscar vendedor, WhatsApp, fornecedor…" oninput="renderFora()"></div>
     <div class="tw"><table>
       <thead><tr><th>Vendedor</th><th>WhatsApp</th><th>Fornecedor(es)</th><th>Listas</th><th>Última cotação</th><th>Ações</th></tr></thead>
       <tbody id="f-tbody"></tbody>
@@ -186,11 +187,12 @@ function renderFora() {
   var L = E.fora || [], b = ($('#f-busca').value || '').trim().toLowerCase();
   var vis = L.filter(function (v) { if (!b) return true; return ((v.nome || '') + ' ' + v.whats + ' ' + fone(v.whats) + ' ' + (v.email || '') + ' ' + v.empresas.join(' ')).toLowerCase().indexOf(b) >= 0; });
   $('#f-cont').textContent = L.length ? vis.length + ' de ' + L.length : '';
-  if (!L.length) { $('#f-tbody').innerHTML = '<tr><td colspan="6" class="empty">Todo vendedor com WhatsApp nas listas e cotações já está no portal.</td></tr>'; return; }
+  if (!L.length) { $('#f-tbody').innerHTML = '<tr><td colspan="6" class="empty">Todo vendedor do cadastro com WhatsApp já está no portal.</td></tr>'; return; }
   if (!vis.length) { $('#f-tbody').innerHTML = '<tr><td colspan="6" class="empty">Nenhum vendedor com "' + esc(b) + '".</td></tr>'; return; }
   $('#f-tbody').innerHTML = vis.map(function (v) {
     var ult = v.cotacoes[0];
-    return '<tr><td><b>' + esc(v.nome || '—') + '</b>' + (v.sem_pin ? ' <span class="pill bad" title="Entrou pelo &quot;Sou eu&quot; antigo e ainda não criou o PIN: o portal pede na próxima abertura">sem PIN</span>' : '') + (v.email ? '<br><span class="mini">' + esc(v.email) + '</span>' : '') + '</td>' +
+    var par = v.parecido ? '<br><span class="pill teste" title="' + esc(v.parecido.motivo || '') + '">parece ser ' + esc(v.parecido.nome || '') + ' ' + esc(fone(v.parecido.whats)) + (v.parecido.no_portal ? ', já no portal' : '') + '</span> <button class="btn btn-sm" onclick="unirFora(' + v.id + ',' + v.parecido.id + ')" title="Mesma pessoa: junta os dois registros no cadastro único e troca este número pelo de ' + esc(v.parecido.nome || '') + ' em todas as listas, cotações e pedidos">⇄ Unir</button>' : '';
+    return '<tr><td><b>' + esc(v.nome || '—') + '</b>' + (v.sem_pin ? ' <span class="pill bad" title="Entrou pelo &quot;Sou eu&quot; antigo e ainda não criou o PIN: o portal pede na próxima abertura">sem PIN</span>' : '') + (v.email ? '<br><span class="mini">' + esc(v.email) + '</span>' : '') + par + '</td>' +
       '<td>' + esc(fone(v.whats)) + '</td>' +
       '<td>' + (v.empresas.map(esc).join('<br>') || '—') + '</td>' +
       '<td>' + (v.listas.length ? v.listas.map(function (l) { return '#' + l; }).join(', ') : '<span class="mini">—</span>') + '</td>' +
@@ -236,6 +238,12 @@ function renderAvisos() {
       '<td>' + (a.tipo === 'pedido' ? 'Pedido #' + a.id : '<a href="/cotacao.html" title="Abra a cotação no Acompanhamento">Cotação #' + a.id + '</a>') + (a.nome ? ' · ' + esc(a.nome) : '') + (a.teste ? ' <span class="pill teste">TESTE</span>' : '') + '</td>' +
       '<td>' + esc(a.fornecedor || '—') + '</td><td>' + ((a.vendedores || []).map(esc).join(', ') || '—') + '</td><td>' + res + '</td></tr>';
   }).join('');
+}
+// cadastro único (26/10): quem está "fora" mas parece ser um registro que já tem login — une os dois (o número deste é trocado pelo do outro em tudo)
+async function unirFora(idSai, idFica) {
+  var v = (E.fora || []).find(function (x) { return x.id === idSai; }); if (!v || !v.parecido) return;
+  if (!confirm('Unir ' + (v.nome || '') + ' (' + fone(v.whats) + ') em ' + (v.parecido.nome || '') + ' (' + fone(v.parecido.whats) + ')?\n\nFica ' + (v.parecido.nome || '') + ' com o número ' + fone(v.parecido.whats) + '. O número ' + fone(v.whats) + ' é trocado em todas as listas, cotações e pedidos.')) return;
+  try { var r = await api('/api/vendedores/' + idSai + '/unir', { para: idFica }); toast('Unidos: ficou ' + (r.vendedor.nome || '') + ' ' + fone(r.vendedor.whats)); carregar(); } catch (e) { toast('Erro: ' + e.message); }
 }
 // convite genérico: mensagem pronta com o link do portal (o vendedor cria o login lá)
 function conviteMsg(nome) { return 'Olá' + (nome ? ', ' + String(nome).split(' ')[0] : '') + '! Aqui é da Econômico Supermercados (Rede Cahu). Agora nossas cotações chegam direto no seu celular pelo Portal do Fornecedor. Abra o link, crie seu login com o seu WhatsApp (o mesmo que usamos pra te mandar as cotações) e um PIN de 6 números, e ative os avisos: ' + LINK_PORTAL; }

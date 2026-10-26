@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="/design-system.css">
+<script src="/nav.js" defer></script>
+<title>Vendedores — Econômico Supermercados</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* Cadastro único de vendedores (Tiago, 26/10/2026): mesma base visual do Portal do Fornecedor (portal-fornecedor.html) */
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#EBEBE9;--surface:#FFFFFF;--surface-2:#E4E4E1;--border:#DADAD6;--border-strong:#C9C9C4;--ink:#0E1626;--ink-2:#4E5A72;--ink-3:#98A0B3;--brand:#F5B800;--brand-ink:#6B4E00;--ok:#137A48;--warn:#B45C00;--bad:#C22F49;--info:#2E5E8C;--zap:#128C7E}
+body{font-family:var(--font);background:var(--bg);color:var(--ink);min-height:100vh;font-variant-numeric:tabular-nums}
+.main{padding:24px;max-width:1500px}
+.page-hdr{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.page-hdr h1{font-size:21px;font-weight:800}
+.page-hdr p{font-size:12px;color:var(--ink-3);margin-top:2px;max-width:960px;line-height:1.5}
+.page-hdr p b{color:var(--ink-2)}
+.btn{font:inherit;font-size:12.5px;font-weight:600;padding:8px 14px;border-radius:8px;border:1px solid var(--border-strong);background:#fff;color:var(--ink);cursor:pointer;text-decoration:none;display:inline-block;white-space:nowrap}
+.btn:hover{background:var(--surface-2)}
+.btn-amber{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}.btn-amber:hover{background:#E0A800}
+.btn-sm{font-size:11px;padding:4px 8px;border-radius:6px}
+.btn-no{background:#FDE8EC;border-color:#C22F4955;color:var(--bad)}.btn-no:hover{background:#F9D4DB}
+.btn-ok{background:#E7F5EC;border-color:#137A4855;color:var(--ok)}.btn-ok:hover{background:#D5EEDD}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.status{font-size:11px;color:var(--ink-3);margin-bottom:10px;display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.status b{color:var(--ink-2)}.status .err{color:var(--bad);font-weight:700}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;cursor:pointer;transition:border-color .15s}
+.kpi:hover{border-color:var(--brand)}.kpi.on{border-color:var(--brand);box-shadow:0 0 0 2px #FFF6D9}
+.kpi .nm{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-2)}
+.kpi .v{font-size:22px;font-weight:800;margin-top:4px;line-height:1.1}
+.kpi .v small{font-size:10px;font-weight:700;color:var(--ink-3);margin-left:4px}
+.kpi .sub{font-size:11px;color:var(--ink-2);margin-top:6px;line-height:1.4}
+.kpi.ok .v{color:var(--ok)}.kpi.bad .v{color:var(--bad)}.kpi.warn .v{color:var(--warn)}
+.chip{display:inline-block;font-size:11px;font-weight:700;background:#FFF6D9;color:var(--brand-ink);border:1px solid #EFD98F;border-radius:999px;padding:2px 9px}.chip a{color:var(--brand-ink);text-decoration:none;margin-left:4px;font-size:13px}.hid{display:none!important}
+.sec{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:14px;overflow:hidden}
+.sec .hd{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid var(--border);background:#F7F7F5}
+.sec .hd h2{font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-2)}
+.sec .hd .mini{font-size:11px;color:var(--ink-3)}
+.sec .hd input[type=search]{font:inherit;font-size:12.5px;padding:6px 10px;border:1px solid var(--border-strong);border-radius:8px;min-width:240px;margin-left:auto}
+.sec.dup .hd{background:#FFF6D9}
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+thead th{padding:9px 12px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-2);text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;background:#fff;position:sticky;top:0}
+tbody td{padding:9px 12px;border-bottom:1px solid var(--border);vertical-align:top}
+tbody tr:nth-child(even) td{background:#FAFAF8}
+tbody tr:hover td{background:#F2F2EF}
+tbody tr.off td{color:var(--ink-3)}tbody tr.off td b{color:var(--ink-3);text-decoration:line-through}
+tbody tr.teste td{background:#FFFBEB}
+td .mini,th .mini{font-size:11px;color:var(--ink-3);font-weight:500;text-transform:none;letter-spacing:0}
+td b{font-weight:700}
+td.wrap{white-space:normal}td.num{white-space:nowrap}
+.pill{display:inline-block;font-size:10.5px;font-weight:700;border-radius:999px;padding:2px 9px;white-space:nowrap}
+.pill.ok{color:var(--ok);background:#E7F5EC}.pill.off{color:var(--ink-2);background:#F0F0EE}.pill.bad{color:var(--bad);background:#FBEAED}.pill.teste{color:var(--brand-ink);background:#FFF6D9;border:1px solid #EFD98F}.pill.info{color:var(--info);background:#E9EEF6}
+.acoes{display:flex;gap:6px;flex-wrap:wrap}
+.empty{padding:22px;text-align:center;color:var(--ink-3);font-size:12.5px}
+.ajuda{background:#FFF6D9;border:1px solid #EFD98F;border-radius:12px;padding:12px 14px;font-size:12px;color:var(--brand-ink);line-height:1.55;margin-bottom:14px}
+.ajuda b{color:#4A3600}.ajuda ol{margin:6px 0 0 18px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:9px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:60;max-width:80vw;text-align:center}
+.toast.on{opacity:1}
+a.zapnum{display:inline-flex;align-items:center;gap:5px;color:var(--zap);font-weight:600;text-decoration:none;white-space:nowrap}a.zapnum svg{width:14px;height:14px;flex:none}a.zapnum:hover{text-decoration:underline}
+.dupcard{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.dupcard .lado{border:1px solid var(--border);border-radius:9px;padding:8px 10px;background:#fff;font-size:12px;line-height:1.5}
+.dupcard .lado b{font-size:13px}
+/* modal */
+.ov{position:fixed;inset:0;background:rgba(14,22,38,.45);display:none;align-items:center;justify-content:center;z-index:50;padding:16px}
+.ov.on{display:flex}
+.md{background:#fff;border-radius:14px;width:100%;max-width:560px;max-height:92vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+.md .mh{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 18px;border-bottom:1px solid var(--border)}
+.md .mh h3{font-size:15px;font-weight:800}
+.md .mb{padding:16px 18px}
+.md .mf{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;padding:12px 18px;border-top:1px solid var(--border);background:#F7F7F5}
+.fld{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+.fld label{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-2)}
+.fld input{font:inherit;font-size:13.5px;padding:8px 10px;border:1px solid var(--border-strong);border-radius:8px}
+.fld input:focus{outline:2px solid #FFF6D9;border-color:var(--brand)}
+.fld .mini{font-size:11px;color:var(--ink-3)}
+.x{border:none;background:transparent;font-size:20px;cursor:pointer;color:var(--ink-3);line-height:1}
+.cand{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:9px;margin-bottom:6px;font-size:12.5px;flex-wrap:wrap}
+.cand .quem{line-height:1.45;min-width:200px;flex:1}
+/* Toda tela se adapta a qualquer monitor (regra do repo, 16/10): faixas que apertam fonte e espaçamento até caber */
+@media (max-width:1599px){table{font-size:12px}thead th,tbody td{padding:8px 10px}.btn-sm{font-size:10.5px;padding:3px 7px}.kpi .v{font-size:20px}}
+@media (max-width:1399px){table{font-size:11.5px}thead th,tbody td{padding:7px 8px}.main{padding:18px}.page-hdr p{font-size:11.5px}.kpis{gap:8px}.kpi{padding:10px 12px}.kpi .sub{font-size:10.5px}}
+@media (max-width:1199px){table{font-size:11px}thead th,tbody td{padding:6px 7px}.col-cot{display:none}.pill{font-size:10px;padding:1px 7px}.sec .hd input[type=search]{min-width:180px}.dupcard{grid-template-columns:1fr}}
+@media (max-width:900px){.col-listas{display:none}.main{padding:12px}.kpis{grid-template-columns:repeat(2,minmax(140px,1fr))}}
+</style>
+</head>
+<body class="ds">
+<div class="main">
+  <div class="page-hdr">
+    <div>
+      <h1>Vendedores</h1>
+      <p><b>Cadastro único: um registro por vendedor, com a empresa dele.</b> Listas, cotações, pedidos e o Portal do Fornecedor usam este cadastro. Corrigiu o nome, o WhatsApp ou o e-mail aqui, corrige em todas as listas e cotações de uma vez (e a conta do portal acompanha, sem perder PIN nem aparelhos). Quando a mesma pessoa aparece com dois números, <b>Unir</b> junta os dois registros e troca o número errado em tudo. Vendedores novos entram sozinhos quando você salva o cadastro de uma lista, cria uma cotação ou quando o vendedor cria o login no portal.</p>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-amber" onclick="abrirForm(null)">+ Novo vendedor</button>
+      <a class="btn" href="/portal-fornecedor.html" title="Avisos, PIN e aparelhos de quem está no portal">Portal do Fornecedor</a>
+      <button class="btn" onclick="absorver()" title="Procura nas listas, cotações, pedidos e no portal vendedores que ainda não estão aqui (o servidor faz isso sozinho ao subir e a cada cadastro salvo)">⟳ Buscar vendedores novos</button>
+      <button class="btn" onclick="carregar()">↻ Atualizar</button>
+      <button class="btn" id="btn-testes" onclick="testes()"></button>
+    </div>
+  </div>
+  <div class="status" id="status"></div>
+  <div class="kpis" id="kpis"></div>
+  <div class="mini" id="kpi-view" style="margin:-6px 0 12px;color:var(--ink-2)"></div>
+
+  <div class="ajuda" id="ajuda" style="display:none"><b>Como usar:</b>
+    <ol>
+      <li><b>Editar</b> corrige nome, WhatsApp, e-mail e empresa do vendedor. A correção vai pra todas as listas e cotações em que ele aparece.</li>
+      <li><b>Possíveis duplicados</b> é a mesma pessoa com dois números (um dígito trocado, mesma empresa e nome parecido). Clique em <b>Unir</b> e escolha qual registro fica: o número do outro é trocado pelo certo em tudo.</li>
+      <li><b>Fora do portal</b> é quem ainda não criou login no Portal do Fornecedor: mande o convite pelo WhatsApp dali mesmo.</li>
+    </ol>
+  </div>
+
+  <div class="sec dup hid" id="sec-dup">
+    <div class="hd"><h2>Possíveis duplicados</h2><span class="mini" id="d-cont"></span><span class="mini">mesma pessoa cadastrada duas vezes? confira e una — o número do que sai é trocado pelo do que fica em todas as listas, cotações e pedidos</span></div>
+    <div class="tw"><table>
+      <thead><tr><th>Registro A</th><th>Registro B</th><th>Por quê</th><th>Ações</th></tr></thead>
+      <tbody id="d-tbody"></tbody>
+    </table></div>
+  </div>
+
+  <div class="sec" id="sec-vend">
+    <div class="hd"><h2>Cadastro</h2><span class="mini" id="v-cont"></span><span class="chip hid" id="v-chip"></span><input type="search" id="v-busca" placeholder="buscar vendedor, WhatsApp, e-mail, empresa, código ou lista…" oninput="render()"></div>
+    <div class="tw"><table>
+      <thead><tr><th>Vendedor</th><th>WhatsApp</th><th>Empresa</th><th class="col-listas">Listas</th><th class="col-cot">Última cotação</th><th>Portal</th><th>Ações</th></tr></thead>
+      <tbody id="v-tbody"></tbody>
+    </table></div>
+  </div>
+</div>
+
+<div class="ov" id="ov-form"><div class="md">
+  <div class="mh"><h3 id="f-titulo">Vendedor</h3><button class="x" onclick="fechar('ov-form')" title="Fechar">×</button></div>
+  <div class="mb">
+    <div class="fld"><label>Nome</label><input type="text" id="f-nome" placeholder="nome do vendedor" maxlength="80"></div>
+    <div class="fld"><label>WhatsApp</label><input type="text" id="f-whats" inputmode="numeric" placeholder="81 99999-0000 (DDD + número)"><span class="mini" id="f-whats-dica">É o login do vendedor no portal. Corrigindo aqui, o número muda em todas as listas e cotações; a conta do portal passa pro número novo.</span></div>
+    <div class="fld"><label>E-mail</label><input type="email" id="f-email" placeholder="opcional" maxlength="120"></div>
+    <div class="fld"><label>Empresa</label><input type="text" id="f-emp" list="emp-lista" placeholder="escolha pelo nome ou código do ERP, ou digite" autocomplete="off"><datalist id="emp-lista"></datalist><span class="mini" id="f-emp-dica">Cada vendedor tem a sua empresa (fornecedor do ERP).</span></div>
+    <div class="mini" id="f-info" style="color:var(--ink-3)"></div>
+  </div>
+  <div class="mf"><button class="btn" onclick="fechar('ov-form')">Cancelar</button><button class="btn btn-amber" id="f-salvar" onclick="salvarForm()">Salvar</button></div>
+</div></div>
+
+<div class="ov" id="ov-unir"><div class="md">
+  <div class="mh"><h3 id="u-titulo">Unir vendedor</h3><button class="x" onclick="fechar('ov-unir')" title="Fechar">×</button></div>
+  <div class="mb">
+    <div class="mini" id="u-quem" style="font-size:12.5px;color:var(--ink-2);margin-bottom:10px;line-height:1.5"></div>
+    <div class="fld"><label>Unir com</label><input type="search" id="u-busca" placeholder="buscar pelo nome, WhatsApp ou empresa…" oninput="renderCand()"></div>
+    <div id="u-lista"></div>
+  </div>
+  <div class="mf"><button class="btn" onclick="fechar('ov-unir')">Fechar</button></div>
+</div></div>
+
+<div class="toast" id="toast"></div>
+<script>
+'use strict';
+var $ = function (s) { return document.querySelector(s); };
+var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+var dt = function (s) { return s ? new Date(s).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'; };
+var dd = function (s) { return s ? new Date(s).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '—'; };
+var fone = function (d) { d = String(d || '').replace(/\D/g, ''); if (d.length === 11) return '(' + d.slice(0, 2) + ') ' + d.slice(2, 7) + '-' + d.slice(7); if (d.length === 10) return '(' + d.slice(0, 2) + ') ' + d.slice(2, 6) + '-' + d.slice(6); return d || '—'; };
+var haTxt = function (s) { if (!s) return ''; var m = Math.round((Date.now() - new Date(s)) / 60000); if (m < 1) return 'agora'; if (m < 60) return 'há ' + m + ' min'; var h = Math.floor(m / 60); if (h < 48) return 'há ' + h + ' h'; return 'há ' + Math.floor(h / 24) + ' dias'; };
+var ZAP = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#25D366" d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>';
+var zapLink = function (w, nome) { w = String(w || '').replace(/\D/g, ''); if (!w) return '<span class="mini">sem WhatsApp</span>'; return '<a class="zapnum" href="https://wa.me/' + (w.length <= 11 ? '55' + w : w) + '" target="_blank" rel="noopener" title="Abrir conversa no WhatsApp' + (nome ? ' com ' + esc(nome) : '') + '">' + ZAP + esc(fone(w)) + '</a>'; };
+function toast(m) { var t = $('#toast'); t.textContent = m; t.classList.add('on'); clearTimeout(window._tt); window._tt = setTimeout(function () { t.classList.remove('on'); }, 5000); }
+async function api(url, body) { var r = await fetch(url, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : { cache: 'no-store' }); var j = {}; try { j = await r.json(); } catch (e) {} if (!r.ok || j.error) throw new Error(j.error || ('HTTP ' + r.status)); return j; }
+async function copiar(txt, okMsg) {
+  if (navigator.clipboard && window.isSecureContext) { try { await navigator.clipboard.writeText(txt); toast(okMsg); return; } catch (e) { /* tenta o jeito antigo */ } }
+  try { var ta = document.createElement('textarea'); ta.value = txt; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0'; document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, txt.length); var ok = document.execCommand('copy'); document.body.removeChild(ta); if (ok) { toast(okMsg); return; } } catch (e) { /* cai no prompt */ }
+  prompt('Não consegui copiar sozinho. Copie daqui (Ctrl+C):', txt);
+}
+var BASE_PUBLICA = 'https://hhk0a8gt2cn.sn.mynetname.net', LINK_PORTAL = BASE_PUBLICA + '/fornecedor/#criar';
+function conviteMsg(nome) { return 'Olá' + (nome ? ', ' + String(nome).split(' ')[0] : '') + '! Aqui é da Econômico Supermercados (Rede Cahu). Agora nossas cotações chegam direto no seu celular pelo Portal do Fornecedor. Abra o link, crie seu login com o seu WhatsApp (o mesmo que usamos pra te mandar as cotações) e um PIN de 6 números, e ative os avisos: ' + LINK_PORTAL; }
+
+var E = null, F = '';   // F = filtro dos cartões: '' todos · portal · fora · dup · semwhats · inativos · testes
+var F_NOME = { portal: 'no portal (com PIN)', fora: 'fora do portal', dup: 'possíveis duplicados', semwhats: 'sem WhatsApp', inativos: 'inativos / unidos', testes: 'exemplos de teste' };
+var noPortal = function (v) { return !!(v.portal && v.portal.tem_pin); };
+function porId(id) { return (E.itens || []).find(function (v) { return v.id === id; }); }
+function dupIds() { var s = {}; (E.suspeitos || []).forEach(function (p) { s[p.a] = 1; s[p.b] = 1; }); return s; }
+function filtroOk(v, dups) {
+  if (F === 'inativos') return v.ativo === false;
+  if (v.ativo === false) return false;
+  if (F === 'testes') return !!v.teste;
+  if (v.teste && F) return false;
+  if (F === 'portal') return noPortal(v);
+  if (F === 'fora') return !!v.whats && !noPortal(v);
+  if (F === 'dup') return !!dups[v.id];
+  if (F === 'semwhats') return !v.whats;
+  return true;
+}
+function kpiClick(k) { F = (F === k || k === 'tudo') ? '' : k; render(); if (F === 'dup') { var s = $('#sec-dup'); if (s) s.scrollIntoView({ behavior: 'smooth', block: 'start' }); } }
+
+async function carregar() {
+  try { E = await api('/api/vendedores'); render(); }
+  catch (e) { $('#status').innerHTML = '<span class="err">Não consegui carregar: ' + esc(e.message) + '</span>'; }
+}
+async function absorver() { try { var r = await api('/api/vendedores/absorver', {}); toast(r.novos ? r.novos + ' vendedor(es) novo(s) trazido(s) das listas, cotações, pedidos e portal' : 'Nenhum vendedor novo: tudo que existe nas listas, cotações, pedidos e portal já está aqui'); carregar(); } catch (e) { toast('Erro: ' + e.message); } }
+async function testes() {
+  var tem = (E && E.resumo && E.resumo.testes) || 0;
+  try {
+    if (tem) { var r = await api('/api/vendedores/testes/remover', {}); toast(r.removidos + ' exemplo(s) de teste removido(s)'); }
+    else { var r2 = await api('/api/vendedores/testes', {}); toast(r2.criados + ' exemplo(s) de teste criado(s): aparecem marcados TESTE e não entram no portal nem nas listas'); }
+    carregar();
+  } catch (e) { toast('Erro: ' + e.message); }
+}
+function render() {
+  var R = E.resumo || {}, dups = dupIds();
+  $('#status').innerHTML = '<span><b>' + R.vendedores + '</b> vendedor(es) no cadastro</span><span>Dados em <b>data/vendedores/</b> no servidor; nada é escrito no ERP</span>' + (R.inativos ? '<span>' + R.inativos + ' inativo(s)/unido(s) · <a href="#" onclick="kpiClick(\'inativos\');return false">ver</a></span>' : '');
+  var card = function (k, cls, nm, v, sub, tit) { return '<div class="kpi ' + cls + (F === k ? ' on' : '') + '" onclick="kpiClick(\'' + k + '\')" title="' + esc(tit) + '"><div class="nm">' + nm + '</div><div class="v">' + v + '</div><div class="sub">' + sub + '</div></div>'; };
+  $('#kpis').innerHTML =
+    card('tudo', '', 'Vendedores', R.vendedores, 'um registro por vendedor, com a empresa dele', 'Clique: mostra todos') +
+    card('portal', R.com_login ? 'ok' : '', 'No portal', R.com_login + '<small>de ' + R.vendedores + '</small>', 'criaram login (WhatsApp + PIN) no Portal do Fornecedor', 'Clique: só quem tem login') +
+    card('fora', R.sem_login ? 'bad' : '', 'Fora do portal', R.sem_login, 'ainda sem login — convide pelo WhatsApp', 'Clique: só quem ainda não criou login') +
+    card('dup', R.suspeitos ? 'warn' : '', 'Possíveis duplicados', R.suspeitos, R.suspeitos ? 'mesma pessoa com dois números? confira e una' : 'nenhum registro parecido com outro', 'Clique: pares parecidos, com botão pra unir') +
+    card('semwhats', R.sem_whats ? 'warn' : '', 'Sem WhatsApp', R.sem_whats, 'não recebem link nem convite: complete o número', 'Clique: só quem está sem número');
+  $('#kpi-view').innerHTML = F ? 'Mostrando só <b>' + F_NOME[F] + '</b> · <a href="#" onclick="kpiClick(\'tudo\');return false">ver tudo</a>' : '';
+  var bt = $('#btn-testes'); bt.textContent = R.testes ? '🧹 Remover exemplos de teste (' + R.testes + ')' : '🧪 Criar exemplos de teste'; bt.title = R.testes ? 'Apaga os registros marcados TESTE' : 'Cria 4 vendedores TESTE (um par duplicado e um sem número) pra você ver a tela funcionando; eles não entram no portal nem nas listas';
+  $('#ajuda').style.display = R.vendedores ? 'none' : 'block';
+  renderDup(); renderVend(dups);
+  // datalist de empresas do form
+  $('#emp-lista').innerHTML = (E.fornecedores || []).map(function (f) { return '<option value="' + esc(f.codFornec + ' · ' + f.nome) + '">'; }).join('');
+}
+function renderDup() {
+  var L = (E.suspeitos || []).filter(function (p) { return porId(p.a) && porId(p.b); }), sec = $('#sec-dup');
+  sec.classList.toggle('hid', !L.length);
+  $('#d-cont').textContent = L.length ? L.length + ' par(es)' : '';
+  if (!L.length) return;
+  var lado = function (v) { return '<div class="lado"><b>' + esc(v.nome || '—') + '</b> <span class="mini">#' + v.id + '</span><br>' + zapLink(v.whats, v.nome) + (v.email ? '<br><span class="mini">' + esc(v.email) + '</span>' : '') + '<br><span class="mini">' + esc(v.empresa || 'sem empresa') + (v.codFornec ? ' · cód. ' + v.codFornec : '') + '</span><br>' + (noPortal(v) ? '<span class="pill ok">no portal</span>' : '<span class="pill off">sem login</span>') + (v.listas && v.listas.length ? ' <span class="mini">listas ' + v.listas.map(function (l) { return '#' + l; }).join(', ') + '</span>' : '') + '</div>'; };
+  $('#d-tbody').innerHTML = L.map(function (p) {
+    var a = porId(p.a), b = porId(p.b), ficaA = noPortal(a) || (!noPortal(b) && a.id < b.id);
+    var btn = function (fica, sai, rec) { return '<button class="btn btn-sm' + (rec ? ' btn-ok' : '') + '" onclick="unir(' + sai.id + ',' + fica.id + ')" title="' + esc('Fica ' + (fica.nome || '#' + fica.id) + ' (' + fone(fica.whats) + '); o número ' + fone(sai.whats) + ' é trocado por ' + fone(fica.whats) + ' em todas as listas, cotações e pedidos') + '">Unir: fica ' + esc((fica.nome || '#' + fica.id).split(' ')[0]) + ' ' + esc(fica.whats ? fone(fica.whats) : '(sem número)') + (rec ? ' ✓' : '') + '</button>'; };
+    return '<tr><td class="wrap">' + lado(a) + '</td><td class="wrap">' + lado(b) + '</td><td class="wrap">' + esc(p.motivo) + '</td><td><div class="acoes">' + btn(ficaA ? a : b, ficaA ? b : a, true) + btn(ficaA ? b : a, ficaA ? a : b, false) + '</div></td></tr>';
+  }).join('');
+}
+function renderVend(dups) {
+  var todos = E.itens || [], vs = todos.filter(function (v) { return filtroOk(v, dups); }), b = ($('#v-busca').value || '').trim().toLowerCase(), bd = b.replace(/\D/g, '');
+  var chip = $('#v-chip'); chip.classList.toggle('hid', !F); chip.innerHTML = F ? 'filtro: ' + F_NOME[F] + ' <a href="#" onclick="kpiClick(\'tudo\');return false" title="Limpar o filtro">×</a>' : '';
+  var vis = vs.filter(function (v) { if (!b) return true; var txt = ((v.nome || '') + ' ' + (v.email || '') + ' ' + (v.empresa || '') + ' ' + (v.codFornec || '') + ' ' + (v.listas || []).map(function (l) { return '#' + l; }).join(' ') + ' ' + (v.outras_empresas || []).map(function (e) { return e.nome; }).join(' ')).toLowerCase(); if (txt.indexOf(b) >= 0) return true; if (bd.length >= 3 && (String(v.whats || '') + ' ' + (v.antigos || []).join(' ')).indexOf(bd) >= 0) return true; return false; });
+  $('#v-cont').textContent = vs.length ? vis.length + ' de ' + vs.length : '';
+  if (!todos.length) { $('#v-tbody').innerHTML = '<tr><td colspan="7" class="empty">Nenhum vendedor ainda. Eles entram sozinhos ao salvar o cadastro de uma lista (Cotação › Fornecedores por lista), ao criar uma cotação ou quando o vendedor cria o login no portal — ou clique em <b>+ Novo vendedor</b>.</td></tr>'; return; }
+  if (!vis.length) { $('#v-tbody').innerHTML = '<tr><td colspan="7" class="empty">Nenhum vendedor ' + (b ? 'com "' + esc(b) + '"' : '') + (F ? ' no filtro "' + F_NOME[F] + '"' : '') + '.</td></tr>'; return; }
+  $('#v-tbody').innerHTML = vis.map(function (v) {
+    var p = v.portal, ult = (v.cotacoes || [])[0], inat = v.ativo === false;
+    var portal = inat ? '<span class="mini">—</span>' : (p && p.tem_pin ? '<span class="pill ok">no portal</span><br><span class="mini">' + (p.pinEm ? 'desde ' + dd(p.pinEm) : 'login criado') + (p.ultimoAcesso ? ' · entrou ' + haTxt(p.ultimoAcesso) : '') + (p.instalado ? ' · app instalado' : '') + (p.dispositivos ? ' · avisos em ' + p.dispositivos + ' aparelho(s)' : '') + (p.whats && p.whats !== v.whats ? '<br>login no número antigo ' + esc(fone(p.whats)) : '') + '</span>' : (v.teste ? '<span class="pill teste">exemplo</span>' : (v.whats ? '<span class="pill bad">fora do portal</span><div class="acoes" style="margin-top:4px"><a class="btn btn-sm" target="_blank" rel="noopener" href="https://wa.me/55' + esc(v.whats) + '?text=' + encodeURIComponent(conviteMsg(v.nome)) + '" title="Abre o WhatsApp dele com o convite pronto; você só confere e envia">💬 Convidar</a><button class="btn btn-sm" onclick="copiar(conviteMsg(' + JSON.stringify(v.nome || '') + '), \'Convite copiado\')" title="Copia a mensagem do convite">📋</button></div>' : '<span class="pill off">sem número</span>')));
+    var dup = dups[v.id] && !inat ? ' <a href="#" class="pill teste" onclick="kpiClick(\'dup\');return false" title="Tem outro registro parecido: veja em Possíveis duplicados">parecido com outro</a>' : '';
+    return '<tr' + (inat ? ' class="off"' : (v.teste ? ' class="teste"' : '')) + '><td class="wrap"><b>' + esc(v.nome || '—') + '</b>' + (v.teste ? ' <span class="pill teste">TESTE</span>' : '') + dup + '<br><span class="mini">#' + v.id + (v.email ? ' · ' + esc(v.email) : '') + (inat ? (v.unidoCom ? ' · unido com #' + v.unidoCom : ' · inativo') + (v.unidoEm ? ' em ' + dd(v.unidoEm) : '') : '') + '</span></td>' +
+      '<td class="num">' + zapLink(v.whats, v.nome) + ((v.antigos || []).length ? '<br><span class="mini" title="Número(s) que este vendedor já teve: cópias antigas ainda casam com ele">antes: ' + v.antigos.map(fone).map(esc).join(', ') + '</span>' : '') + '</td>' +
+      '<td class="wrap">' + (v.empresa ? esc(v.empresa) + (v.codFornec ? ' <span class="mini">cód. ' + v.codFornec + '</span>' : '') : '<span class="mini">sem empresa</span>') + ((v.outras_empresas || []).length ? '<br><span class="mini" title="O mesmo número aparece em cadastro de outra empresa">também em: ' + v.outras_empresas.map(function (e) { return esc(e.nome); }).join(', ') + '</span>' : '') + '</td>' +
+      '<td class="col-listas wrap">' + ((v.listas || []).length ? v.listas.map(function (l) { return '#' + l; }).join(', ') : '<span class="mini">—</span>') + '</td>' +
+      '<td class="col-cot wrap">' + (ult ? '<a href="/cotacao.html" title="Abra no Acompanhamento">#' + ult.id + '</a> ' + esc(ult.nome || '') + ' <span class="mini">(' + esc(ult.status) + ')</span>' : '<span class="mini">—</span>') + '</td>' +
+      '<td>' + portal + '</td>' +
+      '<td><div class="acoes">' + (inat ? '<button class="btn btn-sm" onclick="reativar(' + v.id + ')">Reativar</button>' : '<button class="btn btn-sm" onclick="abrirForm(' + v.id + ')">✎ Editar</button><button class="btn btn-sm" onclick="abrirUnir(' + v.id + ')" title="É a mesma pessoa que outro registro? Junte os dois">⇄ Unir</button><button class="btn btn-sm btn-no" onclick="desativar(' + v.id + ')" title="Tira do cadastro (não some das listas; só deixa de contar aqui e no portal)">Desativar</button>') + '</div></td></tr>';
+  }).join('');
+}
+// ── form (novo / editar) ──
+var F_ID = null;
+function abrirForm(id) {
+  F_ID = id; var v = id ? porId(id) : null;
+  $('#f-titulo').textContent = v ? 'Editar vendedor #' + v.id : 'Novo vendedor';
+  $('#f-nome').value = v ? (v.nome || '') : ''; $('#f-whats').value = v ? (v.whats || '') : ''; $('#f-email').value = v ? (v.email || '') : '';
+  $('#f-emp').value = v && v.empresa ? (v.codFornec ? v.codFornec + ' · ' : '') + v.empresa : '';
+  $('#f-info').innerHTML = v ? 'Aparece em ' + ((v.listas || []).length ? v.listas.length + ' lista(s)' : 'nenhuma lista') + ((v.cotacoes || []).length ? ' e em cotações' : '') + (v.portal && v.portal.tem_pin ? ' · tem login no portal' : '') + '. Criado ' + dt(v.criadoEm) + (v.origem ? ' (' + esc(v.origem) + ')' : '') + '.' : '';
+  $('#ov-form').classList.add('on'); setTimeout(function () { $('#f-nome').focus(); }, 50);
+}
+function fechar(id) { $('#' + id).classList.remove('on'); }
+function empDoCampo() { var t = ($('#f-emp').value || '').trim(); var m = t.match(/^(\d+)\s*·\s*(.+)$/); if (m) return { codFornec: parseInt(m[1]), empresa: m[2].trim() }; var f = (E.fornecedores || []).find(function (x) { return x.nome.toLowerCase() === t.toLowerCase() || String(x.codFornec) === t; }); if (f) return { codFornec: f.codFornec, empresa: f.nome }; return { codFornec: null, empresa: t }; }
+async function salvarForm() {
+  var emp = empDoCampo(), body = { nome: $('#f-nome').value, whats: $('#f-whats').value, email: $('#f-email').value, codFornec: emp.codFornec, empresa: emp.empresa };
+  var btn = $('#f-salvar'); btn.disabled = true;
+  try {
+    var r = await api(F_ID ? '/api/vendedores/' + F_ID : '/api/vendedores', body);
+    fechar('ov-form'); toast((F_ID ? 'Vendedor atualizado' : 'Vendedor criado') + propTxt(r.propagado)); carregar();
+  } catch (e) { toast('Erro: ' + e.message); }
+  btn.disabled = false;
+}
+function propTxt(p) { if (!p) return ''; var s = []; if (p.listas) s.push(p.listas + ' lista(s)'); if (p.cotacoes) s.push(p.cotacoes + ' cotação(ões)'); if (p.pedidos) s.push(p.pedidos + ' pedido(s)'); var t = s.length ? ' · corrigido em ' + s.join(', ') : ' · nenhuma lista ou cotação precisou mudar'; if (p.portal && p.portal.conta) t += p.portal.rechaveada ? ' · conta do portal passou pro número novo' + (p.portal.juntada ? ' (juntada com a conta que já existia nele)' : '') : ' · conta do portal atualizada'; return t; }
+// ── unir ──
+var U_ID = null;
+function abrirUnir(id) { U_ID = id; var v = porId(id); if (!v) return; $('#u-titulo').textContent = 'Unir ' + (v.nome || '#' + v.id); $('#u-quem').innerHTML = '<b>' + esc(v.nome || '#' + v.id) + '</b> · ' + esc(fone(v.whats)) + (v.empresa ? ' · ' + esc(v.empresa) : '') + (noPortal(v) ? ' · <span class="pill ok">no portal</span>' : '') + '<br>Escolha o outro registro da mesma pessoa e qual dos dois fica. O número do que sai é trocado pelo do que fica em todas as listas, cotações e pedidos; a conta do portal (se existir) vai junto.'; $('#u-busca').value = ''; renderCand(); $('#ov-unir').classList.add('on'); setTimeout(function () { $('#u-busca').focus(); }, 50); }
+function renderCand() {
+  var v = porId(U_ID), b = ($('#u-busca').value || '').trim().toLowerCase(), bd = b.replace(/\D/g, '');
+  var dups = (E.suspeitos || []).filter(function (p) { return p.a === U_ID || p.b === U_ID; }).map(function (p) { return p.a === U_ID ? p.b : p.a; });
+  var cands = (E.itens || []).filter(function (x) { return x.id !== U_ID && x.ativo !== false && !x.teste === !v.teste; });
+  cands = cands.filter(function (x) { if (dups.indexOf(x.id) >= 0 && !b) return true; if (!b) return (x.codFornec && v.codFornec && x.codFornec === v.codFornec); var txt = ((x.nome || '') + ' ' + (x.empresa || '') + ' ' + (x.email || '')).toLowerCase(); return txt.indexOf(b) >= 0 || (bd.length >= 3 && String(x.whats || '').indexOf(bd) >= 0); });
+  cands.sort(function (a, c) { return (dups.indexOf(c.id) >= 0) - (dups.indexOf(a.id) >= 0); });
+  if (!cands.length) { $('#u-lista').innerHTML = '<div class="empty">' + (b ? 'Ninguém com "' + esc(b) + '".' : 'Nenhum registro parecido nem da mesma empresa. Busque pelo nome ou número.') + '</div>'; return; }
+  $('#u-lista').innerHTML = cands.slice(0, 30).map(function (x) {
+    var sug = dups.indexOf(x.id) >= 0, ficaX = noPortal(x) || !noPortal(v);
+    return '<div class="cand"><div class="quem"><b>' + esc(x.nome || '#' + x.id) + '</b> ' + (sug ? '<span class="pill teste">parecido</span>' : '') + (noPortal(x) ? ' <span class="pill ok">no portal</span>' : '') + '<br><span class="mini">' + esc(fone(x.whats)) + (x.empresa ? ' · ' + esc(x.empresa) : '') + (x.listas && x.listas.length ? ' · listas ' + x.listas.map(function (l) { return '#' + l; }).join(', ') : '') + '</span></div><div class="acoes"><button class="btn btn-sm' + (ficaX ? ' btn-ok' : '') + '" onclick="unir(' + v.id + ',' + x.id + ')" title="' + esc((v.nome || '#' + v.id) + ' sai; ' + (x.nome || '#' + x.id) + ' fica com o número ' + fone(x.whats)) + '">Fica ' + esc((x.nome || '#' + x.id).split(' ')[0]) + '</button><button class="btn btn-sm' + (!ficaX ? ' btn-ok' : '') + '" onclick="unir(' + x.id + ',' + v.id + ')" title="' + esc((x.nome || '#' + x.id) + ' sai; ' + (v.nome || '#' + v.id) + ' fica com o número ' + fone(v.whats)) + '">Fica ' + esc((v.nome || '#' + v.id).split(' ')[0]) + '</button></div></div>';
+  }).join('');
+}
+async function unir(idSai, idFica) {
+  var sai = porId(idSai), fica = porId(idFica); if (!sai || !fica) return;
+  if (!confirm('Unir ' + (sai.nome || '#' + sai.id) + ' (' + fone(sai.whats) + ') em ' + (fica.nome || '#' + fica.id) + ' (' + fone(fica.whats) + ')?\n\nFica: ' + (fica.nome || '#' + fica.id) + ' com o número ' + fone(fica.whats) + '.\nO número ' + fone(sai.whats) + ' é trocado por ' + fone(fica.whats) + ' em todas as listas, cotações e pedidos' + (noPortal(sai) && !noPortal(fica) ? ', e a conta do portal passa pro número que fica' : '') + '.')) return;
+  try { var r = await api('/api/vendedores/' + idSai + '/unir', { para: idFica }); fechar('ov-unir'); toast('Unidos: ficou ' + (r.vendedor.nome || '#' + r.vendedor.id) + ' ' + fone(r.vendedor.whats) + propTxt(r.propagado)); carregar(); }
+  catch (e) { toast('Erro: ' + e.message); }
+}
+async function desativar(id) { var v = porId(id); if (!v) return; if (!confirm('Desativar ' + (v.nome || '#' + id) + '?\n\nEle deixa de contar no cadastro e no "fora do portal". As listas e cotações não mudam. Dá pra reativar depois.')) return; try { await api('/api/vendedores/' + id + '/desativar', {}); toast('Desativado'); carregar(); } catch (e) { toast('Erro: ' + e.message); } }
+async function reativar(id) { try { await api('/api/vendedores/' + id + '/reativar', {}); toast('Reativado'); carregar(); } catch (e) { toast('Erro: ' + e.message); } }
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { fechar('ov-form'); fechar('ov-unir'); } });
+carregar();
+</script>
+</body>
+</html>

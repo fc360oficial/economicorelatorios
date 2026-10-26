@@ -95,7 +95,8 @@
             { txt: 'Sugestão por Rupturas', desc: 'Escolhe a compradora, mostra as rupturas de cada lista e cria a sugestão a partir delas.', href: '/sugestao-compras.html?tela=rupturas' },
             { txt: 'Sugestão Manual', desc: 'Monitor de Sugestões do ERP: acompanha as sugestões existentes e abre a calculadora por lista.', href: '/sugestao-compras.html?tela=monitor' },
             { txt: 'Sugestão Semi-automática', desc: 'Você escolhe o fornecedor (lista) e quantos dias de lead quer; o Radar monta a sugestão com toda a estrutura dele, só que com esse lead.', href: '/radar-pedidos.html?semi=1' }
-          ] }
+          ] },
+        { href: '/vendedores.html',          ic: 'store', txt: 'Vendedores' }
       ]},
     { id: 'precificacao', ic: 'trend', txt: 'Precificação', sub: [
         { href: '/formacao-de-preco.html', ic: 'trend', txt: 'Formação de Preços' },
