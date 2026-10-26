@@ -1101,7 +1101,9 @@ function goScreen(id){
   document.getElementById(id).classList.add('on');
   document.querySelectorAll('.modtabs button').forEach(function(b){ b.classList.toggle('on', b.dataset.screen === id); });
   window.scrollTo(0,0);
-  if (CUR) history.replaceState(null, '', '?id=' + CUR.id + '&tela=' + id); else if (id !== 's2') history.replaceState(null, '', location.pathname);
+  // A aba e a cotação abertas NÃO vão pra URL: F5 (ou reabrir a página) cai sempre no Monitor — Tiago, 26/10/26: "a tela inicial da
+  // cotação sempre vai ser o Monitor; sempre que eu atualizar a página tem que abrir no Monitor". ?id=&tela= (link "ver comparativo"
+  // do Pedidos de Compra) vale só na chegada e é limpo no início.
   if (id === 's1') carregarMonitor();
   if (id === 's2') carregarListasErp();   // pré-carrega as listas pra busca responder na hora
   // aba clicada sem cotação escolhida: abre direto a última cotação usada (ou a mais recente) — Tiago, 16/10/26: "essas abas não tá abrindo
@@ -2789,6 +2791,7 @@ async function renderPedidos(){
 (function(){
   var qs = new URLSearchParams(location.search);
   var id = parseInt(qs.get('id')), tela = qs.get('tela'), lista = qs.get('lista');
+  if (location.search) history.replaceState(null, '', location.pathname);   // parâmetro de chegada usado uma vez; F5 volta ao Monitor
   // ?aba=produtos|prepedidos|pedidos abre o Comparativo já na aba; ?forn=<codFornec> abre o pré-pedido do fornecedor
   if (['produtos', 'prepedidos', 'pedidos'].indexOf(qs.get('aba')) >= 0) CI_ABA = qs.get('aba');
   if (parseInt(qs.get('forn')) > 0) { PP_DET = parseInt(qs.get('forn')); CI_ABA = 'prepedidos'; }
