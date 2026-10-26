@@ -2789,7 +2789,10 @@ async function renderPedidos(){
 
 // ───────── início
 (function(){
-  var qs = new URLSearchParams(location.search);
+  // F5 / recarga: ignora ?id=&tela=&lista= e cai no Monitor mesmo com o parâmetro ainda na URL (aba aberta antes desta versão,
+  // favorito antigo) — a tela inicial da cotação é sempre o Monitor (Tiago, 26/10/26). Link clicado ou digitado abre a tela pedida.
+  var RECARGA = false; try { var nv = performance.getEntriesByType('navigation')[0]; RECARGA = nv ? nv.type === 'reload' : !!(performance.navigation && performance.navigation.type === 1); } catch(e) {}
+  var qs = new URLSearchParams(RECARGA ? '' : location.search);
   var id = parseInt(qs.get('id')), tela = qs.get('tela'), lista = qs.get('lista');
   if (location.search) history.replaceState(null, '', location.pathname);   // parâmetro de chegada usado uma vez; F5 volta ao Monitor
   // ?aba=produtos|prepedidos|pedidos abre o Comparativo já na aba; ?forn=<codFornec> abre o pré-pedido do fornecedor
