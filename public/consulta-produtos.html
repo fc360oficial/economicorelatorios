@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="/design-system.css">
+<script src="/nav.js" defer></script>
+<title>Consulta de Produtos — Econômico Supermercados</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  /* Consulta de Produtos (26/10/26): a "Consulta de Itens" do ERP, por loja. Mesma casca da Consulta de Vendas
+     (consulta.html). Largura base = monitor grande; faixas @media 1599/1399/1199 apertam até caber (regra 16/10). */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root{
+    --bg:#EBEBE9; --surface:#FFFFFF; --surface-2:#E4E4E1;
+    --border:#DADAD6; --border-strong:#C9C9C4;
+    --ink:#0E1626; --ink-2:#4E5A72; --ink-3:#98A0B3;
+    --brand:#F5B800; --brand-ink:#6B4E00; --brand-bg:#FFF4CC;
+    --green:#137A48; --green-bg:#E7F5EC;
+    --red:#C22F49; --red-bg:#FBEAED;
+    --amber:#9A5B00; --amber-bg:#FFF1DB;
+    --navy:#16233F;
+    --font:'InterVar','Inter','Segoe UI',system-ui,-apple-system,sans-serif;
+  }
+  body { font-family: var(--font); background: var(--bg); color: var(--ink); min-height: 100vh; }
+
+  header {
+    background: var(--surface); padding: 16px 32px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--border); box-shadow: 0 1px 0 var(--brand); flex-wrap: wrap; gap: 10px;
+  }
+  .logo h1 { font-size: 17px; font-weight: 800; color: var(--ink); letter-spacing: 0.3px; }
+  .logo span { font-size: 12px; color: var(--ink-3); display: block; }
+
+  main { max-width: 1600px; margin: 0 auto; padding: 28px 32px; }
+
+  .card {
+    background: var(--surface); border-radius: 14px; border: 1px solid var(--border);
+    box-shadow: 0 1px 2px rgba(22,35,63,.04); margin-bottom: 24px; overflow: hidden;
+  }
+  .filtros-card { padding: 24px 28px; }
+  .filtros-title { font-size: 16px; font-weight: 700; color: var(--ink); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .busca-row { display: grid; grid-template-columns: 1fr auto; gap: 14px; align-items: end; }
+  .form-group label { display: block; font-size: 11px; font-weight: 700; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px; }
+  .form-group input {
+    width: 100%; background: var(--surface); border: 1px solid var(--border-strong); color: var(--ink);
+    padding: 12px 16px; border-radius: 8px; font-size: 15px; outline: none; font-family: var(--font); transition: border-color .2s;
+  }
+  .form-group input:focus { border-color: var(--brand); }
+  .btn-consultar {
+    background: var(--brand); border: none; color: var(--brand-ink); padding: 12px 24px; border-radius: 8px;
+    font-size: 14px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; white-space: nowrap; transition: background .2s;
+  }
+  .btn-consultar:hover { background: #E5AC00; }
+  .btn-consultar:disabled { opacity: .5; pointer-events: none; }
+  .dica { font-size: 12px; color: var(--ink-3); margin-top: 10px; }
+  .dica b { color: var(--ink-2); font-weight: 600; }
+
+  /* Lista de resultados da busca */
+  .lista-hd { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 20px; border-bottom: 1px solid var(--border); background: var(--surface-2); flex-wrap: wrap; }
+  .lista-hd .t { font-size: 13px; font-weight: 700; color: var(--ink); }
+  .lista-hd .s { font-size: 12px; color: var(--ink-3); }
+  .lista-scroll { max-height: 340px; overflow: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    padding: 10px 14px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--ink-3);
+    text-align: left; white-space: nowrap; background: var(--surface-2); position: sticky; top: 0; z-index: 1;
+  }
+  thead th.r, tbody td.r { text-align: right; font-variant-numeric: tabular-nums; }
+  thead th.c, tbody td.c { text-align: center; }
+  tbody tr { border-top: 1px solid var(--border); }
+  tbody td { padding: 10px 14px; font-size: 13px; color: var(--ink-2); vertical-align: middle; }
+  .lista tbody tr { cursor: pointer; transition: background .12s; }
+  .lista tbody tr:hover { background: var(--brand-bg); }
+  .lista tbody tr.sel { background: var(--brand-bg); box-shadow: inset 3px 0 0 var(--brand); }
+  td.cod { font-family: ui-monospace, Consolas, monospace; font-size: 12px; color: var(--ink-3); white-space: nowrap; }
+  td.nome { color: var(--ink); font-weight: 600; white-space: normal; }
+  td.merc { font-size: 12px; white-space: normal; }
+  .tag { display: inline-block; font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; letter-spacing: .3px; white-space: nowrap; }
+  .tag.off { background: var(--red-bg); color: var(--red); }
+  .tag.on { background: var(--green-bg); color: var(--green); }
+  .tag.neutro { background: var(--surface-2); color: var(--ink-2); }
+  .tag.oferta { background: var(--brand-bg); color: var(--brand-ink); }
+
+  /* Detalhe do produto: faixa escura como no ERP + grade por loja */
+  .det-hd { background: var(--navy); color: #fff; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+  .det-hd .tit { font-size: 17px; font-weight: 800; letter-spacing: .2px; }
+  .det-hd .tit small { font-family: ui-monospace, Consolas, monospace; font-weight: 600; font-size: 13px; opacity: .8; margin-right: 10px; }
+  .det-hd .acoes { display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn-sec { background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.25); color: #fff; padding: 7px 12px; border-radius: 6px; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+  .btn-sec:hover { background: rgba(255,255,255,.2); }
+  .det-meta { display: flex; gap: 8px 18px; flex-wrap: wrap; padding: 10px 20px; border-bottom: 1px solid var(--border); background: #F6F6F4; font-size: 12.5px; color: var(--ink-2); }
+  .det-meta b { color: var(--ink); font-weight: 600; }
+  .det-meta .sep { color: var(--border-strong); }
+  .grade-wrap { overflow-x: auto; }   /* rolagem só como último recurso (abaixo de ~1000 px úteis) */
+  table.grade { width: 100%; }
+  table.grade thead th { position: static; padding: 9px 9px; font-size: 10.5px; }
+  table.grade thead th.grp { text-align: center; border-bottom: 1px solid var(--border); color: var(--ink-2); letter-spacing: .4px; background: #ECECE9; }
+  table.grade tbody td { padding: 9px 9px; font-size: 12.5px; }
+  table.grade td.loja { white-space: nowrap; }
+  table.grade td.loja .rot { display: inline-block; min-width: 28px; text-align: center; font-weight: 800; color: var(--ink); background: var(--surface-2); border-radius: 6px; padding: 2px 5px; margin-right: 6px; font-size: 11.5px; }
+  table.grade td.loja .bai { font-weight: 600; color: var(--ink); }
+  table.grade td.razao { white-space: nowrap; max-width: 200px; }
+  table.grade td.razao .rz { color: var(--ink); font-weight: 600; font-size: 12px; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; }
+  table.grade td.razao .cj { font-size: 10.5px; color: var(--ink-3); font-family: ui-monospace, Consolas, monospace; }
+  table.grade td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  table.grade td.num.forte { color: var(--ink); font-weight: 700; }
+  table.grade td.zero { color: var(--ink-3); }
+  table.grade td.data { text-align: center; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  table.grade td .sub { display: block; font-size: 10.5px; color: var(--ink-3); font-weight: 500; line-height: 1.2; }
+  table.grade tr.inativa td { opacity: .55; }
+  table.grade tfoot td { padding: 10px 12px; font-size: 12.5px; font-weight: 700; color: var(--ink); background: var(--surface-2); border-top: 2px solid var(--border-strong); white-space: nowrap; }
+  .pos { color: var(--green); font-weight: 700; }
+  .neg { color: var(--red); font-weight: 700; }
+  .aten { color: var(--amber); font-weight: 700; }
+  .curva { display: inline-block; min-width: 26px; text-align: center; font-weight: 800; font-size: 13px; border-radius: 6px; padding: 2px 7px; }
+  .curva.A { background: var(--green-bg); color: var(--green); }
+  .curva.B { background: var(--brand-bg); color: var(--brand-ink); }
+  .curva.C { background: var(--surface-2); color: var(--ink-2); }
+  .curva.x { background: transparent; color: var(--ink-3); font-weight: 600; }
+  .curva.ld { color: var(--ink-3); font-weight: 500; }
+  .legenda { padding: 10px 20px; font-size: 11.5px; color: var(--ink-3); border-top: 1px solid var(--border); display: flex; gap: 6px 18px; flex-wrap: wrap; }
+  .legenda b { color: var(--ink-2); font-weight: 600; }
+
+  /* Estados */
+  .estado-vazio { padding: 60px 20px; text-align: center; color: var(--ink-3); }
+  .estado-vazio .icon { font-size: 48px; margin-bottom: 12px; }
+  .estado-vazio p { font-size: 14px; }
+  .estado-erro { padding: 30px 20px; text-align: center; color: var(--red); font-size: 13px; }
+  .estado-loading { padding: 50px 20px; text-align: center; color: var(--ink-3); }
+  .spinner { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--brand); border-radius: 50%; animation: spin .8s linear infinite; margin: 0 auto 12px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* 16/10/26 — reajustar automático em qualquer monitor */
+  @media (max-width: 1599px) {
+    main { padding: 22px 24px; }
+    table.grade tbody td { padding: 8px 7px; font-size: 12px; }
+    table.grade thead th { padding: 8px 7px; font-size: 10px; letter-spacing: .3px; }
+    table.grade td.razao { max-width: 170px; }
+    table.grade td.razao .rz { font-size: 11.5px; }
+    .det-meta { font-size: 12px; }
+  }
+  @media (max-width: 1399px) {
+    main { padding: 18px 18px; }
+    .filtros-card { padding: 18px 20px; }
+    table.grade tbody td { padding: 7px 6px; font-size: 11.5px; }
+    table.grade thead th { padding: 7px 6px; font-size: 9.5px; letter-spacing: .2px; }
+    table.grade td.razao { max-width: 140px; }
+    table.grade td.razao .rz { font-size: 11px; }
+    table.grade td .sub { font-size: 10px; }
+    table.grade td.loja .rot { margin-right: 4px; }
+    .det-hd .tit { font-size: 15px; }
+  }
+  @media (max-width: 1199px) {
+    main { padding: 14px 12px; }
+    tbody td { font-size: 12px; padding: 8px 10px; }
+    table.grade tbody td { padding: 6px 5px; font-size: 11px; }
+    table.grade thead th { padding: 6px 5px; font-size: 9px; letter-spacing: 0; }
+    table.grade td.razao { max-width: 120px; }
+    table.grade td.razao .rz { font-size: 10.5px; }
+    table.grade td.razao .cj { font-size: 9.5px; }
+    table.grade td.loja .bai { display: none; }      /* fica só E1..E6/CD; o bairro está no tooltip */
+    table.grade { min-width: 900px; }                 /* abaixo disso a grade rola dentro do card, nunca a página */
+  }
+  @media (max-width: 768px) {
+    header { padding: 10px 14px; }
+    .logo h1 { font-size: 14px; }
+    main { padding: 10px; }
+    .busca-row { grid-template-columns: 1fr; }
+    .btn-consultar { width: 100%; justify-content: center; }
+    .form-group input { font-size: 16px; }
+    .lista td.merc { display: none; }
+    .lista th:nth-child(4) { display: none; }
+  }
+  @media print {
+    body { background: #fff; }
+    header, .filtros-card, .lista-card, .det-hd .acoes, .legenda { display: none !important; }
+    .card { border: 1px solid #ccc; box-shadow: none; }
+    .det-hd { background: #16233F !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    table.grade { min-width: 0; font-size: 11px; }
+  }
+</style>
+</head>
+<body class="ds">
+
+<header>
+  <div class="logo">
+    <div>
+      <h1>Consulta de Produtos</h1>
+      <span>Cadastro, preços, custo e estoque por loja — mesma consulta do ERP</span>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <div class="card filtros-card">
+    <div class="filtros-title">🔎 Localizar Produto</div>
+    <div class="busca-row">
+      <div class="form-group">
+        <label>Código de barras, código interno ou nome</label>
+        <input type="text" id="txt-busca" placeholder="Ex.: 7894900027013, coca cola 2l, arroz tio joão…" autocomplete="off"
+               onkeydown="if(event.key==='Enter') buscar()">
+      </div>
+      <button class="btn-consultar" id="btn-buscar" onclick="buscar()"><span>🔍</span> Consultar</button>
+    </div>
+    <div class="dica">Bipe o código de barras ou digite parte do nome (todas as palavras precisam aparecer). Código exato abre o produto direto; nome lista os produtos e você clica no que quer.</div>
+  </div>
+
+  <div class="card lista-card" id="lista-card" style="display:none;">
+    <div class="lista-hd">
+      <div class="t" id="lista-titulo">Produtos</div>
+      <div class="s" id="lista-sub"></div>
+    </div>
+    <div class="lista-scroll" id="lista-box"></div>
+  </div>
+
+  <div class="card" id="det-card" style="display:none;">
+    <div id="det-box"></div>
+  </div>
+
+  <div class="card" id="vazio-card">
+    <div class="estado-vazio">
+      <div class="icon">🏷️</div>
+      <p>Informe o código de barras ou o nome do produto e clique em <strong>Consultar</strong></p>
+    </div>
+  </div>
+
+</main>
+
+<script>
+const NOMES = { 1: 'Socorro', 2: 'Muribeca', 3: 'Ponte', 4: 'Atacarejo', 5: 'Porta Larga', 6: 'Jardim Jordão', 10: 'Distribuidora' };
+let listaAtual = [], detalheAtual = null, curvaAtual = null, codigoSel = null;
+
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const n2 = v => (v == null || isNaN(v)) ? '—' : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const n0 = v => (v == null || isNaN(v)) ? '—' : Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+const n3 = v => (v == null || isNaN(v)) ? '—' : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 3 });
+const pct = v => (v == null || isNaN(v)) ? '—' : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%';
+const dBR = d => d ? d.slice(8, 10) + '/' + d.slice(5, 7) + '/' + d.slice(2, 4) : '—';
+const hojeISO = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+const diasDesde = d => d ? Math.round((new Date(hojeISO() + 'T12:00:00') - new Date(d + 'T12:00:00')) / 864e5) : null;
+const final8 = p => p > 0 && Math.round(p * 100) % 10 === 8;   // convenção da casa: preço terminado em 8 = oferta
+
+function mostrar(id, on) { document.getElementById(id).style.display = on ? '' : 'none'; }
+
+async function buscar(termoForcado) {
+  const termo = (termoForcado != null ? termoForcado : document.getElementById('txt-busca').value).trim();
+  if (termo.length < 2) { document.getElementById('txt-busca').focus(); return; }
+  const btn = document.getElementById('btn-buscar');
+  btn.disabled = true; btn.innerHTML = '<span>⏳</span> Consultando…';
+  mostrar('vazio-card', false);
+  try {
+    localStorage.setItem('consulta_produtos_termo', termo);
+    const r = await fetch('/api/consulta-produtos/busca?q=' + encodeURIComponent(termo));
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Falha na busca');
+    listaAtual = j.itens || [];
+    const exato = /^\d+$/.test(termo) ? listaAtual.find(i => i.codigo === termo) : null;
+    renderLista(termo);
+    if (exato) abrir(exato.codigo);
+    else if (listaAtual.length === 1) abrir(listaAtual[0].codigo);
+    else { mostrar('det-card', false); detalheAtual = null; codigoSel = null; history.replaceState(null, '', location.pathname + '?q=' + encodeURIComponent(termo)); }
+  } catch (e) {
+    mostrar('lista-card', true);
+    document.getElementById('lista-titulo').textContent = 'Busca';
+    document.getElementById('lista-sub').textContent = '';
+    document.getElementById('lista-box').innerHTML = '<div class="estado-erro">⚠ ' + esc(e.message) + '</div>';
+  } finally {
+    btn.disabled = false; btn.innerHTML = '<span>🔍</span> Consultar';
+  }
+}
+
+function renderLista(termo) {
+  mostrar('lista-card', true);
+  document.getElementById('lista-titulo').textContent = listaAtual.length + ' Produto(s)';
+  document.getElementById('lista-sub').textContent = listaAtual.length ? 'Busca por "' + termo + '" · clique no produto pra ver a grade por loja' + (listaAtual.length >= 80 ? ' · mostrando os primeiros 80, refine a busca' : '') : '';
+  if (!listaAtual.length) {
+    document.getElementById('lista-box').innerHTML = '<div class="estado-vazio"><div class="icon">🈳</div><p>Nenhum produto encontrado para "' + esc(termo) + '"</p></div>';
+    return;
+  }
+  let h = '<table class="lista"><thead><tr><th>Código</th><th>Descrição</th><th>Un</th><th>Mercadológico</th><th class="r">Preço E1</th><th class="r">Preço CD</th><th class="c">Situação</th></tr></thead><tbody>';
+  for (const it of listaAtual) {
+    const precos = Object.values(it.precos).filter(p => p > 0);
+    h += `<tr data-cod="${esc(it.codigo)}" class="${it.codigo === codigoSel ? 'sel' : ''}" onclick="abrir('${esc(it.codigo)}')">
+      <td class="cod">${esc(it.codigo)}</td>
+      <td class="nome">${esc(it.descricao)}</td>
+      <td>${esc(it.unid)}${it.emb > 1 ? '<span class="sub" style="color:var(--ink-3);font-size:10.5px"> c/' + n3(it.emb) + '</span>' : ''}</td>
+      <td class="merc">${esc(it.grupo)}${it.subgrupo ? ' › ' + esc(it.subgrupo) : ''}</td>
+      <td class="r">${it.precos[1] > 0 ? n2(it.precos[1]) : '<span style="color:var(--ink-3)">—</span>'}</td>
+      <td class="r">${it.precos[10] > 0 ? n2(it.precos[10]) : '<span style="color:var(--ink-3)">—</span>'}</td>
+      <td class="c">${it.desativado ? '<span class="tag off">Desativado</span>' : (precos.length ? '<span class="tag on">Ativo</span>' : '<span class="tag neutro">Sem preço</span>')}</td>
+    </tr>`;
+  }
+  h += '</tbody></table>';
+  document.getElementById('lista-box').innerHTML = h;
+}
+
+async function abrir(codigo) {
+  codigoSel = codigo;
+  document.querySelectorAll('.lista tbody tr').forEach(tr => tr.classList.toggle('sel', tr.dataset.cod === codigo));
+  mostrar('det-card', true);
+  document.getElementById('det-box').innerHTML = '<div class="estado-loading"><div class="spinner"></div><p>Lendo cadastro, preços, custo e estoque por loja no ERP…</p></div>';
+  document.getElementById('det-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  history.replaceState(null, '', location.pathname + '?codigo=' + encodeURIComponent(codigo));
+  curvaAtual = null;
+  try {
+    const r = await fetch('/api/consulta-produtos/detalhe/' + encodeURIComponent(codigo));
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Falha ao ler o produto');
+    if (codigoSel !== codigo) return;
+    detalheAtual = j;
+    renderDetalhe();
+    carregarCurva(codigo);
+  } catch (e) {
+    document.getElementById('det-box').innerHTML = '<div class="estado-erro">⚠ ' + esc(e.message) + '</div>';
+  }
+}
+
+async function carregarCurva(codigo) {
+  try {
+    const r = await fetch('/api/consulta-produtos/curva/' + encodeURIComponent(codigo));
+    const j = await r.json();
+    if (!r.ok || codigoSel !== codigo) return;
+    curvaAtual = j;
+    renderDetalhe();
+  } catch (e) { /* curva é complemento: a grade já está na tela */ }
+}
+
+function renderDetalhe() {
+  const d = detalheAtual; if (!d) return;
+  const p = d.produto;
+  const meta = [
+    p.grupo ? `<span><b>${esc(p.grupo)}</b>${p.subgrupo ? ' › ' + esc(p.subgrupo) : ''}</span>` : '',
+    `<span>Unidade <b>${esc(p.unid || '—')}</b>${p.emb > 1 ? ' · emb. <b>' + n3(p.emb) + '</b>' : ''}${p.unid_compra && p.unid_compra !== '0' && p.unid_compra.toUpperCase() !== (p.unid || '').toUpperCase() ? ' · compra em <b>' + esc(p.unid_compra.toUpperCase()) + '</b>' : ''}</span>`,
+    p.marca && p.marca !== '0' ? `<span>Marca <b>${esc(p.marca)}</b></span>` : '',
+    p.fornecedor ? `<span>Fornecedor <b>${esc(p.fornecedor)}</b></span>` : '',
+    p.ncm ? `<span>NCM <b>${esc(p.ncm)}</b></span>` : '',
+    p.balanca === 'P' ? '<span><b>Pesável</b></span>' : '',
+    p.validade_dias > 0 ? `<span>Validade <b>${p.validade_dias} d</b></span>` : '',
+    `<span>Cód. interno <b>${esc(p.interno)}</b></span>`,
+    p.alterado_em ? `<span>Alterado <b>${esc(p.alterado_em.slice(0, 16))}</b></span>` : '',
+    p.filhos && p.filhos.length ? `<span>Embalagens filhas: <b>${p.filhos.map(f => esc(f.codigo) + ' (c/' + n3(f.emb) + ')').join(', ')}</b></span>` : '',
+  ].filter(Boolean).join('<span class="sep">|</span>');
+
+  const cv = curvaAtual && curvaAtual.lojas ? curvaAtual.lojas : null;
+  let estTot = 0, v30Tot = 0, r30Tot = 0;
+  let rows = '';
+  for (const l of d.lojas) {
+    const c = cv ? cv[l.loja] : undefined;
+    const margCls = l.margem_custo == null ? '' : l.margem_custo < 0 ? 'neg' : (l.margem_cadastrada != null && l.margem_custo < l.margem_cadastrada - 0.005) ? 'aten' : 'pos';
+    const estCls = l.estoque < 0 ? 'neg' : l.estoque === 0 ? 'zero' : 'forte';
+    const dv = diasDesde(l.ultima_venda);
+    const vendaCls = l.loja === 10 ? '' : (dv == null ? 'zero' : dv > 30 ? 'aten' : '');
+    estTot += l.estoque || 0;
+    let curvaHtml;
+    if (l.loja === 10) curvaHtml = '<span class="curva x" title="O CD não vende no caixa">—</span>';
+    else if (c === undefined) curvaHtml = '<span class="curva ld" title="Calculando a curva dos últimos 30 dias…">…</span>';
+    else if (c.erro) curvaHtml = '<span class="curva x" title="O ERP não respondeu a tempo pra esta loja (tabela de vendas ocupada). Clique em Atualizar daqui a pouco.">?</span>';
+    else if (!c.curva) curvaHtml = '<span class="curva x" title="Sem venda nos últimos 30 dias">—</span>';
+    else curvaHtml = `<span class="curva ${c.curva}" title="${c.posicao}º de ${n0(c.de)} produtos vendidos na loja nos últimos ${curvaAtual.dias} dias (R$)">${c.curva}</span>`;
+    let v30Html = '';
+    if (l.loja === 10) v30Html = '<span style="color:var(--ink-3)">—</span>';
+    else if (c === undefined) v30Html = '<span style="color:var(--ink-3)">…</span>';
+    else if (c.erro) v30Html = '<span style="color:var(--ink-3)">?</span>';
+    else { v30Tot += c.qtd_30d || 0; r30Tot += c.valor_30d || 0; v30Html = c.qtd_30d > 0 ? `<span title="R$ ${n2(c.valor_30d)} em ${curvaAtual.dias} dias">${n3(c.qtd_30d)}<span class="sub">${n3(Math.round(c.media_dia * 10) / 10)}/dia</span></span>` : '<span style="color:var(--ink-3)">0</span>'; }
+    const cobertura = (c && c.media_dia > 0 && l.estoque > 0) ? Math.round(l.estoque / c.media_dia) : null;
+    rows += `<tr class="${l.ativa ? '' : 'inativa'}" title="${l.ativa ? '' : 'Produto desligado nesta loja (L' + l.loja + ' = 0 no cadastro)'}">
+      <td class="loja" title="${esc(l.rotulo)} · ${esc(NOMES[l.loja] || '')}"><span class="rot">${esc(l.rotulo)}</span><span class="bai">${esc(NOMES[l.loja] || '')}</span>${l.ativa ? '' : '<span class="sub">desligado na loja</span>'}</td>
+      <td class="razao"><div class="rz">${esc(l.razao || '—')}</div><div class="cj">${esc(l.cnpj || '')}</div></td>
+      <td class="num forte">${n2(l.preco_varejo)}${final8(l.preco_varejo) ? ' <span class="tag oferta" title="Preço terminado em 8: oferta">8</span>' : ''}</td>
+      <td class="num ${l.preco_atacado > 0 ? '' : 'zero'}">${n2(l.preco_atacado)}</td>
+      <td class="num ${l.qtd_mult > 0 ? '' : 'zero'}">${n0(l.qtd_mult)}</td>
+      <td class="num ${l.preco_promocao > 0 ? 'pos' : 'zero'}" title="${l.promocao ? esc((l.promocao.nome ? l.promocao.nome + ' · ' : '') + 'de ' + dBR(l.promocao.inicio) + ' a ' + dBR(l.promocao.fim)) : ''}">${n2(l.preco_promocao)}${l.promocao ? '<span class="sub">até ' + dBR(l.promocao.fim) + '</span>' : ''}</td>
+      <td class="num ${l.preco_compra > 0 ? '' : 'zero'}">${n2(l.preco_compra)}</td>
+      <td class="num ${margCls}" title="${l.margem_venda != null ? 'Margem sobre a venda: ' + pct(l.margem_venda) : ''}">${pct(l.margem_custo)}${l.margem_cadastrada != null ? '<span class="sub">cad. ' + pct(l.margem_cadastrada) + '</span>' : ''}</td>
+      <td class="num ${estCls}">${n3(l.estoque)}${cobertura != null ? '<span class="sub">' + cobertura + ' d cobertura</span>' : ''}</td>
+      <td class="data">${dBR(l.ultima_compra)}</td>
+      <td class="data ${vendaCls}">${dBR(l.ultima_venda)}${dv != null && dv > 30 ? '<span class="sub">' + dv + ' dias</span>' : ''}</td>
+      <td class="num">${v30Html}</td>
+      <td class="c">${curvaHtml}</td>
+    </tr>`;
+  }
+
+  document.getElementById('det-box').innerHTML = `
+    <div class="det-hd">
+      <div class="tit"><small>${esc(p.codigo)}</small>${esc(p.descricao)} ${p.desativado ? '<span class="tag off" style="vertical-align:middle;margin-left:8px">Desativado</span>' : ''}</div>
+      <div class="acoes">
+        <button class="btn-sec" onclick="copiarCodigo()">⧉ Copiar código</button>
+        <button class="btn-sec" onclick="exportarCSV()">⬇ CSV</button>
+        <button class="btn-sec" onclick="window.print()">🖨 Imprimir</button>
+        <button class="btn-sec" onclick="abrir('${esc(p.codigo)}')">↻ Atualizar</button>
+      </div>
+    </div>
+    <div class="det-meta">${meta}</div>
+    <div class="grade-wrap">
+      <table class="grade">
+        <thead>
+          <tr>
+            <th rowspan="2">Loja</th>
+            <th rowspan="2">Razão social / CNPJ</th>
+            <th colspan="4" class="grp">Preços (R$)</th>
+            <th colspan="2" class="grp">Custo e margem</th>
+            <th colspan="5" class="grp">Estoque e giro</th>
+          </tr>
+          <tr>
+            <th class="r">Varejo</th><th class="r">Atacado</th><th class="r">Qtd Mult</th><th class="r">Promoção</th>
+            <th class="r">Preço Compra</th><th class="r" title="Margem sobre o custo (markup), como no ERP; embaixo, a margem cadastrada">Margem s/ custo</th>
+            <th class="r">Estoque atual</th><th class="c">Última compra</th><th class="c">Última venda</th><th class="r">Venda 30 d</th><th class="c">Curva ABC</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr>
+          <td colspan="8">Rede (E1..E6 + CD)</td>
+          <td class="num">${n3(estTot)}</td>
+          <td colspan="2"></td>
+          <td class="num" title="${cv ? 'R$ ' + n2(r30Tot) + ' nas 6 lojas' : ''}">${cv ? n3(v30Tot) : '…'}</td>
+          <td></td>
+        </tr></tfoot>
+      </table>
+    </div>
+    <div class="legenda">
+      <span><b>Margem s/ custo</b> = (preço ÷ custo − 1), a mesma conta do ERP; "cad." é a margem cadastrada na loja; <span class="aten">laranja</span> quando a praticada ficou abaixo da cadastrada, <span class="neg">vermelho</span> quando negativa.</span>
+      <span><b>Curva ABC</b> pela venda em R$ dos últimos ${curvaAtual ? curvaAtual.dias : 30} dias em cada loja: A = primeiros 50%, B até 80%, C o resto.</span>
+      <span><b>Cobertura</b> = estoque ÷ média de venda por dia.</span>
+      <span>Lido do ERP às ${new Date(d.consultado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}.</span>
+    </div>`;
+}
+
+function copiarCodigo() {
+  if (!detalheAtual) return;
+  navigator.clipboard && navigator.clipboard.writeText(detalheAtual.produto.codigo).catch(() => {});
+}
+
+function exportarCSV() {
+  const d = detalheAtual; if (!d) return;
+  const cv = curvaAtual && curvaAtual.lojas ? curvaAtual.lojas : {};
+  const v = x => x == null ? '' : String(x).replace('.', ',');
+  const header = ['Loja', 'Razão', 'CNPJ', 'Preço Varejo', 'Preço Atacado', 'Qtd Mult', 'Preço Promoção', 'Preço Compra', 'Margem S/Custo %', 'Margem Cadastrada %', 'Estoque Atual', 'Última Compra', 'Última Venda', 'Venda 30d', 'Curva ABC'];
+  const rows = d.lojas.map(l => { const c = cv[l.loja] || {}; return [l.rotulo + ' ' + (NOMES[l.loja] || ''), l.razao, l.cnpj, v(l.preco_varejo), v(l.preco_atacado), l.qtd_mult, v(l.preco_promocao), v(l.preco_compra), v(l.margem_custo), v(l.margem_cadastrada), v(l.estoque), dBR(l.ultima_compra), dBR(l.ultima_venda), v(c.qtd_30d), c.curva || '']; });
+  const csv = [[d.produto.codigo + ' - ' + d.produto.descricao], header, ...rows].map(r => r.map(c => '"' + String(c == null ? '' : c).replace(/"/g, '""') + '"').join(';')).join('\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'produto_' + d.produto.codigo + '.csv'; a.click();
+}
+
+(function init() {
+  const u = new URLSearchParams(location.search);
+  const cod = u.get('codigo'), qq = u.get('q');
+  const inp = document.getElementById('txt-busca');
+  if (cod) { inp.value = cod; buscar(cod); return; }
+  if (qq) { inp.value = qq; buscar(qq); return; }
+  const ult = localStorage.getItem('consulta_produtos_termo');
+  if (ult) inp.value = ult;
+  inp.focus();
+})();
+</script>
+</body>
+</html>

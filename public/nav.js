@@ -51,6 +51,7 @@
     { href: '/dashboard-distribuidora.html', ic: 'store', txt: 'Dashboard Distribuidora', mod: 'analise' },
     { href: '/comparativos.html', ic: 'chart',     txt: 'Comparativos',       mod: 'analise' },
     { href: '/consulta.html',     ic: 'search',    txt: 'Consulta de Vendas', mod: 'analise' },
+    { href: '/consulta-produtos.html', ic: 'tag',  txt: 'Consulta de Produtos', mod: 'analise' },
     { href: '/itens.html',        ic: 'list',      txt: 'Mercadológico',      mod: 'analise' },
     { sec: 'Operação' }, // itens abaixo em ordem alfabética por txt — manter ao adicionar novos
     { id: 'cahu-distribuidora', ic: 'store', txt: 'CAHU Distribuidora', sub: [

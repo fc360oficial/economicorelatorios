@@ -1130,6 +1130,25 @@ app.get('/api/consulta', async (req, res) => {
   }
 });
 
+// ── Consulta de Produtos (Análise, 26/10/26): a consulta de itens do ERP, por loja. Ver lib/consulta-produtos.js.
+const consultaProdutos = require('./lib/consulta-produtos');
+consultaProdutos.init({ q });
+app.get('/api/consulta-produtos/busca', async (req, res) => {
+  try { res.json({ itens: await consultaProdutos.buscar(req.query.q, req.query.limite) }); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.get('/api/consulta-produtos/detalhe/:codigo', async (req, res) => {
+  try {
+    const d = await consultaProdutos.detalhe(req.params.codigo);
+    if (!d) return res.status(404).json({ error: 'Produto não encontrado no cadastro' });
+    res.json(d);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.get('/api/consulta-produtos/curva/:codigo', async (req, res) => {
+  try { res.json(await consultaProdutos.curva(req.params.codigo)); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // Grupos e subgrupos para popular dropdowns
 app.get('/api/grupos', async (req, res) => {
   try {
