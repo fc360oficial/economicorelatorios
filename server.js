@@ -8731,7 +8731,7 @@ app.get('/api/fiscal/recebimentos', async (req, res) => {
   try {
     const r = await fiscal.listar(fiscalPeriodo(req)); r.recebimentos = escopo.filtrarPorLoja(req.session.user, r.recebimentos, x => x.loja);
     // 23/10/26: bolinha da conta do fornecedor — fornecedor devendo (vermelha se a nota tem bonificação/desconto pra classificar)
-    for (const x of r.recebimentos) { try { x.conta = contaForn.marcadorLista(x.codFornec, (x.qtd_itens_bonif > 0) || (x.notas || []).some(n => n.desconto > 0)); } catch (e) { x.conta = null; } }
+    for (const x of r.recebimentos) { try { x.conta = contaForn.marcadorLista(x.codFornec, (x.qtd_itens_bonif > 0) || (x.notas || []).some(n => n.desconto > 0), x.loja); } catch (e) { x.conta = null; } }
     res.json(r);
   } catch (err) { fiscalErr(res, err); }
 });

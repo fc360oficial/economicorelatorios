@@ -155,10 +155,12 @@ function renderForn(){
   for(const f of l.slice(0,400))h+='<tr class="clk'+(selecionado===f.codFornec?' sel':'')+'" onclick="abrirExtrato('+f.codFornec+')"><td>'+esc(f.fornecedor)+'<span class="etq">cód. '+f.codFornec+'</span></td><td class="r">'+saldoTxt(f)+'</td><td class="r">'+(f.mais_antigo_dias!=null?'<span class="pill '+(f.mais_antigo_dias>90?'p-neg':f.mais_antigo_dias>30?'p-am':'p-gr')+'">'+f.mais_antigo_dias+' d</span>':'<span class="mut">—</span>')+'</td><td class="r">'+f.n_abertos+'</td></tr>';
   $('#tabForn').innerHTML=h+'</tbody></table>'+(l.length>400?'<div class="mut" style="padding:6px 10px;font-size:11px">mostrando 400 de '+l.length+' · use a busca</div>':'');
 }
-async function abrirExtrato(cod,silencioso){
+let EXLOJA=null;   // 26/10 (Tiago): a conta é da rede, quebrada por loja; clicar numa loja filtra o extrato (o abatimento no Fiscal é sempre por loja)
+async function abrirExtrato(cod,silencioso,loja){
+  if(loja!==undefined)EXLOJA=loja||null;else if(!EX||+EX.codFornec!==+cod)EXLOJA=null;
   selecionado=+cod;if(!silencioso)formAberto=null;renderForn();
   $('#extrato').innerHTML='<div class="spinner"></div>';
-  try{const r=await fetch('/api/conta-fornecedor/'+cod);EX=await r.json();if(EX.error)throw new Error(EX.error);}catch(e){$('#extrato').innerHTML='<div class="empty">Erro: '+esc(e.message)+'</div>';return;}
+  try{const r=await fetch('/api/conta-fornecedor/'+cod+(EXLOJA?'?loja='+EXLOJA:''));EX=await r.json();if(EX.error)throw new Error(EX.error);}catch(e){$('#extrato').innerHTML='<div class="empty">Erro: '+esc(e.message)+'</div>';return;}
   renderExtrato();
   if(!silencioso)$('#cardEx').scrollIntoView({behavior:'smooth',block:'nearest'});
 }
@@ -166,7 +168,9 @@ function renderExtrato(){
   const x=EX;$('#exSub').textContent=x.fornecedor+' · cód. '+x.codFornec;
   let h='<div class="ex-hd"><span class="nm">'+esc(x.fornecedor)+'</span><span class="saldo">'+saldoTxt(x)+'</span>'+(x.n_abertos?'<span class="mut">'+x.n_abertos+' em aberto · mais antigo há '+x.mais_antigo_dias+' d</span>':'')+'<span class="sp"></span>'
     +'<button class="btn btn-sm btn-amber" onclick="abrirForm(\'pagamento\')">Registrar pagamento</button><button class="btn btn-sm" onclick="abrirForm(\'ajuste\')">Ajuste manual</button></div>';
-  const pl=Object.entries(x.por_loja||{});if(pl.length>1)h+='<div class="mut" style="font-size:11.5px;margin-bottom:8px">Por loja: '+pl.map(([l,v])=>esc(LJ(l))+' '+brl(v)).join(' · ')+'</div>';
+  const pl=Object.entries(x.por_loja||{});
+  if(pl.length||EXLOJA){const chip=(l,tx)=>{const on=(l||null)===(EXLOJA||null);return '<a href="#" style="margin-right:10px;color:inherit;'+(on?'font-weight:700;text-decoration:underline':'')+'" title="'+(l?'Só esta loja':'Rede inteira')+'" onclick="event.preventDefault();abrirExtrato('+x.codFornec+',true,'+(l?'\''+l+'\'':'null')+')">'+tx+'</a>';};
+    h+='<div class="mut" style="font-size:11.5px;margin-bottom:8px">Por loja: '+chip(null,'Todas'+(x.rede_deve!=null?' '+brl(x.rede_deve):''))+pl.map(([l,v])=>chip(l,esc(LJ(l))+' '+brl(v))).join('')+(EXLOJA&&!x.por_loja[EXLOJA]?chip(EXLOJA,esc(LJ(EXLOJA))+' R$ 0,00'):'')+(EXLOJA?'<span style="margin-left:4px">· mostrando só '+esc(LJ(EXLOJA))+'</span>':'')+'</div>';}
   if(formAberto)h+=formHtml();
   if(!x.extrato.length){$('#extrato').innerHTML=h+'<div class="empty">Sem lançamentos.</div>';return;}
   h+='<div class="table-wrap"><table class="t"><thead><tr><th>Data</th><th>Loja</th><th>Lançamento</th><th class="r">Valor</th><th class="r">Saldo</th><th>ERP</th></tr></thead><tbody>';
@@ -196,7 +200,7 @@ function formHtml(){
   const ab=x.abertos||[];
   return '<div class="form"><label class="full" style="font-size:12px;text-transform:none;letter-spacing:0;color:#0E1626;font-weight:700">Registrar pagamento · '+esc(x.fornecedor)+'<span class="etq">Normalmente quem marca é o fiscal, dentro da nota. Use aqui quando o pagamento veio por fora (desconto no boleto, troca entregue direto) ou pra registrar avaria já baixada no ERP.</span></label>'
     +'<label>Forma<select id="fForma">'+Object.entries(R.formas).filter(([k])=>!['credito','acordo','ajuste'].includes(k)).map(([k,v])=>'<option value="'+k+'">'+esc(v)+'</option>').join('')+'</select></label>'
-    +'<label>Valor R$<input id="fValor" type="number" step="0.01" min="0.01" value="'+(f.debitoId?(ab.find(d=>d.id===f.debitoId)||{}).restante||'':'')+'"></label><label>Loja da nota'+lojaSel+'</label><label>Nº da nota / boleto<input id="fNota" maxlength="20"></label>'
+    +'<label>Valor R$<input id="fValor" type="number" step="0.01" min="0.01" value="'+(f.debitoId?(ab.find(d=>d.id===f.debitoId)||{}).restante||'':'')+'"></label><label title="O pagamento abate só avarias desta loja; sem loja, abate a rede toda, da mais antiga pra mais nova">Loja da nota'+lojaSel+'</label><label>Nº da nota / boleto<input id="fNota" maxlength="20"></label>'
     +'<label class="full">Aplicar em<div class="aloc">'+(ab.length?'<label><input type="radio" name="fAloc" value="" '+(f.debitoId?'':'checked')+'> da avaria mais antiga pra mais nova (o que sobrar vira crédito)</label>'+ab.slice(0,60).map(d=>'<label><input type="radio" name="fAloc" value="'+d.id+'" '+(f.debitoId===d.id?'checked':'')+'> '+(d.origem&&d.origem.nReg?'avaria '+d.origem.nReg+' · ':'')+esc(d.loja_nome)+' · '+dbr(d.data)+' · '+esc(d.descricao)+' · falta <b>'+brl(d.restante)+'</b></label>').join(''):'<span class="mut">nenhuma avaria em aberto: o valor inteiro vira crédito a favor do fornecedor</span>')+'</div></label>'
     +'<label class="full">Observação<input id="fObs" maxlength="300"></label>'
     +'<div class="ac"><button class="btn btn-sm btn-amber" onclick="enviarPagamento()">Gravar pagamento</button><button class="btn btn-sm" onclick="formAberto=null;renderExtrato()">Cancelar</button></div></div>';

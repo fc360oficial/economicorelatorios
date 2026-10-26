@@ -619,11 +619,16 @@ async function toggle(n){
    no XML → avarias mais antigas) e botões pra confirmar ou trocar. Pagamento por fora (desconto só no boleto, troca, devolução) → "Marcar pagamento". */
 function faixaConta(d){
   const c=d.conta_fornecedor; if(!c||!c.tem_pendencia) return '';
-  const s=c.saldo, sug=c.sugestoes||[], pagos=c.pagos_nesta||[];
+  /* 26/10/26 (Tiago): a faixa é SÓ da loja da nota — avarias abertas/em trâmite daqui, e a bonificação/desconto abate só daqui.
+     O que o fornecedor deve nas outras lojas aparece só como informação (se acerta na nota de lá / na Prevenção). */
+  const s=c.saldo, sug=c.sugestoes||[], pagos=c.pagos_nesta||[], rede=c.rede||s;
+  const lojaTx=LJ(d.loja)+(s.loja_nome?' · '+s.loja_nome:'');
+  const outras=Math.max(0,+(rede.deve-s.deve).toFixed(2));
   const semPend=!(s.deve>0)&&!sug.length;
   let h='<div class="cfx'+(s.deve>0?'':(s.credito>0?' cred':' ok'))+'" id="cfx-'+d.nReg+'"><div class="t">'
-    +(s.deve>0?'Este fornecedor deve '+money(s.deve)+' em avarias':s.credito>0?'Este fornecedor tem crédito de '+money(s.credito)+' (pagou a mais)':'Fornecedor sem avaria em aberto')
+    +(s.deve>0?'Este fornecedor deve '+money(s.deve)+' em avarias nesta loja ('+esc(lojaTx)+')':s.credito>0?'Este fornecedor tem crédito de '+money(s.credito)+' nesta loja (pagou a mais)':'Fornecedor sem avaria em aberto nesta loja ('+esc(lojaTx)+')')
     +(s.deve>0?'<span class="mut">'+s.n_abertos+' em aberto · mais antiga há '+(s.mais_antigo_dias||0)+' d</span>':'')
+    +(outras>0?'<span class="mut" title="Avarias de outras lojas só se acertam na nota que chega lá ou na Prevenção">· outras lojas: '+money(outras)+' ('+Object.entries(rede.por_loja||{}).filter(([l])=>+l!==+d.loja).map(([l,v])=>LJ(l)+' '+money(v)).join(', ')+')</span>':'')
     +'<span class="mut" style="flex:1"></span><a class="btn btn-slate btn-sm" href="/conta-fornecedor.html?f='+d.codFornec+'" target="_blank" rel="noopener">Conta em Prevenção</a>'
     +(s.deve>0?'<button class="btn btn-sm" onclick="contaForm('+d.nReg+')">Marcar pagamento</button>':'')+'</div>';
   if(s.deve>0)h+='<div class="av">'+(c.abertos||[]).slice(0,12).map(a=>'<div>avaria <b>'+(a.origem&&a.origem.nReg||a.id)+'</b> · '+esc(a.loja_nome)+' · '+dbr2(a.data)+' · '+esc(a.descricao)+' · '+qtd(a.qtd)+' '+esc(a.und||'')+' · <b>'+money(a.restante)+'</b>'+(a.status==='parcial'?' <span class="mut">(falta, de '+money(a.valor)+')</span>':'')+'</div>').join('')+(c.n_abertos>12?'<div class="mut">… e mais '+(c.n_abertos-12)+' (ver a conta)</div>':'')+'</div>';
@@ -631,7 +636,7 @@ function faixaConta(d){
   sug.forEach((g,i)=>{
     const id='csug-'+d.nReg+'-'+i;
     if(g.tipo==='acordo')h+='<div class="sug" id="'+id+'"><div class="tx"><b>'+money(g.valor)+' desta bonificação: '+esc(g.texto)+'</b><span class="mut">'+esc(g.descricao)+' · '+qtd(g.qtd)+' un'+(g.por?' · avisado por '+esc(g.por):'')+'. Confirmando, fica FORA da conta de avarias.</span></div><div class="ac"><button class="btn btn-green btn-sm" onclick="contaConfirmar('+d.nReg+','+i+',\'acordo\')">Confirmar acordo</button><button class="btn btn-sm" onclick="contaConfirmar('+d.nReg+','+i+',\'avaria\')">É avaria</button></div></div>';
-    else if(g.tipo==='avaria')h+='<div class="sug" id="'+id+'"><div class="tx"><b>'+money(g.valor)+' desta bonificação: '+esc(g.texto)+'</b><span class="mut">'+esc(g.descricao)+' · '+qtd(g.qtd)+' un · avaria de '+qtd(g.debito.qtd)+' un, falta '+money(g.debito.restante)+(g.debito.loja!==d.loja?' · a avaria é de '+esc(g.debito.loja_nome)+' e a nota chegou aqui: a conta aceita, fica registrado':'')+'</span></div><div class="ac"><button class="btn btn-green btn-sm" onclick="contaConfirmar('+d.nReg+','+i+',\'avaria\')">Confirmar avaria</button><button class="btn btn-sm" onclick="contaConfirmar('+d.nReg+','+i+',\'acordo\')">É acordo comercial</button></div></div>';
+    else if(g.tipo==='avaria')h+='<div class="sug" id="'+id+'"><div class="tx"><b>'+money(g.valor)+' desta bonificação: '+esc(g.texto)+'</b><span class="mut">'+esc(g.descricao)+' · '+qtd(g.qtd)+' un · avaria de '+qtd(g.debito.qtd)+' un, falta '+money(g.debito.restante)+'</span></div><div class="ac"><button class="btn btn-green btn-sm" onclick="contaConfirmar('+d.nReg+','+i+',\'avaria\')">Confirmar avaria</button><button class="btn btn-sm" onclick="contaConfirmar('+d.nReg+','+i+',\'acordo\')">É acordo comercial</button></div></div>';
     else if(g.tipo==='sem_explicacao')h+='<div class="sug sem" id="'+id+'"><div class="tx"><b>'+money(g.valor)+' de bonificação sem explicação</b><span class="mut">'+esc(g.descricao)+' · '+qtd(g.qtd)+' un · '+esc(g.texto)+'. Bonificação é avaria por padrão; acordo só se o Compras avisou no pedido.</span></div><div class="ac">'+(s.deve>0?'<button class="btn btn-green btn-sm" onclick="contaConfirmar('+d.nReg+','+i+',\'avaria\')">Paga avaria (mais antiga)</button>':'')+'<button class="btn btn-sm" onclick="contaConfirmar('+d.nReg+','+i+',\'acordo\')">Acordo comercial (Compras não avisou)</button></div></div>';
     else if(g.tipo==='desconto')h+='<div class="sug" id="'+id+'"><div class="tx"><b>Desconto de '+money(g.valor)+' no XML: '+esc(g.texto)+'</b><span class="mut">'+(g.alocacoes||[]).map(a=>'avaria '+(a.nReg||'')+' '+esc(a.loja_nome)+' '+money(a.valor)).join(' · ')+'</span></div><div class="ac"><button class="btn btn-green btn-sm" onclick="contaConfirmar('+d.nReg+','+i+',\'desconto\')">Confirmar desconto</button><button class="btn btn-sm" onclick="contaIgnorar('+d.nReg+','+i+')" title="O desconto é comercial, não paga avaria">Não é avaria</button></div></div>';
   });
@@ -661,7 +666,7 @@ function contaForm(n){
   if(el.innerHTML){el.innerHTML='';return;}
   const fm=c.formas||{};
   el.innerHTML='<div class="mform"><select id="cf-forma-'+n+'">'+['desconto_boleto','troca','devolucao','bonificacao','desconto_nota'].map(k=>'<option value="'+k+'">'+esc(fm[k]||k)+'</option>').join('')+'</select>'
-    +'<input id="cf-valor-'+n+'" type="number" step="0.01" min="0.01" placeholder="valor R$" style="width:110px"><select id="cf-deb-'+n+'"><option value="">da avaria mais antiga pra mais nova</option>'+(c.abertos||[]).map(a=>'<option value="'+a.id+'">avaria '+(a.origem&&a.origem.nReg||'')+' · '+esc(a.loja_nome)+' · '+esc(a.descricao).slice(0,40)+' · falta '+money(a.restante)+'</option>').join('')+'</select>'
+    +'<input id="cf-valor-'+n+'" type="number" step="0.01" min="0.01" placeholder="valor R$" style="width:110px"><select id="cf-deb-'+n+'"><option value="">da avaria mais antiga pra mais nova (desta loja)</option>'+(c.abertos||[]).map(a=>'<option value="'+a.id+'">avaria '+(a.origem&&a.origem.nReg||'')+' · '+esc(a.loja_nome)+' · '+esc(a.descricao).slice(0,40)+' · falta '+money(a.restante)+'</option>').join('')+'</select>'
     +'<input id="cf-obs-'+n+'" maxlength="200" placeholder="nº do boleto / nota de devolução / obs" style="width:200px"><button class="btn btn-green btn-sm" onclick="contaMarcar('+n+')">Gravar</button><button class="btn btn-sm" onclick="contaForm('+n+')">Cancelar</button></div>';
 }
 async function contaMarcar(n){
