@@ -200,18 +200,63 @@ th .hin{background:#fff;border:1px solid #C9C9C4;border-radius:7px;padding:5px 9
 <body>
 <div class="main">
   <div class="page-hdr">
-    <div><h1>Lotes e Validades</h1><p>Validade por lote no Centro de Distribuição: o que entrou por lote no Recebimento da loja 10 (coletor, lote obrigatório) e o que saiu nas expedições fechadas. Saldo é o que foi bipado de verdade, sem FEFO. Nada é gravado no ERP.</p></div>
+    <div><h1>Lotes e Validades</h1><p>Validades do Centro de Distribuição (loja 10) registradas no recebimento do ERP: uma data por item de cada nota, cruzada com o estoque atual, o custo e o giro de 30 dias pra mostrar o que vence antes de vender. O ERP não guarda lote nem quantidade por validade; os lotes bipados no nosso coletor ficam na segunda aba. Nada é gravado no ERP.</p></div>
   </div>
-  <section id="lotes"></section>
+  <div class="tabs"><button class="tab on" id="tab-val" onclick="mostrarAba('val')">Validades do ERP<span class="n" id="n-val">…</span></button><button class="tab" id="tab-lotes" onclick="mostrarAba('lotes')">Lotes bipados no coletor<span class="n" id="n-lotes">…</span></button></div>
+  <section id="validades"></section>
+  <section id="lotes" style="display:none"></section>
 </div>
 <script>
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmtN = (v, d = 0) => (v == null ? '–' : (+v).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d }));
+const fmtR = v => 'R$ ' + fmtN(v, 2);
+const fmtD = iso => iso ? String(iso).slice(0, 10).split('-').reverse().join('/') : '–';
+const fmtDc = iso => iso ? String(iso).slice(0, 10).split('-').reverse().slice(0, 2).join('/') : '–';
 async function api(url, opt) { const r = await fetch(url, opt); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || r.statusText); return j; }
-// ── Lotes no CD: o que entrou por lote (Recebimento da loja 10) × o que saiu (expedições fechadas) ──
+function mostrarAba(a) { $('#validades').style.display = a === 'val' ? '' : 'none'; $('#lotes').style.display = a === 'lotes' ? '' : 'none'; $('#tab-val').classList.toggle('on', a === 'val'); $('#tab-lotes').classList.toggle('on', a === 'lotes'); }
+
+// ── Validades do ERP: central.itenscoletorvalidade da loja 10 × estoque × custo × giro 30 d (rota /api/expedicao/validades) ──
+let VAL = null, VALBUSCA = '', VALFAIXA = 'todas', VALSEMEST = false, VALSOPRINC = true;
+const FAIXAS = { vencido: ['Vencido', 'p-hoje'], d30: ['Vence em até 30 d', 'p-breve'], d90: ['31 a 90 d', 'p-flag'], ok: ['Mais de 90 d', 'p-ok'] };
+const RISCOS = { vencido: ['vencido com estoque', 'p-hoje'], vence_antes: ['vence antes de vender', 'p-a soft'], sem_giro: ['sem venda em 30 d', 'p-cinza'], vende_a_tempo: ['vende a tempo', 'p-ok'] };
+async function carregarValidades(forcar) {
+  $('#validades').innerHTML = '<div class="mut" style="padding:14px 4px;font-size:12.5px">Lendo as validades do ERP…</div>';
+  try { VAL = await api('/api/expedicao/validades' + (forcar ? '?forcar=1' : '')); } catch (e) { $('#validades').innerHTML = '<div class="neg" style="padding:14px 4px">' + esc(e.message) + '</div>'; return; }
+  $('#n-val').textContent = VAL.comEstoque; renderValidades();
+}
+function renderValidades() {
+  if (!VAL) return; const r = VAL.resumo, b = VALBUSCA.trim().toLowerCase();
+  const foco = document.activeElement && document.activeElement.id === 'vbusca'; const pos = foco ? document.activeElement.selectionStart : 0;
+  const vis = VAL.linhas.filter(l => (VALSEMEST ? true : l.est > 0) && (!VALSOPRINC || l.principal) && (VALFAIXA === 'todas' || l.faixa === VALFAIXA)
+    && (!b || l.descricao.toLowerCase().includes(b) || l.cod.includes(b) || l.notas.some(n => n.nDoc.includes(b) || (n.fornecedor || '').toLowerCase().includes(b))));
+  const card = (f, v, sub) => `<div class="card ${VALFAIXA === f ? 'on' : ''}" onclick="VALFAIXA=VALFAIXA==='${f}'?'todas':'${f}';renderValidades()"><div class="v ${f === 'vencido' ? 'neg' : f === 'd30' ? 'amb' : ''}">${fmtN(v)}</div><div class="l">${FAIXAS[f][0]}</div><div class="s2">${sub}</div></div>`;
+  const cards = `<div class="cards">${card('vencido', r.vencidos, fmtR(r.valorVencido) + ' em estoque')}${card('d30', r.d30, fmtR(r.valor30) + ' em estoque')}${card('d90', r.d90, fmtR(r.valor90) + ' em estoque')}${card('ok', r.ok, 'produtos com estoque')}
+    <div class="card" style="cursor:default"><div class="v neg">${fmtN(r.venceAntes)}</div><div class="l">Vence antes de vender</div><div class="s2">estoque maior que a venda até a validade</div></div>
+    <div class="card ${VALSEMEST ? 'on' : ''}" onclick="VALSEMEST=!VALSEMEST;renderValidades()"><div class="v ${VALSEMEST ? '' : 'mut'}">${fmtN(r.semEstoque)}</div><div class="l">Sem estoque hoje</div><div class="s2">${VALSEMEST ? 'mostrando' : 'clique pra mostrar'}</div></div></div>`;
+  const linhas = vis.length ? vis.map(l => {
+    const fx = FAIXAS[l.faixa] || ['', 'p-cinza'], rs = l.risco ? RISCOS[l.risco] : null;
+    const dias = l.dias < 0 ? 'venceu há ' + fmtN(-l.dias) + ' d' : l.dias === 0 ? 'vence hoje' : 'faltam ' + fmtN(l.dias) + ' d';
+    const notas = l.notas.slice(0, 4).map(n => 'NF ' + esc(n.nDoc) + (n.fornecedor ? ' · ' + esc(n.fornecedor.slice(0, 22)) : '') + (n.entrada ? ' · <span class="mut">entrou ' + fmtDc(n.entrada) + '</span>' : '')).join('<br>') + (l.notas.length > 4 ? '<br><span class="mut">+' + (l.notas.length - 4) + ' nota(s)</span>' : '');
+    const giro = l.q30 > 0 ? fmtN(l.q30) + ' un<div class="s2">' + (l.cobertura != null ? 'estoque pra ' + fmtN(l.cobertura) + ' d' : '') + (l.ultVenda ? ' · últ. ' + fmtDc(l.ultVenda) : '') + '</div>' : '<span class="mut">sem venda</span>' + (l.ultVenda ? '<div class="s2">últ. ' + fmtDc(l.ultVenda) + '</div>' : '');
+    const meta = [esc(l.cod)]; if (l.lote) meta.push('lote ' + esc(l.lote));
+    if (l.validadesDoProduto > 1) meta.push(l.validadesDoProduto + ' validades registradas' + (l.validadeMaisNova ? ' · mais nova ' + fmtD(l.validadeMaisNova) : '') + (l.ultimaEntrada ? ' · última entrada ' + fmtDc(l.ultimaEntrada) : ''));
+    if (!l.principal) meta.push('<span class="amb">' + (l.provavelVendida ? 'provavelmente já saiu: entrou há ' + fmtN(l.idadeEntrada) + ' d e o estoque cobre ' + fmtN(l.cobertura) + ' d de venda (FIFO)' : l.dias < 0 ? 'histórico: o produto recebeu validade mais nova' : 'histórico: o estoque é da validade mais próxima') + '</span>');
+    return `<tr class="${l.risco === 'vence_antes' || l.risco === 'vencido' ? 'insuf' : ''}"><td class="lc"><span class="nm">${esc(l.descricao)}</span><div class="s2">${meta.join(' · ')}</div></td>
+      <td><b>${fmtD(l.validade)}</b><div class="s2">${dias}</div></td><td><span class="pill ${fx[1]}">${fx[0]}</span></td>
+      <td class="r ${l.est > 0 && l.principal ? '' : 'mut'}">${fmtN(l.est)}</td><td class="r ${l.est > 0 && l.principal ? '' : 'mut'}">${l.est > 0 ? fmtR(l.valor) : '–'}</td><td class="r">${giro}</td>
+      <td>${rs ? '<span class="pill ' + rs[1] + '">' + rs[0] + '</span>' : '<span class="mut">–</span>'}</td><td class="comp">${notas || '–'}</td></tr>`; }).join('')
+    : '<tr><td colspan="8" class="mut">Nenhuma validade com esse filtro.</td></tr>';
+  $('#validades').innerHTML = cards + `<div class="busca-row"><input id="vbusca" placeholder="Produto, código, nota ou fornecedor" value="${esc(VALBUSCA)}" oninput="VALBUSCA=this.value;renderValidades()">
+      <label class="chk-pend"><input type="checkbox" ${VALSOPRINC ? 'checked' : ''} onchange="VALSOPRINC=this.checked;renderValidades()"> só a validade que carrega o estoque de cada produto (a mais próxima ainda não vencida)</label>
+      <span class="contagem">${vis.length} linha(s) · ${fmtN(VAL.produtos)} produtos e ${fmtN(VAL.total)} validades no ERP · estoque e giro da loja 10 · hoje ${fmtD(VAL.hoje)}</span><button class="btn btn-slate" onclick="carregarValidades(true)">↻ Atualizar</button></div>
+    <div class="table-wrap"><table class="main-t"><thead><tr><th>Produto</th><th>Validade</th><th>Faixa</th><th class="r">Estoque</th><th class="r">Valor (custo)</th><th class="r">Venda 30 d</th><th>Risco</th><th>Notas que trouxeram essa validade</th></tr></thead><tbody>${linhas}</tbody></table></div>`;
+  if (foco) { const el = $('#vbusca'); if (el) { el.focus(); el.setSelectionRange(pos, pos); } }
+}
+
+// ── Lotes no CD: o que entrou por lote (Recebimento da loja 10 no nosso coletor) × o que saiu (expedições fechadas) ──
 let LOTES = [], LOTESBUSCA = '', LOTESDIAS = 60;
-async function carregarLotes() { LOTES = await api('/api/expedicao/lotes?dias=' + LOTESDIAS); renderLotes(); }
+async function carregarLotes() { LOTES = await api('/api/expedicao/lotes?dias=' + LOTESDIAS); $('#n-lotes').textContent = LOTES.length; renderLotes(); }
 function renderLotes() {
   const b = LOTESBUSCA.trim().toLowerCase(); const vis = LOTES.filter(l => !b || l.descricao.toLowerCase().includes(b) || l.cod.includes(b) || String(l.lote).toLowerCase().includes(b));
   const foco = document.activeElement && document.activeElement.id === 'lbusca'; const pos = foco ? document.activeElement.selectionStart : 0;
@@ -221,7 +266,8 @@ function renderLotes() {
     <div class="table-wrap"><table class="main-t"><thead><tr><th>Produto</th><th>Lote</th><th>Validade</th><th class="r">Entrou</th><th class="r">Saiu</th><th class="r">Saldo</th><th>Entradas</th><th>Saídas</th></tr></thead><tbody>${linhas}</tbody></table></div>`;
   if (foco) { const el = $('#lbusca'); if (el) { el.focus(); el.setSelectionRange(pos, pos); } }
 }
-carregarLotes().catch(e => alert(e.message));
+carregarValidades(false);
+carregarLotes().catch(e => { $('#n-lotes').textContent = '!'; $('#lotes').innerHTML = '<div class="neg" style="padding:14px 4px">' + esc(e.message) + '</div>'; });
 </script>
 </body>
 </html>
