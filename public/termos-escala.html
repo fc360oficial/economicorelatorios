@@ -23,6 +23,9 @@ body{font-family:var(--font);background:var(--pap);color:var(--ink);min-height:1
 .modnav{background:var(--crd);border-bottom:1px solid var(--ln);display:flex;flex-wrap:wrap;align-items:stretch;padding:0 14px;position:sticky;top:58px;z-index:39}
 .modnav a{display:flex;align-items:center;gap:6px;padding:0 12px;height:42px;font-size:12.5px;font-weight:600;color:var(--ink2);border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;user-select:none}
 .modnav a .ds-ic{width:15px;height:15px;color:var(--ink3)}.modnav a:hover{color:var(--ink)}.modnav a.on{color:var(--ink);border-bottom-color:var(--am)}.modnav a.on .ds-ic{color:var(--amk)}
+.modnav .grp{display:flex;align-items:center;height:42px;padding:0 8px 0 14px;margin-left:10px;font-size:10px;font-weight:800;color:var(--amk);text-transform:uppercase;letter-spacing:.6px;border-left:2px solid var(--am);white-space:nowrap}.modnav .grp:first-child{margin-left:0;padding-left:4px;border-left:none}
+.modnav .sep{display:flex;align-items:center;height:42px;color:var(--ink3);font-size:14px;margin:0 -4px}.modnav .g{display:flex;align-items:stretch}.modnav .g + .g .grp{margin-left:10px}
+@media(max-width:1399px){.modnav a{padding:0 9px;font-size:12px}.modnav .grp{padding:0 6px 0 10px;margin-left:6px}}
 .page{padding:20px 24px 40px;max-width:1700px;width:100%}
 .aviso{background:var(--amw);border:1px solid var(--am-ln);color:var(--amk);border-radius:10px;padding:10px 14px;font-size:12.5px;margin-bottom:14px;line-height:1.5}.aviso.neg{background:var(--negw);border-color:#F1B9C3;color:var(--neg)}.aviso.inf{background:var(--infw);border-color:var(--inf);color:var(--inf)}.aviso.ok{background:var(--posw);border-color:#B9E2C8;color:var(--pos)}
 .note{font-size:11.5px;color:var(--ink3);line-height:1.5;margin:10px 2px 0}
@@ -91,7 +94,7 @@ const skel = () => '<div class="sk"></div><div class="sk" style="width:70%"></di
 const erroBox = e => '<div class="aviso neg">' + esc(e.message || e) + '</div>';
 const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 const selLoja = (v, vazio) => (vazio ? '<option value="">' + esc(vazio) + '</option>' : '') + ME.lojas.map(l => '<option value="' + l.n + '"' + (String(l.n) === String(v) ? ' selected' : '') + '>' + esc(l.txt) + '</option>').join('');
-const NAV = [{ id: 'nova', txt: 'Nova emissão', ic: 'printer', sub: 'Unidade, data e tipo → funcionários → conferência → PDF com um termo por página', so: 'emitir' }, { id: 'hist', txt: 'Histórico de emissões', ic: 'list', sub: 'Tudo que já foi emitido: visualizar, baixar e reimprimir o PDF original' }, { id: 'modelo', txt: 'Modelo do termo', ic: 'settings', sub: 'Texto do documento (sujeito à validação do jurídico)' }];
+const NAV = [{ id: 'nova', grupo: 'termo', txt: 'Nova emissão', ic: 'printer', sub: 'Unidade, data e tipo → funcionários → conferência → PDF com um termo por página', so: 'emitir' }, { id: 'hist', grupo: 'termo', txt: 'Histórico', ic: 'list', sub: 'Tudo que já foi emitido: visualizar, baixar e reimprimir o PDF original' }, { id: 'modelo', grupo: 'termo', txt: 'Modelo', ic: 'settings', sub: 'Texto do documento (sujeito à validação do jurídico)' }];
 // Abas de outros módulos (Cadastro Bancário, Pagamentos de Domingos e Feriados) entram por /termos-escala-modulos.js: ele
 // empurra itens em NAV (com `so` função de visibilidade e `crumb` próprio) e registra a função da página em PAGINAS.
 const PAGINAS = { nova, hist, modelo };
@@ -101,7 +104,10 @@ function ir(p) { const n = NAV.find(x => x.id === p); if (!n || !visivel(n)) ret
 async function iniciar() {
   try { ME = await api('/api/termos-escala/me'); } catch (e) { $('#page').innerHTML = e.status === 403 ? '<div class="aviso neg"><b>Sem acesso aos Termos de Escala.</b> ' + esc(e.message) + '</div>' : erroBox(e); return; }
   if (window.MODULOS_INIT) { try { await window.MODULOS_INIT(); } catch (e) { console.warn('módulos extras', e); } }
-  $('#modnav').innerHTML = navVisivel().map(n => '<a data-p="' + n.id + '">' + ic(n.ic) + '<span>' + esc(n.txt) + '</span></a>').join(''); $$('#modnav a').forEach(a => a.onclick = () => ir(a.dataset.p));
+  // 26/10 (Tiago: "organizar por processos, do início ao fim, um do lado do outro"): abas agrupadas por etapa, na ordem do fluxo
+  const GRUPOS = { termo: '1 · Termo de escala', banco: '2 · Dados bancários', pag: '3 · Pagamentos' }; let gAnt = null, html = '';
+  for (const n of navVisivel()) { const g = n.grupo || 'termo'; if (g !== gAnt) { html += (gAnt ? '</div>' : '') + '<div class="g"><span class="grp">' + esc(GRUPOS[g] || g) + '</span>'; gAnt = g; } else html += '<span class="sep">›</span>'; html += '<a data-p="' + n.id + '">' + ic(n.ic) + '<span>' + esc(n.txt) + '</span></a>'; }
+  $('#modnav').innerHTML = html + (gAnt ? '</div>' : '');   // cada grupo é um bloco: se faltar espaço, o grupo inteiro desce junto $$('#modnav a').forEach(a => a.onclick = () => ir(a.dataset.p));
   const PAP = { gerente: 'Gerente', rh_ponto: 'RH Ponto', rh_doc: 'RH Documentação', rh_adm: 'RH Admissões', coordenacao: 'Coordenação', diretoria: 'Diretoria', juridico: 'Jurídico', ti: 'TI' };
   $('#who').innerHTML = '<div class="ds-avatar">' + esc(ME.nome.split(' ').slice(0, 2).map(s => s[0]).join('')) + '</div><div><b>' + esc(ME.nome) + '</b><span>' + esc(ME.papeis.map(p => PAP[p] || p).join(' · ') || 'sem papel') + '</span></div>';
   if (!ME.lojas.length) { $('#page').innerHTML = '<div class="aviso neg">Seu papel não tem unidade associada. Peça à Coordenação para designar a(s) loja(s).</div>'; return; }

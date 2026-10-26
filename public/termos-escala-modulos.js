@@ -318,13 +318,14 @@
     const tenta = async u => { try { return await api(u); } catch (e) { return null; } };
     [BM, PM] = await Promise.all([tenta('/api/dados-bancarios/me'), tenta('/api/pagamentos-df/me')]);
     const CB = 'Cadastro Bancário', PG = 'Pagamentos de Domingos e Feriados';
-    NAV.push({ id: 'banco', txt: 'Dados bancários', ic: 'bank', crumb: CB, sub: 'Conta ou chave Pix de cada funcionário: situação, versões, alertas', so: () => !!BM },
-      { id: 'importar', txt: 'Importar planilha', ic: 'download', crumb: CB, sub: 'Planilha .xlsx do Financeiro → prévia → só os válidos entram, pendentes de validação', so: () => !!(BM && BM.importar) },
-      { id: 'validacao', txt: 'Validação bancária', ic: 'shield', crumb: CB, sub: 'Fila do Financeiro: dupla conferência, titularidade, regra das 48 h', so: () => !!BM },
-      { id: 'seguranca', txt: 'Segurança', ic: 'alert', crumb: CB, sub: 'Alertas (48 h, recorrência, fraude), bloqueios, auditoria e parâmetros', so: () => !!BM },
-      { id: 'pag', txt: 'Pagamentos', ic: 'chart', crumb: PG, sub: 'Painel e relatórios: conferência do RH → aprovação da Coordenação → Financeiro', so: () => !!PM },
-      { id: 'pag-nova', txt: 'Nova apuração', ic: 'search', crumb: PG, sub: 'Unidades e datas → registros de ponto × termos → relatório em conferência', so: () => !!(PM && PM.apurar) },
-      { id: 'pag-valores', txt: 'Valores', ic: 'settings', crumb: PG, sub: 'Tabela por função, por unidade e exceções, com vigência e justificativa', so: () => !!PM });
+    // ordem = fluxo do processo (Tiago, 26/10): importar → cadastro → validação → segurança; apurar → relatórios → valores
+    NAV.push({ id: 'importar', grupo: 'banco', txt: 'Importar', ic: 'download', crumb: CB, sub: 'Planilha .xlsx ou PDF do Itaú → prévia → só os válidos entram', so: () => !!(BM && BM.importar) },
+      { id: 'banco', grupo: 'banco', txt: 'Dados bancários', ic: 'bank', crumb: CB, sub: 'Conta ou chave Pix de cada funcionário: situação, versões, alertas', so: () => !!BM },
+      { id: 'validacao', grupo: 'banco', txt: 'Validação', ic: 'shield', crumb: CB, sub: 'Fila do Financeiro: dupla conferência, titularidade, regra das 48 h', so: () => !!BM },
+      { id: 'seguranca', grupo: 'banco', txt: 'Segurança', ic: 'alert', crumb: CB, sub: 'Alertas (48 h, recorrência, fraude), bloqueios, auditoria e parâmetros', so: () => !!BM },
+      { id: 'pag-nova', grupo: 'pag', txt: 'Nova apuração', ic: 'search', crumb: PG, sub: 'Unidades e datas → registros de ponto × termos → relatório em conferência', so: () => !!(PM && PM.apurar) },
+      { id: 'pag', grupo: 'pag', txt: 'Relatórios', ic: 'chart', crumb: PG, sub: 'Conferência do RH → aprovação da Coordenação → Financeiro paga e concilia', so: () => !!PM },
+      { id: 'pag-valores', grupo: 'pag', txt: 'Valores', ic: 'settings', crumb: PG, sub: 'Tabela por função, por unidade e exceções, com vigência e justificativa', so: () => !!PM });
     Object.assign(PAGINAS, { banco, importar, validacao, seguranca, pag, 'pag-nova': pagNova, 'pag-valores': pagValores });
   };
 })();
