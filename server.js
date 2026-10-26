@@ -145,6 +145,9 @@ app.get(/^\/tvcahu\/kiosk\/?$/i, (req, res) => res.redirect(`/tv-televendas/${tv
 // Mesmo esquema pra TV do açougue da loja (Processos › TV Açougue, 23/10/26): /tvacougue → link completo com token
 app.get(/^\/tvacougue\/?$/i, (req, res) => res.redirect(`/tv-acougue/${tvAcougue.getConfig().token}`));
 app.get(/^\/tvacougue\/kiosk\/?$/i, (req, res) => res.redirect(`/tv-acougue/${tvAcougue.getConfig().token}?kiosk=1`));
+// TV do RH — Ponto e Jornada (DP / RH › TV RH/DP, 26/10/26): /tvrh → link completo com token
+app.get(/^\/tvrh\/?$/i, (req, res) => res.redirect(`/tv-rh/${tvRh.getConfig().token}`));
+app.get(/^\/tvrh\/kiosk\/?$/i, (req, res) => res.redirect(`/tv-rh/${tvRh.getConfig().token}?kiosk=1`));
 
 // ── CACHE EM MEMÓRIA ─────────────────────────────────────
 const _cache = new Map();
@@ -248,6 +251,8 @@ app.use((req, res, next) => {
   if (/^\/tvcahu\/?(kiosk\/?)?$/i.test(req.path) || /^\/tv-televendas\/[a-f0-9]{32}$/i.test(req.path) || /^\/api\/tv-televendas-publico\/[a-f0-9]{32}$/i.test(req.path)) return next();
   // TV do açougue da loja (23/10/26): página, API e fotos dos cortes públicas por token (só leitura, preço da loja no ERP)
   if (/^\/tvacougue\/?(kiosk\/?)?$/i.test(req.path) || /^\/tv-acougue\/[a-f0-9]{32}$/i.test(req.path) || /^\/api\/tv-acougue-publico\/[a-f0-9]{32}(\/foto\/\d{1,14}|\/patrocinio\/[a-f0-9]{8}\/(logo|foto))?$/i.test(req.path)) return next();
+  // TV do RH — Ponto e Jornada (26/10/26): página e API públicas por token (só leitura; nome, loja, setor e horários do dia, sem matrícula/CPF/banco)
+  if (/^\/tvrh\/?(kiosk\/?)?$/i.test(req.path) || /^\/tv-rh\/[a-f0-9]{32}$/i.test(req.path) || /^\/api\/tv-rh-publico\/[a-f0-9]{32}$/i.test(req.path)) return next();
   // Link do fornecedor na Cotação: mesmo esquema (token de 32 hex por fornecedor convidado)
   if (/^\/cotacao\/[a-f0-9]{32}$/.test(req.path) || /^\/api\/cotacao-publica\/[a-f0-9]{32}(\/|$)/.test(req.path)) return next();
   // Portal do Fornecedor (PWA em /fornecedor/, 13/10/26): página, service worker, manifest, atalhos /fornecedor/cotacao|pedido/<token>
@@ -8698,6 +8703,42 @@ require('./lib/etica-rotas')(app, { multer, publicDir: path.join(__dirname, 'pub
 require('./lib/gestao-pessoas-rotas')(app, { pontocerto, listarUsuarios: () => usuarios });
 // Escalas (22/10/2026, DP / RH › Escalas): cobertura por setor, escala coletiva/individual, fluxo gerente → RH → Coordenação.
 require('./lib/escalas-rotas')(app, { pontocerto });
+// TV do RH — Ponto e Jornada (26/10/2026, DP / RH › TV RH/DP): telão dentro do RH com o ponto do dia, nome a nome, a partir
+// da MESMA jornada diária da aba Jornada diária (pontocerto.jornadaDia, tolerância da Central de Gestão de Pessoas).
+// Link público por token igual à TV Açougue; regras e classificação pra TV em lib/tv-rh.js. Só leitura.
+const tvRh = require('./lib/tv-rh');
+const tvRhTolerancia = () => { try { return require('./lib/gestao-pessoas').config().ponto.atrasoMin; } catch (e) { return 10; } };
+tvRh.init({ jornadaDia: data => pontocerto.jornadaDia(data, { toleranciaMin: tvRhTolerancia() }), colaboradores: () => pontocerto.colaboradores(), toleranciaMin: tvRhTolerancia });
+const tvRhLinks = c => ({ linkTV: `${PUBLIC_URL}/tv-rh/${c.token}`, linkCurto: `${PUBLIC_URL}/tvrh`, linkLan: 'http://192.168.2.254:3003/tvrh' });
+app.get('/api/tv-rh/config', async (req, res) => {
+  const c = tvRh.getConfig();
+  // setores vêm do cadastro do PontoCerto (cache de 20 min); se estiver frio não segura a tela mais que 8 s
+  const setores = await Promise.race([tvRh.setoresDisponiveis().catch(e => { console.error('[TV-RH] setores:', e.message); return null; }), new Promise(r => setTimeout(() => r(null), 8000))]);
+  res.json({ config: c, lojas: tvRh.LOJAS, telas: tvRh.TELAS, ...tvRhLinks(c), totais: tvRh.totais(), setores });
+});
+app.post('/api/tv-rh/config', (req, res) => {
+  try { const c = tvRh.salvarConfig(req.body || {}, req.session.user?.nome || null); res.json({ config: c, ...tvRhLinks(c), totais: tvRh.totais() }); }
+  catch (err) { res.status(400).json({ error: err.message }); }
+});
+app.post('/api/tv-rh/config/novo-token', (req, res) => { const c = tvRh.novoToken(); res.json({ config: c, ...tvRhLinks(c) }); });
+app.post('/api/tv-rh/config/renovar', async (req, res) => {
+  try { await tvRh.jornadaHoje(true); res.json({ totais: tvRh.totais() }); }
+  catch (err) { res.status(503).json({ error: err.message, totais: tvRh.totais() }); }
+});
+app.get('/tv-rh/:token', (req, res) => {
+  if (!tvRh.tokenValido(String(req.params.token).toLowerCase())) return res.status(404).send('Link inválido. Gere um novo link em DP / RH → TV RH/DP.');
+  res.set('Cache-Control', 'no-store');
+  res.sendFile(path.join(__dirname, 'public', 'tv-rh.html'));
+});
+app.get('/api/tv-rh-publico/:token', async (req, res) => {
+  if (!tvRh.tokenValido(String(req.params.token).toLowerCase())) return res.status(404).json({ error: 'Link inválido' });
+  res.set('Cache-Control', 'no-store');
+  try {
+    const dados = await tvRh.payloadTV();
+    let versao = null; try { versao = fs.statSync(path.join(__dirname, 'public', 'tv-rh.html')).mtimeMs; } catch (e) {}
+    res.json({ ...dados, versao });
+  } catch (err) { res.status(503).json({ error: 'Sem dados no momento: ' + err.message }); }
+});
 // Termos de Escala (23/10/2026, DP / RH › Termos de Escala): termo de ciência de trabalho em domingo/feriado, um por
 // funcionário num PDF só, com histórico e reimpressão. Regras e PDF em lib/termos-escala.js; só lê o PontoCerto.
 require('./lib/termos-escala-rotas')(app, { pontocerto });

@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TV RH · Ponto e Jornada · Econômico Supermercados</title>
+<!-- TV do RH — Ponto e Jornada (26/10/2026). Mesmo padrão visual da TV Açougue (tv-acougue.html): preto como base,
+     amarelo pros destaques, branco pro texto, vermelho só no que é alarme (atraso confirmado), logo na placa amarela,
+     topo com título/relógio, rodapé com os selos da casa, barra de progresso e troca de telas com fade A/B.
+     Cinco telas no mesmo loop: resumo do dia · entradas · intervalos · saídas · pendências e divergências. Quando há
+     muita gente, cada tela vira em páginas (N funcionários por tela, configurável) sem encolher a fonte.
+     Dados: a mesma jornada diária da aba DP / RH › Jornada diária (PontoCerto), relida a cada 20 s. Situações só as
+     da apuração: atraso só quando confirmado; marcação ausente não é falta (vira "Sem marcação", "Ainda não chegou o
+     horário" ou "Em apuração"). Config em DP / RH › TV RH/DP. Sem login (token). ?kiosk=1 esconde o botão de tela cheia;
+     ?tela=N abre direto na N-ésima tela (pra conferir uma tela específica). -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,600;0,700;0,800;1,800&family=Barlow:wght@400;500;600;700&display=swap">
+<style>
+:root{--ink:#0c0c0c;--paper:#f6f4ec;--amarelo:#FFD500;--vermelho:#C8102E;--papel:#fff;--linha:#2a2a2a;--fd:"Barlow Condensed","Arial Narrow",Impact,sans-serif;--fb:"Barlow","Segoe UI",Arial,sans-serif}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:#000;color:var(--paper);font-family:var(--fb);overflow:hidden;cursor:none}
+#tv{position:fixed;inset:0;background:#000}
+.slide{position:absolute;inset:0;opacity:0;transition:opacity .8s ease;font-size:calc(var(--u) * 1px)}
+.slide>div{position:absolute;inset:0;display:flex;flex-direction:column;background:var(--ink)}
+.slide.on{opacity:1}
+@media (prefers-reduced-motion:reduce){.slide{transition:none}}
+svg.ic{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-.12em}
+/* topo: logo na placa amarela, título, lojas, relógio (igual à TV Açougue) */
+.top{display:flex;align-items:center;gap:1.6em;padding:0 2.4em;height:7em;flex:none;background:var(--ink);border-bottom:.14em solid var(--amarelo);position:relative;z-index:2}
+.top .logo{height:5.4em;display:flex;align-items:center;background:var(--amarelo);border-radius:.6em;padding:.35em .7em}
+.top .logo img{height:100%;width:auto;display:block;object-fit:contain}
+.top .tit{font:800 2.7em/1 var(--fd);text-transform:uppercase;letter-spacing:.05em;color:#fff;padding-left:.55em;border-left:.08em solid #3a3a3a}
+.top .loja{font:600 1.3em var(--fb);letter-spacing:.18em;text-transform:uppercase;color:#cfcabb;padding-left:1.1em;border-left:.12em solid #3a3a3a;line-height:1}
+.top .qbadge{font:800 1.35em var(--fd);letter-spacing:.14em;text-transform:uppercase;background:var(--amarelo);color:var(--ink);padding:.3em .8em;border-radius:.3em}
+.top .sp{flex:1}
+.top .dt{display:flex;align-items:center;gap:.5em;font:700 2.1em var(--fd);color:#fff;font-variant-numeric:tabular-nums;letter-spacing:.03em}
+.top .dt .ic{color:var(--amarelo);font-size:.95em;stroke-width:2.4}
+.top .dt small{font:600 .5em var(--fb);letter-spacing:.14em;text-transform:uppercase;color:#cfcabb;margin-left:.4em}
+/* rodapé: selos da casa + aviso + contador */
+.foot{display:flex;align-items:center;gap:1.8em;padding:0 2.4em;height:4.2em;background:var(--ink);border-top:.08em solid var(--linha);flex:none;position:relative;z-index:2}
+.foot .selos{display:flex;align-items:center;gap:1.4em;flex:none}
+.foot .sl{display:flex;align-items:center;gap:.5em;font:700 1.05em var(--fb);letter-spacing:.1em;text-transform:uppercase;color:#e8e5da;white-space:nowrap}
+.foot .sl .ic{color:var(--amarelo);font-size:1.5em}
+.foot .sl+.sl{padding-left:1.4em;border-left:.08em solid #3a3a3a}
+.foot .sp{flex:1;min-width:.5em}
+.foot .val{font:600 1.15em var(--fb);letter-spacing:.04em;color:#bdb8aa;white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.foot .val b{color:var(--amarelo);font-weight:700}
+.foot .cnt{font:700 1.4em var(--fd);color:#8f8a7c;letter-spacing:.06em;font-variant-numeric:tabular-nums;flex:none}
+.prog{position:absolute;left:0;bottom:0;height:.3em;font-size:calc(var(--u) * 1px);background:var(--amarelo);width:0;z-index:3}
+.brush{display:block;height:.42em;width:7em;background:var(--amarelo);border-radius:.2em .3em .15em .3em;transform:skewX(-14deg) rotate(-1.2deg);margin:.15em 0 0 .1em}
+/* cabeçalho de cada tela */
+.main{flex:1;display:flex;flex-direction:column;padding:1.2em 2.4em 1em;min-height:0}
+.hd{display:flex;align-items:baseline;gap:1.2em;margin-bottom:.7em;flex:none}
+.hd h2{font:800 2.8em/1 var(--fd);text-transform:uppercase;color:#fff;margin:0;letter-spacing:.03em;display:flex;align-items:center;gap:.35em}
+.hd h2 .ic{color:var(--amarelo);font-size:.85em;stroke-width:2.2}
+.hd .pg{font:700 1.5em var(--fd);color:var(--amarelo);letter-spacing:.08em;font-variant-numeric:tabular-nums}
+.hd .sub{margin-left:auto;font:600 1.15em var(--fb);letter-spacing:.14em;text-transform:uppercase;color:#8f8a7c;white-space:nowrap}
+/* tela 1 — resumo: seis cartões grandes */
+.res .kpis{flex:1;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(2,1fr);gap:1.3em;min-height:0}
+.kpi{background:#161616;border:.08em solid var(--linha);border-radius:.8em;display:flex;flex-direction:column;justify-content:center;gap:.25em;padding:1.1em 1.8em;position:relative;overflow:hidden;min-height:0}
+.kpi .l{font:700 1.45em var(--fd);letter-spacing:.14em;text-transform:uppercase;color:#cfcabb}
+.kpi .v{font:800 7.2em/.95 var(--fd);color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.kpi .s{font:500 1.3em var(--fb);color:#8f8a7c}
+.kpi .ic{position:absolute;right:.5em;top:.4em;font-size:5.5em;color:rgba(255,213,0,.12);stroke-width:1.6}
+.kpi.ama{border-color:var(--amarelo)}.kpi.ama .v{color:var(--amarelo)}
+.kpi.vm{border-color:var(--vermelho)}.kpi.vm .v{color:#fff}.kpi.vm .ic{color:rgba(200,16,46,.3)}.kpi.vm:before{content:"";position:absolute;left:0;top:0;bottom:0;width:.4em;background:var(--vermelho)}
+.res .obs{flex:none;display:flex;flex-wrap:wrap;gap:.6em 2em;margin-top:1em;font:600 1.25em var(--fb);letter-spacing:.06em;text-transform:uppercase;color:#8f8a7c}
+.res .obs b{color:#e8e5da;font-weight:700;font-variant-numeric:tabular-nums}
+/* telas 2-4 — listas: cabeçalho fixo + N linhas de altura igual (a última página não encolhe nem estica) */
+.rows{flex:1;display:grid;grid-template-rows:repeat(var(--n),minmax(0,1fr));min-height:0}
+.row,.thead{display:grid;align-items:center;gap:1em;padding:0 .6em}
+.thead{font:700 1.05em var(--fd);letter-spacing:.16em;text-transform:uppercase;color:var(--amarelo);border-bottom:.12em solid var(--amarelo);padding-bottom:.35em;flex:none}
+.row{border-bottom:.07em solid var(--linha);min-height:0}
+.row>*{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .n{font:700 1.7em/1.05 var(--fd);text-transform:uppercase;color:#fff;letter-spacing:.02em}
+.row .n small{display:block;font:500 .55em var(--fb);color:#8f8a7c;letter-spacing:.08em;text-transform:uppercase;margin-top:.1em}
+.row .t{font:600 1.25em var(--fb);text-transform:uppercase;letter-spacing:.06em;color:#cfcabb}
+.row .h{font:700 2.05em/1 var(--fd);font-variant-numeric:tabular-nums;color:#fff}
+.row .h.prev{color:#bdb8aa;font-weight:600}
+.row .h.vazio{color:#4a4a4a}
+.row .h small{display:block;font:500 .48em var(--fb);color:#8f8a7c;letter-spacing:.06em;text-transform:uppercase;margin-top:.15em}
+.etq{display:inline-block;font:800 1.15em var(--fd);letter-spacing:.1em;background:var(--amarelo);color:var(--ink);padding:.2em .55em;border-radius:.25em;line-height:1}
+.entradas .row,.entradas .thead{grid-template-columns:minmax(0,1fr) 4.6em 14em 7em 7em 15.5em}
+.intervalos .row,.intervalos .thead{grid-template-columns:minmax(0,1fr) 12.5em 6.5em 6.5em 6.5em 6.5em 14.5em}
+.saidas .row,.saidas .thead{grid-template-columns:minmax(0,1fr) 12.5em 7em 7em 14.5em 15em}
+.row .pend{font:600 1.15em var(--fb);color:var(--amarelo);letter-spacing:.04em;white-space:normal;line-height:1.15}
+.row .pend.ok{color:#5a5a5a}
+/* situação: chip no padrão da TV (branco = em dia, amarelo = atenção, vermelho = atraso confirmado, cinza = em apuração) */
+.st{display:inline-flex;align-items:center;gap:.5em;font:700 1.15em var(--fd);letter-spacing:.1em;text-transform:uppercase;padding:.3em .75em;border-radius:.3em;border:.1em solid #3a3a3a;color:#bdb8aa;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;line-height:1}
+.st:before{content:"";width:.6em;height:.6em;border-radius:50%;background:#6b6b6b;flex:none}
+.st.ok,.st.encerrada,.st.retornou{color:#fff;border-color:#4a4a4a}.st.ok:before,.st.encerrada:before,.st.retornou:before{background:#fff}
+.st.atraso{background:var(--vermelho);border-color:var(--vermelho);color:#fff}.st.atraso:before{background:#fff}
+.st.sem,.st.sem_retorno,.st.pendente{border-color:var(--amarelo);color:var(--amarelo)}.st.sem:before,.st.sem_retorno:before,.st.pendente:before{background:var(--amarelo)}
+.st.intervalo:before{background:var(--amarelo)}
+.st.jornada:before{background:#fff}
+.st.apuracao{border-style:dashed;color:#8f8a7c}
+.st.folga,.st.ferias,.st.afastado{color:#8f8a7c}
+/* tela 5 — pendências e divergências em duas colunas */
+.pen .cols{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:0 2.4em;min-height:0}
+.pen .col{display:grid;grid-template-rows:repeat(var(--n),minmax(0,1fr));min-height:0}
+.pen .it{display:grid;grid-template-columns:9.5em minmax(0,1fr);gap:1em;align-items:center;border-bottom:.07em solid var(--linha);padding:0 .3em;min-height:0}
+.pen .gt{font:800 1.05em var(--fd);letter-spacing:.12em;text-transform:uppercase;padding:.3em .55em;border-radius:.25em;text-align:center;border:.1em solid var(--amarelo);color:var(--amarelo);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1}
+.pen .gt.atraso{background:var(--vermelho);border-color:var(--vermelho);color:#fff}
+.pen .gt.div{border-color:#4a4a4a;color:#bdb8aa}
+.pen .tx{min-width:0}
+.pen .tx .n{font:700 1.55em/1.05 var(--fd);text-transform:uppercase;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pen .tx .n .etq{font-size:.7em;margin-right:.4em;vertical-align:.1em}
+.pen .tx .d{font:500 1.1em var(--fb);color:#bdb8aa;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:.1em}
+.pen .tx .d b{color:#e8e5da;font-weight:600}
+.vazio-tela{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.6em;text-align:center}
+.vazio-tela h3{font:800 4.2em/1 var(--fd);text-transform:uppercase;color:#fff;margin:0}
+.vazio-tela p{font:500 1.7em var(--fb);color:#bdb8aa;margin:0;max-width:30em}
+.vazio-tela .brush{width:9em}
+/* avisos e tela cheia */
+.msg{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.5em;font-size:calc(var(--u) * 1px);background:#000;z-index:5}
+.msg img{height:9em;background:var(--amarelo);padding:.8em 1.4em;border-radius:.8em}
+.msg h1{font:800 4em var(--fd);text-transform:uppercase;margin:0;color:var(--amarelo);text-align:center}
+.msg p{font:500 1.8em var(--fb);color:#bfbbae;margin:0;text-align:center;max-width:30em}
+#fs{position:absolute;inset:0;z-index:6;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);cursor:pointer}
+#fs button{font:800 calc(var(--u) * 3.2px) var(--fd);letter-spacing:.08em;text-transform:uppercase;background:var(--amarelo);color:var(--ink);border:0;border-radius:.4em;padding:.6em 1.6em;cursor:pointer;box-shadow:0 1em 3em rgba(0,0,0,.6)}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div id="tv"><div class="slide" id="A"></div><div class="slide" id="B"></div><div class="prog" id="prog"></div><div id="aviso" class="msg" hidden></div><div id="fs" hidden><button type="button">Tela cheia</button></div></div>
+<script>
+const TOKEN = location.pathname.split('/').pop();
+const QS = new URLSearchParams(location.search);
+const KIOSK = QS.get('kiosk') === '1';
+let TELA_INICIAL = /^\d+$/.test(QS.get('tela') || '') ? Math.max(0, +QS.get('tela') - 1) : null;   // ?tela=3 abre na 3ª tela (conferência)
+const LOGO = '/logo-economico.png';   // logo oficial (mesmo da TV Açougue)
+const SEM_SERVIDOR_MS = 20 * 60 * 1000, RELER_MS = 20 * 1000;
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const $ = s => document.querySelector(s);
+const hora = () => new Date().toTimeString().slice(0, 5);
+const DIAS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+const hoje = () => { const d = new Date(); return DIAS[d.getDay()] + ' · ' + d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }); };
+const hmDe = iso => iso ? new Date(iso).toTimeString().slice(0, 5) : '—';
+// ícones (traço simples, cor herdada) — os três selos do rodapé são os mesmos da TV Açougue
+const IC = {
+  relogio: '<svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+  estrela: '<svg class="ic" viewBox="0 0 24 24"><path d="M12 3l2.8 5.8 6.4.9-4.6 4.5 1.1 6.3L12 17.5l-5.7 3 1.1-6.3L2.8 9.7l6.4-.9z"/></svg>',
+  escudo: '<svg class="ic" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8.5-8 9-4.5-.5-8-4-8-9V6z"/><path d="M8.5 12.5l2.3 2.3 4.7-5"/></svg>',
+  coracao: '<svg class="ic" viewBox="0 0 24 24"><path d="M12 20s-7-4.6-7-10a4 4 0 017-2.6A4 4 0 0119 10c0 5.4-7 10-7 10z"/></svg>',
+  pessoas: '<svg class="ic" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0113 0"/><circle cx="17" cy="9" r="2.6"/><path d="M15.5 14.5a5 5 0 016 5.5"/></svg>',
+  entrada: '<svg class="ic" viewBox="0 0 24 24"><path d="M14 4h5a1 1 0 011 1v14a1 1 0 01-1 1h-5"/><path d="M3 12h11M10 8l4 4-4 4"/></svg>',
+  alerta: '<svg class="ic" viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>',
+  pausa: '<svg class="ic" viewBox="0 0 24 24"><path d="M5 8h11a4 4 0 010 8H5zM16 10h2a2 2 0 010 4h-2M4 20h13"/></svg>',
+  saida: '<svg class="ic" viewBox="0 0 24 24"><path d="M10 4H5a1 1 0 00-1 1v14a1 1 0 001 1h5"/><path d="M9 12h11M16 8l4 4-4 4"/></svg>',
+  pendente: '<svg class="ic" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 12h8M8 8h8M8 16h5"/></svg>',
+};
+const SELO_IC = [IC.estrela, IC.escudo, IC.coracao];
+const GRUPO = { sem: 'Sem marcação', atraso: 'Atraso', retorno: 'Sem retorno', saida: 'Saída pendente', div: 'Divergência' };
+
+let CFG = null, D = null, SEQ = [], idx = 0, front = 'A', timer = null, assinatura = '', ULTIMO_OK = 0;
+
+// Sequência: resumo · entradas (em páginas) · intervalos · saídas · pendências. Cada tela ligada na configuração.
+function montarSequencia(d, cfg) {
+  const seq = []; const n = cfg.linhas;
+  const pag = (t, arr, por) => { const p = Math.max(1, Math.ceil(arr.length / por)); for (let k = 0; k < p; k++) seq.push({ t, itens: arr.slice(k * por, (k + 1) * por), pagina: k + 1, paginas: p }); };
+  if (cfg.telas.resumo) seq.push({ t: 'resumo' });
+  if (cfg.telas.entradas) pag('entradas', d.entradas, n);
+  if (cfg.telas.intervalos && d.intervalos.length) pag('intervalos', d.intervalos, n);
+  if (cfg.telas.saidas && d.saidas.length) pag('saidas', d.saidas, n);
+  if (cfg.telas.pendencias) pag('pendencias', d.pendencias, n * 2);
+  if (!seq.length) seq.push({ t: 'resumo' });
+  return seq;
+}
+function topo() { return `<div class="top"><div class="logo"><img src="${LOGO}" alt="Econômico Supermercados"></div><span class="tit">${esc(CFG.titulo || 'Ponto e Jornada')}</span><span class="loja">RH · DP</span><span class="loja">${esc(D.lojasTxt)}</span><span class="sp"></span><div class="dt">${IC.relogio}<span class="clk">${hora()}</span><small>${hoje()}</small></div></div>`; }
+function selos() { const s = (CFG.selos || []).filter(Boolean); return s.length ? `<div class="selos">${s.map((t, i) => `<span class="sl">${SELO_IC[i % 3]}${esc(t)}</span>`).join('')}</div>` : ''; }
+function foot(cnt) {
+  const val = CFG.rodape ? esc(CFG.rodape) : `PontoCerto às <b>${hmDe(D.dadosEm)}</b> · marcação ausente não é falta`;
+  return `<div class="foot">${selos()}<span class="sp"></span><span class="val">${val}</span>${cnt ? `<span class="cnt">${cnt}</span>` : ''}</div>`;
+}
+const st = s => s ? `<span class="st ${esc(s.sit)}">${esc(s.txt)}</span>` : '';
+const h = (v, cls, sub) => `<span class="h${cls ? ' ' + cls : ''}${v ? '' : ' vazio'}">${esc(v || '—')}${sub ? `<small>${esc(sub)}</small>` : ''}</span>`;
+const pv = (l, k) => l.previsto ? l.previsto[k] : null;
+const hd = (ic, tit, s, sub) => `<div class="hd"><h2>${ic}${tit}</h2>${s.paginas > 1 ? `<span class="pg">${s.pagina} / ${s.paginas}</span>` : ''}<span class="sub">${sub}</span></div>`;
+const cnt = s => `${SEQ.indexOf(s) + 1} / ${SEQ.length}`;
+
+function rResumo(s) {
+  const r = D.resumo; const pct = n => r.previstos ? Math.round(n * 100 / r.previstos) + '% dos previstos' : '—';
+  const cards = [
+    { ic: IC.pessoas, l: 'Previstos para hoje', v: r.previstos, s: esc(D.lojasTxt) + (CFG.setores && CFG.setores.length ? ' · ' + CFG.setores.length + ' setor' + (CFG.setores.length > 1 ? 'es' : '') : ' · todos os setores'), c: '' },
+    { ic: IC.entrada, l: 'Já registraram a entrada', v: r.chegaram, s: pct(r.chegaram), c: 'ama' },
+    { ic: IC.alerta, l: 'Atrasos confirmados', v: r.atrasos, s: 'confirmados pela apuração do PontoCerto', c: r.atrasos ? 'vm' : '' },
+    { ic: IC.pausa, l: 'Em intervalo', v: r.emIntervalo, s: pct(r.emIntervalo), c: '' },
+    { ic: IC.saida, l: 'Saídas registradas', v: r.saidas, s: pct(r.saidas), c: '' },
+    { ic: IC.pendente, l: 'Marcações pendentes', v: r.pendentes, s: 'sem marcação, sem retorno ou saída pendente', c: r.pendentes ? 'ama' : '' },
+  ];
+  const f = r.fora || {};
+  return `<div class="res">${topo()}<div class="main">${hd(IC.relogio, 'Resumo do ponto', s, 'hoje · ' + esc(D.agora))}<div class="kpis">${cards.map(c => `<div class="kpi ${c.c}">${c.ic}<span class="l">${c.l}</span><span class="v">${c.v}</span><span class="s">${c.s}</span></div>`).join('')}</div>
+    <div class="obs"><span>Ainda não chegou o horário <b>${r.aguardando}</b></span><span>Em apuração <b>${r.apuracao}</b></span><span>Folga <b>${f.folga || 0}</b></span><span>Férias <b>${f.ferias || 0}</b></span><span>Afastados <b>${f.afastado || 0}</b></span></div></div>${foot(cnt(s))}</div>`;
+}
+function vazio(tit, txt) { return `<div class="vazio-tela"><h3>${tit}</h3><span class="brush"></span><p>${txt}</p></div>`; }
+function rEntradas(s) {
+  const linhas = s.itens.map(l => `<div class="row"><span class="n">${esc(l.nome)}<small>${esc(l.cargo || '')}</small></span><span><span class="etq">${esc(l.etq)}</span></span><span class="t">${esc(l.setor)}</span>${h(pv(l, 'entrada'), 'prev', pv(l, 'saida') ? 'até ' + pv(l, 'saida') : '')}${h(l.entrada)}<span>${st(l.sitEntrada)}</span></div>`).join('');
+  return `<div class="lst entradas">${topo()}<div class="main">${hd(IC.entrada, 'Entradas', s, 'previsto × marcado · na ordem do horário previsto')}${s.itens.length ? `<div class="thead"><span>Funcionário</span><span>Loja</span><span>Setor</span><span>Previsto</span><span>Entrada</span><span>Situação</span></div><div class="rows" style="--n:${CFG.linhas}">${linhas}</div>` : vazio('Ninguém previsto', 'Nenhum funcionário previsto para hoje nas lojas e setores escolhidos na configuração.')}</div>${foot(cnt(s))}</div>`;
+}
+function rIntervalos(s) {
+  const linhas = s.itens.map(l => `<div class="row"><span class="n">${esc(l.nome)}<small>${esc(l.etq)} · ${esc(l.cargo || '')}</small></span><span class="t">${esc(l.setor)}</span>${h(pv(l, 'saidaInt'), 'prev')}${h(l.saidaInt)}${h(pv(l, 'retornoInt'), 'prev')}${h(l.retornoInt)}<span>${st(l.sitIntervalo)}</span></div>`).join('');
+  return `<div class="lst intervalos">${topo()}<div class="main">${hd(IC.pausa, 'Intervalos', s, 'quem já entrou e tem intervalo na escala')}<div class="thead"><span>Funcionário</span><span>Setor</span><span>Saída prev.</span><span>Saída</span><span>Retorno prev.</span><span>Retorno</span><span>Situação</span></div><div class="rows" style="--n:${CFG.linhas}">${linhas}</div></div>${foot(cnt(s))}</div>`;
+}
+function rSaidas(s) {
+  const linhas = s.itens.map(l => `<div class="row"><span class="n">${esc(l.nome)}<small>${esc(l.etq)} · ${esc(l.cargo || '')}</small></span><span class="t">${esc(l.setor)}</span>${h(pv(l, 'saida'), 'prev')}${h(l.saida)}<span>${st(l.sitSaida)}</span><span class="pend${l.pendencias.length ? '' : ' ok'}">${l.pendencias.length ? esc(l.pendencias.join(' · ')) : 'sem pendência'}</span></div>`).join('');
+  return `<div class="lst saidas">${topo()}<div class="main">${hd(IC.saida, 'Saídas e encerramento', s, 'quem já entrou · jornada e pendências de marcação')}<div class="thead"><span>Funcionário</span><span>Setor</span><span>Saída prev.</span><span>Saída</span><span>Situação da jornada</span><span>Pendências</span></div><div class="rows" style="--n:${CFG.linhas}">${linhas}</div></div>${foot(cnt(s))}</div>`;
+}
+function rPendencias(s) {
+  const n = CFG.linhas; const col = arr => `<div class="col" style="--n:${n}">${arr.map(p => `<div class="it"><span class="gt ${esc(p.g)}">${GRUPO[p.g] || p.g}</span><div class="tx"><div class="n"><span class="etq">${esc(p.etq)}</span>${esc(p.nome)}</div><div class="d">${esc(p.setor)} · <b>${esc(p.txt)}</b></div></div></div>`).join('')}</div>`;
+  const corpo = s.itens.length ? `<div class="cols">${col(s.itens.slice(0, n))}${col(s.itens.slice(n, n * 2))}</div>` : vazio('Nenhuma pendência agora', 'Todas as marcações previstas até este momento estão registradas. Atraso só aparece aqui quando a apuração do PontoCerto confirma.');
+  return `<div class="pen">${topo()}<div class="main">${hd(IC.alerta, 'Pendências e divergências', s, 'para o RH agir · atraso só quando a apuração confirma')}${corpo}</div>${foot(cnt(s))}</div>`;
+}
+const render = s => ({ resumo: rResumo, entradas: rEntradas, intervalos: rIntervalos, saidas: rSaidas, pendencias: rPendencias })[s.t](s);
+
+function mostrar() {
+  if (!SEQ.length) return;
+  const s = SEQ[idx % SEQ.length]; const nxt = front === 'A' ? 'B' : 'A'; const el = document.getElementById(nxt);
+  el.innerHTML = render(s);
+  requestAnimationFrame(() => { el.classList.add('on'); document.getElementById(front).classList.remove('on'); front = nxt; });
+  const ms = CFG.segundos * 1000;
+  const pr = $('#prog'); pr.style.transition = 'none'; pr.style.width = '0';
+  requestAnimationFrame(() => requestAnimationFrame(() => { pr.style.transition = `width ${ms}ms linear`; pr.style.width = '100%'; }));
+  clearTimeout(timer); timer = setTimeout(() => { idx++; mostrar(); }, ms);
+}
+function parar() { clearTimeout(timer); SEQ = []; assinatura = ''; }
+
+let VERSAO = null;
+function aplicar(dados) {
+  // página nova publicada no servidor → recarrega a TV sozinha
+  if (dados.versao) { if (VERSAO === null) VERSAO = dados.versao; else if (dados.versao !== VERSAO) { location.reload(); return; } }
+  // o servidor não conseguiu renovar há mais de 30 min: melhor avisar do que mostrar ponto velho como se fosse agora
+  if (dados.desatualizado) { parar(); return aviso('Ponto em atualização', 'A TV volta sozinha assim que o sistema voltar a ler o PontoCerto. ' + (dados.erro ? 'Motivo: ' + dados.erro : '')); }
+  const cfgMudou = JSON.stringify(dados.config) !== JSON.stringify(CFG);
+  const ass = JSON.stringify([dados.resumo, dados.entradas.map(l => [l.id, l.entrada, l.saidaInt, l.retornoInt, l.saida, l.sitEntrada, l.sitIntervalo, l.sitSaida, l.pendencias]), dados.pendencias]);
+  const dadosMudaram = ass !== assinatura;
+  $('#aviso').hidden = true;
+  if (!cfgMudou && !dadosMudaram && SEQ.length) { D = dados; return; }   // só o relógio do servidor mudou: não mexe na lista em uso
+  const rodando = SEQ.length > 0 && !!timer;
+  CFG = dados.config; D = dados; assinatura = ass;
+  const pos = SEQ.length ? idx % SEQ.length : 0;
+  SEQ = montarSequencia(D, CFG);
+  if (cfgMudou || !rodando) { idx = TELA_INICIAL != null ? Math.min(TELA_INICIAL, SEQ.length - 1) : 0; TELA_INICIAL = null; mostrar(); }   // config nova (ou 1ª carga) recomeça
+  else idx = Math.min(pos, SEQ.length - 1);   // marcação nova: a tela atual termina o tempo dela e a próxima já sai com os dados novos
+}
+function aviso(titulo, texto) { $('#aviso').innerHTML = `<img src="${LOGO}" alt="Econômico"><h1>${esc(titulo)}</h1><p>${esc(texto)}</p>`; $('#aviso').hidden = false; }
+
+async function carregar() {
+  try {
+    const r = await fetch(`/api/tv-rh-publico/${TOKEN}?t=${Date.now()}`, { cache: 'no-store' });   // ?t= fura cache de navegador de TV
+    if (r.status === 404) { parar(); return aviso('Link inválido', 'Gere um novo link em DP / RH → TV RH/DP e abra ele na TV.'); }
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.statusText);
+    ULTIMO_OK = Date.now();
+    aplicar(await r.json());
+  } catch (e) {
+    if (!SEQ.length) aviso('Sem dados no momento', 'A TV tenta de novo em alguns segundos. ' + e.message);
+    else if (Date.now() - ULTIMO_OK > SEM_SERVIDOR_MS) { parar(); aviso('Ponto em atualização', 'A TV está sem contato com o sistema há mais de 20 minutos e não mostra marcação que pode estar velha.'); }
+  }
+}
+function fit() { const w = innerWidth, h = innerHeight; const u = Math.min(w / 100, h / 56.25); document.getElementById('tv').style.setProperty('--u', u.toFixed(3)); }
+addEventListener('resize', fit); fit();
+
+// tela cheia: o navegador só libera com um toque; em quiosque (?kiosk=1) o botão nem aparece
+function fsOk() { return document.fullscreenElement || KIOSK || !document.documentElement.requestFullscreen; }
+function pedirFs() { document.documentElement.requestFullscreen().catch(() => {}); $('#fs').hidden = true; }
+$('#fs').onclick = pedirFs;
+document.addEventListener('keydown', e => { if (e.key === 'f' || e.key === 'F') pedirFs(); });
+document.addEventListener('fullscreenchange', () => { $('#fs').hidden = fsOk(); });
+$('#fs').hidden = fsOk();
+setInterval(() => { document.querySelectorAll('.slide.on .clk').forEach(c => c.textContent = hora()); }, 15000);
+
+carregar();
+setInterval(carregar, RELER_MS);   // relê config e marcações a cada 20 s (o servidor guarda a jornada do dia por 1 min e renova por trás)
+</script>
+</body>
+</html>
