@@ -84,13 +84,20 @@ table.t tr.canc td{color:#98A0B3;text-decoration:line-through}
       <button class="btn" onclick="window.print()">🖨 Imprimir</button>
     </div>
   </div>
+  <!-- 26/10 (Tiago): busca de fornecedor e loja no topo — valem pra tela inteira (fila, baixadas sem pagamento, saldo e extrato) -->
+  <div class="card" style="padding:10px 14px"><div class="busca" style="margin:0;align-items:center">
+    <input id="busca" placeholder="🔍 buscar fornecedor pelo nome ou código" oninput="renderTudo()" style="flex:2 1 260px;font-size:13.5px;padding:8px 11px">
+    <select id="filLoja" onchange="carregar()" style="font-size:13px;padding:8px 10px"><option value="">Todas as lojas</option></select>
+    <select id="filSaldo" onchange="renderForn()"><option value="">todos os saldos</option><option value="deve">só devendo</option><option value="credito">só com crédito</option><option value="90">devendo há mais de 90 d</option></select>
+    <span class="mut" id="buscaInfo" style="font-size:11.5px"></span>
+  </div></div>
   <div id="kpis" class="kpi-row"></div>
+  <div id="porLoja"></div>
   <div id="fila"></div>
   <div id="semPag"></div>
   <div class="grid2">
     <div class="card" id="cardForn">
       <h2>Saldo por fornecedor <span class="n" id="nForn">0</span><span class="sub">do mais antigo em aberto pro mais novo</span></h2>
-      <div class="busca"><input id="busca" placeholder="buscar fornecedor ou código" oninput="renderForn()"><select id="filSaldo" onchange="renderForn()"><option value="">todos</option><option value="deve">só devendo</option><option value="credito">só com crédito</option><option value="90">devendo há mais de 90 d</option></select></div>
       <div class="table-wrap" id="tabForn"></div>
     </div>
     <div class="card" id="cardEx">
@@ -113,24 +120,37 @@ function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clea
 const saldoTxt=f=>f.deve>0?'<span class="deve">deve '+brl(f.deve)+'</span>':f.credito>0?'<span class="credito">crédito '+brl(f.credito)+'</span>':'<span class="zero">zerado</span>';
 const LJ=n=>R&&R.lojas&&R.lojas[n]?R.lojas[n]:('Loja '+n);
 
+const lojaFiltro=()=>$('#filLoja').value||null;
+const busca=()=>($('#busca').value||'').trim().toLowerCase();
+const casaBusca=(nome,cod)=>{const b=busca();return !b||String(cod)===b||String(nome||'').toLowerCase().includes(b);};
+const LOJAS_SEL={1:'Cahu',2:'Muribeca',3:'Ponte',4:'Atacarejo',5:'Porta Larga',6:'Jardim Jordão',10:'Distribuidora (CD)'};
 async function carregar(){
-  try{const r=await fetch('/api/conta-fornecedor/resumo');R=await r.json();if(R.error)throw new Error(R.error);}
+  const sel=$('#filLoja');if(sel.options.length===1)for(const [k,v] of Object.entries(LOJAS_SEL))sel.add(new Option('Loja '+k+' · '+v,k));
+  const loja=lojaFiltro();
+  try{const r=await fetch('/api/conta-fornecedor/resumo'+(loja?'?loja='+loja:''));R=await r.json();if(R.error)throw new Error(R.error);}
   catch(e){$('#kpis').innerHTML='<div class="empty">Erro: '+esc(e.message)+'</div>';return;}
-  renderKpis();renderFila();renderSemPag();renderForn();
+  renderKpis();renderTudo();
   const s=R.sync;$('#syncInfo').textContent=s?('ERP lido '+quando(s.em)+' · '+s.abertas+' avarias abertas'+(s.erro?' · erro: '+s.erro:'')):'ERP ainda não lido';
-  if(selecionado)abrirExtrato(selecionado,true);
+  if(selecionado)abrirExtrato(selecionado,true,loja);
 }
+function renderTudo(){renderFila();renderSemPag();renderForn();const b=busca();$('#buscaInfo').textContent=b?'filtrando por "'+b+'"':'';}
+function filtrarLoja(l){$('#filLoja').value=l||'';carregar();}
 function renderKpis(){
-  const k=R.kpis;
+  const k=R.kpis,lj=R.loja?' · '+esc(R.loja_nome):'';
+  // quebra por loja da rede (sempre a rede, mesmo com filtro): clicar filtra a tela
+  const pl=k.por_loja||[];
+  $('#porLoja').innerHTML=pl.length?'<div class="card" style="padding:8px 14px;display:flex;gap:6px 14px;flex-wrap:wrap;align-items:center;font-size:12px"><b style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:#4E5A72">Por loja</b>'
+    +'<a href="#" onclick="event.preventDefault();filtrarLoja(null)" style="color:inherit;text-decoration:none;'+(!R.loja?'font-weight:800;border-bottom:2px solid #F5B800':'')+'">Todas <span class="deve">'+brl(pl.reduce((s,l)=>s+l.deve,0))+'</span></a>'
+    +pl.map(l=>'<a href="#" onclick="event.preventDefault();filtrarLoja('+l.loja+')" title="'+l.fornecedores+' fornecedores · '+l.n_abertos+' avarias abertas" style="color:inherit;text-decoration:none;'+(+R.loja===l.loja?'font-weight:800;border-bottom:2px solid #F5B800':'')+'">'+esc(l.loja_nome)+' <span class="deve">'+brl(l.deve)+'</span> <span class="mut">('+l.fornecedores+')</span></a>').join('')+'</div>':'';
   $('#kpis').innerHTML=
-    '<div class="kpi"><div class="v neg">'+brl(k.deve)+'</div><div class="l">Fornecedores nos devendo</div><div class="s">'+k.fornecedores_devendo+' fornecedores · '+k.lancamentos_abertos+' lançamentos em aberto</div></div>'
+    '<div class="kpi"><div class="v neg">'+brl(k.deve)+'</div><div class="l">Fornecedores nos devendo'+lj+'</div><div class="s">'+k.fornecedores_devendo+' fornecedores · '+k.lancamentos_abertos+' lançamentos em aberto</div></div>'
    +'<div class="kpi"><div class="v pos">'+brl(k.credito)+'</div><div class="l">Crédito a favor de fornecedor</div><div class="s">'+k.fornecedores_credito+' fornecedor(es) · abate a próxima avaria sozinho</div></div>'
    +'<div class="kpi"><div class="v">'+k.fila+'</div><div class="l">A baixar no ERP</div><div class="s">pagas, marcadas pelo fiscal, ainda abertas lá</div></div>'
    +'<div class="kpi"><div class="v">'+(k.mais_antigo?k.mais_antigo.dias+' d':'—')+'</div><div class="l">Mais antigo em aberto</div><div class="s">'+(k.mais_antigo?esc(k.mais_antigo.fornecedor)+' · '+brl(k.mais_antigo.deve):'')+'</div></div>'
    +'<div class="kpi"><div class="v">'+brl(k.pagos_30d)+'</div><div class="l">Pago nos últimos 30 d</div><div class="s">'+k.n_pagos_30d+' pagamento(s) confirmados pelo fiscal</div></div>';
 }
 function renderFila(){
-  const f=R.fila||[];
+  const f=(R.fila||[]).filter(d=>casaBusca(d.fornecedor,d.codFornec));
   if(!f.length){$('#fila').innerHTML='<div class="card"><h2>A baixar no ERP <span class="n">0</span><span class="sub">o que o fiscal marcou como pago e a prevenção ainda não baixou</span></h2><div class="empty">Nada esperando baixa. Quando o fiscal confirmar um pagamento, a avaria aparece aqui até ser baixada no ERP.</div></div>';return;}
   let h='<div class="card"><h2>A baixar no ERP <span class="n">'+f.length+'</span><span class="sub">o fiscal já marcou como pago: baixe no ERP e a linha some sozinha na próxima leitura (de hora em hora)</span></h2><div class="table-wrap"><table class="t"><thead><tr><th>Avaria ERP</th><th>Loja</th><th>Fornecedor</th><th>Produto</th><th class="r">Valor</th><th>Como foi pago</th><th>Fiscal</th><th>Esperando</th></tr></thead><tbody>';
   for(const d of f){const ult=(d.pagamentos||[]).slice(-1)[0]||{};const pg=(d.pagamentos||[]).map(p=>(R.formas[p.forma]||p.forma)+(p.nota?' · NF '+p.nota:'')+' · '+brl(p.valor)).join('<br>');const dd=dias(ult.em);
@@ -139,25 +159,30 @@ function renderFila(){
 }
 function pagPor(id){const p=(EX&&EX.extrato||[]).find(x=>x.k==='pagamento'&&x.id===id);return p?p.por:null;}
 function renderSemPag(){
-  const f=R.sem_pagamento||[];
+  const f=(R.sem_pagamento||[]).filter(d=>casaBusca(d.fornecedor,d.codFornec));
   if(!f.length){$('#semPag').innerHTML='';return;}
   let h='<div class="card"><h2>Baixada no ERP sem pagamento registrado <span class="n">'+f.length+'</span><span class="sub">a prevenção baixou, mas ninguém disse como o fornecedor pagou: registre o pagamento ou um ajuste</span></h2><div class="table-wrap"><table class="t"><thead><tr><th>Avaria ERP</th><th>Loja</th><th>Fornecedor</th><th>Produto</th><th class="r">Falta</th><th>Baixada</th><th></th></tr></thead><tbody>';
   for(const d of f)h+='<tr><td><b>'+(d.origem&&d.origem.nReg||'—')+'</b><span class="etq">'+dbr(d.data)+' · ERP: '+esc(d.erp&&d.erp.nome||'')+'</span></td><td>'+esc(d.loja_nome)+'</td><td>'+esc(d.fornecedor)+'</td><td>'+esc(d.descricao)+'</td><td class="r deve">'+brl(d.restante)+'</td><td>'+quando(d.erp&&d.erp.baixado_em)+'</td><td><button class="btn btn-sm" onclick="abrirExtrato('+d.codFornec+').then(()=>abrirForm(\'pagamento\',\''+d.id+'\'))">Registrar</button></td></tr>';
   $('#semPag').innerHTML=h+'</tbody></table></div></div>';
 }
 function renderForn(){
-  const b=($('#busca').value||'').trim().toLowerCase(),fs=$('#filSaldo').value;
-  let l=(R.fornecedores||[]).filter(f=>!b||String(f.codFornec)===b||(f.fornecedor||'').toLowerCase().includes(b));
+  const fs=$('#filSaldo').value;
+  let l=(R.fornecedores||[]).filter(f=>casaBusca(f.fornecedor,f.codFornec));
   if(fs==='deve')l=l.filter(f=>f.deve>0);else if(fs==='credito')l=l.filter(f=>f.credito>0);else if(fs==='90')l=l.filter(f=>f.deve>0&&f.mais_antigo_dias>90);
   $('#nForn').textContent=l.length;
-  if(!l.length){$('#tabForn').innerHTML='<div class="empty">Nenhum fornecedor com saldo.</div>';return;}
-  let h='<table class="t"><thead><tr><th>Fornecedor</th><th class="r">Saldo</th><th class="r">Aberto há</th><th class="r">Lanç.</th></tr></thead><tbody>';
-  for(const f of l.slice(0,400))h+='<tr class="clk'+(selecionado===f.codFornec?' sel':'')+'" onclick="abrirExtrato('+f.codFornec+')"><td>'+esc(f.fornecedor)+'<span class="etq">cód. '+f.codFornec+'</span></td><td class="r">'+saldoTxt(f)+'</td><td class="r">'+(f.mais_antigo_dias!=null?'<span class="pill '+(f.mais_antigo_dias>90?'p-neg':f.mais_antigo_dias>30?'p-am':'p-gr')+'">'+f.mais_antigo_dias+' d</span>':'<span class="mut">—</span>')+'</td><td class="r">'+f.n_abertos+'</td></tr>';
+  if(!l.length){$('#tabForn').innerHTML='<div class="empty">Nenhum fornecedor com saldo'+(R.loja?' em '+esc(R.loja_nome):'')+(busca()?' pra essa busca':'')+'.</div>';return;}
+  // sem filtro de loja: uma coluna por loja (quebra por loja, Tiago 26/10); com filtro: só o saldo daquela loja
+  const lojas=R.loja?[]:(R.kpis.por_loja||[]).map(x=>x.loja);
+  const abrev=n=>+n===10?'CD':'L'+n;
+  let h='<table class="t"><thead><tr><th>Fornecedor</th><th class="r">'+(R.loja?'Saldo · '+esc(R.loja_nome):'Total')+'</th>'+lojas.map(n=>'<th class="r" title="'+esc(LJ(n))+'">'+abrev(n)+'</th>').join('')+'<th class="r">Aberto há</th><th class="r">Lanç.</th></tr></thead><tbody>';
+  for(const f of l.slice(0,400))h+='<tr class="clk'+(selecionado===f.codFornec?' sel':'')+'" onclick="abrirExtrato('+f.codFornec+')"><td>'+esc(f.fornecedor)+'<span class="etq">cód. '+f.codFornec+'</span></td><td class="r">'+saldoTxt(f)+'</td>'
+    +lojas.map(n=>{const v=(f.por_loja||{})[n];return '<td class="r'+(v?'':' mut')+'"'+(v?' title="'+esc(LJ(n))+': clique pra ver só esta loja" onclick="event.stopPropagation();abrirExtrato('+f.codFornec+',false,\''+n+'\')" style="cursor:pointer"':'')+'>'+(v?brl(v).replace('R$ ',''):'·')+'</td>';}).join('')
+    +'<td class="r">'+(f.mais_antigo_dias!=null?'<span class="pill '+(f.mais_antigo_dias>90?'p-neg':f.mais_antigo_dias>30?'p-am':'p-gr')+'">'+f.mais_antigo_dias+' d</span>':'<span class="mut">—</span>')+'</td><td class="r">'+f.n_abertos+'</td></tr>';
   $('#tabForn').innerHTML=h+'</tbody></table>'+(l.length>400?'<div class="mut" style="padding:6px 10px;font-size:11px">mostrando 400 de '+l.length+' · use a busca</div>':'');
 }
 let EXLOJA=null;   // 26/10 (Tiago): a conta é da rede, quebrada por loja; clicar numa loja filtra o extrato (o abatimento no Fiscal é sempre por loja)
 async function abrirExtrato(cod,silencioso,loja){
-  if(loja!==undefined)EXLOJA=loja||null;else if(!EX||+EX.codFornec!==+cod)EXLOJA=null;
+  if(loja!==undefined)EXLOJA=loja||null;else if(!EX||+EX.codFornec!==+cod)EXLOJA=lojaFiltro();   // filtro de loja da tela vale pro extrato também
   selecionado=+cod;if(!silencioso)formAberto=null;renderForn();
   $('#extrato').innerHTML='<div class="spinner"></div>';
   try{const r=await fetch('/api/conta-fornecedor/'+cod+(EXLOJA?'?loja='+EXLOJA:''));EX=await r.json();if(EX.error)throw new Error(EX.error);}catch(e){$('#extrato').innerHTML='<div class="empty">Erro: '+esc(e.message)+'</div>';return;}

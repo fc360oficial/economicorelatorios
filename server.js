@@ -8895,7 +8895,7 @@ app.delete('/api/fiscal/testes', (req, res) => { try { res.json({ ok: true, remo
 
 // ── Conta do fornecedor (Prevenção › Conta do fornecedor · faixa dentro da nota no Fiscal · saldo em Fornecedores) ──
 const contaErr = (res, err) => { if (!err.status) console.error('[CONTA-FORN]', err.message); res.status(err.status || 500).json({ error: err.message }); };
-app.get('/api/conta-fornecedor/resumo', (req, res) => { try { res.json(contaForn.resumo()); } catch (err) { contaErr(res, err); } });
+app.get('/api/conta-fornecedor/resumo', (req, res) => { try { res.json(contaForn.resumo({ loja: req.query.loja })); } catch (err) { contaErr(res, err); } });
 app.get('/api/conta-fornecedor/saldo/:codFornec', (req, res) => { try { res.json(contaForn.saldoDe(parseInt(req.params.codFornec))); } catch (err) { contaErr(res, err); } });
 app.get('/api/conta-fornecedor/:codFornec', (req, res) => { try { res.json(contaForn.extrato(parseInt(req.params.codFornec), { loja: req.query.loja })); } catch (err) { contaErr(res, err); } });
 app.post('/api/conta-fornecedor/pagamentos', (req, res) => { try { res.json({ ok: true, pagamento: contaForn.registrarPagamento(req.body || {}, req.session.user?.nome || null), saldo: contaForn.saldoDe(+req.body?.codFornec) }); } catch (err) { contaErr(res, err); } });
