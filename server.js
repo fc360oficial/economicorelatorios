@@ -8758,6 +8758,10 @@ require('./lib/termos-escala-rotas')(app, { pontocerto });
 // pelo ponto × termos, conferência do RH, aprovação da Coordenação, relatório PDF/xlsx ao Financeiro. Ambos só leem o PontoCerto.
 require('./lib/dados-bancarios-rotas')(app, { pontocerto, multer });
 require('./lib/pagamentos-df-rotas')(app, { pontocerto });
+// Auditoria da Folha de Pagamento (27/10/2026, DP / RH › Auditoria da Folha): a Coordenação importa os PDFs do adiantamento e da
+// folha mensal, o módulo identifica cada funcionário no PontoCerto e cruza com os pagamentos nas contas Itaú das lojas (só leitura);
+// diferenças viram divergências com protocolo, setor responsável e prazo. Regras em lib/auditoria-folha.js.
+require('./lib/auditoria-folha-rotas')(app, { pontocerto, multer });
 // Conciliação automática dos pagamentos de domingos/feriados com o extrato Itaú de cada loja (23/10/2026, Tiago: "quero que fique
 // automático"): 10 min após subir e a cada 6 h; só marca pago quem bateu por CPF + valor, o resto vira sugestão na tela do Financeiro.
 setTimeout(function agendaConciliacaoDF() { require('./lib/pagamentos-conciliacao').conciliarTodos().catch(e => console.error('[pagamentos-df] conciliação:', e.message)).finally(() => setTimeout(agendaConciliacaoDF, 6 * 3600000)); }, 10 * 60000);

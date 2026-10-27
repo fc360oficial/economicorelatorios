@@ -70,6 +70,7 @@
         { href: '/teste-tiago.html', ic: 'dashboard', txt: 'TESTE TIAGO' },
         { href: '/escalas.html', ic: 'list', txt: 'Escalas' },
         { href: '/termos-escala.html', ic: 'list', txt: 'Termos de Escala' },
+        { href: '/auditoria-folha.html', ic: 'bank', txt: 'Auditoria da Folha' },
         { href: '/tv-rh-config.html', ic: 'dashboard', txt: 'Painel RH' }
       ]},
     { id: 'financeiro', ic: 'bank', txt: 'Financeiro', sub: [
