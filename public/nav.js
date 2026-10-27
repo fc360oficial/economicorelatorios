@@ -56,8 +56,7 @@
     { sec: 'Operação' }, // itens abaixo em ordem alfabética por txt — manter ao adicionar novos
     { id: 'cahu-distribuidora', ic: 'store', txt: 'CAHU Distribuidora', sub: [
         { href: '/lotes-cd.html',           ic: 'list',     txt: 'Lotes e Validades' },
-        { href: '/cahu-tabela-precos.html', ic: 'download', txt: 'Tabela de Preços' },
-        { href: '/cahu-tv-televendas.html', ic: 'store', txt: 'TV Televendas' }
+        { href: '/cahu-tabela-precos.html', ic: 'download', txt: 'Tabela de Preços' }
       ]},
     { id: 'dedo-duro', ic: 'alert', txt: 'Dedo Duro', sub: [
         { href: '/dedo-duro.html', ic: 'alert', txt: 'Dedo Duro' }
@@ -70,8 +69,7 @@
         { href: '/teste-tiago.html', ic: 'dashboard', txt: 'TESTE TIAGO' },
         { href: '/escalas.html', ic: 'list', txt: 'Escalas' },
         { href: '/termos-escala.html', ic: 'list', txt: 'Termos de Escala' },
-        { href: '/auditoria-folha.html', ic: 'bank', txt: 'Auditoria da Folha' },
-        { href: '/tv-rh-config.html', ic: 'dashboard', txt: 'Painel RH' }
+        { href: '/auditoria-folha.html', ic: 'bank', txt: 'Auditoria da Folha' }
       ]},
     { id: 'financeiro', ic: 'bank', txt: 'Financeiro', sub: [
         { href: '/conciliador.html', ic: 'bank', txt: 'Conciliação de Saídas' },
@@ -114,8 +112,9 @@
         { href: '/backup.html', ic: 'shield', txt: 'Backup' },
         { href: '/pendencias.html', ic: 'alert', txt: 'Pendências' },
         { href: '/negativos.html', ic: 'alert', txt: 'Negativos' },
-        { href: '/tv-acougue-config.html', ic: 'store', txt: 'TV Açougue' },
-        { href: '/paineis-tvs.html', ic: 'dashboard', txt: 'Painéis e TVs' },
+        // Painéis (Tiago, 27/10/26): Painel Compras, Televendas, RH/DP e Açougue + monitor numa página só; SÓ ADMIN
+        // (Tiago, Rodrigo, Donato) — o servidor também trava (server.js, "Rotas exclusivas de admin")
+        { href: '/paineis.html', ic: 'dashboard', txt: 'Painéis', admin: true },
         { href: '/log.html', ic: 'list', txt: 'Log' }
       ]}
   ];
@@ -257,6 +256,15 @@
   }
 
   function montar() {
+    // ?embed=1: página aberta dentro de outra (abas de Processos › Painéis, 27/10/26) — sem menu lateral, sem recuo
+    try {
+      if (new URLSearchParams(location.search).get('embed') === '1') {
+        document.body.classList.add('embed');
+        var se = document.createElement('style'); se.textContent = 'body.embed{margin-left:0!important;padding-top:0!important}';   // design-system.css recua o body quando vê /nav.js
+        document.head.appendChild(se);
+        return;
+      }
+    } catch (e) {}
     if (!document.getElementById('nvic-sprite-holder')) {
       var holder = document.createElement('div');
       holder.id = 'nvic-sprite-holder';
@@ -294,7 +302,8 @@
           + it.sub.map(function (s) {
               var onS = path === s.href ? ' on' : '';
               var esc = s.escolha ? ' data-escolha="' + encodeURIComponent(JSON.stringify({ titulo: s.txt, opcoes: s.escolha })) + '"' : '';
-              return '<a class="dn-item' + onS + '" href="' + s.href + '"' + esc + '>' + icon(s.ic) + '<span class="lbl">' + s.txt + '</span></a>';
+              var adm = s.admin ? ' data-admin="1" style="display:none"' : '';   // só aparece quando /api/me diz perfil admin
+              return '<a class="dn-item' + onS + '" href="' + s.href + '"' + esc + adm + '>' + icon(s.ic) + '<span class="lbl">' + s.txt + '</span></a>';
             }).join('')
           + '</div>'
           + '</div>';
@@ -388,6 +397,8 @@
         var ini = u.nome.trim().split(/\s+/).map(function (p) { return p[0]; }).slice(0, 2).join('').toUpperCase();
         document.getElementById('dn-ava').textContent = ini;
       }
+      /* itens marcados admin:true (Painéis) só pra perfil admin */
+      if (u && u.perfil === 'admin') aside.querySelectorAll('[data-admin]').forEach(function (el) { el.style.display = ''; });
       /* acesso por módulo: esconde seção/grupo/item cujo módulo não está
          liberado pro usuário (lista vem do /api/me, admin recebe todos) */
       if (u && Array.isArray(u.modulos)) {

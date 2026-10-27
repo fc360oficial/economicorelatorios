@@ -271,7 +271,7 @@ app.use((req, res, next) => {
   // de 32 hex validado dentro da rota)
   if (pathMin === '/recebimento.html' || pathMin === '/leitor-teste.html' || pathMin === '/recebimento' || pathMin === '/manifest-recebimento.json' || pathMin.startsWith('/api/recebimento-publico/') || pathMin.startsWith('/api/expedicao-publico/')) return next();
   // Batimento das telas de TV (Processos › Painéis e TVs, 27/10/26): a TV não tem sessão; validado dentro da rota (lib/paineis-tvs.js)
-  if (pathMin === '/api/paineis-publico/batimento') return next();
+  if (pathMin.startsWith('/api/paineis-publico/')) return next();
   // Pré-aquecimento interno (somente localhost)
   if (req.headers['x-internal-warmup'] === 'fc360warmup2026' && ['::1', '127.0.0.1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress)) return next();
   const ext = req.path.split('.').pop().toLowerCase();
@@ -291,9 +291,14 @@ app.use((req, res, next) => {
       if (req.path.startsWith('/api/')) return res.status(403).json({ error: bloqueioGer });
       return res.redirect('/gestao-gerencial.html');
     }
-    // Rotas exclusivas de admin
-    if ((req.path === '/admin-usuarios.html' || req.path.startsWith('/api/admin/')) &&
-        req.session.user.perfil !== 'admin') {
+    // Rotas exclusivas de admin. Processos › Painéis (Tiago, 27/10/26: "só os adms podem usar: Rodrigo, Donato e Tiago"):
+    // a página com as abas, o monitor e as configurações dos 4 painéis. /painel-rh.html e /api/tv-rh/painel (só VER o
+    // painel do ponto, DP / RH) e as rotas *-publico (a TV) ficam fora.
+    const soAdmin = req.path === '/admin-usuarios.html' || req.path.startsWith('/api/admin/')
+      || ['/paineis.html', '/paineis-tvs.html', '/cahu-tv-televendas.html', '/tv-rh-config.html', '/tv-acougue-config.html'].includes(req.path)
+      || req.path.startsWith('/api/paineis/') || req.path === '/api/paineis'
+      || req.path.startsWith('/api/tv-rh/config') || req.path.startsWith('/api/tv-acougue/') || req.path.startsWith('/api/cahu-distribuidora/tv-config');
+    if (soAdmin && req.session.user.perfil !== 'admin') {
       if (req.path.startsWith('/api/')) return res.status(403).json({ error: 'Sem permissão' });
       return res.redirect('/index.html');
     }
@@ -8051,6 +8056,13 @@ app.post('/api/paineis-publico/batimento', (req, res) => {
   try { res.json(paineisTvs.batimento(req.body || {}, logAcessos.ipDe(req))); }
   catch (err) { res.status(400).json({ error: err.message }); }
 });
+// Painel Compras (Processos › Painéis › Painel Compras, 27/10/26): quais dos 5 painéis giram e em que ordem; a TV lê sem login
+app.get('/api/paineis-publico/compras-config', (req, res) => { res.set('Cache-Control', 'no-store'); res.json(paineisTvs.getComprasConfig()); });
+app.get('/api/paineis/compras-config', (req, res) => res.json({ ...paineisTvs.getComprasConfig(), linkTV: `${PUBLIC_URL}/painel-compras.html`, linkLan: 'http://192.168.2.254:3003/painel-compras.html' }));
+app.post('/api/paineis/compras-config', (req, res) => {
+  try { res.json(paineisTvs.salvarComprasConfig(req.body || {}, req.session.user?.nome || null)); }
+  catch (err) { res.status(400).json({ error: err.message }); }
+});
 app.get('/api/paineis', (req, res) => { res.set('Cache-Control', 'no-store'); res.json(paineisTvs.listar()); });
 app.get('/api/paineis/quedas', (req, res) => { try { res.json({ quedas: paineisTvs.quedas(req.query) }); } catch (err) { res.status(400).json({ error: err.message }); } });
 app.get('/api/paineis/config', (req, res) => res.json({ config: paineisTvs.getConfig() }));
@@ -8161,7 +8173,7 @@ app.get('/api/cahu-distribuidora/tv-config/produtos', async (req, res) => {
   catch (err) { res.status(503).json({ error: 'ERP indisponível: ' + err.message }); }
 });
 app.get('/tv-televendas/:token', (req, res) => {
-  if (!tvTelevendas.tokenValido(String(req.params.token).toLowerCase())) return res.status(404).send('Link inválido. Gere um novo link na aba TV Televendas do Centro de Distribuição.');
+  if (!tvTelevendas.tokenValido(String(req.params.token).toLowerCase())) return res.status(404).send('Link inválido. Gere um novo link em Processos → Painéis → Painel Televendas.');
   res.set('Cache-Control', 'no-store');
   res.sendFile(path.join(__dirname, 'public', 'tv-televendas.html'));
 });
@@ -8239,7 +8251,7 @@ app.get('/api/tv-acougue-publico/:token/patrocinio/:id/:tipo', (req, res) => {
   enviarArquivoPatrocinio(String(req.params.id), String(req.params.tipo), res);
 });
 app.get('/tv-acougue/:token', (req, res) => {
-  if (!tvAcougue.tokenValido(String(req.params.token).toLowerCase())) return res.status(404).send('Link inválido. Gere um novo link em Processos → TV Açougue.');
+  if (!tvAcougue.tokenValido(String(req.params.token).toLowerCase())) return res.status(404).send('Link inválido. Gere um novo link em Processos → Painéis → Painel Açougue.');
   res.set('Cache-Control', 'no-store');
   res.sendFile(path.join(__dirname, 'public', 'tv-acougue.html'));
 });
@@ -8767,7 +8779,7 @@ app.post('/api/tv-rh/config/renovar', async (req, res) => {
   catch (err) { res.status(503).json({ error: err.message, totais: tvRh.totais() }); }
 });
 app.get('/tv-rh/:token', (req, res) => {
-  if (!tvRh.tokenValido(String(req.params.token).toLowerCase())) return res.status(404).send('Link inválido. Gere um novo link em DP / RH → Painel RH.');
+  if (!tvRh.tokenValido(String(req.params.token).toLowerCase())) return res.status(404).send('Link inválido. Gere um novo link em Processos → Painéis → Painel RH/DP.');
   res.set('Cache-Control', 'no-store');
   res.sendFile(path.join(__dirname, 'public', 'tv-rh.html'));
 });

@@ -129,14 +129,33 @@ function mostrarPagarVenda() {
   mostrar(frP, dotP, 'pagar');
 }
 
-// ── Rotação: Compras → Rupturas → Margem/Venda → Cronograma Mensal → A Pagar x Venda → Compras ──
+// ── Rotação (27/10/26, Processos › Painéis › Painel Compras): ordem e liga/desliga vêm do servidor
+// (/api/paineis-publico/compras-config, relido a cada 60 s). Padrão: Compras → Rupturas → Margem → Mensal → A Pagar x Venda.
+const PAINEIS = {
+  compras: { fn: mostrarCompras,    done: 'comprasCycleComplete' },
+  ruptura: { fn: mostrarRuptura,    done: 'rupturaCycleComplete' },
+  margem:  { fn: mostrarMargem,     done: 'margemCycleComplete' },
+  mensal:  { fn: mostrarMensal,     done: 'mensalCycleComplete' },
+  pagar:   { fn: mostrarPagarVenda, done: 'pagarVendaCycleComplete' },
+};
+let ORDEM = ['compras', 'ruptura', 'margem', 'mensal', 'pagar'], LIGADOS = {}, CFG_VERSAO = null;
+function ativos() { const a = ORDEM.filter(id => PAINEIS[id] && LIGADOS[id] !== false); return a.length ? a : ['compras']; }
+function proximo() { const a = ativos(); const i = a.indexOf(atual); PAINEIS[a[(i + 1) % a.length]].fn(); }
+async function lerConfig() {
+  try {
+    const r = await fetch('/api/paineis-publico/compras-config?t=' + Date.now(), { cache: 'no-store' });
+    if (!r.ok) return;
+    const c = await r.json();
+    if (Array.isArray(c.ordem) && c.ordem.length) ORDEM = c.ordem;
+    if (c.ligados && typeof c.ligados === 'object') LIGADOS = c.ligados;
+    if (CFG_VERSAO === null) CFG_VERSAO = c.versao || 0;
+    else if ((c.versao || 0) !== CFG_VERSAO) { CFG_VERSAO = c.versao || 0; if (LIGADOS[atual] === false) proximo(); }   // desligaram o que está na tela
+  } catch (e) { /* sem servidor: segue a ordem que já tinha */ }
+}
 window.addEventListener('message', (e) => {
   if (!e.data || !e.data.type) return;
-  if (e.data.type === 'comprasCycleComplete'   && atual === 'compras') mostrarRuptura();
-  if (e.data.type === 'rupturaCycleComplete'   && atual === 'ruptura') mostrarMargem();
-  if (e.data.type === 'margemCycleComplete'    && atual === 'margem')  mostrarMensal();
-  if (e.data.type === 'mensalCycleComplete'    && atual === 'mensal')  mostrarPagarVenda();
-  if (e.data.type === 'pagarVendaCycleComplete' && atual === 'pagar')  mostrarCompras();
+  const p = PAINEIS[atual];
+  if (p && e.data.type === p.done) proximo();
   // fullscreen controlado pelo pai para persistir entre slides
   if (e.data.type === 'requestFullscreen') {
     if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
@@ -163,8 +182,9 @@ dotMG.addEventListener('click', mostrarMargem);
 dotM.addEventListener('click',  mostrarMensal);
 dotP.addEventListener('click',  mostrarPagarVenda);
 
-// ── Início: Compras ──
-mostrarCompras();
+// ── Início: primeiro painel ligado da ordem configurada (Compras, por padrão) ──
+lerConfig().finally(() => PAINEIS[ativos()[0]].fn());
+setInterval(lerConfig, 60000);
 // Painéis e TVs (27/10): o que o painel está mostrando agora, pro batimento (tv-heartbeat.js)
 window.tvSlideAtual = () => ({ compras: 'Compras · painel 1/5', ruptura: 'Rupturas · painel 2/5', margem: 'Margem · painel 3/5', mensal: 'Cronograma Mensal · painel 4/5', pagar: 'A Pagar x Venda · painel 5/5' })[atual] || atual;
 </script>

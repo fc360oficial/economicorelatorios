@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="/design-system.css">
+<script src="/nav.js" defer></script>
+<title>Painéis — Econômico Supermercados</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* Processos › Painéis (Tiago, 27/10/2026: "deixar todos esses painéis em uma aba só em Processos"; SÓ ADMIN — Tiago, Rodrigo,
+   Donato; o servidor trava em "Rotas exclusivas de admin"). Abas: Monitor · Painel Compras · Painel Televendas · Painel RH/DP ·
+   Painel Açougue. As configurações continuam nas páginas de sempre, abertas aqui dentro com ?embed=1 (sem menu). */
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font,'InterVar','Inter','Segoe UI',system-ui,sans-serif);background:var(--pap);color:var(--ink);min-height:100vh;font-size:13px;line-height:1.45}
+.main{padding:24px 24px 0;max-width:1400px;display:flex;flex-direction:column;min-height:100vh}
+.page-hdr{margin-bottom:12px}.page-hdr h1{font-size:21px;font-weight:800}.page-hdr p{font-size:12px;color:var(--ink3);margin-top:2px;max-width:95ch}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--ln);overflow-x:auto}
+.tabs button{font-family:inherit;cursor:pointer;background:none;border:0;padding:9px 14px;color:var(--ink2);font-weight:600;white-space:nowrap;border-bottom:2px solid transparent;font-size:13px;display:flex;align-items:center;gap:7px}
+.tabs button.on{color:var(--ink);border-color:var(--ink)}
+.tabs button:focus-visible{outline:2px solid var(--inf);outline-offset:-2px}
+.tabs .dot{width:8px;height:8px;border-radius:50%;background:var(--ln2);flex-shrink:0}
+.tabs .dot.ligada{background:var(--pos)}.tabs .dot.instavel{background:var(--am)}.tabs .dot.desligada{background:var(--neg)}
+.aba{display:none;flex:1;min-height:0}.aba.on{display:block}
+.aba iframe{width:100%;height:calc(100vh - 150px);min-height:520px;border:0;background:transparent;display:block}
+.num{font-variant-numeric:tabular-nums}.mut{color:var(--ink3)}.mono{font-family:ui-monospace,Consolas,monospace}
+/* aba Painel Compras (configuração própria, feita aqui) */
+.pc{padding:16px 0 24px;display:grid;grid-template-columns:1.2fr 1fr;gap:14px}
+.card{background:var(--crd);border:1px solid var(--ln);border-radius:var(--r-lg);padding:16px 18px;min-width:0}
+.card h2{font-size:14px;font-weight:800;margin-bottom:4px}.card p.d{font-size:12px;color:var(--ink3);margin-bottom:12px}
+.lista{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+.item{display:flex;align-items:center;gap:10px;background:var(--pap);border:1px solid var(--ln);border-radius:var(--r);padding:8px 10px}
+.item.off{opacity:.55}
+.item .n{width:22px;text-align:center;font-weight:800;color:var(--ink3);font-size:12px}
+.item label{display:flex;align-items:center;gap:8px;flex:1;min-width:0;cursor:pointer}
+.item label b{font-weight:700}.item label small{color:var(--ink3);display:block;font-size:11px}
+.item .mv{display:flex;gap:4px}
+.btn{font-family:inherit;cursor:pointer;background:var(--crd);border:1px solid var(--ln2);color:var(--ink);border-radius:var(--r-sm);padding:5px 10px;font-weight:600;font-size:12px}
+.btn:hover{background:var(--pap)}.btn:disabled{opacity:.4;cursor:default}
+.btn.amber{background:var(--am);color:var(--amk);border-color:var(--am);padding:9px 16px;font-size:13px;font-weight:700;border-radius:var(--r)}
+.btn.sq{width:28px;padding:4px 0;text-align:center}
+.acoes{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.msg{font-size:12px;min-height:16px}.msg.ok{color:var(--pos)}.msg.err{color:var(--neg)}
+.links{display:grid;grid-template-columns:auto 1fr auto;gap:8px 12px;align-items:center;font-size:12.5px}
+.links .lb{font-size:10px;color:var(--ink2);font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+.links .lk{background:var(--pap);border:1px solid var(--ln);border-radius:7px;padding:8px 11px;font-size:13px;font-family:ui-monospace,Consolas,monospace;color:var(--ink);width:100%;outline:none;min-width:0}
+.como{font-size:12px;color:var(--ink2);line-height:1.55;margin-top:12px}
+@media (max-width:1199px){.pc{grid-template-columns:1fr}.main{padding:16px 16px 0}}
+</style>
+</head>
+<body>
+<div class="main">
+  <div class="page-hdr">
+    <h1>Painéis</h1>
+    <p>As quatro telas de TV da empresa num lugar só: o que está ligado agora e a configuração de cada painel. Salvou aqui, a TV muda em até 10 segundos (Painel Compras: até 1 minuto). Só administradores.</p>
+  </div>
+  <div class="tabs" role="tablist">
+    <button class="on" data-aba="monitor" role="tab">Monitor</button>
+    <button data-aba="compras" role="tab"><span class="dot" id="dot-compras"></span>Painel Compras</button>
+    <button data-aba="televendas" role="tab"><span class="dot" id="dot-televendas"></span>Painel Televendas</button>
+    <button data-aba="rh" role="tab"><span class="dot" id="dot-rh"></span>Painel RH/DP</button>
+    <button data-aba="acougue" role="tab"><span class="dot" id="dot-acougue"></span>Painel Açougue</button>
+  </div>
+
+  <section class="aba on" id="aba-monitor"><iframe data-src="/paineis-tvs.html?embed=1" title="Monitor dos painéis"></iframe></section>
+
+  <section class="aba" id="aba-compras">
+    <div class="pc">
+      <div class="card">
+        <h2>Painéis que giram na TV</h2>
+        <p class="d">Marque quais entram e arraste a ordem com as setas. O tempo de cada painel é o dele mesmo: cada um avisa quando terminou de mostrar tudo e a TV passa pro próximo.</p>
+        <div class="lista" id="pc-lista"><p class="mut">Carregando…</p></div>
+        <div class="acoes"><button class="btn amber" id="pc-salvar">Salvar</button><span class="msg" id="pc-msg"></span></div>
+      </div>
+      <div class="card">
+        <h2>Link da TV</h2>
+        <p class="d">Abra na TV ou no PC ligado nela. Não tem token: o painel de compras já era público na rede.</p>
+        <div class="links">
+          <span class="lb">Na rede</span><input class="lk" id="pc-lan" readonly><button class="btn" data-copia="pc-lan">Copiar</button>
+          <span class="lb">Fora</span><input class="lk" id="pc-ext" readonly><button class="btn" data-copia="pc-ext">Copiar</button>
+        </div>
+        <p class="como"><b>Tela cheia:</b> toque no botão ⛶ do canto ou tecla F11. A TV lê esta configuração a cada 60 s; se você desligar o painel que está na tela, ela pula pro próximo. A versão da página é conferida a cada 30 s junto com o sinal do monitor, então depois de uma atualização do sistema a TV recarrega sozinha.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="aba" id="aba-televendas"><iframe data-src="/cahu-tv-televendas.html?embed=1" title="Painel Televendas"></iframe></section>
+  <section class="aba" id="aba-rh"><iframe data-src="/tv-rh-config.html?embed=1" title="Painel RH/DP"></iframe></section>
+  <section class="aba" id="aba-acougue"><iframe data-src="/tv-acougue-config.html?embed=1" title="Painel Açougue"></iframe></section>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+async function api(url, opt) { const r = await fetch(url, { cache: 'no-store', ...opt }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || r.statusText); return j; }
+
+// ── abas (iframe só carrega quando a aba abre; #hash lembra a aba) ──
+function abrir(id, push) {
+  document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.aba === id));
+  document.querySelectorAll('.aba').forEach(a => {
+    const on = a.id === 'aba-' + id; a.classList.toggle('on', on);
+    const fr = a.querySelector('iframe'); if (on && fr && !fr.src) fr.src = fr.dataset.src;
+  });
+  if (id === 'compras') carregarCompras();
+  if (push) history.replaceState(null, '', '#' + id);
+}
+document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => abrir(b.dataset.aba, true)));
+const ini = location.hash.replace('#', '');
+abrir(['monitor', 'compras', 'televendas', 'rh', 'acougue'].includes(ini) ? ini : 'monitor', false);
+
+// ── bolinha de status em cada aba (mesma leitura do monitor, a cada 15 s) ──
+async function status() {
+  try {
+    const d = await api('/api/paineis');
+    for (const p of ['compras', 'televendas', 'rh', 'acougue']) {
+      const telas = d.telas.filter(t => t.painel === p);
+      const st = telas.some(t => t.status === 'ligada') ? 'ligada' : telas.some(t => t.status === 'instavel') ? 'instavel' : telas.length ? 'desligada' : '';
+      const el = $('#dot-' + p); el.className = 'dot ' + st; el.title = st ? ({ ligada: 'Ligada', instavel: 'Instável', desligada: 'Desligada' })[st] : 'Nenhum aparelho deu sinal';
+    }
+  } catch (e) {}
+}
+status(); setInterval(status, 15000);
+
+// ── Painel Compras ──
+let PC = null;
+function renderCompras() {
+  const porId = Object.fromEntries(PC.paineis.map(p => [p.id, p]));
+  $('#pc-lista').innerHTML = PC.ordem.map((id, i) => { const p = porId[id]; const on = PC.ligados[id] !== false; return `
+    <div class="item${on ? '' : ' off'}" data-id="${id}">
+      <span class="n num">${i + 1}</span>
+      <label><input type="checkbox" ${on ? 'checked' : ''} data-liga="${id}"><span><b>${esc(p.nome)}</b><small>${esc(p.desc)}</small></span></label>
+      <span class="mv"><button class="btn sq" data-mv="-1" data-id="${id}" ${i === 0 ? 'disabled' : ''} title="Subir">▲</button><button class="btn sq" data-mv="1" data-id="${id}" ${i === PC.ordem.length - 1 ? 'disabled' : ''} title="Descer">▼</button></span>
+    </div>`; }).join('');
+}
+async function carregarCompras() {
+  try {
+    const c = await api('/api/paineis/compras-config'); PC = c;
+    $('#pc-lan').value = c.linkLan; $('#pc-ext').value = c.linkTV;
+    $('#pc-msg').textContent = c.atualizadoEm ? `Salvo ${new Date(c.atualizadoEm).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}${c.atualizadoPor ? ' por ' + c.atualizadoPor : ''}.` : 'Ordem padrão.'; $('#pc-msg').className = 'msg';
+    renderCompras();
+  } catch (e) { $('#pc-lista').innerHTML = `<p class="msg err">${esc(e.message)}</p>`; }
+}
+$('#pc-lista').addEventListener('click', e => {
+  const b = e.target.closest('[data-mv]'); if (!b || !PC) return;
+  const i = PC.ordem.indexOf(b.dataset.id), j = i + Number(b.dataset.mv);
+  if (j < 0 || j >= PC.ordem.length) return;
+  [PC.ordem[i], PC.ordem[j]] = [PC.ordem[j], PC.ordem[i]]; renderCompras();
+});
+$('#pc-lista').addEventListener('change', e => { const c = e.target.closest('[data-liga]'); if (c && PC) { PC.ligados[c.dataset.liga] = c.checked; renderCompras(); } });
+$('#pc-salvar').addEventListener('click', async () => {
+  try { const c = await api('/api/paineis/compras-config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ordem: PC.ordem, ligados: PC.ligados }) }); PC = { ...PC, ...c }; renderCompras(); $('#pc-msg').textContent = 'Salvo. A TV muda em até 1 minuto.'; $('#pc-msg').className = 'msg ok'; }
+  catch (e) { $('#pc-msg').textContent = 'Não salvou: ' + e.message; $('#pc-msg').className = 'msg err'; }
+});
+document.querySelectorAll('[data-copia]').forEach(b => b.addEventListener('click', async () => {
+  const inp = $('#' + b.dataset.copia); inp.select();
+  try { await navigator.clipboard.writeText(inp.value); b.textContent = 'Copiado'; setTimeout(() => b.textContent = 'Copiar', 1500); } catch (e) { document.execCommand && document.execCommand('copy'); }
+}));
+</script>
+</body>
+</html>
