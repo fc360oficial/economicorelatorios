@@ -147,18 +147,32 @@ test('8 · recusa de assinatura com testemunhas; "nenhuma medida" encerra sem do
   const h = D.historicoColaborador(2001, U.rh); assert.equal(h.penalidades.length, 1); assert.equal(h.administrativas.length, 1);
 });
 
+test('8b · perfil gerencial (celular) é gerente da loja_id sem designação: abre, responde, vê só a própria loja', async () => {
+  const gc = { usuario: 'cel4', nome: 'Gerente Celular E4', perfil: 'gerencial', loja_id: 4 }; const gc5 = { usuario: 'cel5', nome: 'Gerente Celular E5', perfil: 'gerencial', loja_id: 5 };
+  assert.equal(D.permissoes(gc).solicitar, true); assert.equal(D.permissoes(gc).gerencial, true); assert.deepEqual(D.lojasGerente(gc), [4]);
+  assert.equal(D.permissoes({ usuario: 'semloja', perfil: 'gerencial' }).ver, false);
+  await assert.rejects(D.criar(gc, oc({ colabId: 2001 }), deps), erroStatus(403), 'colaborador da loja 5');
+  const s = await D.criar(gc, oc({ motivo: 'conduta_inadequada', data: D._util.somaDias(hoje, -9), descricao: 'Discussão com cliente na frente do caixa, com palavras de baixo calão, após orientação anterior.' }), deps);
+  assert.equal(s.status, 'enviado_rh'); assert.equal(s.historico[0].papeis[0], 'gerente (celular)');
+  assert.ok(D.podeVer(gc, s)); assert.equal(D.podeVer(gc5, s), false); assert.ok(D.podeVer(U.rh, s));
+  assert.equal(D.painel(gc).lista.some(x => x.protocolo === s.protocolo), true); assert.equal(D.painel(gc5).lista.some(x => x.protocolo === s.protocolo), false);
+  D.analisar(s.protocolo, U.rh); D.esclarecer(s.protocolo, U.rh, 'Havia testemunhas? Informe os nomes.'); assert.equal(D.pendencias(gc).n, 1);
+  D.responder(s.protocolo, gc, 'Sim: duas operadoras de caixa presenciaram.'); assert.equal(D.obter(s.protocolo).status, 'em_analise_rh');
+  D.cancelar(s.protocolo, U.rh, 'Encerrado no teste do perfil gerencial.');
+});
+
 test('9 · painel, listagem com escopo, relatórios (xlsx/pdf) e configuração', async () => {
-  const pg = D.painel(U.ger4); assert.equal(pg.lista.length, 3, 'P1, P2 e o cancelado'); assert.equal(pg.indicadores.concluidos, 1); assert.equal(pg.indicadores.indeferidos, 1);
-  assert.equal(D.painel(U.ger5).lista.length, 2); assert.equal(D.painel(U.coord).lista.length, 5); assert.equal(D.painel(U.rh2).lista.length, 2);
-  assert.equal(D.listar(U.coord, { status: 'concluido' }).length, 3); assert.equal(D.listar(U.coord, { q: 'ana paula' }).length, 3); assert.equal(D.listar(U.coord, { medida: 'advertencia' }).length, 2);
+  const pg = D.painel(U.ger4); assert.equal(pg.lista.length, 4, 'P1, P2, o cancelado e o do celular'); assert.equal(pg.indicadores.concluidos, 1); assert.equal(pg.indicadores.indeferidos, 1);
+  assert.equal(D.painel(U.ger5).lista.length, 2); assert.equal(D.painel(U.coord).lista.length, 6); assert.equal(D.painel(U.rh2).lista.length, 2);
+  assert.equal(D.listar(U.coord, { status: 'concluido' }).length, 3); assert.equal(D.listar(U.coord, { q: 'ana paula' }).length, 4); assert.equal(D.listar(U.coord, { medida: 'advertencia' }).length, 2);
   assert.throws(() => D.relatorio(U.ger4), erroStatus(403));
-  const r = D.relatorio(U.dir); assert.equal(r.totais.solicitacoes, 5); assert.equal(r.totais.suspensoes, 1); assert.equal(r.totais.advertencias, 1); assert.equal(r.totais.indeferimentos, 1); assert.equal(r.totais.juridico, 1); assert.ok(r.totais.tempoMedioAnaliseHoras >= 0);
-  assert.equal(r.porLoja.find(l => l.loja === 4).total, 3);
+  const r = D.relatorio(U.dir); assert.equal(r.totais.solicitacoes, 6); assert.equal(r.totais.suspensoes, 1); assert.equal(r.totais.advertencias, 1); assert.equal(r.totais.indeferimentos, 1); assert.equal(r.totais.juridico, 1); assert.ok(r.totais.tempoMedioAnaliseHoras >= 0);
+  assert.equal(r.porLoja.find(l => l.loja === 4).total, 4);
   const x = await D.relatorioXlsx(U.coord, {}); assert.ok(x.byteLength > 1000); const pdf = await D.relatorioPdf(U.coord, {}); assert.equal(pdf.slice(0, 5).toString(), '%PDF-');
   assert.throws(() => D.salvarConfig({ maxDiasSuspensao: 45 }, U.coord), /474/);
   assert.throws(() => D.salvarConfig({ validadoJuridico: true }, U.rh), erroStatus(403));
   D.salvarConfig({ advertencia: { titulo: 'ADVERTÊNCIA DISCIPLINAR' } }, U.rh); assert.equal(D.config().validadoJuridico, false);
   D.salvarConfig({ validadoJuridico: true }, U.jur); assert.equal(D.config().validadoJuridico, true); assert.equal(D.config().validadoPor, 'jur');
-  const d = D.detalhe(P1, U.ger4); assert.equal(d.historicoColaborador.administrativas.length, 2); assert.ok(d.historico.length >= 10);
+  const d = D.detalhe(P1, U.ger4); assert.equal(d.historicoColaborador.administrativas.length, 3); assert.ok(d.historico.length >= 10);
   assert.equal(D.avisarPrazos(), 0);
 });

@@ -64,6 +64,9 @@ test('filtrarPorLista e podeLista', () => {
 test('bloqueioGerencial: gerente só na Gestão Gerencial e só a própria loja', () => {
   const g = { perfil: 'gerencial', loja_id: 3 };
   assert.equal(e.bloqueioGerencial(g, '/gestao-gerencial.html', {}), null);
+  assert.equal(e.bloqueioGerencial(g, '/gestao-disciplinar.html', {}), null, 'Gestão Disciplinar liberada pro gerente (27/10)');
+  assert.equal(e.bloqueioGerencial(g, '/api/disciplinar/painel', { abertas: '1' }), null);
+  assert.ok(e.bloqueioGerencial(g, '/api/disciplinar-outra', {}));
   assert.equal(e.bloqueioGerencial(g, '/api/me', {}), null);
   assert.equal(e.bloqueioGerencial(g, '/api/gestao-gerencial', { loja: '3', mes: '10' }), null);
   assert.equal(e.bloqueioGerencial(g, '/api/top-produtos', { loja: '3' }), null);

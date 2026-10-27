@@ -94,6 +94,17 @@ main{flex:1;padding:18px 24px;display:flex;flex-direction:column;gap:16px}
 .kb{margin-top:10px;height:3px;background:var(--bg2);border-radius:3px;overflow:hidden}
 .kb div{height:100%;border-radius:3px;transition:width .7s ease}
 
+/* ─── GESTÃO DISCIPLINAR (27/10/26): a parte do gerente — pendências e atalhos; o fluxo inteiro abre em /gestao-disciplinar.html ─── */
+#disc{display:none}
+#disc .d-bd{padding:12px 18px;display:flex;flex-direction:column;gap:10px}
+#disc .d-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+#disc .d-top b{font-size:13px}
+#disc .d-btn{background:var(--brand);color:var(--brand-ink);border:none;border-radius:8px;font-size:11px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;padding:9px 14px;text-decoration:none;white-space:nowrap}
+#disc .d-btn.gh{background:var(--bg2);color:var(--text)}
+#disc .d-item{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--border);text-decoration:none;color:var(--text)}
+#disc .d-item:first-of-type{border-top:none}
+#disc .d-item b{font-size:12.5px;display:block}#disc .d-item small{font-size:11px;color:var(--text3)}#disc .d-item .st{margin-left:auto;text-align:right;flex:none}
+#disc .d-alerta{background:var(--amber-bg);color:var(--amber);border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600}
 /* ─── SEÇÃO ─── */
 .secao{background:var(--card);
   border:1px solid var(--border);border-radius:var(--r);overflow:hidden;display:flex;flex-direction:column;box-shadow:0 1px 2px rgba(22,35,63,.04)}
@@ -178,6 +189,11 @@ tbody td:first-child{text-align:left;color:var(--text);font-weight:600;max-width
 </div>
 
 <main>
+
+  <div class="secao" id="disc">
+    <div class="sh"><h2>Gestão Disciplinar</h2><span id="disc-sub"></span></div>
+    <div class="d-bd" id="disc-bd"></div>
+  </div>
 
   <div class="kpi-grid" id="kpi-grid">
     <div style="grid-column:1/-1" class="loading"><div class="spin"></div></div>
@@ -525,6 +541,26 @@ function renderTop(d){
   document.getElementById('lbl-topq').textContent=`${MF[+d.meta.mes]} ${d.meta.ano}`;
   pv.style.display='grid';
 }
+
+// Gestão Disciplinar (27/10/26): só aparece pra quem é gerente no módulo (perfil gerencial com loja ou designado na central de pessoas)
+async function discCarregar(){
+  const sec=document.getElementById('disc'),bd=document.getElementById('disc-bd');
+  try{
+    const me=await fetch('/api/disciplinar/me');if(!me.ok)return;const M=await me.json();if(!M.solicitar)return;
+    const r=await fetch('/api/disciplinar/painel?abertas=1');if(!r.ok)return;const P=await r.json();
+    const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+    const dBR=s=>s?s.slice(8,10)+'/'+s.slice(5,7)+'/'+s.slice(0,4):'';
+    const AC={responder:'Responder ao RH',comunicar:'Imprimir e comunicar',anexar_assinado:'Anexar assinado',enviar:'Enviar ao RH'};
+    const minhas=P.lista.filter(s=>s.acoes.some(a=>AC[a]));
+    const cls=s=>s.status==='correcao_documental'?'bd':s.acoes.some(a=>AC[a])?'bw':s.status==='concluido'?'bu':'bb';
+    document.getElementById('disc-sub').textContent=P.lista.length+' em andamento';
+    bd.innerHTML='<div class="d-top"><b>'+(minhas.length?minhas.length+' aguardando sua ação':'Nada pendente com você')+'</b><span style="flex:1"></span><a class="d-btn" href="/gestao-disciplinar.html#nova">+ Solicitar medida</a><a class="d-btn gh" href="/gestao-disciplinar.html#docs">Documentos</a><a class="d-btn gh" href="/gestao-disciplinar.html#painel">Ver tudo</a></div>'+
+      (minhas.length?'<div class="d-alerta">Advertência ou suspensão só vale depois de impressa, comunicada, assinada (ou recusa registrada) e devolvida ao RH.</div>':'')+
+      (P.lista.length?'<div>'+P.lista.slice(0,6).map(s=>{const a=s.acoes.find(x=>AC[x]);return '<a class="d-item" href="/gestao-disciplinar.html#p='+esc(s.protocolo)+'"><div><b>'+esc(s.colaborador.nome)+'</b><small>'+esc(s.protocolo)+' · '+esc(s.medidaDecididaTxt||s.medidaSugeridaTxt)+' · '+esc(s.motivoTxt)+' · ocorrência '+dBR(s.dataOcorrencia)+'</small></div><div class="st"><span class="badge '+cls(s)+'">'+esc(a?AC[a]:s.statusTxt)+'</span>'+(s.prazo&&!s.final?'<br><small style="color:var(--text3)">até '+dBR(s.prazo.limite)+'</small>':'')+'</div></a>';}).join('')+'</div>':'<small style="color:var(--text3)">Nenhuma solicitação em andamento na sua loja.</small>');
+    sec.style.display='flex';
+  }catch(e){}
+}
+discCarregar();
 
 fetch('/api/me').then(r=>r.json()).then(u=>{
   if(u.perfil==='gerencial'&&u.loja_id){
