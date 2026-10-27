@@ -234,7 +234,17 @@ function render() {
     <div class="t at"><span class="k">Instáveis</span><span class="v num">${r.instaveis}</span></div>
     <div class="t off"><span class="k">Desligadas</span><span class="v num">${r.desligadas}</span></div>
     <div class="t"><span class="k">Conferido</span><span class="v num">${hhmm(D.agora)}<small>a cada 10 s</small></span></div>`;
-  $('#telas').innerHTML = D.telas.length ? D.telas.map(cartao).join('') : '<div class="vazio" style="grid-column:1/-1">Nenhuma tela deu sinal ainda. Abra o link da TV num aparelho: ela aparece aqui em até 30 segundos.</div>';
+  // painel sem nenhum aparelho: cartão tracejado dizendo se a TV está chamando o servidor com a página antiga (F5) ou se ninguém abriu
+  const semTela = (D.semTela || []).map(p => {
+    const recente = p.apiSeg != null && p.apiSeg < 120;
+    const nota = recente
+      ? `<div class="note warn">A TV está mostrando esta página (chamou o servidor há ${fmtSeg(p.apiSeg)}, aparelho ${esc(p.apiIp || '?')}), mas numa versão antiga, sem o sinal. Dê um F5 na TV uma vez: ela recarrega e aparece aqui.</div>`
+      : p.apiEm ? `<div class="note">Nenhum aparelho com esta página aberta agora. A última vez que a TV chamou o servidor foi ${ehHoje(p.apiEm) ? 'às' : 'em ' + dia(p.apiEm) + ' às'} ${hhmm(p.apiEm)}${p.apiIp ? ' (aparelho ' + esc(p.apiIp) + ')' : ''}.</div>`
+      : '<div class="note">Nenhum aparelho abriu esta página desde que o monitor entrou no ar. Quando a TV abrir o link ela aparece aqui sozinha.</div>';
+    return `<div class="tv nunca"><div class="hd"><div><h3>${esc(p.nome)}</h3><div class="loc">${esc(p.local)}</div></div><span class="pill nunca">${recente ? 'Página antiga' : 'Sem sinal'}</span></div>
+      <div class="big num">—<small>${recente ? 'sem o sinal de 30 s' : 'nenhum aparelho'}</small></div>${nota}</div>`;
+  }).join('');
+  $('#telas').innerHTML = (D.telas.map(cartao).join('') + semTela) || '<div class="vazio" style="grid-column:1/-1">Nenhuma tela deu sinal ainda. Abra o link da TV num aparelho: ela aparece aqui em até 30 segundos.</div>';
   const hoje = [];
   for (const t of D.telas) for (const q of (t.dia ? t.dia.quedas : [])) hoje.push({ ...q, nome: t.nome, local: t.local, aberta: !q.ate || (t.status === 'desligada' && q.ate === t.dia.agora) });
   hoje.sort((a, b) => b.de - a.de);

@@ -8166,6 +8166,7 @@ app.get('/tv-televendas/:token', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'tv-televendas.html'));
 });
 app.get('/api/tv-televendas-publico/:token', async (req, res) => {
+  paineisTvs.apiVista('televendas', logAcessos.ipDe(req));   // Painéis e TVs: a página da TV chamou o servidor (mesmo sem batimento)
   if (!tvTelevendas.tokenValido(String(req.params.token).toLowerCase())) return res.status(404).json({ error: 'Link inválido' });
   res.set('Cache-Control', 'no-store');
   try {
@@ -8243,6 +8244,7 @@ app.get('/tv-acougue/:token', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'tv-acougue.html'));
 });
 app.get('/api/tv-acougue-publico/:token', async (req, res) => {
+  paineisTvs.apiVista('acougue', logAcessos.ipDe(req));
   if (!tvAcougue.tokenValido(String(req.params.token).toLowerCase())) return res.status(404).json({ error: 'Link inválido' });
   res.set('Cache-Control', 'no-store');
   try {
@@ -8770,6 +8772,7 @@ app.get('/tv-rh/:token', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'tv-rh.html'));
 });
 app.get('/api/tv-rh-publico/:token', async (req, res) => {
+  paineisTvs.apiVista('rh', logAcessos.ipDe(req));
   if (!tvRh.tokenValido(String(req.params.token).toLowerCase())) return res.status(404).json({ error: 'Link inválido' });
   res.set('Cache-Control', 'no-store');
   try {
