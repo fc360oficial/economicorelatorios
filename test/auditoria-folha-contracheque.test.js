@@ -91,3 +91,11 @@ test('Auditoria da Folha: recibo do sistema de folha com rótulo DEPOIS do valor
   assert.strictEqual(b.linhas[0].vias, 2);   // segunda via ignorada, não somada
   assert.strictEqual(A._interno.competenciaDoTexto(pages[0].text), '2026-09');
 });
+
+test('Auditoria da Folha: loja detectada pelo CNPJ da empresa do recibo', async () => {
+  const A = require('../lib/auditoria-folha');
+  assert.deepStrictEqual(A._interno.lojaDoTexto('CAHU COMERCIO DE ALIMENTOS LTDA\n21.425.302/0001-81\tCNPJ: \tCC:\n').loja, 1);
+  assert.strictEqual(A._interno.lojaDoTexto('CAHU COMERCIO DE ALIMENTOS LTDA\n21.425.302/0001-81').empresa, 'CAHU COMERCIO DE ALIMENTOS LTDA');
+  assert.strictEqual(A._interno.lojaDoTexto('30.148.015/0001-62 e 39.762.002/0001-53').varios, true);
+  assert.strictEqual(A._interno.lojaDoTexto('sem cnpj nenhum 12.345.678/0001-90').loja, null);
+});
