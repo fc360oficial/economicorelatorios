@@ -205,6 +205,7 @@ body.v-home #home{display:flex}
 .pt-r .gv-tag{justify-self:end;align-self:center}
 .pt-banco{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--card);border-radius:12px;padding:10px 12px;margin-top:6px;font-size:12px;color:var(--text2);font-weight:600}
 .pt-banco b{font-size:16px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--text)}.pt-banco b.ok{color:var(--green)}.pt-banco b.ruim{color:var(--red)}
+.pt-saldo{display:flex;flex-direction:column;align-items:flex-end;line-height:1.15}.pt-saldo small{font-size:10.5px;font-weight:700;color:var(--text3)}.pt-saldo small.ok{color:var(--green)}.pt-saldo small.ruim{color:var(--red)}
 .pm-div{font-size:11.5px;color:var(--text2);padding:6px 4px 0}
 @media(max-width:560px){.pg-b{--px:14px}.pt{grid-template-columns:68px 54px 1fr auto;column-gap:8px;padding:2px 10px 0}.pt-v{font-size:14px}.pt-r .gv-tag{font-size:9px;padding:2px 5px}}
 /* ─── TRAVA: app instalado + notificações (27/10/26, Tiago: "forçar o gerente instalar o app no celular e ativar as notificações").
@@ -745,16 +746,14 @@ let PONTO_ABERTO=null;
 const hm=v=>v||'—';
 const TAG_CLS=s=>s==='sem'||s==='sem_retorno'?'sem':s==='atraso'?'atraso':s==='apuracao'?'apur':s==='aguardando'||s==='pendente'||s==='encerrada'||s==='intervalo'?'div':'ok';
 function pontoAbrir(id){PONTO_ABERTO=PONTO_ABERTO===id?null:id;paginaPonto();}
-// Detalhe da pessoa (Tiago, 27/10: "ajustar o layout da informação quando abre"): tabela Previsto × Bateu, uma linha por marcação,
-// diferença em minutos ao lado do batido (+87 min em vermelho, −3 min em verde; na saída é o contrário) e situação curta à direita.
+// Detalhe da pessoa (Tiago, 27/10: "ajustar o layout da informação quando abre"; "não precisa colocar nas batidas − ou mais"): tabela Previsto × Bateu, uma linha por marcação,
+// situação curta à direita; sem diferença em minutos nas batidas — o saldo de horas fica embaixo, dizendo se é positivo ou negativo.
 const TAG_CURTA={ok:'No horário',folga_trab:'Folga trab.',atraso:'Atraso',aguardando:'Aguardando',intervalo:'Em intervalo',retornou:'Retornou',jornada:'Em jornada',encerrada:'Encerrada',sem:'Sem marcação',sem_retorno:'Sem retorno',pendente:'Pendente',apuracao:'Apuração'};
 const minHM=v=>{const m=/^(\d{1,2}):(\d{2})/.exec(String(v||''));return m?(+m[1])*60+(+m[2]):null;};
 function pontoLinha(rot,prev,bat,sit,tipo){
   if(!prev&&!bat)return '';
   const s=(sit&&sit.sit)||(bat?'ok':'aguardando');
-  const dp=minHM(prev),db=minHM(bat);let delta='',dc='';
-  if(dp!=null&&db!=null){const d=db-dp;if(d!==0){delta=(d>0?'+':'−')+Math.abs(d)+' min';dc=tipo==='saida'?(d<0?'ruim':'ok'):(d>0?'ruim':'ok');}}
-  return `<div class="pt-r"><div class="pt-l">${rot}</div><div class="pt-v${prev?'':' vz'}">${hm(prev)}</div><div class="pt-v${bat?'':' vz'}">${hm(bat)}${delta?`<small class="${dc}">${delta}</small>`:''}</div><span class="gv-tag ${TAG_CLS(s)}">${esc(TAG_CURTA[s]||(sit&&sit.txt)||s)}</span></div>`;
+  return `<div class="pt-r"><div class="pt-l">${rot}</div><div class="pt-v${prev?'':' vz'}">${hm(prev)}</div><div class="pt-v${bat?'':' vz'}">${hm(bat)}</div><span class="gv-tag ${TAG_CLS(s)}">${esc(TAG_CURTA[s]||(sit&&sit.txt)||s)}</span></div>`;
 }
 function pontoDetalhe(x){
   const pv=x.previsto||{};
@@ -764,7 +763,7 @@ function pontoDetalhe(x){
     +pontoLinha('Saída',pv.saida,x.saida,x.sit&&x.sit.saida,'saida');
   const div=(x.divergencias||[]).filter(d=>!/^Atraso de /.test(d));
   // banco de horas (Tiago, 27/10: "hora extra total: negativa -10:20 N, positiva 15:25 P") = saldo oficial acumulado do PontoCerto
-  const bm=x.banco_min;const banco=bm==null?'':`<div class="pt-banco"><span>Banco de horas · saldo total</span><b class="${bm<0?'ruim':bm>0?'ok':''}">${fmtBanco(bm)}</b></div>`;
+  const bm=x.banco_min;const banco=bm==null?'':`<div class="pt-banco"><span>Saldo de horas</span><span class="pt-saldo"><b class="${bm<0?'ruim':bm>0?'ok':''}">${fmtBanco(bm)}</b><small class="${bm<0?'ruim':bm>0?'ok':''}">${bm<0?'horas negativas':bm>0?'horas positivas':'sem saldo'}</small></span></div>`;
   return `<div class="pm-wrap"><div class="pt"><div class="pt-h"><div></div><div>Previsto</div><div>Bateu</div><div></div></div>${rows}</div>${banco}${div.length?`<div class="pm-div">${div.map(esc).join(' · ')}</div>`:''}</div>`;
 }
 function fmtBanco(min){const a=Math.abs(min||0),h=Math.floor(a/60),m=a%60;const t=h+':'+String(m).padStart(2,'0');return min<0?'-'+t+' N':min>0?t+' P':'0:00';}
