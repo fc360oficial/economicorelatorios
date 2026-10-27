@@ -73,6 +73,7 @@ table.forntab tr.off td:last-child{opacity:1}
 .status-pill.finalizada{background:var(--posw);color:var(--pos)}
 .status-pill.cancel{background:var(--negw);color:var(--neg)}
 .status-pill.off{background:var(--wsh);color:var(--ink3)}
+.status-pill.atencao{background:#FDE2D3;color:#C2410C}
 .link-btn{background:none;border:none;color:var(--inf);font-weight:700;font-size:12px;cursor:pointer;padding:0}
 .numgrp{display:inline-flex;gap:5px;align-items:center}
 .numcirc{width:28px;height:28px;border-radius:50%;border:2px solid var(--ln2);background:var(--crd);display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:var(--ink2);cursor:pointer;font-family:inherit}
@@ -288,6 +289,7 @@ td.price.manual{box-shadow:inset 0 0 0 2px var(--inf)}
 .hist-row:first-child{border-top:none}
 .wa{display:inline-flex;align-items:center;gap:5px;background:#25D366;color:#fff;border:none;border-radius:8px;padding:7px 11px;font-weight:800;font-size:11.5px;cursor:pointer;text-decoration:none;white-space:nowrap}
 .wa.off{background:var(--wsh);color:var(--ink3);cursor:default}
+.wa.lembrar{background:#B45309}
 .mini{font-size:11px;color:var(--ink3)}
 .chip-forn{display:inline-flex;align-items:center;gap:8px;background:var(--wsh);border-radius:20px;padding:5px 10px;font-size:12px;font-weight:700;margin:3px 6px 3px 0}
 .chip-forn button{border:none;background:none;color:var(--neg);cursor:pointer;font-weight:800;padding:0}
@@ -638,8 +640,11 @@ table.cot-lista .acoes-row,table.ped-t .acoes-row{flex-wrap:nowrap}
   .screen:not(#s1) .btn.sm{padding:5px 8px;font-size:11px}
   .kpis{gap:10px}.kpi{padding:12px 14px}
   table.acomp-t td:nth-child(1){max-width:200px}table.acomp-t td:nth-child(2){max-width:150px}table.acomp-t td:nth-child(6){max-width:130px}table.acomp-t td:nth-child(7){max-width:200px}
-  table.acomp-t .acoes-row{flex-wrap:wrap;max-width:200px;gap:4px}
-  table.acomp-t .acoes-row .btn.sm,table.acomp-t .acoes-row .wa{padding:5px 8px;font-size:11.5px}
+  table.acomp-t td:last-child{min-width:220px}
+  table.acomp-t td .acoes-row{flex-wrap:wrap;max-width:216px;gap:4px}   /* "td" no seletor: ganha da regra base de .acoes-row que vem depois no CSS (27/10/26) */
+  table.acomp-t .wa.lembrar .lw{display:none}
+  table.acomp-t .status-pill.atencao{white-space:normal;text-align:center;line-height:1.25;max-width:112px}
+  table.acomp-t td .acoes-row .btn.sm,table.acomp-t td .acoes-row .wa{padding:5px 8px;font-size:11.5px}
   table.acomp-t tbody td{padding:8px 6px}
   .canal-resumo{display:block;margin-left:0}
   table.ped-t td:nth-child(2),table.ped-t td:nth-child(6){max-width:200px}
@@ -1198,7 +1203,9 @@ function statusCot(c){
   if (c.abriram > 0 || c.responderam > 0) return {k:'digitacao', txt:'Em digitação ' + c.responderam + '/' + c.convidados, cls:'aberta'};
   return {k:'aguardando', txt:'Aguardando fornecedores', cls:'off'};
 }
-function stForn(f){ return f.status === 'finalizado' ? '<span class="status-pill finalizada">Respondido</span>' : (f.status === 'digitacao' ? '<span class="status-pill aberta">Digitando</span>' : '<span class="status-pill off">' + (f.enviadoEm ? 'Link enviado' : 'Aguardando') + '</span>'); }
+// "Digitou N · não enviou" (Tiago, 27/10/26): vendedor que salvou preço e não tocou em "Enviar proposta" — os preços já contam no
+// comparativo, mas ele e o(a) comprador(a) achavam que a proposta tinha sido enviada. Sem preço nenhum, "Abriu · sem preço".
+function stForn(f){ if (f.status === 'finalizado') return '<span class="status-pill finalizada">Respondido</span>'; if (f.status === 'digitacao') { if (f.cotados == null) return '<span class="status-pill aberta">Digitando</span>'; return f.cotados > 0 ? '<span class="status-pill atencao" title="Digitou preço mas não tocou em Enviar proposta. Os preços já contam no comparativo, mas a proposta não foi enviada">Digitou ' + f.cotados + ' · não enviou</span>' : '<span class="status-pill aberta" title="Abriu o link e ainda não digitou nenhum preço">Abriu · sem preço</span>'; } return '<span class="status-pill off">' + (f.enviadoEm ? 'Link enviado' : 'Aguardando') + '</span>'; }
 function coberturaBand(dias){
   if (dias == null) return {label:'sem venda', cls:'warn'};
   if (dias <= 7) return {label:'crítico', cls:'bad'};
@@ -1816,6 +1823,9 @@ function topoTela(titulo, acoes, info){
   return '<div class="pedtop"><button class="btn ghost sm" onclick="goScreen(\'s1\')" title="Voltar à lista de cotações">← Monitor</button><span class="pt-lbl">' + titulo + ' da cotação <b>#' + CUR.id + ' · ' + esc(CUR.nome) + '</b> <span class="status-pill ' + st.cls + '">' + st.txt + '</span>' + (CUR.teste ? ' <span class="status-pill" style="background:var(--amw);color:var(--amk)">TESTE · nada vai pra vendedor real</span>' : '') + '</span><span style="flex:1"></span><span class="pt-acoes">' + (acoes || '') + '</span></div>' + (info ? '<div class="pt-info">' + info + '</div>' : '');
 }
 // Com "Exigir login" ligado no Portal do Fornecedor (canais.exigeLogin), a mensagem já avisa que precisa criar o login (Tiago, 13/10)
+// Lembrete pra quem digitou preço e não tocou em "Enviar proposta" (Tiago, 27/10/26): mensagem pronta, o(a) comprador(a) confere e envia
+function msgLembrete(f, v){ v = v || f.vendedor; return 'Olá' + (v && v.nome ? ', ' + v.nome : '') + '! Aqui é do Econômico Supermercado (Rede Cahu). Na cotação #' + CUR.id + ' – ' + CUR.nome + ' você já digitou ' + f.cotados + ' preço(s), mas a proposta ainda NÃO foi enviada. Pra concluir, abra o link, preencha o bloco "Estamos atualizando nosso cadastro de fornecedor" (e-mail, boleto, entrega e pedido mínimo) e toque em ENVIAR PROPOSTA: ' + f.link + (CUR.prazo ? ' . Prazo: ' + dtp(CUR.prazo) : '') + ' . Seus preços já estão salvos, nada se perde. Obrigado(a)!'; }
+function waLembrar(f){ if (!(f.status === 'digitacao' && f.cotados > 0)) return ''; var vs = [f.vendedor].concat(f.vendedores || []).filter(function(v){ return v && v.whats; }); return vs.map(function(v){ return '<a class="wa lembrar" href="' + waLink(v.whats, msgLembrete(f, v)) + '" target="_blank" title="Lembrar ' + esc(v.nome || v.whats) + ' de tocar em Enviar proposta (mensagem pronta no WhatsApp)">⏰ Lembrar' + (vs.length > 1 ? ' ' + esc(String(v.nome || v.whats).split(' ')[0]) : '<span class="lw"> de enviar</span>') + '</a>'; }).join(''); }
 function msgWhats(f, v){ v = v || f.vendedor; var obrig = !!(CUR.canais && CUR.canais.exigeLogin); return 'Olá' + (v && v.nome ? ', ' + v.nome : '') + '! Cotação #' + CUR.id + ' – ' + CUR.nome + ' do Econômico Supermercado (Rede Cahu). ' + (obrig ? 'Pra responder, abra o link, crie seu login no nosso Portal do Fornecedor (seu WhatsApp e um PIN de 6 números, leva 1 minuto) e preencha seus preços: ' : 'Por favor, preencha seus preços neste link: ') + f.link + (CUR.prazo ? ' . Prazo pra resposta: ' + dtp(CUR.prazo) : '') + ' . Obrigado(a)!'; }
 function dtFull(v){ if (!v) return '—'; var d = new Date(v); if (isNaN(d)) return esc(String(v)); return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear() + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
 function diaSemana(v){ var d = new Date(v); if (isNaN(d)) return ''; return ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'][d.getDay()]; }
@@ -1856,7 +1866,7 @@ function renderAcomp(){
   // prazo com hora: abertura (criadoEm) e fechamento editável; adiar libera os vendedores (Tiago, 23/09/26)
   var pv = CUR.prazo && prazoVencidoCli(CUR.prazo);
   // Prazo da cotação (Tiago, 25/09: "mais profissional e mais detalhado"; datas com dia, mês e ano)
-  var F = CUR.fornecedores || [], nConv = F.length, nResp = F.filter(function(x){ return x.finalizadoEm; }).length, nAb = F.filter(function(x){ return x.abertoEm && !x.finalizadoEm; }).length, nEnv = F.filter(function(x){ return x.enviadoEm && !x.abertoEm && !x.finalizadoEm; }).length, nPend = nConv - nResp - nAb - nEnv;
+  var F = CUR.fornecedores || [], nConv = F.length, nResp = F.filter(function(x){ return x.finalizadoEm; }).length, nAb = F.filter(function(x){ return x.abertoEm && !x.finalizadoEm; }).length, nDig = F.filter(function(x){ return x.abertoEm && !x.finalizadoEm && x.cotados > 0; }).length, nAb0 = nAb - nDig, nEnv = F.filter(function(x){ return x.enviadoEm && !x.abertoEm && !x.finalizadoEm; }).length, nPend = nConv - nResp - nAb - nEnv;
   var pct = nConv ? Math.round(nResp / nConv * 100) : 0;
   var rest = CUR.prazo ? restanteTxt(CUR.prazo) : null;
   var sit = !CUR.prazo ? {cls: 'sem', txt: 'Sem prazo definido'} : pv ? {cls: 'enc', txt: 'Encerrada ' + rest} : (rest.indexOf('h') === 0 || /^\d+ min/.test(rest) || /^[0-9]h/.test(rest) ? {cls: 'urg', txt: 'Fecha em ' + rest} : {cls: 'ok', txt: 'Fecha em ' + rest});
@@ -1866,7 +1876,7 @@ function renderAcomp(){
       '<div class="pc-box"><small>Abertura</small><b>' + dtFull(CUR.criadoEm) + '</b><span>' + diaSemana(CUR.criadoEm) + (CUR.criadoPor ? ' · por ' + esc(CUR.criadoPor) : '') + '</span></div>' +
       '<div class="pc-box"><small>Fechamento</small><b>' + (CUR.prazo ? dtFull(CUR.prazo) : '—') + '</b><span>' + (CUR.prazo ? diaSemana(CUR.prazo) + ' · vendedores digitam até essa hora' : 'vendedores digitam até você fechar a cotação') + '</span></div>' +
       '<div class="pc-box"><small>Tempo</small><b>' + (CUR.prazo ? (pv ? 'Encerrado' : rest) : '—') + '</b><span>' + (CUR.prazo ? (pv ? 'encerrado ' + rest : 'restante até o fechamento · aberta há ' + decorridoTxt(CUR.criadoEm)) : 'aberta há ' + decorridoTxt(CUR.criadoEm)) + '</span></div>' +
-      '<div class="pc-box"><small>Fornecedores</small><b>' + nResp + ' de ' + nConv + ' responderam</b><div class="pc-bar"><i style="width:' + pct + '%"></i></div><span>' + (nAb ? nAb + ' abriram sem finalizar · ' : '') + (nEnv ? nEnv + ' receberam o link · ' : '') + (nPend > 0 ? nPend + ' ainda sem envio' : (nAb || nEnv ? '' : 'todos tratados')) + '</span></div>' +
+      '<div class="pc-box"><small>Fornecedores</small><b>' + nResp + ' de ' + nConv + ' responderam</b><div class="pc-bar"><i style="width:' + pct + '%"></i></div><span>' + (nDig ? '<b style="display:block;color:#C2410C">' + nDig + ' digitaram e não enviaram</b>' : '') + (nAb0 ? nAb0 + ' abriram sem digitar · ' : '') + (nEnv ? nEnv + ' receberam o link · ' : '') + (nPend > 0 ? nPend + ' ainda sem envio' : (nAb || nEnv ? '' : 'todos tratados')) + '</span></div>' +
     '</div>' +
     (aberta ? '<div class="pc-edit"><div class="fld"><label>Novo fechamento (data e hora)</label><input type="datetime-local" id="ac-prazo" value="' + esc(prazoLocal(CUR.prazo)) + '" style="min-width:230px"></div><div class="fld"><label>&nbsp;</label><div class="acoes-row"><button class="btn primary" onclick="salvarPrazo($(\'#ac-prazo\').value)">' + (pv ? 'Liberar com este prazo' : 'Salvar prazo') + '</button></div></div></div>' : '<div class="mini" style="margin-top:8px">Cotação ' + esc(CUR.status) + ': o prazo não pode mais ser alterado.</div>') +
     '<div class="suginfo">' + (pv ? '<span class="warn"><b>Vendedores bloqueados desde ' + dtFull(CUR.prazo) + '.</b> Escolha uma data e hora à frente e salve pra liberar a digitação.</span>' : '') + (CUR.prazoAlteradoEm ? '<span>Último ajuste do prazo em <b>' + dtFull(CUR.prazoAlteradoEm) + '</b>' + (CUR.prazoAlteradoPor ? ' por <b>' + esc(CUR.prazoAlteradoPor) + '</b>' : '') + '</span>' : '<span>Prazo não alterado desde a abertura.</span>') + '</div></div>';
@@ -1886,11 +1896,11 @@ function renderAcomp(){
     return '<tr' + (same ? ' class="mesma-emp"' : '') + '><td>' + (same ? '<span class="mini" style="color:var(--ink3)">↳ mesma empresa</span>' : '<b>' + esc(empresaDe(f)) + '</b><br><span class="mini">cód. ' + (f.codFornecErp || f.codFornec) + '</span>') + '</td>' +
       '<td>' + esc(f.vendedor && f.vendedor.nome || '—') + '<br><span class="mini">' + esc(f.vendedor && f.vendedor.whats || 'sem WhatsApp') + '</span>' + (f.vendedores || []).map(function(v){ return '<br>' + esc(v.nome || '') + ' <span class="mini">' + esc(v.whats || '') + '</span>'; }).join('') + '</td>' +
       '<td>' + canalCell(f) + '</td>' +
-      '<td>' + stForn(f) + '</td>' +
+      '<td>' + stForn(f) + (f.status === 'digitacao' && f.cotados > 0 && f.atualizadoEm ? '<br><span class="mini" title="quando salvou o último preço">últ. preço ' + String(dt(f.atualizadoEm)).replace(/\/\d{4} /, ' ') + '</span>' : '') + '</td>' +
       '<td>' + f.cotados + ' de ' + CUR.itens.length + (f.status === 'finalizado' ? ' <button class="link-btn" onclick="verProposta(' + f.codFornec + ')">ver proposta</button>' : '') + '</td>' +
       '<td class="mini">' + dt(f.enviadoEm) + ' / ' + dt(f.abertoEm) + ' / ' + dt(f.finalizadoEm) + '</td>' +
       '<td>' + esc(f.condicao || '—') + (f.obs ? '<br><span class="mini">' + esc(f.obs) + '</span>' : '') + (f.cadastro_vendedor ? '<br><span class="mini" title="Preenchido pelo vendedor na página dele; ao enviar a proposta, foi pro cadastro da lista">📋 ' + esc(f.cadastro_vendedor.email || '') + (f.cadastro_vendedor.prazo_entrega != null ? ' · entrega ' + f.cadastro_vendedor.prazo_entrega + ' d' : '') + (f.cadastro_vendedor.pedido_minimo != null ? ' · mín ' + fmtR(f.cadastro_vendedor.pedido_minimo) : '') + '</span>' : '') + '</td>' +
-      '<td><div class="acoes-row">' + waBtns(f) + '<button class="btn ghost sm" onclick="copiar(\'' + f.link + '\')" title="Copiar o link da cotação deste fornecedor">Copiar</button><a class="btn ghost sm" href="' + f.link + '" target="_blank" title="Abrir a página do vendedor">Abrir</a></div></td></tr>';
+      '<td><div class="acoes-row">' + waBtns(f) + '<button class="btn ghost sm" onclick="copiar(\'' + f.link + '\')" title="Copiar o link da cotação deste fornecedor">Copiar</button><a class="btn ghost sm" href="' + f.link + '" target="_blank" title="Abrir a página do vendedor">Abrir</a></div>' + (waLembrar(f) ? '<div class="acoes-row" style="margin-top:5px">' + waLembrar(f) + '</div>' : '') + '</td></tr>';
   }).join('');
   h += '</tbody></table></div>';
   m.innerHTML = h;

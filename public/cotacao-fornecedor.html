@@ -117,6 +117,7 @@ body.venc .wrap{padding-bottom:150px}
 .parceiro h3{font-size:15px;font-weight:800;margin:0 0 4px;color:#F5B800}
 .parceiro p{margin:0;font-size:13.5px;line-height:1.5;color:#E6EAF2}.parceiro p+p{margin-top:6px}
 .parceiro b{color:#fff}
+.sugnota{margin:10px 0 0;font-size:12.5px;line-height:1.45;color:#7C4A03;background:#FFF4E0;border-left:3px solid #F59E0B;border-radius:6px;padding:8px 10px}
 </style>
 </head>
 <body>
@@ -163,14 +164,21 @@ function render(){
   }
   h+='</tbody></table></div><div class="tot" id="tot"></div></div>';
   // "Estamos atualizando nosso cadastro de fornecedor" (obrigatório pra enviar) — Tiago, 23/09/26
-  const cv=P.fornecedor.cadastro||{}, pad=(P.fornecedor.condicao_padrao||'').match(/\d+/), pre={email:cv.email||(P.fornecedor.vendedor&&P.fornecedor.vendedor.email)||'',prazo:cv.prazo_pagamento||(pad?pad[0]:''),tempo:cv.prazo_entrega!=null?cv.prazo_entrega:(P.fornecedor.prazo_entrega||''),min:cv.pedido_minimo!=null?fmt(cv.pedido_minimo):(P.fornecedor.faturamento_minimo!=null?fmt(P.fornecedor.faturamento_minimo):'')};
+  // Pré-preenchido com o último cadastro que este vendedor (ou a empresa dele) informou em qualquer cotação (cadastro_sugerido do
+  // servidor) — Tiago, 27/10/26: vendedor digitava os preços e parava no bloco em branco; na lista nova vinha vazio pra todos.
+  // Ordem: o que ele já salvou nesta cotação → sugestão → cadastro da lista. Ele confere, corrige e só vira cadastro ao salvar/enviar.
+  const cv=P.fornecedor.cadastro||{}, sug=P.fornecedor.cadastro_sugerido||{}, pad=(P.fornecedor.condicao_padrao||'').match(/\d+/);
+  const pre={email:cv.email||sug.email||(P.fornecedor.vendedor&&P.fornecedor.vendedor.email)||'',prazo:cv.prazo_pagamento||sug.prazo_pagamento||(pad?pad[0]:''),tempo:cv.prazo_entrega!=null?cv.prazo_entrega:(sug.prazo_entrega!=null?sug.prazo_entrega:(P.fornecedor.prazo_entrega||'')),min:cv.pedido_minimo!=null?fmt(cv.pedido_minimo):(sug.pedido_minimo!=null?fmt(sug.pedido_minimo):(P.fornecedor.faturamento_minimo!=null?fmt(P.fornecedor.faturamento_minimo):''))};
+  const sugUsou=!lock&&!!sug.cotacao&&((!cv.email&&!!sug.email)||(!cv.prazo_pagamento&&!!sug.prazo_pagamento)||(cv.prazo_entrega==null&&sug.prazo_entrega!=null)||(cv.pedido_minimo==null&&sug.pedido_minimo!=null));
+  const ddmm=x=>{const d=new Date(x);return isNaN(d)?'':String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0');};
+  const sugNota=sugUsou?'<div class="sugnota">'+(sug.mesmo_vendedor?'Preenchemos com o que você informou na cotação #'+sug.cotacao+(sug.em?' ('+ddmm(sug.em)+')':'')+'. Confira e corrija se algo mudou.':'Preenchemos com as condições que a sua empresa informou na cotação #'+sug.cotacao+(sug.em?' ('+ddmm(sug.em)+')':'')+'. Confira, corrija se algo mudou e informe o seu e-mail.')+'</div>':'';
   const ro=v=>'<div>'+(esc(v)||'<span style="color:#98A0B3">—</span>')+'</div>';
   h+='<div class="card"><div class="hd">Estamos atualizando nosso cadastro de fornecedor <span'+(lock?'':' style="color:#B45309;font-weight:700"')+'>'+(lock?'enviado':'preencha pra enviar a proposta')+'</span></div><div class="cond cad4">'+
     '<div><label>E-mail do vendedor</label>'+(lock?ro(pre.email):'<input class="obs cad" id="cad-email" type="email" value="'+esc(pre.email)+'" placeholder="vendas@empresa.com.br" maxlength="120">')+'</div>'+
     '<div><label>Boleto (dias)</label>'+(lock?ro(pre.prazo?pre.prazo+' dias':''):'<input class="obs cad" id="cad-prazo" inputmode="numeric" value="'+esc(pre.prazo)+'" placeholder="ex.: 28" maxlength="3">')+'</div>'+
     '<div><label>Entrega (dias)</label>'+(lock?ro(pre.tempo!==''?pre.tempo+' dias':''):'<input class="obs cad" id="cad-tempo" inputmode="numeric" value="'+esc(pre.tempo)+'" placeholder="ex.: 3" maxlength="3">')+'</div>'+
     '<div><label>Pedido mínimo (R$)</label>'+(lock?ro(pre.min?'R$ '+pre.min:''):'<input class="obs cad" id="cad-min" inputmode="decimal" value="'+esc(pre.min)+'" placeholder="ex.: 500,00" maxlength="14">')+'</div>'+
-    '<div style="grid-column:1/-1"><label>Observação geral (opcional)</label>'+(lock?ro(P.fornecedor.obs):'<input class="obs" id="obsg" value="'+esc(P.fornecedor.obs||'')+'" placeholder="ex.: entrega só de segunda a sexta" maxlength="500">')+'</div></div></div>';
+    '<div style="grid-column:1/-1"><label>Observação geral (opcional)</label>'+(lock?ro(P.fornecedor.obs):'<input class="obs" id="obsg" value="'+esc(P.fornecedor.obs||'')+'" placeholder="ex.: entrega só de segunda a sexta" maxlength="500">')+'</div></div>'+sugNota+'</div>';
   // recado ao fornecedor antes de enviar (Tiago, 13/10/26): ele precisa sentir que é parte da operação, não só mais um link
   h+='<div class="parceiro"><div class="ic">🤝</div><div><h3>'+(lock?'Obrigado pela sua proposta':'Você é importante pra Econômico Supermercados')+'</h3>'+
     '<p>Cada preço que você coloca aqui abastece <b>6 lojas</b> e chega à mesa de milhares de famílias todos os dias. Gôndola cheia, preço bom pro cliente e entrega no prazo só acontecem porque existem fornecedores como você do outro lado.</p>'+
