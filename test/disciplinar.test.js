@@ -21,10 +21,10 @@ GP.salvarConfig({ designados: [
 ] }, U.admin);
 
 const COLABS = { ativos: [
-  { id: 1045, nome: 'Ana Paula Souza', matricula: '1045', cargo: 'Operadora de Caixa', setor: 'Frente de Caixa', loja: 4, ativo: true, status_agora: 'Trabalhando', admissao: '2024-03-01' },
+  { id: 1045, nome: 'Ana Paula Souza', matricula: '1045', cargo: 'Operadora de Caixa', setor: 'Frente de Caixa', loja: 4, ativo: true, status_agora: 'Trabalhando', admissao: '2024-03-01', unidade_id: 77, unidade: 'ATACAREJO COMERCIO DE ALIMENTOS' },
   { id: 2001, nome: 'Carlos Lima', matricula: '2001', cargo: 'Repositor', setor: 'Mercearia', loja: 5, ativo: true, status_agora: 'Trabalhando', admissao: '2023-01-10' },
 ], desligados: [{ id: 3001, nome: 'Ex Funcionário', matricula: '3001', cargo: 'Repositor', setor: 'Mercearia', loja: 4, ativo: false }] };
-const deps = { colaboradores: async () => COLABS, jornadaPeriodo: async (id, de, ate) => ({ dias: [{ data: de, situacao: 'sem_marcacao', situacaoTxt: 'Sem marcação', marcacoes: [], previsto: null }] }) };
+const deps = { cpfDe: async id => id === 1045 ? '12345678909' : '', empregadorDe: async id => id === 1045 ? { nome: 'ATACAREJO', razao: 'ATACAREJO COMERCIO DE ALIMENTOS LTDA', cnpj: '12.345.678/0001-90' } : null, colaboradores: async () => COLABS, jornadaPeriodo: async (id, de, ate) => ({ dias: [{ data: de, situacao: 'sem_marcacao', situacaoTxt: 'Sem marcação', marcacoes: [], previsto: null }] }) };
 const hoje = D._util.hojeISO(); const amanha = D._util.somaDias(hoje, 1);
 const oc = (extra = {}) => ({ colabId: 1045, motivo: 'insubordinacao', medidaSugerida: 'suspensao', data: hoje, hora: '14:00', local: 'Frente de caixa', descricao: 'A colaboradora se recusou a cumprir orientação da supervisão, elevando o tom de voz e deixando o posto sem autorização.', ...extra });
 const anexo = n => ({ nome: n, arquivo: 'a'.repeat(32) + '.pdf', tamanho: 10, tipo: 'application/pdf', hash: 'h' });
@@ -84,8 +84,10 @@ test('4 · RH: esclarecimento ida e volta, art. 474 e limite configurado, deferi
 
 test('5 · prévia e emissão do PDF; gerente recebe; reemissão gera v2 e preserva v1', async () => {
   const prev = await D.previa(P1, U.rh, {}); assert.equal(prev.slice(0, 5).toString(), '%PDF-');
-  const s = await D.emitir(P1, U.rh, { orientacoes: 'Comunicar reservadamente, com uma testemunha.' });
+  const s = await D.emitir(P1, U.rh, { orientacoes: 'Comunicar reservadamente, com uma testemunha.' }, deps);
   assert.equal(s.status, 'documento_encaminhado'); assert.equal(s.documento.versao, 1); assert.equal(s.documento.tipo, 'suspensao');
+  assert.equal(s.documento.comCpf, true); assert.equal(s.documento.empregador.cnpj, '12.345.678/0001-90'); assert.equal(JSON.stringify(s).includes('12345678909'), false, 'CPF inteiro nunca fica no JSON');
+  assert.equal(s.colaborador.unidadeVr.id, 77);
   assert.ok(fs.existsSync(D.P.pdf(P1, 1))); assert.ok(GP.notificacoes(U.ger4, true).some(n => /disponível para aplicação/.test(n.texto)));
   assert.throws(() => D.arquivoPdf(P1, U.ger5), erroStatus(403));
   assert.equal(D.arquivoPdf(P1, U.ger4).doc.versao, 1);
