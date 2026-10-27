@@ -99,3 +99,20 @@ test('Auditoria da Folha: loja detectada pelo CNPJ da empresa do recibo', async 
   assert.strictEqual(A._interno.lojaDoTexto('30.148.015/0001-62 e 39.762.002/0001-53').varios, true);
   assert.strictEqual(A._interno.lojaDoTexto('sem cnpj nenhum 12.345.678/0001-90').loja, null);
 });
+
+test('Auditoria da Folha: lote SISPAG com n lançamentos = soma exata de n pendentes (combinação única) marca "pago em lote"', async () => {
+  process.env.AUDITORIA_FOLHA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'af-lote-'));
+  const A = require('../lib/auditoria-folha');
+  const F = [['ANA ALVES PEREIRA', 1105.52], ['BRUNO COSTA LIMA', 1001.06], ['CARLA DIAS MOTA', 1351.78], ['DANIEL FARIAS ROCHA', 1725], ['EDNA GOMES SILVA', 119.12]].map(([nome, v], i) => ({ id: 'l' + i, nome, matricula: String(i + 1), cpf: String(22200000000 + i), loja: 1, setor: 'Loja', cargo: 'Op', ativo: true, v }));
+  const deps = { colaboradores: async () => ({ ativos: F, desligados: [] }), cpfDe: async id => (F.find(f => f.id === id) || {}).cpf || '' };
+  const wb = new (require('exceljs').Workbook)(); const ws = wb.addWorksheet('f'); ws.addRow(['Nome', 'Valor']); for (const f of F) ws.addRow([f.nome, f.v]);
+  const pv = await A.importarPrevia(Buffer.from(await wb.xlsx.writeBuffer()), 'folha-e1.xlsx', 'folha', '2026-09', coord, deps, 1); A.importarConfirmar(pv.token, coord);
+  const lote = (valor, n) => ({ type: 'agrupamento', operation: 'D', amount: { value: valor }, number_events: n, date: { accounting: '2026-09-30' }, literal: { shortened: 'SISPAG SALARIOS' } });
+  // lote de 3 = ANA + BRUNO + CARLA (3458.36); lote de 2 = 1725 + 119.12 NÃO existe (1844.12 ≠ 1900) → fica não pago
+  const extrato = async ({ conta }) => ({ data: [{ events: conta === 'cahu' ? [lote(3458.36, 3), lote(1900, 2)] : [] }] });
+  const r = await A.conciliar('2026-09', coord, deps, { extrato });
+  const sit = Object.fromEntries(r.funcionarios.map(f => [f.nome, f.folha.situacao]));
+  assert.deepStrictEqual(sit, { 'ANA ALVES PEREIRA': 'lote', 'BRUNO COSTA LIMA': 'lote', 'CARLA DIAS MOTA': 'lote', 'DANIEL FARIAS ROCHA': 'nao_pago', 'EDNA GOMES SILVA': 'nao_pago' });
+  assert.ok(r.funcionarios.find(f => f.nome === 'ANA ALVES PEREIRA').folha.modo.includes('3 pessoas'));
+  assert.strictEqual(r.naoIdentificados.length, 1); assert.strictEqual(r.naoIdentificados[0].valor, 1900);
+});
