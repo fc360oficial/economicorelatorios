@@ -8726,7 +8726,7 @@ app.post('/api/tv-rh/config/renovar', async (req, res) => {
   catch (err) { res.status(503).json({ error: err.message, totais: tvRh.totais() }); }
 });
 app.get('/tv-rh/:token', (req, res) => {
-  if (!tvRh.tokenValido(String(req.params.token).toLowerCase())) return res.status(404).send('Link inválido. Gere um novo link em DP / RH → TV RH/DP.');
+  if (!tvRh.tokenValido(String(req.params.token).toLowerCase())) return res.status(404).send('Link inválido. Gere um novo link em DP / RH → Painel RH.');
   res.set('Cache-Control', 'no-store');
   res.sendFile(path.join(__dirname, 'public', 'tv-rh.html'));
 });
