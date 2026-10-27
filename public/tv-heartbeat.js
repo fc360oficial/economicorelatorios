@@ -17,9 +17,18 @@
   function enviar() {
     try {
       var corpo = JSON.stringify({ id: ID, painel: PAINEL, slide: slide(), tela: screen.width + 'x' + screen.height, versao: document.lastModified, url: location.pathname.slice(0, 120), ua: navigator.userAgent.slice(0, 160), ligadaHa: Math.round((Date.now() - ABRIU) / 1000) });
-      fetch('/api/paineis-publico/batimento', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: corpo, cache: 'no-store', keepalive: true }).catch(function () {});
+      fetch('/api/paineis-publico/batimento', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: corpo, cache: 'no-store', keepalive: true })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (j) {
+          // Página nova no servidor → recarrega sozinha (igual às TVs de token). Guarda a 1ª versão vista e compara nas seguintes.
+          if (!j || j.versaoPagina == null) return;
+          if (VERSAO === null) VERSAO = j.versaoPagina;
+          else if (j.versaoPagina !== VERSAO) { VERSAO = j.versaoPagina; location.reload(); }
+        })
+        .catch(function () {});
     } catch (e) {}
   }
+  var VERSAO = null;
   enviar();
   setInterval(enviar, 30000);
   document.addEventListener('visibilitychange', function () { if (!document.hidden) enviar(); });

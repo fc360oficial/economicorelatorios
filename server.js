@@ -8038,7 +8038,7 @@ tvAcougue.init({ q });
 // WhatsApp pelo cahu-wpp (127.0.0.1:3012, mesmo robô dos negativos das 08:00).
 const paineisTvs = require('./lib/paineis-tvs');
 paineisTvs.init({
-  dataDir: path.join(__dirname, 'data'),
+  dataDir: path.join(__dirname, 'data'), publicDir: path.join(__dirname, 'public'),
   enviarWpp: async ({ grupo, texto }) => {
     const r = await fetch('http://127.0.0.1:3012/mensagem-grupo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ grupo, texto }), signal: AbortSignal.timeout(30000) });
     const j = await r.json().catch(() => ({}));
