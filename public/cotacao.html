@@ -57,9 +57,14 @@ button{font-family:inherit}
 .fld input,.fld select{border:1px solid var(--ln2);background:var(--crd);color:var(--ink);border-radius:8px;padding:8px 10px;font-size:12.5px;font-family:inherit;min-width:140px}
 .tablewrap{background:var(--crd);border:1px solid var(--ln);border-radius:14px;box-shadow:var(--shadow);overflow-x:auto}
 table{width:100%;border-collapse:collapse}
-thead th{text-align:left;font-size:10.5px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--ink3);background:var(--wsh);padding:11px 14px;white-space:nowrap;vertical-align:middle}
-tbody td{padding:11px 14px;border-top:1px solid var(--ln);font-size:12.5px;white-space:nowrap;vertical-align:middle}
+thead th{text-align:left;font-size:10.5px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--ink3);background:var(--wsh);padding:11px 14px;white-space:nowrap;vertical-align:middle;border-bottom:2px solid var(--ln2);border-right:1px solid var(--ln)}
+tbody td{padding:11px 14px;border-top:1px solid var(--ln);border-right:1px solid var(--ln);font-size:12.5px;white-space:nowrap;vertical-align:middle}
 tbody tr:hover{background:var(--wsh)}
+/* padrão de tabela (Tiago, 26/10/26: grade entre linhas e colunas + zebra visível, como nas tabelas do portal) — vale pra toda tabela da
+   Cotação; a grade de pré-pedido (table.ppg, com espaçamento entre linhas) fica fora */
+thead th:last-child,tbody td:last-child{border-right:none}
+table:not(.ppg) tbody tr:nth-child(even) td{background:#F3F3F0}
+table:not(.ppg) tbody tr:hover td{background:#EAEAE6}
 tr.off td{opacity:.45}
 table.forntab tr.off td:last-child{opacity:1}
 .status-pill{display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:11px;padding:4px 10px;border-radius:20px;white-space:nowrap}
@@ -501,10 +506,12 @@ table.ppg td.st .pp-ant{font-size:11px;line-height:1.2;margin-top:2px;color:var(
 .pdbtn:hover{background:var(--wsh)}
 .pdbtn.on{color:#5B5BD6;border-color:#5B5BD6;background:#EEF0FF}.pdbtn.on:hover{background:#E2E5FF}
 .pdbtn:disabled{cursor:default}.pdbtn:disabled:hover{background:var(--crd)}
-/* Tela Pedidos (Tiago, 26/10/26: "tira isso"): no lugar do cabeçalho da cotação, uma linha fina com volta, cotação e Pedidos de Compra */
+/* Topo padrão das telas internas (Tiago, 26/10/26: "tira isso" / "tudo no padrão"): linha fina com ← Monitor, tela, cotação, status, info e ações */
 .pedtop{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 14px}
 .pedtop .pt-lbl{font-size:13px;color:var(--ink2);display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap}.pedtop .pt-lbl b{color:var(--ink)}
-@media (max-width:1399px){.pedtop .pt-lbl{font-size:12px}}
+.pt-info{margin:-8px 0 14px;font-size:12px;color:var(--ink3);font-weight:500;line-height:1.5}.pt-info b{color:var(--ink2)}
+.pedtop .pt-acoes{display:inline-flex;gap:8px;flex-wrap:wrap;align-items:center}
+@media (max-width:1399px){.pedtop .pt-lbl{font-size:12px}.pt-info{font-size:11.5px}}
 .mon td.c-ped{white-space:nowrap}
 /* Monitor harmônico (Tiago, 26/10/26: "organizar colunas e linhas, aparência harmônica e de fácil visualização"): grade + zebra como
    nas tabelas do portal, 2 linhas por cotação, cabeçalho alinhado com o conteúdo, status em pílula, Acompanhar/Pedidos do mesmo tamanho */
@@ -1785,11 +1792,12 @@ async function renderVazio(m){
         '<td><div class="acoes-row"><button class="btn sm ghost" onclick="abrirCotacao(' + c.id + ',\'s3\')">Acompanhar</button><button class="btn sm primary" onclick="abrirCotacao(' + c.id + ',\'s4\')">Comparativo</button>' + (ps.gerados ? '<button class="btn sm ghost" onclick="abrirCotacao(' + c.id + ',\'s5\')">Pedidos</button>' : '') + '</div></td></tr>'; }).join('') + '</tbody></table></div>';
   m.innerHTML = h;
 }
-function cabecalho(sub){
-  var s = statusCot(CUR.status === 'aberta' ? Object.assign({}, CUR, CUR.comparativo.resumo) : CUR);
-  return '<div class="crumb">Cotação <span>›</span> <b>#' + CUR.id + ' · ' + esc(CUR.nome) + '</b></div>' +
-    '<div class="pagehead"><div><h1>#' + CUR.id + ' ' + esc(CUR.nome) + ' <span class="status-pill ' + s.cls + '" style="margin-left:8px;vertical-align:middle">' + s.txt + '</span>' + (CUR.teste ? ' <span class="status-pill" style="background:var(--amw);color:var(--amk);vertical-align:middle">TESTE · nada vai pra vendedor real</span>' : '') + '</h1>' +
-    '<p>Lista ERP <b>' + (CUR.lista || '—') + '</b> ' + esc(CUR.lista_nome || '') + ' · comprador(a) <b>' + esc(CUR.comprador && CUR.comprador.nome || '—') + '</b> · criada ' + dt(CUR.criadoEm) + (CUR.prazo ? ' · prazo pra resposta <b>' + dtp(CUR.prazo) + '</b>' + (CUR.status === 'aberta' && prazoVencidoCli(CUR.prazo) ? ' <span class="status-pill cancel">prazo encerrado</span>' : '') : '') + (CUR.fechadaEm ? ' · fechada ' + dt(CUR.fechadaEm) + (CUR.fechadaPor ? ' por ' + esc(CUR.fechadaPor) : '') : '') + ' · lojas ' + (CUR.lojas || []).map(function(l){ return LJ(l); }).join(' ') + '</p></div><div style="display:flex;gap:8px;flex-wrap:wrap">' + (sub || '') + '</div></div>';
+// Topo padrão das telas internas — Acompanhamento, Comparativo e Pedidos (Tiago, 26/10/26: "tira isso" no cabeçalho da tela Pedidos e
+// "deixar tudo no padrão"): uma linha fina com "← Monitor", o que é a tela, a cotação, o status, uma info curta e as ações à direita.
+// Sem crumb, título grande nem descrição; o Monitor é o ponto central.
+function topoTela(titulo, acoes, info){
+  var st = statusCot(CUR.status === 'aberta' ? Object.assign({}, CUR, CUR.comparativo.resumo) : CUR);
+  return '<div class="pedtop"><button class="btn ghost sm" onclick="goScreen(\'s1\')" title="Voltar à lista de cotações">← Monitor</button><span class="pt-lbl">' + titulo + ' da cotação <b>#' + CUR.id + ' · ' + esc(CUR.nome) + '</b> <span class="status-pill ' + st.cls + '">' + st.txt + '</span>' + (CUR.teste ? ' <span class="status-pill" style="background:var(--amw);color:var(--amk)">TESTE · nada vai pra vendedor real</span>' : '') + '</span><span style="flex:1"></span><span class="pt-acoes">' + (acoes || '') + '</span></div>' + (info ? '<div class="pt-info">' + info + '</div>' : '');
 }
 // Com "Exigir login" ligado no Portal do Fornecedor (canais.exigeLogin), a mensagem já avisa que precisa criar o login (Tiago, 13/10)
 function msgWhats(f, v){ v = v || f.vendedor; var obrig = !!(CUR.canais && CUR.canais.exigeLogin); return 'Olá' + (v && v.nome ? ', ' + v.nome : '') + '! Cotação #' + CUR.id + ' – ' + CUR.nome + ' do Econômico Supermercado (Rede Cahu). ' + (obrig ? 'Pra responder, abra o link, crie seu login no nosso Portal do Fornecedor (seu WhatsApp e um PIN de 6 números, leva 1 minuto) e preencha seus preços: ' : 'Por favor, preencha seus preços neste link: ') + f.link + (CUR.prazo ? ' . Prazo pra resposta: ' + dtp(CUR.prazo) : '') + ' . Obrigado(a)!'; }
@@ -1825,7 +1833,8 @@ async function marcarEnviado(codFornec){ try { await post('/api/cotacoes/' + CUR
 function renderAcomp(){
   var m = $('#s3-main'); if (!CUR) { renderVazio(m); return; }
   var R = CUR.comparativo.resumo, aberta = CUR.status === 'aberta';
-  var h = cabecalho('<button class="btn ghost" onclick="goScreen(\'s1\')" title="Voltar à lista de cotações">← Monitor</button>' + (aberta ? '<button class="btn primary" onclick="ciAba(\'produtos\');goScreen(\'s4\')">Ver comparativo →</button><button class="btn danger" onclick="cancelarCotacao()">Cancelar cotação</button>' : '<button class="btn primary" onclick="ciAba(\'produtos\');goScreen(\'s4\')">Ver comparativo →</button>') + '<button class="btn ghost" onclick="recarregar()">↻</button>');
+  var info = 'lista ERP <b>' + (CUR.lista || '—') + '</b> ' + esc(CUR.lista_nome || '') + ' · comprador(a) <b>' + esc(CUR.comprador && CUR.comprador.nome || '—') + '</b> · criada ' + dt(CUR.criadoEm) + (CUR.prazo ? ' · prazo <b>' + dtp(CUR.prazo) + '</b>' + (aberta && prazoVencidoCli(CUR.prazo) ? ' <span class="status-pill cancel">prazo encerrado</span>' : '') : '') + (CUR.fechadaEm ? ' · fechada ' + dt(CUR.fechadaEm) + (CUR.fechadaPor ? ' por ' + esc(CUR.fechadaPor) : '') : '') + ' · lojas ' + (CUR.lojas || []).map(function(l){ return LJ(l); }).join(' ');
+  var h = topoTela('Acompanhamento', (aberta ? '<button class="btn primary sm" onclick="ciAba(\'produtos\');goScreen(\'s4\')">Ver comparativo →</button><button class="btn danger sm" onclick="cancelarCotacao()">Cancelar cotação</button>' : '<button class="btn primary sm" onclick="ciAba(\'produtos\');goScreen(\'s4\')">Ver comparativo →</button>') + '<button class="btn ghost sm" onclick="recarregar()" title="Atualizar">↻</button>', info);
   h += '<div class="kpis"><div class="kpi"><div class="val">' + nEmpresas(CUR.fornecedores) + '</div><div class="lbl">Empresas convidadas' + (R.convidados !== nEmpresas(CUR.fornecedores) ? ' · ' + R.convidados + ' vendedores' : '') + '</div></div><div class="kpi"><div class="val pos">' + R.responderam + '</div><div class="lbl">Vendedores que já responderam</div></div><div class="kpi"><div class="val">' + (R.convidados - R.responderam) + '</div><div class="lbl">Vendedores aguardando</div></div><div class="kpi"><div class="val">' + (R.itens ? Math.round(R.com_preco / R.itens * 100) : 0) + '%</div><div class="lbl">Itens com pelo menos 1 preço (' + R.com_preco + ' de ' + R.itens + ')</div></div></div>';
   // recado do(a) comprador(a): fica fixo no topo da página de cada vendedor; só quem está logado aqui edita
   // prazo com hora: abertura (criadoEm) e fechamento editável; adiar libera os vendedores (Tiago, 23/09/26)
@@ -1970,11 +1979,10 @@ function renderComparativoItens(opts){
   var C = CUR.comparativo, R = C.resumo, F = C.fornecedores, aberta = CUR.status === 'aberta', U = ULT[CUR.id] || {}, K = CATS[CUR.id] || {};
   var novos = {}; (CUR.fornecedores || []).forEach(function(f){ if (f.novo) novos[f.codFornec] = true; });
   var cats = {}; C.itens.forEach(function(i){ var k = K[i.cod]; if (k && k.grupo) cats[k.grupo] = (cats[k.grupo] || 0) + 1; });
-  var h = '<div class="clubcrumb">Home · Comparativo de Preços</div><h1 class="clubh1">Comparativo de Preços' + (CUR.teste ? ' <span class="status-pill" style="background:var(--amw);color:var(--amk);vertical-align:middle;font-size:11px">TESTE</span>' : '') + '</h1>';
-  h += '<div class="clubinfo"><span class="ico">i</span><div><b>#' + CUR.id + ' ' + esc(CUR.nome) + '</b><br><span class="mini">Lista ' + (CUR.lista || '—') + ' ' + esc(CUR.lista_nome || '') + ' · ' + R.responderam + ' de ' + R.convidados + ' fornecedores responderam · ' + (aberta ? 'marque o vencedor de cada item; o menor preço já vem marcado' : 'cotação ' + CUR.status) + '</span></div></div>';
+  var h = topoTela('Comparativo', '', 'lista ' + (CUR.lista || '—') + ' ' + esc(CUR.lista_nome || '') + ' · ' + R.responderam + ' de ' + R.convidados + ' fornecedores responderam' + (aberta ? ' · marque o vencedor de cada item; o menor preço já vem marcado' : ' · cotação ' + esc(CUR.status)));
   // linha de botões (Produtos | Pedidos | Voltar | Imprimir | Não Digitados | Outras Funções)
   h += '<div class="clubbar"><button class="cbtn' + (CI_ABA === 'produtos' ? ' on' : '') + '" onclick="ciAba(\'produtos\')">▤ Produtos</button><button class="cbtn green' + (CI_ABA === 'prepedidos' ? ' on' : '') + '" onclick="ciAba(\'prepedidos\')">≡ Pré-pedidos: ' + fmtR((CUR.prePedidos || {}).total_pre || 0) + '</button><button class="cbtn blue' + (CI_ABA === 'pedidos' ? ' on' : '') + '" onclick="ciAba(\'pedidos\')">🚚 Pedidos: ' + fmtR((CUR.prePedidos || {}).total_pedidos || 0) + '</button><span style="flex:1"></span>' +
-    '<button class="cbtn" onclick="goScreen(\'s1\')" title="Voltar à lista de cotações">← Monitor</button><button class="cbtn" onclick="window.print()">🖨 Imprimir</button><button class="cbtn" onclick="naoDigitados()"><span style="color:var(--amk)">⛔</span> Não Digitados</button>' +
+    '<button class="cbtn" onclick="window.print()">🖨 Imprimir</button><button class="cbtn" onclick="naoDigitados()"><span style="color:var(--amk)">⛔</span> Não Digitados</button>' +
     '<span style="position:relative;display:inline-block"><button class="cbtn" onclick="event.stopPropagation();var m=this.nextElementSibling;m.style.display=m.style.display===\'block\'?\'none\':\'block\'">⌄ Outras Funções</button><div style="display:none;position:absolute;right:0;top:52px;background:var(--crd);border:1px solid var(--ln);border-radius:10px;box-shadow:var(--shadow);z-index:80;min-width:240px;overflow:hidden;text-align:left">' +
     ['<button onclick="setVista(\'matriz\')">Ver em matriz (produto × fornecedor)</button>', '<button onclick="exportarComparativo()">Exportar Excel (CSV)</button>', '<button onclick="ciRecTodos(true)">Recolher todos os itens</button>', '<button onclick="ciRecTodos(false)">Expandir todos</button>', '<button onclick="recarregar()">Atualizar</button>', aberta ? '<button style="color:var(--pos);font-weight:800" onclick="fecharCotacao()">Fechar cotação e gerar pedidos →</button>' : ''].map(function(b){ return b.replace('<button ', '<button class="link-btn" style="display:block;width:100%;text-align:left;padding:9px 13px;color:var(--ink2)" '); }).join('') + '</div></span></div>';
   if (CI_ABA === 'prepedidos') { h += renderPrePedidos(); m.innerHTML = h; return; }
@@ -2722,7 +2730,7 @@ function naoDigitados(){
 function renderComparativoMatriz(){
   var m = $('#s4-main'); if (!CUR) { renderVazio(m); return; }
   var C = CUR.comparativo, R = C.resumo, F = C.fornecedores, aberta = CUR.status === 'aberta';
-  var h = cabecalho((aberta ? '<button class="btn primary" id="btn-fechar" onclick="fecharCotacao()"' + (R.total_vencedores > 0 ? '' : ' disabled') + '>Fechar cotação e gerar pedidos →</button>' : (CUR.pedidos && CUR.pedidos.length ? '<button class="btn primary" onclick="goScreen(\'s5\')">Ver pedidos gerados →</button>' : '')) + '<span class="vtab"><button onclick="setVista(\'itens\')">Por item</button><button class="on" onclick="setVista(\'matriz\')">Matriz</button></span><button class="btn ghost" onclick="exportarComparativo()">Exportar CSV</button><button class="btn ghost" onclick="recarregar()">↻</button>');
+  var h = topoTela('Comparativo (matriz)', (aberta ? '<button class="btn primary sm" id="btn-fechar" onclick="fecharCotacao()"' + (R.total_vencedores > 0 ? '' : ' disabled') + '>Fechar cotação e gerar pedidos →</button>' : (CUR.pedidos && CUR.pedidos.length ? '<button class="btn primary sm" onclick="goScreen(\'s5\')">Ver pedidos gerados →</button>' : '')) + '<span class="vtab"><button onclick="setVista(\'itens\')">Por item</button><button class="on" onclick="setVista(\'matriz\')">Matriz</button></span><button class="btn ghost sm" onclick="exportarComparativo()">Exportar CSV</button><button class="btn ghost sm" onclick="recarregar()" title="Atualizar">↻</button>');
   h += '<div class="kpis"><div class="kpi"><div class="val">' + fmtR(R.total_ultimo_vencedores) + '</div><div class="lbl">Última compra (ERP) dos itens com vencedor</div></div><div class="kpi"><div class="val pos">' + fmtR(R.total_vencedores) + '</div><div class="lbl">Melhor combinação (' + (R.itens - R.sem_vencedor - R.nao_comprar) + ' de ' + R.itens + ' itens)</div></div><div class="kpi"><div class="val ' + (R.economia >= 0 ? 'pos' : 'neg') + '">' + fmtR(R.economia) + '</div><div class="lbl">Economia × última compra</div></div><div class="kpi"><div class="val ' + (R.economia >= 0 ? 'pos' : 'neg') + '">' + (R.economia_pct != null ? fmtN(R.economia_pct, 1) + '%' : '—') + '</div><div class="lbl">Economia %</div></div></div>';
   h += '<div class="resumo-strip"><span class="rlabel">Resumo</span><span class="chip"><b>' + R.itens + '</b> produtos</span><span class="sep">·</span><span class="chip"><b>' + R.com_preco + '</b> com preço</span><span class="sep">·</span><span class="chip"><b>' + R.abaixo + '</b> igual/abaixo da última compra</span><span class="sep">·</span><span class="chip"><b>' + R.acima + '</b> acima</span><span class="sep">·</span><span class="chip"><b>' + R.sem_vencedor + '</b> sem preço</span><span class="sep">·</span><span class="chip"><b>' + R.nao_comprar + '</b> marcados "não comprar"</span><span class="sep">·</span><span class="chip">' + R.responderam + ' de ' + R.convidados + ' fornecedores responderam</span></div>';
   if (aberta) h += '<p class="mini" style="margin:0 0 10px">Menor preço vence automaticamente. Clique no preço de outro fornecedor pra escolher ele; "auto" volta pro menor; "não comprar" tira o item dos pedidos.</p>';
@@ -2794,9 +2802,7 @@ function xmlAvisoFiscal(xml){ var L = xml && xml.lojas || {}, nv = 0, rec = [], 
 var PED_LIVE = { id: 0, em: 0, map: {} };   // status ao vivo dos pedidos (Pedidos de Compra), 30 s por cotação
 async function renderPedidos(){
   var m = $('#s5-main'); if (!CUR) { renderVazio(m); return; }
-  // Tiago, 26/10/26 ("tira isso"): sem crumb, faixa de cotações abertas, título e descrição — só uma linha com a volta, a cotação e Pedidos de Compra
-  var st = statusCot(CUR.status === 'aberta' ? Object.assign({}, CUR, CUR.comparativo.resumo) : CUR);
-  var h = '<div class="pedtop"><button class="btn ghost sm" onclick="goScreen(\'s1\')" title="Voltar à lista de cotações">← Monitor</button><span class="pt-lbl">Pedidos da cotação <b>#' + CUR.id + ' · ' + esc(CUR.nome) + '</b> <span class="status-pill ' + st.cls + '">' + st.txt + '</span>' + (CUR.teste ? ' <span class="status-pill" style="background:var(--amw);color:var(--amk)">TESTE</span>' : '') + '</span><span style="flex:1"></span><a class="btn primary sm" href="/pedidos-compra.html">Abrir Pedidos de Compra →</a></div>';
+  var h = topoTela('Pedidos', '<a class="btn primary sm" href="/pedidos-compra.html">Abrir Pedidos de Compra →</a>');
   var C = CUR.comparativo, R = C.resumo, F = C.fornecedores, aberta = CUR.status === 'aberta';
   h += renderPedidosResumo(C, R, F, aberta);
   if (CUR.pedidos && CUR.pedidos.length) {
