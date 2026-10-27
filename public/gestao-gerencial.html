@@ -749,7 +749,7 @@ const TAG_CLS=s=>s==='sem'||s==='sem_retorno'?'sem':s==='atraso'?'atraso':s==='a
 function pontoAbrir(id){PONTO_ABERTO=PONTO_ABERTO===id?null:id;paginaPonto();}
 // Detalhe da pessoa (Tiago, 27/10: "ajustar o layout da informação quando abre"; "não precisa colocar nas batidas − ou mais"): tabela Previsto × Bateu, uma linha por marcação,
 // situação curta à direita; sem diferença em minutos nas batidas — o saldo de horas fica embaixo, dizendo se é positivo ou negativo.
-const TAG_CURTA={ok:'No horário',folga_trab:'Trabalhado na folga',adiantado:'Antes do horário',atraso:'Atraso',aguardando:'Aguardando',intervalo:'Em intervalo',retornou:'Retornou',jornada:'Em jornada',encerrada:'Encerrada',sem:'Sem marcação',sem_retorno:'Sem retorno',pendente:'Pendente',apuracao:'Apuração'};
+const TAG_CURTA={ok:'No horário',folga_trab:'Trabalhado na folga',adiantado:'Antes do horário',atraso:'Após o horário',aguardando:'Aguardando',intervalo:'Em intervalo',retornou:'Retornou',jornada:'Em jornada',encerrada:'Encerrada',sem:'Sem marcação',sem_retorno:'Sem retorno',pendente:'Pendente',apuracao:'Após o horário'};
 const minHM=v=>{const m=/^(\d{1,2}):(\d{2})/.exec(String(v||''));return m?(+m[1])*60+(+m[2]):null;};
 function pontoLinha(rot,prev,bat,sit,tipo){
   if(!prev&&!bat)return '';
@@ -778,8 +778,10 @@ function pontoResumo0(p){
   if(se&&se.sit==='folga_trab')return{txt:`Dia de folga · bateu ${hm(p.entrada)}${p.saida?' · saiu '+hm(p.saida):''}`,tag:'Trabalhado na folga',cls:'folga',pend:1};
   if(se&&se.sit==='sem')return{txt:`Entrada ${hm(pv.entrada)} · sem marcação`,tag:'Sem marcação',cls:'sem',pend:2};
   if(p.sit&&p.sit.intervalo&&p.sit.intervalo.sit==='sem_retorno')return{txt:`Saiu ${hm(p.saidaInt)} · retorno previsto ${hm(pv.retornoInt)} e não voltou`,tag:'Sem retorno',cls:'sem',pend:2};
-  if(se&&se.sit==='atraso')return{txt:`Entrada ${hm(pv.entrada)} · bateu ${hm(p.entrada)}`,tag:`Atraso${p.atrasoMin?' '+p.atrasoMin+' min':''}`,cls:'atraso',pend:1};
-  if(se&&se.sit==='apuracao')return{txt:`Entrada ${hm(pv.entrada)} · bateu ${hm(p.entrada)}`,tag:'Apuração',cls:'apur',pend:1};
+  // 27/10 (Tiago: "acho que era pra ser após o horário"): depois do previsto = "Após o horário · N min", simétrico ao "Antes do horário";
+  // vale pro atraso já confirmado pelo PontoCerto e pro que ainda está na apuração do DP
+  if(se&&se.sit==='atraso')return{txt:`Entrada ${hm(pv.entrada)} · bateu ${hm(p.entrada)}`,tag:`Após o horário${p.atrasoMin?' · '+p.atrasoMin+' min':''}`,cls:'atraso',pend:1};
+  if(se&&se.sit==='apuracao'){const d=minHM(p.entrada)-minHM(pv.entrada);return{txt:`Entrada ${hm(pv.entrada)} · bateu ${hm(p.entrada)}`,tag:`Após o horário${d>0?' · '+d+' min':''}`,cls:'atraso',pend:1};}
   if(se&&se.sit==='adiantado')return{txt:`Entrada ${hm(pv.entrada)} · bateu ${hm(p.entrada)}`,tag:'Antes do horário',cls:'apur',pend:1};
   if(se&&se.sit==='aguardando')return{txt:`Entrada prevista ${hm(pv.entrada)}`,tag:'Ainda não chegou o horário',cls:'div',pend:0};
   if(p.saida)return{txt:`Entrada ${hm(pv.entrada)} · bateu ${hm(p.entrada)} · saiu ${hm(p.saida)}`,tag:sj&&sj.txt||'Encerrada',cls:TAG_CLS(sj&&sj.sit),pend:0};
@@ -790,7 +792,7 @@ function paginaPonto(){
   if(!INICIO){$('vp-b').innerHTML='<div class="loading"><div class="spin"></div></div>';return;}
   if(!p||p.erro){$('vp-b').innerHTML=`<div class="gv-vazio">${esc((p&&p.erro)||'Sem dados')}</div>`;return;}
   const f=p.fora||{};
-  const chips=`<div class="gv-chips"><span class="badge bb">${p.previstos} previstos</span><span class="badge bu">${p.chegaram} chegaram</span>${p.atrasos?`<span class="badge bw">${p.atrasos} atrasos</span>`:''}${p.semMarcacao?`<span class="badge bd">${p.semMarcacao} sem marcação</span>`:''}${p.aguardando?`<span class="badge bn">${p.aguardando} ainda vão chegar</span>`:''}${p.emIntervalo?`<span class="badge bb">${p.emIntervalo} em intervalo</span>`:''}${p.saidas?`<span class="badge bn">${p.saidas} já saíram</span>`:''}${(p.pessoas||[]).filter(x=>x.sit&&x.sit.entrada&&x.sit.entrada.sit==='folga_trab').length?`<span class="badge bfolga">${(p.pessoas||[]).filter(x=>x.sit&&x.sit.entrada&&x.sit.entrada.sit==='folga_trab').length} trabalhado na folga</span>`:''}${f.folga?`<span class="badge bn">${f.folga} de folga</span>`:''}${f.ferias?`<span class="badge bn">${f.ferias} em férias</span>`:''}${f.afastado?`<span class="badge bn">${f.afastado} afastados</span>`:''}</div>`;
+  const chips=`<div class="gv-chips"><span class="badge bb">${p.previstos} previstos</span><span class="badge bu">${p.chegaram} chegaram</span>${p.atrasos?`<span class="badge bw">${p.atrasos} após o horário</span>`:''}${p.semMarcacao?`<span class="badge bd">${p.semMarcacao} sem marcação</span>`:''}${p.aguardando?`<span class="badge bn">${p.aguardando} ainda vão chegar</span>`:''}${p.emIntervalo?`<span class="badge bb">${p.emIntervalo} em intervalo</span>`:''}${p.saidas?`<span class="badge bn">${p.saidas} já saíram</span>`:''}${(p.pessoas||[]).filter(x=>x.sit&&x.sit.entrada&&x.sit.entrada.sit==='folga_trab').length?`<span class="badge bfolga">${(p.pessoas||[]).filter(x=>x.sit&&x.sit.entrada&&x.sit.entrada.sit==='folga_trab').length} trabalhado na folga</span>`:''}${f.folga?`<span class="badge bn">${f.folga} de folga</span>`:''}${f.ferias?`<span class="badge bn">${f.ferias} em férias</span>`:''}${f.afastado?`<span class="badge bn">${f.afastado} afastados</span>`:''}</div>`;
   const pessoas=(p.pessoas||[]).map(x=>({...x,r:pontoResumo(x)})).sort((a,b)=>b.r.pend-a.r.pend||String(a.nome).localeCompare(String(b.nome),'pt-BR'));
   const lis=pessoas.map(x=>{
     const on=PONTO_ABERTO===x.id,pv=x.previsto||{};
