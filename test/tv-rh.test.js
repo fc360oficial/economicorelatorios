@@ -102,7 +102,15 @@ test('montar: filtra loja/setor, resume, ordena pelo previsto e lista as pendên
   assert.deepEqual(r.saidas.map(l => l.nome), ['BIA', 'CARLOS', 'DUDA']);
   assert.deepEqual(r.pendencias.map(p => p.g + ':' + p.nome), ['sem:ANA', 'atraso:BIA', 'retorno:DUDA']);
   assert.deepEqual(r.lojas, [4]);
+  assert.deepEqual(r.resumoLojas[4], r.resumo);   // uma loja só: resumo da loja = resumo da rede
   assert.equal(m.montar(j, { lojas: [], setores: ['ACOUGUE'] }, '13:30', 10).resumo.previstos, 1);
+  // 27/10: resumo POR LOJA e pendência sabe a loja (a TV monta um bloco de telas por loja)
+  const t = m.montar(j, { lojas: [], setores: [] }, '13:30', 10);
+  assert.deepEqual(t.lojas, [2, 4]); assert.equal(t.resumo.previstos, 5);
+  // EVA (loja 2) entrou 07:00 e às 13:30 não marcou o intervalo → 1 pendente na loja 2
+  assert.deepEqual(t.resumoLojas[2], { previstos: 1, chegaram: 1, atrasos: 0, emIntervalo: 0, saidas: 0, pendentes: 1, aguardando: 0, apuracao: 0, fora: { folga: 0, ferias: 0, afastado: 0 } });
+  assert.equal(t.resumoLojas[4].previstos, 4); assert.equal(t.resumoLojas[4].fora.folga, 1);
+  assert.ok(t.pendencias.every(p => p.loja === 4));
   const l = r.entradas[0]; assert.equal(l.matricula, undefined); assert.equal(l.banco_oficial_min, undefined);   // nada além do necessário sai pra TV
 });
 

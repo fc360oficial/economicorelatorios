@@ -158,19 +158,28 @@ const GRUPO = { sem: 'Sem marcação', atraso: 'Atraso', retorno: 'Sem retorno',
 
 let CFG = null, D = null, SEQ = [], idx = 0, front = 'A', timer = null, assinatura = '', ULTIMO_OK = 0;
 
-// Sequência: resumo · entradas (em páginas) · intervalos · saídas · pendências. Cada tela ligada na configuração.
+// Sequência POR LOJA (27/10, Tiago: "cada slide tem que trazer por loja"): resumo da rede (só quando há mais de uma loja)
+// e depois, loja a loja (E1 → E6 → CD): resumo da loja · entradas (em páginas) · intervalos · saídas · pendências.
+// Cada tela ligada na configuração; loja sem ninguém previsto não entra no loop.
 function montarSequencia(d, cfg) {
   const seq = []; const n = cfg.linhas;
-  const pag = (t, arr, por) => { const p = Math.max(1, Math.ceil(arr.length / por)); for (let k = 0; k < p; k++) seq.push({ t, itens: arr.slice(k * por, (k + 1) * por), pagina: k + 1, paginas: p }); };
-  if (cfg.telas.resumo) seq.push({ t: 'resumo' });
-  if (cfg.telas.entradas) pag('entradas', d.entradas, n);
-  if (cfg.telas.intervalos && d.intervalos.length) pag('intervalos', d.intervalos, n);
-  if (cfg.telas.saidas && d.saidas.length) pag('saidas', d.saidas, n);
-  if (cfg.telas.pendencias) pag('pendencias', d.pendencias, n * 2);
+  const pag = (t, arr, por, loja) => { if (!arr.length) return; const p = Math.ceil(arr.length / por); for (let k = 0; k < p; k++) seq.push({ t, loja, itens: arr.slice(k * por, (k + 1) * por), pagina: k + 1, paginas: p }); };
+  const lojas = d.lojas || [];
+  if (cfg.telas.resumo && lojas.length > 1) seq.push({ t: 'resumo' });
+  for (const loja of lojas) {
+    const da = arr => arr.filter(x => x.loja === loja);
+    if (cfg.telas.resumo) seq.push({ t: 'resumo', loja });
+    if (cfg.telas.entradas) pag('entradas', da(d.entradas), n, loja);
+    if (cfg.telas.intervalos) pag('intervalos', da(d.intervalos), n, loja);
+    if (cfg.telas.saidas) pag('saidas', da(d.saidas), n, loja);
+    if (cfg.telas.pendencias) { const p = da(d.pendencias); if (p.length) pag('pendencias', p, n * 2, loja); else seq.push({ t: 'pendencias', loja, itens: [], pagina: 1, paginas: 1 }); }
+  }
   if (!seq.length) seq.push({ t: 'resumo' });
   return seq;
 }
-function topo() { return `<div class="top"><div class="logo"><img src="${LOGO}" alt="Econômico Supermercados"></div><span class="tit">${esc(CFG.titulo || 'Ponto e Jornada')}</span><span class="loja">RH · DP</span><span class="loja">${esc(D.lojasTxt)}</span><span class="sp"></span><div class="dt">${IC.relogio}<span class="clk">${hora()}</span><small>${hoje()}</small></div></div>`; }
+const nomeLoja = loja => (D.lojasNomes && D.lojasNomes[loja]) || ('E' + loja);
+// topo: na tela de uma loja, a loja aparece na placa amarela; na tela da rede, o filtro da configuração
+function topo(s) { const lj = s && s.loja ? `<span class="qbadge">${esc(nomeLoja(s.loja))}</span>` : `<span class="loja">${esc(D.lojasTxt)}</span>`; return `<div class="top"><div class="logo"><img src="${LOGO}" alt="Econômico Supermercados"></div><span class="tit">${esc(CFG.titulo || 'Ponto e Jornada')}</span><span class="loja">RH · DP</span>${lj}<span class="sp"></span><div class="dt">${IC.relogio}<span class="clk">${hora()}</span><small>${hoje()}</small></div></div>`; }
 function selos() { const s = (CFG.selos || []).filter(Boolean); return s.length ? `<div class="selos">${s.map((t, i) => `<span class="sl">${SELO_IC[i % 3]}${esc(t)}</span>`).join('')}</div>` : ''; }
 function foot(cnt) {
   const val = CFG.rodape ? esc(CFG.rodape) : `PontoCerto às <b>${hmDe(D.dadosEm)}</b> · marcação ausente não é falta`;
@@ -183,9 +192,10 @@ const hd = (ic, tit, s, sub) => `<div class="hd"><h2>${ic}${tit}</h2>${s.paginas
 const cnt = s => `${SEQ.indexOf(s) + 1} / ${SEQ.length}`;
 
 function rResumo(s) {
-  const r = D.resumo; const pct = n => r.previstos ? Math.round(n * 100 / r.previstos) + '% dos previstos' : '—';
+  const r = (s.loja && D.resumoLojas && D.resumoLojas[s.loja]) || D.resumo; const pct = n => r.previstos ? Math.round(n * 100 / r.previstos) + '% dos previstos' : '—';
+  const onde = s.loja ? nomeLoja(s.loja) : D.lojasTxt;
   const cards = [
-    { ic: IC.pessoas, l: 'Previstos para hoje', v: r.previstos, s: esc(D.lojasTxt) + (CFG.setores && CFG.setores.length ? ' · ' + CFG.setores.length + ' setor' + (CFG.setores.length > 1 ? 'es' : '') : ' · todos os setores'), c: '' },
+    { ic: IC.pessoas, l: 'Previstos para hoje', v: r.previstos, s: esc(onde) + (CFG.setores && CFG.setores.length ? ' · ' + CFG.setores.length + ' setor' + (CFG.setores.length > 1 ? 'es' : '') : ' · todos os setores'), c: '' },
     { ic: IC.entrada, l: 'Já registraram a entrada', v: r.chegaram, s: pct(r.chegaram), c: 'ama' },
     { ic: IC.alerta, l: 'Atrasos confirmados', v: r.atrasos, s: 'confirmados pela apuração do PontoCerto', c: r.atrasos ? 'vm' : '' },
     { ic: IC.pausa, l: 'Em intervalo', v: r.emIntervalo, s: pct(r.emIntervalo), c: '' },
@@ -193,26 +203,26 @@ function rResumo(s) {
     { ic: IC.pendente, l: 'Marcações pendentes', v: r.pendentes, s: 'sem marcação, sem retorno ou saída pendente', c: r.pendentes ? 'ama' : '' },
   ];
   const f = r.fora || {};
-  return `<div class="res">${topo()}<div class="main">${hd(IC.relogio, 'Resumo do ponto', s, 'hoje · ' + esc(D.agora))}<div class="kpis">${cards.map(c => `<div class="kpi ${c.c}">${c.ic}<span class="l">${c.l}</span><span class="v">${c.v}</span><span class="s">${c.s}</span></div>`).join('')}</div>
+  return `<div class="res">${topo(s)}<div class="main">${hd(IC.relogio, s.loja ? 'Resumo do ponto' : 'Resumo da rede', s, (s.loja ? esc(nomeLoja(s.loja)) + ' · ' : '') + 'hoje · ' + esc(D.agora))}<div class="kpis">${cards.map(c => `<div class="kpi ${c.c}">${c.ic}<span class="l">${c.l}</span><span class="v">${c.v}</span><span class="s">${c.s}</span></div>`).join('')}</div>
     <div class="obs"><span>Ainda não chegou o horário <b>${r.aguardando}</b></span><span>Em apuração <b>${r.apuracao}</b></span><span>Folga <b>${f.folga || 0}</b></span><span>Férias <b>${f.ferias || 0}</b></span><span>Afastados <b>${f.afastado || 0}</b></span></div></div>${foot(cnt(s))}</div>`;
 }
 function vazio(tit, txt) { return `<div class="vazio-tela"><h3>${tit}</h3><span class="brush"></span><p>${txt}</p></div>`; }
 function rEntradas(s) {
   const linhas = s.itens.map(l => `<div class="row"><span class="n">${esc(l.nome)}<small>${esc(l.cargo || '')}</small></span><span><span class="etq">${esc(l.etq)}</span></span><span class="t">${esc(l.setor)}</span>${h(pv(l, 'entrada'), 'prev', pv(l, 'saida') ? 'até ' + pv(l, 'saida') : '')}${h(l.entrada)}<span>${st(l.sitEntrada)}</span></div>`).join('');
-  return `<div class="lst entradas">${topo()}<div class="main">${hd(IC.entrada, 'Entradas', s, 'previsto × marcado · na ordem do horário previsto')}${s.itens.length ? `<div class="thead"><span>Funcionário</span><span>Loja</span><span>Setor</span><span>Previsto</span><span>Entrada</span><span>Situação</span></div><div class="rows" style="--n:${CFG.linhas}">${linhas}</div>` : vazio('Ninguém previsto', 'Nenhum funcionário previsto para hoje nas lojas e setores escolhidos na configuração.')}</div>${foot(cnt(s))}</div>`;
+  return `<div class="lst entradas">${topo(s)}<div class="main">${hd(IC.entrada, 'Entradas', s, esc(nomeLoja(s.loja)) + ' · previsto × marcado · na ordem do horário previsto')}${s.itens.length ? `<div class="thead"><span>Funcionário</span><span>Loja</span><span>Setor</span><span>Previsto</span><span>Entrada</span><span>Situação</span></div><div class="rows" style="--n:${CFG.linhas}">${linhas}</div>` : vazio('Ninguém previsto', 'Nenhum funcionário previsto para hoje nas lojas e setores escolhidos na configuração.')}</div>${foot(cnt(s))}</div>`;
 }
 function rIntervalos(s) {
   const linhas = s.itens.map(l => `<div class="row"><span class="n">${esc(l.nome)}<small>${esc(l.etq)} · ${esc(l.cargo || '')}</small></span><span class="t">${esc(l.setor)}</span>${h(pv(l, 'saidaInt'), 'prev')}${h(l.saidaInt)}${h(pv(l, 'retornoInt'), 'prev')}${h(l.retornoInt)}<span>${st(l.sitIntervalo)}</span></div>`).join('');
-  return `<div class="lst intervalos">${topo()}<div class="main">${hd(IC.pausa, 'Intervalos', s, 'quem já entrou e tem intervalo na escala')}<div class="thead"><span>Funcionário</span><span>Setor</span><span>Saída prev.</span><span>Saída</span><span>Retorno prev.</span><span>Retorno</span><span>Situação</span></div><div class="rows" style="--n:${CFG.linhas}">${linhas}</div></div>${foot(cnt(s))}</div>`;
+  return `<div class="lst intervalos">${topo(s)}<div class="main">${hd(IC.pausa, 'Intervalos', s, esc(nomeLoja(s.loja)) + ' · quem já entrou e tem intervalo na escala')}<div class="thead"><span>Funcionário</span><span>Setor</span><span>Saída prev.</span><span>Saída</span><span>Retorno prev.</span><span>Retorno</span><span>Situação</span></div><div class="rows" style="--n:${CFG.linhas}">${linhas}</div></div>${foot(cnt(s))}</div>`;
 }
 function rSaidas(s) {
   const linhas = s.itens.map(l => `<div class="row"><span class="n">${esc(l.nome)}<small>${esc(l.etq)} · ${esc(l.cargo || '')}</small></span><span class="t">${esc(l.setor)}</span>${h(pv(l, 'saida'), 'prev')}${h(l.saida)}<span>${st(l.sitSaida)}</span><span class="pend${l.pendencias.length ? '' : ' ok'}">${l.pendencias.length ? esc(l.pendencias.join(' · ')) : 'sem pendência'}</span></div>`).join('');
-  return `<div class="lst saidas">${topo()}<div class="main">${hd(IC.saida, 'Saídas e encerramento', s, 'quem já entrou · jornada e pendências de marcação')}<div class="thead"><span>Funcionário</span><span>Setor</span><span>Saída prev.</span><span>Saída</span><span>Situação da jornada</span><span>Pendências</span></div><div class="rows" style="--n:${CFG.linhas}">${linhas}</div></div>${foot(cnt(s))}</div>`;
+  return `<div class="lst saidas">${topo(s)}<div class="main">${hd(IC.saida, 'Saídas e encerramento', s, esc(nomeLoja(s.loja)) + ' · quem já entrou · jornada e pendências de marcação')}<div class="thead"><span>Funcionário</span><span>Setor</span><span>Saída prev.</span><span>Saída</span><span>Situação da jornada</span><span>Pendências</span></div><div class="rows" style="--n:${CFG.linhas}">${linhas}</div></div>${foot(cnt(s))}</div>`;
 }
 function rPendencias(s) {
   const n = CFG.linhas; const col = arr => `<div class="col" style="--n:${n}">${arr.map(p => `<div class="it"><span class="gt ${esc(p.g)}">${GRUPO[p.g] || p.g}</span><div class="tx"><div class="n"><span class="etq">${esc(p.etq)}</span>${esc(p.nome)}</div><div class="d">${esc(p.setor)} · <b>${esc(p.txt)}</b></div></div></div>`).join('')}</div>`;
-  const corpo = s.itens.length ? `<div class="cols">${col(s.itens.slice(0, n))}${col(s.itens.slice(n, n * 2))}</div>` : vazio('Nenhuma pendência agora', 'Todas as marcações previstas até este momento estão registradas. Atraso só aparece aqui quando a apuração do PontoCerto confirma.');
-  return `<div class="pen">${topo()}<div class="main">${hd(IC.alerta, 'Pendências e divergências', s, 'para o RH agir · atraso só quando a apuração confirma')}${corpo}</div>${foot(cnt(s))}</div>`;
+  const corpo = s.itens.length ? `<div class="cols">${col(s.itens.slice(0, n))}${col(s.itens.slice(n, n * 2))}</div>` : vazio('Nenhuma pendência agora', `${esc(nomeLoja(s.loja))}: todas as marcações previstas até este momento estão registradas. Atraso só aparece aqui quando a apuração do PontoCerto confirma.`);
+  return `<div class="pen">${topo(s)}<div class="main">${hd(IC.alerta, 'Pendências e divergências', s, esc(nomeLoja(s.loja)) + ' · para o RH agir · atraso só quando a apuração confirma')}${corpo}</div>${foot(cnt(s))}</div>`;
 }
 const render = s => ({ resumo: rResumo, entradas: rEntradas, intervalos: rIntervalos, saidas: rSaidas, pendencias: rPendencias })[s.t](s);
 
