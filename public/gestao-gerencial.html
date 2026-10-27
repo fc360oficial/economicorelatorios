@@ -191,7 +191,7 @@ body.v-home #home{display:flex}
 .gv-vazio{padding:28px 10px;text-align:center;color:var(--text3);font-size:13px}
 .gv-nota{font-size:12px;color:var(--text3);margin-top:12px;line-height:1.35}
 /* Ponto por pessoa: linha toca e abre as 4 marcações (previsto × batido) */
-.gv-tag.ok{background:var(--green-bg);color:var(--green)}.gv-tag.apur{background:var(--amber-bg);color:var(--amber)}
+.gv-tag.ok{background:var(--green-bg);color:var(--green)}.gv-tag.apur{background:var(--amber-bg);color:var(--amber)}.gv-tag.folga,.badge.bfolga{background:var(--brand);color:var(--text)}
 .pg-b{--px:18px}.gv-li.pessoa{cursor:pointer;user-select:none}.gv-li.pessoa.on{background:var(--bg2);margin:0 calc(-1*var(--px));padding:9px var(--px);border-bottom:0;border-radius:12px 12px 0 0}
 .pm-wrap{background:var(--bg2);margin:0 calc(-1*var(--px)) 8px;padding:2px var(--px) 12px;border-radius:0 0 12px 12px;display:grid;gap:6px}
 /* tabela Previsto × Bateu do detalhe (27/10: "ajustar o layout da informação quando abre") */
@@ -744,11 +744,11 @@ function quadroGiro(g){
 // (entrada, saída do intervalo, retorno, saída) com previsto × batido e a situação de cada uma (mesma classificação da TV RH/DP).
 let PONTO_ABERTO=null;
 const hm=v=>v||'—';
-const TAG_CLS=s=>s==='sem'||s==='sem_retorno'?'sem':s==='atraso'?'atraso':s==='apuracao'||s==='adiantado'?'apur':s==='aguardando'||s==='pendente'||s==='encerrada'||s==='intervalo'?'div':'ok';
+const TAG_CLS=s=>s==='sem'||s==='sem_retorno'?'sem':s==='atraso'?'atraso':s==='apuracao'||s==='adiantado'?'apur':s==='folga_trab'?'folga':s==='aguardando'||s==='pendente'||s==='encerrada'||s==='intervalo'?'div':'ok';
 function pontoAbrir(id){PONTO_ABERTO=PONTO_ABERTO===id?null:id;paginaPonto();}
 // Detalhe da pessoa (Tiago, 27/10: "ajustar o layout da informação quando abre"; "não precisa colocar nas batidas − ou mais"): tabela Previsto × Bateu, uma linha por marcação,
 // situação curta à direita; sem diferença em minutos nas batidas — o saldo de horas fica embaixo, dizendo se é positivo ou negativo.
-const TAG_CURTA={ok:'No horário',folga_trab:'Folga trab.',adiantado:'Antes do horário',atraso:'Atraso',aguardando:'Aguardando',intervalo:'Em intervalo',retornou:'Retornou',jornada:'Em jornada',encerrada:'Encerrada',sem:'Sem marcação',sem_retorno:'Sem retorno',pendente:'Pendente',apuracao:'Apuração'};
+const TAG_CURTA={ok:'No horário',folga_trab:'Trabalhado na folga',adiantado:'Antes do horário',atraso:'Atraso',aguardando:'Aguardando',intervalo:'Em intervalo',retornou:'Retornou',jornada:'Em jornada',encerrada:'Encerrada',sem:'Sem marcação',sem_retorno:'Sem retorno',pendente:'Pendente',apuracao:'Apuração'};
 const minHM=v=>{const m=/^(\d{1,2}):(\d{2})/.exec(String(v||''));return m?(+m[1])*60+(+m[2]):null;};
 function pontoLinha(rot,prev,bat,sit,tipo){
   if(!prev&&!bat)return '';
@@ -769,6 +769,8 @@ function pontoDetalhe(x){
 function fmtBanco(min){const a=Math.abs(min||0),h=Math.floor(a/60),m=a%60;const t=h+':'+String(m).padStart(2,'0');return min<0?'-'+t+' N':min>0?t+' P':'0:00';}
 function pontoResumo(p){
   const pv=p.previsto||{},se=p.sit&&p.sit.entrada,sj=p.sit&&p.sit.jornada;
+  // 27/10 (Tiago: "o que bateu na folga colocar trabalhado na folga")
+  if(se&&se.sit==='folga_trab')return{txt:`Dia de folga · bateu ${hm(p.entrada)}${p.saida?' · saiu '+hm(p.saida):''}`,tag:'Trabalhado na folga',cls:'folga',pend:1};
   if(se&&se.sit==='sem')return{txt:`Entrada ${hm(pv.entrada)} · sem marcação`,tag:'Sem marcação',cls:'sem',pend:2};
   if(p.sit&&p.sit.intervalo&&p.sit.intervalo.sit==='sem_retorno')return{txt:`Saiu ${hm(p.saidaInt)} · retorno previsto ${hm(pv.retornoInt)} e não voltou`,tag:'Sem retorno',cls:'sem',pend:2};
   if(se&&se.sit==='atraso')return{txt:`Entrada ${hm(pv.entrada)} · bateu ${hm(p.entrada)}`,tag:`Atraso${p.atrasoMin?' '+p.atrasoMin+' min':''}`,cls:'atraso',pend:1};
@@ -783,7 +785,7 @@ function paginaPonto(){
   if(!INICIO){$('vp-b').innerHTML='<div class="loading"><div class="spin"></div></div>';return;}
   if(!p||p.erro){$('vp-b').innerHTML=`<div class="gv-vazio">${esc((p&&p.erro)||'Sem dados')}</div>`;return;}
   const f=p.fora||{};
-  const chips=`<div class="gv-chips"><span class="badge bb">${p.previstos} previstos</span><span class="badge bu">${p.chegaram} chegaram</span>${p.atrasos?`<span class="badge bw">${p.atrasos} atrasos</span>`:''}${p.semMarcacao?`<span class="badge bd">${p.semMarcacao} sem marcação</span>`:''}${p.aguardando?`<span class="badge bn">${p.aguardando} ainda vão chegar</span>`:''}${p.emIntervalo?`<span class="badge bb">${p.emIntervalo} em intervalo</span>`:''}${p.saidas?`<span class="badge bn">${p.saidas} já saíram</span>`:''}${f.folga?`<span class="badge bn">${f.folga} de folga</span>`:''}${f.ferias?`<span class="badge bn">${f.ferias} em férias</span>`:''}${f.afastado?`<span class="badge bn">${f.afastado} afastados</span>`:''}</div>`;
+  const chips=`<div class="gv-chips"><span class="badge bb">${p.previstos} previstos</span><span class="badge bu">${p.chegaram} chegaram</span>${p.atrasos?`<span class="badge bw">${p.atrasos} atrasos</span>`:''}${p.semMarcacao?`<span class="badge bd">${p.semMarcacao} sem marcação</span>`:''}${p.aguardando?`<span class="badge bn">${p.aguardando} ainda vão chegar</span>`:''}${p.emIntervalo?`<span class="badge bb">${p.emIntervalo} em intervalo</span>`:''}${p.saidas?`<span class="badge bn">${p.saidas} já saíram</span>`:''}${(p.pessoas||[]).filter(x=>x.sit&&x.sit.entrada&&x.sit.entrada.sit==='folga_trab').length?`<span class="badge bfolga">${(p.pessoas||[]).filter(x=>x.sit&&x.sit.entrada&&x.sit.entrada.sit==='folga_trab').length} trabalhado na folga</span>`:''}${f.folga?`<span class="badge bn">${f.folga} de folga</span>`:''}${f.ferias?`<span class="badge bn">${f.ferias} em férias</span>`:''}${f.afastado?`<span class="badge bn">${f.afastado} afastados</span>`:''}</div>`;
   const pessoas=(p.pessoas||[]).map(x=>({...x,r:pontoResumo(x)})).sort((a,b)=>b.r.pend-a.r.pend||String(a.nome).localeCompare(String(b.nome),'pt-BR'));
   const lis=pessoas.map(x=>{
     const on=PONTO_ABERTO===x.id,pv=x.previsto||{};

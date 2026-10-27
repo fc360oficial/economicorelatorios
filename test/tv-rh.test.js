@@ -85,7 +85,7 @@ test('folga, férias e afastados ficam fora do dia; escala não informada = em a
   assert.equal(m.classificar(linha({ situacao: 'ferias' }), '10:00', 10).jornada.txt, 'Férias');
   const se = m.classificar(linha({ situacao: 'sem_escala', previsto: null }), '10:00', 10); assert.equal(se.entrada.sit, 'apuracao'); assert.equal(se.entrada.txt, 'Escala não informada');
   const ft = m.classificar(linha({ situacao: 'folga_trabalhada', previsto: { folga: true, periodos: 0 }, entrada: '08:00', marcacoes: ['08:00'] }), '10:00', 10);
-  assert.equal(ft.entrada.txt, 'Trabalho em folga'); assert.equal(ft.entrada.sit, 'folga_trab'); assert.equal(ft.jornada.sit, 'ok'); assert.deepEqual(ft.divergencias, ['Trabalho em dia de folga']); assert.equal(ft.saida.sit, 'jornada');
+  assert.equal(ft.entrada.txt, 'Trabalhado na folga'); assert.equal(ft.entrada.sit, 'folga_trab'); assert.equal(ft.jornada.sit, 'ok'); assert.deepEqual(ft.divergencias, ['Trabalho em dia de folga']); assert.equal(ft.saida.sit, 'jornada');
 });
 
 test('montar: filtra loja/setor, resume, ordena pelo previsto e lista as pendências por grupo', () => {
