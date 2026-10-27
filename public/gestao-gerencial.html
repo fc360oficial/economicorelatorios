@@ -108,10 +108,7 @@ body.v-disc .filtros,body.v-disc main{display:none}
 body.v-ponto .filtros,body.v-ponto main,body.v-giro .filtros,body.v-giro main{display:none}
 body.v-avarias main>*:not(#painel-avaria){display:none!important}
 /* Desempenho sem avaria (Tiago, 27/10: "avarias pode tirar de desempenho"): o cartão Avaria do Mês e a tabela ficam só na tela Avarias */
-body.v-desempenho #painel-avaria,body.v-desempenho .kpi.k-av{display:none!important}
-body.v-desempenho .kpi-grid{grid-template-columns:repeat(5,1fr)}
-@media(max-width:1000px){body.v-desempenho .kpi-grid{grid-template-columns:repeat(3,1fr)}}
-@media(max-width:800px){body.v-desempenho .kpi-grid{grid-template-columns:repeat(2,1fr)}}   /* !important: o JS liga os painéis por style inline */
+body.v-desempenho #painel-avaria{display:none!important}   /* 27/10: o cartão Avaria do Mês fica ("o kpi de avarias pode continuar"), só a tabela sai */
 .pg{display:none;flex:1;padding:18px 24px}body.v-ponto #view-ponto,body.v-giro #view-giro{display:block}
 .pg .secao{max-width:900px;margin:0 auto}.pg-b{padding:4px 18px 16px}
 @media(max-width:560px){.pg{padding:10px 14px}.pg-b{padding:2px 14px 14px}}
@@ -197,6 +194,24 @@ body.v-home #home{display:flex}
 .gv-fil button{border:1px solid var(--border-md);background:var(--card);border-radius:999px;padding:6px 12px;font:600 12px var(--font);color:var(--text2);cursor:pointer;white-space:nowrap}
 .gv-fil button b{font-weight:800;color:var(--text)}
 .gv-fil button.on{background:var(--text);color:#fff;border-color:var(--text)}.gv-fil button.on b{color:var(--brand)}
+/* ─── TRAVA: app instalado + notificações (27/10/26, Tiago: "forçar o gerente instalar o app no celular e ativar as notificações").
+   Perfil gerencial no celular: fora do app instalado, a tela só mostra o passo "Instalar"; dentro do app, sem permissão de
+   notificação, só mostra o passo "Ativar notificações". Cobre tudo (z-index acima do Início). ─── */
+#gate{position:fixed;inset:0;z-index:500;background:var(--bg);display:none;flex-direction:column;align-items:center;justify-content:center;padding:24px 18px;overflow:auto}
+body.gate #gate{display:flex}
+.gate-box{background:var(--card);border-radius:22px;box-shadow:0 1px 2px rgba(0,0,0,.04),0 8px 28px rgba(0,0,0,.08);padding:30px 22px 24px;width:100%;max-width:420px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:14px}
+.gate-box .hm-logo{width:72px;height:72px;border-radius:20px}.gate-box .hm-logo svg{width:38px;height:38px}
+.gate-passo{font-size:10.5px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3)}
+.gate-box h2{font-size:21px;font-weight:800;letter-spacing:-.02em;line-height:1.2}
+.gate-box p{font-size:14px;color:var(--text2);line-height:1.5}
+.gate-ol{text-align:left;font-size:13.5px;color:var(--text2);line-height:1.55;padding-left:0;list-style:none;display:flex;flex-direction:column;gap:8px;width:100%}
+.gate-ol li{display:flex;gap:10px;align-items:flex-start}.gate-ol li>b{flex-shrink:0;width:24px;height:24px;border-radius:50%;background:var(--brand);color:var(--text);font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center}
+.gate-btn{width:100%;border:0;border-radius:14px;background:var(--brand);color:var(--text);font:800 15px var(--font);padding:15px 18px;cursor:pointer;margin-top:4px}
+.gate-btn:active{transform:scale(.98)}.gate-btn:disabled{opacity:.6;cursor:wait}
+.gate-btn.sec{background:var(--bg2);color:var(--text2);font-weight:700}
+.gate-erro{font-size:12.5px;color:var(--red);background:var(--red-bg);border-radius:10px;padding:8px 12px;width:100%}
+.gate-ok{font-size:12.5px;color:var(--green);background:var(--green-bg);border-radius:10px;padding:8px 12px;width:100%}
+.gate-nota{font-size:11.5px;color:var(--text3);line-height:1.4}
 /* ─── LOADING ─── */
 .loading{padding:40px;text-align:center;color:var(--text3);display:flex;flex-direction:column;align-items:center;gap:10px;font-size:12px}
 .spin{width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--brand);border-radius:50%;animation:spin .7s linear infinite}
@@ -231,6 +246,17 @@ body.v-home #home{display:flex}
   </div>
   <div class="h-live"><span class="h-dot"></span>AO VIVO</div>
 </header>
+
+<!-- trava: instalar o app + ativar notificações (perfil gerencial no celular) -->
+<div id="gate" role="dialog" aria-modal="true" aria-labelledby="gate-t">
+  <div class="gate-box">
+    <div class="hm-logo"><svg viewBox="0 0 24 24"><path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg></div>
+    <div class="gate-passo" id="gate-passo"></div>
+    <h2 id="gate-t"></h2>
+    <p id="gate-p"></p>
+    <div id="gate-a" style="width:100%;display:flex;flex-direction:column;gap:10px"></div>
+  </div>
+</div>
 
 <!-- Início (27/10/26): grade de quadrados no estilo da tela inicial do app Fluxo Certo 360, cores do Econômico. Cada quadrado é um link
      pra tela (#desempenho, #disc, #ponto, #avarias, #giro) ou pra saída; a pill do canto traz o número do dia (preenchida pelo JS) -->
@@ -727,6 +753,74 @@ function paginaGiro(){
   const lis=itens.map(i=>`<div class="gv-li"><div class="nm"><b>${esc(i.descricao)}</b><span>${esc(i.cod)}${i.grupo?' · '+esc(i.grupo):''} · ${i.dias==null?'sem venda na janela':i.dias+' dias sem venda'}</span></div><div class="vl"><b>${R(i.valor)}</b>${Number(i.est||0).toLocaleString('pt-BR')} ${esc(i.unid)}</div></div>`).join('');
   $('vg-b').innerHTML=fil+chips+(lis||`<div class="gv-vazio">Nenhum item ${GIRO_FAIXA?'nesta faixa':'sem giro nesta loja'}</div>`)+(total>itens.length?`<div class="gv-nota">Mostrando os ${itens.length} de maior valor parado (custo × estoque).</div>`:'');
 }
+// ── Trava: app instalado + notificações (27/10/26, Tiago: "forçar o gerente instalar o app no celular e ativar as notificações").
+// Só pro perfil gerencial em celular. Passo 1: fora do app instalado (display-mode standalone) → instalar (botão do Chrome via
+// beforeinstallprompt ou instruções Android/iPhone). Passo 2: dentro do app sem permissão → pedir permissão, inscrever o aparelho
+// em /api/gestao-gerencial/push/inscrever e mandar o aviso de teste. Permissão negada → instruções pra ligar nas configurações.
+// Com permissão dada, a inscrição é conferida em silêncio a cada abertura (aparelho trocado/limpo volta a se inscrever). ──
+let INSTALL_EVT=null;
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();INSTALL_EVT=e;if(document.body.classList.contains('gate'))gateRender();});
+window.addEventListener('appinstalled',()=>{if(document.body.classList.contains('gate'))gateRender('instalou');});
+const ehCelular=()=>/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)||(navigator.maxTouchPoints>1&&/Macintosh/.test(navigator.userAgent));
+const ehIOS=()=>/iPhone|iPad|iPod/i.test(navigator.userAgent)||(navigator.maxTouchPoints>1&&/Macintosh/.test(navigator.userAgent));
+const appInstalado=()=>window.matchMedia('(display-mode: standalone)').matches||window.matchMedia('(display-mode: fullscreen)').matches||navigator.standalone===true;
+const b64=s=>{const p='='.repeat((4-s.length%4)%4),b=(s+p).replace(/-/g,'+').replace(/_/g,'/'),r=atob(b),a=new Uint8Array(r.length);for(let i=0;i<r.length;i++)a[i]=r.charCodeAt(i);return a;};
+function gateMostrar(passo,titulo,texto,acoesHtml){
+  $('gate-passo').textContent=passo;$('gate-t').textContent=titulo;$('gate-p').innerHTML=texto;$('gate-a').innerHTML=acoesHtml||'';
+  document.body.classList.add('gate');
+}
+function gateFechar(){document.body.classList.remove('gate');}
+async function inscreverPush(){
+  const reg=await navigator.serviceWorker.ready;
+  let sub=await reg.pushManager.getSubscription();
+  if(!sub){const k=await (await fetch('/api/gestao-gerencial/push/chave')).json();if(!k.chave)throw new Error(k.erro||'Servidor sem chave de notificação');
+    sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64(k.chave)});}
+  const r=await fetch('/api/gestao-gerencial/push/inscrever',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({subscription:sub.toJSON()})});
+  const j=await r.json();if(!r.ok||j.erro)throw new Error(j.erro||('Erro '+r.status));
+  try{localStorage.setItem('ger_push_em',String(Date.now()));}catch(e){}
+  return j;
+}
+function gateRender(ev){
+  if(!appInstalado()){
+    if(ev==='instalou'){gateMostrar('Passo 1 de 2','App instalado ✓','Agora feche esta página e abra o <b>Econômico</b> pelo ícone na tela inicial do celular.','');return;}
+    const ios=ehIOS();
+    const passos=ios
+      ?'<ol class="gate-ol"><li><b>1</b><span>Toque em <b>Compartilhar</b> (quadrado com seta) na barra do Safari</span></li><li><b>2</b><span>Escolha <b>Adicionar à Tela de Início</b></span></li><li><b>3</b><span>Toque em <b>Adicionar</b> e abra o app pelo ícone</span></li></ol>'
+      :'<ol class="gate-ol"><li><b>1</b><span>Toque nos <b>três pontos</b> (⋮) no canto do navegador</span></li><li><b>2</b><span>Escolha <b>Instalar app</b> ou <b>Adicionar à tela inicial</b></span></li><li><b>3</b><span>Abra o app pelo ícone na tela inicial</span></li></ol>';
+    const btn=INSTALL_EVT?'<button class="gate-btn" id="gate-inst">Instalar o app</button><div class="gate-nota">ou, se preferir, pelo menu:</div>':'';
+    gateMostrar('Passo 1 de 2','Instale o app no celular','A Gestão Gerencial funciona pelo app instalado, pra você receber os avisos da loja.',btn+passos);
+    const bi=$('gate-inst');if(bi)bi.onclick=async()=>{bi.disabled=true;try{INSTALL_EVT.prompt();const r=await INSTALL_EVT.userChoice;INSTALL_EVT=null;if(r&&r.outcome==='accepted')gateRender('instalou');else{bi.disabled=false;}}catch(e){bi.disabled=false;}};
+    return;
+  }
+  if(!('Notification' in window)||!('PushManager' in window)||!('serviceWorker' in navigator)){
+    gateMostrar('Passo 2 de 2','Este aparelho não aceita notificações','Atualize o sistema do celular pra receber os avisos. Por enquanto dá pra continuar sem eles.','<button class="gate-btn sec" onclick="gateFechar()">Continuar sem avisos</button>');return;
+  }
+  const perm=Notification.permission;
+  if(perm==='granted'){gateFechar();inscreverPush().catch(e=>console.warn('push:',e.message));return;}
+  if(perm==='denied'){
+    const como=ehIOS()
+      ?'<ol class="gate-ol"><li><b>1</b><span>Abra <b>Ajustes</b> do iPhone › <b>Notificações</b></span></li><li><b>2</b><span>Toque em <b>Econômico</b> e ligue <b>Permitir Notificações</b></span></li><li><b>3</b><span>Volte aqui e toque em Conferir</span></li></ol>'
+      :'<ol class="gate-ol"><li><b>1</b><span>Segure o ícone do <b>Econômico</b> na tela inicial › <b>Informações do app</b></span></li><li><b>2</b><span>Toque em <b>Notificações</b> e ligue</span></li><li><b>3</b><span>Volte aqui e toque em Conferir</span></li></ol>';
+    gateMostrar('Passo 2 de 2','As notificações estão bloqueadas','Você precisa liberar os avisos do app nas configurações do celular.',como+'<button class="gate-btn" onclick="gateRender()">Conferir</button>');return;
+  }
+  gateMostrar('Passo 2 de 2','Ative as notificações','Pra receber os avisos da loja (ponto, pendências e alertas do dia) toque no botão e escolha <b>Permitir</b>.',
+    '<button class="gate-btn" id="gate-not">Ativar notificações</button>');
+  $('gate-not').onclick=async()=>{
+    const b=$('gate-not');b.disabled=true;b.textContent='Aguardando…';
+    try{
+      const p=await Notification.requestPermission();
+      if(p!=='granted'){gateRender();return;}
+      b.textContent='Registrando o aparelho…';await inscreverPush();
+      let t=null;try{t=await (await fetch('/api/gestao-gerencial/push/testar',{method:'POST'})).json();}catch(e){}
+      gateMostrar('Pronto','Notificações ativadas ✓',t&&t.ok?'Mandamos um aviso de teste pro seu celular. Os próximos chegam por aqui.':'Aparelho registrado. Os avisos da loja vão chegar por aqui.','<button class="gate-btn" onclick="gateFechar()">Entrar</button>');
+    }catch(e){$('gate-a').innerHTML='<div class="gate-erro">'+esc(e.message)+'</div><button class="gate-btn" onclick="gateRender()">Tentar de novo</button>';}
+  };
+}
+function gate(u){
+  if(!u||u.perfil!=='gerencial'||!ehCelular())return;
+  gateRender();
+}
+
 // Navegação pelo hash: #home (padrão) e as telas. Voltar do navegador volta pro Início.
 function rota(){
   let v=(location.hash||'#home').slice(1);if(!VIEWS[v])v='home';
@@ -751,7 +845,7 @@ fetch('/api/me').then(r=>r.json()).then(u=>{
     sel.disabled=true;
     sel.style.opacity='.6';
   }
-  cabecalhoInicio(u);
+  cabecalhoInicio(u);gate(u);
 }).catch(()=>cabecalhoInicio(null)).finally(()=>carregar());
 document.getElementById('sel-loja').addEventListener('change',lojaInicio);
 </script>

@@ -8815,6 +8815,15 @@ app.get('/api/gestao-gerencial/inicio', async (req, res) => {
   try { res.json(await gerencialInicio.quadros(loja, { tvRh, semGiro, toleranciaMin: tvRhTolerancia })); }
   catch (err) { console.error('[gestao-gerencial/inicio]', err.message); res.status(500).json({ error: err.message }); }
 });
+// Avisos no celular do gerente — Web Push (27/10/2026, Tiago: "forçar o gerente instalar o app no celular e ativar as notificações"):
+// a Gestão Gerencial aberta pelo app instalado inscreve o aparelho; lib/gerencial-push.js guarda em data/gerencial-push/ e manda
+// por usuário (notificar) ou por loja (notificarLoja). Chave VAPID própria, passada em cada envio (não mexe na do portal do fornecedor).
+const gerencialPush = require('./lib/gerencial-push'); gerencialPush.init({});
+app.get('/api/gestao-gerencial/push/chave', (req, res) => res.json({ chave: gerencialPush.chavePublica(), erro: gerencialPush.estado().erro }));
+app.post('/api/gestao-gerencial/push/inscrever', (req, res) => { const r = gerencialPush.inscrever(req.session.user, req.body && req.body.subscription, req.get('user-agent')); res.status(r.erro ? 400 : 200).json(r); });
+app.post('/api/gestao-gerencial/push/sair', (req, res) => res.json(gerencialPush.desinscrever(req.session.user, req.body && req.body.endpoint)));
+app.post('/api/gestao-gerencial/push/testar', async (req, res) => { try { res.json(await gerencialPush.testar(req.session.user)); } catch (err) { res.status(500).json({ erro: err.message }); } });
+app.get('/api/gestao-gerencial/push/estado', (req, res) => { if (req.session.user?.perfil !== 'admin') return res.status(403).json({ error: 'Só administrador' }); res.json(gerencialPush.estado()); });
 // Termos de Escala (23/10/2026, DP / RH › Termos de Escala): termo de ciência de trabalho em domingo/feriado, um por
 // funcionário num PDF só, com histórico e reimpressão. Regras e PDF em lib/termos-escala.js; só lê o PontoCerto.
 require('./lib/termos-escala-rotas')(app, { pontocerto });
