@@ -69,6 +69,7 @@
         { href: '/teste-tiago.html', ic: 'dashboard', txt: 'TESTE TIAGO' },
         { href: '/escalas.html', ic: 'list', txt: 'Escalas' },
         { href: '/termos-escala.html', ic: 'list', txt: 'Termos de Escala' },
+        { href: '/gestao-disciplinar.html', ic: 'shield', txt: 'Gestão Disciplinar', badge: '/api/disciplinar/pendencias' },
         { href: '/auditoria-folha.html', ic: 'bank', txt: 'Auditoria da Folha' }
       ]},
     { id: 'financeiro', ic: 'bank', txt: 'Financeiro', sub: [
@@ -176,6 +177,8 @@
   + '#dsnav a.dn-item:hover{background:var(--wsh,#E4E4E1);color:var(--ink,#0E1626)}'
   + '#dsnav a.dn-item.on{background:var(--amw,#FFF6D9);color:var(--amk,#6B4E00)}'
   + '#dsnav a.dn-item.on svg{color:var(--amk,#6B4E00)}'
+  + '#dsnav .dn-badge{margin-left:auto;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#C22F49;color:#fff;font-size:10.5px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0}'
+  + '#dsnav .dn-badge[hidden]{display:none}'
   + '#dsnav .lbl{opacity:0;transition:opacity .1s ease}'
   + '#dsnav.pinned .lbl,#dsnav:hover .lbl{opacity:1}'
   + '#dsnav .dn-group{margin-bottom:2px}'
@@ -303,7 +306,8 @@
               var onS = path === s.href ? ' on' : '';
               var esc = s.escolha ? ' data-escolha="' + encodeURIComponent(JSON.stringify({ titulo: s.txt, opcoes: s.escolha })) + '"' : '';
               var adm = s.admin ? ' data-admin="1" style="display:none"' : '';   // só aparece quando /api/me diz perfil admin
-              return '<a class="dn-item' + onS + '" href="' + s.href + '"' + esc + adm + '>' + icon(s.ic) + '<span class="lbl">' + s.txt + '</span></a>';
+              var bd = s.badge ? ' data-badge="' + s.badge + '"' : '';   // contador de pendências do usuário logado (só o que exige ação dele)
+              return '<a class="dn-item' + onS + '" href="' + s.href + '"' + esc + adm + bd + '>' + icon(s.ic) + '<span class="lbl">' + s.txt + '</span>' + (s.badge ? '<span class="dn-badge" hidden></span>' : '') + '</a>';
             }).join('')
           + '</div>'
           + '</div>';
@@ -397,6 +401,12 @@
         var ini = u.nome.trim().split(/\s+/).map(function (p) { return p[0]; }).slice(0, 2).join('').toUpperCase();
         document.getElementById('dn-ava').textContent = ini;
       }
+      /* contador de pendências (ex.: Gestão Disciplinar): a API devolve { n } só com o que exige ação de quem está logado */
+      aside.querySelectorAll('a.dn-item[data-badge]').forEach(function (el) {
+        fetch(el.getAttribute('data-badge')).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+          var b = el.querySelector('.dn-badge'); if (!b || !d || !(d.n > 0)) return; b.textContent = d.n > 99 ? '99+' : d.n; b.hidden = false;
+        }).catch(function () {});
+      });
       /* itens marcados admin:true (Painéis) só pra perfil admin */
       if (u && u.perfil === 'admin') aside.querySelectorAll('[data-admin]').forEach(function (el) { el.style.display = ''; });
       /* acesso por módulo: esconde seção/grupo/item cujo módulo não está

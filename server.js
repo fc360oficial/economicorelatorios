@@ -8807,6 +8807,11 @@ app.get('/api/tv-rh/painel', async (req, res) => {
 // Termos de Escala (23/10/2026, DP / RH › Termos de Escala): termo de ciência de trabalho em domingo/feriado, um por
 // funcionário num PDF só, com histórico e reimpressão. Regras e PDF em lib/termos-escala.js; só lê o PontoCerto.
 require('./lib/termos-escala-rotas')(app, { pontocerto });
+// Gestão Disciplinar (27/10/2026, DP / RH › Gestão Disciplinar): gerente solicita → RH analisa/decide/formaliza (PDF) → Coordenação
+// avalia indeferimentos → jurídico via RH → gerente aplica e devolve assinado → RH confere e encerra; suspensão vira pendência de folha
+// pro DP. Regras, PDF e arquivos em lib/disciplinar.js; só lê o PontoCerto. Aviso de prazo vencendo roda 1×/h.
+require('./lib/disciplinar-rotas')(app, { pontocerto, multer });
+setInterval(() => { try { require('./lib/disciplinar').avisarPrazos(); } catch (e) { console.error('[disciplinar] prazos:', e.message); } }, 3600000);
 // Cadastro Bancário de funcionários (23/10/2026, abas em Termos de Escala): versões cifradas, dupla conferência DP → Financeiro,
 // regra das 48 h, alertas de recorrência, bloqueio preventivo, importação xlsx. Pagamentos de Domingos e Feriados: apuração
 // pelo ponto × termos, conferência do RH, aprovação da Coordenação, relatório PDF/xlsx ao Financeiro. Ambos só leem o PontoCerto.
