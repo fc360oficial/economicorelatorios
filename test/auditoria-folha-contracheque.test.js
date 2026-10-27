@@ -75,3 +75,19 @@ test('Auditoria da Folha: PDF de contracheques por loja → prévia → confirma
   assert.strictEqual(sit2['ANA PAULA DE OLIVEIRA'], 'lote'); assert.strictEqual(sit2['MARIA JOSE DA SILVA'], 'pago'); assert.strictEqual(r.conciliacao.lojas.find(l => l.loja === 1).lotes, 1);
   assert.ok(A.arquivoDoc('2026-10', 'folha', coord, 1).caminho.includes('folha-E1-'));
 });
+
+test('Auditoria da Folha: recibo do sistema de folha com rótulo DEPOIS do valor (layout real de 27/10), 2 vias por página, competência do PDF', () => {
+  const A = require('../lib/auditoria-folha');
+  // ordem real do pdf-parse: a 2ª via começa pelo cabeçalho "Código Descrição", logo depois dos três totais da 1ª via
+  const via = (nome, cod, venc, desc, liq) => ['Código \tDescrição \tReferência \tVencimentos \tDescontos', '8781', 'DIAS NORMAIS', '30,00', venc, 'DESC.ADIANT.SALARIAL \t770,37', 'CAHU COMERCIO DE ALIMENTOS LTDA', '21.425.302/0001-81\tCNPJ: \tCC:', cod, 'Código', nome, 'Nome do Funcionário \tCBO', '848510', 'Departamento', '28', 'Filial', 'Folha Mensal', 'Setembro de 2026', 'Total de Vencimentos', 'ð\tValor Líquido', 'Total de Descontos', 'Declaro ter recebido a importância líquida discriminada neste recibo.', venc, desc, liq].join('\n');
+  const pages = [
+    { num: 1, text: via('ALEXSANDRO DA SILVA', '66', '2.047,95', '942,43', '1.105,52') + '\n' + via('ALEXSANDRO DA SILVA', '66', '2.047,95', '942,43', '1.105,52') },
+    { num: 2, text: via('JOSE MATHEUS DA SILVA CESARIO', '56', '1.725,00', '0,00', '1.725,00') },   // via única: vale a última trinca da página
+    { num: 3, text: via('ANTONIO JOSE DOS SANTOS (C)', '052', '1.839,27', '838,21', '1.001,06') },
+  ];
+  const b = A._interno.blocosReciboPaginas(pages);
+  assert.deepStrictEqual(b.avisos, []); assert.strictEqual(b.linhas.length, 3);
+  assert.deepStrictEqual(b.linhas.map(l => [l.nome, l.matricula, l.valor, l.descontoAdiantamento]), [['ALEXSANDRO DA SILVA', '66', 1105.52, 770.37], ['JOSE MATHEUS DA SILVA CESARIO', '56', 1725, 770.37], ['ANTONIO JOSE DOS SANTOS', '52', 1001.06, 770.37]]);
+  assert.strictEqual(b.linhas[0].vias, 2);   // segunda via ignorada, não somada
+  assert.strictEqual(A._interno.competenciaDoTexto(pages[0].text), '2026-09');
+});
