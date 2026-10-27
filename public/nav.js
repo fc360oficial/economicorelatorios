@@ -115,6 +115,7 @@
         { href: '/pendencias.html', ic: 'alert', txt: 'Pendências' },
         { href: '/negativos.html', ic: 'alert', txt: 'Negativos' },
         { href: '/tv-acougue-config.html', ic: 'store', txt: 'TV Açougue' },
+        { href: '/paineis-tvs.html', ic: 'dashboard', txt: 'Painéis e TVs' },
         { href: '/log.html', ic: 'list', txt: 'Log' }
       ]}
   ];

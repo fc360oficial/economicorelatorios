@@ -270,6 +270,8 @@ app.use((req, res, next) => {
   // Coletor de Recebimento no celular do conferente: mesmo esquema (PIN pra entrar, depois token
   // de 32 hex validado dentro da rota)
   if (pathMin === '/recebimento.html' || pathMin === '/leitor-teste.html' || pathMin === '/recebimento' || pathMin === '/manifest-recebimento.json' || pathMin.startsWith('/api/recebimento-publico/') || pathMin.startsWith('/api/expedicao-publico/')) return next();
+  // Batimento das telas de TV (Processos › Painéis e TVs, 27/10/26): a TV não tem sessão; validado dentro da rota (lib/paineis-tvs.js)
+  if (pathMin === '/api/paineis-publico/batimento') return next();
   // Pré-aquecimento interno (somente localhost)
   if (req.headers['x-internal-warmup'] === 'fc360warmup2026' && ['::1', '127.0.0.1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress)) return next();
   const ext = req.path.split('.').pop().toLowerCase();
@@ -8029,6 +8031,43 @@ tvTelevendas.init({ q });
 // TV do açougue da loja (página tv-acougue-config.html, menu Processos › TV Açougue, 23/10/26) — lib/tv-acougue.js
 const tvAcougue = require('./lib/tv-acougue');
 tvAcougue.init({ q });
+
+// ── Painéis e TVs (Processos › Painéis e TVs, 27/10/26) — lib/paineis-tvs.js ───────────────────────────────────
+// Tiago: "tem alguma coisa que eu possa saber se a TV Televendas, o Painel Compras e o Painel RH/DP estão ligados?"
+// Cada tela manda um batimento a cada 30 s (public/tv-heartbeat.js); aqui fica o último sinal, as quedas e o aviso no
+// WhatsApp pelo cahu-wpp (127.0.0.1:3012, mesmo robô dos negativos das 08:00).
+const paineisTvs = require('./lib/paineis-tvs');
+paineisTvs.init({
+  dataDir: path.join(__dirname, 'data'),
+  enviarWpp: async ({ grupo, texto }) => {
+    const r = await fetch('http://127.0.0.1:3012/mensagem-grupo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ grupo, texto }), signal: AbortSignal.timeout(30000) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(`cahu-wpp ${r.status}: ${j.error || 'erro'}`);
+    return j;
+  },
+});
+app.post('/api/paineis-publico/batimento', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try { res.json(paineisTvs.batimento(req.body || {}, logAcessos.ipDe(req))); }
+  catch (err) { res.status(400).json({ error: err.message }); }
+});
+app.get('/api/paineis', (req, res) => { res.set('Cache-Control', 'no-store'); res.json(paineisTvs.listar()); });
+app.get('/api/paineis/quedas', (req, res) => { try { res.json({ quedas: paineisTvs.quedas(req.query) }); } catch (err) { res.status(400).json({ error: err.message }); } });
+app.get('/api/paineis/config', (req, res) => res.json({ config: paineisTvs.getConfig() }));
+app.post('/api/paineis/config', (req, res) => {
+  try { res.json({ config: paineisTvs.salvarConfig(req.body || {}, req.session.user?.nome || null) }); }
+  catch (err) { res.status(400).json({ error: err.message }); }
+});
+app.post('/api/paineis/config/testar', async (req, res) => {
+  try { res.json(await paineisTvs.testarAviso()); } catch (err) { res.status(503).json({ error: err.message }); }
+});
+app.post('/api/paineis/:id/nome', (req, res) => {
+  try { res.json({ tela: paineisTvs.renomear(String(req.params.id).toLowerCase(), req.body || {}) }); }
+  catch (err) { res.status(400).json({ error: err.message }); }
+});
+app.delete('/api/paineis/:id', (req, res) => {
+  try { res.json(paineisTvs.remover(String(req.params.id).toLowerCase())); } catch (err) { res.status(400).json({ error: err.message }); }
+});
 pedidosCD.agendar();
 setTimeout(() => pedidosCD.verificar().catch(e => console.error('[PEDIDOS-CD] verificar:', e.message)), 150 * 1000);
 setInterval(() => pedidosCD.verificar().catch(e => console.error('[PEDIDOS-CD] verificar:', e.message)), 5 * 60 * 1000); // 5 min: nota lançada na loja aparece logo (era 30 min, 18/09/2026)
