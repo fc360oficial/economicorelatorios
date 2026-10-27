@@ -8804,6 +8804,17 @@ app.get('/api/tv-rh/painel', async (req, res) => {
     res.json({ ...dados, versao });
   } catch (err) { res.status(503).json({ error: 'Sem dados no momento: ' + err.message }); }
 });
+// Gestão Gerencial › quadros do início (27/10/2026, Tiago: "quando ele logasse apareciam os quadrados"): Ponto de hoje e Sem Giro
+// da loja do gerente (lib/gerencial-inicio.js). Desempenho/Avarias vêm de /api/gestao-gerencial; Disciplinar, de /api/disciplinar/me.
+// Perfil gerencial só consulta a própria loja (lib/escopo.js, GERENCIAL_POR_LOJA); sem loja = rede (admin).
+const gerencialInicio = require('./lib/gerencial-inicio');
+app.get('/api/gestao-gerencial/inicio', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const loja = req.query.loja && req.query.loja !== 'todas' ? parseInt(req.query.loja, 10) : null;
+  if (loja && !escopo.podeLoja(req.session.user, loja)) return res.status(403).json({ error: 'Sem permissão pra esta loja' });
+  try { res.json(await gerencialInicio.quadros(loja, { tvRh, semGiro, toleranciaMin: tvRhTolerancia })); }
+  catch (err) { console.error('[gestao-gerencial/inicio]', err.message); res.status(500).json({ error: err.message }); }
+});
 // Termos de Escala (23/10/2026, DP / RH › Termos de Escala): termo de ciência de trabalho em domingo/feriado, um por
 // funcionário num PDF só, com histórico e reimpressão. Regras e PDF em lib/termos-escala.js; só lê o PontoCerto.
 require('./lib/termos-escala-rotas')(app, { pontocerto });
