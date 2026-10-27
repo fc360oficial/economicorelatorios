@@ -35,13 +35,14 @@ test('quadros: Ponto e Sem Giro da loja; cada bloco falha sozinho', async () => 
   const chamadas = [];
   const deps = {
     tvRh: { jornadaHoje: async () => ({ linhas: [] }), montar: (j, cfg) => { chamadas.push(cfg.lojas); return montado; } },
-    semGiro: { lojas: () => ({ estado: { calculadoEm: 'x' }, lojas: { 5: { n: 7, valor: 70 } }, total: { n: 99, valor: 990 } }), consultar: q => { chamadas.push(q.loja); return { rows: [{ cod: '1', descricao: 'A', valor: 10 }] }; } },
+    semGiro: { lojas: () => ({ estado: { calculadoEm: 'x' }, lojas: { 5: { n: 7, valor: 70 } }, total: { n: 99, valor: 990 } }), consultar: q => { chamadas.push([q.loja, q.faixa || 0]); return { rows: q.faixa ? [{ cod: 'F' + q.faixa, descricao: 'FAIXA ' + q.faixa, valor: 5, faixa: q.faixa }] : [{ cod: '1', descricao: 'A', valor: 10 }] }; } },
     toleranciaMin: () => 10
   };
   const r = await G.quadros(5, deps);
   assert.equal(r.loja, 5); assert.equal(r.lojaTxt, 'E5 · Porta Larga');
-  assert.deepEqual(chamadas, [[5], 5], 'jornada e sem giro filtrados pela loja');
+  assert.deepEqual(chamadas, [[5], [5, 0], [5, 30], [5, 60], [5, 90], [5, 120]], 'jornada e sem giro filtrados pela loja; uma consulta por faixa');
   assert.equal(r.ponto.chegaram, 10); assert.equal(r.semGiro.n, 7); assert.equal(r.semGiro.itens.length, 1);
+  assert.deepEqual(Object.keys(r.semGiro.itensFaixa), ['30', '60', '90', '120']); assert.equal(r.semGiro.itensFaixa[60][0].cod, 'F60');
 
   const rede = await G.quadros(null, deps);
   assert.equal(rede.lojaTxt, 'Rede'); assert.equal(rede.semGiro.n, 99);

@@ -104,7 +104,12 @@ body.v-disc .filtros,body.v-disc main{display:none}
 #aba-disc{display:none;flex:1}body.v-disc #aba-disc{display:block}
 #aba-disc iframe{display:block;width:100%;border:0;min-height:calc(100vh - 60px);background:var(--bg)}
 body.v-ponto .filtros,body.v-ponto main,body.v-giro .filtros,body.v-giro main{display:none}
-body.v-avarias main>*:not(#painel-avaria){display:none!important}   /* !important: o JS liga os painéis por style inline */
+body.v-avarias main>*:not(#painel-avaria){display:none!important}
+/* Desempenho sem avaria (Tiago, 27/10: "avarias pode tirar de desempenho"): o cartão Avaria do Mês e a tabela ficam só na tela Avarias */
+body.v-desempenho #painel-avaria,body.v-desempenho .kpi.k-av{display:none!important}
+body.v-desempenho .kpi-grid{grid-template-columns:repeat(5,1fr)}
+@media(max-width:1000px){body.v-desempenho .kpi-grid{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:800px){body.v-desempenho .kpi-grid{grid-template-columns:repeat(2,1fr)}}   /* !important: o JS liga os painéis por style inline */
 .pg{display:none;flex:1;padding:18px 24px}body.v-ponto #view-ponto,body.v-giro #view-giro{display:block}
 .pg .secao{max-width:900px;margin:0 auto}.pg-b{padding:4px 18px 16px}
 @media(max-width:560px){.pg{padding:10px 14px}.pg-b{padding:2px 14px 14px}}
@@ -186,6 +191,10 @@ body.v-home #home{display:flex}
 .gv-tag.sem{background:var(--red-bg);color:var(--red)}.gv-tag.atraso{background:var(--amber-bg);color:var(--amber)}.gv-tag.retorno,.gv-tag.saida{background:var(--blue-bg);color:var(--blue)}.gv-tag.div{background:var(--bg2);color:var(--text2)}
 .gv-vazio{padding:28px 10px;text-align:center;color:var(--text3);font-size:13px}
 .gv-nota{font-size:12px;color:var(--text3);margin-top:12px;line-height:1.35}
+.gv-fil{display:flex;flex-wrap:wrap;gap:6px;padding:12px 0 2px}
+.gv-fil button{border:1px solid var(--border-md);background:var(--card);border-radius:999px;padding:6px 12px;font:600 12px var(--font);color:var(--text2);cursor:pointer;white-space:nowrap}
+.gv-fil button b{font-weight:800;color:var(--text)}
+.gv-fil button.on{background:var(--text);color:#fff;border-color:var(--text)}.gv-fil button.on b{color:var(--brand)}
 /* ─── LOADING ─── */
 .loading{padding:40px;text-align:center;color:var(--text3);display:flex;flex-direction:column;align-items:center;gap:10px;font-size:12px}
 .spin{width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--brand);border-radius:50%;animation:spin .7s linear infinite}
@@ -699,14 +708,23 @@ function paginaPonto(){
   const lis=(p.pendencias||[]).map(x=>`<div class="gv-li"><span class="gv-tag ${esc(x.g)}">${TAG[x.g]||esc(x.g)}</span><div class="nm"><b>${esc(x.nome)}</b><span>${esc(x.setor)} · ${esc(x.txt)}</span></div></div>`).join('');
   $('vp-b').innerHTML=chips+(lis||'<div class="gv-vazio">Nenhuma pendência de marcação agora</div>')+(p.maisPendencias?`<div class="gv-vazio">+ ${p.maisPendencias} pendências</div>`:'')+'<div class="gv-nota">Atraso só é confirmado pela apuração do DP; marcação ausente não é falta.</div>';
 }
+// Sem giro por faixa (Tiago, 27/10: "sem giro coloque de 30 dias, de 60 dias"): botões Todos · 30 a 59 · 60 a 89 · 90 a 119 · 120+ dias;
+// cada faixa lista os seus itens de maior valor parado (itensFaixa da rota). GIRO_FAIXA = 0 (todos) ou 30/60/90/120.
+let GIRO_FAIXA=0;
+const FAIXA_TXT={30:'30 a 59 dias',60:'60 a 89 dias',90:'90 a 119 dias',120:'120 dias ou mais'};
+function giroFaixa(f){GIRO_FAIXA=f;paginaGiro();}
 function paginaGiro(){
   const g=INICIO&&INICIO.semGiro;$('vg-sub').textContent=(INICIO&&INICIO.lojaTxt||lojaTxt())+(g&&g.calculadoEm?' · calculado '+new Date(g.calculadoEm).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'');
   if(!INICIO){$('vg-b').innerHTML='<div class="loading"><div class="spin"></div></div>';return;}
   if(!g||g.erro){$('vg-b').innerHTML=`<div class="gv-vazio">${esc((g&&g.erro)||'Sem dados')}</div>`;return;}
-  const F=g.faixas;
-  const chips=`<div class="gv-chips"><span class="badge bb">${g.n} itens · ${R(g.valor)}</span>${F.f120.n?`<span class="badge bd">${F.f120.n} com 120+ dias</span>`:''}${F.f90.n?`<span class="badge bw">${F.f90.n} de 90 a 119 dias</span>`:''}${F.f60.n?`<span class="badge bw">${F.f60.n} de 60 a 89 dias</span>`:''}${F.f30.n?`<span class="badge bn">${F.f30.n} de 30 a 59 dias</span>`:''}${g.abaixoCusto?`<span class="badge bd">${g.abaixoCusto} abaixo do custo</span>`:''}</div>`;
-  const lis=(g.itens||[]).map(i=>`<div class="gv-li"><div class="nm"><b>${esc(i.descricao)}</b><span>${esc(i.cod)}${i.grupo?' · '+esc(i.grupo):''} · ${i.dias==null?'sem venda na janela':i.dias+' dias sem venda'}</span></div><div class="vl"><b>${R(i.valor)}</b>${Number(i.est||0).toLocaleString('pt-BR')} ${esc(i.unid)}</div></div>`).join('');
-  $('vg-b').innerHTML=chips+(lis||'<div class="gv-vazio">Nenhum item sem giro nesta loja</div>')+(g.n>(g.itens||[]).length?`<div class="gv-nota">Mostrando os ${g.itens.length} de maior valor parado (custo × estoque).</div>`:'');
+  const F=g.faixas,nf=f=>(F['f'+f]||{}).n||0,vf=f=>(F['f'+f]||{}).v||0;
+  const btn=(f,txt,n)=>`<button type="button" class="${GIRO_FAIXA===f?'on':''}" onclick="giroFaixa(${f})">${txt} <b>${n.toLocaleString('pt-BR')}</b></button>`;
+  const fil=`<div class="gv-fil">${btn(0,'Todos',g.n)}${btn(30,'30 a 59 dias',nf(30))}${btn(60,'60 a 89 dias',nf(60))}${btn(90,'90 a 119 dias',nf(90))}${btn(120,'120+ dias',nf(120))}</div>`;
+  const total=GIRO_FAIXA?nf(GIRO_FAIXA):g.n,valor=GIRO_FAIXA?vf(GIRO_FAIXA):g.valor;
+  const itens=GIRO_FAIXA?((g.itensFaixa||{})[GIRO_FAIXA]||[]):(g.itens||[]);
+  const chips=`<div class="gv-chips"><span class="badge bb">${total.toLocaleString('pt-BR')} itens · ${R(valor)}</span>${GIRO_FAIXA?`<span class="badge bn">${FAIXA_TXT[GIRO_FAIXA]} sem venda</span>`:(F.f120.n?`<span class="badge bd">${F.f120.n} com 120+ dias</span>`:'')}${!GIRO_FAIXA&&g.abaixoCusto?`<span class="badge bd">${g.abaixoCusto} abaixo do custo</span>`:''}</div>`;
+  const lis=itens.map(i=>`<div class="gv-li"><div class="nm"><b>${esc(i.descricao)}</b><span>${esc(i.cod)}${i.grupo?' · '+esc(i.grupo):''} · ${i.dias==null?'sem venda na janela':i.dias+' dias sem venda'}</span></div><div class="vl"><b>${R(i.valor)}</b>${Number(i.est||0).toLocaleString('pt-BR')} ${esc(i.unid)}</div></div>`).join('');
+  $('vg-b').innerHTML=fil+chips+(lis||`<div class="gv-vazio">Nenhum item ${GIRO_FAIXA?'nesta faixa':'sem giro nesta loja'}</div>`)+(total>itens.length?`<div class="gv-nota">Mostrando os ${itens.length} de maior valor parado (custo × estoque).</div>`:'');
 }
 // Navegação pelo hash: #home (padrão) e as telas. Voltar do navegador volta pro Início.
 function rota(){
