@@ -8739,6 +8739,17 @@ app.get('/api/tv-rh-publico/:token', async (req, res) => {
     res.json({ ...dados, versao });
   } catch (err) { res.status(503).json({ error: 'Sem dados no momento: ' + err.message }); }
 });
+// Painel RH (27/10/2026, DP / RH › Painel RH): os MESMOS slides de Ponto e Jornada da TV, abertos pelo menu por quem está
+// logado no módulo DP / RH — sem token. Mesma página (tv-rh.html), mesmo payload; só muda a porta de entrada.
+app.get('/painel-rh.html', (req, res) => { res.set('Cache-Control', 'no-store'); res.sendFile(path.join(__dirname, 'public', 'tv-rh.html')); });
+app.get('/api/tv-rh/painel', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    const dados = await tvRh.payloadTV();
+    let versao = null; try { versao = fs.statSync(path.join(__dirname, 'public', 'tv-rh.html')).mtimeMs; } catch (e) {}
+    res.json({ ...dados, versao });
+  } catch (err) { res.status(503).json({ error: 'Sem dados no momento: ' + err.message }); }
+});
 // Termos de Escala (23/10/2026, DP / RH › Termos de Escala): termo de ciência de trabalho em domingo/feriado, um por
 // funcionário num PDF só, com histórico e reimpressão. Regras e PDF em lib/termos-escala.js; só lê o PontoCerto.
 require('./lib/termos-escala-rotas')(app, { pontocerto });

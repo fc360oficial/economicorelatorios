@@ -125,6 +125,10 @@ svg.ic{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2;stroke-
 <div id="tv"><div class="slide" id="A"></div><div class="slide" id="B"></div><div class="prog" id="prog"></div><div id="aviso" class="msg" hidden></div><div id="fs" hidden><button type="button">Tela cheia</button></div></div>
 <script>
 const TOKEN = location.pathname.split('/').pop();
+// Painel RH (27/10/26): a mesma página aberta pelo menu DP / RH › Painel RH (logado, sem token) lê /api/tv-rh/painel;
+// na TV (link por token) continua lendo /api/tv-rh-publico/<token>.
+const PAINEL = /\/painel-rh\.html$/i.test(location.pathname);
+const API = PAINEL ? '/api/tv-rh/painel' : `/api/tv-rh-publico/${TOKEN}`;
 const QS = new URLSearchParams(location.search);
 const KIOSK = QS.get('kiosk') === '1';
 let TELA_INICIAL = /^\d+$/.test(QS.get('tela') || '') ? Math.max(0, +QS.get('tela') - 1) : null;   // ?tela=3 abre na 3ª tela (conferência)
@@ -246,7 +250,8 @@ function aviso(titulo, texto) { $('#aviso').innerHTML = `<img src="${LOGO}" alt=
 
 async function carregar() {
   try {
-    const r = await fetch(`/api/tv-rh-publico/${TOKEN}?t=${Date.now()}`, { cache: 'no-store' });   // ?t= fura cache de navegador de TV
+    const r = await fetch(`${API}?t=${Date.now()}`, { cache: 'no-store' });   // ?t= fura cache de navegador de TV
+    if (PAINEL && (r.status === 401 || r.status === 403)) { parar(); return aviso('Sessão encerrada', 'Entre de novo no Econômico Relatórios e abra DP / RH → Painel RH.'); }
     if (r.status === 404) { parar(); return aviso('Link inválido', 'Gere um novo link em DP / RH → TV RH/DP e abra ele na TV.'); }
     if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.statusText);
     ULTIMO_OK = Date.now();
