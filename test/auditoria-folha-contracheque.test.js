@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 const test = require('node:test');
 // Teste de ponta a ponta: PDF de contracheques (sintético, loja Socorro) → prévia por loja → confirmar → conciliar com extrato simulado.
 const fs = require('fs'), os = require('os'), path = require('path'), assert = require('assert');
@@ -140,4 +140,32 @@ test('Auditoria da Folha: comprovantes SISPAG do Itaú (1 por página) casam nom
   assert.strictEqual(r.naoIdentificados.length, 0, 'lote coberto pelos comprovantes não pode sobrar como não identificado');
   assert.deepStrictEqual(r.conciliacao.comprovantes, { total: 2, usados: 2 });
   const pc2 = await A.importarPrevia(pdf, 'comprovantes-e1.pdf', 'comprovantes', '2026-09', coord, deps, 1); assert.strictEqual(pc2.repetidos, 2); assert.strictEqual(pc2.funcionarios, 0);
+});
+
+test('Robô da pasta de entrada: recibo + comprovantes soltos na pasta → classifica, importa na competência/loja certa e concilia sozinho', async () => {
+  process.env.AUDITORIA_FOLHA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'af-robo-'));
+  delete require.cache[require.resolve('../lib/auditoria-folha')]; delete require.cache[require.resolve('../lib/auditoria-folha-robo')];
+  const A = require('../lib/auditoria-folha'); const robo = require('../lib/auditoria-folha-robo'); const PDFDocument = require('pdfkit');
+  const F = [['ANA BEATRIZ FERREIRA DA COSTA MELO', 1351.78], ['MARIA APARECIDA GONCALVES DE SOUZA', 1166.53]].map(([nome, v], i) => ({ id: 'r' + i, nome, matricula: '', cpf: String(44400000000 + i), loja: 1, setor: 'Loja', cargo: 'Op', ativo: true, v }));
+  const pcDeps = { colaboradores: async () => ({ ativos: F, desligados: [] }), cpfDe: async id => (F.find(f => f.id === id) || {}).cpf || '' };
+  const pdfDe = linhas => new Promise(res => { const d = new PDFDocument({ size: 'A4', margin: 40 }); const b = []; d.on('data', x => b.push(x)); d.on('end', () => res(Buffer.concat(b))); linhas.forEach((pg, i) => { if (i) d.addPage(); d.fontSize(10); for (const l of pg) d.text(l); }); d.end(); });
+  // recibo no layout real (rótulo depois do valor), com CNPJ de E1 e "Setembro de 2026" no corpo — NADA no nome do arquivo
+  const recibo = (nome, cod, venc, desc, liq) => ['Código  Descrição  Referência  Vencimentos  Descontos', '8781', 'DIAS NORMAIS', '30,00', venc, 'EMPRESA EXEMPLO LTDA', '21.425.302/0001-81 CNPJ:  CC:', cod, 'Código', nome, 'Nome do Funcionário  CBO', '848510', 'Departamento', '28', 'Filial', 'Folha Mensal', 'Setembro de 2026', 'Total de Vencimentos', 'ð Valor Líquido', 'Total de Descontos', 'Declaro ter recebido a importância líquida discriminada neste recibo.', venc, desc, liq];
+  const pdfRecibo = await pdfDe([recibo('ANA BEATRIZ FERREIRA DA COSTA MELO', '66', '2.047,95', '696,17', '1.351,78'), recibo('MARIA APARECIDA GONCALVES DE SOUZA', '52', '1.839,27', '672,74', '1.166,53')]);
+  const comp = (n, ag, cc, v, ctrl, aut) => ['Banco Itaú - Comprovante de Transferência', 'de conta corrente para conta corrente', 'Identificação no extrato: SISPAG SALARIOS', 'Dados da conta debitada:', 'Nome da empresa: EMPRESA EXEMPLO LTDA', 'Agência: 0000 Conta corrente: 00000 - 0', 'Dados da conta creditada:', 'Nome: ' + n, 'Agência: ' + ag + ' Conta corrente: ' + cc, 'Valor: R$ ' + v, 'Informações fornecidas pelo', 'pagador: FOLHA', 'Transferência efetuada em 30/09/2026 às 12:32:49 via Sispag, CTRL ' + ctrl + '.', 'Autenticação:', aut];
+  const pdfComp = await pdfDe([comp('ANA BEATRIZ FERREIRA DA COSTA', '0001', '12345 - 6', '1.351,78', '000000000000011', 'CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC')]);
+  fs.mkdirSync(robo.ENTRADA(), { recursive: true }); fs.writeFileSync(path.join(robo.ENTRADA(), '1-recibo mensal cahu.pdf'), pdfRecibo); fs.writeFileSync(path.join(robo.ENTRADA(), '2-comprovantes.pdf'), pdfComp); fs.writeFileSync(path.join(robo.ENTRADA(), '3-qualquer coisa.pdf'), await pdfDe([['Nota fiscal 123', 'Total 10,00']]));
+  const lote = { type: 'agrupamento', operation: 'D', amount: { value: 1351.78 }, number_events: 1, date: { accounting: '2026-09-30' }, literal: { shortened: 'SISPAG SALARIOS' } };
+  robo._deps({ pcDeps, extrato: async ({ conta }) => ({ data: [{ events: conta === 'cahu' ? [lote] : [] }] }) });
+  A.salvarConfig; const cfgPath = path.join(process.env.AUDITORIA_FOLHA_DIR, 'config.json'); fs.writeFileSync(cfgPath, JSON.stringify({ entrada: { ativo: true, drive: '', intervaloMin: 10 } }));   // sem Drive: só pasta local
+  process.env.ITAU_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'itau-cfg-')); fs.writeFileSync(path.join(process.env.ITAU_DIR, 'config.json'), JSON.stringify({ cahu: { agencia: '0000', conta: '00000', dac: '0' } }));   // conta debitada fictícia do comprovante = E1
+  const c = await robo.ciclo('teste');
+  assert.strictEqual(c.processados.length, 2, JSON.stringify(c)); assert.strictEqual(c.erros.length, 1); assert.match(c.erros[0].motivo, /não parece recibo/);
+  assert.deepStrictEqual(c.processados.map(p => [p.tipo, p.competencia, p.loja]), [['folha', '2026-09', 1], ['comprovantes', '2026-09', 1]]);
+  const r = A.obter('2026-09', coord); const porNome = Object.fromEntries(r.funcionarios.map(f => [f.nome, f.folha]));
+  assert.strictEqual(porNome['ANA BEATRIZ FERREIRA DA COSTA MELO'].situacao, 'pago'); assert.match(porNome['ANA BEATRIZ FERREIRA DA COSTA MELO'].modo, /comprovante SISPAG/);
+  assert.strictEqual(porNome['MARIA APARECIDA GONCALVES DE SOUZA'].situacao, 'nao_pago');
+  assert.ok(r.historico.some(h => h.usuario === 'robo-folha' && h.acao === 'importar'));
+  assert.strictEqual(fs.readdirSync(robo.ENTRADA()).length, 0); assert.strictEqual(fs.readdirSync(path.join(process.env.AUDITORIA_FOLHA_DIR, 'processados', '2026-09')).length, 2); assert.strictEqual(fs.readdirSync(path.join(process.env.AUDITORIA_FOLHA_DIR, 'erros')).length, 2);
+  const s = robo.status(); assert.strictEqual(s.ultimo.processados.length, 2); assert.ok(s.log.length >= 3);
 });
