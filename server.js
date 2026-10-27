@@ -9100,7 +9100,7 @@ async function carregarFornMinimoErp() {
   } catch (e) { console.error('[COTAÇÃO] faturamento mínimo do ERP:', e.message); }
 }
 setTimeout(carregarFornMinimoErp, 15 * 1000); setInterval(carregarFornMinimoErp, 6 * 3600 * 1000);
-const cotDetalhe = c => { const antes = new Set(cotacao.listar().filter(x => x.id !== c.id && x.criadoEm < c.criadoEm && !x.teste).flatMap(x => x.fornecedores.map(f => f.codFornec))); return { ...c, comparativo: cotacao.comparativo(c), prePedidos: cotacao.prePedidos(c, { minimoErp: COT_FORN_MIN, lista: radarPedidos.listaCadastro(c.lista) }), fornecedores: c.fornecedores.map(f => ({ ...f, precos: undefined, link: linkCotacao(f), cotados: c.itens.filter(i => f.precos[i.cod]?.preco > 0).length, novo: !antes.has(f.codFornec), canal: portalForn.canalDe(c, f) })), canais: portalForn.resumoCanais(c) }; };
+const cotDetalhe = c => { const antes = new Set(cotacao.listar().filter(x => x.id !== c.id && x.criadoEm < c.criadoEm && !x.teste).flatMap(x => x.fornecedores.map(f => f.codFornec))); const cmp = cotacao.comparativo(c); return { ...c, comparativo: cmp, pendentes_reais: c.status === 'aberta' ? cotacao.pendentesReais(c, cmp).map(f => ({ codFornec: f.codFornec, nome: f.nome })) : [], pode_encerrar: cotacao.podeEncerrar(c, cmp), prePedidos: cotacao.prePedidos(c, { minimoErp: COT_FORN_MIN, lista: radarPedidos.listaCadastro(c.lista) }), fornecedores: c.fornecedores.map(f => ({ ...f, precos: undefined, link: linkCotacao(f), cotados: c.itens.filter(i => f.precos[i.cod]?.preco > 0).length, novo: !antes.has(f.codFornec), canal: portalForn.canalDe(c, f) })), canais: portalForn.resumoCanais(c) }; };
 
 app.get('/api/cotacoes', (req, res) => {
   try {

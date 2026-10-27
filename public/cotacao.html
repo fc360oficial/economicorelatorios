@@ -528,7 +528,8 @@ table.ppg td.st .pp-ant{font-size:11px;line-height:1.2;margin-top:2px;color:var(
 .mon td .mini b{color:var(--ink2);font-weight:700}
 .mon td .vmini{display:block;margin-top:5px;white-space:nowrap}
 .mon .stp{display:inline-block;padding:4px 11px;border-radius:14px;font-size:12px;font-weight:800;white-space:nowrap;line-height:1.3}
-.mon .stp.fechada{background:#EEF0FF;color:#5B5BD6}.mon .stp.digitacao{background:var(--amw);color:var(--amk)}.mon .stp.aguardando{background:#FDECEC;color:var(--neg)}.mon .stp.cancelada{background:#EFEFEF;color:#777}.mon .stp.analise{background:var(--posw);color:var(--pos)}
+.mon .stp.fechada{background:#EEF0FF;color:#5B5BD6}.mon .stp.digitacao{background:var(--amw);color:var(--amk)}.mon .stp.aguardando{background:#FDECEC;color:var(--neg)}.mon .stp.cancelada{background:#EFEFEF;color:#777}.mon .stp.analise{background:var(--posw);color:var(--pos)}.mon .stp.encerrar{background:#EEF0FF;color:#5B5BD6}
+.mon .enclnk{display:inline-block;margin-top:3px;font:inherit;font-size:11px;font-weight:800;color:var(--inf);background:none;border:0;padding:0;cursor:pointer;text-decoration:underline;white-space:nowrap}
 .acbtn,.pdbtn{min-width:112px}
 .mon td.c-acomp{white-space:nowrap}.mon td.c-acomp .mini{display:block;margin-top:4px;white-space:nowrap}.mon td.c-acomp .mini b{color:var(--ink);font-weight:800}
 /* 16/10/26 (Tiago: "tem que reajustar automático seja qual monitor"): layout do Monitor é o original no monitor grande (≥1700px);
@@ -572,7 +573,7 @@ table.ppg td.st .pp-ant{font-size:11px;line-height:1.2;margin-top:2px;color:var(
   .mon .obs-btn{width:24px;height:24px;font-size:11px}
   .mon .acbtn{height:28px;padding:0 8px;font-size:11.5px}
   .mon .pdbtn{height:28px;padding:0 8px;font-size:11.5px}
-  .mon .acbtn,.mon .pdbtn{min-width:88px}.mon .stp{font-size:11px;padding:3px 8px}
+  .mon .acbtn,.mon .pdbtn{min-width:88px}.mon .stp{font-size:11px;padding:3px 8px}.mon .enclnk{font-size:10.5px}
   .mon thead th.c-acomp{letter-spacing:0}
   .mon td.c-acomp .mini{font-size:10.5px}.mon td.c-acomp .mini .vw,.mon .acbtn .ar{display:none}
 }
@@ -582,7 +583,7 @@ table.ppg td.st .pp-ant{font-size:11px;line-height:1.2;margin-top:2px;color:var(
   .mon td.l.c-emp{min-width:140px;max-width:170px}
   .mon .acbtn,.mon .pdbtn{min-width:80px;padding:0 6px}
   .mon .numpill{padding:5px 6px;min-width:28px}
-  .mon .stp{font-size:10.5px;padding:3px 7px}
+  .mon .stp{font-size:10.5px;padding:3px 7px}.mon .enclnk{font-size:10px}
 }
 @media (max-width:1199px){.main{padding-left:12px;padding-right:12px}}
 /* 27/10/26: 1280 caía na faixa de 1399 e estourava 133px — esta faixa vale de 1299 pra baixo; a quebra dos círculos/pílulas fica só ≤1199 */
@@ -601,7 +602,7 @@ table.ppg td.st .pp-ant{font-size:11px;line-height:1.2;margin-top:2px;color:var(
   .mon .obs-btn{width:22px;height:22px;font-size:10.5px}
   .mon .acbtn{height:26px;padding:0 7px;font-size:11px}
   .mon .pdbtn{height:26px;padding:0 7px;font-size:11px}
-  .mon .acbtn,.mon .pdbtn{min-width:76px}.mon .stp{font-size:10.5px;padding:2px 7px}
+  .mon .acbtn,.mon .pdbtn{min-width:76px}.mon .stp{font-size:10.5px;padding:2px 7px}.mon .enclnk{font-size:9.5px}
 }
 @media (max-width:1199px){
   .mon thead th{font-size:9px}
@@ -1199,6 +1200,7 @@ function waLink(whats, texto){ var n = String(whats || '').replace(/\D/g, ''); i
 function statusCot(c){
   if (c.status === 'fechada') return {k:'fechada', txt:'Pedidos gerados', cls:'finalizada'};
   if (c.status === 'cancelada') return {k:'cancelada', txt:'Cancelada', cls:'cancel'};
+  if (c.pode_encerrar) return {k:'encerrar', txt:'Pedidos gerados · a encerrar', cls:'finalizada'};   // todos os pedidos realizados, ninguém falta, mas ainda aberta (Tiago, 27/10/26)
   if (c.convidados && c.responderam >= c.convidados) return {k:'analise', txt:'Pronta p/ análise', cls:'andamento'};
   if (c.abriram > 0 || c.responderam > 0) return {k:'digitacao', txt:'Em digitação ' + c.responderam + '/' + c.convidados, cls:'aberta'};
   return {k:'aguardando', txt:'Aguardando fornecedores', cls:'off'};
@@ -1240,7 +1242,7 @@ function filtrarMonitor(){
   var lista = COTS.filter(function(c){
     var s = statusCot(c);
     if (b && String(c.id).indexOf(b) === -1 && String(c.lista || '').indexOf(b) === -1 && (c.nome || '').toLowerCase().indexOf(b) === -1 && (c.lista_nome || '').toLowerCase().indexOf(b) === -1) return false;
-    if (st && s.k !== st) return false;
+    if (st && s.k !== st && !(st === 'fechada' && s.k === 'encerrar')) return false;
     if (comp && (!c.comprador || c.comprador.nome !== comp)) return false;
     return true;
   });
@@ -1248,13 +1250,13 @@ function filtrarMonitor(){
   if (!lista.length) { tb.innerHTML = '<tr><td colspan="12" class="empty">' + (COTS.length ? 'Nenhuma cotação com esse filtro.' : 'Nenhuma cotação ainda. Clique em "+ Nova Cotação" e digite o nº da lista do ERP.') + '</td></tr>'; return; }
   tb.innerHTML = lista.map(function(c){
     var s = statusCot(c), ps = c.pedidos_status || {gerados:0, aprovados:0, recebidos:0, cancelados:0};
-    var stTxt = {fechada:'Pedido gerado', cancelada:'Cancelada', analise:'Pronta p/ análise', digitacao:'Em digitação', aguardando:'Não digitada'}[s.k] || s.txt;
+    var stTxt = {fechada:'Pedido gerado', encerrar:'Pedido gerado', cancelada:'Cancelada', analise:'Pronta p/ análise', digitacao:'Em digitação', aguardando:'Não digitada'}[s.k] || s.txt;
     var temPed = s.k === 'fechada' || ps.gerados > 0;   // coluna Pedidos: só colore e só abre com pedido gerado (Tiago, 26/10: "quando não tiver, clicar não abre nada")
     var emp = 'SUP. ECONÔMICO' + (c.lojas && c.lojas.length === 1 ? ' (' + (LOJAS_NOMES[c.lojas[0]] || LJ(c.lojas[0])) + ')' : ' (CAHU)');
     return '<tr>' +
       '<td class="l c-data"><span class="num">#' + c.id + '</span> <span class="nm">' + esc(String(c.nome || '').replace(/^Cotação\s+/i, '')) + '</span>' + (c.teste ? ' <span class="status-pill" style="background:var(--amw);color:var(--amk);padding:2px 7px">TESTE</span>' : '') + '<br><span class="mini">' + (c.prazo ? 'prazo ' : 'criada ') + '<b>' + dt(c.prazo ? prazoLocal(c.prazo) + ':00' : c.criadoEm) + '</b></span></td>' +
       '<td class="l c-emp"><span class="emp">' + emp + '</span><br><span class="mini">lista ' + (c.lista || '—') + (c.comprador && c.comprador.nome ? ' · ' + esc(c.comprador.nome) : '') + '</span></td>' +
-      '<td><span class="stp ' + esc(s.k) + '">' + stTxt + '</span></td>' +
+      '<td><span class="stp ' + esc(s.k) + '">' + stTxt + '</span>' + (s.k === 'encerrar' ? '<br><button class="enclnk" title="Todos os pedidos desta cotação já foram realizados e nenhum fornecedor vencedor falta, mas ela continua aberta pros vendedores. Clique pra encerrar: vira Pedidos gerados e quem ainda não respondeu não digita mais." onclick="encerrarMon(' + c.id + ')">encerrar cotação →</button>' : '') + '</td>' +
       '<td><div class="numgrp"><button class="numcirc c1" title="Pedidos gerados" onclick="abrirCotacao(' + c.id + ',\'s5\')">' + ps.gerados + '</button><button class="numcirc c2" title="Pedidos aprovados" onclick="abrirCotacao(' + c.id + ',\'s5\')">' + ps.aprovados + '</button><button class="numcirc c3" title="Pedidos recebidos" onclick="abrirCotacao(' + c.id + ',\'s5\')">' + ps.recebidos + '</button><button class="numcirc c4" title="Pedidos cancelados" onclick="abrirCotacao(' + c.id + ',\'s5\')">' + ps.cancelados + '</button></div></td>' +
       '<td><div class="numgrp"><button class="numpill" title="Produtos da cotação" onclick="monProdutos(' + c.id + ',\'todos\')">' + c.itens + '</button><button class="numpill" title="Produtos com preço digitado" onclick="monProdutos(' + c.id + ',\'digitados\')">' + c.com_preco + '</button><button class="numpill" title="Produtos comprados (com vencedor)" onclick="monProdutos(' + c.id + ',\'comprados\')">' + (c.comprados || 0) + '</button></div></td>' +
       '<td><div class="numgrp"><button class="numpill blue" title="Empresas convidadas' + (c.empresas != null && c.convidados !== c.empresas ? ' (' + c.convidados + ' vendedores)' : '') + '" onclick="monFornecedores(' + c.id + ',false)">' + (c.empresas != null ? c.empresas : c.convidados) + '</button><button class="numpill blue" title="Empresas que já responderam' + (c.empresas_responderam != null && c.responderam !== c.empresas_responderam ? ' (' + c.responderam + ' vendedores)' : '') + '" onclick="monFornecedores(' + c.id + ',true)">' + (c.empresas_responderam != null ? c.empresas_responderam : c.responderam) + '</button></div>' + (c.convidados ? '<span class="mini vmini" title="vendedores que já responderam / convidados"><b>' + (c.responderam || 0) + '</b>/' + c.convidados + ' vendedores' + (c.nao_enviados ? ' · <span style="color:#C2410C;font-weight:800" title="' + (c.so_respondido ? 'digitaram preço e não tocaram em Enviar proposta: preços FORA do comparativo' : 'digitaram preço e não tocaram em Enviar proposta (nesta cotação os preços ainda contam)') + '">' + c.nao_enviados + ' sem enviar</span>' : '') + '</span>' : '') + '</td>' +
@@ -2005,12 +2007,12 @@ function renderComparativoItens(opts){
   var C = CUR.comparativo, R = C.resumo, F = C.fornecedores, aberta = CUR.status === 'aberta', U = ULT[CUR.id] || {}, K = CATS[CUR.id] || {};
   var novos = {}; (CUR.fornecedores || []).forEach(function(f){ if (f.novo) novos[f.codFornec] = true; });
   var cats = {}; C.itens.forEach(function(i){ var k = K[i.cod]; if (k && k.grupo) cats[k.grupo] = (cats[k.grupo] || 0) + 1; });
-  var h = topoTela('Comparativo', '', 'lista ' + (CUR.lista || '—') + ' ' + esc(CUR.lista_nome || '') + ' · ' + R.responderam + ' de ' + R.convidados + ' fornecedores responderam' + (CUR.so_respondido ? ' · <b>só proposta enviada (Respondido) concorre</b>' + (R.nao_enviados ? ' — ' + R.nao_enviados + ' digitaram e não enviaram' : '') : '') + (aberta ? ' · marque o vencedor de cada item; o menor preço já vem marcado' : ' · cotação ' + esc(CUR.status)));
+  var h = topoTela('Comparativo', (aberta && CUR.pode_encerrar ? '<button class="btn primary sm" id="btn-encerrar" onclick="encerrarCotacao()" title="Todos os pedidos já foram realizados e nenhum fornecedor falta">Encerrar cotação →</button>' : ''), 'lista ' + (CUR.lista || '—') + ' ' + esc(CUR.lista_nome || '') + ' · ' + R.responderam + ' de ' + R.convidados + ' fornecedores responderam' + (CUR.so_respondido ? ' · <b>só proposta enviada (Respondido) concorre</b>' + (R.nao_enviados ? ' — ' + R.nao_enviados + ' digitaram e não enviaram' : '') : '') + (aberta ? ' · marque o vencedor de cada item; o menor preço já vem marcado' : ' · cotação ' + esc(CUR.status)));
   // linha de botões (Produtos | Pedidos | Voltar | Imprimir | Não Digitados | Outras Funções)
   h += '<div class="clubbar"><button class="cbtn' + (CI_ABA === 'produtos' ? ' on' : '') + '" onclick="ciAba(\'produtos\')">▤ Produtos</button><button class="cbtn green' + (CI_ABA === 'prepedidos' ? ' on' : '') + '" onclick="ciAba(\'prepedidos\')">≡ Pré-pedidos: ' + fmtR((CUR.prePedidos || {}).total_pre || 0) + '</button><button class="cbtn blue' + (CI_ABA === 'pedidos' ? ' on' : '') + '" onclick="ciAba(\'pedidos\')">🚚 Pedidos: ' + fmtR((CUR.prePedidos || {}).total_pedidos || 0) + '</button><span style="flex:1"></span>' +
     '<button class="cbtn" onclick="window.print()">🖨 Imprimir</button><button class="cbtn" onclick="naoDigitados()"><span style="color:var(--amk)">⛔</span> Não Digitados</button>' +
     '<span style="position:relative;display:inline-block"><button class="cbtn" onclick="event.stopPropagation();var m=this.nextElementSibling;m.style.display=m.style.display===\'block\'?\'none\':\'block\'">⌄ Outras Funções</button><div style="display:none;position:absolute;right:0;top:52px;background:var(--crd);border:1px solid var(--ln);border-radius:10px;box-shadow:var(--shadow);z-index:80;min-width:240px;overflow:hidden;text-align:left">' +
-    ['<button onclick="setVista(\'matriz\')">Ver em matriz (produto × fornecedor)</button>', '<button onclick="exportarComparativo()">Exportar Excel (CSV)</button>', '<button onclick="ciRecTodos(true)">Recolher todos os itens</button>', '<button onclick="ciRecTodos(false)">Expandir todos</button>', '<button onclick="recarregar()">Atualizar</button>', aberta ? '<button style="color:var(--pos);font-weight:800" onclick="fecharCotacao()">Fechar cotação e gerar pedidos →</button>' : ''].map(function(b){ return b.replace('<button ', '<button class="link-btn" style="display:block;width:100%;text-align:left;padding:9px 13px;color:var(--ink2)" '); }).join('') + '</div></span></div>';
+    ['<button onclick="setVista(\'matriz\')">Ver em matriz (produto × fornecedor)</button>', '<button onclick="exportarComparativo()">Exportar Excel (CSV)</button>', '<button onclick="ciRecTodos(true)">Recolher todos os itens</button>', '<button onclick="ciRecTodos(false)">Expandir todos</button>', '<button onclick="recarregar()">Atualizar</button>', aberta ? (CUR.pode_encerrar ? '<button style="color:var(--pos);font-weight:800" onclick="encerrarCotacao()" title="Todos os pedidos já foram realizados e nenhum fornecedor falta">Encerrar cotação →</button>' : '<button style="color:var(--pos);font-weight:800" onclick="fecharCotacao()">Fechar cotação e gerar pedidos →</button>') : ''].map(function(b){ return b.replace('<button ', '<button class="link-btn" style="display:block;width:100%;text-align:left;padding:9px 13px;color:var(--ink2)" '); }).join('') + '</div></span></div>';
   if (CI_ABA === 'prepedidos') { h += renderPrePedidos(); m.innerHTML = h; return; }
   if (CI_ABA === 'pedidos') { h += renderPedidosResumo(C, R, F, aberta); m.innerHTML = h; return; }
   // filtros com títulos grandes (Descrição do Produto · Fornecedor · Categoria · Empresa)
@@ -2159,7 +2161,7 @@ function pedVista(v){ PED_VISTA = v; try { localStorage.setItem('cot-ped-vista',
 function renderPedidosOnde(){ var s5 = document.getElementById('s5'); if (s5 && s5.classList.contains('on')) renderPedidos(); else renderComparativoItens(); }
 function pedAbrirPedido(cod){ CI_ABA = 'prepedidos'; abrirPrePedido(cod); if (!document.getElementById('s4').classList.contains('on')) goScreen('s4'); }
 function pedVistaToggle(){ var b = function(v, t){ return '<button class="cbtn" style="' + (PED_VISTA === v ? 'background:var(--am);border-color:var(--am);color:#1a1a1a;' : '') + 'padding:8px 16px" onclick="pedVista(\'' + v + '\')">' + t + '</button>'; }; return '<div style="display:flex;gap:8px;align-items:center;margin:4px 0 10px"><span class="mini" style="font-weight:700;text-transform:uppercase;letter-spacing:.04em">Ver pedidos</span>' + b('loja', '🏬 Por loja') + b('forn', '🚚 Por fornecedor') + '</div>'; }
-function pedRodape(aberta, pend){ if (aberta && pend.length) return '<div style="text-align:right;margin-top:8px"><button class="btn primary" id="btn-fechar" onclick="fecharCotacao()">Fechar cotação e gerar ' + pend.length + ' pedido' + (pend.length > 1 ? 's' : '') + ' →</button></div>'; if (CUR.pedidos && CUR.pedidos.length && !document.getElementById('s5').classList.contains('on')) return '<div style="text-align:right;margin-top:8px"><button class="btn primary" onclick="goScreen(\'s5\')">Ver pedidos gerados →</button></div>'; return ''; }
+function pedRodape(aberta, pend, zerados){ if (aberta && CUR.pode_encerrar) return '<div style="display:flex;justify-content:flex-end;align-items:center;gap:12px;flex-wrap:wrap;margin-top:8px"><span class="mini">Todos os pedidos já foram realizados' + (zerados ? ' (' + zerados + ' pré-pedido' + (zerados > 1 ? 's' : '') + ' zerado' + (zerados > 1 ? 's' : '') + ', R$ 0, não vira pedido)' : '') + ' e nenhum fornecedor falta. A cotação continua aberta pros vendedores até você encerrar.</span><button class="btn primary" id="btn-encerrar" onclick="encerrarCotacao()">Encerrar cotação →</button></div>'; if (aberta && pend.length) return '<div style="text-align:right;margin-top:8px"><button class="btn primary" id="btn-fechar" onclick="fecharCotacao()">Fechar cotação e gerar ' + pend.length + ' pedido' + (pend.length > 1 ? 's' : '') + ' →</button></div>'; if (CUR.pedidos && CUR.pedidos.length && !document.getElementById('s5').classList.contains('on')) return '<div style="text-align:right;margin-top:8px"><button class="btn primary" onclick="goScreen(\'s5\')">Ver pedidos gerados →</button></div>'; return ''; }
 function pedFornDados(p){
   var ped = (CUR.pedidos || []).find(function(x){ return x.codFornec === p.codFornec; }) || {}, v = p.vendedor || {};
   var itens = p.itens.filter(function(i){ return i.qtd > 0; }).map(function(i){ return { cod: i.cod, descricao: i.descricao, obs: i.obs || '', lojas_qtd: i.lojas_qtd || {}, qtd: i.qtd, unid: i.unid || 'UN', emb: i.emb, preco: i.preco, total: +(i.qtd * i.preco).toFixed(2) }; }).sort(function(a, b){ return a.descricao.localeCompare(b.descricao, 'pt-BR'); });
@@ -2205,10 +2207,11 @@ function renderPedidosResumo(C, R, F, aberta){
   var P = ppData(), L = P.fornecedores || [];
   if (!L.length) return '<div class="empty">Nenhum item com vencedor ainda — quando os vendedores digitarem, os pedidos aparecem aqui.</div>';
   var real = L.filter(function(p){ return p.status === 'realizado'; }), pend = L.filter(function(p){ return p.status !== 'realizado'; });
+  var pendReal = pend.filter(function(p){ return p.itens.some(function(i){ return i.qtd > 0; }); }), zerados = pend.length - pendReal.length;   // zerado (R$ 0) não vira pedido: não conta no "gerar N pedidos" (27/10/26)
   var lojas = P.lojas || [];
-  var h = '<div class="kpis" style="grid-template-columns:repeat(4,1fr)"><div class="kpi"><div class="val pos">' + fmtR(P.total_pedidos) + '</div><div class="lbl">Pedidos realizados (' + real.length + ')</div></div><div class="kpi"><div class="val" style="color:var(--inf)">' + fmtR(P.total_pre) + '</div><div class="lbl">Pré-pedidos pendentes (' + pend.length + ')</div></div><div class="kpi"><div class="val">' + lojas.length + '</div><div class="lbl">Empresas (lojas)</div></div><div class="kpi"><div class="val">' + real.reduce(function(a, p){ return a + p.itens.length; }, 0) + '</div><div class="lbl">Itens em pedidos realizados</div></div></div>';
+  var h = '<div class="kpis" style="grid-template-columns:repeat(4,1fr)"><div class="kpi"><div class="val pos">' + fmtR(P.total_pedidos) + '</div><div class="lbl">Pedidos realizados (' + real.length + ')</div></div><div class="kpi"><div class="val" style="color:var(--inf)">' + fmtR(P.total_pre) + '</div><div class="lbl">Pré-pedidos pendentes (' + pend.length + ')' + (zerados ? ' · ' + zerados + ' zerado' + (zerados > 1 ? 's' : '') : '') + '</div></div><div class="kpi"><div class="val">' + lojas.length + '</div><div class="lbl">Empresas (lojas)</div></div><div class="kpi"><div class="val">' + real.reduce(function(a, p){ return a + p.itens.length; }, 0) + '</div><div class="lbl">Itens em pedidos realizados</div></div></div>';
   h += pedVistaToggle();
-  if (PED_VISTA === 'forn') return h + renderPedidosPorForn(real, pend) + pedRodape(aberta, pend);
+  if (PED_VISTA === 'forn') return h + renderPedidosPorForn(real, pend) + pedRodape(aberta, pendReal, zerados);
   h += '<h2 class="clubh1" style="font-size:22px;margin:6px 0 10px">Empresas</h2><div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:10px"><select class="fin" style="max-width:520px" onchange="PED_LOJA=this.value;renderPedidosOnde()"><option value="">Selecione a empresa</option>' + lojas.map(function(ln){ return '<option value="' + ln + '"' + (String(PED_LOJA) === String(ln) ? ' selected' : '') + '>' + LJ(ln) + ' · SUP. ECONÔMICO (' + esc(LOJAS_NOMES[ln] || '') + ')</option>'; }).join('') + '</select><button class="cbtn" onclick="pedExportar(\'lojas\')" title="Exporta os pedidos realizados de todas as lojas: você escolhe Excel ou PDF">⬆ Exportar todas as lojas</button></div>';
   if (!real.length) h += '<div class="empty">Nenhum pedido realizado ainda. Os ' + pend.length + ' pré-pedidos pendentes estão na aba Pré-pedidos: abra o carrinho do fornecedor e clique em Realizar Pedido.</div>';
   h += lojas.filter(function(ln){ return !PED_LOJA || String(PED_LOJA) === String(ln); }).map(function(ln){
@@ -2217,7 +2220,7 @@ function renderPedidosResumo(C, R, F, aberta){
     if (ab) x += '<div class="emp-tb">' + (d.itens.length ? pedLojaPorForn(ln, d) : '<div class="empty" style="padding:14px">Nenhum pedido realizado pra esta loja nesta cotação.</div>') + '</div>';
     return x + '</div>';
   }).join('');
-  return h + pedRodape(aberta, pend);
+  return h + pedRodape(aberta, pendReal, zerados);
 }
 // ───────── PRÉ-PEDIDOS (modelo Club da Cotação): lista por fornecedor → itens → cotações do item; detalhe com qtd por loja
 var PP_OPEN = {}, PP_ITEM = {}, PP_DET = null, PP_EDIT = {}, PP_SORT = true, PP_T = null;   // "Ordenar por valor" sempre marcado ao abrir (Tiago, 28/09)
@@ -2394,8 +2397,9 @@ async function ppZerarSemNec(){
   if (!confirm('Zerar ' + PP_SEMNEC.length + ' loja(s) deste pré-pedido em que o estoque e o giro de agora não pedem compra?\n\nA quantidade dessas lojas vira 0; o item continua no pré-pedido e os outros fornecedores não mudam.')) return;
   var lq = {};
   PP_SEMNEC.forEach(function(x){ var i = p.itens.find(function(y){ return y.cod === x.cod; }); if (!i) return; if (!lq[x.cod]) { lq[x.cod] = {}; (P.lojas || []).forEach(function(l){ if (i.lojas_outros && i.lojas_outros[l] != null) return; lq[x.cod][l] = ppQtd(i, l); }); } lq[x.cod][x.ln] = 0; PP_EDIT[x.cod] = PP_EDIT[x.cod] || {}; PP_EDIT[x.cod][x.ln] = 0; });
-  clearTimeout(PP_T); var sy = window.scrollY, n = PP_SEMNEC.length;
+  clearTimeout(PP_T); var sy = window.scrollY, n = PP_SEMNEC.length, jaPodia = !!CUR.pode_encerrar;
   await ppSalvar({lojas_qtd: lq}, true); Object.keys(lq).forEach(function(c){ delete PP_EDIT[c]; }); renderComparativoItens(); window.scrollTo(0, sy);
+  encerrarSePronta(jaPodia);   // zerar deliberado (com confirm próprio): se tirou o último pendente, pergunta aqui
   toastMsg(n + ' loja(s) zerada(s): ficou no pré-pedido só o que o estoque e o giro de agora pedem');
 }
 function ppTrocarForn(cod){ PP_FORN_OPEN[cod] = !PP_FORN_OPEN[cod]; renderComparativoItens(); }
@@ -2444,18 +2448,21 @@ async function ppNegociar(cod, codFornec, atual){
 async function ppEscolher(cod, codFornec, origem, loja){
   var sy = window.scrollY;
   if (origem) { PP_FICA[origem + '|' + cod] = true; var pf = ppData().fornecedores.find(function(x){ return String(x.codFornec) === String(origem); }); if (pf && !PP_FICA_FORN[origem]) PP_FICA_FORN[origem] = pf; }   // clique feito na tabela deste fornecedor: o item continua lá, apagado, mesmo indo pra outro; o fornecedor também, se ficar sem itens
+  var jaPodia = !!CUR.pode_encerrar;
   try { CUR = await post('/api/cotacoes/' + CUR.id + '/vencedores', {cod: cod, codFornec: codFornec, loja: loja != null ? loja : undefined}); } catch(e) { toastMsg('Erro: ' + e.message); return; }
   var it = CUR.comparativo.itens.find(function(x){ return x.cod === cod; }), nv = it && it.vencedor ? it.vencedor.codFornec : null;
   if (loja != null) {   // Tiago, 05/10: escolha só pra essa loja
     var wl = it && it.por_loja ? it.por_loja[String(loja)] : null, nfl = wl != null ? (CUR.comparativo.fornecedores.find(function(x){ return String(x.codFornec) === String(wl); }) || {}).nome : null;
     renderTudo(); window.scrollTo(0, sy);
     toastMsg(LJ(loja) + ': ' + (codFornec === 'nao' ? 'não comprar este item nesta loja' : nfl ? 'item com ' + nfl + ' nesta loja' : codFornec === 'auto' ? 'segue o geral do item' : 'atualizado'));
+    encerrarSePronta(jaPodia);
     return;
   }
   // Tiago, 28/09: marcar/desmarcar não abre nem fecha fornecedor ou item — a tela fica exatamente como estava, só o dado muda
   renderTudo(); window.scrollTo(0, sy);
   var nf = nv != null ? (CUR.comparativo.fornecedores.find(function(x){ return String(x.codFornec) === String(nv); }) || {}).nome : null;
   toastMsg(nf ? 'Item passou pra ' + nf : codFornec === 'nao' ? 'Item marcado como não comprar' : 'Item atualizado');
+  encerrarSePronta(jaPodia);
 }
 var PP_EST = {}, PP_GIRO = {};
 // última compra / última venda por loja + sem giro (Tiago, 15/10): rota /giro, carregada ao abrir o pré-pedido
@@ -2641,7 +2648,8 @@ function ppSetQtd(cod, ln, v){
   clearTimeout(PP_T); PP_T = setTimeout(function(){ var P2 = ppData(), p2 = P2.fornecedores.find(function(x){ return x.codFornec === PP_DET; }), i2 = (p2 && p2.itens.find(function(x){ return x.cod === cod; })) || i; var lq = {}; lq[cod] = {}; (P2.lojas || []).forEach(function(l){ if (i2.lojas_outros && i2.lojas_outros[l] != null) return; lq[cod][l] = ppQtd(i2, l); }); ppSalvar({lojas_qtd: lq}, true); }, 600);   // só as lojas deste fornecedor; loja que é de outro não vai (Tiago, 05/10)
 }
 async function ppSalvar(dados, silencioso){
-  try { var r = await post('/api/cotacoes/' + CUR.id + '/pre-pedido/' + PP_DET, dados); CUR = r; if (!silencioso) { renderComparativoItens(); toastMsg('Salvo'); } else { var ed = PP_EDIT; PP_EDIT = {}; Object.keys(ed).forEach(function(c){ var env = dados.lojas_qtd && dados.lojas_qtd[c]; if (!env) { PP_EDIT[c] = ed[c]; return; } Object.keys(ed[c]).forEach(function(l){ if (ed[c][l] !== env[l]) { PP_EDIT[c] = PP_EDIT[c] || {}; PP_EDIT[c][l] = ed[c][l]; } }); }); } }   // digitado depois do envio continua valendo (Tiago, 05/10)
+  var jaPodia = !!(CUR && CUR.pode_encerrar);   // antes do await: vale também pra quem chama sem aguardar (ppZerar / ppVoltarZero)
+  try { var r = await post('/api/cotacoes/' + CUR.id + '/pre-pedido/' + PP_DET, dados); CUR = r; if (!silencioso) { renderComparativoItens(); toastMsg('Salvo'); if (dados.lojas_qtd) encerrarSePronta(jaPodia); } else { var ed = PP_EDIT; PP_EDIT = {}; Object.keys(ed).forEach(function(c){ var env = dados.lojas_qtd && dados.lojas_qtd[c]; if (!env) { PP_EDIT[c] = ed[c]; return; } Object.keys(ed[c]).forEach(function(l){ if (ed[c][l] !== env[l]) { PP_EDIT[c] = PP_EDIT[c] || {}; PP_EDIT[c][l] = ed[c][l]; } }); }); } }   // digitado depois do envio continua valendo (Tiago, 05/10)
   catch(e) { toastMsg('Erro: ' + e.message); }
 }
 function ppGiro(){
@@ -2756,7 +2764,7 @@ function naoDigitados(){
 function renderComparativoMatriz(){
   var m = $('#s4-main'); if (!CUR) { renderVazio(m); return; }
   var C = CUR.comparativo, R = C.resumo, F = C.fornecedores, aberta = CUR.status === 'aberta';
-  var h = topoTela('Comparativo (matriz)', (aberta ? '<button class="btn primary sm" id="btn-fechar" onclick="fecharCotacao()"' + (R.total_vencedores > 0 ? '' : ' disabled') + '>Fechar cotação e gerar pedidos →</button>' : (CUR.pedidos && CUR.pedidos.length ? '<button class="btn primary sm" onclick="goScreen(\'s5\')">Ver pedidos gerados →</button>' : '')) + '<span class="vtab"><button onclick="setVista(\'itens\')">Por item</button><button class="on" onclick="setVista(\'matriz\')">Matriz</button></span><button class="btn ghost sm" onclick="exportarComparativo()">Exportar CSV</button><button class="btn ghost sm" onclick="recarregar()" title="Atualizar">↻</button>');
+  var h = topoTela('Comparativo (matriz)', (aberta ? (CUR.pode_encerrar ? '<button class="btn primary sm" id="btn-encerrar" onclick="encerrarCotacao()" title="Todos os pedidos já foram realizados e nenhum fornecedor falta">Encerrar cotação →</button>' : '<button class="btn primary sm" id="btn-fechar" onclick="fecharCotacao()"' + (R.total_vencedores > 0 ? '' : ' disabled') + '>Fechar cotação e gerar pedidos →</button>') : (CUR.pedidos && CUR.pedidos.length ? '<button class="btn primary sm" onclick="goScreen(\'s5\')">Ver pedidos gerados →</button>' : '')) + '<span class="vtab"><button onclick="setVista(\'itens\')">Por item</button><button class="on" onclick="setVista(\'matriz\')">Matriz</button></span><button class="btn ghost sm" onclick="exportarComparativo()">Exportar CSV</button><button class="btn ghost sm" onclick="recarregar()" title="Atualizar">↻</button>');
   h += '<div class="kpis"><div class="kpi"><div class="val">' + fmtR(R.total_ultimo_vencedores) + '</div><div class="lbl">Última compra (ERP) dos itens com vencedor</div></div><div class="kpi"><div class="val pos">' + fmtR(R.total_vencedores) + '</div><div class="lbl">Melhor combinação (' + (R.itens - R.sem_vencedor - R.nao_comprar) + ' de ' + R.itens + ' itens)</div></div><div class="kpi"><div class="val ' + (R.economia >= 0 ? 'pos' : 'neg') + '">' + fmtR(R.economia) + '</div><div class="lbl">Economia × última compra</div></div><div class="kpi"><div class="val ' + (R.economia >= 0 ? 'pos' : 'neg') + '">' + (R.economia_pct != null ? fmtN(R.economia_pct, 1) + '%' : '—') + '</div><div class="lbl">Economia %</div></div></div>';
   h += '<div class="resumo-strip"><span class="rlabel">Resumo</span><span class="chip"><b>' + R.itens + '</b> produtos</span><span class="sep">·</span><span class="chip"><b>' + R.com_preco + '</b> com preço</span><span class="sep">·</span><span class="chip"><b>' + R.abaixo + '</b> igual/abaixo da última compra</span><span class="sep">·</span><span class="chip"><b>' + R.acima + '</b> acima</span><span class="sep">·</span><span class="chip"><b>' + R.sem_vencedor + '</b> sem preço</span><span class="sep">·</span><span class="chip"><b>' + R.nao_comprar + '</b> marcados "não comprar"</span><span class="sep">·</span><span class="chip">' + R.responderam + ' de ' + R.convidados + ' fornecedores responderam</span></div>';
   if (aberta) h += '<p class="mini" style="margin:0 0 10px">Menor preço vence automaticamente. Clique no preço de outro fornecedor pra escolher ele; "auto" volta pro menor; "não comprar" tira o item dos pedidos.</p>';
@@ -2782,11 +2790,13 @@ async function escolher(cod, codFornec){
   // Tiago, 05/10 ("por que não consigo desmarcar um item desse pra não comprar?"): no cartão, desmarcar quem fornece = não comprar,
   // igual aos Pré-pedidos. A tela fica onde estava e avisa o que aconteceu.
   var sy = window.scrollY;
+  var jaPodia = !!CUR.pode_encerrar;
   try { CUR = await post('/api/cotacoes/' + CUR.id + '/vencedores', {cod:cod, codFornec:codFornec}); } catch(e) { toastMsg('Erro: ' + e.message); return; }
   renderTudo(); window.scrollTo(0, sy);
   var it = CUR.comparativo.itens.find(function(x){ return x.cod === cod; }), nv = it && it.vencedor ? it.vencedor.codFornec : null;
   var nf = nv != null ? (CUR.comparativo.fornecedores.find(function(x){ return String(x.codFornec) === String(nv); }) || {}).nome : null;
   toastMsg(codFornec === 'nao' ? 'Item marcado como não comprar: foi pra lista Não comprados' : nf ? 'Item passou pra ' + nf : 'Item atualizado');
+  encerrarSePronta(jaPodia);
 }
 async function abrirHistorico(cod){
   var i = CUR.comparativo.itens.find(function(x){ return x.cod === cod; }); if (!i) return;
@@ -2803,16 +2813,46 @@ function exportarComparativo(){
   var csv = lines.map(function(l){ return l.map(function(v){ return '"' + String(v == null ? '' : v).replace(/"/g, '""').replace('.', ',') + '"'; }).join(';'); }).join('\n');
   var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + csv], {type:'text/csv;charset=utf-8;'})); a.download = 'cotacao-' + CUR.id + '-comparativo.csv'; document.body.appendChild(a); a.click(); document.body.removeChild(a);
 }
+// ── Encerrar cotação com todos os pedidos já realizados (Tiago, 27/10/26: "não tem nenhum pedido para fechar e ainda continua com o
+// status em digitação"). O fechamento automático só roda no Realizar Pedido: se o último fornecedor pendente foi zerado ou marcado
+// "não comprar" DEPOIS do último pedido, a cotação ficava 'aberta' sem motivo (a #4 ficou assim com 22 pedidos realizados). Nada fecha
+// sozinho — o abate do trânsito zera e salva ao abrir o pré-pedido —, quem decide é o(a) comprador(a): botão no Monitor, na tela
+// Pedidos e no Comparativo (matriz), e uma pergunta única depois de zerar / "não comprar" o último pendente.
+var ENC_PERGUNTADO = {};
+function encTexto(id){ return 'Encerrar a cotação #' + id + '?\n\nTodos os pedidos já foram realizados e nenhum fornecedor vencedor falta. Ao encerrar, ela vira "Pedidos gerados" e os vendedores que ainda não responderam não conseguem mais digitar preço.'; }
+function encToast(id, r){ toastMsg(r && r.status === 'fechada' ? 'Cotação #' + id + ' encerrada: Pedidos gerados.' : 'Cotação #' + id + ' está ' + (r && r.status) + ': nada a encerrar.'); }
+async function encerrarCotacao(semConfirmar){
+  if (!CUR) return;
+  if (!semConfirmar && !confirm(encTexto(CUR.id))) return;
+  try { CUR = await post('/api/cotacoes/' + CUR.id + '/fechar-se-completa'); renderTudo(); encToast(CUR.id, CUR); }
+  catch(e) { toastMsg('Erro: ' + e.message); }
+  carregarMonitor();   // a linha do Monitor acompanha, inclusive depois de erro ("já cancelada" sai da lista a encerrar)
+}
+async function encerrarMon(id){
+  if (!confirm(encTexto(id))) return;
+  try { var r = await post('/api/cotacoes/' + id + '/fechar-se-completa'); if (CUR && CUR.id === id) { CUR = r; renderTudo(); } encToast(id, r); }
+  catch(e) { toastMsg('Erro: ' + e.message); }
+  carregarMonitor();
+}
+// depois de zerar / "não comprar" (ação deliberada do(a) comprador(a)): pergunta só quando a ação de AGORA tirou o último pendente
+// (jaPodia = estado antes da ação; cotação que já estava "a encerrar" não pergunta ao trocar entrega etc.), UMA vez por cotação
+function encerrarSePronta(jaPodia){
+  if (jaPodia || !CUR || !CUR.pode_encerrar || ENC_PERGUNTADO[CUR.id]) return;
+  ENC_PERGUNTADO[CUR.id] = true;
+  if (confirm('Era o último fornecedor pendente: todos os pedidos da cotação #' + CUR.id + ' já foram realizados.\n\nEncerrar a cotação agora? Ela vira "Pedidos gerados" e os vendedores que ainda não responderam não conseguem mais digitar preço.\n\n(Se preferir deixar aberta, o botão "Encerrar cotação" fica na tela Pedidos, no Comparativo e no Monitor.)')) encerrarCotacao(true);
+}
 async function fecharCotacao(){
-  var R = CUR.comparativo.resumo, F = CUR.comparativo.fornecedores.filter(function(f){ return f.itens_vencedor > 0; });
+  if (CUR.pode_encerrar) return encerrarCotacao();   // todos já têm pedido: nada a gerar, só encerrar
+  var R = CUR.comparativo.resumo, F = ppData().fornecedores.filter(function(p){ return p.status !== 'realizado' && p.itens.some(function(i){ return i.qtd > 0; }); });   // o que fechar() da lib gera de fato: sem pedido e com quantidade no pré-pedido (zerado não entra; realizado já saiu)
   var faltam = R.convidados - R.responderam;
-  var msg = 'Fechar a cotação #' + CUR.id + ' e gerar ' + F.length + ' pedido(s) de compra?\n\n' + F.map(function(f){ return '• ' + f.nome + ': ' + f.itens_vencedor + ' itens, ' + fmtR(f.total_vencedor); }).join('\n') + (R.sem_vencedor ? '\n\n' + R.sem_vencedor + ' item(ns) sem preço ficam de fora.' : '') + (faltam ? '\n\nATENÇÃO: ' + faltam + ' fornecedor(es) ainda não responderam.' : '') + '\n\nOs pedidos entram em Pedidos de Compra JÁ APROVADOS, um por loja, com os preços da cotação e o selo COTAÇÃO (sem consulta de avarias). Depois disso os links dos fornecedores travam.';
+  var msg = 'Fechar a cotação #' + CUR.id + ' e gerar ' + F.length + ' pedido(s) de compra?\n\n' + F.map(function(p){ return '• ' + p.nome + ': ' + p.itens.filter(function(i){ return i.qtd > 0; }).length + ' itens, ' + fmtR(p.total); }).join('\n') + (R.sem_vencedor ? '\n\n' + R.sem_vencedor + ' item(ns) sem preço ficam de fora.' : '') + (faltam ? '\n\nATENÇÃO: ' + faltam + ' fornecedor(es) ainda não responderam.' : '') + '\n\nOs pedidos entram em Pedidos de Compra JÁ APROVADOS, um por loja, com os preços da cotação e o selo COTAÇÃO (sem consulta de avarias). Depois disso os links dos fornecedores travam.';
   if (!confirm(msg)) return;
   var btn = $('#btn-fechar'); if (btn) { btn.disabled = true; btn.textContent = 'Gerando pedidos…'; }
   try {
+    var antesN = (CUR.pedidos || []).length;
     CUR = await post('/api/cotacoes/' + CUR.id + '/fechar'); renderTudo();
-    var h = '<p style="margin:0 0 14px;color:var(--ink2)">' + CUR.pedidos.length + ' pedido(s) criados em <b>Pedidos de Compra</b> com status "Finalizado pelo vendedor" (preço da cotação). Aprove lá pra gerar o PDF e iniciar a conferência da NF-e por loja.</p>';
-    CUR.pedidos.forEach(function(p){ h += '<div class="pedido-grp"><b>Pedido #' + p.id + ' · ' + esc(p.fornecedor) + '</b><div class="it"><span>' + p.itens + ' itens · lojas ' + (p.lojas || []).map(function(l){ return LJ(l); }).join(' ') + (p.avarias ? ' · <span style="color:var(--neg)">' + p.avarias.n + ' avaria(s) pendente(s) R$ ' + fmtN(p.avarias.total, 2) + '</span>' : '') + '</span><span>' + fmtR(p.total) + '</span></div></div>'; });
+    var h = '<p style="margin:0 0 14px;color:var(--ink2)">' + (CUR.pedidos.length - antesN) + ' pedido(s) criados agora em <b>Pedidos de Compra</b> com status "Finalizado pelo vendedor" (preço da cotação). Aprove lá pra gerar o PDF e iniciar a conferência da NF-e por loja.</p>';
+    CUR.pedidos.slice(antesN).forEach(function(p){ h += '<div class="pedido-grp"><b>Pedido #' + p.id + ' · ' + esc(p.fornecedor) + '</b><div class="it"><span>' + p.itens + ' itens · lojas ' + (p.lojas || []).map(function(l){ return LJ(l); }).join(' ') + (p.avarias ? ' · <span style="color:var(--neg)">' + p.avarias.n + ' avaria(s) pendente(s) R$ ' + fmtN(p.avarias.total, 2) + '</span>' : '') + '</span><span>' + fmtR(p.total) + '</span></div></div>'; });
     h += '<a class="btn primary" style="width:100%;justify-content:center;margin-top:10px" href="/pedidos-compra.html">Abrir Pedidos de Compra →</a>';
     abrirModal('Cotação #' + CUR.id + ' fechada', h); goScreen('s5');
   } catch(e) { toastMsg('Erro: ' + e.message); if (btn) { btn.disabled = false; btn.textContent = 'Fechar cotação e gerar pedidos →'; } }
