@@ -911,10 +911,9 @@ table.sug tbody tr:hover td.lj.tem{background:#FFE39A}
 <div class="modtabs">
   <button class="on" data-screen="s1">1. Monitor</button>
   <button data-screen="s2">2. Nova Cotação</button>
-  <!-- as abas "Acompanhamento" e "Pedidos" saíram daqui (Tiago, 26/10/26): abrem pelas colunas Acompanhamento e Pedidos do Monitor
-       (a tela s3 continua; a s5 — andamento dos pedidos em Pedidos de Compra — abre pelos círculos de Status dos pedidos) -->
-  <button data-screen="s4">3. Comparativo</button>
-  <button data-screen="s6">4. Fornecedores</button>
+  <!-- as abas "Acompanhamento", "Comparativo" e "Pedidos" saíram daqui (Tiago, 26/10/26): abrem pelo Monitor — colunas Acompanhamento e
+       Pedidos e o carrinho de Vencedores (Comparativo). As telas s3, s4 e s5 continuam existindo e marcam a aba Monitor. -->
+  <button data-screen="s6">3. Fornecedores</button>
 </div>
 
 <!-- ═══════════ TELA 1 — MONITOR ═══════════ -->
@@ -1113,8 +1112,8 @@ $('#backdrop').addEventListener('click', function(e){ if (e.target.id === 'backd
 function goScreen(id){
   document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('on'); });
   document.getElementById(id).classList.add('on');
-  // Acompanhamento (s3) e Pedidos (s5) não têm mais aba (abrem pelas colunas do Monitor, Tiago 26/10/26): neles a aba Monitor fica marcada
-  var tabOn = (id === 's3' || id === 's5') ? 's1' : id;
+  // Acompanhamento (s3), Comparativo (s4) e Pedidos (s5) não têm mais aba (abrem pelo Monitor, Tiago 26/10/26): neles a aba Monitor fica marcada
+  var tabOn = (id === 's3' || id === 's4' || id === 's5') ? 's1' : id;
   document.querySelectorAll('.modtabs button').forEach(function(b){ b.classList.toggle('on', b.dataset.screen === tabOn); });
   window.scrollTo(0,0);
   // A aba e a cotação abertas NÃO vão pra URL: F5 (ou reabrir a página) cai sempre no Monitor — Tiago, 26/10/26: "a tela inicial da
@@ -1957,7 +1956,7 @@ function renderComparativoItens(opts){
   h += '<div class="clubinfo"><span class="ico">i</span><div><b>#' + CUR.id + ' ' + esc(CUR.nome) + '</b><br><span class="mini">Lista ' + (CUR.lista || '—') + ' ' + esc(CUR.lista_nome || '') + ' · ' + R.responderam + ' de ' + R.convidados + ' fornecedores responderam · ' + (aberta ? 'marque o vencedor de cada item; o menor preço já vem marcado' : 'cotação ' + CUR.status) + '</span></div></div>';
   // linha de botões (Produtos | Pedidos | Voltar | Imprimir | Não Digitados | Outras Funções)
   h += '<div class="clubbar"><button class="cbtn' + (CI_ABA === 'produtos' ? ' on' : '') + '" onclick="ciAba(\'produtos\')">▤ Produtos</button><button class="cbtn green' + (CI_ABA === 'prepedidos' ? ' on' : '') + '" onclick="ciAba(\'prepedidos\')">≡ Pré-pedidos: ' + fmtR((CUR.prePedidos || {}).total_pre || 0) + '</button><button class="cbtn blue' + (CI_ABA === 'pedidos' ? ' on' : '') + '" onclick="ciAba(\'pedidos\')">🚚 Pedidos: ' + fmtR((CUR.prePedidos || {}).total_pedidos || 0) + '</button><span style="flex:1"></span>' +
-    '<button class="cbtn" onclick="goScreen(\'s3\')">← Voltar</button><button class="cbtn" onclick="window.print()">🖨 Imprimir</button><button class="cbtn" onclick="naoDigitados()"><span style="color:var(--amk)">⛔</span> Não Digitados</button>' +
+    '<button class="cbtn" onclick="goScreen(\'s1\')" title="Voltar à lista de cotações">← Monitor</button><button class="cbtn" onclick="window.print()">🖨 Imprimir</button><button class="cbtn" onclick="naoDigitados()"><span style="color:var(--amk)">⛔</span> Não Digitados</button>' +
     '<span style="position:relative;display:inline-block"><button class="cbtn" onclick="event.stopPropagation();var m=this.nextElementSibling;m.style.display=m.style.display===\'block\'?\'none\':\'block\'">⌄ Outras Funções</button><div style="display:none;position:absolute;right:0;top:52px;background:var(--crd);border:1px solid var(--ln);border-radius:10px;box-shadow:var(--shadow);z-index:80;min-width:240px;overflow:hidden;text-align:left">' +
     ['<button onclick="setVista(\'matriz\')">Ver em matriz (produto × fornecedor)</button>', '<button onclick="exportarComparativo()">Exportar Excel (CSV)</button>', '<button onclick="ciRecTodos(true)">Recolher todos os itens</button>', '<button onclick="ciRecTodos(false)">Expandir todos</button>', '<button onclick="recarregar()">Atualizar</button>', aberta ? '<button style="color:var(--pos);font-weight:800" onclick="fecharCotacao()">Fechar cotação e gerar pedidos →</button>' : ''].map(function(b){ return b.replace('<button ', '<button class="link-btn" style="display:block;width:100%;text-align:left;padding:9px 13px;color:var(--ink2)" '); }).join('') + '</div></span></div>';
   if (CI_ABA === 'prepedidos') { h += renderPrePedidos(); m.innerHTML = h; return; }
