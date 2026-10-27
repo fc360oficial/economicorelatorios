@@ -511,6 +511,7 @@ table.ppg td.st .pp-ant{font-size:11px;line-height:1.2;margin-top:2px;color:var(
 .pdbtn{height:34px;padding:0 13px;border-radius:8px;border:1.5px solid var(--ln2);background:var(--crd);color:var(--ink);font-weight:800;font-size:12.5px;cursor:pointer;font-family:inherit;white-space:nowrap;display:inline-flex;align-items:center;justify-content:center}
 .pdbtn:hover{background:var(--wsh)}
 .pdbtn.on{color:#5B5BD6;border-color:#5B5BD6;background:#EEF0FF}.pdbtn.on:hover{background:#E2E5FF}
+.pdbtn:disabled{cursor:default}.pdbtn:disabled:hover{background:var(--crd)}
 .mon td.c-ped{white-space:nowrap}
 .mon td.c-acomp{white-space:nowrap}.mon td.c-acomp .mini{display:block;margin-top:4px;white-space:nowrap}.mon td.c-acomp .mini b{color:var(--ink);font-weight:800}
 /* 16/10/26 (Tiago: "tem que reajustar automático seja qual monitor"): layout do Monitor é o original no monitor grande (≥1700px);
@@ -1209,6 +1210,7 @@ function filtrarMonitor(){
   tb.innerHTML = lista.map(function(c){
     var s = statusCot(c), ps = c.pedidos_status || {gerados:0, aprovados:0, recebidos:0, cancelados:0};
     var stTxt = {fechada:'Pedido gerado', cancelada:'Cancelada', analise:'Pronta p/ análise', digitacao:'Em digitação', aguardando:'Não digitada'}[s.k] || s.txt;
+    var temPed = s.k === 'fechada' || ps.gerados > 0;   // coluna Pedidos: só colore e só abre com pedido gerado (Tiago, 26/10: "quando não tiver, clicar não abre nada")
     var emp = 'GRUPO - SUPERMERCADO ECONÔMICO' + (c.lojas && c.lojas.length === 1 ? ' (' + (LOJAS_NOMES[c.lojas[0]] || LJ(c.lojas[0])) + ')' : ' (CAHU)');
     return '<tr>' +
       '<td class="l c-data"><span class="dta">' + dt(c.prazo ? prazoLocal(c.prazo) + ':00' : c.criadoEm) + '</span><br><span class="num">#' + c.id + '</span>' + (c.teste ? ' <span class="status-pill" style="background:var(--amw);color:var(--amk);padding:2px 7px">TESTE</span>' : '') + '<br><span class="mini">' + esc(c.nome) + '</span></td>' +
@@ -1220,7 +1222,7 @@ function filtrarMonitor(){
       // coluna Acompanhamento (Tiago, 26/10/26): abre a tela de acompanhamento desta cotação (prazo, respostas, links/WhatsApp, recado)
       '<td class="c-acomp"><button class="acbtn" data-id="' + c.id + '" title="Abrir o acompanhamento da cotação #' + c.id + ': prazo, quem já respondeu, links e WhatsApp dos vendedores, recado" onclick="abrirCotacao(' + c.id + ',\'s3\')">Acompanhar<span class="ar"> →</span></button>' + (c.convidados ? '<span class="mini" title="vendedores que já responderam / convidados"><b>' + (c.responderam || 0) + '</b>/' + c.convidados + '<span class="vw"> vendedores</span></span>' : '') + '</td>' +
       // coluna Pedidos (Tiago, 26/10/26): nome colorido quando está com pedido gerado, escuro quando não; abre o Comparativo na aba Pedidos
-      '<td class="c-ped"><button class="pdbtn' + (s.k === 'fechada' ? ' on' : '') + '" data-id="' + c.id + '" title="' + (s.k === 'fechada' ? 'Pedido gerado: abre os pedidos por fornecedor (PDF, Excel, link, WhatsApp)' : 'Ainda sem pedido gerado: abre a aba Pedidos do Comparativo') + '" onclick="abrirPedidosCot(' + c.id + ')">Pedidos</button></td>' +
+      '<td class="c-ped"><button class="pdbtn' + (temPed ? ' on' : '') + '" data-id="' + c.id + '"' + (temPed ? ' title="Pedido gerado: abre os pedidos por fornecedor (PDF, Excel, link, WhatsApp)" onclick="abrirPedidosCot(' + c.id + ')"' : ' disabled title="Ainda sem pedido gerado"') + '>Pedidos</button></td>' +
       '<td style="white-space:nowrap;text-align:right"><span class="tot">' + (c.total_vencedores > 0 ? fmtR(c.total_vencedores) : '—') + '</span>' + (c.total_vencedores > 0 && c.economia != null ? '<span class="eco ' + (c.economia >= 0 ? 'eco-pos' : 'eco-neg') + '" title="economia × última compra">' + (c.economia >= 0 ? 'economia ' : 'acima ') + fmtR(Math.abs(c.economia)) + '</span>' : '') + '</td>' +
       '<td><div class="numgrp"><button class="aicon" title="Ver pedidos" onclick="abrirCotacao(' + c.id + ',\'s5\')">💲</button><button class="aicon" title="Acompanhamento (fornecedores, links, WhatsApp)" onclick="abrirCotacao(' + c.id + ',\'s3\')">📈</button><button class="aicon" title="Replicar: nova cotação da mesma lista" onclick="replicar(' + (c.lista || 0) + ')">🔁</button>' + (c.status === 'aberta' ? '<button class="aicon" title="Cancelar cotação" onclick="cancelarMon(' + c.id + ')">🗑️</button>' : '') + '</div></td>' +
       '<td><button class="vbtn" title="Vencedores (comparativo)" onclick="abrirComparativoCot(' + c.id + ')">🛒</button></td>' +
