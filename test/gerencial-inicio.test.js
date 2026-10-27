@@ -16,7 +16,7 @@ const montado = {
 };
 
 test('resumoPonto: contadores da loja + sem marcação contado pelas pendências', () => {
-  const p = G.resumoPonto(montado);
+  const p = G.resumoPonto(montado, { a1: -620, c3: 925 });
   assert.equal(p.previstos, 12); assert.equal(p.chegaram, 10); assert.equal(p.atrasos, 2);
   assert.equal(p.semMarcacao, 2, 'duas pessoas sem marcação');
   assert.deepEqual(p.fora, { folga: 2, ferias: 1, afastado: 0 });
@@ -24,7 +24,9 @@ test('resumoPonto: contadores da loja + sem marcação contado pelas pendências
   assert.equal(p.maisPendencias, 0);
   assert.equal(p.pessoas.length, 2, 'equipe do dia por pessoa');
   assert.equal(p.pessoas[1].nome, 'CARLOS'); assert.equal(p.pessoas[1].previsto.entrada, '07:00'); assert.equal(p.pessoas[1].entrada, '07:40'); assert.equal(p.pessoas[1].atrasoMin, 40);
-  assert.equal(p.pessoas[1].sit.entrada.sit, 'atraso'); assert.equal(p.pessoas[0].sit.intervalo, null); assert.equal(p.pessoas[0].saidaInt, null);
+  assert.equal(p.pessoas[1].sit.entrada.sit, 'atraso');
+  assert.equal(p.pessoas[0].banco_min, -620, 'banco de horas negativo (-10:20)'); assert.equal(p.pessoas[1].banco_min, 925, 'banco positivo (15:25)');
+  assert.equal(G.resumoPonto(montado).pessoas[0].banco_min, null, 'sem banco = null'); assert.equal(p.pessoas[0].sit.intervalo, null); assert.equal(p.pessoas[0].saidaInt, null);
 });
 test('resumoPonto: sem gente na loja = zeros, sem quebrar', () => {
   const p = G.resumoPonto({ resumo: { previstos: 0, chegaram: 0, atrasos: 0, fora: { folga: 0, ferias: 0, afastado: 0 } }, pendencias: [] });
@@ -41,14 +43,14 @@ test('resumoSemGiro: resumo da loja, faixas e lista limitada', () => {
 test('quadros: Ponto e Sem Giro da loja; cada bloco falha sozinho', async () => {
   const chamadas = [];
   const deps = {
-    tvRh: { jornadaHoje: async () => ({ linhas: [] }), montar: (j, cfg) => { chamadas.push(cfg.lojas); return montado; } },
+    tvRh: { jornadaHoje: async () => ({ linhas: [{ id: 'c3', banco_oficial_min: 925 }, { id: 'zz', banco_oficial_min: null }] }), montar: (j, cfg) => { chamadas.push(cfg.lojas); return montado; } },
     semGiro: { lojas: () => ({ estado: { calculadoEm: 'x' }, lojas: { 5: { n: 7, valor: 70 } }, total: { n: 99, valor: 990 } }), consultar: q => { chamadas.push([q.loja, q.faixa || 0]); return { rows: q.faixa ? [{ cod: 'F' + q.faixa, descricao: 'FAIXA ' + q.faixa, valor: 5, faixa: q.faixa }] : [{ cod: '1', descricao: 'A', valor: 10 }] }; } },
     toleranciaMin: () => 10
   };
   const r = await G.quadros(5, deps);
   assert.equal(r.loja, 5); assert.equal(r.lojaTxt, 'E5 · Porta Larga');
   assert.deepEqual(chamadas, [[5], [5, 0], [5, 30], [5, 60], [5, 90], [5, 120]], 'jornada e sem giro filtrados pela loja; uma consulta por faixa');
-  assert.equal(r.ponto.chegaram, 10); assert.equal(r.semGiro.n, 7); assert.equal(r.semGiro.itens.length, 1);
+  assert.equal(r.ponto.chegaram, 10); assert.equal(r.ponto.pessoas[1].banco_min, 925, 'banco vem das linhas cruas da jornada'); assert.equal(r.semGiro.n, 7); assert.equal(r.semGiro.itens.length, 1);
   assert.deepEqual(Object.keys(r.semGiro.itensFaixa), ['30', '60', '90', '120']); assert.equal(r.semGiro.itensFaixa[60][0].cod, 'F60');
 
   const rede = await G.quadros(null, deps);

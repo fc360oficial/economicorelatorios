@@ -194,15 +194,19 @@ body.v-home #home{display:flex}
 .gv-tag.ok{background:var(--green-bg);color:var(--green)}.gv-tag.apur{background:var(--amber-bg);color:var(--amber)}
 .pg-b{--px:18px}.gv-li.pessoa{cursor:pointer;user-select:none}.gv-li.pessoa.on{background:var(--bg2);margin:0 calc(-1*var(--px));padding:9px var(--px);border-bottom:0;border-radius:12px 12px 0 0}
 .pm-wrap{background:var(--bg2);margin:0 calc(-1*var(--px)) 8px;padding:2px var(--px) 12px;border-radius:0 0 12px 12px;display:grid;gap:6px}
-.pm{display:flex;align-items:center;gap:10px;background:var(--card);border-radius:10px;padding:8px 12px;flex-wrap:wrap}
-.pm-r{width:76px;flex-shrink:0;font-weight:800;color:var(--text2);font-size:10.5px;text-transform:uppercase;letter-spacing:.6px}
-.pm-h{flex:1;display:flex;gap:14px;flex-wrap:wrap;color:var(--text3);font-size:11.5px;min-width:0}.pm-h b{color:var(--text);font-variant-numeric:tabular-nums;font-size:14px;font-weight:800}.pm-h b.vz{color:var(--text3);font-weight:600}.pm-x{color:var(--amber);font-weight:700}
-.pm-div{font-size:11.5px;color:var(--text2);padding:2px 4px}
-@media(max-width:560px){.pg-b{--px:14px}.pm{padding:7px 10px;gap:8px}.pm-r{width:66px}.pm-h{gap:10px}}
-.gv-fil{display:flex;flex-wrap:wrap;gap:6px;padding:12px 0 2px}
-.gv-fil button{border:1px solid var(--border-md);background:var(--card);border-radius:999px;padding:6px 12px;font:600 12px var(--font);color:var(--text2);cursor:pointer;white-space:nowrap}
-.gv-fil button b{font-weight:800;color:var(--text)}
-.gv-fil button.on{background:var(--text);color:#fff;border-color:var(--text)}.gv-fil button.on b{color:var(--brand)}
+/* tabela Previsto × Bateu do detalhe (27/10: "ajustar o layout da informação quando abre") */
+.pt{background:var(--card);border-radius:12px;padding:4px 12px 2px;display:grid;grid-template-columns:78px 64px 1fr auto;column-gap:10px;align-items:center}
+.pt-h,.pt-r{display:contents}
+.pt-h>div{font-size:9.5px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--text3);padding:6px 0 5px;border-bottom:1px solid var(--border)}
+.pt-r>*{padding:9px 0;border-bottom:1px solid var(--border)}.pt-r:last-child>*{border-bottom:0}
+.pt-l{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--text2)}
+.pt-v{font-size:15px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--text);display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;line-height:1.1}.pt-v.vz{color:var(--text3);font-weight:600}
+.pt-v small{font-size:10.5px;font-weight:700}.pt-v small.ok{color:var(--green)}.pt-v small.ruim{color:var(--red)}
+.pt-r .gv-tag{justify-self:end;align-self:center}
+.pt-banco{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--card);border-radius:12px;padding:10px 12px;margin-top:6px;font-size:12px;color:var(--text2);font-weight:600}
+.pt-banco b{font-size:16px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--text)}.pt-banco b.ok{color:var(--green)}.pt-banco b.ruim{color:var(--red)}
+.pm-div{font-size:11.5px;color:var(--text2);padding:6px 4px 0}
+@media(max-width:560px){.pg-b{--px:14px}.pt{grid-template-columns:68px 54px 1fr auto;column-gap:8px;padding:2px 10px 0}.pt-v{font-size:14px}.pt-r .gv-tag{font-size:9px;padding:2px 5px}}
 /* ─── TRAVA: app instalado + notificações (27/10/26, Tiago: "forçar o gerente instalar o app no celular e ativar as notificações").
    Perfil gerencial no celular: fora do app instalado, a tela só mostra o passo "Instalar"; dentro do app, sem permissão de
    notificação, só mostra o passo "Ativar notificações". Cobre tudo (z-index acima do Início). ─── */
@@ -741,11 +745,29 @@ let PONTO_ABERTO=null;
 const hm=v=>v||'—';
 const TAG_CLS=s=>s==='sem'||s==='sem_retorno'?'sem':s==='atraso'?'atraso':s==='apuracao'?'apur':s==='aguardando'||s==='pendente'||s==='encerrada'||s==='intervalo'?'div':'ok';
 function pontoAbrir(id){PONTO_ABERTO=PONTO_ABERTO===id?null:id;paginaPonto();}
-function pontoMomento(rot,prev,bat,sit,extra){
+// Detalhe da pessoa (Tiago, 27/10: "ajustar o layout da informação quando abre"): tabela Previsto × Bateu, uma linha por marcação,
+// diferença em minutos ao lado do batido (+87 min em vermelho, −3 min em verde; na saída é o contrário) e situação curta à direita.
+const TAG_CURTA={ok:'No horário',folga_trab:'Folga trab.',atraso:'Atraso',aguardando:'Aguardando',intervalo:'Em intervalo',retornou:'Retornou',jornada:'Em jornada',encerrada:'Encerrada',sem:'Sem marcação',sem_retorno:'Sem retorno',pendente:'Pendente',apuracao:'Apuração'};
+const minHM=v=>{const m=/^(\d{1,2}):(\d{2})/.exec(String(v||''));return m?(+m[1])*60+(+m[2]):null;};
+function pontoLinha(rot,prev,bat,sit,tipo){
   if(!prev&&!bat)return '';
-  const s=(sit&&sit.sit)||'';const txt=sit&&sit.txt?sit.txt:(bat?'Batido':'Sem marcação');
-  return `<div class="pm"><div class="pm-r">${rot}</div><div class="pm-h"><span>previsto <b>${hm(prev)}</b></span><span>bateu <b class="${bat?'':'vz'}">${hm(bat)}</b></span>${extra?`<span class="pm-x">${esc(extra)}</span>`:''}</div><span class="gv-tag ${TAG_CLS(s)}">${esc(txt)}</span></div>`;
+  const s=(sit&&sit.sit)||(bat?'ok':'aguardando');
+  const dp=minHM(prev),db=minHM(bat);let delta='',dc='';
+  if(dp!=null&&db!=null){const d=db-dp;if(d!==0){delta=(d>0?'+':'−')+Math.abs(d)+' min';dc=tipo==='saida'?(d<0?'ruim':'ok'):(d>0?'ruim':'ok');}}
+  return `<div class="pt-r"><div class="pt-l">${rot}</div><div class="pt-v${prev?'':' vz'}">${hm(prev)}</div><div class="pt-v${bat?'':' vz'}">${hm(bat)}${delta?`<small class="${dc}">${delta}</small>`:''}</div><span class="gv-tag ${TAG_CLS(s)}">${esc(TAG_CURTA[s]||(sit&&sit.txt)||s)}</span></div>`;
 }
+function pontoDetalhe(x){
+  const pv=x.previsto||{};
+  const rows=pontoLinha('Entrada',pv.entrada,x.entrada,x.sit&&x.sit.entrada,'entrada')
+    +pontoLinha('Intervalo',pv.saidaInt,x.saidaInt,x.saidaInt?{sit:'ok'}:((x.sit&&x.sit.intervalo)||{sit:'aguardando'}),'intervalo')
+    +pontoLinha('Retorno',pv.retornoInt,x.retornoInt,x.retornoInt?{sit:'retornou'}:((x.sit&&x.sit.intervalo)||{sit:'aguardando'}),'retorno')
+    +pontoLinha('Saída',pv.saida,x.saida,x.sit&&x.sit.saida,'saida');
+  const div=(x.divergencias||[]).filter(d=>!/^Atraso de /.test(d));
+  // banco de horas (Tiago, 27/10: "hora extra total: negativa -10:20 N, positiva 15:25 P") = saldo oficial acumulado do PontoCerto
+  const bm=x.banco_min;const banco=bm==null?'':`<div class="pt-banco"><span>Banco de horas · saldo total</span><b class="${bm<0?'ruim':bm>0?'ok':''}">${fmtBanco(bm)}</b></div>`;
+  return `<div class="pm-wrap"><div class="pt"><div class="pt-h"><div></div><div>Previsto</div><div>Bateu</div><div></div></div>${rows}</div>${banco}${div.length?`<div class="pm-div">${div.map(esc).join(' · ')}</div>`:''}</div>`;
+}
+function fmtBanco(min){const a=Math.abs(min||0),h=Math.floor(a/60),m=a%60;const t=h+':'+String(m).padStart(2,'0');return min<0?'-'+t+' N':min>0?t+' P':'0:00';}
 function pontoResumo(p){
   const pv=p.previsto||{},se=p.sit&&p.sit.entrada,sj=p.sit&&p.sit.jornada;
   if(se&&se.sit==='sem')return{txt:`Entrada ${hm(pv.entrada)} · sem marcação`,tag:'Sem marcação',cls:'sem',pend:2};
@@ -765,7 +787,7 @@ function paginaPonto(){
   const pessoas=(p.pessoas||[]).map(x=>({...x,r:pontoResumo(x)})).sort((a,b)=>b.r.pend-a.r.pend||String(a.nome).localeCompare(String(b.nome),'pt-BR'));
   const lis=pessoas.map(x=>{
     const on=PONTO_ABERTO===x.id,pv=x.previsto||{};
-    const det=on?`<div class="pm-wrap">${pontoMomento('Entrada',pv.entrada,x.entrada,x.sit&&x.sit.entrada,x.atrasoMin?x.atrasoMin+' min de atraso':'')}${pontoMomento('Intervalo',pv.saidaInt,x.saidaInt,x.saidaInt?{sit:'ok',txt:'Saiu'}:(x.sit&&x.sit.intervalo)||{sit:'aguardando',txt:'Ainda não chegou o horário'})}${pontoMomento('Retorno',pv.retornoInt,x.retornoInt,x.retornoInt?{sit:'ok',txt:'Retornou'}:(x.sit&&x.sit.intervalo)||{sit:'aguardando',txt:'Ainda não chegou o horário'})}${pontoMomento('Saída',pv.saida,x.saida,x.sit&&x.sit.saida)}${(x.divergencias||[]).length?`<div class="pm-div">${x.divergencias.map(esc).join(' · ')}</div>`:''}</div>`:'';
+    const det=on?pontoDetalhe(x):'';
     return `<div class="gv-li pessoa${on?' on':''}" onclick="pontoAbrir(${JSON.stringify(x.id)})"><div class="nm"><b>${esc(x.nome)}</b><span>${esc(x.setor)}${x.cargo?' · '+esc(x.cargo):''} · ${esc(x.r.txt)}</span></div><span class="gv-tag ${x.r.cls}">${esc(x.r.tag)}</span></div>${det}`;
   }).join('');
   $('vp-b').innerHTML=chips+(lis||'<div class="gv-vazio">Ninguém escalado hoje</div>')+'<div class="gv-nota">Toque no nome pra ver as quatro marcações. Atraso só é confirmado pela apuração do DP; marcação ausente não é falta.</div>';
