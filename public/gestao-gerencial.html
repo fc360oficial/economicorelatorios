@@ -191,6 +191,7 @@ body.v-home #home{display:flex}
 .gv-vazio{padding:28px 10px;text-align:center;color:var(--text3);font-size:13px}
 .gv-nota{font-size:12px;color:var(--text3);margin-top:12px;line-height:1.35}
 /* Ponto por pessoa: linha toca e abre as 4 marcações (previsto × batido) */
+.tags{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0}
 .gv-tag.ok{background:var(--green-bg);color:var(--green)}.gv-tag.apur{background:var(--amber-bg);color:var(--amber)}.gv-tag.folga,.badge.bfolga{background:var(--brand);color:var(--text)}
 .pg-b{--px:18px}.gv-li.pessoa{cursor:pointer;user-select:none}.gv-li.pessoa.on{background:var(--bg2);margin:0 calc(-1*var(--px));padding:9px var(--px);border-bottom:0;border-radius:12px 12px 0 0}
 .pm-wrap{background:var(--bg2);margin:0 calc(-1*var(--px)) 8px;padding:2px var(--px) 12px;border-radius:0 0 12px 12px;display:grid;gap:6px}
@@ -767,7 +768,11 @@ function pontoDetalhe(x){
   return `<div class="pm-wrap"><div class="pt"><div class="pt-h"><div></div><div>Previsto</div><div>Bateu</div><div></div></div>${rows}</div>${banco}${div.length?`<div class="pm-div">${div.map(esc).join(' · ')}</div>`:''}</div>`;
 }
 function fmtBanco(min){const a=Math.abs(min||0),h=Math.floor(a/60),m=a%60;const t=h+':'+String(m).padStart(2,'0');return min<0?'-'+t+' N':min>0?t+' P':'0:00';}
-function pontoResumo(p){
+// 27/10 (Tiago: "mostrar dois status? antes do horário e jornada encerrada, mostrando que ele já finalizou o dia"): a etiqueta de cima é a
+// exceção (antes do horário, atraso, trabalhado na folga, apuração) e embaixo vai o estado do dia (Jornada encerrada / Em jornada / Em intervalo).
+function estadoDia(p){const sj=p.sit&&p.sit.jornada;if(p.saida)return 'Jornada encerrada';if(p.sit&&p.sit.intervalo&&p.sit.intervalo.sit==='intervalo')return 'Em intervalo';return p.entrada?'Em jornada':'';}
+function pontoResumo(p){const r=pontoResumo0(p);if(['atraso','apur','folga'].includes(r.cls)){const e=estadoDia(p);if(e)r.tag2=e;}return r;}
+function pontoResumo0(p){
   const pv=p.previsto||{},se=p.sit&&p.sit.entrada,sj=p.sit&&p.sit.jornada;
   // 27/10 (Tiago: "o que bateu na folga colocar trabalhado na folga")
   if(se&&se.sit==='folga_trab')return{txt:`Dia de folga · bateu ${hm(p.entrada)}${p.saida?' · saiu '+hm(p.saida):''}`,tag:'Trabalhado na folga',cls:'folga',pend:1};
@@ -790,7 +795,7 @@ function paginaPonto(){
   const lis=pessoas.map(x=>{
     const on=PONTO_ABERTO===x.id,pv=x.previsto||{};
     const det=on?pontoDetalhe(x):'';
-    return `<div class="gv-li pessoa${on?' on':''}" onclick="pontoAbrir(${JSON.stringify(x.id)})"><div class="nm"><b>${esc(x.nome)}</b><span>${esc(x.setor)}${x.cargo?' · '+esc(x.cargo):''} · ${esc(x.r.txt)}</span></div><span class="gv-tag ${x.r.cls}">${esc(x.r.tag)}</span></div>${det}`;
+    return `<div class="gv-li pessoa${on?' on':''}" onclick="pontoAbrir(${JSON.stringify(x.id)})"><div class="nm"><b>${esc(x.nome)}</b><span>${esc(x.setor)}${x.cargo?' · '+esc(x.cargo):''} · ${esc(x.r.txt)}</span></div><span class="tags"><span class="gv-tag ${x.r.cls}">${esc(x.r.tag)}</span>${x.r.tag2?`<span class="gv-tag div">${esc(x.r.tag2)}</span>`:''}</span></div>${det}`;
   }).join('');
   $('vp-b').innerHTML=chips+(lis||'<div class="gv-vazio">Ninguém escalado hoje</div>')+'<div class="gv-nota">Toque no nome pra ver as quatro marcações. Atraso só é confirmado pela apuração do DP; marcação ausente não é falta.</div>';
 }
