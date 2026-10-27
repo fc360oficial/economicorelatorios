@@ -163,18 +163,35 @@ test('8b · perfil gerencial (celular) é gerente da loja_id sem designação: a
   D.cancelar(s.protocolo, U.rh, 'Encerrado no teste do perfil gerencial.');
 });
 
+test('8c · registros antigos: só RH e administrador lançam; entram como penalidade aplicada marcada como manual; admin não designado só vê esses', async () => {
+  const ant = { colabId: 2001, medida: 'suspensao', dias: 1, dataOcorrencia: '2025-03-10', dataAplicacao: '2025-03-12', motivo: 'falta_injustificada', descricao: 'Falta injustificada em 10/03/2025, conforme advertência arquivada no DP.', assinado: true };
+  await assert.rejects(D.lancarAntigo(U.ger5, ant, deps), erroStatus(403)); await assert.rejects(D.lancarAntigo(U.coord, ant, deps), erroStatus(403)); await assert.rejects(D.lancarAntigo(U.dir, ant, deps), erroStatus(403));
+  await assert.rejects(D.lancarAntigo(U.admin, { ...ant, dataAplicacao: '2025-03-01' }, deps), /anterior/); await assert.rejects(D.lancarAntigo(U.admin, { ...ant, dias: 31 }, deps), /474/);
+  const s = await D.lancarAntigo(U.admin, ant, deps);
+  assert.equal(s.status, 'concluido'); assert.equal(s.origem, 'manual'); assert.equal(s.analise.termino, '2025-03-12'); assert.equal(s.analise.retorno, '2025-03-13'); assert.equal(s.historico[0].papeis[0], 'administrador');
+  const h = D.historicoColaborador(2001, U.rh); assert.equal(h.penalidades.length, 2); assert.equal(h.penalidades.find(x => x.protocolo === s.protocolo).origem, 'manual');
+  assert.ok(D.podeVer(U.ger5, s), 'gerente da loja vê no histórico'); assert.ok(D.podeVer(U.admin, s)); assert.equal(D.podeVer(U.admin, D.obter(P1)), false, 'admin não designado não vê protocolo do fluxo');
+  assert.equal(D.folhaListar(U.rh).length, 1, 'registro antigo não gera pendência de folha');
+  assert.equal(D.listarAntigos(U.rh).length, 1); assert.throws(() => D.listarAntigos(U.coord), erroStatus(403));
+  assert.deepEqual(D.acoes(U.admin, s).sort(), ['anexar', 'cancelar']); assert.deepEqual(D.acoes(U.ger5, s), []);
+  D.registrarAnexos(s.protocolo, U.rh, [anexo('advertencia-2025.pdf')], 'antigo', 'Digitalizado do arquivo'); assert.equal(D.obter(s.protocolo).anexos[0].categoria, 'antigo');
+  const s2 = await D.lancarAntigo(U.rh, { ...ant, colabId: 1045, medida: 'advertencia', dataOcorrencia: '2024-11-02', dataAplicacao: '2024-11-02', motivo: 'atrasos_recorrentes', descricao: 'Atrasos reiterados em outubro/2024.' }, deps);
+  D.cancelar(s2.protocolo, U.rh, 'Lançado no funcionário errado.'); assert.equal(D.obter(s2.protocolo).status, 'cancelado');
+  assert.equal(D.historicoColaborador(1045, U.rh).penalidades.length, 1);
+});
+
 test('9 · painel, listagem com escopo, relatórios (xlsx/pdf) e configuração', async () => {
-  const pg = D.painel(U.ger4); assert.equal(pg.lista.length, 4, 'P1, P2, o cancelado e o do celular'); assert.equal(pg.indicadores.concluidos, 1); assert.equal(pg.indicadores.indeferidos, 1);
-  assert.equal(D.painel(U.ger5).lista.length, 2); assert.equal(D.painel(U.coord).lista.length, 6); assert.equal(D.painel(U.rh2).lista.length, 2);
-  assert.equal(D.listar(U.coord, { status: 'concluido' }).length, 3); assert.equal(D.listar(U.coord, { q: 'ana paula' }).length, 4); assert.equal(D.listar(U.coord, { medida: 'advertencia' }).length, 2);
+  const pg = D.painel(U.ger4); assert.equal(pg.lista.length, 5, 'P1, P2, o cancelado, o do celular e o registro antigo cancelado'); assert.equal(pg.indicadores.concluidos, 1); assert.equal(pg.indicadores.indeferidos, 1);
+  assert.equal(D.painel(U.ger5).lista.length, 3); assert.equal(D.painel(U.coord).lista.length, 8); assert.equal(D.painel(U.rh2).lista.length, 4, 'RH vê todos os registros antigos');
+  assert.equal(D.listar(U.coord, { status: 'concluido' }).length, 4); assert.equal(D.listar(U.coord, { q: 'ana paula' }).length, 5); assert.equal(D.listar(U.coord, { medida: 'advertencia' }).length, 3);
   assert.throws(() => D.relatorio(U.ger4), erroStatus(403));
-  const r = D.relatorio(U.dir); assert.equal(r.totais.solicitacoes, 6); assert.equal(r.totais.suspensoes, 1); assert.equal(r.totais.advertencias, 1); assert.equal(r.totais.indeferimentos, 1); assert.equal(r.totais.juridico, 1); assert.ok(r.totais.tempoMedioAnaliseHoras >= 0);
-  assert.equal(r.porLoja.find(l => l.loja === 4).total, 4);
+  const r = D.relatorio(U.dir); assert.equal(r.totais.solicitacoes, 8); assert.equal(r.totais.suspensoes, 2); assert.equal(r.totais.advertencias, 1); assert.equal(r.totais.indeferimentos, 1); assert.equal(r.totais.juridico, 1); assert.ok(r.totais.tempoMedioAnaliseHoras >= 0);
+  assert.equal(r.porLoja.find(l => l.loja === 4).total, 5);
   const x = await D.relatorioXlsx(U.coord, {}); assert.ok(x.byteLength > 1000); const pdf = await D.relatorioPdf(U.coord, {}); assert.equal(pdf.slice(0, 5).toString(), '%PDF-');
   assert.throws(() => D.salvarConfig({ maxDiasSuspensao: 45 }, U.coord), /474/);
   assert.throws(() => D.salvarConfig({ validadoJuridico: true }, U.rh), erroStatus(403));
   D.salvarConfig({ advertencia: { titulo: 'ADVERTÊNCIA DISCIPLINAR' } }, U.rh); assert.equal(D.config().validadoJuridico, false);
   D.salvarConfig({ validadoJuridico: true }, U.jur); assert.equal(D.config().validadoJuridico, true); assert.equal(D.config().validadoPor, 'jur');
-  const d = D.detalhe(P1, U.ger4); assert.equal(d.historicoColaborador.administrativas.length, 3); assert.ok(d.historico.length >= 10);
+  const d = D.detalhe(P1, U.ger4); assert.equal(d.historicoColaborador.administrativas.length, 4); assert.ok(d.historico.length >= 10);
   assert.equal(D.avisarPrazos(), 0);
 });

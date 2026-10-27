@@ -117,9 +117,10 @@ const NAV = [
   { id: 'docs', txt: 'Documentos', ic: 'printer', sub: 'Gerente: documentos a imprimir, comunicar, assinar e devolver', so: 'solicitar', cnt: 'docs' },
   { id: 'folha', txt: 'DP · Folha', ic: 'calendar', sub: 'Suspensões aplicadas: conferir período × ponto antes de tratar na folha', so: 'folha' },
   { id: 'rel', txt: 'Relatórios', ic: 'chart', sub: 'Indicadores por unidade, motivo e mês · PDF e Excel', so: 'relatorios' },
+  { id: 'antigos', txt: 'Registros antigos', ic: 'list', sub: 'RH e administrador: advertências e suspensões aplicadas antes do módulo, lançadas à mão', so: 'lancarAntigo' },
   { id: 'cfg', txt: 'Configurações', ic: 'settings', sub: 'Limites de suspensão, prazos e modelos dos documentos (validação jurídica)', so: u => u.configurar || u.juridico },
 ];
-const PAGINAS = { painel, nova, rh, coord, docs, folha, rel, cfg };
+const PAGINAS = { painel, nova, rh, coord, docs, folha, rel, cfg, antigos };
 const visivel = n => !n.so || (typeof n.so === 'function' ? n.so(ME) : ME[n.so]);
 function ir(p, arg) {
   const n = NAV.find(x => x.id === p); if (!n || !visivel(n)) return; PAG = p; PROT = null;
@@ -132,12 +133,12 @@ async function iniciar() {
   $$('#modnav a').forEach(a => a.onclick = () => ir(a.dataset.p));
   const PAP = { gerente: 'Gerente', rh_ponto: 'RH Ponto', rh_doc: 'RH Documentação', rh_adm: 'RH Admissões', coordenacao: 'Coordenação', diretoria: 'Diretoria', juridico: 'Jurídico', ti: 'TI', financeiro: 'Financeiro' };
   if (ME.gerencial) $('#tb-h1').insertAdjacentHTML('beforebegin', '<a class="ds-btn ds-btn-ghost" href="/gestao-gerencial.html" style="margin-right:10px;white-space:nowrap">← Gestão Gerencial</a>');
-  $('#who').innerHTML = '<div class="ds-avatar">' + esc(ini(ME.nome)) + '</div><div><b>' + esc(ME.nome) + '</b><span>' + esc((ME.gerencial && !ME.papeis.length ? ['Gerente · ' + (ME.lojasGerente.map(lojaTxt).join(', ') || 'sem loja')] : ME.papeis.map(p => PAP[p] || p)).join(' · ')) + (ME.pendencias ? ' · <b style="color:var(--neg)">' + ME.pendencias + ' pendência(s)</b>' : '') + '</span></div>';
+  $('#who').innerHTML = '<div class="ds-avatar">' + esc(ini(ME.nome)) + '</div><div><b>' + esc(ME.nome) + '</b><span>' + esc((ME.gerencial && !ME.papeis.length ? ['Gerente · ' + (ME.lojasGerente.map(lojaTxt).join(', ') || 'sem loja')] : ME.admin && !ME.papeis.length ? ['Administrador'] : ME.papeis.map(p => PAP[p] || p)).join(' · ')) + (ME.pendencias ? ' · <b style="color:var(--neg)">' + ME.pendencias + ' pendência(s)</b>' : '') + '</span></div>';
   contadores();
   rota();
   window.addEventListener('hashchange', rota);
 }
-function rota() { const h = location.hash.replace('#', ''); const m = h.match(/^p=(DISC-\d{4}-\d{4,6})$/i); if (m) { if (PROT !== m[1].toUpperCase()) protocolo(m[1].toUpperCase()); return; } if (NAV.some(n => n.id === h && visivel(n))) { if (h !== PAG || PROT) ir(h); } else if (PROT || !h) ir('painel'); }
+function rota() { const h = location.hash.replace('#', ''); const m = h.match(/^p=(DISC-\d{4}-\d{4,6})$/i); if (m) { if (PROT !== m[1].toUpperCase()) protocolo(m[1].toUpperCase()); return; } if (NAV.some(n => n.id === h && visivel(n))) { if (h !== PAG || PROT) ir(h); } else if (PROT || !h) ir(ME.ver ? 'painel' : 'antigos'); }
 async function contadores() {
   try { const p = await api('/api/disciplinar/painel?abertas=1'); const L = p.lista;
     const set = (id, n) => { const el = $('#cnt-' + id); if (el) { el.textContent = n; el.hidden = !n; } };
@@ -149,7 +150,7 @@ async function contadores() {
 function tabelaProt(lista, opts = {}) {
   if (!lista.length) return '<div class="empty"><b>' + esc(opts.vazio || 'Nenhuma solicitação') + '</b>' + esc(opts.vazioSub || 'Nada por aqui com os filtros atuais.') + '</div>';
   return '<div class="tw"><table class="t"><thead><tr><th>Protocolo</th><th>Colaborador</th><th>Unidade</th><th>Motivo</th><th>Medida</th><th>Status</th><th>Data</th><th>Responsável atual</th><th>Prazo</th></tr></thead><tbody>' +
-    lista.map(s => '<tr class="cl" data-p="' + esc(s.protocolo) + '"><td class="nw"><span class="prot">' + esc(s.protocolo) + '</span>' + (s.acoes.some(a => ['enviar', 'responder', 'comunicar', 'anexar_assinado', 'analisar', 'deferir', 'encaminhar_juridico', 'parecer_juridico', 'emitir', 'conferir_aprovar', 'confirmar_indeferimento'].includes(a)) ? '<span class="sub" style="color:var(--neg);font-weight:700">sua ação</span>' : '') + '</td>' +
+    lista.map(s => '<tr class="cl" data-p="' + esc(s.protocolo) + '"><td class="nw"><span class="prot">' + esc(s.protocolo) + '</span>' + (s.origem === 'manual' ? '<span class="sub">registro antigo</span>' : '') + (s.acoes.some(a => ['enviar', 'responder', 'comunicar', 'anexar_assinado', 'analisar', 'deferir', 'encaminhar_juridico', 'parecer_juridico', 'emitir', 'conferir_aprovar', 'confirmar_indeferimento'].includes(a)) ? '<span class="sub" style="color:var(--neg);font-weight:700">sua ação</span>' : '') + '</td>' +
       '<td class="nm">' + esc(s.colaborador.nome) + '<span class="sub">' + esc(s.colaborador.cargo || '') + (s.colaborador.matricula ? ' · mat. ' + esc(s.colaborador.matricula) : '') + '</span></td><td class="nw">' + etq(s.loja) + esc(lojaTxt(s.loja).split(' · ')[1] || '') + '</td>' +
       '<td class="w">' + esc(s.motivoTxt) + '</td><td class="w">' + esc(s.medidaDecididaTxt || s.medidaSugeridaTxt) + (s.dias ? ' · ' + s.dias + ' d' : '') + (s.medidaDecidida && s.medidaDecidida !== s.medidaSugerida ? '<span class="sub">solicitada: ' + esc(s.medidaSugeridaTxt) + '</span>' : '') + '</td>' +
       '<td>' + stPill(s.status) + '</td><td class="nw">' + dBR(s.dataOcorrencia) + '<span class="sub">aberto ' + dBR(s.criadoEm.slice(0, 10)) + '</span></td><td class="w">' + esc(s.responsavelNome || s.responsavelTxt) + '</td><td class="nw">' + (s.final ? '<span class="pill gr">encerrado</span>' : prazoTxt(s.prazo)) + '</td></tr>').join('') + '</tbody></table></div>';
@@ -192,7 +193,7 @@ function desenharNova() {
       '<div class="campos" style="margin-top:12px"><label>Gerente solicitante<input class="ds-input" value="' + esc(ME.nome) + '" disabled></label><label>Data e hora da solicitação<input class="ds-input" value="' + esc(dt(new Date().toISOString())) + '" disabled></label></div>' +
       '<div class="acoes" style="margin-top:14px"><div class="end"><button class="ds-btn ds-btn-primary big" id="n-av" ' + (W.colab ? '' : 'disabled') + '>Avançar →</button></div></div></div></div>';
   } else if (P === 2) {
-    const H = W.hist; const item = x => '<div class="it"><b>' + esc(x.medidaTxt) + (x.dias ? ' · ' + x.dias + ' d' : '') + ' — ' + esc(x.motivoTxt) + '</b><span>' + dBR(x.dataOcorrencia) + ' · ' + esc(x.protocolo) + ' · ' + esc(x.statusTxt) + (x.dataAplicacao ? ' · aplicada em ' + dBR(x.dataAplicacao) : '') + '</span></div>';
+    const H = W.hist; const item = x => '<div class="it"><b>' + esc(x.medidaTxt) + (x.dias ? ' · ' + x.dias + ' d' : '') + ' — ' + esc(x.motivoTxt) + '</b><span>' + dBR(x.dataOcorrencia) + ' · ' + esc(x.protocolo) + ' · ' + esc(x.statusTxt) + (x.origem === 'manual' ? ' · registro antigo' : '') + (x.dataAplicacao ? ' · aplicada em ' + dBR(x.dataAplicacao) : '') + '</span></div>';
     h += '<div class="card"><div class="hd"><span class="n">2</span><b>Histórico disciplinar de ' + esc(W.colab.nome) + '</b><small>Só o que já foi concluído conta como penalidade</small></div><div class="bd">' + (H ? ((H.reincidente ? '<div class="aviso">Duas ou mais penalidades aplicadas nos últimos 12 meses. Isso é informação pra análise do RH, não define a medida.</div>' : '') +
       '<div class="hist2"><div><h4>Penalidades efetivamente aplicadas · ' + H.penalidades.length + '</h4>' + (H.penalidades.map(item).join('') || '<p class="hint">Nenhuma penalidade aplicada.</p>') + '</div><div><h4>Registros administrativos (não são penalidades) · ' + H.administrativas.length + '</h4>' + (H.administrativas.map(item).join('') || '<p class="hint">Nenhuma solicitação em andamento, indeferida ou cancelada.</p>') + '</div></div>') : skel()) +
       '<div class="acoes" style="margin-top:14px"><button class="ds-btn ds-btn-ghost" id="n-volta">← Voltar</button><div class="end"><button class="ds-btn ds-btn-primary big" id="n-av">Avançar →</button></div></div></div></div>';
@@ -290,6 +291,50 @@ async function rel() {
   $('#r-ok').onclick = () => { R.loja = $('#r-loja').value; R.de = $('#r-de').value; R.ate = $('#r-ate').value; R.motivo = $('#r-motivo').value; R.medida = $('#r-medida').value; R.status = $('#r-status').value; rel(); };
 }
 
+// ── Registros antigos (RH e administrador) ──
+const AN = { colab: null, files: [] };
+async function antigos() {
+  const el = $('#page'); el.innerHTML = skel();
+  let L; try { L = await api('/api/disciplinar/antigos'); } catch (e) { el.innerHTML = erroBox(e); return; }
+  const hoje = ME.hoje;
+  el.innerHTML = '<div class="aviso inf"><b>Lançamento manual de medidas já aplicadas antes do módulo.</b> Entram no histórico do colaborador como penalidade aplicada, marcadas como "registro antigo", sem passar pelo fluxo de análise e sem gerar documento. Acesso: RH e administrador. Registro não se edita: errou, cancele com justificativa e lance de novo.</div>' +
+    '<div class="card"><div class="hd"><b>Novo registro antigo</b><small>busca no cadastro do PontoCerto (ativos)</small></div><div class="bd"><div class="campos">' +
+    '<label class="c2">Colaborador <span class="req">*</span><div class="busca"><input class="ds-input" id="an-busca" placeholder="Nome ou matrícula…" autocomplete="off"><div class="lista" id="an-lista" hidden></div></div></label><label>Unidade (filtro da busca)<select class="ds-select" id="an-loja">' + selLoja('', 'Todas') + '</select></label>' +
+    '<div class="c3" id="an-colab"><p class="hint">Escolha o colaborador.</p></div>' +
+    '<label>Medida aplicada <span class="req">*</span><select class="ds-select" id="an-medida">' + selOpts({ advertencia: 'Advertência escrita', suspensao: 'Suspensão disciplinar' }, 'advertencia') + '</select></label><label id="an-dias-w" hidden>Dias de suspensão <span class="req">*</span><input class="ds-input" type="number" id="an-dias" min="1" max="30" value="1"></label><label id="an-inicio-w" hidden>Início da suspensão<input class="ds-input" type="date" id="an-inicio" max="' + hoje + '"></label>' +
+    '<label>Data da ocorrência <span class="req">*</span><input class="ds-input" type="date" id="an-doc" max="' + hoje + '"></label><label>Data da aplicação (assinatura) <span class="req">*</span><input class="ds-input" type="date" id="an-dap" max="' + hoje + '"></label><label>Motivo <span class="req">*</span><select class="ds-select" id="an-motivo">' + selOpts(C().motivos, '', 'Escolha…') + '</select></label>' +
+    '<label id="an-outro-w" hidden>Descreva o motivo <span class="req">*</span><input class="ds-input" id="an-outro" maxlength="160"></label>' +
+    '<label class="c3">Descrição da ocorrência (como consta no documento antigo) <span class="req">*</span><textarea id="an-desc" maxlength="6000" style="min-height:70px"></textarea></label>' +
+    '<label class="c2">Fundamentação constante no documento (opcional)<input class="ds-input" id="an-fund" maxlength="2000"></label><label>Assinatura do colaborador<select class="ds-select" id="an-ass">' + selOpts({ sim: 'Assinado', nao: 'Recusou assinar', ni: 'Não informado' }, 'sim') + '</select></label>' +
+    '<label class="c3">Observação (opcional)<input class="ds-input" id="an-obs" maxlength="1000"></label>' +
+    '<label class="c3">Documento antigo digitalizado (opcional · PDF ou foto, até 5 arquivos)<input class="ds-input" type="file" id="an-files" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.heic"><div class="files" id="an-flist"></div></label></div>' +
+    '<div class="acoes" style="margin-top:14px"><div class="end"><button class="ds-btn ds-btn-primary big" id="an-ok">Lançar registro antigo</button></div></div></div></div>' +
+    '<div class="card"><div class="hd"><b>Registros antigos lançados</b><small>' + L.length + '</small></div><div class="bd" style="padding:0">' + (L.length ? '<div class="tw"><table class="t"><thead><tr><th>Protocolo</th><th>Colaborador</th><th>Unidade</th><th>Medida</th><th>Motivo</th><th>Ocorrência</th><th>Aplicação</th><th>Lançado por</th><th>Status</th></tr></thead><tbody>' +
+      L.map(s => '<tr class="cl" data-p="' + esc(s.protocolo) + '"><td class="nw"><span class="prot">' + esc(s.protocolo) + '</span></td><td class="nm">' + esc(s.colaborador.nome) + '<span class="sub">' + esc(s.colaborador.cargo || '') + (s.colaborador.matricula ? ' · mat. ' + esc(s.colaborador.matricula) : '') + '</span></td><td class="nw">' + etq(s.loja) + '</td><td class="w">' + esc(s.medidaDecididaTxt) + (s.dias ? ' · ' + s.dias + ' d' : '') + '</td><td class="w">' + esc(s.motivoTxt) + '</td><td class="nw">' + dBR(s.dataOcorrencia) + '</td><td class="nw">' + dBR(s.dataAplicacao) + '</td><td class="w">' + esc(s.gerente.nome) + '<span class="sub">' + dt(s.criadoEm) + '</span></td><td>' + stPill(s.status) + (s.anexos ? '<span class="sub">' + s.anexos + ' anexo(s)</span>' : '') + '</td></tr>').join('') + '</tbody></table></div>' : '<div class="empty"><b>Nenhum registro antigo</b>Lance acima as advertências e suspensões aplicadas antes do módulo.</div>') + '</div></div>';
+  ligarLinhas(); AN.colab = null; AN.files = [];
+  let tm = null; const busca = async () => { const q = $('#an-busca').value.trim(); if (q.length < 2) { $('#an-lista').hidden = true; return; } try { const r = await api('/api/disciplinar/colaboradores?' + new URLSearchParams({ q, loja: $('#an-loja').value })); $('#an-lista').innerHTML = r.length ? r.map((c, i) => '<div data-i="' + i + '"><b>' + esc(c.nome) + '</b><small>' + esc(lojaTxt(c.loja)) + ' · ' + esc(c.setor) + ' · ' + esc(c.cargo) + (c.matricula ? ' · mat. ' + esc(c.matricula) : '') + '</small></div>').join('') : '<div><small>Ninguém encontrado.</small></div>'; $('#an-lista').hidden = false; $$('#an-lista [data-i]').forEach(x => x.onclick = () => { AN.colab = r[+x.dataset.i]; $('#an-busca').value = AN.colab.nome; $('#an-lista').hidden = true; $('#an-colab').innerHTML = cardColab(AN.colab); }); } catch (e) { toast(e.message, 'neg'); } };
+  $('#an-busca').oninput = () => { clearTimeout(tm); tm = setTimeout(busca, 250); }; el.onclick = e => { if (!e.target.closest('.busca') && $('#an-lista')) $('#an-lista').hidden = true; };
+  $('#an-medida').onchange = () => { const s = $('#an-medida').value === 'suspensao'; $('#an-dias-w').hidden = !s; $('#an-inicio-w').hidden = !s; };
+  $('#an-motivo').onchange = () => { $('#an-outro-w').hidden = $('#an-motivo').value !== 'outros'; };
+  const lf = () => { $('#an-flist').innerHTML = AN.files.map((f, i) => '<div>' + ic('download') + esc(f.name) + ' <small style="color:var(--ink3)">' + fmtBytes(f.size) + '</small><i data-i="' + i + '" title="remover">✕</i></div>').join(''); $$('#an-flist i[data-i]').forEach(x => x.onclick = () => { AN.files.splice(+x.dataset.i, 1); lf(); }); };
+  $('#an-files').onchange = () => { for (const f of $('#an-files').files) if (AN.files.length < 5) AN.files.push(f); $('#an-files').value = ''; lf(); };
+  $('#an-ok').onclick = async (ev, extra) => {
+    if (!AN.colab) return toast('Escolha o colaborador', 'neg');
+    const body = { colabId: AN.colab.id, medida: $('#an-medida').value, dias: +$('#an-dias').value, inicio: $('#an-inicio').value, dataOcorrencia: $('#an-doc').value, dataAplicacao: $('#an-dap').value, motivo: $('#an-motivo').value, motivoOutro: $('#an-outro').value, descricao: $('#an-desc').value, fundamentoTexto: $('#an-fund').value, observacao: $('#an-obs').value, assinado: $('#an-ass').value === 'sim' ? true : $('#an-ass').value === 'nao' ? false : null, ...(extra || {}) };
+    if (!body.motivo) return toast('Escolha o motivo', 'neg'); if (!body.dataOcorrencia || !body.dataAplicacao) return toast('Informe as datas de ocorrência e de aplicação', 'neg'); if (body.descricao.trim().length < 10) return toast('Descreva a ocorrência', 'neg');
+    const b = $('#an-ok'); b.disabled = true;
+    try {
+      const s = await api('/api/disciplinar/antigos', { body });
+      if (AN.files.length) { try { await enviarArquivos(s.protocolo, 'antigo', AN.files, { descricao: 'Documento antigo digitalizado' }); } catch (e) { toast('Registro ' + s.protocolo + ' lançado, mas o anexo falhou: ' + e.message, 'neg'); } }
+      toast('Registro antigo ' + s.protocolo + ' lançado', 'pos'); antigos();
+    } catch (e) {
+      b.disabled = false;
+      if (e.status === 409 && !(extra && extra.confirmarFatoDistinto)) { const j = await modalTexto({ titulo: 'Já existe protocolo com a mesma data e motivo', sub: e.message, label: 'Se for fato distinto, descreva a diferença', ok: 'É fato distinto, lançar', cls: 'ds-btn-danger' }); if (j) $('#an-ok').onclick(null, { confirmarFatoDistinto: true, justificativaFatoDistinto: j }); }
+      else toast(e.message, 'neg');
+    }
+  };
+}
+
 // ── Configurações ──
 async function cfg() {
   const el = $('#page'); el.innerHTML = skel();
@@ -314,9 +359,10 @@ async function protocolo(prot) {
   const btn = (a, txt, cls) => can(a) ? '<button class="ds-btn ' + (cls || 'ds-btn-secondary') + '" data-a="' + a + '">' + txt + '</button>' : '';
   const sec = (titulo, corpo, small) => '<div class="card"><div class="hd"><b>' + titulo + '</b>' + (small ? '<small>' + small + '</small>' : '') + '</div><div class="bd">' + corpo + '</div></div>';
   const anexos = cat => s.anexos.filter(a => !cat || cat.includes(a.categoria)).map(a => '<a href="/api/disciplinar/solicitacoes/' + prot + '/anexos/' + a.arquivo + '" target="_blank">' + ic('download') + esc(a.nome) + '<small>' + fmtBytes(a.tamanho) + ' · ' + esc(a.nome_usuario) + ' · ' + dt(a.em) + (a.descricao ? ' · ' + esc(a.descricao) : '') + '</small><span class="pill gr">' + esc(a.categoriaTxt) + '</span></a>').join('');
-  const hi = x => '<div class="it"><b>' + esc(x.medidaTxt) + (x.dias ? ' · ' + x.dias + ' d' : '') + ' — ' + esc(x.motivoTxt) + '</b><span>' + dBR(x.dataOcorrencia) + ' · <a href="#p=' + esc(x.protocolo) + '" class="prot">' + esc(x.protocolo) + '</a> · ' + esc(x.statusTxt) + '</span></div>';
+  const hi = x => '<div class="it"><b>' + esc(x.medidaTxt) + (x.dias ? ' · ' + x.dias + ' d' : '') + ' — ' + esc(x.motivoTxt) + '</b><span>' + dBR(x.dataOcorrencia) + ' · <a href="#p=' + esc(x.protocolo) + '" class="prot">' + esc(x.protocolo) + '</a> · ' + esc(x.statusTxt) + (x.origem === 'manual' ? ' · registro antigo' : '') + '</span></div>';
   const H = s.historicoColaborador;
   let main = '<div class="dhd"><div><span class="prot">' + esc(prot) + '</span> ' + stPill(s.status) + '</div><div class="meta"><span>Recebida em <b>' + dt(s.enviadoEm || s.criadoEm) + '</b></span><span>Responsável atual <b>' + esc(s.responsavelNome || s.responsavelTxt) + '</b></span>' + (s.prazo && !s.final ? '<span>Prazo ' + prazoTxt(s.prazo) + '</span>' : '') + (s.concluidoEm ? '<span>Encerrado em <b>' + dt(s.concluidoEm) + '</b></span>' : '') + '</div><div class="end"><button class="ds-btn ds-btn-ghost" onclick="history.back()">← Voltar</button></div></div>' +
+    (s.origem === 'manual' ? '<div class="aviso inf"><b>Registro antigo (lançamento manual).</b> Medida aplicada antes do módulo, lançada por ' + esc(s.gerente.nome) + ' em ' + dt(s.criadoEm) + '. Não passou pelo fluxo de análise; se estiver errado, cancele com justificativa e lance de novo.</div>' : '') +
     (s.status === 'rascunho' ? '<div class="aviso">Rascunho: ainda não foi enviado ao RH.</div>' : '') + (s.status === 'aguardando_esclarecimentos' && can('responder') ? '<div class="aviso">O RH pediu esclarecimentos. Responda pelo botão à direita.</div>' : '') + (s.fatoDistinto ? '<div class="aviso">Aberta como <b>fato distinto</b> de ' + esc(s.fatoDistinto.protocolos.join(', ')) + ': ' + esc(s.fatoDistinto.justificativa) + '</div>' : '') +
     sec('Dados do colaborador', cardColab(s.colaborador) + '<dl class="kv" style="margin-top:12px"><dt>Gerente solicitante</dt><dd>' + esc(s.gerente.nome) + '</dd><dt>Unidade</dt><dd>' + esc(lojaTxt(s.loja)) + '</dd></dl>') +
     sec('Relato da ocorrência (gerente)', '<dl class="kv"><dt>Motivo</dt><dd>' + esc(s.motivoTxt) + (o.motivoOutro ? ' · ' + esc(o.motivoOutro) : '') + '</dd><dt>Medida sugerida</dt><dd>' + esc(s.medidaSugeridaTxt) + '</dd><dt>Data · hora · local</dt><dd>' + dBR(o.data) + (o.hora ? ' · ' + esc(o.hora) : '') + (o.local ? ' · ' + esc(o.local) : '') + '</dd></dl><div class="bloco"><small>Descrição dos fatos</small>' + esc(o.descricao) + '</div>' + (o.orientacoesAnteriores ? '<div class="bloco"><small>Orientações anteriores</small>' + esc(o.orientacoesAnteriores) + '</div>' : '') + (o.justificativaColaborador ? '<div class="bloco"><small>Justificativa do colaborador</small>' + esc(o.justificativaColaborador) + '</div>' : '') + (o.outras ? '<div class="bloco"><small>Outras informações</small>' + esc(o.outras) + '</div>' : '') +
@@ -394,7 +440,7 @@ async function acao(s, a, botao) {
   else if (a === 'editar') { ir('nova'); W.colab = s.colaborador; W.oc = { ...W.oc, ...s.ocorrencia }; W.passo = 3; W.editando = p; desenharNova(); $('#n-av').textContent = 'Salvar rascunho'; $('#n-av').onclick = async () => { lerPasso(); try { await api('/api/disciplinar/solicitacoes/' + p, { method: 'PUT', body: W.oc }); toast('Rascunho atualizado', 'pos'); location.hash = 'p=' + p; } catch (e) { toast(e.message, 'neg'); } }; }
   else if (a === 'responder') { const t = await modalTexto({ titulo: 'Responder ao RH', sub: (s.esclarecimentos.slice(-1)[0] || {}).pergunta, label: 'Resposta', ok: 'Enviar resposta' }); if (t) executar(p, 'responder', { texto: t }, botao); }
   else if (a === 'complementar') { const t = await modalTexto({ titulo: 'Complementar o relato', sub: 'A complementação fica identificada e auditada; a solicitação original não muda.', label: 'Complementação', ok: 'Registrar' }); if (t) executar(p, 'complementar', { texto: t }, botao); }
-  else if (a === 'anexar') comArquivo('evidencia', 'Anexar evidência', nome, [{ k: 'descricao', label: 'Descrição (opcional)', tipo: 'text' }], 'Anexar');
+  else if (a === 'anexar') comArquivo(s.origem === 'manual' ? 'antigo' : 'evidencia', s.origem === 'manual' ? 'Anexar documento antigo digitalizado' : 'Anexar evidência', nome, [{ k: 'descricao', label: 'Descrição (opcional)', tipo: 'text' }], 'Anexar');
   else if (a === 'cancelar') { const t = await modalTexto({ titulo: 'Cancelar protocolo ' + p, sub: 'Só com justificativa. O registro permanece no histórico administrativo.', label: 'Justificativa', ok: 'Cancelar protocolo', cls: 'ds-btn-danger' }); if (t) executar(p, 'cancelar', { motivo: t }, botao); }
   else if (a === 'analisar') executar(p, 'analisar', {}, botao);
   else if (a === 'esclarecer') { const t = await modalTexto({ titulo: 'Solicitar esclarecimentos ao gerente', sub: 'O protocolo fica "Aguardando esclarecimentos" até a resposta.', label: 'O que precisa ser esclarecido', ok: 'Solicitar' }); if (t) executar(p, 'esclarecer', { texto: t }, botao); }
