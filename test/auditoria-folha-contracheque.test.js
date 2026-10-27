@@ -79,23 +79,23 @@ test('Auditoria da Folha: PDF de contracheques por loja → prévia → confirma
 test('Auditoria da Folha: recibo do sistema de folha com rótulo DEPOIS do valor (layout real de 27/10), 2 vias por página, competência do PDF', () => {
   const A = require('../lib/auditoria-folha');
   // ordem real do pdf-parse: a 2ª via começa pelo cabeçalho "Código Descrição", logo depois dos três totais da 1ª via
-  const via = (nome, cod, venc, desc, liq) => ['Código \tDescrição \tReferência \tVencimentos \tDescontos', '8781', 'DIAS NORMAIS', '30,00', venc, 'DESC.ADIANT.SALARIAL \t770,37', 'CAHU COMERCIO DE ALIMENTOS LTDA', '21.425.302/0001-81\tCNPJ: \tCC:', cod, 'Código', nome, 'Nome do Funcionário \tCBO', '848510', 'Departamento', '28', 'Filial', 'Folha Mensal', 'Setembro de 2026', 'Total de Vencimentos', 'ð\tValor Líquido', 'Total de Descontos', 'Declaro ter recebido a importância líquida discriminada neste recibo.', venc, desc, liq].join('\n');
+  const via = (nome, cod, venc, desc, liq) => ['Código \tDescrição \tReferência \tVencimentos \tDescontos', '8781', 'DIAS NORMAIS', '30,00', venc, 'DESC.ADIANT.SALARIAL \t770,37', 'EMPRESA EXEMPLO LTDA', '21.425.302/0001-81\tCNPJ: \tCC:', cod, 'Código', nome, 'Nome do Funcionário \tCBO', '848510', 'Departamento', '28', 'Filial', 'Folha Mensal', 'Setembro de 2026', 'Total de Vencimentos', 'ð\tValor Líquido', 'Total de Descontos', 'Declaro ter recebido a importância líquida discriminada neste recibo.', venc, desc, liq].join('\n');
   const pages = [
-    { num: 1, text: via('ALEXSANDRO DA SILVA', '66', '2.047,95', '942,43', '1.105,52') + '\n' + via('ALEXSANDRO DA SILVA', '66', '2.047,95', '942,43', '1.105,52') },
-    { num: 2, text: via('JOSE MATHEUS DA SILVA CESARIO', '56', '1.725,00', '0,00', '1.725,00') },   // via única: vale a última trinca da página
-    { num: 3, text: via('ANTONIO JOSE DOS SANTOS (C)', '052', '1.839,27', '838,21', '1.001,06') },
+    { num: 1, text: via('CARLOS EDUARDO DA SILVA', '66', '2.047,95', '942,43', '1.105,52') + '\n' + via('CARLOS EDUARDO DA SILVA', '66', '2.047,95', '942,43', '1.105,52') },
+    { num: 2, text: via('PEDRO HENRIQUE ALMEIDA BARROS', '56', '1.725,00', '0,00', '1.725,00') },   // via única: vale a última trinca da página
+    { num: 3, text: via('JOAO BATISTA DOS SANTOS (C)', '052', '1.839,27', '838,21', '1.001,06') },
   ];
   const b = A._interno.blocosReciboPaginas(pages);
   assert.deepStrictEqual(b.avisos, []); assert.strictEqual(b.linhas.length, 3);
-  assert.deepStrictEqual(b.linhas.map(l => [l.nome, l.matricula, l.valor, l.descontoAdiantamento]), [['ALEXSANDRO DA SILVA', '66', 1105.52, 770.37], ['JOSE MATHEUS DA SILVA CESARIO', '56', 1725, 770.37], ['ANTONIO JOSE DOS SANTOS', '52', 1001.06, 770.37]]);
+  assert.deepStrictEqual(b.linhas.map(l => [l.nome, l.matricula, l.valor, l.descontoAdiantamento]), [['CARLOS EDUARDO DA SILVA', '66', 1105.52, 770.37], ['PEDRO HENRIQUE ALMEIDA BARROS', '56', 1725, 770.37], ['JOAO BATISTA DOS SANTOS', '52', 1001.06, 770.37]]);
   assert.strictEqual(b.linhas[0].vias, 2);   // segunda via ignorada, não somada
   assert.strictEqual(A._interno.competenciaDoTexto(pages[0].text), '2026-09');
 });
 
 test('Auditoria da Folha: loja detectada pelo CNPJ da empresa do recibo', async () => {
   const A = require('../lib/auditoria-folha');
-  assert.deepStrictEqual(A._interno.lojaDoTexto('CAHU COMERCIO DE ALIMENTOS LTDA\n21.425.302/0001-81\tCNPJ: \tCC:\n').loja, 1);
-  assert.strictEqual(A._interno.lojaDoTexto('CAHU COMERCIO DE ALIMENTOS LTDA\n21.425.302/0001-81').empresa, 'CAHU COMERCIO DE ALIMENTOS LTDA');
+  assert.deepStrictEqual(A._interno.lojaDoTexto('EMPRESA EXEMPLO LTDA\n21.425.302/0001-81\tCNPJ: \tCC:\n').loja, 1);
+  assert.strictEqual(A._interno.lojaDoTexto('EMPRESA EXEMPLO LTDA\n21.425.302/0001-81').empresa, 'EMPRESA EXEMPLO LTDA');
   assert.strictEqual(A._interno.lojaDoTexto('30.148.015/0001-62 e 39.762.002/0001-53').varios, true);
   assert.strictEqual(A._interno.lojaDoTexto('sem cnpj nenhum 12.345.678/0001-90').loja, null);
 });
@@ -115,4 +115,29 @@ test('Auditoria da Folha: lote SISPAG com n lançamentos = soma exata de n pende
   assert.deepStrictEqual(sit, { 'ANA ALVES PEREIRA': 'lote', 'BRUNO COSTA LIMA': 'lote', 'CARLA DIAS MOTA': 'lote', 'DANIEL FARIAS ROCHA': 'nao_pago', 'EDNA GOMES SILVA': 'nao_pago' });
   assert.ok(r.funcionarios.find(f => f.nome === 'ANA ALVES PEREIRA').folha.modo.includes('3 pessoas'));
   assert.strictEqual(r.naoIdentificados.length, 1); assert.strictEqual(r.naoIdentificados[0].valor, 1900);
+});
+
+test('Auditoria da Folha: comprovantes SISPAG do Itaú (1 por página) casam nome a nome e explicam o lote do extrato', async () => {
+  process.env.AUDITORIA_FOLHA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'af-comp-'));
+  const A = require('../lib/auditoria-folha'); const PDFDocument = require('pdfkit');
+  const F = [['ANA BEATRIZ FERREIRA DA COSTA MELO', 1351.78], ['MARIA APARECIDA GONCALVES DE SOUZA', 1166.53], ['PEDRO HENRIQUE ALMEIDA BARROS', 1725]].map(([nome, v], i) => ({ id: 'c' + i, nome, matricula: '', cpf: String(33300000000 + i), loja: 1, setor: 'Loja', cargo: 'Op', ativo: true, v }));
+  const deps = { colaboradores: async () => ({ ativos: F, desligados: [] }), cpfDe: async id => (F.find(f => f.id === id) || {}).cpf || '' };
+  const wb = new (require('exceljs').Workbook)(); const ws = wb.addWorksheet('f'); ws.addRow(['Nome', 'Valor']); for (const f of F) ws.addRow([f.nome, f.v]);
+  const pv = await A.importarPrevia(Buffer.from(await wb.xlsx.writeBuffer()), 'folha-e1.xlsx', 'folha', '2026-09', coord, deps, 1); A.importarConfirmar(pv.token, coord);
+  // PDF igual ao do Itaú Empresas: nome cortado em 30 caracteres, 2 páginas (a 3ª pessoa, JOSE MATHEUS, não tem comprovante)
+  const pdf = await new Promise(res => { const d = new PDFDocument({ size: 'A4', margin: 40 }); const b = []; d.on('data', x => b.push(x)); d.on('end', () => res(Buffer.concat(b)));
+    [['ANA BEATRIZ FERREIRA DA COSTA', '0001', '12345 - 6', '1.351,78', '000000000000001', 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'], ['MARIA APARECIDA GONCALVES DE', '0002', '23456 - 7', '1.166,53', '000000000000002', 'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB']].forEach(([n, ag, cc, v, ctrl, aut], i) => { if (i) d.addPage();
+      d.fontSize(11).text('Banco Itaú - Comprovante de Transferência').text('de conta corrente para conta corrente').text('Identificação no extrato: SISPAG SALARIOS').text('Dados da conta debitada:').text('Nome da empresa: EMPRESA EXEMPLO LTDA').text('Agência: 0000 Conta corrente: 00000 - 0').text('Dados da conta creditada:').text('Nome: ' + n).text('Agência: ' + ag + ' Conta corrente: ' + cc).text('Valor: R$ ' + v).text('Informações fornecidas pelo').text('pagador: FOLHA').text('Transferência efetuada em 30/09/2026 às 12:32:49 via Sispag, CTRL ' + ctrl + '.').text('Autenticação:').text(aut); });
+    d.end(); });
+  const pc = await A.importarPrevia(pdf, 'comprovantes-e1.pdf', 'comprovantes', '2026-09', coord, deps, 1);
+  assert.strictEqual(pc.funcionarios, 2); assert.strictEqual(pc.identificados, 2); assert.strictEqual(pc.linhas[0].funcionario.nome, 'ANA BEATRIZ FERREIRA DA COSTA MELO'); assert.strictEqual(pc.linhas[0].ctrl, '000000000000001');
+  A.importarConfirmar(pc.token, coord);
+  const lote = { type: 'agrupamento', operation: 'D', amount: { value: 2518.31 }, number_events: 2, date: { accounting: '2026-09-30' }, literal: { shortened: 'SISPAG SALARIOS' } };
+  const r = await A.conciliar('2026-09', coord, deps, { extrato: async ({ conta }) => ({ data: [{ events: conta === 'cahu' ? [lote] : [] }] }) });
+  const porNome = Object.fromEntries(r.funcionarios.map(f => [f.nome, f.folha]));
+  assert.strictEqual(porNome['ANA BEATRIZ FERREIRA DA COSTA MELO'].situacao, 'pago'); assert.ok(porNome['ANA BEATRIZ FERREIRA DA COSTA MELO'].modo.includes('CTRL 000000000000001'));
+  assert.strictEqual(porNome['MARIA APARECIDA GONCALVES DE SOUZA'].situacao, 'pago'); assert.strictEqual(porNome['PEDRO HENRIQUE ALMEIDA BARROS'].situacao, 'nao_pago');
+  assert.strictEqual(r.naoIdentificados.length, 0, 'lote coberto pelos comprovantes não pode sobrar como não identificado');
+  assert.deepStrictEqual(r.conciliacao.comprovantes, { total: 2, usados: 2 });
+  const pc2 = await A.importarPrevia(pdf, 'comprovantes-e1.pdf', 'comprovantes', '2026-09', coord, deps, 1); assert.strictEqual(pc2.repetidos, 2); assert.strictEqual(pc2.funcionarios, 0);
 });
