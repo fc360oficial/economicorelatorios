@@ -190,6 +190,15 @@ body.v-home #home{display:flex}
 .gv-tag.sem{background:var(--red-bg);color:var(--red)}.gv-tag.atraso{background:var(--amber-bg);color:var(--amber)}.gv-tag.retorno,.gv-tag.saida{background:var(--blue-bg);color:var(--blue)}.gv-tag.div{background:var(--bg2);color:var(--text2)}
 .gv-vazio{padding:28px 10px;text-align:center;color:var(--text3);font-size:13px}
 .gv-nota{font-size:12px;color:var(--text3);margin-top:12px;line-height:1.35}
+/* Ponto por pessoa: linha toca e abre as 4 marcações (previsto × batido) */
+.gv-tag.ok{background:var(--green-bg);color:var(--green)}.gv-tag.apur{background:var(--amber-bg);color:var(--amber)}
+.pg-b{--px:18px}.gv-li.pessoa{cursor:pointer;user-select:none}.gv-li.pessoa.on{background:var(--bg2);margin:0 calc(-1*var(--px));padding:9px var(--px);border-bottom:0;border-radius:12px 12px 0 0}
+.pm-wrap{background:var(--bg2);margin:0 calc(-1*var(--px)) 8px;padding:2px var(--px) 12px;border-radius:0 0 12px 12px;display:grid;gap:6px}
+.pm{display:flex;align-items:center;gap:10px;background:var(--card);border-radius:10px;padding:8px 12px;flex-wrap:wrap}
+.pm-r{width:76px;flex-shrink:0;font-weight:800;color:var(--text2);font-size:10.5px;text-transform:uppercase;letter-spacing:.6px}
+.pm-h{flex:1;display:flex;gap:14px;flex-wrap:wrap;color:var(--text3);font-size:11.5px;min-width:0}.pm-h b{color:var(--text);font-variant-numeric:tabular-nums;font-size:14px;font-weight:800}.pm-h b.vz{color:var(--text3);font-weight:600}.pm-x{color:var(--amber);font-weight:700}
+.pm-div{font-size:11.5px;color:var(--text2);padding:2px 4px}
+@media(max-width:560px){.pg-b{--px:14px}.pm{padding:7px 10px;gap:8px}.pm-r{width:66px}.pm-h{gap:10px}}
 .gv-fil{display:flex;flex-wrap:wrap;gap:6px;padding:12px 0 2px}
 .gv-fil button{border:1px solid var(--border-md);background:var(--card);border-radius:999px;padding:6px 12px;font:600 12px var(--font);color:var(--text2);cursor:pointer;white-space:nowrap}
 .gv-fil button b{font-weight:800;color:var(--text)}
@@ -725,15 +734,41 @@ function quadroGiro(g){
   if(!g.calculadoEm&&g.calculando){pill('hp-giro','calculando…');return;}
   pill('hp-giro',g.n?g.n.toLocaleString('pt-BR')+' itens':'nenhum item',g.n?'ruim':'ok');
 }
+// Ponto por pessoa (Tiago, 27/10: "quando clicar no funcionário abrir o horário que teria que bater na entrada, no intervalo e na
+// saída: 07:00 mas bateu 07:40"): lista toda a equipe prevista no dia; quem tem pendência vem primeiro; tocar abre as 4 marcações
+// (entrada, saída do intervalo, retorno, saída) com previsto × batido e a situação de cada uma (mesma classificação da TV RH/DP).
+let PONTO_ABERTO=null;
+const hm=v=>v||'—';
+const TAG_CLS=s=>s==='sem'||s==='sem_retorno'?'sem':s==='atraso'?'atraso':s==='apuracao'?'apur':s==='aguardando'||s==='pendente'||s==='encerrada'||s==='intervalo'?'div':'ok';
+function pontoAbrir(id){PONTO_ABERTO=PONTO_ABERTO===id?null:id;paginaPonto();}
+function pontoMomento(rot,prev,bat,sit,extra){
+  if(!prev&&!bat)return '';
+  const s=(sit&&sit.sit)||'';const txt=sit&&sit.txt?sit.txt:(bat?'Batido':'Sem marcação');
+  return `<div class="pm"><div class="pm-r">${rot}</div><div class="pm-h"><span>previsto <b>${hm(prev)}</b></span><span>bateu <b class="${bat?'':'vz'}">${hm(bat)}</b></span>${extra?`<span class="pm-x">${esc(extra)}</span>`:''}</div><span class="gv-tag ${TAG_CLS(s)}">${esc(txt)}</span></div>`;
+}
+function pontoResumo(p){
+  const pv=p.previsto||{},se=p.sit&&p.sit.entrada,sj=p.sit&&p.sit.jornada;
+  if(se&&se.sit==='sem')return{txt:`Entrada ${hm(pv.entrada)} · sem marcação`,tag:'Sem marcação',cls:'sem',pend:2};
+  if(p.sit&&p.sit.intervalo&&p.sit.intervalo.sit==='sem_retorno')return{txt:`Saiu ${hm(p.saidaInt)} · retorno previsto ${hm(pv.retornoInt)} e não voltou`,tag:'Sem retorno',cls:'sem',pend:2};
+  if(se&&se.sit==='atraso')return{txt:`Entrada ${hm(pv.entrada)} · bateu ${hm(p.entrada)}`,tag:`Atraso${p.atrasoMin?' '+p.atrasoMin+' min':''}`,cls:'atraso',pend:1};
+  if(se&&se.sit==='apuracao')return{txt:`Entrada ${hm(pv.entrada)} · bateu ${hm(p.entrada)}`,tag:'Apuração',cls:'apur',pend:1};
+  if(se&&se.sit==='aguardando')return{txt:`Entrada prevista ${hm(pv.entrada)}`,tag:'Ainda não chegou o horário',cls:'div',pend:0};
+  if(p.saida)return{txt:`Entrada ${hm(pv.entrada)} · bateu ${hm(p.entrada)} · saiu ${hm(p.saida)}`,tag:sj&&sj.txt||'Encerrada',cls:TAG_CLS(sj&&sj.sit),pend:0};
+  return{txt:`Entrada ${hm(pv.entrada)} · bateu ${hm(p.entrada)}`,tag:sj&&sj.txt||'No horário',cls:TAG_CLS(sj&&sj.sit),pend:(p.pendencias||[]).length?1:0};
+}
 function paginaPonto(){
   const p=INICIO&&INICIO.ponto;$('vp-sub').textContent=INICIO&&INICIO.agora?`${INICIO.lojaTxt||lojaTxt()} · hoje às ${INICIO.agora}`:lojaTxt();
   if(!INICIO){$('vp-b').innerHTML='<div class="loading"><div class="spin"></div></div>';return;}
   if(!p||p.erro){$('vp-b').innerHTML=`<div class="gv-vazio">${esc((p&&p.erro)||'Sem dados')}</div>`;return;}
   const f=p.fora||{};
   const chips=`<div class="gv-chips"><span class="badge bb">${p.previstos} previstos</span><span class="badge bu">${p.chegaram} chegaram</span>${p.atrasos?`<span class="badge bw">${p.atrasos} atrasos</span>`:''}${p.semMarcacao?`<span class="badge bd">${p.semMarcacao} sem marcação</span>`:''}${p.aguardando?`<span class="badge bn">${p.aguardando} ainda vão chegar</span>`:''}${p.emIntervalo?`<span class="badge bb">${p.emIntervalo} em intervalo</span>`:''}${p.saidas?`<span class="badge bn">${p.saidas} já saíram</span>`:''}${f.folga?`<span class="badge bn">${f.folga} de folga</span>`:''}${f.ferias?`<span class="badge bn">${f.ferias} em férias</span>`:''}${f.afastado?`<span class="badge bn">${f.afastado} afastados</span>`:''}</div>`;
-  const TAG={sem:'Sem marcação',atraso:'Atraso',retorno:'Retorno',saida:'Saída',div:'Apuração'};
-  const lis=(p.pendencias||[]).map(x=>`<div class="gv-li"><span class="gv-tag ${esc(x.g)}">${TAG[x.g]||esc(x.g)}</span><div class="nm"><b>${esc(x.nome)}</b><span>${esc(x.setor)} · ${esc(x.txt)}</span></div></div>`).join('');
-  $('vp-b').innerHTML=chips+(lis||'<div class="gv-vazio">Nenhuma pendência de marcação agora</div>')+(p.maisPendencias?`<div class="gv-vazio">+ ${p.maisPendencias} pendências</div>`:'')+'<div class="gv-nota">Atraso só é confirmado pela apuração do DP; marcação ausente não é falta.</div>';
+  const pessoas=(p.pessoas||[]).map(x=>({...x,r:pontoResumo(x)})).sort((a,b)=>b.r.pend-a.r.pend||String(a.nome).localeCompare(String(b.nome),'pt-BR'));
+  const lis=pessoas.map(x=>{
+    const on=PONTO_ABERTO===x.id,pv=x.previsto||{};
+    const det=on?`<div class="pm-wrap">${pontoMomento('Entrada',pv.entrada,x.entrada,x.sit&&x.sit.entrada,x.atrasoMin?x.atrasoMin+' min de atraso':'')}${pontoMomento('Intervalo',pv.saidaInt,x.saidaInt,x.saidaInt?{sit:'ok',txt:'Saiu'}:(x.sit&&x.sit.intervalo)||{sit:'aguardando',txt:'Ainda não chegou o horário'})}${pontoMomento('Retorno',pv.retornoInt,x.retornoInt,x.retornoInt?{sit:'ok',txt:'Retornou'}:(x.sit&&x.sit.intervalo)||{sit:'aguardando',txt:'Ainda não chegou o horário'})}${pontoMomento('Saída',pv.saida,x.saida,x.sit&&x.sit.saida)}${(x.divergencias||[]).length?`<div class="pm-div">${x.divergencias.map(esc).join(' · ')}</div>`:''}</div>`:'';
+    return `<div class="gv-li pessoa${on?' on':''}" onclick="pontoAbrir(${JSON.stringify(x.id)})"><div class="nm"><b>${esc(x.nome)}</b><span>${esc(x.setor)}${x.cargo?' · '+esc(x.cargo):''} · ${esc(x.r.txt)}</span></div><span class="gv-tag ${x.r.cls}">${esc(x.r.tag)}</span></div>${det}`;
+  }).join('');
+  $('vp-b').innerHTML=chips+(lis||'<div class="gv-vazio">Ninguém escalado hoje</div>')+'<div class="gv-nota">Toque no nome pra ver as quatro marcações. Atraso só é confirmado pela apuração do DP; marcação ausente não é falta.</div>';
 }
 // Sem giro por faixa (Tiago, 27/10: "sem giro coloque de 30 dias, de 60 dias"): botões Todos · 30 a 59 · 60 a 89 · 90 a 119 · 120+ dias;
 // cada faixa lista os seus itens de maior valor parado (itensFaixa da rota). GIRO_FAIXA = 0 (todos) ou 30/60/90/120.

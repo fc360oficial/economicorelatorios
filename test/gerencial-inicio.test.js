@@ -4,6 +4,10 @@ const G = require('../lib/gerencial-inicio');
 
 const montado = {
   resumo: { previstos: 12, chegaram: 10, atrasos: 2, emIntervalo: 1, saidas: 0, pendentes: 3, aguardando: 1, apuracao: 0, fora: { folga: 2, ferias: 1, afastado: 0 } },
+  entradas: [
+    { id: 'a1', nome: 'ANA', loja: 5, setor: 'CAIXA', cargo: 'OPERADORA', previsto: { entrada: '07:00', saidaInt: '11:00', retornoInt: '12:00', saida: '16:20' }, entrada: null, saidaInt: null, retornoInt: null, saida: null, atrasoMin: 0, situacao: 'ok', sitEntrada: { sit: 'sem', txt: 'Sem marcação' }, sitIntervalo: null, sitSaida: null, sitJornada: { sit: 'sem', txt: 'Sem marcação' }, pendencias: [], divergencias: [] },
+    { id: 'c3', nome: 'CARLOS', loja: 5, setor: 'AÇOUGUE', previsto: { entrada: '07:00', saidaInt: '11:00', retornoInt: '12:00', saida: '16:20' }, entrada: '07:40', atrasoMin: 40, situacao: 'atraso', sitEntrada: { sit: 'atraso', txt: 'Atraso confirmado' }, sitJornada: { sit: 'atraso', txt: 'Atraso confirmado' }, pendencias: [], divergencias: ['Atraso de 40 min'] }
+  ],
   pendencias: [
     { g: 'sem', nome: 'ANA', loja: 5, etq: 'E5', setor: 'CAIXA', txt: 'Nenhuma marcação · previsto 07:00' },
     { g: 'sem', nome: 'BIA', loja: 5, etq: 'E5', setor: 'PADARIA', txt: 'Nenhuma marcação · previsto 06:00' },
@@ -18,6 +22,9 @@ test('resumoPonto: contadores da loja + sem marcação contado pelas pendências
   assert.deepEqual(p.fora, { folga: 2, ferias: 1, afastado: 0 });
   assert.equal(p.pendencias.length, 3); assert.equal(p.pendencias[0].nome, 'ANA'); assert.equal(p.pendencias[0].setor, 'CAIXA');
   assert.equal(p.maisPendencias, 0);
+  assert.equal(p.pessoas.length, 2, 'equipe do dia por pessoa');
+  assert.equal(p.pessoas[1].nome, 'CARLOS'); assert.equal(p.pessoas[1].previsto.entrada, '07:00'); assert.equal(p.pessoas[1].entrada, '07:40'); assert.equal(p.pessoas[1].atrasoMin, 40);
+  assert.equal(p.pessoas[1].sit.entrada.sit, 'atraso'); assert.equal(p.pessoas[0].sit.intervalo, null); assert.equal(p.pessoas[0].saidaInt, null);
 });
 test('resumoPonto: sem gente na loja = zeros, sem quebrar', () => {
   const p = G.resumoPonto({ resumo: { previstos: 0, chegaram: 0, atrasos: 0, fora: { folga: 0, ferias: 0, afastado: 0 } }, pendencias: [] });
