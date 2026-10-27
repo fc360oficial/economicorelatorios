@@ -744,11 +744,11 @@ function quadroGiro(g){
 // (entrada, saída do intervalo, retorno, saída) com previsto × batido e a situação de cada uma (mesma classificação da TV RH/DP).
 let PONTO_ABERTO=null;
 const hm=v=>v||'—';
-const TAG_CLS=s=>s==='sem'||s==='sem_retorno'?'sem':s==='atraso'?'atraso':s==='apuracao'?'apur':s==='aguardando'||s==='pendente'||s==='encerrada'||s==='intervalo'?'div':'ok';
+const TAG_CLS=s=>s==='sem'||s==='sem_retorno'?'sem':s==='atraso'?'atraso':s==='apuracao'||s==='adiantado'?'apur':s==='aguardando'||s==='pendente'||s==='encerrada'||s==='intervalo'?'div':'ok';
 function pontoAbrir(id){PONTO_ABERTO=PONTO_ABERTO===id?null:id;paginaPonto();}
 // Detalhe da pessoa (Tiago, 27/10: "ajustar o layout da informação quando abre"; "não precisa colocar nas batidas − ou mais"): tabela Previsto × Bateu, uma linha por marcação,
 // situação curta à direita; sem diferença em minutos nas batidas — o saldo de horas fica embaixo, dizendo se é positivo ou negativo.
-const TAG_CURTA={ok:'No horário',folga_trab:'Folga trab.',atraso:'Atraso',aguardando:'Aguardando',intervalo:'Em intervalo',retornou:'Retornou',jornada:'Em jornada',encerrada:'Encerrada',sem:'Sem marcação',sem_retorno:'Sem retorno',pendente:'Pendente',apuracao:'Apuração'};
+const TAG_CURTA={ok:'No horário',folga_trab:'Folga trab.',adiantado:'Antes do horário',atraso:'Atraso',aguardando:'Aguardando',intervalo:'Em intervalo',retornou:'Retornou',jornada:'Em jornada',encerrada:'Encerrada',sem:'Sem marcação',sem_retorno:'Sem retorno',pendente:'Pendente',apuracao:'Apuração'};
 const minHM=v=>{const m=/^(\d{1,2}):(\d{2})/.exec(String(v||''));return m?(+m[1])*60+(+m[2]):null;};
 function pontoLinha(rot,prev,bat,sit,tipo){
   if(!prev&&!bat)return '';
@@ -773,6 +773,7 @@ function pontoResumo(p){
   if(p.sit&&p.sit.intervalo&&p.sit.intervalo.sit==='sem_retorno')return{txt:`Saiu ${hm(p.saidaInt)} · retorno previsto ${hm(pv.retornoInt)} e não voltou`,tag:'Sem retorno',cls:'sem',pend:2};
   if(se&&se.sit==='atraso')return{txt:`Entrada ${hm(pv.entrada)} · bateu ${hm(p.entrada)}`,tag:`Atraso${p.atrasoMin?' '+p.atrasoMin+' min':''}`,cls:'atraso',pend:1};
   if(se&&se.sit==='apuracao')return{txt:`Entrada ${hm(pv.entrada)} · bateu ${hm(p.entrada)}`,tag:'Apuração',cls:'apur',pend:1};
+  if(se&&se.sit==='adiantado')return{txt:`Entrada ${hm(pv.entrada)} · bateu ${hm(p.entrada)}`,tag:'Antes do horário',cls:'apur',pend:1};
   if(se&&se.sit==='aguardando')return{txt:`Entrada prevista ${hm(pv.entrada)}`,tag:'Ainda não chegou o horário',cls:'div',pend:0};
   if(p.saida)return{txt:`Entrada ${hm(pv.entrada)} · bateu ${hm(p.entrada)} · saiu ${hm(p.saida)}`,tag:sj&&sj.txt||'Encerrada',cls:TAG_CLS(sj&&sj.sit),pend:0};
   return{txt:`Entrada ${hm(pv.entrada)} · bateu ${hm(p.entrada)}`,tag:sj&&sj.txt||'No horário',cls:TAG_CLS(sj&&sj.sit),pend:(p.pendencias||[]).length?1:0};

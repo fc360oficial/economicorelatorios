@@ -40,6 +40,9 @@ test('entrada: antes do previsto é "ainda não chegou o horário", depois é "s
 test('entrada no horário, atraso só confirmado pela apuração, entrada tardia sem confirmação = em apuração', () => {
   assert.equal(m.classificar(linha({ entrada: '06:58', marcacoes: ['06:58'] }), '09:00', 10).entrada.sit, 'ok');
   assert.equal(m.classificar(linha({ entrada: '07:09', marcacoes: ['07:09'] }), '09:00', 10).entrada.sit, 'ok');   // tolerância
+  const cedo = m.classificar(linha({ entrada: '06:10', marcacoes: ['06:10'] }), '09:00', 10);   // 27/10: bateu 50 min antes do previsto = "Antes do horário", não "No horário"
+  assert.equal(cedo.entrada.sit, 'adiantado'); assert.equal(cedo.entrada.txt, 'Antes do horário'); assert.ok(cedo.divergencias.some(d => /antes do horário/.test(d)));
+  assert.equal(m.classificar(linha({ entrada: '06:51', marcacoes: ['06:51'] }), '09:00', 10).entrada.sit, 'ok', 'dentro da tolerância pra antes também');
   const ap = m.classificar(linha({ entrada: '07:25', marcacoes: ['07:25'] }), '09:00', 10);
   assert.equal(ap.entrada.sit, 'apuracao'); assert.equal(ap.jornada.sit, 'apuracao'); assert.match(ap.divergencias[0], /Entrada 07:25 · previsto 07:00/);
   const at = m.classificar(linha({ situacao: 'atraso', atraso_min: 25, entrada: '07:25', marcacoes: ['07:25'] }), '09:00', 10);
