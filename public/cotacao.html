@@ -507,6 +507,11 @@ table.ppg td.st .pp-ant{font-size:11px;line-height:1.2;margin-top:2px;color:var(
 /* Coluna Acompanhamento do Monitor (Tiago, 26/10/26): botão que abre o acompanhamento da cotação; a aba 3 saiu de cima */
 .acbtn{height:34px;padding:0 13px;border-radius:8px;border:none;background:var(--ink);color:var(--am);font-weight:800;font-size:12.5px;cursor:pointer;font-family:inherit;white-space:nowrap;display:inline-flex;align-items:center;justify-content:center}
 .acbtn:hover{filter:brightness(1.18)}.acbtn .ar{margin-left:4px}
+/* Coluna Pedidos do Monitor (Tiago, 26/10/26): nome colorido (cor do status "Pedido gerado") quando tem pedido gerado, escuro quando não */
+.pdbtn{height:34px;padding:0 13px;border-radius:8px;border:1.5px solid var(--ln2);background:var(--crd);color:var(--ink);font-weight:800;font-size:12.5px;cursor:pointer;font-family:inherit;white-space:nowrap;display:inline-flex;align-items:center;justify-content:center}
+.pdbtn:hover{background:var(--wsh)}
+.pdbtn.on{color:#5B5BD6;border-color:#5B5BD6;background:#EEF0FF}.pdbtn.on:hover{background:#E2E5FF}
+.mon td.c-ped{white-space:nowrap}
 .mon td.c-acomp{white-space:nowrap}.mon td.c-acomp .mini{display:block;margin-top:4px;white-space:nowrap}.mon td.c-acomp .mini b{color:var(--ink);font-weight:800}
 /* 16/10/26 (Tiago: "tem que reajustar automático seja qual monitor"): layout do Monitor é o original no monitor grande (≥1700px);
    abaixo disso cada faixa de largura aperta fontes, pills e paddings pra tabela caber sem rolagem lateral. Regra geral em CLAUDE.md. */
@@ -527,6 +532,7 @@ table.ppg td.st .pp-ant{font-size:11px;line-height:1.2;margin-top:2px;color:var(
   .mon .vbtn{width:34px;height:30px;font-size:15px}
   .mon .obs-btn{width:26px;height:26px;font-size:12px}
   .mon .acbtn{height:30px;padding:0 10px;font-size:12px}
+  .mon .pdbtn{height:30px;padding:0 10px;font-size:12px}
 }
 @media (max-width:1399px){
   .main{padding-left:20px;padding-right:20px}
@@ -544,6 +550,7 @@ table.ppg td.st .pp-ant{font-size:11px;line-height:1.2;margin-top:2px;color:var(
   .mon .vbtn{width:32px;height:28px;font-size:14px}
   .mon .obs-btn{width:24px;height:24px;font-size:11px}
   .mon .acbtn{height:28px;padding:0 8px;font-size:11.5px}
+  .mon .pdbtn{height:28px;padding:0 8px;font-size:11.5px}
   .mon thead th.c-acomp{letter-spacing:0}
   .mon td.c-acomp .mini{font-size:10.5px}.mon td.c-acomp .mini .vw,.mon .acbtn .ar{display:none}
 }
@@ -562,6 +569,7 @@ table.ppg td.st .pp-ant{font-size:11px;line-height:1.2;margin-top:2px;color:var(
   .mon .vbtn{width:30px;height:26px;font-size:13px}
   .mon .obs-btn{width:22px;height:22px;font-size:10.5px}
   .mon .acbtn{height:26px;padding:0 7px;font-size:11px}
+  .mon .pdbtn{height:26px;padding:0 7px;font-size:11px}
   .mon td:nth-child(4) .numgrp{flex-wrap:wrap;width:58px;row-gap:4px}
   .mon td:nth-child(5) .numgrp{flex-wrap:wrap;width:82px;row-gap:4px}
 }
@@ -909,10 +917,10 @@ table.sug tbody tr:hover td.lj.tem{background:#FFE39A}
 <div class="modtabs">
   <button class="on" data-screen="s1">1. Monitor</button>
   <button data-screen="s2">2. Nova Cotação</button>
-  <!-- a aba "Acompanhamento" saiu daqui (Tiago, 26/10/26): o acompanhamento abre pela coluna Acompanhamento do Monitor (tela s3 continua existindo) -->
+  <!-- as abas "Acompanhamento" e "Pedidos" saíram daqui (Tiago, 26/10/26): abrem pelas colunas Acompanhamento e Pedidos do Monitor
+       (a tela s3 continua; a s5 — andamento dos pedidos em Pedidos de Compra — abre pelos círculos de Status dos pedidos) -->
   <button data-screen="s4">3. Comparativo</button>
-  <button data-screen="s5">4. Pedidos</button>
-  <button data-screen="s6">5. Fornecedores</button>
+  <button data-screen="s6">4. Fornecedores</button>
   <span class="cur" id="cur-lbl"></span>
 </div>
 
@@ -932,8 +940,8 @@ table.sug tbody tr:hover td.lj.tem{background:#FFE39A}
     </div>
     <div class="tablewrap">
       <table class="mon">
-        <thead><tr><th>Data / nº</th><th>Empresa</th><th>Status</th><th title="Pedidos gerados · aprovados · recebidos · cancelados">Pedidos</th><th title="Produtos da cotação · com preço digitado · comprados (com vencedor)">Produtos</th><th title="Empresas convidadas · que já responderam (vários vendedores da mesma empresa contam como uma)">Fornecedores</th><th class="c-acomp" title="Abre o acompanhamento da cotação: prazo, quem já respondeu, links e WhatsApp dos vendedores, recado">Acompanhamento</th><th>Total</th><th>Ações</th><th>Vencedores</th><th>Observação</th></tr></thead>
-        <tbody id="monitor-tbody"><tr><td colspan="11" class="empty">Carregando…</td></tr></tbody>
+        <thead><tr><th>Data / nº</th><th>Empresa</th><th>Status</th><th title="Pedidos gerados · aprovados · recebidos · cancelados (clique num círculo pra ver o andamento)">Status dos pedidos</th><th title="Produtos da cotação · com preço digitado · comprados (com vencedor)">Produtos</th><th title="Empresas convidadas · que já responderam (vários vendedores da mesma empresa contam como uma)">Fornecedores</th><th class="c-acomp" title="Abre o acompanhamento da cotação: prazo, quem já respondeu, links e WhatsApp dos vendedores, recado">Acompanhamento</th><th class="c-ped" title="Abre os pedidos da cotação (Comparativo › Pedidos): pedido por fornecedor com PDF, Excel, link e WhatsApp">Pedidos</th><th>Total</th><th>Ações</th><th>Vencedores</th><th>Observação</th></tr></thead>
+        <tbody id="monitor-tbody"><tr><td colspan="12" class="empty">Carregando…</td></tr></tbody>
       </table>
     </div>
     <div class="mon-legenda"><span><b>Pedidos:</b> <i class="c1"></i>gerados <i class="c2"></i>aprovados <i class="c3"></i>recebidos <i class="c4"></i>cancelados</span><span><b>Produtos:</b> <span class="pl">total</span> <span class="pl">com preço</span> <span class="pl">comprados</span></span><span><b>Concorrentes:</b> <span class="pl blue">convidados</span> <span class="pl blue">responderam</span></span><span><b>Total:</b> soma dos vencedores · embaixo, economia contra a última compra</span><span>Clique em qualquer número pra abrir o detalhe.</span></div>
@@ -1112,8 +1120,8 @@ $('#backdrop').addEventListener('click', function(e){ if (e.target.id === 'backd
 function goScreen(id){
   document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('on'); });
   document.getElementById(id).classList.add('on');
-  // o Acompanhamento não tem mais aba (abre pela coluna do Monitor, Tiago 26/10/26): enquanto acompanha, a aba Monitor fica marcada
-  var tabOn = id === 's3' ? 's1' : id;
+  // Acompanhamento (s3) e Pedidos (s5) não têm mais aba (abrem pelas colunas do Monitor, Tiago 26/10/26): neles a aba Monitor fica marcada
+  var tabOn = (id === 's3' || id === 's5') ? 's1' : id;
   document.querySelectorAll('.modtabs button').forEach(function(b){ b.classList.toggle('on', b.dataset.screen === tabOn); });
   window.scrollTo(0,0);
   // A aba e a cotação abertas NÃO vão pra URL: F5 (ou reabrir a página) cai sempre no Monitor — Tiago, 26/10/26: "a tela inicial da
@@ -1197,7 +1205,7 @@ function filtrarMonitor(){
     return true;
   });
   var tb = $('#monitor-tbody'); var brm = $('#btn-rm-teste'); if (brm) brm.style.display = COTS.some(function(c){ return c.teste; }) ? '' : 'none';
-  if (!lista.length) { tb.innerHTML = '<tr><td colspan="11" class="empty">' + (COTS.length ? 'Nenhuma cotação com esse filtro.' : 'Nenhuma cotação ainda. Clique em "+ Nova Cotação" e digite o nº da lista do ERP.') + '</td></tr>'; return; }
+  if (!lista.length) { tb.innerHTML = '<tr><td colspan="12" class="empty">' + (COTS.length ? 'Nenhuma cotação com esse filtro.' : 'Nenhuma cotação ainda. Clique em "+ Nova Cotação" e digite o nº da lista do ERP.') + '</td></tr>'; return; }
   tb.innerHTML = lista.map(function(c){
     var s = statusCot(c), ps = c.pedidos_status || {gerados:0, aprovados:0, recebidos:0, cancelados:0};
     var stTxt = {fechada:'Pedido gerado', cancelada:'Cancelada', analise:'Pronta p/ análise', digitacao:'Em digitação', aguardando:'Não digitada'}[s.k] || s.txt;
@@ -1211,9 +1219,11 @@ function filtrarMonitor(){
       '<td><div class="numgrp"><button class="numpill blue" title="Empresas convidadas' + (c.empresas != null && c.convidados !== c.empresas ? ' (' + c.convidados + ' vendedores)' : '') + '" onclick="monFornecedores(' + c.id + ',false)">' + (c.empresas != null ? c.empresas : c.convidados) + '</button><button class="numpill blue" title="Empresas que já responderam' + (c.empresas_responderam != null && c.responderam !== c.empresas_responderam ? ' (' + c.responderam + ' vendedores)' : '') + '" onclick="monFornecedores(' + c.id + ',true)">' + (c.empresas_responderam != null ? c.empresas_responderam : c.responderam) + '</button></div></td>' +
       // coluna Acompanhamento (Tiago, 26/10/26): abre a tela de acompanhamento desta cotação (prazo, respostas, links/WhatsApp, recado)
       '<td class="c-acomp"><button class="acbtn" data-id="' + c.id + '" title="Abrir o acompanhamento da cotação #' + c.id + ': prazo, quem já respondeu, links e WhatsApp dos vendedores, recado" onclick="abrirCotacao(' + c.id + ',\'s3\')">Acompanhar<span class="ar"> →</span></button>' + (c.convidados ? '<span class="mini" title="vendedores que já responderam / convidados"><b>' + (c.responderam || 0) + '</b>/' + c.convidados + '<span class="vw"> vendedores</span></span>' : '') + '</td>' +
+      // coluna Pedidos (Tiago, 26/10/26): nome colorido quando está com pedido gerado, escuro quando não; abre o Comparativo na aba Pedidos
+      '<td class="c-ped"><button class="pdbtn' + (s.k === 'fechada' ? ' on' : '') + '" data-id="' + c.id + '" title="' + (s.k === 'fechada' ? 'Pedido gerado: abre os pedidos por fornecedor (PDF, Excel, link, WhatsApp)' : 'Ainda sem pedido gerado: abre a aba Pedidos do Comparativo') + '" onclick="abrirPedidosCot(' + c.id + ')">Pedidos</button></td>' +
       '<td style="white-space:nowrap;text-align:right"><span class="tot">' + (c.total_vencedores > 0 ? fmtR(c.total_vencedores) : '—') + '</span>' + (c.total_vencedores > 0 && c.economia != null ? '<span class="eco ' + (c.economia >= 0 ? 'eco-pos' : 'eco-neg') + '" title="economia × última compra">' + (c.economia >= 0 ? 'economia ' : 'acima ') + fmtR(Math.abs(c.economia)) + '</span>' : '') + '</td>' +
       '<td><div class="numgrp"><button class="aicon" title="Ver pedidos" onclick="abrirCotacao(' + c.id + ',\'s5\')">💲</button><button class="aicon" title="Acompanhamento (fornecedores, links, WhatsApp)" onclick="abrirCotacao(' + c.id + ',\'s3\')">📈</button><button class="aicon" title="Replicar: nova cotação da mesma lista" onclick="replicar(' + (c.lista || 0) + ')">🔁</button>' + (c.status === 'aberta' ? '<button class="aicon" title="Cancelar cotação" onclick="cancelarMon(' + c.id + ')">🗑️</button>' : '') + '</div></td>' +
-      '<td><button class="vbtn" title="Vencedores (comparativo)" onclick="abrirCotacao(' + c.id + ',\'s4\')">🛒</button></td>' +
+      '<td><button class="vbtn" title="Vencedores (comparativo)" onclick="abrirComparativoCot(' + c.id + ')">🛒</button></td>' +
       '<td><button class="obs-btn" title="Observação" onclick="monObs(' + c.id + ')">i</button></td></tr>';
   }).join('');
 }
@@ -1754,6 +1764,10 @@ function cotStripHtml(){
   var nAb = abertas.filter(function(c){ return c.status === 'aberta'; }).length;
   return '<div class="cotstrip"><span class="cs-lbl">' + (nAb > 1 ? nAb + ' cotações abertas' : nAb === 1 ? '1 cotação aberta' : 'cotação') + '</span>' + abertas.map(pill).join('') + (outras.length ? '<select class="cs-sel" onchange="if (this.value) trocarCot(+this.value)" title="Cotações fechadas e canceladas"><option value="">outras cotações…</option>' + outras.map(function(c){ return '<option value="' + c.id + '">#' + c.id + ' · ' + esc(c.nome) + ' (' + esc(c.status) + ')</option>'; }).join('') + '</select>' : '') + '</div>';
 }
+// Coluna Pedidos do Monitor (Tiago, 26/10/26): abre o Comparativo já na aba Pedidos (pedido por fornecedor); a aba "Pedidos" de cima saiu.
+// Vencedores (🛒) e "Ver comparativo" abrem sempre em Produtos, pra não cair na última aba usada.
+function abrirPedidosCot(id){ CI_ABA = 'pedidos'; abrirCotacao(id, 's4'); }
+function abrirComparativoCot(id){ CI_ABA = 'produtos'; abrirCotacao(id, 's4'); }
 function trocarCot(id){ if (!id || (CUR && CUR.id === id)) return; var on = document.querySelector('.screen.on'); abrirCotacao(id, on && /^s[345]$/.test(on.id) ? on.id : 's3'); }
 function renderCotSwitch(force){
   var fill = function(){
@@ -1829,7 +1843,7 @@ async function marcarEnviado(codFornec){ try { await post('/api/cotacoes/' + CUR
 function renderAcomp(){
   var m = $('#s3-main'); if (!CUR) { renderVazio(m); return; }
   var R = CUR.comparativo.resumo, aberta = CUR.status === 'aberta';
-  var h = cabecalho('<button class="btn ghost" onclick="goScreen(\'s1\')" title="Voltar à lista de cotações">← Monitor</button>' + (aberta ? '<button class="btn primary" onclick="goScreen(\'s4\')">Ver comparativo →</button><button class="btn danger" onclick="cancelarCotacao()">Cancelar cotação</button>' : '<button class="btn primary" onclick="goScreen(\'s4\')">Ver comparativo →</button>') + '<button class="btn ghost" onclick="recarregar()">↻</button>');
+  var h = cabecalho('<button class="btn ghost" onclick="goScreen(\'s1\')" title="Voltar à lista de cotações">← Monitor</button>' + (aberta ? '<button class="btn primary" onclick="ciAba(\'produtos\');goScreen(\'s4\')">Ver comparativo →</button><button class="btn danger" onclick="cancelarCotacao()">Cancelar cotação</button>' : '<button class="btn primary" onclick="ciAba(\'produtos\');goScreen(\'s4\')">Ver comparativo →</button>') + '<button class="btn ghost" onclick="recarregar()">↻</button>');
   h += '<div class="kpis"><div class="kpi"><div class="val">' + nEmpresas(CUR.fornecedores) + '</div><div class="lbl">Empresas convidadas' + (R.convidados !== nEmpresas(CUR.fornecedores) ? ' · ' + R.convidados + ' vendedores' : '') + '</div></div><div class="kpi"><div class="val pos">' + R.responderam + '</div><div class="lbl">Vendedores que já responderam</div></div><div class="kpi"><div class="val">' + (R.convidados - R.responderam) + '</div><div class="lbl">Vendedores aguardando</div></div><div class="kpi"><div class="val">' + (R.itens ? Math.round(R.com_preco / R.itens * 100) : 0) + '%</div><div class="lbl">Itens com pelo menos 1 preço (' + R.com_preco + ' de ' + R.itens + ')</div></div></div>';
   // recado do(a) comprador(a): fica fixo no topo da página de cada vendedor; só quem está logado aqui edita
   // prazo com hora: abertura (criadoEm) e fechamento editável; adiar libera os vendedores (Tiago, 23/09/26)
@@ -2791,7 +2805,7 @@ var ST_PED = {sugestao:'Sugestão', aguardando:'Aguardando vendedor', digitacao:
 function xmlAvisoFiscal(xml){ var L = xml && xml.lojas || {}, nv = 0, rec = [], dv = []; Object.keys(L).forEach(function(k){ nv += (L[k].nao_vem || 0); if (L[k].entrega_recusada) rec.push(LJ(k)); if (L[k].status === 'devolvida') dv.push(LJ(k)); }); return (nv ? ' · <b style="color:#B45C00">' + nv + ' item(ns) não vem mais (fiscal) · cotar de novo</b>' : '') + (rec.length ? ' · <b style="color:#B3261E">entrega recusada pelo fiscal · ' + rec.join(' ') + '</b>' : '') + (dv.length ? ' · <b style="color:#B3261E">entrega devolvida · ' + dv.join(' ') + ' · cotar de novo</b>' : ''); }
 async function renderPedidos(){
   var m = $('#s5-main'); if (!CUR) { renderVazio(m); return; }
-  var h = cabecalho('<a class="btn primary" href="/pedidos-compra.html">Abrir Pedidos de Compra →</a>');
+  var h = cabecalho('<button class="btn ghost" onclick="goScreen(\'s1\')" title="Voltar à lista de cotações">← Monitor</button><a class="btn primary" href="/pedidos-compra.html">Abrir Pedidos de Compra →</a>');
   if (!CUR.pedidos || !CUR.pedidos.length) { m.innerHTML = h + '<div class="empty">' + (CUR.status === 'aberta' ? 'Nenhum pedido ainda — feche a cotação no Comparativo pra gerar um pedido por fornecedor vencedor.' : 'Nenhum pedido gerado.') + '</div>'; return; }
   var live = {};
   try { (await api('/api/pedidos-fornecedor')).forEach(function(p){ live[p.id] = p; }); } catch(e) {}
