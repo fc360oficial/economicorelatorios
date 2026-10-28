@@ -101,7 +101,7 @@ svg.ic{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2;stroke-
 .cc .pb{height:.5em;background:#2a2a2a;border-radius:.3em;margin-top:.5em}.cc .pb i{display:block;height:100%;background:var(--amarelo);border-radius:.3em}
 .cc .corpo{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column}
 .cc .grp{font:700 1em var(--fd);letter-spacing:.16em;text-transform:uppercase;color:var(--amarelo);padding:.7em 1em .25em;flex:none}
-.cc .it{display:flex;align-items:center;gap:.6em;padding:.5em 1em;border-bottom:.07em solid var(--linha);flex:none}.cc .it .n{flex:1;min-width:0;font:700 1.45em/1.05 var(--fd);text-transform:uppercase;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.cc .it .n small{display:block;font:500 .55em var(--fb);color:#8f8a7c;letter-spacing:.06em;margin-top:.1em;white-space:normal;line-height:1.15}.cc .it .st{font-size:.95em;flex:none}
+.cc .it{display:flex;align-items:center;gap:.6em;padding:.5em 1em;border-bottom:.07em solid var(--linha);flex:none}.cc .it .n{flex:1;min-width:0;font:700 1.45em/1.05 var(--fd);text-transform:uppercase;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.cc .it .n small{display:block;font:500 .55em var(--fb);color:#8f8a7c;letter-spacing:.06em;margin-top:.1em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.cc .it .st{font-size:.95em;flex:none}
 .cc .mais{font:600 1em var(--fb);letter-spacing:.1em;text-transform:uppercase;color:#8f8a7c;padding:.6em 1em}
 /* A Pagar × Venda: corpo como era (barras por loja na escala) */
 .pg-legenda{display:flex;gap:1.6em;font:600 1.1em var(--fb);letter-spacing:.08em;text-transform:uppercase;color:#8f8a7c;margin-bottom:.6em;flex:none}
@@ -177,17 +177,23 @@ function rCentral() {
   const c = D.central; if (!c) return [tela('Central de Compras', 'Radar', '', vazio('Radar sem dados', 'O Radar de Pedidos ainda não calculou hoje. Assim que calcular, as listas aparecem aqui.'), ['Radar —'], '', 'central')];
   const t = c.tot;
   const kps = kp(pct(t.pct).replace(',0', ''), 'Execução', 'am') + kp(t.urgentes, 'Urgentes hoje') + kp(t.feitas, 'Feitas') + kp(t.urgentes - t.feitas, 'Faltam', t.urgentes - t.feitas ? 'vm' : '');
-  const cards = c.cards.map(k => {
+  // a Central vira páginas até TODAS as urgentes de cada compradora passarem (Tiago, 28/10): 5 por card em cada página
+  const POR = (c.cards[0] && c.cards[0].porPagina) || 5; const nPag = Math.max(1, ...c.cards.map(k => Math.ceil(k.hoje.length / POR)));
+  const paginaCentral = pg => { const cards = c.cards.map(k => {
+    const fatia = k.hoje.slice(pg * POR, pg * POR + POR); const restam = Math.max(0, k.hoje.length - (pg + 1) * POR);
     const cls = k.urgentes && k.pct === 100 ? ' ok' : (k.hoje.some(x => x.sit.st === 'atraso') ? ' vm' : '');
-    const its = k.hoje.map(x => `<div class="it"><span class="n">${esc(x.nome)}<small>lista ${x.lista} · ${mil(x.valor)}${x.detalhe ? ' · ' + esc(x.detalhe) : ''}</small></span>${st(x.sit)}</div>`).join('');
-    const prox = (k.hoje.length >= 4 ? [] : k.proximos).map(x => `<div class="it"><span class="n">${esc(x.nome)}<small>lista ${x.lista} · ${esc(x.quando)}${x.curvaA ? ' · curva A' : ''}</small></span><span class="st apuracao">${esc(x.quando)}</span></div>`).join('');
+    const its = fatia.map(x => `<div class="it"><span class="n">${esc(x.nome)}<small>lista ${x.lista} · ${mil(x.valor)}${x.detalhe ? ' · ' + esc(x.detalhe) : ''}</small></span>${st(x.sit)}</div>`).join('');
+    const prox = (fatia.length >= 4 || (pg > 0 && !fatia.length && k.hoje.length) ? [] : k.proximos).map(x => `<div class="it"><span class="n">${esc(x.nome)}<small>lista ${x.lista} · ${esc(x.quando)}${x.curvaA ? ' · curva A' : ''}</small></span><span class="st apuracao">${esc(x.quando)}</span></div>`).join('');
     return `<div class="cc${cls}"><div class="ch"><div class="nm">${etq(k)}${k.urgentes && k.pct === 100 ? '<span class="st cheio">Tudo feito</span>' : ''}</div><div class="set">${k.urgentes} de ${k.listasHoje} listas · ${mil(k.valorUrgente)}</div><div class="pct"><span>Feito</span><b class="${k.urgentes ? '' : 'sem'}">${k.urgentes ? k.pct + '%' : '—'}</b></div><div class="pb"><i style="width:${k.urgentes ? k.pct : 0}%"></i></div></div>
-      <div class="corpo">${its ? '<div class="grp">Urgentes · hoje</div>' + its : '<div class="grp">Nada urgente hoje</div>'}${k.maisHoje ? `<div class="mais">+ ${k.maisHoje} urgente${k.maisHoje > 1 ? 's' : ''}</div>` : ''}${prox ? '<div class="grp">Próximos dias</div>' + prox : ''}</div></div>`;
-  }).join('');
+      <div class="corpo">${its ? `<div class="grp">Urgentes · hoje${k.hoje.length > POR ? ` · ${pg * POR + 1} a ${pg * POR + fatia.length} de ${k.hoje.length}` : ''}</div>` + its : (k.hoje.length ? '<div class="grp">Todas as urgentes já passaram</div>' : '<div class="grp">Nada urgente hoje</div>')}${restam ? `<div class="mais">+ ${restam} na próxima página</div>` : ''}${prox ? '<div class="grp">Próximos dias</div>' + prox : ''}</div></div>`;
+  }).join(''); return cards; };
   const rank = c.ranking.map((r, i) => `${i + 1}º <b>${esc(r.apelido)}</b> ${r.pct}%`).join(' · ');
   const obs = c.alertas.length ? c.alertas.map(a => `<span class="al">⚠ ${esc(a)}</span>`).join('') : `<span>Ranking do dia: ${rank}</span>`;
-  const corpo = `<div class="main">${hd(IC.radar, 'Pra fazer hoje', '', 'urgente = lista do Radar pra hoje com ruptura ou curva A em risco · previsto × feito')}<div class="cards" style="--c:${c.cards.length}">${cards}</div><div class="obs">${obs}</div></div>`;
-  return [tela('Central de Compras', 'Radar', kps, corpo, ['Radar ' + hmDe(c.radarEm), 'ERP ' + hmDe(D.geradoEm)], `lead real · cobertura alvo ${c.teto} d · <b>${t.listasHoje}</b> listas marcadas pra hoje, ${t.urgentes} urgentes${velho('central')}`, 'central')];
+  const paginas = []; for (let pg = 0; pg < nPag; pg++) {
+    const corpo = `<div class="main">${hd(IC.radar, 'Pra fazer hoje', nPag > 1 ? `${pg + 1} / ${nPag}` : '', 'urgente = lista do Radar pra hoje com ruptura ou curva A em risco · previsto × feito')}<div class="cards" style="--c:${c.cards.length}">${paginaCentral(pg)}</div><div class="obs">${obs}</div></div>`;
+    paginas.push(tela('Central de Compras', 'Radar', kps, corpo, ['Radar ' + hmDe(c.radarEm), 'ERP ' + hmDe(D.geradoEm)], `lead real · cobertura alvo ${c.teto} d · <b>${t.listasHoje}</b> listas marcadas pra hoje, ${t.urgentes} urgentes${velho('central')}`, 'central'));
+  }
+  return paginas;
 }
 // ── 2 · Venda · Margem · Avaria (uma página por compradora) ──
 function rMargem() {
