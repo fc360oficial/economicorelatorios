@@ -918,8 +918,20 @@ app.get('/api/produtos-semana', async (req, res) => {
     const lojaSel = req.query.loja && req.query.loja !== 'todas' ? parseInt(req.query.loja) : null;
     const lojas  = lojaSel ? [lojaSel] : [1,2,3,4,5,6];
 
+    // Espelho do ERP (28/10/26): os 7 dias vêm do nosso Postgres quando estão todos copiados (hoje pode estar até
+    // 15 min atrasado, aceitável num top 15 da semana); senão varre ln{loja}{mes}.zcupomitens no ERP como antes.
+    const vendasEspelho = await espelhoErp.vendaPeriodo(lojas, dataInicio, dataFim).catch(e => { console.error('[ESPELHO] produtos-semana:', e.message); return null; });
+    if (vendasEspelho) res.set('X-Fonte-Vendas', 'espelho');
+
     const mapa = {};
-    for (const ln of lojas) {
+    if (vendasEspelho) {
+      for (const r of vendasEspelho) {
+        const k = r.codigo;
+        if (!mapa[k]) mapa[k] = { codigobarras: k, descricao: null, total_semana: 0, total_valor: 0 };
+        mapa[k].total_semana += +r.qtd || 0;
+        mapa[k].total_valor  += +r.valor || 0;
+      }
+    } else for (const ln of lojas) {
       const db = 'ln' + ln + mm;
       try {
         const rows = await q(
@@ -935,16 +947,21 @@ app.get('/api/produtos-semana', async (req, res) => {
       } catch (e) {}
     }
 
-    const codigos = Object.keys(mapa);
+    // só os 15 que vão pra tela precisam de nome (antes buscava o nome de todos os produtos da semana no central.itens)
+    const top = Object.values(mapa).sort((a,b) => b.total_semana - a.total_semana).slice(0,15);
+    const codigos = top.map(r => r.codigobarras);
     if (codigos.length > 0) {
       const ph = codigos.map(() => '?').join(',');
       const itensRows = await q(`SELECT CodigoBarra, Descricao FROM central.itens WHERE CodigoBarra IN (${ph})`, codigos);
       for (const r of itensRows) {
         if (mapa[r.CodigoBarra]) mapa[r.CodigoBarra].descricao = r.Descricao?.trim() || mapa[r.CodigoBarra].descricao;
       }
+      // espelho não traz a descrição do cupom: quem ficou sem nome (fora do cadastro) pega o nome visto no cupom
+      const semNome = top.filter(r => !r.descricao).map(r => r.codigobarras);
+      if (semNome.length) { const nomes = await espelhoErp.nomesProdutos(semNome).catch(() => ({})); for (const r of top) if (!r.descricao) r.descricao = nomes[r.codigobarras] || r.codigobarras; }
     }
 
-    res.json(Object.values(mapa).sort((a,b) => b.total_semana - a.total_semana).slice(0,15));
+    res.json(top);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -976,6 +993,18 @@ app.get('/api/top-vendidos', withCache(120), async (req, res) => {
     const ultimoDia = new Date(anoSel, mesSel, 0).getDate();
     const dFim    = `${anoSel}-${String(mesSel).padStart(2,'0')}-${String(ultimoDia).padStart(2,'0')}`;
 
+    // Espelho do ERP (28/10/26): mês coberto no Postgres → top 10 somado de lá (agrupado por código; o ERP agrupava
+    // por código+descrição do cupom, o que podia repetir um produto renomeado no meio do mês). Senão, UNION no ERP.
+    const vendasEspelho = await espelhoErp.vendaPeriodo(lojas, dIni, dFim).catch(e => { console.error('[ESPELHO] top-vendidos:', e.message); return null; });
+    if (vendasEspelho) res.set('X-Fonte-Vendas', 'espelho');
+    let rows;
+    if (vendasEspelho) {
+      const acc = {};
+      for (const r of vendasEspelho) { const a = acc[r.codigo] || (acc[r.codigo] = { Codigo: r.codigo, qtd: 0, faturamento: 0 }); a.qtd += +r.qtd || 0; a.faturamento += +r.valor || 0; }
+      rows = Object.values(acc).sort((a, b) => b.qtd - a.qtd).slice(0, 10);
+      const nomes = await espelhoErp.nomesProdutos(rows.map(r => r.Codigo)).catch(() => ({}));
+      for (const r of rows) r.descricao = nomes[r.Codigo] || r.Codigo;
+    } else {
     let union;
     if (lojaSel) {
       union = `SELECT Codigo, Descricao, QtdNovo, ValorTotalNovo FROM \`ln${lojaSel}${mm}\`.zcupomitens WHERE IndCancel='N' AND Data BETWEEN '${dIni}' AND '${dFim}'`;
@@ -992,7 +1021,7 @@ app.get('/api/top-vendidos', withCache(120), async (req, res) => {
       union = validas.join(' UNION ALL ');
     }
 
-    const rows = await q(
+    rows = await q(
       `SELECT Codigo, TRIM(Descricao) as descricao,
               SUM(QtdNovo) as qtd, SUM(ValorTotalNovo) as faturamento
        FROM (${union}) t
@@ -1000,6 +1029,7 @@ app.get('/api/top-vendidos', withCache(120), async (req, res) => {
        ORDER BY qtd DESC
        LIMIT 10`
     );
+    }
     if (rows.length) {
       const ph = rows.map(() => '?').join(',');
       const itens = await q(`SELECT CodigoBarra, Descricao FROM central.itens WHERE CodigoBarra IN (${ph})`, rows.map(r => r.Codigo));
@@ -1032,8 +1062,17 @@ app.get('/api/top-mercadologico', withCache(240), async (req, res) => {
     const dFim    = `${anoSel}-${String(mesSel).padStart(2,'0')}-${String(ultimoDia).padStart(2,'0')}`;
 
     // Vendas do mês por produto
+    // Espelho do ERP (28/10/26): mês coberto no Postgres → soma por produto de lá; senão varre o ERP loja a loja.
+    const vendasEspelho = await espelhoErp.vendaPeriodo(lojas, dIni, dFim).catch(e => { console.error('[ESPELHO] top-mercadologico:', e.message); return null; });
+    if (vendasEspelho) res.set('X-Fonte-Vendas', 'espelho');
     let vendasMap = {};
-    for (const ln of lojas) {
+    if (vendasEspelho) {
+      for (const r of vendasEspelho) {
+        if (!vendasMap[r.codigo]) vendasMap[r.codigo] = { qtd: 0, valor: 0 };
+        vendasMap[r.codigo].qtd   += +r.qtd || 0;
+        vendasMap[r.codigo].valor += +r.valor || 0;
+      }
+    } else for (const ln of lojas) {
       try {
         const rows = await q(`SELECT Codigo, SUM(QtdNovo) as qtd, SUM(ValorTotalNovo) as valor
           FROM \`ln${ln}${mm}\`.zcupomitens
@@ -1165,7 +1204,26 @@ app.get('/api/consulta', async (req, res) => {
 
     const modoTodas = loja === 'todas';
     const mapa = {};
-    for (const mm of mesesNeeded) {
+    // Espelho do ERP (28/10/26): período todo coberto no Postgres → soma por loja × produto de lá (uma consulta, em vez
+    // de uma por mês × loja no ERP). `cupons` = soma dos cupons distintos de cada dia (o ERP contava CCF distinto no
+    // mês inteiro — dá o mesmo quando o CCF não repete). Período fora do espelho → ERP como antes.
+    const vendasEspelho = await espelhoVendaProdutos(lojas, dataInicio, dataFim, { codigos: codigosFiltro, rota: 'consulta' });
+    if (vendasEspelho) {
+      res.set('X-Fonte-Vendas', 'espelho');
+      for (const r of vendasEspelho) {
+        const k = r.codigo, ln = +r.loja;
+        if (!mapa[k]) mapa[k] = { codigo: k, produto: nomesCompletos[k] || null, total_qtd: 0, total_valor: 0, cupons: 0,
+          lojas: {1:0,2:0,3:0,4:0,5:0,6:0}, valor_lojas: {1:0,2:0,3:0,4:0,5:0,6:0} };
+        const qtd = +r.qtd || 0, val = +r.valor || 0;
+        mapa[k].total_qtd += qtd;
+        mapa[k].total_valor += val;
+        mapa[k].cupons += parseInt(r.cupons || 0);
+        if (modoTodas) {
+          mapa[k].lojas[ln] = (mapa[k].lojas[ln] || 0) + qtd;
+          mapa[k].valor_lojas[ln] = (mapa[k].valor_lojas[ln] || 0) + val;
+        }
+      }
+    } else for (const mm of mesesNeeded) {
       for (const ln of lojas) {
         const db = 'ln' + ln + 'mes' + mm;
         try {
@@ -1206,6 +1264,11 @@ app.get('/api/consulta', async (req, res) => {
       for (const it of itensEnrich) {
         if (mapa[it.CodigoBarra]) mapa[it.CodigoBarra].produto = it.Descricao?.trim() || mapa[it.CodigoBarra].produto;
       }
+    }
+    // espelho não traz a descrição do cupom: produto fora do cadastro pega o nome visto no cupom (produto_nome)
+    if (vendasEspelho) {
+      const semNome = Object.values(mapa).filter(r => !r.produto).map(r => r.codigo);
+      if (semNome.length) { const nomes = await espelhoErp.nomesProdutos(semNome).catch(() => ({})); for (const k of semNome) mapa[k].produto = nomes[k] || k; }
     }
 
     const result = Object.values(mapa)
@@ -2249,7 +2312,16 @@ app.get('/api/top-produtos', withCache(15), async (req, res) => {
     const dFim = `${ano}-${mesStr}-${diaCorte}`;
 
     const vendaMap = {}, qtdMap = {}, descMap = {};
-    await Promise.all(lojas.map(async ln => {
+    // Espelho do ERP (28/10/26): mês (até hoje) coberto no Postgres → soma de lá. Lá a quantidade é SUM(QtdNovo)
+    // (decimal); o ERP aqui somava a coluna `Qtd` (varchar) — mesma quantidade, só o tipo muda. O nome sai do cadastro
+    // (senão o visto no cupom) e só pros 20 que vão pra tela.
+    const vendasEspelho = await espelhoErp.vendaPeriodo(lojas, dIni, dFim).catch(e => { console.error('[ESPELHO] top-produtos:', e.message); return null; });
+    if (vendasEspelho) {
+      for (const r of vendasEspelho) {
+        vendaMap[r.codigo] = (vendaMap[r.codigo] || 0) + (+r.valor || 0);
+        qtdMap[r.codigo]   = (qtdMap[r.codigo]   || 0) + (+r.qtd || 0);
+      }
+    } else await Promise.all(lojas.map(async ln => {
       const rows = await q(
         `SELECT Codigo, Descricao, SUM(ValorTotalNovo) as v, SUM(Qtd) as qtd
          FROM \`ln${ln}${mm}\`.zcupomitens
@@ -2277,7 +2349,12 @@ app.get('/api/top-produtos', withCache(15), async (req, res) => {
       .map(([cod, q2]) => ({ cod, desc: descMap[cod], qtd: +q2.toFixed(0) }))
       .sort((a, b) => b.qtd - a.qtd).slice(0, 10);
 
-    res.json({ top_venda: topVenda, top_qtd: topQtd, total_venda: +totalVenda.toFixed(2), total_qtd: +totalQtd.toFixed(0), meta: { mes, ano, loja: lojaSel || 'todas' } });
+    if (vendasEspelho) {
+      const nomes = await espelhoErp.nomesProdutos([...topVenda, ...topQtd].map(r => r.cod)).catch(() => ({}));
+      for (const r of [...topVenda, ...topQtd]) r.desc = nomes[r.cod] || r.cod;
+    }
+
+    res.json({ top_venda: topVenda, top_qtd: topQtd, total_venda: +totalVenda.toFixed(2), total_qtd: +totalQtd.toFixed(0), meta: { mes, ano, loja: lojaSel || 'todas' }, fonte_vendas: vendasEspelho ? 'espelho' : 'erp' });
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -2673,7 +2750,20 @@ app.get('/api/sem-fornecedor', async (req, res) => {
     const dIni    = `${anoSel}-${String(mesSel).padStart(2,'0')}-01`;
     const dFim    = dFimMes(anoSel, mesSel);
 
-    const rows = await q(`
+    // Espelho do ERP (28/10/26): mês coberto no Postgres → a venda por produto vem de lá; a lista de quem TEM fornecedor
+    // continua vindo do ERP (central.fornecedoritens, tabela pequena) e descrição/unidade do cadastro espelhado
+    // (cadastro_item). Mês fora do espelho → a consulta antiga no ERP, com o NOT IN dentro.
+    const vendasEspelho = await espelhoErp.vendaPeriodo([lojaSel], dIni, dFim).catch(e => { console.error('[ESPELHO] sem-fornecedor:', e.message); return null; });
+    let rows;
+    if (vendasEspelho) {
+      res.set('X-Fonte-Vendas', 'espelho');
+      const comForn = new Set((await q(`SELECT DISTINCT CodigoBarra FROM central.fornecedoritens WHERE Backup = 0`)).map(r => String(r.CodigoBarra || '').trim()));
+      const sem = vendasEspelho.filter(r => !comForn.has(String(r.codigo).trim()));
+      const cad = {};
+      if (sem.length) for (const c of await espelhoErp.pq('SELECT codigo, descricao, unid FROM cadastro_item WHERE codigo = ANY($1)', [sem.map(r => r.codigo)]).catch(() => [])) cad[c.codigo] = c;
+      rows = sem.map(r => ({ Codigo: r.codigo, Descricao: cad[r.codigo] && cad[r.codigo].descricao, Unid: cad[r.codigo] && cad[r.codigo].unid, valor: r.valor, qtd: r.qtd }))
+        .sort((a, b) => (+b.valor || 0) - (+a.valor || 0));
+    } else rows = await q(`
       SELECT z.Codigo, it.Descricao, it.Unid,
              SUM(z.ValorTotalNovo) as valor, SUM(z.QtdNovo) as qtd
       FROM \`ln${lojaSel}${mm}\`.zcupomitens z
@@ -2743,6 +2833,11 @@ app.get('/api/fornecedores/:id/produtos', async (req, res) => {
     const acc = {};
     for (const c of codigos) acc[c] = { qtd: 0, valor: 0, custoTot: 0, estoque: 0, custoUnit: 0, ultima: null };
 
+    // Espelho do ERP (28/10/26): mês coberto no Postgres → venda dos produtos do fornecedor vem de lá numa consulta só;
+    // custo/estoque/última compra continuam no ERP (tabelas pequenas por loja). Senão, zcupomitens loja a loja.
+    const vendasEspelho = await espelhoErp.vendaPeriodo(lojas, dIni, dFim, { codigos }).catch(e => { console.error('[ESPELHO] fornecedor/produtos:', e.message); return null; });
+    if (vendasEspelho) res.set('X-Fonte-Vendas', 'espelho');
+
     for (const ln of lojas) {
       const custoMap = {};
       try {
@@ -2760,7 +2855,9 @@ app.get('/api/fornecedores/:id/produtos', async (req, res) => {
         for (const r of er) { const a = acc[r.CodigoBarra]; if (a) a.estoque += parseFloat(r.Qtd || 0); }
       } catch (e) {}
       try {
-        const rows = await q(`
+        const rows = vendasEspelho
+          ? vendasEspelho.filter(r => +r.loja === ln).map(r => ({ Codigo: r.codigo, qtd: r.qtd, valor: r.valor }))
+          : await q(`
           SELECT Codigo, SUM(QtdNovo) as qtd, SUM(ValorTotalNovo) as valor
           FROM \`ln${ln}${mm}\`.zcupomitens
           WHERE Data BETWEEN ? AND ? AND IndCancel='N' AND Codigo IN (${ph})
@@ -2848,7 +2945,7 @@ app.get('/api/fornecedores/:id/avarias', async (req, res) => {
     const totalAvaria = rows.reduce((s, r) => s + parseFloat(r.total), 0);
 
     // Venda do fornecedor para calcular %
-    let vendaFornec = 0;
+    let vendaFornec = 0, fonteVendas = 'erp';
     try {
       const mm   = mesDB(mesSel);
       const prods = listaSel
@@ -2856,7 +2953,11 @@ app.get('/api/fornecedores/:id/avarias', async (req, res) => {
         : await q(`SELECT DISTINCT CodigoBarra FROM central.fornecedoritens WHERE CodFornecedor=? AND Backup=0`, [id]);
       if (prods.length) {
         const ph = prods.map(() => '?').join(',');
-        for (const ln of lojas) {
+        // Espelho do ERP (28/10/26): só a venda-base do % vem do Postgres quando o mês está coberto; a avaria
+        // (central.avariaconsumo) continua no ERP. Senão, soma loja a loja em zcupomitens como antes.
+        const vendasEspelho = await espelhoErp.vendaPeriodo(lojas, dIni, dFim, { codigos: prods.map(p => p.CodigoBarra) }).catch(e => { console.error('[ESPELHO] fornecedor/avarias:', e.message); return null; });
+        if (vendasEspelho) { fonteVendas = 'espelho'; for (const r of vendasEspelho) vendaFornec += +r.valor || 0; }
+        else for (const ln of lojas) {
           const [vr] = await q(`
             SELECT SUM(ValorTotalNovo) as v FROM \`ln${ln}${mm}\`.zcupomitens
             WHERE Data BETWEEN ? AND ? AND IndCancel='N' AND Codigo IN (${ph})
@@ -2870,6 +2971,7 @@ app.get('/api/fornecedores/:id/avarias', async (req, res) => {
       total:       +totalAvaria.toFixed(2),
       qtd_prods:   rows.length,
       pct_venda:   vendaFornec > 0 ? +(totalAvaria / vendaFornec * 100).toFixed(2) : 0,
+      fonte_vendas: fonteVendas,
       ultima:      rows.length ? new Date(Math.max(...rows.map(r => new Date(r.ultima)))).toLocaleDateString('pt-BR') : null,
       produtos:    rows.map(r => ({
         codigo:    r.CodigoBarras,
@@ -2914,13 +3016,24 @@ app.get('/api/fornecedores/:id/lojas', async (req, res) => {
       for (const ln of [1,2,3,4,5,6]) codigosPorLoja[ln] = todos;
     }
 
+    // Espelho do ERP (28/10/26): mês coberto no Postgres → venda (total e por produto) das 6 lojas numa consulta só;
+    // avaria e custo continuam no ERP. Senão, as duas consultas em zcupomitens por loja como antes.
+    const todosCodigos = [...new Set([].concat(...Object.values(codigosPorLoja)))];
+    const vendasEspelho = await espelhoErp.vendaPeriodo([1,2,3,4,5,6], dIni, dFim, { codigos: todosCodigos }).catch(e => { console.error('[ESPELHO] fornecedor/lojas:', e.message); return null; });
+    if (vendasEspelho) res.set('X-Fonte-Vendas', 'espelho');
+
     const result = [];
     for (const ln of [1,2,3,4,5,6]) {
       const codigos = codigosPorLoja[ln];
       let venda = 0, avaria = 0, custo = 0, qtd = 0;
       if (!codigos.length) { result.push({ loja: ln, itens: 0, venda: 0, avaria: 0, lucro: 0, msv: 0, pct_av: 0 }); continue; }
       const ph = codigos.map(() => '?').join(',');
+      const codSet = new Set(codigos);
+      const vendasLnEspelho = vendasEspelho ? vendasEspelho.filter(r => +r.loja === ln && codSet.has(r.codigo)) : null;
       try {
+        if (vendasLnEspelho) {
+          for (const r of vendasLnEspelho) { venda += +r.valor || 0; qtd += +r.qtd || 0; }
+        } else {
         const [vr] = await q(`
           SELECT SUM(QtdNovo) as qtd, SUM(ValorTotalNovo) as v
           FROM \`ln${ln}${mm}\`.zcupomitens
@@ -2928,6 +3041,7 @@ app.get('/api/fornecedores/:id/lojas', async (req, res) => {
         `, [dIni, dFim, ...codigos]);
         venda = parseFloat(vr?.v || 0);
         qtd   = parseFloat(vr?.qtd || 0);
+        }
       } catch (e) {}
       try {
         const [ar] = await q(`SELECT SUM(Total) v FROM central.avariaconsumo WHERE nLoja=? AND CodFornec=? AND DataLan BETWEEN ? AND ? AND Status<>9${listaSel ? ` AND CodigoBarras IN (${ph})` : ''}`,
@@ -2941,7 +3055,8 @@ app.get('/api/fornecedores/:id/lojas', async (req, res) => {
         for (const r of custoRows) custoMap[r.CodigoBarra] = parsePreco(r.Custo);
         // Get individual qtds
         let vendasLn = {};
-        try {
+        if (vendasLnEspelho) { for (const r of vendasLnEspelho) vendasLn[r.codigo] = +r.qtd || 0; }
+        else try {
           const vrs = await q(`SELECT Codigo, SUM(QtdNovo) as q FROM \`ln${ln}${mm}\`.zcupomitens WHERE Data BETWEEN ? AND ? AND IndCancel='N' AND Codigo IN (${ph}) GROUP BY Codigo`, [dIni, dFim, ...codigos]);
           for (const r of vrs) vendasLn[r.Codigo] = parseFloat(r.q);
         } catch (e) {}
@@ -3070,6 +3185,7 @@ app.get('/api/pendencias/prevencao', withCache(60), async (req, res) => {
     const chaveResumo = `resumo-${loja}-${mesSel}`;
     let emitido, aberto, tramite, valorVenda, bonificacoes, saldoAvaria, avariasFinal, pctTotal, pctFiltrada,
       porSetor, abertoFornec, tramiteFornec, abertoItens, tramiteItens;
+    let fonteVendas = 'erp';
 
     if (mesFechado(ano, mes) && avariaCongeladoResumo[chaveResumo]) {
       ({ emitido, aberto, tramite, valorVenda, bonificacoes, saldoAvaria, avariasFinal, pctTotal, pctFiltrada,
@@ -3079,6 +3195,11 @@ app.get('/api/pendencias/prevencao', withCache(60), async (req, res) => {
            FROM central.avariaconsumo a
            WHERE a.nLoja=? AND a.Status=4 AND a.Tipo=1 AND a.NF > 0 AND a.DataEmi BETWEEN ? AND ?`, [loja, dIni, dFim]);
       const pedIds = pedidosEmitidos.map(r => r.nPedido);
+
+      // Espelho do ERP (28/10/26): a venda do mês (base do % de avaria) vem do Postgres quando o mês está coberto;
+      // avaria e bonificação (central.avariaconsumo / bonificacao_averbacao) continuam no ERP. Senão, zcupomitens.
+      const vendaEspelho = await espelhoVendaLoja(loja, dIni, dFim, 'prevencao');
+      if (vendaEspelho != null) fonteVendas = 'espelho';
 
       const [emitidoRows, allAbertoTramite, vendasRows, bonifRows] = await Promise.all([
         pedIds.length ? q(`SELECT a.CodMotivo, a.Status, a.Total, a.CodFornec, a.CodigoBarras, a.Descricao,
@@ -3095,6 +3216,7 @@ app.get('/api/pendencias/prevencao', withCache(60), async (req, res) => {
          LEFT JOIN central.fornecedor f ON f.CodFornec=a.CodFornec
          WHERE a.nLoja=? AND a.Status IN (0,3) AND a.DataLan BETWEEN ? AND ?
          ORDER BY a.Status, a.Total DESC`, [loja, dIni, dFim]),
+        vendaEspelho != null ? Promise.resolve([{ total: vendaEspelho }]) :
         q(`SELECT SUM(ValorTotalNovo) as total FROM \`ln${loja}${mm}\`.zcupomitens
          WHERE Data BETWEEN ? AND ? AND IndCancel='N'`, [dIni, dFim]).catch(() => [{ total: 0 }]),
         q(`SELECT SUM(ValorTotal) as total FROM central.bonificacao_averbacao
@@ -3189,12 +3311,14 @@ app.get('/api/pendencias/prevencao', withCache(60), async (req, res) => {
         const mPeds = await q(`SELECT DISTINCT nPedido FROM central.avariaconsumo
           WHERE nLoja=? AND Status=4 AND Tipo=1 AND NF > 0 AND DataEmi BETWEEN ? AND ?`, [loja, mIni, mFim]);
         const mPedIds = mPeds.map(r => r.nPedido);
+        const mVendaEspelho = await espelhoVendaLoja(loja, mIni, mFim, 'prevencao/mensal');   // Espelho do ERP (28/10/26)
         const [mEmitRows, mAT, mVd] = await Promise.all([
           mPedIds.length ? q(`SELECT a.Status, a.Total, f.NomeCompleto as fornecedor
             FROM central.avariaconsumo a LEFT JOIN central.fornecedor f ON f.CodFornec=a.CodFornec
             WHERE a.nLoja=? AND a.Tipo=1 AND a.nPedido IN (?) AND a.Status=4 AND a.NF > 0 AND a.DataEmi BETWEEN ? AND ?`, [loja, mPedIds, mIni, mFim]) : [],
           q(`SELECT Status, Total FROM central.avariaconsumo
             WHERE nLoja=? AND Status IN (0,3) AND DataLan BETWEEN ? AND ?`, [loja, mIni, mFim]),
+          mVendaEspelho != null ? Promise.resolve([{ t: mVendaEspelho }]) :
           q(`SELECT SUM(ValorTotalNovo) as t FROM \`ln${loja}${mDB}\`.zcupomitens
             WHERE Data BETWEEN ? AND ? AND IndCancel='N'`, [mIni, mFim]).catch(() => [{ t: 0 }])
         ]);
@@ -3238,7 +3362,8 @@ app.get('/api/pendencias/prevencao', withCache(60), async (req, res) => {
       abertoFornec: toArr(abertoFornec),
       tramiteFornec: toArr(tramiteFornec),
       abertoItens, tramiteItens,
-      mensal
+      mensal,
+      fonte_vendas: fonteVendas
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -3249,6 +3374,7 @@ app.get('/api/pendencias/prevencao-consolidado', withCache(60), async (req, res)
     const mesSel = req.query.mes || `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}`;
     const [anoSel, mesNum] = mesSel.split('-').map(Number);
     const LOJAS = {1:'CAHU',2:'MURIBECA',3:'PONTE',4:'ATACAREJO',5:'PORTA LARGA',6:'JARDIM JD JORDÃO'};
+    let fonteVendasCons = 'erp';   // 'espelho' se a venda do mês selecionado de alguma loja veio do Postgres
 
     async function processLoja(loja, bonifMap = {}) {
       const dIni = `${anoSel}-${String(mesNum).padStart(2,'0')}-01`;
@@ -3265,12 +3391,17 @@ app.get('/api/pendencias/prevencao-consolidado', withCache(60), async (req, res)
         WHERE nLoja=? AND Status=4 AND Tipo=1 AND NF > 0 AND DataEmi BETWEEN ? AND ?`, [loja, dIni, dFim]);
       const pedIds = pedidosEmitidos.map(r => r.nPedido);
 
+      // Espelho do ERP (28/10/26): só a venda do mês (base do %) vem do Postgres quando coberta; avaria segue no ERP.
+      const vendaEspelho = await espelhoVendaLoja(loja, dIni, dFim, 'prevencao-consolidado');
+      if (vendaEspelho != null) fonteVendasCons = 'espelho';
+
       const [emitidoRows, allAT, vendasRows, bonifRows, avBrutaRows] = await Promise.all([
         pedIds.length ? q(`SELECT a.Status, a.Total, f.NomeCompleto as fornecedor
           FROM central.avariaconsumo a LEFT JOIN central.fornecedor f ON f.CodFornec=a.CodFornec
           WHERE a.nLoja=? AND a.Tipo=1 AND a.nPedido IN (?) AND a.Status=4 AND a.NF > 0 AND a.DataEmi BETWEEN ? AND ?`, [loja, pedIds, dIni, dFim]) : [],
         q(`SELECT Status, Total FROM central.avariaconsumo
           WHERE nLoja=? AND Status IN (0,3) AND DataLan BETWEEN ? AND ?`, [loja, dIni, dFim]),
+        vendaEspelho != null ? Promise.resolve([{ total: vendaEspelho }]) :
         q(`SELECT SUM(ValorTotalNovo) as total FROM \`ln${loja}${mm}\`.zcupomitens
           WHERE Data BETWEEN ? AND ? AND IndCancel='N'`, [dIni, dFim]).catch(() => [{ total: 0 }]),
         q(`SELECT SUM(ValorTotal) as total FROM central.bonificacao_averbacao
@@ -3336,12 +3467,14 @@ app.get('/api/pendencias/prevencao-consolidado', withCache(60), async (req, res)
           const mPeds = await q(`SELECT DISTINCT nPedido FROM central.avariaconsumo
             WHERE nLoja=? AND Status=4 AND Tipo=1 AND NF > 0 AND DataEmi BETWEEN ? AND ?`, [loja, mIni, mFim]);
           const mPedIds = mPeds.map(r => r.nPedido);
+          const mVendaEspelho = await espelhoVendaLoja(loja, mIni, mFim, 'prevencao-consolidado/mensal');   // Espelho do ERP (28/10/26)
           const [mEmitRows, mAT, mVd] = await Promise.all([
             mPedIds.length ? q(`SELECT a.Status, a.Total, f.NomeCompleto as fornecedor
               FROM central.avariaconsumo a LEFT JOIN central.fornecedor f ON f.CodFornec=a.CodFornec
               WHERE a.nLoja=? AND a.Tipo=1 AND a.nPedido IN (?) AND a.Status=4 AND a.NF > 0 AND a.DataEmi BETWEEN ? AND ?`, [loja, mPedIds, mIni, mFim]) : [],
             q(`SELECT Status, Total FROM central.avariaconsumo
               WHERE nLoja=? AND Status IN (0,3) AND DataLan BETWEEN ? AND ?`, [loja, mIni, mFim]),
+            mVendaEspelho != null ? Promise.resolve([{ t: mVendaEspelho }]) :
             q(`SELECT SUM(ValorTotalNovo) as t FROM \`ln${loja}${mDB}\`.zcupomitens
               WHERE Data BETWEEN ? AND ? AND IndCancel='N'`, [mIni, mFim]).catch(() => [{ t: 0 }])
           ]);
@@ -3394,7 +3527,7 @@ app.get('/api/pendencias/prevencao-consolidado', withCache(60), async (req, res)
     for (const r of bonifSavedRows) bonifMap[`${r.nLoja}-${r.mes}`] = parseFloat(r.valor || 0);
 
     const lojas = await Promise.all([1,2,3,4,5,6].map(l => processLoja(l, bonifMap)));
-    res.json({ lojas, ano: anoSel, mesAtual: mesNum });
+    res.json({ lojas, ano: anoSel, mesAtual: mesNum, fonte_vendas: fonteVendasCons });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -3446,6 +3579,12 @@ app.get('/api/produtos/:codigo/detalhe', async (req, res) => {
       { mm: mesDB(mesAnt.m), dIni: `${mesAnt.a}-${String(mesAnt.m).padStart(2,'0')}-01`, dFim: dFimMes(mesAnt.a, mesAnt.m) }
     ];
 
+    // Espelho do ERP (28/10/26): "última venda" (mês selecionado, senão o anterior) = MAX(dia) dos dois meses no
+    // Postgres, numa consulta só pras lojas pedidas; estoque e última compra continuam no ERP (tabelas por loja,
+    // leves). Período fora do espelho → MAX(Data) em zcupomitens mês a mês, como antes.
+    const ultEspelho = await espelhoErp.ultimaVenda(lojas, [codigo], periodos[1].dIni, periodos[0].dFim).catch(e => { console.error('[ESPELHO] produto/detalhe:', e.message); return null; });
+    if (ultEspelho) res.set('X-Fonte-Vendas', 'espelho');
+
     const result = [];
     for (const ln of lojas) {
       let estoque = 0, ultimaEntrada = null, ultimaVenda = null;
@@ -3457,7 +3596,10 @@ app.get('/api/produtos/:codigo/detalhe', async (req, res) => {
         const [cr] = await q(`SELECT UltimaCompra FROM central.custoloja${ln} WHERE CodigoBarra=?`, [codigo]);
         if (cr?.UltimaCompra) ultimaEntrada = new Date(cr.UltimaCompra).toLocaleDateString('pt-BR');
       } catch (e) {}
-      for (const p of periodos) {
+      if (ultEspelho) {
+        const u = ultEspelho.find(r => +r.loja === ln);
+        if (u && u.ultima) ultimaVenda = new Date(u.ultima + 'T12:00:00').toLocaleDateString('pt-BR');
+      } else for (const p of periodos) {
         if (ultimaVenda) break;
         try {
           const [vr] = await q(`SELECT MAX(Data) d FROM \`ln${ln}${p.mm}\`.zcupomitens WHERE Codigo=? AND IndCancel='N' AND Data BETWEEN ? AND ?`, [codigo, p.dIni, p.dFim]);
@@ -3601,6 +3743,9 @@ app.get('/api/sugestao-compras/:listaId/itens', async (req, res) => {
     const ph = codigos.map(() => '?').join(',');
 
     // por loja: estoque atual, venda no período (qtd+valor), última entrada/venda
+    // Espelho do ERP (28/10/26): venda do mês por loja × produto + última venda (MAX(dia)) numa consulta no Postgres
+    // quando o mês está coberto; estoque/custo/última compra seguem no ERP. Senão, zcupomitens loja a loja.
+    const vendasEspelho = await espelhoVendaProdutos(lojas, dIni, dFim, { codigos, rota: 'sugestao-compras' });
     const porLoja = {};
     for (const ln of lojas) {
       porLoja[ln] = {};
@@ -3617,7 +3762,9 @@ app.get('/api/sugestao-compras/:listaId/itens', async (req, res) => {
         }
       } catch (e) {}
       try {
-        const vr = await q(`
+        const vr = vendasEspelho
+          ? vendasEspelho.filter(r => +r.loja === ln).map(r => ({ Codigo: r.codigo, qtd: r.qtd, valor: r.valor, ultima: r.ultima ? new Date(r.ultima + 'T12:00:00') : null }))
+          : await q(`
           SELECT Codigo, SUM(QtdNovo) qtd, SUM(ValorTotalNovo) valor, MAX(Data) ultima
           FROM \`ln${ln}${mm}\`.zcupomitens
           WHERE Data BETWEEN ? AND ? AND IndCancel='N' AND Codigo IN (${ph})
@@ -3699,7 +3846,7 @@ app.get('/api/sugestao-compras/:listaId/itens', async (req, res) => {
 
     res.json({
       fornecedor: lista.NomeFornec?.trim(), fornecedor_codigo: lista.CodFornec, lista: lista.Nome?.trim(), lista_id: listaId,
-      periodo: { dIni, dFim, dias: diasPeriodo }, cobertura_alvo: coberturaAlvo, itens, totais
+      periodo: { dIni, dFim, dias: diasPeriodo }, cobertura_alvo: coberturaAlvo, itens, totais, fonte_vendas: vendasEspelho ? 'espelho' : 'erp'
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -3743,8 +3890,19 @@ app.get('/api/listas-compra/margem-resumo', async (req, res) => {
     } catch (e) {}
 
     // Vendas do mês: query simples sem filtro de código (mais rápido), filtra em memória
+    // Espelho do ERP (28/10/26): mês coberto no Postgres → soma por produto de lá (uma consulta pras lojas pedidas);
+    // senão varre zcupomitens loja a loja como antes. Avaria e custo continuam no ERP.
+    const vendasEspelho = await espelhoErp.vendaPeriodo(lojas, dataInicio, dataFim).catch(e => { console.error('[ESPELHO] margem-resumo:', e.message); return null; });
+    if (vendasEspelho) res.set('X-Fonte-Vendas', 'espelho');   // a resposta é um mapa lista→números, não dá pra pôr campo
     const vendas = {};
-    for (const ln of lojas) {
+    if (vendasEspelho) {
+      for (const r of vendasEspelho) {
+        if (!barcodesSet.has(r.codigo)) continue;
+        if (!vendas[r.codigo]) vendas[r.codigo] = { qtd: 0, valor: 0 };
+        vendas[r.codigo].qtd += +r.qtd || 0;
+        vendas[r.codigo].valor += +r.valor || 0;
+      }
+    } else for (const ln of lojas) {
       const db = `ln${ln}${mm}`;
       try {
         const rows = await q(`
@@ -3852,8 +4010,17 @@ app.get('/api/listas-compra/:id/margem', async (req, res) => {
     const codigos = [...new Set(itens.map(i => i.Codigobarra))];
     const ph = codigos.map(() => '?').join(',');
 
+    // Espelho do ERP (28/10/26): mês coberto no Postgres → venda dos itens da lista vem de lá numa consulta só;
+    // custo continua no ERP. Senão, zcupomitens loja a loja como antes.
+    const vendasEspelho = await espelhoErp.vendaPeriodo(lojas, dataInicio, dataFim, { codigos }).catch(e => { console.error('[ESPELHO] lista/margem:', e.message); return null; });
     const vendas = {};
-    for (const ln of lojas) {
+    if (vendasEspelho) {
+      for (const r of vendasEspelho) {
+        if (!vendas[r.codigo]) vendas[r.codigo] = { qtd: 0, valor: 0 };
+        vendas[r.codigo].qtd += +r.qtd || 0;
+        vendas[r.codigo].valor += +r.valor || 0;
+      }
+    } else for (const ln of lojas) {
       const db = `ln${ln}${mm}`;
       try {
         const rows = await q(`
@@ -3911,7 +4078,7 @@ app.get('/api/listas-compra/:id/margem', async (req, res) => {
         produtos_com_venda: comVenda,
         total_produtos: itens.length
       },
-      mes: mesSel, ano: anoSel
+      mes: mesSel, ano: anoSel, fonte_vendas: vendasEspelho ? 'espelho' : 'erp'
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -4328,8 +4495,17 @@ async function getCurvaABC(lojaParam, mes, ano) {
   const dIni = `${ano}-${String(mes).padStart(2,'0')}-01`;
   const dFim = dFimMes(ano, mes);
 
+  // Espelho do ERP (28/10/26): mês coberto no Postgres → a soma por produto (base da curva) vem de lá numa consulta;
+  // senão varre zcupomitens loja a loja como antes. O resultado fica no mesmo cache de 30 min.
   const totais = {};
-  for (const ln of lojasList) {
+  const vendasEspelho = await espelhoErp.vendaPeriodo(lojasList, dIni, dFim).catch(e => { console.error('[ESPELHO] curva-abc:', e.message); return null; });
+  if (vendasEspelho) {
+    for (const r of vendasEspelho) {
+      if (!totais[r.codigo]) totais[r.codigo] = { valor: 0, qtd: 0 };
+      totais[r.codigo].valor += +r.valor || 0;
+      totais[r.codigo].qtd += +r.qtd || 0;
+    }
+  } else for (const ln of lojasList) {
     const rows = await q(`
       SELECT Codigo, SUM(ValorTotalNovo) as valor, SUM(QtdNovo) as qtd
       FROM \`ln${ln}${mm}\`.zcupomitens
@@ -4858,7 +5034,32 @@ app.get('/api/compras/analise-estoque', async (req, res) => {
     const vendasMap = {};
     for (const ln of ['1','2','3','4','5','6']) vendasMap[ln] = {};
 
-    await Promise.all([1,2,3,4,5,6].map(async (ln) => {
+    // Espelho do ERP (28/10/26): os 60 dias (até hoje) cobertos no Postgres → as duas faixas (últimos 30 / 30 anteriores),
+    // o custo de cada faixa e a última venda saem de UMA consulta em venda_dia_produto, em vez de 3 meses × 6 lojas de
+    // CASE WHEN em zcupomitens. `custo` lá é SUM(Custo) do dia (custo total da linha, mesma semântica). Hoje pode estar
+    // até 15 min atrasado no espelho — irrelevante numa janela de 60 dias. Fora do espelho → ERP como antes.
+    let vendasEspelho = null;
+    try {
+      const hojeStr = localDate(hojeD);
+      if (espelhoErp.pronto() && await espelhoErp.temCobertura([1,2,3,4,5,6], ini60, hojeStr)) {
+        vendasEspelho = await espelhoErp.pq(`
+          SELECT loja, codigo,
+            SUM(CASE WHEN dia >= $4 THEN qtd ELSE 0 END) qtd30,
+            SUM(CASE WHEN dia <  $4 THEN qtd ELSE 0 END) qtd30ant,
+            SUM(CASE WHEN dia >= $4 THEN custo ELSE 0 END) custo_atual,
+            SUM(CASE WHEN dia <  $4 THEN custo ELSE 0 END) custo_ant,
+            to_char(MAX(dia), 'YYYY-MM-DD') ultima
+          FROM venda_dia_produto
+          WHERE loja = ANY($1) AND dia BETWEEN $2 AND $3 AND codigo = ANY($5)
+          GROUP BY loja, codigo`, [[1,2,3,4,5,6], ini60, hojeStr, ini30, codigos.map(c => String(c).trim().slice(0, 14))]);
+      }
+    } catch (e) { console.error('[ESPELHO] analise-estoque:', e.message); vendasEspelho = null; }
+    if (vendasEspelho) {
+      for (const r of vendasEspelho) {
+        const key = String(r.loja), k = r.codigo;
+        vendasMap[key][k] = { qtd30: +r.qtd30 || 0, qtd30ant: +r.qtd30ant || 0, custoAtual: +r.custo_atual || 0, custoAnt: +r.custo_ant || 0, ultimaVenda: r.ultima || null };
+      }
+    } else await Promise.all([1,2,3,4,5,6].map(async (ln) => {
       const key = String(ln);
       for (const { ano, mes } of meses) {
         const mm = mesDB(mes);
@@ -4978,7 +5179,8 @@ app.get('/api/compras/analise-estoque', async (req, res) => {
       lojas,
       variacaoCusto: variacaoCusto.slice(0,10),
       totalProdutos: codAtivos.length,
-      geradoEm: new Date().toISOString()
+      geradoEm: new Date().toISOString(),
+      fonte_vendas: vendasEspelho ? 'espelho' : 'erp'
     };
     _analiseCache[comp] = result;
     _analiseCacheTs[comp] = now;
@@ -7768,11 +7970,25 @@ app.get('/api/promocoes/produto/:cod', async (req, res) => {
     if (!it) return res.status(404).json({ error: 'produto não encontrado no ERP' });
     if (!_abcLojasCache && !_abcLojasCalculando) calcularAbcLojas().catch(() => {});
     const meses = _mesesUltimos(365).reverse(); // do mês atual pra trás (bancos mensais rotativos: 12 meses)
+    // Espelho do ERP (28/10/26): última venda nos 365 dias e a quantidade daquele dia saem de UMA consulta no Postgres
+    // (DISTINCT ON por loja, dia mais recente) quando o ano está coberto; estoque, custo e preço continuam no ERP.
+    // Fora do espelho → MAX(Data) mês a mês em zcupomitens, como antes.
+    let ultEspelho = null;
+    try {
+      const d365 = meses[meses.length - 1].dIni, dHoje = meses[0].dFim;
+      if (espelhoErp.pronto() && await espelhoErp.temCobertura(LOJAS, d365, dHoje)) {
+        ultEspelho = {};
+        const rows = await espelhoErp.pq(`SELECT DISTINCT ON (loja) loja, to_char(dia, 'YYYY-MM-DD') dia, qtd FROM venda_dia_produto
+                                           WHERE codigo = $1 AND loja = ANY($2) AND dia BETWEEN $3 AND $4 ORDER BY loja, dia DESC`, [cod.slice(0, 14), LOJAS, d365, dHoje]);
+        for (const r of rows) ultEspelho[+r.loja] = { d: r.dia, qt: +(+r.qtd || 0).toFixed(3) };
+      }
+    } catch (e) { console.error('[ESPELHO] promocoes/produto:', e.message); ultEspelho = null; }
     const lojas = await Promise.all(LOJAS.map(async ln => {
       const [e] = await q(`SELECT Qtd FROM central.estoquen${ln} WHERE CodigoBarra = ? LIMIT 1`, [cod]).catch(() => []);
       const [c] = await q(`SELECT Custo, UltimaCompra FROM central.custoloja${ln} WHERE CodigoBarra = ? LIMIT 1`, [cod]).catch(() => []);
       let ultVenda = null, ultVendaQtd = null;
-      for (const ms of meses) {
+      if (ultEspelho) { const u = ultEspelho[ln]; if (u) { ultVenda = u.d; ultVendaQtd = u.qt; } }
+      else for (const ms of meses) {
         const [r] = await q(`SELECT DATE_FORMAT(MAX(Data),'%Y-%m-%d') d FROM \`ln${ln}${mesDB(ms.m)}\`.zcupomitens WHERE Codigo = ? AND IndCancel='N' AND Data BETWEEN ? AND ?`, [cod, ms.dIni, ms.dFim]).catch(() => []);
         if (r && r.d) { ultVenda = r.d;
           const [qd] = await q(`SELECT SUM(QtdNovo) qt FROM \`ln${ln}${mesDB(ms.m)}\`.zcupomitens WHERE Codigo = ? AND IndCancel='N' AND Data = ?`, [cod, r.d]).catch(() => []);
@@ -7788,7 +8004,8 @@ app.get('/api/promocoes/produto/:cod', async (req, res) => {
     }));
     res.json({ cod: String(it.cod).trim(), descricao: it.descricao, unid: (it.unid || '').trim(), balanca: it.balanca === 'P', desativado: +it.desativado || 0,
                grupo: (it.grupo || '').trim() || null, subgrupo: (it.subgrupo || '').trim() || null,
-               abc_calculadoEm: _abcLojasCache ? _abcLojasCache.calculadoEm : null, abc_pendente: !_abcLojasCache, abc_dias: 90, abc_cortes: ABC_LOJAS_CORTES, lojas });
+               abc_calculadoEm: _abcLojasCache ? _abcLojasCache.calculadoEm : null, abc_pendente: !_abcLojasCache, abc_dias: 90, abc_cortes: ABC_LOJAS_CORTES, lojas,
+               fonte_vendas: ultEspelho ? 'espelho' : 'erp' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -8349,6 +8566,33 @@ espelhoErp.init({
     return j;
   },
 });
+// Leituras do espelho compartilhadas pelas rotas migradas em 28/10/26 (top produtos, consulta, fornecedores, listas,
+// sugestão, prevenção, giro). Declaradas como function pra valer em todo o arquivo (hoisting); só rodam na requisição,
+// quando `espelhoErp` já existe. Todas devolvem null quando o espelho está fora ou não cobre o período, e aí a rota
+// cai pro ERP exatamente como antes.
+// Soma por loja × produto no período com cupons e última venda (MAX(dia)): substitui o
+// "SUM(QtdNovo), SUM(ValorTotalNovo), COUNT(DISTINCT CCF), MAX(Data) ... GROUP BY Codigo" varrido mês a mês no ERP.
+// `qtd` é SUM(QtdNovo) do dia (a tela que somava `Qtd` varchar passa a usar esta).
+async function espelhoVendaProdutos(lojas, dIni, dFim, opt = {}) {
+  const rota = opt.rota || 'rota';
+  try {
+    if (!espelhoErp.pronto() || !lojas.length) return null;
+    const h = espelhoErp.hojeLocal(); const fim = dFim > h ? h : dFim; if (fim < dIni) return null;
+    if (!(await espelhoErp.temCobertura(lojas, dIni, fim))) return null;
+    const cods = Array.isArray(opt.codigos) ? [...new Set(opt.codigos.map(c => String(c).trim().slice(0, 14)).filter(Boolean))] : null;
+    if (cods && !cods.length) return [];
+    return await espelhoErp.pq(`SELECT loja, codigo, SUM(qtd) qtd, SUM(valor) valor, SUM(custo) custo, SUM(cupons) cupons,
+                                       to_char(MAX(dia), 'YYYY-MM-DD') ultima
+                                FROM venda_dia_produto WHERE loja = ANY($1) AND dia BETWEEN $2 AND $3 ${cods ? 'AND codigo = ANY($4)' : ''}
+                                GROUP BY loja, codigo`, cods ? [lojas, dIni, fim, cods] : [lojas, dIni, fim]);
+  } catch (e) { console.error(`[ESPELHO] ${rota}:`, e.message); return null; }
+}
+// Venda total (R$) de UMA loja no período — base do % de avaria da Prevenção. null → ERP.
+async function espelhoVendaLoja(loja, dIni, dFim, rota) {
+  const t = await espelhoErp.totaisPeriodo([loja], dIni, dFim).catch(e => { console.error(`[ESPELHO] ${rota}:`, e.message); return null; });
+  if (!t) return null;
+  return +((t[0] && t[0].valor) || 0);
+}
 app.get('/api/espelho/status', async (req, res) => {
   res.set('Cache-Control', 'no-store');
   try { res.json({ ...(await espelhoErp.status()), filaErp: qEstado() }); } catch (err) { res.status(500).json({ error: err.message }); }
@@ -10068,13 +10312,19 @@ app.get('/api/cotacoes/:id/giro', async (req, res) => {
     const hoje = new Date(), pad = n => String(n).padStart(2, '0'), dHoje = `${hoje.getFullYear()}-${pad(hoje.getMonth() + 1)}-${pad(hoje.getDate())}`;
     const isoDe = v => { if (!v) return null; if (v instanceof Date) return isNaN(v) ? null : `${v.getFullYear()}-${pad(v.getMonth() + 1)}-${pad(v.getDate())}`; const s = String(v).trim(); let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/); if (m) return m[1] + '-' + m[2] + '-' + m[3]; m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/); return m ? m[3] + '-' + m[2] + '-' + m[1] : null; };
     const dias = d => d ? Math.max(0, Math.round((new Date(dHoje + 'T00:00:00') - new Date(d + 'T00:00:00')) / 86400000)) : null;
-    for (const ln of (c.lojas && c.lojas.length ? c.lojas.map(Number) : [1, 2, 3, 4, 5, 6])) {
-      if (!(ln >= 1 && ln <= 6)) continue;
+    const lojasCot = (c.lojas && c.lojas.length ? c.lojas.map(Number) : [1, 2, 3, 4, 5, 6]).filter(ln => ln >= 1 && ln <= 6);
+    // Espelho do ERP (28/10/26): última venda dos 4 meses (dia 1 de 3 meses atrás até hoje) = MAX(dia) por loja × produto
+    // numa consulta no Postgres quando o período está coberto; última compra continua no ERP (custoloja, leve).
+    // Fora do espelho → MAX(Data) mês a mês em zcupomitens, como antes.
+    const d4 = new Date(hoje.getFullYear(), hoje.getMonth() - 3, 1), dIni4 = `${d4.getFullYear()}-${pad(d4.getMonth() + 1)}-01`;
+    const ultEspelho = await espelhoErp.ultimaVenda(lojasCot, cods, dIni4, dHoje).catch(e => { console.error('[ESPELHO] cotacao/giro:', e.message); return null; });
+    if (ultEspelho) for (const r of ultEspelho) { const o = out[String(r.codigo).trim()]; if (!o) continue; const L = o[+r.loja] = o[+r.loja] || {}; if (!L.uv || L.uv < r.ultima) L.uv = r.ultima; }
+    for (const ln of lojasCot) {
       for (const ch of radarPedidos.chunk(cods, 2000)) {
         const rows = await q(`SELECT CodigoBarra cod, UltimaCompra FROM central.custoloja${ln} WHERE CodigoBarra IN (${ch.map(() => '?').join(',')})`, ch).catch(() => []);
         for (const r of rows) { const o = out[String(r.cod).trim()]; if (!o) continue; (o[ln] = o[ln] || {}).uc = isoDe(r.UltimaCompra); }
       }
-      let faltam = cods.slice();
+      let faltam = ultEspelho ? [] : cods.slice();
       for (let k = 0; k < 4 && faltam.length; k++) {
         const d = new Date(hoje.getFullYear(), hoje.getMonth() - k, 1), y = d.getFullYear(), m = pad(d.getMonth() + 1);
         const dIni = `${y}-${m}-01`, dFim = k === 0 ? dHoje : `${y}-${m}-${pad(new Date(y, d.getMonth() + 1, 0).getDate())}`;
@@ -10086,7 +10336,7 @@ app.get('/api/cotacoes/:id/giro', async (req, res) => {
       }
       for (const cod of cods) { const L = out[cod][ln] = out[cod][ln] || {}; L.dias = L.uv ? dias(L.uv) : null; L.sem_giro = L.uv ? L.dias >= 30 : true; }
     }
-    const dados = { itens: out, em: new Date().toISOString(), janela_dias: 120 };
+    const dados = { itens: out, em: new Date().toISOString(), janela_dias: 120, fonte_vendas: ultEspelho ? 'espelho' : 'erp' };
     _cotGiro[id] = { em: Date.now(), dados };
     res.json(dados);
   } catch (err) { res.status(500).json({ error: err.message }); }
