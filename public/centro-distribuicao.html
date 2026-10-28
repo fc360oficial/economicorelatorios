@@ -496,7 +496,8 @@ function transitoDetalhe(item) {
 // sem o produto, avisa (nota do mesmo fornecedor pra loja, mas de outra coisa).
 function nfeTxt(nfe) {
   if (!nfe || !nfe.length) return '<span class="mut" title="nenhum XML deste fornecedor pra esta loja desde o pedido">sem NF-e ainda</span>';
-  return nfe.map(n => `<a href="#" class="nfe-l" onclick="event.preventDefault();abrirNfe('${esc(n.chave)}')" title="emitida em ${(n.data || '').split('-').reverse().join('/')} · clique pra abrir a nota">NF-e ${esc(n.nNota)}</a>${n.un > 0 ? ` <span class="pos">${fmtN(n.un)} un</span>` : ' <span class="mut" title="o produto não aparece nos itens desta nota">sem este produto</span>'}`).join('<br>');
+  // NF-e devolvida (28/10/2026): o fornecedor emitiu a contranota espelho — a nota não vem mais e não conta como trânsito
+  return nfe.map(n => `<a href="#" class="nfe-l" onclick="event.preventDefault();abrirNfe('${esc(n.chave)}')" title="emitida em ${(n.data || '').split('-').reverse().join('/')} · clique pra abrir a nota">NF-e ${esc(n.nNota)}</a>${n.un > 0 ? ` <span class="pos">${fmtN(n.un)} un</span>` : ' <span class="mut" title="o produto não aparece nos itens desta nota">sem este produto</span>'}${n.devolvida ? ` <a href="#" class="neg" style="font-weight:800" onclick="event.preventDefault();abrirNfe('${esc(n.devolvida.chave)}')" title="DEVOLVIDA: contranota ${esc(n.devolvida.nNota)} de ${(n.devolvida.data || '').split('-').reverse().join('/')} com os mesmos itens · a nota não vem mais · clique pra abrir a contranota">↩ devolvida</a>` : ''}`).join('<br>');
 }
 const opCls = t => t === 'Compra' ? 'compra' : t === 'Bonificação' ? 'bonif' : t === 'Devolução' ? 'devol' : t === 'Transferência' ? 'transf' : 'outra';
 async function abrirNfe(chave) {
