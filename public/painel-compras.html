@@ -155,7 +155,7 @@ const IC = {
   tag: '<svg class="ic" viewBox="0 0 24 24"><path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.2"/></svg>',
   relogio: '<svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
 };
-const TITULOS = { central: 'Central de Compras', margem: 'Venda · Margem · Avaria', avaria_comp: 'Avarias', rupturas: 'Rupturas', curva_a: 'Central de Compras', pagar: 'A Pagar × Venda', avaria_prod: 'Prevenção', rebaixas: 'Prevenção' };
+const TITULOS = { central: 'Central de Compras', margem: 'Venda · Margem · Avaria', avaria_comp: 'Avarias', rupturas: 'Rupturas', curva_a: 'Produtos curva A', pagar: 'A Pagar × Venda', avaria_prod: 'Prevenção', rebaixas: 'Prevenção' };
 
 let CFG = null, D = null, SEQ = [], idx = 0, front = 'A', timer = null, assinatura = '', ULTIMO_OK = 0;
 
@@ -223,14 +223,14 @@ function rRupturas() {
 }
 // ── 5 · Curva A em risco — uma página por compradora, produtos das listas dela rolando ──
 function rCurvaA() {
-  const c = D.curvaA; if (!c) return [tela('Central de Compras', 'Curva A', '', vazio('Sem dados', 'O Radar ainda não calculou a curva A.'), [], '', 'curva_a')];
+  const c = D.curvaA; if (!c) return [tela('Produtos curva A', '', '', vazio('Sem dados', 'O Radar ainda não calculou a curva A.'), [], '', 'curva_a')];
   const comps = (c.porComp || []).filter(cp => cp.itens.length);
-  if (!comps.length) return [tela('Central de Compras', 'Curva A', '', vazio('Curva A em dia', 'Nenhum produto de curva A das compradoras vai zerar antes da lista.'), ['Radar ' + hmDe(D.central && D.central.radarEm)], '', 'curva_a')];
+  if (!comps.length) return [tela('Produtos curva A', '', '', vazio('Curva A em dia', 'Nenhum produto de curva A das compradoras vai zerar antes da lista.'), ['Radar ' + hmDe(D.central && D.central.radarEm)], '', 'curva_a')];
   return comps.map((cp, i) => {
     const kps = kp(cp.zeram, 'Zeram antes da lista', cp.zeram ? 'vm' : '') + kp(cp.noPonto, 'No ponto de pedido', 'am') + kp(cp.listas, 'Listas') + kp(cp.transito, 'Já em trânsito');
     const linhas = cp.itens.map(x => `<div class="row"><span class="n">${esc(x.descricao)}<small>curva A · rank ${x.rank}${x.zeradas ? ' · ' + x.zeradas + ' loja' + (x.zeradas > 1 ? 's' : '') + ' zerada' + (x.zeradas > 1 ? 's' : '') : ''}</small></span><span>${etq(x.comp)}</span><span class="t">${esc(x.listaNome || x.fornecedor || '')}</span>${h(n1(x.cobertura), x.zeraAntes || x.cobertura < 1 ? 'vm' : 'am', 'dias')}<span class="t">${x.lojas.join(' · ')}</span>${h(n0(x.vendaDia))}<span>${st(x.acao)}</span></div>`).join('');
-    const corpo = `<div class="main">${hd(IC.curva, 'Curva A de ' + cp.apelido, `${i + 1} / ${comps.length}`, `${cp.total} produtos em ${cp.listas} listas · rede ${c.resumo.emRisco} · trânsito já descontado`)}<div class="lst l5"><div class="thead"><span>Produto</span><span>Compradora</span><span>Lista</span><span>Cobertura</span><span>Lojas</span><span>Venda/dia R$</span><span>Ação</span></div><div class="rows rola" style="--n:${LINHAS}">${linhas}</div></div></div>`;
-    return tela('Curva A em risco', cp.apelido, kps, corpo, ['Radar ' + hmDe(D.central && D.central.radarEm)], `vermelho = zera antes da lista ou já zerou · amarelo = no ponto de pedido${velho('curvaA')}`, 'curva_a');
+    const corpo = `<div class="main">${hd(IC.curva, 'Produtos curva A da lista de ' + cp.apelido, `${i + 1} / ${comps.length}`, `${cp.total} produtos em ${cp.listas} listas · rede ${c.resumo.emRisco} · trânsito já descontado`)}<div class="lst l5"><div class="thead"><span>Produto</span><span>Compradora</span><span>Lista</span><span>Cobertura</span><span>Lojas</span><span>Venda/dia R$</span><span>Ação</span></div><div class="rows rola" style="--n:${LINHAS}">${linhas}</div></div></div>`;
+    return tela('Produtos curva A', cp.apelido, kps, corpo, ['Radar ' + hmDe(D.central && D.central.radarEm)], `vermelho = zera antes da lista ou já zerou · amarelo = no ponto de pedido${velho('curvaA')}`, 'curva_a');
   });
 }
 // ── 6 · A Pagar × Venda (corpo como era: barras por loja) ──
