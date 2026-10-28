@@ -10237,9 +10237,21 @@ app.get('/api/cotacoes/:id/ultimas-compras', async (req, res) => {
     const id = cotId(req); if (!id) return res.status(400).json({ error: 'id inválido' });
     const c = cotacao.obter(id); if (!c) return res.status(404).json({ error: 'cotação não encontrada' });
     const out = {};
-    for (const ch of radarPedidos.chunk(c.itens.map(i => String(i.cod)), 1500)) {
-      const rows = await q(`SELECT cp.*, DATE_FORMAT(cp.DataEntrada,'%Y-%m-%d') dt, co.CodFornec cf FROM central.compraprodutos cp LEFT JOIN central.compras co ON co.nCompra=cp.nCompra AND co.nLoja=cp.nLoja
-                            WHERE cp.Movimentacao='COMPRA' AND cp.DataEntrada >= DATE_SUB(CURDATE(), INTERVAL 24 MONTH) AND cp.CodigoBarra IN (${ch.map(() => '?').join(',')}) ORDER BY cp.DataEntrada DESC`, ch).catch(() => []);
+    const cods = c.itens.map(i => String(i.cod));
+    // Espelho do ERP (28/10/26): as entradas dos 24 meses saem de compra_item × compra_nota no Postgres, numa consulta só e
+    // com os mesmos nomes de coluna do ERP (números já numéricos — brl() aceita). Mesma ordem (DataEntrada decrescente;
+    // empate pelo nReg). Espelho de compras indisponível → compraprodutos no .252 por lotes, como antes.
+    const espRows = cods.length && espelhoCompras.disponivel() ? await (async () => {
+      const d = new Date(); d.setMonth(d.getMonth() - 24);
+      return espelhoErp.pq(`SELECT i.codigo "CodigoBarra", i.total "Total", i.qtdentrada "QtdEntradaEstoque", i.qtd "Qtd", i.preco "Preco", i.qtdemb "QtdEmb", i.ncompra "nCompra", i.nloja "nLoja", i.dataentrada::text dt, n.codfornec cf
+                            FROM compra_item i LEFT JOIN compra_nota n ON n.nloja = i.nloja AND n.ncompra = i.ncompra
+                            WHERE i.movimentacao = 'COMPRA' AND i.dataentrada >= $1 AND i.codigo = ANY($2) ORDER BY i.dataentrada DESC, i.nreg DESC`, [localDate(d), cods.map(x => x.slice(0, 14))]);
+    })().catch(e => { console.error('[ESPELHO] cotacoes ultimas-compras:', e.message); return null; }) : null;
+    const lotes = [];
+    if (espRows) lotes.push(espRows);
+    else for (const ch of radarPedidos.chunk(cods, 1500)) lotes.push(await q(`SELECT cp.*, DATE_FORMAT(cp.DataEntrada,'%Y-%m-%d') dt, co.CodFornec cf FROM central.compraprodutos cp LEFT JOIN central.compras co ON co.nCompra=cp.nCompra AND co.nLoja=cp.nLoja
+                            WHERE cp.Movimentacao='COMPRA' AND cp.DataEntrada >= DATE_SUB(CURDATE(), INTERVAL 24 MONTH) AND cp.CodigoBarra IN (${ch.map(() => '?').join(',')}) ORDER BY cp.DataEntrada DESC`, ch).catch(() => []));
+    for (const rows of lotes) {
       for (const r of rows) {
         const cod = String(r.CodigoBarra);
         // compraprodutos grava número como texto pt-BR ("1,40"): preço unitário = Total ÷ unidades que entraram (caixa vira
@@ -10264,7 +10276,7 @@ app.get('/api/cotacoes/:id/ultimas-compras', async (req, res) => {
       const rows = await q(`SELECT i.CodigoBarra cod, g.Descricao grupo, gs.Descricao subgrupo FROM central.itens i LEFT JOIN central.gruposub gs ON gs.CodSubGrupo = i.CodGrupoSub LEFT JOIN central.grupo g ON g.CodGrupo = gs.CodGrupo WHERE i.CodigoBarra IN (${ch.map(() => '?').join(',')})`, ch).catch(() => []);
       for (const r of rows) categorias[String(r.cod)] = { grupo: String(r.grupo || '').trim() || null, subgrupo: String(r.subgrupo || '').trim() || null };
     }
-    res.json({ ultimas: out, categorias, itens: c.itens.length, com_ultima: Object.keys(out).length });
+    res.json({ ultimas: out, categorias, itens: c.itens.length, com_ultima: Object.keys(out).length, fonte_compras: espRows ? 'espelho' : 'erp' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.get('/api/cotacoes/:id', (req, res) => {
