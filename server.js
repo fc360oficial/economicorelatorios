@@ -615,6 +615,7 @@ let travadaAte = 0;
 //   · fila: no máximo Q_MAX_SIMULTANEAS consultas nossas rodando no ERP; as demais esperam a vez (até Q_ESPERA_MAX)
 //   · teto: toda consulta desiste em Q_TIMEOUT_PADRAO (fecha o socket) — antes só as de axml tinham limite
 const Q_MAX_SIMULTANEAS = 8, Q_ESPERA_MAX = 90 * 1000, Q_TIMEOUT_PADRAO = 5 * 60 * 1000;
+let erpEmBackup = null;   // preenchido depois que o Espelho do ERP sobe (lib/espelho-erp.js emBackup)
 let qAtivas = 0; const qFila = []; const qEmCurso = new Map();
 let qStats = { fundidas: 0, enfileiradas: 0, estouros: 0, maxAtivas: 0 };
 function qVaga() {
@@ -636,7 +637,10 @@ async function q(sql, params = [], opt = {}) {
     throw new Error('ERP de produção é somente leitura; escrita bloqueada. Teste no MySQL do .254 (DB_HOST=127.0.0.1).');
   }
   const sensivel = TABELAS_SENSIVEIS.test(sql);
-  const timeoutMs = opt.timeoutMs || (sensivel ? TIMEOUT_SENSIVEL : Q_TIMEOUT_PADRAO);
+  let timeoutMs = opt.timeoutMs || (sensivel ? TIMEOUT_SENSIVEL : Q_TIMEOUT_PADRAO);
+  // ERP em backup (janela configurada em Processos › Espelho do ERP, padrão 22:00–23:59; Tiago, 28/10): a consulta ainda
+  // tenta, mas desiste em 15 s pra não ficar pendurada no .252 enquanto ele está parado.
+  if (erpEmBackup && erpEmBackup()) timeoutMs = Math.min(timeoutMs, 15000);
   // opt.ignorarPausa (20/10/26): rota interativa do coletor não paga a pausa de 5 min causada por um job pesado em axml
   // (Tiago viu "tabela axml travada no .252" em vermelho ao voltar pra lista de notas); ela tenta mesmo assim, com o timeout.
   if (sensivel && !opt.ignorarPausa && Date.now() < travadaAte) throw new Error('ERP: tabela axml travada no .252 (manutenção/ALTER TABLE); consulta pulada por mais ' + Math.ceil((travadaAte - Date.now()) / 60000) + ' min');
@@ -8178,6 +8182,7 @@ paineisTvs.init({
 // ── Espelho do ERP (Tiago, 28/10/26): vendas copiadas pro nosso Postgres (lib/espelho-erp.js) + saúde do ERP; SÓ ADMIN
 // (trava em "Rotas exclusivas de admin"). Usa o mesmo robô de WhatsApp dos Painéis pros avisos de madrugada.
 const espelhoErp = require('./lib/espelho-erp');
+erpEmBackup = espelhoErp.emBackup;
 espelhoErp.init({
   q,
   enviarWpp: async ({ grupo, texto }) => {

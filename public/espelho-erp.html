@@ -108,8 +108,13 @@ label.ck{display:flex;align-items:center;gap:6px;font-size:12px}
     </div>
 
     <div class="card c4">
-      <h2>Avisos</h2>
-      <p class="d">Pelo robô de WhatsApp dos Painéis (cahu-wpp). Só quando a recópia das 07:40 falhar.</p>
+      <h2>Backup do ERP e avisos <span id="bk-pill" class="pill" style="display:none">em backup agora</span></h2>
+      <p class="d">Janela em que o .252 fica parado pro backup: nenhum robô nosso toca o ERP nela e qualquer consulta desiste em 15 s. Depois do fim, o ERP está livre (as rotinas das 02:30 ficam fora).</p>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <label class="ck">Backup das <input type="text" id="cf-bk-ini" placeholder="22:00" style="width:64px"></label>
+        <label class="ck">às <input type="text" id="cf-bk-fim" placeholder="23:59" style="width:64px"></label>
+      </div>
+      <p class="d" style="margin-top:12px">Avisos pelo robô de WhatsApp dos Painéis (cahu-wpp). Só quando a recópia das 07:40 falhar.</p>
       <label class="ck"><input type="checkbox" id="cf-avisar"> Avisar no WhatsApp</label>
       <div style="margin-top:8px"><input type="text" id="cf-grupo" placeholder="Nome do grupo (vazio = padrão do robô)"></div>
       <div class="btns"><button class="btn" id="b-cfg">Salvar</button></div>
@@ -160,7 +165,8 @@ async function carregar() {
     $('cop-tb').innerHTML = (s.copias || []).map(c => `<tr><td class="mono">${hora(c.em)}</td><td>${esc(c.origem || '')}</td><td>${NOME_LOJA[c.loja] || c.loja}</td><td>${dataBr(c.dia)}</td><td class="r num">${c.linhas == null ? '—' : fmtN(c.linhas)}</td><td class="r num">${fmtN(c.ms)}</td><td class="mut">${c.erro ? '<span style="color:var(--neg)">' + esc(c.erro) + '</span>' : ''}</td></tr>`).join('') || '<tr><td colspan="7" class="mut">Nenhuma cópia ainda.</td></tr>';
 
     // config + madrugada
-    if (!cfgTocada) { $('cf-avisar').checked = !!s.config.avisar; $('cf-grupo').value = s.config.grupo || ''; }
+    if (!cfgTocada) { $('cf-avisar').checked = !!s.config.avisar; $('cf-grupo').value = s.config.grupo || ''; $('cf-bk-ini').value = s.config.backupIni || ''; $('cf-bk-fim').value = s.config.backupFim || ''; }
+    $('bk-pill').style.display = s.emBackup ? '' : 'none'; $('bk-pill').className = 'pill warn';
     const m = s.madrugada; $('mad-info').textContent = m.ultimaEm ? `última recópia às ${hora(m.ultimaEm)}` + (m.ultimoErro ? ' · erro: ' + m.ultimoErro : ' · ok') : 'ainda não rodou (07:40)';
     if (s.filaErp) { $('e-fila').textContent = `${s.filaErp.ativas} + ${s.filaErp.naFila} esperando`; $('e-max').textContent = s.filaErp.max; }
   } catch (e) { $('hdr-st').innerHTML = '<span class="pill bad">' + esc(e.message) + '</span>'; }
@@ -186,7 +192,7 @@ async function acao(nome, msgEl) {
   carregar();
 }
 let cfgTocada = false;
-$('cf-avisar').addEventListener('change', () => { cfgTocada = true; }); $('cf-grupo').addEventListener('input', () => { cfgTocada = true; });
+['cf-avisar', 'cf-grupo', 'cf-bk-ini', 'cf-bk-fim'].forEach(id => { $(id).addEventListener('change', () => { cfgTocada = true; }); $(id).addEventListener('input', () => { cfgTocada = true; }); });
 $('b-hoje').addEventListener('click', () => acao('hoje', $('msg-hoje')));
 $('b-reconf').addEventListener('click', () => acao('reconferir', $('msg-hoje')));
 $('b-hist').addEventListener('click', () => acao('historico', $('msg-hist')));
@@ -194,7 +200,7 @@ $('b-pausar').addEventListener('click', () => acao('pausar', $('msg-hist')));
 $('b-retomar').addEventListener('click', () => acao('retomar', $('msg-hist')));
 $('b-cfg').addEventListener('click', async () => {
   try {
-    const r = await fetch('/api/espelho/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ avisar: $('cf-avisar').checked, grupo: $('cf-grupo').value }) });
+    const r = await fetch('/api/espelho/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ avisar: $('cf-avisar').checked, grupo: $('cf-grupo').value, backupIni: $('cf-bk-ini').value.trim(), backupFim: $('cf-bk-fim').value.trim() }) });
     const j = await r.json(); if (j.error) throw new Error(j.error); cfgTocada = false; $('msg-cfg').className = 'msg ok'; $('msg-cfg').textContent = 'Salvo.';
   } catch (e) { $('msg-cfg').className = 'msg err'; $('msg-cfg').textContent = e.message; }
 });
