@@ -8970,6 +8970,19 @@ app.get('/api/gestao-gerencial/inicio', async (req, res) => {
   try { res.json(await gerencialInicio.quadros(loja, { tvRh, semGiro, toleranciaMin: tvRhTolerancia })); }
   catch (err) { console.error('[gestao-gerencial/inicio]', err.message); res.status(500).json({ error: err.message }); }
 });
+// PDF do Sem Giro por faixa (28/10/2026, Tiago: "coloca um PDF: quando clicar ele abre e envia via zap; todas as opções ter um PDF
+// pra cada um pra imprimir"): ?loja=N&faixa=0|30|60|90|120 → lista completa da loja na faixa, inline (abre no celular/navegador).
+app.get('/api/gestao-gerencial/sem-giro.pdf', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const loja = req.query.loja && req.query.loja !== 'todas' ? parseInt(req.query.loja, 10) : null;
+  if (loja && !escopo.podeLoja(req.session.user, loja)) return res.status(403).json({ error: 'Sem permissão pra esta loja' });
+  try {
+    const u = req.session.user || {};
+    const pdf = await gerencialInicio.pdfSemGiro({ loja, faixa: parseInt(req.query.faixa, 10) || 0, usuario: u.nome || u.usuario || '' }, { semGiro });
+    res.set('Content-Type', 'application/pdf'); res.set('Content-Disposition', 'inline; filename="' + gerencialInicio.nomePdfSemGiro(loja, parseInt(req.query.faixa, 10) || 0) + '"');
+    res.send(pdf);
+  } catch (err) { console.error('[gestao-gerencial/sem-giro.pdf]', err.message); res.status(500).json({ error: err.message }); }
+});
 // Avisos no celular do gerente — Web Push (27/10/2026, Tiago: "forçar o gerente instalar o app no celular e ativar as notificações"):
 // a Gestão Gerencial aberta pelo app instalado inscreve o aparelho; lib/gerencial-push.js guarda em data/gerencial-push/ e manda
 // por usuário (notificar) ou por loja (notificarLoja). Chave VAPID própria, passada em cada envio (não mexe na do portal do fornecedor).

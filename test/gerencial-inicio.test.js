@@ -40,6 +40,23 @@ test('resumoSemGiro: resumo da loja, faixas e lista limitada', () => {
   assert.equal(s.itens.length, 30, 'gaveta mostra no máximo 30 itens'); assert.equal(s.itens[0].cod, 'C0');
   assert.equal(s.calculadoEm, '2026-10-27T03:00:00.000Z');
 });
+test('pdfSemGiro: lista completa da faixa em PDF, uma consulta por faixa, nome do arquivo (28/10)', async () => {
+  const chamadas = [];
+  const semGiro = {
+    lojas: () => ({ estado: { calculadoEm: '2026-10-28T03:00:00.000Z' }, lojas: { 5: { n: 70, valor: 700, f30: { n: 20, v: 200 }, f60: { n: 50, v: 500 } } }, total: { n: 99, valor: 990 } }),
+    consultar: q => { chamadas.push([q.loja, q.faixa, q.limite]); return { rows: Array.from({ length: 120 }, (_, i) => ({ cod: '78900' + i, descricao: 'PRODUTO ' + i, grupo: 'MERCEARIA', unid: 'UN', est: 3, valor: 120 - i, dias: 70 })) }; }
+  };
+  const pdf = await G.pdfSemGiro({ loja: 5, faixa: 60, usuario: 'Tiago' }, { semGiro });
+  assert.ok(Buffer.isBuffer(pdf) && pdf.slice(0, 4).toString() === '%PDF', 'sai um PDF');
+  assert.deepEqual(chamadas, [[5, 60, 5000]], 'lista completa da loja na faixa (não só os 30 da tela)');
+  assert.ok(pdf.length > 5000, '120 linhas = mais de uma página');
+  const todos = await G.pdfSemGiro({ loja: 5, faixa: 0 }, { semGiro });
+  assert.deepEqual(chamadas[1], [5, 0, 5000], 'faixa 0 = todos (30 dias ou mais)');
+  assert.ok(todos.length > 1000);
+  assert.equal(G.nomePdfSemGiro(5, 60), 'sem-giro-E5-60-a-89-dias.pdf'); assert.equal(G.nomePdfSemGiro(null, 0), 'sem-giro-rede-todos.pdf');
+  const vazio = await G.pdfSemGiro({ loja: 5, faixa: 120 }, { semGiro: { ...semGiro, consultar: () => ({ rows: [] }) } });
+  assert.ok(vazio.slice(0, 4).toString() === '%PDF', 'sem itens não quebra');
+});
 test('quadros: Ponto e Sem Giro da loja; cada bloco falha sozinho', async () => {
   const chamadas = [];
   const deps = {

@@ -69,6 +69,8 @@ test('bloqueioGerencial: gerente só na Gestão Gerencial e só a própria loja'
   assert.equal(e.bloqueioGerencial(g, '/api/gestao-gerencial/inicio', { loja: String(g.loja_id) }), null, 'quadros do início da própria loja (27/10)');
   assert.ok(e.bloqueioGerencial(g, '/api/gestao-gerencial/inicio', { loja: '2' }), 'quadros de outra loja barrados');
   assert.ok(e.bloqueioGerencial(g, '/api/gestao-gerencial/inicio', {}), 'quadros sem loja barrados');
+  assert.equal(e.bloqueioGerencial(g, '/api/gestao-gerencial/sem-giro.pdf', { loja: '3', faixa: '60' }), null, 'PDF do Sem Giro da própria loja (28/10)');
+  assert.ok(e.bloqueioGerencial(g, '/api/gestao-gerencial/sem-giro.pdf', { loja: '1', faixa: '60' }), 'PDF do Sem Giro de outra loja barrado');
   assert.equal(e.bloqueioGerencial(g, '/api/gestao-gerencial/push/inscrever', {}), null, 'inscrição de push do celular liberada (27/10)');
   assert.ok(e.bloqueioGerencial(g, '/api/disciplinar-outra', {}));
   assert.equal(e.bloqueioGerencial(g, '/api/me', {}), null);
