@@ -208,6 +208,11 @@ body.v-home #home{display:flex}
 .pt-banco b{font-size:16px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--text)}.pt-banco b.ok{color:var(--green)}.pt-banco b.ruim{color:var(--red)}
 .pt-saldo{display:flex;flex-direction:column;align-items:flex-end;line-height:1.15}.pt-saldo small{font-size:10.5px;font-weight:700;color:var(--text3)}.pt-saldo small.ok{color:var(--green)}.pt-saldo small.ruim{color:var(--red)}
 .pm-div{font-size:11.5px;color:var(--text2);padding:6px 4px 0}
+/* botões de faixa do Sem giro (Todos · 30 a 59 · 60 a 89 · 90 a 119 · 120+); regra tinha se perdido numa edição de 27/10 */
+.gv-fil{display:flex;flex-wrap:wrap;gap:6px;padding:12px 0 2px}
+.gv-fil button{border:1px solid var(--border-md);background:var(--card);border-radius:999px;padding:6px 12px;font:600 12px var(--font);color:var(--text2);cursor:pointer;white-space:nowrap}
+.gv-fil button b{font-weight:800;color:var(--text)}
+.gv-fil button.on{background:var(--text);color:#fff;border-color:var(--text)}.gv-fil button.on b{color:var(--brand)}
 @media(max-width:560px){.pg-b{--px:14px}.pt{grid-template-columns:68px 54px 1fr auto;column-gap:8px;padding:2px 10px 0}.pt-v{font-size:14px}.pt-r .gv-tag{font-size:9px;padding:2px 5px}}
 /* ─── TRAVA: app instalado + notificações (27/10/26, Tiago: "forçar o gerente instalar o app no celular e ativar as notificações").
    Perfil gerencial no celular: fora do app instalado, a tela só mostra o passo "Instalar"; dentro do app, sem permissão de
@@ -227,6 +232,22 @@ body.gate #gate{display:flex}
 .gate-erro{font-size:12.5px;color:var(--red);background:var(--red-bg);border-radius:10px;padding:8px 12px;width:100%}
 .gate-ok{font-size:12.5px;color:var(--green);background:var(--green-bg);border-radius:10px;padding:8px 12px;width:100%}
 .gate-nota{font-size:11.5px;color:var(--text3);line-height:1.4}
+/* ─── Atualizar estoque pelo Sem Giro (28/10): folha de baixo no celular, caixa central no monitor ─── */
+.gv-li.giro{cursor:pointer}.gv-li.giro:active{background:var(--bg2)}
+.aj-chip{display:inline-block;margin-top:4px;white-space:normal;text-align:left}
+.aj-fundo{position:fixed;inset:0;background:rgba(14,22,38,.45);z-index:450;display:none;align-items:flex-end;justify-content:center}
+.aj-fundo.on{display:flex}
+.aj{background:var(--card);width:100%;max-width:520px;max-height:92vh;overflow:auto;border-radius:18px 18px 0 0;padding:16px 18px 22px;display:flex;flex-direction:column;gap:10px;box-shadow:0 -8px 32px rgba(0,0,0,.25)}
+.aj-h{display:flex;align-items:flex-start;gap:10px;justify-content:space-between}
+.aj-k{font-size:10px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3)}
+.aj h3{font-size:15px;font-weight:800;line-height:1.25;margin-top:2px}.aj-sub{font-size:11.5px;color:var(--text3);margin-top:2px}
+.aj-sys{display:flex;align-items:center;justify-content:space-between;background:var(--bg2);border-radius:12px;padding:10px 14px;font-size:12px;color:var(--text2);font-weight:600}
+.aj-sys b{font-size:18px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums}
+.aj-ant{display:flex;flex-direction:column;gap:4px;font-size:11.5px;color:var(--text3)}
+.aj-l{font-size:11px;font-weight:700;color:var(--text2);margin-top:4px}
+.aj-in{width:100%;border:1.5px solid var(--border-md);border-radius:12px;padding:12px 14px;font:700 18px var(--font);color:var(--text);background:var(--card);outline:none}
+.aj-in:focus{border-color:var(--brand)}textarea.aj-in{font-size:13px;font-weight:500;resize:vertical;min-height:52px}
+@media(min-width:769px){.aj-fundo{align-items:center;padding:20px}.aj{border-radius:18px}}
 /* ─── LOADING ─── */
 .loading{padding:40px;text-align:center;color:var(--text3);display:flex;flex-direction:column;align-items:center;gap:10px;font-size:12px}
 .spin{width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--brand);border-radius:50%;animation:spin .7s linear infinite}
@@ -270,6 +291,23 @@ body.gate #gate{display:flex}
     <h2 id="gate-t"></h2>
     <p id="gate-p"></p>
     <div id="gate-a" style="width:100%;display:flex;flex-direction:column;gap:10px"></div>
+  </div>
+</div>
+
+<!-- folha "Atualizar estoque" do Sem Giro (28/10): contagem da loja → Processos › Ajustes de Estoque -->
+<div class="aj-fundo" id="aj" onclick="if(event.target===this)ajusteFechar()">
+  <div class="aj" role="dialog" aria-modal="true" aria-labelledby="aj-t">
+    <div class="aj-h"><div><div class="aj-k">Atualizar estoque</div><h3 id="aj-t"></h3><div class="aj-sub" id="aj-s"></div></div><button class="gv-x" type="button" onclick="ajusteFechar()" aria-label="Fechar">✕</button></div>
+    <div class="aj-sys"><span>Estoque no sistema</span><b id="aj-sys"></b></div>
+    <div id="aj-ant"></div>
+    <input type="hidden" id="aj-cod">
+    <label class="aj-l" for="aj-qtd">Quantidade contada na loja</label>
+    <input class="aj-in" id="aj-qtd" type="number" inputmode="decimal" min="0" step="any" placeholder="ex.: 30">
+    <label class="aj-l" for="aj-obs">Observação (opcional)</label>
+    <textarea class="aj-in" id="aj-obs" rows="2" placeholder="ex.: contado no depósito e na gôndola"></textarea>
+    <div class="gate-erro" id="aj-erro" hidden></div>
+    <button class="gate-btn" id="aj-env" type="button" onclick="ajusteEnviar()">Enviar pra atualização</button>
+    <div class="gate-nota">O pedido vai pra Coordenação em Processos › Ajustes de Estoque. Quando for lançado na central, aparece aqui como atualizado.</div>
   </div>
 </div>
 
@@ -727,7 +765,7 @@ async function carregarInicio(loja){
   pill('hp-ponto','…');pill('hp-giro','…');INICIO=null;
   try{
     const r=await fetch(`/api/gestao-gerencial/inicio?loja=${loja}`);if(!r.ok)throw new Error((await r.json()).error||r.status);
-    INICIO=await r.json();quadroPonto(INICIO.ponto);quadroGiro(INICIO.semGiro);
+    INICIO=await r.json();quadroPonto(INICIO.ponto);quadroGiro(INICIO.semGiro);carregarAjustes(loja);
   }catch(e){INICIO={erro:e.message,ponto:{erro:e.message},semGiro:{erro:e.message}};quadroPonto(INICIO.ponto);quadroGiro(INICIO.semGiro);}
   if(document.body.classList.contains('v-ponto'))paginaPonto();if(document.body.classList.contains('v-giro'))paginaGiro();
 }
@@ -816,8 +854,8 @@ function paginaGiro(){
   const total=GIRO_FAIXA?nf(GIRO_FAIXA):g.n,valor=GIRO_FAIXA?vf(GIRO_FAIXA):g.valor;
   const itens=GIRO_FAIXA?((g.itensFaixa||{})[GIRO_FAIXA]||[]):(g.itens||[]);
   const chips=`<div class="gv-chips"><span class="badge bb">${total.toLocaleString('pt-BR')} itens · ${R(valor)}</span>${GIRO_FAIXA?`<span class="badge bn">${FAIXA_TXT[GIRO_FAIXA]} sem venda</span>`:(F.f120.n?`<span class="badge bd">${F.f120.n} com 120+ dias</span>`:'')}${!GIRO_FAIXA&&g.abaixoCusto?`<span class="badge bd">${g.abaixoCusto} abaixo do custo</span>`:''}</div>`;
-  const lis=itens.map(i=>`<div class="gv-li"><div class="nm"><b>${esc(i.descricao)}</b><span>${esc(i.cod)}${i.grupo?' · '+esc(i.grupo):''} · ${i.dias==null?'sem venda na janela':i.dias+' dias sem venda'}</span></div><div class="vl"><b>${R(i.valor)}</b>${Number(i.est||0).toLocaleString('pt-BR')} ${esc(i.unid)}</div></div>`).join('');
-  $('vg-b').innerHTML=fil+chips+(lis||`<div class="gv-vazio">Nenhum item ${GIRO_FAIXA?'nesta faixa':'sem giro nesta loja'}</div>`)+(total>itens.length?`<div class="gv-nota">Mostrando os ${itens.length} de maior valor parado (custo × estoque).</div>`:'');
+  const lis=itens.map(i=>`<div class="gv-li giro" onclick="giroAbrir(${JSON.stringify(i.cod).replace(/"/g,'&quot;')})"><div class="nm"><b>${esc(i.descricao)}</b><span>${esc(i.cod)}${i.grupo?' · '+esc(i.grupo):''} · ${i.dias==null?'sem venda na janela':i.dias+' dias sem venda'}</span>${ajusteChip(i.cod)}</div><div class="vl"><b>${R(i.valor)}</b>${Number(i.est||0).toLocaleString('pt-BR')} ${esc(i.unid)}</div></div>`).join('');
+  $('vg-b').innerHTML=fil+chips+(lis||`<div class="gv-vazio">Nenhum item ${GIRO_FAIXA?'nesta faixa':'sem giro nesta loja'}</div>`)+(total>itens.length?`<div class="gv-nota">Mostrando os ${itens.length} de maior valor parado (custo × estoque).</div>`:'')+'<div class="gv-nota">Toque no produto pra informar a quantidade contada na loja e pedir a atualização do estoque na central.</div>';
 }
 // ── Trava: app instalado + notificações (27/10/26, Tiago: "forçar o gerente instalar o app no celular e ativar as notificações").
 // Só pro perfil gerencial em celular. Passo 1: fora do app instalado (display-mode standalone) → instalar (botão do Chrome via
@@ -886,6 +924,45 @@ function gate(u){
   if(!u||u.perfil!=='gerencial'||!ehCelular())return;
   gateRender();
 }
+
+// ── Atualizar estoque pelo Sem Giro (28/10/26, Tiago: "quando eu clicar no produto, que apareça pra atualizar estoque: o sistema diz
+// 50 e a loja contou 30; isso tem que chegar pra mim em Processos pra eu atualizar na central"). Tocar no item abre a folha com o
+// estoque do sistema e o campo da contagem; POST /api/gestao-gerencial/estoque/ajustes; o item mostra a situação (aguardando a
+// central / atualizado / recusado) lida de GET …/estoque/ajustes?loja=. Processos › Ajustes de Estoque é onde a Coordenação trata. ──
+let AJUSTES={};
+async function carregarAjustes(loja){
+  try{const r=await fetch(`/api/gestao-gerencial/estoque/ajustes?loja=${loja}`);if(!r.ok)return;const j=await r.json();AJUSTES={};for(const a of j.itens||[])AJUSTES[a.cod]=a;}catch(e){}
+  if(document.body.classList.contains('v-giro'))paginaGiro();
+}
+function ajusteChip(cod){
+  const a=AJUSTES[cod];if(!a)return '';
+  const cls=a.status==='pendente'?'bw':a.status==='atualizado'?'bu':'bd';
+  const txt=a.status==='pendente'?`Contagem ${Number(a.contado).toLocaleString('pt-BR')} enviada · aguardando a central`:a.status==='atualizado'?`Atualizado na central: ${Number(a.contado).toLocaleString('pt-BR')}`:`Recusado${a.respostaObs?': '+a.respostaObs:''}`;
+  return `<span class="badge ${cls} aj-chip">${esc(txt)}</span>`;
+}
+function giroAbrir(cod){
+  const g=INICIO&&INICIO.semGiro;if(!g)return;
+  const i=[...(g.itens||[]),...Object.values(g.itensFaixa||{}).flat()].find(x=>x.cod===cod);if(!i)return;
+  const a=AJUSTES[cod];
+  $('aj-t').textContent=i.descricao;$('aj-s').textContent=`${i.cod}${i.grupo?' · '+i.grupo:''} · ${lojaTxt()}`;
+  $('aj-sys').textContent=`${Number(i.est||0).toLocaleString('pt-BR')} ${i.unid||''}`.trim();
+  $('aj-cod').value=cod;$('aj-qtd').value=a&&a.status==='pendente'?a.contado:'';$('aj-obs').value='';
+  $('aj-ant').innerHTML=a?`<div class="aj-ant ${a.status}">${ajusteChip(cod)}<small>${a.status==='pendente'?'Pode corrigir a contagem: o pedido é o mesmo.':a.status==='atualizado'?'Já foi lançado. Mandar de novo abre um pedido novo.':'Mandar de novo abre um pedido novo.'}</small></div>`:'';
+  $('aj-erro').hidden=true;$('aj').classList.add('on');document.body.style.overflow='hidden';setTimeout(()=>$('aj-qtd').focus(),50);
+}
+function ajusteFechar(){$('aj').classList.remove('on');document.body.style.overflow='';}
+async function ajusteEnviar(){
+  const g=INICIO&&INICIO.semGiro,cod=$('aj-cod').value;const i=[...(g.itens||[]),...Object.values(g.itensFaixa||{}).flat()].find(x=>x.cod===cod);if(!i)return;
+  const qtd=String($('aj-qtd').value).trim().replace(',','.');if(qtd===''||isNaN(+qtd)||+qtd<0){$('aj-erro').textContent='Informe a quantidade contada na loja.';$('aj-erro').hidden=false;return;}
+  const b=$('aj-env');b.disabled=true;b.textContent='Enviando…';
+  try{
+    const r=await fetch('/api/gestao-gerencial/estoque/ajustes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({loja:$('sel-loja').value,cod,descricao:i.descricao,unid:i.unid,grupo:i.grupo,estSistema:i.est,contado:+qtd,obs:$('aj-obs').value,origem:'sem-giro'})});
+    const j=await r.json();if(!r.ok)throw new Error(j.error||j.erro||('Erro '+r.status));
+    AJUSTES[cod]=j;ajusteFechar();paginaGiro();
+  }catch(e){$('aj-erro').textContent=e.message;$('aj-erro').hidden=false;}
+  finally{b.disabled=false;b.textContent='Enviar pra atualização';}
+}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')ajusteFechar();});
 
 // Navegação pelo hash: #home (padrão) e as telas. Voltar do navegador volta pro Início.
 function rota(){

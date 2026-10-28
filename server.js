@@ -8835,6 +8835,17 @@ app.post('/api/gestao-gerencial/push/inscrever', (req, res) => { const r = geren
 app.post('/api/gestao-gerencial/push/sair', (req, res) => res.json(gerencialPush.desinscrever(req.session.user, req.body && req.body.endpoint)));
 app.post('/api/gestao-gerencial/push/testar', async (req, res) => { try { res.json(await gerencialPush.testar(req.session.user)); } catch (err) { res.status(500).json({ erro: err.message }); } });
 app.get('/api/gestao-gerencial/push/estado', (req, res) => { if (req.session.user?.perfil !== 'admin') return res.status(403).json({ error: 'Só administrador' }); res.json(gerencialPush.estado()); });
+// Ajustes de Estoque (28/10/2026, Tiago: "o sistema diz 50 e a loja contou 30 — tem que chegar pra mim em Processos pra eu atualizar
+// na central"): o gerente manda a contagem pelo celular (Gestão Gerencial › Sem Giro); a Coordenação trata em Processos › Ajustes de
+// Estoque. lib/ajustes-estoque.js guarda em data/ajustes-estoque/; nada escreve no ERP (o lançamento na central é manual).
+const ajustesEstoque = require('./lib/ajustes-estoque'); ajustesEstoque.init({});
+const ajErro = (res, err) => res.status(err.status || 500).json({ error: err.message });
+app.post('/api/gestao-gerencial/estoque/ajustes', (req, res) => { try { res.json(ajustesEstoque.criar(req.session.user, req.body || {})); } catch (err) { ajErro(res, err); } });
+app.get('/api/gestao-gerencial/estoque/ajustes', (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json(ajustesEstoque.daLoja(req.session.user, req.query.loja, 30)); } catch (err) { ajErro(res, err); } });
+app.get('/api/ajustes-estoque', (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json(ajustesEstoque.listar(req.query)); } catch (err) { ajErro(res, err); } });
+app.get('/api/ajustes-estoque/resumo', (req, res) => { res.set('Cache-Control', 'no-store'); res.json(ajustesEstoque.resumo()); });
+app.get('/api/ajustes-estoque/pendencias', (req, res) => { res.set('Cache-Control', 'no-store'); res.json(ajustesEstoque.pendencias()); });
+app.post('/api/ajustes-estoque/:id/tratar', (req, res) => { try { res.json(ajustesEstoque.tratar(req.session.user, String(req.params.id), req.body || {})); } catch (err) { ajErro(res, err); } });
 // Termos de Escala (23/10/2026, DP / RH › Termos de Escala): termo de ciência de trabalho em domingo/feriado, um por
 // funcionário num PDF só, com histórico e reimpressão. Regras e PDF em lib/termos-escala.js; só lê o PontoCerto.
 require('./lib/termos-escala-rotas')(app, { pontocerto });

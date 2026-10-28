@@ -110,6 +110,8 @@
         { href: '/conta-fornecedor.html', ic: 'shield', txt: 'Conta do Fornecedor' }
       ]},
     { id: 'processos', ic: 'folder', txt: 'Processos', sub: [
+        // Ajustes de Estoque (28/10/26): contagens que as lojas mandam pelo celular (Sem Giro) pra lançar na central; badge = aguardando
+        { href: '/ajustes-estoque.html', ic: 'list', txt: 'Ajustes de Estoque', badge: '/api/ajustes-estoque/pendencias' },
         { href: '/backup.html', ic: 'shield', txt: 'Backup' },
         { href: '/pendencias.html', ic: 'alert', txt: 'Pendências' },
         { href: '/negativos.html', ic: 'alert', txt: 'Negativos' },
