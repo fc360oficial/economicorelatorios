@@ -776,7 +776,7 @@ function renderSep() {
   $('xResTxt').innerHTML = `<b>${ok}</b> de ${ped.length} confirmados${dif ? ` · <span style="color:var(--amk)">${dif} com diferença</span>` : ''}`; $('xUn').textContent = num(v.unidades) + ' un';
   if (selSep && !ped.find(i => i.cod === selSep)) selSep = null;
   const selIt = selSep ? ped.find(i => i.cod === selSep) : null;
-  $('xProg').innerHTML = fis ? 'Aguardando o fiscal do CD' : selIt ? `<b style="color:var(--amk)">Selecionado: ${esc(selIt.descricao)}</b> · bipe o produto pra confirmar` : 'Marque o produto, bipe pra confirmar. Toque na quantidade pra mudar.';
+  $('xProg').innerHTML = fis ? 'Aguardando o fiscal do CD' : selIt ? `<b style="color:var(--amk)">Selecionado: ${esc(selIt.descricao)}</b> · bipe o produto pra confirmar` : 'Bipe o produto: abre a quantidade, OK grava. Ou toque no item pra marcar antes.';
   $('xTir').textContent = v.tirados ? v.tirados + (v.tirados === 1 ? ' retirada registrada pro fiscal' : ' retiradas registradas pro fiscal') : '';
   $('bipExp').placeholder = selIt ? 'Bipe o produto selecionado' : 'Bipe o produto';
   $('xAviso').innerHTML = (v.avisoFiscal ? `<div class="aviso fis"><b>Fiscal do CD devolveu pra separação:</b> ${esc(v.avisoFiscal.obs || 'acerte e mande de novo')} <span style="color:var(--ink3)">· ${esc(v.avisoFiscal.nome || '')}</span></div>` : '')
@@ -855,12 +855,12 @@ function abrirCartaoExp(c) {
   $('xCartao').innerHTML = `<div class="card am">
     <div class="t">${esc(c.descricao)}</div>
     <div class="f2">
-      <div><label for="xQuant">Quant</label><input id="xQuant" type="text" inputmode="decimal" autocomplete="off" value="${esc(c.quant)}"></div>
-      <div><label for="xEmb">Emb</label><input id="xEmb" type="text" inputmode="decimal" autocomplete="off" value="${esc(c.emb)}"></div>
+      <div><label for="xQuant">Quant</label><input id="xQuant" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" value="${esc(c.quant)}"></div>
+      <div><label for="xEmb">Emb</label><input id="xEmb" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" value="${esc(c.emb)}"></div>
     </div>
     <div class="kv" style="font-size:13px"><span>Total</span><b id="xTot">0 un</b></div>
-    <div class="f1"><label for="xLote">Lote (bipe ou digite)</label><input id="xLote" type="text" autocomplete="off" autocapitalize="characters" value="${esc(c.lote || '')}"></div>
-    <div class="tip">Enter em cada campo: Quant → Emb → Lote → grava e volta pro bipe.</div>
+    <div class="f1"><label for="xLote">Lote (opcional · bipe ou digite)</label><input id="xLote" type="text" autocomplete="off" autocapitalize="characters" value="${esc(c.lote || '')}"></div>
+    <div class="tip">Enter em cada campo: Quant → Emb → Lote (pode deixar vazio) → grava e volta pro bipe.</div>
     <div class="row2"><button class="btn btn-secondary" onclick="fecharCartaoExp()">Cancelar</button><button class="btn btn-primary" onclick="gravarCartaoExp()">Gravar</button></div>
   </div>`;
   const q = $('xQuant'), e = $('xEmb'), lt = $('xLote');
@@ -889,9 +889,9 @@ async function acharSep(cod) {
     // caixa (DUN-14) de uma linha em unidade acrescenta as unidades da caixa. Quantidade anotada no toque (qtdSep) vale
     // como total e ganha do bipe (quem digitou já contou).
     if (qtdSep[it.cod] != null) { await confirmarSep(it.cod); return; }
-    const p = (visaoExp.pedido || []).find(i => i.cod === it.cod) || it;
-    const inc = p.emCaixa ? p.emb : (r.bipouCaixa && r.embBip > 1 ? r.embBip : 1);
-    await gravarSep(it.cod, inc, true);
+    // 28/10 (Tiago: "quando bipa ele não tá abrindo pra colocar a quantidade, ele lê 1 só; uma bipagem tem que abrir"):
+    // o bipe abre o cartão de quantidade (caixas + soltas ou unidades) e o OK grava. Item já confirmado: o bipe abre pra mudar.
+    feedback('ok'); qtdSepModal(it.cod, true);
   } catch (e) { erroExp(e, 'Não deu pra achar o produto'); }
 }
 let timerForaSep = null;
@@ -936,29 +936,29 @@ function fmtQSep(un, i) {
   return { n: cx, l: (i.und || 'CX') + (so ? ' + ' + num(so) + ' un' : ''), sub: '= ' + num(un) + ' un', cx, so, box: true };
 }
 const lerNum = id => { const t = String(($(id) || {}).value || '').trim().replace(/\./g, '').replace(',', '.'); return t === '' ? 0 : +t; };
-function qtdSepModal(cod) {
+function qtdSepModal(cod, doBipe) {
   if (!visaoExp || visaoExp.etapa !== 'separacao') return;
   const it = (visaoExp.pedido || []).find(i => i.cod === cod); if (!it) return;
   const atual = it.separado ? it.separado.un : (qtdSep[cod] != null ? qtdSep[cod] : it.un);
   const f = fmtQSep(atual, it), fp = fmtQSep(it.un, it), cx = fp.box;   // caixas + soltas só em linha que conta em caixas
   abrirModal(`<div class="t">${esc(it.descricao)}</div><p style="font-size:12.5px;color:var(--ink2);margin:6px 0 10px">Pedido: <b>${num(fp.n)} ${esc(fp.l)}</b>${cx ? ' c/ ' + num(it.emb) + ' = ' + num(it.un) + ' un' : ''}. Digite o que você separou de verdade.</p>
-    ${cx ? `<div class="f2"><div><label for="qCx">${esc(it.und || 'Caixas')} (c/ ${num(it.emb)})</label><input id="qCx" type="text" inputmode="decimal" autocomplete="off" value="${esc(num(f.cx))}"></div><div><label for="qSo">Unidades soltas</label><input id="qSo" type="text" inputmode="decimal" autocomplete="off" value="${esc(num(f.so))}"></div></div><div class="kv" style="font-size:13px;margin-top:6px"><span>Total</span><b id="qTot">—</b></div>`
-         : `<div class="f1"><label for="qSo">Unidades</label><input id="qSo" type="text" inputmode="decimal" autocomplete="off" value="${esc(num(f.so))}"></div>`}
-    <div class="tip" style="margin-top:6px">${it.separado ? 'Já confirmado: a nova quantidade grava na hora.' : 'Depois é só bipar o produto pra confirmar. Tudo zero = não separou.'}</div>
-    <div class="row2" style="margin-top:10px"><button class="btn btn-secondary" onclick="fecharModal();focarExp()">Cancelar</button><button class="btn btn-primary" onclick="qtdSepOk('${esc(cod)}')">OK</button></div>`);
+    ${cx ? `<div class="f2"><div><label for="qCx">${esc(it.und || 'Caixas')} (c/ ${num(it.emb)})</label><input id="qCx" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" value="${esc(num(f.cx))}"></div><div><label for="qSo">Unidades soltas</label><input id="qSo" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" value="${esc(num(f.so))}"></div></div><div class="kv" style="font-size:13px;margin-top:6px"><span>Total</span><b id="qTot">—</b></div>`
+         : `<div class="f1"><label for="qSo">Unidades</label><input id="qSo" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" value="${esc(num(f.so))}"></div>`}
+    <div class="tip" style="margin-top:6px">${it.separado ? 'Já confirmado: a nova quantidade grava na hora.' : doBipe ? 'OK grava o que você separou. Tudo zero = não separou.' : 'Depois é só bipar o produto pra confirmar. Tudo zero = não separou.'}</div>
+    <div class="row2" style="margin-top:10px"><button class="btn btn-secondary" onclick="fecharModal();focarExp()">Cancelar</button><button class="btn btn-primary" onclick="qtdSepOk('${esc(cod)}',${doBipe ? 'true' : 'false'})">OK</button></div>`);
   setTimeout(() => {
     const a = $('qCx'), b = $('qSo'); const tot = () => { const t = $('qTot'); if (!t) return; const u = (cx ? lerNum('qCx') * it.emb : 0) + lerNum('qSo'); const d = +(u - it.un).toFixed(3); t.innerHTML = num(u) + ' un' + (d === 0 ? ' <span style="color:var(--pos)">· bate</span>' : d < 0 ? ' <span style="color:var(--neg)">· falta ' + num(-d) + '</span>' : ' <span style="color:var(--amk)">· sobra ' + num(d) + '</span>'); };
-    for (const el of [a, b]) if (el) { el.addEventListener('input', tot); el.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.keyCode === 13) { ev.preventDefault(); if (el === a && b) { b.focus(); b.select(); } else qtdSepOk(cod); } }); }
+    for (const el of [a, b]) if (el) { el.addEventListener('input', tot); el.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.keyCode === 13) { ev.preventDefault(); if (el === a && b) { b.focus(); b.select(); } else qtdSepOk(cod, doBipe); } }); }
     tot(); const first = a || b; if (first) { first.focus(); first.select(); }
   }, 50);
 }
-async function qtdSepOk(cod) {
+async function qtdSepOk(cod, doBipe) {
   const it = (visaoExp.pedido || []).find(i => i.cod === cod); if (!it) return;
   const cxN = $('qCx') ? lerNum('qCx') : 0, so = lerNum('qSo');
   if (isNaN(cxN) || isNaN(so) || cxN < 0 || so < 0) { toast('Digite números.', true); return; }
   const un = +(cxN * it.emb + so).toFixed(3);
   fecharModal();
-  if (it.separado) { await gravarSep(cod, un); return; }   // já confirmado: regrava
+  if (it.separado || doBipe) { await gravarSep(cod, un); return; }   // já confirmado: regrava · veio do bipe (28/10): grava direto
   qtdSep[cod] = un; selSep = cod; renderSep(); const f = fmtQSep(un, it); toast('Anotado: ' + num(f.n) + ' ' + f.l + '. Agora bipe o produto pra confirmar.'); focarExp();
 }
 async function confirmarSep(cod) {
@@ -992,7 +992,7 @@ async function gravarCartaoExp() {
   const emb = +String(($('xEmb') || {}).value || '').replace(',', '.') || +c.emb || 1;
   const lote = String((($('xLote') || {}).value || '')).trim().toUpperCase();
   if (!quant) { toast('Digite a quantidade.', true); $('xQuant').focus(); return; }
-  if (!lote) { toast('Bipe ou digite o lote da caixa.', true); $('xLote').focus(); return; }
+  // lote opcional desde 28/10 (Tiago): sem lote grava do mesmo jeito
   fecharCartaoExp();
   try {
     const r = await postExp('bipar', { id: visaoExp.id, cod: c.cod, quant, emb, lote, bipeId: novoBipeId() });
@@ -1011,7 +1011,7 @@ function tirarItem(cod, fora) {
   const it = (fora ? visaoExp.fora : visaoExp.itens).find(i => i.cod === cod); if (!it) return;
   const lotes = it.lotes || [];
   abrirModal(`<div class="t">${esc(it.descricao)}</div>
-    <div class="f2"><div><label for="tQuant">Quantas (${esc(fora ? 'tudo = ' + num(it.quant) : 'bipadas: ' + num(it.quant))})</label><input id="tQuant" type="text" inputmode="decimal" autocomplete="off" value="${fora ? esc(num(it.quant)) : ''}"></div>
+    <div class="f2"><div><label for="tQuant">Quantas (${esc(fora ? 'tudo = ' + num(it.quant) : 'bipadas: ' + num(it.quant))})</label><input id="tQuant" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" value="${fora ? esc(num(it.quant)) : ''}"></div>
     <div><label for="tLote">Lote</label><select id="tLote"><option value="">todos</option>${lotes.map(l => `<option value="${esc(l.lote)}">${esc(l.lote)} (${num(l.quant)})</option>`).join('')}</select></div></div>
     <div class="f1"><label for="tMotivo">Motivo (opcional)</label><input id="tMotivo" type="text" autocomplete="off" placeholder="sobrou, caixa errada…"></div>
     <div class="row2"><button class="btn btn-secondary" onclick="fecharModal();focarExp()">Cancelar</button><button class="btn btn-primary" onclick="confirmarTirar('${esc(cod)}')">Tirar</button></div>`);
@@ -1227,8 +1227,8 @@ function abrirCartao(c) {
   $('cartao').innerHTML = `<div class="card am">
     <div class="t">${esc(c.descricao)}</div>
     <div class="f2">
-      <div><label for="cQuant">Quant</label><input id="cQuant" type="text" inputmode="decimal" autocomplete="off" value="${esc(c.quant)}"></div>
-      <div><label for="cEmb">Emb</label><input id="cEmb" type="text" inputmode="decimal" autocomplete="off" value="${esc(c.emb)}"></div>
+      <div><label for="cQuant">Quant</label><input id="cQuant" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" value="${esc(c.quant)}"></div>
+      <div><label for="cEmb">Emb</label><input id="cEmb" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" value="${esc(c.emb)}"></div>
     </div>
     <div class="kv" style="font-size:13px"><span>Total</span><b id="cTot">0 un</b></div>
     <div class="tip" style="color:var(--ink2)">Tanto faz digitar 10 × 24 ou 240 × 1.</div>
