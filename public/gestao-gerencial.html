@@ -258,6 +258,8 @@ body.gate #gate{display:flex}
 .aj-sn{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .aj-sn button{border:1.5px solid var(--border-md);background:var(--card);border-radius:12px;padding:12px;font:800 15px var(--font);color:var(--text2);cursor:pointer}
 .aj-sn button.on{background:var(--text);color:#fff;border-color:var(--text)}.aj-sn button[data-v=nao].on{background:var(--red);border-color:var(--red)}
+#aj-reb,#aj-reb-p{display:flex;flex-direction:column;gap:10px}#aj-reb[hidden],#aj-reb-p[hidden]{display:none}
+.aj-ctx{font-size:11.5px;color:var(--text3);line-height:1.4}.aj-ctx b{color:var(--text)}.aj-ctx .ab{color:var(--red);font-weight:700}
 @media(min-width:769px){.aj-fundo{align-items:center;padding:20px}.aj{border-radius:18px}}
 /* ─── LOADING ─── */
 .loading{padding:40px;text-align:center;color:var(--text3);display:flex;flex-direction:column;align-items:center;gap:10px;font-size:12px}
@@ -318,6 +320,16 @@ body.gate #gate{display:flex}
     <textarea class="aj-in" id="aj-obs" rows="2" placeholder="ex.: contado no depósito e na gôndola"></textarea>
     <div class="aj-l">Deseja manter esse produto na sua loja?</div>
     <div class="aj-sn" id="aj-manter"><button type="button" data-v="sim" onclick="ajusteManter('sim')">Sim</button><button type="button" data-v="nao" onclick="ajusteManter('nao')">Não</button></div>
+    <!-- 28/10: só aparece se ele quer manter o produto; quem decide a rebaixa é a retaguarda em Processos › Ajustes de Estoque -->
+    <div id="aj-reb" hidden>
+      <div class="aj-l">Solicitar rebaixa de preço?</div>
+      <div class="aj-sn" id="aj-rebaixa"><button type="button" data-v="sim" onclick="ajusteRebaixa('sim')">Sim</button><button type="button" data-v="nao" onclick="ajusteRebaixa('nao')">Não</button></div>
+      <div id="aj-reb-p" hidden>
+        <label class="aj-l" for="aj-preco">Preço sugerido (opcional)</label>
+        <input class="aj-in" id="aj-preco" type="number" inputmode="decimal" min="0" step="0.01" placeholder="ex.: 9,90">
+        <div class="aj-ctx" id="aj-ctx"></div>
+      </div>
+    </div>
     <div class="gate-erro" id="aj-erro" hidden></div>
     <button class="gate-btn" id="aj-env" type="button" onclick="ajusteEnviar()">Enviar pra atualização</button>
     <div class="gate-nota">O pedido vai pra Coordenação em Processos › Ajustes de Estoque. Quando for lançado na central, aparece aqui como atualizado.</div>
@@ -969,7 +981,9 @@ function ajusteChip(cod){
   const a=AJUSTES[cod];if(!a)return '';
   const cls=a.status==='pendente'?'bw':a.status==='atualizado'?'bu':'bd';
   const txt=a.status==='pendente'?`Contagem ${Number(a.contado).toLocaleString('pt-BR')} enviada · aguardando a central`:a.status==='atualizado'?`Atualizado na central: ${Number(a.contado).toLocaleString('pt-BR')}`:`Recusado${a.respostaObs?': '+a.respostaObs:''}`;
-  return `<span class="badge ${cls} aj-chip">${esc(txt)}</span>`;
+  // 28/10: situação da rebaixa pedida (decisão da retaguarda), chip separado do estoque
+  const reb=a.rebaixaStatus==='pendente'?`<span class="badge bw aj-chip">Rebaixa pedida${a.precoSugerido>0?' · sugeriu '+R(a.precoSugerido):''} · aguardando</span>`:a.rebaixaStatus==='aceita'?`<span class="badge bu aj-chip">Rebaixa aceita: ${R(a.rebaixaPreco)}</span>`:a.rebaixaStatus==='recusada'?`<span class="badge bd aj-chip">Rebaixa recusada${a.rebaixaObs?': '+esc(a.rebaixaObs):''}</span>`:'';
+  return `<span class="badge ${cls} aj-chip">${esc(txt)}</span>${reb}`;
 }
 function giroAbrir(cod){
   const g=INICIO&&INICIO.semGiro;if(!g)return;
@@ -978,22 +992,30 @@ function giroAbrir(cod){
   $('aj-t').textContent=i.descricao;$('aj-s').textContent=`${i.cod}${i.grupo?' · '+i.grupo:''} · ${lojaTxt()}`;
   $('aj-sys').textContent=`${Number(i.est||0).toLocaleString('pt-BR')} ${i.unid||''}`.trim();
   $('aj-cod').value=cod;$('aj-qtd').value=a&&a.status==='pendente'?a.contado:'';$('aj-obs').value='';
-  ajusteManter(a&&a.status==='pendente'&&a.manter!=null?(a.manter?'sim':'nao'):null);
+  const pend=a&&a.status==='pendente';
+  $('aj-ctx').innerHTML=`Preço atual <b>${i.preco>0?R(i.preco):'—'}</b>${i.custo>0?` · custo <b>${R(i.custo)}</b>`:''}${i.abaixoCusto?' · <span class="ab">já está abaixo do custo</span>':''}. A retaguarda decide o preço novo em Processos › Ajustes de Estoque.`;
+  ajusteManter(pend&&a.manter!=null?(a.manter?'sim':'nao'):null);
+  if(pend&&a.manter&&a.rebaixa!=null){ajusteRebaixa(a.rebaixa?'sim':'nao');if(a.rebaixa&&a.precoSugerido>0)$('aj-preco').value=a.precoSugerido;}
   $('aj-ant').innerHTML=a?`<div class="aj-ant ${a.status}">${ajusteChip(cod)}<small>${a.status==='pendente'?'Pode corrigir a contagem: o pedido é o mesmo.':a.status==='atualizado'?'Já foi lançado. Mandar de novo abre um pedido novo.':'Mandar de novo abre um pedido novo.'}</small></div>`:'';
   $('aj-erro').hidden=true;$('aj').classList.add('on');document.body.style.overflow='hidden';setTimeout(()=>$('aj-qtd').focus(),50);
 }
 function ajusteFechar(){$('aj').classList.remove('on');document.body.style.overflow='';}
-let AJ_MANTER=null;   // 'sim' | 'nao' | null (não respondeu)
-function ajusteManter(v){AJ_MANTER=v;for(const b of $('aj-manter').querySelectorAll('button'))b.classList.toggle('on',b.dataset.v===v);$('aj-erro').hidden=true;}
+let AJ_MANTER=null,AJ_REBAIXA=null;   // 'sim' | 'nao' | null (não respondeu)
+function ajusteManter(v){AJ_MANTER=v;for(const b of $('aj-manter').querySelectorAll('button'))b.classList.toggle('on',b.dataset.v===v);$('aj-erro').hidden=true;
+  // 28/10: a pergunta da rebaixa só existe se ele quer manter o produto
+  $('aj-reb').hidden=v!=='sim';if(v!=='sim')ajusteRebaixa(null);}
+function ajusteRebaixa(v){AJ_REBAIXA=v;for(const b of $('aj-rebaixa').querySelectorAll('button'))b.classList.toggle('on',b.dataset.v===v);$('aj-reb-p').hidden=v!=='sim';if(v!=='sim')$('aj-preco').value='';$('aj-erro').hidden=true;}
 async function ajusteEnviar(){
   const g=INICIO&&INICIO.semGiro,cod=$('aj-cod').value;const i=[...(g.itens||[]),...Object.values(g.itensFaixa||{}).flat()].find(x=>x.cod===cod);if(!i)return;
   const qtd=String($('aj-qtd').value).trim().replace(',','.');if(qtd===''||isNaN(+qtd)||+qtd<0){$('aj-erro').textContent='Informe a quantidade contada na loja.';$('aj-erro').hidden=false;return;}
   // 28/10 (Tiago): observação obrigatória + "Deseja manter esse produto na sua loja?" sim/não, os dois vão pra retaguarda
   if(!$('aj-obs').value.trim()){$('aj-erro').textContent='Escreva a observação.';$('aj-erro').hidden=false;$('aj-obs').focus();return;}
   if(!AJ_MANTER){$('aj-erro').textContent='Responda se deseja manter esse produto na sua loja (Sim ou Não).';$('aj-erro').hidden=false;return;}
+  if(AJ_MANTER==='sim'&&!AJ_REBAIXA){$('aj-erro').textContent='Responda se quer solicitar rebaixa de preço (Sim ou Não).';$('aj-erro').hidden=false;return;}
+  const ps=String($('aj-preco').value).trim().replace(',','.');if(AJ_REBAIXA==='sim'&&ps!==''&&(isNaN(+ps)||+ps<=0)){$('aj-erro').textContent='Preço sugerido inválido (deixe em branco se não quiser sugerir).';$('aj-erro').hidden=false;return;}
   const b=$('aj-env');b.disabled=true;b.textContent='Enviando…';
   try{
-    const r=await fetch('/api/gestao-gerencial/estoque/ajustes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({loja:$('sel-loja').value,cod,descricao:i.descricao,unid:i.unid,grupo:i.grupo,estSistema:i.est,contado:+qtd,obs:$('aj-obs').value,manter:AJ_MANTER,origem:'sem-giro'})});
+    const r=await fetch('/api/gestao-gerencial/estoque/ajustes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({loja:$('sel-loja').value,cod,descricao:i.descricao,unid:i.unid,grupo:i.grupo,estSistema:i.est,contado:+qtd,obs:$('aj-obs').value,manter:AJ_MANTER,rebaixa:AJ_MANTER==='sim'?AJ_REBAIXA:null,precoSugerido:AJ_REBAIXA==='sim'&&ps!==''?+ps:null,precoAtual:i.preco,custo:i.custo,origem:'sem-giro'})});
     const j=await r.json();if(!r.ok)throw new Error(j.error||j.erro||('Erro '+r.status));
     AJUSTES[cod]=j;ajusteFechar();paginaGiro();
   }catch(e){$('aj-erro').textContent=e.message;$('aj-erro').hidden=false;}

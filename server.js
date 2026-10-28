@@ -9015,6 +9015,8 @@ app.get('/api/ajustes-estoque', (req, res) => { res.set('Cache-Control', 'no-sto
 app.get('/api/ajustes-estoque/resumo', (req, res) => { res.set('Cache-Control', 'no-store'); res.json(ajustesEstoque.resumo()); });
 app.get('/api/ajustes-estoque/pendencias', (req, res) => { res.set('Cache-Control', 'no-store'); res.json(ajustesEstoque.pendencias()); });
 app.post('/api/ajustes-estoque/:id/tratar', (req, res) => { try { res.json(ajustesEstoque.tratar(req.session.user, String(req.params.id), req.body || {})); } catch (err) { ajErro(res, err); } });
+// 28/10: decisão da rebaixa de preço pedida pelo gerente (aceita com preço novo / recusada com motivo / reabrir) — retaguarda na tela de Ajustes
+app.post('/api/ajustes-estoque/:id/rebaixa', (req, res) => { try { res.json(ajustesEstoque.tratarRebaixa(req.session.user, String(req.params.id), req.body || {})); } catch (err) { ajErro(res, err); } });
 // Termos de Escala (23/10/2026, DP / RH › Termos de Escala): termo de ciência de trabalho em domingo/feriado, um por
 // funcionário num PDF só, com histórico e reimpressão. Regras e PDF em lib/termos-escala.js; só lê o PontoCerto.
 require('./lib/termos-escala-rotas')(app, { pontocerto });

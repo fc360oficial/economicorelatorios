@@ -29,10 +29,11 @@ header{background:var(--card);border-bottom:1px solid var(--border);box-shadow:0
 .f-btn{background:var(--brand);color:var(--brand-ink);border:none;border-radius:7px;font-size:11px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;padding:7px 14px;cursor:pointer}
 .f-info{margin-left:auto;font-size:10px;color:var(--text3)}
 main{flex:1;padding:18px 24px;display:flex;flex-direction:column;gap:16px}
-.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.kpi-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
 .kpi{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:16px 18px 14px;position:relative;overflow:hidden}
 .kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--brand)}
-.kpi.k-red::before{background:var(--red)}.kpi.k-green::before{background:var(--green)}.kpi.k-blue::before{background:var(--blue)}
+.kpi.k-red::before{background:var(--red)}.kpi.k-green::before{background:var(--green)}.kpi.k-blue::before{background:var(--blue)}.kpi.k-amber::before{background:var(--amber)}
+@media(max-width:1399px){.kpi-grid{grid-template-columns:repeat(3,1fr)}}
 .kl{font-size:9px;font-weight:700;color:var(--text3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px}
 .kv{font-size:21px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.5px}
 .ks{margin-top:7px;font-size:10px;color:var(--text3)}
@@ -51,7 +52,7 @@ td .obs{display:block;font-size:11px;color:var(--text2);white-space:normal;max-w
 .num{font-weight:800;color:var(--text);font-size:14px}.dif-neg{color:var(--red)}.dif-pos{color:var(--green)}.dif-zero{color:var(--text3)}
 .badge{font-size:9.5px;font-weight:800;padding:3px 8px;border-radius:10px;white-space:nowrap;text-transform:uppercase;letter-spacing:.4px}
 .b-pend{background:var(--amber-bg);color:var(--amber)}.b-ok{background:var(--green-bg);color:var(--green)}.b-rec{background:var(--red-bg);color:var(--red)}.b-loja{background:var(--blue-bg);color:var(--blue)}
-.acoes{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
+.acoes{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}.acoes.reb{margin-top:6px;padding-top:6px;border-top:1px dashed var(--border)}
 .btn{border:1px solid var(--border-md);background:var(--card);border-radius:8px;padding:6px 11px;font:700 11.5px var(--font);cursor:pointer;color:var(--text2);white-space:nowrap}
 .btn.ok{background:var(--green);border-color:var(--green);color:#fff}.btn.rec{color:var(--red)}.btn:disabled{opacity:.5;cursor:wait}
 .vazio{padding:36px;text-align:center;color:var(--text3);font-size:13px}
@@ -96,6 +97,7 @@ const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const N=v=>v==null?'—':Number(v).toLocaleString('pt-BR',{maximumFractionDigits:3});
 const DT=s=>s?new Date(s).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';
+const R=v=>'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 const ETQ=l=>'E'+l;
 async function carregar(){
   const st=$('f-status').value,loja=$('f-loja').value,dias=$('f-dias').value;
@@ -111,6 +113,7 @@ async function carregar(){
 function renderKpis(s){
   const lojas=Object.entries(s.porLoja||{}).sort((a,b)=>b[1]-a[1]).map(([l,n])=>`<span class="badge b-loja">${ETQ(l)} · ${n}</span>`).join(' ')||'—';
   $('kpis').innerHTML=`<div class="kpi k-red"><div class="kl">Aguardando a central</div><div class="kv" style="color:var(--red)">${s.pendentes}</div><div class="ks">pedidos pra lançar</div></div>
+  <div class="kpi k-amber"><div class="kl">Rebaixas a decidir</div><div class="kv" style="color:var(--amber)">${s.rebaixas||0}</div><div class="ks">pedidas pelos gerentes</div></div>
   <div class="kpi k-blue"><div class="kl">Enviados hoje</div><div class="kv">${s.hoje}</div><div class="ks">pelas lojas</div></div>
   <div class="kpi"><div class="kl">Pendentes por loja</div><div class="kv" style="font-size:13px;line-height:1.6">${lojas}</div></div>
   <div class="kpi k-green"><div class="kl">Origem</div><div class="kv" style="font-size:14px">Sem Giro · celular</div><div class="ks">Gestão Gerencial do gerente</div></div>`;
@@ -122,13 +125,18 @@ function renderTabela(itens){
     const sb=r.status==='pendente'?'b-pend':r.status==='atualizado'?'b-ok':'b-rec';
     const trat=r.status!=='pendente'?`<span class="obs">${esc(r.statusTxt)} por ${esc(r.tratadoPor||'—')} em ${DT(r.tratadoEm)}${r.respostaObs?' · '+esc(r.respostaObs):''}</span>`:'';
     const hist=(r.historico||[]).length?`<span class="obs">Antes: ${r.historico.map(h=>N(h.contado)+' ('+DT(h.em)+')').join(', ')}</span>`:'';
-    const ac=r.status==='pendente'?`<div class="acoes"><button class="btn ok" onclick="tratar('${r.id}','atualizado',this)">✓ Atualizei na central</button><button class="btn rec" onclick="recusar('${r.id}',this)">Recusar</button></div>`
-      :`<div class="acoes"><button class="btn" onclick="tratar('${r.id}','pendente',this)">Reabrir</button></div>`;
+    const ac=(r.status==='pendente'?`<div class="acoes"><button class="btn ok" onclick="tratar('${r.id}','atualizado',this)">✓ Atualizei na central</button><button class="btn rec" onclick="recusar('${r.id}',this)">Recusar</button></div>`
+      :`<div class="acoes"><button class="btn" onclick="tratar('${r.id}','pendente',this)">Reabrir</button></div>`)
+      // 28/10: decisão da rebaixa de preço pedida pelo gerente, separada da decisão do estoque
+      +(r.rebaixaStatus==='pendente'?`<div class="acoes reb"><button class="btn ok" onclick="rebaixaAceitar('${r.id}',${r.precoSugerido>0?r.precoSugerido:'null'},this)">✓ Rebaixa aceita</button><button class="btn rec" onclick="rebaixaRecusar('${r.id}',this)">Recusar rebaixa</button></div>`
+      :r.rebaixaStatus?`<div class="acoes reb"><button class="btn" onclick="rebaixa('${r.id}','pendente',this)">Reabrir rebaixa</button></div>`:'');
+    const rebInfo=r.rebaixa?`<span class="obs"><span class="badge b-pend">Pediu rebaixa de preço</span>${r.precoSugerido>0?' sugeriu <b>'+R(r.precoSugerido)+'</b>':''}${r.precoAtual>0?' · preço atual '+R(r.precoAtual):''}${r.custo>0?' · custo '+R(r.custo):''}</span>`:'';
+    const rebSit=r.rebaixaStatus?`<span class="obs"><span class="badge ${r.rebaixaStatus==='aceita'?'b-ok':r.rebaixaStatus==='recusada'?'b-rec':'b-pend'}">${esc(r.rebaixaTxt)}${r.rebaixaStatus==='aceita'&&r.rebaixaPreco>0?' · '+R(r.rebaixaPreco):''}</span>${r.rebaixaPor?' por '+esc(r.rebaixaPor)+' em '+DT(r.rebaixaEm):''}${r.rebaixaObs?' · '+esc(r.rebaixaObs):''}</span>`:'';
     return `<tr><td>${DT(r.criadoEm)}${r.atualizadoEm?`<span class="obs">recontado ${DT(r.atualizadoEm)}</span>`:''}</td><td class="l"><span class="badge b-loja">${esc(r.lojaTxt||ETQ(r.loja))}</span></td>
       <td class="prod l"><b>${esc(r.descricao||'(sem descrição)')}</b><span>${esc(r.cod)}${r.grupo?' · '+esc(r.grupo):''}${r.unid?' · '+esc(r.unid):''}</span></td>
       <td><span class="num">${N(r.estSistema)}</span></td><td><span class="num">${N(r.contado)}</span></td><td class="${dc}"><span class="num ${dc}">${d==null?'—':(d>0?'+':'')+N(d)}</span></td>
-      <td class="l">${esc(r.nome||r.usuario)}${r.manter!=null?`<span class="obs"><span class="badge ${r.manter?'b-ok':'b-rec'}">${r.manter?'Manter na loja: SIM':'Manter na loja: NÃO'}</span></span>`:''}${r.obs?`<span class="obs">${esc(r.obs)}</span>`:''}${hist}${trat}</td>
-      <td><span class="badge ${sb}">${esc(r.statusTxt)}</span></td><td>${ac}</td></tr>`;
+      <td class="l">${esc(r.nome||r.usuario)}${r.manter!=null?`<span class="obs"><span class="badge ${r.manter?'b-ok':'b-rec'}">${r.manter?'Manter na loja: SIM':'Manter na loja: NÃO'}</span></span>`:''}${r.obs?`<span class="obs">${esc(r.obs)}</span>`:''}${rebInfo}${hist}${trat}</td>
+      <td><span class="badge ${sb}">${esc(r.statusTxt)}</span>${rebSit}</td><td>${ac}</td></tr>`;
   }).join('');
 }
 async function tratar(id,status,btn,obs){
@@ -138,6 +146,15 @@ async function tratar(id,status,btn,obs){
   catch(e){alert('Não deu: '+e.message);if(btn)btn.disabled=false;}
 }
 function recusar(id,btn){const m=prompt('Motivo da recusa (o gerente vai ver no celular):');if(m==null)return;if(!m.trim()){alert('Diga o motivo.');return;}tratar(id,'recusado',btn,m.trim());}
+// 28/10: rebaixa de preço pedida pelo gerente — decisão da retaguarda aqui mesmo (aceita com o preço novo / recusada com motivo / reabrir)
+async function rebaixa(id,status,btn,preco,obs){
+  if(btn)btn.disabled=true;
+  try{const r=await fetch(`/api/ajustes-estoque/${id}/rebaixa`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({status,preco:preco||null,obs:obs||''})});
+    const j=await r.json();if(!r.ok)throw new Error(j.error||j.erro||r.status);carregar();}
+  catch(e){alert('Não deu: '+e.message);if(btn)btn.disabled=false;}
+}
+function rebaixaAceitar(id,sugerido,btn){const p=prompt('Preço novo da rebaixa (R$). O gerente vai ver no celular; a carga de preço continua pela precificação.',sugerido>0?String(sugerido).replace('.',','):'');if(p==null)return;const v=+String(p).trim().replace(',','.');if(!(v>0)){alert('Informe o preço novo.');return;}rebaixa(id,'aceita',btn,v);}
+function rebaixaRecusar(id,btn){const m=prompt('Motivo da recusa da rebaixa (o gerente vai ver no celular):');if(m==null)return;if(!m.trim()){alert('Diga o motivo.');return;}rebaixa(id,'recusada',btn,null,m.trim());}
 ['f-status','f-loja','f-dias'].forEach(id=>$(id).addEventListener('change',carregar));
 carregar();
 </script>
