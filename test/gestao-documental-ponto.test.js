@@ -26,7 +26,7 @@ function jornadaFake(id, de, ate) {
   }
   return Promise.resolve({ colaborador: { id }, de, ate, dias: dias.reverse() });
 }
-const deps = { colaboradores: async () => COLABS, jornadaPeriodo: jornadaFake };
+const deps = { colaboradores: async () => COLABS, jornadaPeriodo: jornadaFake, cpfDe: async id => id === 1045 ? '12345678909' : '', empregadorDe: async id => id === 1045 ? { nome: 'ATACAREJO', razao: 'ATACAREJO COMERCIO DE ALIMENTOS LTDA', cnpj: '12345678000190' } : null };
 const erroStatus = st => e => e.status === st;
 
 test('1 · competência e permissões', () => {
