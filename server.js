@@ -8568,6 +8568,10 @@ espelhoErp.init({
     return j;
   },
 });
+// Espelho das COMPRAS (28/10/26, item 1 do "o que falta"): central.compras + compraprodutos copiadas por faixa de nReg
+// pro Postgres (lib/espelho-compras.js); carga inicial retomável no horário comercial, sync a cada 15 min.
+const espelhoCompras = require('./lib/espelho-compras');
+espelhoCompras.init({ q, espelho: espelhoErp, registrar: espelhoErp.registrarCopia });
 // Leituras do espelho compartilhadas pelas rotas migradas em 28/10/26 (top produtos, consulta, fornecedores, listas,
 // sugestão, prevenção, giro). Declaradas como function pra valer em todo o arquivo (hoisting); só rodam na requisição,
 // quando `espelhoErp` já existe. Todas devolvem null quando o espelho está fora ou não cobre o período, e aí a rota
@@ -8597,14 +8601,17 @@ async function espelhoVendaLoja(loja, dIni, dFim, rota) {
 }
 app.get('/api/espelho/status', async (req, res) => {
   res.set('Cache-Control', 'no-store');
-  try { res.json({ ...(await espelhoErp.status()), filaErp: qEstado() }); } catch (err) { res.status(500).json({ error: err.message }); }
+  try { res.json({ ...(await espelhoErp.status()), compras: await espelhoCompras.status().catch(e => ({ erro: e.message })), filaErp: qEstado() }); } catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.get('/api/espelho/saude-erp', async (req, res) => {
   res.set('Cache-Control', 'no-store');
   try { res.json({ ...(await espelhoErp.saudeErp()), filaNossa: qEstado() }); } catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.post('/api/espelho/acao', async (req, res) => {
-  try { res.json(await espelhoErp.acao(String((req.body || {}).acao || ''))); } catch (err) { res.status(400).json({ error: err.message }); }
+  try {
+    const nome = String((req.body || {}).acao || '');
+    res.json(nome.startsWith('compras-') ? await espelhoCompras.acao(nome) : await espelhoErp.acao(nome));
+  } catch (err) { res.status(400).json({ error: err.message }); }
 });
 app.post('/api/espelho/config', async (req, res) => {
   try { res.json(await espelhoErp.salvarConfig(req.body || {})); } catch (err) { res.status(400).json({ error: err.message }); }

@@ -101,6 +101,14 @@ label.ck{display:flex;align-items:center;gap:6px;font-size:12px}
       <table><thead><tr><th>Máquina</th><th class="r">s</th><th>Estado</th><th>SQL</th></tr></thead><tbody id="erp-longas"></tbody></table>
     </div>
 
+    <div class="card c12">
+      <h2>Compras (notas e itens) <span id="cp-pill" class="pill">…</span></h2>
+      <p class="d">central.compras e compraprodutos copiadas por faixa de chave primária. Carga inicial no horário comercial, depois notas e itens dos últimos 7 dias a cada 15 min e os últimos 60 dias às 07:50 e 13:00. <span id="cp-info" class="mut"></span></p>
+      <table><thead><tr><th>Tabela</th><th style="width:35%">Carga inicial</th><th class="r">Linhas no banco</th><th>Período</th></tr></thead><tbody id="cp-tb"></tbody></table>
+      <div class="btns"><button class="btn pri" id="b-cp-carga">Rodar carga agora</button><button class="btn" id="b-cp-pausar">Pausar carga</button><button class="btn" id="b-cp-sync">Sincronizar 7 dias</button><button class="btn" id="b-cp-rec">Recopiar 60 dias</button></div>
+      <div class="msg" id="msg-cp"></div>
+    </div>
+
     <div class="card c8">
       <h2>Últimas cópias</h2>
       <p class="d">Cada linha é uma consulta de um dia de uma loja no ERP e a gravação no nosso banco.</p>
@@ -172,6 +180,15 @@ async function carregar() {
     $('bk-pill').style.display = s.emBackup ? '' : 'none'; $('bk-pill').className = 'pill warn';
     const m = s.madrugada; $('mad-info').textContent = m.ultimaEm ? `última recópia às ${hora(m.ultimaEm)}` + (m.ultimoErro ? ' · erro: ' + m.ultimoErro : ' · ok') : 'ainda não rodou (07:40)';
     if (s.filaErp) { $('e-fila').textContent = `${s.filaErp.ativas} + ${s.filaErp.naFila} esperando`; $('e-max').textContent = s.filaErp.max; }
+    // compras
+    const cp = s.compras || {}; const cpb = cp.banco || {}; const cg = cp.carga || { notas: {}, itens: {} };
+    const completa = cg.notas.completa && cg.itens.completa;
+    $('cp-pill').textContent = cp.erro ? 'erro' : cg.rodando ? 'carregando…' : completa ? (cp.sync && cp.sync.ultimoErro ? 'sync com erro' : 'ok') : cg.pausada ? 'carga pausada' : 'carga pendente';
+    $('cp-pill').className = 'pill ' + (cp.erro || (cp.sync && cp.sync.ultimoErro) ? 'bad' : completa || cg.rodando ? 'ok' : 'warn');
+    $('cp-info').textContent = (cp.sync && cp.sync.ultimaEm ? `última sincronização às ${hora(cp.sync.ultimaEm)} (${fmtN(cp.sync.notas)} notas, ${fmtN(cp.sync.itens)} itens, ${fmtN(cp.sync.ms)} ms)` : 'ainda sem sincronização') + (cg.ultimoErro ? ' · erro: ' + cg.ultimoErro : '') + (cp.sync && cp.sync.ultimoErro ? ' · erro sync: ' + cp.sync.ultimoErro : '');
+    $('cp-tb').innerHTML = [['Notas (central.compras)', cg.notas, cg.pctNotas, cpb.notas, ''], ['Itens (compraprodutos)', cg.itens, cg.pctItens, cpb.itens, cpb.primeira ? `${dataBr(cpb.primeira)} a ${dataBr(cpb.ultima)}` : '']].map(([n, c, pc, linhas, per]) =>
+      `<tr><td>${n}</td><td><div class="bar"><i style="width:${pc || 0}%"></i></div></td><td class="r num">${fmtN(linhas)}${c.completa ? ' <span class="pill ok">completa</span>' : c.max ? ` <span class="mut">(${pc}% · nReg ${fmtN(c.ate)} de ${fmtN(c.max)})</span>` : ''}</td><td class="mut">${per || (cpb.tamanho && n.startsWith('Itens') ? cpb.tamanho : '')}</td></tr>`).join('');
+    $('b-cp-carga').disabled = !!cg.rodando || completa; $('b-cp-pausar').disabled = !cg.rodando; $('b-cp-sync').disabled = !completa; $('b-cp-rec').disabled = !completa;
     const cd = s.cadastro || {}; const cb = cd.banco || {};
     $('cad-info').textContent = cd.rodando ? 'copiando…' : (cb.itens ? `${fmtN(cb.itens)} itens (${fmtN(cb.ativos)} ativos), ${fmtN(cb.nomes)} nomes vistos no cupom, atualizado ${cb.em ? hora(cb.em) : '—'}` : 'ainda não copiado') + (cd.ultimoErro ? ' · erro: ' + cd.ultimoErro : '');
   } catch (e) { $('hdr-st').innerHTML = '<span class="pill bad">' + esc(e.message) + '</span>'; }
@@ -201,6 +218,10 @@ let cfgTocada = false;
 $('b-hoje').addEventListener('click', () => acao('hoje', $('msg-hoje')));
 $('b-reconf').addEventListener('click', () => acao('reconferir', $('msg-hoje')));
 $('b-cad').addEventListener('click', () => acao('cadastro', $('msg-cad')));
+$('b-cp-carga').addEventListener('click', () => acao('compras-carga', $('msg-cp')));
+$('b-cp-pausar').addEventListener('click', () => acao('compras-pausar', $('msg-cp')));
+$('b-cp-sync').addEventListener('click', () => acao('compras-sync', $('msg-cp')));
+$('b-cp-rec').addEventListener('click', () => acao('compras-recopiar', $('msg-cp')));
 $('b-hist').addEventListener('click', () => acao('historico', $('msg-hist')));
 $('b-pausar').addEventListener('click', () => acao('pausar', $('msg-hist')));
 $('b-retomar').addEventListener('click', () => acao('retomar', $('msg-hist')));
