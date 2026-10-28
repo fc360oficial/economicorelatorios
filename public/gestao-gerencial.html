@@ -254,6 +254,10 @@ body.gate #gate{display:flex}
 .aj-l{font-size:11px;font-weight:700;color:var(--text2);margin-top:4px}
 .aj-in{width:100%;border:1.5px solid var(--border-md);border-radius:12px;padding:12px 14px;font:700 18px var(--font);color:var(--text);background:var(--card);outline:none}
 .aj-in:focus{border-color:var(--brand)}textarea.aj-in{font-size:13px;font-weight:500;resize:vertical;min-height:52px}
+/* pergunta Sim / Não "Deseja manter esse produto na sua loja?" (28/10) */
+.aj-sn{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.aj-sn button{border:1.5px solid var(--border-md);background:var(--card);border-radius:12px;padding:12px;font:800 15px var(--font);color:var(--text2);cursor:pointer}
+.aj-sn button.on{background:var(--text);color:#fff;border-color:var(--text)}.aj-sn button[data-v=nao].on{background:var(--red);border-color:var(--red)}
 @media(min-width:769px){.aj-fundo{align-items:center;padding:20px}.aj{border-radius:18px}}
 /* ─── LOADING ─── */
 .loading{padding:40px;text-align:center;color:var(--text3);display:flex;flex-direction:column;align-items:center;gap:10px;font-size:12px}
@@ -310,8 +314,10 @@ body.gate #gate{display:flex}
     <input type="hidden" id="aj-cod">
     <label class="aj-l" for="aj-qtd">Quantidade contada na loja</label>
     <input class="aj-in" id="aj-qtd" type="number" inputmode="decimal" min="0" step="any" placeholder="ex.: 30">
-    <label class="aj-l" for="aj-obs">Observação (opcional)</label>
+    <label class="aj-l" for="aj-obs">Observação (obrigatória)</label>
     <textarea class="aj-in" id="aj-obs" rows="2" placeholder="ex.: contado no depósito e na gôndola"></textarea>
+    <div class="aj-l">Deseja manter esse produto na sua loja?</div>
+    <div class="aj-sn" id="aj-manter"><button type="button" data-v="sim" onclick="ajusteManter('sim')">Sim</button><button type="button" data-v="nao" onclick="ajusteManter('nao')">Não</button></div>
     <div class="gate-erro" id="aj-erro" hidden></div>
     <button class="gate-btn" id="aj-env" type="button" onclick="ajusteEnviar()">Enviar pra atualização</button>
     <div class="gate-nota">O pedido vai pra Coordenação em Processos › Ajustes de Estoque. Quando for lançado na central, aparece aqui como atualizado.</div>
@@ -972,16 +978,22 @@ function giroAbrir(cod){
   $('aj-t').textContent=i.descricao;$('aj-s').textContent=`${i.cod}${i.grupo?' · '+i.grupo:''} · ${lojaTxt()}`;
   $('aj-sys').textContent=`${Number(i.est||0).toLocaleString('pt-BR')} ${i.unid||''}`.trim();
   $('aj-cod').value=cod;$('aj-qtd').value=a&&a.status==='pendente'?a.contado:'';$('aj-obs').value='';
+  ajusteManter(a&&a.status==='pendente'&&a.manter!=null?(a.manter?'sim':'nao'):null);
   $('aj-ant').innerHTML=a?`<div class="aj-ant ${a.status}">${ajusteChip(cod)}<small>${a.status==='pendente'?'Pode corrigir a contagem: o pedido é o mesmo.':a.status==='atualizado'?'Já foi lançado. Mandar de novo abre um pedido novo.':'Mandar de novo abre um pedido novo.'}</small></div>`:'';
   $('aj-erro').hidden=true;$('aj').classList.add('on');document.body.style.overflow='hidden';setTimeout(()=>$('aj-qtd').focus(),50);
 }
 function ajusteFechar(){$('aj').classList.remove('on');document.body.style.overflow='';}
+let AJ_MANTER=null;   // 'sim' | 'nao' | null (não respondeu)
+function ajusteManter(v){AJ_MANTER=v;for(const b of $('aj-manter').querySelectorAll('button'))b.classList.toggle('on',b.dataset.v===v);$('aj-erro').hidden=true;}
 async function ajusteEnviar(){
   const g=INICIO&&INICIO.semGiro,cod=$('aj-cod').value;const i=[...(g.itens||[]),...Object.values(g.itensFaixa||{}).flat()].find(x=>x.cod===cod);if(!i)return;
   const qtd=String($('aj-qtd').value).trim().replace(',','.');if(qtd===''||isNaN(+qtd)||+qtd<0){$('aj-erro').textContent='Informe a quantidade contada na loja.';$('aj-erro').hidden=false;return;}
+  // 28/10 (Tiago): observação obrigatória + "Deseja manter esse produto na sua loja?" sim/não, os dois vão pra retaguarda
+  if(!$('aj-obs').value.trim()){$('aj-erro').textContent='Escreva a observação.';$('aj-erro').hidden=false;$('aj-obs').focus();return;}
+  if(!AJ_MANTER){$('aj-erro').textContent='Responda se deseja manter esse produto na sua loja (Sim ou Não).';$('aj-erro').hidden=false;return;}
   const b=$('aj-env');b.disabled=true;b.textContent='Enviando…';
   try{
-    const r=await fetch('/api/gestao-gerencial/estoque/ajustes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({loja:$('sel-loja').value,cod,descricao:i.descricao,unid:i.unid,grupo:i.grupo,estSistema:i.est,contado:+qtd,obs:$('aj-obs').value,origem:'sem-giro'})});
+    const r=await fetch('/api/gestao-gerencial/estoque/ajustes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({loja:$('sel-loja').value,cod,descricao:i.descricao,unid:i.unid,grupo:i.grupo,estSistema:i.est,contado:+qtd,obs:$('aj-obs').value,manter:AJ_MANTER,origem:'sem-giro'})});
     const j=await r.json();if(!r.ok)throw new Error(j.error||j.erro||('Erro '+r.status));
     AJUSTES[cod]=j;ajusteFechar();paginaGiro();
   }catch(e){$('aj-erro').textContent=e.message;$('aj-erro').hidden=false;}

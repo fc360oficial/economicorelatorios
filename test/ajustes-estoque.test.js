@@ -9,21 +9,26 @@ const adm = { usuario: 'tiago', nome: 'Tiago Freire', perfil: 'admin' };
 
 test('criar: gerente manda a contagem da própria loja; valida quantidade; loja vem do usuário', () => {
   A.init({ dataDir: dir });
-  const r = A.criar(ger5, { loja: 2, cod: '7891', descricao: 'KIT PIZZA', unid: 'UN', estSistema: 50, contado: '30', obs: 'contado no depósito' });
+  const r = A.criar(ger5, { loja: 2, cod: '7891', descricao: 'KIT PIZZA', unid: 'UN', estSistema: 50, contado: '30', obs: 'contado no depósito', manter: 'sim' });
   assert.equal(r.loja, 5, 'gerencial ignora a loja do corpo'); assert.equal(r.lojaTxt, 'E5 · Porta Larga');
   assert.equal(r.contado, 30); assert.equal(r.estSistema, 50); assert.equal(r.diferenca, -20); assert.equal(r.status, 'pendente'); assert.equal(r.nome, 'Marcos');
-  assert.throws(() => A.criar(ger5, { cod: '1', contado: 'x' }), /quantidade contada/);
-  assert.throws(() => A.criar(ger5, { cod: '', contado: 1 }), /sem código/);
-  assert.throws(() => A.criar({ usuario: 'x', perfil: 'gerencial' }, { cod: '1', contado: 1 }), /sem loja/);
-  assert.throws(() => A.criar(adm, { loja: 99, cod: '1', contado: 1 }), /Loja inválida/);
+  assert.equal(r.manter, true, 'resposta "deseja manter na loja" guardada (28/10)');
+  assert.throws(() => A.criar(ger5, { cod: '1', contado: 'x', obs: 'x', manter: 'sim' }), /quantidade contada/);
+  assert.throws(() => A.criar(ger5, { cod: '', contado: 1, obs: 'x', manter: 'sim' }), /sem código/);
+  assert.throws(() => A.criar(ger5, { cod: '1', contado: 1, obs: '  ', manter: 'sim' }), /observação/, 'observação obrigatória (28/10)');
+  assert.throws(() => A.criar(ger5, { cod: '1', contado: 1, obs: 'x' }), /manter o produto/, 'sim ou não obrigatório (28/10)');
+  assert.throws(() => A.criar(ger5, { cod: '1', contado: 1, obs: 'x', manter: 'talvez' }), /manter o produto/);
+  assert.throws(() => A.criar({ usuario: 'x', perfil: 'gerencial' }, { cod: '1', contado: 1, obs: 'x', manter: 'sim' }), /sem loja/);
+  assert.throws(() => A.criar(adm, { loja: 99, cod: '1', contado: 1, obs: 'x', manter: 'sim' }), /Loja inválida/);
 });
 test('criar de novo o mesmo produto pendente: atualiza a contagem e guarda o histórico, sem duplicar', () => {
-  const r = A.criar(ger5, { cod: '7891', contado: 28, obs: 'recontado' });
+  const r = A.criar(ger5, { cod: '7891', contado: 28, obs: 'recontado', manter: 'nao' });
   assert.equal(A.listar({ status: 'pendente' }).length, 1);
   assert.equal(r.contado, 28); assert.equal(r.historico.length, 1); assert.equal(r.historico[0].contado, 30);
+  assert.equal(r.manter, false); assert.equal(r.historico[0].manter, true, 'histórico guarda a resposta anterior');
 });
 test('daLoja: pedidos recentes da loja por código (gerencial só a própria)', () => {
-  A.criar(adm, { loja: 2, cod: '555', contado: 3, estSistema: 9 });
+  A.criar(adm, { loja: 2, cod: '555', contado: 3, estSistema: 9, obs: 'x', manter: false });
   const d = A.daLoja(ger5, 2);
   assert.equal(d.loja, 5); assert.equal(d.itens.length, 1); assert.equal(d.itens[0].cod, '7891');
   assert.equal(A.daLoja(adm, 2).itens[0].cod, '555');
