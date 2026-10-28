@@ -4774,7 +4774,18 @@ app.get('/api/listas-compra/:id/itens', async (req, res) => {
     // histórico de validade em outras.
     const validadeMap = {};
     const codigos = [...new Set(itens.map(r => r.Codigobarra))];
-    if (codigos.length) {
+    // Espelho do ERP (28/10/26): validade_item no Postgres (índice por código) — a validade mais próxima ainda não vencida,
+    // senão a última vencida, igual à conta abaixo; sem espelho, itenscoletorvalidade no .252 como antes (varre a tabela
+    // inteira: 609 mil linhas só com PK).
+    const espVal = codigos.length && espelhoCompras.validadesDisponiveis()
+      ? await espelhoErp.pq(`SELECT codigo, (MIN(validade) FILTER (WHERE validade >= $2))::text fut, (MAX(validade) FILTER (WHERE validade < $2))::text pas
+                             FROM validade_item WHERE codigo = ANY($1) GROUP BY codigo`, [codigos.map(c => String(c).trim().slice(0, 20)), espelhoErp.hojeLocal()]).catch(e => { console.error('[ESPELHO] listas-compra validade:', e.message); return null; })
+      : null;
+    res.set('X-Fonte-Validades', espVal ? 'espelho' : 'erp');
+    if (espVal) {
+      const original = {}; for (const c of codigos) original[String(c).trim()] = c;
+      for (const r of espVal) { const v = r.fut || r.pas; if (v) validadeMap[original[r.codigo] ?? r.codigo] = { validade: v, vencida: !r.fut }; }
+    } else if (codigos.length) {
       const ph = codigos.map(() => '?').join(',');
       const loteRows = await q(`
         SELECT Codigobarra, Data
