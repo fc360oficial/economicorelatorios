@@ -2,248 +2,335 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>Compras — Econômico Supermercados</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Painel Compras · Econômico Supermercados</title>
+<!-- Painel Compras 2.0 (28/10/2026) — TV da sala de compras no padrão visual da TV RH/DP (tv-rh.html): preto, amarelo nos
+     destaques, branco no texto, vermelho só no alarme, placa amarela do logo, topo com título + números compactos + data
+     (sem relógio, Tiago 28/10), rodapé com hora do dado + contador, barra de progresso, troca A/B com fade.
+     8 telas na ordem aprovada (Processos › Painéis › Painel Compras liga/desliga, ordem e segundos por página):
+     Central de Compras (Radar) · Venda·Margem·Avaria (por compradora) · Avarias por compradora · Rupturas · Curva A ·
+     A Pagar × Venda (corpo de barras, como era) · Ranking de produtos com avaria · Rebaixas (loja a loja).
+     Dados: /api/paineis-publico/compras-dados (lib/painel-compras.js, cache 5 min), relido a cada 60 s; config a cada 60 s.
+     Sem login. ?kiosk=1 esconde o botão de tela cheia; ?tela=N abre na N-ésima página. Demo aprovada:
+     claude.ai/artifact/RFNH1jDsa4RE18GuuzNQmY. A versão antiga (rotador de iframes) ficou em painel-compras-antigo.html. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,600;0,700;0,800;1,800&family=Barlow:wght@400;500;600;700&display=swap">
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-html,body{width:100%;height:100%;overflow:hidden;background:#000}
-iframe{
-  position:absolute;top:0;left:0;width:100%;height:100%;
-  border:none;opacity:0;pointer-events:none;transition:opacity .6s;
-}
-iframe.visivel{opacity:1;pointer-events:auto}
-.controles{
-  position:fixed;bottom:12px;right:16px;z-index:999;
-  display:flex;gap:8px;align-items:center;
-  background:rgba(0,0,0,.55);border-radius:24px;
-  padding:7px 12px;backdrop-filter:blur(8px);
-  border:1px solid rgba(255,255,255,.08);
-}
-.dot{
-  width:11px;height:11px;border-radius:50%;
-  background:rgba(255,255,255,.22);transition:background .3s,transform .2s;
-  cursor:pointer;flex-shrink:0;
-}
-.dot:hover{background:rgba(255,255,255,.55);transform:scale(1.3)}
-.dot.ativo{background:rgba(250,204,21,.9)}
-.sep{width:1px;height:14px;background:rgba(255,255,255,.15);flex-shrink:0}
-.btn-fs{
-  background:none;border:none;cursor:pointer;padding:0 2px;
-  color:rgba(255,255,255,.5);font-size:15px;line-height:1;
-  transition:color .2s,transform .2s;display:flex;align-items:center;
-}
-.btn-fs:hover{color:rgba(250,204,21,.9);transform:scale(1.2)}
-.controles{opacity:.35;transition:opacity .4s}
-.controles:hover{opacity:1}
-/* aviso de carga/retentativa (28/10): fica atrás dos iframes, só aparece quando o servidor demora */
-#estado{
-  position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:1;
-  color:rgba(255,255,255,.55);font:600 18px/1.4 system-ui,Segoe UI,Arial,sans-serif;text-align:center;
-  padding:14px 22px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);
-  opacity:0;transition:opacity .5s;pointer-events:none;max-width:80vw;
-}
-#estado.on{opacity:1}
-iframe{z-index:2}
+:root{--ink:#0c0c0c;--paper:#f6f4ec;--amarelo:#FFD500;--vermelho:#C8102E;--verde:#22C55E;--linha:#2a2a2a;--fd:"Barlow Condensed","Arial Narrow",Impact,sans-serif;--fb:"Barlow","Segoe UI",Arial,sans-serif}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:#000;color:var(--paper);font-family:var(--fb);overflow:hidden;cursor:none}
+#tv{position:fixed;inset:0;background:#000}
+.slide{position:absolute;inset:0;opacity:0;transition:opacity .8s ease;font-size:calc(var(--u) * 1px)}
+.slide>div{position:absolute;inset:0;display:flex;flex-direction:column;background:var(--ink)}
+.slide.on{opacity:1}
+@keyframes pulsaVm{0%,100%{background-color:var(--vermelho);box-shadow:0 0 0 0 rgba(200,16,46,0)}50%{background-color:#e4133a;box-shadow:0 0 .9em .15em rgba(200,16,46,.55)}}
+@keyframes pulsaNum{0%,100%{text-shadow:0 0 0 rgba(200,16,46,0)}50%{text-shadow:0 0 .35em rgba(200,16,46,.9)}}
+@media (prefers-reduced-motion:reduce){.slide{transition:none}.st.atraso,.kp.vm b{animation:none}}
+/* topo */
+.top{display:flex;align-items:center;gap:1.6em;padding:0 2.4em;height:7em;flex:none;background:var(--ink);border-bottom:.14em solid var(--amarelo);position:relative;z-index:2}
+.top .logo{height:5.4em;display:flex;align-items:center;background:var(--amarelo);border-radius:.6em;padding:.35em .7em}
+.top .logo img{height:100%;width:auto;display:block;object-fit:contain}
+.top .tit{font:800 2.7em/1 var(--fd);text-transform:uppercase;letter-spacing:.05em;color:#fff;padding-left:.55em;border-left:.08em solid #3a3a3a;white-space:nowrap}
+.top .qbadge{font:800 1.35em var(--fd);letter-spacing:.14em;text-transform:uppercase;background:var(--amarelo);color:var(--ink);padding:.3em .8em;border-radius:.3em;white-space:nowrap}
+.top .sp{flex:1}
+.top .kps{display:flex;align-items:center}
+.top .kp{display:flex;flex-direction:column;align-items:center;padding:0 1em;border-left:.08em solid #3a3a3a;min-width:6em}
+.top .kp b{font:800 2.3em/1 var(--fd);color:#fff;font-variant-numeric:tabular-nums;white-space:nowrap}
+.top .kp span{font:700 .85em var(--fb);letter-spacing:.14em;text-transform:uppercase;color:#8f8a7c;margin-top:.2em;white-space:nowrap}
+.top .kp.am b{color:var(--amarelo)}.top .kp.vm b{color:#fff;animation:pulsaNum 2.4s ease-in-out infinite}.top .kp.vm span{color:#ff8a9a}
+.top .dt{font:600 1.05em var(--fb);letter-spacing:.14em;text-transform:uppercase;color:#cfcabb;padding-left:1.2em;border-left:.08em solid #3a3a3a;white-space:nowrap}
+/* rodapé */
+.foot{display:flex;align-items:center;gap:1.8em;padding:0 2.4em;height:4.2em;background:var(--ink);border-top:.08em solid var(--linha);flex:none;position:relative;z-index:2}
+.foot .fontes{display:flex;align-items:center;gap:1.4em;flex:none}
+.foot .sl{display:flex;align-items:center;gap:.5em;font:700 1.05em var(--fb);letter-spacing:.1em;text-transform:uppercase;color:#e8e5da;white-space:nowrap}
+.foot .sl .ic{color:var(--amarelo);font-size:1.4em}
+.foot .sl+.sl{padding-left:1.4em;border-left:.08em solid #3a3a3a}
+.foot .sp{flex:1;min-width:.5em}
+.foot .val{font:600 1.15em var(--fb);letter-spacing:.04em;color:#bdb8aa;white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.foot .val b{color:var(--amarelo);font-weight:700}
+.foot .cnt{font:700 1.4em var(--fd);color:#8f8a7c;letter-spacing:.06em;font-variant-numeric:tabular-nums;flex:none}
+.prog{position:absolute;left:0;bottom:0;height:.3em;font-size:calc(var(--u) * 1px);background:var(--amarelo);width:0;z-index:3}
+svg.ic{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-.12em}
+/* corpo */
+.main{flex:1;display:flex;flex-direction:column;padding:1.2em 2.4em 1em;min-height:0}
+.hd{display:flex;align-items:baseline;gap:1.2em;margin-bottom:.7em;flex:none}
+.hd h2{font:800 2.8em/1 var(--fd);text-transform:uppercase;color:#fff;margin:0;letter-spacing:.03em;display:flex;align-items:center;gap:.35em;white-space:nowrap}
+.hd h2 .ic{color:var(--amarelo);font-size:.85em;stroke-width:2.2}
+.hd .pg{font:700 1.5em var(--fd);color:var(--amarelo);letter-spacing:.08em;font-variant-numeric:tabular-nums;white-space:nowrap}
+.hd .sub{margin-left:auto;font:600 1.15em var(--fb);letter-spacing:.14em;text-transform:uppercase;color:#8f8a7c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.lst{flex:1;display:flex;flex-direction:column;min-height:0}
+.rows{flex:1;display:grid;grid-template-rows:repeat(var(--n),minmax(0,1fr));min-height:0}
+.row,.thead{display:grid;align-items:center;gap:1em;padding:0 .6em}
+.thead{font:700 1.05em var(--fd);letter-spacing:.16em;text-transform:uppercase;color:var(--amarelo);border-bottom:.12em solid var(--amarelo);padding-bottom:.35em;flex:none}
+.row{border-bottom:.07em solid var(--linha);min-height:0}
+.row>*{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .n{font:700 1.7em/1.05 var(--fd);text-transform:uppercase;color:#fff;letter-spacing:.02em}
+.row .n small{display:block;font:500 .55em var(--fb);color:#8f8a7c;letter-spacing:.08em;text-transform:uppercase;margin-top:.1em}
+.row .t{font:600 1.25em var(--fb);text-transform:uppercase;letter-spacing:.06em;color:#cfcabb}
+.row .h{font:700 2.05em/1 var(--fd);font-variant-numeric:tabular-nums;color:#fff}
+.row .h.prev{color:#bdb8aa;font-weight:600}.row .h.vm{color:#fff;text-shadow:0 0 .35em rgba(200,16,46,.9)}.row .h.am{color:var(--amarelo)}
+.row .h small{display:block;font:500 .48em var(--fb);color:#8f8a7c;letter-spacing:.06em;text-transform:uppercase;margin-top:.15em}
+.etq{display:inline-block;font:800 1.15em var(--fd);letter-spacing:.1em;background:var(--amarelo);color:var(--ink);padding:.2em .55em;border-radius:.25em;line-height:1;white-space:nowrap}
+.etq.c1{background:#1fbf84}.etq.c2{background:#a78bfa}.etq.c3{background:#ff6b8a}.etq.c4{background:#ffb02e}.etq.c5{background:#5bb8ef}.etq.c0{background:#6b6b6b;color:#fff}
+.st{display:inline-flex;align-items:center;gap:.5em;font:700 1.15em var(--fd);letter-spacing:.1em;text-transform:uppercase;padding:.3em .75em;border-radius:.3em;border:.1em solid #3a3a3a;color:#bdb8aa;line-height:1.1;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.st:before{content:"";width:.6em;height:.6em;border-radius:50%;background:#6b6b6b;flex:none}
+.st.ok{color:#fff;border-color:#4a4a4a}.st.ok:before{background:#fff}
+.st.atraso{background:var(--vermelho);border-color:var(--vermelho);color:#fff;animation:pulsaVm 2.4s ease-in-out infinite}.st.atraso:before{background:#fff}
+.st.pendente{border-color:var(--amarelo);color:var(--amarelo)}.st.pendente:before{background:var(--amarelo)}
+.st.cheio{background:var(--amarelo);border-color:var(--amarelo);color:var(--ink)}.st.cheio:before{background:var(--ink)}
+.st.apuracao{border-style:dashed;color:#8f8a7c}
+.obs{flex:none;display:flex;flex-wrap:wrap;gap:.6em 2em;margin-top:1em;font:600 1.25em var(--fb);letter-spacing:.06em;text-transform:uppercase;color:#8f8a7c;overflow:hidden;max-height:3.2em}
+.obs b{color:#e8e5da;font-weight:700;font-variant-numeric:tabular-nums}.obs .al{color:var(--vermelho)}
+.barra{display:flex;align-items:center}.barra i{display:block;height:.9em;border-radius:.2em;background:#3a3a3a}.barra i.am{background:var(--amarelo)}.barra i.vm{background:var(--vermelho)}.barra i.br{background:#e8e5da}
+/* grades */
+.l2 .row,.l2 .thead{grid-template-columns:minmax(0,1fr) 11em 8em 8em 14em 15em}
+.l4 .row,.l4 .thead{grid-template-columns:5em minmax(0,1fr) 12em 10em 10em 10em 9em}
+.l5 .row,.l5 .thead{grid-template-columns:minmax(0,1fr) 11em 15em 9em 11em 9em 17em}
+.l6 .row,.l6 .thead{grid-template-columns:4em minmax(0,1fr) 11em 9em 9em 10em 11em 14em}
+.l7 .row,.l7 .thead{grid-template-columns:minmax(0,1fr) 11em 9em 9em 9em 9em 22em}
+.l8 .row{grid-template-columns:7em minmax(0,1fr) 22em 19em 13em;gap:2em;border-bottom:.1em solid var(--linha)}
+.l8 .row .pos{font-size:5.2em;color:#8f8a7c;text-align:center}.l8 .row.pos1 .pos{color:var(--amarelo)}
+.l8 .row .n{font-size:2.3em;line-height:1.1}.l8 .row .n .etq{font-size:.62em;vertical-align:.25em;margin-right:.3em}.l8 .row .n small{font-size:.48em;margin-top:.25em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.l8 .row .barra i{height:1.4em;border-radius:.3em}.l8 .row .h.big{font-size:4.6em;text-align:right}.l8 .row .h.big small{display:inline;font-size:.4em;color:#bdb8aa;margin-left:.2em}.l8 .row .h.pct{font-size:2.6em;text-align:right}.l8 .row .h.pct small{font-size:.42em}
+/* Central: 5 cards por compradora */
+.cards{flex:1;display:grid;grid-template-columns:repeat(var(--c,5),1fr);gap:1.1em;min-height:0}
+.cc{background:#161616;border:.08em solid var(--linha);border-radius:.8em;display:flex;flex-direction:column;overflow:hidden;min-height:0}.cc.vm{border-color:var(--vermelho)}.cc.ok{border-color:var(--amarelo)}
+.cc .ch{padding:.9em 1em .8em;border-bottom:.08em solid var(--linha);flex:none}.cc .nm{display:flex;align-items:center;gap:.6em;flex-wrap:wrap}.cc .nm .etq{font-size:1.6em}.cc .nm .st{font-size:.95em}
+.cc .set{font:600 1em var(--fb);letter-spacing:.1em;text-transform:uppercase;color:#8f8a7c;margin-top:.5em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cc .pct{display:flex;justify-content:space-between;align-items:baseline;margin-top:.4em}.cc .pct b{font:800 3.2em/1 var(--fd);color:var(--amarelo)}.cc .pct b.sem{color:#4a4a4a}.cc .pct span{font:700 .95em var(--fb);letter-spacing:.14em;text-transform:uppercase;color:#8f8a7c}
+.cc .pb{height:.5em;background:#2a2a2a;border-radius:.3em;margin-top:.5em}.cc .pb i{display:block;height:100%;background:var(--amarelo);border-radius:.3em}
+.cc .corpo{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column}
+.cc .grp{font:700 1em var(--fd);letter-spacing:.16em;text-transform:uppercase;color:var(--amarelo);padding:.7em 1em .25em;flex:none}
+.cc .it{display:flex;align-items:center;gap:.6em;padding:.5em 1em;border-bottom:.07em solid var(--linha);flex:none}.cc .it .n{flex:1;min-width:0;font:700 1.45em/1.05 var(--fd);text-transform:uppercase;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.cc .it .n small{display:block;font:500 .55em var(--fb);color:#8f8a7c;letter-spacing:.06em;margin-top:.1em;white-space:normal;line-height:1.15}.cc .it .st{font-size:.95em;flex:none}
+.cc .mais{font:600 1em var(--fb);letter-spacing:.1em;text-transform:uppercase;color:#8f8a7c;padding:.6em 1em}
+/* A Pagar × Venda: corpo como era (barras por loja na escala) */
+.pg-legenda{display:flex;gap:1.6em;font:600 1.1em var(--fb);letter-spacing:.08em;text-transform:uppercase;color:#8f8a7c;margin-bottom:.6em;flex:none}
+.pg-legenda i{display:inline-block;width:.8em;height:.8em;border-radius:50%;vertical-align:-.05em;margin-right:.4em}
+.lojas{flex:1;display:grid;grid-template-rows:repeat(6,minmax(0,1fr));min-height:0}
+.lj{display:grid;grid-template-columns:16em minmax(0,1fr) 11em;gap:1.6em;align-items:center;padding:0 .6em;border-bottom:.07em solid var(--linha);min-height:0}
+.lj .ln{font:700 2em/1 var(--fd);text-transform:uppercase;color:#fff}.lj .ln small{display:block;font:500 .5em var(--fb);color:#8f8a7c;letter-spacing:.1em;text-transform:uppercase;margin-top:.2em}
+.escala{height:2.2em;border-radius:.4em;background:linear-gradient(to right,var(--verde) 0 50%,#F59E0B 50% 70%,var(--vermelho) 70% 100%);position:relative;overflow:hidden}
+.escala i{position:absolute;top:0;bottom:0;right:0;background:rgba(12,12,12,.88)}.escala b{position:absolute;top:0;bottom:0;width:.3em;background:#fff;box-shadow:0 0 .6em #fff}
+.lj .pv{font:800 3em/1 var(--fd);text-align:right;font-variant-numeric:tabular-nums}.lj .pv.g{color:var(--verde)}.lj .pv.a{color:#F59E0B}.lj .pv.r{color:#fff;animation:pulsaNum 2.4s ease-in-out infinite}
+/* avisos e tela cheia */
+.vazio-tela{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.6em;text-align:center}
+.vazio-tela h3{font:800 4.2em/1 var(--fd);text-transform:uppercase;color:#fff;margin:0}
+.vazio-tela p{font:500 1.7em var(--fb);color:#bdb8aa;margin:0;max-width:30em}
+.brush{display:block;height:.42em;width:7em;background:var(--amarelo);border-radius:.2em .3em .15em .3em;transform:skewX(-14deg) rotate(-1.2deg);margin:.15em 0 0 .1em}
+.msg{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.5em;font-size:calc(var(--u) * 1px);background:#000;z-index:5}
+.msg img{height:9em;background:var(--amarelo);padding:.8em 1.4em;border-radius:.8em}
+.msg h1{font:800 4em var(--fd);text-transform:uppercase;margin:0;color:var(--amarelo);text-align:center}
+.msg p{font:500 1.8em var(--fb);color:#bfbbae;margin:0;text-align:center;max-width:30em}
+#fs{position:absolute;inset:0;z-index:6;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);cursor:pointer}
+#fs button{font:800 calc(var(--u) * 3.2px) var(--fd);letter-spacing:.08em;text-transform:uppercase;background:var(--amarelo);color:var(--ink);border:0;border-radius:.4em;padding:.6em 1.6em;cursor:pointer;box-shadow:0 1em 3em rgba(0,0,0,.6)}
+[hidden]{display:none!important}
 </style>
 </head>
 <body>
-
-<div id="estado"></div>
-<iframe id="fr-compras" title="Compras"       allow="fullscreen" allowfullscreen></iframe>
-<iframe id="fr-ruptura" title="Rupturas"      allow="fullscreen" allowfullscreen></iframe>
-<iframe id="fr-margem"  title="Margem"        allow="fullscreen" allowfullscreen></iframe>
-<iframe id="fr-mensal"  title="Mensal"        allow="fullscreen" allowfullscreen></iframe>
-<iframe id="fr-pagar"   title="A Pagar x Venda" allow="fullscreen" allowfullscreen></iframe>
-
-<div class="controles">
-  <!-- rotação: Compras → Rupturas → Margem/Venda → Cronograma Mensal → A Pagar x Venda → Compras -->
-  <div class="dot ativo" id="dot-c"  title="Compras"></div>
-  <div class="dot"       id="dot-r"  title="Rupturas"></div>
-  <div class="dot"       id="dot-mg" title="Margem"></div>
-  <div class="dot"       id="dot-m"  title="Mensal"></div>
-  <div class="dot"       id="dot-p"  title="A Pagar x Venda"></div>
-  <div class="sep"></div>
-  <button class="btn-fs" id="btn-fs" title="Tela cheia (F11)">⛶</button>
-</div>
-
+<div id="tv"><div class="slide" id="A"></div><div class="slide" id="B"></div><div class="prog" id="prog"></div><div id="aviso" class="msg" hidden></div><div id="fs" hidden><button type="button">Tela cheia</button></div></div>
 <script>
-// 28/10 (Tiago: "o painel do compras tá ficando sempre branco e não tá atualizando automático"): as 5 telas abrem no
-// MESMO endereço da página (antes era http://192.168.2.254:3003 fixo) — assim o pai enxerga dentro do iframe e sabe
-// se a tela carregou de verdade. Quando o servidor demora/cai no meio de uma carga, a tela ficava branca pra sempre,
-// porque a troca de painel dependia só do aviso "CycleComplete" vindo de dentro do iframe. Agora tem:
-//   · vigia de carga: iframe sem carregar em 45 s (ou página de erro do navegador) → tenta de novo 2× → pula pro próximo
-//   · vigia de ciclo: painel que passar do tempo máximo dele sem avisar que terminou → pula pro próximo
-//   · a tela anterior só sai depois que a nova carregou (nada de tela em branco no meio)
-const PAGINAS = {
-  compras: '/compras.html',
-  ruptura: '/ruptura-painel.html',
-  margem:  '/margem-comprador.html?auto=1&idx=0',
-  mensal:  '/mensal.html?nome=KELLY&auto=1&idx=0',
-  pagar:   '/painel-a-pagar-venda.html?auto=1',
+const QS = new URLSearchParams(location.search);
+const KIOSK = QS.get('kiosk') === '1';
+let TELA_INICIAL = /^\d+$/.test(QS.get('tela') || '') ? Math.max(0, +QS.get('tela') - 1) : null;
+const LOGO = '/logo-economico.png';
+const DADOS_MS = 60 * 1000, CFG_MS = 60 * 1000, SEM_SERVIDOR_MS = 20 * 60 * 1000, LINHAS = 9;
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const $ = s => document.querySelector(s);
+const DIAS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+const hojeTxt = () => { const d = new Date(); return DIAS[d.getDay()] + ' ' + d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }); };
+const hmDe = iso => iso ? new Date(iso).toTimeString().slice(0, 5) : '—';
+const mil = v => { v = Number(v) || 0; return v >= 1e6 ? 'R$ ' + (v / 1e6).toLocaleString('pt-BR', { maximumFractionDigits: 2 }) + ' mi' : v >= 1000 ? 'R$ ' + (v / 1000).toLocaleString('pt-BR', { maximumFractionDigits: v >= 100000 ? 0 : 1 }) + ' mil' : 'R$ ' + v.toLocaleString('pt-BR', { maximumFractionDigits: 0 }); };
+const n0 = v => (Number(v) || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+const n1 = v => (Number(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const pct = v => v == null ? '—' : n1(v) + '%';
+const IC = {
+  radar: '<svg class="ic" viewBox="0 0 24 24"><path d="M5 12 19 5l-4 14-3-6z"/></svg>',
+  margem: '<svg class="ic" viewBox="0 0 24 24"><path d="M4 18 10 11l4 4 6-8"/></svg>',
+  alerta: '<svg class="ic" viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>',
+  ruptura: '<svg class="ic" viewBox="0 0 24 24"><path d="M4 6 10 13l4-4 6 8"/></svg>',
+  curva: '<svg class="ic" viewBox="0 0 24 24"><path d="M12 3v18M5 12h14"/></svg>',
+  pagar: '<svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5h3.5a1.5 1.5 0 0 1 0 3H11a1.5 1.5 0 0 0 0 3h3.5"/></svg>',
+  tag: '<svg class="ic" viewBox="0 0 24 24"><path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.2"/></svg>',
+  relogio: '<svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
 };
-// Tempo máximo de cada painel na tela sem avisar que terminou (ciclo normal + folga pra servidor lento):
-// compras 60 s · rupturas 2 páginas × 120 s · margem 4 compradoras × 60 s + 4 cargas · mensal idem · a pagar 60 s
-const LIMITE_S = { compras: 180, ruptura: 420, margem: 480, mensal: 480, pagar: 180 };
-const CARGA_S = 45, TENTATIVAS = 2, ESPERA_RETENTATIVA_S = 8;
+const TITULOS = { central: 'Central de Compras', margem: 'Venda · Margem · Avaria', avaria_comp: 'Avarias', rupturas: 'Rupturas', curva_a: 'Central de Compras', pagar: 'A Pagar × Venda', avaria_prod: 'Prevenção', rebaixas: 'Prevenção' };
 
-let atual = 'compras';
+let CFG = null, D = null, SEQ = [], idx = 0, front = 'A', timer = null, assinatura = '', ULTIMO_OK = 0;
 
-const frC  = document.getElementById('fr-compras');
-const frR  = document.getElementById('fr-ruptura');
-const frMG = document.getElementById('fr-margem');
-const frM  = document.getElementById('fr-mensal');
-const frP  = document.getElementById('fr-pagar');
+// ── peças comuns ──
+const kp = (v, l, cls) => `<div class="kp${cls ? ' ' + cls : ''}"><b>${v}</b><span>${l}</span></div>`;
+function topo(tit, badge, kps, novo) { return `<div class="top"><div class="logo"><img src="${LOGO}" alt="Econômico Supermercados"></div><span class="tit">${esc(tit)}</span>${badge ? `<span class="qbadge">${esc(badge)}</span>` : ''}<span class="sp"></span><div class="kps">${kps || ''}</div><span class="dt">${hojeTxt()}</span></div>`; }
+function foot(fontes, val, cnt) { return `<div class="foot"><div class="fontes">${(fontes || []).map(f => `<span class="sl">${IC.relogio}${esc(f)}</span>`).join('')}</div><span class="sp"></span><span class="val">${val || ''}</span><span class="cnt">${cnt}</span></div>`; }
+const hd = (ic, tit, pg, sub) => `<div class="hd"><h2>${ic}${esc(tit)}</h2>${pg ? `<span class="pg">${pg}</span>` : ''}<span class="sub">${sub || ''}</span></div>`;
+const st = s => s ? `<span class="st ${esc(s.st)}">${esc(s.txt)}</span>` : '';
+const etq = (c, vazio) => c ? `<span class="etq ${esc(c.cor || 'c0')}">${esc(c.apelido || c.nome || '—')}</span>` : `<span class="st apuracao">${vazio || 'Sem compradora'}</span>`;
+const h = (v, cls, sub) => `<span class="h${cls ? ' ' + cls : ''}">${v == null || v === '' ? '—' : v}${sub ? `<small>${sub}</small>` : ''}</span>`;
+function vazio(tit, txt) { return `<div class="vazio-tela"><h3>${esc(tit)}</h3><span class="brush"></span><p>${esc(txt)}</p></div>`; }
+function paginar(arr, n) { const p = []; for (let i = 0; i < arr.length; i += n) p.push(arr.slice(i, i + n)); return p.length ? p : [[]]; }
+const cnt = () => `${idx % SEQ.length + 1} / ${SEQ.length}`;
+const velho = k => D[k + 'Velho'] ? ' · dado de ' + hmDe(D.geradoEm) : '';
 
-const dotC  = document.getElementById('dot-c');
-const dotR  = document.getElementById('dot-r');
-const dotMG = document.getElementById('dot-mg');
-const dotM  = document.getElementById('dot-m');
-const dotP  = document.getElementById('dot-p');
-const btnFs = document.getElementById('btn-fs');
-
-const todosFrames = [frC,frR,frMG,frM,frP];
-const todosDots   = [dotC,dotR,dotMG,dotM,dotP];
-const FRAMES = { compras: frC, ruptura: frR, margem: frMG, mensal: frM, pagar: frP };
-const DOTS   = { compras: dotC, ruptura: dotR, margem: dotMG, mensal: dotM, pagar: dotP };
-const NOMES  = { compras: 'Compras', ruptura: 'Rupturas', margem: 'Margem', mensal: 'Cronograma Mensal', pagar: 'A Pagar x Venda' };
-const estadoEl = document.getElementById('estado');
-
-let tentativa = 0, vigiaCiclo = null, vigiaCarga = null, avisoTimer = null, estadoTxt = '';
-function limparVigias() { clearTimeout(vigiaCiclo); clearTimeout(vigiaCarga); clearTimeout(avisoTimer); vigiaCiclo = vigiaCarga = avisoTimer = null; }
-function aviso(txt) {
-  estadoTxt = txt || '';
-  if (!txt) { estadoEl.classList.remove('on'); return; }
-  estadoEl.textContent = txt; estadoEl.classList.add('on');
+// ── 1 · Central de Compras (Radar) ──
+function rCentral() {
+  const c = D.central; if (!c) return [tela('Central de Compras', 'Radar', '', vazio('Radar sem dados', 'O Radar de Pedidos ainda não calculou hoje. Assim que calcular, as listas aparecem aqui.'), ['Radar —'], '', 'central')];
+  const t = c.tot;
+  const kps = kp(pct(t.pct).replace(',0', ''), 'Execução', 'am') + kp(t.urgentes, 'Urgentes hoje') + kp(t.feitas, 'Feitas') + kp(t.urgentes - t.feitas, 'Faltam', t.urgentes - t.feitas ? 'vm' : '');
+  const cards = c.cards.map(k => {
+    const cls = k.urgentes && k.pct === 100 ? ' ok' : (k.hoje.some(x => x.sit.st === 'atraso') ? ' vm' : '');
+    const its = k.hoje.map(x => `<div class="it"><span class="n">${esc(x.nome)}<small>lista ${x.lista} · ${mil(x.valor)}${x.detalhe ? ' · ' + esc(x.detalhe) : ''}</small></span>${st(x.sit)}</div>`).join('');
+    const prox = (k.hoje.length >= 4 ? [] : k.proximos).map(x => `<div class="it"><span class="n">${esc(x.nome)}<small>lista ${x.lista} · ${esc(x.quando)}${x.curvaA ? ' · curva A' : ''}</small></span><span class="st apuracao">${esc(x.quando)}</span></div>`).join('');
+    return `<div class="cc${cls}"><div class="ch"><div class="nm">${etq(k)}${k.urgentes && k.pct === 100 ? '<span class="st cheio">Tudo feito</span>' : ''}</div><div class="set">${k.urgentes} de ${k.listasHoje} listas · ${mil(k.valorUrgente)}</div><div class="pct"><span>Feito</span><b class="${k.urgentes ? '' : 'sem'}">${k.urgentes ? k.pct + '%' : '—'}</b></div><div class="pb"><i style="width:${k.urgentes ? k.pct : 0}%"></i></div></div>
+      <div class="corpo">${its ? '<div class="grp">Urgentes · hoje</div>' + its : '<div class="grp">Nada urgente hoje</div>'}${k.maisHoje ? `<div class="mais">+ ${k.maisHoje} urgente${k.maisHoje > 1 ? 's' : ''}</div>` : ''}${prox ? '<div class="grp">Próximos dias</div>' + prox : ''}</div></div>`;
+  }).join('');
+  const rank = c.ranking.map((r, i) => `${i + 1}º <b>${esc(r.apelido)}</b> ${r.pct}%`).join(' · ');
+  const obs = c.alertas.length ? c.alertas.map(a => `<span class="al">⚠ ${esc(a)}</span>`).join('') : `<span>Ranking do dia: ${rank}</span>`;
+  const corpo = `<div class="main">${hd(IC.radar, 'Pra fazer hoje', '', 'urgente = lista do Radar pra hoje com ruptura ou curva A em risco · previsto × feito')}<div class="cards" style="--c:${c.cards.length}">${cards}</div><div class="obs">${obs}</div></div>`;
+  return [tela('Central de Compras', 'Radar', kps, corpo, ['Radar ' + hmDe(c.radarEm), 'ERP ' + hmDe(D.geradoEm)], `lead real · cobertura alvo ${c.teto} d · <b>${t.listasHoje}</b> listas marcadas pra hoje, ${t.urgentes} urgentes${velho('central')}`, 'central')];
 }
+// ── 2 · Venda · Margem · Avaria (uma página por compradora) ──
+function rMargem() {
+  const m = D.margem; if (!m || !m.paginas.length) return [tela('Venda · Margem · Avaria', '', '', vazio('Sem dados do mês', 'A margem por compradora ainda não foi calculada.'), [], '', 'margem')];
+  return m.paginas.map((p, i) => {
+    const t = p.totais;
+    const kps = kp(mil(t.venda), 'Venda total') + kp(pct(t.msv), 'Margem S/V', 'am') + kp(pct(t.msc), 'Margem S/C') + kp(mil(t.avaria), 'Avarias · ' + pct(t.pctAv), t.pctAv >= 1.5 ? 'vm' : '');
+    const linhas = p.fornecedores.map((f, k) => `<div class="row">${h(k + 1, 'prev')}<span class="n">${esc(f.nome)}<small>cód ${f.id}</small></span>${h(n0(f.venda))}${h(pct(f.msv))}${h(pct(f.msc), 'prev')}${h(n0(f.avaria), f.pctAv >= 1.5 ? 'vm' : f.pctAv >= 1 ? 'am' : '')}${h(pct(f.pctAv), f.pctAv >= 1.5 ? 'vm' : f.pctAv >= 1 ? 'am' : '')}</div>`).join('');
+    const corpo = `<div class="main">${hd(IC.margem, 'Fornecedores de ' + p.apelido, `${i + 1} / ${m.paginas.length}`, `${['', 'jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'][m.mes]}/${m.ano} · todas as lojas · maiores vendas`)}<div class="lst l4"><div class="thead"><span>#</span><span>Fornecedor</span><span>Venda R$</span><span>Margem S/V</span><span>Margem S/C</span><span>Avaria R$</span><span>Av %</span></div><div class="rows" style="--n:${Math.max(p.fornecedores.length, 1)}">${linhas || ''}</div></div></div>`;
+    return tela('Venda · Margem · Avaria', p.apelido, kps, corpo, ['Cupons até ontem'], `vermelho = avaria acima de <b>1,5%</b> da venda do fornecedor · amarelo acima de 1%${velho('margem')}`, 'margem');
+  });
+}
+// ── 3 · Avarias por compradora ──
+function rAvariaComp() {
+  const a = D.avariaComp; if (!a || !a.itens.length) return [tela('Avarias', 'Por compradora', '', vazio('Sem dados do mês', 'A avaria por compradora ainda não foi calculada.'), [], '', 'avaria_comp')];
+  const max = Math.max(...a.itens.map(i => i.avaria), 1);
+  const kps = kp(mil(a.totalAvaria), 'Avaria no mês · compradoras') + kp(pct(a.pctRede), 'Da venda', 'am') + kp(pct(a.meta), 'Meta');
+  const linhas = a.itens.map((i, k) => `<div class="row${k === 0 ? ' pos1' : ''}"><span class="h pos">${k + 1}</span><span class="n">${etq(i)} ${esc(i.apelido)}<small>${i.top.slice(0, 2).map(t => esc(t.nome.split(' ').slice(0, 2).join(' ')) + ' ' + mil(t.avaria)).join(' · ') || 'sem avaria'}</small></span><span class="barra"><i class="${i.acima ? 'vm' : k === 0 ? 'am' : 'br'}" style="width:${Math.round(i.avaria / max * 100)}%"></i></span><span class="h big${i.acima ? ' vm' : ''}">${mil(i.avaria)}</span><span class="h pct${i.acima ? ' vm' : ''}">${pct(i.pctAv)}<small>da venda</small></span></div>`).join('');
+  const corpo = `<div class="main">${hd(IC.alerta, 'Quem mais teve avaria no mês', '', 'avaria dos fornecedores de cada compradora · 6 lojas · % sobre a venda dela')}<div class="lst l8"><div class="rows" style="--n:${a.itens.length}">${linhas}</div></div><div class="obs"><span>Barra = valor em relação à 1ª colocada</span><span>·</span><span>Vermelho = acima de <b>${pct(a.meta)}</b> da venda</span></div></div>`;
+  return [tela('Avarias', 'Por compradora', kps, corpo, ['Cupons até ontem'], `mesma conta da tela Venda · Margem · Avaria, somada por compradora${velho('avariaComp')}`, 'avaria_comp')];
+}
+// ── 4 · Rupturas ──
+function rRupturas() {
+  const r = D.rupturas; if (!r) return [tela('Rupturas', 'Por compradora', '', vazio('Sem dados', 'O painel de rupturas ainda não calculou.'), [], '', 'rupturas')];
+  const pags = paginar(r.linhas.slice(0, LINHAS * 3), LINHAS);
+  const kps = kp(n0(r.resumo.rupturas), 'Rupturas', 'vm') + kp(n0(r.resumo.urgencia), 'Urgência ≤ 3 d', 'am') + kp(n0(r.resumo.emRisco), 'Em risco') + kp(r.resumo.listas, 'Listas');
+  return pags.map((pg, i) => {
+    const linhas = pg.map(l => `<div class="row"><span class="n">${esc(l.nome)}<small>lista ${l.lista}${l.perda ? ' · perde ' + mil(l.perda) + '/dia' : ''}</small></span><span>${etq(l.comp)}</span>${h(l.rupturas, l.sit === 'critico' ? 'vm' : '')}${h(l.urgencia, l.urgencia ? (l.sit === 'critico' ? 'vm' : 'am') : 'prev')}<span class="t">${l.lojas.slice(0, 4).join(' · ')}${l.lojas.length > 4 ? ' +' + (l.lojas.length - 4) : ''}</span><span>${st({ critico: { st: 'atraso', txt: 'Crítico' }, atencao: { st: 'pendente', txt: 'Atenção' }, normal: { st: 'ok', txt: 'Normal' } }[l.sit])}</span></div>`).join('');
+    const corpo = `<div class="main">${hd(IC.ruptura, 'Rupturas por compradora', pags.length > 1 ? `${i + 1} / ${pags.length}` : '', 'lista a lista · ordenado por urgência')}${pg.length ? `<div class="lst l2"><div class="thead"><span>Lista · fornecedor</span><span>Compradora</span><span>Rupturas</span><span>≤ 3 dias</span><span>Lojas</span><span>Situação</span></div><div class="rows" style="--n:${LINHAS}">${linhas}</div></div>` : vazio('Nenhuma ruptura', 'Nenhuma lista com loja zerada agora.')}</div>`;
+    return tela('Rupturas', 'Por compradora', kps, corpo, ['Estoque ERP ' + hmDe(r.geradoEm)], `ruptura = loja zerada com venda · <b>≤ 3 dias</b> = cobertura menor que o lead · perda estimada ${mil(r.resumo.perdaDia)}/dia${velho('rupturas')}`, 'rupturas');
+  });
+}
+// ── 5 · Curva A em risco ──
+function rCurvaA() {
+  const c = D.curvaA; if (!c) return [tela('Central de Compras', 'Curva A', '', vazio('Sem dados', 'O Radar ainda não calculou a curva A.'), [], '', 'curva_a')];
+  const pags = paginar(c.itens.slice(0, LINHAS * 3), LINHAS);
+  const kps = kp(c.resumo.zeram, 'Zeram antes da lista', c.resumo.zeram ? 'vm' : '') + kp(c.resumo.noPonto, 'No ponto de pedido', 'am') + kp(c.resumo.transito, 'Já em trânsito');
+  return pags.map((pg, i) => {
+    const linhas = pg.map(x => `<div class="row"><span class="n">${esc(x.descricao)}<small>curva A · rank ${x.rank}${x.zeradas ? ' · ' + x.zeradas + ' loja' + (x.zeradas > 1 ? 's' : '') + ' zerada' + (x.zeradas > 1 ? 's' : '') : ''}</small></span><span>${etq(x.comp)}</span><span class="t">${esc(x.listaNome || x.fornecedor || '')}</span>${h(n1(x.cobertura), x.zeraAntes || x.cobertura < 1 ? 'vm' : 'am', 'dias')}<span class="t">${x.lojas.join(' · ')}</span>${h(n0(x.vendaDia))}<span>${st(x.acao)}</span></div>`).join('');
+    const corpo = `<div class="main">${hd(IC.curva, 'Curva A em risco', pags.length > 1 ? `${i + 1} / ${pags.length}` : '', `${c.resumo.emRisco} produtos · comprar ${c.resumo.comprar} · transferir ${c.resumo.transferir} · trânsito já descontado`)}${pg.length ? `<div class="lst l5"><div class="thead"><span>Produto</span><span>Compradora</span><span>Lista</span><span>Cobertura</span><span>Lojas</span><span>Venda/dia R$</span><span>Ação</span></div><div class="rows" style="--n:${LINHAS}">${linhas}</div></div>` : vazio('Curva A em dia', 'Nenhum produto de curva A vai zerar antes da lista.')}</div>`;
+    return tela('Central de Compras', 'Curva A', kps, corpo, ['Radar ' + hmDe(D.central && D.central.radarEm)], `vermelho = zera antes da lista ou já zerou · amarelo = no ponto de pedido${velho('curvaA')}`, 'curva_a');
+  });
+}
+// ── 6 · A Pagar × Venda (corpo como era: barras por loja) ──
+function rPagar() {
+  const p = D.pagar; if (!p) return [tela('A Pagar × Venda', '', '', vazio('Sem dados', 'O financeiro ainda não calculou.'), [], '', 'pagar')];
+  const maior = Math.max(100, Math.ceil(Math.max(0, ...p.lojas.map(l => l.pct || 0)) / 50) * 50);
+  const kps = kp(pct(p.rede), '% Rede', p.rede >= 70 ? 'vm' : 'am') + (p.maior ? kp(p.maior.nome.split(' · ')[0], pct(p.maior.pct) + ' · maior', p.maior.pct >= 70 ? 'vm' : '') : '') + (p.menor ? kp(p.menor.nome.split(' · ')[0], pct(p.menor.pct) + ' · menor') : '');
+  const linhas = p.lojas.map(l => { const pos = l.pct == null ? 0 : Math.min(l.pct, maior) / maior * 100; const cls = l.pct == null ? '' : l.pct >= 70 ? 'r' : l.pct > 50 ? 'a' : 'g';
+    return `<div class="lj"><span class="ln">${esc(l.nome.split(' · ')[1] || l.nome)}<small>${esc(l.nome.split(' · ')[0])} · a pagar ${mil(l.aPagar)} · venda ${mil(l.venda)}</small></span><span class="escala"><i style="width:${(100 - pos).toFixed(1)}%"></i><b style="left:${pos.toFixed(1)}%"></b></span><span class="pv ${cls}">${pct(l.pct)}</span></div>`; }).join('');
+  const corpo = `<div class="main">${hd(IC.pagar, 'A pagar no mês sobre a venda média', '', `a pagar = ${esc(p.mes || 'mês')} inteiro · venda = média ${esc(p.vendaLabel || '')}`)}<div class="pg-legenda"><span><i style="background:var(--verde)"></i>até 50%</span><span><i style="background:#F59E0B"></i>até 70%</span><span><i style="background:var(--vermelho)"></i>70% ou mais</span><span>· escala até ${maior}%</span></div><div class="lojas">${linhas}</div></div>`;
+  return [tela('A Pagar × Venda', '', kps, corpo, ['Financeiro ' + hmDe(D.geradoEm)], `risco de fluxo de caixa por loja${velho('pagar')}`, 'pagar')];
+}
+// ── 7 · Ranking de produtos com avaria (rede, depois por loja/setor) ──
+function rAvariaProd() {
+  const a = D.avariaProd; if (!a) return [tela('Prevenção', 'Avarias', '', vazio('Sem dados', 'A avaria por produto ainda não foi calculada.'), [], '', 'avaria_prod')];
+  const kps = kp(mil(a.total), 'Avaria no mês · rede') + kp(mil(a.top10), 'Top 10 · ' + (a.total ? Math.round(a.top10 * 100 / a.total) : 0) + '%', 'vm') + kp(mil(a.aberto), 'Em aberto / trâmite', 'am') + kp(n0(a.lancamentos), 'Lançamentos');
+  const itens = a.itens.slice(0, LINHAS);
+  const linhas = itens.map(x => `<div class="row">${h(x.pos, 'prev')}<span class="n">${esc(x.descricao)}</span><span class="t">${esc(x.setor)}</span>${h(n0(x.qtd), '', x.und)}${h(n0(x.total), x.pos <= 2 ? 'vm' : '')}<span class="t">${x.lojas.slice(0, 4).join(' · ')}${x.lojas.length > 4 ? ' +' + (x.lojas.length - 4) : ''}</span><span>${etq(x.comp, 'Loja')}</span><span>${x.cronico ? '<span class="st cheio">Crônico 3 meses</span>' : ''}</span></div>`).join('');
+  const p1 = `<div class="main">${hd(IC.alerta, 'Produtos que mais foram pra avaria', '1 / 2', `${a.periodo.de.slice(8, 10)}/${a.periodo.de.slice(5, 7)} a ${a.periodo.ate.slice(8, 10)}/${a.periodo.ate.slice(5, 7)} · linha a linha do ERP · 6 lojas`)}<div class="lst l6"><div class="thead"><span>#</span><span>Produto</span><span>Setor</span><span>Qtd</span><span>R$</span><span>Lojas</span><span>Compradora</span><span>Marca</span></div><div class="rows" style="--n:${LINHAS}">${linhas}</div></div><div class="obs"><span>Por setor:</span>${a.setores.slice(0, 5).map(s => `<span>${esc(s.setor)} <b>${s.pct}%</b></span>`).join('')}</div></div>`;
+  const maxL = Math.max(1, ...a.lojas.map(l => l.total)), maxS = Math.max(1, ...a.setores.map(s => s.total));
+  const lojas = a.lojas.filter(l => l.loja >= 1 && l.loja <= 6).map((l, k) => `<div class="row pos${k === 0 ? '1' : ''}"><span class="h pos">${k + 1}</span><span class="n">${esc(l.nome)}<small>${n0(l.n)} lançamentos no mês</small></span><span class="barra"><i class="${k === 0 ? 'vm' : 'br'}" style="width:${Math.round(l.total / maxL * 100)}%"></i></span><span class="h big${k === 0 ? ' vm' : ''}">${mil(l.total)}</span><span class="h pct">${a.total ? Math.round(l.total * 100 / a.total) : 0}%<small>da rede</small></span></div>`).join('');
+  const p2 = `<div class="main">${hd(IC.alerta, 'Avaria por loja', '2 / 2', `setores: ${a.setores.slice(0, 4).map(s => esc(s.setor) + ' ' + s.pct + '%').join(' · ')}`)}<div class="lst l8"><div class="rows" style="--n:${Math.max(1, a.lojas.filter(l => l.loja >= 1 && l.loja <= 6).length)}">${lojas}</div></div></div>`;
+  const f = ['ERP ' + hmDe(D.geradoEm)], v = `central.avariaconsumo · emitidas + em aberto + trâmite · <b>crônico</b> = top 10 nos dois meses anteriores também${velho('avariaProd')}`;
+  return [tela('Prevenção', 'Avarias', kps, p1, f, v, 'avaria_prod'), tela('Prevenção', 'Avarias', kps, p2, f, v, 'avaria_prod')];
+}
+// ── 8 · Rebaixas em acompanhamento (uma página por loja) ──
+function rRebaixas() {
+  const r = D.rebaixas; if (!r) return [tela('Prevenção', 'Rebaixas', '', vazio('Sem dados', 'As rebaixas do ERP ainda não foram lidas.'), [], '', 'rebaixas')];
+  const lojas = r.lojas.filter(l => l.itens > 0);
+  if (!lojas.length) return [tela('Prevenção', 'Rebaixas', '', vazio('Nenhuma rebaixa em acompanhamento', 'Nenhuma loja tem solicitação de rebaixa autorizada com validade a vencer.'), ['ERP ' + hmDe(D.geradoEm)], '', 'rebaixas')];
+  return lojas.map((l, i) => {
+    const kps = kp(l.itens, 'Itens em rebaixa') + kp(mil(l.saldoRs), 'Saldo a preço', 'am') + kp(l.vencem7, 'Vencem até 7 d', l.vencem7 ? 'vm' : '') + kp(l.ruins, 'Não vendem a tempo', l.ruins ? 'vm' : '');
+    const linhas = l.linhas.map(x => `<div class="row"><span class="n">${esc(x.descricao)}<small>${x.cod} · rebaixa desde ${x.solicitadoEm.slice(8, 10)}/${x.solicitadoEm.slice(5, 7)}${x.desconto ? ' · −' + x.desconto + '%' : ''}</small></span>${h(x.diasAte <= 0 ? 'hoje' : x.diasAte, x.diasAte <= 2 ? 'vm' : x.diasAte <= 7 ? 'am' : '', x.diasAte <= 0 ? x.validade.slice(8, 10) + '/' + x.validade.slice(5, 7) : 'dias · ' + x.validade.slice(8, 10) + '/' + x.validade.slice(5, 7))}${h(n0(x.qtd), 'prev')}${h(n0(x.vendida))}${h(n0(x.saldo), x.ruim ? 'vm' : '')}${h(n1(x.medDia), 'prev')}<span>${st(x.sit)}</span></div>`).join('');
+    const corpo = `<div class="main">${hd(IC.tag, 'Rebaixas em acompanhamento', `${i + 1} / ${lojas.length}`, `${esc(l.nome)} · Autorização Rebaixa de Preço do ERP · as que mais têm R$ parado primeiro`)}<div class="lst l7"><div class="thead"><span>Produto</span><span>Validade</span><span>Solicitada</span><span>Vendida</span><span>Saldo</span><span>Méd/dia</span><span>Vai vender a tempo?</span></div><div class="rows" style="--n:${LINHAS}">${linhas}</div></div><div class="obs"><span>Conta: saldo ÷ média por dia <b>×</b> dias até a validade</span><span>·</span><span>Rede: itens em rebaixa <b>${r.rede.itens}</b></span><span>não vendem a tempo <b>${r.rede.ruins}</b></span>${r.rede.semRebaixa.length ? `<span>sem rebaixa pedida <b>${r.rede.semRebaixa.join(' ')}</b></span>` : ''}</div></div>`;
+    return tela('Prevenção', l.nome, kps, corpo, ['ERP ' + hmDe(D.geradoEm)], `central.solicitacaopreco · <b>vermelho</b> = o saldo não vende antes de vencer na média atual${velho('rebaixas')}`, 'rebaixas');
+  });
+}
+function tela(tit, badge, kps, corpo, fontes, val, painel) { return { painel, html: () => `<div>${topo(tit, badge, kps)}${corpo}${foot(fontes, val, cnt())}</div>` }; }
+const RENDER = { central: rCentral, margem: rMargem, avaria_comp: rAvariaComp, rupturas: rRupturas, curva_a: rCurvaA, pagar: rPagar, avaria_prod: rAvariaProd, rebaixas: rRebaixas };
 
-// Abre um painel: o iframe dele recarrega (about:blank → url, força reload mesmo com a mesma src); a tela anterior
-// continua visível até a nova carregar (ver `aoCarregar`). `retentativa` = mesma tela de novo depois de uma falha.
-function mostrarPainel(nome, retentativa) {
-  if (!PAGINAS[nome]) return;
-  limparVigias();
-  if (!retentativa) tentativa = 0;
-  atual = nome;
-  todosDots.forEach(d => d.classList.remove('ativo'));
-  DOTS[nome].classList.add('ativo');
-  const f = FRAMES[nome];
-  f.classList.remove('visivel');
-  f.src = 'about:blank';
-  setTimeout(() => { f.src = PAGINAS[nome]; }, 30);
-  // só mostra "Carregando…" se demorar, pra não piscar na troca normal
-  avisoTimer = setTimeout(() => aviso(`Carregando ${NOMES[nome]}…${tentativa ? ` (tentativa ${tentativa + 1}/${TENTATIVAS + 1})` : ''}`), 1500);
-  vigiaCarga = setTimeout(() => falhou(nome, `${CARGA_S} s sem resposta do servidor`), CARGA_S * 1000);
-  vigiaCiclo = setTimeout(() => { console.warn(`[painel] ${nome} passou de ${LIMITE_S[nome]} s sem terminar o ciclo — pulando`); proximo(); }, LIMITE_S[nome] * 1000);
+// ── sequência: ordem e liga/desliga da configuração; cada tela vira N páginas ──
+function montarSequencia() {
+  const ordem = (CFG && CFG.ordem) || Object.keys(RENDER); const ligados = (CFG && CFG.ligados) || {};
+  const seq = [];
+  for (const id of ordem) { if (!RENDER[id] || ligados[id] === false) continue; try { for (const p of RENDER[id]()) seq.push(p); } catch (e) { console.error('[TV] tela', id, e); } }
+  return seq;
 }
-// O iframe do painel atual carregou alguma coisa: ou a tela de verdade (mesma origem, com conteúdo) ou a página de erro
-// do navegador (origem diferente → contentDocument null). O about:blank do meio da troca é ignorado.
-function aoCarregar(nome) {
-  if (nome !== atual) return;
-  const f = FRAMES[nome];
-  let href = '', doc = null;
-  try { href = f.contentWindow.location.href; doc = f.contentDocument; } catch (e) { doc = null; }
-  if (href === 'about:blank') return;
-  const ok = !!(doc && doc.body && doc.body.children.length > 0);
-  if (!ok) { falhou(nome, 'página de erro do navegador'); return; }
-  clearTimeout(vigiaCarga); clearTimeout(avisoTimer); vigiaCarga = avisoTimer = null; aviso('');
-  tentativa = 0;
-  f.classList.add('visivel');
-  todosFrames.forEach(o => { if (o !== f) { o.classList.remove('visivel'); if (o.src !== 'about:blank') o.src = 'about:blank'; } });   // para scripts em background
-  setTimeout(reforcarTelaCheia, 200);
+function mostrar() {
+  if (!SEQ.length) return;
+  const s = SEQ[idx % SEQ.length]; const nxt = front === 'A' ? 'B' : 'A'; const el = document.getElementById(nxt);
+  el.innerHTML = s.html();
+  requestAnimationFrame(() => { el.classList.add('on'); document.getElementById(front).classList.remove('on'); front = nxt; });
+  const ms = (((CFG && CFG.segundos && CFG.segundos[s.painel]) || 30)) * 1000;
+  const pr = $('#prog'); pr.style.transition = 'none'; pr.style.width = '0';
+  requestAnimationFrame(() => requestAnimationFrame(() => { pr.style.transition = `width ${ms}ms linear`; pr.style.width = '100%'; }));
+  clearTimeout(timer); timer = setTimeout(() => { idx++; mostrar(); }, ms);
 }
-function falhou(nome, motivo) {
-  if (nome !== atual) return;
-  limparVigias();
-  console.warn(`[painel] ${nome} não carregou: ${motivo} (tentativa ${tentativa + 1})`);
-  if (tentativa < TENTATIVAS) {
-    tentativa++;
-    aviso(`${NOMES[nome]} não respondeu (${motivo}) · tentando de novo em ${ESPERA_RETENTATIVA_S} s…`);
-    vigiaCarga = setTimeout(() => mostrarPainel(nome, true), ESPERA_RETENTATIVA_S * 1000);
-  } else {
-    tentativa = 0;
-    aviso(`${NOMES[nome]} não respondeu · pulando pro próximo painel…`);
-    vigiaCarga = setTimeout(proximo, 2000);
+function aviso(t, p) { const a = $('#aviso'); a.innerHTML = `<img src="${LOGO}" alt=""><h1>${esc(t)}</h1><p>${esc(p)}</p>`; a.hidden = false; }
+function aplicar() {
+  if (!D) return;
+  const rodando = SEQ.length > 0;
+  const atual = rodando ? SEQ[idx % SEQ.length].painel : null; const posNoPainel = rodando ? idx % SEQ.length - SEQ.findIndex(p => p.painel === atual) : 0;
+  SEQ = montarSequencia();
+  if (!SEQ.length) { clearTimeout(timer); return aviso('Nenhuma tela ligada', 'Ligue pelo menos uma tela em Processos → Painéis → Painel Compras.'); }
+  $('#aviso').hidden = true;
+  const ass = JSON.stringify([CFG && CFG.versao, D.geradoEm]);
+  if (!rodando) { idx = TELA_INICIAL != null ? Math.min(TELA_INICIAL, SEQ.length - 1) : 0; TELA_INICIAL = null; mostrar(); }
+  else if (ass !== assinatura) {
+    // dado ou config nova: continua na mesma tela/página, sem recomeçar a rotação
+    const ini = SEQ.findIndex(p => p.painel === atual); idx = ini >= 0 ? ini + Math.min(posNoPainel, SEQ.filter(p => p.painel === atual).length - 1) : idx % SEQ.length;
+    const el = document.getElementById(front); el.innerHTML = SEQ[idx % SEQ.length].html();
   }
+  assinatura = ass;
 }
-Object.keys(FRAMES).forEach(nome => FRAMES[nome].addEventListener('load', () => { try { aoCarregar(nome); } catch (e) { console.warn('[painel] load:', e.message); } }));
-
-// Alguns navegadores (Fire TV/Silk) saem da tela cheia sozinhos quando o
-// iframe navega, mesmo com allowfullscreen. Se estava em tela cheia antes
-// da troca de painel, tenta voltar automaticamente depois.
-let queriaTelaCheia = false;
-document.addEventListener('fullscreenchange', () => {
-  if (document.fullscreenElement) queriaTelaCheia = true;
-});
-function reforcarTelaCheia() {
-  if (queriaTelaCheia && !document.fullscreenElement) {
-    document.documentElement.requestFullscreen().catch(() => {});
-  }
-}
-
-// ── Rotação automática ──
-function mostrarCompras()    { mostrarPainel('compras'); }
-function mostrarRuptura()    { mostrarPainel('ruptura'); }
-function mostrarMargem()     { mostrarPainel('margem'); }
-function mostrarMensal()     { mostrarPainel('mensal'); }
-function mostrarPagarVenda() { mostrarPainel('pagar'); }
-
-// ── Rotação (27/10/26, Processos › Painéis › Painel Compras): ordem e liga/desliga vêm do servidor
-// (/api/paineis-publico/compras-config, relido a cada 60 s). Padrão: Compras → Rupturas → Margem → Mensal → A Pagar x Venda.
-const PAINEIS = {
-  compras: { fn: mostrarCompras,    done: 'comprasCycleComplete' },
-  ruptura: { fn: mostrarRuptura,    done: 'rupturaCycleComplete' },
-  margem:  { fn: mostrarMargem,     done: 'margemCycleComplete' },
-  mensal:  { fn: mostrarMensal,     done: 'mensalCycleComplete' },
-  pagar:   { fn: mostrarPagarVenda, done: 'pagarVendaCycleComplete' },
-};
-let ORDEM = ['compras', 'ruptura', 'margem', 'mensal', 'pagar'], LIGADOS = {}, CFG_VERSAO = null;
-function ativos() { const a = ORDEM.filter(id => PAINEIS[id] && LIGADOS[id] !== false); return a.length ? a : ['compras']; }
-function proximo() { const a = ativos(); const i = a.indexOf(atual); mostrarPainel(a[(i + 1) % a.length]); }
-async function lerConfig() {
+async function lerDados() {
   try {
-    const r = await fetch('/api/paineis-publico/compras-config?t=' + Date.now(), { cache: 'no-store' });
-    if (!r.ok) return;
-    const c = await r.json();
-    if (Array.isArray(c.ordem) && c.ordem.length) ORDEM = c.ordem;
-    if (c.ligados && typeof c.ligados === 'object') LIGADOS = c.ligados;
-    if (CFG_VERSAO === null) CFG_VERSAO = c.versao || 0;
-    else if ((c.versao || 0) !== CFG_VERSAO) { CFG_VERSAO = c.versao || 0; if (LIGADOS[atual] === false) proximo(); }   // desligaram o que está na tela
-  } catch (e) { /* sem servidor: segue a ordem que já tinha */ }
-}
-window.addEventListener('message', (e) => {
-  if (!e.data || !e.data.type) return;
-  const p = PAINEIS[atual];
-  if (p && e.data.type === p.done) proximo();
-  // fullscreen controlado pelo pai para persistir entre slides
-  if (e.data.type === 'requestFullscreen') {
-    if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
-    else document.exitFullscreen().catch(()=>{});
+    const r = await fetch(`/api/paineis-publico/compras-dados?t=${Date.now()}`, { cache: 'no-store' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    D = await r.json(); ULTIMO_OK = Date.now(); aplicar();
+  } catch (e) {
+    console.warn('[TV] dados:', e.message);
+    if (!D) aviso('Carregando o painel', 'Buscando os dados do Radar, do ERP e do financeiro. A primeira carga leva até 1 minuto.');
+    else if (Date.now() - ULTIMO_OK > SEM_SERVIDOR_MS) aviso('Sem servidor', 'A TV não fala com o servidor há mais de 20 minutos. Confira a rede.');
   }
-});
-
-// ── Tela cheia ──
-function toggleFullscreen() {
-  if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
-  else document.exitFullscreen().catch(()=>{});
 }
-document.addEventListener('fullscreenchange', () => {
-  const fs = !!document.fullscreenElement;
-  btnFs.textContent = fs ? '✕' : '⛶';
-  btnFs.title = fs ? 'Sair da tela cheia (Esc)' : 'Tela cheia (F11)';
-});
-btnFs.addEventListener('click', toggleFullscreen);
+async function lerConfig() {
+  try { const r = await fetch(`/api/paineis-publico/compras-config?t=${Date.now()}`, { cache: 'no-store' }); if (r.ok) { CFG = await r.json(); aplicar(); } } catch (e) {}
+}
+// ── tela: unidade de escala 16:9 (igual à TV RH), tela cheia, relógio da data ──
+function fit() { const w = innerWidth, h = innerHeight; const u = Math.min(w / 100, h / 56.25); document.getElementById('tv').style.setProperty('--u', u.toFixed(3)); }
+addEventListener('resize', fit); fit();
+function fsOk() { return document.fullscreenElement || KIOSK || !document.documentElement.requestFullscreen; }
+function pedirFs() { document.documentElement.requestFullscreen().catch(() => {}); $('#fs').hidden = true; }
+$('#fs').onclick = pedirFs;
+document.addEventListener('keydown', e => { if (e.key === 'f' || e.key === 'F') pedirFs(); if (e.key === 'ArrowRight') { idx++; mostrar(); } if (e.key === 'ArrowLeft') { idx = (idx - 1 + SEQ.length) % SEQ.length; mostrar(); } });
+document.addEventListener('fullscreenchange', () => { $('#fs').hidden = fsOk(); });
+setTimeout(() => { if (!fsOk()) $('#fs').hidden = false; }, 1500);
+setInterval(() => { document.querySelectorAll('.slide.on .dt').forEach(c => c.textContent = hojeTxt()); }, 60000);
 
-// ── Dots ──
-dotC.addEventListener('click',  mostrarCompras);
-dotR.addEventListener('click',  mostrarRuptura);
-dotMG.addEventListener('click', mostrarMargem);
-dotM.addEventListener('click',  mostrarMensal);
-dotP.addEventListener('click',  mostrarPagarVenda);
-
-// ── Início: primeiro painel ligado da ordem configurada (Compras, por padrão) ──
-lerConfig().finally(() => PAINEIS[ativos()[0]].fn());
-setInterval(lerConfig, 60000);
-// Painéis e TVs (27/10): o que o painel está mostrando agora, pro batimento (tv-heartbeat.js). Se estiver
-// recarregando/esperando o servidor, vai junto — aparece em Processos › Painéis e explica a tela "branca".
-window.tvSlideAtual = () => (({ compras: 'Compras · painel 1/5', ruptura: 'Rupturas · painel 2/5', margem: 'Margem · painel 3/5', mensal: 'Cronograma Mensal · painel 4/5', pagar: 'A Pagar x Venda · painel 5/5' })[atual] || atual) + (estadoTxt ? ` · ${estadoTxt}` : '');
+lerConfig().finally(lerDados);
+setInterval(lerDados, DADOS_MS);
+setInterval(lerConfig, CFG_MS);
+// Painéis e TVs: o que a TV está mostrando agora, pro batimento (tv-heartbeat.js)
+window.tvSlideAtual = () => { if (!SEQ.length) return 'carregando'; const s = SEQ[idx % SEQ.length]; const n = idx % SEQ.length + 1; return `${s.painel} · tela ${n}/${SEQ.length}`; };
 </script>
 <script src="/tv-heartbeat.js" data-painel="compras" defer></script>
 </body>

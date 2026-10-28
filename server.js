@@ -8764,8 +8764,18 @@ app.post('/api/paineis-publico/batimento', (req, res) => {
   try { res.json(paineisTvs.batimento(req.body || {}, logAcessos.ipDe(req))); }
   catch (err) { res.status(400).json({ error: err.message }); }
 });
-// Painel Compras (Processos › Painéis › Painel Compras, 27/10/26): quais dos 5 painéis giram e em que ordem; a TV lê sem login
+// Painel Compras (Processos › Painéis › Painel Compras, 27/10/26): quais telas giram, ordem e segundos; a TV lê sem login
 app.get('/api/paineis-publico/compras-config', (req, res) => { res.set('Cache-Control', 'no-store'); res.json(paineisTvs.getComprasConfig()); });
+// Painel Compras 2.0 (28/10/26) — lib/painel-compras.js: um payload com as 8 telas (Radar, margem, rupturas, curva A, a pagar,
+// avarias por produto, rebaixas), cache de 5 min renovado em segundo plano; a TV (painel-compras.html) lê a cada 60 s sem login
+const painelCompras = require('./lib/painel-compras');
+painelCompras.init({ q, baseUrl: 'http://127.0.0.1:3003', warmupHeader: 'fc360warmup2026' });
+app.get('/api/paineis-publico/compras-dados', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try { res.json(await painelCompras.dados()); } catch (err) { res.status(503).json({ error: 'Sem dados no momento: ' + err.message }); }
+});
+app.get('/api/paineis/compras-dados/estado', (req, res) => res.json(painelCompras.estado()));
+app.post('/api/paineis/compras-dados/renovar', async (req, res) => { try { await painelCompras.montar(); res.json(painelCompras.estado()); } catch (err) { res.status(503).json({ error: err.message }); } });
 app.get('/api/paineis/compras-config', (req, res) => res.json({ ...paineisTvs.getComprasConfig(), linkTV: `${PUBLIC_URL}/painel-compras.html`, linkLan: 'http://192.168.2.254:3003/painel-compras.html' }));
 app.post('/api/paineis/compras-config', (req, res) => {
   try { res.json(paineisTvs.salvarComprasConfig(req.body || {}, req.session.user?.nome || null)); }

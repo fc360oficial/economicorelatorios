@@ -37,6 +37,7 @@ body{font-family:var(--font,'InterVar','Inter','Segoe UI',system-ui,sans-serif);
 .item label{display:flex;align-items:center;gap:8px;flex:1;min-width:0;cursor:pointer}
 .item label b{font-weight:700}.item label small{color:var(--ink3);display:block;font-size:11px}
 .item .mv{display:flex;gap:4px}
+.item .seg{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--ink2);white-space:nowrap}.item .seg input{width:58px;font:inherit;color:var(--ink);background:var(--crd);border:1px solid var(--ln2);border-radius:var(--r-sm);padding:4px 6px;text-align:right}
 .btn{font-family:inherit;cursor:pointer;background:var(--crd);border:1px solid var(--ln2);color:var(--ink);border-radius:var(--r-sm);padding:5px 10px;font-weight:600;font-size:12px}
 .btn:hover{background:var(--pap)}.btn:disabled{opacity:.4;cursor:default}
 .btn.amber{background:var(--am);color:var(--amk);border-color:var(--am);padding:9px 16px;font-size:13px;font-weight:700;border-radius:var(--r)}
@@ -70,7 +71,7 @@ body{font-family:var(--font,'InterVar','Inter','Segoe UI',system-ui,sans-serif);
     <div class="pc">
       <div class="card">
         <h2>Painéis que giram na TV</h2>
-        <p class="d">Marque quais entram e arraste a ordem com as setas. O tempo de cada painel é o dele mesmo: cada um avisa quando terminou de mostrar tudo e a TV passa pro próximo.</p>
+        <p class="d">Marque quais entram, a ordem com as setas e os segundos por página. Tela com carrossel (compradoras, lojas) usa esse tempo em cada página.</p>
         <div class="lista" id="pc-lista"><p class="mut">Carregando…</p></div>
         <div class="acoes"><button class="btn amber" id="pc-salvar">Salvar</button><span class="msg" id="pc-msg"></span></div>
       </div>
@@ -81,7 +82,7 @@ body{font-family:var(--font,'InterVar','Inter','Segoe UI',system-ui,sans-serif);
           <span class="lb">Na rede</span><input class="lk" id="pc-lan" readonly><button class="btn" data-copia="pc-lan">Copiar</button>
           <span class="lb">Fora</span><input class="lk" id="pc-ext" readonly><button class="btn" data-copia="pc-ext">Copiar</button>
         </div>
-        <p class="como"><b>Tela cheia:</b> toque no botão ⛶ do canto ou tecla F11. A TV lê esta configuração a cada 60 s; se você desligar o painel que está na tela, ela pula pro próximo. A versão da página é conferida a cada 30 s junto com o sinal do monitor, então depois de uma atualização do sistema a TV recarrega sozinha.</p>
+        <p class="como"><b>Tela cheia:</b> toque no botão ⛶ do canto ou tecla F11. A TV lê esta configuração a cada 60 s; se você desligar a tela que está no ar, ela pula pra próxima. A versão da página é conferida a cada 30 s junto com o sinal do monitor, então depois de uma atualização do sistema a TV recarrega sozinha.</p>
       </div>
     </div>
   </section>
@@ -131,6 +132,7 @@ function renderCompras() {
     <div class="item${on ? '' : ' off'}" data-id="${id}">
       <span class="n num">${i + 1}</span>
       <label><input type="checkbox" ${on ? 'checked' : ''} data-liga="${id}"><span><b>${esc(p.nome)}</b><small>${esc(p.desc)}</small></span></label>
+      <span class="seg"><input type="number" min="10" max="180" step="5" value="${PC.segundos ? PC.segundos[id] : p.segundos}" data-seg="${id}" title="Segundos por página"> s</span>
       <span class="mv"><button class="btn sq" data-mv="-1" data-id="${id}" ${i === 0 ? 'disabled' : ''} title="Subir">▲</button><button class="btn sq" data-mv="1" data-id="${id}" ${i === PC.ordem.length - 1 ? 'disabled' : ''} title="Descer">▼</button></span>
     </div>`; }).join('');
 }
@@ -148,9 +150,9 @@ $('#pc-lista').addEventListener('click', e => {
   if (j < 0 || j >= PC.ordem.length) return;
   [PC.ordem[i], PC.ordem[j]] = [PC.ordem[j], PC.ordem[i]]; renderCompras();
 });
-$('#pc-lista').addEventListener('change', e => { const c = e.target.closest('[data-liga]'); if (c && PC) { PC.ligados[c.dataset.liga] = c.checked; renderCompras(); } });
+$('#pc-lista').addEventListener('change', e => { const c = e.target.closest('[data-liga]'); if (c && PC) { PC.ligados[c.dataset.liga] = c.checked; renderCompras(); } const sg = e.target.closest('[data-seg]'); if (sg && PC) { PC.segundos = PC.segundos || {}; PC.segundos[sg.dataset.seg] = Number(sg.value); } });
 $('#pc-salvar').addEventListener('click', async () => {
-  try { const c = await api('/api/paineis/compras-config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ordem: PC.ordem, ligados: PC.ligados }) }); PC = { ...PC, ...c }; renderCompras(); $('#pc-msg').textContent = 'Salvo. A TV muda em até 1 minuto.'; $('#pc-msg').className = 'msg ok'; }
+  try { const c = await api('/api/paineis/compras-config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ordem: PC.ordem, ligados: PC.ligados, segundos: PC.segundos }) }); PC = { ...PC, ...c }; renderCompras(); $('#pc-msg').textContent = 'Salvo. A TV muda em até 1 minuto.'; $('#pc-msg').className = 'msg ok'; }
   catch (e) { $('#pc-msg').textContent = 'Não salvou: ' + e.message; $('#pc-msg').className = 'msg err'; }
 });
 document.querySelectorAll('[data-copia]').forEach(b => b.addEventListener('click', async () => {
