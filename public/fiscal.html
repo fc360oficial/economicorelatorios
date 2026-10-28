@@ -500,7 +500,7 @@ async function abrirDetalheExp(id){
   const k=id.replace(/[^a-z0-9]/gi,'');const tr=$('#detExp'+k);if(!tr)return;
   if(!tr.hidden){tr.hidden=true;return;}
   tr.hidden=false;tr.firstElementChild.innerHTML='<div class="mut" style="padding:10px">carregando a bipagem…</div>';
-  try{const d=DET_EXP[id]||(DET_EXP[id]=await fetch('/api/expedicao/detalhe/'+encodeURIComponent(id)).then(r=>r.json()));if(d.error)throw new Error(d.error);tr.firstElementChild.innerHTML='<div style="background:#FBFCFE;border-top:2px solid var(--am-ln)">'+confrontoHtml(d,d.status==='conferida')+'</div>';}
+  try{const d=DET_EXP[id]||(EXP.saidas||[]).find(x=>x.id===id)||(DET_EXP[id]=await fetch('/api/expedicao/detalhe/'+encodeURIComponent(id)).then(r=>r.json()));if(d.error)throw new Error(d.error);tr.firstElementChild.innerHTML='<div style="background:#FBFCFE;border-top:2px solid var(--am-ln)">'+confrontoHtml(d,d.status==='conferida')+'</div>';}
   catch(e){tr.firstElementChild.innerHTML='<div class="neg" style="padding:10px">Não deu pra abrir: '+esc(e.message)+'</div>';}
 }
 const EXP_ST={separando:['pe-breve','em separação'],aguardando_fiscal:['pe-hoje','aguardando o fiscal'],separada:['pe-flag','separado · falta carregar'],expedindo:['pe-breve','em carregamento'],conferida:['pe-hoje','carregado · liberar saída'],fechada:['pe-ok','saída liberada'],bipando:['pe-breve','em conferência']};
@@ -513,10 +513,9 @@ function renderExpedicao(){
   const etq=e=>e==='separacao'?'<span class="pill pe-flag">separação</span>':e==='expedicao'?'<span class="pill pe-hoje">carregamento</span>':'';
   const lotes=ls=>esc((ls||[]).map(l=>l.lote+' ('+qtd(l.un)+')').join(', ')||'—');
   const lts=ls=>ls&&ls.length?esc(ls.map(l=>(l.lote||'—')+(ls.length>1?' ('+qtd(l.un)+')':'')).join(', ')):'<span class="mut">—</span>';
-  // Carregamentos fechados 100 %: o fiscal confronta pedido × separado × carregado e libera a saída do caminhão (ou manda reconferir)
-  let h='<div class="sub" style="margin-bottom:8px"><b>Carregamentos aguardando o fiscal liberar a saída</b> · o caminhão foi bipado às cegas e bateu com a separação · confira pedido × separado × carregado · <b>liberar saída</b> = caminhão pode ir, fecha e espelha no ERP de teste · <b>reconferir</b> = operador bipa o caminhão de novo</div>';
-  if(!saidas.length)h+='<p class="mut" style="margin:0 0 14px">Nenhum carregamento aguardando liberação.</p>';
-  for(const l of saidas)h+='<div class="table-wrap" style="margin-bottom:12px;border-left:4px solid var(--am-ln)">'+confrontoHtml(l,true)+'</div>';
+  // Tela em uma tabela só (Tiago, 28/10: "vai ficar duas vezes?"): "Pedidos na saída" vem PRIMEIRO; carregamento 100 % aparece
+  // no topo dela, destacado e já aberto com os botões de liberar/reconferir; as outras linhas abrem no clique.
+  let h='';
   // Separações com divergência: o fiscal vê pedido × separado item a item e libera ou devolve
   const libs=(EXP.liberacoes||[]).filter(expBusca);
   h+='<div class="sub" style="margin-bottom:8px"><b>Separações aguardando o fiscal do CD</b> · o separador viu a lista do pedido, digitou o que separou e não bateu · <b>liberar</b> = o Carregamento de Caminhão confere o que foi separado · <b>devolver</b> = volta pro separador acertar</div>';
@@ -537,22 +536,26 @@ function renderExpedicao(){
   }
   h+='</tbody></table></div>';
   const cel=(e,aberta)=>!e?'<span class="mut">—</span>':e.fechadoEm?'<b>'+esc((e.operador||{}).nome||e.fechadoPor||'')+'</b><div class="sub">'+dh(e.fechadoEm)+' · '+e.tentativas+' tentativa'+(e.tentativas===1?'':'s')+'</div>':'<b>'+esc((e.operador||{}).nome||'')+'</b><div class="sub">'+(aberta?'em andamento desde '+dh(e.abertoEm):'—')+'</div>';
-  h+='<div class="sub" style="margin-bottom:8px"><b>Pedidos na saída</b> · Separação de Pedidos (com a lista) e Carregamento de Caminhão (cego, bate com a separação) por operadores diferentes; carregado 100 % sobe pro bloco de liberação; saída liberada espelha no ERP de teste</div>';
+  const hDepois=h;h='';   // a tabela de pedidos vai pro TOPO da aba; o resto (separações no fiscal, pendências) desce
+  h+='<div class="sub" style="margin-bottom:8px"><b>Pedidos na saída</b>'+(saidas.length?' · <span class="neg"><b>'+saidas.length+' carregamento'+(saidas.length===1?'':'s')+' aguardando você liberar</b></span>':'')+' · Separação de Pedidos (com a lista) e Carregamento de Caminhão (cego, bate com a separação) por operadores diferentes · carregado 100 % aparece primeiro, já aberto: <b>liberar saída</b> = caminhão pode ir, fecha e espelha no ERP de teste · <b>reconferir</b> = operador bipa o caminhão de novo · clique na linha pra ver a bipagem</div>';
   h+='<div class="table-wrap"><table class="t"><thead><tr><th>Aberto</th><th>Pedido</th><th>Cliente</th><th>Separação de Pedidos</th><th>Carregamento</th><th class="r">Produtos</th><th class="r">Retiradas</th><th>Situação</th><th>ERP teste</th></tr></thead><tbody>';
   if(!confs.length)h+='<tr><td colspan="9" class="mut" style="padding:18px">Nenhuma conferência de saída no período.</td></tr>';
-  for(const c of [...abertas,...fechadas]){
+  for(const c of [...abertas.filter(c=>c.status==='conferida'),...abertas.filter(c=>c.status!=='conferida'),...fechadas]){
+    const saida=c.status==='conferida'?saidas.find(x=>x.id===c.id):null;
     const et=c.etapas||{},st=EXP_ST[c.status]||['pe-breve',c.status],duas=et.modelo==='duas',L=c.liberacao;
     const lib=!L?'':L.decisao==='liberada'?'<div class="sub" style="color:#8A5A00" title="'+esc(L.obs||'')+'">fiscal '+esc(L.decididoPor||'')+' liberou com '+L.pendentes+' divergência'+(L.pendentes===1?'':'s')+' · '+dh(L.decididoEm)+'</div>':L.decisao==='devolvida'?'<div class="sub" title="'+esc(L.obs||'')+'">fiscal '+esc(L.decididoPor||'')+' devolveu · '+dh(L.decididoEm)+'</div>':'<div class="sub neg">'+L.pendentes+' divergência'+(L.pendentes===1?'':'s')+(L.motivo?' · '+esc(L.motivo):'')+'</div>';
     const kd=c.id.replace(/[^a-z0-9]/gi,'');
-    h+='<tr style="cursor:pointer" title="Clique pra ver a bipagem: pedido × separado × carregado" onclick="abrirDetalheExp(\''+esc(c.id)+'\')"><td>'+dh(c.abertoEm)+'</td><td>#'+esc(c.nPedido)+' <span class="mut">▾</span></td><td class="forn">'+esc(c.cliente)+'</td>'
+    h+='<tr style="cursor:pointer'+(saida?';background:#FFF8E6':'')+'" title="Clique pra ver a bipagem: pedido × separado × carregado" onclick="abrirDetalheExp(\''+esc(c.id)+'\')"><td>'+dh(c.abertoEm)+'</td><td>#'+esc(c.nPedido)+' <span class="mut">▾</span></td><td class="forn">'+esc(c.cliente)+'</td>'
       +'<td>'+(duas?cel(et.separacao,c.status==='separando'||c.status==='aguardando_fiscal'):'<span class="mut" title="conferência de uma etapa só (antes de 14/10)">—</span>')+'</td>'
       +'<td>'+(duas?(c.status==='separada'?'<span class="mut">'+(c.saida&&c.saida.decisao==='reconferir'?'reconferir · fiscal '+esc(c.saida.decididoPor||'')+' mandou bipar de novo':'aguardando outro operador')+'</span>':(c.status==='separando'||c.status==='aguardando_fiscal')?'<span class="mut">—</span>':cel(et.expedicao,c.status==='expedindo')):cel(et.expedicao,c.status!=='fechada'))+(c.reconferencias&&c.status!=='separada'?'<div class="sub neg">'+c.reconferencias+'ª reconferência</div>':'')+'</td>'
       +'<td class="r">'+c.produtos+'/'+c.produtos_pedido+'</td><td class="r'+(c.pendentesVerificar?' neg':'')+'">'+c.tirados+(c.lotesDivergentes?' · '+c.lotesDivergentes+' lote':'')+(c.pendentesVerificar?' ('+c.pendentesVerificar+' a verificar)':'')+'</td>'
-      +'<td class="c-sit"><span class="pill '+st[0]+'">'+st[1]+'</span>'+(c.status==='fechada'?'<div class="sub">'+(c.saida&&c.saida.decisao==='liberada'?'fiscal '+esc(c.saida.decididoPor||'')+' · '+dh(c.saida.decididoEm)+(c.saida.obs?' · '+esc(c.saida.obs):''):esc(c.fechadoPor||'')+' · '+dh(c.fechadoEm))+'</div>':c.status==='conferida'?'<div class="sub">carregado '+dh(c.conferidaEm)+' · <a href="#" onclick="event.preventDefault();window.scrollTo({top:0,behavior:\'smooth\'})">confrontar e liberar acima</a></div>':'')+lib+'</td>'
+      +'<td class="c-sit"><span class="pill '+st[0]+'">'+st[1]+'</span>'+(c.status==='fechada'?'<div class="sub">'+(c.saida&&c.saida.decisao==='liberada'?'fiscal '+esc(c.saida.decididoPor||'')+' · '+dh(c.saida.decididoEm)+(c.saida.obs?' · '+esc(c.saida.obs):''):esc(c.fechadoPor||'')+' · '+dh(c.fechadoEm))+'</div>':c.status==='conferida'?'<div class="sub">carregado '+dh(c.conferidaEm)+' · <b>confira e libere logo abaixo</b></div>':'')+lib+'</td>'
       +'<td>'+(c.status!=='fechada'?'—':c.erpErro?'<span class="neg" title="'+esc(c.erpErro)+'">erro</span>':'<span class="pos">espelhado</span>')+'</td></tr>'
-      +'<tr id="detExp'+kd+'" hidden><td colspan="9" style="padding:0"></td></tr>';
+      +(saida?'<tr id="detExp'+kd+'"><td colspan="9" style="padding:0"><div style="background:#FFFDF5;border-left:4px solid var(--am-ln);border-top:2px solid var(--am-ln)">'+confrontoHtml(saida,true)+'</div></td></tr>'
+             :'<tr id="detExp'+kd+'" hidden><td colspan="9" style="padding:0"></td></tr>');
   }
   h+='</tbody></table></div><p class="sub">Operadores do CD (nome e PIN do coletor) ficam em <a href="/centro-distribuicao.html?tab=regras">Centro de Distribuição › Regras</a>.</p>';
+  h+=hDepois;
   $('#view').innerHTML=h;
 }
 /* o <th> da coluna é refeito em todo render (busca, filtro, carregar), então o aviso de
