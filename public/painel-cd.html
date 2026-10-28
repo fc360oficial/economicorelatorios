@@ -32,6 +32,10 @@ html,body{height:100%;font-family:'Segoe UI',Arial,sans-serif;background:var(--b
 .sec-hdr .ic{font-size:24px}
 .sec-hdr h2{font-size:20px;font-weight:800;letter-spacing:.5px;flex:1;text-align:center;text-transform:uppercase}
 .sec-hdr .sub{font-size:13px;color:var(--text3);margin-left:auto}
+/* fila do fiscal e liberados hoje (mockup aprovado 28/10): chips no cabeçalho de cada painel */
+.sec-hdr .chips{display:flex;gap:8px;flex-wrap:wrap}
+.sec-hdr .chip{background:var(--card);border:1px solid var(--border);border-radius:999px;padding:5px 12px;font-size:14px;font-weight:700;color:var(--text2);white-space:nowrap}
+.sec-hdr .chip b{color:#F5B800;font-size:17px;margin-left:4px}.sec-hdr .chip.ok b{color:#7BE0A6}.sec-hdr .chip.on{border-color:#F5B800}
 
 .aviso-reconferir{flex-shrink:0;margin-bottom:12px;padding:22px 16px;border-radius:12px;background:#FF1E3C;color:#fff;
   border:3px solid #fff;font-size:34px;font-weight:900;text-align:center;letter-spacing:.5px;
@@ -90,7 +94,7 @@ html,body{height:100%;font-family:'Segoe UI',Arial,sans-serif;background:var(--b
 <div class="wrap">
   <div class="secoes">
     <div class="sec" id="sec-exp">
-      <div class="sec-hdr"><span class="ic">🚚</span><h2>Expedição — Saídas</h2><span class="sub" id="sub-exp"></span></div>
+      <div class="sec-hdr"><span class="ic">🚚</span><h2>Expedição — Saídas</h2><span class="chips"><span class="chip" id="fila-exp" title="pedidos em Aguardando Liberação: o fiscal do CD confere e libera a saída">Fila do fiscal<b>0</b></span><span class="chip ok" id="lib-exp" title="pedidos liberados hoje">Liberados hoje<b>0</b></span></span><span class="sub" id="sub-exp"></span></div>
       <div class="aviso-reconferir" id="aviso-reconferir-exp" style="display:none">
         <span class="aviso-ic">⚠️</span> RECONFERIR: <span id="aviso-reconferir-texto-exp"></span>
       </div>
@@ -103,7 +107,7 @@ html,body{height:100%;font-family:'Segoe UI',Arial,sans-serif;background:var(--b
       </div>
     </div>
     <div class="sec hidden" id="sec-conf">
-      <div class="sec-hdr"><span class="ic">📥</span><h2>Conferência — Entradas</h2><span class="sub" id="sub-conf"></span></div>
+      <div class="sec-hdr"><span class="ic">📥</span><h2>Conferência — Entradas</h2><span class="chips"><span class="chip" id="fila-conf" title="notas em Conferido: o fiscal confere e libera no Recebimento de Notas">Fila do fiscal<b>0</b></span><span class="chip ok" id="lib-conf" title="notas liberadas hoje">Liberadas hoje<b>0</b></span></span><span class="sub" id="sub-conf"></span></div>
       <div class="aviso-reconferir" id="aviso-reconferir-conf" style="display:none">
         <span class="aviso-ic">⚠️</span> RECONFERIR: <span id="aviso-reconferir-texto-conf"></span>
       </div>
@@ -303,6 +307,10 @@ function carregar() {
 
     document.getElementById('sub-exp').textContent = d.expedicao.resumo.total + ' hoje';
     document.getElementById('sub-conf').textContent = d.conferencia.resumo.total + ' hoje';
+    // fila do fiscal = coluna "Aguardando Liberação" (expedição) / "Conferido" (recebimento), dos dois coletores; liberados = coluna da direita (só hoje)
+    const chip = (id, n) => { const el = document.getElementById(id); if (!el) return; el.querySelector('b').textContent = n; el.classList.toggle('on', n > 0); };
+    chip('fila-exp', d.expedicao.resumo.aguardando_liberacao || 0); chip('lib-exp', d.expedicao.resumo.liberado || 0);
+    chip('fila-conf', d.conferencia.resumo.conferido || 0); chip('lib-conf', d.conferencia.resumo.liberado || 0);
     document.getElementById('stamp').textContent = 'Atualizado às ' + new Date().toLocaleTimeString('pt-BR');
   }).catch(e => {
     document.getElementById('stamp').textContent = 'Erro ao atualizar: ' + e.message;
