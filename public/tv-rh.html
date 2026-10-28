@@ -54,7 +54,9 @@ svg.ic{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2;stroke-
 /* cabeçalho de cada tela */
 .main{flex:1;display:flex;flex-direction:column;padding:1.2em 2.4em 1em;min-height:0}
 .hd{display:flex;align-items:baseline;gap:1.2em;margin-bottom:.7em;flex:none}
-.hd h2{font:800 2.8em/1 var(--fd);text-transform:uppercase;color:#fff;margin:0;letter-spacing:.03em;display:flex;align-items:center;gap:.35em}
+.hd h2{font:800 2.8em/1 var(--fd);text-transform:uppercase;color:#fff;margin:0;letter-spacing:.03em;display:flex;align-items:center;gap:.35em;white-space:nowrap;flex:none}
+.hd .pg{white-space:nowrap;flex:none}
+.hd .sub{min-width:0;overflow:hidden;text-overflow:ellipsis}   /* subtítulo longo (nome do CD) corta com reticências; título e página nunca quebram (28/10) */
 .hd h2 .ic{color:var(--amarelo);font-size:.85em;stroke-width:2.2}
 .hd .pg{font:700 1.5em var(--fd);color:var(--amarelo);letter-spacing:.08em;font-variant-numeric:tabular-nums}
 .hd .sub{margin-left:auto;font:600 1.15em var(--fb);letter-spacing:.14em;text-transform:uppercase;color:#8f8a7c;white-space:nowrap}
@@ -171,11 +173,22 @@ let CFG = null, D = null, SEQ = [], idx = 0, front = 'A', timer = null, assinatu
 // e depois, loja a loja (E1 → E6 → CD): resumo da loja · entradas (em páginas) · intervalos · saídas · pendências.
 // Cada tela ligada na configuração; loja sem ninguém previsto não entra no loop.
 // Letra maior (escala 115/130 %) = menos nomes por tela, na mesma proporção, pra linha não encolher (27/10, TV de 32" do RH).
+// Modo "atenção" (28/10, Tiago: 109 slides era demais): por loja só o resumo e a tela "Atenção do RH" com quem está em
+// atraso confirmado, sem marcação ou trabalhando na folga (lista atencaoSit vem do servidor). Quem está certo não aparece;
+// loja sem ninguém nessas situações fica só com o resumo. Hoje: 109 → 30 slides.
 const linhasPorTela = cfg => Math.max(5, Math.round(cfg.linhas * 100 / (cfg.escala || 100)));
+const ATENCAO_PADRAO = ['atraso', 'sem', 'folga_trab'];
+const precisaAtencao = (l, d) => !!l.sitEntrada && (d.atencaoSit || ATENCAO_PADRAO).includes(l.sitEntrada.sit);
 function montarSequencia(d, cfg) {
   const seq = []; const n = linhasPorTela(cfg);
   const pag = (t, arr, por, loja) => { if (!arr.length) return; const p = Math.ceil(arr.length / por); for (let k = 0; k < p; k++) seq.push({ t, loja, itens: arr.slice(k * por, (k + 1) * por), pagina: k + 1, paginas: p }); };
   const lojas = d.lojas || [];
+  if (cfg.modo === 'atencao') {
+    if (lojas.length > 1) seq.push({ t: 'resumo' });
+    for (const loja of lojas) { seq.push({ t: 'resumo', loja }); pag('atencao', d.entradas.filter(x => x.loja === loja && precisaAtencao(x, d)), n, loja); }
+    if (!seq.length) seq.push({ t: 'resumo' });
+    return seq;
+  }
   if (cfg.telas.resumo && lojas.length > 1) seq.push({ t: 'resumo' });
   for (const loja of lojas) {
     const da = arr => arr.filter(x => x.loja === loja);
@@ -220,7 +233,9 @@ function rResumo(s) {
 function vazio(tit, txt) { return `<div class="vazio-tela"><h3>${tit}</h3><span class="brush"></span><p>${txt}</p></div>`; }
 function rEntradas(s) {
   const linhas = s.itens.map(l => `<div class="row"><span class="n">${esc(l.nome)}<small>${esc(l.cargo || '')}</small></span><span><span class="etq">${esc(l.etq)}</span></span><span class="t">${esc(l.setor)}</span>${h(pv(l, 'entrada'), 'prev', pv(l, 'saida') ? 'até ' + pv(l, 'saida') : '')}${h(l.entrada)}<span>${st(l.sitEntrada)}</span></div>`).join('');
-  return `<div class="lst entradas">${topo(s)}<div class="main">${hd(IC.entrada, 'Entradas', s, esc(nomeLoja(s.loja)) + ' · previsto × marcado · na ordem do horário previsto')}${s.itens.length ? `<div class="thead"><span>Funcionário</span><span>Loja</span><span>Setor</span><span>Previsto</span><span>Entrada</span><span>Situação</span></div><div class="rows" style="--n:${linhasPorTela(CFG)}">${linhas}</div>` : vazio('Ninguém previsto', 'Nenhum funcionário previsto para hoje nas lojas e setores escolhidos na configuração.')}</div>${foot(cnt(s))}</div>`;
+  const cab = s.t === 'atencao' ? hd(IC.alerta, 'Atenção do RH', s, esc(nomeLoja(s.loja)) + ' · atraso confirmado · sem marcação · trabalho na folga')
+                                : hd(IC.entrada, 'Entradas', s, esc(nomeLoja(s.loja)) + ' · previsto × marcado · na ordem do horário previsto');
+  return `<div class="lst entradas">${topo(s)}<div class="main">${cab}${s.itens.length ? `<div class="thead"><span>Funcionário</span><span>Loja</span><span>Setor</span><span>Previsto</span><span>Entrada</span><span>Situação</span></div><div class="rows" style="--n:${linhasPorTela(CFG)}">${linhas}</div>` : vazio('Ninguém previsto', 'Nenhum funcionário previsto para hoje nas lojas e setores escolhidos na configuração.')}</div>${foot(cnt(s))}</div>`;
 }
 function rIntervalos(s) {
   const linhas = s.itens.map(l => `<div class="row"><span class="n">${esc(l.nome)}<small>${esc(l.etq)} · ${esc(l.cargo || '')}</small></span><span class="t">${esc(l.setor)}</span>${h(pv(l, 'saidaInt'), 'prev')}${h(l.saidaInt)}${h(pv(l, 'retornoInt'), 'prev')}${h(l.retornoInt)}<span>${st(l.sitIntervalo)}</span></div>`).join('');
@@ -235,7 +250,7 @@ function rPendencias(s) {
   const corpo = s.itens.length ? `<div class="cols">${col(s.itens.slice(0, n))}${col(s.itens.slice(n, n * 2))}</div>` : vazio('Nenhuma pendência agora', `${esc(nomeLoja(s.loja))}: todas as marcações previstas até este momento estão registradas. Atraso só aparece aqui quando a apuração do PontoCerto confirma.`);
   return `<div class="pen">${topo(s)}<div class="main">${hd(IC.alerta, 'Pendências e divergências', s, esc(nomeLoja(s.loja)) + ' · para o RH agir · atraso só quando a apuração confirma')}${corpo}</div>${foot(cnt(s))}</div>`;
 }
-const render = s => ({ resumo: rResumo, entradas: rEntradas, intervalos: rIntervalos, saidas: rSaidas, pendencias: rPendencias })[s.t](s);
+const render = s => ({ resumo: rResumo, entradas: rEntradas, atencao: rEntradas, intervalos: rIntervalos, saidas: rSaidas, pendencias: rPendencias })[s.t](s);
 
 function mostrar() {
   if (!SEQ.length) return;
@@ -298,7 +313,7 @@ carregar();
 setInterval(carregar, RELER_MS);   // relê config e marcações a cada 20 s (o servidor guarda a jornada do dia por 1 min e renova por trás)
 // Painéis e TVs (27/10): o que a TV está mostrando agora, pro batimento (tv-heartbeat.js); só na TV por token, não no /painel-rh.html
 window.tvSlideAtual = () => { if (!SEQ.length) return 'sem conteúdo'; const s = SEQ[idx % SEQ.length];
-  const nomes = { resumo: 'Resumo', entradas: 'Entradas', intervalos: 'Intervalos', saidas: 'Saídas', pendencias: 'Pendências' };
+  const nomes = { resumo: 'Resumo', entradas: 'Entradas', atencao: 'Atenção do RH', intervalos: 'Intervalos', saidas: 'Saídas', pendencias: 'Pendências' };
   return [nomes[s.t] || s.t, s.loja != null ? (s.loja === 10 ? 'CD' : `E${s.loja}`) : '', s.paginas > 1 ? `${s.pagina}/${s.paginas}` : ''].filter(Boolean).join(' · ') + ` · tela ${idx % SEQ.length + 1}/${SEQ.length}`; };
 </script>
 <script src="/tv-heartbeat.js" data-painel="rh" data-so="/tv-rh/" defer></script>

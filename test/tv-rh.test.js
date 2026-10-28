@@ -130,3 +130,22 @@ test('payloadTV usa a jornada de hoje, renova em segundo plano e guarda o últim
   assert.equal(m.totais().erro, 'PontoCerto fora');
   const p3 = await m.payloadTV(); assert.equal(p3.resumo.previstos, 1);
 });
+
+test('modo do painel (28/10): padrão "atencao", totais contam quem precisa de atenção por loja, payload leva a lista de situações', async () => {
+  m.init({ dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'tv-rh-')), cacheMs: 0, toleranciaMin: () => 10, colaboradores: async () => ({ ativos: [] }),
+    jornadaDia: async () => ({ linhas: [
+      linha({ id: 1, nome: 'ANA', loja: 4, entrada: '07:00', marcacoes: ['07:00'] }),                                  // no horário: não entra
+      linha({ id: 2, nome: 'BIA', loja: 4, entrada: '07:40', situacao: 'atraso', atraso_min: 40, marcacoes: ['07:40'] }),  // atraso confirmado
+      linha({ id: 3, nome: 'CLA', loja: 4 }),                                                                           // sem marcação (13:30 > 07:10)
+      linha({ id: 4, nome: 'DEA', loja: 2, situacao: 'folga_trabalhada', previsto: { folga: true }, entrada: '08:00', marcacoes: ['08:00'] }),   // trabalho na folga
+      linha({ id: 5, nome: 'EVA', loja: 2, entrada: '06:30', marcacoes: ['06:30'] }),                                  // antes do horário: não entra
+    ] }) });
+  assert.equal(m.getConfig().modo, 'atencao');
+  assert.throws(() => m.salvarConfig({ modo: 'x' }), /Modo do painel/);
+  assert.equal(m.salvarConfig({ modo: 'completo' }).modo, 'completo');
+  assert.equal(m.salvarConfig({ modo: 'atencao' }).modo, 'atencao');
+  const p = await m.payloadTV();
+  assert.deepEqual(p.atencaoSit, ['atraso', 'sem', 'folga_trab']); assert.equal(p.config.modo, 'atencao');
+  const t = m.totais();
+  assert.equal(t.telas.atencao, 3); assert.deepEqual(t.atencaoLojas, { 2: 1, 4: 2 });
+});
