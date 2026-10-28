@@ -37,7 +37,11 @@ td.r,th.r{text-align:right}
 .btn{font-family:inherit;cursor:pointer;background:var(--crd);border:1px solid var(--ln2);color:var(--ink);border-radius:var(--r-sm);padding:7px 12px;font-weight:600;font-size:12px}
 .btn:hover{border-color:var(--ink)}.btn.pri{background:var(--ink);color:var(--crd);border-color:var(--ink)}.btn:disabled{opacity:.5;cursor:default}
 .msg{font-size:12px;margin-top:8px;min-height:16px}.msg.err{color:var(--neg)}.msg.ok{color:var(--pos)}
-.sql{max-width:520px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sql{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Consultas demoradas: colunas fixas e o SQL fica só com o que sobra da largura do card (antes a linha estourava o card em monitor menor). */
+table.longas{table-layout:fixed}table.longas td{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+table.longas th:nth-child(1){width:140px}table.longas th:nth-child(2){width:36px}table.longas th:nth-child(3){width:120px}
+@media (max-width:1599px){table.longas th:nth-child(1){width:120px}table.longas th:nth-child(3){width:100px}}
 tr.nossa td{background:color-mix(in srgb,var(--inf) 8%,transparent)}
 input[type=text]{font-family:inherit;font-size:12px;padding:6px 8px;border:1px solid var(--ln2);border-radius:var(--r-sm);background:var(--pap);color:var(--ink);width:260px}
 label.ck{display:flex;align-items:center;gap:6px;font-size:12px}
@@ -98,7 +102,7 @@ label.ck{display:flex;align-items:center;gap:6px;font-size:12px}
     <div class="card c6">
       <h2>Consultas mais demoradas no ERP agora</h2>
       <p class="d">Todas as máquinas. Tempo em segundos desde que começou.</p>
-      <table><thead><tr><th>Máquina</th><th class="r">s</th><th>Estado</th><th>SQL</th></tr></thead><tbody id="erp-longas"></tbody></table>
+      <table class="longas"><thead><tr><th>Máquina</th><th class="r">s</th><th>Estado</th><th>SQL</th></tr></thead><tbody id="erp-longas"></tbody></table>
     </div>
 
     <div class="card c12">
@@ -201,7 +205,7 @@ async function carregarSaude() {
     $('e-conex').textContent = s.conexoes; $('e-ativas').textContent = s.ativas; $('e-nossas').textContent = s.nossasAtivas; $('e-tranc').textContent = s.trancadas.length;
     if (s.filaNossa) { $('e-fila').textContent = `${s.filaNossa.ativas} + ${s.filaNossa.naFila} esperando`; $('e-max').textContent = s.filaNossa.max; }
     $('erp-hosts').innerHTML = s.porHost.map(h => `<tr class="${h.nossa ? 'nossa' : ''}"><td>${esc(h.host)}${h.nossa ? ' <span class="mut">(nós)</span>' : ''}</td><td class="r num">${h.conexoes}</td><td class="r num">${h.ativas}</td></tr>`).join('');
-    $('erp-longas').innerHTML = s.maisLongas.map(p => `<tr class="${p.nossa ? 'nossa' : ''}"><td>${esc(p.host)}</td><td class="r num">${p.seg}</td><td class="mut">${esc(p.estado)}</td><td class="sql mono" title="${esc(p.sql)}">${esc(p.sql)}</td></tr>`).join('') || '<tr><td colspan="4" class="mut">Nada rodando.</td></tr>';
+    $('erp-longas').innerHTML = s.maisLongas.map(p => `<tr class="${p.nossa ? 'nossa' : ''}"><td>${esc(p.host)}</td><td class="r num">${p.seg}</td><td class="mut" title="${esc(p.estado)}">${esc(p.estado)}</td><td class="sql mono" title="${esc(p.sql)}">${esc(p.sql)}</td></tr>`).join('') || '<tr><td colspan="4" class="mut">Nada rodando.</td></tr>';
   } catch (e) { $('erp-pill').textContent = 'sem leitura: ' + e.message; $('erp-pill').className = 'pill bad'; }
 }
 async function acao(nome, msgEl) {
