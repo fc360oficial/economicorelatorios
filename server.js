@@ -9578,6 +9578,11 @@ require('./lib/termos-escala-rotas')(app, { pontocerto });
 // pro DP. Regras, PDF e arquivos em lib/disciplinar.js; só lê o PontoCerto. Aviso de prazo vencendo roda 1×/h.
 require('./lib/disciplinar-rotas')(app, { pontocerto, multer });
 setInterval(() => { try { require('./lib/disciplinar').avisarPrazos(); } catch (e) { console.error('[disciplinar] prazos:', e.message); } }, 3600000);
+// Gestão Documental (28/10/2026, DP / RH › Gestão Documental, etapa 02): prontuário digital por funcionário (id do PontoCerto),
+// CPD envia → RH confere e arquiva, importação histórica direta pelo RH, Coordenação autoriza excluir/substituir validado
+// com a senha da própria conta (bcrypt, nunca gravada). Regras em lib/gestao-documental.js; arquivos em data/gestao-documental.
+require('./lib/gestao-documental-rotas')(app, { pontocerto, multer,
+  validarSenha: async (usuario, senha) => { const u = usuarios.find(x => x.usuario === usuario); return !!(u && u.senha_hash && await bcrypt.compare(String(senha), u.senha_hash)); } });
 // Cadastro Bancário de funcionários (23/10/2026, abas em Termos de Escala): versões cifradas, dupla conferência DP → Financeiro,
 // regra das 48 h, alertas de recorrência, bloqueio preventivo, importação xlsx. Pagamentos de Domingos e Feriados: apuração
 // pelo ponto × termos, conferência do RH, aprovação da Coordenação, relatório PDF/xlsx ao Financeiro. Ambos só leem o PontoCerto.
