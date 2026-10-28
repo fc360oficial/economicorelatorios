@@ -55,7 +55,7 @@ svg.ic{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2;stroke-
 .main{flex:1;display:flex;flex-direction:column;padding:1.2em 2.4em 1em;min-height:0}
 .hd{display:flex;align-items:baseline;gap:1.2em;margin-bottom:.7em;flex:none}
 .hd h2{font:800 2.8em/1 var(--fd);text-transform:uppercase;color:#fff;margin:0;letter-spacing:.03em;display:flex;align-items:center;gap:.35em;white-space:nowrap}
-.hd h2 .ic{color:var(--amarelo);font-size:.85em;stroke-width:2.2}
+.hd h2 .ic{color:var(--amarelo);font-size:.85em;stroke-width:2.2}.hd h2 .dest{color:var(--amarelo)}
 .hd .pg{font:700 1.5em var(--fd);color:var(--amarelo);letter-spacing:.08em;font-variant-numeric:tabular-nums;white-space:nowrap}
 .hd .sub{margin-left:auto;font:600 1.15em var(--fb);letter-spacing:.14em;text-transform:uppercase;color:#8f8a7c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .lst{flex:1;display:flex;flex-direction:column;min-height:0}
@@ -88,7 +88,7 @@ svg.ic{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2;stroke-
 .l5 .row,.l5 .thead{grid-template-columns:minmax(0,1fr) 11em 15em 9em 11em 9em 17em}
 .l6 .row,.l6 .thead{grid-template-columns:4em minmax(0,1fr) 11em 9em 12em 10em 11em 14em}
 .l7 .row,.l7 .thead{grid-template-columns:minmax(0,1fr) 11em 9em 9em 9em 9em 22em}
-.l8 .row{grid-template-columns:7em minmax(0,1fr) 18em 24em 13em;gap:2em;border-bottom:.1em solid var(--linha)}
+.l8 .row{grid-template-columns:7em minmax(0,1fr) 16em 24em 15em;gap:2em;border-bottom:.1em solid var(--linha)}
 .l8 .row .pos{font-size:5.2em;color:#8f8a7c;text-align:center}.l8 .row.pos1 .pos{color:var(--amarelo)}
 .l8 .row .n{font-size:2.3em;line-height:1.1}.l8 .row .n .etq{font-size:.62em;vertical-align:.25em;margin-right:.3em}.l8 .row .n small{font-size:.48em;margin-top:.25em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .l8 .row .barra i{height:1.4em;border-radius:.3em}.l8 .row .h.big{font-size:3.6em;text-align:right;letter-spacing:-.01em}.l8 .row .h.big small{display:inline;font-size:.4em;color:#bdb8aa;margin-left:.2em}.l8 .row .h.pct{font-size:2.6em;text-align:right}.l8 .row .h.pct small{font-size:.42em}
@@ -163,7 +163,7 @@ let CFG = null, D = null, SEQ = [], idx = 0, front = 'A', timer = null, assinatu
 const kp = (v, l, cls) => `<div class="kp${cls ? ' ' + cls : ''}"><b>${v}</b><span>${l}</span></div>`;
 function topo(tit, badge, kps, novo) { return `<div class="top"><div class="logo"><img src="${LOGO}" alt="Econômico Supermercados"></div><span class="tit">${esc(tit)}</span>${badge ? `<span class="qbadge">${esc(badge)}</span>` : ''}<span class="sp"></span><div class="kps">${kps || ''}</div><span class="dt">${hojeTxt()}</span></div>`; }
 function foot(fontes, val, cnt) { return `<div class="foot"><div class="fontes">${(fontes || []).map(f => `<span class="sl">${IC.relogio}${esc(f)}</span>`).join('')}</div><span class="sp"></span><span class="val">${val || ''}</span><span class="cnt">${cnt}</span></div>`; }
-const hd = (ic, tit, pg, sub) => `<div class="hd"><h2>${ic}${esc(tit)}</h2>${pg ? `<span class="pg">${pg}</span>` : ''}<span class="sub">${sub || ''}</span></div>`;
+const hd = (ic, tit, pg, sub) => `<div class="hd"><h2>${ic}${tit.startsWith('<') ? tit : esc(tit)}</h2>${pg ? `<span class="pg">${pg}</span>` : ''}<span class="sub">${sub || ''}</span></div>`;
 const st = s => s ? `<span class="st ${esc(s.st)}">${esc(s.txt)}</span>` : '';
 const etq = (c, vazio) => c ? `<span class="etq ${esc(c.cor || 'c0')}">${esc(c.apelido || c.nome || '—')}</span>` : `<span class="st apuracao">${vazio || 'Sem compradora'}</span>`;
 const h = (v, cls, sub) => `<span class="h${cls ? ' ' + cls : ''}">${v == null || v === '' ? '—' : v}${sub ? `<small>${sub}</small>` : ''}</span>`;
@@ -200,14 +200,14 @@ function rMargem() {
     return tela('Venda · Margem · Avaria', p.apelido, kps, corpo, ['Cupons até ontem'], `vermelho = avaria acima de <b>1%</b> da venda do fornecedor · amarelo acima de 0,5%${velho('margem')}`, 'margem');
   });
 }
-// ── 3 · Avarias por compradora ──
+// ── 3 · Avarias por compradora: em aberto + em trâmite no ERP, acumulado (Tiago, 28/10) ──
 function rAvariaComp() {
-  const a = D.avariaComp; if (!a || !a.itens.length) return [tela('Avarias', 'Por compradora', '', vazio('Sem dados do mês', 'A avaria por compradora ainda não foi calculada.'), [], '', 'avaria_comp')];
+  const a = D.avariaComp; if (!a || !a.itens.length) return [tela('Avarias', 'Por compradora', '', vazio('Sem dados', 'As avarias em aberto do ERP ainda não foram lidas.'), [], '', 'avaria_comp')];
   const max = Math.max(...a.itens.map(i => i.avaria), 1);
-  const kps = kp(rs(a.totalAvaria), 'Avaria no mês · compradoras') + kp(pct(a.pctRede), 'Da venda', 'am') + kp(pct(a.meta), 'Meta');
-  const linhas = a.itens.map((i, k) => `<div class="row${k === 0 ? ' pos1' : ''}"><span class="h pos">${k + 1}</span><span class="n">${etq(i)} ${esc(i.apelido)}<small>${i.top.slice(0, 2).map(t => esc(t.nome.split(' ').slice(0, 2).join(' ')) + ' ' + rs(t.avaria)).join(' · ') || 'sem avaria'}</small></span><span class="barra"><i class="${i.acima ? 'vm' : k === 0 ? 'am' : 'br'}" style="width:${Math.round(i.avaria / max * 100)}%"></i></span><span class="h big${i.acima ? ' vm' : ''}">${rs(i.avaria)}</span><span class="h pct${i.acima ? ' vm' : ''}">${pct(i.pctAv)}<small>da venda</small></span></div>`).join('');
-  const corpo = `<div class="main">${hd(IC.alerta, 'Quem mais teve avaria no mês', '', 'avaria dos fornecedores de cada compradora · 6 lojas · % sobre a venda dela')}<div class="lst l8"><div class="rows" style="--n:${a.itens.length}">${linhas}</div></div><div class="obs"><span>Barra = valor em relação à 1ª colocada</span><span>·</span><span>Vermelho = acima de <b>${pct(a.meta)}</b> da venda</span></div></div>`;
-  return [tela('Avarias', 'Por compradora', kps, corpo, ['Cupons até ontem'], `mesma conta da tela Venda · Margem · Avaria, somada por compradora${velho('avariaComp')}`, 'avaria_comp')];
+  const kps = kp(rs(a.totalAvaria), 'Aberto + trâmite · rede', 'vm') + kp(rs(a.aberto), 'Em aberto') + kp(rs(a.tramite), 'Em trâmite', 'am') + kp(n0(a.lancamentos), 'Lançamentos');
+  const linhas = a.itens.map((i, k) => `<div class="row${k === 0 ? ' pos1' : ''}"><span class="h pos">${k + 1}</span><span class="n">${etq(i)} ${esc(i.apelido)}<small>${i.top.slice(0, 2).map(t => esc(t.nome.split(' ').slice(0, 2).join(' ')) + ' ' + rs(t.avaria)).join(' · ') || 'nada em aberto'}</small></span><span class="barra"><i class="${k === 0 ? 'vm' : 'br'}" style="width:${Math.round(i.avaria / max * 100)}%"></i></span><span class="h big${k === 0 && i.avaria > 0 ? ' vm' : ''}">${rs(i.avaria)}</span><span class="h pct${i.maisAntigoDias > 30 ? ' vm' : ''}">${n0(i.n)}<small>lanç. · ${i.maisAntigoDias} d</small></span></div>`).join('');
+  const corpo = `<div class="main">${hd(IC.alerta, 'Quem tem mais avaria em aberto e em trâmite', '', 'tudo que está aberto ou em trâmite no ERP, de qualquer data · fornecedores de cada compradora')}<div class="lst l8"><div class="rows" style="--n:${a.itens.length}">${linhas}</div></div><div class="obs"><span>Barra = valor em relação à 1ª colocada</span><span>·</span><span>À direita: lançamentos e o mais antigo em dias · vermelho = há mais de <b>30 dias</b></span><span>·</span><span>Sem lista de compradora (loja, produção): <b>${rs(a.semCompradora.total)}</b> em ${n0(a.semCompradora.n)} lançamentos</span></div></div>`;
+  return [tela('Avarias', 'Por compradora', kps, corpo, ['ERP ' + hmDe(D.geradoEm)], `central.avariaconsumo · Status aberta e em trâmite · acumulado${velho('avariaComp')}`, 'avaria_comp')];
 }
 // ── 4 · Rupturas — uma página por compradora, as listas dela com ruptura rolando ──
 function rRupturas() {
@@ -229,7 +229,7 @@ function rCurvaA() {
   return comps.map((cp, i) => {
     const kps = kp(cp.zeram, 'Zeram antes da lista', cp.zeram ? 'vm' : '') + kp(cp.noPonto, 'No ponto de pedido', 'am') + kp(cp.listas, 'Listas') + kp(cp.transito, 'Já em trânsito');
     const linhas = cp.itens.map(x => `<div class="row"><span class="n">${esc(x.descricao)}<small>curva A · rank ${x.rank}${x.zeradas ? ' · ' + x.zeradas + ' loja' + (x.zeradas > 1 ? 's' : '') + ' zerada' + (x.zeradas > 1 ? 's' : '') : ''}</small></span><span>${etq(x.comp)}</span><span class="t">${esc(x.listaNome || x.fornecedor || '')}</span>${h(n1(x.cobertura), x.zeraAntes || x.cobertura < 1 ? 'vm' : 'am', 'dias')}<span class="t">${x.lojas.join(' · ')}</span>${h(n0(x.vendaDia))}<span>${st(x.acao)}</span></div>`).join('');
-    const corpo = `<div class="main">${hd(IC.curva, 'Produtos curva A da lista de ' + cp.apelido, `${i + 1} / ${comps.length}`, `${cp.total} produtos em ${cp.listas} listas · rede ${c.resumo.emRisco} · trânsito já descontado`)}<div class="lst l5"><div class="thead"><span>Produto</span><span>Compradora</span><span>Lista</span><span>Cobertura</span><span>Lojas</span><span>Venda/dia R$</span><span>Ação</span></div><div class="rows rola" style="--n:${LINHAS}">${linhas}</div></div></div>`;
+    const corpo = `<div class="main">${hd(IC.curva, '<span class="dest">Produtos curva A</span> da lista de ' + esc(cp.apelido), `${i + 1} / ${comps.length}`, `${cp.total} produtos em ${cp.listas} listas · rede ${c.resumo.emRisco} · trânsito já descontado`)}<div class="lst l5"><div class="thead"><span>Produto</span><span>Compradora</span><span>Lista</span><span>Cobertura</span><span>Lojas</span><span>Venda/dia R$</span><span>Ação</span></div><div class="rows rola" style="--n:${LINHAS}">${linhas}</div></div></div>`;
     return tela('Produtos curva A', cp.apelido, kps, corpo, ['Radar ' + hmDe(D.central && D.central.radarEm)], `vermelho = zera antes da lista ou já zerou · amarelo = no ponto de pedido${velho('curvaA')}`, 'curva_a');
   });
 }
