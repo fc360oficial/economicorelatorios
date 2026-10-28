@@ -403,7 +403,7 @@ function lojaMudou(){if(expTabSync())carregar();}
    Atualizar vira "Atualizando…"). As outras abas são pré-carregadas logo depois da atual, então o primeiro clique também é instantâneo.
    Atualizar, decisão e tolerâncias forçam busca nova (carregar(true)). A coluna do coletor chega depois da tabela, sem segurar ela. */
 const TABCACHE={};let CARGA=0,PREF=null;
-function tabKey(t){return t+'|'+(t==='areceber'?($('#loja').value||''):t==='expedicao'?(expDias()+'|'+$('#loja').value):qs());}
+function tabKey(t){return t+'|'+(t==='areceber'?($('#loja').value||''):t==='expedicao'?qs():qs());}
 async function buscar(t){
   if(t==='receb'){const d=await fetch('/api/fiscal/recebimentos'+qs()).then(r=>r.json());if(d.error)throw new Error(d.error);return d;}
   if(t==='areceber'){const q=$('#loja').value?'?loja='+$('#loja').value:'';const [r,c]=await Promise.all([fetch('/api/fiscal/pedidos-a-receber'+q).then(r=>r.json()),fetch('/api/fiscal/cotacoes-resumo'+q).then(r=>r.json()).catch(()=>({cotacoes:[]}))]);if(r.error)throw new Error(r.error);const P=r.pedidos;P._cot=(c&&c.cotacoes)||[];return P;}   /* 16/10/26: painel Cotações vem junto */
@@ -456,7 +456,7 @@ function prefetch(atual){
 function setTab(t){tab=t;document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x.dataset.tab===t));
   /* Pedidos a receber não é por dia: some o navegador de data e o período (loja e busca continuam) */
   /* Expedição do CD conta "últimos N dias" a partir de hoje: some só o navegador de data, o período continua */
-  const semDia=t==='areceber'||t==='expedicao';document.querySelector('.dnav').style.display=semDia?'none':'';$('#periodo').style.display=t==='areceber'?'none':'';$('#q').placeholder=t==='areceber'?'Buscar fornecedor, nº do pedido, lista ou Comprador (a)':t==='expedicao'?'Buscar cliente, nº do pedido ou produto':'Buscar fornecedor, nº da conferência ou nota';
+  const semDia=t==='areceber';document.querySelector('.dnav').style.display=semDia?'none':'';   // Expedição do CD navega por data igual ao Recebimentos (Tiago, 28/10)$('#periodo').style.display=t==='areceber'?'none':'';$('#q').placeholder=t==='areceber'?'Buscar fornecedor, nº do pedido, lista ou Comprador (a)':t==='expedicao'?'Buscar cliente, nº do pedido ou produto':'Buscar fornecedor, nº da conferência ou nota';
   colTimerSync();carregar();}
 function render(){if(tab==='receb')renderReceb();else{if(aberto!=null){aberto=null;$('#detBack').hidden=true;$('#detDrw').hidden=true;}if(tab==='docs')renderDocs();else if(tab==='areceber')renderAReceber();else if(tab==='expedicao')renderExpedicao();else renderMargem();}renderColErro();}
 
@@ -470,8 +470,10 @@ let EXP=null;
 const expDias=()=>{const p=$('#periodo').value;return p==='dia'?1:+p;};
 const dh=s=>s?new Date(s).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';
 async function expBuscar(){
-  const d=expDias();
-  const [fechadas,pendencias,liberacoes,saidas,painelCd]=await Promise.all(['/api/expedicao/fechadas?dias='+d,'/api/expedicao/pendencias?dias='+d,'/api/expedicao/liberacoes?dias='+d,'/api/expedicao/saidas?dias='+d].map(u=>fetch(u).then(r=>r.json())).concat([fetch('/api/painel-cd').then(r=>r.json()).catch(()=>null)]));
+  // fila do fiscal (saídas, separações, retiradas) é sempre dos últimos 7 dias; a lista de pedidos segue a data/período escolhido (qs)
+  // saídas PRIMEIRO: essa rota sincroniza com o Dlinks (fecha sozinha o que o Dlinks já liberou) e a lista tem que vir depois disso
+  const saidas=await fetch('/api/expedicao/saidas?dias=7').then(r=>r.json());
+  const [fechadas,pendencias,liberacoes,painelCd]=await Promise.all(['/api/expedicao/fechadas'+qs(),'/api/expedicao/pendencias?dias=7','/api/expedicao/liberacoes?dias=7'].map(u=>fetch(u).then(r=>r.json())).concat([fetch('/api/painel-cd').then(r=>r.json()).catch(()=>null)]));
   if(fechadas.error)throw new Error(fechadas.error);if(pendencias.error)throw new Error(pendencias.error);if(liberacoes.error)throw new Error(liberacoes.error);if(saidas.error)throw new Error(saidas.error);
   // posição do pedido no Painel CD híbrido (ECO = nosso coletor levou até ali · DLINKS = painel do Dlinks)
   const painel={};try{for(const [col,itens] of Object.entries((painelCd&&painelCd.expedicao&&painelCd.expedicao.colunas)||{}))for(const it of itens)painel[String(it.pedido)]={col,origem:it.origem||'dlinks'};}catch(e){}
@@ -595,7 +597,7 @@ function renderExpedicao(){
       jor=passo(d>=2?'done':d===1?'now':d===3?'bad':'','Separação','coletor Dlinks',d===0?'para separação':d===1?'em separação':d===3?'reconferir':'conferido')
         +passo(d>=2&&d!==3?'done':'','Carregamento','coletor Dlinks',d>=2&&d!==3?'conferido':'')
         +passo(d===4?'done':d===2?'now':'','Fiscal',d===4?'Dlinks':d===2?'no Dlinks':'—',d===2?'aguardando liberação':'')
-        +passo(d===4?'done':'','Saída',d===4?'liberada':'—',d===4&&c.liberadoEm?dh(c.liberadoEm).slice(0,5):'');}
+        +passo(d===4?'done':'','Saída',d===4?'liberada':'—',d===4&&c.liberadoEm?esc(String(c.liberadoEm).slice(0,10).split('-').reverse().slice(0,2).join('/')):'');}   // data vem como 'AAAA-MM-DD': não passar por new Date (vira dia anterior no fuso)
     else if(!duas)jor=passo(s==='fechada'?'done':'now','Conferência',c.fechadoPor||c.nome,s==='fechada'?dh(c.fechadoEm):'em andamento')+passo(s==='fechada'?'done':'','Saída',s==='fechada'?'fechada':'—','');
     else jor=passo(s==='aguardando_fiscal'?'bad':sep.fechadoEm?'done':'now','Separação',nomeSep||c.nome,sep.fechadoEm?dh(sep.fechadoEm)+tent(sep):s==='aguardando_fiscal'?'não bateu'+tent(sep):'em andamento'+tent(sep))
       +(s==='aguardando_fiscal'?passo('now','Fiscal','você','decidir'):'')
