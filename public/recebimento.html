@@ -735,7 +735,7 @@ function renderPedidos() {
     // 'fiscal' = separação com divergência aguardando o fiscal do CD liberar ou devolver.
     const etapa = !c || c.etapa === 'separacao' ? ['info', 'Separar'] : c.etapa === 'fiscal' ? ['bad', 'Aguardando fiscal'] : c.etapa === 'expedicao' ? ['warn', 'Carregar'] : ['warn', 'Conferir'];
     let why = null, cls = '';
-    if (c && c.etapa === 'expedicao') { why = c.souSeparador ? 'Você separou este pedido: outra pessoa faz o carregamento.' : 'Separado por ' + (c.separadoPor || '—') + (c.liberada ? ' · liberado pelo fiscal com divergência' : '') + '. ' + (c.emAndamento ? 'Carregamento começado. Toque pra continuar.' : 'Toque pra carregar o caminhão.'); if (c.souSeparador) cls = 'travada'; }
+    if (c && c.etapa === 'expedicao') { why = c.souSeparador ? 'Você separou este pedido: outra pessoa faz o carregamento.' : (c.avisoCarga ? 'Fiscal do CD mandou RECONFERIR o carregamento: ' + c.avisoCarga + '. ' : '') + 'Separado por ' + (c.separadoPor || '—') + (c.liberada ? ' · liberado pelo fiscal com divergência' : '') + '. ' + (c.emAndamento ? 'Carregamento começado. Toque pra continuar.' : 'Toque pra carregar o caminhão.'); if (c.souSeparador) cls = 'travada'; }
     else if (c && c.etapa === 'fiscal') { why = 'Separação com divergência mandada pro fiscal do CD. Espere ele liberar ou devolver.'; cls = 'travada'; }
     else if (c && c.avisoFiscal) why = 'Fiscal devolveu pra separação: ' + c.avisoFiscal;
     else if (c && c.emAndamento) why = 'Separação começada. Toque pra continuar.';
@@ -743,7 +743,7 @@ function renderPedidos() {
       <div class="f">${esc(p.cliente)}</div>
       <div class="m">Pedido <b>#${esc(p.nPedido)}</b> · ${p.itens} ${p.itens === 1 ? 'item' : 'itens'} · ${esc(p.data ? dataBr(p.data) : '')} ${esc(p.hora)}</div>
       <div class="st"><span class="pill ${etapa[0]}"><i></i>${esc(etapa[1])}</span><span class="pill ${painel[0]}">${esc(painel[1])}</span></div>
-      ${why ? `<div class="why ${c && c.avisoFiscal && c.etapa === 'separacao' ? 'w' : 'i'}">${esc(why)}</div>` : ''}
+      ${why ? `<div class="why ${c && ((c.avisoFiscal && c.etapa === 'separacao') || (c.avisoCarga && c.etapa === 'expedicao')) ? 'w' : 'i'}">${esc(why)}</div>` : ''}
     </button>`;
   }).join('') : bp ? '<div class="vazio">Nenhum pedido bate com a busca.</div>' : '<div class="vazio">Nenhum pedido do Televendas aguardando separação ou carregamento.</div>';
 }
@@ -814,7 +814,8 @@ function renderExp() {
   $('xResTxt').innerHTML = `<b>${visaoExp.produtos}</b> de ${tot} produtos bipados`; $('xUn').textContent = num(visaoExp.unidades) + ' un';
   $('xProg').textContent = 'Cego: bipe o que sobe no caminhão. Tem que bater com a separação.'; $('bipExp').placeholder = 'Bipe a caixa (DUN-14) ou a unidade';
   $('xTir').textContent = visaoExp.tirados ? visaoExp.tirados + (visaoExp.tirados === 1 ? ' retirada registrada pro fiscal' : ' retiradas registradas pro fiscal') : '';
-  $('xAviso').innerHTML = visaoExp.liberacao && visaoExp.liberacao.decisao === 'liberada' ? `<div class="aviso fis"><b>Separação liberada pelo fiscal com divergência.</b> O caminhão tem que bater com o que foi separado, não com o pedido.${visaoExp.liberacao.obs ? ' ' + esc(visaoExp.liberacao.obs) : ''}</div>` : '';
+  $('xAviso').innerHTML = (visaoExp.avisoCarga ? `<div class="aviso fis"><b>Fiscal do CD mandou reconferir o carregamento:</b> ${esc(visaoExp.avisoCarga.obs || 'bipe o caminhão de novo')} <span style="color:var(--ink3)">· ${esc(visaoExp.avisoCarga.nome || '')}</span></div>` : '')
+    + (visaoExp.liberacao && visaoExp.liberacao.decisao === 'liberada' ? `<div class="aviso fis"><b>Separação liberada pelo fiscal com divergência.</b> O caminhão tem que bater com o que foi separado, não com o pedido.${visaoExp.liberacao.obs ? ' ' + esc(visaoExp.liberacao.obs) : ''}</div>` : '');
   const fora = visaoExp.fora || [];
   $('xFora').innerHTML = fora.length ? `<div class="aviso"><b>${fora.length === 1 ? '1 produto bipado não está na separação.' : fora.length + ' produtos bipados não estão na separação.'}</b> Tire do caminhão e use "Tirar da coletagem".</div>` + foraHtml(fora) : '';
   const itens = (visaoExp.itens || []).slice().reverse();
@@ -1040,10 +1041,10 @@ async function termineiExp(enviarFiscal, motivo) {
       $('xfCorpo').innerHTML = `<div class="aviso ok"><b>Separação bateu 100 % com o pedido.</b><br>O pallet vai pro Carregamento de Caminhão. <b>Outra pessoa</b> bipa o caminhão às cegas: você separou, então o app não deixa você carregar este pedido.</div>
         <div class="card"><div class="kv"><span>Separou</span><b>${esc(visaoExp.separadoPor || sess.nome)}</b></div><div class="kv"><span>Tentativas</span><b>${visaoExp.tentativas || 1}</b></div>${visaoExp.tirados ? `<div class="kv"><span>Retiradas</span><b>${visaoExp.tirados} · pendência pro fiscal</b></div>` : ''}</div>`;
     } else if (r.fechou) {
-      $('xfTitulo').textContent = 'Caminhão conferido';
+      $('xfTitulo').textContent = visaoExp.status === 'conferida' ? 'Caminhão conferido · aguardando o fiscal' : 'Caminhão conferido';
       $('xfAcoes').innerHTML = '<button class="btn btn-primary blk" onclick="voltarPedidos()">Voltar aos pedidos</button>';
-      $('xfCorpo').innerHTML = `<div class="aviso ok"><b>Bateu 100 % com a separação.</b><br>Pode fechar o caminhão. O Televendas já vê o pedido como conferido.</div>
-        ${r.etapa === 'expedicao' ? `<div class="card"><div class="kv"><span>Separou</span><b>${esc(visaoExp.separadoPor || '—')}</b></div><div class="kv"><span>Carregou</span><b>${esc(visaoExp.expedidoPor || sess.nome)}</b></div></div>` : ''}`;
+      $('xfCorpo').innerHTML = (visaoExp.status === 'conferida' ? `<div class="aviso ok"><b>Bateu 100 % com a separação.</b><br>Agora o fiscal do CD confronta pedido × separado × carregado na retaguarda e <b>libera a saída</b>. O caminhão só sai depois da liberação; se ele mandar reconferir, o pedido volta pra lista como "Carregar".</div>` : `<div class="aviso ok"><b>Bateu 100 % com a separação.</b><br>Pode fechar o caminhão. O Televendas já vê o pedido como conferido.</div>`)
+        + (r.etapa === 'expedicao' ? `<div class="card"><div class="kv"><span>Separou</span><b>${esc(visaoExp.separadoPor || '—')}</b></div><div class="kv"><span>Carregou</span><b>${esc(visaoExp.expedidoPor || sess.nome)}</b></div></div>` : '');
     } else if (r.aguardandoFiscal) {
       $('xfTitulo').textContent = 'Mandado pro fiscal do CD';
       $('xfAcoes').innerHTML = '<button class="btn btn-primary blk" onclick="voltarPedidos()">Voltar aos pedidos</button>';

@@ -385,7 +385,7 @@ function badge(t,d){
   if(t==='receb')$('#nReceb').textContent=d.recebimentos.length;
   else if(t==='areceber')$('#nAReceber').textContent=d.length;
   else if(t==='docs')$('#nDocs').textContent=d.length;
-  else if(t==='expedicao')$('#nExp').textContent=d.pendencias.filter(p=>!p.verificado).length+d.liberacoes.length;
+  else if(t==='expedicao')$('#nExp').textContent=d.pendencias.filter(p=>!p.verificado).length+d.liberacoes.length+(d.saidas||[]).length;
   else $('#nMargem').textContent=d.length;
 }
 function aplicar(t,d){
@@ -441,9 +441,20 @@ const expDias=()=>{const p=$('#periodo').value;return p==='dia'?1:+p;};
 const dh=s=>s?new Date(s).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';
 async function expBuscar(){
   const d=expDias();
-  const [fechadas,pendencias,liberacoes]=await Promise.all(['/api/expedicao/fechadas?dias='+d,'/api/expedicao/pendencias?dias='+d,'/api/expedicao/liberacoes?dias='+d].map(u=>fetch(u).then(r=>r.json())));
-  if(fechadas.error)throw new Error(fechadas.error);if(pendencias.error)throw new Error(pendencias.error);if(liberacoes.error)throw new Error(liberacoes.error);
-  return {fechadas,pendencias,liberacoes};
+  const [fechadas,pendencias,liberacoes,saidas]=await Promise.all(['/api/expedicao/fechadas?dias='+d,'/api/expedicao/pendencias?dias='+d,'/api/expedicao/liberacoes?dias='+d,'/api/expedicao/saidas?dias='+d].map(u=>fetch(u).then(r=>r.json())));
+  if(fechadas.error)throw new Error(fechadas.error);if(pendencias.error)throw new Error(pendencias.error);if(liberacoes.error)throw new Error(liberacoes.error);if(saidas.error)throw new Error(saidas.error);
+  return {fechadas,pendencias,liberacoes,saidas};
+}
+/* Carregamento fechado 100 % (Tiago, 28/10: "quando finalizasse tem que aparecer algo no fiscal pra eu confrontar se bateu mesmo e
+   liberar"): o caminhão não sai sozinho. O fiscal vê pedido × separado × carregado item a item e LIBERA A SAÍDA (fecha e espelha no
+   ERP de teste) ou manda RECONFERIR o carregamento (volta pro coletor com a observação; o carregamento anterior fica guardado). */
+async function liberarSaida(id,decisao){
+  const k=id.replace(/[^a-z0-9]/gi,'');const obs=(($('#saiObs'+k)||{}).value||'').trim();
+  const l=(EXP.saidas||[]).find(x=>x.id===id);const n=l?l.nPedido:'';
+  if(decisao==='liberar'&&l&&l.divergencias&&!confirm('O pedido #'+n+' tem '+l.divergencias+' item(ns) com diferença entre pedido, separação e carregamento. Liberar a saída mesmo assim?'))return;
+  if(!confirm(decisao==='liberar'?'Liberar a saída do pedido #'+n+'? O caminhão pode ir e a conferência é espelhada no ERP de teste.':'Mandar reconferir o carregamento do pedido #'+n+'? O operador bipa o caminhão de novo.'))return;
+  try{const r=await fetch('/api/expedicao/liberar-saida',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,decisao,obs})}).then(r=>r.json());if(r.error)throw new Error(r.error);if(r.erp&&!r.erp.ok)alert('Saída liberada, mas o espelho no ERP de teste falhou: '+r.erp.erro);await expCarregar();render();}
+  catch(e){alert('Não deu: '+e.message);}
 }
 async function expCarregar(){const d=await expBuscar();TABCACHE[tabKey('expedicao')]={dados:d,em:Date.now()};aplicar('expedicao',d);}
 /* Separação de Pedidos com divergência (Tiago, 14/10 à noite): o separador viu a lista do pedido, digitou o que separou e não bateu.
@@ -460,17 +471,35 @@ async function verificarPallet(id,idx){
   try{const r=await fetch('/api/expedicao/verificar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,idx})}).then(r=>r.json());if(r.error)throw new Error(r.error);await expCarregar();render();}
   catch(e){alert('Não marcou: '+e.message);}
 }
-const EXP_ST={separando:['pe-breve','em separação'],aguardando_fiscal:['pe-hoje','aguardando o fiscal'],separada:['pe-flag','separado · falta carregar'],expedindo:['pe-breve','em carregamento'],fechada:['pe-ok','fechado 100 %'],bipando:['pe-breve','em conferência']};
+const EXP_ST={separando:['pe-breve','em separação'],aguardando_fiscal:['pe-hoje','aguardando o fiscal'],separada:['pe-flag','separado · falta carregar'],expedindo:['pe-breve','em carregamento'],conferida:['pe-hoje','carregado · liberar saída'],fechada:['pe-ok','saída liberada'],bipando:['pe-breve','em conferência']};
 function expBusca(o){const q=$('#q').value.trim().toLowerCase();if(!q)return true;return String(o.nPedido||'').includes(q)||(o.cliente||'').toLowerCase().includes(q)||(o.descricao||'').toLowerCase().includes(q)||String(o.cod||'').includes(q);}
 function renderExpedicao(){
   const pend=EXP.pendencias.filter(expBusca),confs=EXP.fechadas.filter(expBusca);
   const abertas=confs.filter(c=>c.status!=='fechada'),fechadas=confs.filter(c=>c.status==='fechada');
-  $('#cnt').textContent=pend.filter(p=>!p.verificado).length+' pendência(s) · '+abertas.length+' na saída · '+fechadas.length+' fechado(s)';
+  const saidas=(EXP.saidas||[]).filter(expBusca);
+  $('#cnt').textContent=saidas.length+' pra liberar · '+pend.filter(p=>!p.verificado).length+' pendência(s) · '+abertas.length+' na saída · '+fechadas.length+' liberado(s)';
   const etq=e=>e==='separacao'?'<span class="pill pe-flag">separação</span>':e==='expedicao'?'<span class="pill pe-hoje">carregamento</span>':'';
   const lotes=ls=>esc((ls||[]).map(l=>l.lote+' ('+qtd(l.un)+')').join(', ')||'—');
+  const lts=ls=>ls&&ls.length?esc(ls.map(l=>(l.lote||'—')+(ls.length>1?' ('+qtd(l.un)+')':'')).join(', ')):'<span class="mut">—</span>';
+  // Carregamentos fechados 100 %: o fiscal confronta pedido × separado × carregado e libera a saída do caminhão (ou manda reconferir)
+  let h='<div class="sub" style="margin-bottom:8px"><b>Carregamentos aguardando o fiscal liberar a saída</b> · o caminhão foi bipado às cegas e bateu com a separação · confira pedido × separado × carregado · <b>liberar saída</b> = caminhão pode ir, fecha e espelha no ERP de teste · <b>reconferir</b> = operador bipa o caminhão de novo</div>';
+  if(!saidas.length)h+='<p class="mut" style="margin:0 0 14px">Nenhum carregamento aguardando liberação.</p>';
+  for(const l of saidas){const k=l.id.replace(/[^a-z0-9]/gi,'');
+    const dif=i=>i.difSeparado===0?'<span class="pos"><b>bate</b></span>':'<b class="'+(i.difSeparado<0?'neg':'')+'"'+(i.difSeparado>0?' style="color:#8A5A00"':'')+'>'+(i.difSeparado>0?'+':'')+qtd(i.difSeparado)+'</b>';
+    const difC=i=>i.difCarregado===0?'<span class="pos"><b>bate</b></span>':'<b class="'+(i.difCarregado<0?'neg':'')+'"'+(i.difCarregado>0?' style="color:#8A5A00"':'')+'>'+(i.difCarregado>0?'+':'')+qtd(i.difCarregado)+'</b>';
+    h+='<div class="table-wrap" style="margin-bottom:12px;border-left:4px solid var(--am-ln)"><div class="sub" style="padding:8px 10px 4px">Pedido <b>#'+esc(l.nPedido)+'</b> · '+esc(l.cliente)+' · separou <b>'+esc(l.separadoPor||'')+'</b> '+dh(l.separacaoFechadaEm)+' ('+l.tentativasSep+' tentativa'+(l.tentativasSep===1?'':'s')+') · carregou <b>'+esc(l.carregadoPor||'')+'</b> '+dh(l.conferidaEm)+' ('+l.tentativasCarga+' tentativa'+(l.tentativasCarga===1?'':'s')+')'
+      +(l.liberacao&&l.liberacao.decisao==='liberada'?' · <span style="color:#8A5A00">separação liberada pelo fiscal '+esc(l.liberacao.decididoPor||'')+' com '+l.liberacao.pendentes+' divergência'+(l.liberacao.pendentes===1?'':'s')+'</span>':'')
+      +(l.reconferencias?' · <span class="neg">'+l.reconferencias+'ª reconferência</span>':'')
+      +' · '+(l.divergencias?'<span class="neg"><b>'+l.divergencias+' de '+l.itens.length+' itens com diferença</b></span>':'<span class="pos"><b>'+l.itens.length+' itens, tudo bateu</b></span>')+'</div>'
+      +'<table class="t"><thead><tr><th>EAN</th><th>Produto</th><th class="r">Pedido</th><th class="r">Separado</th><th class="r">Sep. × pedido</th><th class="r">Carregado</th><th class="r">Carga × sep.</th><th>Lote sep.</th><th>Lote carga</th></tr></thead><tbody>'
+      +l.itens.map(i=>'<tr'+(i.difSeparado!==0||i.difCarregado!==0||i.loteDiferente?' style="background:#FFF8E6"':'')+'><td><b>…'+esc(i.ean4)+'</b><div class="sub">'+esc(i.cod)+'</div></td><td class="forn">'+esc(i.descricao)+(i.foraDoPedido?' <span class="neg">· fora do pedido</span>':'')+'<div class="sub">'+(i.qtd&&i.und?qtd(i.qtd)+' '+esc(i.und)+(i.emb>1?' c/'+qtd(i.emb):''):'')+'</div></td><td class="r">'+qtd(i.pedido)+'</td><td class="r">'+qtd(i.separado)+'</td><td class="r">'+dif(i)+'</td><td class="r">'+qtd(i.carregado)+'</td><td class="r">'+difC(i)+'</td><td>'+lts(i.lotesSep)+'</td><td>'+lts(i.lotesCarga)+(i.loteDiferente?' <span class="neg">lote diferente</span>':'')+'</td></tr>').join('')
+      +'</tbody></table>'
+      +(l.tirados.length?'<div class="sub" style="padding:6px 10px 0"><b>Retiradas da coletagem:</b> '+l.tirados.map(t=>esc(t.descricao)+' '+qtd(t.un)+' un ('+esc(t.etapa==='separacao'?'separação':'carregamento')+(t.motivo?' · '+esc(t.motivo):'')+')'+(t.verificado?' <span class="pos">verificado</span>':' <span class="neg">a verificar</span>')).join(' · ')+'</div>':'')
+      +'<div style="display:flex;gap:8px;align-items:center;padding:8px 10px;flex-wrap:wrap"><input id="saiObs'+k+'" class="exp-obs" placeholder="observação pro registro / pro operador (opcional)"><button class="btn btn-amber btn-sm" onclick="liberarSaida(\''+esc(l.id)+'\',\'liberar\')">Liberar saída do caminhão</button><button class="btn btn-sm" onclick="liberarSaida(\''+esc(l.id)+'\',\'reconferir\')">Reconferir carregamento</button></div></div>';
+  }
   // Separações com divergência: o fiscal vê pedido × separado item a item e libera ou devolve
   const libs=(EXP.liberacoes||[]).filter(expBusca);
-  let h='<div class="sub" style="margin-bottom:8px"><b>Separações aguardando o fiscal do CD</b> · o separador viu a lista do pedido, digitou o que separou e não bateu · <b>liberar</b> = o Carregamento de Caminhão confere o que foi separado · <b>devolver</b> = volta pro separador acertar</div>';
+  h+='<div class="sub" style="margin-bottom:8px"><b>Separações aguardando o fiscal do CD</b> · o separador viu a lista do pedido, digitou o que separou e não bateu · <b>liberar</b> = o Carregamento de Caminhão confere o que foi separado · <b>devolver</b> = volta pro separador acertar</div>';
   if(!libs.length)h+='<p class="mut" style="margin:0 0 14px">Nenhuma separação aguardando o fiscal.</p>';
   for(const l of libs){const k=l.id.replace(/[^a-z0-9]/gi,'');const dif=l.itens.filter(i=>i.diferenca!==0).length;
     h+='<div class="table-wrap" style="margin-bottom:12px"><div class="sub" style="padding:8px 10px 4px">Pedido <b>#'+esc(l.nPedido)+'</b> · '+esc(l.cliente)+' · separou <b>'+esc(l.separadoPor||'')+'</b> · mandou '+dh(l.liberacao.pedidoEm)+(l.liberacao.motivo?' · motivo: <b>'+esc(l.liberacao.motivo)+'</b>':'')+' · '+dif+' de '+l.itens.length+' itens com diferença</div>'
@@ -488,7 +517,7 @@ function renderExpedicao(){
   }
   h+='</tbody></table></div>';
   const cel=(e,aberta)=>!e?'<span class="mut">—</span>':e.fechadoEm?'<b>'+esc((e.operador||{}).nome||e.fechadoPor||'')+'</b><div class="sub">'+dh(e.fechadoEm)+' · '+e.tentativas+' tentativa'+(e.tentativas===1?'':'s')+'</div>':'<b>'+esc((e.operador||{}).nome||'')+'</b><div class="sub">'+(aberta?'em andamento desde '+dh(e.abertoEm):'—')+'</div>';
-  h+='<div class="sub" style="margin-bottom:8px"><b>Pedidos na saída</b> · Separação de Pedidos (com a lista) e Carregamento de Caminhão (cego, bate com a separação) por operadores diferentes; fechado 100 % espelha no ERP de teste</div>';
+  h+='<div class="sub" style="margin-bottom:8px"><b>Pedidos na saída</b> · Separação de Pedidos (com a lista) e Carregamento de Caminhão (cego, bate com a separação) por operadores diferentes; carregado 100 % sobe pro bloco de liberação; saída liberada espelha no ERP de teste</div>';
   h+='<div class="table-wrap"><table class="t"><thead><tr><th>Aberto</th><th>Pedido</th><th>Cliente</th><th>Separação de Pedidos</th><th>Carregamento</th><th class="r">Produtos</th><th class="r">Retiradas</th><th>Situação</th><th>ERP teste</th></tr></thead><tbody>';
   if(!confs.length)h+='<tr><td colspan="9" class="mut" style="padding:18px">Nenhuma conferência de saída no período.</td></tr>';
   for(const c of [...abertas,...fechadas]){
@@ -496,9 +525,9 @@ function renderExpedicao(){
     const lib=!L?'':L.decisao==='liberada'?'<div class="sub" style="color:#8A5A00" title="'+esc(L.obs||'')+'">fiscal '+esc(L.decididoPor||'')+' liberou com '+L.pendentes+' divergência'+(L.pendentes===1?'':'s')+' · '+dh(L.decididoEm)+'</div>':L.decisao==='devolvida'?'<div class="sub" title="'+esc(L.obs||'')+'">fiscal '+esc(L.decididoPor||'')+' devolveu · '+dh(L.decididoEm)+'</div>':'<div class="sub neg">'+L.pendentes+' divergência'+(L.pendentes===1?'':'s')+(L.motivo?' · '+esc(L.motivo):'')+'</div>';
     h+='<tr><td>'+dh(c.abertoEm)+'</td><td>#'+esc(c.nPedido)+'</td><td class="forn">'+esc(c.cliente)+'</td>'
       +'<td>'+(duas?cel(et.separacao,c.status==='separando'||c.status==='aguardando_fiscal'):'<span class="mut" title="conferência de uma etapa só (antes de 14/10)">—</span>')+'</td>'
-      +'<td>'+(duas?(c.status==='separada'?'<span class="mut">aguardando outro operador</span>':(c.status==='separando'||c.status==='aguardando_fiscal')?'<span class="mut">—</span>':cel(et.expedicao,c.status==='expedindo')):cel(et.expedicao,c.status!=='fechada'))+'</td>'
+      +'<td>'+(duas?(c.status==='separada'?'<span class="mut">'+(c.saida&&c.saida.decisao==='reconferir'?'reconferir · fiscal '+esc(c.saida.decididoPor||'')+' mandou bipar de novo':'aguardando outro operador')+'</span>':(c.status==='separando'||c.status==='aguardando_fiscal')?'<span class="mut">—</span>':cel(et.expedicao,c.status==='expedindo')):cel(et.expedicao,c.status!=='fechada'))+(c.reconferencias&&c.status!=='separada'?'<div class="sub neg">'+c.reconferencias+'ª reconferência</div>':'')+'</td>'
       +'<td class="r">'+c.produtos+'/'+c.produtos_pedido+'</td><td class="r'+(c.pendentesVerificar?' neg':'')+'">'+c.tirados+(c.lotesDivergentes?' · '+c.lotesDivergentes+' lote':'')+(c.pendentesVerificar?' ('+c.pendentesVerificar+' a verificar)':'')+'</td>'
-      +'<td class="c-sit"><span class="pill '+st[0]+'">'+st[1]+'</span>'+(c.status==='fechada'?'<div class="sub">'+esc(c.fechadoPor||'')+' · '+dh(c.fechadoEm)+'</div>':'')+lib+'</td>'
+      +'<td class="c-sit"><span class="pill '+st[0]+'">'+st[1]+'</span>'+(c.status==='fechada'?'<div class="sub">'+(c.saida&&c.saida.decisao==='liberada'?'fiscal '+esc(c.saida.decididoPor||'')+' · '+dh(c.saida.decididoEm)+(c.saida.obs?' · '+esc(c.saida.obs):''):esc(c.fechadoPor||'')+' · '+dh(c.fechadoEm))+'</div>':c.status==='conferida'?'<div class="sub">carregado '+dh(c.conferidaEm)+' · <a href="#" onclick="event.preventDefault();window.scrollTo({top:0,behavior:\'smooth\'})">confrontar e liberar acima</a></div>':'')+lib+'</td>'
       +'<td>'+(c.status!=='fechada'?'—':c.erpErro?'<span class="neg" title="'+esc(c.erpErro)+'">erro</span>':'<span class="pos">espelhado</span>')+'</td></tr>';
   }
   h+='</tbody></table></div><p class="sub">Operadores do CD (nome e PIN do coletor) ficam em <a href="/centro-distribuicao.html?tab=regras">Centro de Distribuição › Regras</a>.</p>';
