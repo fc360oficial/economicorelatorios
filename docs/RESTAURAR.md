@@ -136,3 +136,23 @@ Recriar `C:\fc360\tools\rclone\rclone.conf` como no passo 3 (mesmos nomes `gdriv
 senha do cofre). O sistema detecta o arquivo sozinho e volta a enviar às 04:00. Conferir na tela Processos ›
 Backup o card "Google Drive: Enviado".
 
+## 10. Nosso banco (PostgreSQL economicogestao)
+
+Desde 28/10/2026 o backup gera `data/pg-dump/economicogestao.dump` (formato custom do pg_dump) antes do zip, então ele
+vem dentro do zip. O dump traz o esquema inteiro e os dados do que não é cópia do ERP (config do espelho, totais de
+venda por dia, cadastro, notas de compra); as tabelas que são só cópia (`venda_dia_produto*`, `compra_item`,
+`estoque_loja`, `espelho_copias`) vêm vazias e o espelho as refaz sozinho em algumas horas no horário comercial
+(Processos › Espelho do ERP › "Rodar agora").
+
+Restaurar no servidor novo (PostgreSQL 16 instalado como serviço, ver passo 1):
+
+```powershell
+# como postgres: cria usuário e banco (mesma senha que está em data/pg-economico.json do zip)
+& "C:\PostgreSQL\16\bin\psql.exe" -U postgres -h 127.0.0.1 -c "CREATE ROLE economicogestao LOGIN PASSWORD 'A-SENHA'"
+& "C:\PostgreSQL\16\bin\psql.exe" -U postgres -h 127.0.0.1 -c "CREATE DATABASE economicogestao OWNER economicogestao ENCODING 'UTF8' TEMPLATE template0"
+# restaura o dump
+& "C:\PostgreSQL\16\bin\pg_restore.exe" -U economicogestao -h 127.0.0.1 -d economicogestao --no-owner "C:\fc360\claude_code_\data\pg-dump\economicogestao.dump"
+```
+
+Depois subir o serviço do Node: o espelho recria índices/partições que faltarem e começa a recopiar do ERP.
+
