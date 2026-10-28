@@ -694,6 +694,26 @@ function buildUnionSemana(mes, dataInicio, dataFim) {
   ).join(' UNION ALL ');
 }
 
+// ── Espelho do ERP (28/10/26) ────────────────────────────────────────────────────────────────────────────────────
+// As somas de mês inteiro de zcupomitens (venda, custo, cupons) saem do nosso Postgres (lib/espelho-erp.js) quando
+// ele cobre o período pedido; quando não cobre (ou o Postgres caiu) a rota consulta o .252 exatamente como antes.
+// Nada aqui muda o formato de resposta das rotas — só a fonte dos números. `espelhoErp` é declarado mais abaixo, no
+// init; as rotas só rodam depois que o servidor subiu inteiro, então aqui já existe.
+// Totais por loja no período ({loja, valor, custo, qtd, itens, cupons, dias}) ou null (cai pro ERP).
+function espelhoTotais(lojas, dIni, dFim, rota) {
+  return espelhoErp.totaisPeriodo(lojas, dIni, dFim).catch(e => { console.error(`[ESPELHO] ${rota}:`, e.message); return null; });
+}
+// Mesmo mês em vários anos (comparativos 2025 × 2026): porAno = { ano: [{loja, dia, valor, custo, cupons, itens}] }
+// só com os anos que o espelho cobre inteiros; faltam = anos sem cobertura que AINDA PODEM ter venda (mês que começa
+// depois de hoje não tem venda nenhuma, então não precisa ir ao ERP por ele). Quem chama consulta o .252 só pros
+// anos de `faltam`, com "YEAR(Data) IN (...)" como sempre.
+async function espelhoMesAnos(lojas, mes, anos, rota) {
+  const r = await espelhoErp.mesmoMesAnos(lojas, mes, anos).catch(e => { console.error(`[ESPELHO] ${rota}:`, e.message); return null; });
+  const h = localDate(); const mm = String(mes).padStart(2, '0');
+  const faltam = anos.filter(a => !(r && r[a]) && `${a}-${mm}-01` <= h);
+  return { porAno: r || {}, faltam, espelho: !!r };
+}
+
 function fmtDate(d) {
   return d.toISOString().split('T')[0];
 }
@@ -735,9 +755,21 @@ app.get('/api/kpis', withCache(60), async (req, res) => {
     const dFimAntHoje = `${anoAnt}-${mesStr}-${diaHoje}`;  // mesmo dia do ano passado
     const dFimAntMes  = dFimMes(anoAnt, mesSel);           // mês completo ano passado
 
+    // Espelho do ERP (28/10/26): as três somas de mês inteiro (mês atual; ano passado até o mesmo dia; ano passado
+    // fechado) vêm do Postgres quando ele cobre o período — uma consulta por período pra todas as lojas. Sem cobertura
+    // (ou Postgres fora), cada uma cai pro .252 loja a loja como sempre. Cupons do espelho são por dia (somar é exato;
+    // conferido 28/10: 2.171 = 2.171 na loja 1, 27.462 = 27.462 na loja 3).
+    const [espAtual, espAntDia, espAntMes] = await Promise.all([
+      espelhoTotais(lojas, dIni, dFim, 'kpis'),
+      espelhoTotais(lojas, dIniAnt, dFimAntHoje, 'kpis'),
+      espelhoTotais(lojas, dIniAnt, dFimAntMes, 'kpis')
+    ]);
+
     // Faturamento + custo + cupons mês atual
     let atual = 0, custoAtual = 0, totalCupons = 0;
-    for (const ln of lojas) {
+    if (espAtual) {
+      for (const r of espAtual) { atual += parseFloat(r.valor || 0); custoAtual += parseFloat(r.custo || 0); totalCupons += parseInt(r.cupons || 0); }
+    } else for (const ln of lojas) {
       try {
         const [r] = await q(
           `SELECT COALESCE(SUM(ValorTotalNovo),0) as venda, COALESCE(SUM(Custo),0) as custo, COUNT(DISTINCT CONCAT(nECF,'-',CCF)) as cupons FROM \`ln${ln}${mm}\`.zcupomitens WHERE Data BETWEEN ? AND ? AND IndCancel='N'`,
@@ -751,18 +783,24 @@ app.get('/api/kpis', withCache(60), async (req, res) => {
 
     // Ano anterior: mesmo mês até mesmo dia + mês completo
     let antAteDia = 0, antMesTotal = 0;
-    for (const ln of lojas) {
+    if (espAntDia) for (const r of espAntDia) antAteDia += parseFloat(r.valor || 0);
+    if (espAntMes) for (const r of espAntMes) antMesTotal += parseFloat(r.valor || 0);
+    if (!espAntDia || !espAntMes) for (const ln of lojas) {
       try {
-        const [r1] = await q(
-          `SELECT COALESCE(SUM(ValorTotalNovo),0) as venda FROM \`ln${ln}${mmAnt}\`.zcupomitens WHERE Data BETWEEN ? AND ? AND IndCancel='N'`,
-          [dIniAnt, dFimAntHoje]
-        );
-        antAteDia += parseFloat(r1.venda || 0);
-        const [r2] = await q(
-          `SELECT COALESCE(SUM(ValorTotalNovo),0) as venda FROM \`ln${ln}${mmAnt}\`.zcupomitens WHERE Data BETWEEN ? AND ? AND IndCancel='N'`,
-          [dIniAnt, dFimAntMes]
-        );
-        antMesTotal += parseFloat(r2.venda || 0);
+        if (!espAntDia) {
+          const [r1] = await q(
+            `SELECT COALESCE(SUM(ValorTotalNovo),0) as venda FROM \`ln${ln}${mmAnt}\`.zcupomitens WHERE Data BETWEEN ? AND ? AND IndCancel='N'`,
+            [dIniAnt, dFimAntHoje]
+          );
+          antAteDia += parseFloat(r1.venda || 0);
+        }
+        if (!espAntMes) {
+          const [r2] = await q(
+            `SELECT COALESCE(SUM(ValorTotalNovo),0) as venda FROM \`ln${ln}${mmAnt}\`.zcupomitens WHERE Data BETWEEN ? AND ? AND IndCancel='N'`,
+            [dIniAnt, dFimAntMes]
+          );
+          antMesTotal += parseFloat(r2.venda || 0);
+        }
       } catch(_) {}
     }
 
@@ -771,7 +809,15 @@ app.get('/api/kpis', withCache(60), async (req, res) => {
     const inicioSem  = new Date(hoje); inicioSem.setDate(hoje.getDate() - 6);
     const dataInicio = fmtDate(inicioSem);
     let prodSemana = { total: 0 };
-    try {
+    // Espelho do ERP (28/10/26): produtos distintos dos últimos 7 dias direto de venda_dia_produto quando a semana
+    // está coberta (fmtDate é UTC e à noite vira amanhã — o espelho só conta até hoje). Senão, UNION no .252 como antes.
+    const fimSemana = dataFim > localDate() ? localDate() : dataFim;
+    const espSemana = await (async () => {
+      if (!espelhoErp.pronto() || !(await espelhoErp.temCobertura(lojas, dataInicio, fimSemana))) return null;
+      return espelhoErp.pq('SELECT COUNT(DISTINCT codigo) total FROM venda_dia_produto WHERE loja = ANY($1) AND dia BETWEEN $2 AND $3', [lojas, dataInicio, fimSemana]);
+    })().catch(e => { console.error('[ESPELHO] kpis semana:', e.message); return null; });
+    if (espSemana) prodSemana = { total: parseInt(espSemana[0]?.total || 0) };
+    else try {
       const union = lojas.map(ln =>
         `SELECT Codigo FROM \`ln${ln}${mm}\`.zcupomitens WHERE Data BETWEEN '${dataInicio}' AND '${dataFim}' AND IndCancel='N'`
       ).join(' UNION ALL ');
@@ -797,7 +843,8 @@ app.get('/api/kpis', withCache(60), async (req, res) => {
       mes: mesSel,
       ano_ant: anoAnt,
       dia_ate: diaHoje,
-      loja: lojaSel || 'todas'
+      loja: lojaSel || 'todas',
+      fonte_vendas: (espAtual && espAntDia && espAntMes) ? 'espelho' : 'erp'
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -819,15 +866,25 @@ app.get('/api/diretoria/kpis', withCache(30), async (req, res) => {
     const dIniAnt     = `${anoAnt}-${mesStr}-01`;
     const dFimAntHoje = `${anoAnt}-${mesStr}-${diaHoje}`;
 
+    // Espelho do ERP (28/10/26): mês atual e ano passado até o dia, das 6 lojas, em duas consultas no Postgres;
+    // sem cobertura cada loja consulta o .252 como antes (mesmos campos venda/custo/cupons).
+    const [espAtual, espAnt] = await Promise.all([
+      espelhoTotais([1,2,3,4,5,6], dIni, dFim, 'diretoria/kpis'),
+      espelhoTotais([1,2,3,4,5,6], dIniAnt, dFimAntHoje, 'diretoria/kpis')
+    ]);
+    const fonteVendas = (espAtual && espAnt) ? 'espelho' : 'erp';
+
     const lojas = await Promise.all([1,2,3,4,5,6].map(async ln => {
       try {
-        const [r] = await q(
+        const eA = espAtual && espAtual.find(x => +x.loja === ln);
+        const eB = espAnt && espAnt.find(x => +x.loja === ln);
+        const [r] = espAtual ? [{ venda: eA?.valor || 0, custo: eA?.custo || 0, cupons: eA?.cupons || 0 }] : await q(
           `SELECT COALESCE(SUM(ValorTotalNovo),0) as venda, COALESCE(SUM(Custo),0) as custo,
                   COUNT(DISTINCT CONCAT(nECF,'-',CCF)) as cupons
            FROM \`ln${ln}${mm}\`.zcupomitens WHERE Data BETWEEN ? AND ? AND IndCancel='N'`,
           [dIni, dFim]
         );
-        const [r1] = await q(
+        const [r1] = espAnt ? [{ venda: eB?.valor || 0 }] : await q(
           `SELECT COALESCE(SUM(ValorTotalNovo),0) as venda
            FROM \`ln${ln}${mm}\`.zcupomitens WHERE Data BETWEEN ? AND ? AND IndCancel='N'`,
           [dIniAnt, dFimAntHoje]
@@ -845,7 +902,7 @@ app.get('/api/diretoria/kpis', withCache(30), async (req, res) => {
       }
     }));
 
-    res.json({ lojas, mes, dia_ate: diaHoje, ano_ant: anoAnt });
+    res.json({ lojas, mes, dia_ate: diaHoje, ano_ant: anoAnt, fonte_vendas: fonteVendas });
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -1748,22 +1805,41 @@ app.get('/api/comparativo-tv', withCache(120), async (req, res) => {
     const mm      = mesDB(mesSel);
 
     const mesesNomes = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    // Espelho do ERP (28/10/26): dia a dia do mês nos dois anos, venda por produto (2025 até o dia de hoje / 2026 no
+    // mês) e os 12 meses dos dois anos saem do Postgres quando ele cobre; só o que faltar vai ao .252 como antes
+    // (antes eram 15 varreduras de mês inteiro por abertura).
+    const mmStr = String(mesSel).padStart(2, '0'); const hojeStr = localDate(hoje);
+    const espErr = e => { console.error('[ESPELHO] comparativo-tv:', e.message); return null; };
+    const [espDias, espProd25, espProd26, espMensal] = await Promise.all([
+      espelhoMesAnos([lojaSel], mesSel, [2025, 2026], 'comparativo-tv'),
+      espelhoErp.vendaPeriodo([lojaSel], `2025-${mmStr}-01`, `2025-${mmStr}-${String(diaAtual).padStart(2, '0')}`).catch(espErr),
+      espelhoErp.vendaPeriodo([lojaSel], `2026-${mmStr}-01`, dFimMes(2026, mesSel)).catch(espErr),
+      (async () => {
+        if (!espelhoErp.pronto() || !(await espelhoErp.temCobertura([lojaSel], '2025-01-01', hojeStr))) return null;
+        return espelhoErp.pq(`SELECT EXTRACT(MONTH FROM dia)::int mes, EXTRACT(YEAR FROM dia)::int ano, SUM(valor) valor
+                              FROM venda_dia_loja WHERE loja = $1 AND dia BETWEEN '2025-01-01' AND $2 GROUP BY 1, 2`, [lojaSel, hojeStr]);
+      })().catch(espErr)
+    ]);
+    const prodDoEspelho = rows => rows.map(r => ({ Codigo: r.codigo, valor: r.valor }));
     const [diasRows, prod25p, prod26, itens, ...mensalRows] = await Promise.all([
-      q(`SELECT DAY(Data) as dia, YEAR(Data) as ano, SUM(ValorTotalNovo) as valor
+      espDias.faltam.length ? q(`SELECT DAY(Data) as dia, YEAR(Data) as ano, SUM(ValorTotalNovo) as valor
          FROM \`ln${lojaSel}${mm}\`.zcupomitens
-         WHERE MONTH(Data)=? AND YEAR(Data) IN (2025,2026) AND IndCancel='N'
-         GROUP BY dia, ano ORDER BY dia`, [mesSel]).catch(()=>[]),
-      q(`SELECT Codigo, SUM(ValorTotalNovo) as valor FROM \`ln${lojaSel}${mm}\`.zcupomitens
+         WHERE MONTH(Data)=? AND YEAR(Data) IN (${espDias.faltam.join(',')}) AND IndCancel='N'
+         GROUP BY dia, ano ORDER BY dia`, [mesSel]).catch(()=>[]) : Promise.resolve([]),
+      espProd25 ? Promise.resolve(prodDoEspelho(espProd25)) : q(`SELECT Codigo, SUM(ValorTotalNovo) as valor FROM \`ln${lojaSel}${mm}\`.zcupomitens
          WHERE YEAR(Data)=2025 AND MONTH(Data)=? AND DAY(Data)<=? AND IndCancel='N' GROUP BY Codigo`, [mesSel, diaAtual]).catch(()=>[]),
-      q(`SELECT Codigo, SUM(ValorTotalNovo) as valor FROM \`ln${lojaSel}${mm}\`.zcupomitens
+      espProd26 ? Promise.resolve(prodDoEspelho(espProd26)) : q(`SELECT Codigo, SUM(ValorTotalNovo) as valor FROM \`ln${lojaSel}${mm}\`.zcupomitens
          WHERE YEAR(Data)=2026 AND MONTH(Data)=? AND IndCancel='N' GROUP BY Codigo`, [mesSel]).catch(()=>[]),
       getItensGrupo(),
       ...[1,2,3,4,5,6,7,8,9,10,11,12].map(m =>
-        q(`SELECT YEAR(Data) as ano, SUM(ValorTotalNovo) as valor
+        espMensal ? Promise.resolve(espMensal.filter(r => +r.mes === m)) : q(`SELECT YEAR(Data) as ano, SUM(ValorTotalNovo) as valor
            FROM \`ln${lojaSel}mes${String(m).padStart(2,'0')}\`.zcupomitens
            WHERE YEAR(Data) IN (2025,2026) AND IndCancel='N' GROUP BY ano`, []).catch(()=>[])
       )
     ]);
+    // dia a dia: junta os anos do espelho com os que vieram do ERP (nunca o mesmo ano nos dois)
+    for (const ano of Object.keys(espDias.porAno)) for (const r of espDias.porAno[ano]) diasRows.push({ dia: r.dia, ano: +ano, valor: r.valor });
+    const fonteVendas = (espDias.espelho && !espDias.faltam.length && espProd25 && espProd26 && espMensal) ? 'espelho' : 'erp';
 
     // Diário
     const v25d = {}, v26d = {};
@@ -1813,7 +1889,7 @@ app.get('/api/comparativo-tv', withCache(120), async (req, res) => {
       total2025_periodo:+tot25p.toFixed(2),
       var_pct: tot25>0?+((tot26-tot25)/tot25*100).toFixed(1):null,
       var_periodo: tot25p>0?+((tot26-tot25p)/tot25p*100).toFixed(1):null,
-      dias, grupos, mensal });
+      dias, grupos, mensal, fonte_vendas: fonteVendas });
   } catch(err) { console.error('[comparativo-tv]', err); res.status(500).json({ error: err.message }); }
 });
 
@@ -1825,14 +1901,20 @@ app.get('/api/comparativo-diario', withCache(60), async (req, res) => {
     const lojaSel= req.query.loja ? parseInt(req.query.loja) : 1;
     const mm     = mesDB(mesSel);
 
-    const rows = await q(`
+    // Espelho do ERP (28/10/26): valor e cupons por dia dos dois anos vêm de venda_dia_loja; só o ano que o espelho
+    // não cobre vai ao .252 (YEAR(Data) IN (...) como antes). Cupons do espelho são distintos por dia, igual ao ERP
+    // agrupado por dia (conferido 28/10: loja 2, 01..03/09/2026, 469/446/458 iguais).
+    const esp = await espelhoMesAnos([lojaSel], mesSel, [2025, 2026], 'comparativo-diario');
+    const rows = esp.faltam.length ? await q(`
       SELECT DAY(Data) as dia, YEAR(Data) as ano,
              SUM(ValorTotalNovo) as valor,
              COUNT(DISTINCT CONCAT(nECF,'-',CCF)) as cupons
       FROM \`ln${lojaSel}${mm}\`.zcupomitens
-      WHERE MONTH(Data)=? AND YEAR(Data) IN (2025,2026) AND IndCancel='N'
+      WHERE MONTH(Data)=? AND YEAR(Data) IN (${esp.faltam.join(',')}) AND IndCancel='N'
       GROUP BY dia, ano ORDER BY dia, ano
-    `, [mesSel]).catch(() => []);
+    `, [mesSel]).catch(() => []) : [];
+    for (const ano of Object.keys(esp.porAno)) for (const r of esp.porAno[ano]) rows.push({ dia: r.dia, ano: +ano, valor: r.valor, cupons: r.cupons });
+    const fonteVendas = (esp.espelho && !esp.faltam.length) ? 'espelho' : 'erp';
 
     const v25 = {}, v26 = {}, c25 = {}, c26 = {};
     for (const r of rows) {
@@ -1852,7 +1934,7 @@ app.get('/api/comparativo-diario', withCache(60), async (req, res) => {
     const tot25 = dias.reduce((s,d) => s + d.v2025, 0);
     const tot26 = dias.reduce((s,d) => s + d.v2026, 0);
     res.json({ dias, total2025: +tot25.toFixed(2), total2026: +tot26.toFixed(2),
-      var_pct: tot25 > 0 ? +((tot26 - tot25) / tot25 * 100).toFixed(1) : null });
+      var_pct: tot25 > 0 ? +((tot26 - tot25) / tot25 * 100).toFixed(1) : null, fonte_vendas: fonteVendas });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -1864,11 +1946,19 @@ app.get('/api/comparativo-mercadologico', withCache(240), async (req, res) => {
     const lojaSel = req.query.loja ? parseInt(req.query.loja) : 1;
     const mm      = mesDB(mesSel);
 
+    // Espelho do ERP (28/10/26): venda por produto do mês nos dois anos sai de venda_dia_produto quando o espelho cobre
+    // o mês inteiro (no ano atual, até hoje); senão varre o .252 como antes. Mês de 2026 que ainda não começou não
+    // tem venda — nem vai ao ERP.
+    const mmStr = String(mesSel).padStart(2, '0'); const hojeStr = localDate(hoje);
+    const prodAno = ano => espelhoErp.vendaPeriodo([lojaSel], `${ano}-${mmStr}-01`, dFimMes(ano, mesSel)).catch(e => { console.error('[ESPELHO] comparativo-mercadologico:', e.message); return null; });
+    const [esp25, esp26] = await Promise.all([prodAno(2025), prodAno(2026)]);
+    const prodDoEspelho = rows => rows.map(r => ({ Codigo: r.codigo, valor: r.valor }));
+    const fonteVendas = (esp25 && esp26) ? 'espelho' : 'erp';
     const [rows25, rows26, itens] = await Promise.all([
-      q(`SELECT Codigo, SUM(ValorTotalNovo) as valor FROM \`ln${lojaSel}${mm}\`.zcupomitens
+      esp25 ? Promise.resolve(prodDoEspelho(esp25)) : q(`SELECT Codigo, SUM(ValorTotalNovo) as valor FROM \`ln${lojaSel}${mm}\`.zcupomitens
          WHERE YEAR(Data)=2025 AND MONTH(Data)=? AND IndCancel='N' GROUP BY Codigo`, [mesSel]).catch(()=>[]),
-      q(`SELECT Codigo, SUM(ValorTotalNovo) as valor FROM \`ln${lojaSel}${mm}\`.zcupomitens
-         WHERE YEAR(Data)=2026 AND MONTH(Data)=? AND IndCancel='N' GROUP BY Codigo`, [mesSel]).catch(()=>[]),
+      esp26 ? Promise.resolve(prodDoEspelho(esp26)) : (`2026-${mmStr}-01` > hojeStr ? Promise.resolve([]) : q(`SELECT Codigo, SUM(ValorTotalNovo) as valor FROM \`ln${lojaSel}${mm}\`.zcupomitens
+         WHERE YEAR(Data)=2026 AND MONTH(Data)=? AND IndCancel='N' GROUP BY Codigo`, [mesSel]).catch(()=>[])),
       q(`SELECT i.CodigoBarra, i.CodGrupoSub, gs.Descricao as sub_nome,
                 g.CodGrupo, g.Descricao as grupo_nome,
                 i.CodGrupoMarca, gm.Descricao as merc_nome
@@ -1922,7 +2012,7 @@ app.get('/api/comparativo-mercadologico', withCache(240), async (req, res) => {
     const tot25 = grupos.reduce((s,g)=>s+g.v2025, 0);
     const tot26 = grupos.reduce((s,g)=>s+g.v2026, 0);
     res.json({ grupos, total2025: +tot25.toFixed(2), total2026: +tot26.toFixed(2),
-      var_pct: tot25>0 ? +((tot26-tot25)/tot25*100).toFixed(1) : null });
+      var_pct: tot25>0 ? +((tot26-tot25)/tot25*100).toFixed(1) : null, fonte_vendas: fonteVendas });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -1958,11 +2048,19 @@ function resumoCupons(ln, dI, dF, fila = ticketNaFila) {
   if (ticketCongelado[chave]) return Promise.resolve(ticketCongelado[chave]);
   if (ticketEmAndamento.has(chave)) return ticketEmAndamento.get(chave);
   const mmM = mesDB(parseInt(dI.slice(5, 7), 10));
-  const p = fila(() => q(`SELECT COUNT(DISTINCT CONCAT(nECF,'-',CCF)) cupons, SUM(ValorTotalNovo) venda FROM \`ln${ln}${mmM}\`.zcupomitens WHERE Data BETWEEN ? AND ? AND IndCancel='N'`, [dI, dF]))
-    .then(r => {
-      const out = { cupons: parseInt(r[0]?.cupons || 0), venda: parseFloat(r[0]?.venda || 0) };
-      if (dF < dataLocal(new Date(Date.now() - 3 * 86400000))) { ticketCongelado[chave] = out; salvarTicketCongelado(); }
-      return out;
+  // Espelho do ERP (28/10/26): cupons e venda do período saem de venda_dia_loja em milissegundos quando o espelho
+  // cobre o período — sem fila e sem congelar (o espelho já é a cópia). Só sem cobertura vai ao .252 pela fila de 3,
+  // com o congelamento de antes. Cupons do espelho = distintos por dia somados (conferido 28/10: loja 3 out/2026
+  // 27.462 = 27.462; loja 6 mar/2026 43.240 = 43.240).
+  const p = espelhoTotais([ln], dI, dF, 'resumoCupons')
+    .then(esp => {
+      if (esp) return { cupons: parseInt(esp[0]?.cupons || 0), venda: parseFloat(esp[0]?.valor || 0) };
+      return fila(() => q(`SELECT COUNT(DISTINCT CONCAT(nECF,'-',CCF)) cupons, SUM(ValorTotalNovo) venda FROM \`ln${ln}${mmM}\`.zcupomitens WHERE Data BETWEEN ? AND ? AND IndCancel='N'`, [dI, dF]))
+        .then(r => {
+          const out = { cupons: parseInt(r[0]?.cupons || 0), venda: parseFloat(r[0]?.venda || 0) };
+          if (dF < dataLocal(new Date(Date.now() - 3 * 86400000))) { ticketCongelado[chave] = out; salvarTicketCongelado(); }
+          return out;
+        });
     })
     .catch(() => ({ cupons: 0, venda: 0 }))
     .finally(() => ticketEmAndamento.delete(chave));
@@ -2004,11 +2102,21 @@ app.get('/api/gestao-gerencial', withCache(10), async (req, res) => {
     const dFimAnt    = `${anoAnt}-${mesStr}-${diaCorte}`;
 
     // Vendas por Codigo — atual e ano anterior até mesmo dia
+    // Espelho do ERP (28/10/26): as duas somas de mês inteiro por produto vêm do Postgres numa consulta por período
+    // pra todas as lojas; sem cobertura, loja a loja no .252 como antes. As consultas do dia (Data=? AND Hora<=?)
+    // ficam no ERP: são baratas e o espelho de hoje atrasa até 15 min.
+    const espErr = e => { console.error('[ESPELHO] gestao-gerencial:', e.message); return null; };
+    const [espA, espB] = await Promise.all([
+      espelhoErp.vendaPeriodo(lojas, dIni, dFimAtual).catch(espErr),
+      espelhoErp.vendaPeriodo(lojas, dIniAnt, dFimAnt).catch(espErr)
+    ]);
+    const fonteVendas = (espA && espB) ? 'espelho' : 'erp';
     const vAtual = {}, vAnt = {}, vLoja = {};
     await Promise.all(lojas.map(async ln => {
+      const doEspelho = rows => rows.filter(r => +r.loja === ln).map(r => ({ Codigo: r.codigo, v: r.valor }));
       const [rA, rB] = await Promise.all([
-        q(`SELECT Codigo, SUM(ValorTotalNovo) v FROM \`ln${ln}${mm}\`.zcupomitens WHERE Data BETWEEN ? AND ? AND IndCancel='N' GROUP BY Codigo`, [dIni, dFimAtual]).catch(()=>[]),
-        q(`SELECT Codigo, SUM(ValorTotalNovo) v FROM \`ln${ln}${mm}\`.zcupomitens WHERE Data BETWEEN ? AND ? AND IndCancel='N' GROUP BY Codigo`, [dIniAnt, dFimAnt]).catch(()=>[])
+        espA ? doEspelho(espA) : q(`SELECT Codigo, SUM(ValorTotalNovo) v FROM \`ln${ln}${mm}\`.zcupomitens WHERE Data BETWEEN ? AND ? AND IndCancel='N' GROUP BY Codigo`, [dIni, dFimAtual]).catch(()=>[]),
+        espB ? doEspelho(espB) : q(`SELECT Codigo, SUM(ValorTotalNovo) v FROM \`ln${ln}${mm}\`.zcupomitens WHERE Data BETWEEN ? AND ? AND IndCancel='N' GROUP BY Codigo`, [dIniAnt, dFimAnt]).catch(()=>[])
       ]);
       vLoja[ln] = { a: 0, b: 0 };
       for (const r of rA) { const v = parseFloat(r.v||0); vAtual[r.Codigo] = (vAtual[r.Codigo]||0) + v; vLoja[ln].a += v; }
@@ -2119,7 +2227,8 @@ app.get('/api/gestao-gerencial', withCache(10), async (req, res) => {
              avaria_pct:totalAtual>0?+(totalAvaria/totalAtual*100).toFixed(2):0 },
       venda_dia:{ atual:+vDia.toFixed(2), ant:+vDiaAnt.toFixed(2), crescimento:vDiaCrsc, dia:diaCorte },
       grupos, grupos_avaria:gruposAvaria, ticket_meses:ticketMeses, venda_lojas:vendaLojas,
-      meta_info:{ dia_corte:diaCorte, mes, ano, ano_ant:anoAnt, loja:lojaSel||'todas' }
+      meta_info:{ dia_corte:diaCorte, mes, ano, ano_ant:anoAnt, loja:lojaSel||'todas' },
+      fonte_vendas: fonteVendas
     });
   } catch(err){ res.status(500).json({ error:err.message }); }
 });
@@ -2180,13 +2289,23 @@ app.get('/api/comparativo-lojas', withCache(120), async (req, res) => {
     const mm      = mesDB(mesSel);
     const lojas   = [1,2,3,4,5,6];
 
-    const results = await Promise.all(lojas.map(ln =>
-      q(`SELECT YEAR(Data) as ano, SUM(ValorTotalNovo) as valor,
+    // Espelho do ERP (28/10/26): venda e cupons do mês nos dois anos, das 6 lojas, em uma leitura de venda_dia_loja;
+    // só o ano que o espelho não cobre vai ao .252 (YEAR(Data) IN (...) como antes).
+    const esp = await espelhoMesAnos(lojas, mesSel, [2025, 2026], 'comparativo-lojas');
+    const fonteVendas = (esp.espelho && !esp.faltam.length) ? 'espelho' : 'erp';
+    const results = await Promise.all(lojas.map(async ln => {
+      const rows = esp.faltam.length ? await q(`SELECT YEAR(Data) as ano, SUM(ValorTotalNovo) as valor,
                 COUNT(DISTINCT CONCAT(nECF,'-',CCF)) as cupons
          FROM \`ln${ln}${mm}\`.zcupomitens
-         WHERE MONTH(Data)=? AND YEAR(Data) IN (2025,2026) AND IndCancel='N'
-         GROUP BY ano`, [mesSel]).catch(()=>[])
-    ));
+         WHERE MONTH(Data)=? AND YEAR(Data) IN (${esp.faltam.join(',')}) AND IndCancel='N'
+         GROUP BY ano`, [mesSel]).catch(()=>[]) : [];
+      for (const ano of Object.keys(esp.porAno)) {
+        let valor = 0, cupons = 0;
+        for (const r of esp.porAno[ano]) if (+r.loja === ln) { valor += parseFloat(r.valor || 0); cupons += parseInt(r.cupons || 0); }
+        rows.push({ ano: +ano, valor, cupons });
+      }
+      return rows;
+    }));
 
     const data = results.map((rows, i) => {
       let v25=0, v26=0, c25=0, c26=0;
@@ -2201,7 +2320,7 @@ app.get('/api/comparativo-lojas', withCache(120), async (req, res) => {
     const tot25 = data.reduce((s,d)=>s+d.v2025, 0);
     const tot26 = data.reduce((s,d)=>s+d.v2026, 0);
     res.json({ lojas: data, total2025: +tot25.toFixed(2), total2026: +tot26.toFixed(2),
-      var_pct: tot25>0 ? +((tot26-tot25)/tot25*100).toFixed(1) : null });
+      var_pct: tot25>0 ? +((tot26-tot25)/tot25*100).toFixed(1) : null, fonte_vendas: fonteVendas });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -2218,6 +2337,19 @@ app.get('/api/margem-lojas', withCache(60), async (req, res) => {
     const diaHoje  = hoje.getDate();
     const mesHoje  = hoje.getMonth() + 1;
 
+    // Espelho do ERP (28/10/26): venda e custo de cada mês nos dois anos vêm de venda_dia_loja (por loja e dia, e o
+    // mês corrente corta no dia de hoje nos dois anos, como o DAY(Data) <= fazia); só o ano que o espelho não cobre
+    // vai ao .252 com YEAR(Data) IN (...) como antes. Antes eram 12 × 6 varreduras de mês inteiro por abertura.
+    let fonteVendas = 'espelho';
+    const somaEspelho = (esp, m, acc, soLoja) => {
+      for (const ano of Object.keys(esp.porAno)) for (const r of esp.porAno[ano]) {
+        if (soLoja && +r.loja !== soLoja) continue;
+        if (m === mesHoje && r.dia > diaHoje) continue;
+        const v = parseFloat(r.valor || 0), c = parseFloat(r.custo || 0);
+        if (+ano === 2025) { acc.v25 += v; acc.c25 += c; } else { acc.v26 += v; acc.c26 += c; }
+      }
+    };
+
     // Por mês (Jan–Dez): sequencial para não sobrecarregar o MySQL
     const porMes = [];
     for (let m = 1; m <= 12; m++) {
@@ -2226,12 +2358,16 @@ app.get('/api/margem-lojas', withCache(60), async (req, res) => {
       let v25=0,c25=0,v26=0,c26=0;
       // mês corrente: limita ambos os anos ao mesmo dia (comparação justa)
       const diaFiltro = m === mesHoje ? ` AND DAY(Data) <= ${diaHoje}` : '';
-      await Promise.all(lojasFiltro.map(async ln => {
+      const esp = await espelhoMesAnos(lojasFiltro, m, [2025, 2026], 'margem-lojas');
+      if (!esp.espelho || esp.faltam.length) fonteVendas = 'erp';
+      const acc = { v25: 0, c25: 0, v26: 0, c26: 0 }; somaEspelho(esp, m, acc);
+      v25 += acc.v25; c25 += acc.c25; v26 += acc.v26; c26 += acc.c26;
+      if (esp.faltam.length) await Promise.all(lojasFiltro.map(async ln => {
         try {
           const rows = await q(
             `SELECT YEAR(Data) as ano, SUM(ValorTotalNovo) as venda, COALESCE(SUM(Custo),0) as custo
              FROM \`ln${ln}mes${mm2}\`.zcupomitens
-             WHERE YEAR(Data) IN (2025,2026) AND IndCancel='N'${diaFiltro} GROUP BY ano`);
+             WHERE YEAR(Data) IN (${esp.faltam.join(',')}) AND IndCancel='N'${diaFiltro} GROUP BY ano`);
           for (const r of rows) {
             const v=parseFloat(r.venda||0),c=parseFloat(r.custo||0);
             if(r.ano==2025){v25+=v;c25+=c;}else{v26+=v;c26+=c;}
@@ -2251,13 +2387,17 @@ app.get('/api/margem-lojas', withCache(60), async (req, res) => {
     // Por loja (mês selecionado) — 6 queries em paralelo é OK
     const mm = String(mesSel).padStart(2,'0');
     const diaFiltroLoja = mesSel === mesHoje ? ` AND DAY(Data) <= ${diaHoje}` : '';
+    const espLoja = await espelhoMesAnos(lojas, mesSel, [2025, 2026], 'margem-lojas');
+    if (!espLoja.espelho || espLoja.faltam.length) fonteVendas = 'erp';
     const porLoja = await Promise.all(lojas.map(async ln => {
       let v25=0,c25=0,v26=0,c26=0;
-      try {
+      const acc = { v25: 0, c25: 0, v26: 0, c26: 0 }; somaEspelho(espLoja, mesSel, acc, ln);
+      v25 += acc.v25; c25 += acc.c25; v26 += acc.v26; c26 += acc.c26;
+      if (espLoja.faltam.length) try {
         const rows = await q(
           `SELECT YEAR(Data) as ano, SUM(ValorTotalNovo) as venda, COALESCE(SUM(Custo),0) as custo
            FROM \`ln${ln}mes${mm}\`.zcupomitens
-           WHERE YEAR(Data) IN (2025,2026) AND IndCancel='N'${diaFiltroLoja} GROUP BY ano`);
+           WHERE YEAR(Data) IN (${espLoja.faltam.join(',')}) AND IndCancel='N'${diaFiltroLoja} GROUP BY ano`);
         for (const r of rows) {
           const v=parseFloat(r.venda||0),c=parseFloat(r.custo||0);
           if(r.ano==2025){v25+=v;c25+=c;}else{v26+=v;c26+=c;}
@@ -2284,7 +2424,7 @@ app.get('/api/margem-lojas', withCache(60), async (req, res) => {
         venda2026:+tv26.toFixed(2), custo2026:+tc26.toFixed(2), msv2026: tv26>0?+((tv26-tc26)/tv26*100).toFixed(2):null,
       },
       mes: mesSel, loja: lojaSel,
-      diaHoje, mesHoje
+      diaHoje, mesHoje, fonte_vendas: fonteVendas
     });
   } catch(err){ res.status(500).json({error: err.message}); }
 });
@@ -2294,8 +2434,17 @@ app.get('/api/margem-lojas', withCache(60), async (req, res) => {
 async function calcularVendaPorLoja(mesSel, mm, diaFiltroV, diaFiltroC) {
   const lojas = [1,2,3,4,5,6];
 
+  // Espelho do ERP (28/10/26): a venda NFC-e das 6 lojas no mês de 2026 (até o dia do filtro no mês corrente) sai
+  // de venda_dia_loja numa consulta; sem cobertura, loja a loja no .252 como antes. O filtro chega como pedaço de
+  // SQL (" AND DAY(Data) <= N"), por isso o dia é lido dele. Mês que ainda não começou não tem venda: nem vai ao ERP.
+  const mesNum = parseInt(mm, 10);
+  const diaMax = (String(diaFiltroV || '').match(/DAY\(Data\)\s*<=\s*(\d+)/) || [])[1];
+  const dIniEsp = `2026-${String(mesNum).padStart(2, '0')}-01`;
+  const dFimEsp = diaMax ? `2026-${String(mesNum).padStart(2, '0')}-${String(diaMax).padStart(2, '0')}` : dFimMes(2026, mesNum);
+  const esp = dIniEsp > localDate() ? [] : await espelhoTotais(lojas, dIniEsp, dFimEsp, 'compra-venda');
   const nfceMap = {};
-  await Promise.all(lojas.map(async ln => {
+  if (esp) for (const ln of lojas) { const r = esp.find(x => +x.loja === ln); nfceMap[ln] = r ? parseFloat(r.valor || 0) : 0; }
+  else await Promise.all(lojas.map(async ln => {
     try {
       const [r] = await q(
         `SELECT COALESCE(SUM(ValorTotalNovo),0) as venda
@@ -2320,7 +2469,7 @@ async function calcularVendaPorLoja(mesSel, mm, diaFiltroV, diaFiltroC) {
   const vendaTotalMap = {};
   for (const ln of lojas) vendaTotalMap[ln] = +((nfceMap[ln] || 0) + (nfeVendaMap[ln] || 0)).toFixed(2);
 
-  return { nfceMap, nfeVendaMap, vendaTotalMap };
+  return { nfceMap, nfeVendaMap, vendaTotalMap, fonte_vendas: esp ? 'espelho' : 'erp' };
 }
 
 // ── COMPRA x VENDA por loja ────────────────────────────────────────────────
@@ -2338,7 +2487,7 @@ app.get('/api/compra-venda', withCache(30), async (req, res) => {
     const diaFiltroC = mesSel === mesHoje ? ` AND DAY(DataLan) <= ${diaHoje}` : '';
     const NOMES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
-    const { nfceMap, nfeVendaMap } = await calcularVendaPorLoja(mesSel, mm, diaFiltroV, diaFiltroC);
+    const { nfceMap, nfeVendaMap, fonte_vendas } = await calcularVendaPorLoja(mesSel, mm, diaFiltroV, diaFiltroC);
 
     // Compra por loja: DataRecto (recebimento) + Tipo='PNF' + Status='F' = igual ao ERP "com NF"
     const compraRows = await q(
@@ -2374,7 +2523,7 @@ app.get('/api/compra-venda', withCache(30), async (req, res) => {
     const tcompra = por_loja.reduce((s,l)=>s+l.compra,0);
 
     res.json({
-      por_loja,
+      por_loja, fonte_vendas,
       totais: {
         venda_nfce:  +tnfce.toFixed(2),
         venda_nfe:   +tnfe.toFixed(2),
@@ -2475,8 +2624,16 @@ app.get('/api/comparativo-mensal', withCache(240), async (req, res) => {
     }
 
     const meses = ['01','02','03','04','05','06','07','08','09','10','11','12'];
+    // Espelho do ERP (28/10/26): os 12 meses dos dois anos (venda + cupons) numa leitura de venda_dia_loja quando o
+    // espelho cobre 01/01/2025..hoje; senão as 12 varreduras no .252 como antes.
+    const hojeStr = localDate();
+    const espMensal = await (async () => {
+      if (!espelhoErp.pronto() || !(await espelhoErp.temCobertura([lojaSel], '2025-01-01', hojeStr))) return null;
+      return espelhoErp.pq(`SELECT EXTRACT(MONTH FROM dia)::int mes, EXTRACT(YEAR FROM dia)::int ano, SUM(valor) valor, SUM(cupons) cupons
+                            FROM venda_dia_loja WHERE loja = $1 AND dia BETWEEN '2025-01-01' AND $2 GROUP BY 1, 2`, [lojaSel, hojeStr]);
+    })().catch(e => { console.error('[ESPELHO] comparativo-mensal:', e.message); return null; });
     const results = await Promise.all(meses.map(mm =>
-      q(`SELECT YEAR(Data) as ano, SUM(ValorTotalNovo) as valor,
+      espMensal ? Promise.resolve(espMensal.filter(r => +r.mes === parseInt(mm, 10))) : q(`SELECT YEAR(Data) as ano, SUM(ValorTotalNovo) as valor,
                 COUNT(DISTINCT CONCAT(nECF,'-',CCF)) as cupons
          FROM \`ln${lojaSel}mes${mm}\`.zcupomitens
          WHERE YEAR(Data) IN (2025,2026) AND IndCancel='N'
@@ -2499,7 +2656,7 @@ app.get('/api/comparativo-mensal', withCache(240), async (req, res) => {
     const tot25 = data.reduce((s,d)=>s+d.v2025,0);
     const tot26 = data.reduce((s,d)=>s+d.v2026,0);
     const payload = { meses: data, total2025: +tot25.toFixed(2), total2026: +tot26.toFixed(2),
-      var_pct: tot25>0 ? +((tot26-tot25)/tot25*100).toFixed(1) : null };
+      var_pct: tot25>0 ? +((tot26-tot25)/tot25*100).toFixed(1) : null, fonte_vendas: espMensal ? 'espelho' : 'erp' };
     _mensalCache[cacheKey] = payload; _mensalCacheTs[cacheKey] = Date.now();
     res.json(payload);
   } catch (err) { res.status(500).json({ error: err.message }); }
