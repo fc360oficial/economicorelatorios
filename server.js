@@ -8821,7 +8821,7 @@ app.get('/api/gestao-gerencial/inicio', async (req, res) => {
 const gerencialPush = require('./lib/gerencial-push'); gerencialPush.init({});
 // Aviso de ponto no celular do gerente (27/10/2026, Tiago: "se passar 10 min do horário ter notificação no celular"): a cada 5 min,
 // das 05h às 23h, lib/gerencial-alertas.js olha a jornada do dia (a mesma da TV RH/DP) e avisa os gerentes inscritos da loja de quem
-// passou 10 min do horário previsto sem bater (entrada e retorno do intervalo), uma vez por pessoa/momento por dia.
+// passou 10 min do horário previsto sem bater (entrada, retorno do intervalo e saída — 28/10), uma vez por pessoa/momento por dia.
 const gerencialAlertas = require('./lib/gerencial-alertas'); gerencialAlertas.init({});
 setTimeout(() => setInterval(() => {
   const hh = new Date().getHours(); if (hh < 5 || hh >= 23) return;

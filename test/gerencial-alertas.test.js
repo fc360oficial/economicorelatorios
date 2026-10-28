@@ -32,6 +32,18 @@ test('pendentes: retorno do intervalo — saiu e não voltou 10 min depois do pr
   assert.deepEqual(p.map(x => [x.id, x.tipo]), [[1, 'retorno']]);
   assert.equal(p[0].previsto, '12:00');
 });
+test('pendentes: saída — bateu a entrada, passou 10 min da saída prevista e não bateu a saída (28/10)', () => {
+  const linhas = [
+    L({ id: 1, nome: 'ANA', entrada: '07:00', saidaInt: '11:00', retornoInt: '12:00' }),            // não bateu a saída
+    L({ id: 2, nome: 'BIA', entrada: '07:00', saidaInt: '11:00', retornoInt: '12:00', saida: '16:25' }),
+    L({ id: 3, nome: 'CARLOS' })                                                                  // nem entrou: é 'entrada', não 'saida'
+  ];
+  assert.deepEqual(A.pendentes(linhas, '16:29').map(p => [p.id, p.tipo]), [[3, 'entrada']]);
+  assert.deepEqual(A.pendentes(linhas, '16:30').map(p => [p.id, p.tipo]), [[1, 'saida'], [3, 'entrada']]);
+  assert.equal(A.pendentes(linhas, '16:30')[0].previsto, '16:20');
+  const av = A.montarAvisos([{ loja: 5, id: 1, nome: 'ANA MARIA', setor: 'CAIXA', tipo: 'saida', previsto: '16:20' }], new Set(), '2026-10-28');
+  assert.equal(av[0].payload.body, 'ANA MARIA · CAIXA · saída prevista 16:20 e sem marcação');
+});
 test('montarAvisos: agrupa por loja, pula o que já foi avisado hoje, texto curto com nome e horário', () => {
   const pend = [
     { loja: 5, id: 1, nome: 'ANA MARIA DA SILVA', setor: 'CAIXA', tipo: 'entrada', previsto: '07:00' },
