@@ -2313,8 +2313,10 @@ app.get('/api/top-produtos', withCache(15), async (req, res) => {
 
     const vendaMap = {}, qtdMap = {}, descMap = {};
     // Espelho do ERP (28/10/26): mês (até hoje) coberto no Postgres → soma de lá. Lá a quantidade é SUM(QtdNovo)
-    // (decimal); o ERP aqui somava a coluna `Qtd` (varchar) — mesma quantidade, só o tipo muda. O nome sai do cadastro
-    // (senão o visto no cupom) e só pros 20 que vão pra tela.
+    // (decimal, quilos nos pesáveis). O ERP aqui somava a coluna `Qtd`, que é TEXTO com vírgula ("0,350"): o MySQL
+    // cortava na vírgula e o pão francês da loja 3 em set/26 saía com 57 "unidades" quando vendeu 1.082,549 kg em
+    // 2.195 linhas. Ou seja: a quantidade dos pesáveis agora é a real (kg), e o total_qtd sobe por isso.
+    // O nome sai do cadastro (senão o visto no cupom) e só pros 20 que vão pra tela.
     const vendasEspelho = await espelhoErp.vendaPeriodo(lojas, dIni, dFim).catch(e => { console.error('[ESPELHO] top-produtos:', e.message); return null; });
     if (vendasEspelho) {
       for (const r of vendasEspelho) {
