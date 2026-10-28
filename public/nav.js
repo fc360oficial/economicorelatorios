@@ -70,7 +70,9 @@
         { href: '/escalas.html', ic: 'list', txt: 'Escalas' },
         { href: '/termos-escala.html', ic: 'list', txt: 'Termos de Escala' },
         { href: '/gestao-disciplinar.html', ic: 'shield', txt: 'Gestão Disciplinar', badge: '/api/disciplinar/pendencias' },
-        { href: '/auditoria-folha.html', ic: 'bank', txt: 'Auditoria da Folha' }
+        { href: '/auditoria-folha.html', ic: 'bank', txt: 'Auditoria da Folha' },
+        // Gestão Documental (28/10/26, etapa 01 = só interface): prontuários digitais, recebimento pelo CPD, conferência do RH, protocolos
+        { href: '/gestao-documental.html', ic: 'folder', txt: 'Gestão Documental' }
       ]},
     { id: 'financeiro', ic: 'bank', txt: 'Financeiro', sub: [
         { href: '/conciliador.html', ic: 'bank', txt: 'Conciliação de Saídas' },
