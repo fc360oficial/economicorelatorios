@@ -8739,6 +8739,10 @@ espelhoErp.init({
 // pro Postgres (lib/espelho-compras.js); carga inicial retomável no horário comercial, sync a cada 15 min.
 const espelhoCompras = require('./lib/espelho-compras');
 espelhoCompras.init({ q, espelho: espelhoErp, registrar: espelhoErp.registrarCopia });
+// JSONs operacionais de data/ espelhados como jsonb (lib/espelho-arquivos.js, 28/10 à noite): os módulos seguem nos
+// arquivos; o banco ganha uma cópia consultável em SQL e que entra no dump diário.
+const espelhoArquivos = require('./lib/espelho-arquivos');
+espelhoArquivos.init({ dataDir: path.join(__dirname, 'data') });
 // Leituras do espelho compartilhadas pelas rotas migradas em 28/10/26 (top produtos, consulta, fornecedores, listas,
 // sugestão, prevenção, giro). Declaradas como function pra valer em todo o arquivo (hoisting); só rodam na requisição,
 // quando `espelhoErp` já existe. Todas devolvem null quando o espelho está fora ou não cobre o período, e aí a rota
@@ -8768,7 +8772,7 @@ async function espelhoVendaLoja(loja, dIni, dFim, rota) {
 }
 app.get('/api/espelho/status', async (req, res) => {
   res.set('Cache-Control', 'no-store');
-  try { res.json({ ...(await espelhoErp.status()), compras: await espelhoCompras.status().catch(e => ({ erro: e.message })), filaErp: qEstado() }); } catch (err) { res.status(500).json({ error: err.message }); }
+  try { res.json({ ...(await espelhoErp.status()), compras: await espelhoCompras.status().catch(e => ({ erro: e.message })), arquivos: await espelhoArquivos.status().catch(e => ({ erro: e.message })), filaErp: qEstado() }); } catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.get('/api/espelho/saude-erp', async (req, res) => {
   res.set('Cache-Control', 'no-store');

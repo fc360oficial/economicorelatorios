@@ -141,6 +141,7 @@ label.ck{display:flex;align-items:center;gap:6px;font-size:12px}
       <div class="msg" id="msg-est"></div>
       <p class="d" style="margin-top:10px">Cancelados dos dias antigos (pro DRE): <span id="canc-info" class="mut">—</span></p>
       <p class="d">Dias sem cópia nos últimos 7 dias: <span id="faltas-info" class="mut">—</span></p>
+      <p class="d" style="margin-top:10px">Arquivos JSON de data/ espelhados (jsonb): <span id="arq-info" class="mut">—</span></p>
     </div>
   </div>
 </div>
@@ -188,6 +189,7 @@ async function carregar() {
     // config + madrugada
     if (!cfgTocada) { $('cf-avisar').checked = !!s.config.avisar; $('cf-grupo').value = s.config.grupo || ''; $('cf-bk-ini').value = s.config.backupIni || ''; $('cf-bk-fim').value = s.config.backupFim || ''; $('cf-vivo').checked = s.config.hojeAoVivo !== false; }
     const es = s.estoque || {}; $('est-info').textContent = es.rodando ? 'copiando…' : es.ultimaEm ? `${fmtN(es.linhas)} linhas, última às ${hora(es.ultimaEm)} (${fmtN(es.ms)} ms)` + (es.ultimoErro ? ' · erro: ' + es.ultimoErro : '') : 'ainda não copiado';
+    const aq = s.arquivos || {}; const ab = aq.banco || {}; $('arq-info').textContent = aq.erro ? 'erro: ' + aq.erro : aq.ultimaEm ? `${fmtN(ab.ativos)} arquivos no banco (${ab.tamanho || '—'}), ${fmtN(aq.gravados)} gravados nesta subida, última às ${hora(aq.ultimaEm)}` + (aq.ultimoErro ? ' · erro: ' + aq.ultimoErro : '') : 'varredura inicial em até 1 min após a subida';
     const cn = s.cancelados || {}; $('canc-info').textContent = cn.pendentes === 0 ? 'completo' : cn.rodando ? `completando… faltam ${fmtN(cn.pendentes)} dias (${fmtN(cn.feitos)} feitos nesta subida)` : cn.pendentes == null ? 'aguardando a janela comercial' : `${fmtN(cn.pendentes)} dias pendentes` + (cn.ultimoErro ? ' · erro: ' + cn.ultimoErro : '');
     const fl = s.faltas || { lista: [] }; $('faltas-info').textContent = fl.lista.length ? `${fl.lista.length} (desde ${hora(fl.desde)}): ${fl.lista.slice(0, 8).map(f => (NOME_LOJA[f.loja] || f.loja) + ' ' + dataBr(f.dia)).join(' · ')}` : 'nenhum';
     $('faltas-info').style.color = fl.lista.length ? 'var(--neg)' : '';
