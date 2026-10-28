@@ -6796,6 +6796,26 @@ app.get('/api/_diag/cotacao-fechar', (req, res) => {
     res.json(r && r.erro ? { id, erro: r.erro, pendentes: r.pendentes } : { id, status: r.status, fechadaEm: r.fechadaEm, encerradaSemPedidos: r.encerradaSemPedidos || null });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
+// itens de cada pedido da cotação + item repetido em 2+ pedidos (28/10/26: proposta que chega DEPOIS dos pedidos realizados
+// vira vencedora no comparativo e gera pré-pedido de item já comprado — #4, UNIÃO/Givaldo). Só leitura; itens=1 lista tudo.
+app.get('/api/_diag/cotacao-pedidos-itens', (req, res) => {
+  if (req.query.token !== 'diag2026') return res.status(403).end();
+  try {
+    const c = cotacao.obter(parseInt(req.query.id)); if (!c) return res.status(404).json({ error: 'cotação não encontrada' });
+    const cmp = cotacao.comparativo(c), vivo = p => p && !['cancelado', 'excluido'].includes(p.status);
+    const peds = (c.pedidos || []).map(x => pedidosFornec.obter(x.id)).filter(Boolean).map(p => ({ id: p.id, fornecedor: p.fornecedor, codFornec: p.codFornec, status: p.status, criadoEm: p.criadoEm, enviadoEm: p.enviadoEm || null, total: p.totais ? p.totais.digitado : null, lojas: p.lojas, itens: (p.itens || []).map(i => ({ cod: i.cod, descricao: i.descricao, qtd: i.qtd, lojas_qtd: i.lojas_qtd, preco: i.preco, zerado: !!i.zerado })) }));
+    const porCod = {};
+    for (const p of peds) { if (!vivo(p)) continue; for (const i of p.itens) { if (!(i.qtd > 0)) continue; (porCod[i.cod] = porCod[i.cod] || []).push({ pedido: p.id, fornecedor: p.fornecedor, criadoEm: p.criadoEm, lojas_qtd: i.lojas_qtd, preco: i.preco, descricao: i.descricao }); } }
+    const duplicados = Object.entries(porCod).filter(([, l]) => l.length > 1).map(([cod, l]) => {
+      const it = cmp.itens.find(i => i.cod === String(cod)) || {};
+      const lojas = {}; for (const x of l) for (const [ln, q] of Object.entries(x.lojas_qtd || {})) if (q > 0) (lojas[ln] = lojas[ln] || []).push(x.pedido);
+      const mesma_loja = Object.entries(lojas).filter(([, ps]) => ps.length > 1).map(([ln, ps]) => ({ loja: ln, pedidos: ps }));
+      return { cod, descricao: l[0].descricao, pedidos: l, mesma_loja, vencedor_hoje: it.vencedor ? it.vencedor.codFornec : null, fechado: !!it.fechado, pedidoId: it.pedidoId || null };
+    });
+    const total_rs = duplicados.reduce((s, d) => s + d.pedidos.slice(1).reduce((t, x) => t + Object.values(x.lojas_qtd || {}).reduce((a, b) => a + (b || 0), 0) * (x.preco || 0), 0), 0);
+    res.json({ id: c.id, nome: c.nome, status: c.status, pedidos: peds.map(p => ({ ...p, n_itens: p.itens.length, itens: req.query.itens === '1' ? p.itens : undefined })), duplicados, total_duplicados: duplicados.length, total_rs_repetido: +total_rs.toFixed(2) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
 app.get('/api/_diag/robo', async (req, res) => {
   if (req.query.token !== 'diag2026') return res.status(403).end();
   const envios = Object.fromEntries(Object.entries(ENVIO_ROBO).map(([k, s]) => [k, { ...s, erros: s.erros.map(x => ({ ...x, whats: x.whats ? String(x.whats).replace(/\d(?=\d{4})/g, '•') : undefined })) }]));   // disparos desde o último reinício
