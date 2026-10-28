@@ -4858,21 +4858,37 @@ function statusConferencia(row) {
   return row.DataLiberacao ? 'liberado' : 'conferido';
 }
 
+// 28/10/26: central.conferencia tem 180 mil linhas e só índice em nReg; o filtro por DataEntrada varria a tabela inteira
+// (~10 s por chamada, a cada 20 s, o dia todo no .252). nReg é auto-incremento, então "últimos 60 dias" = nReg a partir
+// de um limite que a gente descobre UMA vez por hora (MIN(nReg) dos 60 dias, 0,5 s) e passa como faixa da chave primária
+// (6 mil linhas em vez de 180 mil). Vale pras duas tabelas do Painel CD. Só SELECT, nada muda no ERP.
+const _nRegRecente = {};
+async function nRegRecente(tabela) {
+  const c = _nRegRecente[tabela];
+  if (c && Date.now() - c.em < 60 * 60 * 1000) return c.min;
+  try {
+    const [r] = await q(`SELECT MIN(nReg) m FROM central.\`${tabela}\` WHERE DataEntrada >= CURDATE() - INTERVAL 60 DAY`, [], { timeoutMs: 60000 });
+    const min = r && r.m != null ? Number(r.m) : null;
+    _nRegRecente[tabela] = { min, em: Date.now() };
+    return min;
+  } catch (e) { console.error('[PAINEL-CD] limite nReg', tabela, e.message); return c ? c.min : null; }
+}
 async function montarListaExpedicao() {
   // Pedido pendente (Status<4) fica visível enquanto não for liberado, mesmo
   // que tenha entrado em dia anterior (senão pedido travado, tipo o 00807,
   // some do painel mesmo continuando pendente de verdade). Limita a 7 dias
   // pra não voltar a puxar lixo antigo abandonado (teve caso de 2021).
   // "Liberado" sempre fica restrito a hoje, senão cresceria pra sempre.
+  const nMin = await nRegRecente('painel_televendas');
   const rows = await q(`
     SELECT nReg, nPedido as pedido, NomeFornec as nome, Status, HoraEntrada
     FROM central.painel_televendas
-    WHERE nLoja = 10 AND (
+    WHERE ${nMin != null ? 'nReg >= ? AND ' : ''}nLoja = 10 AND (
       (Status < 4 AND DataEntrada >= CURDATE() - INTERVAL 7 DAY)
       OR (Status = 4 AND DataLiberacao = CURDATE())
     )
     ORDER BY HoraEntrada DESC
-  `, []).catch(() => []);
+  `, nMin != null ? [nMin] : []).catch(() => []);
 
   const colunas = { separacao: [], em_separacao: [], aguardando_liberacao: [], reconferir: [], liberado: [] };
   // Status do NOSSO coletor (Separação de Pedidos → Carregamento → fiscal libera) por cima do cartão, sem mexer no ERP:
@@ -4933,15 +4949,16 @@ async function montarListaConferencia() {
   // Mesmo raciocínio da Expedição: pedido ainda não liberado fica visível até
   // 7 dias atrás (pega travado real, tipo pedido de 1-2 dias), sem voltar a
   // puxar lixo antigo abandonado. "Liberado" fica restrito a hoje.
+  const nMin = await nRegRecente('conferencia');
   const rows = await q(`
     SELECT nReg, NomeFornec as nome, Status, HoraEntrada, DataLiberacao
     FROM central.conferencia
-    WHERE nLoja = 10 AND (
+    WHERE ${nMin != null ? 'nReg >= ? AND ' : ''}nLoja = 10 AND (
       (DataLiberacao IS NULL AND DataEntrada >= CURDATE() - INTERVAL 7 DAY)
       OR (DataLiberacao = CURDATE())
     )
     ORDER BY HoraEntrada DESC
-  `, []).catch(() => []);
+  `, nMin != null ? [nMin] : []).catch(() => []);
 
   const colunas = { conf_pedido: [], conf_coletor: [], conferido: [], reconferir: [], liberado: [] };
   // Painel HÍBRIDO (Tiago, 28/10): a nossa conferência (Coletor Econômico, lib/recebimento) casa com a do ERP pela chave
@@ -5780,10 +5797,16 @@ app.get('/api/margem-tv/comprador', withCache(5), async (req, res) => {
     const vendaParams = [];
     for (let i = 0; i < 6; i++) vendaParams.push(dIni, dFim, ...codigos);
 
+    // Espelho do ERP (fase 2, 28/10/26): mês coberto no Postgres → soma das 6 lojas por produto vem de lá numa consulta
+    // (a TV de Compras gira esta tela 4× por ciclo e cada uma levava 5-37 s no .252); sem cobertura → UNION no ERP.
+    const vendasEspelho = await espelhoErp.vendaPeriodo([1, 2, 3, 4, 5, 6], dIni, dFim, { codigos }).catch(e => { console.error('[ESPELHO] margem-tv:', e.message); return null; });
+    if (vendasEspelho) res.set('X-Fonte-Vendas', 'espelho');
+    const vendasDoEspelho = () => { const m = {}; for (const r of vendasEspelho) { const a = m[r.codigo] || (m[r.codigo] = { Codigo: r.codigo, qtd: 0, valor: 0, custo: 0 }); a.qtd += +r.qtd || 0; a.valor += +r.valor || 0; a.custo += +r.custo || 0; } return Object.values(m); };
+
     // 5. Avarias filtradas pelos produtos deste comprador — SEM filtro de data
     //    porque avaria em aberto/tramite é acumulada (pode ser de meses anteriores)
     const [vendasRows, avariaRows] = await Promise.all([
-      q(vendasSQL, vendaParams).catch(() => []),
+      vendasEspelho ? Promise.resolve(vendasDoEspelho()) : q(vendasSQL, vendaParams).catch(() => []),
       q(`SELECT CodFornec, SUM(Total) as total
          FROM central.avariaconsumo
          WHERE CodigoBarras IN (${phC}) AND CodFornec > 0
