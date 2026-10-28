@@ -238,10 +238,22 @@ table.ar .obsd{max-width:250px;overflow:hidden;text-overflow:ellipsis;white-spac
 .jor .t{font-size:9.5px;font-weight:800;color:var(--ink3);text-transform:uppercase;letter-spacing:.04em}.jor .p.done .t,.jor .p.now .t,.jor .p.bad .t{color:var(--ink)}
 .jor .q{font-size:11.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.jor .h{font-size:10.5px;color:var(--ink3);white-space:nowrap}
 .org{display:inline-block;font-family:ui-monospace,Consolas,monospace;font-size:9.5px;font-weight:700;letter-spacing:.06em;padding:1px 5px;border-radius:4px;vertical-align:middle;margin-left:5px}.org.eco{background:#F5B800;color:#2B2000}.org.dl{background:#2A3A5C;color:#E6EBF5}
-.xajuda{display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:11px;color:var(--ink2);padding:0 10px}.xajuda div{padding:6px 10px;border-radius:8px;background:#F3F5F9}.xajuda b{color:var(--ink)}
-.pe-dec{background:var(--negw);color:var(--neg);border:1px solid #E5B4BD}
+.xajuda{display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:11px;color:var(--ink2);padding:0 10px}.xajuda div{padding:6px 10px;border-radius:8px;background:#F3F5F9;white-space:normal;min-width:0}.xajuda b{color:var(--ink)}
+/* dentro da linha aberta (td com colspan) o nowrap do td não pode valer, senão o texto longo empurra a tabela inteira pro lado */
+table.t td .conf-in{white-space:normal}
+.pe-dec{background:var(--negw);color:var(--neg);border:1px solid #E5B4BD}.pe-dl{background:#2A3A5C;color:#E6EBF5}
 .xfazer{font-size:11.5px;color:var(--ink2)}.xfazer b{color:var(--ink)}
-@media(max-width:1199px){.xcomo{grid-template-columns:repeat(2,minmax(0,1fr))}.xcomo .st:nth-child(2){border-right:0}.xajuda{grid-template-columns:1fr}}
+/* larguras das colunas em classe (nunca inline, senão o @media não aperta): jornada 34 %, "o que fazer" quebra linha */
+table.t th.th-jor{width:34%}table.t td.xfazer{white-space:normal;min-width:170px;max-width:260px}
+/* monitor grande = layout original; as faixas abaixo só apertam (regra do Tiago, 16/10): testar 1920/1600/1366/1280 */
+table.t td.xcli{max-width:280px}table.t td.xped{white-space:normal;min-width:120px}
+/* tabela do confronto (dentro da linha): tem que caber junto com a tabela de fora, senão a aba inteira rola pro lado */
+table.ctb td.forn{min-width:170px;max-width:260px}table.ctb th{padding-left:6px;padding-right:6px}table.ctb td{padding-left:6px;padding-right:6px}
+@media(max-width:1399px){table.ctb td.forn{min-width:150px;max-width:210px}table.ctb th{font-size:8px;letter-spacing:0}table.ctb td{font-size:10px}table.ctb .sub{font-size:9px}}
+@media(max-width:1199px){table.ctb td.forn{min-width:130px;max-width:180px}table.ctb td .sub{display:none}}
+@media(max-width:1599px){.jor{min-width:330px}.jor .p{padding-right:4px}.xcomo .d{font-size:10.5px}table.t td.xfazer{min-width:150px;max-width:220px}table.t td.xcli{min-width:150px;max-width:240px}}
+@media(max-width:1399px){.jor{min-width:260px}table.t th.th-jor{width:29%}table.t td.xcli{min-width:130px;max-width:190px}table.t td.xfazer{max-width:180px}.jor .q{font-size:11px}.jor .h{font-size:9.5px}.jor .t{font-size:9px}.xfazer{font-size:10.5px}.xcomo .st{padding:8px 10px}.xcomo .t{font-size:12px}.xcomo .d{font-size:10px}table.t td.xfazer{min-width:140px;max-width:200px}.org{font-size:9px;padding:1px 4px}}
+@media(max-width:1199px){.xcomo{grid-template-columns:repeat(2,minmax(0,1fr))}.xcomo .st:nth-child(2){border-right:0}.xajuda{grid-template-columns:1fr}.jor{min-width:240px}table.t th.th-jor{width:28%}.jor .h{display:none}.xfazer{font-size:10px}table.t td.xfazer{min-width:120px;max-width:170px}}
 .box table th.c-dec{min-width:230px}.box table td.c-dec{white-space:normal}
 .grid2{grid-template-columns:repeat(2,minmax(0,1fr))}.grid2 .box{min-width:0}
 @media (max-width:1699px){
@@ -496,6 +508,13 @@ async function verificarPallet(id,idx){
    pra eu ver a bipagem"). */
 function confrontoHtml(l,comBotoes){
   const k=l.id.replace(/[^a-z0-9]/gi,'');
+  if(l.modeloDlinks){   // bipagem gravada pelo coletor do Dlinks (conferencia_televendas) × pedido: sem separação/carregamento separados, sem lote, sem botões
+    const DLN={0:'para separação',1:'em separação',2:'conferido · aguardando liberação',3:'reconferir',4:'liberado'};
+    return '<div class="sub" style="padding:8px 10px 4px">Pedido <b>#'+esc(l.nPedido)+'</b> · '+esc(l.cliente)+' · <span class="org dl" style="margin-left:0">DLINKS</span> conferido no coletor do Dlinks'+(l.conferidaEm?' · última bipagem '+esc(String(l.conferidaEm).slice(0,10).split('-').reverse().join('/')):'')+' · painel: <b>'+esc(DLN[l.dlStatus]||'—')+'</b> · '+(l.semConferencia?'<span class="mut">nada bipado ainda</span>':l.divergencias?'<span class="neg"><b>'+l.divergencias+' de '+l.itens.length+' itens com diferença</b></span>':'<span class="pos"><b>'+l.itens.length+' itens, tudo bateu</b></span>')+'</div>'
+      +'<table class="t ctb"><thead><tr><th>EAN</th><th>Produto</th><th class="r">Pedido</th><th class="r">Conferido no Dlinks</th><th>Resultado</th></tr></thead><tbody>'
+      +l.itens.map(i=>'<tr'+(i.difSeparado!==0?' style="background:#FFF8E6"':'')+'><td><b>…'+esc(i.ean4)+'</b><div class="sub">'+esc(i.cod)+'</div></td><td class="forn">'+esc(i.descricao)+(i.foraDoPedido?' <span class="neg">· fora do pedido</span>':'')+'<div class="sub">'+(i.qtd&&i.und?qtd(i.qtd)+' '+esc(i.und)+(i.emb>1?' c/'+qtd(i.emb):''):'')+'</div></td><td class="r">'+qtd(i.pedido)+'</td><td class="r">'+qtd(i.separado)+'</td><td>'+(i.difSeparado===0?'<span class="pos"><b>bate</b></span>':i.difSeparado<0?'<b class="neg">faltam '+qtd(-i.difSeparado)+'</b>':'<b style="color:#8A5A00">sobram '+qtd(i.difSeparado)+'</b>')+'</td></tr>').join('')
+      +'</tbody></table><div class="sub" style="padding:6px 10px 10px">Liberação, reconferência e saída desse pedido são feitas no Dlinks. Aqui é só pra acompanhar.</div>';
+  }
   const lts=ls=>ls&&ls.length?esc(ls.map(x=>(x.lote||'—')+(ls.length>1?' ('+qtd(x.un)+')':'')).join(', ')):'<span class="mut">—</span>';
   const dif=i=>i.difSeparado===0?'<span class="pos"><b>bate</b></span>':'<b class="'+(i.difSeparado<0?'neg':'')+'"'+(i.difSeparado>0?' style="color:#8A5A00"':'')+'>'+(i.difSeparado>0?'+':'')+qtd(i.difSeparado)+'</b>';
   const difC=i=>i.difCarregado===0?'<span class="pos"><b>bate</b></span>':'<b class="'+(i.difCarregado<0?'neg':'')+'"'+(i.difCarregado>0?' style="color:#8A5A00"':'')+'>'+(i.difCarregado>0?'+':'')+qtd(i.difCarregado)+'</b>';
@@ -507,7 +526,7 @@ function confrontoHtml(l,comBotoes){
     +(l.saida&&l.saida.decisao==='liberada'?' · <span class="pos">saída liberada por <b>'+esc(l.saida.decididoPor||'')+'</b> '+dh(l.saida.decididoEm)+(l.saida.obs?' · '+esc(l.saida.obs):'')+'</span>':'')
     +(l.espelhadoEm?' · <span class="pos">espelhado no ERP de teste</span>':'')
     +' · '+(l.divergencias?'<span class="neg"><b>'+l.divergencias+' de '+l.itens.length+' itens com diferença</b></span>':'<span class="pos"><b>'+l.itens.length+' itens, tudo bateu</b></span>')+'</div>'
-    +'<table class="t"><thead><tr><th>EAN</th><th>Produto</th><th class="r">Pedido</th><th class="r">Separado</th><th class="r">Sep. × pedido</th><th class="r">Carregado</th><th class="r">Carga × sep.</th><th>Lote sep.</th><th>Lote carga</th></tr></thead><tbody>'
+    +'<table class="t ctb"><thead><tr><th>EAN</th><th>Produto</th><th class="r">Pedido</th><th class="r">Separado</th><th class="r">Sep. × pedido</th><th class="r">Carregado</th><th class="r">Carga × sep.</th><th>Lote sep.</th><th>Lote carga</th></tr></thead><tbody>'
     +l.itens.map(i=>'<tr'+(i.difSeparado!==0||i.difCarregado!==0||i.loteDiferente?' style="background:#FFF8E6"':'')+'><td><b>…'+esc(i.ean4)+'</b><div class="sub">'+esc(i.cod)+'</div></td><td class="forn">'+esc(i.descricao)+(i.foraDoPedido?' <span class="neg">· fora do pedido</span>':'')+'<div class="sub">'+(i.qtd&&i.und?qtd(i.qtd)+' '+esc(i.und)+(i.emb>1?' c/'+qtd(i.emb):''):'')+'</div></td><td class="r">'+qtd(i.pedido)+'</td><td class="r">'+qtd(i.separado)+'</td><td class="r">'+dif(i)+'</td><td class="r">'+qtd(i.carregado)+'</td><td class="r">'+difC(i)+'</td><td>'+lts(i.lotesSep)+'</td><td>'+lts(i.lotesCarga)+(i.loteDiferente?' <span class="neg">lote diferente</span>':'')+'</td></tr>').join('')
     +'</tbody></table>'
     +(l.tirados&&l.tirados.length?'<div class="sub" style="padding:6px 10px 0"><b>Retiradas da coletagem:</b> '+l.tirados.map(t=>esc(t.descricao)+' '+qtd(t.un)+' un ('+esc(t.etapa==='separacao'?'separação':'carregamento')+(t.motivo?' · '+esc(t.motivo):'')+')'+(t.verificado?' <span class="pos">verificado</span>':' <span class="neg">a verificar</span>')).join(' · ')+'</div>':'');
@@ -521,7 +540,8 @@ async function abrirDetalheExp(id){
   const k=id.replace(/[^a-z0-9]/gi,'');const tr=$('#detExp'+k);if(!tr)return;
   if(!tr.hidden){tr.hidden=true;return;}
   tr.hidden=false;tr.firstElementChild.innerHTML='<div class="mut" style="padding:10px">carregando a bipagem…</div>';
-  try{const d=DET_EXP[id]||(EXP.saidas||[]).find(x=>x.id===id)||(DET_EXP[id]=await fetch('/api/expedicao/detalhe/'+encodeURIComponent(id)).then(r=>r.json()));if(d.error)throw new Error(d.error);tr.firstElementChild.innerHTML='<div style="background:#FBFCFE;border-top:2px solid var(--am-ln)">'+confrontoHtml(d,d.status==='conferida')+'</div>';}
+  const url=id.startsWith('dl-')?'/api/expedicao/detalhe-dlinks/'+encodeURIComponent(id.slice(3)):'/api/expedicao/detalhe/'+encodeURIComponent(id);
+  try{const d=DET_EXP[id]||(EXP.saidas||[]).find(x=>x.id===id)||(DET_EXP[id]=await fetch(url).then(r=>r.json()));if(d.error)throw new Error(d.error);tr.firstElementChild.innerHTML='<div class="conf-in" style="background:#FBFCFE;border-top:2px solid var(--am-ln)">'+confrontoHtml(d,d.status==='conferida')+'</div>';}
   catch(e){tr.firstElementChild.innerHTML='<div class="neg" style="padding:10px">Não deu pra abrir: '+esc(e.message)+'</div>';}
 }
 const EXP_ST={separando:['pe-breve','em separação'],aguardando_fiscal:['pe-hoje','aguardando o fiscal'],separada:['pe-flag','separado · falta carregar'],expedindo:['pe-breve','em carregamento'],conferida:['pe-hoje','carregado · liberar saída'],fechada:['pe-ok','saída liberada'],bipando:['pe-breve','em conferência']};
@@ -530,7 +550,7 @@ function expBusca(o){const q=$('#q').value.trim().toLowerCase();if(!q)return tru
 function liberacaoHtml(l){
   const k=l.id.replace(/[^a-z0-9]/gi,'');const dif=l.itens.filter(i=>i.diferenca!==0).length;
   return '<div class="sub" style="padding:8px 10px 4px">Pedido <b>#'+esc(l.nPedido)+'</b> · '+esc(l.cliente)+' · separou <b>'+esc(l.separadoPor||'')+'</b> · mandou pro fiscal '+dh(l.liberacao.pedidoEm)+(l.liberacao.motivo?' · motivo: <b>'+esc(l.liberacao.motivo)+'</b>':'')+' · <span class="neg"><b>'+dif+' de '+l.itens.length+' itens com diferença</b></span></div>'
-    +'<table class="t"><thead><tr><th>EAN</th><th>Produto</th><th class="r">Pedido</th><th class="r">Separado</th><th class="r">Diferença</th><th>Lote</th></tr></thead><tbody>'
+    +'<table class="t ctb"><thead><tr><th>EAN</th><th>Produto</th><th class="r">Pedido</th><th class="r">Separado</th><th class="r">Diferença</th><th>Lote</th></tr></thead><tbody>'
     +l.itens.map(i=>'<tr'+(i.diferenca!==0?' style="background:#FDE7E9"':'')+'><td><b>…'+esc(i.ean4)+'</b><div class="sub">'+esc(i.cod)+'</div></td><td class="forn">'+esc(i.descricao)+'</td><td class="r">'+qtd(i.un)+'</td><td class="r">'+qtd(i.separado?i.separado.un:0)+'</td><td class="r '+(i.diferenca<0?'neg':i.diferenca>0?'':'pos')+'"'+(i.diferenca>0?' style="color:#8A5A00"':'')+'><b>'+(i.diferenca===0?'bate':i.diferenca<0?'faltam '+qtd(-i.diferenca):'sobram '+qtd(i.diferenca))+'</b></td><td>'+esc(i.separado&&i.separado.lotes&&i.separado.lotes.length?i.separado.lotes.map(x=>x.lote).join(', '):'—')+'</td></tr>').join('')
     +'</tbody></table>'
     +'<div class="xajuda" style="padding-top:8px"><div><b>Liberar pro carregamento assim</b> · o pallet vai do jeito que foi separado. O caminhão bate com o que foi separado, não com o pedido. A falta fica registrada.</div><div><b>Devolver pra separação</b> · volta pro separador com a sua observação. Use quando o estoque existe e ele precisa achar.</div></div>'
@@ -551,15 +571,18 @@ function renderExpedicao(){
     +'<div class="st"><div class="n">PASSO 2</div><div class="t">Carregamento de Caminhão</div><div class="d">Outra pessoa bipa às cegas o que sobe no caminhão. Tem que bater com a separação.</div><span class="q">Carregador · coletor</span></div>'
     +'<div class="st"><div class="n">PASSO 3</div><div class="t">Você confere e libera</div><div class="d">Pedido × separado × carregado, item a item. Liberar a saída ou mandar reconferir.</div><span class="q voce">Fiscal do CD · aqui</span></div>'
     +'<div class="st"><div class="n">PASSO 4</div><div class="t">Caminhão sai</div><div class="d">Saída liberada fica registrada com quem liberou e vai pro ERP de teste.</div><span class="q">Automático</span></div></div>';
-  const kp=[['liberar','Pra liberar saída',nLiberar,'caminhão carregado, esperando você',nLiberar?'k-liberar':'k-zero'],['decidir','Separação pra decidir',nDecidir,'separou diferente do pedido',nDecidir?'k-decidir':'k-zero'],['verificar','Retiradas pra verificar',nVerificar,'produto tirado da coletagem · lote diferente',nVerificar?'k-decidir':'k-zero'],['liberados','Liberados hoje',nLiberados,'caminhões que saíram','k-ok'],['todos','Pedidos na saída',confs.length,'no período','']];
+  const dlN=s=>confs.filter(c=>c.status==='dlinks'&&c.dlStatus===s).length;const dlTot=confs.filter(c=>c.status==='dlinks').length;
+  const kp=[['liberar','Pra liberar saída',nLiberar,'caminhão carregado, esperando você'+(dlN(2)?' · +'+dlN(2)+' no Dlinks':''),nLiberar?'k-liberar':'k-zero'],['decidir','Separação pra decidir',nDecidir,'separou diferente do pedido'+(dlN(3)?' · +'+dlN(3)+' reconferir no Dlinks':''),nDecidir?'k-decidir':'k-zero'],['verificar','Retiradas pra verificar',nVerificar,'produto tirado da coletagem · lote diferente',nVerificar?'k-decidir':'k-zero'],['liberados','Liberados hoje',nLiberados+dlN(4),'caminhões que saíram'+(dlN(4)?' · '+dlN(4)+' pelo Dlinks':''),'k-ok'],['todos','Toda a expedição',confs.length,(confs.length-dlTot)+' no nosso coletor · '+dlTot+' só no Dlinks','']];
   h+='<div class="kpis">'+kp.map(([k,l,v,s,cls])=>'<div class="kpi '+cls+(expFiltro===k?' on':'')+'" onclick="expFiltro=\''+k+'\';render()"><div class="v">'+v+'</div><div class="l">'+l+'</div><div class="s">'+s+'</div></div>').join('')+'</div>';
   const org=n=>{const p=painel[String(n)];return p?'<span class="org '+(p.origem==='eco'?'eco':'dl')+'" title="posição no Painel CD vem do '+(p.origem==='eco'?'Coletor Econômico':'painel do Dlinks')+'">'+(p.origem==='eco'?'ECO':'DLINKS')+'</span>':'';};
   const COL_DL={separacao:'Pedido p/ Separação',em_separacao:'Em separação',aguardando_liberacao:'Aguardando liberação',reconferir:'Reconferir',liberado:'Liberado'};
-  const ordem=[...porStatus('conferida'),...porStatus('aguardando_fiscal'),...confs.filter(c=>!['conferida','aguardando_fiscal','fechada'].includes(c.status)),...porStatus('fechada')];
-  const lista=expFiltro==='liberar'?porStatus('conferida'):expFiltro==='decidir'?porStatus('aguardando_fiscal'):expFiltro==='verificar'?ordem.filter(c=>c.pendentesVerificar):expFiltro==='liberados'?confs.filter(c=>c.status==='fechada'&&ehHoje(c.fechadoEm)):ordem;
+  // toda a expedição: os nossos primeiro (fila do fiscal no topo), depois os pedidos que estão só no Dlinks (status 'dlinks', por etapa do painel), depois os fechados
+  const dls=porStatus('dlinks'),dlOrd=s=>({2:0,3:1,1:2,0:3,4:4})[s]??5;
+  const ordem=[...porStatus('conferida'),...porStatus('aguardando_fiscal'),...confs.filter(c=>!['conferida','aguardando_fiscal','fechada','dlinks'].includes(c.status)),...dls.filter(c=>c.dlStatus!==4).sort((a,b)=>dlOrd(a.dlStatus)-dlOrd(b.dlStatus)),...porStatus('fechada'),...dls.filter(c=>c.dlStatus===4)];
+  const lista=expFiltro==='liberar'?[...porStatus('conferida'),...dls.filter(c=>c.dlStatus===2)]:expFiltro==='decidir'?[...porStatus('aguardando_fiscal'),...dls.filter(c=>c.dlStatus===3)]:expFiltro==='verificar'?ordem.filter(c=>c.pendentesVerificar):expFiltro==='liberados'?[...confs.filter(c=>c.status==='fechada'&&ehHoje(c.fechadoEm)),...dls.filter(c=>c.dlStatus===4)]:ordem;
   const tit={liberar:'Carregamentos pra você liberar',decidir:'Separações pra você decidir',verificar:'Pedidos com retirada ou lote pra verificar',liberados:'Liberados hoje',todos:'Pedidos na saída'}[expFiltro]||'Pedidos na saída';
   h+='<div class="table-wrap"><div style="padding:10px 12px 6px;display:flex;flex-wrap:wrap;gap:6px 16px;align-items:baseline;justify-content:space-between"><b style="font-size:13px">'+tit+' · '+lista.length+'</b><span class="sub">Posição no Painel CD: <span class="org eco" style="margin-left:0">ECO</span> nosso coletor <span class="org dl">DLINKS</span> painel do Dlinks · clique na linha pra abrir a bipagem</span></div>';
-  h+='<table class="t"><thead><tr><th>Pedido</th><th>Cliente</th><th style="width:34%">Jornada do pedido</th><th>Situação</th><th>O que fazer</th></tr></thead><tbody>';
+  h+='<table class="t"><thead><tr><th>Pedido</th><th>Cliente</th><th class="th-jor">Jornada do pedido</th><th>Situação</th><th class="th-fazer">O que fazer</th></tr></thead><tbody>';
   if(!lista.length)h+='<tr><td colspan="5" class="mut" style="padding:18px">'+(expFiltro==='todos'?'Nenhuma conferência de saída no período.':'Nada aqui agora. <a href="#" onclick="event.preventDefault();expFiltro=\'todos\';render()">Ver todos os pedidos na saída</a>.')+'</td></tr>';
   const passo=(cls,t,q,hh)=>'<div class="p '+cls+'"><i></i><div class="t">'+t+'</div><div class="q">'+esc(q||'—')+'</div><div class="h">'+(hh||'')+'</div></div>';
   const tent=e=>e&&e.tentativas?' · '+e.tentativas+' tent.':'';
@@ -568,13 +591,20 @@ function renderExpedicao(){
     const saida=s==='conferida'?saidas.find(x=>x.id===c.id):null,lib=s==='aguardando_fiscal'?libs.find(x=>x.id===c.id):null;
     const sep=et.separacao||{},car=et.expedicao||{};const nomeSep=(sep.operador||{}).nome||sep.fechadoPor||'',nomeCar=(car.operador||{}).nome||car.fechadoPor||'';
     let jor;
-    if(!duas)jor=passo(s==='fechada'?'done':'now','Conferência',c.fechadoPor||c.nome,s==='fechada'?dh(c.fechadoEm):'em andamento')+passo(s==='fechada'?'done':'','Saída',s==='fechada'?'fechada':'—','');
+    if(s==='dlinks'){const d=c.dlStatus;   // jornada pelo status do painel do Dlinks (sem nome de operador: o Dlinks não guarda)
+      jor=passo(d>=2?'done':d===1?'now':d===3?'bad':'','Separação','coletor Dlinks',d===0?'para separação':d===1?'em separação':d===3?'reconferir':'conferido')
+        +passo(d>=2&&d!==3?'done':'','Carregamento','coletor Dlinks',d>=2&&d!==3?'conferido':'')
+        +passo(d===4?'done':d===2?'now':'','Fiscal',d===4?'Dlinks':d===2?'no Dlinks':'—',d===2?'aguardando liberação':'')
+        +passo(d===4?'done':'','Saída',d===4?'liberada':'—',d===4&&c.liberadoEm?dh(c.liberadoEm).slice(0,5):'');}
+    else if(!duas)jor=passo(s==='fechada'?'done':'now','Conferência',c.fechadoPor||c.nome,s==='fechada'?dh(c.fechadoEm):'em andamento')+passo(s==='fechada'?'done':'','Saída',s==='fechada'?'fechada':'—','');
     else jor=passo(s==='aguardando_fiscal'?'bad':sep.fechadoEm?'done':'now','Separação',nomeSep||c.nome,sep.fechadoEm?dh(sep.fechadoEm)+tent(sep):s==='aguardando_fiscal'?'não bateu'+tent(sep):'em andamento'+tent(sep))
       +(s==='aguardando_fiscal'?passo('now','Fiscal','você','decidir'):'')
       +passo(car.fechadoEm?'done':s==='expedindo'?'now':'','Carregamento',s==='separada'?'—':nomeCar,car.fechadoEm?dh(car.fechadoEm)+tent(car):s==='expedindo'?'em andamento':s==='separada'?(S&&S.decisao==='reconferir'?'reconferir':'falta carregar'):'')
       +(s==='aguardando_fiscal'?'':passo(s==='fechada'?'done':s==='conferida'?'now':'','Fiscal',s==='fechada'?((S||{}).decididoPor||c.fechadoPor):s==='conferida'?'você':'—',s==='fechada'?dh((S||{}).decididoEm||c.fechadoEm):s==='conferida'?'aguardando':''))
       +passo(s==='fechada'?'done':'','Saída',s==='fechada'?'liberada':'—',s==='fechada'?(c.erpErro?'<span class="neg">ERP teste: erro</span>':'ERP teste ✓'):'');
-    const sit=s==='conferida'?'<span class="pill pe-hoje">Liberar saída</span><div class="sub">'+(saida?(saida.divergencias?'<span class="neg">'+saida.divergencias+' de '+saida.itens.length+' itens com diferença</span>':saida.itens.length+' de '+saida.itens.length+' itens bateram'):'carregado '+dh(c.conferidaEm))+'</div>'
+    const DL_SIT={0:['pe-breve','Dlinks · para separação'],1:['pe-breve','Dlinks · em separação'],2:['pe-dl','Dlinks · aguardando liberação'],3:['pe-dec','Dlinks · reconferir'],4:['pe-ok','Dlinks · liberado']};
+    const sit=s==='dlinks'?'<span class="pill '+(DL_SIT[c.dlStatus]||['pe-breve','Dlinks'])[0]+'">'+(DL_SIT[c.dlStatus]||['','Dlinks'])[1]+'</span><div class="sub">'+(c.produtos?c.produtos+' de '+c.produtos_pedido+' produtos conferidos no Dlinks':c.produtos_pedido+' itens · nada bipado ainda')+'</div>'
+      :s==='conferida'?'<span class="pill pe-hoje">Liberar saída</span><div class="sub">'+(saida?(saida.divergencias?'<span class="neg">'+saida.divergencias+' de '+saida.itens.length+' itens com diferença</span>':saida.itens.length+' de '+saida.itens.length+' itens bateram'):'carregado '+dh(c.conferidaEm))+'</div>'
       :s==='aguardando_fiscal'?'<span class="pill pe-dec">Separou diferente</span><div class="sub">'+(L?L.pendentes+' item(ns) com diferença'+(L.motivo?' · "'+esc(L.motivo)+'"':''):'')+'</div>'
       :s==='separando'?'<span class="pill pe-breve">Separando</span><div class="sub">'+(c.avisoFiscal||(L&&L.decisao==='devolvida')?'devolvido pelo fiscal '+esc((L||{}).decididoPor||'')+' · acertando':'em andamento')+'</div>'
       :s==='separada'?'<span class="pill pe-flag">'+(S&&S.decisao==='reconferir'?'Reconferir carregamento':'Separado · falta carregar')+'</span><div class="sub">'+(S&&S.decisao==='reconferir'?'fiscal '+esc(S.decididoPor||'')+' mandou bipar de novo':L&&L.decisao==='liberada'?'liberado pelo fiscal com '+L.pendentes+' falta(s)':'outra pessoa carrega')+'</div>'
@@ -582,13 +612,14 @@ function renderExpedicao(){
       :s==='fechada'?'<span class="pill pe-ok">Saída liberada</span><div class="sub">'+esc((S||{}).decididoPor||c.fechadoPor||'')+' · '+dh((S||{}).decididoEm||c.fechadoEm)+((S||{}).obs?' · '+esc(S.obs):'')+'</div>'
       :'<span class="pill pe-breve">'+esc(s)+'</span>';
     const verif=c.pendentesVerificar?'<div class="sub neg"><b>'+c.pendentesVerificar+' retirada(s) / lote pra verificar</b> · lista abaixo</div>':'';
-    const fazer=s==='conferida'?'<b>Confira abaixo e libere.</b> O caminhão espera a sua liberação.':s==='aguardando_fiscal'?'<b>Decida:</b> libera pro carregamento do jeito que está, ou devolve pra separação acertar.':s==='separando'?'Nada ainda. O separador está bipando.':s==='separada'?(S&&S.decisao==='reconferir'?'Nada ainda. O carregador vai bipar o caminhão de novo.':'Nada ainda. Falta outra pessoa carregar o caminhão.'):s==='expedindo'?'Nada ainda. Quando o caminhão fechar 100 %, aparece aqui pra liberar.':s==='fechada'?'Concluído. Clique pra rever a bipagem.':'';
+    const fazer=s==='dlinks'?(c.dlStatus===2?'<b>Libere no Dlinks.</b> Esse pedido foi conferido no coletor do Dlinks. Clique pra ver a bipagem.':c.dlStatus===3?'<b>Reconferir no Dlinks.</b> O painel pediu reconferência.':c.dlStatus===4?'Concluído no Dlinks. Clique pra ver a bipagem.':'Nada ainda. Esse pedido está no coletor do Dlinks.')
+      :s==='conferida'?'<b>Confira abaixo e libere.</b> O caminhão espera a sua liberação.':s==='aguardando_fiscal'?'<b>Decida:</b> libera pro carregamento do jeito que está, ou devolve pra separação acertar.':s==='separando'?'Nada ainda. O separador está bipando.':s==='separada'?(S&&S.decisao==='reconferir'?'Nada ainda. O carregador vai bipar o caminhão de novo.':'Nada ainda. Falta outra pessoa carregar o caminhão.'):s==='expedindo'?'Nada ainda. Quando o caminhão fechar 100 %, aparece aqui pra liberar.':s==='fechada'?'Concluído. Clique pra rever a bipagem.':'';
     h+='<tr class="row" style="cursor:pointer'+(saida?';background:#FFF8E6':lib?';background:#FFF3F4':'')+'" title="Clique pra ver a bipagem: pedido × separado × carregado" onclick="abrirDetalheExp(\''+esc(c.id)+'\')">'
-      +'<td><div class="nm" style="font-size:13px">#'+esc(c.nPedido)+org(c.nPedido)+'</div><div class="sub">aberto '+dh(c.abertoEm)+' · '+c.produtos_pedido+' itens'+(c.reconferencias?' · <span class="neg">'+c.reconferencias+'ª reconferência</span>':'')+'</div></td>'
-      +'<td class="forn"><div class="nm">'+esc(c.cliente)+'</div><div class="sub">'+(p?'Dlinks: '+(COL_DL[p.col]||p.col):'fora do painel do Dlinks')+'</div></td>'
+      +'<td class="xped"><div class="nm" style="font-size:13px">#'+esc(c.nPedido)+org(c.nPedido)+'</div><div class="sub">aberto '+dh(c.abertoEm)+' · '+c.produtos_pedido+' itens'+(c.reconferencias?' · <span class="neg">'+c.reconferencias+'ª reconferência</span>':'')+'</div></td>'
+      +'<td class="forn xcli"><div class="nm">'+esc(c.cliente)+'</div><div class="sub">'+(p?'Dlinks: '+(COL_DL[p.col]||p.col):'fora do painel do Dlinks')+'</div></td>'
       +'<td><div class="jor">'+jor+'</div></td><td class="c-sit">'+sit+verif+'</td><td class="xfazer">'+fazer+'</td></tr>'
-      +(saida?'<tr id="detExp'+kd+'"><td colspan="5" style="padding:0"><div style="background:#FFFDF5;border-left:4px solid var(--am-ln);border-top:2px solid var(--am-ln)">'+confrontoHtml(saida,true)+'</div></td></tr>'
-        :lib?'<tr id="detExp'+kd+'"><td colspan="5" style="padding:0"><div style="background:#FFF8F9;border-left:4px solid var(--neg);border-top:2px solid var(--neg)">'+liberacaoHtml(lib)+'</div></td></tr>'
+      +(saida?'<tr id="detExp'+kd+'"><td colspan="5" style="padding:0"><div class="conf-in" style="background:#FFFDF5;border-left:4px solid var(--am-ln);border-top:2px solid var(--am-ln)">'+confrontoHtml(saida,true)+'</div></td></tr>'
+        :lib?'<tr id="detExp'+kd+'"><td colspan="5" style="padding:0"><div class="conf-in" style="background:#FFF8F9;border-left:4px solid var(--neg);border-top:2px solid var(--neg)">'+liberacaoHtml(lib)+'</div></td></tr>'
         :'<tr id="detExp'+kd+'" hidden><td colspan="5" style="padding:0"></td></tr>');
   }
   h+='</tbody></table></div>';
