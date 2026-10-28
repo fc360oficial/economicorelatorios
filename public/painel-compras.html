@@ -59,7 +59,7 @@ svg.ic{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2;stroke-
 .hd .pg{font:700 1.5em var(--fd);color:var(--amarelo);letter-spacing:.08em;font-variant-numeric:tabular-nums;white-space:nowrap}
 .hd .sub{margin-left:auto;font:600 1.15em var(--fb);letter-spacing:.14em;text-transform:uppercase;color:#8f8a7c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .lst{flex:1;display:flex;flex-direction:column;min-height:0}
-.rows{flex:1;display:grid;grid-template-rows:repeat(var(--n),minmax(0,1fr));min-height:0}
+.rows{flex:1;min-height:0;overflow:hidden;position:relative}.rows-in{display:grid;grid-auto-rows:calc(var(--rh) * 1px);will-change:transform}.rows:not(.rola){display:grid;grid-template-rows:repeat(var(--n),minmax(0,1fr))}
 .row,.thead{display:grid;align-items:center;gap:1em;padding:0 .6em}
 .thead{font:700 1.05em var(--fd);letter-spacing:.16em;text-transform:uppercase;color:var(--amarelo);border-bottom:.12em solid var(--amarelo);padding-bottom:.35em;flex:none}
 .row{border-bottom:.07em solid var(--linha);min-height:0}
@@ -99,7 +99,7 @@ svg.ic{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2;stroke-
 .cc .set{font:600 1em var(--fb);letter-spacing:.1em;text-transform:uppercase;color:#8f8a7c;margin-top:.5em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cc .pct{display:flex;justify-content:space-between;align-items:baseline;margin-top:.4em}.cc .pct b{font:800 3.2em/1 var(--fd);color:var(--amarelo)}.cc .pct b.sem{color:#4a4a4a}.cc .pct span{font:700 .95em var(--fb);letter-spacing:.14em;text-transform:uppercase;color:#8f8a7c}
 .cc .pb{height:.5em;background:#2a2a2a;border-radius:.3em;margin-top:.5em}.cc .pb i{display:block;height:100%;background:var(--amarelo);border-radius:.3em}
-.cc .corpo{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column}
+.cc .corpo{flex:1;min-height:0;overflow:hidden;position:relative}.cc .corpo-in{display:flex;flex-direction:column;will-change:transform}
 .cc .grp{font:700 1em var(--fd);letter-spacing:.16em;text-transform:uppercase;color:var(--amarelo);padding:.7em 1em .25em;flex:none}
 .cc .it{display:flex;align-items:center;gap:.6em;padding:.5em 1em;border-bottom:.07em solid var(--linha);flex:none}.cc .it .n{flex:1;min-width:0;font:700 1.45em/1.05 var(--fd);text-transform:uppercase;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.cc .it .n small{display:block;font:500 .55em var(--fb);color:#8f8a7c;letter-spacing:.06em;margin-top:.1em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.cc .it .st{font-size:.95em;flex:none}
 .cc .mais{font:600 1em var(--fb);letter-spacing:.1em;text-transform:uppercase;color:#8f8a7c;padding:.6em 1em}
@@ -172,38 +172,31 @@ function paginar(arr, n) { const p = []; for (let i = 0; i < arr.length; i += n)
 const cnt = () => `${idx % SEQ.length + 1} / ${SEQ.length}`;
 const velho = k => D[k + 'Velho'] ? ' · dado de ' + hmDe(D.geradoEm) : '';
 
-// ── 1 · Central de Compras (Radar) ──
+// ── 1 · Central de Compras (Radar) — uma tela; dentro de cada card as urgentes ROLAM pra cima (Tiago, 28/10) ──
 function rCentral() {
   const c = D.central; if (!c) return [tela('Central de Compras', 'Radar', '', vazio('Radar sem dados', 'O Radar de Pedidos ainda não calculou hoje. Assim que calcular, as listas aparecem aqui.'), ['Radar —'], '', 'central')];
   const t = c.tot;
   const kps = kp(pct(t.pct).replace(',0', ''), 'Execução', 'am') + kp(t.urgentes, 'Urgentes hoje') + kp(t.feitas, 'Feitas') + kp(t.urgentes - t.feitas, 'Faltam', t.urgentes - t.feitas ? 'vm' : '');
-  // a Central vira páginas até TODAS as urgentes de cada compradora passarem (Tiago, 28/10): 5 por card em cada página
-  const POR = (c.cards[0] && c.cards[0].porPagina) || 5; const nPag = Math.max(1, ...c.cards.map(k => Math.ceil(k.hoje.length / POR)));
-  const paginaCentral = pg => { const cards = c.cards.map(k => {
-    const fatia = k.hoje.slice(pg * POR, pg * POR + POR); const restam = Math.max(0, k.hoje.length - (pg + 1) * POR);
+  const cards = c.cards.map(k => {
     const cls = k.urgentes && k.pct === 100 ? ' ok' : (k.hoje.some(x => x.sit.st === 'atraso') ? ' vm' : '');
-    const its = fatia.map(x => `<div class="it"><span class="n">${esc(x.nome)}<small>lista ${x.lista} · ${mil(x.valor)}${x.detalhe ? ' · ' + esc(x.detalhe) : ''}</small></span>${st(x.sit)}</div>`).join('');
-    const prox = (fatia.length >= 4 || (pg > 0 && !fatia.length && k.hoje.length) ? [] : k.proximos).map(x => `<div class="it"><span class="n">${esc(x.nome)}<small>lista ${x.lista} · ${esc(x.quando)}${x.curvaA ? ' · curva A' : ''}</small></span><span class="st apuracao">${esc(x.quando)}</span></div>`).join('');
+    const its = k.hoje.map(x => `<div class="it"><span class="n">${esc(x.nome)}<small>lista ${x.lista} · ${mil(x.valor)}${x.detalhe ? ' · ' + esc(x.detalhe) : ''}</small></span>${st(x.sit)}</div>`).join('');
+    const prox = (k.hoje.length >= 4 ? [] : k.proximos).map(x => `<div class="it"><span class="n">${esc(x.nome)}<small>lista ${x.lista} · ${esc(x.quando)}${x.curvaA ? ' · curva A' : ''}</small></span><span class="st apuracao">${esc(x.quando)}</span></div>`).join('');
     return `<div class="cc${cls}"><div class="ch"><div class="nm">${etq(k)}${k.urgentes && k.pct === 100 ? '<span class="st cheio">Tudo feito</span>' : ''}</div><div class="set">${k.urgentes} de ${k.listasHoje} listas · ${mil(k.valorUrgente)}</div><div class="pct"><span>Feito</span><b class="${k.urgentes ? '' : 'sem'}">${k.urgentes ? k.pct + '%' : '—'}</b></div><div class="pb"><i style="width:${k.urgentes ? k.pct : 0}%"></i></div></div>
-      <div class="corpo">${its ? `<div class="grp">Urgentes · hoje${k.hoje.length > POR ? ` · ${pg * POR + 1} a ${pg * POR + fatia.length} de ${k.hoje.length}` : ''}</div>` + its : (k.hoje.length ? '<div class="grp">Todas as urgentes já passaram</div>' : '<div class="grp">Nada urgente hoje</div>')}${restam ? `<div class="mais">+ ${restam} na próxima página</div>` : ''}${prox ? '<div class="grp">Próximos dias</div>' + prox : ''}</div></div>`;
-  }).join(''); return cards; };
+      <div class="corpo rola">${its ? `<div class="grp">Urgentes · hoje${k.hoje.length > 5 ? ' · ' + k.hoje.length : ''}</div>` + its : '<div class="grp">Nada urgente hoje</div>'}${prox ? '<div class="grp">Próximos dias</div>' + prox : ''}</div></div>`;
+  }).join('');
   const rank = c.ranking.map((r, i) => `${i + 1}º <b>${esc(r.apelido)}</b> ${r.pct}%`).join(' · ');
   const obs = c.alertas.length ? c.alertas.map(a => `<span class="al">⚠ ${esc(a)}</span>`).join('') : `<span>Ranking do dia: ${rank}</span>`;
-  const paginas = []; for (let pg = 0; pg < nPag; pg++) {
-    const corpo = `<div class="main">${hd(IC.radar, 'Pra fazer hoje', nPag > 1 ? `${pg + 1} / ${nPag}` : '', 'urgente = lista do Radar pra hoje com ruptura ou curva A em risco · previsto × feito')}<div class="cards" style="--c:${c.cards.length}">${paginaCentral(pg)}</div><div class="obs">${obs}</div></div>`;
-    paginas.push(tela('Central de Compras', 'Radar', kps, corpo, ['Radar ' + hmDe(c.radarEm), 'ERP ' + hmDe(D.geradoEm)], `lead real · cobertura alvo ${c.teto} d · <b>${t.listasHoje}</b> listas marcadas pra hoje, ${t.urgentes} urgentes${velho('central')}`, 'central'));
-  }
-  return paginas;
+  const corpo = `<div class="main">${hd(IC.radar, 'Pra fazer hoje', '', 'urgente = lista do Radar pra hoje com ruptura ou curva A em risco · previsto × feito')}<div class="cards" style="--c:${c.cards.length}">${cards}</div><div class="obs">${obs}</div></div>`;
+  return [tela('Central de Compras', 'Radar', kps, corpo, ['Radar ' + hmDe(c.radarEm), 'ERP ' + hmDe(D.geradoEm)], `lead real · cobertura alvo ${c.teto} d · <b>${t.listasHoje}</b> listas marcadas pra hoje, ${t.urgentes} urgentes${velho('central')}`, 'central')];
 }
-// ── 2 · Venda · Margem · Avaria (uma página por compradora) ──
+// ── 2 · Venda · Margem · Avaria — uma página por compradora, TODAS as listas rolando pra cima ──
 function rMargem() {
   const m = D.margem; if (!m || !m.paginas.length) return [tela('Venda · Margem · Avaria', '', '', vazio('Sem dados do mês', 'A margem por compradora ainda não foi calculada.'), [], '', 'margem')];
-  const pags = []; m.paginas.forEach(p => paginar(p.fornecedores, LINHAS).forEach((fs, j, arr) => pags.push({ p, fs, j, tot: arr.length })));
-  return pags.map(({ p, fs, j, tot }, i) => {
+  return m.paginas.map((p, i) => {
     const t = p.totais;
     const kps = kp(mil(t.venda), 'Venda total') + kp(pct(t.msv), 'Margem S/V', 'am') + kp(pct(t.msc), 'Margem S/C') + kp(rs(t.avaria), 'Avarias · ' + pct(t.pctAv), t.pctAv >= 1 ? 'vm' : t.pctAv >= 0.5 ? 'am' : '');
-    const linhas = fs.map((f, k) => `<div class="row">${h(j * LINHAS + k + 1, 'prev')}<span class="n">${esc(f.listaNome || f.nome)}<small>${f.lista ? 'lista ' + f.lista + ' · ' : ''}${esc(f.listaNome ? f.nome : 'cód ' + f.id)}</small></span>${h(n0(f.venda))}${h(pct(f.msv))}${h(pct(f.msc), 'prev')}${h(n2(f.avaria), f.pctAv >= 1 ? 'vm' : f.pctAv >= 0.5 ? 'am' : '')}${h(pct(f.pctAv), f.pctAv >= 1 ? 'vm' : f.pctAv >= 0.5 ? 'am' : '')}</div>`).join('');
-    const corpo = `<div class="main">${hd(IC.margem, 'Listas de ' + p.apelido, `${i + 1} / ${pags.length}`, (tot > 1 ? `página ${j + 1} de ${tot} · ` : '') + `${p.fornecedores.length} listas · ${['', 'jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'][m.mes]}/${m.ano} · todas as lojas · maiores vendas primeiro`)}<div class="lst l4"><div class="thead"><span>#</span><span>Lista</span><span>Venda R$</span><span>Margem S/V</span><span>Margem S/C</span><span>Avaria R$</span><span>Av %</span></div><div class="rows" style="--n:${LINHAS}">${linhas || ''}</div></div></div>`;
+    const linhas = p.fornecedores.map((f, k) => `<div class="row">${h(k + 1, 'prev')}<span class="n">${esc(f.listaNome || f.nome)}<small>${f.lista ? 'lista ' + f.lista + ' · ' : ''}${esc(f.listaNome ? f.nome : 'cód ' + f.id)}</small></span>${h(n0(f.venda))}${h(pct(f.msv))}${h(pct(f.msc), 'prev')}${h(n2(f.avaria), f.pctAv >= 1 ? 'vm' : f.pctAv >= 0.5 ? 'am' : '')}${h(pct(f.pctAv), f.pctAv >= 1 ? 'vm' : f.pctAv >= 0.5 ? 'am' : '')}</div>`).join('');
+    const corpo = `<div class="main">${hd(IC.margem, 'Listas de ' + p.apelido, `${i + 1} / ${m.paginas.length}`, `${p.fornecedores.length} listas · ${['', 'jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'][m.mes]}/${m.ano} · todas as lojas · maiores vendas primeiro`)}<div class="lst l4"><div class="thead"><span>#</span><span>Lista</span><span>Venda R$</span><span>Margem S/V</span><span>Margem S/C</span><span>Avaria R$</span><span>Av %</span></div><div class="rows rola" style="--n:${LINHAS}">${linhas || ''}</div></div></div>`;
     return tela('Venda · Margem · Avaria', p.apelido, kps, corpo, ['Cupons até ontem'], `vermelho = avaria acima de <b>1%</b> da venda do fornecedor · amarelo acima de 0,5%${velho('margem')}`, 'margem');
   });
 }
@@ -216,29 +209,27 @@ function rAvariaComp() {
   const corpo = `<div class="main">${hd(IC.alerta, 'Quem mais teve avaria no mês', '', 'avaria dos fornecedores de cada compradora · 6 lojas · % sobre a venda dela')}<div class="lst l8"><div class="rows" style="--n:${a.itens.length}">${linhas}</div></div><div class="obs"><span>Barra = valor em relação à 1ª colocada</span><span>·</span><span>Vermelho = acima de <b>${pct(a.meta)}</b> da venda</span></div></div>`;
   return [tela('Avarias', 'Por compradora', kps, corpo, ['Cupons até ontem'], `mesma conta da tela Venda · Margem · Avaria, somada por compradora${velho('avariaComp')}`, 'avaria_comp')];
 }
-// ── 4 · Rupturas ──
+// ── 4 · Rupturas — uma página por compradora, as listas dela com ruptura rolando ──
 function rRupturas() {
   const r = D.rupturas; if (!r) return [tela('Rupturas', 'Por compradora', '', vazio('Sem dados', 'O painel de rupturas ainda não calculou.'), [], '', 'rupturas')];
-  // uma ou duas páginas por compradora, só com as listas dela que têm ruptura (Tiago, 28/10)
-  const pags = []; (r.porComp || []).forEach(c => { if (!c.linhas.length) return; paginar(c.linhas, LINHAS).forEach((pg, j, arr) => pags.push({ c, pg, j, tot: arr.length })); });
-  if (!pags.length) return [tela('Rupturas', 'Por compradora', '', vazio('Nenhuma ruptura', 'Nenhuma lista das compradoras com loja zerada agora.'), ['Estoque ERP ' + hmDe(r.geradoEm)], '', 'rupturas')];
-  return pags.map(({ c, pg, j, tot }, i) => {
+  const comps = (r.porComp || []).filter(c => c.linhas.length);
+  if (!comps.length) return [tela('Rupturas', 'Por compradora', '', vazio('Nenhuma ruptura', 'Nenhuma lista das compradoras com loja zerada agora.'), ['Estoque ERP ' + hmDe(r.geradoEm)], '', 'rupturas')];
+  return comps.map((c, i) => {
     const kps = kp(n0(c.rupturas), 'Rupturas', 'vm') + kp(n0(c.urgencia), 'Urgência ≤ 3 d', 'am') + kp(n0(c.emRisco), 'Em risco') + kp(c.listas, 'Listas com ruptura');
-    const linhas = pg.map(l => `<div class="row"><span class="n">${esc(l.nome)}<small>lista ${l.lista}${l.perda ? ' · perde ' + mil(l.perda) + '/dia' : ''}</small></span><span>${etq(l.comp)}</span>${h(l.rupturas, l.sit === 'critico' ? 'vm' : '')}${h(l.urgencia, l.urgencia ? (l.sit === 'critico' ? 'vm' : 'am') : 'prev')}<span class="t">${l.lojas.slice(0, 4).join(' · ')}${l.lojas.length > 4 ? ' +' + (l.lojas.length - 4) : ''}</span><span>${st({ critico: { st: 'atraso', txt: 'Crítico' }, atencao: { st: 'pendente', txt: 'Atenção' }, normal: { st: 'ok', txt: 'Normal' } }[l.sit])}</span></div>`).join('');
-    const corpo = `<div class="main">${hd(IC.ruptura, 'Rupturas de ' + c.apelido, `${i + 1} / ${pags.length}`, (tot > 1 ? `página ${j + 1} de ${tot} · ` : '') + 'lista a lista · ordenado por urgência · rede: ' + n0(r.resumo.rupturas) + ' rupturas')}${pg.length ? `<div class="lst l2"><div class="thead"><span>Lista · fornecedor</span><span>Compradora</span><span>Rupturas</span><span>≤ 3 dias</span><span>Lojas</span><span>Situação</span></div><div class="rows" style="--n:${LINHAS}">${linhas}</div></div>` : vazio('Nenhuma ruptura', 'Nenhuma lista com loja zerada agora.')}</div>`;
+    const linhas = c.linhas.map(l => `<div class="row"><span class="n">${esc(l.nome)}<small>lista ${l.lista}${l.perda ? ' · perde ' + mil(l.perda) + '/dia' : ''}</small></span><span>${etq(l.comp)}</span>${h(l.rupturas, l.sit === 'critico' ? 'vm' : '')}${h(l.urgencia, l.urgencia ? (l.sit === 'critico' ? 'vm' : 'am') : 'prev')}<span class="t">${l.lojas.slice(0, 4).join(' · ')}${l.lojas.length > 4 ? ' +' + (l.lojas.length - 4) : ''}</span><span>${st({ critico: { st: 'atraso', txt: 'Crítico' }, atencao: { st: 'pendente', txt: 'Atenção' }, normal: { st: 'ok', txt: 'Normal' } }[l.sit])}</span></div>`).join('');
+    const corpo = `<div class="main">${hd(IC.ruptura, 'Rupturas de ' + c.apelido, `${i + 1} / ${comps.length}`, `${c.linhas.length} listas · ordenado por urgência · rede: ${n0(r.resumo.rupturas)} rupturas`)}<div class="lst l2"><div class="thead"><span>Lista · fornecedor</span><span>Compradora</span><span>Rupturas</span><span>≤ 3 dias</span><span>Lojas</span><span>Situação</span></div><div class="rows rola" style="--n:${LINHAS}">${linhas}</div></div></div>`;
     return tela('Rupturas', c.apelido, kps, corpo, ['Estoque ERP ' + hmDe(r.geradoEm)], `ruptura = loja zerada com venda · <b>≤ 3 dias</b> = cobertura menor que o lead · perda estimada de ${c.apelido}: ${mil(c.perdaDia)}/dia${velho('rupturas')}`, 'rupturas');
   });
 }
-// ── 5 · Curva A em risco ──
+// ── 5 · Curva A em risco — uma página por compradora, produtos das listas dela rolando ──
 function rCurvaA() {
   const c = D.curvaA; if (!c) return [tela('Central de Compras', 'Curva A', '', vazio('Sem dados', 'O Radar ainda não calculou a curva A.'), [], '', 'curva_a')];
-  // páginas por compradora: os produtos curva A das listas dela (Tiago, 28/10)
-  const pags = []; (c.porComp || []).forEach(cp => { if (!cp.itens.length) return; paginar(cp.itens, LINHAS).forEach((pg, j, arr) => pags.push({ cp, pg, j, tot: arr.length })); });
-  if (!pags.length) return [tela('Central de Compras', 'Curva A', '', vazio('Curva A em dia', 'Nenhum produto de curva A das compradoras vai zerar antes da lista.'), ['Radar ' + hmDe(D.central && D.central.radarEm)], '', 'curva_a')];
-  return pags.map(({ cp, pg, j, tot }, i) => {
+  const comps = (c.porComp || []).filter(cp => cp.itens.length);
+  if (!comps.length) return [tela('Central de Compras', 'Curva A', '', vazio('Curva A em dia', 'Nenhum produto de curva A das compradoras vai zerar antes da lista.'), ['Radar ' + hmDe(D.central && D.central.radarEm)], '', 'curva_a')];
+  return comps.map((cp, i) => {
     const kps = kp(cp.zeram, 'Zeram antes da lista', cp.zeram ? 'vm' : '') + kp(cp.noPonto, 'No ponto de pedido', 'am') + kp(cp.listas, 'Listas') + kp(cp.transito, 'Já em trânsito');
-    const linhas = pg.map(x => `<div class="row"><span class="n">${esc(x.descricao)}<small>curva A · rank ${x.rank}${x.zeradas ? ' · ' + x.zeradas + ' loja' + (x.zeradas > 1 ? 's' : '') + ' zerada' + (x.zeradas > 1 ? 's' : '') : ''}</small></span><span>${etq(x.comp)}</span><span class="t">${esc(x.listaNome || x.fornecedor || '')}</span>${h(n1(x.cobertura), x.zeraAntes || x.cobertura < 1 ? 'vm' : 'am', 'dias')}<span class="t">${x.lojas.join(' · ')}</span>${h(n0(x.vendaDia))}<span>${st(x.acao)}</span></div>`).join('');
-    const corpo = `<div class="main">${hd(IC.curva, 'Curva A de ' + cp.apelido, `${i + 1} / ${pags.length}`, (tot > 1 ? `página ${j + 1} de ${tot} · ` : '') + `${cp.total} produtos em ${cp.listas} listas · rede ${c.resumo.emRisco} · trânsito já descontado`)}${pg.length ? `<div class="lst l5"><div class="thead"><span>Produto</span><span>Compradora</span><span>Lista</span><span>Cobertura</span><span>Lojas</span><span>Venda/dia R$</span><span>Ação</span></div><div class="rows" style="--n:${LINHAS}">${linhas}</div></div>` : vazio('Curva A em dia', 'Nenhum produto de curva A vai zerar antes da lista.')}</div>`;
+    const linhas = cp.itens.map(x => `<div class="row"><span class="n">${esc(x.descricao)}<small>curva A · rank ${x.rank}${x.zeradas ? ' · ' + x.zeradas + ' loja' + (x.zeradas > 1 ? 's' : '') + ' zerada' + (x.zeradas > 1 ? 's' : '') : ''}</small></span><span>${etq(x.comp)}</span><span class="t">${esc(x.listaNome || x.fornecedor || '')}</span>${h(n1(x.cobertura), x.zeraAntes || x.cobertura < 1 ? 'vm' : 'am', 'dias')}<span class="t">${x.lojas.join(' · ')}</span>${h(n0(x.vendaDia))}<span>${st(x.acao)}</span></div>`).join('');
+    const corpo = `<div class="main">${hd(IC.curva, 'Curva A de ' + cp.apelido, `${i + 1} / ${comps.length}`, `${cp.total} produtos em ${cp.listas} listas · rede ${c.resumo.emRisco} · trânsito já descontado`)}<div class="lst l5"><div class="thead"><span>Produto</span><span>Compradora</span><span>Lista</span><span>Cobertura</span><span>Lojas</span><span>Venda/dia R$</span><span>Ação</span></div><div class="rows rola" style="--n:${LINHAS}">${linhas}</div></div></div>`;
     return tela('Curva A em risco', cp.apelido, kps, corpo, ['Radar ' + hmDe(D.central && D.central.radarEm)], `vermelho = zera antes da lista ou já zerou · amarelo = no ponto de pedido${velho('curvaA')}`, 'curva_a');
   });
 }
@@ -256,9 +247,9 @@ function rPagar() {
 function rAvariaProd() {
   const a = D.avariaProd; if (!a) return [tela('Prevenção', 'Avarias', '', vazio('Sem dados', 'A avaria por produto ainda não foi calculada.'), [], '', 'avaria_prod')];
   const kps = kp(rs(a.total), 'Avaria no mês · rede') + kp(rs(a.top10), 'Top 10 · ' + (a.total ? Math.round(a.top10 * 100 / a.total) : 0) + '%', 'vm') + kp(rs(a.aberto), 'Em aberto / trâmite', 'am') + kp(n0(a.lancamentos), 'Lançamentos');
-  const itens = a.itens.slice(0, LINHAS);
+  const itens = a.itens;
   const linhas = itens.map(x => `<div class="row">${h(x.pos, 'prev')}<span class="n">${esc(x.descricao)}</span><span class="t">${esc(x.setor)}</span>${h(n0(x.qtd), '', x.und)}${h(n2(x.total), x.pos <= 2 ? 'vm' : '')}<span class="t">${x.lojas.slice(0, 4).join(' · ')}${x.lojas.length > 4 ? ' +' + (x.lojas.length - 4) : ''}</span><span>${etq(x.comp, 'Loja')}</span><span>${x.cronico ? '<span class="st cheio">Crônico 3 meses</span>' : ''}</span></div>`).join('');
-  const p1 = `<div class="main">${hd(IC.alerta, 'Produtos que mais foram pra avaria', '1 / 2', `${a.periodo.de.slice(8, 10)}/${a.periodo.de.slice(5, 7)} a ${a.periodo.ate.slice(8, 10)}/${a.periodo.ate.slice(5, 7)} · linha a linha do ERP · 6 lojas`)}<div class="lst l6"><div class="thead"><span>#</span><span>Produto</span><span>Setor</span><span>Qtd</span><span>R$</span><span>Lojas</span><span>Compradora</span><span>Marca</span></div><div class="rows" style="--n:${LINHAS}">${linhas}</div></div><div class="obs"><span>Por setor:</span>${a.setores.slice(0, 5).map(s => `<span>${esc(s.setor)} <b>${s.pct}%</b></span>`).join('')}</div></div>`;
+  const p1 = `<div class="main">${hd(IC.alerta, 'Produtos que mais foram pra avaria', '1 / 2', `${a.periodo.de.slice(8, 10)}/${a.periodo.de.slice(5, 7)} a ${a.periodo.ate.slice(8, 10)}/${a.periodo.ate.slice(5, 7)} · linha a linha do ERP · 6 lojas`)}<div class="lst l6"><div class="thead"><span>#</span><span>Produto</span><span>Setor</span><span>Qtd</span><span>R$</span><span>Lojas</span><span>Compradora</span><span>Marca</span></div><div class="rows rola" style="--n:${LINHAS}">${linhas}</div></div><div class="obs"><span>Por setor:</span>${a.setores.slice(0, 5).map(s => `<span>${esc(s.setor)} <b>${s.pct}%</b></span>`).join('')}</div></div>`;
   const maxL = Math.max(1, ...a.lojas.map(l => l.total)), maxS = Math.max(1, ...a.setores.map(s => s.total));
   const lojas = a.lojas.filter(l => l.loja >= 1 && l.loja <= 6).map((l, k) => `<div class="row pos${k === 0 ? '1' : ''}"><span class="h pos">${k + 1}</span><span class="n">${esc(l.nome)}<small>${n0(l.n)} lançamentos no mês</small></span><span class="barra"><i class="${k === 0 ? 'vm' : 'br'}" style="width:${Math.round(l.total / maxL * 100)}%"></i></span><span class="h big${k === 0 ? ' vm' : ''}">${rs(l.total)}</span><span class="h pct">${a.total ? Math.round(l.total * 100 / a.total) : 0}%<small>da rede</small></span></div>`).join('');
   const p2 = `<div class="main">${hd(IC.alerta, 'Avaria por loja', '2 / 2', `setores: ${a.setores.slice(0, 4).map(s => esc(s.setor) + ' ' + s.pct + '%').join(' · ')}`)}<div class="lst l8"><div class="rows" style="--n:${Math.max(1, a.lojas.filter(l => l.loja >= 1 && l.loja <= 6).length)}">${lojas}</div></div></div>`;
@@ -273,7 +264,7 @@ function rRebaixas() {
   return lojas.map((l, i) => {
     const kps = kp(l.itens, 'Itens em rebaixa') + kp(mil(l.saldoRs), 'Saldo a preço', 'am') + kp(l.vencem7, 'Vencem até 7 d', l.vencem7 ? 'vm' : '') + kp(l.ruins, 'Não vendem a tempo', l.ruins ? 'vm' : '');
     const linhas = l.linhas.map(x => `<div class="row"><span class="n">${esc(x.descricao)}<small>${x.cod} · rebaixa desde ${x.solicitadoEm.slice(8, 10)}/${x.solicitadoEm.slice(5, 7)}${x.desconto ? ' · −' + x.desconto + '%' : ''}</small></span>${h(x.diasAte <= 0 ? 'hoje' : x.diasAte, x.diasAte <= 2 ? 'vm' : x.diasAte <= 7 ? 'am' : '', x.diasAte <= 0 ? x.validade.slice(8, 10) + '/' + x.validade.slice(5, 7) : 'dias · ' + x.validade.slice(8, 10) + '/' + x.validade.slice(5, 7))}${h(n0(x.qtd), 'prev')}${h(n0(x.vendida))}${h(n0(x.saldo), x.ruim ? 'vm' : '')}${h(n1(x.medDia), 'prev')}<span>${st(x.sit)}</span></div>`).join('');
-    const corpo = `<div class="main">${hd(IC.tag, 'Rebaixas em acompanhamento', `${i + 1} / ${lojas.length}`, `${esc(l.nome)} · Autorização Rebaixa de Preço do ERP · as que mais têm R$ parado primeiro`)}<div class="lst l7"><div class="thead"><span>Produto</span><span>Validade</span><span>Solicitada</span><span>Vendida</span><span>Saldo</span><span>Méd/dia</span><span>Vai vender a tempo?</span></div><div class="rows" style="--n:${LINHAS}">${linhas}</div></div><div class="obs"><span>Conta: saldo ÷ média por dia <b>×</b> dias até a validade</span><span>·</span><span>Rede: itens em rebaixa <b>${r.rede.itens}</b></span><span>não vendem a tempo <b>${r.rede.ruins}</b></span>${r.rede.semRebaixa.length ? `<span>sem rebaixa pedida <b>${r.rede.semRebaixa.join(' ')}</b></span>` : ''}</div></div>`;
+    const corpo = `<div class="main">${hd(IC.tag, 'Rebaixas em acompanhamento', `${i + 1} / ${lojas.length}`, `${esc(l.nome)} · Autorização Rebaixa de Preço do ERP · as que mais têm R$ parado primeiro`)}<div class="lst l7"><div class="thead"><span>Produto</span><span>Validade</span><span>Solicitada</span><span>Vendida</span><span>Saldo</span><span>Méd/dia</span><span>Vai vender a tempo?</span></div><div class="rows rola" style="--n:${LINHAS}">${linhas}</div></div><div class="obs"><span>Conta: saldo ÷ média por dia <b>×</b> dias até a validade</span><span>·</span><span>Rede: itens em rebaixa <b>${r.rede.itens}</b></span><span>não vendem a tempo <b>${r.rede.ruins}</b></span>${r.rede.semRebaixa.length ? `<span>sem rebaixa pedida <b>${r.rede.semRebaixa.join(' ')}</b></span>` : ''}</div></div>`;
     return tela('Prevenção', l.nome, kps, corpo, ['ERP ' + hmDe(D.geradoEm)], `central.solicitacaopreco · <b>vermelho</b> = o saldo não vende antes de vencer na média atual${velho('rebaixas')}`, 'rebaixas');
   });
 }
@@ -293,9 +284,25 @@ function mostrar() {
   try { el.innerHTML = s.html(); } catch (e) { console.error('[TV] página', s.painel, e); el.innerHTML = `<div>${topo(TITULOS[s.painel] || 'Painel', '', '')}${vazio('Tela indisponível', 'Erro ao montar esta página; a rotação continua.')}${foot([], '', cnt())}</div>`; }
   requestAnimationFrame(() => { el.classList.add('on'); document.getElementById(front).classList.remove('on'); front = nxt; });
   const ms = (((CFG && CFG.segundos && CFG.segundos[s.painel]) || 30)) * 1000;
+  rolar(el, ms);
   const pr = $('#prog'); pr.style.transition = 'none'; pr.style.width = '0';
   requestAnimationFrame(() => requestAnimationFrame(() => { pr.style.transition = `width ${ms}ms linear`; pr.style.width = '100%'; }));
   clearTimeout(timer); timer = setTimeout(() => { idx++; mostrar(); }, ms);
+}
+// Carrossel subindo (Tiago, 28/10: 'igual tinha antes, pra evitar vários slides'): a lista cabe numa janela de N linhas;
+// se tem mais, o miolo desliza pra cima durante o tempo da página (3 s parado no começo e no fim). Vale pras listas
+// (.rows.rola) e pro corpo dos cards da Central (.cc .corpo.rola).
+function rolar(slide, ms) {
+  slide.querySelectorAll('.rows.rola, .cc .corpo.rola').forEach(w => {
+    const lista = w.classList.contains('rows');
+    const inner = document.createElement('div'); inner.className = lista ? 'rows-in' : 'corpo-in';
+    while (w.firstChild) inner.appendChild(w.firstChild); w.appendChild(inner);
+    if (lista) { const n = parseInt(getComputedStyle(w).getPropertyValue('--n')) || LINHAS; w.style.setProperty('--rh', (w.clientHeight / n).toFixed(2)); }
+    const diff = inner.scrollHeight - w.clientHeight; if (diff <= 4) return;
+    const dur = Math.max(1500, ms - 6000);
+    inner.style.transition = 'none'; inner.style.transform = 'translateY(0)';
+    requestAnimationFrame(() => requestAnimationFrame(() => { inner.style.transition = `transform ${dur}ms linear 3000ms`; inner.style.transform = `translateY(-${diff}px)`; }));
+  });
 }
 function aviso(t, p) { const a = $('#aviso'); a.innerHTML = `<img src="${LOGO}" alt=""><h1>${esc(t)}</h1><p>${esc(p)}</p>`; a.hidden = false; }
 function aplicar() {
