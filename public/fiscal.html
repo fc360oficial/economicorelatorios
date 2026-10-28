@@ -224,6 +224,24 @@ table.ar .obsd{max-width:250px;overflow:hidden;text-overflow:ellipsis;white-spac
    coluna fica em classe CSS, nunca em style="" inline (inline ganha do @media). Regra geral em CLAUDE.md. */
 .tools input#q{min-width:270px}
 .exp-obs{flex:1;min-width:220px;height:30px;border:1px solid #D8DEE9;border-radius:6px;padding:0 8px;font:inherit}
+/* Expedição do CD pro fiscal do CD (mockup aprovado pelo Tiago em 28/10): faixa "como funciona", fila em cartões, jornada em 4 passos */
+.xcomo{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));background:var(--crd);border:1px solid var(--ln);border-radius:12px;margin-bottom:12px}
+.xcomo .st{padding:10px 12px;border-right:1px solid var(--ln);min-width:0}.xcomo .st:last-child{border-right:0}
+.xcomo .n{font-family:ui-monospace,Consolas,monospace;font-size:10px;color:var(--ink3);letter-spacing:.08em}.xcomo .t{font-weight:800;font-size:12.5px;margin:2px 0}.xcomo .d{font-size:11px;color:var(--ink2)}
+.xcomo .q{display:inline-block;margin-top:5px;font-size:10px;font-weight:700;background:#E9EEF6;color:#2E5E8C;padding:1px 7px;border-radius:99px}.xcomo .q.voce{background:var(--amw);color:var(--amk)}
+.kpi.k-liberar{background:var(--amw);border-color:var(--am-ln)}.kpi.k-liberar .v{color:var(--amk)}.kpi.k-decidir .v{color:var(--neg)}.kpi.k-ok .v{color:var(--pos)}.kpi.k-zero .v{color:var(--ink3)}
+.jor{display:flex;min-width:380px}.jor .p{flex:1;min-width:0;position:relative;padding-top:13px;padding-right:6px}.jor .p::before{content:"";position:absolute;left:0;right:0;top:5px;height:2px;background:var(--ln)}
+.jor .p i{position:absolute;left:0;top:0;width:11px;height:11px;border-radius:50%;background:var(--crd);border:2px solid var(--ln);z-index:1}
+.jor .p.done::before{background:var(--pos)}.jor .p.done i{background:var(--pos);border-color:var(--pos)}
+.jor .p.now::before{background:linear-gradient(90deg,var(--pos) 50%,var(--ln) 50%)}.jor .p.now i{background:var(--am);border-color:var(--am);box-shadow:0 0 0 3px var(--amw)}
+.jor .p.bad i{background:var(--neg);border-color:var(--neg)}.jor .p.bad::before{background:var(--neg)}
+.jor .t{font-size:9.5px;font-weight:800;color:var(--ink3);text-transform:uppercase;letter-spacing:.04em}.jor .p.done .t,.jor .p.now .t,.jor .p.bad .t{color:var(--ink)}
+.jor .q{font-size:11.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.jor .h{font-size:10.5px;color:var(--ink3);white-space:nowrap}
+.org{display:inline-block;font-family:ui-monospace,Consolas,monospace;font-size:9.5px;font-weight:700;letter-spacing:.06em;padding:1px 5px;border-radius:4px;vertical-align:middle;margin-left:5px}.org.eco{background:#F5B800;color:#2B2000}.org.dl{background:#2A3A5C;color:#E6EBF5}
+.xajuda{display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:11px;color:var(--ink2);padding:0 10px}.xajuda div{padding:6px 10px;border-radius:8px;background:#F3F5F9}.xajuda b{color:var(--ink)}
+.pe-dec{background:var(--negw);color:var(--neg);border:1px solid #E5B4BD}
+.xfazer{font-size:11.5px;color:var(--ink2)}.xfazer b{color:var(--ink)}
+@media(max-width:1199px){.xcomo{grid-template-columns:repeat(2,minmax(0,1fr))}.xcomo .st:nth-child(2){border-right:0}.xajuda{grid-template-columns:1fr}}
 .box table th.c-dec{min-width:230px}.box table td.c-dec{white-space:normal}
 .grid2{grid-template-columns:repeat(2,minmax(0,1fr))}.grid2 .box{min-width:0}
 @media (max-width:1699px){
@@ -441,9 +459,11 @@ const expDias=()=>{const p=$('#periodo').value;return p==='dia'?1:+p;};
 const dh=s=>s?new Date(s).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';
 async function expBuscar(){
   const d=expDias();
-  const [fechadas,pendencias,liberacoes,saidas]=await Promise.all(['/api/expedicao/fechadas?dias='+d,'/api/expedicao/pendencias?dias='+d,'/api/expedicao/liberacoes?dias='+d,'/api/expedicao/saidas?dias='+d].map(u=>fetch(u).then(r=>r.json())));
+  const [fechadas,pendencias,liberacoes,saidas,painelCd]=await Promise.all(['/api/expedicao/fechadas?dias='+d,'/api/expedicao/pendencias?dias='+d,'/api/expedicao/liberacoes?dias='+d,'/api/expedicao/saidas?dias='+d].map(u=>fetch(u).then(r=>r.json())).concat([fetch('/api/painel-cd').then(r=>r.json()).catch(()=>null)]));
   if(fechadas.error)throw new Error(fechadas.error);if(pendencias.error)throw new Error(pendencias.error);if(liberacoes.error)throw new Error(liberacoes.error);if(saidas.error)throw new Error(saidas.error);
-  return {fechadas,pendencias,liberacoes,saidas};
+  // posição do pedido no Painel CD híbrido (ECO = nosso coletor levou até ali · DLINKS = painel do Dlinks)
+  const painel={};try{for(const [col,itens] of Object.entries((painelCd&&painelCd.expedicao&&painelCd.expedicao.colunas)||{}))for(const it of itens)painel[String(it.pedido)]={col,origem:it.origem||'dlinks'};}catch(e){}
+  return {fechadas,pendencias,liberacoes,saidas,painel};
 }
 /* Carregamento fechado 100 % (Tiago, 28/10: "quando finalizasse tem que aparecer algo no fiscal pra eu confrontar se bateu mesmo e
    liberar"): o caminhão não sai sozinho. O fiscal vê pedido × separado × carregado item a item e LIBERA A SAÍDA (fecha e espelha no
@@ -491,6 +511,7 @@ function confrontoHtml(l,comBotoes){
     +l.itens.map(i=>'<tr'+(i.difSeparado!==0||i.difCarregado!==0||i.loteDiferente?' style="background:#FFF8E6"':'')+'><td><b>…'+esc(i.ean4)+'</b><div class="sub">'+esc(i.cod)+'</div></td><td class="forn">'+esc(i.descricao)+(i.foraDoPedido?' <span class="neg">· fora do pedido</span>':'')+'<div class="sub">'+(i.qtd&&i.und?qtd(i.qtd)+' '+esc(i.und)+(i.emb>1?' c/'+qtd(i.emb):''):'')+'</div></td><td class="r">'+qtd(i.pedido)+'</td><td class="r">'+qtd(i.separado)+'</td><td class="r">'+dif(i)+'</td><td class="r">'+qtd(i.carregado)+'</td><td class="r">'+difC(i)+'</td><td>'+lts(i.lotesSep)+'</td><td>'+lts(i.lotesCarga)+(i.loteDiferente?' <span class="neg">lote diferente</span>':'')+'</td></tr>').join('')
     +'</tbody></table>'
     +(l.tirados&&l.tirados.length?'<div class="sub" style="padding:6px 10px 0"><b>Retiradas da coletagem:</b> '+l.tirados.map(t=>esc(t.descricao)+' '+qtd(t.un)+' un ('+esc(t.etapa==='separacao'?'separação':'carregamento')+(t.motivo?' · '+esc(t.motivo):'')+')'+(t.verificado?' <span class="pos">verificado</span>':' <span class="neg">a verificar</span>')).join(' · ')+'</div>':'');
+  if(comBotoes)h+='<div class="xajuda" style="padding-top:8px"><div><b>Liberar saída do caminhão</b> · o caminhão pode ir. Fica registrado quem liberou e a hora, e a conferência vai pro ERP de teste.</div><div><b>Reconferir carregamento</b> · o pedido volta pro coletor como "Carregar". O carregador bipa o caminhão de novo e vê a sua observação.</div></div>';
   if(comBotoes)h+='<div style="display:flex;gap:8px;align-items:center;padding:8px 10px;flex-wrap:wrap"><input id="saiObs'+k+'" class="exp-obs" placeholder="observação pro registro / pro operador (opcional)"><button class="btn btn-amber btn-sm" onclick="liberarSaida(\''+esc(l.id)+'\',\'liberar\')">Liberar saída do caminhão</button><button class="btn btn-sm" onclick="liberarSaida(\''+esc(l.id)+'\',\'reconferir\')">Reconferir carregamento</button></div>';
   else h+='<div style="padding:6px 10px 10px"></div>';
   return h;
@@ -505,57 +526,86 @@ async function abrirDetalheExp(id){
 }
 const EXP_ST={separando:['pe-breve','em separação'],aguardando_fiscal:['pe-hoje','aguardando o fiscal'],separada:['pe-flag','separado · falta carregar'],expedindo:['pe-breve','em carregamento'],conferida:['pe-hoje','carregado · liberar saída'],fechada:['pe-ok','saída liberada'],bipando:['pe-breve','em conferência']};
 function expBusca(o){const q=$('#q').value.trim().toLowerCase();if(!q)return true;return String(o.nPedido||'').includes(q)||(o.cliente||'').toLowerCase().includes(q)||(o.descricao||'').toLowerCase().includes(q)||String(o.cod||'').includes(q);}
+/* Separação com divergência: o fiscal vê pedido × separado item a item e libera (carregamento bate com o pallet) ou devolve */
+function liberacaoHtml(l){
+  const k=l.id.replace(/[^a-z0-9]/gi,'');const dif=l.itens.filter(i=>i.diferenca!==0).length;
+  return '<div class="sub" style="padding:8px 10px 4px">Pedido <b>#'+esc(l.nPedido)+'</b> · '+esc(l.cliente)+' · separou <b>'+esc(l.separadoPor||'')+'</b> · mandou pro fiscal '+dh(l.liberacao.pedidoEm)+(l.liberacao.motivo?' · motivo: <b>'+esc(l.liberacao.motivo)+'</b>':'')+' · <span class="neg"><b>'+dif+' de '+l.itens.length+' itens com diferença</b></span></div>'
+    +'<table class="t"><thead><tr><th>EAN</th><th>Produto</th><th class="r">Pedido</th><th class="r">Separado</th><th class="r">Diferença</th><th>Lote</th></tr></thead><tbody>'
+    +l.itens.map(i=>'<tr'+(i.diferenca!==0?' style="background:#FDE7E9"':'')+'><td><b>…'+esc(i.ean4)+'</b><div class="sub">'+esc(i.cod)+'</div></td><td class="forn">'+esc(i.descricao)+'</td><td class="r">'+qtd(i.un)+'</td><td class="r">'+qtd(i.separado?i.separado.un:0)+'</td><td class="r '+(i.diferenca<0?'neg':i.diferenca>0?'':'pos')+'"'+(i.diferenca>0?' style="color:#8A5A00"':'')+'><b>'+(i.diferenca===0?'bate':i.diferenca<0?'faltam '+qtd(-i.diferenca):'sobram '+qtd(i.diferenca))+'</b></td><td>'+esc(i.separado&&i.separado.lotes&&i.separado.lotes.length?i.separado.lotes.map(x=>x.lote).join(', '):'—')+'</td></tr>').join('')
+    +'</tbody></table>'
+    +'<div class="xajuda" style="padding-top:8px"><div><b>Liberar pro carregamento assim</b> · o pallet vai do jeito que foi separado. O caminhão bate com o que foi separado, não com o pedido. A falta fica registrada.</div><div><b>Devolver pra separação</b> · volta pro separador com a sua observação. Use quando o estoque existe e ele precisa achar.</div></div>'
+    +'<div style="display:flex;gap:8px;align-items:center;padding:8px 10px;flex-wrap:wrap"><input id="libObs'+k+'" class="exp-obs" placeholder="observação pro separador / registro (opcional)"><button class="btn btn-amber btn-sm" onclick="decidirLiberacao(\''+esc(l.id)+'\',\'liberar\')">Liberar pro carregamento assim</button><button class="btn btn-sm" onclick="decidirLiberacao(\''+esc(l.id)+'\',\'devolver\')">Devolver pra separação</button></div>';
+}
+let expFiltro='todos';
+/* Aba Expedição do CD pro fiscal do CD (mockup aprovado pelo Tiago em 28/10): faixa "como funciona", fila em 4 cartões que
+   filtram a lista, cada pedido com a jornada em 4 passos (quem e quando), a situação em palavras e o que fazer; o confronto
+   (carregamento) e a decisão (separação divergente) abrem na própria linha; demais linhas abrem a bipagem no clique. */
 function renderExpedicao(){
-  const pend=EXP.pendencias.filter(expBusca),confs=EXP.fechadas.filter(expBusca);
-  const abertas=confs.filter(c=>c.status!=='fechada'),fechadas=confs.filter(c=>c.status==='fechada');
-  const saidas=(EXP.saidas||[]).filter(expBusca);
-  $('#cnt').textContent=saidas.length+' pra liberar · '+pend.filter(p=>!p.verificado).length+' pendência(s) · '+abertas.length+' na saída · '+fechadas.length+' liberado(s)';
-  const etq=e=>e==='separacao'?'<span class="pill pe-flag">separação</span>':e==='expedicao'?'<span class="pill pe-hoje">carregamento</span>':'';
-  const lotes=ls=>esc((ls||[]).map(l=>l.lote+' ('+qtd(l.un)+')').join(', ')||'—');
-  const lts=ls=>ls&&ls.length?esc(ls.map(l=>(l.lote||'—')+(ls.length>1?' ('+qtd(l.un)+')':'')).join(', ')):'<span class="mut">—</span>';
-  // Tela em uma tabela só (Tiago, 28/10: "vai ficar duas vezes?"): "Pedidos na saída" vem PRIMEIRO; carregamento 100 % aparece
-  // no topo dela, destacado e já aberto com os botões de liberar/reconferir; as outras linhas abrem no clique.
-  let h='';
-  // Separações com divergência: o fiscal vê pedido × separado item a item e libera ou devolve
-  const libs=(EXP.liberacoes||[]).filter(expBusca);
-  h+='<div class="sub" style="margin-bottom:8px"><b>Separações aguardando o fiscal do CD</b> · o separador viu a lista do pedido, digitou o que separou e não bateu · <b>liberar</b> = o Carregamento de Caminhão confere o que foi separado · <b>devolver</b> = volta pro separador acertar</div>';
-  if(!libs.length)h+='<p class="mut" style="margin:0 0 14px">Nenhuma separação aguardando o fiscal.</p>';
-  for(const l of libs){const k=l.id.replace(/[^a-z0-9]/gi,'');const dif=l.itens.filter(i=>i.diferenca!==0).length;
-    h+='<div class="table-wrap" style="margin-bottom:12px"><div class="sub" style="padding:8px 10px 4px">Pedido <b>#'+esc(l.nPedido)+'</b> · '+esc(l.cliente)+' · separou <b>'+esc(l.separadoPor||'')+'</b> · mandou '+dh(l.liberacao.pedidoEm)+(l.liberacao.motivo?' · motivo: <b>'+esc(l.liberacao.motivo)+'</b>':'')+' · '+dif+' de '+l.itens.length+' itens com diferença</div>'
-      +'<table class="t"><thead><tr><th>EAN</th><th>Produto</th><th class="r">Pedido</th><th class="r">Separado</th><th class="r">Diferença</th><th>Lote</th></tr></thead><tbody>'
-      +l.itens.map(i=>'<tr><td><b>…'+esc(i.ean4)+'</b><div class="sub">'+esc(i.cod)+'</div></td><td class="forn">'+esc(i.descricao)+'</td><td class="r">'+qtd(i.un)+'</td><td class="r">'+qtd(i.separado?i.separado.un:0)+'</td><td class="r '+(i.diferenca<0?'neg':i.diferenca>0?'':'pos')+'"'+(i.diferenca>0?' style="color:#8A5A00"':'')+'><b>'+(i.diferenca===0?'bate':(i.diferenca>0?'+':'')+qtd(i.diferenca))+'</b></td><td>'+esc(i.separado&&i.separado.lotes&&i.separado.lotes.length?i.separado.lotes.map(x=>x.lote).join(', '):'—')+'</td></tr>').join('')
-      +'</tbody></table><div style="display:flex;gap:8px;align-items:center;padding:8px 10px;flex-wrap:wrap"><input id="libObs'+k+'" class="exp-obs" placeholder="observação pro separador / registro (opcional)"><button class="btn btn-amber btn-sm" onclick="decidirLiberacao(\''+esc(l.id)+'\',\'liberar\')">Liberar pro carregamento assim</button><button class="btn btn-sm" onclick="decidirLiberacao(\''+esc(l.id)+'\',\'devolver\')">Devolver pra separação</button></div></div>';
-  }
-  h+='<div class="sub" style="margin-bottom:8px"><b>Pendências do fiscal do CD</b> · produto tirado da coletagem (conferir se saiu mesmo do pallet) e lote diferente entre separação e carregamento</div>';
-  h+='<div class="table-wrap"><table class="t"><thead><tr><th>Quando</th><th>Pedido</th><th>Cliente</th><th>Produto</th><th class="r">Tirou</th><th class="r">Antes → depois</th><th>Lote</th><th>Motivo</th><th>Quem</th><th>Situação</th></tr></thead><tbody>';
-  if(!pend.length)h+='<tr><td colspan="10" class="mut" style="padding:18px">Nenhuma retirada nem divergência de lote no período.</td></tr>';
-  for(const p of pend){
-    const visto=p.verificado?'<span class="pill pe-ok">'+(p.tipo==='lote_divergente'?'visto':'verificado')+'</span><div class="sub">'+esc(p.verificado.nome)+' · '+dh(p.verificado.em)+'</div>':'<button class="btn btn-amber btn-sm" onclick="verificarPallet(\''+esc(p.id)+'\','+p.idx+')">'+(p.tipo==='lote_divergente'?'Vi a divergência':'Verifiquei o pallet')+'</button>';
-    if(p.tipo==='lote_divergente')h+='<tr><td>'+dh(p.em)+'</td><td>#'+esc(p.nPedido)+'</td><td class="forn">'+esc(p.cliente)+'</td><td class="forn">'+esc(p.descricao)+'<div class="sub">'+esc(p.cod)+' · <b>lote diferente</b> entre separação e expedição</div></td><td class="r">—</td><td colspan="2"><div class="sub">separou: '+lotes(p.separacao)+'</div><div class="sub">embarcou: '+lotes(p.expedicao)+'</div></td><td class="sub">não trava · saiu o lote da expedição</td><td class="c-txt">'+esc(p.nome)+'</td><td class="c-sit">'+visto+'</td></tr>';
-    else h+='<tr><td>'+dh(p.em)+'</td><td>#'+esc(p.nPedido)+'</td><td class="forn">'+esc(p.cliente)+'</td><td class="forn">'+esc(p.descricao)+'<div class="sub">'+esc(p.cod)+(p.fora?' · fora do pedido':' · a mais')+' '+etq(p.etapa)+'</div></td><td class="r neg">'+qtd(p.un)+' un</td><td class="r">'+qtd(p.antes)+' → '+qtd(p.depois)+'</td><td class="c-txt">'+esc(p.lote||'—')+'</td><td class="sub">'+esc(p.motivo||'—')+'</td><td class="c-txt">'+esc(p.nome)+'</td><td class="c-sit">'+visto+'</td></tr>';
+  const pend=EXP.pendencias.filter(expBusca),confs=EXP.fechadas.filter(expBusca),saidas=(EXP.saidas||[]).filter(expBusca),libs=(EXP.liberacoes||[]).filter(expBusca),painel=EXP.painel||{};
+  const hoje=new Date().toDateString();const ehHoje=s=>s&&new Date(s).toDateString()===hoje;
+  const porStatus=s=>confs.filter(c=>c.status===s);
+  const nLiberar=porStatus('conferida').length,nDecidir=porStatus('aguardando_fiscal').length,nVerificar=pend.filter(p=>!p.verificado).length,nLiberados=confs.filter(c=>c.status==='fechada'&&ehHoje(c.fechadoEm)).length;
+  $('#cnt').textContent=nLiberar+' pra liberar · '+nDecidir+' pra decidir · '+nVerificar+' pra verificar · '+nLiberados+' liberado(s) hoje';
+  let h='<div class="xcomo">'
+    +'<div class="st"><div class="n">PASSO 1</div><div class="t">Separação de Pedidos</div><div class="d">Separador vê a lista do pedido, bipa cada produto e digita quanto separou.</div><span class="q">Separador · coletor</span></div>'
+    +'<div class="st"><div class="n">PASSO 2</div><div class="t">Carregamento de Caminhão</div><div class="d">Outra pessoa bipa às cegas o que sobe no caminhão. Tem que bater com a separação.</div><span class="q">Carregador · coletor</span></div>'
+    +'<div class="st"><div class="n">PASSO 3</div><div class="t">Você confere e libera</div><div class="d">Pedido × separado × carregado, item a item. Liberar a saída ou mandar reconferir.</div><span class="q voce">Fiscal do CD · aqui</span></div>'
+    +'<div class="st"><div class="n">PASSO 4</div><div class="t">Caminhão sai</div><div class="d">Saída liberada fica registrada com quem liberou e vai pro ERP de teste.</div><span class="q">Automático</span></div></div>';
+  const kp=[['liberar','Pra liberar saída',nLiberar,'caminhão carregado, esperando você',nLiberar?'k-liberar':'k-zero'],['decidir','Separação pra decidir',nDecidir,'separou diferente do pedido',nDecidir?'k-decidir':'k-zero'],['verificar','Retiradas pra verificar',nVerificar,'produto tirado da coletagem · lote diferente',nVerificar?'k-decidir':'k-zero'],['liberados','Liberados hoje',nLiberados,'caminhões que saíram','k-ok'],['todos','Pedidos na saída',confs.length,'no período','']];
+  h+='<div class="kpis">'+kp.map(([k,l,v,s,cls])=>'<div class="kpi '+cls+(expFiltro===k?' on':'')+'" onclick="expFiltro=\''+k+'\';render()"><div class="v">'+v+'</div><div class="l">'+l+'</div><div class="s">'+s+'</div></div>').join('')+'</div>';
+  const org=n=>{const p=painel[String(n)];return p?'<span class="org '+(p.origem==='eco'?'eco':'dl')+'" title="posição no Painel CD vem do '+(p.origem==='eco'?'Coletor Econômico':'painel do Dlinks')+'">'+(p.origem==='eco'?'ECO':'DLINKS')+'</span>':'';};
+  const COL_DL={separacao:'Pedido p/ Separação',em_separacao:'Em separação',aguardando_liberacao:'Aguardando liberação',reconferir:'Reconferir',liberado:'Liberado'};
+  const ordem=[...porStatus('conferida'),...porStatus('aguardando_fiscal'),...confs.filter(c=>!['conferida','aguardando_fiscal','fechada'].includes(c.status)),...porStatus('fechada')];
+  const lista=expFiltro==='liberar'?porStatus('conferida'):expFiltro==='decidir'?porStatus('aguardando_fiscal'):expFiltro==='verificar'?ordem.filter(c=>c.pendentesVerificar):expFiltro==='liberados'?confs.filter(c=>c.status==='fechada'&&ehHoje(c.fechadoEm)):ordem;
+  const tit={liberar:'Carregamentos pra você liberar',decidir:'Separações pra você decidir',verificar:'Pedidos com retirada ou lote pra verificar',liberados:'Liberados hoje',todos:'Pedidos na saída'}[expFiltro]||'Pedidos na saída';
+  h+='<div class="table-wrap"><div style="padding:10px 12px 6px;display:flex;flex-wrap:wrap;gap:6px 16px;align-items:baseline;justify-content:space-between"><b style="font-size:13px">'+tit+' · '+lista.length+'</b><span class="sub">Posição no Painel CD: <span class="org eco" style="margin-left:0">ECO</span> nosso coletor <span class="org dl">DLINKS</span> painel do Dlinks · clique na linha pra abrir a bipagem</span></div>';
+  h+='<table class="t"><thead><tr><th>Pedido</th><th>Cliente</th><th style="width:34%">Jornada do pedido</th><th>Situação</th><th>O que fazer</th></tr></thead><tbody>';
+  if(!lista.length)h+='<tr><td colspan="5" class="mut" style="padding:18px">'+(expFiltro==='todos'?'Nenhuma conferência de saída no período.':'Nada aqui agora. <a href="#" onclick="event.preventDefault();expFiltro=\'todos\';render()">Ver todos os pedidos na saída</a>.')+'</td></tr>';
+  const passo=(cls,t,q,hh)=>'<div class="p '+cls+'"><i></i><div class="t">'+t+'</div><div class="q">'+esc(q||'—')+'</div><div class="h">'+(hh||'')+'</div></div>';
+  const tent=e=>e&&e.tentativas?' · '+e.tentativas+' tent.':'';
+  for(const c of lista){
+    const kd=c.id.replace(/[^a-z0-9]/gi,'');const et=c.etapas||{},duas=et.modelo==='duas',s=c.status,L=c.liberacao,S=c.saida,p=painel[String(c.nPedido)];
+    const saida=s==='conferida'?saidas.find(x=>x.id===c.id):null,lib=s==='aguardando_fiscal'?libs.find(x=>x.id===c.id):null;
+    const sep=et.separacao||{},car=et.expedicao||{};const nomeSep=(sep.operador||{}).nome||sep.fechadoPor||'',nomeCar=(car.operador||{}).nome||car.fechadoPor||'';
+    let jor;
+    if(!duas)jor=passo(s==='fechada'?'done':'now','Conferência',c.fechadoPor||c.nome,s==='fechada'?dh(c.fechadoEm):'em andamento')+passo(s==='fechada'?'done':'','Saída',s==='fechada'?'fechada':'—','');
+    else jor=passo(s==='aguardando_fiscal'?'bad':sep.fechadoEm?'done':'now','Separação',nomeSep||c.nome,sep.fechadoEm?dh(sep.fechadoEm)+tent(sep):s==='aguardando_fiscal'?'não bateu'+tent(sep):'em andamento'+tent(sep))
+      +(s==='aguardando_fiscal'?passo('now','Fiscal','você','decidir'):'')
+      +passo(car.fechadoEm?'done':s==='expedindo'?'now':'','Carregamento',s==='separada'?'—':nomeCar,car.fechadoEm?dh(car.fechadoEm)+tent(car):s==='expedindo'?'em andamento':s==='separada'?(S&&S.decisao==='reconferir'?'reconferir':'falta carregar'):'')
+      +(s==='aguardando_fiscal'?'':passo(s==='fechada'?'done':s==='conferida'?'now':'','Fiscal',s==='fechada'?((S||{}).decididoPor||c.fechadoPor):s==='conferida'?'você':'—',s==='fechada'?dh((S||{}).decididoEm||c.fechadoEm):s==='conferida'?'aguardando':''))
+      +passo(s==='fechada'?'done':'','Saída',s==='fechada'?'liberada':'—',s==='fechada'?(c.erpErro?'<span class="neg">ERP teste: erro</span>':'ERP teste ✓'):'');
+    const sit=s==='conferida'?'<span class="pill pe-hoje">Liberar saída</span><div class="sub">'+(saida?(saida.divergencias?'<span class="neg">'+saida.divergencias+' de '+saida.itens.length+' itens com diferença</span>':saida.itens.length+' de '+saida.itens.length+' itens bateram'):'carregado '+dh(c.conferidaEm))+'</div>'
+      :s==='aguardando_fiscal'?'<span class="pill pe-dec">Separou diferente</span><div class="sub">'+(L?L.pendentes+' item(ns) com diferença'+(L.motivo?' · "'+esc(L.motivo)+'"':''):'')+'</div>'
+      :s==='separando'?'<span class="pill pe-breve">Separando</span><div class="sub">'+(c.avisoFiscal||(L&&L.decisao==='devolvida')?'devolvido pelo fiscal '+esc((L||{}).decididoPor||'')+' · acertando':'em andamento')+'</div>'
+      :s==='separada'?'<span class="pill pe-flag">'+(S&&S.decisao==='reconferir'?'Reconferir carregamento':'Separado · falta carregar')+'</span><div class="sub">'+(S&&S.decisao==='reconferir'?'fiscal '+esc(S.decididoPor||'')+' mandou bipar de novo':L&&L.decisao==='liberada'?'liberado pelo fiscal com '+L.pendentes+' falta(s)':'outra pessoa carrega')+'</div>'
+      :s==='expedindo'?'<span class="pill pe-breve">Carregando</span><div class="sub">'+c.produtos+' de '+c.produtos_pedido+' produtos bipados</div>'
+      :s==='fechada'?'<span class="pill pe-ok">Saída liberada</span><div class="sub">'+esc((S||{}).decididoPor||c.fechadoPor||'')+' · '+dh((S||{}).decididoEm||c.fechadoEm)+((S||{}).obs?' · '+esc(S.obs):'')+'</div>'
+      :'<span class="pill pe-breve">'+esc(s)+'</span>';
+    const verif=c.pendentesVerificar?'<div class="sub neg"><b>'+c.pendentesVerificar+' retirada(s) / lote pra verificar</b> · lista abaixo</div>':'';
+    const fazer=s==='conferida'?'<b>Confira abaixo e libere.</b> O caminhão espera a sua liberação.':s==='aguardando_fiscal'?'<b>Decida:</b> libera pro carregamento do jeito que está, ou devolve pra separação acertar.':s==='separando'?'Nada ainda. O separador está bipando.':s==='separada'?(S&&S.decisao==='reconferir'?'Nada ainda. O carregador vai bipar o caminhão de novo.':'Nada ainda. Falta outra pessoa carregar o caminhão.'):s==='expedindo'?'Nada ainda. Quando o caminhão fechar 100 %, aparece aqui pra liberar.':s==='fechada'?'Concluído. Clique pra rever a bipagem.':'';
+    h+='<tr class="row" style="cursor:pointer'+(saida?';background:#FFF8E6':lib?';background:#FFF3F4':'')+'" title="Clique pra ver a bipagem: pedido × separado × carregado" onclick="abrirDetalheExp(\''+esc(c.id)+'\')">'
+      +'<td><div class="nm" style="font-size:13px">#'+esc(c.nPedido)+org(c.nPedido)+'</div><div class="sub">aberto '+dh(c.abertoEm)+' · '+c.produtos_pedido+' itens'+(c.reconferencias?' · <span class="neg">'+c.reconferencias+'ª reconferência</span>':'')+'</div></td>'
+      +'<td class="forn"><div class="nm">'+esc(c.cliente)+'</div><div class="sub">'+(p?'Dlinks: '+(COL_DL[p.col]||p.col):'fora do painel do Dlinks')+'</div></td>'
+      +'<td><div class="jor">'+jor+'</div></td><td class="c-sit">'+sit+verif+'</td><td class="xfazer">'+fazer+'</td></tr>'
+      +(saida?'<tr id="detExp'+kd+'"><td colspan="5" style="padding:0"><div style="background:#FFFDF5;border-left:4px solid var(--am-ln);border-top:2px solid var(--am-ln)">'+confrontoHtml(saida,true)+'</div></td></tr>'
+        :lib?'<tr id="detExp'+kd+'"><td colspan="5" style="padding:0"><div style="background:#FFF8F9;border-left:4px solid var(--neg);border-top:2px solid var(--neg)">'+liberacaoHtml(lib)+'</div></td></tr>'
+        :'<tr id="detExp'+kd+'" hidden><td colspan="5" style="padding:0"></td></tr>');
   }
   h+='</tbody></table></div>';
-  const cel=(e,aberta)=>!e?'<span class="mut">—</span>':e.fechadoEm?'<b>'+esc((e.operador||{}).nome||e.fechadoPor||'')+'</b><div class="sub">'+dh(e.fechadoEm)+' · '+e.tentativas+' tentativa'+(e.tentativas===1?'':'s')+'</div>':'<b>'+esc((e.operador||{}).nome||'')+'</b><div class="sub">'+(aberta?'em andamento desde '+dh(e.abertoEm):'—')+'</div>';
-  const hDepois=h;h='';   // a tabela de pedidos vai pro TOPO da aba; o resto (separações no fiscal, pendências) desce
-  h+='<div class="sub" style="margin-bottom:8px"><b>Pedidos na saída</b>'+(saidas.length?' · <span class="neg"><b>'+saidas.length+' carregamento'+(saidas.length===1?'':'s')+' aguardando você liberar</b></span>':'')+' · Separação de Pedidos (com a lista) e Carregamento de Caminhão (cego, bate com a separação) por operadores diferentes · carregado 100 % aparece primeiro, já aberto: <b>liberar saída</b> = caminhão pode ir, fecha e espelha no ERP de teste · <b>reconferir</b> = operador bipa o caminhão de novo · clique na linha pra ver a bipagem</div>';
-  h+='<div class="table-wrap"><table class="t"><thead><tr><th>Aberto</th><th>Pedido</th><th>Cliente</th><th>Separação de Pedidos</th><th>Carregamento</th><th class="r">Produtos</th><th class="r">Retiradas</th><th>Situação</th><th>ERP teste</th></tr></thead><tbody>';
-  if(!confs.length)h+='<tr><td colspan="9" class="mut" style="padding:18px">Nenhuma conferência de saída no período.</td></tr>';
-  for(const c of [...abertas.filter(c=>c.status==='conferida'),...abertas.filter(c=>c.status!=='conferida'),...fechadas]){
-    const saida=c.status==='conferida'?saidas.find(x=>x.id===c.id):null;
-    const et=c.etapas||{},st=EXP_ST[c.status]||['pe-breve',c.status],duas=et.modelo==='duas',L=c.liberacao;
-    const lib=!L?'':L.decisao==='liberada'?'<div class="sub" style="color:#8A5A00" title="'+esc(L.obs||'')+'">fiscal '+esc(L.decididoPor||'')+' liberou com '+L.pendentes+' divergência'+(L.pendentes===1?'':'s')+' · '+dh(L.decididoEm)+'</div>':L.decisao==='devolvida'?'<div class="sub" title="'+esc(L.obs||'')+'">fiscal '+esc(L.decididoPor||'')+' devolveu · '+dh(L.decididoEm)+'</div>':'<div class="sub neg">'+L.pendentes+' divergência'+(L.pendentes===1?'':'s')+(L.motivo?' · '+esc(L.motivo):'')+'</div>';
-    const kd=c.id.replace(/[^a-z0-9]/gi,'');
-    h+='<tr style="cursor:pointer'+(saida?';background:#FFF8E6':'')+'" title="Clique pra ver a bipagem: pedido × separado × carregado" onclick="abrirDetalheExp(\''+esc(c.id)+'\')"><td>'+dh(c.abertoEm)+'</td><td>#'+esc(c.nPedido)+' <span class="mut">▾</span></td><td class="forn">'+esc(c.cliente)+'</td>'
-      +'<td>'+(duas?cel(et.separacao,c.status==='separando'||c.status==='aguardando_fiscal'):'<span class="mut" title="conferência de uma etapa só (antes de 14/10)">—</span>')+'</td>'
-      +'<td>'+(duas?(c.status==='separada'?'<span class="mut">'+(c.saida&&c.saida.decisao==='reconferir'?'reconferir · fiscal '+esc(c.saida.decididoPor||'')+' mandou bipar de novo':'aguardando outro operador')+'</span>':(c.status==='separando'||c.status==='aguardando_fiscal')?'<span class="mut">—</span>':cel(et.expedicao,c.status==='expedindo')):cel(et.expedicao,c.status!=='fechada'))+(c.reconferencias&&c.status!=='separada'?'<div class="sub neg">'+c.reconferencias+'ª reconferência</div>':'')+'</td>'
-      +'<td class="r">'+c.produtos+'/'+c.produtos_pedido+'</td><td class="r'+(c.pendentesVerificar?' neg':'')+'">'+c.tirados+(c.lotesDivergentes?' · '+c.lotesDivergentes+' lote':'')+(c.pendentesVerificar?' ('+c.pendentesVerificar+' a verificar)':'')+'</td>'
-      +'<td class="c-sit"><span class="pill '+st[0]+'">'+st[1]+'</span>'+(c.status==='fechada'?'<div class="sub">'+(c.saida&&c.saida.decisao==='liberada'?'fiscal '+esc(c.saida.decididoPor||'')+' · '+dh(c.saida.decididoEm)+(c.saida.obs?' · '+esc(c.saida.obs):''):esc(c.fechadoPor||'')+' · '+dh(c.fechadoEm))+'</div>':c.status==='conferida'?'<div class="sub">carregado '+dh(c.conferidaEm)+' · <b>confira e libere logo abaixo</b></div>':'')+lib+'</td>'
-      +'<td>'+(c.status!=='fechada'?'—':c.erpErro?'<span class="neg" title="'+esc(c.erpErro)+'">erro</span>':'<span class="pos">espelhado</span>')+'</td></tr>'
-      +(saida?'<tr id="detExp'+kd+'"><td colspan="9" style="padding:0"><div style="background:#FFFDF5;border-left:4px solid var(--am-ln);border-top:2px solid var(--am-ln)">'+confrontoHtml(saida,true)+'</div></td></tr>'
-             :'<tr id="detExp'+kd+'" hidden><td colspan="9" style="padding:0"></td></tr>');
+  // retiradas da coletagem e lote diferente: só quando existirem
+  if(pend.length){
+    const etq=e=>e==='separacao'?'<span class="pill pe-flag">separação</span>':e==='expedicao'?'<span class="pill pe-hoje">carregamento</span>':'';
+    const lotes=ls=>esc((ls||[]).map(l=>l.lote+' ('+qtd(l.un)+')').join(', ')||'—');
+    h+='<div class="sub" style="margin-bottom:8px"><b>Retiradas da coletagem e lote diferente</b> · produto tirado da coletagem (confira se saiu mesmo do pallet) e lote diferente entre separação e carregamento (não trava, saiu o lote do carregamento)</div>';
+    h+='<div class="table-wrap"><table class="t"><thead><tr><th>Quando</th><th>Pedido</th><th>Cliente</th><th>Produto</th><th class="r">Tirou</th><th class="r">Antes → depois</th><th>Lote</th><th>Motivo</th><th>Quem</th><th>Situação</th></tr></thead><tbody>';
+    for(const p of pend){
+      const visto=p.verificado?'<span class="pill pe-ok">'+(p.tipo==='lote_divergente'?'visto':'verificado')+'</span><div class="sub">'+esc(p.verificado.nome)+' · '+dh(p.verificado.em)+'</div>':'<button class="btn btn-amber btn-sm" onclick="verificarPallet(\''+esc(p.id)+'\','+p.idx+')">'+(p.tipo==='lote_divergente'?'Vi a divergência':'Verifiquei o pallet')+'</button>';
+      if(p.tipo==='lote_divergente')h+='<tr><td>'+dh(p.em)+'</td><td>#'+esc(p.nPedido)+'</td><td class="forn">'+esc(p.cliente)+'</td><td class="forn">'+esc(p.descricao)+'<div class="sub">'+esc(p.cod)+' · <b>lote diferente</b> entre separação e carregamento</div></td><td class="r">—</td><td colspan="2"><div class="sub">separou: '+lotes(p.separacao)+'</div><div class="sub">embarcou: '+lotes(p.expedicao)+'</div></td><td class="sub">não trava · saiu o lote do carregamento</td><td class="c-txt">'+esc(p.nome)+'</td><td class="c-sit">'+visto+'</td></tr>';
+      else h+='<tr><td>'+dh(p.em)+'</td><td>#'+esc(p.nPedido)+'</td><td class="forn">'+esc(p.cliente)+'</td><td class="forn">'+esc(p.descricao)+'<div class="sub">'+esc(p.cod)+(p.fora?' · fora do pedido':' · a mais')+' '+etq(p.etapa)+'</div></td><td class="r neg">'+qtd(p.un)+' un</td><td class="r">'+qtd(p.antes)+' → '+qtd(p.depois)+'</td><td class="c-txt">'+esc(p.lote||'—')+'</td><td class="sub">'+esc(p.motivo||'—')+'</td><td class="c-txt">'+esc(p.nome)+'</td><td class="c-sit">'+visto+'</td></tr>';
+    }
+    h+='</tbody></table></div>';
   }
-  h+='</tbody></table></div><p class="sub">Operadores do CD (nome e PIN do coletor) ficam em <a href="/centro-distribuicao.html?tab=regras">Centro de Distribuição › Regras</a>.</p>';
-  h+=hDepois;
+  h+='<p class="sub">Operadores do CD (nome e PIN do coletor) ficam em <a href="/centro-distribuicao.html?tab=regras">Centro de Distribuição › Regras</a>.</p>';
   $('#view').innerHTML=h;
 }
 /* o <th> da coluna é refeito em todo render (busca, filtro, carregar), então o aviso de
