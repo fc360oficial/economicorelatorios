@@ -3127,7 +3127,7 @@ app.get('/api/fornecedores/:id/lojas', async (req, res) => {
       } catch (e) {}
       try {
         const custoRows = estoqueNoEspelho
-          ? estEspelho.filter(r => +r.loja === ln && r.custo > 0 && codSet.has(r.codigo)).map(r => ({ CodigoBarra: r.codigo, Custo: r.custo }))
+          ? estEspelho.filter(r => +r.loja === ln && r.custo >= 1 && codSet.has(r.codigo)).map(r => ({ CodigoBarra: r.codigo, Custo: r.custo }))   // >= 1 = o "Custo > 0" do ERP (texto, corta na vírgula)
           : await q(`SELECT CodigoBarra, Custo FROM central.custoloja${ln} WHERE CodigoBarra IN (${ph}) AND Custo>0`, codigos);
         // We need qtd per barcode to compute custo total accurately - approximate with equal distribution
         const custoMap = {};
@@ -4020,7 +4020,7 @@ app.get('/api/listas-compra/margem-resumo', async (req, res) => {
     const estoqueNoEspelho = espelhoErp.estoqueFresco(estEspelho);
     res.set('X-Fonte-Estoque', estoqueNoEspelho ? 'espelho' : 'erp');
     for (const ln of lojas) {
-      if (estoqueNoEspelho) { for (const r of estEspelho) if (+r.loja === ln && r.custo > 0 && !custos[r.codigo]) custos[r.codigo] = r.custo; continue; }
+      if (estoqueNoEspelho) { for (const r of estEspelho) if (+r.loja === ln && r.custo >= 1 && !custos[r.codigo]) custos[r.codigo] = r.custo; continue; }   // >= 1 = "Custo > 0" do ERP
       try {
         const rows = await q(`SELECT CodigoBarra, Custo FROM central.custoloja${ln} WHERE Custo > 0`);
         for (const r of rows) {
@@ -4141,7 +4141,7 @@ app.get('/api/listas-compra/:id/margem', async (req, res) => {
     const estEspelho = await espelhoErp.estoqueAtual(lojas, codigos).catch(e => { console.error('[ESPELHO] lista/margem custo:', e.message); return null; });
     const fonteEstoque = espelhoErp.estoqueFresco(estEspelho) ? 'espelho' : 'erp';
     for (const ln of lojas) {
-      if (fonteEstoque === 'espelho') { for (const r of estEspelho) if (+r.loja === ln && r.custo > 0 && !custos[r.codigo]) custos[r.codigo] = r.custo; continue; }
+      if (fonteEstoque === 'espelho') { for (const r of estEspelho) if (+r.loja === ln && r.custo >= 1 && !custos[r.codigo]) custos[r.codigo] = r.custo; continue; }   // >= 1 = "Custo > 0" do ERP
       try {
         const rows = await q(`SELECT CodigoBarra, Custo FROM central.custoloja${ln} WHERE CodigoBarra IN (${ph}) AND Custo > 0`, codigos);
         for (const r of rows) { if (!custos[r.CodigoBarra]) custos[r.CodigoBarra] = parseFloat(r.Custo); }
