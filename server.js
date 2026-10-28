@@ -1380,22 +1380,36 @@ app.get('/api/itens', async (req, res) => {
       ${filtro}
     `, params);
 
+    // Espelho do ERP (fase 8, 28/10/26): com estoque_loja fresca (≤ 45 min) a página vem do ERP SEM os LEFT JOIN em
+    // estoquen/custoloja (12 no modo "todas", 2 por loja) e estoque/custo/última compra entram do Postgres pelos códigos da
+    // página; se o espelho ficar velho entre as duas leituras, repete a consulta antiga com os JOIN. Mesmos campos na saída.
+    const LOJAS_ITENS = [1, 2, 3, 4, 5, 6];
+    const preencherDoEspelho = (rows, est, lojasN) => {
+      const m = {}; for (const r of est) m[r.codigo + '|' + r.loja] = r;
+      for (const r of rows) for (const n of lojasN) {
+        const x = m[String(r.CodigoBarra ?? '').trim() + '|' + n]; if (!x) continue;
+        if (lojasN.length > 1) { if (x.qtd != null) r['est' + n] = x.qtd; if (x.custo != null) r['custo' + n] = x.custo; }
+        else { if (x.qtd != null) r.estoque_qtd = x.qtd; if (x.custo != null) { r.custo_compra = x.custo; r.ultima_compra = x.ultima_compra ? new Date(x.ultima_compra + 'T00:00:00') : null; } }
+      }
+    };
+    let fonteEstoque = 'erp';
+
     // Modo todas as lojas
     if (loja === 'todas') {
-      const rows = await q(`
+      const sqlTodas = comJoins => `
         SELECT
           i.nInterno, i.CodigoBarra, i.Descricao,
           i.CodDesativado, i.Unid, i.Marca,
           i.P1, i.P2, i.P3, i.P4, i.P5, i.P6,
-          e1.Qtd as est1, e2.Qtd as est2, e3.Qtd as est3,
+          ${comJoins ? `e1.Qtd as est1, e2.Qtd as est2, e3.Qtd as est3,
           e4.Qtd as est4, e5.Qtd as est5, e6.Qtd as est6,
           cj1.Custo as custo1, cj2.Custo as custo2, cj3.Custo as custo3,
-          cj4.Custo as custo4, cj5.Custo as custo5, cj6.Custo as custo6,
+          cj4.Custo as custo4, cj5.Custo as custo5, cj6.Custo as custo6,` : ''}
           gs.Descricao as subgrupo, g.Descricao as grupo
         FROM central.itens i
         LEFT JOIN central.gruposub gs ON gs.CodSubGrupo = i.CodGrupoSub
         LEFT JOIN central.grupo g ON g.CodGrupo = gs.CodGrupo
-        LEFT JOIN central.estoquen1 e1 ON e1.CodigoBarra = i.CodigoBarra
+        ${comJoins ? `LEFT JOIN central.estoquen1 e1 ON e1.CodigoBarra = i.CodigoBarra
         LEFT JOIN central.estoquen2 e2 ON e2.CodigoBarra = i.CodigoBarra
         LEFT JOIN central.estoquen3 e3 ON e3.CodigoBarra = i.CodigoBarra
         LEFT JOIN central.estoquen4 e4 ON e4.CodigoBarra = i.CodigoBarra
@@ -1406,17 +1420,25 @@ app.get('/api/itens', async (req, res) => {
         LEFT JOIN central.custoloja3 cj3 ON cj3.CodigoBarra = i.CodigoBarra
         LEFT JOIN central.custoloja4 cj4 ON cj4.CodigoBarra = i.CodigoBarra
         LEFT JOIN central.custoloja5 cj5 ON cj5.CodigoBarra = i.CodigoBarra
-        LEFT JOIN central.custoloja6 cj6 ON cj6.CodigoBarra = i.CodigoBarra
+        LEFT JOIN central.custoloja6 cj6 ON cj6.CodigoBarra = i.CodigoBarra` : ''}
         ${filtro}
         ORDER BY i.Descricao
         LIMIT ? OFFSET ?
-      `, [...params, parseInt(limite), offset]);
+      `;
+      const usarEspelho = espelhoErp.estoqueDisponivel(LOJAS_ITENS);
+      let rows = await q(sqlTodas(!usarEspelho), [...params, parseInt(limite), offset]);
+      if (usarEspelho) {
+        const est = await espelhoErp.estoqueAtual(LOJAS_ITENS, rows.map(r => r.CodigoBarra)).catch(e => { console.error('[ESPELHO] itens:', e.message); return null; });
+        if (espelhoErp.estoqueFresco(est)) { fonteEstoque = 'espelho'; preencherDoEspelho(rows, est, LOJAS_ITENS); }
+        else rows = await q(sqlTodas(true), [...params, parseInt(limite), offset]);
+      }
 
       return res.json({
         total: total.cnt,
         pagina: parseInt(pagina),
         paginas: Math.ceil(total.cnt / parseInt(limite)),
         loja: 'todas',
+        fonte_estoque: fonteEstoque,
         data: rows.map(r => {
           const lojas = [1,2,3,4,5,6].map(n => {
             const preco = parsePreco(r['P'+n]);
@@ -1434,30 +1456,38 @@ app.get('/api/itens', async (req, res) => {
       });
     }
 
-    const rows = await q(`
+    const sqlLoja = comJoins => `
       SELECT
         i.nInterno, i.CodigoBarra, i.Descricao, i.Abreviacao,
         i.CodDesativado, i.Unid, i.Marca,
         i.P${ln} as preco_loja,
-        e.Qtd as estoque_qtd,
+        ${comJoins ? `e.Qtd as estoque_qtd,
         cj.Custo as custo_compra,
-        cj.UltimaCompra as ultima_compra,
+        cj.UltimaCompra as ultima_compra,` : ''}
         gs.Descricao as subgrupo, g.Descricao as grupo
       FROM central.itens i
       LEFT JOIN central.gruposub gs ON gs.CodSubGrupo = i.CodGrupoSub
       LEFT JOIN central.grupo g ON g.CodGrupo = gs.CodGrupo
-      LEFT JOIN central.estoquen${ln} e ON e.CodigoBarra = i.CodigoBarra
-      LEFT JOIN central.custoloja${ln} cj ON cj.CodigoBarra = i.CodigoBarra
+      ${comJoins ? `LEFT JOIN central.estoquen${ln} e ON e.CodigoBarra = i.CodigoBarra
+      LEFT JOIN central.custoloja${ln} cj ON cj.CodigoBarra = i.CodigoBarra` : ''}
       ${filtro}
       ORDER BY i.Descricao
       LIMIT ? OFFSET ?
-    `, [...params, parseInt(limite), offset]);
+    `;
+    const usarEspelho = LOJAS_ITENS.includes(ln) && espelhoErp.estoqueDisponivel([ln]);
+    let rows = await q(sqlLoja(!usarEspelho), [...params, parseInt(limite), offset]);
+    if (usarEspelho) {
+      const est = await espelhoErp.estoqueAtual([ln], rows.map(r => r.CodigoBarra)).catch(e => { console.error('[ESPELHO] itens:', e.message); return null; });
+      if (espelhoErp.estoqueFresco(est)) { fonteEstoque = 'espelho'; preencherDoEspelho(rows, est, [ln]); }
+      else rows = await q(sqlLoja(true), [...params, parseInt(limite), offset]);
+    }
 
     res.json({
       total: total.cnt,
       pagina: parseInt(pagina),
       paginas: Math.ceil(total.cnt / parseInt(limite)),
       loja: ln,
+      fonte_estoque: fonteEstoque,
       data: rows.map(r => {
         const preco = parsePreco(r.preco_loja);
         const custo = parsePreco(r.custo_compra);
@@ -1555,6 +1585,12 @@ app.get('/api/fornecedores/resumo', async (req, res) => {
     // pesava no .252). Mês incompleto no espelho → ERP como antes. `fonte_vendas` vai no payload pra tela mostrar.
     const vendasEspelho = await espelhoErp.vendaPeriodoProduto(lojasList, dIni, dFim).catch(e => { console.error('[ESPELHO] resumo:', e.message); return null; });
     const fonteVendas = vendasEspelho ? 'espelho' : 'erp';
+    // Espelho do ERP (fase 8, 28/10/26): custoloja{ln} inteira (Custo > 0) sai de estoque_loja quando está fresca (≤ 45 min),
+    // já separada por loja no mesmo formato {CodigoBarra, Custo}; senão a varredura no ERP como antes.
+    const custoEspelho = await espelhoErp.estoqueInteiro(lojasList, { comCusto: true }).catch(e => { console.error('[ESPELHO] resumo custo:', e.message); return null; });
+    const fonteEstoque = espelhoErp.estoqueFresco(custoEspelho) ? 'espelho' : 'erp';
+    const custoEspelhoLoja = {};
+    if (fonteEstoque === 'espelho') for (const r of custoEspelho) (custoEspelhoLoja[Number(r.loja)] = custoEspelhoLoja[Number(r.loja)] || []).push({ CodigoBarra: r.codigo, Custo: r.custo });
 
     const [vendasPorLoja, fornecItensRaw, avariaRows, avariaStatusRows, compradorRows, fornecs] = await Promise.all([
       Promise.all(lojasList.map(ln => Promise.all([
@@ -1562,6 +1598,7 @@ app.get('/api/fornecedores/resumo', async (req, res) => {
         q(`SELECT Codigo, SUM(QtdNovo) as qtd, SUM(ValorTotalNovo) as valor, SUM(Custo) as custo_total
            FROM \`ln${ln}${mm}\`.zcupomitens
            WHERE Data BETWEEN ? AND ? AND IndCancel='N' GROUP BY Codigo`, [dIni, dFim]).catch(() => []),
+        fonteEstoque === 'espelho' ? Promise.resolve(custoEspelhoLoja[ln] || []) :
         q(`SELECT CodigoBarra, Custo FROM central.custoloja${ln} WHERE Custo > 0`).catch(() => [])
       ]))),
       getFornecItens(),
@@ -1683,7 +1720,7 @@ app.get('/api/fornecedores/resumo', async (req, res) => {
 
     const margemFornec = totalComFornec > 0 ? +(totalLucroReal / totalComFornec * 100).toFixed(2) : 0;
     const payload = { total_loja: +totalLojaReal.toFixed(2), total_com_fornecedor: +totalComFornec.toFixed(2), total_lucro_real: +totalLucroReal.toFixed(2), margem_loja: margemReal, margem_fornec: margemFornec, avaria_breakdown: avariaBreakdown, fornecedores: result, compradores: todosCompradores };
-    payload.fonte_vendas = fonteVendas;
+    payload.fonte_vendas = fonteVendas; payload.fonte_estoque = fonteEstoque;
     if (!busca && !compradorSel) { _resumoCache[cacheKey] = payload; _resumoCacheTs[cacheKey] = Date.now(); }
     res.json(payload);
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -2839,9 +2876,28 @@ app.get('/api/fornecedores/:id/produtos', async (req, res) => {
     // custo/estoque/última compra continuam no ERP (tabelas pequenas por loja). Senão, zcupomitens loja a loja.
     const vendasEspelho = await espelhoErp.vendaPeriodo(lojas, dIni, dFim, { codigos }).catch(e => { console.error('[ESPELHO] fornecedor/produtos:', e.message); return null; });
     if (vendasEspelho) res.set('X-Fonte-Vendas', 'espelho');
+    // Espelho do ERP (fase 8, 28/10/26): custo, última compra e estoque por loja × produto de estoque_loja quando fresco
+    // (≤ 45 min), no lugar de 2 consultas por loja em custoloja/estoquen; senão o ERP como antes. Resposta é lista, então a
+    // fonte vai no cabeçalho X-Fonte-Estoque.
+    const estEspelho = await espelhoErp.estoqueAtual(lojas, codigos).catch(e => { console.error('[ESPELHO] fornecedor/produtos estoque:', e.message); return null; });
+    const estoqueNoEspelho = espelhoErp.estoqueFresco(estEspelho);
+    res.set('X-Fonte-Estoque', estoqueNoEspelho ? 'espelho' : 'erp');
 
     for (const ln of lojas) {
       const custoMap = {};
+      if (estoqueNoEspelho) {
+        for (const r of estEspelho) {
+          if (Number(r.loja) !== ln) continue;
+          const a = acc[r.codigo]; if (!a) continue;
+          if (r.custo != null) {   // linha de custoloja
+            const cst = r.custo || 0;
+            custoMap[r.codigo] = cst;
+            if (cst > 0 && !a.custoUnit) a.custoUnit = cst;
+            if (r.ultima_compra) { const d = new Date(r.ultima_compra + 'T00:00:00'); if (!a.ultima || d > a.ultima) a.ultima = d; }
+          }
+          if (r.qtd != null) a.estoque += r.qtd || 0;   // linha de estoquen
+        }
+      } else {
       try {
         const cr = await q(`SELECT CodigoBarra, Custo, UltimaCompra FROM central.custoloja${ln} WHERE CodigoBarra IN (${ph})`, codigos);
         for (const r of cr) {
@@ -2856,6 +2912,7 @@ app.get('/api/fornecedores/:id/produtos', async (req, res) => {
         const er = await q(`SELECT CodigoBarra, Qtd FROM central.estoquen${ln} WHERE CodigoBarra IN (${ph})`, codigos);
         for (const r of er) { const a = acc[r.CodigoBarra]; if (a) a.estoque += parseFloat(r.Qtd || 0); }
       } catch (e) {}
+      }
       try {
         const rows = vendasEspelho
           ? vendasEspelho.filter(r => +r.loja === ln).map(r => ({ Codigo: r.codigo, qtd: r.qtd, valor: r.valor }))
@@ -3023,6 +3080,11 @@ app.get('/api/fornecedores/:id/lojas', async (req, res) => {
     const todosCodigos = [...new Set([].concat(...Object.values(codigosPorLoja)))];
     const vendasEspelho = await espelhoErp.vendaPeriodo([1,2,3,4,5,6], dIni, dFim, { codigos: todosCodigos }).catch(e => { console.error('[ESPELHO] fornecedor/lojas:', e.message); return null; });
     if (vendasEspelho) res.set('X-Fonte-Vendas', 'espelho');
+    // Espelho do ERP (fase 8, 28/10/26): custo por loja × produto (Custo > 0) de estoque_loja quando fresco (≤ 45 min),
+    // uma consulta pras 6 lojas; senão custoloja{ln} por lista de códigos como antes. Fonte no cabeçalho X-Fonte-Estoque.
+    const estEspelho = await espelhoErp.estoqueAtual([1,2,3,4,5,6], todosCodigos).catch(e => { console.error('[ESPELHO] fornecedor/lojas estoque:', e.message); return null; });
+    const estoqueNoEspelho = espelhoErp.estoqueFresco(estEspelho);
+    res.set('X-Fonte-Estoque', estoqueNoEspelho ? 'espelho' : 'erp');
 
     const result = [];
     for (const ln of [1,2,3,4,5,6]) {
@@ -3051,7 +3113,9 @@ app.get('/api/fornecedores/:id/lojas', async (req, res) => {
         avaria = parseFloat(ar?.v || 0);
       } catch (e) {}
       try {
-        const custoRows = await q(`SELECT CodigoBarra, Custo FROM central.custoloja${ln} WHERE CodigoBarra IN (${ph}) AND Custo>0`, codigos);
+        const custoRows = estoqueNoEspelho
+          ? estEspelho.filter(r => +r.loja === ln && r.custo > 0 && codSet.has(r.codigo)).map(r => ({ CodigoBarra: r.codigo, Custo: r.custo }))
+          : await q(`SELECT CodigoBarra, Custo FROM central.custoloja${ln} WHERE CodigoBarra IN (${ph}) AND Custo>0`, codigos);
         // We need qtd per barcode to compute custo total accurately - approximate with equal distribution
         const custoMap = {};
         for (const r of custoRows) custoMap[r.CodigoBarra] = parsePreco(r.Custo);
@@ -3748,10 +3812,21 @@ app.get('/api/sugestao-compras/:listaId/itens', async (req, res) => {
     // Espelho do ERP (28/10/26): venda do mês por loja × produto + última venda (MAX(dia)) numa consulta no Postgres
     // quando o mês está coberto; estoque/custo/última compra seguem no ERP. Senão, zcupomitens loja a loja.
     const vendasEspelho = await espelhoVendaProdutos(lojas, dIni, dFim, { codigos, rota: 'sugestao-compras' });
+    // Espelho do ERP (fase 8, 28/10/26): estoque, custo e última compra por loja × produto de estoque_loja quando fresco
+    // (≤ 45 min), uma consulta; senão estoquen/custoloja por lista de códigos, loja a loja, como antes.
+    const estEspelho = await espelhoErp.estoqueAtual(lojas, codigos).catch(e => { console.error('[ESPELHO] sugestao-compras estoque:', e.message); return null; });
+    const fonteEstoque = espelhoErp.estoqueFresco(estEspelho) ? 'espelho' : 'erp';
     const porLoja = {};
     for (const ln of lojas) {
       porLoja[ln] = {};
       for (const cod of codigos) porLoja[ln][cod] = { estoque: 0, qtdVendida: 0, valorVendido: 0, custo: 0, ultimaCompra: null, ultimaVenda: null };
+      if (fonteEstoque === 'espelho') {
+        for (const r of estEspelho) {
+          const p = +r.loja === ln ? porLoja[ln][r.codigo] : null; if (!p) continue;
+          if (r.qtd != null) p.estoque = r.qtd || 0;
+          if (r.custo != null) { p.custo = r.custo || 0; if (r.ultima_compra) p.ultimaCompra = r.ultima_compra.slice(8, 10) + '/' + r.ultima_compra.slice(5, 7) + '/' + r.ultima_compra.slice(0, 4); }
+        }
+      } else {
       try {
         const er = await q(`SELECT CodigoBarra, Qtd FROM central.estoquen${ln} WHERE CodigoBarra IN (${ph})`, codigos);
         for (const r of er) if (porLoja[ln][r.CodigoBarra]) porLoja[ln][r.CodigoBarra].estoque = parseFloat(r.Qtd || 0);
@@ -3763,6 +3838,7 @@ app.get('/api/sugestao-compras/:listaId/itens', async (req, res) => {
           if (r.UltimaCompra) porLoja[ln][r.CodigoBarra].ultimaCompra = new Date(r.UltimaCompra).toLocaleDateString('pt-BR');
         }
       } catch (e) {}
+      }
       try {
         const vr = vendasEspelho
           ? vendasEspelho.filter(r => +r.loja === ln).map(r => ({ Codigo: r.codigo, qtd: r.qtd, valor: r.valor, ultima: r.ultima ? new Date(r.ultima + 'T12:00:00') : null }))
@@ -3848,7 +3924,7 @@ app.get('/api/sugestao-compras/:listaId/itens', async (req, res) => {
 
     res.json({
       fornecedor: lista.NomeFornec?.trim(), fornecedor_codigo: lista.CodFornec, lista: lista.Nome?.trim(), lista_id: listaId,
-      periodo: { dIni, dFim, dias: diasPeriodo }, cobertura_alvo: coberturaAlvo, itens, totais, fonte_vendas: vendasEspelho ? 'espelho' : 'erp'
+      periodo: { dIni, dFim, dias: diasPeriodo }, cobertura_alvo: coberturaAlvo, itens, totais, fonte_vendas: vendasEspelho ? 'espelho' : 'erp', fonte_estoque: fonteEstoque
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -3923,8 +3999,15 @@ app.get('/api/listas-compra/margem-resumo', async (req, res) => {
     }
 
     // Custo atual de cada produto (custoloja é pequeno, sem filtro)
+    // Espelho do ERP (fase 8, 28/10/26): custo (> 0) dos produtos das listas de estoque_loja quando fresco (≤ 45 min), na
+    // ordem das lojas (1º custo encontrado vale, como antes); senão a varredura de custoloja{ln} no ERP. A resposta é um
+    // mapa listaId → números, então a fonte vai no cabeçalho X-Fonte-Estoque.
     const custos = {};
+    const estEspelho = await espelhoErp.estoqueAtual(lojas, [...barcodesSet]).catch(e => { console.error('[ESPELHO] margem-resumo custo:', e.message); return null; });
+    const estoqueNoEspelho = espelhoErp.estoqueFresco(estEspelho);
+    res.set('X-Fonte-Estoque', estoqueNoEspelho ? 'espelho' : 'erp');
     for (const ln of lojas) {
+      if (estoqueNoEspelho) { for (const r of estEspelho) if (+r.loja === ln && r.custo > 0 && !custos[r.codigo]) custos[r.codigo] = r.custo; continue; }
       try {
         const rows = await q(`SELECT CodigoBarra, Custo FROM central.custoloja${ln} WHERE Custo > 0`);
         for (const r of rows) {
@@ -4039,8 +4122,13 @@ app.get('/api/listas-compra/:id/margem', async (req, res) => {
       } catch (e) {}
     }
 
+    // Espelho do ERP (fase 8, 28/10/26): custo (> 0) dos produtos da lista de estoque_loja quando fresco (≤ 45 min), na
+    // ordem das lojas (1º custo encontrado vale, como antes); senão custoloja{ln} por lista de códigos no ERP.
     const custos = {};
+    const estEspelho = await espelhoErp.estoqueAtual(lojas, codigos).catch(e => { console.error('[ESPELHO] lista/margem custo:', e.message); return null; });
+    const fonteEstoque = espelhoErp.estoqueFresco(estEspelho) ? 'espelho' : 'erp';
     for (const ln of lojas) {
+      if (fonteEstoque === 'espelho') { for (const r of estEspelho) if (+r.loja === ln && r.custo > 0 && !custos[r.codigo]) custos[r.codigo] = r.custo; continue; }
       try {
         const rows = await q(`SELECT CodigoBarra, Custo FROM central.custoloja${ln} WHERE CodigoBarra IN (${ph}) AND Custo > 0`, codigos);
         for (const r of rows) { if (!custos[r.CodigoBarra]) custos[r.CodigoBarra] = parseFloat(r.Custo); }
@@ -4080,7 +4168,7 @@ app.get('/api/listas-compra/:id/margem', async (req, res) => {
         produtos_com_venda: comVenda,
         total_produtos: itens.length
       },
-      mes: mesSel, ano: anoSel, fonte_vendas: vendasEspelho ? 'espelho' : 'erp'
+      mes: mesSel, ano: anoSel, fonte_vendas: vendasEspelho ? 'espelho' : 'erp', fonte_estoque: fonteEstoque
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -4187,7 +4275,12 @@ app.get('/api/listas-compra/desativados', async (req, res) => {
                           WHERE it.CodigoBarra IS NULL OR it.CodDesativado <> 0 ORDER BY l.Nome, it.Descricao`);
     const cods = [...new Set(rows.map(r => r.cod).filter(Boolean))];
     const est = {};
-    for (const ln of [1, 2, 3, 4, 5, 6]) for (let i = 0; i < cods.length; i += 2000) {
+    // Espelho do ERP (fase 8, 28/10/26): estoque das 6 lojas de estoque_loja quando fresco (≤ 45 min); senão estoquen{ln} por
+    // lotes de códigos como antes.
+    const estEspelho = await espelhoErp.estoqueAtual([1, 2, 3, 4, 5, 6], cods).catch(e => { console.error('[ESPELHO] listas/desativados:', e.message); return null; });
+    const fonteEstoque = espelhoErp.estoqueFresco(estEspelho) ? 'espelho' : 'erp';
+    if (fonteEstoque === 'espelho') { for (const r of estEspelho) if (r.qtd != null) (est[r.codigo] = est[r.codigo] || {})[+r.loja] = r.qtd || 0; }
+    else for (const ln of [1, 2, 3, 4, 5, 6]) for (let i = 0; i < cods.length; i += 2000) {
       const ch = cods.slice(i, i + 2000);
       for (const r of await q(`SELECT CodigoBarra cod, Qtd FROM central.estoquen${ln} WHERE CodigoBarra IN (${ch.map(() => '?').join(',')})`, ch).catch(() => [])) {
         const v = parseFloat(String(r.Qtd ?? '0').replace(',', '.')) || 0; (est[r.cod] = est[r.cod] || {})[ln] = v;
@@ -4198,7 +4291,7 @@ app.get('/api/listas-compra/desativados', async (req, res) => {
     const itens = soMinhas(req, rows, r => r.lista).map(r => ({ lista: r.lista, nome: r.nome || '', fornecedor: r.fornecedor || '', comprador: _nRegToComp[r.lista] || null, cod: r.cod, descricao: r.descricao || null,
       situacao: r.descricao == null ? 'nao_cadastrado' : 'desativado', alterado: r.alterado || null, alterado_por: r.alterado_por || null,
       lojas: [1, 2, 3, 4, 5, 6].filter(n => r['l' + n]), estoque: est[r.cod] || {}, estoque_total: Object.values(est[r.cod] || {}).reduce((s, v) => s + v, 0) }));
-    res.json({ total: itens.length, listas: new Set(itens.map(x => x.lista)).size, nao_cadastrados: itens.filter(x => x.situacao === 'nao_cadastrado').length, com_estoque: itens.filter(x => x.estoque_total > 0).length, itens });
+    res.json({ total: itens.length, listas: new Set(itens.map(x => x.lista)).size, nao_cadastrados: itens.filter(x => x.situacao === 'nao_cadastrado').length, com_estoque: itens.filter(x => x.estoque_total > 0).length, itens, fonte_estoque: fonteEstoque });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -5000,6 +5093,15 @@ app.get('/api/compras/analise-estoque', async (req, res) => {
     const phC = codigos.map(() => '?').join(',');
 
     // 3. Estoque por loja (separado)
+    // Espelho do ERP (fase 8, 28/10/26): estoque_loja fresco (≤ 45 min) → mesmo mapa (negativo vira 0, como o GREATEST) sem
+    // os 6 LEFT JOIN em estoquen no ERP; os códigos aqui já vieram de central.itens. Senão a consulta antiga.
+    const estoqueMap = {};
+    const estEspelho = await espelhoErp.estoqueAtual([1,2,3,4,5,6], codigos).catch(e => { console.error('[ESPELHO] analise-estoque estoque:', e.message); return null; });
+    const fonteEstoque = espelhoErp.estoqueFresco(estEspelho) ? 'espelho' : 'erp';
+    if (fonteEstoque === 'espelho') {
+      for (const cod of codigos) estoqueMap[cod] = { '1':0,'2':0,'3':0,'4':0,'5':0,'6':0 };
+      for (const r of estEspelho) if (r.qtd != null && estoqueMap[r.codigo]) estoqueMap[r.codigo][String(r.loja)] = Math.max(0, r.qtd || 0);
+    } else {
     const estRows = await q(`
       SELECT i.CodigoBarra,
         GREATEST(0,COALESCE(e1.Qtd,0)) as q1, GREATEST(0,COALESCE(e2.Qtd,0)) as q2,
@@ -5014,12 +5116,12 @@ app.get('/api/compras/analise-estoque', async (req, res) => {
       LEFT JOIN central.estoquen6 e6 ON e6.CodigoBarra = i.CodigoBarra
     `, codigos);
     // estoqueMap[cod][ln] = qty
-    const estoqueMap = {};
     for (const r of estRows) {
       estoqueMap[r.CodigoBarra] = {
         '1':parseFloat(r.q1||0),'2':parseFloat(r.q2||0),'3':parseFloat(r.q3||0),
         '4':parseFloat(r.q4||0),'5':parseFloat(r.q5||0),'6':parseFloat(r.q6||0),
       };
+    }
     }
 
     // 4. Vendas por loja × período (3 meses para cobrir 60 dias)
@@ -5182,7 +5284,8 @@ app.get('/api/compras/analise-estoque', async (req, res) => {
       variacaoCusto: variacaoCusto.slice(0,10),
       totalProdutos: codAtivos.length,
       geradoEm: new Date().toISOString(),
-      fonte_vendas: vendasEspelho ? 'espelho' : 'erp'
+      fonte_vendas: vendasEspelho ? 'espelho' : 'erp',
+      fonte_estoque: fonteEstoque
     };
     _analiseCache[comp] = result;
     _analiseCacheTs[comp] = now;
@@ -6272,10 +6375,16 @@ app.get('/api/ruptura/lista-lojas', async (req, res) => {
     const placeholders = barcodes.map(() => '?').join(',');
 
     // Consulta paralela nas 6 lojas
-    const estoques = await Promise.all([1,2,3,4,5,6].map(ln =>
-      q(`SELECT CodigoBarra, Qtd FROM central.estoquen${ln}
-         WHERE CodigoBarra IN (${placeholders})`, barcodes)
-    ));
+    // Espelho do ERP (fase 8, 28/10/26): estoque_loja fresco (≤ 45 min) → mesmas 6 listas {CodigoBarra, Qtd} montadas do
+    // Postgres (qtd null = não está em estoquen, fica fora como antes → "naoEncontrado"); senão ERP como antes.
+    const estEspelho = await espelhoErp.estoqueAtual([1,2,3,4,5,6], barcodes).catch(e => { console.error('[ESPELHO] ruptura/lista-lojas:', e.message); return null; });
+    const fonteEstoque = espelhoErp.estoqueFresco(estEspelho) ? 'espelho' : 'erp';
+    const estoques = fonteEstoque === 'espelho'
+      ? [1,2,3,4,5,6].map(ln => estEspelho.filter(r => Number(r.loja) === ln && r.qtd != null).map(r => ({ CodigoBarra: r.codigo, Qtd: r.qtd })))
+      : await Promise.all([1,2,3,4,5,6].map(ln =>
+        q(`SELECT CodigoBarra, Qtd FROM central.estoquen${ln}
+           WHERE CodigoBarra IN (${placeholders})`, barcodes)
+      ));
 
     const NOMES = { 1:'CAHU', 2:'MURIBECA', 3:'PONTE', 4:'ATACAREJO', 5:'PORTA LARGA', 6:'JARDIM JORDAO' };
     const lojas = {};
@@ -6303,7 +6412,7 @@ app.get('/api/ruptura/lista-lojas', async (req, res) => {
       return row;
     });
 
-    res.json({ total: barcodes.length, lojas, detalhe });
+    res.json({ total: barcodes.length, lojas, detalhe, fonte_estoque: fonteEstoque });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -6369,21 +6478,34 @@ app.get('/api/ruptura', withCache(10), async (req, res) => {
     });
 
     // Busca estoque por loja em paralelo (separado para evitar timeout)
+    // Espelho do ERP (fase 8, 28/10/26): estoquen das 6 lojas vem de estoque_loja no Postgres (cópia de 30 em 30 min) quando
+    // está fresco (≤ 45 min); senão as 6 consultas por lista de códigos no ERP, como antes. Mesmo mapa, só muda a fonte.
     const barcodes = [...new Set(prods.map(p => p.CodigoBarra).filter(Boolean))];
+    let fonteEstoque = 'erp';
     if (barcodes.length) {
-      const phB = barcodes.map(() => '?').join(',');
-      const estoqueQs = [1,2,3,4,5,6].map(n =>
-        q(`SELECT CodigoBarra, Qtd FROM central.estoquen${n} WHERE CodigoBarra IN (${phB})`, barcodes).catch(() => [])
-      );
-      const estoqueArr = await Promise.all(estoqueQs);
+      const estEspelho = await espelhoErp.estoqueAtual([1,2,3,4,5,6], barcodes).catch(e => { console.error('[ESPELHO] ruptura estoque:', e.message); return null; });
       const estoqueMap = {};
-      estoqueArr.forEach((rows, idx) => {
-        const lojaNum = idx + 1;
-        for (const r of rows) {
-          if (!estoqueMap[r.CodigoBarra]) estoqueMap[r.CodigoBarra] = {};
-          estoqueMap[r.CodigoBarra][lojaNum] = parseFloat(r.Qtd) || 0;
+      if (espelhoErp.estoqueFresco(estEspelho)) {
+        fonteEstoque = 'espelho';
+        for (const r of estEspelho) {
+          if (r.qtd == null) continue;   // só em custoloja: não está em estoquen, como a consulta antiga
+          if (!estoqueMap[r.codigo]) estoqueMap[r.codigo] = {};
+          estoqueMap[r.codigo][Number(r.loja)] = r.qtd || 0;
         }
-      });
+      } else {
+        const phB = barcodes.map(() => '?').join(',');
+        const estoqueQs = [1,2,3,4,5,6].map(n =>
+          q(`SELECT CodigoBarra, Qtd FROM central.estoquen${n} WHERE CodigoBarra IN (${phB})`, barcodes).catch(() => [])
+        );
+        const estoqueArr = await Promise.all(estoqueQs);
+        estoqueArr.forEach((rows, idx) => {
+          const lojaNum = idx + 1;
+          for (const r of rows) {
+            if (!estoqueMap[r.CodigoBarra]) estoqueMap[r.CodigoBarra] = {};
+            estoqueMap[r.CodigoBarra][lojaNum] = parseFloat(r.Qtd) || 0;
+          }
+        });
+      }
       for (const p of prods) {
         const em = estoqueMap[p.CodigoBarra] || {};
         p.est1 = em[1] || 0; p.est2 = em[2] || 0; p.est3 = em[3] || 0;
@@ -6509,6 +6631,7 @@ app.get('/api/ruptura', withCache(10), async (req, res) => {
     res.json({
       gerado_em: new Date().toISOString(),
       loja_filtro: lojaFiltro,
+      fonte_estoque: fonteEstoque,
       min_cob: MIN_COB, max_cob: MAX_COB,
       resumo: { total_rupturas: rupturas.length, urgencia: nCritico, em_risco: emRisco.length - nCritico, sem_pedido: semPedido.length, excesso: excesso.length, alertas: alertas.length, perdaDia, perdaSemana: perdaDia * 7 },
       resumo_texto: txt,
@@ -7855,7 +7978,13 @@ async function coletarPromocoesFinal8(force, digito = 8) {
   }
   const cods = promo.map(p => p.cod);
   const est = {}, custo = {};
-  for (const ln of LOJAS) { est[ln] = {}; custo[ln] = {};
+  for (const ln of LOJAS) { est[ln] = {}; custo[ln] = {}; }
+  // Espelho do ERP (fase 8, 28/10/26): estoque e custo dos produtos em promoção, 6 lojas, de estoque_loja quando fresco
+  // (≤ 45 min); senão estoquen/custoloja por lotes de códigos, loja a loja, como antes.
+  const estEspelho = await espelhoErp.estoqueAtual(LOJAS, cods).catch(e => { console.error('[ESPELHO] promocoes final 8:', e.message); return null; });
+  if (espelhoErp.estoqueFresco(estEspelho)) {
+    for (const r of estEspelho) { const ln = +r.loja; if (!est[ln]) continue; if (r.qtd != null) est[ln][r.codigo] = r.qtd || 0; if (r.custo != null) custo[ln][r.codigo] = r.custo || 0; }
+  } else for (const ln of LOJAS) {
     for (const ch of chunk(cods, 4000)) { const ph = ch.map(() => '?').join(',');
       for (const r of await q(`SELECT CodigoBarra cod, Qtd FROM central.estoquen${ln} WHERE CodigoBarra IN (${ph})`, ch).catch(() => [])) est[ln][String(r.cod).trim()] = pp(r.Qtd);
       for (const r of await q(`SELECT CodigoBarra cod, Custo FROM central.custoloja${ln} WHERE CodigoBarra IN (${ph})`, ch).catch(() => [])) custo[ln][String(r.cod).trim()] = pp(r.Custo); } }
@@ -8213,7 +8342,21 @@ app.post('/api/listas-compra/sortimento/recalcular', async (req, res) => {
 app.get('/api/estoque-cd', withCache(5), async (req, res) => {
   try {
     const { dun14ParaEan13 } = require('./lib/pedidos-cd-util');
-    const rows = await q(`SELECT e.CodigoBarra cod, e.Qtd, i.qtdemb FROM central.estoquen10 e LEFT JOIN central.itens i ON i.CodigoBarra=e.CodigoBarra WHERE e.Qtd > 0`);
+    // Espelho do ERP (fase 8, 28/10/26): estoque do CD (loja 10, qtd > 0) com a embalagem do cadastro espelhado
+    // (cadastro_item.qtdemb) quando estoque_loja está fresca (≤ 45 min) e o cadastro já foi copiado; senão a varredura de
+    // estoquen10 × itens no ERP como antes. `fonte_estoque` vai na resposta.
+    let rows = null, fonteEstoque = 'erp';
+    if (espelhoErp.estoqueDisponivel([10])) {
+      try {
+        const [cad] = await espelhoErp.pq('SELECT COUNT(*) n FROM cadastro_item');
+        if (Number(cad && cad.n)) {
+          const esp = await espelhoErp.pq(`SELECT e.codigo cod, e.qtd::float8 "Qtd", c.qtdemb::float8 qtdemb, EXTRACT(EPOCH FROM (now() - e.atualizado_em))::int atualizado_ha
+                                           FROM estoque_loja e LEFT JOIN cadastro_item c ON c.codigo = e.codigo WHERE e.loja = 10 AND e.qtd > 0`);
+          if (espelhoErp.estoqueFresco(esp)) { rows = esp; fonteEstoque = 'espelho'; }
+        }
+      } catch (e) { console.error('[ESPELHO] estoque-cd:', e.message); rows = null; }
+    }
+    if (!rows) rows = await q(`SELECT e.CodigoBarra cod, e.Qtd, i.qtdemb FROM central.estoquen10 e LEFT JOIN central.itens i ON i.CodigoBarra=e.CodigoBarra WHERE e.Qtd > 0`);
     const V = pedidosCD.getVinculos() || {};
     const fmt = n => Number(n).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
     const det = {};
@@ -8248,7 +8391,7 @@ app.get('/api/estoque-cd', withCache(5), async (req, res) => {
       const d = det[k]; cods[k] = d.un != null ? d.un : d.cx;
       txt[k] = d.cx != null && d.un != null ? `${fmt(d.cx)} cx · ${fmt(d.un)} un` : (d.un != null ? `${fmt(d.un)} un` : `${fmt(d.cx)} cx`);
     }
-    res.json({ cods, txt, det, n: rows.length });
+    res.json({ cods, txt, det, n: rows.length, fonte_estoque: fonteEstoque });
   }
   catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -10328,8 +10471,13 @@ app.get('/api/cotacoes/:id/giro', async (req, res) => {
     const d4 = new Date(hoje.getFullYear(), hoje.getMonth() - 3, 1), dIni4 = `${d4.getFullYear()}-${pad(d4.getMonth() + 1)}-01`;
     const ultEspelho = await espelhoErp.ultimaVenda(lojasCot, cods, dIni4, dHoje).catch(e => { console.error('[ESPELHO] cotacao/giro:', e.message); return null; });
     if (ultEspelho) for (const r of ultEspelho) { const o = out[String(r.codigo).trim()]; if (!o) continue; const L = o[+r.loja] = o[+r.loja] || {}; if (!L.uv || L.uv < r.ultima) L.uv = r.ultima; }
+    // Espelho do ERP (fase 8, 28/10/26): última compra (custoloja.UltimaCompra) também sai de estoque_loja quando fresco
+    // (≤ 45 min) — mesma data 'YYYY-MM-DD' que isoDe devolvia; senão custoloja{ln} por lotes no ERP, como antes.
+    const estEspelho = await espelhoErp.estoqueAtual(lojasCot, cods).catch(e => { console.error('[ESPELHO] cotacao/giro estoque:', e.message); return null; });
+    const fonteEstoque = espelhoErp.estoqueFresco(estEspelho) ? 'espelho' : 'erp';
+    if (fonteEstoque === 'espelho') for (const r of estEspelho) { if (r.custo == null) continue; const o = out[String(r.codigo).trim()]; if (!o) continue; (o[+r.loja] = o[+r.loja] || {}).uc = r.ultima_compra || null; }
     for (const ln of lojasCot) {
-      for (const ch of radarPedidos.chunk(cods, 2000)) {
+      if (fonteEstoque === 'erp') for (const ch of radarPedidos.chunk(cods, 2000)) {
         const rows = await q(`SELECT CodigoBarra cod, UltimaCompra FROM central.custoloja${ln} WHERE CodigoBarra IN (${ch.map(() => '?').join(',')})`, ch).catch(() => []);
         for (const r of rows) { const o = out[String(r.cod).trim()]; if (!o) continue; (o[ln] = o[ln] || {}).uc = isoDe(r.UltimaCompra); }
       }
@@ -10345,7 +10493,7 @@ app.get('/api/cotacoes/:id/giro', async (req, res) => {
       }
       for (const cod of cods) { const L = out[cod][ln] = out[cod][ln] || {}; L.dias = L.uv ? dias(L.uv) : null; L.sem_giro = L.uv ? L.dias >= 30 : true; }
     }
-    const dados = { itens: out, em: new Date().toISOString(), janela_dias: 120, fonte_vendas: ultEspelho ? 'espelho' : 'erp' };
+    const dados = { itens: out, em: new Date().toISOString(), janela_dias: 120, fonte_vendas: ultEspelho ? 'espelho' : 'erp', fonte_estoque: fonteEstoque };
     _cotGiro[id] = { em: Date.now(), dados };
     res.json(dados);
   } catch (err) { res.status(500).json({ error: err.message }); }
