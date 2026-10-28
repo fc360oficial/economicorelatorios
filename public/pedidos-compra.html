@@ -133,6 +133,7 @@ table.main-t td.dts{white-space:nowrap;font-size:10px;line-height:1.45;padding-r
 .rup{white-space:normal;line-height:1.3;font-size:9.5px;padding:1px 6px}
 table.main-t td.acao .btn{padding:5px 9px;font-size:11px}
 table.main-t td.acao{white-space:nowrap}
+table.main-t td.acao .acs{display:flex;flex-direction:column;gap:4px;align-items:stretch}table.main-t td.acao .acs .btn{text-align:center}   /* ação do status em cima, Excluir embaixo: a coluna não alarga (28/10/26) */
 /* a coluna Lista/fornecedor fica com a sobra de largura; as outras encolhem pro conteúdo (status não estica mais) */
 table.main-t th:not(:nth-child(3)),table.main-t td:not(.lc){width:1%}.main-t td.ln{white-space:nowrap;font-variant-numeric:tabular-nums}   /* Tiago, 13/10: nº da lista em coluna própria */
 table.main-t td.lc{width:auto;max-width:none;min-width:200px}
@@ -946,11 +947,17 @@ function secaoXml(p,LN){
   }
   return h;
 }
+// AÇÃO da linha: a ação do status (Enviar / Enviar ao vendedor) e, embaixo, "Excluir" (Tiago, 28/10/26: "coloca uma opção aqui pra eu
+// poder excluir alguma lista da análise de compra") — o mesmo excluir() do detalhe (pede o motivo; fica registrado como Excluído, com
+// quem e quando). Só antes da aprovação e só na linha do pedido inteiro (a linha por loja, depois de aprovado, não tem).
 function acaoLinha(p,L){
-  if(p.status==='aguardando') return '<a class="btn btn-amber btn-sm" style="margin:0" target="_blank" rel="noopener" href="'+wpp(p)+'" title="Abre o WhatsApp do vendedor com a mensagem e o link">Enviar</a>';
-  if(p.status==='sugestao'||p.status==='analise') return '<button class="btn btn-green btn-sm" style="margin:0" onclick="enviarSugestao('+p.id+')" title="Manda pro vendedor: vira Aguardando vendedor e você recebe o link">Enviar ao vendedor</button>';
-  if(['aprovado','recebido','recebido_parcial'].includes(p.status)) return '';   // o PDF fica na primeira coluna, embaixo do número
-  return '';
+  let a='';
+  if(p.status==='aguardando') a='<a class="btn btn-amber btn-sm" style="margin:0" target="_blank" rel="noopener" href="'+wpp(p)+'" title="Abre o WhatsApp do vendedor com a mensagem e o link">Enviar</a>';
+  else if(p.status==='sugestao'||p.status==='analise') a='<button class="btn btn-green btn-sm" style="margin:0" onclick="enviarSugestao('+p.id+')" title="Manda pro vendedor: vira Aguardando vendedor e você recebe o link">Enviar ao vendedor</button>';
+  // aprovado/recebido: nada aqui (o PDF fica na primeira coluna, embaixo do número)
+  const ex=!L&&!['aprovado','recebido','recebido_parcial','excluido'].includes(p.status)?'<button class="btn btn-red btn-sm exc" style="margin:0" onclick="excluir('+p.id+')" title="Tira este pedido da análise: pede o motivo e ele fica registrado como Excluído (quem, quando e motivo). Só antes da aprovação.">Excluir</button>':'';
+  if(a&&ex) return '<div class="acs">'+a+ex+'</div>';
+  return a||ex;
 }
 // Tiago, 13/10 ("coloca uma opção pra eu selecionar a lista, e o Enviar pra todos seria enviar ao vendedor as listas selecionadas"):
 // na Análise, caixinha por pedido em análise/sugestão; o botão de cima manda só os marcados (um POST /enviar por pedido) e abre a
