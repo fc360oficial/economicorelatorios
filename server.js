@@ -8824,15 +8824,16 @@ app.get('/api/gestao-gerencial/inicio', async (req, res) => {
 const gerencialPush = require('./lib/gerencial-push'); gerencialPush.init({});
 // Aviso de ponto no celular do gerente (27/10/2026, Tiago: "se passar 10 min do horário ter notificação no celular"): a cada 5 min,
 // das 05h às 23h, lib/gerencial-alertas.js olha a jornada do dia (a mesma da TV RH/DP) e avisa os gerentes inscritos da loja de quem
-// passou 10 min do horário previsto sem bater (entrada, retorno do intervalo e saída — 28/10), uma vez por pessoa/momento por dia.
+// passou 10 min do horário previsto sem bater (entrada, retorno do intervalo e saída — 28/10), um lembrete com 1 h se seguir sem
+// marcação, e o resumo da loja às 09:00 e 15:00 (28/10, Tiago: "lembrete de 1 h e resumo das 09 e das 15"); cada um uma vez por dia.
 const gerencialAlertas = require('./lib/gerencial-alertas'); gerencialAlertas.init({});
 setTimeout(() => setInterval(() => {
   const hh = new Date().getHours(); if (hh < 5 || hh >= 23) return;
   gerencialAlertas.rodar({ jornadaHoje: () => tvRh.jornadaHoje(false), notificarLoja: (loja, payload, ttl) => gerencialPush.notificarLoja(loja, payload, ttl) })
-    .then(r => { if (r.avisos) console.log('[gerencial-alertas] ' + r.agora + ': ' + r.avisos + ' aviso(s), ' + r.enviados + ' aparelho(s), ' + r.pendentes + ' pendente(s)'); })
+    .then(r => { if (r.avisos || r.lembretes || r.resumos) console.log('[gerencial-alertas] ' + r.agora + ': ' + r.avisos + ' aviso(s), ' + r.lembretes + ' lembrete(s), ' + r.resumos + ' resumo(s), ' + r.enviados + ' aparelho(s), ' + r.pendentes + ' pendente(s)'); })
     .catch(e => console.error('[gerencial-alertas]', e.message));
 }, 5 * 60 * 1000), 90 * 1000);
-app.get('/api/gestao-gerencial/push/alertas', (req, res) => { if (req.session.user?.perfil !== 'admin') return res.status(403).json({ error: 'Só administrador' }); res.json({ toleranciaMin: gerencialAlertas.ATRASO_MIN, hoje: gerencialAlertas._estado() }); });
+app.get('/api/gestao-gerencial/push/alertas', (req, res) => { if (req.session.user?.perfil !== 'admin') return res.status(403).json({ error: 'Só administrador' }); res.json({ toleranciaMin: gerencialAlertas.ATRASO_MIN, lembreteMin: gerencialAlertas.LEMBRETE_MIN, resumos: gerencialAlertas.RESUMOS, hoje: gerencialAlertas._estado() }); });
 app.get('/api/gestao-gerencial/push/chave', (req, res) => res.json({ chave: gerencialPush.chavePublica(), erro: gerencialPush.estado().erro }));
 app.post('/api/gestao-gerencial/push/inscrever', (req, res) => { const r = gerencialPush.inscrever(req.session.user, req.body && req.body.subscription, req.get('user-agent')); res.status(r.erro ? 400 : 200).json(r); });
 app.post('/api/gestao-gerencial/push/sair', (req, res) => res.json(gerencialPush.desinscrever(req.session.user, req.body && req.body.endpoint)));

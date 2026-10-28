@@ -79,3 +79,63 @@ test('rodar: avisa uma vez por pessoa/momento por dia, persiste, e loja sem gere
   const r3 = await A.rodar({ ...deps, dia: '2026-10-28' });
   assert.equal(r3.avisos, 1, 'dia novo zera');
 });
+
+// ── 28/10: lembrete de 1 h e resumos das 09:00 e 15:00 ──
+test('lembrete: 1 h depois ainda sem marcação manda UM lembrete e depois nada mais no dia', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ger-alertas-l-'));
+  A.init({ dataDir: dir });
+  const linhas = [L({ id: 1, nome: 'ANA MARIA' })];
+  const enviados = [];
+  const deps = { jornadaHoje: async () => ({ linhas }), notificarLoja: async (loja, payload) => { enviados.push(payload); return { usuarios: 1, ok: 1 }; }, dia: '2026-10-28' };
+  assert.equal((await A.rodar({ ...deps, agora: '07:15' })).avisos, 1);
+  assert.match(enviados[0].title, /10 min/); assert.match(enviados[0].body, /sem marcação$/);
+  assert.equal((await A.rodar({ ...deps, agora: '07:40' })).lembretes, 0, 'entre 10 min e 1 h: nada');
+  const r = await A.rodar({ ...deps, agora: '08:00' });
+  assert.equal(r.lembretes, 1); assert.equal(r.avisos, 0);
+  assert.equal(enviados[1].title, 'Ponto · E5 · Porta Larga · lembrete de 1 h'); assert.equal(enviados[1].body, 'ANA MARIA · CAIXA · entrada prevista 07:00 · ainda sem marcação há 1 h');
+  const r2 = await A.rodar({ ...deps, agora: '08:30' });
+  assert.equal(r2.avisos + r2.lembretes, 0, 'depois do lembrete, silêncio');
+  assert.equal(enviados.length, 2);
+});
+test('lembrete: servidor parado às 07:10 e voltou às 08:30 → só o lembrete (não os dois)', () => {
+  const pend = A.pendentes([L({ id: 1, nome: 'ANA' })], '08:30');
+  const av = A.montarAvisos(pend, new Set(), '2026-10-28');
+  assert.equal(av.length, 1); assert.equal(av[0].lembrete, true);
+  assert.deepEqual(av[0].chaves, ['2026-10-28:5:1:entrada', '2026-10-28:5:1:entrada:lembrete']);
+});
+test('montarResumo: previstos, bateram, sem marcação, após o horário, trabalhando na folga', () => {
+  const linhas = [
+    L({ id: 1, nome: 'ANA MARIA' }),                                                                  // sem marcação
+    L({ id: 2, nome: 'BIA SOUZA', entrada: '07:40' }),                                                // após (+40)
+    L({ id: 3, nome: 'CARLOS LIMA', entrada: '06:58' }),                                              // ok
+    L({ id: 4, nome: 'DANI', situacao: 'folga_trabalhada', previsto: { folga: true }, entrada: '08:00' }),
+    L({ id: 5, nome: 'EDU', situacao: 'ferias' }),
+    L({ id: 6, nome: 'FÁBIO', loja: 2 }),
+    L({ id: 7, nome: 'GIL', previsto: { entrada: '13:00' } })                                         // ainda não era a hora às 09:00
+  ];
+  const r = A.montarResumo(linhas, 5, '09:00');
+  assert.equal(r.previstos, 4); assert.equal(r.bateram, 2); assert.equal(r.semEntrada, 1); assert.equal(r.apos, 1); assert.equal(r.folgaTrab, 1);
+  assert.equal(r.payload.title, 'Resumo 09:00 · E5 · Porta Larga');
+  assert.equal(r.payload.body, '4 previstos · 2 bateram. Sem marcação (1): ANA MARIA (07:00). Após o horário (1): BIA SOUZA (+40 min). Trabalhando na folga (1): DANI');
+  const ok = A.montarResumo([L({ id: 3, nome: 'CARLOS', entrada: '06:58' })], 5, '15:00');
+  assert.equal(ok.payload.body, '1 previstos · 1 bateram. Todos no horário');
+});
+test('resumosPendentes: só na hora (janela de 3 h), uma vez por loja por dia', () => {
+  const linhas = [L({ id: 1, nome: 'ANA', entrada: '07:00' }), L({ id: 6, nome: 'FÁBIO', loja: 2, entrada: '07:00' })];
+  assert.equal(A.resumosPendentes(linhas, '08:59', new Set(), '2026-10-28').length, 0);
+  const r9 = A.resumosPendentes(linhas, '09:03', new Set(), '2026-10-28');
+  assert.deepEqual(r9.map(x => [x.loja, x.hora, x.chave]), [[2, '09:00', '2026-10-28:2:resumo:09:00'], [5, '09:00', '2026-10-28:5:resumo:09:00']]);
+  assert.equal(A.resumosPendentes(linhas, '09:03', new Set(['2026-10-28:5:resumo:09:00']), '2026-10-28').length, 1, 'E5 já saiu');
+  assert.equal(A.resumosPendentes(linhas, '12:30', new Set(), '2026-10-28').length, 0, 'fora da janela: não manda o das 09 à tarde');
+  assert.equal(A.resumosPendentes(linhas, '15:10', new Set(), '2026-10-28')[0].hora, '15:00');
+});
+test('rodar: manda o resumo das 09:00 uma vez e persiste a chave', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ger-alertas-r-'));
+  A.init({ dataDir: dir });
+  const enviados = [];
+  const deps = { jornadaHoje: async () => ({ linhas: [L({ id: 1, nome: 'ANA', entrada: '07:00' })] }), notificarLoja: async (loja, payload) => { enviados.push(payload); return { usuarios: 1, ok: 1 }; }, dia: '2026-10-28' };
+  assert.equal((await A.rodar({ ...deps, agora: '09:02' })).resumos, 1);
+  assert.equal((await A.rodar({ ...deps, agora: '09:07' })).resumos, 0);
+  assert.match(enviados[0].title, /Resumo 09:00/);
+  A.init({ dataDir: dir }); assert.ok(A._estado().chaves.includes('2026-10-28:5:resumo:09:00'));
+});
