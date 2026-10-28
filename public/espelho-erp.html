@@ -127,14 +127,20 @@ label.ck{display:flex;align-items:center;gap:6px;font-size:12px}
         <label class="ck">às <input type="text" id="cf-bk-fim" placeholder="23:59" style="width:64px"></label>
       </div>
       <p class="d" style="margin-top:12px">Avisos pelo robô de WhatsApp dos Painéis (cahu-wpp). Só quando a recópia das 07:40 falhar.</p>
-      <label class="ck"><input type="checkbox" id="cf-avisar"> Avisar no WhatsApp</label>
+      <label class="ck"><input type="checkbox" id="cf-avisar"> Avisar no WhatsApp (recópia das 07:40 e dia sem cópia há mais de 1 h)</label>
       <div style="margin-top:8px"><input type="text" id="cf-grupo" placeholder="Nome do grupo (vazio = padrão do robô)"></div>
+      <label class="ck" style="margin-top:10px"><input type="checkbox" id="cf-vivo"> Hoje ao vivo: o dia de hoje vem do ERP na hora (1 consulta por loja); desligado, usa a cópia de 15 min</label>
       <div class="btns"><button class="btn" id="b-cfg">Salvar</button></div>
       <div class="msg" id="msg-cfg"></div>
       <p class="d" style="margin-top:14px">Recópia das 07:40: <span id="mad-info" class="mut">—</span></p>
       <p class="d">Cadastro (itens, setores, grupos, marcas), 07:45: <span id="cad-info" class="mut">—</span></p>
       <div class="btns"><button class="btn" id="b-cad">Copiar cadastro agora</button></div>
       <div class="msg" id="msg-cad"></div>
+      <p class="d" style="margin-top:10px">Estoque e custo por loja (a cada 30 min): <span id="est-info" class="mut">—</span></p>
+      <div class="btns"><button class="btn" id="b-est">Copiar estoque agora</button></div>
+      <div class="msg" id="msg-est"></div>
+      <p class="d" style="margin-top:10px">Cancelados dos dias antigos (pro DRE): <span id="canc-info" class="mut">—</span></p>
+      <p class="d">Dias sem cópia nos últimos 7 dias: <span id="faltas-info" class="mut">—</span></p>
     </div>
   </div>
 </div>
@@ -180,7 +186,11 @@ async function carregar() {
     $('cop-tb').innerHTML = (s.copias || []).map(c => `<tr><td class="mono">${hora(c.em)}</td><td>${esc(c.origem || '')}</td><td>${NOME_LOJA[c.loja] || c.loja}</td><td>${dataBr(c.dia)}</td><td class="r num">${c.linhas == null ? '—' : fmtN(c.linhas)}</td><td class="r num">${fmtN(c.ms)}</td><td class="mut">${c.erro ? '<span style="color:var(--neg)">' + esc(c.erro) + '</span>' : ''}</td></tr>`).join('') || '<tr><td colspan="7" class="mut">Nenhuma cópia ainda.</td></tr>';
 
     // config + madrugada
-    if (!cfgTocada) { $('cf-avisar').checked = !!s.config.avisar; $('cf-grupo').value = s.config.grupo || ''; $('cf-bk-ini').value = s.config.backupIni || ''; $('cf-bk-fim').value = s.config.backupFim || ''; }
+    if (!cfgTocada) { $('cf-avisar').checked = !!s.config.avisar; $('cf-grupo').value = s.config.grupo || ''; $('cf-bk-ini').value = s.config.backupIni || ''; $('cf-bk-fim').value = s.config.backupFim || ''; $('cf-vivo').checked = s.config.hojeAoVivo !== false; }
+    const es = s.estoque || {}; $('est-info').textContent = es.rodando ? 'copiando…' : es.ultimaEm ? `${fmtN(es.linhas)} linhas, última às ${hora(es.ultimaEm)} (${fmtN(es.ms)} ms)` + (es.ultimoErro ? ' · erro: ' + es.ultimoErro : '') : 'ainda não copiado';
+    const cn = s.cancelados || {}; $('canc-info').textContent = cn.pendentes === 0 ? 'completo' : cn.rodando ? `completando… faltam ${fmtN(cn.pendentes)} dias (${fmtN(cn.feitos)} feitos nesta subida)` : cn.pendentes == null ? 'aguardando a janela comercial' : `${fmtN(cn.pendentes)} dias pendentes` + (cn.ultimoErro ? ' · erro: ' + cn.ultimoErro : '');
+    const fl = s.faltas || { lista: [] }; $('faltas-info').textContent = fl.lista.length ? `${fl.lista.length} (desde ${hora(fl.desde)}): ${fl.lista.slice(0, 8).map(f => (NOME_LOJA[f.loja] || f.loja) + ' ' + dataBr(f.dia)).join(' · ')}` : 'nenhum';
+    $('faltas-info').style.color = fl.lista.length ? 'var(--neg)' : '';
     $('bk-pill').style.display = s.emBackup ? '' : 'none'; $('bk-pill').className = 'pill warn';
     const m = s.madrugada; $('mad-info').textContent = m.ultimaEm ? `última recópia às ${hora(m.ultimaEm)}` + (m.ultimoErro ? ' · erro: ' + m.ultimoErro : ' · ok') : 'ainda não rodou (07:40)';
     if (s.filaErp) { $('e-fila').textContent = `${s.filaErp.ativas} + ${s.filaErp.naFila} esperando`; $('e-max').textContent = s.filaErp.max; }
@@ -218,7 +228,8 @@ async function acao(nome, msgEl) {
   carregar();
 }
 let cfgTocada = false;
-['cf-avisar', 'cf-grupo', 'cf-bk-ini', 'cf-bk-fim'].forEach(id => { $(id).addEventListener('change', () => { cfgTocada = true; }); $(id).addEventListener('input', () => { cfgTocada = true; }); });
+$('b-est').addEventListener('click', () => acao('estoque', $('msg-est')));
+['cf-avisar', 'cf-grupo', 'cf-bk-ini', 'cf-bk-fim', 'cf-vivo'].forEach(id => { $(id).addEventListener('change', () => { cfgTocada = true; }); $(id).addEventListener('input', () => { cfgTocada = true; }); });
 $('b-hoje').addEventListener('click', () => acao('hoje', $('msg-hoje')));
 $('b-reconf').addEventListener('click', () => acao('reconferir', $('msg-hoje')));
 $('b-cad').addEventListener('click', () => acao('cadastro', $('msg-cad')));
@@ -231,7 +242,7 @@ $('b-pausar').addEventListener('click', () => acao('pausar', $('msg-hist')));
 $('b-retomar').addEventListener('click', () => acao('retomar', $('msg-hist')));
 $('b-cfg').addEventListener('click', async () => {
   try {
-    const r = await fetch('/api/espelho/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ avisar: $('cf-avisar').checked, grupo: $('cf-grupo').value, backupIni: $('cf-bk-ini').value.trim(), backupFim: $('cf-bk-fim').value.trim() }) });
+    const r = await fetch('/api/espelho/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ avisar: $('cf-avisar').checked, grupo: $('cf-grupo').value, backupIni: $('cf-bk-ini').value.trim(), backupFim: $('cf-bk-fim').value.trim(), hojeAoVivo: $('cf-vivo').checked }) });
     const j = await r.json(); if (j.error) throw new Error(j.error); cfgTocada = false; $('msg-cfg').className = 'msg ok'; $('msg-cfg').textContent = 'Salvo.';
   } catch (e) { $('msg-cfg').className = 'msg err'; $('msg-cfg').textContent = e.message; }
 });
