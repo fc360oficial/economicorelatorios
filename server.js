@@ -4830,9 +4830,12 @@ async function montarListaExpedicao() {
   `, []).catch(() => []);
 
   const colunas = { separacao: [], em_separacao: [], aguardando_liberacao: [], reconferir: [], liberado: [] };
+  // Status do NOSSO coletor (Separação de Pedidos → Carregamento → fiscal libera) por cima do cartão, sem mexer no ERP:
+  // a coluna continua sendo a do painel do Dlinks (Tiago, 28/10: "mostra no painel sem mexer no erp")
+  let coletor = {}; try { coletor = require('./lib/expedicao').statusColetorPorPedido(7); } catch (e) { console.error('[PAINEL-CD] coletor:', e.message); }
   for (const r of rows) {
     const status = STATUS_EXPEDICAO[r.Status] || 'separacao';
-    colunas[status].push({ pedido: String(r.pedido), nome: r.nome || 'N/I' });
+    colunas[status].push({ pedido: String(r.pedido), nome: r.nome || 'N/I', coletor: coletor[String(r.pedido)] || null });
   }
   const resumo = { total: rows.length };
   for (const c of COLUNAS_EXPEDICAO) resumo[c] = colunas[c].length;
