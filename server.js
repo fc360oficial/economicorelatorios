@@ -201,13 +201,26 @@ app.use((req, res, next) => {
   res.on('finish', () => { const ms = Date.now() - t0; if (ms >= 1500) console.warn('[LENTO] ' + ms + ' ms ' + req.method + ' ' + String(req.originalUrl).slice(0, 140) + ' -> ' + res.statusCode + ' ' + new Date().toISOString()); });
   next();
 });
+// 28/10/2026 — "Não autenticado" no meio da navegação (Gestão Documental, Donato): a tela dispara várias chamadas ao mesmo tempo e
+// cada resposta regrava (touch) o MESMO arquivo de sessão; no Windows o rename concorrente falha com EPERM (server-err.log), a lib
+// (com retries: 0) devolve sessão vazia e a chamada cai no 401. Correção: fila por sessão (get/set/touch/destroy nunca rodam em
+// paralelo para o mesmo id) + 2 retentativas como rede de segurança.
+const sessionStore = new FileStore({
+  path: path.join(__dirname, 'data', 'sessions'),
+  ttl: 8 * 60 * 60,
+  retries: 2,
+  logFn: () => {} // a lib loga toda leitura/escrita no console por padrão — silencia
+});
+{
+  const filas = new Map();   // sessionId → promessa da última operação
+  const serializar = (sid, fn) => { const ant = filas.get(sid) || Promise.resolve(); const p = ant.then(() => new Promise(fn)).catch(() => {}); filas.set(sid, p); p.then(() => { if (filas.get(sid) === p) filas.delete(sid); }); };
+  for (const m of ['get', 'set', 'touch', 'destroy']) {
+    const orig = sessionStore[m].bind(sessionStore);
+    sessionStore[m] = (sid, ...args) => { const cb = typeof args[args.length - 1] === 'function' ? args.pop() : () => {}; serializar(String(sid), fim => orig(sid, ...args, (...r) => { fim(); cb(...r); })); };
+  }
+}
 app.use(session({
-  store: new FileStore({
-    path: path.join(__dirname, 'data', 'sessions'),
-    ttl: 8 * 60 * 60,
-    retries: 0,
-    logFn: () => {} // a lib loga toda leitura/escrita no console por padrão — silencia
-  }),
+  store: sessionStore,
   secret: 'ec0n0mic0-bi-2026-xK9#mP',
   resave: false,
   saveUninitialized: false,
