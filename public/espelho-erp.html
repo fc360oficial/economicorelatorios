@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="/design-system.css">
+<script src="/nav.js" defer></script>
+<title>Espelho do ERP — Econômico Supermercados</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* Processos › Espelho do ERP (Tiago, 28/10/2026: "meu ERP tá muito lento, será que é muita consulta da gente?" →
+   banco nosso no Postgres, ERP só alimenta). SÓ ADMIN (server.js, "Rotas exclusivas de admin"). Mostra: o banco, a
+   cópia de hoje, a carga dos 5 anos, as últimas cópias e a saúde do ERP (quantas consultas são nossas). */
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font,'InterVar','Inter','Segoe UI',system-ui,sans-serif);background:var(--pap);color:var(--ink);min-height:100vh;font-size:13px}
+.main{padding:24px 24px 40px;max-width:1400px}
+.page-hdr{margin-bottom:14px;display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.page-hdr h1{font-size:21px;font-weight:800}.page-hdr p{font-size:12px;color:var(--ink3);margin-top:2px;max-width:900px}
+.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:14px}
+.card{background:var(--crd);border:1px solid var(--ln);border-radius:var(--r-lg);padding:16px 18px;min-width:0}
+.card h2{font-size:14px;font-weight:800;margin-bottom:4px;display:flex;align-items:center;gap:8px}
+.card p.d{font-size:12px;color:var(--ink3);margin-bottom:12px}
+.c4{grid-column:span 4}.c6{grid-column:span 6}.c8{grid-column:span 8}.c12{grid-column:span 12}
+.kpis{display:flex;gap:18px;flex-wrap:wrap;margin-bottom:10px}
+.kpi b{display:block;font-size:20px;font-weight:800;line-height:1.1}.kpi span{font-size:11px;color:var(--ink3)}
+.num{font-variant-numeric:tabular-nums}.mut{color:var(--ink3)}.mono{font-family:ui-monospace,Consolas,monospace;font-size:11px}
+.pill{display:inline-block;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:700;background:var(--pap);border:1px solid var(--ln)}
+.pill.ok{color:var(--pos);border-color:var(--pos)}.pill.bad{color:var(--neg);border-color:var(--neg)}.pill.warn{color:var(--am);border-color:var(--am)}
+table{width:100%;border-collapse:collapse}th,td{padding:6px 8px;border-bottom:1px solid var(--ln);text-align:left;vertical-align:top}
+th{font-size:11px;color:var(--ink3);font-weight:700;text-transform:uppercase;letter-spacing:.03em}
+td.r,th.r{text-align:right}
+.bar{height:8px;background:var(--pap);border:1px solid var(--ln);border-radius:999px;overflow:hidden;min-width:120px}
+.bar i{display:block;height:100%;background:var(--pos);transition:width .4s}
+.btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.btn{font-family:inherit;cursor:pointer;background:var(--crd);border:1px solid var(--ln2);color:var(--ink);border-radius:var(--r-sm);padding:7px 12px;font-weight:600;font-size:12px}
+.btn:hover{border-color:var(--ink)}.btn.pri{background:var(--ink);color:var(--crd);border-color:var(--ink)}.btn:disabled{opacity:.5;cursor:default}
+.msg{font-size:12px;margin-top:8px;min-height:16px}.msg.err{color:var(--neg)}.msg.ok{color:var(--pos)}
+.sql{max-width:520px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+tr.nossa td{background:color-mix(in srgb,var(--inf) 8%,transparent)}
+input[type=text]{font-family:inherit;font-size:12px;padding:6px 8px;border:1px solid var(--ln2);border-radius:var(--r-sm);background:var(--pap);color:var(--ink);width:260px}
+label.ck{display:flex;align-items:center;gap:6px;font-size:12px}
+@media (max-width:1199px){.c4,.c6,.c8{grid-column:span 12}}
+</style>
+</head>
+<body>
+<div class="main">
+  <div class="page-hdr">
+    <div>
+      <h1>Espelho do ERP</h1>
+      <p>Cópia das vendas do ERP (.252) pro nosso Postgres, uma consulta por loja e dia, nunca mês inteiro. Hoje a cada 15 min, recópia dos últimos 3 dias de madrugada, histórico de 5 anos na janela 20:00–07:00. No ERP só SELECT. As telas (Fornecedores primeiro) leem daqui quando o mês está copiado.</p>
+    </div>
+    <div id="hdr-st"></div>
+  </div>
+
+  <div class="grid">
+    <div class="card c4">
+      <h2>Nosso banco <span id="pg-pill" class="pill">…</span></h2>
+      <p class="d">PostgreSQL 16 no 254, banco economicogestao.</p>
+      <div class="kpis">
+        <div class="kpi"><b id="k-dias" class="num">—</b><span>dias copiados (loja × dia)</span></div>
+        <div class="kpi"><b id="k-linhas" class="num">—</b><span>linhas produto × dia</span></div>
+        <div class="kpi"><b id="k-tam" class="num">—</b><span>tamanho</span></div>
+      </div>
+      <div class="mut" id="pg-info">—</div>
+    </div>
+
+    <div class="card c8">
+      <h2>Hoje <span id="hoje-pill" class="pill">…</span></h2>
+      <p class="d">Venda de hoje por loja, recopiada a cada 15 min. <span id="hoje-info" class="mut"></span></p>
+      <table><thead><tr><th>Loja</th><th class="r">Venda</th><th class="r">Cupons</th><th class="r">Produtos</th><th class="r">Linhas no ERP</th><th>Copiado às</th></tr></thead><tbody id="hoje-tb"></tbody></table>
+      <div class="btns"><button class="btn" id="b-hoje">Sincronizar hoje agora</button><button class="btn" id="b-reconf">Recopiar últimos 3 dias</button></div>
+      <div class="msg" id="msg-hoje"></div>
+    </div>
+
+    <div class="card c12">
+      <h2>Histórico de 5 anos <span id="hist-pill" class="pill">…</span></h2>
+      <p class="d" id="hist-info">—</p>
+      <table><thead><tr><th>Loja</th><th style="width:40%">Progresso</th><th class="r">Dias</th><th>Próximo dia</th><th>Erros</th></tr></thead><tbody id="hist-tb"></tbody></table>
+      <div class="btns"><button class="btn pri" id="b-hist">Rodar agora (fora da janela)</button><button class="btn" id="b-pausar">Pausar</button><button class="btn" id="b-retomar">Retomar na janela</button></div>
+      <div class="msg" id="msg-hist"></div>
+    </div>
+
+    <div class="card c6">
+      <h2>Saúde do ERP <span id="erp-pill" class="pill">…</span></h2>
+      <p class="d">Lista de processos do .252 (só leitura), atualizada a cada 30 s. Linhas em azul são do nosso servidor.</p>
+      <div class="kpis">
+        <div class="kpi"><b id="e-conex" class="num">—</b><span>conexões</span></div>
+        <div class="kpi"><b id="e-ativas" class="num">—</b><span>consultas rodando</span></div>
+        <div class="kpi"><b id="e-nossas" class="num">—</b><span>nossas rodando</span></div>
+        <div class="kpi"><b id="e-fila" class="num">—</b><span>nossa fila (máx <span id="e-max">8</span>)</span></div>
+        <div class="kpi"><b id="e-tranc" class="num">—</b><span>trancadas</span></div>
+      </div>
+      <table><thead><tr><th>Máquina</th><th class="r">Conexões</th><th class="r">Rodando</th></tr></thead><tbody id="erp-hosts"></tbody></table>
+    </div>
+
+    <div class="card c6">
+      <h2>Consultas mais demoradas no ERP agora</h2>
+      <p class="d">Todas as máquinas. Tempo em segundos desde que começou.</p>
+      <table><thead><tr><th>Máquina</th><th class="r">s</th><th>Estado</th><th>SQL</th></tr></thead><tbody id="erp-longas"></tbody></table>
+    </div>
+
+    <div class="card c8">
+      <h2>Últimas cópias</h2>
+      <p class="d">Cada linha é uma consulta de um dia de uma loja no ERP e a gravação no nosso banco.</p>
+      <table><thead><tr><th>Quando</th><th>Origem</th><th>Loja</th><th>Dia</th><th class="r">Produtos</th><th class="r">ms</th><th>Erro</th></tr></thead><tbody id="cop-tb"></tbody></table>
+    </div>
+
+    <div class="card c4">
+      <h2>Avisos</h2>
+      <p class="d">Pelo robô de WhatsApp dos Painéis (cahu-wpp). Só quando a recópia da madrugada falhar.</p>
+      <label class="ck"><input type="checkbox" id="cf-avisar"> Avisar no WhatsApp</label>
+      <div style="margin-top:8px"><input type="text" id="cf-grupo" placeholder="Nome do grupo (vazio = padrão do robô)"></div>
+      <div class="btns"><button class="btn" id="b-cfg">Salvar</button></div>
+      <div class="msg" id="msg-cfg"></div>
+      <p class="d" style="margin-top:14px">Madrugada: <span id="mad-info" class="mut">—</span></p>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const fmtN = n => (n == null ? '—' : Number(n).toLocaleString('pt-BR'));
+const fmtR = n => (n == null ? '—' : Number(n).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }));
+const hora = iso => (iso ? new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—');
+const dataBr = iso => (iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso.slice(0, 4) : '—');
+const NOME_LOJA = { 1: 'E1 · Socorro', 2: 'E2 · Muribeca', 3: 'E3 · Ponte', 4: 'E4 · Atacarejo', 5: 'E5 · Porta Larga', 6: 'E6 · Jardim Jordão', 10: 'CD' };
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+async function carregar() {
+  try {
+    const r = await fetch('/api/espelho/status', { cache: 'no-store' }); const s = await r.json();
+    if (s.error) throw new Error(s.error);
+    const pgOk = s.banco && !s.erroBanco;
+    $('pg-pill').textContent = pgOk ? 'conectado' : 'sem banco'; $('pg-pill').className = 'pill ' + (pgOk ? 'ok' : 'bad');
+    $('pg-info').textContent = pgOk ? `${s.banco.banco} · ${s.banco.usuario} · ${s.banco.tamanho} · ${String(s.banco.versao).split(',')[0]}` : (s.erroBanco || s.erroEsquema || '—');
+    if (s.tamanhos) { $('k-dias').textContent = fmtN(s.tamanhos.dias); $('k-linhas').textContent = fmtN(s.tamanhos.linhas); $('k-tam').textContent = s.tamanhos.tam_produto || '—'; }
+    $('hdr-st').innerHTML = s.pronto ? '<span class="pill ok">espelho ativo</span>' : '<span class="pill bad">espelho parado' + (s.erroEsquema ? ': ' + esc(s.erroEsquema) : '') + '</span>';
+
+    // hoje
+    const h = s.hoje;
+    $('hoje-pill').textContent = h.rodando ? 'copiando…' : h.ultimoErro ? 'com erro' : h.ultimaEm ? 'ok' : 'ainda não rodou';
+    $('hoje-pill').className = 'pill ' + (h.ultimoErro ? 'bad' : h.ultimaEm ? 'ok' : 'warn');
+    $('hoje-info').textContent = (h.ultimaEm ? `última às ${hora(h.ultimaEm)} (${h.ms} ms)` : '') + (h.ultimoErro ? ' · ' + h.ultimoErro : '');
+    $('hoje-tb').innerHTML = s.lojas.map(l => { const p = (h.porLoja || []).find(x => +x.loja === l);
+      return `<tr><td>${NOME_LOJA[l] || l}</td><td class="r num">${p ? fmtR(p.valor) : '<span class="mut">—</span>'}</td><td class="r num">${p ? fmtN(p.cupons) : '—'}</td><td class="r num">${p ? fmtN(p.produtos) : '—'}</td><td class="r num">${p ? fmtN(p.linhas_erp) : '—'}</td><td>${p ? p.copiado : '—'}</td></tr>`; }).join('');
+
+    // histórico
+    const H = s.historico;
+    const pct = H.total ? Math.round(H.feito / H.total * 100) : 0;
+    $('hist-pill').textContent = H.rodando ? (H.forcado ? 'rodando agora' : 'rodando (janela)') : H.pausado ? 'pausado' : H.feito >= H.total && H.total ? 'completo' : H.naJanela ? 'aguardando' : 'fora da janela';
+    $('hist-pill').className = 'pill ' + (H.rodando ? 'ok' : H.pausado ? 'warn' : H.feito >= H.total && H.total ? 'ok' : '');
+    $('hist-info').textContent = `De ${dataBr(H.limite)} até ontem, ${s.lojas.length} lojas: ${fmtN(H.feito)} de ${fmtN(H.total)} dias (${pct}%). Janela ${s.janela}.` + (H.ultimoErro ? ' Último erro: ' + H.ultimoErro : '');
+    $('hist-tb').innerHTML = s.lojas.map(l => { const p = H.porLoja[l]; if (!p) return ''; const pc = p.total ? Math.round(p.feito / p.total * 100) : 0;
+      return `<tr><td>${NOME_LOJA[l] || l}</td><td><div class="bar"><i style="width:${pc}%"></i></div></td><td class="r num">${fmtN(p.feito)} / ${fmtN(p.total)} (${pc}%)</td><td>${p.terminou ? '<span class="pill ok">completo</span>' : dataBr(p.proximo)}</td><td class="mut">${p.erros ? p.erros + (p.ultimoErro ? ' · ' + esc(p.ultimoErro) : '') : '—'}</td></tr>`; }).join('');
+    $('b-hist').disabled = H.rodando; $('b-pausar').disabled = !H.rodando; $('b-retomar').disabled = !H.pausado;
+
+    // cópias
+    $('cop-tb').innerHTML = (s.copias || []).map(c => `<tr><td class="mono">${hora(c.em)}</td><td>${esc(c.origem || '')}</td><td>${NOME_LOJA[c.loja] || c.loja}</td><td>${dataBr(c.dia)}</td><td class="r num">${c.linhas == null ? '—' : fmtN(c.linhas)}</td><td class="r num">${fmtN(c.ms)}</td><td class="mut">${c.erro ? '<span style="color:var(--neg)">' + esc(c.erro) + '</span>' : ''}</td></tr>`).join('') || '<tr><td colspan="7" class="mut">Nenhuma cópia ainda.</td></tr>';
+
+    // config + madrugada
+    if (!cfgTocada) { $('cf-avisar').checked = !!s.config.avisar; $('cf-grupo').value = s.config.grupo || ''; }
+    const m = s.madrugada; $('mad-info').textContent = m.ultimaEm ? `última recópia às ${hora(m.ultimaEm)}` + (m.ultimoErro ? ' · erro: ' + m.ultimoErro : ' · ok') : 'ainda não rodou (01:30)';
+    if (s.filaErp) { $('e-fila').textContent = `${s.filaErp.ativas} + ${s.filaErp.naFila} esperando`; $('e-max').textContent = s.filaErp.max; }
+  } catch (e) { $('hdr-st').innerHTML = '<span class="pill bad">' + esc(e.message) + '</span>'; }
+}
+async function carregarSaude() {
+  try {
+    const r = await fetch('/api/espelho/saude-erp', { cache: 'no-store' }); const s = await r.json();
+    if (s.error) throw new Error(s.error);
+    $('erp-pill').textContent = s.ativas > 30 ? 'carregado' : 'ok'; $('erp-pill').className = 'pill ' + (s.ativas > 30 ? 'warn' : 'ok');
+    $('e-conex').textContent = s.conexoes; $('e-ativas').textContent = s.ativas; $('e-nossas').textContent = s.nossasAtivas; $('e-tranc').textContent = s.trancadas.length;
+    if (s.filaNossa) { $('e-fila').textContent = `${s.filaNossa.ativas} + ${s.filaNossa.naFila} esperando`; $('e-max').textContent = s.filaNossa.max; }
+    $('erp-hosts').innerHTML = s.porHost.map(h => `<tr class="${h.nossa ? 'nossa' : ''}"><td>${esc(h.host)}${h.nossa ? ' <span class="mut">(nós)</span>' : ''}</td><td class="r num">${h.conexoes}</td><td class="r num">${h.ativas}</td></tr>`).join('');
+    $('erp-longas').innerHTML = s.maisLongas.map(p => `<tr class="${p.nossa ? 'nossa' : ''}"><td>${esc(p.host)}</td><td class="r num">${p.seg}</td><td class="mut">${esc(p.estado)}</td><td class="sql mono" title="${esc(p.sql)}">${esc(p.sql)}</td></tr>`).join('') || '<tr><td colspan="4" class="mut">Nada rodando.</td></tr>';
+  } catch (e) { $('erp-pill').textContent = 'sem leitura: ' + e.message; $('erp-pill').className = 'pill bad'; }
+}
+async function acao(nome, msgEl) {
+  msgEl.className = 'msg'; msgEl.textContent = 'Executando…';
+  try {
+    const r = await fetch('/api/espelho/acao', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ acao: nome }) });
+    const j = await r.json(); if (j.error) throw new Error(j.error);
+    msgEl.className = 'msg ok'; msgEl.textContent = j.erros && j.erros.length ? 'Terminou com erros: ' + j.erros.join(' · ') : 'Feito.';
+  } catch (e) { msgEl.className = 'msg err'; msgEl.textContent = e.message; }
+  carregar();
+}
+let cfgTocada = false;
+$('cf-avisar').addEventListener('change', () => { cfgTocada = true; }); $('cf-grupo').addEventListener('input', () => { cfgTocada = true; });
+$('b-hoje').addEventListener('click', () => acao('hoje', $('msg-hoje')));
+$('b-reconf').addEventListener('click', () => acao('reconferir', $('msg-hoje')));
+$('b-hist').addEventListener('click', () => acao('historico', $('msg-hist')));
+$('b-pausar').addEventListener('click', () => acao('pausar', $('msg-hist')));
+$('b-retomar').addEventListener('click', () => acao('retomar', $('msg-hist')));
+$('b-cfg').addEventListener('click', async () => {
+  try {
+    const r = await fetch('/api/espelho/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ avisar: $('cf-avisar').checked, grupo: $('cf-grupo').value }) });
+    const j = await r.json(); if (j.error) throw new Error(j.error); cfgTocada = false; $('msg-cfg').className = 'msg ok'; $('msg-cfg').textContent = 'Salvo.';
+  } catch (e) { $('msg-cfg').className = 'msg err'; $('msg-cfg').textContent = e.message; }
+});
+carregar(); carregarSaude();
+setInterval(carregar, 15000); setInterval(carregarSaude, 30000);
+</script>
+</body>
+</html>

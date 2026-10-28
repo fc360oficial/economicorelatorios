@@ -118,6 +118,8 @@
         // Painéis (Tiago, 27/10/26): Painel Compras, Televendas, RH/DP e Açougue + monitor numa página só; SÓ ADMIN
         // (Tiago, Rodrigo, Donato) — o servidor também trava (server.js, "Rotas exclusivas de admin")
         { href: '/paineis.html', ic: 'dashboard', txt: 'Painéis', admin: true },
+        // Espelho do ERP (Tiago, 28/10/26): cópia diária das vendas pro nosso Postgres + saúde do ERP; SÓ ADMIN
+        { href: '/espelho-erp.html', ic: 'shield', txt: 'Espelho do ERP', admin: true },
         { href: '/log.html', ic: 'list', txt: 'Log' }
       ]}
   ];

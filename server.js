@@ -297,6 +297,7 @@ app.use((req, res, next) => {
     const soAdmin = req.path === '/admin-usuarios.html' || req.path.startsWith('/api/admin/')
       || ['/paineis.html', '/paineis-tvs.html', '/cahu-tv-televendas.html', '/tv-rh-config.html', '/tv-acougue-config.html'].includes(req.path)
       || req.path.startsWith('/api/paineis/') || req.path === '/api/paineis'
+      || req.path === '/espelho-erp.html' || req.path.startsWith('/api/espelho/')
       || req.path.startsWith('/api/tv-rh/config') || req.path.startsWith('/api/tv-acougue/') || req.path.startsWith('/api/cahu-distribuidora/tv-config');
     if (soAdmin && req.session.user.perfil !== 'admin') {
       if (req.path.startsWith('/api/')) return res.status(403).json({ error: 'Sem permissão' });
@@ -606,16 +607,51 @@ const pagtoLabels = {
 // (fecha o socket) e, depois de um estouro, nem tenta de novo por 5 min. Qualquer chamada pode passar {timeoutMs}.
 const TABELAS_SENSIVEIS = /\baxml\w*\b/i, TIMEOUT_SENSIVEL = 20000, PAUSA_APOS_ESTOURO = 5 * 60 * 1000;
 let travadaAte = 0;
+// 28/10/26 (Tiago: "meu ERP tá muito lento, será que é muita consulta da gente?"): no .252 havia 18 consultas nossas ao
+// mesmo tempo, 3 delas IGUAIS rodando há 10 min (cada reinício nosso disparava de novo). Regra no .252: só SELECT, nada
+// de KILL. Então o controle é todo aqui:
+//   · fusão: SELECT idêntico (mesmo SQL + parâmetros) que já está rodando não vai de novo ao ERP — quem chegar depois
+//     espera o mesmo resultado (cópia do array, pra ninguém mexer no do outro)
+//   · fila: no máximo Q_MAX_SIMULTANEAS consultas nossas rodando no ERP; as demais esperam a vez (até Q_ESPERA_MAX)
+//   · teto: toda consulta desiste em Q_TIMEOUT_PADRAO (fecha o socket) — antes só as de axml tinham limite
+const Q_MAX_SIMULTANEAS = 8, Q_ESPERA_MAX = 90 * 1000, Q_TIMEOUT_PADRAO = 5 * 60 * 1000;
+let qAtivas = 0; const qFila = []; const qEmCurso = new Map();
+let qStats = { fundidas: 0, enfileiradas: 0, estouros: 0, maxAtivas: 0 };
+function qVaga() {
+  return new Promise((res, rej) => {
+    if (qAtivas < Q_MAX_SIMULTANEAS) { qAtivas++; qStats.maxAtivas = Math.max(qStats.maxAtivas, qAtivas); return res(); }
+    qStats.enfileiradas++;
+    const w = { res, rej, t: setTimeout(() => {
+      const i = qFila.indexOf(w); if (i >= 0) qFila.splice(i, 1);
+      rej(Object.assign(new Error(`ERP ocupado: ${Q_MAX_SIMULTANEAS} consultas nossas já rodando há mais de ${Q_ESPERA_MAX / 1000} s`), { code: 'FILA' }));
+    }, Q_ESPERA_MAX) };
+    qFila.push(w);
+  });
+}
+function qLibera() { const w = qFila.shift(); if (w) { clearTimeout(w.t); w.res(); } else qAtivas = Math.max(0, qAtivas - 1); }
+function qEstado() { return { ativas: qAtivas, naFila: qFila.length, emCurso: qEmCurso.size, max: Q_MAX_SIMULTANEAS, ...qStats }; }
 async function q(sql, params = [], opt = {}) {
   if (ERP_PROTEGIDO && !ehLeitura(sql)) {
     console.error('[DB-BLOQUEADO] tentativa de escrita no ERP de produção (' + ERP_PRODUCAO + '): ' + String(sql).substring(0, 120));
     throw new Error('ERP de produção é somente leitura; escrita bloqueada. Teste no MySQL do .254 (DB_HOST=127.0.0.1).');
   }
   const sensivel = TABELAS_SENSIVEIS.test(sql);
-  const timeoutMs = opt.timeoutMs || (sensivel ? TIMEOUT_SENSIVEL : 0);
+  const timeoutMs = opt.timeoutMs || (sensivel ? TIMEOUT_SENSIVEL : Q_TIMEOUT_PADRAO);
   // opt.ignorarPausa (20/10/26): rota interativa do coletor não paga a pausa de 5 min causada por um job pesado em axml
   // (Tiago viu "tabela axml travada no .252" em vermelho ao voltar pra lista de notas); ela tenta mesmo assim, com o timeout.
   if (sensivel && !opt.ignorarPausa && Date.now() < travadaAte) throw new Error('ERP: tabela axml travada no .252 (manutenção/ALTER TABLE); consulta pulada por mais ' + Math.ceil((travadaAte - Date.now()) / 60000) + ' min');
+  const chaveFusao = !opt.semFusao && ehLeitura(sql) ? sql + '\u0001' + JSON.stringify(params) : null;
+  if (chaveFusao && qEmCurso.has(chaveFusao)) { qStats.fundidas++; return qEmCurso.get(chaveFusao).then(r => (Array.isArray(r) ? r.slice() : r)); }
+  const p = qExecutar(sql, params, sensivel, timeoutMs);
+  if (chaveFusao) { qEmCurso.set(chaveFusao, p); p.catch(() => {}).finally(() => qEmCurso.delete(chaveFusao)); }
+  return p;
+}
+async function qExecutar(sql, params, sensivel, timeoutMs) {
+  await qVaga();
+  try { return await qConectarERodar(sql, params, sensivel, timeoutMs); }
+  finally { qLibera(); }
+}
+async function qConectarERodar(sql, params, sensivel, timeoutMs) {
   let conn;
   try {
     conn = await mysql.createConnection(dbConfig);
@@ -632,6 +668,7 @@ async function q(sql, params = [], opt = {}) {
     return res[0];
   } catch(queryErr) {
     if (queryErr.code === 'TIMEOUT') {
+      qStats.estouros++;
       if (sensivel) travadaAte = Date.now() + PAUSA_APOS_ESTOURO;
       try { conn.destroy(); } catch(e) {} conn = null;
     }
@@ -1389,8 +1426,15 @@ app.get('/api/fornecedores/resumo', async (req, res) => {
 
     const lojasPh = lojasList.map(() => '?').join(',');
 
+    // Espelho do ERP (28/10/26): se o nosso Postgres tem todos os dias do mês pra essas lojas, a soma de vendas vem de lá
+    // (segundos) em vez da varredura do mês inteiro em zcupomitens no ERP (a da loja 4 levava 10 min e era o que mais
+    // pesava no .252). Mês incompleto no espelho → ERP como antes. `fonte_vendas` vai no payload pra tela mostrar.
+    const vendasEspelho = await espelhoErp.vendaPeriodoProduto(lojasList, dIni, dFim).catch(e => { console.error('[ESPELHO] resumo:', e.message); return null; });
+    const fonteVendas = vendasEspelho ? 'espelho' : 'erp';
+
     const [vendasPorLoja, fornecItensRaw, avariaRows, avariaStatusRows, compradorRows, fornecs] = await Promise.all([
       Promise.all(lojasList.map(ln => Promise.all([
+        vendasEspelho ? Promise.resolve(vendasEspelho[ln] || []) :
         q(`SELECT Codigo, SUM(QtdNovo) as qtd, SUM(ValorTotalNovo) as valor, SUM(Custo) as custo_total
            FROM \`ln${ln}${mm}\`.zcupomitens
            WHERE Data BETWEEN ? AND ? AND IndCancel='N' GROUP BY Codigo`, [dIni, dFim]).catch(() => []),
@@ -1515,6 +1559,7 @@ app.get('/api/fornecedores/resumo', async (req, res) => {
 
     const margemFornec = totalComFornec > 0 ? +(totalLucroReal / totalComFornec * 100).toFixed(2) : 0;
     const payload = { total_loja: +totalLojaReal.toFixed(2), total_com_fornecedor: +totalComFornec.toFixed(2), total_lucro_real: +totalLucroReal.toFixed(2), margem_loja: margemReal, margem_fornec: margemFornec, avaria_breakdown: avariaBreakdown, fornecedores: result, compradores: todosCompradores };
+    payload.fonte_vendas = fonteVendas;
     if (!busca && !compradorSel) { _resumoCache[cacheKey] = payload; _resumoCacheTs[cacheKey] = Date.now(); }
     res.json(payload);
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -8093,6 +8138,32 @@ paineisTvs.init({
     return j;
   },
 });
+// ── Espelho do ERP (Tiago, 28/10/26): vendas copiadas pro nosso Postgres (lib/espelho-erp.js) + saúde do ERP; SÓ ADMIN
+// (trava em "Rotas exclusivas de admin"). Usa o mesmo robô de WhatsApp dos Painéis pros avisos de madrugada.
+const espelhoErp = require('./lib/espelho-erp');
+espelhoErp.init({
+  q,
+  enviarWpp: async ({ grupo, texto }) => {
+    const r = await fetch('http://127.0.0.1:3012/mensagem-grupo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ grupo, texto }), signal: AbortSignal.timeout(15000) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(`cahu-wpp ${r.status}: ${j.error || 'erro'}`);
+    return j;
+  },
+});
+app.get('/api/espelho/status', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try { res.json({ ...(await espelhoErp.status()), filaErp: qEstado() }); } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.get('/api/espelho/saude-erp', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try { res.json({ ...(await espelhoErp.saudeErp()), filaNossa: qEstado() }); } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.post('/api/espelho/acao', async (req, res) => {
+  try { res.json(await espelhoErp.acao(String((req.body || {}).acao || ''))); } catch (err) { res.status(400).json({ error: err.message }); }
+});
+app.post('/api/espelho/config', async (req, res) => {
+  try { res.json(await espelhoErp.salvarConfig(req.body || {})); } catch (err) { res.status(400).json({ error: err.message }); }
+});
 app.post('/api/paineis-publico/batimento', (req, res) => {
   res.set('Cache-Control', 'no-store');
   try { res.json(paineisTvs.batimento(req.body || {}, logAcessos.ipDe(req))); }
@@ -9909,29 +9980,17 @@ const server = app.listen(3003, '0.0.0.0', () => {
   const ipLocal = Object.values(require('os').networkInterfaces())
     .flat().find(i => i.family === 'IPv4' && !i.internal)?.address;
   if (ipLocal) console.log(`✓ Rede local: http://${ipLocal}:3003`);
+  // 28/10/26: o pré-aquecimento do Resumo de Fornecedores das 6 lojas em TODO reinício foi removido — com vários deploys
+  // por dia, cada subida jogava 6 varreduras de mês inteiro no ERP (a da loja 4 leva 10 min) e elas se acumulavam lá.
+  // O resumo agora vem do Espelho do ERP (Postgres) quando o mês está copiado. Rupturas continua aquecendo, mas 2 min
+  // depois da subida, pra dois deploys seguidos não dispararem duas vezes.
   setTimeout(() => {
     const http = require('http');
     http.get('http://127.0.0.1:3003/api/ruptura', res => {
       res.resume();
       console.log('✓ Cache ruptura pré-aquecido');
     }).on('error', () => {});
-    // Pré-aquecer resumo de fornecedores para todas as lojas
-    const hoje = new Date();
-    const mes = hoje.getMonth() + 1;
-    const ano = hoje.getFullYear();
-    [1,2,3,4,5,6].forEach((ln, i) => {
-      setTimeout(() => {
-        http.get({
-          host: '127.0.0.1', port: 3003,
-          path: `/api/fornecedores/resumo?loja=${ln}&mes=${mes}&ano=${ano}`,
-          headers: { 'x-internal-warmup': 'fc360warmup2026' }
-        }, r => {
-          r.resume();
-          console.log(`✓ Cache fornecedores loja ${ln} pré-aquecido`);
-        }).on('error', () => {});
-      }, i * 2000); // 2s entre cada loja
-    });
-  }, 3000);
+  }, 2 * 60 * 1000);
 });
 server.on('error', err => {
   if (err.code === 'EADDRINUSE') {
