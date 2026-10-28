@@ -4832,10 +4832,17 @@ async function montarListaExpedicao() {
   const colunas = { separacao: [], em_separacao: [], aguardando_liberacao: [], reconferir: [], liberado: [] };
   // Status do NOSSO coletor (Separação de Pedidos → Carregamento → fiscal libera) por cima do cartão, sem mexer no ERP:
   // a coluna continua sendo a do painel do Dlinks (Tiago, 28/10: "mostra no painel sem mexer no erp")
+  // Painel HÍBRIDO (Tiago, 28/10: "tem que entender os dois até a gente ficar só com o da gente"): a coluna é a do lado
+  // mais adiantado — painel do Dlinks (Status 0..4) ou nosso coletor (Separação → Carregamento → fiscal libera) — e
+  // `origem` diz quem levou o pedido até ali. Nada é escrito no ERP.
   let coletor = {}; try { coletor = require('./lib/expedicao').statusColetorPorPedido(7); } catch (e) { console.error('[PAINEL-CD] coletor:', e.message); }
+  const RANK = { separacao: 0, em_separacao: 1, reconferir: 2, aguardando_liberacao: 3, liberado: 4 };
+  const ECO_COL = { separando: 'em_separacao', aguardando_fiscal: 'em_separacao', separada: 'em_separacao', expedindo: 'em_separacao', conferida: 'aguardando_liberacao', fechada: 'liberado' };
   for (const r of rows) {
-    const status = STATUS_EXPEDICAO[r.Status] || 'separacao';
-    colunas[status].push({ pedido: String(r.pedido), nome: r.nome || 'N/I', coletor: coletor[String(r.pedido)] || null });
+    const dl = STATUS_EXPEDICAO[r.Status] || 'separacao'; const eco = coletor[String(r.pedido)] || null;
+    const ec = eco ? (eco.reconferir ? 'reconferir' : ECO_COL[eco.status] || null) : null;
+    const ecoGanha = !!ec && RANK[ec] >= RANK[dl];
+    colunas[ecoGanha ? ec : dl].push({ pedido: String(r.pedido), nome: r.nome || 'N/I', origem: ecoGanha ? 'eco' : 'dlinks', coletor: eco, dlinks: dl });
   }
   const resumo = { total: rows.length };
   for (const c of COLUNAS_EXPEDICAO) resumo[c] = colunas[c].length;
@@ -4892,9 +4899,27 @@ async function montarListaConferencia() {
   `, []).catch(() => []);
 
   const colunas = { conf_pedido: [], conf_coletor: [], conferido: [], reconferir: [], liberado: [] };
+  // Painel HÍBRIDO (Tiago, 28/10): a nossa conferência (Coletor Econômico, lib/recebimento) casa com a do ERP pela chave
+  // da NF-e (central.conferenciachave). Coluna = lado mais adiantado; `origem` diz quem levou até ali. Nada escrito no ERP.
+  let ecoPorNReg = {};
+  try {
+    const ids = rows.map(r => r.nReg);
+    if (ids.length) {
+      const ch = await q(`SELECT nRegConf, Chave FROM central.conferenciachave WHERE nRegConf IN (${ids.map(() => '?').join(',')})`, ids).catch(() => []);
+      const rec = require('./lib/recebimento'); const confs = []; const d0 = new Date();
+      for (let i = 0; i < 9; i++) { const d = new Date(d0.getTime() - i * 864e5); const dia = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); try { confs.push(...rec.listarDia(dia).filter(c => +c.loja === 10)); } catch (e) {} }
+      const quando = c => c.liberadoEm || c.termineiEm || c.atualizadoEm || c.abertoEm || '';
+      const porChave = {}; for (const c of confs) if (c.chave) { const k = String(c.chave); if (!porChave[k] || String(quando(c)) > String(quando(porChave[k]))) porChave[k] = c; }
+      const ECO_REC = { bipando: ['conf_coletor', 'Bipando', 'car'], recontando: ['conf_coletor', 'Recontando', 'fis'], terminada: ['conferido', 'Conferida · fiscal', 'fis'], liberada: ['liberado', 'Liberada pelo fiscal', 'ok'] };
+      for (const x of ch) { const c = porChave[String(x.Chave)]; if (!c) continue; const m = ECO_REC[c.status]; if (!m) continue; const k = String(x.nRegConf);
+        if (!ecoPorNReg[k] || String(quando(c)) > String(ecoPorNReg[k].em)) ecoPorNReg[k] = { status: c.status, col: m[0], rotulo: m[1], cor: m[2], quem: c.status === 'liberada' ? (c.liberadoPor || c.nome) : c.nome, em: quando(c) }; }
+    }
+  } catch (e) { console.error('[PAINEL-CD] coletor recebimento:', e.message); }
+  const RANK_C = { conf_pedido: 0, conf_coletor: 1, reconferir: 2, conferido: 3, liberado: 4 };
   for (const r of rows) {
-    const status = statusConferencia(r);
-    colunas[status].push({ pedido: String(r.nReg), nome: r.nome || 'N/I' });
+    const dl = statusConferencia(r); const eco = ecoPorNReg[String(r.nReg)] || null;
+    const ecoGanha = !!eco && RANK_C[eco.col] >= RANK_C[dl];
+    colunas[ecoGanha ? eco.col : dl].push({ pedido: String(r.nReg), nome: r.nome || 'N/I', origem: ecoGanha ? 'eco' : 'dlinks', coletor: eco ? { status: eco.status, rotulo: eco.rotulo, cor: eco.cor, quem: eco.quem, em: eco.em } : null, dlinks: dl });
   }
   const resumo = { total: rows.length };
   for (const c of COLUNAS_CONFERENCIA) resumo[c] = colunas[c].length;
