@@ -6004,18 +6004,23 @@ app.get('/api/ruptura', withCache(10), async (req, res) => {
     }
 
     // Passo 2: vendas dos 30 dias para esses produtos, por loja
+    // Espelho do ERP (fase 1, 28/10/26): se o Postgres cobre os 30 dias pras lojas pedidas, a soma vem de lá (uma
+    // consulta, segundos) em vez de 2 varreduras por loja em zcupomitens no ERP; incompleto → ERP como antes.
     const salesMap = {};
-    const salesQs = LOJAS.flatMap(l => [
-      q(`SELECT Codigo, ${l} as l, SUM(QtdNovo) as qt, SUM(ValorTotalNovo) as vl
-         FROM \`ln${l}${mm}\`.zcupomitens
-         WHERE Data BETWEEN ? AND ? AND IndCancel='N' AND Codigo IN (?)
-         GROUP BY Codigo`, [dIniStr, hojStr, barcodes]).catch(() => []),
-      q(`SELECT Codigo, ${l} as l, SUM(QtdNovo) as qt, SUM(ValorTotalNovo) as vl
-         FROM \`ln${l}${mmPrev}\`.zcupomitens
-         WHERE Data BETWEEN ? AND ? AND IndCancel='N' AND Codigo IN (?)
-         GROUP BY Codigo`, [dIniStr, hojStr, barcodes]).catch(() => [])
-    ]);
-    const salesArr = await Promise.all(salesQs);
+    const vendasEspelho = await espelhoErp.vendaPeriodo(LOJAS, dIniStr, hojStr, { codigos: barcodes }).catch(e => { console.error('[ESPELHO] ruptura:', e.message); return null; });
+    const salesArr = vendasEspelho
+      ? [vendasEspelho.map(r => ({ Codigo: r.codigo, l: r.loja, qt: r.qtd, vl: r.valor }))]
+      : await Promise.all(LOJAS.flatMap(l => [
+          q(`SELECT Codigo, ${l} as l, SUM(QtdNovo) as qt, SUM(ValorTotalNovo) as vl
+             FROM \`ln${l}${mm}\`.zcupomitens
+             WHERE Data BETWEEN ? AND ? AND IndCancel='N' AND Codigo IN (?)
+             GROUP BY Codigo`, [dIniStr, hojStr, barcodes]).catch(() => []),
+          q(`SELECT Codigo, ${l} as l, SUM(QtdNovo) as qt, SUM(ValorTotalNovo) as vl
+             FROM \`ln${l}${mmPrev}\`.zcupomitens
+             WHERE Data BETWEEN ? AND ? AND IndCancel='N' AND Codigo IN (?)
+             GROUP BY Codigo`, [dIniStr, hojStr, barcodes]).catch(() => [])
+        ]));
+    if (vendasEspelho) res.set('X-Fonte-Vendas', 'espelho');
     for (const rows of salesArr) {
       for (const r of rows) {
         const ean = r.Codigo; const loja = Number(r.l);
@@ -7537,9 +7542,16 @@ async function calcularAbcLojas() {
   if (_abcLojasCalculando) return _abcLojasCalculando;
   _abcLojasCalculando = (async () => {
     const t0 = Date.now(); const meses = _mesesUltimos(90); const porLoja = {};
+    // Espelho do ERP (fase 1, 28/10/26): 90 dias das 6 lojas numa consulta só no Postgres quando a cobertura está
+    // completa; senão varre mês a mês no ERP como antes (era a consulta mais longa vista no .252: 25 min na loja 4).
+    const dIni90 = meses[0].dIni, dFim90 = meses[meses.length - 1].dFim;
+    const vendasEspelho = await espelhoErp.vendaPeriodo([1, 2, 3, 4, 5, 6], dIni90, dFim90).catch(e => { console.error('[ESPELHO] abc:', e.message); return null; });
+    const fonteAbc = vendasEspelho ? 'espelho' : 'erp';
     for (const ln of [1, 2, 3, 4, 5, 6]) {
       const acc = {};
-      for (const ms of meses) {
+      if (vendasEspelho) {
+        for (const r of vendasEspelho) { if (+r.loja !== ln) continue; const k = String(r.codigo || '').trim(); const a = acc[k] || (acc[k] = { v: 0, q: 0 }); a.v += +r.valor || 0; a.q += +r.qtd || 0; }
+      } else for (const ms of meses) {
         const rows = await q(`SELECT Codigo cod, SUM(ValorTotalNovo) v, SUM(QtdNovo) qt FROM \`ln${ln}${mesDB(ms.m)}\`.zcupomitens WHERE Data BETWEEN ? AND ? AND IndCancel='N' GROUP BY Codigo`, [ms.dIni, ms.dFim]).catch(e => { console.error('[ABC] loja', ln, ms.m, e.message); return []; });
         for (const r of rows) { const k = String(r.cod || '').trim(); const a = acc[k] || (acc[k] = { v: 0, q: 0 }); a.v += +r.v || 0; a.q += +r.qt || 0; }
       }
@@ -7548,13 +7560,15 @@ async function calcularAbcLojas() {
       lista.forEach(([cod, a], i) => { cum += a.v; const f = cum / total; mapa[cod] = { abc: f <= ABC_LOJAS_CORTES.A ? 'A' : (f <= ABC_LOJAS_CORTES.B ? 'B' : 'C'), rank: i + 1, valor90: +a.v.toFixed(2), qtd90: +a.q.toFixed(3) }; });
       porLoja[ln] = { mapa, produtos: lista.length, total: +total.toFixed(2) };
     }
-    _abcLojasCache = { ts: Date.now(), calculadoEm: new Date().toISOString(), dias: 90, porLoja };
-    console.log(`[ABC] curva por loja calculada em ${Math.round((Date.now() - t0) / 1000)}s`);
+    _abcLojasCache = { ts: Date.now(), calculadoEm: new Date().toISOString(), dias: 90, porLoja, fonte: fonteAbc };
+    console.log(`[ABC] curva por loja calculada em ${Math.round((Date.now() - t0) / 1000)}s (fonte: ${fonteAbc})`);
     return _abcLojasCache;
   })().finally(() => { _abcLojasCalculando = null; });
   return _abcLojasCalculando;
 }
-setTimeout(() => calcularAbcLojas().catch(e => console.error('[ABC]', e.message)), 3 * 60 * 1000);
+// 28/10/26: 10 min depois da subida (era 3) — com vários deploys por dia, a varredura de 90 dias no ERP se acumulava lá;
+// com o espelho completo ela leva segundos no Postgres.
+setTimeout(() => calcularAbcLojas().catch(e => console.error('[ABC]', e.message)), 10 * 60 * 1000);
 setInterval(() => calcularAbcLojas().catch(e => console.error('[ABC]', e.message)), 6 * 60 * 60 * 1000);
 
 app.get('/api/promocoes/produto/:cod', async (req, res) => {
