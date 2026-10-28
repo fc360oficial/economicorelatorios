@@ -5333,13 +5333,27 @@ app.post('/api/cahu-distribuidora/ranking/enviar', async (req, res) => {
   try { res.json(await cahuRanking.rotinaRanking({ manual: true })); } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-app.get('/api/painel-cd', withCache(1), async (req, res) => {
+// Painel CD (28/10): a TV do CD chamava ?refresh=1 a cada 5 s, furando o cache, e central.conferencia (180 mil linhas,
+// sem índice em nLoja/DataEntrada) leva ~10 s por varredura no ERP — as chamadas empilhavam e o ERP ficava ocupado o
+// dia inteiro, atrasando todas as outras telas (Painel Compras branco/travado, margem 5-37 s, ruptura 10-37 s).
+// Agora: resultado vale 20 s pra todo mundo (refresh não fura) e só UMA montagem roda por vez (quem chegar no meio espera a mesma).
+const PAINEL_CD_TTL_MS = 20 * 1000;
+let _painelCd = { data: null, em: 0, promessa: null };
+async function montarPainelCd() {
+  if (_painelCd.data && Date.now() - _painelCd.em < PAINEL_CD_TTL_MS) return _painelCd.data;
+  if (_painelCd.promessa) return _painelCd.promessa;
+  _painelCd.promessa = (async () => {
+    const [expedicao, conferencia] = await Promise.all([montarListaExpedicao(), montarListaConferencia()]);
+    const data = { expedicao, conferencia, geradoEm: new Date().toISOString() };
+    _painelCd.data = data; _painelCd.em = Date.now();
+    return data;
+  })();
+  try { return await _painelCd.promessa; }
+  finally { _painelCd.promessa = null; }
+}
+app.get('/api/painel-cd', async (req, res) => {
   try {
-    const [expedicao, conferencia] = await Promise.all([
-      montarListaExpedicao(),
-      montarListaConferencia()
-    ]);
-    res.json({ expedicao, conferencia, geradoEm: new Date().toISOString() });
+    res.json(await montarPainelCd());
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

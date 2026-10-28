@@ -287,7 +287,8 @@ function achatarItensReconferir(itensReconferir) {
 }
 
 function carregar() {
-  fetch('/api/painel-cd?refresh=1').then(r => r.json()).then(d => {
+  // 28/10: sem ?refresh=1 — o servidor já renova a cada 20 s e não deixa duas montagens correrem juntas no ERP
+  fetch('/api/painel-cd?t=' + Date.now(), { cache: 'no-store' }).then(r => r.json()).then(d => {
     if (d.error) throw new Error(d.error);
     const mudouExp = preencherSecao('colunas-exp', 'exp', COLS_EXP, d.expedicao);
     const mudouConf = preencherSecao('colunas-conf', 'conf', COLS_CONF, d.conferencia);
@@ -366,7 +367,7 @@ document.getElementById('btn-fs').addEventListener('click', () => {
 relogio();
 setInterval(relogio, 1000);
 carregar();
-setInterval(carregar, 5000);
+setInterval(carregar, 10000);
 // Recarrega a página inteira de tempos em tempos pra sempre pegar a versão
 // mais nova do HTML/JS publicada, igual os outros painéis de TV do sistema.
 setTimeout(() => location.reload(), 20 * 60 * 1000);

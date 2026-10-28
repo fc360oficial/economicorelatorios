@@ -34,10 +34,20 @@ iframe.visivel{opacity:1;pointer-events:auto}
 .btn-fs:hover{color:rgba(250,204,21,.9);transform:scale(1.2)}
 .controles{opacity:.35;transition:opacity .4s}
 .controles:hover{opacity:1}
+/* aviso de carga/retentativa (28/10): fica atrás dos iframes, só aparece quando o servidor demora */
+#estado{
+  position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:1;
+  color:rgba(255,255,255,.55);font:600 18px/1.4 system-ui,Segoe UI,Arial,sans-serif;text-align:center;
+  padding:14px 22px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);
+  opacity:0;transition:opacity .5s;pointer-events:none;max-width:80vw;
+}
+#estado.on{opacity:1}
+iframe{z-index:2}
 </style>
 </head>
 <body>
 
+<div id="estado"></div>
 <iframe id="fr-compras" title="Compras"       allow="fullscreen" allowfullscreen></iframe>
 <iframe id="fr-ruptura" title="Rupturas"      allow="fullscreen" allowfullscreen></iframe>
 <iframe id="fr-margem"  title="Margem"        allow="fullscreen" allowfullscreen></iframe>
@@ -56,7 +66,24 @@ iframe.visivel{opacity:1;pointer-events:auto}
 </div>
 
 <script>
-const BASE = 'http://192.168.2.254:3003';
+// 28/10 (Tiago: "o painel do compras tá ficando sempre branco e não tá atualizando automático"): as 5 telas abrem no
+// MESMO endereço da página (antes era http://192.168.2.254:3003 fixo) — assim o pai enxerga dentro do iframe e sabe
+// se a tela carregou de verdade. Quando o servidor demora/cai no meio de uma carga, a tela ficava branca pra sempre,
+// porque a troca de painel dependia só do aviso "CycleComplete" vindo de dentro do iframe. Agora tem:
+//   · vigia de carga: iframe sem carregar em 45 s (ou página de erro do navegador) → tenta de novo 2× → pula pro próximo
+//   · vigia de ciclo: painel que passar do tempo máximo dele sem avisar que terminou → pula pro próximo
+//   · a tela anterior só sai depois que a nova carregou (nada de tela em branco no meio)
+const PAGINAS = {
+  compras: '/compras.html',
+  ruptura: '/ruptura-painel.html',
+  margem:  '/margem-comprador.html?auto=1&idx=0',
+  mensal:  '/mensal.html?nome=KELLY&auto=1&idx=0',
+  pagar:   '/painel-a-pagar-venda.html?auto=1',
+};
+// Tempo máximo de cada painel na tela sem avisar que terminou (ciclo normal + folga pra servidor lento):
+// compras 60 s · rupturas 2 páginas × 120 s · margem 4 compradoras × 60 s + 4 cargas · mensal idem · a pagar 60 s
+const LIMITE_S = { compras: 180, ruptura: 420, margem: 480, mensal: 480, pagar: 180 };
+const CARGA_S = 45, TENTATIVAS = 2, ESPERA_RETENTATIVA_S = 8;
 
 let atual = 'compras';
 
@@ -75,24 +102,68 @@ const btnFs = document.getElementById('btn-fs');
 
 const todosFrames = [frC,frR,frMG,frM,frP];
 const todosDots   = [dotC,dotR,dotMG,dotM,dotP];
+const FRAMES = { compras: frC, ruptura: frR, margem: frMG, mensal: frM, pagar: frP };
+const DOTS   = { compras: dotC, ruptura: dotR, margem: dotMG, mensal: dotM, pagar: dotP };
+const NOMES  = { compras: 'Compras', ruptura: 'Rupturas', margem: 'Margem', mensal: 'Cronograma Mensal', pagar: 'A Pagar x Venda' };
+const estadoEl = document.getElementById('estado');
 
-function mostrar(iframe, dot, nome) {
+let tentativa = 0, vigiaCiclo = null, vigiaCarga = null, avisoTimer = null, estadoTxt = '';
+function limparVigias() { clearTimeout(vigiaCiclo); clearTimeout(vigiaCarga); clearTimeout(avisoTimer); vigiaCiclo = vigiaCarga = avisoTimer = null; }
+function aviso(txt) {
+  estadoTxt = txt || '';
+  if (!txt) { estadoEl.classList.remove('on'); return; }
+  estadoEl.textContent = txt; estadoEl.classList.add('on');
+}
+
+// Abre um painel: o iframe dele recarrega (about:blank → url, força reload mesmo com a mesma src); a tela anterior
+// continua visível até a nova carregar (ver `aoCarregar`). `retentativa` = mesma tela de novo depois de uma falha.
+function mostrarPainel(nome, retentativa) {
+  if (!PAGINAS[nome]) return;
+  limparVigias();
+  if (!retentativa) tentativa = 0;
   atual = nome;
-  todosFrames.forEach(f => {
-    f.classList.remove('visivel');
-    if (f !== iframe) f.src = 'about:blank'; // para scripts em background
-  });
   todosDots.forEach(d => d.classList.remove('ativo'));
-  iframe.classList.add('visivel');
-  dot.classList.add('ativo');
+  DOTS[nome].classList.add('ativo');
+  const f = FRAMES[nome];
+  f.classList.remove('visivel');
+  f.src = 'about:blank';
+  setTimeout(() => { f.src = PAGINAS[nome]; }, 30);
+  // só mostra "Carregando…" se demorar, pra não piscar na troca normal
+  avisoTimer = setTimeout(() => aviso(`Carregando ${NOMES[nome]}…${tentativa ? ` (tentativa ${tentativa + 1}/${TENTATIVAS + 1})` : ''}`), 1500);
+  vigiaCarga = setTimeout(() => falhou(nome, `${CARGA_S} s sem resposta do servidor`), CARGA_S * 1000);
+  vigiaCiclo = setTimeout(() => { console.warn(`[painel] ${nome} passou de ${LIMITE_S[nome]} s sem terminar o ciclo — pulando`); proximo(); }, LIMITE_S[nome] * 1000);
+}
+// O iframe do painel atual carregou alguma coisa: ou a tela de verdade (mesma origem, com conteúdo) ou a página de erro
+// do navegador (origem diferente → contentDocument null). O about:blank do meio da troca é ignorado.
+function aoCarregar(nome) {
+  if (nome !== atual) return;
+  const f = FRAMES[nome];
+  let href = '', doc = null;
+  try { href = f.contentWindow.location.href; doc = f.contentDocument; } catch (e) { doc = null; }
+  if (href === 'about:blank') return;
+  const ok = !!(doc && doc.body && doc.body.children.length > 0);
+  if (!ok) { falhou(nome, 'página de erro do navegador'); return; }
+  clearTimeout(vigiaCarga); clearTimeout(avisoTimer); vigiaCarga = avisoTimer = null; aviso('');
+  tentativa = 0;
+  f.classList.add('visivel');
+  todosFrames.forEach(o => { if (o !== f) { o.classList.remove('visivel'); if (o.src !== 'about:blank') o.src = 'about:blank'; } });   // para scripts em background
   setTimeout(reforcarTelaCheia, 200);
 }
-
-// força reload mesmo que a src seja igual
-function carregarIframe(iframe, url) {
-  iframe.src = 'about:blank';
-  setTimeout(() => { iframe.src = url; }, 30);
+function falhou(nome, motivo) {
+  if (nome !== atual) return;
+  limparVigias();
+  console.warn(`[painel] ${nome} não carregou: ${motivo} (tentativa ${tentativa + 1})`);
+  if (tentativa < TENTATIVAS) {
+    tentativa++;
+    aviso(`${NOMES[nome]} não respondeu (${motivo}) · tentando de novo em ${ESPERA_RETENTATIVA_S} s…`);
+    vigiaCarga = setTimeout(() => mostrarPainel(nome, true), ESPERA_RETENTATIVA_S * 1000);
+  } else {
+    tentativa = 0;
+    aviso(`${NOMES[nome]} não respondeu · pulando pro próximo painel…`);
+    vigiaCarga = setTimeout(proximo, 2000);
+  }
 }
+Object.keys(FRAMES).forEach(nome => FRAMES[nome].addEventListener('load', () => { try { aoCarregar(nome); } catch (e) { console.warn('[painel] load:', e.message); } }));
 
 // Alguns navegadores (Fire TV/Silk) saem da tela cheia sozinhos quando o
 // iframe navega, mesmo com allowfullscreen. Se estava em tela cheia antes
@@ -108,26 +179,11 @@ function reforcarTelaCheia() {
 }
 
 // ── Rotação automática ──
-function mostrarCompras() {
-  carregarIframe(frC, BASE + '/compras.html');
-  mostrar(frC, dotC, 'compras');
-}
-function mostrarRuptura() {
-  carregarIframe(frR, BASE + '/ruptura-painel.html');
-  mostrar(frR, dotR, 'ruptura');
-}
-function mostrarMargem() {
-  carregarIframe(frMG, BASE + '/margem-comprador.html?auto=1&idx=0');
-  mostrar(frMG, dotMG, 'margem');
-}
-function mostrarMensal() {
-  carregarIframe(frM, BASE + '/mensal.html?nome=KELLY&auto=1&idx=0');
-  mostrar(frM, dotM, 'mensal');
-}
-function mostrarPagarVenda() {
-  carregarIframe(frP, BASE + '/painel-a-pagar-venda.html?auto=1');
-  mostrar(frP, dotP, 'pagar');
-}
+function mostrarCompras()    { mostrarPainel('compras'); }
+function mostrarRuptura()    { mostrarPainel('ruptura'); }
+function mostrarMargem()     { mostrarPainel('margem'); }
+function mostrarMensal()     { mostrarPainel('mensal'); }
+function mostrarPagarVenda() { mostrarPainel('pagar'); }
 
 // ── Rotação (27/10/26, Processos › Painéis › Painel Compras): ordem e liga/desliga vêm do servidor
 // (/api/paineis-publico/compras-config, relido a cada 60 s). Padrão: Compras → Rupturas → Margem → Mensal → A Pagar x Venda.
@@ -140,7 +196,7 @@ const PAINEIS = {
 };
 let ORDEM = ['compras', 'ruptura', 'margem', 'mensal', 'pagar'], LIGADOS = {}, CFG_VERSAO = null;
 function ativos() { const a = ORDEM.filter(id => PAINEIS[id] && LIGADOS[id] !== false); return a.length ? a : ['compras']; }
-function proximo() { const a = ativos(); const i = a.indexOf(atual); PAINEIS[a[(i + 1) % a.length]].fn(); }
+function proximo() { const a = ativos(); const i = a.indexOf(atual); mostrarPainel(a[(i + 1) % a.length]); }
 async function lerConfig() {
   try {
     const r = await fetch('/api/paineis-publico/compras-config?t=' + Date.now(), { cache: 'no-store' });
@@ -185,8 +241,9 @@ dotP.addEventListener('click',  mostrarPagarVenda);
 // ── Início: primeiro painel ligado da ordem configurada (Compras, por padrão) ──
 lerConfig().finally(() => PAINEIS[ativos()[0]].fn());
 setInterval(lerConfig, 60000);
-// Painéis e TVs (27/10): o que o painel está mostrando agora, pro batimento (tv-heartbeat.js)
-window.tvSlideAtual = () => ({ compras: 'Compras · painel 1/5', ruptura: 'Rupturas · painel 2/5', margem: 'Margem · painel 3/5', mensal: 'Cronograma Mensal · painel 4/5', pagar: 'A Pagar x Venda · painel 5/5' })[atual] || atual;
+// Painéis e TVs (27/10): o que o painel está mostrando agora, pro batimento (tv-heartbeat.js). Se estiver
+// recarregando/esperando o servidor, vai junto — aparece em Processos › Painéis e explica a tela "branca".
+window.tvSlideAtual = () => (({ compras: 'Compras · painel 1/5', ruptura: 'Rupturas · painel 2/5', margem: 'Margem · painel 3/5', mensal: 'Cronograma Mensal · painel 4/5', pagar: 'A Pagar x Venda · painel 5/5' })[atual] || atual) + (estadoTxt ? ` · ${estadoTxt}` : '');
 </script>
 <script src="/tv-heartbeat.js" data-painel="compras" defer></script>
 </body>
