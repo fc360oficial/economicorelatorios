@@ -61,18 +61,18 @@
     { id: 'dedo-duro', ic: 'alert', txt: 'Dedo Duro', sub: [
         { href: '/dedo-duro.html', ic: 'alert', txt: 'Dedo Duro' }
       ]},
-    { id: 'dp-rh', ic: 'folder', txt: 'DP / RH', sub: [
-        { href: '/rh.html', ic: 'list', txt: 'Recursos Humanos (RH)' },
-        { href: '/dp.html', ic: 'list', txt: 'Departamento Pessoal (DP)' },
-        { href: '/etica.html', ic: 'shield', txt: 'Canal de Ética' },
-        { href: '/gestao-pessoas.html', ic: 'dashboard', txt: 'TESTE DONATO' },
-        { href: '/teste-tiago.html', ic: 'dashboard', txt: 'TESTE TIAGO' },
-        { href: '/escalas.html', ic: 'list', txt: 'Escalas' },
-        { href: '/termos-escala.html', ic: 'list', txt: 'Termos de Escala' },
-        { href: '/gestao-disciplinar.html', ic: 'shield', txt: 'Gestão Disciplinar', badge: '/api/disciplinar/pendencias' },
+    { id: 'dp-rh', ic: 'folder', txt: 'DP / RH', sub: [   // em ordem alfabética por txt (Tiago, 28/10/26) — manter ao adicionar novos
         { href: '/auditoria-folha.html', ic: 'bank', txt: 'Auditoria da Folha' },
+        { href: '/etica.html', ic: 'shield', txt: 'Canal de Ética' },
+        { href: '/dp.html', ic: 'list', txt: 'Departamento Pessoal (DP)' },
+        { href: '/escalas.html', ic: 'list', txt: 'Escalas' },
+        { href: '/gestao-disciplinar.html', ic: 'shield', txt: 'Gestão Disciplinar', badge: '/api/disciplinar/pendencias' },
         // Gestão Documental (28/10/26, etapa 01 = só interface): prontuários digitais, recebimento pelo CPD, conferência do RH, protocolos
-        { href: '/gestao-documental.html', ic: 'folder', txt: 'Gestão Documental' }
+        { href: '/gestao-documental.html', ic: 'folder', txt: 'Gestão Documental' },
+        { href: '/rh.html', ic: 'list', txt: 'Recursos Humanos (RH)' },
+        { href: '/termos-escala.html', ic: 'list', txt: 'Termos de Escala' },
+        { href: '/gestao-pessoas.html', ic: 'dashboard', txt: 'TESTE DONATO' },
+        { href: '/teste-tiago.html', ic: 'dashboard', txt: 'TESTE TIAGO' }
       ]},
     { id: 'financeiro', ic: 'bank', txt: 'Financeiro', sub: [
         { href: '/conciliador.html', ic: 'bank', txt: 'Conciliação de Saídas' },
