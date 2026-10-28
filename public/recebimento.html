@@ -43,6 +43,13 @@ body{font-family:var(--font);background:var(--pap);color:var(--ink);font-size:14
 .lojas button{border:1.5px solid var(--ln2);border-radius:var(--r-sm);padding:10px 0;text-align:center;font-weight:700;font-size:13px;background:var(--pap);color:var(--ink);font-family:var(--font);cursor:pointer;line-height:1.15}
 .lojas button small{display:block;font-size:9.5px;font-weight:600;color:var(--ink3);letter-spacing:.3px}
 .lojas button[aria-pressed="true"]{border-color:var(--am);background:var(--amw);color:var(--amk)}
+/* ── bloqueio / troca de operador (CD, 28/10/26): tela de PIN por cima de tudo, a sessão da loja fica ── */
+#bloqueio{position:fixed;inset:0;z-index:40;background:var(--pap);display:flex;align-items:center;justify-content:center;padding:24px 16px}
+#bloqueio .lbox h1{font-size:18px}
+#bloqueio .quem{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink2);margin:0 0 14px}
+#bloqueio .quem b{color:var(--ink)}
+#bloqueio .quem .pill{margin-left:auto}
+#bloqueio .lbox .btn-ghost{width:100%;margin-top:10px;font-size:12px}
 .lojas button[aria-pressed="true"] small{color:var(--amk)}
 .erro{color:var(--neg);font-size:12.5px;font-weight:600;margin:-4px 0 10px;min-height:16px}
 .tip{font-size:11.5px;color:var(--ink3)}
@@ -309,8 +316,26 @@ body{font-family:var(--font);background:var(--pap);color:var(--ink);font-size:14
   </div>
   <div class="foot">
     <span><span class="dot"></span><span>Online</span></span>
-    <span><span id="quemE"></span> · <button class="btn btn-ghost" style="height:auto;padding:0;font-size:11.5px" onclick="sair()">sair</button></span>
+    <span><span id="quemE"></span> · <button class="btn btn-ghost" id="btnTrocarE" style="height:auto;padding:0;font-size:11.5px" onclick="trocarOperador('troca')" hidden>trocar operador</button> <button class="btn btn-ghost" style="height:auto;padding:0;font-size:11.5px" onclick="sair()">sair</button></span>
   </div>
+</div>
+
+<!-- ═══ 1c · Bloqueio / troca de operador (só o CD, 28/10/26) ═══
+     O coletor fica na bancada o turno inteiro e NÃO desloga ao fechar um pedido: quem muda é a pessoa. Esta tela pede
+     só o PIN pessoal (a sessão da loja 10 continua) e aparece (a) quando o operador pede pra trocar, (b) quando alguém
+     que separou tenta carregar o mesmo pedido e (c) sozinha depois de BLOQUEIO_MIN minutos sem ninguém mexer. -->
+<div id="bloqueio" hidden>
+  <form class="lbox" onsubmit="destravar(event)">
+    <img src="/logo-supermercados-transp.png" alt="Econômico Supermercados">
+    <h1 id="bqTitulo">Quem vai usar o coletor?</h1>
+    <p id="bqSub">Digite o seu PIN pessoal. A sessão da loja continua, não precisa do PIN da loja.</p>
+    <div class="quem" id="bqQuem" hidden><span>Estava com</span><b id="bqNome">—</b><span class="pill mut">parado</span></div>
+    <div class="fld"><label for="bqPin">Seu PIN pessoal</label><input id="bqPin" class="pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" enterkeyhint="go"></div>
+    <div class="erro" id="bqErro"></div>
+    <button class="btn btn-primary blk" style="height:46px" type="submit" id="btnDestravar">Entrar</button>
+    <button class="btn btn-ghost" type="button" id="btnBqVoltar" onclick="fecharBloqueio()">Voltar · continuo sendo eu</button>
+    <button class="btn btn-ghost" type="button" onclick="sair()">Sair do coletor (pede o PIN da loja de novo)</button>
+  </form>
 </div>
 
 <!-- ═══ 5 · Expedição · pedidos do Televendas ═══ -->
@@ -560,12 +585,75 @@ function sair() {
   localStorage.removeItem(LS_SESSAO); location.reload();
 }
 
+// ── troca de operador + bloqueio por inatividade (CD, 28/10/26) ────────────
+// Tiago perguntou se o coletor devia deslogar ao fechar a separação em 100 %. Não: o separador emenda vários pedidos
+// e o risco real é outro — alguém pegar o aparelho largado e bipar no nome de quem saiu (suja a auditoria e a trava
+// "quem separou não carrega"). Então: (1) ao fechar, "Separar outro pedido" ou "Trocar de operador"; (2) a troca pede
+// só o PIN pessoal, a sessão da loja 10 fica; (3) parado BLOQUEIO_MIN minutos, o coletor tranca e pede o PIN de novo
+// (quem destravar vira o operador da sessão). Só no CD: as lojas entram com nome livre, não têm PIN pessoal.
+const BLOQUEIO_MIN = 10, LS_ATIV = 'rec_ativ';
+let ultimaAtiv = Date.now(), bloqueioMotivo = null;
+const temPinPessoal = () => !!(sess && sess.opToken);
+function acoesFim(rotulo) {
+  return `<div class="menuAc" style="width:100%"><button class="btn btn-primary blk" onclick="voltarPedidos()">${rotulo}</button>${temPinPessoal() ? '<button class="btn btn-secondary blk" onclick="trocarOperador(\'troca\')">Trocar de operador</button>' : ''}</div>`;
+}
+function marcarAtiv() { ultimaAtiv = Date.now(); }
+function trocarOperador(motivo) {
+  if (!temPinPessoal()) { sair(); return; }
+  bloqueioMotivo = motivo || 'troca';
+  const trava = bloqueioMotivo === 'bloqueio';
+  $('bqTitulo').textContent = trava ? 'Coletor parado · quem está com ele?' : 'Quem vai usar o coletor?';
+  $('bqSub').textContent = trava ? `Ficou ${BLOQUEIO_MIN} min sem ninguém mexer. Digite o seu PIN pessoal pra continuar — se for outra pessoa, a sessão passa a ser dela.` : 'Digite o seu PIN pessoal. A sessão da loja continua, não precisa do PIN da loja.';
+  $('bqQuem').hidden = false; $('bqNome').textContent = sess.nome; $('bqQuem').querySelector('.pill').textContent = trava ? 'parado' : 'sai';
+  $('btnBqVoltar').hidden = trava;          // destravar sempre pede o PIN; na troca voluntária dá pra desistir
+  $('bqErro').textContent = ''; $('bqPin').value = '';
+  $('modal').innerHTML = ''; $('bloqueio').hidden = false;
+  setTimeout(() => $('bqPin').focus(), 50);
+}
+function fecharBloqueio() { $('bloqueio').hidden = true; bloqueioMotivo = null; marcarAtiv(); if (tela === 'exp') focarExp(); else if (tela === 'bipagem') focarBip(); }
+async function destravar(ev) {
+  ev.preventDefault(); $('bqErro').textContent = '';
+  const pin = $('bqPin').value.trim(); if (!/^\d{4}$/.test(pin)) { $('bqErro').textContent = 'Digite o PIN pessoal (4 dígitos).'; $('bqPin').focus(); return; }
+  $('btnDestravar').disabled = true;
+  try {
+    const r = await fetch('/api/recebimento-publico/trocar-operador', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ t: sess.token, pinPessoal: pin, de: sess.nome, motivo: bloqueioMotivo }) });
+    const j = await r.json().catch(() => ({}));
+    if (r.status === 401 && /Sessão inválida/.test(j.error || '')) { localStorage.removeItem(LS_SESSAO); location.reload(); return; }
+    if (!r.ok) { $('bqErro').textContent = j.error || 'Não foi possível entrar.'; $('bqPin').value = ''; $('bqPin').focus(); return; }
+    const trocou = j.nome !== sess.nome, motivo = bloqueioMotivo;
+    sess = { ...sess, nome: j.nome, operador: j.operador || null, opToken: j.opToken || null }; guardar(LS_SESSAO, sess);
+    $('quem').textContent = sess.nome; $('quemE').textContent = sess.nome; $('eSub').textContent = sess.nome;
+    fecharBloqueio();
+    // pedido aberto no meio (bloqueio) com OUTRA pessoa destravando: volta pra lista, a sessão agora é dela
+    if (trocou || motivo === 'troca') {
+      const naSaida = ['pedidos', 'exp', 'expFim'].includes(tela);
+      visaoExp = null; pedidoAtual = null; cartaoExp = null; $('xCartao').innerHTML = '';
+      if (naSaida) { mostrar('pedidos'); carregarPedidos(); } else irEscolha();
+      toast(trocou ? 'Agora é ' + sess.nome : 'Continua ' + sess.nome);
+    } else if (tela === 'pedidos') carregarPedidos(); else if (tela === 'exp') pollExp();
+  } catch (e) { $('bqErro').textContent = 'Sem conexão. Tente de novo quando tiver sinal.'; }
+  finally { $('btnDestravar').disabled = false; }
+}
+function armarBloqueio() {
+  if (!temPinPessoal()) return;
+  $('btnTrocarE').hidden = false;
+  for (const ev of ['pointerdown', 'keydown', 'input', 'touchstart']) document.addEventListener(ev, marcarAtiv, { passive: true, capture: true });
+  window.addEventListener('beforeunload', () => { try { localStorage.setItem(LS_ATIV, String(ultimaAtiv)); } catch (e) {} });
+  const verificar = () => { if (!$('bloqueio').hidden || tela === 'login') return; if (Date.now() - ultimaAtiv >= BLOQUEIO_MIN * 60000) trocarOperador('bloqueio'); };
+  setInterval(verificar, 30000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) verificar(); });
+  // recarregou (volta do PWA, 401 na fila…) depois de muito tempo parado: já abre trancado
+  let antes = 0; try { antes = +localStorage.getItem(LS_ATIV) || 0; } catch (e) {}
+  if (antes && Date.now() - antes >= BLOQUEIO_MIN * 60000) { ultimaAtiv = antes; setTimeout(verificar, 300); }
+}
+
 function iniciar() {
   $('login').hidden = true;
   $('quem').textContent = sess.nome; $('quemE').textContent = sess.nome;
   if (ehCD()) { irEscolha(); } else { mostrar('notas'); carregarNotas(); }
   window.addEventListener('online', flush);
   setInterval(() => { if (fila.length) flush(); }, 15000);
+  armarBloqueio();
 }
 
 function mostrar(t) {
@@ -753,7 +841,7 @@ async function abrirPedido(i) {
   try { visaoExp = await postExp('abrir', { nPedido: p.nPedido, nome: sess.nome }); pedidoAtual = p; cartaoExp = null; ultimoBipadoExp = null; selSep = null; qtdSep = {}; $('xCartao').innerHTML = ''; mostrar('exp'); renderExp(); }
   catch (e) {
     // trava do servidor: quem separou não carrega o mesmo pedido
-    if (e.status === 409 && e.corpo && e.corpo.separadoPor) { abrirModal(`<div class="t">Quem separou não pode carregar</div><p style="font-size:13px;color:var(--ink2);margin:6px 0 10px">Este pedido foi separado por <b>${esc(e.corpo.separadoPor)}</b>. O Carregamento de Caminhão tem que ser feito por outra pessoa: saia e entre com o PIN pessoal de quem vai carregar.</p><div class="menuAc"><button class="btn btn-secondary" onclick="fecharModal();sair()">Sair deste operador</button><button class="btn btn-ghost" onclick="fecharModal()">Voltar</button></div>`); return; }
+    if (e.status === 409 && e.corpo && e.corpo.separadoPor) { abrirModal(`<div class="t">Quem separou não pode carregar</div><p style="font-size:13px;color:var(--ink2);margin:6px 0 10px">Este pedido foi separado por <b>${esc(e.corpo.separadoPor)}</b>. O Carregamento de Caminhão tem que ser feito por outra pessoa: quem vai carregar digita o PIN pessoal dele.</p><div class="menuAc"><button class="btn btn-secondary" onclick="fecharModal();trocarOperador('troca')">Trocar de operador</button><button class="btn btn-ghost" onclick="fecharModal()">Voltar</button></div>`); return; }
     erroExp(e, 'Não deu pra abrir o pedido');
   }
 }
@@ -1037,12 +1125,13 @@ async function termineiExp(enviarFiscal, motivo) {
     if (r.fechou && r.etapa === 'separacao') {
       // etapa 1 fechou: o pedido volta pra lista como "Carregar" e OUTRA pessoa faz a conferência do caminhão
       $('xfTitulo').textContent = 'Separação fechada';
-      $('xfAcoes').innerHTML = '<button class="btn btn-primary blk" onclick="voltarPedidos()">Voltar aos pedidos</button>';
+      // 28/10/26: não desloga ao fechar — o separador normalmente emenda outro pedido; trocar de pessoa é só o PIN
+      $('xfAcoes').innerHTML = acoesFim('Separar outro pedido');
       $('xfCorpo').innerHTML = `<div class="aviso ok"><b>Separação bateu 100 % com o pedido.</b><br>O pallet vai pro Carregamento de Caminhão. <b>Outra pessoa</b> bipa o caminhão às cegas: você separou, então o app não deixa você carregar este pedido.</div>
         <div class="card"><div class="kv"><span>Separou</span><b>${esc(visaoExp.separadoPor || sess.nome)}</b></div><div class="kv"><span>Tentativas</span><b>${visaoExp.tentativas || 1}</b></div>${visaoExp.tirados ? `<div class="kv"><span>Retiradas</span><b>${visaoExp.tirados} · pendência pro fiscal</b></div>` : ''}</div>`;
     } else if (r.fechou) {
       $('xfTitulo').textContent = visaoExp.status === 'conferida' ? 'Caminhão conferido · aguardando o fiscal' : 'Caminhão conferido';
-      $('xfAcoes').innerHTML = '<button class="btn btn-primary blk" onclick="voltarPedidos()">Voltar aos pedidos</button>';
+      $('xfAcoes').innerHTML = acoesFim('Carregar outro pedido');
       $('xfCorpo').innerHTML = (visaoExp.status === 'conferida' ? `<div class="aviso ok"><b>Bateu 100 % com a separação.</b><br>Agora o fiscal do CD confronta pedido × separado × carregado na retaguarda e <b>libera a saída</b>. O caminhão só sai depois da liberação; se ele mandar reconferir, o pedido volta pra lista como "Carregar".</div>` : `<div class="aviso ok"><b>Bateu 100 % com a separação.</b><br>Pode fechar o caminhão. O Televendas já vê o pedido como conferido.</div>`)
         + (r.etapa === 'expedicao' ? `<div class="card"><div class="kv"><span>Separou</span><b>${esc(visaoExp.separadoPor || '—')}</b></div><div class="kv"><span>Carregou</span><b>${esc(visaoExp.expedidoPor || sess.nome)}</b></div></div>` : '');
     } else if (r.aguardandoFiscal) {

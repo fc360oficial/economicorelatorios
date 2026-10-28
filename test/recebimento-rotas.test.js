@@ -105,6 +105,21 @@ test('/entrar com PIN certo devolve token da loja', async () => {
   assert.match(r.body.token, /^[a-f0-9]{32}$/);
 });
 
+test('/trocar-operador (CD, 28/10): só o PIN pessoal troca a pessoa, a sessão da loja 10 fica; loja comum e PIN errado não passam', async () => {
+  const { routes, logs } = montarAmbiente();
+  const expedicao = require('../lib/expedicao');
+  expedicao.init({ dir: fs.mkdtempSync(path.join(os.tmpdir(), 'exp-troca-')), cadastro: async () => null, vinculo: async () => null });
+  expedicao.salvarOperador({ nome: 'maria', pin: '4821' }); expedicao.salvarOperador({ nome: 'joao', pin: '7305' });
+  const cfg = recebimento.config(); const t10 = cfg.lojas[10].token, t3 = cfg.lojas[3].token;
+  let r = res(); await routes['POST /api/recebimento-publico/trocar-operador'](req({ body: { t: 'x', pinPessoal: '4821' } }), r); assert.equal(r.statusCode, 401); assert.match(r.body.error, /Sessão inválida/);
+  r = res(); await routes['POST /api/recebimento-publico/trocar-operador'](req({ body: { t: t3, pinPessoal: '4821' } }), r); assert.equal(r.statusCode, 400);
+  r = res(); await routes['POST /api/recebimento-publico/trocar-operador'](req({ body: { t: t10, pinPessoal: '0000', de: 'MARIA' } }), r); assert.equal(r.statusCode, 401); assert.match(r.body.error, /PIN pessoal/);
+  r = res(); await routes['POST /api/recebimento-publico/trocar-operador'](req({ body: { t: t10, pinPessoal: '7305', de: 'MARIA', motivo: 'bloqueio' } }), r);
+  assert.equal(r.statusCode, 200); assert.equal(r.body.loja, 10); assert.equal(r.body.token, t10, 'mantém o token da loja'); assert.equal(r.body.nome, 'JOAO'); assert.match(r.body.opToken, /^[a-f0-9]{32}$/);
+  assert.equal(expedicao.operadorPorToken(r.body.opToken).nome, 'JOAO');
+  const ev = logs.find(l => l.tipo === 'entrar' && l.nome === 'JOAO'); assert.ok(ev); assert.match(ev.msg, /destravou o coletor · antes MARIA/);
+});
+
 test('/notas: devolução (finNFe 4) vem com tipo devolucao; lançamento finalizado (F) some mesmo com Importado=0; "dado entrada" no Dlinks (Importado=1, compras E) CONTINUA; Importado=1 sem compras some', async () => {
   const chDev = 'D'.repeat(44), chLanc = 'F'.repeat(44), chNova = 'N'.repeat(44), chEntrada = 'E'.repeat(44), chImp = 'I'.repeat(44);
   const q = async (sql, params) => {
