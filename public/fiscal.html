@@ -333,6 +333,7 @@ table.ctb td.forn{min-width:170px;max-width:260px}table.ctb th{padding-left:6px;
     <span class="dnav"><button onclick="mudarDia(-1)" title="Dia anterior">‹</button><input type="date" id="de" onchange="colDiaMudou();carregar()"><button onclick="mudarDia(1)" title="Próximo dia">›</button><span class="dow" id="dow"></span></span>
     <select id="periodo" onchange="carregar()"><option value="dia">Só o dia</option><option value="7">Últimos 7 dias</option><option value="30">Últimos 30 dias</option></select>
     <select id="loja" onchange="lojaMudou()"><option value="">Todas as lojas</option></select>
+    <select id="expOrigem" onchange="render()" hidden title="Coletor Econômico ou Dlinks"><option value="">Eco + Dlinks</option><option value="eco">Só Coletor Eco</option><option value="dlinks">Só Dlinks</option></select>
     <input id="q" placeholder="Buscar fornecedor, nº da conferência ou nota" oninput="render()">
     <span class="cnt" id="cnt"></span>
   </div>
@@ -456,6 +457,7 @@ function prefetch(atual){
 function setTab(t){tab=t;document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x.dataset.tab===t));
   /* Pedidos a receber não é por dia: some o navegador de data e o período (loja e busca continuam) */
   /* Expedição do CD conta "últimos N dias" a partir de hoje: some só o navegador de data, o período continua */
+  $('#expOrigem').hidden=t!=='expedicao';   // seletor Eco / Dlinks só na Expedição do CD (Tiago, 28/10)
   const semDia=t==='areceber';document.querySelector('.dnav').style.display=semDia?'none':'';   // Expedição do CD navega por data igual ao Recebimentos (Tiago, 28/10)$('#periodo').style.display=t==='areceber'?'none':'';$('#q').placeholder=t==='areceber'?'Buscar fornecedor, nº do pedido, lista ou Comprador (a)':t==='expedicao'?'Buscar cliente, nº do pedido ou produto':'Buscar fornecedor, nº da conferência ou nota';
   colTimerSync();carregar();}
 function render(){if(tab==='receb')renderReceb();else{if(aberto!=null){aberto=null;$('#detBack').hidden=true;$('#detDrw').hidden=true;}if(tab==='docs')renderDocs();else if(tab==='areceber')renderAReceber();else if(tab==='expedicao')renderExpedicao();else renderMargem();}renderColErro();}
@@ -566,7 +568,9 @@ let expFiltro='todos';
    filtram a lista, cada pedido com a jornada em 4 passos (quem e quando), a situação em palavras e o que fazer; o confronto
    (carregamento) e a decisão (separação divergente) abrem na própria linha; demais linhas abrem a bipagem no clique. */
 function renderExpedicao(){
-  const pend=EXP.pendencias.filter(expBusca),confs=EXP.fechadas.filter(expBusca),saidas=(EXP.saidas||[]).filter(expBusca),libs=(EXP.liberacoes||[]).filter(expBusca),painel=EXP.painel||{};
+  // seletor de origem (Tiago, 28/10: "trazer status pra eu escolher Dlinks ou ECO"): eco = conferências do nosso coletor · dlinks = pedidos só no Dlinks
+  const origem=($('#expOrigem')||{}).value||'';const porOrigem=c=>!origem||(origem==='dlinks'?c.status==='dlinks':c.status!=='dlinks');
+  const pend=EXP.pendencias.filter(expBusca),confs=EXP.fechadas.filter(expBusca).filter(porOrigem),saidas=(EXP.saidas||[]).filter(expBusca),libs=(EXP.liberacoes||[]).filter(expBusca),painel=EXP.painel||{};
   const hoje=new Date().toDateString();const ehHoje=s=>s&&new Date(s).toDateString()===hoje;
   const porStatus=s=>confs.filter(c=>c.status===s);
   const nLiberar=porStatus('conferida').length,nDecidir=porStatus('aguardando_fiscal').length,nVerificar=pend.filter(p=>!p.verificado).length,nLiberados=confs.filter(c=>c.status==='fechada'&&ehHoje(c.fechadoEm)).length;
