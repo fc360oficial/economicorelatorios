@@ -6806,14 +6806,28 @@ app.get('/api/_diag/cotacao-pedidos-itens', (req, res) => {
     const peds = (c.pedidos || []).map(x => pedidosFornec.obter(x.id)).filter(Boolean).map(p => ({ id: p.id, fornecedor: p.fornecedor, codFornec: p.codFornec, status: p.status, criadoEm: p.criadoEm, enviadoEm: p.enviadoEm || null, total: p.totais ? p.totais.digitado : null, lojas: p.lojas, itens: (p.itens || []).map(i => ({ cod: i.cod, descricao: i.descricao, qtd: i.qtd, lojas_qtd: i.lojas_qtd, preco: i.preco, zerado: !!i.zerado })) }));
     const porCod = {};
     for (const p of peds) { if (!vivo(p)) continue; for (const i of p.itens) { if (!(i.qtd > 0)) continue; (porCod[i.cod] = porCod[i.cod] || []).push({ pedido: p.id, fornecedor: p.fornecedor, criadoEm: p.criadoEm, lojas_qtd: i.lojas_qtd, preco: i.preco, descricao: i.descricao }); } }
+    // "Repetido" = mesma loja em 2+ pedidos vivos; item dividido por loja entre pedidos é compra legítima e NÃO conta (revisão 28/10/26).
+    // Qtd/R$ repetidos = o que os pedidos depois do primeiro levaram naquela loja; rs_repetido_por_pedido diz quanto de cada pedido é repetição.
+    // repetidos_lib (lib, pelo snapshot) inclui pedido cancelado/excluído; aqui só pedido vivo.
+    const porPedido = {};
     const duplicados = Object.entries(porCod).filter(([, l]) => l.length > 1).map(([cod, l]) => {
+      l.sort((a, b) => String(a.criadoEm || '').localeCompare(String(b.criadoEm || '')) || a.pedido - b.pedido);
       const it = cmp.itens.find(i => i.cod === String(cod)) || {};
       const lojas = {}; for (const x of l) for (const [ln, q] of Object.entries(x.lojas_qtd || {})) if (q > 0) (lojas[ln] = lojas[ln] || []).push(x.pedido);
-      const mesma_loja = Object.entries(lojas).filter(([, ps]) => ps.length > 1).map(([ln, ps]) => ({ loja: ln, pedidos: ps }));
-      return { cod, descricao: l[0].descricao, pedidos: l, mesma_loja, vencedor_hoje: it.vencedor ? it.vencedor.codFornec : null, fechado: !!it.fechado, pedidoId: it.pedidoId || null };
+      let qtd = 0, rs = 0;
+      const mesma_loja = Object.entries(lojas).filter(([, ps]) => ps.length > 1).map(([ln, ps]) => {
+        let q = 0, r = 0;
+        for (const pid of ps.slice(1)) { const x = l.find(y => y.pedido === pid), qi = (x.lojas_qtd || {})[ln] || 0, ri = qi * (x.preco || 0); q += qi; r += ri; porPedido[pid] = +((porPedido[pid] || 0) + ri).toFixed(2); }
+        qtd += q; rs += r; return { loja: ln, pedidos: ps, qtd_repetida: q, rs_repetido: +r.toFixed(2) };
+      });
+      return { cod, descricao: l[0].descricao, repetido: mesma_loja.length > 0, qtd_repetida: qtd, rs_repetido: +rs.toFixed(2), pedidos: l, mesma_loja, vencedor_hoje: it.vencedor ? it.vencedor.codFornec : null, fechado: !!it.fechado, pedidoId: it.pedidoId || null };
     });
-    const total_rs = duplicados.reduce((s, d) => s + d.pedidos.slice(1).reduce((t, x) => t + Object.values(x.lojas_qtd || {}).reduce((a, b) => a + (b || 0), 0) * (x.preco || 0), 0), 0);
-    res.json({ id: c.id, nome: c.nome, status: c.status, pedidos: peds.map(p => ({ ...p, n_itens: p.itens.length, itens: req.query.itens === '1' ? p.itens : undefined })), duplicados, total_duplicados: duplicados.length, total_rs_repetido: +total_rs.toFixed(2) });
+    const repetidos = duplicados.filter(d => d.repetido), divididos = duplicados.filter(d => !d.repetido);
+    const total_rs = repetidos.reduce((s, d) => s + d.rs_repetido, 0);
+    res.json({ id: c.id, nome: c.nome, status: c.status, pedidos: peds.map(p => ({ ...p, n_itens: p.itens.length, rs_repetido: porPedido[p.id] || 0, itens: req.query.itens === '1' ? p.itens : undefined })),
+      repetidos, divididos_por_loja: divididos.map(d => ({ cod: d.cod, descricao: d.descricao, pedidos: d.pedidos.map(x => ({ pedido: x.pedido, fornecedor: x.fornecedor, lojas: Object.keys(x.lojas_qtd || {}).filter(ln => x.lojas_qtd[ln] > 0) })) })),
+      repetidos_lib: cotacao.itensRepetidos(c), itens_em_mais_de_um_pedido: duplicados.length, total_repetidos: repetidos.length, total_rs_repetido: +total_rs.toFixed(2), rs_repetido_por_pedido: porPedido,
+      nota: 'repetido = mesma loja em 2+ pedidos vivos (divisão por loja entre pedidos não conta); repetidos_lib vem do snapshot e inclui pedido cancelado/excluído' });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 app.get('/api/_diag/robo', async (req, res) => {
@@ -10184,6 +10198,8 @@ app.get('/api/paineis/fiscal-dados/estado',(req, res) => res.json({ ...painelFis
 // ═══════════════════════════════════════════════════
 const cotacao = require('./lib/cotacao');
 cotacao.init();
+// Item já comprado não muda de vencedor (28/10/26): cotação de antes recebe em prePedidos[cf].itens o que cada pedido levou, lido do pedido
+try { const r = cotacao.preencherTodasItensPedidos(id => pedidosFornec.obter(id)); if (r.preenchidas) console.log('[COTACAO] itens dos pedidos preenchidos em ' + r.preenchidas + ' cotação(ões)'); for (const e of r.erros) console.error('[COTACAO] preencherItensPedidos #' + e.id + ':', e.erro); } catch (e) { console.error('[COTACAO] preencherItensPedidos:', e.message); }
 // Portal do Fornecedor (PWA /fornecedor/, 13/10/26): identidade do vendedor, avisos (Web Push) de nova cotação / prazo / pedido.
 // Avisar pelo app marca enviadoEm no fornecedor da cotação, então o "um por um" do WhatsApp lista só quem não tem o app.
 const portalForn = require('./lib/portal-fornecedor');
@@ -10207,7 +10223,7 @@ async function carregarFornMinimoErp() {
   } catch (e) { console.error('[COTAÇÃO] faturamento mínimo do ERP:', e.message); }
 }
 setTimeout(carregarFornMinimoErp, 15 * 1000); setInterval(carregarFornMinimoErp, 6 * 3600 * 1000);
-const cotDetalhe = c => { const antes = new Set(cotacao.listar().filter(x => x.id !== c.id && x.criadoEm < c.criadoEm && !x.teste).flatMap(x => x.fornecedores.map(f => f.codFornec))); const cmp = cotacao.comparativo(c); return { ...c, comparativo: cmp, pendentes_reais: c.status === 'aberta' ? cotacao.pendentesReais(c, cmp).map(f => ({ codFornec: f.codFornec, nome: f.nome })) : [], pode_encerrar: cotacao.podeEncerrar(c, cmp), prePedidos: cotacao.prePedidos(c, { minimoErp: COT_FORN_MIN, lista: radarPedidos.listaCadastro(c.lista) }), fornecedores: c.fornecedores.map(f => ({ ...f, precos: undefined, link: linkCotacao(f), cotados: c.itens.filter(i => f.precos[i.cod]?.preco > 0).length, novo: !antes.has(f.codFornec), canal: portalForn.canalDe(c, f) })), canais: portalForn.resumoCanais(c) }; };
+const cotDetalhe = c => { const antes = new Set(cotacao.listar().filter(x => x.id !== c.id && x.criadoEm < c.criadoEm && !x.teste).flatMap(x => x.fornecedores.map(f => f.codFornec))); const cmp = cotacao.comparativo(c), realizados = cotacao.fornecedoresRealizados(c); return { ...c, comparativo: cmp, pendentes_reais: c.status === 'aberta' ? cotacao.pendentesReais(c, cmp).map(f => ({ codFornec: f.codFornec, nome: f.nome })) : [], pode_encerrar: cotacao.podeEncerrar(c, cmp), itens_repetidos: cotacao.itensRepetidos(c), prePedidos: cotacao.prePedidos(c, { minimoErp: COT_FORN_MIN, lista: radarPedidos.listaCadastro(c.lista) }), fornecedores: c.fornecedores.map(f => ({ ...f, precos: undefined, link: linkCotacao(f), cotados: c.itens.filter(i => f.precos[i.cod]?.preco > 0).length, novo: !antes.has(f.codFornec), pedido_realizado: realizados.has(f.codFornec) ? (realizados.get(f.codFornec) === true ? 0 : realizados.get(f.codFornec)) : null, canal: portalForn.canalDe(c, f) })), canais: portalForn.resumoCanais(c) }; };
 
 app.get('/api/cotacoes', (req, res) => {
   try {

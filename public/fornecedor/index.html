@@ -231,10 +231,10 @@ function definirPin() {
 
 // ── telas ──
 function cardCot(c) {
-  var fin = c.f_status === 'finalizado', venc = c.prazo_vencido;
-  var cls = fin ? 'inf' : (venc ? 'neg' : 'am');
-  var pill = fin ? '<span class="pill inf">proposta enviada · aguardando resultado</span>' : venc ? '<span class="pill neg">prazo encerrado · fale com o(a) comprador(a)</span>' : (c.itens - c.cotados > 0 ? '<span class="pill am">faltam ' + (c.itens - c.cotados) + ' itens</span>' : '<span class="pill pos">tudo com preço · falta enviar</span>');
-  return '<a class="card ' + cls + '" href="' + esc(c.link) + '"><div class="c"><div class="t">#' + c.id + ' · ' + esc(c.nome) + '</div><div class="s">' + c.itens + ' itens · prazo ' + prazoTxt(c.prazo) + (!fin && !venc && c.prazo ? ' · ' + restam(c.prazo) : '') + (c.comprador && c.comprador.nome ? '<br>comprador(a): ' + esc(c.comprador.nome) : '') + '</div>' + pill + '</div><span class="chev">›</span></a>';
+  var ped = c.pedido_realizado != null, fin = c.f_status === 'finalizado', venc = c.prazo_vencido && !ped;   // pedido realizado com a proposta dele (28/10/26): nada a fazer na cotação
+  var cls = fin || ped ? 'inf' : (venc ? 'neg' : 'am');
+  var pill = ped ? '<span class="pill inf">pedido' + (c.pedido_realizado ? ' #' + c.pedido_realizado : '') + ' realizado' + (fin ? '' : ' · proposta travada') + '</span>' : fin ? '<span class="pill inf">proposta enviada · aguardando resultado</span>' : venc ? '<span class="pill neg">prazo encerrado · fale com o(a) comprador(a)</span>' : (c.itens - c.cotados > 0 ? '<span class="pill am">faltam ' + (c.itens - c.cotados) + ' itens</span>' : '<span class="pill pos">tudo com preço · falta enviar</span>');
+  return '<a class="card ' + cls + '" href="' + esc(c.link) + '"><div class="c"><div class="t">#' + c.id + ' · ' + esc(c.nome) + '</div><div class="s">' + c.itens + ' itens · prazo ' + prazoTxt(c.prazo) + (!fin && !ped && !venc && c.prazo ? ' · ' + restam(c.prazo) : '') + (c.comprador && c.comprador.nome ? '<br>comprador(a): ' + esc(c.comprador.nome) : '') + '</div>' + pill + '</div><span class="chev">›</span></a>';
 }
 function cardPed(p, pend) {
   var ent = p.cotacao && p.cotacao.entrega ? ' · entrega ' + String(p.cotacao.entrega).slice(0, 10).split('-').reverse().slice(0, 2).join('/') : '';
@@ -256,7 +256,7 @@ function render() {
   var v = D.vendedor, nome = (v.nome || v.whats_mascara || 'vendedor').split(' ')[0];
   var emp = (v.empresas || []).map(function (e) { return e.nome; }).join(' · ');
   var ab = D.cotacoes_abertas || [], rs = D.resultados || [], pp = D.pedidos_pendentes || [], ph = D.pedidos_historico || [], cad = D.cadastro;
-  var h = '<div class="top"><div class="l"><div class="ey">ECONÔMICO SUPERMERCADOS · REDE CAHU</div><h1>Olá, ' + esc(nome) + '</h1><div class="sub">' + esc(emp || 'Portal do Fornecedor') + (pushOk && Notification.permission === 'granted' && subAtual ? ' · avisos ativados' : '') + '</div></div><button class="bell' + (ab.filter(function (c) { return c.f_status !== 'finalizado'; }).length || pp.length ? ' on' : '') + '" aria-label="Avisos" onclick="ativarPush()">🔔</button></div><main>';
+  var h = '<div class="top"><div class="l"><div class="ey">ECONÔMICO SUPERMERCADOS · REDE CAHU</div><h1>Olá, ' + esc(nome) + '</h1><div class="sub">' + esc(emp || 'Portal do Fornecedor') + (pushOk && Notification.permission === 'granted' && subAtual ? ' · avisos ativados' : '') + '</div></div><button class="bell' + (ab.filter(function (c) { return c.f_status !== 'finalizado' && c.pedido_realizado == null; }).length || pp.length ? ' on' : '') + '" aria-label="Avisos" onclick="ativarPush()">🔔</button></div><main>';
   if (DEMO) h += '<div class="demo">EXEMPLO · dados fictícios pra mostrar como o portal fica. <a href="/fornecedor/">sair do exemplo</a></div>';
   h += pushCard();
   // ainda abre pelo navegador: lembra de instalar, com o passo a passo (Tiago, 15/10)
