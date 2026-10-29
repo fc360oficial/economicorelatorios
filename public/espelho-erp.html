@@ -106,6 +106,14 @@ label.ck{display:flex;align-items:center;gap:6px;font-size:12px}
     </div>
 
     <div class="card c12">
+      <h2>API de leitura (/api/v1)</h2>
+      <p class="d">Lê só o nosso banco, nunca o ERP. Autenticação pelo cabeçalho <span class="mono">X-Api-Key</span>; 300 chamadas por minuto por chave. Endereço: <span id="api-url" class="mono">—</span>. A lista de endpoints aparece em <span class="mono">GET /api/v1</span>.</p>
+      <table><thead><tr><th>Nome</th><th>Prefixo</th><th>Criada</th><th>Uso</th><th></th></tr></thead><tbody id="api-tb"></tbody></table>
+      <div class="btns" style="align-items:center"><input type="text" id="api-nome" placeholder="Nome da chave (ex.: BI, app loja)" style="width:240px"><button class="btn pri" id="b-api-criar">Criar chave</button></div>
+      <div class="msg" id="msg-api"></div>
+    </div>
+
+    <div class="card c12">
       <h2>Compras (notas e itens) <span id="cp-pill" class="pill">…</span></h2>
       <p class="d">central.compras e compraprodutos copiadas por faixa de chave primária. Carga inicial no horário comercial, depois notas e itens dos últimos 7 dias a cada 15 min e os últimos 60 dias às 07:50 e 13:00. <span id="cp-info" class="mut"></span></p>
       <table><thead><tr><th>Tabela</th><th style="width:35%">Carga inicial</th><th class="r">Linhas no banco</th><th>Período</th></tr></thead><tbody id="cp-tb"></tbody></table>
@@ -239,6 +247,24 @@ $('b-cp-carga').addEventListener('click', () => acao('compras-carga', $('msg-cp'
 $('b-cp-pausar').addEventListener('click', () => acao('compras-pausar', $('msg-cp')));
 $('b-cp-sync').addEventListener('click', () => acao('compras-sync', $('msg-cp')));
 $('b-cp-rec').addEventListener('click', () => acao('compras-recopiar', $('msg-cp')));
+// API de leitura: chaves
+async function carregarChaves() {
+  try {
+    const r = await fetch('/api/espelho/api-chaves', { cache: 'no-store' }); const j = await r.json(); if (j.error) throw new Error(j.error);
+    $('api-url').textContent = j.url || '—';
+    $('api-tb').innerHTML = (j.chaves || []).map(c => `<tr class="${c.ativa ? '' : 'mut'}"><td>${esc(c.nome)}${c.ativa ? '' : ' <span class="pill bad">revogada</span>'}</td><td class="mono">${esc(c.prefixo)}…</td><td>${c.criadaEm ? dataBr(c.criadaEm.slice(0, 10)) + ' ' + hora(c.criadaEm) : '—'}${c.criadaPor ? ' · ' + esc(c.criadaPor) : ''}</td><td class="mut">${c.uso ? fmtN(c.uso.total) + ' chamadas, última ' + hora(c.uso.ultimo) : 'nenhum uso desde a subida'}</td><td>${c.ativa ? `<button class="btn" data-rev="${c.id}">Revogar</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="5" class="mut">Nenhuma chave ainda.</td></tr>';
+    $('api-tb').querySelectorAll('[data-rev]').forEach(b => b.addEventListener('click', async () => { if (!confirm('Revogar esta chave? Quem a usa perde o acesso na hora.')) return; await fetch('/api/espelho/api-chaves/' + b.dataset.rev, { method: 'DELETE' }); carregarChaves(); }));
+  } catch (e) { $('msg-api').className = 'msg err'; $('msg-api').textContent = e.message; }
+}
+$('b-api-criar').addEventListener('click', async () => {
+  try {
+    const r = await fetch('/api/espelho/api-chaves', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nome: $('api-nome').value.trim() }) });
+    const j = await r.json(); if (j.error) throw new Error(j.error);
+    $('msg-api').className = 'msg ok'; $('msg-api').innerHTML = `Chave <b>${esc(j.nome)}</b> criada. Copie agora, ela não aparece de novo: <span class="mono" style="user-select:all">${esc(j.chave)}</span>`;
+    $('api-nome').value = ''; carregarChaves();
+  } catch (e) { $('msg-api').className = 'msg err'; $('msg-api').textContent = e.message; }
+});
+carregarChaves();
 $('b-hist').addEventListener('click', () => acao('historico', $('msg-hist')));
 $('b-pausar').addEventListener('click', () => acao('pausar', $('msg-hist')));
 $('b-retomar').addEventListener('click', () => acao('retomar', $('msg-hist')));
