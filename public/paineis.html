@@ -43,6 +43,7 @@ body{font-family:var(--font,'InterVar','Inter','Segoe UI',system-ui,sans-serif);
 .btn.amber{background:var(--am);color:var(--amk);border-color:var(--am);padding:9px 16px;font-size:13px;font-weight:700;border-radius:var(--r)}
 .btn.sq{width:28px;padding:4px 0;text-align:center}
 .acoes{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.rola{font-size:12.5px;color:var(--ink2);background:var(--pap);border:1px solid var(--ln);border-radius:var(--r);padding:10px 12px;margin-bottom:12px;display:flex;gap:10px 16px;flex-wrap:wrap;align-items:center}.rola b{color:var(--ink)}.rola label{display:flex;align-items:center;gap:6px;color:var(--ink)}.rola input{width:64px;font:inherit;color:var(--ink);background:var(--crd);border:1px solid var(--ln2);border-radius:var(--r-sm);padding:4px 6px;text-align:right}.rola small{flex-basis:100%;color:var(--ink3)}
 .msg{font-size:12px;min-height:16px}.msg.ok{color:var(--pos)}.msg.err{color:var(--neg)}
 .links{display:grid;grid-template-columns:auto 1fr auto;gap:8px 12px;align-items:center;font-size:12.5px}
 .links .lb{font-size:10px;color:var(--ink2);font-weight:700;text-transform:uppercase;letter-spacing:.5px}
@@ -73,6 +74,7 @@ body{font-family:var(--font,'InterVar','Inter','Segoe UI',system-ui,sans-serif);
         <h2>Painéis que giram na TV</h2>
         <p class="d">Marque quais entram, a ordem com as setas e os segundos por página. Tela com carrossel (compradoras, lojas) usa esse tempo em cada página.</p>
         <div class="lista" id="pc-lista"><p class="mut">Carregando…</p></div>
+        <div class="rola"><b>Carrossel subindo</b> (listas de margem, rupturas, curva A, produtos com avaria, rebaixas): <label>segundos por linha <input type="number" id="pc-rola-seg" min="0.5" max="10" step="0.5"></label> <label>pausa no início e no fim <input type="number" id="pc-rola-pausa" min="0" max="15" step="1"> s</label><small>Mesma velocidade em todas as telas. Quanto maior o número, mais devagar sobe. A página dura o que a lista precisa; os segundos de cada tela acima são o mínimo.</small></div>
         <div class="acoes"><button class="btn amber" id="pc-salvar">Salvar</button><span class="msg" id="pc-msg"></span></div>
       </div>
       <div class="card">
@@ -140,6 +142,7 @@ async function carregarCompras() {
   try {
     const c = await api('/api/paineis/compras-config'); PC = c;
     $('#pc-lan').value = c.linkLan; $('#pc-ext').value = c.linkTV;
+    $('#pc-rola-seg').value = c.rolagem ? c.rolagem.segPorLinha : 2.5; $('#pc-rola-pausa').value = c.rolagem ? c.rolagem.pausa : 3;
     $('#pc-msg').textContent = c.atualizadoEm ? `Salvo ${new Date(c.atualizadoEm).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}${c.atualizadoPor ? ' por ' + c.atualizadoPor : ''}.` : 'Ordem padrão.'; $('#pc-msg').className = 'msg';
     renderCompras();
   } catch (e) { $('#pc-lista').innerHTML = `<p class="msg err">${esc(e.message)}</p>`; }
@@ -152,7 +155,7 @@ $('#pc-lista').addEventListener('click', e => {
 });
 $('#pc-lista').addEventListener('change', e => { const c = e.target.closest('[data-liga]'); if (c && PC) { PC.ligados[c.dataset.liga] = c.checked; renderCompras(); } const sg = e.target.closest('[data-seg]'); if (sg && PC) { PC.segundos = PC.segundos || {}; PC.segundos[sg.dataset.seg] = Number(sg.value); } });
 $('#pc-salvar').addEventListener('click', async () => {
-  try { const c = await api('/api/paineis/compras-config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ordem: PC.ordem, ligados: PC.ligados, segundos: PC.segundos }) }); PC = { ...PC, ...c }; renderCompras(); $('#pc-msg').textContent = 'Salvo. A TV muda em até 1 minuto.'; $('#pc-msg').className = 'msg ok'; }
+  try { const c = await api('/api/paineis/compras-config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ordem: PC.ordem, ligados: PC.ligados, segundos: PC.segundos, rolagem: { segPorLinha: Number($('#pc-rola-seg').value), pausa: Number($('#pc-rola-pausa').value) } }) }); PC = { ...PC, ...c }; renderCompras(); $('#pc-msg').textContent = 'Salvo. A TV muda em até 1 minuto.'; $('#pc-msg').className = 'msg ok'; }
   catch (e) { $('#pc-msg').textContent = 'Não salvou: ' + e.message; $('#pc-msg').className = 'msg err'; }
 });
 document.querySelectorAll('[data-copia]').forEach(b => b.addEventListener('click', async () => {

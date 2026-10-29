@@ -134,7 +134,9 @@ const KIOSK = QS.get('kiosk') === '1';
 let TELA_INICIAL = /^\d+$/.test(QS.get('tela') || '') ? Math.max(0, +QS.get('tela') - 1) : null;
 const LOGO = '/logo-economico.png';
 const DADOS_MS = 60 * 1000, CFG_MS = 60 * 1000, SEM_SERVIDOR_MS = 20 * 60 * 1000, LINHAS = 9;
-const SEG_POR_LINHA = 2.5, PAUSA_MS = 3000;   // carrossel: mesma velocidade em todas as telas (uma linha a cada 2,5 s), 3 s parado no início e no fim
+// carrossel: mesma velocidade em todas as telas; segundos por linha e pausa vêm de Processos › Painéis › Painel Compras (padrão 2,5 s e 3 s)
+const segPorLinha = () => (CFG && CFG.rolagem && CFG.rolagem.segPorLinha) || 2.5;
+const pausaMs = () => ((CFG && CFG.rolagem && CFG.rolagem.pausa != null) ? CFG.rolagem.pausa : 3) * 1000;
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const $ = s => document.querySelector(s);
 const DIAS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
@@ -302,10 +304,10 @@ function rolar(slide) {
     const n = lista ? (parseInt(getComputedStyle(w).getPropertyValue('--n')) || LINHAS) : LINHAS; const rh = w.clientHeight / n;
     if (lista) w.style.setProperty('--rh', rh.toFixed(2));
     const diff = inner.scrollHeight - w.clientHeight; if (diff <= 4) return;
-    const dur = Math.round(diff / rh * SEG_POR_LINHA * 1000);   // mesma velocidade pra todo mundo
-    precisa = Math.max(precisa, dur + PAUSA_MS * 2);
+    const dur = Math.round(diff / rh * segPorLinha() * 1000);   // mesma velocidade pra todo mundo
+    precisa = Math.max(precisa, dur + pausaMs() * 2);
     inner.style.transition = 'none'; inner.style.transform = 'translateY(0)';
-    requestAnimationFrame(() => requestAnimationFrame(() => { inner.style.transition = `transform ${dur}ms linear ${PAUSA_MS}ms`; inner.style.transform = `translateY(-${diff}px)`; }));
+    requestAnimationFrame(() => requestAnimationFrame(() => { inner.style.transition = `transform ${dur}ms linear ${pausaMs()}ms`; inner.style.transform = `translateY(-${diff}px)`; }));
   });
   return precisa;
 }
