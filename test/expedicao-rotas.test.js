@@ -58,10 +58,9 @@ test('duas etapas com PIN pessoal: MARIA separa → terminei vira "separada" →
   assert.equal(r.statusCode, 200); const id = r.body.id; assert.equal(id, 'exp-' + expedicao.hojeStr() + '-10-6853'); assert.equal(r.body.produtos_pedido, 2); assert.equal(r.body.etapa, 'separacao'); assert.equal(r.body.separadoPor, 'MARIA'); assert.equal(r.body.souSeparador, true);
   assert.equal(r.body.pedido.length, 2, 'Separação de Pedidos leva a lista do pedido'); assert.equal(r.body.pedido[0].un, 108); assert.equal(r.body.pedido[0].ean4, '7605'); assert.equal(r.body.pedido[0].separado, null);
   r = res(); await routes['POST /api/expedicao-publico/abrir'](req({ query: qM, body: { nPedido: '9999' } }), r); assert.equal(r.statusCode, 404);
-  // bipe sem lote não soma; 3 fardos de 27 = 81 ≠ 108 → qtd_diferente
-  r = res(); await routes['POST /api/expedicao-publico/bipar'](req({ query: qM, body: { id, cod: '7891150097605', quant: 3, emb: 27 } }), r); assert.equal(r.body.resultado, 'sem_lote');
-  r = res(); await routes['POST /api/expedicao-publico/bipar'](req({ query: qM, body: { id, cod: '7891150097605', quant: 3, emb: 27, lote: 'L1' } }), r); assert.equal(r.body.resultado, 'qtd_diferente');
-  r = res(); await routes['POST /api/expedicao-publico/bipar'](req({ query: qM, body: { id, cod: '7891150097605', quant: 1, emb: 27, lote: 'L1' } }), r); assert.equal(r.body.resultado, 'ok');
+  // bipe sem lote SOMA sem registrar lote (lote opcional desde 28/10): 4 fardos de 27 = 108 → ok, lotes vazios (a sequência
+  // qtd_diferente → ok com lotes está em expedicao.test.js); separação sem lote não gera divergência de lote no carregamento
+  r = res(); await routes['POST /api/expedicao-publico/bipar'](req({ query: qM, body: { id, cod: '7891150097605', quant: 4, emb: 27 } }), r); assert.equal(r.body.resultado, 'ok'); assert.deepEqual(r.body.item.lotes, []);
   r = res(); await routes['POST /api/expedicao-publico/bipar'](req({ query: qM, body: { id, cod: '17891000457099', quant: 2, emb: 1, lote: 'B2' } }), r); assert.equal(r.body.resultado, 'ok');
   r = res(); await routes['POST /api/expedicao-publico/bipar'](req({ query: qM, body: { id, cod: '555', quant: 1, emb: 1, lote: 'X' } }), r); assert.equal(r.body.resultado, 'fora_do_pedido'); assert.equal(r.body.item.descricao, 'CAD 555');
   // não fecha: tem fora do pedido
@@ -88,17 +87,24 @@ test('duas etapas com PIN pessoal: MARIA separa → terminei vira "separada" →
   r = res(); await routes['POST /api/expedicao-publico/bipar'](req({ query: qJ, body: { id, cod: '7891150097605', quant: 4, emb: 27, lote: 'L1' } }), r); assert.equal(r.body.resultado, 'ok');
   r = res(); await routes['POST /api/expedicao-publico/bipar'](req({ query: qJ, body: { id, cod: '17891000457099', quant: 2, emb: 1, lote: 'B9' } }), r); assert.equal(r.body.resultado, 'ok');   // lote diferente da separação (B2)
   r = res(); await routes['POST /api/expedicao-publico/terminei'](req({ query: qJ, body: { id } }), r);
-  assert.equal(r.body.fechou, true); assert.equal(r.body.etapa, 'expedicao'); assert.equal(r.body.visao.status, 'fechada'); assert.equal(r.body.visao.expedidoPor, 'JOAO');
+  // Tiago (28/10): carregamento 100 % fica 'conferida'; só a liberação do fiscal do CD fecha e espelha no ERP de teste
+  assert.equal(r.body.fechou, true); assert.equal(r.body.etapa, 'expedicao'); assert.equal(r.body.visao.status, 'conferida'); assert.equal(r.body.visao.expedidoPor, 'JOAO');
+  assert.equal(lotes.length, 0, 'conferida ainda não espelha');
+  r = res(); routes['GET /api/expedicao/saidas'] && await routes['GET /api/expedicao/saidas'](req({ query: {} }), r); if (routes['GET /api/expedicao/saidas']) { assert.equal(r.body.length, 1); assert.equal(r.body[0].nPedido, '6853'); }
+  r = res(); await routes['POST /api/expedicao/liberar-saida'](req({ body: { id, decisao: 'liberar', obs: 'ok' }, session: { user: { nome: 'Fiscal CD' } } }), r);
+  assert.equal(r.body.status, 'fechada'); assert.equal(r.body.saida.decisao, 'liberada'); assert.equal(r.body.erp && r.body.erp.ok, true);
   assert.equal(lotes.length, 1); const passos = lotes[0].passos; assert.equal(passos.length, 2); assert.equal(lotes[0].usuario, 'coletor:JOAO');
   assert.deepEqual(passos.map(p => p.tabela + ':' + p.valores.Codigobarra + ':' + p.valores.Qtd + 'x' + p.valores.QtdEmb).sort(), ['conferencia_televendas:17891000457099:2x1', 'conferencia_televendas:7891150097605:4x27']);
   assert.equal(passos[0].valores.nPedido, 6853); assert.equal(passos[0].valores.nLoja, 10);
-  assert.deepEqual(logs.map(l => l.tipo), ['operador', 'operador', 'exp_abrir', 'exp_bipe', 'exp_bipe', 'exp_bipe', 'exp_bipe', 'exp_fechar', 'tirar_coletagem', 'exp_fechar', 'exp_trava', 'exp_abrir', 'exp_bipe', 'exp_bipe', 'exp_fechar', 'lote_divergente', 'erp']);
+  // 28/10: o bipe sem lote agora conta (e é logado); o carregamento 100 % fica 'conferida' e o espelho no ERP ('erp') só sai na liberação do fiscal ('exp_fiscal')
+  assert.deepEqual(logs.map(l => l.tipo), ['operador', 'operador', 'exp_abrir', 'exp_bipe', 'exp_bipe', 'exp_bipe', 'exp_fechar', 'tirar_coletagem', 'exp_fechar', 'exp_trava', 'exp_abrir', 'exp_bipe', 'exp_bipe', 'exp_fechar', 'lote_divergente', 'exp_fiscal', 'erp']);
   assert.equal(logs.find(l => l.tipo === 'exp_trava').nome, 'MARIA');
   // retaguarda: pendência de pallet (separação) + lote divergente (expedição), verificação pelo fiscal, as duas etapas na lista
   r = res(); routes['GET /api/expedicao/pendencias'](req({}), r); assert.equal(r.body.length, 2); assert.deepEqual(r.body.map(p => p.tipo).sort(), ['lote_divergente', 'tirar_coletagem']);
   const pend = r.body.find(p => p.tipo === 'tirar_coletagem'); assert.equal(pend.verificado, null);
   r = res(); routes['POST /api/expedicao/verificar'](req({ body: { id, idx: pend.idx }, session: { user: { nome: 'Fiscal CD' } } }), r); assert.equal(r.body.verificado.nome, 'FISCAL CD');
-  r = res(); routes['GET /api/expedicao/fechadas'](req({ query: {} }), r); assert.equal(r.body.length, 1); const f = r.body[0];
+  // 28/10: /fechadas traz "toda a expedição" — os nossos pedidos + os que só existem no painel do Dlinks (status 'dlinks'); o nosso é achado pelo id
+  r = res(); await routes['GET /api/expedicao/fechadas'](req({ query: {} }), r); assert.equal(r.body.filter(x => x.status !== 'dlinks').length, 1); const f = r.body.find(x => x.id === id); assert.ok(f);
   assert.equal(f.pendentesVerificar, 1, 'lote divergente ainda a verificar'); assert.equal(f.tirados, 1); assert.equal(f.lotesDivergentes, 1); assert.equal(f.tentativas, 3);
   assert.equal(f.etapas.modelo, 'duas'); assert.equal(f.etapas.separacao.operador.nome, 'MARIA'); assert.equal(f.etapas.separacao.tentativas, 2); assert.equal(f.etapas.expedicao.operador.nome, 'JOAO'); assert.equal(f.etapas.expedicao.fechadoPor, 'JOAO');
   r = res(); routes['GET /api/expedicao/lotes'](req({ query: {} }), r); const l1 = r.body.find(x => x.lote === 'L1'); assert.equal(l1.saiu, 108); assert.equal(l1.entrou, 0); assert.equal(l1.saldo, -108);
@@ -125,10 +131,12 @@ test('Separação de Pedidos com lista + fiscal do CD: /produto acha ou avisa fo
   r = res(); await routes['POST /api/expedicao-publico/bipar'](req({ query: qJ, body: { id, cod: '17891000457099', quant: 2, emb: 1, lote: 'B1' } }), r); assert.equal(r.body.resultado, 'fora_do_pedido', 'bombom não foi separado: não é esperado no caminhão');
   r = res(); await routes['POST /api/expedicao-publico/tirar'](req({ query: qJ, body: { id, cod: '17891000457099' } }), r);
   r = res(); await routes['POST /api/expedicao-publico/bipar'](req({ query: qJ, body: { id, cod: '7891150097605', quant: 3, emb: 27, lote: 'L1' } }), r); assert.equal(r.body.resultado, 'ok', 'bate com os 81 separados');
-  r = res(); await routes['POST /api/expedicao-publico/terminei'](req({ query: qJ, body: { id } }), r); assert.equal(r.body.fechou, true); assert.equal(r.body.visao.status, 'fechada');
+  r = res(); await routes['POST /api/expedicao-publico/terminei'](req({ query: qJ, body: { id } }), r); assert.equal(r.body.fechou, true); assert.equal(r.body.visao.status, 'conferida', 'carregamento 100 % espera o fiscal liberar a saída');
+  assert.equal(lotes.length, 0);
+  r = res(); await routes['POST /api/expedicao/liberar-saida'](req({ body: { id, decisao: 'liberar' }, session: { user: { nome: 'Fiscal CD' } } }), r); assert.equal(r.body.status, 'fechada');
   assert.equal(lotes.length, 1); assert.equal(lotes[0].passos.length, 1); assert.equal(lotes[0].passos[0].valores.Qtd, 3);
-  r = res(); routes['GET /api/expedicao/fechadas'](req({ query: {} }), r); assert.equal(r.body[0].liberacao.decisao, 'liberada'); assert.equal(r.body[0].liberacao.pendentes, 2);
-  assert.deepEqual(logs.filter(l => ['exp_separar', 'exp_fiscal'].includes(l.tipo)).map(l => l.tipo + ':' + l.resultado), ['exp_separar:qtd_diferente', 'exp_fiscal:liberada']);
+  r = res(); await routes['GET /api/expedicao/fechadas'](req({ query: {} }), r); const fe = r.body.find(x => x.id === id); assert.equal(fe.liberacao.decisao, 'liberada'); assert.equal(fe.liberacao.pendentes, 2);
+  assert.deepEqual(logs.filter(l => ['exp_separar', 'exp_fiscal'].includes(l.tipo)).map(l => l.tipo + ':' + l.resultado), ['exp_separar:qtd_diferente', 'exp_fiscal:liberada', 'exp_fiscal:liberada'], 'liberação da separação + liberação da saída');
   assert.equal(logs.filter(l => l.tipo === 'exp_bipe' && l.msg === 'separação · produto não está no pedido').length, 2);
   assert.match(logs.find(l => l.tipo === 'exp_fechar' && l.resultado === 'fiscal').msg, /mandada pro fiscal do CD · faltou/);
 });
