@@ -285,6 +285,9 @@ app.use((req, res, next) => {
   if (pathMin === '/recebimento.html' || pathMin === '/leitor-teste.html' || pathMin === '/recebimento' || pathMin === '/manifest-recebimento.json' || pathMin.startsWith('/api/recebimento-publico/') || pathMin.startsWith('/api/expedicao-publico/')) return next();
   // Batimento das telas de TV (Processos › Painéis e TVs, 27/10/26): a TV não tem sessão; validado dentro da rota (lib/paineis-tvs.js)
   if (pathMin.startsWith('/api/paineis-publico/')) return next();
+  // API de leitura (28/10/26 à noite, autorizada pelo Tiago): autentica por chave própria (X-Api-Key) dentro de lib/api-leitura.js;
+  // sem chave válida responde 401, e só lê o nosso Postgres (nunca o ERP, nunca grava).
+  if (pathMin.startsWith('/api/v1')) return next();
   // Pré-aquecimento interno (somente localhost)
   if (req.headers['x-internal-warmup'] === 'fc360warmup2026' && ['::1', '127.0.0.1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress)) return next();
   const ext = req.path.split('.').pop().toLowerCase();
@@ -8774,6 +8777,14 @@ app.get('/api/espelho/status', async (req, res) => {
   res.set('Cache-Control', 'no-store');
   try { res.json({ ...(await espelhoErp.status()), compras: await espelhoCompras.status().catch(e => ({ erro: e.message })), arquivos: await espelhoArquivos.status().catch(e => ({ erro: e.message })), filaErp: qEstado() }); } catch (err) { res.status(500).json({ error: err.message }); }
 });
+// API de leitura sobre o Postgres (/api/v1, chave própria): montagem + gestão das chaves pelo admin (rotas /api/espelho/*
+// já são só-admin pela trava "Rotas exclusivas de admin")
+const apiLeitura = require('./lib/api-leitura');
+apiLeitura.init({ dataDir: path.join(__dirname, 'data') });
+apiLeitura.montar(app);
+app.get('/api/espelho/api-chaves', (req, res) => res.json({ chaves: apiLeitura.listarChaves(), url: `${PUBLIC_URL}/api/v1`, status: apiLeitura.status() }));
+app.post('/api/espelho/api-chaves', (req, res) => { try { res.json(apiLeitura.criarChave((req.body || {}).nome, req.session.user?.nome || null)); } catch (err) { res.status(err.status || 400).json({ error: err.message }); } });
+app.delete('/api/espelho/api-chaves/:id', (req, res) => { try { res.json(apiLeitura.revogarChave(req.params.id)); } catch (err) { res.status(err.status || 400).json({ error: err.message }); } });
 app.get('/api/espelho/saude-erp', async (req, res) => {
   res.set('Cache-Control', 'no-store');
   try { res.json({ ...(await espelhoErp.saudeErp()), filaNossa: qEstado() }); } catch (err) { res.status(500).json({ error: err.message }); }
