@@ -319,7 +319,7 @@ const fmtN = (v, d = 0) => (v == null ? '–' : (+v).toLocaleString('pt-BR', { m
 const fmtR = v => 'R$ ' + fmtN(v, 2);
 const LOJAS = [1, 2, 3, 4, 5, 6];
 const LOJAS_NOMES = { 1: 'CAHU', 2: 'MURIBECA', 3: 'PONTE', 4: 'ATACAREJO', 5: 'PORTA LARGA', 6: 'JARDIM JORDÃO' };
-let ESTOPEN = new Set(), DADOS = null, EDITS = {}, SEL = new Set(), FILTRO = '', FLOJA = 0, VIS = {}, PEDIDOS = [], VINC = {}, VF = 'pendentes', SOQTD = 'qtd', ORDEM = 'az', SELINIT = false;
+let ESTOPEN = new Set(), DADOS = null, EDITS = {}, SEL = new Set(), UNSEL = new Set(), FILTRO = '', FLOJA = 0, VIS = {}, PEDIDOS = [], VINC = {}, VF = 'pendentes', SOQTD = 'qtd', ORDEM = 'az', SELINIT = false;
 
 document.querySelectorAll('.tab').forEach(b => b.onclick = () => { document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === b)); ['pedido', 'vinculos', 'pedidos', 'regras'].forEach(t => $('#tab-' + t).hidden = t !== b.dataset.tab); if (b.dataset.tab === 'pedido' && DADOS) carregar(false); });
 // Expedição (saída do CD pro Televendas) saiu daqui em 14/10/26 (Tiago): é tarefa do fiscal do CD, mora em
@@ -527,7 +527,11 @@ function renderPedido() {
   const r = DADOS.resumo; const all = todosItens();
   // badge da aba = itens COM quantidade a pedir (o que a tela mostra por padrão), não o total de produtos do CD (Tiago, 15/10: 'pq aqui tem 201')
   $('#n-pedido').textContent = all.filter(i => totCx(i) > 0).length;
-  if (!SELINIT) { for (const i of all) if (totCx(i) > 0) SEL.add(i.codigoCD); SELINIT = true; }
+  // Todo item com quantidade entra MARCADO, a não ser que a pessoa tenha desmarcado de propósito (UNSEL). Antes a marcação
+  // era feita uma vez só, na abertura da tela: item que ganhava quantidade depois (recálculo de hora em hora, vínculo
+  // confirmado, voltar pra aba) aparecia DESMARCADO e o Fechar pedido não mandava (Tiago, 29/10: pedido completo pras
+  // lojas e depois um monte de produto que era pra ter ido não foi).
+  for (const i of all) if (totCx(i) > 0 && !UNSEL.has(i.codigoCD)) SEL.add(i.codigoCD);
   // cards por loja: o que está SELECIONADO iria pra cada loja (com as edições)
   const porLoja = {}; for (const ln of LOJAS) porLoja[ln] = { cx: 0, itens: 0, custo: 0 };
   let semVinc = 0, semUpc = 0;
@@ -547,7 +551,7 @@ function renderPedido() {
       ${r.cdInsuficiente ? `<span class="neg">${r.cdInsuficiente} com CD insuficiente</span>` : ''}${semVinc ? `<span class="neg" style="cursor:pointer" onclick="VF='pendentes';document.querySelector('[data-tab=vinculos]').click()">${semVinc} sem vínculo (vão como produto novo)</span>` : ''}${semUpc ? `<span class="neg" style="cursor:pointer" onclick="VF='todos';document.querySelector('[data-tab=vinculos]').click()">${semUpc} sem un/cx</span>` : ''}
       <select onchange="SOQTD=this.value;renderPedido()" title="não sugeridos = itens com estoque no CD que não vão pra nenhuma loja (o motivo fica embaixo de cada caixinha)"><option value="qtd" ${SOQTD === 'qtd' ? 'selected' : ''}>Mostrar: com quantidade</option><option value="zero" ${SOQTD === 'zero' ? 'selected' : ''}>Mostrar: não sugeridos (têm estoque no CD)</option><option value="igual" ${SOQTD === 'igual' ? 'selected' : ''}>Mostrar: mesmo código (vínculo igual ao do CD)</option><option value="todos" ${SOQTD === 'todos' ? 'selected' : ''}>Mostrar: todos</option></select>
       <select onchange="ORDEM=this.value;renderPedido()"><option value="urgencia" ${ORDEM === 'urgencia' ? 'selected' : ''}>Ordem: urgência (CD insuficiente, crítico, cobertura)</option><option value="az" ${ORDEM === 'az' ? 'selected' : ''}>Ordem: A → Z</option></select></div>
-    <div class="acoes"><button class="btn btn-slate" onclick="EDITS={};SEL.clear();SELINIT=false;carregar(true)" title="refaz a base no ERP e recalcula tudo: quantidades digitadas à mão e marcações voltam pra sugestão nova (Tiago, 07/10)">↻ Recalcular</button><button class="btn btn-slate" onclick="selTodos('todos',true)">Marcar todos</button><button class="btn btn-slate" onclick="SEL.clear();renderPedido()">Desmarcar</button>
+    <div class="acoes"><button class="btn btn-slate" onclick="EDITS={};SEL.clear();UNSEL.clear();carregar(true)" title="refaz a base no ERP e recalcula tudo: quantidades digitadas à mão e marcações voltam pra sugestão nova (Tiago, 07/10)">↻ Recalcular</button><button class="btn btn-slate" onclick="selTodos('todos',true)">Marcar todos</button><button class="btn btn-slate" onclick="desmarcarTodos()">Desmarcar</button>
       <button class="btn btn-amber" ${selItens.length ? '' : 'disabled'} onclick="fecharPedido()" title="Gera um pedido por loja com as caixas dos produtos marcados (com as quantidades editadas)">Fechar pedido${FLOJA ? ' · L' + FLOJA : ''} →</button>
       <span class="contagem">${Object.keys(EDITS).length ? Object.keys(EDITS).length + ' quantidades editadas · ' : ''}${vis.length} de ${all.length} produtos</span></div>
     <div class="table-wrap"><table class="ppg"><colgroup><col class="cg-chk"><col class="cg-prod"><col class="cg-est"><col class="cg-tab"><col class="cg-qtd"><col class="cg-emb"><col class="cg-tot">${lojasCols.map(() => '<col class="cg-lj">').join("")}</colgroup><thead><tr><th class="c"><input type="checkbox" ${vis.length && vis.every(i => SEL.has(i.codigoCD)) ? 'checked' : ''} onchange="selTodos('todos',this.checked)"></th>
@@ -574,20 +578,25 @@ function renderPedidoLinhas() {
   const cont = $('#tab-pedido .acoes .contagem'); if (cont) cont.textContent = (Object.keys(EDITS).length ? Object.keys(EDITS).length + ' quantidades editadas · ' : '') + vis.length + ' de ' + all.length + ' produtos';
   const chk = $('#tab-pedido thead input[type=checkbox]'); if (chk) chk.checked = !!(vis.length && vis.every(i => SEL.has(i.codigoCD)));
 }
-function toggleSel(cod, on) { on ? SEL.add(cod) : SEL.delete(cod); renderPedido(); }
-function selTodos(id, on) { for (const cod of (VIS[id] || [])) on ? SEL.add(cod) : SEL.delete(cod); renderPedido(); }
+function marcar(cod, on) { if (on) { SEL.add(cod); UNSEL.delete(cod); } else { SEL.delete(cod); UNSEL.add(cod); } }
+function toggleSel(cod, on) { marcar(cod, on); renderPedido(); }
+function desmarcarTodos() { for (const i of todosItens()) marcar(i.codigoCD, false); renderPedido(); }
+function selTodos(id, on) { for (const cod of (VIS[id] || [])) marcar(cod, on); renderPedido(); }
 // digitou quantidade > 0 = quer o produto: marca sozinho (zerar não desmarca; o checkbox continua mandando)
-function editar(cod, ln, v) { EDITS[cod + '|' + ln] = Math.max(0, Math.round(+v || 0)); if (EDITS[cod + '|' + ln] > 0) SEL.add(cod); renderPedido(); }
+function editar(cod, ln, v) { EDITS[cod + '|' + ln] = Math.max(0, Math.round(+v || 0)); if (EDITS[cod + '|' + ln] > 0) marcar(cod, true); renderPedido(); }
 async function fecharPedido() {
   const itens = DADOS.repor.concat(DADOS.novos).filter(i => SEL.has(i.codigoCD));
   const semV = itens.filter(i => i.semVinculo).length;
   const lojasAlvo = FLOJA ? [FLOJA] : LOJAS;
   const lojas = {}; for (const ln of lojasAlvo) { const l = itens.map(i => ({ codigoCD: i.codigoCD, caixas: cxDe(i, ln) })).filter(x => x.caixas > 0); if (l.length) lojas[ln] = l; }
   const n = Object.keys(lojas).length; if (!n) return alert('Nenhuma caixa nas lojas selecionadas.');
+  // produto com quantidade que ficou DESMARCADO não vai: avisa antes de fechar, com os nomes
+  const fora = todosItens().filter(i => !SEL.has(i.codigoCD) && lojasAlvo.some(ln => cxDe(i, ln) > 0));
+  if (fora.length && !confirm(fora.length + ' produto(s) COM QUANTIDADE estão DESMARCADOS e NÃO vão no pedido:\n\n' + fora.slice(0, 15).map(i => '• ' + i.descricaoCD).join('\n') + (fora.length > 15 ? '\n… e mais ' + (fora.length - 15) : '') + '\n\nContinuar sem eles? (Cancelar = voltar e marcar)')) return;
   const avisoNovo = semV ? ` ${semV} produto(s) sem vínculo vão como PRODUTO NOVO pela caixa (a loja cadastra/vincula ao receber).` : '';
   if (!confirm((FLOJA ? `Gerar pedido pra L${FLOJA}?` : `Gerar pedidos pra ${n} loja(s)?`) + avisoNovo)) return;
   try { const ps = await api('/api/pedidos-cd/pedidos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lojas }) });
-    SEL.clear(); EDITS = {}; await carregarPedidos(); document.querySelector('[data-tab=pedidos]').click(); alert(ps.length + ' pedido(s) criado(s).'); carregar(false);
+    SEL.clear(); UNSEL.clear(); EDITS = {}; await carregarPedidos(); document.querySelector('[data-tab=pedidos]').click(); alert(ps.length + ' pedido(s) criado(s).'); carregar(false);
   } catch (e) { alert(e.message); }
 }
 // a capa (Pedido da semana) passa a refletir o vínculo NA HORA: a sugestão vem do último recálculo (~30 s no ERP) e, até ele
