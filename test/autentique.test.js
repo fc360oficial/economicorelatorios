@@ -1,6 +1,7 @@
 // test/autentique.test.js — integração Autentique (fase de diagnóstico): config mascarada, teste de autenticação com servidor GraphQL falso
 // (chave válida, inválida, 429), validação HMAC do webhook e registro de eventos. Nenhuma chamada sai para a internet.
 const fs = require('fs'), os = require('os'), path = require('path'), http = require('http'), crypto = require('crypto');
+process.env.CGD_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'cgd-aut-teste-'));
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const AUT = require('../lib/autentique');
