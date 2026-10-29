@@ -6295,7 +6295,9 @@ app.get('/api/margem-tv/comprador', withCache(5), async (req, res) => {
 
     // Espelho do ERP (fase 2, 28/10/26): mês coberto no Postgres → soma das 6 lojas por produto vem de lá numa consulta
     // (a TV de Compras gira esta tela 4× por ciclo e cada uma levava 5-37 s no .252); sem cobertura → UNION no ERP.
-    const vendasEspelho = await espelhoErp.vendaPeriodo([1, 2, 3, 4, 5, 6], dIni, dFim, { codigos }).catch(e => { console.error('[ESPELHO] margem-tv:', e.message); return null; });
+    // Tiago (29/10): esta é a tela da TV de Compras, que gira 4× por ciclo — fica com a cópia de 15 min (0,5 s) em vez de
+    // buscar o dia de hoje ao vivo no ERP (2 s de mediana, 7 s no pior caso). As outras telas continuam com hoje ao vivo.
+    const vendasEspelho = await espelhoErp.vendaPeriodo([1, 2, 3, 4, 5, 6], dIni, dFim, { codigos, hojeAoVivo: false }).catch(e => { console.error('[ESPELHO] margem-tv:', e.message); return null; });
     if (vendasEspelho) res.set('X-Fonte-Vendas', 'espelho');
     const vendasDoEspelho = () => { const m = {}; for (const r of vendasEspelho) { const a = m[r.codigo] || (m[r.codigo] = { Codigo: r.codigo, qtd: 0, valor: 0, custo: 0 }); a.qtd += +r.qtd || 0; a.valor += +r.valor || 0; a.custo += +r.custo || 0; } return Object.values(m); };
 
