@@ -126,6 +126,7 @@ const app = express();
 // se aplicaria a ele, viraria só um consumo inútil do stream).
 app.use((req, res, next) => {
   if (req.path.startsWith('/negativos-agent')) return next();
+  if (req.path === '/api/autentique/webhook') return next();   // corpo bruto: a assinatura HMAC da Autentique é calculada sobre os bytes originais
   express.json({ limit: '10mb' })(req, res, next);
 });
 
@@ -229,7 +230,7 @@ app.use(session({
 
 // Middleware de autenticação (antes do static)
 app.use((req, res, next) => {
-  const publico = ['/login.html', '/api/login', '/api/logout', '/logo.png', '/deploy', '/api/versao', '/coletor-economico.apk', '/api/coletor-apk/versao',
+  const publico = ['/login.html', '/api/login', '/api/logout', '/api/autentique/webhook', '/logo.png', '/deploy', '/api/versao', '/coletor-economico.apk', '/api/coletor-apk/versao',
     '/api/negativos/reenviar', '/api/pendencias/congelar-manual',
     '/manifest.json', '/sw.js', '/icon-192.png', '/icon-512.png',
     '/relatorio-cronograma.html',
@@ -9644,6 +9645,16 @@ setInterval(() => { try { require('./lib/disciplinar').avisarPrazos(); } catch (
 // Gestão Documental (28/10/2026, DP / RH › Gestão Documental, etapa 02): prontuário digital por funcionário (id do PontoCerto),
 // CPD envia → RH confere e arquiva, importação histórica direta pelo RH, Coordenação autoriza excluir/substituir validado
 // com a senha da própria conta (bcrypt, nunca gravada). Regras em lib/gestao-documental.js; arquivos em data/gestao-documental.
+// Webhook da Autentique (29/10/2026, fase de diagnóstico): público, sem sessão; valida o HMAC-SHA256 do corpo bruto (X-Autentique-Signature)
+// e só guarda o evento (data/gestao-documental/autentique/eventos.jsonl). Responde 200 na hora; o arquivamento do PDF assinado é da próxima fase.
+app.post('/api/autentique/webhook', express.raw({ type: '*/*', limit: '2mb' }), (req, res) => {
+  const AUT = require('./lib/autentique'); const raw = Buffer.isBuffer(req.body) ? req.body : Buffer.from(String(req.body || ''));
+  const v = AUT.validarAssinatura(raw, req.headers['x-autentique-signature']);
+  let ev = null; try { ev = JSON.parse(raw.toString('utf8')); } catch (e) {}
+  if (!v.ok) { try { AUT.registrarEvento(ev || {}, { assinaturaOk: false, motivo: v.motivo, ip: req.ip }); } catch (e) {} console.warn('[autentique] webhook recusado: ' + v.motivo); return res.status(401).json({ error: 'assinatura inválida' }); }
+  try { AUT.registrarEvento(ev || {}, { assinaturaOk: true, ip: req.ip }); } catch (e) { console.error('[autentique] webhook:', e.message); }
+  res.json({ ok: true });
+});
 require('./lib/gestao-documental-rotas')(app, { pontocerto, multer,
   validarSenha: async (usuario, senha) => { const u = usuarios.find(x => x.usuario === usuario); return !!(u && u.senha_hash && await bcrypt.compare(String(senha), u.senha_hash)); } });
 // Cadastro Bancário de funcionários (23/10/2026, abas em Termos de Escala): versões cifradas, dupla conferência DP → Financeiro,
