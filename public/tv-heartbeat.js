@@ -23,12 +23,23 @@
           // Página nova no servidor → recarrega sozinha (igual às TVs de token). Guarda a 1ª versão vista e compara nas seguintes.
           if (!j || j.versaoPagina == null) return;
           if (VERSAO === null) VERSAO = j.versaoPagina;
-          else if (j.versaoPagina !== VERSAO) { VERSAO = j.versaoPagina; location.reload(); }
+          else if (j.versaoPagina !== VERSAO) { VERSAO = j.versaoPagina; recarregarQuandoDerCerto(); }
         })
         .catch(function () {});
     } catch (e) {}
   }
   var VERSAO = null;
+  // Página nova no servidor: só recarrega depois de confirmar que a página responde 200. Em 29/10 a TV de compras recarregou
+  // no segundo em que o servidor reiniciava (deploy), caiu numa página de erro do navegador e ficou muda até alguém dar F5.
+  var tentandoRecarregar = false;
+  function recarregarQuandoDerCerto() {
+    if (tentandoRecarregar) return; tentandoRecarregar = true;
+    var tenta = function (n) {
+      fetch(location.pathname + location.search, { method: 'GET', cache: 'no-store' }).then(function (r) { if (r.ok) location.reload(); else throw new Error('HTTP ' + r.status); })
+        .catch(function () { if (n < 60) setTimeout(function () { tenta(n + 1); }, 5000); else tentandoRecarregar = false; });
+    };
+    setTimeout(function () { tenta(0); }, 8000);   // 8 s de folga pro reinício do serviço terminar
+  }
   enviar();
   setInterval(enviar, 30000);
   document.addEventListener('visibilitychange', function () { if (!document.hidden) enviar(); });
