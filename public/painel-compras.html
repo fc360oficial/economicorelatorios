@@ -134,6 +134,7 @@ const KIOSK = QS.get('kiosk') === '1';
 let TELA_INICIAL = /^\d+$/.test(QS.get('tela') || '') ? Math.max(0, +QS.get('tela') - 1) : null;
 const LOGO = '/logo-economico.png';
 const DADOS_MS = 60 * 1000, CFG_MS = 60 * 1000, SEM_SERVIDOR_MS = 20 * 60 * 1000, LINHAS = 9;
+const SEG_POR_LINHA = 2.5, PAUSA_MS = 3000;   // carrossel: mesma velocidade em todas as telas (uma linha a cada 2,5 s), 3 s parado no início e no fim
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const $ = s => document.querySelector(s);
 const DIAS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
@@ -283,8 +284,8 @@ function mostrar() {
   const s = SEQ[idx % SEQ.length]; const nxt = front === 'A' ? 'B' : 'A'; const el = document.getElementById(nxt);
   try { el.innerHTML = s.html(); } catch (e) { console.error('[TV] página', s.painel, e); el.innerHTML = `<div>${topo(TITULOS[s.painel] || 'Painel', '', '')}${vazio('Tela indisponível', 'Erro ao montar esta página; a rotação continua.')}${foot([], '', cnt())}</div>`; }
   requestAnimationFrame(() => { el.classList.add('on'); document.getElementById(front).classList.remove('on'); front = nxt; });
-  const ms = (((CFG && CFG.segundos && CFG.segundos[s.painel]) || 30)) * 1000;
-  rolar(el, ms);
+  const base = (((CFG && CFG.segundos && CFG.segundos[s.painel]) || 30)) * 1000;
+  const ms = Math.max(base, rolar(el));   // lista comprida: a página dura o que a rolagem precisa, na velocidade padrão
   const pr = $('#prog'); pr.style.transition = 'none'; pr.style.width = '0';
   requestAnimationFrame(() => requestAnimationFrame(() => { pr.style.transition = `width ${ms}ms linear`; pr.style.width = '100%'; }));
   clearTimeout(timer); timer = setTimeout(() => { idx++; mostrar(); }, ms);
@@ -292,17 +293,21 @@ function mostrar() {
 // Carrossel subindo (Tiago, 28/10: 'igual tinha antes, pra evitar vários slides'): a lista cabe numa janela de N linhas;
 // se tem mais, o miolo desliza pra cima durante o tempo da página (3 s parado no começo e no fim). Vale pras listas
 // (.rows.rola) e pro corpo dos cards da Central (.cc .corpo.rola).
-function rolar(slide, ms) {
+function rolar(slide) {
+  let precisa = 0;
   slide.querySelectorAll('.rows.rola, .cc .corpo.rola').forEach(w => {
     const lista = w.classList.contains('rows');
     const inner = document.createElement('div'); inner.className = lista ? 'rows-in' : 'corpo-in';
     while (w.firstChild) inner.appendChild(w.firstChild); w.appendChild(inner);
-    if (lista) { const n = parseInt(getComputedStyle(w).getPropertyValue('--n')) || LINHAS; w.style.setProperty('--rh', (w.clientHeight / n).toFixed(2)); }
+    const n = lista ? (parseInt(getComputedStyle(w).getPropertyValue('--n')) || LINHAS) : LINHAS; const rh = w.clientHeight / n;
+    if (lista) w.style.setProperty('--rh', rh.toFixed(2));
     const diff = inner.scrollHeight - w.clientHeight; if (diff <= 4) return;
-    const dur = Math.max(1500, ms - 6000);
+    const dur = Math.round(diff / rh * SEG_POR_LINHA * 1000);   // mesma velocidade pra todo mundo
+    precisa = Math.max(precisa, dur + PAUSA_MS * 2);
     inner.style.transition = 'none'; inner.style.transform = 'translateY(0)';
-    requestAnimationFrame(() => requestAnimationFrame(() => { inner.style.transition = `transform ${dur}ms linear 3000ms`; inner.style.transform = `translateY(-${diff}px)`; }));
+    requestAnimationFrame(() => requestAnimationFrame(() => { inner.style.transition = `transform ${dur}ms linear ${PAUSA_MS}ms`; inner.style.transform = `translateY(-${diff}px)`; }));
   });
+  return precisa;
 }
 function aviso(t, p) { const a = $('#aviso'); a.innerHTML = `<img src="${LOGO}" alt=""><h1>${esc(t)}</h1><p>${esc(p)}</p>`; a.hidden = false; }
 function aplicar() {
