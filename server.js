@@ -9879,7 +9879,13 @@ app.get('/api/paineis-publico/fiscal-dados', async (req, res) => {
   res.set('Cache-Control', 'no-store');
   try { res.json(await painelFiscal.dados()); } catch (err) { res.status(503).json({ error: 'Sem dados no momento: ' + err.message }); }
 });
-app.get('/api/paineis/fiscal-dados/estado', (req, res) => res.json({ ...painelFiscal.estado(), linkTV: `${PUBLIC_URL}/painel-fiscal.html`, linkLan: 'http://192.168.2.254:3003/painel-fiscal.html' }));
+app.get('/api/paineis-publico/fiscal-config', (req, res) => { res.set('Cache-Control', 'no-store'); res.json(paineisTvs.getFiscalConfig()); });
+app.get('/api/paineis/fiscal-config', (req, res) => res.json(paineisTvs.getFiscalConfig()));
+app.post('/api/paineis/fiscal-config', (req, res) => {
+  try { res.json(paineisTvs.salvarFiscalConfig(req.body || {}, req.session.user?.nome || null)); }
+  catch (err) { res.status(400).json({ error: err.message }); }
+});
+app.get('/api/paineis/fiscal-dados/estado',(req, res) => res.json({ ...painelFiscal.estado(), linkTV: `${PUBLIC_URL}/painel-fiscal.html`, linkLan: 'http://192.168.2.254:3003/painel-fiscal.html' }));
 
 // ═══════════════════════════════════════════════════
 // COTAÇÃO — Gestão de Compras > Cotação. Regras em lib/cotacao.js (1 JSON por cotação em data/cotacoes/).

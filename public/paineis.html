@@ -56,7 +56,7 @@ body{font-family:var(--font,'InterVar','Inter','Segoe UI',system-ui,sans-serif);
 <div class="main">
   <div class="page-hdr">
     <h1>Painéis</h1>
-    <p>As quatro telas de TV da empresa num lugar só: o que está ligado agora e a configuração de cada painel. Salvou aqui, a TV muda em até 10 segundos (Painel Compras: até 1 minuto). Só administradores.</p>
+    <p>As telas de TV da empresa num lugar só: o que está ligado agora e a configuração de cada painel. Salvou aqui, a TV muda em até 10 segundos (Painel Compras: até 1 minuto; Painel Fiscal: até 30 s). Só administradores.</p>
   </div>
   <div class="tabs" role="tablist">
     <button class="on" data-aba="monitor" role="tab">Monitor</button>
@@ -96,10 +96,14 @@ body{font-family:var(--font,'InterVar','Inter','Segoe UI',system-ui,sans-serif);
   <section class="aba" id="aba-fiscal">
     <div class="pc">
       <div class="card">
-        <h2>Painel Fiscal (TV do setor fiscal)</h2>
-        <p class="d">Fila de trabalho do fiscal, só E1 a E6: Reconferência (só aparece quando tem) · Divergências pra decidir · Pronto pra liberar · Quadro por loja · NF-e sem conferência · A caminho / atrasados. Cada tela fica 25 s; lista comprida rola pra cima.</p>
-        <p class="como"><b>Alerta de reconferência:</b> quando aparece uma reconferência nova, a TV pisca em vermelho com alerta sonoro por 5 s e volta pro slide em que estava. Pra ouvir, clique uma vez na TV depois de abrir o painel (aparece o botão amarelo "ligar o som"). <b>Testar:</b> abra o link de teste ao lado ou aperte a tecla A na TV.</p>
-        <p class="mut" id="pf-estado">Carregando…</p>
+        <h2>Telas que giram na TV do fiscal</h2>
+        <p class="d">Marque quais entram, a ordem com as setas e os segundos de cada página. Toda tela sai uma página por loja (menos o Quadro), sem valor de nota. A ordem padrão segue o caminho da nota: chegou → reconferência → divergência → pronto.</p>
+        <div class="lista" id="pf-lista"><p class="mut">Carregando…</p></div>
+        <div class="rola"><b>Alerta de reconferência</b> <label><input type="checkbox" id="pf-al-liga" style="width:auto"> ligado</label> <label><input type="checkbox" id="pf-al-som" style="width:auto"> com som</label> <label>dura <input type="number" id="pf-al-seg" min="3" max="120" step="1"> s</label><small>Reconferência nova: a TV pisca em vermelho (com sirene, se o som estiver ligado) e volta pro slide em que estava. Toca uma vez por reconferência. Pra ouvir, clique uma vez na TV depois de abrir o painel.</small></div>
+        <div class="rola"><b>Lojas na TV</b> <span id="pf-lojas"></span><small>Loja desmarcada some de todas as telas; o alerta continua valendo pras lojas marcadas.</small></div>
+        <div class="rola"><b>Carrossel subindo</b> <label>segundos por linha <input type="number" id="pf-rola-seg" min="0.5" max="10" step="0.5"></label> <label>pausa no início e no fim <input type="number" id="pf-rola-pausa" min="0" max="15" step="1"> s</label><small>Lista comprida sobe devagar; a página dura o que a lista precisa (os segundos acima são o mínimo).</small></div>
+        <div class="acoes"><button class="btn amber" id="pf-salvar">Salvar</button><span class="msg" id="pf-msg"></span></div>
+        <p class="mut" id="pf-estado" style="margin-top:10px">Carregando…</p>
       </div>
       <div class="card">
         <h2>Link da TV</h2>
@@ -108,7 +112,7 @@ body{font-family:var(--font,'InterVar','Inter','Segoe UI',system-ui,sans-serif);
           <span class="lb">Fora</span><input class="lk" id="pf-ext" readonly><button class="btn" data-copia="pf-ext">Copiar</button>
           <span class="lb">Teste</span><input class="lk" id="pf-teste" readonly><button class="btn" data-copia="pf-teste">Copiar</button>
         </div>
-        <p class="como">Sem token, igual ao Painel Compras. <b>?alerta=20</b> no fim do link muda o tempo do alerta (5 a 120 s). Depois de uma atualização do sistema a TV recarrega sozinha.</p>
+        <p class="como">Sem token, igual ao Painel Compras. A TV lê esta configuração a cada 30 s; depois de uma atualização do sistema ela recarrega sozinha. <b>Teste</b> mostra um alerta de exemplo 5 s depois de abrir (ou aperte A na TV).</p>
       </div>
     </div>
   </section>
@@ -148,13 +152,49 @@ async function status() {
 status(); setInterval(status, 15000);
 
 // ── Painel Fiscal ──
+let PF = null;
+const LOJA_NOME = { 1: 'E1 Socorro', 2: 'E2 Muribeca', 3: 'E3 Ponte', 4: 'E4 Atacarejo', 5: 'E5 Porta Larga', 6: 'E6 Jardim Jordão' };
+function renderFiscal() {
+  const porId = Object.fromEntries(PF.paineis.map(p => [p.id, p]));
+  $('#pf-lista').innerHTML = PF.ordem.map((id, i) => { const p = porId[id]; const on = PF.ligados[id] !== false; return `
+    <div class="item${on ? '' : ' off'}">
+      <span class="n num">${i + 1}</span>
+      <label><input type="checkbox" ${on ? 'checked' : ''} data-liga="${id}"><span><b>${esc(p.nome)}</b><small>${esc(p.desc)}</small></span></label>
+      <span class="seg"><input type="number" min="10" max="180" step="5" value="${PF.segundos[id]}" data-seg="${id}" title="Segundos por página"> s</span>
+      <span class="mv"><button class="btn sq" data-mv="-1" data-id="${id}" ${i === 0 ? 'disabled' : ''} title="Subir">▲</button><button class="btn sq" data-mv="1" data-id="${id}" ${i === PF.ordem.length - 1 ? 'disabled' : ''} title="Descer">▼</button></span>
+    </div>`; }).join('');
+  $('#pf-lojas').innerHTML = PF.todasLojas.map(l => `<label><input type="checkbox" style="width:auto" data-loja="${l}" ${PF.lojas.includes(l) ? 'checked' : ''}> ${LOJA_NOME[l]}</label>`).join(' ');
+}
 async function carregarFiscal() {
+  try {
+    const c = await api('/api/paineis/fiscal-config'); PF = c;
+    $('#pf-al-liga').checked = c.alerta.ligado; $('#pf-al-som').checked = c.alerta.som; $('#pf-al-seg').value = c.alerta.segundos;
+    $('#pf-rola-seg').value = c.rolagem.segPorLinha; $('#pf-rola-pausa').value = c.rolagem.pausa;
+    $('#pf-msg').textContent = c.atualizadoEm ? `Salvo ${new Date(c.atualizadoEm).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}${c.atualizadoPor ? ' por ' + c.atualizadoPor : ''}.` : 'Configuração padrão.'; $('#pf-msg').className = 'msg';
+    renderFiscal();
+  } catch (e) { $('#pf-lista').innerHTML = `<p class="msg err">${esc(e.message)}</p>`; }
   try {
     const e = await api('/api/paineis/fiscal-dados/estado');
     $('#pf-lan').value = e.linkLan; $('#pf-ext').value = e.linkTV; $('#pf-teste').value = e.linkLan + '?teste=alerta';
     $('#pf-estado').textContent = e.geradoEm ? 'Dados montados às ' + new Date(e.geradoEm).toTimeString().slice(0, 5) + (e.duracaoMs != null ? ' (' + Math.round(e.duracaoMs / 1000) + ' s)' : '') : (e.montando ? 'Montando os dados pela 1ª vez…' : 'Ainda sem dados: a 1ª carga acontece 75 s depois do servidor subir.');
   } catch (err) { $('#pf-estado').textContent = 'Erro: ' + err.message; }
 }
+
+$('#pf-lista').addEventListener('click', e => {
+  const b = e.target.closest('[data-mv]'); if (!b || !PF) return;
+  const i = PF.ordem.indexOf(b.dataset.id), j = i + Number(b.dataset.mv);
+  if (j < 0 || j >= PF.ordem.length) return;
+  [PF.ordem[i], PF.ordem[j]] = [PF.ordem[j], PF.ordem[i]]; renderFiscal();
+});
+$('#pf-lista').addEventListener('change', e => { const c = e.target.closest('[data-liga]'); if (c && PF) { PF.ligados[c.dataset.liga] = c.checked; renderFiscal(); } const sg = e.target.closest('[data-seg]'); if (sg && PF) PF.segundos[sg.dataset.seg] = Number(sg.value); });
+$('#pf-salvar').addEventListener('click', async () => {
+  try {
+    const lojas = [...document.querySelectorAll('#pf-lojas [data-loja]')].filter(x => x.checked).map(x => Number(x.dataset.loja));
+    const c = await api('/api/paineis/fiscal-config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ordem: PF.ordem, ligados: PF.ligados, segundos: PF.segundos, lojas,
+      alerta: { ligado: $('#pf-al-liga').checked, som: $('#pf-al-som').checked, segundos: Number($('#pf-al-seg').value) }, rolagem: { segPorLinha: Number($('#pf-rola-seg').value), pausa: Number($('#pf-rola-pausa').value) } }) });
+    PF = c; renderFiscal(); $('#pf-msg').textContent = 'Salvo. A TV muda em até 30 segundos.'; $('#pf-msg').className = 'msg ok';
+  } catch (e) { $('#pf-msg').textContent = 'Não salvou: ' + e.message; $('#pf-msg').className = 'msg err'; }
+});
 
 // ── Painel Compras ──
 let PC = null;

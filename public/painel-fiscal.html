@@ -140,9 +140,18 @@ svg.ic{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2;stroke-
 const QS = new URLSearchParams(location.search);
 const KIOSK = QS.get('kiosk') === '1';
 let TELA_INICIAL = /^\d+$/.test(QS.get('tela') || '') ? Math.max(0, +QS.get('tela') - 1) : null;
-const ALERTA_SEG = /^\d+$/.test(QS.get('alerta') || '') ? Math.min(120, Math.max(5, +QS.get('alerta'))) : 5;   // 5 s (Tiago, 30/10)
+// Configuração em Processos › Painéis › Painel Fiscal (/api/paineis-publico/fiscal-config, lida a cada 30 s): telas
+// liga/desliga, ordem, segundos por página, alerta (liga, som, segundos), lojas e carrossel. ?alerta=N no link ainda manda.
+const ALERTA_URL = /^\d+$/.test(QS.get('alerta') || '') ? Math.min(120, Math.max(3, +QS.get('alerta'))) : null;
+let CFG = null;
+const alertaSeg = () => ALERTA_URL || (CFG && CFG.alerta && CFG.alerta.segundos) || 5;
+const alertaLigado = () => !CFG || !CFG.alerta || CFG.alerta.ligado !== false;
+const somLigado = () => !CFG || !CFG.alerta || CFG.alerta.som !== false;
+const lojasOk = () => (CFG && CFG.lojas && CFG.lojas.length) ? CFG.lojas : [1, 2, 3, 4, 5, 6];
+const segLinha = () => (CFG && CFG.rolagem && CFG.rolagem.segPorLinha) || 2.5;
+const pausaMs = () => ((CFG && CFG.rolagem && CFG.rolagem.pausa != null) ? CFG.rolagem.pausa : 3) * 1000;
 const LOGO = '/logo-economico.png';
-const DADOS_MS = 30 * 1000, SEM_SERVIDOR_MS = 20 * 60 * 1000, LINHAS = 8, SEG_PAGINA = 25, SEG_LOJA = 15, SEG_POR_LINHA = 2.5, PAUSA_MS = 3000;
+const DADOS_MS = 30 * 1000, SEM_SERVIDOR_MS = 20 * 60 * 1000, LINHAS = 8, SEG_PAGINA = 25, SEG_LOJA = 15;
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const $ = s => document.querySelector(s);
 const DIAS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
@@ -187,7 +196,7 @@ function chegada(x) {
 }
 // Reconferência, divergências e pronto: UMA PÁGINA POR LOJA (Tiago, 30/10: "deve quebrar por loja, cada loja em um slide");
 // só entra a loja que tem nota. O id da página leva a loja pra rotação continuar na mesma loja quando o dado renova.
-function porLoja(L) { return [1, 2, 3, 4, 5, 6].map(l => ({ l, nome: (D.lojas && D.lojas[l]) || lojaCurta(l), itens: L.filter(x => +x.loja === l) })).filter(g => g.itens.length); }
+function porLoja(L) { return lojasOk().map(l => ({ l, nome: (D.lojas && D.lojas[l]) || lojaCurta(l), itens: L.filter(x => +x.loja === l) })).filter(g => g.itens.length); }
 const pgLoja = (i, n) => n > 1 ? `loja ${i + 1} de ${n} · ` : '';
 // Tiago, 30/10: tudo que mistura loja vira UMA PÁGINA POR LOJA, sem valor de nota; o que importa na tela é o NÚMERO DA
 // NOTA e o da CONFERÊNCIA (quando já está na loja) — coluna "NF · Conf." em destaque.
@@ -225,7 +234,7 @@ function rPronto() {
 }
 // ── 4 · Quadro por loja ──
 function rQuadro() {
-  const Q = D.quadro || [];
+  const Q = (D.quadro || []).filter(q => lojasOk().includes(+q.loja));
   const c = (v, cls) => `<span class="c ${v ? cls : 'z'}">${v}</span>`;
   const tot = k => Q.reduce((a, q) => a + q[k], 0);
   const linha = (nome, q, cl) => `<div class="row${cl ? ' ' + cl : ''}"><span class="n">${esc(nome)}</span>${c(q.aguardandoColetor, '')}${c(q.emContagem, '')}${c(q.excecao, 'am')}${c(q.reconferir, 'vm')}${c(q.pronto, 'am')}${c(q.liberadoHoje, 'ok')}${c(q.semConf, 'am')}</div>`;
@@ -265,15 +274,23 @@ function rRecebendo() {
 }
 // Ordem = caminho da nota dentro do fiscal (Tiago, 30/10): chegou → reconferência → divergência → pronto → resumo por
 // loja → o que vem (a caminho/atrasados) → pendência antiga (NF-e sem conferência).
-const ORDEM = [rRecebendo, rReconf, rExcecao, rPronto, rQuadro, rCaminho, rSemConf];
+const RENDER = { recebendo: rRecebendo, reconf: rReconf, excecao: rExcecao, pronto: rPronto, quadro: rQuadro, caminho: rCaminho, semconf: rSemConf };
+const ORDEM_PADRAO = ['recebendo', 'reconf', 'excecao', 'pronto', 'quadro', 'caminho', 'semconf'];
+const idBase = id => String(id).replace(/-\d+$/, '');   // reconf-3 → reconf
 
-function montarSequencia() { const seq = []; for (const f of ORDEM) { try { seq.push(...f()); } catch (e) { console.error('[TV] tela', f.name, e); } } return seq; }
+function montarSequencia() {
+  const ordem = (CFG && CFG.ordem) || ORDEM_PADRAO, ligados = (CFG && CFG.ligados) || {};
+  const seq = [];
+  for (const id of ordem) { if (!RENDER[id] || ligados[id] === false) continue; try { seq.push(...RENDER[id]()); } catch (e) { console.error('[TV] tela', id, e); } }
+  return seq;
+}
 function mostrar() {
   if (!SEQ.length) return;
   const s = SEQ[idx % SEQ.length]; const nxt = front === 'A' ? 'B' : 'A'; const el = document.getElementById(nxt);
   try { el.innerHTML = s.html(); } catch (e) { console.error('[TV] página', s.id, e); el.innerHTML = `<div>${topo('')}${vazio('Tela indisponível', 'Erro ao montar esta página; a rotação continua.')}${foot('')}</div>`; }
   requestAnimationFrame(() => { el.classList.add('on'); document.getElementById(front).classList.remove('on'); front = nxt; });
-  const ms = Math.max((/-\d$/.test(s.id) ? SEG_LOJA : SEG_PAGINA) * 1000, rolar(el));   // página de uma loja (reconf-3, excecao-1…) dura menos
+  const seg = (CFG && CFG.segundos && CFG.segundos[idBase(s.id)]) || (/-\d+$/.test(s.id) ? SEG_LOJA : SEG_PAGINA);
+  const ms = Math.max(seg * 1000, rolar(el));   // lista comprida: a página dura o que a rolagem precisa
   const pr = $('#prog'); pr.style.transition = 'none'; pr.style.width = '0';
   requestAnimationFrame(() => requestAnimationFrame(() => { pr.style.transition = `width ${ms}ms linear`; pr.style.width = '100%'; }));
   clearTimeout(timer); timer = setTimeout(() => { idx++; mostrar(); }, ms);
@@ -287,10 +304,10 @@ function rolar(slide) {
     const n = parseInt(getComputedStyle(w).getPropertyValue('--n')) || LINHAS; const rh = w.clientHeight / n;
     w.style.setProperty('--rh', rh.toFixed(2));
     const diff = inner.scrollHeight - w.clientHeight; if (diff <= 4) return;
-    const dur = Math.round(diff / rh * SEG_POR_LINHA * 1000);
-    precisa = Math.max(precisa, dur + PAUSA_MS * 2);
+    const dur = Math.round(diff / rh * segLinha() * 1000);
+    precisa = Math.max(precisa, dur + pausaMs() * 2);
     inner.style.transition = 'none'; inner.style.transform = 'translateY(0)';
-    requestAnimationFrame(() => requestAnimationFrame(() => { inner.style.transition = `transform ${dur}ms linear ${PAUSA_MS}ms`; inner.style.transform = `translateY(-${diff}px)`; }));
+    requestAnimationFrame(() => requestAnimationFrame(() => { inner.style.transition = `transform ${dur}ms linear ${pausaMs()}ms`; inner.style.transform = `translateY(-${diff}px)`; }));
   });
   return precisa;
 }
@@ -317,7 +334,7 @@ function verificarAlerta() {
   const novas = L.filter(x => !VISTAS.has(x.chaveAlerta));
   if (!novas.length) return;
   novas.forEach(x => VISTAS.add(x.chaveAlerta)); gravarVistas();
-  dispararAlerta(novas);
+  if (alertaLigado()) dispararAlerta(novas);   // alerta desligado na configuração: marca como vista e não toca
 }
 let ALERTA_ITENS = [];
 function dispararAlerta(itens) {
@@ -328,9 +345,10 @@ function dispararAlerta(itens) {
     <div class="rodape">Loja precisa recontar · confira em Fiscal › Recebimentos</div>`;
   el.hidden = false;
   clearTimeout(timer); clearTimeout(alertaTimer);
-  alertaAte = Date.now() + ALERTA_SEG * 1000;
-  tocarSirene(ALERTA_SEG);
-  alertaTimer = setTimeout(fimAlerta, ALERTA_SEG * 1000);
+  const seg = alertaSeg();
+  alertaAte = Date.now() + seg * 1000;
+  if (somLigado()) tocarSirene(seg);
+  alertaTimer = setTimeout(fimAlerta, seg * 1000);
 }
 function fimAlerta() {
   $('#alerta').hidden = true; alertaAte = 0; ALERTA_ITENS = []; pararSirene();
@@ -388,8 +406,17 @@ document.addEventListener('fullscreenchange', () => { $('#fs').hidden = fsOk(); 
 setTimeout(() => { if (!fsOk()) $('#fs').hidden = false; }, 1500);
 setInterval(() => { document.querySelectorAll('.slide.on .dt').forEach(c => c.textContent = hojeTxt()); }, 60000);
 
-lerDados();
+async function lerConfig() {
+  try {
+    const r = await fetch(`/api/paineis-publico/fiscal-config?t=${Date.now()}`, { cache: 'no-store' });
+    if (!r.ok) return;
+    const c = await r.json(); const mudou = !CFG || c.versao !== CFG.versao; CFG = c;
+    if (mudou && D) aplicar();   // tela/ordem/loja nova: a sequência já sai com a configuração; a página no ar termina normal
+  } catch (e) {}
+}
+lerConfig().finally(lerDados);
 setInterval(lerDados, DADOS_MS);
+setInterval(lerConfig, DADOS_MS);
 if (QS.get('teste') === 'alerta') setTimeout(alertaTeste, 5000);
 window.tvSlideAtual = () => alertaAte ? 'ALERTA reconferência' : (!SEQ.length ? 'carregando' : `${SEQ[idx % SEQ.length].id} · tela ${idx % SEQ.length + 1}/${SEQ.length}`);
 </script>
