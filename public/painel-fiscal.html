@@ -82,15 +82,20 @@ svg.ic{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2;stroke-
 .obs b{color:#e8e5da;font-weight:700;font-variant-numeric:tabular-nums}
 /* grades */
 /* reconferência: sem valor; o MOTIVO grande pra loja/fiscal ficar ciente (Tiago, 30/10) — até 3 motivos, um por linha */
-.l-rec .row,.l-rec .thead{grid-template-columns:minmax(0,26em) minmax(0,1fr) 10em;gap:1.6em}
+.l-rec .row,.l-rec .thead{grid-template-columns:minmax(0,22em) 14em minmax(0,1fr) 10em;gap:1.6em}
+/* coluna NF · Conf.: número da nota em destaque, conferência embaixo */
+.row .h.nf{font-size:1.75em;color:var(--amarelo);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.row .h.nf.prev{color:#8f8a7c}
+.row .h.nf small{font-size:.62em;color:#e8e5da;font-weight:600}
 .l-rec .row .n{font-size:2em;white-space:normal}
 .l-rec .row .mot{display:flex;flex-direction:column;gap:.25em;white-space:normal;overflow:hidden}
-.l-rec .row .mot span{font:700 1.75em/1.12 var(--fb);color:#ff8a9a;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.l-rec .row .mot span{font:700 1.55em/1.12 var(--fb);color:#ff8a9a;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.l-rec .row .mot.m3 span{-webkit-line-clamp:1}   /* 3 motivos: uma linha cada, pra não invadir a nota de baixo */
 .l-rec .row .mot span:first-child{color:#fff}
-.l-exc .row,.l-exc .thead{grid-template-columns:minmax(0,1fr) 28em 11em 9em 13em}
-.l-pr .row,.l-pr .thead{grid-template-columns:minmax(0,1fr) 11em 11em 13em}
-.l-sc .row,.l-sc .thead{grid-template-columns:7em minmax(0,1fr) 9em 9em 9em 11em 12em}
-.l-cam .row,.l-cam .thead{grid-template-columns:7em minmax(0,1fr) 10em 10em 7em 11em 14em}
+.l-rcb .row,.l-rcb .thead{grid-template-columns:minmax(0,1fr) 16em 12em 16em}
+.l-exc .row,.l-exc .thead{grid-template-columns:minmax(0,1fr) 14em 30em 9em 13em}
+.l-pr .row,.l-pr .thead{grid-template-columns:minmax(0,1fr) 14em 12em 14em}
+.l-sc .row,.l-sc .thead{grid-template-columns:minmax(0,1fr) 13em 10em 9em 14em}
+.l-cam .row,.l-cam .thead{grid-template-columns:minmax(0,1fr) 14em 10em 10em 7em 15em}
 /* quadro por loja */
 .qd .row,.qd .thead{grid-template-columns:minmax(0,1fr) repeat(7,9.5em)}
 .qd .thead span:not(:first-child){text-align:center}
@@ -184,12 +189,19 @@ function chegada(x) {
 // só entra a loja que tem nota. O id da página leva a loja pra rotação continuar na mesma loja quando o dado renova.
 function porLoja(L) { return [1, 2, 3, 4, 5, 6].map(l => ({ l, nome: (D.lojas && D.lojas[l]) || lojaCurta(l), itens: L.filter(x => +x.loja === l) })).filter(g => g.itens.length); }
 const pgLoja = (i, n) => n > 1 ? `loja ${i + 1} de ${n} · ` : '';
+// Tiago, 30/10: tudo que mistura loja vira UMA PÁGINA POR LOJA, sem valor de nota; o que importa na tela é o NÚMERO DA
+// NOTA e o da CONFERÊNCIA (quando já está na loja) — coluna "NF · Conf." em destaque.
+function nfConf(notas, conf) {
+  const n = (notas || []).filter(Boolean);
+  const top = n.length ? n.slice(0, 2).join(' · ') + (n.length > 2 ? ' +' + (n.length - 2) : '') : 'sem NF-e';
+  return `<span class="h nf${n.length ? '' : ' prev'}">${esc(top)}<small>${conf ? 'conf. ' + conf : 'sem conferência'}</small></span>`;
+}
 // ── 1 · Reconferência (só entra na rotação quando tem) ──
 function rReconf() {
   const G = porLoja(D.reconferir || []); if (!G.length) return [];
   return G.map((g, i) => {
-    const linhas = g.itens.map(x => `<div class="row"><span class="n">${esc(x.fornecedor)}<small>${notasTxt(x)} · conf. ${x.nReg}${x.decisao && x.decisao.por ? ' · pedida por ' + esc(x.decisao.por) : ''}</small></span><span class="mot">${(x.motivos.length ? x.motivos : [(x.decisao && x.decisao.obs) || 'Reconferir a nota inteira']).map(m => `<span>${esc(m)}</span>`).join('')}</span>${chegada(x)}</div>`).join('');
-    return tela('reconf-' + g.l, g.nome, `<div class="main">${hd(IC.reconf, 'Reconferência · ' + g.nome, `${pgLoja(i, G.length)}${g.itens.length} nota${g.itens.length > 1 ? 's' : ''} · a loja tem que recontar`)}<div class="lst l-rec"><div class="thead"><span>Fornecedor · nota</span><span>Motivo</span><span>Chegada</span></div><div class="rows rola" style="--n:4">${linhas}</div></div></div>`, `rede: <b>${D.resumo.reconferir}</b> em reconferência · vermelho = parada há mais de <b>2 horas</b>`);
+    const linhas = g.itens.map(x => `<div class="row"><span class="n">${esc(x.fornecedor)}<small>${x.operador ? 'conferente ' + esc(x.operador) : ''}${x.decisao && x.decisao.por ? (x.operador ? ' · ' : '') + 'pedida por ' + esc(x.decisao.por) : ''}</small></span>${nfConf(x.notas, x.nReg)}<span class="mot${x.motivos.length >= 3 ? ' m3' : ''}">${(x.motivos.length ? x.motivos : [(x.decisao && x.decisao.obs) || 'Reconferir a nota inteira']).map(m => `<span>${esc(m)}</span>`).join('')}</span>${chegada(x)}</div>`).join('');
+    return tela('reconf-' + g.l, g.nome, `<div class="main">${hd(IC.reconf, 'Reconferência · ' + g.nome, `${pgLoja(i, G.length)}${g.itens.length} nota${g.itens.length > 1 ? 's' : ''} · a loja tem que recontar`)}<div class="lst l-rec"><div class="thead"><span>Fornecedor</span><span>NF · Conf.</span><span>Motivo</span><span>Chegada</span></div><div class="rows rola" style="--n:3">${linhas}</div></div></div>`, `rede: <b>${D.resumo.reconferir}</b> em reconferência · vermelho = parada há mais de <b>2 horas</b>`);
   });
 }
 // ── 2 · Divergências pra decidir ──
@@ -198,8 +210,8 @@ function rExcecao() {
   if (!G.length) return [tela('excecao', 'Divergências', `<div class="main">${vazio('Nenhuma divergência', 'Nenhuma nota de E1 a E6 com divergência esperando decisão do fiscal.')}</div>`, '')];
   return G.map((g, i) => {
     const linhas = g.itens.map(x => { const quem = x.pendFiscal ? st('atraso', 'Fiscal decide') : x.pendCompradora ? st('pendente', 'Compradora' + (x.comprador ? ' · ' + x.comprador.split(' ')[0] : '')) : st('pendente', 'Fiscal decide');
-      return `<div class="row"><span class="n">${esc(x.fornecedor)}<small>${notasTxt(x)} · conf. ${x.nReg}${x.operador ? ' · ' + esc(x.operador) : ''}</small></span><span class="t">${esc(x.motivos.join(' · ') || (x.pendFiscal ? x.pendFiscal + ' item(ns) do pedido sem decisão' : 'divergência na conferência'))}</span>${h(mil(x.valor))}${h(idade(x), x.dias >= 2 ? 'vm' : x.dias >= 1 ? 'am' : '', x.dias ? 'entrada ' + dm(x.entrada) : x.horaEntrada || '')}<span>${quem}</span></div>`; }).join('');
-    return tela('excecao-' + g.l, g.nome, `<div class="main">${hd(IC.alerta, 'Divergências · ' + g.nome, `${pgLoja(i, G.length)}${g.itens.length} nota${g.itens.length > 1 ? 's' : ''} · a mais antiga primeiro`)}<div class="lst l-exc"><div class="thead"><span>Fornecedor · nota</span><span>Divergência</span><span>Valor</span><span>Idade</span><span>Quem decide</span></div><div class="rows rola" style="--n:${LINHAS}">${linhas}</div></div></div>`, `XML × coletor × pedido · amarelo = desde ontem · vermelho = <b>2 dias</b> ou mais`);
+      return `<div class="row"><span class="n">${esc(x.fornecedor)}<small>${x.operador ? 'conferente ' + esc(x.operador) : ''}</small></span>${nfConf(x.notas, x.nReg)}<span class="t">${esc(x.motivos.join(' · ') || (x.pendFiscal ? x.pendFiscal + ' item(ns) do pedido sem decisão' : 'divergência na conferência'))}</span>${h(idade(x), x.dias >= 2 ? 'vm' : x.dias >= 1 ? 'am' : '', x.dias ? 'entrada ' + dm(x.entrada) : x.horaEntrada || '')}<span>${quem}</span></div>`; }).join('');
+    return tela('excecao-' + g.l, g.nome, `<div class="main">${hd(IC.alerta, 'Divergências · ' + g.nome, `${pgLoja(i, G.length)}${g.itens.length} nota${g.itens.length > 1 ? 's' : ''} · a mais antiga primeiro`)}<div class="lst l-exc"><div class="thead"><span>Fornecedor</span><span>NF · Conf.</span><span>Divergência</span><span>Idade</span><span>Quem decide</span></div><div class="rows rola" style="--n:${LINHAS}">${linhas}</div></div></div>`, `XML × coletor × pedido · amarelo = desde ontem · vermelho = <b>2 dias</b> ou mais`);
   });
 }
 // ── 3 · Pronto pra liberar ──
@@ -207,8 +219,8 @@ function rPronto() {
   const G = porLoja(D.pronto || []);
   if (!G.length) return [tela('pronto', 'Pronto p/ liberar', `<div class="main">${vazio('Nada esperando liberação', 'Toda nota conferida sem divergência já foi liberada.')}</div>`, '')];
   return G.map((g, i) => {
-    const linhas = g.itens.map(x => `<div class="row"><span class="n">${esc(x.fornecedor)}<small>${notasTxt(x)} · conf. ${x.nReg}</small></span>${h(x.dias ? dm(x.entrada) : (x.horaEntrada || '—'), x.dias ? 'am' : '', x.dias ? x.dias + ' d atrás' : 'entrada hoje')}${h(mil(x.valor))}<span>${st('ok', 'Conferida · OK')}</span></div>`).join('');
-    return tela('pronto-' + g.l, g.nome, `<div class="main">${hd(IC.ok, 'Pronto pra liberar · ' + g.nome, `${pgLoja(i, G.length)}${g.itens.length} nota${g.itens.length > 1 ? 's' : ''} · só falta liberar no ERP`)}<div class="lst l-pr"><div class="thead"><span>Fornecedor · nota</span><span>Entrada</span><span>Valor</span><span>Situação</span></div><div class="rows rola" style="--n:${LINHAS}">${linhas}</div></div></div>`, `liberar = mercadoria vai pra armazenagem`);
+    const linhas = g.itens.map(x => `<div class="row"><span class="n">${esc(x.fornecedor)}<small>${x.operador ? 'conferente ' + esc(x.operador) : ''}</small></span>${nfConf(x.notas, x.nReg)}${h(x.dias ? dm(x.entrada) : (x.horaEntrada || '—'), x.dias ? 'am' : '', x.dias ? x.dias + ' d atrás' : 'entrada hoje')}<span>${st('ok', 'Conferida · OK')}</span></div>`).join('');
+    return tela('pronto-' + g.l, g.nome, `<div class="main">${hd(IC.ok, 'Pronto pra liberar · ' + g.nome, `${pgLoja(i, G.length)}${g.itens.length} nota${g.itens.length > 1 ? 's' : ''} · só falta liberar no ERP`)}<div class="lst l-pr"><div class="thead"><span>Fornecedor</span><span>NF · Conf.</span><span>Entrada</span><span>Situação</span></div><div class="rows rola" style="--n:${LINHAS}">${linhas}</div></div></div>`, `liberar = mercadoria vai pra armazenagem`);
   });
 }
 // ── 4 · Quadro por loja ──
@@ -221,22 +233,39 @@ function rQuadro() {
   const corpo = `<div class="main">${hd(IC.grade, 'Recebimento por loja', 'conferências de hoje + pendências dos últimos 7 dias')}<div class="lst qd"><div class="thead"><span>Loja</span><span>Aguard. coletor</span><span>Em contagem</span><span>Divergência</span><span>Reconferir</span><span>Pronto</span><span>Liberadas hoje</span><span>NF sem conf.</span></div><div class="rows" style="--n:${Q.length + 1}">${Q.map(q => linha(q.nome, q)).join('')}${linha('Total', totais, 'tot')}</div></div></div>`;
   return [tela('quadro', 'Por loja', corpo, `onde está o gargalo agora`)];
 }
-// ── 5 · NF-e sem conferência ──
+// ── 5 · NF-e sem conferência (uma página por loja) ──
 function rSemConf() {
-  const L = D.semConf || [];
-  if (!L.length) return [tela('semconf', 'NF-e sem conferência', `<div class="main">${vazio('Toda NF-e tem conferência', 'Nenhuma nota emitida contra E1 a E6 há 2 dias ou mais ficou sem conferência.')}</div>`, '')];
-  const linhas = L.map(x => `<div class="row">${etqLoja(x.loja)}<span class="n">${esc(x.emitente)}<small>${esc(x.lojaNome)}</small></span>${h(x.nNota, 'prev')}${h(dm(x.emissao), 'prev')}${h(x.dias + ' d', x.dias >= 3 ? 'vm' : x.dias >= 1 ? 'am' : '')}${h(mil(x.valor))}<span>${x.lancada ? st('pendente', 'Lançada s/ conf.') : st('apuracao', 'Não lançada')}</span></div>`).join('');
-  return [tela('semconf', 'NF-e sem conferência', `<div class="main">${hd(IC.nota, 'NF-e sem conferência', `${D.resumo.semConf} nota${D.resumo.semConf > 1 ? 's' : ''} · ${mil(D.resumo.semConfValor)} · a mais velha primeiro${D.resumo.semConf > L.length ? ' · mostrando ' + L.length : ''}`)}<div class="lst l-sc"><div class="thead"><span>Loja</span><span>Emitente</span><span>NF</span><span>Emissão</span><span>Idade</span><span>Valor</span><span>Situação</span></div><div class="rows rola" style="--n:${LINHAS}">${linhas}</div></div></div>`, `emitida há 2 dias ou mais e ninguém conferiu · vermelho = <b>3 dias</b> ou mais${D.semConfVelho ? ' · dado anterior' : ''}`)];
+  const G = porLoja(D.semConf || []);
+  if (!G.length) return [tela('semconf', 'NF-e sem conferência', `<div class="main">${vazio('Toda NF-e tem conferência', 'Nenhuma nota emitida contra E1 a E6 há 2 dias ou mais ficou sem conferência.')}</div>`, '')];
+  return G.map((g, i) => {
+    const linhas = g.itens.map(x => `<div class="row"><span class="n">${esc(x.emitente)}</span>${h(x.nNota, 'nf', 'sem conferência')}${h(dm(x.emissao), 'prev')}${h(x.dias + ' d', x.dias >= 3 ? 'vm' : x.dias >= 1 ? 'am' : '')}<span>${x.lancada ? st('pendente', 'Lançada s/ conf.') : st('apuracao', 'Não lançada')}</span></div>`).join('');
+    return tela('semconf-' + g.l, g.nome, `<div class="main">${hd(IC.nota, 'NF-e sem conferência · ' + g.nome, `${pgLoja(i, G.length)}${g.itens.length} nota${g.itens.length > 1 ? 's' : ''} · a mais velha primeiro`)}<div class="lst l-sc"><div class="thead"><span>Emitente</span><span>NF</span><span>Emissão</span><span>Idade</span><span>Situação</span></div><div class="rows rola" style="--n:${LINHAS}">${linhas}</div></div></div>`, `emitida há 2 dias ou mais e ninguém conferiu · vermelho = <b>3 dias</b> ou mais${D.semConfVelho ? ' · dado anterior' : ''}`);
+  });
 }
-// ── 6 · A caminho / atrasados ──
+// ── 6 · A caminho / atrasados (uma página por loja) ──
 function rCaminho() {
-  const A = D.atrasados || [], C = D.caminho || [];
-  if (!A.length && !C.length) return [tela('caminho', 'Pedidos', `<div class="main">${vazio('Nada a caminho', 'Nenhum pedido com NF-e emitida esperando chegar e nenhum pedido atrasado.')}</div>`, '')];
-  const lin = (x, sit) => `<div class="row">${etqLoja(x.loja)}<span class="n">${esc(x.fornecedor)}<small>pedido #${x.pedido}${x.cotacao ? ' · cotação' : x.comprador ? ' · ' + esc(String(x.comprador).split(' ')[0]) : ''}${x.sub ? ' · ' + esc(x.sub) : ''}</small></span>${h(dm(x.prevista), 'prev')}${h(x.atraso ? x.atraso + ' d' : 'no prazo', x.atraso >= 3 ? 'vm' : x.atraso ? 'am' : 'prev')}${h(x.itens || '—', 'prev')}${h(mil(x.valor))}<span>${sit}</span></div>`;
-  const linhas = A.map(x => lin(x, st(x.atraso >= 3 ? 'atraso' : 'pendente', 'Sem nota · atrasado'))).join('') + C.map(x => lin(x, st(x.atraso ? 'pendente' : 'ok', 'NF-e emitida'))).join('');
-  return [tela('caminho', 'Pedidos', `<div class="main">${hd(IC.caminhao, 'A caminho e atrasados', `${C.length} com NF-e emitida · ${A.length} atrasado${A.length === 1 ? '' : 's'} sem nota`)}<div class="lst l-cam"><div class="thead"><span>Loja</span><span>Fornecedor · pedido</span><span>Prevista</span><span>Atraso</span><span>Itens</span><span>Valor</span><span>Situação</span></div><div class="rows rola" style="--n:${LINHAS}">${linhas}</div></div></div>`, `pedidos do app pra E1 a E6 · atrasado = passou da entrega prevista${D.pedidosVelho ? ' · dado anterior' : ''}`)];
+  const T = [...(D.atrasados || []).map(x => ({ ...x, tipo: 'atrasado' })), ...(D.caminho || []).map(x => ({ ...x, tipo: 'caminho' }))];
+  const G = porLoja(T);
+  if (!G.length) return [tela('caminho', 'Pedidos', `<div class="main">${vazio('Nada a caminho', 'Nenhum pedido com NF-e emitida esperando chegar e nenhum pedido atrasado.')}</div>`, '')];
+  return G.map((g, i) => {
+    const A = g.itens.filter(x => x.tipo === 'atrasado').length, C = g.itens.length - A;
+    const linhas = g.itens.map(x => { const sit = x.tipo === 'atrasado' ? st(x.atraso >= 3 ? 'atraso' : 'pendente', 'Sem nota · atrasado') : st(x.atraso ? 'pendente' : 'ok', 'NF-e emitida');
+      return `<div class="row"><span class="n">${esc(x.fornecedor)}<small>pedido #${x.pedido}${x.cotacao ? ' · cotação' : x.comprador ? ' · ' + esc(String(x.comprador).split(' ')[0]) : ''}</small></span>${x.tipo === 'atrasado' ? h('sem NF-e', 'nf prev', 'aguardando nota') : h(esc((x.notas || []).slice(0, 2).join(' · ') || '—'), 'nf', x.emissao ? 'emitida ' + dm(x.emissao) : '')}${h(dm(x.prevista), 'prev')}${h(x.atraso ? x.atraso + ' d' : 'no prazo', x.atraso >= 3 ? 'vm' : x.atraso ? 'am' : 'prev')}${h(x.itens || '—', 'prev')}<span>${sit}</span></div>`; }).join('');
+    return tela('caminho-' + g.l, g.nome, `<div class="main">${hd(IC.caminhao, 'A caminho e atrasados · ' + g.nome, `${pgLoja(i, G.length)}${C} com NF-e emitida · ${A} atrasado${A === 1 ? '' : 's'} sem nota`)}<div class="lst l-cam"><div class="thead"><span>Fornecedor · pedido</span><span>NF</span><span>Prevista</span><span>Atraso</span><span>Itens</span><span>Situação</span></div><div class="rows rola" style="--n:${LINHAS}">${linhas}</div></div></div>`, `pedidos do app · atrasado = passou da entrega prevista${D.pedidosVelho ? ' · dado anterior' : ''}`);
+  });
 }
-const ORDEM = [rReconf, rExcecao, rPronto, rQuadro, rSemConf, rCaminho];
+// ── 0 · Chegaram / em contagem (uma página por loja) ──
+function rRecebendo() {
+  const G = porLoja(D.recebendo || []);
+  if (!G.length) return [tela('recebendo', 'Chegaram', `<div class="main">${vazio('Nenhuma nota no coletor', 'Nenhuma nota de E1 a E6 aguardando ou em contagem agora.')}</div>`, '')];
+  return G.map((g, i) => {
+    const linhas = g.itens.map(x => `<div class="row"><span class="n">${esc(x.fornecedor)}<small>${x.operador ? 'conferente ' + esc(x.operador) : ''}</small></span>${nfConf(x.notas, x.nReg)}${chegada(x)}<span>${x.situacao === 'em_contagem' ? st('pendente', 'Em contagem') : st(x.dias ? 'atraso' : 'apuracao', x.dias ? 'Parada no coletor' : 'Aguardando coletor')}</span></div>`).join('');
+    return tela('recebendo-' + g.l, g.nome, `<div class="main">${hd(IC.caminhao, 'Chegaram · ' + g.nome, `${pgLoja(i, G.length)}${g.itens.length} nota${g.itens.length > 1 ? 's' : ''} no coletor · a mais antiga primeiro`)}<div class="lst l-rcb"><div class="thead"><span>Fornecedor</span><span>NF · Conf.</span><span>Chegada</span><span>Situação</span></div><div class="rows rola" style="--n:${LINHAS}">${linhas}</div></div></div>`, `nota entrou na loja e está no coletor · vermelho = parada desde outro dia`);
+  });
+}
+// Ordem = caminho da nota dentro do fiscal (Tiago, 30/10): chegou → reconferência → divergência → pronto → resumo por
+// loja → o que vem (a caminho/atrasados) → pendência antiga (NF-e sem conferência).
+const ORDEM = [rRecebendo, rReconf, rExcecao, rPronto, rQuadro, rCaminho, rSemConf];
 
 function montarSequencia() { const seq = []; for (const f of ORDEM) { try { seq.push(...f()); } catch (e) { console.error('[TV] tela', f.name, e); } } return seq; }
 function mostrar() {
