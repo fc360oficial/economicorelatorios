@@ -137,6 +137,9 @@ app.get('/api/versao', (req, res) => res.json({ versao: APP_VERSAO }));
 
 // Atalho curto pra digitar em controle de TV (teclado na tela é lento/chato)
 app.get('/tv', (req, res) => res.redirect('/painel-compras.html'));
+// Painel Fiscal (30/10/26, Tiago: "coloquei 192.168.2.254:3003/painel-fiscal e pediu login"): sem .html e atalho curto
+app.get(/^\/(painel-fiscal|tvfiscal)\/?$/i, (req, res) => res.redirect('/painel-fiscal.html'));
+app.get(/^\/(painel-fiscal|tvfiscal)\/kiosk\/?$/i, (req, res) => res.redirect('/painel-fiscal.html?kiosk=1'));
 // Atalho curto pra digitar na TV do televendas da CAHU: /tvcahu → link completo com token
 // (o token continua sendo o que vale; o atalho só evita digitar 32 caracteres na TV).
 // Sem diferenciar maiúsculas nem barra no fim: o teclado da Smart TV põe a 1ª letra em maiúscula (/Tvcahu)
@@ -266,6 +269,7 @@ app.use((req, res, next) => {
   // TV do açougue da loja (23/10/26): página, API e fotos dos cortes públicas por token (só leitura, preço da loja no ERP)
   if (/^\/tvacougue\/?(kiosk\/?)?$/i.test(req.path) || /^\/tv-acougue\/[a-f0-9]{32}$/i.test(req.path) || /^\/api\/tv-acougue-publico\/[a-f0-9]{32}(\/foto\/\d{1,14}|\/patrocinio\/[a-f0-9]{8}\/(logo|foto))?$/i.test(req.path)) return next();
   // TV do RH — Ponto e Jornada (26/10/26): página e API públicas por token (só leitura; nome, loja, setor e horários do dia, sem matrícula/CPF/banco)
+  if (/^\/(painel-fiscal|tvfiscal)\/?(kiosk\/?)?$/i.test(req.path)) return next();   // atalhos do Painel Fiscal (30/10/26)
   if (/^\/tvrh\/?(kiosk\/?)?$/i.test(req.path) || /^\/tv-rh\/[a-f0-9]{32}$/i.test(req.path) || /^\/api\/tv-rh-publico\/[a-f0-9]{32}$/i.test(req.path)) return next();
   // Link do fornecedor na Cotação: mesmo esquema (token de 32 hex por fornecedor convidado)
   if (/^\/cotacao\/[a-f0-9]{32}$/.test(req.path) || /^\/api\/cotacao-publica\/[a-f0-9]{32}(\/|$)/.test(req.path)) return next();
