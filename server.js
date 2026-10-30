@@ -266,7 +266,7 @@ app.use((req, res, next) => {
   // TV do açougue da loja (23/10/26): página, API e fotos dos cortes públicas por token (só leitura, preço da loja no ERP)
   if (/^\/tvacougue\/?(kiosk\/?)?$/i.test(req.path) || /^\/tv-acougue\/[a-f0-9]{32}$/i.test(req.path) || /^\/api\/tv-acougue-publico\/[a-f0-9]{32}(\/foto\/\d{1,14}|\/patrocinio\/[a-f0-9]{8}\/(logo|foto))?$/i.test(req.path)) return next();
   // TV do RH — Ponto e Jornada (26/10/26): página e API públicas por token (só leitura; nome, loja, setor e horários do dia, sem matrícula/CPF/banco)
-  if (/^\/tvrh\/?(kiosk\/?)?$/i.test(req.path) || /^\/tv-rh\/[a-f0-9]{32}$/i.test(req.path) || /^\/api\/tv-rh-publico\/[a-f0-9]{32}(\/foto\/\d{1,14})?$/i.test(req.path)) return next();
+  if (/^\/tvrh\/?(kiosk\/?)?$/i.test(req.path) || /^\/tv-rh\/[a-f0-9]{32}$/i.test(req.path) || /^\/api\/tv-rh-publico\/[a-f0-9]{32}$/i.test(req.path)) return next();
   // Link do fornecedor na Cotação: mesmo esquema (token de 32 hex por fornecedor convidado)
   if (/^\/cotacao\/[a-f0-9]{32}$/.test(req.path) || /^\/api\/cotacao-publica\/[a-f0-9]{32}(\/|$)/.test(req.path)) return next();
   // Portal do Fornecedor (PWA em /fornecedor/, 13/10/26): página, service worker, manifest, atalhos /fornecedor/cotacao|pedido/<token>
@@ -9553,20 +9553,6 @@ app.get('/api/tv-rh-publico/:token', async (req, res) => {
     res.json({ ...dados, versao });
   } catch (err) { res.status(503).json({ error: 'Sem dados no momento: ' + err.message }); }
 });
-// Foto de cadastro do Pontomais (29/10/2026, Tiago): servida pelo nosso servidor com cache de 24 h em data/fotos-ponto
-// (pontocerto.fotoDe). Na TV vem pelo token; no Painel RH / telas logadas, por /api/pontocerto/foto/:id. Sem foto = 204.
-async function servirFotoPonto(id, res) {
-  try {
-    const f = await pontocerto.fotoDe(id);
-    if (!f) { res.set('Cache-Control', 'private, max-age=3600'); return res.status(204).end(); }
-    res.set('Cache-Control', 'private, max-age=21600'); res.type(f.tipo); res.sendFile(f.arquivo);
-  } catch (err) { res.status(503).end(); }
-}
-app.get('/api/tv-rh-publico/:token/foto/:id', (req, res) => {
-  if (!tvRh.tokenValido(String(req.params.token).toLowerCase())) return res.status(404).end();
-  servirFotoPonto(req.params.id, res);
-});
-app.get('/api/pontocerto/foto/:id', (req, res) => servirFotoPonto(req.params.id, res));
 // Painel RH (27/10/2026, DP / RH › Painel RH): os MESMOS slides de Ponto e Jornada da TV, abertos pelo menu por quem está
 // logado no módulo DP / RH — sem token. Mesma página (tv-rh.html), mesmo payload; só muda a porta de entrada.
 app.get('/painel-rh.html', (req, res) => { res.set('Cache-Control', 'no-store'); res.sendFile(path.join(__dirname, 'public', 'tv-rh.html')); });
