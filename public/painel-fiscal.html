@@ -58,7 +58,7 @@ svg.ic{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2;stroke-
 .hd .pg{font:700 1.5em var(--fd);color:var(--amarelo);letter-spacing:.08em;font-variant-numeric:tabular-nums;white-space:nowrap}
 .hd .sub{margin-left:auto;font:600 1.15em var(--fb);letter-spacing:.14em;text-transform:uppercase;color:#8f8a7c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .lst{flex:1;display:flex;flex-direction:column;min-height:0}
-.rows{flex:1;min-height:0;overflow:hidden;position:relative}.rows-in{display:grid;grid-auto-rows:calc(var(--rh) * 1px);will-change:transform}.rows:not(.rola){display:grid;grid-template-rows:repeat(var(--n),minmax(0,1fr))}
+.rows{flex:1;min-height:0;overflow:hidden;position:relative}.rows-in{display:grid;grid-auto-rows:minmax(calc(var(--rh) * 1px),auto);will-change:transform}.rows:not(.rola){display:grid;grid-template-rows:repeat(var(--n),minmax(0,1fr))}
 .row,.thead{display:grid;align-items:center;gap:1em;padding:0 .6em}
 .thead{font:700 1.05em var(--fd);letter-spacing:.16em;text-transform:uppercase;color:var(--amarelo);border-bottom:.12em solid var(--amarelo);padding-bottom:.35em;flex:none}
 .row{border-bottom:.07em solid var(--linha);min-height:0}
@@ -84,7 +84,10 @@ svg.ic{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2;stroke-
 /* reconferência: sem valor; o MOTIVO grande pra loja/fiscal ficar ciente (Tiago, 30/10) — até 3 motivos, um por linha */
 .l-rec .row,.l-rec .thead{grid-template-columns:minmax(0,22em) 14em minmax(0,1fr) 10em;gap:1.6em}
 /* coluna NF · Conf.: número da nota em destaque, conferência embaixo */
-.row .h.nf{font-size:1.75em;color:var(--amarelo);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.row .h.nf.prev{color:#8f8a7c}
+.row .h.nf{font-size:1.75em;color:var(--amarelo);white-space:normal;overflow:visible;padding:.25em 0}.row .h.nf.prev{color:#8f8a7c}
+.row .h.nf .nns{display:flex;flex-wrap:wrap;gap:0 .45em;line-height:1.1}.row .h.nf .nn+.nn:before{content:"· ";color:#8f8a7c}
+.row .h.nf.varias{font-size:1.4em}.row .h.nf.muitas{font-size:1.15em}
+.row .h.nf.varias small{font-size:.78em}.row .h.nf.muitas small{font-size:.95em}   /* "conf. N" sempre no mesmo tamanho */
 .row .h.nf small{font-size:.62em;color:#e8e5da;font-weight:600}
 .l-rec .row .n{font-size:2em;white-space:normal}
 .l-rec .row .mot{display:flex;flex-direction:column;gap:.25em;white-space:normal;overflow:hidden}
@@ -125,7 +128,7 @@ svg.ic{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2;stroke-
 #alerta .it .lj{font:800 5em/1 var(--fd);background:var(--amarelo);color:var(--ink);padding:.12em .4em;border-radius:.15em;flex:none}
 #alerta .it .tx{min-width:0;flex:1}
 #alerta .it .fo{font:800 3.4em/1.05 var(--fd);text-transform:uppercase;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#alerta .it .de{font:600 1.7em var(--fb);color:#ffd9de;letter-spacing:.04em;margin-top:.25em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#alerta .it .de{font:600 1.7em var(--fb);color:#ffd9de;letter-spacing:.04em;margin-top:.25em;white-space:normal}
 #alerta .it .mo{font:800 2.6em/1.1 var(--fb);color:#fff;margin-top:.3em;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 #alerta .it .mo:before{content:"▸ ";color:var(--amarelo)}
 #alerta .rodape{font:700 1.6em var(--fb);letter-spacing:.14em;text-transform:uppercase;color:#fff;opacity:.85}
@@ -186,7 +189,7 @@ const h = (v, cls, sub) => `<span class="h${cls ? ' ' + cls : ''}">${v == null |
 const etqLoja = l => `<span><span class="etq">${lojaCurta(l)}</span></span>`;
 function vazio(tit, txt) { return `<div class="vazio-tela"><h3>${esc(tit)}</h3><span class="brush"></span><p>${esc(txt)}</p></div>`; }
 function tela(id, badge, corpo, val) { return { id, html: () => `<div>${topo(badge)}${corpo}${foot(val)}</div>` }; }
-const notasTxt = x => x.notas && x.notas.length ? 'NF ' + x.notas.slice(0, 3).join(', ') + (x.notas.length > 3 ? '…' : '') : 'sem NF-e';
+const notasTxt = x => x.notas && x.notas.length ? 'NF ' + x.notas.join(', ') : 'sem NF-e';
 
 // hora em que a nota entrou na loja e há quanto tempo (o ERP não guarda a hora em que virou reconferência)
 function chegada(x) {
@@ -200,10 +203,16 @@ function porLoja(L) { return lojasOk().map(l => ({ l, nome: (D.lojas && D.lojas[
 const pgLoja = (i, n) => n > 1 ? `loja ${i + 1} de ${n} · ` : '';
 // Tiago, 30/10: tudo que mistura loja vira UMA PÁGINA POR LOJA, sem valor de nota; o que importa na tela é o NÚMERO DA
 // NOTA e o da CONFERÊNCIA (quando já está na loja) — coluna "NF · Conf." em destaque.
-function nfConf(notas, conf) {
+// TODAS as notas aparecem (Tiago, 30/10: "essa nota +1 tem que aparecer"): quebra em linhas e a fonte diminui quando são
+// muitas; a linha da lista cresce pra caber (grid-auto-rows com mínimo, ver .rows-in).
+function listaNotas(notas) {
   const n = (notas || []).filter(Boolean);
-  const top = n.length ? n.slice(0, 2).join(' · ') + (n.length > 2 ? ' +' + (n.length - 2) : '') : 'sem NF-e';
-  return `<span class="h nf${n.length ? '' : ' prev'}">${esc(top)}<small>${conf ? 'conf. ' + conf : 'sem conferência'}</small></span>`;
+  if (!n.length) return { html: 'sem NF-e', cls: ' prev' };
+  return { html: n.map(x => `<span class="nn">${esc(x)}</span>`).join(''), cls: n.length > 6 ? ' muitas' : n.length > 2 ? ' varias' : '' };
+}
+function nfConf(notas, conf) {
+  const l = listaNotas(notas);
+  return `<span class="h nf${l.cls}"><span class="nns">${l.html}</span><small>${conf ? 'conf. ' + conf : 'sem conferência'}</small></span>`;
 }
 // ── 1 · Reconferência (só entra na rotação quando tem) ──
 function rReconf() {
@@ -259,7 +268,7 @@ function rCaminho() {
   return G.map((g, i) => {
     const A = g.itens.filter(x => x.tipo === 'atrasado').length, C = g.itens.length - A;
     const linhas = g.itens.map(x => { const sit = x.tipo === 'atrasado' ? st(x.atraso >= 3 ? 'atraso' : 'pendente', 'Sem nota · atrasado') : st(x.atraso ? 'pendente' : 'ok', 'NF-e emitida');
-      return `<div class="row"><span class="n">${esc(x.fornecedor)}<small>pedido #${x.pedido}${x.cotacao ? ' · cotação' : x.comprador ? ' · ' + esc(String(x.comprador).split(' ')[0]) : ''}</small></span>${x.tipo === 'atrasado' ? h('sem NF-e', 'nf prev', 'aguardando nota') : h(esc((x.notas || []).slice(0, 2).join(' · ') || '—'), 'nf', x.emissao ? 'emitida ' + dm(x.emissao) : '')}${h(dm(x.prevista), 'prev')}${h(x.atraso ? x.atraso + ' d' : 'no prazo', x.atraso >= 3 ? 'vm' : x.atraso ? 'am' : 'prev')}${h(x.itens || '—', 'prev')}<span>${sit}</span></div>`; }).join('');
+      return `<div class="row"><span class="n">${esc(x.fornecedor)}<small>pedido #${x.pedido}${x.cotacao ? ' · cotação' : x.comprador ? ' · ' + esc(String(x.comprador).split(' ')[0]) : ''}</small></span>${x.tipo === 'atrasado' ? h('sem NF-e', 'nf prev', 'aguardando nota') : (l => `<span class="h nf${l.cls}"><span class="nns">${l.html}</span><small>${x.emissao ? 'emitida ' + dm(x.emissao) : ''}</small></span>`)(listaNotas(x.notas))}${h(dm(x.prevista), 'prev')}${h(x.atraso ? x.atraso + ' d' : 'no prazo', x.atraso >= 3 ? 'vm' : x.atraso ? 'am' : 'prev')}${h(x.itens || '—', 'prev')}<span>${sit}</span></div>`; }).join('');
     return tela('caminho-' + g.l, g.nome, `<div class="main">${hd(IC.caminhao, 'A caminho e atrasados · ' + g.nome, `${pgLoja(i, G.length)}${C} com NF-e emitida · ${A} atrasado${A === 1 ? '' : 's'} sem nota`)}<div class="lst l-cam"><div class="thead"><span>Fornecedor · pedido</span><span>NF</span><span>Prevista</span><span>Atraso</span><span>Itens</span><span>Situação</span></div><div class="rows rola" style="--n:${LINHAS}">${linhas}</div></div></div>`, `pedidos do app · atrasado = passou da entrega prevista${D.pedidosVelho ? ' · dado anterior' : ''}`);
   });
 }
