@@ -183,7 +183,9 @@ td.col-cel{cursor:pointer}
 .arit .xl .oq{background:#FFF6D9;border:1px solid #EFD98F;border-radius:8px;padding:8px 12px;margin:8px 12px;font-size:11.5px;color:#6B4E00;line-height:1.6}.arit .xl .oq .t{font-weight:800;text-transform:uppercase;font-size:10px;letter-spacing:.4px;margin-right:6px}.arit .xl .aceito{background:#E7F5EC;color:#137A48;border-radius:8px;padding:6px 12px;margin:8px 12px;font-size:11.5px}
 /* 16/10/26: painel Cotações (Tiago: "virou 50 pedidos de cotação, tem algo mostrando chegou 45 e faltou 5?") */
 .pcot{background:var(--crd);border:1px solid var(--ln);border-radius:10px;padding:10px 14px;margin-bottom:14px;display:grid;gap:10px}.pcot .hd{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.pcot .hd h2{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink3);margin:0;font-weight:800}.pcot .hd .mut{font-size:11.5px}.pcot .hd a{color:#2E5E8C;font-weight:700}
-.pcards{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px}.pcard{border:1px solid var(--ln2);border-radius:10px;padding:10px 12px;display:grid;gap:8px;cursor:pointer;background:var(--crd);align-content:start}.pcard:hover{border-color:var(--ink3)}.pcard.on{border-color:#F5B800;box-shadow:0 0 0 2px #FFF6D9;background:#FFF6D9}
+/* 30/10/26 (Tiago): com muitas cotações os cards viravam várias linhas → uma linha só com rolagem horizontal */
+.pcards{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(300px,320px);align-items:start;gap:10px;overflow-x:auto;scroll-snap-type:x proximity;scroll-behavior:smooth;padding-bottom:8px;scrollbar-width:thin;scrollbar-color:var(--ink3) transparent}.pcards>.pcard{scroll-snap-align:start}.pcards::-webkit-scrollbar{height:8px}.pcards::-webkit-scrollbar-thumb{background:#C9C9C2;border-radius:4px}.pcards::-webkit-scrollbar-thumb:hover{background:var(--ink3)}
+.pcot .hd .pcnav{margin-left:auto;display:flex;gap:4px}.pcot .hd .pcnav button{border:1px solid var(--ln2);background:var(--crd);border-radius:6px;width:28px;height:24px;font-size:15px;line-height:1;cursor:pointer;color:var(--ink2,#444)}.pcot .hd .pcnav button:hover{border-color:var(--ink3)}.pcard{border:1px solid var(--ln2);border-radius:10px;padding:10px 12px;display:grid;gap:8px;cursor:pointer;background:var(--crd);align-content:start}.pcard:hover{border-color:var(--ink3)}.pcard.on{border-color:#F5B800;box-shadow:0 0 0 2px #FFF6D9;background:#FFF6D9}
 .pcard .t{display:flex;justify-content:space-between;gap:8px;align-items:baseline}.pcard .t b{font-size:13px}.pcard .t small{color:var(--ink3);font-size:11px;white-space:nowrap}
 .pbar{display:flex;height:9px;border-radius:5px;overflow:hidden;background:#EEEEEA}.pbar i{display:block;height:100%}.pbar .ok{background:#137A48}.pbar .pa{background:#F5B800}.pbar .bi{background:#2E5E8C}.pbar .ae{background:#D9D9D4}.pbar .re{background:var(--neg)}
 .pnums{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;font-variant-numeric:tabular-nums}.pnums b{font-size:16px;display:block;line-height:1.1}.pnums span{color:var(--ink3);font-size:10px;text-transform:uppercase;letter-spacing:.04em}.pnums .ok b{color:#137A48}.pnums .pa b{color:#B45C00}.pnums .bi b{color:#2E5E8C}.pnums .re b{color:var(--neg)}.pnums .mut2 b{color:var(--ink3)}
@@ -460,7 +462,8 @@ function setTab(t){tab=t;document.querySelectorAll('.tab').forEach(x=>x.classLis
   $('#expOrigem').hidden=t!=='expedicao';   // seletor Eco / Dlinks só na Expedição do CD (Tiago, 28/10)
   const semDia=t==='areceber';document.querySelector('.dnav').style.display=semDia?'none':'';   // Expedição do CD navega por data igual ao Recebimentos (Tiago, 28/10)$('#periodo').style.display=t==='areceber'?'none':'';$('#q').placeholder=t==='areceber'?'Buscar fornecedor, nº do pedido, lista ou Comprador (a)':t==='expedicao'?'Buscar cliente, nº do pedido ou produto':'Buscar fornecedor, nº da conferência ou nota';
   colTimerSync();carregar();}
-function render(){if(tab==='receb')renderReceb();else{if(aberto!=null){aberto=null;$('#detBack').hidden=true;$('#detDrw').hidden=true;}if(tab==='docs')renderDocs();else if(tab==='areceber')renderAReceber();else if(tab==='expedicao')renderExpedicao();else renderMargem();}renderColErro();}
+function render(){const _pc=document.querySelector('.pcards'),_px=_pc?_pc.scrollLeft:0;try{render0();}finally{const e=document.querySelector('.pcards');if(e&&_px){e.style.scrollBehavior='auto';e.scrollLeft=_px;e.style.scrollBehavior='';}}}   // 30/10/26: mantém a rolagem dos cards de Cotações ao clicar/filtrar
+function render0(){if(tab==='receb')renderReceb();else{if(aberto!=null){aberto=null;$('#detBack').hidden=true;$('#detDrw').hidden=true;}if(tab==='docs')renderDocs();else if(tab==='areceber')renderAReceber();else if(tab==='expedicao')renderExpedicao();else renderMargem();}renderColErro();}
 
 /* ── EXPEDIÇÃO DO CD (saída pro Televendas, coletor da loja 10) ──
    Duas etapas desde 14/10/26: Separação de Pedidos (com a lista do pedido, o separador digita o que separou; divergência vem pra cá
@@ -1171,7 +1174,7 @@ function arecCotNome(c){return 'Cotação #'+c.id+(c.nome?' · '+esc(String(c.no
 function arecPainelCot(){
   const C=AREC_COT||[]; if(!C.length)return '';
   const todas=!$('#loja').value;
-  let h='<div class="pcot"><div class="hd"><h2>Cotações'+(todas?' · todas as lojas':' · '+LJ($('#loja').value))+'</h2><span class="mut">'+C.length+' cotação(ões) com pedido aberto'+(fArecCot?' · filtrando a lista pela cotação #'+fArecCot+' · <a href="#" onclick="event.preventDefault();arecCotFiltra(null)">limpar ✕</a>':' · clique numa cotação pra filtrar a lista')+'</span></div>';
+  let h='<div class="pcot"><div class="hd"><h2>Cotações'+(todas?' · todas as lojas':' · '+LJ($('#loja').value))+'</h2><span class="mut">'+C.length+' cotação(ões) com pedido aberto'+(fArecCot?' · filtrando a lista pela cotação #'+fArecCot+' · <a href="#" onclick="event.preventDefault();arecCotFiltra(null)">limpar ✕</a>':' · clique numa cotação pra filtrar a lista')+'</span>'+(!todas&&C.length>3?'<span class="pcnav"><button title="Anteriores" onclick="arecCotRola(-1)">‹</button><button title="Próximas" onclick="arecCotRola(1)">›</button></span>':'')+'</div>';
   if(!todas){
     const ln=+$('#loja').value;
     h+='<div class="pcards">'+C.map(c=>{
@@ -1199,6 +1202,7 @@ function arecPainelCot(){
   return h+'</div>';
 }
 function arecCotFiltra(id){fArecCot=(id==null||fArecCot===id)?null:id;render();}
+function arecCotRola(d){const e=document.querySelector('.pcards');if(e)e.scrollBy({left:d*Math.max(320,e.clientWidth-330)});}
 function arecCotCobrar(id,ln){
   const c=(AREC_COT||[]).find(x=>x.id===id); const L=c&&c.lojas.find(l=>l.loja===ln); if(!L)return;
   const P=L.pendentes.filter(p=>p.situacao==='aguardando_nota');
