@@ -81,8 +81,12 @@ svg.ic{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2;stroke-
 .obs{flex:none;display:flex;flex-wrap:wrap;gap:.6em 2em;margin-top:1em;font:600 1.25em var(--fb);letter-spacing:.06em;text-transform:uppercase;color:#8f8a7c;overflow:hidden;max-height:3.2em}
 .obs b{color:#e8e5da;font-weight:700;font-variant-numeric:tabular-nums}
 /* grades */
-.l-rec .row,.l-rec .thead{grid-template-columns:minmax(0,1fr) 30em 11em 11em}
-.l-rec .row .n{font-size:2em}
+/* reconferência: sem valor; o MOTIVO grande pra loja/fiscal ficar ciente (Tiago, 30/10) — até 3 motivos, um por linha */
+.l-rec .row,.l-rec .thead{grid-template-columns:minmax(0,26em) minmax(0,1fr) 10em;gap:1.6em}
+.l-rec .row .n{font-size:2em;white-space:normal}
+.l-rec .row .mot{display:flex;flex-direction:column;gap:.25em;white-space:normal;overflow:hidden}
+.l-rec .row .mot span{font:700 1.75em/1.12 var(--fb);color:#ff8a9a;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.l-rec .row .mot span:first-child{color:#fff}
 .l-exc .row,.l-exc .thead{grid-template-columns:minmax(0,1fr) 28em 11em 9em 13em}
 .l-pr .row,.l-pr .thead{grid-template-columns:minmax(0,1fr) 11em 11em 13em}
 .l-sc .row,.l-sc .thead{grid-template-columns:7em minmax(0,1fr) 9em 9em 9em 11em 12em}
@@ -117,6 +121,8 @@ svg.ic{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2;stroke-
 #alerta .it .tx{min-width:0;flex:1}
 #alerta .it .fo{font:800 3.4em/1.05 var(--fd);text-transform:uppercase;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #alerta .it .de{font:600 1.7em var(--fb);color:#ffd9de;letter-spacing:.04em;margin-top:.25em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#alerta .it .mo{font:800 2.6em/1.1 var(--fb);color:#fff;margin-top:.3em;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+#alerta .it .mo:before{content:"▸ ";color:var(--amarelo)}
 #alerta .rodape{font:700 1.6em var(--fb);letter-spacing:.14em;text-transform:uppercase;color:#fff;opacity:.85}
 #som{position:absolute;left:calc(var(--u) * 14px);bottom:calc(var(--u) * .65px);z-index:7;font:700 calc(var(--u) * 1.1px) var(--fb);letter-spacing:.08em;text-transform:uppercase;background:var(--amarelo);color:var(--ink);border:0;border-radius:.4em;padding:.6em 1em;cursor:pointer;box-shadow:0 .6em 2em rgba(0,0,0,.6)}
 [hidden]{display:none!important}
@@ -182,8 +188,8 @@ const pgLoja = (i, n) => n > 1 ? `loja ${i + 1} de ${n} · ` : '';
 function rReconf() {
   const G = porLoja(D.reconferir || []); if (!G.length) return [];
   return G.map((g, i) => {
-    const linhas = g.itens.map(x => `<div class="row"><span class="n">${esc(x.fornecedor)}<small>${notasTxt(x)} · conf. ${x.nReg}${x.decisao && x.decisao.por ? ' · pedida por ' + esc(x.decisao.por) : ''}</small></span><span class="t vm">${esc(x.motivos.join(' · ') || (x.decisao && x.decisao.obs) || 'reconferir a nota')}</span>${h(mil(x.valor))}${chegada(x)}</div>`).join('');
-    return tela('reconf-' + g.l, g.nome, `<div class="main">${hd(IC.reconf, 'Reconferência · ' + g.nome, `${pgLoja(i, G.length)}${g.itens.length} nota${g.itens.length > 1 ? 's' : ''} · a loja tem que recontar`)}<div class="lst l-rec"><div class="thead"><span>Fornecedor · nota</span><span>Motivo</span><span>Valor</span><span>Chegada</span></div><div class="rows rola" style="--n:${LINHAS}">${linhas}</div></div></div>`, `rede: <b>${D.resumo.reconferir}</b> em reconferência · vermelho = parada há mais de <b>2 horas</b>`);
+    const linhas = g.itens.map(x => `<div class="row"><span class="n">${esc(x.fornecedor)}<small>${notasTxt(x)} · conf. ${x.nReg}${x.decisao && x.decisao.por ? ' · pedida por ' + esc(x.decisao.por) : ''}</small></span><span class="mot">${(x.motivos.length ? x.motivos : [(x.decisao && x.decisao.obs) || 'Reconferir a nota inteira']).map(m => `<span>${esc(m)}</span>`).join('')}</span>${chegada(x)}</div>`).join('');
+    return tela('reconf-' + g.l, g.nome, `<div class="main">${hd(IC.reconf, 'Reconferência · ' + g.nome, `${pgLoja(i, G.length)}${g.itens.length} nota${g.itens.length > 1 ? 's' : ''} · a loja tem que recontar`)}<div class="lst l-rec"><div class="thead"><span>Fornecedor · nota</span><span>Motivo</span><span>Chegada</span></div><div class="rows rola" style="--n:4">${linhas}</div></div></div>`, `rede: <b>${D.resumo.reconferir}</b> em reconferência · vermelho = parada há mais de <b>2 horas</b>`);
   });
 }
 // ── 2 · Divergências pra decidir ──
@@ -289,7 +295,7 @@ function dispararAlerta(itens) {
   ALERTA_ITENS = [...itens, ...ALERTA_ITENS.filter(a => !itens.some(i => i.nReg === a.nReg))].slice(0, 3);
   const el = $('#alerta');
   el.innerHTML = `<svg class="ic ic-al" viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg><h1>Reconferência</h1>
-    <div class="itens">${ALERTA_ITENS.map(x => `<div class="it"><span class="lj">${lojaCurta(x.loja)}</span><div class="tx"><div class="fo">${esc(x.fornecedor)}</div><div class="de">${esc(x.lojaNome)} · ${esc(notasTxt(x))} · ${esc(mil(x.valor))}${x.motivos && x.motivos.length ? ' · ' + esc(x.motivos[0]) : ''}${x.decisao && x.decisao.por ? ' · pedida por ' + esc(x.decisao.por) : ''}</div></div></div>`).join('')}</div>
+    <div class="itens">${ALERTA_ITENS.map(x => `<div class="it"><span class="lj">${lojaCurta(x.loja)}</span><div class="tx"><div class="fo">${esc(x.fornecedor)}</div><div class="de">${esc(x.lojaNome)} · ${esc(notasTxt(x))}${x.decisao && x.decisao.por ? ' · pedida por ' + esc(x.decisao.por) : ''}</div>${(x.motivos && x.motivos.length ? x.motivos.slice(0, ALERTA_ITENS.length > 1 ? 1 : 3) : ['Reconferir a nota inteira']).map(m => `<div class="mo">${esc(m)}</div>`).join('')}</div></div>`).join('')}</div>
     <div class="rodape">Loja precisa recontar · confira em Fiscal › Recebimentos</div>`;
   el.hidden = false;
   clearTimeout(timer); clearTimeout(alertaTimer);
