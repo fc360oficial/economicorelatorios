@@ -251,7 +251,7 @@ app.use((req, res, next) => {
     '/margem-comprador.html', '/api/margem-tv/comprador',
     '/painel-diretoria.html',
     '/painel-cd.html', '/api/painel-cd',
-    '/painel-compras.html', '/tv'];
+    '/painel-compras.html', '/tv', '/painel-fiscal.html'];
   if (publico.includes(req.path)) return next();
   // Canal de Ética (16/10/26): portal público /etica e /etica/<E1..E6|CD|ADM> (QR por unidade) + API pública; sem login,
   // sem sessão e fora do log de acessos. A retaguarda (/etica.html, /api/etica/*) fica atrás do login + designação (lib/etica-rotas.js).
@@ -9884,6 +9884,16 @@ app.post('/api/conta-fornecedor/pagamentos', (req, res) => { try { res.json({ ok
 app.delete('/api/conta-fornecedor/pagamentos/:id', (req, res) => { try { res.json(contaForn.desfazerPagamento(String(req.params.id), req.session.user?.nome || null)); } catch (err) { contaErr(res, err); } });
 app.post('/api/conta-fornecedor/ajuste', (req, res) => { try { res.json({ ok: true, lancamento: contaForn.ajuste(req.body || {}, req.session.user?.nome || null), saldo: contaForn.saldoDe(+req.body?.codFornec) }); } catch (err) { contaErr(res, err); } });
 app.post('/api/conta-fornecedor/sincronizar', async (req, res) => { try { res.json(await contaForn.sincronizar('manual por ' + (req.session.user?.nome || '?'))); } catch (err) { contaErr(res, err); } });
+
+// Painel Fiscal (TV do setor fiscal, 30/10/26) — lib/painel-fiscal.js: fila de trabalho do fiscal, só E1..E6; a TV
+// (painel-fiscal.html) lê a cada 30 s sem login e toca o alerta quando aparece reconferência nova.
+const painelFiscal = require('./lib/painel-fiscal');
+painelFiscal.init({ fiscal, fiscalPedidos, pedidosFornec });
+app.get('/api/paineis-publico/fiscal-dados', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try { res.json(await painelFiscal.dados()); } catch (err) { res.status(503).json({ error: 'Sem dados no momento: ' + err.message }); }
+});
+app.get('/api/paineis/fiscal-dados/estado', (req, res) => res.json({ ...painelFiscal.estado(), linkTV: `${PUBLIC_URL}/painel-fiscal.html`, linkLan: 'http://192.168.2.254:3003/painel-fiscal.html' }));
 
 // ═══════════════════════════════════════════════════
 // COTAÇÃO — Gestão de Compras > Cotação. Regras em lib/cotacao.js (1 JSON por cotação em data/cotacoes/).

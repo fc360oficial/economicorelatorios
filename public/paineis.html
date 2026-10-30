@@ -64,6 +64,7 @@ body{font-family:var(--font,'InterVar','Inter','Segoe UI',system-ui,sans-serif);
     <button data-aba="televendas" role="tab"><span class="dot" id="dot-televendas"></span>Painel Televendas</button>
     <button data-aba="rh" role="tab"><span class="dot" id="dot-rh"></span>Painel RH/DP</button>
     <button data-aba="acougue" role="tab"><span class="dot" id="dot-acougue"></span>Painel Açougue</button>
+    <button data-aba="fiscal" role="tab"><span class="dot" id="dot-fiscal"></span>Painel Fiscal</button>
   </div>
 
   <section class="aba on" id="aba-monitor"><iframe data-src="/paineis-tvs.html?embed=1" title="Monitor dos painéis"></iframe></section>
@@ -92,6 +93,25 @@ body{font-family:var(--font,'InterVar','Inter','Segoe UI',system-ui,sans-serif);
   <section class="aba" id="aba-televendas"><iframe data-src="/cahu-tv-televendas.html?embed=1" title="Painel Televendas"></iframe></section>
   <section class="aba" id="aba-rh"><iframe data-src="/tv-rh-config.html?embed=1" title="Painel RH/DP"></iframe></section>
   <section class="aba" id="aba-acougue"><iframe data-src="/tv-acougue-config.html?embed=1" title="Painel Açougue"></iframe></section>
+  <section class="aba" id="aba-fiscal">
+    <div class="pc">
+      <div class="card">
+        <h2>Painel Fiscal (TV do setor fiscal)</h2>
+        <p class="d">Fila de trabalho do fiscal, só E1 a E6: Reconferência (só aparece quando tem) · Divergências pra decidir · Pronto pra liberar · Quadro por loja · NF-e sem conferência · A caminho / atrasados. Cada tela fica 25 s; lista comprida rola pra cima.</p>
+        <p class="como"><b>Alerta de reconferência:</b> quando aparece uma reconferência nova, a TV pisca em vermelho com alerta sonoro por 15 s e volta pro slide em que estava. Pra ouvir, clique uma vez na TV depois de abrir o painel (aparece o botão amarelo "ligar o som"). <b>Testar:</b> abra o link de teste ao lado ou aperte a tecla A na TV.</p>
+        <p class="mut" id="pf-estado">Carregando…</p>
+      </div>
+      <div class="card">
+        <h2>Link da TV</h2>
+        <div class="links">
+          <span class="lb">Na rede</span><input class="lk" id="pf-lan" readonly><button class="btn" data-copia="pf-lan">Copiar</button>
+          <span class="lb">Fora</span><input class="lk" id="pf-ext" readonly><button class="btn" data-copia="pf-ext">Copiar</button>
+          <span class="lb">Teste</span><input class="lk" id="pf-teste" readonly><button class="btn" data-copia="pf-teste">Copiar</button>
+        </div>
+        <p class="como">Sem token, igual ao Painel Compras. <b>?alerta=20</b> no fim do link muda o tempo do alerta (5 a 120 s). Depois de uma atualização do sistema a TV recarrega sozinha.</p>
+      </div>
+    </div>
+  </section>
 </div>
 
 <script>
@@ -107,17 +127,18 @@ function abrir(id, push) {
     const fr = a.querySelector('iframe'); if (on && fr && !fr.src) fr.src = fr.dataset.src;
   });
   if (id === 'compras') carregarCompras();
+  if (id === 'fiscal') carregarFiscal();
   if (push) history.replaceState(null, '', '#' + id);
 }
 document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => abrir(b.dataset.aba, true)));
 const ini = location.hash.replace('#', '');
-abrir(['monitor', 'compras', 'televendas', 'rh', 'acougue'].includes(ini) ? ini : 'monitor', false);
+abrir(['monitor', 'compras', 'televendas', 'rh', 'acougue', 'fiscal'].includes(ini) ? ini : 'monitor', false);
 
 // ── bolinha de status em cada aba (mesma leitura do monitor, a cada 15 s) ──
 async function status() {
   try {
     const d = await api('/api/paineis');
-    for (const p of ['compras', 'televendas', 'rh', 'acougue']) {
+    for (const p of ['compras', 'televendas', 'rh', 'acougue', 'fiscal']) {
       const telas = d.telas.filter(t => t.painel === p);
       const st = telas.some(t => t.status === 'ligada') ? 'ligada' : telas.some(t => t.status === 'instavel') ? 'instavel' : telas.length ? 'desligada' : '';
       const el = $('#dot-' + p); el.className = 'dot ' + st; el.title = st ? ({ ligada: 'Ligada', instavel: 'Instável', desligada: 'Desligada' })[st] : 'Nenhum aparelho deu sinal';
@@ -125,6 +146,15 @@ async function status() {
   } catch (e) {}
 }
 status(); setInterval(status, 15000);
+
+// ── Painel Fiscal ──
+async function carregarFiscal() {
+  try {
+    const e = await api('/api/paineis/fiscal-dados/estado');
+    $('#pf-lan').value = e.linkLan; $('#pf-ext').value = e.linkTV; $('#pf-teste').value = e.linkLan + '?teste=alerta';
+    $('#pf-estado').textContent = e.geradoEm ? 'Dados montados às ' + new Date(e.geradoEm).toTimeString().slice(0, 5) + (e.duracaoMs != null ? ' (' + Math.round(e.duracaoMs / 1000) + ' s)' : '') : (e.montando ? 'Montando os dados pela 1ª vez…' : 'Ainda sem dados: a 1ª carga acontece 75 s depois do servidor subir.');
+  } catch (err) { $('#pf-estado').textContent = 'Erro: ' + err.message; }
+}
 
 // ── Painel Compras ──
 let PC = null;

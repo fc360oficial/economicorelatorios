@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Painel Fiscal · Econômico Supermercados</title>
+<!-- Painel Fiscal (30/10/2026) — TV do setor fiscal no padrão visual do Painel Compras 2.0 / TV RH/DP. Só lojas E1..E6.
+     Fila de trabalho do fiscal: Reconferência (só entra na rotação quando tem) · Divergências pra decidir · Pronto pra
+     liberar · Quadro por loja · NF-e sem conferência · A caminho / atrasados.
+     ALERTA (Tiago, 30/10): reconferência NOVA → a tela inteira pisca em vermelho com alerta sonoro por ALERTA_SEG
+     segundos e volta pro slide em que estava. As que já tocaram ficam guardadas no aparelho (localStorage); na 1ª vez que
+     a TV abre, as reconferências que já existiam não tocam.
+     Som: o Chrome só toca áudio depois de um clique na página. Na TV, clique uma vez em qualquer lugar (aparece o aviso
+     "Clique pra ligar o som") ou abra o Chrome com --autoplay-policy=no-user-gesture-required.
+     Dados: /api/paineis-publico/fiscal-dados (lib/painel-fiscal.js), relido a cada 30 s. Sem login.
+     ?kiosk=1 esconde o botão de tela cheia · ?tela=N abre na N-ésima página · ?alerta=N segundos de alerta (padrão 15)
+     · ?teste=alerta dispara um alerta de exemplo 5 s depois de abrir · tecla A também testa. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,600;0,700;0,800;1,800&family=Barlow:wght@400;500;600;700&display=swap">
+<style>
+:root{--ink:#0c0c0c;--paper:#f6f4ec;--amarelo:#FFD500;--vermelho:#C8102E;--verde:#22C55E;--linha:#2a2a2a;--fd:"Barlow Condensed","Arial Narrow",Impact,sans-serif;--fb:"Barlow","Segoe UI",Arial,sans-serif}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:#000;color:var(--paper);font-family:var(--fb);overflow:hidden;cursor:none}
+#tv{position:fixed;inset:0;background:#000}
+.slide{position:absolute;inset:0;opacity:0;transition:opacity .8s ease;font-size:calc(var(--u) * 1px)}
+.slide>div{position:absolute;inset:0;display:flex;flex-direction:column;background:var(--ink)}
+.slide.on{opacity:1}
+@keyframes pulsaVm{0%,100%{background-color:var(--vermelho);box-shadow:0 0 0 0 rgba(200,16,46,0)}50%{background-color:#e4133a;box-shadow:0 0 .9em .15em rgba(200,16,46,.55)}}
+@keyframes pulsaNum{0%,100%{text-shadow:0 0 0 rgba(200,16,46,0)}50%{text-shadow:0 0 .35em rgba(200,16,46,.9)}}
+/* topo */
+.top{display:flex;align-items:center;gap:1.6em;padding:0 2.4em;height:7em;flex:none;background:var(--ink);border-bottom:.14em solid var(--amarelo);position:relative;z-index:2}
+.top .logo{height:5.4em;display:flex;align-items:center;background:var(--amarelo);border-radius:.6em;padding:.35em .7em}
+.top .logo img{height:100%;width:auto;display:block;object-fit:contain}
+.top .tit{font:800 2.5em/1 var(--fd);text-transform:uppercase;letter-spacing:.04em;color:#fff;padding-left:.55em;border-left:.08em solid #3a3a3a;white-space:nowrap;flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.top .qbadge{font:800 1.35em var(--fd);letter-spacing:.14em;text-transform:uppercase;background:var(--amarelo);color:var(--ink);padding:.3em .8em;border-radius:.3em;white-space:nowrap}
+.top .sp{flex:1 1 0;min-width:.5em}
+.top .kps{display:flex;align-items:center;flex:none}
+.top .kp{display:flex;flex-direction:column;align-items:center;padding:0 .8em;border-left:.08em solid #3a3a3a;min-width:5em}
+.top .kp b{font:800 1.95em/1 var(--fd);color:#fff;font-variant-numeric:tabular-nums;white-space:nowrap}
+.top .kp span{font:700 .85em var(--fb);letter-spacing:.14em;text-transform:uppercase;color:#8f8a7c;margin-top:.2em;white-space:nowrap}
+.top .kp.am b{color:var(--amarelo)}.top .kp.vm b{color:#fff;animation:pulsaNum 2.4s ease-in-out infinite}.top .kp.vm span{color:#ff8a9a}
+.top .dt{font:600 1.05em var(--fb);letter-spacing:.14em;text-transform:uppercase;color:#cfcabb;padding-left:1em;border-left:.08em solid #3a3a3a;white-space:nowrap;flex:none}
+/* rodapé */
+.foot{display:flex;align-items:center;gap:1.8em;padding:0 2.4em;height:4.2em;background:var(--ink);border-top:.08em solid var(--linha);flex:none;position:relative;z-index:2}
+.foot .sl{display:flex;align-items:center;gap:.5em;font:700 1.05em var(--fb);letter-spacing:.1em;text-transform:uppercase;color:#e8e5da;white-space:nowrap}
+.foot .sl .ic{color:var(--amarelo);font-size:1.4em}
+.foot .sp{flex:1;min-width:.5em}
+.foot .val{font:600 1.15em var(--fb);letter-spacing:.04em;color:#bdb8aa;white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.foot .val b{color:var(--amarelo);font-weight:700}
+.foot .cnt{font:700 1.4em var(--fd);color:#8f8a7c;letter-spacing:.06em;font-variant-numeric:tabular-nums;flex:none}
+.prog{position:absolute;left:0;bottom:0;height:.3em;font-size:calc(var(--u) * 1px);background:var(--amarelo);width:0;z-index:3}
+svg.ic{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-.12em}
+/* corpo */
+.main{flex:1;display:flex;flex-direction:column;padding:1.2em 2.4em 1em;min-height:0}
+.hd{display:flex;align-items:baseline;gap:1.2em;margin-bottom:.7em;flex:none}
+.hd h2{font:800 2.8em/1 var(--fd);text-transform:uppercase;color:#fff;margin:0;letter-spacing:.03em;display:flex;align-items:center;gap:.35em;white-space:nowrap}
+.hd h2 .ic{color:var(--amarelo);font-size:.85em;stroke-width:2.2}
+.hd .pg{font:700 1.5em var(--fd);color:var(--amarelo);letter-spacing:.08em;font-variant-numeric:tabular-nums;white-space:nowrap}
+.hd .sub{margin-left:auto;font:600 1.15em var(--fb);letter-spacing:.14em;text-transform:uppercase;color:#8f8a7c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.lst{flex:1;display:flex;flex-direction:column;min-height:0}
+.rows{flex:1;min-height:0;overflow:hidden;position:relative}.rows-in{display:grid;grid-auto-rows:calc(var(--rh) * 1px);will-change:transform}.rows:not(.rola){display:grid;grid-template-rows:repeat(var(--n),minmax(0,1fr))}
+.row,.thead{display:grid;align-items:center;gap:1em;padding:0 .6em}
+.thead{font:700 1.05em var(--fd);letter-spacing:.16em;text-transform:uppercase;color:var(--amarelo);border-bottom:.12em solid var(--amarelo);padding-bottom:.35em;flex:none}
+.row{border-bottom:.07em solid var(--linha);min-height:0}
+.row>*{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .n{font:700 1.7em/1.05 var(--fd);text-transform:uppercase;color:#fff;letter-spacing:.02em}
+.row .n small{display:block;font:500 .55em var(--fb);color:#8f8a7c;letter-spacing:.08em;text-transform:uppercase;margin-top:.1em;overflow:hidden;text-overflow:ellipsis}
+.row .t{font:600 1.2em var(--fb);text-transform:uppercase;letter-spacing:.04em;color:#cfcabb;overflow:hidden;text-overflow:ellipsis}
+.row .t.vm{color:#ff8a9a}
+.row .h{font:700 2.05em/1 var(--fd);font-variant-numeric:tabular-nums;color:#fff}
+.row .h.prev{color:#bdb8aa;font-weight:600}.row .h.vm{color:#fff;text-shadow:0 0 .35em rgba(200,16,46,.9)}.row .h.am{color:var(--amarelo)}
+.row .h small{display:block;font:500 .48em var(--fb);color:#8f8a7c;letter-spacing:.06em;text-transform:uppercase;margin-top:.15em}
+.etq{display:inline-block;font:800 1.5em var(--fd);letter-spacing:.08em;background:var(--amarelo);color:var(--ink);padding:.15em .5em;border-radius:.25em;line-height:1;white-space:nowrap}
+.st{display:inline-flex;align-items:center;gap:.5em;font:700 1.15em var(--fd);letter-spacing:.1em;text-transform:uppercase;padding:.3em .75em;border-radius:.3em;border:.1em solid #3a3a3a;color:#bdb8aa;line-height:1.1;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.st:before{content:"";width:.6em;height:.6em;border-radius:50%;background:#6b6b6b;flex:none}
+.st.ok{color:#fff;border-color:#4a4a4a}.st.ok:before{background:#fff}
+.st.atraso{background:var(--vermelho);border-color:var(--vermelho);color:#fff;animation:pulsaVm 2.4s ease-in-out infinite}.st.atraso:before{background:#fff}
+.st.pendente{border-color:var(--amarelo);color:var(--amarelo)}.st.pendente:before{background:var(--amarelo)}
+.st.cheio{background:var(--amarelo);border-color:var(--amarelo);color:var(--ink)}.st.cheio:before{background:var(--ink)}
+.st.apuracao{border-style:dashed;color:#8f8a7c}
+.obs{flex:none;display:flex;flex-wrap:wrap;gap:.6em 2em;margin-top:1em;font:600 1.25em var(--fb);letter-spacing:.06em;text-transform:uppercase;color:#8f8a7c;overflow:hidden;max-height:3.2em}
+.obs b{color:#e8e5da;font-weight:700;font-variant-numeric:tabular-nums}
+/* grades */
+.l-rec .row,.l-rec .thead{grid-template-columns:7em minmax(0,1fr) 26em 11em 11em}
+.l-rec .row .n{font-size:2em}
+.l-exc .row,.l-exc .thead{grid-template-columns:7em minmax(0,1fr) 24em 11em 9em 13em}
+.l-pr .row,.l-pr .thead{grid-template-columns:7em minmax(0,1fr) 11em 11em 13em}
+.l-sc .row,.l-sc .thead{grid-template-columns:7em minmax(0,1fr) 9em 9em 9em 11em 12em}
+.l-cam .row,.l-cam .thead{grid-template-columns:7em minmax(0,1fr) 10em 10em 7em 11em 14em}
+/* quadro por loja */
+.qd .row,.qd .thead{grid-template-columns:minmax(0,1fr) repeat(7,9.5em)}
+.qd .thead span:not(:first-child){text-align:center}
+.qd .row .n{font-size:2.3em}
+.qd .row .c{font:800 3.4em/1 var(--fd);text-align:center;font-variant-numeric:tabular-nums;color:#fff}
+.qd .row .c.z{color:#3a3a3a}.qd .row .c.am{color:var(--amarelo)}.qd .row .c.vm{color:#fff;background:var(--vermelho);border-radius:.15em;animation:pulsaVm 2.4s ease-in-out infinite}.qd .row .c.ok{color:var(--verde)}
+.qd .row.tot{border-top:.12em solid var(--amarelo);border-bottom:0}.qd .row.tot .n{color:var(--amarelo)}
+/* avisos */
+.vazio-tela{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.6em;text-align:center}
+.vazio-tela h3{font:800 4.2em/1 var(--fd);text-transform:uppercase;color:#fff;margin:0}
+.vazio-tela p{font:500 1.7em var(--fb);color:#bdb8aa;margin:0;max-width:30em}
+.brush{display:block;height:.42em;width:7em;background:var(--amarelo);border-radius:.2em .3em .15em .3em;transform:skewX(-14deg) rotate(-1.2deg);margin:.15em 0 0 .1em}
+.msg{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.5em;font-size:calc(var(--u) * 1px);background:#000;z-index:5}
+.msg img{height:9em;background:var(--amarelo);padding:.8em 1.4em;border-radius:.8em}
+.msg h1{font:800 4em var(--fd);text-transform:uppercase;margin:0;color:var(--amarelo);text-align:center}
+.msg p{font:500 1.8em var(--fb);color:#bfbbae;margin:0;text-align:center;max-width:30em}
+#fs{position:absolute;inset:0;z-index:6;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);cursor:pointer}
+#fs button{font:800 calc(var(--u) * 3.2px) var(--fd);letter-spacing:.08em;text-transform:uppercase;background:var(--amarelo);color:var(--ink);border:0;border-radius:.4em;padding:.6em 1.6em;cursor:pointer;box-shadow:0 1em 3em rgba(0,0,0,.6)}
+/* ALERTA de reconferência: tela inteira piscando */
+@keyframes piscaAlerta{0%,49%{background:var(--vermelho)}50%,100%{background:#160206}}
+@keyframes piscaTexto{0%,49%{color:#fff}50%,100%{color:var(--amarelo)}}
+#alerta{position:absolute;inset:0;z-index:8;font-size:calc(var(--u) * 1px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.2em;padding:3em;animation:piscaAlerta 1s steps(1) infinite;text-align:center}
+#alerta .ic-al{width:9em;height:9em;color:#fff}
+#alerta h1{font:800 9em/0.95 var(--fd);text-transform:uppercase;letter-spacing:.04em;margin:0;animation:piscaTexto 1s steps(1) infinite}
+#alerta .itens{display:flex;flex-direction:column;gap:.8em;width:100%;max-width:92em}
+#alerta .it{background:rgba(0,0,0,.55);border:.15em solid #fff;border-radius:.6em;padding:1em 1.6em;display:flex;align-items:center;gap:1.6em;text-align:left}
+#alerta .it .lj{font:800 5em/1 var(--fd);background:var(--amarelo);color:var(--ink);padding:.12em .4em;border-radius:.15em;flex:none}
+#alerta .it .tx{min-width:0;flex:1}
+#alerta .it .fo{font:800 3.4em/1.05 var(--fd);text-transform:uppercase;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#alerta .it .de{font:600 1.7em var(--fb);color:#ffd9de;letter-spacing:.04em;margin-top:.25em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#alerta .rodape{font:700 1.6em var(--fb);letter-spacing:.14em;text-transform:uppercase;color:#fff;opacity:.85}
+#som{position:absolute;left:calc(var(--u) * 14px);bottom:calc(var(--u) * .65px);z-index:7;font:700 calc(var(--u) * 1.1px) var(--fb);letter-spacing:.08em;text-transform:uppercase;background:var(--amarelo);color:var(--ink);border:0;border-radius:.4em;padding:.6em 1em;cursor:pointer;box-shadow:0 .6em 2em rgba(0,0,0,.6)}
+[hidden]{display:none!important}
+@media (prefers-reduced-motion:reduce){.slide{transition:none}}
+</style>
+</head>
+<body>
+<div id="tv"><div class="slide" id="A"></div><div class="slide" id="B"></div><div class="prog" id="prog"></div><div id="aviso" class="msg" hidden></div><div id="alerta" hidden></div><button id="som" type="button" hidden>🔇 Clique aqui pra ligar o som do alerta</button><div id="fs" hidden><button type="button">Tela cheia</button></div></div>
+<script>
+const QS = new URLSearchParams(location.search);
+const KIOSK = QS.get('kiosk') === '1';
+let TELA_INICIAL = /^\d+$/.test(QS.get('tela') || '') ? Math.max(0, +QS.get('tela') - 1) : null;
+const ALERTA_SEG = /^\d+$/.test(QS.get('alerta') || '') ? Math.min(120, Math.max(5, +QS.get('alerta'))) : 15;
+const LOGO = '/logo-economico.png';
+const DADOS_MS = 30 * 1000, SEM_SERVIDOR_MS = 20 * 60 * 1000, LINHAS = 8, SEG_PAGINA = 25, SEG_POR_LINHA = 2.5, PAUSA_MS = 3000;
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const $ = s => document.querySelector(s);
+const DIAS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+const hojeTxt = () => { const d = new Date(); return DIAS[d.getDay()] + ' ' + d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }); };
+const hmDe = iso => iso ? new Date(iso).toTimeString().slice(0, 5) : '—';
+const dm = s => s ? String(s).slice(8, 10) + '/' + String(s).slice(5, 7) : '—';
+const mil = v => { v = Number(v) || 0; return v >= 1e6 ? 'R$ ' + (v / 1e6).toLocaleString('pt-BR', { maximumFractionDigits: 2 }) + ' mi' : v >= 1000 ? 'R$ ' + (v / 1000).toLocaleString('pt-BR', { maximumFractionDigits: v >= 100000 ? 0 : 1 }) + ' mil' : 'R$ ' + v.toLocaleString('pt-BR', { maximumFractionDigits: 0 }); };
+const rs = v => 'R$ ' + (Number(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const lojaCurta = l => 'E' + l;
+const tempo = min => min < 60 ? min + ' min' : min < 1440 ? Math.floor(min / 60) + ' h ' + String(min % 60).padStart(2, '0') : Math.floor(min / 1440) + ' d';
+const idade = x => x.dias > 0 ? `${x.dias} d` : (x.horaEntrada ? 'hoje' : '—');
+const IC = {
+  alerta: '<svg class="ic" viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>',
+  reconf: '<svg class="ic" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 15.5-6.2L21 8M21 3v5h-5M21 12a9 9 0 0 1-15.5 6.2L3 16M3 21v-5h5"/></svg>',
+  ok: '<svg class="ic" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>',
+  grade: '<svg class="ic" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>',
+  nota: '<svg class="ic" viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg>',
+  caminhao: '<svg class="ic" viewBox="0 0 24 24"><path d="M3 6h11v10H3zM14 10h4l3 3v3h-7"/><circle cx="7" cy="18" r="1.8"/><circle cx="17" cy="18" r="1.8"/></svg>',
+  relogio: '<svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+};
+
+let D = null, SEQ = [], idx = 0, front = 'A', timer = null, ULTIMO_OK = 0, alertaAte = 0, alertaTimer = null;
+
+// ── peças comuns ──
+const kp = (v, l, cls) => `<div class="kp${cls ? ' ' + cls : ''}"><b>${v}</b><span>${l}</span></div>`;
+function kpsPadrao() { const r = D.resumo; return kp(r.reconferir, 'Reconferir', r.reconferir ? 'vm' : '') + kp(r.excecao, 'Divergência', r.excecao ? 'am' : '') + kp(r.pronto, 'Pronto p/ liberar') + kp(r.liberadoHoje, 'Liberadas hoje'); }
+function topo(badge) { return `<div class="top"><div class="logo"><img src="${LOGO}" alt="Econômico Supermercados"></div><span class="tit">Fiscal</span>${badge ? `<span class="qbadge">${esc(badge)}</span>` : ''}<span class="sp"></span><div class="kps">${D ? kpsPadrao() : ''}</div><span class="dt">${hojeTxt()}</span></div>`; }
+function foot(val) { return `<div class="foot"><span class="sl">${IC.relogio}ERP ${hmDe(D && D.geradoEm)}</span><span class="sp"></span><span class="val">${val || ''}</span><span class="cnt">${idx % SEQ.length + 1} / ${SEQ.length}</span></div>`; }
+const hd = (ic, tit, sub) => `<div class="hd"><h2>${ic}${esc(tit)}</h2><span class="sub">${sub || ''}</span></div>`;
+const st = (cls, txt) => `<span class="st ${cls}">${esc(txt)}</span>`;
+const h = (v, cls, sub) => `<span class="h${cls ? ' ' + cls : ''}">${v == null || v === '' ? '—' : v}${sub ? `<small>${sub}</small>` : ''}</span>`;
+const etqLoja = l => `<span><span class="etq">${lojaCurta(l)}</span></span>`;
+function vazio(tit, txt) { return `<div class="vazio-tela"><h3>${esc(tit)}</h3><span class="brush"></span><p>${esc(txt)}</p></div>`; }
+function tela(id, badge, corpo, val) { return { id, html: () => `<div>${topo(badge)}${corpo}${foot(val)}</div>` }; }
+const notasTxt = x => x.notas && x.notas.length ? 'NF ' + x.notas.slice(0, 3).join(', ') + (x.notas.length > 3 ? '…' : '') : 'sem NF-e';
+
+// hora em que a nota entrou na loja e há quanto tempo (o ERP não guarda a hora em que virou reconferência)
+function chegada(x) {
+  if (!x.entradaHora) return h('—', 'prev');
+  const min = Math.max(0, Math.round((Date.now() - new Date(x.entradaHora).getTime()) / 60000));
+  return h(x.dias ? dm(x.entrada) : (x.horaEntrada || '—'), min >= 120 ? 'vm' : 'am', 'há ' + tempo(min));
+}
+// ── 1 · Reconferência (só entra na rotação quando tem) ──
+function rReconf() {
+  const L = D.reconferir || []; if (!L.length) return [];
+  const linhas = L.map(x => `<div class="row">${etqLoja(x.loja)}<span class="n">${esc(x.fornecedor)}<small>${notasTxt(x)} · conf. ${x.nReg}${x.decisao && x.decisao.por ? ' · pedida por ' + esc(x.decisao.por) : ''}</small></span><span class="t vm">${esc(x.motivos.join(' · ') || (x.decisao && x.decisao.obs) || 'reconferir a nota')}</span>${h(mil(x.valor))}${chegada(x)}</div>`).join('');
+  return [tela('reconf', 'Reconferência', `<div class="main">${hd(IC.reconf, 'Reconferência pendente', 'a loja tem que recontar e o fiscal decidir de novo')}<div class="lst l-rec"><div class="thead"><span>Loja</span><span>Fornecedor · nota</span><span>Motivo</span><span>Valor</span><span>Chegada</span></div><div class="rows rola" style="--n:${LINHAS}">${linhas}</div></div></div>`, `chegada = entrada da nota na loja · vermelho = parada há mais de <b>2 horas</b>`)];
+}
+// ── 2 · Divergências pra decidir ──
+function rExcecao() {
+  const L = D.excecao || [];
+  if (!L.length) return [tela('excecao', 'Divergências', `<div class="main">${vazio('Nenhuma divergência', 'Nenhuma nota de E1 a E6 com divergência esperando decisão do fiscal.')}</div>`, '')];
+  const linhas = L.map(x => { const quem = x.pendFiscal ? st('atraso', 'Fiscal decide') : x.pendCompradora ? st('pendente', 'Compradora' + (x.comprador ? ' · ' + x.comprador.split(' ')[0] : '')) : st('pendente', 'Fiscal decide');
+    return `<div class="row">${etqLoja(x.loja)}<span class="n">${esc(x.fornecedor)}<small>${notasTxt(x)} · conf. ${x.nReg}${x.operador ? ' · ' + esc(x.operador) : ''}</small></span><span class="t">${esc(x.motivos.join(' · ') || (x.pendFiscal ? x.pendFiscal + ' item(ns) do pedido sem decisão' : 'divergência na conferência'))}</span>${h(mil(x.valor))}${h(idade(x), x.dias >= 2 ? 'vm' : x.dias >= 1 ? 'am' : '', x.dias ? 'entrada ' + dm(x.entrada) : x.horaEntrada || '')}<span>${quem}</span></div>`; }).join('');
+  return [tela('excecao', 'Divergências', `<div class="main">${hd(IC.alerta, 'Divergências pra decidir', `${L.length} nota${L.length > 1 ? 's' : ''} · a mais antiga primeiro`)}<div class="lst l-exc"><div class="thead"><span>Loja</span><span>Fornecedor · nota</span><span>Divergência</span><span>Valor</span><span>Idade</span><span>Quem decide</span></div><div class="rows rola" style="--n:${LINHAS}">${linhas}</div></div></div>`, `XML × coletor × pedido · amarelo = desde ontem · vermelho = <b>2 dias</b> ou mais`)];
+}
+// ── 3 · Pronto pra liberar ──
+function rPronto() {
+  const L = D.pronto || [];
+  if (!L.length) return [tela('pronto', 'Pronto p/ liberar', `<div class="main">${vazio('Nada esperando liberação', 'Toda nota conferida sem divergência já foi liberada.')}</div>`, '')];
+  const linhas = L.map(x => `<div class="row">${etqLoja(x.loja)}<span class="n">${esc(x.fornecedor)}<small>${notasTxt(x)} · conf. ${x.nReg}</small></span>${h(x.dias ? dm(x.entrada) : (x.horaEntrada || '—'), x.dias ? 'am' : '', x.dias ? x.dias + ' d atrás' : 'entrada hoje')}${h(mil(x.valor))}<span>${st('ok', 'Conferida · OK')}</span></div>`).join('');
+  return [tela('pronto', 'Pronto p/ liberar', `<div class="main">${hd(IC.ok, 'Pronto pra liberar no ERP', `${L.length} nota${L.length > 1 ? 's' : ''} · coletor bateu com o XML · só falta liberar`)}<div class="lst l-pr"><div class="thead"><span>Loja</span><span>Fornecedor · nota</span><span>Entrada</span><span>Valor</span><span>Situação</span></div><div class="rows rola" style="--n:${LINHAS}">${linhas}</div></div></div>`, `liberar = mercadoria vai pra armazenagem`)];
+}
+// ── 4 · Quadro por loja ──
+function rQuadro() {
+  const Q = D.quadro || [];
+  const c = (v, cls) => `<span class="c ${v ? cls : 'z'}">${v}</span>`;
+  const tot = k => Q.reduce((a, q) => a + q[k], 0);
+  const linha = (nome, q, cl) => `<div class="row${cl ? ' ' + cl : ''}"><span class="n">${esc(nome)}</span>${c(q.aguardandoColetor, '')}${c(q.emContagem, '')}${c(q.excecao, 'am')}${c(q.reconferir, 'vm')}${c(q.pronto, 'am')}${c(q.liberadoHoje, 'ok')}${c(q.semConf, 'am')}</div>`;
+  const totais = { aguardandoColetor: tot('aguardandoColetor'), emContagem: tot('emContagem'), excecao: tot('excecao'), reconferir: tot('reconferir'), pronto: tot('pronto'), liberadoHoje: tot('liberadoHoje'), semConf: tot('semConf') };
+  const corpo = `<div class="main">${hd(IC.grade, 'Recebimento por loja', 'conferências de hoje + pendências dos últimos 7 dias')}<div class="lst qd"><div class="thead"><span>Loja</span><span>Aguard. coletor</span><span>Em contagem</span><span>Divergência</span><span>Reconferir</span><span>Pronto</span><span>Liberadas hoje</span><span>NF sem conf.</span></div><div class="rows" style="--n:${Q.length + 1}">${Q.map(q => linha(q.nome, q)).join('')}${linha('Total', totais, 'tot')}</div></div></div>`;
+  return [tela('quadro', 'Por loja', corpo, `onde está o gargalo agora`)];
+}
+// ── 5 · NF-e sem conferência ──
+function rSemConf() {
+  const L = D.semConf || [];
+  if (!L.length) return [tela('semconf', 'NF-e sem conferência', `<div class="main">${vazio('Toda NF-e tem conferência', 'Nenhuma nota emitida contra E1 a E6 há 2 dias ou mais ficou sem conferência.')}</div>`, '')];
+  const linhas = L.map(x => `<div class="row">${etqLoja(x.loja)}<span class="n">${esc(x.emitente)}<small>${esc(x.lojaNome)}</small></span>${h(x.nNota, 'prev')}${h(dm(x.emissao), 'prev')}${h(x.dias + ' d', x.dias >= 3 ? 'vm' : x.dias >= 1 ? 'am' : '')}${h(mil(x.valor))}<span>${x.lancada ? st('pendente', 'Lançada s/ conf.') : st('apuracao', 'Não lançada')}</span></div>`).join('');
+  return [tela('semconf', 'NF-e sem conferência', `<div class="main">${hd(IC.nota, 'NF-e sem conferência', `${D.resumo.semConf} nota${D.resumo.semConf > 1 ? 's' : ''} · ${mil(D.resumo.semConfValor)} · a mais velha primeiro${D.resumo.semConf > L.length ? ' · mostrando ' + L.length : ''}`)}<div class="lst l-sc"><div class="thead"><span>Loja</span><span>Emitente</span><span>NF</span><span>Emissão</span><span>Idade</span><span>Valor</span><span>Situação</span></div><div class="rows rola" style="--n:${LINHAS}">${linhas}</div></div></div>`, `emitida há 2 dias ou mais e ninguém conferiu · vermelho = <b>3 dias</b> ou mais${D.semConfVelho ? ' · dado anterior' : ''}`)];
+}
+// ── 6 · A caminho / atrasados ──
+function rCaminho() {
+  const A = D.atrasados || [], C = D.caminho || [];
+  if (!A.length && !C.length) return [tela('caminho', 'Pedidos', `<div class="main">${vazio('Nada a caminho', 'Nenhum pedido com NF-e emitida esperando chegar e nenhum pedido atrasado.')}</div>`, '')];
+  const lin = (x, sit) => `<div class="row">${etqLoja(x.loja)}<span class="n">${esc(x.fornecedor)}<small>pedido #${x.pedido}${x.cotacao ? ' · cotação' : x.comprador ? ' · ' + esc(String(x.comprador).split(' ')[0]) : ''}${x.sub ? ' · ' + esc(x.sub) : ''}</small></span>${h(dm(x.prevista), 'prev')}${h(x.atraso ? x.atraso + ' d' : 'no prazo', x.atraso >= 3 ? 'vm' : x.atraso ? 'am' : 'prev')}${h(x.itens || '—', 'prev')}${h(mil(x.valor))}<span>${sit}</span></div>`;
+  const linhas = A.map(x => lin(x, st(x.atraso >= 3 ? 'atraso' : 'pendente', 'Sem nota · atrasado'))).join('') + C.map(x => lin(x, st(x.atraso ? 'pendente' : 'ok', 'NF-e emitida'))).join('');
+  return [tela('caminho', 'Pedidos', `<div class="main">${hd(IC.caminhao, 'A caminho e atrasados', `${C.length} com NF-e emitida · ${A.length} atrasado${A.length === 1 ? '' : 's'} sem nota`)}<div class="lst l-cam"><div class="thead"><span>Loja</span><span>Fornecedor · pedido</span><span>Prevista</span><span>Atraso</span><span>Itens</span><span>Valor</span><span>Situação</span></div><div class="rows rola" style="--n:${LINHAS}">${linhas}</div></div></div>`, `pedidos do app pra E1 a E6 · atrasado = passou da entrega prevista${D.pedidosVelho ? ' · dado anterior' : ''}`)];
+}
+const ORDEM = [rReconf, rExcecao, rPronto, rQuadro, rSemConf, rCaminho];
+
+function montarSequencia() { const seq = []; for (const f of ORDEM) { try { seq.push(...f()); } catch (e) { console.error('[TV] tela', f.name, e); } } return seq; }
+function mostrar() {
+  if (!SEQ.length) return;
+  const s = SEQ[idx % SEQ.length]; const nxt = front === 'A' ? 'B' : 'A'; const el = document.getElementById(nxt);
+  try { el.innerHTML = s.html(); } catch (e) { console.error('[TV] página', s.id, e); el.innerHTML = `<div>${topo('')}${vazio('Tela indisponível', 'Erro ao montar esta página; a rotação continua.')}${foot('')}</div>`; }
+  requestAnimationFrame(() => { el.classList.add('on'); document.getElementById(front).classList.remove('on'); front = nxt; });
+  const ms = Math.max(SEG_PAGINA * 1000, rolar(el));
+  const pr = $('#prog'); pr.style.transition = 'none'; pr.style.width = '0';
+  requestAnimationFrame(() => requestAnimationFrame(() => { pr.style.transition = `width ${ms}ms linear`; pr.style.width = '100%'; }));
+  clearTimeout(timer); timer = setTimeout(() => { idx++; mostrar(); }, ms);
+}
+// carrossel subindo (igual ao Painel Compras): lista comprida desliza pra cima; a página dura o que a rolagem precisa
+function rolar(slide) {
+  let precisa = 0;
+  slide.querySelectorAll('.rows.rola').forEach(w => {
+    const inner = document.createElement('div'); inner.className = 'rows-in';
+    while (w.firstChild) inner.appendChild(w.firstChild); w.appendChild(inner);
+    const n = parseInt(getComputedStyle(w).getPropertyValue('--n')) || LINHAS; const rh = w.clientHeight / n;
+    w.style.setProperty('--rh', rh.toFixed(2));
+    const diff = inner.scrollHeight - w.clientHeight; if (diff <= 4) return;
+    const dur = Math.round(diff / rh * SEG_POR_LINHA * 1000);
+    precisa = Math.max(precisa, dur + PAUSA_MS * 2);
+    inner.style.transition = 'none'; inner.style.transform = 'translateY(0)';
+    requestAnimationFrame(() => requestAnimationFrame(() => { inner.style.transition = `transform ${dur}ms linear ${PAUSA_MS}ms`; inner.style.transform = `translateY(-${diff}px)`; }));
+  });
+  return precisa;
+}
+function aviso(t, p) { const a = $('#aviso'); a.innerHTML = `<img src="${LOGO}" alt=""><h1>${esc(t)}</h1><p>${esc(p)}</p>`; a.hidden = false; }
+function aplicar() {
+  if (!D) return;
+  const rodando = SEQ.length > 0; const atual = rodando ? SEQ[idx % SEQ.length].id : null;
+  SEQ = montarSequencia();
+  if (!SEQ.length) return;
+  $('#aviso').hidden = true;
+  if (!rodando) { idx = TELA_INICIAL != null ? Math.min(TELA_INICIAL, SEQ.length - 1) : 0; TELA_INICIAL = null; if (!alertaAte) mostrar(); }
+  else { const i = SEQ.findIndex(p => p.id === atual); idx = i >= 0 ? i : idx % SEQ.length; }   // continua na mesma tela; a próxima já usa o dado novo
+  verificarAlerta();
+}
+
+// ── ALERTA de reconferência nova ──
+const CHAVE_VISTAS = 'fc360.fiscal.reconfVistas';
+let VISTAS = null;   // Set das chaves que já tocaram (nReg|decisão); null = TV acabou de abrir
+function lerVistas() { try { const a = JSON.parse(localStorage.getItem(CHAVE_VISTAS) || 'null'); return Array.isArray(a) ? new Set(a) : null; } catch (e) { return null; } }
+function gravarVistas() { try { localStorage.setItem(CHAVE_VISTAS, JSON.stringify([...VISTAS].slice(-300))); } catch (e) {} }
+function verificarAlerta() {
+  const L = D.reconferir || [];
+  if (VISTAS === null) { VISTAS = lerVistas(); if (VISTAS === null) { VISTAS = new Set(L.map(x => x.chaveAlerta)); gravarVistas(); return; } }   // 1ª vez neste aparelho: o que já existia não toca
+  const novas = L.filter(x => !VISTAS.has(x.chaveAlerta));
+  if (!novas.length) return;
+  novas.forEach(x => VISTAS.add(x.chaveAlerta)); gravarVistas();
+  dispararAlerta(novas);
+}
+let ALERTA_ITENS = [];
+function dispararAlerta(itens) {
+  ALERTA_ITENS = [...itens, ...ALERTA_ITENS.filter(a => !itens.some(i => i.nReg === a.nReg))].slice(0, 3);
+  const el = $('#alerta');
+  el.innerHTML = `<svg class="ic ic-al" viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg><h1>Reconferência</h1>
+    <div class="itens">${ALERTA_ITENS.map(x => `<div class="it"><span class="lj">${lojaCurta(x.loja)}</span><div class="tx"><div class="fo">${esc(x.fornecedor)}</div><div class="de">${esc(x.lojaNome)} · ${esc(notasTxt(x))} · ${esc(mil(x.valor))}${x.motivos && x.motivos.length ? ' · ' + esc(x.motivos[0]) : ''}${x.decisao && x.decisao.por ? ' · pedida por ' + esc(x.decisao.por) : ''}</div></div></div>`).join('')}</div>
+    <div class="rodape">Loja precisa recontar · confira em Fiscal › Recebimentos</div>`;
+  el.hidden = false;
+  clearTimeout(timer); clearTimeout(alertaTimer);
+  alertaAte = Date.now() + ALERTA_SEG * 1000;
+  tocarSirene(ALERTA_SEG);
+  alertaTimer = setTimeout(fimAlerta, ALERTA_SEG * 1000);
+}
+function fimAlerta() {
+  $('#alerta').hidden = true; alertaAte = 0; ALERTA_ITENS = []; pararSirene();
+  // volta pro slide em que estava (Tiago, 30/10)
+  if (SEQ.length) mostrar();
+}
+// som: sirene gerada no navegador (Web Audio), sem arquivo. Bipe duplo agudo a cada 1,5 s enquanto o alerta está na tela.
+let AC = null, sireneTimer = null;
+function ctx() { try { if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} return AC; }
+function bipe(f, ini, dur) { const a = ctx(); if (!a) return; const o = a.createOscillator(), g = a.createGain(); o.type = 'square'; o.frequency.value = f; g.gain.setValueAtTime(0.0001, a.currentTime + ini); g.gain.exponentialRampToValueAtTime(0.35, a.currentTime + ini + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + ini + dur); o.connect(g); g.connect(a.destination); o.start(a.currentTime + ini); o.stop(a.currentTime + ini + dur + 0.05); }
+function tocarSirene(seg) {
+  pararSirene(); const a = ctx(); if (!a) return;
+  if (a.state !== 'running') a.resume().catch(() => {});
+  const fim = Date.now() + seg * 1000;
+  const toque = () => { if (Date.now() > fim) return pararSirene(); bipe(988, 0, 0.18); bipe(1319, 0.22, 0.18); bipe(988, 0.44, 0.18); bipe(1319, 0.66, 0.25); };
+  toque(); sireneTimer = setInterval(toque, 1500);
+}
+function pararSirene() { clearInterval(sireneTimer); sireneTimer = null; }
+// o Chrome só libera o som depois de um clique: mostra o botão até a TV ser clicada uma vez
+function conferirSom() { const a = ctx(); $('#som').hidden = !a || a.state === 'running'; }
+function destravarSom() { const a = ctx(); if (a) a.resume().then(() => { bipe(1319, 0, 0.12); conferirSom(); }).catch(() => {}); }
+$('#som').onclick = e => { e.stopPropagation(); destravarSom(); };
+document.addEventListener('click', destravarSom);
+setTimeout(conferirSom, 2000); setInterval(conferirSom, 10000);
+
+async function lerDados() {
+  try {
+    const r = await fetch(`/api/paineis-publico/fiscal-dados?t=${Date.now()}`, { cache: 'no-store' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    D = await r.json(); ULTIMO_OK = Date.now(); aplicar();
+  } catch (e) {
+    console.warn('[TV] dados:', e.message);
+    if (!D) aviso('Carregando o painel', 'Buscando as conferências no ERP. A primeira carga leva até 1 minuto.');
+    else if (Date.now() - ULTIMO_OK > SEM_SERVIDOR_MS) aviso('Sem servidor', 'A TV não fala com o servidor há mais de 20 minutos. Confira a rede.');
+  }
+}
+function alertaTeste() {
+  dispararAlerta([{ nReg: 0, loja: 3, lojaNome: 'E3 · Ponte', fornecedor: 'TESTE DO ALERTA · FORNECEDOR EXEMPLO', notas: ['123456'], valor: 4321.5, motivos: ['Falta: 2 cx de exemplo'], decisao: { por: 'teste' } }]);
+}
+// ── tela: unidade de escala 16:9, tela cheia ──
+function fit() { const w = innerWidth, hh = innerHeight; const u = Math.min(w / 100, hh / 56.25); document.getElementById('tv').style.setProperty('--u', u.toFixed(3)); }
+addEventListener('resize', fit); fit();
+function fsOk() { return document.fullscreenElement || KIOSK || !document.documentElement.requestFullscreen; }
+function pedirFs() { document.documentElement.requestFullscreen().catch(() => {}); $('#fs').hidden = true; }
+$('#fs').onclick = pedirFs;
+document.addEventListener('keydown', e => {
+  destravarSom();
+  if (e.key === 'f' || e.key === 'F') pedirFs();
+  if (e.key === 'a' || e.key === 'A') alertaTeste();
+  if (e.key === 'Escape' && alertaAte) { clearTimeout(alertaTimer); fimAlerta(); }
+  if (alertaAte) return;
+  if (e.key === 'ArrowRight') { idx++; mostrar(); } if (e.key === 'ArrowLeft') { idx = (idx - 1 + SEQ.length) % SEQ.length; mostrar(); }
+});
+document.addEventListener('fullscreenchange', () => { $('#fs').hidden = fsOk(); });
+setTimeout(() => { if (!fsOk()) $('#fs').hidden = false; }, 1500);
+setInterval(() => { document.querySelectorAll('.slide.on .dt').forEach(c => c.textContent = hojeTxt()); }, 60000);
+
+lerDados();
+setInterval(lerDados, DADOS_MS);
+if (QS.get('teste') === 'alerta') setTimeout(alertaTeste, 5000);
+window.tvSlideAtual = () => alertaAte ? 'ALERTA reconferência' : (!SEQ.length ? 'carregando' : `${SEQ[idx % SEQ.length].id} · tela ${idx % SEQ.length + 1}/${SEQ.length}`);
+</script>
+<script src="/tv-heartbeat.js" data-painel="fiscal" defer></script>
+</body>
+</html>
