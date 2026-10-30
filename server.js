@@ -9654,8 +9654,9 @@ app.post('/api/autentique/webhook', express.raw({ type: '*/*', limit: '2mb' }), 
   const v = AUT.validarAssinatura(raw, req.headers['x-autentique-signature']);
   let ev = null; try { ev = JSON.parse(raw.toString('utf8')); } catch (e) {}
   if (!v.ok) { try { AUT.registrarEvento(ev || {}, { assinaturaOk: false, motivo: v.motivo, ip: req.ip }); } catch (e) {} console.warn('[autentique] webhook recusado: ' + v.motivo); return res.status(401).json({ error: 'assinatura inválida' }); }
-  try { AUT.registrarEvento(ev || {}, { assinaturaOk: true, ip: req.ip }); } catch (e) { console.error('[autentique] webhook:', e.message); }
-  res.json({ ok: true });
+  let linha = null; try { linha = AUT.registrarEvento(ev || {}, { assinaturaOk: true, ip: req.ip }); } catch (e) { console.error('[autentique] webhook:', e.message); }
+  res.json({ ok: true, duplicado: !!(linha && linha.duplicado) });   // responde já; o processamento (baixar PDF assinado) roda depois
+  if (linha && !linha.duplicado) setImmediate(() => AUT.processarEvento(linha).catch(e => console.error('[autentique] processar evento:', e.message)));
 });
 require('./lib/gestao-documental-rotas')(app, { pontocerto, multer,
   validarSenha: async (usuario, senha) => { const u = usuarios.find(x => x.usuario === usuario); return !!(u && u.senha_hash && await bcrypt.compare(String(senha), u.senha_hash)); } });
