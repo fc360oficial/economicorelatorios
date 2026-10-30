@@ -134,6 +134,7 @@ svg.ic{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2;stroke-
 #alerta .it .mo:before{content:"▸ ";color:var(--amarelo)}
 #alerta .rodape{font:700 1.6em var(--fb);letter-spacing:.14em;text-transform:uppercase;color:#fff;opacity:.85}
 #som{position:absolute;left:calc(var(--u) * 14px);bottom:calc(var(--u) * .65px);z-index:7;font:700 calc(var(--u) * 1.1px) var(--fb);letter-spacing:.08em;text-transform:uppercase;background:var(--amarelo);color:var(--ink);border:0;border-radius:.4em;padding:.6em 1em;cursor:pointer;box-shadow:0 .6em 2em rgba(0,0,0,.6)}
+#som.ativo{background:transparent;color:#6fd391;box-shadow:none;border:.08em solid #2f5e3f;padding:.45em .8em;cursor:default}   /* som ok: só um selo discreto */
 [hidden]{display:none!important}
 @media (prefers-reduced-motion:reduce){.slide{transition:none}}
 </style>
@@ -379,12 +380,22 @@ function tocarSirene(seg) {
   toque(); sireneTimer = setInterval(toque, 1500);
 }
 function pararSirene() { clearInterval(sireneTimer); sireneTimer = null; }
-// o Chrome só libera o som depois de um clique: mostra o botão até a TV ser clicada uma vez
-function conferirSom() { const a = ctx(); $('#som').hidden = !a || a.state === 'running'; }
-function destravarSom() { const a = ctx(); if (a) a.resume().then(() => { bipe(1319, 0, 0.12); conferirSom(); }).catch(() => {}); }
+// Som (Tiago, 30/10: "coloca isso já pra vir automático ativo"): ao abrir, tenta ligar sozinho (o navegador deixa quando o
+// site já tem permissão de autoplay ou o Chrome foi aberto com --autoplay-policy=no-user-gesture-required). O indicador do
+// rodapé fica SEMPRE visível: "🔊 Som ativo" discreto, ou o botão amarelo "🔇 Clique pra ligar o som" quando está bloqueado.
+// Qualquer clique/tecla na página (inclusive o "Tela cheia") destrava.
+let somAvisou = false;
+function conferirSom() {
+  const a = ctx(), b = $('#som'); b.hidden = false;
+  const ok = a && a.state === 'running';
+  b.classList.toggle('ativo', !!ok);
+  b.textContent = !somLigado() ? '🔇 Som do alerta desligado na configuração' : ok ? '🔊 Som ativo' : '🔇 Clique aqui pra ligar o som do alerta';
+}
+function destravarSom() { const a = ctx(); if (a) a.resume().then(() => { if (!somAvisou) { somAvisou = true; bipe(1319, 0, 0.12); } conferirSom(); }).catch(() => {}); }
 $('#som').onclick = e => { e.stopPropagation(); destravarSom(); };
 document.addEventListener('click', destravarSom);
-setTimeout(conferirSom, 2000); setInterval(conferirSom, 10000);
+try { const a = ctx(); if (a) a.resume().then(conferirSom).catch(() => {}); } catch (e) {}   // tentativa automática ao abrir
+setTimeout(conferirSom, 1500); setInterval(conferirSom, 5000);
 
 async function lerDados() {
   try {
