@@ -7838,6 +7838,11 @@ app.get('/api/dashboard', async (req, res) => {
   try { res.json(soMinhaDashboard(req, await dashboardNovo.dados())); } catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.get('/api/dashboard/resumo', (req, res) => { try { res.json(dashboardNovo.resumo()); } catch (err) { res.status(500).json({ error: err.message }); } });
+// Faturamento de um mês fechado (?mes=AAAA-MM), seletor discreto no cabeçalho do bloco 1 (Tiago, 01/11/26)
+app.get('/api/dashboard/faturamento/mes', async (req, res) => {
+  try { const r = await dashboardNovo.faturamentoMes(req.query.mes); if (!r) return res.status(400).json({ error: 'mês inválido (use um mês fechado, AAAA-MM)' }); res.json({ ...soMinhaDashboard(req, r), nomes: dashboardNovo.NOMES, metas: dashboardNovo.getMetas() }); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
 app.get('/api/dashboard/seg/:nome', async (req, res) => {
   try { const r = soMinhaDashboard(req, await dashboardNovo.segmento(req.params.nome)); res.json({ ...r, nomes: dashboardNovo.NOMES, metas: dashboardNovo.getMetas() }); }
   catch (err) { res.status(400).json({ error: err.message }); }

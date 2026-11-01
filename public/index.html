@@ -56,6 +56,11 @@
   .seg-hd small{font-size:11.5px;color:var(--ink3)}
   .seg-hd .lk{margin-left:auto;font-size:11.5px;font-weight:700;color:var(--amk,#6B4E00);text-decoration:none}
   .seg-hd .lk:hover{text-decoration:underline}
+  /* seletor de mês do Faturamento (Tiago 01/11/26): discreto, ao lado do link */
+  .fat-mes{margin-left:auto;font-size:11px;font-weight:600;color:var(--ink3);background:transparent;border:1px solid transparent;border-radius:6px;padding:2px 4px;cursor:pointer}
+  .fat-mes:hover,.fat-mes:focus{border-color:var(--line,#ddd);color:var(--ink)}
+  .fat-mes.past{color:var(--amk,#6B4E00);border-color:var(--amk,#6B4E00);font-weight:800}
+  #s1 .seg-hd .lk{margin-left:8px}
   .row{display:grid;gap:12px}
   .row.c7{grid-template-columns:repeat(7,minmax(150px,1fr))}
   .row.c6{grid-template-columns:repeat(6,minmax(150px,1fr))}
@@ -428,7 +433,7 @@
 
   <!-- 1 FATURAMENTO -->
   <section class="seg" id="s1">
-    <div class="seg-hd"><span class="n">1</span><h2>Faturamento</h2><small id="s1-sub">mês atual até hoje × mesmo período do ano anterior · margem s/ venda · markup s/ custo · ticket · cupons</small><a class="lk" href="/comparativos.html">Comparativos →</a></div>
+    <div class="seg-hd"><span class="n">1</span><h2>Faturamento</h2><small id="s1-sub">mês atual até hoje × mesmo período do ano anterior · margem s/ venda · markup s/ custo · ticket · cupons</small><select class="fat-mes" id="fat-mes" onchange="setFatMes(this.value)" title="Ver o faturamento de um mês já fechado"></select><a class="lk" href="/comparativos.html">Comparativos →</a></div>
     <div class="fat-wrap" id="fat-cards"><div class="spin"></div></div>
   </section>
 
@@ -547,11 +552,19 @@ async function abrirSeg(id) {
   document.querySelector('.ds-h1').textContent = 'Visão geral';
   window.scrollTo(0, 0); await carregarSeg(SEG_KEY[id]);
 }
+// Faturamento: mês fechado escolhido no seletor do cabeçalho ('' = mês atual)
+let FAT_MES = '';
+(function () {
+  const d = new Date(), o = ['<option value="">mês atual</option>'];
+  for (let i = 1; i <= 12; i++) { const m = new Date(d.getFullYear(), d.getMonth() - i, 1), v = m.getFullYear() + '-' + String(m.getMonth() + 1).padStart(2, '0'); o.push('<option value="' + v + '">' + MESES[m.getMonth() + 1] + ' ' + m.getFullYear() + '</option>'); }
+  document.getElementById('fat-mes').innerHTML = o.join('');
+})();
+function setFatMes(v) { FAT_MES = v; document.getElementById('fat-mes').classList.toggle('past', !!v); FAT_OPEN = null; carregarSeg('faturamento'); }
 async function carregarSeg(k) {
   const sec = document.getElementById(SEG); if (sec) sec.classList.add('loading');
-  document.getElementById('crumb-sub').textContent = 'carregando ' + k + '…';
+  document.getElementById('crumb-sub').textContent = 'carregando ' + k + (k === 'faturamento' && FAT_MES ? ' de ' + FAT_MES.split('-').reverse().join('/') + ' (mês fechado pode levar alguns segundos)' : '') + '…';
   try {
-    const r = await fetch('/api/dashboard/seg/' + k); const j = await r.json(); if (j.error) throw new Error(j.error);
+    const r = await fetch(k === 'faturamento' && FAT_MES ? '/api/dashboard/faturamento/mes?mes=' + FAT_MES : '/api/dashboard/seg/' + k); const j = await r.json(); if (j.error) throw new Error(j.error);
     D = Object.assign(D || {}, j); render();
   } catch (e) { document.getElementById('crumb-sub').textContent = 'erro: ' + e.message; }
   finally { if (sec) sec.classList.remove('loading'); }
@@ -600,7 +613,8 @@ function render() {
 }
 function renderFat() {
   const f = D.faturamento; if (!f) { document.getElementById('fat-cards').innerHTML = empty('Faturamento não calculado'); return; }
-  document.getElementById('s1-sub').textContent = 'hoje × mesmo dia da semana do ano anterior, até a hora do último cupom que já chegou na central · mês 01 a ' + df(f.ate) + ' × 01 a ' + String(f.dia).padStart(2, '0') + '/' + String(f.mes).padStart(2, '0') + '/' + f.anoAnt + ' · margem s/ venda · markup s/ custo · ticket · cupons';
+  const FX = !!f.fechado;   // mês fechado: o "hoje" é o último dia do mês
+  document.getElementById('s1-sub').textContent = FX ? MESES[f.mes] + ' de ' + f.ano + ' (mês fechado) × mesmo mês de ' + f.anoAnt + ' · último dia × mesmo dia da semana do ano anterior · margem s/ venda · markup s/ custo · ticket · cupons' : 'hoje × mesmo dia da semana do ano anterior, até a hora do último cupom que já chegou na central · mês 01 a ' + df(f.ate) + ' × 01 a ' + String(f.dia).padStart(2, '0') + '/' + String(f.mes).padStart(2, '0') + '/' + f.anoAnt + ' · margem s/ venda · markup s/ custo · ticket · cupons';
   const n0 = v => (v || 0).toLocaleString('pt-BR');
   const antP = (v, a) => v != null && a != null ? '<span class="' + (v >= a ? 'up' : 'dn') + '">' + pct(v) + '</span><span class="ant">ant ' + pct(a) + '</span>' : pct(v);
   const r = f.rede, on = ln => LOJA === ln ? ' on' : '';
@@ -612,10 +626,10 @@ function renderFat() {
   const lojasRede = f.lojas.filter(l => !l.cd);
   const hero = '<div class="lj rede hero band' + on(0) + '" onclick="setLoja(0)" title="Ver a rede inteira">'
     + '<div class="hb-main"><div class="nm"><span>REDE · ' + lojasRede.length + ' lojas</span></div>'
-    + '<div class="v">' + moneyK(r.venda) + '<small>mês até hoje</small></div>'
+    + '<div class="v">' + moneyK(r.venda) + '<small>' + (FX ? MESES[f.mes] + ' ' + f.ano : 'mês até hoje') + '</small></div>'
     + '<div class="var">' + moneyK(r.vendaAnt) + '<span>ano anterior</span> <span class="' + cls(r.var) + '" style="margin-left:2px">' + sgn(r.var) + '</span></div></div>'
     + '<div class="hero-g">'
-    + kpi('venda hoje', moneyK(r.hoje), r.hojeAnt ? 'ant ' + moneyK(r.hojeAnt) + ' · <b class="' + cls(r.hoje - r.hojeAnt) + '">' + sgn((r.hoje / r.hojeAnt - 1) * 100) + '</b>' : '', '')
+    + kpi(FX ? 'venda último dia' : 'venda hoje', moneyK(r.hoje), r.hojeAnt ? 'ant ' + moneyK(r.hojeAnt) + ' · <b class="' + cls(r.hoje - r.hojeAnt) + '">' + sgn((r.hoje / r.hojeAnt - 1) * 100) + '</b>' : '', '')
     + kpi('margem s/ venda · mês', '<span class="' + (r.margem != null && r.margemAnt != null ? (r.margem >= r.margemAnt ? 'up' : 'dn') : '') + '">' + pct(r.margem) + '</span>', r.margemAnt != null ? 'ant ' + pct(r.margemAnt) : '')
     + kpi('markup s/ custo · mês', '<span class="' + (r.markup != null && r.markupAnt != null ? (r.markup >= r.markupAnt ? 'up' : 'dn') : '') + '">' + pct(r.markup) + '</span>', r.markupAnt != null ? 'ant ' + pct(r.markupAnt) : '')
     + kpi('ticket médio · mês', money(r.ticket), vsAnt(r.ticket, r.ticketAnt))
@@ -641,9 +655,9 @@ function renderFat() {
   const cd = f.lojas.find(l => l.cd), hj = String(f.dia).padStart(2, '0') + '/' + String(f.mes).padStart(2, '0');
   const hAnt = (f.lojas[0] || {}).hojeAntHora, hjAnt = df((f.lojas[0] || {}).hojeAntData);
   const tabela = '<div class="fat-tb"><table class="m"><thead>'
-    + '<tr><th rowspan="3">Loja</th><th class="grp top dia" colspan="5" title="Hoje × ' + hjAnt + '/' + f.anoAnt + ' (mesmo dia da semana do ano anterior). Os cupons das lojas chegam na central com atraso: o ano anterior é somado só até a hora do último cupom de hoje já recebido de cada loja (o \'até hh:mm\' em cada linha)">Hoje · ' + hj + ' <small>× ' + hjAnt + '/' + f.anoAnt + ' até a hora do último cupom recebido</small></th>'
+    + '<tr><th rowspan="3">Loja</th><th class="grp top dia" colspan="5" title="Hoje × ' + hjAnt + '/' + f.anoAnt + ' (mesmo dia da semana do ano anterior). Os cupons das lojas chegam na central com atraso: o ano anterior é somado só até a hora do último cupom de hoje já recebido de cada loja (o \'até hh:mm\' em cada linha)">' + (FX ? 'Último dia' : 'Hoje') + ' · ' + hj + ' <small>× ' + hjAnt + '/' + f.anoAnt + (FX ? '' : ' até a hora do último cupom recebido') + '</small></th>'
     + '<th class="grp top sep mes" colspan="6" title="01 a ' + hj + ' × 01 a ' + hj + '/' + f.anoAnt + '">Mês · 01 a ' + hj + ' <small>× 01 a ' + hj + '/' + f.anoAnt + '</small></th></tr>'
-    + '<tr><th class="r sep dia" rowspan="2">Venda hoje</th><th class="grp dia" colspan="2">Rentabilidade</th><th class="grp dia" colspan="2">Clientes</th><th class="r sep mes" rowspan="2">Venda até hoje</th><th class="grp" colspan="2">Rentabilidade</th><th class="grp" colspan="2">Clientes</th><th class="r" rowspan="2">Ano anterior</th></tr>'
+    + '<tr><th class="r sep dia" rowspan="2">' + (FX ? 'Venda do dia' : 'Venda hoje') + '</th><th class="grp dia" colspan="2">Rentabilidade</th><th class="grp dia" colspan="2">Clientes</th><th class="r sep mes" rowspan="2">' + (FX ? 'Venda do mês' : 'Venda até hoje') + '</th><th class="grp" colspan="2">Rentabilidade</th><th class="grp" colspan="2">Clientes</th><th class="r" rowspan="2">Ano anterior</th></tr>'
     + '<tr><th class="r dia">Margem</th><th class="r dia">Markup</th><th class="r dia">Ticket</th><th class="r dia">Cupons</th><th class="r">Margem</th><th class="r">Markup</th><th class="r">Ticket</th><th class="r">Cupons</th></tr></thead><tbody>'
     + f.lojas.filter(l => !l.cd).map(linha).join('')
     + '</tbody><tfoot><tr data-fat="0"><td class="lj-nm" onclick="fatFormas(this,0,event)" title="Clique pra abrir de que é feita a venda de hoje da rede: dinheiro, PIX, débito, crédito, voucher…">Rede · ' + f.lojas.filter(l => !l.cd).length + ' lojas<span class="fat-car">▶</span></td>' + celDia(r) + celMes(r) + '</tr>'
@@ -665,7 +679,7 @@ async function fatFormas(td, loja, ev) {
   tr.after(det); tr.classList.add('fat-open');
   if (loja === 10) { det.firstChild.innerHTML = '<div class="org-foot">O CD vende por NF-e (faturado pro cliente), não pelo caixa: não existe forma de pagamento por cupom pra abrir aqui.</div>'; return; }
   try {
-    const r = await fetch('/api/dashboard/faturamento/formas?loja=' + loja); const j = await r.json(); if (j.error) throw new Error(j.error);
+    const ff = D && D.faturamento; const r = await fetch('/api/dashboard/faturamento/formas?loja=' + loja + (ff && ff.fechado ? '&data=' + ff.ate : '')); const j = await r.json(); if (j.error) throw new Error(j.error);
     if (!det.isConnected) return;
     det.firstChild.innerHTML = orgHtml(j, loja);
   } catch (e) { if (det.isConnected) det.firstChild.innerHTML = '<div class="empty">erro: ' + esc(e.message) + '</div>'; }
