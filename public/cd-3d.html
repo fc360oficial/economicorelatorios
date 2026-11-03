@@ -47,6 +47,9 @@ button{font-family:inherit}
 #kpis::-webkit-scrollbar{display:none}
 .kpi{border-radius:13px;padding:8px 13px;min-width:132px;cursor:pointer;text-align:left;color:var(--tx);transition:transform .15s,border-color .15s}
 .kpi:hover{transform:translateY(-2px);border-color:rgba(245,184,0,.55)}
+.kpi-mais{display:none}   /* só aparece no celular */
+/* nomes flutuantes desligados por padrão (Tiago, 03/11: "muito nome, não dá pra ver a maquete"); botão Nomes liga */
+.rotulos.sem-nomes .rot{display:none}
 .kpi .l{font-size:9.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--tx3);display:flex;align-items:center;gap:6px}
 .kpi .l i{width:7px;height:7px;border-radius:2px}
 .kpi .v{font-size:17px;font-weight:800;letter-spacing:-.3px;margin-top:2px;white-space:nowrap}
@@ -141,6 +144,21 @@ body.claro .bt.on{color:#1b1400}
 @media(max-width:1199px){.marca span,.marca .st{display:none}#cartao{width:340px}}
 @media(max-width:820px){
   #hud{top:8px;left:8px;right:8px;flex-wrap:wrap;gap:6px}
+  /* KPIs: grade de 2 colunas, só os 4 primeiros até tocar em Ver todos */
+  #kpis{display:grid!important;grid-template-columns:1fr 1fr;gap:6px;overflow:visible}
+  #kpis .kpi{min-width:0;padding:7px 10px;border-radius:11px}
+  #kpis .kpi .l{font-size:9px;letter-spacing:.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #kpis .kpi .v{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #kpis .kpi .s{display:none}
+  #kpis .kpi:nth-child(n+5):not(.kpi-mais){display:none}
+  #kpis.todos .kpi:nth-child(n+5){display:block}
+  .kpi-mais{display:block;grid-column:1/-1;text-align:center!important;font-size:11px;font-weight:700;padding:6px!important;color:var(--tx2)!important}
+  .kpi:hover{transform:none}
+  /* botões numa linha só: estilo ocupa o que sobrar */
+  .acoes{order:1;width:100%;flex-direction:row;margin-left:0!important;gap:6px}
+  .acoes .bt{padding:6px 9px;font-size:11px}
+  #estilo{flex:1;min-width:0;padding:6px 8px;font-size:11px}
+  .rot.zona small{display:none}
   .marca{display:none}
   #kpis{order:2;width:100%;flex:none}
   .acoes{flex-direction:row;margin-left:auto}
@@ -163,6 +181,7 @@ body.claro .bt.on{color:#1b1400}
     <div id="kpis"></div>
     <div class="acoes">
       <button class="bt vidro" id="b-visao" title="Volta pra visão de cima do CD inteiro">Visão geral</button>
+      <button class="bt vidro" id="b-nomes" title="Mostra ou esconde os nomes em cima dos objetos (o nome sempre aparece ao passar o mouse ou tocar)">Nomes</button>
       <button class="bt vidro on" id="b-girar" title="Liga/desliga a câmera girando sozinha">Girar</button>
       <select id="estilo" class="vidro" title="Estilo visual do mundo (fica guardado neste navegador)"></select>
       <button class="bt vidro" id="b-atual" title="Busca os números de novo (o servidor guarda por 5 min)">Atualizar</button>
@@ -208,12 +227,12 @@ const GRUPO = [COR.amb, COR.teal, COR.azul, COR.roxo, COR.lar, COR.verde, COR.ro
 const ZONAS = {
   cd:    { nome: 'CD e estoque',  cor: COR.amb,  pos: [0, 4, 0],     dist: 70 },
   prod:  { nome: 'Produtos que mais saem', cor: COR.ceu, pos: [0, 30, 0], dist: 80 },
-  exp:   { nome: 'Expedição',      cor: COR.verde, pos: [0, 0, 24],   dist: 45 },
-  rec:   { nome: 'Recebimento',    cor: COR.teal, pos: [0, 0, -24],  dist: 50 },
+  exp:   { nome: 'Expedição',      cor: COR.verde, pos: [0, 0, 37],   dist: 50 },
+  rec:   { nome: 'Recebimento',    cor: COR.teal, pos: [0, 0, -37],  dist: 55 },
   tv:    { nome: 'Televendas',     cor: COR.roxo, pos: [-42, 8, -2], dist: 55 },
   fin:   { nome: 'Financeiro',     cor: COR.amb,  pos: [42, 4, -2],  dist: 50 },
-  risco: { nome: 'Zona de risco',  cor: COR.verm, pos: [44, 0, 44],  dist: 42 },
-  cli:   { nome: 'Clientes',       cor: COR.azul, pos: [0, 0, 70],   dist: 175 },
+  risco: { nome: 'Zona de risco',  cor: COR.verm, pos: [56, 0, -54], dist: 42 },
+  cli:   { nome: 'Clientes',       cor: COR.azul, pos: [0, 0, 80],   dist: 200 },
   fat:   { nome: 'Faturamento',    cor: COR.amb,  pos: [0, 14, 0],   dist: 70 },
 };
 const ZONAS_DIO = {
@@ -369,7 +388,7 @@ function tamanho() {
   const r = wrap.getBoundingClientRect(), w = Math.max(1, r.width), h = Math.max(1, r.height);
   renderer.setSize(w, h); composer.setSize(w, h); css.setSize(w, h);
   bloom.resolution.set(w / 2, h / 2);
-  if (DIO) { const FH = Math.max(250, 400 / (w / h)); camera.left = -FH * w / h / 2; camera.right = FH * w / h / 2; camera.top = FH / 2; camera.bottom = -FH / 2; }
+  if (DIO) { const FH = Math.max(250, (w < 700 ? 330 : 400) / (w / h)); camera.left = -FH * w / h / 2; camera.right = FH * w / h / 2; camera.top = FH / 2; camera.bottom = -FH / 2; }
   else camera.aspect = w / h;
   camera.updateProjectionMatrix();
 }
@@ -474,7 +493,7 @@ function passoVoo(dt) {
 }
 controls.addEventListener('start', () => { voo = null; setGirar(false); });
 function irZona(k, card) { const z = ZZ[k]; voarPara(new THREE.Vector3(...z.pos), z.dist); if (card) abrirCartao(card()); }
-function vooGeral() { return DIO ? { t: 0, p0: camera.position.clone(), a0: controls.target.clone(), p1: DIR_ISO.clone().multiplyScalar(600), a1: new THREE.Vector3(), z0: camera.zoom, z1: 1 } : { t: 0, p0: camera.position.clone(), a0: controls.target.clone(), p1: new THREE.Vector3(0, 118 * DK, 178 * DK), a1: new THREE.Vector3(0, 0, 12) }; }
+function vooGeral() { return DIO ? { t: 0, p0: camera.position.clone(), a0: controls.target.clone(), p1: DIR_ISO.clone().multiplyScalar(600), a1: new THREE.Vector3(), z0: camera.zoom, z1: 1 } : { t: 0, p0: camera.position.clone(), a0: controls.target.clone(), p1: new THREE.Vector3(0, 132 * DK, 200 * DK), a1: new THREE.Vector3(0, 0, 12) }; }
 function visaoGeral() { voo = vooGeral(); fecharCartao(); }
 
 // ── montagem do mundo com os dados ──────────────────────────────────────────────────────────────────
@@ -820,8 +839,8 @@ function faixas(etapas, zBase, sentido, zona) {
 }
 function expedicao(exp) {
   if (!exp) return;
-  faixas(exp.etapas, 17, 1, 'exp');
-  const r = zonaRot('exp', 'Expedição', nf(exp.emAberto) + ' em aberto'); r.position.set(0, 6, 32); M.add(r);
+  faixas(exp.etapas, 30, 1, 'exp');   // 03/11: afastado do galpão (Tiago: 'as pistas estão muito perto do CD, não vejo a expedição')
+  const r = zonaRot('exp', 'Expedição', nf(exp.emAberto) + ' em aberto'); r.position.set(0, 6, 46); M.add(r);
 }
 function animaChegada(cam, curva, sai, dur, atraso, vaga, olharPara) {
   const olhar = new THREE.Vector3();
@@ -836,32 +855,32 @@ function animaChegada(cam, curva, sai, dur, atraso, vaga, olharPara) {
 }
 function recebimento(exp) {
   const conf = exp && exp.conferencia; if (!conf) return;
-  faixas(conf.etapas, -17, -1, 'rec');
-  M.add(rua(new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0, -230), new THREE.Vector3(0, 0, -60), new THREE.Vector3(0, 0, -38)]), 4));
+  faixas(conf.etapas, -30, -1, 'rec');
+  M.add(rua(new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0, -230), new THREE.Vector3(0, 0, -72), new THREE.Vector3(0, 0, -50)]), 4));
   let k = 0;
   arr(conf.etapas).slice(0, 5).forEach((e, i) => {
     const x = -18 + i * 9;
     arr(e.notas).slice(0, e.k === 'liberado' ? 3 : 2).forEach((n, j) => {
       const cam = caminhao(ETAPA_COR[e.k] || COR.teal); cam.scale.setScalar(1.05); M.add(cam);
-      const vaga = new THREE.Vector3(x - 1.8 + j * 3.6, 0, -33);
-      const curva = new THREE.CatmullRomCurve3([new THREE.Vector3(j * 3 - 1.5, 0, -230), new THREE.Vector3(j * 3 - 1.5, 0, -70), new THREE.Vector3(x, 0, -46), vaga]);
+      const vaga = new THREE.Vector3(x - 1.8 + j * 3.6, 0, -46);
+      const curva = new THREE.CatmullRomCurve3([new THREE.Vector3(j * 3 - 1.5, 0, -230), new THREE.Vector3(j * 3 - 1.5, 0, -82), new THREE.Vector3(x, 0, -58), vaga]);
       animaChegada(cam, curva, e.k === 'liberado', 14 + hash(n.pedido) * 6, k++ * 1.7, vaga, new THREE.Vector3(vaga.x, 0, 0));
       clicavel(cam, { nome: n.nome || 'Fornecedor', sub: e.nome, dist: 18, alt: 2, card: () => cardNotaFor(n, e) });
     });
   });
-  const r = zonaRot('rec', 'Recebimento', nf(conf.total) + ' notas'); r.position.set(0, 6, -32); M.add(r);
+  const r = zonaRot('rec', 'Recebimento', nf(conf.total) + ' notas'); r.position.set(0, 6, -46); M.add(r);
 }
 // 7 ─ cidades e clientes (anel externo)
 function cidades(cli) {
   const mapa = { distritos: [], porCli: new Map(), porCidade: new Map() };
   if (!cli) return mapa;
-  const cid = cidadesDe(cli), R = 104, n = cid.length, P0 = new THREE.Vector3(0, 0, 36);
-  for (const l of [-1, 1]) M.add(rua(new THREE.CatmullRomCurve3([new THREE.Vector3(l * 25, 0, 6), new THREE.Vector3(l * 25, 0, 30), new THREE.Vector3(l * 12, 0, 35), P0]), 2.2));
+  const cid = cidadesDe(cli), R = 122, n = cid.length, P0 = new THREE.Vector3(0, 0, 54);
+  for (const l of [-1, 1]) M.add(rua(new THREE.CatmullRomCurve3([new THREE.Vector3(l * 29, 0, 6), new THREE.Vector3(l * 29, 0, 46), new THREE.Vector3(l * 14, 0, 53), P0]), 2.2));
   cid.forEach((c, i) => {
     const ang = n === 1 ? 0 : (-108 + 216 * i / (n - 1)) * Math.PI / 180;
     const C = new THREE.Vector3(Math.sin(ang) * R, 0, Math.cos(ang) * R), dir = C.clone().normalize();
     const borda = C.clone().sub(dir.clone().multiplyScalar(17)), meio = P0.clone().lerp(borda, 0.5); meio.z += 10;
-    const curva = new THREE.CatmullRomCurve3([P0, new THREE.Vector3(0, 0, 50), meio, borda]);
+    const curva = new THREE.CatmullRomCurve3([P0, new THREE.Vector3(0, 0, 68), meio, borda]);
     M.add(rua(curva));
     const g = new THREE.Group(); g.position.copy(C); M.add(g);
     const disco = new THREE.Mesh(new THREE.CylinderGeometry(16, 16.5, 0.5, 64), mat(0x101C33, { r: 0.9 })); disco.position.y = 0.25; disco.receiveShadow = true; g.add(disco);
@@ -903,7 +922,7 @@ function saindo(notas, mapa) {
     const c = mapa.porCli.get(String(n.cli)), d = c ? c.d : mapa.distritos[Math.floor(hash(n.cli || n.nn) * mapa.distritos.length)];
     const fim = c ? d.C.clone().add(c.b.position.clone().setY(0)).add(new THREE.Vector3(0, 0, 2.5)) : d.C.clone();
     const l = i % 2 ? 1 : -1;
-    const curva = new THREE.CatmullRomCurve3([new THREE.Vector3(l * 25, 0, 6), new THREE.Vector3(l * 25, 0, 30), new THREE.Vector3(l * 12, 0, 35), ...d.curva.points, fim]);
+    const curva = new THREE.CatmullRomCurve3([new THREE.Vector3(l * 29, 0, 6), new THREE.Vector3(l * 29, 0, 46), new THREE.Vector3(l * 14, 0, 53), ...d.curva.points, fim]);
     const cam = caminhao(n.tipo === 'NFC-e' ? COR.teal : COR.amb); M.add(cam);
     rodaCaminhao(cam, curva, 26 + hash(n.nn) * 10, i / notas.length, 1.1);
     clicavel(cam, { nome: `${n.tipo} ${n.nn} · ${n.cliente}`, sub: brl(n.v) + ' · ' + String(n.hora || '').slice(0, 5), dist: 20, alt: 2, card: () => cardNota(n, c && c.d.c.cidade) });
@@ -1008,7 +1027,7 @@ function itensRisco(g, est, raio, y0) {
 }
 function risco(est) {
   if (!est) return;
-  const g = new THREE.Group(); g.position.set(44, 0, 44); M.add(g);
+  const g = new THREE.Group(); g.position.set(56, 0, -54); M.add(g);   // atrás à direita: na frente as ruas das cidades passam
   g.add(em(new THREE.Mesh(new THREE.CylinderGeometry(11, 11.5, 0.4, 56), mat(0x2A0F1A, { r: 0.85 })), 0, 0.2, 0));
   const a = anel(11, 11.7, COR.verm, 2, 0.9); a.position.y = 0.45; g.add(a);
   anims.push(t => { a.material.opacity = 0.35 + Math.abs(Math.sin(t * 2)) * 0.6; });
@@ -1402,12 +1421,15 @@ function painelKpis(d) {
     fi && { l: 'Vencido a receber', i: 'fin', c: COR.verm, v: brlC(fi.vencidos.v), s: nf(fi.vencidos.n) + ' boletos', z: 'fin', card: CARDS.fin },
   ].filter(Boolean);
   const el = $('kpis'); el.innerHTML = '';
+  el.classList.remove('todos');
   k.forEach(x => {
     const b = document.createElement('button'); b.className = 'kpi vidro';
     b.innerHTML = `<div class="l">${ic(x.i, x.c)}${esc(x.l)}</div><div class="v">${x.v}</div><div class="s">${x.s}</div>`;
     b.onclick = () => { irZona(x.z); if (x.card) abrirCartao(x.card()); };
     el.appendChild(b);
   });
+  if (k.length > 4) { const t = document.createElement('button'); t.className = 'kpi vidro kpi-mais'; t.type = 'button'; t.textContent = 'Ver todos os ' + k.length + ' indicadores';
+    t.onclick = () => { const on = el.classList.toggle('todos'); t.textContent = on ? 'Mostrar menos' : 'Ver todos os ' + k.length + ' indicadores'; }; el.appendChild(t); }
 }
 function legenda() {
   const el = $('legenda'); el.innerHTML = '<div class="t">Ir para</div>';
@@ -1458,6 +1480,9 @@ function setGirar(v) { controls.autoRotate = v; $('b-girar').classList.toggle('o
 $('b-girar').onclick = () => setGirar(!controls.autoRotate);
 $('b-visao').onclick = visaoGeral;
 $('b-atual').onclick = () => carregar(true);
+{ let nomes = false; try { nomes = localStorage.getItem('cd3d_nomes') === '1'; } catch {}
+  const aplica = () => { css.domElement.classList.toggle('sem-nomes', !nomes); $('b-nomes').classList.toggle('on', nomes); };
+  $('b-nomes').onclick = () => { nomes = !nomes; try { localStorage.setItem('cd3d_nomes', nomes ? '1' : '0'); } catch {} aplica(); }; aplica(); }
 { const sel = $('estilo'); sel.innerHTML = Object.entries(ESTILOS).map(([k, e]) => '<option value="' + k + '"' + (k === ESTILO_ID ? ' selected' : '') + '>Estilo: ' + e.nome + '</option>').join('');
   sel.onchange = () => { try { localStorage.setItem('cd3d_estilo', sel.value); } catch {} const u = new URL(location.href); u.searchParams.set('estilo', sel.value); location.href = u.toString(); }; }
 
