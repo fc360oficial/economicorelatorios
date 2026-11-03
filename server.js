@@ -7922,6 +7922,21 @@ app.get('/api/dashboard-distribuidora/nfe/:chave/danfe', async (req, res) => {
     require('./lib/danfe').gerarDanfe(n).pipe(res);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+// CD em 3D (cd-3d.html, 03/11/26, Tiago: "desenhar meus dados do CD em um mundo 3d ... clientes, produtos, pedidos chegando,
+// pedidos saindo"): junta os 6 blocos do Dashboard Distribuidora (mesmo cache de 5 min, mesmas regras) num pacote só, com as
+// listas cortadas em 24 itens. Fica no prefixo /api/cahu-distribuidora pra quem só tem o módulo CAHU Distribuidora também ver.
+// Blocos frios são calculados UM POR VEZ (igual dashDist.calcular) pra não abrir 6 consultas pesadas juntas no .252.
+// Bloco que falhar volta null e a cena mostra a zona vazia. ?demo=1 = dados de exemplo (TESTE).
+app.get('/api/cahu-distribuidora/mundo-3d', async (req, res) => {
+  const demo = req.query.demo === '1';
+  const corta = o => Array.isArray(o) ? o.slice(0, 24).map(corta) : o && typeof o === 'object' ? Object.fromEntries(Object.entries(o).map(([k, v]) => [k, corta(v)])) : o;
+  const out = { demo, geradoEm: new Date().toISOString() };
+  for (const k of ['faturamento', 'clientes', 'televendas', 'estoque', 'expedicao', 'financeiro']) {
+    try { out[k] = corta(demo ? dashDist.demo(k) : (await dashDist.segmento(k))[k]); }
+    catch (e) { out[k] = null; console.error('[CD-3D]', k, e.message); }
+  }
+  res.json(out);
+});
 function rpFiltro(qq) {
   return { loja: parseInt(qq.loja) || 0, grupo: qq.grupo || '', papel: qq.papel || '', abc: qq.abc || '', acao: qq.acao || '', busca: qq.busca || '',
            comVenda: qq.com_venda === '1', estoque: qq.estoque || '', incluirExcluidos: qq.excluidos === '1' };

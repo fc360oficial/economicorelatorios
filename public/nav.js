@@ -55,6 +55,7 @@
     { href: '/itens.html',        ic: 'list',      txt: 'Mercadológico',      mod: 'analise' },
     { sec: 'Operação' }, // itens abaixo em ordem alfabética por txt — manter ao adicionar novos
     { id: 'cahu-distribuidora', ic: 'store', txt: 'CAHU Distribuidora', sub: [
+        { href: '/cd-3d.html',              ic: 'dashboard', txt: 'CD em 3D' },
         { href: '/lotes-cd.html',           ic: 'list',     txt: 'Lotes e Validades' },
         { href: '/cahu-tabela-precos.html', ic: 'download', txt: 'Tabela de Preços' }
       ]},

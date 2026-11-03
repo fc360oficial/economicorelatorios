@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="/design-system.css">
+<script src="/nav.js" defer></script>
+<title>CD em 3D — CAHU Distribuidora</title>
+<!--
+  CD em 3D (03/11/2026, Tiago: "desenhar meus dados do CD em um mundo 3d ... clientes, produtos, pedidos chegando,
+  pedidos saindo ... cada objeto clicável abre um cartão de vidro com os meus números reais").
+  Dados: /api/cahu-distribuidora/mundo-3d = os 6 blocos do Dashboard Distribuidora (mesmo cache e mesmas regras,
+  lib/dashboard-distribuidora.js), só leitura. ?demo=1 = dados de exemplo (TESTE).
+  Mapa da cena:
+    centro .......... armazém do CD (vidro) com 1 rack por grupo de estoque (pallet vermelho = parado 60+ dias)
+    telhado ......... barras do faturamento dos últimos 6 meses · placar com hoje e mês
+    céu ............. carrossel com os produtos que mais venderam em 30 dias
+    frente .......... Expedição (painel do CD: separação → liberado) · caminhões = NF-e/NFC-e de hoje indo pro cliente
+    fundo ........... Recebimento (conferência das notas de fornecedor) · caminhões dos fornecedores na doca
+    esquerda ........ torre do Televendas + 1 pilar por vendedor · esferas = pedidos sem NF-e vindo dos clientes
+    direita ......... cofre do Financeiro + pilhas de moedas dos boletos vencidos por idade
+    frente-direita .. zona de risco: rupturas da Tabela Retirada e lotes vencendo
+    anel externo .... cidades com os clientes do mês (altura = compra no mês; cinza = sumidos 30+ dias)
+-->
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--tx:#EAF0FF;--tx2:#A9B4CC;--tx3:#7D89A3;--amb:#F5B800;--pos:#34D27B;--neg:#FF5D78;--vid:rgba(16,24,42,.52);--ln:rgba(255,255,255,.16)}
+body{background:#070C17;color:var(--tx);font-family:'InterVar','Segoe UI',sans-serif;overflow:hidden;font-variant-numeric:tabular-nums}
+#mundo{position:relative;height:100vh;overflow:hidden;background:#070C17}
+@media(max-width:820px){#mundo{height:calc(100vh - 96px)}}
+#mundo canvas{display:block;outline:none;touch-action:none}
+.rotulos{position:absolute;inset:0;pointer-events:none;z-index:1}   /* z-index cria o contexto: o CSS2DRenderer põe z-index alto em cada rótulo */
+.vidro{background:linear-gradient(140deg,rgba(255,255,255,.13),rgba(255,255,255,.035) 60%);background-color:var(--vid);backdrop-filter:blur(18px) saturate(160%);-webkit-backdrop-filter:blur(18px) saturate(160%);border:1px solid var(--ln);box-shadow:0 18px 50px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.22)}
+button{font-family:inherit}
+
+/* HUD */
+#hud{position:absolute;top:14px;left:14px;right:14px;display:flex;gap:12px;align-items:flex-start;pointer-events:none;z-index:5}
+#hud>*{pointer-events:auto}
+.marca{border-radius:14px;padding:10px 14px;min-width:190px}
+.marca b{display:block;font-size:14px;font-weight:800;letter-spacing:-.2px}
+.marca span{font-size:11px;color:var(--tx2)}
+.marca .st{display:flex;align-items:center;gap:6px;margin-top:5px;font-size:10.5px;color:var(--tx3)}
+.marca .st i{width:7px;height:7px;border-radius:50%;background:var(--pos);box-shadow:0 0 8px var(--pos)}
+.marca .st.demo i{background:var(--amb);box-shadow:0 0 8px var(--amb)}
+.marca .st.demo{color:var(--amb);font-weight:700}
+#kpis{display:flex;gap:8px;flex:1;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+#kpis::-webkit-scrollbar{display:none}
+.kpi{border-radius:13px;padding:8px 13px;min-width:132px;cursor:pointer;text-align:left;color:var(--tx);transition:transform .15s,border-color .15s}
+.kpi:hover{transform:translateY(-2px);border-color:rgba(245,184,0,.55)}
+.kpi .l{font-size:9.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--tx3);display:flex;align-items:center;gap:6px}
+.kpi .l i{width:7px;height:7px;border-radius:2px}
+.kpi .v{font-size:17px;font-weight:800;letter-spacing:-.3px;margin-top:2px;white-space:nowrap}
+.kpi .s{font-size:10.5px;color:var(--tx2);white-space:nowrap}
+.pos{color:var(--pos)!important}.neg{color:var(--neg)!important}.amb{color:var(--amb)!important}
+.acoes{display:flex;gap:6px;flex-direction:column}
+.bt{border-radius:10px;padding:7px 12px;font-size:11.5px;font-weight:700;color:var(--tx);cursor:pointer;white-space:nowrap}
+.bt:hover{border-color:rgba(245,184,0,.6)}
+.bt.on{color:#1b1400;background:var(--amb);border-color:var(--amb)}
+
+#legenda{position:absolute;left:14px;bottom:14px;border-radius:14px;padding:10px 8px;z-index:5;display:flex;flex-direction:column;gap:1px;max-height:calc(100% - 140px);overflow:auto}
+#legenda .t{font-size:9.5px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--tx3);padding:0 8px 5px}
+#legenda button{display:flex;align-items:center;gap:8px;background:none;border:none;color:var(--tx2);font-size:11.5px;font-weight:600;padding:5px 8px;border-radius:8px;cursor:pointer;text-align:left}
+#legenda button:hover{background:rgba(255,255,255,.08);color:var(--tx)}
+#legenda button i{width:9px;height:9px;border-radius:3px;flex-shrink:0}
+#dica{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--tx3);background:rgba(7,12,23,.55);padding:5px 12px;border-radius:99px;z-index:4;pointer-events:none;white-space:nowrap}
+
+/* rótulos 3D (CSS2D) — o renderer escreve o transform, não usar transform aqui */
+.rot{font-size:10.5px;font-weight:700;color:var(--tx);background:rgba(9,15,29,.62);border:1px solid rgba(255,255,255,.16);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);padding:3px 9px;border-radius:99px;white-space:nowrap;letter-spacing:.1px}
+.rot small{font-weight:600;color:var(--tx2);margin-left:5px}
+.rot.zona{font-size:11.5px;padding:5px 11px;border-color:rgba(255,255,255,.22)}
+.rot.zona i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;vertical-align:0}
+.rot.min{font-size:9.5px;padding:2px 7px;background:rgba(9,15,29,.5)}
+.rot.clic{pointer-events:auto;cursor:pointer}
+.rot.clic:hover{border-color:var(--amb)}
+.rot.placar{padding:10px 18px;border-radius:16px;text-align:center;background:rgba(9,15,29,.55);border-color:rgba(245,184,0,.45);box-shadow:0 0 30px rgba(245,184,0,.18)}
+.rot.placar .l{font-size:9.5px;letter-spacing:.7px;text-transform:uppercase;color:var(--tx3);font-weight:800}
+.rot.placar .v{font-size:22px;font-weight:800;color:var(--amb);letter-spacing:-.4px;line-height:1.15}
+.rot.placar .s{font-size:10.5px;color:var(--tx2);font-weight:600}
+
+/* tooltip do hover */
+#tip{position:absolute;z-index:6;pointer-events:none;border-radius:10px;padding:6px 10px;font-size:11.5px;font-weight:700;max-width:280px}
+#tip small{display:block;font-weight:600;color:var(--tx2);font-size:10.5px;margin-top:1px}
+
+/* cartão de vidro */
+#cartao{position:absolute;top:126px;right:14px;width:390px;max-height:calc(100% - 140px);overflow:auto;border-radius:20px;padding:18px 18px 16px;z-index:7;opacity:0;transform:translateX(24px) scale(.98);transition:opacity .22s,transform .22s;pointer-events:none;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.2) transparent}
+#cartao.on{opacity:1;transform:none;pointer-events:auto}
+#cartao:before{content:"";position:absolute;inset:0 0 auto 0;height:3px;border-radius:20px 20px 0 0;background:var(--cor,#F5B800);box-shadow:0 0 18px var(--cor,#F5B800)}
+.c-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.c-zona{font-size:9.5px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;color:var(--cor,#F5B800)}
+.c-x{background:rgba(255,255,255,.08);border:1px solid var(--ln);color:var(--tx);width:28px;height:28px;border-radius:9px;cursor:pointer;font-size:15px;line-height:1}
+.c-x:hover{background:rgba(255,255,255,.16)}
+#cartao h2{font-size:17px;font-weight:800;letter-spacing:-.3px;margin-top:6px;line-height:1.25}
+.c-sub{font-size:11.5px;color:var(--tx2);margin-top:3px;line-height:1.45}
+.c-hero{margin-top:14px;padding:12px 14px;border-radius:14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1)}
+.c-hero .v{font-size:27px;font-weight:800;letter-spacing:-.6px;line-height:1.1}
+.c-hero .l{font-size:10.5px;color:var(--tx2);font-weight:600;margin-top:3px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.c-var{font-size:10.5px;font-weight:800;padding:1px 7px;border-radius:99px;background:rgba(255,255,255,.08)}
+.c-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.c-t{padding:9px 11px;border-radius:12px;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.08)}
+.c-t .v{font-size:14.5px;font-weight:800;letter-spacing:-.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.c-t .l{font-size:9.5px;color:var(--tx3);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-top:2px}
+.c-sec{font-size:9.5px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--tx3);margin:14px 0 6px}
+.c-lista{display:flex;flex-direction:column;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,.08)}
+.c-li{display:flex;gap:10px;align-items:baseline;justify-content:space-between;padding:7px 11px;font-size:11.5px;background:rgba(255,255,255,.03)}
+.c-li:nth-child(even){background:rgba(255,255,255,.055)}
+.c-li .a{color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.c-li .a small{color:var(--tx3);margin-left:5px;font-weight:600}
+.c-li .b{font-weight:800;white-space:nowrap}
+.c-barra{height:6px;border-radius:99px;background:rgba(255,255,255,.08);margin-top:10px;overflow:hidden;display:flex}
+.c-barra i{display:block;height:100%}
+.c-nota{font-size:10.5px;color:var(--tx3);margin-top:12px;line-height:1.5}
+.c-nota a{color:var(--amb);font-weight:700}
+
+#carregando{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:8;pointer-events:none}
+#carregando .box{border-radius:16px;padding:16px 22px;text-align:center;max-width:340px;pointer-events:auto}
+#carregando b{display:block;font-size:14px}
+#carregando span{font-size:11.5px;color:var(--tx2);display:block;margin-top:4px;line-height:1.5}
+#carregando .gira{width:28px;height:28px;border-radius:50%;border:3px solid rgba(255,255,255,.15);border-top-color:var(--amb);margin:0 auto 10px;animation:g 1s linear infinite}
+#carregando .bt{margin-top:10px}
+@keyframes g{to{transform:rotate(360deg)}}
+
+/* monitores menores (regra: 1920 igual, 1599/1399/1199 apertam) */
+@media(max-width:1599px){.kpi{min-width:120px;padding:7px 11px}.kpi .v{font-size:15.5px}#cartao{width:360px}}
+@media(max-width:1399px){.kpi{min-width:110px}.kpi .v{font-size:14.5px}.kpi .s{display:none}.marca{min-width:0}#legenda button{font-size:11px;padding:4px 7px}}
+@media(max-width:1199px){.marca span,.marca .st{display:none}#cartao{width:340px}}
+@media(max-width:820px){
+  #hud{top:8px;left:8px;right:8px;flex-wrap:wrap;gap:6px}
+  .marca{display:none}
+  #kpis{order:2;width:100%;flex:none}
+  .acoes{flex-direction:row;margin-left:auto}
+  #legenda{display:none}
+  #dica{display:none}
+  #cartao{top:auto;bottom:0;right:0;left:0;width:auto;max-height:62%;border-radius:20px 20px 0 0;transform:translateY(30px)}
+}
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="mundo">
+  <div id="hud">
+    <div class="marca vidro"><b>CAHU Distribuidora</b><span>CD em 3D · loja 10</span><div class="st" id="st"><i></i><span>carregando…</span></div></div>
+    <div id="kpis"></div>
+    <div class="acoes">
+      <button class="bt vidro" id="b-visao" title="Volta pra visão de cima do CD inteiro">Visão geral</button>
+      <button class="bt vidro on" id="b-girar" title="Liga/desliga a câmera girando sozinha">Girar</button>
+      <button class="bt vidro" id="b-atual" title="Busca os números de novo (o servidor guarda por 5 min)">Atualizar</button>
+    </div>
+  </div>
+  <div id="legenda" class="vidro"></div>
+  <div id="dica">Arraste pra girar · botão direito move · roda aproxima · clique em qualquer objeto</div>
+  <div id="tip" class="vidro" hidden></div>
+  <aside id="cartao" class="vidro" aria-live="polite"></aside>
+  <div id="carregando"><div class="box vidro"><div class="gira"></div><b>Montando o CD em 3D…</b><span>Buscando faturamento, clientes, pedidos, estoque, expedição e financeiro no ERP. Na primeira vez do dia pode levar até 1 minuto.</span></div></div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+// ── utilidades ──────────────────────────────────────────────────────────────────────────────────────
+const DEMO = new URLSearchParams(location.search).get('demo') === '1';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const nf = (v, d = 0) => (+v || 0).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
+const brl = v => 'R$ ' + nf(v, 2);
+const brlC = v => { v = +v || 0; const a = Math.abs(v); return a >= 1e6 ? 'R$ ' + nf(v / 1e6, 2) + ' mi' : a >= 1e4 ? 'R$ ' + nf(v / 1e3, 1) + ' mil' : 'R$ ' + nf(v, 0); };
+const pctT = v => v == null ? '—' : nf(v, 1) + '%';
+const varT = v => v == null ? '' : (v >= 0 ? '+' : '') + nf(v, 1) + '%';
+const varC = v => v == null ? '' : v >= 0 ? 'pos' : 'neg';
+const dBR = s => s ? String(s).slice(0, 10).split('-').reverse().join('/') : '—';
+const MES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+const mesT = m => { const [a, b] = String(m || '').split('-'); return b ? MES[+b - 1] + '/' + a.slice(2) : m; };
+const hash = s => { let h = 2166136261; for (const c of String(s)) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return (h >>> 0) / 4294967295; };
+const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().trim();
+const arr = a => Array.isArray(a) ? a : [];
+const primeiro = s => String(s || '').trim().split(/\s+/)[0] || '—';
+const hx = c => '#' + c.toString(16).padStart(6, '0');
+
+const COR = { amb: 0xF5B800, teal: 0x2BD4C0, azul: 0x4C8DFF, roxo: 0x9B7BFF, verde: 0x34D27B, verm: 0xFF4D6A, lar: 0xFF8A3D, cinza: 0x56627A, rosa: 0xFF5FA2, ceu: 0x7FD3FF };
+const GRUPO = [COR.amb, COR.teal, COR.azul, COR.roxo, COR.lar, COR.verde, COR.rosa, COR.ceu];
+const ZONAS = {
+  cd:    { nome: 'CD e estoque',  cor: COR.amb,  pos: [0, 4, 0],     dist: 70 },
+  prod:  { nome: 'Produtos que mais saem', cor: COR.ceu, pos: [0, 30, 0], dist: 80 },
+  exp:   { nome: 'Expedição',      cor: COR.verde, pos: [0, 0, 24],   dist: 45 },
+  rec:   { nome: 'Recebimento',    cor: COR.teal, pos: [0, 0, -24],  dist: 50 },
+  tv:    { nome: 'Televendas',     cor: COR.roxo, pos: [-42, 8, -2], dist: 55 },
+  fin:   { nome: 'Financeiro',     cor: COR.amb,  pos: [42, 4, -2],  dist: 50 },
+  risco: { nome: 'Zona de risco',  cor: COR.verm, pos: [44, 0, 44],  dist: 42 },
+  cli:   { nome: 'Clientes',       cor: COR.azul, pos: [0, 0, 70],   dist: 175 },
+};
+
+// ── cena, câmera, luz ─────────────────────────────────────────────────────────────────────────────────
+const wrap = $('mundo');
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.1;
+wrap.prepend(renderer.domElement);
+const css = new CSS2DRenderer(); css.domElement.className = 'rotulos'; wrap.insertBefore(css.domElement, $('hud'));
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x070C17);
+scene.fog = new THREE.FogExp2(0x070C17, 0.0036);
+const camera = new THREE.PerspectiveCamera(46, 1, 0.5, 1600);
+camera.position.set(0, 260, 380);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.dampingFactor = 0.07;
+controls.maxPolarAngle = Math.PI * 0.47; controls.minDistance = 10; controls.maxDistance = 460;
+controls.target.set(0, 0, 12);
+controls.autoRotate = true; controls.autoRotateSpeed = 0.3;
+
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(512, 512), 0.8, 0.5, 0.7);
+composer.addPass(bloom); composer.addPass(new OutputPass());
+let usaBloom = true;
+
+scene.add(new THREE.HemisphereLight(0x8FA8FF, 0x0A0F1C, 1.25));
+const lua = new THREE.DirectionalLight(0xD4DDFF, 2.1);
+lua.position.set(-90, 150, 80); lua.castShadow = true;
+lua.shadow.mapSize.set(2048, 2048);
+Object.assign(lua.shadow.camera, { left: -140, right: 140, top: 140, bottom: -140, near: 10, far: 400 });
+lua.shadow.bias = -0.0004;
+scene.add(lua);
+const quente = new THREE.DirectionalLight(0xFFC56B, 0.55); quente.position.set(70, 40, 120); scene.add(quente);
+
+// chão, grade e estrelas (fixos)
+{
+  const chao = new THREE.Mesh(new THREE.CircleGeometry(300, 96), new THREE.MeshStandardMaterial({ color: 0x0A1222, roughness: 0.96, metalness: 0 }));
+  chao.rotation.x = -Math.PI / 2; chao.receiveShadow = true; scene.add(chao);
+  const grade = new THREE.GridHelper(600, 120, 0x1B2A48, 0x111B31); grade.position.y = 0.03;
+  grade.material.transparent = true; grade.material.opacity = 0.55; scene.add(grade);
+  const n = 1800, p = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) { const u = Math.random() * Math.PI * 2, v = Math.random() * 0.48 * Math.PI, r = 700; p[i * 3] = r * Math.cos(v) * Math.cos(u); p[i * 3 + 1] = r * Math.sin(v) + 20; p[i * 3 + 2] = r * Math.cos(v) * Math.sin(u); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(p, 3));
+  scene.add(new THREE.Points(g, new THREE.PointsMaterial({ color: 0xC9D6FF, size: 1.6, sizeAttenuation: false, fog: false, transparent: true, opacity: 0.8 })));
+}
+
+function tamanho() {
+  const r = wrap.getBoundingClientRect(), w = Math.max(1, r.width), h = Math.max(1, r.height);
+  renderer.setSize(w, h); composer.setSize(w, h); css.setSize(w, h);
+  bloom.resolution.set(w / 2, h / 2);
+  camera.aspect = w / h; camera.updateProjectionMatrix();
+}
+addEventListener('resize', tamanho); tamanho();
+
+// ── fábrica de objetos ──────────────────────────────────────────────────────────────────────────────
+let M = null, picks = [], anims = [], rotPerto = [];
+const mat = (cor, o = {}) => new THREE.MeshStandardMaterial({
+  color: cor, roughness: o.r ?? 0.55, metalness: o.m ?? 0.15, emissive: o.e ?? 0x000000, emissiveIntensity: o.ei ?? 1,
+  transparent: o.op != null, opacity: o.op ?? 1, depthWrite: o.dw ?? true, side: o.side ?? THREE.FrontSide,
+});
+const brilho = (cor, ei = 2) => new THREE.MeshStandardMaterial({ color: cor, emissive: cor, emissiveIntensity: ei, roughness: 0.4 });
+function caixa(w, h, d, m, sombra = true) {
+  const g = new THREE.BoxGeometry(w, h, d); g.translate(0, h / 2, 0);
+  const o = new THREE.Mesh(g, m); o.castShadow = sombra; o.receiveShadow = true; return o;
+}
+function em(o, x, y, z) { o.position.set(x, y, z); return o; }
+function rotulo(html, cls = '', aoClicar) {
+  const el = document.createElement('div'); el.className = 'rot ' + cls; el.innerHTML = html;
+  if (aoClicar) { el.classList.add('clic'); el.addEventListener('pointerdown', e => e.stopPropagation()); el.addEventListener('click', e => { e.stopPropagation(); aoClicar(); }); }
+  const o = new CSS2DObject(el);
+  if (cls.split(" ").includes("min")) rotPerto.push(o);   // rótulo pequeno: só de perto (senão o centro vira uma sopa de nomes)
+  return o;
+}
+/** registra um objeto clicável: info = { nome, sub, zona, cor, card: () => objeto do cartão, dist, alt } */
+function clicavel(obj, info) { obj.userData.info = info; obj.userData.base = obj.scale.x; picks.push(obj); return obj; }
+function anel(rIn, rOut, cor, ei = 1.6, op = 0.9) {
+  const m = new THREE.Mesh(new THREE.RingGeometry(rIn, rOut, 64), new THREE.MeshBasicMaterial({ color: cor, transparent: true, opacity: op, side: THREE.DoubleSide, depthWrite: false }));
+  m.rotation.x = -Math.PI / 2; m.material.color.multiplyScalar(ei); return m;
+}
+function texJanelas(seed) {
+  const c = document.createElement('canvas'); c.width = 64; c.height = 128; const x = c.getContext('2d');
+  x.fillStyle = '#000'; x.fillRect(0, 0, 64, 128); let s = seed * 1e4 | 0;
+  const rnd = () => (s = (s * 9301 + 49297) % 233280) / 233280;
+  for (let r = 0; r < 16; r++) for (let k = 0; k < 4; k++) if (rnd() < 0.5) { x.fillStyle = `rgba(255,${190 + (rnd() * 50 | 0)},${110 + (rnd() * 60 | 0)},${0.45 + rnd() * 0.55})`; x.fillRect(6 + k * 15, 4 + r * 8, 9, 4); }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+function caminhao(corCarga) {
+  const g = new THREE.Group();
+  g.add(em(new THREE.Mesh(new THREE.BoxGeometry(2.3, 2.3, 4.8), mat(corCarga, { r: 0.4, e: corCarga, ei: 0.22 })), 0, 1.85, -0.7));
+  g.add(em(new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.8, 1.6), mat(0xDCE3F0, { r: 0.35, m: 0.3 })), 0, 1.5, 2.5));
+  g.add(em(new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.75, 0.06), mat(0x0B1426, { e: 0x3A7BFF, ei: 0.7 })), 0, 1.95, 3.31));
+  const farol = brilho(0xFFF3C4, 4);
+  g.add(em(new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.25, 0.06), farol), 0.75, 1.0, 3.31));
+  g.add(em(new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.25, 0.06), farol), -0.75, 1.0, 3.31));
+  const lan = brilho(0xFF2A3A, 2.5);
+  g.add(em(new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.2, 0.06), lan), 0.85, 0.9, -3.13));
+  g.add(em(new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.2, 0.06), lan), -0.85, 0.9, -3.13));
+  const rg = new THREE.CylinderGeometry(0.48, 0.48, 0.32, 14); rg.rotateZ(Math.PI / 2); const rm = mat(0x10141C, { r: 0.9 });
+  for (const z of [2.4, -1.4, -2.5]) for (const x of [1.15, -1.15]) g.add(em(new THREE.Mesh(rg, rm), x, 0.48, z));
+  g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  return g;
+}
+/** rua plana ao longo de uma curva (tubo achatado) + faixa tracejada no meio */
+function rua(curva, larg = 1.8, cor = 0x1A2540) {
+  const g = new THREE.Group();
+  const t = new THREE.Mesh(new THREE.TubeGeometry(curva, 90, larg, 8, false), mat(cor, { r: 0.9 }));
+  t.scale.y = 0.04; t.position.y = 0.06; t.receiveShadow = true; g.add(t);
+  const pts = curva.getSpacedPoints(120).map(p => new THREE.Vector3(p.x, 0.14, p.z));
+  const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineDashedMaterial({ color: 0xF5B800, dashSize: 1.4, gapSize: 1.6, transparent: true, opacity: 0.55 }));
+  l.computeLineDistances(); g.add(l);
+  return g;
+}
+
+// ── cartão de vidro ─────────────────────────────────────────────────────────────────────────────────
+// c = { zona, cor, titulo, sub, hero: [valor, rótulo, variação?], tiles: [[valor, rótulo, classe?]], barra: [[pct, cor]],
+//       listas: [{ t, linhas: [[esq, dir, classe?]] }], nota }
+const cartaoEl = $('cartao');
+function abrirCartao(c) {
+  if (!c) return;
+  const tiles = arr(c.tiles).filter(Boolean).map(([v, l, k]) => `<div class="c-t"><div class="v ${k || ''}">${v}</div><div class="l">${esc(l)}</div></div>`).join('');
+  const listas = arr(c.listas).filter(x => x && x.linhas && x.linhas.length).map(x => `<div class="c-sec">${esc(x.t)}</div><div class="c-lista">${x.linhas.map(([a, b, k]) => `<div class="c-li"><span class="a">${a}</span><span class="b ${k || ''}">${b}</span></div>`).join('')}</div>`).join('');
+  const barra = c.barra ? `<div class="c-barra">${c.barra.filter(([p]) => p > 0).map(([p, cor]) => `<i style="width:${Math.min(100, p)}%;background:${cor}"></i>`).join('')}</div>` : '';
+  cartaoEl.style.setProperty('--cor', hx(c.cor ?? COR.amb));
+  cartaoEl.innerHTML = `<div class="c-top"><span class="c-zona">${esc(c.zona || '')}</span><button class="c-x" title="Fechar (Esc)">✕</button></div>
+    <h2>${esc(c.titulo)}</h2>${c.sub ? `<p class="c-sub">${c.sub}</p>` : ''}
+    ${c.hero ? `<div class="c-hero"><div class="v">${c.hero[0]}</div><div class="l">${esc(c.hero[1])}${c.hero[2] ? ` <span class="c-var ${c.hero[3] || ''}">${c.hero[2]}</span>` : ''}</div>${barra}</div>` : barra}
+    ${tiles ? `<div class="c-grid">${tiles}</div>` : ''}${listas}${c.nota ? `<p class="c-nota">${c.nota}</p>` : ''}`;
+  cartaoEl.querySelector('.c-x').onclick = fecharCartao;
+  cartaoEl.scrollTop = 0; cartaoEl.classList.add('on');
+}
+function fecharCartao() { cartaoEl.classList.remove('on'); }
+addEventListener('keydown', e => { if (e.key === 'Escape') fecharCartao(); });
+const SEM = (zona, cor, titulo) => ({ zona, cor, titulo, sub: 'Este bloco não respondeu agora (ERP lento ou fora). Clique em <b>Atualizar</b> daqui a pouco.' });
+
+// ── voo da câmera ───────────────────────────────────────────────────────────────────────────────────
+let voo = null;
+function voarPara(alvo, dist = 40) {
+  const dir = camera.position.clone().sub(controls.target).normalize();
+  if (dir.y < 0.42) { dir.y = 0.42; dir.normalize(); }
+  voo = { t: 0, p0: camera.position.clone(), a0: controls.target.clone(), p1: alvo.clone().add(dir.multiplyScalar(dist)), a1: alvo.clone() };
+  setGirar(false);
+}
+function passoVoo(dt) {
+  if (!voo) return;
+  voo.t = Math.min(1, voo.t + dt / 1.25); const e = 1 - Math.pow(1 - voo.t, 3);
+  camera.position.lerpVectors(voo.p0, voo.p1, e); controls.target.lerpVectors(voo.a0, voo.a1, e);
+  if (voo.t >= 1) voo = null;
+}
+controls.addEventListener('start', () => { voo = null; setGirar(false); });
+function irZona(k, card) { const z = ZONAS[k]; voarPara(new THREE.Vector3(...z.pos), z.dist); if (card) abrirCartao(card()); }
+function visaoGeral() { voo = { t: 0, p0: camera.position.clone(), a0: controls.target.clone(), p1: new THREE.Vector3(0, 118, 178), a1: new THREE.Vector3(0, 0, 12) }; fecharCartao(); }
+
+// ── montagem do mundo com os dados ──────────────────────────────────────────────────────────────────
+let D = null, CARDS = {};
+function limpar() {
+  if (!M) return;
+  M.traverse(o => {
+    if (o.isCSS2DObject && o.element.parentNode) o.element.parentNode.removeChild(o.element);
+    if (o.geometry) o.geometry.dispose();
+    if (o.material) for (const m of [].concat(o.material)) { if (m.map) m.map.dispose(); if (m.emissiveMap) m.emissiveMap.dispose(); m.dispose(); }
+  });
+  scene.remove(M); M = null; picks = []; anims = []; rotPerto = []; hoverObj = null;
+}
+
+function construir(d) {
+  limpar(); D = d; CARDS = {};
+  M = new THREE.Group(); scene.add(M);
+  const fat = d.faturamento, cli = d.clientes, tv = d.televendas, est = d.estoque, exp = d.expedicao, fin = d.financeiro;
+  armazem(fat, est, cli, tv, exp);
+  racks(est);
+  telhado(fat);
+  carrossel(est, tv);
+  expedicao(exp);
+  recebimento(exp);
+  const mapa = cidades(cli);
+  saindo(fat, mapa);
+  chegando(tv, mapa);
+  televendas(tv, fat);
+  cofre(fin);
+  risco(est);
+  painelKpis(d); legenda();
+}
+
+// 1 ─ armazém de vidro
+function armazem(fat, est, cli, tv, exp) {
+  const W = 44, P = 28, H = 11, g = new THREE.Group(); M.add(g);
+  g.add(caixa(W + 3, 0.5, P + 3, mat(0x15213A, { r: 0.85 })));
+  const vidro = mat(0x6FA8FF, { op: 0.07, dw: false, e: 0x18356F, ei: 0.35, r: 0.1, m: 0.4, side: THREE.DoubleSide });
+  for (const [w, d, x, z] of [[W, 0.25, 0, -P / 2], [0.25, P, -W / 2, 0], [0.25, P, W / 2, 0], [W, 0.25, 0, P / 2]]) g.add(em(caixa(w, H, d, vidro, false), x, 0.5, z));
+  g.add(em(caixa(W, 0.3, P, mat(0x6FA8FF, { op: 0.05, dw: false, side: THREE.DoubleSide }), false), 0, H + 0.5, 0));
+  const borda = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(W, H, P)), new THREE.LineBasicMaterial({ color: 0xF5B800, transparent: true, opacity: 0.9 }));
+  borda.position.y = H / 2 + 0.5; g.add(borda);
+  for (const x of [-W / 2, -W / 6, W / 6, W / 2]) for (const z of [-P / 2, P / 2]) g.add(em(caixa(0.6, H, 0.6, mat(0x2A3A5E, { m: 0.6, r: 0.4 })), x, 0.5, z));
+  // docas: frente = saída (âmbar), fundo = entrada (verde-água)
+  for (let i = 0; i < 6; i++) g.add(em(caixa(4.2, 4.6, 0.2, brilho(COR.amb, 0.9), false), -17.5 + i * 7, 0.5, P / 2 + 0.2));
+  for (let i = 0; i < 5; i++) g.add(em(caixa(4.2, 4.6, 0.2, brilho(COR.teal, 0.9), false), -18 + i * 9, 0.5, -P / 2 - 0.2));
+  // fachada com o letreiro (clicável = resumo do CD)
+  const fach = em(caixa(22, 2.6, 0.8, mat(0x0E1626, { e: 0xF5B800, ei: 0.25, m: 0.5 })), 0, H - 2.4, P / 2 + 0.6);
+  g.add(fach);
+  const fM = fat && fat.mesAtual, ativos = cli && cli.ativosMes;
+  CARDS.cd = () => ({
+    zona: 'CAHU Distribuidora', cor: COR.amb, titulo: 'CD · loja 10', sub: 'Resumo do dia e do mês. Cada parte da cena abre o seu detalhe.',
+    hero: fM ? [brlC(fM.v), 'faturamento do mês (NF-e + NFC-e)', varT(fat.var), varC(fat.var)] : null,
+    tiles: [
+      fat && [brlC(fat.hoje.v), 'vendido hoje'],
+      fM && [brlC(fM.projecao), 'projeção do mês'],
+      est && [brlC(est.valor), 'estoque a custo'],
+      est && [nf(est.itens), 'itens com estoque'],
+      cli && [nf(ativos), 'clientes compraram no mês'],
+      tv && [nf(tv.mes.n), 'pedidos no mês'],
+      exp && [nf(exp.emAberto), 'pedidos em aberto no CD'],
+      exp && [nf(exp.liberadosHoje), 'liberados hoje'],
+    ],
+    nota: 'Mesmos números do Dashboard Distribuidora, atualizados a cada 5 min.',
+  });
+  clicavel(fach, { nome: 'CAHU Distribuidora · CD', sub: fM ? 'Mês ' + brlC(fM.v) : '', card: CARDS.cd, dist: 70, alt: 4 });
+  const r = rotulo('<i style="background:#F5B800"></i>CAHU Distribuidora <small>CD · loja 10</small>', 'zona', () => { irZona('cd'); abrirCartao(CARDS.cd()); });
+  r.position.set(0, H + 3, P / 2 + 1); g.add(r);
+}
+
+// 2 ─ racks: um por grupo, altura do preenchimento = valor do grupo
+function racks(est) {
+  const gr = arr(est && est.grupos).slice(0, 8); if (!gr.length) return;
+  const max = Math.max(...gr.map(x => x.valor), 1);
+  const ferro = mat(0x3B4D75, { m: 0.7, r: 0.35 }), viga = mat(0xFF8A3D, { m: 0.4, r: 0.5 }), madeira = mat(0x8A6A3A, { r: 0.9 });
+  const pal = new THREE.BoxGeometry(2.3, 1.55, 2.0); pal.translate(0, 0.95, 0);
+  const base = new THREE.BoxGeometry(2.4, 0.18, 2.1); base.translate(0, 0.09, 0);
+  gr.forEach((x, i) => {
+    const g = new THREE.Group(); g.position.set(-15 + (i % 4) * 10, 0.5, i < 4 ? -6 : 5); M.add(g);
+    const cor = GRUPO[i % GRUPO.length];
+    for (const px of [-4, 4]) for (const pz of [-1.2, 1.2]) g.add(em(caixa(0.22, 8.4, 0.22, ferro), px, 0, pz));
+    for (let n = 0; n < 4; n++) for (const pz of [-1.2, 1.2]) g.add(em(caixa(8.2, 0.16, 0.16, viga), 0, n * 2.1 + 0.1, pz));
+    const cheio = Math.max(1, Math.round(12 * x.valor / max)), parado = x.valor > 0 ? Math.round(cheio * Math.min(1, (x.parado || 0) / x.valor)) : 0;
+    const mBom = mat(cor, { r: 0.6, e: cor, ei: 0.12 }), mPar = mat(0x7A2433, { r: 0.6, e: 0xFF4D6A, ei: 0.25 });
+    for (let k = 0; k < cheio; k++) {
+      const nivel = Math.floor(k / 3), col = k % 3, y = nivel * 2.1 + 0.26;
+      g.add(em(new THREE.Mesh(base, madeira), -2.6 + col * 2.6, y, 0));
+      const p = em(new THREE.Mesh(pal, k >= cheio - parado ? mPar : mBom), -2.6 + col * 2.6, y, 0); p.castShadow = true; g.add(p);
+    }
+    const card = () => ({
+      zona: 'Estoque · grupo', cor, titulo: x.grupo, sub: `${nf(x.itens)} itens com estoque no CD. Cada pallet do rack = 1/12 do maior grupo; vermelho = parado há 60+ dias.`,
+      hero: [brlC(x.valor), 'estoque a custo', pctT(x.pct) + ' do CD'],
+      tiles: [[brlC(x.valorTab), 'valor na Tabela Retirada'], [brlC(x.parado), 'parado 60+ dias', x.parado > 0 ? 'neg' : ''], [nf(x.itens), 'itens'], [x.valorTab > 0 ? pctT((x.valorTab - x.valor) / x.valorTab * 100) : '—', 'margem na tabela']],
+      barra: [[x.valor ? (x.valor - x.parado) / x.valor * 100 : 0, hx(cor)], [x.valor ? x.parado / x.valor * 100 : 0, '#FF4D6A']],
+    });
+    clicavel(g, { nome: x.grupo, sub: brlC(x.valor) + ' em estoque', card, dist: 26, alt: 4 });
+  });
+  CARDS.estoque = () => ({
+    zona: 'Estoque do CD', cor: COR.amb, titulo: 'Estoque por grupo', sub: `Valor a custo (estoquen10 × custoloja10). ${nf(est.itens)} itens com saldo.`,
+    hero: [brlC(est.valor), 'estoque a custo', 'tabela ' + brlC(est.valorTabela)],
+    tiles: [[pctT(est.margemTabela), 'margem na tabela'], [nf(est.tabelaComEstoque) + '/' + nf(est.tabelaItens), 'itens da tabela com estoque'], [brlC(est.parados && est.parados.v), 'parado 60+ dias', 'neg'], [nf(est.rupturas && est.rupturas.n), 'rupturas na tabela', 'neg']],
+    listas: [{ t: 'Grupos', linhas: arr(est.grupos).map(x => [esc(x.grupo) + `<small>${pctT(x.pct)}</small>`, brlC(x.valor)]) }],
+  });
+}
+
+// 3 ─ telhado: barras dos últimos meses + placar do faturamento
+function telhado(fat) {
+  if (!fat) return;
+  const ms = arr(fat.meses).slice(-6), max = Math.max(...ms.map(m => m.v), 1);
+  ms.forEach((m, i) => {
+    const atual = i === ms.length - 1, h = 1.2 + 8 * m.v / max, cor = atual ? COR.amb : COR.teal;
+    const b = em(caixa(3.6, h, 3.6, mat(cor, { e: cor, ei: atual ? 0.9 : 0.45, r: 0.3, m: 0.3, op: 0.92 })), -15 + i * 6, 11.8, -3);
+    M.add(b);
+    const r = rotulo(`${mesT(m.m)} <small>${brlC(m.v)}</small>`, 'min'); r.position.set(0, h + 1.2, 0); b.add(r);
+    clicavel(b, { nome: 'Faturamento de ' + mesT(m.m), sub: brlC(m.v), dist: 32, alt: h / 2, card: () => ({
+      zona: 'Faturamento · mês a mês', cor, titulo: mesT(m.m) + (atual ? ' (mês atual, até hoje)' : ''),
+      hero: [brlC(m.v), 'NF-e + NFC-e'],
+      tiles: [[nf(m.n), 'notas'], [m.n ? brl(m.v / m.n) : '—', 'ticket por nota'], m.nfe && [brlC(m.nfe.v), 'NF-e · ' + nf(m.nfe.n) + ' notas'], m.nfce && [brlC(m.nfce.v), 'NFC-e caixa · ' + nf(m.nfce.n)]],
+      barra: m.nfe && m.v ? [[m.nfe.v / m.v * 100, '#F5B800'], [m.nfce.v / m.v * 100, '#2BD4C0']] : null,
+      listas: [{ t: 'Últimos meses', linhas: ms.map(x => [mesT(x.m), brlC(x.v), x === m ? 'amb' : '']) }],
+    }) });
+  });
+  const H = fat.hoje, Mm = fat.mesAtual, T = fat.tipos || {};
+  CARDS.fat = () => ({
+    zona: 'Faturamento', cor: COR.amb, titulo: `Hoje e ${MES[(fat.mes || 1) - 1]}/${fat.ano}`, sub: `NF-e do televendas + NFC-e do caixa do CD. Dia ${fat.dia} de ${fat.ultimoDia}.`,
+    hero: [brlC(H.v), 'vendido hoje · ' + nf(H.n) + ' notas', H.var != null ? varT(H.var) + ' vs ' + dBR(H.semAnt && H.semAnt.data) : '', varC(H.var)],
+    tiles: [[brlC(Mm.v), 'mês até hoje', ''], [brlC(Mm.projecao), 'projeção do mês'], [pctT(Mm.margem), 'margem do mês'], [brl(Mm.ticket), 'ticket por nota'], [brlC(Mm.diaMedio), 'média por dia'], [varT(fat.var) || '—', 'vs mês anterior (mesmo período)', varC(fat.var)],
+      T.nfe && [brlC(T.nfe.mes.v), 'NF-e no mês'], T.nfce && [brlC(T.nfce.mes.v), 'NFC-e caixa no mês']],
+    barra: T.nfe && Mm.v ? [[T.nfe.mes.v / Mm.v * 100, '#F5B800'], [T.nfce.mes.v / Mm.v * 100, '#2BD4C0']] : null,
+    listas: [{ t: 'Forma de pagamento no mês', linhas: arr(fat.formas).map(f => [esc(f.nome) + `<small>${nf(f.n)} notas</small>`, brlC(f.v)]) },
+      { t: 'Canceladas no mês', linhas: Mm.canceladas && Mm.canceladas.n ? [[nf(Mm.canceladas.n) + ' notas', brlC(Mm.canceladas.v), 'neg']] : [] }],
+  });
+  const pl = rotulo(`<div class="l">Vendido hoje</div><div class="v">${brlC(H.v)}</div><div class="s">${nf(H.n)} notas · mês ${brlC(Mm.v)} ${fat.var != null ? `<span class="${varC(fat.var)}">${varT(fat.var)}</span>` : ''}</div>`, 'placar', () => { voarPara(new THREE.Vector3(0, 14, 0), 70); abrirCartao(CARDS.fat()); });
+  pl.position.set(0, 33, 0); M.add(pl);
+  const halo = new THREE.Mesh(new THREE.TorusGeometry(27, 0.12, 8, 160), brilho(COR.amb, 2.2)); halo.rotation.x = Math.PI / 2; halo.position.y = 12; M.add(halo);
+  anims.push(t => { halo.scale.setScalar(1 + Math.sin(t * 1.4) * 0.015); halo.material.emissiveIntensity = 1.6 + Math.sin(t * 2) * 0.6; });
+}
+
+// 4 ─ carrossel no céu: produtos que mais venderam em 30 dias
+function carrossel(est, tv) {
+  const prodTv = new Map(arr(tv && tv.produtos).map(p => [String(p.cod), p]));
+  let ps = arr(est && est.top).slice(0, 14).map(p => ({ ...p, tv: prodTv.get(String(p.cod)) }));
+  if (!ps.length) ps = arr(tv && tv.produtos).slice(0, 14).map(p => ({ cod: p.cod, descricao: p.descricao, v30: p.v, q30: p.q, tv: p }));
+  if (!ps.length) return;
+  const roda = new THREE.Group(); roda.position.y = 27; M.add(roda);
+  const max = Math.max(...ps.map(p => p.v30 || 0), 1), R = 36;
+  const grupos = arr(est && est.grupos).map(g => g.grupo);
+  ps.forEach((p, i) => {
+    const a = i / ps.length * Math.PI * 2, s = 3 + 4 * Math.sqrt((p.v30 || 0) / max);
+    const gi = grupos.indexOf(p.grupo), cor = gi >= 0 ? GRUPO[gi % GRUPO.length] : COR.ceu;
+    const c = new THREE.Group(); c.position.set(Math.cos(a) * R, 0, Math.sin(a) * R); roda.add(c);
+    const cx = new THREE.Mesh(new THREE.BoxGeometry(s, s, s), mat(cor, { r: 0.35, m: 0.2, e: cor, ei: 0.35 })); cx.castShadow = true; c.add(cx);
+    const ar = new THREE.LineSegments(new THREE.EdgesGeometry(cx.geometry), new THREE.LineBasicMaterial({ color: 0xFFFFFF, transparent: true, opacity: 0.6 })); c.add(ar);
+    const fase = hash(p.cod) * 6;
+    anims.push(t => { c.position.y = Math.sin(t * 0.9 + fase) * 1.2; cx.rotation.y = ar.rotation.y = t * 0.4 + fase; cx.rotation.x = ar.rotation.x = Math.sin(t * 0.3 + fase) * 0.25; });
+    const T = p.tv;
+    clicavel(c, { nome: p.descricao, sub: 'vendeu ' + brlC(p.v30) + ' em 30 dias', dist: 22, card: () => ({
+      zona: 'Produto · ' + (i + 1) + 'º em venda (30 dias)', cor, titulo: p.descricao, sub: `Código ${esc(p.cod)}${p.grupo ? ' · ' + esc(p.grupo) : ''}`,
+      hero: [brlC(p.v30), 'vendido em 30 dias', p.ped30 ? nf(p.ped30) + ' pedidos' : ''],
+      tiles: [p.est != null && [nf(p.est), 'estoque no CD'], p.cob != null && [nf(p.cob, 1) + ' dias', 'cobertura', p.cob < 10 ? 'neg' : ''], [nf(p.q30), 'quantidade 30 dias'],
+        p.preco != null && [brl(p.preco), 'preço na tabela'], p.custo != null && [brl(p.custo), 'custo'], p.valor != null && [brlC(p.valor), 'estoque a custo'],
+        T && T.margem != null && [pctT(T.margem), 'margem no mês', T.margem < 0 ? 'neg' : ''], T && [brlC(T.v), 'vendido no mês (pedidos)']],
+      nota: p.ult ? 'Última venda em ' + dBR(p.ult) + '.' : '',
+    }) });
+  });
+  anims.push((t, dt) => { roda.rotation.y += dt * 0.05; });
+  CARDS.prod = () => ({
+    zona: 'Produtos', cor: COR.ceu, titulo: 'Os que mais saem do CD', sub: 'Venda dos últimos 30 dias. Tamanho da caixa = venda; cor = grupo.',
+    listas: [{ t: 'Top ' + ps.length, linhas: ps.map((p, i) => [`${i + 1}. ${esc(p.descricao)}`, brlC(p.v30)]) }],
+  });
+  const r = rotulo('<i style="background:#7FD3FF"></i>Produtos que mais saem <small>30 dias</small>', 'zona', () => { irZona('prod'); abrirCartao(CARDS.prod()); });
+  r.position.set(0, 37, -R); M.add(r);
+}
+
+// 5 ─ expedição (frente): uma faixa por etapa do painel do CD, caixinhas = pedidos
+const ETAPA_COR = { separacao: COR.azul, em_separacao: COR.roxo, aguardando_liberacao: COR.amb, reconferir: COR.verm, liberado: COR.verde,
+  conf_pedido: COR.azul, conf_coletor: COR.roxo, conferido: COR.teal };
+function faixas(etapas, zBase, sentido, zona, rotPed) {
+  const cx = new THREE.BoxGeometry(1.3, 1.3, 1.3); cx.translate(0, 0.65, 0);
+  arr(etapas).slice(0, 5).forEach((e, i) => {
+    const cor = ETAPA_COR[e.k] || COR.cinza, g = new THREE.Group(); g.position.set(-18 + i * 9, 0, zBase); M.add(g);
+    const piso = new THREE.Mesh(new THREE.PlaneGeometry(7, 12), new THREE.MeshStandardMaterial({ color: cor, emissive: cor, emissiveIntensity: 0.25, transparent: true, opacity: 0.35 }));
+    piso.rotation.x = -Math.PI / 2; piso.position.set(0, 0.06, sentido * 6); piso.receiveShadow = true; g.add(piso);
+    const mb = mat(cor, { r: 0.5, e: cor, ei: 0.3 }), n = Math.min(e.n || 0, 24);
+    for (let k = 0; k < n; k++) { const b = em(new THREE.Mesh(cx, mb), -2 + (k % 3) * 2, Math.floor(k / 12) * 1.35, sentido * (1.4 + Math.floor((k % 12) / 3) * 2.2)); b.castShadow = true; g.add(b); }
+    if (e.k === 'reconferir' && e.n > 0) anims.push(t => { mb.emissiveIntensity = 0.4 + Math.abs(Math.sin(t * 3)) * 1.4; piso.material.emissiveIntensity = 0.25 + Math.abs(Math.sin(t * 3)) * 0.5; });
+    const r = rotulo(`${esc(e.nome)} <small>${nf(e.n)}</small>`, 'min'); r.position.set(0, 3.6, sentido * 13); g.add(r);
+    const lista = arr(e.pedidos || e.notas);
+    clicavel(g, { nome: e.nome, sub: nf(e.n) + ' ' + (zona === 'exp' ? 'pedidos' : 'notas'), dist: 26, alt: 1, card: () => ({
+      zona: zona === 'exp' ? 'Expedição · painel do CD' : 'Recebimento · conferência', cor, titulo: e.nome,
+      hero: [nf(e.n), zona === 'exp' ? 'pedidos nesta etapa' : 'notas nesta etapa'],
+      listas: [{ t: zona === 'exp' ? 'Pedidos' : 'Notas', linhas: lista.map(rotPed) }],
+      nota: e.n > lista.length ? `Mostrando ${lista.length} de ${nf(e.n)}.` : '',
+    }) });
+  });
+}
+function expedicao(exp) {
+  if (!exp) return;
+  faixas(exp.etapas, 17, 1, 'exp', p => [esc(p.nome || p.cliente || '—'), '#' + esc(p.pedido || p.ped || '')]);
+  const pico = arr(exp.porHora).reduce((a, h) => (h.entrou > (a ? a.entrou : -1) ? h : a), null);
+  CARDS.exp = () => ({
+    zona: 'Expedição', cor: COR.verde, titulo: 'Pedidos saindo do CD', sub: 'Painel do CD: separação → conferência → liberação. Cada caixinha na faixa é um pedido.',
+    hero: [nf(exp.emAberto), 'pedidos em aberto no CD', nf(exp.liberadosHoje) + ' liberados hoje'],
+    tiles: [[nf(exp.entraramHoje), 'entraram hoje'], [nf(exp.liberadosHoje), 'liberados hoje', 'pos'], [exp.tempoMedioMin != null ? nf(exp.tempoMedioMin) + ' min' : '—', 'tempo médio até liberar'], [exp.tempoMaxMin != null ? nf(exp.tempoMaxMin) + ' min' : '—', 'maior tempo hoje'],
+      [nf(exp.mediaDia, 1), 'média liberada por dia'], pico && [pico.h + 'h', 'hora com mais entrada']],
+    listas: [{ t: 'Etapas', linhas: arr(exp.etapas).map(e => [esc(e.nome), nf(e.n), e.k === 'reconferir' && e.n ? 'neg' : '']) },
+      { t: 'Pendentes de dias anteriores', linhas: arr(exp.pendAntigos).map(p => [esc(p.nome) + `<small>#${esc(p.ped)}</small>`, nf(p.dias) + ' d', 'neg']) },
+      { t: 'Itens pra reconferir', linhas: arr(exp.reconferirItens).flatMap(r => arr(r.itens).map(it => [esc(typeof it === 'string' ? it : it.descricao || it.nome || ''), '#' + esc(r.pedido)])) }],
+  });
+  const r = rotulo('<i style="background:#34D27B"></i>Expedição <small>' + nf(exp.emAberto) + ' em aberto</small>', 'zona', () => irZona('exp', CARDS.exp));
+  r.position.set(0, 6, 32); M.add(r);
+}
+
+// 6 ─ recebimento (fundo): conferência das notas de fornecedor + caminhões chegando
+function recebimento(exp) {
+  const conf = exp && exp.conferencia; if (!conf) return;
+  faixas(conf.etapas, -17, -1, 'rec', n => [esc(n.nome || '—'), '#' + esc(n.pedido || '')]);
+  const curvaFor = new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0, -230), new THREE.Vector3(0, 0, -60), new THREE.Vector3(0, 0, -38)]);
+  M.add(rua(curvaFor, 4));
+  // um caminhão por nota em conferência (estaciona na faixa da etapa) e os liberados hoje saindo em loop
+  let k = 0;
+  arr(conf.etapas).slice(0, 5).forEach((e, i) => {
+    const x = -18 + i * 9;
+    arr(e.notas).slice(0, e.k === 'liberado' ? 3 : 2).forEach((n, j) => {
+      const cam = caminhao(ETAPA_COR[e.k] || COR.teal); cam.scale.setScalar(1.05); M.add(cam);
+      const vaga = new THREE.Vector3(x - 1.8 + j * 3.6, 0, -33);
+      const curva = new THREE.CatmullRomCurve3([new THREE.Vector3(j * 3 - 1.5, 0, -230), new THREE.Vector3(j * 3 - 1.5, 0, -70), new THREE.Vector3(x, 0, -46), vaga]);
+      const sai = e.k === 'liberado', dur = 14 + hash(n.pedido) * 6, atraso = k++ * 1.7, olhar = new THREE.Vector3();
+      anims.push(t => {
+        let p;
+        if (sai) { p = 1 - (((t + atraso) / dur) % 1); } else { p = Math.min(1, Math.max(0, (t - atraso) / dur)); p = 1 - Math.pow(1 - p, 2); }
+        cam.position.copy(curva.getPointAt(p));
+        if (p < 0.999) { olhar.copy(curva.getPointAt(sai ? Math.max(0, p - 0.01) : Math.min(1, p + 0.01))); cam.lookAt(olhar); }
+        else cam.lookAt(vaga.x, 0, 0);
+        cam.visible = !(sai && p < 0.03);
+      });
+      clicavel(cam, { nome: n.nome || 'Fornecedor', sub: e.nome, dist: 18, alt: 2, card: () => ({
+        zona: 'Recebimento · nota de fornecedor', cor: ETAPA_COR[e.k] || COR.teal, titulo: n.nome || 'Fornecedor', sub: 'Nota em conferência no CD.',
+        hero: ['#' + esc(n.pedido || '—'), 'pedido / nota'], tiles: [[esc(e.nome), 'etapa agora']],
+      }) });
+    });
+  });
+  CARDS.rec = () => ({
+    zona: 'Recebimento', cor: COR.teal, titulo: 'Pedidos chegando dos fornecedores', sub: 'Conferência das notas de entrada no CD (central.conferencia). Caminhão parado = nota sendo conferida; saindo = liberada hoje.',
+    hero: [nf(conf.total), 'notas na conferência'],
+    listas: [{ t: 'Etapas', linhas: arr(conf.etapas).map(e => [esc(e.nome), nf(e.n), e.k === 'reconferir' && e.n ? 'neg' : '']) },
+      { t: 'Itens pra reconferir', linhas: arr(conf.reconferirItens).flatMap(r => arr(r.itens).map(it => [esc(typeof it === 'string' ? it : it.descricao || it.nome || ''), '#' + esc(r.pedido)])) }],
+  });
+  const r = rotulo('<i style="background:#2BD4C0"></i>Recebimento <small>' + nf(conf.total) + ' notas</small>', 'zona', () => irZona('rec', CARDS.rec));
+  r.position.set(0, 6, -32); M.add(r);
+}
+
+// 7 ─ cidades e clientes (anel externo)
+function cidades(cli) {
+  const mapa = { distritos: [], porCli: new Map(), porCidade: new Map() };
+  if (!cli) return mapa;
+  let cid = arr(cli.porCidade).filter(c => c.cidade).slice(0, 8);
+  if (!cid.length) { const s = new Map(); for (const c of arr(cli.top)) if (c.cidade && !s.has(norm(c.cidade))) s.set(norm(c.cidade), { cidade: c.cidade, v: 0, n: 0, clientes: 0 }); cid = [...s.values()].slice(0, 8); }
+  if (!cid.length) cid = [{ cidade: 'CLIENTES', v: cli.vendaMes || 0, n: 0, clientes: cli.ativosMes || 0 }];
+  const R = 104, n = cid.length, P0 = new THREE.Vector3(0, 0, 36);
+  for (const l of [-1, 1]) M.add(rua(new THREE.CatmullRomCurve3([new THREE.Vector3(l * 25, 0, 6), new THREE.Vector3(l * 25, 0, 30), new THREE.Vector3(l * 12, 0, 35), P0]), 2.2));
+  cid.forEach((c, i) => {
+    const ang = n === 1 ? 0 : (-108 + 216 * i / (n - 1)) * Math.PI / 180;
+    const C = new THREE.Vector3(Math.sin(ang) * R, 0, Math.cos(ang) * R), dir = C.clone().normalize();
+    const borda = C.clone().sub(dir.clone().multiplyScalar(17));
+    const meio = P0.clone().lerp(borda, 0.5); meio.z += 10;
+    const curva = new THREE.CatmullRomCurve3([P0, new THREE.Vector3(0, 0, 50), meio, borda]);
+    M.add(rua(curva));
+    const g = new THREE.Group(); g.position.copy(C); M.add(g);
+    const disco = new THREE.Mesh(new THREE.CylinderGeometry(16, 16.5, 0.5, 64), mat(0x101C33, { r: 0.9 })); disco.position.y = 0.25; disco.receiveShadow = true; g.add(disco);
+    const a = anel(16, 16.6, COR.azul, 1.4, 0.8); a.position.y = 0.55; g.add(a);
+    const d = { c, C, curva, g, ang, k: 0 };
+    mapa.distritos.push(d); mapa.porCidade.set(norm(c.cidade), d);
+    const card = () => ({
+      zona: 'Clientes · cidade', cor: COR.azul, titulo: c.cidade, sub: 'Compras do mês nesta cidade. Prédios = maiores clientes; cinza = sumidos (30+ dias sem pedir).',
+      hero: [brlC(c.v), 'comprado no mês', pctT(c.pct) + ' da venda'],
+      tiles: [[nf(c.clientes), 'clientes compraram'], [nf(c.n), 'pedidos'], [c.n ? brl(c.v / c.n) : '—', 'ticket por pedido']],
+      listas: [{ t: 'Maiores clientes aqui', linhas: arr(cli.top).filter(x => norm(x.cidade) === norm(c.cidade)).map(x => [esc(x.nome), brlC(x.v)]) },
+        { t: 'Sumidos aqui', linhas: arr(cli.sumidos).filter(x => norm(x.cidade) === norm(c.cidade)).map(x => [esc(x.nome), nf(x.dias) + ' d', 'neg']) }],
+    });
+    const r = rotulo(`<i style="background:#4C8DFF"></i>${esc(c.cidade)} <small>${brlC(c.v)}</small>`, 'zona', () => { voarPara(C.clone(), 60); abrirCartao(card()); });
+    r.position.set(0, 2, 17.5); g.add(r);
+    clicavel(disco, { nome: c.cidade, sub: brlC(c.v) + ' no mês', card, dist: 60 });
+  });
+  const distDe = (cidade, chave) => mapa.porCidade.get(norm(cidade)) || mapa.distritos[Math.floor(hash(chave) * mapa.distritos.length)];
+  const vaga = d => { const k = d.k++, a = k * 2.39996 + d.ang, r = Math.min(13, 3.4 * Math.sqrt(k + 0.6)); return new THREE.Vector3(Math.cos(a) * r, 0.5, Math.sin(a) * r); };
+  const top = arr(cli.top), max = Math.max(...top.map(x => x.v), 1);
+  const corCl = { A: COR.amb, B: COR.teal, C: COR.azul };
+  top.forEach(x => {
+    const d = distDe(x.cidade, x.cli), pos = vaga(d), h = 3 + 22 * Math.sqrt(x.v / max), cor = corCl[x.classe] || COR.azul;
+    const tex = texJanelas(hash(x.cli)); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(1, Math.max(1, h / 8));
+    const b = em(caixa(3.2, h, 3.2, new THREE.MeshStandardMaterial({ color: 0x1A2744, roughness: 0.4, metalness: 0.5, emissive: 0xFFFFFF, emissiveMap: tex, emissiveIntensity: 0.85 })), pos.x, pos.y, pos.z);
+    b.add(em(caixa(3.4, 0.35, 3.4, brilho(cor, 1.8), false), 0, h, 0));
+    if (x.nova) { const an = anel(2.6, 3.1, COR.verde, 2); an.position.y = 0.1; b.add(an); anims.push(t => { an.scale.setScalar(1 + (t * 0.6 % 1) * 0.8); an.material.opacity = 1 - (t * 0.6 % 1); }); }
+    d.g.add(b);
+    if (x.rank <= 5) { const r = rotulo(`${x.rank}º ${esc(primeiro(x.nome))} <small>${brlC(x.v)}</small>`, 'min'); r.position.set(0, h + 1.8, 0); b.add(r); }
+    mapa.porCli.set(String(x.cli), { d, b, alt: h });
+    const varCli = x.vAnt > 0 ? (x.v / x.vAnt - 1) * 100 : null;
+    clicavel(b, { nome: x.nome, sub: `${x.rank}º · ${brlC(x.v)} no mês`, dist: 30, alt: h / 2, card: () => ({
+      zona: `Cliente · curva ${x.classe}${x.nova ? ' · NOVO no mês' : ''}`, cor, titulo: x.nome, sub: `${esc(x.bairro ? x.bairro + ', ' : '')}${esc(x.cidade)} · vendedor ${esc(x.vend)} · código ${esc(x.cli)}`,
+      hero: [brlC(x.v), `${x.rank}º maior do mês · ${pctT(x.pct)} da venda`, varCli != null ? varT(varCli) + ' vs mês anterior' : '', varC(varCli)],
+      tiles: [[nf(x.n), 'pedidos no mês'], [brl(x.ticket), 'ticket'], [pctT(x.margem), 'margem', x.margem != null && x.margem < 0 ? 'neg' : ''], [brlC(x.vAnt), 'mês anterior'], [dBR(x.ult), 'última compra'], x.limite ? [brlC(x.limite), 'limite de crédito'] : null],
+      nota: `Curva ABC do mês: ${pctT(x.acum)} acumulado até este cliente.`,
+    }) });
+  });
+  const sum = arr(cli.sumidos), maxS = Math.max(...sum.map(x => x.vAno || 0), 1);
+  sum.forEach(x => {
+    const d = distDe(x.cidade, x.cli), pos = vaga(d), h = 1.6 + 7 * Math.sqrt((x.vAno || 0) / maxS);
+    const b = em(caixa(2.8, h, 2.8, mat(0x3A4357, { op: 0.6, r: 0.8 })), pos.x, pos.y, pos.z);
+    const an = anel(2.2, 2.6, COR.verm, 2.2); an.position.y = 0.08; b.add(an);
+    const f = hash(x.cli) * 6; anims.push(t => { an.material.opacity = 0.25 + Math.abs(Math.sin(t * 1.6 + f)) * 0.75; });
+    d.g.add(b);
+    clicavel(b, { nome: x.nome + ' (sumido)', sub: nf(x.dias) + ' dias sem pedir', dist: 24, alt: h / 2, card: () => ({
+      zona: 'Cliente sumido', cor: COR.verm, titulo: x.nome, sub: `${esc(x.cidade)} · vendedor ${esc(x.vend)} · código ${esc(x.cli)}`,
+      hero: [nf(x.dias) + ' dias', 'sem pedir · última compra ' + dBR(x.ult)],
+      tiles: [[brlC(x.vAno), 'comprou no ano'], [nf(x.nAno), 'pedidos no ano'], [brlC(x.media), 'média por pedido'], [brlC(x.v90), 'últimos 90 dias']],
+      nota: 'Ligação do vendedor costuma trazer de volta: ele comprava e parou.',
+    }) });
+  });
+  CARDS.cli = () => ({
+    zona: 'Clientes', cor: COR.azul, titulo: 'Clientes do mês', sub: 'Cadastro de clientes da distribuidora × quem comprou no mês.',
+    hero: [nf(cli.ativosMes), 'clientes compraram no mês', cli.ativosMesAnt ? 'mês anterior ' + nf(cli.ativosMesAnt) : ''],
+    tiles: [[nf(cli.cadastro), 'no cadastro'], [nf(cli.ativos90), 'ativos 90 dias'], [nf(cli.novosMes), 'novos no mês', 'pos'], [nf(cli.sumidosN), 'sumidos 30+ dias', 'neg'], [brl(cli.ticketCliente), 'compra média por cliente'], [nf(cli.pedidosPorCliente, 1), 'pedidos por cliente'],
+      cli.classes && [`${nf(cli.classes.A)} · ${nf(cli.classes.B)} · ${nf(cli.classes.C)}`, 'curva A · B · C'], [pctT(cli.top10Pct), 'venda nos 10 maiores']],
+    listas: [{ t: 'Maiores do mês', linhas: arr(cli.top).slice(0, 12).map(x => [`${x.rank}. ${esc(x.nome)}<small>${esc(x.cidade)}</small>`, brlC(x.v)]) },
+      { t: 'Novos no mês', linhas: arr(cli.novos).map(x => [esc(x.nome) + `<small>${dBR(x.primeira)}</small>`, brlC(x.v), 'pos']) }],
+  });
+  return mapa;
+}
+
+// 8 ─ caminhões saindo: uma NF-e/NFC-e de hoje = um caminhão indo pro cliente
+function saindo(fat, mapa) {
+  const notas = arr(fat && fat.notasHoje); if (!notas.length || !mapa.distritos.length) return;
+  notas.forEach((n, i) => {
+    const c = mapa.porCli.get(String(n.cli)), d = c ? c.d : mapa.distritos[Math.floor(hash(n.cli || n.nn) * mapa.distritos.length)];
+    const fim = c ? d.C.clone().add(c.b.position.clone().setY(0)).add(new THREE.Vector3(0, 0, 2.5)) : d.C.clone();
+    const l = i % 2 ? 1 : -1;
+    const curva = new THREE.CatmullRomCurve3([new THREE.Vector3(l * 25, 0, 6), new THREE.Vector3(l * 25, 0, 30), new THREE.Vector3(l * 12, 0, 35), ...d.curva.points, fim]);
+    const nfce = n.tipo === 'NFC-e', cor = nfce ? COR.teal : COR.amb;
+    const cam = caminhao(cor); M.add(cam);
+    const dur = 26 + hash(n.nn) * 10, fase = (i / notas.length) * dur, olhar = new THREE.Vector3();
+    anims.push(t => {
+      const p = ((t + fase) / dur) % 1;
+      cam.position.copy(curva.getPointAt(p)); olhar.copy(curva.getPointAt(Math.min(1, p + 0.004))); cam.lookAt(olhar);
+      const s = p < 0.03 ? p / 0.03 : p > 0.96 ? (1 - p) / 0.04 : 1; cam.scale.setScalar(Math.max(0.01, s) * 1.1);
+    });
+    cam.userData.semEscala = true;
+    clicavel(cam, { nome: `${n.tipo} ${n.nn} · ${n.cliente}`, sub: brl(n.v) + ' · ' + String(n.hora || '').slice(0, 5), dist: 20, alt: 2, card: () => ({
+      zona: 'Pedido saindo · ' + n.tipo, cor, titulo: n.cliente || 'Consumidor', sub: `${n.tipo} nº ${esc(n.nn)} emitida hoje às ${esc(String(n.hora || '').slice(0, 5))}${n.ped ? ' · pedido #' + esc(n.ped) : ''}`,
+      hero: [brl(n.v), 'valor da nota', n.margem != null ? 'margem ' + pctT(n.margem) : '', n.margem != null && n.margem < 0 ? 'neg' : ''],
+      tiles: [[esc(n.vend || '—'), 'vendedor'], [esc(n.forma || '—'), 'pagamento'], n.custo != null && [brl(n.custo), 'custo dos itens'], c && [esc(c.d.c.cidade), 'cidade']],
+      nota: n.chave ? `<a href="/api/dashboard-distribuidora/nfe/${encodeURIComponent(n.chave)}/danfe" target="_blank" rel="noopener">Abrir a DANFE</a>` : '',
+    }) });
+  });
+  CARDS.saindo = () => ({
+    zona: 'Pedidos saindo', cor: COR.amb, titulo: 'Notas emitidas hoje', sub: 'Cada caminhão é uma nota de hoje indo pro cliente. Âmbar = NF-e do televendas; verde-água = NFC-e do caixa.',
+    hero: [brlC(fat.hoje.v), nf(fat.hoje.n) + ' notas hoje'],
+    listas: [{ t: 'Últimas notas', linhas: notas.map(n => [`${esc(String(n.hora || '').slice(0, 5))} · ${esc(n.cliente)}<small>${esc(n.tipo)}</small>`, brl(n.v)]) }],
+  });
+}
+
+// 9 ─ pedidos chegando: pedido do televendas ainda sem NF-e = esfera voando do cliente pra torre
+const TORRE = new THREE.Vector3(-42, 0, -2);
+function chegando(tv, mapa) {
+  const ab = arr(tv && tv.abertos); if (!ab.length || !mapa.distritos.length) return;
+  const geo = new THREE.SphereGeometry(0.9, 18, 14);
+  const geoHit = new THREE.SphereGeometry(3.4, 8, 6), matHit = new THREE.MeshBasicMaterial({ visible: false });
+  ab.forEach((p, i) => {
+    const c = mapa.porCli.get(String(p.cli)), d = c ? c.d : mapa.distritos[Math.floor(hash(p.cli || p.ped) * mapa.distritos.length)];
+    const ini = c ? d.C.clone().add(c.b.position.clone().setY(c.alt + 1)) : d.C.clone().setY(4);
+    const fim = TORRE.clone().setY(25), meio = ini.clone().lerp(fim, 0.5).setY(48 + hash(p.ped) * 18);
+    const curva = new THREE.QuadraticBezierCurve3(ini, meio, fim);
+    const cor = p.idade >= 24 ? COR.verm : p.idade >= 4 ? COR.amb : COR.verde;
+    const o = new THREE.Mesh(geo, brilho(cor, 3)); M.add(o);
+    o.add(new THREE.Mesh(geoHit, matHit));   // área de clique maior que a esfera (de longe ela tem 2 px)
+    const rastro = new THREE.Mesh(new THREE.SphereGeometry(0.5, 10, 8), new THREE.MeshBasicMaterial({ color: cor, transparent: true, opacity: 0.35 })); M.add(rastro);
+    const dur = 9 + hash(p.ped) * 6, fase = i / ab.length * dur;
+    anims.push(t => { const q = ((t + fase) / dur) % 1; o.position.copy(curva.getPoint(q)); rastro.position.copy(curva.getPoint(Math.max(0, q - 0.03))); o.scale.setScalar(q > 0.95 ? (1 - q) / 0.05 + 0.01 : 1); });
+    o.userData.semEscala = true;
+    clicavel(o, { nome: `Pedido #${p.ped} · ${p.cliente}`, sub: brl(p.v) + ' · há ' + nf(p.idade, 1) + ' h', dist: 22, card: () => ({
+      zona: 'Pedido chegando · televendas', cor, titulo: p.cliente || '—', sub: `Pedido #${esc(p.ped)} de ${dBR(p.d)} às ${esc(String(p.hora || '').slice(0, 5))} · ainda sem NF-e`,
+      hero: [brl(p.v), 'valor do pedido', 'há ' + nf(p.idade, 1) + ' h', p.idade >= 24 ? 'neg' : p.idade >= 4 ? 'amb' : 'pos'],
+      tiles: [[esc(p.vend || '—'), 'vendedor'], [esc(p.forma || '—'), 'pagamento'], [+p.st === 1 ? 'Em andamento' : 'Novo', 'status no televendas']],
+      nota: 'Verde = menos de 4 h · âmbar = 4 a 24 h · vermelho = mais de 24 h esperando nota.',
+    }) });
+  });
+}
+
+// 10 ─ torre do televendas + pilares dos vendedores
+function televendas(tv, fat) {
+  if (!tv && !fat) return;
+  const g = new THREE.Group(); g.position.copy(TORRE); M.add(g);
+  g.add(em(new THREE.Mesh(new THREE.CylinderGeometry(6, 6.5, 1.2, 40), mat(0x1A2540, { m: 0.5 })), 0, 0.6, 0));
+  const torre = new THREE.Mesh(new THREE.CylinderGeometry(1.3, 2.6, 24, 16), mat(0x2A2F5A, { m: 0.6, r: 0.35, e: COR.roxo, ei: 0.15 })); torre.position.y = 13; torre.castShadow = true; g.add(torre);
+  const topo = em(new THREE.Mesh(new THREE.SphereGeometry(1.6, 24, 18), brilho(COR.roxo, 3)), 0, 25.6, 0); g.add(topo);
+  const an1 = em(new THREE.Mesh(new THREE.TorusGeometry(3.6, 0.12, 8, 64), brilho(COR.roxo, 2.4)), 0, 22, 0), an2 = em(new THREE.Mesh(new THREE.TorusGeometry(5, 0.08, 8, 64), brilho(COR.ceu, 2)), 0, 19, 0);
+  g.add(an1, an2);
+  anims.push(t => { an1.rotation.x = Math.PI / 2 + Math.sin(t) * 0.3; an1.rotation.y = t * 0.8; an2.rotation.x = Math.PI / 2 + Math.cos(t * 0.7) * 0.35; an2.rotation.z = t * 0.5; topo.material.emissiveIntensity = 2 + Math.sin(t * 3) * 1.2; });
+  const horas = arr(tv && tv.horas), pico = horas.reduce((a, h) => (h.n > (a ? a.n : 0) ? h : a), null);
+  CARDS.tv = () => tv ? ({
+    zona: 'Televendas', cor: COR.roxo, titulo: 'Central de Televendas', sub: `Pedidos de hoje até ${esc(tv.hora)}. Esferas no céu = pedidos ainda sem NF-e vindo dos clientes.`,
+    hero: [nf(tv.hoje.n), 'pedidos hoje · ' + brlC(tv.hoje.v), nf(tv.hoje.clientes) + ' clientes'],
+    tiles: [[nf(tv.hoje.faturados.n), 'faturados hoje', 'pos'], [nf(tv.hoje.abertos.n), 'abertos hoje', 'amb'], [nf(tv.mes.n), 'pedidos no mês'], [brlC(tv.mes.v), 'pedido no mês'],
+      [brl(tv.mes.ticket), 'ticket do pedido'], [pctT(tv.mes.mesmoDiaPct), 'faturados no mesmo dia'], [pctT(tv.mes.taxaCancel), 'cancelamento', tv.mes.taxaCancel > 5 ? 'neg' : ''], pico && [pico.h + 'h', 'hora com mais pedidos'],
+      [nf(tv.parados), 'abertos parados'], tv.antigos && [nf(tv.antigos.n), 'abertos antigos', tv.antigos.n ? 'neg' : '']],
+    listas: [{ t: 'Pedidos sem NF-e agora', linhas: arr(tv.abertos).map(p => [`#${esc(p.ped)} · ${esc(p.cliente)}<small>${nf(p.idade, 1)} h</small>`, brl(p.v), p.idade >= 24 ? 'neg' : '']) }],
+  }) : SEM('Televendas', COR.roxo, 'Central de Televendas');
+  clicavel(torre, { nome: 'Central de Televendas', sub: tv ? nf(tv.hoje.n) + ' pedidos hoje' : '', card: CARDS.tv, dist: 55, alt: 0 });
+  const r = rotulo('<i style="background:#9B7BFF"></i>Televendas <small>' + (tv ? nf(arr(tv.abertos).length) + ' sem NF-e' : '') + '</small>', 'zona', () => irZona('tv', CARDS.tv));
+  r.position.set(0, 30, 0); g.add(r);
+  // vendedores (faturamento do mês + números do televendas)
+  const tvV = new Map(arr(tv && tv.vendedores).map(v => [+v.cod, v]));
+  const vs = (arr(fat && fat.vendedores).length ? arr(fat.vendedores) : arr(tv && tv.vendedores).map(v => ({ cod: v.cod, nome: v.nome, mes: v.faturado || v.mes, hoje: v.hoje }))).filter(v => v.mes && v.mes.v > 0).slice(0, 9);
+  const max = Math.max(...vs.map(v => v.mes.v), 1);
+  vs.forEach((v, i) => {
+    const a = i / vs.length * Math.PI * 2 + 0.3, h = 2 + 13 * v.mes.v / max;
+    const cor = [COR.roxo, COR.ceu, COR.rosa][i % 3];
+    const p = em(new THREE.Mesh(new THREE.CylinderGeometry(1.15, 1.15, h, 6), mat(0x232A55, { m: 0.5, r: 0.3, e: cor, ei: 0.35 })), Math.cos(a) * 11, h / 2 + 1.2, Math.sin(a) * 11);
+    p.castShadow = true; g.add(p);
+    p.add(em(new THREE.Mesh(new THREE.CylinderGeometry(1.25, 1.25, 0.3, 6), brilho(cor, 2.2)), 0, h / 2, 0));
+    const r2 = rotulo(esc(primeiro(v.nome)), 'min'); r2.position.set(0, h / 2 + 1.4, 0); p.add(r2);
+    const T = tvV.get(+v.cod);
+    clicavel(p, { nome: v.nome, sub: brlC(v.mes.v) + ' no mês', dist: 26, card: () => ({
+      zona: 'Vendedor', cor, titulo: v.nome, sub: 'Faturado no mês (NF-e + NFC-e com pedido dele).',
+      hero: [brlC(v.mes.v), 'faturado no mês · ' + pctT(v.pct) + ' do CD', varT(v.var), varC(v.var)],
+      tiles: [[brlC(v.hoje && v.hoje.v), 'hoje'], [nf(v.mes.n), 'notas no mês'], [pctT(v.mes.margem), 'margem'], [brl(v.mes.ticket), 'ticket'],
+        T && [nf(T.abertos.n), 'pedidos abertos', T.abertos.n ? 'amb' : ''], T && [nf(T.cancelados.n), 'cancelados no mês', T.cancelados.n ? 'neg' : ''], T && [nf(T.clientes), 'clientes atendidos']],
+    }) });
+  });
+}
+
+// 11 ─ cofre do financeiro + pilhas de moedas por idade do vencido
+function cofre(fin) {
+  const g = new THREE.Group(); g.position.set(42, 0, -2); M.add(g);
+  g.add(em(new THREE.Mesh(new THREE.CylinderGeometry(7.5, 8, 1, 48), mat(0x1A2540, { m: 0.5 })), 0, 0.5, 0));
+  const corpo = em(new THREE.Mesh(new THREE.CylinderGeometry(5.5, 5.5, 9, 48), mat(0xB8952A, { m: 0.85, r: 0.28 })), 0, 5.5, 0); corpo.castShadow = true; g.add(corpo);
+  const porta = em(new THREE.Mesh(new THREE.TorusGeometry(2.4, 0.4, 12, 40), mat(0xE8C861, { m: 0.9, r: 0.2, e: 0xF5B800, ei: 0.3 })), 0, 5.5, 5.5); g.add(porta);
+  const volante = em(new THREE.Mesh(new THREE.TorusGeometry(1.1, 0.15, 8, 6), brilho(COR.amb, 1.5)), 0, 5.5, 5.9); g.add(volante);
+  const moeda = em(new THREE.Mesh(new THREE.CylinderGeometry(2.4, 2.4, 0.4, 40), brilho(COR.amb, 1.6)), 0, 15, 0); moeda.rotation.x = Math.PI / 2; g.add(moeda);
+  anims.push(t => { moeda.rotation.z = t * 1.4; moeda.position.y = 15 + Math.sin(t * 1.2) * 0.6; volante.rotation.z = t * 0.5; });
+  CARDS.fin = () => fin ? ({
+    zona: 'Financeiro', cor: COR.amb, titulo: 'Boletos a receber e contas a pagar', sub: `Boletos da distribuidora em aberto no ERP. Último liquidado lido: ${dBR(fin.ultLiq)} (a liquidação chega pelo retorno do banco).`,
+    hero: [brlC(fin.abertos.v), nf(fin.abertos.n) + ' boletos em aberto'],
+    tiles: [[brlC(fin.vencidos.v), nf(fin.vencidos.n) + ' vencidos · ' + nf(fin.vencidos.clientes) + ' clientes', 'neg'], [brlC(fin.hojeR.v), 'vence hoje'], [brlC(fin.semana.v), 'vence esta semana'], [brlC(fin.proximas.v), 'próximas semanas'],
+      fin.liquidadosMes && [brlC(fin.liquidadosMes.v), 'recebido no mês', 'pos'], fin.emitidosMes && [brlC(fin.emitidosMes.v), 'emitido no mês'],
+      fin.pagar && [brlC(fin.pagar.hojeP.v), 'CD paga hoje'], fin.pagar && [brlC(fin.pagar.semana.v), 'CD paga na semana']],
+    barra: fin.abertos.v ? arr(fin.aging).map((a, i) => [a.v / fin.abertos.v * 100, ['#F5D04C', '#FF8A3D', '#FF5D78', '#B0213E'][i]]) : null,
+    listas: [{ t: 'Maiores devedores (vencido)', linhas: arr(fin.devedores).slice(0, 10).map(c => [esc(c.nome) + `<small>${nf(c.dias)} d</small>`, brlC(c.v), 'neg']) }],
+  }) : SEM('Financeiro', COR.amb, 'Boletos e contas');
+  clicavel(corpo, { nome: 'Financeiro do CD', sub: fin ? 'vencido ' + brlC(fin.vencidos.v) : '', card: CARDS.fin, dist: 50, alt: 0 });
+  const r = rotulo('<i style="background:#F5B800"></i>Financeiro <small>' + (fin ? brlC(fin.vencidos.v) + ' vencido' : '') + '</small>', 'zona', () => irZona('fin', CARDS.fin));
+  r.position.set(0, 19, 0); g.add(r);
+  if (!fin) return;
+  const ag = arr(fin.aging), max = Math.max(...ag.map(a => a.v), 1), cores = [0xF5D04C, 0xFF8A3D, 0xFF5D78, 0xB0213E];
+  const geo = new THREE.CylinderGeometry(1.25, 1.25, 0.34, 28);
+  ag.forEach((a, i) => {
+    const ang = Math.PI * (0.15 + i * 0.23), s = new THREE.Group(); s.position.set(Math.cos(ang) * 10.5, 1, Math.sin(ang) * 10.5); g.add(s);
+    const n = Math.max(1, Math.round(16 * a.v / max)), m = mat(cores[i], { m: 0.85, r: 0.25, e: cores[i], ei: 0.25 });
+    for (let k = 0; k < n; k++) { const c = em(new THREE.Mesh(geo, m), (hash(i * 31 + k) - 0.5) * 0.25, 0.17 + k * 0.36, (hash(k * 17 + i) - 0.5) * 0.25); c.castShadow = true; s.add(c); }
+    const r2 = rotulo(`${esc(a.rotulo)} <small>${brlC(a.v)}</small>`, 'min'); r2.position.set(0, n * 0.36 + 1.4, 0); s.add(r2);
+    const dev = arr(fin.devedores).filter(c => c.dias >= a.de && c.dias <= a.ate);
+    clicavel(s, { nome: 'Vencido ' + a.rotulo, sub: brlC(a.v), dist: 24, card: () => ({
+      zona: 'Financeiro · boletos vencidos', cor: cores[i], titulo: 'Vencidos há ' + a.rotulo, sub: 'Cada moeda da pilha = 1/16 da maior faixa.',
+      hero: [brlC(a.v), nf(a.n) + ' boletos'], tiles: [[pctT(fin.vencidos.v ? a.v / fin.vencidos.v * 100 : null), 'do total vencido']],
+      listas: [{ t: 'Clientes nesta faixa (pelo boleto mais antigo)', linhas: dev.map(c => [esc(c.nome) + `<small>${esc(c.cidade || '')}</small>`, brlC(c.v), 'neg']) }],
+    }) });
+  });
+}
+
+// 12 ─ zona de risco: rupturas da Tabela Retirada e lotes vencendo
+function risco(est) {
+  if (!est) return;
+  const g = new THREE.Group(); g.position.set(44, 0, 44); M.add(g);
+  g.add(em(new THREE.Mesh(new THREE.CylinderGeometry(11, 11.5, 0.4, 56), mat(0x2A0F1A, { r: 0.85 })), 0, 0.2, 0));
+  const a = anel(11, 11.7, COR.verm, 2, 0.9); a.position.y = 0.45; g.add(a);
+  anims.push(t => { a.material.opacity = 0.35 + Math.abs(Math.sin(t * 2)) * 0.6; });
+  const rup = arr(est.rupturas && est.rupturas.itens).slice(0, 8), lot = arr(est.vencendo && est.vencendo.lotes).slice(0, 8);
+  const base = new THREE.BoxGeometry(2.2, 0.18, 2.0); base.translate(0, 0.09, 0);
+  const madeira = mat(0x6B5230, { r: 0.9 }), arame = new THREE.LineBasicMaterial({ color: 0xFF4D6A, transparent: true, opacity: 0.9 });
+  const fantasma = new THREE.EdgesGeometry(new THREE.BoxGeometry(2, 1.6, 1.8));
+  rup.forEach((p, i) => {
+    const ang = Math.PI + i / Math.max(rup.length, 1) * Math.PI, s = new THREE.Group(); s.position.set(Math.cos(ang) * 7, 0.4, Math.sin(ang) * 7); s.rotation.y = -ang; g.add(s);
+    s.add(new THREE.Mesh(base, madeira)); const w = em(new THREE.LineSegments(fantasma, arame), 0, 1, 0); s.add(w);
+    const f = hash(p.cod) * 5; anims.push(t => { w.visible = Math.sin(t * 4 + f) > -0.6; });
+    clicavel(s, { nome: p.descricao + ' (ruptura)', sub: 'sem estoque · ' + brlC(p.v30) + ' em 30 dias', dist: 18, alt: 1, card: () => ({
+      zona: 'Ruptura · Tabela Retirada sem estoque', cor: COR.verm, titulo: p.descricao, sub: `Código ${esc(p.cod)}${p.grupo ? ' · ' + esc(p.grupo) : ''}. Está na tabela mas o CD está zerado.`,
+      hero: [brlC(p.v30), 'vendia em 30 dias', nf(p.ped30) + ' pedidos'], tiles: [[nf(p.q30), 'quantidade 30 dias'], [brl(p.preco), 'preço na tabela'], [dBR(p.ult), 'última venda']],
+    }) });
+  });
+  const cx = new THREE.BoxGeometry(1.8, 1.8, 1.8); cx.translate(0, 0.9, 0);
+  lot.forEach((l, i) => {
+    const ang = i / Math.max(lot.length, 1) * Math.PI, cor = l.dias < 0 ? COR.verm : l.dias <= 30 ? COR.lar : COR.amb;
+    const c = em(new THREE.Mesh(cx, mat(cor, { e: cor, ei: l.dias <= 30 ? 0.6 : 0.25, r: 0.5 })), Math.cos(ang) * 7, 0.4, Math.sin(ang) * 7);
+    c.castShadow = true; g.add(c);
+    if (l.dias <= 30) { const f = i; anims.push(t => { c.material.emissiveIntensity = 0.3 + Math.abs(Math.sin(t * 2.5 + f)) * 1.1; }); }
+    clicavel(c, { nome: l.descricao, sub: 'vence ' + dBR(l.validade) + (l.dias < 0 ? ' (vencido)' : ' · ' + nf(l.dias) + ' d'), dist: 18, alt: 1, card: () => ({
+      zona: 'Lote vencendo', cor, titulo: l.descricao, sub: `Código ${esc(l.cod)} · lote ${esc(l.lote || '—')} · entrada ${dBR(l.entrada)}`,
+      hero: [l.dias < 0 ? 'vencido há ' + nf(-l.dias) + ' d' : nf(l.dias) + ' dias', 'validade ' + dBR(l.validade)],
+      tiles: [[nf(l.qtd), 'quantidade do lote'], [nf(l.est), 'estoque no CD'], [brlC((l.qtd || 0) * (l.custo || 0)), 'valor do lote a custo', 'neg']],
+      nota: 'Mais detalhe em CAHU Distribuidora › Lotes e Validades.',
+    }) });
+  });
+  const V = est.vencendo || {}, R = est.rupturas || {}, Pd = est.parados || {};
+  CARDS.risco = () => ({
+    zona: 'Zona de risco', cor: COR.verm, titulo: 'Rupturas, validade e encalhe', sub: 'Pallet vazio piscando = ruptura da Tabela Retirada. Caixa laranja/vermelha = lote vencendo.',
+    hero: [nf(R.n), 'itens da tabela sem estoque', nf(R.comVenda30) + ' vendiam em 30 dias', 'neg'],
+    tiles: [[nf(V.vencidos), 'lotes vencidos', V.vencidos ? 'neg' : ''], [nf(V.n30), 'vencem em 30 dias', 'amb'], [nf(V.n60), 'vencem em 31-60 dias'], [nf(est.cobBaixa && est.cobBaixa.n), 'cobertura baixa'],
+      [brlC(Pd.v), nf(Pd.n) + ' itens parados 60+ d', 'neg'], Pd.f120 && [brlC(Pd.f120.v), 'parado 120+ dias', 'neg']],
+    listas: [{ t: 'Rupturas que mais vendiam', linhas: rup.map(p => [esc(p.descricao), brlC(p.v30), 'neg']) },
+      { t: 'Cobertura baixa (dias de estoque)', linhas: arr(est.cobBaixa && est.cobBaixa.itens).slice(0, 8).map(p => [esc(p.descricao), nf(p.cob, 1) + ' d', 'amb']) }],
+  });
+  const r = rotulo('<i style="background:#FF4D6A"></i>Zona de risco <small>' + nf(R.n) + ' rupturas · ' + nf((V.n30 || 0) + (V.vencidos || 0)) + ' lotes</small>', 'zona', () => irZona('risco', CARDS.risco));
+  r.position.set(0, 6, 0); g.add(r);
+}
+
+// ── HUD: KPIs e legenda ─────────────────────────────────────────────────────────────────────────────
+function painelKpis(d) {
+  const f = d.faturamento, tv = d.televendas, ex = d.expedicao, es = d.estoque, fi = d.financeiro;
+  const k = [
+    f && { l: 'Vendido hoje', c: COR.amb, v: brlC(f.hoje.v), s: f.hoje.var != null ? `<span class="${varC(f.hoje.var)}">${varT(f.hoje.var)}</span> vs semana passada` : nf(f.hoje.n) + ' notas', z: 'cd', card: CARDS.fat, alvo: [0, 14, 0], dist: 70 },
+    f && { l: 'Mês', c: COR.amb, v: brlC(f.mesAtual.v), s: 'projeção ' + brlC(f.mesAtual.projecao), z: 'cd', card: CARDS.fat, alvo: [0, 14, 0], dist: 70 },
+    tv && { l: 'Pedidos sem NF-e', c: COR.roxo, v: nf(arr(tv.abertos).length), s: brlC(arr(tv.abertos).reduce((a, p) => a + (+p.v || 0), 0)), z: 'tv', card: CARDS.tv },
+    ex && { l: 'Expedição', c: COR.verde, v: nf(ex.emAberto) + ' em aberto', s: nf(ex.liberadosHoje) + ' liberados hoje', z: 'exp', card: CARDS.exp },
+    es && { l: 'Estoque', c: COR.amb, v: brlC(es.valor), s: nf(es.itens) + ' itens', z: 'cd', card: CARDS.estoque },
+    d.clientes && { l: 'Clientes no mês', c: COR.azul, v: nf(d.clientes.ativosMes), s: nf(d.clientes.sumidosN) + ' sumidos', z: 'cli', card: CARDS.cli },
+    fi && { l: 'Vencido a receber', c: COR.verm, v: brlC(fi.vencidos.v), s: nf(fi.vencidos.n) + ' boletos', z: 'fin', card: CARDS.fin },
+  ].filter(Boolean);
+  const el = $('kpis'); el.innerHTML = '';
+  k.forEach(x => {
+    const b = document.createElement('button'); b.className = 'kpi vidro';
+    b.innerHTML = `<div class="l"><i style="background:${hx(x.c)}"></i>${esc(x.l)}</div><div class="v">${x.v}</div><div class="s">${x.s}</div>`;
+    b.onclick = () => { if (x.alvo) voarPara(new THREE.Vector3(...x.alvo), x.dist); else irZona(x.z); if (x.card) abrirCartao(x.card()); };
+    el.appendChild(b);
+  });
+}
+function legenda() {
+  const el = $('legenda'); el.innerHTML = '<div class="t">Ir para</div>';
+  const cards = { cd: CARDS.cd, prod: CARDS.prod, exp: CARDS.exp, rec: CARDS.rec, tv: CARDS.tv, fin: CARDS.fin, risco: CARDS.risco, cli: CARDS.cli };
+  for (const [k, z] of Object.entries(ZONAS)) {
+    const b = document.createElement('button'); b.innerHTML = `<i style="background:${hx(z.cor)}"></i>${esc(z.nome)}`;
+    b.onclick = () => irZona(k, cards[k]); el.appendChild(b);
+  }
+  if (CARDS.saindo) { const b = document.createElement('button'); b.innerHTML = '<i style="background:#F5B800"></i>Notas de hoje (caminhões)'; b.onclick = () => { irZona('cli'); abrirCartao(CARDS.saindo()); }; el.appendChild(b); }
+}
+
+// ── hover e clique ──────────────────────────────────────────────────────────────────────────────────
+const ray = new THREE.Raycaster(), mouse = new THREE.Vector2(), tip = $('tip');
+let hoverObj = null, ptr = null, hoverPend = false, ultMov = null;
+function achar(ev) {
+  const r = renderer.domElement.getBoundingClientRect();
+  mouse.set((ev.clientX - r.left) / r.width * 2 - 1, -(ev.clientY - r.top) / r.height * 2 + 1);
+  ray.setFromCamera(mouse, camera);
+  const hit = ray.intersectObjects(picks, true).find(h => h.object.visible);
+  if (!hit) return null;
+  let o = hit.object; while (o && !o.userData.info) o = o.parent; return o;
+}
+renderer.domElement.addEventListener('pointermove', ev => {
+  ultMov = ev; if (hoverPend) return; hoverPend = true;
+  requestAnimationFrame(() => {
+    hoverPend = false; const e = ultMov, o = achar(e);
+    hoverObj = o; renderer.domElement.style.cursor = o ? 'pointer' : '';
+    if (o) {
+      const i = o.userData.info, r = wrap.getBoundingClientRect();
+      tip.innerHTML = esc(i.nome) + (i.sub ? `<small>${esc(i.sub)}</small>` : ''); tip.hidden = false;
+      const x = Math.min(e.clientX - r.left + 16, r.width - 290);
+      tip.style.left = x + 'px'; tip.style.top = (e.clientY - r.top + 14) + 'px';
+    } else tip.hidden = true;
+  });
+});
+renderer.domElement.addEventListener('pointerleave', () => { tip.hidden = true; hoverObj = null; });
+renderer.domElement.addEventListener('pointerdown', ev => { ptr = { x: ev.clientX, y: ev.clientY }; });
+renderer.domElement.addEventListener('pointerup', ev => {
+  if (!ptr || Math.hypot(ev.clientX - ptr.x, ev.clientY - ptr.y) > 6) return; ptr = null;
+  const o = achar(ev);
+  if (!o) { fecharCartao(); return; }
+  const i = o.userData.info, p = new THREE.Vector3(); o.getWorldPosition(p); p.y += i.alt || 0;
+  voarPara(p, i.dist || 35); abrirCartao(i.card && i.card());
+});
+
+// ── botões ──────────────────────────────────────────────────────────────────────────────────────────
+function setGirar(v) { controls.autoRotate = v; $('b-girar').classList.toggle('on', v); }
+$('b-girar').onclick = () => setGirar(!controls.autoRotate);
+$('b-visao').onclick = visaoGeral;
+$('b-atual').onclick = () => carregar(true);
+
+// ── loop ────────────────────────────────────────────────────────────────────────────────────────────
+const relogio = new THREE.Clock(), _v = new THREE.Vector3();
+let fpsT = 0, fpsN = 0, fpsChecado = false;
+function loop() {
+  requestAnimationFrame(loop);
+  const dt = Math.min(relogio.getDelta(), 0.05), t = relogio.elapsedTime;
+  for (const a of anims) a(t, dt);
+  for (const o of picks) { const alvo = o.userData.base * (o === hoverObj ? 1.08 : 1), s = o.scale.x; if (Math.abs(alvo - s) > 0.001 && !o.userData.semEscala) o.scale.setScalar(s + (alvo - s) * 0.2); }
+  passoVoo(dt); controls.update();
+  for (const r of rotPerto) { r.getWorldPosition(_v); r.visible = camera.position.distanceTo(_v) < 95; }
+  if (usaBloom) composer.render(); else renderer.render(scene, camera);
+  css.render(scene, camera);
+  // máquina fraca: depois de 5 s abaixo de 24 fps desliga o brilho e as sombras
+  if (!fpsChecado && t > 2) { fpsT += dt; fpsN++; if (fpsT > 5) { fpsChecado = true; if (fpsN / fpsT < 24) { usaBloom = false; renderer.shadowMap.enabled = false; console.info('[CD-3D] modo leve: ' + (fpsN / fpsT).toFixed(0) + ' fps'); } } }
+}
+loop();
+// diagnóstico (testes headless): onde cada objeto clicável aparece na tela agora
+window.CD3D = { abrir: n => { const o = picks.find(p => p.userData.info.nome.includes(n)); if (!o) return false; abrirCartao(o.userData.info.card()); return true; }, todos: () => { const erros = []; for (const o of picks) { try { abrirCartao(o.userData.info.card()); } catch (e) { erros.push(o.userData.info.nome + ': ' + e.message); } } for (const k of Object.keys(CARDS)) { try { abrirCartao(CARDS[k]()); } catch (e) { erros.push('CARD ' + k + ': ' + e.message); } } return { total: picks.length, erros }; }, alvos: () => { const r = renderer.domElement.getBoundingClientRect(), v = new THREE.Vector3(); return picks.filter(o => o.visible).map(o => { o.getWorldPosition(v); v.y += o.userData.info.alt || 0; v.project(camera); return { nome: o.userData.info.nome, x: Math.round(r.left + (v.x + 1) / 2 * r.width), y: Math.round(r.top + (1 - v.y) / 2 * r.height), z: +v.z.toFixed(3) }; }); } };
+
+// ── dados ───────────────────────────────────────────────────────────────────────────────────────────
+let primeiraVez = true, timer = null;
+async function carregar(manual) {
+  const st = $('st'), ld = $('carregando');
+  if (primeiraVez) ld.style.display = '';
+  st.querySelector('span').textContent = 'buscando…';
+  try {
+    const r = await fetch('/api/cahu-distribuidora/mundo-3d' + (DEMO ? '?demo=1' : ''), { cache: 'no-store' });
+    if (r.status === 401) { location.href = '/login.html'; return; }
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+    const aberto = cartaoEl.classList.contains('on');
+    // os caminhões carregam os pedidos por cliente: mesmo pedido aberto não muda de posição
+    construir(d);
+    if (aberto && manual) fecharCartao();
+    const h = new Date(d.geradoEm);
+    st.className = 'st' + (d.demo ? ' demo' : '');
+    st.querySelector('span').textContent = d.demo ? 'DADOS DE EXEMPLO · TESTE' : 'dados reais · ' + h.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    ld.style.display = 'none';
+    if (primeiraVez) { primeiraVez = false; voo = { t: 0, p0: camera.position.clone(), a0: controls.target.clone(), p1: new THREE.Vector3(0, 118, 178), a1: new THREE.Vector3(0, 0, 12) }; }
+  } catch (e) {
+    st.querySelector('span').textContent = 'erro ao buscar';
+    ld.style.display = '';
+    ld.querySelector('.box').innerHTML = `<b>Não consegui buscar os números do CD</b><span>${esc(e.message)}</span><button class="bt vidro" id="b-tenta">Tentar de novo</button>`;
+    $('b-tenta').onclick = () => { ld.querySelector('.box').innerHTML = '<div class="gira"></div><b>Montando o CD em 3D…</b><span>Buscando os números no ERP…</span>'; carregar(true); };
+  }
+  clearTimeout(timer); timer = setTimeout(() => carregar(false), 5 * 60 * 1000);
+}
+carregar(false);
+</script>
+</body>
+</html>
