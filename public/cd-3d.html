@@ -14,7 +14,7 @@
   Mapa da cena:
     centro .......... armazém do CD (vidro) com 1 rack por grupo de estoque (pallet vermelho = parado 60+ dias)
     telhado ......... barras do faturamento dos últimos 6 meses · placar com hoje e mês
-    céu ............. carrossel com os produtos que mais venderam em 30 dias
+    fundos à esq. ... gôndola iluminada com os produtos que mais venderam em 30 dias
     frente .......... Expedição (painel do CD: separação → liberado) · caminhões = NF-e/NFC-e de hoje indo pro cliente
     fundo ........... Recebimento (conferência das notas de fornecedor) · caminhões dos fornecedores na doca
     esquerda ........ torre do Televendas + 1 pilar por vendedor · esferas = pedidos sem NF-e vindo dos clientes
@@ -227,7 +227,7 @@ const COR = { amb: 0xF5B800, teal: 0x2BD4C0, azul: 0x4C8DFF, roxo: 0x9B7BFF, ver
 const GRUPO = [COR.amb, COR.teal, COR.azul, COR.roxo, COR.lar, COR.verde, COR.rosa, COR.ceu];
 const ZONAS = {
   cd:    { nome: 'CD e estoque',  cor: COR.amb,  pos: [0, 4, 0],     dist: 70 },
-  prod:  { nome: 'Produtos que mais saem', cor: COR.ceu, pos: [0, 30, 0], dist: 80 },
+  prod:  { nome: 'Produtos que mais saem', cor: COR.ceu, pos: [-60, 8, -56], dist: 55 },
   exp:   { nome: 'Expedição',      cor: COR.verde, pos: [0, 0, 37],   dist: 50 },
   rec:   { nome: 'Recebimento',    cor: COR.teal, pos: [0, 0, -37],  dist: 55 },
   tv:    { nome: 'Televendas',     cor: COR.roxo, pos: [-42, 8, -2], dist: 55 },
@@ -872,22 +872,29 @@ function telhado(fat) {
   const halo = new THREE.Mesh(new THREE.TorusGeometry(27, 0.12, 8, 160), brilho(COR.amb, 2.2)); halo.rotation.x = Math.PI / 2; halo.position.y = 12; M.add(halo);
   anims.push(t => { halo.scale.setScalar(1 + Math.sin(t * 1.4) * 0.015); halo.material.emissiveIntensity = 1.6 + Math.sin(t * 2) * 0.6; });
 }
-// 4 ─ carrossel no céu
+// 4 ─ gôndola dos produtos que mais saem
 function carrossel(ps) {
+  // 03/11 (Tiago: "esses produtos em cima do CD não poderia ser diferente ou em outro canto?"): saiu do céu sobre o galpão
+  // e virou uma gôndola iluminada nos fundos à esquerda, virada pro CD. 3 prateleiras de 5: o 1º em venda fica em cima, à esquerda.
   if (!ps.length) return;
-  const roda = new THREE.Group(); roda.position.y = 27; M.add(roda);
-  const max = Math.max(...ps.map(p => p.v30 || 0), 1), R = 36;
-  ps.forEach((p, i) => {
-    const a = i / ps.length * Math.PI * 2, s = 3 + 4 * Math.sqrt((p.v30 || 0) / max), cor = corGrupo(D.estoque, p.grupo);
-    const c = new THREE.Group(); c.position.set(Math.cos(a) * R, 0, Math.sin(a) * R); roda.add(c);
-    const cx = new THREE.Mesh(new THREE.BoxGeometry(s, s, s), mat(cor, { r: 0.35, m: 0.2, e: cor, ei: 0.35 })); c.add(cx); c.userData.anima = true;
+  const g = new THREE.Group(); g.position.set(...ZONAS.prod.pos).setY(0); g.lookAt(0, 0, 0); M.add(g);
+  const max = Math.max(...ps.map(p => p.v30 || 0), 1), L = 30, P = 6, H = 16, NIV = [10.8, 5.8, 0.8];
+  const ferro = mat(0x1E2A47, { m: 0.6, r: 0.4 }), neon = brilho(COR.ceu, 1.6);
+  g.add(em(caixa(L + 6, 0.5, P + 6, mat(0x15213A, { r: 0.85 })), 0, 0, 0));
+  g.add(em(caixa(L + 1, H, 0.4, ferro), 0, 0.5, -P / 2));
+  for (const x of [-L / 2, L / 2]) g.add(em(caixa(0.5, H, P, ferro), x, 0.5, 0));
+  for (const y of NIV) { g.add(em(caixa(L, 0.3, P, ferro), 0, y, 0)); g.add(em(caixa(L, 0.14, 0.14, neon, false), 0, y + 0.08, P / 2 + 0.1)); }
+  g.add(em(caixa(L + 1, 1.8, 0.5, mat(0x0E1626, { e: COR.ceu, ei: 0.5, m: 0.4 }), false), 0, H + 0.6, 0));
+  ps.slice(0, 15).forEach((p, i) => {
+    const col = i % 5, niv = Math.floor(i / 5), s2 = 1.8 + 1.9 * Math.sqrt((p.v30 || 0) / max), cor = corGrupo(D.estoque, p.grupo);
+    const c = new THREE.Group(); c.position.set(-12 + col * 6, NIV[niv] + 0.3 + s2 / 2, 0.4); g.add(c); c.userData.anima = true;
+    const cx = new THREE.Mesh(new THREE.BoxGeometry(s2, s2, s2), mat(cor, { r: 0.35, m: 0.2, e: cor, ei: 0.35 })); c.add(cx);
     const ar = new THREE.LineSegments(new THREE.EdgesGeometry(cx.geometry), new THREE.LineBasicMaterial({ color: 0xFFFFFF, transparent: true, opacity: 0.6 })); c.add(ar);
     const fase = hash(p.cod) * 6;
-    anims.push(t => { c.position.y = Math.sin(t * 0.9 + fase) * 1.2; cx.rotation.y = ar.rotation.y = t * 0.4 + fase; cx.rotation.x = ar.rotation.x = Math.sin(t * 0.3 + fase) * 0.25; });
-    clicavel(c, { nome: p.descricao, sub: 'vendeu ' + brlC(p.v30) + ' em 30 dias', dist: 22, card: () => cardProduto(p, i, cor) });
+    anims.push(t => { cx.rotation.y = ar.rotation.y = t * 0.35 + fase; });
+    clicavel(c, { nome: p.descricao, sub: 'vendeu ' + brlC(p.v30) + ' em 30 dias', dist: 26, card: () => cardProduto(p, i, cor) });
   });
-  anims.push((t, dt) => { roda.rotation.y += dt * 0.05; });
-  const r = zonaRot('prod', 'Produtos que mais saem', '30 dias'); r.position.set(0, 37, -R); M.add(r);
+  const r = zonaRot('prod', 'Produtos que mais saem', '30 dias'); r.position.set(0, H + 4, 0); g.add(r);
 }
 // 5 ─ expedição e recebimento: uma faixa por etapa
 function faixas(etapas, zBase, sentido, zona) {
