@@ -111,6 +111,20 @@ button{font-family:inherit}
 .c-nota{font-size:10.5px;color:var(--tx3);margin-top:12px;line-height:1.5}
 .c-nota a{color:var(--amb);font-weight:700}
 
+/* estilos de dia (Maquete, Brinquedo): vidro claro e texto escuro */
+body.claro{--tx:#152033;--tx2:#4E5A72;--tx3:#6E7891;--vid:rgba(255,255,255,.6);--ln:rgba(20,32,51,.14);--pos:#138A4E;--neg:#C22F49;--amb:#9A6C00}
+body.claro,body.claro #mundo{background:#E9ECF1}
+body.claro .vidro{background:linear-gradient(140deg,rgba(255,255,255,.75),rgba(255,255,255,.45));box-shadow:0 14px 40px rgba(20,32,51,.16),inset 0 1px 0 rgba(255,255,255,.9)}
+body.claro .rot{background:rgba(255,255,255,.82);color:#152033;border-color:rgba(20,32,51,.14)}
+body.claro .rot.placar{background:rgba(255,255,255,.85);border-color:rgba(154,108,0,.4);box-shadow:0 8px 24px rgba(20,32,51,.15)}
+body.claro .c-hero,body.claro .c-t,body.claro .c-li{background:rgba(255,255,255,.55);border-color:rgba(20,32,51,.08)}
+body.claro .c-li:nth-child(even){background:rgba(255,255,255,.8)}
+body.claro .c-x{background:rgba(20,32,51,.06)}
+body.claro #dica{background:rgba(255,255,255,.7)}
+body.claro #legenda button:hover{background:rgba(20,32,51,.06)}
+body.claro .bt.on{color:#1b1400}
+#estilo{border-radius:10px;padding:7px 10px;font-size:11.5px;font-weight:700;color:var(--tx);cursor:pointer;font-family:inherit;outline:none}
+#estilo option{color:#152033;background:#fff}
 #carregando{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:8;pointer-events:none}
 #carregando .box{border-radius:16px;padding:16px 22px;text-align:center;max-width:340px;pointer-events:auto}
 #carregando b{display:block;font-size:14px}
@@ -148,6 +162,7 @@ button{font-family:inherit}
     <div class="acoes">
       <button class="bt vidro" id="b-visao" title="Volta pra visão de cima do CD inteiro">Visão geral</button>
       <button class="bt vidro on" id="b-girar" title="Liga/desliga a câmera girando sozinha">Girar</button>
+      <select id="estilo" class="vidro" title="Estilo visual do mundo (fica guardado neste navegador)"></select>
       <button class="bt vidro" id="b-atual" title="Busca os números de novo (o servidor guarda por 5 min)">Atualizar</button>
     </div>
   </div>
@@ -204,46 +219,131 @@ const wrap = $('mundo');
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
 renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.1;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
 wrap.prepend(renderer.domElement);
 const css = new CSS2DRenderer(); css.domElement.className = 'rotulos'; wrap.insertBefore(css.domElement, $('hud'));
 
+// ── estilos visuais (03/11/26, Tiago: "me manda mais exemplos ... outros estilos") ──────────────────────
+// ?estilo=noite|maquete|holograma|brinquedo|entardecer, ou o seletor no topo (fica guardado no navegador).
+const ESTILOS = {
+  noite:      { nome: 'Noite neon', ceu: ['#04070F', '#0B1426'], nevoa: [0x070C17, 0.0036], chao: 0x0A1222, grade: [0x1B2A48, 0x111B31, 0.55], estrelas: true,
+                hemi: [0x8FA8FF, 0x0A0F1C, 1.25], sol: [0xD4DDFF, 2.1, [-90, 150, 80]], luz2: [0xFFC56B, 0.55], bloom: 0.8, expo: 1.1, fov: 46 },
+  maquete:    { nome: 'Maquete branca', ceu: ['#DDE2E9', '#F6F7F9'], nevoa: [0xE6EAF0, 0.0008], chao: 0xE4E7EC, grade: [0xD5DAE2, 0xE3E7ED, 0.9], claro: true, mats: 'maquete',
+                hemi: [0xFFFFFF, 0x8D96A5, 1.15], sol: [0xFFFFFF, 3.1, [-80, 150, 110]], luz2: [0xFFFFFF, 0.45], bloom: 0, expo: 1.0, fov: 40 },
+  holograma:  { nome: 'Holograma', ceu: ['#000308', '#021626'], nevoa: [0x010A14, 0.0028], chao: 0x010812, grade: [0x1A8FBF, 0x07344A, 0.95], estrelas: true, mats: 'holo',
+                hemi: [0x60D8FF, 0x000000, 0.5], sol: [0x9FE8FF, 0.4, [-90, 150, 80]], luz2: [0x60D8FF, 0], bloom: 0.75, expo: 1.0, fov: 46 },
+  brinquedo:  { nome: 'Cidade de brinquedo', ceu: ['#7FC4F0', '#D9F0FF'], nevoa: [0xCDE9FA, 0.0007], chao: 0x8DC26F, grade: null, claro: true, mats: 'toon',
+                hemi: [0xFFFFFF, 0x5E8F4A, 1.5], sol: [0xFFF1D6, 2.8, [-70, 150, 100]], luz2: [0xFFFFFF, 0.5], bloom: 0, expo: 1.0, fov: 17 },
+  entardecer: { nome: 'Pôr do sol', ceu: ['#2A1F4A', '#F29A5B'], nevoa: [0xB8705E, 0.0019], chao: 0x2E2129, grade: [0x5A3E46, 0x4A333B, 0.5], mats: 'sol',
+                hemi: [0xFFB98A, 0x2A1838, 1.1], sol: [0xFFA45C, 3.2, [-170, 55, 30]], luz2: [0x8A7BFF, 0.5], bloom: 0.45, expo: 1.05, fov: 42 },
+};
+const ESTILO_ID = (() => { const q = new URLSearchParams(location.search).get('estilo'); if (ESTILOS[q]) return q; try { const s = localStorage.getItem('cd3d_estilo'); if (ESTILOS[s]) return s; } catch {} return 'noite'; })();
+const EST = ESTILOS[ESTILO_ID];
+const DK = Math.tan(46 * Math.PI / 360) / Math.tan(EST.fov * Math.PI / 360);   // lente mais fechada = câmera mais longe pro mesmo enquadramento
+if (EST.claro) document.body.classList.add('claro');
+document.body.dataset.estilo = ESTILO_ID;
+
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x070C17);
-scene.fog = new THREE.FogExp2(0x070C17, 0.0036);
-const camera = new THREE.PerspectiveCamera(46, 1, 0.5, 1600);
-camera.position.set(0, 260, 380);
+{ const c = document.createElement('canvas'); c.width = 4; c.height = 256; const x = c.getContext('2d'), gr = x.createLinearGradient(0, 0, 0, 256);
+  gr.addColorStop(0, EST.ceu[0]); gr.addColorStop(1, EST.ceu[1]); x.fillStyle = gr; x.fillRect(0, 0, 4, 256);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; scene.background = t; }
+scene.fog = new THREE.FogExp2(EST.nevoa[0], EST.nevoa[1] / DK);
+const camera = new THREE.PerspectiveCamera(EST.fov, 1, 0.5, 1600 * DK);
+camera.position.set(0, 260 * DK, 380 * DK);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true; controls.dampingFactor = 0.07;
-controls.maxPolarAngle = Math.PI * 0.47; controls.minDistance = 10; controls.maxDistance = 460;
+controls.maxPolarAngle = Math.PI * 0.47; controls.minDistance = 10 * DK; controls.maxDistance = 460 * DK;
 controls.target.set(0, 0, 12);
 controls.autoRotate = true; controls.autoRotateSpeed = 0.3;
+renderer.toneMappingExposure = EST.expo;
 
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
-const bloom = new UnrealBloomPass(new THREE.Vector2(512, 512), 0.8, 0.5, 0.7);
+const bloom = new UnrealBloomPass(new THREE.Vector2(512, 512), EST.bloom, 0.5, 0.7);
 composer.addPass(bloom); composer.addPass(new OutputPass());
-let usaBloom = true;
+let usaBloom = EST.bloom > 0;
 
-scene.add(new THREE.HemisphereLight(0x8FA8FF, 0x0A0F1C, 1.25));
-const lua = new THREE.DirectionalLight(0xD4DDFF, 2.1);
-lua.position.set(-90, 150, 80); lua.castShadow = true;
+scene.add(new THREE.HemisphereLight(...EST.hemi));
+const lua = new THREE.DirectionalLight(EST.sol[0], EST.sol[1]);
+lua.position.set(...EST.sol[2]); lua.castShadow = true;
 lua.shadow.mapSize.set(2048, 2048);
-Object.assign(lua.shadow.camera, { left: -140, right: 140, top: 140, bottom: -140, near: 10, far: 400 });
+Object.assign(lua.shadow.camera, { left: -150, right: 150, top: 150, bottom: -150, near: 10, far: 500 });
 lua.shadow.bias = -0.0004;
 scene.add(lua);
-const quente = new THREE.DirectionalLight(0xFFC56B, 0.55); quente.position.set(70, 40, 120); scene.add(quente);
+const quente = new THREE.DirectionalLight(EST.luz2[0], EST.luz2[1]); quente.position.set(70, 40, 120); scene.add(quente);
 
-// chão, grade e estrelas (fixos)
+// chão, grade, árvores e estrelas (fixos)
 {
-  const chao = new THREE.Mesh(new THREE.CircleGeometry(300, 96), new THREE.MeshStandardMaterial({ color: 0x0A1222, roughness: 0.96, metalness: 0 }));
+  const chao = new THREE.Mesh(new THREE.CircleGeometry(300, 96), EST.mats === 'toon' ? new THREE.MeshToonMaterial({ color: EST.chao }) : new THREE.MeshStandardMaterial({ color: EST.chao, roughness: 0.96, metalness: 0 }));
   chao.rotation.x = -Math.PI / 2; chao.receiveShadow = true; scene.add(chao);
-  const grade = new THREE.GridHelper(600, 120, 0x1B2A48, 0x111B31); grade.position.y = 0.03;
-  grade.material.transparent = true; grade.material.opacity = 0.55; scene.add(grade);
-  const n = 1800, p = new Float32Array(n * 3);
-  for (let i = 0; i < n; i++) { const u = Math.random() * Math.PI * 2, v = Math.random() * 0.48 * Math.PI, r = 700; p[i * 3] = r * Math.cos(v) * Math.cos(u); p[i * 3 + 1] = r * Math.sin(v) + 20; p[i * 3 + 2] = r * Math.cos(v) * Math.sin(u); }
-  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(p, 3));
-  scene.add(new THREE.Points(g, new THREE.PointsMaterial({ color: 0xC9D6FF, size: 1.6, sizeAttenuation: false, fog: false, transparent: true, opacity: 0.8 })));
+  if (EST.grade) { const grade = new THREE.GridHelper(600, 120, EST.grade[0], EST.grade[1]); grade.position.y = 0.03;
+    grade.material.transparent = true; grade.material.opacity = EST.grade[2]; scene.add(grade); }
+  if (EST.mats === 'toon') {   // árvores de brinquedo fora do anel das cidades
+    const tronco = new THREE.MeshToonMaterial({ color: 0x8A5A3B }), copa = [0x4E9A3E, 0x6DB34F, 0x3F8A47].map(c => new THREE.MeshToonMaterial({ color: c }));
+    const gT = new THREE.CylinderGeometry(0.5, 0.7, 3, 6), gC = new THREE.ConeGeometry(2.6, 6, 7);
+    for (let i = 0; i < 160; i++) {
+      const a = Math.random() * Math.PI * 2, r = 132 + Math.random() * 150, x = Math.cos(a) * r, z = Math.sin(a) * r, s = 0.7 + Math.random() * 0.9;
+      const t = new THREE.Mesh(gT, tronco), c = new THREE.Mesh(gC, copa[i % 3]);
+      t.scale.setScalar(s); c.scale.setScalar(s); t.position.set(x, 1.5 * s, z); c.position.set(x, 5.5 * s, z);
+      t.castShadow = c.castShadow = true; scene.add(t, c);
+    }
+  }
+  if (EST.estrelas) {
+    const n = 1800, p = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) { const u = Math.random() * Math.PI * 2, v = Math.random() * 0.48 * Math.PI, r = 700; p[i * 3] = r * Math.cos(v) * Math.cos(u); p[i * 3 + 1] = r * Math.sin(v) + 20; p[i * 3 + 2] = r * Math.cos(v) * Math.sin(u); }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(p, 3));
+    scene.add(new THREE.Points(g, new THREE.PointsMaterial({ color: ESTILO_ID === 'holograma' ? 0x7FE6FF : 0xC9D6FF, size: 1.6, sizeAttenuation: false, fog: false, transparent: true, opacity: 0.8 })));
+  }
+}
+
+/** Repinta o mundo já montado conforme o estilo (os construtores desenham no estilo Noite). */
+const lum = c => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+const _branco = new THREE.Color(0xFFFFFF), _ciano = new THREE.Color(0x3FD8FF);
+const _toonGrad = (() => { const t = new THREE.DataTexture(new Uint8Array([90, 170, 255]), 3, 1, THREE.RedFormat); t.minFilter = t.magFilter = THREE.NearestFilter; t.needsUpdate = true; return t; })();
+function aplicarEstilo(raiz) {
+  if (!EST.mats) return;
+  const novos = new Map(), arestas = new Map(), lista = [], velhos = new Set();
+  raiz.traverse(o => lista.push(o));
+  for (const o of lista) {
+    if (o.isLine) {
+      if (EST.mats === 'maquete') { o.material = o.material.clone(); o.material.color.set(0x9AA3B0); }
+      else if (EST.mats === 'toon') { o.material = o.material.clone(); o.material.color.set(0x2B3445); o.material.opacity = 0.45; }
+      continue;
+    }
+    if (!o.isMesh || !o.material || Array.isArray(o.material) || o.material.visible === false) continue;
+    const m0 = o.material;
+    if (!novos.has(m0.uuid)) {
+      const cor = (m0.color || _branco).clone(), escuro = lum(cor) < 0.06;
+      const brilha = !!(m0.emissive && m0.emissiveIntensity > 0.8 && lum(m0.emissive) > 0.05 && !m0.emissiveMap);
+      let m;
+      if (EST.mats === 'maquete') {
+        m = new THREE.MeshStandardMaterial({ color: escuro || m0.emissiveMap ? 0xFFFFFF : cor.clone().lerp(_branco, 0.3), roughness: 0.8, metalness: 0, transparent: m0.transparent, opacity: m0.opacity, depthWrite: m0.depthWrite, side: m0.side });
+        if (brilha) m.color.copy(m0.emissive).lerp(_branco, 0.15);
+      } else if (EST.mats === 'toon') {
+        m = new THREE.MeshToonMaterial({ color: escuro ? 0xF1EADB : cor.clone().lerp(_branco, 0.1), gradientMap: _toonGrad, transparent: m0.transparent, opacity: m0.opacity, depthWrite: m0.depthWrite, side: m0.side });
+        if (brilha) { m.color.copy(m0.emissive); m.emissive = m0.emissive.clone(); m.emissiveIntensity = 0.35; }
+        if (m0.emissiveMap) m.color.set(0xE9E3D5);   // prédio de dia: sem janelas acesas
+      } else if (EST.mats === 'holo') {
+        const c = brilha ? m0.emissive.clone() : escuro || m0.emissiveMap ? _ciano.clone() : cor.clone().lerp(_ciano, 0.35);
+        m = new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: m0.transparent && m0.opacity < 0.2 ? 0.04 : brilha ? 0.7 : 0.07, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+        m.userData.arestas = !brilha;
+      } else {   // sol: mesmo desenho, janelas mais fracas e chão quente
+        m = m0.clone(); if (m.emissiveMap) m.emissiveIntensity = 0.5;
+        if (escuro) m.color.lerp(new THREE.Color(0x6A4A52), 0.6);
+      }
+      if (m0.userData) m.userData = { ...m0.userData, ...m.userData };
+      novos.set(m0.uuid, m);
+    }
+    const m = novos.get(m0.uuid);
+    if (m !== m0) velhos.add(m0);
+    o.material = m;
+    if (m.userData.arestas && o.geometry && !o.geometry.parameters?.path) {   // holograma: contorno em tudo que não é luz (rua não)
+      const gk = o.geometry.uuid;
+      if (!arestas.has(gk)) arestas.set(gk, new THREE.EdgesGeometry(o.geometry, 25));
+      o.add(new THREE.LineSegments(arestas.get(gk), new THREE.LineBasicMaterial({ color: m.color, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false })));
+    }
+  }
+  for (const m of velhos) m.dispose();
 }
 
 function tamanho() {
@@ -339,7 +439,7 @@ let voo = null;
 function voarPara(alvo, dist = 40) {
   const dir = camera.position.clone().sub(controls.target).normalize();
   if (dir.y < 0.42) { dir.y = 0.42; dir.normalize(); }
-  voo = { t: 0, p0: camera.position.clone(), a0: controls.target.clone(), p1: alvo.clone().add(dir.multiplyScalar(dist)), a1: alvo.clone() };
+  voo = { t: 0, p0: camera.position.clone(), a0: controls.target.clone(), p1: alvo.clone().add(dir.multiplyScalar(dist * DK)), a1: alvo.clone() };
   setGirar(false);
 }
 function passoVoo(dt) {
@@ -350,7 +450,7 @@ function passoVoo(dt) {
 }
 controls.addEventListener('start', () => { voo = null; setGirar(false); });
 function irZona(k, card) { const z = ZONAS[k]; voarPara(new THREE.Vector3(...z.pos), z.dist); if (card) abrirCartao(card()); }
-function visaoGeral() { voo = { t: 0, p0: camera.position.clone(), a0: controls.target.clone(), p1: new THREE.Vector3(0, 118, 178), a1: new THREE.Vector3(0, 0, 12) }; fecharCartao(); }
+function visaoGeral() { voo = { t: 0, p0: camera.position.clone(), a0: controls.target.clone(), p1: new THREE.Vector3(0, 118 * DK, 178 * DK), a1: new THREE.Vector3(0, 0, 12) }; fecharCartao(); }
 
 // ── montagem do mundo com os dados ──────────────────────────────────────────────────────────────────
 let D = null, CARDS = {};
@@ -380,6 +480,7 @@ function construir(d) {
   televendas(tv, fat);
   cofre(fin);
   risco(est);
+  aplicarEstilo(M);
   painelKpis(d); legenda();
 }
 
@@ -934,6 +1035,8 @@ function setGirar(v) { controls.autoRotate = v; $('b-girar').classList.toggle('o
 $('b-girar').onclick = () => setGirar(!controls.autoRotate);
 $('b-visao').onclick = visaoGeral;
 $('b-atual').onclick = () => carregar(true);
+{ const sel = $('estilo'); sel.innerHTML = Object.entries(ESTILOS).map(([k, e]) => '<option value="' + k + '"' + (k === ESTILO_ID ? ' selected' : '') + '>Estilo: ' + e.nome + '</option>').join('');
+  sel.onchange = () => { try { localStorage.setItem('cd3d_estilo', sel.value); } catch {} const u = new URL(location.href); u.searchParams.set('estilo', sel.value); location.href = u.toString(); }; }
 
 // ── loop ────────────────────────────────────────────────────────────────────────────────────────────
 const relogio = new THREE.Clock(), _v = new THREE.Vector3();
@@ -944,7 +1047,7 @@ function loop() {
   for (const a of anims) a(t, dt);
   for (const o of picks) { const alvo = o.userData.base * (o === hoverObj ? 1.08 : 1), s = o.scale.x; if (Math.abs(alvo - s) > 0.001 && !o.userData.semEscala) o.scale.setScalar(s + (alvo - s) * 0.2); }
   passoVoo(dt); controls.update();
-  for (const r of rotPerto) { r.getWorldPosition(_v); r.visible = camera.position.distanceTo(_v) < 95; }
+  for (const r of rotPerto) { r.getWorldPosition(_v); r.visible = camera.position.distanceTo(_v) < 95 * DK; }
   if (usaBloom) composer.render(); else renderer.render(scene, camera);
   css.render(scene, camera);
   // máquina fraca: depois de 5 s abaixo de 24 fps desliga o brilho e as sombras
@@ -973,7 +1076,7 @@ async function carregar(manual) {
     st.className = 'st' + (d.demo ? ' demo' : '');
     st.querySelector('span').textContent = d.demo ? 'DADOS DE EXEMPLO · TESTE' : 'dados reais · ' + h.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     ld.style.display = 'none';
-    if (primeiraVez) { primeiraVez = false; voo = { t: 0, p0: camera.position.clone(), a0: controls.target.clone(), p1: new THREE.Vector3(0, 118, 178), a1: new THREE.Vector3(0, 0, 12) }; }
+    if (primeiraVez) { primeiraVez = false; voo = { t: 0, p0: camera.position.clone(), a0: controls.target.clone(), p1: new THREE.Vector3(0, 118 * DK, 178 * DK), a1: new THREE.Vector3(0, 0, 12) }; }
   } catch (e) {
     st.querySelector('span').textContent = 'erro ao buscar';
     ld.style.display = '';
