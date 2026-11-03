@@ -7927,8 +7927,7 @@ app.get('/api/dashboard-distribuidora/nfe/:chave/danfe', async (req, res) => {
 // listas cortadas em 24 itens. Fica no prefixo /api/cahu-distribuidora pra quem só tem o módulo CAHU Distribuidora também ver.
 // Blocos frios são calculados UM POR VEZ (igual dashDist.calcular) pra não abrir 6 consultas pesadas juntas no .252.
 // Bloco que falhar volta null e a cena mostra a zona vazia. ?demo=1 = dados de exemplo (TESTE).
-app.get('/api/cahu-distribuidora/mundo-3d', async (req, res) => {
-  const demo = req.query.demo === '1';
+async function montarMundo3d(demo) {
   const corta = o => Array.isArray(o) ? o.slice(0, 24).map(corta) : o && typeof o === 'object' ? Object.fromEntries(Object.entries(o).map(([k, v]) => [k, corta(v)])) : o;
   const out = { demo, geradoEm: new Date().toISOString() };
   for (const k of ['faturamento', 'clientes', 'televendas', 'estoque', 'expedicao', 'financeiro']) {
@@ -7938,7 +7937,26 @@ app.get('/api/cahu-distribuidora/mundo-3d', async (req, res) => {
   // 03/11/26: NF-e de fornecedor emitida pro CD e ainda sem entrada = mercadoria a caminho (lib/cd-a-caminho.js)
   try { out.aCaminho = corta(demo ? cdACaminho.demo() : await cdACaminho.aCaminho()); }
   catch (e) { out.aCaminho = null; console.error('[CD-3D] a caminho', e.message); }
-  res.json(out);
+  return out;
+}
+// 03/11/26 (Tiago: "tá travando"): a tela pede a cada 5 min e os blocos expiram em 5 min, então quase toda chamada pegava
+// cache frio (2–10 s). Agora responde na hora com o último pacote (até 15 min) e, se ele tiver mais de 4 min, recalcula
+// por trás pra próxima chamada. Só a primeira chamada depois de reiniciar o servidor espera.
+const _mundo3d = { r: null, em: 0, calc: null };
+function recalcMundo3d() {
+  if (!_mundo3d.calc) _mundo3d.calc = montarMundo3d(false).then(r => { _mundo3d.r = r; _mundo3d.em = Date.now(); return r; }).finally(() => { _mundo3d.calc = null; });
+  return _mundo3d.calc;
+}
+app.get('/api/cahu-distribuidora/mundo-3d', async (req, res) => {
+  try {
+    if (req.query.demo === '1') return res.json(await montarMundo3d(true));
+    const idade = Date.now() - _mundo3d.em;
+    if (_mundo3d.r && idade < 15 * 60 * 1000 && req.query.forcar !== '1') {
+      if (idade > 4 * 60 * 1000) recalcMundo3d().catch(e => console.error('[CD-3D]', e.message));
+      return res.json(_mundo3d.r);
+    }
+    res.json(await recalcMundo3d());
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 const cdACaminho = require('./lib/cd-a-caminho');
 cdACaminho.init({ q });

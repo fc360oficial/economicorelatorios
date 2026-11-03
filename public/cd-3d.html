@@ -202,6 +202,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 // ── utilidades ──────────────────────────────────────────────────────────────────────────────────────
 const DEMO = new URLSearchParams(location.search).get('demo') === '1';
@@ -252,7 +253,7 @@ const ZONAS_DIO = {
 // ── cena, câmera, luz ─────────────────────────────────────────────────────────────────────────────────
 const wrap = $('mundo');
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+renderer.setPixelRatio(Math.min(devicePixelRatio || 1, innerWidth < 700 ? 1.5 : 1.75));   // 03/11: limite pra não travar no celular
 renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 wrap.prepend(renderer.domElement);
@@ -310,6 +311,7 @@ lua.shadow.mapSize.set(2048, 2048);
 Object.assign(lua.shadow.camera, { left: -175, right: 175, top: 175, bottom: -175, near: 10, far: 600 });
 lua.shadow.bias = -0.0004;
 scene.add(lua);
+renderer.shadowMap.autoUpdate = false;   // 03/11: sombra só é recalculada quando a cena é montada (needsUpdate em construir)
 const quente = new THREE.DirectionalLight(EST.luz2[0], EST.luz2[1]); quente.position.set(70, 40, 120); scene.add(quente);
 
 // chão, grade, árvores e estrelas (fixos)
@@ -510,6 +512,56 @@ function limpar() {
   scene.remove(M); M = null; picks = []; anims = []; rotPerto = []; rotCidade = []; hoverObj = null;
 }
 
+// ── desempenho (03/11/26, Tiago: "tá travando"): a maquete tinha ~1.300 peças = ~2.600 chamadas de desenho por quadro
+// (cena + sombra). Junta as peças paradas por material em poucas malhas: dentro de cada objeto clicável (casa, rack, andar…)
+// e, na maquete, tudo que não é clicável nem se mexe (árvores, ruas, painéis, cercas). Material é o mesmo objeto, então
+// animação de cor/brilho continua funcionando; o que se mexe (caminhão, empilhadeira, placa) fica de fora.
+function animado(o) { o.userData.anima = true; o.traverse(x => { x.castShadow = false; }); return o; }
+const _inv = new THREE.Matrix4(), _rel = new THREE.Matrix4();
+function fundirMalhas(raiz, lista) {
+  raiz.updateMatrixWorld(true); _inv.copy(raiz.matrixWorld).invert();
+  const grupos = new Map();
+  for (const o of lista) {
+    if (!o.isMesh || o === raiz || Array.isArray(o.material) || o.material.visible === false) continue;
+    const k = o.material.uuid + (o.castShadow ? '|s' : '');
+    if (!grupos.has(k)) grupos.set(k, []); grupos.get(k).push(o);
+  }
+  let economia = 0;
+  for (const objs of grupos.values()) {
+    if (objs.length < 2) continue;
+    const geos = []; let ok = true;
+    for (const o of objs) {
+      const g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
+      for (const nm of Object.keys(g.attributes)) if (nm !== 'position' && nm !== 'normal' && nm !== 'uv') g.deleteAttribute(nm);
+      if (!g.attributes.normal || !g.attributes.uv) { ok = false; g.dispose(); break; }
+      g.applyMatrix4(_rel.multiplyMatrices(_inv, o.matrixWorld)); geos.push(g);
+    }
+    if (!ok) { geos.forEach(g => g.dispose()); continue; }
+    const geo = mergeGeometries(geos, false); geos.forEach(g => g.dispose()); if (!geo) continue;
+    const m = new THREE.Mesh(geo, objs[0].material); m.castShadow = objs[0].castShadow; m.receiveShadow = true;
+    for (const o of objs) { for (const ch of [...o.children]) raiz.attach(ch); if (o.parent) o.parent.remove(o); }
+    raiz.add(m); economia += objs.length - 1;
+  }
+  return economia;
+}
+function otimizar() {
+  const pickSet = new Set(picks); let economia = 0;
+  for (const p of picks) {
+    if (p.userData.fundir === false) continue;
+    let mexe = false; p.traverse(x => { if (x !== p && (x.userData.anima || x.userData.fundir === false)) mexe = true; });
+    if (mexe) continue;
+    const lista = []; p.traverse(x => { if (x !== p) lista.push(x); });
+    economia += fundirMalhas(p, lista);
+  }
+  if (DIO) {   // maquete: o resto que não é clicável nem se mexe vira poucas malhas no próprio M
+    const livre = o => { for (let x = o; x && x !== M; x = x.parent) if (pickSet.has(x) || x.userData.anima || x.userData.fundir === false) return false; return true; };
+    const lista = []; M.traverse(o => { if (o !== M && o.isMesh && livre(o)) lista.push(o); });
+    economia += fundirMalhas(M, lista);
+  }
+  renderer.shadowMap.needsUpdate = true;
+  return economia;
+}
+
 function construir(d) {
   limpar(); D = d;
   M = new THREE.Group(); scene.add(M);
@@ -535,6 +587,7 @@ function construir(d) {
     const mapa = cidades(cli); saindo(notas, mapa); chegando(tv, mapa); televendas(tv, fat); cofre(fin); risco(est); aCaminhoNoite(d.aCaminho);
     aplicarEstilo(M);
   }
+  otimizar();
   painelKpis(d); legenda();
 }
 
@@ -817,7 +870,7 @@ function carrossel(ps) {
   ps.forEach((p, i) => {
     const a = i / ps.length * Math.PI * 2, s = 3 + 4 * Math.sqrt((p.v30 || 0) / max), cor = corGrupo(D.estoque, p.grupo);
     const c = new THREE.Group(); c.position.set(Math.cos(a) * R, 0, Math.sin(a) * R); roda.add(c);
-    const cx = new THREE.Mesh(new THREE.BoxGeometry(s, s, s), mat(cor, { r: 0.35, m: 0.2, e: cor, ei: 0.35 })); cx.castShadow = true; c.add(cx);
+    const cx = new THREE.Mesh(new THREE.BoxGeometry(s, s, s), mat(cor, { r: 0.35, m: 0.2, e: cor, ei: 0.35 })); c.add(cx); c.userData.anima = true;
     const ar = new THREE.LineSegments(new THREE.EdgesGeometry(cx.geometry), new THREE.LineBasicMaterial({ color: 0xFFFFFF, transparent: true, opacity: 0.6 })); c.add(ar);
     const fase = hash(p.cod) * 6;
     anims.push(t => { c.position.y = Math.sin(t * 0.9 + fase) * 1.2; cx.rotation.y = ar.rotation.y = t * 0.4 + fase; cx.rotation.x = ar.rotation.x = Math.sin(t * 0.3 + fase) * 0.25; });
@@ -846,6 +899,7 @@ function expedicao(exp) {
   const r = zonaRot('exp', 'Expedição', nf(exp.emAberto) + ' em aberto'); r.position.set(0, 6, 46); M.add(r);
 }
 function animaChegada(cam, curva, sai, dur, atraso, vaga, olharPara) {
+  animado(cam);
   const olhar = new THREE.Vector3();
   anims.push(t => {
     let p;
@@ -932,6 +986,7 @@ function saindo(notas, mapa) {
   });
 }
 function rodaCaminhao(cam, curva, dur, fase01, escala) {
+  animado(cam);
   const olhar = new THREE.Vector3(), fase = fase01 * dur;
   anims.push(t => {
     const p = ((t + fase) / dur) % 1;
@@ -948,7 +1003,7 @@ function voandoPara(ab, origem, fim, objeto) {
   ab.forEach((p, i) => {
     const ini = origem(p), meio = ini.clone().lerp(fim, 0.5).setY(Math.max(ini.y, fim.y) + 22 + hash(p.ped) * 16);
     const curva = new THREE.QuadraticBezierCurve3(ini, meio, fim);
-    const o = objeto(corIdade(p)); M.add(o);
+    const o = animado(objeto(corIdade(p))); M.add(o);
     o.add(new THREE.Mesh(geoHit, matHit));   // área de clique maior que o objeto
     const dur = 9 + hash(p.ped) * 6, fase = i / ab.length * dur, prox = new THREE.Vector3();
     anims.push(t => { const q = ((t + fase) / dur) % 1; o.position.copy(curva.getPoint(q)); prox.copy(curva.getPoint(Math.min(1, q + 0.01))); o.lookAt(prox); o.scale.setScalar(q > 0.95 ? (1 - q) / 0.05 + 0.01 : 1); });
@@ -1165,7 +1220,7 @@ function diorama(d, ps, notas) {
     const max = Math.max(...ps.map(p => p.v30 || 0), 1);
     ps.slice(0, 10).forEach((p, i, a) => {
       const s = 1.3 + 1.3 * Math.sqrt((p.v30 || 0) / max), cor = new THREE.Color(DP.papelao).lerp(new THREE.Color(corGrupo(est, p.grupo)), 0.55).getHex();
-      const c = new THREE.Group(); M.add(c);
+      const c = new THREE.Group(); M.add(c); c.userData.anima = true;
       c.add(em(caixa(s, s * 0.8, s, pm(cor)), 0, 0, 0)); c.add(em(caixa(s + 0.02, 0.12, s * 0.25, pm(0xF1E6CF), false), 0, s * 0.8, 0));
       const fase = i / a.length;
       anims.push(t => { const q = (t * 3.2 / L + fase) % 1; c.position.set(x1 + q * L, 1.85, z); c.visible = q < 0.985; });
@@ -1209,7 +1264,7 @@ function diorama(d, ps, notas) {
     });
     if (gr.length) {
       for (const [x0, fase] of [[-51.5, 0], [-51.5, 0.5]]) {
-        const e = empilhadeira(); M.add(e);
+        const e = animado(empilhadeira()); M.add(e);
         anims.push(t => { const q = (Math.sin(t * 0.5 + fase * Math.PI * 2) + 1) / 2, z = -28 + q * 34; e.position.set(x0, 0, z); e.rotation.y = Math.cos(t * 0.5 + fase * Math.PI * 2) >= 0 ? 0 : Math.PI; });
       }
       const r = zonaRot('cd', 'Estoque por grupo', brlC(est.valor), () => { voarPara(new THREE.Vector3(-52, 4, -12), 45); abrirCartao(CARDS.estoque()); }); r.position.set(-52, 13, -12); M.add(r); rotCidade.push(r);
@@ -1266,7 +1321,7 @@ function diorama(d, ps, notas) {
     g.add(em(caixa(19, 1.3, 12, pm(DP.bancoPedra)), 0, 10.4, -0.5));
     const fr = prisma(19, 3.6, 0.8, pm(DP.bancoPedra)); fr.position.set(0, 11.7, 5.1); g.add(fr);
     const tm = texMoeda(), mMoeda = [pm(0xE0AE25, { m: 0.5, r: 0.35 }), new THREE.MeshStandardMaterial({ map: tm, roughness: 0.4, metalness: 0.3 }), new THREE.MeshStandardMaterial({ map: tm, roughness: 0.4, metalness: 0.3 })];
-    const moeda = new THREE.Mesh(new THREE.CylinderGeometry(3, 3, 0.6, 40), mMoeda); moeda.rotation.x = Math.PI / 2; moeda.position.set(0, 21, 0); moeda.castShadow = true; g.add(moeda);
+    const moeda = new THREE.Mesh(new THREE.CylinderGeometry(3, 3, 0.6, 40), mMoeda); moeda.rotation.x = Math.PI / 2; moeda.position.set(0, 21, 0); moeda.userData.anima = true; g.add(moeda);
     anims.push(t => { moeda.rotation.z = t * 1.2; moeda.position.y = 21 + Math.sin(t * 1.4) * 0.6; });
     clicavel(corpo, { nome: 'Financeiro do CD', sub: fin ? 'vencido ' + brlC(fin.vencidos.v) : '', card: CARDS.fin, dist: 55, alt: 4 });
     const r = zonaRot('fin', 'Financeiro', fin ? brlC(fin.vencidos.v) + ' vencido' : ''); r.position.set(0, 27, 0); g.add(r);
@@ -1304,7 +1359,7 @@ function diorama(d, ps, notas) {
       const cone = em(new THREE.Mesh(new THREE.ConeGeometry(0.75, 2.4, 14), pm(0xF2742B)), 0, 1.4, 0); cone.castShadow = true; c.add(cone);
       c.add(em(new THREE.Mesh(new THREE.CylinderGeometry(0.47, 0.55, 0.35, 14), pm(0xFFFFFF)), 0, 1.3, 0));
     }
-    const placa = new THREE.Group(); placa.position.set(0, 0, -3); g.add(placa);
+    const placa = new THREE.Group(); placa.position.set(0, 0, -3); g.add(placa); placa.userData.fundir = false;   // a placa balança
     placa.add(caixa(0.4, 8, 0.4, pm(0x6B7385)));
     const tri = prisma(6, 5.2, 0.4, pm(0xF5C02B)); tri.rotation.x = Math.PI / 2; tri.rotation.set(0, 0, 0); tri.position.set(0, 7, 0.3);
     const triG = new THREE.Group(); triG.add(tri); triG.add(em(caixa(0.55, 2.2, 0.2, pm(0x1C1F26), false), 0, 8, 0.55)); triG.add(em(caixa(0.55, 0.55, 0.2, pm(0x1C1F26), false), 0, 7.35, 0.55));
@@ -1388,7 +1443,7 @@ function diorama(d, ps, notas) {
   reserva(70, -27, 122, -3);   // acostamento da estrada dos fornecedores (notas paradas)
   // 14 ─ carrinhos na avenida e árvores nos espaços livres
   [[0x5B6CF0, 0], [0xF2C230, 0.33], [0xE8735A, 0.66]].forEach(([cor, f], i) => {
-    const c = carrinho(cor); M.add(c); const pista = i % 2 ? 54 : 50;
+    const c = animado(carrinho(cor)); M.add(c); const pista = i % 2 ? 54 : 50;
     anims.push(t => { const q = (t * 0.035 + f) % 1, ida = q < 0.5, x = ida ? -112 + q * 2 * 224 : 112 - (q - 0.5) * 2 * 224; c.position.set(x, 0.12, pista); c.rotation.y = ida ? Math.PI / 2 : -Math.PI / 2; });
   });
   let s = 1234567; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
@@ -1544,7 +1599,12 @@ $('b-atual').onclick = () => carregar(true);
 
 // ── loop ────────────────────────────────────────────────────────────────────────────────────────────
 const relogio = new THREE.Clock(), _v = new THREE.Vector3();
-let fpsT = 0, fpsN = 0, fpsChecado = false;
+let fpsT = 0, fpsN = 0;
+function baixarQualidade(fps) {
+  if (renderer.getPixelRatio() > 1) { renderer.setPixelRatio(1); tamanho(); console.info('[CD-3D] ' + fps.toFixed(0) + ' qps: resolução 1x'); return; }
+  if (usaBloom) { usaBloom = false; console.info('[CD-3D] ' + fps.toFixed(0) + ' qps: sem brilho'); return; }
+  if (renderer.shadowMap.enabled) { renderer.shadowMap.enabled = false; scene.traverse(o => { if (o.material) for (const m of [].concat(o.material)) m.needsUpdate = true; }); console.info('[CD-3D] ' + fps.toFixed(0) + ' qps: sem sombra'); }
+}
 function loop() {
   requestAnimationFrame(loop);
   const dt = Math.min(relogio.getDelta(), 0.05), t = relogio.elapsedTime;
@@ -1554,28 +1614,30 @@ function loop() {
   for (const r of rotCidade) r.visible = camera.zoom > 1.3;
   for (const r of rotPerto) { r.getWorldPosition(_v); r.visible = DIO ? camera.zoom > 1.7 : camera.position.distanceTo(_v) < 95 * DK; }
   if (usaBloom) composer.render(); else renderer.render(scene, camera);
-  css.render(scene, camera);
+  if (!css.domElement.classList.contains('sem-nomes')) css.render(scene, camera);
   // máquina fraca: depois de 5 s abaixo de 24 fps desliga o brilho e as sombras
-  if (!fpsChecado && t > 2) { fpsT += dt; fpsN++; if (fpsT > 5) { fpsChecado = true; if (fpsN / fpsT < 24) { usaBloom = false; renderer.shadowMap.enabled = false; console.info('[CD-3D] modo leve: ' + (fpsN / fpsT).toFixed(0) + ' fps'); } } }
+  if (t > 2) { fpsT += dt; fpsN++; if (fpsT > 4) { const fps = fpsN / fpsT; fpsT = 0; fpsN = 0; if (fps < 28) baixarQualidade(fps); } }
 }
 loop();
 // diagnóstico (testes headless): onde cada objeto clicável aparece na tela agora
 window.CD3D = { abrir: n => { const o = picks.find(p => p.userData.info.nome.includes(n)); if (!o) return false; abrirCartao(o.userData.info.card()); return true; }, todos: () => { const erros = []; for (const o of picks) { try { abrirCartao(o.userData.info.card()); } catch (e) { erros.push(o.userData.info.nome + ': ' + e.message); } } for (const k of Object.keys(CARDS)) { try { abrirCartao(CARDS[k]()); } catch (e) { erros.push('CARD ' + k + ': ' + e.message); } } return { total: picks.length, erros }; }, alvos: () => { const r = renderer.domElement.getBoundingClientRect(), v = new THREE.Vector3(); return picks.filter(o => o.visible).map(o => { o.getWorldPosition(v); v.y += o.userData.info.alt || 0; v.project(camera); return { nome: o.userData.info.nome, x: Math.round(r.left + (v.x + 1) / 2 * r.width), y: Math.round(r.top + (1 - v.y) / 2 * r.height), z: +v.z.toFixed(3) }; }); } };
 
 // ── dados ───────────────────────────────────────────────────────────────────────────────────────────
-let primeiraVez = true, timer = null;
+let primeiraVez = true, timer = null, ultimaAssin = '';
 async function carregar(manual) {
   const st = $('st'), ld = $('carregando');
   if (primeiraVez) ld.style.display = '';
   st.querySelector('span').textContent = 'buscando…';
   try {
-    const r = await fetch('/api/cahu-distribuidora/mundo-3d' + (DEMO ? '?demo=1' : ''), { cache: 'no-store' });
+    const r = await fetch('/api/cahu-distribuidora/mundo-3d' + (DEMO ? '?demo=1' : manual ? '?forcar=1' : ''), { cache: 'no-store' });
     if (r.status === 401) { location.href = '/login.html'; return; }
     const d = await r.json();
     if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
     const aberto = cartaoEl.classList.contains('on');
     // os caminhões carregam os pedidos por cliente: mesmo pedido aberto não muda de posição
-    construir(d);
+    const assin = JSON.stringify(d, (k, v) => (k === 'geradoEm' || k === 'atualizadoEm' ? undefined : v));
+    if (manual || assin !== ultimaAssin) construir(d);   // 03/11: mesmos números = não remonta (remontar engasgava a cada 5 min)
+    ultimaAssin = assin;
     if (aberto && manual) fecharCartao();
     const h = new Date(d.geradoEm);
     st.className = 'st' + (d.demo ? ' demo' : '');
