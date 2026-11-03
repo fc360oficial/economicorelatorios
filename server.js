@@ -7895,13 +7895,19 @@ app.get('/api/dashboard-distribuidora/seg/:nome', async (req, res) => {
   } catch (err) { res.status(400).json({ error: err.message }); }
 });
 app.post('/api/dashboard-distribuidora/atualizar', (req, res) => { dashDist.calcular().catch(e => console.error('[DASH-DIST]', e.message)); res.json({ ok: true }); });
+// Faturamento de um mês fechado (?mes=AAAA-MM), seletor discreto no cabeçalho do bloco 1 (Tiago, 03/11/26)
+app.get('/api/dashboard-distribuidora/faturamento/mes', async (req, res) => {
+  try { const r = await dashDist.faturamentoMes(req.query.mes); if (!r) return res.status(400).json({ error: 'mês inválido (use um mês fechado, AAAA-MM)' }); res.json(r); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
 // clique no cliente: notas dele no período · clique nas linhas do Financeiro: boletos em aberto filtrados
+// ?data=AAAA-MM-DD = clique vindo do Faturamento de um mês fechado (base daquele mês)
 app.get('/api/dashboard-distribuidora/cliente/:cod', async (req, res) => {
-  try { res.json(await dashDist.notasCliente(parseInt(req.params.cod) || 0)); } catch (err) { res.status(500).json({ error: err.message }); }
+  try { res.json(await dashDist.notasCliente(parseInt(req.params.cod) || 0, dashDist.dataRef(req.query.data))); } catch (err) { res.status(500).json({ error: err.message }); }
 });
 // clique no valor de venda da tabela "Por vendedor": notas do vendedor hoje ou no mês, com cliente e nota
 app.get('/api/dashboard-distribuidora/vendedor/:cod/:periodo', async (req, res) => {
-  try { res.json(await dashDist.notasVendedor(parseInt(req.params.cod) || 0, req.params.periodo === 'hoje' ? 'hoje' : 'mes')); } catch (err) { res.status(500).json({ error: err.message }); }
+  try { res.json(await dashDist.notasVendedor(parseInt(req.params.cod) || 0, req.params.periodo === 'hoje' ? 'hoje' : 'mes', dashDist.dataRef(req.query.data))); } catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.get('/api/dashboard-distribuidora/boletos', async (req, res) => {
   try { res.json(await dashDist.boletos({ cnpj: String(req.query.cnpj || '').replace(/\D/g, '').slice(0, 14), vencIni: String(req.query.venc_ini || '').slice(0, 10), vencFim: String(req.query.venc_fim || '').slice(0, 10), situacao: String(req.query.situacao || '').slice(0, 20) })); }

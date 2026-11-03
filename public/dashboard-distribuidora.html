@@ -46,6 +46,12 @@
   .seg-hd .n{width:26px;height:26px;border-radius:8px;background:var(--ink);color:#F5B800;font-weight:800;font-size:13px;display:inline-flex;align-items:center;justify-content:center}
   .seg-hd h2{font-size:16px;font-weight:800;margin:0}.seg-hd small{font-size:11.5px;color:var(--ink3)}
   .seg-hd .lk{margin-left:auto;font-size:11.5px;font-weight:700;color:var(--amk,#6B4E00);text-decoration:none}.seg-hd .lk:hover{text-decoration:underline}
+  /* seletor de mês do Faturamento (Tiago 03/11/26, igual ao Dashboard Loja): discreto, ao lado do link */
+  .fat-mes{margin-left:auto;font-size:11px;font-weight:600;color:var(--ink3);background:transparent;border:1px solid transparent;border-radius:6px;padding:2px 4px;cursor:pointer}
+  .fat-mes:hover,.fat-mes:focus{border-color:var(--line,#ddd);color:var(--ink)}
+  .fat-mes.past{color:var(--amk,#6B4E00);border-color:var(--amk,#6B4E00);font-weight:800}
+  #s1 .seg-hd .lk{margin-left:8px}
+  #c-fat-meses tr[data-m]{cursor:pointer}#c-fat-meses tr[data-m]:hover td{background:var(--hover,rgba(0,0,0,.03))}
   .row{display:grid;gap:12px}
   .row.c7{grid-template-columns:repeat(7,minmax(140px,1fr))}.row.c6{grid-template-columns:repeat(6,minmax(150px,1fr))}.row.c5{grid-template-columns:repeat(5,minmax(0,1fr))}
   .row.c3{grid-template-columns:repeat(3,minmax(0,1fr))}.row.c2{grid-template-columns:repeat(2,minmax(0,1fr))}.row.c21{grid-template-columns:2fr 1fr}.row.c12{grid-template-columns:1fr 2fr}
@@ -171,7 +177,7 @@
 
   <!-- 1 FATURAMENTO -->
   <section class="seg" id="s1">
-    <div class="seg-hd"><span class="n">1</span><h2>Faturamento</h2><small id="s1-sub">NF-e de venda + NFC-e do caixa da distribuidora · só autorizadas · margem s/ venda pelo custo dos itens da nota</small><a class="lk" href="/cahu-tabela-precos.html">Tabela de Preços →</a></div>
+    <div class="seg-hd"><span class="n">1</span><h2>Faturamento</h2><small id="s1-sub">NF-e de venda + NFC-e do caixa da distribuidora · só autorizadas · margem s/ venda pelo custo dos itens da nota</small><select class="fat-mes" id="fat-mes" onchange="setFatMes(this.value)" title="Ver o faturamento de um mês já fechado"></select><a class="lk" href="/cahu-tabela-precos.html">Tabela de Preços →</a></div>
     <div id="fat-hero"><div class="spin"></div></div>
     <div class="row c21">
       <div class="card"><div class="card-hd"><h3>Por vendedor</h3><small id="fat-vend-sub">hoje à esquerda · mês até hoje × mesmo período do mês anterior à direita · NF-e e NFC-e somadas por vendedor, quebra embaixo do valor e nas linhas antes do total · clique no valor de venda pra ver cliente e nota</small></div><div class="card-bd tall" id="c-fat-vend"><div class="spin"></div></div></div>
@@ -180,7 +186,7 @@
         <div class="card"><div class="card-hd"><h3>Forma de pagamento</h3><small>notas do mês · NF-e pelo pedido do televendas, NFC-e pelo que foi pago no caixa</small></div><div class="card-bd" id="c-fat-formas"><div class="spin"></div></div></div>
       </div>
     </div>
-    <div class="card" style="margin-top:12px"><div class="card-hd"><h3>Notas de hoje</h3><small id="fat-hoje-sub">NF-e e NFC-e · maior valor primeiro · clique no número da NF-e pra abrir o PDF · clique no cliente pra ver as compras dele</small><span class="k nt" id="k-fat-hoje"></span></div><div class="card-bd tall" id="c-fat-hoje"><div class="spin"></div></div></div>
+    <div class="card" style="margin-top:12px"><div class="card-hd"><h3 id="fat-hoje-tit">Notas de hoje</h3><small id="fat-hoje-sub">NF-e e NFC-e · maior valor primeiro · clique no número da NF-e pra abrir o PDF · clique no cliente pra ver as compras dele</small><span class="k nt" id="k-fat-hoje"></span></div><div class="card-bd tall" id="c-fat-hoje"><div class="spin"></div></div></div>
   </section>
 
   <!-- 2 CLIENTES -->
@@ -324,11 +330,22 @@ async function abrirSeg(id) {
   document.querySelector('.ds-h1').textContent = 'Distribuidora';
   window.scrollTo(0, 0); await carregarSeg(SEG_KEY[id]);
 }
+// Faturamento: mês fechado escolhido no seletor do cabeçalho ('' = mês atual) — igual ao Dashboard Loja
+let FAT_MES = '';
+(function () {
+  const d = new Date(), o = ['<option value="">mês atual</option>'];
+  for (let i = 1; i <= 12; i++) { const m = new Date(d.getFullYear(), d.getMonth() - i, 1), v = m.getFullYear() + '-' + String(m.getMonth() + 1).padStart(2, '0'); o.push('<option value="' + v + '">' + MESES[m.getMonth() + 1] + ' ' + m.getFullYear() + '</option>'); }
+  el('fat-mes').innerHTML = o.join('');
+})();
+function setFatMes(v) { const s = el('fat-mes'); if (![...s.options].some(o => o.value === v)) v = ''; FAT_MES = v; s.value = v; s.classList.toggle('past', !!v); carregarSeg('faturamento'); }
+// cliques que abrem notas dentro do Faturamento de um mês fechado levam a data dele (último dia do mês)
+const fatData = () => { const f = D.faturamento; return f && f.fechado ? 'data=' + f.ate : ''; };
 async function carregarSeg(kk) {
   const sec = el(SEG); if (sec) sec.classList.add('loading');
-  el('crumb-sub').textContent = 'carregando ' + kk + '…';
+  const fm = kk === 'faturamento' && FAT_MES && !DEMO;
+  el('crumb-sub').textContent = 'carregando ' + kk + (fm ? ' de ' + FAT_MES.split('-').reverse().join('/') + ' (mês fechado pode levar alguns segundos)' : '') + '…';
   try {
-    const r = await fetch('/api/dashboard-distribuidora/seg/' + kk + (DEMO ? '?demo=1' : '')); const j = await r.json(); if (j.error) throw new Error(j.error);
+    const r = await fetch(fm ? '/api/dashboard-distribuidora/faturamento/mes?mes=' + FAT_MES : '/api/dashboard-distribuidora/seg/' + kk + (DEMO ? '?demo=1' : '')); const j = await r.json(); if (j.error) throw new Error(j.error);
     D = Object.assign(D, j); render(kk);
   } catch (e) { el('crumb-sub').textContent = 'erro: ' + e.message; }
   finally { if (sec) sec.classList.remove('loading'); }
@@ -350,18 +367,20 @@ function renderFat() {
   const f = D.faturamento; if (!f) { el('fat-hero').innerHTML = empty('Faturamento não calculado'); return; }
   const M = f.mesAtual, A = f.mesAnterior.mesmoPeriodo, AC = f.mesAnterior.completo, H = f.hoje, SA = H.semAnt;
   const hj = String(f.dia).padStart(2, '0') + '/' + String(f.mes).padStart(2, '0');
-  el('s1-sub').textContent = 'NF-e de venda + NFC-e do caixa, só autorizadas · hoje ' + hj + ' × ' + dow(SA.data) + ' ' + df(SA.data) + ' (semana passada' + (H.corte ? ', até ' + H.corte + ' pela hora do pedido / do cupom' : '') + ') · mês 01 a ' + hj + ' × 01 a ' + df(f.mesAnt.ate) + ' · margem s/ venda pelo custo dos itens da nota · ticket = valor médio por nota';
+  const FX = !!f.fechado;   // mês fechado: o "hoje" é o último dia do mês
+  el('fat-mes').value = FX ? f.de.slice(0, 7) : ''; el('fat-mes').classList.toggle('past', FX);
+  el('s1-sub').textContent = FX ? 'NF-e de venda + NFC-e do caixa, só autorizadas · ' + MESES[f.mes] + ' de ' + f.ano + ' (mês fechado) × ' + MESES[f.mesAnt.mes] + ' de ' + f.mesAnt.ano + ' · último dia ' + hj + ' × ' + dow(SA.data) + ' ' + df(SA.data) + ' · margem s/ venda pelo custo dos itens da nota · ticket = valor médio por nota' : 'NF-e de venda + NFC-e do caixa, só autorizadas · hoje ' + hj + ' × ' + dow(SA.data) + ' ' + df(SA.data) + ' (semana passada' + (H.corte ? ', até ' + H.corte + ' pela hora do pedido / do cupom' : '') + ') · mês 01 a ' + hj + ' × 01 a ' + df(f.mesAnt.ate) + ' · margem s/ venda pelo custo dos itens da nota · ticket = valor médio por nota';
   const kpi = (l, v, s) => '<div><span class="l">' + l + '</span>' + v + (s ? '<small>' + s + '</small>' : '') + '</div>';
   const vsA = (v, a, fmt) => a ? 'mês ant ' + fmt(a) + ' · <b class="' + cls(v - a) + '">' + sgn((v / a - 1) * 100) + '</b>' : 'sem base no mês anterior';
   const pp = (v, a) => '<span class="' + (v != null && a != null ? (v >= a ? 'up' : 'dn') : '') + '">' + pct(v) + '</span>';
   const vs = f.vendedores, tot = M.v;
   // quebra NF-e × NFC-e só numa linha curta embaixo do valor do mês; os KPIs ficam com o texto original, senão a legenda
   // quebra as colunas (Tiago, 13/10: "ajustar aqui")
-  el('fat-hero').innerHTML = '<div class="lj rede hero band"><div class="hb-main"><div class="nm"><span>CAHU DISTRIBUIDORA · NF-e + NFC-e</span></div><div class="v">' + moneyK(M.v) + '<small>mês até hoje</small></div>'
+  el('fat-hero').innerHTML = '<div class="lj rede hero band"><div class="hb-main"><div class="nm"><span>CAHU DISTRIBUIDORA · NF-e + NFC-e</span></div><div class="v">' + moneyK(M.v) + '<small>' + (FX ? MESES[f.mes] + ' ' + f.ano : 'mês até hoje') + '</small></div>'
     + '<div class="var">' + (M.nfe ? '<span>NF-e</span> ' + moneyK(M.nfe.v) + ' <span>(' + n0(M.nfe.n) + ') · NFC-e no caixa</span> ' + moneyK(M.nfce.v) + ' <span>(' + n0(M.nfce.n) + ')</span><br>' : '')
-    + moneyK(A.v) + '<span>mês anterior, mesmo período</span> <span class="' + cls(f.var) + '" style="margin-left:2px">' + sgn(f.var) + '</span><br><span>projeção no ritmo atual</span> ' + moneyK(M.projecao) + ' <span>· mês anterior fechou em</span> ' + moneyK(AC.v) + '</div></div>'
+    + moneyK(A.v) + '<span>' + (FX ? 'mês anterior' : 'mês anterior, mesmo período') + '</span> <span class="' + cls(f.var) + '" style="margin-left:2px">' + sgn(f.var) + '</span>' + (FX ? '' : '<br><span>projeção no ritmo atual</span> ' + moneyK(M.projecao) + ' <span>· mês anterior fechou em</span> ' + moneyK(AC.v)) + '</div></div>'
     + '<div class="hero-g">'
-    + kpi('venda hoje', moneyK(H.v), SA.v ? dow(SA.data) + ' passada' + (H.corte ? ' até ' + H.corte : '') + ' ' + moneyK(SA.v) + ' · <b class="' + cls(H.var) + '">' + sgn(H.var) + '</b>' : (H.ontem && H.ontem.v ? 'ontem ' + moneyK(H.ontem.v) : ''))
+    + kpi(FX ? 'venda último dia' : 'venda hoje', moneyK(H.v), SA.v ? dow(SA.data) + ' passada' + (H.corte ? ' até ' + H.corte : '') + ' ' + moneyK(SA.v) + ' · <b class="' + cls(H.var) + '">' + sgn(H.var) + '</b>' : (H.ontem && H.ontem.v ? 'ontem ' + moneyK(H.ontem.v) : ''))
     + kpi('margem · mês', pp(M.margem, A.margem), A.margem != null ? 'mês ant ' + pct(A.margem) : '')
     + kpi('markup · mês', pp(M.markup, A.markup), A.markup != null ? 'mês ant ' + pct(A.markup) : '')
     + kpi('ticket por nota', money(M.ticket), vsA(M.ticket, A.ticket, money))
@@ -380,20 +399,23 @@ function renderFat() {
     + '<td class="r sep">' + n0(v.mes.n) + '</td><td class="r' + cl('mes', v.mes.n) + '"><b>' + money(v.mes.v) + '</b>' + (t === true ? '' : '<span class="ant">' + pct(v.pct) + ' do total</span>') + '</td><td class="r">' + mg(v.mes.margem) + '</td><td class="r">' + money(v.mes.ticket) + '</td><td class="r">' + n0(v.mes.clientes) + '</td>'
     + '<td class="r sep">' + (v.mesAnt.v ? money(v.mesAnt.v) + '<span class="ant">' + n0(v.mesAnt.n) + ' notas · <b class="' + cls(v.var) + '">' + sgn(v.var) + '</b></span>' : '<span class="mut">—</span>') + '</td></tr>';
   };
-  el('c-fat-vend').innerHTML = vs.length ? '<table class="m"><thead><tr><th rowspan="2">Vendedor</th><th class="grp dia" colspan="2">Hoje · ' + hj + '</th><th class="grp" colspan="5">Mês · 01 a ' + hj + '</th><th class="grp" rowspan="2">Mês anterior<br>01 a ' + df(f.mesAnt.ate) + '</th></tr>'
+  el('c-fat-vend').innerHTML = vs.length ? '<table class="m"><thead><tr><th rowspan="2">Vendedor</th><th class="grp dia" colspan="2">' + (FX ? 'Último dia' : 'Hoje') + ' · ' + hj + '</th><th class="grp" colspan="5">Mês · 01 a ' + hj + '</th><th class="grp" rowspan="2">Mês anterior<br>01 a ' + df(f.mesAnt.ate) + '</th></tr>'
     + '<tr><th class="r sep dia">Notas</th><th class="r dia">Venda</th><th class="r sep">Notas</th><th class="r">Venda</th><th class="r">Margem</th><th class="r">Ticket</th><th class="r">Clientes</th></tr></thead><tbody>' + vs.map(v => linha(v)).join('')
     // sem linhas NF-e / NFC-e antes do Total: a quebra já está no hero, no Mês a mês e nas Notas de hoje (Tiago, 13/10:
     // "não precisa isso aqui porque já tem embaixo a mesma coisa")
     + linha({ nome: 'Total', hoje: H, mes: M, mesAnt: A, var: f.var, pct: 100 }, true) + '</tbody></table>' : empty('Nenhuma nota no mês.');
   // sem a barra de proporção na última coluna (Tiago, 13/10: "aqui não precisa essa última coluna com essas coisas amarelas")
   const mt = (m, k) => m[k] ? n0(m[k].n) + '<span class="ant">' + money(m[k].v) + '</span>' : '—';
-  el('c-fat-meses').innerHTML = f.meses.length ? '<table class="m"><thead><tr><th>Mês</th><th class="r">NF-e</th><th class="r">NFC-e</th><th class="r">Venda</th></tr></thead><tbody>' + f.meses.slice().reverse().map((m, i) => '<tr' + (i === 0 ? ' class="hl"' : '') + '><td>' + MES3[+m.m.slice(5, 7)] + '/' + m.m.slice(2, 4) + (i === 0 ? ' <span class="mut">até hoje</span>' : '') + '</td><td class="r">' + mt(m, 'nfe') + '</td><td class="r">' + mt(m, 'nfce') + '</td><td class="r"><b>' + money(m.v) + '</b><span class="ant">' + plural(m.n, 'nota') + '</span></td></tr>').join('') + '</tbody></table>' : empty('sem histórico');
+  // clique numa linha do Mês a mês abre aquele mês (o mais recente da lista = mês atual quando não é fechado)
+  const mAtual = (FX ? D.hoje || '' : f.de).slice(0, 7);
+  el('c-fat-meses').innerHTML = f.meses.length ? '<table class="m"><thead><tr><th>Mês</th><th class="r">NF-e</th><th class="r">NFC-e</th><th class="r">Venda</th></tr></thead><tbody>' + f.meses.slice().reverse().map((m, i) => '<tr' + (i === 0 ? ' class="hl"' : '') + (DEMO ? '' : ' data-m="' + (m.m === mAtual ? '' : m.m) + '" onclick="setFatMes(this.dataset.m)" title="ver o faturamento deste mês"') + '><td>' + MES3[+m.m.slice(5, 7)] + '/' + m.m.slice(2, 4) + (i === 0 && !FX ? ' <span class="mut">até hoje</span>' : i === 0 ? ' <span class="mut">fechado</span>' : '') + '</td><td class="r">' + mt(m, 'nfe') + '</td><td class="r">' + mt(m, 'nfce') + '</td><td class="r"><b>' + money(m.v) + '</b><span class="ant">' + plural(m.n, 'nota') + '</span></td></tr>').join('') + '</tbody></table>' : empty('sem histórico');
   el('c-fat-formas').innerHTML = f.formas.length ? '<table class="m"><thead><tr><th>Forma</th><th class="r">Notas</th><th class="r">Valor</th><th class="r">%</th></tr></thead><tbody>' + f.formas.map(x => '<tr><td>' + esc(x.nome) + '</td><td class="r">' + n0(x.n) + '</td><td class="r"><b>' + money(x.v) + '</b></td><td class="r">' + pct(x.pct) + '</td></tr>').join('') + '</tbody></table>' : empty('sem notas no mês');
-  const NH = f.notasHoje; k('k-fat-hoje', NH.length ? plural(NH.length, 'nota') + ' · ' + money(H.v) + (H.nfe ? ' · NF-e ' + n0(H.nfe.n) + ' · NFC-e ' + n0(H.nfce.n) : '') : 'nenhuma nota hoje', 'nt');
+  const NH = f.notasHoje; k('k-fat-hoje', NH.length ? plural(NH.length, 'nota') + ' · ' + money(H.v) + (H.nfe ? ' · NF-e ' + n0(H.nfe.n) + ' · NFC-e ' + n0(H.nfce.n) : '') : (FX ? 'nenhuma nota no dia' : 'nenhuma nota hoje'), 'nt');
+  el('fat-hoje-tit').textContent = FX ? 'Notas do último dia · ' + hj : 'Notas de hoje';
   el('c-fat-hoje').innerHTML = NH.length ? '<table class="m"><thead><tr><th>Hora</th><th>Nota</th><th>Cliente</th><th>Vendedor</th><th>Forma</th><th class="r">Valor</th><th class="r">Custo</th><th class="r">Margem</th></tr></thead><tbody>'
     + NH.map(n => '<tr class="cp" data-cli="' + n.cli + '" onclick="cliDetalhe(this)" title="clique pra ver as compras deste cliente"><td>' + hm(n.hora) + '</td><td>' + notaCel(n) + '</td><td class="p"><span class="car">▸</span>' + esc(n.cliente) + '</td><td>' + esc(n.vend) + '</td><td>' + esc(n.forma) + '</td><td class="r"><b>' + money(n.v) + '</b></td><td class="r">' + (n.custo != null ? money(n.custo) : '—') + '</td><td class="r">' + mg(n.margem) + '</td></tr>').join('')
     + (H.nfe ? '<tr class="tipo"><td colspan="5">NF-e · ' + plural(H.nfe.n, 'nota') + '</td><td class="r">' + money(H.nfe.v) + '</td><td colspan="2"></td></tr><tr class="tipo"><td colspan="5">NFC-e · caixa · ' + plural(H.nfce.n, 'cupom', 'cupons') + '</td><td class="r">' + money(H.nfce.v) + '</td><td colspan="2"></td></tr>' : '')
-    + '<tr class="tot"><td colspan="5">Total de hoje · ' + plural(NH.length, 'nota') + '</td><td class="r">' + money(H.v) + '</td><td class="r">' + money(H.custo) + '</td><td class="r">' + mg(H.margem) + '</td></tr></tbody></table>' : empty('Nenhuma NF-e nem NFC-e de venda autorizada hoje ainda.');
+    + '<tr class="tot"><td colspan="5">' + (FX ? 'Total do dia' : 'Total de hoje') + ' · ' + plural(NH.length, 'nota') + '</td><td class="r">' + money(H.v) + '</td><td class="r">' + money(H.custo) + '</td><td class="r">' + mg(H.margem) + '</td></tr></tbody></table>' : empty(FX ? 'Nenhuma NF-e nem NFC-e de venda autorizada no último dia do mês.' : 'Nenhuma NF-e nem NFC-e de venda autorizada hoje ainda.');
 }
 
 /* ── 2 CLIENTES ── */
@@ -425,10 +447,10 @@ async function vendDetalhe(td, per) {
   det.innerHTML = '<td colspan="' + tr.children.length + '"><div class="spin"></div></td>';
   tr.after(det); tr.classList.add('open');
   try {
-    const r = await fetch('/api/dashboard-distribuidora/vendedor/' + tr.dataset.vend + '/' + per + (DEMO ? '?demo=1' : '')); const j = await r.json(); if (j.error) throw new Error(j.error);
+    const r = await fetch('/api/dashboard-distribuidora/vendedor/' + tr.dataset.vend + '/' + per + (DEMO ? '?demo=1' : fatData() ? '?' + fatData() : '')); const j = await r.json(); if (j.error) throw new Error(j.error);
     if (!det.isConnected) return;
     const ns = j.notas || [];
-    det.firstChild.innerHTML = '<div class="det-h"><b>' + esc(j.nome) + '</b> · ' + (per === 'hoje' ? 'notas de hoje' : 'notas do mês · ' + df(j.de) + ' a ' + df(j.ate)) + ' · <b>' + plural(ns.length, 'nota') + '</b> · total ' + money(j.total) + (per === 'hoje' ? '' : ' · mais recente primeiro')
+    det.firstChild.innerHTML = '<div class="det-h"><b>' + esc(j.nome) + '</b> · ' + (per === 'hoje' ? (fatData() ? 'notas de ' + df(j.ate) : 'notas de hoje') : 'notas do mês · ' + df(j.de) + ' a ' + df(j.ate)) + ' · <b>' + plural(ns.length, 'nota') + '</b> · total ' + money(j.total) + (per === 'hoje' ? '' : ' · mais recente primeiro')
       + (j.nfe ? ' &nbsp; <span class="pill nt" title="NF-e de venda">NF-e ' + j.nfe.n + ' · ' + money(j.nfe.v) + '</span> <span class="pill inf" title="NFC-e emitidas no caixa do CD">NFC-e ' + j.nfce.n + ' · ' + money(j.nfce.v) + '</span>' : '') + '</div>'
       + (ns.length ? '<table class="m"><thead><tr><th>Data</th><th>Nota</th><th>Cliente</th><th>Forma</th><th class="r">Valor</th><th class="r">Margem</th></tr></thead><tbody>'
         + ns.map(n => '<tr><td>' + dow(n.d) + ' ' + df(n.d) + (n.hora ? ' ' + hm(n.hora) : '') + '</td><td>' + notaCel(n) + '</td><td class="p">' + esc(n.cliente) + '</td><td>' + esc(n.forma) + '</td><td class="r"><b>' + money(n.v) + '</b></td><td class="r">' + mg(n.margem) + '</td></tr>').join('') + '</tbody></table>' : '<div class="empty">Sem nota no período.</div>');
@@ -487,7 +509,7 @@ async function cliDetalhe(tr) {
   const det = document.createElement('tr'); det.className = 'det'; det.innerHTML = '<td colspan="' + tr.children.length + '"><div class="spin"></div></td>';
   tr.after(det); tr.classList.add('open');
   try {
-    const r = await fetch('/api/dashboard-distribuidora/cliente/' + tr.dataset.cli + (DEMO ? '?demo=1' : '')); const j = await r.json(); if (j.error) throw new Error(j.error);
+    const r = await fetch('/api/dashboard-distribuidora/cliente/' + tr.dataset.cli + (DEMO ? '?demo=1' : tr.closest('#s1') && fatData() ? '?' + fatData() : '')); const j = await r.json(); if (j.error) throw new Error(j.error);
     if (!det.isConnected) return;
     const ns = j.notas || [], ab = j.abertos || [];
     det.firstChild.innerHTML = '<div class="det-h"><b>' + plural(ns.length, 'nota') + '</b> de ' + df(j.de) + ' a ' + df(j.ate) + ' · total ' + money(j.total) + ' · mais recente primeiro' + (ab.length ? ' · <b class="wn">' + plural(ab.length, 'pedido aberto', 'pedidos abertos') + ' sem nota</b>' : '') + '</div>'
