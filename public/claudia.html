@@ -108,7 +108,8 @@ main{flex:1;display:flex;flex-direction:column;max-width:860px;width:100%;margin
   // ── voz ── prefere Francisca (escolha do Tiago), depois outra natural pt-BR, depois qualquer pt-BR
   function carregarVozes() {
     var todas = speechSynthesis.getVoices().filter(function (v) { return /^pt/i.test(v.lang); });
-    var peso = function (v) { return (/francisca/i.test(v.name) ? 0 : /natural|online|neural/i.test(v.name) ? 1 : /pt-BR|pt_BR/i.test(v.lang) ? 2 : 3); };
+    // Francisca > outra natural > Google pt-BR (feminina) > Maria > demais pt-BR (Daniel etc.) > pt-PT
+    var peso = function (v) { return /francisca/i.test(v.name) ? 0 : /natural|online|neural/i.test(v.name) ? 1 : /google/i.test(v.name) && /BR/i.test(v.lang) ? 2 : /maria/i.test(v.name) ? 3 : /BR/i.test(v.lang) ? 4 : 5; };
     vozes = todas.sort(function (a, b) { return peso(a) - peso(b); });
     var salva = ''; try { salva = localStorage.getItem('claudia_voz') || ''; } catch (e) {}
     $('voz').innerHTML = vozes.map(function (v, i) { return '<option value="' + i + '"' + (v.name === salva ? ' selected' : '') + '>' + esc(v.name.replace(/Microsoft |Google |\(.*?\)| - .*/g, '').trim() || v.name) + '</option>'; }).join('') || '<option>padrão do aparelho</option>';
@@ -170,7 +171,9 @@ main{flex:1;display:flex;flex-direction:column;max-width:860px;width:100%;margin
       parcial.textContent = final || tmp;
     };
     rec.onerror = function (e) {
-      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') aviso('O microfone foi bloqueado. Toque no cadeado ao lado do endereço e permita o microfone.');
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') aviso('O microfone está bloqueado neste navegador. Clique no ícone à esquerda do endereço (ao lado de "hhk0a8…"), ligue "Microfone" e recarregue a página. Se continuar, no Windows: Configurações › Privacidade e segurança › Microfone › ligar o acesso pros aplicativos.');
+      else if (e.error === 'audio-capture') aviso('Nenhum microfone encontrado neste computador. Conecte um fone com microfone ou teste pelo celular.');
+      else if (e.error === 'network') aviso('O reconhecimento de voz precisa de internet e não conseguiu conectar. Tente de novo.');
     };
     rec.onend = function () {
       ouvindo = false; parcial.textContent = '';
