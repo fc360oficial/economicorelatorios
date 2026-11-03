@@ -9537,6 +9537,8 @@ require('./lib/escalas-rotas')(app, { pontocerto });
 const tvRh = require('./lib/tv-rh');
 const tvRhTolerancia = () => { try { return require('./lib/gestao-pessoas').config().ponto.atrasoMin; } catch (e) { return 10; } };
 tvRh.init({ jornadaDia: data => pontocerto.jornadaDia(data, { toleranciaMin: tvRhTolerancia() }), colaboradores: () => pontocerto.colaboradores(), toleranciaMin: tvRhTolerancia });
+// solicitações disciplinares que o gerente enviou e esperam o RH (lib/disciplinar.js): a TV/Painel RH pisca e apita na nova (03/11)
+const tvRhDisciplinar = () => { try { return require('./lib/disciplinar').alertasTV(); } catch (e) { console.error('[TV-RH] disciplinar:', e.message); return []; } };
 const tvRhLinks = c => ({ linkTV: `${PUBLIC_URL}/tv-rh/${c.token}`, linkCurto: `${PUBLIC_URL}/tvrh`, linkLan: 'http://192.168.2.254:3003/tvrh' });
 app.get('/api/tv-rh/config', async (req, res) => {
   const c = tvRh.getConfig();
@@ -9565,7 +9567,7 @@ app.get('/api/tv-rh-publico/:token', async (req, res) => {
   try {
     const dados = await tvRh.payloadTV();
     let versao = null; try { versao = fs.statSync(path.join(__dirname, 'public', 'tv-rh.html')).mtimeMs; } catch (e) {}
-    res.json({ ...dados, versao });
+    res.json({ ...dados, disciplinar: tvRhDisciplinar(), versao });
   } catch (err) { res.status(503).json({ error: 'Sem dados no momento: ' + err.message }); }
 });
 // Painel RH (27/10/2026, DP / RH › Painel RH): os MESMOS slides de Ponto e Jornada da TV, abertos pelo menu por quem está
@@ -9576,7 +9578,7 @@ app.get('/api/tv-rh/painel', async (req, res) => {
   try {
     const dados = await tvRh.payloadTV();
     let versao = null; try { versao = fs.statSync(path.join(__dirname, 'public', 'tv-rh.html')).mtimeMs; } catch (e) {}
-    res.json({ ...dados, versao });
+    res.json({ ...dados, disciplinar: tvRhDisciplinar(), versao });
   } catch (err) { res.status(503).json({ error: 'Sem dados no momento: ' + err.message }); }
 });
 // Gestão Gerencial › quadros do início (27/10/2026, Tiago: "quando ele logasse apareciam os quadrados"): Ponto de hoje e Sem Giro

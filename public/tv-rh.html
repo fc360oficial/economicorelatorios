@@ -129,11 +129,29 @@ svg.ic{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2;stroke-
 .msg p{font:500 1.8em var(--fb);color:#bfbbae;margin:0;text-align:center;max-width:30em}
 #fs{position:absolute;inset:0;z-index:6;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);cursor:pointer}
 #fs button{font:800 calc(var(--u) * 3.2px) var(--fd);letter-spacing:.08em;text-transform:uppercase;background:var(--amarelo);color:var(--ink);border:0;border-radius:.4em;padding:.6em 1.6em;cursor:pointer;box-shadow:0 1em 3em rgba(0,0,0,.6)}
+/* ALERTA de solicitação disciplinar nova (03/11, igual ao Painel Fiscal): tela inteira piscando + sirene */
+@keyframes piscaAlerta{0%,49%{background:var(--vermelho)}50%,100%{background:#160206}}
+@keyframes piscaTexto{0%,49%{color:#fff}50%,100%{color:var(--amarelo)}}
+#alerta{position:absolute;inset:0;z-index:8;font-size:calc(var(--u) * 1px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.2em;padding:3em;background:var(--vermelho);animation:piscaAlerta 1s steps(1) infinite;text-align:center}
+#alerta .ic-al{width:9em;height:9em;color:#fff}
+#alerta h1{font:800 8em/0.95 var(--fd);text-transform:uppercase;letter-spacing:.04em;margin:0;animation:piscaTexto 1s steps(1) infinite}
+#alerta .itens{display:flex;flex-direction:column;gap:.8em;width:100%;max-width:92em}
+#alerta .it{background:rgba(0,0,0,.55);border:.15em solid #fff;border-radius:.6em;padding:1em 1.6em;display:flex;align-items:center;gap:1.6em;text-align:left}
+#alerta .it .lj{font:800 5em/1 var(--fd);background:var(--amarelo);color:var(--ink);padding:.12em .4em;border-radius:.15em;flex:none}
+#alerta .it .tx{min-width:0;flex:1}
+#alerta .it .fo{font:800 3.4em/1.05 var(--fd);text-transform:uppercase;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#alerta .it .de{font:600 1.7em var(--fb);color:#ffd9de;letter-spacing:.04em;margin-top:.25em;white-space:normal}
+#alerta .it .mo{font:800 2.6em/1.1 var(--fb);color:#fff;margin-top:.3em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#alerta .it .mo:before{content:"▸ ";color:var(--amarelo)}
+#alerta .rodape{font:700 1.6em var(--fb);letter-spacing:.14em;text-transform:uppercase;color:#fff;opacity:.85}
+@media (prefers-reduced-motion:reduce){#alerta,#alerta h1{animation:none}}
+#som{position:absolute;right:calc(var(--u) * 2.4px);bottom:calc(var(--u) * 5px);z-index:7;font:700 calc(var(--u) * 1.1px) var(--fb);letter-spacing:.08em;text-transform:uppercase;background:var(--amarelo);color:var(--ink);border:0;border-radius:.4em;padding:.6em 1em;cursor:pointer;box-shadow:0 .6em 2em rgba(0,0,0,.6)}
+#som.ativo{background:transparent;color:#6fd391;box-shadow:none;border:.08em solid #2f5e3f;padding:.45em .8em;cursor:default;opacity:.7}
 [hidden]{display:none!important}
 </style>
 </head>
 <body>
-<div id="tv"><div class="slide" id="A"></div><div class="slide" id="B"></div><div class="prog" id="prog"></div><div id="aviso" class="msg" hidden></div><div id="fs" hidden><button type="button">Tela cheia</button></div></div>
+<div id="tv"><div class="slide" id="A"></div><div class="slide" id="B"></div><div class="prog" id="prog"></div><div id="aviso" class="msg" hidden></div><div id="alerta" hidden></div><button id="som" type="button" hidden>🔇 Clique aqui pra ligar o som do alerta</button><div id="fs" hidden><button type="button">Tela cheia</button></div></div>
 <script>
 const TOKEN = location.pathname.split('/').pop();
 // Painel RH (27/10/26): a mesma página aberta pelo menu DP / RH › Painel RH (logado, sem token) lê /api/tv-rh/painel;
@@ -253,7 +271,7 @@ function rPendencias(s) {
 const render = s => ({ resumo: rResumo, entradas: rEntradas, atencao: rEntradas, intervalos: rIntervalos, saidas: rSaidas, pendencias: rPendencias })[s.t](s);
 
 function mostrar() {
-  if (!SEQ.length) return;
+  if (!SEQ.length || alertaAte) return;   // durante o alerta o slide espera; fimAlerta() volta pra ele
   const s = SEQ[idx % SEQ.length]; const nxt = front === 'A' ? 'B' : 'A'; const el = document.getElementById(nxt);
   el.innerHTML = render(s);
   requestAnimationFrame(() => { el.classList.add('on'); document.getElementById(front).classList.remove('on'); front = nxt; });
@@ -268,6 +286,7 @@ let VERSAO = null;
 function aplicar(dados) {
   // página nova publicada no servidor → recarrega a TV sozinha
   if (dados.versao) { if (VERSAO === null) VERSAO = dados.versao; else if (dados.versao !== VERSAO) { location.reload(); return; } }
+  verificarAlerta(dados);   // antes de tudo: o alerta disciplinar toca mesmo com o ponto em atualização
   // o servidor não conseguiu renovar há mais de 30 min: melhor avisar do que mostrar ponto velho como se fosse agora
   if (dados.desatualizado) { parar(); return aviso('Ponto em atualização', 'A TV volta sozinha assim que o sistema voltar a ler o PontoCerto. ' + (dados.erro ? 'Motivo: ' + dados.erro : '')); }
   const cfgMudou = JSON.stringify(dados.config) !== JSON.stringify(CFG);
@@ -282,6 +301,80 @@ function aplicar(dados) {
   if (cfgMudou || !rodando) { idx = TELA_INICIAL != null ? Math.min(TELA_INICIAL, SEQ.length - 1) : 0; TELA_INICIAL = null; mostrar(); }   // config nova (ou 1ª carga) recomeça
   else idx = Math.min(pos, SEQ.length - 1);   // marcação nova: a tela atual termina o tempo dela e a próxima já sai com os dados novos
 }
+// ── ALERTA de solicitação disciplinar (03/11/2026, Tiago: "quando o gerente no app gerencial solicitar uma advertência,
+// chegar no painel a msg apitando igual fizemos no fiscal"). O servidor manda em `disciplinar` o que o gerente ENVIOU e
+// ainda espera o RH (Gestão Disciplinar, status "enviado ao RH"). Protocolo novo → tela inteira pisca em vermelho com a
+// sirene por N s (DP / RH › TV RH/DP › Alerta) e volta pro slide em que estava. Na 1ª abertura do aparelho o que já existia
+// não toca. Só a identificação vai pra tela (loja, colaborador, medida, motivo, gerente) — a descrição dos fatos nunca.
+// Teste: tecla A, ou ?teste=alerta no link (toca 5 s depois de abrir). Esc fecha o alerta.
+const QS_ALERTA = /^\d+$/.test(QS.get('alerta') || '') ? Math.min(120, Math.max(3, +QS.get('alerta'))) : null;
+const cfgAlerta = () => (CFG && CFG.alerta) || {};
+const alertaSeg = () => QS_ALERTA || cfgAlerta().segundos || 5;
+const alertaLigado = () => cfgAlerta().ligado !== false;
+const somLigado = () => cfgAlerta().som !== false;
+const CHAVE_VISTAS = 'fc360.rh.disciplinarVistas' + (PAINEL ? '.painel' : '');
+let VISTAS = null, alertaAte = 0, alertaTimer = null, ALERTA_ITENS = [];
+function lerVistas() { try { const a = JSON.parse(localStorage.getItem(CHAVE_VISTAS) || 'null'); return Array.isArray(a) ? new Set(a) : null; } catch (e) { return null; } }
+function gravarVistas() { try { localStorage.setItem(CHAVE_VISTAS, JSON.stringify([...VISTAS].slice(-300))); } catch (e) {} }
+function verificarAlerta(dados) {
+  if (!Array.isArray(dados.disciplinar)) return;   // servidor antigo
+  const L = dados.disciplinar;
+  if (VISTAS === null) { VISTAS = lerVistas(); if (VISTAS === null) { VISTAS = new Set(L.map(x => x.chaveAlerta)); gravarVistas(); return; } }
+  const novas = L.filter(x => !VISTAS.has(x.chaveAlerta));
+  if (!novas.length) return;
+  novas.forEach(x => VISTAS.add(x.chaveAlerta)); gravarVistas();
+  if (((dados.config && dados.config.alerta) || {}).ligado !== false) dispararAlerta(novas);   // desligado na configuração: marca como vista e não toca
+}
+const lojaCurta = l => l === 10 ? 'CD' : 'E' + l;
+function dispararAlerta(itens) {
+  ALERTA_ITENS = [...itens, ...ALERTA_ITENS.filter(a => !itens.some(i => i.protocolo === a.protocolo))].slice(0, 3);
+  const medidas = [...new Set(ALERTA_ITENS.map(x => x.medida))];
+  const titulo = medidas.length === 1 ? ({ advertencia: 'Advertência', suspensao: 'Suspensão' })[medidas[0]] || 'Medida disciplinar' : 'Medida disciplinar';
+  const el = $('#alerta');
+  el.innerHTML = `<svg class="ic ic-al" viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg><h1>${esc(titulo)} solicitada</h1>
+    <div class="itens">${ALERTA_ITENS.map(x => `<div class="it"><span class="lj">${lojaCurta(x.loja)}</span><div class="tx"><div class="fo">${esc(x.colaborador)}</div><div class="de">${esc(x.lojaTxt)}${x.cargo ? ' · ' + esc(x.cargo) : ''} · ${esc(x.medidaTxt)} · pedida por ${esc(x.gerente)} às ${hmDe(x.enviadoEm)} · ${esc(x.protocolo)}</div><div class="mo">${esc(x.motivoTxt)}</div></div></div>`).join('')}</div>
+    <div class="rodape">Gerente enviou ao RH · analise em DP / RH › Gestão Disciplinar</div>`;
+  el.hidden = false;
+  clearTimeout(timer); clearTimeout(alertaTimer);
+  const seg = alertaSeg();
+  alertaAte = Date.now() + seg * 1000;
+  if (somLigado()) tocarSirene(seg);
+  alertaTimer = setTimeout(fimAlerta, seg * 1000);
+}
+function fimAlerta() {
+  $('#alerta').hidden = true; alertaAte = 0; ALERTA_ITENS = []; pararSirene();
+  if (SEQ.length) mostrar();   // volta pro slide em que estava
+}
+function alertaTeste() {
+  dispararAlerta([{ protocolo: 'DISC-TESTE', loja: 3, lojaTxt: 'E3 · Ponte', colaborador: 'TESTE DO ALERTA · COLABORADOR EXEMPLO', cargo: 'Operador de caixa', medida: 'advertencia', medidaTxt: 'Advertência escrita', motivoTxt: 'Atrasos recorrentes', gerente: 'teste', enviadoEm: new Date().toISOString() }]);
+}
+// som: sirene gerada no navegador (Web Audio), sem arquivo — a mesma do Painel Fiscal
+let AC = null, sireneTimer = null;
+function actx() { try { if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} return AC; }
+function bipe(f, ini, dur) { const a = actx(); if (!a) return; const o = a.createOscillator(), g = a.createGain(); o.type = 'square'; o.frequency.value = f; g.gain.setValueAtTime(0.0001, a.currentTime + ini); g.gain.exponentialRampToValueAtTime(0.35, a.currentTime + ini + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + ini + dur); o.connect(g); g.connect(a.destination); o.start(a.currentTime + ini); o.stop(a.currentTime + ini + dur + 0.05); }
+function tocarSirene(seg) {
+  pararSirene(); const a = actx(); if (!a) return;
+  if (a.state !== 'running') a.resume().catch(() => {});
+  const fim = Date.now() + seg * 1000;
+  const toque = () => { if (Date.now() > fim) return pararSirene(); bipe(988, 0, 0.18); bipe(1319, 0.22, 0.18); bipe(988, 0.44, 0.18); bipe(1319, 0.66, 0.25); };
+  toque(); sireneTimer = setInterval(toque, 1500);
+}
+function pararSirene() { clearInterval(sireneTimer); sireneTimer = null; }
+// o navegador só libera som depois de um clique/tecla (ou Chrome com --autoplay-policy=no-user-gesture-required):
+// selo discreto "🔊 Som ativo" ou o botão amarelo pra destravar
+let somAvisou = false;
+function conferirSom() {
+  const a = actx(), b = $('#som'); b.hidden = false;
+  const ok = a && a.state === 'running';
+  b.classList.toggle('ativo', !!ok);
+  b.textContent = !somLigado() || !alertaLigado() ? '🔇 Alerta sem som (configuração)' : ok ? '🔊 Som ativo' : '🔇 Clique aqui pra ligar o som do alerta';
+}
+function destravarSom() { const a = actx(); if (a) a.resume().then(() => { if (!somAvisou) { somAvisou = true; bipe(1319, 0, 0.12); } conferirSom(); }).catch(() => {}); }
+$('#som').onclick = e => { e.stopPropagation(); destravarSom(); };
+document.addEventListener('click', destravarSom);
+try { const a = actx(); if (a) a.resume().then(conferirSom).catch(() => {}); } catch (e) {}
+setTimeout(conferirSom, 1500); setInterval(conferirSom, 5000);
+
 function aviso(titulo, texto) { $('#aviso').innerHTML = `<img src="${LOGO}" alt="Econômico"><h1>${esc(titulo)}</h1><p>${esc(texto)}</p>`; $('#aviso').hidden = false; }
 
 async function carregar() {
@@ -304,7 +397,13 @@ addEventListener('resize', fit); fit();
 function fsOk() { return document.fullscreenElement || KIOSK || !document.documentElement.requestFullscreen; }
 function pedirFs() { document.documentElement.requestFullscreen().catch(() => {}); $('#fs').hidden = true; }
 $('#fs').onclick = pedirFs;
-document.addEventListener('keydown', e => { if (e.key === 'f' || e.key === 'F') pedirFs(); });
+document.addEventListener('keydown', e => {
+  destravarSom();
+  if (e.key === 'f' || e.key === 'F') pedirFs();
+  if (e.key === 'a' || e.key === 'A') alertaTeste();
+  if (e.key === 'Escape' && alertaAte) { clearTimeout(alertaTimer); fimAlerta(); }
+});
+if (QS.get('teste') === 'alerta') setTimeout(alertaTeste, 5000);
 document.addEventListener('fullscreenchange', () => { $('#fs').hidden = fsOk(); });
 $('#fs').hidden = fsOk();
 setInterval(() => { document.querySelectorAll('.slide.on .clk').forEach(c => c.textContent = hora()); }, 15000);
@@ -312,7 +411,7 @@ setInterval(() => { document.querySelectorAll('.slide.on .clk').forEach(c => c.t
 carregar();
 setInterval(carregar, RELER_MS);   // relê config e marcações a cada 20 s (o servidor guarda a jornada do dia por 1 min e renova por trás)
 // Painéis e TVs (27/10): o que a TV está mostrando agora, pro batimento (tv-heartbeat.js); só na TV por token, não no /painel-rh.html
-window.tvSlideAtual = () => { if (!SEQ.length) return 'sem conteúdo'; const s = SEQ[idx % SEQ.length];
+window.tvSlideAtual = () => { if (alertaAte) return 'ALERTA disciplinar'; if (!SEQ.length) return 'sem conteúdo'; const s = SEQ[idx % SEQ.length];
   const nomes = { resumo: 'Resumo', entradas: 'Entradas', atencao: 'Atenção do RH', intervalos: 'Intervalos', saidas: 'Saídas', pendencias: 'Pendências' };
   return [nomes[s.t] || s.t, s.loja != null ? (s.loja === 10 ? 'CD' : `E${s.loja}`) : '', s.paginas > 1 ? `${s.pagina}/${s.paginas}` : ''].filter(Boolean).join(' · ') + ` · tela ${idx % SEQ.length + 1}/${SEQ.length}`; };
 </script>

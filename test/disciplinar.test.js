@@ -62,9 +62,17 @@ test('3 · dupla punição pelo mesmo fato: bloqueia, salvo fato distinto justif
   assert.equal(s2.fatoDistinto.protocolos[0], P1); D.cancelar(s2.protocolo, U.ger4, 'Aberto por engano no teste.'); assert.equal(D.obter(s2.protocolo).status, 'cancelado');
 });
 
+test('3b · TV RH (03/11): enviado ao RH entra no alerta só com a identificação; cancelado não entra', () => {
+  const L = D.alertasTV();
+  assert.deepEqual(L.map(x => x.protocolo), [P1]);
+  assert.equal(L[0].colaborador, 'Ana Paula Souza'); assert.equal(L[0].loja, 4); assert.equal(L[0].medida, 'suspensao'); assert.equal(L[0].gerente, 'João Silva'); assert.equal(L[0].chaveAlerta, P1);
+  assert.equal(JSON.stringify(L).includes('recusou'), false, 'descrição dos fatos não vai pra TV pública');
+});
+
 test('4 · RH: esclarecimento ida e volta, art. 474 e limite configurado, deferimento com medida diferente da sugerida', async () => {
   assert.throws(() => D.deferir(P1, U.rh, { medida: 'advertencia' }), erroStatus(409), 'precisa iniciar a análise');
   D.analisar(P1, U.rh); assert.equal(D.obter(P1).status, 'em_analise_rh');
+  assert.equal(D.alertasTV().length, 0, 'RH pegou pra analisar: sai do alerta');
   D.esclarecer(P1, U.rh, 'Havia câmera no local? Anexar imagens se possível.'); assert.equal(D.obter(P1).status, 'aguardando_esclarecimentos');
   assert.equal(D.pendencias(U.ger4).n, 1);
   assert.throws(() => D.deferir(P1, U.rh, { medida: 'advertencia' }), erroStatus(409));

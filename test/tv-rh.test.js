@@ -30,6 +30,14 @@ test('salvarConfig valida limites, lojas, setores e telas', () => {
   m.salvarConfig({ lojas: [], setores: [], telas: { intervalos: true } });
 });
 
+test('alerta disciplinar (03/11): padrão ligado com som e 5 s; valida os segundos; salvar outra coisa não apaga', () => {
+  assert.deepEqual(m.getConfig().alerta, { ligado: true, som: true, segundos: 5 });
+  const c = m.salvarConfig({ alerta: { som: false, segundos: 10 } }); assert.deepEqual(c.alerta, { ligado: true, som: false, segundos: 10 });
+  assert.deepEqual(m.salvarConfig({ titulo: 'X' }).alerta, { ligado: true, som: false, segundos: 10 });
+  assert.throws(() => m.salvarConfig({ alerta: { segundos: 1 } }), /entre 3 e 120/);
+  m.salvarConfig({ alerta: { ligado: true, som: true, segundos: 5 }, titulo: 'Ponto e Jornada' });
+});
+
 test('entrada: antes do previsto é "ainda não chegou o horário", depois é "sem marcação" (nunca falta)', () => {
   assert.equal(m.classificar(linha({ situacao: 'aguardando' }), '06:50', 10).entrada.sit, 'aguardando');
   assert.equal(m.classificar(linha({ situacao: 'sem_marcacao' }), '07:05', 10).entrada.sit, 'aguardando');   // dentro da tolerância

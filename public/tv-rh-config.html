@@ -130,6 +130,12 @@ function renderTV() {
       <div class="fg"><label>Frase do rodapé (vazio = hora da última leitura do PontoCerto)</label><input type="text" id="tv-rodape" maxlength="120" value="${esc(c.rodape || '')}"></div>
       ${[0, 1, 2].map(i => `<div class="fg"><label>Selo ${i + 1} do rodapé</label><input type="text" id="tv-selo${i}" maxlength="32" style="min-width:200px" value="${esc(selos[i] || '')}"></div>`).join('')}
     </div>
+    <h3>Alerta de medida disciplinar <small style="font-weight:500;text-transform:none;letter-spacing:0">(gerente enviou advertência ou suspensão ao RH)</small></h3><div class="linha">
+      <div class="fg"><label>Alerta</label><select id="tv-al-ligado" onchange="marcarSujo()"><option value="1"${(c.alerta || {}).ligado !== false ? ' selected' : ''}>Ligado · a tela pisca em vermelho</option><option value="0"${(c.alerta || {}).ligado === false ? ' selected' : ''}>Desligado</option></select></div>
+      <div class="fg"><label>Sirene</label><select id="tv-al-som" onchange="marcarSujo()"><option value="1"${(c.alerta || {}).som !== false ? ' selected' : ''}>Com som</option><option value="0"${(c.alerta || {}).som === false ? ' selected' : ''}>Sem som</option></select></div>
+      ${num('tv-al-seg', 'Segundos do alerta', (c.alerta || {}).segundos || 5, 3, 120)}
+    </div>
+    <p class="hint">Quando o gerente envia uma solicitação na Gestão Disciplinar, a TV e o Painel RH param o slide, piscam em vermelho com a sirene (a mesma do Painel Fiscal) mostrando loja, colaborador, medida, motivo e quem pediu — a descrição dos fatos não vai pra tela — e voltam pro slide em que estavam. Toca uma vez por protocolo. O navegador só libera o som depois de um clique na página (botão amarelo no canto); tecla <b>A</b> na TV faz um alerta de teste.</p>
     <p class="hint">Com mais funcionários do que cabe numa tela, a TV divide em páginas (Entradas 1/4, 2/4…) sem diminuir a letra. 10 por tela é o tamanho confortável pra ler de longe numa TV de 42"–55". Em TV menor (32"), escolha a letra <b>Muito grande</b>: a letra cresce 30% e a TV mostra proporcionalmente menos nomes por tela (10 viram 8) — a lista só vira mais páginas, nunca aperta. Cada tela fica o tempo configurado; o loop inteiro dura (telas × segundos).</p></div>
   <div class="card"><h2>O que a TV mostra agora <small>${t && t.geradoEm ? 'leitura do PontoCerto às ' + hm(t.geradoEm) + (t.ms ? ' (' + (t.ms / 1000).toFixed(1) + ' s)' : '') : 'sem leitura ainda'}</small></h2>
     ${t && t.geradoEm ? `<div class="kpis">${kp('Previstos', t.previstos, (t.lojas || []).map(ETQ).join(' · ') || '—')}${kp('Já chegaram', t.chegaram)}${kp('Atrasos confirmados', t.atrasos)}${kp('Em intervalo', t.emIntervalo)}${kp('Saídas', t.saidas)}${kp('Marcação pendente', t.pendentes)}${kp('Ainda não chegou o horário', t.aguardando)}${kp('Em apuração', t.apuracao)}${kp('Fora do dia', (t.fora.folga + t.fora.ferias + t.fora.afastado), 'folga ' + t.fora.folga + ' · férias ' + t.fora.ferias + ' · afastados ' + t.fora.afastado)}</div>
@@ -151,7 +157,8 @@ const marcados = cls => [...document.querySelectorAll('.' + cls + ':checked')].m
 async function salvarTV() {
   const telas = {}; for (const k of TV.telas) telas[k] = false; for (const k of marcados('ck-tela')) telas[k] = true;
   const body = { lojas: marcados('ck-loja').map(Number), setores: TV.setores === null ? TV.config.setores : marcados('ck-setor'), telas,
-    segundos: +$('#tv-seg').value, linhas: +$('#tv-linhas').value, escala: +$('#tv-escala').value, modo: $('#tv-modo').value, titulo: $('#tv-titulo').value, rodape: $('#tv-rodape').value, selos: [0, 1, 2].map(i => $('#tv-selo' + i).value) };
+    segundos: +$('#tv-seg').value, linhas: +$('#tv-linhas').value, escala: +$('#tv-escala').value, modo: $('#tv-modo').value, titulo: $('#tv-titulo').value, rodape: $('#tv-rodape').value, selos: [0, 1, 2].map(i => $('#tv-selo' + i).value),
+    alerta: { ligado: $('#tv-al-ligado').value === '1', som: $('#tv-al-som').value === '1', segundos: +$('#tv-al-seg').value } };
   try {
     const r = await api(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     TV.config = r.config; TV.totais = r.totais || TV.totais; SUJO = false;
