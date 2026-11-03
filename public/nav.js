@@ -116,6 +116,8 @@
         // Ajustes de Estoque (28/10/26): contagens que as lojas mandam pelo celular (Sem Giro) pra lançar na central; badge = aguardando
         { href: '/ajustes-estoque.html', ic: 'list', txt: 'Ajustes de Estoque', badge: '/api/ajustes-estoque/pendencias' },
         { href: '/backup.html', ic: 'shield', txt: 'Backup' },
+        // CLAUDIA (Tiago, 03/11/26): assistente de voz do Econômico, tela de TESTE; SÓ ADMIN (server.js também trava)
+        { href: '/claudia.html', ic: 'dashboard', txt: 'Claudia (teste)', admin: true },
         { href: '/pendencias.html', ic: 'alert', txt: 'Pendências' },
         { href: '/negativos.html', ic: 'alert', txt: 'Negativos' },
         // Painéis (Tiago, 27/10/26): Painel Compras, Televendas, RH/DP e Açougue + monitor numa página só; SÓ ADMIN

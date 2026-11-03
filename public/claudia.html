@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="/design-system.css">
+<script src="/nav.js" defer></script>
+<title>Claudia — Econômico</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* CLAUDIA (03/11/2026, Tiago): assistente de voz SÓ do Econômico — TELA DE TESTE, só admin. Fala pelo microfone do navegador
+   (Chrome/Edge), responde com a voz do aparelho (prefere Francisca, a escolhida; no Edge ela vem de graça). O cérebro ainda é
+   por palavra-chave (lib/claudia.js) até a chave da Anthropic chegar. Mesma paleta da Gestão Gerencial. */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#EBEBE9;--bg2:#E4E4E1;--card:#FFFFFF;--brand:#F5B800;--brand-ink:#6B4E00;--green:#137A48;--green-bg:#E7F5EC;--red:#C22F49;--red-bg:#FBEAED;
+  --blue:#2C4A6B;--blue-bg:#E9EEF3;--text:#0E1626;--text2:#4E5A72;--text3:#98A0B3;--border:#DADAD6;--border-md:#C9C9C4;--r:14px;
+  --font:'InterVar','Inter','Segoe UI',system-ui,-apple-system,sans-serif}
+html,body{min-height:100%;font-family:var(--font);background:var(--bg);color:var(--text)}
+body{display:flex;flex-direction:column}
+header{background:var(--card);border-bottom:1px solid var(--border);box-shadow:0 1px 0 var(--brand);padding:0 24px;height:60px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:100}
+.h-title{flex:1}.h-title h1{font-size:13px;font-weight:800;letter-spacing:1px;text-transform:uppercase}
+.h-title h1::after{content:'';display:inline-block;width:16px;height:3px;background:var(--brand);border-radius:2px;margin-left:8px;vertical-align:middle}
+.h-title p{font-size:9px;color:var(--text3);letter-spacing:1.5px;text-transform:uppercase;margin-top:2px}
+.tag{font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;background:var(--brand);color:var(--brand-ink);border-radius:20px;padding:4px 10px}
+main{flex:1;display:flex;flex-direction:column;max-width:860px;width:100%;margin:0 auto;padding:18px 16px 0}
+
+/* orbe */
+.palco{display:flex;flex-direction:column;align-items:center;gap:14px;padding:26px 0 18px}
+.orbe{width:150px;height:150px;border-radius:50%;border:none;cursor:pointer;position:relative;
+  background:radial-gradient(circle at 35% 30%,#FFE27A 0%,var(--brand) 45%,#C98F00 100%);box-shadow:0 10px 30px rgba(201,143,0,.35);transition:transform .2s}
+.orbe:active{transform:scale(.96)}
+.orbe svg{width:54px;height:54px;color:#3A2A00}
+.orbe::before,.orbe::after{content:'';position:absolute;inset:-10px;border-radius:50%;border:3px solid var(--brand);opacity:0;pointer-events:none}
+.ouvindo .orbe::before{animation:onda 1.4s ease-out infinite}.ouvindo .orbe::after{animation:onda 1.4s ease-out .7s infinite}
+@keyframes onda{0%{transform:scale(.95);opacity:.7}100%{transform:scale(1.35);opacity:0}}
+.pensando .orbe{animation:pensa 1s ease-in-out infinite alternate}
+@keyframes pensa{from{filter:brightness(1)}to{filter:brightness(.8)}}
+.falando .orbe{animation:fala .45s ease-in-out infinite alternate}
+@keyframes fala{from{transform:scale(1)}to{transform:scale(1.06)}}
+.estado{font-size:15px;font-weight:700;color:var(--text2);min-height:20px;text-align:center}
+.parcial{font-size:13px;color:var(--text3);min-height:18px;text-align:center;font-style:italic;max-width:520px}
+.opcoes{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;font-size:11px;color:var(--text2)}
+.opcoes label{display:flex;align-items:center;gap:6px;cursor:pointer}
+.opcoes select{font-family:var(--font);font-size:11px;border:1px solid var(--border-md);border-radius:6px;padding:3px 6px;background:var(--card);max-width:230px}
+
+/* conversa */
+.conversa{display:flex;flex-direction:column;gap:10px;padding-bottom:14px}
+.msg{max-width:85%;padding:11px 14px;border-radius:14px;font-size:14px;line-height:1.45}
+.msg.eu{align-self:flex-end;background:var(--blue);color:#fff;border-bottom-right-radius:4px}
+.msg.ela{align-self:flex-start;background:var(--card);border:1px solid var(--border);border-bottom-left-radius:4px}
+.msg.ela b.nome{display:block;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--brand-ink);margin-bottom:4px}
+.tab{margin-top:10px;border:1px solid var(--border);border-radius:10px;overflow:hidden;font-size:12px}
+.tab h4{font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--text3);padding:8px 10px;background:var(--bg2)}
+.tab table{width:100%;border-collapse:collapse}
+.tab td,.tab th{padding:6px 10px;border-top:1px solid var(--border);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.tab th{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;font-weight:700}
+.tab td:first-child,.tab th:first-child{text-align:left}
+.tab tr.tot td{font-weight:800;background:var(--bg2)}
+.up{color:var(--green);font-weight:700}.dn{color:var(--red);font-weight:700}
+
+/* digitar */
+.barra{position:sticky;bottom:0;background:var(--bg);padding:10px 0 16px;display:flex;gap:8px}
+.barra input{flex:1;font-family:var(--font);font-size:14px;border:1px solid var(--border-md);border-radius:10px;padding:11px 14px;background:var(--card);outline:none}
+.barra button{background:var(--brand);color:var(--brand-ink);border:none;border-radius:10px;font-weight:800;font-size:12px;padding:0 16px;cursor:pointer;text-transform:uppercase;letter-spacing:.5px}
+.sugestoes{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.sugestoes button{font-family:var(--font);font-size:12px;border:1px solid var(--border-md);background:var(--card);border-radius:20px;padding:6px 12px;cursor:pointer;color:var(--text2)}
+.aviso{font-size:12px;background:var(--red-bg);color:var(--red);border-radius:10px;padding:10px 14px;display:none}
+@media(max-width:820px){header{padding:0 16px}.orbe{width:120px;height:120px}.palco{padding:16px 0 12px}.msg{max-width:94%}}
+</style>
+</head>
+<body>
+<header>
+  <div class="h-title"><h1>Claudia</h1><p>Assistente de voz do Econômico</p></div>
+  <span class="tag">Teste</span>
+</header>
+<main>
+  <div class="aviso" id="aviso"></div>
+  <section class="palco" id="palco">
+    <button class="orbe" id="orbe" aria-label="Falar com a Claudia">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="17" x2="12" y2="22"/></svg>
+    </button>
+    <div class="estado" id="estado">Toque e fale com a Claudia</div>
+    <div class="parcial" id="parcial"></div>
+    <div class="opcoes">
+      <label><input type="checkbox" id="continua" checked> Conversa contínua</label>
+      <label>Voz <select id="voz"></select></label>
+    </div>
+    <div class="sugestoes" id="sugestoes">
+      <button>Bom dia, Claudia!</button><button>Como foram as vendas ontem?</button><button>Como está o Atacarejo hoje?</button><button>E a Porta Larga ontem?</button>
+    </div>
+  </section>
+  <section class="conversa" id="conversa"></section>
+  <form class="barra" id="form"><input id="txt" placeholder="Ou digite aqui…" autocomplete="off"><button>Enviar</button></form>
+</main>
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var palco = $('palco'), estado = $('estado'), parcial = $('parcial'), conversa = $('conversa');
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var rec = null, ouvindo = false, ocupado = false, vozes = [];
+
+  function fase(f, txt) { palco.className = 'palco ' + (f || ''); estado.textContent = txt; }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+  // ── voz ── prefere Francisca (escolha do Tiago), depois outra natural pt-BR, depois qualquer pt-BR
+  function carregarVozes() {
+    var todas = speechSynthesis.getVoices().filter(function (v) { return /^pt/i.test(v.lang); });
+    var peso = function (v) { return (/francisca/i.test(v.name) ? 0 : /natural|online|neural/i.test(v.name) ? 1 : /pt-BR|pt_BR/i.test(v.lang) ? 2 : 3); };
+    vozes = todas.sort(function (a, b) { return peso(a) - peso(b); });
+    var salva = ''; try { salva = localStorage.getItem('claudia_voz') || ''; } catch (e) {}
+    $('voz').innerHTML = vozes.map(function (v, i) { return '<option value="' + i + '"' + (v.name === salva ? ' selected' : '') + '>' + esc(v.name.replace(/Microsoft |Google |\(.*?\)| - .*/g, '').trim() || v.name) + '</option>'; }).join('') || '<option>padrão do aparelho</option>';
+  }
+  if ('speechSynthesis' in window) { carregarVozes(); speechSynthesis.onvoiceschanged = carregarVozes; }
+  $('voz').onchange = function () { var v = vozes[+this.value]; try { localStorage.setItem('claudia_voz', v ? v.name : ''); } catch (e) {} };
+
+  function falar(texto, depois) {
+    if (!('speechSynthesis' in window)) { if (depois) depois(); return; }
+    speechSynthesis.cancel();
+    // frase por frase: o Chrome corta falas longas no meio
+    var partes = texto.match(/[^.!?]+[.!?]*/g) || [texto], i = 0, voz = vozes[+$('voz').value] || null;
+    fase('falando', 'Claudia está falando… (toque pra interromper)');
+    (function proxima() {
+      if (i >= partes.length) { fase('', 'Toque e fale com a Claudia'); if (depois) depois(); return; }
+      var u = new SpeechSynthesisUtterance(partes[i++].trim());
+      u.lang = 'pt-BR'; if (voz) u.voice = voz; u.rate = 1.05;
+      u.onend = proxima; u.onerror = function () { fase('', 'Toque e fale com a Claudia'); };
+      speechSynthesis.speak(u);
+    })();
+  }
+
+  // ── conversa ──
+  function balao(quem, html) { var d = document.createElement('div'); d.className = 'msg ' + quem; d.innerHTML = html; conversa.appendChild(d); d.scrollIntoView({ behavior: 'smooth', block: 'end' }); return d; }
+  function tabelaHtml(t) {
+    if (!t) return '';
+    var cv = function (v) { return v == null ? '' : '<span class="' + (v >= 0 ? 'up' : 'dn') + '">' + (v >= 0 ? '+' : '') + v + '%</span>'; };
+    var temAnt = t.linhas.some(function (l) { return l.ant; });
+    return '<div class="tab"><h4>' + esc(t.titulo) + '</h4><table><tr><th>Loja</th><th>Venda</th>' + (temAnt ? '<th>' + esc(t.rotuloAnt || 'Anterior') + '</th><th>Var.</th>' : '') + '</tr>' +
+      t.linhas.map(function (l) { return '<tr><td>' + esc(l.loja) + '</td><td>' + esc(l.valor) + '</td>' + (temAnt ? '<td>' + esc(l.ant || '') + '</td><td>' + cv(l.var) + '</td>' : '') + '</tr>'; }).join('') +
+      '<tr class="tot"><td>Total</td><td>' + esc(t.total) + '</td>' + (temAnt ? '<td>' + esc(t.totalAnt || '') + '</td><td>' + cv(t.totalVar) + '</td>' : '') + '</tr></table></div>';
+  }
+  function perguntar(texto) {
+    texto = String(texto || '').trim(); if (!texto || ocupado) return;
+    ocupado = true; $('sugestoes').style.display = 'none';
+    balao('eu', esc(texto));
+    fase('pensando', 'Claudia está buscando os números…');
+    fetch('/api/claudia/conversa', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texto: texto }) })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var fala = d.fala || d.error || 'Não entendi.';
+        balao('ela', '<b class="nome">Claudia</b>' + esc(fala) + tabelaHtml(d.tabela));
+        ocupado = false;
+        falar(fala, function () { if ($('continua').checked && SR) ouvir(); });
+      })
+      .catch(function () { ocupado = false; fase('', 'Sem conexão com o servidor. Tente de novo.'); });
+  }
+
+  // ── microfone ──
+  function ouvir() {
+    if (!SR) { aviso('Este navegador não ouve pelo microfone. Use o Chrome ou o Edge (no celular, o Chrome).'); return; }
+    if (ouvindo) { rec.stop(); return; }
+    rec = new SR(); rec.lang = 'pt-BR'; rec.interimResults = true; rec.continuous = false;
+    var final = '';
+    rec.onstart = function () { ouvindo = true; fase('ouvindo', 'Ouvindo… pode falar'); parcial.textContent = ''; };
+    rec.onresult = function (e) {
+      var tmp = ''; final = '';
+      for (var i = 0; i < e.results.length; i++) { if (e.results[i].isFinal) final += e.results[i][0].transcript; else tmp += e.results[i][0].transcript; }
+      parcial.textContent = final || tmp;
+    };
+    rec.onerror = function (e) {
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') aviso('O microfone foi bloqueado. Toque no cadeado ao lado do endereço e permita o microfone.');
+    };
+    rec.onend = function () {
+      ouvindo = false; parcial.textContent = '';
+      if (final.trim()) perguntar(final); else if (!ocupado) fase('', 'Toque e fale com a Claudia');
+    };
+    try { rec.start(); } catch (e) {}
+  }
+  function aviso(t) { var a = $('aviso'); a.textContent = t; a.style.display = 'block'; fase('', 'Toque e fale com a Claudia'); }
+
+  $('orbe').onclick = function () {
+    if (palco.classList.contains('falando')) { speechSynthesis.cancel(); fase('', 'Toque e fale com a Claudia'); return; }
+    ouvir();
+  };
+  $('sugestoes').onclick = function (e) { if (e.target.tagName === 'BUTTON') perguntar(e.target.textContent); };
+  $('form').onsubmit = function (e) { e.preventDefault(); var t = $('txt').value; $('txt').value = ''; perguntar(t); };
+  if (!SR) aviso('Este navegador não ouve pelo microfone. Use o Chrome ou o Edge (no celular, o Chrome). Dá pra testar digitando embaixo.');
+})();
+</script>
+</body>
+</html>

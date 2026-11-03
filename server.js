@@ -319,6 +319,7 @@ app.use((req, res, next) => {
       || ['/paineis.html', '/paineis-tvs.html', '/cahu-tv-televendas.html', '/tv-rh-config.html', '/tv-acougue-config.html'].includes(req.path)
       || req.path.startsWith('/api/paineis/') || req.path === '/api/paineis'
       || req.path === '/espelho-erp.html' || req.path.startsWith('/api/espelho/')
+      || req.path === '/claudia.html' || req.path.startsWith('/api/claudia/')
       || req.path.startsWith('/api/tv-rh/config') || req.path.startsWith('/api/tv-acougue/') || req.path.startsWith('/api/cahu-distribuidora/tv-config');
     if (soAdmin && req.session.user.perfil !== 'admin') {
       if (req.path.startsWith('/api/')) return res.status(403).json({ error: 'Sem permissão' });
@@ -9667,6 +9668,16 @@ app.get('/api/gestao-gerencial/push/estado', (req, res) => { if (req.session.use
 // Ajustes de Estoque (28/10/2026, Tiago: "o sistema diz 50 e a loja contou 30 — tem que chegar pra mim em Processos pra eu atualizar
 // na central"): o gerente manda a contagem pelo celular (Gestão Gerencial › Sem Giro); a Coordenação trata em Processos › Ajustes de
 // Estoque. lib/ajustes-estoque.js guarda em data/ajustes-estoque/; nada escreve no ERP (o lançamento na central é manual).
+// CLAUDIA (Tiago, 03/11/26): assistente de voz SÓ do Econômico — tela de TESTE, só admin (ver "Rotas exclusivas de admin").
+// Sem a chave da Anthropic ainda: lib/claudia.js responde por palavra-chave com as vendas do espelho / ERP ao vivo (só leitura).
+const claudia = require('./lib/claudia'); claudia.init({ pq: espelhoErp.pq, hojeErpTotais: espelhoErp.hojeErpTotais });
+app.post('/api/claudia/conversa', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const texto = String(req.body?.texto || '').slice(0, 500).trim();
+  if (!texto) return res.status(400).json({ error: 'Fale alguma coisa' });
+  try { res.json(await claudia.responder(texto, req.session.user)); }
+  catch (err) { console.error('[CLAUDIA] ' + err.message); res.json({ fala: 'Desculpe, não consegui buscar os números agora. Tente de novo em instantes.' }); }
+});
 const ajustesEstoque = require('./lib/ajustes-estoque'); ajustesEstoque.init({});
 const ajErro = (res, err) => res.status(err.status || 500).json({ error: err.message });
 app.post('/api/gestao-gerencial/estoque/ajustes', (req, res) => { try { res.json(ajustesEstoque.criar(req.session.user, req.body || {})); } catch (err) { ajErro(res, err); } });
