@@ -373,6 +373,7 @@ function aplicarEstilo(raiz) {
         m = m0.clone(); if (m.emissiveMap) m.emissiveIntensity = 0.5;
         if (escuro) m.color.lerp(new THREE.Color(0x6A4A52), 0.6);
       }
+      if (m0.vertexColors) m.vertexColors = true;
       if (m0.userData) m.userData = { ...m0.userData, ...m.userData };
       novos.set(m0.uuid, m);
     }
@@ -431,20 +432,25 @@ function texJanelas(seed) {
   for (let r = 0; r < 16; r++) for (let k = 0; k < 4; k++) if (rnd() < 0.5) { x.fillStyle = `rgba(255,${190 + (rnd() * 50 | 0)},${110 + (rnd() * 60 | 0)},${0.45 + rnd() * 0.55})`; x.fillRect(6 + k * 15, 4 + r * 8, 9, 4); }
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
-function caminhao(corCarga) {
+// 03/11 (desempenho): antes eram ~13 malhas e 7 materiais por caminhão (~7 desenhos × ~45 caminhões); agora 2 desenhos.
+const _corV = new THREE.Color();
+function pintarGeo(g, cor) { const p = g.attributes.position.count, c = new Float32Array(p * 3); _corV.set(cor); for (let i = 0; i < p; i++) { c[i * 3] = _corV.r; c[i * 3 + 1] = _corV.g; c[i * 3 + 2] = _corV.b; } g.setAttribute('color', new THREE.BufferAttribute(c, 3)); return g; }
+function pecaGeo(geo, cor, x, y, z) { const g = (geo.index ? geo.toNonIndexed() : geo.clone()); g.translate(x, y, z); return pintarGeo(g, cor); }
+let MAT_CAMINHAO = null, MAT_LUZES = null;
+function caminhao(corCarga, faixaCor) {
+  MAT_CAMINHAO = MAT_CAMINHAO || new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.45, metalness: 0.15 });
+  MAT_LUZES = MAT_LUZES || new THREE.MeshBasicMaterial({ vertexColors: true });
+  const rg = new THREE.CylinderGeometry(0.48, 0.48, 0.32, 12); rg.rotateZ(Math.PI / 2);
+  const corpo = [pecaGeo(new THREE.BoxGeometry(2.3, 2.3, 4.8), corCarga, 0, 1.85, -0.7), pecaGeo(new THREE.BoxGeometry(2.2, 1.8, 1.6), 0xDCE3F0, 0, 1.5, 2.5),
+    pecaGeo(new THREE.BoxGeometry(2.0, 0.75, 0.06), 0x24447E, 0, 1.95, 3.31)];
+  if (faixaCor != null) corpo.push(pecaGeo(new THREE.BoxGeometry(2.36, 0.45, 4.85), faixaCor, 0, 1.28, -0.7));
+  for (const z of [2.4, -1.4, -2.5]) for (const x of [1.15, -1.15]) corpo.push(pecaGeo(rg, 0x10141C, x, 0.48, z));
+  const luzes = [pecaGeo(new THREE.BoxGeometry(0.45, 0.25, 0.06), 0xFFF6D0, 0.75, 1.0, 3.33), pecaGeo(new THREE.BoxGeometry(0.45, 0.25, 0.06), 0xFFF6D0, -0.75, 1.0, 3.33),
+    pecaGeo(new THREE.BoxGeometry(0.4, 0.2, 0.06), 0xFF2A3A, 0.85, 0.9, -3.15), pecaGeo(new THREE.BoxGeometry(0.4, 0.2, 0.06), 0xFF2A3A, -0.85, 0.9, -3.15)];
   const g = new THREE.Group();
-  g.add(em(new THREE.Mesh(new THREE.BoxGeometry(2.3, 2.3, 4.8), mat(corCarga, { r: 0.4, e: corCarga, ei: 0.22 })), 0, 1.85, -0.7));
-  g.add(em(new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.8, 1.6), mat(0xDCE3F0, { r: 0.35, m: 0.3 })), 0, 1.5, 2.5));
-  g.add(em(new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.75, 0.06), mat(0x0B1426, { e: 0x3A7BFF, ei: 0.7 })), 0, 1.95, 3.31));
-  const farol = brilho(0xFFF3C4, 4);
-  g.add(em(new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.25, 0.06), farol), 0.75, 1.0, 3.31));
-  g.add(em(new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.25, 0.06), farol), -0.75, 1.0, 3.31));
-  const lan = brilho(0xFF2A3A, 2.5);
-  g.add(em(new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.2, 0.06), lan), 0.85, 0.9, -3.13));
-  g.add(em(new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.2, 0.06), lan), -0.85, 0.9, -3.13));
-  const rg = new THREE.CylinderGeometry(0.48, 0.48, 0.32, 14); rg.rotateZ(Math.PI / 2); const rm = mat(0x10141C, { r: 0.9 });
-  for (const z of [2.4, -1.4, -2.5]) for (const x of [1.15, -1.15]) g.add(em(new THREE.Mesh(rg, rm), x, 0.48, z));
-  g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  const mc = new THREE.Mesh(mergeGeometries(corpo, false), MAT_CAMINHAO); mc.castShadow = true; mc.receiveShadow = true; g.add(mc);
+  g.add(new THREE.Mesh(mergeGeometries(luzes, false), MAT_LUZES));
+  corpo.forEach(x => x.dispose()); luzes.forEach(x => x.dispose()); rg.dispose();
   return g;
 }
 /** rua plana ao longo de uma curva (tubo achatado) + faixa tracejada no meio */
@@ -507,7 +513,7 @@ function limpar() {
   M.traverse(o => {
     if (o.isCSS2DObject && o.element.parentNode) o.element.parentNode.removeChild(o.element);
     if (o.geometry) o.geometry.dispose();
-    if (o.material) for (const m of [].concat(o.material)) { if (m.map) m.map.dispose(); if (m.emissiveMap) m.emissiveMap.dispose(); m.dispose(); }
+    if (o.material) for (const m of [].concat(o.material)) { if (m === MAT_CAMINHAO || m === MAT_LUZES) continue; if (m.map) m.map.dispose(); if (m.emissiveMap) m.emissiveMap.dispose(); m.dispose(); }
   });
   scene.remove(M); M = null; picks = []; anims = []; rotPerto = []; rotCidade = []; hoverObj = null;
 }
@@ -532,8 +538,8 @@ function fundirMalhas(raiz, lista) {
     const geos = []; let ok = true;
     for (const o of objs) {
       const g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
-      for (const nm of Object.keys(g.attributes)) if (nm !== 'position' && nm !== 'normal' && nm !== 'uv') g.deleteAttribute(nm);
-      if (!g.attributes.normal || !g.attributes.uv) { ok = false; g.dispose(); break; }
+      for (const nm of Object.keys(g.attributes)) if (nm !== 'position' && nm !== 'normal' && nm !== 'uv' && nm !== 'color') g.deleteAttribute(nm);
+      if (!g.attributes.normal || !g.attributes.uv || (geos.length && !!geos[0].attributes.color !== !!g.attributes.color)) { ok = false; g.dispose(); break; }
       g.applyMatrix4(_rel.multiplyMatrices(_inv, o.matrixWorld)); geos.push(g);
     }
     if (!ok) { geos.forEach(g => g.dispose()); continue; }
@@ -557,6 +563,10 @@ function otimizar() {
     const livre = o => { for (let x = o; x && x !== M; x = x.parent) if (pickSet.has(x) || x.userData.anima || x.userData.fundir === false) return false; return true; };
     const lista = []; M.traverse(o => { if (o !== M && o.isMesh && livre(o)) lista.push(o); });
     economia += fundirMalhas(M, lista);
+  }
+  if (DIO) {
+    const fixo = o => { for (let x = o; x && x !== M; x = x.parent) if (x.userData.anima || x.userData.fundir === false) return false; return !pickSet.has(o); };
+    M.traverse(o => { if (o !== M && fixo(o)) { o.updateMatrix(); o.matrixAutoUpdate = false; } });
   }
   renderer.shadowMap.needsUpdate = true;
   return economia;
@@ -1144,11 +1154,7 @@ function carrinho(cor) {
   for (const z of [-1.2, 1.2]) for (const x of [-1, 1]) g.add(em(new THREE.Mesh(rg, pm(0x1C1F26)), x, 0.38, z));
   return g;
 }
-function caminhaoBranco(faixaCor) {
-  const g = caminhao(0xF4F5F7);
-  g.add(em(caixa(2.36, 0.45, 4.85, pm(faixaCor), false), 0, 1.05, -0.7));
-  return g;
-}
+function caminhaoBranco(faixaCor) { return caminhao(0xF4F5F7, faixaCor); }
 function texMoeda() {
   const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d');
   x.fillStyle = '#E8B930'; x.fillRect(0, 0, 128, 128); x.strokeStyle = '#B88A12'; x.lineWidth = 8; x.beginPath(); x.arc(64, 64, 54, 0, Math.PI * 2); x.stroke();
@@ -1605,8 +1611,15 @@ function baixarQualidade(fps) {
   if (usaBloom) { usaBloom = false; console.info('[CD-3D] ' + fps.toFixed(0) + ' qps: sem brilho'); return; }
   if (renderer.shadowMap.enabled) { renderer.shadowMap.enabled = false; scene.traverse(o => { if (o.material) for (const m of [].concat(o.material)) m.needsUpdate = true; }); console.info('[CD-3D] ' + fps.toFixed(0) + ' qps: sem sombra'); }
 }
+let ultimaMexida = 0, ultimoQuadro = 0;
+const mexeu = () => { ultimaMexida = performance.now(); };
+for (const ev of ['pointerdown', 'pointermove', 'wheel', 'touchstart']) renderer.domElement.addEventListener(ev, mexeu, { passive: true });
+controls.addEventListener('change', () => { if (!controls.autoRotate) mexeu(); });
 function loop() {
   requestAnimationFrame(loop);
+  const agora = performance.now();
+  if (!voo && agora - ultimaMexida > 1500 && agora - ultimoQuadro < 30) return;   // parado: ~30 qps (notebook não esquenta e não engasga)
+  ultimoQuadro = agora;
   const dt = Math.min(relogio.getDelta(), 0.05), t = relogio.elapsedTime;
   for (const a of anims) a(t, dt);
   for (const o of picks) { const alvo = o.userData.base * (o === hoverObj ? 1.08 : 1), s = o.scale.x; if (Math.abs(alvo - s) > 0.001 && !o.userData.semEscala) o.scale.setScalar(s + (alvo - s) * 0.2); }
@@ -1616,7 +1629,7 @@ function loop() {
   if (usaBloom) composer.render(); else renderer.render(scene, camera);
   if (!css.domElement.classList.contains('sem-nomes')) css.render(scene, camera);
   // máquina fraca: depois de 5 s abaixo de 24 fps desliga o brilho e as sombras
-  if (t > 2) { fpsT += dt; fpsN++; if (fpsT > 4) { const fps = fpsN / fpsT; fpsT = 0; fpsN = 0; if (fps < 28) baixarQualidade(fps); } }
+  if (t > 2) { fpsT += dt; fpsN++; if (fpsT > 4) { const fps = fpsN / fpsT; fpsT = 0; fpsN = 0; if (fps < 22) baixarQualidade(fps); } }
 }
 loop();
 // diagnóstico (testes headless): onde cada objeto clicável aparece na tela agora
