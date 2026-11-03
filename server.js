@@ -9644,6 +9644,29 @@ app.get('/api/gestao-gerencial/sem-giro.pdf', async (req, res) => {
     res.send(pdf);
   } catch (err) { console.error('[gestao-gerencial/sem-giro.pdf]', err.message); res.status(500).json({ error: err.message }); }
 });
+// Notas Finalizadas (03/11/2026, Tiago): entradas da loja fechadas no ERP no dia, com os produtos, e o PDF do dia ou de uma nota
+// (sem valores). ?loja=N&dia=AAAA-MM-DD[&nCompra=X]. Gerente só a própria loja (lib/escopo.js, GERENCIAL_POR_LOJA).
+const notasFinalizadas = require('./lib/notas-finalizadas');
+app.get('/api/gestao-gerencial/notas-finalizadas', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const loja = parseInt(req.query.loja, 10);
+  if (!loja) return res.status(400).json({ error: 'Escolha uma loja' });
+  if (!escopo.podeLoja(req.session.user, loja)) return res.status(403).json({ error: 'Sem permissão pra esta loja' });
+  try { res.json(await notasFinalizadas.listar({ loja, dia: req.query.dia }, { q })); }
+  catch (err) { console.error('[gestao-gerencial/notas-finalizadas]', err.message); res.status(500).json({ error: err.message }); }
+});
+app.get('/api/gestao-gerencial/notas-finalizadas.pdf', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const loja = parseInt(req.query.loja, 10);
+  if (!loja) return res.status(400).json({ error: 'Escolha uma loja' });
+  if (!escopo.podeLoja(req.session.user, loja)) return res.status(403).json({ error: 'Sem permissão pra esta loja' });
+  try {
+    const u = req.session.user || {}; const nCompra = parseInt(req.query.nCompra, 10) || null;
+    const pdf = await notasFinalizadas.pdf({ loja, dia: req.query.dia, nCompra, usuario: u.nome || u.usuario || '' }, { q });
+    res.set('Content-Type', 'application/pdf'); res.set('Content-Disposition', 'inline; filename="' + notasFinalizadas.nomePdf(loja, req.query.dia, nCompra) + '"');
+    res.send(pdf);
+  } catch (err) { console.error('[gestao-gerencial/notas-finalizadas.pdf]', err.message); res.status(500).json({ error: err.message }); }
+});
 // Avisos no celular do gerente — Web Push (27/10/2026, Tiago: "forçar o gerente instalar o app no celular e ativar as notificações"):
 // a Gestão Gerencial aberta pelo app instalado inscreve o aparelho; lib/gerencial-push.js guarda em data/gerencial-push/ e manda
 // por usuário (notificar) ou por loja (notificarLoja). Chave VAPID própria, passada em cada envio (não mexe na do portal do fornecedor).
@@ -9659,7 +9682,16 @@ setTimeout(() => setInterval(() => {
     .then(r => { if (r.avisos || r.lembretes || r.resumos) console.log('[gerencial-alertas] ' + r.agora + ': ' + r.avisos + ' aviso(s), ' + r.lembretes + ' lembrete(s), ' + r.resumos + ' resumo(s), ' + r.enviados + ' aparelho(s), ' + r.pendentes + ' pendente(s)'); })
     .catch(e => console.error('[gerencial-alertas]', e.message));
 }, 5 * 60 * 1000), 90 * 1000);
-app.get('/api/gestao-gerencial/push/alertas', (req, res) => { if (req.session.user?.perfil !== 'admin') return res.status(403).json({ error: 'Só administrador' }); res.json({ toleranciaMin: gerencialAlertas.ATRASO_MIN, lembreteMin: gerencialAlertas.LEMBRETE_MIN, resumos: gerencialAlertas.RESUMOS, hoje: gerencialAlertas._estado() }); });
+// Nota finalizada no ERP → aviso no celular do gerente da loja (03/11/2026, Tiago). A cada 5 min das 06h às 23h; lib/notas-finalizadas.js
+// guarda as já avisadas por dia. Toque no aviso abre Gestão Gerencial › Notas Finalizadas naquele dia.
+notasFinalizadas.initAvisos({});
+setTimeout(() => setInterval(() => {
+  const hh = new Date().getHours(); if (hh < 6 || hh >= 23) return;
+  notasFinalizadas.rodar({ q, notificarLoja: (loja, payload, ttl) => gerencialPush.notificarLoja(loja, payload, ttl) })
+    .then(r => { if (r.novas) console.log('[notas-finalizadas] ' + r.novas + ' nota(s) nova(s), ' + r.avisos + ' aviso(s)'); })
+    .catch(e => console.error('[notas-finalizadas]', e.message));
+}, 5 * 60 * 1000), 150 * 1000);
+app.get('/api/gestao-gerencial/push/alertas',(req, res) => { if (req.session.user?.perfil !== 'admin') return res.status(403).json({ error: 'Só administrador' }); res.json({ toleranciaMin: gerencialAlertas.ATRASO_MIN, lembreteMin: gerencialAlertas.LEMBRETE_MIN, resumos: gerencialAlertas.RESUMOS, hoje: gerencialAlertas._estado() }); });
 app.get('/api/gestao-gerencial/push/chave', (req, res) => res.json({ chave: gerencialPush.chavePublica(), erro: gerencialPush.estado().erro }));
 app.post('/api/gestao-gerencial/push/inscrever', (req, res) => { const r = gerencialPush.inscrever(req.session.user, req.body && req.body.subscription, req.get('user-agent')); res.status(r.erro ? 400 : 200).json(r); });
 app.post('/api/gestao-gerencial/push/sair', (req, res) => res.json(gerencialPush.desinscrever(req.session.user, req.body && req.body.endpoint)));
