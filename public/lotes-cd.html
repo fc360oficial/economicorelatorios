@@ -166,6 +166,9 @@ th .hin{background:#fff;border:1px solid #C9C9C4;border-radius:7px;padding:5px 9
 .tr-t{border-collapse:collapse;width:100%;font-size:11.5px}.tr-t th{font-size:9.5px;text-transform:uppercase;letter-spacing:.4px;color:#4E5A72;background:#EBEBE9;padding:5px 10px;text-align:left;position:static}.tr-t td{padding:5px 10px;border-top:1px solid #EEEEEA}.tr-t th.r,.tr-t td.r{text-align:right}
 .alts{display:flex;flex-direction:column;gap:2px;margin-top:3px}.alts a{font-size:11.5px;color:#0E1626;text-decoration:none;padding:2px 6px;border:1px solid #DADAD6;border-radius:6px;background:#fff}.alts a:hover,.alts a.sug{background:#FFF6D9;border-color:#F5B800}.alts a.sug:hover{background:#FFEFB8}
 .busca-un{position:relative;margin-top:4px;min-width:260px}.busca-un ul{position:absolute;z-index:50;box-shadow:0 8px 24px -8px rgba(14,22,38,.35);background:#fff;border:1px solid #DADAD6;border-radius:8px;list-style:none;max-height:260px;overflow:auto;width:100%}.busca-un li{padding:6px 10px;cursor:pointer;font-size:12px}.busca-un li:hover{background:#FFF6D9}
+tr.vrow{cursor:pointer}tr.vrow:hover td{background:#FFFDF3}tr.vrow.aberta td{background:#FFF6D9}
+tr.vrow .seta{display:inline-block;width:14px;color:#98A0B3;font-size:10px}
+tr.vdet>td{background:#FAFAF8;padding:6px 12px 12px 26px}tr.vdet .tr-box{white-space:normal}tr.vdet .tr-t td{vertical-align:top}tr.vdet .tr-t tr.atual td{background:#FFF6D9}
 .cxin{width:52px;padding:3px 6px;font:inherit;font-size:12.5px;font-weight:700;border:1px solid #C9C9C4;border-radius:6px;margin-left:4px;text-align:center}
 .cxin:focus{outline:none;border-color:#F5B800;background:#FFFDF3}
 .cxl{cursor:pointer;color:#6B4E00;font-weight:800;margin-left:2px}.cxl:hover{text-decoration:underline}
@@ -217,7 +220,7 @@ async function api(url, opt) { const r = await fetch(url, opt); const j = await 
 function mostrarAba(a) { $('#validades').style.display = a === 'val' ? '' : 'none'; $('#lotes').style.display = a === 'lotes' ? '' : 'none'; $('#tab-val').classList.toggle('on', a === 'val'); $('#tab-lotes').classList.toggle('on', a === 'lotes'); }
 
 // ── Validades do ERP: central.itenscoletorvalidade da loja 10 × estoque × custo × giro 30 d (rota /api/expedicao/validades) ──
-let VAL = null, VALBUSCA = '', VALFAIXA = 'todas', VALSEMEST = false, VALSOPRINC = true;
+let VAL = null, VALBUSCA = '', VALFAIXA = 'todas', VALSEMEST = false, VALSOPRINC = true, VALABERTO = new Set();
 const FAIXAS = { vencido: ['Vencido', 'p-hoje'], d30: ['Vence em até 30 d', 'p-breve'], d90: ['31 a 90 d', 'p-flag'], ok: ['Mais de 90 d', 'p-ok'] };
 const RISCOS = { vencido: ['vencido com estoque', 'p-hoje'], vence_antes: ['vence antes de vender', 'p-a soft'], sem_giro: ['sem venda em 30 d', 'p-cinza'], vende_a_tempo: ['vende a tempo', 'p-ok'] };
 async function carregarValidades(forcar) {
@@ -242,16 +245,31 @@ function renderValidades() {
     const meta = [esc(l.cod)]; if (l.lote) meta.push('lote ' + esc(l.lote));
     if (l.validadesDoProduto > 1) meta.push(l.validadesDoProduto + ' validades registradas' + (l.validadeMaisNova ? ' · mais nova ' + fmtD(l.validadeMaisNova) : '') + (l.ultimaEntrada ? ' · última entrada ' + fmtDc(l.ultimaEntrada) : ''));
     if (!l.principal) meta.push('<span class="amb">' + (l.provavelVendida ? 'provavelmente já saiu: entrou há ' + fmtN(l.idadeEntrada) + ' d e o estoque cobre ' + fmtN(l.cobertura) + ' d de venda (FIFO)' : l.dias < 0 ? 'histórico: o produto recebeu validade mais nova' : 'histórico: o estoque é da validade mais próxima') + '</span>');
-    return `<tr class="${l.risco === 'vence_antes' || l.risco === 'vencido' ? 'insuf' : ''}"><td class="lc"><span class="nm">${esc(l.descricao)}</span><div class="s2">${meta.join(' · ')}</div></td>
+    if (l.corrigidaDe) meta.push('<span class="amb">corrigida · no ERP ' + fmtD(l.corrigidaDe) + '</span>');
+    const aberto = VALABERTO.has(l.cod + '|' + l.validade);
+    return `<tr class="vrow ${aberto ? 'aberta' : ''} ${l.risco === 'vence_antes' || l.risco === 'vencido' ? 'insuf' : ''}" onclick="abrirValidades('${esc(l.cod)}','${l.validade}')" title="Clique pra ver todas as validades lançadas desse produto"><td class="lc"><span class="nm"><span class="seta">${aberto ? '▾' : '▸'}</span>${esc(l.descricao)}</span><div class="s2">${meta.join(' · ')}</div></td>
       <td><b>${fmtD(l.validade)}</b><div class="s2">${dias}</div></td><td><span class="pill ${fx[1]}">${fx[0]}</span></td>
       <td class="r ${l.est > 0 && l.principal ? '' : 'mut'}">${fmtN(l.est)}</td><td class="r ${l.est > 0 && l.principal ? '' : 'mut'}">${l.est > 0 ? fmtR(l.valor) : '–'}</td><td class="r">${giro}</td>
-      <td>${rs ? '<span class="pill ' + rs[1] + '">' + rs[0] + '</span>' : '<span class="mut">–</span>'}</td><td class="comp">${notas || '–'}</td></tr>`; }).join('')
+      <td>${rs ? '<span class="pill ' + rs[1] + '">' + rs[0] + '</span>' : '<span class="mut">–</span>'}</td><td class="comp">${notas || '–'}</td></tr>${aberto ? detalheValidades(l) : ''}`; }).join('')
     : '<tr><td colspan="8" class="mut">Nenhuma validade com esse filtro.</td></tr>';
   $('#validades').innerHTML = cards + `<div class="busca-row"><input id="vbusca" placeholder="Produto, código, nota ou fornecedor" value="${esc(VALBUSCA)}" oninput="VALBUSCA=this.value;renderValidades()">
       <label class="chk-pend"><input type="checkbox" ${VALSOPRINC ? 'checked' : ''} onchange="VALSOPRINC=this.checked;renderValidades()"> só a validade que carrega o estoque de cada produto (a mais próxima ainda não vencida)</label>
       <span class="contagem">${vis.length} linha(s) · ${fmtN(VAL.produtos)} produtos e ${fmtN(VAL.total)} validades no ERP · estoque e giro da loja 10 · hoje ${fmtD(VAL.hoje)}</span><button class="btn btn-slate" onclick="carregarValidades(true)">↻ Atualizar</button></div>
     <div class="table-wrap"><table class="main-t"><thead><tr><th>Produto</th><th>Validade</th><th>Faixa</th><th class="r">Estoque</th><th class="r">Valor (custo)</th><th class="r">Venda 30 d</th><th>Risco</th><th>Notas que trouxeram essa validade</th></tr></thead><tbody>${linhas}</tbody></table></div>`;
   if (foco) { const el = $('#vbusca'); if (el) { el.focus(); el.setSelectionRange(pos, pos); } }
+}
+// Clique na linha abre todas as validades lançadas do produto no ERP (03/11/26, Tiago), da mais antiga pra mais nova, com as notas
+function abrirValidades(cod, validade) { if (getSelection().toString()) return; const k = cod + '|' + validade; VALABERTO.has(k) ? VALABERTO.delete(k) : VALABERTO.add(k); renderValidades(); }
+function detalheValidades(l) {
+  const todas = VAL.linhas.filter(x => x.cod === l.cod);
+  const linhas = todas.map(x => {
+    const fx = FAIXAS[x.faixa] || ['', 'p-cinza'];
+    const dias = x.dias < 0 ? 'venceu há ' + fmtN(-x.dias) + ' d' : x.dias === 0 ? 'vence hoje' : 'faltam ' + fmtN(x.dias) + ' d';
+    const sit = x.principal ? '<b>carrega o estoque</b>' : x.provavelVendida ? '<span class="amb">provavelmente já saiu (FIFO)</span>' : x.dias < 0 ? '<span class="mut">vencida · histórico</span>' : '<span class="mut">histórico</span>';
+    const notas = x.notas.map(n => 'NF ' + esc(n.nDoc) + (n.fornecedor ? ' · ' + esc(n.fornecedor.slice(0, 26)) : '') + (n.entrada ? ' · entrou ' + fmtD(n.entrada) : '') + (n.qtd ? ' · ' + fmtN(n.qtd) + ' un' : '')).join('<br>');
+    return `<tr class="${x.validade === l.validade ? 'atual' : ''}"><td><b>${fmtD(x.validade)}</b>${x.corrigidaDe ? '<div class="s2 amb">corrigida · no ERP ' + fmtD(x.corrigidaDe) + '</div>' : ''}</td><td>${dias}</td><td><span class="pill ${fx[1]}">${fx[0]}</span></td><td>${sit}</td><td>${notas || '–'}</td></tr>`; }).join('');
+  return `<tr class="vdet"><td colspan="8"><div class="tr-box"><div class="tr-hd">${todas.length} validade(s) lançada(s) no ERP pra ${esc(l.descricao)}</div>
+    <table class="tr-t"><thead><tr><th>Validade</th><th>Prazo</th><th>Faixa</th><th>Situação</th><th>Notas</th></tr></thead><tbody>${linhas}</tbody></table></div></td></tr>`;
 }
 
 // ── Lotes no CD: o que entrou por lote (Recebimento da loja 10 no nosso coletor) × o que saiu (expedições fechadas) ──
