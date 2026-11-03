@@ -7935,8 +7935,13 @@ app.get('/api/cahu-distribuidora/mundo-3d', async (req, res) => {
     try { out[k] = corta(demo ? dashDist.demo(k) : (await dashDist.segmento(k))[k]); }
     catch (e) { out[k] = null; console.error('[CD-3D]', k, e.message); }
   }
+  // 03/11/26: NF-e de fornecedor emitida pro CD e ainda sem entrada = mercadoria a caminho (lib/cd-a-caminho.js)
+  try { out.aCaminho = corta(demo ? cdACaminho.demo() : await cdACaminho.aCaminho()); }
+  catch (e) { out.aCaminho = null; console.error('[CD-3D] a caminho', e.message); }
   res.json(out);
 });
+const cdACaminho = require('./lib/cd-a-caminho');
+cdACaminho.init({ q });
 function rpFiltro(qq) {
   return { loja: parseInt(qq.loja) || 0, grupo: qq.grupo || '', papel: qq.papel || '', abc: qq.abc || '', acao: qq.acao || '', busca: qq.busca || '',
            comVenda: qq.com_venda === '1', estoque: qq.estoque || '', incluirExcluidos: qq.excluidos === '1' };

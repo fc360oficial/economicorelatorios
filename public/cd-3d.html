@@ -234,6 +234,7 @@ const ZONAS = {
   risco: { nome: 'Zona de risco',  cor: COR.verm, pos: [56, 0, -54], dist: 42 },
   cli:   { nome: 'Clientes',       cor: COR.azul, pos: [0, 0, 80],   dist: 200 },
   fat:   { nome: 'Faturamento',    cor: COR.amb,  pos: [0, 14, 0],   dist: 70 },
+  cheg:  { nome: 'A caminho do CD', cor: COR.lar, pos: [0, 0, -120], dist: 75 },
 };
 const ZONAS_DIO = {
   cd:    { nome: 'CD e estoque',   cor: COR.azul, pos: [-10, 6, -15], dist: 90 },
@@ -245,6 +246,7 @@ const ZONAS_DIO = {
   fin:   { nome: 'Financeiro',     cor: COR.amb,  pos: [-52, 6, -64], dist: 55 },
   risco: { nome: 'Zona de risco',  cor: COR.verm, pos: [-54, 2, 31],  dist: 55 },
   cli:   { nome: 'Clientes',       cor: COR.azul, pos: [0, 0, 60],    dist: 130 },
+  cheg:  { nome: 'A caminho do CD', cor: COR.lar, pos: [92, 2, -15],  dist: 60 },
 };
 
 // ── cena, câmera, luz ─────────────────────────────────────────────────────────────────────────────────
@@ -525,11 +527,12 @@ function construir(d) {
     tv: () => tv ? cardTv(tv) : SEM('Televendas', COR.roxo, 'Central de Televendas'),
     fin: () => fin ? cardFin(fin) : SEM('Financeiro', COR.amb, 'Boletos e contas'),
     risco: est ? () => cardRisco(est) : null,
+    cheg: d.aCaminho ? () => cardACaminho(d.aCaminho) : null,
   };
-  if (DIO) diorama(d, ps, notas);
+  if (DIO) { diorama(d, ps, notas); aCaminhoDio(d.aCaminho); }
   else {
     armazem(); racks(est); telhado(fat); carrossel(ps); expedicao(exp); recebimento(exp);
-    const mapa = cidades(cli); saindo(notas, mapa); chegando(tv, mapa); televendas(tv, fat); cofre(fin); risco(est);
+    const mapa = cidades(cli); saindo(notas, mapa); chegando(tv, mapa); televendas(tv, fat); cofre(fin); risco(est); aCaminhoNoite(d.aCaminho);
     aplicarEstilo(M);
   }
   painelKpis(d); legenda();
@@ -1382,6 +1385,7 @@ function diorama(d, ps, notas) {
       cor => { const o = new THREE.Group(); o.add(new THREE.Mesh(gEnv, pm(0xFFFFFF))); const sel = em(new THREE.Mesh(new THREE.BoxGeometry(2.42, 0.32, 0.5), pm(cor)), 0, 0, 0); o.add(sel); return o; });
   }
 
+  reserva(70, -27, 122, -3);   // acostamento da estrada dos fornecedores (notas paradas)
   // 14 ─ carrinhos na avenida e árvores nos espaços livres
   [[0x5B6CF0, 0], [0xF2C230, 0.33], [0xE8735A, 0.66]].forEach(([cor, f], i) => {
     const c = carrinho(cor); M.add(c); const pista = i % 2 ? 54 : 50;
@@ -1395,6 +1399,56 @@ function diorama(d, ps, notas) {
   M.traverse(o => { if (o.isMesh && o.castShadow === undefined) o.castShadow = true; });
 }
 
+// ── a caminho do CD: NF-e de fornecedor emitida pro CD e ainda sem entrada (lib/cd-a-caminho.js) ───────
+// Caminhão andando na estrada dos fornecedores = nota de até 7 dias; parado no acostamento com luz piscando = mais de 7 dias
+// sem entrada. Cor da faixa: verde até 3 dias, âmbar até 7, vermelho depois; roxo = transferência de uma loja da rede.
+const corNotaCaminho = n => n.transferencia ? COR.roxo : n.dias > 7 ? COR.verm : n.dias > 3 ? COR.amb : COR.verde;
+const fmtCnpj = c => String(c || '').replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
+const cardNotaCaminho = n => ({
+  zona: n.transferencia ? 'A caminho do CD · transferência da loja ' + n.transferencia : 'A caminho do CD · NF-e do fornecedor', cor: corNotaCaminho(n), titulo: n.fornecedor,
+  sub: `NF-e nº ${esc(n.nNota)} emitida em ${dBR(n.data)} pro CNPJ do CD e ainda sem entrada no ERP.`,
+  hero: [brl(n.valor), 'valor da nota', n.dias === 0 ? 'emitida hoje' : 'há ' + nf(n.dias) + (n.dias === 1 ? ' dia' : ' dias'), n.dias > 7 ? 'neg' : n.dias > 3 ? 'amb' : 'pos'],
+  tiles: [[nf(n.itens), 'itens na nota'], [dBR(n.data), 'emissão'], [esc(fmtCnpj(n.cnpj)), 'CNPJ do emitente']],
+  nota: (n.dias > 7 ? 'Mais de 7 dias sem entrada: confira se a mercadoria já chegou e falta lançar, ou se é nota de uso e consumo. ' : '')
+    + (n.chave ? '<a href="/api/dashboard-distribuidora/nfe/' + encodeURIComponent(n.chave) + '/danfe" target="_blank" rel="noopener">Abrir a DANFE</a>' : ''),
+});
+const cardACaminho = ac => ({
+  zona: 'A caminho do CD', cor: COR.lar, titulo: 'Mercadoria a caminho do CD',
+  sub: 'NF-e que o fornecedor já emitiu pro CNPJ do CD e que ainda não deu entrada (últimos 30 dias). Devolução e nota que voltou pela contranota ficam de fora.',
+  hero: [brlC(ac.total.v), nf(ac.total.n) + ' notas a caminho'],
+  tiles: [[brlC(ac.recentes.v), nf(ac.recentes.n) + ' notas de até 7 dias', 'pos'], [brlC(ac.paradas.v), nf(ac.paradas.n) + ' paradas há mais de 7 dias', ac.paradas.n ? 'neg' : ''],
+    ac.transferencias ? [nf(ac.transferencias), 'transferências das lojas'] : null, ac.pedidos.length ? [nf(ac.pedidos.length), 'pedidos de compra abertos no ERP'] : null],
+  barra: ac.total.v ? [[ac.recentes.v / ac.total.v * 100, '#34D27B'], [ac.paradas.v / ac.total.v * 100, '#FF5D78']] : null,
+  listas: [{ t: 'Notas a caminho', linhas: ac.notas.map(n => [esc(n.fornecedor) + `<small>NF ${esc(n.nNota)} · ${nf(n.dias)} d</small>`, brlC(n.valor), n.dias > 7 ? 'neg' : '']) },
+    { t: 'Pedidos de compra abertos no ERP (loja 10)', linhas: ac.pedidos.map(p => [esc(p.fornecedor) + `<small>#${esc(p.pedido)} · ${dBR(p.data)}</small>`, p.dias != null ? nf(p.dias) + ' d' : '']) }],
+});
+function caminhoesACaminho(ac, curvaDe, vagaDe, olharVaga) {
+  if (!ac || !ac.notas.length) return;
+  const rodando = ac.notas.filter(n => n.dias <= 7).slice(0, 14), parados = ac.notas.filter(n => n.dias > 7).slice(0, 8);
+  rodando.forEach((n, i) => {
+    const cam = caminhaoBranco(corNotaCaminho(n)); M.add(cam);
+    rodaCaminhao(cam, curvaDe(i), 22, i / rodando.length, DIO ? 1 : 1.1);
+    clicavel(cam, { nome: n.fornecedor, sub: 'a caminho · ' + brlC(n.valor) + ' · ' + nf(n.dias) + ' d', dist: 28, alt: 2, card: () => cardNotaCaminho(n) });
+  });
+  parados.forEach((n, i) => {
+    const cam = caminhaoBranco(corNotaCaminho(n)); cam.position.copy(vagaDe(i)); cam.lookAt(olharVaga(i)); M.add(cam);
+    const alerta = em(new THREE.Mesh(new THREE.SphereGeometry(0.45, 10, 8), mat(COR.verm, { e: COR.verm, ei: 1 })), 0, 3.6, 0); cam.add(alerta);
+    anims.push(t => { alerta.material.emissiveIntensity = Math.sin(t * 3 + i) > 0 ? 1.4 : 0.15; });
+    clicavel(cam, { nome: n.fornecedor + ' (parada)', sub: nf(n.dias) + ' dias sem entrada · ' + brlC(n.valor), dist: 28, alt: 2, card: () => cardNotaCaminho(n) });
+  });
+}
+function aCaminhoDio(ac) {
+  const V3 = (x, z) => new THREE.Vector3(x, 0.15, z);
+  caminhoesACaminho(ac, i => { const z = i % 2 ? -13.2 : -16.8, c = new THREE.CurvePath(); c.add(new THREE.LineCurve3(V3(124, z), V3(62, z))); return c; },
+    i => V3(80 + i * 5.5, -23.5), i => V3(80 + i * 5.5 - 5, -23.5));
+  if (ac && ac.notas.length) { const r = zonaRot('cheg', 'A caminho do CD', nf(ac.total.n) + ' notas · ' + brlC(ac.total.v)); r.position.set(96, 6, -15); M.add(r); }
+}
+function aCaminhoNoite(ac) {
+  caminhoesACaminho(ac, i => { const x = i % 2 ? 1.6 : -1.6; return new THREE.CatmullRomCurve3([new THREE.Vector3(x, 0, -228), new THREE.Vector3(x, 0, -120), new THREE.Vector3(x, 0, -66)]); },
+    i => new THREE.Vector3(7, 0, -76 - i * 7), i => new THREE.Vector3(7, 0, -70 - i * 7));
+  if (ac && ac.notas.length) { const r = zonaRot('cheg', 'A caminho do CD', nf(ac.total.n) + ' notas · ' + brlC(ac.total.v)); r.position.set(0, 6, -112); M.add(r); }
+}
+
 // ── HUD: KPIs e legenda ─────────────────────────────────────────────────────────────────────────────
 const ICONES = {
   cd: '<path d="M3 21V9l9-5 9 5v12"/><path d="M7 21v-7h10v7M7 17h10"/>',
@@ -1404,6 +1458,7 @@ const ICONES = {
   rec: '<path d="M12 3v11M7 9l5 5 5-5"/><path d="M3 15v5h18v-5"/>',
   tv: '<path d="M21 12a8 8 0 0 1-11.6 7.1L3 21l1.9-6.4A8 8 0 1 1 21 12z"/>',
   fin: '<path d="M3 10l9-6 9 6M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 21h18"/>',
+  cheg: '<path d="M10 6h13v10H10zM10 10H6l-3 3v3h7"/><circle cx="7" cy="18" r="2"/><circle cx="19" cy="18" r="2"/>',
   risco: '<path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18v.5"/>',
   cli: '<path d="M3 10l9-7 9 7"/><path d="M5 9v12h14V9"/><path d="M10 21v-6h4v6"/>',
   notas: '<path d="M5 3h14v18l-3-2-2 2-2-2-2 2-2-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
@@ -1415,6 +1470,7 @@ function painelKpis(d) {
     f && { l: 'Vendido hoje', i: 'fat', c: COR.amb, v: brlC(f.hoje.v), s: f.hoje.var != null ? `<span class="${varC(f.hoje.var)}">${varT(f.hoje.var)}</span> vs semana passada` : nf(f.hoje.n) + ' notas', z: 'fat', card: CARDS.fat },
     f && { l: 'Mês', i: 'fat', c: COR.amb, v: brlC(f.mesAtual.v), s: 'projeção ' + brlC(f.mesAtual.projecao), z: 'fat', card: CARDS.fat },
     tv && { l: 'Pedidos sem NF-e', i: 'tv', c: COR.roxo, v: nf(arr(tv.abertos).length), s: brlC(arr(tv.abertos).reduce((a, p) => a + (+p.v || 0), 0)), z: 'tv', card: CARDS.tv },
+    d.aCaminho && { l: 'A caminho do CD', i: 'cheg', c: COR.lar, v: brlC(d.aCaminho.total.v), s: nf(d.aCaminho.total.n) + ' notas' + (d.aCaminho.paradas.n ? ' · ' + nf(d.aCaminho.paradas.n) + ' paradas' : ''), z: 'cheg', card: CARDS.cheg },
     ex && { l: 'Expedição', i: 'exp', c: COR.verde, v: nf(ex.emAberto) + ' em aberto', s: nf(ex.liberadosHoje) + ' liberados hoje', z: 'exp', card: CARDS.exp },
     es && { l: 'Estoque', i: 'prod', c: COR.amb, v: brlC(es.valor), s: nf(es.itens) + ' itens', z: 'cd', card: CARDS.estoque },
     d.clientes && { l: 'Clientes no mês', i: 'cli', c: COR.azul, v: nf(d.clientes.ativosMes), s: nf(d.clientes.sumidosN) + ' sumidos', z: 'cli', card: CARDS.cli },
