@@ -65,6 +65,8 @@
     { id: 'dp-rh', ic: 'folder', txt: 'DP / RH', sub: [   // em ordem alfabética por txt (Tiago, 28/10/26) — manter ao adicionar novos
         { href: '/auditoria-folha.html', ic: 'bank', txt: 'Auditoria da Folha' },
         { href: '/etica.html', ic: 'shield', txt: 'Canal de Ética' },
+        // Comprovantes Bancários (04/11/26): fases A e B, demonstração com dados fictícios
+        { href: '/comprovantes-bancarios.html', ic: 'bank', txt: 'Comprovantes Bancários' },
         { href: '/dp.html', ic: 'list', txt: 'Departamento Pessoal (DP)' },
         { href: '/escalas.html', ic: 'list', txt: 'Escalas' },
         { href: '/gestao-disciplinar.html', ic: 'shield', txt: 'Gestão Disciplinar', badge: '/api/disciplinar/pendencias' },
