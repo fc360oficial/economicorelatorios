@@ -4,380 +4,266 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Painel CD — CAHU Distribuidora</title>
+<!-- Painel CD (04/11/2026) — TV do CD no padrão visual do Painel Compras/Fiscal, mas FIXA (Tiago: "é um painel de expedição, tem que
+     tá parado e mudar pouco"): as 5 colunas sempre na tela, cada coluna rola sozinha, alterna Expedição 180 s × Conferência 30 s.
+     Reconferir = faixa vermelha em cima das colunas, nas duas telas, até o pedido sair da coluna Reconferir. Limites de tempo na fila: LIM_AM/LIM_VM.
+     Mockup aprovado: claude.ai/artifact/XEpMbuzZgb1gyUQGM8Hm6C. Versão anterior em painel-cd-antigo.html. Dados: /api/painel-cd a cada 10 s, sem login. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,600;0,700;0,800;1,800&family=Barlow:wght@400;500;600;700&display=swap">
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-:root{--bg:#0E1626;--card:#101B33;--border:#1D2A46;--text:#FFFFFF;--text2:#AEB8CE;--text3:#6E7B98}
-html,body{height:100%;font-family:'Segoe UI',Arial,sans-serif;background:var(--bg);color:var(--text);overflow:hidden;display:flex;flex-direction:column}
-
-/* BARRA AMARELA — mesmo padrão dos outros painéis de TV do sistema */
-.brand-bar{height:46px;flex-shrink:0;background:#FACC15;display:flex;align-items:center;justify-content:center;position:relative;z-index:200}
-.b-left{position:absolute;left:14px;top:50%;transform:translateY(-50%);display:flex;align-items:center;z-index:201}
-.b-left img{height:86px}
-.b-name{font-size:15px;font-weight:900;letter-spacing:.3em;text-transform:uppercase;color:#0E1626}
-.b-right{position:absolute;right:16px;top:50%;transform:translateY(-50%);display:flex;align-items:center;gap:14px}
-.b-live{display:flex;align-items:center;gap:5px;font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:rgba(14,22,38,.65)}
-.b-live-dot{width:6px;height:6px;border-radius:50%;background:#137A48;animation:bpulse 2s infinite}
-@keyframes bpulse{0%,100%{opacity:1}50%{opacity:.3}}
-.b-clock{font-size:14px;font-weight:900;color:#0E1626;font-variant-numeric:tabular-nums}
-.b-troca{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:rgba(14,22,38,.65)}
-.b-btn-fs{background:rgba(14,22,38,.15);border:1px solid rgba(14,22,38,.25);border-radius:6px;color:#0E1626;font-size:14px;width:26px;height:26px;cursor:pointer;display:flex;align-items:center;justify-content:center}
-.b-btn-fs:hover{background:rgba(14,22,38,.3)}
-
-.wrap{flex:1;display:flex;flex-direction:column;padding:14px 18px;min-height:0}
-
-.secoes{flex:1;display:flex;flex-direction:column;min-height:0}
-.sec{flex:1;display:flex;flex-direction:column;min-height:0}
-.sec.hidden{display:none}
-.sec-hdr{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-shrink:0}
-.sec-hdr .ic{font-size:24px}
-.sec-hdr h2{font-size:20px;font-weight:800;letter-spacing:.5px;flex:1;text-align:center;text-transform:uppercase}
-.sec-hdr .sub{font-size:13px;color:var(--text3);margin-left:auto}
-/* fila do fiscal e liberados hoje (mockup aprovado 28/10): chips no cabeçalho de cada painel */
-.sec-hdr .chips{display:flex;gap:8px;flex-wrap:wrap}
-.sec-hdr .chip{background:var(--card);border:1px solid var(--border);border-radius:999px;padding:5px 12px;font-size:14px;font-weight:700;color:var(--text2);white-space:nowrap}
-.sec-hdr .chip b{color:#F5B800;font-size:17px;margin-left:4px}.sec-hdr .chip.ok b{color:#7BE0A6}.sec-hdr .chip.on{border-color:#F5B800}
-
-.aviso-reconferir{flex-shrink:0;margin-bottom:12px;padding:22px 16px;border-radius:12px;background:#FF1E3C;color:#fff;
-  border:3px solid #fff;font-size:34px;font-weight:900;text-align:center;letter-spacing:.5px;
-  text-transform:uppercase;animation:piscar 1s step-start infinite}
-.aviso-reconferir .aviso-ic{margin-right:10px}
-@keyframes piscar{50%{opacity:.2}}
-
-.colunas{flex:1;display:grid;grid-template-columns:repeat(5,1fr);gap:10px;min-height:0}
-.col{display:flex;flex-direction:column;min-height:0;border-radius:10px;overflow:hidden;border:1px solid var(--border)}
-.col-hd{padding:8px 8px 10px;text-align:center;color:#0E1626}
-.col-hd .titulo{font-size:17px;font-weight:800;text-transform:uppercase;letter-spacing:.3px}
-.col-hd .contagem{font-size:40px;font-weight:900;line-height:1.15}
-.col-hd.c1{background:#FACC15}
-.col-hd.c2{background:#E24C63;color:#fff}
-.col-hd.c3{background:#3B82F6;color:#fff}
-.col-hd.c4{background:#F5A623;color:#fff}
-.col-hd.c5{background:#22C55E;color:#0E1626}
-.col-body{flex:1;overflow-y:hidden;background:var(--card);padding:6px}
-.item{padding:10px 6px;text-align:center;border-bottom:1px solid var(--border);transition:background .4s}
-.item:last-child{border-bottom:none}
-.item.novo{background:#F5B80033}
-.item .num{font-size:36px;font-weight:900;color:#5EEAD4}
-.item .nome{font-size:18px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 2px}
-/* status do nosso coletor (Separação → Carregamento → fiscal), por cima da coluna do painel do Dlinks */
-.item .col-st{display:inline-block;margin-top:4px;font-size:14px;font-weight:800;line-height:1.2;padding:2px 8px;border-radius:999px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
-.item .org{display:inline-block;font-size:11px;font-weight:900;letter-spacing:.06em;padding:1px 6px;border-radius:4px;vertical-align:middle;margin-left:6px}
-.item .org.eco{background:#F5B800;color:#0E1626}.item .org.dlinks{background:#2A3A5C;color:#AEB8CE}
-.b-leg{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--text2);margin-right:14px}.b-leg i{display:inline-block;width:12px;height:12px;border-radius:3px}.b-leg i.eco{background:#F5B800}.b-leg i.dl{background:#2A3A5C;border:1px solid #3B4D75}
-.item .col-st.sep{background:#1D4F9166;color:#9CC4FF}.item .col-st.car{background:#F5B80033;color:#FFD866}.item .col-st.fis{background:#FF8FA333;color:#FF8FA3}.item .col-st.ok{background:#7BE0A633;color:#7BE0A6}
-.empty-col{padding:20px 6px;text-align:center;color:var(--text3);font-size:13px}
-
-.progresso{flex-shrink:0;margin-top:12px;display:flex;align-items:center;gap:16px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px 16px}
-.progresso .lbl{font-size:11px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--text3);white-space:nowrap}
-.progresso .barra{flex:1;height:12px;background:var(--border);border-radius:6px;overflow:hidden}
-.progresso .barra-fill{height:100%;background:linear-gradient(90deg,#22C55E,#5EEAD4);border-radius:6px;transition:width .5s}
-.progresso .pct{font-size:16px;font-weight:900;width:52px;text-align:right;flex-shrink:0}
-.progresso .concl{font-size:12px;color:var(--text3);white-space:nowrap;flex-shrink:0}
-.progresso .concl b{color:var(--text)}
-
-.stamp{text-align:center;font-size:10px;color:var(--text3);margin-top:6px;flex-shrink:0}
+:root{--ink:#0c0c0c;--paper:#f6f4ec;--amarelo:#FFD500;--vermelho:#C8102E;--verde:#22C55E;--linha:#2a2a2a;--mudo:#8f8a7c;--fd:"Barlow Condensed","Arial Narrow",Impact,sans-serif;--fb:"Barlow","Segoe UI",Arial,sans-serif}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:#000;color:var(--paper);font-family:var(--fb);overflow:hidden}
+#tv{position:fixed;inset:0;display:flex;flex-direction:column;background:var(--ink);font-size:calc(var(--u) * 1px)}
+svg.ic{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-.12em}
+@keyframes pulsaNum{0%,100%{text-shadow:0 0 0 rgba(200,16,46,0)}50%{text-shadow:0 0 .35em rgba(200,16,46,.9)}}
+/* topo */
+.top{display:flex;align-items:center;gap:1.6em;padding:0 2.4em;height:7em;flex:none;border-bottom:.14em solid var(--amarelo)}
+.logo{height:5.4em;background:var(--amarelo);border-radius:.6em;padding:.45em .8em;flex:none}
+.logo i{display:block;height:4.5em;width:14.5em;overflow:hidden;position:relative}
+.logo img{position:absolute;width:18em;max-width:none;left:-1.65em;top:-8.8em;mix-blend-mode:multiply}   /* logo com margem branca grande: recorte + multiply no amarelo */
+.tit{font:800 2.5em/1 var(--fd);text-transform:uppercase;letter-spacing:.04em;color:#fff;padding-left:.55em;border-left:.08em solid #3a3a3a;white-space:nowrap}
+.sp{flex:1 1 0;min-width:.5em}
+.kps{display:flex;align-items:center;flex:none}
+.kp{display:flex;flex-direction:column;align-items:center;padding:0 .8em;border-left:.08em solid #3a3a3a;min-width:5em}
+.kp b{font:800 1.95em/1 var(--fd);color:#fff;font-variant-numeric:tabular-nums}
+.kp span{font:700 .85em var(--fb);letter-spacing:.14em;text-transform:uppercase;color:var(--mudo);margin-top:.2em;white-space:nowrap}
+.kp.am b{color:var(--amarelo)}.kp.vm b{animation:pulsaNum 2.4s ease-in-out infinite}.kp.vm span{color:#ff8a9a}.kp.ok b{color:var(--verde)}
+.dt{font:600 1.05em var(--fb);letter-spacing:.14em;text-transform:uppercase;color:#cfcabb;padding-left:1em;border-left:.08em solid #3a3a3a;white-space:nowrap;flex:none;font-variant-numeric:tabular-nums}
+/* corpo */
+.main{flex:1;display:flex;flex-direction:column;padding:1.2em 2.4em 1em;min-height:0}
+.hd{display:flex;align-items:baseline;gap:1.2em;margin-bottom:.7em;flex:none;height:3.6em}
+.hd h2{font:800 2.8em/1 var(--fd);text-transform:uppercase;color:#fff;margin:0;letter-spacing:.03em;display:flex;align-items:center;gap:.35em;white-space:nowrap}
+.hd h2 .ic{color:var(--amarelo);font-size:.85em;stroke-width:2.2}
+.hd .sub{margin-left:auto;font:600 1.15em var(--fb);letter-spacing:.14em;text-transform:uppercase;color:var(--mudo);white-space:nowrap}
+/* alerta de reconferir: mesma altura do título, as colunas não perdem espaço; o fundo pisca e o texto fica sempre legível */
+@keyframes piscaFaixa{0%,49%{background:var(--vermelho)}50%,100%{background:#4a0410}}
+.al-faixa{flex:none;height:3.6em;margin-bottom:.7em;padding:0 1.1em;display:flex;align-items:center;gap:1em;border:.14em solid #fff;border-radius:.35em;background:var(--vermelho);animation:piscaFaixa 1s steps(1) infinite;color:#fff;overflow:hidden}
+.al-t{font:800 2.5em/1 var(--fd);letter-spacing:.06em;text-transform:uppercase;color:var(--amarelo);white-space:nowrap}
+.al-p{font:800 2.5em/1 var(--fd);letter-spacing:.03em;text-transform:uppercase;white-space:nowrap;font-variant-numeric:tabular-nums}
+.al-i{flex:1;min-width:0;font:700 2.2em/1 var(--fd);letter-spacing:.02em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.al-n{font:700 1.4em/1 var(--fd);letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;font-variant-numeric:tabular-nums}
+/* quadro: as 5 etapas lado a lado */
+.quadro{flex:1;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:.9em;min-height:0}
+.et{display:flex;flex-direction:column;min-height:0;min-width:0;border-top:.3em solid #3a3a3a;background:#141414}
+.et.am{border-top-color:var(--amarelo)}.et.vm{border-top-color:var(--vermelho)}.et.ok{border-top-color:var(--verde)}
+.et-hd{padding:.45em .8em .4em;display:flex;align-items:baseline;gap:.5em;flex:none;border-bottom:.07em solid var(--linha)}
+.et-hd b{font:800 5.4em/.95 var(--fd);color:#fff;font-variant-numeric:tabular-nums}
+.et.z .et-hd b{color:#3a3a3a}.et.am .et-hd b{color:var(--amarelo)}.et.ok .et-hd b{color:var(--verde)}.et.vm .et-hd b{animation:pulsaNum 2.4s ease-in-out infinite}
+.et-hd span{font:800 1.4em/1.02 var(--fd);letter-spacing:.06em;text-transform:uppercase;color:#e8e5da}
+.et-bd{flex:1;min-height:0;display:flex;flex-direction:column;padding:0 .8em;overflow:hidden}
+.ped{flex:none;display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:.6em;align-items:baseline;padding:.42em 0;border-bottom:.07em solid var(--linha)}
+.ped b{font:800 2em/1 var(--fd);color:#fff;font-variant-numeric:tabular-nums}
+.ped em{font:700 1.3em/1 var(--fd);font-style:normal;color:#bdb8aa;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.ped em.am{color:var(--amarelo)}.ped em.vm{color:#fff;background:var(--vermelho);padding:.08em .3em;border-radius:.15em;justify-self:end}
+.ped small{grid-column:1/-1;font:500 1em/1.3 var(--fb);color:var(--mudo);text-transform:uppercase;overflow-wrap:anywhere}
+/* passo do Coletor Econômico: só aparece em pedido que passou pelo nosso coletor */
+.ped .sit{grid-column:1/-1;justify-self:start;margin-top:.25em;font:700 1em/1.2 var(--fd);letter-spacing:.06em;text-transform:uppercase;background:var(--amarelo);color:var(--ink);padding:.1em .45em;border-radius:.2em;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.et-vz{margin:auto;font:600 1.15em var(--fb);color:#5b574d;text-align:center;letter-spacing:.06em;text-transform:uppercase}
+.barra{flex:none;margin-top:.9em;display:flex;align-items:center;gap:1.2em}
+.barra span{font:700 1.15em var(--fd);letter-spacing:.14em;text-transform:uppercase;color:#cfcabb;white-space:nowrap}
+.barra i{flex:1;height:1em;background:#242424;border-radius:.5em;overflow:hidden;display:block}
+.barra i u{display:block;height:100%;background:var(--verde);transition:width .5s}
+.barra b{font:800 2.2em/1 var(--fd);color:#fff;font-variant-numeric:tabular-nums}
+/* rodapé */
+.foot{display:flex;align-items:center;gap:1.8em;padding:0 2.4em;height:4.2em;border-top:.08em solid var(--linha);flex:none}
+.foot .sl{display:flex;align-items:center;gap:.5em;font:700 1.05em var(--fb);letter-spacing:.1em;text-transform:uppercase;color:#e8e5da;white-space:nowrap}
+.foot .sl .ic{color:var(--amarelo);font-size:1.4em}
+.foot .sl.erro{color:#ff8a9a}
+.foot .val{font:600 1.15em var(--fb);letter-spacing:.04em;color:#bdb8aa;white-space:nowrap}
+.foot .val b{color:var(--amarelo);font-weight:700}
+.foot .cnt{font:700 1.4em var(--fd);color:var(--mudo);letter-spacing:.06em;font-variant-numeric:tabular-nums;flex:none}
+#btn-fs{background:none;border:.08em solid #3a3a3a;border-radius:.3em;color:#bdb8aa;font-size:1.3em;width:1.9em;height:1.9em;cursor:pointer}
+@media (prefers-reduced-motion:reduce){.al-faixa,.kp.vm b,.et.vm .et-hd b{animation:none}}
 </style>
 </head>
 <body>
-
-<div class="brand-bar">
-  <div class="b-left"><img id="logo-cahu" src="/logo-cahu.png" onload="removerFundoBranco(this)" onerror="this.style.display='none'"></div>
-  <div class="b-name">Centro de Distribuição</div>
-  <div class="b-right">
-    <span class="b-leg" title="Painel híbrido: a coluna é a do lado mais adiantado"><i class="eco"></i>Coletor Econômico <i class="dl"></i>Dlinks</span>
-    <span class="b-troca" id="contador-tela"></span>
-    <span class="b-clock" id="relogio">--:--:--</span>
-    <button class="b-btn-fs" id="btn-fs" title="Tela cheia">⛶</button>
+<div id="tv">
+  <div class="top">
+    <div class="logo"><i><img src="/logo-cahu.png" alt="Cahu Distribuidora"></i></div>
+    <span class="tit" id="tit"></span><span class="sp"></span><div class="kps" id="kps"></div><span class="dt" id="relogio"></span>
+  </div>
+  <div class="main">
+    <div id="cabeca"></div>
+    <div class="quadro" id="quadro"></div>
+    <div class="barra"><span id="barra-lb"></span><i><u id="barra" style="width:0"></u></i><b id="pct">0%</b><span id="concl"></span></div>
+  </div>
+  <div class="foot">
+    <span class="sl" id="stamp"></span><span class="sp"></span>
+    <span class="val">Coluna do lado mais adiantado: <b>coletor Econômico</b> ou <b>Dlinks</b></span>
+    <span class="cnt" id="troca"></span>
+    <button type="button" id="btn-fs" title="Tela cheia">⛶</button>
   </div>
 </div>
-
-<div class="wrap">
-  <div class="secoes">
-    <div class="sec" id="sec-exp">
-      <div class="sec-hdr"><span class="ic">🚚</span><h2>Expedição — Saídas</h2><span class="chips"><span class="chip" id="fila-exp" title="pedidos em Aguardando Liberação: o fiscal do CD confere e libera a saída">Fila do fiscal<b>0</b></span><span class="chip ok" id="lib-exp" title="pedidos liberados hoje">Liberados hoje<b>0</b></span></span><span class="sub" id="sub-exp"></span></div>
-      <div class="aviso-reconferir" id="aviso-reconferir-exp" style="display:none">
-        <span class="aviso-ic">⚠️</span> RECONFERIR: <span id="aviso-reconferir-texto-exp"></span>
-      </div>
-      <div class="colunas" id="colunas-exp"></div>
-      <div class="progresso">
-        <span class="lbl">Progresso geral do dia</span>
-        <div class="barra"><div class="barra-fill" id="barra-exp" style="width:0%"></div></div>
-        <span class="pct" id="pct-exp">0%</span>
-        <span class="concl">Concluídas <b id="concl-exp">0 / 0</b></span>
-      </div>
-    </div>
-    <div class="sec hidden" id="sec-conf">
-      <div class="sec-hdr"><span class="ic">📥</span><h2>Conferência — Entradas</h2><span class="chips"><span class="chip" id="fila-conf" title="notas em Conferido: o fiscal confere e libera no Recebimento de Notas">Fila do fiscal<b>0</b></span><span class="chip ok" id="lib-conf" title="notas liberadas hoje">Liberadas hoje<b>0</b></span></span><span class="sub" id="sub-conf"></span></div>
-      <div class="aviso-reconferir" id="aviso-reconferir-conf" style="display:none">
-        <span class="aviso-ic">⚠️</span> RECONFERIR: <span id="aviso-reconferir-texto-conf"></span>
-      </div>
-      <div class="colunas" id="colunas-conf"></div>
-      <div class="progresso">
-        <span class="lbl">Progresso geral do dia</span>
-        <div class="barra"><div class="barra-fill" id="barra-conf" style="width:0%"></div></div>
-        <span class="pct" id="pct-conf">0%</span>
-        <span class="concl">Concluídas <b id="concl-conf">0 / 0</b></span>
-      </div>
-    </div>
-  </div>
-
-  <div class="stamp" id="stamp"></div>
-</div>
-
 <script>
-// A logo salva tem fundo branco opaco (não é PNG transparente de verdade) —
-// desenha num canvas e apaga (alpha=0) todo pixel quase-branco, deixando só
-// o desenho preto flutuando no fundo amarelo da barra.
-function removerFundoBranco(img) {
-  if (img.dataset.processado) return; // troca de src abaixo dispara onload de novo — evita loop
-  try {
-    const canvas = document.createElement('canvas');
-    canvas.width = img.naturalWidth;
-    canvas.height = img.naturalHeight;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(img, 0, 0);
-    const dados = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const px = dados.data;
-    for (let i = 0; i < px.length; i += 4) {
-      if (px[i] > 235 && px[i + 1] > 235 && px[i + 2] > 235) px[i + 3] = 0;
-    }
-    ctx.putImageData(dados, 0, 0);
-    img.dataset.processado = '1';
-    img.src = canvas.toDataURL('image/png');
-  } catch (e) {} // se der erro (ex: sem canvas), mantém a logo original com fundo branco mesmo
+const EMBED = new URLSearchParams(location.search).get('embed') === '1';   // prévia em Processos › Painéis: sem som e sem contar como TV ligada
+const LIM_AM = 90, LIM_VM = 120;   // minutos na fila (Tiago, 04/11): amarelo a partir de 1h30, vermelho a partir de 2h
+const TEMPO_TELA = { exp: 180, conf: 30 }, MAX_TELA_SEG = 240;
+const SEG_ALERTA = 4000;
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const $ = id => document.getElementById(id);
+const IC_GRADE = '<svg class="ic" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>';
+const IC_RELOGIO = '<svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
+const horaDe = iso => iso ? iso.slice(11, 16) : '';
+const minDesde = iso => Math.max(0, Math.round((Date.now() - new Date(iso + ':00').getTime()) / 60000));
+const tempo = m => m < 60 ? m + ' min' : m < 1440 ? Math.floor(m / 60) + ' h ' + String(m % 60).padStart(2, '0') : Math.floor(m / 1440) + ' d';
+const cor = m => m >= LIM_VM ? 'vm' : m >= LIM_AM ? 'am' : '';
+
+function linha(p, em, cls) {
+  const col = p.origem === 'eco' && p.coletor ? `<span class="sit">${esc(p.coletor.rotulo)}${p.coletor.quem ? ' · ' + esc(p.coletor.quem) : ''}</span>` : '';
+  return `<div class="ped"><b>${esc(p.pedido)}</b>${em ? `<em class="${cls || ''}">${em}</em>` : ''}<small>${esc(p.nome)}</small>${col}</div>`;
 }
-
-// Cada lado tem seu próprio conjunto de colunas — Expedição e Conferência
-// usam nomes de status diferentes no painel legado do sistema.
-const COLS_EXP = [
-  { id: 'separacao', cor: 'c1', titulo: 'Pedido p/ Separação' },
-  { id: 'em_separacao', cor: 'c2', titulo: 'Pedido em Separação' },
-  { id: 'aguardando_liberacao', cor: 'c3', titulo: 'Aguardando Liberação' },
-  { id: 'reconferir', cor: 'c4', titulo: 'Reconferir' },
-  { id: 'liberado', cor: 'c5', titulo: 'Pedido Liberado' }
-];
-const COLS_CONF = [
-  { id: 'conf_pedido', cor: 'c1', titulo: 'Conf. Pedido' },
-  { id: 'conf_coletor', cor: 'c2', titulo: 'Conf. Coletor' },
-  { id: 'conferido', cor: 'c3', titulo: 'Conferido' },
-  { id: 'reconferir', cor: 'c4', titulo: 'Reconferir' },
-  { id: 'liberado', cor: 'c5', titulo: 'Liberado' }
-];
-
-function renderSecao(elId, cols) {
-  document.getElementById(elId).innerHTML = cols.map(c => `
-    <div class="col">
-      <div class="col-hd ${c.cor}">
-        <div class="contagem" id="ct-${elId}-${c.id}">0</div>
-        <div class="titulo">${c.titulo}</div>
-      </div>
-      <div class="col-body" id="cb-${elId}-${c.id}"><div class="empty-col">—</div></div>
-    </div>`).join('');
-}
-
-// Toca um beep curto (Web Audio, sem precisar de arquivo de áudio) quando
-// algum pedido muda de coluna/status — chama atenção pra quem tá de olho
-// na TV mas não fixado nela o tempo todo.
-let audioCtx = null;
-function tocarTom(quando, duracao) {
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-  osc.connect(gain); gain.connect(audioCtx.destination);
-  osc.frequency.value = 1046; // mais agudo, mais fácil de notar de longe
-  gain.gain.setValueAtTime(0.9, quando); // bem mais alto que antes (era 0.25)
-  gain.gain.exponentialRampToValueAtTime(0.001, quando + duracao);
-  osc.start(quando); osc.stop(quando + duracao);
-}
-
-function beep() {
-  try {
-    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-    // Navegador começa o áudio "suspenso" até ter algum clique na página —
-    // tenta destravar sozinho toda vez (não garante funcionar sem clique
-    // nenhum, mas cobre o caso de já ter tido qualquer interação).
-    if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
-    const agora = audioCtx.currentTime;
-    // dois toques em sequência em vez de um só — chama mais atenção numa
-    // sala com barulho de fundo (motor de empilhadeira, conversa etc.)
-    tocarTom(agora, 0.28);
-    tocarTom(agora + 0.35, 0.28);
-  } catch (e) {}
-}
-
-// Qualquer clique/toque na tela já destrava o áudio pro resto da sessão —
-// cobre o caso do botão de tela cheia (ou qualquer outro toque acidental).
-document.addEventListener('click', () => {
-  audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-  if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
-}, { once: false });
-
-// Estado anterior (pedido -> status) de cada lado, pra detectar o que mudou
-// entre uma atualização e outra e destacar/apitar só o que de fato mexeu.
-let estadoAnterior = { exp: {}, conf: {} };
-
-function preencherSecao(elId, ladoKey, cols, dados) {
-  let mudou = false;
-  const novoEstado = {};
-  for (const c of cols) {
-    const itens = dados.colunas[c.id] || [];
-    for (const it of itens) novoEstado[it.pedido] = c.id;
-  }
-  // primeira carga não conta como "mudança" (senão apita tudo de uma vez ao abrir a página)
-  const primeiraCarga = Object.keys(estadoAnterior[ladoKey]).length === 0;
-  if (!primeiraCarga) {
-    for (const pedido in novoEstado) {
-      if (estadoAnterior[ladoKey][pedido] !== novoEstado[pedido]) { mudou = true; break; }
-    }
-  }
-  estadoAnterior[ladoKey] = novoEstado;
-
-  for (const c of cols) {
-    const el = document.getElementById(`cb-${elId}-${c.id}`);
-    const itens = dados.colunas[c.id] || [];
-    document.getElementById(`ct-${elId}-${c.id}`).textContent = itens.length;
-    if (!itens.length) { el.innerHTML = '<div class="empty-col">—</div>'; continue; }
-    el.innerHTML = itens.map(it => `
-      <div class="item">
-        <div class="num">${it.pedido}<span class="org ${it.origem || 'dlinks'}" title="${it.origem === 'eco' ? 'posição vem do Coletor Econômico' : 'posição vem do painel do Dlinks'}">${it.origem === 'eco' ? 'ECO' : 'DLINKS'}</span></div>
-        <div class="nome">${it.nome}</div>
-        ${it.coletor ? `<div class="col-st ${it.coletor.cor}" title="Coletor Econômico">${it.coletor.rotulo}${it.coletor.quem ? ' · ' + it.coletor.quem : ''}</div>` : ''}
-      </div>`).join('');
-  }
-
-  // Progresso do dia = % que já chegou na última coluna (liberado)
-  const total = dados.resumo.total || 0;
-  const liberado = dados.resumo.liberado || 0;
-  const pct = total > 0 ? Math.round((liberado / total) * 100) : 0;
-  const ladoSufixo = ladoKey; // 'exp' ou 'conf'
-  document.getElementById(`barra-${ladoSufixo}`).style.width = pct + '%';
-  document.getElementById(`pct-${ladoSufixo}`).textContent = pct + '%';
-  document.getElementById(`concl-${ladoSufixo}`).textContent = `${liberado} / ${total}`;
-
-  return mudou;
-}
-
-renderSecao('colunas-exp', COLS_EXP);
-renderSecao('colunas-conf', COLS_CONF);
-
-// Lista de descrições em reconferência agora — só nome do item, sem
-// quantidade nem código de barra (pedido explícito do Tiago). Pode ter mais
-// de uma conferência em reconferir ao mesmo tempo (2 conferentes, 2 notas)
-// -- cicla todos os itens de UM pedido primeiro, só depois passa pro
-// próximo pedido, nunca mistura os dois. Expedição e Conferência têm cada
-// uma seu próprio banner e estado, independentes um do outro.
-const avisoReconferir = {
-  exp: { itens: [], idx: 0 },
-  conf: { itens: [], idx: 0 }
+const naFila = p => { if (!p.entrada) return linha(p); const m = minDesde(p.entrada); return linha(p, tempo(m), cor(m)); };
+const emReconferir = p => { const q = p.conferido || p.entrada; return linha(p, q ? tempo(minDesde(q)) : '', 'vm'); };
+const liberado = p => linha(p, horaDe(p.liberacao));
+const simples = p => linha(p);
+const maisAntigo = (a, b) => String(a.entrada || '').localeCompare(String(b.entrada || ''));
+const ultimoLiberado = (a, b) => String(b.liberacao || '').localeCompare(String(a.liberacao || ''));
+const COLS = {
+  exp: [
+    { id: 'separacao', tit: 'P/ separar', cor: 'am', f: naFila, ord: maisAntigo, vz: 'sem fila' },
+    { id: 'em_separacao', tit: 'Em separação', cor: 'am', f: naFila, ord: maisAntigo, vz: 'sem pedido' },
+    { id: 'aguardando_liberacao', tit: 'Fila do fiscal', cor: 'am', f: naFila, ord: maisAntigo, vz: 'em dia' },
+    { id: 'reconferir', tit: 'Reconferir', cor: 'vm', f: emReconferir, ord: maisAntigo },
+    { id: 'liberado', tit: 'Liberados hoje', cor: 'ok', f: liberado, ord: ultimoLiberado },
+  ],
+  conf: [
+    { id: 'conf_pedido', tit: 'Conf. pedido', cor: 'am', f: simples, vz: 'sem fila' },
+    { id: 'conf_coletor', tit: 'Conf. coletor', cor: 'am', f: simples, vz: 'sem fila' },
+    { id: 'conferido', tit: 'Fila do fiscal', cor: 'am', f: simples, vz: 'em dia' },
+    { id: 'reconferir', tit: 'Reconferir', cor: 'vm', f: simples },
+    { id: 'liberado', tit: 'Liberadas hoje', cor: 'ok', f: simples },
+  ],
 };
 
-function atualizarAvisoReconferir(secao) {
-  const st = avisoReconferir[secao];
-  const el = document.getElementById('aviso-reconferir-' + secao);
-  if (!st.itens.length) { el.style.display = 'none'; return; }
-  el.style.display = '';
-  st.idx = st.idx % st.itens.length;
-  const atual = st.itens[st.idx];
-  document.getElementById('aviso-reconferir-texto-' + secao).textContent = `PEDIDO ${atual.pedido} — ${atual.descricao}`;
-  st.idx++;
-}
-setInterval(() => { atualizarAvisoReconferir('exp'); atualizarAvisoReconferir('conf'); }, 4000);
+let D = null, lado = 'exp', resta = TEMPO_TELA.exp, ALERTA = [], iAlerta = 0, ultimoOk = null, erro = '', emTelaDesde = Date.now(), rolou = [], pausaAte = [];
 
-function achatarItensReconferir(itensReconferir) {
+// Alerta (Tiago, 04/11: "só vai sumir depois que for reconferido"): vale enquanto o pedido estiver na coluna Reconferir, dos dois lados.
+// Cicla os itens de UM pedido antes de passar pro próximo. Pedido sem item achado no ERP entra do mesmo jeito.
+function montarAlerta(d) {
   const lista = [];
-  for (const grupo of (itensReconferir || [])) {
-    for (const desc of grupo.itens) lista.push({ pedido: grupo.pedido, descricao: desc });
+  for (const [x, rot] of [[d.expedicao, 'Pedido'], [d.conferencia, 'Conf.']]) {
+    for (const p of x.colunas.reconferir || []) {
+      const g = (x.itensReconferir || []).find(i => String(i.pedido) === String(p.pedido));
+      const itens = g && g.itens.length ? g.itens : [p.nome];
+      itens.forEach((item, i) => lista.push({ rot, pedido: p.pedido, item, n: i + 1, de: itens.length }));
+    }
   }
   return lista;
 }
+function alertaHtml() {
+  const a = ALERTA[iAlerta % ALERTA.length];
+  return `<span class="al-t">Reconferir</span><span class="al-p">${a.rot} ${esc(a.pedido)}</span><span class="al-i">${esc(a.item)}</span>${a.de > 1 ? `<span class="al-n">${a.n} de ${a.de}</span>` : ''}`;
+}
+function desenharCabeca() {
+  const exp = lado === 'exp', r = D ? (exp ? D.expedicao : D.conferencia).resumo : null;
+  const tem = ALERTA.length > 0, el = $('alerta');
+  if (tem && el) { el.innerHTML = alertaHtml(); return; }
+  $('cabeca').innerHTML = tem ? `<div class="al-faixa" id="alerta">${alertaHtml()}</div>`
+    : `<div class="hd"><h2>${IC_GRADE}${exp ? 'Quadro da expedição' : 'Quadro da conferência'}</h2><span class="sub">${exp ? 'mais antigos primeiro' : (r ? r.total + ' hoje' : '')}</span></div>`;
+}
+const kp = (v, l, c) => `<div class="kp${c ? ' ' + c : ''}"><b>${v || 0}</b><span>${l}</span></div>`;
+function desenhar() {
+  const exp = lado === 'exp';
+  $('tit').textContent = exp ? 'Expedição CD' : 'Conferência CD';
+  $('barra-lb').textContent = exp ? 'Liberados do dia' : 'Liberadas do dia';
+  $('cabeca').innerHTML = ''; desenharCabeca();
+  if (!D) return;
+  const x = exp ? D.expedicao : D.conferencia, r = x.resumo;
+  $('kps').innerHTML = exp
+    ? kp(r.separacao, 'P/ separar') + kp(r.em_separacao, 'Separando', r.em_separacao ? 'am' : '') + kp(r.aguardando_liberacao, 'Fila fiscal', r.aguardando_liberacao ? 'am' : '') + kp(r.reconferir, 'Reconferir', r.reconferir ? 'vm' : '') + kp(r.liberado, 'Liberados', 'ok')
+    : kp(r.conf_pedido, 'Conf. pedido', r.conf_pedido ? 'am' : '') + kp(r.conf_coletor, 'Conf. coletor', r.conf_coletor ? 'am' : '') + kp(r.conferido, 'Fila fiscal', r.conferido ? 'am' : '') + kp(r.reconferir, 'Reconferir', r.reconferir ? 'vm' : '') + kp(r.liberado, 'Liberadas', 'ok');
+  // a TV atualiza a cada 10 s: guarda a rolagem de cada coluna pra lista não pular pro topo
+  const rolagem = [...document.querySelectorAll('.et-bd')].map(e => e.scrollTop);
+  $('quadro').innerHTML = COLS[lado].map(c => {
+    const L = [...(x.colunas[c.id] || [])]; if (c.ord) L.sort(c.ord);
+    return `<div class="et ${L.length ? c.cor : 'z'}"><div class="et-hd"><b>${L.length}</b><span>${c.tit}</span></div><div class="et-bd">${L.length ? L.map(c.f).join('') : `<div class="et-vz">${c.vz || ''}</div>`}</div></div>`;
+  }).join('');
+  document.querySelectorAll('.et-bd').forEach((e, i) => { e.scrollTop = rolagem[i] || 0; });
+  const pct = r.total > 0 ? Math.round(r.liberado / r.total * 100) : 0;
+  $('barra').style.width = pct + '%'; $('pct').textContent = pct + '%'; $('concl').textContent = `${r.liberado} de ${r.total}`;
+  desenharRodape();
+}
+function desenharRodape() {
+  const el = $('stamp'); el.classList.toggle('erro', !!erro);
+  el.innerHTML = IC_RELOGIO + (erro ? `Sem atualizar desde ${ultimoOk || '--:--'}` : `ERP ${ultimoOk || '--:--'}`);
+  if (resta > 1) $('troca').textContent = `troca em ${resta} s`;
+}
+
+// Beep de sempre: dois toques quando algum pedido muda de coluna (não na primeira carga).
+let audioCtx = null;
+function tocarTom(quando, duracao) {
+  const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+  osc.connect(gain); gain.connect(audioCtx.destination);
+  osc.frequency.value = 1046;
+  gain.gain.setValueAtTime(0.9, quando);
+  gain.gain.exponentialRampToValueAtTime(0.001, quando + duracao);
+  osc.start(quando); osc.stop(quando + duracao);
+}
+function beep() {
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+    const agora = audioCtx.currentTime;
+    tocarTom(agora, 0.28); tocarTom(agora + 0.35, 0.28);
+  } catch (e) {}
+}
+document.addEventListener('click', () => {
+  try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {}); } catch (e) {}
+});
+let estadoAnterior = { exp: null, conf: null };
+function mudou(chave, dados) {
+  const novo = {};
+  for (const c in dados.colunas) for (const it of dados.colunas[c]) novo[it.pedido] = c;
+  const ant = estadoAnterior[chave]; estadoAnterior[chave] = novo;
+  return !!ant && Object.keys(novo).some(p => ant[p] !== novo[p]);
+}
 
 function carregar() {
-  // 28/10: sem ?refresh=1 — o servidor já renova a cada 20 s e não deixa duas montagens correrem juntas no ERP
+  // sem ?refresh=1: o servidor renova a cada 20 s e não deixa duas montagens correrem juntas no ERP
   fetch('/api/painel-cd?t=' + Date.now(), { cache: 'no-store' }).then(r => r.json()).then(d => {
     if (d.error) throw new Error(d.error);
-    const mudouExp = preencherSecao('colunas-exp', 'exp', COLS_EXP, d.expedicao);
-    const mudouConf = preencherSecao('colunas-conf', 'conf', COLS_CONF, d.conferencia);
-    if (mudouExp || mudouConf) beep();
-
-    avisoReconferir.exp.itens = achatarItensReconferir(d.expedicao.itensReconferir);
-    avisoReconferir.exp.idx = 0;
-    atualizarAvisoReconferir('exp');
-    avisoReconferir.conf.itens = achatarItensReconferir(d.conferencia.itensReconferir);
-    avisoReconferir.conf.idx = 0;
-    atualizarAvisoReconferir('conf');
-
-    document.getElementById('sub-exp').textContent = d.expedicao.resumo.total + ' hoje';
-    document.getElementById('sub-conf').textContent = d.conferencia.resumo.total + ' hoje';
-    // fila do fiscal = coluna "Aguardando Liberação" (expedição) / "Conferido" (recebimento), dos dois coletores; liberados = coluna da direita (só hoje)
-    const chip = (id, n) => { const el = document.getElementById(id); if (!el) return; el.querySelector('b').textContent = n; el.classList.toggle('on', n > 0); };
-    chip('fila-exp', d.expedicao.resumo.aguardando_liberacao || 0); chip('lib-exp', d.expedicao.resumo.liberado || 0);
-    chip('fila-conf', d.conferencia.resumo.conferido || 0); chip('lib-conf', d.conferencia.resumo.liberado || 0);
-    document.getElementById('stamp').textContent = 'Atualizado às ' + new Date().toLocaleTimeString('pt-BR');
-  }).catch(e => {
-    document.getElementById('stamp').textContent = 'Erro ao atualizar: ' + e.message;
-  });
+    D = d; erro = ''; ultimoOk = new Date(d.geradoEm).toTimeString().slice(0, 5);
+    const a = mudou('exp', d.expedicao), b = mudou('conf', d.conferencia);
+    if ((a || b) && !EMBED) beep();
+    ALERTA = montarAlerta(d);
+    desenhar();
+  }).catch(e => { erro = e.message; desenharRodape(); });
 }
 
-function relogio() {
-  document.getElementById('relogio').textContent = new Date().toLocaleTimeString('pt-BR');
-}
+function trocarTela() { lado = lado === 'exp' ? 'conf' : 'exp'; resta = TEMPO_TELA[lado]; emTelaDesde = Date.now(); rolou = []; pausaAte = []; document.querySelectorAll('.et-bd').forEach(e => { e.scrollTop = 0; }); desenhar(); }
+// A tela só troca depois que toda coluna comprida mostrou até o último pedido (Tiago, 04/11: "aparecendo todas da coluna"), até MAX_TELA_SEG.
+const faltaRolar = () => [...document.querySelectorAll('.et-bd')].some((el, i) => el.scrollHeight > el.clientHeight + 4 && !rolou[i]);
+setInterval(() => {
+  if (resta > 1) { resta--; $('troca').textContent = `troca em ${resta} s`; return; }
+  if (faltaRolar() && Date.now() - emTelaDesde < MAX_TELA_SEG * 1000) { $('troca').textContent = 'mostrando todos'; return; }
+  trocarTela();
+}, 1000);
+setInterval(() => { if (ALERTA.length > 1) { iAlerta = (iAlerta + 1) % ALERTA.length; desenharCabeca(); } }, SEG_ALERTA);
 
-// Alterna tela cheia entre Expedição e Conferência — mais legível que dividir
-// a tela, principalmente com 5 colunas cada. Tempos diferentes por tela
-// (Expedição fica mais tempo, tem mais volume de pedido) com contador
-// regressivo visível no canto.
-const TELAS = [
-  { id: 'sec-exp', duracao: 180 },
-  { id: 'sec-conf', duracao: 45 }
-];
-let telaAtual = 0;
-let contagemTela = TELAS[0].duracao;
-
-function tickTela() {
-  contagemTela--;
-  if (contagemTela <= 0) {
-    document.getElementById(TELAS[telaAtual].id).classList.add('hidden');
-    telaAtual = (telaAtual + 1) % TELAS.length;
-    document.getElementById(TELAS[telaAtual].id).classList.remove('hidden');
-    contagemTela = TELAS[telaAtual].duracao;
-  }
-  document.getElementById('contador-tela').textContent = 'troca em ' + contagemTela + 's';
-}
-setInterval(tickTela, 1000);
-tickTela();
-
-// Carrossel automático — qualquer coluna que não caiba todos os itens na
-// tela rola sozinha devagar (em vez de depender de alguém arrastar a barra
-// de rolagem, que não faz sentido numa TV sem ninguém mexendo nela). Roda
-// pra todas as colunas de ambos os lados, genérico, não é fixo numa coluna
-// específica.
-const carrosselPausadoAte = new WeakMap();
-function tickCarrosseis() {
-  document.querySelectorAll('.col-body').forEach(el => {
+// Coluna que não cabe na tela rola sozinha devagar, para no fim e volta ao topo.
+// A coluna é refeita a cada 10 s: o estado fica por posição, não no elemento.
+setInterval(() => {
+  document.querySelectorAll('.et-bd').forEach((el, i) => {
     if (el.scrollHeight <= el.clientHeight + 4) { el.scrollTop = 0; return; }
     const agora = Date.now();
-    const pausadoAte = carrosselPausadoAte.get(el) || 0;
-    if (agora < pausadoAte) return;
-    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 1) {
-      el.scrollTop = 0;
-      carrosselPausadoAte.set(el, agora + 2500);
-    } else {
-      el.scrollTop += 1;
-    }
+    if (agora < (pausaAte[i] || 0)) return;
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 1) { rolou[i] = true; el.scrollTop = 0; pausaAte[i] = agora + 2500; } else el.scrollTop += 1;
   });
+}, 60);
+
+function relogio() {
+  const d = new Date(), dias = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+  $('relogio').textContent = `${dias[d.getDay()]} ${d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} ${d.toTimeString().slice(0, 5)}`;
 }
-setInterval(tickCarrosseis, 60);
-
-// Mesmo padrão dos outros painéis de TV do sistema.
-document.getElementById('btn-fs').addEventListener('click', () => {
-  if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
-});
-
-relogio();
-setInterval(relogio, 1000);
-carregar();
-setInterval(carregar, 10000);
-// Recarrega a página inteira de tempos em tempos pra sempre pegar a versão
-// mais nova do HTML/JS publicada, igual os outros painéis de TV do sistema.
+function fit() { $('tv').style.setProperty('--u', Math.min(innerWidth / 100, innerHeight / 56.25).toFixed(3)); }
+addEventListener('resize', fit); fit();
+$('btn-fs').addEventListener('click', () => { if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {}); });
+desenhar(); relogio(); setInterval(relogio, 1000);
+carregar(); setInterval(carregar, 10000);
+window.tvSlideAtual = () => lado === 'exp' ? 'Expedição' : 'Conferência';
+if (!EMBED) { const hb = document.createElement('script'); hb.src = '/tv-heartbeat.js'; hb.dataset.painel = 'expedicao'; document.body.appendChild(hb); }
+// Recarrega a página de tempos em tempos pra pegar a versão nova do HTML/JS, igual às outras TVs.
 setTimeout(() => location.reload(), 20 * 60 * 1000);
 </script>
 </body>

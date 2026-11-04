@@ -65,6 +65,7 @@ body{font-family:var(--font,'InterVar','Inter','Segoe UI',system-ui,sans-serif);
     <button data-aba="rh" role="tab"><span class="dot" id="dot-rh"></span>Painel RH/DP</button>
     <button data-aba="acougue" role="tab"><span class="dot" id="dot-acougue"></span>Painel Açougue</button>
     <button data-aba="fiscal" role="tab"><span class="dot" id="dot-fiscal"></span>Painel Fiscal</button>
+    <button data-aba="expedicao" role="tab"><span class="dot" id="dot-expedicao"></span>Painel Expedição CD</button>
   </div>
 
   <section class="aba on" id="aba-monitor"><iframe data-src="/paineis-tvs.html?embed=1" title="Monitor dos painéis"></iframe></section>
@@ -93,6 +94,14 @@ body{font-family:var(--font,'InterVar','Inter','Segoe UI',system-ui,sans-serif);
   <section class="aba" id="aba-televendas"><iframe data-src="/cahu-tv-televendas.html?embed=1" title="Painel Televendas"></iframe></section>
   <section class="aba" id="aba-rh"><iframe data-src="/tv-rh-config.html?embed=1" title="Painel RH/DP"></iframe></section>
   <section class="aba" id="aba-acougue"><iframe data-src="/tv-acougue-config.html?embed=1" title="Painel Açougue"></iframe></section>
+  <section class="aba" id="aba-expedicao">
+    <div class="card" style="margin-bottom:12px">
+      <h2>Link da TV</h2>
+      <p class="d">Abra na TV do CD. Não tem token nem login. O painel é fixo, com as 5 colunas; alterna Expedição 180 s e Conferência 30 s, e só troca depois que a coluna comprida mostrou todos os pedidos.</p>
+      <div class="links"><span class="lb">Link</span><input class="lk" id="pe-link" readonly><button class="btn" data-copia="pe-link">Copiar</button></div>
+    </div>
+    <iframe data-src="/painel-cd.html?embed=1" title="Painel Expedição CD" style="height:auto;aspect-ratio:16/9;min-height:0"></iframe>
+  </section>
   <section class="aba" id="aba-fiscal">
     <div class="pc">
       <div class="card">
@@ -132,17 +141,18 @@ function abrir(id, push) {
   });
   if (id === 'compras') carregarCompras();
   if (id === 'fiscal') carregarFiscal();
+  if (id === 'expedicao') $('#pe-link').value = location.origin + '/painel-cd.html';
   if (push) history.replaceState(null, '', '#' + id);
 }
 document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => abrir(b.dataset.aba, true)));
 const ini = location.hash.replace('#', '');
-abrir(['monitor', 'compras', 'televendas', 'rh', 'acougue', 'fiscal'].includes(ini) ? ini : 'monitor', false);
+abrir(['monitor', 'compras', 'televendas', 'rh', 'acougue', 'fiscal', 'expedicao'].includes(ini) ? ini : 'monitor', false);
 
 // ── bolinha de status em cada aba (mesma leitura do monitor, a cada 15 s) ──
 async function status() {
   try {
     const d = await api('/api/paineis');
-    for (const p of ['compras', 'televendas', 'rh', 'acougue', 'fiscal']) {
+    for (const p of ['compras', 'televendas', 'rh', 'acougue', 'fiscal', 'expedicao']) {
       const telas = d.telas.filter(t => t.painel === p);
       const st = telas.some(t => t.status === 'ligada') ? 'ligada' : telas.some(t => t.status === 'instavel') ? 'instavel' : telas.length ? 'desligada' : '';
       const el = $('#dot-' + p); el.className = 'dot ' + st; el.title = st ? ({ ligada: 'Ligada', instavel: 'Instável', desligada: 'Desligada' })[st] : 'Nenhum aparelho deu sinal';

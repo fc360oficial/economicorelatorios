@@ -5374,6 +5374,12 @@ async function nRegRecente(tabela) {
     return min;
   } catch (e) { console.error('[PAINEL-CD] limite nReg', tabela, e.message); return c ? c.min : null; }
 }
+// "AAAA-MM-DDTHH:MM" na hora local, pra TV calcular o tempo na fila; o ERP guarda data e hora em campos separados (hora = varchar)
+function momentoPainel(data, hora) {
+  if (!data || !hora) return null;
+  const d = new Date(data);
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10) + 'T' + String(hora).trim().slice(0, 5);
+}
 async function montarListaExpedicao() {
   // Pedido pendente (Status<4) fica visível enquanto não for liberado, mesmo
   // que tenha entrado em dia anterior (senão pedido travado, tipo o 00807,
@@ -5382,7 +5388,7 @@ async function montarListaExpedicao() {
   // "Liberado" sempre fica restrito a hoje, senão cresceria pra sempre.
   const nMin = await nRegRecente('painel_televendas');
   const rows = await q(`
-    SELECT nReg, nPedido as pedido, NomeFornec as nome, Status, HoraEntrada
+    SELECT nReg, nPedido as pedido, NomeFornec as nome, Status, DataEntrada, HoraEntrada, DataConferido, HoraConferido, DataLiberacao, HoraLiberacao
     FROM central.painel_televendas
     WHERE ${nMin != null ? 'nReg >= ? AND ' : ''}nLoja = 10 AND (
       (Status < 4 AND DataEntrada >= CURDATE() - INTERVAL 7 DAY)
@@ -5404,7 +5410,7 @@ async function montarListaExpedicao() {
     const dl = STATUS_EXPEDICAO[r.Status] || 'separacao'; const eco = coletor[String(r.pedido)] || null;
     const ec = eco ? (eco.reconferir ? 'reconferir' : ECO_COL[eco.status] || null) : null;
     const ecoGanha = !!ec && RANK[ec] >= RANK[dl];
-    colunas[ecoGanha ? ec : dl].push({ pedido: String(r.pedido), nome: r.nome || 'N/I', origem: ecoGanha ? 'eco' : 'dlinks', coletor: eco, dlinks: dl });
+    colunas[ecoGanha ? ec : dl].push({ pedido: String(r.pedido), nome: r.nome || 'N/I', origem: ecoGanha ? 'eco' : 'dlinks', coletor: eco, dlinks: dl, entrada: momentoPainel(r.DataEntrada, r.HoraEntrada), conferido: momentoPainel(r.DataConferido, r.HoraConferido), liberacao: momentoPainel(r.DataLiberacao, r.HoraLiberacao) });
   }
   const resumo = { total: rows.length };
   for (const c of COLUNAS_EXPEDICAO) resumo[c] = colunas[c].length;
