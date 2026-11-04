@@ -9771,8 +9771,10 @@ require('./lib/pagamentos-df-rotas')(app, { pontocerto });
 // folha mensal, o módulo identifica cada funcionário no PontoCerto e cruza com os pagamentos nas contas Itaú das lojas (só leitura);
 // diferenças viram divergências com protocolo, setor responsável e prazo. Regras em lib/auditoria-folha.js.
 require('./lib/auditoria-folha-rotas')(app, { pontocerto, multer });
-// Comprovantes Bancários (04/11/2026, DP / RH): fases A e B, só demonstração com dados fictícios; não lê banco e não grava nada.
-require('./lib/comprovantes-bancarios-rotas')(app);
+// Comprovantes Bancários (04/11/2026, DP / RH): base montada SOZINHA por lib/comprovantes-bancarios-sync.js (Tiago: "deixa isso
+// automático") — Auditoria da Folha + Pagamentos Dom/Feriados + contas a pagar do ERP (só SELECT) + extrato Itaú; 3 min após subir e a
+// cada 4 h (COMPROVANTES_SYNC_MIN; COMPROVANTES_SYNC=0 desliga nos mocks). Débito só sugere; nada movimenta dinheiro.
+require('./lib/comprovantes-bancarios-rotas')(app, { q, pontocerto });
 // Conciliação automática dos pagamentos de domingos/feriados com o extrato Itaú de cada loja (23/10/2026, Tiago: "quero que fique
 // automático"): 10 min após subir e a cada 6 h; só marca pago quem bateu por CPF + valor, o resto vira sugestão na tela do Financeiro.
 setTimeout(function agendaConciliacaoDF() { require('./lib/pagamentos-conciliacao').conciliarTodos().catch(e => console.error('[pagamentos-df] conciliação:', e.message)).finally(() => setTimeout(agendaConciliacaoDF, 6 * 3600000)); }, 10 * 60000);
