@@ -34,11 +34,17 @@ test('conta por loja e no total; pendentes só sem nota / a caminho; cotação v
   assert.deepEqual([L1.total, L1.entregues, L1.a_entregar, L1.a_caminho, L1.bipada], [3, 0, 1, 1, 1]);
   assert.deepEqual([L2.total, L2.entregues], [1, 1]);
   assert.deepEqual(L1.pendentes.map(p => [p.pedido, p.situacao]), [[1, 'aguardando_nota'], [2, 'nota_emitida']]);
+  // 04/11/2026: 4 números da tela (chegou = entregue ou bipada; falta = sem nota ou a caminho) + lista de quem é quem
+  assert.deepEqual([c3.chegou, c3.parcial, c3.falta, c3.nao_vem], [2, 0, 2, 0]);
+  assert.deepEqual(L1.lista.map(p => [p.pedido, p.grupo]), [[1, 'falta'], [2, 'falta'], [3, 'chegou']]);
+  assert.deepEqual(L2.lista.map(p => [p.pedido, p.grupo, p.situacao]), [[1, 'chegou', 'fechado']]);
   assert.match(L1.pendentes[0].texto, /o pedido #1 \(L\) da Loja 1 · CAHU .* ainda não chegou/);
   assert.equal(L1.pendentes[0].vendedor.whats, '81999990001');
   const c1 = R[1];
   assert.equal(c1.dias, 18); assert.equal(c1.velha, true);
   assert.deepEqual([c1.total, c1.entregues, c1.nao_entregues, c1.a_entregar, c1.parcial, c1.abertos], [3, 0, 1, 1, 1, 2]);
+  assert.deepEqual([c1.chegou, c1.parcial, c1.falta, c1.nao_vem], [0, 1, 1, 1]);
+  assert.deepEqual(c1.lojas[0].lista.map(p => [p.pedido, p.grupo]), [[4, 'falta'], [5, 'parcial'], [6, 'nao_vem']]);
   // situação do pedido fechado como não entregue
   const s6 = fp.situacaoLoja(pedidos[5], 1, hoje);
   assert.equal(s6.codigo, 'fechado'); assert.equal(s6.nao_entregue, true); assert.match(s6.texto, /^Não entregue · fechado pelo fiscal 16\/10/);
