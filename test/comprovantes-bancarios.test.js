@@ -2,64 +2,36 @@
 const test = require('node:test'), assert = require('assert');
 const fs = require('fs'), os = require('os'), path = require('path');
 process.env.GP_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'gp-cb-'));
+process.env.COMPROVANTES_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'cb-'));
 const GP = require('../lib/gestao-pessoas');
-const D = require('../lib/comprovantes-bancarios-demo');
+const CB = require('../lib/comprovantes-bancarios');
 
-// Trava da demonstração: enquanto a Fase C não for aprovada, o módulo só pode conter dado fictício e nenhuma ação de pagamento.
-test('demonstração só tem nomes e identificadores fictícios', () => {
-  for (const p of D.PAGAMENTOS) { assert.match(p.nome, /Exemplo|Fictício/); assert.match(p.idf, /^DEMO-/); assert.match(p.cpf, /^\*\*\*\.\d{3}\.\d{3}-\*\*$/); if (p.idBanco) assert.match(p.idBanco, /^DEMO-/); }
-  for (const g of D.GUIAS) assert.match(g.numero, /^DEMO-/);
+test('sem dado fictício: base nasce vazia e o catálogo é consistente', () => {
+  const d = CB.dados();
+  for (const k of ['PAGAMENTOS', 'GUIAS', 'LOTES', 'LOTES_GUIA', 'PENDENCIAS', 'AUDITORIA']) assert.deepStrictEqual(d[k], [], k);
+  assert.ok(!JSON.stringify(d).match(/Exemplo|Fictíci|DEMO-/), 'nenhum nome ou identificador fictício');
+  assert.strictEqual(d.HOMOLOGACAO.length, 16); assert.strictEqual(new Set(d.ALERTAS_GUIA.flatMap(a => a.k)).size, 8);
+  for (const a of d.ALERTAS_GUIA) for (const k of a.k) assert.ok(d.ALERTAS[k], k);
+  assert.match(d.HOJE, /^\d{4}-\d{2}-\d{2}$/);
 });
-test('sem confirmação bancária não existe comprovante nem situação liquidada', () => {
-  for (const p of D.PAGAMENTOS) {
-    if (p.situacao === 'liquidado') { assert.deepStrictEqual(p.cadeia, ['ok', 'ok', 'ok', 'ok'], p.id); assert.ok(p.efetiva, p.id); }
-    if (['agendado', 'enviado', 'processamento', 'aguardando_envio'].includes(p.situacao)) { assert.strictEqual(p.efetiva, null, p.id); assert.ok(!p.docs.some(d => d.classe === 'oficial' || d.classe === 'importado'), p.id); }
-  }
+test('base real é lida quando existe', () => {
+  fs.writeFileSync(path.join(process.env.COMPROVANTES_DIR, 'guias.json'), JSON.stringify([{ id: 'GU-0001', tipo: 'fgts_mensal' }]));
+  assert.strictEqual(CB.dados().GUIAS.length, 1); fs.unlinkSync(path.join(process.env.COMPROVANTES_DIR, 'guias.json'));
 });
-test('lote confere com o total do banco e guia coletiva não vira valor individual', () => {
-  for (const l of D.LOTES) { const m = D.PAGAMENTOS.filter(p => p.lote === l.id); assert.strictEqual(m.length, l.qtdBanco); assert.strictEqual(+m.reduce((a, p) => a + p.valor, 0).toFixed(2), l.total); assert.strictEqual(m.filter(p => p.situacao === 'liquidado').length, l.identificados); }
-  for (const g of D.GUIAS.filter(x => x.coletiva)) for (const t of g.demonstrativo) assert.ok(t.valor < g.valor, g.id);
-});
-test('os 16 cenários apontam para registros que existem', () => {
-  assert.strictEqual(D.HOMOLOGACAO.length, 16);
-  const ids = new Set([...D.PAGAMENTOS.map(p => p.id), ...D.GUIAS.map(g => g.id), ...D.LOTES.map(l => l.id), 'Perfil CPD']);
-  for (const [, , r] of D.HOMOLOGACAO) assert.ok(ids.has(r), r);
-  for (const a of D.PENDENCIAS) assert.ok(D.ALERTAS[a.alerta], a.id);
-  assert.strictEqual(new Set(D.PENDENCIAS.map(a => a.alerta)).size, Object.keys(D.ALERTAS).length, 'todo alerta da seção 12 tem exemplo');
-});
-test('ninguém executa pagamento e RH não vê extrato', () => {
-  const linha = t => D.PERMISSOES.find(r => r[0] === t).slice(1);
+test('ninguém executa pagamento, RH não vê extrato e CPD não vê nada', () => {
+  const linha = t => CB.PERMISSOES.find(r => r[0] === t).slice(1);
   assert.deepStrictEqual(linha('Executar, agendar ou alterar pagamento'), [0, 0, 0, 0, 0]);
   assert.deepStrictEqual(linha('Saldo e extrato geral'), [0, 0, 0, 0, 0]);
-  for (const r of D.PERMISSOES) assert.strictEqual(r[5], 0, 'CPD: ' + r[0]);
+  for (const r of CB.PERMISSOES) assert.strictEqual(r[5], 0, 'CPD: ' + r[0]);
 });
-
-test('rotas: CPD leva 403 no servidor, POST é recusado e Coordenação recebe a demonstração', async () => {
+test('rotas: CPD leva 403 no servidor, POST é recusado e Coordenação recebe os dados', async () => {
   const express = require('express'); const montar = require('../lib/comprovantes-bancarios-rotas');
   GP.salvarConfig({ designados: [{ usuario: 'c.user', papeis: ['coordenacao'], lojas: [] }, { usuario: 'p.user', papeis: ['cpd'], lojas: [1] }, { usuario: 'r.user', papeis: ['rh_doc'], lojas: [] }] }, { usuario: 'admin', perfil: 'admin' });
-  const app = express(); app.use((req, res, next) => { const u = req.headers['x-u']; req.session = u ? { user: { usuario: u, nome: 'Teste Exemplo', perfil: 'usuario' } } : {}; next(); }); montar(app);
-  const srv = app.listen(0); const url = 'http://127.0.0.1:' + srv.address().port + '/api/comprovantes-bancarios/demo';
+  const app = express(); app.use((req, res, next) => { const u = req.headers['x-u']; req.session = u ? { user: { usuario: u, nome: 'Teste', perfil: 'usuario' } } : {}; next(); }); montar(app);
+  const srv = app.listen(0); const url = 'http://127.0.0.1:' + srv.address().port + '/api/comprovantes-bancarios/dados';
   try {
     const st = async (u, m) => (await fetch(url, { method: m || 'GET', headers: u ? { 'x-u': u } : {} })).status;
     assert.strictEqual(await st(null), 401); assert.strictEqual(await st('p.user'), 403); assert.strictEqual(await st('sem.papel'), 403);
     assert.strictEqual(await st('c.user'), 200); assert.strictEqual(await st('r.user'), 200); assert.strictEqual(await st('c.user', 'POST'), 405);
   } finally { srv.close(); }
-});
-
-test('guia só quita com confirmação e toda referência existe', () => {
-  for (const g of D.GUIAS) {
-    assert.strictEqual(g.conc.crit.identificador, 'nd', 'o extrato não traz número da guia: ' + g.id);
-    if (g.situacao === 'paga') assert.strictEqual(g.conc.res, 'confirmada', g.id);
-    if (g.conc.res === 'sugestao') { assert.notStrictEqual(g.situacao, 'paga', g.id); assert.strictEqual(g.pagamento, null, g.id); }
-    if (g.conc.res === 'parcial') assert.ok(g.conc.debitos[0].valor < g.valor, g.id);
-    if (g.conc.res === 'duplicada') assert.strictEqual(g.conc.debitos.length, 2, g.id);
-    assert.ok(D.SIT_GUIA[g.situacao], g.id); assert.ok(D.RES_CONC[g.conc.res], g.id);
-  }
-  const ids = new Set([...D.PAGAMENTOS.map(p => p.id), ...D.GUIAS.map(g => g.id)]);
-  for (const a of D.PENDENCIAS) if (/^(PG|GU)-/.test(a.ref)) assert.ok(ids.has(a.ref), a.ref);
-  for (const l of D.LOTES_GUIA) assert.strictEqual(+l.guias.map(i => D.GUIAS.find(g => g.id === i).valor).reduce((a, b) => a + b, 0).toFixed(2), l.total);
-});
-test('demonstrativo: valor individual menor que a guia coletiva e rescisória com uma pessoa', () => {
-  for (const g of D.GUIAS) { if (g.coletiva) for (const t of g.demonstrativo) assert.ok(t.valor < g.valor, g.id); else if (g.demonstrativo.length) { assert.strictEqual(g.demonstrativo.length, 1, g.id); assert.strictEqual(g.demonstrativo[0].valor, g.valor, g.id); } }
-  for (const a of D.ALERTAS_GUIA) for (const k of a.k) assert.ok(D.ALERTAS[k], k);
 });
