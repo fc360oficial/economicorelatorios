@@ -57,8 +57,13 @@ svg.ic{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2;stroke-
 .ped em{font:700 1.3em/1 var(--fd);font-style:normal;color:#bdb8aa;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
 .ped em.am{color:var(--amarelo)}.ped em.vm{color:#fff;background:var(--vermelho);padding:.08em .3em;border-radius:.15em;justify-self:end}
 .ped small{grid-column:1/-1;font:500 1em/1.3 var(--fb);color:var(--mudo);text-transform:uppercase;overflow-wrap:anywhere}
-/* passo do Coletor Econômico: só aparece em pedido que passou pelo nosso coletor */
-.ped .sit{grid-column:1/-1;justify-self:start;margin-top:.25em;font:700 1em/1.2 var(--fd);letter-spacing:.06em;text-transform:uppercase;background:var(--amarelo);color:var(--ink);padding:.1em .45em;border-radius:.2em;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* selo de quem levou o pedido até a coluna (ECO = nosso coletor, DLINKS = painel do Dlinks) */
+.ped .id{display:flex;align-items:center;gap:.5em;min-width:0}
+.org{font:800 .95em/1 var(--fd);letter-spacing:.08em;padding:.18em .45em;border-radius:.22em;background:#2e2e2e;color:#bdb8aa}
+.org.eco{background:var(--amarelo);color:var(--ink)}
+/* passo do Coletor Econômico: aparece em todo pedido que passou pelo nosso coletor; cor = etapa, como no painel antigo */
+.ped .sit{grid-column:1/-1;justify-self:start;margin-top:.25em;font:700 1em/1.2 var(--fd);letter-spacing:.06em;text-transform:uppercase;background:#2e2e2e;color:#e8e5da;padding:.1em .45em;border-radius:.2em;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ped .sit.sep{background:#1D4F9166;color:#9CC4FF}.ped .sit.car{background:#F5B80033;color:#FFD866}.ped .sit.fis{background:#FF8FA333;color:#FF8FA3}.ped .sit.ok{background:#7BE0A633;color:#7BE0A6}
 .et-vz{margin:auto;font:600 1.15em var(--fb);color:#5b574d;text-align:center;letter-spacing:.06em;text-transform:uppercase}
 .barra{flex:none;margin-top:.9em;display:flex;align-items:center;gap:1.2em}
 .barra span{font:700 1.15em var(--fd);letter-spacing:.14em;text-transform:uppercase;color:#cfcabb;white-space:nowrap}
@@ -90,7 +95,7 @@ svg.ic{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2;stroke-
   </div>
   <div class="foot">
     <span class="sl" id="stamp"></span><span class="sp"></span>
-    <span class="val">Coluna do lado mais adiantado: <b>coletor Econômico</b> ou <b>Dlinks</b></span>
+    <span class="val"><b>ECO</b> = coletor Econômico · <b>DLINKS</b> = painel do Dlinks</span>
     <span class="cnt" id="troca"></span>
     <button type="button" id="btn-fs" title="Tela cheia">⛶</button>
   </div>
@@ -110,8 +115,10 @@ const tempo = m => m < 60 ? m + ' min' : m < 1440 ? Math.floor(m / 60) + ' h ' +
 const cor = m => m >= LIM_VM ? 'vm' : m >= LIM_AM ? 'am' : '';
 
 function linha(p, em, cls) {
-  const col = p.origem === 'eco' && p.coletor ? `<span class="sit">${esc(p.coletor.rotulo)}${p.coletor.quem ? ' · ' + esc(p.coletor.quem) : ''}</span>` : '';
-  return `<div class="ped"><b>${esc(p.pedido)}</b>${em ? `<em class="${cls || ''}">${em}</em>` : ''}<small>${esc(p.nome)}</small>${col}</div>`;
+  const eco = p.origem === 'eco';
+  const selo = `<span class="org${eco ? ' eco' : ''}" title="${eco ? 'posição vem do Coletor Econômico' : 'posição vem do painel do Dlinks'}">${eco ? 'ECO' : 'DLINKS'}</span>`;
+  const col = p.coletor ? `<span class="sit ${esc(p.coletor.cor || '')}">${esc(p.coletor.rotulo)}${p.coletor.quem ? ' · ' + esc(p.coletor.quem) : ''}</span>` : '';
+  return `<div class="ped"><span class="id"><b>${esc(p.pedido)}</b>${selo}</span>${em ?`<em class="${cls || ''}">${em}</em>` : ''}<small>${esc(p.nome)}</small>${col}</div>`;
 }
 const naFila = p => { if (!p.entrada) return linha(p); const m = minDesde(p.entrada); return linha(p, tempo(m), cor(m)); };
 const emReconferir = p => { const q = p.conferido || p.entrada; return linha(p, q ? tempo(minDesde(q)) : '', 'vm'); };
