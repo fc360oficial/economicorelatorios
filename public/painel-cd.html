@@ -78,6 +78,8 @@ svg.ic{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2;stroke-
 .foot .val{font:600 1.15em var(--fb);letter-spacing:.04em;color:#bdb8aa;white-space:nowrap}
 .foot .val b{color:var(--amarelo);font-weight:700}
 .foot .cnt{font:700 1.4em var(--fd);color:var(--mudo);letter-spacing:.06em;font-variant-numeric:tabular-nums;flex:none}
+#som{font:700 1.05em var(--fb);letter-spacing:.06em;text-transform:uppercase;background:var(--amarelo);color:var(--ink);border:0;border-radius:.35em;padding:.4em .8em;cursor:pointer;white-space:nowrap}
+#som.ativo{background:none;color:#6fd391;border:.08em solid #2f5e3f;cursor:default}
 #btn-fs{background:none;border:.08em solid #3a3a3a;border-radius:.3em;color:#bdb8aa;font-size:1.3em;width:1.9em;height:1.9em;cursor:pointer}
 @media (prefers-reduced-motion:reduce){.al-faixa,.kp.vm b,.et.vm .et-hd b{animation:none}}
 </style>
@@ -97,6 +99,7 @@ svg.ic{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2;stroke-
     <span class="sl" id="stamp"></span><span class="sp"></span>
     <span class="val"><b>ECO</b> = coletor Econômico · <b>DLINKS</b> = painel do Dlinks</span>
     <span class="cnt" id="troca"></span>
+    <button type="button" id="som" hidden></button>
     <button type="button" id="btn-fs" title="Tela cheia">⛶</button>
   </div>
 </div>
@@ -104,7 +107,7 @@ svg.ic{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:2;stroke-
 const EMBED = new URLSearchParams(location.search).get('embed') === '1';   // prévia em Processos › Painéis: sem som e sem contar como TV ligada
 const LIM_AM = 90, LIM_VM = 120;   // minutos na fila (Tiago, 04/11): amarelo a partir de 1h30, vermelho a partir de 2h
 const TEMPO_TELA = { exp: 180, conf: 30 }, MAX_TELA_SEG = 240;
-const SEG_ALERTA = 4000;
+const SEG_ALERTA = 4000, SEG_SIRENE = 5;
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const $ = id => document.getElementById(id);
 const IC_GRADE = '<svg class="ic" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>';
@@ -218,6 +221,49 @@ function beep() {
 document.addEventListener('click', () => {
   try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {}); } catch (e) {}
 });
+// Sirene (Tiago, 04/11): reconferência NOVA toca SEG_SIRENE segundos, uma vez só; a faixa segue piscando em silêncio. Na 1ª abertura do
+// aparelho o que já existia não toca. Pedido que saiu de Reconferir e voltou toca de novo. Leitura vazia (ERP fora) não esquece nada.
+function bipe(f, ini, dur) {
+  const a = audioCtx, o = a.createOscillator(), g = a.createGain(); o.type = 'square'; o.frequency.value = f;
+  g.gain.setValueAtTime(0.0001, a.currentTime + ini); g.gain.exponentialRampToValueAtTime(0.35, a.currentTime + ini + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + ini + dur);
+  o.connect(g); g.connect(a.destination); o.start(a.currentTime + ini); o.stop(a.currentTime + ini + dur + 0.05);
+}
+let sireneTimer = null;
+function tocarSirene(seg) {
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+    clearInterval(sireneTimer);
+    const fim = Date.now() + seg * 1000;
+    const toque = () => { if (Date.now() > fim) { clearInterval(sireneTimer); return; } bipe(988, 0, 0.18); bipe(1319, 0.22, 0.18); bipe(988, 0.44, 0.18); bipe(1319, 0.66, 0.25); };
+    toque(); sireneTimer = setInterval(toque, 1500);
+  } catch (e) {}
+}
+const CHAVE_VISTAS = 'fc360.cd.reconfVistas';
+let VISTAS = null;
+function lerVistas() { try { const a = JSON.parse(localStorage.getItem(CHAVE_VISTAS) || 'null'); return Array.isArray(a) ? new Set(a) : null; } catch (e) { return null; } }
+function gravarVistas() { try { localStorage.setItem(CHAVE_VISTAS, JSON.stringify([...VISTAS].slice(-300))); } catch (e) {} }
+function reconferenciaNova(d) {
+  const lados = [['exp', d.expedicao], ['conf', d.conferencia]];
+  const atuais = lados.flatMap(([l, x]) => (x.colunas.reconferir || []).map(p => l + '|' + p.pedido));
+  if (VISTAS === null) VISTAS = lerVistas();
+  if (VISTAS === null) {
+    if (!d.expedicao.resumo.total && !d.conferencia.resumo.total) return false;
+    VISTAS = new Set(atuais); gravarVistas(); return false;
+  }
+  const novas = atuais.filter(k => !VISTAS.has(k));
+  for (const [l, x] of lados) if (x.resumo.total) for (const k of [...VISTAS]) if (k.startsWith(l + '|') && !atuais.includes(k)) VISTAS.delete(k);
+  novas.forEach(k => VISTAS.add(k)); gravarVistas();
+  return novas.length > 0;
+}
+// Indicador no rodapé: o navegador só libera som depois de um clique na tela (ou Chrome com --autoplay-policy=no-user-gesture-required).
+function conferirSom() {
+  if (EMBED) return;
+  const b = $('som'), ok = audioCtx && audioCtx.state === 'running';
+  b.hidden = false; b.classList.toggle('ativo', !!ok); b.textContent = ok ? '🔊 Som ativo' : '🔇 Clique pra ligar o som';
+}
+try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); audioCtx.resume().then(conferirSom).catch(() => {}); } catch (e) {}
+setInterval(conferirSom, 3000);
 let estadoAnterior = { exp: null, conf: null };
 function mudou(chave, dados) {
   const novo = {};
@@ -232,7 +278,8 @@ function carregar() {
     if (d.error) throw new Error(d.error);
     D = d; erro = ''; ultimoOk = new Date(d.geradoEm).toTimeString().slice(0, 5);
     const a = mudou('exp', d.expedicao), b = mudou('conf', d.conferencia);
-    if ((a || b) && !EMBED) beep();
+    const nova = reconferenciaNova(d);
+    if (!EMBED) { if (nova) tocarSirene(SEG_SIRENE); else if (a || b) beep(); }
     ALERTA = montarAlerta(d);
     desenhar();
   }).catch(e => { erro = e.message; desenharRodape(); });
