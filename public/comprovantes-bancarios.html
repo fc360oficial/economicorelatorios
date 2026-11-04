@@ -105,7 +105,7 @@ const compCel = p => temComp(p) ? '<span class="tag pos">Disponível</span>' : p
 const diasAte = d => Math.round((new Date(d + 'T12:00:00') - new Date(D.HOJE + 'T12:00:00')) / 864e5);
 const guiaProxima = g => g.situacao === 'aguardando' && diasAte(g.vencimento) >= 0 && diasAte(g.vencimento) <= 10;
 // o que cada perfil pode fazer (mesma tabela de PERMISSOES em lib/comprovantes-bancarios.js)
-const POD = { importarOficial: ['financeiro'], validar: ['financeiro'], arquivar: ['rh'], importarGuia: ['financeiro', 'rh'], corrigir: ['financeiro', 'rh', 'coordenacao'], tratar: ['financeiro', 'rh', 'coordenacao'] };
+const POD = { importarOficial: ['financeiro'], validar: ['financeiro'], arquivar: ['rh'], importarGuia: ['financeiro', 'rh'], corrigir: ['financeiro', 'rh', 'coordenacao'], tratar: ['financeiro', 'rh', 'coordenacao'], vincular: ['financeiro', 'coordenacao'], arquivarGed: ['rh', 'coordenacao'] };
 const pode = a => POD[a].includes(PERFIL);
 
 async function iniciar() {
@@ -118,7 +118,7 @@ async function iniciar() {
 }
 const perfilTxt = p => ({ coordenacao: 'Coordenação', financeiro: 'Financeiro', rh: 'RH / DP', diretoria: 'Diretoria', cpd: 'CPD da unidade' })[p] || p;
 const bloqueado = msg => '<div class="nope">' + ic('shield') + '<b>Acesso não autorizado</b><p>' + esc(msg) + '</p></div>';
-const ABAS = [['painel', 'Painel Geral', 'dashboard'], ['consultar', 'Consultar Pagamentos', 'search'], ['rescisoes', 'Rescisões', 'logout'], ['salarios', 'Salários e Adiantamentos', 'users'], ['guias', 'Guias e Encargos Trabalhistas', 'list'], ['conciliacao', 'Conciliação Bancária', 'refresh'], ['pendencias', 'Pendências e Divergências', 'alert'], ['historico', 'Histórico e Auditoria', 'calendar'], ['config', 'Configurações', 'settings']];
+const ABAS = [['painel', 'Painel Geral', 'dashboard'], ['consultar', 'Consultar Pagamentos', 'search'], ['banco', 'Consultar Banco', 'bank'], ['rescisoes', 'Rescisões', 'logout'], ['salarios', 'Salários e Adiantamentos', 'users'], ['guias', 'Guias e Encargos Trabalhistas', 'list'], ['conciliacao', 'Conciliação Bancária', 'refresh'], ['pendencias', 'Pendências e Divergências', 'alert'], ['historico', 'Histórico e Auditoria', 'calendar'], ['config', 'Configurações', 'settings']];
 const pendAbertas = () => D.PENDENCIAS.filter(p => p.situacao !== 'resolvida');
 function render() {
   const vazio = !D.PAGAMENTOS.length && !D.GUIAS.length;
@@ -128,7 +128,7 @@ function render() {
   const n = pendAbertas().length;
   const tabs = '<div class="tabs">' + ABAS.map(([id, t, i]) => '<a class="' + (id === TAB ? 'on' : '') + '" onclick="abrir(\'' + id + '\')">' + ic(i) + t + (id === 'pendencias' && n ? '<i>' + n + '</i>' : '') + '</a>').join('') + '</div>';
   $('#page').innerHTML = faixa + cab + tabs + '<div id="aba"></div>';
-  ({ painel: abaPainel, consultar: abaConsultar, rescisoes: abaRescisoes, salarios: abaSalarios, guias: abaGuias, conciliacao: abaConciliacao, pendencias: abaPendencias, historico: abaHistorico, config: abaConfig })[TAB]();
+  ({ painel: abaPainel, consultar: abaConsultar, banco: abaBanco, rescisoes: abaRescisoes, salarios: abaSalarios, guias: abaGuias, conciliacao: abaConciliacao, pendencias: abaPendencias, historico: abaHistorico, config: abaConfig })[TAB]();
 }
 function abrir(t) { TAB = t; SEL = null; history.replaceState(null, '', '#' + t); render(); window.scrollTo(0, 0); }
 function trocarPerfil(p) { PERFIL = p; render(); }
@@ -322,6 +322,82 @@ function syncDetalheHtml() {
   const naoCl = '<div class="box"><h3>Títulos do ERP não classificados (' + ((f.erp && f.erp.ignorados) || 0) + ')</h3><div class="ct"><div class="aviso">Ficam fora do módulo por não serem obrigação do DP/RH ou por histórico que não identifica a natureza. O Financeiro pode padronizar o histórico no ERP (FGTS, INSS, DARF, 13) para entrarem no próximo ciclo.</div></div>' + (nc.length ? '<div class="tw"><table class="t"><thead><tr><th>Título</th><th>Loja</th><th>Conta</th><th>Histórico</th><th class="r">Valor</th><th>Vencimento</th><th>Motivo</th></tr></thead><tbody>' + nc.map(x => '<tr><td>' + esc(x.nReg) + '</td><td>' + esc(x.lojaTxt) + '</td><td>' + esc(x.conta) + '</td><td class="nm">' + esc(x.historico) + '</td><td class="r">' + brl(x.valor) + '</td><td>' + dBR(x.vencimento) + '</td><td>' + esc(x.motivo) + '</td></tr>').join('') + '</tbody></table></div>' : '') + '</div>';
   const tot = s.totais || {};
   return syncHtml() + '<div class="grid2">' + fonte('Auditoria da Folha', f.auditoriaFolha, [['Competências lidas', 'competencias'], ['Pagamentos gerados', 'pagamentos']]) + fonte('Pagamentos de Domingos e Feriados', f.domFer, [['Relatórios no Financeiro', 'relatorios'], ['Pagamentos gerados', 'pagamentos']]) + fonte('Contas a pagar do ERP', f.erp, [['Títulos lidos', 'titulos'], ['Guias', 'guias'], ['Rescisões', 'rescisoes'], ['Não classificados', 'ignorados']]) + '<div class="box"><h3>Resultado do ciclo</h3><div class="ct"><div class="kv">' + kv('Pagamentos', tot.pagamentos != null ? tot.pagamentos : '—') + kv('Guias', tot.guias != null ? tot.guias : '—') + kv('Lotes', tot.lotes != null ? tot.lotes : '—') + kv('Lotes de guias', tot.lotesGuia != null ? tot.lotesGuia : '—') + kv('Pendências abertas', tot.pendenciasAbertas != null ? tot.pendenciasAbertas : '—') + kv('Débitos usados duas vezes', tot.debitosDuplos != null ? tot.debitosDuplos : '—') + kv('Registros novos neste ciclo', s.novos != null ? s.novos : '—') + kv('Intervalo', (S.intervaloMin || 240) / 60 + ' h') + '</div></div></div></div>' + itau + naoCl + regras;
+}
+// ── CONSULTAR BANCO (lib/comprovantes-bancarios-banco.js): extrato Itaú da loja filtrado ao escopo trabalhista, com vínculo, comprovante e GED ──
+const FB = { loja: '', de: '', ate: '', nome: '', cpf: '', valor: '', tipo: '', idBanco: '', situacao: '' };
+let BC = null, BR = null, BLOJA = null;   // catálogo, último resultado, linha aberta
+const CONC_CLS = { conciliado: 'ok', manual: 'ok', pendente: 'warn', divergencia_valor: 'bad', beneficiario_divergente: 'bad', sem_lancamento: 'gr' };
+const SITB_CLS = { liquidado: 'ok', estornado: 'bad', pendente: 'warn', rejeitado: 'bad' };
+const concP = c => '<span class="pill ' + (CONC_CLS[c] || 'gr') + '">' + esc(BC.CONC_TXT[c] || c) + '</span>';
+const sitBP = s => '<span class="pill ' + (SITB_CLS[s] || 'gr') + '">' + esc(BC.SIT_BANCO[s] || s) + '</span>';
+const setFB = (k, v) => { FB[k] = v; };
+const hojeMenos = n => { const d = new Date(D.HOJE + 'T12:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+async function abaBanco() {
+  if (!BC) { try { BC = await api('/api/comprovantes-bancarios/banco/catalogo'); } catch (e) { $('#aba').innerHTML = '<div class="aviso neg">' + esc(e.message) + '</div>'; return; } }
+  if (!FB.de) { FB.de = hojeMenos(30); FB.ate = D.HOJE; }
+  const optTipo = '<option value="">Todos</option>' + Object.entries(BC.TIPOS_BANCO).map(([k, t]) => '<option value="' + k + '"' + (k === FB.tipo ? ' selected' : '') + '>' + esc(t) + '</option>').join('');
+  const optSit = '<option value="">Todas</option>' + Object.entries(BC.SIT_BANCO).map(([k, t]) => '<option value="' + k + '"' + (k === FB.situacao ? ' selected' : '') + '>' + esc(t) + '</option>').join('');
+  const lojasApi = D.LOJAS.filter(l => BC.CONTAS.some(c => c.loja === l.n));
+  const optLoja = '<option value="">Todas as unidades (E1 a E6)</option>' + lojasApi.map(l => '<option value="' + l.n + '"' + (String(l.n) === FB.loja ? ' selected' : '') + '>' + l.txt + ' · ' + esc(l.nome) + ' · ' + l.cnpj + '</option>').join('');
+  const contaTxt = FB.loja ? (BC.CONTAS.find(c => c.loja === +FB.loja) || {}).conta : 'uma conta por loja';
+  $('#aba').innerHTML = '<div class="aviso inf">Consulta direta à API oficial de extrato do Itaú (somente leitura, credenciais só no servidor). Só pagamentos do escopo trabalhista aparecem; o restante do extrato fica oculto. O banco não entrega o PDF do comprovante pela API: onde houver "Disponível", o documento veio do PDF de comprovantes do Itaú Empresas lido na Auditoria da Folha.</div>' +
+    '<div class="box"><div class="ftb"><label>Empresa / CNPJ pagador · Unidade<select class="ds-select" onchange="setFB(\'loja\',this.value);abaBanco()">' + optLoja + '</select></label><label>Banco e conta<input class="ds-input" value="Itaú Unibanco (341) · ' + esc(contaTxt) + '" disabled></label><label>Período de<input type="date" class="ds-input" value="' + FB.de + '" onchange="setFB(\'de\',this.value)"></label><label>até<input type="date" class="ds-input" value="' + FB.ate + '" onchange="setFB(\'ate\',this.value)"></label><label>Tipo de pagamento<select class="ds-select" onchange="setFB(\'tipo\',this.value)">' + optTipo + '</select></label><label>Situação<select class="ds-select" onchange="setFB(\'situacao\',this.value)">' + optSit + '</select></label></div>' +
+    '<div class="ftb ln"><label class="busca">Funcionário ou beneficiário<input class="ds-input" value="' + esc(FB.nome) + '" placeholder="Nome…" oninput="setFB(\'nome\',this.value)"></label><label>CPF do beneficiário<input class="ds-input" value="' + esc(FB.cpf) + '" placeholder="Só números" oninput="setFB(\'cpf\',this.value)"></label><label>Valor do pagamento<input class="ds-input" value="' + esc(FB.valor) + '" placeholder="0,00" oninput="setFB(\'valor\',this.value)"></label><label>Identificador da transação<input class="ds-input" value="' + esc(FB.idBanco) + '" placeholder="Id do banco" oninput="setFB(\'idBanco\',this.value)"></label><div class="end"><button class="ds-btn am" id="btnBanco" onclick="consultarBanco()">' + ic('bank') + 'CONSULTAR BANCO</button></div></div></div>' +
+    '<div id="resBanco">' + (BR ? '' : '<div class="empty"><b>Nenhuma consulta feita ainda</b>Escolha a unidade e o período e clique em CONSULTAR BANCO. Cada consulta fica registrada na auditoria.</div>') + '</div>';
+  if (BR) desenharBanco();
+}
+async function consultarBanco() {
+  const btn = $('#btnBanco'); if (btn) { btn.disabled = true; btn.textContent = 'Consultando o banco…'; }
+  try { const qs = Object.entries(FB).filter(([, v]) => v !== '').map(([k, v]) => k + '=' + encodeURIComponent(v)).join('&'); BR = await api('/api/comprovantes-bancarios/banco/consultar?' + qs); BLOJA = null; desenharBanco(); }
+  catch (e) { toast(e.message); $('#resBanco').innerHTML = '<div class="aviso neg">' + esc(e.message) + '</div>'; }
+  finally { if (btn) { btn.disabled = false; btn.innerHTML = ic('bank') + 'CONSULTAR BANCO'; } }
+}
+const compCelB = l => l.comprovante.disponivel ? '<span class="tag pos">Disponível</span>' : (l.membros && l.membros.some(m => m.comprovante.disponivel) ? '<span class="tag am">Por funcionário</span>' : '<span class="tag gr" title="' + esc(l.comprovante.motivo) + '">Indisponível</span>');
+function desenharBanco() {
+  const r = BR; const lojas = r.lojas.map(l => l.erro ? '<span class="pill bad">' + esc(l.lojaTxt) + ': ' + esc(l.erro) + '</span>' : '<span class="pill ok">' + esc(l.lojaTxt) + ' · ' + l.incluidos + ' de ' + l.lidos + '</span>').join(' ');
+  const linhas = r.linhas.map((l, i) => '<tr class="cl" onclick="detBanco(' + i + ')"><td>' + dBR(l.data) + '</td><td class="nm">' + esc(l.favorecido) + (l.vinculo && !l.vinculo.guia && esc(l.vinculo.nome) !== esc(l.favorecido) ? '<small>' + esc(l.vinculo.nome) + '</small>' : '') + (l.lote ? '<small>lote com ' + (l.qtdLote || '?') + ' lançamento(s)' + (l.membros.length ? ' · ' + l.membros.length + ' identificado(s)' : '') + '</small>' : '') + '</td><td>' + esc(l.documentoTxt) + '</td><td>' + etq(l.loja) + '<small>' + esc(l.cnpj) + '</small></td><td>' + esc(BC.TIPOS_BANCO[l.tipo] || l.tipo) + '</td><td class="r"><b>' + brl(l.valor) + '</b></td><td>Itaú (341)</td><td><small style="font-family:monospace">' + esc(l.idBanco || l.ref) + '</small></td><td>' + sitBP(l.situacao) + '</td><td>' + concP(l.conciliacao) + '</td><td class="c">' + compCelB(l) + '</td></tr>').join('');
+  $('#resBanco').innerHTML = '<div class="box"><div class="ftb ln"><b style="font-size:13px">' + r.linhas.length + ' lançamento(s) · ' + dBR(r.periodo.de) + ' a ' + dBR(r.periodo.ate) + '</b><span style="color:var(--ink3);font-size:11.5px">' + r.ocultados + ' lançamento(s) fora do escopo trabalhista ocultado(s)</span><div class="end">' + lojas + '</div></div>' + (r.avisos.length ? '<div class="aviso" style="margin:0 0 8px">' + r.avisos.map(esc).join('<br>') + '</div>' : '') +
+    (r.linhas.length ? '<div class="tw"><table class="t"><thead><tr><th>Data</th><th>Beneficiário</th><th>CPF/CNPJ</th><th>Empresa</th><th>Categoria</th><th class="r">Valor</th><th>Banco</th><th>Identificador</th><th>Situação</th><th>Conciliação</th><th class="c">Comprovante</th></tr></thead><tbody>' + linhas + '</tbody></table></div>' : '<div class="empty"><b>Nenhum lançamento trabalhista no período com esses filtros</b></div>') + '</div>';
+}
+function detBanco(i) {
+  const l = BR.linhas[i]; BLOJA = l; registrarBanco('detalhes', l.idBanco || l.ref, l.favorecido + ' · ' + brl(l.valor));
+  const kv = (a, b) => '<div><span>' + a + '</span><b>' + b + '</b></div>';
+  const vinc = l.vinculo ? '<div class="dc"><div class="fi">RH</div><div><b>' + esc(l.vinculo.nome) + '</b><small>' + esc(l.vinculo.tipoTxt) + ' · ' + compTxt(l.vinculo.comp) + ' · ' + brl(l.vinculo.valor) + ' · ' + esc(l.vinculo.id) + (l.vinculo.manual ? ' · vínculo manual por ' + esc(l.vinculo.por.nome) + ' em ' + dhBR(l.vinculo.em) : '') + '</small></div><div class="a"><button class="ds-btn" onclick="fecharDrawer();' + (l.vinculo.guia ? 'abrir(\'guias\');setTimeout(()=>detGuia(\'' + l.vinculo.id + '\'),50)' : 'detPag(\'' + l.vinculo.id + '\')') + '">Abrir</button>' + (l.vinculo.manual && pode('vincular') ? '<button class="ds-btn" onclick="desvincularBanco(\'' + esc(l.ref) + '\')">Desfazer</button>' : '') + '</div></div>' : '<div class="dc vazio">Nenhum lançamento do RH vinculado.</div>';
+  const cands = l.candidatos && l.candidatos.length ? '<h4>Lançamentos do RH com dados semelhantes</h4><div class="docl">' + l.candidatos.map(c => '<div class="dc"><div class="fi">RH</div><div><b>' + esc(c.nome) + '</b><small>' + esc(D.TIPOS[c.tipo]) + ' · ' + compTxt(c.comp) + ' · ' + brl(c.valor) + ' · ' + sitP(c.situacao) + '</small></div><div class="a">' + (pode('vincular') && Math.abs(c.valor - l.valor) < 0.005 ? '<button class="ds-btn am" onclick="vincularBanco(\'' + esc(l.ref) + '\',\'' + c.id + '\',\'' + esc(l.idBanco || '') + '\')">Vincular</button>' : '<button class="ds-btn" onclick="fecharDrawer();detPag(\'' + c.id + '\')">Abrir</button>') + '</div></div>').join('') + '</div>' + (l.conciliacao === 'pendente' && l.candidatos.length > 1 ? '<div class="motivo am">Mais de um lançamento semelhante: a associação automática foi bloqueada. Só o Financeiro vincula, com identificação inequívoca.</div>' : '') : '';
+  const membros = l.membros && l.membros.length ? '<h4>Funcionários identificados neste lote</h4><div class="docl">' + l.membros.map(m => '<div class="dc"><div class="fi">RH</div><div><b>' + esc(m.nome) + '</b><small>' + esc(m.cpf) + ' · ' + esc(D.TIPOS[m.tipo]) + ' · ' + brl(m.valor) + ' · ' + sitP(m.situacao) + '</small></div><div class="a">' + (m.comprovante.disponivel ? '<button class="ds-btn am" onclick="verComprovante(\'' + m.comprovante.pagamentoId + '\',' + m.comprovante.idx + ')">Comprovante</button>' : '<button class="ds-btn" onclick="fecharDrawer();detPag(\'' + m.id + '\')">Abrir</button>') + '</div></div>').join('') + '</div><div class="motivo am">Comprovante coletivo nunca é atribuído a uma pessoa: cada funcionário só recebe o comprovante individual extraído do PDF do lote.</div>' : '';
+  const comp = l.comprovante.disponivel ? '<div class="dc"><div class="fi">PDF</div><div><b>' + esc(l.comprovante.nome) + '</b><small>' + esc(l.comprovante.origem) + '</small></div><div class="a"><button class="ds-btn am" onclick="verComprovante(\'' + l.comprovante.pagamentoId + '\',' + l.comprovante.idx + ')">Visualizar comprovante</button></div></div>' : '<div class="dc vazio">' + esc(l.comprovante.motivo) + '</div>';
+  drawer('Detalhes da transação', '<div class="kv">' + kv('Data', dBR(l.data)) + kv('Beneficiário', esc(l.favorecido)) + kv('CPF/CNPJ', esc(l.documentoTxt)) + kv('Empresa pagadora', esc(l.lojaTxt) + ' · ' + esc(l.cnpj)) + kv('Categoria', esc(BC.TIPOS_BANCO[l.tipo] || l.tipo)) + kv('Valor', brl(l.valor)) + kv('Banco', 'Itaú Unibanco (341) · conta ' + esc(l.conta)) + kv('Identificador bancário', '<span style="font-family:monospace;font-size:11px">' + esc(l.idBanco || '—') + '</span>') + kv('Referência interna', '<span style="font-family:monospace;font-size:11px">' + esc(l.ref) + '</span>') + kv('Histórico', esc(l.historico)) + (l.bancoFav ? kv('Banco do favorecido', esc(l.bancoFav) + (l.agenciaFav ? ' · ag ' + esc(l.agenciaFav) : '') + (l.contaFav ? ' · cc ' + esc(l.contaFav) : '')) : '') + (l.finalidade ? kv('Finalidade', esc(l.finalidade)) : '') + kv('Situação', sitBP(l.situacao)) + kv('Conciliação', concP(l.conciliacao)) + '</div>' +
+    (l.situacao === 'estornado' ? '<div class="motivo">Lançamento estornado ou devolvido: não comprova pagamento.</div>' : '') + '<h4>Lançamento do RH vinculado</h4><div class="docl">' + vinc + '</div>' + cands + membros + '<h4>Comprovante</h4><div class="docl">' + comp + '</div>' +
+    '<div class="acts"><button class="ds-btn" onclick="auditoriaDe(\'' + esc(l.idBanco || l.ref) + '\',\'' + esc(l.ref) + '\')">Histórico de auditoria</button></div>');
+}
+function registrarBanco(acao, ref, det) { fetch('/api/comprovantes-bancarios/banco/evento', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ acao, ref, det }) }).catch(() => {}); }
+async function vincularBanco(ref, pagamentoId, idBanco) {
+  const obs = prompt('Vincular o lançamento ' + ref + ' ao pagamento ' + pagamentoId + '.\nObservação (opcional):'); if (obs === null) return;
+  try { const r = await fetch('/api/comprovantes-bancarios/banco/vincular', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ref, pagamentoId, idBanco, obs }) }); const j = await r.json(); if (!r.ok) throw new Error(j.error || 'HTTP ' + r.status); toast('Vinculado a ' + j.pagamento.nome); fecharDrawer(); D = await api('/api/comprovantes-bancarios/dados'); await consultarBanco(); }
+  catch (e) { toast(e.message); }
+}
+async function desvincularBanco(ref) {
+  const obs = prompt('Desfazer o vínculo manual de ' + ref + '?\nMotivo:'); if (obs === null) return;
+  try { const r = await fetch('/api/comprovantes-bancarios/banco/desvincular', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ref, obs }) }); const j = await r.json(); if (!r.ok) throw new Error(j.error || 'HTTP ' + r.status); toast('Vínculo desfeito'); fecharDrawer(); D = await api('/api/comprovantes-bancarios/dados'); await consultarBanco(); }
+  catch (e) { toast(e.message); }
+}
+// comprovante individual: página do funcionário extraída do PDF (?pagina=1); BAIXAR = original da página, IMPRIMIR = diálogo do navegador, ARQUIVAR = GED pasta 08
+function verComprovante(pagamentoId, idx) {
+  const p = D.PAGAMENTOS.find(x => x.id === pagamentoId); const d = p && p.docs[idx]; if (!d) return toast('Documento não encontrado');
+  const url = '/api/comprovantes-bancarios/doc/' + encodeURIComponent(pagamentoId) + '/' + idx + '?pagina=1';
+  modal('Comprovante · ' + p.nome, '<iframe id="pdfComp" src="' + url + '" style="width:100%;height:62vh;border:1px solid var(--ln);border-radius:8px;background:#fff"></iframe><div class="aviso inf" style="margin-top:8px">' + esc(d.origem) + '. Documento original preservado; a página é extraída sem alteração.' + (p.arquivado ? ' Arquivado em ' + esc(p.pasta) + '.' : '') + '</div>',
+    '<button class="ds-btn" onclick="fecharModal()">Fechar</button><a class="ds-btn" href="' + url + '&download=1">BAIXAR PDF</a><button class="ds-btn" onclick="imprimirComprovante(\'' + pagamentoId + '\')">IMPRIMIR</button>' + (pode('arquivarGed') && !p.arquivado ? '<button class="ds-btn am" onclick="arquivarGed(\'' + pagamentoId + '\',' + idx + ')">ARQUIVAR NO GED</button>' : ''));
+}
+function imprimirComprovante(pagamentoId) { registrarBanco('impressao', pagamentoId, 'Impressão do comprovante'); const f = $('#pdfComp'); try { f.contentWindow.focus(); f.contentWindow.print(); } catch (e) { window.open(f.src, '_blank'); } }
+async function arquivarGed(pagamentoId, idx) {
+  if (!confirm('Arquivar este comprovante na pasta 08 do prontuário do funcionário (Gestão Documental)?')) return;
+  try { const r = await fetch('/api/comprovantes-bancarios/banco/arquivar-ged', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pagamentoId, idx }) }); const j = await r.json(); if (!r.ok) throw new Error(j.error || 'HTTP ' + r.status); toast('Arquivado: ' + j.protocolo); fecharModal(); D = await api('/api/comprovantes-bancarios/dados'); if (TAB !== 'banco') render(); }
+  catch (e) { toast(e.message); }
+}
+async function auditoriaDe(ref, ref2) {
+  try { const a = await api('/api/comprovantes-bancarios/auditoria?ref=' + encodeURIComponent(ref)); const b = ref2 && ref2 !== ref ? await api('/api/comprovantes-bancarios/auditoria?ref=' + encodeURIComponent(ref2)) : { itens: [] }; const itens = [...a.itens, ...b.itens].sort((x, y) => y.em.localeCompare(x.em));
+    modal('Auditoria · ' + ref, itens.length ? '<div class="tl">' + itens.map(h => '<div><span><b>' + esc(h.quem) + '</b><small>' + esc(h.perfil) + ' · ' + dhBR(h.em) + '</small></span><span><b>' + esc(h.acao) + '</b> ' + esc(h.det) + '</span></div>').join('') + '</div>' : '<div class="empty"><b>Nenhum registro para esta referência</b></div>'); }
+  catch (e) { toast(e.message); }
 }
 iniciar();
 </script>
