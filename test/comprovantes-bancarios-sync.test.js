@@ -44,11 +44,18 @@ let ERP = async () => [
   T(5, 2, 12, 7, 'MULTA JONAS', 2933.84, D(2026, 10, 18)), T(6, 2, 12, 8, 'JONAS', 6505.18, D(2026, 10, 18), { FormaPagamento: 'TRANSFERÊNCIA' }), T(7, 2, 12, 8, 'MARIA', 1500, D(2026, 10, 18)),
   T(8, 3, 12, 20, 'INSS', 100, D(2026, 10, 10), { Devedor: '0', baixaEm: D(2026, 10, 10) }), T(9, 3, 12, 20, 'FGTS', 200, D(2026, 10, 10)), T(10, 3, 12, 20, 'FTGS YGM', 300, D(2026, 10, 10)),
   T(11, 1, 12, 20, 'FGTS', 50, D(2026, 11, 10)), T(12, 10, 12, 20, 'INSS', 10, D(2026, 10, 1)), T(13, 1, 8, 1, 'DARF', 77, D(2026, 10, 5)),
+  // rescisões como saem de verdade: SISPAG Fornecedores para o CNPJ da própria empresa (mesma data da baixa), lote SISPAG Salários de 1 item, e duas somadas num débito
+  T(20, 1, 12, 8, 'PAULO', 1785.63, D(2026, 10, 29), { Devedor: '0', baixaEm: D(2026, 10, 29) }), T(21, 1, 12, 8, 'RITA', 335.35, D(2026, 10, 9), { Devedor: '0', baixaEm: D(2026, 10, 9) }),
+  T(22, 1, 12, 8, 'FABIO', 1136.35, D(2026, 10, 14), { Devedor: '0', baixaEm: D(2026, 10, 14) }), T(23, 1, 12, 8, 'RENATA', 1073.65, D(2026, 10, 14), { Devedor: '0', baixaEm: D(2026, 10, 14) }),
 ];
 const ev = (data, valor, shortened, cp, code) => ({ type: 'lancamento', operation: 'D', amount: { value: -valor }, date: { accounting: data }, literal: { code: code || '9676', shortened, complete: shortened }, counterpart: cp });
 const CEF = { name: 'CEF MATRIZ', document: '00360305000104', person: 'JURIDICA' };
 const EXT = {
-  cahu: [ev('2026-10-20', 3408.74, 'SISPAG FORNECEDORES PIX', CEF), ev('2026-10-27', 61, 'PIX ENVIADO', { name: 'ANA TESTE', document: '11111111111', person: 'FISICA' })],
+  cahu: [ev('2026-10-20', 3408.74, 'SISPAG FORNECEDORES PIX', CEF), ev('2026-10-27', 61, 'PIX ENVIADO', { name: 'ANA TESTE', document: '11111111111', person: 'FISICA' }),
+    ev('2026-10-29', 1785.63, 'SISPAG FORNECEDORES', { name: 'CAHU COMERCIO DE ALIMENTOS', document: '21425302000181', person: 'JURIDICA' }, '7549'),
+    { type: 'agrupamento', operation: 'D', amount: { value: -335.35 }, date: { accounting: '2026-10-09' }, literal: { shortened: 'SISPAG SALARIOS', complete: 'SISPAG SALARIOS' }, number_events: 1 },
+    ev('2026-10-14', 2210, 'SISPAG FORNECEDORES', { name: 'CAHU COMERCIO DE ALIMENTOS', document: '21425302000181', person: 'JURIDICA' }, '7549'),
+    ev('2026-10-14', 2210, 'SISPAG FORNECEDORES PAG TIT', { name: 'DISTRIBUIDORA X', document: '12345678000199', person: 'JURIDICA' }, '7549')],
   muribeca: [ev('2026-10-19', 6505.18, 'PIX ENVIADO', { name: 'JONAS DA SILVA', document: '55555555555', person: 'FISICA' }), ev('2026-10-19', 1500, 'PIX ENVIADO', { name: 'JOSE OUTRO', document: '66666666666', person: 'FISICA' }), ev('2026-10-18', 2933.84, 'SISPAG FORNECEDORES PIX', CEF)],
   ponte: [ev('2026-10-10', 500, 'SISPAG FORNECEDORES PIX', CEF)],
 };
@@ -96,6 +103,9 @@ test('ciclo completo: pagamentos, guias, lotes e pendências saem das fontes, se
   // ERP → rescisões
   const jonas = p('PG-R-6'); assert.strictEqual(jonas.situacao, 'liquidado'); assert.strictEqual(jonas.nome, 'Jonas da Silva Teste'); assert.strictEqual(jonas.cpf, '555.555.555-55'); assert.strictEqual(jonas.guiaRel, 'GU-5'); assert.strictEqual(g('GU-5').demonstrativo[0].nome, 'Jonas da Silva Teste');
   const maria = p('PG-R-7'); assert.strictEqual(maria.situacao, 'divergente'); assert.match(maria.motivo, /JOSE OUTRO/);
+  assert.strictEqual(p('PG-R-20').situacao, 'liquidado'); assert.match(p('PG-R-20').hist[1].txt, /CNPJ da empresa · mesma data da baixa/); assert.strictEqual(p('PG-R-20').efetiva, '2026-10-29');
+  assert.strictEqual(p('PG-R-21').situacao, 'liquidado'); assert.match(p('PG-R-21').hist[1].txt, /lote SISPAG Salários \(1 lançamento\)/);
+  assert.strictEqual(p('PG-R-22').situacao, 'liquidado'); assert.strictEqual(p('PG-R-23').situacao, 'liquidado'); assert.match(p('PG-R-22').hist[1].txt, /soma exata de 2 rescisões/); assert.strictEqual(p('PG-R-22').extratoRef, p('PG-R-23').extratoRef); assert.match(p('PG-R-22').extratoRef, /21425302000181/, 'a soma casa com a transferência da empresa, não com o fornecedor de mesmo valor');
   // pendências
   const ab = PD.filter(x => x.situacao !== 'resolvida'); const por = k => ab.filter(x => x.alerta === k).map(x => x.ref);
   assert.deepStrictEqual(por('guia_vencida').sort(), ['GU-12', 'GU-2']); assert.deepStrictEqual(por('guia_proxima'), ['GU-11']); assert.deepStrictEqual(por('guia_sem_comp'), ['GU-8']);
