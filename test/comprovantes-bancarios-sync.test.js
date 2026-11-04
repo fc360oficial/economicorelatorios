@@ -52,7 +52,8 @@ const ev = (data, valor, shortened, cp, code) => ({ type: 'lancamento', operatio
 const CEF = { name: 'CEF MATRIZ', document: '00360305000104', person: 'JURIDICA' };
 const EXT = {
   cahu: [ev('2026-10-20', 3408.74, 'SISPAG FORNECEDORES PIX', CEF), ev('2026-10-27', 61, 'PIX ENVIADO', { name: 'ANA TESTE', document: '11111111111', person: 'FISICA' }),
-    ev('2026-10-29', 1785.63, 'SISPAG FORNECEDORES', { name: 'CAHU COMERCIO DE ALIMENTOS', document: '21425302000181', person: 'JURIDICA' }, '7549'),
+    ev('2026-10-29', 1785.63, 'SISPAG FORNECEDORES', { name: 'Y.G.M PRESTADORA DE SERVICOS L', document: '41.553.224/0001-08', person: 'JURIDICA' }, '7549'),
+    ev('2026-10-29', 1785.63, 'SISPAG FORNECEDORES PAG TIT', { name: 'FORNECEDOR QUALQUER', document: '41553224000108', person: 'JURIDICA' }, '7549'),
     { type: 'agrupamento', operation: 'D', amount: { value: -335.35 }, date: { accounting: '2026-10-09' }, literal: { shortened: 'SISPAG SALARIOS', complete: 'SISPAG SALARIOS' }, number_events: 1 },
     ev('2026-10-14', 2210, 'SISPAG FORNECEDORES', { name: 'CAHU COMERCIO DE ALIMENTOS', document: '21425302000181', person: 'JURIDICA' }, '7549'),
     ev('2026-10-14', 2210, 'SISPAG FORNECEDORES PAG TIT', { name: 'DISTRIBUIDORA X', document: '12345678000199', person: 'JURIDICA' }, '7549')],
@@ -103,7 +104,7 @@ test('ciclo completo: pagamentos, guias, lotes e pendências saem das fontes, se
   // ERP → rescisões
   const jonas = p('PG-R-6'); assert.strictEqual(jonas.situacao, 'liquidado'); assert.strictEqual(jonas.nome, 'Jonas da Silva Teste'); assert.strictEqual(jonas.cpf, '555.555.555-55'); assert.strictEqual(jonas.guiaRel, 'GU-5'); assert.strictEqual(g('GU-5').demonstrativo[0].nome, 'Jonas da Silva Teste');
   const maria = p('PG-R-7'); assert.strictEqual(maria.situacao, 'divergente'); assert.match(maria.motivo, /JOSE OUTRO/);
-  assert.strictEqual(p('PG-R-20').situacao, 'liquidado'); assert.match(p('PG-R-20').hist[1].txt, /CNPJ da empresa · mesma data da baixa/); assert.strictEqual(p('PG-R-20').efetiva, '2026-10-29');
+  assert.strictEqual(p('PG-R-20').situacao, 'liquidado'); assert.match(p('PG-R-20').hist[1].txt, /transferência SISPAG para Y\.G\.M Prestadora de Serviços · mesma data da baixa/); assert.match(p('PG-R-20').extratoRef, /41553224000108/); assert.ok(!/PAG TIT/.test(p('PG-R-20').hist[1].txt), 'boleto (PAG TIT) não é veículo de rescisão'); assert.strictEqual(p('PG-R-20').efetiva, '2026-10-29');
   assert.strictEqual(p('PG-R-21').situacao, 'liquidado'); assert.match(p('PG-R-21').hist[1].txt, /lote SISPAG Salários \(1 lançamento\)/);
   assert.strictEqual(p('PG-R-22').situacao, 'liquidado'); assert.strictEqual(p('PG-R-23').situacao, 'liquidado'); assert.match(p('PG-R-22').hist[1].txt, /soma exata de 2 rescisões/); assert.strictEqual(p('PG-R-22').extratoRef, p('PG-R-23').extratoRef); assert.match(p('PG-R-22').extratoRef, /21425302000181/, 'a soma casa com a transferência da empresa, não com o fornecedor de mesmo valor');
   // pendências
