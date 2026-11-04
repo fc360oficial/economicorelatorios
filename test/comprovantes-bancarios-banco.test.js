@@ -40,6 +40,8 @@ const EXT = { cahu: [
   ev('id-forn', '2026-10-20', 5000, 'SISPAG FORNECEDORES PAG TIT', { name: 'DISTRIBUIDORA X', document: '12345678000199', person: 'JURIDICA' }),
   ev('id-tar', '2026-10-20', 15.72, 'TAR/CUSTAS COBRANCA', {}),
   ev('id-dev', '2026-10-22', 2500, 'PIX DEVOLVIDO', { name: 'CARLA TESTE', document: '33333333333', person: 'FISICA' }, { literal: { code: '9498', shortened: 'PIX DEVOLVIDO' }, reversal: true }),
+  ev('id-fabio', '2026-10-10', 300, 'PIX ENVIADO', { name: 'FABIO TESTE', document: '66666666666', person: 'FISICA' }),
+  { id: 'id-fabio-volta', type: 'lancamento', operation: 'C', amount: { value: 300 }, date: { accounting: '2026-10-11' }, literal: { shortened: 'PIX TRANSF FABIO TESTE', complete: 'PIX TRANSF FABIO TESTE 11/10' }, counterpart: { name: 'FABIO TESTE', document: '66666666666', person: 'FISICA' } },
   { id: 'id-lote', type: 'agrupamento', operation: 'D', amount: { value: -1000 }, date: { accounting: '2026-09-30' }, literal: { shortened: 'SISPAG SALARIOS', complete: 'SISPAG SALARIOS' }, number_events: 1 },
 ] };
 const chamadas = [];
@@ -50,7 +52,8 @@ test('consulta: escopo trabalhista, identificador do banco, situação real, ví
   const r = await B.consultar(U.rh, { loja: '1', de: '2026-09-01', ate: '2026-11-04' });
   assert.strictEqual(r.ocultados, 3, 'fornecedor, tarifa e devolução de PIX recebido ficam fora');
   const by = id => r.linhas.find(l => l.idBanco === id);
-  assert.strictEqual(r.linhas.length, 7); assert.ok(!by('id-forn') && !by('id-tar') && !by('id-dev'));
+  assert.strictEqual(r.linhas.length, 8); assert.ok(!by('id-forn') && !by('id-tar') && !by('id-dev'));
+  assert.strictEqual(by('id-fabio').situacao, 'estornado', 'crédito de volta do mesmo CPF e valor = devolvido'); assert.strictEqual(by('id-fabio').devolucao.data, '2026-10-11'); assert.strictEqual(by('id-fabio').devolucao.idBanco, 'id-fabio-volta');
   assert.strictEqual(by('id-bruno').conciliacao, 'conciliado'); assert.strictEqual(by('id-bruno').vinculo.id, 'PG-DF-2026-0001-2-20261025'); assert.strictEqual(by('id-bruno').tipo, 'domfer'); assert.strictEqual(by('id-bruno').bancoFav, 'NUBANK');
   assert.strictEqual(by('id-bruno').documentoTxt, '***.***.222-22', 'RH vê o CPF mascarado'); assert.strictEqual(by('id-bruno').comprovante.disponivel, false); assert.strictEqual(by('id-bruno').comprovante.motivo, B.SEM_COMPROVANTE);
   assert.strictEqual(by('id-carla').conciliacao, 'pendente'); assert.deepStrictEqual(by('id-carla').candidatos.map(c => c.id), ['PG-R-9']); assert.strictEqual(by('id-carla').tipo, 'rescisao');
@@ -62,7 +65,7 @@ test('consulta: escopo trabalhista, identificador do banco, situação real, ví
   assert.ok(aud().some(a => a.acao === 'Consulta ao banco' && a.usuario === 'rh' && /E1/.test(a.ref)));
   const fin = await B.consultar(U.fin, { loja: '1', de: '2026-10-01', ate: '2026-11-04', cpf: '222' }); assert.strictEqual(fin.linhas.length, 1); assert.strictEqual(fin.linhas[0].documentoTxt, '222.222.222-22', 'Financeiro vê o CPF completo');
   assert.strictEqual((await B.consultar(U.fin, { loja: '1', de: '2026-10-01', ate: '2026-11-04', valor: '2.500,00' })).linhas.length, 1);
-  assert.strictEqual((await B.consultar(U.fin, { loja: '1', de: '2026-10-01', ate: '2026-11-04', situacao: 'estornado' })).linhas.length, 0);
+  assert.strictEqual((await B.consultar(U.fin, { loja: '1', de: '2026-10-01', ate: '2026-11-04', situacao: 'estornado' })).linhas.length, 1);
   assert.strictEqual((await B.consultar(U.fin, { loja: '1', de: '2026-10-01', ate: '2026-11-04', idBanco: 'ID-CEF' })).linhas.length, 1);
   assert.strictEqual((await B.consultar(U.fin, { loja: '1', de: '2026-10-01', ate: '2026-11-04', tipo: 'fgts' })).linhas.length, 1);
   assert.strictEqual((await B.consultar(U.fin, { loja: '1', de: '2026-09-01', ate: '2026-11-04', nome: 'bruno' })).linhas.length, 1);
