@@ -45,3 +45,21 @@ test('rotas: CPD leva 403 no servidor, POST é recusado e Coordenação recebe a
     assert.strictEqual(await st('c.user'), 200); assert.strictEqual(await st('r.user'), 200); assert.strictEqual(await st('c.user', 'POST'), 405);
   } finally { srv.close(); }
 });
+
+test('guia só quita com confirmação e toda referência existe', () => {
+  for (const g of D.GUIAS) {
+    assert.strictEqual(g.conc.crit.identificador, 'nd', 'o extrato não traz número da guia: ' + g.id);
+    if (g.situacao === 'paga') assert.strictEqual(g.conc.res, 'confirmada', g.id);
+    if (g.conc.res === 'sugestao') { assert.notStrictEqual(g.situacao, 'paga', g.id); assert.strictEqual(g.pagamento, null, g.id); }
+    if (g.conc.res === 'parcial') assert.ok(g.conc.debitos[0].valor < g.valor, g.id);
+    if (g.conc.res === 'duplicada') assert.strictEqual(g.conc.debitos.length, 2, g.id);
+    assert.ok(D.SIT_GUIA[g.situacao], g.id); assert.ok(D.RES_CONC[g.conc.res], g.id);
+  }
+  const ids = new Set([...D.PAGAMENTOS.map(p => p.id), ...D.GUIAS.map(g => g.id)]);
+  for (const a of D.PENDENCIAS) if (/^(PG|GU)-/.test(a.ref)) assert.ok(ids.has(a.ref), a.ref);
+  for (const l of D.LOTES_GUIA) assert.strictEqual(+l.guias.map(i => D.GUIAS.find(g => g.id === i).valor).reduce((a, b) => a + b, 0).toFixed(2), l.total);
+});
+test('demonstrativo: valor individual menor que a guia coletiva e rescisória com uma pessoa', () => {
+  for (const g of D.GUIAS) { if (g.coletiva) for (const t of g.demonstrativo) assert.ok(t.valor < g.valor, g.id); else if (g.demonstrativo.length) { assert.strictEqual(g.demonstrativo.length, 1, g.id); assert.strictEqual(g.demonstrativo[0].valor, g.valor, g.id); } }
+  for (const a of D.ALERTAS_GUIA) for (const k of a.k) assert.ok(D.ALERTAS[k], k);
+});
