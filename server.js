@@ -249,7 +249,7 @@ app.use((req, res, next) => {
     '/comparativo-tv.html', '/api/comparativo-tv',
     '/prevencao.html', '/api/pendencias/prevencao', '/api/pendencias/prevencao-consolidado', '/api/pendencias/prevencao-bonif',
     '/api/ruptura/debug-comprador',
-    '/api/_diag/tabelas-central', '/api/_diag/radar-listas', '/api/_diag/cotacao-forn', '/api/_diag/robo', '/api/_diag/giro', '/api/_diag/portal-pedidos', '/api/_diag/cotacao-fechar',
+    // 04/11/2026 (Coordenação): as rotas /api/_diag/* saíram da lista pública — exigem login + perfil admin (ver "Rotas exclusivas de admin")
     '/ruptura-painel.html', '/api/ruptura', '/api/ruptura/comprador-listas',
     '/margem-comprador.html', '/api/margem-tv/comprador',
     '/painel-diretoria.html',
@@ -320,7 +320,9 @@ app.use((req, res, next) => {
       || req.path.startsWith('/api/paineis/') || req.path === '/api/paineis'
       || req.path === '/espelho-erp.html' || req.path.startsWith('/api/espelho/')
       || req.path === '/claudia.html' || req.path.startsWith('/api/claudia/')
-      || req.path.startsWith('/api/tv-rh/config') || req.path.startsWith('/api/tv-acougue/') || req.path.startsWith('/api/cahu-distribuidora/tv-config');
+      || req.path.startsWith('/api/tv-rh/config') || req.path.startsWith('/api/tv-acougue/') || req.path.startsWith('/api/cahu-distribuidora/tv-config')
+      // 04/11/2026 (Coordenação): diagnósticos (/api/_diag/*) só pra admin logado; tabelas-central executava QUALQUER SQL sem login
+      || req.path.startsWith('/api/_diag/');
     if (soAdmin && req.session.user.perfil !== 'admin') {
       if (req.path.startsWith('/api/')) return res.status(403).json({ error: 'Sem permissão' });
       return res.redirect('/index.html');
@@ -6769,6 +6771,14 @@ app.get('/api/_diag/cotacao-forn', (req, res) => {
   const c = cotacao.obter(id); if (!c) return res.status(404).json({ error: 'cotação não encontrada' });
   res.json({ id: c.id, nome: c.nome, status: c.status, lista: c.lista, prazo: c.prazo, fornecedores: (c.fornecedores || []).filter(f => !qn || String(f.nome || '').toLowerCase().includes(qn) || String(f.empresa || '').toLowerCase().includes(qn)).map(f => ({ codFornec: f.codFornec, nome: f.nome, empresa: f.empresa, status: f.status, enviadoEm: f.enviadoEm, abertoEm: f.abertoEm, finalizadoEm: f.finalizadoEm, atualizadoEm: f.atualizadoEm, condicao: f.condicao, condicao_padrao: f.condicao_padrao, faturamento_minimo: f.faturamento_minimo, prazo_entrega: f.prazo_entrega, cadastro_vendedor: f.cadastro_vendedor || null, precos: Object.keys(f.precos || {}).length, vendedor: f.vendedor ? { nome: f.vendedor.nome, whats: f.vendedor.whats ? 'sim' : 'não' } : null })) });
 });
+// 04/11/2026 (Coordenação): além do login + admin (middleware lá em cima), todo acesso a /api/_diag/* fica registrado em
+// data/diag-acessos.jsonl (quem, rota, parâmetros, IP) e o tabelas-central só aceita SELECT/SHOW/DESCRIBE/EXPLAIN (mesma trava do
+// scripts/erp-select.js) — antes rodava qualquer SQL no ERP com token fixo, sem login.
+app.use('/api/_diag', (req, res, next) => {
+  try { fs.appendFileSync(path.join(__dirname, 'data', 'diag-acessos.jsonl'), JSON.stringify({ em: new Date().toISOString(), usuario: req.session && req.session.user ? req.session.user.usuario : null, rota: req.path, query: Object.fromEntries(Object.entries(req.query).filter(([k]) => k !== 'token').map(([k, v]) => [k, String(v).slice(0, 300)])), ip: req.ip }) + '\n'); } catch (e) {}
+  next();
+});
+const DIAG_SO_LEITURA = /^\s*(SELECT|SHOW|DESCRIBE|DESC|EXPLAIN)\b/i, DIAG_PROIBIDO = /\b(INSERT|UPDATE|DELETE|REPLACE|ALTER|DROP|CREATE|TRUNCATE|GRANT|REVOKE|LOCK|CALL|LOAD|SET|KILL|INTO\s+(OUTFILE|DUMPFILE))\b/i;
 app.get('/api/_diag/tabelas-central', async (req, res) => {
   if (req.query.token !== 'diag2026') return res.status(403).end();
   const t = (req.query.describe || '').replace(/[^a-z0-9_]/gi, '');
@@ -6778,7 +6788,9 @@ app.get('/api/_diag/tabelas-central', async (req, res) => {
     return res.json({ cols, sample });
   }
   if (req.query.sql) {
-    const rows = await q(req.query.sql).catch(e => [{err:e.message}]);
+    const sql = String(req.query.sql);
+    if (!DIAG_SO_LEITURA.test(sql) || DIAG_PROIBIDO.test(sql) || sql.includes(';')) return res.status(400).json([{ err: 'Só SELECT/SHOW/DESCRIBE/EXPLAIN, uma instrução por vez' }]);
+    const rows = await q(sql).catch(e => [{err:e.message}]);
     return res.json(rows);
   }
   res.json({ ok: 1 });
