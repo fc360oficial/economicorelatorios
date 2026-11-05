@@ -9738,6 +9738,27 @@ app.get('/api/ajustes-estoque/pendencias', (req, res) => { res.set('Cache-Contro
 app.post('/api/ajustes-estoque/:id/tratar', (req, res) => { try { res.json(ajustesEstoque.tratar(req.session.user, String(req.params.id), req.body || {})); } catch (err) { ajErro(res, err); } });
 // 28/10: decisão da rebaixa de preço pedida pelo gerente (aceita com preço novo / recusada com motivo / reabrir) — retaguarda na tela de Ajustes
 app.post('/api/ajustes-estoque/:id/rebaixa', (req, res) => { try { res.json(ajustesEstoque.tratarRebaixa(req.session.user, String(req.params.id), req.body || {})); } catch (err) { ajErro(res, err); } });
+
+// ═══════════════════════════════════════════════════
+// ROBÔ DE PRECIFICAÇÃO — FASE 0 "vigia de margem" (Processos › Robô de Precificação, 04/11/2026, EM TESTE)
+// Margem bruta por lista vigiada (Vitamassa, Capricche, Yoki, Nestlé + 5ª a definir) × meta em R$, projeção do mês e
+// vazamentos (abaixo do custo, queima parada, validade, rebaixa pedida, cadastro abaixo da meta). Regras e fontes em
+// lib/robo-precificacao.js. SÓ LEITURA no ERP; listas/metas ficam em data/robo-precificacao-params.json. As listas das
+// compradoras (c_cotacao_lista) são só lidas, nunca alteradas.
+// ═══════════════════════════════════════════════════
+const roboPrecif = require('./lib/robo-precificacao');
+roboPrecif.init({ q, ajustesEstoque });
+roboPrecif.agendar();
+app.get('/api/robo-precificacao', (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json(roboPrecif.consultar()); } catch (err) { res.status(500).json({ error: err.message }); } });
+app.get('/api/robo-precificacao/estado', (req, res) => { res.set('Cache-Control', 'no-store'); res.json(roboPrecif.estado()); });
+app.post('/api/robo-precificacao/recalcular', (req, res) => { roboPrecif.calcular().catch(e => console.error('[ROBO-PRECIF]', e.message)); res.json({ ok: true, estado: roboPrecif.estado() }); });
+app.get('/api/robo-precificacao/params', (req, res) => res.json(roboPrecif.getParams()));
+app.post('/api/robo-precificacao/params', (req, res) => {
+  try { const p = roboPrecif.setParams(req.body || {}); roboPrecif.calcular().catch(e => console.error('[ROBO-PRECIF]', e.message)); res.json(p); }
+  catch (err) { res.status(400).json({ error: err.message }); }
+});
+app.post('/api/robo-precificacao/params/reset', (req, res) => { const p = roboPrecif.resetParams(); roboPrecif.calcular().catch(e => console.error('[ROBO-PRECIF]', e.message)); res.json(p); });
+app.get('/api/robo-precificacao/listas-erp', async (req, res) => { try { res.json(await roboPrecif.listasErp()); } catch (err) { res.status(500).json({ error: err.message }); } });
 // Termos de Escala (23/10/2026, DP / RH › Termos de Escala): termo de ciência de trabalho em domingo/feriado, um por
 // funcionário num PDF só, com histórico e reimpressão. Regras e PDF em lib/termos-escala.js; só lê o PontoCerto.
 require('./lib/termos-escala-rotas')(app, { pontocerto });
