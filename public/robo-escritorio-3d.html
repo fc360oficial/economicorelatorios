@@ -12,11 +12,12 @@
   cores de escritório real (madeira clara, carpete cinza, vidro, navy + âmbar do Econômico), com gente blocada em cada posto.
   Abre dentro de Processos › Robô de Precificação (aba "Escritório 3D", ?embed=1) ou sozinha.
   Postos:
-    fileira do fundo + fileira do meio ... 6 postos do COMPRADOR ROBÔ (Sugestão, Fila de Aprovação, Pedido ERP, Radar, Cobrança,
-                                           Resumo do Dia) — ainda é EXEMPLO (dados fictícios), o comprador robô aguarda o diretor
+    fileira do fundo + fileira do meio ... 6 postos do COMPRADOR ROBÔ em MODO SOMBRA (Sugestão, Fila de Aprovação, Pedido ERP, Radar,
+                                           Cobrança, Resumo do Dia): leem /api/comprador-sombra (só as listas do robô) e mostram o que
+                                           FARIAM hoje — nada é pedido, enviado ou gravado; as listas continuam com as compradoras
     fileira da frente ................... 2 postos do ROBÔ DE PRECIFICAÇÃO (Vigia de Margem, Precificação) com os NÚMEROS REAIS
                                            do vigia (/api/robo-precificacao) + a mesa do Tiago, que aprova preço (pessoa, crachá verde)
-    sala de vidro ....................... Luciana, compradora (pessoa, crachá verde) — exemplo
+    sala de vidro ....................... a(s) compradora(s) dona(s) das listas do robô (nome real do ERP, crachá verde)
     sala do ERP ......................... racks do MySQL de teste do .254; os cubos azuis são dado indo pro ERP
   Só leitura. Fontes em lib/robo-precificacao.js.
 -->
@@ -43,6 +44,7 @@ body{overflow:hidden}
 .brand .eyebrow{display:block;font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:#4b5a6e;font-weight:700;margin-bottom:2px}
 .pill{font-family:var(--mono);font-size:10.5px;color:#4b5a6e;border:1px solid rgba(27,38,52,.25);border-radius:999px;padding:3px 9px;white-space:nowrap;background:rgba(255,255,255,.85);pointer-events:auto}
 .pill.real{color:var(--green);border-color:var(--green)}
+.pill.sombra{color:var(--red);border-color:var(--red)}
 .legend{bottom:0;left:0;right:0;display:flex;gap:12px;flex-wrap:wrap;align-items:center;padding:12px 16px;font-size:11.5px;color:#2f3b4b}
 .legend .dot{width:10px;height:10px;border-radius:3px;display:inline-block;margin-right:5px;vertical-align:-1px}
 .ctl{position:absolute;right:16px;bottom:46px;display:flex;flex-direction:column;gap:6px;z-index:3}
@@ -111,11 +113,11 @@ body{overflow:hidden}
   <section class="stage" id="stage" aria-label="Escritório em 3D">
     <div class="overlay brand">
       <div><span class="eyebrow">Econômico · Compras e Precificação</span><h1>Escritório Robô</h1></div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"><span class="pill">Compras: exemplo</span><span class="pill real" id="pill-real">Precificação: dados reais</span></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"><span class="pill sombra" id="pill-sombra">Compras: sombra · nada vale</span><span class="pill real" id="pill-real">Precificação: dados reais</span></div>
     </div>
     <div class="ctl"><button id="zin" aria-label="Aproximar">+</button><button id="zout" aria-label="Afastar">−</button></div>
     <div class="overlay legend">
-      <span><i class="dot" style="background:#f2a516"></i>posto automatizado (crachá âmbar)</span>
+      <span><i class="dot" style="background:#f2a516"></i>comprador robô em sombra (crachá âmbar)</span>
       <span><i class="dot" style="background:#13294b"></i>precificação · números reais</span>
       <span><i class="dot" style="background:#1f8a4c"></i>pessoa aprovando</span>
       <span><i class="dot" style="background:#3f7fd6"></i>dado indo pro ERP</span>
@@ -125,14 +127,17 @@ body{overflow:hidden}
   </section>
   <aside class="panel">
     <div><h2>Escritório · agora</h2><p class="sub" id="sub">carregando…</p></div>
+    <div class="grp">Precificação · real</div>
     <div class="kpis" id="kpis"></div>
+    <div class="grp">Compras · sombra (o que faria hoje)</div>
+    <div class="kpis" id="kpis2"></div>
     <div class="grp">Precificação · real</div>
     <div class="robos" id="robos-real" role="tablist" aria-label="Postos de precificação"></div>
-    <div class="grp">Compras · exemplo</div>
+    <div class="grp">Compras · sombra</div>
     <div class="robos" id="robos-ex" role="tablist" aria-label="Postos de compras"></div>
     <div class="card" id="card"></div>
     <div class="feed" id="feed"><div class="grp" style="margin:0">Acontecendo agora</div></div>
-    <p class="nota">Gente continua no fluxo: a compradora aprova pelo celular na sala dela e o Tiago aprova preço na mesa da frente. Os postos de Compras ainda são exemplo (o comprador robô espera o diretor). Os dois postos de Precificação mostram o vigia real: margem do mês, meta e vazamentos.</p>
+    <p class="nota">Modo sombra: os postos de Compras leem as listas do robô no ERP e mostram o que fariam hoje (pedir, aprovar, gravar, cobrar), sem fazer nada. As listas continuam com as compradoras delas. Os dois postos de Precificação mostram o vigia real: margem do mês, meta e vazamentos. Só o Tiago vê esta tela.</p>
   </aside>
 </div>
 <script type="module">
@@ -146,30 +151,26 @@ const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
 /* ---------- postos: 6 de Compras (exemplo) + 2 de Precificação (real) ---------- */
 const ROBOS=[
  {id:'sugestao',nome:'Sugestão',pessoa:'Rafael',papel:'Comprador',pos:[-3.2,-2.2],look:{skin:0xc68642,hair:0x1a1a1a,shirt:0xa9c7e8,pants:0x2b3a55,hairStyle:'curto'},
-  agora:'Calculando cobertura da Lista 14 · Loja 4',fila:['1.240 itens avaliados','38 críticos com estoque zero','Lead time médio 5,1 dias'],proximo:'Montar pedido CIMED pra aprovação às 07:00',tela:'bars'},
+  agora:'lendo a sombra…',fila:[],proximo:'',tela:'bars',sombra:true},
  {id:'aprovacao',nome:'Fila de Aprovação',pessoa:'Camila',papel:'Assistente das compradoras',pos:[0,-2.2],look:{skin:0xf1c27d,hair:0x8b5a2b,shirt:0xffffff,pants:0x1a1a1a,hairStyle:'longo'},
-  agora:'3 pedidos aguardando a Luciana',fila:['CIMED · R$ 42.380 · 6 lojas','EMS · R$ 18.940 · 4 lojas','Neo Química · R$ 7.210 · 2 lojas'],proximo:'Reenviar lembrete no WhatsApp às 10:30',tela:'fila'},
+  agora:'lendo a sombra…',fila:[],proximo:'',tela:'fila',sombra:true},
  {id:'erp',nome:'Pedido ERP',pessoa:'Marcos',papel:'Gravador de pedidos',pos:[3.2,-2.2],look:{skin:0x8d5524,hair:0x1a1a1a,shirt:0x6b7a8f,pants:0x3b4b63,hairStyle:'curto'},
-  agora:'Gravando pedido 1023 em pedidocompra',fila:['12 pedidos gravados hoje','Destino: MySQL de teste do .254','Rastro em Processos › Log'],proximo:'Apontar pro .252 quando liberar',tela:'erp'},
+  agora:'lendo a sombra…',fila:[],proximo:'',tela:'erp',sombra:true},
  {id:'radar',nome:'Radar',pessoa:'Juliana',papel:'Acompanhamento de NF-e',pos:[-3.2,.9],look:{skin:0xe0ac69,hair:0x2c1b0e,shirt:0x7a9e7e,pants:0x2b3a55,hairStyle:'coque'},
-  agora:'NF-e 48.213 vinculada ao pedido 1021 pelos itens',fila:['7 pedidos em trânsito','2 divergências de quantidade','1 nota sem pedido'],proximo:'Conferir entrada da Loja 6 às 14:00',tela:'table'},
+  agora:'lendo a sombra…',fila:[],proximo:'',tela:'table',sombra:true},
  {id:'cobranca',nome:'Cobrança',pessoa:'Diego',papel:'Fala com o fornecedor',pos:[0,.9],look:{skin:0xffdbac,hair:0xd6b370,shirt:0x1f3a5f,pants:0x1a1a1a,hairStyle:'curto'},
-  agora:'Cobrando EMS: pedido 1017 atrasado 2 dias',fila:['3 fornecedores cobrados hoje','1 respondeu com nova data','Chip dedicado, separado do número da tabela'],proximo:'Escalar pra compradora se não responder até 16:00',tela:'forn'},
+  agora:'lendo a sombra…',fila:[],proximo:'',tela:'forn',sombra:true},
  {id:'resumo',nome:'Resumo do Dia',pessoa:'Aline',papel:'Fechamento',pos:[3.2,.9],look:{skin:0xa1665e,hair:0x1a1a1a,shirt:0xd9d2c5,pants:0x4a4a4a,hairStyle:'longo'},
-  agora:'Preparando resumo das 18:00',fila:['Pedido hoje: R$ 68.530','Pendente: 3 aprovações','Amanhã: Listas 7 e 22'],proximo:'Enviar no WhatsApp das compradoras',tela:'line'},
+  agora:'lendo a sombra…',fila:[],proximo:'',tela:'line',sombra:true},
  // ── Precificação (04/11/26): fileira da frente, números reais do vigia ──
  {id:'vigia',nome:'Vigia de Margem',pessoa:'Beatriz',papel:'Precificação · lê o ERP',pos:[-2.0,4.0],real:true,look:{skin:0xd9a577,hair:0x3b2314,shirt:0x13294b,pants:0x2b2b2b,hairStyle:'coque'},
   agora:'Lendo margem das listas vigiadas…',fila:[],proximo:'Recalcula às 05:50 e 13:05',tela:'vigia'},
  {id:'precif',nome:'Precificação',pessoa:'Henrique',papel:'Precificação · propõe preço',pos:[1.4,4.0],real:true,look:{skin:0xf3d2b0,hair:0x5a3a1e,shirt:0xf2a516,pants:0x1a1a1a,hairStyle:'curto'},
   agora:'Fase 0: só observando',fila:[],proximo:'Fase 1: sugerir preço e o Tiago aprovar (depende de OK do Dlinks pra gravar)',tela:'precif'}
 ];
-const EVENTOS_EX=[
- ['sugestao','ok','Lista 14 calculada · 1.240 itens · 38 críticos'],['aprovacao','warn','Pedido CIMED R$ 42.380 aguardando a Luciana'],['erp','ok','Pedido 1023 gravado em pedidocompra (teste)'],
- ['radar','ok','NF-e 48.213 vinculada ao pedido 1021'],['cobranca','warn','EMS: pedido 1017 atrasado 2 dias · mensagem enviada'],['radar','crit','NF-e 48.219 sem pedido · Loja 3'],
- ['aprovacao','ok','Luciana aprovou Neo Química R$ 7.210'],['erp','ok','Pedido 1024 gravado · 2 lojas'],['cobranca','ok','EMS respondeu: entrega quinta 06/11'],
- ['resumo','ok','Resumo das 18:00 em preparação'],['sugestao','warn','Loja 6: 12 itens com estoque zero em promoção'],['aprovacao','warn','Lembrete reenviado no WhatsApp da Luciana']
-];
-let EVENTOS_REAL=[], DADOS=null;
+let EVENTOS_EX=[['sugestao','ok','Lendo as listas do robô no ERP (sombra)…']];   // preenchido pela sombra
+let EVENTOS_REAL=[], DADOS=null, SOMBRA=null;
+const R0s=v=>'R$ '+Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:0});
 
 /* ---------- cena (mesmas cores do teste de 03/11: madeira clara, carpete cinza, vidro, navy + âmbar) ---------- */
 const stage=$('stage');
@@ -217,7 +218,9 @@ scene.add(box(W,2.95,.05,mGlass,0,1.55,-D/2)); scene.add(box(.05,2.95,D,mGlass,-
 scene.add(box(W,.9,.08,mWall,0,.45,-D/2+.06)); scene.add(box(.08,.9,D,mWall,-W/2+.06,.45,0));
 const sign=new THREE.Mesh(new THREE.PlaneGeometry(6.5,.75),new THREE.MeshBasicMaterial({map:tex(1024,120,(g,w,h)=>{g.fillStyle='#13294b';g.fillRect(0,0,w,h);g.fillStyle='#f2a516';g.font='800 64px Inter, sans-serif';g.fillText('ECONÔMICO',40,82);g.fillStyle='#ffffff';g.font='600 40px Inter, sans-serif';g.fillText('· COMPRAS',440,82);})})); sign.position.set(-2.5,3.65,-D/2+.02); scene.add(sign); scene.add(box(6.6,.85,.1,mFrame,-2.5,3.65,-D/2-.05));
 scene.add(box(2.4,2.95,.35,mWall,5.8,1.47,-D/2+.2)); scene.add(box(.95,2.4,.05,mSteel,5.31,1.2,-D/2+.4)); scene.add(box(.95,2.4,.05,mSteel,6.29,1.2,-D/2+.4)); scene.add(box(.4,.1,.03,mAmber,5.8,2.7,-D/2+.4));
-const board=new THREE.Mesh(new THREE.PlaneGeometry(2.6,1.5),new THREE.MeshBasicMaterial({map:tex(1024,590,(g,w,h)=>{g.fillStyle='#ffffff';g.fillRect(0,0,w,h);g.fillStyle='#1b2634';g.font='800 56px Inter, sans-serif';g.fillText('LISTAS DA SEMANA',50,90);const L=[['SEG','Lista 7 · Higiene','✓'],['TER','Lista 14 · Farma','●'],['QUA','Lista 22 · Mercearia',''],['QUI','Lista 3 · Perecíveis',''],['SEX','Lista 9 · Bebidas','']];L.forEach((l,i)=>{const y=190+i*80;g.fillStyle='#1f5fa8';g.font='700 40px IBM Plex Mono, monospace';g.fillText(l[0],50,y);g.fillStyle='#1b2634';g.font='500 40px Inter, sans-serif';g.fillText(l[1],190,y);g.fillStyle=l[2]=='✓'?'#1f8a4c':'#d9480f';g.font='700 44px sans-serif';g.fillText(l[2],900,y);});})})); board.position.set(-W/2+.11,1.7,1.5); board.rotation.y=Math.PI/2; scene.add(board); scene.add(box(.06,1.6,2.7,mSteel,-W/2+.07,1.7,1.5));
+function boardTex(){return tex(1024,590,(g,w,h)=>{g.fillStyle='#ffffff';g.fillRect(0,0,w,h);g.fillStyle='#1b2634';g.font='800 56px Inter, sans-serif';g.fillText('LISTAS DO ROBÔ · SOMBRA',50,90);const Ls=SOMBRA?SOMBRA.listas:[];if(!Ls.length){g.fillStyle='#6b7280';g.font='500 40px Inter, sans-serif';g.fillText('lendo o ERP…',50,200);return;}Ls.slice(0,6).forEach((l,i)=>{const y=180+i*72;g.fillStyle=l.fazer_em===0?'#d9480f':'#1f5fa8';g.font='700 36px IBM Plex Mono, monospace';g.fillText(l.ok?(l.fazer_em===0?'HOJE':(l.dow||'')+' '+String(l.data||'').slice(8,10)+'/'+String(l.data||'').slice(5,7)):'—',50,y);g.fillStyle='#1b2634';g.font='500 38px Inter, sans-serif';g.fillText(l.nome+' · '+(l.compradora||'').split(' ')[0],330,y);g.fillStyle='#6b7280';g.font='500 30px Inter, sans-serif';g.fillText(l.ok?R0s(l.pedido_valor):'',800,y);});});}
+let boardMat=new THREE.MeshBasicMaterial({map:boardTex()});
+const board=new THREE.Mesh(new THREE.PlaneGeometry(2.6,1.5),boardMat); board.position.set(-W/2+.11,1.7,1.5); board.rotation.y=Math.PI/2; scene.add(board); scene.add(box(.06,1.6,2.7,mSteel,-W/2+.07,1.7,1.5));
 
 function glassRoom(x0,x1,z0,z1,doorOnFront){
   const w=x1-x0,d=z1-z0,cx=(x0+x1)/2,cz=(z0+z1)/2,h=2.6;
@@ -263,13 +266,14 @@ function person(look,opts){
 function chair(){const c=new THREE.Group(); c.add(box(.58,.1,.58,mChair,0,.45,0)); c.add(box(.56,.72,.09,mChairMesh,0,.86,-.3)); c.add(box(.5,.08,.5,mChair,0,.5,0)); const post=new THREE.Mesh(new THREE.CylinderGeometry(.035,.035,.4,10),mChrome); post.position.y=.2; c.add(post); for(let i=0;i<5;i++){const a=i*Math.PI*2/5; const leg=box(.3,.04,.06,mChrome,Math.cos(a)*.17,.03,Math.sin(a)*.17); leg.rotation.y=-a; c.add(leg);} return c;}
 function scrHead(g,t,w,h){g.fillStyle='#ffffff';g.fillRect(0,0,w,h);g.fillStyle='#13294b';g.fillRect(0,0,w,h*.16);g.fillStyle='#f2a516';g.fillRect(0,h*.16,w,3);g.fillStyle='#ffffff';g.font='700 '+Math.round(h*.085)+'px Inter, sans-serif';g.fillText(t,w*.04,h*.115);}
 function mono(g,s,x,y,px,c){g.fillStyle=c||'#1b2634';g.font='500 '+px+'px "IBM Plex Mono", monospace';g.fillText(s,x,y);}
+const SL=()=>SOMBRA?SOMBRA.listas.filter(l=>l.ok):[];
 const SCREENS={
- bars:(g,w,h)=>{scrHead(g,'Sugestão de Compras · cobertura',w,h);[['L1',31],['L2',26],['L3',19],['L4',34],['L5',22],['L6',15]].forEach((l,i)=>{const x=w*.07+i*w*.15,hh=l[1]*h*.016;g.fillStyle=l[1]<20?'#d9480f':l[1]<28?'#f2a516':'#1f8a4c';g.fillRect(x,h*.88-hh,w*.1,hh);mono(g,l[0],x+w*.02,h*.97,h*.07,'#5b6b80');mono(g,l[1],x+w*.02,h*.86-hh,h*.07);});},
- fila:(g,w,h)=>{scrHead(g,'Fila de aprovação',w,h);[['CIMED','R$ 42.380','AGUARDA','#f2a516'],['EMS','R$ 18.940','AGUARDA','#f2a516'],['NEO QUÍMICA','R$ 7.210','APROVADO','#1f8a4c'],['MEDLEY','R$ 12.115','AUTO','#1f8a4c']].forEach((r,i)=>{const y=h*.34+i*h*.16;g.fillStyle=i%2?'#f5f7fb':'#ffffff';g.fillRect(0,y-h*.11,w,h*.16);mono(g,r[0],w*.04,y,h*.075);mono(g,r[1],w*.42,y,h*.075);g.fillStyle=r[3];g.fillRect(w*.74,y-h*.085,w*.22,h*.11);mono(g,r[2],w*.755,y-h*.005,h*.055,'#fff');});},
- erp:(g,w,h)=>{scrHead(g,'Processos › Log · ERP',w,h);mono(g,'destino   MySQL teste .254',w*.04,h*.32,h*.07,'#5b6b80');mono(g,'status    CONECTADO',w*.04,h*.44,h*.07,'#1f8a4c');mono(g,'hoje      12 pedidos · 0 erros',w*.04,h*.56,h*.07);mono(g,'1023 ▸ gravando pedidocompra',w*.04,h*.7,h*.07,'#8a5a00');for(let i=0;i<30;i++){g.fillStyle=i<23?'#3f7fd6':'#dfe5ee';g.fillRect(w*.04+i*w*.031,h*.8,w*.024,h*.1);}},
- table:(g,w,h)=>{scrHead(g,'Radar de Pedidos · NF-e × pedido',w,h);mono(g,'NF-E     PEDIDO  LOJA  STATUS',w*.04,h*.3,h*.06,'#5b6b80');[['48.213','1021','L2','OK','#1f8a4c'],['48.217','1019','L4','DIV 2','#b86e00'],['48.219','—','L3','S/PED','#c0392b'],['48.220','1022','L1','OK','#1f8a4c'],['48.224','1020','L6','TRÂNS','#5b6b80']].forEach((r,i)=>{const y=h*.43+i*h*.125;mono(g,r[0],w*.04,y,h*.07);mono(g,r[1],w*.3,y,h*.07);mono(g,r[2],w*.52,y,h*.07);mono(g,r[3],w*.68,y,h*.07,r[4]);});},
- forn:(g,w,h)=>{scrHead(g,'Cobrança · fornecedores',w,h);[['EMS','1017','ATRASADO 2D','#c0392b'],['CIMED','1015','HOJE','#b86e00'],['NEO QUÍMICA','1012','AMANHÃ','#1f8a4c'],['MEDLEY','1009','ENTREGUE','#5b6b80']].forEach((r,i)=>{const y=h*.36+i*h*.16;g.fillStyle=r[3];g.fillRect(w*.04,y-h*.09,w*.012,h*.12);mono(g,r[0],w*.08,y,h*.072);mono(g,'ped '+r[1],w*.48,y,h*.06,'#5b6b80');mono(g,r[2],w*.66,y,h*.06,r[3]);});},
- line:(g,w,h)=>{scrHead(g,'Resumo do dia · pedido acumulado',w,h);const pts=[0,4,9,15,22,31,38,47,53,61,68.5];g.strokeStyle='#13294b';g.lineWidth=3;g.beginPath();pts.forEach((v,i)=>{const x=w*.06+i*w*.087,y=h*.9-v*h*.0085;i?g.lineTo(x,y):g.moveTo(x,y);});g.stroke();mono(g,'R$ 68.530',w*.55,h*.38,h*.12);},
+ bars:(g,w,h)=>{scrHead(g,'Sugestão · cobertura por lista (sombra)',w,h);const Ls=SL();if(!Ls.length){mono(g,'lendo a sombra…',w*.06,h*.55,h*.08,'#5b6b80');return;}Ls.slice(0,6).forEach((l,i)=>{const x=w*.06+i*w*.155,c=Math.min(60,l.cobertura_dias||0),hh=c*h*.0095;g.fillStyle=l.fazer_em===0?'#d9480f':c<20?'#f2a516':'#1f8a4c';g.fillRect(x,h*.88-hh,w*.11,hh);mono(g,l.nome.slice(0,7),x,h*.97,h*.055,'#5b6b80');mono(g,Math.round(c)+'d',x+w*.01,h*.86-hh,h*.06);});},
+ fila:(g,w,h)=>{scrHead(g,'Mandaria pra aprovação (sombra)',w,h);const P=SOMBRA?SOMBRA.faria.pedir_hoje:[];if(!P.length){mono(g,'nenhuma lista no ponto hoje',w*.06,h*.55,h*.07,'#5b6b80');return;}P.slice(0,4).forEach((r,i)=>{const y=h*.34+i*h*.16;g.fillStyle=i%2?'#f5f7fb':'#ffffff';g.fillRect(0,y-h*.11,w,h*.16);mono(g,r.nome.slice(0,10),w*.04,y,h*.07);mono(g,R0s(r.valor),w*.4,y,h*.07);g.fillStyle='#c0392b';g.fillRect(w*.74,y-h*.085,w*.22,h*.11);mono(g,'SOMBRA',w*.77,y-h*.005,h*.055,'#fff');});},
+ erp:(g,w,h)=>{scrHead(g,'Pedido ERP (sombra)',w,h);const F=SOMBRA?SOMBRA.faria:null;mono(g,'destino   nenhum (modo sombra)',w*.04,h*.32,h*.07,'#5b6b80');mono(g,'gravados  0',w*.04,h*.44,h*.07,'#1f8a4c');mono(g,'gravaria  '+(F?F.gravar_erp+' pedido(s) · '+R0s(F.valor_hoje):'…'),w*.04,h*.56,h*.07);mono(g,'listas continuam com as compradoras',w*.04,h*.7,h*.06,'#8a5a00');for(let i=0;i<30;i++){g.fillStyle='#dfe5ee';g.fillRect(w*.04+i*w*.031,h*.8,w*.024,h*.1);}},
+ table:(g,w,h)=>{scrHead(g,'Radar · trânsito das listas (real)',w,h);mono(g,'LISTA      TRÂNSITO   ITENS  NF-E',w*.04,h*.3,h*.06,'#5b6b80');SL().slice(0,5).forEach((l,i)=>{const y=h*.43+i*h*.125;mono(g,l.nome.slice(0,9),w*.04,y,h*.065);mono(g,R0s(l.transito_valor),w*.36,y,h*.065);mono(g,String(l.transito_itens),w*.66,y,h*.065);mono(g,String(l.transito_nfe),w*.84,y,h*.065,l.transito_nfe?'#1f8a4c':'#5b6b80');});},
+ forn:(g,w,h)=>{scrHead(g,'Cobrança · fornecedores (sombra)',w,h);const C=SOMBRA?SOMBRA.faria.cobrar:[];if(!C.length){mono(g,'nenhum fornecedor atrasado',w*.06,h*.55,h*.07,'#1f8a4c');return;}C.slice(0,4).forEach((r,i)=>{const y=h*.36+i*h*.16;g.fillStyle='#c0392b';g.fillRect(w*.04,y-h*.09,w*.012,h*.12);mono(g,r.fornecedor.slice(0,14),w*.08,y,h*.065);mono(g,r.mais_velha_dias+' dias',w*.66,y,h*.06,'#c0392b');});},
+ line:(g,w,h)=>{scrHead(g,'Resumo das 18:00 (sombra)',w,h);const F=SOMBRA?SOMBRA.faria:null;if(!F){mono(g,'…',w*.06,h*.55,h*.08);return;}mono(g,'pediria '+R0s(F.valor_hoje),w*.05,h*.4,h*.1);mono(g,F.pedir_hoje.length+' lista(s) · '+F.rupturas+' rupturas',w*.05,h*.58,h*.065,'#5b6b80');mono(g,'cobraria '+F.cobrar.length+' · trânsito '+R0s(F.transito_valor),w*.05,h*.72,h*.065,'#5b6b80');mono(g,'não enviado · sombra',w*.05,h*.9,h*.06,'#c0392b');},
  // telas reais da precificação: redesenhadas quando o vigia chega
  vigia:(g,w,h)=>{scrHead(g,'Vigia de Margem · listas',w,h);const Ls=DADOS?DADOS.listas:[];if(!Ls.length){mono(g,'lendo o ERP…',w*.06,h*.55,h*.08,'#5b6b80');return;}Ls.slice(0,5).forEach((l,i)=>{const y=h*.34+i*h*.14;const m=l.periodos.atual.margem;mono(g,l.nome.slice(0,10),w*.04,y,h*.07);mono(g,P1(m),w*.44,y,h*.07,m!=null&&m<l.meta.pisoPct?'#c0392b':'#1b2634');g.fillStyle=l.meta.projetaBater?'#1f8a4c':'#d9480f';g.fillRect(w*.68,y-h*.065,w*.28*Math.min(1,l.meta.lucroProj/Math.max(1,l.meta.reais)),h*.08);g.strokeStyle='#8a94a6';g.strokeRect(w*.68,y-h*.065,w*.28,h*.08);});},
  precif:(g,w,h)=>{scrHead(g,'Precificação · vazamentos',w,h);const A=DADOS?DADOS.alertas:[];if(!A.length){mono(g,'aguardando o vigia…',w*.06,h*.55,h*.08,'#5b6b80');return;}A.slice(0,5).forEach((a,i)=>{const y=h*.34+i*h*.14;g.fillStyle=a.grav===3?'#c0392b':a.grav===2?'#f2a516':'#5b6b80';g.fillRect(w*.04,y-h*.075,w*.012,h*.1);mono(g,(a.loja?'E'+a.loja+' ':'')+a.desc.slice(0,22),w*.08,y,h*.062);});}
@@ -286,7 +290,7 @@ function desk(x,z,wide,flip,telaKey,id){
   g.add(box(.08,.08,.08,P(0xffffff),-.6,.83,-.2*s));
   g.position.set(x,0,z); return g;
 }
-function refreshScreens(){for(const [id,s] of Object.entries(screenMats)){if(!['vigia','precif'].includes(s.key))continue; s.mat.map.dispose(); s.mat.map=screenTex(s.key); s.mat.needsUpdate=true;}}
+function refreshScreens(){for(const s of Object.values(screenMats)){s.mat.map.dispose(); s.mat.map=screenTex(s.key); s.mat.needsUpdate=true;} if(boardMat){boardMat.map.dispose();boardMat.map=boardTex();boardMat.needsUpdate=true;}}
 
 const robots={};
 ROBOS.forEach(r=>{
@@ -355,9 +359,9 @@ function pick(e){const r=stage.getBoundingClientRect(); ptr.x=((e.clientX-r.left
 
 /* ---------- etiquetas ---------- */
 const tagsEl=$('tags'); const tagPos=new THREE.Vector3();
-ROBOS.forEach(r=>{const d=document.createElement('div'); d.className='tag'+(r.real?' real':''); d.innerHTML='<em></em><b>'+esc(r.pessoa)+'</b><small>· '+esc(r.nome)+'</small><span>'+esc(r.agora)+'</span>'; tagsEl.appendChild(d); r.tag=d;});
+ROBOS.forEach(r=>{const d=document.createElement('div'); d.className='tag'+(r.real?' real':''); d.innerHTML='<em></em><b>'+esc(r.nome)+'</b><small>· '+(r.real?'real':'sombra')+'</small><span>'+esc(r.agora)+'</span>'; tagsEl.appendChild(d); r.tag=d;});
 const HUMAN_INFO={
-  luciana:{tag:'<em></em><b>Luciana</b><small>· Compradora</small><span>Aprovando CIMED pelo celular</span>',papel:'Pessoa · Compradora (exemplo)',nome:'Luciana',agora:'Aprovando o pedido CIMED R$ 42.380 pelo celular',fila:['Recebeu o resumo das 07:00 no WhatsApp','Ajustou 2 quantidades antes de aprovar','Negocia hoje com EMS a entrega atrasada'],prox:'<b>Ela não faz mais:</b> montar lista, calcular quantidade, digitar pedido no ERP.'},
+  luciana:{tag:'<em></em><b>Compradoras</b><small>· donas das listas</small><span>lendo o ERP…</span>',papel:'Pessoas · Compradoras (nome real do ERP)',nome:'Compradoras',agora:'As listas do robô continuam com elas',fila:['lendo o ERP…'],prox:'<b>Nada muda:</b> lista no nome da Kelly continua com a Kelly; o robô só acompanha.'},
   tiago:{tag:'<em></em><b>Tiago</b><small>· Aprova preço</small><span>Decide o que o robô propõe</span>',papel:'Pessoa · Aprovação de preço',nome:'Tiago',agora:'Olhando o vigia: nada é gravado sem o OK dele',fila:['Fase 0: o robô só mostra','Fase 1: o robô sugere e ele aprova','Gravação no ERP só com OK do Dlinks'],prox:'<b>Regra da loja:</b> preço igual em todas as lojas; queima por validade é por loja.'}
 };
 HUMANS.forEach(h=>{const d=document.createElement('div'); d.className='tag humana'; d.innerHTML=HUMAN_INFO[h.id].tag; tagsEl.appendChild(d); h.tag=d;});
@@ -372,7 +376,7 @@ function select(id){
   clearSel(); selId=id; const r=robots[id];
   r.btn.setAttribute('aria-pressed','true'); r.mat.emissive=new THREE.Color(r.real?0x3f7fd6:0xf2a516); r.mat.emissiveIntensity=.18; r.ring.material.opacity=.95; r.tag.classList.add('sel');
   card.className='card'+(r.real?' real':'');
-  card.innerHTML='<div class="papel">'+esc(r.papel)+(r.real?' · dados reais':' · exemplo')+'</div><h3>'+esc(r.nome)+' <small>· '+esc(r.pessoa)+'</small></h3><p class="agora">'+esc(r.agora)+'</p><ul>'+r.fila.map(f=>'<li>'+esc(f)+'</li>').join('')+'</ul><p class="prox"><b>Próximo passo:</b> '+esc(r.proximo)+'</p>';
+  card.innerHTML='<div class="papel">'+esc(r.papel)+(r.real?' · dados reais':' · sombra, nada vale')+'</div><h3>'+esc(r.nome)+' <small>· '+(r.real?'vigia real':'o que faria hoje')+'</small></h3><p class="agora">'+esc(r.agora)+'</p><ul>'+r.fila.map(f=>'<li>'+esc(f)+'</li>').join('')+'</ul><p class="prox"><b>Próximo passo:</b> '+esc(r.proximo)+'</p>';
 }
 function selectHuman(id){
   clearSel(); selId=null; const h=HUMAN_INFO[id]; const hm=HUMANS.find(x=>x.id===id); if(hm)hm.tag.classList.add('sel');
@@ -388,7 +392,7 @@ function pushEvent(){
   el.innerHTML='<time>'+pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds())+'</time><div class="t"><span class="q">'+esc(robots[e[0]].nome)+'</span>'+esc(e[2])+'</div>';
   feed.insertBefore(el,feed.children[1]||null);
   while(feed.children.length>10)feed.removeChild(feed.lastChild);
-  const r=robots[e[0]]; r.pulse=1; if(!r.real){r.agora=e[2]; r.tag.lastChild.textContent=e[2]; if(selId===e[0])select(e[0]);}
+  const r=robots[e[0]]; r.pulse=1;
 }
 
 /* ---------- dados reais do vigia ---------- */
@@ -416,7 +420,33 @@ async function carregarReal(){
     refreshScreens(); if(selId==='vigia'||selId==='precif')select(selId);
   }catch(e){$('sub').textContent='vigia indisponível: '+e.message; $('pill-real').textContent='Precificação: sem dados'; $('kpis').innerHTML='';}
 }
-carregarReal(); setInterval(carregarReal,5*60*1000);
+async function carregarSombra(){
+  try{
+    const r=await fetch('/api/comprador-sombra'); if(!r.ok)throw new Error(r.status); const d=await r.json(); SOMBRA=d; const F=d.faria;
+    if(!F){$('pill-sombra').textContent='Compras: sombra · '+(d.motivo||'sem base'); return;}
+    const Ls=d.listas.filter(l=>l.ok), prox=F.proximas[0];
+    const dm=s=>String(s||'').slice(8,10)+'/'+String(s||'').slice(5,7);
+    const set=(id,agora,fila,proximo)=>{const r=robots[id]; r.agora=agora; r.fila=fila; r.proximo=proximo; r.tag.lastChild.textContent=agora; if(selId===id)select(id);};
+    set('sugestao', F.pedir_hoje.length?`Pediria hoje: ${F.pedir_hoje.map(p=>p.nome).join(', ')} · ${R0s(F.valor_hoje)}`:`Nenhuma lista no ponto hoje${prox?' · próxima '+prox.nome+' '+prox.dow+' '+dm(prox.data):''}`,
+      Ls.map(l=>`${l.nome} (lista ${l.id}): ${l.fazer_em===0?'HOJE':'em '+l.fazer_em+' d ('+l.dow+' '+dm(l.data)+')'} · ${R0s(l.pedido_valor)} · ${l.pedido_itens} itens · cobertura ${Math.round(l.cobertura_dias||0)} d${l.gatilho==='curva_a'?' · antecipada por curva A':''}`), 'Não pede nada: modo sombra. Mesma conta do Radar de Pedidos.');
+    set('aprovacao', `Mandaria ${F.aprovacao} pedido(s) pra aprovação · ${R0s(F.valor_hoje)}`, F.pedir_hoje.map(p=>`${p.nome}: ${R0s(p.valor)} · ${p.itens} itens · ${p.volumes} vol · dona: ${p.compradora||'—'}${p.abaixo_minimo?' · abaixo do mínimo':''}`), 'Não manda: as listas continuam com as compradoras.');
+    set('erp', `Gravaria ${F.gravar_erp} pedido(s) no ERP de teste · ${R0s(F.valor_hoje)}`, ['Gravados hoje: 0','Destino seria o MySQL de teste do .254 (pedidocompra por loja)','Rastro iria pro Processos › Log'], 'Não grava: modo sombra.');
+    set('radar', `Em trânsito ${R0s(F.transito_valor)} · ${F.transito_nfe} produto×loja já com NF-e`, Ls.filter(l=>l.transito_valor>0).map(l=>`${l.nome}: ${R0s(l.transito_valor)} · ${l.transito_itens} itens · E${l.transito_lojas.join(', E')}${l.transito_nfe?' · '+l.transito_nfe+' com NF-e':''}`), 'Isso é real: vem do Radar de Pedidos (sugestões abertas no ERP).');
+    set('cobranca', F.cobrar.length?`Cobraria ${F.cobrar.map(c=>c.fornecedor).join(', ')}`:'Nenhum fornecedor atrasado nas listas do robô', F.cobrar.map(c=>`${c.fornecedor}: ${c.sugestoes} sugestão(ões) sem NF-e, a mais velha há ${c.mais_velha_dias} dias`), 'Não manda mensagem: modo sombra.');
+    set('resumo', F.resumo_18h, [`${F.rupturas} ruptura(s) nas listas do robô`,`${F.curva_a_risco} curva A zerando antes da lista`,`${(d.historico||[]).length} dia×lista comparados nos últimos ${d.historico_dias||0} dias`], 'Não envia no WhatsApp: modo sombra.');
+    // compradoras reais (donas das listas) na sala de vidro — nome do ERP, nada muda pra elas
+    const donas=[...new Set(Ls.map(l=>l.compradora).filter(Boolean))]; const nomes=donas.map(n=>n.split(' ').slice(0,2).map(f=>f.charAt(0)+f.slice(1).toLowerCase()).join(' '));   // "Patricia Pereira", "Ana Kelly" (nome do ERP)
+    const hi=HUMAN_INFO.luciana; hi.nome=nomes.join(' e ')||'Compradoras'; hi.agora=`Donas das listas do robô: ${nomes.join(' e ')||'—'} · continuam com elas`; hi.fila=Ls.map(l=>`${l.nome} (lista ${l.id}) · ${l.compradora||'—'}`);
+    const ht=HUMANS.find(h=>h.id==='luciana'); if(ht){ht.tag.querySelector('b').textContent=hi.nome; ht.tag.lastChild.textContent='donas das listas · nada muda';}
+    EVENTOS_EX=[...F.pedir_hoje.map(p=>['sugestao','warn',`Pediria ${p.nome} ${R0s(p.valor)} (${p.itens} itens) · sombra`]), ...F.cobrar.map(c=>['cobranca','crit',`Cobraria ${c.fornecedor}: sugestão há ${c.mais_velha_dias} dias sem NF-e · sombra`]),
+      ...Ls.filter(l=>l.transito_nfe>0).map(l=>['radar','ok',`${l.nome}: ${l.transito_nfe} produto×loja com NF-e a caminho (real)`]), ['erp','ok',`Gravaria ${F.gravar_erp} pedido(s) · 0 gravados · sombra`], ['resumo','ok',F.resumo_18h.slice(0,120)]];
+    $('kpis2').innerHTML=`<div class="kpi ${F.pedir_hoje.length?'crit':'ok'}"><div class="n">${R0s(F.valor_hoje)}</div><div class="l">pediria hoje · ${F.pedir_hoje.length} lista(s)</div></div>
+      <div class="kpi ${F.cobrar.length?'warn':'ok'}"><div class="n">${F.cobrar.length}</div><div class="l">fornecedor(es) que cobraria</div></div>`;
+    $('pill-sombra').textContent='Compras: sombra · nada vale · Radar '+(d.radar.atualizadoEm?new Date(d.radar.atualizadoEm).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'');
+    refreshScreens();
+  }catch(e){$('pill-sombra').textContent='Compras: sombra indisponível ('+e.message+')'; $('kpis2').innerHTML='';}
+}
+carregarReal(); carregarSombra(); setInterval(carregarReal,5*60*1000); setInterval(carregarSombra,5*60*1000);
 select('vigia');
 for(let i=0;i<4;i++)pushEvent();
 setInterval(pushEvent,reduce?6000:3400);

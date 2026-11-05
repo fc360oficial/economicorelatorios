@@ -129,7 +129,7 @@
         { href: '/espelho-erp.html', ic: 'shield', txt: 'Espelho do ERP', admin: true },
         { href: '/log.html', ic: 'list', txt: 'Log' },
         // Robô de Precificação (Tiago, 04/11/26): EM TESTE, só leitura — vigia de margem das listas Vitamassa/Capricche/Yoki/Nestlé
-        { href: '/robo-precificacao.html', ic: 'chart', txt: 'Robô de Precificação' }
+        { href: '/robo-precificacao.html', ic: 'chart', txt: 'Robô de Precificação', admin: true }
       ]}
   ];
 

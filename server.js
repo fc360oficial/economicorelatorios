@@ -322,7 +322,9 @@ app.use((req, res, next) => {
       || req.path === '/claudia.html' || req.path.startsWith('/api/claudia/')
       || req.path.startsWith('/api/tv-rh/config') || req.path.startsWith('/api/tv-acougue/') || req.path.startsWith('/api/cahu-distribuidora/tv-config')
       // 04/11/2026 (Coordenação): diagnósticos (/api/_diag/*) só pra admin logado; tabelas-central executava QUALQUER SQL sem login
-      || req.path.startsWith('/api/_diag/');
+      || req.path.startsWith('/api/_diag/')
+      // 04/11/2026 (Tiago: "quem vai ver só isso só sou eu no momento"): Robô de Precificação, Escritório 3D e Comprador sombra
+      || ['/robo-precificacao.html', '/robo-escritorio-3d.html', '/comprador-sombra.html'].includes(req.path) || req.path.startsWith('/api/robo-precificacao') || req.path.startsWith('/api/comprador-sombra');
     if (soAdmin && req.session.user.perfil !== 'admin') {
       if (req.path.startsWith('/api/')) return res.status(403).json({ error: 'Sem permissão' });
       return res.redirect('/index.html');
@@ -9754,11 +9756,25 @@ app.get('/api/robo-precificacao/estado', (req, res) => { res.set('Cache-Control'
 app.post('/api/robo-precificacao/recalcular', (req, res) => { roboPrecif.calcular().catch(e => console.error('[ROBO-PRECIF]', e.message)); res.json({ ok: true, estado: roboPrecif.estado() }); });
 app.get('/api/robo-precificacao/params', (req, res) => res.json(roboPrecif.getParams()));
 app.post('/api/robo-precificacao/params', (req, res) => {
-  try { const p = roboPrecif.setParams(req.body || {}); roboPrecif.calcular().catch(e => console.error('[ROBO-PRECIF]', e.message)); res.json(p); }
+  try { const p = roboPrecif.setParams(req.body || {}); roboPrecif.calcular().catch(e => console.error('[ROBO-PRECIF]', e.message)); compradorSombra.invalidar(); res.json(p); }
   catch (err) { res.status(400).json({ error: err.message }); }
 });
 app.post('/api/robo-precificacao/params/reset', (req, res) => { const p = roboPrecif.resetParams(); roboPrecif.calcular().catch(e => console.error('[ROBO-PRECIF]', e.message)); res.json(p); });
 app.get('/api/robo-precificacao/listas-erp', async (req, res) => { try { res.json(await roboPrecif.listasErp()); } catch (err) { res.status(500).json({ error: err.message }); } });
+
+// ═══════════════════════════════════════════════════
+// COMPRADOR ROBÔ EM MODO SOMBRA (04/11/2026, Tiago): só nas listas do robô (as mesmas do vigia), mostra o que o comprador
+// robô FARIA hoje (pedir, mandar pra aprovação, gravar, cobrar fornecedor) sem fazer nada — nada muda nas listas das
+// compradoras (lista da Kelly continua com a Kelly). Reaproveita o Radar de Pedidos; só leitura. SÓ ADMIN (trava acima).
+// ═══════════════════════════════════════════════════
+const compradorSombra = require('./lib/comprador-sombra');
+compradorSombra.init({ radarPedidos, pedidosFornec, roboPrecif, q });
+app.get('/api/comprador-sombra', async (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json(await compradorSombra.resumo(req.query.refresh === '1')); } catch (err) { res.status(500).json({ error: err.message }); } });
+app.get('/api/comprador-sombra/:id/itens', (req, res) => { try { res.json(compradorSombra.itens(req.params.id)); } catch (err) { res.status(500).json({ error: err.message }); } });
+app.get('/api/comprador-sombra/:id/dia/:dia', async (req, res) => {
+  try { if (!/^\d{4}-\d{2}-\d{2}$/.test(req.params.dia)) return res.status(400).json({ error: 'dia inválido' }); res.json(await compradorSombra.dia(req.params.dia, req.params.id)); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
 // Termos de Escala (23/10/2026, DP / RH › Termos de Escala): termo de ciência de trabalho em domingo/feriado, um por
 // funcionário num PDF só, com histórico e reimpressão. Regras e PDF em lib/termos-escala.js; só lê o PontoCerto.
 require('./lib/termos-escala-rotas')(app, { pontocerto });

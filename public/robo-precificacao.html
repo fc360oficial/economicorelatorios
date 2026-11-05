@@ -35,8 +35,8 @@ header{background:var(--card);border-bottom:1px solid var(--border);box-shadow:0
 .abas{background:var(--card);border-bottom:1px solid var(--border);padding:0 24px;display:flex;gap:4px}
 .aba{border:none;background:none;padding:11px 14px 9px;font:800 11px var(--font);letter-spacing:1px;text-transform:uppercase;color:var(--text3);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-1px}
 .aba.on{color:var(--text);border-bottom-color:var(--brand)}
-#aba-3d{flex:1;display:flex;min-height:0}
-#aba-3d iframe{flex:1;border:none;width:100%;min-height:calc(100vh - 110px)}
+#aba-3d,#aba-sombra{flex:1;display:flex;min-height:0}
+#aba-3d iframe,#aba-sombra iframe{flex:1;border:none;width:100%;min-height:calc(100vh - 110px)}
 @media(max-width:820px){.abas{padding:0 14px}}
 main{flex:1;padding:18px 24px;display:flex;flex-direction:column;gap:16px}
 .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
@@ -91,8 +91,9 @@ details summary::before{content:'▸ ';color:var(--text3)}details[open] summary:
 <header>
   <div class="h-title"><h1>Robô de Precificação <span class="teste">Em teste · só leitura</span></h1><p>Fase 0 · vigia de margem das listas · nada aqui escreve no ERP</p></div>
 </header>
-<div class="abas"><button class="aba on" id="ab-vigia" onclick="aba('vigia')">Vigia de margem</button><button class="aba" id="ab-3d" onclick="aba('3d')">Escritório 3D</button></div>
+<div class="abas"><button class="aba on" id="ab-vigia" onclick="aba('vigia')">Vigia de margem</button><button class="aba" id="ab-sombra" onclick="aba('sombra')">Comprador sombra</button><button class="aba" id="ab-3d" onclick="aba('3d')">Escritório 3D</button></div>
 <div id="aba-3d" hidden><iframe id="fr-3d" title="Escritório Robô em 3D" loading="lazy"></iframe></div>
+<div id="aba-sombra" hidden><iframe id="fr-sombra" title="Comprador sombra" loading="lazy"></iframe></div>
 <div class="filtros" id="filtros">
   <span class="fl">Lista</span>
   <select class="fs" id="f-lista"><option value="">Todas</option></select>
@@ -261,9 +262,9 @@ function removerLista(k){if(!confirm('Tirar "'+D.params.listas[k].nome+'" do vig
 function addLista(){const id=+$('nova-id').value;if(!id){alert('Escolha a lista do ERP.');return;}const opt=$('nova-id').selectedOptions[0].textContent.split(' · ')[1];const nome=($('nova-nome').value||'').trim()||opt;const ls=JSON.parse(JSON.stringify(D.params.listas));if(ls.some(l=>l.ids.includes(id))){alert('Essa lista já está no vigia.');return;}ls.push({nome,ids:[id],metaReais:null});salvarParams(ls);}
 async function recalcular(){const b=$('b-recalc');b.disabled=true;try{await fetch('/api/robo-precificacao/recalcular',{method:'POST'});$('f-info').textContent='Recalculando… (alguns minutos)';setTimeout(()=>{b.disabled=false;carregar();},20000);}catch(e){b.disabled=false;alert('Não deu: '+e.message);}}
 // aba Escritório 3D: carrega o iframe só na 1ª vez; a aba fica guardada na URL (#3d) pra voltar nela
-function aba(k){const t=k==='3d';$('ab-3d').classList.toggle('on',t);$('ab-vigia').classList.toggle('on',!t);$('aba-3d').hidden=!t;$('main-vigia').hidden=t;$('filtros').hidden=t;
-  if(t&&!$('fr-3d').src)$('fr-3d').src='/robo-escritorio-3d.html?embed=1';history.replaceState(null,'',t?'#3d':'#');}
-if(location.hash==='#3d')aba('3d');
+function aba(k){const t3=k==='3d',ts=k==='sombra';$('ab-3d').classList.toggle('on',t3);$('ab-sombra').classList.toggle('on',ts);$('ab-vigia').classList.toggle('on',!t3&&!ts);$('aba-3d').hidden=!t3;$('aba-sombra').hidden=!ts;$('main-vigia').hidden=t3||ts;$('filtros').hidden=t3||ts;
+  if(t3&&!$('fr-3d').src)$('fr-3d').src='/robo-escritorio-3d.html?embed=1'; if(ts&&!$('fr-sombra').src)$('fr-sombra').src='/comprador-sombra.html?embed=1';history.replaceState(null,'',t3?'#3d':ts?'#sombra':'#');}
+if(location.hash==='#3d')aba('3d'); if(location.hash==='#sombra')aba('sombra');
 ['f-lista','f-loja'].forEach(id=>$(id).addEventListener('change',()=>D&&render()));
 $('busca').addEventListener('input',()=>D&&renderItens());
 carregar();
