@@ -93,6 +93,9 @@
   table.m td.p{font-weight:600;white-space:normal;line-height:1.25}table.m td.p small{display:block;font-weight:400;color:var(--ink3);font-size:10.5px}
   table.m tr:hover td{background:#F6F6F4}table.m tr.bad td{background:#FFF5F6}
   table.m tr.tot td{border-top:2px solid var(--ln,#DADAD6);font-weight:800;background:#FAFAF8}
+  /* fechamento da lista de notas: Emitidas / (−) Canceladas / Total — cancelada riscada e apagada na lista */
+  table.m tr.sub td{border-top:1px solid var(--ln,#DADAD6);font-weight:600;background:#FAFAF8}table.m tr.sub.dn td{color:var(--neg)}
+  table.m tr.canc td{color:var(--ink3)}table.m tr.canc td.p,table.m tr.canc td:first-child{text-decoration:line-through}
   table.m tr.tipo td{border-top:1px solid var(--ln,#DADAD6);font-weight:600;color:var(--ink2);background:#FCFCFB}table.m tr.tipo+tr.tipo td{border-top:1px dashed var(--ln,#DADAD6)}
   table.m tr.hl td{background:var(--amw,#FFF6D9);box-shadow:inset 3px 0 0 #F5B800}
   table.m th.grp{text-align:center;color:var(--ink2);border-left:1px solid var(--ln,#DADAD6);background:#F3F3F1;padding:5px 8px;font-size:9px}
@@ -396,7 +399,8 @@ function renderFat() {
     // por nota e o que foi por NFC-e"): a quebra dele aparece no detalhe (vendDetalhe) e a do total nas linhas NF-e / NFC-e
     return '<tr' + (t === true ? ' class="tot"' : t ? ' class="tipo"' : ' data-vend="' + v.cod + '"') + '><td class="p">' + esc(v.nome) + '</td>'
     + '<td class="r sep dia">' + n0(v.hoje.n) + '</td><td class="r dia' + cl('hoje', v.hoje.n) + '"><b>' + money(v.hoje.v) + '</b></td>'
-    + '<td class="r sep">' + n0(v.mes.n) + '</td><td class="r' + cl('mes', v.mes.n) + '"><b>' + money(v.mes.v) + '</b>' + (t === true ? '' : '<span class="ant">' + pct(v.pct) + ' do total</span>') + '</td><td class="r">' + mg(v.mes.margem) + '</td><td class="r">' + money(v.mes.ticket) + '</td><td class="r">' + n0(v.mes.clientes) + '</td>'
+    // canceladas já estão fora de notas/venda: a linha diz quantas foram e quanto saiu (Tiago, 05/11: "se tiver algum cancelado tem que abater no total")
+    + '<td class="r sep">' + n0(v.mes.n) + (v.canceladas && v.canceladas.n ? '<span class="ant dn" title="canceladas no mês, já abatidas do total">' + n0(v.canceladas.n) + ' canc · −' + money(v.canceladas.v) + '</span>' : '') + '</td><td class="r' + cl('mes', v.mes.n) + '"><b>' + money(v.mes.v) + '</b>' + (t === true ? '' : '<span class="ant">' + pct(v.pct) + ' do total</span>') + '</td><td class="r">' + mg(v.mes.margem) + '</td><td class="r">' + money(v.mes.ticket) + '</td><td class="r">' + n0(v.mes.clientes) + '</td>'
     + '<td class="r sep">' + (v.mesAnt.v ? money(v.mesAnt.v) + '<span class="ant">' + n0(v.mesAnt.n) + ' notas · <b class="' + cls(v.var) + '">' + sgn(v.var) + '</b></span>' : '<span class="mut">—</span>') + '</td></tr>';
   };
   el('c-fat-vend').innerHTML = vs.length ? '<table class="m"><thead><tr><th rowspan="2">Vendedor</th><th class="grp dia" colspan="2">' + (FX ? 'Último dia' : 'Hoje') + ' · ' + hj + '</th><th class="grp" colspan="5">Mês · 01 a ' + hj + '</th><th class="grp" rowspan="2">Mês anterior<br>01 a ' + df(f.mesAnt.ate) + '</th></tr>'
@@ -449,11 +453,16 @@ async function vendDetalhe(td, per) {
   try {
     const r = await fetch('/api/dashboard-distribuidora/vendedor/' + tr.dataset.vend + '/' + per + (DEMO ? '?demo=1' : fatData() ? '?' + fatData() : '')); const j = await r.json(); if (j.error) throw new Error(j.error);
     if (!det.isConnected) return;
-    const ns = j.notas || [];
-    det.firstChild.innerHTML = '<div class="det-h"><b>' + esc(j.nome) + '</b> · ' + (per === 'hoje' ? (fatData() ? 'notas de ' + df(j.ate) : 'notas de hoje') : 'notas do mês · ' + df(j.de) + ' a ' + df(j.ate)) + ' · <b>' + plural(ns.length, 'nota') + '</b> · total ' + money(j.total) + (per === 'hoje' ? '' : ' · mais recente primeiro')
+    // canceladas aparecem na lista (riscadas, "cancelada") e são abatidas no fim: emitidas − canceladas = total, que é o mesmo
+    // valor da linha do vendedor (Tiago, 05/11: "se tiver algum cancelado tem que abater no total, toda diferença tem que ser
+    // abatida no final"). Sem cancelada, a lista fecha só com a linha Total.
+    const ns = j.notas || [], canc = j.canceladas || { n: 0, v: 0 }, emit = j.emitidas || { n: ns.length, v: j.total }, ok = ns.length - canc.n;
+    det.firstChild.innerHTML = '<div class="det-h"><b>' + esc(j.nome) + '</b> · ' + (per === 'hoje' ? (fatData() ? 'notas de ' + df(j.ate) : 'notas de hoje') : 'notas do mês · ' + df(j.de) + ' a ' + df(j.ate)) + ' · <b>' + plural(ok, 'nota') + '</b>' + (canc.n ? ' <b class="dn">+ ' + plural(canc.n, 'cancelada') + '</b>' : '') + ' · total ' + money(j.total) + (canc.n ? ' <span class="mut">(emitidas ' + money(emit.v) + ' − canceladas ' + money(canc.v) + ')</span>' : '') + (per === 'hoje' ? '' : ' · mais recente primeiro')
       + (j.nfe ? ' &nbsp; <span class="pill nt" title="NF-e de venda">NF-e ' + j.nfe.n + ' · ' + money(j.nfe.v) + '</span> <span class="pill inf" title="NFC-e emitidas no caixa do CD">NFC-e ' + j.nfce.n + ' · ' + money(j.nfce.v) + '</span>' : '') + '</div>'
-      + (ns.length ? '<table class="m"><thead><tr><th>Data</th><th>Nota</th><th>Cliente</th><th>Forma</th><th class="r">Valor</th><th class="r">Margem</th></tr></thead><tbody>'
-        + ns.map(n => '<tr><td>' + dow(n.d) + ' ' + df(n.d) + (n.hora ? ' ' + hm(n.hora) : '') + '</td><td>' + notaCel(n) + '</td><td class="p">' + esc(n.cliente) + '</td><td>' + esc(n.forma) + '</td><td class="r"><b>' + money(n.v) + '</b></td><td class="r">' + mg(n.margem) + '</td></tr>').join('') + '</tbody></table>' : '<div class="empty">Sem nota no período.</div>');
+      + (ns.length ? '<table class="m"><thead><tr><th>Data</th><th>Nota</th><th>Cliente</th><th>Forma</th><th class="r">Valor</th><th class="r">Margem</th><th>Situação</th></tr></thead><tbody>'
+        + ns.map(n => '<tr' + (n.st === 'C' ? ' class="bad canc"' : '') + '><td>' + dow(n.d) + ' ' + df(n.d) + (n.hora ? ' ' + hm(n.hora) : '') + '</td><td>' + notaCel(n) + '</td><td class="p">' + esc(n.cliente) + '</td><td>' + esc(n.forma) + '</td><td class="r"><b>' + (n.st === 'C' ? '<s>' + money(n.v) + '</s>' : money(n.v)) + '</b></td><td class="r">' + mg(n.margem) + '</td><td>' + (n.st === 'C' ? '<span class="pill bad">cancelada</span>' : '<span class="pill ok">autorizada</span>') + '</td></tr>').join('')
+        + '</tbody><tbody>' + (canc.n ? '<tr class="sub"><td colspan="4">Emitidas · ' + plural(emit.n, 'nota') + '</td><td class="r">' + money(emit.v) + '</td><td colspan="2"></td></tr><tr class="sub dn"><td colspan="4">(−) Canceladas · ' + plural(canc.n, 'nota') + '</td><td class="r">−' + money(canc.v) + '</td><td colspan="2"></td></tr>' : '')
+        + '<tr class="tot"><td colspan="4">Total · ' + plural(ok, 'nota autorizada', 'notas autorizadas') + '</td><td class="r">' + money(j.total) + '</td><td colspan="2"></td></tr></tbody></table>' : '<div class="empty">Sem nota no período.</div>');
   } catch (e) { if (det.isConnected) det.firstChild.innerHTML = '<div class="empty">erro: ' + esc(e.message) + '</div>'; }
 }
 /* ── Sumiram: filtro por vendedor + imprimir/PDF + CSV (Tiago, 09/10: "posso trazer por vendedor? e imprimir em pdf ou baixar?" — pra mandar a lista
@@ -511,9 +520,12 @@ async function cliDetalhe(tr) {
   try {
     const r = await fetch('/api/dashboard-distribuidora/cliente/' + tr.dataset.cli + (DEMO ? '?demo=1' : tr.closest('#s1') && fatData() ? '?' + fatData() : '')); const j = await r.json(); if (j.error) throw new Error(j.error);
     if (!det.isConnected) return;
-    const ns = j.notas || [], ab = j.abertos || [];
-    det.firstChild.innerHTML = '<div class="det-h"><b>' + plural(ns.length, 'nota') + '</b> de ' + df(j.de) + ' a ' + df(j.ate) + ' · total ' + money(j.total) + ' · mais recente primeiro' + (ab.length ? ' · <b class="wn">' + plural(ab.length, 'pedido aberto', 'pedidos abertos') + ' sem nota</b>' : '') + '</div>'
-      + (ns.length ? '<table class="m"><thead><tr><th>Data</th><th>Nota</th><th>Vendedor</th><th>Forma</th><th class="r">Valor</th><th class="r">Margem</th><th>Situação</th></tr></thead><tbody>' + ns.map(n => '<tr' + (n.st === 'C' ? ' class="bad"' : '') + '><td>' + dow(n.d) + ' ' + df(n.d) + (n.hora ? ' ' + hm(n.hora) : '') + '</td><td>' + notaCel(n) + '</td><td>' + esc(n.vend) + '</td><td>' + esc(n.forma) + '</td><td class="r"><b>' + money(n.v) + '</b></td><td class="r">' + mg(n.margem) + '</td><td>' + (n.st === 'C' ? '<span class="pill bad">cancelada</span>' : '<span class="pill ok">autorizada</span>') + '</td></tr>').join('') + '</tbody></table>' : '<div class="empty">Sem nota no período.</div>')
+    // mesma regra do detalhe do vendedor: cancelada riscada na lista e abatida no fim (emitidas − canceladas = total)
+    const ns = j.notas || [], ab = j.abertos || [], canc = j.canceladas || { n: ns.filter(n => n.st === 'C').length, v: 0 }, emit = j.emitidas || { n: ns.length, v: j.total }, ok = ns.length - canc.n;
+    det.firstChild.innerHTML = '<div class="det-h"><b>' + plural(ok, 'nota') + '</b>' + (canc.n ? ' <b class="dn">+ ' + plural(canc.n, 'cancelada') + '</b>' : '') + ' de ' + df(j.de) + ' a ' + df(j.ate) + ' · total ' + money(j.total) + (canc.n ? ' <span class="mut">(emitidas ' + money(emit.v) + ' − canceladas ' + money(canc.v) + ')</span>' : '') + ' · mais recente primeiro' + (ab.length ? ' · <b class="wn">' + plural(ab.length, 'pedido aberto', 'pedidos abertos') + ' sem nota</b>' : '') + '</div>'
+      + (ns.length ? '<table class="m"><thead><tr><th>Data</th><th>Nota</th><th>Vendedor</th><th>Forma</th><th class="r">Valor</th><th class="r">Margem</th><th>Situação</th></tr></thead><tbody>' + ns.map(n => '<tr' + (n.st === 'C' ? ' class="bad canc"' : '') + '><td>' + dow(n.d) + ' ' + df(n.d) + (n.hora ? ' ' + hm(n.hora) : '') + '</td><td>' + notaCel(n) + '</td><td>' + esc(n.vend) + '</td><td>' + esc(n.forma) + '</td><td class="r"><b>' + (n.st === 'C' ? '<s>' + money(n.v) + '</s>' : money(n.v)) + '</b></td><td class="r">' + mg(n.margem) + '</td><td>' + (n.st === 'C' ? '<span class="pill bad">cancelada</span>' : '<span class="pill ok">autorizada</span>') + '</td></tr>').join('')
+        + '</tbody><tbody>' + (canc.n ? '<tr class="sub"><td colspan="4">Emitidas · ' + plural(emit.n, 'nota') + '</td><td class="r">' + money(emit.v) + '</td><td colspan="2"></td></tr><tr class="sub dn"><td colspan="4">(−) Canceladas · ' + plural(canc.n, 'nota') + '</td><td class="r">−' + money(canc.v) + '</td><td colspan="2"></td></tr>' : '')
+        + '<tr class="tot"><td colspan="4">Total · ' + plural(ok, 'nota autorizada', 'notas autorizadas') + '</td><td class="r">' + money(j.total) + '</td><td colspan="2"></td></tr></tbody></table>' : '<div class="empty">Sem nota no período.</div>')
       + (ab.length ? '<div class="det-h">Pedidos abertos</div><table class="m"><thead><tr><th>Pedido</th><th>Quando</th><th>Vendedor</th><th>Forma</th><th class="r">Valor</th></tr></thead><tbody>' + ab.map(p => '<tr><td>#' + p.ped + '</td><td>' + df(p.d) + ' ' + hm(p.hora) + '</td><td>' + esc(p.vend) + '</td><td>' + esc(p.forma) + '</td><td class="r"><b>' + money(p.v) + '</b></td></tr>').join('') + '</tbody></table>' : '');
   } catch (e) { if (det.isConnected) det.firstChild.innerHTML = '<div class="empty">erro: ' + esc(e.message) + '</div>'; }
 }
