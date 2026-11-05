@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="/design-system.css">
+<script src="/nav.js" defer></script>
+<title>Escritório Robô em 3D — Econômico</title>
+<!--
+  Escritório Robô em 3D (04/11/2026, Tiago: "cadê a maquete 3D do escritório na aba? reveja e melhore a maquete com pessoas,
+  cores atuais como fizemos no teste"). É a maquete do artifact "Escritório Robô Compras" (03/11) trazida pro app, nas mesmas
+  cores de escritório real (madeira clara, carpete cinza, vidro, navy + âmbar do Econômico), com gente blocada em cada posto.
+  Abre dentro de Processos › Robô de Precificação (aba "Escritório 3D", ?embed=1) ou sozinha.
+  Postos:
+    fileira do fundo + fileira do meio ... 6 postos do COMPRADOR ROBÔ (Sugestão, Fila de Aprovação, Pedido ERP, Radar, Cobrança,
+                                           Resumo do Dia) — ainda é EXEMPLO (dados fictícios), o comprador robô aguarda o diretor
+    fileira da frente ................... 2 postos do ROBÔ DE PRECIFICAÇÃO (Vigia de Margem, Precificação) com os NÚMEROS REAIS
+                                           do vigia (/api/robo-precificacao) + a mesa do Tiago, que aprova preço (pessoa, crachá verde)
+    sala de vidro ....................... Luciana, compradora (pessoa, crachá verde) — exemplo
+    sala do ERP ......................... racks do MySQL de teste do .254; os cubos azuis são dado indo pro ERP
+  Só leitura. Fontes em lib/robo-precificacao.js.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#EBEBE9;--bg2:#E4E4E1;--card:#FFFFFF;--brand:#F5B800;--brand-ink:#6B4E00;--navy:#13294b;--green:#137A48;--green-bg:#E7F5EC;--red:#C22F49;--red-bg:#FBEAED;
+  --amber:#B45C00;--amber-bg:#FBEDDD;--blue:#2C4A6B;--blue-bg:#E9EEF3;--text:#0E1626;--text2:#4E5A72;--text3:#98A0B3;--border:#DADAD6;--border-md:#C9C9C4;--r:14px;
+  --font:'InterVar','Inter','Segoe UI',system-ui,-apple-system,sans-serif;--mono:'IBM Plex Mono',ui-monospace,Consolas,monospace}
+html,body{height:100%;font-family:var(--font);background:var(--bg);color:var(--text)}
+body{overflow:hidden}
+.app{display:grid;grid-template-columns:1fr 360px;height:100vh;min-height:0}
+@media(max-width:1199px){.app{grid-template-columns:1fr 320px}}
+@media(max-width:900px){.app{grid-template-columns:1fr;grid-template-rows:56vh 1fr;height:100vh}}
+.stage{position:relative;min-width:0;min-height:0;overflow:hidden;background:#dfe3e8;cursor:grab;touch-action:none}
+.stage:active{cursor:grabbing}
+.stage canvas{display:block;width:100%;height:100%}
+.overlay{position:absolute;pointer-events:none;color:#1b2634}
+.brand{top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:14px 16px}
+.brand h1{font-size:13px;font-weight:800;letter-spacing:1px;text-transform:uppercase}
+.brand h1::after{content:'';display:inline-block;width:16px;height:3px;background:var(--brand);border-radius:2px;margin-left:8px;vertical-align:middle}
+.brand .eyebrow{display:block;font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:#4b5a6e;font-weight:700;margin-bottom:2px}
+.pill{font-family:var(--mono);font-size:10.5px;color:#4b5a6e;border:1px solid rgba(27,38,52,.25);border-radius:999px;padding:3px 9px;white-space:nowrap;background:rgba(255,255,255,.85);pointer-events:auto}
+.pill.real{color:var(--green);border-color:var(--green)}
+.legend{bottom:0;left:0;right:0;display:flex;gap:12px;flex-wrap:wrap;align-items:center;padding:12px 16px;font-size:11.5px;color:#2f3b4b}
+.legend .dot{width:10px;height:10px;border-radius:3px;display:inline-block;margin-right:5px;vertical-align:-1px}
+.ctl{position:absolute;right:16px;bottom:46px;display:flex;flex-direction:column;gap:6px;z-index:3}
+.ctl button{width:34px;height:34px;border-radius:8px;border:1px solid rgba(27,38,52,.25);background:rgba(255,255,255,.92);color:#1b2634;font-size:18px;font-weight:700;cursor:pointer;font-family:var(--font)}
+.tags{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.tag{position:absolute;transform:translate(-50%,-100%);pointer-events:none;background:rgba(255,255,255,.95);border:1px solid rgba(27,38,52,.15);border-radius:8px;padding:5px 9px 6px;color:#1b2634;font-size:11px;line-height:1.3;white-space:nowrap;max-width:240px;box-shadow:0 3px 10px rgba(27,38,52,.18)}
+.tag::after{content:"";position:absolute;left:50%;bottom:-6px;width:10px;height:10px;background:inherit;border-right:1px solid rgba(27,38,52,.15);border-bottom:1px solid rgba(27,38,52,.15);transform:translateX(-50%) rotate(45deg)}
+.tag b{display:block;font-size:10px;color:var(--brand-ink);letter-spacing:.06em;text-transform:uppercase;font-weight:800}
+.tag i{font-style:normal;font-weight:700;color:#1b2634;display:block}
+.tag.humana b{color:var(--green)}.tag.real b{color:var(--navy)}
+.tag.sel{border-color:var(--brand);box-shadow:0 0 0 2px rgba(245,184,0,.45)}
+.tag span{display:block;white-space:normal;color:#4b5a6e}
+.panel{display:flex;flex-direction:column;gap:12px;min-width:0;background:var(--card);border-left:1px solid var(--border);overflow:auto;padding:16px}
+@media(max-width:900px){.panel{border-left:0;border-top:1px solid var(--border)}}
+.panel h2{font-size:10px;font-weight:800;color:var(--text2);letter-spacing:1.5px;text-transform:uppercase}
+.sub{color:var(--text3);font-size:11px;margin-top:3px}
+.kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.kpi{border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--bg2);min-width:0;position:relative;overflow:hidden}
+.kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--brand)}
+.kpi .n{font-family:var(--mono);font-size:19px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1}
+.kpi .l{font-size:10.5px;color:var(--text3);margin-top:5px}
+.kpi.warn::before{background:var(--amber)}.kpi.warn .n{color:var(--amber)}
+.kpi.crit::before{background:var(--red)}.kpi.crit .n{color:var(--red)}
+.kpi.ok::before{background:var(--green)}.kpi.ok .n{color:var(--green)}
+.grp{font-size:9px;font-weight:800;color:var(--text3);letter-spacing:1.5px;text-transform:uppercase;margin:4px 0 -4px}
+.robos{display:flex;flex-wrap:wrap;gap:6px}
+.robos button{border:1px solid var(--border-md);background:var(--bg2);color:var(--text);border-radius:999px;padding:5px 10px;font:700 11.5px var(--font);cursor:pointer}
+.robos button[aria-pressed="true"]{background:var(--navy);color:#fff;border-color:var(--navy)}
+.robos button.real{border-color:var(--navy)}
+.card{border:1px solid var(--border);border-radius:12px;padding:12px 14px;border-left:4px solid var(--brand)}
+.card.real{border-left-color:var(--navy)}.card.humana{border-left-color:var(--green)}
+.card .papel{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--brand-ink);font-weight:800}
+.card.real .papel{color:var(--navy)}.card.humana .papel{color:var(--green)}
+.card h3{margin:2px 0 8px;font-size:15px;font-weight:800}
+.card h3 small{font-weight:600;color:var(--text3);font-size:11.5px}
+.card .agora{font-weight:600;margin:0 0 8px;font-size:12.5px}
+.card ul{margin:0 0 10px;padding-left:18px;color:var(--text2);font-size:12px}
+.card li{margin:2px 0}
+.card .prox{font-size:11.5px;border-top:1px dashed var(--border);padding-top:8px;color:var(--text2)}
+.card .prox b{color:var(--text)}
+.feed{display:flex;flex-direction:column;gap:4px;min-width:0}
+.ev{display:grid;grid-template-columns:54px 1fr;gap:8px;align-items:start;padding:6px 8px;border-radius:8px;background:var(--bg2);min-width:0}
+.ev time{font-family:var(--mono);font-size:10.5px;color:var(--text3);padding-top:2px}
+.ev .t{font-size:12px;min-width:0}
+.ev .q{display:inline-block;font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;border-radius:4px;padding:1px 5px;margin-right:6px;vertical-align:1px}
+.ev.ok .q{background:var(--green-bg);color:var(--green)}.ev.warn .q{background:var(--amber-bg);color:var(--amber)}.ev.crit .q{background:var(--red-bg);color:var(--red)}
+.ev.novo{animation:pop .5s ease-out}
+@keyframes pop{from{transform:translateY(-6px);opacity:0}}
+.nota{font-size:11.5px;color:var(--text3);border-top:1px solid var(--border);padding-top:10px;line-height:1.45}
+@media(prefers-reduced-motion:reduce){.ev.novo{animation:none}}
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body class="ds">
+<div class="app">
+  <section class="stage" id="stage" aria-label="Escritório em 3D">
+    <div class="overlay brand">
+      <div><span class="eyebrow">Econômico · Compras e Precificação</span><h1>Escritório Robô</h1></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"><span class="pill">Compras: exemplo</span><span class="pill real" id="pill-real">Precificação: dados reais</span></div>
+    </div>
+    <div class="ctl"><button id="zin" aria-label="Aproximar">+</button><button id="zout" aria-label="Afastar">−</button></div>
+    <div class="overlay legend">
+      <span><i class="dot" style="background:#f2a516"></i>posto automatizado (crachá âmbar)</span>
+      <span><i class="dot" style="background:#13294b"></i>precificação · números reais</span>
+      <span><i class="dot" style="background:#1f8a4c"></i>pessoa aprovando</span>
+      <span><i class="dot" style="background:#3f7fd6"></i>dado indo pro ERP</span>
+      <span>· arraste pra girar, clique numa pessoa</span>
+    </div>
+    <div class="tags" id="tags"></div>
+  </section>
+  <aside class="panel">
+    <div><h2>Escritório · agora</h2><p class="sub" id="sub">carregando…</p></div>
+    <div class="kpis" id="kpis"></div>
+    <div class="grp">Precificação · real</div>
+    <div class="robos" id="robos-real" role="tablist" aria-label="Postos de precificação"></div>
+    <div class="grp">Compras · exemplo</div>
+    <div class="robos" id="robos-ex" role="tablist" aria-label="Postos de compras"></div>
+    <div class="card" id="card"></div>
+    <div class="feed" id="feed"><div class="grp" style="margin:0">Acontecendo agora</div></div>
+    <p class="nota">Gente continua no fluxo: a compradora aprova pelo celular na sala dela e o Tiago aprova preço na mesa da frente. Os postos de Compras ainda são exemplo (o comprador robô espera o diretor). Os dois postos de Precificação mostram o vigia real: margem do mês, meta e vazamentos.</p>
+  </aside>
+</div>
+<script type="module">
+import * as THREE from 'three';
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const R0=v=>v==null?'—':'R$ '+Number(v).toLocaleString('pt-BR',{maximumFractionDigits:0});
+const P1=v=>v==null?'—':Number(v).toLocaleString('pt-BR',{maximumFractionDigits:1})+'%';
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ---------- postos: 6 de Compras (exemplo) + 2 de Precificação (real) ---------- */
+const ROBOS=[
+ {id:'sugestao',nome:'Sugestão',pessoa:'Rafael',papel:'Comprador',pos:[-3.2,-2.2],look:{skin:0xc68642,hair:0x1a1a1a,shirt:0xa9c7e8,pants:0x2b3a55,hairStyle:'curto'},
+  agora:'Calculando cobertura da Lista 14 · Loja 4',fila:['1.240 itens avaliados','38 críticos com estoque zero','Lead time médio 5,1 dias'],proximo:'Montar pedido CIMED pra aprovação às 07:00',tela:'bars'},
+ {id:'aprovacao',nome:'Fila de Aprovação',pessoa:'Camila',papel:'Assistente das compradoras',pos:[0,-2.2],look:{skin:0xf1c27d,hair:0x8b5a2b,shirt:0xffffff,pants:0x1a1a1a,hairStyle:'longo'},
+  agora:'3 pedidos aguardando a Luciana',fila:['CIMED · R$ 42.380 · 6 lojas','EMS · R$ 18.940 · 4 lojas','Neo Química · R$ 7.210 · 2 lojas'],proximo:'Reenviar lembrete no WhatsApp às 10:30',tela:'fila'},
+ {id:'erp',nome:'Pedido ERP',pessoa:'Marcos',papel:'Gravador de pedidos',pos:[3.2,-2.2],look:{skin:0x8d5524,hair:0x1a1a1a,shirt:0x6b7a8f,pants:0x3b4b63,hairStyle:'curto'},
+  agora:'Gravando pedido 1023 em pedidocompra',fila:['12 pedidos gravados hoje','Destino: MySQL de teste do .254','Rastro em Processos › Log'],proximo:'Apontar pro .252 quando liberar',tela:'erp'},
+ {id:'radar',nome:'Radar',pessoa:'Juliana',papel:'Acompanhamento de NF-e',pos:[-3.2,.9],look:{skin:0xe0ac69,hair:0x2c1b0e,shirt:0x7a9e7e,pants:0x2b3a55,hairStyle:'coque'},
+  agora:'NF-e 48.213 vinculada ao pedido 1021 pelos itens',fila:['7 pedidos em trânsito','2 divergências de quantidade','1 nota sem pedido'],proximo:'Conferir entrada da Loja 6 às 14:00',tela:'table'},
+ {id:'cobranca',nome:'Cobrança',pessoa:'Diego',papel:'Fala com o fornecedor',pos:[0,.9],look:{skin:0xffdbac,hair:0xd6b370,shirt:0x1f3a5f,pants:0x1a1a1a,hairStyle:'curto'},
+  agora:'Cobrando EMS: pedido 1017 atrasado 2 dias',fila:['3 fornecedores cobrados hoje','1 respondeu com nova data','Chip dedicado, separado do número da tabela'],proximo:'Escalar pra compradora se não responder até 16:00',tela:'forn'},
+ {id:'resumo',nome:'Resumo do Dia',pessoa:'Aline',papel:'Fechamento',pos:[3.2,.9],look:{skin:0xa1665e,hair:0x1a1a1a,shirt:0xd9d2c5,pants:0x4a4a4a,hairStyle:'longo'},
+  agora:'Preparando resumo das 18:00',fila:['Pedido hoje: R$ 68.530','Pendente: 3 aprovações','Amanhã: Listas 7 e 22'],proximo:'Enviar no WhatsApp das compradoras',tela:'line'},
+ // ── Precificação (04/11/26): fileira da frente, números reais do vigia ──
+ {id:'vigia',nome:'Vigia de Margem',pessoa:'Beatriz',papel:'Precificação · lê o ERP',pos:[-2.0,4.0],real:true,look:{skin:0xd9a577,hair:0x3b2314,shirt:0x13294b,pants:0x2b2b2b,hairStyle:'coque'},
+  agora:'Lendo margem das listas vigiadas…',fila:[],proximo:'Recalcula às 05:50 e 13:05',tela:'vigia'},
+ {id:'precif',nome:'Precificação',pessoa:'Henrique',papel:'Precificação · propõe preço',pos:[1.4,4.0],real:true,look:{skin:0xf3d2b0,hair:0x5a3a1e,shirt:0xf2a516,pants:0x1a1a1a,hairStyle:'curto'},
+  agora:'Fase 0: só observando',fila:[],proximo:'Fase 1: sugerir preço e o Tiago aprovar (depende de OK do Dlinks pra gravar)',tela:'precif'}
+];
+const EVENTOS_EX=[
+ ['sugestao','ok','Lista 14 calculada · 1.240 itens · 38 críticos'],['aprovacao','warn','Pedido CIMED R$ 42.380 aguardando a Luciana'],['erp','ok','Pedido 1023 gravado em pedidocompra (teste)'],
+ ['radar','ok','NF-e 48.213 vinculada ao pedido 1021'],['cobranca','warn','EMS: pedido 1017 atrasado 2 dias · mensagem enviada'],['radar','crit','NF-e 48.219 sem pedido · Loja 3'],
+ ['aprovacao','ok','Luciana aprovou Neo Química R$ 7.210'],['erp','ok','Pedido 1024 gravado · 2 lojas'],['cobranca','ok','EMS respondeu: entrega quinta 06/11'],
+ ['resumo','ok','Resumo das 18:00 em preparação'],['sugestao','warn','Loja 6: 12 itens com estoque zero em promoção'],['aprovacao','warn','Lembrete reenviado no WhatsApp da Luciana']
+];
+let EVENTOS_REAL=[], DADOS=null;
+
+/* ---------- cena (mesmas cores do teste de 03/11: madeira clara, carpete cinza, vidro, navy + âmbar) ---------- */
+const stage=$('stage');
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.VSMShadowMap;
+renderer.outputColorSpace=THREE.SRGBColorSpace; renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.0;
+renderer.useLegacyLights=true;   // intensidades calibradas no teste (three r128); r160 é "físico" por padrão e escurece tudo
+stage.appendChild(renderer.domElement);
+const scene=new THREE.Scene(); scene.background=new THREE.Color(0xdfe3e8); scene.fog=new THREE.Fog(0xdfe3e8,36,72);
+const cam=new THREE.PerspectiveCamera(38,1,.1,140);
+scene.add(new THREE.HemisphereLight(0xe6eef7,0x9a8f80,.6));
+scene.add(new THREE.AmbientLight(0xffffff,.12));
+const sun=new THREE.DirectionalLight(0xffe9c8,1.35); sun.position.set(-12,13,4); sun.castShadow=true; sun.shadow.mapSize.set(2048,2048);
+sun.shadow.camera.left=-15; sun.shadow.camera.right=15; sun.shadow.camera.top=15; sun.shadow.camera.bottom=-15; sun.shadow.bias=-.0002; sun.shadow.radius=6; sun.shadow.blurSamples=12; scene.add(sun);
+const sky=new THREE.DirectionalLight(0xbfd4ee,.45); sky.position.set(8,9,10); scene.add(sky);
+const bounce=new THREE.DirectionalLight(0xfff3e0,.2); bounce.position.set(0,-4,6); scene.add(bounce);
+
+const P=(c,o)=>new THREE.MeshStandardMaterial(Object.assign({color:c,roughness:.8,metalness:0},o||{}));
+function tex(w,h,draw,rep){const c=document.createElement('canvas');c.width=w;c.height=h;const g=c.getContext('2d');draw(g,w,h);const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;if(rep){t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(rep[0],rep[1]);}return t;}
+const woodTex=tex(512,512,(g,w,h)=>{g.fillStyle='#c9a77a';g.fillRect(0,0,w,h);for(let i=0;i<8;i++){const y=i*64;g.fillStyle=['#c6a375','#cfae82','#c09c6e','#d2b388'][i%4];g.fillRect(0,y,w,62);g.fillStyle='rgba(90,60,30,.25)';g.fillRect(0,y+62,w,2);const off=(i%2)*256;g.fillRect(off,y,2,62);for(let k=0;k<6;k++){g.fillStyle='rgba(120,85,45,.12)';g.fillRect(Math.random()*w,y+Math.random()*60,80+Math.random()*120,1);}}},[6,5]);
+const carpetTex=tex(256,256,(g,w,h)=>{g.fillStyle='#6d7378';g.fillRect(0,0,w,h);for(let i=0;i<4000;i++){g.fillStyle=Math.random()<.5?'rgba(255,255,255,.06)':'rgba(0,0,0,.08)';g.fillRect(Math.random()*w,Math.random()*h,2,2);}},[8,6]);
+const mFloor=new THREE.MeshStandardMaterial({map:woodTex,roughness:.6}), mCarpet=new THREE.MeshStandardMaterial({map:carpetTex,roughness:1}),
+ mSlab=P(0xd9d6d0), mWall=P(0xf4f3ef), mFrame=P(0x2a2d31,{metalness:.3,roughness:.5}),
+ mGlass=new THREE.MeshStandardMaterial({color:0xcfe6f5,transparent:true,opacity:.22,roughness:.05}),
+ mDeskTop=P(0xf7f6f2,{roughness:.5}), mDeskOak=P(0xb98f60), mMon=P(0x15171a,{roughness:.4}), mChair=P(0x1f2124), mChairMesh=P(0x3a3d42), mChrome=P(0xb9bcc0,{metalness:.8,roughness:.3}),
+ mAmber=new THREE.MeshStandardMaterial({color:0xf2a516,emissive:0xf2a516,emissiveIntensity:.25,roughness:.6}),
+ mNavy=new THREE.MeshStandardMaterial({color:0x13294b,emissive:0x13294b,emissiveIntensity:.35,roughness:.6}),
+ mGreen=new THREE.MeshStandardMaterial({color:0x2ecc71,emissive:0x2ecc71,emissiveIntensity:.3,roughness:.6}),
+ mBlue=new THREE.MeshStandardMaterial({color:0x3f7fd6,emissive:0x3f7fd6,emissiveIntensity:.45,roughness:.6}),
+ mWhite=P(0xffffff), mDark=P(0x1b1d20), mLeaf=P(0x3c8c45), mLeaf2=P(0x2f7238), mPot=P(0x8b8f94), mWood=P(0xa97c50), mSteel=P(0x9aa0a6,{metalness:.6,roughness:.4});
+function box(w,h,d,m,x,y,z){const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;return o;}
+
+/* ---------- andar ---------- */
+const W=17, D=15;
+scene.add(box(W,.3,D,mSlab,0,-.15,0));
+const fl=new THREE.Mesh(new THREE.PlaneGeometry(W,D),mFloor); fl.rotation.x=-Math.PI/2; fl.position.y=.001; fl.receiveShadow=true; scene.add(fl);
+const carpet=new THREE.Mesh(new THREE.PlaneGeometry(10.8,6.6),mCarpet); carpet.rotation.x=-Math.PI/2; carpet.position.set(0,.012,-.6); carpet.receiveShadow=true; scene.add(carpet);
+const carpet2=new THREE.Mesh(new THREE.PlaneGeometry(7.2,3.2),new THREE.MeshStandardMaterial({map:carpetTex,roughness:1,color:0xb9c3d1})); carpet2.rotation.x=-Math.PI/2; carpet2.position.set(0,.012,4.2); carpet2.receiveShadow=true; scene.add(carpet2);
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(120,120),P(0xd7dbe0)); ground.rotation.x=-Math.PI/2; ground.position.y=-.31; ground.receiveShadow=true; scene.add(ground);
+scene.add(box(W,.3,.3,mFrame,0,3.1,-D/2)); scene.add(box(.3,.3,D,mFrame,-W/2,3.1,0));
+for(let i=0;i<=6;i++)scene.add(box(.12,3.1,.12,mFrame,-W/2+i*W/6,1.55,-D/2));
+for(let i=0;i<=5;i++)scene.add(box(.12,3.1,.12,mFrame,-W/2,1.55,-D/2+i*D/5));
+scene.add(box(W,2.95,.05,mGlass,0,1.55,-D/2)); scene.add(box(.05,2.95,D,mGlass,-W/2,1.55,0));
+scene.add(box(W,.9,.08,mWall,0,.45,-D/2+.06)); scene.add(box(.08,.9,D,mWall,-W/2+.06,.45,0));
+const sign=new THREE.Mesh(new THREE.PlaneGeometry(6.5,.75),new THREE.MeshBasicMaterial({map:tex(1024,120,(g,w,h)=>{g.fillStyle='#13294b';g.fillRect(0,0,w,h);g.fillStyle='#f2a516';g.font='800 64px Inter, sans-serif';g.fillText('ECONÔMICO',40,82);g.fillStyle='#ffffff';g.font='600 40px Inter, sans-serif';g.fillText('· COMPRAS',440,82);})})); sign.position.set(-2.5,3.65,-D/2+.02); scene.add(sign); scene.add(box(6.6,.85,.1,mFrame,-2.5,3.65,-D/2-.05));
+scene.add(box(2.4,2.95,.35,mWall,5.8,1.47,-D/2+.2)); scene.add(box(.95,2.4,.05,mSteel,5.31,1.2,-D/2+.4)); scene.add(box(.95,2.4,.05,mSteel,6.29,1.2,-D/2+.4)); scene.add(box(.4,.1,.03,mAmber,5.8,2.7,-D/2+.4));
+const board=new THREE.Mesh(new THREE.PlaneGeometry(2.6,1.5),new THREE.MeshBasicMaterial({map:tex(1024,590,(g,w,h)=>{g.fillStyle='#ffffff';g.fillRect(0,0,w,h);g.fillStyle='#1b2634';g.font='800 56px Inter, sans-serif';g.fillText('LISTAS DA SEMANA',50,90);const L=[['SEG','Lista 7 · Higiene','✓'],['TER','Lista 14 · Farma','●'],['QUA','Lista 22 · Mercearia',''],['QUI','Lista 3 · Perecíveis',''],['SEX','Lista 9 · Bebidas','']];L.forEach((l,i)=>{const y=190+i*80;g.fillStyle='#1f5fa8';g.font='700 40px IBM Plex Mono, monospace';g.fillText(l[0],50,y);g.fillStyle='#1b2634';g.font='500 40px Inter, sans-serif';g.fillText(l[1],190,y);g.fillStyle=l[2]=='✓'?'#1f8a4c':'#d9480f';g.font='700 44px sans-serif';g.fillText(l[2],900,y);});})})); board.position.set(-W/2+.11,1.7,1.5); board.rotation.y=Math.PI/2; scene.add(board); scene.add(box(.06,1.6,2.7,mSteel,-W/2+.07,1.7,1.5));
+
+function glassRoom(x0,x1,z0,z1,doorOnFront){
+  const w=x1-x0,d=z1-z0,cx=(x0+x1)/2,cz=(z0+z1)/2,h=2.6;
+  const c=new THREE.Mesh(new THREE.PlaneGeometry(w,d),mCarpet); c.rotation.x=-Math.PI/2; c.position.set(cx,.014,cz); c.receiveShadow=true; scene.add(c);
+  [[x0,z0],[x1,z0],[x0,z1],[x1,z1]].forEach(p=>scene.add(box(.1,h,.1,mFrame,p[0],h/2,p[1])));
+  scene.add(box(w,.08,.1,mFrame,cx,h,z0)); scene.add(box(w,.08,.1,mFrame,cx,h,z1)); scene.add(box(.1,.08,d,mFrame,x0,h,cz)); scene.add(box(.1,.08,d,mFrame,x1,h,cz));
+  scene.add(box(.04,h-.1,d,mGlass,x0,h/2,cz)); scene.add(box(.04,h-.1,d,mGlass,x1,h/2,cz)); scene.add(box(w,h-.1,.04,mGlass,cx,h/2,z0));
+  if(doorOnFront){scene.add(box(w*.55,h-.1,.04,mGlass,x0+w*.275,h/2,z1)); scene.add(box(.08,h-.1,.08,mFrame,x0+w*.55,h/2,z1)); scene.add(box(w*.45-.1,h-.1,.04,mGlass,x1-(w*.45-.1)/2,h/2,z1)); scene.add(box(.03,.35,.03,mSteel,x1-(w*.45-.1)+.15,1.1,z1+.05));}
+  else scene.add(box(w,h-.1,.04,mGlass,cx,h/2,z1));
+}
+glassRoom(4.7,8.1,-7.0,-3.4,true);
+const roomSign=new THREE.Mesh(new THREE.PlaneGeometry(1.5,.3),new THREE.MeshBasicMaterial({map:tex(640,128,(g,w,h)=>{g.fillStyle='#f4f3ef';g.fillRect(0,0,w,h);g.fillStyle='#1b2634';g.font='700 52px Inter, sans-serif';g.fillText('COMPRADORA',40,86);})})); roomSign.position.set(5.6,2.78,-3.36); scene.add(roomSign);
+glassRoom(-8.1,-5.3,-7.0,-4.4,false);
+const erpSign=new THREE.Mesh(new THREE.PlaneGeometry(1.2,.3),new THREE.MeshBasicMaterial({map:tex(480,128,(g,w,h)=>{g.fillStyle='#f4f3ef';g.fillRect(0,0,w,h);g.fillStyle='#1b2634';g.font='700 52px Inter, sans-serif';g.fillText('ERP',40,86);g.fillStyle='#6b7280';g.font='500 34px Inter, sans-serif';g.fillText('teste .254',170,84);})})); erpSign.position.set(-6.7,2.78,-4.36); scene.add(erpSign);
+const rack=new THREE.Group(); rack.add(box(1,2.2,.8,mDark,0,1.1,0)); rack.add(box(.9,2.1,.02,P(0x2a2d31),0,1.1,.41));
+const leds=[]; for(let i=0;i<10;i++)for(let j=0;j<3;j++){const l=box(.07,.05,.02,(Math.random()<.8?mBlue:mAmber).clone(),-.3+j*.3,.3+i*.19,.42); rack.add(l); leds.push(l);}
+rack.position.set(-6.7,0,-6.0); scene.add(rack);
+const rack2=rack.clone(); rack2.position.set(-5.9,0,-5.2); rack2.rotation.y=Math.PI/2; scene.add(rack2);
+const ERP_TOP=new THREE.Vector3(-6.7,2.4,-6.0);
+// placa da área de precificação (no chão, na frente)
+const precSign=new THREE.Mesh(new THREE.PlaneGeometry(3.2,.5),new THREE.MeshBasicMaterial({map:tex(1280,200,(g,w,h)=>{g.fillStyle='#13294b';g.fillRect(0,0,w,h);g.fillStyle='#f2a516';g.font='800 90px Inter, sans-serif';g.fillText('PRECIFICAÇÃO',40,135);g.fillStyle='#ffffff';g.font='600 52px Inter, sans-serif';g.fillText('· em teste',760,135);})})); precSign.rotation.x=-Math.PI/2; precSign.position.set(0,.03,6.3); scene.add(precSign);
+
+/* ---------- pessoas (blocadas, cores reais) ---------- */
+function limb(w,h,d,m){const g=new THREE.BoxGeometry(w,h,d); g.translate(0,-h/2,0); const o=new THREE.Mesh(g,m); o.castShadow=true; return o;}
+function person(look,opts){
+  const g=new THREE.Group(); const skin=P(look.skin), hair=P(look.hair), shirt=P(look.shirt), pants=P(look.pants);
+  g.userData.shirt=shirt;
+  g.add(box(.62,.66,.34,shirt,0,.83,0)); g.add(box(.18,.1,.18,skin,0,1.2,0)); g.add(box(.42,.42,.42,skin,0,1.47,0));
+  g.add(box(.07,.06,.01,P(0xffffff),-.1,1.5,.215), box(.07,.06,.01,P(0xffffff),.1,1.5,.215));
+  g.add(box(.035,.05,.012,P(0x222222),-.1,1.5,.218), box(.035,.05,.012,P(0x222222),.1,1.5,.218));
+  g.add(box(.09,.02,.01,hair,-.1,1.58,.215), box(.09,.02,.01,hair,.1,1.58,.215));
+  g.add(box(.14,.025,.01,P(0x8a4a3a),0,1.36,.215));
+  g.add(box(.44,.12,.44,hair,0,1.72,0)); g.add(box(.44,.22,.1,hair,0,1.56,-.17));
+  if(look.hairStyle==='longo'){g.add(box(.46,.5,.14,hair,0,1.35,-.2)); g.add(box(.08,.4,.4,hair,-.2,1.42,0)); g.add(box(.08,.4,.4,hair,.2,1.42,0));}
+  if(look.hairStyle==='coque'){g.add(box(.2,.18,.2,hair,0,1.85,-.08));}
+  if(look.hairStyle==='barba'){g.add(box(.42,.12,.08,hair,0,1.3,.19));}
+  if(opts&&opts.blazer){const bl=P(opts.blazer); g.add(box(.66,.6,.38,bl,0,.83,0)); g.add(box(.18,.6,.02,P(0xffffff),0,.83,.2));}
+  if(opts&&opts.badge){const bm=opts.badge===true?mAmber:opts.badge; g.add(box(.02,.5,.01,bm,-.12,1.0,.18)); g.add(box(.02,.5,.01,bm,.12,1.0,.18)); g.add(box(.2,.14,.02,P(0xffffff),0,.7,.19)); g.add(box(.16,.03,.005,bm,0,.74,.205));}
+  [-.16,.16].forEach(x=>{const l=limb(.28,.58,.28,pants); l.position.set(x,.56,.05); l.rotation.x=-Math.PI/2; g.add(l); g.add(box(.28,.3,.28,pants,x,.27,.66)); g.add(box(.3,.1,.34,P(0x2a2a2a),x,.08,.72));});
+  const arms=[-.47,.47].map(x=>{const a=new THREE.Group(); const up=limb(.26,.42,.26,shirt); a.add(up); const hand=limb(.22,.2,.22,skin); hand.position.y=-.42; a.add(hand); a.position.set(x,1.12,.02); a.rotation.x=-1.25; g.add(a); return a;});
+  g.userData.arms=arms; return g;
+}
+function chair(){const c=new THREE.Group(); c.add(box(.58,.1,.58,mChair,0,.45,0)); c.add(box(.56,.72,.09,mChairMesh,0,.86,-.3)); c.add(box(.5,.08,.5,mChair,0,.5,0)); const post=new THREE.Mesh(new THREE.CylinderGeometry(.035,.035,.4,10),mChrome); post.position.y=.2; c.add(post); for(let i=0;i<5;i++){const a=i*Math.PI*2/5; const leg=box(.3,.04,.06,mChrome,Math.cos(a)*.17,.03,Math.sin(a)*.17); leg.rotation.y=-a; c.add(leg);} return c;}
+function scrHead(g,t,w,h){g.fillStyle='#ffffff';g.fillRect(0,0,w,h);g.fillStyle='#13294b';g.fillRect(0,0,w,h*.16);g.fillStyle='#f2a516';g.fillRect(0,h*.16,w,3);g.fillStyle='#ffffff';g.font='700 '+Math.round(h*.085)+'px Inter, sans-serif';g.fillText(t,w*.04,h*.115);}
+function mono(g,s,x,y,px,c){g.fillStyle=c||'#1b2634';g.font='500 '+px+'px "IBM Plex Mono", monospace';g.fillText(s,x,y);}
+const SCREENS={
+ bars:(g,w,h)=>{scrHead(g,'Sugestão de Compras · cobertura',w,h);[['L1',31],['L2',26],['L3',19],['L4',34],['L5',22],['L6',15]].forEach((l,i)=>{const x=w*.07+i*w*.15,hh=l[1]*h*.016;g.fillStyle=l[1]<20?'#d9480f':l[1]<28?'#f2a516':'#1f8a4c';g.fillRect(x,h*.88-hh,w*.1,hh);mono(g,l[0],x+w*.02,h*.97,h*.07,'#5b6b80');mono(g,l[1],x+w*.02,h*.86-hh,h*.07);});},
+ fila:(g,w,h)=>{scrHead(g,'Fila de aprovação',w,h);[['CIMED','R$ 42.380','AGUARDA','#f2a516'],['EMS','R$ 18.940','AGUARDA','#f2a516'],['NEO QUÍMICA','R$ 7.210','APROVADO','#1f8a4c'],['MEDLEY','R$ 12.115','AUTO','#1f8a4c']].forEach((r,i)=>{const y=h*.34+i*h*.16;g.fillStyle=i%2?'#f5f7fb':'#ffffff';g.fillRect(0,y-h*.11,w,h*.16);mono(g,r[0],w*.04,y,h*.075);mono(g,r[1],w*.42,y,h*.075);g.fillStyle=r[3];g.fillRect(w*.74,y-h*.085,w*.22,h*.11);mono(g,r[2],w*.755,y-h*.005,h*.055,'#fff');});},
+ erp:(g,w,h)=>{scrHead(g,'Processos › Log · ERP',w,h);mono(g,'destino   MySQL teste .254',w*.04,h*.32,h*.07,'#5b6b80');mono(g,'status    CONECTADO',w*.04,h*.44,h*.07,'#1f8a4c');mono(g,'hoje      12 pedidos · 0 erros',w*.04,h*.56,h*.07);mono(g,'1023 ▸ gravando pedidocompra',w*.04,h*.7,h*.07,'#8a5a00');for(let i=0;i<30;i++){g.fillStyle=i<23?'#3f7fd6':'#dfe5ee';g.fillRect(w*.04+i*w*.031,h*.8,w*.024,h*.1);}},
+ table:(g,w,h)=>{scrHead(g,'Radar de Pedidos · NF-e × pedido',w,h);mono(g,'NF-E     PEDIDO  LOJA  STATUS',w*.04,h*.3,h*.06,'#5b6b80');[['48.213','1021','L2','OK','#1f8a4c'],['48.217','1019','L4','DIV 2','#b86e00'],['48.219','—','L3','S/PED','#c0392b'],['48.220','1022','L1','OK','#1f8a4c'],['48.224','1020','L6','TRÂNS','#5b6b80']].forEach((r,i)=>{const y=h*.43+i*h*.125;mono(g,r[0],w*.04,y,h*.07);mono(g,r[1],w*.3,y,h*.07);mono(g,r[2],w*.52,y,h*.07);mono(g,r[3],w*.68,y,h*.07,r[4]);});},
+ forn:(g,w,h)=>{scrHead(g,'Cobrança · fornecedores',w,h);[['EMS','1017','ATRASADO 2D','#c0392b'],['CIMED','1015','HOJE','#b86e00'],['NEO QUÍMICA','1012','AMANHÃ','#1f8a4c'],['MEDLEY','1009','ENTREGUE','#5b6b80']].forEach((r,i)=>{const y=h*.36+i*h*.16;g.fillStyle=r[3];g.fillRect(w*.04,y-h*.09,w*.012,h*.12);mono(g,r[0],w*.08,y,h*.072);mono(g,'ped '+r[1],w*.48,y,h*.06,'#5b6b80');mono(g,r[2],w*.66,y,h*.06,r[3]);});},
+ line:(g,w,h)=>{scrHead(g,'Resumo do dia · pedido acumulado',w,h);const pts=[0,4,9,15,22,31,38,47,53,61,68.5];g.strokeStyle='#13294b';g.lineWidth=3;g.beginPath();pts.forEach((v,i)=>{const x=w*.06+i*w*.087,y=h*.9-v*h*.0085;i?g.lineTo(x,y):g.moveTo(x,y);});g.stroke();mono(g,'R$ 68.530',w*.55,h*.38,h*.12);},
+ // telas reais da precificação: redesenhadas quando o vigia chega
+ vigia:(g,w,h)=>{scrHead(g,'Vigia de Margem · listas',w,h);const Ls=DADOS?DADOS.listas:[];if(!Ls.length){mono(g,'lendo o ERP…',w*.06,h*.55,h*.08,'#5b6b80');return;}Ls.slice(0,5).forEach((l,i)=>{const y=h*.34+i*h*.14;const m=l.periodos.atual.margem;mono(g,l.nome.slice(0,10),w*.04,y,h*.07);mono(g,P1(m),w*.44,y,h*.07,m!=null&&m<l.meta.pisoPct?'#c0392b':'#1b2634');g.fillStyle=l.meta.projetaBater?'#1f8a4c':'#d9480f';g.fillRect(w*.68,y-h*.065,w*.28*Math.min(1,l.meta.lucroProj/Math.max(1,l.meta.reais)),h*.08);g.strokeStyle='#8a94a6';g.strokeRect(w*.68,y-h*.065,w*.28,h*.08);});},
+ precif:(g,w,h)=>{scrHead(g,'Precificação · vazamentos',w,h);const A=DADOS?DADOS.alertas:[];if(!A.length){mono(g,'aguardando o vigia…',w*.06,h*.55,h*.08,'#5b6b80');return;}A.slice(0,5).forEach((a,i)=>{const y=h*.34+i*h*.14;g.fillStyle=a.grav===3?'#c0392b':a.grav===2?'#f2a516':'#5b6b80';g.fillRect(w*.04,y-h*.075,w*.012,h*.1);mono(g,(a.loja?'E'+a.loja+' ':'')+a.desc.slice(0,22),w*.08,y,h*.062);});}
+};
+const screenMats={};
+function screenTex(k){return tex(512,288,SCREENS[k]||SCREENS.fila);}
+function desk(x,z,wide,flip,telaKey,id){
+  const g=new THREE.Group(); const w=wide?2.2:1.7; const s=flip?-1:1;
+  g.add(box(w,.06,.85,mDeskTop,0,.75,0));
+  g.add(box(.07,.72,.78,mDeskOak,-w/2+.1,.36,0)); g.add(box(.07,.72,.78,mDeskOak,w/2-.1,.36,0)); g.add(box(w-.4,.38,.04,mDeskOak,0,.3,.38*s));
+  g.add(box(.92,.54,.04,mMon,0,1.22,.05*s)); g.add(box(.05,.22,.05,mMon,0,.9,.05*s)); g.add(box(.4,.03,.2,mMon,0,.79,.05*s));
+  if(flip){const mat=new THREE.MeshBasicMaterial({map:screenTex(telaKey)}); const sc=new THREE.Mesh(new THREE.PlaneGeometry(.86,.48),mat); sc.position.set(0,1.22,-.05+.022); g.add(sc); if(id)screenMats[id]={mat,key:telaKey};}
+  g.add(box(.6,.025,.2,P(0xe8e8e6),0,.79,-.25*s)); g.add(box(.1,.02,.16,P(0x2a2a2a),.5,.79,-.25*s));
+  g.add(box(.08,.08,.08,P(0xffffff),-.6,.83,-.2*s));
+  g.position.set(x,0,z); return g;
+}
+function refreshScreens(){for(const [id,s] of Object.entries(screenMats)){if(!['vigia','precif'].includes(s.key))continue; s.mat.map.dispose(); s.mat.map=screenTex(s.key); s.mat.needsUpdate=true;}}
+
+const robots={};
+ROBOS.forEach(r=>{
+  const flip=r.pos[1]>0; const s=flip?-1:1; r.pz=r.pos[1]-.75*s;
+  const ch=person(r.look,{badge:r.real?mNavy:true}); r.mat=ch.userData.shirt;
+  ch.position.set(r.pos[0],0,r.pz); if(flip)ch.rotation.y=Math.PI; ch.traverse(o=>{o.userData.robotId=r.id;});
+  const c=chair(); c.position.set(r.pos[0],0,r.pos[1]-.78*s); if(flip)c.rotation.y=Math.PI; c.traverse(o=>{o.userData.robotId=r.id;});
+  const d=desk(r.pos[0],r.pos[1],false,flip,r.tela,r.id); d.traverse(o=>{o.userData.robotId=r.id;});
+  const ring=new THREE.Mesh(new THREE.RingGeometry(1.1,1.2,48),new THREE.MeshBasicMaterial({color:r.real?0x13294b:0xf2a516,transparent:true,opacity:0,side:THREE.DoubleSide})); ring.rotation.x=-Math.PI/2; ring.position.set(r.pos[0],.02,r.pos[1]-.4*s);
+  const dot=new THREE.Mesh(new THREE.SphereGeometry(.07,10,10),(r.real?mNavy:mAmber).clone()); dot.position.set(r.pos[0],1.95,r.pz);
+  scene.add(ch,c,d,ring,dot); r.g=ch; r.ring=ring; r.tip=dot; r.arms=ch.userData.arms; robots[r.id]=r;
+});
+// Luciana (compradora) na sala de vidro
+const HUMANS=[];
+(function(){
+  const lz=-5.0, lx=6.4;
+  const ch=person({skin:0xe8b88a,hair:0x3b2314,shirt:0xffffff,pants:0x1a1a1a,hairStyle:'longo'},{blazer:0x2b3340});
+  ch.position.set(lx,0,lz-.75); const c=chair(); c.position.set(lx,0,lz-.78); const d=desk(lx,lz,true);
+  ch.add(box(.12,.2,.02,mDark,.5,.95,.25), box(.1,.17,.005,mGreen,.5,.95,.263));
+  [ch,c,d].forEach(o=>{o.traverse(m=>{m.userData.human='luciana';}); scene.add(o);});
+  scene.add(box(.5,.5,.5,mPot,7.6,.25,-3.9)); scene.add(box(.7,.6,.7,mLeaf,7.6,.85,-3.9)); scene.add(box(.45,.5,.45,mLeaf2,7.6,1.35,-3.9));
+  scene.add(box(1.2,1.0,.35,mDeskOak,7.7,.5,-6.6)); scene.add(box(1.1,.25,.3,P(0xffffff),7.7,.62,-6.6));
+  HUMANS.push({id:'luciana',x:lx,z:lz-.75,tag:null});
+})();
+// Tiago (aprova preço) na frente, ao lado dos postos de precificação, olhando pro fundo
+(function(){
+  const tz=4.0, tx=4.8;
+  const ch=person({skin:0xd9a577,hair:0x1a1a1a,shirt:0x2b3a55,pants:0x1a1a1a,hairStyle:'barba'},{badge:mGreen});
+  ch.position.set(tx,0,tz+.75); ch.rotation.y=Math.PI; const c=chair(); c.position.set(tx,0,tz+.78); c.rotation.y=Math.PI; const d=desk(tx,tz,false,true,'precif');
+  ch.add(box(.12,.2,.02,mDark,-.5,.95,.25), box(.1,.17,.005,mGreen,-.5,.95,.263));
+  [ch,c,d].forEach(o=>{o.traverse(m=>{m.userData.human='tiago';}); scene.add(o);});
+  HUMANS.push({id:'tiago',x:tx,z:tz+.75,tag:null});
+})();
+
+/* ---------- mobília ---------- */
+const tableTop=new THREE.Mesh(new THREE.CylinderGeometry(1.1,1.1,.06,32),mWood); tableTop.position.set(6.6,.75,1.0); tableTop.castShadow=true; tableTop.receiveShadow=true; scene.add(tableTop);
+const tableLeg=new THREE.Mesh(new THREE.CylinderGeometry(.08,.3,.72,16),mChrome); tableLeg.position.set(6.6,.36,1.0); scene.add(tableLeg);
+[0,1,2,3].forEach(i=>{const a=i*Math.PI/2+Math.PI/4; const c=chair(); c.position.set(6.6+Math.cos(a)*1.55,0,1.0+Math.sin(a)*1.55); c.rotation.y=-a-Math.PI/2; scene.add(c);});
+scene.add(box(2.2,.9,.7,mDeskOak,-6.8,.45,3.6)); scene.add(box(2.3,.06,.8,P(0x3a3a3a),-6.8,.93,3.6));
+scene.add(box(.45,.6,.4,P(0x2a2a2a),-7.3,1.27,3.6)); scene.add(box(.12,.08,.02,mGreen,-7.3,1.45,3.82));
+[0,1,2].forEach(i=>scene.add(box(.14,.16,.14,mWhite,-6.4+i*.25,1.05,3.55)));
+scene.add(box(.4,1.0,.4,mWhite,-5.3,.5,-1.6)); const galao=new THREE.Mesh(new THREE.CylinderGeometry(.17,.17,.5,12),new THREE.MeshStandardMaterial({color:0xbfe3f5,transparent:true,opacity:.6})); galao.position.set(-5.3,1.3,-1.6); scene.add(galao);
+scene.add(box(.7,.5,.6,P(0xe6e6e3),-5.3,.25,1.4)); scene.add(box(.5,.04,.4,mDark,-5.3,.52,1.4)); scene.add(box(.6,.4,.5,mDeskOak,-5.3,.0,1.4));
+[[-7.6,6.6],[7.7,6.6],[-5.0,-6.6],[4.0,-6.8],[-4.6,5.6]].forEach(p=>{scene.add(box(.55,.55,.55,mPot,p[0],.28,p[1])); scene.add(box(.8,.7,.8,mLeaf,p[0],.95,p[1])); scene.add(box(.5,.55,.5,mLeaf2,p[0],1.5,p[1]));});
+
+// dados voando das mesas pro servidor
+const parts=[]; const partMat=new THREE.MeshStandardMaterial({color:0x3f7fd6,emissive:0x3f7fd6,emissiveIntensity:.6});
+for(let i=0;i<16;i++){const m=new THREE.Mesh(new THREE.BoxGeometry(.1,.1,.1),partMat); const r=ROBOS[i%ROBOS.length]; parts.push({m,t:Math.random(),from:new THREE.Vector3(r.pos[0],1.3,r.pos[1]),speed:.003+Math.random()*.003}); scene.add(m);}
+const tA=new THREE.Vector3(), tB=new THREE.Vector3();
+function bez(p0,p2,t,out){tA.lerpVectors(p0,p2,.5); tA.y=3.4; tB.lerpVectors(p0,tA,t); out.lerpVectors(tA,p2,t); out.lerpVectors(tB,out,t); return out;}
+
+/* ---------- câmera ---------- */
+let theta=.42, phi=.98, radius=21, auto=!reduce;
+const target=new THREE.Vector3(0,.4,0);
+function updCam(){cam.position.set(target.x+radius*Math.sin(phi)*Math.sin(theta), target.y+radius*Math.cos(phi), target.z+radius*Math.sin(phi)*Math.cos(theta)); cam.lookAt(target);}
+let down=null, moved=0;
+stage.addEventListener('pointerdown',e=>{down={x:e.clientX,y:e.clientY,th:theta,ph:phi}; moved=0; auto=false; stage.setPointerCapture(e.pointerId);});
+stage.addEventListener('pointermove',e=>{if(!down)return; const dx=e.clientX-down.x, dy=e.clientY-down.y; moved=Math.max(moved,Math.abs(dx)+Math.abs(dy)); theta=down.th-dx*.006; phi=Math.min(1.45,Math.max(.3,down.ph-dy*.005)); updCam();});
+stage.addEventListener('pointerup',e=>{if(down&&moved<6)pick(e); down=null;});
+stage.addEventListener('pointercancel',()=>{down=null;});
+stage.addEventListener('wheel',e=>{e.preventDefault(); radius=Math.min(34,Math.max(7,radius+e.deltaY*.012)); updCam();},{passive:false});
+$('zin').onclick=()=>{radius=Math.max(7,radius-2);updCam();};
+$('zout').onclick=()=>{radius=Math.min(34,radius+2);updCam();};
+const ray=new THREE.Raycaster(), ptr=new THREE.Vector2();
+function pick(e){const r=stage.getBoundingClientRect(); ptr.x=((e.clientX-r.left)/r.width)*2-1; ptr.y=-((e.clientY-r.top)/r.height)*2+1; ray.setFromCamera(ptr,cam); const hits=ray.intersectObjects(scene.children,true); for(const h of hits){if(h.object.material===mGlass)continue; const id=h.object.userData.robotId; if(id){select(id);return;} if(h.object.userData.human){selectHuman(h.object.userData.human);return;} return;}}
+
+/* ---------- etiquetas ---------- */
+const tagsEl=$('tags'); const tagPos=new THREE.Vector3();
+ROBOS.forEach(r=>{const d=document.createElement('div'); d.className='tag'+(r.real?' real':''); d.innerHTML='<b>'+esc(r.nome)+'</b><i>'+esc(r.pessoa)+'</i><span>'+esc(r.agora)+'</span>'; tagsEl.appendChild(d); r.tag=d;});
+const HUMAN_INFO={
+  luciana:{tag:'<b>Compradora</b><i>Luciana</i><span>Aprovando CIMED pelo celular</span>',papel:'Pessoa · Compradora (exemplo)',nome:'Luciana',agora:'Aprovando o pedido CIMED R$ 42.380 pelo celular',fila:['Recebeu o resumo das 07:00 no WhatsApp','Ajustou 2 quantidades antes de aprovar','Negocia hoje com EMS a entrega atrasada'],prox:'<b>Ela não faz mais:</b> montar lista, calcular quantidade, digitar pedido no ERP.'},
+  tiago:{tag:'<b>Aprova preço</b><i>Tiago</i><span>Decide o que o robô propõe</span>',papel:'Pessoa · Aprovação de preço',nome:'Tiago',agora:'Olhando o vigia: nada é gravado sem o OK dele',fila:['Fase 0: o robô só mostra','Fase 1: o robô sugere e ele aprova','Gravação no ERP só com OK do Dlinks'],prox:'<b>Regra da loja:</b> preço igual em todas as lojas; queima por validade é por loja.'}
+};
+HUMANS.forEach(h=>{const d=document.createElement('div'); d.className='tag humana'; d.innerHTML=HUMAN_INFO[h.id].tag; tagsEl.appendChild(d); h.tag=d;});
+function placeTag(el,x,y,z,w,h){tagPos.set(x,y,z).project(cam); if(tagPos.z>1||Math.abs(tagPos.x)>1.2||Math.abs(tagPos.y)>1.2){el.style.display='none';return;} el.style.display=''; el.style.left=((tagPos.x+1)/2*w)+'px'; el.style.top=((1-tagPos.y)/2*h-8)+'px';}
+
+/* ---------- painel ---------- */
+const card=$('card'), feed=$('feed');
+let selId=null;
+ROBOS.forEach(r=>{const b=document.createElement('button'); b.type='button'; b.textContent=r.nome; b.className=r.real?'real':''; b.setAttribute('aria-pressed','false'); b.onclick=()=>select(r.id); $(r.real?'robos-real':'robos-ex').appendChild(b); r.btn=b;});
+function clearSel(){ROBOS.forEach(r=>{r.btn.setAttribute('aria-pressed','false'); r.mat.emissive=new THREE.Color(0x000000); r.ring.material.opacity=0; r.tag.classList.remove('sel');});}
+function select(id){
+  clearSel(); selId=id; const r=robots[id];
+  r.btn.setAttribute('aria-pressed','true'); r.mat.emissive=new THREE.Color(r.real?0x3f7fd6:0xf2a516); r.mat.emissiveIntensity=.18; r.ring.material.opacity=.95; r.tag.classList.add('sel');
+  card.className='card'+(r.real?' real':'');
+  card.innerHTML='<div class="papel">'+esc(r.papel)+(r.real?' · dados reais':' · exemplo')+'</div><h3>'+esc(r.nome)+' <small>· '+esc(r.pessoa)+'</small></h3><p class="agora">'+esc(r.agora)+'</p><ul>'+r.fila.map(f=>'<li>'+esc(f)+'</li>').join('')+'</ul><p class="prox"><b>Próximo passo:</b> '+esc(r.proximo)+'</p>';
+}
+function selectHuman(id){
+  clearSel(); selId=null; const h=HUMAN_INFO[id];
+  card.className='card humana';
+  card.innerHTML='<div class="papel">'+esc(h.papel)+'</div><h3>'+esc(h.nome)+'</h3><p class="agora">'+esc(h.agora)+'</p><ul>'+h.fila.map(f=>'<li>'+esc(f)+'</li>').join('')+'</ul><p class="prox">'+h.prox+'</p>';
+}
+let evIdx=0, evReal=0;
+const pad=n=>String(n).padStart(2,'0');
+function pushEvent(){
+  // alterna: evento real da precificação (se houver) e evento de exemplo de compras
+  let e; if(EVENTOS_REAL.length&&(evIdx%2===0)){e=EVENTOS_REAL[evReal%EVENTOS_REAL.length]; evReal++;} else {e=EVENTOS_EX[evIdx%EVENTOS_EX.length];} evIdx++;
+  const d=new Date(); const el=document.createElement('div'); el.className='ev novo '+e[1];
+  el.innerHTML='<time>'+pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds())+'</time><div class="t"><span class="q">'+esc(robots[e[0]].nome)+'</span>'+esc(e[2])+'</div>';
+  feed.insertBefore(el,feed.children[1]||null);
+  while(feed.children.length>10)feed.removeChild(feed.lastChild);
+  const r=robots[e[0]]; r.pulse=1; if(!r.real){r.agora=e[2]; r.tag.lastChild.textContent=e[2]; if(selId===e[0])select(e[0]);}
+}
+
+/* ---------- dados reais do vigia ---------- */
+async function carregarReal(){
+  try{
+    const r=await fetch('/api/robo-precificacao'); if(!r.ok)throw new Error(r.status); const d=await r.json();
+    if(!d.calculadoEm){$('sub').textContent='vigia calculando… tenta de novo em 20 s'; setTimeout(carregarReal,20000); return;}
+    DADOS=d;
+    const Ls=d.listas, T=d.total; const graves=d.alertas.filter(a=>a.grav===3).length, reb=d.alertas.filter(a=>a.tipo==='rebaixa_pedida').length;
+    const v=robots.vigia, p=robots.precif;
+    v.agora=`Lucro ${R0(T.lucro)} no mês · margem ${P1(T.margem)} · projeta ${R0(T.lucroProj)} de ${R0(T.meta)}`;
+    v.fila=Ls.map(l=>`${l.nome}: ${P1(l.periodos.atual.margem)} · projeta ${R0(l.meta.lucroProj)} de ${R0(l.meta.reais)} (${l.status==='ok'?'bate':l.status==='perto'?'perto':l.status==='piso'?'abaixo do piso':'longe'})`);
+    v.tag.lastChild.textContent=`${Ls.filter(l=>l.meta.projetaBater).length} de ${Ls.length} listas projetam bater a meta`;
+    p.agora=`Fase 0: só observando · ${d.alertas.length} vazamentos, ${graves} graves, ${reb} rebaixa(s) pedida(s)`;
+    p.fila=d.alertas.slice(0,5).map(a=>`${a.loja?'E'+a.loja+' · ':''}${a.desc}: ${a.txt}`);
+    p.tag.lastChild.textContent=`${graves} vazamentos graves pra olhar`;
+    EVENTOS_REAL=d.alertas.slice(0,12).map(a=>['precif',a.grav===3?'crit':a.grav===2?'warn':'ok',(a.loja?'E'+a.loja+' · ':'')+a.desc+' · '+(d.tipos[a.tipo]?d.tipos[a.tipo].txt:a.tipo)]);
+    EVENTOS_REAL.unshift(['vigia',T.lucroProj>=T.meta?'ok':'warn',`Projeção do mês ${R0(T.lucroProj)} × meta ${R0(T.meta)}`]);
+    $('sub').textContent=`${new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'2-digit'})} · vigia de ${new Date(d.calculadoEm).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})} · 8 postos, 2 pessoas`;
+    $('kpis').innerHTML=`<div class="kpi ${T.lucroProj>=T.meta?'ok':'crit'}"><div class="n">${R0(T.lucroProj)}</div><div class="l">projeção do mês · meta ${R0(T.meta)}</div></div>
+      <div class="kpi"><div class="n">${P1(T.margem)}</div><div class="l">margem das listas · ${d.diasDecorridos} de ${d.diasMes} dias</div></div>
+      <div class="kpi ${graves?'crit':'ok'}"><div class="n">${graves}</div><div class="l">vazamentos graves (de ${d.alertas.length})</div></div>
+      <div class="kpi ${reb?'warn':''}"><div class="n">${reb}</div><div class="l">rebaixas pedidas pela loja</div></div>`;
+    $('pill-real').textContent='Precificação: dados reais · '+new Date(d.calculadoEm).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+    refreshScreens(); if(selId==='vigia'||selId==='precif')select(selId);
+  }catch(e){$('sub').textContent='vigia indisponível: '+e.message; $('pill-real').textContent='Precificação: sem dados'; $('kpis').innerHTML='';}
+}
+carregarReal(); setInterval(carregarReal,5*60*1000);
+select('vigia');
+for(let i=0;i<4;i++)pushEvent();
+setInterval(pushEvent,reduce?6000:3400);
+
+/* ---------- loop ---------- */
+function resize(){const w=stage.clientWidth,h=stage.clientHeight; if(!w||!h)return; renderer.setSize(w,h,false); cam.aspect=w/h; cam.updateProjectionMatrix();}
+new ResizeObserver(resize).observe(stage); resize(); updCam();
+let t0=performance.now(), ledT=0;
+function frame(now){
+  const t=(now-t0)/1000;
+  if(auto){theta+=.0008; updCam();}
+  ROBOS.forEach((r,i)=>{
+    if(!reduce){r.arms[0].rotation.x=-1.25+Math.sin(t*6+i)*.08; r.arms[1].rotation.x=-1.25+Math.cos(t*6+i)*.08; r.g.position.y=Math.sin(t*1.6+i)*.01;}
+    r.pulse=Math.max(0,(r.pulse||0)-.02); r.tip.material.emissiveIntensity=.25+r.pulse*2.5; r.tip.scale.setScalar(.6+r.pulse*1.2);
+  });
+  if(!reduce){parts.forEach(p=>{p.t+=p.speed; if(p.t>1){p.t=0; const r=ROBOS[Math.floor(Math.random()*ROBOS.length)]; p.from.set(r.pos[0],1.3,r.pos[1]);} bez(p.from,ERP_TOP,p.t,p.m.position); p.m.rotation.y+=.05; p.m.rotation.x+=.03;});
+    if(now-ledT>200){ledT=now; for(let k=0;k<3;k++){const l=leds[Math.floor(Math.random()*leds.length)]; l.material.emissiveIntensity=l.material.emissiveIntensity>.3?.05:.6;}}}
+  const w=stage.clientWidth,h=stage.clientHeight;
+  ROBOS.forEach(r=>placeTag(r.tag,r.pos[0],2.1,r.pz,w,h));
+  HUMANS.forEach(hm=>placeTag(hm.tag,hm.x,2.2,hm.z,w,h));
+  renderer.render(scene,cam);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
