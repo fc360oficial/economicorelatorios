@@ -120,6 +120,13 @@ function enriquecerComPlanoContas(candidatosRaw, plano) {
 }
 
 const app = express();
+// FC360 API (checklist no Postgres do .254): proxy /fc360-api/* -> 127.0.0.1:3013 e
+// mantém o processo `C:c360c360-api` vivo. Vem ANTES do body-parser e da sessão
+// de propósito (corpo intacto; a API autentica sozinha) — ver lib/fc360-api-proxy.js.
+const fc360Api = require('./lib/fc360-api-proxy');
+fc360Api.montar(app);
+fc360Api.manterVivo();
+
 // /negativos-agent fica de fora do body-parser global: é proxy puro pro
 // processo negativos-agent (porta 4300), e precisa do corpo da requisição
 // intacto pra repassar (upload de fotos passa de 10mb — o limite daqui nem
