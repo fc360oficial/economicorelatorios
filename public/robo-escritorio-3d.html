@@ -47,6 +47,11 @@ body{overflow:hidden}
 .pill{font-family:var(--mono);font-size:10.5px;color:#4b5a6e;border:1px solid rgba(27,38,52,.25);border-radius:999px;padding:3px 9px;white-space:nowrap;background:rgba(255,255,255,.85);pointer-events:auto}
 .pill.real{color:var(--green);border-color:var(--green)}
 .pill.sombra{color:var(--red);border-color:var(--red)}
+button.pill{cursor:pointer;font-family:var(--font);font-weight:700;color:var(--navy);border-color:var(--navy)}
+button.pill[aria-pressed="true"]{background:var(--navy);color:#fff}
+.stage.noite{background:linear-gradient(180deg,#141f33 0%,#2a3a55 45%,#4a5a74 100%)}
+.stage.tarde{background:linear-gradient(180deg,#d9b48a 0%,#e9d6bf 45%,#eef0f3 100%)}
+.stage.noite .legend,.stage.noite .brand{color:#e6ebf3}.stage.noite .brand .eyebrow{color:#b8c3d4}
 .legend{bottom:0;left:0;right:0;display:flex;gap:12px;flex-wrap:wrap;align-items:center;padding:12px 16px;font-size:11.5px;color:#2f3b4b}
 .legend .dot{width:10px;height:10px;border-radius:3px;display:inline-block;margin-right:5px;vertical-align:-1px}
 .ctl{position:absolute;right:16px;bottom:46px;display:flex;flex-direction:column;gap:6px;z-index:3}
@@ -62,6 +67,7 @@ body{overflow:hidden}
 .tag small{font-size:7.5px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;background:#f2a516;color:#3b2a00;border-radius:4px;padding:1px 6px;line-height:1.4}
 .tag.real small{background:#13294b;color:#fff}.tag.humana small{background:#1f8a4c;color:#fff}
 .tag span{display:none}
+.tag.mini b,.tag.mini small{display:none}   /* em reunião: só o status, senão 8 etiquetas empilham na mesa */
 .tag.sel span{display:block;white-space:normal;max-width:230px;text-align:center;background:rgba(255,255,255,.96);border:1px solid var(--brand);border-radius:8px;padding:4px 8px;font-size:10.5px;color:#4b5a6e;box-shadow:0 3px 10px rgba(27,38,52,.18);margin-top:2px}
 .panel{display:flex;flex-direction:column;gap:12px;min-width:0;background:var(--card);border-left:1px solid var(--border);overflow:auto;padding:16px}
 @media(max-width:900px){.panel{border-left:0;border-top:1px solid var(--border)}}
@@ -114,7 +120,7 @@ body{overflow:hidden}
   <section class="stage" id="stage" aria-label="Escritório em 3D">
     <div class="overlay brand">
       <div><span class="eyebrow">Econômico · Compras e Precificação</span><h1>Escritório Robô</h1></div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"><span class="pill sombra" id="pill-sombra">Compras: sombra · nada vale</span><span class="pill real" id="pill-real">Precificação: dados reais</span></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"><span class="pill sombra" id="pill-sombra">Compras: sombra · nada vale</span><span class="pill real" id="pill-real">Precificação: dados reais</span><span class="pill" id="pill-hora">—</span><button class="pill" id="sim" type="button" title="Roda as 24 h em ~1 minuto: agenda, reunião das 18:00, dia e noite">▶ simular um dia</button></div>
     </div>
     <div class="ctl"><button id="zin" aria-label="Aproximar">+</button><button id="zout" aria-label="Afastar">−</button><button id="zhome" aria-label="Voltar pra vista isométrica" title="Vista isométrica">⌂</button></div>
     <div class="overlay legend">
@@ -165,9 +171,9 @@ const ROBOS=[
  {id:'resumo',nome:'Resumo do Dia',pessoa:'Aline',papel:'Fechamento',cargo:'Fechamento',pos:[5,-5.0],flip:true,look:{skin:0xa1665e,hair:0x1a1a1a,shirt:0xd9d2c5,pants:0x4a4a4a,hairStyle:'longo'},
   agora:'lendo a sombra…',fila:[],proximo:'',tela:'line',sombra:true},
  // ── Precificação: na frente da sala do Tiago, de costas pra câmera (telas com os números reais à vista) ──
- {id:'vigia',nome:'Vigia de Margem',pessoa:'Beatriz',papel:'Precificação · lê o ERP',cargo:'Vigia',pos:[-12,-1.6],flip:true,real:true,look:{skin:0xd9a577,hair:0x3b2314,shirt:0x13294b,pants:0x2b2b2b,hairStyle:'coque'},
+ {id:'vigia',nome:'Vigia de Margem',pessoa:'Beatriz',papel:'Precificação · lê o ERP',cargo:'Vigia',pos:[-12.5,-1.6],flip:true,real:true,look:{skin:0xd9a577,hair:0x3b2314,shirt:0x13294b,pants:0x2b2b2b,hairStyle:'coque'},
   agora:'Lendo margem das listas vigiadas…',fila:[],proximo:'Recalcula às 05:50 e 13:05',tela:'vigia'},
- {id:'precif',nome:'Precificação',pessoa:'Henrique',papel:'Precificação · propõe preço',cargo:'Precificação',pos:[-9,-1.6],flip:true,real:true,look:{skin:0xf3d2b0,hair:0x5a3a1e,shirt:0xf2a516,pants:0x1a1a1a,hairStyle:'curto'},
+ {id:'precif',nome:'Precificação',pessoa:'Henrique',papel:'Precificação · propõe preço',cargo:'Precificação',pos:[-8.5,-1.6],flip:true,real:true,look:{skin:0xf3d2b0,hair:0x5a3a1e,shirt:0xf2a516,pants:0x1a1a1a,hairStyle:'curto'},
   agora:'Fase 0: só observando',fila:[],proximo:'Fase 1: sugerir preço e o Tiago aprovar (depende de OK do Dlinks pra gravar)',tela:'precif'}
 ];
 let EVENTOS_EX=[['sugestao','ok','Lendo as listas do robô no ERP (sombra)…']];   // preenchido pela sombra
@@ -185,8 +191,8 @@ stage.appendChild(renderer.domElement);
 const scene=new THREE.Scene();
 const ORTHO=13;   // meia-altura do enquadramento (unidades = metros)
 const cam=new THREE.OrthographicCamera(-ORTHO,ORTHO,ORTHO,-ORTHO,.1,300);
-scene.add(new THREE.HemisphereLight(0xf2f6fb,0xb7ad9f,.85));
-scene.add(new THREE.AmbientLight(0xffffff,.22));
+const hemi=new THREE.HemisphereLight(0xf2f6fb,0xb7ad9f,.85); scene.add(hemi);
+const amb=new THREE.AmbientLight(0xffffff,.22); scene.add(amb);
 const sun=new THREE.DirectionalLight(0xfff1dc,.9); sun.position.set(7,22,11); sun.castShadow=true; sun.shadow.mapSize.set(2048,2048);
 sun.shadow.camera.left=-24; sun.shadow.camera.right=24; sun.shadow.camera.top=24; sun.shadow.camera.bottom=-24; sun.shadow.camera.far=80; sun.shadow.bias=-.0002; sun.shadow.radius=5; sun.shadow.blurSamples=10; scene.add(sun);
 const fill=new THREE.DirectionalLight(0xd8e4f4,.35); fill.position.set(-10,12,-4); scene.add(fill);
@@ -205,10 +211,33 @@ const mFloor=new THREE.MeshStandardMaterial({map:tileTex,roughness:.75}), mWoodF
  mNavy=new THREE.MeshStandardMaterial({color:0x13294b,emissive:0x13294b,emissiveIntensity:.35,roughness:.6}),
  mGreen=new THREE.MeshStandardMaterial({color:0x2ecc71,emissive:0x2ecc71,emissiveIntensity:.3,roughness:.6}),
  mBlue=new THREE.MeshStandardMaterial({color:0x3f7fd6,emissive:0x3f7fd6,emissiveIntensity:.45,roughness:.6}),
- mNavyFlat=P(0x13294b), mAmberFlat=P(0xf2a516), mWhite=P(0xffffff), mDark=P(0x1b1d20), mLeaf=P(0x3c8c45), mLeaf2=P(0x2f7238), mPot=P(0x8b8f94), mWood=P(0xa97c50), mDarkWood=P(0x6e4a2c), mSteel=P(0x9aa0a6,{metalness:.6,roughness:.4}), mSofa=P(0xe7e2d8), mCity=P(0xb4c1d3,{roughness:1});
+ mNavyFlat=P(0x13294b), mAmberFlat=P(0xf2a516), mWhite=P(0xffffff), mDark=P(0x1b1d20), mLeaf=P(0x3c8c45), mLeaf2=P(0x2f7238), mPot=P(0x8b8f94), mWood=P(0xa97c50), mDarkWood=P(0x6e4a2c), mSteel=P(0x9aa0a6,{metalness:.6,roughness:.4}), mSofa=P(0xe7e2d8), mCity=P(0xb4c1d3,{roughness:1}), mWinOff=P(0xd7e1ee), mWinOn=new THREE.MeshStandardMaterial({color:0xffd58a,emissive:0xffc45a,emissiveIntensity:.9});
+const cityWins=[];
 function box(w,h,d,m,x,y,z){const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;return o;}
 function plane(w,h,m,x,y,z,rx,ry){const o=new THREE.Mesh(new THREE.PlaneGeometry(w,h),m);o.position.set(x,y,z);if(rx)o.rotation.x=rx;if(ry)o.rotation.y=ry;o.receiveShadow=true;return o;}
 function label(w,h,px,draw){return new THREE.MeshBasicMaterial({map:tex(px,Math.round(px*h/w),draw)});}
+
+/* ---------- malha de navegação (Fase B): grade de 0,5 m, móveis e vidros viram obstáculo, A* acha o caminho ---------- */
+const CELL=.5, GX=60, GZ=44; const grid=new Uint8Array(GX*GZ);
+const cx=x=>Math.floor((x+15)/CELL), cz=z=>Math.floor((z+11)/CELL);
+function obst(x0,x1,z0,z1,pad){pad=pad==null?.25:pad; for(let i=Math.max(0,cx(x0-pad));i<=Math.min(GX-1,cx(x1+pad));i++)for(let j=Math.max(0,cz(z0-pad));j<=Math.min(GZ-1,cz(z1+pad));j++)grid[j*GX+i]=1;}
+const livre=(i,j)=>i>=0&&j>=0&&i<GX&&j<GZ&&!grid[j*GX+i];
+function celaLivre(i,j){if(livre(i,j))return [i,j]; for(let r=1;r<8;r++)for(let a=-r;a<=r;a++)for(let b=-r;b<=r;b++)if((Math.abs(a)===r||Math.abs(b)===r)&&livre(i+a,j+b))return [i+a,j+b]; return null;}
+function achar(ax,az,bx,bz){
+  const S=celaLivre(cx(ax),cz(az)), T=celaLivre(cx(bx),cz(bz)); if(!S||!T)return [];
+  const s=S[1]*GX+S[0], t=T[1]*GX+T[0]; const g=new Float32Array(GX*GZ).fill(1e9), from=new Int32Array(GX*GZ).fill(-1), closed=new Uint8Array(GX*GZ); g[s]=0;
+  const h=n=>{const di=Math.abs(n%GX-T[0]), dj=Math.abs((n/GX|0)-T[1]); return Math.max(di,dj)+.414*Math.min(di,dj);};
+  const open=[s]; const f={}; f[s]=h(s);
+  while(open.length){let bi=0; for(let k=1;k<open.length;k++)if(f[open[k]]<f[open[bi]])bi=k; const n=open.splice(bi,1)[0]; if(n===t)break; closed[n]=1; const i=n%GX, j=n/GX|0;
+    for(let a=-1;a<=1;a++)for(let b=-1;b<=1;b++){if(!a&&!b)continue; const ii=i+a, jj=j+b; if(!livre(ii,jj))continue; if(a&&b&&(!livre(i+a,j)||!livre(i,j+b)))continue; const m=jj*GX+ii; if(closed[m])continue; const ng=g[n]+(a&&b?1.414:1); if(ng<g[m]){g[m]=ng; from[m]=n; f[m]=ng+h(m); if(!open.includes(m))open.push(m);}}}
+  if(from[t]<0&&t!==s)return []; const cells=[]; for(let n=t;n>=0&&n!==s;n=from[n])cells.push(n); cells.reverse();
+  const pts=cells.map(n=>[(n%GX)*CELL-15+CELL/2,(n/GX|0)*CELL-11+CELL/2]); pts.push([bx,bz]);
+  // encurta: pula pontos quando o trecho reto está livre
+  const ok=(p,q)=>{const d=Math.hypot(q[0]-p[0],q[1]-p[1]); const n=Math.ceil(d/.2); for(let k=0;k<=n;k++){const x=p[0]+(q[0]-p[0])*k/n, z=p[1]+(q[1]-p[1])*k/n; if(!livre(cx(x),cz(z)))return false;} return true;};
+  const out=[]; let cur=[ax,az], i0=0; while(i0<pts.length){let j=pts.length-1; while(j>i0&&!ok(cur,pts[j]))j--; out.push(pts[j]); cur=pts[j]; i0=j+1;} return out;
+}
+// bordas do andar (vão de entrada em x −1,2..1,2 fica livre)
+obst(-15,-14.6,-11,11,0); obst(14.6,15,-11,11,0); obst(-15,15,-11,-10.6,0); obst(-15,-1.2,10.6,11,0); obst(1.2,15,10.6,11,0);
 
 /* ---------- andar 30 × 22: fundo (x=-15, z=-11) de vidro alto com a cidade atrás; frente baixa (maquete aberta) ---------- */
 const W=30, D=22;
@@ -229,7 +258,7 @@ scene.add(box(.14,1.1,.14,mFrame,-1.2,.55,D/2)); scene.add(box(.14,1.1,.14,mFram
 scene.add(box(2.2,.02,1.4,P(0x4f5864),0,.012,D/2-.8));
 // cidade atrás do vidro (silhueta azul-pálida)
 [[-19,-9,2.2,7],[-21.5,-4,3,10],[-19.5,1,2.4,5],[-23,4,3.4,13],[-19,8,2,6],[-26,-8,4,9],[-27,0,3.2,16],[-25,10,3,8],
- [-10,-15,2.6,8],[-5,-17,3.4,12],[0,-14.5,2.2,6],[4,-16.5,3,14],[9,-15,2.4,7],[13,-17,3.6,10],[-15,-18,3,11],[17,-14,2.4,5],[-20,-14,3,9],[-24,-19,4,15]].forEach(([x,z,w,h])=>{const b=box(w,h,w,mCity,x,h/2-.5,z); b.castShadow=false; b.receiveShadow=false; scene.add(b); for(let k=1;k<h-1;k+=1.4){const win=box(w*.7,.35,w+.02,P(0xd7e1ee),x,k,z); win.castShadow=false; win.receiveShadow=false; scene.add(win);}});
+ [-10,-15,2.6,8],[-5,-17,3.4,12],[0,-14.5,2.2,6],[4,-16.5,3,14],[9,-15,2.4,7],[13,-17,3.6,10],[-15,-18,3,11],[17,-14,2.4,5],[-20,-14,3,9],[-24,-19,4,15]].forEach(([x,z,w,h])=>{const b=box(w,h,w,mCity,x,h/2-.5,z); b.castShadow=false; b.receiveShadow=false; scene.add(b); for(let k=1;k<h-1;k+=1.4){const win=box(w*.7,.35,w+.02,mWinOff,x,k,z); win.castShadow=false; win.receiveShadow=false; scene.add(win); cityWins.push(win);}});
 
 /* ---------- pisos das zonas ---------- */
 scene.add(plane(8,6.4,mWoodFloor,-11,.012,-7.8,-Math.PI/2));                                   // sala do diretor
@@ -246,19 +275,20 @@ function glassRoom(x0,x1,z0,z1,o){
   [[x0,z0],[x1,z0],[x0,z1],[x1,z1]].forEach(p=>scene.add(box(.1,h,.1,mFrame,p[0],h/2,p[1])));
   scene.add(box(w,.08,.1,mFrame,cx,h,z0)); scene.add(box(w,.08,.1,mFrame,cx,h,z1)); scene.add(box(.1,.08,d,mFrame,x0,h,cz)); scene.add(box(.1,.08,d,mFrame,x1,h,cz));
   const side=(len,c,alongX,fixed,door)=>{   // parede com porta (vão de 1,1 m perto do começo) ou inteira
-    if(!door){scene.add(alongX?box(len,h-.1,.04,mGlass,c,h/2,fixed):box(.04,h-.1,len,mGlass,fixed,h/2,c));return;}
-    const a=(len-1.1)*.5; const c1=c-len/2+a/2, c2=c+len/2-(len-a-1.1)/2, l2=len-a-1.1;
+    if(!door){scene.add(alongX?box(len,h-.1,.04,mGlass,c,h/2,fixed):box(.04,h-.1,len,mGlass,fixed,h/2,c)); alongX?obst(c-len/2,c+len/2,fixed-.03,fixed+.03,0):obst(fixed-.03,fixed+.03,c-len/2,c+len/2,0); return;}
+    const dw=o.doorW||1.1, a=(len-dw)*(o.doorFrac||.5); const c1=c-len/2+a/2, c2=c+len/2-(len-a-dw)/2, l2=len-a-dw;   // vão da porta: largura e posição (fração do lado)
     scene.add(alongX?box(a,h-.1,.04,mGlass,c1,h/2,fixed):box(.04,h-.1,a,mGlass,fixed,h/2,c1)); scene.add(alongX?box(l2,h-.1,.04,mGlass,c2,h/2,fixed):box(.04,h-.1,l2,mGlass,fixed,h/2,c2));
-    scene.add(alongX?box(.08,h-.1,.08,mFrame,c-len/2+a,h/2,fixed):box(.08,h-.1,.08,mFrame,fixed,h/2,c-len/2+a)); scene.add(alongX?box(.08,h-.1,.08,mFrame,c-len/2+a+1.1,h/2,fixed):box(.08,h-.1,.08,mFrame,fixed,h/2,c-len/2+a+1.1));
-    scene.add(alongX?box(.03,.35,.03,mSteel,c-len/2+a+.95,1.1,fixed+.05):box(.03,.35,.03,mSteel,fixed+.05,1.1,c-len/2+a+.95));
+    if(alongX){obst(c1-a/2,c1+a/2,fixed-.03,fixed+.03,0);obst(c2-l2/2,c2+l2/2,fixed-.03,fixed+.03,0);}else{obst(fixed-.03,fixed+.03,c1-a/2,c1+a/2,0);obst(fixed-.03,fixed+.03,c2-l2/2,c2+l2/2,0);}
+    scene.add(alongX?box(.08,h-.1,.08,mFrame,c-len/2+a,h/2,fixed):box(.08,h-.1,.08,mFrame,fixed,h/2,c-len/2+a)); scene.add(alongX?box(.08,h-.1,.08,mFrame,c-len/2+a+dw,h/2,fixed):box(.08,h-.1,.08,mFrame,fixed,h/2,c-len/2+a+dw));
+    scene.add(alongX?box(.03,.35,.03,mSteel,c-len/2+a+dw-.15,1.1,fixed+.05):box(.03,.35,.03,mSteel,fixed+.05,1.1,c-len/2+a+dw-.15));
   };
   if(!o.openBack)side(d,cz,false,x0,o.doorLeft); side(d,cz,false,x1,o.doorRight); if(!o.openBack)side(w,cx,true,z0,false); side(w,cx,true,z1,o.doorFront);
 }
 function roomSign(txt,sub,x,y,z,w,ry){const m=label(w,w*.2,640,(g,cw,ch)=>{g.fillStyle='#f4f3ef';g.fillRect(0,0,cw,ch);g.fillStyle='#1b2634';g.font='700 52px Inter, sans-serif';g.fillText(txt,40,86);if(sub){g.fillStyle='#6b7280';g.font='500 34px Inter, sans-serif';g.fillText(sub,g.measureText(txt).width*1.55+70,84);}}); const s=plane(w,w*.2,m,x,y,z,0,ry); s.receiveShadow=false; scene.add(s);}
 
 /* ---------- sala do diretor (Tiago): canto do fundo, madeira, quadro METAS, mesa grande, sofás ---------- */
-glassRoom(-15,-7,-11,-4.6,{openBack:true,doorFront:true});
-roomSign('DIRETOR','aprova preço',-11,2.78,-4.56,1.9);
+glassRoom(-15,-7,-11,-4.6,{openBack:true,doorFront:true,doorFrac:.72,doorW:1.6});   // porta à direita e mais larga: é por ela que a Precificação entra
+roomSign('DIRETOR','aprova preço',-12.4,2.78,-4.56,1.9);
 function metasTex(){return tex(1024,580,(g,w,h)=>{g.fillStyle='#ffffff';g.fillRect(0,0,w,h);g.fillStyle='#13294b';g.font='800 54px Inter, sans-serif';g.fillText('METAS DO MÊS',40,80);g.fillStyle='#f2a516';g.fillRect(40,96,360,6);
   const T=DADOS&&DADOS.total, Ls=DADOS?DADOS.listas:[];
   g.fillStyle='#1b2634';g.font='600 38px Inter, sans-serif';g.fillText(T?('Meta '+R0s(T.meta)+' · projeta '+R0s(T.lucroProj)+' · margem '+P1(T.margem)):'Meta R$ 32 mil/mês de margem nas listas do robô',40,160);
@@ -316,8 +346,9 @@ scene.add(box(3.8,.08,1.5,mWood,3.5,.76,6.6)); [[1.8,-.55],[5.2,-.55],[1.8,.55],
 [[2.4,-.3],[3.6,.2],[4.6,-.2]].forEach(p=>scene.add(box(.3,.02,.22,P(0xffffff),3.5+p[0]-3.5,.81,6.6+p[1])));
 function tvTex(){return tex(640,360,(g,w,h)=>{g.fillStyle='#0f1826';g.fillRect(0,0,w,h);g.fillStyle='#f2a516';g.font='800 30px Inter, sans-serif';g.fillText('REUNIÃO · 18:00',30,56);g.fillStyle='#ffffff';g.font='600 26px Inter, sans-serif';g.fillText('Resumo do Dia · Compras (sombra)',30,100);const F=SOMBRA&&SOMBRA.faria;g.font='500 24px "IBM Plex Mono", monospace';if(F){g.fillStyle='#dbe4f0';[`pediria ${R0s(F.valor_hoje)} · ${F.pedir_hoje.length} lista(s)`,`cobraria ${F.cobrar.length} fornecedor(es)`,`trânsito ${R0s(F.transito_valor)}`,`${F.rupturas} ruptura(s) · ${F.curva_a_risco} curva A em risco`].forEach((s,i)=>g.fillText(s,30,152+i*42));}else{g.fillStyle='#8a9bb5';g.fillText('pauta chega com a sombra…',30,160);}});}
 const tvMat=new THREE.MeshBasicMaterial({map:tvTex()});
-scene.add(box(.08,1.0,1.7,mDark,6.7,1.55,6.6)); scene.add(box(.1,.06,.6,mDark,6.7,.03,6.6)); scene.add(box(.06,1.0,.06,mDark,6.7,.55,6.6));
-const tv=plane(1.6,.9,tvMat,6.65,1.55,6.6,0,-Math.PI/2); tv.receiveShadow=false; scene.add(tv);
+scene.add(box(.08,1.0,1.7,mDark,7.6,1.55,6.6)); scene.add(box(.1,.06,.6,mDark,7.6,.03,6.6)); scene.add(box(.06,1.0,.06,mDark,7.6,.55,6.6));
+(function(){const a=chair(); a.position.set(1.3,0,6.6); a.rotation.y=Math.PI/2; scene.add(a); const b=chair(); b.position.set(5.7,0,6.6); b.rotation.y=-Math.PI/2; scene.add(b);})();
+const tv=plane(1.6,.9,tvMat,7.55,1.55,6.6,0,-Math.PI/2); tv.receiveShadow=false; scene.add(tv);
 
 /* ---------- copa (parede direita) e plantas ---------- */
 scene.add(box(.7,.9,2.6,mDeskOak,14.5,.45,-1.2)); scene.add(box(.8,.06,2.7,P(0x3a3a3a),14.5,.93,-1.2));
@@ -343,10 +374,13 @@ function person(look,opts){
   if(opts.headset){const hs=P(0x1b1d20,{roughness:.5}); g.add(box(.62,.05,.1,hs,0,1.8,0)); g.add(box(.08,.17,.17,hs,-.31,1.42,0), box(.08,.17,.17,hs,.31,1.42,0)); g.add(box(.03,.03,.24,hs,.31,1.35,.14)); g.add(box(.07,.05,.05,hs,.31,1.32,.28));}
   if(opts.blazer){const bl=P(opts.blazer); g.add(box(.64,.52,.38,bl,0,.78,0)); g.add(box(.18,.52,.02,P(0xffffff),0,.78,.2));}
   if(opts.badge){const bm=opts.badge===true?mAmber:opts.badge; g.add(box(.02,.42,.01,bm,-.12,.96,.18)); g.add(box(.02,.42,.01,bm,.12,.96,.18)); g.add(box(.2,.14,.02,P(0xffffff),0,.7,.19)); g.add(box(.16,.03,.005,bm,0,.74,.205));}
-  [-.16,.16].forEach(x=>{const l=limb(.26,.5,.26,pants); l.position.set(x,.5,.05); l.rotation.x=-Math.PI/2; g.add(l); g.add(box(.26,.28,.26,pants,x,.25,.6)); g.add(box(.28,.1,.32,P(0x2a2a2a),x,.07,.66));});
+  // pernas: quadril em y .5 (assento .45); coxa .3 + canela .28 + pé; sentado = coxa pra frente, em pé = reta
+  const legs=[-.16,.16].map(x=>{const leg=new THREE.Group(); leg.position.set(x,.5,.05); leg.add(limb(.26,.3,.26,pants)); const sh=new THREE.Group(); sh.position.y=-.3; sh.add(limb(.24,.28,.24,pants)); sh.add(box(.26,.08,.32,P(0x2a2a2a),0,-.3,.05)); leg.add(sh); g.add(leg); return {leg,sh};});
   const arms=[-.45,.45].map(x=>{const a=new THREE.Group(); const up=limb(.24,.38,.24,shirt); a.add(up); const hand=limb(.2,.18,.2,skin); hand.position.y=-.38; a.add(hand); a.position.set(x,1.02,.02); a.rotation.x=-1.25; g.add(a); return a;});
-  g.userData.arms=arms; return g;
+  const cup=box(.13,.15,.13,mWhite,0,-.58,.08); cup.visible=false; arms[1].add(cup);
+  g.userData.arms=arms; g.userData.legs=legs; g.userData.cup=cup; setPose(g,'sentado'); return g;
 }
+function setPose(g,pose){const U=g.userData; if(pose==='sentado'){U.legs.forEach(l=>{l.leg.rotation.x=-Math.PI/2; l.sh.rotation.x=Math.PI/2;}); U.dy=0;} else {U.legs.forEach(l=>{l.leg.rotation.x=0; l.sh.rotation.x=0;}); U.dy=.14;} U.pose=pose; g.position.y=U.dy;}
 function chair(){const c=new THREE.Group(); c.add(box(.58,.1,.58,mChair,0,.45,0)); c.add(box(.56,.72,.09,mChairMesh,0,.86,-.3)); c.add(box(.5,.08,.5,mChair,0,.5,0)); const post=new THREE.Mesh(new THREE.CylinderGeometry(.035,.035,.4,10),mChrome); post.position.y=.2; c.add(post); for(let i=0;i<5;i++){const a=i*Math.PI*2/5; const leg=box(.3,.04,.06,mChrome,Math.cos(a)*.17,.03,Math.sin(a)*.17); leg.rotation.y=-a; c.add(leg);} return c;}
 function scrHead(g,t,w,h){g.fillStyle='#ffffff';g.fillRect(0,0,w,h);g.fillStyle='#13294b';g.fillRect(0,0,w,h*.16);g.fillStyle='#f2a516';g.fillRect(0,h*.16,w,3);g.fillStyle='#ffffff';g.font='700 '+Math.round(h*.085)+'px Inter, sans-serif';g.fillText(t,w*.04,h*.115);}
 function mono(g,s,x,y,px,c){g.fillStyle=c||'#1b2634';g.font='500 '+px+'px "IBM Plex Mono", monospace';g.fillText(s,x,y);}
@@ -386,7 +420,15 @@ ROBOS.forEach(r=>{
   const ring=new THREE.Mesh(new THREE.RingGeometry(1.1,1.2,48),new THREE.MeshBasicMaterial({color:r.real?0x13294b:0xf2a516,transparent:true,opacity:0,side:THREE.DoubleSide})); ring.rotation.x=-Math.PI/2; ring.position.set(r.pos[0],.02,r.pos[1]-.4*s);
   const dot=new THREE.Mesh(new THREE.SphereGeometry(.07,10,10),(r.real?mNavy:mAmber).clone()); dot.position.set(r.pos[0],2.1,r.pz);
   scene.add(ch,c,d,ring,dot); r.g=ch; r.ring=ring; r.tip=dot; r.arms=ch.userData.arms; robots[r.id]=r;
+  r.home={x:r.pos[0],z:r.pz,yaw:flip?Math.PI:0}; r.spot={x:r.pos[0],z:r.pos[1]-2.05*s}; r.i=ROBOS.indexOf(r);
+  obst(r.pos[0]-.85,r.pos[0]+.85,Math.min(r.pos[1]-.45,r.pos[1]-.78*s-.35),Math.max(r.pos[1]+.45,r.pos[1]-.78*s+.35));
 });
+// móveis que não se atravessa (sala do diretor, compradora, ERP, lounge, recepção, reunião, copa, impressora, plantas)
+[[-12.4,-9.6,-8.9,-7.0],[-13.75,-12.85,-6.65,-4.75],[-9.15,-8.25,-6.65,-4.75],[-11.5,-10.5,-6.0,-5.4],[-14.9,-14.3,-9.7,-7.5],
+ [10.9,13.1,-9.2,-7.55],[13,14.2,-10.8,-10.4],[11.8,12.8,6.2,7.0],[13.5,14.3,5.1,6.1],
+ [-14.8,-14.0,2.9,4.8],[-12.4,-10.0,3.9,5.3],[-13.6,-12.0,7.95,8.85],[-9.4,-7.0,7.95,9.25],[-6.85,-5.75,3.45,4.55],[-6.15,-5.05,4.95,6.05],[-6.65,-5.35,2.6,3.0],
+ [-5.15,-2.05,8.6,9.4],[.9,6.1,5.0,8.2],[7.5,7.7,5.7,7.5],[14.1,14.9,-2.6,.2],[14.2,14.8,.6,1.2],[7.1,8.1,-3.4,-2.6]].forEach(r=>obst(...r));
+[[-14.3,-10.3],[14.3,-10.3],[-14.3,10.3],[14.3,10.3],[-5.4,-10.4],[8.8,.6],[6.6,9.3],[-1.6,3.4],[9.8,-3.2],[-5.3,9.6]].forEach(p=>obst(p[0]-.4,p[0]+.4,p[1]-.4,p[1]+.4));
 // compradora(s) na sala de vidro (nome real do ERP chega pela sombra)
 const HUMANS=[];
 (function(){
@@ -488,7 +530,7 @@ async function carregarReal(){
       <div class="kpi ${graves?'crit':'ok'}"><div class="n">${graves}</div><div class="l">vazamentos graves (de ${d.alertas.length})</div></div>
       <div class="kpi ${reb?'warn':''}"><div class="n">${reb}</div><div class="l">rebaixas pedidas pela loja</div></div>`;
     $('pill-real').textContent='Precificação: dados reais · '+new Date(d.calculadoEm).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-    refreshScreens(); if(selId==='vigia'||selId==='precif')select(selId);
+    refreshScreens(); if(selId==='vigia'||selId==='precif')select(selId); okReal=true; ROBOS.forEach(r=>{if(emCasa(r))setStatus(r,ocupado(r)?'trabalhando':'na mesa');}); prontoParaEventos();
   }catch(e){$('sub').textContent='vigia indisponível: '+e.message; $('pill-real').textContent='Precificação: sem dados'; $('kpis').innerHTML='';}
 }
 async function carregarSombra(){
@@ -514,7 +556,7 @@ async function carregarSombra(){
     $('kpis2').innerHTML=`<div class="kpi ${F.pedir_hoje.length?'crit':'ok'}"><div class="n">${R0s(F.valor_hoje)}</div><div class="l">pediria hoje · ${F.pedir_hoje.length} lista(s)</div></div>
       <div class="kpi ${F.cobrar.length?'warn':'ok'}"><div class="n">${F.cobrar.length}</div><div class="l">fornecedor(es) que cobraria</div></div>`;
     $('pill-sombra').textContent='Compras: sombra · nada vale · Radar '+(d.radar.atualizadoEm?new Date(d.radar.atualizadoEm).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'');
-    refreshScreens();
+    refreshScreens(); okSombra=true; ROBOS.forEach(r=>{if(emCasa(r))setStatus(r,ocupado(r)?'trabalhando':'na mesa');}); prontoParaEventos();
   }catch(e){$('pill-sombra').textContent='Compras: sombra indisponível ('+e.message+')'; $('kpis2').innerHTML='';}
 }
 carregarReal(); carregarSombra(); setInterval(carregarReal,5*60*1000); setInterval(carregarSombra,5*60*1000);
@@ -522,20 +564,141 @@ select('vigia');
 for(let i=0;i<4;i++)pushEvent();
 setInterval(pushEvent,reduce?6000:3400);
 
+
+/* ==================== VIDA (Fase B/C): atores andam, fazem coisas, reunião, agenda, dia/noite ==================== */
+const WALK=1.7;                                   // m/s
+let simF=1, vt=Date.now(), lastMin=-1;            // relógio virtual (simular um dia = 24 h em ~60 s)
+const forcaHora=new URLSearchParams(location.search).get('hora');   // ?hora=14 pra testar a luz
+const hora=()=>{if(forcaHora!=null&&simF===1)return parseFloat(forcaHora); const d=new Date(vt); return d.getHours()+d.getMinutes()/60+d.getSeconds()/3600;};
+const rand=v=>Array.isArray(v)?v[0]+rnd()*(v[1]-v[0]):v;
+const ACTORS=[]; ROBOS.forEach(r=>{r.plan=[]; r.path=null; r.wait=0; r.anim='type'; r.idleT=rnd()*40; ACTORS.push(r);});
+function setStatus(a,txt){if(a.tag){a.tag.firstChild.textContent=txt; a.tag.classList.toggle('mini',txt==='em reunião');} a.status=txt;}
+function ocupado(r){const F=SOMBRA&&SOMBRA.faria, h=hora(); switch(r.id){
+  case 'sugestao':case 'aprovacao':case 'erp':return !!(F&&F.pedir_hoje.length);
+  case 'radar':return !!(F&&F.transito_nfe>0); case 'cobranca':return !!(F&&F.cobrar.length);
+  case 'resumo':return h>=17.5&&h<18.5; case 'vigia':return (h>=5.8&&h<6.5)||(h>=13&&h<13.6);
+  case 'precif':return !!(DADOS&&DADOS.alertas.some(a=>a.grav===3));} return false;}
+const emCasa=a=>!a.plan.length&&!a.path&&a.wait<=0&&a.home&&Math.hypot(a.g.position.x-a.home.x,a.g.position.z-a.home.z)<.05;
+// atividades: cada uma é uma lista de passos (go / face / wait / sit / stand / home)
+const R2=(a,b)=>[a,b];
+const ACTS={
+ cafe:()=>[{go:[13.6,-1.4],status:'indo ao café'},{face:Math.PI/2},{wait:R2(25,45),status:'no café',anim:'cup'},{home:1}],
+ agua:()=>[{go:[13.6,.9],status:'indo beber água'},{face:Math.PI/2},{wait:R2(14,24),status:'no bebedouro',anim:'cup'},{home:1}],
+ pufe:a=>{const p=[[-6.3,4.0],[-5.6,5.5]][a.i%2]; return [{go:[p[0]+.95,p[1]],status:'indo pro lounge'},{sit:{x:p[0],z:p[1],yaw:Math.PI/2,y:-.2}},{wait:R2(35,60),status:'no lounge',anim:'sit'},{stand:[p[0]+.95,p[1]]},{home:1}];},
+ fliperama:()=>[{go:[-13.3,3.3],status:'indo pro fliperama'},{face:-Math.PI/2},{wait:R2(30,50),status:'no fliperama',anim:'play'},{home:1}],
+ impressora:()=>[{go:[7.6,-1.9],status:'indo à impressora'},{face:Math.PI},{wait:R2(12,20),status:'na impressora'},{home:1}],
+ erp:()=>[{go:[12.3,7.8],status:'indo ler o ERP'},{face:Math.PI},{wait:R2(40,60),status:'lendo o ERP',anim:'stand'},{home:1}],
+ tiago:txt=>[{go:[-9.75,-6.25],status:'indo falar com o Tiago'},{face:Math.PI},{wait:R2(40,60),status:txt||'com o Tiago',anim:'talk'},{home:1}],
+ compradora:()=>[{go:[12,-6.5],status:'indo à sala da compradora'},{face:Math.PI},{wait:R2(35,55),status:'com a compradora',anim:'talk'},{home:1}],
+ levar:(a,b,txt)=>[{go:[b.spot.x+(b.home.yaw?-.9:.9),b.spot.z],status:'levando pro '+b.nome},{face:b.home.yaw?Math.PI:0},{wait:R2(14,20),status:txt,anim:'talk'},{home:1}],
+ // em dupla (os dois ficam frente a frente)
+ pebolim:(a,b)=>[[{go:[-12.8,7.2],status:'indo jogar'},{face:0},{wait:R2(40,60),status:'jogando pebolim',anim:'play'},{home:1}],[{go:[-12.8,9.6],status:'indo jogar'},{face:Math.PI},{wait:R2(40,60),status:'jogando pebolim',anim:'play'},{home:1}]],
+ sinuca:(a,b)=>[[{go:[-11.2,6.1],status:'indo jogar'},{face:Math.PI},{wait:R2(40,60),status:'jogando sinuca',anim:'play'},{home:1}],[{go:[-9.3,4.6],status:'indo jogar'},{face:-Math.PI/2},{wait:R2(40,60),status:'jogando sinuca',anim:'play'},{home:1}]],
+ pingpong:(a,b)=>[[{go:[-10.1,8.6],status:'indo jogar'},{face:Math.PI/2},{wait:R2(40,60),status:'jogando ping-pong',anim:'play'},{home:1}],[{go:[-6.3,8.6],status:'indo jogar'},{face:-Math.PI/2},{wait:R2(40,60),status:'jogando ping-pong',anim:'play'},{home:1}]],
+ conversa:(a,b)=>{const p=[[.5,.6],[9,-2.6],[-2.5,5.8],[-7,.9]][(a.i+b.i)%4]; return [[{go:[p[0]-.45,p[1]],status:'indo conversar'},{face:Math.PI/2},{wait:R2(25,40),status:'conversando',anim:'talk'},{home:1}],[{go:[p[0]+.45,p[1]],status:'indo conversar'},{face:-Math.PI/2},{wait:R2(25,40),status:'conversando',anim:'talk'},{home:1}]];}
+};
+function plan(a,steps){if(typeof a==='string')a=robots[a]; a.plan=steps.slice(); a.idleT=0;}
+const SOLO=['cafe','agua','pufe','fliperama','impressora','cafe','agua'], DUPLA=['pebolim','sinuca','pingpong','conversa','conversa'];
+function escalonar(dt){   // a cada tick: quem está na mesa há tempo demais sai pra fazer alguma coisa (ocupado sai menos)
+  const fora=ACTORS.filter(a=>a.home&&!emCasa(a)).length; if(fora>=3)return;
+  const prontos=ACTORS.filter(a=>a.home&&emCasa(a)); prontos.forEach(a=>a.idleT+=dt);
+  const cands=prontos.filter(a=>a.idleT>(ocupado(a)?rand(R2(150,300)):rand(R2(40,110)))); if(!cands.length)return;
+  const a=cands[Math.floor(rnd()*cands.length)];
+  if(rnd()<.45&&prontos.length>1&&fora<2){const b=prontos.filter(x=>x!==a)[Math.floor(rnd()*(prontos.length-1))]; const k=DUPLA[Math.floor(rnd()*DUPLA.length)]; const [pa,pb]=ACTS[k](a,b); plan(a,pa); plan(b,pb); b.idleT=0;}
+  else {const k=SOLO[Math.floor(rnd()*SOLO.length)]; plan(a,ACTS[k](a));}
+}
+function nextStep(a){
+  const s=a.plan.shift(); if(!s)return;
+  if(s.go){if(a.g.userData.pose==='sentado')setPose(a.g,'em_pe'); a.path=achar(a.g.position.x,a.g.position.z,s.go[0],s.go[1]); if(!a.path.length){a.path=null; nextStep(a); return;} setStatus(a,s.status||'andando'); return;}
+  if(s.face!=null){a.g.rotation.y=s.face; a.anim='stand'; nextStep(a); return;}
+  if(s.wait){a.wait=rand(s.wait); a.anim=s.anim||'stand'; if(s.status)setStatus(a,s.status); return;}
+  if(s.sit){a.g.position.set(s.sit.x,0,s.sit.z); a.g.rotation.y=s.sit.yaw; setPose(a.g,'sentado'); a.g.userData.dy=s.sit.y||0; a.anim='sit'; nextStep(a); return;}
+  if(s.stand){setPose(a.g,'em_pe'); a.g.position.x=s.stand[0]; a.g.position.z=s.stand[1]; nextStep(a); return;}
+  if(s.home){a.plan.unshift({go:[a.spot.x,a.spot.z],status:'voltando'},{sit:{x:a.home.x,z:a.home.z,yaw:a.home.yaw}},{status:'__home'}); nextStep(a); return;}
+  if(s.status==='__home'){setStatus(a,ocupado(a)?'trabalhando':'na mesa'); a.anim='type'; a.idleT=0; nextStep(a); return;}
+  if(s.status){setStatus(a,s.status); nextStep(a); return;}
+  if(s.fn){s.fn(a); nextStep(a); return;}
+  if(s.remove){scene.remove(a.g); if(a.tag)a.tag.remove(); ACTORS.splice(ACTORS.indexOf(a),1); return;}
+}
+function stepActor(a,dt,t){
+  if(a.wait>0){a.wait-=dt*(simF>1?30:1); animate(a,a.anim,t); if(a.wait<=0){a.wait=0; nextStep(a);} return;}
+  if(a.path&&a.path.length){const p=a.path[0]; const dx=p[0]-a.g.position.x, dz=p[1]-a.g.position.z, d=Math.hypot(dx,dz), st=WALK*(simF>1?3:1)*dt; if(d<=st){a.g.position.x=p[0]; a.g.position.z=p[1]; a.path.shift(); if(!a.path.length){a.path=null; a.anim='stand'; nextStep(a);}} else {a.g.position.x+=dx/d*st; a.g.position.z+=dz/d*st; a.g.rotation.y=Math.atan2(dx,dz);} animate(a,'walk',t); return;}
+  if(a.plan.length){nextStep(a); return;}
+  animate(a,a.anim||'type',t);
+}
+function animate(a,anim,t){const U=a.g.userData, A=U.arms, L=U.legs, i=a.i||0; let dy=U.dy||0; U.cup.visible=anim==='cup';
+  const reta=()=>L.forEach(l=>{l.leg.rotation.x=0;l.sh.rotation.x=0;});
+  switch(anim){
+    case 'type': A[0].rotation.x=-1.25+Math.sin(t*6+i)*.08; A[1].rotation.x=-1.25+Math.cos(t*6+i)*.08; dy+=Math.sin(t*1.6+i)*.01; break;
+    case 'sit': A[0].rotation.x=-.5; A[1].rotation.x=-.5+Math.sin(t*2+i)*.05; break;
+    case 'walk': {const ph=t*7+i; L[0].leg.rotation.x=Math.sin(ph)*.6; L[1].leg.rotation.x=-Math.sin(ph)*.6; L[0].sh.rotation.x=Math.max(0,-Math.sin(ph))*.7; L[1].sh.rotation.x=Math.max(0,Math.sin(ph))*.7; A[0].rotation.x=-.15-Math.sin(ph)*.45; A[1].rotation.x=-.15+Math.sin(ph)*.45; dy+=Math.abs(Math.sin(ph))*.03; break;}
+    case 'cup': reta(); A[0].rotation.x=-.15; A[1].rotation.x=-1.95+Math.sin(t*1.5+i)*.12; break;
+    case 'play': reta(); A[0].rotation.x=-.9+Math.sin(t*9+i)*.3; A[1].rotation.x=-.9+Math.cos(t*9+i)*.3; dy+=Math.abs(Math.sin(t*4+i))*.012; break;
+    case 'talk': reta(); A[0].rotation.x=-.2; A[1].rotation.x=-.75+Math.sin(t*3+i)*.3; dy+=Math.sin(t*1.2+i)*.008; break;
+    default: reta(); A[0].rotation.x=-.15; A[1].rotation.x=-.15; dy+=Math.sin(t*1.2+i)*.01;
+  }
+  a.g.position.y=dy;
+}
+/* reunião das 18:00 na mesa grande (8 lugares), eventos pelo dado real, visitante na recepção */
+const LUGARES=[[2.3,5.4,0,[2.3,4.3]],[3.5,5.4,0,[3.5,4.3]],[4.7,5.4,0,[4.7,4.3]],[2.3,7.8,Math.PI,[2.3,8.9]],[3.5,7.8,Math.PI,[3.5,8.9]],[4.7,7.8,Math.PI,[4.7,8.9]],[1.3,6.6,Math.PI/2,[.2,6.6]],[5.7,6.6,-Math.PI/2,[6.8,6.6]]];
+let reuniaoAte=0;
+function reuniao(){ if(vt<reuniaoAte)return; reuniaoAte=vt+30*60000;   // 1 por meia hora (virtual)
+  ROBOS.forEach((r,k)=>{const L=LUGARES[k]; plan(r,[{go:L[3],status:'indo pra reunião'},{sit:{x:L[0],z:L[1],yaw:L[2]}},{wait:R2(150,180),status:'em reunião',anim:'sit'},{stand:L[3]},{home:1}]);});
+  feedExtra('resumo','ok','Reunião das 18:00 na mesa grande: Resumo do Dia (sombra) · pauta na TV');
+}
+let VISITA=null;
+function visitante(forn){ if(VISITA)return;
+  const g=person({skin:0xe0ac69,hair:0x333333,shirt:0x8d99a6,pants:0x3c3c3c,hairStyle:'curto'},{}); setPose(g,'em_pe'); g.position.set(0,.14,10.7); g.rotation.y=Math.PI; scene.add(g);
+  const d=document.createElement('div'); d.className='tag humana'; d.innerHTML='<i>visitante</i><b>'+esc(forn.slice(0,18))+'</b><small>Vendedor</small><span></span>'; tagsEl.appendChild(d);
+  const v={id:'visita',g,tag:d,plan:[],path:null,wait:0,anim:'stand',i:11}; ACTORS.push(v); VISITA=v;
+  plan(v,[{go:[-2.4,10.2],status:'chegando'},{face:Math.PI},{wait:R2(20,30),status:'esperando na recepção'},{wait:R2(40,55),status:'falando com a Cobrança',anim:'talk'},{go:[0,10.7],status:'indo embora'},{fn:()=>{VISITA=null;}},{remove:1}]);
+  const c=robots.cobranca; plan(c,[{wait:R2(18,26),status:'o vendedor chegou',anim:'type'},{go:[-2.4,8.1],status:'indo atender o vendedor'},{face:0},{wait:R2(40,55),status:'cobrando o fornecedor',anim:'talk'},{home:1}]);
+}
+function feedExtra(id,cls,txt){const d=new Date(vt); const el=document.createElement('div'); el.className='ev novo '+cls; el.innerHTML='<time>'+pad(d.getHours())+':'+pad(d.getMinutes())+'</time><div class="t"><span class="q">'+esc(robots[id].nome)+'</span>'+esc(txt)+'</div>'; feed.insertBefore(el,feed.children[1]||null); while(feed.children.length>10)feed.removeChild(feed.lastChild);}
+let eventosFeitos=false;
+function eventos(){   // o que o dado real dispara (1× por carga / por dia simulado)
+  const F=SOMBRA&&SOMBRA.faria, D=DADOS; if(!F||!D)return; eventosFeitos=true;
+  let atraso=0;
+  if(F.pedir_hoje.length){setTimeout(()=>{const a=robots.sugestao, b=robots.aprovacao; plan(a,ACTS.levar(a,b,'entregando o pedido de hoje')); setTimeout(()=>plan(b,ACTS.compradora()),28000/(simF>1?30:1));},atraso); atraso+=8000;}
+  if(D.alertas.some(a=>a.grav===3)){setTimeout(()=>plan(robots.precif,ACTS.tiago('mostrando vazamento grave pro Tiago')),atraso); atraso+=8000;}
+  if(F.cobrar.length){setTimeout(()=>visitante(F.cobrar[0].fornecedor),atraso);}
+}
+const AGENDA=[[5.83,()=>plan('vigia',ACTS.erp())],[7,()=>plan('resumo',ACTS.tiago('levando o resumo das 07:00'))],[9.5,eventos],[13.08,()=>plan('vigia',ACTS.erp())],[18,reuniao]];
+function tick(h){ // a cada minuto virtual
+  const prev=lastMin; AGENDA.forEach(([ah,fn])=>{const m=Math.round(ah*60); if(prev>=0&&prev<m&&Math.floor(h*60)>=m)fn();});
+  const d=new Date(vt); $('pill-hora').textContent=(simF>1?'simulando · ':'')+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+' · '+(h<5.5||h>=19.5?'noite':h<7?'amanhecendo':h<17?'dia':'fim de tarde');
+}
+// dia / noite pela hora (real ou simulada): luz, céu, luminárias, janelas da cidade
+const lamps=[[-11,-7],[1,-6.5],[-9,6],[3.5,6.6],[12,-7.5],[12.8,-1.5]].map(([x,z])=>{const l=new THREE.PointLight(0xffc77a,0,15,1.4); l.position.set(x,3.0,z); scene.add(l); return l;});
+const cDia=new THREE.Color(0xfff1dc), cTarde=new THREE.Color(0xffbf7a), cNoite=new THREE.Color(0x8fa6c8); let luzK=-1;
+function luz(h){ let k=h<5.5||h>=19.5?0:h<7?(h-5.5)/1.5:h<17?1:1-(h-17)/2.5; if(Math.abs(k-luzK)<.01)return; luzK=k;
+  hemi.intensity=.3+.55*k; amb.intensity=.1+.12*k; sun.intensity=.18+.72*k; fill.intensity=.1+.25*k;
+  sun.color.copy(k>.6?cDia:cTarde).lerp(cNoite,1-Math.min(1,k*1.3)); lamps.forEach(l=>l.intensity=(1-k)*1.1);
+  const on=k<.45; cityWins.forEach(w=>{w.material=on?mWinOn:mWinOff;});
+  stage.classList.toggle('noite',k<.3); stage.classList.toggle('tarde',k>=.3&&k<.75);
+}
+$('sim').onclick=()=>{ if(simF>1){simF=1; vt=Date.now(); $('sim').setAttribute('aria-pressed','false'); $('sim').textContent='▶ simular um dia'; reuniaoAte=0; return;}
+  simF=1440; const d=new Date(); d.setHours(5,0,0,0); vt=d.getTime(); lastMin=-1; eventosFeitos=false; reuniaoAte=0; $('sim').setAttribute('aria-pressed','true'); $('sim').textContent='■ parar simulação'; };
+// na abertura: eventos do dado real assim que a sombra e o vigia chegam; reunião se já for hora
+let okReal=false, okSombra=false; function prontoParaEventos(){ if(okReal&&okSombra&&!eventosFeitos){ setTimeout(eventos,6000); const h=hora(); if(h>=18&&h<18.5)setTimeout(reuniao,2000);} }
+ROBOS.forEach(r=>setStatus(r,'na mesa'));
+window.__esc={achar,robots,ROBOS,ACTORS,plan,ACTS,reuniao,eventos,visitante,hora,grid,GX,GZ,livre,cx,cz};   // depuração no console
+
 /* ---------- loop ---------- */
 function resize(){const w=stage.clientWidth,h=stage.clientHeight; if(!w||!h)return; renderer.setSize(w,h,false); const a=w/h; cam.left=-ORTHO*a; cam.right=ORTHO*a; cam.top=ORTHO; cam.bottom=-ORTHO; cam.updateProjectionMatrix();}
 new ResizeObserver(resize).observe(stage); resize(); updCam();
-let t0=performance.now(), ledT=0;
+let t0=performance.now(), last=t0, ledT=0, escT=0;
 function frame(now){
-  const t=(now-t0)/1000;
-  ROBOS.forEach((r,i)=>{
-    if(!reduce){r.arms[0].rotation.x=-1.25+Math.sin(t*6+i)*.08; r.arms[1].rotation.x=-1.25+Math.cos(t*6+i)*.08; r.g.position.y=Math.sin(t*1.6+i)*.01;}
-    r.pulse=Math.max(0,(r.pulse||0)-.02); r.tip.material.emissiveIntensity=.25+r.pulse*2.5; r.tip.scale.setScalar(.6+r.pulse*1.2);
+  const t=(now-t0)/1000, dt=Math.min(.1,(now-last)/1000); last=now; vt+=dt*1000*simF;
+  const hh=hora(); if(Math.floor(hh*60)!==lastMin){tick(hh); lastMin=Math.floor(hh*60);} luz(hh);
+  if(!reduce){ACTORS.slice().forEach(a=>stepActor(a,dt,t)); escT+=dt; if(escT>2){escalonar(escT); escT=0;}}
+  ROBOS.forEach(r=>{
+    r.pulse=Math.max(0,(r.pulse||0)-.02); r.tip.material.emissiveIntensity=.25+r.pulse*2.5; r.tip.scale.setScalar(.6+r.pulse*1.2); r.tip.position.set(r.g.position.x,r.g.position.y+2.1,r.g.position.z);
   });
   if(!reduce){parts.forEach(p=>{p.t+=p.speed; if(p.t>1){p.t=0; const r=ROBOS[Math.floor(rnd()*ROBOS.length)]; p.from.set(r.pos[0],1.3,r.pos[1]);} bez(p.from,ERP_TOP,p.t,p.m.position); p.m.rotation.y+=.05; p.m.rotation.x+=.03;});
     if(now-ledT>200){ledT=now; for(let k=0;k<3;k++){const l=leds[Math.floor(rnd()*leds.length)]; l.material.emissiveIntensity=l.material.emissiveIntensity>.3?.05:.6;}}}
   const w=stage.clientWidth,h=stage.clientHeight;
-  ROBOS.forEach(r=>placeTag(r.tag,r.pos[0],2.1,r.pz,w,h));
+  ACTORS.forEach(a=>placeTag(a.tag,a.g.position.x,a.g.position.y+2.1,a.g.position.z,w,h));
   HUMANS.forEach(hm=>placeTag(hm.tag,hm.x,2.1,hm.z,w,h));
   renderer.render(scene,cam);
   requestAnimationFrame(frame);
