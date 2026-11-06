@@ -110,7 +110,7 @@ button.pill[aria-pressed="true"]{background:var(--navy);color:#fff}
 /* ---------- modo TV (?tv=1): sem painel, números grandes, holofote nos postos, ticker embaixo (06/11/26) ---------- */
 .tv .app{grid-template-columns:1fr}
 .tv .panel,.tv .ctl,.tv .legend,.tv .brand>div:last-child{display:none!important}
-.tv .brand>div:first-child{background:rgba(255,255,255,.78);padding:12px 18px;border-radius:14px;backdrop-filter:blur(4px)}
+.tv .brand>div:first-child{background:rgba(255,255,255,.86);padding:12px 18px;border-radius:14px}
 .stage.noite .brand>div:first-child{background:rgba(20,31,51,.7)}
 .tv .brand{padding:22px 32px}
 .tv .brand h1{font-size:30px;letter-spacing:1.5px}.tv .brand .eyebrow{font-size:14px;letter-spacing:2px}
@@ -128,7 +128,7 @@ button.pill[aria-pressed="true"]{background:var(--navy);color:#fff}
 .tvcard .st{font-size:16px;font-weight:800;color:var(--amber)}.tvcard.real .st{color:var(--navy)}.tvcard.humana .st{color:var(--green)}
 .tvcard .ag{font-size:17px;font-weight:600;margin:10px 0 6px;color:var(--text)}.tvcard ul{padding-left:20px;font-size:15px;color:var(--text2);line-height:1.4}
 .ticker{position:absolute;left:0;right:0;bottom:0;height:60px;background:var(--navy);color:#fff;overflow:hidden;display:flex;align-items:center;font-size:21px;font-weight:600;border-top:4px solid var(--brand)}
-.ticker .track{display:inline-block;white-space:nowrap;padding-left:100%;animation:marquee 110s linear infinite}
+.ticker .track{display:inline-block;white-space:nowrap;padding-left:100%;animation:marquee 110s linear infinite;will-change:transform}
 .ticker time{font-family:var(--mono);color:var(--brand);margin-right:10px;font-weight:600}.ticker i{margin:0 28px;color:var(--brand);font-style:normal}
 .ticker .q{background:rgba(255,255,255,.16);border-radius:6px;padding:2px 8px;margin-right:8px;font-size:15px;font-weight:800;text-transform:uppercase;letter-spacing:.05em}
 @keyframes marquee{to{transform:translateX(-100%)}}
@@ -179,6 +179,7 @@ button.pill[aria-pressed="true"]{background:var(--navy);color:#fff}
 </div>
 <script type="module">
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const R0=v=>v==null?'—':'R$ '+Number(v).toLocaleString('pt-BR',{maximumFractionDigits:0});
@@ -214,8 +215,8 @@ const R0s=v=>'R$ '+Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:0}
 /* ---------- cena: isométrica, clara e chapada como a referência; cores nossas ---------- */
 const stage=$('stage');
 const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
-renderer.setPixelRatio(Math.min(devicePixelRatio,2)); renderer.setClearColor(0x000000,0);
-renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.VSMShadowMap;
+renderer.setPixelRatio(TV?1:Math.min(devicePixelRatio,2)); renderer.setClearColor(0x000000,0);
+renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;   // VSM c/ blur custava ~1/3 do frame (06/11: ticker engasgando a 16 fps)
 renderer.outputColorSpace=THREE.SRGBColorSpace; renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.0;
 renderer.useLegacyLights=true;   // intensidades calibradas no teste (three r128); r160 é "físico" por padrão e escurece tudo
 stage.appendChild(renderer.domElement);
@@ -224,11 +225,12 @@ const ORTHO=13;   // meia-altura do enquadramento (unidades = metros)
 const cam=new THREE.OrthographicCamera(-ORTHO,ORTHO,ORTHO,-ORTHO,.1,300);
 const hemi=new THREE.HemisphereLight(0xf2f6fb,0xb7ad9f,.85); scene.add(hemi);
 const amb=new THREE.AmbientLight(0xffffff,.22); scene.add(amb);
-const sun=new THREE.DirectionalLight(0xfff1dc,.9); sun.position.set(7,22,11); sun.castShadow=true; sun.shadow.mapSize.set(2048,2048);
+const sun=new THREE.DirectionalLight(0xfff1dc,.9); sun.position.set(7,22,11); sun.castShadow=true; sun.shadow.mapSize.set(TV?1024:2048,TV?1024:2048);
 sun.shadow.camera.left=-24; sun.shadow.camera.right=24; sun.shadow.camera.top=24; sun.shadow.camera.bottom=-24; sun.shadow.camera.far=80; sun.shadow.bias=-.0002; sun.shadow.radius=5; sun.shadow.blurSamples=10; scene.add(sun);
 const fill=new THREE.DirectionalLight(0xd8e4f4,.35); fill.position.set(-10,12,-4); scene.add(fill);
 
-const P=(c,o)=>new THREE.MeshStandardMaterial(Object.assign({color:c,roughness:.8,metalness:0},o||{}));
+const matCache={};   // mesma cor sem opções = mesmo material (menos draw calls depois do bake)
+const P=(c,o)=>o?new THREE.MeshStandardMaterial(Object.assign({color:c,roughness:.8,metalness:0},o)):(matCache[c]||(matCache[c]=new THREE.MeshStandardMaterial({color:c,roughness:.8,metalness:0})));
 function tex(w,h,draw,rep){const c=document.createElement('canvas');c.width=w;c.height=h;const g=c.getContext('2d');draw(g,w,h);const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;if(rep){t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(rep[0],rep[1]);}return t;}
 let seed=7; const rnd=()=>{seed=(seed*16807)%2147483647; return (seed-1)/2147483646;};   // determinístico: a maquete é igual toda vez
 const woodTex=tex(512,512,(g,w,h)=>{g.fillStyle='#c9a77a';g.fillRect(0,0,w,h);for(let i=0;i<8;i++){const y=i*64;g.fillStyle=['#c6a375','#cfae82','#c09c6e','#d2b388'][i%4];g.fillRect(0,y,w,62);g.fillStyle='rgba(90,60,30,.25)';g.fillRect(0,y+62,w,2);const off=(i%2)*256;g.fillRect(off,y,2,62);for(let k=0;k<6;k++){g.fillStyle='rgba(120,85,45,.12)';g.fillRect(rnd()*w,y+rnd()*60,80+rnd()*120,1);}}},[4,3]);
@@ -243,8 +245,16 @@ const mFloor=new THREE.MeshStandardMaterial({map:tileTex,roughness:.75}), mWoodF
  mGreen=new THREE.MeshStandardMaterial({color:0x2ecc71,emissive:0x2ecc71,emissiveIntensity:.3,roughness:.6}),
  mBlue=new THREE.MeshStandardMaterial({color:0x3f7fd6,emissive:0x3f7fd6,emissiveIntensity:.45,roughness:.6}),
  mNavyFlat=P(0x13294b), mAmberFlat=P(0xf2a516), mWhite=P(0xffffff), mDark=P(0x1b1d20), mLeaf=P(0x3c8c45), mLeaf2=P(0x2f7238), mPot=P(0x8b8f94), mWood=P(0xa97c50), mDarkWood=P(0x6e4a2c), mSteel=P(0x9aa0a6,{metalness:.6,roughness:.4}), mSofa=P(0xe7e2d8), mCity=P(0xb4c1d3,{roughness:1}), mWinOff=P(0xd7e1ee), mWinOn=new THREE.MeshStandardMaterial({color:0xffd58a,emissive:0xffc45a,emissiveIntensity:.9});
-const cityWins=[];
+const cityWins=[]; const cityWinGroup=new THREE.Group();
 function box(w,h,d,m,x,y,z){const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;return o;}
+/* bake (06/11/26): a cena tinha ~1.000 meshes (cada box() um draw call + outro na sombra) e rodava a 16 fps no modo TV, o
+   ticker engasgava. Funde os meshes estáticos de um grupo por material num mesh só. Pula o que se mexe (userData.dyn),
+   o que tem textura (telas, placas, pisos) e o que não é MeshStandardMaterial (anéis, planos básicos). */
+function bake(root){const by=new Map(), rm=[];
+  root.children.forEach(o=>{if(!o.isMesh||o.userData.dyn)return; const m=o.material; if(Array.isArray(m)||m.map||!m.isMeshStandardMaterial)return; const g=o.geometry; if(!g.attributes.position||!g.attributes.normal||!g.attributes.uv)return; o.updateMatrix(); const c=g.clone().applyMatrix4(o.matrix); if(!by.has(m))by.set(m,[]); by.get(m).push(c); rm.push(o);});
+  if(rm.length<2)return; rm.forEach(o=>root.remove(o));
+  by.forEach((gs,m)=>{const mesh=new THREE.Mesh(mergeGeometries(gs,false),m); mesh.castShadow=true; mesh.receiveShadow=true; mesh.userData=Object.assign({},root.userData); root.add(mesh); gs.forEach(g=>g.dispose());});
+}
 function plane(w,h,m,x,y,z,rx,ry){const o=new THREE.Mesh(new THREE.PlaneGeometry(w,h),m);o.position.set(x,y,z);if(rx)o.rotation.x=rx;if(ry)o.rotation.y=ry;o.receiveShadow=true;return o;}
 function label(w,h,px,draw){return new THREE.MeshBasicMaterial({map:tex(px,Math.round(px*h/w),draw)});}
 
@@ -289,7 +299,8 @@ scene.add(box(.14,1.1,.14,mFrame,-1.2,.55,D/2)); scene.add(box(.14,1.1,.14,mFram
 scene.add(box(2.2,.02,1.4,P(0x4f5864),0,.012,D/2-.8));
 // cidade atrás do vidro (silhueta azul-pálida)
 [[-19,-9,2.2,7],[-21.5,-4,3,10],[-19.5,1,2.4,5],[-23,4,3.4,13],[-19,8,2,6],[-26,-8,4,9],[-27,0,3.2,16],[-25,10,3,8],
- [-10,-15,2.6,8],[-5,-17,3.4,12],[0,-14.5,2.2,6],[4,-16.5,3,14],[9,-15,2.4,7],[13,-17,3.6,10],[-15,-18,3,11],[17,-14,2.4,5],[-20,-14,3,9],[-24,-19,4,15]].forEach(([x,z,w,h])=>{const b=box(w,h,w,mCity,x,h/2-.5,z); b.castShadow=false; b.receiveShadow=false; scene.add(b); for(let k=1;k<h-1;k+=1.4){const win=box(w*.7,.35,w+.02,mWinOff,x,k,z); win.castShadow=false; win.receiveShadow=false; scene.add(win); cityWins.push(win);}});
+ [-10,-15,2.6,8],[-5,-17,3.4,12],[0,-14.5,2.2,6],[4,-16.5,3,14],[9,-15,2.4,7],[13,-17,3.6,10],[-15,-18,3,11],[17,-14,2.4,5],[-20,-14,3,9],[-24,-19,4,15]].forEach(([x,z,w,h])=>{const b=box(w,h,w,mCity,x,h/2-.5,z); b.castShadow=false; b.receiveShadow=false; scene.add(b); for(let k=1;k<h-1;k+=1.4){const win=box(w*.7,.35,w+.02,mWinOff,x,k,z); cityWinGroup.add(win);}});
+bake(cityWinGroup); cityWinGroup.children.forEach(c=>{c.castShadow=false; c.receiveShadow=false; cityWins.push(c);}); scene.add(cityWinGroup);
 
 /* ---------- pisos das zonas ---------- */
 scene.add(plane(8,6.4,mWoodFloor,-11,.012,-7.8,-Math.PI/2));                                   // sala do diretor
@@ -356,7 +367,7 @@ scene.add(box(1.2,1.0,.35,mDeskOak,13.6,.5,-10.6)); scene.add(box(1.1,.25,.3,P(0
 glassRoom(10.8,15,4,8.4,{doorLeft:true,carpet:true});
 roomSign('ERP','teste .254',12.9,2.78,8.44,1.3);
 const rack=new THREE.Group(); rack.add(box(1,2.2,.8,mDark,0,1.1,0)); rack.add(box(.9,2.1,.02,P(0x2a2d31),0,1.1,.41));
-const leds=[]; for(let i=0;i<10;i++)for(let j=0;j<3;j++){const l=box(.07,.05,.02,(rnd()<.8?mBlue:mAmber).clone(),-.3+j*.3,.3+i*.19,.42); rack.add(l); leds.push(l);}
+const leds=[]; for(let i=0;i<10;i++)for(let j=0;j<3;j++){const l=box(.07,.05,.02,(rnd()<.8?mBlue:mAmber).clone(),-.3+j*.3,.3+i*.19,.42); l.userData.dyn=true; rack.add(l); leds.push(l);}
 rack.position.set(12.3,0,6.6); scene.add(rack);
 const rack2=rack.clone(); rack2.position.set(13.9,0,5.6); rack2.rotation.y=-Math.PI/2; scene.add(rack2);
 const ERP_TOP=new THREE.Vector3(12.3,2.4,6.6);
@@ -391,7 +402,7 @@ scene.add(box(.4,1.0,.4,mWhite,14.5,.5,.9)); const galao=new THREE.Mesh(new THRE
 /* ---------- pessoas (chibi, headset nos robôs), cadeiras, mesas ---------- */
 function limb(w,h,d,m){const g=new THREE.BoxGeometry(w,h,d); g.translate(0,-h/2,0); const o=new THREE.Mesh(g,m); o.castShadow=true; return o;}
 function person(look,opts){
-  opts=opts||{}; const g=new THREE.Group(); const skin=P(look.skin), hair=P(look.hair), shirt=P(look.shirt), pants=P(look.pants);
+  opts=opts||{}; const g=new THREE.Group(); const skin=P(look.skin), hair=P(look.hair), shirt=new THREE.MeshStandardMaterial({color:look.shirt,roughness:.8}), pants=P(look.pants);   // camisa é única: recebe o emissive do selecionado
   g.userData.shirt=shirt;
   g.add(box(.6,.56,.34,shirt,0,.78,0)); g.add(box(.16,.08,.16,skin,0,1.1,0)); g.add(box(.52,.5,.5,skin,0,1.42,0));
   g.add(box(.08,.07,.01,P(0xffffff),-.12,1.46,.255), box(.08,.07,.01,P(0xffffff),.12,1.46,.255));
@@ -409,10 +420,10 @@ function person(look,opts){
   const legs=[-.16,.16].map(x=>{const leg=new THREE.Group(); leg.position.set(x,.5,.05); leg.add(limb(.26,.3,.26,pants)); const sh=new THREE.Group(); sh.position.y=-.3; sh.add(limb(.24,.28,.24,pants)); sh.add(box(.26,.08,.32,P(0x2a2a2a),0,-.3,.05)); leg.add(sh); g.add(leg); return {leg,sh};});
   const arms=[-.45,.45].map(x=>{const a=new THREE.Group(); const up=limb(.24,.38,.24,shirt); a.add(up); const hand=limb(.2,.18,.2,skin); hand.position.y=-.38; a.add(hand); a.position.set(x,1.02,.02); a.rotation.x=-1.25; g.add(a); return a;});
   const cup=box(.13,.15,.13,mWhite,0,-.58,.08); cup.visible=false; arms[1].add(cup);
-  g.userData.arms=arms; g.userData.legs=legs; g.userData.cup=cup; setPose(g,'sentado'); return g;
+  g.userData.arms=arms; g.userData.legs=legs; g.userData.cup=cup; setPose(g,'sentado'); bake(g); return g;
 }
 function setPose(g,pose){const U=g.userData; if(pose==='sentado'){U.legs.forEach(l=>{l.leg.rotation.x=-Math.PI/2; l.sh.rotation.x=Math.PI/2;}); U.dy=0;} else {U.legs.forEach(l=>{l.leg.rotation.x=0; l.sh.rotation.x=0;}); U.dy=.14;} U.pose=pose; g.position.y=U.dy;}
-function chair(){const c=new THREE.Group(); c.add(box(.58,.1,.58,mChair,0,.45,0)); c.add(box(.56,.72,.09,mChairMesh,0,.86,-.3)); c.add(box(.5,.08,.5,mChair,0,.5,0)); const post=new THREE.Mesh(new THREE.CylinderGeometry(.035,.035,.4,10),mChrome); post.position.y=.2; c.add(post); for(let i=0;i<5;i++){const a=i*Math.PI*2/5; const leg=box(.3,.04,.06,mChrome,Math.cos(a)*.17,.03,Math.sin(a)*.17); leg.rotation.y=-a; c.add(leg);} return c;}
+function chair(){const c=new THREE.Group(); c.add(box(.58,.1,.58,mChair,0,.45,0)); c.add(box(.56,.72,.09,mChairMesh,0,.86,-.3)); c.add(box(.5,.08,.5,mChair,0,.5,0)); const post=new THREE.Mesh(new THREE.CylinderGeometry(.035,.035,.4,10),mChrome); post.position.y=.2; c.add(post); for(let i=0;i<5;i++){const a=i*Math.PI*2/5; const leg=box(.3,.04,.06,mChrome,Math.cos(a)*.17,.03,Math.sin(a)*.17); leg.rotation.y=-a; c.add(leg);} bake(c); return c;}
 function scrHead(g,t,w,h){g.fillStyle='#ffffff';g.fillRect(0,0,w,h);g.fillStyle='#13294b';g.fillRect(0,0,w,h*.16);g.fillStyle='#f2a516';g.fillRect(0,h*.16,w,3);g.fillStyle='#ffffff';g.font='700 '+Math.round(h*.085)+'px Inter, sans-serif';g.fillText(t,w*.04,h*.115);}
 function mono(g,s,x,y,px,c){g.fillStyle=c||'#1b2634';g.font='500 '+px+'px "IBM Plex Mono", monospace';g.fillText(s,x,y);}
 const SL=()=>SOMBRA?SOMBRA.listas.filter(l=>l.ok):[];
@@ -437,7 +448,7 @@ function desk(x,z,wide,flip,telaKey,id){
   if(flip){const mat=new THREE.MeshBasicMaterial({map:screenTex(telaKey)}); const sc=new THREE.Mesh(new THREE.PlaneGeometry(.86,.48),mat); sc.position.set(0,1.22,-.05+.022); g.add(sc); if(id)screenMats[id]={mat,key:telaKey};}
   g.add(box(.6,.025,.2,P(0xe8e8e6),0,.79,-.25*s)); g.add(box(.1,.02,.16,P(0x2a2a2a),.5,.79,-.25*s));
   g.add(box(.08,.08,.08,P(0xffffff),-.6,.83,-.2*s));
-  g.position.set(x,0,z); return g;
+  bake(g); g.position.set(x,0,z); return g;
 }
 function refreshScreens(){for(const s of Object.values(screenMats)){s.mat.map.dispose(); s.mat.map=screenTex(s.key); s.mat.needsUpdate=true;} if(boardMat){boardMat.map.dispose();boardMat.map=boardTex();boardMat.needsUpdate=true;} metasMat.map.dispose(); metasMat.map=metasTex(); metasMat.needsUpdate=true; tvMat.map.dispose(); tvMat.map=tvTex(); tvMat.needsUpdate=true;}
 
@@ -449,7 +460,7 @@ ROBOS.forEach(r=>{
   const c=chair(); c.position.set(r.pos[0],0,r.pos[1]-.78*s); if(flip)c.rotation.y=Math.PI; c.traverse(o=>{o.userData.robotId=r.id;});
   const d=desk(r.pos[0],r.pos[1],false,flip,r.tela,r.id); d.traverse(o=>{o.userData.robotId=r.id;});
   const ring=new THREE.Mesh(new THREE.RingGeometry(1.1,1.2,48),new THREE.MeshBasicMaterial({color:r.real?0x13294b:0xf2a516,transparent:true,opacity:0,side:THREE.DoubleSide})); ring.rotation.x=-Math.PI/2; ring.position.set(r.pos[0],.02,r.pos[1]-.4*s);
-  const dot=new THREE.Mesh(new THREE.SphereGeometry(.07,10,10),(r.real?mNavy:mAmber).clone()); dot.position.set(r.pos[0],2.1,r.pz);
+  const dot=new THREE.Mesh(new THREE.SphereGeometry(.07,10,10),(r.real?mNavy:mAmber).clone()); dot.position.set(r.pos[0],2.1,r.pz); dot.userData.dyn=true;
   scene.add(ch,c,d,ring,dot); r.g=ch; r.ring=ring; r.tip=dot; r.arms=ch.userData.arms; robots[r.id]=r;
   r.home={x:r.pos[0],z:r.pz,yaw:flip?Math.PI:0}; r.spot={x:r.pos[0],z:r.pos[1]-2.05*s}; r.i=ROBOS.indexOf(r);
   obst(r.pos[0]-.85,r.pos[0]+.85,Math.min(r.pos[1]-.45,r.pos[1]-.78*s-.35),Math.max(r.pos[1]+.45,r.pos[1]-.78*s+.35));
@@ -480,9 +491,13 @@ const HUMANS=[];
 
 // dados voando das mesas pro servidor
 const parts=[]; const partMat=new THREE.MeshStandardMaterial({color:0x3f7fd6,emissive:0x3f7fd6,emissiveIntensity:.6});
-for(let i=0;i<16;i++){const m=new THREE.Mesh(new THREE.BoxGeometry(.1,.1,.1),partMat); const r=ROBOS[i%ROBOS.length]; parts.push({m,t:rnd(),from:new THREE.Vector3(r.pos[0],1.3,r.pos[1]),speed:.0025+rnd()*.0025}); scene.add(m);}
+for(let i=0;i<16;i++){const m=new THREE.Mesh(new THREE.BoxGeometry(.1,.1,.1),partMat); m.userData.dyn=true; const r=ROBOS[i%ROBOS.length]; parts.push({m,t:rnd(),from:new THREE.Vector3(r.pos[0],1.3,r.pos[1]),speed:.0025+rnd()*.0025}); scene.add(m);}
 const tA=new THREE.Vector3(), tB=new THREE.Vector3();
 function bez(p0,p2,t,out){tA.lerpVectors(p0,p2,.5); tA.y=4.2; tB.lerpVectors(p0,tA,t); out.lerpVectors(tA,p2,t); out.lerpVectors(tB,out,t); return out;}
+
+// passada de bake: grupos de móveis (sofá, sinuca, pebolim, estante, racks…) e depois tudo que está solto na cena
+scene.children.filter(o=>o.isGroup&&!o.userData.robotId&&!o.userData.human&&!o.userData.dyn&&o!==cityWinGroup).forEach(bake);
+bake(scene);
 
 /* ---------- câmera isométrica (ortográfica): fixa; arrastar gira, roda dá zoom, ⌂ volta ---------- */
 const ISO={theta:Math.PI/4,phi:.96,zoom:1};
@@ -706,7 +721,7 @@ const lamps=[[-11,-7],[1,-6.5],[-9,6],[3.5,6.6],[12,-7.5],[12.8,-1.5]].map(([x,z
 const cDia=new THREE.Color(0xfff1dc), cTarde=new THREE.Color(0xffbf7a), cNoite=new THREE.Color(0x8fa6c8); let luzK=-1;
 function luz(h){ let k=h<5.5||h>=19.5?0:h<7?(h-5.5)/1.5:h<17?1:1-(h-17)/2.5; if(Math.abs(k-luzK)<.01)return; luzK=k;
   hemi.intensity=.3+.55*k; amb.intensity=.1+.12*k; sun.intensity=.18+.72*k; fill.intensity=.1+.25*k;
-  sun.color.copy(k>.6?cDia:cTarde).lerp(cNoite,1-Math.min(1,k*1.3)); lamps.forEach(l=>l.intensity=(1-k)*1.1);
+  sun.color.copy(k>.6?cDia:cTarde).lerp(cNoite,1-Math.min(1,k*1.3)); lamps.forEach(l=>{l.intensity=(1-k)*1.1; l.visible=k<.6;});
   const on=k<.45; cityWins.forEach(w=>{w.material=on?mWinOn:mWinOff;});
   stage.classList.toggle('noite',k<.3); stage.classList.toggle('tarde',k>=.3&&k<.75);
 }
@@ -715,7 +730,7 @@ $('sim').onclick=()=>{ if(simF>1){simF=1; vt=Date.now(); $('sim').setAttribute('
 // na abertura: eventos do dado real assim que a sombra e o vigia chegam; reunião se já for hora
 let okReal=false, okSombra=false; function prontoParaEventos(){ if(okReal&&okSombra&&!eventosFeitos){ setTimeout(eventos,6000); const h=hora(); if(h>=18&&h<18.5)setTimeout(reuniao,2000);} }
 ROBOS.forEach(r=>setStatus(r,'na mesa'));
-window.__esc={achar,robots,ROBOS,ACTORS,plan,ACTS,reuniao,eventos,visitante,hora,grid,GX,GZ,livre,cx,cz,cam,target,holofote,momento,tvForce:id=>{spotLock=performance.now()+60000; holofote(robots[id]);}};   // depuração no console
+window.__esc={achar,robots,ROBOS,ACTORS,plan,ACTS,reuniao,eventos,visitante,hora,grid,GX,GZ,livre,cx,cz,cam,target,renderer,scene,sun,holofote,momento,tvForce:id=>{spotLock=performance.now()+60000; holofote(robots[id]);}};   // depuração no console
 
 /* ---------- modo TV (?tv=1): tela inteira, 4 números grandes, holofote que roda nos postos, momentos especiais, ticker ---------- */
 let tween=null, spotIdx=0, spotLock=0;   // TV é declarado no topo do script (usado antes deste bloco)
@@ -750,8 +765,9 @@ function momento(tx,tz,zoom,seg,card){ if(!TV)return; spotLock=performance.now()
 /* ---------- loop ---------- */
 function resize(){const w=stage.clientWidth,h=stage.clientHeight; if(!w||!h)return; renderer.setSize(w,h,false); const a=w/h; cam.left=-ORTHO*a; cam.right=ORTHO*a; cam.top=ORTHO; cam.bottom=-ORTHO; cam.updateProjectionMatrix();}
 new ResizeObserver(resize).observe(stage); resize(); updCam();
-let t0=performance.now(), last=t0, ledT=0, escT=0;
+let t0=performance.now(), last=t0, ledT=0, escT=0, tvSkip=false;
 function frame(now){
+  if(TV){tvSkip=!tvSkip; if(tvSkip){requestAnimationFrame(frame); return;}}
   const t=(now-t0)/1000, dt=Math.min(.1,(now-last)/1000); last=now; vt+=dt*1000*simF;
   const hh=hora(); if(Math.floor(hh*60)!==lastMin){tick(hh); lastMin=Math.floor(hh*60);} luz(hh); stepTween(now);
   if(!reduce){ACTORS.slice().forEach(a=>stepActor(a,dt,t)); escT+=dt; if(escT>2){escalonar(escT); escT=0;}}
