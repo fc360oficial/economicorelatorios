@@ -126,6 +126,19 @@ const app = express();
 const fc360Api = require('./lib/fc360-api-proxy');
 fc360Api.montar(app);
 fc360Api.manterVivo();
+// Reinicia a tarefa agendada FC360Push (push-sender do FC360). Este processo roda como
+// serviço e tem permissão pra isso; o claude-ssh não tem. Quem chama precisa mandar o
+// login do FC360 (Bearer) com perfil de gestão — validado na própria FC360 API.
+app.get('/fc360-push/reiniciar', async (req, res) => {
+  try {
+    const r = await fetch('http://127.0.0.1:' + fc360Api.PORTA_PADRAO + '/auth/me', { headers: { Authorization: req.headers.authorization || '' }, signal: AbortSignal.timeout(5000) });
+    const u = r.ok ? await r.json() : null;
+    if (!u || !['admin', 'superadmin', 'gerencia', 'supervisor'].includes(u.perfil)) return res.status(403).send('sem permissão');
+  } catch (e) { return res.status(502).send('fc360-api: ' + e.message); }
+  exec('schtasks /end /tn FC360Push & timeout /t 2 >nul & schtasks /run /tn FC360Push', { windowsHide: true, timeout: 20000 }, (err, out, errOut) => {
+    res.type('text/plain').send([out || '', errOut || '', err ? 'erro: ' + err.message : 'ok'].join(' | '));
+  });
+});
 
 // /negativos-agent fica de fora do body-parser global: é proxy puro pro
 // processo negativos-agent (porta 4300), e precisa do corpo da requisição
