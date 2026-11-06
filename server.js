@@ -9679,8 +9679,30 @@ app.get('/api/gestao-gerencial/notas-finalizadas', async (req, res) => {
   const loja = parseInt(req.query.loja, 10);
   if (!loja) return res.status(400).json({ error: 'Escolha uma loja' });
   if (!escopo.podeLoja(req.session.user, loja)) return res.status(403).json({ error: 'Sem permissão pra esta loja' });
-  try { res.json(await notasFinalizadas.listar({ loja, dia: req.query.dia }, { q })); }
+  try { res.json(await notasFinalizadas.listar({ loja, dia: req.query.dia }, nfDeps())); }
   catch (err) { console.error('[gestao-gerencial/notas-finalizadas]', err.message); res.status(500).json({ error: err.message }); }
+});
+// Fase 2 (06/11/2026, mockup aprovado pelo Tiago): curva A/B/C/Novo nos itens (venda 30 d da loja pelo espelho), PDF ?modo=curva,
+// "Chegou e não vendeu" (/parado?loja&dias=7|14) e a resposta do gerente (/parado/acao). Nada escreve no ERP.
+const nfDeps = () => ({ q, espelho: espelhoErp, abcLojas: () => _abcLojasCache });
+app.get('/api/gestao-gerencial/notas-finalizadas/parado', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const loja = parseInt(req.query.loja, 10);
+  if (!loja) return res.status(400).json({ error: 'Escolha uma loja' });
+  if (!escopo.podeLoja(req.session.user, loja)) return res.status(403).json({ error: 'Sem permissão pra esta loja' });
+  try { res.json(await notasFinalizadas.parado({ loja, dias: req.query.dias }, nfDeps())); }
+  catch (err) { console.error('[gestao-gerencial/notas-finalizadas/parado]', err.message); res.status(500).json({ error: err.message }); }
+});
+app.post('/api/gestao-gerencial/notas-finalizadas/parado/acao', (req, res) => {
+  const b = req.body || {}; const loja = parseInt(b.loja || req.query.loja, 10);
+  if (!loja) return res.status(400).json({ error: 'Escolha uma loja' });
+  if (!escopo.podeLoja(req.session.user, loja)) return res.status(403).json({ error: 'Sem permissão pra esta loja' });
+  try { const u = req.session.user || {}; res.json({ ok: true, acao: notasFinalizadas.marcar({ loja, cod: b.cod, acao: b.acao, nCompra: b.nCompra, nNota: b.nNota, descricao: b.descricao, usuario: u.nome || u.usuario || null }) }); }
+  catch (err) { res.status(400).json({ error: err.message }); }
+});
+app.get('/api/gestao-gerencial/notas-finalizadas/acoes', (req, res) => {
+  if (req.session.user?.perfil !== 'admin') return res.status(403).json({ error: 'Só administrador' });
+  res.json({ acoes: notasFinalizadas.listarAcoes({ loja: parseInt(req.query.loja, 10) || null, acao: req.query.acao || null }), tipos: notasFinalizadas.ACOES });
 });
 app.get('/api/gestao-gerencial/notas-finalizadas.pdf', async (req, res) => {
   res.set('Cache-Control', 'no-store');
@@ -9689,8 +9711,9 @@ app.get('/api/gestao-gerencial/notas-finalizadas.pdf', async (req, res) => {
   if (!escopo.podeLoja(req.session.user, loja)) return res.status(403).json({ error: 'Sem permissão pra esta loja' });
   try {
     const u = req.session.user || {}; const nCompra = parseInt(req.query.nCompra, 10) || null;
-    const pdf = await notasFinalizadas.pdf({ loja, dia: req.query.dia, nCompra, usuario: u.nome || u.usuario || '' }, { q });
-    res.set('Content-Type', 'application/pdf'); res.set('Content-Disposition', 'inline; filename="' + notasFinalizadas.nomePdf(loja, req.query.dia, nCompra) + '"');
+    const modo = req.query.modo === 'curva' ? 'curva' : null;
+    const pdf = await notasFinalizadas.pdf({ loja, dia: req.query.dia, nCompra, modo, usuario: u.nome || u.usuario || '' }, nfDeps());
+    res.set('Content-Type', 'application/pdf'); res.set('Content-Disposition', 'inline; filename="' + notasFinalizadas.nomePdf(loja, req.query.dia, nCompra, modo) + '"');
     res.send(pdf);
   } catch (err) { console.error('[gestao-gerencial/notas-finalizadas.pdf]', err.message); res.status(500).json({ error: err.message }); }
 });
@@ -9714,8 +9737,8 @@ setTimeout(() => setInterval(() => {
 notasFinalizadas.initAvisos({});
 setTimeout(() => setInterval(() => {
   const hh = new Date().getHours(); if (hh < 6 || hh >= 23) return;
-  notasFinalizadas.rodar({ q, notificarLoja: (loja, payload, ttl) => gerencialPush.notificarLoja(loja, payload, ttl) })
-    .then(r => { if (r.novas) console.log('[notas-finalizadas] ' + r.novas + ' nota(s) nova(s), ' + r.avisos + ' aviso(s)'); })
+  notasFinalizadas.rodar({ ...nfDeps(), notificarLoja: (loja, payload, ttl) => gerencialPush.notificarLoja(loja, payload, ttl) })
+    .then(r => { if (r.novas || r.parados) console.log('[notas-finalizadas] ' + r.novas + ' nota(s) nova(s), ' + r.avisos + ' aviso(s), ' + r.parados + ' aviso(s) de chegou-e-não-vendeu'); })
     .catch(e => console.error('[notas-finalizadas]', e.message));
 }, 5 * 60 * 1000), 150 * 1000);
 app.get('/api/gestao-gerencial/push/alertas',(req, res) => { if (req.session.user?.perfil !== 'admin') return res.status(403).json({ error: 'Só administrador' }); res.json({ toleranciaMin: gerencialAlertas.ATRASO_MIN, lembreteMin: gerencialAlertas.LEMBRETE_MIN, resumos: gerencialAlertas.RESUMOS, hoje: gerencialAlertas._estado() }); });
