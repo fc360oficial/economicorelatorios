@@ -5117,7 +5117,8 @@ function travaCompradora(req) {
   const p = req.path, b = req.body || {}; let m;
   for (const re of RE_LISTA_NO_PATH) { m = p.match(re); if (m && !minhaLista(req, m[1])) return NEG_LISTA; }
   for (const k of ['lista', 'listaId']) if (req.query[k] && /^\d+$/.test(String(req.query[k])) && !minhaLista(req, req.query[k])) return NEG_LISTA;
-  if ((m = p.match(/^\/api\/cotacoes\/(\d+)(?:\/|$)/))) { const c = cotacao.obter(+m[1]); if (c && !minhaLista(req, c.lista)) return 'Sem permissão pra esta cotação'; }
+  // /api/portal-admin/cotacoes/:id/avisar e /avisar-pedidos (lib/portal-fornecedor.js) mexem na mesma cotação: mesma trava (revisão 09/11)
+  if ((m = p.match(/^\/api\/(?:portal-admin\/)?cotacoes\/(\d+)(?:\/|$)/))) { const c = cotacao.obter(+m[1]); if (c && !minhaLista(req, c.lista)) return 'Sem permissão pra esta cotação'; }
   if ((m = p.match(/^\/api\/pedidos-fornecedor\/(\d+)(?:\/|$)/))) { const pd = pedidosFornec.obter(+m[1]); if (pd && !minhaLista(req, pd.lista)) return 'Sem permissão pra este pedido'; }
   if ((m = p.match(/^\/api\/sugestao-manual\/(F-\d+)(?:\/|$)/))) { const sg = sugestaoManual.obter(m[1]); if (sg && !minhaLista(req, sg.lista?.id)) return 'Sem permissão pra esta sugestão'; }
   if ((m = p.match(/^\/api\/pontas-gondola\/(\d+)(?:\/|$)/))) { const pt = pontaGondola.carregarPontas().find(x => x.id === +m[1]); if (pt && pt.comprador && !minhaCompradora(req, pt.comprador)) return 'Sem permissão pra esta ponta'; if (req.method === 'POST' && b.comprador !== undefined) req.body.comprador = nome; }

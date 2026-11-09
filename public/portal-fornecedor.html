@@ -232,9 +232,12 @@ function renderAvisos() {
   if (!av.length && A_F) { $('#a-tbody').innerHTML = '<tr><td colspan="6" class="empty">Nenhum aviso mandado hoje.</td></tr>'; return; }
   if (!av.length) { $('#a-tbody').innerHTML = '<tr><td colspan="6" class="empty">Nenhum aviso mandado ainda. O primeiro sai sozinho quando você criar uma cotação com um fornecedor cujo vendedor tem o portal.</td></tr>'; return; }
   var tipo = { cotacao: '<span class="pill info">nova cotação</span>', lembrete: '<span class="pill teste">lembrete de prazo</span>', pedido: '<span class="pill ok">pedido</span>' };
+  // aviso da cotação mandado pelo "Avisar vendedores" do Acompanhamento (09/11): o texto foi por situação, o rótulo acompanha
+  var motivoTxt = { nao_enviou: 'falta enviar', sem_preco: 'sem preços', reaberta: 'proposta reaberta' };
   $('#a-tbody').innerHTML = av.map(function (a) {
     var res = a.respondeu ? '<span class="pill ok">respondeu ' + dt(a.respondeu) + '</span>' : a.abriu ? '<span class="pill info">abriu ' + dt(a.abriu) + '</span>' : '<span class="pill off">não abriu</span>';
-    return '<tr><td>' + dt(a.em) + '<br><span class="mini">' + haTxt(a.em) + '</span></td><td>' + (tipo[a.tipo] || esc(a.tipo)) + (a.reenvios ? '<br><span class="mini">' + a.reenvios + ' reenvio(s)</span>' : '') + '</td>' +
+    var rot = a.tipo === 'cotacao' && motivoTxt[a.motivo] ? '<span class="pill info">' + motivoTxt[a.motivo] + '</span>' : (tipo[a.tipo] || esc(a.tipo));
+    return '<tr><td>' + dt(a.em) + '<br><span class="mini">' + haTxt(a.em) + '</span></td><td>' + rot + (a.reenvios ? '<br><span class="mini">' + a.reenvios + ' reenvio(s)</span>' : '') + '</td>' +
       '<td>' + (a.tipo === 'pedido' ? 'Pedido #' + a.id : '<a href="/cotacao.html" title="Abra a cotação no Acompanhamento">Cotação #' + a.id + '</a>') + (a.nome ? ' · ' + esc(a.nome) : '') + (a.teste ? ' <span class="pill teste">TESTE</span>' : '') + '</td>' +
       '<td>' + esc(a.fornecedor || '—') + '</td><td>' + ((a.vendedores || []).map(esc).join(', ') || '—') + '</td><td>' + res + '</td></tr>';
   }).join('');
