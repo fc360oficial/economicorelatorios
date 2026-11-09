@@ -293,3 +293,20 @@ test('fiscal manda reconferir com o carregamento AINDA ABERTO (09/11/26, pedido 
   // separação ainda aberta ou pedido só separado: não tem o que reconferir
   const c2 = setup(); assert.throws(() => E.liberarSaida(c2.id, { decisao: 'reconferir', nome: 'f' }), /em andamento ou já fechado/);
 });
+
+test('fiscal manda reconferir a SEPARAÇÃO em andamento (09/11/26, pedido 7820): separado vai pro histórico, etapa recomeça zerada, aviso pro separador, Painel CD "Reconferir separação"', async () => {
+  const c = setup();
+  await E.bipar(c.id, { cod: '7891150097605', quant: 4, emb: 20, lote: 'L01', operador: MARIA });
+  assert.equal(E.obter(c.id).status, 'separando'); assert.equal(E.obter(c.id).etapas.separacao.itens['7891150097605'].un, 80);
+  const r = E.reconferirSeparacao(c.id, { nome: 'fiscal cd', obs: 'pallet com produto errado' });
+  assert.equal(r.status, 'separando'); assert.equal(r.avisoFiscal.reconferir, true);
+  const f = E.obter(c.id); assert.deepEqual(f.etapas.separacao.itens, {}); assert.equal(f.etapas.separacao.operador.nome, 'MARIA');
+  assert.equal(f.separacoesAnteriores.length, 1); assert.equal(f.separacoesAnteriores[0].itens['7891150097605'].un, 80);
+  assert.equal(f.eventos.filter(e => e.tipo === 'reconferir_separacao').length, 1);
+  const pan = E.statusColetorPorPedido(1)['6853']; assert.equal(pan.reconferir, true); assert.equal(pan.rotulo, 'Reconferir separação');
+  assert.equal(E.detalhe(c.id).reconferencias, 1);
+  // o separador recomeça e o fluxo segue normal; depois de fechada a separação, reconferir separação não vale mais
+  await biparTudo(c.id, MARIA); assert.equal(E.terminei(c.id, { operador: MARIA }).status, 'separada');
+  assert.throws(() => E.reconferirSeparacao(c.id, { nome: 'f' }), /separação em andamento/);
+  assert.equal(E.statusColetorPorPedido(1)['6853'].reconferir, false);
+});
