@@ -9816,6 +9816,7 @@ app.get('/api/robo-precificacao/listas-erp', async (req, res) => { try { res.jso
 const compradorSombra = require('./lib/comprador-sombra');
 compradorSombra.init({ radarPedidos, pedidosFornec, roboPrecif, q });
 app.get('/api/comprador-sombra', async (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json(await compradorSombra.resumo(req.query.refresh === '1')); } catch (err) { res.status(500).json({ error: err.message }); } });
+app.get('/api/comprador-sombra/pedidos-abertos', async (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json(await compradorSombra.pedidosAbertos()); } catch (err) { res.status(500).json({ error: err.message }); } });
 app.get('/api/comprador-sombra/:id/itens', (req, res) => { try { res.json(compradorSombra.itens(req.params.id)); } catch (err) { res.status(500).json({ error: err.message }); } });
 app.get('/api/comprador-sombra/:id/dia/:dia', async (req, res) => {
   try { if (!/^\d{4}-\d{2}-\d{2}$/.test(req.params.dia)) return res.status(400).json({ error: 'dia inválido' }); res.json(await compradorSombra.dia(req.params.dia, req.params.id)); }
