@@ -272,3 +272,24 @@ test('modelo antigo (sem etapas, gravado antes de 14/10): continua numa etapa s�
   const f = E.obter(legado.id); assert.equal(f.status, 'fechada'); assert.equal(f.tentativas, 1); assert.equal(E.etapasDe(f).modelo, 'unica');
   assert.equal(E.saidasPorLote().length, 1);
 });
+
+test('fiscal manda reconferir com o carregamento AINDA ABERTO (09/11/26, pedido 7836 com +946 un): volta pra separada, bipado vai pro histórico, Painel CD mostra Reconferir', async () => {
+  const c = setup();
+  await biparTudo(c.id, MARIA); E.terminei(c.id, { operador: MARIA });
+  E.abrirPedido({ nPedido: 6853, itens: [], operador: JOAO });
+  await E.bipar(c.id, { cod: '7891150097605', quant: 40, emb: 20, lote: 'L01', operador: JOAO });   // bipou a caixa errada: 800 un em vez de 80
+  assert.equal(E.obter(c.id).status, 'expedindo');
+  assert.throws(() => E.liberarSaida(c.id, { decisao: 'liberar', nome: 'fiscal cd' }), /não está aguardando o fiscal liberar/);
+  const rc = E.liberarSaida(c.id, { decisao: 'reconferir', nome: 'fiscal cd', obs: 'bipou 40 caixas, o pedido tem 4' });
+  assert.equal(rc.status, 'separada'); assert.equal(rc.saida.decisao, 'reconferir');
+  const f = E.obter(c.id); assert.equal(f.etapas.expedicao, null); assert.equal(f.carregamentosAnteriores.length, 1); assert.equal(f.carregamentosAnteriores[0].itens['7891150097605'].un, 800);
+  assert.equal(f.avisoCarga.obs, 'bipou 40 caixas, o pedido tem 4');
+  const pan = E.statusColetorPorPedido(1)['6853']; assert.equal(pan.reconferir, true); assert.equal(pan.rotulo, 'Reconferir carregamento');
+  // bipe do coletor antigo cai fora (409) até reabrir o carregamento; depois o fluxo normal segue
+  await assert.rejects(E.bipar(c.id, { cod: '789', quant: 1, emb: 1, operador: JOAO }), /Separação fechada/);
+  E.abrirPedido({ nPedido: 6853, itens: [], operador: JOAO });
+  await biparTudo(c.id, JOAO); assert.equal(E.terminei(c.id, { operador: JOAO }).status, 'conferida');
+  assert.equal(E.liberarSaida(c.id, { decisao: 'liberar', nome: 'fiscal cd' }).status, 'fechada');
+  // separação ainda aberta ou pedido só separado: não tem o que reconferir
+  const c2 = setup(); assert.throws(() => E.liberarSaida(c2.id, { decisao: 'reconferir', nome: 'f' }), /em andamento ou já fechado/);
+});
