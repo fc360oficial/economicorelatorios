@@ -540,7 +540,8 @@ let fila = []; try { fila = JSON.parse(localStorage.getItem(LS_FILA) || '[]'); }
 // cadastro já visto neste coletor: deixa bipar sem rede um produto que o coletor já conhece
 let cads = {}; try { cads = JSON.parse(localStorage.getItem(LS_CAD) || '{}'); } catch (e) {}
 function guardarCad(cod, c) {
-  cads[cod] = { descricao: c.descricao, qtdemb: c.qtdemb, emb: c.emb };
+  // unidade = código da UNIDADE quando o bipado é a caixa (DUN-14): a conferência fica pelo código da nota (07/11/26)
+  cads[cod] = { descricao: c.descricao, qtdemb: c.qtdemb, emb: c.emb, unidade: c.unidade || null };
   const ks = Object.keys(cads); if (ks.length > 3000) for (const k of ks.slice(0, 500)) delete cads[k];
   guardar(LS_CAD, cads);
 }
@@ -1294,11 +1295,14 @@ async function lerCodigo(cod) {
   if (!visao) return;
   // guarda o último código lido mesmo quando o produto não existe no cadastro: é justamente esse
   // caso que o conferente manda pra central ("código não cadastrado").
-  ultimoBipado = { cod, descricao: ((visao.itens || []).find(i => i.cod === cod) || {}).descricao || (cads[cod] || {}).descricao || '' };
-  const jaTem = (visao.itens || []).find(i => i.cod === cod);
+  // caixa (DUN-14) já vista neste coletor: o item da conferência fica pelo código da UNIDADE que está na nota (07/11/26)
+  const alias = (cads[cod] || {}).unidade || null;
+  const jaTem = (visao.itens || []).find(i => i.cod === cod) || (alias ? (visao.itens || []).find(i => i.cod === alias) : null);
+  ultimoBipado = { cod, descricao: (jaTem || {}).descricao || (cads[cod] || {}).descricao || '' };
+  const embJa = jaTem ? ((alias && (cads[cod] || {}).qtdemb) || jaTem.emb || 1) : 1;
   // Loja com lote (CD): bipar de novo abre o cartão, porque a caixa pode ser de outro lote/validade.
-  if (jaTem && !exigeLote()) { await enviarBipe('bipar', { cod, quant: 1, emb: jaTem.emb }); return; }
-  if (jaTem) { abrirCartao({ cod, descricao: jaTem.descricao, emb: jaTem.emb || 1, quant: '', validade: '', lote: '', modo: 'bipar' }); return; }
+  if (jaTem && !exigeLote()) { await enviarBipe('bipar', { cod, quant: 1, emb: embJa }); return; }
+  if (jaTem) { abrirCartao({ cod, descricao: jaTem.descricao, emb: embJa, quant: '', validade: '', lote: '', modo: 'bipar' }); return; }
   let cad;
   try { cad = await api('/api/recebimento-publico/cadastro/' + encodeURIComponent(cod) + '?t=' + sess.token); guardarCad(cod, cad); }
   catch (e) {
@@ -1389,14 +1393,17 @@ async function enviarBipe(acao, body) {
 function aplicarLocal(acao, c) {
   if (!visao) return;
   visao.itens = visao.itens || [];
-  const it = visao.itens.find(i => i.cod === c.cod);
+  // caixa (DUN-14) resolvida pra unidade da nota: o eco local soma no item da unidade, como o servidor vai fazer
+  const alias = (cads[c.cod] || {}).unidade || null;
+  const it = visao.itens.find(i => i.cod === c.cod) || (alias ? visao.itens.find(i => i.cod === alias) : null);
+  const codNovo = alias && (visao.nota_itens || []).some(n => n.cod === alias) ? alias : c.cod;
   const un = +((+c.quant || 0) * (+c.emb || 1)).toFixed(3);
-  if (!it) visao.itens.push({ cod: c.cod, descricao: (cartao && cartao.cod === c.cod ? cartao.descricao : (cads[c.cod] || {}).descricao || c.cod), quant: +c.quant || 0, emb: +c.emb || 1, un, validade: c.validade || null, estado: 'ok', aviso: null });
+  if (!it) visao.itens.push({ cod: codNovo, descricao: (cartao && cartao.cod === c.cod ? cartao.descricao : (cads[c.cod] || {}).descricao || c.cod), quant: +c.quant || 0, emb: +c.emb || 1, un, validade: c.validade || null, estado: 'ok', aviso: null });
   else if (acao === 'corrigir') { it.quant = +c.quant || 0; it.emb = +c.emb || 1; it.un = un; it.validade = c.validade || null; }
   else { it.quant = +(it.quant + (+c.quant || 0)).toFixed(3); it.emb = +c.emb || it.emb; it.un = +(it.un + un).toFixed(3); if (c.validade && (!it.validade || c.validade < it.validade)) it.validade = c.validade; }
   visao.produtos = visao.itens.length;
   visao.unidades = +visao.itens.reduce((a, i) => a + (+i.un || 0), 0).toFixed(3);
-  const ni = (visao.nota_itens || []).find(n => n.cod === c.cod); if (ni) ni.bipado = true;
+  const ni = (visao.nota_itens || []).find(n => n.cod === c.cod || n.cod === codNovo); if (ni) ni.bipado = true;
 }
 async function recarregarVisao() {
   if (!visao) return;

@@ -18,7 +18,7 @@ function res() { const r = { statusCode: 200 }; r.status = c => { r.statusCode =
 // `notas`/`notaItens` alimentam as consultas que /abrir passou a fazer: a chave tem que existir em
 // central.axml E ser da loja do token (CNPJdest), e os itens da nota vêm de central.axmlprodutos.
 // Sem itens em axmlprodutos a conferência cai no pedido do app (xmlLoja), como antes.
-function montarAmbiente({ q, loteImpl, cnpj = '11222333000199', notas = {}, notaItens = [], fornecedorNome = 'FORNECEDOR TESTE', cnpjDest } = {}) {
+function montarAmbiente({ q, loteImpl, cnpj = '11222333000199', notas = {}, notaItens = [], fornecedorNome = 'FORNECEDOR TESTE', cnpjDest, vinculo } = {}) {
   const { app, routes } = fakeApp();
   const dirBase = fs.mkdtempSync(path.join(os.tmpdir(), 'rec-rotas-'));
   const loteChamadas = [];
@@ -37,7 +37,7 @@ function montarAmbiente({ q, loteImpl, cnpj = '11222333000199', notas = {}, nota
     return null;
   };
   const qFn = (sql, params) => { const r = qEstatico(sql, params); return r === null ? (q ? q(sql, params) : Promise.resolve([])) : Promise.resolve(r); };
-  const api = montarRotasRecebimento(app, { q: qFn, path, escreverERP, pedidosFornec, conferenciaXml, logColetor, LOG_COLETOR_DIR: dirBase, __dirname: dirBase });
+  const api = montarRotasRecebimento(app, { q: qFn, path, escreverERP, pedidosFornec, conferenciaXml, logColetor, LOG_COLETOR_DIR: dirBase, __dirname: dirBase, vinculo });
   // Desde 29/09/26 /abrir exige DANFE bipada antes (rota /danfe). Os testes antigos abrem direto, então o
   // ambiente bipa a DANFE sozinho; `abrirSemDanfe` é a rota crua, pros testes do próprio gate.
   const abrirSemDanfe = routes['POST /api/recebimento-publico/abrir'];
@@ -682,4 +682,29 @@ test('escopo de loja: lista do dia só traz as lojas do usuário; ação em conf
   assert.deepEqual(Object.keys(r.body.lojas), ['10'], 'config só com a loja do usuário');
   r = res(); await routes['GET /api/recebimento/config'](req({ session: admin }), r);
   assert.ok(Object.keys(r.body.lojas).length > 1, 'admin recebe todas');
+});
+
+test('/cadastro/:cod da caixa (DUN-14 com qtdemb 1) devolve a unidade e as un/cx pro cartão abrir contando caixas (07/11/26)', async () => {
+  const itens = {
+    '17898962794057': { descricao: 'PAPEL HIG MAX PURE NEUTRO C4 30M FD16', qtdemb: 1, UnidadeCompra: 'UN' },
+    '7898962794050': { descricao: 'MAX PURE PAPEL HIGIENICO FD C4 30M NEUTRO', qtdemb: 16, UnidadeCompra: 'FD' },
+    '17896213007383': { descricao: 'CREAM CRACKER CX', qtdemb: 1, UnidadeCompra: 'CX' },
+    '7896213007386': { descricao: 'CREAM CRACKER 350G', qtdemb: 24, UnidadeCompra: 'UN' },
+    '111': { descricao: 'UNITARIO', qtdemb: 1, UnidadeCompra: 'UN' },
+    '17890000000004': { descricao: 'CAIXA SEM UNIDADE CADASTRADA', qtdemb: 1, UnidadeCompra: 'UN' },
+  };
+  // mesmas colunas/aliases do SELECT real de cadastroItem (UnidadeCompra sai como `emb`)
+  const q = async (sql, params) => (sql.includes('FROM central.itens') && itens[params[0]] ? [{ cod: params[0], descricao: itens[params[0]].descricao, qtdemb: itens[params[0]].qtdemb, emb: itens[params[0]].UnidadeCompra, validar: 0 }] : []);
+  const vinc = { '17898962794057': { cod: '7898962794050', emb: 16 } };
+  const { routes } = montarAmbiente({ q, vinculo: async c => vinc[c] || null });
+  const t = recebimento.config().lojas[10].token;
+  const pedir = async cod => { const r = res(); await routes['GET /api/recebimento-publico/cadastro/:cod'](req({ query: { t }, params: { cod } }), r); return r.body; };
+  // pelo vínculo do Pedidos do CD: 16 un/cx, código da unidade, rótulo da embalagem vem do cadastro da unidade (FD)
+  assert.deepEqual(await pedir('17898962794057'), { descricao: 'PAPEL HIG MAX PURE NEUTRO C4 30M FD16', qtdemb: 16, emb: 'FD', unidade: '7898962794050' });
+  // sem vínculo: conta DUN-14 → EAN-13; un/cx do cadastro da unidade (24); rótulo da própria caixa (CX)
+  assert.deepEqual(await pedir('17896213007383'), { descricao: 'CREAM CRACKER CX', qtdemb: 24, emb: 'CX', unidade: '7896213007386' });
+  // produto unitário comum: resposta como antes, sem `unidade`
+  assert.deepEqual(await pedir('111'), { descricao: 'UNITARIO', qtdemb: 1, emb: 'UN' });
+  // caixa cuja unidade não existe no cadastro: resposta como antes (unidades)
+  assert.deepEqual(await pedir('17890000000004'), { descricao: 'CAIXA SEM UNIDADE CADASTRADA', qtdemb: 1, emb: 'UN' });
 });

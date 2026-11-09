@@ -8629,13 +8629,16 @@ pedidosFornec.init();
 })();
 // Coletor de Recebimento (conferência cega): rotas públicas por token + internas do fiscal.
 // Fica aqui (depois de pedidosFornec.init()) porque xmlPorChave usa pedidosFornec.listar().
-const rotasRecebimento = require('./lib/recebimento-rotas')(app, { q, path, escreverERP, pedidosFornec, conferenciaXml: require('./lib/conferencia-xml'), logColetor, LOG_COLETOR_DIR, __dirname });
+// Vínculo caixa (DUN-14) → unidade do Pedidos do CD (data/cd-vinculos.json), usado no bipe do coletor de recebimento
+// (07/11/26: caixa bipada caía em "não está na nota" contando unidades) e na expedição. Lido na hora do bipe: o
+// pedidosCD.init() roda mais abaixo.
+const vinculoCaixaUnidade = async cod => { const v = (require('./lib/pedidos-cd').getVinculos() || {})[String(cod)]; return v && v.unidade && v.unidade !== String(cod) ? { cod: String(v.unidade), emb: +v.unPorCaixa || 1 } : null; };
+const rotasRecebimento = require('./lib/recebimento-rotas')(app, { q, path, escreverERP, pedidosFornec, conferenciaXml: require('./lib/conferencia-xml'), logColetor, LOG_COLETOR_DIR, __dirname, vinculo: vinculoCaixaUnidade });
 // Expedição do CD (loja 10): conferência cega de saída do pedido do Televendas, com lote. Fica depois do
 // coletor (usa o cadastro dele) e do Pedidos do CD (vínculo caixa → unidade). Spec 2026-09-29-coletor-cd-expedicao-processo.
 {
   const expedicao = require('./lib/expedicao');
-  expedicao.init({ dir: path.join(__dirname, 'data', 'expedicao'), cadastro: rotasRecebimento.cadastroItem,
-    vinculo: async cod => { const v = pedidosCD.getVinculos()[String(cod)]; return v && v.unidade && v.unidade !== String(cod) ? { cod: String(v.unidade), emb: +v.unPorCaixa || 1 } : null; } });
+  expedicao.init({ dir: path.join(__dirname, 'data', 'expedicao'), cadastro: rotasRecebimento.cadastroItem, vinculo: vinculoCaixaUnidade });
   require('./lib/expedicao-rotas')(app, { q, escreverERP, recebimento: require('./lib/recebimento'), expedicao, logColetor, LOG_COLETOR_DIR });
 }
 // Exclusão agendada de pedidos (roda uma vez ao subir): data/pedidos-excluir-no-boot.json = [{ id, lista }].

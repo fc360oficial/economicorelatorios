@@ -115,3 +115,35 @@ test('lote (loja 10): bipe sem lote fica sem_lote; com lote vira linha por lote;
   r = await R.bipar(c3.id, { cod: '111', quant: 30, emb: 1, validade: '2027-03-01' });
   assert.equal(r.resultado, 'ok'); assert.equal(R.visaoLoja(3, c3.id).exige_lote, false);
 });
+
+test('caixa (DUN-14) bipada numa nota que traz a unidade: vira o item da unidade com as un/cx (07/11/26, CD nota 305)', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rec-'));
+  const cad = {
+    '17898962794057': { cod: '17898962794057', descricao: 'PAPEL HIG MAX PURE NEUTRO C4 30M FD16', qtdemb: 1, emb: 'UN', validar: 0 },
+    '7898962794050': { cod: '7898962794050', descricao: 'MAX PURE PAPEL HIGIENICO FD C4 30M NEUTRO', qtdemb: 16, emb: 'FD', validar: 365 },
+    '17896213007383': { cod: '17896213007383', descricao: 'CREAM CRACKER CX', qtdemb: 1, emb: 'UN', validar: 0 },
+    '17890000000004': { cod: '17890000000004', descricao: 'CAIXA DE OUTRA COISA', qtdemb: 1, emb: 'UN', validar: 0 },
+  };
+  const xml = { itens: [{ cod: '7898962794050', descricao: 'PAPEL HIG', un: 3104 }, { cod: '7896213007386', descricao: 'CREAM CRACKER', un: 240 }], naoPedidos: [], status: 'conciliado', ln: 10 };
+  const vinc = { '17898962794057': { cod: '7898962794050', emb: 16 } };
+  R.init({ dir, cadastro: async c => cad[c] || CAD[c] || null, xmlLoja: () => xml, vinculo: async c => vinc[c] || null, agora: () => new Date('2026-11-07T08:00:00') });
+  const c = R.abrirNota({ loja: 10, nome: 'ALVES', chave: '3057'.padEnd(44, '0'), nNota: '305', fornecedor: 'MAX PURE', codFornec: 9 });
+  // pelo vínculo do Pedidos do CD: 194 fardos bipados pela caixa; o coletor mandou emb 1 (cadastro da caixa)
+  let r = await R.bipar(c.id, { cod: '17898962794057', quant: 194, emb: 1, validade: '2027-11-10', lote: '1' });
+  assert.equal(r.resultado, 'ok'); assert.equal(r.item.cod, '7898962794050'); assert.equal(r.item.emb, 16); assert.equal(r.item.un, 3104);
+  assert.equal(r.item.caixa, '17898962794057'); assert.equal(r.item.emb_label, 'FD');
+  assert.ok(!R.obter(c.id).itens['17898962794057'], 'não cria item pelo código da caixa');
+  assert.equal(R.visaoLoja(10, c.id).nota_itens.find(n => n.cod === '7898962794050').bipado, true);
+  // sem vínculo: a conta DUN-14 → EAN-13 acha a unidade na nota e usa as un/cx do cadastro da unidade (24)
+  r = await R.bipar(c.id, { cod: '17896213007383', quant: 10, emb: 1, validade: '2027-11-28', lote: 'A' });
+  assert.equal(r.resultado, 'ok'); assert.equal(r.item.cod, '7896213007386'); assert.equal(r.item.emb, 24); assert.equal(r.item.un, 240);
+  // embalagem digitada pelo conferente (diferente de 1) é respeitada
+  r = await R.bipar(c.id, { cod: '17896213007383', quant: 1, emb: 12, validade: '2027-11-28', lote: 'A' });
+  assert.equal(r.item.emb, 12); assert.equal(r.item.un, 252);
+  // caixa de produto que NÃO está na nota continua 'nao_esta_na_nota' pelo próprio código, em unidades
+  r = await R.bipar(c.id, { cod: '17890000000004', quant: 1, emb: 1, validade: '2027-01-01', lote: 'B' });
+  assert.equal(r.resultado, 'nao_esta_na_nota'); assert.equal(r.item.cod, '17890000000004'); assert.equal(r.item.emb, 1);
+  // terminei: a unidade da nota bate (3104) e o cream cracker sobrou 12 → recontar só ele + a caixa fora da nota
+  const t = R.terminei(c.id);
+  assert.deepEqual(t.recontar.map(x => x.cod + ':' + x.motivo).sort(), ['17890000000004:nao_esta_na_nota', '7896213007386:recontar']);
+});
