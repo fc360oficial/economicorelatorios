@@ -10960,6 +10960,14 @@ app.post('/api/cotacao-publica/:token/finalizar', (req, res) => {
   aplicarCadastroVendedor(r.c, r.f);
   res.json(cotacao.visaoVendedor(r.c, r.f));
 });
+// vendedor reabre a própria proposta (Tiago, 09/11/26: enviou sem digitar preço / preço errado): volta pra digitação;
+// o servidor recusa com cotação encerrada, prazo vencido ou pedido já gerado pelo(a) comprador(a)
+app.post('/api/cotacao-publica/:token/reabrir', (req, res) => {
+  const r = cotacao.reabrir(req.params.token, req.body?.nome);
+  if (!r) return res.status(404).json({ error: 'Cotação não encontrada' });
+  if (r.erro) return res.status(409).json({ error: r.erro });
+  res.json(cotacao.visaoVendedor(r.c, r.f));
+});
 
 // ── rotas Formação de Preço
 const precifUser = req => req.session.user?.nome || null;

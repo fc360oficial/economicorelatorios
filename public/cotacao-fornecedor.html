@@ -65,6 +65,11 @@ body.venc .wrap{padding-bottom:150px}
 .btn-amber{background:#F5B800;color:#6B4E00}.btn-amber:hover{background:#E5AC00}.btn:disabled{opacity:.45;cursor:default}
 .fim{background:#E7F5EC;border:1px solid #BFE3CC;color:#137A48;border-radius:12px;padding:14px 16px;font-size:13px;margin-bottom:12px;line-height:1.5}
 .fim.av{background:#FFF6D9;border-color:#EFD98F;color:#6B4E00}
+/* Reabrir proposta (Tiago, 09/11/26): linha dentro do aviso "Proposta enviada" com a pergunta e o botão */
+.fim .reab{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px dashed rgba(14,22,38,.18)}
+.fim .reab span{flex:1;min-width:180px}
+.btn-reab{background:#0E1626;color:#fff;padding:10px 16px;font-size:13px;white-space:nowrap}.btn-reab:hover{background:#1C2A4A}
+@media(max-width:640px){.fim .reab .btn-reab{width:100%}}
 .msgc{position:static;background:#FFF6D9;border:1px solid #EFD98F;border-radius:12px;padding:12px 16px;margin-bottom:12px;display:flex;gap:14px;align-items:flex-start;box-shadow:0 4px 14px rgba(14,22,38,.10)}
 .msgc .ic{width:34px;height:34px;border-radius:50%;background:#F5B800;color:#241a00;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none;font-size:15px}
 .msgc .t{flex:1;min-width:0}
@@ -152,10 +157,19 @@ function render(){
   const waC = P.comprador && P.comprador.whats ? 'https://wa.me/' + (P.comprador.whats.length <= 11 ? '55' + P.comprador.whats : P.comprador.whats) + '?text=' + encodeURIComponent('Olá' + (P.comprador.nome ? ', ' + P.comprador.nome : '') + '! Sobre a cotação #' + P.id + ' (' + P.nome + '), fornecedor ' + (P.fornecedor.nome || '') + ': ') : null;
   h+='<div class="msgc"><div class="ic">'+(P.mensagem?'💬':'👤')+'</div><div class="t"><div class="l">'+(P.mensagem?'Recado do(a) comprador(a)':'Comprador(a)')+(P.comprador&&P.comprador.nome?' · '+esc(P.comprador.nome):'')+'</div>'+(P.mensagem?'<div class="m">'+esc(P.mensagem)+'</div>':'<div class="m" style="color:#8A6A00">Dúvida sobre algum item, prazo ou condição? Fale direto com o(a) comprador(a) pelo WhatsApp.</div>')+(P.mensagemEm?'<div class="q">atualizado em '+dt(P.mensagemEm)+'</div>':'')+'</div>'+(waC?'<a class="wa-c" href="'+waC+'" target="_blank" rel="noopener">🟢 WhatsApp do(a) comprador(a)</a>':'<span class="wa-c off" title="O(A) comprador(a) ainda não cadastrou o WhatsApp nesta cotação">WhatsApp não informado</span>')+'</div>';
   if(enc&&!fin) h+='<div class="fim av"><b>Esta cotação já foi encerrada pelo(a) comprador(a).</b> Não é mais possível enviar preços.'+(waC?' Dúvidas: fale com o(a) comprador(a)'+(P.comprador.nome?' <b>'+esc(P.comprador.nome)+'</b>':'')+' pelo WhatsApp <a class="wl" href="'+waC+'" target="_blank" rel="noopener">🟢 '+esc(fmtFone(P.comprador.whats))+'</a>.':'')+'</div>';
-  else if(fin) h+='<div class="fim"><b>Proposta enviada'+(P.fornecedor.finalizadoEm?' em '+dt(P.fornecedor.finalizadoEm):'')+'.</b> Obrigado! O(A) comprador(a) já recebeu seus preços. Se precisar corrigir algo, '+(waC?'<a class="wl" href="'+waC+'" target="_blank" rel="noopener">fale com ele(a) no WhatsApp</a>':'fale com ela')+'.</div>';
+  else if(fin){
+    // Reabrir a própria proposta (Tiago, 09/11/26: vendedor tocou em Enviar sem digitar nenhum preço): confirma, volta pra digitação e corrige.
+    // Sem o botão com prazo vencido ou pedido já gerado pelo(a) comprador(a): aí só falando com ele(a).
+    const nC=P.itens.filter(i=>i.preco!=null).length, podeReabrir=!P.prazo_vencido&&!P.pedido_realizado;
+    const falar=waC?'<a class="wl" href="'+waC+'" target="_blank" rel="noopener">fale com ele(a) no WhatsApp</a>':'fale com ele(a)';
+    const porque=podeReabrir?'':(P.pedido_realizado?' O(A) comprador(a) já gerou o pedido com esta proposta: pra corrigir algo, '+falar+'.':' O prazo da cotação já encerrou: pra corrigir algo, '+falar+'.');
+    const reab=podeReabrir?'<div class="reab"><span>'+(nC?'Enviou sem querer ou tem algum preço errado? Dá pra voltar e corrigir.':'Se foi sem querer, dá pra voltar e digitar os preços.')+'</span><button class="btn btn-reab" id="btnReabrir" type="button">Reabrir proposta</button></div>':'';
+    if(!nC) h+='<div class="fim av"><b>⚠️ Proposta enviada sem nenhum preço'+(P.fornecedor.finalizadoEm?' em '+dt(P.fornecedor.finalizadoEm):'')+'.</b> Assim o(a) comprador(a) entende que você não cotou nenhum item desta cotação.'+porque+reab+'</div>';
+    else h+='<div class="fim"><b>Proposta enviada'+(P.fornecedor.finalizadoEm?' em '+dt(P.fornecedor.finalizadoEm):'')+'.</b> Obrigado! O(A) comprador(a) já recebeu seus preços.'+porque+reab+'</div>';
+  }
   else if(ped) h+='<div class="fim"><b>O(A) comprador(a) já realizou o pedido'+(P.fornecedor.pedido_realizado?' #'+P.fornecedor.pedido_realizado:'')+' com os seus preços.</b> A proposta ficou travada: não dá mais pra digitar nem alterar preço. Se precisar corrigir algo, '+(waC?'<a class="wl" href="'+waC+'" target="_blank" rel="noopener">fale com ele(a) no WhatsApp</a>':'fale com ele(a)')+'.</div>';
   else if(venc) h+='<div class="fim av fimv"><b>⏰ O prazo desta cotação terminou em '+esc(dtpLong(P.prazo))+'.</b><br>Não é mais possível digitar nem alterar preços: a cotação ficou bloqueada pra todos os fornecedores nesse dia e hora.<br>Se precisar de mais tempo ou tiver alguma dúvida, fale com o(a) comprador(a)'+(P.comprador&&P.comprador.nome?' <b>'+esc(P.comprador.nome)+'</b>':'')+(waC?' pelo WhatsApp <a class="wl" href="'+waC+'" target="_blank" rel="noopener">🟢 '+esc(fmtFone(P.comprador.whats))+'</a>':' (WhatsApp não informado nesta cotação)')+'. Só ele(a) pode liberar a cotação de novo.</div>';
-  else h+='<div class="fim av">Preencha o <b>preço unitário</b> de cada item (por unidade, não por caixa) e, se quiser, uma observação. Tudo salva sozinho. Quando terminar, clique em <b>Enviar proposta</b> no rodapé. Item sem preço = você não cota esse item.</div>';
+  else h+='<div class="fim av">'+(P.fornecedor.reabertoEm?'<b>Proposta reaberta em '+dt(P.fornecedor.reabertoEm)+'.</b> Corrija ou complete os preços e toque em <b>Enviar proposta</b> de novo'+(P.so_respondido?': até lá, seus preços ficam fora da cotação':'')+'.<br>':'')+'Preencha o <b>preço unitário</b> de cada item (por unidade, não por caixa) e, se quiser, uma observação. Tudo salva sozinho. Quando terminar, clique em <b>Enviar proposta</b> no rodapé. Item sem preço = você não cota esse item.</div>';
   h+='<div class="card"><div class="hd">Itens da cotação <span id="f-cont">'+P.itens.length+' itens</span></div><div class="ftb"><input type="search" id="f-busca" placeholder="buscar produto ou código…" autocomplete="off" oninput="filtrarItens()"><label><input type="checkbox" id="f-so-preco" onchange="filtrarItens()"> só com preço</label><label><input type="checkbox" id="f-so-obs" onchange="filtrarItens()"> só com observação</label></div><div style="overflow-x:auto"><table><thead><tr><th>Produto</th><th class="r">Preço unit. (R$)</th><th>Observação</th></tr></thead><tbody>';
   // ordem alfabética (Tiago, 23/09/26)
   const itensOrd=P.itens.slice().sort((a,b)=>String(a.descricao||'').localeCompare(String(b.descricao||''),'pt-BR'));
@@ -232,6 +246,16 @@ $('#btnFim').onclick=async()=>{
   try{clearTimeout(saveTimer);const cods=new Set(DIRTY);const r=await fetch('/api/cotacao-publica/'+token+'/finalizar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({itens:itensForm(cods),...extras(),nome:(P.fornecedor.vendedor&&P.fornecedor.vendedor.nome)||''})});const j=await r.json();if(j.error)throw new Error(j.error);dirty=false;DIRTY.clear();extraDirty=false;P=j;render();window.scrollTo(0,0);}
   catch(e){alert('Não foi possível enviar: '+e.message);$('#btnFim').disabled=false;}
 };
+// Reabrir a própria proposta (Tiago, 09/11/26): pergunta se quer mesmo, o servidor volta a proposta pra digitação e a tela
+// recarrega com os campos liberados. O botão é redesenhado a cada render(), por isso o clique é capturado no documento.
+document.addEventListener('click',async e=>{
+  const b=e.target.closest&&e.target.closest('#btnReabrir'); if(!b||b.disabled) return;
+  const nC=P.itens.filter(i=>i.preco!=null).length;
+  if(!confirm('Reabrir a proposta pra '+(nC?'corrigir os preços':'digitar os preços')+'?\n\nEla volta pra digitação e '+(P.so_respondido?'sai da cotação até você tocar em Enviar proposta de novo.':'você precisa tocar em Enviar proposta de novo quando terminar.'))) return;
+  b.disabled=true;
+  try{const r=await fetch('/api/cotacao-publica/'+token+'/reabrir',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nome:(P.fornecedor.vendedor&&P.fornecedor.vendedor.nome)||''})});const j=await r.json();if(j.error)throw new Error(j.error);P=j;dirty=false;DIRTY.clear();extraDirty=false;render();window.scrollTo(0,0);}
+  catch(e2){alert('Não foi possível reabrir: '+e2.message);b.disabled=false;if(/encerr|prazo|pedido/i.test(e2.message))location.reload();}
+});
 window.addEventListener('beforeunload',()=>{if(dirty)salvar();});
 (async()=>{try{const r=await fetch('/api/cotacao-publica/'+token);const j=await r.json();if(j.error)throw new Error(j.error);P=j;render();}catch(e){$('#app').innerHTML='<div class="empty">Cotação não encontrada ou link inválido.</div>';}})();
 </script>
