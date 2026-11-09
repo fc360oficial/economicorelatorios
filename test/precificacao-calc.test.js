@@ -127,15 +127,51 @@ test('calcularItem: preço atual 0/null (produto novo) → margem, sobe, margem_
 
 test('calcularItem: L4 com atacado segue a mesma regra', () => {
   const it = c.calcularItem({ ...base, margem_atacado: 10, preco_atacado_atual: 11.5 }, P9);
-  assert.deepEqual(it.atacado, { preco_calc: 12.1, preco_sugerido: 12.19, preco_final: 12.19, piso: false });
+  assert.deepEqual(it.atacado, { preco_calc: 12.1, preco_sugerido: 12.19, preco_final: 12.19, piso: false, travado_varejo: false, ligado: false });
+  assert.equal(it.atacado_desligado, false);
   const semAt = c.calcularItem({ ...base, margem_atacado: 0, preco_atacado_atual: 11.5 }, P9);
   assert.equal(semAt.atacado, null);
+  assert.equal(semAt.atacado_desligado, false);
   const desc = c.calcularItem({ ...base, custo_atual: 10, custo_imposto: 7, preco_atual: 12.99, margem_atacado: 10, preco_atacado_atual: 11 }, PN);
   assert.equal(desc.regra, 'desconto');
   assert.equal(desc.atacado.preco_sugerido, 9.9);   // 11×0.9
   const mant = c.calcularItem({ ...base, custo_atual: 10, custo_imposto: 9.5, preco_atual: 12.99, margem_atacado: 10, preco_atacado_atual: 11 }, PN);
   assert.equal(mant.regra, 'mantem');
   assert.equal(mant.atacado.preco_sugerido, 11);
+});
+
+test('atacado (diretor 09/11/26): preço zerado = fora do atacado, a regra não cria; "ligar" cria; nunca acima do varejo', () => {
+  // margem de atacado cadastrada, preço de atacado zerado → nada de atacado, só a marca "desligado"
+  const off = c.calcularItem({ ...base, margem_atacado: 25, preco_atacado_atual: 0 }, P9);
+  assert.equal(off.atacado, null);
+  assert.equal(off.atacado_desligado, true);
+  const offNull = c.calcularItem({ ...base, margem_atacado: 25, preco_atacado_atual: null }, P9);
+  assert.equal(offNull.atacado, null);
+  assert.equal(offNull.atacado_desligado, true);
+  // ligado à mão no pedido → calcula pela margem de atacado
+  const on = c.calcularItem({ ...base, margem_atacado: 25, preco_atacado_atual: 0, ligar_atacado: true }, P9);
+  assert.equal(on.atacado_desligado, false);
+  assert.equal(on.atacado.preco_final, 13.79);   // 11 × 1,25 = 13,75 → 13,79
+  assert.equal(on.atacado.ligado, true);
+  // trava: margem de atacado maior que a de varejo daria atacado acima do varejo → fica igual ao varejo
+  const trav = c.calcularItem({ ...base, margem: 20, margem_atacado: 30, preco_atacado_atual: 12 }, P9);
+  assert.equal(trav.preco_final, 13.29);        // 11 × 1,20 = 13,20 → 13,29
+  assert.equal(trav.atacado.preco_final, 13.29);
+  assert.equal(trav.atacado.travado_varejo, true);
+  // sem margem de atacado nunca há atacado, ligado ou não
+  const semMg = c.calcularItem({ ...base, margem_atacado: 0, preco_atacado_atual: 0, ligar_atacado: true }, P9);
+  assert.equal(semMg.atacado, null);
+  assert.equal(semMg.atacado_desligado, false);
+});
+
+test('custo por caixa: custo novo acima do preço atual e mais que o dobro do custo atual → bloqueado', () => {
+  const it = c.calcularItem({ ...base, custo_atual: 7.25, custo_novo: 50.7, custo_imposto: 50.7, preco_atual: 9.98, margem: 35, margem_atacado: 30, preco_atacado_atual: 12 }, P9);
+  assert.equal(it.status, 'bloqueado');
+  assert.match(it.motivo, /embalagem/);
+  assert.equal(it.atacado, null);
+  // custo subiu muito mas ainda abaixo do preço atual → segue a regra normal
+  const ok = c.calcularItem({ ...base, custo_atual: 4, custo_imposto: 9, preco_atual: 12.99 }, P9);
+  assert.equal(ok.status, 'desce');   // regra margem: 9 × 1,30 = 11,70 → 11,79, abaixo dos 12,99 atuais
 });
 
 test('calcularRegistro: recalcula e preserva edição manual', () => {

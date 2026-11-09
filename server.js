@@ -10877,6 +10877,7 @@ app.post('/api/precificacao/remover-testes', (req, res) => res.json({ removidos:
 app.post('/api/precificacao/criar-teste', (req, res) => { const n = Math.min(5, Math.max(1, parseInt(req.body?.n) || 5)); const regs = precificacao.criarTestes(precifUser(req), n); res.json({ criados: regs.map(r => r.id), id: regs[0]?.id }); });
 app.get('/api/precificacao/:id', (req, res) => precifResp(res, precificacao.obter(req.params.id)));
 app.post('/api/precificacao/:id/item', (req, res) => precifResp(res, precificacao.editarItem(req.params.id, req.body?.cod, req.body || {}, precifUser(req))));
+app.post('/api/precificacao/:id/atacado', (req, res) => precifResp(res, precificacao.ligarAtacado(req.params.id, req.body?.cod, !!req.body?.ligar, precifUser(req))));
 app.post('/api/precificacao/:id/parametros', async (req, res) => { try { precifResp(res, await precificacao.setParametros(req.params.id, req.body || {}, precifUser(req))); } catch (e) { res.status(500).json({ error: e.message }); } });
 app.post('/api/precificacao/:id/recalcular', async (req, res) => { try { precifResp(res, await precificacao.recalcular(req.params.id, { doERP: true, descartarManuais: !!req.body?.descartarManuais })); } catch (e) { res.status(500).json({ error: e.message }); } });
 app.post('/api/precificacao/:id/fechar', (req, res) => precifResp(res, precificacao.fechar(req.params.id, precifUser(req), { ignorarBloqueados: !!req.body?.ignorarBloqueados })));

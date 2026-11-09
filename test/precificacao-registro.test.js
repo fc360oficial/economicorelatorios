@@ -10,10 +10,11 @@ pr.init({ dir });
 // (loja 4) variam por parâmetro: "a4 AS A" no SQL de itens, e params[0]===4 no de margens.
 let desativados = new Set();    // códigos que o ERP devolve com CodDesativado != 0
 let margemB = null;             // margem varejo do item B (null = sem cadastro → bloqueado)
+let atacadoAZerado = false;     // L4: item A com preço de atacado zerado no ERP (margem de atacado continua 10)
 const qFake = async (sql, params) => {
   const des = c => (desativados.has(c) ? 1 : 0);
   if (/FROM central\.itens /.test(sql)) {
-    if (/a4 AS A/.test(sql)) return [{ CodigoBarra: 'A', P: '12,99', A: '11,50', CodDesativado: des('A') }, { CodigoBarra: 'B', P: '5,00', A: '0', CodDesativado: des('B') }];
+    if (/a4 AS A/.test(sql)) return [{ CodigoBarra: 'A', P: '12,99', A: atacadoAZerado ? '0' : '11,50', CodDesativado: des('A') }, { CodigoBarra: 'B', P: '5,00', A: '0', CodDesativado: des('B') }];
     return [{ CodigoBarra: 'A', P: '12,99', A: '0', CodDesativado: des('A') }, { CodigoBarra: 'B', P: '5,00', A: '0', CodDesativado: des('B') }];
   }
   if (/FROM central\.custoloja/.test(sql)) return [{ CodigoBarra: 'A', Custo: '10' }, { CodigoBarra: 'B', Custo: '4' }];
@@ -131,7 +132,8 @@ test('verificar detecta divergência de atacado (loja 4) e reabrir corrige', asy
 
   // varejo bate com o ERP (P4=12,99); atacado diverge de propósito (ERP a4=11,50)
   pr.editarItem('42-L4', 'A', { preco_final: 12.99 }, 'tiago');
-  pr.editarItem('42-L4', 'A', { preco_atacado_final: 13.99 }, 'tiago');
+  assert.equal(pr.editarItem('42-L4', 'A', { preco_atacado_final: 13.99 }, 'tiago').erro, 'Preço atacado acima do varejo (R$ 12.99)');   // trava 09/11/26
+  pr.editarItem('42-L4', 'A', { preco_atacado_final: 12.49 }, 'tiago');
   pr.fechar('42-L4', 'tiago', { ignorarBloqueados: true });
   pr.aplicar('42-L4', 'tiago');
   const v1 = await pr.verificar('42-L4');
@@ -348,4 +350,39 @@ test('enviarCarga: lista sem item que mude de preço devolve semMudanca e não r
     assert.equal(pr.obter('52-L2').status, 'aplicado');
     assert.equal(evs.filter(e => e.tipo === 'erro').length, 0);
   } finally { pr.setLog(null); }
+});
+
+// Diretor (09/11/26, via Tiago): na L4, preço de atacado ZERADO no ERP = item fora do atacado. A regra não cria preço;
+// quem liga é gente, pelo botão do pedido, e fica registrado quem ligou.
+test('L4: atacado zerado no ERP fica desligado; ligarAtacado cria, sobrevive ao recalcular do ERP e desliga de volta', async () => {
+  atacadoAZerado = true;
+  try {
+    const reg = await pr.criarDeConciliacao({ ...pedido4, id: 43 }, 4);
+    assert.equal(reg.id, '43-L4');
+    const a0 = reg.itens.find(i => i.cod === 'A');
+    assert.equal(a0.atacado, null, 'preço de atacado zerado: a regra não cria atacado');
+    assert.equal(a0.atacado_desligado, true);
+    assert.equal(a0.margem_atacado, 10);
+
+    const on = pr.ligarAtacado('43-L4', 'A', true, 'diretor');
+    const a1 = on.itens.find(i => i.cod === 'A');
+    assert.ok(a1.atacado, 'ligado à mão → calcula pela margem de atacado');
+    assert.equal(a1.atacado.ligado, true);
+    assert.equal(a1.atacado_desligado, false);
+    assert.equal(on.atacado_ligado.A.por, 'diretor');
+    assert.equal(on.historico.at(-1).acao, 'ligar_atacado');
+
+    // recalcular lendo o ERP de novo (preço de atacado continua zerado lá) não desliga o que foi ligado à mão
+    const rec = await pr.recalcular('43-L4', { doERP: true });
+    assert.ok(rec.itens.find(i => i.cod === 'A').atacado);
+
+    // item que já tem preço de atacado no ERP não usa o botão (edita o valor na coluna)
+    assert.match(pr.ligarAtacado('42-L4', 'A', true, 'diretor').erro || '', /fechado|já tem preço/);
+
+    const off = pr.ligarAtacado('43-L4', 'A', false, 'diretor');
+    const a2 = off.itens.find(i => i.cod === 'A');
+    assert.equal(a2.atacado, null);
+    assert.equal(a2.atacado_desligado, true);
+    assert.equal(off.atacado_ligado.A, undefined);
+  } finally { atacadoAZerado = false; }
 });
