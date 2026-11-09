@@ -501,6 +501,17 @@ async function liberarSaida(id,decisao){
 }
 // Busca dentro de "Pedidos na saída" (09/11, Tiago): mesmo filtro da busca do topo (#q); como o render refaz o campo, devolve o foco
 function expQ(el){const v=el.value;$('#q').value=v;render();const n=$('#qExp');if(n){n.focus();try{n.setSelectionRange(v.length,v.length);}catch(e){}}}
+// Busca fora da data escolhida: pede os últimos 60 dias (nosso coletor + Dlinks) e junta na lista o que casar com a busca
+async function expBuscarFora(){
+  const q=$('#q').value.trim();if(!q||!EXP)return;
+  const ymd=d=>new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10);const hoje=new Date();
+  try{const all=await fetch('/api/expedicao/fechadas?de='+ymd(new Date(hoje.getTime()-60*864e5))+'&ate='+ymd(hoje)).then(r=>r.json());if(all.error)throw new Error(all.error);
+    const ids=new Set((EXP.fechadas||[]).map(c=>c.id));const ach=all.filter(expBusca).filter(c=>!ids.has(c.id));
+    if(!ach.length){toastExp('Pedido "'+q+'" não encontrado nos últimos 60 dias (nosso coletor e Dlinks).');return;}
+    EXP.fechadas=(EXP.fechadas||[]).concat(ach);render();toastExp(ach.length+' pedido(s) de outra data trazido(s) pela busca: veja a data em "aberto".');
+  }catch(e){toastExp('Não deu pra buscar fora do período: '+e.message);}
+}
+function toastExp(msg){const el=$('#qExp');if(!el){alert(msg);return;}let t=document.getElementById('qExpMsg');if(!t){t=document.createElement('div');t.id='qExpMsg';t.className='sub';t.style.cssText='padding:0 12px 6px;color:var(--neg)';el.closest('.table-wrap').insertBefore(t,el.parentElement.nextSibling);}t.textContent=msg;}
 // Fiscal manda reconferir a SEPARAÇÃO em andamento (09/11, Tiago: "cadê o botão reconferir?" no pedido 7820)
 async function reconferirSeparacao(id){
   const k=id.replace(/[^a-z0-9]/gi,'');const obs=(($('#saiObs'+k)||{}).value||'').trim();const n=id.split('-').pop()||'';
@@ -617,10 +628,12 @@ function renderExpedicao(){
   const lista=(expFiltro==='liberar'?[...porStatus('conferida'),...dls.filter(c=>c.dlStatus===2)]:expFiltro==='decidir'?[...porStatus('aguardando_fiscal'),...dls.filter(c=>c.dlStatus===3)]:expFiltro==='verificar'?ordem.filter(c=>c.pendentesVerificar):expFiltro==='liberados'?[...confs.filter(c=>c.status==='fechada'&&ehHoje(c.fechadoEm)),...dls.filter(c=>c.dlStatus===4)]:[...ordem])
     // 09/11 (Tiago): a lista fica em ordem de NÚMERO do pedido, do mais atual (maior) pra baixo, não por etapa; os KPIs em cima já contam a fila do fiscal
     .sort((a,b)=>(+String(b.nPedido).replace(/\D/g,'')||0)-(+String(a.nPedido).replace(/\D/g,'')||0)||String(b.nPedido).localeCompare(String(a.nPedido)));
+  // pedido buscado por número que não está na data escolhida (09/11, Tiago: "pesquisei aqui e no Dlinks, cadê o 7817?"): procura sozinho nos últimos 60 dias
+  const qTxt=$('#q').value.trim();if(!lista.length&&/^\d{3,}$/.test(qTxt)&&EXP.buscouFora!==qTxt){EXP.buscouFora=qTxt;expBuscarFora();}
   const tit={liberar:'Carregamentos pra você liberar',decidir:'Separações pra você decidir',verificar:'Pedidos com retirada pra verificar',liberados:'Liberados hoje',todos:'Pedidos na saída'}[expFiltro]||'Pedidos na saída';
   h+='<div class="table-wrap"><div style="padding:10px 12px 6px;display:flex;flex-wrap:wrap;gap:6px 16px;align-items:baseline;justify-content:space-between"><b style="font-size:13px">'+tit+' · '+lista.length+'</b><input id="qExp" class="exp-obs" style="max-width:300px" placeholder="Buscar cliente ou nº do pedido" value="'+esc($('#q').value)+'" oninput="expQ(this)"><span class="sub">Posição no Painel CD: <span class="org eco" style="margin-left:0">ECO</span> nosso coletor <span class="org dl">DLINKS</span> painel do Dlinks · clique na linha pra abrir a bipagem</span></div>';
   h+='<table class="t"><thead><tr><th>Pedido</th><th>Cliente</th><th class="th-jor">Jornada do pedido</th><th>Situação</th><th class="th-fazer">O que fazer</th></tr></thead><tbody>';
-  if(!lista.length)h+='<tr><td colspan="5" class="mut" style="padding:18px">'+(expFiltro==='todos'?'Nenhuma conferência de saída no período.':'Nada aqui agora. <a href="#" onclick="event.preventDefault();expFiltro=\'todos\';render()">Ver todos os pedidos na saída</a>.')+'</td></tr>';
+  if(!lista.length)h+='<tr><td colspan="5" class="mut" style="padding:18px">'+(expFiltro==='todos'?'Nenhuma conferência de saída no período.'+($('#q').value.trim()?' <a href="#" onclick="event.preventDefault();expBuscarFora()">Buscar "'+esc($('#q').value.trim())+'" nos últimos 60 dias</a>':''):'Nada aqui agora. <a href="#" onclick="event.preventDefault();expFiltro=\'todos\';render()">Ver todos os pedidos na saída</a>.')+'</td></tr>';
   const passo=(cls,t,q,hh)=>'<div class="p '+cls+'"><i></i><div class="t">'+t+'</div><div class="q">'+esc(q||'—')+'</div><div class="h">'+(hh||'')+'</div></div>';
   const tent=e=>e&&e.tentativas?' · '+e.tentativas+' tent.':'';
   for(const c of lista){
