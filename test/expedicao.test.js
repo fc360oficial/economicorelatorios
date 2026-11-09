@@ -310,3 +310,35 @@ test('fiscal manda reconferir a SEPARAÇÃO em andamento (09/11/26, pedido 7820)
   assert.throws(() => E.reconferirSeparacao(c.id, { nome: 'f' }), /separação em andamento/);
   assert.equal(E.statusColetorPorPedido(1)['6853'].reconferir, false);
 });
+
+test('pedido mexido no ERP depois de aberto (09/11/26, pedido 7830): item tirado some, separação esperando o fiscal sem divergência fecha sozinha; item já separado vira fora', async () => {
+  // separador bipou 2 dos 3 itens e mandou pro fiscal com "faltou" o unitário (789)
+  const c = setup();
+  await E.bipar(c.id, { cod: '7891150097605', quant: 4, emb: 20, lote: 'L01', operador: MARIA });
+  await E.bipar(c.id, { cod: '17898403781295', quant: 10, emb: 30, lote: 'F7', operador: MARIA });
+  const t = E.terminei(c.id, { operador: MARIA, enviarFiscal: true, motivo: 'faltou' }); assert.equal(t.status, 'aguardando_fiscal'); assert.equal(t.pendentes.length, 1);
+  // lista vazia do ERP não apaga nada; sem mudança não altera
+  assert.equal(E.sincronizarPedido(c.id, []).alterado, false); assert.equal(E.sincronizarPedido(c.id, ITENS).alterado, false);
+  // Tiago reabre o pedido no ERP e tira o unitário
+  const r = E.sincronizarPedido(c.id, ITENS.filter(i => i.cod !== '789'), { fonte: 'fiscal' });
+  assert.equal(r.alterado, true); assert.deepEqual(r.removidos.map(x => x.cod), ['789']); assert.equal(r.fechouSozinha, true); assert.equal(r.status, 'separada');
+  const f = E.obter(c.id); assert.ok(!f.pedido['789']); assert.equal(f.liberacao.decisao, 'liberada'); assert.equal(f.liberacao.decididoPor, 'ERP'); assert.deepEqual(f.liberacao.pendentes, []);
+  assert.equal(E.detalhe(c.id).itens.length, 2); assert.match(E.detalhe(c.id).alteracoesErp[0].resumo, /^tirou /);
+  // carregamento segue só com os 2 itens
+  E.abrirPedido({ nPedido: 6853, itens: [], operador: JOAO });
+  await E.bipar(c.id, { cod: '7891150097605', quant: 4, emb: 20, lote: 'L01', operador: JOAO });
+  await E.bipar(c.id, { cod: '17898403781295', quant: 10, emb: 30, lote: 'F7', operador: JOAO });
+  assert.equal(E.terminei(c.id, { operador: JOAO }).status, 'conferida');
+  assert.equal(E.sincronizarPedido(c.id, ITENS).alterado, false, 'conferida: não mexe mais');
+
+  // item JÁ SEPARADO tirado do pedido no ERP: vira 'fora' da separação (tem que sair do pallet), não fecha sozinho
+  const c2 = setup();
+  await E.bipar(c2.id, { cod: '7891150097605', quant: 4, emb: 20, lote: 'L01', operador: MARIA });
+  const r2 = E.sincronizarPedido(c2.id, ITENS.filter(i => i.cod !== '7891150097605'));
+  assert.equal(r2.alterado, true); const f2 = E.obter(c2.id); assert.equal(f2.status, 'separando');
+  assert.ok(!f2.etapas.separacao.itens['7891150097605']); assert.equal(f2.etapas.separacao.fora['7891150097605'].un, 80);
+  const d2 = E.detalhe(c2.id); const fora = d2.itens.find(i => i.cod === '7891150097605'); assert.equal(fora.foraDoPedido, true); assert.equal(fora.separado, 80);
+  // quantidade alterada e item novo
+  const r3 = E.sincronizarPedido(c2.id, ITENS.filter(i => i.cod !== '7891150097605').map(i => i.cod === '789' ? { ...i, qtd: 7 } : i).concat([{ cod: '555', descricao: 'NOVO', und: 'UN', qtd: 3 }]));
+  assert.equal(r3.alterados[0].para, 7); assert.deepEqual(r3.adicionados.map(x => x.cod), ['555']); assert.equal(E.obter(c2.id).pedido['555'].un, 3);
+});

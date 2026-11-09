@@ -124,7 +124,7 @@ test('Separação de Pedidos com lista + fiscal do CD: /produto acha ou avisa fo
   assert.equal(r.body.fechou, false); assert.equal(r.body.aguardandoFiscal, true); assert.equal(r.body.visao.etapa, 'fiscal'); assert.equal(r.body.pendentes[0].pedido, 108); assert.equal(r.body.pendentes[0].separado, 81);
   r = res(); await routes['GET /api/expedicao-publico/pedidos'](req({ query: qM }), r); assert.equal(r.body[0].conferencia.etapa, 'fiscal');
   r = res(); await routes['POST /api/expedicao-publico/separar'](req({ query: qM, body: { id, cod: '7891150097605', quant: 4, emb: 27 } }), r); assert.equal(r.statusCode, 409);
-  r = res(); routes['GET /api/expedicao/liberacoes'](req({ query: {} }), r); assert.equal(r.body.length, 1); assert.equal(r.body[0].liberacao.motivo, 'faltou'); assert.deepEqual(r.body[0].itens.map(i => i.diferenca), [-27, -2]);
+  r = res(); await routes['GET /api/expedicao/liberacoes'](req({ query: {} }), r); assert.equal(r.body.length, 1); assert.equal(r.body[0].liberacao.motivo, 'faltou'); assert.deepEqual(r.body[0].itens.map(i => i.diferenca), [-27, -2]);
   r = res(); routes['POST /api/expedicao/liberar'](req({ body: { id, decisao: 'liberar', obs: 'segue' }, session: { user: { nome: 'Fiscal CD' } } }), r); assert.equal(r.body.status, 'separada'); assert.equal(r.body.liberacao.decididoPor, 'FISCAL CD');
   r = res(); await routes['GET /api/expedicao-publico/pedidos'](req({ query: qJ }), r); assert.equal(r.body[0].conferencia.etapa, 'expedicao'); assert.equal(r.body[0].conferencia.liberada, true);
   r = res(); await routes['POST /api/expedicao-publico/abrir'](req({ query: qJ, body: { nPedido: '6853' } }), r); assert.equal(r.body.etapa, 'expedicao'); assert.equal(r.body.pedido, undefined);
