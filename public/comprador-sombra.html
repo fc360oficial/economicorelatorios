@@ -147,10 +147,10 @@ function render(){
     const cA=(l.curva_a_risco||[]).filter(c=>c.zera_antes);
     const dk=l.dlinks||{};const u=dk.ultima;
     const dkHtml=!u?`<span class="mut">${dk.erro?'ERP indisponível':'nenhuma em 90 d'}</span>`
-      :`<span class="badge ${u.pedido?'b-loja':u.situacao==='Em aberto'?'b-hoje':u.situacao==='Fechado'?'b-ok':'b-mut'}">${esc(u.situacao)}</span> <b style="color:var(--text)">${u.sugestao}</b>`
-       +`<span class="obs">${BR(u.data)}${u.dias!=null?' · há '+u.dias+' d':''} · ${u.itens} itens${u.lojas.length?' · E'+u.lojas.join(', E'):''}${u.nPedido?' · pedido '+u.nPedido:''}</span>`
-       +(dk.recentes&&dk.recentes.length>1?`<span class="obs">antes: ${dk.recentes.slice(1,3).map(s=>s.sugestao+' '+BR(s.data).slice(0,5)+(s.pedido?' ✓':'')).join(' · ')}${dk.total_90d>3?' · '+dk.total_90d+' em 90 d':''}</span>`:'');
-    const jaPed=dk.ja_pedida&&dk.ultima_pedida?`<span class="obs neg">compradora já pediu há ${dk.ultima_pedida.dias} d (DLINKS ${dk.ultima_pedida.sugestao})</span>`:'';
+      :`<span class="badge ${u.em_transito?'b-prox':u.recebido?'b-ok':u.pedido?'b-loja':u.situacao==='Em aberto'?'b-hoje':u.situacao==='Fechado'?'b-ok':'b-mut'}" title="${u.em_transito?'pedido de compra ainda aberto no ERP (Status 0/1): o Radar soma ao estoque':u.recebido?'pedido recebido no ERP':''}">${esc(u.situacao)}</span> <b style="color:var(--text)">${u.sugestao}</b>`
+       +`<span class="obs">${BR(u.data)}${u.dias!=null?' · há '+u.dias+' d':''} · ${u.itens} itens${u.lojas.length?' · E'+u.lojas.join(', E'):''}${u.nPedido?' · pedido '+u.nPedido:''}${u.em_transito&&u.lojas_transito.length&&u.lojas_transito.length<u.lojas.length?' · falta chegar E'+u.lojas_transito.join(', E'):''}</span>`
+       +(dk.recentes&&dk.recentes.length>1?`<span class="obs">antes: ${dk.recentes.slice(1,3).map(s=>s.sugestao+' '+BR(s.data).slice(0,5)+(s.em_transito?' ⏳':s.pedido?' ✓':'')).join(' · ')}${dk.total_90d>3?' · '+dk.total_90d+' em 90 d':''}</span>`:'');
+    const jaPed=dk.ja_pedida&&dk.ultima_pedida?`<span class="obs neg">compradora já pediu há ${dk.ultima_pedida.dias} d${dk.ja_pedida_motivo==='em trânsito'?' · em trânsito':''} (DLINKS ${dk.ultima_pedida.sugestao})</span>`:'';
     return `<tr><td class="l"><b style="color:var(--text)">${esc(l.nome)}</b><span class="obs">lista ${l.id} · ${esc(l.nomeErp)} · ${l.produtos} produtos, ${l.com_venda} com venda · lead ${l.leadMedio!=null?N(l.leadMedio)+' d':'—'} (${esc(l.lead_fonte||'—')})</span></td>
       <td class="l">${esc(l.compradora||'—')}<span class="obs">continua com ela</span></td>
       <td class="l">${q}<span class="obs">${l.dow||''} ${BR(l.data)}${l.gatilho==='curva_a'?' · antecipada por curva A':''}${l.lojas_puxam&&l.lojas_puxam.length?' · puxa E'+l.lojas_puxam.join(', E'):''}</span>${jaPed}</td>
