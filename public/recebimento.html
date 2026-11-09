@@ -834,11 +834,11 @@ function renderPedidos() {
       <div class="st"><span class="pill ${etapa[0]}"><i></i>${esc(etapa[1])}</span><span class="pill ${painel[0]}">${esc(painel[1])}</span></div>
       ${why ? `<div class="why ${c && ((c.avisoFiscal && c.etapa === 'separacao') || (c.avisoCarga && c.etapa === 'expedicao')) ? 'w' : 'i'}">${esc(why)}</div>` : ''}
     </button>`;
-  }).join('') : bp ? '<div class="vazio">Nenhum pedido bate com a busca.</div>' : '<div class="vazio">Nenhum pedido do Televendas aguardando separação ou carregamento.</div>';
+  }).join('') : bp ? '<div class="vazio">Nenhum pedido encontrado na busca.</div>' : '<div class="vazio">Nenhum pedido do Televendas aguardando separação ou carregamento.</div>';
 }
 async function abrirPedido(i) {
   const p = pedidos[i]; if (!p) return;
-  if (p.conferencia && p.conferencia.etapa === 'fiscal') { abrirModal(`<div class="t">Aguardando o fiscal do CD</div><p style="font-size:13px;color:var(--ink2);margin:6px 0 10px">A separação do pedido <b>#${esc(p.nPedido)}</b> não bateu com o pedido e foi mandada pro fiscal do CD. Ele libera pro carregamento ou devolve pra separação. Atualize a lista daqui a pouco.</p><div class="menuAc"><button class="btn btn-ghost" onclick="fecharModal()">Voltar</button></div>`); return; }
+  if (p.conferencia && p.conferencia.etapa === 'fiscal') { abrirModal(`<div class="t">Aguardando o fiscal do CD</div><p style="font-size:13px;color:var(--ink2);margin:6px 0 10px">A separação do pedido <b>#${esc(p.nPedido)}</b> ficou divergente do pedido e foi mandada pro fiscal do CD. Ele libera pro carregamento ou devolve pra separação. Atualize a lista daqui a pouco.</p><div class="menuAc"><button class="btn btn-ghost" onclick="fecharModal()">Voltar</button></div>`); return; }
   try { visaoExp = await postExp('abrir', { nPedido: p.nPedido, nome: sess.nome }); pedidoAtual = p; cartaoExp = null; ultimoBipadoExp = null; selSep = null; qtdSep = {}; $('xCartao').innerHTML = ''; mostrar('exp'); renderExp(); }
   catch (e) {
     // trava do servidor: quem separou não carrega o mesmo pedido
@@ -853,7 +853,7 @@ async function pollExp() { if (!visaoExp || cartaoExp || $('modal').innerHTML) r
 // Separação (Tiago, 14/10 noite): mostra a lista do pedido (descrição, quantidade, 4 últimos do EAN); o separador toca
 // no produto e digita a quantidade separada. Bipe de produto fora do pedido dá erro na hora. Carregamento: cego, outra
 // pessoa, bate com o que a separação registrou.
-const ESTADO_EXP = { ok: ['', 'bate com a separação'], diferente: ['e-warn', 'diferente da separação · confira'], fora: ['e-bad', 'não está na separação · tire do caminhão'] };
+const ESTADO_EXP = { ok: ['', 'conforme a separação'], diferente: ['e-warn', 'diferente da separação · confira'], fora: ['e-bad', 'não está na separação · tire do caminhão'] };
 const foraHtml = fora => fora.map(f => `<div class="it e-bad"><div class="stripe"></div><div><div class="d">${esc(f.descricao)}</div><div class="c">${esc(f.cod)} · fora · lote ${esc((f.lotes || []).map(l => l.lote).join(', '))}</div></div><div class="q"><b>${num(f.un)} un</b><small>${num(f.quant)} × ${num(f.emb)}</small></div></div>`).join('');
 function renderSep() {
   const v = visaoExp, fis = v.etapa === 'fiscal', ped = v.pedido || [];
@@ -901,10 +901,10 @@ function renderExp() {
   $('xProd').textContent = visaoExp.produtos; $('xProdL').textContent = 'prod';
   const tot = visaoExp.produtos_pedido || 0; $('xResumo').hidden = false; $('xBar').style.width = (tot ? Math.min(100, Math.round(visaoExp.produtos / tot * 100)) : 0) + '%'; $('xBar').className = '';
   $('xResTxt').innerHTML = `<b>${visaoExp.produtos}</b> de ${tot} produtos bipados`; $('xUn').textContent = num(visaoExp.unidades) + ' un';
-  $('xProg').textContent = 'Cego: bipe o que sobe no caminhão. Tem que bater com a separação.'; $('bipExp').placeholder = 'Bipe a caixa (DUN-14) ou a unidade';
+  $('xProg').textContent = 'Cego: bipe o que sobe no caminhão. Tem que ficar conforme a separação.'; $('bipExp').placeholder = 'Bipe a caixa (DUN-14) ou a unidade';
   $('xTir').textContent = visaoExp.tirados ? visaoExp.tirados + (visaoExp.tirados === 1 ? ' retirada registrada pro fiscal' : ' retiradas registradas pro fiscal') : '';
   $('xAviso').innerHTML = (visaoExp.avisoCarga ? `<div class="aviso fis"><b>Fiscal do CD mandou reconferir o carregamento:</b> ${esc(visaoExp.avisoCarga.obs || 'bipe o caminhão de novo')} <span style="color:var(--ink3)">· ${esc(visaoExp.avisoCarga.nome || '')}</span></div>` : '')
-    + (visaoExp.liberacao && visaoExp.liberacao.decisao === 'liberada' ? `<div class="aviso fis"><b>Separação liberada pelo fiscal com divergência.</b> O caminhão tem que bater com o que foi separado, não com o pedido.${visaoExp.liberacao.obs ? ' ' + esc(visaoExp.liberacao.obs) : ''}</div>` : '');
+    + (visaoExp.liberacao && visaoExp.liberacao.decisao === 'liberada' ? `<div class="aviso fis"><b>Separação liberada pelo fiscal com divergência.</b> O carregamento tem que ficar conforme o que foi separado, não o pedido.${visaoExp.liberacao.obs ? ' ' + esc(visaoExp.liberacao.obs) : ''}</div>` : '');
   const fora = visaoExp.fora || [];
   $('xFora').innerHTML = fora.length ? `<div class="aviso"><b>${fora.length === 1 ? '1 produto bipado não está na separação.' : fora.length + ' produtos bipados não estão na separação.'}</b> Tire do caminhão e use "Tirar da coletagem".</div>` + foraHtml(fora) : '';
   const itens = (visaoExp.itens || []).slice().reverse();
@@ -961,7 +961,7 @@ function abrirCartaoExp(c) {
   q.focus(); q.select(); $('xCartao').scrollIntoView({ block: 'nearest' });
 }
 function fecharCartaoExp() { cartaoExp = null; $('xCartao').innerHTML = ''; focarExp(); }
-const AVISO_EXP = { ok: ['Bateu com a separação.', false], qtd_diferente: ['Quantidade diferente da separação. Confira: falta ou sobra? A quantidade continua escondida.', true], fora_do_pedido: ['Este produto NÃO está na separação deste pedido. Tire do caminhão e use "Tirar da coletagem".', true], sem_lote: ['Faltou o lote. Bipe ou digite o lote da caixa.', true] };
+const AVISO_EXP = { ok: ['Conforme a separação.', false], qtd_diferente: ['Quantidade diferente da separação. Confira: falta ou sobra? A quantidade continua escondida.', true], fora_do_pedido: ['Este produto NÃO está na separação deste pedido. Tire do caminhão e use "Tirar da coletagem".', true], sem_lote: ['Faltou o lote. Bipe ou digite o lote da caixa.', true] };
 
 // ── Separação de Pedidos: bipe acha o produto na lista (ou avisa que não está no pedido); toque abre o cartão ──
 // Fluxo do Tiago (14/10): marca o item (checkbox) → fica selecionado → bipa o produto → o bipe confirma e grava a quantidade
@@ -1036,7 +1036,7 @@ function qtdSepModal(cod, doBipe) {
     <div class="tip" style="margin-top:6px">${it.separado ? 'Já confirmado: a nova quantidade grava na hora.' : doBipe ? 'OK grava o que você separou. Tudo zero = não separou.' : 'Depois é só bipar o produto pra confirmar. Tudo zero = não separou.'}</div>
     <div class="row2" style="margin-top:10px"><button class="btn btn-secondary" onclick="fecharModal();focarExp()">Cancelar</button><button class="btn btn-primary" onclick="qtdSepOk('${esc(cod)}',${doBipe ? 'true' : 'false'})">OK</button></div>`);
   setTimeout(() => {
-    const a = $('qCx'), b = $('qSo'); const tot = () => { const t = $('qTot'); if (!t) return; const u = (cx ? lerNum('qCx') * it.emb : 0) + lerNum('qSo'); const d = +(u - it.un).toFixed(3); t.innerHTML = num(u) + ' un' + (d === 0 ? ' <span style="color:var(--pos)">· bate</span>' : d < 0 ? ' <span style="color:var(--neg)">· falta ' + num(-d) + '</span>' : ' <span style="color:var(--amk)">· sobra ' + num(d) + '</span>'); };
+    const a = $('qCx'), b = $('qSo'); const tot = () => { const t = $('qTot'); if (!t) return; const u = (cx ? lerNum('qCx') * it.emb : 0) + lerNum('qSo'); const d = +(u - it.un).toFixed(3); t.innerHTML = num(u) + ' un' + (d === 0 ? ' <span style="color:var(--pos)">· conforme</span>' : d < 0 ? ' <span style="color:var(--neg)">· falta ' + num(-d) + '</span>' : ' <span style="color:var(--amk)">· sobra ' + num(d) + '</span>'); };
     for (const el of [a, b]) if (el) { el.addEventListener('input', tot); el.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.keyCode === 13) { ev.preventDefault(); if (el === a && b) { b.focus(); b.select(); } else qtdSepOk(cod, doBipe); } }); }
     tot(); const first = a || b; if (first) { first.focus(); first.select(); }
   }, 50);
@@ -1065,7 +1065,7 @@ async function gravarSep(cod, un, somando) {
     const r = await postExp('separar', { id: visaoExp.id, cod, quant: emb > 1 ? f.cx : f.so, emb, soltas: emb > 1 ? f.so : 0, somar: !!somando, bipeId: novoBipeId() });
     if (r.visao) visaoExp = r.visao; if (selSep === cod) selSep = null; delete qtdSep[cod]; renderExp(); setNet(true);
     const p = r.item ? (visaoExp.pedido || []).find(i => i.cod === r.item.cod) : null; const d = p && r.item ? +(r.item.un - p.un).toFixed(3) : 0;
-    if (r.resultado === 'ok') { feedback('fim'); toast('Bateu com o pedido: ' + (p ? fmtQSep(r.item.un, p).n + ' ' + fmtQSep(r.item.un, p).l : num(r.item.un) + ' un')); }
+    if (r.resultado === 'ok') { feedback('fim'); toast('Conforme o pedido: ' + (p ? fmtQSep(r.item.un, p).n + ' ' + fmtQSep(r.item.un, p).l : num(r.item.un) + ' un')); }
     else if (r.resultado === 'limpo') { feedback('aviso'); toast('Desmarcado. Bipe de novo quando separar.'); }
     else if (r.resultado === 'fora_do_pedido') { feedback('erro'); toast('Produto NÃO está no pedido.', true); }
     else if (r.resultado === 'qtd_diferente' && r.item) {
@@ -1128,12 +1128,12 @@ async function termineiExp(enviarFiscal, motivo) {
       $('xfTitulo').textContent = 'Separação fechada';
       // 28/10/26: não desloga ao fechar — o separador normalmente emenda outro pedido; trocar de pessoa é só o PIN
       $('xfAcoes').innerHTML = acoesFim('Separar outro pedido');
-      $('xfCorpo').innerHTML = `<div class="aviso ok"><b>Separação bateu 100 % com o pedido.</b><br>O pallet vai pro Carregamento de Caminhão. <b>Outra pessoa</b> bipa o caminhão às cegas: você separou, então o app não deixa você carregar este pedido.</div>
+      $('xfCorpo').innerHTML = `<div class="aviso ok"><b>Separação 100 % conforme o pedido.</b><br>O pallet vai pro Carregamento de Caminhão. <b>Outra pessoa</b> bipa o caminhão às cegas: você separou, então o app não deixa você carregar este pedido.</div>
         <div class="card"><div class="kv"><span>Separou</span><b>${esc(visaoExp.separadoPor || sess.nome)}</b></div><div class="kv"><span>Tentativas</span><b>${visaoExp.tentativas || 1}</b></div>${visaoExp.tirados ? `<div class="kv"><span>Retiradas</span><b>${visaoExp.tirados} · pendência pro fiscal</b></div>` : ''}</div>`;
     } else if (r.fechou) {
       $('xfTitulo').textContent = visaoExp.status === 'conferida' ? 'Caminhão conferido · aguardando o fiscal' : 'Caminhão conferido';
       $('xfAcoes').innerHTML = acoesFim('Carregar outro pedido');
-      $('xfCorpo').innerHTML = (visaoExp.status === 'conferida' ? `<div class="aviso ok"><b>Bateu 100 % com a separação.</b><br>Agora o fiscal do CD confronta pedido × separado × carregado na retaguarda e <b>libera a saída</b>. O caminhão só sai depois da liberação; se ele mandar reconferir, o pedido volta pra lista como "Carregar".</div>` : `<div class="aviso ok"><b>Bateu 100 % com a separação.</b><br>Pode fechar o caminhão. O Televendas já vê o pedido como conferido.</div>`)
+      $('xfCorpo').innerHTML = (visaoExp.status === 'conferida' ? `<div class="aviso ok"><b>Carregamento 100 % conforme a separação.</b><br>Agora o fiscal do CD confronta pedido × separado × carregado na retaguarda e <b>libera a saída</b>. O caminhão só sai depois da liberação; se ele mandar reconferir, o pedido volta pra lista como "Carregar".</div>` : `<div class="aviso ok"><b>Carregamento 100 % conforme a separação.</b><br>Pode fechar o caminhão. O Televendas já vê o pedido como conferido.</div>`)
         + (r.etapa === 'expedicao' ? `<div class="card"><div class="kv"><span>Separou</span><b>${esc(visaoExp.separadoPor || '—')}</b></div><div class="kv"><span>Carregou</span><b>${esc(visaoExp.expedidoPor || sess.nome)}</b></div></div>` : '');
     } else if (r.aguardandoFiscal) {
       $('xfTitulo').textContent = 'Mandado pro fiscal do CD';
@@ -1143,17 +1143,17 @@ async function termineiExp(enviarFiscal, motivo) {
     } else if (r.etapa === 'separacao') {
       // Separação de Pedidos não é cega: mostra pedido × separado e deixa mandar pro fiscal do CD decidir
       const n = r.pendentes.length + r.fora.length;
-      $('xfTitulo').textContent = 'Não bateu com o pedido';
+      $('xfTitulo').textContent = 'Divergente do pedido';
       $('xfAcoes').innerHTML = `<div class="menuAc" style="width:100%"><button class="btn btn-primary blk" onclick="mostrar('exp'); renderExp()">Voltar e acertar</button>${r.fora.length ? '' : `<button class="btn btn-secondary blk" onclick="pedirFiscal()">Mandar pro fiscal do CD decidir</button>`}</div>`;
-      $('xfCorpo').innerHTML = `<div class="aviso"><b>${n} ${n === 1 ? 'item não bate' : 'itens não batem'} com o pedido.</b> Acerte o pallet ou, se não tem estoque, mande pro fiscal do CD liberar ou devolver.</div>
+      $('xfCorpo').innerHTML = `<div class="aviso"><b>${n} ${n === 1 ? 'item divergente' : 'itens divergentes'} do pedido.</b> Acerte o pallet ou, se não tem estoque, mande pro fiscal do CD liberar ou devolver.</div>
         ${r.pendentes.length ? `<div class="card"><div class="t">Pedido × separado</div>${r.pendentes.map(p => { const m = MOT_SEP[p.motivo] || ['mut', p.motivo]; return `<div class="kv"><span><span class="ean4" style="font-size:12px;padding:2px 5px;margin-right:6px">${esc(p.ean4 || '')}</span>${esc(p.descricao || p.cod)}</span><b>${num(p.separado || 0)} de ${num(p.pedido || 0)} <span class="pill ${m[0]}">${esc(m[1])}</span></b></div>`; }).join('')}</div>` : ''}
         ${r.fora.length ? `<div class="card"><div class="t">Fora do pedido · tire da coletagem antes de mandar pro fiscal</div>${r.fora.map(f => `<div class="kv"><span>${esc(f.descricao || f.cod)}</span><span class="pill bad">${num(f.un)} un</span></div>`).join('')}</div>` : ''}`;
       ultimoTerminei = r;
     } else {
       const n = r.pendentes.length + r.fora.length;
-      $('xfTitulo').textContent = 'Não bateu com a separação';
+      $('xfTitulo').textContent = 'Divergente da separação';
       $('xfAcoes').innerHTML = '<button class="btn btn-primary blk" onclick="mostrar(\'exp\'); renderExp()">Voltar e acertar</button>';
-      $('xfCorpo').innerHTML = `<div class="aviso"><b>${n} ${n === 1 ? 'item não bate' : 'itens não batem'} com a separação.</b> O carregamento só fecha 100 % igual ao pallet separado. A quantidade continua escondida.</div>
+      $('xfCorpo').innerHTML = `<div class="aviso"><b>${n} ${n === 1 ? 'item divergente' : 'itens divergentes'} da separação.</b> O carregamento só fecha 100 % igual ao pallet separado. A quantidade continua escondida.</div>
         ${r.pendentes.length ? `<div class="card"><div class="t">Acertar</div>${r.pendentes.map(p => { const m = MOT_EXP[p.motivo] || ['mut', p.motivo]; return `<div class="kv"><span>${esc(p.descricao || p.cod)}</span><span class="pill ${m[0]}">${esc(m[1])}</span></div>`; }).join('')}</div>` : ''}
         ${r.fora.length ? `<div class="card"><div class="t">Não está na separação · tire do caminhão</div>${r.fora.map(f => `<div class="kv"><span>${esc(f.descricao || f.cod)}</span><span class="pill bad">${num(f.un)} un</span></div>`).join('')}</div>` : ''}
         <div class="tip">Se o pallet veio diferente da separação, chame o fiscal do CD.</div>`;
@@ -1633,7 +1633,7 @@ async function terminei() {
 }
 function renderFim() {
   const f = fimDados || {};
-  $('fTitulo').textContent = f.bateu ? 'Conferência enviada' : 'Conferência não bateu';
+  $('fTitulo').textContent = f.bateu ? 'Conferência enviada' : 'Conferência divergente';
   $('fSub').textContent = (visao.fornecedor || '') + ' · NF-e ' + visao.nNota;
   if (f.bateu) {
     $('fAcoes').innerHTML = '<button class="btn btn-primary blk" onclick="voltarNotas()">Voltar às notas</button>';
@@ -1643,7 +1643,7 @@ function renderFim() {
   const n = (f.recontar || []).length;
   $('fAcoes').innerHTML = '<button class="btn btn-primary" onclick="voltarBipagem()">Recontar</button>' +
     (f.podeEnviar ? '<button class="btn btn-secondary" onclick="enviarAssim()">Recontei, está assim mesmo · enviar pra central</button>' : '');
-  $('fCorpo').innerHTML = `<div class="aviso"><b>${n} ${n === 1 ? 'produto não bateu' : 'produtos não bateram'} com a nota.</b> Reconte só ${n === 1 ? 'ele' : 'esses'}. A quantidade da nota continua escondida.${f.podeEnviar ? ' Você já recontou: se continuar diferente, pode enviar assim mesmo.' : ' Depois de recontar uma vez, se continuar diferente, dá pra enviar assim mesmo.'}</div>
+  $('fCorpo').innerHTML = `<div class="aviso"><b>${n} ${n === 1 ? 'produto divergente' : 'produtos divergentes'} da nota.</b> Reconte só ${n === 1 ? 'ele' : 'esses'}. A quantidade da nota continua escondida.${f.podeEnviar ? ' Você já recontou: se continuar diferente, pode enviar assim mesmo.' : ' Depois de recontar uma vez, se continuar diferente, dá pra enviar assim mesmo.'}</div>
     <div class="card"><div class="t">Recontar</div>${(f.recontar || []).map(r => {
       const p = MOT_PILL[r.motivo] || ['mut', r.motivo];
       return `<div class="kv"><span>${esc(r.descricao || r.cod)}</span><span class="pill ${p[0]}">${esc(p[1])}</span></div>`;

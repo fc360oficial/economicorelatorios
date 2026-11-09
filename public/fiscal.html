@@ -318,7 +318,7 @@ table.ctb td.forn{min-width:170px;max-width:260px}table.ctb th{padding-left:6px;
   <div class="page-hdr">
     <div>
       <h1>Fiscal · Recebimento de Notas</h1>
-      <p>Toda nota bipada nas lojas aparece aqui. O sistema cruza sozinho o XML da NF-e com o pedido de compra, a contagem do coletor (conferência cega), a validade lida e os boletos. <b>Quem bate em tudo já fica pronto pra liberar; você só olha as exceções.</b> Liberar grava no ERP de teste (.254), com Log.</p>
+      <p>Toda nota bipada nas lojas aparece aqui. O sistema cruza sozinho o XML da NF-e com o pedido de compra, a contagem do coletor (conferência cega), a validade lida e os boletos. <b>Nota conforme em tudo já fica pronta pra liberar; você só olha as exceções.</b> Liberar grava no ERP de teste (.254), com Log.</p>
     </div>
     <div class="hdr-btns">
       <button class="btn btn-slate" id="btnMudo" onclick="toggleMudo()">🔔 Som do coletor</button>
@@ -506,7 +506,7 @@ async function expCarregar(){const d=await expBuscar();DET_EXP={};TABCACHE[tabKe
 async function decidirLiberacao(id,decisao){
   const k=id.replace(/[^a-z0-9]/gi,'');const obs=(($('#libObs'+k)||{}).value||'').trim();
   const l=(EXP.liberacoes||[]).find(x=>x.id===id);const n=l?l.nPedido:'';
-  if(!confirm(decisao==='liberar'?'Liberar o pedido #'+n+' pro carregamento DO JEITO QUE ESTÁ? O caminhão vai bater com o que foi separado, não com o pedido.':'Devolver o pedido #'+n+' pra separação acertar?'))return;
+  if(!confirm(decisao==='liberar'?'Liberar o pedido #'+n+' pro carregamento DO JEITO QUE ESTÁ? O carregamento será conferido contra o que foi separado, não contra o pedido.':'Devolver o pedido #'+n+' pra separação acertar?'))return;
   try{const r=await fetch('/api/expedicao/liberar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,decisao,obs})}).then(r=>r.json());if(r.error)throw new Error(r.error);await expCarregar();render();}
   catch(e){alert('Não deu: '+e.message);}
 }
@@ -521,17 +521,18 @@ function confrontoHtml(l,comBotoes){
   const k=l.id.replace(/[^a-z0-9]/gi,'');
   if(l.modeloDlinks){   // bipagem gravada pelo coletor do Dlinks (conferencia_televendas) × pedido: sem separação/carregamento separados, sem lote, sem botões
     const DLN={0:'para separação',1:'em separação',2:'conferido · aguardando liberação',3:'reconferir',4:'liberado'};
-    return '<div class="sub" style="padding:8px 10px 4px">Pedido <b>#'+esc(l.nPedido)+'</b> · '+esc(l.cliente)+' · <span class="org dl" style="margin-left:0">DLINKS</span> conferido no coletor do Dlinks'+(l.conferidaEm?' · última bipagem '+esc(String(l.conferidaEm).slice(0,10).split('-').reverse().join('/')):'')+' · painel: <b>'+esc(DLN[l.dlStatus]||'—')+'</b> · '+(l.semConferencia?'<span class="mut">nada bipado ainda</span>':l.divergencias?'<span class="neg"><b>'+l.divergencias+' de '+l.itens.length+' itens com diferença</b></span>':'<span class="pos"><b>'+l.itens.length+' itens, tudo bateu</b></span>')+'</div>'
+    return '<div class="sub" style="padding:8px 10px 4px">Pedido <b>#'+esc(l.nPedido)+'</b> · '+esc(l.cliente)+' · <span class="org dl" style="margin-left:0">DLINKS</span> conferido no coletor do Dlinks'+(l.conferidaEm?' · última bipagem '+esc(String(l.conferidaEm).slice(0,10).split('-').reverse().join('/')):'')+' · painel: <b>'+esc(DLN[l.dlStatus]||'—')+'</b> · '+(l.semConferencia?'<span class="mut">nada bipado ainda</span>':l.divergencias?'<span class="neg"><b>'+l.divergencias+' de '+l.itens.length+' itens com diferença</b></span>':'<span class="pos"><b>'+l.itens.length+' itens, tudo conforme</b></span>')+'</div>'
       +'<table class="t ctb"><thead><tr><th>EAN</th><th>Produto</th><th class="r">Pedido</th><th class="r">Conferido no Dlinks</th><th>Resultado</th></tr></thead><tbody>'
       +l.itens.map(i=>{const cx=i.emCaixa&&i.emb>1,u=cx?esc(i.und||'CX'):'un';const dq=cx?+(i.difSeparado/i.emb).toFixed(2):i.difSeparado;   // mostra na unidade da linha (caixas ou unidades), como na folha; unidades em letra pequena
         return '<tr'+(i.difSeparado!==0?' style="background:#FFF8E6"':'')+'><td><b>…'+esc(i.ean4)+'</b><div class="sub">'+esc(i.cod)+'</div></td><td class="forn">'+esc(i.descricao)+(i.foraDoPedido?' <span class="neg">· fora do pedido</span>':'')+'<div class="sub">'+(i.qtd&&i.und?qtd(i.qtd)+' '+esc(i.und)+(cx?' c/'+qtd(i.emb)+' = '+qtd(i.pedido)+' un':''):'')+'</div></td>'
         +'<td class="r"><b>'+qtd(cx?i.qtd:i.pedido)+'</b> '+u+(cx?'<div class="sub">'+qtd(i.pedido)+' un</div>':'')+'</td><td class="r"><b>'+qtd(cx?(i.confQtd!=null?i.confQtd:i.separado/i.emb):i.separado)+'</b> '+u+(cx?'<div class="sub">'+qtd(i.separado)+' un</div>':'')+'</td>'
-        +'<td>'+(i.difSeparado===0?'<span class="pos"><b>bate</b></span>':i.difSeparado<0?'<b class="neg">faltam '+qtd(-dq)+' '+u+'</b>':'<b style="color:#8A5A00">sobram '+qtd(dq)+' '+u+'</b>')+'</td></tr>';}).join('')
+        +'<td>'+(i.difSeparado===0?'<span class="pos"><b>Conforme</b></span>':i.difSeparado<0?'<b class="neg">faltam '+qtd(-dq)+' '+u+'</b>':'<b style="color:#8A5A00">sobram '+qtd(dq)+' '+u+'</b>')+'</td></tr>';}).join('')
       +'</tbody></table><div class="sub" style="padding:6px 10px 10px">Liberação, reconferência e saída desse pedido são feitas no Dlinks. Aqui é só pra acompanhar.</div>';
   }
   const lts=ls=>ls&&ls.length?esc(ls.map(x=>(x.lote||'—')+(ls.length>1?' ('+qtd(x.un)+')':'')).join(', ')):'<span class="mut">—</span>';
-  const dif=i=>i.difSeparado===0?'<span class="pos"><b>bate</b></span>':'<b class="'+(i.difSeparado<0?'neg':'')+'"'+(i.difSeparado>0?' style="color:#8A5A00"':'')+'>'+(i.difSeparado>0?'+':'')+qtd(i.difSeparado)+'</b>';
-  const difC=i=>i.difCarregado===0?'<span class="pos"><b>bate</b></span>':'<b class="'+(i.difCarregado<0?'neg':'')+'"'+(i.difCarregado>0?' style="color:#8A5A00"':'')+'>'+(i.difCarregado>0?'+':'')+qtd(i.difCarregado)+'</b>';
+  // 09/11 (Tiago): "tirar esse nome bate e não bate pro nome profissional" → Conforme / Divergente
+  const dif=i=>i.difSeparado===0?'<span class="pos"><b>Conforme</b></span>':'<b class="'+(i.difSeparado<0?'neg':'')+'"'+(i.difSeparado>0?' style="color:#8A5A00"':'')+'>'+(i.difSeparado>0?'+':'')+qtd(i.difSeparado)+'</b>';
+  const difC=i=>i.difCarregado===0?'<span class="pos"><b>Conforme</b></span>':'<b class="'+(i.difCarregado<0?'neg':'')+'"'+(i.difCarregado>0?' style="color:#8A5A00"':'')+'>'+(i.difCarregado>0?'+':'')+qtd(i.difCarregado)+'</b>';
   const carregou=l.conferidaEm||l.fechadoEm;
   let h='<div class="sub" style="padding:8px 10px 4px">Pedido <b>#'+esc(l.nPedido)+'</b> · '+esc(l.cliente)+(l.modeloUnico?' · conferência de uma etapa só (antes de 14/10)':' · separou <b>'+esc(l.separadoPor||'')+'</b> '+dh(l.separacaoFechadaEm)+' ('+l.tentativasSep+' tentativa'+(l.tentativasSep===1?'':'s')+')')
     +(carregou?' · carregou <b>'+esc(l.carregadoPor||'')+'</b> '+dh(carregou)+' ('+l.tentativasCarga+' tentativa'+(l.tentativasCarga===1?'':'s')+')':' · <span class="mut">carregamento ainda não fechou</span>')
@@ -539,7 +540,7 @@ function confrontoHtml(l,comBotoes){
     +(l.reconferencias?' · <span class="neg">'+l.reconferencias+'ª reconferência</span>':'')
     +(l.saida&&l.saida.decisao==='liberada'?' · <span class="pos">saída liberada por <b>'+esc(l.saida.decididoPor||'')+'</b> '+dh(l.saida.decididoEm)+(l.saida.obs?' · '+esc(l.saida.obs):'')+'</span>':'')
     +(l.espelhadoEm?' · <span class="pos">espelhado no ERP de teste</span>':'')
-    +' · '+(l.divergencias?'<span class="neg"><b>'+l.divergencias+' de '+l.itens.length+' itens com diferença</b></span>':'<span class="pos"><b>'+l.itens.length+' itens, tudo bateu</b></span>')+'</div>'
+    +' · '+(l.divergencias?'<span class="neg"><b>'+l.divergencias+' de '+l.itens.length+' itens com diferença</b></span>':'<span class="pos"><b>'+l.itens.length+' itens, tudo conforme</b></span>')+'</div>'
     +'<table class="t ctb"><thead><tr><th>EAN</th><th>Produto</th><th class="r">Pedido</th><th class="r">Separado</th><th class="r">Sep. × pedido</th><th class="r">Carregado</th><th class="r">Carga × sep.</th><th>Lote sep.</th><th>Lote carga</th></tr></thead><tbody>'
     +l.itens.map(i=>'<tr'+(i.difSeparado!==0||i.difCarregado!==0||i.loteDiferente?' style="background:#FFF8E6"':'')+'><td><b>…'+esc(i.ean4)+'</b><div class="sub">'+esc(i.cod)+'</div></td><td class="forn">'+esc(i.descricao)+(i.foraDoPedido?' <span class="neg">· fora do pedido</span>':'')+'<div class="sub">'+(i.qtd&&i.und?qtd(i.qtd)+' '+esc(i.und)+(i.emb>1?' c/'+qtd(i.emb):''):'')+'</div></td><td class="r">'+qtd(i.pedido)+'</td><td class="r">'+qtd(i.separado)+'</td><td class="r">'+dif(i)+'</td><td class="r">'+qtd(i.carregado)+'</td><td class="r">'+difC(i)+'</td><td>'+lts(i.lotesSep)+'</td><td>'+lts(i.lotesCarga)+(i.loteDiferente?' <span class="neg">lote diferente</span>':'')+'</td></tr>').join('')
     +'</tbody></table>'
@@ -565,9 +566,9 @@ function liberacaoHtml(l){
   const k=l.id.replace(/[^a-z0-9]/gi,'');const dif=l.itens.filter(i=>i.diferenca!==0).length;
   return '<div class="sub" style="padding:8px 10px 4px">Pedido <b>#'+esc(l.nPedido)+'</b> · '+esc(l.cliente)+' · separou <b>'+esc(l.separadoPor||'')+'</b> · mandou pro fiscal '+dh(l.liberacao.pedidoEm)+(l.liberacao.motivo?' · motivo: <b>'+esc(l.liberacao.motivo)+'</b>':'')+' · <span class="neg"><b>'+dif+' de '+l.itens.length+' itens com diferença</b></span></div>'
     +'<table class="t ctb"><thead><tr><th>EAN</th><th>Produto</th><th class="r">Pedido</th><th class="r">Separado</th><th class="r">Diferença</th><th>Lote</th></tr></thead><tbody>'
-    +l.itens.map(i=>'<tr'+(i.diferenca!==0?' style="background:#FDE7E9"':'')+'><td><b>…'+esc(i.ean4)+'</b><div class="sub">'+esc(i.cod)+'</div></td><td class="forn">'+esc(i.descricao)+'</td><td class="r">'+qtd(i.un)+'</td><td class="r">'+qtd(i.separado?i.separado.un:0)+'</td><td class="r '+(i.diferenca<0?'neg':i.diferenca>0?'':'pos')+'"'+(i.diferenca>0?' style="color:#8A5A00"':'')+'><b>'+(i.diferenca===0?'bate':i.diferenca<0?'faltam '+qtd(-i.diferenca):'sobram '+qtd(i.diferenca))+'</b></td><td>'+esc(i.separado&&i.separado.lotes&&i.separado.lotes.length?i.separado.lotes.map(x=>x.lote).join(', '):'—')+'</td></tr>').join('')
+    +l.itens.map(i=>'<tr'+(i.diferenca!==0?' style="background:#FDE7E9"':'')+'><td><b>…'+esc(i.ean4)+'</b><div class="sub">'+esc(i.cod)+'</div></td><td class="forn">'+esc(i.descricao)+'</td><td class="r">'+qtd(i.un)+'</td><td class="r">'+qtd(i.separado?i.separado.un:0)+'</td><td class="r '+(i.diferenca<0?'neg':i.diferenca>0?'':'pos')+'"'+(i.diferenca>0?' style="color:#8A5A00"':'')+'><b>'+(i.diferenca===0?'Conforme':i.diferenca<0?'faltam '+qtd(-i.diferenca):'sobram '+qtd(i.diferenca))+'</b></td><td>'+esc(i.separado&&i.separado.lotes&&i.separado.lotes.length?i.separado.lotes.map(x=>x.lote).join(', '):'—')+'</td></tr>').join('')
     +'</tbody></table>'
-    +'<div class="xajuda" style="padding-top:8px"><div><b>Liberar pro carregamento assim</b> · o pallet vai do jeito que foi separado. O caminhão bate com o que foi separado, não com o pedido. A falta fica registrada.</div><div><b>Devolver pra separação</b> · volta pro separador com a sua observação. Use quando o estoque existe e ele precisa achar.</div></div>'
+    +'<div class="xajuda" style="padding-top:8px"><div><b>Liberar pro carregamento assim</b> · o pallet vai do jeito que foi separado. O carregamento é conferido contra o que foi separado, não contra o pedido. A falta fica registrada.</div><div><b>Devolver pra separação</b> · volta pro separador com a sua observação. Use quando o estoque existe e ele precisa achar.</div></div>'
     +'<div style="display:flex;gap:8px;align-items:center;padding:8px 10px;flex-wrap:wrap"><input id="libObs'+k+'" class="exp-obs" placeholder="observação pro separador / registro (opcional)"><button class="btn btn-amber btn-sm" onclick="decidirLiberacao(\''+esc(l.id)+'\',\'liberar\')">Liberar pro carregamento assim</button><button class="btn btn-sm" onclick="decidirLiberacao(\''+esc(l.id)+'\',\'devolver\')">Devolver pra separação</button></div>';
 }
 let expFiltro='todos';
@@ -584,7 +585,7 @@ function renderExpedicao(){
   $('#cnt').textContent=nLiberar+' pra liberar · '+nDecidir+' pra decidir · '+nVerificar+' pra verificar · '+nLiberados+' liberado(s) hoje';
   let h='<div class="xcomo">'
     +'<div class="st"><div class="n">PASSO 1</div><div class="t">Separação de Pedidos</div><div class="d">Separador vê a lista do pedido, bipa cada produto e digita quanto separou.</div><span class="q">Separador · coletor</span></div>'
-    +'<div class="st"><div class="n">PASSO 2</div><div class="t">Carregamento de Caminhão</div><div class="d">Outra pessoa bipa às cegas o que sobe no caminhão. Tem que bater com a separação.</div><span class="q">Carregador · coletor</span></div>'
+    +'<div class="st"><div class="n">PASSO 2</div><div class="t">Carregamento de Caminhão</div><div class="d">Outra pessoa bipa às cegas o que sobe no caminhão. Tem que ficar conforme a separação.</div><span class="q">Carregador · coletor</span></div>'
     +'<div class="st"><div class="n">PASSO 3</div><div class="t">Você confere e libera</div><div class="d">Pedido × separado × carregado, item a item. Liberar a saída ou mandar reconferir.</div><span class="q voce">Fiscal do CD · aqui</span></div>'
     +'<div class="st"><div class="n">PASSO 4</div><div class="t">Caminhão sai</div><div class="d">Saída liberada fica registrada com quem liberou e vai pro ERP de teste.</div><span class="q">Automático</span></div></div>';
   const dlN=s=>confs.filter(c=>c.status==='dlinks'&&c.dlStatus===s).length;const dlTot=confs.filter(c=>c.status==='dlinks').length;
@@ -618,14 +619,14 @@ function renderExpedicao(){
         +passo(d===4?'done':d===2?'now':'','Fiscal',d===4?'Dlinks':d===2?'no Dlinks':'—',d===2?'aguardando liberação':'')
         +passo(d===4?'done':'','Saída',d===4?'liberada':'—',d===4&&c.liberadoEm?esc(String(c.liberadoEm).slice(0,10).split('-').reverse().slice(0,2).join('/')):'');}   // data vem como 'AAAA-MM-DD': não passar por new Date (vira dia anterior no fuso)
     else if(!duas)jor=passo(s==='fechada'?'done':'now','Conferência',c.fechadoPor||c.nome,s==='fechada'?dh(c.fechadoEm):'em andamento')+passo(s==='fechada'?'done':'','Saída',s==='fechada'?'fechada':'—','');
-    else jor=passo(s==='aguardando_fiscal'?'bad':sep.fechadoEm?'done':'now','Separação',nomeSep||c.nome,sep.fechadoEm?dh(sep.fechadoEm)+tent(sep):s==='aguardando_fiscal'?'não bateu'+tent(sep):'em andamento'+tent(sep))
+    else jor=passo(s==='aguardando_fiscal'?'bad':sep.fechadoEm?'done':'now','Separação',nomeSep||c.nome,sep.fechadoEm?dh(sep.fechadoEm)+tent(sep):s==='aguardando_fiscal'?'divergente'+tent(sep):'em andamento'+tent(sep))
       +(s==='aguardando_fiscal'?passo('now','Fiscal','você','decidir'):'')
       +passo(car.fechadoEm?'done':s==='expedindo'?'now':'','Carregamento',s==='separada'?'—':nomeCar,car.fechadoEm?dh(car.fechadoEm)+tent(car):s==='expedindo'?'em andamento':s==='separada'?(S&&S.decisao==='reconferir'?'reconferir':'falta carregar'):'')
       +(s==='aguardando_fiscal'?'':passo(s==='fechada'?'done':s==='conferida'?'now':'','Fiscal',s==='fechada'?((S||{}).decididoPor||c.fechadoPor):s==='conferida'?'você':'—',s==='fechada'?dh((S||{}).decididoEm||c.fechadoEm):s==='conferida'?'aguardando':''))
       +passo(s==='fechada'?'done':'','Saída',s==='fechada'?'liberada':'—',s==='fechada'?(c.erpErro?'<span class="neg">ERP teste: erro</span>':'ERP teste ✓'):'');
     const DL_SIT={0:['pe-breve','Dlinks · para separação'],1:['pe-breve','Dlinks · em separação'],2:['pe-dl','Dlinks · aguardando liberação'],3:['pe-dec','Dlinks · reconferir'],4:['pe-ok','Dlinks · liberado']};
     const sit=s==='dlinks'?'<span class="pill '+(DL_SIT[c.dlStatus]||['pe-breve','Dlinks'])[0]+'">'+(DL_SIT[c.dlStatus]||['','Dlinks'])[1]+'</span><div class="sub">'+(c.produtos?c.produtos+' de '+c.produtos_pedido+' produtos conferidos no Dlinks':c.produtos_pedido+' itens · nada bipado ainda')+'</div>'
-      :s==='conferida'?'<span class="pill pe-hoje">Liberar saída</span><div class="sub">'+(saida?(saida.divergencias?'<span class="neg">'+saida.divergencias+' de '+saida.itens.length+' itens com diferença</span>':saida.itens.length+' de '+saida.itens.length+' itens bateram'):'carregado '+dh(c.conferidaEm))+'</div>'
+      :s==='conferida'?'<span class="pill pe-hoje">Liberar saída</span><div class="sub">'+(saida?(saida.divergencias?'<span class="neg">'+saida.divergencias+' de '+saida.itens.length+' itens com diferença</span>':saida.itens.length+' de '+saida.itens.length+' itens conformes'):'carregado '+dh(c.conferidaEm))+'</div>'
       :s==='aguardando_fiscal'?'<span class="pill pe-dec">Separou diferente</span><div class="sub">'+(L?L.pendentes+' item(ns) com diferença'+(L.motivo?' · "'+esc(L.motivo)+'"':''):'')+'</div>'
       :s==='separando'?'<span class="pill pe-breve">Separando</span><div class="sub">'+(c.avisoFiscal||(L&&L.decisao==='devolvida')?'devolvido pelo fiscal '+esc((L||{}).decididoPor||'')+' · acertando':'em andamento')+'</div>'
       :s==='separada'?'<span class="pill pe-flag">'+(S&&S.decisao==='reconferir'?'Reconferir carregamento':'Separado · falta carregar')+'</span><div class="sub">'+(S&&S.decisao==='reconferir'?'fiscal '+esc(S.decididoPor||'')+' mandou bipar de novo':L&&L.decisao==='liberada'?'liberado pelo fiscal com '+L.pendentes+' falta(s)':'outra pessoa carrega')+'</div>'
@@ -676,7 +677,7 @@ function renderReceb(){
   h+='<div class="kpis">'+kp.map(([k,l,v,s])=>'<div class="kpi k-'+k+(filtro===k?' on':'')+'" onclick="filtro=\''+k+'\';aberto=null;render()"><div class="v">'+v+'</div><div class="l">'+l+'</div><div class="s">'+s+'</div></div>').join('')+'</div>';
   h+='<div class="auto"><span>🤖 <b>Cruzamento automático:</b> '+all.length+' recebimento(s) analisados · <span class="pos">'+autoOk+' sem divergência</span> · <span class="neg">'+all.filter(r=>r.veredito==='divergente').length+' com divergência</span> · '+all.filter(r=>r.veredito==='pendente').length+' aguardando dados.</span><span class="mut" style="font-size:11px">Tolerâncias: qtd ±'+CFG.tol_qtd_pct+'% (balança ±'+CFG.tol_peso_pct+'%) · preço vs pedido +'+CFG.tol_preco_pct+'% · validade mín. '+CFG.validade_min_dias+' d ou '+CFG.validade_min_pct+'% do normal · boleto mín. '+CFG.boleto_min_dias+' d'+(DADOS.gerado_em?' · gerado '+new Date(DADOS.gerado_em).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'')+'</span></div>';
   h+=scCard();
-  h+='<div class="legend"><span class="chk"><i class="ok">OK</i></span> bate <span class="chk"><i class="aviso">AVISO</i></span> olhar depois <span class="chk"><i class="erro">ERRO</i></span> precisa de decisão <span class="chk"><i class="pendente">…</i></span> ainda sem dado &nbsp;·&nbsp; XML=nota capturada · PED=pedido de compra · QTD=coletor × nota · VAL=validade · BOL=boletos · CAD=cadastro</div>';
+  h+='<div class="legend"><span class="chk"><i class="ok">OK</i></span> conforme <span class="chk"><i class="aviso">AVISO</i></span> olhar depois <span class="chk"><i class="erro">ERRO</i></span> precisa de decisão <span class="chk"><i class="pendente">…</i></span> ainda sem dado &nbsp;·&nbsp; XML=nota capturada · PED=pedido de compra · QTD=coletor × nota · VAL=validade · BOL=boletos · CAD=cadastro</div>';
   if(COL_ATIVO)h+=colcfgHtml();
   let lista=listaVisivel();
   $('#cnt').textContent=lista.length+' de '+all.length;
@@ -991,7 +992,7 @@ function recusasN(d,id){return (d.itens||[]).filter(i=>i.ped_app&&i.ped_app.pedi
 function decCell(d,i){
   const a=i.ped_app; if(!a)return '<span class="mut">—</span>';
   const quando=x=>x?new Date(x).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
-  if(!a.precisa_decisao)return '<span class="mut" style="font-size:11px">'+(a.decisao&&a.decisao.acao?(a.decisao.acao==='recusar'?'✖ recusado':'✓ liberado')+' por '+esc(a.decisao.por||'')+' '+quando(a.decisao.em):a.qtd_ped>0&&a.qtd_xml<a.qtd_ped?'Parcial: vira pendência do fornecedor. Nada a decidir.':'Bate com o pedido. Nada a decidir.')+'</span>';
+  if(!a.precisa_decisao)return '<span class="mut" style="font-size:11px">'+(a.decisao&&a.decisao.acao?(a.decisao.acao==='recusar'?'✖ recusado':'✓ liberado')+' por '+esc(a.decisao.por||'')+' '+quando(a.decisao.em):a.qtd_ped>0&&a.qtd_xml<a.qtd_ped?'Parcial: vira pendência do fornecedor. Nada a decidir.':'Conforme o pedido. Nada a decidir.')+'</span>';
   const fis=a.quem_decide==='fiscal', dc=a.decisao, cod=esc(a.cod).replace(/'/g,'');
   if(dc&&dc.acao){
     const t=dc.acao==='recusar'?'<span class="dcno">✖ Recusado por '+esc(dc.por||'')+' '+quando(dc.em)+' ('+esc(a.motivo_txt||'')+') — devolver</span>':dc.acao==='nao_vem'?'<span class="dcok" style="color:#4E5A72">✓ Não vem mais · por '+esc(dc.por||'')+' '+quando(dc.em)+' (parcial aceito pelo fiscal)</span>':'<span class="dcok">✓ Liberado por '+esc(dc.por||'')+' '+quando(dc.em)+' ('+esc(a.motivo_txt||'')+')</span>';
@@ -1123,7 +1124,7 @@ function arecItens(r){
       a_mais:['Fiscal',fis?'Liberar o excedente ou Recusar · devolver, no item.':'Comprador (a) decide em Pedidos de Compra; use "Avisar".'],
       nao_pedido:['Fiscal',fis?'Item que não estava no pedido: Liberar ou Recusar · devolver, no item.':'Comprador (a) decide em Pedidos de Compra; use "Avisar".'],
       preco:['Fiscal + Financeiro',fis?'Preço da nota acima do combinado: Liberar o preço ou Recusar o item. Não pagar o preço errado.':'Comprador (a) decide; Financeiro não paga o preço errado.'],
-      boleto:['Financeiro','Boletos não batem com a NF-e: não pagar até o fornecedor corrigir.'],sem_boleto:['Financeiro','XML sem duplicata: conferir o boleto com o fornecedor antes de pagar.'],
+      boleto:['Financeiro','Boletos divergentes da NF-e: não pagar até o fornecedor corrigir.'],sem_boleto:['Financeiro','XML sem duplicata: conferir o boleto com o fornecedor antes de pagar.'],
       valor:['Fiscal','Valor da NF-e diferente do esperado: ver preço e quantidade item a item.'],unidade:['Fiscal','A nota veio em caixa/fardo sem unidade: conferir a conversão no recebimento.'],
       afinidade:['Fiscal','Poucos itens da nota estão neste pedido: conferir se a nota é deste pedido.'],vinculo_nome:['Fiscal','Item casado pelo nome (código diferente): confirmar no recebimento.']};
     h+=SecaoXml.secaoXmlLoja({id:r.pedido,fornecedor:r.fornecedor},r.loja,X,{LOJAS_NOMES:{[r.loja]:r.loja_nome},nfeHref:ch=>'/api/fiscal/nfe/'+encodeURIComponent(ch)+'/danfe',oqueFazer:OQ,
