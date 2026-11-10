@@ -525,13 +525,34 @@ if (NO_APP) {
   // telas e modais são montados por innerHTML: acerta os campos assim que entram na página e, por garantia, ao focar
   new MutationObserver(ms => { for (const m of ms) for (const n of m.addedNodes) if (n.nodeType === 1) camposNumericos(n); }).observe(document.body, { childList: true, subtree: true });
   document.addEventListener('focusin', e => camposNumericos(e.target));
-  // saída pra aparelho sem tecla física: tocar de novo no campo que já está com o cursor sobe o teclado só pra ele
+  // saída pra aparelho sem tecla física: DOIS toques seguidos no campo sobem o teclado só pra ele (um toque só não: a
+  // tela de login já abre com o cursor no PIN e o primeiro toque do Tiago subiu o teclado — 10/11)
+  let toqueEm = 0, toqueEl = null;
   document.addEventListener('pointerdown', e => {
-    const el = e.target;
-    if (!semTeclado || !el || !el.dataset || !el.dataset.im || el.dataset.pediu || document.activeElement !== el) return;
+    const el = e.target, agora = Date.now(), duplo = el === toqueEl && agora - toqueEm < 450;
+    toqueEl = el; toqueEm = agora;
+    if (!duplo || !semTeclado || !el || !el.dataset || !el.dataset.im || el.dataset.pediu) return;
     el.dataset.pediu = '1'; el.setAttribute('inputmode', el.dataset.im); el.blur(); setTimeout(() => el.focus(), 0);
   });
 }
+// 10/11 (Tiago: "coloca pra atualizar sozinho"): a página confere a cada minuto se o arquivo dela mudou no servidor e
+// recarrega sozinha — mas só em tela parada (login vazio, listas, fim), sem modal aberto e sem leitura na fila; no meio
+// de uma conferência espera a pessoa sair dela.
+let versaoPagina = null, paginaMudou = false;
+async function conferirVersaoPagina() {
+  try {
+    if (!paginaMudou) {
+      const r = await fetch(location.pathname, { method: 'HEAD', cache: 'no-store' }); if (!r.ok) return;
+      const v = (r.headers.get('etag') || '') + '|' + (r.headers.get('last-modified') || ''); if (v === '|') return;
+      if (versaoPagina === null) { versaoPagina = v; return; }
+      if (v === versaoPagina) return;
+      paginaMudou = true;
+    }
+    const parada = ['notas', 'escolha', 'pedidos', 'fim', 'expFim'].includes(tela) || (tela === 'login' && !$('pin').value);
+    if (parada && !$('modal').innerHTML && !(typeof fila !== 'undefined' && fila.length)) location.reload();
+  } catch (e) {}
+}
+conferirVersaoPagina(); setInterval(conferirVersaoPagina, 60000);
 /** Depois de focar um campo de bipe: sobe o teclado só se a pessoa ligou; senão garante que ele fica escondido. */
 function tecladoSePedido() { if (!VK) return; try { if (semTeclado) VK.hide(); else VK.show(); } catch (e) {} }
 function toggleTeclado() {
