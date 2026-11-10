@@ -275,6 +275,10 @@ app.use((req, res, next) => {
     '/painel-diretoria.html',
     '/painel-cd.html', '/api/painel-cd',
     '/painel-compras.html', '/tv', '/painel-fiscal.html'];
+  // 10/11/2026: atalho /apk pro APK do coletor, sem diferenciar maiúsculas — o endereço comprido digitado no teclado do
+  // coletor (que capitaliza) caía na tela de login e, depois do login, na página inicial em vez do download
+  const caminhoMin = req.path.toLowerCase();
+  if (caminhoMin === '/apk' || caminhoMin === '/apk/' || (caminhoMin === '/coletor-economico.apk' && req.path !== caminhoMin)) return res.redirect('/coletor-economico.apk');
   if (publico.includes(req.path)) return next();
   // Canal de Ética (16/10/26): portal público /etica e /etica/<E1..E6|CD|ADM> (QR por unidade) + API pública; sem login,
   // sem sessão e fora do log de acessos. A retaguarda (/etica.html, /api/etica/*) fica atrás do login + designação (lib/etica-rotas.js).
