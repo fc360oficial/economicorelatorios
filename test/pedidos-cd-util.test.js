@@ -162,4 +162,7 @@ test('caixasPorValor: valor fecha em inteiro → caixas; senão unidades ÷ un/c
   assert.equal(u.caixasPorValor(0, 44, 70, 10), 7);         // sem valor: 70 un ÷ 10
   assert.equal(u.caixasPorValor(250, 44, 7, 10), 0.7);      // valor não fecha em inteiro (5,68): cai na quantidade
   assert.equal(u.caixasPorValor(44, 0, 10, 10), 1);         // sem custo
+  assert.equal(u.caixasPorValor(967.4, 69.1, 180, 12, 15), 15); // leite L1: quantidade bate com o separado, valor diria 14
+  assert.equal(u.caixasPorValor(308, 44, 7, 10, 7), 7);     // quantidade não fecha com o separado: segue pelo valor
+  assert.equal(u.caixasPorValor(967.4, 69.1, 168, 12, 15), 14); // chegou 1 cx a menos de verdade
 });
