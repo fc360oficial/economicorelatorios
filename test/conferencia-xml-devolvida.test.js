@@ -65,3 +65,41 @@ test('devolução de outra compra (itens que não vieram nesta entrega) não fec
   assert.ok(!x.problemas.some(z => z.tipo === 'devolucao'));
   assert.deepEqual(x.notas_fora.map(n => n.nNota), [31451]);
 });
+
+// 10/11/2026 (DIA #218 E2): pedido de 12 un, a nota veio com 12 CAIXAS de 12 e voltou inteira pela contranota espelho. A entrega
+// era convertida pela embalagem (144 un) e a devolução contada crua (12): "devolvido em parte", linha presa em "a caminho".
+test('contranota espelho de nota em CAIXA fecha a loja como devolvida (devolvido na mesma unidade da entrega)', async () => {
+  const cx12 = cfop => [{ nItem: 1, CodigoItemFornec: '', CodigoBarras: '7896004400693', ocEanTrib: '7896004400693', Descricao: 'LEITE DE COCO SOCOCO 500ML', Und: 'CX', Qtd: '12', ValorUnit: '164.99', ValorTotal: '1979.88', ValorDesconto: '0', oqTrib: '12', ovUnTrib: '164.99', CFOP: cfop }];
+  erp(CAB([[1, 2545065, '2026-10-30', '1979,88', 'CHE'], [2, 2545766, '2026-10-30', '1979,88', 'CHD']]), { 2545065: cx12('5102'), 2545766: cx12('1202') });
+  const p = { id: 218, status: 'aprovado', codFornec: 83, fornecedor: 'DIA', lojas: [1], criadoEm: '2026-10-27T17:38:03.682Z', aprovadoEm: '2026-10-27T17:38:03.682Z', cotacao: { id: 4 },
+    itens: [{ cod: '7896004400693', descricao: 'SOCOCO LEITE DE COCO 500ML RTC', unid: 'UN', emb: 12, qtd: 12, lojas_qtd: { 1: 12 }, preco: 13.75 }] };
+  await rodar(p);
+  const x = p.xml.lojas[1];
+  assert.equal(x.status, 'devolvida'); assert.equal(x.devolvida.total, true); assert.deepEqual(x.devolvida.itens, { 7896004400693: 144 });
+  assert.equal(fp.situacaoLoja(p, 1, '2026-11-10').codigo, 'fechado');
+});
+
+// 10/11/2026 (DIA #86 E2, Estivas #169 E2): loja que conciliou sai da rodada; contranota emitida depois não era vista.
+test('loja conciliada cuja nota nunca deu entrada: contranota espelho emitida depois fecha como devolvida', async () => {
+  const dia = n => new Date(Date.now() - n * 864e5).toISOString().slice(0, 10);
+  const p = pedido(); p.aprovadoEm = p.criadoEm = dia(20) + 'T18:00:00.000Z';
+  p.itens = p.itens.slice(0, 2);
+  erp(CAB([[1, 669472, dia(18), '134,88', 'CHV']]), { 669472: ITENS('5102', 24, 24) });
+  await rodar(p);
+  assert.equal(p.xml.lojas[1].status, 'conciliado'); assert.equal(p.status, 'recebido');
+  // sem contranota: nada muda
+  const salvos = [];
+  assert.deepEqual(await cx.verificarDevolvidasDepois({ listar: () => [p], salvar: q => salvos.push(q.id) }), { lojas: 1, devolvidas: 0 });
+  assert.equal(salvos.length, 0); assert.equal(p.xml.lojas[1].status, 'conciliado');
+  // contranota espelho 4 dias depois
+  erp(CAB([[1, 669472, dia(18), '134,88', 'CHV'], [2, 31451, dia(14), '134,88', 'CHD']]), { 669472: ITENS('5102', 24, 24), 31451: ITENS('1202', 24, 24) });
+  assert.deepEqual(await cx.verificarDevolvidasDepois({ listar: () => [p], salvar: q => salvos.push(q.id) }), { lojas: 1, devolvidas: 1 });
+  const x = p.xml.lojas[1];
+  assert.equal(x.status, 'devolvida'); assert.deepEqual(x.devolvida.notas.map(n => n.nNota), [31451]); assert.deepEqual(salvos, [94]);
+  assert.equal(p.xml.status, 'consistencia'); assert.equal(p.status, 'recebido_parcial');
+  assert.equal(fp.situacaoLoja(p, 1, dia(0)).codigo, 'fechado');
+  // nota que já deu entrada na loja não é mexida
+  const q = pedido(); q.aprovadoEm = q.criadoEm = p.aprovadoEm; q.itens = q.itens.slice(0, 2); q.status = 'recebido';
+  q.xml = { status: 'conciliado', lojas: { 1: { status: 'conciliado', notas: [{ nNota: 669472, chave: 'CHV' }], itens: [], chegou: { em: dia(17) } } } };
+  assert.deepEqual(await cx.verificarDevolvidasDepois({ listar: () => [q], salvar: () => {} }), { lojas: 0, devolvidas: 0 });
+});

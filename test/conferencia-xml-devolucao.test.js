@@ -52,7 +52,8 @@ test('conferirTodos: só a venda entra na conferência (36 de cada, bate); as de
   const x = p.xml.lojas[1];
   assert.deepEqual(x.notas.map(n => n.nNota), [53341]);
   assert.deepEqual(x.itens.map(i => [i.cod, i.recebida, i.tipo]), [['7898012860537', 36, 'ok'], ['7898012862371', 36, 'ok']]);
-  assert.equal(x.status, 'conciliado');
+  // desde 28/10/2026 a 53846 (mesmos itens, mesmo valor) é a contranota ESPELHO da 53341: a entrega voltou inteira
+  assert.equal(x.status, 'devolvida'); assert.deepEqual(x.devolvida.notas.map(n => n.nNota), [53846]);
   assert.deepEqual(x.notas_fora.map(n => [n.nNota, n.data, n.valorNFE, n.cfops]), [[53677, '2026-10-09', 375.8, ['1411']], [53846, '2026-10-13', 563.7, ['1411']]]);
   assert.deepEqual(salvos, [108]);
 });
