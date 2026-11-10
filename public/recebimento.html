@@ -481,8 +481,13 @@ function guardar(chave, valor) {
 // LIGADO (modo em que a chave leu em 07/10); o botão "Teclado" desliga e o aparelho lembra (rec_sem_teclado).
 // chave nova (v3): as antigas rec_sem_teclado / rec_com_teclado guardavam "desligado" de versões anteriores e faziam o
 // aparelho abrir sem teclado mesmo com o padrão ligado (log de 15/10 16:00: "teclado:off"). Só vale 'off' gravado agora.
-const LS_SEM_TECLADO = 'rec_teclado_v3';
-let semTeclado = false; try { semTeclado = localStorage.getItem(LS_SEM_TECLADO) === 'off'; localStorage.removeItem('rec_sem_teclado'); localStorage.removeItem('rec_com_teclado'); } catch (e) {}
+// 10/11 (Tiago: "já que tou usando no coletor não acha melhor usar a tecla do coletor?"): dentro do app (WebView do APK)
+// a leitura chega por broadcast (window.leitorNativo), não pelo IME — o teclado na tela deixou de ser necessário. No app o
+// padrão é DESLIGADO (chave própria, pra não herdar o 'on' da época do navegador) e os números vêm da tecla física do
+// KP370 (0-9, ponto, apagar, Enter). Navegador comum segue como antes.
+const NO_APP = /; wv\)/.test(navigator.userAgent);
+const LS_SEM_TECLADO = NO_APP ? 'rec_teclado_app' : 'rec_teclado_v3';
+let semTeclado = false; try { const g = localStorage.getItem(LS_SEM_TECLADO); semTeclado = NO_APP ? g !== 'on' : g === 'off'; localStorage.removeItem('rec_sem_teclado'); localStorage.removeItem('rec_com_teclado'); } catch (e) {}
 const CAMPOS_BIPE = [['bip', 'btnDigitar'], ['bipDanfe', 'btnDigitarDanfe'], ['bipExp', 'btnDigitarExp']];
 // 15/10 (Tiago: "o leitor do coletor não lê… resolva de uma melhor forma"): o scanner da Compex escreve pelo IME, que só
 // existe num campo EDITÁVEL; inputmode="none" tira o IME junto com o teclado e a leitura morre. Com a API de teclado
@@ -498,6 +503,34 @@ function aplicarTeclado(refocar) {
     $(b).setAttribute('aria-pressed', String(!semTeclado));
     if (refocar && document.activeElement === el) { if (VK) tecladoSePedido(); else { el.blur(); el.focus(); } } // sem a API: blur+focus reabre/fecha o teclado
   }
+  for (const el of document.querySelectorAll('input[data-im]')) delete el.dataset.pediu;
+  camposNumericos(document);
+}
+// Campos numéricos fora do bipe (quantidade, embalagem, PIN): no app, com o teclado desligado, ficam sem teclado na tela
+// (inputmode none) e recebem a tecla física do coletor; o inputmode original fica em data-im pra voltar quando ligar.
+// Campo de texto (lote, nome) não entra: continua subindo o teclado sozinho.
+const BIPES = new Set(CAMPOS_BIPE.map(c => c[0]));
+function camposNumericos(raiz) {
+  if (!NO_APP || !raiz.querySelectorAll) return;
+  const lista = [...raiz.querySelectorAll('input[inputmode]')];
+  if (raiz.matches && raiz.matches('input[inputmode]')) lista.push(raiz);
+  for (const el of lista) {
+    if (BIPES.has(el.id)) continue;
+    if (!el.dataset.im) { const im = el.getAttribute('inputmode'); if (im !== 'numeric' && im !== 'decimal') continue; el.dataset.im = im; }
+    const quer = semTeclado && !el.dataset.pediu ? 'none' : el.dataset.im;
+    if (el.getAttribute('inputmode') !== quer) el.setAttribute('inputmode', quer);
+  }
+}
+if (NO_APP) {
+  // telas e modais são montados por innerHTML: acerta os campos assim que entram na página e, por garantia, ao focar
+  new MutationObserver(ms => { for (const m of ms) for (const n of m.addedNodes) if (n.nodeType === 1) camposNumericos(n); }).observe(document.body, { childList: true, subtree: true });
+  document.addEventListener('focusin', e => camposNumericos(e.target));
+  // saída pra aparelho sem tecla física: tocar de novo no campo que já está com o cursor sobe o teclado só pra ele
+  document.addEventListener('pointerdown', e => {
+    const el = e.target;
+    if (!semTeclado || !el || !el.dataset || !el.dataset.im || el.dataset.pediu || document.activeElement !== el) return;
+    el.dataset.pediu = '1'; el.setAttribute('inputmode', el.dataset.im); el.blur(); setTimeout(() => el.focus(), 0);
+  });
 }
 /** Depois de focar um campo de bipe: sobe o teclado só se a pessoa ligou; senão garante que ele fica escondido. */
 function tecladoSePedido() { if (!VK) return; try { if (semTeclado) VK.hide(); else VK.show(); } catch (e) {} }
@@ -505,7 +538,8 @@ function toggleTeclado() {
   semTeclado = !semTeclado;
   try { localStorage.setItem(LS_SEM_TECLADO, semTeclado ? 'off' : 'on'); } catch (e) {}
   aplicarTeclado(true); esconderDicaLeitor();
-  toast(semTeclado ? 'Teclado desligado.' : 'Teclado ligado. Se o scanner só escrever com ele, deixe ligado.');
+  const foco = document.activeElement; if (NO_APP && foco && foco.dataset && foco.dataset.im) { foco.blur(); foco.focus(); }
+  toast(semTeclado ? (NO_APP ? 'Teclado da tela desligado. Use as teclas do coletor.' : 'Teclado desligado.') : (NO_APP ? 'Teclado da tela ligado.' : 'Teclado ligado. Se o scanner só escrever com ele, deixe ligado.'));
 }
 // 15/10 (Tiago: "o leitor do coletor não lê"): com o teclado desligado o scanner da Compex, se não estiver em Emukey,
 // não escreve nada e ninguém percebe — o log do dia fica sem um bipe sequer. Se uma tela de bipe fica 20 s sem receber
@@ -513,7 +547,7 @@ function toggleTeclado() {
 let ultLeitura = 0, timerDica = null;
 function armarDicaLeitor(t) {
   clearTimeout(timerDica); esconderDicaLeitor();
-  if (!['danfe', 'bipagem', 'exp'].includes(t) || !semTeclado) return;
+  if (!['danfe', 'bipagem', 'exp'].includes(t) || !semTeclado || NO_APP) return;   // no app o leitor não depende do teclado
   const abriu = Date.now();
   timerDica = setTimeout(() => { if (tela === t && ultLeitura < abriu && semTeclado && !$('modal').innerHTML) $('dicaLeitor').hidden = false; }, 20000);
 }
@@ -1707,7 +1741,7 @@ if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').cat
 window.addEventListener('online', () => setNet(true));
 window.addEventListener('offline', () => setNet(false));
 
-aplicarTeclado(false); // teclado LIGADO por padrão (o leitor da Compex só entrega com ele visível); desligado só se este aparelho pediu
+aplicarTeclado(false); // navegador: teclado LIGADO por padrão (o leitor da Compex só entrega com ele visível); app: desligado, tecla física
 
 if (sess && sess.token) iniciar();
 </script>
