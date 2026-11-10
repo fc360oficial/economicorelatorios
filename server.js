@@ -8785,8 +8785,11 @@ setInterval(() => {
   const slot = agora.toISOString().slice(0, 10) + ' ' + hm;
   if (!HORAS_CARGA.includes(hm) || ultimaCargaSlot === slot) return;
   ultimaCargaSlot = slot;
-  precificacao.enviarCargasPendentes(escreverERP, 'CARGA ' + hm)
-    .then(r => { if (r.enviados || r.erros || r.ids.length) console.log('[PRECIF] carga agendada ' + hm + ':', JSON.stringify(r)); })
+  // Listas do robô (Processos › Robô de Precificação) não vão sozinhas: ficam aguardando o setor de precificação aprovar
+  // (Tiago, 10/11/26). As demais seguem como antes. TODO: mensagem pra quem aprova (canal a definir com o Tiago).
+  const idsRobo = new Set((roboPrecif.getParams().listas || []).flatMap(l => l.ids || []).map(Number));
+  precificacao.enviarCargasPendentes(escreverERP, 'CARGA ' + hm, { exigeAprovacao: r => idsRobo.has(+r.lista) })
+    .then(r => { if (r.enviados || r.erros || r.ids.length || r.aguardando.length) console.log('[PRECIF] carga agendada ' + hm + ':', JSON.stringify(r)); })
     .catch(e => console.error('[PRECIF] carga agendada ' + hm + ':', e.message));
 }, 30 * 1000);
 pedidosFornec.setHooks({ onConciliado: (p, ln) => precificacao.criarDeConciliacao(p, ln).catch(e => console.error('[PRECIF] criar', p.id, ln, e.message)) });
