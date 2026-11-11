@@ -415,7 +415,7 @@ body{font-family:var(--font);background:var(--pap);color:var(--ink);font-size:14
     <button class="voltar" onclick="voltarNotas()" title="Voltar">‹</button>
     <div class="logo"><img src="/logo-supermercados-transp.png" alt="Econômico Supermercados"></div>
     <div class="ttl"><div class="t" id="bTitulo">—</div><div class="s" id="bSub">—</div></div>
-    <div class="tot"><b id="pProd">0</b> prod<br><b id="pUn">0</b> un</div>
+    <div class="tot"><b id="pProd">0</b> prod<br><b id="pUn">0</b> <span id="pUnL">un</span></div>
     <button class="menu" type="button" onclick="abrirMenuBip()" title="Terminei, central, corrigir">⋮<span class="bdg" id="bBadge" hidden></span></button>
   </div>
   <div class="corpo">
@@ -1295,7 +1295,10 @@ function renderBip() {
   $('bTitulo').textContent = visao.fornecedor || '—';
   $('bSub').innerHTML = esc('NF-e ' + visao.nNota + ' · Loja ' + sess.loja) + (notaAtual && notaAtual.tipo === 'devolucao' ? ` <span class="pill ${PILL.devolucao[0]}"><i></i>${esc(PILL.devolucao[1])}</span>` : '');
   $('pProd').textContent = visao.produtos;
-  $('pUn').textContent = num(visao.unidades);
+  // total do topo: item que entrou pela caixa conta em CAIXAS (Tiago, 11/11: "não quero com unidades")
+  { const its = visao.itens || [], cx = i => !!i.caixa && +i.emb > 1, nCx = its.filter(cx).length;
+    $('pUn').textContent = num(+its.reduce((a, i) => a + (cx(i) ? +i.quant || 0 : +i.un || 0), 0).toFixed(3));
+    $('pUnL').textContent = !nCx ? 'un' : nCx === its.length ? 'cx' : 'vol'; }
   // Lista do que veio na nota (06/10/26, Tiago): só código e descrição, NUNCA quantidade — e nunca
   // "bateu/não bateu" por item antes do Terminei, senão a quantidade vaza pelo status.
   const naNota = visao.nota_itens || [];
@@ -1323,7 +1326,7 @@ function renderBip() {
 // Quando a contagem fecha em caixas inteiras, o número grande é a caixa ("200 cx") e a unidade vai embaixo.
 function qtdItem(i) {
   const emb = +i.emb || 1, q = +i.quant || 0, un = +i.un || 0;
-  if (emb > 1 && Math.abs(q * emb - un) < 0.001) return { n: num(q), l: esc(String(i.emb_label && i.emb_label !== 'UN' ? i.emb_label : 'CX').toLowerCase()), sub: 'c/ ' + num(emb) + (i.caixa ? '' : ' = ' + num(un) + ' un') };
+  if (emb > 1 && Math.abs(q * emb - un) < 0.001) return { n: num(q), l: esc(String(i.emb_label && i.emb_label !== 'UN' ? i.emb_label : 'CX').toLowerCase()), sub: i.caixa ? '' : 'c/ ' + num(emb) + ' = ' + num(un) + ' un' };
   return { n: num(un), l: 'un', sub: num(q) + ' × ' + num(emb) };
 }
 // Tiago, 11/11: "o produto entrou em caixa... foi bipada a caixa, então era pra tá a caixa". Item bipado pela caixa
@@ -1340,7 +1343,7 @@ function cartaoUltimo(i) {
   return `<button type="button" class="ultimo ${e[0]}" data-cod="${esc(i.cod)}" onclick="corrigirItem(this.dataset.cod)">
     <div class="t">Último bipe${e[1] ? ' · ' + esc(e[1]) : ''}</div>
     <div class="d">${esc(descItem(i))}</div>
-    <div class="q">${(f => `<b>${f.n}</b><span>${f.l} · ${f.sub}</span>`)(qtdItem(i))}</div>
+    <div class="q">${(f => `<b>${f.n}</b><span>${f.l}${f.sub ? ' · ' + f.sub : ''}</span>`)(qtdItem(i))}</div>
     <div class="m">${esc(metaItem(i, false))} · toque pra corrigir</div></button>`;
 }
 // Menu da barra (⋮): o que antes eram três botões no topo da tela.
@@ -1532,7 +1535,7 @@ function escolherCorrigir() {
   const itens = (visao && visao.itens) || [];
   if (!itens.length) { toast('Nada bipado ainda.'); return; }
   abrirModal('<h3>Corrigir qual produto?</h3>' + itens.slice().reverse().map(i =>
-    `<button class="nota" data-cod="${esc(i.cod)}" onclick="corrigirItem(this.dataset.cod)"><div class="f">${esc(descItem(i))}</div><div class="m">${esc(i.caixa || i.cod)} · ${(f => `<b>${f.n} ${f.l}</b> (${f.sub})`)(qtdItem(i))}</div></button>`).join('') +
+    `<button class="nota" data-cod="${esc(i.cod)}" onclick="corrigirItem(this.dataset.cod)"><div class="f">${esc(descItem(i))}</div><div class="m">${esc(i.caixa || i.cod)} · ${(f => `<b>${f.n} ${f.l}</b>${f.sub ? ' (' + f.sub + ')' : ''}`)(qtdItem(i))}</div></button>`).join('') +
     '<button class="btn btn-secondary blk" onclick="fecharModal()">Cancelar</button>');
 }
 function corrigirItem(cod) {
