@@ -66,3 +66,15 @@ test('separação EM ANDAMENTO: reconferir só o item marcado limpa só ele e av
   const d = E.obter(c.id); assert.deepEqual(Object.keys(d.etapas.separacao.itens), ['7891150097605']); assert.equal(d.separacoesAnteriores[0].parcial, true);
   const v = E.visao(c.id, MARIA); assert.equal(v.separados, 1); assert.equal(v.avisoFiscal.itens.length, 1);
 });
+
+test('Tirar da coletagem: item bipado com Emb diferente em cada bipe sai inteiro, sem sobrar unidade presa (11/11/26, pedido 7906, Sonho 0 x 4 = 9)', async () => {
+  const id = await ateCarregar();
+  await E.bipar(id, { cod: '27896013105897', quant: 2, emb: 4, operador: JOAO });   // 8 un
+  await E.bipar(id, { cod: '27896013105897', quant: 1, emb: 1, operador: JOAO });   // +1 = 9 un, quant 3, Emb do item vira 1
+  E.tirar(id, { cod: '27896013105897', operador: JOAO });                           // tira tudo
+  assert.ok(!E.obter(id).etapas.expedicao.itens['27896013105897'], 'o item some inteiro');
+  const b = await E.bipar(id, { cod: '27896013105897', quant: 2, emb: 1, operador: JOAO }); assert.equal(b.resultado, 'ok'); assert.equal(b.item.un, 2);
+  // tirar parte continua baixando quant x Emb
+  await E.bipar(id, { cod: '999', quant: 5, emb: 2, operador: JOAO });
+  E.tirar(id, { cod: '999', quant: 2, operador: JOAO }); assert.equal(E.obter(id).etapas.expedicao.fora['999'].un, 6);
+});

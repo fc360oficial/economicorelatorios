@@ -487,7 +487,10 @@ function guardar(chave, valor) {
 // KP370 (0-9, ponto, apagar, Enter). Navegador comum segue como antes.
 const NO_APP = /; wv\)/.test(navigator.userAgent);
 const LS_SEM_TECLADO = NO_APP ? 'rec_teclado_app' : 'rec_teclado_v3';
-let semTeclado = false; try { const g = localStorage.getItem(LS_SEM_TECLADO); semTeclado = NO_APP ? g !== 'on' : g === 'off'; localStorage.removeItem('rec_sem_teclado'); localStorage.removeItem('rec_com_teclado'); } catch (e) {}
+// 11/11 (Tiago: "teclado ainda volta a abrir na expedição e no recebimento, algo que já tinha tirado"): o diagnóstico
+// mostrou o coletor com o botão Teclado LIGADO e gravado no aparelho (ls=on) — um toque no botão e o teclado da tela
+// voltava pra sempre. No app o ligado agora vale só até a página recarregar: abriu o app, teclado desligado.
+let semTeclado = false; try { const g = localStorage.getItem(LS_SEM_TECLADO); semTeclado = NO_APP ? true : g === 'off'; if (NO_APP && g === 'on') localStorage.removeItem(LS_SEM_TECLADO); localStorage.removeItem('rec_sem_teclado'); localStorage.removeItem('rec_com_teclado'); } catch (e) {}
 const CAMPOS_BIPE = [['bip', 'btnDigitar'], ['bipDanfe', 'btnDigitarDanfe'], ['bipExp', 'btnDigitarExp']];
 // 15/10 (Tiago: "o leitor do coletor não lê… resolva de uma melhor forma"): o scanner da Compex escreve pelo IME, que só
 // existe num campo EDITÁVEL; inputmode="none" tira o IME junto com o teclado e a leitura morre. Com a API de teclado
@@ -575,10 +578,10 @@ conferirVersaoPagina(); setInterval(conferirVersaoPagina, 60000);
 function tecladoSePedido() { if (!VK) return; try { if (semTeclado) VK.hide(); else VK.show(); } catch (e) {} }
 function toggleTeclado() {
   semTeclado = !semTeclado;
-  try { localStorage.setItem(LS_SEM_TECLADO, semTeclado ? 'off' : 'on'); } catch (e) {}
+  if (!NO_APP) { try { localStorage.setItem(LS_SEM_TECLADO, semTeclado ? 'off' : 'on'); } catch (e) {} }   // no app o ligado não fica gravado
   aplicarTeclado(true); esconderDicaLeitor();
   const foco = document.activeElement; if (NO_APP && foco && foco.dataset && foco.dataset.im) { foco.blur(); foco.focus(); }
-  toast(semTeclado ? (NO_APP ? 'Teclado da tela desligado. Use as teclas do coletor.' : 'Teclado desligado.') : (NO_APP ? 'Teclado da tela ligado.' : 'Teclado ligado. Se o scanner só escrever com ele, deixe ligado.'));
+  toast(semTeclado ? (NO_APP ? 'Teclado da tela desligado. Use as teclas do coletor.' : 'Teclado desligado.') : (NO_APP ? 'Teclado da tela ligado só por agora. Ele desliga sozinho ao reabrir o app.' : 'Teclado ligado. Se o scanner só escrever com ele, deixe ligado.'));
 }
 // 15/10 (Tiago: "o leitor do coletor não lê"): com o teclado desligado o scanner da Compex, se não estiver em Emukey,
 // não escreve nada e ninguém percebe — o log do dia fica sem um bipe sequer. Se uma tela de bipe fica 20 s sem receber
