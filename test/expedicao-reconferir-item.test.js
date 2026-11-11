@@ -78,3 +78,18 @@ test('Tirar da coletagem: item bipado com Emb diferente em cada bipe sai inteiro
   await E.bipar(id, { cod: '999', quant: 5, emb: 2, operador: JOAO });
   E.tirar(id, { cod: '999', quant: 2, operador: JOAO }); assert.equal(E.obter(id).etapas.expedicao.fora['999'].un, 6);
 });
+
+test('fiscal EXCLUI pela retaguarda o produto bipado fora da separação: sai do carregamento, fica registrado e aparece como excluído (11/11/26, pedido 7906, código 46669950)', async () => {
+  const id = await ateCarregar();
+  await E.bipar(id, { cod: '27896013105897', quant: 2, emb: 1, operador: JOAO });
+  await E.bipar(id, { cod: '999', quant: 3, emb: 1, operador: JOAO });   // fora da separação
+  assert.equal(E.terminei(id, { operador: JOAO }).fechou, false, 'com produto fora o carregamento não fecha');
+  assert.throws(() => E.excluirFora(id, { cod: '7891150097605', nome: 'tiago' }), /não está bipado fora/, 'item do pedido não se exclui por aqui');
+  const r = E.excluirFora(id, { cod: '999', nome: 'tiago freire', obs: 'leitura cortada' });
+  assert.equal(r.excluido.un, 3); assert.equal(r.excluido.nome, 'TIAGO FREIRE'); assert.equal(r.excluido.bipadoPor, 'JOAO');
+  const d = E.detalhe(id);
+  assert.ok(!d.itens.some(i => i.cod === '999'), 'sai da lista de itens');
+  assert.deepEqual(d.excluidos.map(x => [x.cod, x.un, x.por, x.obs]), [['999', 3, 'TIAGO FREIRE', 'leitura cortada']]);
+  assert.equal(E.terminei(id, { operador: JOAO }).fechou, true); assert.equal(E.obter(id).status, 'conferida');
+  assert.equal(E.detalhe(id).excluidos.length, 1, 'continua mostrando depois de fechar');
+});
