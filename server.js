@@ -9627,7 +9627,7 @@ app.post('/api/pedido-publico/:token/finalizar', (req, res) => {
   // Regra do Tiago (23/09/2026): pedido com avaria pendente só finaliza depois que o vendedor responde sobre as avarias
   if ((p0.avarias?.itens || []).length && !String(p0.avarias.resposta_vendedor || '').trim()) return res.status(400).json({ error: 'Responda sobre as avarias pendentes antes de finalizar o pedido.' });
   const p = pedidosFornec.finalizar(req.params.token, req.body.nome);
-  if (p && p.cadastro_vendedor && !p.ensaio) aplicarCadastroVendedor({ lista: p.lista }, { codFornecErp: p.codFornec, codFornec: p.codFornec, empresa: p.fornecedor, nome: p.fornecedor, vendedor: p.vendedor, cadastro_vendedor: p.cadastro_vendedor });   // fica salvo no fornecedor (Tiago, 06/10)
+  if (p && p.cadastro_vendedor && !p.ensaio) aplicarCadastroVendedor({ lista: p.lista, pedido: p.id, pedido_teste: !!p.teste, cotacao: p.cotacao && p.cotacao.id ? { id: p.cotacao.id, nome: p.cotacao.nome || null } : null }, { codFornecErp: p.codFornec, codFornec: p.codFornec, empresa: p.fornecedor, nome: p.fornecedor, vendedor: p.vendedor, cadastro_vendedor: p.cadastro_vendedor });   // fica salvo no fornecedor (Tiago, 06/10); pedido/cotação identificam a atualização na tela Vendedores (10/11); pedido de exemplo não entra na fila (revisão 10/11)
   res.json(pedidosFornec.visaoVendedor(p));
 });
 
@@ -10224,7 +10224,9 @@ async function carregarFornMinimoErp() {
   } catch (e) { console.error('[COTAÇÃO] faturamento mínimo do ERP:', e.message); }
 }
 setTimeout(carregarFornMinimoErp, 15 * 1000); setInterval(carregarFornMinimoErp, 6 * 3600 * 1000);
-const cotDetalhe = c => { const antes = new Set(cotacao.listar().filter(x => x.id !== c.id && x.criadoEm < c.criadoEm && !x.teste).flatMap(x => x.fornecedores.map(f => f.codFornec))); const cmp = cotacao.comparativo(c), realizados = cotacao.fornecedoresRealizados(c); return { ...c, comparativo: cmp, pendentes_reais: c.status === 'aberta' ? cotacao.pendentesReais(c, cmp).map(f => ({ codFornec: f.codFornec, nome: f.nome })) : [], pode_encerrar: cotacao.podeEncerrar(c, cmp), itens_repetidos: cotacao.itensRepetidos(c), prePedidos: cotacao.prePedidos(c, { minimoErp: COT_FORN_MIN, lista: radarPedidos.listaCadastro(c.lista) }), fornecedores: c.fornecedores.map(f => ({ ...f, precos: undefined, link: linkCotacao(f), cotados: c.itens.filter(i => f.precos[i.cod]?.preco > 0).length, novo: !antes.has(f.codFornec), pedido_realizado: realizados.has(f.codFornec) ? (realizados.get(f.codFornec) === true ? 0 : realizados.get(f.codFornec)) : null, canal: portalForn.canalDe(c, f) })), canais: portalForn.resumoCanais(c) }; };
+// canal (app / WhatsApp + recibo) vai em `fornecedores` E nas linhas do comparativo: Monitor › Fornecedores convidados e Comparativo › Não
+// digitados montam o status pelo comparativo e precisam saber quem tem o app ("Aviso no app pendente", revisão 3, 10/11)
+const cotDetalhe = c => { const antes = new Set(cotacao.listar().filter(x => x.id !== c.id && x.criadoEm < c.criadoEm && !x.teste).flatMap(x => x.fornecedores.map(f => f.codFornec))); const cmp = cotacao.comparativo(c), realizados = cotacao.fornecedoresRealizados(c); const canais = {}; for (const f of c.fornecedores) canais[f.codFornec] = portalForn.canalDe(c, f); cmp.fornecedores = (cmp.fornecedores || []).map(f => ({ ...f, canal: canais[f.codFornec] || null })); return { ...c, comparativo: cmp, pendentes_reais: c.status === 'aberta' ? cotacao.pendentesReais(c, cmp).map(f => ({ codFornec: f.codFornec, nome: f.nome })) : [], pode_encerrar: cotacao.podeEncerrar(c, cmp), itens_repetidos: cotacao.itensRepetidos(c), prePedidos: cotacao.prePedidos(c, { minimoErp: COT_FORN_MIN, lista: radarPedidos.listaCadastro(c.lista) }), fornecedores: c.fornecedores.map(f => ({ ...f, precos: undefined, link: linkCotacao(f), cotados: c.itens.filter(i => f.precos[i.cod]?.preco > 0).length, novo: !antes.has(f.codFornec), pedido_realizado: realizados.has(f.codFornec) ? (realizados.get(f.codFornec) === true ? 0 : realizados.get(f.codFornec)) : null, canal: canais[f.codFornec] })), canais: portalForn.resumoCanais(c) }; };
 
 app.get('/api/cotacoes', (req, res) => {
   try {
@@ -10371,23 +10373,64 @@ try { console.log('[VENDEDORES]', JSON.stringify(vendedores.init({ lerCotForn: (
 vendedores.registrarRotas(app);
 // O que o vendedor preencheu em "Estamos atualizando nosso cadastro" vai pro cadastro da lista (aba Fornecedores) ao enviar a
 // proposta (Tiago, 23/09/26): e-mail do vendedor, condição "Boleto N dias", prazo de entrega e faturamento mínimo.
+// 10/11/26 (Tiago: "essas atualizações de cadastro que vendedores coloca já tem que chegar pra gente atualizar"): isso era aplicado
+// em silêncio e ninguém da equipe via, então ninguém levava pro ERP (o sistema nunca escreve lá). Agora o antes/depois dos 5 campos
+// vira um registro em vendedores.registrarAtualizacao, pendente até alguém tratar na tela Vendedores (GET /api/vendedores/atualizacoes).
+// `c` é a cotação ({ id, nome, lista, teste }) ou, vindo de um pedido, { lista, pedido: id, pedido_teste, cotacao: { id, nome } | null }.
 function aplicarCadastroVendedor(c, f) {
   try {
     const cv = f && f.cadastro_vendedor; if (!cv || !c || !c.lista) return;
+    const teste = !!(c.teste || (c.cotacao && c.cotacao.teste) || c.pedido_teste);   // exemplo de teste: a lista recebe como sempre, o cadastro único e a fila da equipe não (revisão 10/11, achado 22)
     const todos = lerCotForn(); const lista = todos[c.lista] = Array.isArray(todos[c.lista]) ? todos[c.lista] : [];
     const codErp = f.codFornecErp || f.codFornec; let cad = lista.find(x => codErp && x.codFornec === codErp) || lista.find(x => x.nome === (f.empresa || f.nome));
-    if (!cad) { cad = { codFornec: codErp || null, nome: f.empresa || f.nome || '', vendedor: { nome: f.vendedor?.nome || '', whats: String(f.vendedor?.whats || '').replace(/\D/g, ''), email: f.vendedor?.email || '' } }; lista.push(cad); }   // Tiago, 06/10: fornecedor sem cadastro na lista ganha um (pedido do Radar)
-    const w = String(f.vendedor?.whats || '').replace(/\D/g, ''), nm = String(f.vendedor?.nome || '').trim().toLowerCase();
-    const alvo = [cad.vendedor].concat(cad.vendedores || []).find(v => v && ((w && String(v.whats || '').replace(/\D/g, '') === w) || (nm && String(v.nome || '').trim().toLowerCase() === nm))) || cad.vendedor;
+    const soDig = x => String(x || '').replace(/\D/g, ''), normW = x => (typeof vendedores.normWhats === 'function' && vendedores.normWhats(x)) || soDig(x);
+    const w = normW(f.vendedor?.whats), nm = String(f.vendedor?.nome || '').trim().toLowerCase();
+    // revisão 10/11 (achado 1): vendedor EXCLUÍDO do cadastro único ainda tem o link da cotação / do pedido aberto — a cópia dele não volta
+    // pra lista por aqui e o que ele digita não cai no vendedor que ficou. A cópia alvo casa pelo número (atual ou antigo, pelo cadastro
+    // único) ou pelo nome; sem cópia que case, só condição / prazo / mínimo (que são do fornecedor) entram, e-mail e WhatsApp não.
+    // Cópia sem nome e sem número (lista antiga) cai no vendedor principal, como antes.
+    const naLapide = typeof vendedores.excluido === 'function' && !!vendedores.excluido(w, f.vendedor?.nome, codErp);
+    if (!cad) { cad = { codFornec: codErp || null, nome: f.empresa || f.nome || '', vendedor: naLapide ? { nome: '', whats: '', email: '' } : { nome: f.vendedor?.nome || '', whats: soDig(f.vendedor?.whats), email: f.vendedor?.email || '' } }; lista.push(cad); }   // Tiago, 06/10: fornecedor sem cadastro na lista ganha um (pedido do Radar)
+    const reg = w && typeof vendedores.porWhats === 'function' ? vendedores.porWhats(w) : null;
+    const nums = new Set([w].concat(reg ? [reg.whats].concat(reg.antigos || []) : []).filter(Boolean));
+    const alvo = [cad.vendedor].concat(cad.vendedores || []).find(v => v && ((nums.size && nums.has(normW(v.whats))) || (nm && String(v.nome || '').trim().toLowerCase() === nm))) || (!w && !nm ? cad.vendedor : null);
     const alvoAntes = alvo ? { nome: alvo.nome, whats: alvo.whats, email: alvo.email } : null;   // pro cadastro único seguir a correção do vendedor (26/10)
+    const foto = () => ({ email: (alvo && alvo.email) || '', whats: soDig(alvo && alvo.whats), condicao: cad.condicao || '', prazo_entrega: cad.prazo_entrega ?? '', faturamento_minimo: cad.faturamento_minimo ?? '' });
+    const antes = foto();
+    // o que já se sabe DO VENDEDOR, além do cadastro desta lista (revisão 10/11, achado 2): numa lista nova o cadastro nasce vazio e a página
+    // vem pré-preenchida com a proposta anterior (cotacao.cadastroSugerido), então tudo voltava como pendência "— → valor" a cada lista.
+    // E-mail / WhatsApp: cadastro único; condição / entrega / mínimo: último bloco que ele (ou a empresa) informou. Só o que difere vira pendência.
+    let sug = null; try { sug = cotacao.cadastroSugerido(c, { ...f, cadastro_vendedor: null }) || null; } catch (e) { sug = null; }
+    const sabido = { email: alvo ? ((reg && reg.email) || (sug && sug.mesmo_vendedor && sug.email) || '') : '', whats: alvo ? ((reg && reg.whats) || '') : '', condicao: sug && sug.prazo_pagamento > 0 ? 'Boleto ' + sug.prazo_pagamento + ' dias' : '', prazo_entrega: sug && sug.prazo_entrega != null ? sug.prazo_entrega : '', faturamento_minimo: sug && sug.pedido_minimo != null ? sug.pedido_minimo : '' };
     if (alvo && cv.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cv.email)) alvo.email = cv.email;
-    if (alvo && cv.whats && String(cv.whats).replace(/\D/g, '').length >= 10) alvo.whats = String(cv.whats).replace(/\D/g, '');
+    if (alvo && cv.whats && soDig(cv.whats).length >= 10) alvo.whats = soDig(cv.whats);
     if (cv.prazo_pagamento) cad.condicao = 'Boleto ' + cv.prazo_pagamento + ' dias';
     if (cv.prazo_entrega != null) cad.prazo_entrega = cv.prazo_entrega;
     if (cv.pedido_minimo != null) cad.faturamento_minimo = cv.pedido_minimo;
+    const depois = foto();
     cad.cadastro_vendedor_em = new Date().toISOString(); cad.cadastro_vendedor_por = f.vendedor?.nome || null;
     fs.mkdirSync(path.dirname(COT_FORN_PATH), { recursive: true }); fs.writeFileSync(COT_FORN_PATH, JSON.stringify(todos, null, 2));
-    if (alvo) try { vendedores.corrigirPorCopia(alvoAntes, alvo, { codFornec: codErp, empresa: cad.nome }); } catch (e2) { console.error('[VENDEDORES] cadastro do vendedor:', e2.message); }
+    if (alvo && !teste) try {
+      const rc = vendedores.corrigirPorCopia(alvoAntes, alvo, { codFornec: codErp, empresa: cad.nome });
+      // número que o cadastro único recusou (é de outro vendedor ativo ou de um excluído) não pode ficar só na cópia da lista, senão lista
+      // e cadastro divergem (a linha some da tela Vendedores, Absorver não regulariza); desfaz na cópia e a pendência "WhatsApp: de → para"
+      // sai do mesmo jeito pra equipe decidir (revisão 3, 10/11). Relê o arquivo porque corrigirPorCopia pode ter propagado o e-mail.
+      if (rc && (rc.numero_de_excluido || rc.numero_de_outro) && alvoAntes && soDig(alvo.whats) !== soDig(alvoAntes.whats)) {
+        const wRec = soDig(alvo.whats); alvo.whats = alvoAntes.whats;
+        const t2 = lerCotForn(), l2 = Array.isArray(t2[c.lista]) ? t2[c.lista] : [], cad2 = l2.find(x => codErp && x.codFornec === codErp) || l2.find(x => x.nome === cad.nome);
+        const v2 = cad2 && [cad2.vendedor].concat(cad2.vendedores || []).find(v => v && soDig(v.whats) === wRec);
+        if (v2) { v2.whats = alvoAntes.whats; fs.writeFileSync(COT_FORN_PATH, JSON.stringify(t2, null, 2)); }
+      }
+    } catch (e2) { console.error('[VENDEDORES] cadastro do vendedor:', e2.message); }
+    if (teste) return;   // vendedor de exemplo não vira pendência pra equipe nem entra no cadastro único
+    // o que mudou vai pra fila de atualizações da equipe; nunca derruba a rota. "Vazio → preenchido" só quando o valor não era sabido
+    // (ver `sabido`); o "de" mostra o que se sabia, pra equipe ver de onde pra onde foi
+    const ROTULOS = { email: 'E-mail', whats: 'WhatsApp', condicao: 'Condição (boleto)', prazo_entrega: 'Prazo de entrega (dias)', faturamento_minimo: 'Pedido mínimo (R$)' };
+    const S = x => String(x ?? '');
+    const campos = Object.keys(ROTULOS).filter(k => S(antes[k]) !== S(depois[k]) && !(antes[k] === '' && S(sabido[k]) === S(depois[k]))).map(k => ({ campo: k, rotulo: ROTULOS[k], de: antes[k] !== '' ? antes[k] : (sabido[k] !== '' ? sabido[k] : null), para: depois[k] === '' ? null : depois[k] }));
+    if (campos.length) try {
+      vendedores.registrarAtualizacao({ cotacao: c.id ? { id: c.id, nome: c.nome || null } : (c.cotacao && c.cotacao.id ? { id: c.cotacao.id, nome: c.cotacao.nome || null } : null), pedido: c.pedido ? { id: c.pedido } : null, lista: c.lista, codFornec: codErp || null, fornecedor: cad.nome || null, vendedor: { nome: (alvo && alvo.nome) || f.vendedor?.nome || null, whats: (alvo && alvo.whats) || f.vendedor?.whats || null }, campos });
+    } catch (e3) { console.error('[VENDEDORES] atualização de cadastro:', e3.message); }
   } catch (e) { console.error('[COTACAO] cadastro do vendedor:', e.message); }
 }
 app.get('/api/cotacoes/lista/:lista/fornecedores', async (req, res) => {
@@ -10769,9 +10812,15 @@ app.post('/api/cotacoes/:id/pre-pedido/:codFornec/realizar', async (req, res) =>
 // prazo da cotação com data e hora; adiar libera os vendedores bloqueados (Tiago, 23/09/26)
 app.post('/api/cotacoes/:id/prazo', (req, res) => {
   const id = cotId(req); if (!id) return res.status(400).json({ error: 'id inválido' });
+  const antes = cotacao.obter(id), prazoAntes = antes ? cotacao.normPrazo(antes.prazo) : null;   // pra saber se o prazo mudou mesmo (revisão 10/11, achado 9)
   const r = cotacao.setPrazo(id, req.body?.prazo, cotUser(req));
   if (!r) return res.status(404).json({ error: 'cotação não encontrada' });
   if (r.erro) return res.status(409).json({ error: r.erro });
+  // prazo novo: o lembrete "2 h antes" do portal volta a valer com o prazo novo (Tiago, 10/11/26: "a mensagem precisa chegar"). Só quando o
+  // prazo realmente mudou: o card do Acompanhamento vem com o prazo atual preenchido e "Salvar prazo" sem mexer zerava o lembrete já mandado,
+  // e o vendedor recebia o mesmo "Prazo acaba em X" de novo (revisão 10/11, achado 9)
+  const prazoMudou = cotacao.normPrazo(r.prazo) !== prazoAntes;
+  if (prazoMudou && typeof portalForn.resetLembrete === 'function') try { portalForn.resetLembrete(id); } catch (e) { console.error('[PORTAL] reset lembrete', e.message); }
   res.json(cotDetalhe(r));
 });
 app.post('/api/cotacoes/:id/mensagem', (req, res) => {
@@ -10939,11 +10988,14 @@ app.get(['/cotacao/:token', '/fornecedor/cotacao/:token'], (req, res) => {
   res.set('Cache-Control', 'no-store, max-age=0');   // link do vendedor abre no navegador do WhatsApp, que guarda a página velha (Tiago, 25/09: 'não subiu ainda')
   res.sendFile(path.join(__dirname, 'public', 'cotacao-fornecedor.html'));
 });
+// `agora` = hora do servidor (ISO) nas respostas que a página do vendedor usa pra montar a tela (abrir, enviar, reabrir): ela corrige o
+// relógio do aparelho na trava do prazo e na decisão de liberar — celular com hora errada travava antes / liberava depois (revisão 10/11)
+const agoraISO = () => new Date().toISOString();
 app.get('/api/cotacao-publica/:token', (req, res) => {
   const r = cotacao.abrir(req.params.token);
   if (!r) return res.status(404).json({ error: 'Cotação não encontrada' });
   if (r.c.status === 'cancelada') return res.status(410).json({ error: 'Cotação cancelada' });
-  res.json(cotacao.visaoVendedor(r.c, r.f));
+  res.json({ ...cotacao.visaoVendedor(r.c, r.f), agora: agoraISO() });
 });
 app.post('/api/cotacao-publica/:token/salvar', (req, res) => {
   const r = cotacao.salvarPrecos(req.params.token, req.body?.itens, { condicao: req.body?.condicao, obs: req.body?.obs, cadastro: req.body?.cadastro });
@@ -10959,7 +11011,7 @@ app.post('/api/cotacao-publica/:token/finalizar', (req, res) => {
   const r = cotacao.finalizar(req.params.token, req.body?.nome);
   if (r.erro) return res.status(409).json({ error: r.erro });
   aplicarCadastroVendedor(r.c, r.f);
-  res.json(cotacao.visaoVendedor(r.c, r.f));
+  res.json({ ...cotacao.visaoVendedor(r.c, r.f), agora: agoraISO() });
 });
 // vendedor reabre a própria proposta (Tiago, 09/11/26: enviou sem digitar preço / preço errado): volta pra digitação;
 // o servidor recusa com cotação encerrada, prazo vencido ou pedido já gerado pelo(a) comprador(a)
@@ -10967,7 +11019,7 @@ app.post('/api/cotacao-publica/:token/reabrir', (req, res) => {
   const r = cotacao.reabrir(req.params.token, req.body?.nome);
   if (!r) return res.status(404).json({ error: 'Cotação não encontrada' });
   if (r.erro) return res.status(409).json({ error: r.erro });
-  res.json(cotacao.visaoVendedor(r.c, r.f));
+  res.json({ ...cotacao.visaoVendedor(r.c, r.f), agora: agoraISO() });
 });
 
 // ── rotas Formação de Preço

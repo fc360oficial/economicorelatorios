@@ -60,11 +60,22 @@ input.obs:focus{outline:none;border-color:#F5B800}
 .barfim .info{font-size:12.5px;color:#6B4E00;line-height:1.45}.barfim .info b{color:#241a00}
 .btn-wa{background:#25D366;color:#fff;text-decoration:none;white-space:nowrap;font-size:15px;display:inline-block}.btn-wa:hover{background:#1EBE5A}
 body.venc .wrap{padding-bottom:150px}
+/* faixa fixa no topo (Tiago, 10/11/26): preço que não chegou no servidor (âmbar, com Tentar agora) e avisos curtos (verde: "Preços salvos ✓",
+   "Prazo liberado"). Fora do #app porque o render() redesenha tudo lá dentro; celular e PC, sem largura fixa. */
+.salvobar{position:fixed;left:0;right:0;top:0;z-index:30;display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap;padding:9px 14px;font-size:13px;font-weight:600;line-height:1.4;box-shadow:0 6px 18px -8px rgba(14,22,38,.35)}
+.salvobar[hidden]{display:none!important}
+.salvobar.sb-av{background:#FFF6D9;color:#6B4E00;border-bottom:2px solid #F5B800}
+.salvobar.sb-ok{background:#E7F5EC;color:#137A48;border-bottom:2px solid #137A48}
+.salvobar .sb-btn{border:none;border-radius:9px;padding:7px 14px;font:inherit;font-size:13px;font-weight:800;cursor:pointer;background:#0E1626;color:#fff;white-space:nowrap}
+.salvobar .sb-btn:hover{background:#1C2A4A}.salvobar b{white-space:nowrap}
+@media(max-width:640px){.salvobar{padding:8px 10px;font-size:12.5px;flex-wrap:nowrap}.salvobar span{flex:1;min-width:0}}
 .fim.fimv{font-size:13.5px;line-height:1.6}.fim.fimv .wl{font-size:15px;white-space:nowrap}
 .btn{border:none;border-radius:10px;padding:12px 20px;font:inherit;font-size:14px;font-weight:800;cursor:pointer}
 .btn-amber{background:#F5B800;color:#6B4E00}.btn-amber:hover{background:#E5AC00}.btn:disabled{opacity:.45;cursor:default}
 .fim{background:#E7F5EC;border:1px solid #BFE3CC;color:#137A48;border-radius:12px;padding:14px 16px;font-size:13px;margin-bottom:12px;line-height:1.5}
 .fim.av{background:#FFF6D9;border-color:#EFD98F;color:#6B4E00}
+/* tela travada: "último preço digitado não chegou a ser salvo" (revisão 10/11, achado 16) */
+.fim .perdido{margin-top:10px;padding:8px 10px;border-radius:8px;background:#FDECEC;border-left:3px solid #C0392B;color:#8A1C1C;font-weight:700;font-size:13px;line-height:1.45}.fim .perdido[hidden]{display:none}
 /* Reabrir proposta (Tiago, 09/11/26): linha dentro do aviso "Proposta enviada" com a pergunta e o botão */
 .fim .reab{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px dashed rgba(14,22,38,.18)}
 .fim .reab span{flex:1;min-width:180px}
@@ -126,6 +137,7 @@ body.venc .wrap{padding-bottom:150px}
 </style>
 </head>
 <body>
+<div class="salvobar" id="salvoBar" hidden><span id="salvoTxt"></span><button type="button" class="sb-btn" id="salvoBtn">Tentar agora</button></div>
 <div class="wrap" id="app"><div class="empty">Carregando cotação…</div></div>
 <div class="bar" id="bar" hidden><div class="info" id="barinfo"></div><button class="btn btn-amber" id="btnFim">Enviar proposta</button></div>
 <div class="bar barfim" id="barfim" hidden></div>
@@ -143,20 +155,38 @@ const dtpLong=s=>{const d=prazoDate(s);if(!d)return dtp(s);return ['domingo','se
 // nº do WhatsApp do(a) comprador(a) legível: 5581999998888 / 81999998888 → (81) 99999-8888
 const fmtFone=v=>{let d=String(v||'').replace(/\D/g,'');if((d.length===12||d.length===13)&&d.startsWith('55'))d=d.slice(2);if(d.length===11)return '('+d.slice(0,2)+') '+d.slice(2,7)+'-'+d.slice(7);if(d.length===10)return '('+d.slice(0,2)+') '+d.slice(2,6)+'-'+d.slice(6);return d;};
 let P=null, dirty=false, saveTimer=null; const DIRTY=new Set(); let extraDirty=false;   // DIRTY = códigos dos itens mexidos nesta tela (só eles vão no salvar)
+// revisão 10/11: lockAtual = tela travada (prazo/encerrada/enviada: nada mais sai dela) · perdido = "último preço digitado não chegou a ser salvo"
+// · saindo = recarregando depois de 409/404 (nada de beforeunload nem POST solto) · enviando = Enviar proposta em andamento (salvar() não roda)
+let lockAtual=false, perdido=false, saindo=false, enviando=false;
+// Relógio do aparelho × servidor (revisão 10/11, achado 20): o GET traz `agora` (hora do servidor); OFF corrige a trava do prazo e a decisão
+// de liberar. Celular adiantado travava antes da hora e o poll "liberava" sem ninguém ter liberado. Sem o campo (servidor antigo), OFF = 0.
+let OFF=0;
+const horaServ=()=>Date.now()+OFF;
+function ajustarRelogio(iso){const t=Date.parse(iso||'');if(isFinite(t))OFF=t-Date.now();}
 function precoNum(v){const n=parseFloat(String(v).replace(/\./g,'').replace(',','.'));return isFinite(n)?n:null;}
-function itensForm(so){return P.itens.filter(i=>!so||so.has(i.cod)).map(i=>{const el=document.querySelector('input.preco[data-cod="'+i.cod+'"]');const ob=document.querySelector('input.obs[data-cod="'+i.cod+'"]');const mk=document.querySelector('input.marca[data-cod="'+i.cod+'"]');const ev=document.querySelector('input.embv[data-cod="'+i.cod+'"]');return {cod:i.cod,preco:el?(precoNum(el.value)>0?precoNum(el.value):''):i.preco,obs:ob?ob.value:i.obs,marca:mk?mk.value:(i.marca||''),emb_vendedor:ev?ev.value:(i.emb_vendedor||'')};});}
-function extras(){const g=id=>($('#'+id)||{}).value;const pp=parseInt(g('cad-prazo'))||0;return {condicao:pp>0?'Boleto '+pp+' dias':((P.fornecedor&&P.fornecedor.condicao)||''),obs:g('obsg'),cadastro:{email:g('cad-email'),prazo_pagamento:g('cad-prazo'),prazo_entrega:g('cad-tempo'),pedido_minimo:g('cad-min')}};}
-function cadastroFaltando(){const x=extras().cadastro;const f=[];if(!x.email||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x.email))f.push('e-mail');if(!(parseInt(x.prazo_pagamento)>0))f.push('prazo de pagamento');if(x.prazo_entrega===''||x.prazo_entrega==null||!(parseInt(x.prazo_entrega)>0))f.push('tempo de entrega (maior que zero)');var pm=parseFloat(String(x.pedido_minimo==null?'':x.pedido_minimo).replace(/[^0-9,.]/g,'').replace(/[.](?=[0-9]{3}([^0-9]|$))/g,'').replace(',','.'));if(!(pm>0))f.push('pedido mínimo (maior que zero)');return f;}
+// Só itens com o campo de preço na tela (revisão 10/11, achado 16): a tela travada (prazo/encerrada/enviada) não tem campo, e cair no P —
+// a fotografia do carregamento — mandava preco null e apagava no servidor o preço salvo antes.
+function itensForm(so){const out=[];for(const i of P.itens){if(so&&!so.has(i.cod))continue;const el=document.querySelector('input.preco[data-cod="'+i.cod+'"]');if(!el)continue;const ob=document.querySelector('input.obs[data-cod="'+i.cod+'"]');const mk=document.querySelector('input.marca[data-cod="'+i.cod+'"]');const ev=document.querySelector('input.embv[data-cod="'+i.cod+'"]');out.push({cod:i.cod,preco:precoNum(el.value)>0?precoNum(el.value):'',obs:ob?ob.value:i.obs,marca:mk?mk.value:(i.marca||''),emb_vendedor:ev?ev.value:(i.emb_vendedor||'')});}return out;}
+// sem os campos .cad na tela (travada) não manda nada: cadastro:{} zerava o cadastro do vendedor no servidor (revisão 10/11, achado 16)
+function extras(){if(!$('#cad-email'))return {};const g=id=>($('#'+id)||{}).value;const pp=parseInt(g('cad-prazo'))||0;return {condicao:pp>0?'Boleto '+pp+' dias':((P.fornecedor&&P.fornecedor.condicao)||''),obs:g('obsg'),cadastro:{email:g('cad-email'),prazo_pagamento:g('cad-prazo'),prazo_entrega:g('cad-tempo'),pedido_minimo:g('cad-min')}};}
+function cadastroFaltando(){const x=extras().cadastro||{};const f=[];if(!x.email||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x.email))f.push('e-mail');if(!(parseInt(x.prazo_pagamento)>0))f.push('prazo de pagamento');if(x.prazo_entrega===''||x.prazo_entrega==null||!(parseInt(x.prazo_entrega)>0))f.push('tempo de entrega (maior que zero)');var pm=parseFloat(String(x.pedido_minimo==null?'':x.pedido_minimo).replace(/[^0-9,.]/g,'').replace(/[.](?=[0-9]{3}([^0-9]|$))/g,'').replace(',','.'));if(!(pm>0))f.push('pedido mínimo (maior que zero)');return f;}
 function totais(){let t=0,n=0;for(const i of itensForm()){if(i.preco!=null&&i.preco!==''){t+=i.preco*(P.itens.find(x=>x.cod===i.cod)?.qtd||0);n++;}}return {t,n};}
 function atualizarTot(){const {t,n}=totais();$('#tot').innerHTML='<span>'+n+' de '+P.itens.length+' itens com preço</span><span>Total da proposta: <b>R$ '+fmt(t)+'</b></span>';$('#barinfo').innerHTML=n<P.itens.length?'Faltam <b>'+(P.itens.length-n)+'</b> itens sem preço. Você pode enviar mesmo assim (item sem preço = não cotado).'+(P.so_respondido?' Os preços só entram na cotação depois que você tocar em <b>Enviar proposta</b>.':''):'Todos os itens com preço.'+(P.so_respondido?' Toque em <b>Enviar proposta</b>: só depois disso eles entram na cotação.':' Não esqueça de tocar em <b>Enviar proposta</b>.');}
 function render(){
   // ped: o(a) comprador(a) já realizou o pedido com esta proposta (28/10/26) — trava igual à proposta enviada (o servidor também recusa)
   const fin=P.fornecedor.status==='finalizado', enc=P.status!=='aberta', ped=P.fornecedor.pedido_realizado!=null&&!fin&&!enc, venc=!!P.prazo_vencido&&!fin&&!enc&&!ped, lock=fin||enc||venc||ped;
-  let h='<div class="top"><div class="tophd"><img class="logo" src="/logo-supermercados.png" alt="Econômico Supermercados"><div class="ey">COTAÇÃO DE PREÇOS · ECONOMICO SUPERMERCADO - REDE CAHU</div></div><h1>'+esc(P.nome)+'</h1><div class="sub">Fornecedor: <b>'+esc(P.fornecedor.nome||'')+'</b>'+(P.comprador?.nome?' · Comprador(a): <b>'+esc(P.comprador.nome)+'</b>'+(P.comprador.whats?' · 📱 '+esc(fmtFone(P.comprador.whats)):''):'')+(P.prazo?' · Prazo pra resposta: <b>'+dtp(P.prazo)+'</b>':'')+'<br>Enviada em '+dt(P.criadoEm)+' · Lojas: '+(P.lojas||[]).map(l=>(+l===10?'CD':'E'+l)+' '+(P.lojas_nomes[l]||'')+((P.lojas_cnpj||{})[l]?' (CNPJ '+P.lojas_cnpj[l]+')':'')).join(', ')+'</div><span class="st '+(enc?'st-enc':(fin||ped?'st-fin':'st-dig'))+'">'+(enc?'COTAÇÃO ENCERRADA':(fin?'PROPOSTA ENVIADA':(ped?'PEDIDO REALIZADO':'EM DIGITAÇÃO')))+'</span></div>';
+  // Travando (prazo, encerrada, enviada) — revisão 10/11, achado 16: nada que ainda não chegou no servidor sai mais desta tela (o retry
+  // mandava a fotografia do carregamento e apagava preço salvo quando o(a) comprador(a) liberava o prazo). Cancela debounce/retry/contagem
+  // e zera o pendente; se tinha preço digitado sem salvar, a tela travada avisa. No Enviar proposta o estado já chega limpo.
+  if(lock){if(dirty||DIRTY.size||extraDirty)perdido=true;zerarPendente();}else perdido=false;
+  lockAtual=lock;
+  let h='<div class="top"><div class="tophd"><img class="logo" src="/logo-supermercados.png" alt="Econômico Supermercados"><div class="ey">COTAÇÃO DE PREÇOS · ECONOMICO SUPERMERCADO - REDE CAHU</div></div><h1>'+esc(P.nome)+'</h1><div class="sub">Fornecedor: <b>'+esc(P.fornecedor.nome||'')+'</b>'+(P.comprador?.nome?' · Comprador(a): <b>'+esc(P.comprador.nome)+'</b>'+(P.comprador.whats?' · 📱 '+esc(fmtFone(P.comprador.whats)):''):'')+(P.prazo?' · Prazo pra resposta: <b>'+dtp(P.prazo)+'</b>':'')+'<br>Enviada em '+dt(P.criadoEm)+' · Lojas: '+(P.lojas||[]).map(l=>(+l===10?'CD':'E'+l)+' '+(P.lojas_nomes[l]||'')+((P.lojas_cnpj||{})[l]?' (CNPJ '+P.lojas_cnpj[l]+')':'')).join(', ')+'</div><span class="st '+(enc?'st-enc':(fin?'st-fin':'st-dig'))+'">'+(enc?'COTAÇÃO ENCERRADA':(fin?'PROPOSTA ENVIADA':(P.fornecedor.reabertoEm?'REABERTA · EM DIGITAÇÃO':'EM DIGITAÇÃO')))+'</span></div>';
   // bloco fixo no topo: recado do(a) comprador(a) + WhatsApp dele(a) (só ele(a) edita, pelo Acompanhamento da cotação)
   const waC = P.comprador && P.comprador.whats ? 'https://wa.me/' + (P.comprador.whats.length <= 11 ? '55' + P.comprador.whats : P.comprador.whats) + '?text=' + encodeURIComponent('Olá' + (P.comprador.nome ? ', ' + P.comprador.nome : '') + '! Sobre a cotação #' + P.id + ' (' + P.nome + '), fornecedor ' + (P.fornecedor.nome || '') + ': ') : null;
   h+='<div class="msgc"><div class="ic">'+(P.mensagem?'💬':'👤')+'</div><div class="t"><div class="l">'+(P.mensagem?'Recado do(a) comprador(a)':'Comprador(a)')+(P.comprador&&P.comprador.nome?' · '+esc(P.comprador.nome):'')+'</div>'+(P.mensagem?'<div class="m">'+esc(P.mensagem)+'</div>':'<div class="m" style="color:#8A6A00">Dúvida sobre algum item, prazo ou condição? Fale direto com o(a) comprador(a) pelo WhatsApp.</div>')+(P.mensagemEm?'<div class="q">atualizado em '+dt(P.mensagemEm)+'</div>':'')+'</div>'+(waC?'<a class="wa-c" href="'+waC+'" target="_blank" rel="noopener">🟢 WhatsApp do(a) comprador(a)</a>':'<span class="wa-c off" title="O(A) comprador(a) ainda não cadastrou o WhatsApp nesta cotação">WhatsApp não informado</span>')+'</div>';
-  if(enc&&!fin) h+='<div class="fim av"><b>Esta cotação já foi encerrada pelo(a) comprador(a).</b> Não é mais possível enviar preços.'+(waC?' Dúvidas: fale com o(a) comprador(a)'+(P.comprador.nome?' <b>'+esc(P.comprador.nome)+'</b>':'')+' pelo WhatsApp <a class="wl" href="'+waC+'" target="_blank" rel="noopener">🟢 '+esc(fmtFone(P.comprador.whats))+'</a>.':'')+'</div>';
+  // aviso da tela travada (revisão 10/11, achado 16): o que foi digitado por último não chegou a ser salvo (sem internet quando o prazo acabou)
+  const avisoPerdido=lock&&!fin?'<div class="perdido" id="avisoPerdido"'+(perdido?'':' hidden')+'>⚠ O último preço digitado não chegou a ser salvo'+(venc?' (sem internet quando o prazo acabou)':'')+'.</div>':'';
+  if(enc&&!fin) h+='<div class="fim av"><b>Esta cotação já foi encerrada pelo(a) comprador(a).</b> Não é mais possível enviar preços.'+(waC?' Dúvidas: fale com o(a) comprador(a)'+(P.comprador.nome?' <b>'+esc(P.comprador.nome)+'</b>':'')+' pelo WhatsApp <a class="wl" href="'+waC+'" target="_blank" rel="noopener">🟢 '+esc(fmtFone(P.comprador.whats))+'</a>.':'')+avisoPerdido+'</div>';
   else if(fin){
     // Reabrir a própria proposta (Tiago, 09/11/26: vendedor tocou em Enviar sem digitar nenhum preço): confirma, volta pra digitação e corrige.
     // Sem o botão com cotação encerrada, prazo vencido ou pedido já gerado pelo(a) comprador(a) (desta proposta ou de qualquer outra): aí só falando com ele(a).
@@ -168,7 +198,7 @@ function render(){
     else h+='<div class="fim"><b>Proposta enviada'+(P.fornecedor.finalizadoEm?' em '+dt(P.fornecedor.finalizadoEm):'')+'.</b> Obrigado! O(A) comprador(a) já recebeu seus preços.'+porque+reab+'</div>';
   }
   else if(ped) h+='<div class="fim"><b>O(A) comprador(a) já realizou o pedido'+(P.fornecedor.pedido_realizado?' #'+P.fornecedor.pedido_realizado:'')+' com os seus preços.</b> A proposta ficou travada: não dá mais pra digitar nem alterar preço. Se precisar corrigir algo, '+(waC?'<a class="wl" href="'+waC+'" target="_blank" rel="noopener">fale com ele(a) no WhatsApp</a>':'fale com ele(a)')+'.</div>';
-  else if(venc) h+='<div class="fim av fimv"><b>⏰ O prazo desta cotação terminou em '+esc(dtpLong(P.prazo))+'.</b><br>Não é mais possível digitar nem alterar preços: a cotação ficou bloqueada pra todos os fornecedores nesse dia e hora.<br>Se precisar de mais tempo ou tiver alguma dúvida, fale com o(a) comprador(a)'+(P.comprador&&P.comprador.nome?' <b>'+esc(P.comprador.nome)+'</b>':'')+(waC?' pelo WhatsApp <a class="wl" href="'+waC+'" target="_blank" rel="noopener">🟢 '+esc(fmtFone(P.comprador.whats))+'</a>':' (WhatsApp não informado nesta cotação)')+'. Só ele(a) pode liberar a cotação de novo.</div>';
+  else if(venc) h+='<div class="fim av fimv"><b>⏰ O prazo desta cotação terminou em '+esc(dtpLong(P.prazo))+'.</b><br>Não é mais possível digitar nem alterar preços: a cotação ficou bloqueada pra todos os fornecedores nesse dia e hora.<br>Se precisar de mais tempo ou tiver alguma dúvida, fale com o(a) comprador(a)'+(P.comprador&&P.comprador.nome?' <b>'+esc(P.comprador.nome)+'</b>':'')+(waC?' pelo WhatsApp <a class="wl" href="'+waC+'" target="_blank" rel="noopener">🟢 '+esc(fmtFone(P.comprador.whats))+'</a>':' (WhatsApp não informado nesta cotação)')+'. Só ele(a) pode liberar a cotação de novo.'+avisoPerdido+'</div>';
   else h+='<div class="fim av">'+(P.fornecedor.reabertoEm?'<b>Proposta reaberta em '+dt(P.fornecedor.reabertoEm)+'.</b> Corrija ou complete os preços e toque em <b>Enviar proposta</b> de novo'+(P.so_respondido?': até lá, seus preços ficam fora da cotação':'')+'.<br>':'')+'Preencha o <b>preço unitário</b> de cada item (por unidade, não por caixa) e, se quiser, uma observação. Tudo salva sozinho. Quando terminar, clique em <b>Enviar proposta</b> no rodapé. Item sem preço = você não cota esse item.</div>';
   h+='<div class="card"><div class="hd">Itens da cotação <span id="f-cont">'+P.itens.length+' itens</span></div><div class="ftb"><input type="search" id="f-busca" placeholder="buscar produto ou código…" autocomplete="off" oninput="filtrarItens()"><label><input type="checkbox" id="f-so-preco" onchange="filtrarItens()"> só com preço</label><label><input type="checkbox" id="f-so-obs" onchange="filtrarItens()"> só com observação</label></div><div style="overflow-x:auto"><table><thead><tr><th>Produto</th><th class="r">Preço unit. (R$)</th><th>Observação</th></tr></thead><tbody>';
   // ordem alfabética (Tiago, 23/09/26)
@@ -208,7 +238,8 @@ function render(){
   if(venc) bf.innerHTML='<div class="info"><b>⏰ Prazo encerrado</b> '+esc(dtpLong(P.prazo))+'<br>Não dá mais pra digitar preço. Fale com o(a) comprador(a)'+(P.comprador&&P.comprador.nome?' <b>'+esc(P.comprador.nome)+'</b>':'')+(waC?' no WhatsApp:':' (WhatsApp não informado nesta cotação)')+'</div>'+(waC?'<a class="btn btn-wa" href="'+waC+'" target="_blank" rel="noopener">🟢 '+esc(fmtFone(P.comprador.whats))+'</a>':'');
   // prazo vence com a página aberta: trava sozinha na hora (o servidor já recusa o preço depois do prazo; aqui a tela avisa sem precisar recarregar)
   clearTimeout(window._tPrazo);
-  if(!lock){const d=prazoDate(P.prazo);const ms=d?d.getTime()-Date.now():-1;if(ms>0&&ms<2147000000)window._tPrazo=setTimeout(()=>{P.prazo_vencido=true;render();},ms+1000);}
+  if(!lock){const d=prazoDate(P.prazo);const ms=d?d.getTime()-horaServ():-1;if(ms>0&&ms<2147000000)window._tPrazo=setTimeout(()=>{P.prazo_vencido=true;render();},ms+1000);}   // horaServ: relógio corrigido pelo servidor (achado 20)
+  agendarPrazo();   // travada por prazo: fica consultando se o(a) comprador(a) liberou (Tiago, 10/11/26); liberada/encerrada/enviada: para de consultar
   if(!lock){
     // Preço "em centavos", como maquininha: só números, os 2 últimos são os centavos (545 -> 5,45). Enter grava e pula pro próximo.
     const precos=[...document.querySelectorAll('input.preco')];
@@ -238,14 +269,80 @@ function agendarSave(){clearTimeout(saveTimer);saveTimer=setTimeout(salvar,900);
 // Salva SÓ o que foi mexido nesta tela (28/09/26). Antes mandava o formulário inteiro a cada digitação: uma segunda cópia do link
 // aberta (celular + PC, ou o navegador do WhatsApp restaurando a página velha) mandava os campos vazios dela e apagava preço e
 // observação já digitados na outra. O servidor só mexe nos itens que recebe, então o que não foi tocado aqui fica como está.
-async function salvar(){if(!dirty)return;dirty=false;const cods=new Set(DIRTY),ex=extraDirty;DIRTY.clear();extraDirty=false;try{const r=await fetch('/api/cotacao-publica/'+token+'/salvar',{method:'POST',headers:{'Content-Type':'application/json'},keepalive:true,body:JSON.stringify(Object.assign({itens:itensForm(cods)},ex?extras():{}))});if(r.status===409){const j=await r.json().catch(()=>({}));alert(j.error||'Cotação encerrada');location.reload();}}catch(e){dirty=true;cods.forEach(c=>DIRTY.add(c));if(ex)extraDirty=true;}}
+// Salvamento que não perde preço (Tiago, 10/11/26: vendedora "digitou 16 · não enviou" com o último preço de ontem 14:10, e ele perguntou
+// se "tem algum tempo" pra chegar). Antes, falha de rede ou erro do servidor era silenciosa: o preço ficava na tela, o vendedor achava que
+// tinha salvo e nada tentava de novo até a próxima tecla. Agora: falha (exceção, ou resposta que não é ok nem 409) → os itens voltam pro
+// DIRTY, a faixa #salvoBar avisa no topo e tenta de novo sozinho (2 s, 4 s, 8 s, 16 s, teto 30 s; um timer só, tecla nova não duplica), com
+// botão "Tentar agora"; internet voltou ('online') → salva na hora; salvou depois de falhar → "Preços salvos ✓" por 2 s. 409 segue como era
+// (alert + reload). Um salvar por vez (emVoo): tecla digitada com outro em voo espera ele terminar — o que sujou no meio continua em DIRTY
+// e vai no próximo —; só a saída da página/aba escondida força o envio junto (keepalive).
+let emVoo=0, retryTimer=null, retryN=0, salvoFalhou=false, faixaT=null, faixaTick=null, vooProm=null;   // vooProm = promise do último salvar que saiu (Enviar proposta espera ela)
+// faixa fixa no topo: 'falha' (âmbar, botão Tentar agora e contagem), 'espera' (âmbar, salvando), 'ok' (verde, some em 2 s), 'prazo' (verde, some em 6 s); null esconde
+function faixa(tipo,txt){const b=$('#salvoBar');if(!b)return;clearTimeout(faixaT);clearInterval(faixaTick);if(!tipo){b.hidden=true;return;}
+  b.hidden=false;b.className='salvobar '+(tipo==='ok'||tipo==='prazo'?'sb-ok':'sb-av');$('#salvoTxt').innerHTML=txt;$('#salvoBtn').hidden=tipo!=='falha';
+  if(tipo==='ok')faixaT=setTimeout(()=>faixa(null),2000);if(tipo==='prazo')faixaT=setTimeout(()=>faixa(null),6000);}
+function agendarRetry(){clearTimeout(retryTimer);const ms=Math.min(2000*Math.pow(2,retryN++),30000),fim=Date.now()+ms;retryTimer=setTimeout(salvar,ms);
+  const txt=()=>'⚠ Não consegui salvar os últimos preços (sem internet?). Tentando de novo em <b>'+Math.max(1,Math.ceil((fim-Date.now())/1000))+' s</b>…';
+  faixa('falha',txt());faixaTick=setInterval(()=>{const t=$('#salvoTxt');if(t)t.innerHTML=txt();},500);}
+// para debounce, retry e contagem da faixa (revisão 10/11): ao travar, ao enviar a proposta e antes de recarregar
+function pararTimers(){clearTimeout(saveTimer);saveTimer=null;clearTimeout(retryTimer);retryTimer=null;clearInterval(faixaTick);faixaTick=null;}
+// zera tudo que estava por salvar (revisão 10/11, achado 16): nada mais vai sair desta tela
+function zerarPendente(){pararTimers();dirty=false;DIRTY.clear();extraDirty=false;salvoFalhou=false;retryN=0;faixa(null);}
+// 409/404 é definitivo: recarrega sem a caixa "sair da página?" do beforeunload nem POST keepalive solto (revisão 10/11, achado 18)
+function sair(msg){saindo=true;zerarPendente();alert(msg);location.reload();}
+// preço digitado que não chegou (a tela travou com o salvar em voo e ele falhou): acende o aviso da tela travada (revisão 10/11, achado 16)
+function marcarPerdido(){perdido=true;const el=$('#avisoPerdido');if(el)el.hidden=false;}
+// o que o servidor aceitou passa a valer no P (revisão 10/11): a tela travada mostra o preço salvo, não a fotografia do carregamento
+function espelhar(itens){for(const n of itens){const i=P.itens.find(x=>x.cod===n.cod);if(!i)continue;i.preco=n.preco===''||n.preco==null?null:n.preco;i.obs=n.obs;i.marca=n.marca;i.emb_vendedor=n.emb_vendedor;}}
+function salvar(forcar){
+  if(!dirty||saindo||enviando)return;   // enviando: o Enviar proposta leva o DIRTY no corpo dele e espera o que está em voo (revisão 10/11, achado 17)
+  if(emVoo&&!forcar)return;   // já tem um salvar em voo: quando ele terminar, o que sujou no meio (dirty continua true) é agendado de novo
+  return vooProm=(async()=>{
+    clearTimeout(retryTimer);retryTimer=null;
+    dirty=false;const cods=new Set(DIRTY),ex=extraDirty;DIRTY.clear();extraDirty=false;
+    // só o que está na tela (revisão 10/11, achado 16): tela travada não tem campo → nada a mandar, limpa o pendente e sai
+    const itens=itensForm(cods),ext=ex?extras():{};
+    if(!itens.length&&!Object.keys(ext).length){zerarPendente();return;}
+    if(salvoFalhou)faixa('espera','Salvando os preços…');
+    emVoo++;let ok=false;
+    try{
+      const body=JSON.stringify(Object.assign({itens},ext));
+      // keepalive deixa o POST terminar se a página fechar no meio (o navegador limita a 64 KB: corpo maior vai sem); 20 s sem resposta = falha, tenta de novo
+      const r=await fetch('/api/cotacao-publica/'+token+'/salvar',{method:'POST',headers:{'Content-Type':'application/json'},keepalive:body.length<60000,body,signal:(typeof AbortSignal!=='undefined'&&AbortSignal.timeout)?AbortSignal.timeout(20000):undefined});
+      // 409 (encerrada/prazo/enviada) e 404 (link não existe mais) são definitivos: avisa e recarrega, tentar de novo não salvaria nada
+      if(r.status===409||r.status===404){const j=await r.json().catch(()=>({}));sair(j.error||'Cotação encerrada');return;}
+      ok=r.ok;
+    }catch(e){}
+    finally{emVoo--;}
+    if(!ok){
+      if(lockAtual){marcarPerdido();zerarPendente();return;}   // travou enquanto salvava: o servidor não aceita mais, não tenta de novo e avisa (achado 16)
+      dirty=true;cods.forEach(c=>DIRTY.add(c));if(ex)extraDirty=true;salvoFalhou=true;agendarRetry();return;}
+    espelhar(itens);retryN=0;
+    if(lockAtual){render();return;}   // travou enquanto salvava e deu certo: redesenha a tela travada com o preço que chegou
+    if(dirty){agendarSave();return;}   // sujou enquanto salvava: vai no próximo salvar (a faixa, se estiver aberta, acompanha ele)
+    if(salvoFalhou){salvoFalhou=false;faixa('ok','Preços salvos ✓');}
+  })();
+}
+// Tentar agora: tenta na hora e a contagem volta pro começo (com um salvar ainda em voo, só mostra que está salvando: ele reagenda ao terminar)
+$('#salvoBtn').onclick=()=>{retryN=0;if(!dirty){faixa(null);return;}if(emVoo){faixa('espera','Salvando os preços…');return;}salvar();};
+window.addEventListener('online',()=>{if(dirty){retryN=0;salvar();}});   // internet voltou: não espera a contagem
 $('#btnFim').onclick=async()=>{
   const {n}=totais();
   const faltam=cadastroFaltando(); if(faltam.length){alert('Antes de enviar, preencha no bloco "Estamos atualizando nosso cadastro de fornecedor": '+faltam.join(', ')+'.');const el=document.querySelector('input.cad');if(el){el.scrollIntoView({block:'center',behavior:'smooth'});el.focus();}return;}
   if(!confirm(n<P.itens.length?'Ainda tem '+(P.itens.length-n)+' item(ns) sem preço (não cotados). Enviar a proposta mesmo assim?':'Enviar a proposta? Depois disso não dá mais pra alterar os preços.')) return;
   $('#btnFim').disabled=true;
-  try{clearTimeout(saveTimer);const cods=new Set(DIRTY);const r=await fetch('/api/cotacao-publica/'+token+'/finalizar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({itens:itensForm(cods),...extras(),nome:(P.fornecedor.vendedor&&P.fornecedor.vendedor.nome)||''})});const j=await r.json();if(j.error)throw new Error(j.error);dirty=false;DIRTY.clear();extraDirty=false;P=j;render();window.scrollTo(0,0);}
-  catch(e){alert('Não foi possível enviar: '+e.message);$('#btnFim').disabled=false;}
+  // Revisão 10/11 (achado 17): nenhum salvar solto depois do envio — cancela debounce/retry/contagem (um retry vencido durante o confirm
+  // chegava DEPOIS do finalizar: 409 "Proposta já enviada" + alert + reload, e a faixa âmbar ficava presa na tela Proposta enviada) e
+  // espera o salvar em voo terminar; o que ele não gravou volta pro DIRTY e vai no corpo do finalizar. Tecla digitada enquanto envia fica
+  // no DIRTY (salvar() não roda com enviando). Falhou o envio: o retry/debounce volta como estava.
+  // a espera pelo salvar em voo pode levar até 20 s (rede lenta): o botão e a faixa dizem que está enviando (revisão 3, 10/11)
+  enviando=true;pararTimers();$('#btnFim').textContent='Enviando…';faixa('espera','Enviando a proposta…');
+  while(emVoo){const p=vooProm;if(p)await p.catch(()=>{});if(emVoo&&vooProm===p)await new Promise(r=>setTimeout(r,100));}
+  pararTimers();faixa('espera','Enviando a proposta…');
+  if(saindo)return;   // o salvar em voo levou 409/404: a página já está recarregando
+  try{const cods=new Set(DIRTY);const r=await fetch('/api/cotacao-publica/'+token+'/finalizar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({itens:itensForm(cods),...extras(),nome:(P.fornecedor.vendedor&&P.fornecedor.vendedor.nome)||''})});const j=await r.json();if(j.error)throw new Error(j.error);
+    zerarPendente();ajustarRelogio(j.agora);P=j;enviando=false;$('#btnFim').textContent='Enviar proposta';render();window.scrollTo(0,0);}
+  catch(e){enviando=false;faixa(null);$('#btnFim').textContent='Enviar proposta';alert('Não foi possível enviar: '+e.message);$('#btnFim').disabled=false;if(dirty){if(salvoFalhou)agendarRetry();else agendarSave();}}
 };
 // Reabrir a própria proposta (Tiago, 09/11/26): pergunta se quer mesmo, o servidor volta a proposta pra digitação e a tela
 // recarrega com os campos liberados. O botão é redesenhado a cada render(), por isso o clique é capturado no documento.
@@ -256,12 +353,45 @@ document.addEventListener('click',async e=>{
   b.disabled=true;
   try{const r=await fetch('/api/cotacao-publica/'+token+'/reabrir',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nome:(P.fornecedor.vendedor&&P.fornecedor.vendedor.nome)||''})});const j=await r.json().catch(()=>({}));
     // recusa do servidor (409: cotação encerrada/cancelada, prazo, pedido gerado; 404: link inválido): avisa e recarrega pra tela mostrar a situação atual
-    if(!r.ok){alert('Não foi possível reabrir: '+(j.error||'erro '+r.status));if(r.status===409||r.status===404)location.reload();else b.disabled=false;return;}
-    P=j;dirty=false;DIRTY.clear();extraDirty=false;render();window.scrollTo(0,0);}
+    if(!r.ok){const msg='Não foi possível reabrir: '+(j.error||'erro '+r.status);if(r.status===409||r.status===404)sair(msg);else{alert(msg);b.disabled=false;}return;}   // sair(): reload sem beforeunload (achado 18)
+    ajustarRelogio(j.agora);P=j;dirty=false;DIRTY.clear();extraDirty=false;render();window.scrollTo(0,0);}
   catch(e2){alert('Não foi possível reabrir: '+e2.message);b.disabled=false;}
 });
-window.addEventListener('beforeunload',()=>{if(dirty)salvar();});
-(async()=>{try{const r=await fetch('/api/cotacao-publica/'+token);const j=await r.json();if(j.error)throw new Error(j.error);P=j;render();}catch(e){$('#app').innerHTML='<div class="empty">Cotação não encontrada ou link inválido.</div>';}})();
+// saindo da página com preço ainda não salvo (Tiago, 10/11/26): manda com keepalive e o navegador pergunta se quer sair mesmo
+// (saindo: recarregando depois de 409/404 — nada a perguntar nem a mandar, o servidor não aceita mais — revisão 10/11, achado 18)
+window.addEventListener('beforeunload',e=>{if(!dirty||saindo)return;salvar(true);e.preventDefault();e.returnValue='';});
+// Prazo liberado destrava sozinho (Tiago, 10/11/26): a tela ficava em "Prazo encerrado" até o vendedor recarregar, mesmo depois de o(a)
+// comprador(a) adiar o prazo. Travada por prazo, consulta a cotação a cada 60 s (só com a aba visível; window.__POLL_MS é só pra teste) e
+// ao voltar pra aba; vindo prazo_vencido=false com a cotação aberta, redesenha liberada e avisa na faixa. O _tPrazo do render() continua
+// travando na hora em que o prazo chega.
+let pollT=null;   // null = sem consulta agendada (revisão 10/11, achado 19: antes o clearTimeout não zerava e pollT!=null não dizia nada)
+function travadoPrazo(){return !!(P&&P.prazo_vencido&&P.fornecedor.status!=='finalizado'&&P.status==='aberta');}
+function agendarPrazo(){clearTimeout(pollT);pollT=null;if(travadoPrazo()&&!document.hidden&&!saindo)pollT=setTimeout(checarPrazo,window.__POLL_MS||60000);}
+// link que não existe mais (404) ou cotação cancelada (410): tela de "não encontrada", igual ao carregamento, e nada mais a consultar (revisão 10/11, achado 19)
+function semCotacao(msg){P=null;clearTimeout(window._tPrazo);zerarPendente();clearTimeout(pollT);pollT=null;$('#app').innerHTML='<div class="empty">'+(msg?esc(msg)+'.':'Cotação não encontrada ou link inválido.')+'</div>';$('#bar').hidden=true;$('#barfim').hidden=true;document.body.classList.remove('venc');}
+// Revisão 10/11 (achados 19 e 20): resposta definitiva pro poll — encerrada/cancelada ou proposta enviada em outra aba → redesenha (COTAÇÃO
+// ENCERRADA / PROPOSTA ENVIADA) e para; 404/410 → "não encontrada" e para. Só é "Prazo liberado pelo(a) comprador(a)" quando o prazo MUDOU;
+// prazo igual e não vencido no servidor é relógio do aparelho adiantado: se, pela hora do servidor, o prazo ainda está no futuro, destrava em
+// silêncio (o _tPrazo rearma na hora certa); senão segue consultando em silêncio. Falha de rede ou 5xx só reagenda.
+async function checarPrazo(){clearTimeout(pollT);pollT=null;if(!travadoPrazo()||saindo)return;
+  let r=null,j=null;
+  try{r=await fetch('/api/cotacao-publica/'+token,{cache:'no-store'});j=await r.json().catch(()=>null);}catch(e){}
+  if(saindo||!travadoPrazo())return;   // mudou enquanto consultava (recarregando, destravada por outra via)
+  if(r&&(r.status===404||r.status===410)){semCotacao(r.status===410&&j&&j.error?j.error:null);return;}
+  if(r&&r.ok&&j&&!j.error){
+    ajustarRelogio(j.agora);
+    if(j.status!=='aberta'||(j.fornecedor&&j.fornecedor.status==='finalizado')){P=j;render();return;}
+    if(!j.prazo_vencido){
+      if(j.prazo!==P.prazo){P=j;render();faixa('prazo','Prazo liberado pelo(a) comprador(a): pode continuar digitando.');return;}
+      const d=prazoDate(j.prazo);if(d&&d.getTime()>horaServ()){P=j;render();return;}
+    }
+  }
+  agendarPrazo();}
+// aba escondida: para de consultar e manda o que falta salvar (keepalive: celular troca de app e congela a página); aba de volta: confere o prazo na hora
+document.addEventListener('visibilitychange',()=>{if(document.hidden){clearTimeout(pollT);pollT=null;if(dirty)salvar(true);}else if(travadoPrazo())checarPrazo();});
+(async()=>{let r=null,j=null;try{r=await fetch('/api/cotacao-publica/'+token);j=await r.json();}catch(e){}
+  if(!r||!r.ok||!j||j.error){semCotacao(r&&r.status===410&&j&&j.error?j.error:null);return;}   // 410 = cancelada: mostra o motivo do servidor
+  ajustarRelogio(j.agora);P=j;render();})();
 </script>
 <script>
 // cabeçalho fixo e compacto ao rolar (Tiago, 25/09: "fixa o cabeçalho, mas o recado não; PC e celular")

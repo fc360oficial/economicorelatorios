@@ -54,6 +54,8 @@ tbody tr:hover td{background:#EAEAE6}
 #v-tbody td:nth-child(3)>b,#v-tbody td:nth-child(7),#v-tbody td:nth-child(8),#f-tbody td:nth-child(2),#a-tbody td:nth-child(1){white-space:nowrap}
 #v-tbody td:nth-child(8) .mini{white-space:normal}
 td .mini,th .mini{font-size:11px;color:var(--ink-3);font-weight:500;text-transform:none;letter-spacing:0}
+td .mini.rec{color:var(--ink-2)}   /* recibo do app (10/11): "chegou"/"tocou" um tom mais forte que o "sem confirmação" cinza */
+td .mini.rec .sem{color:var(--warn)}   /* reenvio ainda sem recibo (revisão 10/11): âmbar, como o "sem confirmação de entrega" do Acompanhamento */
 td b{font-weight:700}
 .pill{display:inline-block;font-size:10.5px;font-weight:700;border-radius:999px;padding:2px 9px;white-space:nowrap}
 .pill.ok{color:var(--ok);background:#E7F5EC}.pill.off{color:var(--ink-2);background:#F0F0EE}.pill.bad{color:var(--bad);background:#FBEAED}.pill.teste{color:var(--brand-ink);background:#FFF6D9;border:1px solid #EFD98F}.pill.info{color:var(--info);background:#E9EEF6}
@@ -114,9 +116,9 @@ td b{font-weight:700}
   </div>
 
   <div class="sec" id="sec-avisos">
-    <div class="hd"><h2>Últimos avisos mandados</h2><span class="mini" id="a-cont"></span><span class="chip hid" id="a-chip"></span></div>
+    <div class="hd"><h2>Últimos avisos mandados</h2><span class="mini" id="a-cont"></span><span class="chip hid" id="a-chip"></span><span class="mini">recibo do app: <b>📱 chegou</b> = a notificação apareceu no celular · <b>👆 tocou</b> = o vendedor tocou nela · <b>sem confirmação</b> = nenhum recibo ainda (celular desligado ou sem internet, aviso por WhatsApp, ou mandado antes de 10/11) · <b>último reenvio sem confirmação</b> / <b>tocou num aviso anterior</b> = o recibo é de um envio anterior; o reenvio mais recente ainda não tem · <b>(prazo mudou depois)</b> = lembrete de um prazo que foi alterado em seguida</span></div>
     <div class="tw"><table>
-      <thead><tr><th>Quando</th><th>Aviso</th><th>Cotação / pedido</th><th>Fornecedor</th><th>Vendedor(es)</th><th>Resultado</th></tr></thead>
+      <thead><tr><th>Quando</th><th>Aviso</th><th>Cotação / pedido</th><th>Fornecedor</th><th>Vendedor(es)</th><th title="Se o fornecedor abriu / respondeu a cotação e, embaixo, o recibo do app: chegou no celular, tocou no aviso">Resultado</th></tr></thead>
       <tbody id="a-tbody"></tbody>
     </table></div>
   </div>
@@ -127,6 +129,7 @@ td b{font-weight:700}
 var $ = function (s) { return document.querySelector(s); };
 var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
 var dt = function (s) { return s ? new Date(s).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'; };
+var dhm = function (s) { if (!s) return '—'; var d = new Date(s), p = function (n) { return (n < 10 ? '0' : '') + n; }; return p(d.getDate()) + '/' + p(d.getMonth() + 1) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()); };   // dd/mm hh:mm
 var fone = function (d) { d = String(d || '').replace(/\D/g, ''); if (d.length === 11) return '(' + d.slice(0, 2) + ') ' + d.slice(2, 7) + '-' + d.slice(7); if (d.length === 10) return '(' + d.slice(0, 2) + ') ' + d.slice(2, 6) + '-' + d.slice(6); return d || '—'; };
 var haTxt = function (s) { if (!s) return ''; var m = Math.round((Date.now() - new Date(s)) / 60000); if (m < 1) return 'agora'; if (m < 60) return 'há ' + m + ' min'; var h = Math.floor(m / 60); if (h < 48) return 'há ' + h + ' h'; return 'há ' + Math.floor(h / 24) + ' dias'; };
 function toast(m) { var t = $('#toast'); t.textContent = m; t.classList.add('on'); clearTimeout(window._tt); window._tt = setTimeout(function () { t.classList.remove('on'); }, 4000); }
@@ -190,7 +193,7 @@ function renderFora() {
   if (!L.length) { $('#f-tbody').innerHTML = '<tr><td colspan="6" class="empty">Todo vendedor do cadastro com WhatsApp já está no portal.</td></tr>'; return; }
   if (!vis.length) { $('#f-tbody').innerHTML = '<tr><td colspan="6" class="empty">Nenhum vendedor com "' + esc(b) + '".</td></tr>'; return; }
   $('#f-tbody').innerHTML = vis.map(function (v) {
-    var ult = v.cotacoes[0];
+    var ult = v.cotacoes[0], idc = parseInt(v.id) || 0;   // id do cadastro único (foraDoPortalCadastro); linha antiga sem id não ganha o Excluir
     var par = v.parecido ? '<br><span class="pill teste" title="' + esc(v.parecido.motivo || '') + '">parece ser ' + esc(v.parecido.nome || '') + ' ' + esc(fone(v.parecido.whats)) + (v.parecido.no_portal ? ', já no portal' : '') + '</span> <button class="btn btn-sm" onclick="unirFora(' + v.id + ',' + v.parecido.id + ')" title="Mesma pessoa: junta os dois registros no cadastro único e troca este número pelo de ' + esc(v.parecido.nome || '') + ' em todas as listas, cotações e pedidos">⇄ Unir</button>' : '';
     return '<tr><td><b>' + esc(v.nome || '—') + '</b>' + (v.sem_pin ? ' <span class="pill bad" title="Entrou pelo &quot;Sou eu&quot; antigo e ainda não criou o PIN: o portal pede na próxima abertura">sem PIN</span>' : '') + (v.email ? '<br><span class="mini">' + esc(v.email) + '</span>' : '') + par + '</td>' +
       '<td>' + esc(fone(v.whats)) + '</td>' +
@@ -198,8 +201,28 @@ function renderFora() {
       '<td>' + (v.listas.length ? v.listas.map(function (l) { return '#' + l; }).join(', ') : '<span class="mini">—</span>') + '</td>' +
       '<td>' + (ult ? '<a href="/cotacao.html" title="Abra no Acompanhamento">#' + ult.id + '</a> ' + esc(ult.nome || '') + ' <span class="mini">(' + esc(ult.status) + ')</span>' : '<span class="mini">—</span>') + '</td>' +
       '<td><div class="acoes"><a class="btn btn-sm" target="_blank" rel="noopener" href="https://wa.me/55' + esc(v.whats) + '?text=' + encodeURIComponent(conviteMsg(v.nome)) + '" title="Abre o WhatsApp dele com o convite pronto; você só confere e envia">💬 Convidar no WhatsApp</a>' +
-      '<button class="btn btn-sm" onclick="copiar(conviteMsg(' + JSON.stringify(v.nome || '') + '), \'Convite copiado\')" title="Copia a mensagem do convite com o nome dele">📋 Copiar convite</button></div></td></tr>';
+      '<button class="btn btn-sm" onclick="copiar(conviteMsg(' + JSON.stringify(v.nome || '') + '), \'Convite copiado\')" title="Copia a mensagem do convite com o nome dele">📋 Copiar convite</button>' +
+      (idc ? '<button class="btn btn-sm btn-no" onclick="excluirFora(' + idc + ')" title="Apaga de vez do cadastro de vendedores: sai das listas e não volta sozinho; cotações e pedidos ficam como histórico. Não dá pra desfazer">🗑 Excluir</button>' : '') + '</div></td></tr>';
   }).join('');
+}
+// Excluir direto daqui (Tiago, 10/11/26: "aqui tbm tem como excluir"): mesma rota da tela Vendedores. Quem está fora do portal não tem PIN;
+// se entrou pelo "Sou eu" antigo (sem PIN), esse acesso também é apagado. Cotações e pedidos não mudam (histórico).
+async function excluirFora(id) {
+  var v = (E.fora || []).find(function (x) { return parseInt(x.id) === id; }); if (!v) return;
+  var ls = v.listas || [], emp = (v.empresas || [])[0];
+  var txt = 'Excluir ' + (v.nome || '#' + id) + ' · ' + fone(v.whats) + (emp ? ' · ' + emp : '') + '?\n\n• Some do cadastro de vendedores.' +
+    (ls.length ? '\n• Sai das listas ' + ls.map(function (l) { return '#' + l; }).join(', ') + ' (' + ls.length + ' cópia' + (ls.length > 1 ? 's' : '') + ').' : '') +
+    (v.sem_pin ? '\n• O acesso antigo dele(a) no portal (sem PIN) é apagado.' : '') +
+    '\n• As cotações abertas continuam com o link dele(a).\n\nNão dá pra desfazer.';
+  if (!confirm(txt)) return;
+  try {
+    var r = await api('/api/vendedores/' + id + '/excluir', {}), rm = r.removido || v;
+    var s = ['Excluído de vez: ' + (rm.nome || '#' + id) + (rm.whats ? ' ' + fone(rm.whats) : '')];
+    if (r.listas) s.push('saiu de ' + r.listas + ' cópia(s) nas listas ' + (r.listas_ids || []).map(function (l) { return '#' + l; }).join(', ')); else if (r.listas === 0) s.push('não estava em lista nenhuma');
+    if (r.conta_portal === true) s.push('acesso ao portal apagado');
+    if (Array.isArray(r.cotacoes_abertas) && r.cotacoes_abertas.length) s.push('ainda aparece na(s) cotação(ões) aberta(s) ' + r.cotacoes_abertas.map(function (c) { return '#' + c.id + (c.nome ? ' ' + c.nome : ''); }).join(', ') + ' (o link dele(a) continua valendo)');
+    toast(s.join(' · ')); carregar();
+  } catch (e) { toast('Erro: ' + e.message); }
 }
 function renderVendedores() {
   var vs = (E.vendedores_lista || []).filter(vFiltroOk), b = ($('#v-busca').value || '').trim().toLowerCase();
@@ -237,9 +260,24 @@ function renderAvisos() {
   $('#a-tbody').innerHTML = av.map(function (a) {
     var res = a.respondeu ? '<span class="pill ok">respondeu ' + dt(a.respondeu) + '</span>' : a.abriu ? '<span class="pill info">abriu ' + dt(a.abriu) + '</span>' : '<span class="pill off">não abriu</span>';
     var rot = a.tipo === 'cotacao' && motivoTxt[a.motivo] ? '<span class="pill info">' + motivoTxt[a.motivo] + '</span>' : (tipo[a.tipo] || esc(a.tipo));
-    return '<tr><td>' + dt(a.em) + '<br><span class="mini">' + haTxt(a.em) + '</span></td><td>' + rot + (a.reenvios ? '<br><span class="mini">' + a.reenvios + ' reenvio(s)</span>' : '') + '</td>' +
+    // recibo do app (Tiago, 10/11/26: "saber se chegou"): entregueEm = a notificação apareceu no celular, abriuEm = o vendedor tocou nela;
+    // aviso de antes do recibo vem sem os campos → "sem confirmação". entregue_ultimo / abriu_ultimo (revisão 10/11): valem pro ÚLTIMO envio —
+    // depois de um reenvio ainda sem recibo, entregueEm/abriuEm são do envio anterior e a linha não pode dizer "chegou"/"tocou" (o Acompanhamento
+    // da mesma cotação diz "sem confirmação de entrega"); servidor antigo não manda os flags → vale entregueEm/abriuEm como antes
+    var rec = '';
+    if (a.tipo === 'cotacao' || a.tipo === 'lembrete' || a.tipo === 'pedido') {
+      var rs = [], chegou = a.entregue_ultimo === undefined ? !!a.entregueEm : !!a.entregue_ultimo, tocou = a.abriu_ultimo === undefined ? !!a.abriuEm : !!a.abriu_ultimo;
+      if (chegou) rs.push('<span title="O app confirmou que a notificação apareceu no celular do vendedor">📱 chegou ' + dhm(a.entregueEm) + '</span>');
+      else if (a.entregueEm) rs.push('<span class="sem" title="O reenvio mais recente ainda não tem recibo do app; a hora é da confirmação do envio anterior">último reenvio sem confirmação · anterior chegou ' + dhm(a.entregueEm) + '</span>');
+      if (tocou) rs.push('<span title="O vendedor tocou na notificação">👆 tocou ' + dhm(a.abriuEm) + '</span>');
+      else if (a.abriuEm) rs.push('<span title="O toque foi numa notificação anterior desta cotação, não no último envio">tocou num aviso anterior ' + dhm(a.abriuEm) + '</span>');
+      rec = rs.length ? '<br><span class="mini rec">' + rs.join(' · ') + '</span>' : '<br><span class="mini" title="Nenhum recibo do app: celular desligado ou sem internet, aviso por WhatsApp, ou mandado antes de 10/11">sem confirmação</span>';
+    }
+    // lembrete zerado porque o prazo mudou depois (revisão 10/11): a linha fica no histórico, marcada
+    var prazoMudou = a.prazo_mudou ? '<br><span class="mini" title="Este lembrete valeu pra um prazo que foi alterado em seguida; o lembrete do prazo novo, se já disparou, está em outra linha">(prazo mudou depois)</span>' : '';
+    return '<tr><td>' + dt(a.em) + '<br><span class="mini">' + haTxt(a.em) + '</span></td><td>' + rot + (a.reenvios ? '<br><span class="mini">' + a.reenvios + ' reenvio(s)</span>' : '') + prazoMudou + '</td>' +
       '<td>' + (a.tipo === 'pedido' ? 'Pedido #' + a.id : '<a href="/cotacao.html" title="Abra a cotação no Acompanhamento">Cotação #' + a.id + '</a>') + (a.nome ? ' · ' + esc(a.nome) : '') + (a.teste ? ' <span class="pill teste">TESTE</span>' : '') + '</td>' +
-      '<td>' + esc(a.fornecedor || '—') + '</td><td>' + ((a.vendedores || []).map(esc).join(', ') || '—') + '</td><td>' + res + '</td></tr>';
+      '<td>' + esc(a.fornecedor || '—') + '</td><td>' + ((a.vendedores || []).map(esc).join(', ') || '—') + '</td><td>' + res + rec + '</td></tr>';
   }).join('');
 }
 // cadastro único (26/10): quem está "fora" mas parece ser um registro que já tem login — une os dois (o número deste é trocado pelo do outro em tudo)

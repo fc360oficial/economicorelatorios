@@ -66,6 +66,11 @@ a.zapnum{display:inline-flex;align-items:center;gap:5px;color:var(--zap);font-we
 .dupcard{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .dupcard .lado{border:1px solid var(--border);border-radius:9px;padding:8px 10px;background:#fff;font-size:12px;line-height:1.5}
 .dupcard .lado b{font-size:13px}
+/* Atualizações dos vendedores (10/11): bloco azul-claro, uma linha por campo ("de" apagado → "para" em negrito) e as já conferidas dobradas num <details> */
+.sec.atu .hd{background:#E9EEF6}
+.mud{line-height:1.55;white-space:normal}.mud .de{color:var(--ink-3)}.mud .seta{color:var(--ink-3);margin:0 5px}
+.feitas{border-top:1px solid var(--border);background:#FAFAF8}.feitas summary{cursor:pointer;padding:8px 14px;font-size:11.5px;font-weight:600;color:var(--ink-2);list-style:none;user-select:none}.feitas summary::-webkit-details-marker{display:none}.feitas summary::before{content:'▸ ';color:var(--ink-3)}.feitas[open] summary::before{content:'▾ '}
+.feitas tbody td{color:var(--ink-2)}
 /* modal */
 .ov{position:fixed;inset:0;background:rgba(14,22,38,.45);display:none;align-items:center;justify-content:center;z-index:50;padding:16px}
 .ov.on{display:flex}
@@ -94,7 +99,7 @@ a.zapnum{display:inline-flex;align-items:center;gap:5px;color:var(--zap);font-we
   <div class="page-hdr">
     <div>
       <h1>Vendedores</h1>
-      <p><b>Cadastro único: um registro por vendedor, com a empresa dele.</b> Listas, cotações, pedidos e o Portal do Fornecedor usam este cadastro. Corrigiu o nome, o WhatsApp ou o e-mail aqui, corrige em todas as listas e cotações de uma vez (e a conta do portal acompanha, sem perder PIN nem aparelhos). Quando a mesma pessoa aparece com dois números, <b>Unir</b> junta os dois registros e troca o número errado em tudo. Vendedores novos entram sozinhos quando você salva o cadastro de uma lista, cria uma cotação ou quando o vendedor cria o login no portal.</p>
+      <p><b>Cadastro único: um registro por vendedor, com a empresa dele.</b> Listas, cotações, pedidos e o Portal do Fornecedor usam este cadastro. Corrigiu o nome, o WhatsApp ou o e-mail aqui, corrige em todas as listas e cotações de uma vez (e a conta do portal acompanha, sem perder PIN nem aparelhos). Quando a mesma pessoa aparece com dois números, <b>Unir</b> junta os dois registros e troca o número errado em tudo. Vendedores novos entram sozinhos quando você salva o cadastro de uma lista, cria uma cotação ou quando o vendedor cria o login no portal. <b>Excluir</b> apaga de vez um cadastro errado (sai das listas e perde o login do portal; cotações e pedidos ficam como histórico). <b>Atualizações dos vendedores</b> mostra o que eles corrigiram na página da cotação, pra você conferir e levar pro cadastro e pro ERP.</p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn btn-amber" onclick="abrirForm(null)">+ Novo vendedor</button>
@@ -113,6 +118,7 @@ a.zapnum{display:inline-flex;align-items:center;gap:5px;color:var(--zap);font-we
       <li><b>Editar</b> corrige nome, WhatsApp, e-mail e empresa do vendedor. A correção vai pra todas as listas e cotações em que ele aparece.</li>
       <li><b>Possíveis duplicados</b> é a mesma pessoa com dois números (um dígito trocado, mesma empresa e nome parecido). Clique em <b>Unir</b> e escolha qual registro fica: o número do outro é trocado pelo certo em tudo.</li>
       <li><b>Fora do portal</b> é quem ainda não criou login no Portal do Fornecedor: mande o convite pelo WhatsApp dali mesmo.</li>
+      <li><b>Excluir</b> apaga de vez um registro errado (sai das listas e perde o login do portal; não dá pra desfazer). <b>Atualizações dos vendedores</b> é o que o vendedor corrigiu na página da cotação (e-mail, WhatsApp, boleto, prazo de entrega, pedido mínimo): confira, atualize aqui e no ERP e marque como conferida.</li>
     </ol>
   </div>
 
@@ -122,6 +128,19 @@ a.zapnum{display:inline-flex;align-items:center;gap:5px;color:var(--zap);font-we
       <thead><tr><th>Registro A</th><th>Registro B</th><th>Por quê</th><th>Ações</th></tr></thead>
       <tbody id="d-tbody"></tbody>
     </table></div>
+  </div>
+
+  <!-- Atualizações de cadastro digitadas pelos vendedores (Tiago, 10/11/26): aparece sozinho quando há pendente; o cartão "Atualizações dos vendedores" abre/fecha -->
+  <div class="sec atu hid" id="sec-atual">
+    <div class="hd"><h2>Atualizações dos vendedores</h2><span class="mini" id="at-cont"></span><span class="mini">o que o vendedor corrigiu em "Estamos atualizando nosso cadastro" na página da cotação ou do pedido · confira, atualize o cadastro aqui e no ERP (nada é escrito no ERP) e marque como conferida</span></div>
+    <div class="tw"><table>
+      <thead><tr><th>Quando</th><th>Fornecedor</th><th>Vendedor</th><th>Cotação</th><th>O que mudou</th><th>Ações</th></tr></thead>
+      <tbody id="at-tbody"></tbody>
+    </table></div>
+    <details class="feitas hid" id="at-feitas"><summary id="at-feitas-t">ver as já conferidas</summary><div class="tw"><table>
+      <thead><tr><th>Conferida</th><th>Quando</th><th>Fornecedor</th><th>Vendedor</th><th>Cotação</th><th>O que mudou</th></tr></thead>
+      <tbody id="at-tbody-f"></tbody>
+    </table></div></details>
   </div>
 
   <div class="sec" id="sec-vend">
@@ -162,6 +181,7 @@ var $ = function (s) { return document.querySelector(s); };
 var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
 var dt = function (s) { return s ? new Date(s).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'; };
 var dd = function (s) { return s ? new Date(s).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '—'; };
+var dhm = function (s) { if (!s) return '—'; var d = new Date(s), p = function (n) { return (n < 10 ? '0' : '') + n; }; return p(d.getDate()) + '/' + p(d.getMonth() + 1) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()); };   // dd/mm hh:mm
 var fone = function (d) { d = String(d || '').replace(/\D/g, ''); if (d.length === 11) return '(' + d.slice(0, 2) + ') ' + d.slice(2, 7) + '-' + d.slice(7); if (d.length === 10) return '(' + d.slice(0, 2) + ') ' + d.slice(2, 6) + '-' + d.slice(6); return d || '—'; };
 var haTxt = function (s) { if (!s) return ''; var m = Math.round((Date.now() - new Date(s)) / 60000); if (m < 1) return 'agora'; if (m < 60) return 'há ' + m + ' min'; var h = Math.floor(m / 60); if (h < 48) return 'há ' + h + ' h'; return 'há ' + Math.floor(h / 24) + ' dias'; };
 var ZAP = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#25D366" d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>';
@@ -176,8 +196,8 @@ async function copiar(txt, okMsg) {
 var BASE_PUBLICA = 'https://hhk0a8gt2cn.sn.mynetname.net', LINK_PORTAL = BASE_PUBLICA + '/fornecedor/#criar';
 function conviteMsg(nome) { return 'Olá' + (nome ? ', ' + String(nome).split(' ')[0] : '') + '! Aqui é da Econômico Supermercados (Rede Cahu). Agora nossas cotações chegam direto no seu celular pelo Portal do Fornecedor. Abra o link, crie seu login com o seu WhatsApp (o mesmo que usamos pra te mandar as cotações) e um PIN de 6 números, e ative os avisos: ' + LINK_PORTAL; }
 
-var E = null, F = '';   // F = filtro dos cartões: '' todos · portal · fora · dup · semwhats · inativos · testes
-var F_NOME = { portal: 'no portal (com PIN)', fora: 'fora do portal', dup: 'possíveis duplicados', semwhats: 'sem WhatsApp', inativos: 'inativos / unidos', testes: 'exemplos de teste' };
+var E = null, AT = null, F = '';   // F = filtro dos cartões: '' todos · portal · fora · dup · semwhats · atualizacoes · inativos · testes; AT = { pendentes, tratadas } de /api/vendedores/atualizacoes (null se a rota falhou)
+var F_NOME = { portal: 'no portal (com PIN)', fora: 'fora do portal', dup: 'possíveis duplicados', semwhats: 'sem WhatsApp', atualizacoes: 'atualizações dos vendedores', inativos: 'inativos / unidos', testes: 'exemplos de teste' };
 var noPortal = function (v) { return !!(v.portal && v.portal.tem_pin); };
 function porId(id) { return (E.itens || []).find(function (v) { return v.id === id; }); }
 function dupIds() { var s = {}; (E.suspeitos || []).forEach(function (p) { s[p.a] = 1; s[p.b] = 1; }); return s; }
@@ -186,16 +206,37 @@ function filtroOk(v, dups) {
   if (v.ativo === false) return false;
   if (F === 'testes') return !!v.teste;
   if (v.teste && F) return false;
+  if (F === 'atualizacoes') { var ids = atuIds(); return ids ? !!ids[v.id] : true; }   // só quem tem correção pendente (sem pendente, mostra todos)
   if (F === 'portal') return noPortal(v);
   if (F === 'fora') return !!v.whats && !noPortal(v);
   if (F === 'dup') return !!dups[v.id];
   if (F === 'semwhats') return !v.whats;
   return true;
 }
-function kpiClick(k) { F = (F === k || k === 'tudo') ? '' : k; render(); if (F === 'dup') { var s = $('#sec-dup'); if (s) s.scrollIntoView({ behavior: 'smooth', block: 'start' }); } }
+// vendedores citados nas atualizações pendentes: pelo número atual ou antigo (inclusive o número de antes/depois de uma troca de WhatsApp),
+// ou por nome + empresa quando a cópia não tem número. null = nenhuma pendente
+function atuIds() {
+  var P = (AT && AT.pendentes) || []; if (!P.length) return null;
+  var ids = {};
+  (E.itens || []).forEach(function (v) {
+    var ws = [v.whats].concat(v.antigos || []).filter(Boolean), nm = String(v.nome || '').trim().toLowerCase();
+    var bate = P.some(function (a) {
+      var vd = a.vendedor || {};
+      if (vd.whats || (a.campos || []).some(function (c) { return c.campo === 'whats'; })) return ws.indexOf(vd.whats) >= 0 || (a.campos || []).some(function (c) { return c.campo === 'whats' && (ws.indexOf(String(c.de || '')) >= 0 || ws.indexOf(String(c.para || '')) >= 0); });
+      return !!nm && String(vd.nome || '').trim().toLowerCase() === nm && (!a.codFornec || !v.codFornec || a.codFornec === v.codFornec);
+    });
+    if (bate) ids[v.id] = 1;
+  });
+  return ids;
+}
+function kpiClick(k) { F = (F === k || k === 'tudo') ? '' : k; render(); var s = F === 'dup' ? $('#sec-dup') : (F === 'atualizacoes' ? $('#sec-atual') : null); if (s) s.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
 
 async function carregar() {
-  try { E = await api('/api/vendedores'); render(); }
+  try {
+    // as atualizações dos vendedores vêm numa rota própria (10/11): se ela falhar (servidor antigo, 404), a tela segue sem o bloco
+    var rs = await Promise.all([api('/api/vendedores'), api('/api/vendedores/atualizacoes').catch(function () { return null; })]);
+    E = rs[0]; AT = rs[1] && Array.isArray(rs[1].pendentes) ? rs[1] : null; render();
+  }
   catch (e) { $('#status').innerHTML = '<span class="err">Não consegui carregar: ' + esc(e.message) + '</span>'; }
 }
 async function absorver() { try { var r = await api('/api/vendedores/absorver', {}); toast(r.novos ? r.novos + ' vendedor(es) novo(s) trazido(s) das listas, cotações, pedidos e portal' : 'Nenhum vendedor novo: tudo que existe nas listas, cotações, pedidos e portal já está aqui'); carregar(); } catch (e) { toast('Erro: ' + e.message); } }
@@ -209,18 +250,20 @@ async function testes() {
 }
 function render() {
   var R = E.resumo || {}, dups = dupIds();
-  $('#status').innerHTML = '<span><b>' + R.vendedores + '</b> vendedor(es) no cadastro</span><span>Dados em <b>data/vendedores/</b> no servidor; nada é escrito no ERP</span>' + (R.inativos ? '<span>' + R.inativos + ' inativo(s)/unido(s) · <a href="#" onclick="kpiClick(\'inativos\');return false">ver</a></span>' : '');
+  $('#status').innerHTML = '<span><b>' + R.vendedores + '</b> vendedor(es) no cadastro</span><span>Dados em <b>data/vendedores/</b> no servidor; nada é escrito no ERP</span>' + (R.inativos ? '<span>' + R.inativos + ' inativo(s)/unido(s) · <a href="#" onclick="kpiClick(\'inativos\');return false">ver</a></span>' : '') + (R.excluidos ? '<span title="Apagados de vez pelo botão Excluir: não voltam sozinhos das listas antigas">' + R.excluidos + ' excluído(s)</span>' : '');
+  var nAtu = AT ? (AT.pendentes || []).length : (R.atualizacoes_pendentes || 0);   // pendentes de conferir (rota própria; sem ela, o número do resumo)
   var card = function (k, cls, nm, v, sub, tit) { return '<div class="kpi ' + cls + (F === k ? ' on' : '') + '" onclick="kpiClick(\'' + k + '\')" title="' + esc(tit) + '"><div class="nm">' + nm + '</div><div class="v">' + v + '</div><div class="sub">' + sub + '</div></div>'; };
   $('#kpis').innerHTML =
     card('tudo', '', 'Vendedores', R.vendedores, 'um registro por vendedor, com a empresa dele', 'Clique: mostra todos') +
     card('portal', R.com_login ? 'ok' : '', 'No portal', R.com_login + '<small>de ' + R.vendedores + '</small>', 'criaram login (WhatsApp + PIN) no Portal do Fornecedor', 'Clique: só quem tem login') +
     card('fora', R.sem_login ? 'bad' : '', 'Fora do portal', R.sem_login, 'ainda sem login — convide pelo WhatsApp', 'Clique: só quem ainda não criou login') +
     card('dup', R.suspeitos ? 'warn' : '', 'Possíveis duplicados', R.suspeitos, R.suspeitos ? 'mesma pessoa com dois números? confira e una' : 'nenhum registro parecido com outro', 'Clique: pares parecidos, com botão pra unir') +
-    card('semwhats', R.sem_whats ? 'warn' : '', 'Sem WhatsApp', R.sem_whats, 'não recebem link nem convite: complete o número', 'Clique: só quem está sem número');
+    card('semwhats', R.sem_whats ? 'warn' : '', 'Sem WhatsApp', R.sem_whats, 'não recebem link nem convite: complete o número', 'Clique: só quem está sem número') +
+    card('atualizacoes', nAtu ? 'warn' : '', 'Atualizações dos vendedores', nAtu, 'dados que o vendedor corrigiu na página da cotação · conferir e atualizar o cadastro/ERP', 'Clique: o que os vendedores corrigiram (e-mail, WhatsApp, boleto, prazo de entrega, pedido mínimo) e ainda não foi conferido');
   $('#kpi-view').innerHTML = F ? 'Mostrando só <b>' + F_NOME[F] + '</b> · <a href="#" onclick="kpiClick(\'tudo\');return false">ver tudo</a>' : '';
   var bt = $('#btn-testes'); bt.textContent = R.testes ? '🧹 Remover exemplos de teste (' + R.testes + ')' : '🧪 Criar exemplos de teste'; bt.title = R.testes ? 'Apaga os registros marcados TESTE' : 'Cria 4 vendedores TESTE (um par duplicado e um sem número) pra você ver a tela funcionando; eles não entram no portal nem nas listas';
   $('#ajuda').style.display = R.vendedores ? 'none' : 'block';
-  renderDup(); renderVend(dups);
+  renderDup(); renderAtu(); renderVend(dups);
   // datalist de empresas do form
   $('#emp-lista').innerHTML = (E.fornecedores || []).map(function (f) { return '<option value="' + esc(f.codFornec + ' · ' + f.nome) + '">'; }).join('');
 }
@@ -233,7 +276,9 @@ function renderDup() {
   $('#d-tbody').innerHTML = L.map(function (p) {
     var a = porId(p.a), b = porId(p.b), ficaA = noPortal(a) || (!noPortal(b) && a.id < b.id);
     var btn = function (fica, sai, rec) { return '<button class="btn btn-sm' + (rec ? ' btn-ok' : '') + '" onclick="unir(' + sai.id + ',' + fica.id + ')" title="' + esc('Fica ' + (fica.nome || '#' + fica.id) + ' (' + fone(fica.whats) + '); o número ' + fone(sai.whats) + ' é trocado por ' + fone(fica.whats) + ' em todas as listas, cotações e pedidos') + '">Unir: fica ' + esc((fica.nome || '#' + fica.id).split(' ')[0]) + ' ' + esc(fica.whats ? fone(fica.whats) : '(sem número)') + (rec ? ' ✓' : '') + '</button>'; };
-    return '<tr><td class="wrap">' + lado(a) + '</td><td class="wrap">' + lado(b) + '</td><td class="wrap">' + esc(p.motivo) + '</td><td><div class="acoes">' + btn(ficaA ? a : b, ficaA ? b : a, true) + btn(ficaA ? b : a, ficaA ? a : b, false) + '</div></td></tr>';
+    // Excluir por registro (Tiago, 10/11/26: "aqui tem que ter pra excluir"): não é a mesma pessoa, ou um dos dois é cadastro errado
+    var exc = function (v) { return '<button class="btn btn-sm btn-no" onclick="excluir(' + v.id + ')" title="Apaga este registro de vez (não é a mesma pessoa, ou é cadastro errado)">🗑 Excluir ' + esc((v.nome || '#' + v.id).split(' ')[0]) + ' ' + esc(v.whats ? fone(v.whats) : '(sem número)') + '</button>'; };
+    return '<tr><td class="wrap">' + lado(a) + '</td><td class="wrap">' + lado(b) + '</td><td class="wrap">' + esc(p.motivo) + '</td><td><div class="acoes">' + btn(ficaA ? a : b, ficaA ? b : a, true) + btn(ficaA ? b : a, ficaA ? a : b, false) + '</div><div class="acoes" style="margin-top:6px">' + exc(a) + exc(b) + '</div></td></tr>';
   }).join('');
 }
 function renderVend(dups) {
@@ -253,7 +298,8 @@ function renderVend(dups) {
       '<td class="col-listas wrap">' + ((v.listas || []).length ? v.listas.map(function (l) { return '#' + l; }).join(', ') : '<span class="mini">—</span>') + '</td>' +
       '<td class="col-cot wrap">' + (ult ? '<a href="/cotacao.html" title="Abra no Acompanhamento">#' + ult.id + '</a> ' + esc(ult.nome || '') + ' <span class="mini">(' + esc(ult.status) + ')</span>' : '<span class="mini">—</span>') + '</td>' +
       '<td>' + portal + '</td>' +
-      '<td><div class="acoes">' + (inat ? '<button class="btn btn-sm" onclick="reativar(' + v.id + ')">Reativar</button>' : '<button class="btn btn-sm" onclick="abrirForm(' + v.id + ')">✎ Editar</button><button class="btn btn-sm" onclick="abrirUnir(' + v.id + ')" title="É a mesma pessoa que outro registro? Junte os dois">⇄ Unir</button><button class="btn btn-sm btn-no" onclick="desativar(' + v.id + ')" title="Tira do cadastro (não some das listas; só deixa de contar aqui e no portal)">Desativar</button>') + '</div></td></tr>';
+      '<td><div class="acoes">' + (inat ? '<button class="btn btn-sm" onclick="reativar(' + v.id + ')">Reativar</button>' : '<button class="btn btn-sm" onclick="abrirForm(' + v.id + ')">✎ Editar</button><button class="btn btn-sm" onclick="abrirUnir(' + v.id + ')" title="É a mesma pessoa que outro registro? Junte os dois">⇄ Unir</button><button class="btn btn-sm btn-no" onclick="desativar(' + v.id + ')" title="Tira do cadastro sem apagar (não some das listas; só deixa de contar aqui e no portal; dá pra reativar)">Desativar</button>') +
+      '<button class="btn btn-sm btn-no" onclick="excluir(' + v.id + ')" title="Apaga de vez: some do cadastro, sai das listas e perde o login do portal; cotações e pedidos ficam como histórico. Não dá pra desfazer">🗑 Excluir</button></div></td></tr>';
   }).join('');
 }
 // ── form (novo / editar) ──
@@ -301,6 +347,68 @@ async function unir(idSai, idFica) {
 }
 async function desativar(id) { var v = porId(id); if (!v) return; if (!confirm('Desativar ' + (v.nome || '#' + id) + '?\n\nEle deixa de contar no cadastro e no "fora do portal". As listas e cotações não mudam. Dá pra reativar depois.')) return; try { await api('/api/vendedores/' + id + '/desativar', {}); toast('Desativado'); carregar(); } catch (e) { toast('Erro: ' + e.message); } }
 async function reativar(id) { try { await api('/api/vendedores/' + id + '/reativar', {}); toast('Reativado'); carregar(); } catch (e) { toast('Erro: ' + e.message); } }
+// ── excluir de vez (Tiago, 10/11/26: "aqui tem que ter pra excluir" — nos possíveis duplicados, na tabela e no "fora do portal" do painel) ──
+// Diferente de Desativar: some do cadastro, sai de todas as listas, a conta do portal (PIN e avisos) é apagada e não volta sozinho na
+// próxima subida. Cotações e pedidos não mudam (histórico): o servidor responde em quais cotações abertas ele ainda aparece e quais
+// pedidos ainda esperam por ele(a) (pedidos_abertos — revisão 10/11; servidor antigo não manda o campo e a frase não sai).
+async function excluir(id) {
+  var v = porId(id); if (!v) return;
+  var ls = v.listas || [], quem = (v.nome || '#' + id) + ' · ' + (v.whats ? fone(v.whats) : 'sem WhatsApp') + (v.empresa ? ' · ' + v.empresa : '');
+  // conta do portal: com PIN é o login; sem PIN ("Sou eu" antigo, pode ter aparelho recebendo aviso) o servidor apaga do mesmo jeito,
+  // então o aviso tem que sair também (revisão 10/11, achado 21) — v.portal vem de contaDe(): tem_pin, dispositivos
+  var portalTxt = v.portal ? (v.portal.tem_pin ? '\n• O login dele(a) no portal (PIN e avisos no celular) é apagado.' : '\n• O acesso antigo dele(a) no portal (sem PIN' + (v.portal.dispositivos ? ', com avisos no celular' : '') + ') é apagado.') : '';
+  var txt = 'Excluir ' + quem + '?\n\n• Some do cadastro de vendedores.' +
+    (ls.length ? '\n• Sai das listas ' + ls.map(function (l) { return '#' + l; }).join(', ') + ' (' + ls.length + ' cópia' + (ls.length > 1 ? 's' : '') + ').' : '') +
+    portalTxt +
+    '\n• As cotações abertas continuam com o link dele(a).\n\nNão dá pra desfazer.';
+  if (!confirm(txt)) return;
+  try {
+    var r = await api('/api/vendedores/' + id + '/excluir', {}), rm = r.removido || v;
+    var s = ['Excluído de vez: ' + (rm.nome || '#' + id) + (rm.whats ? ' ' + fone(rm.whats) : '')];
+    if (r.teste) s.push('era exemplo de teste');
+    else {
+      if (r.listas) s.push('saiu de ' + r.listas + ' cópia(s) nas listas ' + (r.listas_ids || []).map(function (l) { return '#' + l; }).join(', ')); else if (r.listas === 0) s.push('não estava em lista nenhuma');
+      if (r.conta_portal === true) s.push(noPortal(v) ? 'login do portal apagado' : 'acesso ao portal apagado'); else if (r.conta_portal === false) s.push('não tinha login no portal');   // sem PIN era "acesso antigo" (revisão 10/11, achado 21)
+      if (Array.isArray(r.conta_portal_mantidas) && r.conta_portal_mantidas.length) s.push('login do portal no número ' + r.conta_portal_mantidas.map(fmtW).join(', ') + ' mantido (parece ser de outra pessoa; confira em Portal do Fornecedor)');   // revisão 3, 10/11
+      if (Array.isArray(r.cotacoes_abertas)) s.push(r.cotacoes_abertas.length ? 'ainda aparece na(s) cotação(ões) aberta(s) ' + r.cotacoes_abertas.map(function (c) { return '#' + c.id + (c.nome ? ' ' + c.nome : ''); }).join(', ') + ' (o link dele(a) continua valendo)' : 'não está em cotação aberta');
+      if (Array.isArray(r.pedidos_abertos) && r.pedidos_abertos.length) s.push('ainda tem pedido(s) à espera dele(a): ' + r.pedidos_abertos.map(function (p) { return '#' + p.id + (p.fornecedor ? ' ' + p.fornecedor : ''); }).join(', ') + ' (o link do pedido continua valendo)');   // contrato 4 da revisão 10/11
+    }
+    toast(s.join(' · ')); carregar();
+  } catch (e) { toast('Erro: ' + e.message); }
+}
+// ── atualizações de cadastro digitadas pelos vendedores (Tiago, 10/11/26: "essas atualizações de cadastro que vendedores coloca já tem que chegar pra gente atualizar") ──
+// O bloco "Estamos atualizando nosso cadastro" da página da cotação/pedido corrigia a lista em silêncio e ninguém via. Agora cada mudança
+// chega aqui pendente até alguém conferir, levar pro cadastro (e pro ERP, na mão: o sistema nunca escreve lá) e marcar "Atualizei no cadastro".
+var quemAtu = function (a) { var v = a.vendedor || {}; return v.nome || (v.whats ? fone(v.whats) : 'vendedor sem nome'); };
+function renderAtu() {
+  var P = (AT && AT.pendentes) || [], T = (AT && AT.tratadas) || [], sec = $('#sec-atual');
+  sec.classList.toggle('hid', !(F === 'atualizacoes' || P.length));   // aparece sozinho quando há pendente (como os duplicados); o cartão abre mesmo sem nenhuma
+  $('#at-cont').textContent = P.length ? P.length + ' pendente' + (P.length > 1 ? 's' : '') : '';
+  var cot = function (a) { return a.cotacao && a.cotacao.id ? '<a href="/cotacao.html" title="Abra no Acompanhamento">#' + a.cotacao.id + '</a> ' + esc(a.cotacao.nome || '') : (a.pedido && a.pedido.id ? 'Pedido #' + a.pedido.id : '<span class="mini">—</span>'); };
+  var forn = function (a) { return (a.fornecedor ? esc(a.fornecedor) : '<span class="mini">sem fornecedor</span>') + (a.codFornec ? ' <span class="mini">cód. ' + esc(a.codFornec) + '</span>' : '') + (a.lista ? '<br><span class="mini">lista #' + esc(a.lista) + '</span>' : ''); };
+  var vend = function (a) { var v = a.vendedor || {}; return '<b>' + esc(v.nome || '—') + '</b><br>' + zapLink(v.whats, v.nome); };
+  var val = function (c, x) { return x == null || x === '' ? '—' : esc(c.campo === 'whats' ? fone(x) : x); };
+  var muds = function (a) { return (a.campos || []).map(function (c) { return '<div class="mud"><span class="mini">' + esc(c.rotulo || c.campo) + ':</span> <span class="de">' + val(c, c.de) + '</span><span class="seta">→</span><b>' + val(c, c.para) + '</b></div>'; }).join('') || '<span class="mini">—</span>'; };
+  if (!AT) $('#at-tbody').innerHTML = '<tr><td colspan="6" class="empty">Não consegui carregar as atualizações (rota /api/vendedores/atualizacoes). Atualize a página; se continuar, o servidor ainda está na versão antiga.</td></tr>';
+  else if (!P.length) $('#at-tbody').innerHTML = '<tr><td colspan="6" class="empty">Nenhuma atualização pendente. Quando um vendedor corrigir e-mail, WhatsApp, boleto, prazo de entrega ou pedido mínimo na página da cotação, aparece aqui.</td></tr>';
+  else $('#at-tbody').innerHTML = P.map(function (a) {
+    return '<tr><td class="num">' + dhm(a.em) + '<br><span class="mini">' + haTxt(a.em) + (a.fusoes ? ' · salvou ' + (a.fusoes + 1) + 'x' : '') + '</span></td><td class="wrap">' + forn(a) + '</td><td class="wrap">' + vend(a) + '</td><td class="wrap">' + cot(a) + '</td><td class="wrap">' + muds(a) + '</td>' +
+      '<td><div class="acoes"><button class="btn btn-sm btn-ok" onclick="tratarAtu(' + a.id + ')" title="Marca como conferida: você já levou a correção pro cadastro (e pro ERP, se for o caso). Sai desta lista e fica em &quot;já conferidas&quot;">✓ Atualizei no cadastro</button></div></td></tr>';
+  }).join('');
+  $('#at-feitas').classList.toggle('hid', !T.length);
+  $('#at-feitas-t').textContent = 'ver as já conferidas (' + T.length + ')';
+  $('#at-tbody-f').innerHTML = T.map(function (a) { return '<tr><td class="num">' + dhm(a.tratadoEm) + (a.tratadoPor ? '<br><span class="mini">por ' + esc(a.tratadoPor) + '</span>' : '') + '</td><td class="num">' + dhm(a.em) + '</td><td class="wrap">' + forn(a) + '</td><td class="wrap">' + vend(a) + '</td><td class="wrap">' + cot(a) + '</td><td class="wrap">' + muds(a) + '</td></tr>'; }).join('');
+}
+async function tratarAtu(id) {
+  var a = ((AT && AT.pendentes) || []).find(function (x) { return x.id === id; });
+  try {
+    var r = await api('/api/vendedores/atualizacoes/' + id + '/tratar', {});
+    if (AT) { AT.pendentes = AT.pendentes.filter(function (x) { return x.id !== id; }); if (r.atualizacao || a) AT.tratadas = [r.atualizacao || a].concat(AT.tratadas || []); }   // sai da lista na hora; carregar() confirma com o servidor
+    render();
+    toast('Conferida' + (a ? ': ' + quemAtu(a) + (a.fornecedor ? ' (' + a.fornecedor + ')' : '') + ' · ' + (a.campos || []).map(function (c) { return c.rotulo || c.campo; }).join(', ') : '') + (r.ja_tratada ? ' · já estava conferida' : ''));
+    carregar();
+  } catch (e) { toast('Erro: ' + e.message); }
+}
 document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { fechar('ov-form'); fechar('ov-unir'); } });
 carregar();
 </script>
