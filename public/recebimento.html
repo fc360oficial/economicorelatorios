@@ -1030,16 +1030,15 @@ function abrirCartaoExp(c) {
       <div><label for="xEmb">Emb</label><input id="xEmb" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" value="${esc(c.emb)}"></div>
     </div>
     <div class="kv" style="font-size:13px"><span>Total</span><b id="xTot">0 un</b></div>
-    <div class="f1"><label for="xLote">Lote (opcional · bipe ou digite)</label><input id="xLote" type="text" autocomplete="off" autocapitalize="characters" value="${esc(c.lote || '')}"></div>
-    <div class="tip">Enter em cada campo: Quant → Emb → Lote (pode deixar vazio) → grava e volta pro bipe.</div>
+    <div class="tip">Enter em cada campo: Quant → Emb → grava e volta pro bipe.</div>
     <div class="row2"><button class="btn btn-secondary" onclick="fecharCartaoExp()">Cancelar</button><button class="btn btn-primary" onclick="gravarCartaoExp()">Gravar</button></div>
   </div>`;
-  const q = $('xQuant'), e = $('xEmb'), lt = $('xLote');
+  // 11/11 (Tiago: "lote no carregamento não precisa ter, e ainda tem na tela"): o cartão do carregamento não pede lote; Enter na Emb já grava
+  const q = $('xQuant'), e = $('xEmb');
   const tot = () => { $('xTot').textContent = num((+String(q.value).replace(',', '.') || 0) * (+String(e.value).replace(',', '.') || 0)) + ' un'; };
   q.addEventListener('input', tot); e.addEventListener('input', tot); tot();
   q.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.keyCode === 13) { ev.preventDefault(); e.focus(); e.select(); } });
-  e.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.keyCode === 13) { ev.preventDefault(); lt.focus(); lt.select(); } });
-  lt.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.keyCode === 13) { ev.preventDefault(); gravarCartaoExp(); } });
+  e.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.keyCode === 13) { ev.preventDefault(); gravarCartaoExp(); } });
   q.focus(); q.select(); $('xCartao').scrollIntoView({ block: 'nearest' });
 }
 function fecharCartaoExp() { cartaoExp = null; $('xCartao').innerHTML = ''; focarExp(); }
@@ -1183,7 +1182,7 @@ function tirarItem(cod, fora) {
   const lotes = it.lotes || [];
   abrirModal(`<div class="t">${esc(it.descricao)}</div>
     <div class="f2"><div><label for="tQuant">Quantas (${esc(fora ? 'tudo = ' + num(it.quant) : 'bipadas: ' + num(it.quant))})</label><input id="tQuant" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" value="${fora ? esc(num(it.quant)) : ''}"></div>
-    <div><label for="tLote">Lote</label><select id="tLote"><option value="">todos</option>${lotes.map(l => `<option value="${esc(l.lote)}">${esc(l.lote)} (${num(l.quant)})</option>`).join('')}</select></div></div>
+    <div${lotes.length ? '' : ' hidden'}><label for="tLote">Lote</label><select id="tLote"><option value="">todos</option>${lotes.map(l => `<option value="${esc(l.lote)}">${esc(l.lote)} (${num(l.quant)})</option>`).join('')}</select></div></div>
     <div class="f1"><label for="tMotivo">Motivo (opcional)</label><input id="tMotivo" type="text" autocomplete="off" placeholder="sobrou, caixa errada…"></div>
     <div class="row2"><button class="btn btn-secondary" onclick="fecharModal();focarExp()">Cancelar</button><button class="btn btn-primary" onclick="confirmarTirar('${esc(cod)}')">Tirar</button></div>`);
   setTimeout(() => { const q = $('tQuant'); if (q) { q.focus(); q.select(); } }, 50);
