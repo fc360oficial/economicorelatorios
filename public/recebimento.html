@@ -499,9 +499,12 @@ if (VK) { try { VK.overlaysContent = true; } catch (e) {} }
 function aplicarTeclado(refocar) {
   for (const [i, b] of CAMPOS_BIPE) {
     const el = $(i);
-    el.setAttribute('inputmode', VK || !semTeclado ? 'numeric' : 'none');
+    // 11/11 (Tiago: "na entrada em recebimento também tá aparecendo o teclado"): no app o WebView não respeita o
+    // virtualkeyboardpolicy e o teclado subia no campo de bipe. Lá a leitura vem por broadcast, não pelo IME, então o
+    // campo de bipe pode ficar sem teclado de verdade (inputmode none); a tecla física do coletor continua escrevendo.
+    el.setAttribute('inputmode', (VK && !NO_APP) || !semTeclado ? 'numeric' : 'none');
     $(b).setAttribute('aria-pressed', String(!semTeclado));
-    if (refocar && document.activeElement === el) { if (VK) tecladoSePedido(); else { el.blur(); el.focus(); } } // sem a API: blur+focus reabre/fecha o teclado
+    if (refocar && document.activeElement === el) { if (VK && !NO_APP) tecladoSePedido(); else { el.blur(); el.focus(); } } // sem a API: blur+focus reabre/fecha o teclado
   }
   for (const el of document.querySelectorAll('input[data-im]')) delete el.dataset.pediu;
   camposNumericos(document);
@@ -1305,23 +1308,30 @@ function renderBip() {
   $('bItens').innerHTML = antes.map(i => { const e = ESTADO[i.estado] || ['', ''];
     return `<div class="it ${e[0]}" data-cod="${esc(i.cod)}" onclick="corrigirItem(this.dataset.cod)"><div class="stripe"></div>
       <div><div class="d">${esc(i.descricao)}</div><div class="c">${esc(metaItem(i, true))}</div></div>
-      <div class="q"><b>${num(i.un)} un</b><small>${num(i.quant)} × ${num(i.emb)}</small></div></div>`; }).join('');
+      <div class="q">${(f => `<b>${f.n} ${f.l}</b><small>${f.sub}</small>`)(qtdItem(i))}</div></div>`; }).join('');
   $('bNota').innerHTML = pend.length ? '<div class="pendTit">Veio na nota · ainda não bipado (' + pend.length + ')</div><div class="itens">' +
-    pend.map(p => `<div class="it pend"><div class="stripe"></div><div><div class="d">${esc(p.descricao || p.cod)}</div><div class="c">${esc(p.cod)}</div></div><div class="q"><small>bipar</small></div></div>`).join('') + '</div>' : '';
+    pend.map(p => `<div class="it pend"><div class="stripe"></div><div><div class="d">${esc(p.descricao || p.cod)}</div><div class="c">${esc(p.cod)}${p.emb > 1 ? ' · vem em caixa c/ ' + num(p.emb) + ' (pode bipar a caixa)' : ''}</div></div><div class="q"><small>bipar</small></div></div>`).join('') + '</div>' : '';
   atualizarBadge(); renderDescartes();
   setNet(navigator.onLine);
+}
+// Recebido em caixa (11/11/26, Tiago, NF 643671): a nota traz o código da UNIDADE, mas o conferente bipa e conta CAIXAS.
+// Quando a contagem fecha em caixas inteiras, o número grande é a caixa ("200 cx") e a unidade vai embaixo.
+function qtdItem(i) {
+  const emb = +i.emb || 1, q = +i.quant || 0, un = +i.un || 0;
+  if (emb > 1 && Math.abs(q * emb - un) < 0.001) return { n: num(q), l: esc(String(i.emb_label && i.emb_label !== 'UN' ? i.emb_label : 'CX').toLowerCase()), sub: 'c/ ' + num(emb) + ' = ' + num(un) + ' un' };
+  return { n: num(un), l: 'un', sub: num(q) + ' × ' + num(emb) };
 }
 function metaItem(i, comEstado) {
   const e = ESTADO[i.estado] || ['', ''];
   const lotes = (i.lotes || []).filter(l => l.lote);
-  return [i.cod, lotes.length ? 'lote ' + lotes.map(l => l.lote + (lotes.length > 1 ? ' (' + num(l.un) + ')' : '') + (l.validade ? ' vence ' + dataBr(l.validade) : '')).join(', ') : (i.validade ? 'vence ' + dataBr(i.validade) : null), comEstado && e[1] || null].filter(Boolean).join(' · ');
+  return [i.cod, i.caixa ? 'caixa ' + i.caixa : null, lotes.length ? 'lote ' + lotes.map(l => l.lote + (lotes.length > 1 ? ' (' + num(l.un) + ')' : '') + (l.validade ? ' vence ' + dataBr(l.validade) : '')).join(', ') : (i.validade ? 'vence ' + dataBr(i.validade) : null), comEstado && e[1] || null].filter(Boolean).join(' · ');
 }
 function cartaoUltimo(i) {
   const e = ESTADO[i.estado] || ['', ''];
   return `<button type="button" class="ultimo ${e[0]}" data-cod="${esc(i.cod)}" onclick="corrigirItem(this.dataset.cod)">
     <div class="t">Último bipe${e[1] ? ' · ' + esc(e[1]) : ''}</div>
     <div class="d">${esc(i.descricao)}</div>
-    <div class="q"><b>${num(i.un)}</b><span>un · ${num(i.quant)} × ${num(i.emb)}</span></div>
+    <div class="q">${(f => `<b>${f.n}</b><span>${f.l} · ${f.sub}</span>`)(qtdItem(i))}</div>
     <div class="m">${esc(metaItem(i, false))} · toque pra corrigir</div></button>`;
 }
 // Menu da barra (⋮): o que antes eram três botões no topo da tela.
@@ -1510,7 +1520,7 @@ function escolherCorrigir() {
   const itens = (visao && visao.itens) || [];
   if (!itens.length) { toast('Nada bipado ainda.'); return; }
   abrirModal('<h3>Corrigir qual produto?</h3>' + itens.slice().reverse().map(i =>
-    `<button class="nota" data-cod="${esc(i.cod)}" onclick="corrigirItem(this.dataset.cod)"><div class="f">${esc(i.descricao)}</div><div class="m">${esc(i.cod)} · <b>${num(i.un)} un</b> (${num(i.quant)} × ${num(i.emb)})</div></button>`).join('') +
+    `<button class="nota" data-cod="${esc(i.cod)}" onclick="corrigirItem(this.dataset.cod)"><div class="f">${esc(i.descricao)}</div><div class="m">${esc(i.cod)} · ${(f => `<b>${f.n} ${f.l}</b> (${f.sub})`)(qtdItem(i))}</div></button>`).join('') +
     '<button class="btn btn-secondary blk" onclick="fecharModal()">Cancelar</button>');
 }
 function corrigirItem(cod) {
