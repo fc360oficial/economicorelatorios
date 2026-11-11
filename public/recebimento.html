@@ -926,6 +926,8 @@ async function pollExp() { if (!visaoExp || cartaoExp || $('modal').innerHTML) r
 // Separação (Tiago, 14/10 noite): mostra a lista do pedido (descrição, quantidade, 4 últimos do EAN); o separador toca
 // no produto e digita a quantidade separada. Bipe de produto fora do pedido dá erro na hora. Carregamento: cego, outra
 // pessoa, bate com o que a separação registrou.
+// fiscal mandou reconferir só alguns itens (11/11, Tiago, pedido 7906): nomes dos itens pro aviso; '' = reconferir tudo
+const soItensExp = a => (a && a.itens && a.itens.length ? a.itens.map(i => i.descricao || i.cod).join(', ') : '');
 const ESTADO_EXP = { ok: ['', 'conforme a separação'], diferente: ['e-warn', 'diferente da separação · confira'], fora: ['e-bad', 'não está na separação · tire do caminhão'] };
 const foraHtml = fora => fora.map(f => `<div class="it e-bad"><div class="stripe"></div><div><div class="d">${esc(f.descricao)}</div><div class="c">${esc(f.cod)} · fora · lote ${esc((f.lotes || []).map(l => l.lote).join(', '))}</div></div><div class="q"><b>${num(f.un)} un</b><small>${num(f.quant)} × ${num(f.emb)}</small></div></div>`).join('');
 function renderSep() {
@@ -941,7 +943,7 @@ function renderSep() {
   $('xProg').innerHTML = fis ? 'Aguardando o fiscal do CD' : selIt ? `<b style="color:var(--amk)">Selecionado: ${esc(selIt.descricao)}</b> · bipe o produto pra confirmar` : 'Bipe o produto: abre a quantidade, OK grava. Ou toque no item pra marcar antes.';
   $('xTir').textContent = v.tirados ? v.tirados + (v.tirados === 1 ? ' retirada registrada pro fiscal' : ' retiradas registradas pro fiscal') : '';
   $('bipExp').placeholder = selIt ? 'Bipe o produto selecionado' : 'Bipe o produto';
-  $('xAviso').innerHTML = (v.avisoFiscal ? `<div class="aviso fis"><b>${v.avisoFiscal.reconferir ? 'Fiscal do CD mandou RECONFERIR a separação:' : 'Fiscal do CD devolveu pra separação:'}</b> ${esc(v.avisoFiscal.obs || (v.avisoFiscal.reconferir ? 'recomece do zero' : 'acerte e mande de novo'))} <span style="color:var(--ink3)">· ${esc(v.avisoFiscal.nome || '')}</span></div>` : '')
+  $('xAviso').innerHTML = (v.avisoFiscal ? `<div class="aviso fis"><b>${soItensExp(v.avisoFiscal) ? 'Fiscal do CD mandou RECONFERIR só:' : v.avisoFiscal.reconferir ? 'Fiscal do CD mandou RECONFERIR a separação:' : 'Fiscal do CD devolveu pra separação:'}</b> ${soItensExp(v.avisoFiscal) ? esc(soItensExp(v.avisoFiscal)) + '. O resto da separação continua valendo.' + (v.avisoFiscal.obs ? ' ' + esc(v.avisoFiscal.obs) : '') : esc(v.avisoFiscal.obs || (v.avisoFiscal.reconferir ? 'recomece do zero' : 'acerte e mande de novo'))} <span style="color:var(--ink3)">· ${esc(v.avisoFiscal.nome || '')}</span></div>` : '')
     + (fis ? `<div class="aviso"><b>Separação com divergência mandada pro fiscal do CD.</b> ${esc((v.liberacao || {}).motivo || '')} Ele libera pro carregamento ou devolve pra acertar.</div>` : '');
   const fora = v.fora || [];
   $('xFora').innerHTML = fora.length ? `<div class="aviso"><b>${fora.length === 1 ? '1 produto bipado não é do pedido.' : fora.length + ' produtos bipados não são do pedido.'}</b> Use "Tirar da coletagem".</div>` + foraHtml(fora) : '';
@@ -976,7 +978,7 @@ function renderExp() {
   $('xResTxt').innerHTML = `<b>${visaoExp.produtos}</b> de ${tot} produtos bipados`; $('xUn').textContent = num(visaoExp.unidades) + ' un';
   $('xProg').textContent = 'Cego: bipe o que sobe no caminhão. Tem que ficar conforme a separação.'; $('bipExp').placeholder = 'Bipe a caixa (DUN-14) ou a unidade';
   $('xTir').textContent = visaoExp.tirados ? visaoExp.tirados + (visaoExp.tirados === 1 ? ' retirada registrada pro fiscal' : ' retiradas registradas pro fiscal') : '';
-  $('xAviso').innerHTML = (visaoExp.avisoCarga ? `<div class="aviso fis"><b>Fiscal do CD mandou reconferir o carregamento:</b> ${esc(visaoExp.avisoCarga.obs || 'bipe o caminhão de novo')} <span style="color:var(--ink3)">· ${esc(visaoExp.avisoCarga.nome || '')}</span></div>` : '')
+  $('xAviso').innerHTML = (visaoExp.avisoCarga ? `<div class="aviso fis"><b>${soItensExp(visaoExp.avisoCarga) ? 'Fiscal do CD mandou reconferir SÓ:' : 'Fiscal do CD mandou reconferir o carregamento:'}</b> ${soItensExp(visaoExp.avisoCarga) ? esc(soItensExp(visaoExp.avisoCarga)) + '. Bipe só ' + (visaoExp.avisoCarga.itens.length === 1 ? 'esse item' : 'esses itens') + ' de novo: o resto que você bipou continua valendo.' + (visaoExp.avisoCarga.obs ? ' ' + esc(visaoExp.avisoCarga.obs) : '') : esc(visaoExp.avisoCarga.obs || 'bipe o caminhão de novo')} <span style="color:var(--ink3)">· ${esc(visaoExp.avisoCarga.nome || '')}</span></div>` : '')
     + (visaoExp.liberacao && visaoExp.liberacao.decisao === 'liberada' ? `<div class="aviso fis"><b>Separação liberada pelo fiscal com divergência.</b> O carregamento tem que ficar conforme o que foi separado, não o pedido.${visaoExp.liberacao.obs ? ' ' + esc(visaoExp.liberacao.obs) : ''}</div>` : '');
   const fora = visaoExp.fora || [];
   $('xFora').innerHTML = fora.length ? `<div class="aviso"><b>${fora.length === 1 ? '1 produto bipado não está na separação.' : fora.length + ' produtos bipados não estão na separação.'}</b> Tire do caminhão e use "Tirar da coletagem".</div>` + foraHtml(fora) : '';
@@ -1011,7 +1013,9 @@ async function lerCodigoExp(cod) {
   let descricao = jaTem ? jaTem.descricao : '', emb = jaTem ? jaTem.emb : 1;
   // Emb do cartão = a da LINHA DO PEDIDO (caixa c/ QtdEmb → QtdEmb; código da caixa sem QtdEmb → 1, conta caixas), não a do
   // cadastro do recebimento: desde 09/11 ele devolvia as un/cx da caixa e 20 caixas viravam 540 un (Tiago, 11/11)
-  if (!jaTem) { try { const cad = await api('/api/expedicao-publico/cartao?' + qExp() + '&id=' + encodeURIComponent(visaoExp.id) + '&cod=' + encodeURIComponent(cod)); descricao = cad.descricao; emb = cad.emb || 1; } catch (e) { descricao = 'Código ' + cod; } }
+  // Item já bipado também pergunta a Emb ao servidor (11/11, pedido 7906: o Sonho ficou preso em "Emb 4" porque o cartão
+  // reabria com a Emb errada do bipe anterior); sem rede, vale a que o item já tinha.
+  try { const cad = await api('/api/expedicao-publico/cartao?' + qExp() + '&id=' + encodeURIComponent(visaoExp.id) + '&cod=' + encodeURIComponent(cod)); descricao = descricao || cad.descricao; emb = cad.emb || emb || 1; } catch (e) { if (!jaTem) descricao = 'Código ' + cod; }
   abrirCartaoExp({ cod, descricao, emb, quant: '', lote: '' });
 }
 function abrirCartaoExp(c) {
