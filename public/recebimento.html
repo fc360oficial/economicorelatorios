@@ -531,6 +531,16 @@ if (NO_APP) {
   // 11/11 (Tiago: "o teclado ainda está aparecendo"): o cartão de quantidade é montado por innerHTML e focado NA MESMA
   // hora — o observador acima só roda depois, então o campo recebia o foco ainda como "numeric" e o teclado subia; trocar
   // pra "none" com o campo já focado não recolhe. Agora todo .focus() acerta o campo ANTES de focar.
+  // diagnóstico do "teclado ainda aparece" (11/11): registra no log do coletor o campo focado e, se o teclado da tela
+  // subir, em qual campo foi. Poucos eventos por carga da página. Tirar quando o Tiago confirmar que parou.
+  let diagTecN = 0;
+  const diagTec = (resultado, extra) => { if (diagTecN >= 25) return; diagTecN++; const el = document.activeElement || {};
+    let ls = null; try { ls = localStorage.getItem(LS_SEM_TECLADO); } catch (e) {}
+    try { fetch('/api/recebimento-publico/diag', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nome: 'TECLADO', resultado,
+      msg: 'campo=' + (el.id || el.tagName) + ' tipo=' + (el.type || '') + ' inputmode=' + (el.getAttribute ? el.getAttribute('inputmode') : '') + ' vkp=' + (el.getAttribute ? el.getAttribute('virtualkeyboardpolicy') : '') + ' semTeclado=' + semTeclado + ' ls=' + ls + ' tela=' + (typeof tela !== 'undefined' ? tela : '') + ' ' + (extra || '') + ' ' + location.origin }) }).catch(() => {}); } catch (e) {} };
+  document.addEventListener('focusin', e => { if (e.target && e.target.tagName === 'INPUT') setTimeout(() => diagTec('foco'), 0); });
+  if (VK) try { VK.addEventListener('geometrychange', () => { const h = Math.round(VK.boundingRect.height); if (h > 0) diagTec('subiu', 'altura=' + h); }); } catch (e) {}
+  if (window.visualViewport) { let h0 = window.visualViewport.height; window.visualViewport.addEventListener('resize', () => { const h = window.visualViewport.height; if (h0 - h > 120) diagTec('subiu', 'viewport ' + Math.round(h0) + '>' + Math.round(h)); if (h > h0) h0 = h; }); }
   const focoNativo = HTMLElement.prototype.focus;
   HTMLElement.prototype.focus = function () { try { if (this.tagName === 'INPUT') camposNumericos(this); } catch (e) {} return focoNativo.apply(this, arguments); };
   // saída pra aparelho sem tecla física: DOIS toques seguidos no campo sobem o teclado só pra ele (um toque só não: a
