@@ -1307,7 +1307,7 @@ function renderBip() {
   $('bAntesTit').hidden = !antes.length; $('bAntesTit').textContent = 'Bipados antes · ' + antes.length;
   $('bItens').innerHTML = antes.map(i => { const e = ESTADO[i.estado] || ['', ''];
     return `<div class="it ${e[0]}" data-cod="${esc(i.cod)}" onclick="corrigirItem(this.dataset.cod)"><div class="stripe"></div>
-      <div><div class="d">${esc(i.descricao)}</div><div class="c">${esc(metaItem(i, true))}</div></div>
+      <div><div class="d">${esc(descItem(i))}</div><div class="c">${esc(metaItem(i, true))}</div></div>
       <div class="q">${(f => `<b>${f.n} ${f.l}</b><small>${f.sub}</small>`)(qtdItem(i))}</div></div>`; }).join('');
   $('bNota').innerHTML = pend.length ? '<div class="pendTit">Veio na nota · ainda não bipado (' + pend.length + ')</div><div class="itens">' +
     pend.map(p => `<div class="it pend"><div class="stripe"></div><div><div class="d">${esc(p.descricao || p.cod)}</div><div class="c">${esc(p.cod)}${p.emb > 1 ? ' · vem em caixa c/ ' + num(p.emb) + ' (pode bipar a caixa)' : ''}</div></div><div class="q"><small>bipar</small></div></div>`).join('') + '</div>' : '';
@@ -1318,19 +1318,23 @@ function renderBip() {
 // Quando a contagem fecha em caixas inteiras, o número grande é a caixa ("200 cx") e a unidade vai embaixo.
 function qtdItem(i) {
   const emb = +i.emb || 1, q = +i.quant || 0, un = +i.un || 0;
-  if (emb > 1 && Math.abs(q * emb - un) < 0.001) return { n: num(q), l: esc(String(i.emb_label && i.emb_label !== 'UN' ? i.emb_label : 'CX').toLowerCase()), sub: 'c/ ' + num(emb) + ' = ' + num(un) + ' un' };
+  if (emb > 1 && Math.abs(q * emb - un) < 0.001) return { n: num(q), l: esc(String(i.emb_label && i.emb_label !== 'UN' ? i.emb_label : 'CX').toLowerCase()), sub: 'c/ ' + num(emb) + (i.caixa ? '' : ' = ' + num(un) + ' un') };
   return { n: num(un), l: 'un', sub: num(q) + ' × ' + num(emb) };
 }
+// Tiago, 11/11: "o produto entrou em caixa... foi bipada a caixa, então era pra tá a caixa". Item bipado pela caixa
+// aparece como a CAIXA (descrição e código dela, quantidade em caixas), sem a unidade. Por dentro a conferência segue
+// pelo código da nota (i.cod), que é o que casa com o XML.
+function descItem(i) { return i.caixa ? (i.caixa_descricao || (cads[i.caixa] || {}).descricao || i.descricao) : i.descricao; }
 function metaItem(i, comEstado) {
   const e = ESTADO[i.estado] || ['', ''];
   const lotes = (i.lotes || []).filter(l => l.lote);
-  return [i.cod, i.caixa ? 'caixa ' + i.caixa : null, lotes.length ? 'lote ' + lotes.map(l => l.lote + (lotes.length > 1 ? ' (' + num(l.un) + ')' : '') + (l.validade ? ' vence ' + dataBr(l.validade) : '')).join(', ') : (i.validade ? 'vence ' + dataBr(i.validade) : null), comEstado && e[1] || null].filter(Boolean).join(' · ');
+  return [i.caixa || i.cod, lotes.length ? 'lote ' + lotes.map(l => l.lote + (lotes.length > 1 ? ' (' + num(l.un) + ')' : '') + (l.validade ? ' vence ' + dataBr(l.validade) : '')).join(', ') : (i.validade ? 'vence ' + dataBr(i.validade) : null), comEstado && e[1] || null].filter(Boolean).join(' · ');
 }
 function cartaoUltimo(i) {
   const e = ESTADO[i.estado] || ['', ''];
   return `<button type="button" class="ultimo ${e[0]}" data-cod="${esc(i.cod)}" onclick="corrigirItem(this.dataset.cod)">
     <div class="t">Último bipe${e[1] ? ' · ' + esc(e[1]) : ''}</div>
-    <div class="d">${esc(i.descricao)}</div>
+    <div class="d">${esc(descItem(i))}</div>
     <div class="q">${(f => `<b>${f.n}</b><span>${f.l} · ${f.sub}</span>`)(qtdItem(i))}</div>
     <div class="m">${esc(metaItem(i, false))} · toque pra corrigir</div></button>`;
 }
@@ -1367,7 +1371,7 @@ async function lerCodigo(cod) {
   const embJa = jaTem ? ((alias && (cads[cod] || {}).qtdemb) || jaTem.emb || 1) : 1;
   // Loja com lote (CD): bipar de novo abre o cartão, porque a caixa pode ser de outro lote/validade.
   if (jaTem && !exigeLote()) { await enviarBipe('bipar', { cod, quant: 1, emb: embJa }); return; }
-  if (jaTem) { abrirCartao({ cod, descricao: jaTem.descricao, emb: embJa, quant: '', validade: '', lote: '', modo: 'bipar' }); return; }
+  if (jaTem) { abrirCartao({ cod, descricao: descItem(jaTem), emb: embJa, quant: '', validade: '', lote: '', modo: 'bipar', caixa: !!jaTem.caixa }); return; }
   let cad;
   try { cad = await api('/api/recebimento-publico/cadastro/' + encodeURIComponent(cod) + '?t=' + sess.token + '&id=' + encodeURIComponent(visao.id || '')); guardarCad(cod, cad); }
   catch (e) {
@@ -1376,21 +1380,24 @@ async function lerCodigo(cod) {
     if (!cad) { toast('Sem sinal pra buscar o cadastro. Bipe de novo quando voltar a rede.', true); return; }
     setNet(false);
   }
-  abrirCartao({ cod, descricao: cad.descricao, emb: cad.qtdemb || 1, quant: '', validade: '', lote: '', modo: 'bipar' });
+  abrirCartao({ cod, descricao: cad.descricao, emb: cad.qtdemb || 1, quant: '', validade: '', lote: '', modo: 'bipar', caixa: !!cad.unidade });
 }
 // quem decide se pede lote é o servidor (visao.exige_lote); desde 09/11/26 nenhuma loja pede, só a validade (Tiago)
 const exigeLote = () => !!(visao && visao.exige_lote);
 
 function abrirCartao(c) {
   cartao = c;
+  // c.caixa (11/11, Tiago): produto bipado pela CAIXA — o cartão pede só quantas caixas; as un/cx ficam fixas e escondidas
+  // (o conferente digitava 200 × 1 pensando em caixas e a nota não fechava)
+  const cxm = !!c.caixa && +c.emb > 1;
   $('cartao').innerHTML = `<div class="card am">
     <div class="t">${esc(c.descricao)}</div>
     <div class="f2">
-      <div><label for="cQuant">Quant</label><input id="cQuant" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" value="${esc(c.quant)}"></div>
-      <div><label for="cEmb">Emb</label><input id="cEmb" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" value="${esc(c.emb)}"></div>
+      <div${cxm ? ' style="grid-column:1/-1"' : ''}><label for="cQuant">${cxm ? 'Caixas (c/ ' + esc(num(c.emb)) + ')' : 'Quant'}</label><input id="cQuant" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" value="${esc(c.quant)}"></div>
+      <div${cxm ? ' hidden' : ''}><label for="cEmb">Emb</label><input id="cEmb" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" value="${esc(c.emb)}"></div>
     </div>
-    <div class="kv" style="font-size:13px"><span>Total</span><b id="cTot">0 un</b></div>
-    <div class="tip" style="color:var(--ink2)">Tanto faz digitar 10 × 24 ou 240 × 1.</div>
+    <div class="kv" style="font-size:13px"${cxm ? ' hidden' : ''}><span>Total</span><b id="cTot">0 un</b></div>
+    <div class="tip" style="color:var(--ink2)">${cxm ? 'Produto recebido em caixa: digite quantas CAIXAS chegaram.' : 'Tanto faz digitar 10 × 24 ou 240 × 1.'}</div>
     <div class="f1"><label for="cVal">Vence em</label><input id="cVal" type="date" value="${esc(c.validade)}"></div>
     ${exigeLote() ? `<div class="f1"><label for="cLote">Lote (bipe ou digite)</label><input id="cLote" type="text" autocomplete="off" autocapitalize="characters" value="${esc(c.lote || '')}"></div>` : ''}
     <div class="tip">Enter em cada campo: Quant → Emb → Validade${exigeLote() ? ' → Lote' : ''} → grava e volta pro bipe.</div>
@@ -1399,7 +1406,7 @@ function abrirCartao(c) {
   const q = $('cQuant'), e = $('cEmb'), vd = $('cVal'), lt = $('cLote');
   const tot = () => { $('cTot').textContent = num((+String(q.value).replace(',', '.') || 0) * (+String(e.value).replace(',', '.') || 0)) + ' un'; };
   q.addEventListener('input', tot); e.addEventListener('input', tot); tot();
-  q.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.keyCode === 13) { ev.preventDefault(); e.focus(); e.select(); } });
+  q.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.keyCode === 13) { ev.preventDefault(); if (cxm) vd.focus(); else { e.focus(); e.select(); } } });
   e.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.keyCode === 13) { ev.preventDefault(); vd.focus(); } });
   vd.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.keyCode === 13) { ev.preventDefault(); if (lt) { lt.focus(); lt.select(); } else gravarCartao(); } });
   if (lt) lt.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.keyCode === 13) { ev.preventDefault(); gravarCartao(); } });
@@ -1520,13 +1527,15 @@ function escolherCorrigir() {
   const itens = (visao && visao.itens) || [];
   if (!itens.length) { toast('Nada bipado ainda.'); return; }
   abrirModal('<h3>Corrigir qual produto?</h3>' + itens.slice().reverse().map(i =>
-    `<button class="nota" data-cod="${esc(i.cod)}" onclick="corrigirItem(this.dataset.cod)"><div class="f">${esc(i.descricao)}</div><div class="m">${esc(i.cod)} · ${(f => `<b>${f.n} ${f.l}</b> (${f.sub})`)(qtdItem(i))}</div></button>`).join('') +
+    `<button class="nota" data-cod="${esc(i.cod)}" onclick="corrigirItem(this.dataset.cod)"><div class="f">${esc(descItem(i))}</div><div class="m">${esc(i.caixa || i.cod)} · ${(f => `<b>${f.n} ${f.l}</b> (${f.sub})`)(qtdItem(i))}</div></button>`).join('') +
     '<button class="btn btn-secondary blk" onclick="fecharModal()">Cancelar</button>');
 }
 function corrigirItem(cod) {
   const i = (visao.itens || []).find(x => x.cod === cod); if (!i) return;
   fecharModal();
-  abrirCartao({ cod: i.cod, descricao: i.descricao, emb: i.emb, quant: i.quant, validade: i.validade || '', modo: 'corrigir' });
+  // item de caixa gravado com emb 1 (antes de 11/11): o cartão já abre com as un/cx da nota
+  const embCx = i.caixa && !(i.emb > 1) ? +((visao.nota_itens || []).find(n => n.cod === i.cod) || {}).emb || i.emb : i.emb;
+  abrirCartao({ cod: i.cod, descricao: descItem(i), emb: embCx, quant: i.quant, validade: i.validade || '', modo: 'corrigir', caixa: !!i.caixa });
 }
 
 // ── conversa com a central, presa à nota aberta ────────────────────────────
