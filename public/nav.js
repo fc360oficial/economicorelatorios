@@ -104,6 +104,7 @@
         { href: '/vendedores.html',          ic: 'store', txt: 'Vendedores' }
       ]},
     { id: 'precificacao', ic: 'trend', txt: 'Precificação', sub: [
+        { href: '/alertas-preco.html', ic: 'shield', txt: 'Alertas de Preço' },
         { href: '/formacao-de-preco.html', ic: 'trend', txt: 'Formação de Preços' },
         { href: '/promocoes.html', ic: 'tag', txt: 'Promoções' },
         { href: '/radar-precificacao.html', ic: 'chart', txt: 'Radar Precificação' },

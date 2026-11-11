@@ -274,7 +274,7 @@ app.use((req, res, next) => {
     '/margem-comprador.html', '/api/margem-tv/comprador',
     '/painel-diretoria.html',
     '/painel-cd.html', '/api/painel-cd',
-    '/painel-compras.html', '/tv', '/painel-fiscal.html'];
+    '/painel-compras.html', '/tv', '/painel-fiscal.html', '/painel-precificacao.html'];
   // 10/11/2026: atalho /apk pro APK do coletor, sem diferenciar maiúsculas — o endereço comprido digitado no teclado do
   // coletor (que capitaliza) caía na tela de login e, depois do login, na página inicial em vez do download
   const caminhoMin = req.path.toLowerCase();
@@ -9810,6 +9810,28 @@ app.post('/api/robo-precificacao/params', (req, res) => {
   catch (err) { res.status(400).json({ error: err.message }); }
 });
 app.post('/api/robo-precificacao/params/reset', (req, res) => { const p = roboPrecif.resetParams(); roboPrecif.calcular().catch(e => console.error('[ROBO-PRECIF]', e.message)); res.json(p); });
+
+// Alertas de preço pro setor de precificação (Tiago, 11/11/2026) — lib/alertas-preco.js. SÓ LEITURA: abaixo do custo, custo
+// subiu e o preço não acompanhou, abaixo da margem (com preço sugerido) e sem custo, nas lojas-teste (E1 e E2). Tela em
+// Precificação › Alertas de Preço (alertas-preco.html) e TV da sala (painel-precificacao.html, sem login).
+const alertasPreco = require('./lib/alertas-preco');
+alertasPreco.init({ q, pq: (...a) => espelhoErp.pq(...a) });
+app.get('/api/alertas-preco', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try { res.json(await alertasPreco.consultar({ loja: req.query.loja ? parseInt(req.query.loja) : 0, respondidos: req.query.respondidos === '1' })); }
+  catch (err) { res.status(503).json({ error: 'Sem dados no momento: ' + err.message }); }
+});
+app.post('/api/alertas-preco/responder', (req, res) => {
+  try { res.json(alertasPreco.responder(req.body || {}, req.session.user?.nome || req.session.user?.usuario || null)); } catch (err) { res.status(400).json({ error: err.message }); }
+});
+app.post('/api/alertas-preco/desfazer', (req, res) => {
+  try { res.json(alertasPreco.desfazer(req.body || {}, req.session.user?.nome || req.session.user?.usuario || null)); } catch (err) { res.status(400).json({ error: err.message }); }
+});
+app.post('/api/alertas-preco/recalcular', (req, res) => { alertasPreco.calcular().catch(e => console.error('[ALERTAS-PRECO]', e.message)); res.json({ ok: true, estado: alertasPreco.estado() }); });
+app.get('/api/paineis-publico/precificacao-dados', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try { res.json(await alertasPreco.painel()); } catch (err) { res.status(503).json({ error: 'Sem dados no momento: ' + err.message }); }
+});
 app.get('/api/robo-precificacao/listas-erp', async (req, res) => { try { res.json(await roboPrecif.listasErp()); } catch (err) { res.status(500).json({ error: err.message }); } });
 
 // ═══════════════════════════════════════════════════

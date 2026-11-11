@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="/design-system.css">
+<script src="/nav.js" defer></script>
+<title>Alertas de Preço — Econômico Supermercados</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<!-- Alertas de Preço (Tiago, 11/11/2026): tela do setor de precificação. SÓ LEITURA no ERP — nada aqui muda preço.
+     Dados: /api/alertas-preco (lib/alertas-preco.js). Lojas-teste: E1 e E2. Carnes fora; preço final 7 = rebaixa e
+     final 8 = promoção só aparecem quando estão abaixo do custo; alto giro e cotação não recebem preço sugerido. -->
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#EBEBE9;--surface:#FFFFFF;--surface-2:#E4E4E1;--border:#DADAD6;--border-strong:#C9C9C4;--ink:#0E1626;--ink-2:#4E5A72;--ink-3:#98A0B3;--brand:#F5B800;--brand-ink:#6B4E00;--ok:#137A48;--warn:#B45C00;--bad:#C22F49;--info:#2E5E8C;--font:'InterVar','Inter','Segoe UI',system-ui,-apple-system,sans-serif}
+body{font-family:var(--font);background:var(--bg);color:var(--ink);min-height:100vh}
+.main{padding:24px}
+.page-hdr{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.page-hdr h1{font-size:21px;font-weight:800}
+.page-hdr p{font-size:12px;color:var(--ink-3);margin-top:3px;max-width:980px;line-height:1.5}
+.page-hdr p b{color:var(--ink-2)}
+.acoes{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn{font:inherit;font-size:12.5px;font-weight:600;padding:8px 14px;border-radius:8px;border:1px solid var(--border-strong);background:#fff;color:var(--ink);cursor:pointer;text-decoration:none;display:inline-block;white-space:nowrap}
+.btn:hover{background:var(--surface-2)}
+.btn-amber{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}.btn-amber:hover{background:#E0A800}
+.btn-sm{font-size:11px;padding:4px 8px;border-radius:6px}
+.btn-ok{background:#E7F5EC;border-color:#137A4855;color:var(--ok)}.btn-ok:hover{background:#D3EEDC}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.status{font-size:11px;color:var(--ink-3);margin-bottom:10px;display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.status b{color:var(--ink-2)}.status .err{color:var(--bad);font-weight:700}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:12px}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;cursor:pointer;transition:border-color .12s,box-shadow .12s;text-align:left;font:inherit;color:inherit}
+.kpi:hover{border-color:var(--border-strong);box-shadow:0 2px 6px rgba(14,22,38,.08)}
+.kpi.on{border-color:var(--brand);box-shadow:0 0 0 2px #F5B80055;background:#FFFBEE}
+.kpi .nm{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-2)}
+.kpi .v{font-size:26px;font-weight:800;line-height:1.15;margin-top:4px;font-variant-numeric:tabular-nums}
+.kpi .s{font-size:11px;color:var(--ink-3);margin-top:2px}
+.kpi.g3 .v{color:var(--bad)}.kpi.g2 .v{color:var(--warn)}.kpi.g1 .v{color:var(--info)}
+.filtros{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.seg{display:inline-flex;background:var(--surface-2);border-radius:8px;padding:3px}
+.seg button{font:inherit;font-size:12px;font-weight:700;padding:6px 12px;border:0;border-radius:6px;background:transparent;color:var(--ink-2);cursor:pointer;white-space:nowrap}
+.seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(14,22,38,.14)}
+.busca{font:inherit;font-size:12.5px;padding:8px 11px;border:1px solid var(--border-strong);border-radius:8px;background:#fff;color:var(--ink);min-width:200px;flex:1;max-width:340px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-3);background:var(--surface-2);padding:9px 10px;text-align:left;white-space:nowrap}
+td{padding:9px 10px;border-top:1px solid var(--border);vertical-align:top}
+th.n,td.n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+td.prod{white-space:normal;min-width:200px}
+td.prod b{font-weight:700;display:block}
+td.prod small{color:var(--ink-3);font-size:11px;display:block;margin-top:1px}
+td.txt{white-space:normal;color:var(--ink-2);min-width:190px}
+td.txt i{display:block;font-style:normal;color:var(--warn);font-size:11px;font-weight:600;margin-top:2px}
+.pill{display:inline-block;font-size:10px;font-weight:800;padding:2px 7px;border-radius:999px;white-space:nowrap;text-transform:uppercase;letter-spacing:.3px}
+.p3{background:#FDE8EC;color:var(--bad)}.p2{background:#FFF1DC;color:var(--warn)}.p1{background:#E6EEF6;color:var(--info)}
+.c-promo{background:#EDE7F9;color:#5B3FA8}.c-reb{background:#FFE9D6;color:#A44A00}.c-giro{background:#E4E4E1;color:var(--ink-2)}
+.lj{display:inline-block;font-weight:800;font-size:11px;background:var(--ink);color:#fff;border-radius:5px;padding:2px 6px}
+.neg{color:var(--bad);font-weight:700}.sug{color:var(--ok);font-weight:800}
+.resp{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
+.vazio{padding:38px 20px;text-align:center;color:var(--ink-3);font-size:13px}
+.toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:var(--ink);color:#fff;font-size:12.5px;font-weight:600;padding:10px 16px;border-radius:9px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:50}
+.toast.on{opacity:1}
+.regras{font-size:11.5px;color:var(--ink-2);background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--brand);border-radius:8px;padding:9px 12px;margin-bottom:12px;line-height:1.55}
+.regras b{color:var(--ink)}
+/* 16/10/26: toda tela se ajusta sozinha a qualquer monitor */
+@media (max-width:1599px){.main{padding:18px}table{font-size:12px}th,td{padding:8px 8px}}
+@media (max-width:1399px){.kpi .v{font-size:22px}td.prod{min-width:170px}td.txt{min-width:150px}.btn-sm{padding:4px 6px}}
+@media (max-width:1199px){.main{padding:14px}table{font-size:11.5px}th,td{padding:7px 6px}.col-opc{display:none}}
+</style>
+</head>
+<body>
+<div class="main">
+  <div class="page-hdr">
+    <div>
+      <h1>Alertas de Preço</h1>
+      <p>O que o setor de precificação precisa olhar nas lojas-teste. <b>Esta tela não muda preço nenhum</b>: ela avisa e sugere; a mudança continua sendo feita por você. Marque cada alerta depois de olhar, que ele sai da lista.</p>
+    </div>
+    <div class="acoes">
+      <button class="btn" id="btnResp" onclick="alternarRespondidos()">Ver respondidos</button>
+      <button class="btn btn-amber" onclick="recalcular()">Atualizar agora</button>
+    </div>
+  </div>
+
+  <div class="status" id="status">Carregando…</div>
+
+  <div class="regras"><b>Regras:</b> carnes ficam de fora · preço terminado em <b>7 (rebaixa)</b> ou <b>8 (promoção)</b> só aparece quando está abaixo do custo, sem sugestão · produto de <b>alto giro</b> e de <b>cotação</b> não recebe sugestão de aumento · todo preço sugerido termina em 9 e sobe aos poucos.</div>
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="filtros">
+    <div class="seg" id="segLoja"></div>
+    <input class="busca" id="busca" placeholder="Buscar produto, código, lista ou grupo" oninput="render()">
+  </div>
+
+  <div class="card"><div class="tw"><table>
+    <thead><tr>
+      <th>Loja</th><th>Alerta</th><th>Produto</th><th class="n">Custo</th><th class="n">Preço</th><th class="n">Margem</th>
+      <th class="n col-opc">Estoque</th><th class="n col-opc">Vende/mês</th><th class="n">Sugerido</th><th>O que aconteceu</th><th class="n">Já olhei</th>
+    </tr></thead>
+    <tbody id="tb"></tbody>
+  </table></div><div class="vazio" id="vazio" hidden></div></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const LJ = n => +n === 10 ? 'CD' : 'E' + n;   // rótulo de loja: E1..E6, CD
+const F = { loja: 0, tipo: '', respondidos: false };
+let D = null, _t = null;
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const NB = String.fromCharCode(160);
+const money = v => v == null ? '—' : 'R$' + NB + (+v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const pct = v => v == null || !isFinite(v) ? '—' : (+v).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%';
+const qtd = v => (+v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+const hora = iso => iso ? new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—';
+function toast(t) { const e = document.getElementById('toast'); e.textContent = t; e.classList.add('on'); clearTimeout(_t); _t = setTimeout(() => e.classList.remove('on'), 2600); }
+
+async function carregar() {
+  try {
+    const r = await fetch('/api/alertas-preco?respondidos=1&t=' + Date.now(), { cache: 'no-store' });
+    const j = await r.json(); if (!r.ok) throw new Error(j.error || 'erro ' + r.status);
+    D = j; render();
+  } catch (e) { document.getElementById('status').innerHTML = '<span class="err">Não consegui carregar: ' + esc(e.message) + '</span>'; }
+}
+function lista() { return F.respondidos ? (D.respondidos || []) : D.abertos; }
+function filtrados() {
+  const b = document.getElementById('busca').value.trim().toUpperCase();
+  return lista().filter(a => (!F.loja || a.loja === F.loja) && (!F.tipo || a.tipo === F.tipo) &&
+    (!b || (a.desc + ' ' + a.cod + ' ' + a.lista + ' ' + a.grupo).toUpperCase().includes(b)));
+}
+function render() {
+  if (!D) return;
+  const ass = D.assertividade || {};
+  document.getElementById('status').innerHTML =
+    'Calculado às <b>' + hora(D.calculadoEm) + '</b>' + (D.calculando ? ' · <b>recalculando…</b>' : '') +
+    ' · lojas <b>' + D.lojas.map(LJ).join(' e ') + '</b>' +
+    ' · <b>' + D.abertos.length + '</b> em aberto · <b>' + D.nRespondidos + '</b> respondidos' +
+    (ass.total ? ' · de ' + ass.total + ' respostas, <b>' + ass.pct + '%</b> eram pra corrigir' : '') +
+    ((D.erros || []).length ? ' · <span class="err">' + esc(D.erros.join('; ')) + '</span>' : '');
+  // lojas
+  document.getElementById('segLoja').innerHTML = [0, ...D.lojas].map(l => '<button class="' + (F.loja === l ? 'on' : '') + '" onclick="F.loja=' + l + ';render()">' + (l ? LJ(l) : 'Todas') + '</button>').join('');
+  // indicadores por tipo
+  const base = lista().filter(a => !F.loja || a.loja === F.loja);
+  const cont = t => base.filter(a => a.tipo === t);
+  const soma = (arr, k) => arr.reduce((s, a) => s + (a[k] || 0), 0);
+  const cards = [['', 'Todos', base.length, F.respondidos ? 'já respondidos' : 'em aberto', '']];
+  for (const [t, def] of Object.entries(D.tipos)) {
+    const arr = cont(t);
+    const sub = t === 'abaixo_custo' ? 'perde ' + money(soma(arr, 'perdaMes')) + '/mês' : t === 'sem_custo' ? 'sem custo na loja' : 'sugestão vale ' + money(soma(arr, 'ganhoMes')) + '/mês';
+    cards.push([t, def.nome, arr.length, sub, 'g' + def.grav]);
+  }
+  document.getElementById('kpis').innerHTML = cards.map(c => '<button class="kpi ' + c[4] + (F.tipo === c[0] ? ' on' : '') + '" onclick="F.tipo=\'' + c[0] + '\';render()"><div class="nm">' + esc(c[1]) + '</div><div class="v">' + c[2] + '</div><div class="s">' + esc(c[3]) + '</div></button>').join('');
+  // tabela
+  const rows = filtrados();
+  const cond = a => a.condicao === 'promocao' ? ' <span class="pill c-promo">promoção</span>' : a.condicao === 'rebaixa' ? ' <span class="pill c-reb">rebaixa</span>' : '';
+  document.getElementById('tb').innerHTML = rows.slice(0, 600).map(a => {
+    const k = [a.loja, a.cod, a.tipo].map(x => "'" + String(x).replace(/'/g, '') + "'").join(',');
+    const acoes = F.respondidos
+      ? '<small style="color:var(--ink-3)">' + esc((D.respostas[a.resposta.resp] || a.resposta.resp)) + (a.resposta.por ? ' · ' + esc(a.resposta.por) : '') + '</small><div class="resp" style="margin-top:4px"><button class="btn btn-sm" onclick="desfazer(' + k + ')">Reabrir</button></div>'
+      : '<div class="resp"><button class="btn btn-sm btn-ok" onclick="responder(' + k + ',\'corrigido\')">Corrigi</button><button class="btn btn-sm" onclick="responder(' + k + ',\'promocao\')">É promoção</button><button class="btn btn-sm" onclick="responder(' + k + ',\'certo\')">Está certo</button></div>';
+    return '<tr><td><span class="lj">' + LJ(a.loja) + '</span></td>' +
+      '<td><span class="pill p' + a.grav + '">' + esc(D.tipos[a.tipo].nome) + '</span>' + cond(a) + (a.protegido ? ' <span class="pill c-giro">alto giro</span>' : '') + '</td>' +
+      '<td class="prod"><b>' + esc(a.desc) + '</b><small>' + esc(a.cod) + (a.lista ? ' · ' + esc(a.lista) : a.grupo ? ' · ' + esc(a.grupo) : '') + '</small></td>' +
+      '<td class="n">' + (a.custo > 0 ? money(a.custo) : '<span class="neg">sem custo</span>') + '</td>' +
+      '<td class="n">' + money(a.preco) + '</td>' +
+      '<td class="n' + (a.margem != null && a.margem < 0 ? ' neg' : '') + '">' + pct(a.margem) + '</td>' +
+      '<td class="n col-opc">' + qtd(a.estoque) + '</td><td class="n col-opc">' + qtd(a.qtd30) + '</td>' +
+      '<td class="n">' + (a.sugerido ? '<span class="sug">' + money(a.sugerido) + '</span>' : '—') + '</td>' +
+      '<td class="txt">' + esc(a.txt) + (a.nota ? '<i>' + esc(a.nota) + '</i>' : '') + '</td>' +
+      '<td class="n">' + acoes + '</td></tr>';
+  }).join('');
+  const vz = document.getElementById('vazio');
+  vz.hidden = rows.length > 0;
+  vz.textContent = rows.length ? '' : (F.respondidos ? 'Nenhum alerta respondido com esse filtro.' : 'Nenhum alerta em aberto com esse filtro.');
+}
+async function post(url, body) {
+  const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'erro ' + r.status); return j;
+}
+async function responder(loja, cod, tipo, resp) {
+  try { await post('/api/alertas-preco/responder', { loja, cod, tipo, resp }); toast('Anotado.'); await carregar(); } catch (e) { toast(e.message); }
+}
+async function desfazer(loja, cod, tipo) {
+  try { await post('/api/alertas-preco/desfazer', { loja, cod, tipo }); toast('Alerta reaberto.'); await carregar(); } catch (e) { toast(e.message); }
+}
+function alternarRespondidos() { F.respondidos = !F.respondidos; document.getElementById('btnResp').textContent = F.respondidos ? 'Ver em aberto' : 'Ver respondidos'; render(); }
+async function recalcular() {
+  try { await post('/api/alertas-preco/recalcular', {}); toast('Recalculando… a tela atualiza sozinha.'); setTimeout(carregar, 8000); setTimeout(carregar, 25000); } catch (e) { toast(e.message); }
+}
+carregar();
+setInterval(carregar, 5 * 60 * 1000);
+</script>
+</body>
+</html>
