@@ -202,6 +202,14 @@ test('contrato com entrada diferente por dia (caso real da E2): a entrada do dia
   assert.ok(adiadas > 0); assert.ok(r.conflitos.operacionais.some(c => c.codigo === 'entrada_adiada' && c.funcId === 3));
 });
 
+test('semana da virada com dia já fixo mais longo: os dias gerados encurtam para a semana caber no limite (caso real da E2)', () => {
+  const hist = { 4: { dias: { '2026-11-29': { tipo: 'folga' }, '2026-11-30': { tipo: 'trabalho', entrada: '07:00', saida: '19:00', almoco_ini: '12:00', almoco_fim: '13:00' } } } };   // segunda de 11 h no contrato antigo
+  const r = G.gerar({ ...DEZ, funcionarios: equipe(), regras: [REGRA_OK], cobertura: COB, historico: hist }); const p = r.proposta.find(x => x.id === 4);
+  const s = p.semanas[0]; assert.strictEqual(s.inicio, '2026-11-30'); assert.ok(s.minutos <= 44 * 60, s.horas); assert.strictEqual(s.trabalho, 5);
+  assert.ok(!r.conflitos.trabalhistas.some(c => c.funcId === 4), JSON.stringify(r.conflitos.trabalhistas.filter(c => c.funcId === 4)));
+  assert.ok(r.conflitos.operacionais.some(c => c.codigo === 'jornada_reduzida' && c.funcId === 4)); assert.strictEqual(p.semanas[1].minutos, 42 * 60, 'a semana seguinte volta às 42 h');
+});
+
 test('várias unidades de uma vez: cada loja com o próprio quadro, cobertura e resultado', () => {
   const l2 = equipe().slice(0, 4).map(f => ({ ...f, id: 200 + f.id, estabelecimento: 2 }));
   const r = G.gerarUnidades({ ...NOV, regras: [REGRA_OK], unidades: [{ loja: 1, funcionarios: equipe(), cobertura: COB }, { loja: 2, funcionarios: l2, cobertura: COB }] });
