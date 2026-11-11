@@ -65,6 +65,20 @@ td.txt i{display:block;font-style:normal;color:var(--warn);font-size:11px;font-w
 .toast.on{opacity:1}
 .regras{font-size:11.5px;color:var(--ink-2);background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--brand);border-radius:8px;padding:9px 12px;margin-bottom:12px;line-height:1.55}
 .regras b{color:var(--ink)}
+.metas{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:10px;margin-bottom:12px}
+.mt{background:var(--ink);color:#fff;border-radius:12px;padding:14px 18px}
+.mt .t{font-size:10.5px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:#AEB8CE}
+.mt .linha{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-top:4px}
+.mt .v{font-size:34px;font-weight:800;font-variant-numeric:tabular-nums}
+.mt .e{font-size:12.5px;font-weight:700}.mt .e.sobe{color:#5BE39A}.mt .e.desce{color:#FF8A9D}
+.mt .f{font-size:12px;color:#D5DBEA}.mt .f b{color:var(--brand)}
+.mt .tr{position:relative;height:10px;border-radius:5px;background:#2A3550;margin:22px 0 22px}
+.mt .tr i{position:absolute;left:0;top:0;bottom:0;border-radius:5px;background:var(--brand)}
+.mt .tr s{position:absolute;top:-5px;width:2px;height:20px;background:#fff;text-decoration:none}
+.mt .tr s.o{background:#5BE39A}.mt .tr s.p{background:#8E9AB5}
+.mt .tr em{position:absolute;font-style:normal;font-size:10.5px;font-weight:700;white-space:nowrap;color:#D5DBEA;transform:translateX(-50%)}
+.mt .tr em.c{top:-20px}.mt .tr em.b{top:18px}.mt .tr em.o{color:#5BE39A}
+@media (max-width:1199px){.metas{grid-template-columns:1fr}}
 /* 16/10/26: toda tela se ajusta sozinha a qualquer monitor */
 @media (max-width:1599px){.main{padding:18px}table{font-size:12px}th,td{padding:8px 8px}}
 @media (max-width:1399px){.resp{flex-wrap:wrap}.kpi .v{font-size:22px}td.prod{min-width:170px}td.txt{min-width:150px}.btn-sm{padding:4px 6px}}
@@ -87,6 +101,8 @@ td.txt i{display:block;font-style:normal;color:var(--warn);font-size:11px;font-w
   <div class="status" id="status">Carregando…</div>
 
   <div class="regras"><b>Regras:</b> carnes, charque e hortifrúti ficam de fora · preço terminado em <b>7 (rebaixa)</b> ou <b>8 (promoção)</b> só aparece quando está abaixo do custo, sem sugestão · produto de <b>alto giro</b> e de <b>cotação</b> não recebe sugestão de aumento · todo preço sugerido termina em 9 e sobe aos poucos.</div>
+
+  <div class="metas" id="metas"></div>
 
   <div class="kpis" id="kpis"></div>
 
@@ -140,6 +156,20 @@ function render() {
     ' · <b>' + D.abertos.length + '</b> em aberto · <b>' + D.nRespondidos + '</b> respondidos' +
     (ass.total ? ' · de ' + ass.total + ' respostas, <b>' + ass.pct + '%</b> eram pra corrigir' : '') +
     ((D.erros || []).length ? ' · <span class="err">' + esc(D.erros.join('; ')) + '</span>' : '');
+  // meta de margem por loja (margem do mês igual à tela Comparativos)
+  const MIN = 22, MAX = 32, pos = v => Math.max(0, Math.min(100, (v - MIN) / (MAX - MIN) * 100));
+  document.getElementById('metas').innerHTML = D.lojas.filter(l => !F.loja || l === F.loja).map(l => {
+    const m = D.metas && D.metas[l]; if (!m || m.margem == null) return '';
+    const ev = m.evolucao == null ? '' : '<span class="e ' + (m.evolucao >= 0 ? 'sobe">▲ ' : 'desce">▼ ') + pct(Math.abs(m.evolucao)).replace('%', ' pt') + ' desde a partida</span>';
+    const falta = m.faltaMetaPts == null ? '' : m.faltaMetaPts <= 0 ? '<b>Meta do mês batida.</b>' : 'Faltam <b>' + pct(m.faltaMetaPts).replace('%', ' pt') + '</b> (' + money(m.faltaMetaReais) + ' no mês) pra meta de ' + pct(m.metaMes) + '.';
+    return '<div class="mt"><div class="t">Margem sobre venda da ' + LJ(l) + ' · ' + esc(m.mes) + ' até dia ' + m.dia + '</div>' +
+      '<div class="linha"><span class="v">' + pct(m.margem) + '</span>' + ev + '</div>' +
+      '<div class="tr"><i style="width:' + pos(m.margem) + '%"></i>' +
+      (m.partida != null ? '<s class="p" style="left:' + pos(m.partida) + '%"></s><em class="b" style="left:' + pos(m.partida) + '%">partida ' + pct(m.partida) + '</em>' : '') +
+      (m.metaMes != null ? '<s style="left:' + pos(m.metaMes) + '%"></s><em class="c" style="left:' + pos(m.metaMes) + '%">meta do mês ' + pct(m.metaMes) + '</em>' : '') +
+      '<s class="o" style="left:' + pos(m.objetivo) + '%"></s><em class="b o" style="left:' + pos(m.objetivo) + '%">objetivo ' + pct(m.objetivo) + '</em></div>' +
+      '<div class="f">' + falta + ' Pro objetivo de ' + pct(m.objetivo) + ' faltam ' + money(m.faltaObjetivoReais) + ' no mês. Alertas corrigidos neste mês: <b>' + m.corrigidosMes + '</b>.</div></div>';
+  }).join('');
   // lojas
   document.getElementById('segLoja').innerHTML = [0, ...D.lojas].map(l => '<button class="' + (F.loja === l ? 'on' : '') + '" onclick="F.loja=' + l + ';render()">' + (l ? LJ(l) : 'Todas') + '</button>').join('');
   // indicadores por tipo

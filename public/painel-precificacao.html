@@ -21,17 +21,29 @@ html,body{height:100%;background:#0c0c0c;overflow:hidden;font-family:"Segoe UI",
 .topo .dir{position:absolute;right:40px;top:20px;text-align:right}
 .topo .hr{font-size:44px;font-weight:800;line-height:1}
 .topo .sub{font-size:20px;color:#b9b6ab;margin-top:6px}
-.cards{position:absolute;left:40px;top:136px;width:1840px;height:170px}
-.cd{float:left;width:445px;height:170px;margin-right:20px;background:#1a1a1a;border-radius:14px;border-left:10px solid #555;padding:16px 22px}
+.cards{position:absolute;left:40px;top:254px;width:1840px;height:150px}
+/* meta da loja: margem do mês × partida × meta do mês × objetivo (11/11/26) */
+.meta{position:absolute;left:40px;top:128px;width:1840px;height:112px;background:#1a1a1a;border-radius:14px}
+.meta .m1{position:absolute;left:24px;top:10px;font-size:20px;font-weight:700;color:#b9b6ab;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap}
+.meta .m2{position:absolute;left:24px;top:36px;font-size:62px;font-weight:800;line-height:1.1;white-space:nowrap}
+.meta .m3{position:absolute;left:300px;top:44px;font-size:24px;line-height:1.3;color:#d9d6ca;white-space:nowrap}
+.meta .m3 b{color:#fff}.meta .sobe{color:#22C55E}.meta .desce{color:#ff5a72}
+.meta .trilho{position:absolute;left:800px;top:52px;width:1000px;height:22px;background:#2a2a2a;border-radius:11px}
+.meta .cheio{position:absolute;left:0;top:0;height:22px;border-radius:11px;background:#FFD500}
+.meta .mk{position:absolute;top:-8px;width:4px;height:38px;background:#fff}
+.meta .mk.obj{background:#22C55E}.meta .mk.par{background:#8f8c82}
+.meta .rt{position:absolute;top:-34px;font-size:19px;font-weight:700;white-space:nowrap;color:#d9d6ca}
+.meta .rt.b{top:36px}.meta .rt.obj{color:#22C55E}
+.cd{float:left;width:445px;height:150px;margin-right:20px;background:#1a1a1a;border-radius:14px;border-left:10px solid #555;padding:12px 22px}
 .cd.ult{margin-right:0}
 .cd .nm{font-size:22px;font-weight:700;color:#d9d6ca;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;overflow:hidden}
-.cd .v{font-size:78px;font-weight:800;line-height:1.05}
+.cd .v{font-size:64px;font-weight:800;line-height:1.05}
 .cd .lj{font-size:21px;color:#b9b6ab;white-space:nowrap;overflow:hidden}
 .cd.g3{border-left-color:#C8102E}.cd.g3 .v{color:#ff5a72}
 .cd.g2{border-left-color:#FF9F1C}.cd.g2 .v{color:#FFB648}
 .cd.g1{border-left-color:#3B82F6}.cd.g1 .v{color:#7FB2FF}
 .cd.zero{border-left-color:#22C55E}.cd.zero .v{color:#22C55E}
-.pag{position:absolute;left:40px;top:330px;width:1840px;height:690px;display:none}
+.pag{position:absolute;left:40px;top:424px;width:1840px;height:600px;display:none}
 .pag.on{display:block}
 .pag h2{font-size:34px;font-weight:800;margin-bottom:12px;white-space:nowrap}
 .pag h2 small{font-size:22px;font-weight:600;color:#b9b6ab;margin-left:14px}
@@ -57,6 +69,7 @@ body.kiosk{cursor:none}
     <div class="loja" id="loja">—</div>
     <div class="dir"><div class="hr" id="hr">--:--</div><div class="sub" id="sub">carregando…</div></div>
   </div>
+  <div class="meta" id="meta"></div>
   <div class="cards" id="cards"></div>
   <div class="pag on" id="pag"></div>
   <div class="rod" id="rod"></div>
@@ -65,7 +78,7 @@ body.kiosk{cursor:none}
 var QS = new URLSearchParams(location.search);
 if (QS.get('kiosk') === '1') document.body.className = 'kiosk';
 // Uma loja por vez (Tiago, 11/11: "quebrar por lojas E1 e E2"): pra cada loja passam os 3 tipos, 20 s cada. ?loja=N trava numa loja.
-var TIPOS_PAG = ['abaixo_custo', 'custo_subiu', 'abaixo_margem'], SO_LOJA = parseInt(QS.get('loja')) || 0, atual = Math.max(0, (parseInt(QS.get('tela')) || 1) - 1), D = null, LINHAS = 11, PAGS = [];
+var TIPOS_PAG = ['abaixo_custo', 'custo_subiu', 'abaixo_margem'], SO_LOJA = parseInt(QS.get('loja')) || 0, atual = Math.max(0, (parseInt(QS.get('tela')) || 1) - 1), D = null, LINHAS = 9, PAGS = [];
 function LJ(n) { return +n === 10 ? 'CD' : 'E' + n; }
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 function money(v) { return v == null ? '—' : 'R$ ' + (+v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
@@ -91,6 +104,21 @@ function tabela(t, arr) {
   }).join('');
   return '<table><colgroup>' + cols + '</colgroup>' + h + b + '</table>';
 }
+// Faixa da meta: escala de 22% a 32% de margem; barra amarela = margem do mês; riscos = partida, meta do mês e objetivo.
+function faixaMeta(l) {
+  var m = D.metas && D.metas[l]; if (!m || m.margem == null) return '<div class="m1">Meta da loja ' + LJ(l) + '</div><div class="m3" style="left:24px">sem dados de venda do mês</div>';
+  var MIN = 22, MAX = 32, pos = function (v) { return Math.max(0, Math.min(1000, (v - MIN) / (MAX - MIN) * 1000)); };
+  var ev = m.evolucao, sinal = ev == null ? '' : (ev >= 0 ? '<span class="sobe">▲ ' : '<span class="desce">▼ ') + Math.abs(ev).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' pt</span> desde a partida';
+  var falta = m.faltaMetaPts == null ? '' : m.faltaMetaPts <= 0 ? '<b class="sobe">meta do mês batida</b>' : 'faltam <b>' + pct(m.faltaMetaPts).replace('%', ' pt') + '</b> (' + money(m.faltaMetaReais).replace(',00', '') + ') pra meta do mês';
+  var h = '<div class="m1">Margem sobre venda da ' + LJ(l) + ' em ' + esc(m.mes) + ' · até dia ' + m.dia + '</div>' +
+    '<div class="m2">' + pct(m.margem) + '</div>' +
+    '<div class="m3">' + sinal + '<br>' + falta + '</div>' +
+    '<div class="trilho"><div class="cheio" style="width:' + pos(m.margem) + 'px"></div>';
+  if (m.partida != null) h += '<div class="mk par" style="left:' + pos(m.partida) + 'px"></div><div class="rt b" style="left:' + (pos(m.partida) - 150) + 'px">partida ' + pct(m.partida) + '</div>';
+  if (m.metaMes != null) h += '<div class="mk" style="left:' + pos(m.metaMes) + 'px"></div><div class="rt" style="left:' + (pos(m.metaMes) - 60) + 'px">meta do mês ' + pct(m.metaMes) + '</div>';
+  h += '<div class="mk obj" style="left:' + pos(m.objetivo) + 'px"></div><div class="rt obj b" style="left:' + (pos(m.objetivo) - 60) + 'px">objetivo ' + pct(m.objetivo) + '</div></div>';
+  return h;
+}
 function desenhar() {
   if (!D) return;
   var lojas = SO_LOJA && D.lojas.indexOf(SO_LOJA) >= 0 ? [SO_LOJA] : D.lojas;
@@ -110,6 +138,7 @@ function mostrar(i) {
     return '<div class="cd ' + (n ? 'g' + D.tipos[x].grav : 'zero') + (j === 3 ? ' ult' : '') + '"><div class="nm">' + esc(D.tipos[x].curto || D.tipos[x].nome) + '</div><div class="v">' + n + '</div><div class="lj">' + esc(outras(l, x) || 'na ' + LJ(l)) + '</div></div>';
   }).join('');
   var arr = (D.porLoja && D.porLoja[l] && D.porLoja[l][t]) || [], n = conta(l, t);
+  document.getElementById('meta').innerHTML = faixaMeta(l);
   document.getElementById('pag').innerHTML = '<h2>' + LJ(l) + ' · ' + esc(D.tipos[t].nome) + '<small>' + (n > LINHAS ? 'os ' + LINHAS + ' mais urgentes de ' + n : n + ' em aberto') + '</small></h2>' + tabela(t, arr);
   var c = D.calculadoEm ? new Date(D.calculadoEm) : null;
   document.getElementById('sub').textContent = 'Lojas ' + D.lojas.map(LJ).join(' e ') + (c ? ' · atualizado às ' + ('0' + c.getHours()).slice(-2) + ':' + ('0' + c.getMinutes()).slice(-2) : '');
