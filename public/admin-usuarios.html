@@ -319,9 +319,30 @@ function setDlinks(v) {
 }
 carregarErpUsuarios();
 
+// "Comprador vinculado" vem da agenda de compradores do ERP (relida a cada abertura do campo), não mais de
+// lista fixa: compradora nova no ERP aparece aqui sozinha. Os nomes fixos do HTML ficam só de reserva se o ERP falhar.
+async function carregarCompradoresErp() {
+  let nomes = [];
+  try { const r = await fetch('/api/admin/compradores-erp'); nomes = r.ok ? await r.json() : []; } catch { nomes = []; }
+  if (!Array.isArray(nomes) || !nomes.length) return;
+  const sel = document.getElementById('f-comprador');
+  const atual = sel.value;
+  // mantém quem já está vinculado a algum usuário mesmo que tenha saído da agenda do ERP
+  const todos = [...new Set([...nomes, ...usuarios.map(u => u.comprador_nome).filter(Boolean), atual].filter(Boolean))].sort();
+  sel.innerHTML = '<option value="">-- selecione --</option>';
+  for (const n of todos) { const o = document.createElement('option'); o.value = n; o.textContent = n; sel.appendChild(o); }
+  sel.value = atual;
+}
+function setComprador(v) {
+  const sel = document.getElementById('f-comprador');
+  if (v && ![...sel.options].some(o => o.value === v)) { const o = document.createElement('option'); o.value = v; o.textContent = v; sel.appendChild(o); }
+  sel.value = v || '';
+}
+
 function toggleExtraFields() {
   const p = document.getElementById('f-perfil').value;
   document.getElementById('field-comprador').style.display = p === 'comprador' ? '' : 'none';
+  if (p === 'comprador') carregarCompradoresErp();
   document.getElementById('field-loja').style.display = p === 'gerencial' ? '' : 'none';
   document.getElementById('field-modulos').style.display = (p === 'admin' || p === 'gerencial') ? 'none' : '';
   document.getElementById('field-lojas').style.display = (p === 'admin' || p === 'gerencial') ? 'none' : '';
@@ -361,7 +382,7 @@ function editarUsuario(id) {
   document.getElementById('f-usuario').value = u.usuario;
   document.getElementById('f-senha').value = '';
   document.getElementById('f-perfil').value = u.perfil;
-  document.getElementById('f-comprador').value = u.comprador_nome || '';
+  setComprador(u.comprador_nome);
   document.getElementById('f-loja').value = u.loja_id || '';
   setDlinks(u.dlinks_usuario);
   setModulos(u.modulos);
@@ -385,7 +406,7 @@ function trocarSenha(id) {
   document.getElementById('f-usuario').value = u.usuario;
   document.getElementById('f-senha').value = '';
   document.getElementById('f-perfil').value = u.perfil;
-  document.getElementById('f-comprador').value = u.comprador_nome || '';
+  setComprador(u.comprador_nome);
   document.getElementById('f-loja').value = u.loja_id || '';
   setDlinks(u.dlinks_usuario);
   setModulos(u.modulos);

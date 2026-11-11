@@ -5051,8 +5051,12 @@ async function refreshNregsComprador() {
       if (!nome) continue;
       (map[nome] = map[nome] || []).push(r.nLista);
     }
+    const antes = Object.keys(NREGS_COMPRADOR).sort().join(' | ');
     NREGS_COMPRADOR = map;
     _nregsCompradorTs = Date.now();
+    // Registra quando a agenda do ERP ganha/perde compradora (ex.: cadastro novo), pra dar pra conferir no log.
+    const agora = Object.keys(map).sort().join(' | ');
+    if (agora !== antes) console.log('[NREGS_COMPRADOR] compradores na agenda do ERP: ' + agora);
   } catch (e) {
     console.error('[NREGS_COMPRADOR-ERR]', e.message);
   }
@@ -6254,6 +6258,14 @@ app.get('/api/ruptura/debug-comprador', async (req, res) => {
     }
     res.json({ nome, listaRows, listIds, itensCount, prodsCount });
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Cadastro de usuários (admin-usuarios.html): "Comprador vinculado" vem da agenda do ERP, relida na hora
+// (sem cache) pra compradora recém-cadastrada no ERP aparecer sem esperar os 10 min — Tiago, 11/11.
+app.get('/api/admin/compradores-erp', requireAdmin, async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  await refreshNregsComprador();
+  res.json(Object.keys(NREGS_COMPRADOR).sort());
 });
 
 app.get('/api/ruptura/compradores', withCache(60), async (req, res) => {
