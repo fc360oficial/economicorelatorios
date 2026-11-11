@@ -1009,7 +1009,9 @@ async function lerCodigoExp(cod) {
   if (visaoExp.etapa === 'separacao') { await acharSep(cod); return; }
   const jaTem = (visaoExp.itens || []).find(i => i.cod === cod) || (visaoExp.fora || []).find(i => i.cod === cod);
   let descricao = jaTem ? jaTem.descricao : '', emb = jaTem ? jaTem.emb : 1;
-  if (!jaTem) { try { const cad = await api('/api/recebimento-publico/cadastro/' + encodeURIComponent(cod) + '?t=' + sess.token); descricao = cad.descricao; emb = cad.qtdemb || 1; } catch (e) { descricao = 'Código ' + cod; } }
+  // Emb do cartão = a da LINHA DO PEDIDO (caixa c/ QtdEmb → QtdEmb; código da caixa sem QtdEmb → 1, conta caixas), não a do
+  // cadastro do recebimento: desde 09/11 ele devolvia as un/cx da caixa e 20 caixas viravam 540 un (Tiago, 11/11)
+  if (!jaTem) { try { const cad = await api('/api/expedicao-publico/cartao?' + qExp() + '&id=' + encodeURIComponent(visaoExp.id) + '&cod=' + encodeURIComponent(cod)); descricao = cad.descricao; emb = cad.emb || 1; } catch (e) { descricao = 'Código ' + cod; } }
   abrirCartaoExp({ cod, descricao, emb, quant: '', lote: '' });
 }
 function abrirCartaoExp(c) {
@@ -1336,7 +1338,9 @@ function renderBip() {
 // Quando a contagem fecha em caixas inteiras, o número grande é a caixa ("200 cx") e a unidade vai embaixo.
 function qtdItem(i) {
   const emb = +i.emb || 1, q = +i.quant || 0, un = +i.un || 0;
-  if (emb > 1 && Math.abs(q * emb - un) < 0.001) return { n: num(q), l: esc(String(i.emb_label && i.emb_label !== 'UN' ? i.emb_label : 'CX').toLowerCase()), sub: i.caixa ? '' : 'c/ ' + num(emb) + ' = ' + num(un) + ' un' };
+  // regra da caixa só dentro do CD (Tiago, 11/11: "as lojas serão diferente"): nas lojas a contagem segue em unidades
+  const cd = visao && visao.regra_caixa != null ? !!visao.regra_caixa : !!(sess && +sess.loja === 10);
+  if (cd && emb > 1 && Math.abs(q * emb - un) < 0.001) return { n: num(q), l: esc(String(i.emb_label && i.emb_label !== 'UN' ? i.emb_label : 'CX').toLowerCase()), sub: i.caixa ? '' : 'c/ ' + num(emb) + ' = ' + num(un) + ' un' };
   return { n: num(un), l: 'un', sub: num(q) + ' × ' + num(emb) };
 }
 // Tiago, 11/11: "o produto entrou em caixa... foi bipada a caixa, então era pra tá a caixa". Item bipado pela caixa

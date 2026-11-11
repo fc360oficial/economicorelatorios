@@ -165,3 +165,22 @@ test('caixa (DUN-14) bipada numa nota que traz a unidade: vira o item da unidade
   const t = R.terminei(c.id);
   assert.deepEqual(t.recontar.map(x => x.cod + ':' + x.motivo).sort(), ['17890000000004:nao_esta_na_nota', '7896213007386:recontar']);
 });
+
+test('regra da caixa é SÓ do CD (Tiago, 11/11/26): na loja a caixa bipada fica pelo próprio código, em unidades, e a visão não fala em caixa', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rec-'));
+  const cad = {
+    '17898962794057': { cod: '17898962794057', descricao: 'PAPEL HIG MAX PURE NEUTRO C4 30M FD16', qtdemb: 1, emb: 'UN', validar: 0 },
+    '7898962794050': { cod: '7898962794050', descricao: 'MAX PURE PAPEL HIGIENICO FD C4 30M NEUTRO', qtdemb: 16, emb: 'FD', validar: 365 },
+  };
+  const xml = { itens: [{ cod: '7898962794050', descricao: 'PAPEL HIG', un: 160, emb: 16 }], naoPedidos: [], status: 'conciliado', ln: 3 };
+  R.init({ dir, cadastro: async c => cad[c] || CAD[c] || null, xmlLoja: () => xml, vinculo: async c => (c === '17898962794057' ? { cod: '7898962794050', emb: 16 } : null), agora: () => new Date('2026-11-11T08:00:00') });
+  assert.equal(R.regraCaixa(10), true); assert.equal(R.regraCaixa(3), false);
+  const c = R.abrirNota({ loja: 3, nome: 'MAYRA', chave: '3058'.padEnd(44, '0'), nNota: '306', fornecedor: 'MAX PURE', codFornec: 9 });
+  const r = await R.bipar(c.id, { cod: '17898962794057', quant: 10, emb: 1, validade: '2027-11-10' });
+  assert.equal(r.resultado, 'nao_esta_na_nota'); assert.equal(r.item.cod, '17898962794057'); assert.equal(r.item.un, 10); assert.ok(!r.item.caixa);
+  const v = R.visaoLoja(3, c.id);
+  assert.equal(v.regra_caixa, false); assert.ok(!('emb' in v.nota_itens[0]), 'loja não recebe a dica "vem em caixa"');
+  // a unidade segue normal na loja
+  const u = await R.bipar(c.id, { cod: '7898962794050', quant: 10, emb: 16, validade: '2028-06-30' });
+  assert.equal(u.resultado, 'ok'); assert.equal(u.item.un, 160);
+});

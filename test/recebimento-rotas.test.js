@@ -707,4 +707,8 @@ test('/cadastro/:cod da caixa (DUN-14 com qtdemb 1) devolve a unidade e as un/cx
   assert.deepEqual(await pedir('111'), { descricao: 'UNITARIO', qtdemb: 1, emb: 'UN' });
   // caixa cuja unidade não existe no cadastro: resposta como antes (unidades)
   assert.deepEqual(await pedir('17890000000004'), { descricao: 'CAIXA SEM UNIDADE CADASTRADA', qtdemb: 1, emb: 'UN' });
+  // regra da caixa é SÓ do CD (Tiago, 11/11/26): a mesma caixa pedida por uma LOJA sai pelo cadastro puro, em unidades
+  const t3 = recebimento.config().lojas[3].token;
+  const r3 = res(); await routes['GET /api/recebimento-publico/cadastro/:cod'](req({ query: { t: t3 }, params: { cod: '17898962794057' } }), r3);
+  assert.deepEqual(r3.body, { descricao: 'PAPEL HIG MAX PURE NEUTRO C4 30M FD16', qtdemb: 1, emb: 'UN' });
 });

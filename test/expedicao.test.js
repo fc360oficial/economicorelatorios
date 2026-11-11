@@ -342,3 +342,28 @@ test('pedido mexido no ERP depois de aberto (09/11/26, pedido 7830): item tirado
   const r3 = E.sincronizarPedido(c2.id, ITENS.filter(i => i.cod !== '7891150097605').map(i => i.cod === '789' ? { ...i, qtd: 7 } : i).concat([{ cod: '555', descricao: 'NOVO', und: 'UN', qtd: 3 }]));
   assert.equal(r3.alterados[0].para, 7); assert.deepEqual(r3.adicionados.map(x => x.cod), ['555']); assert.equal(E.obter(c2.id).pedido['555'].un, 3);
 });
+
+test('Carregamento: a embalagem do cartão vem da LINHA DO PEDIDO, não do cadastro do recebimento (11/11/26, pedidos 7909/7901: 20 caixas abriam com Emb 27 e viravam 540 un)', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'exp-'));
+  const cad = { '17891030300303': { descricao: 'CREME LEITE CX27', qtdemb: 27 }, '7898949352037': { descricao: 'GOOB 230ML', qtdemb: 12 }, '789': { descricao: 'UNIT', qtdemb: 1 }, '999': { descricao: 'FORA DO PEDIDO', qtdemb: 6 } };
+  E.init({ dir, agora: () => new Date('2026-11-11T10:00:00'), cadastro: async cod => cad[cod] || null, vinculo: async cod => cod === '17891150097602' ? { cod: '7891150097605', emb: 20 } : null });
+  const c = E.abrirPedido({ nPedido: 7909, cliente: 'MARCIO', nome: 'lima', operador: MARIA, itens: [
+    { cod: '17891030300303', descricao: 'CREME LEITE MOCOCA 200G TP CX27', qtd: 20, qtdEmb: 0, und: 'CX' },      // código da caixa sem QtdEmb: conta caixas
+    { cod: '17891030300204', descricao: 'MISTURA LACTEA MOCOCA 395G CX27', qtd: 5, qtdEmb: 27, und: 'CX' },      // caixa com QtdEmb: 5 × 27
+    { cod: '7896012303115', descricao: 'ARROZ PARB 1KG FD10', qtd: 50, qtdEmb: 10, und: 'FD' },                  // EAN-13 em fardo com QtdEmb
+    { cod: '7898949352037', descricao: 'GOOB REFRIGERANTE 230ML', qtd: 360, qtdEmb: 0, und: 'FD', conversao: '30 FD c/12' },   // em unidades
+    { cod: '7891150097605', descricao: 'OLEO LIZA 900ML', qtd: 80, qtdEmb: 0, und: 'UN', conversao: '4 CX c/20' },
+    { cod: '789', descricao: 'ITEM UNITARIO', qtd: 5, qtdEmb: 0, und: 'UN' } ] });
+  const emb = async cod => (await E.embalagemCarga(c.id, cod)).emb;
+  assert.equal(await emb('17891030300303'), 1, 'caixa sem QtdEmb conta caixas, mesmo com cadastro c/27');
+  assert.equal(await emb('17891030300204'), 27, 'caixa com QtdEmb abre com as unidades da caixa do pedido');
+  assert.equal(await emb('7896012303115'), 10);
+  assert.equal(await emb('7898949352037'), 12, 'linha em unidade: Emb do cadastro, como sempre foi');
+  assert.equal(await emb('17891150097602'), 20, 'caixa vinculada de linha em unidade: un/cx do vínculo');
+  assert.equal(await emb('789'), 1);
+  assert.deepEqual(await E.embalagemCarga(c.id, '999'), { descricao: 'FORA DO PEDIDO', emb: 6 });
+  await assert.rejects(E.embalagemCarga(c.id, '000'), /não cadastrado/);
+  // ponta a ponta: separa 20 caixas, o carregamento com a Emb devolvida (1) fica conforme
+  await E.separar(c.id, { cod: '17891030300303', quant: 20, emb: 1, operador: MARIA });
+  const sep = E.obter(c.id).etapas.separacao.itens['17891030300303']; assert.equal(sep.un, 20);
+});
