@@ -69,6 +69,8 @@
         { href: '/comprovantes-bancarios.html', ic: 'bank', txt: 'Comprovantes Bancários' },
         { href: '/dp.html', ic: 'list', txt: 'Departamento Pessoal (DP)' },
         { href: '/escalas.html', ic: 'list', txt: 'Escalas' },
+        // Gerador Inteligente de Escalas 5×2 (11/11/26): simula, aplica como rascunho, valida jornada/folgas, cobertura e auditoria
+        { href: '/escalas-gerador.html', ic: 'calendar', txt: 'Gerador de Escalas 5×2' },
         { href: '/gestao-disciplinar.html', ic: 'shield', txt: 'Gestão Disciplinar', badge: '/api/disciplinar/pendencias' },
         // Gestão Documental (28/10/26, etapa 01 = só interface): prontuários digitais, recebimento pelo CPD, conferência do RH, protocolos
         { href: '/gestao-documental.html', ic: 'folder', txt: 'Gestão Documental' },

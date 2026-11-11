@@ -9617,6 +9617,8 @@ require('./lib/etica-rotas')(app, { multer, publicDir: path.join(__dirname, 'pub
 require('./lib/gestao-pessoas-rotas')(app, { pontocerto, listarUsuarios: () => usuarios });
 // Escalas (22/10/2026, DP / RH › Escalas): cobertura por setor, escala coletiva/individual, fluxo gerente → RH → Coordenação.
 require('./lib/escalas-rotas')(app, { pontocerto });
+// Gerador Inteligente de Escalas 5×2 (11/11/2026): /api/escalas-5x2/* — simula, aplica como rascunho, valida, audita. Só lê o PontoCerto.
+require('./lib/escalas-5x2-rotas')(app, { pontocerto });
 // TV do RH — Ponto e Jornada (26/10/2026, DP / RH › TV RH/DP): telão dentro do RH com o ponto do dia, nome a nome, a partir
 // da MESMA jornada diária da aba Jornada diária (pontocerto.jornadaDia, tolerância da Central de Gestão de Pessoas).
 // Link público por token igual à TV Açougue; regras e classificação pra TV em lib/tv-rh.js. Só leitura.
