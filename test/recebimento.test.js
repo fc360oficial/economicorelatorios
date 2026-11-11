@@ -116,6 +116,24 @@ test('lote (loja 10): desde 09/11/26 ninguém exige lote (só validade); lote en
   assert.equal(r.resultado, 'ok'); assert.equal(R.visaoLoja(3, c3.id).exige_lote, false);
 });
 
+test('caixa sem vínculo e com qtdemb 1 nos dois cadastros: un/cx vem da própria nota (11/11/26, CD NF 643671)', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rec-'));
+  const cad = {
+    '37896224803107': { cod: '37896224803107', descricao: 'ACHOC PO 3 CORACOES 200G SACHE CX12', qtdemb: 1, emb: 'CX', validar: 0 },
+    '7896224803106': { cod: '7896224803106', descricao: '3 CORACOES CHOCOLATTO ACHOC PO 200G SACHE', qtdemb: 1, emb: 'CX', validar: 180 },
+  };
+  R.init({ dir, cadastro: async c => cad[c] || null, xmlLoja: () => null, vinculo: async () => null, agora: () => new Date('2026-11-11T08:00:00') });
+  const chave = '6436'.padEnd(44, '0');
+  // conferência antiga: aberta sem as un/cx da nota; reabrir completa
+  let c = R.abrirNota({ loja: 10, nome: 'ALVES', chave, nNota: '643671', fornecedor: 'TRES CORACOES', codFornec: 1499, xmlItens: [{ cod: '7896224803106', ean: null, descricao: 'CHOCOLATTO', un: 2400, decisao: null }] });
+  c = R.abrirNota({ loja: 10, nome: 'ALVES', chave, nNota: '643671', fornecedor: 'TRES CORACOES', codFornec: 1499, xmlItens: [{ cod: '7896224803106', ean: null, descricao: 'CHOCOLATTO', un: 2400, emb: 12, decisao: null }] });
+  assert.equal(R.obter(c.id).xml_itens[0].emb, 12);
+  const r = await R.bipar(c.id, { cod: '37896224803107', quant: 200, emb: 1, validade: '2027-10-15' });
+  assert.equal(r.resultado, 'ok'); assert.equal(r.item.cod, '7896224803106'); assert.equal(r.item.emb, 12); assert.equal(r.item.un, 2400);
+  assert.equal(R.terminei(c.id).bateu, true);
+  assert.deepEqual(R.devolucoes(R.obter(c.id)), []);
+});
+
 test('caixa (DUN-14) bipada numa nota que traz a unidade: vira o item da unidade com as un/cx (07/11/26, CD nota 305)', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rec-'));
   const cad = {
