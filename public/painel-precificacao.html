@@ -8,6 +8,7 @@
      Dados: /api/paineis-publico/precificacao-dados (lib/alertas-preco.js), relido a cada 60 s.
      Tela desenhada em 1920×1080 e encaixada no aparelho por transform (sem vh/vw, sem grid e sem animação CSS: o
      navegador das TVs é fraco — ver Painel Compras). Troca de página a cada 20 s, por JS.
+     Uma loja por vez: E1 (3 páginas) depois E2 (3 páginas). ?loja=N trava numa loja (uma TV por loja).
      ?kiosk=1 esconde o cursor · ?tela=N abre na N-ésima página. -->
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -16,6 +17,7 @@ html,body{height:100%;background:#0c0c0c;overflow:hidden;font-family:"Segoe UI",
 .topo{position:absolute;left:0;top:0;width:1920px;height:112px;background:#151515;border-bottom:4px solid #FFD500}
 .topo h1{position:absolute;left:40px;top:22px;font-size:50px;font-weight:800;letter-spacing:.5px}
 .topo h1 b{color:#FFD500}
+.topo .loja{position:absolute;left:760px;top:16px;height:80px;line-height:80px;padding:0 34px;background:#FFD500;color:#0c0c0c;font-size:60px;font-weight:800;border-radius:14px}
 .topo .dir{position:absolute;right:40px;top:20px;text-align:right}
 .topo .hr{font-size:44px;font-weight:800;line-height:1}
 .topo .sub{font-size:20px;color:#b9b6ab;margin-top:6px}
@@ -52,18 +54,18 @@ body.kiosk{cursor:none}
 <div id="palco">
   <div class="topo">
     <h1>PAINEL <b>PRECIFICAÇÃO</b></h1>
+    <div class="loja" id="loja">—</div>
     <div class="dir"><div class="hr" id="hr">--:--</div><div class="sub" id="sub">carregando…</div></div>
   </div>
   <div class="cards" id="cards"></div>
-  <div class="pag" id="p0"></div>
-  <div class="pag" id="p1"></div>
-  <div class="pag" id="p2"></div>
+  <div class="pag on" id="pag"></div>
   <div class="rod" id="rod"></div>
 </div>
 <script>
 var QS = new URLSearchParams(location.search);
 if (QS.get('kiosk') === '1') document.body.className = 'kiosk';
-var PAGINAS = ['abaixo_custo', 'custo_subiu', 'abaixo_margem'], atual = Math.max(0, Math.min(2, (parseInt(QS.get('tela')) || 1) - 1)), D = null, LINHAS = 11;
+// Uma loja por vez (Tiago, 11/11: "quebrar por lojas E1 e E2"): pra cada loja passam os 3 tipos, 20 s cada. ?loja=N trava numa loja.
+var TIPOS_PAG = ['abaixo_custo', 'custo_subiu', 'abaixo_margem'], SO_LOJA = parseInt(QS.get('loja')) || 0, atual = Math.max(0, (parseInt(QS.get('tela')) || 1) - 1), D = null, LINHAS = 11, PAGS = [];
 function LJ(n) { return +n === 10 ? 'CD' : 'E' + n; }
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 function money(v) { return v == null ? '—' : 'R$ ' + (+v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
@@ -75,40 +77,46 @@ function encaixar() {
   p.style.top = Math.max(0, (window.innerHeight - 1080 * s) / 2) + 'px';
 }
 function relogio() { var d = new Date(); document.getElementById('hr').textContent = ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); }
-function total(t) { var n = 0; for (var i = 0; i < D.lojas.length; i++) n += (D.resumo[D.lojas[i]].porTipo[t] || 0); return n; }
-function porLoja(t) { return D.lojas.map(function (l) { return LJ(l) + ': ' + (D.resumo[l].porTipo[t] || 0); }).join('  ·  '); }
+function conta(l, t) { return (D.resumo[l] && D.resumo[l].porTipo[t]) || 0; }
+function outras(l, t) { return D.lojas.filter(function (x) { return x !== l; }).map(function (x) { return LJ(x) + ': ' + conta(x, t); }).join('  ·  '); }
 function tag(a) { return a.condicao === 'promocao' ? '<span class="tg pr">PROMOÇÃO</span>' : a.condicao === 'rebaixa' ? '<span class="tg rb">REBAIXA</span>' : ''; }
 function tabela(t, arr) {
   if (!arr.length) return '<div class="vazio">Nada em aberto aqui.</div>';
   var cols = '<col style="width:90px"><col style="width:760px"><col style="width:190px"><col style="width:190px"><col style="width:150px"><col style="width:200px"><col style="width:260px">';
-  var h = '<tr><th>Loja</th><th>Produto</th><th class="n">Custo</th><th class="n">Preço</th><th class="n">Margem</th><th class="n">Sugerido</th><th class="n">' + (t === 'abaixo_custo' ? 'Perde por mês' : 'Vale por mês') + '</th></tr>';
+  var h = '<tr><th>Loja</th><th>Produto</th><th class="n">Custo</th><th class="n">Preço</th><th class="n">Margem</th><th class="n">Sugerido</th><th class="n">' + (t === 'abaixo_custo' ? 'Perde por mês' : t === 'custo_subiu' ? 'Vende por mês' : 'Vale por mês') + '</th></tr>';
   var b = arr.slice(0, LINHAS).map(function (a) {
     return '<tr><td class="lj"><b>' + LJ(a.loja) + '</b></td><td>' + esc(a.desc) + tag(a) + '</td><td class="n">' + money(a.custo) + '</td><td class="n">' + money(a.preco) + '</td>' +
       '<td class="n' + (a.margem < 0 ? ' neg' : '') + '">' + pct(a.margem) + '</td><td class="n sug">' + (a.sugerido ? money(a.sugerido) : '—') + '</td>' +
-      '<td class="n' + (t === 'abaixo_custo' ? ' neg' : '') + '">' + money(t === 'abaixo_custo' ? a.perdaMes : a.ganhoMes) + '</td></tr>';
+      '<td class="n' + (t === 'abaixo_custo' ? ' neg' : '') + '">' + (t === 'custo_subiu' ? (+a.qtd30 || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 }) + ' un' : money(t === 'abaixo_custo' ? a.perdaMes : a.ganhoMes)) + '</td></tr>';
   }).join('');
   return '<table><colgroup>' + cols + '</colgroup>' + h + b + '</table>';
 }
 function desenhar() {
   if (!D) return;
-  var tipos = ['abaixo_custo', 'custo_subiu', 'sem_custo', 'abaixo_margem'];
-  document.getElementById('cards').innerHTML = tipos.map(function (t, i) {
-    var n = total(t);
-    return '<div class="cd ' + (n ? 'g' + D.tipos[t].grav : 'zero') + (i === 3 ? ' ult' : '') + '"><div class="nm">' + esc(D.tipos[t].curto || D.tipos[t].nome) + '</div><div class="v">' + n + '</div><div class="lj">' + esc(porLoja(t)) + '</div></div>';
-  }).join('');
-  for (var i = 0; i < PAGINAS.length; i++) {
-    var t = PAGINAS[i], arr = D[t] || [], n = total(t);
-    document.getElementById('p' + i).innerHTML = '<h2>' + esc(D.tipos[t].nome) + '<small>' + (n > LINHAS ? 'os ' + LINHAS + ' mais urgentes de ' + n : n + ' em aberto') + ' · lojas ' + D.lojas.map(LJ).join(' e ') + '</small></h2>' + tabela(t, arr);
-  }
-  var a = D.assertividade || {}, c = D.calculadoEm ? new Date(D.calculadoEm) : null;
-  document.getElementById('sub').textContent = 'Lojas ' + D.lojas.map(LJ).join(' e ') + (c ? ' · atualizado às ' + ('0' + c.getHours()).slice(-2) + ':' + ('0' + c.getMinutes()).slice(-2) : '');
-  document.getElementById('rod').innerHTML = 'Carnes fora · final <b>7</b> = rebaixa · final <b>8</b> = promoção · alto giro não sobe · responda os alertas em <b>Precificação › Alertas de Preço</b>' + (a.total ? ' · ' + a.total + ' respostas, ' + a.pct + '% eram pra corrigir' : '');
+  var lojas = SO_LOJA && D.lojas.indexOf(SO_LOJA) >= 0 ? [SO_LOJA] : D.lojas;
+  PAGS = [];
+  for (var i = 0; i < lojas.length; i++) for (var k = 0; k < TIPOS_PAG.length; k++) PAGS.push({ loja: lojas[i], tipo: TIPOS_PAG[k] });
+  if (atual >= PAGS.length) atual = 0;
+  var a = D.assertividade || {};
+  document.getElementById('rod').innerHTML = 'Carnes, charque e hortifrúti fora · final <b>7</b> = rebaixa · final <b>8</b> = promoção · alto giro não sobe · responda os alertas em <b>Precificação › Alertas de Preço</b>' + (a.total ? ' · ' + a.total + ' respostas, ' + a.pct + '% eram pra corrigir' : '');
   mostrar(atual);
 }
-function mostrar(i) { atual = i; for (var k = 0; k < PAGINAS.length; k++) document.getElementById('p' + k).className = 'pag' + (k === i ? ' on' : ''); }
+function mostrar(i) {
+  atual = i; var pg = PAGS[i]; if (!pg) return;
+  var l = pg.loja, t = pg.tipo, tipos = ['abaixo_custo', 'custo_subiu', 'sem_custo', 'abaixo_margem'];
+  document.getElementById('loja').textContent = 'LOJA ' + LJ(l);
+  document.getElementById('cards').innerHTML = tipos.map(function (x, j) {
+    var n = conta(l, x);
+    return '<div class="cd ' + (n ? 'g' + D.tipos[x].grav : 'zero') + (j === 3 ? ' ult' : '') + '"><div class="nm">' + esc(D.tipos[x].curto || D.tipos[x].nome) + '</div><div class="v">' + n + '</div><div class="lj">' + esc(outras(l, x) || 'na ' + LJ(l)) + '</div></div>';
+  }).join('');
+  var arr = (D.porLoja && D.porLoja[l] && D.porLoja[l][t]) || [], n = conta(l, t);
+  document.getElementById('pag').innerHTML = '<h2>' + LJ(l) + ' · ' + esc(D.tipos[t].nome) + '<small>' + (n > LINHAS ? 'os ' + LINHAS + ' mais urgentes de ' + n : n + ' em aberto') + '</small></h2>' + tabela(t, arr);
+  var c = D.calculadoEm ? new Date(D.calculadoEm) : null;
+  document.getElementById('sub').textContent = 'Lojas ' + D.lojas.map(LJ).join(' e ') + (c ? ' · atualizado às ' + ('0' + c.getHours()).slice(-2) + ':' + ('0' + c.getMinutes()).slice(-2) : '');
+}
 function proxima() {
-  if (!D) return;
-  for (var k = 1; k <= PAGINAS.length; k++) { var i = (atual + k) % PAGINAS.length; if (total(PAGINAS[i]) > 0) return mostrar(i); }   // pula página vazia
+  if (!D || !PAGS.length) return;
+  for (var k = 1; k <= PAGS.length; k++) { var i = (atual + k) % PAGS.length; if (conta(PAGS[i].loja, PAGS[i].tipo) > 0) return mostrar(i); }   // pula página vazia
 }
 function ler() {
   fetch('/api/paineis-publico/precificacao-dados?t=' + Date.now(), { cache: 'no-store' })
@@ -116,7 +124,7 @@ function ler() {
     .then(function (j) { D = j; desenhar(); })
     .catch(function (e) { if (!D) document.getElementById('sub').innerHTML = '<span class="erro">sem dados: ' + esc(e.message) + '</span>'; });
 }
-window.tvSlideAtual = function () { return D ? D.tipos[PAGINAS[atual]].nome : ''; };
+window.tvSlideAtual = function () { var p = PAGS[atual]; return D && p ? LJ(p.loja) + ' · ' + D.tipos[p.tipo].nome : ''; };
 window.addEventListener('resize', encaixar);
 encaixar(); relogio(); ler();
 setInterval(relogio, 20000); setInterval(ler, 60000); setInterval(proxima, 20000);
