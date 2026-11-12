@@ -9957,6 +9957,8 @@ require('./lib/termos-escala-rotas')(app, { pontocerto });
 // avalia indeferimentos → jurídico via RH → gerente aplica e devolve assinado → RH confere e encerra; suspensão vira pendência de folha
 // pro DP. Regras, PDF e arquivos em lib/disciplinar.js; só lê o PontoCerto. Aviso de prazo vencendo roda 1×/h.
 require('./lib/disciplinar-rotas')(app, { pontocerto, multer });
+// Contratos e Histórico Funcional (12/11/2026): contrato de experiência, ficha individual e painel de alertas — lê o ponto, a Gestão Disciplinar e a Gestão Documental
+require('./lib/historico-funcional-rotas')(app, { pontocerto });
 setInterval(() => { try { require('./lib/disciplinar').avisarPrazos(); } catch (e) { console.error('[disciplinar] prazos:', e.message); } }, 3600000);
 // Gestão Documental (28/10/2026, DP / RH › Gestão Documental, etapa 02): prontuário digital por funcionário (id do PontoCerto),
 // CPD envia → RH confere e arquiva, importação histórica direta pelo RH, Coordenação autoriza excluir/substituir validado

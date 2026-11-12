@@ -67,6 +67,8 @@
         { href: '/etica.html', ic: 'shield', txt: 'Canal de Ética' },
         // Comprovantes Bancários (04/11/26): fases A e B, demonstração com dados fictícios
         { href: '/comprovantes-bancarios.html', ic: 'bank', txt: 'Comprovantes Bancários' },
+        // Contratos e Histórico Funcional (12/11/26): contrato de experiência (30 + 60), ficha individual e painel de alertas
+        { href: '/historico-funcional.html', ic: 'shield', txt: 'Contratos e Histórico Funcional', badge: '/api/historico-funcional/pendencias' },
         { href: '/dp.html', ic: 'list', txt: 'Departamento Pessoal (DP)' },
         { href: '/escalas.html', ic: 'list', txt: 'Escalas' },
         // Gerador Inteligente de Escalas 5×2 (11/11/26): simula, aplica como rascunho, valida jornada/folgas, cobertura e auditoria
