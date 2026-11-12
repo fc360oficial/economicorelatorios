@@ -550,3 +550,53 @@ test('semana contínua no serviço · 4. dois meses e 5. dois anos: 28/12/2026 a
   // a validação de uma alteração feita em janeiro olha a semana inteira, com os dias de dezembro
   const v = S.validacaoDaSemana(4, '2027-01', 408, '2027-01-02', ctx4()); assert.deepEqual(v.semana, { inicio: '2026-12-28', fim: '2027-01-03' }); assert.equal(v.folgas, a.r.proposta.find(p => p.id === 408).semanas.find(x => x.inicio === '2026-12-28').regra52.folgas);
 });
+
+// ═══ ETAPA 6 — modelo flexível de folgas no serviço: autorização de duas rotativas, folgas juntas pelo RH, menos alteração ═══
+// Loja 2 (Muribeca) com quadro próprio; U.rh2 é o RH Ponto só dessa unidade.
+const colabs2 = quadro(2, 200, 'Muribeca'); const ctx2 = extra => ({ colabs: colabs2, escalasPC, afast: new Map(), afastAnt: new Map(), hoje: HOJE, ponto: null, ...extra });
+const diaDe2 = (id, d) => { const e = E.ler(2, MES); return E.diaDe(e, e.funcionarios.find(f => f.id === id), d, null); };
+
+test('modelo flexível · duas folgas rotativas só com autorização do RH no cadastro; a regra nasce flexível e "preferir separadas" é opção da convenção', () => {
+  const funcs = S.escalaDe(2, MES, ctx2()).e.funcionarios;
+  assert.throws(() => S.salvarCadastro(U.ger, 2, funcs, [{ id: 201, duasRotativas: true }], 'autorizar duas rotativas'), status(403));
+  assert.equal(S.cadastroLoja(2, funcs).find(f => f.id === 201).duasRotativas, false); assert.equal(S.cadastroLoja(2, funcs).find(f => f.id === 201).folgaOrigem, 'contrato');
+  S.salvarCadastro(U.rh2, 2, funcs, [{ id: 201, duasRotativas: true }], 'Ana autorizada a ter as duas folgas rotativas (acordo individual)');
+  const c = S.cadastroLoja(2, funcs).find(f => f.id === 201); assert.equal(c.duasRotativas, true); assert.equal(c.folga_fixa, null); assert.equal(c.folgaOrigem, 'duas_rotativas');
+  const a = ultimaAud('cadastro'); assert.equal(a.usuario, 'rh2'); assert.equal(a.alteracoes[0].depois.duasRotativas, true); assert.ok(!a.alteracoes[0].antes.duasRotativas); assert.match(a.justificativa, /acordo individual/);
+  // definir uma folga fixa depois tira a autorização (um modelo ou o outro)
+  S.salvarCadastro(U.rh2, 2, funcs, [{ id: 202, duasRotativas: true }], 'teste do modelo'); S.salvarCadastro(U.rh2, 2, funcs, [{ id: 202, folga_fixa: 3 }], 'Bruno volta a ter folga fixa na quarta');
+  const b = S.cadastroLoja(2, funcs).find(f => f.id === 202); assert.equal(b.duasRotativas, false); assert.equal(b.folga_fixa, 3); assert.equal(b.folgaOrigem, 'rh');
+  // regra: o padrão é flexível; "preferir separadas" só se a convenção pedir
+  const r = S.salvarRegra(U.rh, { ...regraBody, nome: 'CCT Muribeca (teste)', estabelecimento: 2 }); assert.equal(S.listarRegras().find(x => x.id === r.id).params.folgasConsecutivas, 'livre'); S.validarRegra(U.rh, r.id, 'Conferida a cláusula 12 da CCT 2026/2027');
+  const sepr = S.salvarRegra(U.rh, { ...regraBody, nome: 'CCT com folgas separadas (teste)', estabelecimento: 2, categoria: 'CATEGORIA QUE NINGUEM TEM', params: { ...regraBody.params, folgasConsecutivas: 'evitar' } }); assert.equal(S.listarRegras().find(x => x.id === sepr.id).params.folgasConsecutivas, 'evitar');
+  // simulação: Ana com duas rotativas, os demais com fixa + rotativa; juntas ou separadas, toda semana fecha em duas
+  const s = S.simular(U.rh2, 2, MES, ctx2()); assert.equal(s.aplicacao.permitida, true, JSON.stringify(s.aplicacao.pendencias)); const ana = s.resultado.proposta.find(p => p.id === 201);
+  assert.equal(ana.folgaModelo, 'duas_rotativas'); for (const w of ana.semanas.filter(x => x.inicio >= '2026-12-07' && x.fim <= '2026-12-27')) { assert.equal(w.regra52.rotativas, 2); assert.equal(w.regra52.fixas, 0); }
+  assert.ok(!s.resultado.conflitos.operacionais.some(x => x.codigo === 'sem_folga_fixa'), 'quem tem autorização não fica pendente'); assert.equal(s.distribuicaoFolgas.pessoasDuasRotativas, 1); assert.equal(s.distribuicaoFolgas.pessoasSemModelo, 0);
+  assert.equal(s.distribuicaoFolgas.consecutivas + s.distribuicaoFolgas.separadas, s.distribuicaoFolgas.semanas); assert.equal(s.duasFolgas.excesso + s.duasFolgas.falta, 0); assert.equal(s.resultado.validacaoSemanal.vermelho, 0); assert.equal(s.alteracoes, null);
+  for (const p of s.resultado.proposta) for (const w of p.semanas) assert.equal(w.regra52.folgas, 2, p.nome + ' ' + w.inicio);
+  S.aplicar(U.rh2, 2, MES, ctx2(), { justificativa: 'dezembro em 5x2 no modelo flexível', cienteDivergencias: true, assinatura: s.assinatura });
+  assert.deepEqual(E.ler(2, MES).funcionarios.find(f => f.id === 201).folga_fixa, [], 'na grade, Ana fica sem folga fixa'); assert.deepEqual(E.ler(2, MES).funcionarios.find(f => f.id === 202).folga_fixa, [3]);
+  const ap = ultimaAud('gerar_aplicar'); assert.equal(ap.distribuicaoFolgas.pessoasDuasRotativas, 1); assert.equal(ap.alteracoes, null); assert.equal(S.portaPublicacao(2, MES, ctx2()).liberada, true);
+});
+
+test('modelo flexível · o RH junta as duas folgas da semana e a escala continua válida; simular de novo mexe o mínimo na escala existente', () => {
+  // simular de novo logo depois de aplicar: nada muda (a proposta repete a escala que já existe)
+  const s0 = S.simular(U.rh2, 2, MES, ctx2()); assert.equal(s0.alteracoes.mudam, 0); assert.equal(s0.alteracoes.folgasMovidas, 0); assert.ok(s0.alteracoes.folgasMantidas > 50); assert.equal(s0.alteracoes.pessoas, 0);
+  // Carla (203, folga fixa no sábado): o RH leva a rotativa da semana de 14/12 para a sexta 18/12, colada no sábado
+  const sem = semanaDe('2026-12-14'); const rot = sem.find(d => diaDe2(203, d).tipo === 'folga' && diaDe2(203, d).folga === 'rotativa'); assert.ok(rot && rot !== '2026-12-18' && rot !== '2026-12-20', 'rotativa de Carla em dia útil: ' + rot);
+  const ref = diaDe2(203, sem.find(d => diaDe2(203, d).tipo === 'trabalho'));
+  const e1 = { funcId: 203, data: '2026-12-18', tipo: 'folga', justificativa: 'troca pedida pela funcionária: folga na sexta' }; E.editarDia(2, MES, U.rh2, e1, new Map()); const p1 = S.aposEdicao(U.rh2, 2, MES, e1, 'rascunho', new Map());
+  assert.equal(p1.validacao.folgas, 3); assert.equal(p1.validacao.ok, false, 'no meio da troca a semana fica com três folgas: a alteração é gravada e acusada');
+  const e2 = { funcId: 203, data: rot, tipo: 'trabalho', entrada: ref.entrada, saida: ref.saida, almoco_ini: ref.almoco_ini, almoco_fim: ref.almoco_fim, justificativa: 'troca pedida pela funcionária: trabalha no dia da rotativa' }; E.editarDia(2, MES, U.rh2, e2, new Map()); const p2 = S.aposEdicao(U.rh2, 2, MES, e2, 'rascunho', new Map());
+  assert.equal(p2.validacao.ok, true, JSON.stringify(p2.validacao.bloqueios)); assert.equal(p2.validacao.folgas, 2); assert.equal(p2.validacao.situacao, 'ok'); assert.notEqual(p2.validacao.nivel, 'vermelho');
+  const w = S.analiseBase(2, MES, ctx2()).r.proposta.find(p => p.id === 203).semanas.find(x => x.inicio === '2026-12-14');
+  assert.deepEqual(w.dias.filter(d => d.tipo === 'folga').map(d => d.data), ['2026-12-18', '2026-12-19'], 'sexta e sábado juntas'); assert.equal(w.regra52.consecutivas, true); assert.equal(w.trabalho, 5); assert.ok(!w.validacao.itens.some(i => i.gravidade === 'bloqueio'));
+  assert.equal(S.portaPublicacao(2, MES, ctx2()).liberada, true, 'folgas juntas não bloqueiam a publicação'); assert.equal(ultimaAud('dia_alterar').validacao.ok, true); assert.equal(ultimaAud('dia_alterar').usuario, 'rh2');
+  // simular de novo: os dois dias ajustados à mão ficam como estão e o resto da escala quase não muda — nada muda no outro setor
+  const s1 = S.simular(U.rh2, 2, MES, ctx2()); const carla = s1.resultado.proposta.find(p => p.id === 203);
+  assert.equal(carla.dias['2026-12-18'].travado, true); assert.equal(carla.dias['2026-12-18'].tipo, 'folga'); assert.equal(carla.dias[rot].travado, true); assert.equal(carla.semanas.find(x => x.inicio === '2026-12-14').regra52.folgas, 2);
+  assert.ok(s1.alteracoes.comparados > 200); assert.ok(s1.alteracoes.mudam <= s1.alteracoes.comparados * 0.1, 'mudam ' + s1.alteracoes.mudam + ' de ' + s1.alteracoes.comparados + ' dias');
+  for (const p of s1.resultado.proposta.filter(x => x.setor === 'REPOSICAO')) for (const [d, x] of Object.entries(p.dias)) assert.equal(x.tipo, diaDe2(p.id, d).tipo, p.nome + ' ' + d + ': o outro setor não tem motivo para mudar');
+  assert.equal(s1.duasFolgas.excesso + s1.duasFolgas.falta, 0); assert.equal(s1.aplicacao.permitida, true, JSON.stringify(s1.aplicacao.pendencias));
+});
