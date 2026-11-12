@@ -9869,6 +9869,10 @@ app.post('/api/robo-precificacao/params/reset', (req, res) => { const p = roboPr
 // Precificação › Alertas de Preço (alertas-preco.html) e TV da sala (painel-precificacao.html, sem login).
 const alertasPreco = require('./lib/alertas-preco');
 alertasPreco.init({ q, pq: (...a) => espelhoErp.pq(...a) });
+// Regra do robô × regra de sempre na Formação de Preço (Tiago, 12/11/26). Trocar = só admin (prefixo robo-precificacao).
+precificacao.initRobo(loja => alertasPreco.infoRobo(loja));
+app.get('/api/robo-precificacao/regra-preco', (req, res) => res.json(precificacao.getRegraRobo()));
+app.post('/api/robo-precificacao/regra-preco', (req, res) => { try { res.json(precificacao.setRegraRobo(req.body || {}, req.session.user?.nome || null)); } catch (e) { res.status(400).json({ error: e.message }); } });
 app.get('/api/alertas-preco', async (req, res) => {
   res.set('Cache-Control', 'no-store');
   try { res.json(await alertasPreco.consultar({ loja: req.query.loja ? parseInt(req.query.loja) : 0, respondidos: req.query.respondidos === '1' })); }
@@ -11113,7 +11117,7 @@ app.get('/api/precificacao', (req, res) => {
   let regs = precificacao.listar();
   if (req.query.status) regs = regs.filter(r => r.status === req.query.status);
   if (req.query.loja) regs = regs.filter(r => r.loja === parseInt(req.query.loja));
-  res.json({ padrao: precificacao.getPadrao(), horas_carga: HORAS_CARGA, registros: regs.map(r => ({ id: r.id, pedidoId: r.pedidoId, loja: r.loja, lista: r.lista, lista_nome: r.lista_nome, fornecedor: r.fornecedor, teste: r.teste, ensaio: !!r.ensaio, status: r.status, criadoEm: r.criadoEm, conciliadoEm: r.conciliadoEm, fechadoEm: r.fechadoEm || null, aplicadoEm: r.aplicadoEm || null, aplicadoPor: r.aplicadoPor || null, verificadoEm: r.verificadoEm || null, carga_divergentes: r.carga_divergentes ?? null, erp_teste: r.erp_teste ? { logId: r.erp_teste.logId, itens: r.erp_teste.itens, em: r.erp_teste.em, por: r.erp_teste.por } : null, parametros: r.parametros, resumo: r.resumo, divergentes: r.divergentes ?? null, rateio_disponivel: !!r.rateio?.disponivel })) });
+  res.json({ padrao: precificacao.getPadrao(), horas_carga: HORAS_CARGA, registros: regs.map(r => ({ id: r.id, pedidoId: r.pedidoId, loja: r.loja, lista: r.lista, lista_nome: r.lista_nome, fornecedor: r.fornecedor, teste: r.teste, ensaio: !!r.ensaio, regra_robo: !!(r.parametros && r.parametros.regra_robo), status: r.status, criadoEm: r.criadoEm, conciliadoEm: r.conciliadoEm, fechadoEm: r.fechadoEm || null, aplicadoEm: r.aplicadoEm || null, aplicadoPor: r.aplicadoPor || null, verificadoEm: r.verificadoEm || null, carga_divergentes: r.carga_divergentes ?? null, erp_teste: r.erp_teste ? { logId: r.erp_teste.logId, itens: r.erp_teste.itens, em: r.erp_teste.em, por: r.erp_teste.por } : null, parametros: r.parametros, resumo: r.resumo, divergentes: r.divergentes ?? null, rateio_disponivel: !!r.rateio?.disponivel })) });
 });
 app.post('/api/precificacao/padrao', (req, res) => res.json(precificacao.setPadrao(req.body || {})));
 app.post('/api/precificacao/verificar', async (req, res) => { try { res.json(await precificacao.verificarTodos()); } catch (e) { res.status(500).json({ error: e.message }); } });
