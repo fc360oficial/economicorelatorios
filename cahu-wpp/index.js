@@ -190,8 +190,12 @@ http.createServer(async (req, res) => {
     }
     if (req.url === '/mensagem-alerta') {
       if (!cfg.alerta) return responder(res, 400, { error: 'config.alerta não preenchido' });
-      await sock.sendMessage(jidNumero(cfg.alerta), { text: String(body.texto || 'alerta sem texto') });
-      return responder(res, 200, { ok: true });
+      // 12/11/26: aviso não chegava no Tiago — número de PE pode estar no WhatsApp sem o 9; pergunta ao WhatsApp qual é o endereço real
+      const dA = String(cfg.alerta).replace(/D/g, ''); let jidA = jidNumero(dA);
+      for (const c of [dA, dA.length === 13 ? dA.slice(0, 4) + dA.slice(5) : null].filter(Boolean)) { try { const [r] = await sock.onWhatsApp(c); if (r && r.exists) { jidA = r.jid; break; } } catch (e) {} }
+      await sock.sendMessage(jidA, { text: String(body.texto || 'alerta sem texto') });
+      logger.info(`alerta enviado pra ${jidA}`);
+      return responder(res, 200, { ok: true, jid: jidA });
     }
     return responder(res, 404, { error: 'rota não existe' });
   } catch (err) {
