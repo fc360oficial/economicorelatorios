@@ -8955,7 +8955,8 @@ app.delete('/api/paineis/:id', (req, res) => {
 });
 pedidosCD.agendar();
 setTimeout(() => pedidosCD.verificar().catch(e => console.error('[PEDIDOS-CD] verificar:', e.message)), 150 * 1000);
-setInterval(() => pedidosCD.verificar().catch(e => console.error('[PEDIDOS-CD] verificar:', e.message)), 5 * 60 * 1000); // 5 min: nota lançada na loja aparece logo (era 30 min, 18/09/2026)
+let pedidosCdVerificando = false;   // 11/11/26: rodada que demora (ERP lento) não é atropelada pela seguinte
+setInterval(() => { if (pedidosCdVerificando) return; pedidosCdVerificando = true; pedidosCD.verificar().catch(e => console.error('[PEDIDOS-CD] verificar:', e.message)).finally(() => { pedidosCdVerificando = false; }); }, 5 * 60 * 1000); // 5 min: nota lançada na loja aparece logo (era 30 min, 18/09/2026)
 
 app.get('/api/pedidos-cd', async (req, res) => {
   try {
@@ -9851,7 +9852,7 @@ app.get('/api/paineis-publico/precificacao-dados', async (req, res) => {
 // pelas rotas de sempre. Só admin (ver a lista de páginas do robô lá em cima).
 const roboEnsaio = require('./lib/robo-ensaio');
 roboEnsaio.init({ radarPedidos, pedidosFornec, precificacao, roboPrecif, cadastroLista: id => cadastroLista(id), linkPedido: p => linkPedido(p), publicUrl: PUBLIC_URL,
-  testeDir: require('./lib/conferencia-xml').TESTE_DIR, verificarRecebimentos: () => pedidosFornec.verificarRecebimentos(),
+  testeDir: require('./lib/conferencia-xml').TESTE_DIR, conferirPedido: id => pedidosFornec.conferirPedido(id),
   zap: async texto => { const r = await fetch((process.env.CAHU_WPP_URL || 'http://127.0.0.1:3012').replace(/\/$/, '') + '/mensagem-alerta', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texto }), signal: AbortSignal.timeout(30000) }); const j = await r.json().catch(() => ({})); if (!r.ok || j.error) throw new Error(j.error || 'bot HTTP ' + r.status); return j; } });
 app.get('/api/robo-ensaio', (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json(roboEnsaio.consultar()); } catch (err) { res.status(500).json({ error: err.message }); } });
 app.get('/api/robo-ensaio/opcoes', (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json({ lojas: roboEnsaio.LOJAS_PADRAO, listas: roboEnsaio.opcoes() }); } catch (err) { res.status(500).json({ error: err.message }); } });
