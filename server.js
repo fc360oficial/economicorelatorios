@@ -274,7 +274,7 @@ app.use((req, res, next) => {
     '/margem-comprador.html', '/api/margem-tv/comprador',
     '/painel-diretoria.html',
     '/painel-cd.html', '/api/painel-cd',
-    '/painel-compras.html', '/tv', '/painel-fiscal.html', '/painel-precificacao.html'];
+    '/painel-compras.html', '/tv', '/painel-fiscal.html', '/painel-precificacao.html', '/painel-robo.html'];
   // 10/11/2026: atalho /apk pro APK do coletor, sem diferenciar maiúsculas — o endereço comprido digitado no teclado do
   // coletor (que capitaliza) caía na tela de login e, depois do login, na página inicial em vez do download
   const caminhoMin = req.path.toLowerCase();
@@ -9845,7 +9845,7 @@ app.post('/api/alertas-preco/desfazer', (req, res) => {
 app.post('/api/alertas-preco/recalcular', (req, res) => { alertasPreco.calcular().catch(e => console.error('[ALERTAS-PRECO]', e.message)); res.json({ ok: true, estado: alertasPreco.estado() }); });
 app.get('/api/paineis-publico/precificacao-dados', async (req, res) => {
   res.set('Cache-Control', 'no-store');
-  try { const d = await alertasPreco.painel(); try { d.ensaios = roboEnsaio.painel(); } catch (e) { d.ensaios = []; } res.json(d); } catch (err) { res.status(503).json({ error: 'Sem dados no momento: ' + err.message }); }
+  try { res.json(await alertasPreco.painel()); } catch (err) { res.status(503).json({ error: 'Sem dados no momento: ' + err.message }); }
 });
 // Ensaio do robô de compras + precificação (Tiago, 11/11/2026) — lib/robo-ensaio.js. O pedido do robô vai pro Tiago no lugar do
 // vendedor (WhatsApp do bot central), a nota é simulada e cada etapa espera a aprovação dele. Grava só no ERP de TESTE (.254),
@@ -9854,6 +9854,8 @@ const roboEnsaio = require('./lib/robo-ensaio');
 roboEnsaio.init({ radarPedidos, pedidosFornec, precificacao, roboPrecif, cadastroLista: id => cadastroLista(id), linkPedido: p => linkPedido(p), publicUrl: PUBLIC_URL,
   testeDir: require('./lib/conferencia-xml').TESTE_DIR, conferirPedido: id => pedidosFornec.conferirPedido(id),
   zap: async texto => { const r = await fetch((process.env.CAHU_WPP_URL || 'http://127.0.0.1:3012').replace(/\/$/, '') + '/mensagem-alerta', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texto }), signal: AbortSignal.timeout(30000) }); const j = await r.json().catch(() => ({})); if (!r.ok || j.error) throw new Error(j.error || 'bot HTTP ' + r.status); return j; } });
+// Painel Robô (TV, sem login; Tiago, 12/11/26: painel próprio, separado do Painel Precificação) — public/painel-robo.html
+app.get('/api/paineis-publico/robo-dados', (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json({ lojas: roboEnsaio.LOJAS_PADRAO, ensaios: roboEnsaio.painel() }); } catch (err) { res.status(503).json({ error: 'Sem dados no momento: ' + err.message }); } });
 app.get('/api/robo-ensaio', (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json(roboEnsaio.consultar()); } catch (err) { res.status(500).json({ error: err.message }); } });
 app.get('/api/robo-ensaio/opcoes', (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json({ lojas: roboEnsaio.LOJAS_PADRAO, listas: roboEnsaio.opcoes() }); } catch (err) { res.status(500).json({ error: err.message }); } });
 app.post('/api/robo-ensaio/gerar', async (req, res) => { try { res.json(await roboEnsaio.gerar({ lista: req.body && req.body.lista, usuario: req.session.user?.nome || null })); } catch (err) { res.status(400).json({ error: err.message }); } });

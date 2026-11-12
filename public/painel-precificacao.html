@@ -9,8 +9,6 @@
      Tela desenhada em 1920×1080 e encaixada no aparelho por transform (sem vh/vw, sem grid e sem animação CSS: o
      navegador das TVs é fraco — ver Painel Compras). Troca de página a cada 20 s, por JS.
      Uma loja por vez: E1 (3 páginas) depois E2 (3 páginas). ?loja=N trava numa loja (uma TV por loja).
-     Ensaio do robô (11/11/26): enquanto houver ensaio em andamento (lib/robo-ensaio.js), entra uma página "ROBÔ" antes de
-     cada loja com as 7 etapas, e o rodapé vira faixa amarela quando alguma etapa espera aprovação.
      ?kiosk=1 esconde o cursor · ?tela=N abre na N-ésima página. -->
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -61,21 +59,6 @@ td.neg{color:#ff5a72;font-weight:800}td.sug{color:#22C55E;font-weight:800}td.obs
 .rod{position:absolute;left:40px;top:1034px;width:1840px;font-size:20px;color:#8f8c82;white-space:nowrap;overflow:hidden}
 .rod b{color:#d9d6ca}
 .erro{color:#ff5a72}
-/* página do ensaio do robô (ocupa o lugar da meta + cartões + tabela) */
-.ens{position:absolute;left:40px;top:128px;width:1840px;height:896px;display:none}
-.ens h2{font-size:44px;font-weight:800;white-space:nowrap;overflow:hidden}
-.ens h2 b{color:#FFD500}
-.ens .sb{font-size:25px;color:#b9b6ab;margin:4px 0 14px;white-space:nowrap;overflow:hidden}
-.ens td{font-size:30px;padding:0 14px;height:106px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:middle}
-.ens td.nu div{width:64px;height:64px;line-height:64px;border-radius:32px;background:#2a2a2a;color:#8f8c82;font-size:32px;font-weight:800;text-align:center}
-.ens td.tt b{display:block;font-weight:800;overflow:hidden;text-overflow:ellipsis}
-.ens td.tt span{display:block;font-size:22px;color:#b9b6ab;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
-.ens td.st{text-align:right;font-size:24px;font-weight:800;color:#8f8c82}
-.ens tr.feito td.nu div{background:#22C55E;color:#0c0c0c}.ens tr.feito td.st{color:#22C55E}
-.ens tr.agora td{background:#3a3000}.ens tr.agora td.nu div{background:#FFD500;color:#0c0c0c}.ens tr.agora td.st{color:#FFD500}.ens tr.agora td.tt span{color:#f6f4ec}
-.ens tr.espera td.tt b{color:#8f8c82}.ens tr.espera td.tt span{color:#6f6c63}
-.rod.alerta{left:0;top:1026px;width:1920px;height:54px;line-height:54px;padding:0 40px;background:#FFD500;color:#0c0c0c;font-size:27px;font-weight:800}
-.rod.alerta b{color:#0c0c0c}
 body.kiosk{cursor:none}
 </style>
 </head>
@@ -89,7 +72,6 @@ body.kiosk{cursor:none}
   <div class="meta" id="meta"></div>
   <div class="cards" id="cards"></div>
   <div class="pag on" id="pag"></div>
-  <div class="ens" id="ens"></div>
   <div class="rod" id="rod"></div>
 </div>
 <script>
@@ -141,24 +123,14 @@ function desenhar() {
   if (!D) return;
   var lojas = SO_LOJA && D.lojas.indexOf(SO_LOJA) >= 0 ? [SO_LOJA] : D.lojas;
   PAGS = [];
-  var ens = D.ensaios || [];
-  for (var i = 0; i < lojas.length; i++) {
-    for (var e = 0; e < ens.length; e++) PAGS.push({ ensaio: e });   // o ensaio do robô aparece antes de cada loja
-    for (var k = 0; k < TIPOS_PAG.length; k++) PAGS.push({ loja: lojas[i], tipo: TIPOS_PAG[k] });
-  }
+  for (var i = 0; i < lojas.length; i++) for (var k = 0; k < TIPOS_PAG.length; k++) PAGS.push({ loja: lojas[i], tipo: TIPOS_PAG[k] });
   if (atual >= PAGS.length) atual = 0;
   var a = D.assertividade || {};
-  var esperando = ens.filter(function (x) { return x.agora && x.agora.quem === 'você'; });
-  document.getElementById('rod').className = esperando.length ? 'rod alerta' : 'rod';
-  if (esperando.length) document.getElementById('rod').innerHTML = 'ROBÔ ESPERANDO APROVAÇÃO · ' + esperando.map(function (x) { return 'pedido #' + x.id + ' ' + esc(x.lista_nome) + ': falta ' + esc(x.agora.pede || x.agora.titulo); }).join(' · ');
-  else document.getElementById('rod').innerHTML = 'Carnes, charque e hortifrúti fora · final <b>7</b> = rebaixa · final <b>8</b> = promoção · alto giro não sobe · responda os alertas em <b>Precificação › Alertas de Preço</b>' + (a.total ? ' · ' + a.total + ' respostas, ' + a.pct + '% eram pra corrigir' : '');
+  document.getElementById('rod').innerHTML = 'Carnes, charque e hortifrúti fora · final <b>7</b> = rebaixa · final <b>8</b> = promoção · alto giro não sobe · responda os alertas em <b>Precificação › Alertas de Preço</b>' + (a.total ? ' · ' + a.total + ' respostas, ' + a.pct + '% eram pra corrigir' : '');
   mostrar(atual);
 }
 function mostrar(i) {
   atual = i; var pg = PAGS[i]; if (!pg) return;
-  var ehEns = pg.ensaio != null, mostra = function (id, v) { document.getElementById(id).style.display = v ? 'block' : 'none'; };
-  mostra('meta', !ehEns); mostra('cards', !ehEns); mostra('pag', !ehEns); mostra('ens', ehEns);
-  if (ehEns) return mostrarEnsaio(D.ensaios[pg.ensaio]);
   var l = pg.loja, t = pg.tipo, tipos = ['abaixo_custo', 'custo_subiu', 'sem_custo', 'abaixo_margem'];
   document.getElementById('loja').textContent = 'LOJA ' + LJ(l);
   document.getElementById('cards').innerHTML = tipos.map(function (x, j) {
@@ -171,22 +143,9 @@ function mostrar(i) {
   var c = D.calculadoEm ? new Date(D.calculadoEm) : null;
   document.getElementById('sub').textContent = 'Lojas ' + D.lojas.map(LJ).join(' e ') + (c ? ' · atualizado às ' + ('0' + c.getHours()).slice(-2) + ':' + ('0' + c.getMinutes()).slice(-2) : '');
 }
-function horaCurta(iso) { if (!iso) return ''; var d = new Date(iso); return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); }
-function mostrarEnsaio(x) {
-  if (!x) return;
-  document.getElementById('loja').textContent = 'ROBÔ';
-  var linhas = x.etapas.map(function (e) {
-    var st = e.status === 'feito' ? 'FEITO' + (e.em ? ' ' + horaCurta(e.em) : '') : e.status === 'agora' ? (e.quem === 'você' ? 'ESPERANDO APROVAÇÃO' : 'ROBÔ TRABALHANDO') : 'depois';
-    return '<tr class="' + e.status + '"><td class="nu"><div>' + (e.status === 'feito' ? '✓' : e.n) + '</div></td><td class="tt"><b>' + esc(e.titulo) + '</b><span>' + esc(e.detalhe) + '</span></td><td class="st">' + st + '</td></tr>';
-  }).join('');
-  document.getElementById('ens').innerHTML = '<h2>ROBÔ DE COMPRAS · <b>ENSAIO</b> · pedido #' + x.id + ' · ' + esc(x.lista_nome) + '</h2>' +
-    '<div class="sb">' + esc(x.fornecedor || '') + ' · lojas ' + x.lojas.map(LJ).join(' e ') + ' · ' + x.itens + ' itens · ' + money(x.total) + ' · nada vai pro fornecedor, tudo no ERP de teste' + (x.concluido ? ' · CICLO COMPLETO' : '') + '</div>' +
-    '<table><colgroup><col style="width:100px"><col style="width:1360px"><col style="width:380px"></colgroup>' + linhas + '</table>';
-  document.getElementById('sub').textContent = 'Ensaio do robô · lojas ' + D.lojas.map(LJ).join(' e ');
-}
 function proxima() {
   if (!D || !PAGS.length) return;
-  for (var k = 1; k <= PAGS.length; k++) { var i = (atual + k) % PAGS.length; if (PAGS[i].ensaio != null || conta(PAGS[i].loja, PAGS[i].tipo) > 0) return mostrar(i); }   // pula página vazia
+  for (var k = 1; k <= PAGS.length; k++) { var i = (atual + k) % PAGS.length; if (conta(PAGS[i].loja, PAGS[i].tipo) > 0) return mostrar(i); }   // pula página vazia
 }
 function ler() {
   fetch('/api/paineis-publico/precificacao-dados?t=' + Date.now(), { cache: 'no-store' })
@@ -194,11 +153,10 @@ function ler() {
     .then(function (j) { D = j; desenhar(); })
     .catch(function (e) { if (!D) document.getElementById('sub').innerHTML = '<span class="erro">sem dados: ' + esc(e.message) + '</span>'; });
 }
-window.tvSlideAtual = function () { var p = PAGS[atual]; return !D || !p ? '' : p.ensaio != null ? 'Ensaio do robô' : LJ(p.loja) + ' · ' + D.tipos[p.tipo].nome; };
+window.tvSlideAtual = function () { var p = PAGS[atual]; return D && p ? LJ(p.loja) + ' · ' + D.tipos[p.tipo].nome : ''; };
 window.addEventListener('resize', encaixar);
 encaixar(); relogio(); ler();
 setInterval(relogio, 20000); setInterval(ler, 60000); setInterval(proxima, 20000);
-setInterval(function () { if (D && D.ensaios && D.ensaios.length) ler(); }, 15000);   // com ensaio em andamento, relê mais rápido
 </script>
 <script src="/tv-heartbeat.js" data-painel="precificacao" defer></script>
 </body>
