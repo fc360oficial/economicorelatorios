@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="stylesheet" href="/design-system.css">
-<script src="/nav.js" defer></script>
+<script>if(location.pathname.indexOf('/painel-robo')!==0)document.write('<script src="/nav.js" defer><\/script>');</script>
 <title>Escritório Robô em 3D — Econômico</title>
 <!--
   Escritório Robô em 3D. 05/11/2026: Tiago mandou prints de um anúncio ("Escritório de Agentes de IA", maquete isométrica de
@@ -185,7 +185,9 @@ const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;',
 const R0=v=>v==null?'—':'R$ '+Number(v).toLocaleString('pt-BR',{maximumFractionDigits:0});
 const P1=v=>v==null?'—':Number(v).toLocaleString('pt-BR',{maximumFractionDigits:1})+'%';
 const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
-const TV=new URLSearchParams(location.search).get('tv')==='1';   // modo TV (tela inteira, holofote, ticker)
+// 12/11/26: /painel-robo.html = esta mesma página como PAINEL ROBÔ (TV, sem login): modo TV ligado e dados pelas rotas públicas
+const PUB=location.pathname.indexOf('/painel-robo')===0;
+const TV=PUB||new URLSearchParams(location.search).get('tv')==='1';   // modo TV (tela inteira, holofote, ticker)
 
 /* ---------- postos: 6 de Compras (sombra, bancada) + 2 de Precificação (real, na frente da sala do Tiago) ----------
    pos = [x,z] da mesa; flip = sentado de costas pra câmera (olhando pro fundo), tela visível */
@@ -209,7 +211,7 @@ const ROBOS=[
   agora:'Fase 0: só observando',fila:[],proximo:'Fase 1: sugerir preço e o Tiago aprovar (depende de OK do Dlinks pra gravar)',tela:'precif'}
 ];
 let EVENTOS_EX=[['sugestao','ok','Lendo as listas do robô no ERP (sombra)…']];   // preenchido pela sombra
-let EVENTOS_REAL=[], DADOS=null, SOMBRA=null;
+let EVENTOS_REAL=[], DADOS=null, SOMBRA=null, ENSAIO=null;
 const R0s=v=>'R$ '+Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:0});
 
 /* ---------- cena: isométrica, clara e chapada como a referência; cores nossas ---------- */
@@ -535,7 +537,7 @@ function select(id){
   clearSel(); selId=id; const r=robots[id];
   r.btn.setAttribute('aria-pressed','true'); r.mat.emissive=new THREE.Color(r.real?0x3f7fd6:0xf2a516); r.mat.emissiveIntensity=.18; r.ring.material.opacity=.95; r.tag.classList.add('sel');
   card.className='card'+(r.real?' real':'');
-  card.innerHTML='<div class="papel">'+esc(r.papel)+(r.real?' · dados reais':' · sombra, nada vale')+'</div><h3>'+esc(r.nome)+' <small>· '+(r.real?'vigia real':'o que faria hoje')+'</small></h3><p class="agora">'+esc(r.agora)+'</p><ul>'+r.fila.map(f=>'<li>'+esc(f)+'</li>').join('')+'</ul><p class="prox"><b>Próximo passo:</b> '+esc(r.proximo)+'</p>';
+  card.innerHTML='<div class="papel">'+esc(r.papel)+(r.real?' · dados reais':r.ens?' · ENSAIO · ERP de teste':' · sombra, nada vale')+'</div><h3>'+esc(r.nome)+' <small>· '+(r.real?'vigia real':r.ens?'o que está fazendo no ensaio':'o que faria hoje')+'</small></h3><p class="agora">'+esc(r.agora)+'</p><ul>'+r.fila.map(f=>'<li>'+esc(f)+'</li>').join('')+'</ul><p class="prox"><b>Próximo passo:</b> '+esc(r.proximo)+'</p>';
 }
 function selectHuman(id){
   clearSel(); selId=null; const h=HUMAN_INFO[id]; const hm=HUMANS.find(x=>x.id===id); if(hm)hm.tag.classList.add('sel');
@@ -557,7 +559,7 @@ function pushEvent(){
 /* ---------- dados reais do vigia ---------- */
 async function carregarReal(){
   try{
-    const r=await fetch('/api/robo-precificacao'); if(!r.ok)throw new Error(r.status); const d=await r.json();
+    const r=await fetch(PUB?'/api/paineis-publico/robo-precificacao':'/api/robo-precificacao'); if(!r.ok)throw new Error(r.status); const d=await r.json();
     if(!d.calculadoEm){$('sub').textContent='vigia calculando… tenta de novo em 20 s'; setTimeout(carregarReal,20000); return;}
     DADOS=d;
     const Ls=d.listas, T=d.total; const graves=d.alertas.filter(a=>a.grav===3).length, reb=d.alertas.filter(a=>a.tipo==='rebaixa_pedida').length;
@@ -576,12 +578,13 @@ async function carregarReal(){
       <div class="kpi ${graves?'crit':'ok'}"><div class="n">${graves}</div><div class="l">vazamentos graves (de ${d.alertas.length})</div></div>
       <div class="kpi ${reb?'warn':''}"><div class="n">${reb}</div><div class="l">rebaixas pedidas pela loja</div></div>`;
     $('pill-real').textContent='Precificação: dados reais · '+new Date(d.calculadoEm).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+    if(ENSAIO)aplicarEnsaio();
     refreshScreens(); if(selId==='vigia'||selId==='precif')select(selId); okReal=true; ROBOS.forEach(r=>{if(emCasa(r))setStatus(r,ocupado(r)?'trabalhando':'na mesa');}); prontoParaEventos(); tvKpis();
   }catch(e){$('sub').textContent='vigia indisponível: '+e.message; $('pill-real').textContent='Precificação: sem dados'; $('kpis').innerHTML='';}
 }
 async function carregarSombra(){
   try{
-    const r=await fetch('/api/comprador-sombra'); if(!r.ok)throw new Error(r.status); const d=await r.json(); SOMBRA=d; const F=d.faria;
+    const r=await fetch(PUB?'/api/paineis-publico/comprador-sombra':'/api/comprador-sombra'); if(!r.ok)throw new Error(r.status); const d=await r.json(); SOMBRA=d; const F=d.faria;
     if(!F){$('pill-sombra').textContent='Compras: sombra · '+(d.motivo||'sem base'); return;}
     const Ls=d.listas.filter(l=>l.ok), prox=F.proximas[0];
     const dm=s=>String(s||'').slice(8,10)+'/'+String(s||'').slice(5,7);
@@ -602,6 +605,7 @@ async function carregarSombra(){
     $('kpis2').innerHTML=`<div class="kpi ${F.pedir_hoje.length?'crit':'ok'}"><div class="n">${R0s(F.valor_hoje)}</div><div class="l">pediria hoje · ${F.pedir_hoje.length} lista(s)</div></div>
       <div class="kpi ${F.cobrar.length?'warn':'ok'}"><div class="n">${F.cobrar.length}</div><div class="l">fornecedor(es) que cobraria</div></div>`;
     $('pill-sombra').textContent='Compras: sombra · nada vale · Radar '+(d.radar.atualizadoEm?new Date(d.radar.atualizadoEm).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'');
+    if(ENSAIO)aplicarEnsaio();
     refreshScreens(); okSombra=true; ROBOS.forEach(r=>{if(emCasa(r))setStatus(r,ocupado(r)?'trabalhando':'na mesa');}); prontoParaEventos(); tvKpis();
   }catch(e){$('pill-sombra').textContent='Compras: sombra indisponível ('+e.message+')'; $('kpis2').innerHTML='';}
 }
@@ -619,7 +623,7 @@ const hora=()=>{if(forcaHora!=null&&simF===1)return parseFloat(forcaHora); const
 const rand=v=>Array.isArray(v)?v[0]+rnd()*(v[1]-v[0]):v;
 const ACTORS=[]; ROBOS.forEach(r=>{r.plan=[]; r.path=null; r.wait=0; r.anim='type'; r.idleT=rnd()*40; ACTORS.push(r);});
 function setStatus(a,txt){if(a.tag){a.tag.firstChild.textContent=txt; a.tag.classList.toggle('mini',txt==='em reunião');} a.status=txt;}
-function ocupado(r){const F=SOMBRA&&SOMBRA.faria, h=hora(); switch(r.id){
+function ocupado(r){const F=SOMBRA&&SOMBRA.faria, h=hora(); if(ENSAIO&&ENSAIO.agora&&ENSAIO.agora.quem!=='você'&&POSTO_ETAPA[ENSAIO.agora.n]===r.id)return true; switch(r.id){
   case 'sugestao':case 'aprovacao':case 'erp':return !!(F&&F.pedir_hoje.length);
   case 'radar':return !!(F&&F.transito_nfe>0); case 'cobranca':return !!(F&&F.cobrar.length);
   case 'resumo':return h>=17.5&&h<18.5; case 'vigia':return (h>=5.8&&h<6.5)||(h>=13&&h<13.6);
@@ -740,13 +744,13 @@ function tvCard(cls,k,titulo,st,ag,lista){const c=$('tvcard'); c.hidden=false; c
 function holofote(a){   // a = posto (ou null = vista geral)
   if(!a){irPara(0,0,1.12,1500); $('tvcard').hidden=true; clearSel(); return;}
   irPara(a.g.position.x-2.2,a.g.position.z-2.2,1.75,1500); select(a.id);   // alvo um pouco pro fundo: o boneco cai abaixo do centro, longe do título e dos números
-  tvCard(a.real?'real':'sombra',a.papel+(a.real?' · dados reais':' · sombra, nada vale'),a.nome,a.status||'',a.agora,a.fila);
+  tvCard(a.real||a.ens?'real':'sombra',a.papel+(a.real?' · dados reais':a.ens?' · ENSAIO · ERP de teste':' · sombra, nada vale'),a.nome,a.status||'',a.agora,a.fila);
 }
 function tvKpis(){ if(!TV)return; const T=DADOS&&DADOS.total, F=SOMBRA&&SOMBRA.faria, D=DADOS; const graves=D?D.alertas.filter(a=>a.grav===3).length:null;
   $('tvk').innerHTML=[['projeção do mês',T?R0(T.lucroProj):'—','meta '+(T?R0(T.meta):'—'),T?(T.lucroProj>=T.meta?'ok':'crit'):''],
     ['margem das listas',T?P1(T.margem):'—',D?D.diasDecorridos+' de '+D.diasMes+' dias':'',''],
     ['vazamentos graves',graves==null?'—':graves,D?'de '+D.alertas.length+' no total':'',graves?'crit':'ok'],
-    ['pediria hoje',F?R0s(F.valor_hoje):'—',F?F.pedir_hoje.length+' lista(s) · sombra':'',F&&F.pedir_hoje.length?'warn':'ok']]
+    ENSAIO?['ensaio · pedido #'+ENSAIO.id,ENSAIO.concluido?'7 de 7':'etapa '+ENSAIO.agora.n+'/7',ENSAIO.concluido?'ciclo completo':ENSAIO.agora.quem==='você'?'falta '+(ENSAIO.agora.pede||'aprovar'):'robô trabalhando',ENSAIO.concluido?'ok':ENSAIO.agora.quem==='você'?'warn':'ok']:['pediria hoje',F?R0s(F.valor_hoje):'—',F?F.pedir_hoje.length+' lista(s) · sombra':'',F&&F.pedir_hoje.length?'warn':'ok']]
     .map(k=>'<div class="tk '+k[3]+'"><div class="n">'+k[1]+'</div><div class="l">'+k[0]+'</div><div class="s">'+k[2]+'</div></div>').join('');
   tvTicker();
 }
@@ -761,6 +765,51 @@ if(TV){document.body.classList.add('tv'); $('tvk').hidden=false; $('ticker').hid
   setInterval(()=>{const now=performance.now(); if(now<prox||spotLock>now)return; if(fase===0){holofote(ROBOS[spotIdx%ROBOS.length]); spotIdx++; fase=1; prox=now+13000;} else {holofote(null); fase=0; prox=now+7000;}},400);
 }
 function momento(tx,tz,zoom,seg,card){ if(!TV)return; spotLock=performance.now()+seg*1000; clearSel(); irPara(tx,tz,zoom,1800); if(card)tvCard(...card); else $('tvcard').hidden=true; }
+
+/* ==================== ENSAIO do robô (12/11/2026): o que está sendo feito DE VERDADE ====================
+   Tiago: "vai ser um painel estilo esse... mostrando pra mim tudo que tá sendo feito". Com ensaio em andamento
+   (lib/robo-ensaio.js, Processos › Ensaio do Robô), os postos de Compras deixam a sombra e mostram a etapa real do pedido;
+   o posto da vez fica "trabalhando", o Tiago fica "sua vez" quando falta aprovação, cada etapa vira evento no feed/ticker e,
+   na TV, o holofote vai pro posto. Sem ensaio, volta tudo pra sombra. Dados: /api/paineis-publico/robo-dados (sem link). */
+const POSTO_ETAPA={1:'sugestao',2:'aprovacao',3:'aprovacao',4:'erp',5:'radar',6:'precif',7:'precif'};
+let ensaioChave='';
+function setPosto(id,agora,fila,proximo){const r=robots[id]; r.agora=agora; r.fila=fila||[]; if(proximo!=null)r.proximo=proximo; r.tag.lastChild.textContent=agora; if(selId===id)select(id);}
+function aplicarEnsaio(){
+  const x=ENSAIO, tg=HUMANS.find(h=>h.id==='tiago');
+  ['sugestao','aprovacao','erp','radar'].forEach(id=>{robots[id].ens=!!x;});
+  if(!x){ if(tg){tg.tag.firstChild.textContent='aprovando'; tg.tag.lastChild.textContent='Decide o que o robô propõe';} return; }
+  const E=x.etapas, st=n=>E[n-1].status, det=n=>E[n-1].detalhe, nm='#'+x.id+' '+x.lista_nome;
+  setPosto('sugestao','Montei o pedido '+nm+' · '+x.itens+' itens · '+R0s(x.total),[det(1),det(2)],'Ensaio: o pedido foi pro Tiago, não pro fornecedor.');
+  setPosto('aprovacao',st(3)!=='feito'?'Esperando o fornecedor (Tiago) digitar os preços · '+nm:st(4)!=='feito'?'Esperando o Tiago aprovar a compra · '+nm:'Compra aprovada pelo Tiago · '+nm,[det(3),det(4)],'Nada é gravado sem a aprovação.');
+  setPosto('erp',st(4)==='feito'?'Pedido '+nm+' gravado no ERP de teste':'Esperando a aprovação pra gravar o pedido '+nm,[det(4)],'Grava só no ERP de teste; o rastro fica em Processos › Log.');
+  setPosto('radar',st(5)==='feito'?'Nota do pedido '+nm+' conferida com o pedido':'Esperando a nota (simulada) do pedido '+nm,[det(5)],'No ensaio a nota é simulada: igual ao pedido, com os preços digitados.');
+  const lp=st(7)==='feito'?'Ensaio '+nm+': preço de venda gravado no ERP de teste':st(6)==='feito'?'Ensaio '+nm+': preço de venda calculado · esperando o Tiago aprovar':null;
+  if(lp){const p=robots.precif; p.agora=lp; p.fila=[det(6),det(7)]; p.tag.lastChild.textContent=lp; if(selId==='precif')select('precif');}
+  const ag=x.agora, vez=ag&&ag.quem==='você';
+  if(tg){tg.tag.firstChild.textContent=vez?'sua vez':x.concluido?'ciclo completo':'acompanhando'; tg.tag.lastChild.textContent=vez?'Falta '+(ag.pede||ag.titulo):x.concluido?'Ensaio '+nm+' terminou':'Robô trabalhando no ensaio '+nm;}
+  HUMAN_INFO.tiago.agora=vez?'Ensaio '+nm+': falta '+(ag.pede||ag.titulo):'Acompanhando o ensaio '+nm; HUMAN_INFO.tiago.fila=E.map(e=>(e.status==='feito'?'✓ ':e.status==='agora'?'▶ ':'· ')+e.n+'. '+e.titulo);
+  $('pill-sombra').textContent='Compras: ENSAIO '+nm+' · '+(x.concluido?'ciclo completo':'etapa '+ag.n+' de 7'+(vez?' · esperando o Tiago':''));
+  // etapa mudou: evento no feed/ticker e holofote no posto (na TV)
+  const feitas=E.filter(e=>e.status==='feito').length, chave=x.id+':'+feitas;
+  if(chave!==ensaioChave){
+    const primeira=!ensaioChave||ensaioChave.split(':')[0]!==String(x.id); ensaioChave=chave;
+    const ult=E.filter(e=>e.status==='feito').pop();
+    if(ult&&!primeira)feedExtra(POSTO_ETAPA[ult.n],'ok','Ensaio '+nm+' · etapa '+ult.n+' feita: '+ult.titulo);
+    if(ag){feedExtra(POSTO_ETAPA[ag.n],vez?'warn':'ok','Ensaio '+nm+' · etapa '+ag.n+': '+(vez?'esperando o Tiago '+(ag.pede||''):'robô trabalhando'));
+      if(TV){spotLock=performance.now()+30000; holofote(robots[POSTO_ETAPA[ag.n]]); tvCard('real','Ensaio do robô · pedido '+nm,'Etapa '+ag.n+' de 7 · '+ag.titulo,vez?'ESPERANDO O TIAGO':'robô trabalhando',ag.detalhe,E.filter(e=>e.status==='feito').slice(-2).map(e=>'✓ '+e.titulo));}}
+    else if(x.concluido)feedExtra('precif','ok','Ensaio '+nm+' · ciclo completo: compra e preço gravados no ERP de teste');
+    ROBOS.forEach(r=>{if(emCasa(r))setStatus(r,ocupado(r)?'trabalhando':'na mesa');}); tvKpis();
+  }
+}
+async function carregarEnsaio(){
+  try{
+    const r=await fetch('/api/paineis-publico/robo-dados',{cache:'no-store'}); if(!r.ok)throw new Error(r.status); const d=await r.json();
+    const vivos=(d.ensaios||[]), x=vivos.find(e=>!e.concluido)||vivos[0]||null, tinha=!!ENSAIO;
+    ENSAIO=x; aplicarEnsaio();
+    if(tinha&&!x){ensaioChave=''; carregarSombra(); carregarReal();}   // ensaio acabou/cancelado: os postos voltam pra sombra
+  }catch(e){ /* sem dados do ensaio: fica como está */ }
+}
+carregarEnsaio(); setInterval(carregarEnsaio,15000);
 
 /* ---------- loop ---------- */
 function resize(){const w=stage.clientWidth,h=stage.clientHeight; if(!w||!h)return; renderer.setSize(w,h,false); const a=w/h; cam.left=-ORTHO*a; cam.right=ORTHO*a; cam.top=ORTHO; cam.bottom=-ORTHO; cam.updateProjectionMatrix();}
