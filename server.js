@@ -9904,6 +9904,29 @@ app.get('/api/robo-ensaio', (req, res) => { res.set('Cache-Control', 'no-store')
 app.get('/api/robo-ensaio/opcoes', async (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json({ lojas: roboEnsaio.LOJAS_PADRAO, listas: await roboEnsaio.opcoes() }); } catch (err) { res.status(500).json({ error: err.message }); } });
 app.post('/api/robo-ensaio/gerar', async (req, res) => { try { res.json(await roboEnsaio.gerar({ lista: req.body && req.body.lista, usuario: req.session.user?.nome || null })); } catch (err) { res.status(400).json({ error: err.message }); } });
 app.post('/api/robo-ensaio/:id/simular-nota', async (req, res) => { try { res.json(await roboEnsaio.simularNota(parseInt(req.params.id))); } catch (err) { res.status(400).json({ error: err.message }); } });
+// Etapa 7 num clique (Tiago, 12/11/26: "onde aprova?"): mostra o que muda e, confirmado, fecha a lista de cada loja e manda pra carga
+// do ERP de TESTE (mesmas funções da Formação de Preço: precificacao.fechar + enviarCarga via escreverERP).
+app.post('/api/robo-ensaio/:id/aprovar-precos', async (req, res) => {
+  try {
+    const p = pedidosFornec.obter(parseInt(req.params.id)); if (!p || !p.ensaio) return res.status(404).json({ error: 'Ensaio não encontrado' });
+    const usuario = req.session.user?.nome || null; if (!usuario) return res.status(400).json({ error: 'Entre com seu usuário pra aprovar' });
+    const regs = (p.lojas || []).map(ln => precificacao.obter(precificacao.idDe(p.id, ln))).filter(Boolean);
+    if (!regs.length) return res.status(400).json({ error: 'O robô ainda não calculou os preços (a nota precisa ser conferida antes)' });
+    const mudancas = regs.flatMap(r => r.itens.filter(i => i.preco_final > 0 && Math.abs(i.preco_final - (i.preco_atual || 0)) > 0.004).map(i => ({ loja: r.loja, descricao: i.descricao, de: i.preco_atual || 0, para: i.preco_final })));
+    if (!req.body || !req.body.confirmar) return res.json({ previa: true, mudancas, itens: regs.reduce((s, r) => s + r.itens.length, 0) });
+    const out = [];
+    for (const r0 of regs) {
+      let r = r0;
+      if (r.status === 'a_precificar') { const f = precificacao.fechar(r.id, usuario, { ignorarBloqueados: true }); if (!f || f.erro) { out.push({ loja: r.loja, ok: false, msg: (f && f.erro) || 'não fechou' }); continue; } r = f; }
+      if (r.erp_teste && r.erp_teste.logId) { out.push({ loja: r.loja, ok: true, msg: 'já gravado, Log ' + r.erp_teste.logId }); continue; }
+      const e = await precificacao.enviarCarga(r.id, usuario, escreverERP);
+      if (e && e.semMudanca) out.push({ loja: r.loja, ok: true, msg: 'nenhum preço muda' });
+      else if (!e || e.erro) out.push({ loja: r.loja, ok: false, msg: (e && e.erro) || 'não enviou' });
+      else out.push({ loja: r.loja, ok: true, msg: 'gravado no ERP de teste' + (e.erp_teste && e.erp_teste.logId ? ', Log ' + e.erp_teste.logId : '') });
+    }
+    res.json({ ok: out.every(o => o.ok), lojas: out });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 app.post('/api/robo-ensaio/:id/encerrar', (req, res) => { try { res.json(roboEnsaio.encerrar(parseInt(req.params.id), req.session.user?.nome || null)); } catch (err) { res.status(400).json({ error: err.message }); } });
 setInterval(() => roboEnsaio.vigiar().catch(e => console.error('[ROBO-ENSAIO]', e.message)), 60 * 1000);
 app.get('/api/robo-precificacao/listas-erp', async (req, res) => { try { res.json(await roboPrecif.listasErp()); } catch (err) { res.status(500).json({ error: err.message }); } });

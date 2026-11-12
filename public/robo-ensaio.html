@@ -103,7 +103,7 @@ function botoes(v, e) {
   if (e.acao === 'link') return '<a class="btn btn-amber btn-sm" href="' + esc(v.link) + '" target="_blank" rel="noopener">Abrir como fornecedor</a>';
   if (e.acao === 'pedidos') return '<a class="btn btn-amber btn-sm" href="/pedidos-compra.html" target="_blank" rel="noopener">Abrir Pedidos de Compra</a>';
   if (e.acao === 'nota') return '<button class="btn btn-amber btn-sm" onclick="simularNota(' + v.id + ', this)">Simular chegada da nota</button>';
-  if (e.acao === 'precos') return '<a class="btn btn-amber btn-sm" href="/formacao-de-preco.html" target="_blank" rel="noopener">Abrir Formação de Preço</a>';
+  if (e.acao === 'precos') return '<button class="btn btn-amber btn-sm" onclick="aprovarPrecos(' + v.id + ', this)">Aprovar preços e gravar no ERP de teste</button> <a class="btn btn-sm" href="/formacao-de-preco.html" target="_blank" rel="noopener">Ver na Formação de Preço</a>';
   return '';
 }
 function desenhar() {
@@ -137,6 +137,18 @@ function gerar(lista, b) {
   if (ocupado) return; ocupado = true; b.disabled = true; b.textContent = 'Gerando…';
   api('/api/robo-ensaio/gerar', { lista: lista }).then(function (r) { toast('Pedido #' + r.id + ' gerado' + (r.whatsapp && r.whatsapp.ok ? ': o link foi pro seu WhatsApp' : ': o WhatsApp falhou, use o botão "Abrir como fornecedor"')); })
     .catch(function (e) { toast('Não gerou: ' + e.message); }).then(function () { ocupado = false; carregar(); window.scrollTo(0, 0); });
+}
+// Etapa 7 num clique (Tiago, 12/11/26: "onde aprova?"): mostra o que muda, pede a confirmação e grava no ERP de teste.
+function aprovarPrecos(id, b) {
+  if (ocupado) return; ocupado = true; b.disabled = true; var txt = b.textContent; b.textContent = 'Lendo os preços…';
+  var fim = function () { ocupado = false; b.disabled = false; b.textContent = txt; carregar(); };
+  api('/api/robo-ensaio/' + id + '/aprovar-precos', {}).then(function (p) {
+    var m = p.mudancas || [], d = function (x) { return 'R$ ' + (+x).toFixed(2).replace('.', ','); };
+    var msg = m.length ? 'O robô vai gravar no ERP de TESTE:\n\n' + m.map(function (x) { return 'E' + x.loja + ' · ' + x.descricao + ': ' + d(x.de) + ' → ' + d(x.para); }).join('\n') + '\n\nOs outros itens ficam como estão. Aprovar?' : 'Nenhum preço muda nesse pedido. Aprovar e fechar o ensaio?';
+    if (!confirm(msg)) return;
+    b.textContent = 'Gravando no ERP de teste…';
+    return api('/api/robo-ensaio/' + id + '/aprovar-precos', { confirmar: true }).then(function (r) { toast((r.lojas || []).map(function (l) { return 'E' + l.loja + ': ' + l.msg; }).join(' · ')); });
+  }).catch(function (e) { toast('Não deu: ' + e.message); }).then(fim);
 }
 function simularNota(id, b) {
   if (ocupado) return; ocupado = true; b.disabled = true; b.textContent = 'Conferindo a nota…';
