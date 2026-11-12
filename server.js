@@ -9959,6 +9959,8 @@ require('./lib/termos-escala-rotas')(app, { pontocerto });
 require('./lib/disciplinar-rotas')(app, { pontocerto, multer });
 // Contratos e Histórico Funcional (12/11/2026): contrato de experiência, ficha individual e painel de alertas — lê o ponto, a Gestão Disciplinar e a Gestão Documental
 require('./lib/historico-funcional-rotas')(app, { pontocerto });
+// Vagas e Quadro de Pessoal (12/11/2026): desligamento/transferência confirmados pelo RH, vaga em aberto na escala, quadro por unidade e setor — só lê o ponto
+require('./lib/vagas-rotas')(app, { pontocerto });
 setInterval(() => { try { require('./lib/disciplinar').avisarPrazos(); } catch (e) { console.error('[disciplinar] prazos:', e.message); } }, 3600000);
 // Gestão Documental (28/10/2026, DP / RH › Gestão Documental, etapa 02): prontuário digital por funcionário (id do PontoCerto),
 // CPD envia → RH confere e arquiva, importação histórica direta pelo RH, Coordenação autoriza excluir/substituir validado

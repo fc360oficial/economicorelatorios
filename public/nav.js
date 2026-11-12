@@ -70,6 +70,8 @@
         // Contratos e Histórico Funcional (12/11/26): contrato de experiência (30 + 60), ficha individual e painel de alertas
         { href: '/historico-funcional.html', ic: 'shield', txt: 'Contratos e Histórico Funcional', badge: '/api/historico-funcional/pendencias' },
         { href: '/dp.html', ic: 'list', txt: 'Departamento Pessoal (DP)' },
+        // Vagas e Quadro de Pessoal (12/11/26): desligamento confirmado pelo RH abre a vaga, que aparece na escala até ser preenchida
+        { href: '/vagas.html', ic: 'users', txt: 'Vagas e Quadro de Pessoal', badge: '/api/vagas/pendencias' },
         { href: '/escalas.html', ic: 'list', txt: 'Escalas' },
         // Gerador Inteligente de Escalas 5×2 (11/11/26): simula, aplica como rascunho, valida jornada/folgas, cobertura e auditoria
         { href: '/escalas-gerador.html', ic: 'calendar', txt: 'Gerador de Escalas 5×2' },
