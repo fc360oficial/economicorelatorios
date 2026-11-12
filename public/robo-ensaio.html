@@ -62,6 +62,8 @@ td.nm{white-space:normal}td.nm b{display:block;font-weight:700}td.nm small{color
 /* 16/10/26: toda tela se ajusta sozinha a qualquer monitor */
 @media (max-width:1599px){.main{padding:18px}}
 @media (max-width:1199px){.main{padding:14px}.passo{flex-wrap:wrap}.passo .ac{flex:1 0 100%;justify-content:flex-start;padding-left:44px}}
+.verbox{margin-top:10px;padding:12px 14px;background:#F6F6F3;border:1px solid var(--border,#DADAD6);border-radius:10px;font-size:13px;line-height:1.6;color:var(--text2,#4E5A72)}
+.verbox .vertab{overflow-x:auto;margin-top:8px}.verbox table{width:100%;border-collapse:collapse;font-size:12.5px;background:#fff}.verbox th,.verbox td{padding:6px 10px;border-bottom:1px solid var(--border,#DADAD6);text-align:left}.verbox th{font-size:11px;text-transform:uppercase;letter-spacing:.4px}.verbox .n{text-align:right;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -106,6 +108,20 @@ function botoes(v, e) {
   if (e.acao === 'precos') return '<button class="btn btn-amber btn-sm" onclick="aprovarPrecos(' + v.id + ', this)">Aprovar preços e gravar no ERP de teste</button> <a class="btn btn-sm" href="/formacao-de-preco.html" target="_blank" rel="noopener">Ver na Formação de Preço</a>';
   return '';
 }
+// "Ver" nas etapas concluídas (Tiago, 12/11/26): o que foi feito e o que foi aprovado em cada uma.
+var ABERTO = {}, DET = {};
+function ver(id, n) {
+  var k = id + '-' + n; if (ABERTO[k]) { delete ABERTO[k]; desenhar(); return; }
+  ABERTO[k] = 1; desenhar();
+  api('/api/robo-ensaio/' + id + '/detalhe').then(function (d) { DET[id] = d; desenhar(); }).catch(function (e) { toast('Não deu: ' + e.message); });
+}
+function verBloco(v, e) {
+  if (!ABERTO[v.id + '-' + e.n]) return '';
+  var d = DET[v.id] && DET[v.id].etapas[e.n]; if (!d) return '<div class="verbox">carregando…</div>';
+  var h = '<div class="verbox">' + (d.resumo || []).map(function (l) { return '<div>' + esc(l) + '</div>'; }).join('');
+  if (d.tabela && d.tabela.linhas.length) h += '<div class="vertab"><table><tr>' + d.tabela.cab.map(function (c, i) { return '<th' + (i > 0 && c !== 'Produto' && c !== 'O que faz' ? ' class="n"' : '') + '>' + esc(c) + '</th>'; }).join('') + '</tr>' + d.tabela.linhas.map(function (l) { return '<tr>' + l.map(function (c, i) { var cab = d.tabela.cab[i]; return '<td' + (i > 0 && cab !== 'Produto' && cab !== 'O que faz' ? ' class="n"' : '') + '>' + esc(c) + '</td>'; }).join('') + '</tr>'; }).join('') + '</table></div>';
+  return h + '</div>';
+}
 function desenhar() {
   var el = document.getElementById('ensaios');
   if (!D.ensaios.length) { el.innerHTML = ''; return; }
@@ -114,7 +130,7 @@ function desenhar() {
     return '<div class="card"><div class="card-h"><div><h2>Pedido #' + v.id + ' · ' + esc(v.lista_nome) + '</h2><small>' + esc(v.fornecedor || '') + ' · lojas ' + v.lojas.map(LJ).join(' e ') + ' · ' + v.itens + ' itens · ' + money(v.total_digitado || v.total_ultimo) + ' · criado ' + hora(v.criadoEm) + '</small></div><div class="acoes">' + sel +
       (!v.cancelado && !v.concluido ? '<button class="btn btn-sm" onclick="cancelar(' + v.id + ', this)">Cancelar ensaio</button>' : '') + '<a class="btn btn-sm" href="/log.html" target="_blank" rel="noopener">Ver o Log do ERP teste</a></div></div>' +
       '<ul class="passos">' + v.etapas.map(function (e) {
-        return '<li class="passo ' + e.status + '"><div class="num">' + (e.status === 'feito' ? '✓' : e.n) + '</div><div class="tx"><div class="tt">' + esc(e.titulo) + ' <span class="pill ' + (e.quem === 'você' ? 'p-voce' : 'p-robo') + '">' + esc(e.quem) + '</span></div><div class="dt">' + esc(e.detalhe) + '</div>' + (e.em ? '<div class="hr">' + hora(e.em) + '</div>' : '') + '</div><div class="ac">' + botoes(v, e) + '</div></li>';
+        return '<li class="passo ' + e.status + '"><div class="num">' + (e.status === 'feito' ? '✓' : e.n) + '</div><div class="tx"><div class="tt">' + esc(e.titulo) + ' <span class="pill ' + (e.quem === 'você' ? 'p-voce' : 'p-robo') + '">' + esc(e.quem) + '</span></div><div class="dt">' + esc(e.detalhe) + '</div>' + (e.em ? '<div class="hr">' + hora(e.em) + '</div>' : '') + verBloco(v, e) + '</div><div class="ac">' + (e.status === 'feito' ? '<button class="btn btn-sm" onclick="ver(' + v.id + ',' + e.n + ')">' + (ABERTO[v.id + '-' + e.n] ? 'Fechar' : 'Ver') + '</button>' : '') + botoes(v, e) + '</div></li>';
       }).join('') + '</ul></div>';
   }).join('');
 }

@@ -9906,6 +9906,7 @@ app.post('/api/robo-ensaio/gerar', async (req, res) => { try { res.json(await ro
 app.post('/api/robo-ensaio/:id/simular-nota', async (req, res) => { try { res.json(await roboEnsaio.simularNota(parseInt(req.params.id))); } catch (err) { res.status(400).json({ error: err.message }); } });
 // Etapa 7 num clique (Tiago, 12/11/26: "onde aprova?"): mostra o que muda e, confirmado, fecha a lista de cada loja e manda pra carga
 // do ERP de TESTE (mesmas funções da Formação de Preço: precificacao.fechar + enviarCarga via escreverERP).
+app.get('/api/robo-ensaio/:id/detalhe', (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json(roboEnsaio.detalhe(parseInt(req.params.id))); } catch (err) { res.status(400).json({ error: err.message }); } });
 app.post('/api/robo-ensaio/:id/aprovar-precos', async (req, res) => {
   try {
     const p = pedidosFornec.obter(parseInt(req.params.id)); if (!p || !p.ensaio) return res.status(404).json({ error: 'Ensaio não encontrado' });
