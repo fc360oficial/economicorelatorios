@@ -827,3 +827,94 @@ test('modelo flexível · menos alteração na escala existente: entre soluçõe
   const d = G.gerar({ ...SEG, funcionarios: dupla, regras: [SEM_DOM], cobertura: pico, atual: { '1|2026-11-07': { ...FG('BALCAO'), folga: 'rotativa' }, '1|2026-11-03': TR('07:00', '17:24', '11:00', '13:00', 'BALCAO') } });
   assert.strictEqual(d.proposta[0].dias['2026-11-03'].folga, 'rotativa'); assert.strictEqual(d.proposta[0].dias['2026-11-07'].tipo, 'trabalho'); assert.strictEqual(d.alteracoes.folgasMovidas, 1);
 });
+
+// ═══ ETAPA 7 — revezamento dominical feminino 1×1 (art. 386 da CLT) e verificação legal independente ═══════
+// Mulheres: 1, 2, 4, 6 (CAIXA) e 7, 9 (REPOSICAO). Homens: 3, 5 (CAIXA) e 8 (REPOSICAO).
+const comSexo = () => { const eq = equipe(); ['F', 'F', 'M', 'F', 'M', 'F', 'F', 'M', 'F'].forEach((s, i) => { eq[i].sexo = s; }); return eq; };
+const MULHERES = [1, 2, 4, 6, 7, 9], HOMENS = [3, 5, 8];
+const domingos = dias => Object.keys(dias).filter(d => dow(d) === 0).sort().map(d => dias[d].tipo === 'trabalho' ? 'T' : dias[d].tipo === 'folga' ? 'F' : 'A').join('');
+const ATIVO = { dominicalFeminino: { ativo: true } }, INATIVO = { dominicalFeminino: { ativo: false } };
+
+test('dominical feminino · ativado: as trabalhadoras alternam um domingo trabalhado e um de descanso; o domingo de descanso é uma das duas folgas e a outra continua flexível', () => {
+  const r = G.gerar({ ...SEG, funcionarios: comSexo(), regras: [REGRA_OK], cobertura: COB, ...ATIVO });
+  for (const id of MULHERES) { const p = r.proposta.find(x => x.id === id); assert.strictEqual(p.sexo, 'F'); assert.strictEqual(p.dominical1x1, true);
+    assert.ok(['TFTF', 'FTFT'].includes(domingos(p.dias)), p.nome + ': domingos ' + domingos(p.dias)); assert.strictEqual(p.domingosTrabalhados, 2); assert.strictEqual(p.domingosFolga, 2);
+    for (const s of p.semanas) { assert.strictEqual(s.regra52.folgas, 2, p.nome + ' ' + s.inicio); assert.strictEqual(s.trabalho, 5); assert.strictEqual(s.validacao.nivel, 'verde');
+      if (p.dias[s.fim].tipo === 'folga') { const outra = semana(s.inicio).slice(0, 6).filter(d => p.dias[d].tipo === 'folga'); assert.strictEqual(outra.length, 1, 'o domingo de descanso conta como uma das duas folgas'); assert.strictEqual(p.dias[outra[0]].folga, 'fixa', 'a outra é a folga fixa dela'); } }
+    assert.ok(maiorSequencia(p.dias) <= 6); }
+  // quem tem duas folgas rotativas: no domingo de descanso a segunda folga cai em qualquer dia (flexível)
+  const eq = comSexo(); eq[0].duasRotativas = true; const flex = G.gerar({ ...SEG, funcionarios: eq, regras: [REGRA_OK], cobertura: COB, ...ATIVO }).proposta.find(p => p.id === 1);
+  assert.ok(['TFTF', 'FTFT'].includes(domingos(flex.dias))); for (const s of flex.semanas) assert.strictEqual(s.regra52.folgas, 2); assert.ok(new Set(Object.entries(flex.dias).filter(([d, x]) => x.tipo === 'folga' && dow(d) !== 0).map(([d]) => dow(d))).size >= 2);
+  // os homens seguem o revezamento geral da regra (aqui, folga no domingo a cada 3 semanas)
+  for (const id of HOMENS) { const p = r.proposta.find(x => x.id === id); assert.strictEqual(p.sexo, 'M'); assert.strictEqual(p.dominical1x1, false); assert.ok(!/TTT/.test(domingos(p.dias)), p.nome + ' ' + domingos(p.dias)); }
+  assert.deepStrictEqual(r.conflitos.trabalhistas, [], JSON.stringify(r.conflitos.trabalhistas)); assert.strictEqual(r.validacaoSemanal.vermelho, 0);
+  assert.deepStrictEqual({ ...r.dominicalFeminino, semSexoIds: undefined }, { ativo: true, mulheres: 6, homens: 3, semSexo: 0, semSexoIds: undefined, alternando: 6, violacoes: 0 });
+  // a cobertura é revalidada com a escala alternada: em cada domingo metade das trabalhadoras do Caixa está de folga, e o que faltar sai acusado
+  for (const d of ['2026-11-08', '2026-11-15', '2026-11-22', '2026-11-29']) { const fora = [1, 2, 4, 6].filter(id => r.proposta.find(p => p.id === id).dias[d].tipo === 'folga').length; assert.strictEqual(fora, 2, 'trabalhadoras do Caixa de folga em ' + d);
+    const c = r.cobertura.dias.find(x => x.data === d).setores.find(x => x.setor === 'CAIXA'); assert.strictEqual(c.escalados + c.folgas, 6); }
+});
+
+test('dominical feminino · o ciclo 1×1 continua entre meses e anos (novembro → dezembro → janeiro), pelo histórico', () => {
+  const base = { funcionarios: comSexo(), regras: [REGRA_OK], cobertura: COB, ...ATIVO };
+  const nov = G.gerar({ de: '2026-11-02', ate: '2026-11-30', ...base }); const dez = G.gerar({ ...DEZ, ...base, historico: nov.continuidade }); const jan = G.gerar({ ...JAN, ...base, historico: dez.continuidade });
+  for (const id of MULHERES) { const tudo = { ...nov.proposta.find(p => p.id === id).dias, ...dez.proposta.find(p => p.id === id).dias, ...jan.proposta.find(p => p.id === id).dias }; const seq = domingos(tudo);
+    assert.strictEqual(seq.length, 13, '8/11 a 31/01'); assert.ok(/^(TF)+T?$|^(FT)+F?$/.test(seq), 'func ' + id + ': ' + seq);
+    assert.notStrictEqual(tudo['2026-11-29'].tipo, tudo['2026-12-06'].tipo, 'virada de mês'); assert.notStrictEqual(tudo['2026-12-27'].tipo, tudo['2027-01-03'].tipo, 'virada de ano'); }
+  for (const r of [nov, dez, jan]) { assert.deepStrictEqual(r.conflitos.trabalhistas, [], JSON.stringify(r.conflitos.trabalhistas)); assert.strictEqual(r.dominicalFeminino.violacoes, 0); }
+  // o histórico é o que manda: quem trabalhou no último domingo de novembro (registro real) descansa em 06/12, mesmo sem a geração anterior
+  const h = {}; for (const f of comSexo()) h[f.id] = { dias: { '2026-11-29': f.id === 1 ? TR() : FG(), '2026-11-28': FG() } };
+  const d2 = G.gerar({ ...DEZ, ...base, historico: h });
+  assert.strictEqual(d2.proposta.find(p => p.id === 1).dias['2026-12-06'].tipo, 'folga', 'trabalhou em 29/11: descansa em 06/12');
+  // as demais vinham de descanso em 29/11: para não ficarem todas no mesmo domingo, metade de cada setor começa pelo descanso
+  // (dois domingos de folga seguidos não ferem a lei) e o ciclo segue defasado. No Caixa (4 trabalhadoras) descansam 2 em 06/12:
+  // a que trabalhou em 29/11 e mais uma; na Reposição (2), uma
+  assert.strictEqual([1, 2, 4, 6].filter(id => d2.proposta.find(p => p.id === id).dias['2026-12-06'].tipo === 'folga').length, 2); for (const id of MULHERES) assert.ok(['TFTF', 'FTFT'].includes(domingos(d2.proposta.find(p => p.id === id).dias)), 'func ' + id);
+  const rep = [7, 9].map(id => domingos(d2.proposta.find(p => p.id === id).dias)); assert.deepStrictEqual(rep.slice().sort(), ['FTFT', 'TFTF'], 'Reposição: ' + rep);
+  assert.deepStrictEqual(d2.conflitos.trabalhistas, [], JSON.stringify(d2.conflitos.trabalhistas));
+});
+
+test('dominical feminino · desativado: o gerador não impõe o 1×1, mas a verificação do art. 386 continua e bloqueia a publicação', () => {
+  const r = G.gerar({ ...SEG, funcionarios: comSexo(), regras: [REGRA_OK], cobertura: COB, ...INATIVO });
+  assert.strictEqual(r.dominicalFeminino.ativo, false); assert.strictEqual(r.dominicalFeminino.alternando, 0); assert.ok(r.proposta.every(p => p.dominical1x1 === false));
+  // sem o padrão automático as trabalhadoras seguem o revezamento geral (até 2 domingos seguidos de trabalho)…
+  const comDois = MULHERES.filter(id => /TT/.test(domingos(r.proposta.find(p => p.id === id).dias))); assert.ok(comDois.length > 0, 'alguma trabalhadora ficou com dois domingos seguidos');
+  // …e cada ocorrência é acusada como bloqueio, só para as mulheres
+  const v = r.conflitos.trabalhistas.filter(c => c.codigo === 'domingo_art386'); assert.ok(v.length >= comDois.length); assert.strictEqual(r.dominicalFeminino.violacoes, v.length);
+  for (const c of v) { assert.ok(MULHERES.includes(c.funcId)); assert.strictEqual(c.gravidade, 'bloqueio'); assert.match(c.texto, /2º domingo seguido de trabalho.*art\. 386 da CLT/); assert.strictEqual(c.regra, 'Revezamento dominical quinzenal — art. 386 da CLT (trabalho da mulher)'); assert.match(c.sugestao, /Revezamento dominical feminino — 1×1/);
+    assert.strictEqual(dow(c.ref), 0); assert.deepStrictEqual(c.dias, [soma(c.ref, -7), c.ref]); assert.strictEqual(nivelDe(r, c.funcId, segunda(c.ref)), 'vermelho'); }
+  assert.ok(!r.conflitos.trabalhistas.some(c => HOMENS.includes(c.funcId)), 'homem com dois domingos seguidos está dentro da regra geral'); assert.ok(HOMENS.some(id => /TT/.test(domingos(r.proposta.find(p => p.id === id).dias))));
+  assert.ok(r.publicacao.bloqueios.some(b => b.codigo === 'conflito_trabalhista'), 'escala em desacordo não é publicável');
+  // ativar resolve as mesmas pessoas, sem mexer em mais nada da entrada
+  assert.strictEqual(G.gerar({ ...SEG, funcionarios: comSexo(), regras: [REGRA_OK], cobertura: COB, ...ATIVO }).dominicalFeminino.violacoes, 0);
+});
+
+test('dominical feminino · validação na semana que atravessa o mês e respeito aos períodos protegidos', () => {
+  const base = { ...DEZ, funcionarios: comSexo(), regras: [REGRA_OK], cobertura: COB };
+  // func 2 trabalhou no domingo 29/11 (registro de novembro) e está fixa para trabalhar no domingo 06/12: semana 30/11–06/12
+  const h = { 2: { dias: { '2026-11-28': FG(), '2026-11-29': TR() } } }; const trav = { '2|2026-12-06': TR() };
+  for (const modo of [ATIVO, INATIVO]) { const r = G.gerar({ ...base, ...modo, historico: h, travados: trav }); const c = r.conflitos.trabalhistas.filter(x => x.funcId === 2 && x.codigo === 'domingo_art386' && x.ref === '2026-12-06');
+    assert.strictEqual(c.length, 1, 'com a regra ' + (modo.dominicalFeminino.ativo ? 'ativada' : 'desativada')); assert.strictEqual(c[0].ref, '2026-12-06'); assert.deepStrictEqual(c[0].dias, ['2026-11-29', '2026-12-06'], 'o domingo anterior é de outro mês');
+    assert.match(c[0].texto, /06\/12 \(o anterior foi 29\/11\)/); assert.strictEqual(semDe(r, 2, '2026-11-30').validacao.nivel, 'vermelho'); assert.strictEqual(r.proposta.find(p => p.id === 2).dias['2026-12-06'].travado, true, 'o dia fixo não é mexido: fica acusado'); }
+  // sem o dia fixo, com a regra ativa o gerador dá o descanso em 06/12; desativada, a verificação continua valendo para o que ele gerar
+  const livre = G.gerar({ ...base, ...ATIVO, historico: h }); assert.strictEqual(livre.proposta.find(p => p.id === 2).dias['2026-12-06'].tipo, 'folga'); assert.strictEqual(livre.dominicalFeminino.violacoes, 0);
+  // férias e folga fixa são respeitadas: func 4 (folga fixa quinta) em férias de 09 a 15/11 — o domingo das férias não é trabalho nem folga, e o ciclo recomeça depois
+  const eq = comSexo(); eq[3].ausencias = [{ inicio: '2026-11-09', fim: '2026-11-15', tipo: 'ferias' }]; const f = G.gerar({ ...SEG, funcionarios: eq, regras: [REGRA_OK], cobertura: COB, ...ATIVO }); const p4 = f.proposta.find(p => p.id === 4);
+  assert.strictEqual(p4.dias['2026-11-15'].tipo, 'ferias'); assert.ok(!/TT/.test(domingos(p4.dias)), domingos(p4.dias)); for (const [d, x] of Object.entries(p4.dias)) if (dow(d) === 4 && x.tipo !== 'ferias') assert.strictEqual(x.folga, 'fixa');
+  assert.deepStrictEqual(f.conflitos.trabalhistas, [], JSON.stringify(f.conflitos.trabalhistas));
+  // folga dada à mão num domingo é preservada e conta no ciclo: o domingo seguinte é de trabalho
+  const m = G.gerar({ ...SEG, funcionarios: comSexo(), regras: [REGRA_OK], cobertura: COB, ...ATIVO, travados: { '6|2026-11-08': FG(), '6|2026-11-15': TR() } }); const p6 = m.proposta.find(p => p.id === 6);
+  assert.strictEqual(p6.dias['2026-11-08'].travado, true); assert.strictEqual(p6.dias['2026-11-22'].tipo, 'folga', 'trabalhou em 15/11: descansa em 22/11'); assert.deepStrictEqual(m.conflitos.trabalhistas.filter(c => c.funcId === 6), []);
+});
+
+test('dominical feminino · sem o sexo informado ninguém é presumido: a pessoa fica fora da regra e isso sai acusado', () => {
+  const eq = comSexo(); delete eq[0].sexo; eq[1].sexo = null; eq[2].sexo = 'Feminino'; eq[4].sexo = 'masculino';
+  const r = G.gerar({ ...SEG, funcionarios: eq, regras: [REGRA_OK], cobertura: COB, ...ATIVO }); const D = r.dominicalFeminino;
+  assert.strictEqual(D.semSexo, 2); assert.deepStrictEqual(D.semSexoIds, [1, 2]); assert.strictEqual(D.mulheres, 5); assert.strictEqual(D.homens, 2); assert.strictEqual(D.alternando, 5);
+  assert.strictEqual(r.proposta.find(p => p.id === 1).sexo, null); assert.strictEqual(r.proposta.find(p => p.id === 1).dominical1x1, false); assert.strictEqual(r.proposta.find(p => p.id === 3).sexo, 'F'); assert.strictEqual(r.proposta.find(p => p.id === 3).dominical1x1, true);
+  const a = r.conflitos.operacionais.filter(c => c.codigo === 'sexo_nao_informado'); assert.strictEqual(a.length, 1); assert.strictEqual(a[0].gravidade, 'alerta'); assert.strictEqual(a[0].funcId, null); assert.match(a[0].texto, /2 funcionário\(s\) sem o sexo informado \(Func 1, Func 2\).*art\. 386/);
+  assert.ok(!r.conflitos.trabalhistas.some(c => c.codigo === 'domingo_art386' && [1, 2].includes(c.funcId)), 'sem o dado não há verificação — nem acusação inventada');
+  // chamada antiga (sem a configuração): o motor não acusa nada sobre sexo e não aplica o 1×1
+  const antigo = G.gerar({ ...SEG, funcionarios: equipe(), regras: [REGRA_OK], cobertura: COB }); assert.ok(!antigo.conflitos.operacionais.some(c => c.codigo === 'sexo_nao_informado')); assert.strictEqual(antigo.dominicalFeminino.ativo, false); assert.strictEqual(antigo.dominicalFeminino.semSexo, 9);
+  // a partida a frio (sem histórico) não gera acusação: só conta domingo que consta de fato
+  const frio = G.gerar({ ...SEG, funcionarios: comSexo(), regras: [REGRA_OK], cobertura: COB, ...INATIVO }); for (const c of frio.conflitos.trabalhistas.filter(x => x.codigo === 'domingo_art386')) assert.notStrictEqual(c.ref, '2026-11-08', 'no primeiro domingo do período não existe domingo anterior registrado');
+});

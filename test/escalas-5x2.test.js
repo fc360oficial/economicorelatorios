@@ -600,3 +600,86 @@ test('modelo flexível · o RH junta as duas folgas da semana e a escala continu
   for (const p of s1.resultado.proposta.filter(x => x.setor === 'REPOSICAO')) for (const [d, x] of Object.entries(p.dias)) assert.equal(x.tipo, diaDe2(p.id, d).tipo, p.nome + ' ' + d + ': o outro setor não tem motivo para mudar');
   assert.equal(s1.duasFolgas.excesso + s1.duasFolgas.falta, 0); assert.equal(s1.aplicacao.permitida, true, JSON.stringify(s1.aplicacao.pendencias));
 });
+
+// ═══ ETAPA 7 — revezamento dominical feminino 1×1: configuração avançada por unidade, informação legal e auditoria ═══
+// Loja 10 (CD). No "ponto": 1001–1004 mulheres, 1005–1007 homens, 1008 sem o sexo preenchido.
+const colabs10 = quadro(10, 1000, 'CD'); colabs10.ativos.forEach((c, i) => { c.sexo = i < 4 ? 'F' : i < 7 ? 'M' : null; });
+const ctx10 = extra => ({ colabs: colabs10, escalasPC, afast: new Map(), afastAnt: new Map(), hoje: HOJE, ponto: null, ...extra });
+const DOMS_DEZ = ['2026-12-06', '2026-12-13', '2026-12-20', '2026-12-27'];
+const seqDom = p => DOMS_DEZ.map(d => p.dias[d].tipo === 'trabalho' ? 'T' : p.dias[d].tipo === 'folga' ? 'F' : 'A').join('');
+
+test('dominical feminino · configuração avançada: desligada por padrão, texto legal sempre disponível, só usuário autorizado altera, tudo auditado', () => {
+  const funcs = S.escalaDe(10, MES, ctx10()).e.funcionarios; assert.equal(funcs.find(f => f.id === 1001).sexo, 'F', 'o sexo vem do cadastro do ponto quando existe'); assert.equal(funcs.find(f => f.id === 1008).sexo, null);
+  // desligada por padrão; a informação legal vem com a regra desligada, para quem só consulta também
+  assert.deepEqual(S.dominicalLoja(10), { ativo: false, por: null, porNome: null, em: null, justificativa: null });
+  const v = S.avancadas(U.di, 10, funcs, colabs10); const D = v.dominical; assert.equal(v.podeAlterar, false, 'Diretoria só consulta'); assert.equal(D.ativo, false);
+  assert.equal(D.nome, 'Revezamento dominical feminino — 1×1'); assert.equal(D.titulo, 'Fundamentação legal — Art. 386 da CLT');
+  assert.equal(D.citacao, 'Havendo trabalho aos domingos, será organizada uma escala de revezamento quinzenal, que favoreça o repouso dominical.');
+  assert.equal(D.origem, 'Decreto-Lei nº 5.452/1943 — Consolidação das Leis do Trabalho, art. 386, na seção de proteção ao trabalho da mulher.');
+  assert.equal(D.aplicacao, 'o revezamento quinzenal é operacionalizado por alternância entre um domingo trabalhado e outro de descanso, observadas as demais normas aplicáveis.');
+  assert.equal(D.importante, 'desativar esta opção não afasta a obrigação de cumprir a legislação trabalhista.'); assert.equal(D.linkTxt, 'Consultar legislação oficial'); assert.equal(D.link, 'https://www.planalto.gov.br/ccivil_03/decreto-lei/del5452compilado.htm');
+  assert.deepEqual([D.mulheres, D.homens, D.semSexo], [4, 3, 1]); assert.equal(S.avancadas(U.co, 10, funcs, colabs10).podeAlterar, true); assert.equal(S.avancadas(U.rh, 10, funcs, colabs10).podeAlterar, true);
+  assert.throws(() => S.avancadas(U.ger, 10, funcs, colabs10), status(403), 'gerente de outra loja não vê a unidade');
+  // só RH Ponto da unidade ou Coordenação; sempre com justificativa
+  const liga = { ativo: true, justificativa: 'Coordenação decidiu aplicar o revezamento quinzenal às trabalhadoras do CD' };
+  assert.throws(() => S.salvarDominical(U.di, 10, funcs, colabs10, liga), status(403)); assert.throws(() => S.salvarDominical(U.rh2, 10, funcs, colabs10, liga), status(403), 'RH de outra unidade'); assert.throws(() => S.salvarDominical(U.ger, 10, funcs, colabs10, liga), status(403));
+  assert.throws(() => S.salvarDominical(U.rh, 10, funcs, colabs10, { ativo: 'sim', justificativa: liga.justificativa }), /ativada ou desativada/); assert.throws(() => S.salvarDominical(U.rh, 10, funcs, colabs10, { ativo: true, justificativa: 'ok' }), /mínimo de 10/);
+  assert.throws(() => S.salvarDominical(U.rh, 10, funcs, colabs10, { ativo: false, justificativa: 'desligar o que já está desligado' }), status(409)); assert.equal(S.dominicalLoja(10).ativo, false);
+  // desligada: o gerador não impõe o 1×1, a verificação do art. 386 continua e a proposta em desacordo não é aplicada
+  const r10 = S.salvarRegra(U.rh, { ...regraBody, nome: 'CCT CD (teste)', estabelecimento: 10 }); S.validarRegra(U.rh, r10.id, 'Conferida a cláusula 12 da CCT 2026/2027');
+  const s0 = S.simular(U.rh, 10, MES, ctx10()); assert.equal(s0.dominical.ativo, false); assert.equal(s0.dominical.alternando, 0); assert.equal(s0.dominical.mulheres, 4); assert.equal(s0.dominical.semSexo, 1);
+  assert.ok(s0.dominical.violacoes > 0, 'pela regra geral alguma trabalhadora fica com dois domingos seguidos'); assert.ok(s0.resultado.conflitos.trabalhistas.filter(c => c.codigo === 'domingo_art386').every(c => c.gravidade === 'bloqueio' && c.funcId <= 1004));
+  assert.ok(s0.aplicacao.pendencias.some(p => p.codigo === 'domingo_art386' && /ative o revezamento dominical feminino 1×1/.test(p.texto))); assert.equal(s0.aplicacao.permitida, false);
+  assert.ok(s0.resultado.conflitos.operacionais.some(c => c.codigo === 'sexo_nao_informado' && /1 funcionário\(s\) sem o sexo informado \(Hugo Paz CD\)/.test(c.texto)));
+  assert.throws(() => S.aplicar(U.rh, 10, MES, ctx10(), { justificativa: 'dezembro em 5x2 no CD', cienteDivergencias: true }), status(409)); assert.equal(E.ler(10, MES), null);
+  // ativação: fica na auditoria com usuário, data e hora, unidade, antes/depois e quem a regra alcança; a Coordenação é avisada
+  const r = S.salvarDominical(U.rh, 10, funcs, colabs10, liga); assert.equal(r.dominical.ativo, true); assert.equal(r.dominical.por, 'rh'); assert.equal(r.dominical.citacao, D.citacao); assert.deepEqual(r.escalas, [], 'nenhuma escala em aberto para regravar');
+  const a = ultimaAud('dominical_feminino'); assert.equal(a.seq, r.auditoria); assert.equal(a.usuario, 'rh'); assert.equal(a.nome, 'RH Ponto'); assert.ok(!isNaN(Date.parse(a.em))); assert.equal(a.loja, 10); assert.equal(a.antes.ativo, false); assert.equal(a.depois.ativo, true);
+  assert.deepEqual(a.alcance, { mulheres: 4, homens: 3, semSexo: 1 }); assert.equal(a.justificativa, liga.justificativa); assert.match(a.alteracoesNasEscalas, /Nenhum dia é regravado ao ativar/); assert.equal(S.verificarCadeia().ok, true);
+  assert.equal(S.dominicalLoja(10).ativo, true); assert.equal(S.dominicalLoja(1).ativo, false, 'o interruptor é por unidade'); assert.equal(S.dominicalLoja(2).ativo, false);
+  assert.ok(S.avisos(U.co).avisos.some(x => x.nivel === 'relevante' && x.tipo === 'imediato' && /ATIVOU o revezamento dominical feminino 1×1 \(4 trabalhadora\(s\) identificada\(s\), 1 funcionário\(s\) sem o sexo informado\)/.test(x.texto)));
+  assert.match(S.trilha(U.co, { loja: 10 }).registros.find(x => x.acao === 'dominical_feminino').detalhe, /ATIVADO · 4 trabalhadora\(s\), 1 sem o sexo informado · nenhuma escala em aberto/);
+});
+
+test('dominical feminino · ativado: sexo informado pelo RH, alternância 1×1 em dezembro (com a semana que vem de novembro) e aplicação auditada', () => {
+  // com a regra ativa, quem não tem o sexo informado trava a aplicação até o RH informar
+  const s1 = S.simular(U.rh, 10, MES, ctx10()); assert.equal(s1.dominical.ativo, true); assert.equal(s1.dominical.alternando, 4); assert.deepEqual(s1.dominical.semSexoIds, [1008]);
+  assert.ok(s1.aplicacao.pendencias.some(p => p.codigo === 'sexo_nao_informado')); assert.equal(s1.aplicacao.permitida, false);
+  const funcs = S.escalaDe(10, MES, ctx10()).e.funcionarios;
+  assert.throws(() => S.salvarCadastro(U.rh, 10, funcs, [{ id: 1008, sexo: 'X' }], 'sexo informado pelo RH'), /Sexo inválido/);
+  S.salvarCadastro(U.rh, 10, funcs, [{ id: 1008, sexo: 'F' }], 'Hugo Paz CD: cadastro conferido com a ficha de admissão');
+  const cad = S.cadastroLoja(10, funcs, colabs10); assert.deepEqual([cad.find(f => f.id === 1008).sexo, cad.find(f => f.id === 1008).sexoOrigem], ['F', 'rh']); assert.deepEqual([cad.find(f => f.id === 1001).sexo, cad.find(f => f.id === 1001).sexoOrigem], ['F', 'ponto']);
+  assert.deepEqual([cad.find(f => f.id === 1005).sexo, cad.find(f => f.id === 1005).sexoOrigem], ['M', 'ponto']); assert.equal(ultimaAud('cadastro').alteracoes[0].depois.sexo, 'F');
+  const s = S.simular(U.rh, 10, MES, ctx10()); assert.equal(s.aplicacao.permitida, true, JSON.stringify(s.aplicacao.pendencias)); assert.deepEqual([s.dominical.mulheres, s.dominical.semSexo, s.dominical.alternando, s.dominical.violacoes], [5, 0, 5, 0]);
+  const mulheres = [1001, 1002, 1003, 1004, 1008].map(id => s.resultado.proposta.find(p => p.id === id));
+  for (const p of mulheres) { assert.ok(['TFTF', 'FTFT'].includes(seqDom(p)), p.nome + ': ' + seqDom(p)); for (const w of p.semanas) { assert.equal(w.regra52.folgas, 2, p.nome + ' ' + w.inicio); assert.notEqual(w.validacao.nivel, 'vermelho'); } }
+  // a semana 30/11–06/12 atravessa o mês: 29/11 (novembro) foi descanso para todas; metade trabalha em 06/12 e metade começa pelo descanso
+  for (const d of DOMS_DEZ) assert.equal([1001, 1002, 1003, 1004].filter(id => s.resultado.proposta.find(p => p.id === id).dias[d].tipo === 'folga').length, 2, 'trabalhadoras do Caixa de folga em ' + d);
+  assert.equal(mulheres[0].semanas[0].inicio, '2026-11-30'); assert.ok(!s.resultado.conflitos.trabalhistas.some(c => c.codigo === 'domingo_art386'));
+  for (const p of s.resultado.proposta.filter(x => x.sexo === 'M')) assert.equal(p.dominical1x1, false);
+  const g = S.aplicar(U.rh, 10, MES, ctx10(), { justificativa: 'dezembro em 5x2 no CD com revezamento dominical feminino', cienteDivergencias: true, assinatura: s.assinatura });
+  const ap = ultimaAud('gerar_aplicar'); assert.deepEqual(ap.dominicalFeminino, { ativo: true, mulheres: 5, alternando: 5, semSexo: 0 }); assert.equal(ap.ref, g.geracao.id); assert.equal(S.portaPublicacao(10, MES, ctx10()).liberada, true);
+  assert.equal(S.analisar(U.co, 10, MES, ctx10()).dominical.violacoes, 0);
+});
+
+test('dominical feminino · desativado: a desativação é auditada com a situação das escalas, o 1×1 deixa de ser imposto e a verificação legal continua bloqueando', () => {
+  const funcs = E.ler(10, MES).funcionarios; const antes = fs.readFileSync(path.join(process.env.ESCALAS_DIR, '10-' + MES + '.json'), 'utf8');
+  const r = S.salvarDominical(U.co, 10, funcs, colabs10, { ativo: false, justificativa: 'Decisão da Coordenação: o RH passa a montar o domingo manualmente' });
+  assert.equal(r.dominical.ativo, false); assert.equal(fs.readFileSync(path.join(process.env.ESCALAS_DIR, '10-' + MES + '.json'), 'utf8'), antes, 'desativar não regrava nenhum dia da escala');
+  const a = ultimaAud('dominical_feminino'); assert.equal(a.usuario, 'co'); assert.equal(a.antes.ativo, true); assert.equal(a.antes.por, 'rh'); assert.equal(a.depois.ativo, false); assert.equal(a.loja, 10);
+  assert.deepEqual(a.escalas.map(x => [x.mes, x.violacoesArt386]), [[MES, 0]], 'retrato da escala em aberto: a que já está alternada continua de acordo'); assert.ok(a.escalas[0].diasDoGerador > 100); assert.match(a.alteracoesNasEscalas, /ao desativar/);
+  assert.ok(S.avisos(U.co).avisos.some(x => /DESATIVOU o revezamento dominical feminino 1×1/.test(x.texto))); assert.match(S.trilha(U.co, { loja: 10 }).registros.find(x => x.acao === 'dominical_feminino').detalhe, /DESATIVADO.*12\/2026 \(sem pendência dominical\)/);
+  // o texto legal continua disponível com a regra desligada
+  assert.equal(S.avancadas(U.co, 10, funcs, colabs10).dominical.importante, 'desativar esta opção não afasta a obrigação de cumprir a legislação trabalhista.');
+  // a escala que já está de acordo continua publicável; a verificação não depende do interruptor
+  assert.equal(S.portaPublicacao(10, MES, ctx10()).liberada, true);
+  // o RH põe a Ana (1001) para trabalhar num domingo de descanso que vem logo depois de um domingo trabalhado: bloqueio pelo art. 386
+  const ana = E.ler(10, MES).funcionarios.find(f => f.id === 1001); const dia = d => E.diaDe(E.ler(10, MES), ana, d, null); const i = DOMS_DEZ.findIndex((d, k) => k > 0 && dia(d).tipo === 'folga' && dia(DOMS_DEZ[k - 1]).tipo === 'trabalho'); assert.ok(i > 0);
+  const ref = dia(DOMS_DEZ[i - 1]); const corpo = { funcId: 1001, data: DOMS_DEZ[i], tipo: 'trabalho', entrada: ref.entrada, saida: ref.saida, almoco_ini: ref.almoco_ini, almoco_fim: ref.almoco_fim, justificativa: 'cobrir o domingo' };
+  E.editarDia(10, MES, U.rh, corpo, new Map()); const pos = S.aposEdicao(U.rh, 10, MES, corpo, 'rascunho', new Map());
+  assert.equal(pos.validacao.ok, false); assert.ok(pos.validacao.bloqueios.some(b => b.codigo === 'domingo_art386' && /art\. 386 da CLT/.test(b.texto)), JSON.stringify(pos.validacao.bloqueios)); assert.equal(pos.nivel, 'relevante');
+  const p = S.portaPublicacao(10, MES, ctx10()); assert.equal(p.liberada, false); assert.ok(p.bloqueios.some(c => c.codigo === 'domingo_art386' && c.funcId === 1001));
+  assert.throws(() => S.exigirPublicavel(U.co, 10, MES, ctx10(), 'aprovar'), e => e.status === 409 && /não pode ser aprovada/.test(e.message)); assert.ok(S.analisar(U.co, 10, MES, ctx10()).dominical.violacoes >= 1, 'o domingo alterado (e o seguinte, se também for de trabalho) ficam acusados');
+  // e, desativada, o gerador não reorganiza os domingos das demais para o 1×1
+  const s = S.simular(U.rh, 10, MES, ctx10()); assert.equal(s.dominical.ativo, false); assert.equal(s.dominical.alternando, 0); assert.ok(s.resultado.proposta.every(x => x.dominical1x1 === false));
+});
