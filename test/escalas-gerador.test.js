@@ -15,6 +15,7 @@ const equipe = () => [func(1, 'CAIXA', 1), func(2, 'CAIXA', 2), func(3, 'CAIXA',
 const COB = { abre: '07:00', fecha: '19:00', entradas: ['07:00', '08:36'], setores: { CAIXA: { min: 2 }, REPOSICAO: { min: 1 } } };
 const REGRA_OK = { id: 'CCT-TESTE', estabelecimento: 1, vigencia: { de: '2026-01-01', ate: '2027-12-31' }, validada: true, params: {} };
 const NOV = { de: '2026-11-01', ate: '2026-11-30' }, DEZ = { de: '2026-12-01', ate: '2026-12-31' };
+const SEG = { de: '2026-11-02', ate: '2026-11-29' };   // quatro semanas inteiras, começando numa segunda (sem semana de transição)
 const tipos = (p, datas) => datas.map(d => (p.dias[d] || {}).tipo);
 const semana = seg => [0, 1, 2, 3, 4, 5, 6].map(i => soma(seg, i));
 const maiorSequencia = dias => { let m = 0, r = 0; for (const d of Object.keys(dias).sort()) { if (dias[d].tipo === 'trabalho') { r++; if (r > m) m = r; } else r = 0; } return m; };
@@ -136,7 +137,9 @@ test('regras: vale a vigente mais específica; fora da vigência cai nos parâme
 test('publicação nunca é liberada: simulação, regra não validada, divergência contratual 44 h × 42 h', () => {
   const semRegra = G.gerar({ ...NOV, funcionarios: equipe(), cobertura: COB });
   assert.strictEqual(semRegra.publicacao.liberada, false);
-  assert.deepStrictEqual(semRegra.publicacao.bloqueios.map(b => b.codigo), ['motor_em_simulacao', 'regra_nao_validada', 'divergencia_contratual']);
+  // novembro começa num domingo sem histórico da semana: desde a Etapa 3 isso também bloqueia (semana de transição sem dados)
+  assert.deepStrictEqual(semRegra.publicacao.bloqueios.map(b => b.codigo), ['motor_em_simulacao', 'regra_nao_validada', 'divergencia_contratual', 'transicao_sem_dados']);
+  assert.deepStrictEqual(G.gerar({ ...SEG, funcionarios: equipe(), cobertura: COB }).publicacao.bloqueios.map(b => b.codigo), ['motor_em_simulacao', 'regra_nao_validada', 'divergencia_contratual']);
   const comRegra = G.gerar({ ...NOV, funcionarios: equipe(), regras: [REGRA_OK], cobertura: COB });
   assert.strictEqual(comRegra.publicacao.liberada, false); assert.ok(!comRegra.publicacao.bloqueios.some(b => b.codigo === 'regra_nao_validada'));
   assert.strictEqual(comRegra.divergenciasContratuais.length, 9);
@@ -226,4 +229,198 @@ test('motor isolado: determinístico, não altera a entrada e não usa arquivo, 
   assert.ok(!/require\(/.test(fonte), 'o motor não pode carregar nenhum módulo'); assert.ok(!/fetch\(|writeFile|appendFile/.test(fonte));
   assert.throws(() => G.gerar({ de: '2026-11-30', ate: '2026-11-01', funcionarios: [] }), /Período inválido/);
   assert.strictEqual(segunda('2026-11-11'), '2026-11-09');
+});
+
+// ═══ ETAPA 3 ═══════════════════════════════════════════════════════════════════════════════════════════
+const M = G._util.min;
+const INTERVALO = ['intervalo_ausente', 'intervalo_insuficiente', 'intervalo_excedente', 'intervalo_fora_da_jornada', 'trabalho_continuo', 'intervalo_na_borda', 'pausa_nao_prevista'];
+const doIntervalo = (r, id) => r.conflitos.trabalhistas.filter(c => INTERVALO.includes(c.codigo) && (id == null || c.funcId === id));
+const trav = (id, data, entrada, saida, ai, af) => ({ [id + '|' + data]: { tipo: 'trabalho', entrada, saida, almoco_ini: ai || null, almoco_fim: af || null, setor: 'CAIXA' } });
+const T = (entrada, saida, ai, af) => ({ tipo: 'trabalho', entrada: entrada || '07:00', saida: saida || '17:24', almoco_ini: ai === undefined ? '11:00' : ai, almoco_fim: af === undefined ? '13:00' : af, fonte: 'ponto' });
+const F = { tipo: 'folga', fonte: 'ponto' };
+
+// 1. INTERVALOS ────────────────────────────────────────────────────────────────────────────────────────
+test('intervalo · jornada regular: o dia gerado nunca passa de 6 h seguidas antes ou depois do intervalo, mesmo escalonando e reparando a cobertura', () => {
+  // caso real da Ponte: entrada 08:00 com intervalo contratual às 13:00 — o escalonamento antigo jogava o intervalo para as 15:00 (7 h seguidas)
+  const J8 = { entrada: '08:00', saida: '18:48', almoco_ini: '13:00', almoco_fim: '15:00' };
+  const eq = equipe().map(f => ({ ...f, base: { 0: null, 1: { ...J8 }, 2: { ...J8 }, 3: { ...J8 }, 4: { ...J8 }, 5: { ...J8 }, 6: null } }));
+  for (const [funcionarios, cobertura] of [[equipe(), COB], [eq, { ...COB, entradas: ['07:00', '08:00', '09:00'] }]]) {
+    const r = G.gerar({ ...SEG, funcionarios, regras: [REGRA_OK], cobertura }); let dias = 0;
+    for (const p of r.proposta) for (const [d, x] of Object.entries(p.dias)) { if (x.tipo !== 'trabalho') continue; dias++;
+      const antes = M(x.almoco_ini) - M(x.entrada), depois = M(x.saida) - M(x.almoco_fim);
+      assert.ok(antes <= 360 && depois <= 360, p.nome + ' ' + d + ': ' + JSON.stringify(x)); assert.ok(antes >= 120 && depois >= 60, JSON.stringify(x));
+      assert.strictEqual(M(x.almoco_fim) - M(x.almoco_ini), 120); }
+    assert.ok(dias > 150); assert.deepStrictEqual(doIntervalo(r), []);
+    assert.ok(new Set(r.proposta.filter(p => p.setor === 'CAIXA').map(p => (p.dias['2026-11-04'] || {}).almoco_ini).filter(Boolean)).size >= 2, 'o intervalo continua escalonado');
+  }
+});
+
+test('intervalo · dia já fixo na grade é validado: ausente, insuficiente, excedente, fora da jornada, 7 h seguidas e colado na borda', () => {
+  const D = '2026-11-10';   // terça
+  const travados = { ...trav(1, D, '07:00', '16:00'),                       // 9 h sem intervalo
+    ...trav(3, D, '07:00', '16:30', '11:00', '11:30'),                       // 9 h com 30 min
+    ...trav(4, D, '07:00', '18:00', '11:00', '14:00'),                       // intervalo de 3 h
+    ...trav(5, D, '07:00', '17:24', '14:00', '16:00'),                       // 7 h seguidas antes do intervalo (o caso da simulação da Ponte)
+    ...trav(6, D, '07:00', '14:00', '07:30', '08:30'),                       // intervalo meia hora depois de entrar
+    ...trav(7, D, '07:00', '17:24', '06:00', '08:00'),                       // intervalo começa antes da entrada
+    ...trav(8, D, '07:00', '17:24', '11:00', '13:00') };                     // regular
+  const r = G.gerar({ ...SEG, funcionarios: equipe(), regras: [REGRA_OK], cobertura: COB, travados });
+  const um = id => { const l = doIntervalo(r, id).filter(c => c.ref === D); assert.strictEqual(l.length, 1, id + ': ' + JSON.stringify(l)); return l[0]; };
+  assert.strictEqual(um(1).codigo, 'intervalo_ausente'); assert.strictEqual(um(1).gravidade, 'bloqueio'); assert.match(um(1).texto, /9h00.*sem intervalo/);
+  assert.strictEqual(um(3).codigo, 'intervalo_insuficiente'); assert.match(um(3).texto, /0h30.*mínimo 1h00/);
+  assert.strictEqual(um(4).codigo, 'intervalo_excedente'); assert.match(um(4).texto, /3h00.*máximo 2h00/);
+  assert.strictEqual(um(5).codigo, 'trabalho_continuo'); assert.strictEqual(um(5).gravidade, 'bloqueio'); assert.match(um(5).texto, /7h00 seguidas antes do intervalo/);
+  assert.strictEqual(um(6).codigo, 'intervalo_na_borda'); assert.strictEqual(um(6).gravidade, 'alerta');
+  assert.strictEqual(um(7).codigo, 'intervalo_fora_da_jornada');
+  assert.deepStrictEqual(doIntervalo(r, 8), []); assert.deepStrictEqual(doIntervalo(r, 2), []);
+  assert.ok(r.publicacao.bloqueios.some(b => b.codigo === 'conflito_trabalhista'));
+  // o que já aconteceu antes do período (histórico) não é "validado" como se fosse proposta
+  const h = G.gerar({ de: '2026-11-11', ate: '2026-11-29', funcionarios: equipe(), regras: [REGRA_OK], cobertura: COB, historico: { 1: { dias: { '2026-11-09': F, '2026-11-10': T('07:00', '16:00', null, null) } } } });
+  assert.deepStrictEqual(doIntervalo(h, 1), []);
+});
+
+test('intervalo · situações excepcionais: jornada curta, pausa de 15 min e regra convencional diferente da CLT', () => {
+  const D = '2026-11-10';
+  const travados = { ...trav(1, D, '07:00', '11:00'),                        // 4 h: não exige intervalo
+    ...trav(3, D, '07:00', '12:00'),                                         // 5 h sem a pausa de 15 min registrada
+    ...trav(4, D, '07:00', '13:15', '10:00', '10:15'),                       // 6 h com 15 min
+    ...trav(5, D, '07:00', '16:30', '11:00', '11:30'),                       // 30 min em 9 h: só passa se a convenção permitir
+    ...trav(6, D, '07:00', '17:24', '14:00', '16:00') };                     // 7 h seguidas: só passa se a convenção permitir
+  const clt = G.gerar({ ...SEG, funcionarios: equipe(), regras: [REGRA_OK], cobertura: COB, travados });
+  assert.deepStrictEqual(doIntervalo(clt, 1), []); assert.deepStrictEqual(doIntervalo(clt, 4), []);
+  const pausa = doIntervalo(clt, 3); assert.strictEqual(pausa.length, 1); assert.strictEqual(pausa[0].codigo, 'pausa_nao_prevista'); assert.strictEqual(pausa[0].gravidade, 'alerta');
+  assert.strictEqual(doIntervalo(clt, 5)[0].codigo, 'intervalo_insuficiente'); assert.strictEqual(doIntervalo(clt, 6)[0].codigo, 'trabalho_continuo');
+  // a regra do funcionário manda: convenção com intervalo mínimo de 30 min e até 7 h seguidas
+  const cct = { ...REGRA_OK, id: 'CCT-30', params: { intervalo: { minimoMin: 30, continuoMaxMin: 420 } } };
+  const conv = G.gerar({ ...SEG, funcionarios: equipe(), regras: [cct], cobertura: COB, travados });
+  assert.deepStrictEqual(doIntervalo(conv, 5), []); assert.deepStrictEqual(doIntervalo(conv, 6), []);
+  assert.strictEqual(G.regraPara([cct], equipe()[0], D).params.intervalo.maximoMin, 120, 'o que a regra não informa continua no padrão');
+  // regra só da categoria: vale para quem ela alcança, os outros seguem no padrão
+  const eq = equipe(); eq[4].categoria = 'ACOUGUEIRO';
+  const mista = G.gerar({ ...SEG, funcionarios: eq, regras: [REGRA_OK, { ...cct, categoria: 'ACOUGUEIRO' }], cobertura: COB, travados });
+  assert.deepStrictEqual(doIntervalo(mista, 5), []); assert.strictEqual(doIntervalo(mista, 6)[0].codigo, 'trabalho_continuo');
+  // intervalo planejado de 1 h: os dias gerados saem válidos; planejado abaixo do mínimo da própria regra é acusado em todo dia gerado
+  const umaHora = G.gerar({ ...SEG, funcionarios: equipe(), regras: [{ ...REGRA_OK, params: { intervaloMin: 60 } }], cobertura: COB });
+  assert.deepStrictEqual(doIntervalo(umaHora), []);
+  for (const p of umaHora.proposta) for (const x of Object.values(p.dias)) if (x.tipo === 'trabalho') { assert.strictEqual(M(x.almoco_fim) - M(x.almoco_ini), 60); assert.ok(M(x.almoco_ini) - M(x.entrada) <= 360 && M(x.saida) - M(x.almoco_fim) <= 360, JSON.stringify(x)); }
+  const errada = G.gerar({ ...SEG, funcionarios: equipe(), regras: [{ ...REGRA_OK, params: { intervaloMin: 30 } }], cobertura: COB });
+  assert.ok(doIntervalo(errada).length > 100); assert.ok(doIntervalo(errada).every(c => c.codigo === 'intervalo_insuficiente'));
+});
+
+// 2. SEMANA DE TRANSIÇÃO ───────────────────────────────────────────────────────────────────────────────
+const QUI = { de: '2026-11-05', ate: '2026-11-29' };   // começa na quinta: 02, 03 e 04/11 vêm do histórico
+const semAnt = () => ({ '2026-10-26': T(), '2026-10-27': T(), '2026-10-28': T(), '2026-10-29': T(), '2026-10-30': T(), '2026-10-31': F, '2026-11-01': F });
+const histQui = mapa => { const h = {}; for (const f of equipe()) { const [a, b, c] = mapa[f.id] || [T(), T(), F]; h[f.id] = { dias: { ...semAnt(), '2026-11-02': a, '2026-11-03': b, '2026-11-04': c } }; } return h; };
+
+test('transição · começo no meio da semana: consulta o histórico, preserva os registros, não repete folga e fecha a semana em 5×2', () => {
+  const historico = histQui({ 1: [F, T(), T()],      // folga fixa de segunda já gozada: falta 1 folga
+    2: [T(), F, F],                                   // as duas folgas da semana já gozadas
+    3: [T(), T(), T()],                               // trabalhou os 3 dias (inclusive na folga fixa de quarta): deve 2 folgas
+    4: [F, F, T()] });                                // já descansou 2 dias e a folga fixa é quinta: não repete
+  const copia = JSON.stringify(historico);
+  const r = G.gerar({ ...QUI, funcionarios: equipe(), regras: [REGRA_OK], cobertura: COB, historico });
+  assert.strictEqual(JSON.stringify(historico), copia, 'o histórico não pode ser alterado');
+  assert.strictEqual(r.transicao.necessaria, true); assert.deepStrictEqual(r.transicao.semana, { inicio: '2026-11-02', fim: '2026-11-08' }); assert.strictEqual(r.transicao.pendentes, 0);
+  assert.ok(!r.publicacao.bloqueios.some(b => b.codigo === 'transicao_sem_dados')); assert.deepStrictEqual(r.conflitos.trabalhistas, []);
+  for (const p of r.proposta) {
+    for (const d of ['2026-11-02', '2026-11-03', '2026-11-04']) assert.strictEqual(p.dias[d], undefined, 'registro anterior ao início não entra na proposta');
+    const s = p.semanas[0]; assert.strictEqual(s.inicio, '2026-11-02'); assert.strictEqual(s.trabalho, 5, p.nome); assert.strictEqual(s.folgas, 2, p.nome);
+    const t = r.transicao.funcionarios.find(x => x.funcId === p.id); assert.strictEqual(t.situacao, 'ok'); assert.strictEqual(t.descansos + t.folgasPropostas, 2, p.nome + ': folga duplicada ou faltando'); assert.ok(t.dias.every(x => x.confirmado && x.fonte === 'ponto'));
+  }
+  const fol = id => ['2026-11-05', '2026-11-06', '2026-11-07', '2026-11-08'].filter(d => r.proposta.find(p => p.id === id).dias[d].tipo === 'folga');
+  assert.strictEqual(fol(1).length, 1); assert.deepStrictEqual(fol(2), []); assert.strictEqual(fol(3).length, 2);
+  assert.deepStrictEqual(fol(4), [], 'já tinha descansado 2 dias: a folga fixa de quinta não se repete');
+  assert.ok(r.conflitos.operacionais.some(c => c.codigo === 'folga_fixa_ja_gozada' && c.funcId === 4 && c.ref === '2026-11-05'));
+  for (const p of r.proposta) for (const s of p.semanas.slice(1)) { assert.strictEqual(s.trabalho, 5); assert.strictEqual(s.folgas, 2); assert.strictEqual(s.minutos, 2520); }   // depois da transição, 5×2 normal
+});
+
+test('transição · sem dados suficientes: dia indefinido, não confirmado ou ausente bloqueia a publicação e não é contado como folga', () => {
+  const INDEF = { tipo: 'indefinido', fonte: 'ponto' };
+  const historico = histQui({ 1: [T(), INDEF, T()], 2: [{ ...T(), fonte: 'escala', naoConfirmado: true }, F, T()] }); delete historico[3];
+  const r = G.gerar({ ...QUI, funcionarios: equipe(), regras: [REGRA_OK], cobertura: COB, historico });
+  const t = id => r.transicao.funcionarios.find(x => x.funcId === id);
+  assert.strictEqual(t(1).situacao, 'dados_insuficientes'); assert.deepStrictEqual(t(1).pendentes, ['2026-11-03']);
+  assert.strictEqual(t(1).descansos, 0); assert.strictEqual(t(1).folgasPropostas, 2, 'ausência de marcação não é folga: as duas folgas continuam devidas');
+  assert.deepStrictEqual(t(2).pendentes, ['2026-11-02']); assert.deepStrictEqual(t(3).pendentes, ['2026-11-02', '2026-11-03', '2026-11-04']); assert.strictEqual(t(3).dias[0].tipo, 'sem_dado');
+  assert.strictEqual(r.transicao.pendentes, 3); assert.strictEqual(r.transicao.diasPendentes, 5);
+  const b = r.publicacao.bloqueios.find(x => x.codigo === 'transicao_sem_dados'); assert.ok(b); assert.match(b.texto, /3 funcionário\(s\).*02\/11 a 04\/11/);
+  assert.strictEqual(r.conflitos.operacionais.filter(c => c.codigo === 'transicao_dados_insuficientes').length, 3);
+  assert.ok(!r.conflitos.trabalhistas.some(c => c.codigo === 'dias_consecutivos'));
+  // o indefinido vale como "pode ter trabalhado": com 5 dias seguidos antes (26–30/10 + 02/11) ninguém passa de 6 contando com ele
+  const p1 = r.proposta.find(p => p.id === 1); assert.ok(['2026-11-05', '2026-11-06', '2026-11-07'].some(d => p1.dias[d].tipo === 'folga'));
+  // o RH valida os dias pendentes (ou o ponto passa a confirmar): o bloqueio some
+  const ok = histQui({ 1: [T(), { tipo: 'folga', fonte: 'rh' }, T()], 2: [T(), F, T()] });
+  const r2 = G.gerar({ ...QUI, funcionarios: equipe(), regras: [REGRA_OK], cobertura: COB, historico: ok });
+  assert.strictEqual(r2.transicao.pendentes, 0); assert.ok(!r2.publicacao.bloqueios.some(x => x.codigo === 'transicao_sem_dados')); assert.strictEqual(r2.transicao.funcionarios.find(x => x.funcId === 1).folgasPropostas, 1);
+  // começando numa segunda não existe semana de transição; dia incerto da semana anterior só vira aviso
+  const seg = G.gerar({ ...SEG, funcionarios: equipe(), regras: [REGRA_OK], cobertura: COB, historico: { 1: { dias: { ...semAnt(), '2026-10-31': INDEF } } } });
+  assert.strictEqual(seg.transicao.necessaria, false); assert.deepStrictEqual(seg.transicao.funcionarios, []); assert.ok(!seg.publicacao.bloqueios.some(x => x.codigo === 'transicao_sem_dados'));
+  assert.ok(seg.conflitos.operacionais.some(c => c.codigo === 'historico_nao_confirmado' && c.funcId === 1));
+});
+
+test('transição · valida pelas regras trabalhistas: excesso que já vem do registro anterior é herdado (alerta), a proposta não agrava e nunca passa de 6 dias seguidos', () => {
+  // início no domingo 01/11: a semana 26–31/10 já aconteceu. Func 1 trabalhou os 6 dias (52h48); os demais, 5 dias + 1 folga.
+  const J = () => T('07:00', '17:48');   // 8h48
+  const historico = {}; for (const f of equipe()) { const d = { '2026-10-25': F }; ['2026-10-26', '2026-10-27', '2026-10-28', '2026-10-29', '2026-10-30', '2026-10-31'].forEach((x, i) => { d[x] = f.id === 1 || i !== 2 ? J() : F; }); historico[f.id] = { dias: d }; }
+  const r = G.gerar({ ...NOV, funcionarios: equipe(), regras: [REGRA_OK], cobertura: COB, historico });
+  const meus = r.conflitos.trabalhistas.filter(c => c.funcId === 1);
+  assert.deepStrictEqual(meus.map(c => c.codigo).sort(), ['carga_semanal', 'mais_dias_que_o_previsto']);
+  for (const c of meus) { assert.strictEqual(c.herdado, true); assert.strictEqual(c.transicao, true); assert.strictEqual(c.gravidade, 'alerta'); assert.match(c.texto, /já ocorrido antes do início/); }
+  assert.strictEqual(r.proposta.find(p => p.id === 1).dias['2026-11-01'].tipo, 'folga', 'com 6 dias já trabalhados o domingo tem que ser descanso');
+  assert.strictEqual(r.transicao.funcionarios.find(t => t.funcId === 1).situacao, 'conflito_herdado'); assert.strictEqual(r.transicao.herdados, 1);
+  assert.ok(!r.publicacao.bloqueios.some(b => b.codigo === 'conflito_trabalhista'), 'o que é herdado não trava a proposta');
+  for (const p of r.proposta) assert.ok(maiorSequencia({ ...historico[p.id].dias, ...p.dias }) <= 6, p.nome);
+  // já o excesso causado por dia fixo DENTRO do período continua sendo bloqueio
+  const dentro = G.gerar({ ...NOV, funcionarios: equipe(), regras: [REGRA_OK], cobertura: COB, historico: { ...historico, 1: { dias: { ...historico[2].dias, '2026-10-28': J() } } }, travados: { '1|2026-11-01': { tipo: 'trabalho', entrada: '07:00', saida: '17:24', almoco_ini: '11:00', almoco_fim: '13:00', setor: 'CAIXA' } } });
+  assert.ok(dentro.conflitos.trabalhistas.some(c => c.funcId === 1 && c.gravidade === 'bloqueio' && !c.herdado));
+  // regra com no máximo 2 dias seguidos: o motor acrescenta folga em vez de entregar semana irregular
+  const r2 = G.gerar({ ...SEG, funcionarios: equipe(), regras: [{ ...REGRA_OK, params: { maxDiasConsecutivos: 2 } }], cobertura: COB });
+  assert.ok(!r2.conflitos.trabalhistas.some(c => c.codigo === 'dias_consecutivos')); assert.ok(r2.conflitos.operacionais.some(c => c.codigo === 'folga_extra_descanso'));
+  for (const p of r2.proposta) assert.ok(maiorSequencia(p.dias) <= 2, p.nome);
+});
+
+// 3. PESOS OPERACIONAIS POR DIA ────────────────────────────────────────────────────────────────────────
+const rotativasEm = (r, dias, setor) => r.proposta.filter(p => !setor || p.setor === setor).reduce((t, p) => t + Object.entries(p.dias).filter(([d, x]) => x.folga === 'rotativa' && dias.includes(dow(d))).length, 0);
+
+test('pesos por dia · sexta e sábado mais pesados: a folga rotativa prefere os dias de menor movimento, respeitando folga fixa, descanso e 5×2', () => {
+  const sem = G.gerar({ ...SEG, funcionarios: equipe(), regras: [REGRA_OK], cobertura: COB });
+  const com = G.gerar({ ...SEG, funcionarios: equipe(), regras: [REGRA_OK], cobertura: { ...COB, pesoDia: { 5: 3, 6: 3 } } });
+  assert.deepStrictEqual(sem.pesos.diasPesados, []); assert.deepStrictEqual(com.pesos.diasPesados, [5, 6]);
+  const a = rotativasEm(sem, [5, 6]), b = rotativasEm(com, [5, 6]);
+  assert.ok(a >= 10, 'sem peso o motor espalha rotativas na sexta e no sábado: ' + a); assert.ok(b <= a * 0.7, 'com peso: ' + b + ' (sem: ' + a + ')'); assert.strictEqual(com.pesos.folgasEmDiaPesado, b);
+  assert.deepStrictEqual(com.conflitos.trabalhistas, []); assert.strictEqual(com.indicadores.pct_semanas_5x2, 100);
+  for (const p of com.proposta) {
+    for (const [d, x] of Object.entries(p.dias)) if (dow(d) === p.folga_fixa[0]) assert.strictEqual(x.folga, 'fixa', p.nome + ' ' + d);   // peso não mexe em folga fixa (a de sexta continua)
+    assert.ok(maiorSequencia(p.dias) <= 6); assert.ok(p.domingosFolga >= 1, p.nome + ' sem domingo de folga');
+  }
+  // distribuição equilibrada: a folga que sobra em dia pesado roda entre as pessoas, não cai sempre na mesma
+  assert.ok(com.pesos.maiorPorPessoa <= 2, 'ninguém folga em dia pesado mais de 2 vezes em 4 semanas: ' + JSON.stringify(com.proposta.map(p => p.folgasEmDiaPesado)));
+  assert.strictEqual(com.proposta.reduce((t, p) => t + p.folgasEmDiaPesado, 0), b);
+  // e o domingo não vira a rotativa de sempre de quem tem folga fixa no meio da semana: dentro do setor, ninguém fica
+  // com mais de um domingo de folga à frente do colega (com e sem peso)
+  for (const r of [sem, com]) for (const setor of ['CAIXA', 'REPOSICAO']) { const d = r.proposta.filter(p => p.setor === setor).map(p => p.domingosFolga); assert.ok(Math.max(...d) - Math.min(...d) <= 1, setor + ': domingos de folga ' + d); }
+});
+
+test('pesos por dia · não são proibição e valem por unidade e por setor (o do setor vence)', () => {
+  // todos os dias com peso máximo: continua havendo 2 folgas por semana para todo mundo
+  const tudo = G.gerar({ ...SEG, funcionarios: equipe(), regras: [REGRA_OK], cobertura: { ...COB, pesoDia: { 0: 5, 1: 5, 2: 5, 3: 5, 4: 5, 5: 5, 6: 5 } } });
+  assert.strictEqual(tudo.indicadores.pct_semanas_5x2, 100); assert.deepStrictEqual(tudo.conflitos.trabalhistas, []);
+  // quem só pode folgar em dia pesado folga nele: folga fixa na quarta, restrição de não trabalhar sábado, sábado com peso 5
+  const eq = equipe(); eq[2].restricoes = { naoTrabalha: [6] };
+  const rest = G.gerar({ ...SEG, funcionarios: eq, regras: [REGRA_OK], cobertura: { ...COB, pesoDia: { 5: 5, 6: 5 } } });
+  for (const [d, x] of Object.entries(rest.proposta.find(p => p.id === 3).dias)) if (dow(d) === 6) assert.strictEqual(x.tipo, 'folga');
+  // peso só do setor CAIXA: a REPOSIÇÃO fica exatamente como sem peso
+  const sem = G.gerar({ ...SEG, funcionarios: equipe(), regras: [REGRA_OK], cobertura: COB });
+  const soCaixa = G.gerar({ ...SEG, funcionarios: equipe(), regras: [REGRA_OK], cobertura: { ...COB, setores: { CAIXA: { min: 2, pesoDia: { 5: 4, 6: 4 } }, REPOSICAO: { min: 1 } } } });
+  assert.ok(rotativasEm(soCaixa, [5, 6], 'CAIXA') < rotativasEm(sem, [5, 6], 'CAIXA'));
+  const dias = r => JSON.stringify(r.proposta.filter(p => p.setor === 'REPOSICAO').map(p => Object.values(p.dias).map(x => x.tipo)));
+  assert.strictEqual(dias(soCaixa), dias(sem));
+  // peso da unidade com exceção no setor: a REPOSIÇÃO declara sexta e sábado normais e não é afetada
+  const excecao = G.gerar({ ...SEG, funcionarios: equipe(), regras: [REGRA_OK], cobertura: { ...COB, pesoDia: { 5: 4, 6: 4 }, setores: { CAIXA: { min: 2 }, REPOSICAO: { min: 1, pesoDia: { 5: 1, 6: 1 } } } } });
+  assert.strictEqual(dias(excecao), dias(sem)); assert.strictEqual(rotativasEm(excecao, [5, 6], 'CAIXA'), rotativasEm(soCaixa, [5, 6], 'CAIXA'));
+  // cobertura mínima continua na frente do peso: com pico que exige o caixa inteiro no domingo, as rotativas vão para sexta/sábado mesmo pesados
+  const apertada = pesoDia => G.gerar({ ...SEG, funcionarios: equipe(), regras: [{ ...REGRA_OK, params: { domingo: { folgaACadaSemanas: 0 } } }], cobertura: { ...COB, pesoDia, setores: { CAIXA: { min: 1, faixas: [0, 1, 2, 3, 4].map(d => ({ dias: [d], ini: '10:00', fim: '13:00', min: 6 })) }, REPOSICAO: { min: 1 } } } });
+  const aperto = apertada({ 5: 5, 6: 5 });
+  assert.ok(rotativasEm(aperto, [5, 6], 'CAIXA') > 3 * rotativasEm(aperto, [0, 1, 2, 3, 4], 'CAIXA'), 'a cobertura mínima vence o peso do dia');
+  assert.strictEqual(rotativasEm(aperto, [5, 6], 'CAIXA'), rotativasEm(apertada({}), [5, 6], 'CAIXA'), 'o peso não tira ninguém do dia em que cabia para um dia que fura o mínimo');
 });

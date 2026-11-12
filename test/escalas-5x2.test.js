@@ -171,3 +171,124 @@ test('avisos à Coordenação: imediato para o que é crítico/relevante, relat�
   S.aposEdicao(U.rh, 1, MES, { funcId: 105, data: '2026-12-27', justificativa: 'inventário' }, 'rascunho'); assert.ok(S.avisos(U.co).avisos.some(a => a.nivel === 'relevante' && /\(RH\) alterou Eva Rocha em 27\/12 \(domingo\)/.test(a.texto)));
   S.aposEdicao(U.ger, 1, MES, { funcId: 105, data: '2026-12-29' }, 'aprovada'); assert.ok(S.avisos(U.co).avisos.some(a => a.nivel === 'critico' && /alterou Eva Rocha em 29\/12/.test(a.texto)));
 });
+
+// ═══ ETAPA 3 — histórico real do ponto, semana de transição, pesos por dia e intervalo na regra ═══════════
+// Loja 3 (Ponte) com quadro próprio, para não depender do que os testes de cima deixaram na loja 1.
+// Hoje = quarta 11/11/2026; a proposta do mês corrente começa na quinta 12/11 → semana de transição 09–11/11.
+const { soma, dow, min: MIN } = require('../lib/escalas-gerador')._util;
+const colabs3 = { ativos: nomes.map((n, i) => ({ id: 301 + i, nome: n + ' Ponte', loja: 3, setor: i < 5 ? 'CAIXA' : 'REPOSITOR', cargo: i < 5 ? 'Operador de caixa' : 'Repositor', matricula: 'P' + i, turno: 'SEG-SEX 44H', turno_id: 10, admissao: '2025-03-01' })), desligados: [] };
+const BATIDAS = ['07:00', '11:00', '13:00', '17:48'];
+/** Apuração "do ponto" (formato de pontocerto.workDays): seg–sex com 4 marcações, sábado e domingo sem jornada e sem marcação. */
+function pontoDe(mud = {}, semLinha = [], de = '2026-10-12', ate = HOJE) {
+  const linhas = []; for (const c of colabs3.ativos) { if (semLinha.includes(c.id)) continue; for (let d = de; d <= ate; d = soma(d, 1)) { const util = dow(d) >= 1 && dow(d) <= 5, k = c.id + '|' + d; linhas.push({ employee_id: c.id, data: d, shift_time: util ? '08:48' : '00:00', marcacoes: k in mud ? mud[k] : (util ? BATIDAS : []) }); } }
+  return { de, ate, linhas };
+}
+const ctx3 = (ponto, extra) => ({ colabs: colabs3, escalasPC, afast: new Map(), afastAnt: new Map(), hoje: HOJE, ponto, ...extra });
+const MUD = { '301|2026-11-10': [],                                       // Ana: jornada prevista e nenhuma marcação
+  '302|2026-11-08': ['06:30', '12:40'],                                   // Bruno: trabalhou no domingo (folga prevista)
+  '305|2026-11-10': ['07:05'],                                            // Eva: marcação incompleta
+  '306|2026-11-11': [] };                                                 // Fábio: hoje ainda sem marcação (dia em andamento)
+const AFAST3 = new Map([['CARLA REIS PONTE', [{ nome: 'CARLA REIS PONTE', inicio: '2026-11-09', fim: '2026-11-10', ferias: false }]]]);
+
+test('histórico real do ponto: separa planejado, marcação realizada, folga prevista, descanso identificado e ausência — sem marcação não vira folga', () => {
+  const c = ctx3(pontoDe(MUD, [304]), { afastJanela: AFAST3 }); const { e } = S.escalaDe(3, MESN, c);
+  assert.deepEqual(S.janelaHistorico('2026-11-12'), { de: '2026-10-12', ate: '2026-11-11' });
+  const { hist, resumo } = S.historicoReal(e, '2026-11-12', c); const d = (id, dia) => hist[id].dias[dia];
+  // marcação realizada: horário batido, fonte ponto
+  assert.deepEqual(d(302, '2026-11-09'), { tipo: 'trabalho', entrada: '07:00', saida: '17:48', almoco_ini: '11:00', almoco_fim: '13:00', setor: 'FRENTE DE CAIXA', fonte: 'ponto' });
+  // folga prevista + nenhuma marcação = descanso identificado; folga prevista COM marcação = trabalhou
+  assert.deepEqual(d(301, '2026-11-08'), { tipo: 'folga', fonte: 'ponto' });
+  assert.equal(d(302, '2026-11-08').tipo, 'trabalho'); assert.equal(d(302, '2026-11-08').emFolgaPrevista, true); assert.equal(d(302, '2026-11-08').entrada, '06:30'); assert.equal(d(302, '2026-11-08').saida, '12:40');
+  // jornada prevista e nenhuma marcação: NÃO é folga
+  assert.deepEqual(d(301, '2026-11-10'), { tipo: 'indefinido', fonte: 'ponto' });
+  // ausência/afastamento do relatório do ponto
+  assert.deepEqual(d(303, '2026-11-09'), { tipo: 'afastado', fonte: 'ponto' }); assert.equal(d(303, '2026-11-11').tipo, 'trabalho');
+  // quem não tem apuração no ponto: só o planejado, marcado como não confirmado (nos dois sentidos: trabalho e folga)
+  assert.equal(d(304, '2026-11-10').tipo, 'trabalho'); assert.equal(d(304, '2026-11-10').naoConfirmado, true); assert.equal(d(304, '2026-11-10').fonte, 'escala'); assert.equal(d(304, '2026-11-08').tipo, 'folga'); assert.equal(d(304, '2026-11-08').naoConfirmado, true);
+  // marcação incompleta: trabalhou, com o horário planejado; dia em andamento (hoje sem marcação): vale o planejado, sem pendência
+  assert.equal(d(305, '2026-11-10').incompleta, true); assert.equal(d(305, '2026-11-10').saida, '17:48');
+  assert.equal(d(306, '2026-11-11').tipo, 'trabalho'); assert.equal(d(306, '2026-11-11').fonte, 'escala'); assert.equal(d(306, '2026-11-11').naoConfirmado, undefined);
+  assert.equal(resumo.fonte, 'ponto'); assert.equal(resumo.indefinido, 1); assert.equal(resumo.ausencia, 2); assert.equal(resumo.incompletas, 1); assert.equal(resumo.naoConfirmado, 30, 'os 30 dias passados da janela de quem não marca ponto (hoje fica como planejado)');
+  assert.deepEqual(resumo.pendentes.filter(p => p.motivo === 'sem_marcacao').map(p => [p.id, p.data]), [[301, '2026-11-10']]); assert.deepEqual(resumo.semPonto, ['Davi Melo Ponte']);
+  assert.ok(resumo.limitacoes.some(t => /não devolve a escala planejada/.test(t))); assert.ok(resumo.limitacoes.some(t => /não foram contados como folga/.test(t))); assert.ok(resumo.limitacoes.some(t => /não marcam ponto/.test(t)));
+  assert.equal(E.ler(3, MESN), null, 'ler o histórico não grava nada');
+});
+
+test('semana de transição com o ponto: sem dados suficientes não aplica; o indefinido não é contado como folga; a segunda-feira seguinte é sugerida', () => {
+  const r3 = S.salvarRegra(U.rh, { ...regraBody, nome: 'CCT Ponte (teste)', estabelecimento: 3 }); S.validarRegra(U.rh, r3.id, 'Conferida a cláusula 12 da CCT 2026/2027');
+  const c = () => ctx3(pontoDe(MUD, [304]), { afastJanela: AFAST3 });
+  const s = S.simular(U.rh, 3, MESN, c()); const t = s.resultado.transicao; assert.equal(s.de, '2026-11-12');
+  assert.equal(t.necessaria, true); assert.deepEqual(t.semana, { inicio: '2026-11-09', fim: '2026-11-15' }); assert.equal(t.pendentes, 2);
+  const ana = t.funcionarios.find(x => x.funcId === 301), davi = t.funcionarios.find(x => x.funcId === 304), bruno = t.funcionarios.find(x => x.funcId === 302);
+  assert.deepEqual(ana.pendentes, ['2026-11-10']); assert.equal(ana.descansos, 0); assert.equal(ana.folgasPropostas, 2, 'o dia sem marcação não descontou folga');
+  assert.deepEqual(davi.pendentes, ['2026-11-09', '2026-11-10']); assert.equal(bruno.situacao, 'ok'); assert.equal(bruno.trabalhados, 3); assert.equal(bruno.folgasPropostas, 2);
+  assert.deepEqual(s.aplicacao.pendencias.map(p => p.codigo), ['transicao_sem_dados']); assert.equal(s.aplicacao.permitida, false); assert.equal(s.sugestaoInicio, '2026-11-16');
+  assert.match(s.aplicacao.pendencias[0].texto, /2 funcionário\(s\).*próxima segunda: 16\/11/);
+  assert.throws(() => S.aplicar(U.rh, 3, MESN, c(), { justificativa: 'gerar novembro em 5x2', cienteDivergencias: true }), status(409)); assert.equal(E.ler(3, MESN), null);
+  for (const p of s.resultado.proposta) for (const d of ['2026-11-09', '2026-11-10', '2026-11-11']) assert.equal(p.dias[d], undefined, 'registro do ponto não é regravado pela proposta');
+  // começando na segunda-feira não há transição: a mesma base de dados libera a aplicação
+  const seg = S.simular(U.rh, 3, MESN, c(), { aPartirDe: '2026-11-16' }); assert.equal(seg.resultado.transicao.necessaria, false); assert.equal(seg.aplicacao.permitida, true, JSON.stringify(seg.aplicacao.pendencias)); assert.equal(seg.sugestaoInicio, null);
+  // ponto fora do ar: os dias passados ficam não confirmados → no meio da semana ninguém tem dado suficiente
+  const fora = S.simular(U.rh, 3, MESN, ctx3(null)); assert.equal(fora.historico.fonte, 'planejado'); assert.equal(fora.resultado.transicao.pendentes, 8); assert.ok(fora.historico.limitacoes.some(x => /não respondeu/.test(x)));
+  assert.ok(fora.aplicacao.pendencias.some(p => p.codigo === 'transicao_sem_dados'));
+});
+
+test('RH valida os dias que o ponto não confirma: só o RH da unidade, justificado e auditado; depois disso a folga não duplica e a transição libera', () => {
+  const c = () => ctx3(pontoDe(MUD, [304]), { afastJanela: AFAST3 }); const funcs = S.escalaDe(3, MESN, c()).e.funcionarios;
+  const itens = [{ id: 301, data: '2026-11-10', tipo: 'descanso' }, { id: 304, data: '2026-11-09', tipo: 'trabalho' }, { id: 304, data: '2026-11-10', tipo: 'trabalho' }];
+  assert.throws(() => S.validarHistorico(U.ger, 3, funcs, itens, 'conferido com o gerente da loja', HOJE), status(403));
+  assert.throws(() => S.validarHistorico(U.rh2, 3, funcs, itens, 'conferido com o gerente da loja', HOJE), status(403), 'RH de outra unidade');
+  assert.throws(() => S.validarHistorico(U.rh, 3, funcs, itens, 'ok', HOJE), /Justifique/);
+  assert.throws(() => S.validarHistorico(U.rh, 3, funcs, [{ id: 301, data: HOJE, tipo: 'descanso' }], 'conferido com o gerente da loja', HOJE), /já encerrados/);
+  assert.throws(() => S.validarHistorico(U.rh, 3, funcs, [{ id: 999, data: '2026-11-10', tipo: 'descanso' }], 'conferido com o gerente da loja', HOJE), /não está no quadro/);
+  assert.throws(() => S.validarHistorico(U.rh, 3, funcs, [{ id: 301, data: '2026-11-10', tipo: 'folga' }], 'conferido com o gerente da loja', HOJE), /trabalhou ou descansou/);
+  const antes = S.trilha(U.co, { loja: 3 }).registros.length;
+  assert.equal(S.validarHistorico(U.rh, 3, funcs, itens, 'Folga compensatória da Ana e ponto manual do Davi conferidos com o gerente', HOJE).validados, 3);
+  const reg = S.trilha(U.co, { loja: 3 }).registros.find(x => x.acao === 'historico_validar'); assert.ok(reg); assert.equal(reg.alteracoes.length, 3); assert.equal(reg.usuario, 'rh'); assert.equal(S.trilha(U.co, { loja: 3 }).registros.length, antes + 1); assert.equal(S.verificarCadeia().ok, true);
+  assert.ok(S.avisos(U.co).avisos.some(a => a.nivel === 'relevante' && /validou 3 dia\(s\)/.test(a.texto)));
+  const s = S.simular(U.rh, 3, MESN, c()); const t = s.resultado.transicao; assert.equal(t.pendentes, 0); assert.equal(s.aplicacao.permitida, true, JSON.stringify(s.aplicacao.pendencias));
+  const ana = t.funcionarios.find(x => x.funcId === 301); assert.equal(ana.descansos, 1); assert.equal(ana.folgasPropostas, 1, 'descanso validado conta: sem folga duplicada'); assert.equal(ana.dias.find(x => x.data === '2026-11-10').fonte, 'rh');
+  assert.equal(s.historico.validadoRH, 3); assert.equal(s.historico.indefinido, 0);
+  for (const p of s.resultado.proposta) { const sem = p.semanas[0]; if (p.id !== 303) { assert.equal(sem.trabalho, 5, p.nome); assert.equal(sem.folgas, 2, p.nome); } }
+  // aplicar continua gravando só RASCUNHO, e a geração guarda a transição e o resumo do histórico usado
+  const r = S.aplicar(U.rh, 3, MESN, c(), { justificativa: 'gerar novembro em 5x2 a partir de 12/11', cienteDivergencias: true, assinatura: s.assinatura });
+  assert.equal(E.obter(3, MESN).status, 'rascunho'); const g = S.geracao(U.rh, r.geracao.id); assert.equal(g.transicao.necessaria, true); assert.equal(g.historico.fonte, 'ponto'); assert.equal(g.historico.validadoRH, 3);
+  assert.ok(!Object.keys(g.depois).some(k => k.split('|')[1] < '2026-11-12'), 'nenhum dia anterior ao início foi gravado');
+  // desfazer a validação devolve a pendência
+  assert.equal(S.validarHistorico(U.rh, 3, funcs, [{ id: 301, data: '2026-11-10', tipo: null }], 'validação lançada na pessoa errada', HOJE).validados, 1);
+  assert.equal(S.historicoReal(S.escalaDe(3, MESN, c()).e, '2026-11-12', c()).resumo.indefinido, 1);
+});
+
+test('pesos por dia: configurados por unidade e por setor (1 a 5), auditados, e usados na simulação sem virar proibição', () => {
+  const c = () => ctx3(pontoDe()); const rot = s => s.resultado.proposta.reduce((t, p) => t + Object.entries(p.dias).filter(([d, x]) => x.folga === 'rotativa' && [5, 6].includes(dow(d))).length, 0);
+  // folga fixa de segunda a quinta (definida pelo RH), para a rotativa poder cair em qualquer dia
+  S.salvarCadastro(U.rh, 3, S.escalaDe(3, MES, c()).e.funcionarios, colabs3.ativos.map((x, i) => ({ id: x.id, folga_fixa: 1 + (i % 4) })), 'folgas fixas definidas pelo RH');
+  const sem = S.simular(U.rh, 3, MES, c()); assert.deepEqual(sem.resultado.pesos.diasPesados, []); assert.ok(rot(sem) >= 6, 'sem peso há rotativas na sexta e no sábado: ' + rot(sem));
+  assert.throws(() => S.salvarCobertura(U.ger, 3, { pesoDia: { 5: 3 } }, 'sexta e sábado de maior movimento'), status(403));
+  assert.throws(() => S.salvarCobertura(U.rh, 3, { pesoDia: { 5: 9 } }, 'sexta e sábado de maior movimento'), /de 1 \(normal\) a 5/);
+  assert.throws(() => S.salvarCobertura(U.rh, 3, { pesoDia: { 8: 2 } }, 'sexta e sábado de maior movimento'), /Peso do dia inválido/);
+  const cob = S.salvarCobertura(U.co, 3, { entradas: ['07:00', '09:00'], picos: [], pesoDia: { 1: 1, 5: 3, 6: 4 }, pesosSetor: { reposição: { 6: 1 } } }, 'sexta e sábado de maior movimento; reposição folga normalmente no sábado');
+  assert.deepEqual(cob.pesoDia, { 5: 3, 6: 4 }, 'peso 1 (normal) não é gravado na unidade'); assert.deepEqual(cob.pesosSetor, { REPOSICAO: { 6: 1 } }); assert.deepEqual(cob.setores.REPOSICAO.pesoDia, { 6: 1 });
+  const reg = S.trilha(U.co, { loja: 3 }).registros.find(x => x.acao === 'cobertura'); assert.deepEqual(reg.depois.pesoDia, { 5: 3, 6: 4 }); assert.deepEqual(reg.antes.pesoDia, {});
+  // chamada antiga (sem os campos de peso) não apaga o que estava gravado
+  assert.deepEqual(S.salvarCobertura(U.rh, 3, { entradas: ['07:00', '09:00'], picos: [] }, 'mesmas entradas, sem mexer nos pesos').pesoDia, { 5: 3, 6: 4 });
+  const com = S.simular(U.rh, 3, MES, c()); assert.deepEqual(com.resultado.pesos.diasPesados, [5, 6]);
+  assert.ok(rot(com) < rot(sem), 'rotativas em sexta/sábado: ' + rot(sem) + ' → ' + rot(com));
+  assert.equal(com.resultado.indicadores.pct_semanas_5x2, 100, 'peso não tira folga de ninguém'); assert.equal(com.resultado.conflitos.trabalhistas.filter(x => x.gravidade === 'bloqueio').length, 0);
+  assert.equal(com.resultado.pesos.folgasEmDiaPesado, com.resultado.proposta.reduce((t, p) => t + p.folgasEmDiaPesado, 0));
+});
+
+test('regra trabalhista: intervalo mínimo, máximo e horas seguidas da convenção são validados, gravados e chegam ao motor', () => {
+  const base = { ...regraBody, nome: 'CCT Ponte — intervalo', estabelecimento: 3, vigencia: { de: '2026-11-01', ate: '2027-12-31' } };
+  assert.throws(() => S.salvarRegra(U.rh, { ...base, params: { ...regraBody.params, intervalo: { minimoMin: 999 } } }), /intervalo fora da faixa/);
+  assert.throws(() => S.salvarRegra(U.rh, { ...base, params: { ...regraBody.params, intervalo: { minimoMin: 180, maximoMin: 120 } } }), /mínimo não pode ser maior/);
+  assert.throws(() => S.salvarRegra(U.rh, { ...base, params: { ...regraBody.params, intervaloMin: 30 } }), /precisa ficar entre o mínimo/);
+  assert.throws(() => S.salvarRegra(U.rh, { ...base, params: { ...regraBody.params, intervalo: { continuoMaxMin: 240 } } }), /não existe posição de intervalo/);
+  const r = S.salvarRegra(U.rh, { ...base, params: { ...regraBody.params, intervaloMin: 60, intervalo: { continuoMaxMin: 300 } } });
+  assert.equal(r.params.intervalo.continuoMaxMin, 300); assert.equal(r.params.intervalo.minimoMin, 60, 'o que a convenção não muda fica no padrão'); assert.equal(r.params.intervalo.maximoMin, 120); assert.equal(r.validada, false);
+  assert.deepEqual(S.cfg().regras.find(x => x.id === r.id).params.intervalo, { continuoMaxMin: 300 }, 'só o que foi informado é gravado');
+  S.validarRegra(U.rh, r.id, 'Conferida a cláusula de intervalo da CCT 2026/2027');
+  const s = S.simular(U.rh, 3, MES, ctx3(pontoDe())); assert.ok(s.resultado.regrasAplicadas.some(x => x.id === r.id && x.validada));
+  let n = 0; for (const p of s.resultado.proposta) for (const x of Object.values(p.dias)) if (x.tipo === 'trabalho' && x.origem === 'gerador') { n++; assert.equal(MIN(x.almoco_fim) - MIN(x.almoco_ini), 60); assert.ok(MIN(x.almoco_ini) - MIN(x.entrada) <= 300 && MIN(x.saida) - MIN(x.almoco_fim) <= 300, JSON.stringify(x)); }
+  assert.ok(n > 100); assert.ok(!s.resultado.conflitos.trabalhistas.some(x => /intervalo|continuo|pausa/.test(x.codigo)));
+});
