@@ -1018,8 +1018,34 @@ function gateRender(ev){
     }catch(e){$('gate-a').innerHTML='<div class="gate-erro">'+esc(e.message)+'</div><button class="gate-btn" onclick="gateRender()">Tentar de novo</button>';}
   };
 }
+// Administrador no celular (12/11/26, Tiago: "poderia chegar todas lojas pra mim?"): sem trava. Com a permissão já dada, o aparelho
+// se inscreve em silêncio no login dele (e sai do login de gerente em que estava); sem permissão, oferece ativar e dá pra adiar 7 dias.
+// O servidor manda pro administrador inscrito os avisos de TODAS as lojas (lib/gerencial-push.js).
+function gateAdmin(){
+  if(!('Notification' in window)||!('PushManager' in window)||!('serviceWorker' in navigator))return;
+  const perm=Notification.permission;
+  if(perm==='granted'){inscreverPush().catch(e=>console.warn('push:',e.message));return;}
+  if(perm==='denied')return;
+  let adiado=0;try{adiado=+localStorage.getItem('ger_push_adiado')||0;}catch(e){}
+  if(Date.now()-adiado<7*864e5)return;
+  gateMostrar('Administrador','Receber os avisos das lojas','Como administrador você recebe neste celular os avisos de <b>todas as lojas</b> (ponto, resumos e notas finalizadas). Toque no botão e escolha <b>Permitir</b>.',
+    '<button class="gate-btn" id="gate-not">Ativar notificações</button><button class="gate-btn sec" id="gate-dep">Agora não</button>');
+  $('gate-dep').onclick=()=>{try{localStorage.setItem('ger_push_adiado',String(Date.now()));}catch(e){}gateFechar();};
+  $('gate-not').onclick=async()=>{
+    const b=$('gate-not');b.disabled=true;b.textContent='Aguardando…';
+    try{
+      const p=await Notification.requestPermission();
+      if(p!=='granted'){gateFechar();return;}
+      b.textContent='Registrando o aparelho…';await inscreverPush();
+      let t=null;try{t=await (await fetch('/api/gestao-gerencial/push/testar',{method:'POST'})).json();}catch(e){}
+      gateMostrar('Pronto','Notificações ativadas ✓',t&&t.ok?'Mandamos um aviso de teste pro seu celular. Os avisos de todas as lojas chegam por aqui.':'Aparelho registrado. Os avisos de todas as lojas vão chegar por aqui.','<button class="gate-btn" onclick="gateFechar()">Entrar</button>');
+    }catch(e){$('gate-a').innerHTML='<div class="gate-erro">'+esc(e.message)+'</div><button class="gate-btn sec" onclick="gateFechar()">Fechar</button>';}
+  };
+}
 function gate(u){
-  if(!u||u.perfil!=='gerencial'||!ehCelular())return;
+  if(!u||!ehCelular())return;
+  if(u.perfil==='admin'){gateAdmin();return;}
+  if(u.perfil!=='gerencial')return;
   gateRender();
 }
 
@@ -1226,6 +1252,10 @@ fetch('/api/me').then(r=>r.json()).then(u=>{
     sel.value=u.loja_id;
     sel.disabled=true;
     sel.style.opacity='.6';
+  }else{
+    // aviso de outra loja no celular do administrador abre com ?loja=N: já entra naquela loja
+    const lq=new URLSearchParams(location.search).get('loja'),sel=document.getElementById('sel-loja');
+    if(lq&&[...sel.options].some(o=>o.value===lq))sel.value=lq;
   }
   cabecalhoInicio(u);gate(u);
 }).catch(()=>cabecalhoInicio(null)).finally(()=>carregar());

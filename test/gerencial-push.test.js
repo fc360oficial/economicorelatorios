@@ -46,6 +46,35 @@ test('notificarLoja: só os gerentes inscritos daquela loja', async () => {
   const nada = await P.notificarLoja(3, { title: 'Loja 3' });
   assert.equal(nada.usuarios, 0);
 });
+test('administrador inscrito recebe de todas as lojas, com a loja no título e no endereço; gerente segue só com a dele', async () => {
+  const adm = { usuario: 'tiago.freire', nome: 'Tiago', perfil: 'admin' };
+  P.inscrever(adm, sub('adm'));
+  let antes = enviados.length;
+  const r3 = await P.notificarLoja(3, { title: 'Nota finalizada · NF 10', url: '/gestao-gerencial.html#notas' });
+  assert.equal(r3.usuarios, 1); assert.equal(enviados.length - antes, 1);
+  assert.equal(enviados[enviados.length - 1].corpo.title, 'E3 · Nota finalizada · NF 10');
+  assert.equal(enviados[enviados.length - 1].corpo.url, '/gestao-gerencial.html?loja=3#notas');
+  antes = enviados.length;
+  const r2 = await P.notificarLoja(2, { title: 'Ponto · E2 · Muribeca · 10 min do horário', url: '/gestao-gerencial.html#ponto' });
+  assert.equal(r2.usuarios, 2, 'gerente da E2 + administrador');
+  const doGer = enviados.slice(antes).find(e => e.sub.endpoint.endsWith('/ok')), doAdm = enviados.slice(antes).find(e => e.sub.endpoint.endsWith('/adm'));
+  assert.equal(doGer.corpo.url, '/gestao-gerencial.html#ponto', 'o gerente recebe o aviso como sempre');
+  assert.equal(doAdm.corpo.title, 'Ponto · E2 · Muribeca · 10 min do horário', 'título que já tem a loja não ganha prefixo');
+  assert.equal(doAdm.corpo.url, '/gestao-gerencial.html?loja=2#ponto');
+  P.init({ dataDir: dir, webpush: webpushFalso });   // relê do disco: "todas" persiste
+  assert.equal((await P.notificarLoja(6, { title: 'x' })).usuarios, 1);
+});
+test('aparelho que troca de login sai do login antigo (sem aviso em dobro)', async () => {
+  const adm = { usuario: 'tiago.freire', nome: 'Tiago', perfil: 'admin' };
+  P.inscrever(ger5, sub('celular-do-tiago'));
+  const n5 = P.dispositivosDe(ger5);
+  P.inscrever(adm, sub('celular-do-tiago'));
+  assert.equal(P.dispositivosDe(ger5), n5 - 1);
+  const antes = enviados.length;
+  await P.notificarLoja(5, { title: 'Resumo 09:00 · E5 · Porta Larga' });
+  assert.equal(enviados.slice(antes).filter(e => e.sub.endpoint.endsWith('/celular-do-tiago')).length, 1);
+  P.desinscrever(adm, 'https://push.exemplo/celular-do-tiago'); P.desinscrever(adm, 'https://push.exemplo/adm');
+});
 test('testar: usuário sem aparelho devolve erro claro; com aparelho manda o aviso de teste', async () => {
   const semApp = await P.testar({ usuario: 'ninguem', nome: 'N' });
   assert.equal(semApp.ok, false); assert.match(semApp.erro, /sem aparelho/);
