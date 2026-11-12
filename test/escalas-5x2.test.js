@@ -161,7 +161,8 @@ test('avisos à Coordenação: imediato para o que é crítico/relevante, relat�
   assert.equal(S.marcarVistos(U.co, [nova.id]).marcados, 1); assert.equal(S.marcarVistos(U.co, [nova.id]).marcados, 0); assert.equal(S.marcarVistos(U.rh, [nova.id]).marcados, 0, 'só o destinatário registra visualização');
   const n2 = S.avisos(U.co).avisos.find(a => a.id === nova.id).destinatarios; assert.ok(n2.find(d => d.usuario === 'co').visto); assert.equal(n2.find(d => d.usuario === 'co2').visto, null);
   // edição comum do gerente = rotina → só no relatório diário
-  E.editarDia(1, MES, U.ger, { funcId: 105, data: '2026-12-29', tipo: 'trabalho', entrada: '07:30', saida: '17:54', almoco_ini: '11:30', almoco_fim: '13:30' }); S.aposEdicao(U.ger, 1, MES, { funcId: 105, data: '2026-12-29' }, 'rascunho');
+  assert.throws(() => E.editarDia(1, MES, U.ger, { funcId: 105, data: '2026-12-29', tipo: 'trabalho', entrada: '07:30', saida: '17:54', almoco_ini: '11:30', almoco_fim: '13:30' }), /exige justificativa/, 'Etapa 4: toda alteração é justificada, inclusive a do gerente');
+  E.editarDia(1, MES, U.ger, { funcId: 105, data: '2026-12-29', tipo: 'trabalho', entrada: '07:30', saida: '17:54', almoco_ini: '11:30', almoco_fim: '13:30', justificativa: 'troca de horário combinada' }); S.aposEdicao(U.ger, 1, MES, { funcId: 105, data: '2026-12-29', justificativa: 'troca de horário combinada' }, 'rascunho');
   assert.ok(S.avisos(U.co).pendentes_rotina >= 1); assert.ok(!S.avisos(U.co).avisos.some(a => /alterou Eva Rocha em 29\/12/.test(a.texto)));
   assert.equal(S.relatorioDiario({ agora: new Date('2026-11-11T09:00:00') }), null, 'antes da hora configurada não envia');
   const rel = S.relatorioDiario({ agora: new Date('2026-11-11T18:05:00') }); assert.ok(rel.itens >= 1); assert.deepEqual(rel.para.sort(), ['co', 'co2']);
@@ -291,4 +292,127 @@ test('regra trabalhista: intervalo mínimo, máximo e horas seguidas da convenç
   const s = S.simular(U.rh, 3, MES, ctx3(pontoDe())); assert.ok(s.resultado.regrasAplicadas.some(x => x.id === r.id && x.validada));
   let n = 0; for (const p of s.resultado.proposta) for (const x of Object.values(p.dias)) if (x.tipo === 'trabalho' && x.origem === 'gerador') { n++; assert.equal(MIN(x.almoco_fim) - MIN(x.almoco_ini), 60); assert.ok(MIN(x.almoco_ini) - MIN(x.entrada) <= 300 && MIN(x.saida) - MIN(x.almoco_fim) <= 300, JSON.stringify(x)); }
   assert.ok(n > 100); assert.ok(!s.resultado.conflitos.trabalhistas.some(x => /intervalo|continuo|pausa/.test(x.codigo)));
+});
+
+// ═══ ETAPA 4 — cores por turno, regra das duas folgas com trava de publicação, auditoria de cada alteração ═══
+// Loja 5 (Porta Larga) com quadro próprio; dezembro/2026 inteiro é futuro (hoje = 11/11): 01/12 é terça, então a semana
+// 30/11–06/12 atravessa o mês e entra pela transição (30/11 = planejado do contrato).
+const colabs5 = { ativos: nomes.map((n, i) => ({ id: 501 + i, nome: n + ' Porta', loja: 5, setor: i < 5 ? 'CAIXA' : 'REPOSITOR', cargo: i < 5 ? 'Operador de caixa' : 'Repositor', matricula: 'L' + i, turno: 'SEG-SEX 44H', turno_id: 10, admissao: '2025-03-01' })), desligados: [] };
+const ctx5 = extra => ({ colabs: colabs5, escalasPC, afast: new Map(), afastAnt: new Map(), hoje: HOJE, ponto: null, ...extra });
+const semanaDe = seg => [0, 1, 2, 3, 4, 5, 6].map(i => soma(seg, i));
+const ultimaAud = acao => fs.readFileSync(S.P.aud(), 'utf8').split('\n').filter(Boolean).map(l => JSON.parse(l)).filter(r => r.acao === acao).pop();
+const diaNaGrade = (id, d) => { const e = E.ler(5, MES); return E.diaDe(e, e.funcionarios.find(f => f.id === id), d, null); };
+
+test('turnos e cores: classificação configurável por unidade e por setor, legenda com cores e horários, auditada', () => {
+  const t0 = S.turnosLoja(5); assert.equal(t0.unidade.abre, '07:00'); assert.equal(t0.unidade.fecha, '19:00'); assert.equal(t0.unidade.aberturaAte, '07:59'); assert.equal(t0.unidade.fechamentoDesde, '19:00'); assert.deepEqual(t0.setores, {});
+  assert.deepEqual(t0.classes.map(c => [c.id, c.nome]), [['abertura', 'Abertura'], ['intermediario', 'Intermediário'], ['fechamento', 'Fechamento'], ['especial', 'Turno especial']]);
+  assert.equal(new Set(Object.values(S.CORES)).size, Object.keys(S.CORES).length, 'cada classificação tem a própria cor (férias ≠ afastamento, F ≠ FR)');
+  const corpo = { entradas: ['07:00', '08:36'], picos: [], turnos: { aberturaAte: '08:00', especiais: '0600-1200, 12:00–18:00' }, turnosSetor: { 'reposição': { abre: '05:00', fecha: '14:00' }, CAIXA: {} } };
+  assert.throws(() => S.salvarCobertura(U.ger, 5, corpo, 'classificação dos turnos'), status(403));
+  assert.throws(() => S.salvarCobertura(U.co, 5, { ...corpo, turnos: { aberturaAte: '20:00' } }, 'classificação dos turnos'), /dentro do funcionamento/);
+  assert.throws(() => S.salvarCobertura(U.co, 5, { ...corpo, turnos: { especiais: 'manhã' } }, 'classificação dos turnos'), /Horários especiais inválidos/);
+  assert.throws(() => S.salvarCobertura(U.co, 5, { ...corpo, turnosSetor: { PADARIA: { abre: '14:00', fecha: '05:00' } } }, 'classificação dos turnos'), /Funcionamento inválido/);
+  const c = S.salvarCobertura(U.co, 5, corpo, 'classificação dos turnos da Porta Larga'); const T = c.turnos;
+  assert.equal(T.unidade.aberturaAte, '08:00'); assert.deepEqual(T.unidade.especiais, ['06:00-12:00', '12:00-18:00']); assert.deepEqual(Object.keys(T.setores), ['REPOSICAO'], 'setor sem nada informado não é gravado');
+  assert.deepEqual({ ...T.setores.REPOSICAO, proprio: undefined }, { abre: '05:00', fecha: '14:00', aberturaAte: '05:59', fechamentoDesde: '14:00', especiais: ['06:00-12:00', '12:00-18:00'], proprio: undefined });
+  const aud = ultimaAud('cobertura'); assert.deepEqual(aud.depois.turnos, { aberturaAte: '08:00', especiais: ['06:00-12:00', '12:00-18:00'] }); assert.deepEqual(aud.antes.turnos, {}); assert.equal(aud.usuario, 'co');
+  // chamada antiga (sem os campos de turno) não apaga o que estava gravado
+  assert.equal(S.salvarCobertura(U.co, 5, { entradas: ['07:00', '08:36'], picos: [] }, 'só as entradas').turnos.unidade.aberturaAte, '08:00');
+  // pintar: a classificação sai do funcionamento do setor do dia; a legenda traz cor, regra e os horários de cada classe
+  const d = (en, sa) => ({ tipo: 'trabalho', entrada: en, saida: sa, almoco_ini: null, almoco_fim: null });
+  const funcs = [{ setor: 'FRENTE DE CAIXA', dias: { a: d('07:00', '17:24'), b: d('08:00', '18:24'), c: d('08:30', '18:54'), d: d('09:00', '19:24'), e: d('06:00', '12:00'), f: { tipo: 'folga' }, g: { tipo: 'ferias' } } },
+    { setor: 'REPOSICAO', dias: { a: d('05:00', '13:00'), b: d('07:00', '17:24'), c: d('06:30', '13:30') } }];
+  const L = S.pintar(5, funcs);
+  assert.deepEqual(Object.values(funcs[0].dias).map(x => x.classe), ['abertura', 'abertura', 'intermediario', 'fechamento', 'especial', undefined, undefined]);
+  assert.deepEqual(Object.values(funcs[1].dias).map(x => x.classe), ['abertura', 'fechamento', 'intermediario'], 'na Reposição (05–14) o turno das 07:00 às 17:24 é fechamento');
+  assert.deepEqual(L.classes.map(x => [x.id, x.cor, x.dias]), [['abertura', S.CORES.abertura, 3], ['intermediario', S.CORES.intermediario, 2], ['fechamento', S.CORES.fechamento, 2], ['especial', S.CORES.especial, 1]]);
+  assert.deepEqual(L.classes[0].horarios, ['0500-1300', '0700-1724', '0800-1824']); assert.match(L.classes[0].regra, /entrada até 08:00/); assert.match(L.classes[3].regra, /06:00–12:00/);
+  assert.deepEqual(L.funcionamento, { abre: '07:00', fecha: '19:00' }); assert.equal(L.setoresProprios[0].setor, 'REPOSICAO');
+  // a proposta do gerador já sai pintada, e pintar não muda a assinatura da simulação
+  const r5 = S.salvarRegra(U.rh, { ...regraBody, nome: 'CCT Porta Larga (teste)', estabelecimento: 5 }); S.validarRegra(U.rh, r5.id, 'Conferida a cláusula 12 da CCT 2026/2027');
+  const s = S.simular(U.rh, 5, MES, ctx5()); let n = 0;
+  for (const p of s.resultado.proposta) for (const x of Object.values(p.dias)) { if (x.tipo === 'trabalho') { n++; assert.ok(['abertura', 'intermediario', 'fechamento', 'especial'].includes(x.classe), JSON.stringify(x)); } else assert.equal(x.classe, undefined); }
+  assert.ok(n > 100); assert.equal(s.classes.classes.reduce((t, x) => t + x.dias, 0), n);
+  S.salvarCobertura(U.co, 5, { ...corpo, turnos: {} }, 'volta ao padrão do funcionamento'); assert.equal(S.simular(U.rh, 5, MES, ctx5()).assinatura, s.assinatura);
+});
+
+test('duas folgas no serviço: a geração fecha em 2 por semana; 3ª folga à mão é auditada, avisa a Coordenação, trava a publicação e o gerador reprocessa', () => {
+  const funcs = S.escalaDe(5, MES, ctx5()).e.funcionarios;
+  S.salvarCadastro(U.rh, 5, funcs, [{ id: 501, folga_fixa: 1 }], 'folga fixa da Ana definida pelo RH (segunda)');
+  const s = S.simular(U.rh, 5, MES, ctx5()); assert.equal(s.aplicacao.permitida, true, JSON.stringify(s.aplicacao.pendencias));
+  assert.equal(s.duasFolgas.excesso + s.duasFolgas.falta, 0); assert.equal(s.duasFolgas.ok, s.duasFolgas.semanas);
+  for (const p of s.resultado.proposta) for (const w of p.semanas) { assert.equal(w.regra52.folgas, 2, p.nome + ' ' + w.inicio); assert.equal(w.regra52.situacao, 'ok'); }
+  // a semana 28/12–03/01 atravessa para janeiro: as folgas que caem em janeiro entram como previstas e a conta fecha em 2
+  for (const p of s.resultado.proposta) { const w = p.semanas.find(x => x.inicio === '2026-12-28'); assert.equal(w.regra52.noPeriodo + w.regra52.previstas, 2, p.nome); }
+  const g = S.aplicar(U.rh, 5, MES, ctx5(), { justificativa: 'dezembro em 5x2 na Porta Larga', cienteDivergencias: true, assinatura: s.assinatura });
+  const ap = ultimaAud('gerar_aplicar'); assert.equal(ap.validacao.ok, true); assert.equal(ap.validacao.duasFolgas.ok, s.duasFolgas.semanas); assert.match(ap.validacao.resumo, /semanas com as duas folgas/); assert.equal(S.geracao(U.rh, g.geracao.id).duasFolgas.excesso, 0);
+  const p0 = S.portaPublicacao(5, MES, ctx5()); assert.equal(p0.aplicavel, true); assert.equal(p0.liberada, true, JSON.stringify(p0.bloqueios)); assert.equal(p0.desde, '2026-11-30');
+  // RH dá uma folga a mais ao Bruno (502) na semana de 14/12: a semana fica com 3 folgas
+  const alvo = semanaDe('2026-12-14').find(d => diaNaGrade(502, d).tipo === 'trabalho'); const corpo = { funcId: 502, data: alvo, tipo: 'folga', justificativa: 'pedido do funcionário, sem troca combinada' };
+  const antesDia = diaNaGrade(502, alvo); const ed = E.editarDia(5, MES, U.rh, corpo, new Map()); assert.equal(ed.ok, true, 'a autonomia do RH continua: a alteração é gravada');
+  const pos = S.aposEdicao(U.rh, 5, MES, corpo, 'rascunho', new Map());
+  assert.equal(pos.validacao.ok, false); assert.equal(pos.validacao.situacao, 'excesso'); assert.equal(pos.validacao.folgas, 3); assert.equal(pos.validacao.exigidas, 2); assert.deepEqual(pos.validacao.semana, { inicio: '2026-12-14', fim: '2026-12-20' });
+  assert.equal(pos.validacao.bloqueios[0].codigo, 'folgas_semana_excesso'); assert.match(pos.validacao.resumo, /3 folga\(s\) \(F \+ FR\).*INVÁLIDA/); assert.equal(pos.nivel, 'relevante');
+  // auditoria encadeada com tudo o que a alteração precisa registrar
+  const a = ultimaAud('dia_alterar'); assert.equal(a.seq, pos.auditoria);
+  assert.equal(a.funcionario, 'Bruno Sá Porta'); assert.equal(a.funcId, 502); assert.equal(a.loja, 5); assert.equal(a.setor, 'FRENTE DE CAIXA'); assert.deepEqual(a.semana, { inicio: '2026-12-14', fim: '2026-12-20' }); assert.equal(a.data, alvo);
+  assert.equal(a.antes.tipo, 'trabalho'); assert.equal(a.antes.entrada, antesDia.entrada); assert.equal(a.depois.tipo, 'folga'); assert.equal(a.usuario, 'rh'); assert.equal(a.nome, 'RH Ponto'); assert.ok(!isNaN(Date.parse(a.em)));
+  assert.equal(a.justificativa, corpo.justificativa); assert.equal(a.peloRH, true); assert.equal(a.validacao.ok, false); assert.equal(a.validacao.folgas, 3); assert.equal(a.validacao.bloqueios[0].codigo, 'folgas_semana_excesso'); assert.equal(S.verificarCadeia().ok, true);
+  const tr = S.trilha(U.co, { loja: 5, mes: MES }).registros; const linha = tr.find(x => x.acao === 'dia_alterar'); assert.equal(linha.funcionario, 'Bruno Sá Porta'); assert.equal(linha.setor, 'FRENTE DE CAIXA'); assert.match(linha.detalhe, /semana 14\/12 a 20\/12.*validação: 3 folga/);
+  assert.equal(tr.filter(x => x.origem === 'grade').length, 0, 'a alteração aparece uma vez só na trilha (a da cadeia)'); assert.equal(E.ler(5, MES).historico.slice(-1)[0].auditoria, a.seq);
+  // impacto operacional relevante = aviso imediato à Coordenação
+  assert.ok(S.avisos(U.co).avisos.some(x => x.nivel === 'relevante' && x.tipo === 'imediato' && /alterou Bruno Sá Porta.*SEMANA INVÁLIDA: 3 folgas/.test(x.texto)));
+  // escala inválida não é validada nem aprovada, e a tentativa fica registrada
+  const p1 = S.portaPublicacao(5, MES, ctx5()); assert.equal(p1.liberada, false); assert.equal(p1.folgas, 1); assert.equal(p1.duasFolgas.excesso, 1);
+  assert.throws(() => S.exigirPublicavel(U.co, 5, MES, ctx5(), 'aprovar'), e => e.status === 409 && /não pode ser aprovada.*regra das duas folgas.*3 folgas/.test(e.message) && e.bloqueios.length === p1.bloqueios.length);
+  const pb = ultimaAud('publicacao_bloqueada'); assert.equal(pb.tentativa, 'aprovar'); assert.equal(pb.usuario, 'co'); assert.equal(pb.folgas, 1);
+  // reprocessamento: simular de novo respeita a folga dada à mão e tira a rotativa da semana — volta a ter exatamente 2
+  const s2 = S.simular(U.rh, 5, MES, ctx5()); const w2 = s2.resultado.proposta.find(p => p.id === 502).semanas.find(x => x.inicio === '2026-12-14');
+  assert.equal(w2.regra52.folgas, 2); assert.equal(s2.resultado.proposta.find(p => p.id === 502).dias[alvo].travado, true); assert.equal(s2.duasFolgas.excesso, 0); assert.equal(s2.aplicacao.permitida, true, JSON.stringify(s2.aplicacao.pendencias));
+  S.aplicar(U.rh, 5, MES, ctx5(), { justificativa: 'reprocessamento depois da folga do Bruno', cienteDivergencias: true, assinatura: s2.assinatura });
+  assert.equal(diaNaGrade(502, alvo).tipo, 'folga', 'o dia ajustado à mão não foi sobrescrito'); assert.equal(semanaDe('2026-12-14').filter(d => diaNaGrade(502, d).tipo === 'folga').length, 2);
+  assert.equal(S.portaPublicacao(5, MES, ctx5()).liberada, true); assert.equal(S.exigirPublicavel(U.co, 5, MES, ctx5(), 'aprovar').liberada, true);
+  // escala que nunca passou pelo gerador não entra na trava (continua como sempre foi)
+  assert.equal(S.portaPublicacao(6, MES, ctx5()).aplicavel, false);
+});
+
+test('duas folgas no serviço: menos de duas trava a publicação até o RH da unidade analisar a exceção (justificada e auditada)', () => {
+  // Ana (501, folga fixa segunda): numa semana em que a rotativa dela não é domingo, o RH troca a rotativa por 2 h de trabalho
+  const seg = ['2026-12-07', '2026-12-14', '2026-12-21'].find(sg => semanaDe(sg).slice(1, 6).some(d => diaNaGrade(501, d).tipo === 'folga')); assert.ok(seg, 'há semana com rotativa em dia útil');
+  const dia = semanaDe(seg).slice(1, 6).find(d => diaNaGrade(501, d).tipo === 'folga'); const corpo = { funcId: 501, data: dia, tipo: 'trabalho', entrada: '08:00', saida: '10:00', justificativa: 'reunião de inventário, 2 horas' };
+  E.editarDia(5, MES, U.rh, corpo, new Map()); const pos = S.aposEdicao(U.rh, 5, MES, corpo, 'rascunho', new Map());
+  assert.equal(pos.validacao.situacao, 'falta'); assert.equal(pos.validacao.folgas, 1); assert.equal(pos.validacao.ok, false); assert.equal(pos.validacao.horas, '44h00', '5 × 8h24 + 2h00: a carga é a efetiva');
+  assert.deepEqual(pos.validacao.bloqueios.map(b => b.codigo), ['folgas_semana_falta']); assert.equal(S.portaPublicacao(5, MES, ctx5()).liberada, false);
+  const funcs = E.ler(5, MES).funcionarios; const exc = { funcId: 501, semana: dia, justificativa: 'Inventário anual; folga compensada na semana seguinte, combinado com a funcionária' };
+  assert.throws(() => S.registrarExcecaoFolga(U.ger, 5, funcs, exc), status(403)); assert.throws(() => S.registrarExcecaoFolga(U.rh2, 5, funcs, exc), status(403), 'RH de outra unidade');
+  assert.throws(() => S.registrarExcecaoFolga(U.rh, 5, funcs, { ...exc, justificativa: 'ok' }), /mínimo de 10/); assert.throws(() => S.registrarExcecaoFolga(U.rh, 5, funcs, { ...exc, funcId: 999 }), /não está no quadro/);
+  assert.deepEqual(S.registrarExcecaoFolga(U.rh, 5, funcs, exc).semana, { inicio: seg, fim: soma(seg, 6) });
+  const a = ultimaAud('folga_excecao'); assert.equal(a.funcionario, 'Ana Lima Porta'); assert.equal(a.setor, 'FRENTE DE CAIXA'); assert.deepEqual(a.semana, { inicio: seg, fim: soma(seg, 6) }); assert.equal(a.antes, null); assert.match(a.depois.motivo, /Inventário anual/); assert.equal(a.usuario, 'rh');
+  assert.ok(S.avisos(U.co).avisos.some(x => x.nivel === 'relevante' && /registrou exceção à regra das duas folgas para Ana Lima Porta/.test(x.texto)));
+  const v = S.validacaoDaSemana(5, MES, 501, dia, ctx5()); assert.equal(v.situacao, 'excecao'); assert.equal(v.ok, true, JSON.stringify(v.bloqueios)); assert.equal(v.folgas, 1);
+  const an = S.analisar(U.co, 5, MES, ctx5()); assert.equal(an.duasFolgas.excecao, 1); assert.equal(an.duasFolgas.falta, 0); assert.equal(an.publicacao.liberada, true); assert.equal(an.publicacao.aplicavel, true);
+  assert.ok(an.conflitos.trabalhistas.some(c => c.codigo === 'folgas_semana_falta' && c.gravidade === 'info' && c.excecao)); assert.equal(an.podeExcecao, false, 'Coordenação consulta; quem analisa a exceção é o RH da unidade'); assert.equal(S.analisar(U.rh, 5, MES, ctx5()).podeExcecao, true);
+  // retirar a exceção devolve o bloqueio
+  assert.equal(S.registrarExcecaoFolga(U.rh, 5, funcs, { ...exc, remover: true, justificativa: 'folga compensatória não foi concedida' }).removida, true);
+  assert.equal(S.portaPublicacao(5, MES, ctx5()).liberada, false); assert.equal(ultimaAud('folga_excecao').depois, null);
+  S.registrarExcecaoFolga(U.rh, 5, funcs, exc); assert.equal(S.portaPublicacao(5, MES, ctx5()).liberada, true);
+});
+
+test('férias e afastamento no serviço: preservados na proposta, fora da conta das folgas, semana proporcional para análise do RH — e a carga é a efetiva', () => {
+  const afast = new Map([['CARLA REIS PORTA', [{ nome: 'CARLA REIS PORTA', inicio: '2026-12-07', fim: '2026-12-16', ferias: true }]], ['DAVI MELO PORTA', [{ nome: 'DAVI MELO PORTA', inicio: '2026-12-21', fim: '2026-12-27', ferias: false }]]]);
+  const s = S.simular(U.rh, 5, MES, ctx5({ afast })); const carla = s.resultado.proposta.find(p => p.id === 503), davi = s.resultado.proposta.find(p => p.id === 504);
+  for (let d = '2026-12-07'; d <= '2026-12-16'; d = soma(d, 1)) assert.equal(carla.dias[d].tipo, 'ferias', d); for (const d of semanaDe('2026-12-21')) assert.equal(davi.dias[d].tipo, 'afastado', d);
+  const w = (p, sg) => p.semanas.find(x => x.inicio === sg);
+  assert.equal(w(carla, '2026-12-07').regra52.situacao, 'ausente'); assert.equal(w(carla, '2026-12-07').folgas, 0, 'semana inteira de férias: nenhuma folga contada');
+  assert.equal(w(carla, '2026-12-14').ausencias, 3); assert.ok(['analise_rh', 'ok'].includes(w(carla, '2026-12-14').regra52.situacao)); assert.ok(w(carla, '2026-12-14').regra52.folgas >= w(carla, '2026-12-14').regra52.exigidas);
+  assert.equal(w(davi, '2026-12-21').regra52.situacao, 'ausente');
+  for (const p of s.resultado.proposta) for (const x of p.semanas) assert.equal(x.trabalho + x.folgas + x.ausencias + x.regra52.incertos, 7, p.nome + ' ' + x.inicio);
+  assert.equal(s.duasFolgas.excesso + s.duasFolgas.falta, 0); assert.ok(!s.aplicacao.pendencias.some(p => p.codigo === 'duas_folgas' || p.codigo === 'conflito_trabalhista'), JSON.stringify(s.aplicacao.pendencias));
+  if (w(carla, '2026-12-14').regra52.situacao === 'analise_rh') assert.ok(s.resultado.conflitos.operacionais.some(c => c.codigo === 'folgas_semana_ausencia' && c.funcId === 503 && c.analiseRH));
+  // carga horária: 5 dias de 8h24 = 42h00 efetivas; a permanência (com as 2 h de intervalo) é 52h00
+  const sem = w(s.resultado.proposta.find(p => p.id === 505), '2026-12-07'); assert.equal(sem.minutos, 2520); assert.equal(sem.permanenciaMin, 3120); assert.equal(sem.intervalosMin, 600); assert.equal(sem.contratoMin, 2640);
+  // validar a grade que está gravada com as férias lançadas depois: a ausência vence o dia gerado e não é contada como folga
+  const an = S.analisar(U.rh, 5, MES, ctx5({ afast })); const pc = an.pessoas.find(p => p.id === 503);
+  assert.equal(pc.semanas.find(x => x.inicio === '2026-12-07').regra52.situacao, 'ausente'); for (const x of pc.semanas) assert.equal(x.trabalho + x.folgas + x.ausencias + x.regra52.incertos, 7);
+  assert.equal(an.proximoMes, null, 'janeiro ainda não tem grade: a semana 28/12–03/01 fecha pela previsão');
 });

@@ -59,7 +59,7 @@ test('edição registra antes/depois com usuário e justificativa; só o gerente
   assert.equal(r.dia.entrada, '08:00'); assert.equal(r.dia.alterado, true);
   const e = E.obter(1, MES); const h = e.historico.at(-1); assert.equal(h.usuario, 'g1'); assert.equal(h.antes.entrada, '07:00'); assert.equal(h.depois.entrada, '08:00'); assert.equal(h.justificativa, 'cobrir o fim do dia');
   assert.equal(Object.keys(e.dias).length, 1);
-  E.editarDia(1, MES, U.ger1, { funcId: f.id, data: MES + '-04', entrada: '07:00', saida: '17:00', almoco_ini: '12:00', almoco_fim: '14:00' });
+  E.editarDia(1, MES, U.ger1, { funcId: f.id, data: MES + '-04', entrada: '07:00', saida: '17:00', almoco_ini: '12:00', almoco_fim: '14:00', justificativa: 'ajuste de horário' });
   assert.equal(Object.keys(E.obter(1, MES).dias).length, 0, 'voltar ao contratual remove a alteração');
 });
 
