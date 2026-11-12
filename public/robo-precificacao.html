@@ -97,7 +97,7 @@ details summary::before{content:'▸ ';color:var(--text3)}details[open] summary:
 </head>
 <body class="ds">
 <header>
-  <div class="h-title"><h1>Robô de Precificação <span class="teste">Em teste · só leitura</span></h1><p>Lojas-teste E1 e E2 · loja completa no topo, listas do robô embaixo · nada aqui escreve no ERP</p></div>
+  <div class="h-title"><h1>Robô de Precificação <span class="teste">Em teste · só leitura</span></h1><p>Lojas-teste E1 e E2 · loja completa no topo, todas as listas de compra embaixo · nada aqui escreve no ERP</p></div>
 </header>
 <div class="abas"><button class="aba on" id="ab-vigia" onclick="aba('vigia')">Vigia de margem</button><button class="aba" id="ab-sombra" onclick="aba('sombra')">Comprador sombra</button><button class="aba" id="ab-3d" onclick="aba('3d')">Escritório 3D</button></div>
 <div id="aba-3d" hidden><iframe id="fr-3d" title="Escritório Robô em 3D" loading="lazy"></iframe></div>
@@ -113,11 +113,11 @@ details summary::before{content:'▸ ';color:var(--text3)}details[open] summary:
 <main id="main-vigia">
   <!-- 12/11/26: a régua é a LOJA COMPLETA (margem sobre venda, meta do mês → 30%), igual Alertas de Preço e Comparativos -->
   <div class="lojas-meta" id="lojas-meta"></div>
-  <div class="sh" style="margin:2px 0 8px"><h2>Só as listas do robô · E1 + E2</h2></div>
+  <div class="sh" style="margin:2px 0 8px"><h2>Todas as listas de compra · E1 + E2</h2><span id="lbl-escopo"></span></div>
   <div class="kpi-grid" id="kpis"></div>
 
   <div class="secao">
-    <div class="sh"><h2>Listas vigiadas · mês atual</h2><span id="lbl-listas"></span></div>
+    <div class="sh"><h2>Listas de compra · mês atual</h2><span id="lbl-listas"></span></div>
     <div class="tbl-wrap"><table>
       <thead><tr><th class="l">Lista</th><th>Venda</th><th>Lucro bruto</th><th>Margem</th><th>Mês anterior</th><th>Projeção do mês</th><th>Meta (R$)</th><th>Falta</th><th>Resto do mês precisa</th><th class="l">Situação</th></tr></thead>
       <tbody id="tb-listas"><tr><td colspan="10" class="loading"><div class="spin"></div></td></tr></tbody>
@@ -212,7 +212,7 @@ function render(){
   <div class="kpi ${graves?'k-red':'k-green'}"><div class="kl">Vazamentos</div><div class="kv" style="color:var(${graves?'--red':'--green'})">${alertas.length}</div><div class="ks">${graves} grave(s) · ${alertas.filter(a=>a.tipo==='rebaixa_pedida').length} rebaixa(s) pedida(s)</div></div>`;
   // listas
   $('tb-listas').innerHTML=Ls.map(l=>{const a=l.periodos.atual,m=l.meta,s=SIT[l.status]||SIT['sem-venda'];const pct=m.reais>0?Math.min(100,a.lucro/m.reais*100):0;const pctProj=m.reais>0?Math.min(100,m.lucroProj/m.reais*100):0;
-    return `<tr><td class="l"><b style="color:var(--text)">${esc(l.nome)}</b><span class="obs">${l.listasErp.map(x=>'lista '+x.id+' · '+esc(x.nome)).join(' + ')}${l.filtro?' · só itens "'+esc(l.filtro)+'"':''} · ${l.ativos} itens ativos</span>
+    return `<tr><td class="l"><b style="color:var(--text)">${esc(l.nome)}</b>${l.cotacao?' <span class="badge b-g1">cotação · robô não mexe</span>':''}${l.semLista?' <span class="badge b-g1">produtos fora de lista</span>':''}<span class="obs">${l.listasErp.map(x=>'lista '+x.id+' · '+esc(x.nome)).join(' + ')}${l.filtro?' · só itens "'+esc(l.filtro)+'"':''} · ${l.ativos} itens ativos</span>
       <div class="bar" title="realizado ${P(pct)} da meta"><i class="${l.status==='ok'?'':l.status==='perto'?'a':'r'}" style="width:${pct}%"></i></div></td>
       <td><span class="num">${R0(a.venda)}</span></td><td><span class="num">${R0(a.lucro)}</span></td><td><span class="num ${a.margem!=null&&a.margem<m.pisoPct?'neg':''}">${P(a.margem)}</span><span class="obs">cadastro ${P(l.gap&&l.gap.margemCadastro)}</span></td>
       <td>${R0(l.periodos.ant.lucro)}<span class="obs">${P(l.periodos.ant.margem)} · ${R0(l.periodos.ant2.lucro)} antes (${P(l.periodos.ant2.margem)})</span></td>
@@ -221,7 +221,8 @@ function render(){
       <td><span class="num ${m.faltaReais>0?'neg':'pos'}">${m.faltaReais>0?R0(m.faltaReais):'+'+R0(-m.faltaReais)}</span><span class="obs">${m.ritmoDia!=null&&m.faltaReais>0?R0(m.ritmoDia)+'/dia (hoje '+R0(m.ritmoAtualDia)+'/dia)':''}</span></td>
       <td>${m.margemNecessaria==null?'—':`<span class="num ${m.margemNecessaria>45?'neg':m.margemNecessaria>a.margem+3?'mut':'pos'}">${P(m.margemNecessaria)}</span><span class="obs">de margem nos ${N(m.diasRestantes)} dias que faltam</span>`}</td>
       <td class="l"><span class="badge ${s[0]}">${s[1]}</span>${m.abaixoPiso?`<span class="obs">margem abaixo do piso de ${m.pisoPct}%</span>`:''}</td></tr>`;}).join('')||'<tr><td colspan="10" class="vazio">Nenhuma lista vigiada</td></tr>';
-  $('lbl-listas').textContent=`${Ls.length} lista(s) · ${D.mes}`;
+  $('lbl-listas').textContent=`${Ls.length} lista(s) · ${D.mes} · ordenado por venda`;
+  const E=D.escopo;if($('lbl-escopo'))$('lbl-escopo').textContent=E?`fora: carnes, charque, hortifrúti e taxa de entrega · preço final 7 e 8 não se mexe · alto giro não sobe (${Object.entries(E.protegidos||{}).map(([l,n])=>'E'+l+' '+n).join(', ')} protegidos)`:'recalculando com as regras novas…';
   // chips + alertas
   const cont={};for(const a of alertas)cont[a.tipo]=(cont[a.tipo]||0)+1;
   const tipos=Object.keys(D.tipos).filter(t=>cont[t]);if(tipoSel&&!cont[tipoSel])tipoSel='';

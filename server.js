@@ -9814,7 +9814,7 @@ app.post('/api/ajustes-estoque/:id/rebaixa', (req, res) => { try { res.json(ajus
 // compradoras (c_cotacao_lista) são só lidas, nunca alteradas.
 // ═══════════════════════════════════════════════════
 const roboPrecif = require('./lib/robo-precificacao');
-roboPrecif.init({ q, ajustesEstoque });
+roboPrecif.init({ q, ajustesEstoque, pq: (...a) => espelhoErp.pq(...a), regras: () => alertasPreco.getParams() });   // 12/11/26: loja completa lê venda/cadastro do espelho e as regras de Alertas de Preço
 roboPrecif.agendar();
 app.get('/api/robo-precificacao', (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json(roboPrecif.consultar()); } catch (err) { res.status(500).json({ error: err.message }); } });
 app.get('/api/robo-precificacao/estado', (req, res) => { res.set('Cache-Control', 'no-store'); res.json(roboPrecif.estado()); });
@@ -9859,7 +9859,7 @@ roboEnsaio.init({ radarPedidos, pedidosFornec, precificacao, roboPrecif, cadastr
 // do escritório logado, só leitura.
 // /painel-robo.html = versão LEVE (7 etapas; a TV não aguentou o 3D, Tiago 12/11) · /painel-robo-3d.html = o escritório, pra computador
 app.get('/painel-robo-3d.html', (req, res) => { res.set('Cache-Control', 'no-store'); res.sendFile(path.join(__dirname, 'public', 'robo-escritorio-3d.html')); });
-app.get('/api/paineis-publico/robo-precificacao', (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json(roboPrecif.consultar()); } catch (err) { res.status(503).json({ error: err.message }); } });
+app.get('/api/paineis-publico/robo-precificacao', (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json(roboPrecif.consultarLeve()); } catch (err) { res.status(503).json({ error: err.message }); } });
 app.get('/api/paineis-publico/comprador-sombra', async (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json(await compradorSombra.resumo(false)); } catch (err) { res.status(503).json({ error: err.message }); } });
 app.get('/api/paineis-publico/robo-dados', (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json({ lojas: roboEnsaio.LOJAS_PADRAO, ensaios: roboEnsaio.painel() }); } catch (err) { res.status(503).json({ error: 'Sem dados no momento: ' + err.message }); } });
 app.get('/api/robo-ensaio', (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json(roboEnsaio.consultar()); } catch (err) { res.status(500).json({ error: err.message }); } });
