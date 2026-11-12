@@ -594,3 +594,119 @@ test('carga horária · conta as horas efetivas (permanência − intervalo), va
   assert.deepStrictEqual(trabDe(ri, 5).filter(x => /^restricao_/.test(x.codigo)).map(x => [x.codigo, x.gravidade, x.ref]), [['restricao_individual', 'alerta', '2026-11-21'], ['restricao_individual_horario', 'alerta', '2026-11-21']]);
   for (const [d, x] of Object.entries(ri.proposta.find(p => p.id === 5).dias)) if (x.tipo === 'trabalho' && !x.travado) { assert.notStrictEqual(dow(d), 6); assert.ok(G._util.min(x.saida) <= 16 * 60); }
 });
+
+// ═══ ETAPA 5 — motor de validação semanal 5×2: semana contínua (segunda → domingo), indicador por funcionário e semana ═══
+const nivelDe = (r, id, seg) => semDe(r, id, seg).validacao.nivel;
+const itemDe = (r, id, seg, cod) => semDe(r, id, seg).validacao.itens.find(i => i.codigo === cod);
+const JAN = { de: '2027-01-01', ate: '2027-01-31' };
+
+test('validação semanal 1 · semana com cinco dias de trabalho e duas folgas: verde, com os sete dias da semana identificados pela segunda-feira', () => {
+  const r = G.gerar({ ...SEG, funcionarios: equipe(), regras: [REGRA_OK], cobertura: COB });
+  for (const p of r.proposta) for (const s of p.semanas) {
+    assert.strictEqual(s.validacao.nivel, 'verde', p.nome + ' ' + s.inicio + ' ' + JSON.stringify(s.validacao.itens)); assert.ok(s.validacao.itens.every(i => i.gravidade === 'info'));
+    assert.strictEqual(dow(s.inicio), 1, 'a semana é identificada pela segunda-feira'); assert.deepStrictEqual(s.dias.map(d => d.data), semana(s.inicio));
+    assert.strictEqual(s.dias.filter(d => d.tipo === 'trabalho').length, 5); assert.strictEqual(s.dias.filter(d => d.tipo === 'folga').length, 2); assert.ok(s.dias.every(d => d.origem === 'gerado' && d.noPeriodo));
+  }
+  assert.deepStrictEqual(r.validacaoSemanal, { semanas: 36, verde: 36, amarelo: 0, vermelho: 0, cinza: 0 });
+  // cada conflito sai com a regra violada e a correção sugerida
+  for (const cod of ['folgas_semana_excesso', 'folgas_semana_falta', 'interjornada', 'descanso_semanal', 'dias_consecutivos', 'domingo_sem_folga', 'carga_semanal', 'jornada_diaria', 'intervalo_ausente', 'trabalho_continuo', 'restricao_individual', 'folga_fixa_trabalhada']) { assert.ok(G.REGRA_INFO[cod] && G.REGRA_INFO[cod][0] && G.REGRA_INFO[cod][1], cod); }
+});
+
+test('validação semanal 2 · semana com três folgas: vermelho (bloqueia a publicação), com os dias envolvidos, a regra violada e a correção sugerida', () => {
+  const r = G.gerar({ ...SEG, funcionarios: equipe(), regras: [REGRA_OK], cobertura: COB, travados: { '3|2026-11-10': FG(), '3|2026-11-12': FG(), '3|2026-11-14': FG() } });
+  assert.strictEqual(nivelDe(r, 3, '2026-11-09'), 'vermelho'); const i = itemDe(r, 3, '2026-11-09', 'folgas_semana_excesso');
+  assert.strictEqual(i.gravidade, 'bloqueio'); assert.strictEqual(i.regra, 'Duas folgas por semana (5×2)'); assert.deepStrictEqual(i.dias, ['2026-11-10', '2026-11-12', '2026-11-14']); assert.match(i.sugestao, /folga não protegida/); assert.ok(!/^Func 3: /.test(i.texto));
+  assert.strictEqual(nivelDe(r, 3, '2026-11-02'), 'verde'); assert.strictEqual(nivelDe(r, 3, '2026-11-16'), 'verde', 'só a semana com problema fica vermelha');
+  assert.strictEqual(r.validacaoSemanal.vermelho, 1); assert.ok(r.publicacao.bloqueios.some(b => b.codigo === 'conflito_trabalhista'));
+});
+
+test('validação semanal 3 · semana com apenas uma folga: vermelho; com a exceção analisada pelo RH passa a amarelo (exige conferência)', () => {
+  const trav = {}; for (const d of semana('2026-11-09').slice(1)) trav['1|' + d] = TR('07:00', '15:00', '11:00', '12:00');
+  const base = { ...SEG, funcionarios: equipe(), regras: [REGRA_OK], cobertura: COB, travados: trav };
+  const r = G.gerar(base); assert.strictEqual(nivelDe(r, 1, '2026-11-09'), 'vermelho'); const i = itemDe(r, 1, '2026-11-09', 'folgas_semana_falta');
+  assert.strictEqual(i.regra, 'Duas folgas por semana (5×2)'); assert.deepStrictEqual(i.dias, semana('2026-11-09').slice(1), 'os seis dias trabalhados'); assert.match(i.sugestao, /folga que falta.*exceção/);
+  const x = G.gerar({ ...base, excecoesFolga: { '1|2026-11-09': { motivo: 'inventário geral; folga compensada na semana seguinte' } } });
+  assert.strictEqual(nivelDe(x, 1, '2026-11-09'), 'amarelo'); assert.strictEqual(itemDe(x, 1, '2026-11-09', 'folgas_semana_falta').excecao, true); assert.strictEqual(x.validacaoSemanal.vermelho, 0);
+});
+
+test('validação semanal 4 · semana atravessando dois meses: os sete dias entram na conta, de onde quer que venham', () => {
+  const nov = G.gerar({ de: '2026-11-02', ate: '2026-11-30', funcionarios: equipe(), regras: [REGRA_OK], cobertura: COB });
+  for (const p of nov.proposta) { const s = p.semanas.find(x => x.inicio === '2026-11-30'); assert.strictEqual(s.fim, '2026-12-06'); assert.deepStrictEqual(s.dias.map(d => d.data), semana('2026-11-30'));
+    assert.deepStrictEqual(s.dias.map(d => d.noPeriodo), [true, false, false, false, false, false, false]); assert.ok(s.dias.slice(1).every(d => d.origem === 'previsto'), 'dezembro ainda não existe: os dias são a previsão do motor');
+    assert.strictEqual(s.dias.filter(d => d.tipo === 'folga').length, 2); assert.strictEqual(s.validacao.nivel, 'verde'); }
+  const dez = G.gerar({ ...DEZ, funcionarios: equipe(), regras: [REGRA_OK], cobertura: COB, historico: nov.continuidade });
+  for (const p of dez.proposta) { const s = p.semanas[0]; assert.strictEqual(s.inicio, '2026-11-30', 'em dezembro a mesma semana continua sendo a de 30/11'); assert.strictEqual(s.dias[0].origem, 'historico'); assert.strictEqual(s.dias[0].noPeriodo, false);
+    assert.strictEqual(s.regra52.folgas, 2); assert.strictEqual(s.validacao.nivel, 'verde', JSON.stringify(s.validacao.itens)); }
+  // três folgas somando os dois meses: uma em 30/11 (registro anterior, preservado) e duas lançadas à mão em dezembro
+  const h = JSON.parse(JSON.stringify(nov.continuidade)); h[2].dias['2026-11-30'] = { tipo: 'folga', fonte: 'escala' };
+  const tres = G.gerar({ ...DEZ, funcionarios: equipe(), regras: [REGRA_OK], cobertura: COB, historico: h, travados: { '2|2026-12-03': FG(), '2|2026-12-05': FG() } });
+  assert.strictEqual(nivelDe(tres, 2, '2026-11-30'), 'vermelho'); assert.deepStrictEqual(itemDe(tres, 2, '2026-11-30', 'folgas_semana_excesso').dias, ['2026-11-30', '2026-12-03', '2026-12-05']);
+  assert.strictEqual(tres.proposta.find(p => p.id === 2).dias['2026-11-30'], undefined, 'o registro de novembro não é regravado');
+});
+
+test('validação semanal 5 · semana atravessando dois anos: 28/12/2026 a 03/01/2027 é uma semana só', () => {
+  const dez = G.gerar({ ...DEZ, funcionarios: equipe(), regras: [REGRA_OK], cobertura: COB });
+  for (const p of dez.proposta) { const s = p.semanas.find(x => x.inicio === '2026-12-28'); assert.strictEqual(s.fim, '2027-01-03'); assert.deepStrictEqual(s.dias.map(d => d.data), ['2026-12-28', '2026-12-29', '2026-12-30', '2026-12-31', '2027-01-01', '2027-01-02', '2027-01-03']);
+    assert.strictEqual(s.regra52.folgas, 2); assert.strictEqual(s.regra52.noPeriodo + s.regra52.previstas, 2); assert.strictEqual(s.validacao.nivel, 'verde'); }
+  const jan = G.gerar({ ...JAN, funcionarios: equipe(), regras: [REGRA_OK], cobertura: COB, historico: dez.continuidade });
+  assert.strictEqual(jan.semanas[0].inicio, '2026-12-28'); assert.strictEqual(jan.semanas[0].cruzaPeriodo, true);
+  for (const p of jan.proposta) { const d = dez.proposta.find(x => x.id === p.id); const tudo = { ...d.dias, ...p.dias }; const s = p.semanas[0];
+    assert.strictEqual(s.inicio, '2026-12-28', 'em janeiro a semana continua identificada pela segunda-feira de dezembro'); assert.strictEqual(s.regra52.folgas, 2, p.nome); assert.strictEqual(s.trabalho, 5);
+    assert.strictEqual(folgasNaSemana(tudo, '2026-12-28'), 2, p.nome + ': folga duplicada ou faltando na virada do ano'); assert.ok(maiorSequencia(tudo) <= 6, p.nome);
+    assert.strictEqual(p.dias['2026-12-31'], undefined, 'janeiro não regrava dezembro'); assert.deepStrictEqual(s.dias.slice(0, 4).map(x => x.origem), ['historico', 'historico', 'historico', 'historico']); }
+  assert.strictEqual(jan.conflitos.trabalhistas.length, 0, JSON.stringify(jan.conflitos.trabalhistas));
+  // três folgas somando os dois anos: func 2 folgou na terça 29/12 (folga fixa) e ganhou à mão o sábado 02/01 e o domingo 03/01
+  assert.strictEqual(dez.proposta.find(p => p.id === 2).dias['2026-12-29'].tipo, 'folga');
+  const h = JSON.parse(JSON.stringify(dez.continuidade)); for (const d of ['2026-12-28', '2026-12-30', '2026-12-31']) h[2].dias[d] = TR();
+  const tres = G.gerar({ ...JAN, funcionarios: equipe(), regras: [REGRA_OK], cobertura: COB, historico: h, travados: { '2|2027-01-02': FG(), '2|2027-01-03': FG() } });
+  const i = itemDe(tres, 2, '2026-12-28', 'folgas_semana_excesso'); assert.ok(i, JSON.stringify(semDe(tres, 2, '2026-12-28').validacao)); assert.deepStrictEqual(i.dias, ['2026-12-29', '2027-01-02', '2027-01-03']); assert.strictEqual(nivelDe(tres, 2, '2026-12-28'), 'vermelho');
+});
+
+test('validação semanal 6 e 7 · funcionário em férias e funcionário afastado: semana excepcional (cinza), sem cobrar o padrão comum dos sete dias', () => {
+  const eq = equipe();
+  eq[0].ausencias = [{ inicio: '2026-11-10', fim: '2026-11-19', tipo: 'ferias' }];        // 6. férias de 10 a 19/11
+  eq[3].ausencias = [{ inicio: '2026-11-16', fim: '2026-11-22', tipo: 'afastado' }];      // 7. afastado a semana inteira
+  eq[6].ausencias = [{ inicio: '2026-11-11', fim: '2026-11-13', tipo: 'afastado' }];      // 7. atestado de três dias
+  const r = G.gerar({ ...SEG, funcionarios: eq, regras: [REGRA_OK], cobertura: COB });
+  assert.strictEqual(nivelDe(r, 1, '2026-11-09'), 'cinza'); assert.strictEqual(nivelDe(r, 1, '2026-11-16'), 'cinza'); assert.strictEqual(nivelDe(r, 1, '2026-11-02'), 'verde'); assert.strictEqual(nivelDe(r, 1, '2026-11-23'), 'verde');
+  assert.strictEqual(nivelDe(r, 4, '2026-11-16'), 'cinza'); assert.deepStrictEqual(semDe(r, 4, '2026-11-16').validacao.itens, []);
+  assert.ok(['cinza', 'verde'].includes(nivelDe(r, 7, '2026-11-09')));
+  const s = semDe(r, 1, '2026-11-09'); assert.deepStrictEqual(s.dias.map(d => d.tipo), ['folga', 'ferias', 'ferias', 'ferias', 'ferias', 'ferias', 'ferias']); assert.ok(s.dias.slice(1).every(d => d.origem === 'ausencia'));
+  assert.strictEqual(s.regra52.folgas, 1, 'férias não contam como folga'); const i = itemDe(r, 1, '2026-11-09', 'folgas_semana_ausencia'); assert.strictEqual(i.gravidade, 'info'); assert.strictEqual(i.regra, 'Semana com férias ou afastamento');
+  assert.strictEqual(r.validacaoSemanal.vermelho, 0); assert.ok(r.validacaoSemanal.cinza >= 3);
+  // …mas a semana excepcional não é passe livre: 1 dia de atestado + 6 dias trabalhados continua bloqueando
+  const eq2 = equipe(); eq2[1].ausencias = [{ inicio: '2026-11-09', fim: '2026-11-09', tipo: 'afastado' }]; const trav = {}; for (const d of semana('2026-11-09').slice(1)) trav['2|' + d] = TR('07:00', '15:00', '11:00', '12:00');
+  assert.strictEqual(nivelDe(G.gerar({ ...SEG, funcionarios: eq2, regras: [REGRA_OK], cobertura: COB, travados: trav }), 2, '2026-11-09'), 'vermelho');
+  // admissão no meio da semana: não se aplica a regra comum
+  const eq3 = equipe(); eq3[1].admissao = '2026-11-12'; assert.strictEqual(nivelDe(G.gerar({ ...SEG, funcionarios: eq3, regras: [REGRA_OK], cobertura: COB }), 2, '2026-11-09'), 'cinza');
+});
+
+test('validação semanal 8 · alteração manual protegida: o dia fixo nunca é mexido, aparece como fixo na semana e o que ele causa é acusado', () => {
+  // RH pôs o func 2 para trabalhar na terça 10/11 (a folga fixa dele) e deu folga na quinta 12/11
+  const trav = { '2|2026-11-10': TR('09:00', '19:24', '13:00', '15:00'), '2|2026-11-12': FG() }; const copia = JSON.stringify(trav);
+  const r = G.gerar({ ...SEG, funcionarios: equipe(), regras: [REGRA_OK], cobertura: COB, travados: trav }); const p = r.proposta.find(x => x.id === 2), s = semDe(r, 2, '2026-11-09');
+  assert.strictEqual(JSON.stringify(trav), copia); assert.strictEqual(p.dias['2026-11-10'].entrada, '09:00'); assert.strictEqual(p.dias['2026-11-10'].travado, true); assert.strictEqual(p.dias['2026-11-12'].tipo, 'folga'); assert.strictEqual(p.dias['2026-11-12'].travado, true);
+  assert.deepStrictEqual(s.dias.filter(d => d.origem === 'fixo').map(d => d.data), ['2026-11-10', '2026-11-12']); assert.strictEqual(s.regra52.folgas, 2, 'a semana fecha em volta dos dias fixos');
+  // folga fixa × rotativa: trabalhar na folga fixa pede conferência (amarelo), não bloqueia
+  const i = itemDe(r, 2, '2026-11-09', 'folga_fixa_trabalhada'); assert.strictEqual(i.gravidade, 'alerta'); assert.strictEqual(i.regra, 'Folga fixa × folga rotativa'); assert.deepStrictEqual(i.dias, ['2026-11-10']);
+  assert.strictEqual(s.validacao.nivel, 'amarelo'); assert.strictEqual(r.validacaoSemanal.vermelho, 0);
+  // rotativa colada na fixa é só aviso (não muda a cor)
+  const colada = G.gerar({ ...SEG, funcionarios: [func(1, 'CAIXA', 1)], regras: [REGRA_OK], cobertura: { abre: '07:00', fecha: '19:00', setores: {} }, travados: {} });
+  for (const c of colada.conflitos.operacionais.filter(x => x.codigo === 'folga_rotativa_colada')) { assert.strictEqual(c.gravidade, 'info'); assert.strictEqual(c.dias.length, 2); }
+});
+
+test('validações adicionais · cobertura por setor e TURNO, e feriado folgado conforme a regra', () => {
+  // CAIXA com mínimo de 6 (todo mundo) o dia inteiro: falta gente na abertura, no meio e no fechamento
+  const turnos = { unidade: { abre: '07:00', fecha: '19:00' }, setores: { REPOSICAO: { abre: '07:00', fecha: '15:00' } } };
+  const r = G.gerar({ ...SEG, funcionarios: equipe(), regras: [REGRA_OK], cobertura: { ...COB, setores: { CAIXA: { min: 6 }, REPOSICAO: { min: 1 } } }, turnos });
+  const c = r.conflitos.operacionais.find(x => x.codigo === 'cobertura_abaixo' && /^CAIXA\|/.test(x.ref)); assert.strictEqual(c.regra, 'Cobertura mínima por setor e turno'); assert.ok(c.turnos.includes('fechamento')); assert.match(c.texto, /turno\(s\): /);
+  const dia = r.cobertura.dias[0].setores.find(x => x.setor === 'CAIXA'); assert.strictEqual(dia.porTurno.abertura + dia.porTurno.intermediario + dia.porTurno.fechamento + dia.porTurno.especial, dia.escalados);
+  assert.ok(r.cobertura.resumo.por_turno.fechamento > 0); assert.deepStrictEqual(Object.keys(r.cobertura.resumo.por_turno), ['abertura', 'intermediario', 'fechamento']);
+  // o setor com funcionamento próprio (07–15) classifica os turnos pelo horário dele
+  const rep = r.cobertura.dias[0].setores.find(x => x.setor === 'REPOSICAO'); assert.strictEqual(rep.porTurno.intermediario, 0, 'quem sai depois das 15:00 fecha a Reposição'); assert.ok(rep.porTurno.fechamento + rep.porTurno.especial === rep.escalados);
+  // feriado folgado lançado na grade: pela regra, conta como folga da semana (padrão) ou é descanso à parte
+  const fer = { '4|2026-11-20': { tipo: 'feriado', entrada: null, saida: null, almoco_ini: null, almoco_fim: null, setor: 'CAIXA' } };
+  const conta = G.gerar({ ...SEG, funcionarios: equipe(), regras: [REGRA_OK], cobertura: COB, travados: fer }); assert.strictEqual(semDe(conta, 4, '2026-11-16').regra52.folgas, 2); assert.strictEqual(semDe(conta, 4, '2026-11-16').trabalho, 5);
+  const aParte = G.gerar({ ...SEG, funcionarios: equipe(), regras: [{ ...REGRA_OK, params: { feriado: { folgado: 'a_parte' } } }], cobertura: COB, travados: fer }); const s = semDe(aParte, 4, '2026-11-16');
+  assert.strictEqual(s.ausencias, 1); assert.strictEqual(s.regra52.folgas + s.trabalho, 6); assert.strictEqual(s.validacao.nivel, 'cinza', 'semana com feriado folgado à parte é excepcional'); assert.ok(!aParte.conflitos.trabalhistas.some(x => x.funcId === 4));
+});

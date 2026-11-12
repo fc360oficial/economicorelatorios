@@ -416,3 +416,137 @@ test('férias e afastamento no serviço: preservados na proposta, fora da conta 
   assert.equal(pc.semanas.find(x => x.inicio === '2026-12-07').regra52.situacao, 'ausente'); for (const x of pc.semanas) assert.equal(x.trabalho + x.folgas + x.ausencias + x.regra52.incertos, 7);
   assert.equal(an.proximoMes, null, 'janeiro ainda não tem grade: a semana 28/12–03/01 fecha pela previsão');
 });
+
+// ═══ ETAPA 5 — motor de validação semanal: correção sugerida, semanas vizinhas, virada de mês e de ano ═══
+// Lojas 4 (Atacarejo) e 6 (Jardim Jordão) com quadro próprio; dezembro/2026 é todo futuro (hoje = 11/11).
+const quadro = (loja, base, suf) => ({ ativos: nomes.map((n, i) => ({ id: base + 1 + i, nome: n + ' ' + suf, loja, setor: i < 5 ? 'CAIXA' : 'REPOSITOR', cargo: i < 5 ? 'Operador de caixa' : 'Repositor', matricula: suf[0] + i, turno: 'SEG-SEX 44H', turno_id: 10, admissao: '2025-03-01' })), desligados: [] });
+const colabs4 = quadro(4, 400, 'Atacarejo'), colabs6 = quadro(6, 600, 'Jordão');
+const ctx4 = extra => ({ colabs: colabs4, escalasPC, afast: new Map(), afastAnt: new Map(), hoje: HOJE, ponto: null, ...extra });
+const ctx6 = extra => ({ colabs: colabs6, escalasPC, afast: new Map(), afastAnt: new Map(), hoje: HOJE, ponto: null, ...extra });
+/** Põe a geração de dezembro na loja e devolve o id (regra validada da unidade incluída). */
+function gerarDezembro(loja, ctx, nome) {
+  const r = S.salvarRegra(U.rh, { ...regraBody, nome, estabelecimento: loja }); S.validarRegra(U.rh, r.id, 'Conferida a cláusula 12 da CCT 2026/2027');
+  const s = S.simular(U.rh, loja, MES, ctx()); assert.equal(s.aplicacao.permitida, true, JSON.stringify(s.aplicacao.pendencias));
+  return S.aplicar(U.rh, loja, MES, ctx(), { justificativa: 'dezembro em 5x2 (' + nome + ')', cienteDivergencias: true, assinatura: s.assinatura }).geracao.id;
+}
+/** Escreve dias na grade como se fossem do gerador (origem 'gerador') ou ajuste manual (sem origem): 'T' trabalho, 'F' folga fixa, 'R' rotativa, 'M' folga à mão, 'm' trabalho curto à mão. */
+function montar(loja, id, seg, letras, gid) {
+  const e = E.ler(loja, MES); const f = e.funcionarios.find(x => x.id === id);
+  [...letras].forEach((l, i) => { const d = soma(seg, i), k = id + '|' + d; if (d.slice(0, 7) !== MES) return;
+    const g = { setor: f.setor, obs: '', origem: 'gerador', geracao: gid }, vazio = { entrada: null, saida: null, almoco_ini: null, almoco_fim: null };
+    e.dias[k] = l === 'T' ? { tipo: 'trabalho', entrada: '07:00', saida: '17:24', almoco_ini: '11:00', almoco_fim: '13:00', ...g } : l === 'F' ? { tipo: 'folga', ...vazio, ...g, folga: 'fixa' } : l === 'R' ? { tipo: 'folga', ...vazio, ...g, folga: 'rotativa' }
+      : l === 'M' ? { tipo: 'folga', ...vazio, setor: f.setor, obs: 'ajuste do RH' } : { tipo: 'trabalho', entrada: '08:00', saida: '10:00', almoco_ini: null, almoco_fim: null, setor: f.setor, obs: 'ajuste do RH' }; });
+  E.salvar(e);
+}
+const arquivo = loja => fs.readFileSync(path.join(process.env.ESCALAS_DIR, loja + '-' + MES + '.json'), 'utf8').replace(/"atualizadoEm":"[^"]+"/, '');
+let GID4 = null;
+
+test('correção sugerida · 2. três folgas e 8. alteração manual protegida: o motor preserva o ajuste do RH, testa as outras folgas sem gravar, propõe a de menor impacto e audita ao aplicar', () => {
+  GID4 = gerarDezembro(4, ctx4, 'CCT Atacarejo (teste)');
+  // Bruno (402): semana de 14/12 com folga à mão na quarta + folga fixa no sábado + rotativa no domingo; a seguinte tem só o domingo de folga
+  montar(4, 402, '2026-12-14', 'TTMTTFR', GID4); montar(4, 402, '2026-12-21', 'TTTTTTR', GID4);
+  const antes = arquivo(4); const c = S.sugerirCorrecao(U.co, 4, MES, 402, '2026-12-16', ctx4());
+  assert.equal(arquivo(4), antes, 'sugerir não grava nada'); assert.deepEqual(c.semana, { inicio: '2026-12-14', fim: '2026-12-20' }); assert.equal(c.situacao, 'excesso'); assert.equal(c.nivel, 'vermelho'); assert.equal(c.folgas, 3); assert.equal(c.exigidas, 2);
+  assert.equal(c.itens.find(i => i.codigo === 'folgas_semana_excesso').regra, 'Duas folgas por semana (5×2)'); assert.deepEqual(c.itens.find(i => i.codigo === 'folgas_semana_excesso').dias, ['2026-12-16', '2026-12-19', '2026-12-20']);
+  // 1 e 2: quais folgas podem ser redistribuídas — a manual é protegida
+  const cand = d => c.candidatos.find(x => x.data === d); assert.deepEqual(c.candidatos.map(x => x.data), ['2026-12-16', '2026-12-19', '2026-12-20']);
+  assert.equal(cand('2026-12-16').protegido, true); assert.equal(cand('2026-12-16').viavel, false); assert.match(cand('2026-12-16').motivos[0], /ajuste manual \(preservado\)/); assert.equal(c.dias.find(d => d.data === '2026-12-16').protegido, 'ajuste manual (preservado)');
+  // 10: tirar a folga do domingo emendaria com os seis dias da semana seguinte → descartada
+  assert.equal(cand('2026-12-20').viavel, false); assert.ok(cand('2026-12-20').motivos.some(m => /criaria bloqueio na semana seguinte \(21\/12\)/.test(m)), JSON.stringify(cand('2026-12-20').motivos)); assert.ok(cand('2026-12-20').novosBloqueios.some(b => b.codigo === 'dias_consecutivos' && b.semana === '2026-12-21'));
+  // 5 e 6: a opção segura é o sábado; a semana corrigida e as vizinhas são revalidadas
+  assert.equal(cand('2026-12-19').viavel, true); assert.deepEqual(cand('2026-12-19').motivos, []); assert.equal(cand('2026-12-19').de, 'F'); assert.equal(cand('2026-12-19').para, '07:00–17:24');
+  assert.deepEqual(c.sugestao.passos.map(p => [p.data, p.de, p.para]), [['2026-12-19', 'F', '07:00–17:24']]); assert.match(c.sugestao.resumo, /19\/12 \(sábado\): F → 07:00–17:24/);
+  assert.deepEqual(c.sugestao.validacao.semana, { nivel: 'amarelo', folgas: 2, horas: '42h00', bloqueios: 0 }); assert.deepEqual(c.sugestao.validacao.adjacentes.map(a => a.inicio), ['2026-12-07', '2026-12-21']);
+  assert.equal(c.podeAplicar, false, 'Coordenação vê a sugestão; quem aplica é o RH da unidade'); assert.equal(S.sugerirCorrecao(U.rh, 4, MES, 402, '2026-12-14', ctx4()).podeAplicar, true);
+  // aplicar: só o RH Ponto da unidade, e só o que o servidor recalcular
+  assert.throws(() => S.aplicarCorrecao(U.ger, 4, MES, ctx4(), { funcId: 402, semana: '2026-12-14' }), status(403)); assert.throws(() => S.aplicarCorrecao(U.rh2, 4, MES, ctx4(), { funcId: 402, semana: '2026-12-14' }), status(403));
+  assert.throws(() => S.aplicarCorrecao(U.rh, 4, MES, ctx4(), { funcId: 402, semana: '2026-12-14', datas: ['2026-12-20'] }), e => e.status === 409 && e.desatualizada === true); assert.equal(arquivo(4), antes);
+  const r = S.aplicarCorrecao(U.rh, 4, MES, ctx4(), { funcId: 402, semana: '2026-12-14', datas: ['2026-12-19'], justificativa: 'combinado com o funcionário' });
+  assert.deepEqual(r.passos, [{ data: '2026-12-19', de: 'F', para: '07:00–17:24' }]); assert.equal(r.validacao.ok, true); assert.equal(r.validacao.folgas, 2);
+  const e = E.ler(4, MES); const novo = e.dias['402|2026-12-19']; assert.equal(novo.tipo, 'trabalho'); assert.equal(novo.entrada, '07:00'); assert.equal(novo.origem, 'gerador', 'dia corrigido pelo motor não vira "ajuste à mão"'); assert.equal(novo.geracao, GID4);
+  assert.equal(novo.correcao.processo, S.PROCESSO); assert.equal(novo.correcao.por, 'rh'); assert.equal(e.dias['402|2026-12-16'].tipo, 'folga', 'o ajuste manual do RH foi preservado'); assert.equal(e.dias['402|2026-12-16'].origem, undefined); assert.equal(e.dias['402|2026-12-20'].folga, 'rotativa');
+  // 7: auditoria com antes e depois, usuário e processo, data/hora, justificativa e resultado da validação
+  const a = ultimaAud('correcao_folgas'); assert.equal(a.seq, r.auditoria); assert.equal(a.processo, 'Motor de validação semanal 5×2'); assert.equal(a.usuario, 'rh'); assert.equal(a.confirmadoPor, 'rh'); assert.ok(!isNaN(Date.parse(a.em)));
+  assert.equal(a.funcionario, 'Bruno Sá Atacarejo'); assert.equal(a.setor, 'FRENTE DE CAIXA'); assert.deepEqual(a.semana, { inicio: '2026-12-14', fim: '2026-12-20' });
+  assert.equal(a.alteracoes.length, 1); assert.equal(a.alteracoes[0].antes.tipo, 'folga'); assert.equal(a.alteracoes[0].antes.folga, 'fixa'); assert.equal(a.alteracoes[0].depois.tipo, 'trabalho'); assert.equal(a.alteracoes[0].data, '2026-12-19');
+  assert.match(a.justificativa, /semana de 14\/12 a 20\/12 com 3 folga\(s\) \(a regra pede 2\).*19\/12 \(sábado\): F → 07:00–17:24.*Observação do RH: combinado com o funcionário/); assert.equal(a.validacao.ok, true); assert.equal(a.validacao.adjacentes.length, 2); assert.equal(S.verificarCadeia().ok, true);
+  const linha = S.trilha(U.co, { loja: 4, mes: MES }).registros.find(x => x.acao === 'correcao_folgas'); assert.match(linha.detalhe, /Bruno Sá Atacarejo.*semana 14\/12 a 20\/12.*processo: Motor de validação semanal 5×2.*confirmada por rh/); assert.equal(linha.alteracoes.length, 1);
+  assert.equal(e.historico.slice(-1)[0].acao, 'correcao'); assert.equal(e.historico.slice(-1)[0].auditoria, a.seq);
+  assert.ok(S.avisos(U.co).avisos.some(x => x.nivel === 'relevante' && x.tipo === 'imediato' && /aplicou a correção do motor de validação para Bruno Sá Atacarejo/.test(x.texto)));
+  // a semana corrigida não tem mais o que corrigir
+  const d = S.sugerirCorrecao(U.rh, 4, MES, 402, '2026-12-14', ctx4()); assert.equal(d.situacao, 'ok'); assert.equal(d.sugestao, null); assert.match(d.motivoSemSugestao, /folga a mais ou a menos/);
+  assert.throws(() => S.aplicarCorrecao(U.rh, 4, MES, ctx4(), { funcId: 402, semana: '2026-12-14' }), e => e.status === 409 && /Não há correção segura/.test(e.message));
+});
+
+test('correção sugerida · 10. quando a única folga livre criaria conflito na semana seguinte, ou todas estão protegidas, o motor não propõe nada', () => {
+  // Carla (403): quarta e sábado de folga à mão (protegidas) + rotativa no domingo; semana seguinte com seis dias de trabalho
+  montar(4, 403, '2026-12-14', 'TTMTTMR', GID4); montar(4, 403, '2026-12-21', 'TTTTTTR', GID4); const antes = arquivo(4);
+  const c = S.sugerirCorrecao(U.rh, 4, MES, 403, '2026-12-14', ctx4()); assert.equal(c.situacao, 'excesso'); assert.equal(c.sugestao, null); assert.match(c.motivoSemSugestao, /Nenhuma opção é segura.*decisão fica com o RH/);
+  assert.deepEqual(c.candidatos.map(x => [x.data, x.viavel, !!x.protegido]), [['2026-12-16', false, true], ['2026-12-19', false, true], ['2026-12-20', false, false]]);
+  assert.ok(c.candidatos[2].motivos.some(m => /semana seguinte \(21\/12\).*dia seguido de trabalho/.test(m)), JSON.stringify(c.candidatos[2].motivos));
+  assert.throws(() => S.aplicarCorrecao(U.rh, 4, MES, ctx4(), { funcId: 403, semana: '2026-12-14' }), e => e.status === 409 && /Não há correção segura/.test(e.message)); assert.equal(arquivo(4), antes, 'nenhuma folga foi convertida em trabalho');
+  // Davi (404): as três folgas da semana são ajustes do RH
+  montar(4, 404, '2026-12-14', 'TMTMTTM', GID4); const t = S.sugerirCorrecao(U.rh, 4, MES, 404, '2026-12-14', ctx4());
+  assert.equal(t.sugestao, null); assert.ok(t.candidatos.every(x => x.protegido && !x.viavel)); assert.match(t.motivoSemSugestao, /estão protegidos/);
+  // a semana continua vermelha e a escala, não publicável
+  assert.equal(S.portaPublicacao(4, MES, ctx4()).liberada, false);
+});
+
+test('correção sugerida · 3. uma folga só e 9. redistribuição que compromete a cobertura: a folga que falta não é dada no dia em que o setor fica descoberto', () => {
+  const gid = gerarDezembro(6, ctx6, 'CCT Jardim Jordão (teste)'); const setor = E.ler(6, MES).funcionarios.find(f => f.id === 606).setor; assert.equal(setor, 'REPOSICAO');
+  // Fábio (606, Reposição): só o sábado de folga na semana de 14/12; a quarta é um ajuste do RH (2 h de trabalho)
+  montar(6, 606, '2026-12-14', 'TTmTTFT', gid);
+  // a Reposição precisa dos 3 o dia inteiro: qualquer folga nova tira gente de onde já falta
+  E.salvarConfig({ lojas: { 6: { setores: { 'FRENTE DE CAIXA': { min: 2 }, REPOSICAO: { min: 3 } } } } }, U.co); const antes = arquivo(6);
+  const c = S.sugerirCorrecao(U.rh, 6, MES, 606, '2026-12-14', ctx6()); assert.equal(c.situacao, 'falta'); assert.equal(c.nivel, 'vermelho'); assert.equal(c.folgas, 1);
+  assert.deepEqual(c.itens.find(i => i.codigo === 'folgas_semana_falta').dias, ['2026-12-14', '2026-12-15', '2026-12-16', '2026-12-17', '2026-12-18', '2026-12-20']);
+  // não existe correção segura: o que o motor oferece é a opção de MENOR perda, com ressalva, que só vale com a ciência do RH
+  assert.equal(c.sugestao.exigeCiencia, true); assert.equal(c.sugestao.passos.length, 1); assert.match(c.sugestao.ressalvas[0], /compromete a cobertura: Reposição perderia mais \d+ min de pessoa abaixo do mínimo/);
+  const livres = c.candidatos.filter(x => !x.protegido); assert.deepEqual(livres.map(x => x.data), ['2026-12-14', '2026-12-15', '2026-12-17', '2026-12-18', '2026-12-20']); assert.equal(c.candidatos.find(x => x.data === '2026-12-16').protegido, true);
+  for (const x of livres) { assert.equal(x.viavel, false); assert.ok(x.ressalvas.some(m => /compromete a cobertura: Reposição perderia mais \d+ min de pessoa abaixo do mínimo/.test(m)), x.data + ' ' + JSON.stringify(x)); assert.ok(x.cobertura.depoisMin > x.cobertura.antesMin); }
+  const perda = x => x.cobertura.depoisMin - x.cobertura.antesMin; const escolhido = livres.find(x => x.data === c.sugestao.passos[0].data); assert.equal(perda(escolhido), Math.min(...livres.map(perda)), 'a proposta com ressalva é a que menos descobre o setor');
+  assert.throws(() => S.aplicarCorrecao(U.rh, 6, MES, ctx6(), { funcId: 606, semana: '2026-12-14' }), e => e.status === 409 && e.exigeCiencia === 1 && /reduz a cobertura do setor/.test(e.message)); assert.equal(arquivo(6), antes, 'sem a ciência do RH nada é gravado');
+  // quando o setor não fica descoberto (aqui, sem mínimo configurado) a correção é segura: o motor propõe a folga e a semana fecha em duas
+  E.salvarConfig({ lojas: { 6: { setores: { 'FRENTE DE CAIXA': { min: 2 }, REPOSICAO: { min: 0 } } } } }, U.co);
+  const d = S.sugerirCorrecao(U.rh, 6, MES, 606, '2026-12-14', ctx6()); assert.equal(d.sugestao.exigeCiencia, false); assert.deepEqual(d.sugestao.ressalvas, []); assert.equal(d.sugestao.passos.length, 1); assert.equal(d.sugestao.passos[0].para, 'FR'); assert.notEqual(d.sugestao.passos[0].data, '2026-12-16');
+  assert.equal(d.sugestao.validacao.semana.folgas, 2); assert.equal(d.sugestao.validacao.semana.bloqueios, 0); assert.equal(d.sugestao.passos[0].cobertura.depoisMin, d.sugestao.passos[0].cobertura.antesMin, 'a folga proposta não aumenta o que falta de cobertura');
+  const r = S.aplicarCorrecao(U.rh, 6, MES, ctx6(), { funcId: 606, semana: '2026-12-14' }); assert.equal(r.validacao.folgas, 2); assert.equal(r.validacao.ok, true);
+  const e = E.ler(6, MES); assert.equal(e.dias['606|' + r.passos[0].data].folga, 'rotativa'); assert.equal(e.dias['606|2026-12-16'].entrada, '08:00', 'o ajuste do RH foi preservado'); assert.equal(ultimaAud('correcao_folgas').alteracoes[0].depois.tipo, 'folga'); assert.equal(ultimaAud('correcao_folgas').cienteCobertura, false);
+  // com a ciência expressa do RH a opção de menor perda é aplicada, e a ressalva vai para a auditoria e para a Coordenação
+  E.salvarConfig({ lojas: { 6: { setores: { 'FRENTE DE CAIXA': { min: 2 }, REPOSICAO: { min: 3 } } } } }, U.co); montar(6, 607, '2026-12-14', 'TTmTTFT', gid);
+  const rc = S.aplicarCorrecao(U.rh, 6, MES, ctx6(), { funcId: 607, semana: '2026-12-14', cienteCobertura: true }); assert.equal(rc.validacao.folgas, 2);
+  const ac = ultimaAud('correcao_folgas'); assert.equal(ac.cienteCobertura, true); assert.match(ac.ressalvas[0], /compromete a cobertura/); assert.match(ac.justificativa, /Aplicada com ressalva de cobertura, com a ciência do RH/); assert.ok(ac.cobertura[0].depoisMin > ac.cobertura[0].antesMin);
+  assert.ok(S.avisos(U.co).avisos.some(x => x.nivel === 'relevante' && /REDUZ A COBERTURA/.test(x.texto)));
+});
+
+test('semanas vizinhas · alteração no domingo que estoura a semana seguinte é acusada, auditada e avisada à Coordenação', () => {
+  // Eva (405): domingo 13/12 de folga rotativa e a semana de 14/12 com seis dias de trabalho
+  montar(4, 405, '2026-12-07', 'TTTTTFR', GID4); montar(4, 405, '2026-12-14', 'TTTTTTR', GID4);
+  const corpo = { funcId: 405, data: '2026-12-13', tipo: 'trabalho', entrada: '07:00', saida: '17:24', almoco_ini: '11:00', almoco_fim: '13:00', justificativa: 'cobrir falta no domingo' };
+  E.editarDia(4, MES, U.rh, corpo, new Map()); const pos = S.aposEdicao(U.rh, 4, MES, corpo, 'rascunho', new Map());
+  const viz = pos.validacao.adjacentes.find(a => a.inicio === '2026-12-14'); assert.ok(viz.novos.some(n => n.codigo === 'dias_consecutivos'), JSON.stringify(viz)); assert.equal(viz.nivel, 'vermelho');
+  assert.deepEqual(pos.validacao.adjacentes.map(a => a.inicio), ['2026-11-30', '2026-12-14']); assert.deepEqual(pos.validacao.adjacentes[0].novos, []); assert.equal(pos.nivel, 'relevante');
+  const a = ultimaAud('dia_alterar'); assert.ok(a.validacao.adjacentes.find(x => x.inicio === '2026-12-14').novos.length > 0); assert.equal(a.validacao.nivel, 'vermelho');
+  assert.ok(S.avisos(U.co).avisos.some(x => x.nivel === 'relevante' && /alterou Eva Rocha Atacarejo em 13\/12 \(domingo\).*AFETOU A SEMANA DE 14\/12/.test(x.texto)));
+});
+
+test('semana contínua no serviço · 4. dois meses e 5. dois anos: 28/12/2026 a 03/01/2027 é a mesma semana vista de dezembro ou de janeiro', () => {
+  // sem a grade de janeiro, a semana fecha pela previsão do motor
+  const a0 = S.analiseBase(4, MES, ctx4()); assert.equal(a0.proximoMes, null); const hugo0 = a0.r.proposta.find(p => p.id === 408).semanas.find(s => s.inicio === '2026-12-28');
+  assert.equal(hugo0.fim, '2027-01-03'); assert.deepEqual(hugo0.dias.slice(4).map(d => d.origem), ['previsto', 'previsto', 'previsto']); assert.equal(hugo0.regra52.folgas, 2);
+  // nasce a grade de janeiro (jornada do contrato: sexta de trabalho, sábado e domingo de folga): os dias dela passam a fechar a semana
+  E.criarDoPontoCerto(4, '2027-01', colabs4, escalasPC, U.rh); const a = S.analiseBase(4, MES, ctx4()); assert.equal(a.proximoMes, '2027-01');
+  const jan = S.analiseBase(4, '2027-01', ctx4());
+  for (const id of [406, 407, 408]) { const s = a.r.proposta.find(p => p.id === id).semanas.find(x => x.inicio === '2026-12-28'); const dezFolgas = ['2026-12-28', '2026-12-29', '2026-12-30', '2026-12-31'].filter(d => E.diaDe(E.ler(4, MES), E.ler(4, MES).funcionarios.find(f => f.id === id), d, null).tipo === 'folga');
+    assert.deepEqual(s.dias.map(d => d.data), ['2026-12-28', '2026-12-29', '2026-12-30', '2026-12-31', '2027-01-01', '2027-01-02', '2027-01-03']); assert.deepEqual(s.dias.slice(4).map(d => [d.tipo, d.origem]), [['trabalho', 'fixo'], ['folga', 'fixo'], ['folga', 'fixo']]);
+    assert.equal(s.regra52.folgas, dezFolgas.length + 2, 'as folgas de dezembro e de janeiro são somadas');
+    // vista de janeiro, a semana é a mesma (identificada pela segunda 28/12) e a conta é a mesma
+    const sj = jan.r.proposta.find(p => p.id === id).semanas[0]; assert.equal(sj.inicio, '2026-12-28'); assert.equal(sj.fim, '2027-01-03'); assert.equal(sj.regra52.folgas, s.regra52.folgas, 'dezembro e janeiro enxergam a mesma semana'); assert.deepEqual(sj.dias.map(d => d.tipo), s.dias.map(d => d.tipo));
+    if (dezFolgas.length) { assert.equal(s.validacao.nivel, 'vermelho'); assert.deepEqual(s.validacao.itens.find(i => i.codigo === 'folgas_semana_excesso').dias, [...dezFolgas, '2027-01-02', '2027-01-03']);
+      // a correção vista de dezembro só mexe em dezembro: os dias de janeiro pertencem à outra escala
+      const c = S.sugerirCorrecao(U.rh, 4, MES, id, '2026-12-28', ctx4()); for (const d of ['2027-01-02', '2027-01-03']) { assert.equal(c.candidatos.find(x => x.data === d).protegido, true); assert.match(c.candidatos.find(x => x.data === d).motivos[0], /pertence a outro mês/); }
+      if (c.sugestao) assert.ok(c.sugestao.passos.every(p => p.data.startsWith('2026-12'))); }
+  }
+  // a validação de uma alteração feita em janeiro olha a semana inteira, com os dias de dezembro
+  const v = S.validacaoDaSemana(4, '2027-01', 408, '2027-01-02', ctx4()); assert.deepEqual(v.semana, { inicio: '2026-12-28', fim: '2027-01-03' }); assert.equal(v.folgas, a.r.proposta.find(p => p.id === 408).semanas.find(x => x.inicio === '2026-12-28').regra52.folgas);
+});
