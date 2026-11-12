@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="/design-system.css">
+<script src="/nav.js" defer></script>
+<title>Ensaio do Robô — Econômico Supermercados</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<!-- Ensaio do Robô (Tiago, 11/11/2026): o ciclo inteiro de compra + preço com o Tiago no lugar do fornecedor e aprovando
+     cada etapa. Dados: /api/robo-ensaio (lib/robo-ensaio.js). Grava só no ERP de TESTE, pelas telas de sempre. Só admin. -->
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#EBEBE9;--surface:#FFFFFF;--surface-2:#E4E4E1;--border:#DADAD6;--border-strong:#C9C9C4;--ink:#0E1626;--ink-2:#4E5A72;--ink-3:#98A0B3;--brand:#F5B800;--brand-ink:#6B4E00;--ok:#137A48;--warn:#B45C00;--bad:#C22F49;--info:#2E5E8C;--font:'InterVar','Inter','Segoe UI',system-ui,-apple-system,sans-serif}
+body{font-family:var(--font);background:var(--bg);color:var(--ink);min-height:100vh}
+.main{padding:24px}
+.page-hdr{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.page-hdr h1{font-size:21px;font-weight:800}
+.page-hdr p{font-size:12px;color:var(--ink-3);margin-top:3px;max-width:980px;line-height:1.5}
+.page-hdr p b{color:var(--ink-2)}
+.acoes{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn{font:inherit;font-size:12.5px;font-weight:600;padding:8px 14px;border-radius:8px;border:1px solid var(--border-strong);background:#fff;color:var(--ink);cursor:pointer;text-decoration:none;display:inline-block;white-space:nowrap}
+.btn:hover{background:var(--surface-2)}
+.btn-amber{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}.btn-amber:hover{background:#E0A800}
+.btn-sm{font-size:11.5px;padding:5px 10px;border-radius:6px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.status{font-size:11px;color:var(--ink-3);margin-bottom:10px}
+.status .err{color:var(--bad);font-weight:700}
+.regras{font-size:11.5px;color:var(--ink-2);background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--brand);border-radius:8px;padding:9px 12px;margin-bottom:12px;line-height:1.55}
+.regras b{color:var(--ink)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:14px}
+.card-h{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 16px;background:var(--ink);color:#fff}
+.card-h h2{font-size:15px;font-weight:800}
+.card-h small{font-size:11.5px;color:#AEB8CE;display:block;margin-top:2px;font-weight:500}
+.sec-t{font-size:13px;font-weight:800;margin:4px 0 8px}
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-3);background:var(--surface-2);padding:9px 10px;text-align:left;white-space:nowrap}
+td{padding:9px 10px;border-top:1px solid var(--border);vertical-align:middle}
+th.n,td.n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+td.nm{white-space:normal}td.nm b{display:block;font-weight:700}td.nm small{color:var(--ink-3);font-size:11px}
+.pill{display:inline-block;font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;white-space:nowrap;text-transform:uppercase;letter-spacing:.3px}
+.p-ok{background:#E7F5EC;color:var(--ok)}.p-agora{background:var(--brand);color:var(--brand-ink)}.p-esp{background:var(--surface-2);color:var(--ink-3)}.p-robo{background:#E6EEF6;color:var(--info)}.p-voce{background:#FFF1DC;color:var(--warn)}
+.passos{list-style:none}
+.passo{display:flex;gap:14px;align-items:flex-start;padding:12px 16px;border-top:1px solid var(--border)}
+.passo:first-child{border-top:0}
+.passo .num{flex:0 0 30px;height:30px;border-radius:50%;background:var(--surface-2);color:var(--ink-3);font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center}
+.passo.feito .num{background:var(--ok);color:#fff}
+.passo.agora{background:#FFFBEE}.passo.agora .num{background:var(--brand);color:var(--brand-ink)}
+.passo .tx{flex:1;min-width:0}
+.passo .tt{font-size:13.5px;font-weight:700;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.passo.espera .tt{color:var(--ink-3)}
+.passo .dt{font-size:12px;color:var(--ink-2);margin-top:3px;line-height:1.45;overflow-wrap:anywhere}
+.passo.espera .dt{color:var(--ink-3)}
+.passo .hr{font-size:11px;color:var(--ink-3);margin-top:2px}
+.passo .ac{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.vazio{padding:30px 20px;text-align:center;color:var(--ink-3);font-size:13px}
+.toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:var(--ink);color:#fff;font-size:12.5px;font-weight:600;padding:10px 16px;border-radius:9px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:50;max-width:90%}
+.toast.on{opacity:1}
+/* 16/10/26: toda tela se ajusta sozinha a qualquer monitor */
+@media (max-width:1599px){.main{padding:18px}}
+@media (max-width:1199px){.main{padding:14px}.passo{flex-wrap:wrap}.passo .ac{flex:1 0 100%;justify-content:flex-start;padding-left:44px}}
+</style>
+</head>
+<body>
+<div class="main">
+  <div class="page-hdr">
+    <div>
+      <h1>Ensaio do Robô</h1>
+      <p>O ciclo inteiro de <b>compra + preço</b> nas lojas E1 e E2, com você no lugar do fornecedor e aprovando cada etapa. <b>Nenhum fornecedor é avisado</b> e tudo é gravado só no <b>ERP de teste</b>.</p>
+    </div>
+    <div class="acoes">
+      <a class="btn" href="/painel-precificacao.html" target="_blank" rel="noopener">Abrir painel da TV</a>
+      <button class="btn btn-amber" onclick="carregar(true)">Atualizar agora</button>
+    </div>
+  </div>
+
+  <div class="status" id="status">Carregando…</div>
+
+  <div class="regras"><b>Como funciona:</b> 1) o robô monta o pedido de uma lista · 2) manda o link pro seu WhatsApp, no lugar do fornecedor · 3) você digita os preços, como fornecedor · 4) você aprova a compra e o pedido é gravado no ERP de teste · 5) você simula a chegada da nota · 6) o robô calcula o preço de venda · 7) você aprova e o preço é gravado no ERP de teste.</div>
+
+  <div id="ensaios"></div>
+
+  <div class="sec-t">Começar um ensaio: o que o robô pediria hoje (E1 e E2)</div>
+  <div class="card"><div class="tw" id="opcoes"><div class="vazio">Carregando…</div></div></div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+var D = null, OP = null, ocupado = false;
+function LJ(n) { return +n === 10 ? 'CD' : 'E' + n; }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+function money(v) { return 'R$ ' + (+v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function hora(iso) { if (!iso) return ''; var d = new Date(iso); return ('0' + d.getDate()).slice(-2) + '/' + ('0' + (d.getMonth() + 1)).slice(-2) + ' às ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); }
+function toast(t) { var e = document.getElementById('toast'); e.textContent = t; e.className = 'toast on'; clearTimeout(toast.t); toast.t = setTimeout(function () { e.className = 'toast'; }, 5000); }
+function api(url, body) {
+  return fetch(url, body === undefined ? { cache: 'no-store' } : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) })
+    .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'erro'); return j; }); });
+}
+function botoes(v, e) {
+  if (e.status !== 'agora' || v.cancelado) return '';
+  if (e.acao === 'link') return '<a class="btn btn-amber btn-sm" href="' + esc(v.link) + '" target="_blank" rel="noopener">Abrir como fornecedor</a>';
+  if (e.acao === 'pedidos') return '<a class="btn btn-amber btn-sm" href="/pedidos-compra.html" target="_blank" rel="noopener">Abrir Pedidos de Compra</a>';
+  if (e.acao === 'nota') return '<button class="btn btn-amber btn-sm" onclick="simularNota(' + v.id + ', this)">Simular chegada da nota</button>';
+  if (e.acao === 'precos') return '<a class="btn btn-amber btn-sm" href="/formacao-de-preco.html" target="_blank" rel="noopener">Abrir Formação de Preço</a>';
+  return '';
+}
+function desenhar() {
+  var el = document.getElementById('ensaios');
+  if (!D.ensaios.length) { el.innerHTML = ''; return; }
+  el.innerHTML = D.ensaios.map(function (v) {
+    var sel = v.cancelado ? '<span class="pill p-esp">cancelado</span>' : v.concluido ? '<span class="pill p-ok">ciclo completo</span>' : '<span class="pill p-agora">etapa ' + v.agora.n + ' de 7 · ' + (v.agora.quem === 'você' ? 'esperando você' : 'robô trabalhando') + '</span>';
+    return '<div class="card"><div class="card-h"><div><h2>Pedido #' + v.id + ' · ' + esc(v.lista_nome) + '</h2><small>' + esc(v.fornecedor || '') + ' · lojas ' + v.lojas.map(LJ).join(' e ') + ' · ' + v.itens + ' itens · ' + money(v.total_digitado || v.total_ultimo) + ' · criado ' + hora(v.criadoEm) + '</small></div><div class="acoes">' + sel +
+      (!v.cancelado && !v.concluido ? '<button class="btn btn-sm" onclick="cancelar(' + v.id + ', this)">Cancelar ensaio</button>' : '') + '<a class="btn btn-sm" href="/log.html" target="_blank" rel="noopener">Ver o Log do ERP teste</a></div></div>' +
+      '<ul class="passos">' + v.etapas.map(function (e) {
+        return '<li class="passo ' + e.status + '"><div class="num">' + (e.status === 'feito' ? '✓' : e.n) + '</div><div class="tx"><div class="tt">' + esc(e.titulo) + ' <span class="pill ' + (e.quem === 'você' ? 'p-voce' : 'p-robo') + '">' + esc(e.quem) + '</span></div><div class="dt">' + esc(e.detalhe) + '</div>' + (e.em ? '<div class="hr">' + hora(e.em) + '</div>' : '') + '</div><div class="ac">' + botoes(v, e) + '</div></li>';
+      }).join('') + '</ul></div>';
+  }).join('');
+}
+function desenharOpcoes() {
+  var el = document.getElementById('opcoes');
+  if (!OP || !OP.listas.length) { el.innerHTML = '<div class="vazio">Nenhuma lista do robô cadastrada.</div>'; return; }
+  el.innerHTML = '<table><tr><th>Lista</th><th>Fornecedor</th><th class="n">Itens a pedir</th><th class="n">Valor (último custo)</th><th class="n">Pedido mínimo</th><th></th></tr>' + OP.listas.map(function (l) {
+    var pode = !l.erro && l.itens > l.sem_embalagem && !l.em_ensaio;
+    var obs = l.erro ? l.erro : l.em_ensaio ? 'já tem ensaio em andamento' : !l.itens ? 'nada a pedir hoje' : l.sem_embalagem ? l.sem_embalagem + ' sem embalagem padrão ficam de fora' : '';
+    return '<tr><td class="nm"><b>' + esc(l.nome || 'Lista ' + l.lista) + '</b><small>lista ' + l.lista + (obs ? ' · ' + esc(obs) : '') + '</small></td><td class="nm">' + esc(l.fornecedor || '—') + '</td><td class="n">' + (l.itens || 0) + '</td><td class="n">' + (l.itens ? money(l.total) : '—') + '</td><td class="n">' + (l.pedido_minimo ? money(l.pedido_minimo) : '—') + '</td>' +
+      '<td class="n"><button class="btn btn-amber btn-sm"' + (pode ? '' : ' disabled') + ' onclick="gerar(' + l.lista + ', this)">Gerar pedido do robô</button></td></tr>';
+  }).join('') + '</table>';
+}
+function carregar(avisa) {
+  api('/api/robo-ensaio').then(function (j) { D = j; desenhar(); document.getElementById('status').textContent = 'Atualizado às ' + new Date().toLocaleTimeString('pt-BR').slice(0, 5) + ' · esta tela se atualiza sozinha a cada 15 segundos'; if (avisa) toast('Atualizado'); })
+    .catch(function (e) { document.getElementById('status').innerHTML = '<span class="err">Erro: ' + esc(e.message) + '</span>'; });
+  api('/api/robo-ensaio/opcoes').then(function (j) { OP = j; desenharOpcoes(); }).catch(function (e) { document.getElementById('opcoes').innerHTML = '<div class="vazio">Erro: ' + esc(e.message) + '</div>'; });
+}
+function gerar(lista, b) {
+  if (ocupado) return; ocupado = true; b.disabled = true; b.textContent = 'Gerando…';
+  api('/api/robo-ensaio/gerar', { lista: lista }).then(function (r) { toast('Pedido #' + r.id + ' gerado' + (r.whatsapp && r.whatsapp.ok ? ': o link foi pro seu WhatsApp' : ': o WhatsApp falhou, use o botão "Abrir como fornecedor"')); })
+    .catch(function (e) { toast('Não gerou: ' + e.message); }).then(function () { ocupado = false; carregar(); window.scrollTo(0, 0); });
+}
+function simularNota(id, b) {
+  if (ocupado) return; ocupado = true; b.disabled = true; b.textContent = 'Conferindo a nota…';
+  api('/api/robo-ensaio/' + id + '/simular-nota', {}).then(function () { toast('Nota simulada conferida'); }).catch(function (e) { toast('Não deu: ' + e.message); }).then(function () { ocupado = false; carregar(); });
+}
+function cancelar(id, b) {
+  if (b.dataset.conf !== '1') { b.dataset.conf = '1'; b.textContent = 'Clique de novo pra cancelar'; setTimeout(function () { b.dataset.conf = ''; b.textContent = 'Cancelar ensaio'; }, 4000); return; }
+  api('/api/robo-ensaio/' + id + '/encerrar', {}).then(function () { toast('Ensaio cancelado'); }).catch(function (e) { toast('Não cancelou: ' + e.message); }).then(function () { carregar(); });
+}
+carregar();
+setInterval(function () { if (!ocupado) carregar(); }, 15000);
+</script>
+</body>
+</html>

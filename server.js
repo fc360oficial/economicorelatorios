@@ -348,7 +348,7 @@ app.use((req, res, next) => {
       // 04/11/2026 (Coordenação): diagnósticos (/api/_diag/*) só pra admin logado; tabelas-central executava QUALQUER SQL sem login
       || req.path.startsWith('/api/_diag/')
       // 04/11/2026 (Tiago: "quem vai ver só isso só sou eu no momento"): Robô de Precificação, Escritório 3D e Comprador sombra
-      || ['/robo-precificacao.html', '/robo-escritorio-3d.html', '/comprador-sombra.html'].includes(req.path) || req.path.startsWith('/api/robo-precificacao') || req.path.startsWith('/api/comprador-sombra');
+      || ['/robo-precificacao.html', '/robo-escritorio-3d.html', '/comprador-sombra.html', '/robo-ensaio.html'].includes(req.path) || req.path.startsWith('/api/robo-precificacao') || req.path.startsWith('/api/comprador-sombra') || req.path.startsWith('/api/robo-ensaio');
     if (soAdmin && req.session.user.perfil !== 'admin') {
       if (req.path.startsWith('/api/')) return res.status(403).json({ error: 'Sem permissão' });
       return res.redirect('/index.html');
@@ -9587,11 +9587,11 @@ app.post('/api/pedido-publico/:token/finalizar', (req, res) => {
   const p0 = pedidosFornec.salvarPrecos(req.params.token, req.body.itens || [], typeof req.body.avaria_resposta === 'string' ? req.body.avaria_resposta : undefined, typeof req.body.obs_pedido === 'string' ? req.body.obs_pedido : undefined, req.body.cadastro);
   if (!p0) return res.status(404).json({ error: 'Pedido não encontrado' });
   // Tiago, 06/10: igual à cotação — só finaliza com o bloco de cadastro preenchido (e-mail, WhatsApp, boleto, entrega, mínimo)
-  if (['aguardando', 'digitacao'].includes(p0.status)) { const faltam = pedidosFornec.cadastroFaltando(p0); if (faltam.length) return res.status(400).json({ error: 'Antes de finalizar, preencha no bloco "Estamos atualizando nosso cadastro de fornecedor": ' + faltam.join(', ') + '.' }); }
+  if (!p0.ensaio && ['aguardando', 'digitacao'].includes(p0.status)) { const faltam = pedidosFornec.cadastroFaltando(p0); if (faltam.length) return res.status(400).json({ error: 'Antes de finalizar, preencha no bloco "Estamos atualizando nosso cadastro de fornecedor": ' + faltam.join(', ') + '.' }); }
   // Regra do Tiago (23/09/2026): pedido com avaria pendente só finaliza depois que o vendedor responde sobre as avarias
   if ((p0.avarias?.itens || []).length && !String(p0.avarias.resposta_vendedor || '').trim()) return res.status(400).json({ error: 'Responda sobre as avarias pendentes antes de finalizar o pedido.' });
   const p = pedidosFornec.finalizar(req.params.token, req.body.nome);
-  if (p && p.cadastro_vendedor) aplicarCadastroVendedor({ lista: p.lista }, { codFornecErp: p.codFornec, codFornec: p.codFornec, empresa: p.fornecedor, nome: p.fornecedor, vendedor: p.vendedor, cadastro_vendedor: p.cadastro_vendedor });   // fica salvo no fornecedor (Tiago, 06/10)
+  if (p && p.cadastro_vendedor && !p.ensaio) aplicarCadastroVendedor({ lista: p.lista }, { codFornecErp: p.codFornec, codFornec: p.codFornec, empresa: p.fornecedor, nome: p.fornecedor, vendedor: p.vendedor, cadastro_vendedor: p.cadastro_vendedor });   // fica salvo no fornecedor (Tiago, 06/10)
   res.json(pedidosFornec.visaoVendedor(p));
 });
 
@@ -9844,8 +9844,21 @@ app.post('/api/alertas-preco/desfazer', (req, res) => {
 app.post('/api/alertas-preco/recalcular', (req, res) => { alertasPreco.calcular().catch(e => console.error('[ALERTAS-PRECO]', e.message)); res.json({ ok: true, estado: alertasPreco.estado() }); });
 app.get('/api/paineis-publico/precificacao-dados', async (req, res) => {
   res.set('Cache-Control', 'no-store');
-  try { res.json(await alertasPreco.painel()); } catch (err) { res.status(503).json({ error: 'Sem dados no momento: ' + err.message }); }
+  try { const d = await alertasPreco.painel(); try { d.ensaios = roboEnsaio.painel(); } catch (e) { d.ensaios = []; } res.json(d); } catch (err) { res.status(503).json({ error: 'Sem dados no momento: ' + err.message }); }
 });
+// Ensaio do robô de compras + precificação (Tiago, 11/11/2026) — lib/robo-ensaio.js. O pedido do robô vai pro Tiago no lugar do
+// vendedor (WhatsApp do bot central), a nota é simulada e cada etapa espera a aprovação dele. Grava só no ERP de TESTE (.254),
+// pelas rotas de sempre. Só admin (ver a lista de páginas do robô lá em cima).
+const roboEnsaio = require('./lib/robo-ensaio');
+roboEnsaio.init({ radarPedidos, pedidosFornec, precificacao, roboPrecif, cadastroLista: id => cadastroLista(id), linkPedido: p => linkPedido(p), publicUrl: PUBLIC_URL,
+  testeDir: require('./lib/conferencia-xml').TESTE_DIR, verificarRecebimentos: () => pedidosFornec.verificarRecebimentos(),
+  zap: async texto => { const r = await fetch((process.env.CAHU_WPP_URL || 'http://127.0.0.1:3012').replace(/\/$/, '') + '/mensagem-alerta', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texto }), signal: AbortSignal.timeout(30000) }); const j = await r.json().catch(() => ({})); if (!r.ok || j.error) throw new Error(j.error || 'bot HTTP ' + r.status); return j; } });
+app.get('/api/robo-ensaio', (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json(roboEnsaio.consultar()); } catch (err) { res.status(500).json({ error: err.message }); } });
+app.get('/api/robo-ensaio/opcoes', (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json({ lojas: roboEnsaio.LOJAS_PADRAO, listas: roboEnsaio.opcoes() }); } catch (err) { res.status(500).json({ error: err.message }); } });
+app.post('/api/robo-ensaio/gerar', async (req, res) => { try { res.json(await roboEnsaio.gerar({ lista: req.body && req.body.lista, usuario: req.session.user?.nome || null })); } catch (err) { res.status(400).json({ error: err.message }); } });
+app.post('/api/robo-ensaio/:id/simular-nota', async (req, res) => { try { res.json(await roboEnsaio.simularNota(parseInt(req.params.id))); } catch (err) { res.status(400).json({ error: err.message }); } });
+app.post('/api/robo-ensaio/:id/encerrar', (req, res) => { try { res.json(roboEnsaio.encerrar(parseInt(req.params.id), req.session.user?.nome || null)); } catch (err) { res.status(400).json({ error: err.message }); } });
+setInterval(() => roboEnsaio.vigiar().catch(e => console.error('[ROBO-ENSAIO]', e.message)), 60 * 1000);
 app.get('/api/robo-precificacao/listas-erp', async (req, res) => { try { res.json(await roboPrecif.listasErp()); } catch (err) { res.status(500).json({ error: err.message }); } });
 
 // ═══════════════════════════════════════════════════
