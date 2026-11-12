@@ -274,7 +274,7 @@ app.use((req, res, next) => {
     '/margem-comprador.html', '/api/margem-tv/comprador',
     '/painel-diretoria.html',
     '/painel-cd.html', '/api/painel-cd',
-    '/painel-compras.html', '/tv', '/painel-fiscal.html', '/painel-precificacao.html', '/painel-robo.html'];
+    '/painel-compras.html', '/tv', '/painel-fiscal.html', '/painel-precificacao.html', '/painel-robo.html', '/painel-robo-3d.html'];
   // 10/11/2026: atalho /apk pro APK do coletor, sem diferenciar maiúsculas — o endereço comprido digitado no teclado do
   // coletor (que capitaliza) caía na tela de login e, depois do login, na página inicial em vez do download
   const caminhoMin = req.path.toLowerCase();
@@ -9857,7 +9857,8 @@ roboEnsaio.init({ radarPedidos, pedidosFornec, precificacao, roboPrecif, cadastr
 // Painel Robô (TV, sem login; Tiago, 12/11/26: painel próprio, separado do Painel Precificação): é o Escritório 3D
 // (public/robo-escritorio-3d.html) em modo TV, mostrando o ensaio de verdade. As 2 rotas de dados abaixo são as mesmas
 // do escritório logado, só leitura.
-app.get('/painel-robo.html', (req, res) => { res.set('Cache-Control', 'no-store'); res.sendFile(path.join(__dirname, 'public', 'robo-escritorio-3d.html')); });
+// /painel-robo.html = versão LEVE (7 etapas; a TV não aguentou o 3D, Tiago 12/11) · /painel-robo-3d.html = o escritório, pra computador
+app.get('/painel-robo-3d.html', (req, res) => { res.set('Cache-Control', 'no-store'); res.sendFile(path.join(__dirname, 'public', 'robo-escritorio-3d.html')); });
 app.get('/api/paineis-publico/robo-precificacao', (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json(roboPrecif.consultar()); } catch (err) { res.status(503).json({ error: err.message }); } });
 app.get('/api/paineis-publico/comprador-sombra', async (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json(await compradorSombra.resumo(false)); } catch (err) { res.status(503).json({ error: err.message }); } });
 app.get('/api/paineis-publico/robo-dados', (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json({ lojas: roboEnsaio.LOJAS_PADRAO, ensaios: roboEnsaio.painel() }); } catch (err) { res.status(503).json({ error: 'Sem dados no momento: ' + err.message }); } });
