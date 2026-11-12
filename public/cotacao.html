@@ -923,6 +923,28 @@ table.sug .lj .lj-est{font-size:10.5px;line-height:1.1}
 table.sug td.q-tot{font-size:14px}
 table.sug td.q-tot a,table.sug td.q-tot span{font-size:11.5px}
 table.sug tbody tr:hover td{background:#E6EEFA}
+/* Sem giro por loja no Comparativo (Tiago, 11/11/26): chips de loja na barra de filtros + linha vermelha no cabeçalho do cartão, no padrão
+   do "sem giro" do pré-pedido (.pp-est.sg.on). Sem largura fixa: flex-wrap + faixas @media (1599/1399/1199) apertam chip, fonte e padding. */
+.clubsg{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;margin-top:8px;padding-top:10px;border-top:1px dashed var(--ln)}
+.clubsg .sg-lbl{font-size:13px;font-weight:800;color:var(--ink2);margin-right:4px;white-space:nowrap}
+.sg-chip{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--ln2);border-radius:99px;background:var(--crd);color:var(--ink);padding:6px 13px;font-size:12.5px;font-weight:800;line-height:1.2;cursor:pointer;white-space:nowrap;font-family:inherit}
+.sg-chip small{font-size:11px;font-weight:600;color:var(--ink3)}
+.sg-chip:hover{background:var(--wsh)}
+.sg-chip.on{background:var(--negw);border-color:var(--neg);color:var(--neg)}
+.sg-chip.on small{color:var(--neg)}
+.clubsg .sg-pdf{margin-left:6px;padding:6px 14px;font-size:12.5px;color:var(--neg);border-color:#C22F4966}
+.clubsg .sg-pdf:hover{background:var(--negw)}
+.ci-sg{display:block;margin-top:5px;font-size:12.5px;font-weight:700;color:var(--neg);line-height:1.35;white-space:normal}
+.citem.club .cihd .ci-sg b{font-size:inherit;font-weight:800;color:var(--neg)}
+.sg-count b{color:var(--neg);font-weight:800}
+.sg-count .sg-escondidos{color:var(--amk);font-weight:700;cursor:help}
+.sg-wait{padding:12px 16px;margin-bottom:10px;border-radius:10px;background:var(--amw);color:var(--amk);font-weight:700;font-size:13px}
+.sg-wait.erro{background:var(--negw);color:var(--neg)}
+.sg-wait .btn{margin-left:8px;vertical-align:middle}
+@media (max-width:1599px){.sg-chip{padding:5px 11px;font-size:12px}.sg-chip small{font-size:10.5px}.clubsg .sg-pdf{padding:5px 12px;font-size:12px}}
+@media (max-width:1399px){.clubsg{gap:5px 6px}.clubsg .sg-lbl{font-size:12px}.sg-chip{padding:4px 10px;font-size:11.5px}.sg-chip small{font-size:10px}.ci-sg{font-size:12px}}
+@media (max-width:1199px){.sg-chip small{display:none}.ci-sg{font-size:11.5px}}
+@media print{.sg-wait{display:none}.ci-sg{color:#C22F49}}
 /* sem caixa padrão no topo, em vermelho (Tiago, 13/10): item da cotação sem caixa sobe e trava o envio; preencheu, volta pro lugar */
 table.sug tbody tr.sec.semcx td,table.sug tbody tr.sec.semcx:hover td{background:#FBEAED!important;color:#C22F49;font-weight:700;font-size:12px;text-align:left;padding:6px 10px}
 table.sug tbody tr.cx-sem td{background:#FFF5F6}
@@ -1797,6 +1819,7 @@ async function criarCotacao(){
 // ───────── cotação aberta (Acompanhamento / Comparativo / Pedidos)
 async function abrirCotacao(id, tela){
   try { CUR = await api('/api/cotacoes/' + id); } catch(e) { toastMsg('Erro: ' + e.message); return; }
+  CI_F.sgLoja = '';   // sem giro por loja volta desligado a cada cotação: não pede o giro de cotação que só foi aberta no Acompanhamento (revisão 11/11)
   try { localStorage.setItem('cot-ultima', String(id)); } catch(e) {}   // as abas 3/4/5 reabrem esta cotação direto (abrirUltima)
   renderTudo(); goScreen(tela || 's3');
 }
@@ -2062,7 +2085,7 @@ function analiseItem(i){
 }
 // ───────── COMPARATIVO POR ITEM (estilo Club da Cotação, pedido do Tiago 15/09): cada item num bloco, dados da
 // última compra do ERP e, embaixo, cada vendedor que digitou aquele item; checkbox marca o vencedor
-var VISTA = localStorage.getItem('cot-vista') || 'itens', ULT = {}, CI_F = {busca:'', forn:'', loja:'', cat:'', soObs:false, soSemPreco:false, soComPreco:true, soManual:false, soComprados:false, soNaoComprados:false, soNovos:false, soTransito:false, trModo:'qualquer', varTipo:'pct', var:'', varOn:false}, CI_ABA = 'produtos', CI_REC = {}, CATS = {};
+var VISTA = localStorage.getItem('cot-vista') || 'itens', ULT = {}, CI_F = {busca:'', forn:'', loja:'', cat:'', soObs:false, soSemPreco:false, soComPreco:true, soManual:false, soComprados:false, soNaoComprados:false, soNovos:false, soTransito:false, trModo:'qualquer', varTipo:'pct', var:'', varOn:false, sgLoja:''}, CI_ABA = 'produtos', CI_REC = {}, CATS = {};
 function setVista(v){ VISTA = v; localStorage.setItem('cot-vista', v); renderComparativo(); }
 function renderComparativo(){ if (VISTA === 'matriz') return renderComparativoMatriz(); return renderComparativoItens(); }
 async function carregarUltimas(){
@@ -2095,6 +2118,31 @@ function trPill(cod){ var pe = CUR && PP_EST[CUR.id], t = pe && pe.itens && pe.i
   if (nfes.length) { nfes.sort(function(a, b){ return String(b.data).localeCompare(String(a.data)); }); h += ' <span class="tr-pill nfe" title="' + esc('NF-e já emitida pelo fornecedor (XML no radar, ainda não recebida):\n' + nfes.map(nfeTxtCot).join('\n')) + '">🧾 NF-e ' + ddm(nfes[0].data) + '</span>'; }
   if (devs.length) { devs.sort(function(a, b){ return String(b.data).localeCompare(String(a.data)); }); h += ' <span class="tr-pill dev" title="' + esc('Entrega DEVOLVIDA: o fornecedor emitiu a contranota com os mesmos itens. A nota não vem mais e não conta como trânsito.\n' + devs.map(nfeTxtCot).join('\n')) + '">↩ devolvida ' + ddm(devs[0].devolvida.data) + '</span>'; }
   return h; }
+// ── Sem giro por loja no Comparativo (Tiago, 11/11/26: "colocar uma opção para trazer cada loja: quando eu clicar na loja ele traz todos os
+// produtos sem giro que estão na cotação, como já aparece lá na cotação, e que eu consiga imprimir ou enviar o PDF") ──
+// Mesmo critério e mesmos dados do pré-pedido: PP_GIRO (rota /giro: 30 dias ou mais sem venda na loja, ou nenhuma nos últimos 120 d) e
+// PP_EST (rota /estoque). Um chip por loja da cotação, só uma loja por vez; os outros filtros continuam valendo em cima. O PDF sai da
+// rota /api/cotacoes/:id/sem-giro.pdf?loja=N e abre em outra aba (imprimir ou mandar no WhatsApp). Cotação fechada também lista (é leitura).
+function ciSgLoja(){ var l = CI_F.sgLoja; if (!l || !CUR) return null; if ((CUR.lojas || []).map(String).indexOf(String(l)) < 0) { CI_F.sgLoja = ''; return null; } return String(l); }   // loja ligada E válida nesta cotação (trocou pra uma cotação sem essa loja: desliga sozinho)
+function ciSemGiro(ln){ CI_LIM = 100; CI_F.sgLoja = String(CI_F.sgLoja) === String(ln) ? '' : String(ln); var G = CUR && PP_GIRO[CUR.id]; if (CI_F.sgLoja && G && G.em && !G.carregando && Date.now() - new Date(G.em).getTime() > 10 * 60 * 1000) ppCarregarGiro(true); renderComparativoItens(); }   // giro com mais de 10 min (régua do servidor) é relido ao ligar, pra tela e PDF baterem (revisão 11/11)   // clique no chip liga; de novo, desliga (o giro é carregado 1x pelo renderComparativoItens, fora do filtro por item)
+function ciSgGiro(){ var G = CUR && PP_GIRO[CUR.id]; return G && !G.carregando && !G.erro && G.itens ? G : null; }   // null = ainda carregando ou falhou: o filtro não esconde nada e a lista avisa
+function ciSemGiroOk(i, ln, G){ var g = G && G.itens[i.cod] && G.itens[i.cod][ln]; return !!(g && g.sem_giro === true); }
+function ciSgPedidos(ln){ var Q = {}; (((CUR && CUR.prePedidos) || {}).fornecedores || []).forEach(function(p){ (p.itens || []).forEach(function(x){ var q = x.lojas_qtd ? +x.lojas_qtd[ln] : 0; if (q > 0) Q[x.cod] = (Q[x.cod] || 0) + q; }); }); return Q; }   // cod → quantidade desta loja no pré-pedido/pedido (já com zerados e trocas por loja)
+function ciSgEstoque(cod, ln){ var E = CUR && PP_EST[CUR.id]; if (!E || E.carregando || !E.itens) return '…'; var t = E.itens[cod], L = t && t.lojas && t.lojas[ln]; return L && L.estoque != null ? fmtN(L.estoque) : '—'; }
+function ciSemGiroLinha(i, ln, G, Q){
+  var g = G && G.itens[i.cod] && G.itens[i.cod][ln]; if (!g || !g.sem_giro) return '';
+  var q = Q ? Q[i.cod] : 0, nome = LJ(ln) + ' ' + esc(LOJAS_NOMES[ln] || '');
+  return '<div class="ci-sg" title="' + esc('Nesta loja, no ERP: ' + (g.uv ? 'última venda há ' + g.dias + ' dia(s) — sem giro é 30 dias ou mais' : 'nenhuma venda nos últimos 120 dias') + ' · última compra ' + (g.uc ? dcurta(g.uc) : 'sem registro') + ' · estoque = estoque atual da loja · pedido = quantidade desta loja no pré-pedido/pedido desta cotação') + '">' +
+    nome + ' · ' + (g.uv ? 'sem giro <b>' + g.dias + ' d</b> · últ. venda ' + dcurta(g.uv) : '<b>nunca vendeu nos últimos 120 d</b>') + ' · últ. compra ' + (g.uc ? dcurta(g.uc) : '—') + ' · estoque ' + ciSgEstoque(i.cod, ln) + ' · pedido pra ' + LJ(ln) + ': ' + (q > 0 ? '<b>' + fmtN(q) + '</b>' : '—') + '</div>';
+}
+function ciSemGiroPdf(){ var l = ciSgLoja(); if (!l) return; window.open('/api/cotacoes/' + CUR.id + '/sem-giro.pdf?loja=' + l, '_blank'); }   // PDF inline (rota do server.js): o navegador abre pra imprimir ou mandar no WhatsApp
+function ciSemGiroChips(){
+  var l = ciSgLoja(), lojas = CUR.lojas || [];
+  return '<div class="clubsg"><span class="sg-lbl" title="Mostra só os produtos desta cotação que estão sem giro na loja escolhida (mesmo critério do pré-pedido). Clique na loja; de novo, desliga.">Sem giro por loja:</span>' +
+    lojas.map(function(ln){ var on = l === String(ln); return '<button type="button" class="sg-chip' + (on ? ' on' : '') + '" data-ln="' + ln + '" onclick="ciSemGiro(' + ln + ')" title="' + (on ? 'Desligar o filtro de sem giro' : 'Só os itens sem giro em ' + LJ(ln) + ' ' + esc(LOJAS_NOMES[ln] || '') + ': 30 dias ou mais sem venda nesta loja, ou nenhuma venda nos últimos 120 d') + '">' + LJ(ln) + ' <small>' + esc(LOJAS_NOMES[ln] || '') + '</small></button>'; }).join('') +
+    (l ? '<button type="button" class="cbtn sg-pdf" onclick="ciSemGiroPdf()" title="Abre o PDF pra imprimir ou mandar no WhatsApp">📄 PDF ' + LJ(l) + '</button>' : '') + '</div>';
+}
+// ── fim Sem giro por loja ──
 function ciFiltrar(){ CI_LIM = 100; CI_F.var = ($('#ci-var') || {}).value || ''; CI_F.varOn = parseFloat(String(CI_F.var).replace(',', '.')) > 0; renderComparativoItens(); }
 function renderComparativoItens(opts){
   // estoque/trânsito ao vivo pro selo 🚚 e pro filtro "Em trânsito": carrega 1x por cotação e redesenha só a lista
@@ -2130,11 +2178,15 @@ function renderComparativoItens(opts){
     '<label><input type="checkbox" class="check"' + (CI_F.soTransito ? ' checked' : '') + ' onchange="ciSet(\'soTransito\',this.checked)" title="Itens com pedido feito (aqui ou no ERP) ainda não recebido, ou com NF-e já emitida pelo fornecedor, em alguma loja da cotação — atualizado a cada 5 min"> Em trânsito</label>' +
     (CI_F.soTransito ? '<select class="fin" style="width:auto;padding:3px 8px;font-size:12px" onchange="ciSet(\'trModo\',this.value)"><option value="qualquer"' + (CI_F.trModo === 'qualquer' ? ' selected' : '') + '>pedido feito ou NF-e emitida</option><option value="pedido"' + (CI_F.trModo === 'pedido' ? ' selected' : '') + '>só pedido feito (NF-e ainda não emitida)</option><option value="nfe"' + (CI_F.trModo === 'nfe' ? ' selected' : '') + '>só com NF-e emitida</option></select>' : '') +
     '</div>' +
+    ciSemGiroChips() +   // Sem giro por loja (Tiago, 11/11/26): um chip por loja da cotação + botão 📄 PDF da loja ligada
     '<div class="clubvar"><label class="on"><input type="checkbox" class="check"' + (CI_F.varOn ? ' checked' : '') + ' onchange="ciSet(\'varOn\',this.checked)" title="Liga o filtro de variação: só itens cuja diferença entre o menor preço cotado e a última compra é maior ou igual ao valor informado"> Alta variação de Preços</label>' +
     '<label><input type="radio" name="ci-vt"' + (CI_F.varTipo === 'pct' ? ' checked' : '') + ' onchange="ciSet(\'varTipo\',\'pct\')"> Em percentual (%)</label><label><input type="radio" name="ci-vt"' + (CI_F.varTipo === 'rs' ? ' checked' : '') + ' onchange="ciSet(\'varTipo\',\'rs\')"> Em valor (R$)</label>' +
     '<div class="clubfiltrar"><input type="text" id="ci-var" class="fin" inputmode="decimal" value="' + esc(CI_F.var) + '" placeholder="' + (CI_F.varTipo === 'rs' ? 'ex.: 0,50 (R$)' : 'ex.: 5 (%)') + '" title="Mostra só itens cuja variação entre o menor preço cotado e a última compra é maior ou igual a este valor" oninput="ciVarDigitando()" onkeydown="if(event.key===\'Enter\')ciFiltrar()"><button class="cbtn" style="font-weight:800" onclick="ciFiltrar()">Filtrar</button></div></div></div>';
   var hHead = h;   // tudo até aqui é cabeçalho + filtros; o que vem depois é a lista (#ci-list), que a busca redesenha sozinha
   var b = CI_F.busca.trim().toLowerCase(), varMin = parseFloat(String(CI_F.var).replace(/\./g, '').replace(',', '.')) || 0, L = CI_F.loja;
+  // Sem giro por loja (Tiago, 11/11/26): giro e estoque vêm 1x por cotação (PP_GIRO/PP_EST, os mesmos do pré-pedido); a lista redesenha quando chegam
+  var SG = ciSgLoja(); if (SG && !PP_GIRO[CUR.id]) ppCarregarGiro();
+  var SGG = SG ? ciSgGiro() : null, SGQ = SGG ? ciSgPedidos(SG) : null;
   var itens = C.itens.filter(function(i){
     if (b && !buscaOk(i.descricao, i.cod, b)) return false;
     if (CI_F.forn && !i.precos[CI_F.forn]) return false;
@@ -2148,16 +2200,22 @@ function renderComparativoItens(opts){
     if (CI_F.soNaoComprados && !(i.nao_comprar && temPreco)) return false;   // Tiago, 28/09: alguém digitou preço, mas eu desmarquei e não comprei de ninguém (item sem preço nenhum não é "não comprado", é "não digitado")
     if (CI_F.soNovos && !Object.keys(i.precos).some(function(k){ return novos[k]; })) return false;
     if (CI_F.soTransito) { var pe2 = CUR && PP_EST[CUR.id], te = pe2 && pe2.itens && pe2.itens[i.cod]; var okT = !!(te && (te.tem_pedido || te.transito > 0)); if (CI_F.trModo === 'nfe') okT = !!(te && te.tem_nfe); else if (CI_F.trModo === 'pedido') okT = !!(te && te.tem_pedido && !te.tem_nfe); if (!okT) return false; }
+    if (SGG && !ciSemGiroOk(i, SG, SGG)) return false;   // Sem giro por loja (Tiago, 11/11/26): giro ainda carregando (SGG null) não esconde nada; a lista avisa
     if (CI_F.varOn && varMin > 0) { var base = (U[i.cod] && U[i.cod].preco) || i.ultimo_custo; if (!(base > 0) || !i.melhor) return false; var d = CI_F.varTipo === 'rs' ? Math.abs(i.melhor.preco - base) : Math.abs((i.melhor.preco - base) / base * 100); if (d < varMin) return false; }
     return true;
   });
-  h += '<p class="mini" style="margin:12px 0 8px">' + itens.length + ' de ' + C.itens.length + ' itens' + (L ? ' · quantidades da Loja ' + L : '') + '</p>';
-  if (!itens.length) h += '<div class="empty">Nenhum item com esse filtro.</div>';
+  // mesma ordem do PDF: nunca vendeu em 120 d primeiro, depois mais dias sem venda (revisão 11/11)
+  if (SGG) itens.sort(function(a, b){ var ga = SGG.itens[a.cod][SG], gb = SGG.itens[b.cod][SG], na = !ga.uv, nb = !gb.uv; if (na !== nb) return na ? -1 : 1; return (gb.dias || 0) - (ga.dias || 0) || String(a.descricao).localeCompare(String(b.descricao), 'pt-BR'); });
+  var sgNome = SG ? LJ(SG) + ' ' + esc(LOJAS_NOMES[SG] || '') : '', sgTot = SGG ? C.itens.filter(function(i){ return ciSemGiroOk(i, SG, SGG); }).length : 0;   // Sem giro por loja (Tiago, 11/11/26): "N itens sem giro em E3 PONTE (de M da cotação)"; outro filtro escondendo parte deles → avisa (o PDF traz todos)
+  if (SGG) h += '<p class="mini sg-count" style="margin:12px 0 8px"><b>' + itens.length + ' ' + (itens.length === 1 ? 'item' : 'itens') + ' sem giro em ' + sgNome + '</b> (de ' + C.itens.length + ' da cotação)' + (sgTot !== itens.length ? ' · <span class="sg-escondidos" title="Os outros filtros ligados (Apenas digitados, Fornecedor, Categoria…) escondem ' + (sgTot - itens.length) + ' dos ' + sgTot + ' sem giro nesta loja. O PDF traz todos.">' + sgTot + ' sem giro no total, ' + (sgTot - itens.length) + (sgTot - itens.length === 1 ? ' escondido' : ' escondidos') + ' pelos outros filtros</span>' : '') + (L ? ' · quantidades da loja ' + LJ(L) : '') + '</p>';
+  else h += '<p class="mini" style="margin:12px 0 8px">' + itens.length + ' de ' + C.itens.length + ' itens' + (L ? ' · quantidades da loja ' + LJ(L) : '') + '</p>';
+  if (SG && !SGG) { var sgG = PP_GIRO[CUR.id]; h += '<div class="sg-wait' + (sgG && sgG.erro ? ' erro' : '') + '">' + (sgG && sgG.erro ? '⚠ Não deu pra carregar o giro das lojas (' + esc(sgG.erro) + '). A lista está sem o filtro de sem giro. <button type="button" class="btn ghost sm" onclick="ppCarregarGiro(true);renderComparativoItens({ soLista: true })">Tentar de novo</button>' : '⏳ carregando o giro das lojas… a lista fica só com os itens sem giro em ' + sgNome + ' assim que chegar') + '</div>'; }   // Sem giro por loja: enquanto o giro não chega nenhum item some (e nada de "Nenhum item com esse filtro")
+  if (!itens.length) h += '<div class="empty">' + (SGG ? (sgTot === 1 ? 'Os outros filtros ligados esconderam o único item sem giro em ' + sgNome + '.' : sgTot ? 'Os outros filtros ligados esconderam todos os ' + sgTot + ' itens sem giro em ' + sgNome + '.' : 'Nenhum item desta cotação está sem giro em ' + sgNome + '.') : 'Nenhum item com esse filtro.') + '</div>';
   // Paginação (Tiago, 25/09: "muito lento quando clico na flag"): desenha 100 cartões por vez; "Mostrar mais" traz o resto
   h += itens.slice(0, CI_LIM).map(function(i){
     var u = U[i.cod], base = (u && u.preco) || i.ultimo_custo || 0, v = i.vencedor, q = L ? (i.lojas_qtd[L] || 0) : i.qtd, rec = !!CI_REC[i.cod], k = K[i.cod];
     var quem = F.filter(function(f){ return i.precos[f.codFornec]; }), naoCot = F.filter(function(f){ return !i.precos[f.codFornec]; });
-    var x = '<div class="citem club' + (rec ? ' rec' : '') + '" id="ci-' + esc(i.cod) + '"><div class="cihd" onclick="ciRec(\'' + esc(i.cod) + '\')"><div><span class="chev">⌄</span> <b>' + esc(i.descricao) + '</b>' + cdTag(i.cod) + ' <span class="mini" style="color:var(--amk)">' + esc(i.unid || 'UN') + '|' + i.emb + '</span>' + (i.curva_a ? ' <span class="an-badge bad" style="padding:1px 7px">curva A</span>' : '') + trPill(i.cod) + (k && k.grupo ? ' <span class="mini" style="color:var(--amk)">· ' + esc(k.grupo) + (k.subgrupo ? ' / ' + esc(k.subgrupo) : '') + '</span>' : '') + '<br><span class="cod">Código: ' + esc(i.cod) + '</span>' + (i.nao_comprar ? ' <span class="mini" style="color:var(--neg);font-weight:700">· não comprar</span>' : '') + ciPorLojaTxt(i) + '</div>' +
+    var x = '<div class="citem club' + (rec ? ' rec' : '') + '" id="ci-' + esc(i.cod) + '"><div class="cihd" onclick="ciRec(\'' + esc(i.cod) + '\')"><div><span class="chev">⌄</span> <b>' + esc(i.descricao) + '</b>' + cdTag(i.cod) + ' <span class="mini" style="color:var(--amk)">' + esc(i.unid || 'UN') + '|' + i.emb + '</span>' + (i.curva_a ? ' <span class="an-badge bad" style="padding:1px 7px">curva A</span>' : '') + trPill(i.cod) + (k && k.grupo ? ' <span class="mini" style="color:var(--amk)">· ' + esc(k.grupo) + (k.subgrupo ? ' / ' + esc(k.subgrupo) : '') + '</span>' : '') + '<br><span class="cod">Código: ' + esc(i.cod) + '</span>' + (i.nao_comprar ? ' <span class="mini" style="color:var(--neg);font-weight:700">· não comprar</span>' : '') + ciPorLojaTxt(i) + (SGG ? ciSemGiroLinha(i, SG, SGG, SGQ) : '') + '</div>' +
       '<div style="text-align:right" onclick="event.stopPropagation()"><span style="font-size:15px">Quantidade: <b>' + fmtN(q) + '</b></span>' + (i.emb > 1 ? ' <span class="mini">(' + Math.ceil(q / i.emb) + ' cx de ' + i.emb + ')</span>' : '') + (L ? '' : (Object.keys(i.lojas_qtd || {}).length > 1 ? '<br><span class="mini">' + Object.keys(i.lojas_qtd).map(function(l){ return LJ(l) + ' ' + i.lojas_qtd[l]; }).join(' · ') + '</span>' : '')) +
       (i.fechado ? '<br><span class="lock-pill" title="Este item já está num pedido realizado. Pedido fechado não muda.">🔒 pedido #' + i.pedidoId + ' realizado</span>' : aberta ? '<br><span class="sel-vc" style="justify-content:flex-end"><button class="' + (!i.manual && !i.nao_comprar ? 'on' : '') + '" onclick="escolher(\'' + esc(i.cod) + '\',\'auto\')">auto (menor)</button><button class="' + (i.nao_comprar ? 'on' : '') + '" onclick="escolher(\'' + esc(i.cod) + '\',\'nao\')">não comprar</button></span>' : '') + '</div></div><div class="cibody">';
     x += '<div class="ciult"><span>Dados da ultima compra: <span class="ico2">▪</span></span>' + (u ? '<span>Valor: ' + (u.preco ? fmtN(u.preco, 2) : '—') + '</span><span>Fornecedor: ' + esc(u.fornecedor || ('cód. ' + u.cf)) + '</span><span>Data: ' + dd(u.data) + '</span><span>Quantidade: ' + fmtN(u.qtd) + (u.loja ? ' <span class="mini">(' + LJ(u.loja) + ')</span>' : '') + '</span>' : '<span>sem nota de entrada nos últimos 24 meses</span><span>Último custo (cadastro): ' + (i.ultimo_custo > 0 ? fmtN(i.ultimo_custo, 2) : '—') + '</span>') + '</div>';
@@ -2568,6 +2626,7 @@ async function ppCarregarGiro(refresh){
   PP_GIRO[k] = { carregando: true };
   try { var r = await api('/api/cotacoes/' + k + '/giro' + (refresh ? '?refresh=1' : '')); PP_GIRO[k] = r; } catch(e) { PP_GIRO[k] = { erro: e.message, itens: {} }; }
   if (PP_DET != null && CI_ABA === 'prepedidos') renderComparativoItens();
+  else if (CI_F.sgLoja && CI_ABA === 'produtos' && $('#ci-list')) renderComparativoItens({ soLista: true });   // Comparativo com "Sem giro por loja" ligado esperando o giro (Tiago, 11/11/26): redesenha só a lista
 }
 var dcurta = function(s){ return s ? s.slice(8, 10) + '/' + s.slice(5, 7) + '/' + s.slice(2, 4) : '—'; };
 function ppGiroDe(cod, ln){ var G = CUR && PP_GIRO[CUR.id]; if (CUR && !G) ppCarregarGiro(); if (!G || G.carregando || !G.itens) return null; return (G.itens[cod] || {})[ln] || {}; }
@@ -2581,6 +2640,7 @@ async function ppCarregarEstoque(refresh){
   PP_EST[k] = { carregando: true };
   try { var r = await api('/api/cotacoes/' + k + '/estoque' + (refresh ? '?refresh=1' : '')); PP_EST[k] = r; } catch(e) { PP_EST[k] = { erro: e.message, itens: {} }; }
   if (PP_DET != null && CI_ABA === 'prepedidos') { renderComparativoItens(); ppAbaterTransito(); }
+  else if (CI_F.sgLoja && CI_ABA === 'produtos' && $('#ci-list')) renderComparativoItens({ soLista: true });   // estoque da loja na linha "sem giro" dos cartões do Comparativo (Tiago, 11/11/26)
 }
 function ppEstItem(i){ var E = PP_EST[CUR.id]; return E && E.itens ? E.itens[i.cod] : null; }
 function ppVoltar(){ ppAssentar(); PP_DET = null; renderComparativoItens(); }

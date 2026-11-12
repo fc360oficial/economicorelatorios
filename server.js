@@ -10832,11 +10832,16 @@ app.post('/api/cotacoes/:id/mensagem', (req, res) => {
 // estoque e trânsito por loja dos itens da cotação, AO VIVO (estoquen{ln} + sugestões abertas no ERP via Radar),
 // pra tela de pré-pedido (Tiago, 21/09: "em cada item preciso visualizar o estoque da loja e o que está em trânsito")
 const _cotEstoque = {};
-app.get('/api/cotacoes/:id/estoque', async (req, res) => {
-  try {
-    const id = cotId(req); if (!id) return res.status(400).json({ error: 'id inválido' });
-    const c = cotacao.obter(id); if (!c) return res.status(404).json({ error: 'cotação não encontrada' });
-    const cache = _cotEstoque[id]; if (cache && Date.now() - cache.em < 5 * 60 * 1000 && req.query.refresh !== '1') return res.json(cache.dados);
+/** Corpo da rota /estoque (refatorado sem mudar nada, Tiago 11/11/26: o Sem giro por loja reaproveita estes dados). Cache 5 min por cotação; refresh ignora o cache. */
+const _cotEstoqueEmCurso = {};
+function estoqueDaCotacao(c, opts = {}) {
+  if (!opts.refresh && _cotEstoqueEmCurso[c.id]) return _cotEstoqueEmCurso[c.id];
+  const p = estoqueDaCotacao0(c, opts).finally(() => { if (_cotEstoqueEmCurso[c.id] === p) delete _cotEstoqueEmCurso[c.id]; });
+  _cotEstoqueEmCurso[c.id] = p; return p;
+}
+async function estoqueDaCotacao0(c, { refresh } = {}) {
+    const id = c.id;
+    const cache = _cotEstoque[id]; if (cache && Date.now() - cache.em < 5 * 60 * 1000 && !refresh) return cache.dados;
     const cods = c.itens.map(i => i.cod), out = {};
     for (const cod of cods) out[cod] = { estoque: 0, transito: 0, estoque_cd: 0, lojas: {} };
     for (const ln of [1, 2, 3, 4, 5, 6]) for (const ch of radarPedidos.chunk(cods, 2000)) {
@@ -10898,18 +10903,30 @@ app.get('/api/cotacoes/:id/estoque', async (req, res) => {
     }
     const dados = { itens: out, em: new Date().toISOString() };
     _cotEstoque[id] = { em: Date.now(), dados };
-    res.json(dados);
+    return dados;
+}
+app.get('/api/cotacoes/:id/estoque', async (req, res) => {
+  try {
+    const id = cotId(req); if (!id) return res.status(400).json({ error: 'id inválido' });
+    const c = cotacao.obter(id); if (!c) return res.status(404).json({ error: 'cotação não encontrada' });
+    res.json(await estoqueDaCotacao(c, { refresh: req.query.refresh === '1' }));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 // Giro por loja pro pré-pedido (Tiago, 15/10: "ao lado de cada quadrado coloca a última compra e a última venda desse item no
 // ERP e quando o produto está sem giro"): custoloja{ln}.UltimaCompra + última venda nos cupons (mês atual e 3 anteriores,
 // bancos ln{ln}mes{MM}); sem venda na janela = 120+ dias. Sem giro = 30 dias ou mais sem venda (régua do Sem Giro). Cache 10 min.
 const _cotGiro = {};
-app.get('/api/cotacoes/:id/giro', async (req, res) => {
-  try {
-    const id = cotId(req); if (!id) return res.status(400).json({ error: 'id inválido' });
-    const c = cotacao.obter(id); if (!c) return res.status(404).json({ error: 'cotação não encontrada' });
-    const cache = _cotGiro[id]; if (cache && Date.now() - cache.em < 10 * 60 * 1000 && req.query.refresh !== '1') return res.json(cache.dados);
+/** Corpo da rota /giro (refatorado sem mudar nada, Tiago 11/11/26: o Sem giro por loja usa o mesmo critério e os mesmos dados). Cache 10 min por cotação; refresh ignora o cache. */
+// chamada em curso pra mesma cotação (chip na tela + PDF, duas abas) espera a primeira em vez de consultar o ERP de novo (revisão 11/11)
+const _cotGiroEmCurso = {};
+function giroDaCotacao(c, opts = {}) {
+  if (!opts.refresh && _cotGiroEmCurso[c.id]) return _cotGiroEmCurso[c.id];
+  const p = giroDaCotacao0(c, opts).finally(() => { if (_cotGiroEmCurso[c.id] === p) delete _cotGiroEmCurso[c.id]; });
+  _cotGiroEmCurso[c.id] = p; return p;
+}
+async function giroDaCotacao0(c, { refresh } = {}) {
+    const id = c.id;
+    const cache = _cotGiro[id]; if (cache && Date.now() - cache.em < 10 * 60 * 1000 && !refresh) return cache.dados;
     const cods = c.itens.map(i => String(i.cod)), out = {}; for (const cod of cods) out[cod] = {};
     const hoje = new Date(), pad = n => String(n).padStart(2, '0'), dHoje = `${hoje.getFullYear()}-${pad(hoje.getMonth() + 1)}-${pad(hoje.getDate())}`;
     const isoDe = v => { if (!v) return null; if (v instanceof Date) return isNaN(v) ? null : `${v.getFullYear()}-${pad(v.getMonth() + 1)}-${pad(v.getDate())}`; const s = String(v).trim(); let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/); if (m) return m[1] + '-' + m[2] + '-' + m[3]; m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/); return m ? m[3] + '-' + m[2] + '-' + m[1] : null; };
@@ -10945,8 +10962,48 @@ app.get('/api/cotacoes/:id/giro', async (req, res) => {
     }
     const dados = { itens: out, em: new Date().toISOString(), janela_dias: 120, fonte_vendas: ultEspelho ? 'espelho' : 'erp', fonte_estoque: fonteEstoque };
     _cotGiro[id] = { em: Date.now(), dados };
-    res.json(dados);
+    return dados;
+}
+app.get('/api/cotacoes/:id/giro', async (req, res) => {
+  try {
+    const id = cotId(req); if (!id) return res.status(400).json({ error: 'id inválido' });
+    const c = cotacao.obter(id); if (!c) return res.status(404).json({ error: 'cotação não encontrada' });
+    res.json(await giroDaCotacao(c, { refresh: req.query.refresh === '1' }));
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+// Sem giro por loja (Tiago, 11/11/26, barra de filtros do Comparativo: "colocar uma opção para trazer cada loja: quando eu clicar na
+// loja ele traz todos os produtos sem giro que estão na cotação, como já aparece lá na cotação, e que eu consiga imprimir ou enviar
+// o PDF"). Mesmo critério e mesmos dados da rota /giro (+ estoque da /estoque, pré-pedido e comparativo): nada novo no ERP.
+// ?loja=N (loja da cotação) → JSON pra tela (contagem/prova) e .pdf inline (abre no navegador/celular pra imprimir ou mandar no
+// WhatsApp). Cotação fechada também lista: é leitura. Mesma trava de login/escopo das outras rotas /api/cotacoes/:id (middleware).
+const cotacaoSemGiro = require('./lib/cotacao-sem-giro');
+async function semGiroDaCotacao(req) {
+  const id = cotId(req); if (!id) return { status: 400, error: 'id inválido' };
+  const c = cotacao.obter(id); if (!c) return { status: 404, error: 'cotação não encontrada' };
+  const loja = cotacaoSemGiro.lojaValida(c, req.query.loja);
+  if (!loja) return { status: 400, error: 'loja inválida: informe ?loja=N com uma loja da cotação (' + cotacaoSemGiro.lojasDe(c).map(l => 'E' + l).join(', ') + ')' };
+  const refresh = req.query.refresh === '1';
+  const giro = await giroDaCotacao(c, { refresh });
+  const estoque = await estoqueDaCotacao(c, { refresh }).catch(e => { console.error('[COTACAO] sem-giro estoque:', e.message); return null; });   // estoque que falhar não derruba: itens saem com estoque null
+  const dados = cotacaoSemGiro.montar(c, { giro, estoque, loja, prePedidos: cotacao.prePedidos(c, { minimoErp: COT_FORN_MIN, lista: radarPedidos.listaCadastro(c.lista) }), comparativo: cotacao.comparativo(c) });
+  return { status: 200, dados, c, loja };
+}
+app.get('/api/cotacoes/:id/sem-giro', async (req, res) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    const r = await semGiroDaCotacao(req); if (r.error) return res.status(r.status).json({ error: r.error });
+    res.json(r.dados);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.get('/api/cotacoes/:id/sem-giro.pdf', async (req, res) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    const r = await semGiroDaCotacao(req); if (r.error) return res.status(r.status).json({ error: r.error });
+    const u = (req.session && req.session.user) || {};
+    const pdf = await cotacaoSemGiro.pdf(r.dados, { usuario: u.nome || u.usuario || '' });
+    res.set('Content-Type', 'application/pdf'); res.set('Content-Disposition', 'inline; filename="' + cotacaoSemGiro.nomeArquivo(r.c, r.loja) + '"');
+    res.send(pdf);
+  } catch (err) { console.error('[cotacoes/sem-giro.pdf]', err.message); res.status(500).json({ error: err.message }); }
 });
 // fecha se todos os vencedores têm pedido (fornecedor zerado não conta) / encerra sem gerar pedido novo (Tiago, 15/10)
 app.post('/api/cotacoes/:id/fechar-se-completa', (req, res) => {
