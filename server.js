@@ -8595,7 +8595,10 @@ app.get('/api/radar-pedidos', async (req, res) => {
     // pedidos em andamento por lista (pedidos-fornecedor): a tela avisa e pede confirmação antes de gerar de novo
     const pedidosAbertos = {};
     for (const p of pedidosFornec.listar()) { if (p.teste || !['analise', 'sugestao', 'aguardando', 'digitacao', 'finalizado', 'aprovado'].includes(p.status)) continue; (pedidosAbertos[p.lista] || (pedidosAbertos[p.lista] = [])).push({ id: p.id, status: p.status, criadoEm: p.criadoEm, enviadoEm: p.enviadoEm || null, finalizadoEm: p.finalizadoEm || null, vendedor: p.vendedor?.nome || null }); }
-    res.json({ estado: radarPedidos.getEstado(), teto, resumo, listas, curvaA: usarCurvaA, loja: lojaRadar, gatilho: gatilhoRadar, pedidos_abertos: pedidosAbertos });
+    // listas com pedido do ROBÔ em andamento (Tiago, 12/11/26: "tem que mostrar como comprador o nome ROBÔ")
+    const roboListas = {};
+    for (const p of pedidosFornec.listar()) if (p.ensaio && !p.ensaio.encerradoEm && ['aguardando', 'digitacao', 'finalizado', 'aprovado', 'recebido_parcial'].includes(p.status)) roboListas[p.lista] = p.id;
+    res.json({ estado: radarPedidos.getEstado(), teto, resumo, listas, curvaA: usarCurvaA, loja: lojaRadar, gatilho: gatilhoRadar, pedidos_abertos: pedidosAbertos, robo_listas: roboListas });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

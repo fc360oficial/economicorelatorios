@@ -431,7 +431,7 @@ async function carregar(refresh,suave){
   if(!suave) $('#view').innerHTML='<div class="spinner"></div>';
   const p=params(); if(refresh)p.set('refresh','1');
   try{
-    const r=await fetch('/api/radar-pedidos?'+p.toString()); const j=await r.json(); PED_ABERTOS=j.pedidos_abertos||{};
+    const r=await fetch('/api/radar-pedidos?'+p.toString()); const j=await r.json(); PED_ABERTOS=j.pedidos_abertos||{};ROBO_LISTAS=j.robo_listas||{};
     if(j.error) throw new Error(j.error);
     DATA=j; CURVAA=null; renderEstado(); renderTotais(); preencherCompradores(); render(); carregarCurvaA(); semiForm();
     if(ABRIR_LISTA&&j.estado.status==='ok'){ const id=ABRIR_LISTA; ABRIR_LISTA=null; if(DATA.listas.some(l=>l.lista===id)) abrirLista(id); else alert('Lista '+id+' não está no Radar (sem loja marcada, desativada ou sem itens ativos).'); }
@@ -495,7 +495,7 @@ function pillDia(l){
   if(l.fazer_em<=3) return '<span class="pill p-breve">'+l.fazer_em+' d · '+l.dow+'</span>'+a+de;
   return '<span class="pill p-ok">'+l.fazer_em+' d · '+l.dow+' '+br(l.data).slice(0,5)+'</span>'+a+de;
 }
-let PED_ABERTOS={};
+let PED_ABERTOS={},ROBO_LISTAS={};
 const temAprovado=l=>(PED_ABERTOS[l.lista]||[]).some(p=>p.status==='aprovado');
 const ST_PED={analise:'em análise · ainda não enviado ao vendedor',sugestao:'sugestão de ruptura',aguardando:'enviado ao vendedor · aguardando digitação',digitacao:'vendedor digitando preços',finalizado:'finalizado · aguardando sua aprovação',aprovado:'aprovado · aguardando NF-e'};
 const dtCurta=s=>s?new Date(s).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
@@ -815,7 +815,7 @@ function renderCurvaA(){
     const a=ACAO[i.acao]||[i.acao,'',''];
     const lz=i.lojas_zeradas.length?i.lojas_zeradas.map(z=>'<span title="loja '+z.loja+': vende '+fmt(z.venda_dia,1)+'/dia e está zerada">L'+z.loja+'</span>').join(' ')+(i.lojas_com_estoque?'<div class="s2">'+i.lojas_com_estoque+' loja'+(i.lojas_com_estoque>1?'s':'')+' com estoque</div>':''):'<span class="mut">—</span>';
     const motivo=i.zera_antes?'zera em '+fmt(i.cobertura_dias,0)+' d, lista era em '+i.fazer_em_lista+' d':(i.no_ponto?'no ponto de pedido':'loja zerada');
-    h+='<tr><td><span class="acao '+a[1]+'" title="'+esc(a[2])+'">'+a[0]+'</span></td><td class="lc"><div class="nm">'+esc(i.descricao)+'<span>'+esc(i.cod)+'</span></div><div class="sub">'+motivo+'</div></td><td class="r">'+i.rank+'</td><td class="r">'+fmt(i.venda_dia,1)+'</td><td class="r">'+fmt(i.venda_dia_valor,0)+'</td><td class="r">'+fmt(i.estoque,0)+'</td><td class="r">'+(i.transito?fmt(i.transito,0):'<span class="mut">—</span>')+'</td><td class="r '+(i.zera_antes||i.no_ponto?'neg':'')+'">'+fmt(i.cobertura_dias,0)+' d</td><td class="r">'+fmt(i.ponto)+' d</td><td>'+lz+'</td><td class="lc"><div class="nm lnk" style="cursor:pointer" onclick="abrirLista('+i.lista+')">'+esc(i.lista_nome)+' ↗<span>#'+i.lista+'</span></div></td><td class="comp">'+esc(i.comprador||'—')+'</td><td class="c">'+(i.fazer_em===0?'<span class="pill p-hoje">HOJE</span>':'<span class="pill '+(i.fazer_em<=3?'p-breve':'p-ok')+'">'+i.fazer_em+' d · '+br(i.data).slice(0,5)+'</span>')+(i.gatilho==='curva_a'?'<div class="s2">era '+i.fazer_em_lista+' d</div>':'')+'</td></tr>';
+    h+='<tr><td><span class="acao '+a[1]+'" title="'+esc(a[2])+'">'+a[0]+'</span></td><td class="lc"><div class="nm">'+esc(i.descricao)+'<span>'+esc(i.cod)+'</span></div><div class="sub">'+motivo+'</div></td><td class="r">'+i.rank+'</td><td class="r">'+fmt(i.venda_dia,1)+'</td><td class="r">'+fmt(i.venda_dia_valor,0)+'</td><td class="r">'+fmt(i.estoque,0)+'</td><td class="r">'+(i.transito?fmt(i.transito,0):'<span class="mut">—</span>')+'</td><td class="r '+(i.zera_antes||i.no_ponto?'neg':'')+'">'+fmt(i.cobertura_dias,0)+' d</td><td class="r">'+fmt(i.ponto)+' d</td><td>'+lz+'</td><td class="lc"><div class="nm lnk" style="cursor:pointer" onclick="abrirLista('+i.lista+')">'+esc(i.lista_nome)+' ↗<span>#'+i.lista+'</span></div></td><td class="comp">'+(ROBO_LISTAS[i.lista]?'<b title="Pedido #'+ROBO_LISTAS[i.lista]+' do robô em andamento">ROBÔ</b>':esc(i.comprador||'—'))+'</td><td class="c">'+(i.fazer_em===0?'<span class="pill p-hoje">HOJE</span>':'<span class="pill '+(i.fazer_em<=3?'p-breve':'p-ok')+'">'+i.fazer_em+' d · '+br(i.data).slice(0,5)+'</span>')+(i.gatilho==='curva_a'?'<div class="s2">era '+i.fazer_em_lista+' d</div>':'')+'</td></tr>';
   }
   h+='</tbody></table></div>';
   $('#view').innerHTML=h;
