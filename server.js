@@ -9364,7 +9364,10 @@ app.get('/api/pedidos-fornecedor/:id', async (req, res) => {
   let estoqueLojas = {}; try { estoqueLojas = radarPedidos.estoqueLojas((p.itens || []).map(i => i.cod)); } catch (e) {}
   let infoProd = {}; try { infoProd = radarPedidos.infoProdutos((p.itens || []).map(i => i.cod)); } catch (e) {}   // ABC + selos (Tiago, 13/10)
   let lojasInativas = {}; try { lojasInativas = await lojasInativasPedido(p); } catch (e) {}
-  res.json({ ...p, ...pedidoMinimoTela(p), por_loja: pedidosFornec.porLoja(p), link: linkPedido(p), avarias_txt: pedidosFornec.textoAvarias(p), observacoes: pedidosFornec.observacoesPedido(p), estoque_lojas: estoqueLojas, info_produtos: infoProd, lojas_inativas: lojasInativas });
+  // emb_manual: caixa gravada à mão pro produto (unidade-embalagem-overrides). A tela precisa dela pra distinguir "caixa de 1"
+  // (produto comprado por unidade, digitado 1) de "sem caixa" — antes a Análise mostrava os dois como caixinha vazia (Tiago, 13/11/26)
+  let itensTela = p.itens || []; try { const ov = carregarUnidadeEmbOverrides(); itensTela = itensTela.map(i => { const m = +(ov[String(i.cod)] || {}).embalagem; return m >= 1 ? { ...i, emb_manual: m } : i; }); } catch (e) {}
+  res.json({ ...p, itens: itensTela, ...pedidoMinimoTela(p), por_loja: pedidosFornec.porLoja(p), link: linkPedido(p), avarias_txt: pedidosFornec.textoAvarias(p), observacoes: pedidosFornec.observacoesPedido(p), estoque_lojas: estoqueLojas, info_produtos: infoProd, lojas_inativas: lojasInativas });
 });
 
 app.post('/api/pedidos-fornecedor/:id/aprovar', async (req, res) => {
@@ -9951,7 +9954,8 @@ app.post('/api/robo-ensaio/:id/aprovar-precos', async (req, res) => {
       if (r.status === 'a_precificar') { const f = precificacao.fechar(r.id, usuario, { ignorarBloqueados: true }); if (!f || f.erro) { out.push({ loja: r.loja, ok: false, msg: (f && f.erro) || 'não fechou' }); continue; } r = f; }
       if (r.erp_teste && r.erp_teste.logId) { out.push({ loja: r.loja, ok: true, msg: 'já gravado, Log ' + r.erp_teste.logId }); continue; }
       const e = await precificacao.enviarCarga(r.id, usuario, escreverERP);
-      if (e && e.semMudanca) out.push({ loja: r.loja, ok: true, msg: 'nenhum preço muda' });
+      // nenhum preço muda: a lista é dada como aplicada por quem aprovou (some dos 'em aberto' e o botão Aprovar não fica sobrando)
+      if (e && e.semMudanca) { precificacao.aplicar(r.id, usuario); out.push({ loja: r.loja, ok: true, msg: 'nenhum preço muda' }); }
       else if (!e || e.erro) out.push({ loja: r.loja, ok: false, msg: (e && e.erro) || 'não enviou' });
       else out.push({ loja: r.loja, ok: true, msg: 'gravado no ERP de teste' + (e.erp_teste && e.erp_teste.logId ? ', Log ' + e.erp_teste.logId : '') });
     }
