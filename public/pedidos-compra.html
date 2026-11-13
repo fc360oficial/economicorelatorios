@@ -1103,13 +1103,16 @@ async function aprovar(id){
 }
 // Célula da quantidade do item: total + "N vol × [caixa]" com a caixa numa caixinha de digitar (Tiago, 30/09/26: "que nem na
 // Cotação": digita a embalagem e Enter/Tab/↓ grava e já pula pro produto de baixo; antes era um prompt() no ✎).
+// caixa do item na tela: >1 vale sempre; 1 só vale se foi gravada à mão pro produto (emb_manual), senão é "sem caixa" — Tiago, 13/11/26:
+// produto comprado por unidade (caixa 1) aparecia vazio e "caixa?" mesmo depois de digitar 1 ("digitei e não alimentou")
+function embTela(i){ return i.emb>1?i.emb:((i.emb==1&&i.emb_manual==1)?1:0); }
 function pqHtml(p,i,LN){
-  const q=LN?(i.lojas_qtd[LN]||0):i.qtd, e=i.emb>1?i.emb:0;
+  const q=LN?(i.lojas_qtd[LN]||0):i.qtd, e=embTela(i);
   return '<b>'+fmt(q,0)+'</b> '+esc(i.unid)+'<div class="s2">'+(e?Math.ceil(q/e)+' vol':'<span class="mut">caixa?</span>')+'</div>';
 }
 // caixa padrão (un/cx) na coluna Emb, igual à Cotação (Tiago, 06/10/26); antes ficava dentro da célula Qtd ("N vol × [cx]")
 function pembHtml(p,i){
-  const e=i.emb>1?i.emb:0;
+  const e=embTela(i);
   return '<div class="cxe" onclick="event.stopPropagation()"><span class="mut">'+esc(i.unid||'UN')+' ×</span><input class="embi" type="text" inputmode="numeric" maxlength="5" value="'+(e||'')+'" data-last="'+(e||'')+'" data-pid="'+p.id+'" data-cod="'+esc(i.cod)+'" data-unid="'+esc(i.unid||'UN')+'" placeholder="cx" title="Caixa padrão (unidades por caixa). Digite e dê Enter: grava e pula pro produto de baixo (↑ ↓ andam na lista). Vale no Radar e na Cotação; se o pedido ainda não foi aprovado, as quantidades por loja fecham na caixa nova." onkeydown="embKey(event,this)" onchange="embChange(this)"></div>';
 }
 // cabeçalho do detalhe: último custo × digitado (com id pra redesenhar quando um preço é negociado)
@@ -1181,13 +1184,14 @@ function embChange(el){ const e=embNum(el); if(!(e>=1)){ el.value=el.dataset.las
 async function salvarEmb(el){
   const pid=+el.dataset.pid, cod=el.dataset.cod, unid=el.dataset.unid||'UN', e=embNum(el);
   if(!(e>=1)){ el.value=el.dataset.last||''; return; }
-  el.dataset.last=String(e); el.classList.remove('warn','ok'); el.title='';
+  const antes=el.dataset.last||''; el.dataset.last=String(e); el.classList.remove('warn','ok'); el.title='';
   const p=PED[pid], it=p&&p.itens.find(i=>String(i.cod)===String(cod));
   try{
     let r=await fetch('/api/itens/unidade-embalagem',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({codigo:cod,unidade:unid,embalagem:e})}); let j=await r.json().catch(()=>({})); if(!r.ok||j.error) throw new Error(j.error||('HTTP '+r.status));
     r=await fetch('/api/pedidos-fornecedor/'+pid+'/emb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cod,emb:e})}); j=await r.json().catch(()=>({}));
     if(j.error){ el.classList.add('warn'); el.title=j.error; return; }   // pedido aprovado/recebido: a caixa ficou gravada no cadastro, o pedido não muda mais
     if(!it) return;
+    it.emb_manual=e;
     if(j.item){ it.emb=j.item.emb; it.qtd=j.item.qtd; it.volumes=j.item.volumes; if(j.item.lojas_qtd) it.lojas_qtd=j.item.lojas_qtd; } else { it.emb=e; it.volumes=it.qtd?Math.ceil(it.qtd/e):0; }
     if(j.totais) p.totais=j.totais;
     // redesenha só o que mudou (célula, caixas por loja, totais) — sem carregar() pra não perder o cursor no produto de baixo
@@ -1197,7 +1201,12 @@ async function salvarEmb(el){
     const lt=document.getElementById('lt-'+pid); if(lt) lt.innerHTML=lojaTotaisHtml(p, lt.dataset.ln?+lt.dataset.ln:null, true);
     atualizarThLojas(pid);
     const L=LISTA.find(x=>x.id===pid); if(L&&j.totais){ L.totais=j.totais; L.lojas=j.lojas; }
-  }catch(err){ el.classList.add('warn'); el.title='Erro ao gravar a caixa: '+err.message; }
+  }catch(err){
+    // Tiago, 13/11/26 ("estou digitando e não está aceitando"): a falha só pintava a caixinha de vermelho, sem dizer nada. Agora avisa
+    // (uma vez a cada 8 s, pra não empilhar aviso em quem vai dando Enter) e libera digitar o mesmo número de novo.
+    el.dataset.last=antes; el.classList.add('warn'); el.title='NÃO gravou a caixa: '+err.message+'. Digite de novo.';
+    if(!(Date.now()-(window._embErroEm||0)<8000)){ window._embErroEm=Date.now(); alert('A caixa de '+e+' NÃO foi gravada ('+(/Failed to fetch|NetworkError|HTTP 50/.test(err.message)?'o sistema ficou fora do ar por um instante':err.message)+').\n\nEspere alguns segundos e digite de novo: a caixinha em vermelho é a que não gravou.'); }
+  }
 }
 // Tiago, 06/10/26: "tira esse nome salvar porque o que eu escrever já fica salvo" — grava no change (sair do campo / Enter), sem botão
 async function salvarObsFiscal(id){
