@@ -11154,7 +11154,7 @@ app.get('/api/precificacao', (req, res) => {
   let regs = precificacao.listar();
   if (req.query.status) regs = regs.filter(r => r.status === req.query.status);
   if (req.query.loja) regs = regs.filter(r => r.loja === parseInt(req.query.loja));
-  res.json({ padrao: precificacao.getPadrao(), horas_carga: HORAS_CARGA, registros: regs.map(r => ({ id: r.id, pedidoId: r.pedidoId, loja: r.loja, lista: r.lista, lista_nome: r.lista_nome, fornecedor: r.fornecedor, teste: r.teste, ensaio: !!r.ensaio, regra_robo: !!(r.parametros && r.parametros.regra_robo), status: r.status, criadoEm: r.criadoEm, conciliadoEm: r.conciliadoEm, fechadoEm: r.fechadoEm || null, aplicadoEm: r.aplicadoEm || null, aplicadoPor: r.aplicadoPor || null, verificadoEm: r.verificadoEm || null, carga_divergentes: r.carga_divergentes ?? null, erp_teste: r.erp_teste ? { logId: r.erp_teste.logId, itens: r.erp_teste.itens, em: r.erp_teste.em, por: r.erp_teste.por } : null, parametros: r.parametros, resumo: r.resumo, divergentes: r.divergentes ?? null, rateio_disponivel: !!r.rateio?.disponivel })) });
+  res.json({ exige_aprovacao: precificacao.exigeAprovacao(), padrao: precificacao.getPadrao(), horas_carga: HORAS_CARGA, registros: regs.map(r => ({ id: r.id, pedidoId: r.pedidoId, loja: r.loja, lista: r.lista, lista_nome: r.lista_nome, fornecedor: r.fornecedor, teste: r.teste, ensaio: !!r.ensaio, regra_robo: !!(r.parametros && r.parametros.regra_robo), status: r.status, criadoEm: r.criadoEm, conciliadoEm: r.conciliadoEm, fechadoEm: r.fechadoEm || null, aplicadoEm: r.aplicadoEm || null, aplicadoPor: r.aplicadoPor || null, verificadoEm: r.verificadoEm || null, carga_divergentes: r.carga_divergentes ?? null, erp_teste: r.erp_teste ? { logId: r.erp_teste.logId, itens: r.erp_teste.itens, em: r.erp_teste.em, por: r.erp_teste.por } : null, parametros: r.parametros, resumo: r.resumo, divergentes: r.divergentes ?? null, rateio_disponivel: !!r.rateio?.disponivel })) });
 });
 app.post('/api/precificacao/padrao', (req, res) => res.json(precificacao.setPadrao(req.body || {})));
 app.post('/api/precificacao/verificar', async (req, res) => { try { res.json(await precificacao.verificarTodos()); } catch (e) { res.status(500).json({ error: e.message }); } });
@@ -11174,6 +11174,13 @@ app.post('/api/precificacao/:id/enviar-carga', async (req, res) => {
     const reg = precificacao.obter(req.params.id); if (!reg) return res.status(404).json({ error: 'Registro não encontrado' });
     if (String(req.body?.confirmaLoja || '') !== String(reg.loja)) return res.status(400).json({ error: 'Confirme digitando o número da loja (' + reg.loja + ')' });
     precifResp(res, await precificacao.enviarCarga(req.params.id, precifUser(req), escreverERP));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+// Aprovação da precificação (Leni) num clique: sem { confirmar } devolve o que vai mudar; com, fecha a lista e grava (pelo Conector).
+app.post('/api/precificacao/:id/aprovar', async (req, res) => {
+  try {
+    if (!req.body || !req.body.confirmar) return precifResp(res, precificacao.previaAprovacao(req.params.id));
+    precifResp(res, await precificacao.aprovarLista(req.params.id, precifUser(req), escreverERP));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 app.post('/api/precificacao/:id/verificar', async (req, res) => { try { precifResp(res, await precificacao.verificar(req.params.id)); } catch (e) { res.status(500).json({ error: e.message }); } });
