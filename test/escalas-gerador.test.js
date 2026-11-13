@@ -37,7 +37,8 @@ test('mês cheio: toda semana completa tem 5 dias de trabalho e 2 folgas, 42 h, 
 
 test('folga rotativa gira de uma semana para a outra; com a convenção pedindo folgas separadas (não é mais o padrão) elas não ficam coladas quando há alternativa', () => {
   // Etapa 6: o padrão passou a ser o modelo flexível. "Preferir separadas" continua existindo como parâmetro da regra.
-  const r = G.gerar({ ...NOV, funcionarios: equipe(), regras: [{ ...REGRA_OK, params: { folgasConsecutivas: 'evitar' } }], cobertura: COB });
+  // (13/11/2026) sem falta de cobertura em jogo (setores sem mínimo) o rodízio e as folgas separadas valem por inteiro
+  const EVITAR = { ...REGRA_OK, params: { folgasConsecutivas: 'evitar' } }; const r = G.gerar({ ...NOV, funcionarios: equipe(), regras: [EVITAR], cobertura: { ...COB, setores: {} } });
   for (const p of r.proposta) {
     const rot = Object.entries(p.dias).filter(([, x]) => x.folga === 'rotativa').map(([d]) => dow(d));
     assert.ok(new Set(rot).size >= 2, p.nome + ' ficou sempre com a mesma folga rotativa: ' + rot);
@@ -46,7 +47,12 @@ test('folga rotativa gira de uma semana para a outra; com a convenção pedindo 
   // única colagem aceitável: quem tem folga fixa na segunda e chega ao domingo obrigatório (não existe alternativa)
   for (const p of r.proposta) for (const d of Object.keys(p.dias)) { const prox = p.dias[soma(d, 1)]; if (p.dias[d].tipo === 'folga' && prox && prox.tipo === 'folga') { assert.strictEqual(p.id, 1, p.nome + ' com folgas coladas em ' + d); assert.strictEqual(dow(d), 0); } }
   assert.ok(r.indicadores.folgas_consecutivas <= 2);
-});
+  // com mínimo de cobertura a cobrir, a cobertura real vem antes do rodízio e das folgas separadas: o que repete o dia ou encosta
+  // tem de estar registrado como ajuste de cobertura daquela pessoa naquele dia — nunca acontece sem motivo
+  const c = G.gerar({ ...NOV, funcionarios: equipe(), regras: [EVITAR], cobertura: COB }); const porCob = new Set(c.conflitos.operacionais.filter(x => /^folga_(ajustada|encostada)_cobertura$/.test(x.codigo)).map(x => x.funcId + '|' + x.ref));
+  for (const p of c.proposta) { const rot = Object.entries(p.dias).filter(([, x]) => x.folga === 'rotativa').map(([d]) => d);
+    for (let i = 1; i < rot.length; i++) if (dow(rot[i]) === dow(rot[i - 1])) assert.ok(porCob.has(p.id + '|' + rot[i]) || porCob.has(p.id + '|' + rot[i - 1]), p.nome + ' repetiu a rotativa em ' + rot[i] + ' sem ajuste de cobertura');
+    for (const d of Object.keys(p.dias)) { const prox = p.dias[soma(d, 1)]; if (p.dias[d].tipo === 'folga' && prox && prox.tipo === 'folga' && !(p.id === 1 && dow(d) === 0)) assert.ok(porCob.has(p.id + '|' + d) || porCob.has(p.id + '|' + soma(d, 1)), p.nome + ' com folgas coladas em ' + d + ' sem ajuste de cobertura'); } }});
 
 test('semana que atravessa o mês: novembro → dezembro mantém o 5×2 e nunca passa de 6 dias seguidos', () => {
   const nov = G.gerar({ ...NOV, funcionarios: equipe(), regras: [REGRA_OK], cobertura: COB });
@@ -725,14 +731,17 @@ test('modelo flexível · folgas consecutivas: duas folgas juntas na mesma seman
   assert.ok(!r.conflitos.operacionais.some(c => c.codigo === 'folga_rotativa_colada'), 'no modelo flexível folga colada não é nem aviso'); assert.strictEqual(r.validacaoSemanal.vermelho, 0);
   // o próprio motor passa a usar as duas formas: o que decide é a melhor solução válida
   const g = G.gerar({ ...SEG, funcionarios: equipe(), regras: [REGRA_OK], cobertura: COB }); const D = g.distribuicaoFolgas;
-  assert.strictEqual(D.semanas, 36); assert.ok(D.consecutivas > 0, 'há semanas com folgas juntas'); assert.ok(D.separadas > 0, 'e semanas com folgas separadas'); assert.strictEqual(D.consecutivas + D.separadas, 36); assert.strictEqual(D.fixaRotativa, 36);
+  // (13/11/2026) folgas juntas continuam VÁLIDAS, mas o motor passou a preferir a rotativa longe da fixa: com gente para cobrir, separa todas
+  assert.strictEqual(D.semanas, 36); assert.ok(D.consecutivas <= D.mantidasCobertura, 'a rotativa só fica colada na fixa quando afastá-la custaria cobertura: ' + D.consecutivas + ' semana(s), ' + D.mantidasCobertura + ' registro(s)'); assert.strictEqual(D.consecutivas + D.separadas, 36); assert.strictEqual(D.fixaRotativa, 36);
+  assert.strictEqual(G.gerar({ ...SEG, funcionarios: equipe(), regras: [REGRA_OK], cobertura: { ...COB, setores: {} } }).distribuicaoFolgas.consecutivas, 0, 'sem cobertura em jogo, nenhuma colada');
   assert.deepStrictEqual(g.validacaoSemanal, { semanas: 36, verde: 36, amarelo: 0, vermelho: 0, cinza: 0 }); assert.deepStrictEqual(g.conflitos.trabalhistas, []);
   for (const p of g.proposta) { assert.ok(maiorSequencia(p.dias) <= 6); for (const s of p.semanas) assert.strictEqual(s.regra52.folgas, 2); }
   // folga no domingo de uma semana e na segunda da outra (duas semanas diferentes): também é válido
   const viz = G.gerar({ ...SEG, funcionarios: equipe(), regras: [REGRA_OK], cobertura: COB, travados: { '1|2026-11-08': FG() } });
   assert.strictEqual(viz.proposta.find(p => p.id === 1).dias['2026-11-09'].folga, 'fixa'); assert.strictEqual(semDe(viz, 1, '2026-11-02').regra52.folgas, 2); assert.strictEqual(semDe(viz, 1, '2026-11-09').regra52.folgas, 2); assert.deepStrictEqual(trabDe(viz, 1), []);
   // "preferir separadas" continua disponível na regra, como preferência da convenção — nunca como obrigação
-  const ev = G.gerar({ ...SEG, funcionarios: equipe(), regras: [{ ...REGRA_OK, params: { folgasConsecutivas: 'evitar' } }], cobertura: COB }); assert.strictEqual(ev.distribuicaoFolgas.consecutivas, 0);
+  const ev = G.gerar({ ...SEG, funcionarios: equipe(), regras: [{ ...REGRA_OK, params: { folgasConsecutivas: 'evitar' } }], cobertura: COB }); assert.ok(ev.distribuicaoFolgas.consecutivas <= ev.distribuicaoFolgas.mantidasCobertura, 'colada só por cobertura');
+  assert.strictEqual(G.gerar({ ...SEG, funcionarios: equipe(), regras: [{ ...REGRA_OK, params: { folgasConsecutivas: 'evitar' } }], cobertura: { ...COB, setores: {} } }).distribuicaoFolgas.consecutivas, 0);
   assert.strictEqual(G.PARAMS_PADRAO.folgasConsecutivas, 'livre');
 });
 
@@ -755,7 +764,7 @@ test('modelo flexível · virada de mês e de ano: folgas juntas que atravessam 
   const h = JSON.parse(JSON.stringify(nov.continuidade)); h[4].dias['2026-11-30'] = { tipo: 'folga', fonte: 'escala' };
   const dez = G.gerar({ ...DEZ, funcionarios: equipe(), regras: [REGRA_OK], cobertura: COB, historico: h, travados: { '4|2026-12-01': FG() } }); const s = semDe(dez, 4, '2026-11-30');
   assert.deepStrictEqual(s.dias.filter(d => d.tipo === 'folga').map(d => d.data), ['2026-11-30', '2026-12-01']); assert.strictEqual(s.regra52.consecutivas, true); assert.strictEqual(s.regra52.folgas, 2); assert.strictEqual(s.trabalho, 5); assert.strictEqual(s.regra52.situacao, 'ok');
-  assert.ok(!dez.conflitos.trabalhistas.some(c => c.funcId === 4 && /^folgas_semana/.test(c.codigo))); assert.strictEqual(dez.proposta.find(p => p.id === 4).dias['2026-12-03'].tipo, 'trabalho', 'a folga fixa de quinta cedeu: a semana já tinha as duas');
+  assert.ok(!dez.conflitos.trabalhistas.some(c => c.funcId === 4 && c.ref === '2026-11-30' && /^folgas_semana/.test(c.codigo)), 'a semana da virada fecha em duas folgas'); assert.strictEqual(dez.proposta.find(p => p.id === 4).dias['2026-12-03'].tipo, 'trabalho', 'a folga fixa de quinta cedeu: a semana já tinha as duas');
   // 31/12/2026 (quinta) e 01/01/2027 (sexta) de folga: a mesma semana, em dois anos
   const d26 = G.gerar({ ...DEZ, funcionarios: equipe(), regras: [REGRA_OK], cobertura: COB }); const h2 = JSON.parse(JSON.stringify(d26.continuidade));
   for (const d of ['2026-12-28', '2026-12-29', '2026-12-30']) h2[1].dias[d] = TR(); h2[1].dias['2026-12-31'] = { tipo: 'folga', fonte: 'escala' };
@@ -786,8 +795,9 @@ test('modelo flexível · conflitos operacionais: o motor junta as folgas quando
   // flexível: a rotativa de A vai para a terça, colada na folga fixa de segunda — o único dia em que o setor não fica descoberto
   const pa = flex.proposta.find(p => p.id === 1); for (const sg of ['2026-11-02', '2026-11-09', '2026-11-16', '2026-11-23']) { assert.deepStrictEqual(semana(sg).filter(d => pa.dias[d].tipo === 'folga'), [sg, soma(sg, 1)], 'segunda (fixa) + terça (rotativa)'); assert.strictEqual(pa.dias[soma(sg, 1)].folga, 'rotativa'); }
   assert.strictEqual(consec(flex, 1), 4); assert.deepStrictEqual(flex.conflitos.trabalhistas, []); assert.strictEqual(flex.validacaoSemanal.verde, 8);
-  // com a preferência antiga (separadas) a rotativa de A saía da terça e abria buraco num dia de pico
-  assert.strictEqual(consec(sep, 1), 0); assert.ok(flex.cobertura.resumo.blocos_abaixo < sep.cobertura.resumo.blocos_abaixo, 'flexível: ' + flex.cobertura.resumo.blocos_abaixo + ' blocos abaixo do mínimo; separadas: ' + sep.cobertura.resumo.blocos_abaixo);
+  // (13/11/2026) a preferência por folgas separadas — a padrão ou a 'evitar' da convenção — NÃO passa por cima da cobertura mínima:
+  // antes, com 'evitar', a rotativa de A saía da terça e abria buraco num dia de pico; agora fica na terça nos dois modos
+  assert.strictEqual(consec(sep, 1), 4); assert.strictEqual(sep.cobertura.resumo.blocos_abaixo, flex.cobertura.resumo.blocos_abaixo); assert.ok(true,'flexível: ' + flex.cobertura.resumo.blocos_abaixo + ' blocos abaixo do mínimo; separadas: ' + sep.cobertura.resumo.blocos_abaixo);
   // 3. folga fixa cadastrada vem antes da cobertura: a quinta de B é dia de pico e continua sendo a folga dele
   for (const [d, x] of Object.entries(flex.proposta.find(p => p.id === 2).dias)) if (dow(d) === 4) assert.strictEqual(x.folga, 'fixa');
   // 1. obrigação legal vem antes de tudo: com o domingo como dia de maior movimento (peso 5) e pico de cobertura, o descanso
