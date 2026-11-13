@@ -49,7 +49,8 @@
   if (tipo === 'cotacao' ? !ls.get(KEY) || celular : celular) comFundo();   // celular: escurece até saber se o app está instalado e com avisos
   function adiar(dias) { ls.set(ADIADO, String(Date.now() + dias * 86400000)); fechar(); }
   function adiado() { var t = parseInt(ls.get(ADIADO) || '0', 10); return t > Date.now(); }
-  var beneficios = '<div class="pf-ok"><i>✓</i><div><b>Nova cotação</b> da Econômico chega como aviso, com prazo e número de itens.</div></div>' +
+  var beneficios = '<div class="pf-ok"><i>✓</i><div><b>Pedido novo</b> da Econômico chega como aviso, pra você digitar os preços; e outro aviso quando ele é aprovado.</div></div>' +
+    '<div class="pf-ok"><i>✓</i><div><b>Nova cotação</b> chega como aviso, com prazo e número de itens.</div></div>' +
     '<div class="pf-ok"><i>✓</i><div><b>Lembrete 2 h antes do prazo</b> se ainda faltar item sem preço.</div></div>' +
     '<div class="pf-ok"><i>✓</i><div><b>Pedido gerado</b> quando você vence, com o PDF e a data de entrega.</div></div>';
 
@@ -70,7 +71,7 @@
 
   // ── sem login neste celular: convite pra criar o login (ou entrar). obrig = login obrigatório pra responder: sem "Agora não" ──
   function passoLogin(obrig) {
-    var h = '<div class="pf-top"><div class="pf-ic">E</div><div><h3>' + (obrig ? 'Pra responder ' + (tipo === 'pedido' ? 'este pedido' : 'esta cotação') + ', crie seu login no Portal do Fornecedor' : 'Receba as próximas cotações direto no celular') + '</h3><p>' + (obrig ? 'Seu WhatsApp e um PIN de 6 números. Leva 1 minuto, vale pra todas as próximas cotações da Econômico, e você volta pra esta logo em seguida.' : 'Crie seu login no Portal do Fornecedor da Econômico: seu WhatsApp e um PIN de 6 números. Depois é só entrar, em qualquer celular.') + '</p></div></div>' +
+    var h = '<div class="pf-top"><div class="pf-ic">E</div><div><h3>' + (obrig ? 'Pra responder ' + (tipo === 'pedido' ? 'este pedido' : 'esta cotação') + ', crie seu login no Portal do Fornecedor' : 'Receba os próximos pedidos e cotações direto no celular') + '</h3><p>' + (obrig ? 'Seu WhatsApp e um PIN de 6 números. Leva 1 minuto, vale pra todos os próximos pedidos e cotações da Econômico, e você volta pra esta logo em seguida.' : 'Crie seu login no Portal do Fornecedor da Econômico: seu WhatsApp e um PIN de 6 números. Depois é só entrar, em qualquer celular.') + '</p></div></div>' +
       beneficios +
       '<a class="pf-btn p" href="/fornecedor/?de=' + de + '#criar">Criar meu login</a>' +
       '<a class="pf-btn g" href="/fornecedor/?de=' + de + '#entrar">Já tenho login, entrar</a>' +
@@ -82,7 +83,7 @@
 
   // ── logado: ativar avisos + instalar ──
   function passoAvisos(vt, nome) {
-    var h = '<div class="pf-top"><div class="pf-ic">E</div><div><h3>' + (nome ? esc(nome.split(' ')[0]) + ', receba' : 'Receba') + ' as próximas cotações direto no celular</h3><p>Sem esperar o link no WhatsApp. Um toque e você já está cotando.</p></div></div>' +
+    var h = '<div class="pf-top"><div class="pf-ic">E</div><div><h3>' + (nome ? esc(nome.split(' ')[0]) + ', receba' : 'Receba') + ' os próximos pedidos e cotações direto no celular</h3><p>Sem esperar o link no WhatsApp. Um toque e você já está cotando.</p></div></div>' +
       beneficios +
       (isIOS && !standalone
         ? '<p style="margin-top:8px"><b>No iPhone</b>: toque em <b>Compartilhar</b> (quadrado com seta) e depois em <b>Adicionar à Tela de Início</b>. Abra o app <b>Fornecedor</b> e toque em <b>Ativar avisos</b>.</p><a class="pf-btn d" href="/fornecedor/">Abrir o portal</a>'
@@ -101,7 +102,7 @@
     };
   }
   function pronto(semInstalar) {
-    var h = '<div class="pf-top"><div class="pf-ic" style="background:#E7F5EC;color:#137A48">✓</div><div><h3>Avisos ativados</h3><p>Você acabou de receber um aviso de teste. As próximas cotações chegam assim.</p></div></div>' +
+    var h = '<div class="pf-top"><div class="pf-ic" style="background:#E7F5EC;color:#137A48">✓</div><div><h3>Avisos ativados</h3><p>Você acabou de receber um aviso de teste. Os próximos pedidos e cotações chegam assim.</p></div></div>' +
       (!standalone ? '<p><b>Pra ter o ícone na tela inicial</b>: ' + (isIOS ? 'toque em Compartilhar → Adicionar à Tela de Início.' : 'abra o menu ⋮ do navegador → <b>Instalar app</b> (ou "Adicionar à tela inicial").') + '</p>' : '') +
       '<a class="pf-btn d" href="/fornecedor/">Abrir meu portal</a><button class="pf-btn g" id="pf-fechar">Continuar ' + (tipo === 'pedido' ? 'no pedido' : 'cotando') + '</button>';
     var b = painel(h); b.querySelector('#pf-fechar').onclick = fechar; ls.set(ADIADO, '0');
@@ -174,7 +175,7 @@
     if (voltouDoLogin) { passoAvisos(vt, nome); return; }
     if (adiado()) return;
     var bar = document.createElement('div'); bar.className = 'pf-bar';
-    bar.innerHTML = '<div style="flex:1"><b>Avisos desligados.</b> Ative pra receber as próximas cotações neste celular.</div><button class="y" id="pf-bar-y">Ativar</button><button class="n" id="pf-bar-n">depois</button>';
+    bar.innerHTML = '<div style="flex:1"><b>Avisos desligados.</b> Ative pra receber os próximos pedidos e cotações neste celular.</div><button class="y" id="pf-bar-y">Ativar</button><button class="n" id="pf-bar-n">depois</button>';
     document.body.appendChild(bar);
     bar.querySelector('#pf-bar-n').onclick = function () { ls.set(ADIADO, String(Date.now() + 7 * 86400000)); bar.remove(); };
     bar.querySelector('#pf-bar-y').onclick = function () { bar.remove(); passoAvisos(vt, nome); };
@@ -209,4 +210,18 @@
     if (ok) { setTimeout(iniciar, ls.get(KEY) ? 900 : 100); return; }
     if (++tent < 40) setTimeout(esperar, 250); else semFundo();   // página não carregou (link inválido): não deixa a tela escura
   })();
+})();
+// App sempre na versão nova (Tiago, 13/11/26: "quero que ele atualize sozinho nos celulares dos fornecedores"): o servidor diz a versão
+// no ar; mudou → a tela recarrega sozinha (ao voltar pro app e a cada 5 min), menos enquanto o vendedor está digitando num campo.
+(function () {
+  var v0 = null;
+  function ver() {
+    fetch('/api/portal/versao', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
+      if (!j || !j.v) return; if (v0 === null) { v0 = j.v; return; } if (j.v === v0) return;
+      var a = document.activeElement; if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return;   // digitando: espera a próxima checagem
+      location.reload();
+    }).catch(function () {});
+  }
+  ver(); setInterval(ver, 5 * 60 * 1000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) ver(); });
 })();

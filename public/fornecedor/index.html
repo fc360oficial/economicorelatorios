@@ -151,7 +151,7 @@ function trocarModo(m) { MODO = m; history.replaceState(null, '', location.pathn
 var PIN_ATTR = 'type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="••••••"';
 function campoPin(id, rotulo, auto, dica) { return '<label for="' + id + '">' + rotulo + '</label><div class="sen"><input id="' + id + '" class="pin" ' + PIN_ATTR + ' autocomplete="' + auto + '" required><button type="button" class="eye" onclick="olho(\'' + id + '\',this)" aria-label="mostrar PIN">👁</button></div>' + (dica ? '<small>' + dica + '</small>' : ''); }
 function formEntrar() {
-  return '<h2>Entrar no portal</h2><p>Seu WhatsApp e o PIN de 6 números que você criou. Aqui você vê suas cotações abertas, pedidos e resultados, e recebe as próximas cotações da Econômico como aviso no celular.</p>' +
+  return '<h2>Entrar no portal</h2><p>Seu WhatsApp e o PIN de 6 números que você criou. Aqui você vê suas cotações abertas, pedidos e resultados, e recebe os próximos pedidos e cotações da Econômico como aviso no celular.</p>' +
     '<form class="fld" onsubmit="entrar();return false" autocomplete="on"><label for="ew">WhatsApp com DDD</label><input id="ew" inputmode="tel" autocomplete="tel" placeholder="81 99999-0000" required>' +
     campoPin('sp', 'PIN', 'current-password') +
     '<div class="err" id="f-err"></div><button class="btn d" type="submit" id="f-ok" style="width:100%;margin-top:14px">Entrar</button></form>' +
@@ -159,7 +159,7 @@ function formEntrar() {
     '<div id="esq" class="hid card" style="font-size:13px;line-height:1.45"><b>Esqueceu o PIN?</b> Peça pro(a) comprador(a) da Econômico redefinir: ele(a) faz isso na hora pela tela Portal do Fornecedor e te manda o novo PIN pelo WhatsApp. Depois troque por um seu na aba Cadastro.</div>';
 }
 function formCriar() {
-  return '<h2>Criar meu login</h2><p>Seu WhatsApp e um PIN de 6 números. Com eles você entra em qualquer celular e recebe as próximas cotações da Econômico como aviso, sem esperar o link no WhatsApp.</p>' +
+  return '<h2>Criar meu login</h2><p>Seu WhatsApp e um PIN de 6 números. Com eles você entra em qualquer celular e recebe os próximos pedidos e cotações da Econômico como aviso, sem esperar o link no WhatsApp.</p>' +
     '<form class="fld" onsubmit="criar();return false" autocomplete="on"><div id="de-quem"></div>' +
     '<label for="cn">Seu nome</label><input id="cn" autocomplete="name" placeholder="Nome e sobrenome" required>' +
     '<label for="cw">WhatsApp com DDD</label><input id="cw" inputmode="tel" autocomplete="tel" placeholder="81 99999-0000" required><small>é o seu login: o mesmo número que a Econômico usa pra te mandar as cotações</small>' +
@@ -210,7 +210,7 @@ function logado(r) {
   ls.set(KEY, r.vt); ls.del(SUB); ls.set(NOME, (r.vendedor && r.vendedor.nome) || ''); if (r.vendedor && r.vendedor.whats) ls.set(ULT, r.vendedor.whats);
   if (DE) { location.href = '/fornecedor/' + DE.tipo + '/' + DE.token + '#avisos'; return; }   // volta pra cotação; lá o painel oferece os avisos
   history.replaceState(null, '', location.pathname);
-  carregar().then(function () { toast('Pronto' + (r.vendedor && r.vendedor.nome ? ', ' + r.vendedor.nome.split(' ')[0] : '') + '! Agora ative os avisos pra receber as próximas cotações aqui.'); });
+  carregar().then(function () { toast('Pronto' + (r.vendedor && r.vendedor.nome ? ', ' + r.vendedor.nome.split(' ')[0] : '') + '! Agora ative os avisos pra receber os próximos pedidos e cotações aqui.'); });
 }
 // vendedor que entrou pelo "Sou eu" (antes do login existir): ainda não tem PIN, cria aqui
 function telaPin() {
@@ -250,7 +250,7 @@ function pushCard() {
     : '<div class="push"><div class="c">Este navegador não recebe avisos. Use o Chrome no Android ou instale o app.</div></div>';
   if (perm === 'granted' && subAtual) return '<div class="push ok"><div class="c"><b>Avisos ativados</b> neste celular' + (v.dispositivos > 1 ? ' e em mais ' + (v.dispositivos - 1) + ' aparelho(s)' : '') + '. Nova cotação, lembrete de prazo e pedido chegam aqui.</div><button class="btn" onclick="testarPush()">Testar</button></div>';
   if (perm === 'denied') return '<div class="push"><div class="c"><b>Avisos bloqueados</b> neste navegador. Libere em Configurações do site → Notificações e volte aqui.</div></div>';
-  return '<div class="push"><div class="c"><b>Avisos desligados.</b> Ative pra receber as próximas cotações neste celular, sem esperar o WhatsApp.</div><button class="btn p" onclick="ativarPush()">🔔 Ativar</button></div>';
+  return '<div class="push"><div class="c"><b>Avisos desligados.</b> Ative pra receber os próximos pedidos e cotações neste celular, sem esperar o WhatsApp.</div><button class="btn p" onclick="ativarPush()">🔔 Ativar</button></div>';
 }
 function render() {
   var v = D.vendedor, nome = (v.nome || v.whats_mascara || 'vendedor').split(' ')[0];
@@ -279,7 +279,7 @@ function render() {
   // aprovação da Econômico; FECHADOS = aprovados, com o PDF do pedido
   var pAb = pp.concat(ph.filter(function (p) { return p.status === 'finalizado'; })), pFe = ph.filter(function (p) { return p.status !== 'finalizado'; });
   h += '<div class="sec" data-tab="ped"><div class="sec-h"><b>PEDIDOS EM ABERTO</b><span>' + pAb.length + '</span></div>' + (pAb.length ? pAb.map(function (p) { return cardPed(p, p.status !== 'finalizado'); }).join('') : '<div class="empty">Nenhum pedido em aberto. Pedido novo do Radar ou manual aparece aqui pra você digitar os valores e confirmar. (Pedido de cotação fica na aba Cotações.)</div>') + '</div>';
-  h += '<div class="sec" data-tab="ped"><div class="sec-h"><b>PEDIDOS FECHADOS</b><span>' + pFe.length + '</span></div>' + (pFe.length ? pFe.map(function (p) { return cardPed(p, false); }).join('') : '<div class="empty">Nenhum pedido fechado ainda. Depois que a Econômico aprova, o pedido fica aqui com o PDF.</div>') + '</div>';
+  h += '<div class="sec" data-tab="ped hist"><div class="sec-h"><b>PEDIDOS FECHADOS</b><span>' + pFe.length + '</span></div>' + (pFe.length ? pFe.map(function (p) { return cardPed(p, false); }).join('') : '<div class="empty">Nenhum pedido fechado ainda. Depois que a Econômico aprova, o pedido fica aqui com o PDF.</div>') + '</div>';
   // Cadastro
   h += '<div class="sec" data-tab="cad"><div class="sec-h"><b>SEU CADASTRO</b></div><div class="card cad">' + (cad ? '<div class="k">Fornecedor</div><div class="v">' + esc(cad.fornecedor || emp) + '</div><div class="k">Condição de pagamento</div><div class="v">' + esc(cad.condicao || 'não informada') + '</div><div class="k">Pedido mínimo</div><div class="v">' + (cad.faturamento_minimo != null ? fmtR(cad.faturamento_minimo) : 'não informado') + '</div><div class="k">Tempo de entrega</div><div class="v">' + (cad.prazo_entrega != null ? cad.prazo_entrega + ' dia(s)' : 'não informado') + '</div><div class="k">E-mail do cadastro</div><div class="v">' + esc(cad.email || v.email || 'não informado') + '</div>' : '<div class="k">Fornecedor</div><div class="v">' + esc(emp || '—') + '</div><div class="s">Seu cadastro (condição, pedido mínimo, entrega, e-mail) é preenchido na primeira cotação que você responder.</div>') +
     '<div class="k">Vendedor</div><div class="v">' + esc(v.nome || '—') + '</div><div class="k">Login (WhatsApp)</div><div class="v">' + esc(v.whats ? fone(v.whats) : (v.whats_mascara || '—')) + '</div><div class="s" style="margin-top:6px">Pra corrigir o cadastro, preencha o bloco "Estamos atualizando nosso cadastro de fornecedor" na próxima cotação, ou fale com o(a) comprador(a).</div>' +
@@ -339,6 +339,20 @@ function carregar() {
     render();
   }).catch(function (e) { if (e.status === 401) { ls.del(KEY); ls.del(SUB); ls.del(NOME); entrada('Sua sessão venceu ou foi desligada pelo(a) comprador(a). Entre de novo com WhatsApp e PIN.'); } else $('#app').innerHTML = '<div class="empty" style="margin:40px 14px">Não consegui carregar o portal: ' + esc(e.message) + '<br><br><button class="btn d" onclick="carregar()">Tentar de novo</button></div>'; });
 }
+// App sempre na versão nova (Tiago, 13/11/26: "quero que ele atualize sozinho nos celulares dos fornecedores"): o servidor diz a versão
+// no ar; mudou → a tela recarrega sozinha (ao voltar pro app e a cada 5 min), menos enquanto o vendedor está digitando num campo.
+(function () {
+  var v0 = null;
+  function ver() {
+    fetch('/api/portal/versao', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
+      if (!j || !j.v) return; if (v0 === null) { v0 = j.v; return; } if (j.v === v0) return;
+      var a = document.activeElement; if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return;   // digitando: espera a próxima checagem
+      location.reload();
+    }).catch(function () {});
+  }
+  ver(); setInterval(ver, 5 * 60 * 1000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) ver(); });
+})();
 if (pushOk && !DEMO) swReg().catch(function () {});
 carregar();
 document.addEventListener('visibilitychange', function () { if (!document.hidden && D && !DEMO) carregar(); });
