@@ -158,7 +158,7 @@ function desenharOpcoes() {
     var pode = !l.erro && l.itens > l.sem_embalagem && !l.em_ensaio;
     var obs = l.erro ? l.erro : l.em_ensaio ? 'já tem ensaio em andamento' : !l.itens ? 'nada a pedir hoje' : l.sem_embalagem ? l.sem_embalagem + ' sem embalagem padrão ficam de fora' : '';
     return '<tr><td class="nm"><b>' + esc(l.nome || 'Lista ' + l.lista) + '</b><small>lista ' + l.lista + (obs ? ' · ' + esc(obs) : '') + '</small></td><td class="nm">' + motivoHtml(l) + '</td><td class="nm">' + esc(l.fornecedor || '—') + '</td><td class="n">' + (l.itens || 0) + '</td><td class="n">' + (l.itens ? money(l.total) : '—') + '</td><td class="n">' + (l.pedido_minimo ? money(l.pedido_minimo) : '—') + '</td>' +
-      '<td class="n"><button class="btn btn-amber btn-sm"' + (pode ? '' : ' disabled') + ' onclick="gerar(' + l.lista + ', this)">Gerar pedido do robô</button></td></tr>';
+      '<td class="n"><button class="btn btn-amber btn-sm"' + (pode ? '' : ' disabled') + ' onclick="gerar(' + l.lista + ', this)">Gerar pedido do robô</button> <button class="btn btn-sm"' + (pode ? '' : ' disabled') + ' title="O robô não preenche os preços: o pedido fica pendente no portal do fornecedor, pra você responder com o seu login de teste" onclick="gerar(' + l.lista + ', this, true)">Gerar pra responder no portal</button></td></tr>';
   }).join('') + '</table>';
 }
 function carregar(avisa) {
@@ -166,9 +166,9 @@ function carregar(avisa) {
     .catch(function (e) { document.getElementById('status').innerHTML = '<span class="err">Erro: ' + esc(e.message) + '</span>'; });
   api('/api/robo-ensaio/opcoes').then(function (j) { OP = j; desenharOpcoes(); }).catch(function (e) { document.getElementById('opcoes').innerHTML = '<div class="vazio">Erro: ' + esc(e.message) + '</div>'; });
 }
-function gerar(lista, b) {
+function gerar(lista, b, portal) {
   if (ocupado) return; ocupado = true; b.disabled = true; b.textContent = 'Gerando…';
-  api('/api/robo-ensaio/gerar', { lista: lista }).then(function (r) { toast('Pedido #' + r.id + ' gerado' + (r.whatsapp && r.whatsapp.ok ? ': o link foi pro seu WhatsApp' : ': o WhatsApp falhou, use o botão "Abrir como fornecedor"')); })
+  api('/api/robo-ensaio/gerar', { lista: lista, portal: !!portal }).then(function (r) { toast('Pedido #' + r.id + ' gerado' + (r.whatsapp && r.whatsapp.ok ? ': o link foi pro seu WhatsApp' : ': o WhatsApp falhou, use o botão "Abrir como fornecedor"')); })
     .catch(function (e) { toast('Não gerou: ' + e.message); }).then(function () { ocupado = false; carregar(); window.scrollTo(0, 0); });
 }
 // Etapa 7 num clique (Tiago, 12/11/26: "onde aprova?"): mostra o que muda, pede a confirmação e grava no ERP de teste.
