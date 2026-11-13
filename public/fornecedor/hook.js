@@ -13,6 +13,7 @@
   var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   var standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true;
   var pushOk = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  var celular = isIOS || /Android|Mobile/i.test(navigator.userAgent);   // app obrigatório só vale no celular (Tiago, 13/11/26)
   var deferred = null;
   window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); deferred = e; });
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
@@ -43,7 +44,7 @@
   // bloquear = login obrigatório: fundo escuro fica por trás do painel e a página não responde a toques
   function painel(html, bloquear) { if (box) { box.remove(); box = null; } if (bloquear) comFundo(); else semFundo(); box = document.createElement('div'); box.className = 'pf-sheet'; box.setAttribute('role', 'dialog'); box.innerHTML = '<div class="pf-h"></div>' + html; document.body.appendChild(box); return box; }
   // sem sessão na cotação: já escurece a página na abertura, enquanto o servidor confirma se o login é obrigatório
-  if (!ls.get(KEY) && tipo === 'cotacao') comFundo();
+  if (tipo === 'cotacao' ? !ls.get(KEY) || celular : celular) comFundo();   // celular: escurece até saber se o app está instalado e com avisos
   function adiar(dias) { ls.set(ADIADO, String(Date.now() + dias * 86400000)); fechar(); }
   function adiado() { var t = parseInt(ls.get(ADIADO) || '0', 10); return t > Date.now(); }
   var beneficios = '<div class="pf-ok"><i>✓</i><div><b>Nova cotação</b> da Econômico chega como aviso, com prazo e número de itens.</div></div>' +
@@ -67,7 +68,7 @@
 
   // ── sem login neste celular: convite pra criar o login (ou entrar). obrig = login obrigatório pra responder: sem "Agora não" ──
   function passoLogin(obrig) {
-    var h = '<div class="pf-top"><div class="pf-ic">E</div><div><h3>' + (obrig ? 'Pra responder esta cotação, crie seu login no Portal do Fornecedor' : 'Receba as próximas cotações direto no celular') + '</h3><p>' + (obrig ? 'Seu WhatsApp e um PIN de 6 números. Leva 1 minuto, vale pra todas as próximas cotações da Econômico, e você volta pra esta logo em seguida.' : 'Crie seu login no Portal do Fornecedor da Econômico: seu WhatsApp e um PIN de 6 números. Depois é só entrar, em qualquer celular.') + '</p></div></div>' +
+    var h = '<div class="pf-top"><div class="pf-ic">E</div><div><h3>' + (obrig ? 'Pra responder ' + (tipo === 'pedido' ? 'este pedido' : 'esta cotação') + ', crie seu login no Portal do Fornecedor' : 'Receba as próximas cotações direto no celular') + '</h3><p>' + (obrig ? 'Seu WhatsApp e um PIN de 6 números. Leva 1 minuto, vale pra todas as próximas cotações da Econômico, e você volta pra esta logo em seguida.' : 'Crie seu login no Portal do Fornecedor da Econômico: seu WhatsApp e um PIN de 6 números. Depois é só entrar, em qualquer celular.') + '</p></div></div>' +
       beneficios +
       '<a class="pf-btn p" href="/fornecedor/?de=' + de + '#criar">Criar meu login</a>' +
       '<a class="pf-btn g" href="/fornecedor/?de=' + de + '#entrar">Já tenho login, entrar</a>' +
@@ -104,6 +105,49 @@
     var b = painel(h); b.querySelector('#pf-fechar').onclick = fechar; ls.set(ADIADO, '0');
   }
 
+  // ── CELULAR: app instalado + avisos ativos são obrigatórios pra responder (Tiago, 13/11/26). Painel sem "Agora não". ──
+  // O servidor é quem sabe: vendedor.instalado (já abriu pelo ícone do app) e vendedor.dispositivos (aparelhos com aviso ativo).
+  function faltaApp(v) {
+    var f = []; v = v || {};
+    if (!v.instalado && !standalone) f.push('instalar');
+    if (!(v.dispositivos > 0) && (pushOk || isIOS)) f.push('avisos');   // aparelho que não recebe aviso de jeito nenhum (navegador antigo) não trava por isso
+    return f;
+  }
+  function passoApp(vt, v) {
+    var f = faltaApp(v), fi = f.indexOf('instalar') >= 0, fa = f.indexOf('avisos') >= 0;
+    var linha = function (ok, txt) { return '<div class="pf-ok"><i style="' + (ok ? '' : 'background:#FBEDDD;color:#8A4A00') + '">' + (ok ? '✓' : '!') + '</i><div>' + txt + '</div></div>'; };
+    var h = '<div class="pf-top"><div class="pf-ic">E</div><div><h3>Pelo celular, ' + (tipo === 'pedido' ? 'o pedido' : 'a cotação') + ' é respondid' + (tipo === 'pedido' ? 'o' : 'a') + ' pelo app do Portal do Fornecedor</h3><p>Instale o app e ative os avisos. Leva 1 minuto e vale pra todos os próximos pedidos e cotações da Econômico.</p></div></div>' +
+      linha(!fi, fi ? '<b>Instalar o app</b> na tela inicial deste celular.' : '<b>App instalado.</b>') +
+      linha(!fa, fa ? '<b>Ativar os avisos</b>: é por eles que o pedido e a cotação chegam.' : '<b>Avisos ativos.</b>') +
+      (isIOS && !standalone
+        ? '<p style="margin-top:8px"><b>No iPhone</b>: toque em <b>Compartilhar</b> (quadrado com seta) → <b>Adicionar à Tela de Início</b>. Depois abra o app <b>Fornecedor</b> pela tela inicial e toque em <b>Ativar avisos</b>.</p><a class="pf-btn d" href="/fornecedor/">Abrir o portal</a>'
+        : '<button class="pf-btn d" id="pf-app">' + (fa ? '🔔 Ativar avisos' + (fi ? ' e instalar o app' : '') : 'Instalar o app') + '</button>' +
+          (fi ? '<p class="pf-note" style="text-align:left">Se o celular não perguntar nada: abra o menu <b>⋮</b> do navegador → <b>Instalar app</b> (ou "Adicionar à tela inicial") e abra o app <b>Fornecedor</b> uma vez pela tela inicial.</p>' : '')) +
+      '<button class="pf-btn g" id="pf-ja">Já fiz, continuar</button>' +
+      '<div class="pf-err" id="pf-err"></div><div class="pf-note">Não conseguiu instalar? Fale com o(a) comprador(a) da Econômico. Pelo computador o link abre normal.</div>';
+    var b = painel(h, true), err = function (t) { b.querySelector('#pf-err').textContent = t; };
+    var conferir = function (aviso) {
+      return api('/api/portal/eu?vt=' + encodeURIComponent(vt) + (standalone ? '&app=1' : '')).then(function (r) {
+        var falta = faltaApp(r.vendedor);
+        if (!falta.length) { fechar(); jaIdentificado(vt); return true; }
+        if (aviso) err(falta.indexOf('instalar') >= 0 ? 'Ainda falta instalar: depois de instalar, abra o app Fornecedor uma vez pela tela inicial e volte aqui.' : 'Ainda falta ativar os avisos' + (isIOS ? ': abra o app Fornecedor e toque em Ativar avisos.' : '.'));
+        else passoApp(vt, r.vendedor);
+        return false;
+      }).catch(function (e) { err(e.message); });
+    };
+    b.querySelector('#pf-ja').onclick = function () { conferir(true); };
+    var bt = b.querySelector('#pf-app');
+    if (bt) bt.onclick = function () {
+      bt.disabled = true; var txt = bt.textContent; bt.textContent = 'Aguarde…';
+      (fa ? inscrever(vt) : Promise.resolve()).then(function () {
+        if (!fi || !deferred) return null;
+        var d = deferred; deferred = null; d.prompt();
+        return d.userChoice.then(function (c) { if (c && c.outcome === 'accepted') return api('/api/portal/eu?vt=' + encodeURIComponent(vt) + '&app=1').catch(function () {}); });
+      }).then(function () { return conferir(false); }).catch(function (e) { bt.disabled = false; bt.textContent = txt; err(e.message); });
+    };
+  }
+  window.addEventListener('appinstalled', function () { var vt = ls.get(KEY); if (vt) api('/api/portal/eu?vt=' + encodeURIComponent(vt) + '&app=1').catch(function () {}); });
+
   // ── já logado: garante a inscrição deste aparelho; senão, oferece os avisos (na volta do login: na hora; depois: 1x por semana) ──
   function jaIdentificado(vt) {
     var voltouDoLogin = /avisos/.test(location.hash);
@@ -127,14 +171,21 @@
   // ── espera a página do vendedor carregar (P preenchido / #app com conteúdo) e decide o que mostrar ──
   function semLogin() {
     api('/api/portal/config').catch(function () { return {}; }).then(function (c) {
-      var obrig = tipo === 'cotacao' && !!c.exigeLogin;
+      var obrig = (tipo === 'cotacao' && !!c.exigeLogin) || (celular && !!c.exigeApp);
       if (obrig || !adiado()) passoLogin(obrig); else semFundo();
     });
   }
   function iniciar() {
     var vt = ls.get(KEY);
     if (vt) {
-      api('/api/portal/eu?vt=' + encodeURIComponent(vt)).then(function (r) { ls.set(NOME, (r.vendedor && r.vendedor.nome) || ''); semFundo(); jaIdentificado(vt); })
+      api('/api/portal/eu?vt=' + encodeURIComponent(vt) + (standalone ? '&app=1' : '')).then(function (r) {
+        ls.set(NOME, (r.vendedor && r.vendedor.nome) || '');
+        if (!celular) { semFundo(); jaIdentificado(vt); return; }
+        return api('/api/portal/config').catch(function () { return {}; }).then(function (c) {
+          if (c.exigeApp && faltaApp(r.vendedor).length) { passoApp(vt, r.vendedor); return; }
+          semFundo(); jaIdentificado(vt);
+        });
+      })
         .catch(function (e) { if (/inválida/i.test(e.message)) { ls.del(KEY); ls.del(SUB); ls.del(NOME); semLogin(); } else semFundo(); });
       return;
     }

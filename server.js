@@ -9912,6 +9912,7 @@ app.get('/api/paineis-publico/precificacao-dados', async (req, res) => {
 const roboEnsaio = require('./lib/robo-ensaio');
 roboEnsaio.init({ radarPedidos, pedidosFornec, precificacao, roboPrecif, cadastroLista: id => cadastroLista(id), linkPedido: p => linkPedido(p), publicUrl: PUBLIC_URL,
   testeDir: require('./lib/conferencia-xml').TESTE_DIR, conferirPedido: id => pedidosFornec.conferirPedido(id),
+  avisarPortal: p => portalForn.avisarPedido(p),
   whatsEnsaio: () => { try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'cahu-wpp', 'config.json'), 'utf8')).alerta || ''; } catch (e) { return ''; } },   // o número de alerta do Tiago (config do bot, fora do repositório)
   zap: async texto => { const r = await fetch((process.env.CAHU_WPP_URL || 'http://127.0.0.1:3012').replace(/\/$/, '') + '/mensagem-alerta', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texto }), signal: AbortSignal.timeout(30000) }); const j = await r.json().catch(() => ({})); if (!r.ok || j.error) throw new Error(j.error || 'bot HTTP ' + r.status); return j; } });
 // Painel Robô (TV, sem login; Tiago, 12/11/26: painel próprio, separado do Painel Precificação): é o Escritório 3D

@@ -178,7 +178,7 @@ test('app instalado: marcarInstalado registra desde/em/navegador e o painel vê;
 test('login obrigatório pra responder cotação: ligado por padrão, convite e canais avisam, admin desliga e liga (persistido)', () => {
   assert.equal(portal.exigeLogin(), true);
   assert.equal(portal.resumoCanais(cot).exigeLogin, true);
-  assert.deepEqual(portal.setConfig({ exigeLogin: false }), { exigeLogin: false });
+  assert.deepEqual(portal.setConfig({ exigeLogin: false }), { exigeLogin: false, exigeApp: true });   // 13/11/26: app obrigatório no celular, ligado por padrão
   assert.equal(portal.exigeLogin(), false);
   assert.equal(JSON.parse(fs.readFileSync(path.join(portal.DIR, 'config.json'), 'utf8')).exigeLogin, false);
   portal.init(deps); assert.equal(portal.exigeLogin(), false, 'vale depois de reiniciar');
