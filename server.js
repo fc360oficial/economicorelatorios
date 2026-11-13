@@ -9377,6 +9377,8 @@ app.post('/api/pedidos-fornecedor/:id/aprovar', async (req, res) => {
   const p = pedidosFornec.aprovar(parseInt(req.params.id), req.session.user?.nome || null);
   if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
   if (p.erro) return res.status(409).json({ error: p.erro });
+  // aprovado: aviso no app do fornecedor (pedido de teste não avisa; o de ensaio do robô avisa só o login de teste do Tiago)
+  if (!p.teste || (p.ensaio && p.vendedor && p.vendedor.whats)) portalForn.avisarPedidoAprovado(p).catch(e => console.error('[PORTAL] avisar aprovado', p.id, e.message));
   // Regra do Tiago (24/09/26): aprovou, vai pro ERP de TESTE (.254) na hora. Erro por loja fica em p.erp_teste.erros
   // e aparece na tela do pedido com link pro Log; o botão "Gerar pedido no ERP teste" serve pra reenviar.
   let erp = null;
