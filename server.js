@@ -6200,6 +6200,25 @@ app.post('/api/contagem/:data/:loja/aprovar', async (req, res) => {
     if (!gravar.length) return res.status(400).json({ error: 'Nenhum item com contagem pra gravar.' });
     // Saldo ATUAL e unidade de cada item no .254, lidos agora: viram Estoque_Anterior/SaldoAnterior nas linhas
     // de ajuste e da Ficha (igual ao ERP). Sem isso não dá pra montar o movimento, então falha inteira.
+    // 13/11/26: com o Conector 0.5.0+ ligado, o ajuste vai por ele (ordem ajuste_estoque): ele lê o saldo, grava o log do ajuste,
+    // a Ficha e o saldo numa transação só, e a ordem aparece em Processos › Conector (com desfazer) e em Processos › Log.
+    if (conectorErp.ativo() && await conectorErp.suportaAjusteEstoque()) {
+      const quem = req.session.user.nome, motivo = aprovarNeg.motivoAjuste(req.params.data, ln, l.nome), descDe = {}; for (const g of gravar) descDe[g.cod] = g.desc;
+      const ids = [], erros = []; let gravados = 0, movimentados = 0, semMudanca = 0;
+      const minuto = Math.floor(Date.now() / 60000);   // clique duplo no mesmo minuto = mesma ordem; repetir depois grava de novo (ajuste repetido não movimenta nada)
+      for (let k = 0; k < gravar.length; k += 400) {
+        const parte = gravar.slice(k, k + 400);
+        const r = await conectorErp.ajusteEstoque('eco-negativos-' + req.params.data + '-L' + ln + '-' + (somentePendentes ? 'p' : 'a') + minuto + '-' + (k / 400), quem,
+          { loja: ln, motivo, cod_motivo: aprovarNeg.MOTIVO_NEGATIVOS, usuario_dlinks: aprovarNeg.USUARIO_ERP, obs: ('NEGATIVOS - ' + String(quem || '').toUpperCase()).slice(0, 45),
+            itens: parte.map(g => ({ codigo: g.cod, qtd: Number(g.novo), descricao: String(g.desc || '').slice(0, 45) })) });
+        if (!r.ok) { for (const g of parte) erros.push({ cod: g.cod, desc: g.desc, erro: r.erro || r.status, id: r.id }); continue; }
+        const res = r.resultado || {}; ids.push(r.id); gravados += res.ajustados || 0; movimentados += res.movimentados || 0; semMudanca += res.sem_mudanca || 0;
+        for (const n of res.nao_gravados || []) erros.push({ cod: n.codigo, desc: descDe[n.codigo], erro: n.motivo, id: r.id });
+      }
+      if (!gravados) return res.status(502).json({ error: 'Nada foi gravado. ' + ((erros[0] && erros[0].erro) || '') });
+      const m = contagemNeg.marcarAprovado(req.params.data, ln, { nome: quem, ids, pendentes: erros.map(e => e.cod) });
+      return res.json({ ok: erros.length === 0, via: 'conector', gravados, movimentados, semMudanca, usuarioErp: aprovarNeg.USUARIO_ERP, erros, ids, tabela: 'ajuste_estoque', aprovadoEm: m.aprovadoEm });
+    }
     const atual = {};
     try {
       const cods = gravar.map(x => x.cod);

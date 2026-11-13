@@ -79,13 +79,14 @@ function toast(m) { var t = document.getElementById('toast'); t.textContent = m;
 function api(url, body) { return fetch(url, body === undefined ? { cache: 'no-store' } : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) }).then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || j.erro || 'erro'); return j; }); }); }
 function hora(v) { return v ? new Date(v).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'; }
 function money(v) { return 'R$ ' + (+v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
-var TIPO = { pedido_compra: 'Pedido de compra', preco_venda: 'Preço de venda' };
+var TIPO = { pedido_compra: 'Pedido de compra', preco_venda: 'Preço de venda', ajuste_estoque: 'Ajuste de estoque' };
 var SIT = { executada: ['p-ok', 'executada'], desfeita: ['p-mut', 'desfeita'], recusada: ['p-warn', 'recusada'], erro: ['p-bad', 'erro'], recebida: ['p-mut', 'recebida'] };
 var LJ = function (n) { return +n === 10 ? 'CD' : 'E' + n; };
 function resultado(o) {
   var r = o.resultado || {};
   if (o.status === 'recusada' || o.status === 'erro') return '<span style="color:#C22F49">' + esc(r.motivo || '') + '</span>';
   if (o.tipo === 'pedido_compra') return r.pedido ? 'pedido nº <b>' + esc(r.pedido) + '</b> no Dlinks' + (r.total ? ' · ' + money(r.total) : '') : '—';
+  if (o.tipo === 'ajuste_estoque') return r.ajustados != null ? r.ajustados + ' saldo(s) gravado(s) · ' + (r.movimentados || 0) + ' com movimento' + ((r.nao_gravados || []).length ? ' · <span style="color:#C22F49">' + r.nao_gravados.length + ' não gravado(s)</span>' : '') : '—';
   return r.precos_gravados != null ? r.precos_gravados + ' preço(s) gravado(s)' : '—';
 }
 function cards() {
@@ -95,20 +96,23 @@ function cards() {
   el.innerHTML =
     '<div class="card"><div class="l">Conector</div><div class="v"><span class="pill ' + sit[0] + '">' + sit[1] + '</span></div><div class="s">' + (E.no_ar ? 'versão ' + esc(s.versao) + ' · instalação ' + esc(s.instalacao) + ' · no ar desde ' + hora(s.no_ar_desde) : esc(E.erro || 'não respondeu')) + (E.no_ar && !E.autenticado ? ' · ' + esc(E.senha_motivo || '') : '') + '</div></div>' +
     '<div class="card"><div class="l">Grava em</div><div class="v"><span class="pill ' + (s.producao ? 'p-bad' : 'p-warn') + '">' + (s.producao ? 'PRODUÇÃO' : s.adaptador === 'simulado' ? 'SIMULADO' : 'DLINKS DE TESTE') + '</span></div><div class="s">' + esc((s.erp && s.erp.detalhe) || '') + '</div></div>' +
-    '<div class="card"><div class="l">Uso pelo sistema</div><div class="v"><span class="pill ' + (E.ligado ? 'p-ok' : 'p-mut') + '">' + (E.ligado ? 'ligado' : 'desligado') + '</span></div><div class="s">' + (E.ligado ? 'pedidos aprovados e preços de venda passam por ele' : 'o sistema grava pelo caminho antigo') + '</div></div>' +
+    '<div class="card"><div class="l">Uso pelo sistema</div><div class="v"><span class="pill ' + (E.ligado ? 'p-ok' : 'p-mut') + '">' + (E.ligado ? 'ligado' : 'desligado') + '</span></div><div class="s">' + (E.ligado ? 'pedidos aprovados, preços de venda e ajuste de negativos passam por ele' : 'o sistema grava pelo caminho antigo') + '</div></div>' +
     '<div class="card"><div class="l">Ordens</div><div class="v">' + (o.total || 0) + '</div><div class="s">' + (o.executada || 0) + ' executada(s) · ' + (o.desfeita || 0) + ' desfeita(s) · ' + ((o.recusada || 0) + (o.erro || 0)) + ' recusada(s) ou com erro</div></div>';
 }
 function detalhe(o) {
   var d = DET[o.id]; if (!d) return '<tr class="det"><td colspan="8">carregando…</td></tr>';
-  var dd = d.dados || {}, itens = dd.itens || [], antes = {}; ((d.resultado && d.resultado.antes) || []).forEach(function (a) { antes[a.codigo] = a.preco; });
-  var tab = d.tipo === 'preco_venda'
+  var dd = d.dados || {}, itens = dd.itens || [], antes = {}; ((d.resultado && d.resultado.antes) || []).forEach(function (a) { antes[a.codigo] = d.tipo === 'ajuste_estoque' ? a.qtd : a.preco; });
+  var nao = {}; ((d.resultado && d.resultado.nao_gravados) || []).forEach(function (a) { nao[a.codigo] = a.motivo; });
+  var tab = d.tipo === 'ajuste_estoque'
+    ? '<table class="mini"><tr><th>Produto</th><th class="n">Saldo antes</th><th class="n">Saldo contado</th></tr>' + itens.slice(0, 400).map(function (i) { return '<tr><td>' + esc(i.codigo) + ' ' + esc(i.descricao || '') + (nao[i.codigo] ? ' <span style="color:#C22F49">não gravado: ' + esc(nao[i.codigo]) + '</span>' : '') + '</td><td class="n">' + esc(antes[i.codigo] != null ? antes[i.codigo] : '—') + '</td><td class="n">' + esc(i.qtd) + '</td></tr>'; }).join('') + '</table>'
+    : d.tipo === 'preco_venda'
     ? '<table class="mini"><tr><th>Código</th><th class="n">Preço antes</th><th class="n">Preço gravado</th></tr>' + itens.map(function (i) { return '<tr><td>' + esc(i.codigo) + '</td><td class="n">' + esc(antes[i.codigo] != null ? antes[i.codigo] : '—') + '</td><td class="n">' + (+i.preco).toFixed(2).replace('.', ',') + '</td></tr>'; }).join('') + '</table>'
     : '<table class="mini"><tr><th>Produto</th><th class="n">Qtd</th><th class="n">Preço</th></tr>' + itens.slice(0, 200).map(function (i) { return '<tr><td>' + esc(i.descricao || i.codigo) + '</td><td class="n">' + esc(i.qtd) + '</td><td class="n">' + (+i.preco).toFixed(2).replace('.', ',') + '</td></tr>'; }).join('') + '</table>';
   var hist = (d.historico || []).map(function (h) { return hora(h.em) + ' · <b>' + esc(h.acao) + '</b>' + (h.por ? ' por ' + esc(h.por) : '') + (h.motivo ? ' · ' + esc(h.motivo) : ''); }).join('<br>');
   var pode = d.status === 'executada' && d.desfazer;
   return '<tr class="det"><td colspan="8"><div class="det-g">' +
     '<div><h3>Ordem</h3><div class="t">Número: <b>' + esc(d.id) + '</b><br>Pedida por: <b>' + esc(d.origem || '—') + '</b> (sistema)<br>Aprovada por: <b>' + esc(d.aprovado_por) + '</b><br>' + (dd.motivo || dd.obs ? 'Motivo: ' + esc(dd.motivo || dd.obs) + '<br>' : '') + (d.tipo === 'pedido_compra' ? 'Fornecedor: ' + esc(dd.fornecedor && dd.fornecedor.codigo) + (dd.lista_nome ? ' · ' + esc(dd.lista_nome) : '') + '<br>' : '') + 'Gravada por: ' + esc(d.adaptador) + '</div>' +
-    (pode ? '<div style="margin-top:10px"><button class="btn btn-red btn-sm" onclick="desfazer(\'' + esc(d.id) + '\', this)">Desfazer esta ordem</button><div class="t" style="font-size:12px;margin-top:6px">' + (d.tipo === 'preco_venda' ? 'Volta os preços ao valor de antes.' : 'Cancela o pedido no Dlinks (só se ele ainda não andou por lá).') + '</div></div>' : '') + '</div>' +
+    (pode ? '<div style="margin-top:10px"><button class="btn btn-red btn-sm" onclick="desfazer(\'' + esc(d.id) + '\', this)">Desfazer esta ordem</button><div class="t" style="font-size:12px;margin-top:6px">' + (d.tipo === 'ajuste_estoque' ? 'Lança o movimento inverso no estoque (fica registrado na Ficha).' : d.tipo === 'preco_venda' ? 'Volta os preços ao valor de antes.' : 'Cancela o pedido no Dlinks (só se ele ainda não andou por lá).') + '</div></div>' : '') + '</div>' +
     '<div><h3>Histórico</h3><div class="t">' + (hist || '—') + '</div></div>' +
     '<div><h3>' + itens.length + ' item(ns)</h3><div class="tab-wrap">' + tab + '</div></div>' +
     '</div></td></tr>';
@@ -132,7 +136,7 @@ function abrir(id) {
 }
 function desfazer(id, b) {
   var o = DET[id] || {};
-  if (!confirm('Desfazer a ordem ' + id + '?\n\n' + (o.tipo === 'preco_venda' ? 'Os preços dessa ordem voltam ao valor de antes no Dlinks de teste.' : 'O pedido é cancelado no Dlinks de teste.') + '\n\nFica registrado no Log com o seu nome.')) return;
+  if (!confirm('Desfazer a ordem ' + id + '?\n\n' + (o.tipo === 'ajuste_estoque' ? 'O estoque volta pelo movimento inverso no Dlinks de teste (a Ficha do produto guarda a ida e a volta).' : o.tipo === 'preco_venda' ? 'Os preços dessa ordem voltam ao valor de antes no Dlinks de teste.' : 'O pedido é cancelado no Dlinks de teste.') + '\n\nFica registrado no Log com o seu nome.')) return;
   b.disabled = true; b.textContent = 'Desfazendo…';
   api('/api/robo-ensaio/conector/ordens/' + encodeURIComponent(id) + '/desfazer', {}).then(function () { toast('Ordem desfeita'); delete DET[id]; return carregar(); }).then(function () { if (ABERTA === id) api('/api/robo-ensaio/conector/ordens/' + encodeURIComponent(id)).then(function (d) { DET[id] = d; desenhar(); }); })
     .catch(function (e) { toast('Não desfez: ' + e.message); b.disabled = false; b.textContent = 'Desfazer esta ordem'; });
