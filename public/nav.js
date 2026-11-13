@@ -137,6 +137,7 @@
         { href: '/log.html', ic: 'list', txt: 'Log' },
         // Robô de Precificação (Tiago, 04/11/26): EM TESTE, só leitura — vigia de margem das listas Vitamassa/Capricche/Yoki/Nestlé
         { href: '/robo-precificacao.html', ic: 'chart', txt: 'Robô de Precificação', admin: true },
+        { href: '/conector.html', ic: 'chart', txt: 'Conector', admin: true },
         { href: '/robo-ensaio.html', ic: 'chart', txt: 'Ensaio do Robô', admin: true }
       ]}
   ];

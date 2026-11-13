@@ -348,7 +348,7 @@ app.use((req, res, next) => {
       // 04/11/2026 (Coordenação): diagnósticos (/api/_diag/*) só pra admin logado; tabelas-central executava QUALQUER SQL sem login
       || req.path.startsWith('/api/_diag/')
       // 04/11/2026 (Tiago: "quem vai ver só isso só sou eu no momento"): Robô de Precificação, Escritório 3D e Comprador sombra
-      || ['/robo-precificacao.html', '/robo-escritorio-3d.html', '/comprador-sombra.html', '/robo-ensaio.html'].includes(req.path) || req.path.startsWith('/api/robo-precificacao') || req.path.startsWith('/api/comprador-sombra') || req.path.startsWith('/api/robo-ensaio');
+      || ['/robo-precificacao.html', '/robo-escritorio-3d.html', '/comprador-sombra.html', '/robo-ensaio.html', '/conector.html'].includes(req.path) || req.path.startsWith('/api/robo-precificacao') || req.path.startsWith('/api/comprador-sombra') || req.path.startsWith('/api/robo-ensaio');
     if (soAdmin && req.session.user.perfil !== 'admin') {
       if (req.path.startsWith('/api/')) return res.status(403).json({ error: 'Sem permissão' });
       return res.redirect('/index.html');
@@ -9938,6 +9938,9 @@ app.post('/api/robo-ensaio/:id/simular-nota', async (req, res) => { try { res.js
 // do ERP de TESTE (mesmas funções da Formação de Preço: precificacao.fechar + enviarCarga via escreverERP).
 // Situação do Conector (ponte com o Dlinks, instalado em 13/11/26). Só admin (prefixo robo-ensaio); nunca devolve a senha.
 app.get('/api/robo-ensaio/conector', async (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json({ ...(await conectorErp.estado()), ligado: conectorErp.ativo() }); } catch (err) { res.status(500).json({ error: err.message }); } });
+app.get('/api/robo-ensaio/conector/ordens', async (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json(await conectorErp.ordens(req.query.limite)); } catch (err) { res.status(502).json({ error: err.message }); } });
+app.get('/api/robo-ensaio/conector/ordens/:id', async (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json(await conectorErp.ordem(req.params.id)); } catch (err) { res.status(502).json({ error: err.message }); } });
+app.post('/api/robo-ensaio/conector/ordens/:id/desfazer', async (req, res) => { const u = req.session.user?.nome || null; if (!u) return res.status(400).json({ error: 'Entre com seu usuário pra desfazer' }); try { res.json(await conectorErp.desfazer(req.params.id, u)); } catch (err) { res.status(409).json({ error: err.message }); } });
 app.post('/api/robo-ensaio/conector', (req, res) => { try { res.json(conectorErp.setAtivo(!!(req.body && req.body.ativo), req.session.user?.nome || null)); } catch (err) { res.status(400).json({ error: err.message }); } });
 app.get('/api/robo-ensaio/:id/detalhe', (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json(roboEnsaio.detalhe(parseInt(req.params.id))); } catch (err) { res.status(400).json({ error: err.message }); } });
 app.post('/api/robo-ensaio/:id/aprovar-precos', async (req, res) => {
