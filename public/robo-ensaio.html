@@ -143,13 +143,21 @@ function desenhar() {
       }).join('') + '</ul></div>';
   }).join('');
 }
+// Por que o robô compraria essa lista hoje: o dia (ponto de pedido, curva A ou antecipado) e o que entra (reposição × loja zerada que não vende).
+function motivoHtml(l) {
+  if (!l.motivo_dia) return '<small>—</small>';
+  var h = '<b style="color:' + (l.motivo_hoje ? '#137A48' : '#B45C00') + '">' + esc(l.motivo_dia) + '</b>';
+  if (l.repor && l.repor.itens) h += '<small style="display:block">repor o que vende: ' + l.repor.itens + ' produto(s), ' + money(l.repor.valor) + '</small>';
+  if (l.zerado && l.zerado.itens) h += '<small style="display:block;color:#C22F49">loja zerada que NÃO vende o produto: ' + l.zerado.itens + ' produto(s), ' + money(l.zerado.valor) + '</small>';
+  return h;
+}
 function desenharOpcoes() {
   var el = document.getElementById('opcoes');
   if (!OP || !OP.listas.length) { el.innerHTML = '<div class="vazio">Nenhuma lista do robô cadastrada.</div>'; return; }
-  el.innerHTML = '<table><tr><th>Lista</th><th>Fornecedor</th><th class="n">Itens a pedir</th><th class="n">Valor (último custo)</th><th class="n">Pedido mínimo</th><th></th></tr>' + OP.listas.map(function (l) {
+  el.innerHTML = '<table><tr><th>Lista</th><th>Por que comprar hoje</th><th>Fornecedor</th><th class="n">Itens a pedir</th><th class="n">Valor (último custo)</th><th class="n">Pedido mínimo</th><th></th></tr>' + OP.listas.map(function (l) {
     var pode = !l.erro && l.itens > l.sem_embalagem && !l.em_ensaio;
     var obs = l.erro ? l.erro : l.em_ensaio ? 'já tem ensaio em andamento' : !l.itens ? 'nada a pedir hoje' : l.sem_embalagem ? l.sem_embalagem + ' sem embalagem padrão ficam de fora' : '';
-    return '<tr><td class="nm"><b>' + esc(l.nome || 'Lista ' + l.lista) + '</b><small>lista ' + l.lista + (obs ? ' · ' + esc(obs) : '') + '</small></td><td class="nm">' + esc(l.fornecedor || '—') + '</td><td class="n">' + (l.itens || 0) + '</td><td class="n">' + (l.itens ? money(l.total) : '—') + '</td><td class="n">' + (l.pedido_minimo ? money(l.pedido_minimo) : '—') + '</td>' +
+    return '<tr><td class="nm"><b>' + esc(l.nome || 'Lista ' + l.lista) + '</b><small>lista ' + l.lista + (obs ? ' · ' + esc(obs) : '') + '</small></td><td class="nm">' + motivoHtml(l) + '</td><td class="nm">' + esc(l.fornecedor || '—') + '</td><td class="n">' + (l.itens || 0) + '</td><td class="n">' + (l.itens ? money(l.total) : '—') + '</td><td class="n">' + (l.pedido_minimo ? money(l.pedido_minimo) : '—') + '</td>' +
       '<td class="n"><button class="btn btn-amber btn-sm"' + (pode ? '' : ' disabled') + ' onclick="gerar(' + l.lista + ', this)">Gerar pedido do robô</button></td></tr>';
   }).join('') + '</table>';
 }
