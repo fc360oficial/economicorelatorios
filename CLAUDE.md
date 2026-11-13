@@ -29,6 +29,13 @@ reajustar automático seja qual monitor"). Vale pra **tudo que for criado ou alt
   largura base é a do monitor grande e **faixas `@media (max-width: 1599px / 1399px / 1199px)`** vão
   apertando fonte, padding, pills e botões até caber. Largura mínima de coluna fica em classe CSS, nunca
   em `style=""` inline (inline ganha do `@media` e trava o ajuste).
+- **As faixas sozinhas não bastam** (Tiago, 13/11/2026: num PC de 1440 px a Pedidos de Compra caiu na faixa
+  "de 1600" e cortou a última coluna — largura que ninguém tinha testado). Tela com tabela larga carrega
+  **`<script src="/auto-ajuste.js" defer></script>`**: ele mede cada `.table-wrap` e, se a tabela (primeiro
+  filho) ficou mais larga que a caixa, encolhe a tabela inteira com `zoom` só o que falta (piso de 70 %),
+  refaz a conta quando a janela muda e quando a tabela é redesenhada. As faixas `@media` continuam sendo o
+  ajuste principal; o script é a garantia pra qualquer largura, zoom do navegador ou escala do Windows.
+  Já ligado em `pedidos-compra.html` (Análise + Pedidos) e `radar-pedidos.html`. Testar também em **1440**.
 - Grids de cards usam `repeat(auto-fit, minmax(...))` ou `flex-wrap`, não número fixo de colunas.
 - Texto de coluna (nome, empresa, status) pode quebrar linha (`white-space:normal`); número e valor não.
 - Tela nova no mesmo fluxo copia as faixas da tela irmã (ex.: Monitor de Cotações em `cotacao.html`,
