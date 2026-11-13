@@ -9389,6 +9389,7 @@ app.post('/api/pedidos-fornecedor/:id/aprovar', async (req, res) => {
 // 1 cabeçalho por loja em central.pedidocompra + itens + envio, tudo via escreverERP.lote (Processos > Log).
 // Nunca toca o .252. Formato em lib/pedido-erp.js. Guarda em p.erp_teste = { em, por, lojas: { ln: { nReg, logId } } }.
 const pedidoErp = require('./lib/pedido-erp');
+const conectorErp = require('./lib/conector');
 /** Manda o pedido aprovado pro ERP de TESTE, 1 lote por loja. Grava p.erp_teste = { em, por, lojas:{ln:{nReg,...}}, erros:[{loja,erro,logId,em}] }. */
 async function gerarPedidoErpTeste(p, usuario, lojasPedidas, sessionUser) {
   lojasPedidas = Array.isArray(lojasPedidas) && lojasPedidas.length ? lojasPedidas.map(Number) : (p.lojas || []);
@@ -9407,8 +9408,16 @@ async function gerarPedidoErpTeste(p, usuario, lojasPedidas, sessionUser) {
     let montado;
     try { montado = pedidoErp.montarPassosPedido({ p, ln, fornecedor, usuario, dlinks }); }
     catch (e) { resultado.erros.push({ loja: ln, erro: e.message, em: new Date().toISOString() }); continue; }
-    const r = await escreverERP.lote({ usuario, motivo: pedidoErp.motivoPedido(p, ln), banco: 'central', passos: montado.passos, limite: 50 });
-    if (r.ok) resultado.lojas[ln] = { nReg: r.ids[0], itens: montado.itens.length, total: montado.total, logId: r.id, em: new Date().toISOString() };
+    // Pedido do ROBÔ com o Conector ligado (13/11/26): vai como ORDEM pro Conector (ele grava no Dlinks e sabe desfazer).
+    // A chave leva o nº de tentativas que deram erro nessa loja: repetir o clique não cria dois pedidos, e dá pra tentar de novo depois de um erro.
+    const viaConector = !!(p.ensaio && conectorErp.ativo());
+    const tentativas = ((p.erp_teste && p.erp_teste.erros) || []).filter(e => +e.loja === +ln).length;
+    const r = viaConector
+      ? await conectorErp.pedidoCompra('eco-pedido-' + p.id + '-L' + ln + '-t' + tentativas, usuario, { loja: +ln, fornecedor: { codigo: +(p.codFornec || fornecedor.CodFornec) || 0 }, lista: +p.lista || 0, lista_nome: p.lista_nome || '',
+          comprador: (p.comprador && p.comprador.nome) || '', vendedor: (p.vendedor && p.vendedor.nome) || '', vendedor_whats: (p.vendedor && p.vendedor.whats) || '', obs: 'Radar #' + p.id, prazo_pagamento: p.prazo_pagamento || '', pedido_minimo: p.pedido_minimo || '',
+          itens: montado.itens.map(i => ({ codigo: i.cod, descricao: i.descricao, unid: i.unid, emb: i.emb, qtd: i.qtd, preco: i.preco, ultimo_custo: i.ultimo_custo })) })
+      : await escreverERP.lote({ usuario, motivo: pedidoErp.motivoPedido(p, ln), banco: 'central', passos: montado.passos, limite: 50 });
+    if (r.ok) resultado.lojas[ln] = { nReg: r.ids[0], itens: montado.itens.length, total: montado.total, logId: r.id, em: new Date().toISOString(), conector: viaConector ? r.ordem : undefined };
     else resultado.erros.push({ loja: ln, erro: r.erro, logId: r.id, em: new Date().toISOString() });
   }
   // erros antigos das lojas que agora deram certo saem; os novos entram
@@ -9919,7 +9928,8 @@ app.post('/api/robo-ensaio/:id/simular-nota', async (req, res) => { try { res.js
 // Etapa 7 num clique (Tiago, 12/11/26: "onde aprova?"): mostra o que muda e, confirmado, fecha a lista de cada loja e manda pra carga
 // do ERP de TESTE (mesmas funções da Formação de Preço: precificacao.fechar + enviarCarga via escreverERP).
 // Situação do Conector (ponte com o Dlinks, instalado em 13/11/26). Só admin (prefixo robo-ensaio); nunca devolve a senha.
-app.get('/api/robo-ensaio/conector', async (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json(await require('./lib/conector').estado()); } catch (err) { res.status(500).json({ error: err.message }); } });
+app.get('/api/robo-ensaio/conector', async (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json({ ...(await conectorErp.estado()), ligado: conectorErp.ativo() }); } catch (err) { res.status(500).json({ error: err.message }); } });
+app.post('/api/robo-ensaio/conector', (req, res) => { try { res.json(conectorErp.setAtivo(!!(req.body && req.body.ativo), req.session.user?.nome || null)); } catch (err) { res.status(400).json({ error: err.message }); } });
 app.get('/api/robo-ensaio/:id/detalhe', (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json(roboEnsaio.detalhe(parseInt(req.params.id))); } catch (err) { res.status(400).json({ error: err.message }); } });
 app.post('/api/robo-ensaio/:id/aprovar-precos', async (req, res) => {
   try {

@@ -72,6 +72,7 @@ td.nm{white-space:normal}td.nm b{display:block;font-weight:700}td.nm small{color
     <div>
       <h1>Ensaio do Robô</h1>
       <p>O ciclo inteiro de <b>compra + preço</b> nas lojas E1 e E2, com você no lugar do fornecedor e aprovando cada etapa. <b>Nenhum fornecedor é avisado</b> e tudo é gravado só no <b>ERP de teste</b>.</p>
+      <p id="conector" style="margin-top:6px;font-size:13px"></p>
     </div>
     <div class="acoes">
       <a class="btn" href="/painel-robo.html" target="_blank" rel="noopener">Abrir Painel Robô</a>
@@ -122,6 +123,14 @@ function verBloco(v, e) {
   if (d.tabela && d.tabela.linhas.length) h += '<div class="vertab"><table><tr>' + d.tabela.cab.map(function (c, i) { return '<th' + (i > 0 && c !== 'Produto' && c !== 'O que faz' ? ' class="n"' : '') + '>' + esc(c) + '</th>'; }).join('') + '</tr>' + d.tabela.linhas.map(function (l) { return '<tr>' + l.map(function (c, i) { var cab = d.tabela.cab[i]; return '<td' + (i > 0 && cab !== 'Produto' && cab !== 'O que faz' ? ' class="n"' : '') + '>' + esc(c) + '</td>'; }).join('') + '</tr>'; }).join('') + '</table></div>';
   return h + '</div>';
 }
+// Situação do Conector (ponte com o Dlinks): por onde o pedido e o preço do robô são gravados.
+function lerConector() {
+  api('/api/robo-ensaio/conector').then(function (c) {
+    var el = document.getElementById('conector'); if (!el) return; var s = c.saude || {}, o = s.ordens || {};
+    el.innerHTML = !c.ligado ? '<b>Conector desligado:</b> o robô grava pelo caminho antigo.' : !c.no_ar ? '<b style="color:#C22F49">Conector fora do ar:</b> a aprovação da compra e do preço vai dar erro até ele voltar.' : !c.autenticado ? '<b style="color:#C22F49">Conector no ar, mas sem acesso:</b> ' + esc(c.senha_motivo || '') : '<b style="color:#137A48">Conector no ar</b> · o pedido e o preço do robô são gravados por ele no ' + (s.producao ? 'ERP de PRODUÇÃO' : 'Dlinks de teste') + ' · ' + (o.total || 0) + ' ordem(ns) recebida(s), ' + (o.executada || 0) + ' executada(s)';
+  }).catch(function () {});
+}
+lerConector(); setInterval(lerConector, 30000);
 function desenhar() {
   var el = document.getElementById('ensaios');
   if (!D.ensaios.length) { el.innerHTML = ''; return; }
