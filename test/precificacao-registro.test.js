@@ -1,3 +1,4 @@
+process.env.CONECTOR_USO = 'off';   // estes testes cobrem a gravação pelo caminho de sempre (escreverERP)
 process.env.PRECIF_REGRA_ROBO = 'off';   // estes testes cobrem a regra de sempre; a regra do robô (E1/E2) é testada em precificacao-robo.test.js
 const test = require('node:test');
 const assert = require('node:assert/strict');
