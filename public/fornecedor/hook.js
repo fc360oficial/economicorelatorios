@@ -58,7 +58,7 @@
   function inscrever(vt) {
     if (!pushOk) return Promise.reject(new Error('Este navegador não recebe avisos. No iPhone, instale o app primeiro (Compartilhar → Adicionar à Tela de Início) e ative lá.'));
     return Notification.requestPermission().then(function (perm) {
-      if (perm !== 'granted') throw new Error(perm === 'denied' ? 'Avisos bloqueados neste navegador. Libere em Configurações do site → Notificações.' : 'Você não permitiu os avisos.');
+      if (perm !== 'granted') throw new Error(perm === 'denied' ? 'Os avisos estão bloqueados neste celular. Pra liberar: toque no ícone à esquerda do endereço do site (lá em cima) → Permissões → Notificações → Permitir. Se não aparecer, abra as Configurações do celular → Apps → o seu navegador (Chrome) → Notificações → ligue. Depois toque em ativar os avisos de novo.' : 'Você não permitiu os avisos. Toque em ativar de novo e escolha Permitir.');
       return api('/api/portal/vapid');
     }).then(function (k) {
       if (!k.chave) throw new Error('Avisos ainda não disponíveis no servidor' + (k.erro ? ' (' + k.erro + ')' : '') + '. Tente mais tarde.');
@@ -120,46 +120,58 @@
     var f = faltaApp(v), fi = f.indexOf('instalar') >= 0, fa = f.indexOf('avisos') >= 0;
     var linha = function (ok, txt) { return '<div class="pf-ok"><i style="' + (ok ? '' : 'background:#FBEDDD;color:#8A4A00') + '">' + (ok ? '✓' : '!') + '</i><div>' + txt + '</div></div>'; };
     var h = '<div class="pf-top"><div class="pf-ic">E</div><div><h3>Pelo celular, ' + (tipo === 'pedido' ? 'o pedido' : 'a cotação') + ' é respondid' + (tipo === 'pedido' ? 'o' : 'a') + ' pelo app do Portal do Fornecedor</h3><p>Instale o app e ative os avisos. Leva 1 minuto e vale pra todos os próximos pedidos e cotações da Econômico.</p></div></div>' +
-      linha(!fi, fi ? '<b>Instalar o app</b> na tela inicial deste celular.' : '<b>App instalado.</b>') +
-      linha(!fa, fa ? '<b>Ativar os avisos</b>: é por eles que o pedido e a cotação chegam.' : '<b>Avisos ativos.</b>') +
+      linha(!fi, fi ? '<b>1º Instalar o app</b> na tela inicial deste celular.' : '<b>App instalado.</b>') +
+      linha(!fa, fa ? '<b>2º Ativar os avisos</b>: é por eles que o pedido e a cotação chegam.' : '<b>Avisos ativos.</b>') +
+      // Um botão pra cada passo, na ordem: 1º instalar, 2º avisos. Um passo que falha NÃO trava o outro (13/11/26: com os avisos
+      // bloqueados no navegador, o botão único "ativar avisos e instalar" parava no erro do aviso e a instalação nunca abria).
       (isIOS && !standalone
         ? '<p style="margin-top:8px"><b>No iPhone</b>: toque em <b>Compartilhar</b> (quadrado com seta) → <b>Adicionar à Tela de Início</b>. Depois abra o app <b>Fornecedor</b> pela tela inicial e toque em <b>Ativar avisos</b>.</p><a class="pf-btn d" href="/fornecedor/">Abrir o portal</a>'
-        : '<button class="pf-btn d" id="pf-app">' + (fa ? '🔔 Ativar avisos' + (fi ? ' e instalar o app' : '') : 'Instalar o app') + '</button>' +
-          (fi ? '<p class="pf-note" style="text-align:left">Se o celular não perguntar nada: abra o menu <b>⋮</b> do navegador → <b>Instalar app</b> (ou "Adicionar à tela inicial") e abra o app <b>Fornecedor</b> uma vez pela tela inicial.</p>' : '')) +
+        : (fi ? '<button class="pf-btn d" id="pf-inst">📲 ' + (fa ? '1º passo: instalar o app' : 'Instalar o app') + '</button>' : '') +
+          (fa ? '<button class="pf-btn ' + (fi ? 'g' : 'd') + '" id="pf-avis">🔔 ' + (fi ? '2º passo: ativar os avisos' : 'Ativar os avisos') + '</button>' : '')) +
       '<button class="pf-btn g" id="pf-ja">Já fiz, continuar</button>' +
       '<div class="pf-err" id="pf-err"></div><div class="pf-note">Não conseguiu instalar? Fale com o(a) comprador(a) da Econômico. Pelo computador o link abre normal.</div>';
-    var b = painel(h, true), err = function (t) { b.querySelector('#pf-err').textContent = t; }, semOferta = false;
+    var b = painel(h, true), err = function (t) { var e = b.querySelector('#pf-err'); if (e) { e.textContent = t; if (t && e.scrollIntoView) e.scrollIntoView({ block: 'nearest' }); } };
     var conferir = function (aviso) {
       return api('/api/portal/eu?vt=' + encodeURIComponent(vt) + (standalone ? '&app=1' : '')).then(function (r) {
         var falta = faltaApp(r.vendedor);
-        if (!falta.length) { fechar(); jaIdentificado(vt); return true; }
+        if (!falta.length) { reconferir = null; fechar(); jaIdentificado(vt); return true; }
         if (aviso) err(falta.indexOf('instalar') >= 0 ? 'Ainda falta instalar: depois de instalar, abra o app Fornecedor uma vez pela tela inicial e volte aqui.' : 'Ainda falta ativar os avisos' + (isIOS ? ': abra o app Fornecedor e toque em Ativar avisos.' : '.'));
         else passoApp(vt, r.vendedor);
         return false;
       }).catch(function (e) { err(e.message); });
     };
+    reconferir = function () { conferir(false); };   // instalou pelo menu do navegador: o painel se atualiza sozinho
     b.querySelector('#pf-ja').onclick = function () { conferir(true); };
-    var bt = b.querySelector('#pf-app');
-    if (bt) bt.onclick = function () {
-      bt.disabled = true; var txt = bt.textContent; bt.textContent = 'Aguarde…';
-      (fa ? inscrever(vt) : Promise.resolve()).then(function () {
-        if (!fi) return null;
-        if (!deferred) { semOferta = true; return null; }   // o navegador não ofereceu a instalação: mostra o caminho manual
-        var d = deferred; deferred = null; d.prompt();
-        return d.userChoice.then(function (c) { if (c && c.outcome === 'accepted') return api('/api/portal/eu?vt=' + encodeURIComponent(vt) + '&app=1').catch(function () {}); });
-      }).then(function () {
-        if (semOferta) {
-          semOferta = false; bt.disabled = false; bt.textContent = txt;
-          return api('/api/portal/eu?vt=' + encodeURIComponent(vt)).then(function (r) {
-            if (!faltaApp(r.vendedor).length) { fechar(); jaIdentificado(vt); return; }
-            err(isIOS ? 'Toque em Compartilhar → Adicionar à Tela de Início. Depois abra o app Fornecedor.' : 'Este navegador não abriu a instalação sozinho. Toque no menu ⋮ (canto de cima) → "Instalar app" ou "Adicionar à tela inicial". Se o app já está instalado, abra o Fornecedor pela tela inicial: o pedido está lá.');
-          });
-        }
-        return conferir(false);
-      }).catch(function (e) { bt.disabled = false; bt.textContent = txt; err(e.message); });
+    var manual = 'Este navegador não abriu a instalação sozinho. Toque no menu ⋮ (canto de cima) → "Instalar app" ou "Adicionar à tela inicial". Se o app já está instalado, abra o Fornecedor pela tela inicial: ' + (tipo === 'pedido' ? 'o pedido' : 'a cotação') + ' está lá.';
+    var bi = b.querySelector('#pf-inst');
+    if (bi) bi.onclick = function () {
+      err('');
+      if (!deferred) {   // o navegador não ofereceu a instalação (ou o app já está instalado): confere no servidor e mostra o caminho manual
+        api('/api/portal/eu?vt=' + encodeURIComponent(vt)).then(function (r) {
+          var falta = faltaApp(r.vendedor);
+          if (!falta.length) { reconferir = null; fechar(); jaIdentificado(vt); return; }
+          if (falta.indexOf('instalar') < 0) { passoApp(vt, r.vendedor); return; }
+          err(manual);
+        }).catch(function () { err(manual); });
+        return;
+      }
+      // a janela de instalação tem que abrir direto do toque (sem esperar nada antes), senão o navegador recusa
+      var d = deferred, txt = bi.textContent; deferred = null; bi.disabled = true; bi.textContent = 'Aguarde…';
+      var volta = function (t) { bi.disabled = false; bi.textContent = txt; err(t); };
+      try { d.prompt(); } catch (e) { volta(manual); return; }
+      Promise.resolve(d.userChoice).then(function (c) {
+        if (!c || c.outcome !== 'accepted') { volta('Instalação cancelada. Toque em instalar de novo' + (fa ? ', ou siga pro 2º passo.' : '.')); return; }
+        return api('/api/portal/eu?vt=' + encodeURIComponent(vt) + '&app=1').catch(function () {}).then(function () { return conferir(false); });
+      }).catch(function () { volta(manual); });
+    };
+    var ba = b.querySelector('#pf-avis');
+    if (ba) ba.onclick = function () {
+      var txt = ba.textContent; ba.disabled = true; ba.textContent = 'Ativando…'; err('');
+      inscrever(vt).then(function () { return conferir(false); }).catch(function (e) { ba.disabled = false; ba.textContent = txt; err(e.message); });
     };
   }
-  window.addEventListener('appinstalled', function () { var vt = ls.get(KEY); if (vt) api('/api/portal/eu?vt=' + encodeURIComponent(vt) + '&app=1').catch(function () {}); });
+  var reconferir = null;
+  window.addEventListener('appinstalled', function () { var vt = ls.get(KEY); if (vt) api('/api/portal/eu?vt=' + encodeURIComponent(vt) + '&app=1').catch(function () {}).then(function () { if (reconferir) reconferir(); }); });
 
   // ── já logado: garante a inscrição deste aparelho; senão, oferece os avisos (na volta do login: na hora; depois: 1x por semana) ──
   function jaIdentificado(vt) {
