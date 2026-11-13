@@ -9918,6 +9918,8 @@ app.post('/api/robo-ensaio/gerar', async (req, res) => { try { res.json(await ro
 app.post('/api/robo-ensaio/:id/simular-nota', async (req, res) => { try { res.json(await roboEnsaio.simularNota(parseInt(req.params.id))); } catch (err) { res.status(400).json({ error: err.message }); } });
 // Etapa 7 num clique (Tiago, 12/11/26: "onde aprova?"): mostra o que muda e, confirmado, fecha a lista de cada loja e manda pra carga
 // do ERP de TESTE (mesmas funções da Formação de Preço: precificacao.fechar + enviarCarga via escreverERP).
+// Situação do Conector (ponte com o Dlinks, instalado em 13/11/26). Só admin (prefixo robo-ensaio); nunca devolve a senha.
+app.get('/api/robo-ensaio/conector', async (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json(await require('./lib/conector').estado()); } catch (err) { res.status(500).json({ error: err.message }); } });
 app.get('/api/robo-ensaio/:id/detalhe', (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json(roboEnsaio.detalhe(parseInt(req.params.id))); } catch (err) { res.status(400).json({ error: err.message }); } });
 app.post('/api/robo-ensaio/:id/aprovar-precos', async (req, res) => {
   try {
