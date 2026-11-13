@@ -9417,7 +9417,9 @@ async function gerarPedidoErpTeste(p, usuario, lojasPedidas, sessionUser) {
     // A chave leva o nº de tentativas que deram erro nessa loja: repetir o clique não cria dois pedidos, e dá pra tentar de novo depois de um erro.
     // 13/11/26 (Tiago: "pessoa do compras já tá fazendo pedidos pelo radar, quero que o instalador puxe também esses pedidos"):
     // TODO pedido aprovado (robô, Radar, Sugestão Manual, Cotação) vai pelo Conector; a chave data/conector.json desliga pra todos.
-    const viaConector = conectorErp.ativo();
+    // item sem preço (preço nulo e último custo 0): o Conector até a 0.4.0 recusa; o caminho de sempre aceita preço 0 → vai por ele
+    const semPreco = montado.itens.some(i => !(i.preco > 0));
+    const viaConector = conectorErp.ativo() && !semPreco;
     const tentativas = ((p.erp_teste && p.erp_teste.erros) || []).filter(e => +e.loja === +ln).length;
     const r = viaConector
       ? await conectorErp.pedidoCompra('eco-pedido-' + p.id + '-L' + ln + '-t' + tentativas, (dlinks && dlinks.nome) || usuario, { loja: +ln, fornecedor: { codigo: +(p.codFornec || fornecedor.CodFornec) || 0 }, lista: +p.lista || 0, lista_nome: p.lista_nome || '',
@@ -9938,6 +9940,15 @@ app.post('/api/robo-ensaio/:id/simular-nota', async (req, res) => { try { res.js
 // do ERP de TESTE (mesmas funções da Formação de Preço: precificacao.fechar + enviarCarga via escreverERP).
 // Situação do Conector (ponte com o Dlinks, instalado em 13/11/26). Só admin (prefixo robo-ensaio); nunca devolve a senha.
 app.get('/api/robo-ensaio/conector', async (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json({ ...(await conectorErp.estado()), ligado: conectorErp.ativo() }); } catch (err) { res.status(500).json({ error: err.message }); } });
+// Reenvia pro ERP teste as lojas de um pedido aprovado que deram erro, em nome de quem aprovou (uso de manutenção, só admin).
+app.post('/api/robo-ensaio/reenviar-pedido/:id', async (req, res) => {
+  try {
+    const p = pedidosFornec.obter(parseInt(req.params.id)); if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
+    if (!['aprovado', 'recebido', 'recebido_parcial'].includes(p.status)) return res.status(400).json({ error: 'Pedido ' + p.status + ': só aprovado é reenviado' });
+    const quem = req.session.user?.nome || p.aprovadoPor; if (!quem) return res.status(400).json({ error: 'Pedido sem aprovador registrado' });
+    res.json(await gerarPedidoErpTeste(p, quem, null, req.session.user || null));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 app.get('/api/robo-ensaio/conector/ordens', async (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json(await conectorErp.ordens(req.query.limite)); } catch (err) { res.status(502).json({ error: err.message }); } });
 app.get('/api/robo-ensaio/conector/ordens/:id', async (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json(await conectorErp.ordem(req.params.id)); } catch (err) { res.status(502).json({ error: err.message }); } });
 app.post('/api/robo-ensaio/conector/ordens/:id/desfazer', async (req, res) => { const u = req.session.user?.nome || null; if (!u) return res.status(400).json({ error: 'Entre com seu usuário pra desfazer' }); try { res.json(await conectorErp.desfazer(req.params.id, u)); } catch (err) { res.status(409).json({ error: err.message }); } });

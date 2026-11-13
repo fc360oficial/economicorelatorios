@@ -108,13 +108,15 @@ function proximoLote(){const hm=new Date().toTimeString().slice(0,5);const p=HOR
 async function api(url,body){const r=await fetch(url,body!==undefined?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{method:'GET'});const j=await r.json();if(j.error)throw new Error(j.error);return j;}
 // Ensaio do robô (Tiago, 12/11/26: "onde aprovar?"): aprovação do preço num clique, igual ao botão da tela Ensaio do Robô.
 // Aprovação da precificação (Tiago, 13/11/26: "Leni decide"), lista a lista: mostra varejo e atacado que mudam, confirma e grava.
+// aviso fixo no topo: a lista aprovada some da tabela e a de baixo sobe com o botão dela (Tiago, 13/11/26: "volta o botão aprovar, por quê?")
+function avisoAprovada(txt){let a=document.getElementById('aviso-aprovada');if(!a){a=document.createElement('div');a.id='aviso-aprovada';a.style.cssText='position:sticky;top:8px;z-index:20;margin:0 0 12px;padding:12px 16px;border-radius:10px;background:#E7F5EC;border:1px solid #137A48;color:#0E1626;font-weight:600;font-size:13.5px;line-height:1.5;display:flex;gap:12px;align-items:flex-start';const t=document.querySelector('table');(t&&t.parentNode?t.parentNode:document.body).insertBefore(a,t||null);}a.innerHTML='<div style="flex:1"></div><button class="btn btn-slate btn-sm" onclick="this.parentNode.remove()">ok</button>';a.firstChild.textContent=txt;}
 async function aprovarLista(id,b){
   b.disabled=true;const t=b.textContent;b.textContent='Lendo…';
   try{
     const p=await api('/api/precificacao/'+encodeURIComponent(id)+'/aprovar',{});const m=p.mudancas||[],d=x=>'R$ '+(+x).toFixed(2).replace('.',',');
     const linhas=m.slice(0,40).map(x=>'· '+x.descricao+': '+[x.varejo?'varejo '+d(x.varejo.de)+' → '+d(x.varejo.para):'',x.atacado?'atacado '+d(x.atacado.de)+' → '+d(x.atacado.para):''].filter(Boolean).join(' | '));
     const msg='Lista '+id+' · loja '+p.loja+' · '+(p.lista_nome||'')+'\n\n'+(m.length?m.length+' produto(s) mudam de preço no ERP de TESTE:\n\n'+linhas.join('\n')+(m.length>40?'\n… e mais '+(m.length-40):''):'Nenhum preço muda nesta lista.')+(p.bloqueados?'\n\n'+p.bloqueados+' item(ns) bloqueado(s) ficam de fora.':'')+'\n\nAprovar?';
-    if(confirm(msg)){b.textContent='Gravando…';const r=await api('/api/precificacao/'+encodeURIComponent(id)+'/aprovar',{confirmar:true});alert(r.sem_mudanca?'Aprovada: nenhum preço mudou.':'Aprovada: '+((r.erp_teste&&r.erp_teste.itens)||0)+' preço(s) gravado(s) no ERP de teste.');}
+    if(confirm(msg)){b.textContent='Gravando…';const r=await api('/api/precificacao/'+encodeURIComponent(id)+'/aprovar',{confirmar:true});avisoAprovada('✓ Lista '+id+' · loja '+p.loja+' · '+(p.lista_nome||'')+' APROVADA: '+(r.sem_mudanca?'nenhum preço mudou.':((r.erp_teste&&r.erp_teste.itens)||0)+' preço(s) gravado(s) no ERP de teste pelo Conector.')+' Ela saiu dos "em aberto"; as linhas abaixo são outras listas, ainda por aprovar.');}
   }catch(e){alert('Não deu: '+e.message);}
   b.disabled=false;b.textContent=t;carregar();
 }
