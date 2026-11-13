@@ -19,6 +19,8 @@
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   function api(url, body) { return fetch(url, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : { cache: 'no-store' }).then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok || j.error) throw new Error(j.error || ('HTTP ' + r.status)); return j; }); }); }
   function b64(s) { var p = '='.repeat((4 - s.length % 4) % 4); var b = (s + p).replace(/-/g, '+').replace(/_/g, '/'); var raw = atob(b); var a = new Uint8Array(raw.length); for (var i = 0; i < raw.length; i++) a[i] = raw.charCodeAt(i); return a; }
+  // celular abrindo o link público: passa pro endereço do app (mesma página), onde o navegador consegue oferecer a instalação
+  if ((isIOS || /Android|Mobile/i.test(navigator.userAgent)) && !/^\/fornecedor\//.test(location.pathname)) { location.replace('/fornecedor/' + tipo + '/' + token + location.search + location.hash); return; }
   var de = encodeURIComponent(tipo + '/' + token);   // de onde o vendedor veio: o portal volta pra cá depois do login
 
   // ── estilo do painel ──
@@ -125,7 +127,7 @@
           (fi ? '<p class="pf-note" style="text-align:left">Se o celular não perguntar nada: abra o menu <b>⋮</b> do navegador → <b>Instalar app</b> (ou "Adicionar à tela inicial") e abra o app <b>Fornecedor</b> uma vez pela tela inicial.</p>' : '')) +
       '<button class="pf-btn g" id="pf-ja">Já fiz, continuar</button>' +
       '<div class="pf-err" id="pf-err"></div><div class="pf-note">Não conseguiu instalar? Fale com o(a) comprador(a) da Econômico. Pelo computador o link abre normal.</div>';
-    var b = painel(h, true), err = function (t) { b.querySelector('#pf-err').textContent = t; };
+    var b = painel(h, true), err = function (t) { b.querySelector('#pf-err').textContent = t; }, semOferta = false;
     var conferir = function (aviso) {
       return api('/api/portal/eu?vt=' + encodeURIComponent(vt) + (standalone ? '&app=1' : '')).then(function (r) {
         var falta = faltaApp(r.vendedor);
@@ -140,10 +142,20 @@
     if (bt) bt.onclick = function () {
       bt.disabled = true; var txt = bt.textContent; bt.textContent = 'Aguarde…';
       (fa ? inscrever(vt) : Promise.resolve()).then(function () {
-        if (!fi || !deferred) return null;
+        if (!fi) return null;
+        if (!deferred) { semOferta = true; return null; }   // o navegador não ofereceu a instalação: mostra o caminho manual
         var d = deferred; deferred = null; d.prompt();
         return d.userChoice.then(function (c) { if (c && c.outcome === 'accepted') return api('/api/portal/eu?vt=' + encodeURIComponent(vt) + '&app=1').catch(function () {}); });
-      }).then(function () { return conferir(false); }).catch(function (e) { bt.disabled = false; bt.textContent = txt; err(e.message); });
+      }).then(function () {
+        if (semOferta) {
+          semOferta = false; bt.disabled = false; bt.textContent = txt;
+          return api('/api/portal/eu?vt=' + encodeURIComponent(vt)).then(function (r) {
+            if (!faltaApp(r.vendedor).length) { fechar(); jaIdentificado(vt); return; }
+            err(isIOS ? 'Toque em Compartilhar → Adicionar à Tela de Início. Depois abra o app Fornecedor.' : 'Este navegador não abriu a instalação sozinho. Toque no menu ⋮ (canto de cima) → "Instalar app" ou "Adicionar à tela inicial". Se o app já está instalado, abra o Fornecedor pela tela inicial: o pedido está lá.');
+          });
+        }
+        return conferir(false);
+      }).catch(function (e) { bt.disabled = false; bt.textContent = txt; err(e.message); });
     };
   }
   window.addEventListener('appinstalled', function () { var vt = ls.get(KEY); if (vt) api('/api/portal/eu?vt=' + encodeURIComponent(vt) + '&app=1').catch(function () {}); });
