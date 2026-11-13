@@ -9414,7 +9414,7 @@ async function gerarPedidoErpTeste(p, usuario, lojasPedidas, sessionUser) {
     const tentativas = ((p.erp_teste && p.erp_teste.erros) || []).filter(e => +e.loja === +ln).length;
     const r = viaConector
       ? await conectorErp.pedidoCompra('eco-pedido-' + p.id + '-L' + ln + '-t' + tentativas, usuario, { loja: +ln, fornecedor: { codigo: +(p.codFornec || fornecedor.CodFornec) || 0 }, lista: +p.lista || 0, lista_nome: p.lista_nome || '',
-          comprador: (p.comprador && p.comprador.nome) || '', vendedor: (p.vendedor && p.vendedor.nome) || '', vendedor_whats: (p.vendedor && p.vendedor.whats) || '', obs: 'Radar #' + p.id, prazo_pagamento: p.prazo_pagamento || '', pedido_minimo: p.pedido_minimo || '',
+          comprador: String((p.comprador && p.comprador.nome) || '').normalize('NFD').replace(/[\u0300-\u036f]/g, ''), vendedor: (p.vendedor && p.vendedor.nome) || '', vendedor_whats: (p.vendedor && p.vendedor.whats) || '', obs: 'Radar #' + p.id, prazo_pagamento: p.prazo_pagamento || '', pedido_minimo: p.pedido_minimo || '',
           itens: montado.itens.map(i => ({ codigo: i.cod, descricao: i.descricao, unid: i.unid, emb: i.emb, qtd: i.qtd, preco: i.preco, ultimo_custo: i.ultimo_custo })) })
       : await escreverERP.lote({ usuario, motivo: pedidoErp.motivoPedido(p, ln), banco: 'central', passos: montado.passos, limite: 50 });
     if (r.ok) resultado.lojas[ln] = { nReg: r.ids[0], itens: montado.itens.length, total: montado.total, logId: r.id, em: new Date().toISOString(), conector: viaConector ? r.ordem : undefined };
@@ -9912,6 +9912,7 @@ app.get('/api/paineis-publico/precificacao-dados', async (req, res) => {
 const roboEnsaio = require('./lib/robo-ensaio');
 roboEnsaio.init({ radarPedidos, pedidosFornec, precificacao, roboPrecif, cadastroLista: id => cadastroLista(id), linkPedido: p => linkPedido(p), publicUrl: PUBLIC_URL,
   testeDir: require('./lib/conferencia-xml').TESTE_DIR, conferirPedido: id => pedidosFornec.conferirPedido(id),
+  whatsEnsaio: () => { try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'cahu-wpp', 'config.json'), 'utf8')).alerta || ''; } catch (e) { return ''; } },   // o número de alerta do Tiago (config do bot, fora do repositório)
   zap: async texto => { const r = await fetch((process.env.CAHU_WPP_URL || 'http://127.0.0.1:3012').replace(/\/$/, '') + '/mensagem-alerta', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texto }), signal: AbortSignal.timeout(30000) }); const j = await r.json().catch(() => ({})); if (!r.ok || j.error) throw new Error(j.error || 'bot HTTP ' + r.status); return j; } });
 // Painel Robô (TV, sem login; Tiago, 12/11/26: painel próprio, separado do Painel Precificação): é o Escritório 3D
 // (public/robo-escritorio-3d.html) em modo TV, mostrando o ensaio de verdade. As 2 rotas de dados abaixo são as mesmas
