@@ -56,3 +56,57 @@ test('fecharComCusto: pedido já finalizado/aprovado não é alterado', () => {
 test('fecharComCusto: pedido inexistente devolve null', () => {
   assert.equal(pf.fecharComCusto('NAO-EXISTE-XYZ', {}, null), null);
 });
+
+// Flag "Usar o último custo · sem vendedor" (Tiago, 13/11/26): marcada no pedido em análise, anula o envio ao vendedor.
+test('usarUltimoCusto: pedido em análise fecha com o último custo e pula o vendedor', () => {
+  fixture('analise');
+  try {
+    const p = pf.usarUltimoCusto(ID, true, 'Patricia');
+    assert.equal(p.status, 'finalizado');
+    assert.equal(p.usar_ultimo_custo.por, 'Patricia');
+    assert.equal(p.usar_ultimo_custo.de, 'analise');
+    assert.equal(p.enviadoEm, undefined);              // nunca foi enviado ao vendedor
+    assert.match(p.finalizadoPor, /Patricia .*último custo/);
+    const by = Object.fromEntries(p.itens.map(i => [i.cod, i.preco]));
+    assert.equal(by['111'], 2.5);
+    assert.equal(by['222'], 8);
+    assert.equal(by['333'], null);                     // sem último custo: fica sem preço
+    assert.equal(pf.itensSemPreco(p), 1);
+    assert.equal(p.totais.digitado, +(10 * 2.5 + 3 * 8).toFixed(2));
+    const ap = pf.aprovar(ID, 'Patricia');             // segue o fluxo normal de aprovação
+    assert.equal(ap.status, 'aprovado');
+  } finally { limpar(); try { fs.unlinkSync(path.join(DIR, ID + '.pdf')); } catch (e) { /* sem pdf */ } }
+});
+
+test('usarUltimoCusto: desmarcar volta pra análise, tira os preços da flag e mantém o negociado', () => {
+  fixture('analise');
+  try {
+    pf.negociarPreco(ID, '222', '7,50', 'Patricia');   // negociado antes de marcar
+    let p = pf.usarUltimoCusto(ID, true, 'Patricia');
+    assert.equal(p.itens.find(i => i.cod === '222').preco, 7.5);                     // negociado não é sobrescrito
+    assert.equal(p.itens.find(i => i.cod === '222').negociado.preco_vendedor, 8);    // desfazer a negociação cai no último custo
+    p = pf.usarUltimoCusto(ID, false, 'Patricia');
+    assert.equal(p.status, 'analise');
+    assert.equal(p.usar_ultimo_custo, undefined);
+    assert.equal(p.com_custo, undefined);
+    assert.equal(p.finalizadoEm, null);
+    assert.equal(p.itens.find(i => i.cod === '111').preco, null);
+    assert.equal(p.itens.find(i => i.cod === '222').preco, 7.5);
+    assert.equal(pf.enviar(ID, 'Patricia').status, 'aguardando');                    // o envio ao vendedor volta a valer
+  } finally { limpar(); }
+});
+
+test('usarUltimoCusto: só em análise/sugestão; desmarcar só enquanto finalizado pela flag', () => {
+  fixture('aguardando');
+  try {
+    assert.ok(pf.usarUltimoCusto(ID, true, 'Maria').erro);
+    assert.ok(pf.usarUltimoCusto(ID, false, 'Maria').erro);
+    assert.equal(JSON.parse(fs.readFileSync(ARQ, 'utf8')).status, 'aguardando');
+  } finally { limpar(); }
+  fixture('sugestao');
+  try {
+    assert.equal(pf.usarUltimoCusto(ID, true, 'Maria').status, 'finalizado');
+    assert.equal(pf.usarUltimoCusto(ID, false, 'Maria').status, 'sugestao');
+  } finally { limpar(); }
+  assert.equal(pf.usarUltimoCusto('NAO-EXISTE-XYZ', true, null), null);
+});

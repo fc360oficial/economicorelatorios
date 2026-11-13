@@ -9316,7 +9316,7 @@ app.post('/api/pedidos-fornecedor/testes-xml/remover', (req, res) => {
   try { const n = pedidosFornec.removerTestesXml(); const np = precificacao.removerTestes(); res.json({ removidos: n, precificacao_removidos: np }); } catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.get('/api/pedidos-fornecedor', (req, res) => {
-  res.json(soMinhas(req, pedidosFornec.listar(), p => p.lista).map(p => ({ id: p.id, lista: p.lista, lista_nome: p.lista_nome, fornecedor: p.fornecedor, vendedor: p.vendedor, comprador: p.comprador, status: p.status, aprovadoEm: p.aprovadoEm || null, aprovadoPor: p.aprovadoPor || null, canceladoEm: p.canceladoEm || null, canceladoPor: p.canceladoPor || null, motivoCancelamento: p.motivoCancelamento || null, excluidoEm: p.excluidoEm || null, excluidoPor: p.excluidoPor || null, motivoExclusao: p.motivoExclusao || null, statusAntes: p.statusAntes || null, recebidoEm: p.recebidoEm || null, origem: p.origem || null, alerta_novo: !!p.alerta_novo,
+  res.json(soMinhas(req, pedidosFornec.listar(), p => p.lista).map(p => ({ id: p.id, lista: p.lista, lista_nome: p.lista_nome, fornecedor: p.fornecedor, vendedor: p.vendedor, comprador: p.comprador, status: p.status, usar_ultimo_custo: p.usar_ultimo_custo || null, aprovadoEm: p.aprovadoEm || null, aprovadoPor: p.aprovadoPor || null, canceladoEm: p.canceladoEm || null, canceladoPor: p.canceladoPor || null, motivoCancelamento: p.motivoCancelamento || null, excluidoEm: p.excluidoEm || null, excluidoPor: p.excluidoPor || null, motivoExclusao: p.motivoExclusao || null, statusAntes: p.statusAntes || null, recebidoEm: p.recebidoEm || null, origem: p.origem || null, alerta_novo: !!p.alerta_novo,
     // 13/10/2026: o Fiscal avisou a compradora que a nota está na mão dele e precisa da decisão dela (aparece no pedido)
     alerta_fiscal: p.alerta_fiscal || null, avisos_fiscal: p.avisos_fiscal || [],
     // selo e filtro de origem na tela (Radar / Cotação / Sugestão manual) — sem isto a tela mostrava RADAR em tudo
@@ -9504,6 +9504,14 @@ app.post('/api/pedidos-fornecedor/:id/enviar', (req, res) => {
   if (p.erro) return res.status(409).json({ error: p.erro });
   res.json({ ok: true, status: p.status, link: linkPedido(p) });
   if (!p.teste) portalForn.avisarPedido(p).catch(e => console.error('[PORTAL] avisar pedido', p.id, e.message));
+});
+// Flag "Usar o último custo · sem vendedor" (Tiago, 13/11/26): marcada, o pedido em análise fecha com o último custo e pula o
+// envio ao vendedor (vai direto pra aprovação); desmarcada, volta pra análise. body: { ligar: true|false }. Não avisa o portal.
+app.post('/api/pedidos-fornecedor/:id/ultimo-custo', (req, res) => {
+  const p = pedidosFornec.usarUltimoCusto(parseInt(req.params.id), !!(req.body || {}).ligar, req.session.user?.nome || null);
+  if (!p) return res.status(404).json({ error: 'Pedido não encontrado' });
+  if (p.erro) return res.status(409).json({ error: p.erro });
+  res.json({ ok: true, status: p.status, usar_ultimo_custo: p.usar_ultimo_custo || null, totais: p.totais, sem_preco: pedidosFornec.itensSemPreco(p) });
 });
 app.post('/api/pedidos-fornecedor/verificar-recebimentos', async (req, res) => {
   try { const r = await pedidosFornec.verificarRecebimentos(); r.erp_teste_recebimentos = await espelharRecebimentosPendentes().catch(e => 'erro: ' + e.message); res.json(r); } catch (err) { res.status(500).json({ error: err.message }); }

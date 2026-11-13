@@ -84,6 +84,12 @@ tr.novo td{background:#FFF3F5}
 .det .box .hd .hf.neg{border-color:#7A2A3A;background:#2A1B26}.det .box .hd .hf.neg i{color:#FF8FA3}
 .det .box .hd .hf small{font-size:10px;color:#8FA0C4}
 .det .box .hd .hpill{display:inline-block;background:#E4ECFF;color:#1F4E79;border-radius:99px;padding:2px 8px;font-size:10px;font-weight:800;letter-spacing:.3px}
+/* Flag "Usar o último custo · sem vendedor" (Tiago, 13/11/26): caixinha no cabeçalho do pedido em análise; marcada fica amarela */
+.det .box .hd .ucf{margin-left:auto;display:inline-flex;align-items:center;gap:7px;background:#1B2742;border:1px solid #3A4C78;border-radius:6px;padding:4px 10px;font-size:11.5px;font-weight:700;color:#E6ECF8;cursor:pointer;user-select:none;white-space:nowrap}
+.det .box .hd .ucf:hover{border-color:#FFC933}
+.det .box .hd .ucf input{width:15px;height:15px;margin:0;cursor:pointer;accent-color:#137A48}
+.det .box .hd .ucf small{font-size:10.5px;font-weight:600;color:#8FA0C4}
+.det .box .hd .ucf.on{background:#FFC933;border-color:#FFC933;color:#1B2742}.det .box .hd .ucf.on small{color:#5A4500}
 .det .box .hd .hlink{color:#FFC933;font-size:11px;font-weight:700}
 .det .box .hd .hd-o{margin-top:6px;font-weight:500;font-size:12px}
 .det .box .hd b{color:#FFC933}
@@ -364,7 +370,7 @@ function setupModo(){
   if(ANALISE){
     $('#pg-h1').textContent='Análise de Compras';
     { const bt=$('#btnTodos'); if(bt){ bt.onclick=enviarSelecionadas; atualizarBtnEnv(); } }   // Tiago, 13/10: manda só as listas marcadas
-    $('#pg-sub').textContent='Pedidos que vieram do Radar pra você analisar antes de ir pro fornecedor. Confira quantidades e caixas, envie ao vendedor (ele digita os preços no link), negocie o preço e aprove. Aprovado vai pra Pedidos de Compra. Nada é gravado no ERP.';
+    $('#pg-sub').textContent='Pedidos que vieram do Radar pra você analisar antes de ir pro fornecedor. Confira quantidades e caixas, envie ao vendedor (ele digita os preços no link), negocie o preço e aprove. Se o vendedor não precisa digitar preço, marque "Usar o último custo" dentro do pedido: ele pula o envio e vai direto pra aprovação. Aprovado vai pra Pedidos de Compra. Nada é gravado no ERP.';
     $('#cnav-an').classList.add('cur'); $('#cnav-an').textContent='Análise de Compras'; $('#cnav-an').title='Você está aqui';
     $('#pg-fluxo').innerHTML='<span class="pill st-analise">Em análise</span>→<span class="pill st-aguardando">Aguardando vendedor</span>→<span class="pill st-digitacao">Em digitação</span>→<span class="pill st-finalizado">Finalizado · aguardando aprovação</span>→<span class="pill st-aprovado">Aprovado</span> = sai daqui e vai pra Pedidos de Compra <span style="margin-left:10px">·</span> <span class="pill st-sugestao">Sugestão · ruptura de entrega</span> = rascunho criado pelo sistema quando a nota chegou com falta; fica no card próprio até ser enviado ao vendedor';
   } else {
@@ -402,6 +408,27 @@ async function enviarSugestao(id){
   alert('Enviada. Link copiado: '+j.link+'\nUse "Reenviar WhatsApp" no pedido pra mandar ao vendedor.');
   await carregar(); aberto=id; render(); carregarDetalhe(id);
 }
+// Flag "Usar o último custo · sem vendedor" (Tiago, 13/11/26: "uma flag pro vendedor não precisar digitar o custo, tendo em vista o
+// último custo; fica desmarcada, o comprador é quem marca; uma vez marcada anula a etapa de enviar para o vendedor"). Aparece no
+// cabeçalho do pedido em análise / sugestão de ruptura, DESMARCADA. Marcou: o último custo vira o preço de cada item e o pedido pula
+// direto pra "aguardando aprovação" (não vai link nem aviso pro vendedor). Desmarcou (antes de aprovar): volta pra análise.
+function ucfHtml(p){
+  const on=!!p.usar_ultimo_custo;
+  if(!(['analise','sugestao'].includes(p.status)||(p.status==='finalizado'&&on))) return '';
+  return '<label class="ucf'+(on?' on':'')+'" onclick="event.stopPropagation()" title="'+(on?'Marcado'+(p.usar_ultimo_custo.por?' por '+esc(p.usar_ultimo_custo.por):'')+': o pedido fechou com o ÚLTIMO CUSTO como preço e não foi enviado ao vendedor. Desmarque pra voltar à análise e enviar ao vendedor.':'Marque quando o vendedor NÃO precisa digitar o preço: o último custo de cada item vira o preço e o pedido pula o envio ao vendedor, indo direto pra sua aprovação. Dá pra desmarcar antes de aprovar.')+'"><input type="checkbox"'+(on?' checked':'')+' onchange="usarUltimoCusto('+p.id+',this)">Usar o último custo <small>· sem enviar ao vendedor</small></label>';
+}
+async function usarUltimoCusto(id,cb){
+  const ligar=cb.checked, key=aberto; cb.disabled=true;
+  try{
+    const r=await fetch('/api/pedidos-fornecedor/'+id+'/ultimo-custo',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ligar})}); const j=await r.json().catch(()=>({}));
+    if(!r.ok||j.error) throw new Error(j.error||('HTTP '+r.status));
+    await carregar(); aberto=key; render();
+    // o pedido mudou de status: se o card/filtro escolhido não mostra mais a linha, volta pra "Em andamento" pra ele não sumir da tela
+    if(key&&!document.getElementById('det-'+key)){ filtro='andamento'; $('#fStatus').value=''; renderTotais(); render(); }
+    if(key) carregarDetalhe(key);
+    if(ligar&&j.sem_preco) alert('Pedido #'+id+' fechado com o último custo.\n\nATENÇÃO: '+j.sem_preco+' item(ns) não têm último custo no ERP e ficaram SEM preço. Informe o preço deles no 🤝 antes de aprovar.');
+  }catch(e){ cb.checked=!ligar; cb.disabled=false; alert(e.message); }
+}
 async function verificarAgora(){
   const b=$('#btnVer'); b.disabled=true; b.textContent='Verificando…';
   try{const r=await fetch('/api/pedidos-fornecedor/verificar-recebimentos',{method:'POST'});const j=await r.json();if(j.error)throw new Error(j.error);await carregar();alert('Conferidas '+j.verificados+' loja(s): '+(j.conciliados||0)+' conciliada(s), '+(j.consistencias||0)+' em consistência, '+j.rupturas+' sugestão(ões) de ruptura criada(s).');}
@@ -435,14 +462,18 @@ function dtLocal(s){ if(!s) return ''; return dt(String(s).includes('T')?s:Strin
 const STC={analise:'Em análise',sugestao:'Sugestão · ruptura de entrega',aguardando:'Enviado ao vendedor',digitacao:'Enviado ao vendedor',finalizado:'Proposta recebida · aprovar',aprovado:'Aprovado',recebido:'Recebido',recebido_parcial:'Recebido com falta',cancelado:'Cancelado',excluido:'Excluído'};
 const STV={aguardando:'Link enviado · não abriu',digitacao:'Digitando preços',finalizado:'Proposta enviada',aprovado:'Pedido aprovado',recebido:'Entregue',recebido_parcial:'Entregue com falta',cancelado:'Cancelado',excluido:'Excluído'};
 function stComprador(p,L){
-  return (L&&p.xml?.lojas?.[L]?(x=>(x.chegou?'<span class="pill st-chegou'+(x.chegou.fechada?' fim':'')+'" title="'+esc(chegouTxt(x))+'">'+(x.chegou.fechada?'Finalizado na loja':'Chegou na loja')+'</span>':'<span class="pill st-'+(x.status==='conciliado'?'recebido':x.status==='consistencia'?'recebido_parcial':x.status==='devolvida'?'devolvida':'aprovado')+'">'+(x.status==='conciliado'?'Recebido':x.status==='consistencia'?'Recebido com falta':x.status==='devolvida'?'Entrega devolvida · cotar de novo':'Aprovado')+'</span>')+nfeLinks(x))(p.xml.lojas[L]):'<span class="pill st-'+p.status+'">'+(STC[p.status]||ST[p.status]||p.status)+'</span>'+(p.status==='cancelado'&&p.motivoCancelamento?'<div class="sub" title="motivo do cancelamento">'+esc(p.motivoCancelamento)+'</div>':'')+(p.status==='excluido'?'<div class="sub">'+(p.statusAntes?'estava: '+(STC[p.statusAntes]||ST[p.statusAntes]||p.statusAntes):'')+(p.motivoExclusao?(p.statusAntes?' · ':'')+esc(p.motivoExclusao):'')+'</div>':''))+pillXml(p,L)+(p.alerta_fiscal&&(!L||+p.alerta_fiscal.loja===+L)&&p.xml?.lojas?.[p.alerta_fiscal.loja]?.status==='consistencia'?'<div><span class="pill" style="background:#FBEAED;color:#C22F49;font-weight:800" title="O Fiscal está recebendo a nota na loja '+p.alerta_fiscal.loja+' e espera sua decisão (Aceitar / Recusar) nos itens">🔔 Fiscal aguardando</span></div>':'');
+  return (L&&p.xml?.lojas?.[L]?(x=>(x.chegou?'<span class="pill st-chegou'+(x.chegou.fechada?' fim':'')+'" title="'+esc(chegouTxt(x))+'">'+(x.chegou.fechada?'Finalizado na loja':'Chegou na loja')+'</span>':'<span class="pill st-'+(x.status==='conciliado'?'recebido':x.status==='consistencia'?'recebido_parcial':x.status==='devolvida'?'devolvida':'aprovado')+'">'+(x.status==='conciliado'?'Recebido':x.status==='consistencia'?'Recebido com falta':x.status==='devolvida'?'Entrega devolvida · cotar de novo':'Aprovado')+'</span>')+nfeLinks(x))(p.xml.lojas[L]):'<span class="pill st-'+p.status+'"'+(semVend(p)?' title="Fechado pelo(a) comprador(a) com o último custo como preço, sem enviar ao vendedor. Falta aprovar."':'')+'>'+(semVend(p)?'Último custo · aprovar':(STC[p.status]||ST[p.status]||p.status))+'</span>'+(p.status==='cancelado'&&p.motivoCancelamento?'<div class="sub" title="motivo do cancelamento">'+esc(p.motivoCancelamento)+'</div>':'')+(p.status==='excluido'?'<div class="sub">'+(p.statusAntes?'estava: '+(STC[p.statusAntes]||ST[p.statusAntes]||p.statusAntes):'')+(p.motivoExclusao?(p.statusAntes?' · ':'')+esc(p.motivoExclusao):'')+'</div>':''))+pillXml(p,L)+(p.alerta_fiscal&&(!L||+p.alerta_fiscal.loja===+L)&&p.xml?.lojas?.[p.alerta_fiscal.loja]?.status==='consistencia'?'<div><span class="pill" style="background:#FBEAED;color:#C22F49;font-weight:800" title="O Fiscal está recebendo a nota na loja '+p.alerta_fiscal.loja+' e espera sua decisão (Aceitar / Recusar) nos itens">🔔 Fiscal aguardando</span></div>':'');
 }
+// pedido fechado pela flag "Usar o último custo" e ainda não aprovado: nunca foi mandado ao vendedor (13/11/26)
+const semVend=p=>p.status==='finalizado'&&!!p.usar_ultimo_custo&&!p.enviadoEm;
 function stVendedor(p){
   if(['analise','sugestao'].includes(p.status)) return '<span class="mut">não enviado</span>';
+  if(semVend(p)) return '<span class="mut" title="O(a) comprador(a) marcou Usar o último custo: o vendedor não precisa digitar preço e o pedido não foi enviado a ele">sem vendedor · último custo</span>';
   if(origemDe(p)==='cotacao'&&!p.enviadoEm&&!p.abertoEm) return '<span class="pill st-'+p.status+'" title="Pedido fechado dentro da Cotação: o vendedor já tinha digitado os preços lá">'+(STV[p.status]||ST[p.status]||p.status)+'</span>';
   return '<span class="pill st-'+p.status+'">'+(STV[p.status]||ST[p.status]||p.status)+'</span>';
 }
 function andVendedor(p){
+  if(p.usar_ultimo_custo&&!p.enviadoEm&&!p.abertoEm) return '<span class="mut">—</span>';   // fechado com o último custo: o vendedor não teve passo nenhum
   const link=p.enviadoEm||(['analise','sugestao'].includes(p.status)||origemDe(p)==='cotacao'?null:p.criadoEm);   // pedido antigo: criado já enviado
   let s='';
   if(link) s+='<div><span>link</span> '+dt(link)+'</div>';
@@ -451,10 +482,11 @@ function andVendedor(p){
   return s||'<span class="mut">—</span>';
 }
 function andComprador(p){
-  const emAnalise=!!p.enviadoEm||['analise','sugestao'].includes(p.status);
+  const emAnalise=!!p.enviadoEm||!!p.usar_ultimo_custo||['analise','sugestao'].includes(p.status);
   let s='<div><span>'+(emAnalise?'análise':'enviado')+'</span> '+dt(p.criadoEm)+' <i>'+esc(p.criadoPor||'')+'</i></div>';
   if(emAnalise&&p.vistoEm) s+='<div><span>visto</span> '+dt(p.vistoEm)+' <i>'+esc(p.vistoPor||'')+'</i></div>';
   if(p.enviadoEm) s+='<div><span>enviado</span> '+dt(p.enviadoEm)+' <i>'+esc(p.enviadoPor||'')+'</i></div>';
+  if(p.usar_ultimo_custo) s+='<div title="Marcou Usar o último custo: sem enviar ao vendedor"><span>custo</span> '+dt(p.usar_ultimo_custo.em)+' <i>'+esc(p.usar_ultimo_custo.por||'')+'</i></div>';
   if(p.canceladoEm) s+='<div><span class="neg">cancelado</span> '+dt(p.canceladoEm)+' <i>'+esc(p.canceladoPor||'')+'</i></div>';   // Tiago, 13/10: registrado pro gestor
   if(p.excluidoEm) s+='<div><span class="neg">excluído</span> '+dt(p.excluidoEm)+' <i>'+esc(p.excluidoPor||'')+'</i></div>';
   return s;
@@ -681,7 +713,7 @@ async function carregarDetalhe(key){
       p.prazo_pagamento?chip('prazo',esc(p.prazo_pagamento)):'',
       p.pedido_minimo>0?chip('pedido mínimo',money(p.pedido_minimo)+(p.pedido_minimo_fonte==='fornecedor_erp'?' <small title="Valor mínimo do cadastro do fornecedor no ERP: a lista não tem pedido mínimo e o vendedor não informou">(cadastro do fornecedor no ERP)</small>':'')):'',
     ].filter(Boolean).join('');
-    let h='<div class="hd"><div class="hd-t">'+(LN?'<span class="lojatag" style="margin:0">'+ETQ(LN)+' · '+(LOJAS_NOMES[LN]||'')+' · só os itens desta loja</span>':'')+'<b class="lnk" title="Abrir cadastro da lista no ERP" onclick="event.stopPropagation();abrirCadastro('+p.lista+')">'+esc(p.lista_nome)+' ↗</b><span class="pill st-'+p.status+'">'+(ST[p.status]||p.status)+'</span>'+origPill+'</div>'+
+    let h='<div class="hd"><div class="hd-t">'+(LN?'<span class="lojatag" style="margin:0">'+ETQ(LN)+' · '+(LOJAS_NOMES[LN]||'')+' · só os itens desta loja</span>':'')+'<b class="lnk" title="Abrir cadastro da lista no ERP" onclick="event.stopPropagation();abrirCadastro('+p.lista+')">'+esc(p.lista_nome)+' ↗</b><span class="pill st-'+p.status+'">'+(p.status==='finalizado'&&p.usar_ultimo_custo?'Último custo · sem vendedor · aguardando aprovação':(ST[p.status]||p.status))+'</span>'+origPill+ucfHtml(p)+'</div>'+
       (fatos?'<div class="hd-f">'+fatos+'</div>':'')+
       (p.obs_vendedor?'<div class="hd-o">💬 <b>Obs. do vendedor:</b> '+esc(p.obs_vendedor)+'</div>':'')+'</div>';
     const LJ=LN?[LN]:[...new Set(p.itens.flatMap(i=>Object.keys(i.lojas_qtd||{}).map(Number)))].sort((a,b)=>a-b); const editavel=['analise','sugestao','aguardando','digitacao','finalizado'].includes(p.status); PED[p.id]=p;
@@ -715,8 +747,8 @@ async function carregarDetalhe(key){
     const ffBon=barraBonifCombinada(p,LN);
     h+='<div class="ft">'+(ffAv||ffObs?'<div class="ft-f'+(ffAv&&ffObs?'':' um')+'">'+ffAv+ffObs+'</div>':'')+(ffBon?'<div class="ft-f um">'+ffBon+'</div>':'')+'<div class="acoes">'+'<button class="btn btn-navy" onclick="event.stopPropagation();prePedido('+p.id+')" title="Prévia do pedido como vai pro vendedor: loja a loja, com totais e observações">Pré-pedido por loja</button>'+
       (p.status==='sugestao'?'<button class="btn btn-green" onclick="enviarSugestao('+p.id+')">Enviar ao vendedor</button><span>Sugestão criada pelo sistema com o que <b>faltou</b> na entrega do pedido #'+(p.origem?.pedidoId||'')+'. Revise e envie: vira "Aguardando vendedor" e o link é o mesmo fluxo.</span>':'')+
-      (p.status==='analise'?'<button class="btn btn-green" onclick="enviarSugestao('+p.id+')">Enviar ao vendedor</button><span><b>Em análise</b>: confira quantidades, caixas e lojas (nada foi mandado ao vendedor). Ao enviar vira "Aguardando vendedor" e você recebe o link pra mandar pelo WhatsApp.</span>':'')+
-      (p.status==='finalizado'?'<button class="btn btn-green" onclick="aprovar('+p.id+')">Aprovar pedido</button><span>Confere os preços, preenche a <b>Obs. pro Fiscal</b> (obrigatória) e aprova. O pedido vai pra Pedidos de Compra e o sistema passa a esperar a nota no ERP.</span>':'')+
+      (p.status==='analise'?'<button class="btn btn-green" onclick="enviarSugestao('+p.id+')">Enviar ao vendedor</button><span><b>Em análise</b>: confira quantidades, caixas e lojas (nada foi mandado ao vendedor). Ao enviar vira "Aguardando vendedor" e você recebe o link pra mandar pelo WhatsApp. Se o vendedor não precisa digitar preço, marque <b>Usar o último custo</b> lá em cima: o pedido pula o envio e vai direto pra sua aprovação.</span>':'')+
+      (p.status==='finalizado'?'<button class="btn btn-green" onclick="aprovar('+p.id+')">Aprovar pedido</button><span>'+(p.usar_ultimo_custo?'Fechado com o <b>último custo</b>, sem enviar ao vendedor'+(p.usar_ultimo_custo.por?' (marcado por '+esc(p.usar_ultimo_custo.por)+')':'')+'. '+(p.itens.some(i=>i.qtd>0&&i.preco==null)?'<b class="neg">'+p.itens.filter(i=>i.qtd>0&&i.preco==null).length+' item(ns) sem último custo ficaram sem preço: informe no 🤝.</b> ':'')+'Se precisar, ajuste algum preço no 🤝, preencha a <b>Obs. pro Fiscal</b> (obrigatória) e aprove. Pra mandar ao vendedor, desmarque <b>Usar o último custo</b> lá em cima.':'Confere os preços, preenche a <b>Obs. pro Fiscal</b> (obrigatória) e aprova. O pedido vai pra Pedidos de Compra e o sistema passa a esperar a nota no ERP.')+'</span>':'')+
       (p.status==='aprovado'?'<span>'+(p.xml&&p.xml.status==='parcial'?'XML já conferido em '+Object.entries(p.xml.lojas).filter(([,x])=>x.status!=='aguardando').map(([l])=>ETQ(l)).join(', ')+'; aguardando a nota das outras lojas.':'Aguardando a NF-e (XML) do fornecedor entrar no ERP, loja a loja.')+'</span>':'')+
       (p.status==='recebido'?'<span class="pos">Conciliado 100% com o XML'+(p.recebidoEm?' em '+new Date(p.recebidoEm).toLocaleString('pt-BR'):'')+'.</span>':'')+
       (p.status==='recebido_parcial'?'<span class="neg">Consistência XML: veja a conferência por loja acima. Faltas viram sugestão de ruptura (card "Ruptura de entrega").</span>':'')+
@@ -726,8 +758,8 @@ async function carregarDetalhe(key){
       (p.status==='cancelado'?'<span class="neg"><b>Cancelado</b>'+(p.canceladoEm?' em '+new Date(p.canceladoEm).toLocaleString('pt-BR'):'')+(p.canceladoPor?' por '+esc(p.canceladoPor):'')+(p.motivoCancelamento?' · motivo: '+esc(p.motivoCancelamento):'')+'. Fica registrado pra análise.</span>':'')+
       (p.status==='excluido'?'<span class="neg"><b>Excluído</b>'+(p.excluidoEm?' em '+new Date(p.excluidoEm).toLocaleString('pt-BR'):'')+(p.excluidoPor?' por '+esc(p.excluidoPor):'')+(p.statusAntes?' · estava '+(ST[p.statusAntes]||p.statusAntes):'')+(p.motivoExclusao?' · motivo: '+esc(p.motivoExclusao):'')+'. Fica registrado pra análise; não dá mais pra mexer.</span>':'')+
       '<span class="sp"></span>'+
-      (p.status!=='analise'?'<button class="btn btn-slate btn-sm" onclick="copiarTexto(\''+p.link+'\',this,\'Link copiado\')">Copiar link do vendedor</button><a class="btn btn-slate btn-sm" target="_blank" rel="noopener" href="'+p.link+'">Abrir como vendedor</a>':'')+
-      (p.vendedor?.whats&&p.status!=='analise'?'<a class="btn btn-slate btn-sm" target="_blank" rel="noopener" href="https://wa.me/55'+p.vendedor.whats.replace(/\D/g,'')+'?text='+encodeURIComponent('Olá '+(p.vendedor.nome||'')+', segue o pedido da lista '+p.lista_nome+' (ECONOMICO SUPERMERCADO - REDE CAHU): '+p.link)+'">Reenviar WhatsApp</a>':'')+
+      (p.status!=='analise'&&!semVend(p)?'<button class="btn btn-slate btn-sm" onclick="copiarTexto(\''+p.link+'\',this,\'Link copiado\')">Copiar link do vendedor</button><a class="btn btn-slate btn-sm" target="_blank" rel="noopener" href="'+p.link+'">Abrir como vendedor</a>':'')+
+      (p.vendedor?.whats&&p.status!=='analise'&&!semVend(p)?'<a class="btn btn-slate btn-sm" target="_blank" rel="noopener" href="https://wa.me/55'+p.vendedor.whats.replace(/\D/g,'')+'?text='+encodeURIComponent('Olá '+(p.vendedor.nome||'')+', segue o pedido da lista '+p.lista_nome+' (ECONOMICO SUPERMERCADO - REDE CAHU): '+p.link)+'">Reenviar WhatsApp</a>':'')+
       (!['aprovado','cancelado','excluido'].includes(p.status)?'<button class="btn btn-red btn-sm" onclick="cancelar('+p.id+')">Cancelar</button>':'')+
       (!['aprovado','recebido','recebido_parcial','excluido'].includes(p.status)?'<button class="btn btn-red btn-sm" onclick="excluir('+p.id+')" title="Apaga o pedido da lista (fica guardado em data/pedidos-fornecedor/excluidos). Só antes da aprovação.">Excluir</button>':'')+
       '</div></div>';
@@ -1089,7 +1121,7 @@ function precoCellHtml(p,i){
   const pr=i.preco!=null?i.preco:null, dif=pr!=null&&i.ultimo_custo>0?pr-i.ultimo_custo:null, ng=i.negociado||null;
   const pode=['analise','sugestao','aguardando','digitacao','finalizado'].includes(p.status);
   const btn=pode?'<button class="neg-btn'+(ng?' on':'')+'" title="'+(ng?'Preço negociado (vendedor digitou '+(ng.preco_vendedor!=null?fmt(ng.preco_vendedor,2):'nada')+(ng.por?' · por '+esc(ng.por):'')+'): clique pra mudar, ou apague o valor pra voltar ao do vendedor':'Negociar: digitar o preço fechado com o vendedor')+'" onclick="event.stopPropagation();negociarPreco('+p.id+',\''+esc(i.cod)+'\')">🤝</button>':'';
-  return btn+'<span class="vlr '+(ng?'neg':(dif!=null&&dif>0.004?'up':(dif!=null&&dif<-0.004?'dn':'eq')))+'" title="'+(ng?'negociado · vendedor digitou '+(ng.preco_vendedor!=null?fmt(ng.preco_vendedor,2):'nada'):'preço digitado pelo vendedor')+'">'+(pr==null?'—':fmt(pr,2))+'</span>'+(ng?'<div class="s2"><span class="negv" title="preço que o vendedor digitou">'+(ng.preco_vendedor!=null?fmt(ng.preco_vendedor,2):'sem preço')+'</span></div>':'');
+  return btn+'<span class="vlr '+(ng?'neg':(dif!=null&&dif>0.004?'up':(dif!=null&&dif<-0.004?'dn':'eq')))+'" title="'+(ng?'negociado · vendedor digitou '+(ng.preco_vendedor!=null?fmt(ng.preco_vendedor,2):'nada'):(p.usar_ultimo_custo?'último custo do ERP (pedido fechado sem vendedor)':'preço digitado pelo vendedor'))+'">'+(pr==null?'—':fmt(pr,2))+'</span>'+(ng?'<div class="s2"><span class="negv" title="preço que o vendedor digitou">'+(ng.preco_vendedor!=null?fmt(ng.preco_vendedor,2):'sem preço')+'</span></div>':'');
 }
 async function negociarPreco(pid,cod){
   const p=PED[pid], it=p&&p.itens.find(i=>String(i.cod)===String(cod)); if(!it) return;
