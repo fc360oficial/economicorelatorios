@@ -9417,9 +9417,9 @@ async function gerarPedidoErpTeste(p, usuario, lojasPedidas, sessionUser) {
     // A chave leva o nº de tentativas que deram erro nessa loja: repetir o clique não cria dois pedidos, e dá pra tentar de novo depois de um erro.
     // 13/11/26 (Tiago: "pessoa do compras já tá fazendo pedidos pelo radar, quero que o instalador puxe também esses pedidos"):
     // TODO pedido aprovado (robô, Radar, Sugestão Manual, Cotação) vai pelo Conector; a chave data/conector.json desliga pra todos.
-    // item sem preço (preço nulo e último custo 0): o Conector até a 0.4.0 recusa; o caminho de sempre aceita preço 0 → vai por ele
+    // item sem preço (preço nulo e último custo 0): o Conector até a 0.4.0 recusa; o caminho de sempre aceita preço 0 → vai por ele enquanto o instalado for antigo
     const semPreco = montado.itens.some(i => !(i.preco > 0));
-    const viaConector = conectorErp.ativo() && !semPreco;
+    const viaConector = conectorErp.ativo() && (!semPreco || await conectorErp.aceitaPrecoZero());   // com o Conector 0.4.1+ o item sem preço também vai por ele
     const tentativas = ((p.erp_teste && p.erp_teste.erros) || []).filter(e => +e.loja === +ln).length;
     const r = viaConector
       ? await conectorErp.pedidoCompra('eco-pedido-' + p.id + '-L' + ln + '-t' + tentativas, (dlinks && dlinks.nome) || usuario, { loja: +ln, fornecedor: { codigo: +(p.codFornec || fornecedor.CodFornec) || 0 }, lista: +p.lista || 0, lista_nome: p.lista_nome || '',
