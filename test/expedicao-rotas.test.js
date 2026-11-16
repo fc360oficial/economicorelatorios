@@ -109,6 +109,11 @@ test('duas etapas com PIN pessoal: MARIA separa → terminei vira "separada" →
   assert.equal(f.etapas.modelo, 'duas'); assert.equal(f.etapas.separacao.operador.nome, 'MARIA'); assert.equal(f.etapas.separacao.tentativas, 2); assert.equal(f.etapas.expedicao.operador.nome, 'JOAO'); assert.equal(f.etapas.expedicao.fechadoPor, 'JOAO');
   r = res(); routes['GET /api/expedicao/lotes'](req({ query: {} }), r); const l1 = r.body.find(x => x.lote === 'L1'); assert.equal(l1.saiu, 108); assert.equal(l1.entrou, 0); assert.equal(l1.saldo, -108);
   assert.ok(r.body.find(x => x.lote === 'B9') && !r.body.find(x => x.lote === 'B2'), 'Lotes no CD usa o lote que saiu na expedição');
+  // 16/11 (pedido 7991): o painel do Dlinks traz o pedido numa data em que a NOSSA conferência não foi aberta → vem a nossa, não "só no Dlinks · nada bipado"
+  const ontem = new Date(Date.now() - 864e5 - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  r = res(); await routes['GET /api/expedicao/fechadas'](req({ query: { de: ontem, ate: ontem } }), r);
+  assert.ok(r.body.find(x => x.id === id && x.status === 'fechada'), 'conferência nossa de outro dia entra no lugar da linha do Dlinks'); assert.ok(!r.body.find(x => x.id === 'dl-6853'));
+  assert.equal(r.body.find(x => x.nPedido === '6856').status, 'dlinks', 'pedido que só existe no Dlinks continua vindo como dlinks');
 });
 
 test('Separação de Pedidos com lista + fiscal do CD: /produto acha ou avisa fora; /separar grava o digitado; terminei com divergência manda pro fiscal; retaguarda libera; carregamento bate com o pallet', async () => {
