@@ -8853,6 +8853,8 @@ precificacao.setLog(ev => logPrecif.registrar(LOG_PRECIF_DIR, ev));
 // enviada vai sozinha nesses horários — as "a precificar" são recalculadas contra o ERP e
 // fechadas automaticamente (preço da conciliação vale sem confirmação manual, Tiago 07/10/26);
 // o resto do dia, só pelo botão "Enviar pra carga" da tela. Pedido do Tiago, 06/10/2026.
+// De 13/11 a 16/11/26 toda lista esperou aprovação ("Leni decide"); em 16/11 o Tiago mandou voltar ao automático. A chave
+// (automático × com aprovação) fica na própria Formação de Preço — precificacao.getModo/setModo.
 const HORAS_CARGA = ['09:00', '12:00', '15:00'];
 let ultimaCargaSlot = '';
 setInterval(() => {
@@ -11184,9 +11186,16 @@ app.get('/api/precificacao', (req, res) => {
   let regs = precificacao.listar();
   if (req.query.status) regs = regs.filter(r => r.status === req.query.status);
   if (req.query.loja) regs = regs.filter(r => r.loja === parseInt(req.query.loja));
-  res.json({ exige_aprovacao: precificacao.exigeAprovacao(), padrao: precificacao.getPadrao(), horas_carga: HORAS_CARGA, registros: regs.map(r => ({ id: r.id, pedidoId: r.pedidoId, loja: r.loja, lista: r.lista, lista_nome: r.lista_nome, fornecedor: r.fornecedor, teste: r.teste, ensaio: !!r.ensaio, regra_robo: !!(r.parametros && r.parametros.regra_robo), status: r.status, criadoEm: r.criadoEm, conciliadoEm: r.conciliadoEm, fechadoEm: r.fechadoEm || null, aplicadoEm: r.aplicadoEm || null, aplicadoPor: r.aplicadoPor || null, verificadoEm: r.verificadoEm || null, carga_divergentes: r.carga_divergentes ?? null, erp_teste: r.erp_teste ? { logId: r.erp_teste.logId, itens: r.erp_teste.itens, em: r.erp_teste.em, por: r.erp_teste.por } : null, parametros: r.parametros, resumo: r.resumo, divergentes: r.divergentes ?? null, rateio_disponivel: !!r.rateio?.disponivel })) });
+  res.json({ exige_aprovacao: precificacao.exigeAprovacao(), modo: precificacao.getModo(), pode_modo: req.session.user?.perfil === 'admin', padrao: precificacao.getPadrao(), horas_carga: HORAS_CARGA, registros: regs.map(r => ({ id: r.id, pedidoId: r.pedidoId, loja: r.loja, lista: r.lista, lista_nome: r.lista_nome, fornecedor: r.fornecedor, teste: r.teste, ensaio: !!r.ensaio, regra_robo: !!(r.parametros && r.parametros.regra_robo), status: r.status, criadoEm: r.criadoEm, conciliadoEm: r.conciliadoEm, fechadoEm: r.fechadoEm || null, aplicadoEm: r.aplicadoEm || null, aplicadoPor: r.aplicadoPor || null, verificadoEm: r.verificadoEm || null, carga_divergentes: r.carga_divergentes ?? null, ultimo_erro: r.ultimo_erro || null, fora_carga: r.fora_carga || null, erp_teste: r.erp_teste ? { logId: r.erp_teste.logId, itens: r.erp_teste.itens, em: r.erp_teste.em, por: r.erp_teste.por } : null, parametros: r.parametros, resumo: r.resumo, divergentes: r.divergentes ?? null, rateio_disponivel: !!r.rateio?.disponivel })) });
 });
 app.post('/api/precificacao/padrao', (req, res) => res.json(precificacao.setPadrao(req.body || {})));
+// Modo da tela (Tiago, 16/11/26: "ajusta essa tela pra ficar automática"): automático = as listas vão sozinhas nas cargas
+// agendadas; com aprovação = cada lista espera o botão Aprovar. Trocar o modo é só de admin e fica no Log Precificação.
+app.post('/api/precificacao/modo', (req, res) => {
+  if (req.session.user?.perfil !== 'admin') return res.status(403).json({ error: 'Só administrador troca o modo da Formação de Preço' });
+  if (typeof req.body?.automatico !== 'boolean') return res.status(400).json({ error: 'Informe automatico: true ou false' });
+  try { res.json(precificacao.setModo(req.body.automatico, precifUser(req))); } catch (e) { res.status(500).json({ error: e.message }); }
+});
 app.post('/api/precificacao/verificar', async (req, res) => { try { res.json(await precificacao.verificarTodos()); } catch (e) { res.status(500).json({ error: e.message }); } });
 app.post('/api/precificacao/remover-testes', (req, res) => res.json({ removidos: precificacao.removerTestes() }));
 app.post('/api/precificacao/criar-teste', (req, res) => { const n = Math.min(5, Math.max(1, parseInt(req.body?.n) || 5)); const regs = precificacao.criarTestes(precifUser(req), n); res.json({ criados: regs.map(r => r.id), id: regs[0]?.id }); });

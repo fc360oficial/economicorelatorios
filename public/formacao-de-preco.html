@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="stylesheet" href="/design-system.css">
 <script src="/nav.js" defer></script>
+<script src="/auto-ajuste.js" defer></script>
 <title>Formação de Preço — Econômico Supermercados</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -52,16 +53,31 @@ tr.bloq td{background:#FFF4F6}
 .aviso{background:#FFF1C2;border:1px solid #F5B800;border-radius:8px;padding:8px 12px;font-size:12px;margin-bottom:10px}
 .det table{font-size:11.5px}.det th{padding:7px 6px;font-size:9.5px}.det td{padding:6px 6px}.det td.desc{white-space:normal;min-width:180px;max-width:260px;line-height:1.25}.det td.cod{color:#4E5A72;font-size:10.5px}.det td .sm{font-size:10px;white-space:nowrap}.det input.pf{width:74px;padding:4px 6px}
 @media(max-width:700px){.main{padding:14px}.pv-card{padding:14px}}
+/* 16/11/26 (Tiago: "ajusta essa tela pra ficar automática"): faixa do modo (automático × com aprovação) e a lista cabendo em qualquer monitor
+   (nome da lista quebra linha; /auto-ajuste.js encolhe a tabela o que faltar — antes a coluna Ação ficava fora da tela em 1366) */
+.modo{display:flex;gap:12px;align-items:center;flex-wrap:wrap;background:#fff;border:1px solid #DADAD6;border-left:5px solid #137A48;border-radius:10px;padding:10px 16px;margin-bottom:14px;font-size:12.5px;line-height:1.45}
+.modo.manual{border-left-color:#F5B800}
+.modo .pill{font-weight:800;font-size:11px;letter-spacing:.5px;padding:4px 11px;border-radius:99px;background:#DDF3E6;color:#137A48;white-space:nowrap}
+.modo.manual .pill{background:#FFF1C2;color:#6B4E00}
+.modo .txt{flex:1;min-width:260px;color:#0E1626}
+.modo .txt .mut{font-size:11.5px}
+#view td.ls{white-space:normal;min-width:200px;line-height:1.3}
+#view td.cg{white-space:normal;min-width:150px;max-width:260px;line-height:1.3}
+#view td.cg .sm{white-space:normal}
+@media(max-width:1599px){.main{padding:18px}#view th,#view td{padding:8px 7px}}
+@media(max-width:1399px){#view table{font-size:11.5px}#view th{font-size:9.5px;padding:8px 5px}#view td{padding:7px 5px}#view .btn-sm{padding:4px 8px;font-size:11px;margin-left:3px}}
+@media(max-width:1199px){#view table{font-size:11px}#view td.ls{min-width:170px}}
 </style>
 </head>
 <body>
 <div class="main">
   <div class="page-hdr">
-    <div><h1>Formação de Preço</h1><p>Cada loja que concilia o XML entra aqui sozinha. O sistema calcula o preço de venda pelo custo novo do ERP (já com imposto) e pela margem cadastrada. Nenhum preço vai pro ERP sozinho: cada lista espera a <b>aprovação da precificação</b> (botão Aprovar), que grava no ERP <b>teste</b> (.254) pelo Conector, varejo e atacado. <span id="hc" style="display:none">09:00 · 12:00 · 15:00</span> O preço é conferido no ERP de <b>produção</b> (.252, só leitura): "divergente" = a produção ainda não tem o preço da lista.</p></div>
+    <div><h1>Formação de Preço</h1><p>Cada loja que concilia o XML entra aqui sozinha. O sistema calcula o preço de venda pelo custo novo do ERP (já com imposto) e pela margem cadastrada. <span id="modo-txt"></span> O preço é conferido no ERP de <b>produção</b> (.252, só leitura): "divergente" = a produção ainda não tem o preço da lista.</p></div>
     <div>
       <button class="btn btn-slate" onclick="verificarTodos()">Verificar no ERP</button>
     </div>
   </div>
+  <div class="modo" id="modo" hidden></div>
   <div class="tools" style="margin-bottom:12px">
     <label>Dia</label><button class="btn btn-slate btn-sm" style="margin-left:0" onclick="mudaDia(-1)" title="dia anterior">‹</button><input type="date" id="f-data" onchange="$('#f-todas').checked=false;renderTotais();render()"><button class="btn btn-slate btn-sm" onclick="mudaDia(1)" title="dia seguinte">›</button><button class="btn btn-slate btn-sm" onclick="hoje()">Hoje</button>
     <label class="sm" style="display:inline-flex;gap:6px;align-items:center;margin-left:8px;cursor:pointer" title="ignora o dia e mostra tudo desde o começo"><input type="checkbox" id="f-todas" onchange="renderTotais();render()"> todas as datas</label>
@@ -77,7 +93,8 @@ tr.bloq td{background:#FFF4F6}
     <label class="sm" style="display:inline-flex;gap:6px;align-items:center;margin-left:10px;cursor:pointer" title="Troca de centavos dentro da terminação: o preço que cair em ,89 vira ,99 e ,09 vira ,19. As trocas ficam no campo ao lado (de&gt;para, separado por vírgula) pra você ampliar o padrão."><input type="checkbox" id="p-aj" onchange="salvarPadrao()"> ajuste de centavos</label>
     <input id="p-ajr" value="89>99,09>19" style="width:130px;font:inherit;font-size:12px;padding:4px 6px;border:1px solid #C9C9C4;border-radius:6px" onchange="salvarPadrao()" title="de&gt;para separado por vírgula · ex.: 89>99,09>19">
   </div>
-  <div class="card" id="view"><div class="empty">Carregando…</div></div>
+  <div id="aviso-lugar"></div>
+  <div class="card table-wrap" id="view"><div class="empty">Carregando…</div></div>
 </div>
 <div id="pv" hidden><div class="pv-card" id="pv-body"></div></div>
 <script>
@@ -101,22 +118,55 @@ const aberto=r=>r.status==='a_precificar'||r.status==='precificado';
 function doDia(r,d){return diaDe(r.conciliadoEm||r.criadoEm)===d||diaDe(r.erp_teste?.em)===d||diaDe(r.aplicadoEm)===d;}
 function base(){const d=$('#f-data').value;return $('#f-todas').checked||!d?LISTA:LISTA.filter(r=>doDia(r,d));}
 // próximo lote agendado (HH:MM) — depois do último, "amanhã 09:00"
-let EXIGE=true;   // nenhum preço vai pro ERP sem aprovação (13/11/26)
+let EXIGE=false,MODO=null,PODE_MODO=false;   // 16/11/26: o padrão é automático; EXIGE=true só quando a chave "com aprovação" está ligada
 function proximoLote(){const hm=new Date().toTimeString().slice(0,5);const p=HORAS.find(h=>h>hm);return p?'hoje '+p:'amanhã '+HORAS[0];}
+// lista que espera gente: toda lista no modo "com aprovação"; no automático, só a de ensaio do robô
+const esperaGente=r=>EXIGE||!!r.ensaio;
+// Faixa do modo (Tiago, 16/11/26: "ajusta essa tela pra ficar automática"): diz se as listas vão sozinhas, quando é a próxima carga
+// e o que ela leva; a chave pra trocar de modo aparece só pro admin.
+function renderModo(){
+  const ab=LISTA.filter(aberto),fila=ab.filter(r=>!esperaGente(r)),esp=ab.filter(esperaGente);
+  const som=(L,k)=>L.reduce((s,r)=>s+((r.resumo||{})[k]||0),0),muda=L=>L.filter(r=>((r.resumo||{}).sobem||0)+((r.resumo||{}).descem||0)>0).length;
+  const quem=MODO&&MODO.mudadoEm?' <span class="mut">· modo ligado por '+esc(MODO.mudadoPor||'—')+' em '+dt(MODO.mudadoEm)+'</span>':'';
+  let txt;
+  if(!EXIGE){
+    txt='As listas vão <b>sozinhas</b> pro ERP de teste nas cargas de <b>'+HORAS.join(' · ')+'</b>. Próxima carga: <b>'+proximoLote()+'</b> · '+
+      (fila.length?'<b>'+fila.length+' lista(s)</b> na fila ('+muda(fila)+' mudam preço: <span class="i-sobe">'+som(fila,'sobem')+' sobem</span>, <span class="i-desce">'+som(fila,'descem')+' descem</span> · '+(fila.length-muda(fila))+' sem mudança'+(som(fila,'bloqueados')?' · <span class="i-bloqueado">'+som(fila,'bloqueados')+' item(ns) bloqueado(s) ficam de fora</span>':'')+')':'nenhuma lista na fila')+
+      (esp.length?' · '+esp.length+' de ensaio do robô espera(m) aprovação':'')+'.'+quem+
+      '<div class="mut">Não precisa clicar em nada. "Enviar agora" manda uma lista antes da carga.</div>';
+  }else{
+    txt='<b>Nenhum preço vai sozinho</b>: cada lista espera o botão <b>Aprovar</b>. '+(esp.length?'<b>'+esp.length+' lista(s)</b> esperando ('+muda(esp)+' mudam preço: <span class="i-sobe">'+som(esp,'sobem')+' sobem</span>, <span class="i-desce">'+som(esp,'descem')+' descem</span>).':'Nenhuma lista esperando.')+quem;
+  }
+  const m=$('#modo');m.hidden=false;m.className='modo'+(EXIGE?' manual':'');
+  m.innerHTML='<span class="pill">'+(EXIGE?'COM APROVAÇÃO':'● AUTOMÁTICO')+'</span><div class="txt">'+txt+'</div>'+
+    (PODE_MODO?'<button class="btn btn-slate btn-sm" onclick="trocarModo('+(EXIGE?'true':'false')+',this)">'+(EXIGE?'Ligar o automático':'Voltar a exigir aprovação')+'</button>':'');
+  $('#modo-txt').innerHTML=EXIGE?'Nenhum preço vai pro ERP sozinho: cada lista espera a <b>aprovação da precificação</b> (botão Aprovar), que grava no ERP <b>teste</b> (.254) pelo Conector, varejo e atacado.'
+    :'Cada lista vai <b>sozinha</b> pro ERP <b>teste</b> (.254) pelo Conector nas cargas de '+HORAS.join(' · ')+', varejo e atacado; item bloqueado fica de fora.';
+}
+async function trocarModo(auto,b){
+  const ab=LISTA.filter(r=>aberto(r)&&!r.ensaio).length;
+  const msg=auto?'Ligar o AUTOMÁTICO?\n\nAs '+ab+' lista(s) em aberto vão sozinhas pro ERP de teste na próxima carga ('+proximoLote()+'), e as próximas também, sem ninguém aprovar.'
+    :'Voltar a EXIGIR APROVAÇÃO?\n\nNenhuma lista vai mais sozinha: as '+ab+' em aberto (e as próximas) ficam paradas até alguém clicar em Aprovar.';
+  if(!confirm(msg))return;
+  b.disabled=true;
+  try{await api('/api/precificacao/modo',{automatico:auto});}catch(e){alert('Não deu: '+e.message);}
+  carregar();
+}
 
 // body definido (mesmo {}) → POST; sem body → GET
 async function api(url,body){const r=await fetch(url,body!==undefined?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{method:'GET'});const j=await r.json();if(j.error)throw new Error(j.error);return j;}
 // Ensaio do robô (Tiago, 12/11/26: "onde aprovar?"): aprovação do preço num clique, igual ao botão da tela Ensaio do Robô.
 // Aprovação da precificação (Tiago, 13/11/26: "Leni decide"), lista a lista: mostra varejo e atacado que mudam, confirma e grava.
 // aviso fixo no topo: a lista aprovada some da tabela e a de baixo sobe com o botão dela (Tiago, 13/11/26: "volta o botão aprovar, por quê?")
-function avisoAprovada(txt){let a=document.getElementById('aviso-aprovada');if(!a){a=document.createElement('div');a.id='aviso-aprovada';a.style.cssText='position:sticky;top:8px;z-index:20;margin:0 0 12px;padding:12px 16px;border-radius:10px;background:#E7F5EC;border:1px solid #137A48;color:#0E1626;font-weight:600;font-size:13.5px;line-height:1.5;display:flex;gap:12px;align-items:flex-start';const t=document.querySelector('table');(t&&t.parentNode?t.parentNode:document.body).insertBefore(a,t||null);}a.innerHTML='<div style="flex:1"></div><button class="btn btn-slate btn-sm" onclick="this.parentNode.remove()">ok</button>';a.firstChild.textContent=txt;}
+function avisoAprovada(txt){let a=document.getElementById('aviso-aprovada');if(!a){a=document.createElement('div');a.id='aviso-aprovada';a.style.cssText='position:sticky;top:8px;z-index:20;margin:0 0 12px;padding:12px 16px;border-radius:10px;background:#E7F5EC;border:1px solid #137A48;color:#0E1626;font-weight:600;font-size:13.5px;line-height:1.5;display:flex;gap:12px;align-items:flex-start';$('#aviso-lugar').appendChild(a);}a.innerHTML='<div style="flex:1"></div><button class="btn btn-slate btn-sm" onclick="this.parentNode.remove()">ok</button>';a.firstChild.textContent=txt;}
 async function aprovarLista(id,b){
+  const reg=LISTA.find(r=>r.id===id),agora=!!reg&&!esperaGente(reg);   // automático: o botão é "Enviar agora" (adianta a carga), não uma aprovação
   b.disabled=true;const t=b.textContent;b.textContent='Lendo…';
   try{
     const p=await api('/api/precificacao/'+encodeURIComponent(id)+'/aprovar',{});const m=p.mudancas||[],d=x=>'R$ '+(+x).toFixed(2).replace('.',',');
     const linhas=m.slice(0,40).map(x=>'· '+x.descricao+': '+[x.varejo?'varejo '+d(x.varejo.de)+' → '+d(x.varejo.para):'',x.atacado?'atacado '+d(x.atacado.de)+' → '+d(x.atacado.para):''].filter(Boolean).join(' | '));
-    const msg='Lista '+id+' · loja '+p.loja+' · '+(p.lista_nome||'')+'\n\n'+(m.length?m.length+' produto(s) mudam de preço no ERP de TESTE:\n\n'+linhas.join('\n')+(m.length>40?'\n… e mais '+(m.length-40):''):'Nenhum preço muda nesta lista.')+(p.bloqueados?'\n\n'+p.bloqueados+' item(ns) bloqueado(s) ficam de fora.':'')+'\n\nAprovar?';
-    if(confirm(msg)){b.textContent='Gravando…';const r=await api('/api/precificacao/'+encodeURIComponent(id)+'/aprovar',{confirmar:true});avisoAprovada('✓ Lista '+id+' · loja '+p.loja+' · '+(p.lista_nome||'')+' APROVADA: '+(r.sem_mudanca?'nenhum preço mudou.':((r.erp_teste&&r.erp_teste.itens)||0)+' preço(s) gravado(s) no ERP de teste pelo Conector.')+' Ela saiu dos "em aberto"; as linhas abaixo são outras listas, ainda por aprovar.');}
+    const msg='Lista '+id+' · loja '+p.loja+' · '+(p.lista_nome||'')+'\n\n'+(m.length?m.length+' produto(s) mudam de preço no ERP de TESTE:\n\n'+linhas.join('\n')+(m.length>40?'\n… e mais '+(m.length-40):''):'Nenhum preço muda nesta lista.')+(p.bloqueados?'\n\n'+p.bloqueados+' item(ns) bloqueado(s) ficam de fora.':'')+'\n\n'+(agora?'Enviar agora, sem esperar a carga de '+proximoLote()+'?':'Aprovar?');
+    if(confirm(msg)){b.textContent='Gravando…';const r=await api('/api/precificacao/'+encodeURIComponent(id)+'/aprovar',{confirmar:true});avisoAprovada('✓ Lista '+id+' · loja '+p.loja+' · '+(p.lista_nome||'')+(agora?' ENVIADA: ':' APROVADA: ')+(r.sem_mudanca?'nenhum preço mudou.':((r.erp_teste&&r.erp_teste.itens)||0)+' preço(s) gravado(s) no ERP de teste pelo Conector.')+' Ela saiu dos "em aberto"; as linhas abaixo são outras listas'+(agora?', que vão sozinhas na próxima carga.':', ainda por aprovar.'));}
   }catch(e){alert('Não deu: '+e.message);}
   b.disabled=false;b.textContent=t;carregar();
 }
@@ -130,11 +180,14 @@ async function aprovarEnsaio(pid,b){
   b.disabled=false;b.textContent=t;carregar();
 }
 async function carregar(){
-  try{const j=await api('/api/precificacao');LISTA=j.registros;PADRAO=j.padrao;EXIGE=!!j.exige_aprovacao;if(Array.isArray(j.horas_carga)&&j.horas_carga.length){HORAS=j.horas_carga;$('#hc').textContent=HORAS.join(' · ');}$('#p-arred').value=PADRAO.arredondamento;$('#p-aj').checked=!!PADRAO.ajuste_centavos;if(PADRAO.ajuste_centavos)$('#p-ajr').value=PADRAO.ajuste_centavos;}
+  try{const j=await api('/api/precificacao');LISTA=j.registros;PADRAO=j.padrao;EXIGE=!!j.exige_aprovacao;MODO=j.modo||null;PODE_MODO=!!j.pode_modo;if(Array.isArray(j.horas_carga)&&j.horas_carga.length)HORAS=j.horas_carga;if(document.activeElement!==$('#p-ajr')){$('#p-arred').value=PADRAO.arredondamento;$('#p-aj').checked=!!PADRAO.ajuste_centavos;if(PADRAO.ajuste_centavos)$('#p-ajr').value=PADRAO.ajuste_centavos;}}   // a tela recarrega sozinha: não atropela quem está digitando o ajuste de centavos
   catch(e){$('#view').innerHTML='<div class="empty">Erro: '+esc(e.message)+'</div>';return;}
   if(!$('#f-data').value)$('#f-data').value=hojeStr();
-  renderTotais();render();
+  renderModo();renderTotais();render();
 }
+// a tela se atualiza sozinha (16/11/26): lista nova que a loja conciliou e lista que a carga levou aparecem sem F5.
+// Não mexe com o detalhe aberto nem com a aba escondida.
+setInterval(()=>{if($('#pv').hidden&&!document.hidden)carregar();},60*1000);
 // grupos da tela: aberto (a precificar / fechada sem enviar) · enviada (foi pra carga) · semmud (aplicada sem nada a gravar) · divergente (produção ainda sem o preço)
 function grupo(r){return aberto(r)?'aberto':r.erp_teste?.logId?'enviada':'semmud';}
 function renderTotais(){
@@ -146,14 +199,18 @@ function renderTotais(){
   $('#totais').innerHTML=k.map(([id,l,v])=>'<div class="tkpi'+(filtro===id?' on':'')+'" onclick="filtro='+js(id)+';renderTotais();render()"><div class="v">'+v+(id==='enviada'&&c.cargaErr?' <span class="sm i-bloqueado" title="lista(s) com item enviado que não bateu no ERP teste">✗ '+c.cargaErr+'</span>':'')+'</div><div class="l">'+l+'</div></div>').join('');
 }
 // coluna Carga: o que já foi, e quando vai o que ainda não foi
-function celCarga(r){
+// produto que o Conector não achou no cadastro do Dlinks: ficou de fora da carga e o resto da lista foi (16/11/26)
+function foraTxt(r){const f=r.fora_carga||[];return f.length?'<div class="sm i-bloqueado" title="'+esc(f.map(x=>x.cod+' '+(x.descricao||'')).join(' · '))+'">⚠ '+f.length+' produto(s) de fora: não existe(m) no cadastro do Dlinks</div>':'';}
+// por que a lista não foi na última tentativa (no automático ninguém está olhando o aviso na hora)
+function erroTxt(r){const e=r.ultimo_erro;return e?'<div class="sm i-bloqueado" title="'+esc(e.msg)+'">✗ não foi em '+dt(e.em)+': '+esc(String(e.msg).replace(/^Conector: /,''))+'</div>':'';}
+function celCarga(r){return celCargaBase(r)+(aberto(r)?erroTxt(r):'')+(r.erp_teste?.logId&&!aberto(r)?'':foraTxt(r));}
+function celCargaBase(r){
   const d=$('#f-data').value,mesmoDia=s=>diaDe(s)===d;
   if(r.erp_teste?.logId){const e=r.erp_teste;const h=mesmoDia(e.em)&&!$('#f-todas').checked?new Date(e.em).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):dt(e.em);
-    return '<b>'+h+'</b> <span class="mut">· '+e.itens+' item(ns)</span>'+(r.carga_divergentes>0?'<div class="sm i-bloqueado" title="item enviado cujo preço não bateu no ERP teste (.254)">✗ '+r.carga_divergentes+' não gravado(s)</div>':r.carga_divergentes===0?'<div class="sm i-desce">✓ gravada no teste</div>':'')+'<div class="sm mut" title="'+esc(e.por||'')+'">Log '+esc(e.logId)+'</div>';}
+    return '<b>'+h+'</b> <span class="mut">· '+e.itens+' item(ns)</span>'+foraTxt(r)+(r.carga_divergentes>0?'<div class="sm i-bloqueado" title="item enviado cujo preço não bateu no ERP teste (.254)">✗ '+r.carga_divergentes+' não gravado(s)</div>':r.carga_divergentes===0?'<div class="sm i-desce">✓ gravada no teste</div>':'')+'<div class="sm mut" title="'+esc(e.por||'')+'">Log '+esc(e.logId)+'</div>';}
   if(r.status==='aplicado'||r.status==='conferido')return /^CARGA/.test(r.aplicadoPor||'')?'<span class="mut">sem mudança</span><div class="sm mut">nada a gravar · '+dt(r.aplicadoEm)+'</div>':'<span class="mut">marcada à mão</span><div class="sm mut">'+esc(r.aplicadoPor||'')+' · '+dt(r.aplicadoEm)+'</div>';
-  if(EXIGE)return '<span class="i-sobe">aguarda aprovação</span><div class="sm mut">da precificação'+(r.status==='precificado'?' · lista fechada':'')+'</div>';
-  if(r.status==='precificado')return '<span class="i-sobe">fechada · aguarda lote</span><div class="sm mut">'+proximoLote()+'</div>';
-  return '<span class="mut">aguarda lote</span><div class="sm mut">'+proximoLote()+'</div>';
+  if(esperaGente(r))return '<span class="i-sobe">aguarda aprovação</span><div class="sm mut">'+(EXIGE?'da precificação':'ensaio do robô')+(r.status==='precificado'?' · lista fechada':'')+'</div>';
+  return '<span class="i-desce">vai sozinha</span><div class="sm mut">'+proximoLote()+(r.status==='precificado'?' · lista fechada':'')+'</div>';
 }
 function render(){
   const loja=$('#f-loja').value,b=$('#f-busca').value.trim().toLowerCase();
@@ -168,7 +225,7 @@ function render(){
     return true;});
   if(!rows.length){$('#view').innerHTML='<div class="empty">'+(filtro==='aberto'?'Nenhuma lista em aberto. Registros entram sozinhos quando uma loja concilia o XML em Pedidos de Compra.':'Nada neste dia com esse filtro. Troque o dia ou marque "todas as datas".')+'</div>';return;}
   $('#view').innerHTML='<table><thead><tr><th>#</th><th>Loja</th><th>Lista / Fornecedor</th><th>Conciliado</th><th class="n">Itens</th><th class="n">Sobem</th><th class="n">Descem</th><th class="n">Mantêm</th><th class="n">Sem mud.</th><th class="n">Bloq.</th><th>Regra</th><th>Carga</th><th>Status</th><th>Ação</th></tr></thead><tbody>'+
-    rows.map(r=>{const s=r.resumo||{};const div=r.status==='conferido'&&r.divergentes>0;return '<tr class="click" onclick="abrir('+js(r.id)+')"><td>'+r.pedidoId+'</td><td><b>L'+r.loja+'</b> <span class="mut sm">'+LOJAS[r.loja]+'</span></td><td><b>'+esc(r.lista_nome)+'</b>'+((r.teste?'<span class="tag teste">TESTE</span>':'')+(r.regra_robo||(r.parametros&&r.parametros.regra_robo)?' <span class="tag teste" title="Regra do robô (lojas-teste): não baixa preço sozinho, não sobe alto giro, não mexe em final 7 e 8">REGRA ROBÔ</span>':''))+'<div class="mut sm">'+esc(r.fornecedor)+'</div></td><td class="sm">'+dt(r.conciliadoEm)+'</td><td class="n">'+(s.itens||0)+'</td><td class="n i-sobe">'+(s.sobem||0)+'</td><td class="n i-desce">'+(s.descem||0)+'</td><td class="n">'+(s.mantem||0)+'</td><td class="n mut">'+(s.sem_mudanca||0)+'</td><td class="n '+(s.bloqueados?'i-bloqueado':'mut')+'">'+(s.bloqueados||0)+'</td><td class="sm mut">'+r.parametros.arredondamento+(r.parametros.ajuste_centavos?' · ajuste':'')+'</td><td class="sm">'+celCarga(r)+'</td><td><span class="st st-'+(div?'div':r.status)+'" title="'+(div?'preço na produção (.252) ainda não é o da lista':'')+'">'+(div?r.divergentes+' divergente(s)':STN[r.status])+'</span></td><td onclick="event.stopPropagation()">'+(['a_precificar','precificado'].includes(r.status)&&!(r.erp_teste&&r.erp_teste.logId)?'<button class="btn btn-amber btn-sm" title="Aprovação da precificação: mostra o que muda (varejo e atacado), fecha a lista e grava no ERP de teste pelo Conector" onclick="aprovarLista(\''+esc(r.id)+'\',this)">Aprovar</button> ':'')+'<a class="btn btn-slate btn-sm" target="_blank" href="/api/precificacao/'+encodeURIComponent(r.id)+'/pdf">PDF</a></td></tr>';}).join('')+'</tbody></table>';
+    rows.map(r=>{const s=r.resumo||{};const div=r.status==='conferido'&&r.divergentes>0;return '<tr class="click" onclick="abrir('+js(r.id)+')"><td>'+r.pedidoId+'</td><td><b>L'+r.loja+'</b> <span class="mut sm">'+LOJAS[r.loja]+'</span></td><td class="ls"><b>'+esc(r.lista_nome)+'</b>'+((r.teste?'<span class="tag teste">TESTE</span>':'')+(r.regra_robo||(r.parametros&&r.parametros.regra_robo)?' <span class="tag teste" title="Regra do robô (lojas-teste): não baixa preço sozinho, não sobe alto giro, não mexe em final 7 e 8">REGRA ROBÔ</span>':''))+'<div class="mut sm">'+esc(r.fornecedor)+'</div></td><td class="sm">'+dt(r.conciliadoEm)+'</td><td class="n">'+(s.itens||0)+'</td><td class="n i-sobe">'+(s.sobem||0)+'</td><td class="n i-desce">'+(s.descem||0)+'</td><td class="n">'+(s.mantem||0)+'</td><td class="n mut">'+(s.sem_mudanca||0)+'</td><td class="n '+(s.bloqueados?'i-bloqueado':'mut')+'">'+(s.bloqueados||0)+'</td><td class="sm mut">'+r.parametros.arredondamento+(r.parametros.ajuste_centavos?' · ajuste':'')+'</td><td class="sm cg">'+celCarga(r)+'</td><td><span class="st st-'+(div?'div':r.status)+'" title="'+(div?'preço na produção (.252) ainda não é o da lista':'')+'">'+(div?r.divergentes+' divergente(s)':STN[r.status])+'</span></td><td onclick="event.stopPropagation()">'+(['a_precificar','precificado'].includes(r.status)&&!(r.erp_teste&&r.erp_teste.logId)?(esperaGente(r)?'<button class="btn btn-amber btn-sm" title="Aprovação da precificação: mostra o que muda (varejo e atacado), fecha a lista e grava no ERP de teste pelo Conector" onclick="aprovarLista(\''+esc(r.id)+'\',this)">Aprovar</button> ':'<button class="btn btn-slate btn-sm" title="A lista vai sozinha na próxima carga. Este botão só adianta: mostra o que muda, fecha a lista e grava agora no ERP de teste pelo Conector" onclick="aprovarLista(\''+esc(r.id)+'\',this)">Enviar agora</button> '):'')+'<a class="btn btn-slate btn-sm" target="_blank" href="/api/precificacao/'+encodeURIComponent(r.id)+'/pdf">PDF</a></td></tr>';}).join('')+'</tbody></table>';
 }
 async function salvarPadrao(){try{await api('/api/precificacao/padrao',{arredondamento:$('#p-arred').value,ajuste_centavos:$('#p-aj').checked?$('#p-ajr').value.trim():''});}catch(e){alert(e.message);}}
 async function verificarTodos(){try{const j=await api('/api/precificacao/verificar',{});await carregar();alert('Verificados '+j.verificados+' registro(s), '+j.divergentes+' item(ns) divergente(s).');}catch(e){alert(e.message);}}
@@ -183,6 +240,8 @@ function renderPv(){
   const r=REG,s=r.resumo||{},aberto=r.status==='a_precificar',l4=r.loja===4,conf=['aplicado','conferido'].includes(r.status);
   const itens=r.itens.filter(i=>filtroItem==='tudo'||(filtroItem==='bloq'?i.status==='bloqueado':(i.status==='sobe'||i.status==='desce'||i.manual||i.piso)));
   let h='<div class="pv-top"><div><div style="font-size:10px;font-weight:800;letter-spacing:.1em;color:#6B4E00">FORMAÇÃO DE PREÇO · LOJA '+r.loja+' '+LOJAS[r.loja]+'</div><h2>Pedido #'+r.pedidoId+' · '+esc(r.lista_nome)+((r.teste?'<span class="tag teste">TESTE</span>':'')+(r.regra_robo||(r.parametros&&r.parametros.regra_robo)?' <span class="tag teste" title="Regra do robô (lojas-teste): não baixa preço sozinho, não sobe alto giro, não mexe em final 7 e 8">REGRA ROBÔ</span>':''))+'</h2><div class="pv-sub">'+esc(r.fornecedor)+' · conciliado '+dt(r.conciliadoEm)+' · <span class="st st-'+r.status+'">'+STN[r.status]+'</span>'+(r.divergentes?' · <span class="st st-div" title="preço na central de produção (.252) ainda não é o da lista">'+r.divergentes+' divergente(s) na produção</span>':'')+(r.erp_teste?' · <span class="tag" title="gravado em central.itens + logpreco2 no MySQL de teste do .254">Carga ERP teste · '+r.erp_teste.itens+' item(ns) · '+dt(r.erp_teste.em)+'</span>'+(r.carga_divergentes>0?' <span class="st st-div" title="item enviado cujo preço no .254 não é o da lista">'+r.carga_divergentes+' não gravado(s) no teste</span>':r.carga_divergentes===0?' <span class="sm i-desce">✓ gravada no teste</span>':'')+' <a class="sm" target="_blank" href="/log.html?tabela=itens&de='+String(r.erp_teste.em).slice(0,10)+'&ate='+String(r.erp_teste.em).slice(0,10)+'">Ver no Log</a>':'')+'</div></div><button class="btn btn-amber" onclick="fecharPv()">Fechar</button></div>';
+  if(r.ultimo_erro&&!conf)h+='<div class="aviso" style="background:#FBEAED;border-color:#E5B4BD">Esta lista não foi pro ERP na última tentativa ('+dt(r.ultimo_erro.em)+'): <b>'+esc(r.ultimo_erro.msg)+'</b>. '+(EXIGE?'':'Ela tenta de novo sozinha na próxima carga.')+'</div>';
+  if(r.fora_carga&&r.fora_carga.length)h+='<div class="aviso" style="background:#FBEAED;border-color:#E5B4BD"><b>'+r.fora_carga.length+' produto(s) ficaram de fora da carga</b> porque não existem no cadastro do Dlinks (o resto da lista foi): '+r.fora_carga.map(x=>esc(x.cod+' '+(x.descricao||''))).join(' · ')+'</div>';
   if(r.curva_disponivel===false)h+='<div class="aviso" style="background:#FBEAED;border-color:#E5B4BD">Curva A indisponível (radar ainda calculando): nenhum item repassou queda. Recalcule depois.</div>';
   h+='<div class="pv-tools"><span class="sm mut" title="1) custo novo igual ao atual → margem de cadastro · 2) custo novo maior → margem de cadastro · 3) comprou mais de 10% abaixo do custo atual → preço 10% abaixo do atual · queda de até 10% → mantém o preço">Regra: <b>custo ≥ atual → margem</b> · <b>10%+ mais barato → preço −10%</b> · queda menor → mantém</span>'+
      '<select id="d-arr" '+(aberto?'':'disabled')+' onchange="setParam()"><option value="9">Terminação 9</option><option value="5">Terminação 5</option><option value="nenhum">Sem arredondar</option></select>'+
