@@ -1417,6 +1417,19 @@ async function lerCodigo(cod) {
 // quem decide se pede lote é o servidor (visao.exige_lote); desde 09/11/26 nenhuma loja pede, só a validade (Tiago)
 const exigeLote = () => !!(visao && visao.exige_lote);
 
+// 17/11/26 (Tiago: "coloco a quantidade de caixas e o vencimento e ele volta pro início"): o campo era type=date; no app
+// do coletor ele abre o calendário do Android e, quando o calendário fecha, o app entende que "voltou" e recarrega a
+// página — a conferência sumia da tela e a validade nunca entrava. Agora a validade é digitada no teclado do coletor
+// (DD/MM/AA, as barras entram sozinhas), sem calendário. valIso: '251227' / '25/12/27' / '25/12/2027' → '2027-12-25'.
+const mascaraVal = s => { const d = String(s || '').replace(/\D/g, '').slice(0, 8); return d.length > 4 ? d.slice(0, 2) + '/' + d.slice(2, 4) + '/' + d.slice(4) : d.length > 2 ? d.slice(0, 2) + '/' + d.slice(2) : d; };
+const valTxt = iso => { const p = String(iso || '').split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0].slice(2) : ''; };
+function valIso(txt) {
+  const d = String(txt || '').replace(/\D/g, ''); if (d.length !== 6 && d.length !== 8) return '';
+  const dia = +d.slice(0, 2), mes = +d.slice(2, 4), ano = d.length === 6 ? 2000 + +d.slice(4) : +d.slice(4);
+  const dt = new Date(ano, mes - 1, dia);
+  if (ano < 2020 || ano > 2099 || dt.getFullYear() !== ano || dt.getMonth() !== mes - 1 || dt.getDate() !== dia) return '';
+  return ano + '-' + String(mes).padStart(2, '0') + '-' + String(dia).padStart(2, '0');
+}
 function abrirCartao(c) {
   cartao = c;
   // c.caixa (11/11, Tiago): produto bipado pela CAIXA — o cartão pede só quantas caixas; as un/cx ficam fixas e escondidas
@@ -1430,7 +1443,7 @@ function abrirCartao(c) {
     </div>
     <div class="kv" style="font-size:13px"${cxm ? ' hidden' : ''}><span>Total</span><b id="cTot">0 un</b></div>
     <div class="tip" style="color:var(--ink2)">${cxm ? 'Produto recebido em caixa: digite quantas CAIXAS chegaram.' : 'Tanto faz digitar 10 × 24 ou 240 × 1.'}</div>
-    <div class="f1"><label for="cVal">Vence em</label><input id="cVal" type="date" value="${esc(c.validade)}"></div>
+    <div class="f1"><label for="cVal">Vence em (dia mês ano)</label><input id="cVal" type="text" inputmode="numeric" pattern="[0-9/]*" autocomplete="off" maxlength="10" placeholder="DD/MM/AA" value="${esc(valTxt(c.validade))}"></div>
     ${exigeLote() ? `<div class="f1"><label for="cLote">Lote (bipe ou digite)</label><input id="cLote" type="text" autocomplete="off" autocapitalize="characters" value="${esc(c.lote || '')}"></div>` : ''}
     <div class="tip">Enter em cada campo: Quant → Emb → Validade${exigeLote() ? ' → Lote' : ''} → grava e volta pro bipe.</div>
     <div class="row2"><button class="btn btn-secondary" onclick="fecharCartao()">Cancelar</button><button class="btn btn-primary" onclick="gravarCartao()">Gravar</button></div>
@@ -1438,6 +1451,7 @@ function abrirCartao(c) {
   const q = $('cQuant'), e = $('cEmb'), vd = $('cVal'), lt = $('cLote');
   const tot = () => { $('cTot').textContent = num((+String(q.value).replace(',', '.') || 0) * (+String(e.value).replace(',', '.') || 0)) + ' un'; };
   q.addEventListener('input', tot); e.addEventListener('input', tot); tot();
+  vd.addEventListener('input', () => { const m = mascaraVal(vd.value); if (m !== vd.value) vd.value = m; });
   q.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.keyCode === 13) { ev.preventDefault(); if (cxm) vd.focus(); else { e.focus(); e.select(); } } });
   e.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.keyCode === 13) { ev.preventDefault(); vd.focus(); } });
   vd.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.keyCode === 13) { ev.preventDefault(); if (lt) { lt.focus(); lt.select(); } else gravarCartao(); } });
@@ -1451,9 +1465,11 @@ function gravarCartao() {
   const c = cartao;
   const quant = +String(($('cQuant') || {}).value || '').replace(',', '.') || 0;
   const emb = +String(($('cEmb') || {}).value || '').replace(',', '.') || +c.emb || 1;
-  const validade = ($('cVal') || {}).value || '';
+  const valDig = String(($('cVal') || {}).value || '').trim();
+  const validade = valIso(valDig);
   const lote = String((($('cLote') || {}).value || '')).trim().toUpperCase();
   if (!quant) { toast('Digite a quantidade.', true); $('cQuant').focus(); return; }
+  if (valDig && !validade) { toast('Validade inválida. Digite dia, mês e ano: 25/12/27.', true); $('cVal').focus(); $('cVal').select(); return; }
   if (exigeLote() && !lote) { toast('Bipe ou digite o lote da caixa.', true); if ($('cLote')) $('cLote').focus(); return; }
   fecharCartao();
   enviarBipe(c.modo === 'corrigir' ? 'corrigir' : 'bipar', { cod: c.cod, quant, emb, validade, lote });
