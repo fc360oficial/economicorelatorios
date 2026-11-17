@@ -799,6 +799,8 @@ async function carregarNotas(manual) {
   renderNotas();
 }
 const pendente = n => !n.conferencia || n.conferencia.status === 'bipando' || n.conferencia.status === 'recontando';
+// 17/11/26: várias NF-e na mesma conferência do Dlinks chegam numa linha só (n.chaves = todas, n.chave = a 1ª)
+const chavesNota = n => (n && Array.isArray(n.chaves) && n.chaves.length ? n.chaves : n ? [n.chave] : []);
 // 06/10/26 (Tiago): "Liberada/Divergente/Sem pedido" é status do processo do comprador e saiu do
 // coletor — o conferente confere igual nos três casos, e o selo vermelho ancorava a contagem cega.
 // Só a devolução de cliente segue sinalizada, porque muda o que a loja espera fisicamente.
@@ -809,9 +811,11 @@ function linhaNota(n, i) {
   const w = dev ? ['i', 'Mercadoria voltando de ' + (n.fornecedor || 'cliente') + ' pro CD. Confere igual, a central decide.'] : null;
   const emAndamento = n.conferencia && n.conferencia.status === 'bipando' ? 'Você já começou esta nota. Toque pra continuar.'
     : n.conferencia && n.conferencia.status === 'recontando' ? 'Falta recontar. Toque pra continuar.' : null;
+  const varias = chavesNota(n).length > 1;
   return `<button class="nota" onclick="abrirNota(${i})">
     <div class="f">${esc(n.fornecedor)}</div>
-    <div class="m">NF-e <b>${esc(n.nNota)}</b>${n.pedidoId ? ' · Pedido <b>#' + esc(n.pedidoId) + '</b>' : ''}</div>
+    <div class="m">${varias ? '<b>' + chavesNota(n).length + ' notas</b> · NF-e' : 'NF-e'} <b>${esc(n.nNota)}</b>${n.pedidoId ? ' · Pedido <b>#' + esc(n.pedidoId) + '</b>' : ''}</div>
+    ${varias ? '<div class="why i">Uma conferência só: bipe tudo junto, as notas são somadas.</div>' : ''}
     ${st}
     ${w ? `<div class="why ${w[0]}">${esc(w[1])}</div>` : ''}
     ${emAndamento ? `<div class="why i">${esc(emAndamento)}</div>` : ''}
@@ -821,7 +825,7 @@ function linhaNota(n, i) {
 function renderNotas() {
   $('nTitulo').textContent = 'Loja ' + sess.loja + ' · ' + (NOMES_LOJA[sess.loja] || '');
   const bn = buscaTxt('buscaNotas');
-  const abertas = notas.filter(pendente).filter(n => !bn || bate(bn, n.nNota, n.fornecedor, n.chave));
+  const abertas = notas.filter(pendente).filter(n => !bn || bate(bn, n.nNota, n.fornecedor, chavesNota(n).join(' ')));
   const conferidas = notas.filter(n => !pendente(n));
   $('nSub').textContent = sess.nome + ' · ' + abertas.length + (abertas.length === 1 ? ' nota' : ' notas');
   $('btnConferidas').textContent = 'Já conferidas hoje (' + conferidas.length + ')';
@@ -1277,9 +1281,9 @@ async function conferirDanfe(chaveLida) {
     const r = await post('danfe', { chave, nome: sess.nome });
     if (r.resultado !== 'confere') { danfeBloqueio = { ...r, chave }; if (tela !== 'danfe') { danfeAlvo = null; mostrar('danfe'); } renderDanfe(); feedback('erro'); toast('XML não confere. Não descarregue.', true); return; }
     danfeBloqueio = null; feedback('fim');
-    const daLista = notas.find(n => n.chave === r.chave);
+    const daLista = notas.find(n => chavesNota(n).includes(r.chave));   // nota de um grupo: a DANFE de qualquer uma abre o grupo
     const nota = daLista || { chave: r.chave, nNota: r.nNota, fornecedor: r.fornecedor, codFornec: 0, veredito: 'sem_pedido', conferencia: null };
-    if (danfeAlvo && danfeAlvo.chave !== r.chave) {
+    if (danfeAlvo && !chavesNota(danfeAlvo).includes(r.chave)) {
       danfePendente = nota;
       abrirModal(`<div class="t">DANFE de outra nota</div>
         <p>Você tocou na NF-e <b>${esc(danfeAlvo.nNota)}</b> (${esc(danfeAlvo.fornecedor || '')}), mas a DANFE bipada é da NF-e <b>${esc(r.nNota)}</b> de <b>${esc(r.fornecedor || '')}</b>.</p>

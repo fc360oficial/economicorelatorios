@@ -147,7 +147,7 @@ test('/notas: nota já liberada no Dlinks (conferencia.Status 2) some da lista; 
   await routes['GET /api/recebimento-publico/notas'](req({ query: { t } }), r);
   assert.equal(r.statusCode, 200);
   assert.deepEqual(r.body.map(n => n.nNota), ['2', '3']);
-  assert.deepEqual(r.body[0].erp, { status: 5, operador: 'JEISY' });
+  assert.deepEqual(r.body[0].erp, { status: 5, operador: 'JEISY', conf: null });
   assert.equal(r.body[1].erp, null);
 });
 
@@ -711,4 +711,75 @@ test('/cadastro/:cod da caixa (DUN-14 com qtdemb 1) devolve a unidade e as un/cx
   const t3 = recebimento.config().lojas[3].token;
   const r3 = res(); await routes['GET /api/recebimento-publico/cadastro/:cod'](req({ query: { t: t3 }, params: { cod: '17898962794057' } }), r3);
   assert.deepEqual(r3.body, { descricao: 'PAPEL HIG MAX PURE NEUTRO C4 30M FD16', qtdemb: 1, emb: 'UN' });
+});
+
+// 17/11/26 (Tiago): conferência do Dlinks com 3 NF-e (PepsiCo, conferência 188840 = NF-e 831947/48/49) aparecia 3 vezes
+// no coletor. As notas da mesma conferência viram UMA linha e UMA conferência, com os itens das notas somados.
+test('várias NF-e na mesma conferência do Dlinks: /notas junta numa linha; /abrir soma os itens e espelha uma conferenciachave por nota', async () => {
+  const A = '1'.repeat(43) + '7', B = '1'.repeat(43) + '8', C = '1'.repeat(43) + '9', SOZINHA = '9'.repeat(44);
+  const q = async (sql, params) => {
+    if (sql.includes('FROM central.conferenciachave k1')) return [A, B, C].includes(params[0]) ? [{ chave: C }, { chave: A }, { chave: B }] : [];
+    if (sql.includes('FROM central.axml a WHERE')) return [[C, '831949'], [B, '831948'], [A, '831947'], [SOZINHA, '500']].map(([chave, nNota]) => ({ chave, nNota, CNPJemit: '11222333000199', Data: '2026-11-17', importado: 1 }));
+    if (sql.includes('FROM central.conferenciachave cc')) return [A, B, C].map(chave => ({ chave, conf: 188840, status: 5, operador: 'CARMEM' }));
+    if (sql.includes('FROM central.compras WHERE nLoja=?')) return [A, B, C, SOZINHA].map(chave => ({ chave, status: 'E' }));
+    if (sql.includes('FROM central.itens WHERE CodigoBarra=?')) return [{ descricao: 'SALGADINHO', qtdemb: 1, emb: 'UN', validar: 0 }];
+    return [];
+  };
+  const notaItens = [{ nItem: 1, CodigoBarras: '7892840800000', Descricao: 'SALGADINHO', Und: 'UN', Qtd: '10', oqTrib: '10' }];
+  const { routes, loteChamadas } = montarAmbiente({ q, notas: { [A]: '831947', [B]: '831948', [C]: '831949', [SOZINHA]: '500' }, notaItens });
+  const t = recebimento.config().lojas[3].token;
+  let r = res(); await routes['GET /api/recebimento-publico/notas'](req({ query: { t } }), r);
+  assert.equal(r.statusCode, 200);
+  assert.equal(r.body.length, 2, 'as 3 notas da conferência 188840 numa linha + a nota sozinha');
+  const g = r.body.find(n => n.chaves);
+  assert.deepEqual(g.chaves, [A, B, C]); assert.equal(g.chave, A); assert.equal(g.nNota, '831947, 831948, 831949');
+  assert.ok(!r.body.find(n => n.chave === SOZINHA).chaves);
+
+  // DANFE de QUALQUER nota do grupo abre a conferência do grupo (bipou a do meio)
+  r = res(); await routes['POST /api/recebimento-publico/danfe'](req({ query: { t }, body: { chave: B, nome: 'carmem' } }), r);
+  r = res(); await routes['POST /api/recebimento-publico/abrir'](req({ query: { t }, body: { chave: B, nome: 'carmem' } }), r);
+  assert.equal(r.statusCode, 200);
+  assert.equal(r.body.nNota, '831947, 831948, 831949'); assert.equal(r.body.notas, 3);
+  const c = recebimento.obter(r.body.id);
+  assert.equal(c.chave, A); assert.deepEqual(c.chaves, [A, B, C]);
+  assert.equal(c.xml_itens.length, 1); assert.equal(c.xml_itens[0].un, 30, '10 + 10 + 10: as três notas somadas');
+  const abrir = loteChamadas[0].passos;
+  assert.deepEqual(abrir.map(p => p.tabela), ['conferencia', 'conferenciachave', 'conferenciachave', 'conferenciachave']);
+  assert.deepEqual(abrir.slice(1).map(p => p.valores.Chave), [A, B, C]);
+  assert.deepEqual(c.erp.chaves, [A, B, C]);
+
+  // as outras chaves acham a mesma conferência; bipar 30 bate com a soma
+  for (const k of [B, C]) assert.equal(recebimento.acharPorChave(3, k).id, c.id);
+  r = res(); await routes['GET /api/recebimento-publico/notas'](req({ query: { t } }), r);
+  assert.equal(r.body.find(n => n.chaves).conferencia.id, c.id);
+  await recebimento.bipar(c.id, { cod: '7892840800000', quant: 30, emb: 1, validade: '2027-12-31', nome: 'CARMEM' });
+  assert.equal(recebimento.terminei(c.id).bateu, true);
+});
+
+test('nota aberta sozinha antes do Dlinks juntar: ao reabrir entra no grupo, soma os itens e espelha só as chaves novas', async () => {
+  const A = '2'.repeat(43) + '1', B = '2'.repeat(43) + '2';
+  let juntou = false;
+  const q = async (sql, params) => {
+    if (sql.includes('FROM central.conferenciachave k1')) return juntou ? [{ chave: A }, { chave: B }] : [];
+    return [];
+  };
+  const notaItens = [{ nItem: 1, CodigoBarras: '7890000000017', Descricao: 'REFRIGERANTE', Und: 'UN', Qtd: '6', oqTrib: '6' }];
+  const { routes, loteChamadas } = montarAmbiente({ q, notas: { [A]: '701', [B]: '702' }, notaItens });
+  const t = recebimento.config().lojas[3].token;
+  let r = res(); await routes['POST /api/recebimento-publico/abrir'](req({ query: { t }, body: { chave: B, nome: 'ana' } }), r);
+  const id = r.body.id; let c = recebimento.obter(id);
+  assert.equal(c.chave, B); assert.ok(!c.chaves); assert.equal(c.xml_itens[0].un, 6);
+  juntou = true;
+  r = res(); await routes['POST /api/recebimento-publico/abrir'](req({ query: { t }, body: { chave: B, nome: 'ana' } }), r);
+  assert.equal(r.body.id, id, 'mesma conferência, não abre outra');
+  c = recebimento.obter(id);
+  assert.deepEqual(c.chaves, [B, A]); assert.equal(c.xml_itens[0].un, 12);
+  assert.deepEqual(c.notas.map(n => n.nNota), ['702', '701']);
+  const ult = loteChamadas[loteChamadas.length - 1];
+  assert.deepEqual(ult.passos.map(p => [p.tabela, p.operacao, p.valores.Chave, p.valores.nRegConf]), [['conferenciachave', 'insert', A, 'NREG1']]);
+  assert.deepEqual(c.erp.chaves, [B, A]);
+  // reabrir de novo não insere nada
+  const n = loteChamadas.length;
+  r = res(); await routes['POST /api/recebimento-publico/abrir'](req({ query: { t }, body: { chave: A, nome: 'ana' } }), r);
+  assert.equal(r.body.id, id); assert.equal(loteChamadas.length, n);
 });
