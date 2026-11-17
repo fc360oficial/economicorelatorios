@@ -525,9 +525,31 @@ function camposNumericos(raiz) {
     if (!el.dataset.im) { const im = el.getAttribute('inputmode'); if (im !== 'numeric' && im !== 'decimal') continue; el.dataset.im = im; }
     const quer = semTeclado && !el.dataset.pediu ? 'none' : el.dataset.im;
     if (el.getAttribute('inputmode') !== quer) el.setAttribute('inputmode', quer);
+    // 17/11 (Tiago: "digitei 42 e ele abre o teclado de letras"): mesmo com inputmode none o WebView do app sobe o teclado
+    // do Android na 1ª tecla física. Campo só-leitura nunca chama teclado; as teclas do coletor são escritas pela página
+    // (teclaFisica, abaixo). Dois toques no campo (data-pediu) devolvem o campo normal, com teclado.
+    el.readOnly = quer === 'none' && el.type !== 'password';   // PIN fica como está (login não muda no meio da operação)
   }
 }
+function teclaFisica(ev) {
+  const el = document.activeElement;
+  if (!el || el.tagName !== 'INPUT' || !el.readOnly || !el.dataset || !el.dataset.im || ev.ctrlKey || ev.altKey || ev.metaKey) return;
+  const k = ev.key;
+  // tecla que o aparelho não identifica (vem pelo teclado virtual): devolve o campo normal pra não travar a digitação
+  if (k === 'Unidentified' || k === 'Process' || ev.keyCode === 229) { el.readOnly = false; el.dataset.pediu = '1'; el.setAttribute('inputmode', el.dataset.im); return; }
+  const digito = /^[0-9]$/.test(k), sep = (k === ',' || k === '.') && el.id !== 'cVal', apaga = k === 'Backspace' || k === 'Delete';
+  if (!digito && !sep && !apaga) return;   // Enter, Tab, F-teclas: seguem pro tratamento de cada campo
+  ev.preventDefault();
+  const v = String(el.value || ''); let tudo = false;
+  try { tudo = v.length > 0 && el.selectionStart === 0 && el.selectionEnd === v.length; } catch (e) {}
+  let n = apaga ? (tudo ? '' : v.slice(0, -1)) : (tudo ? '' : v) + k;
+  const max = +el.getAttribute('maxlength') || 0; if (max > 0 && n.length > max) n = n.slice(0, max);
+  el.value = n;
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+  try { const f = String(el.value).length; el.setSelectionRange(f, f); } catch (e) {}
+}
 if (NO_APP) {
+  document.addEventListener('keydown', teclaFisica, true);
   // telas e modais são montados por innerHTML: acerta os campos assim que entram na página e, por garantia, ao focar
   new MutationObserver(ms => { for (const m of ms) for (const n of m.addedNodes) if (n.nodeType === 1) camposNumericos(n); }).observe(document.body, { childList: true, subtree: true });
   document.addEventListener('focusin', e => camposNumericos(e.target));
