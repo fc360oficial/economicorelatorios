@@ -204,6 +204,13 @@ const logAcessos = require('./lib/log-acessos');
 const seguranca = require('./lib/seguranca-acesso');
 const DEPLOY_CHAVE = seguranca.carregarChaveDeploy(path.join(__dirname, 'data', 'deploy-chave.txt'));
 const limiteLogin = seguranca.criarLimiteLogin();
+// Telas de TV sem login só da rede interna (lib/acesso-tvs.js). Começa em "observar": anota quem usa e de onde, sem barrar.
+const acessoTvs = require('./lib/acesso-tvs');
+const ROTEADORES_REDE = String(process.env.REDE_ROTEADORES || '192.168.2.1').split(',').map(s => s.trim()).filter(Boolean);
+const modoTvs = acessoTvs.criarModo(path.join(__dirname, 'data', 'acesso-tvs.json'), 'observar');
+const registroTvs = acessoTvs.criarRegistro({ arquivo: path.join(__dirname, 'data', 'acessos-tvs-observados.json') });
+setInterval(() => registroTvs.gravar(), 60 * 1000).unref();
+process.on('exit', () => registroTvs.gravar());
 const LOG_ACESSOS_DIR = path.join(__dirname, 'data', 'log-acessos');
 const usuariosPath = path.join(__dirname, 'usuarios.json');
 let usuarios;
@@ -260,26 +267,10 @@ app.use(session({
 app.use((req, res, next) => {
   const publico = ['/login.html', '/api/login', '/api/logout', '/api/autentique/webhook', '/logo.png', '/deploy', '/api/versao', '/coletor-economico.apk', '/api/coletor-apk/versao',
     '/api/negativos/reenviar', '/api/pendencias/congelar-manual',
-    '/manifest.json', '/sw.js', '/icon-192.png', '/icon-512.png',
-    '/relatorio-cronograma.html',
-    '/precificacao.html', '/compras.html', '/comprador.html', '/supervisao.html',
-    '/api/precificacao/margens-criticas', '/api/compras/pedidos-hoje',
-    '/diretoria.html', '/api/diretoria/kpis',
-    '/api/top-vendidos', '/api/top-mercadologico',
-    '/api/compras/analise-estoque',
-    '/analise-comprador.html',
-    '/api/compras/fornec-por-lista',
-    '/api/compras/pedidos-mes',
-    '/mensal.html',
-    '/comparativo-tv.html', '/api/comparativo-tv',
-    '/prevencao.html', '/api/pendencias/prevencao', '/api/pendencias/prevencao-consolidado', '/api/pendencias/prevencao-bonif',
-    '/api/ruptura/debug-comprador',
-    // 04/11/2026 (Coordenação): as rotas /api/_diag/* saíram da lista pública — exigem login + perfil admin (ver "Rotas exclusivas de admin")
-    '/ruptura-painel.html', '/api/ruptura', '/api/ruptura/comprador-listas',
-    '/margem-comprador.html', '/api/margem-tv/comprador',
-    '/painel-diretoria.html',
-    '/painel-cd.html', '/api/painel-cd',
-    '/painel-compras.html', '/tv', '/painel-fiscal.html', '/painel-precificacao.html', '/painel-robo.html', '/painel-robo-3d.html'];
+    '/manifest.json', '/sw.js', '/icon-192.png', '/icon-512.png'];
+  // 18/11/2026: as telas de TV e os dados delas (painéis, diretoria, margens, ruptura, estoque...) saíram desta lista —
+  // sem login só abrem da rede interna; a lista e a regra estão em lib/acesso-tvs.js (ver "Telas de TV" logo abaixo).
+  // 04/11/2026 (Coordenação): as rotas /api/_diag/* saíram da lista pública — exigem login + perfil admin (ver "Rotas exclusivas de admin")
   // 10/11/2026: atalho /apk pro APK do coletor, sem diferenciar maiúsculas — o endereço comprido digitado no teclado do
   // coletor (que capitaliza) caía na tela de login e, depois do login, na página inicial em vez do download
   const caminhoMin = req.path.toLowerCase();
@@ -318,7 +309,16 @@ app.use((req, res, next) => {
   // de 32 hex validado dentro da rota)
   if (pathMin === '/recebimento.html' || pathMin === '/leitor-teste.html' || pathMin === '/recebimento' || pathMin === '/manifest-recebimento.json' || pathMin.startsWith('/api/recebimento-publico/') || pathMin.startsWith('/api/expedicao-publico/')) return next();
   // Batimento das telas de TV (Processos › Painéis e TVs, 27/10/26): a TV não tem sessão; validado dentro da rota (lib/paineis-tvs.js)
-  if (pathMin.startsWith('/api/paineis-publico/')) return next();
+  // Telas de TV (18/11/2026): sem login só da rede interna, ligada direto no servidor (192.168.2.254:3003) — pelo link
+  // externo, só logado. Em modo "observar" nada é barrado, só anotado (data/acessos-tvs-observados.json); o modo fica em
+  // data/acesso-tvs.json. Quem já está logado passa como sempre passou. O batimento das TVs segue aberto.
+  if (acessoTvs.caminhoDeTv(req.path)) {
+    if (req.session && req.session.user) return next();
+    const origemTv = seguranca.origemChamada(req, ROTEADORES_REDE);
+    const barrar = !origemTv.confiavel && modoTvs() === 'fechar';
+    registroTvs.registrar({ caminho: req.path, ip: origemTv.ip, origem: origemTv.tipo, dispositivo: logAcessos.dispositivoDe(req.headers['user-agent']), barrado: barrar });
+    if (!barrar) return next();
+  } else if (pathMin.startsWith('/api/paineis-publico/')) return next();
   // API de leitura (28/10/26 à noite, autorizada pelo Tiago): autentica por chave própria (X-Api-Key) dentro de lib/api-leitura.js;
   // sem chave válida responde 401, e só lê o nosso Postgres (nunca o ERP, nunca grava).
   if (pathMin.startsWith('/api/v1')) return next();
