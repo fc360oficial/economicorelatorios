@@ -134,6 +134,17 @@ button.pill[aria-pressed="true"]{background:var(--navy);color:#fff}
 @keyframes marquee{to{transform:translateX(-100%)}}
 .tv .tag i{font-size:12px;padding:2px 9px 2px 7px}.tv .tag i::before{width:7px;height:7px}.tv .tag b{font-size:15px;padding:3px 10px}.tv .tag small{font-size:10.5px;padding:2px 8px}
 .tv .tag.sel span{display:none}
+.ticker[hidden]{display:none}   /* fora do modo TV a faixa azul vazia aparecia por cima da legenda (display:flex vencia o hidden) */
+/* cartão do holofote: texto comprido (ex.: Sugestão lista dezenas de fornecedores) cobria metade da TV — corta em 4 linhas */
+.tvcard .ag{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:4;overflow:hidden}
+.tvcard li{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+/* TV: palco fixo 1920×1080, encaixado no aparelho por transform no script (encaixar) — 18/11/26 */
+body.tv{background:#0e1626}
+.tv .app{position:absolute;left:0;top:0;width:1920px;height:1080px;grid-template-rows:1fr;transform-origin:0 0}
+/* modo leve (TV fraca): sem animação e sem sombra de caixa; a faixa mostra uma notícia por vez */
+.leve .ticker .track{display:block;padding:0 32px;animation:none;will-change:auto;overflow:hidden;text-overflow:ellipsis}
+.leve .tvcard,.leve .ev.novo{animation:none}
+.leve .tk,.leve .tvcard{box-shadow:none}
 </style>
 <script type="importmap">
 { "imports": {
@@ -188,6 +199,17 @@ const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
 // 12/11/26: /painel-robo.html = esta mesma página como PAINEL ROBÔ (TV, sem login): modo TV ligado e dados pelas rotas públicas
 const PUB=location.pathname.indexOf('/painel-robo')===0;
 const TV=PUB||new URLSearchParams(location.search).get('tv')==='1';   // modo TV (tela inteira, holofote, ticker)
+/* MODO LEVE (18/11/26, Tiago: "não tem como colocar o 3D pro painel do robô? mais leve pra rodar na TV?"). Em 12/11 a TV não
+   aguentou o 3D. As TVs são caixinhas Android / Fire TV (navegador de 960×540, placa de vídeo fraca). O modo leve mantém o mesmo
+   escritório e corta o que pesa nelas: sombra, material físico (vira Lambert), antialias, as 6 luminárias da noite, metade das
+   partículas, os LEDs piscando, a faixa de notícias rolando (vira uma notícia por vez) e roda a 20 quadros por segundo. Se
+   mesmo assim a TV não der conta, ele baixa a resolução do 3D sozinho (nível 2 e 3). Liga sozinho em TV/caixinha no modo TV;
+   ?leve=1 força, ?leve=0 desliga. O que a TV está conseguindo (quadros por segundo e nível) vai no batimento, pro Monitor. */
+const QS=new URLSearchParams(location.search);
+const LEVE=QS.get('leve')==='1'||(QS.get('leve')!=='0'&&TV&&/Android|AFT|Silk|Tizen|Web0S|SmartTV|Smart TV/i.test(navigator.userAgent));
+if(LEVE)document.documentElement.classList.add('leve');
+// material: físico (padrão) ou Lambert no modo leve — mesma cor, mesma textura, sem brilho/metal
+function STD(o){ if(!LEVE)return new THREE.MeshStandardMaterial(o); const p=Object.assign({},o); delete p.roughness; delete p.metalness; return new THREE.MeshLambertMaterial(p); }
 
 /* ---------- postos: 6 de Compras (sombra, bancada) + 2 de Precificação (real, na frente da sala do Tiago) ----------
    pos = [x,z] da mesa; flip = sentado de costas pra câmera (olhando pro fundo), tela visível */
@@ -216,9 +238,9 @@ const R0s=v=>'R$ '+Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:0}
 
 /* ---------- cena: isométrica, clara e chapada como a referência; cores nossas ---------- */
 const stage=$('stage');
-const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
-renderer.setPixelRatio(TV?1:Math.min(devicePixelRatio,2)); renderer.setClearColor(0x000000,0);
-renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;   // VSM c/ blur custava ~1/3 do frame (06/11: ticker engasgando a 16 fps)
+const renderer=new THREE.WebGLRenderer({antialias:!LEVE,alpha:true});
+renderer.setPixelRatio(TV||LEVE?1:Math.min(devicePixelRatio,2)); renderer.setClearColor(0x000000,0);   // na TV quem acerta é o encaixar(), lá embaixo
+renderer.shadowMap.enabled=!LEVE; renderer.shadowMap.type=THREE.PCFSoftShadowMap;   // VSM c/ blur custava ~1/3 do frame (06/11: ticker engasgando a 16 fps)
 renderer.outputColorSpace=THREE.SRGBColorSpace; renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.0;
 renderer.useLegacyLights=true;   // intensidades calibradas no teste (three r128); r160 é "físico" por padrão e escurece tudo
 stage.appendChild(renderer.domElement);
@@ -227,33 +249,33 @@ const ORTHO=13;   // meia-altura do enquadramento (unidades = metros)
 const cam=new THREE.OrthographicCamera(-ORTHO,ORTHO,ORTHO,-ORTHO,.1,300);
 const hemi=new THREE.HemisphereLight(0xf2f6fb,0xb7ad9f,.85); scene.add(hemi);
 const amb=new THREE.AmbientLight(0xffffff,.22); scene.add(amb);
-const sun=new THREE.DirectionalLight(0xfff1dc,.9); sun.position.set(7,22,11); sun.castShadow=true; sun.shadow.mapSize.set(TV?1024:2048,TV?1024:2048);
+const sun=new THREE.DirectionalLight(0xfff1dc,.9); sun.position.set(7,22,11); sun.castShadow=!LEVE; sun.shadow.mapSize.set(TV?1024:2048,TV?1024:2048);
 sun.shadow.camera.left=-24; sun.shadow.camera.right=24; sun.shadow.camera.top=24; sun.shadow.camera.bottom=-24; sun.shadow.camera.far=80; sun.shadow.bias=-.0002; sun.shadow.radius=5; sun.shadow.blurSamples=10; scene.add(sun);
 const fill=new THREE.DirectionalLight(0xd8e4f4,.35); fill.position.set(-10,12,-4); scene.add(fill);
 
 const matCache={};   // mesma cor sem opções = mesmo material (menos draw calls depois do bake)
-const P=(c,o)=>o?new THREE.MeshStandardMaterial(Object.assign({color:c,roughness:.8,metalness:0},o)):(matCache[c]||(matCache[c]=new THREE.MeshStandardMaterial({color:c,roughness:.8,metalness:0})));
+const P=(c,o)=>o?STD(Object.assign({color:c,roughness:.8,metalness:0},o)):(matCache[c]||(matCache[c]=STD({color:c,roughness:.8,metalness:0})));
 function tex(w,h,draw,rep){const c=document.createElement('canvas');c.width=w;c.height=h;const g=c.getContext('2d');draw(g,w,h);const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;if(rep){t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(rep[0],rep[1]);}return t;}
 let seed=7; const rnd=()=>{seed=(seed*16807)%2147483647; return (seed-1)/2147483646;};   // determinístico: a maquete é igual toda vez
 const woodTex=tex(512,512,(g,w,h)=>{g.fillStyle='#c9a77a';g.fillRect(0,0,w,h);for(let i=0;i<8;i++){const y=i*64;g.fillStyle=['#c6a375','#cfae82','#c09c6e','#d2b388'][i%4];g.fillRect(0,y,w,62);g.fillStyle='rgba(90,60,30,.25)';g.fillRect(0,y+62,w,2);const off=(i%2)*256;g.fillRect(off,y,2,62);for(let k=0;k<6;k++){g.fillStyle='rgba(120,85,45,.12)';g.fillRect(rnd()*w,y+rnd()*60,80+rnd()*120,1);}}},[4,3]);
 const carpetTex=tex(256,256,(g,w,h)=>{g.fillStyle='#8a9098';g.fillRect(0,0,w,h);for(let i=0;i<3000;i++){g.fillStyle=rnd()<.5?'rgba(255,255,255,.07)':'rgba(0,0,0,.08)';g.fillRect(rnd()*w,rnd()*h,2,2);}},[7,5]);
 const tileTex=tex(256,256,(g,w,h)=>{g.fillStyle='#efece4';g.fillRect(0,0,w,h);g.fillStyle='rgba(255,255,255,.35)';g.fillRect(4,4,w-8,h-8);g.strokeStyle='rgba(110,100,85,.22)';g.lineWidth=2;g.strokeRect(1,1,w-2,h-2);},[15,11]);
-const mFloor=new THREE.MeshStandardMaterial({map:tileTex,roughness:.75}), mWoodFloor=new THREE.MeshStandardMaterial({map:woodTex,roughness:.6}), mCarpet=new THREE.MeshStandardMaterial({map:carpetTex,roughness:1}),
+const mFloor=STD({map:tileTex,roughness:.75}), mWoodFloor=STD({map:woodTex,roughness:.6}), mCarpet=STD({map:carpetTex,roughness:1}),
  mSlab=P(0x3b4047), mWall=P(0xf4f3ef), mFrame=P(0x2a2d31,{metalness:.3,roughness:.5}),
- mGlass=new THREE.MeshStandardMaterial({color:0xd4e6f4,transparent:true,opacity:.2,roughness:.05}),
+ mGlass=STD({color:0xd4e6f4,transparent:true,opacity:.2,roughness:.05}),
  mDeskTop=P(0xf7f6f2,{roughness:.5}), mDeskOak=P(0xb98f60), mMon=P(0x15171a,{roughness:.4}), mChair=P(0x1f2124), mChairMesh=P(0x3a3d42), mChrome=P(0xb9bcc0,{metalness:.8,roughness:.3}),
- mAmber=new THREE.MeshStandardMaterial({color:0xf2a516,emissive:0xf2a516,emissiveIntensity:.25,roughness:.6}),
- mNavy=new THREE.MeshStandardMaterial({color:0x13294b,emissive:0x13294b,emissiveIntensity:.35,roughness:.6}),
- mGreen=new THREE.MeshStandardMaterial({color:0x2ecc71,emissive:0x2ecc71,emissiveIntensity:.3,roughness:.6}),
- mBlue=new THREE.MeshStandardMaterial({color:0x3f7fd6,emissive:0x3f7fd6,emissiveIntensity:.45,roughness:.6}),
- mNavyFlat=P(0x13294b), mAmberFlat=P(0xf2a516), mWhite=P(0xffffff), mDark=P(0x1b1d20), mLeaf=P(0x3c8c45), mLeaf2=P(0x2f7238), mPot=P(0x8b8f94), mWood=P(0xa97c50), mDarkWood=P(0x6e4a2c), mSteel=P(0x9aa0a6,{metalness:.6,roughness:.4}), mSofa=P(0xe7e2d8), mCity=P(0xb4c1d3,{roughness:1}), mWinOff=P(0xd7e1ee), mWinOn=new THREE.MeshStandardMaterial({color:0xffd58a,emissive:0xffc45a,emissiveIntensity:.9});
+ mAmber=STD({color:0xf2a516,emissive:0xf2a516,emissiveIntensity:.25,roughness:.6}),
+ mNavy=STD({color:0x13294b,emissive:0x13294b,emissiveIntensity:.35,roughness:.6}),
+ mGreen=STD({color:0x2ecc71,emissive:0x2ecc71,emissiveIntensity:.3,roughness:.6}),
+ mBlue=STD({color:0x3f7fd6,emissive:0x3f7fd6,emissiveIntensity:.45,roughness:.6}),
+ mNavyFlat=P(0x13294b), mAmberFlat=P(0xf2a516), mWhite=P(0xffffff), mDark=P(0x1b1d20), mLeaf=P(0x3c8c45), mLeaf2=P(0x2f7238), mPot=P(0x8b8f94), mWood=P(0xa97c50), mDarkWood=P(0x6e4a2c), mSteel=P(0x9aa0a6,{metalness:.6,roughness:.4}), mSofa=P(0xe7e2d8), mCity=P(0xb4c1d3,{roughness:1}), mWinOff=P(0xd7e1ee), mWinOn=STD({color:0xffd58a,emissive:0xffc45a,emissiveIntensity:.9});
 const cityWins=[]; const cityWinGroup=new THREE.Group();
 function box(w,h,d,m,x,y,z){const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;return o;}
 /* bake (06/11/26): a cena tinha ~1.000 meshes (cada box() um draw call + outro na sombra) e rodava a 16 fps no modo TV, o
    ticker engasgava. Funde os meshes estáticos de um grupo por material num mesh só. Pula o que se mexe (userData.dyn),
    o que tem textura (telas, placas, pisos) e o que não é MeshStandardMaterial (anéis, planos básicos). */
 function bake(root){const by=new Map(), rm=[];
-  root.children.forEach(o=>{if(!o.isMesh||o.userData.dyn)return; const m=o.material; if(Array.isArray(m)||m.map||!m.isMeshStandardMaterial)return; const g=o.geometry; if(!g.attributes.position||!g.attributes.normal||!g.attributes.uv)return; o.updateMatrix(); const c=g.clone().applyMatrix4(o.matrix); if(!by.has(m))by.set(m,[]); by.get(m).push(c); rm.push(o);});
+  root.children.forEach(o=>{if(!o.isMesh||o.userData.dyn)return; const m=o.material; if(Array.isArray(m)||m.map||!(m.isMeshStandardMaterial||m.isMeshLambertMaterial))return; const g=o.geometry; if(!g.attributes.position||!g.attributes.normal||!g.attributes.uv)return; o.updateMatrix(); const c=g.clone().applyMatrix4(o.matrix); if(!by.has(m))by.set(m,[]); by.get(m).push(c); rm.push(o);});
   if(rm.length<2)return; rm.forEach(o=>root.remove(o));
   by.forEach((gs,m)=>{const mesh=new THREE.Mesh(mergeGeometries(gs,false),m); mesh.castShadow=true; mesh.receiveShadow=true; mesh.userData=Object.assign({},root.userData); root.add(mesh); gs.forEach(g=>g.dispose());});
 }
@@ -307,8 +329,8 @@ bake(cityWinGroup); cityWinGroup.children.forEach(c=>{c.castShadow=false; c.rece
 /* ---------- pisos das zonas ---------- */
 scene.add(plane(8,6.4,mWoodFloor,-11,.012,-7.8,-Math.PI/2));                                   // sala do diretor
 scene.add(plane(13,9,mCarpet,2,.012,-6.5,-Math.PI/2));                                           // compras
-scene.add(plane(9.6,8,new THREE.MeshStandardMaterial({map:carpetTex,roughness:1,color:0xd3dbe4}),-10.2,.012,6.8,-Math.PI/2));   // lounge
-scene.add(plane(5.8,4.2,new THREE.MeshStandardMaterial({map:carpetTex,roughness:1,color:0xe2dccf}),3.5,.012,6.6,-Math.PI/2));   // reunião
+scene.add(plane(9.6,8,STD({map:carpetTex,roughness:1,color:0xd3dbe4}),-10.2,.012,6.8,-Math.PI/2));   // lounge
+scene.add(plane(5.8,4.2,STD({map:carpetTex,roughness:1,color:0xe2dccf}),3.5,.012,6.6,-Math.PI/2));   // reunião
 function floorSign(txt,sub,x,z,w){const m=label(w,w*.155,1280,(g,cw,ch)=>{g.fillStyle='#13294b';g.fillRect(0,0,cw,ch);g.fillStyle='#f2a516';g.font='800 90px Inter, sans-serif';g.fillText(txt,40,135);g.fillStyle='#ffffff';g.font='600 52px Inter, sans-serif';g.fillText(sub,g.measureText(txt).width*1.73+70,135);}); const s=plane(w,w*.155,m,x,.03,z,-Math.PI/2); s.receiveShadow=false; scene.add(s);}
 floorSign('PRECIFICAÇÃO','· em teste',-10.5,.9,3.4); floorSign('COMPRAS','· sombra',1,-2.9,2.6);
 
@@ -349,7 +371,7 @@ const metas=plane(3.8,2.15,metasMat,-11,2.0,-D/2+.16); metas.receiveShadow=false
 })();
 function sofa(x,z,rot,len){const g=new THREE.Group(); g.add(box(len,.4,.85,mSofa,0,.3,0)); g.add(box(len,.5,.22,mSofa,0,.7,-.32)); g.add(box(.2,.56,.85,mSofa,-len/2+.1,.47,0), box(.2,.56,.85,mSofa,len/2-.1,.47,0)); g.add(box(.5,.1,.5,mAmberFlat,-len/4,.55,.05)); [[-len/2+.15,-.3],[len/2-.15,-.3],[-len/2+.15,.3],[len/2-.15,.3]].forEach(p=>g.add(box(.06,.12,.06,mDark,p[0],.06,p[1]))); g.position.set(x,0,z); g.rotation.y=rot; scene.add(g);}
 sofa(-13.3,-5.7,Math.PI/2,1.9); sofa(-8.7,-5.7,-Math.PI/2,1.9);
-scene.add(box(1.0,.05,.6,new THREE.MeshStandardMaterial({color:0xcfe6f5,transparent:true,opacity:.55,roughness:.1}),-11,.42,-5.7)); scene.add(box(.9,.04,.5,mDarkWood,-11,.2,-5.7)); scene.add(box(.3,.05,.22,mAmberFlat,-11.2,.47,-5.7));
+scene.add(box(1.0,.05,.6,STD({color:0xcfe6f5,transparent:true,opacity:.55,roughness:.1}),-11,.42,-5.7)); scene.add(box(.9,.04,.5,mDarkWood,-11,.2,-5.7)); scene.add(box(.3,.05,.22,mAmberFlat,-11.2,.47,-5.7));
 scene.add(box(.5,.8,2.2,mDarkWood,-14.6,.4,-8.6)); scene.add(box(.3,.3,.3,mPot,-14.6,.95,-9.3)); scene.add(box(.45,.4,.45,mLeaf,-14.6,1.3,-9.3));
 
 /* ---------- compras: 2 fileiras de 3 (fundo de frente pra câmera, frente de costas), letreiro e quadro das listas ---------- */
@@ -369,7 +391,7 @@ scene.add(box(1.2,1.0,.35,mDeskOak,13.6,.5,-10.6)); scene.add(box(1.1,.25,.3,P(0
 glassRoom(10.8,15,4,8.4,{doorLeft:true,carpet:true});
 roomSign('ERP','teste .254',12.9,2.78,8.44,1.3);
 const rack=new THREE.Group(); rack.add(box(1,2.2,.8,mDark,0,1.1,0)); rack.add(box(.9,2.1,.02,P(0x2a2d31),0,1.1,.41));
-const leds=[]; for(let i=0;i<10;i++)for(let j=0;j<3;j++){const l=box(.07,.05,.02,(rnd()<.8?mBlue:mAmber).clone(),-.3+j*.3,.3+i*.19,.42); l.userData.dyn=true; rack.add(l); leds.push(l);}
+const leds=[]; for(let i=0;i<10;i++)for(let j=0;j<3;j++){const mL=rnd()<.8?mBlue:mAmber; const l=box(.07,.05,.02,LEVE?mL:mL.clone(),-.3+j*.3,.3+i*.19,.42); rack.add(l); if(!LEVE){l.userData.dyn=true; leds.push(l);}}   // leve: LEDs parados, fundidos no rack (60 desenhos a menos)
 rack.position.set(12.3,0,6.6); scene.add(rack);
 const rack2=rack.clone(); rack2.position.set(13.9,0,5.6); rack2.rotation.y=-Math.PI/2; scene.add(rack2);
 const ERP_TOP=new THREE.Vector3(12.3,2.4,6.6);
@@ -398,13 +420,13 @@ const tv=plane(1.6,.9,tvMat,7.55,1.55,6.6,0,-Math.PI/2); tv.receiveShadow=false;
 scene.add(box(.7,.9,2.6,mDeskOak,14.5,.45,-1.2)); scene.add(box(.8,.06,2.7,P(0x3a3a3a),14.5,.93,-1.2));
 scene.add(box(.42,.55,.4,P(0x2a2a2a),14.5,1.24,-1.9)); scene.add(box(.12,.08,.02,mGreen,14.5,1.42,-1.68));
 [0,1,2].forEach(i=>scene.add(box(.14,.16,.14,mWhite,14.5,1.04,-.9+i*.3)));
-scene.add(box(.4,1.0,.4,mWhite,14.5,.5,.9)); const galao=new THREE.Mesh(new THREE.CylinderGeometry(.17,.17,.5,12),new THREE.MeshStandardMaterial({color:0xbfe3f5,transparent:true,opacity:.6})); galao.position.set(14.5,1.3,.9); scene.add(galao);
+scene.add(box(.4,1.0,.4,mWhite,14.5,.5,.9)); const galao=new THREE.Mesh(new THREE.CylinderGeometry(.17,.17,.5,12),STD({color:0xbfe3f5,transparent:true,opacity:.6})); galao.position.set(14.5,1.3,.9); scene.add(galao);
 [[-14.3,-10.3],[14.3,-10.3],[-14.3,10.3],[14.3,10.3],[-5.4,-10.4],[8.8,.6],[6.6,9.3],[-1.6,3.4],[9.8,-3.2],[-5.3,9.6]].forEach(p=>{scene.add(box(.55,.55,.55,mPot,p[0],.28,p[1])); scene.add(box(.8,.7,.8,mLeaf,p[0],.95,p[1])); scene.add(box(.5,.55,.5,mLeaf2,p[0],1.5,p[1]));});
 
 /* ---------- pessoas (chibi, headset nos robôs), cadeiras, mesas ---------- */
 function limb(w,h,d,m){const g=new THREE.BoxGeometry(w,h,d); g.translate(0,-h/2,0); const o=new THREE.Mesh(g,m); o.castShadow=true; return o;}
 function person(look,opts){
-  opts=opts||{}; const g=new THREE.Group(); const skin=P(look.skin), hair=P(look.hair), shirt=new THREE.MeshStandardMaterial({color:look.shirt,roughness:.8}), pants=P(look.pants);   // camisa é única: recebe o emissive do selecionado
+  opts=opts||{}; const g=new THREE.Group(); const skin=P(look.skin), hair=P(look.hair), shirt=STD({color:look.shirt,roughness:.8}), pants=P(look.pants);   // camisa é única: recebe o emissive do selecionado
   g.userData.shirt=shirt;
   g.add(box(.6,.56,.34,shirt,0,.78,0)); g.add(box(.16,.08,.16,skin,0,1.1,0)); g.add(box(.52,.5,.5,skin,0,1.42,0));
   g.add(box(.08,.07,.01,P(0xffffff),-.12,1.46,.255), box(.08,.07,.01,P(0xffffff),.12,1.46,.255));
@@ -492,8 +514,8 @@ const HUMANS=[];
 })();
 
 // dados voando das mesas pro servidor
-const parts=[]; const partMat=new THREE.MeshStandardMaterial({color:0x3f7fd6,emissive:0x3f7fd6,emissiveIntensity:.6});
-for(let i=0;i<16;i++){const m=new THREE.Mesh(new THREE.BoxGeometry(.1,.1,.1),partMat); m.userData.dyn=true; const r=ROBOS[i%ROBOS.length]; parts.push({m,t:rnd(),from:new THREE.Vector3(r.pos[0],1.3,r.pos[1]),speed:.0025+rnd()*.0025}); scene.add(m);}
+const parts=[]; const partMat=STD({color:0x3f7fd6,emissive:0x3f7fd6,emissiveIntensity:.6});
+for(let i=0;i<(LEVE?8:16);i++){const m=new THREE.Mesh(new THREE.BoxGeometry(.1,.1,.1),partMat); m.userData.dyn=true; const r=ROBOS[i%ROBOS.length]; parts.push({m,t:rnd(),from:new THREE.Vector3(r.pos[0],1.3,r.pos[1]),speed:.0025+rnd()*.0025}); scene.add(m);}
 const tA=new THREE.Vector3(), tB=new THREE.Vector3();
 function bez(p0,p2,t,out){tA.lerpVectors(p0,p2,.5); tA.y=4.2; tB.lerpVectors(p0,tA,t); out.lerpVectors(tA,p2,t); out.lerpVectors(tB,out,t); return out;}
 
@@ -526,7 +548,11 @@ const HUMAN_INFO={
   tiago:{tag:'<i>aprovando</i><b>Tiago</b><small>Aprova preço</small><span>Decide o que o robô propõe</span>',papel:'Pessoa · Aprovação de preço',nome:'Tiago',agora:'Olhando o vigia: nada é gravado sem o OK dele',fila:['Fase 0: o robô só mostra','Fase 1: o robô sugere e ele aprova','Gravação no ERP só com OK do Dlinks'],prox:'<b>Regra da loja:</b> preço igual em todas as lojas; queima por validade é por loja.'}
 };
 HUMANS.forEach(h=>{const d=document.createElement('div'); d.className='tag humana'; d.innerHTML=HUMAN_INFO[h.id].tag; tagsEl.appendChild(d); h.tag=d;});
-function placeTag(el,x,y,z,w,h){tagPos.set(x,y,z).project(cam); if(tagPos.z>1||Math.abs(tagPos.x)>1.2||Math.abs(tagPos.y)>1.2){el.style.display='none';return;} el.style.display=''; el.style.left=((tagPos.x+1)/2*w)+'px'; el.style.top=((1-tagPos.y)/2*h-6)+'px';}
+function placeTag(el,x,y,z,w,h){tagPos.set(x,y,z).project(cam); const fora=tagPos.z>1||Math.abs(tagPos.x)>1.2||Math.abs(tagPos.y)>1.2;
+  if(LEVE){   // leve: só mexe no DOM quando a etiqueta andou 1 px (quase todas ficam paradas: sem recalcular a tela a cada quadro)
+    if(fora){if(el._l!==-1){el._l=-1; el.style.display='none';} return;}
+    const l=Math.round((tagPos.x+1)/2*w), t=Math.round((1-tagPos.y)/2*h-6); if(el._l===l&&el._t===t)return; if(el._l===-1||el._l===undefined)el.style.display=''; el._l=l; el._t=t; el.style.left=l+'px'; el.style.top=t+'px'; return;}
+  if(fora){el.style.display='none';return;} el.style.display=''; el.style.left=((tagPos.x+1)/2*w)+'px'; el.style.top=((1-tagPos.y)/2*h-6)+'px';}
 
 /* ---------- painel ---------- */
 const card=$('card'), feed=$('feed');
@@ -724,8 +750,8 @@ function tick(h){ // a cada minuto virtual
 const lamps=[[-11,-7],[1,-6.5],[-9,6],[3.5,6.6],[12,-7.5],[12.8,-1.5]].map(([x,z])=>{const l=new THREE.PointLight(0xffc77a,0,15,1.4); l.position.set(x,3.0,z); scene.add(l); return l;});
 const cDia=new THREE.Color(0xfff1dc), cTarde=new THREE.Color(0xffbf7a), cNoite=new THREE.Color(0x8fa6c8); let luzK=-1;
 function luz(h){ let k=h<5.5||h>=19.5?0:h<7?(h-5.5)/1.5:h<17?1:1-(h-17)/2.5; if(Math.abs(k-luzK)<.01)return; luzK=k;
-  hemi.intensity=.3+.55*k; amb.intensity=.1+.12*k; sun.intensity=.18+.72*k; fill.intensity=.1+.25*k;
-  sun.color.copy(k>.6?cDia:cTarde).lerp(cNoite,1-Math.min(1,k*1.3)); lamps.forEach(l=>{l.intensity=(1-k)*1.1; l.visible=k<.6;});
+  hemi.intensity=.3+.55*k; amb.intensity=.1+.12*k+(LEVE?(1-k)*.3:0); sun.intensity=.18+.72*k; fill.intensity=.1+.25*k;   // leve: sem luminárias, a luz ambiente compensa a noite
+  sun.color.copy(k>.6?cDia:cTarde).lerp(cNoite,1-Math.min(1,k*1.3)); lamps.forEach(l=>{l.intensity=(1-k)*1.1; l.visible=!LEVE&&k<.6;});
   const on=k<.45; cityWins.forEach(w=>{w.material=on?mWinOn:mWinOff;});
   stage.classList.toggle('noite',k<.3); stage.classList.toggle('tarde',k>=.3&&k<.75);
 }
@@ -748,18 +774,23 @@ function holofote(a){   // a = posto (ou null = vista geral)
 }
 function tvKpis(){ if(!TV)return; const T=DADOS&&DADOS.total, F=SOMBRA&&SOMBRA.faria, D=DADOS; const graves=D?D.alertas.filter(a=>a.grav===3).length:null;
   $('tvk').innerHTML=[['projeção do mês',T?R0(T.lucroProj):'—','meta '+(T?R0(T.meta):'—'),T?(T.lucroProj>=T.meta?'ok':'crit'):''],
-    ['margem das listas',T?P1(T.margem):'—',D?D.diasDecorridos+' de '+D.diasMes+' dias':'',''],
+    ['margem das listas',T?P1(T.margem):'—',D?'dia '+Math.ceil(D.diasDecorridos)+' de '+D.diasMes:'',''],
     ['vazamentos graves',graves==null?'—':graves,D?'de '+D.alertas.length+' no total':'',graves?'crit':'ok'],
     ENSAIO?['ensaio · pedido #'+ENSAIO.id,ENSAIO.concluido?'7 de 7':'etapa '+ENSAIO.agora.n+'/7',ENSAIO.concluido?'ciclo completo':ENSAIO.agora.quem==='você'?'falta '+(ENSAIO.agora.pede||'aprovar'):'robô trabalhando',ENSAIO.concluido?'ok':ENSAIO.agora.quem==='você'?'warn':'ok']:['pediria hoje',F?R0s(F.valor_hoje):'—',F?F.pedir_hoje.length+' lista(s) · sombra':'',F&&F.pedir_hoje.length?'warn':'ok']]
     .map(k=>'<div class="tk '+k[3]+'"><div class="n">'+k[1]+'</div><div class="l">'+k[0]+'</div><div class="s">'+k[2]+'</div></div>').join('');
   tvTicker();
 }
 const EXTRAS=[];
+let tkItens=[], tkI=0;   // modo leve: uma notícia por vez, trocando a cada 7 s (faixa rolando engasga no navegador da TV)
+function tkPasso(){ if(!tkItens.length)return; $('ticker').firstElementChild.innerHTML=tkItens[tkI%tkItens.length]; tkI++; }
 function tvTicker(){ if(!TV)return; const d=new Date(vt), hh=pad(d.getHours())+':'+pad(d.getMinutes());
   const itens=[...EXTRAS.slice(0,4),...EVENTOS_REAL.slice(0,8),...EVENTOS_EX.slice(0,8)].map(e=>'<span><time>'+(e[3]||hh)+'</time><span class="q">'+esc(robots[e[0]].nome)+'</span>'+esc(e[2])+'</span>');
+  if(LEVE){const vazio=!tkItens.length; tkItens=itens; if(vazio||!itens.length){tkI=0; if(itens.length)tkPasso(); else $('ticker').firstElementChild.innerHTML='<span>carregando…</span>';} return;}
   $('ticker').firstElementChild.innerHTML=itens.join('<i>◆</i>')||'<span>carregando…</span>';
 }
-if(TV){const b=document.createElement('button'); b.type='button'; b.textContent='Tela cheia'; b.style.cssText='position:fixed;right:14px;bottom:74px;z-index:99;font:700 14px Inter,sans-serif;padding:9px 14px;border-radius:10px;border:0;background:#F5B800;color:#6B4E00;cursor:pointer'; document.body.appendChild(b); const cheia=()=>!!document.fullscreenElement; b.onclick=()=>cheia()?document.exitFullscreen():document.documentElement.requestFullscreen(); document.addEventListener('fullscreenchange',()=>{b.style.display=cheia()?'none':'';});}
+if(TV&&LEVE)setInterval(tkPasso,7000);
+if(TV&&QS.get('kiosk')==='1')document.body.style.cursor='none';   // ?kiosk=1: sem cursor e sem botão, como nos outros painéis
+if(TV&&QS.get('kiosk')!=='1'){const b=document.createElement('button'); b.type='button'; b.textContent='Tela cheia'; b.style.cssText='position:absolute;right:28px;bottom:84px;z-index:99;font:700 22px Inter,sans-serif;padding:12px 20px;border-radius:12px;border:0;background:#F5B800;color:#6B4E00;cursor:pointer'; $('stage').appendChild(b); b.addEventListener('pointerdown',e=>e.stopPropagation()); /* dentro do palco: encolhe junto na TV */ const cheia=()=>!!document.fullscreenElement; b.onclick=()=>cheia()?document.exitFullscreen():document.documentElement.requestFullscreen(); document.addEventListener('fullscreenchange',()=>{b.style.display=cheia()?'none':'';});}
 if(PUB){document.title='Painel Robô · Econômico'; const h1=document.querySelector('.brand h1'); if(h1)h1.textContent='Painel Robô';}
 if(TV){document.body.classList.add('tv'); $('tvk').hidden=false; $('ticker').hidden=false; $('tvclock').hidden=false; setZoom(1.12);
   // holofote: 13 s num posto, 7 s de vista geral, e assim por diante; momentos especiais travam o holofote
@@ -816,9 +847,22 @@ carregarEnsaio(); setInterval(carregarEnsaio,15000);
 /* ---------- loop ---------- */
 function resize(){const w=stage.clientWidth,h=stage.clientHeight; if(!w||!h)return; renderer.setSize(w,h,false); const a=w/h; cam.left=-ORTHO*a; cam.right=ORTHO*a; cam.top=ORTHO; cam.bottom=-ORTHO; cam.updateProjectionMatrix();}
 new ResizeObserver(resize).observe(stage); resize(); updCam();
-let t0=performance.now(), last=t0, ledT=0, escT=0, tvSkip=false;
+/* TV: palco fixo de 1920×1080 encaixado no aparelho por transform, igual aos outros painéis (18/11/26). O navegador das TVs
+   abre em 960×540 e os números, o cartão e a faixa (desenhados pra 1920) cobriam o escritório inteiro. O 3D é desenhado no
+   tamanho real da tela (ESC), vezes a qualidade do modo leve (QUAL: 1 → 0,75 → 0,6 se a TV não der conta). */
+let ESC=1, QUAL=1, NIVEL=1;
+function encaixar(){ if(!TV)return; const app=document.querySelector('.app'); ESC=Math.min(innerWidth/1920,innerHeight/1080)||1;
+  app.style.transform='scale('+ESC+')'; app.style.left=Math.max(0,(innerWidth-1920*ESC)/2)+'px'; app.style.top=Math.max(0,(innerHeight-1080*ESC)/2)+'px';
+  renderer.setPixelRatio(ESC*QUAL); resize(); }
+if(TV){encaixar(); addEventListener('resize',encaixar);}
+let t0=performance.now(), last=t0, ledT=0, escT=0, ultRender=0, fpsN=0, fpsT0=t0, FPS=0, fpsJanelas=0;
+const fpsAlvo=()=>LEVE?(NIVEL>=3?12:20):30;
+// leve: a cada 10 s confere os quadros por segundo de verdade; abaixo de 60% do alvo por 2 janelas seguidas, desce um nível
+function medirFps(now){ fpsN++; if(now-fpsT0<10000)return; FPS=Math.round(fpsN*10000/(now-fpsT0))/10; fpsN=0; fpsT0=now;
+  if(!LEVE||!TV||NIVEL>=3||document.hidden)return; if(FPS<fpsAlvo()*.6){ if(++fpsJanelas>=2){fpsJanelas=0; NIVEL++; QUAL=NIVEL===2?.75:.6; if(NIVEL===3)parts.forEach(p=>{p.m.visible=false;}); encaixar(); } } else fpsJanelas=0; }
+window.tvSlideAtual=()=>'3D'+(LEVE?' leve · nível '+NIVEL:'')+(FPS?' · '+String(FPS).replace('.',',')+' quadros/s':'')+(ENSAIO?' · ensaio #'+ENSAIO.id:'');
 function frame(now){
-  if(TV){tvSkip=!tvSkip; if(tvSkip){requestAnimationFrame(frame); return;}}
+  if(TV){ if(now-ultRender<1000/fpsAlvo()-4){requestAnimationFrame(frame); return;} ultRender=now; medirFps(now); }   // TV: 30 quadros/s; leve: 20 (12 no nível 3)
   const t=(now-t0)/1000, dt=Math.min(.1,(now-last)/1000); last=now; vt+=dt*1000*simF;
   const hh=hora(); if(Math.floor(hh*60)!==lastMin){tick(hh); lastMin=Math.floor(hh*60);} luz(hh); stepTween(now);
   if(!reduce){ACTORS.slice().forEach(a=>stepActor(a,dt,t)); escT+=dt; if(escT>2){escalonar(escT); escT=0;}}
@@ -826,7 +870,7 @@ function frame(now){
     r.pulse=Math.max(0,(r.pulse||0)-.02); r.tip.material.emissiveIntensity=.25+r.pulse*2.5; r.tip.scale.setScalar(.6+r.pulse*1.2); r.tip.position.set(r.g.position.x,r.g.position.y+2.1,r.g.position.z);
   });
   if(!reduce){parts.forEach(p=>{p.t+=p.speed; if(p.t>1){p.t=0; const r=ROBOS[Math.floor(rnd()*ROBOS.length)]; p.from.set(r.pos[0],1.3,r.pos[1]);} bez(p.from,ERP_TOP,p.t,p.m.position); p.m.rotation.y+=.05; p.m.rotation.x+=.03;});
-    if(now-ledT>200){ledT=now; for(let k=0;k<3;k++){const l=leds[Math.floor(rnd()*leds.length)]; l.material.emissiveIntensity=l.material.emissiveIntensity>.3?.05:.6;}}}
+    if(leds.length&&now-ledT>200){ledT=now; for(let k=0;k<3;k++){const l=leds[Math.floor(rnd()*leds.length)]; l.material.emissiveIntensity=l.material.emissiveIntensity>.3?.05:.6;}}}
   const w=stage.clientWidth,h=stage.clientHeight;
   ACTORS.forEach(a=>placeTag(a.tag,a.g.position.x,a.g.position.y+2.1,a.g.position.z,w,h));
   HUMANS.forEach(hm=>placeTag(hm.tag,hm.x,2.1,hm.z,w,h));
@@ -834,6 +878,8 @@ function frame(now){
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
+// Painel de TV (sem login): batimento pro Monitor de Processos › Painéis, com o que a TV está conseguindo rodar (tvSlideAtual)
+if(PUB&&QS.get('embed')!=='1'){const hb=document.createElement('script'); hb.src='/tv-heartbeat.js'; hb.dataset.painel='robo'; document.body.appendChild(hb);}
 </script>
 </body>
 </html>
