@@ -4296,7 +4296,8 @@ async function coletarValidadePendente(listaId) {
   const filtroLista = listaId ? 'AND i.nCotacao = ?' : '';
   const rows = await q(`
     SELECT i.nCotacao as lista_id, i.Codigobarra, TRIM(it.Descricao) as descricao,
-           i.l1, i.l2, i.l3, i.l4, i.l5, i.l6, it.Validar, it.TipoBalanca
+           i.l1, i.l2, i.l3, i.l4, i.l5, i.l6, it.Validar, it.TipoBalanca,
+           it.CodGrupo, it.CodGrupoSub, TRIM(it.Familia) as Familia
     FROM central.c_cotacao_lista_itens i
     INNER JOIN central.itens it ON it.CodigoBarra = i.Codigobarra AND it.CodDesativado = 0
     WHERE (i.l1=1 OR i.l2=1 OR i.l3=1 OR i.l4=1 OR i.l5=1 OR i.l6=1) ${filtroLista}
@@ -4307,9 +4308,51 @@ async function coletarValidadePendente(listaId) {
       lista_id: r.lista_id, codigo: String(r.Codigobarra || '').trim(), descricao: r.descricao,
       lojas: [1,2,3,4,5,6].filter(n => r['l'+n] == 1),
       validade_dias: dias, balanca: r.TipoBalanca === 'P',
-      sem_validade: dias <= 1
+      sem_validade: dias <= 1,
+      grupo: r.CodGrupo, subgrupo: r.CodGrupoSub, familia: r.Familia || null
     };
   });
+}
+
+// SUGESTÃO de validade pros itens sem validade (Tiago, 18/11/2026) — regra e medição em lib/validade-sugestao.js.
+// Referência = todo produto ATIVO do cadastro com Validar > 1 (uma leitura de central.itens, guardada 10 min) + nomes de
+// grupo/subgrupo; evidência do coletor = dias de validade na chegada (validade lida − entrada) de validade_item no
+// Postgres do espelho — sem espelho a sugestão sai só pelos parecidos (não varre itenscoletorvalidade no .252).
+// Devolve { codigo: sugestao }. SOMENTE LEITURA: nada é gravado no ERP.
+const validadeSugestao = require('./lib/validade-sugestao');
+let _valRef = null, _valRefTs = 0;
+async function referenciaValidade() {
+  if (_valRef && Date.now() - _valRefTs < 10 * 60 * 1000) return _valRef;
+  const [itens, subs, grupos] = await Promise.all([
+    q(`SELECT Validar validar, CodGrupo grupo, CodGrupoSub subgrupo, TRIM(Familia) familia FROM central.itens WHERE CodDesativado = 0 AND Validar > 1`),
+    q(`SELECT CodSubGrupo c, TRIM(Descricao) d FROM central.gruposub`).catch(() => []),
+    q(`SELECT CodGrupo c, TRIM(Descricao) d FROM central.grupo`).catch(() => [])
+  ]);
+  const nomes = { subgrupo: {}, grupo: {} };
+  for (const r of subs) if (r.d) nomes.subgrupo[r.c] = r.d;
+  for (const r of grupos) if (r.d) nomes.grupo[r.c] = r.d;
+  _valRef = { ref: validadeSugestao.montarReferencia(itens), nomes }; _valRefTs = Date.now();
+  return _valRef;
+}
+async function sugestoesValidade(itens) {
+  const pend = (itens || []).filter(it => it.sem_validade);
+  if (!pend.length) return {};
+  const { ref, nomes } = await referenciaValidade();
+  const cods = [...new Set(pend.map(it => it.codigo.slice(0, 20)))];
+  const hist = {};
+  if (espelhoCompras.validadesDisponiveis()) {
+    const rows = await espelhoErp.pq(`SELECT codigo, COUNT(DISTINCT dataentrada) entradas,
+        percentile_disc(0.25) WITHIN GROUP (ORDER BY validade - dataentrada) p25,
+        percentile_disc(0.5)  WITHIN GROUP (ORDER BY validade - dataentrada) p50,
+        percentile_disc(0.75) WITHIN GROUP (ORDER BY validade - dataentrada) p75,
+        MAX(dataentrada)::text ultima
+      FROM validade_item WHERE codigo = ANY($1) AND validade > dataentrada AND validade - dataentrada <= 3650 GROUP BY codigo`, [cods])
+      .catch(e => { console.error('[ESPELHO] sugestão de validade:', e.message); return []; });
+    for (const r of rows) hist[r.codigo] = r;
+  }
+  const out = {};
+  for (const it of pend) if (!(it.codigo in out)) out[it.codigo] = validadeSugestao.sugerir(it, ref, hist[it.codigo.slice(0, 20)], nomes);
+  return out;
 }
 
 // Produtos que estão em DUAS OU MAIS listas de compra (risco de pedir duas vezes o mesmo item pra mesma loja)
@@ -4446,14 +4489,21 @@ app.get('/api/listas-compra/validade-pendente', async (req, res) => {
     ]);
     const _nRegToComp = {};
     for (const [comp, nRegs] of Object.entries(NREGS_COMPRADOR)) for (const nReg of nRegs) _nRegToComp[nReg] = comp;
+    // sugestão é um extra: se a referência falhar, a aba continua abrindo sem ela
+    const sug = await sugestoesValidade(itens).catch(e => { console.error('[VALIDADE] sugestão:', e.message); return null; });
     const porLista = {};
+    const zero = () => ({ total_itens: 0, sem_validade: 0, com_validade: 0, com_sugestao: 0, sugestao_alta: 0 });
     for (const it of itens) {
-      const a = porLista[it.lista_id] || (porLista[it.lista_id] = { total_itens: 0, sem_validade: 0, com_validade: 0 });
+      const a = porLista[it.lista_id] || (porLista[it.lista_id] = zero());
       a.total_itens++;
-      if (it.sem_validade) a.sem_validade++; else a.com_validade++;
+      if (it.sem_validade) {
+        a.sem_validade++;
+        const s = sug && sug[it.codigo];
+        if (s && s.dias) { a.com_sugestao++; if (s.confianca === 'alta') a.sugestao_alta++; }
+      } else a.com_validade++;
     }
     let listas = listasRows.map(l => {
-      const a = porLista[l.nReg] || { total_itens: 0, sem_validade: 0, com_validade: 0 };
+      const a = porLista[l.nReg] || zero();
       return { id: l.nReg, nome: l.Nome?.trim(), fornecedor: l.NomeFornec?.trim(), codFornec: l.CodFornec,
                compradores: _nRegToComp[l.nReg] || null, ...a,
                pct: a.total_itens ? +(a.sem_validade / a.total_itens * 100).toFixed(1) : 0 };
@@ -4461,7 +4511,7 @@ app.get('/api/listas-compra/validade-pendente', async (req, res) => {
     const compradores = soMinhasNomes(req, [...new Set(listas.map(l => l.compradores).filter(Boolean))].sort());
     if (comprador) listas = listas.filter(l => l.compradores === comprador);
     listas.sort((a, b) => b.sem_validade - a.sem_validade || (a.nome || '').localeCompare(b.nome || ''));
-    res.json({ listas, compradores, total_listas: listas.length,
+    res.json({ listas, compradores, total_listas: listas.length, sugestoes: !!sug,
                total_itens_sem_validade: listas.reduce((s, l) => s + l.sem_validade, 0) });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -4470,8 +4520,10 @@ app.get('/api/listas-compra/:id/validade-pendente', async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     if (!id) return res.status(400).json({ error: 'id inválido' });
-    const itens = await coletarValidadePendente(id);
-    res.json(itens.filter(it => it.sem_validade).sort((a, b) => (a.descricao || '').localeCompare(b.descricao || '')));
+    const itens = (await coletarValidadePendente(id)).filter(it => it.sem_validade);
+    const sug = await sugestoesValidade(itens).catch(e => { console.error('[VALIDADE] sugestão:', e.message); return null; });
+    res.json(itens.map(({ grupo, subgrupo, familia, ...it }) => ({ ...it, sugestao: (sug && sug[it.codigo]) || null }))
+      .sort((a, b) => (a.descricao || '').localeCompare(b.descricao || '')));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
