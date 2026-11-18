@@ -7935,6 +7935,21 @@ app.get('/api/dre', async (req, res) => {
     res.json(dados);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+// Comparativos da visão por loja (18/11/26): mês anterior + mesmos meses do ano anterior. Cache de 30 min e, se dois
+// pedidos iguais chegam juntos, o segundo espera o primeiro. Nunca varre cupons antigos no ERP: mês sem venda guardada
+// volta como pendente e é lido de madrugada (lib/dre.js aquecerHistorico).
+const _dreCmpEmCurso = {};
+app.get('/api/dre/comparativo', async (req, res) => {
+  try {
+    const p = String(req.query.periodo || '').trim();
+    if (!/^(\d{4}-\d{2}|\d{4}|12m)$/.test(p)) return res.status(400).json({ error: 'período inválido' });
+    const k = '__cmp|' + p, c = _dreCache[k];
+    if (c && Date.now() - c.em < 30 * 60 * 1000) return res.json(c.dados);
+    const dados = await (_dreCmpEmCurso[p] || (_dreCmpEmCurso[p] = dre.comparativo(p).finally(() => { delete _dreCmpEmCurso[p]; })));
+    _dreCache[k] = { em: Date.now(), dados };
+    res.json(dados);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 app.get('/api/dre/tendencia', async (req, res) => {
   try { const c = _dreCache.__tend; if (c && Date.now() - c.em < 30 * 60 * 1000) return res.json(c.dados); const dados = await dre.tendencia(); _dreCache.__tend = { em: Date.now(), dados }; res.json(dados); }
   catch (err) { res.status(500).json({ error: err.message }); }

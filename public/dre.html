@@ -95,6 +95,15 @@ table.m input{font:inherit;font-size:12.5px;font-weight:700;padding:5px 7px;bord
 .md-bd{padding:16px 18px}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;font-size:12.5px;z-index:999;display:none}
 .toast.on{display:block}
+/* visão por loja (18/11/26): uma loja (ou a rede) na vertical, contra o mês anterior, o ano anterior e a rede */
+.toolbar .lbl{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--ink-2)}
+.toolbar .seg{flex-wrap:wrap}
+.kpi .cmp{font-size:11px;color:var(--ink-3);margin-top:8px;min-height:26px;line-height:1.45;font-weight:600}
+table.dre.uma{min-width:1040px}
+table.dre.uma th{cursor:default}
+table.dre.uma td:first-child{min-width:290px}
+table.dre.uma th.grp,table.dre.uma td.grp{border-left:1px solid var(--border)}
+table.dre.uma td.carr{color:var(--ink-3);font-style:italic;font-weight:500}
 .note{font-size:11.5px;color:var(--ink-2);line-height:1.5;background:#FFF6D9;border:1px solid #F5B80066;border-radius:10px;padding:10px 14px;margin-bottom:12px}
 </style>
 </head>
@@ -103,7 +112,7 @@ table.m input{font:inherit;font-size:12.5px;font-weight:700;padding:5px 7px;bord
   <div class="page-hdr">
     <div>
       <h1>DRE gerencial</h1>
-      <p>Resultado loja a loja e da rede, no padrão de DRE de supermercado: receita → impostos → CMV → lucro bruto → perdas e despesas por natureza → EBITDA → resultado. Percentuais sobre a receita bruta e faixas de referência do varejo alimentar. Clique numa linha pra abrir as contas; clique no nome da loja pra ver a tendência. Só leitura no ERP.</p>
+      <p>Resultado loja a loja e da rede, no padrão de DRE de supermercado: receita → impostos → CMV → lucro bruto → perdas e despesas por natureza → EBITDA → resultado. Percentuais sobre a receita bruta e faixas de referência do varejo alimentar. Clique numa linha pra abrir as contas; escolha uma loja em <b>Ver</b> (ou clique no nome dela) pra abrir a DRE só dela, comparada com o mês anterior, o ano anterior e a rede. Só leitura no ERP.</p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn" onclick="exportar()">⬇ CSV</button>
@@ -117,6 +126,11 @@ table.m input{font:inherit;font-size:12.5px;font-weight:700;padding:5px 7px;bord
     <select id="f-mes" onchange="carregar()"><option value="01">Janeiro</option><option value="02">Fevereiro</option><option value="03">Março</option><option value="04">Abril</option><option value="05">Maio</option><option value="06">Junho</option><option value="07">Julho</option><option value="08">Agosto</option><option value="09">Setembro</option><option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option></select>
     <span class="info" id="info"></span>
   </div>
+  <div class="toolbar">
+    <span class="lbl">Ver</span>
+    <div class="seg" id="seg-loja"></div>
+    <button class="btn" id="bt-tend-loja" style="display:none;margin-left:auto" onclick="abrirLoja(VISAO)">Tendência 12 meses da loja</button>
+  </div>
 
   <div class="tabs">
     <span class="tab on" data-aba="dre" onclick="setAba('dre')">DRE</span>
@@ -128,12 +142,14 @@ table.m input{font:inherit;font-size:12.5px;font-weight:700;padding:5px 7px;bord
   <div id="aba-dre">
     <div class="kpis" id="kpis"></div>
     <div class="table-wrap"><table class="dre" id="tab"><thead id="thead"></thead><tbody id="tbody"><tr><td><div class="spin"></div></td></tr></tbody></table></div>
+    <div class="legenda" id="leg-uma" style="display:none"><span><b>Var.</b> = quanto o valor em R$ mudou contra o período comparado; embaixo do valor comparado vai o % da receita daquele período.</span><span><b>Loja × rede</b> = diferença em pontos percentuais entre o % da loja e o % da rede.</span><span><span class="ok">Verde</span> = melhor (receita e resultado subindo, despesa caindo) · <span class="bad">vermelho</span> = pior.</span></div>
     <div class="legenda"><span><b>%</b> = percentual da receita bruta da loja · <span class="ok">verde</span> dentro da referência · <span class="bad">vermelho</span> fora.</span><span><b>Central/CD</b> (Filial 10) é rateada pelas lojas na proporção da receita.</span><span><b>Fora do resultado:</b> investimentos, retiradas de sócios e movimentações financeiras aparecem em itálico e não entram no lucro.</span><span>Mês em aberto sempre parece melhor: as despesas chegam por competência depois.</span></div>
   </div>
 
   <div id="aba-tendencia" style="display:none"><div class="card"><div class="card-hd"><h3>Últimos 12 meses</h3><small>receita, lucro bruto, EBITDA e resultado por mês · rede e por loja</small></div><div class="card-bd" id="tend"><div class="spin"></div></div></div></div>
 
   <div id="aba-sugestoes" style="display:none">
+    <div class="note" id="sug-filtro" style="display:none"></div>
     <div class="note">Sugestões geradas a partir dos números do período contra faixas de referência do varejo alimentar (ABRAS e práticas de redes regionais). Não são verdade absoluta: são os pontos que merecem uma pergunta. <b>Impacto</b> = quanto muda o resultado do período se a linha for pra referência.</div>
     <div id="sug"></div>
   </div>
@@ -157,6 +173,9 @@ table.m input{font:inherit;font-size:12.5px;font-weight:700;padding:5px 7px;bord
 const NOMES = { 1: 'CAHU', 2: 'MURIBECA', 3: 'PONTE', 4: 'ATACAREJO', 5: 'PORTA LARGA', 6: 'JARDIM JORDÃO' };
 const MESES = ['', 'jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 let D = null, TIPO = 'mes', ABERTAS = new Set(), TEND = null, PAR = null;
+// VISAO: 'todas' (lojas lado a lado) · 'rede' (consolidado na vertical) · 1..6 (uma loja). Fica no endereço (#loja=3).
+let VISAO = 'todas', CMP = null, CMP_PER = null, CMP_ERR = null;
+(function lerVisao() { const m = /loja=(rede|[1-6])/.exec(location.hash); if (m) VISAO = m[1] === 'rede' ? 'rede' : +m[1]; })();
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const NB = String.fromCharCode(160);
 const money = v => (v < 0 ? '−' : '') + 'R$' + NB + Math.abs(+v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -174,13 +193,90 @@ async function carregar(refresh) {
   document.getElementById('tbody').innerHTML = '<tr><td><div class="spin"></div></td></tr>'; document.getElementById('info').textContent = 'calculando…';
   try {
     const r = await fetch('/api/dre?periodo=' + periodo() + (refresh ? '&refresh=1' : '')); const j = await r.json(); if (j.error) throw new Error(j.error);
-    D = j; render();
+    D = j; if (refresh) CMP_PER = null; render(); if (VISAO !== 'todas') carregarCmp();
   } catch (e) { document.getElementById('tbody').innerHTML = '<tr><td class="empty" style="color:var(--bad)">' + esc(e.message) + '</td></tr>'; }
+}
+// comparativos (mês anterior e ano anterior) só são pedidos quando alguém abre a visão de uma loja ou da rede
+async function carregarCmp() {
+  const per = periodo(); if (CMP_PER === per) return; CMP_PER = per; CMP = null; CMP_ERR = null;
+  try { const r = await fetch('/api/dre/comparativo?periodo=' + per); const j = await r.json(); if (j.error) throw new Error(j.error); if (CMP_PER !== per) return; CMP = j; }
+  catch (e) { if (CMP_PER !== per) return; CMP_ERR = e.message; }
+  if (D && VISAO !== 'todas') render();
+}
+function setVisao(v) {
+  VISAO = v; try { history.replaceState(null, '', v === 'todas' ? location.pathname + location.search : '#loja=' + v); } catch (e) {}
+  if (D) { render(); if (v !== 'todas') carregarCmp(); }
+}
+function sugVisiveis() { const S = D.sugestoes || []; return typeof VISAO === 'number' ? S.filter(s => s.loja === VISAO) : S; }
+const moneyI = v => (v < 0 ? '−' : '') + 'R$' + NB + Math.round(Math.abs(+v || 0)).toLocaleString('pt-BR');
+const rotMeses = ms => { const f = ym => MESES[+ym.slice(5)] + '/' + ym.slice(2, 4); return ms.length === 1 ? f(ms[0]) : f(ms[0]) + ' a ' + f(ms[ms.length - 1]); };
+const TRACO = '<span style="color:var(--ink-3)">—</span>';
+const sinal = (n, suf) => (Math.abs(n) < 0.05 ? '' : n > 0 ? '+' : '−') + Math.abs(n).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + suf;
+// variação do valor em R$ contra o período comparado: despesa subindo é ruim, receita/resultado subindo é bom
+function varia(at, an, tipo) { if (!an) return TRACO; const p = (at - an) / Math.abs(an) * 100; const cls = Math.abs(p) < 0.5 || tipo === 'i' ? '' : ((tipo === 'd') === (p > 0) ? 'bad' : 'ok'); return '<b class="' + cls + '">' + sinal(p, '%') + '</b>'; }
+// diferença em pontos percentuais entre dois % da receita (loja × rede)
+function pontos(a, b, tipo) { if (a == null || b == null) return TRACO; const d = a - b; const cls = Math.abs(d) < 0.3 || tipo === 'i' ? '' : ((tipo === 'd') === (d > 0) ? 'bad' : 'ok'); return '<b class="' + cls + '">' + sinal(d, NB + 'p.p.') + '</b>'; }
+function renderUma() {
+  const R = D.rede, L = D.linhas, byK = Object.fromEntries(L.map(l => [l.k, l]));
+  const ehLoja = typeof VISAO === 'number', pega = d => !d || d.pendente ? null : ehLoja ? d.lojas.find(l => l.loja === VISAO) : d.rede;
+  const X = pega(D), C = CMP && CMP.periodo === D.periodo ? CMP : null, carregando = !C && !CMP_ERR;
+  const pend = C && C.anoAnterior && C.anoAnterior.pendente ? C.anoAnterior : null;   // ano anterior ainda sem venda guardada
+  const temAnt = D.nMeses === 1, A = C ? pega(C.anterior) : null, Y = C ? pega(C.anoAnterior) : null;
+  const rotAtual = D.periodo === '12m' ? 'Últimos 12 meses' : rotMeses(D.meses);
+  const rotA = C && C.anterior ? rotMeses(C.anterior.meses) : 'Mês anterior', rotY = C && C.anoAnterior ? (D.periodo === '12m' ? '12 meses antes' : rotMeses(C.anoAnterior.meses)) : 'Ano anterior';
+  const nome = ehLoja ? 'L' + VISAO + ' ' + NOMES[VISAO] : 'Rede (6 lojas)';
+  // KPIs da loja: em vez das barrinhas por loja, a comparação com a rede e com os períodos anteriores
+  const kpi = (t, k, ref) => {
+    const lin = byK[k], v = X.valores[k] || 0, p = X.pct[k], ls = [];
+    if (k === 'receita') { if (A) ls.push(rotA + ' ' + varia(v, A.valores.receita, 'r')); if (Y) ls.push(rotY + ' ' + varia(v, Y.valores.receita, 'r')); if (ehLoja && R.valores.receita > 0) ls.push(pct(v / R.valores.receita * 100) + ' da rede'); if (X.valores.cupons) ls.unshift('ticket ' + money(v / X.valores.cupons)); }
+    else { if (ehLoja) ls.push('rede ' + pct(R.pct[k])); if (A) ls.push(rotA + ' ' + pct(A.pct[k])); if (Y) ls.push(rotY + ' ' + pct(Y.pct[k])); }
+    if (carregando) ls.push('comparando…');
+    return '<div class="kpi"><div class="l"><span>' + t + '</span><small>' + ref + '</small></div><div class="v ' + (k === 'receita' ? '' : benchCls(lin, p)) + '">' + (k === 'receita' ? moneyK(v) : pct(p) + '<small>' + moneyK(v) + '</small>') + '</div><div class="cmp">' + ls.filter(Boolean).join(' · ') + '</div></div>';
+  };
+  const cup = X.valores.cupons || 0;
+  document.getElementById('kpis').innerHTML = kpi('Receita bruta', 'receita', cup ? cup.toLocaleString('pt-BR') + ' cupons' : '')
+    + kpi('Lucro bruto', 'lucroBruto', 'ref. 22–27%') + kpi('Perdas', 'perdas', 'ref. até 2%') + kpi('Pessoal', 'pessoal', 'ref. 8–11%') + kpi('EBITDA', 'ebitda', 'ref. 3–7%') + kpi('Resultado líquido', 'resultado', 'ref. 1,5–4%');
+  // tabela vertical
+  document.getElementById('thead').innerHTML = '<tr><th>' + esc(nome) + '</th><th>' + esc(rotAtual) + '</th><th>% receita</th>'
+    + (temAnt ? '<th class="grp">' + esc(rotA) + '</th><th>Var.</th>' : '') + '<th class="grp">' + esc(rotY) + '</th><th>Var.</th>'
+    + (ehLoja ? '<th class="grp">Rede %</th><th>Loja × rede</th>' : '') + '</tr>';
+  const nCols = 3 + (temAnt ? 2 : 0) + 2 + (ehLoja ? 2 : 0);
+  const val = (v, l) => (l.tipo === 'r' || l.tipo === 't') ? '<span class="' + (v < 0 ? 'neg' : '') + '">' + moneyI(v) + '</span>' : v ? (l.tipo === 'd' && v > 0 ? '<span class="neg">(' + moneyI(v) + ')</span>' : moneyI(v)) : TRACO;
+  // par de colunas de um período comparado: valor (+ % da receita daquele período) e variação
+  // (sub = linha de conta aberta: valor simples, sem parênteses, igual à coluna do período atual)
+  const par = (E, l, v, ev, ep, sub) => carregando ? '<td class="grp carr">comparando…</td><td></td>' : !E ? '<td class="grp">' + TRACO + '</td><td>' + TRACO + '</td>' : '<td class="grp">' + (sub ? (ev ? moneyI(ev) : TRACO) : val(ev, l)) + (l.k !== 'receita' && ep != null && ev ? '<span class="p">' + pct(ep) + '</span>' : '') + '</td><td>' + varia(v, ev, l.tipo) + '</td>';
+  let h = '';
+  for (const l of L) {
+    const temSub = l.tipo === 'd' || l.tipo === 'i', v = X.valores[l.k] || 0, p = X.pct[l.k];
+    h += '<tr class="' + l.tipo + (l.k === 'ebitda' || l.k === 'resultado' ? ' big' : '') + '" title="' + esc(l.desc || l.benchDesc || '') + '"><td' + (temSub ? ' onclick="toggle(\'' + l.k + '\')"' : '') + '>' + (temSub ? '<span class="chev">' + (ABERTAS.has(l.k) ? '▼' : '▶') + '</span>' : '<span class="chev"></span>') + esc(l.t) + (l.bench ? ' <span style="font-size:10px;color:var(--ink-3)">ref. ' + (l.tipo === 'd' ? 'até ' + l.bench[1] : l.bench[0] + '–' + l.bench[1]) + '%</span>' : '') + '</td>'
+      + '<td>' + val(v, l) + '</td><td><b class="' + benchCls(l, p) + '">' + (l.k === 'receita' ? TRACO : pct(p)) + '</b></td>'
+      + (temAnt ? par(A, l, v, A ? A.valores[l.k] || 0 : 0, A ? A.pct[l.k] : null) : '') + par(Y, l, v, Y ? Y.valores[l.k] || 0 : 0, Y ? Y.pct[l.k] : null)
+      + (ehLoja ? (l.k === 'receita' ? '<td class="grp">' + moneyK(R.valores.receita) + '</td><td>' + (R.valores.receita > 0 ? pct(v / R.valores.receita * 100) + ' da rede' : TRACO) + '</td>' : '<td class="grp">' + pct(R.pct[l.k]) + '</td><td>' + pontos(p, R.pct[l.k], l.tipo) + '</td>') : '') + '</tr>';
+    if (temSub && ABERTAS.has(l.k)) {
+      const cur = X.detalhe[l.k] || {}, da = A ? (A.detalhe[l.k] || {}) : {}, dy = Y ? (Y.detalhe[l.k] || {}) : {}, dr = R.detalhe[l.k] || {};
+      const chaves = [...new Set([...Object.keys(cur), ...Object.keys(da), ...Object.keys(dy)])].map(k => ({ k, o: cur[k] || da[k] || dy[k], v: cur[k] ? cur[k].v : 0, a: da[k] ? da[k].v : 0, y: dy[k] ? dy[k].v : 0 })).filter(c => c.v || c.a || c.y).sort((a, b) => b.v - a.v || b.a - a.a);
+      if (!chaves.length) h += '<tr class="sub"><td colspan="' + nCols + '">sem lançamentos nessa linha no período</td></tr>';
+      const pr = (x, E) => E && E.valores.receita > 0 ? x / E.valores.receita * 100 : null;
+      for (const c of chaves) {
+        const pc = pr(c.v, X), prd = dr[c.k] ? pr(dr[c.k].v, R) : null;
+        h += '<tr class="sub"><td title="' + esc(c.o.grupo) + '">' + esc(c.o.conta) + ' <span style="color:var(--ink-3);font-size:10px">' + esc(c.k) + '</span></td><td>' + (c.v ? moneyI(c.v) : TRACO) + '</td><td>' + (c.v ? pct(pc) : TRACO) + '</td>'
+          + (temAnt ? par(A, l, c.v, c.a, c.a ? pr(c.a, A) : null, true) : '') + par(Y, l, c.v, c.y, c.y ? pr(c.y, Y) : null, true)
+          + (ehLoja ? '<td class="grp">' + (prd != null ? pct(prd) : TRACO) + '</td><td>' + (c.v && prd != null ? pontos(pc, prd, l.tipo) : TRACO) + '</td>' : '') + '</tr>';
+      }
+    }
+  }
+  if (pend) h += '<tr class="sub"><td colspan="' + nCols + '" style="white-space:normal">A comparação com <b>' + esc(rotY) + '</b> ainda não está disponível: falta guardar a venda de ' + pend.pendente + (pend.pendente === 1 ? ' mês' : ' meses') + ' daquele período. Essa leitura é pesada no ERP, então o sistema faz sozinho de madrugada (01:00 às 05:00) e a coluna aparece quando terminar. A visão por <b>Mês</b> já compara com o ano anterior.</td></tr>';
+  document.getElementById('tbody').innerHTML = h + (CMP_ERR ? '<tr class="sub"><td colspan="' + nCols + '" style="color:var(--bad)">Comparativo não carregou: ' + esc(CMP_ERR) + '. Clique em Atualizar pra tentar de novo.</td></tr>' : '');
 }
 function render() {
   const R = D.rede, L = D.linhas, byK = Object.fromEntries(L.map(l => [l.k, l]));
   document.getElementById('info').innerHTML = (D.nMeses === 1 ? 'mês ' + D.meses[0].split('-').reverse().join('/') : D.meses.length + ' meses: ' + D.meses[0].split('-').reverse().join('/') + ' a ' + D.meses[D.meses.length - 1].split('-').reverse().join('/')) + (D.fechado ? '' : ' · <b style="color:var(--warn)">inclui mês em aberto</b>') + ' · ' + (D.ms / 1000).toFixed(1) + ' s';
-  document.getElementById('n-sug').textContent = (D.sugestoes || []).length || '';
+  document.getElementById('n-sug').textContent = sugVisiveis().length || '';
+  const uma = VISAO !== 'todas';
+  document.getElementById('seg-loja').innerHTML = [['todas', 'Todas as lojas'], ['rede', 'Rede']].concat(D.lojas.map(l => [l.loja, 'L' + l.loja + ' ' + l.nome])).map(([v, t]) => '<button class="' + (VISAO === v ? 'on' : '') + '" onclick="setVisao(' + (typeof v === 'number' ? v : "'" + v + "'") + ')">' + esc(t) + '</button>').join('');
+  document.getElementById('bt-tend-loja').style.display = typeof VISAO === 'number' ? '' : 'none';
+  document.getElementById('tab').classList.toggle('uma', uma); document.getElementById('leg-uma').style.display = uma ? '' : 'none';
+  if (uma) { renderUma(); renderSug(); return; }
   // KPIs
   const kpi = (t, v, sub, k, cls) => '<div class="kpi"><div class="l"><span>' + t + '</span><small>' + (sub || '') + '</small></div><div class="v ' + (cls || '') + '">' + v + '</div><div class="bars">' + D.lojas.map(l => { const p = l.pct[k], lin = byK[k]; const max = Math.max(...D.lojas.map(x => Math.abs(x.pct[k] || 0)), 0.01); return '<i class="' + benchCls(lin, p) + '" data-t="L' + l.loja + ' ' + pct(p) + '" style="height:' + Math.max(2, Math.round(Math.abs(p || 0) / max * 26)) + 'px"></i>'; }).join('') + '</div></div>';
   document.getElementById('kpis').innerHTML = kpi('Receita bruta', moneyK(R.valores.receita), R.valores.cupons.toLocaleString('pt-BR') + ' cupons', 'receita')
@@ -190,7 +286,7 @@ function render() {
     + kpi('EBITDA', pct(R.pct.ebitda) + '<small>' + moneyK(R.valores.ebitda) + '</small>', 'ref. 3–7%', 'ebitda', benchCls(byK.ebitda, R.pct.ebitda))
     + kpi('Resultado líquido', pct(R.pct.resultado) + '<small>' + moneyK(R.valores.resultado) + '</small>', 'ref. 1,5–4%', 'resultado', benchCls(byK.resultado, R.pct.resultado));
   // tabela
-  document.getElementById('thead').innerHTML = '<tr><th>Linha</th>' + D.lojas.map(l => '<th onclick="abrirLoja(' + l.loja + ')" title="Ver tendência da loja">L' + l.loja + ' ' + l.nome + '</th>').join('') + '<th class="rede">Rede</th></tr>';
+  document.getElementById('thead').innerHTML = '<tr><th>Linha</th>' + D.lojas.map(l => '<th onclick="setVisao(' + l.loja + ')" title="Abrir a DRE só desta loja">L' + l.loja + ' ' + l.nome + '</th>').join('') + '<th class="rede">Rede</th></tr>';
   const cell = (X, l, rede) => { const v = X.valores[l.k] || 0, p = X.pct[l.k]; const neg = l.tipo === 'd' && v > 0; return '<td class="' + (rede ? 'rede' : '') + '">' + (l.tipo === 'r' || l.tipo === 't' ? '<span class="' + (v < 0 ? 'neg' : '') + '">' + moneyK(v) + '</span>' : v ? (neg ? '<span class="neg">(' + moneyK(v) + ')</span>' : moneyK(v)) : '<span style="color:var(--ink-3)">—</span>') + (l.k !== 'receita' ? '<span class="p ' + benchCls(l, p) + '">' + pct(p) + '</span>' : '<span class="p">' + (X.valores.cupons ? X.valores.cupons.toLocaleString('pt-BR') + ' cupons' : '') + '</span>') + '</td>'; };
   let h = '';
   for (const l of L) {
@@ -207,7 +303,9 @@ function render() {
 }
 function toggle(k) { if (ABERTAS.has(k)) ABERTAS.delete(k); else ABERTAS.add(k); render(); }
 function renderSug() {
-  const S = D.sugestoes || [];
+  const S = sugVisiveis(), f = document.getElementById('sug-filtro'), filtrado = typeof VISAO === 'number';
+  f.style.display = filtrado ? '' : 'none';
+  if (filtrado) f.innerHTML = 'Mostrando só as sugestões da <b>L' + VISAO + ' ' + esc(NOMES[VISAO]) + '</b> (' + S.length + ' de ' + (D.sugestoes || []).length + '). <a href="#" onclick="setVisao(\'todas\');return false" style="color:var(--brand-ink);font-weight:700">Ver todas</a>';
   document.getElementById('sug').innerHTML = S.length ? S.map(s => '<div class="sug"><span class="g ' + s.grau + '">' + s.grau + '</span><div><h3>' + esc(s.titulo) + '<small>' + esc(s.area) + '</small></h3><p>' + esc(s.texto) + '</p></div>' + (s.impacto ? '<div class="imp">impacto no período<b class="' + (s.impacto > 0 ? 'ok' : 'bad') + '">' + (s.impacto > 0 ? '+' : '') + moneyK(s.impacto) + '</b></div>' : '') + '</div>').join('') : '<div class="empty">Nada fora da referência neste período.</div>';
 }
 async function abrirLoja(ln) {
@@ -242,7 +340,15 @@ async function salvarParams() {
   if (j.error) { toast('Erro: ' + j.error); return; } toast('Parâmetros salvos'); TEND = null; setAba('dre'); carregar(true);
 }
 function exportar() {
-  if (!D) return; const linhas = [['Linha'].concat(D.lojas.map(l => 'L' + l.loja + ' ' + l.nome), ['Rede']).join(';')];
+  if (!D) return;
+  if (VISAO !== 'todas') {   // visão de uma loja (ou da rede): uma linha por conta da DRE, com os comparativos
+    const ehLoja = typeof VISAO === 'number', pega = d => !d || d.pendente ? null : ehLoja ? d.lojas.find(l => l.loja === VISAO) : d.rede, n = v => String(v ?? '').replace('.', ',');
+    const X = pega(D), C = CMP && CMP.periodo === D.periodo ? CMP : null, A = C ? pega(C.anterior) : null, Y = C ? pega(C.anoAnterior) : null;
+    const out = [['Linha', 'Valor', '% receita'].concat(A ? ['Valor ' + rotMeses(C.anterior.meses), '% receita ' + rotMeses(C.anterior.meses)] : [], Y ? ['Valor ' + rotMeses(C.anoAnterior.meses), '% receita ' + rotMeses(C.anoAnterior.meses)] : [], ehLoja ? ['% receita rede'] : []).join(';')];
+    for (const l of D.linhas) out.push([l.t, n(X.valores[l.k] || 0), n(X.pct[l.k])].concat(A ? [n(A.valores[l.k] || 0), n(A.pct[l.k])] : [], Y ? [n(Y.valores[l.k] || 0), n(Y.pct[l.k])] : [], ehLoja ? [n(D.rede.pct[l.k])] : []).join(';'));
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + out.join('\r\n')], { type: 'text/csv;charset=utf-8' })); a.download = 'dre-' + (ehLoja ? 'L' + VISAO : 'rede') + '-' + D.periodo + '.csv'; a.click(); return;
+  }
+  const linhas = [['Linha'].concat(D.lojas.map(l => 'L' + l.loja + ' ' + l.nome), ['Rede']).join(';')];
   for (const l of D.linhas) { linhas.push([l.t].concat(D.lojas.map(x => String(x.valores[l.k] || 0).replace('.', ',')), [String(D.rede.valores[l.k] || 0).replace('.', ',')]).join(';')); linhas.push(['   % receita'].concat(D.lojas.map(x => String(x.pct[l.k] ?? '').replace('.', ',')), [String(D.rede.pct[l.k] ?? '').replace('.', ',')]).join(';')); }
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + linhas.join('\r\n')], { type: 'text/csv;charset=utf-8' })); a.download = 'dre-' + D.periodo + '.csv'; a.click();
 }
