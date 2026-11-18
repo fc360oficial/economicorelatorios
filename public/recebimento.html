@@ -1352,7 +1352,7 @@ function renderBip() {
   $('bSub').innerHTML = esc('NF-e ' + visao.nNota + ' · Loja ' + sess.loja) + (notaAtual && notaAtual.tipo === 'devolucao' ? ` <span class="pill ${PILL.devolucao[0]}"><i></i>${esc(PILL.devolucao[1])}</span>` : '');
   $('pProd').textContent = visao.produtos;
   // total do topo: item que entrou pela caixa conta em CAIXAS (Tiago, 11/11: "não quero com unidades")
-  { const its = visao.itens || [], cx = i => !!i.caixa && +i.emb > 1, nCx = its.filter(cx).length;
+  { const its = visao.itens || [], cx = i => (!!i.caixa || !!i.cx) && +i.emb > 1, nCx = its.filter(cx).length;
     $('pUn').textContent = num(+its.reduce((a, i) => a + (cx(i) ? +i.quant || 0 : +i.un || 0), 0).toFixed(3));
     $('pUnL').textContent = !nCx ? 'un' : nCx === its.length ? 'cx' : 'vol'; }
   // Lista do que veio na nota (06/10/26, Tiago): só código e descrição, NUNCA quantidade — e nunca
@@ -1435,6 +1435,10 @@ async function lerCodigo(cod) {
   const jaTem = (visao.itens || []).find(i => i.cod === cod) || (alias ? (visao.itens || []).find(i => i.cod === alias) : null);
   ultimoBipado = { cod, descricao: (jaTem || {}).descricao || (cads[cod] || {}).descricao || '' };
   const embJa = jaTem ? ((alias && (cads[cod] || {}).qtdemb) || jaTem.emb || 1) : 1;
+  // Linha que a entrada do ERP lançou em CAIXA pelo código do próprio produto (18/11, NF 340, Pampulha 300 CX c/ 20):
+  // o cartão pede só as caixas. Item que já estava contado em unidade nessa linha abre pra corrigir, em vez de somar +1.
+  const embLinha = !alias ? linhaCx(cod) : 0;
+  if (jaTem && embLinha && !jaTem.caixa && !(+jaTem.emb > 1)) { corrigirItem(jaTem.cod); toast('Este produto entra em caixa c/ ' + num(embLinha) + '. Confira quantas CAIXAS chegaram.'); return; }
   // Loja com lote (CD): bipar de novo abre o cartão, porque a caixa pode ser de outro lote/validade.
   if (jaTem && !exigeLote()) { await enviarBipe('bipar', { cod, quant: 1, emb: embJa }); return; }
   if (jaTem) { abrirCartao({ cod, descricao: descItem(jaTem), emb: embJa, quant: '', validade: '', lote: '', modo: 'bipar', caixa: !!jaTem.caixa }); return; }
@@ -1446,7 +1450,13 @@ async function lerCodigo(cod) {
     if (!cad) { toast('Sem sinal pra buscar o cadastro. Bipe de novo quando voltar a rede.', true); return; }
     setNet(false);
   }
-  abrirCartao({ cod, descricao: cad.descricao, emb: cad.qtdemb || 1, quant: '', validade: '', lote: '', modo: 'bipar', caixa: !!cad.unidade });
+  abrirCartao({ cod, descricao: cad.descricao, emb: (!cad.unidade && embLinha) || cad.qtdemb || 1, quant: '', validade: '', lote: '', modo: 'bipar', caixa: !!cad.unidade || !!embLinha });
+}
+// un/cx da linha da nota quando a ENTRADA do ERP a lançou em caixa pelo código do próprio produto (visao.nota_itens[].cx,
+// só no CD); 0 = linha comum. A lista da nota vem do servidor a cada bipe, então acompanha correção feita no ERP.
+function linhaCx(cod) {
+  const n = ((visao && visao.nota_itens) || []).find(x => x.cod === cod);
+  return n && n.cx && +n.emb > 1 ? +n.emb : 0;
 }
 // quem decide se pede lote é o servidor (visao.exige_lote); desde 09/11/26 nenhuma loja pede, só a validade (Tiago)
 const exigeLote = () => !!(visao && visao.exige_lote);
@@ -1617,7 +1627,9 @@ function corrigirItem(cod) {
   fecharModal();
   // item de caixa gravado com emb 1 (antes de 11/11): o cartão já abre com as un/cx da nota
   const embCx = i.caixa && !(i.emb > 1) ? +((visao.nota_itens || []).find(n => n.cod === i.cod) || {}).emb || i.emb : i.emb;
-  abrirCartao({ cod: i.cod, descricao: descItem(i), emb: embCx, quant: i.quant, validade: i.validade || '', modo: 'corrigir', caixa: !!i.caixa });
+  // linha lançada em caixa na entrada do ERP (18/11): corrigir também pede só as caixas, com as un/cx da linha
+  const embL = !i.caixa ? linhaCx(i.cod) : 0;
+  abrirCartao({ cod: i.cod, descricao: descItem(i), emb: embL || embCx, quant: i.quant, validade: i.validade || '', modo: 'corrigir', caixa: !!i.caixa || !!embL });
 }
 
 // ── conversa com a central, presa à nota aberta ────────────────────────────
