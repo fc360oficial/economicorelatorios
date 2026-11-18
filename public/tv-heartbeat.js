@@ -7,6 +7,7 @@
   var sc = document.currentScript; if (!sc) return;
   var PAINEL = sc.getAttribute('data-painel'); var SO = sc.getAttribute('data-so');
   if (!PAINEL) return;
+  if (location.search.indexOf('embed=1') >= 0) return;   // prévia em Processos › Painéis (18/11/26): não conta como TV ligada
   if (SO && location.pathname.indexOf(SO) !== 0) return;   // ex.: tv-rh.html aberto como /painel-rh.html (logado, no PC) não é TV
   var CHAVE = 'fc360.telaId';
   function novoId() { var a = new Uint8Array(8); (window.crypto || window.msCrypto).getRandomValues(a); return Array.prototype.map.call(a, function (b) { return ('0' + b.toString(16)).slice(-2); }).join(''); }

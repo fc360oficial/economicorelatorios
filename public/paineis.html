@@ -12,12 +12,13 @@
 <style>
 /* Processos › Painéis (Tiago, 27/10/2026: "deixar todos esses painéis em uma aba só em Processos"; SÓ ADMIN — Tiago, Rodrigo,
    Donato; o servidor trava em "Rotas exclusivas de admin"). Abas: Monitor · Painel Compras · Painel Televendas · Painel RH/DP ·
-   Painel Açougue. As configurações continuam nas páginas de sempre, abertas aqui dentro com ?embed=1 (sem menu). */
+   Painel Açougue · Painel Fiscal · Painel Expedição CD · Painel Precificação · Painel Robô (uma aba pra cada painel de
+   lib/paineis-tvs.js PAINEIS — painel novo lá = aba nova aqui). As configurações continuam nas páginas de sempre, abertas aqui dentro com ?embed=1 (sem menu). */
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:var(--font,'InterVar','Inter','Segoe UI',system-ui,sans-serif);background:var(--pap);color:var(--ink);min-height:100vh;font-size:13px;line-height:1.45}
 .main{padding:24px 24px 0;max-width:1400px;display:flex;flex-direction:column;min-height:100vh}
 .page-hdr{margin-bottom:12px}.page-hdr h1{font-size:21px;font-weight:800}.page-hdr p{font-size:12px;color:var(--ink3);margin-top:2px;max-width:95ch}
-.tabs{display:flex;gap:2px;border-bottom:1px solid var(--ln);overflow-x:auto}
+.tabs{display:flex;flex-wrap:wrap;gap:2px;border-bottom:1px solid var(--ln)}   /* 9 abas (18/11/26): tela estreita quebra em 2 linhas, sem cortar a última */
 .tabs button{font-family:inherit;cursor:pointer;background:none;border:0;padding:9px 14px;color:var(--ink2);font-weight:600;white-space:nowrap;border-bottom:2px solid transparent;font-size:13px;display:flex;align-items:center;gap:7px}
 .tabs button.on{color:var(--ink);border-color:var(--ink)}
 .tabs button:focus-visible{outline:2px solid var(--inf);outline-offset:-2px}
@@ -66,6 +67,8 @@ body{font-family:var(--font,'InterVar','Inter','Segoe UI',system-ui,sans-serif);
     <button data-aba="acougue" role="tab"><span class="dot" id="dot-acougue"></span>Painel Açougue</button>
     <button data-aba="fiscal" role="tab"><span class="dot" id="dot-fiscal"></span>Painel Fiscal</button>
     <button data-aba="expedicao" role="tab"><span class="dot" id="dot-expedicao"></span>Painel Expedição CD</button>
+    <button data-aba="precificacao" role="tab"><span class="dot" id="dot-precificacao"></span>Painel Precificação</button>
+    <button data-aba="robo" role="tab"><span class="dot" id="dot-robo"></span>Painel Robô</button>
   </div>
 
   <section class="aba on" id="aba-monitor"><iframe data-src="/paineis-tvs.html?embed=1" title="Monitor dos painéis"></iframe></section>
@@ -101,6 +104,32 @@ body{font-family:var(--font,'InterVar','Inter','Segoe UI',system-ui,sans-serif);
       <div class="links"><span class="lb">Link</span><input class="lk" id="pe-link" readonly><button class="btn" data-copia="pe-link">Copiar</button></div>
     </div>
     <iframe data-src="/painel-cd.html?embed=1" title="Painel Expedição CD" style="height:auto;aspect-ratio:16/9;min-height:0"></iframe>
+  </section>
+  <!-- 18/11/26 (Tiago: "cadê? temos todos os painéis aqui?"): Precificação e Robô estavam no cadastro das TVs (lib/paineis-tvs.js)
+       e no Monitor, mas sem aba. Não têm configuração própria: link da TV + prévia (?embed=1 não conta como TV ligada). -->
+  <section class="aba" id="aba-precificacao">
+    <div class="card" style="margin-bottom:12px">
+      <h2>Link da TV</h2>
+      <p class="d">Abra na TV da sala de precificação. Não tem token nem login. Passa uma loja por vez, 20 s por página: abaixo do custo, custo subiu e abaixo da margem, com a meta de margem da loja em cima. Os alertas são respondidos em Precificação › Alertas de Preço.</p>
+      <div class="links">
+        <span class="lb">Na rede</span><input class="lk" id="pp-lan" readonly><button class="btn" data-copia="pp-lan">Copiar</button>
+        <span class="lb">Fora</span><input class="lk" id="pp-ext" readonly><button class="btn" data-copia="pp-ext">Copiar</button>
+      </div>
+    </div>
+    <iframe data-src="/painel-precificacao.html?embed=1" title="Painel Precificação" allowfullscreen style="height:auto;aspect-ratio:16/9;min-height:0"></iframe>
+  </section>
+  <section class="aba" id="aba-robo">
+    <div class="card" style="margin-bottom:12px">
+      <h2>Link da TV</h2>
+      <p class="d">Abra na TV. Não tem token nem login. Mostra o ensaio do robô de compras e preço, etapa por etapa, e avisa em amarelo quando ele está esperando aprovação. Tudo no ERP de teste. O ensaio começa em Processos › Ensaio do Robô.</p>
+      <div class="links">
+        <span class="lb">Na rede</span><input class="lk" id="pr-lan" readonly><button class="btn" data-copia="pr-lan">Copiar</button>
+        <span class="lb">Fora</span><input class="lk" id="pr-ext" readonly><button class="btn" data-copia="pr-ext">Copiar</button>
+        <span class="lb">Em 3D</span><input class="lk" id="pr-3d" readonly><button class="btn" data-copia="pr-3d">Copiar</button>
+      </div>
+      <p class="como"><b>Em 3D</b> é o escritório do robô, pesado: só pra computador, a TV não aguenta.</p>
+    </div>
+    <iframe data-src="/painel-robo.html?embed=1" title="Painel Robô" allowfullscreen style="height:auto;aspect-ratio:16/9;min-height:0"></iframe>
   </section>
   <section class="aba" id="aba-fiscal">
     <div class="pc">
@@ -142,17 +171,26 @@ function abrir(id, push) {
   if (id === 'compras') carregarCompras();
   if (id === 'fiscal') carregarFiscal();
   if (id === 'expedicao') $('#pe-link').value = location.origin + '/painel-cd.html';
+  if (id === 'precificacao' || id === 'robo') linksSimples();
   if (push) history.replaceState(null, '', '#' + id);
+}
+// Precificação e Robô: páginas sem token. O endereço de fora vem do servidor (o mesmo do Painel Compras).
+const LAN = 'http://192.168.2.254:3003';
+async function linksSimples() {
+  let ext = location.origin;
+  try { ext = new URL((await api('/api/paineis/compras-config')).linkTV).origin; } catch (e) {}
+  $('#pp-lan').value = LAN + '/painel-precificacao.html'; $('#pp-ext').value = ext + '/painel-precificacao.html';
+  $('#pr-lan').value = LAN + '/painel-robo.html'; $('#pr-ext').value = ext + '/painel-robo.html'; $('#pr-3d').value = LAN + '/painel-robo-3d.html';
 }
 document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => abrir(b.dataset.aba, true)));
 const ini = location.hash.replace('#', '');
-abrir(['monitor', 'compras', 'televendas', 'rh', 'acougue', 'fiscal', 'expedicao'].includes(ini) ? ini : 'monitor', false);
+abrir(['monitor', 'compras', 'televendas', 'rh', 'acougue', 'fiscal', 'expedicao', 'precificacao', 'robo'].includes(ini) ? ini : 'monitor', false);
 
 // ── bolinha de status em cada aba (mesma leitura do monitor, a cada 15 s) ──
 async function status() {
   try {
     const d = await api('/api/paineis');
-    for (const p of ['compras', 'televendas', 'rh', 'acougue', 'fiscal', 'expedicao']) {
+    for (const p of ['compras', 'televendas', 'rh', 'acougue', 'fiscal', 'expedicao', 'precificacao', 'robo']) {
       const telas = d.telas.filter(t => t.painel === p);
       const st = telas.some(t => t.status === 'ligada') ? 'ligada' : telas.some(t => t.status === 'instavel') ? 'instavel' : telas.length ? 'desligada' : '';
       const el = $('#dot-' + p); el.className = 'dot ' + st; el.title = st ? ({ ligada: 'Ligada', instavel: 'Instável', desligada: 'Desligada' })[st] : 'Nenhum aparelho deu sinal';
