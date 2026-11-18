@@ -172,3 +172,37 @@ test('regra da caixa continua só no CD: numa loja a mesma entrada em caixa não
   const r = await recebimento.bipar(c.id, { cod: '7898920160897', quant: 300, emb: 1, validade: VAL() });
   assert.equal(r.item.un, 300); assert.ok(!r.item.cx);
 });
+
+// ── Fiscal: NF 340 como ficou no lançamento 8702 do ERP (Pampulha em caixa c/ 20, panettone em UNIDADES no código da caixa) ──
+test('Fiscal, NF 340: panettone lançado em unidades no código da caixa vale em CAIXAS (140 CX = 140 CX) com aviso; Pampulha fica em unidades (6.000 = 6.000, 300 CX ×20)', () => {
+  const fiscal = require('../lib/fiscal');
+  const linha = () => ({ nReg: 189053, loja: 10, notas: [{ nNota: 340, chave: CH }], situacao: 'em_contagem', checks: {},
+    itens: [
+      { ean: '7898920160897', descricao: 'PAMPULHA QUEIJO RALADO 50G', xml_qtd: 6000, xml_und: 'UN', xml_qtd_com: 300, xml_und_com: 'CX ×20', custo_xml: 3.05, flags: [] },
+      { ean: '27896369617747', descricao: 'PANETTONE MARIZA 400G FRUTAS CX12', xml_qtd: 1680, xml_und: 'UND', xml_qtd_com: 1680, xml_und_com: null, custo_xml: 9, flags: [] },
+    ] });
+  const conf = (pampulha) => ({ id: '2026-11-18-10-b54ee0e519', loja: 10, nNota: '340', chave: CH, nome: 'LIMA', status: 'terminada', recontagens: 1, erp: { nReg: 182394, erros: [] },
+    xml_itens: itensDaNota(XML_340, [ENTRADA_340[0], { ...ENTRADA_340[1], Unid: 'UND', Qtd: '1680', QtdEntradaEstoque: '1680' }, { ...ENTRADA_340[2], Unid: 'UND', Qtd: '840', QtdEntradaEstoque: '840' }]),
+    itens: {
+      '7898920160897': { cod: '7898920160897', descricao: 'PAMPULHA QUEIJO RALADO 50G', validade: '2027-04-11', estado: 'ok', ...pampulha },
+      '7896369617743': { cod: '7896369617743', descricao: 'MARIZA PANETTONE FRUTAS 400G', quant: 140, emb: 12, un: 1680, caixa: '27896369617747', caixa_descricao: 'PANETTONE MARIZA 400G FRUTAS CX12', validade: '2027-03-30', estado: 'ok' },
+    } });
+  let r = fiscal.mesclarEconomico(linha(), conf({ quant: 300, emb: 20, un: 6000, cx: true }), []);
+  const pan = r.itens.find(i => i.ean === '27896369617747'), pam = r.itens.find(i => i.ean === '7898920160897');
+  assert.deepEqual(pan.nota_cx, { qtd: 140, emb: 12, custo: 108 });
+  assert.equal(pan.eco_qtd, 140); assert.equal(pan.eco_dif, 0); assert.ok(!pan.eco_fator);
+  assert.ok(pan.flags.some(f => f.tipo === 'caixa_em_unidade' && f.nivel === 'aviso' && /140 CX/.test(f.msg)));
+  assert.equal(pam.eco_qtd, 6000); assert.equal(pam.eco_dif, 0); assert.equal(pam.eco_cx, 300); assert.equal(pam.eco_emb, 20); assert.ok(!pam.nota_cx);
+  assert.equal(r.economico.fisico.nivel, 'ok', r.economico.fisico.msg);
+  // enquanto o Pampulha estiver 300 × 1: aviso "×20", não falta; e faltar caixa de panettone continua erro (139 de 140)
+  r = fiscal.mesclarEconomico(linha(), conf({ quant: 300, emb: 1, un: 300 }), []);
+  assert.equal(r.itens.find(i => i.ean === '7898920160897').eco_fator, 20); assert.equal(r.economico.fisico.nivel, 'aviso');
+  const c2 = conf({ quant: 300, emb: 20, un: 6000 }); c2.itens['7896369617743'].quant = 139; c2.itens['7896369617743'].un = 1668;
+  r = fiscal.mesclarEconomico(linha(), c2, []);
+  assert.equal(r.itens.find(i => i.ean === '27896369617747').eco_dif, -1); assert.equal(r.economico.fisico.nivel, 'erro');
+  // lançado certo no ERP (140 CX): nada de aviso, segue 140 = 140
+  const l3 = linha(); Object.assign(l3.itens[1], { xml_qtd: 140, xml_und: 'CX', xml_qtd_com: 140, custo_xml: 108 });
+  const c3 = conf({ quant: 300, emb: 20, un: 6000 }); c3.xml_itens = itensDaNota(XML_340, ENTRADA_340);
+  r = fiscal.mesclarEconomico(l3, c3, []);
+  const p3 = r.itens.find(i => i.ean === '27896369617747'); assert.ok(!p3.nota_cx); assert.equal(p3.eco_dif, 0); assert.equal(p3.flags.length, 0);
+});

@@ -1352,7 +1352,7 @@ function renderBip() {
   $('bSub').innerHTML = esc('NF-e ' + visao.nNota + ' · Loja ' + sess.loja) + (notaAtual && notaAtual.tipo === 'devolucao' ? ` <span class="pill ${PILL.devolucao[0]}"><i></i>${esc(PILL.devolucao[1])}</span>` : '');
   $('pProd').textContent = visao.produtos;
   // total do topo: item que entrou pela caixa conta em CAIXAS (Tiago, 11/11: "não quero com unidades")
-  { const its = visao.itens || [], cx = i => (!!i.caixa || !!i.cx) && +i.emb > 1, nCx = its.filter(cx).length;
+  { const its = visao.itens || [], cx = i => !!i.caixa && +i.emb > 1, nCx = its.filter(cx).length;
     $('pUn').textContent = num(+its.reduce((a, i) => a + (cx(i) ? +i.quant || 0 : +i.un || 0), 0).toFixed(3));
     $('pUnL').textContent = !nCx ? 'un' : nCx === its.length ? 'cx' : 'vol'; }
   // Lista do que veio na nota (06/10/26, Tiago): só código e descrição, NUNCA quantidade — e nunca
@@ -1384,6 +1384,10 @@ function qtdItem(i) {
   const emb = +i.emb || 1, q = +i.quant || 0, un = +i.un || 0;
   // regra da caixa só dentro do CD (Tiago, 11/11: "as lojas serão diferente"): nas lojas a contagem segue em unidades
   const cd = visao && visao.regra_caixa != null ? !!visao.regra_caixa : !!(sess && +sess.loja === 10);
+  // Tiago, 18/11 (NF 340): "pampulha como unidade e panettone como caixa". Produto que é UNIDADE e só chegou em caixa
+  // (linha cx: bipado pelo código da unidade, contado 300 cx × 20) aparece em unidades; quem aparece em caixa é o
+  // produto bipado pela caixa.
+  if (cd && i.cx && !i.caixa) return { n: num(un), l: 'un', sub: num(q) + ' cx × ' + num(emb) };
   if (cd && emb > 1 && Math.abs(q * emb - un) < 0.001) return { n: num(q), l: esc(String(i.emb_label && i.emb_label !== 'UN' ? i.emb_label : 'CX').toLowerCase()), sub: i.caixa ? '' : 'c/ ' + num(emb) + ' = ' + num(un) + ' un' };
   return { n: num(un), l: 'un', sub: num(q) + ' × ' + num(emb) };
 }
