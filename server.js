@@ -7950,6 +7950,20 @@ app.get('/api/dre/comparativo', async (req, res) => {
     res.json(dados);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+// Fechamento do mês (18/11/26): GET diz se o mês está fechado e o que mudou no ERP depois; POST fecha ou reabre (só admin).
+app.get('/api/dre/fechamento', async (req, res) => {
+  try { res.json(await dre.situacaoFechamento(String(req.query.mes || '').trim())); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+app.post('/api/dre/fechamento', async (req, res) => {
+  try {
+    if (req.session?.user?.perfil !== 'admin') return res.status(403).json({ error: 'Só admin fecha ou reabre o mês.' });
+    const mes = String((req.body || {}).mes || '').trim(), por = req.session.user.nome || req.session.user.usuario || '';
+    const r = (req.body || {}).acao === 'reabrir' ? dre.reabrirMes(mes, por) : await dre.fecharMes(mes, por);
+    for (const k of Object.keys(_dreCache)) delete _dreCache[k];
+    res.json(r);
+  } catch (err) { res.status(400).json({ error: err.message }); }
+});
 // Lançamentos por trás de uma conta da DRE (18/11/26): títulos do contas a pagar da conta no período, da loja/rede/Central.
 app.get('/api/dre/lancamentos', async (req, res) => {
   try {

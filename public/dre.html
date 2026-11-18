@@ -111,6 +111,12 @@ table.dre.uma th{cursor:default}
 table.dre.uma td:first-child{min-width:290px}
 table.dre.uma th.grp,table.dre.uma td.grp{border-left:1px solid var(--border)}
 table.dre.uma td.carr{color:var(--ink-3);font-style:italic;font-weight:500}
+/* fechamento do mês (18/11/26) */
+#fech{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.chipf{font-size:11.5px;font-weight:700;padding:5px 10px;border-radius:999px;background:var(--surface-2);color:var(--ink-2);white-space:nowrap}
+.chipf.ok{background:#E3F4EA;color:var(--ok)}
+.btn.mini{padding:5px 10px;font-size:11.5px}
+.btn.mini.av{border-color:#F0C48A;background:#FFF1E0;color:var(--warn)}
 /* abrir a conta até o lançamento (18/11/26) */
 table.dre td.lk{cursor:pointer}table.dre td.lk:hover{text-decoration:underline}
 table.dre tr.sub.lanc{cursor:pointer}table.dre tr.sub.lanc:hover td{background:#FFF6D9}
@@ -137,6 +143,7 @@ table.m td.tx{text-align:left;white-space:normal;max-width:260px}
     <div class="seg" id="seg-tipo"><button class="on" data-t="mes" onclick="setTipo('mes')">Mês</button><button data-t="ano" onclick="setTipo('ano')">Acumulado do ano</button><button data-t="12m" onclick="setTipo('12m')">Últimos 12 meses</button></div>
     <select id="f-ano" onchange="carregar()"></select>
     <select id="f-mes" onchange="carregar()"><option value="01">Janeiro</option><option value="02">Fevereiro</option><option value="03">Março</option><option value="04">Abril</option><option value="05">Maio</option><option value="06">Junho</option><option value="07">Julho</option><option value="08">Agosto</option><option value="09">Setembro</option><option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option></select>
+    <span id="fech"></span>
     <span class="info" id="info"></span>
   </div>
   <div class="toolbar">
@@ -206,11 +213,45 @@ function setTipo(t) { TIPO = t; document.querySelectorAll('#seg-tipo button').fo
 function setAba(a) { document.querySelectorAll('.tab').forEach(t => t.classList.toggle('on', t.dataset.aba === a)); for (const x of ['dre', 'tendencia', 'sugestoes', 'params']) document.getElementById('aba-' + x).style.display = x === a ? '' : 'none'; if (a === 'tendencia' && !TEND) carregarTendencia(); if (a === 'params' && !PAR) carregarParams(); }
 
 async function carregar(refresh) {
-  document.getElementById('tbody').innerHTML = '<tr><td><div class="spin"></div></td></tr>'; document.getElementById('info').textContent = 'calculando…';
+  document.getElementById('tbody').innerHTML = '<tr><td><div class="spin"></div></td></tr>'; document.getElementById('info').textContent = 'calculando…'; FECH = null; document.getElementById('fech').innerHTML = '';
   try {
     const r = await fetch('/api/dre?periodo=' + periodo() + (refresh ? '&refresh=1' : '')); const j = await r.json(); if (j.error) throw new Error(j.error);
-    D = j; if (refresh) CMP_PER = null; render(); if (VISAO !== 'todas') carregarCmp();
+    D = j; if (refresh) CMP_PER = null; render(); carregarFech(); if (VISAO !== 'todas') carregarCmp();
   } catch (e) { document.getElementById('tbody').innerHTML = '<tr><td class="empty" style="color:var(--bad)">' + esc(e.message) + '</td></tr>'; }
+}
+// ── fechamento do mês: mês fechado usa os números guardados e não acompanha mais o ERP; só admin fecha e reabre ──
+let EU = null, FECH = null;
+fetch('/api/me').then(r => r.json()).then(j => { EU = j; renderFech(); }).catch(() => {});
+async function carregarFech() {
+  FECH = null; renderFech(); if (TIPO !== 'mes') return; const mes = periodo();
+  try { const r = await fetch('/api/dre/fechamento?mes=' + mes); const j = await r.json(); if (j.error || mes !== periodo()) return; FECH = j; } catch (e) { return; }
+  renderFech();
+}
+function renderFech() {
+  const el = document.getElementById('fech'), adm = EU && EU.perfil === 'admin'; let h = '';
+  if (D && D.nMeses > 1) { const n = (D.mesesTravados || []).length; if (n) h = '<span class="chipf" title="Mês fechado usa os números guardados no fechamento">🔒 ' + n + ' de ' + D.nMeses + ' meses fechados</span>'; }
+  else if (FECH && FECH.fechado) {
+    const n = FECH.mudancas.length;
+    h = '<span class="chipf ok" title="A DRE deste mês usa os números guardados no fechamento">🔒 Fechado em ' + new Date(FECH.em).toLocaleDateString('pt-BR') + (FECH.por ? ' por ' + esc(FECH.por) : '') + '</span>'
+      + (n ? '<button class="btn mini av" onclick="abrirMudancas()">⚠ ' + n + (n === 1 ? ' conta mudou' : ' contas mudaram') + ' no ERP depois</button>' : '<span class="chipf">nada mudou no ERP desde então</span>')
+      + (adm ? '<button class="btn mini" onclick="fecharMes(\'reabrir\')">Reabrir</button>' : '');
+  } else if (FECH && FECH.podeFechar && adm) h = '<button class="btn mini" title="Guarda os números de agora: mudanças feitas depois no ERP não alteram mais a DRE deste mês" onclick="fecharMes(\'fechar\')">🔒 Fechar mês</button>';
+  el.innerHTML = h;
+}
+async function fecharMes(acao) {
+  const mes = periodo(), rot = MESES[+mes.slice(5)] + '/' + mes.slice(0, 4);
+  if (!confirm(acao === 'fechar' ? 'Fechar ' + rot + '?\n\nA DRE desse mês passa a usar os números de agora e deixa de acompanhar mudanças feitas depois no ERP. Dá pra reabrir.' : 'Reabrir ' + rot + '?\n\nO mês volta a acompanhar o ERP e os números guardados no fechamento são descartados.')) return;
+  let j; try { const r = await fetch('/api/dre/fechamento', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mes, acao }) }); j = await r.json(); } catch (e) { j = { error: e.message }; }
+  if (j.error) { toast('Erro: ' + j.error); return; }
+  toast(acao === 'fechar' ? 'Mês fechado' : 'Mês reaberto'); TEND = null; CMP_PER = null; carregar(true);
+}
+function abrirMudancas() {
+  if (!FECH || !FECH.fechado) return; const byK = Object.fromEntries(D.linhas.map(l => [l.k, l]));
+  document.getElementById('md').classList.add('open'); document.getElementById('md-t').textContent = 'O que mudou no ERP depois do fechamento';
+  document.getElementById('md-s').textContent = 'fechado em ' + new Date(FECH.em).toLocaleDateString('pt-BR') + (FECH.por ? ' por ' + FECH.por : '') + ' · a DRE continua com o número do fechamento';
+  document.getElementById('md-b').innerHTML = '<div class="note">Estas contas têm hoje, no ERP, um valor diferente do que foi guardado no fechamento. A DRE do mês <b>não mudou</b>. Se a mudança estiver certa, reabra o mês e feche de novo pra ela entrar. Diferença somada: <b>' + money(FECH.totalMudou) + '</b>.</div>'
+    + '<table class="m"><thead><tr><th>Unidade</th><th style="text-align:left">Conta</th><th style="text-align:left">Linha da DRE</th><th>No fechamento</th><th>Hoje no ERP</th><th>Diferença</th></tr></thead><tbody>'
+    + FECH.mudancas.map(x => '<tr><td>' + (x.loja === 10 ? 'CD' : 'L' + x.loja) + '</td><td class="tx">' + esc(x.conta) + ' <span style="color:var(--ink-3);font-size:10px">' + esc(x.chave) + '</span></td><td class="tx">' + esc(byK[x.linha] ? byK[x.linha].t.replace(/^\(−\) /, '') : x.linha || '') + '</td><td>' + money(x.antes) + '</td><td>' + money(x.agora) + '</td><td><b class="' + (x.dif > 0 ? 'bad' : 'ok') + '">' + (x.dif > 0 ? '+' : '') + money(x.dif) + '</b></td></tr>').join('') + '</tbody></table>';
 }
 // comparativos (mês anterior e ano anterior) só são pedidos quando alguém abre a visão de uma loja ou da rede
 async function carregarCmp() {
@@ -347,6 +388,7 @@ async function abrirLanc(linha, chave, loja) {
   document.getElementById('md-s').textContent = (j.grupo ? 'Grupo, 6 lojas + CD' : ehCD ? 'CD / Distribuidora' : j.central ? 'Central/CD' : ehLoja ? 'L' + loja + ' ' + NOMES[loja] : 'Rede, 6 lojas') + ' · ' + (byK[linha] ? byK[linha].t.replace(/^\(−\) /, '') : '') + ' · competência ' + per;
   let h = '<div style="display:flex;gap:18px;flex-wrap:wrap;align-items:baseline;margin-bottom:10px;font-size:12.5px"><span><b style="font-size:18px">' + money(j.total) + '</b></span><span>' + j.n + ' lançamento' + (j.n === 1 ? '' : 's') + '</span></div>';
   if (j.central && ehLoja) { const o = ((D.lojas.find(x => x.loja === loja) || {}).detalhe[linha] || {})[chave]; h += '<div class="note">Despesa da <b>Central/CD</b>, rateada entre as lojas. A lista abaixo é a despesa inteira; ' + (o ? 'a parte da L' + loja + ' no período é <b>' + money(o.v) + '</b>.' : 'cada loja recebe a parte dela pelo rateio.') + '</div>'; }
+  if ((D.mesesTravados || []).length) h += '<div class="note">🔒 ' + (D.nMeses === 1 ? 'Mês fechado' : 'Período com mês fechado') + ': esta lista é a situação <b>de hoje</b> no ERP e pode não bater com o valor guardado no fechamento.</div>';
   if (j.fora.n) h += '<div class="note"><b>' + j.fora.n + ' lançamento' + (j.fora.n === 1 ? '' : 's') + ' (' + money(j.fora.v) + ')</b> ' + (j.fora.n === 1 ? 'vence' : 'vencem') + ' 2 meses ou mais longe do mês de competência (linhas em amarelo). Costuma ser parcela futura lançada de uma vez: o ERP grava a competência do dia do lançamento. Sem ' + (j.fora.n === 1 ? 'ele' : 'eles') + ', esta conta ficaria em <b>' + money(j.total - j.fora.v) + '</b>. A DRE não altera o número: a correção é na competência do título, no ERP.</div>';
   h += j.n ? '<table class="m"><thead><tr><th>Vencimento</th>' + (varias ? '<th>Filial</th>' : '') + (multi ? '<th>Competência</th>' : '') + '<th style="text-align:left">Fornecedor</th><th style="text-align:left">Documento</th><th style="text-align:left">Histórico</th><th>Lançado em</th><th>Situação</th><th>Valor</th></tr></thead><tbody>'
     + j.itens.map(x => '<tr class="' + (x.fora ? 'fora' : '') + '"><td>' + dataBR(x.venc) + (x.fora ? '<span class="tagf">' + (x.dist > 0 ? x.dist + ' meses depois' : -x.dist + ' meses antes') + '</span>' : '') + '</td>' + (varias ? '<td>' + (x.loja === 10 ? 'CD' : 'L' + x.loja) + '</td>' : '') + (multi ? '<td>' + MESES[+x.ym.slice(5)] + '/' + x.ym.slice(2, 4) + '</td>' : '')
