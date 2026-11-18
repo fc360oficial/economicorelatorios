@@ -4516,6 +4516,37 @@ app.get('/api/listas-compra/validade-pendente', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Planilha .xlsx dos itens sem validade com a sugestão de cada um, pra quem vai digitar no cadastro do ERP (Tiago, 18/11/2026).
+// ?lista=<nReg> (uma lista) · ?comprador=<nome> (as listas dele/dela) · ?confianca=alta|media|baixa|sem. Só leitura.
+app.get('/api/listas-compra/validade-pendente/planilha', async (req, res) => {
+  try {
+    const listaId = parseInt(req.query.lista) || null;
+    const comprador = String(req.query.comprador || '').trim();
+    const confianca = ['alta', 'media', 'baixa', 'sem'].includes(req.query.confianca) ? req.query.confianca : null;
+    const [itensTodos, listasRows] = await Promise.all([
+      coletarValidadePendente(listaId),
+      q(`SELECT nReg, Nome, NomeFornec FROM central.c_cotacao_lista`)
+    ]);
+    const itens = itensTodos.filter(it => it.sem_validade);
+    const sug = await sugestoesValidade(itens).catch(e => { console.error('[VALIDADE] sugestão:', e.message); return null; });
+    const _nRegToComp = {};
+    for (const [comp, nRegs] of Object.entries(NREGS_COMPRADOR)) for (const nReg of nRegs) _nRegToComp[nReg] = comp;
+    const porLista = {}; for (const l of listasRows) porLista[l.nReg] = l;
+    let linhas = itens.map(it => ({ lista: it.lista_id, nome: porLista[it.lista_id]?.Nome?.trim() || '', fornecedor: porLista[it.lista_id]?.NomeFornec?.trim() || '',
+      comprador: _nRegToComp[it.lista_id] || '', codigo: it.codigo, descricao: it.descricao, lojas: it.lojas, validade_dias: it.validade_dias, balanca: it.balanca,
+      sugestao: (sug && sug[it.codigo]) || null }));
+    if (comprador) linhas = linhas.filter(l => l.comprador === comprador);
+    if (confianca) linhas = linhas.filter(l => validadeSugestao.confDe(l) === confianca);
+    const ROT = { alta: 'confiança alta', media: 'confiança média', baixa: 'confiança baixa', sem: 'sem sugestão' };
+    const filtro = [listaId ? 'lista #' + listaId : null, comprador || null, confianca ? ROT[confianca] : null].filter(Boolean).join(' · ');
+    const buf = await validadeSugestao.planilha(linhas, { filtro });
+    const sufixo = (listaId ? '-lista-' + listaId : '') + (comprador ? '-' + comprador.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') : '') + (confianca ? '-' + confianca : '');
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="sem-validade${sufixo}.xlsx"`);
+    res.send(buf);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/api/listas-compra/:id/validade-pendente', async (req, res) => {
   try {
     const id = parseInt(req.params.id);

@@ -79,3 +79,22 @@ test('leitura de 1 dia do coletor não vira sugestão, mas a evidência aparece'
   const s = vs.sugerir({}, vs.montarReferencia([]), { entradas: 1, p25: 1, p50: 1, p75: 1 });
   assert.strictEqual(s.dias, null); assert.strictEqual(s.coletor.tipico, 1);
 });
+
+test('planilha: código de barras como texto, ordenada por lista e confiança, com a origem da sugestão', async () => {
+  const ExcelJS = require('exceljs');
+  const sug = (dias, confianca, base, coletor) => ({ dias, confianca, base, fonte: 'subgrupo', coletor: coletor || null });
+  const buf = await vs.planilha([
+    { lista: 412, nome: 'GRIFOS', fornecedor: 'GRIFOS LTDA', comprador: 'STEPHANNY', codigo: '7896001020658', descricao: 'ESCOVA', lojas: [1, 4], validade_dias: 1, sugestao: sug(365, 'media', 'Subgrupo "UTILIDADE": 83 de 130 produtos com 365 dias', { entradas: 21, tipico: 458 }) },
+    { lista: 412, nome: 'GRIFOS', fornecedor: 'GRIFOS LTDA', comprador: 'STEPHANNY', codigo: '7896007811021', descricao: 'MOLHO', lojas: [3], validade_dias: 0, sugestao: sug(180, 'alta', 'Subgrupo "CONDIMENTOS": 293 de 350 produtos com 180 dias') },
+    { lista: 364, nome: 'COTAÇÃO PADARIA', fornecedor: 'ATACAREJO', comprador: 'CRISLANE', codigo: '5102', descricao: 'BANDEJA', lojas: [1, 2, 3, 4, 5, 6], validade_dias: 0, sugestao: null },
+  ], { filtro: 'teste' });
+  const wb = new ExcelJS.Workbook(); await wb.xlsx.load(buf);
+  const ws = wb.getWorksheet('Sem validade');
+  assert.strictEqual(ws.rowCount, 4);
+  const lin = n => ws.getRow(n).values.slice(1);
+  assert.strictEqual(lin(1)[4], 'Código de barras');
+  assert.deepStrictEqual([lin(2)[0], lin(2)[9], lin(2)[6]], [364, 'Sem sugestão', 'E1 E2 E3 E4 E5 E6']);   // C antes de G
+  assert.deepStrictEqual([lin(3)[5], lin(3)[8], lin(3)[9]], ['MOLHO', 180, 'Alta']);                         // alta antes de média na mesma lista
+  assert.deepStrictEqual([lin(4)[4], typeof lin(4)[4], lin(4)[11], lin(4)[12]], ['7896001020658', 'string', 458, 21]);
+  assert.match(wb.getWorksheet('Como ler').getRow(1).values[1], /3 itens sem validade/);
+});

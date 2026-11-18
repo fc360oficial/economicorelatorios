@@ -277,6 +277,10 @@ table.comp-t tr:hover td{background:#ffffff05}
 @media print{.pend-cs,.pend-res{display:none!important}}
 .itens-badge{display:inline-block;background:#F5B80022;border:1px solid #F5B80055;border-radius:6px;padding:2px 8px;font-size:12px;color:#6B4E00;font-weight:700}
 /* SEM VALIDADE: indicadores numa linha, explicação embaixo na largura toda, sugestão de validade (18/11/26) */
+.val-topo{display:flex;gap:10px;align-items:flex-start;margin-bottom:8px}
+.val-topo .val-kpis{flex:1;margin-bottom:0}
+.val-topo .btn{align-self:flex-start;flex-shrink:0}
+.quick-filters .qf-plan{margin-left:auto;font-weight:700;color:#0E1626;border-color:#C9C9C4;background:#FFFFFF}
 .val-kpis{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px}
 .val-kpis .d-kpi{background:#FFFFFF;flex:1 1 150px;max-width:230px}
 .val-nota{font-size:11.5px;line-height:1.5;color:#4E5A72;margin-bottom:12px}
@@ -666,7 +670,10 @@ table.main-t td.c-comp{min-width:110px}
   </div>
 
   <div id="sec-validade" style="display:none">
-    <div id="val-kpi" class="val-kpis"></div>
+    <div class="val-topo">
+      <div id="val-kpi" class="val-kpis"></div>
+      <button class="btn btn-slate no-print" onclick="baixarPlanilhaValidade(null,this)" title="Baixa em Excel todos os itens sem validade (do comprador escolhido no filtro, se houver) com a sugestão, a confiança e a origem de cada um — pra quem vai digitar no cadastro do ERP">⬇ Planilha</button>
+    </div>
     <div class="val-nota">
       Só produtos <b>ativos</b> com loja marcada na lista. <b>Sem validade</b> = campo "Validade (dias)" do cadastro do ERP vazio, 0 ou <b>1</b> — o ERP grava 1 como padrão quando ninguém preencheu.
       <b>Sugestão</b> = o número que os produtos parecidos (mesma família ou subgrupo) já usam no cadastro; sem parecido, sai do que o coletor leu nas entradas do próprio produto. Clique na lista para ver item a item, com a origem de cada sugestão. Nada é gravado no ERP.
@@ -1974,8 +1981,24 @@ async function abrirListaValidade(id) {
 
 // Itens sem validade da lista aberta, com a SUGESTÃO de cada um (número, confiança, de onde veio e o que o coletor leu
 // na chegada). Filtro rápido pela confiança — quem vai preencher o cadastro começa pelas de confiança alta.
+// Planilha .xlsx pra quem vai digitar no cadastro do ERP: da tela geral sai tudo (ou só o comprador do filtro);
+// de dentro da lista sai só ela, no filtro de confiança que estiver marcado.
+async function baixarPlanilhaValidade(listaId, bt) {
+  const p = new URLSearchParams();
+  if (listaId) { p.set('lista', listaId); if (_valFiltro !== 'todos') p.set('confianca', _valFiltro); }
+  else { const c = document.getElementById('fil-comprador').value; if (c) p.set('comprador', c); }
+  const rot = bt && bt.textContent;
+  if (bt) { bt.disabled = true; bt.textContent = 'Gerando…'; }
+  try {
+    const r = await fetch('/api/listas-compra/validade-pendente/planilha?' + p);
+    if (!r.ok) throw new Error(r.status === 401 ? 'sessão expirada — entre de novo' : 'HTTP ' + r.status);
+    const nome = (/filename="([^"]+)"/.exec(r.headers.get('Content-Disposition') || '') || [])[1] || 'sem-validade.xlsx';
+    const b = await r.blob(); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = nome; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  } catch (e) { alert('Erro ao gerar a planilha: ' + e.message); }
+  finally { if (bt) { bt.disabled = false; bt.textContent = rot; } }
+}
 let _valFiltro = 'todos';
-const _VAL_CONF = { alta: 'Alta', media: 'Média', baixa: 'Baixa' };
+const _VAL_CONF ={ alta: 'Alta', media: 'Média', baixa: 'Baixa' };
 function filtrarValidade(f) { _valFiltro = f; desenharItensValidade(); }
 function desenharItensValidade() {
   const lista = _valLista, body = document.getElementById('d-body');
@@ -1995,6 +2018,7 @@ function desenharItensValidade() {
   const btn = (k, rot, q) => `<button class="qf-btn${_valFiltro === k ? ' active' : ''}" onclick="filtrarValidade('${k}')">${rot} · ${fmtN(q)}</button>`;
   const filtros = `<div class="quick-filters">
       ${btn('todos', 'Todos', itens.length)}${btn('alta', 'Confiança alta', n('alta'))}${btn('media', 'Média', n('media'))}${btn('baixa', 'Baixa', n('baixa'))}${btn('sem', 'Sem sugestão', n('sem'))}
+      <button class="qf-btn qf-plan" onclick="baixarPlanilhaValidade(${lista.id},this)" title="Baixa em Excel os itens desta lista (no filtro de confiança escolhido) com a sugestão e a origem — pra quem vai digitar no cadastro do ERP">⬇ Planilha desta lista</button>
     </div>`;
   const vis = _valFiltro === 'todos' ? itens : itens.filter(it => conf(it) === _valFiltro);
   const rows = vis.map(it => {
