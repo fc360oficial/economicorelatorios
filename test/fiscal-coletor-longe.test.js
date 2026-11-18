@@ -36,3 +36,20 @@ test('a conferência da janela curta continua ganhando no casamento por nº da n
   const perto = conf({ id: '2026-11-16-10-cccccccccc', chave: null, erp: { nReg: null, erros: [] } });
   assert.equal(fiscal.acharConf(semChave, [perto], [conf()]).id, perto.id);
 });
+
+// "e aqui ainda mostra como cancelado": Status 5 no Dlinks + a mesma NF-e contada no nosso coletor → segue o cruzamento
+const linhaCancelada = (extra = {}) => row({ situacao: 'cancelado', situacao_aberta: 'aguardando_coletor', entrada: '2026-11-16', checks: {}, itens: [{ ean: '789', xml_qtd: 10, flags: [] }], ...extra });
+const contada = (un, extra = {}) => conf({ itens: { 789: { cod: '789', descricao: 'ITEM', quant: un, emb: 1, un, estado: 'ok' } }, ...extra });
+
+test('Status 5 no Dlinks com a nota contada no nosso coletor deixa de aparecer como Cancelado', () => {
+  const r = fiscal.mesclarEconomico(linhaCancelada(), contada(8), []);
+  assert.equal(r.situacao, 'excecao', 'contagem diferente da nota vira exceção pro fiscal decidir');
+  assert.equal(r.cancelado_dlinks, true);
+  assert.equal(fiscal.mesclarEconomico(linhaCancelada(), contada(10), []).situacao, 'aguardando_coletor', 'contagem igual: mesma situação de uma linha aberta');
+});
+
+test('continua Cancelado quando a contagem é de antes da entrada ou de outra NF-e', () => {
+  assert.equal(fiscal.mesclarEconomico(linhaCancelada(), contada(8, { id: '2026-11-15-10-aceac261ec' }), []).situacao, 'cancelado');
+  assert.equal(fiscal.mesclarEconomico(linhaCancelada(), contada(8, { chave: 'B'.repeat(44) }), []).situacao, 'cancelado');
+  assert.equal(fiscal.mesclarEconomico(linhaCancelada({ situacao_aberta: undefined }), contada(8), []).situacao, 'cancelado');
+});
