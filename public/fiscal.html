@@ -215,6 +215,9 @@ tr.arit td{background:#FAFAF8;white-space:normal;cursor:default;padding:0 12px 1
 .cfx .pago{margin-top:8px;font-size:11.5px;color:var(--pos)}.cfx .pago .btn{margin-left:6px}
 .cfx .mform{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px}.cfx .mform input,.cfx .mform select{font:inherit;font-size:12px;padding:5px 8px;border:1px solid var(--ln2);border-radius:6px;background:var(--crd);color:var(--ink)}
 .trava{font-size:11px;color:var(--neg);font-weight:700;white-space:normal}
+/* 18/11/26 (Tiago): avarias do pedido na aba A receber — etiqueta na Situação e caixa no topo dos itens ("só receber com o acerto") */
+.avp{display:block;margin-top:4px;font-size:10.5px;font-weight:800;color:#7A1A2C;background:#FBEAED;border:1px solid #E5B4BD;border-left:3px solid var(--neg);border-radius:0 6px 6px 0;padding:3px 7px;white-space:normal;line-height:1.35}
+.arit .cfx{margin:0 0 10px}.arit .cfx .regra{margin-top:4px;color:#7A1A2C}.arit .cfx .resp{margin-top:6px;color:var(--ink2)}.arit .cfx .av{max-height:170px}
 /* tabela da aba: fornecedor em 1 linha + lista truncada, origem curta, situação quebra, ações empilhadas (Tiago, 13/10: "ajustar layout") */
 table.ar td.forn{min-width:200px;max-width:260px}
 table.ar .lst{display:block;font-size:10px;color:var(--ink3);max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -1131,7 +1134,7 @@ function renderAReceber(){
   h+='<div class="table-wrap"><table class="t ar"><thead><tr><th>Pedido</th><th>Fornecedor</th><th>Origem · quem decide</th><th>Entrega prevista</th><th class="r">Itens</th><th class="r">Valor</th><th>Situação</th><th>Ação</th></tr></thead><tbody>';
   let lj=null;
   for(const r of lista){
-    if(todas&&r.loja!==lj){lj=r.loja;const dl=lista.filter(x=>x.loja===lj);h+='<tr class="loja"><td colspan="8"><b>'+LJ(lj)+'</b>'+esc(r.loja_nome)+'<span>'+dl.length+' pedidos · '+dl.filter(x=>x.situacao==='nota_bipada'||x.situacao==='bipada_sem_xml').length+' com nota bipada · '+dl.filter(x=>x.atraso>0).length+' atrasados</span></td></tr>';}
+    if(todas&&r.loja!==lj){lj=r.loja;const dl=lista.filter(x=>x.loja===lj);h+='<tr class="loja"><td colspan="8"><b>'+LJ(lj)+'</b>'+esc(r.loja_nome)+'<span>'+dl.length+' pedidos · '+dl.filter(x=>x.situacao==='nota_bipada'||x.situacao==='bipada_sem_xml').length+' com nota bipada · '+dl.filter(x=>x.atraso>0).length+' atrasados'+(nAv=>nAv?' · '+nAv+' com avaria pendente':'')(dl.filter(x=>x.avarias&&x.avarias.pendentes>0).length)+'</span></td></tr>';}
     const fis=r.quem_decide==='fiscal', open=!!AREC_OPEN[r.key];
     h+='<tr class="row'+(open?' open':'')+'"'+(r.atraso>0&&!open?' style="background:#FFF8E6"':'')+' onclick="arecToggle(\''+r.key+'\')"><td><span class="nm">#'+r.pedido+'</span>'+(todas?'':'<span class="erp">'+LJ(r.loja)+'</span>')+'<span class="erp">'+(r.aprovadoEm?dbr2(r.aprovadoEm.slice(0,10))+' · ':'')+(r.status==='recebido_parcial'?'recebido parcial':'aprovado')+'</span></td>';
     h+='<td class="forn"><span class="nm">'+esc(r.fornecedor||'')+'</span>'+(r.lista_nome?'<span class="lst" title="'+esc(r.lista_nome)+'">'+(r.cotacao&&r.cotacao.id!=null?'<b>#'+r.cotacao.id+'</b> · ':'')+esc(r.lista_nome)+'</span>':'')+(r.obs?'<div class="obsd" title="'+esc(r.obs.por||'')+': '+esc(r.obs.texto)+'">💬 '+esc(r.obs.por||'')+': “'+esc(r.obs.texto)+'”</div>':'')+'</td>';
@@ -1139,7 +1142,7 @@ function renderAReceber(){
     h+='<td>'+(r.entrega_prevista?'<b'+(r.atraso>0?' class="warn"':'')+'>'+dbr2(r.entrega_prevista)+'</b>'+(r.atraso>0?'<span class="erp warn">atrasado '+r.atraso+' d</span>':''):'<span class="mut">sem prazo</span>')+'</td>';
     h+='<td class="r">'+(r.itens_vieram!=null&&r.itens_vieram<r.itens?r.itens_vieram+' <span class="mut">de '+r.itens+'</span>':r.itens)+'</td>';
     h+='<td class="r">'+money(r.valor)+(r.valor_tipo==='ultimo_custo'?'<span class="erp" title="Vendedor ainda não digitou preço: valor pelo último custo">últ. custo</span>':'')+'</td>';
-    h+='<td class="sit"><span class="'+(r.situacao==='liberado'?'st-liberado-ar':'st-'+r.situacao)+'">'+esc(r.situacao_txt)+'</span>'+(r.situacao_sub?'<span class="erp">'+esc(r.situacao_sub)+'</span>':'')+(r.avisos_fiscal?'<span class="erp warn">Comprador (a) avisado (a) '+r.avisos_fiscal+'×</span>':'')+'</td>';
+    h+='<td class="sit"><span class="'+(r.situacao==='liberado'?'st-liberado-ar':'st-'+r.situacao)+'">'+esc(r.situacao_txt)+'</span>'+(r.situacao_sub?'<span class="erp">'+esc(r.situacao_sub)+'</span>':'')+(r.avisos_fiscal?'<span class="erp warn">Comprador (a) avisado (a) '+r.avisos_fiscal+'×</span>':'')+(r.avarias&&r.avarias.pendentes>0?'<span class="avp" title="Avarias pendentes com o fornecedor nesta loja, as mesmas que foram no pedido. Clique na linha pra ver a lista.">⚠ '+r.avarias.pendentes+(r.avarias.pendentes>1?' avarias pendentes':' avaria pendente')+' · '+money(r.avarias.total)+' · só receber com o acerto</span>':'')+'</td>';
     h+='<td class="ar-acao" onclick="event.stopPropagation()">'+(r.quem_decide==='fiscal'&&r.pendentes>0&&!r.entrega_recusada?'<button class="btn btn-amber btn-sm" onclick="arecDecidirAbrir(\''+r.key+'\')" title="'+r.pendentes+' decisão(ões) do fiscal: abre os itens">Decidir ('+r.pendentes+')</button>':'')+(r.quem_decide==='fiscal'&&r.finalizado_loja&&!r.pendentes&&!r.entrega_recusada?'<button class="btn btn-green btn-sm" onclick="arecLiberarLoja(\''+r.key+'\','+r.pedido+','+r.loja+','+(r.nConferencia||0)+')" title="A loja já fechou a nota no ERP e não há mais nada pra decidir: fecha a loja deste pedido (vira Conciliado XML)">Liberar loja</button>':'')+(r.nConferencia?'<button class="btn btn-navy btn-sm" onclick="arecAbrir('+r.nConferencia+')" title="Abre a conferência '+r.nConferencia+' na aba Recebimentos">Abrir recebimento</button>':'')+'<button class="btn btn-slate btn-sm" onclick="arecToggle(\''+r.key+'\')">'+(open?'Fechar itens':'Itens')+'</button><a class="btn btn-slate btn-sm" href="/api/fiscal/pedido-compra/'+r.pedido+'/pdf?loja='+r.loja+'" target="_blank" rel="noopener" title="PDF do pedido só desta loja, como foi pro fornecedor">PDF</a>'+(r.situacao==='aguardando_nota'||r.situacao==='liberado'?'<a class="btn btn-amber btn-sm" target="_blank" rel="noopener" href="'+arecWpp(r)+'" title="WhatsApp do vendedor cobrando a entrega">Cobrar</a>':'')+'</td></tr>';
     if(open)h+='<tr class="arit"><td colspan="8">'+arecItens(r)+'</td></tr>';
   }
@@ -1150,6 +1153,22 @@ function arecToggle(k){AREC_OPEN[k]=!AREC_OPEN[k];render();}
 /* a conferência pode ser de outro dia: abre a aba Recebimentos nos últimos 7 dias e já com o detalhe aberto */
 function arecAbrir(n){ABRIR=n;filtro='todos';if($('#periodo').value==='dia')$('#periodo').value='7';$('#de').value=hojeISO();setTab('receb');}
 function arecWpp(r){const w=String(r.vendedor&&r.vendedor.whats||'').replace(/\D/g,'');const prev=r.entrega_prevista?dbr(r.entrega_prevista):null;const t='Olá'+(r.vendedor&&r.vendedor.nome?' '+r.vendedor.nome:'')+', o pedido #'+r.pedido+(r.lista_nome?' ('+r.lista_nome+')':'')+' da Loja '+r.loja+' · '+(r.loja_nome||'')+' (ECONOMICO SUPERMERCADO - REDE CAHU) ainda não chegou'+(prev?' — entrega prevista pra '+prev+(r.atraso?', '+r.atraso+' dia(s) de atraso':''):'')+'. Pode nos dar uma previsão? '+r.itens+' itens · '+money(r.valor)+'. Obrigado!';return 'https://wa.me/'+(w.length>=10?'55'+w.replace(/^55/,''):'')+'?text='+encodeURIComponent(t);}
+/* 18/11/26 (Tiago: "tem que aparecer as avarias e algo dizendo pro fiscal só receber quando receber as avarias"): caixa no topo dos
+   itens do pedido com Comprador (a). A lista é a que foi NO PEDIDO (a mesma do PDF e do link do vendedor), só desta loja, com a
+   situação de hoje na conta do fornecedor: a que já foi paga/baixada sai do aviso. É aviso — não trava botão nenhum. */
+function arecAvarias(r){
+  const A=r.avarias;if(!A||!(A.itens||[]).length)return '';
+  const pend=A.itens.filter(a=>!a.resolvida), res=A.itens.filter(a=>a.resolvida);
+  const lojaTx=LJ(r.loja)+' '+(r.loja_nome||'');
+  if(!pend.length)return '<div class="cfx ok"><div class="t">✓ Avarias deste pedido já acertadas <span class="mut">'+res.length+(res.length>1?' avarias':' avaria')+' em '+esc(lojaTx)+' · nada pendente com o fornecedor</span></div></div>';
+  let h='<div class="cfx"><div class="t">⚠ Só receber esta entrega com o acerto das avarias <span class="mut">'+pend.length+(pend.length>1?' avarias pendentes':' avaria pendente')+' com o fornecedor em '+esc(lojaTx)+' · <b>'+money(A.total)+'</b></span></div>'
+    +'<div class="regra">O pedido foi autorizado <b>condicionado à resolução destas avarias</b>: o fornecedor acerta junto com a entrega (troca, bonificação, desconto ou nota de devolução). Chegou sem o acerto? <b>Não receba</b> antes de falar com '+(r.comprador?'Comprador (a) <b>'+esc(r.comprador)+'</b>':'o (a) Comprador (a)')+'.</div>'
+    +'<div class="av">'+pend.map(a=>'<div>avaria <b>'+esc(a.nReg)+'</b>'+(a.data?' · '+dbr2(a.data):'')+' · '+esc(a.descricao)+' · '+qtd(a.qtd)+' '+esc(a.und||'')+' · <b>'+money(a.falta)+'</b>'+(a.falta<a.total?' <span class="mut">(falta, de '+money(a.total)+')</span>':'')+'</div>').join('')+'</div>';
+  if(A.resposta_vendedor)h+='<div class="resp">💬 Vendedor respondeu sobre as avarias: “'+esc(A.resposta_vendedor)+'”</div>';
+  if(res.length)h+='<div class="resp mut">Já acertadas ('+res.length+'): '+res.map(a=>esc(a.descricao)+' '+money(a.total)+(a.situacao?' · '+esc(a.situacao):'')).join('; ')+'</div>';
+  h+='<div class="resp mut">Como o fornecedor pagou se marca dentro da nota, em Recebimentos (faixa da conta do fornecedor); a Prevenção baixa no ERP.</div></div>';
+  return h;
+}
 function arecItens(r){
   const its=r.itens_lista||[], np=r.itens_nao_pedidos||[], X=r.xml_loja, comNota=r.situacao!=='aguardando_nota'&&r.situacao!=='bipada_sem_xml'&&!!(X&&(X.notas||[]).length);
   /* 16/10/26 (Tiago): pedido de cotação não tem 2ª entrega. O fiscal decide AQUI, assim que o XML chega (antes do caminhão):
@@ -1170,7 +1189,7 @@ function arecItens(r){
     if(m==='falta')return '<span class="neg" style="font-size:11px">aguardando o fiscal</span> <span class="mut">(decida no bloco abaixo)</span>';
     return '<div class="dcb"><button class="btn btn-sm lib" onclick="arecDecidir(\''+r.key+'\','+r.pedido+','+r.loja+',\''+cod+'\',\'aceitar\')" title="'+(m==='a_mais'?'Aceitar o excedente':m==='preco'?'Aceitar o preço da nota':'Aceitar o item')+'">Liberar</button><button class="btn btn-sm rec" onclick="arecDecidir(\''+r.key+'\','+r.pedido+','+r.loja+',\''+cod+'\',\'recusar\')" title="'+(m==='a_mais'?'Recusar só o excedente':'Recusar o item')+' · gera o Aviso de devolução">Recusar · devolver</button></div>';
   };
-  let h='';
+  let h=arecAvarias(r);
   if(comNota){
     const OQ={falta:['Fiscal',fis?'Pedido de cotação não tem 2ª entrega: decida abaixo — Aceitar parcial (não vem mais) ou Recusar a entrega.':'Vira sugestão de ruptura pro (a) Comprador (a). Nada a decidir aqui.'],
       a_mais:['Fiscal',fis?'Liberar o excedente ou Recusar · devolver, no item.':'Comprador (a) decide em Pedidos de Compra; use "Avisar".'],

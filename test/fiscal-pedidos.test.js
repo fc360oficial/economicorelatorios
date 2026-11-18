@@ -171,3 +171,28 @@ test('cruzar: pedido do radar com compradora — a pendência é dela e o Libera
   assert.equal(r.pedido_app.pendentes.length, 1);
   assert.match(r.checks.pedido.msg, /aguardando decisão da compradora BRUNA em Pedidos de Compra/);
 });
+
+// 18/11/2026 (Tiago): a aba "A receber" mostra as avarias que foram no pedido com comprador(a) e manda só receber com o acerto
+test('avariasLoja: só as avarias da loja, as já acertadas saem do aviso; pedido de cotação não tem avaria', () => {
+  const avarias = { consultadoEm: '2026-11-17T16:42:56.553Z', resposta_vendedor: 'trocamos pelo mesmo produto', itens: [
+    { nReg: 392635, loja: 2, cod: '7896116900050', descricao: 'FEIJAO 1KG PRETO', qtd: 3, valor: 7.3, total: 21.9, und: 'UN', data: '2026-11-03', status: 'aberta' },
+    { nReg: 391042, loja: 2, cod: '7896116900449', descricao: 'FEIJAO 1KG MACASSAR', qtd: 1, valor: 6.5, total: 6.5, und: 'UN', data: '2026-10-28', status: 'aberta' },
+    { nReg: 384483, loja: 2, cod: '7896116900051', descricao: 'FARINHA 1KG', qtd: 10, valor: 4.5, total: 45, und: 'UN', data: '2026-10-09', status: 'aberta' },
+    { nReg: 390693, loja: 4, cod: '7896116900845', descricao: 'FEIJAO 1KG VERMELHO', qtd: 6, valor: 11, total: 66, und: 'UN', data: '2026-10-27', status: 'aberta' }] };
+  const radar = pedCotacao({ parametros: { origem: 'radar' }, cotacao: null, comprador: { nome: 'RODRIGO' }, avarias });
+  // sem a conta do fornecedor: tudo que foi no pedido pra loja 2 continua pendente
+  const semConta = fp.avariasLoja(radar, 2);
+  assert.equal(semConta.pendentes, 3); assert.equal(semConta.total, 73.4); assert.equal(semConta.resposta_vendedor, 'trocamos pelo mesmo produto');
+  // com a conta: 391042 já baixada no ERP sai; 384483 paga em parte (faltam 20 de 45); 392635 a conta não conhece → pendente
+  const sit = n => n === 391042 ? { resolvida: true, texto: 'baixada no ERP pela Prevenção', restante: 0 } : n === 384483 ? { resolvida: false, texto: 'paga em parte', restante: 20 } : null;
+  const a = fp.avariasLoja(radar, 2, sit);
+  assert.equal(a.pendentes, 2); assert.equal(a.resolvidas, 1); assert.equal(a.total, 41.9);
+  assert.deepEqual(a.itens.map(i => [i.nReg, i.resolvida, i.falta]), [[392635, false, 21.9], [391042, true, 0], [384483, false, 20]]);
+  assert.equal(fp.avariasLoja(radar, 6), null);                                   // loja sem avaria no pedido
+  assert.equal(fp.avariasLoja(pedCotacao({ avarias }), 2), null);                 // cotação: regra de 25/09
+  // a linha da aba leva o bloco; tudo acertado → pendentes 0 (o aviso some, a lista fica como histórico)
+  const linhas = fp.pedidosAReceber(() => [radar], () => ({ itens: 2, com_preco: true, digitado: 53.76 }), { hoje: '2026-10-07', situacaoAvaria: sit });
+  assert.equal(linhas.length, 1); assert.equal(linhas[0].avarias.pendentes, 2); assert.equal(linhas[0].avarias.total, 41.9);
+  const tudoOk = fp.pedidosAReceber(() => [radar], () => ({ itens: 2, com_preco: true, digitado: 53.76 }), { hoje: '2026-10-07', situacaoAvaria: () => ({ resolvida: true, texto: 'paga', restante: 0 }) });
+  assert.equal(tudoOk[0].avarias.pendentes, 0); assert.equal(tudoOk[0].avarias.total, 0); assert.equal(tudoOk[0].avarias.resolvidas, 3);
+});

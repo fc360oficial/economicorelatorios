@@ -10190,7 +10190,9 @@ app.post('/api/fiscal/recebimentos/:nReg/decisao', async (req, res) => {
 app.get('/api/fiscal/pedidos-a-receber', (req, res) => {
   try {
     const r = escopo.resolverLoja(req.session.user, parseInt(req.query.loja) || null);
-    res.json({ hoje: new Date().toISOString().slice(0, 10), pedidos: fiscalPedidos.pedidosAReceber(() => pedidosFornec.listar(), pedidosFornec.totaisLoja, { lojas: r.lojas, loja: r.loja }) });
+    // 18/11/26 (Tiago): a linha leva as avarias que foram no pedido, com a situação de hoje na conta do fornecedor
+    let situacaoAvaria = null; try { situacaoAvaria = contaForn.situacaoAvarias(); } catch (e) { console.error('[CONTA-FORN] situacaoAvarias:', e.message); }
+    res.json({ hoje: new Date().toISOString().slice(0, 10), pedidos: fiscalPedidos.pedidosAReceber(() => pedidosFornec.listar(), pedidosFornec.totaisLoja, { lojas: r.lojas, loja: r.loja, situacaoAvaria }) });
   } catch (err) { fiscalErr(res, err); }
 });
 const fiscalPedidoLoja = (req, res) => {
