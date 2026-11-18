@@ -199,6 +199,11 @@ function withCache(ttlMin) {
 // Log de acessos (login, falha de senha, logout, página aberta) — data/log-acessos/AAAA-MM.jsonl.
 // Usado no middleware de autenticação, no /api/login e /api/logout; tela em Processos > Logs.
 const logAcessos = require('./lib/log-acessos');
+// Travas de acesso (18/11/2026): liberação por extensão sem /api, "chamada local" que não vale pelo Caddy,
+// chave de deploy fora do código e limite de tentativas de login — regras e porquês em lib/seguranca-acesso.js.
+const seguranca = require('./lib/seguranca-acesso');
+const DEPLOY_CHAVE = seguranca.carregarChaveDeploy(path.join(__dirname, 'data', 'deploy-chave.txt'));
+const limiteLogin = seguranca.criarLimiteLogin();
 const LOG_ACESSOS_DIR = path.join(__dirname, 'data', 'log-acessos');
 const usuariosPath = path.join(__dirname, 'usuarios.json');
 let usuarios;
@@ -318,9 +323,11 @@ app.use((req, res, next) => {
   // sem chave válida responde 401, e só lê o nosso Postgres (nunca o ERP, nunca grava).
   if (pathMin.startsWith('/api/v1')) return next();
   // Pré-aquecimento interno (somente localhost)
-  if (req.headers['x-internal-warmup'] === 'fc360warmup2026' && ['::1', '127.0.0.1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress)) return next();
-  const ext = req.path.split('.').pop().toLowerCase();
-  if (['js','css','png','jpg','jpeg','gif','svg','ico','woff','woff2','ttf','eot','map'].includes(ext)) return next();
+  // 18/11/2026: pelo link externo o Caddy também chega como 127.0.0.1 — "local" agora exige não ter passado por proxy
+  if (req.headers['x-internal-warmup'] === 'fc360warmup2026' && seguranca.chamadaLocalDireta(req)) return next();
+  // Arquivo estático (js/css/imagem/fonte) sai sem login; endereço de /api NUNCA entra por aqui
+  // (18/11/2026: /api/.../1.js passava sem login em toda rota com parâmetro no fim)
+  if (seguranca.extensaoEstaticaLivre(req.path)) return next();
   if (req.session && req.session.user) {
     // Log de acessos (lib/log-acessos.js): marca o usuário como ativo em toda chamada autenticada
     // e grava "pagina" quando ele abre uma tela (.html). Nunca derruba a requisição por erro de log.
@@ -385,12 +392,22 @@ app.use(express.static(path.join(__dirname, 'public'), {
 app.post('/api/login', async (req, res) => {
   const { usuario, senha } = req.body || {};
   if (!usuario || !senha) return res.status(400).json({ error: 'Preencha usuário e senha.' });
-  const user = usuarios.find(u => u.usuario === usuario.toLowerCase().trim());
+  // Limite de tentativas (18/11/2026): 8 erros em 15 min na mesma conta+IP (25 na conta, 40 no IP) = 15 min de espera;
+  // bloqueado nem confere a senha. O IP vem de seguranca.ipCliente (não aceita X-Forwarded-For inventado).
+  const nomeLogin = String(usuario).toLowerCase().trim();
+  const ipLogin = seguranca.ipCliente(req);
+  const esperaLogin = limiteLogin.bloqueado(nomeLogin, ipLogin);
+  if (esperaLogin > 0) return res.status(429).json({ error: 'Muitas tentativas de login. Aguarde ' + Math.ceil(esperaLogin / 60000) + ' min e tente de novo.' });
+  const user = usuarios.find(u => u.usuario === nomeLogin);
   const ctxAcesso = { ip: logAcessos.ipDe(req), dispositivo: logAcessos.dispositivoDe(req.headers['user-agent']) };
-  const falha = msg => { try { logAcessos.registrar(LOG_ACESSOS_DIR, { tipo: 'login_falha', usuario: String(usuario).toLowerCase().trim().slice(0, 60), nome: user ? user.nome : null, ...ctxAcesso, msg }); } catch (e) { console.warn('[log-acessos] ' + e.message); } };
+  const falha = msg => {
+    const bloqueou = limiteLogin.falha(nomeLogin, ipLogin);
+    try { logAcessos.registrar(LOG_ACESSOS_DIR, { tipo: 'login_falha', usuario: nomeLogin.slice(0, 60), nome: user ? user.nome : null, ...ctxAcesso, msg: bloqueou ? msg + ' — bloqueado por excesso de tentativas' : msg }); } catch (e) { console.warn('[log-acessos] ' + e.message); }
+  };
   if (!user) { falha('usuário não existe'); return res.status(401).json({ error: 'Usuário ou senha inválidos.' }); }
   const ok = await bcrypt.compare(String(senha), user.senha_hash);
   if (!ok) { falha('senha errada'); return res.status(401).json({ error: 'Usuário ou senha inválidos.' }); }
+  limiteLogin.sucesso(nomeLogin, ipLogin);
   const perfil = user.perfil || 'gerente';
   req.session.user = { id: user.id, nome: user.nome, usuario: user.usuario, perfil, comprador_nome: user.comprador_nome || null, loja_id: user.loja_id || null, modulos: Array.isArray(user.modulos) ? user.modulos : null, lojas: escopo.lojasDoBody(user.lojas) };
   req.session.loginEm = logErp.agoraIso();
@@ -6045,7 +6062,7 @@ app.get('/api/painel-cd', async (req, res) => {
 });
 
 app.get('/deploy', (req, res) => {
-  if (req.query.token !== 'fc360deploy2026') return res.status(403).send('Proibido');
+  if (!seguranca.autorizaInterno(req, 'fc360deploy2026', DEPLOY_CHAVE)) return res.status(403).send('Proibido');
   const gitPaths = [
     'C:\\Program Files\\Git\\bin\\git.exe',
     'C:\\Program Files\\Git\\cmd\\git.exe',
@@ -6079,7 +6096,7 @@ app.get('/deploy', (req, res) => {
 // reenvio do relatório de estoque negativo sem precisar de comando via
 // WhatsApp, usando o mesmo domínio público já existente do deploy.
 app.get('/api/negativos/reenviar', async (req, res) => {
-  if (req.query.token !== 'fc360deploy2026') return res.status(403).send('Proibido');
+  if (!seguranca.autorizaInterno(req, 'fc360deploy2026', DEPLOY_CHAVE)) return res.status(403).send('Proibido');
   try {
     const r = await fetch('http://127.0.0.1:3010/reenviar-negativos');
     const texto = await r.text();
@@ -6331,7 +6348,7 @@ app.post('/api/contagem/:data/cobrar', async (req, res) => {
 // (ex: bater com um print/relatório que ele já validou), sem depender do
 // recálculo automático. Body: { chave, dados }.
 app.post('/api/pendencias/congelar-manual', (req, res) => {
-  if (req.query.token !== 'fc360deploy2026') return res.status(403).send('Proibido');
+  if (!seguranca.autorizaInterno(req, 'fc360deploy2026', DEPLOY_CHAVE)) return res.status(403).send('Proibido');
   try {
     const { chave, dados } = req.body || {};
     if (!chave || !dados) return res.status(400).json({ error: 'Informe chave e dados.' });
