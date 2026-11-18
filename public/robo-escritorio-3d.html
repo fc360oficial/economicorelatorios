@@ -756,7 +756,7 @@ function eventos(){   // o que o dado real dispara (1× por carga / por dia simu
 const AGENDA=[[5.83,()=>plan('vigia',ACTS.erp())],[7,()=>plan('resumo',ACTS.tiago('levando o resumo das 07:00'))],[9.5,eventos],[13.08,()=>plan('vigia',ACTS.erp())],[18,reuniao]];
 function tick(h){ // a cada minuto virtual
   const prev=lastMin; AGENDA.forEach(([ah,fn])=>{const m=Math.round(ah*60); if(prev>=0&&prev<m&&Math.floor(h*60)>=m)fn();});
-  const d=new Date(vt); if(TV)$('tvclock').textContent=d.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'2-digit'})+' · '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+(simF>1?' · simulando':''); $('pill-hora').textContent=(simF>1?'simulando · ':'')+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+' · '+(h<5.5||h>=19.5?'noite':h<7?'amanhecendo':h<17?'dia':'fim de tarde');
+  const d=new Date(vt); if(TV)$('tvclock').textContent=d.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'2-digit'})+' · '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+(simF>1?' · simulando':'')+(AMPLO?' · vista ampla':' · foco nos postos'); $('pill-hora').textContent=(simF>1?'simulando · ':'')+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+' · '+(h<5.5||h>=19.5?'noite':h<7?'amanhecendo':h<17?'dia':'fim de tarde');
 }
 // dia / noite pela hora (real ou simulada): luz, céu, luminárias, janelas da cidade
 const lamps=[[-11,-7],[1,-6.5],[-9,6],[3.5,6.6],[12,-7.5],[12.8,-1.5]].map(([x,z])=>{const l=new THREE.PointLight(0xffc77a,0,15,1.4); l.position.set(x,3.0,z); scene.add(l); return l;});
@@ -885,7 +885,8 @@ const fpsAlvo=()=>LEVE?(NIVEL>=3?12:20):30;
 // leve: a cada 10 s confere os quadros por segundo de verdade; abaixo de 60% do alvo por 2 janelas seguidas, desce um nível
 function medirFps(now){ fpsN++; if(now-fpsT0<10000)return; FPS=Math.round(fpsN*10000/(now-fpsT0))/10; fpsN=0; fpsT0=now;
   if(!LEVE||!TV||NIVEL>=3||document.hidden)return; if(FPS<fpsAlvo()*.6){ if(++fpsJanelas>=2){fpsJanelas=0; NIVEL++; QUAL=NIVEL===2?.75:.6; if(NIVEL===3)parts.forEach(p=>{p.m.visible=false;}); encaixar(); } } else fpsJanelas=0; }
-window.tvSlideAtual=()=>'3D'+(LEVE?' leve · nível '+NIVEL:'')+(FPS?' · '+String(FPS).replace('.',',')+' quadros/s':'')+(ENSAIO?' · ensaio #'+ENSAIO.id:'');
+window.tvSlideAtual=()=>'3D'+(LEVE?' leve · nível '+NIVEL:'')+(FPS?' · '+String(FPS).replace('.',',')+' quadros/s':'')+(ENSAIO?' · ensaio #'+ENSAIO.id:'')
+  +(TV?' · '+(AMPLO?'ampla':'foco')+' z'+cam.zoom.toFixed(2)+' · '+innerWidth+'x'+innerHeight+' e'+ESC.toFixed(2)+(location.search?' '+location.search.slice(0,24):''):'');   // 18/11: o que a TV está de fato fazendo (diagnóstico pelo Monitor)
 function frame(now){
   if(TV){ if(now-ultRender<1000/fpsAlvo()-4){requestAnimationFrame(frame); return;} ultRender=now; medirFps(now); }   // TV: 30 quadros/s; leve: 20 (12 no nível 3)
   const t=(now-t0)/1000, dt=Math.min(.1,(now-last)/1000); last=now; vt+=dt*1000*simF;
