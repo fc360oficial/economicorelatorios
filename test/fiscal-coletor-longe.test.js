@@ -45,7 +45,34 @@ test('Status 5 no Dlinks com a nota contada no nosso coletor deixa de aparecer c
   const r = fiscal.mesclarEconomico(linhaCancelada(), contada(8), []);
   assert.equal(r.situacao, 'excecao', 'contagem diferente da nota vira exceção pro fiscal decidir');
   assert.equal(r.cancelado_dlinks, true);
-  assert.equal(fiscal.mesclarEconomico(linhaCancelada(), contada(10), []).situacao, 'aguardando_coletor', 'contagem igual: mesma situação de uma linha aberta');
+  assert.equal(r.economico.manda, true);
+  assert.equal(fiscal.mesclarEconomico(linhaCancelada(), contada(10), []).situacao, 'pronto', 'contagem igual à nota: pronto pra liberar');
+});
+
+// "a conferência não é no Dlinks, é no nosso sistema": sem contagem do coletor do Dlinks, a linha segue a NOSSA conferência
+const linhaAberta = (extra = {}) => row({ situacao: 'aguardando_coletor', entrada: '2026-11-16', itens: [{ ean: '789', xml_qtd: 10, flags: [] }],
+  checks: { xml: { nivel: 'ok', msg: '' }, coletor: { nivel: 'pendente', msg: 'Coletor ainda não contou' }, validade: { nivel: 'pendente', msg: 'Aguardando coletor' } }, ...extra });
+
+test('sem contagem do Dlinks, a situação vem da nossa conferência', () => {
+  const ok = fiscal.mesclarEconomico(linhaAberta(), contada(10), []);
+  assert.equal(ok.situacao, 'pronto');
+  assert.equal(ok.checks.coletor, undefined, 'o aviso "Coletor ainda não contou" (Dlinks) sai');
+  assert.equal(ok.checks.validade.nivel, 'ok');
+  assert.equal(ok.pendentes, 0);
+  assert.equal(fiscal.mesclarEconomico(linhaAberta(), contada(10), [], { auto_liberar: false }).situacao, 'conferido');
+  assert.equal(fiscal.mesclarEconomico(linhaAberta(), contada(10, { status: 'bipando' }), []).situacao, 'em_contagem');
+  assert.equal(fiscal.mesclarEconomico(linhaAberta(), contada(10, { status: 'liberada' }), []).situacao, 'liberado');
+  assert.equal(fiscal.mesclarEconomico(linhaAberta(), contada(7), []).situacao, 'excecao');
+  const curta = fiscal.mesclarEconomico(linhaAberta(), conf({ itens: { 789: { cod: '789', quant: 10, emb: 1, un: 10, estado: 'bloqueado_validade' } } }), []);
+  assert.equal(curta.checks.validade.nivel, 'erro'); assert.equal(curta.situacao, 'excecao');
+});
+
+test('com contagem do coletor do Dlinks nada muda: o Dlinks segue mandando', () => {
+  const r = fiscal.mesclarEconomico(linhaAberta({ situacao: 'pronto', itens: [{ ean: '789', xml_qtd: 10, col_qtd: 10, flags: [] }],
+    checks: { xml: { nivel: 'ok', msg: '' }, coletor: { nivel: 'ok', msg: '' }, validade: { nivel: 'ok', msg: '' } } }), contada(10), []);
+  assert.equal(r.situacao, 'pronto'); assert.equal(r.economico.manda, undefined); assert.equal(r.checks.coletor.nivel, 'ok');
+  const dec = fiscal.mesclarEconomico(linhaAberta({ situacao: 'bloqueado' }), contada(10), []);
+  assert.equal(dec.situacao, 'bloqueado', 'decisão do fiscal continua valendo');
 });
 
 test('continua Cancelado quando a contagem é de antes da entrada ou de outra NF-e', () => {
