@@ -145,6 +145,10 @@ button.pill[aria-pressed="true"]{background:var(--navy);color:#fff}
 .tvcard.amplo h3{font-size:34px}.tvcard.amplo .st{font-size:18px}.tvcard.amplo .ag{font-size:19px}.tvcard.amplo ul{font-size:16px;padding-left:0;list-style:none}.tvcard.amplo .px{font-size:16px}
 .tv .tag.sel b{background:var(--brand);border-color:var(--brand);color:#3b2a00}
 .tv .tag b{max-width:260px;overflow:hidden;text-overflow:ellipsis}   /* nome comprido (as compradoras, todas numa etiqueta) saía da tela */
+/* véu "Tela cheia" no meio da tela, igual aos outros painéis (painel-fiscal.html) */
+#fs{position:absolute;left:0;top:0;width:100%;height:100%;z-index:200;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);cursor:pointer;font-size:5vh}
+#fs[hidden]{display:none}
+#fs button{font:800 1em var(--font);letter-spacing:.08em;text-transform:uppercase;background:var(--brand);color:#0e1626;border:0;border-radius:.4em;padding:.6em 1.6em;cursor:pointer;box-shadow:0 1em 3em rgba(0,0,0,.6)}
 /* TV: palco fixo 1920×1080, encaixado no aparelho por transform no script (encaixar) — 18/11/26 */
 body.tv{background:#0e1626}
 .tv .app{position:absolute;left:0;top:0;width:1920px;height:1080px;grid-template-rows:1fr;transform-origin:0 0}
@@ -803,17 +807,21 @@ function tvTicker(){ if(!TV)return; const d=new Date(vt), hh=pad(d.getHours())+'
 }
 if(TV&&LEVE)setInterval(tkPasso,7000);
 if(TV&&QS.get('kiosk')==='1')document.body.style.cursor='none';   // ?kiosk=1: sem cursor e sem botão, como nos outros painéis
-if(TV&&QS.get('kiosk')!=='1'){const b=document.createElement('button'); b.type='button'; b.textContent='Tela cheia'; b.style.cssText='position:absolute;right:28px;bottom:84px;z-index:99;font:700 22px Inter,sans-serif;padding:12px 20px;border-radius:12px;border:0;background:#F5B800;color:#6B4E00;cursor:pointer'; $('stage').appendChild(b); b.addEventListener('pointerdown',e=>e.stopPropagation()); /* dentro do palco: encolhe junto na TV */
-  /* 18/11/26 (Tiago, na TV do Fiscal: "pegou sim, mas não com o botão de tela cheia"): o botão ficava parado em cima do painel.
-     Agora some sozinho depois de 8 s (volta ao mexer o cursor), some de vez se o navegador da TV recusar a tela cheia, e o OK
-     do controle (Enter) ou a tecla F também ligam. Onde o navegador não deixa, a saída é o modo quiosque do próprio aparelho. */
+/* Tela cheia igual aos outros painéis (18/11/26, Tiago, na TV: "coloca o botão tela cheia igual os outros painéis, que aparece
+   o botão no meio, porque nesse não estou vendo"). Véu escuro por cima de tudo com o botão amarelo grande no MEIO, 1,5 s depois
+   de abrir (mesmo desenho de painel-fiscal.html / painel-compras.html); clicar em qualquer lugar, o OK do controle (Enter) ou a
+   tecla F pedem a tela cheia e o véu some; saiu da tela cheia, o véu volta. Fica fora do palco e o encaixar() põe o véu
+   exatamente na área que aparece na TV. ?kiosk=1 e ?embed=1 não mostram. */
+if(TV&&QS.get('kiosk')!=='1'&&QS.get('embed')!=='1'){
   const el=document.documentElement, pede=el.requestFullscreen||el.webkitRequestFullscreen, sai=document.exitFullscreen||document.webkitExitFullscreen;
-  const cheia=()=>!!(document.fullscreenElement||document.webkitFullscreenElement); let some=0, recusou=!pede;
-  const esconde=()=>{b.style.display='none';}, mostra=()=>{ if(recusou||cheia())return; b.style.display=''; clearTimeout(some); some=setTimeout(esconde,8000); };
-  const alterna=()=>{ try{ if(cheia()){sai.call(document); return;} const p=pede.call(el); if(p&&p.catch)p.catch(()=>{recusou=true; esconde();}); }catch(e){recusou=true; esconde();} };
-  b.onclick=alterna; ['fullscreenchange','webkitfullscreenchange'].forEach(ev=>document.addEventListener(ev,()=>{ if(cheia())esconde(); else mostra(); }));
-  addEventListener('pointermove',mostra); addEventListener('keydown',e=>{ if(e.key==='f'||e.key==='F'||e.key==='Enter'){ if(!recusou)alterna(); } else mostra(); });
-  if(recusou)esconde(); else mostra();}
+  const cheia=()=>!!(document.fullscreenElement||document.webkitFullscreenElement), fsOk=()=>cheia()||!pede;
+  const v=document.createElement('div'); v.id='fs'; v.hidden=true; v.innerHTML='<button type="button">Tela cheia</button>'; document.body.appendChild(v);
+  const pedirFs=()=>{ v.hidden=true; try{const p=pede.call(el); if(p&&p.catch)p.catch(()=>{});}catch(e){} };
+  v.addEventListener('pointerdown',e=>e.stopPropagation()); v.onclick=pedirFs;
+  addEventListener('keydown',e=>{ if(e.key==='f'||e.key==='F'){ if(cheia())sai.call(document); else if(pede)pedirFs(); } else if(e.key==='Enter'&&!v.hidden)pedirFs(); });
+  ['fullscreenchange','webkitfullscreenchange'].forEach(ev=>document.addEventListener(ev,()=>{v.hidden=fsOk();}));
+  setTimeout(()=>{ if(!fsOk())v.hidden=false; },1500);
+}
 if(PUB){document.title='Painel Robô · Econômico'; const h1=document.querySelector('.brand h1'); if(h1)h1.textContent='Painel Robô';}
 if(TV){document.body.classList.add('tv'); $('tvk').hidden=false; $('ticker').hidden=false; $('tvclock').hidden=false; setZoom(1.12);
   // holofote: 13 s num posto, 7 s de vista geral, e assim por diante; momentos especiais travam o holofote
@@ -889,6 +897,7 @@ function areaVisivel(){ const d=document.documentElement, v=window.visualViewpor
 function encaixar(){ if(!TV)return; const app=document.querySelector('.app'), [w,h,x,y]=areaVisivel(); if(!w||!h)return; VW=w; VH=h;
   const a=w/h; if(a>=16/9){PH=1080; PW=Math.round(1080*a);} else {PW=1920; PH=Math.round(1920/a);}
   ESC=h/PH; app.style.width=PW+'px'; app.style.height=PH+'px'; app.style.transform='scale('+ESC+')'; app.style.left=x+'px'; app.style.top=y+'px';
+  const f=document.getElementById('fs'); if(f){f.style.left=x+'px'; f.style.top=y+'px'; f.style.width=w+'px'; f.style.height=h+'px'; f.style.fontSize=Math.round(h*.06)+'px';}   // véu da tela cheia: exatamente na área que aparece
   renderer.setPixelRatio(ESC*QUAL); resize(); }
 if(TV){encaixar(); addEventListener('resize',encaixar); if(window.visualViewport)visualViewport.addEventListener('resize',encaixar);
   setInterval(()=>{const [w,h]=areaVisivel(); if(w!==VW||h!==VH)encaixar();},2000);}
