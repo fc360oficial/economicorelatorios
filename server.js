@@ -10060,7 +10060,11 @@ app.get('/api/paineis-publico/precificacao-dados', async (req, res) => {
 // vendedor (WhatsApp do bot central), a nota é simulada e cada etapa espera a aprovação dele. Grava só no ERP de TESTE (.254),
 // pelas rotas de sempre. Só admin (ver a lista de páginas do robô lá em cima).
 const roboEnsaio = require('./lib/robo-ensaio');
-roboEnsaio.init({ radarPedidos, pedidosFornec, precificacao, roboPrecif, cadastroLista: id => cadastroLista(id), linkPedido: p => linkPedido(p), publicUrl: PUBLIC_URL,
+roboEnsaio.init({ radarPedidos, pedidosFornec, precificacao, roboPrecif, cadastroLista: id => cadastroLista(id),
+  // 18/11/26 (Tiago: "tou clicando no link e tá abrindo o do gestão, e eu tenho o portal e o gestão"): o app Gestão vale pro site inteiro
+  // (scope "/") e o Portal do Fornecedor só pra /fornecedor/. O link do pedido do robô em /pedido/<token> caía no Gestão; pelo atalho
+  // /fornecedor/pedido/<token> (mesma página, já usado nos avisos do portal) quem tem os dois apps abre no Portal.
+  linkPedido: p => `${PUBLIC_URL}/fornecedor/pedido/${p.token}`, publicUrl: PUBLIC_URL,
   testeDir: require('./lib/conferencia-xml').TESTE_DIR, conferirPedido: id => pedidosFornec.conferirPedido(id),
   avisarPortal: p => portalForn.avisarPedido(p),
   whatsEnsaio: () => { try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'cahu-wpp', 'config.json'), 'utf8')).alerta || ''; } catch (e) { return ''; } },   // o número de alerta do Tiago (config do bot, fora do repositório)
