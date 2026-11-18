@@ -7950,6 +7950,14 @@ app.get('/api/dre/comparativo', async (req, res) => {
     res.json(dados);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+// Lançamentos por trás de uma conta da DRE (18/11/26): títulos do contas a pagar da conta no período, da loja/rede/Central.
+app.get('/api/dre/lancamentos', async (req, res) => {
+  try {
+    const p = String(req.query.periodo || '').trim();
+    if (!/^(\d{4}-\d{2}|\d{4}|12m)$/.test(p)) return res.status(400).json({ error: 'período inválido' });
+    res.json(await dre.lancamentos({ periodo: p, loja: req.query.loja, chave: req.query.chave, linha: req.query.linha }));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 app.get('/api/dre/tendencia', async (req, res) => {
   try { const c = _dreCache.__tend; if (c && Date.now() - c.em < 30 * 60 * 1000) return res.json(c.dados); const dados = await dre.tendencia(); _dreCache.__tend = { em: Date.now(), dados }; res.json(dados); }
   catch (err) { res.status(500).json({ error: err.message }); }

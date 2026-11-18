@@ -104,6 +104,12 @@ table.dre.uma th{cursor:default}
 table.dre.uma td:first-child{min-width:290px}
 table.dre.uma th.grp,table.dre.uma td.grp{border-left:1px solid var(--border)}
 table.dre.uma td.carr{color:var(--ink-3);font-style:italic;font-weight:500}
+/* abrir a conta até o lançamento (18/11/26) */
+table.dre td.lk{cursor:pointer}table.dre td.lk:hover{text-decoration:underline}
+table.dre tr.sub.lanc{cursor:pointer}table.dre tr.sub.lanc:hover td{background:#FFF6D9}
+.tagf{display:inline-block;font-size:10px;font-weight:800;color:var(--warn);background:#FFF1E0;border-radius:999px;padding:1px 7px;margin-left:6px;white-space:nowrap}
+table.m tr.fora td{background:#FFF6D9}
+table.m td.tx{text-align:left;white-space:normal;max-width:260px}
 .note{font-size:11.5px;color:var(--ink-2);line-height:1.5;background:#FFF6D9;border:1px solid #F5B80066;border-radius:10px;padding:10px 14px;margin-bottom:12px}
 </style>
 </head>
@@ -112,7 +118,7 @@ table.dre.uma td.carr{color:var(--ink-3);font-style:italic;font-weight:500}
   <div class="page-hdr">
     <div>
       <h1>DRE gerencial</h1>
-      <p>Resultado loja a loja e da rede, no padrão de DRE de supermercado: receita → impostos → CMV → lucro bruto → perdas e despesas por natureza → EBITDA → resultado. Percentuais sobre a receita bruta e faixas de referência do varejo alimentar. Clique numa linha pra abrir as contas; escolha uma loja em <b>Ver</b> (ou clique no nome dela) pra abrir a DRE só dela, comparada com o mês anterior, o ano anterior e a rede. Só leitura no ERP.</p>
+      <p>Resultado loja a loja e da rede, no padrão de DRE de supermercado: receita → impostos → CMV → lucro bruto → perdas e despesas por natureza → EBITDA → resultado. Percentuais sobre a receita bruta e faixas de referência do varejo alimentar. Clique numa linha pra abrir as contas e numa conta pra ver os lançamentos; escolha uma loja em <b>Ver</b> (ou clique no nome dela) pra abrir a DRE só dela, comparada com o mês anterior, o ano anterior e a rede. Só leitura no ERP.</p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn" onclick="exportar()">⬇ CSV</button>
@@ -259,7 +265,8 @@ function renderUma() {
       const pr = (x, E) => E && E.valores.receita > 0 ? x / E.valores.receita * 100 : null;
       for (const c of chaves) {
         const pc = pr(c.v, X), prd = dr[c.k] ? pr(dr[c.k].v, R) : null;
-        h += '<tr class="sub"><td title="' + esc(c.o.grupo) + '">' + esc(c.o.conta) + ' <span style="color:var(--ink-3);font-size:10px">' + esc(c.k) + '</span></td><td>' + (c.v ? moneyI(c.v) : TRACO) + '</td><td>' + (c.v ? pct(pc) : TRACO) + '</td>'
+        const vf = cur[c.k] ? cur[c.k].vf || 0 : 0, abre = c.v && ehConta(c.k);
+        h += '<tr class="sub' + (abre ? ' lanc" title="Clique pra ver os lançamentos desta conta" onclick="abrirLanc(\'' + l.k + '\',\'' + c.k + '\',' + (ehLoja ? VISAO : "'rede'") + ')' : '') + '"><td>' + esc(c.o.conta) + ' <span style="color:var(--ink-3);font-size:10px">' + esc(c.k) + '</span>' + (vf >= 1 ? '<span class="tagf">⚠ ' + moneyK(vf) + ' vencem longe do mês</span>' : '') + '</td><td>' + (c.v ? moneyI(c.v) : TRACO) + '</td><td>' + (c.v ? pct(pc) : TRACO) + '</td>'
           + (temAnt ? par(A, l, c.v, c.a, c.a ? pr(c.a, A) : null, true) : '') + par(Y, l, c.v, c.y, c.y ? pr(c.y, Y) : null, true)
           + (ehLoja ? '<td class="grp">' + (prd != null ? pct(prd) : TRACO) + '</td><td>' + (c.v && prd != null ? pontos(pc, prd, l.tipo) : TRACO) + '</td>' : '') + '</tr>';
       }
@@ -295,13 +302,33 @@ function render() {
     if (temSub && ABERTAS.has(l.k)) {
       const chaves = Object.values(R.detalhe[l.k] || {}).sort((a, b) => b.v - a.v);
       if (!chaves.length) h += '<tr class="sub"><td colspan="' + (D.lojas.length + 2) + '">sem lançamentos nessa linha no período</td></tr>';
-      for (const c of chaves) h += '<tr class="sub"><td title="' + esc(c.grupo) + '">' + esc(c.conta) + ' <span style="color:var(--ink-3);font-size:10px">' + esc(c.chave) + '</span></td>' + D.lojas.map(x => { const o = (x.detalhe[l.k] || {})[c.chave]; return '<td>' + (o && o.v ? moneyK(o.v) + '<span class="p">' + pct(x.valores.receita > 0 ? o.v / x.valores.receita * 100 : null) + '</span>' : '<span style="color:var(--ink-3)">—</span>') + '</td>'; }).join('') + '<td class="rede">' + moneyK(c.v) + '<span class="p">' + pct(R.valores.receita > 0 ? c.v / R.valores.receita * 100 : null) + '</span></td></tr>';
+      for (const c of chaves) h += '<tr class="sub"><td title="' + esc(c.grupo) + '">' + esc(c.conta) + ' <span style="color:var(--ink-3);font-size:10px">' + esc(c.chave) + '</span></td>' + D.lojas.map(x => { const o = (x.detalhe[l.k] || {})[c.chave]; return '<td' + (o && o.v && ehConta(c.chave) ? ' class="lk" title="Ver os lançamentos' + (o.vf ? ' · ' + moneyK(o.vf) + ' vencem longe do mês' : '') + '" onclick="abrirLanc(\'' + l.k + '\',\'' + c.chave + '\',' + x.loja + ')"' : '') + '>' + (o && o.vf >= 1 ? '<span class="wn" title="tem lançamento com vencimento longe do mês de competência">⚠ </span>' : '') + (o && o.v ? moneyK(o.v) + '<span class="p">' + pct(x.valores.receita > 0 ? o.v / x.valores.receita * 100 : null) + '</span>' : '<span style="color:var(--ink-3)">—</span>') + '</td>'; }).join('') + '<td class="rede' + (ehConta(c.chave) ? ' lk" title="Ver os lançamentos" onclick="abrirLanc(\'' + l.k + '\',\'' + c.chave + '\',\'rede\')' : '') + '">' + moneyK(c.v) + '<span class="p">' + pct(R.valores.receita > 0 ? c.v / R.valores.receita * 100 : null) + '</span></td></tr>';
     }
   }
   document.getElementById('tbody').innerHTML = h;
   renderSug();
 }
 function toggle(k) { if (ABERTAS.has(k)) ABERTAS.delete(k); else ABERTAS.add(k); render(); }
+// ── abrir a conta até o lançamento: títulos do contas a pagar por trás de uma conta, da loja, da rede ou da Central ──
+const ehConta = ch => /^(CD )?\d+\.\d+$/.test(ch);   // só conta do contas a pagar tem lançamento (avaria, cartão e parâmetro não)
+const dataBR = s => s ? s.slice(8, 10) + '/' + s.slice(5, 7) + '/' + s.slice(2, 4) : '—';
+async function abrirLanc(linha, chave, loja) {
+  const md = document.getElementById('md'), byK = Object.fromEntries(D.linhas.map(l => [l.k, l])), ehLoja = typeof loja === 'number';
+  md.classList.add('open'); document.getElementById('md-t').textContent = 'Lançamentos'; document.getElementById('md-s').textContent = 'buscando no contas a pagar…'; document.getElementById('md-b').innerHTML = '<div class="spin"></div>';
+  let j; try { const r = await fetch('/api/dre/lancamentos?periodo=' + D.periodo + '&loja=' + (ehLoja ? loja : '') + '&chave=' + encodeURIComponent(chave) + '&linha=' + linha); j = await r.json(); if (j.error) throw new Error(j.error); }
+  catch (e) { document.getElementById('md-b').innerHTML = '<div class="empty" style="color:var(--bad)">' + esc(e.message) + '</div>'; return; }
+  const per = D.periodo === '12m' ? 'últimos 12 meses' : rotMeses(D.meses), varias = !ehLoja || j.central, multi = j.meses.length > 1;
+  document.getElementById('md-t').textContent = j.conta + ' (' + j.chave + ')';
+  document.getElementById('md-s').textContent = (j.central ? 'Central/CD' : ehLoja ? 'L' + loja + ' ' + NOMES[loja] : 'Rede, 6 lojas') + ' · ' + (byK[linha] ? byK[linha].t.replace(/^\(−\) /, '') : '') + ' · competência ' + per;
+  let h = '<div style="display:flex;gap:18px;flex-wrap:wrap;align-items:baseline;margin-bottom:10px;font-size:12.5px"><span><b style="font-size:18px">' + money(j.total) + '</b></span><span>' + j.n + ' lançamento' + (j.n === 1 ? '' : 's') + '</span></div>';
+  if (j.central && ehLoja) { const o = ((D.lojas.find(x => x.loja === loja) || {}).detalhe[linha] || {})[chave]; h += '<div class="note">Despesa da <b>Central/CD</b>, rateada entre as lojas. A lista abaixo é a despesa inteira; ' + (o ? 'a parte da L' + loja + ' no período é <b>' + money(o.v) + '</b>.' : 'cada loja recebe a parte dela pelo rateio.') + '</div>'; }
+  if (j.fora.n) h += '<div class="note"><b>' + j.fora.n + ' lançamento' + (j.fora.n === 1 ? '' : 's') + ' (' + money(j.fora.v) + ')</b> ' + (j.fora.n === 1 ? 'vence' : 'vencem') + ' 2 meses ou mais longe do mês de competência (linhas em amarelo). Costuma ser parcela futura lançada de uma vez: o ERP grava a competência do dia do lançamento. Sem ' + (j.fora.n === 1 ? 'ele' : 'eles') + ', esta conta ficaria em <b>' + money(j.total - j.fora.v) + '</b>. A DRE não altera o número: a correção é na competência do título, no ERP.</div>';
+  h += j.n ? '<table class="m"><thead><tr><th>Vencimento</th>' + (varias ? '<th>Filial</th>' : '') + (multi ? '<th>Competência</th>' : '') + '<th style="text-align:left">Fornecedor</th><th style="text-align:left">Documento</th><th style="text-align:left">Histórico</th><th>Lançado em</th><th>Situação</th><th>Valor</th></tr></thead><tbody>'
+    + j.itens.map(x => '<tr class="' + (x.fora ? 'fora' : '') + '"><td>' + dataBR(x.venc) + (x.fora ? '<span class="tagf">' + (x.dist > 0 ? x.dist + ' meses depois' : -x.dist + ' meses antes') + '</span>' : '') + '</td>' + (varias ? '<td>' + (x.loja === 10 ? 'Central' : 'L' + x.loja) + '</td>' : '') + (multi ? '<td>' + MESES[+x.ym.slice(5)] + '/' + x.ym.slice(2, 4) + '</td>' : '')
+      + '<td class="tx">' + (esc(x.fornecedor) || '—') + '</td><td class="tx">' + esc(x.doc) + (x.parcela ? ' <span style="color:var(--ink-3)">parc. ' + esc(x.parcela) + '</span>' : '') + '</td><td class="tx">' + esc(x.hist) + '</td><td>' + dataBR(x.lanc) + '</td><td>' + (x.pago ? '<span class="ok" title="' + esc(x.baixa) + '">pago</span>' : '<span style="color:var(--ink-3)">em aberto</span>') + '</td><td><b>' + money(x.valor) + '</b></td></tr>').join('')
+    + '</tbody></table>' + (j.cortado ? '<div style="font-size:11px;color:var(--ink-3);margin-top:8px">Mostrando os 500 maiores de ' + j.n + ' lançamentos.</div>' : '') : '<div class="empty">Nenhum lançamento nessa conta no período.</div>';
+  document.getElementById('md-b').innerHTML = h;
+}
 function renderSug() {
   const S = sugVisiveis(), f = document.getElementById('sug-filtro'), filtrado = typeof VISAO === 'number';
   f.style.display = filtrado ? '' : 'none';
