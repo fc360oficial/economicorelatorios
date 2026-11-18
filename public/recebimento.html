@@ -927,7 +927,9 @@ function renderPedidos() {
     // 'fiscal' = separação com divergência aguardando o fiscal do CD liberar ou devolver.
     const etapa = !c || c.etapa === 'separacao' ? ['info', 'Separar'] : c.etapa === 'fiscal' ? ['bad', 'Aguardando fiscal'] : c.etapa === 'expedicao' ? ['warn', 'Carregar'] : ['warn', 'Conferir'];
     let why = null, cls = '';
-    if (c && c.etapa === 'expedicao') { why = c.souSeparador ? 'Você separou este pedido: outra pessoa faz o carregamento.' : (c.avisoCarga ? 'Fiscal do CD mandou RECONFERIR o carregamento: ' + c.avisoCarga + '. ' : '') + 'Separado por ' + (c.separadoPor || '—') + (c.liberada ? ' · liberado pelo fiscal com divergência' : '') + '. ' + (c.emAndamento ? 'Carregamento começado. Toque pra continuar.' : 'Toque pra carregar o caminhão.'); if (c.souSeparador) cls = 'travada'; }
+    // regra por operador (Tiago, 18/11): PIN limitado a uma etapa vê o pedido da outra travado
+    if (p.etapaNegada && !(c && c.etapa === 'fiscal')) { why = p.etapaNegada === 'expedicao' ? 'Carregamento é com outra pessoa: seu PIN só faz a Separação.' : 'Separação é com outra pessoa: seu PIN só faz o Carregamento.'; cls = 'travada'; }
+    else if (c && c.etapa === 'expedicao') { why = c.souSeparador ? 'Você separou este pedido: outra pessoa faz o carregamento.' : (c.avisoCarga ? 'Fiscal do CD mandou RECONFERIR o carregamento: ' + c.avisoCarga + '. ' : '') + 'Separado por ' + (c.separadoPor || '—') + (c.liberada ? ' · liberado pelo fiscal com divergência' : '') + '. ' + (c.emAndamento ? 'Carregamento começado. Toque pra continuar.' : 'Toque pra carregar o caminhão.'); if (c.souSeparador) cls = 'travada'; }
     else if (c && c.etapa === 'fiscal') { why = 'Separação com divergência mandada pro fiscal do CD. Espere ele liberar ou devolver.'; cls = 'travada'; }
     else if (c && c.avisoFiscal) why = 'Fiscal devolveu pra separação: ' + c.avisoFiscal;
     else if (c && c.emAndamento) why = 'Separação começada. Toque pra continuar.';
@@ -942,12 +944,21 @@ function renderPedidos() {
 async function abrirPedido(i) {
   const p = pedidos[i]; if (!p) return;
   if (p.conferencia && p.conferencia.etapa === 'fiscal') { abrirModal(`<div class="t">Aguardando o fiscal do CD</div><p style="font-size:13px;color:var(--ink2);margin:6px 0 10px">A separação do pedido <b>#${esc(p.nPedido)}</b> ficou divergente do pedido e foi mandada pro fiscal do CD. Ele libera pro carregamento ou devolve pra separação. Atualize a lista daqui a pouco.</p><div class="menuAc"><button class="btn btn-ghost" onclick="fecharModal()">Voltar</button></div>`); return; }
+  if (p.etapaNegada) return modalEtapaNegada(p.etapaNegada, p.nPedido);
   try { visaoExp = await postExp('abrir', { nPedido: p.nPedido, nome: sess.nome }); pedidoAtual = p; cartaoExp = null; ultimoBipadoExp = null; selSep = null; qtdSep = {}; $('xCartao').innerHTML = ''; mostrar('exp'); renderExp(); }
   catch (e) {
     // trava do servidor: quem separou não carrega o mesmo pedido
     if (e.status === 409 && e.corpo && e.corpo.separadoPor) { abrirModal(`<div class="t">Quem separou não pode carregar</div><p style="font-size:13px;color:var(--ink2);margin:6px 0 10px">Este pedido foi separado por <b>${esc(e.corpo.separadoPor)}</b>. O Carregamento de Caminhão tem que ser feito por outra pessoa: quem vai carregar digita o PIN pessoal dele.</p><div class="menuAc"><button class="btn btn-secondary" onclick="fecharModal();trocarOperador('troca')">Trocar de operador</button><button class="btn btn-ghost" onclick="fecharModal()">Voltar</button></div>`); return; }
+    // trava do servidor: PIN limitado a uma etapa (a lista do coletor estava velha)
+    if (e.status === 409 && e.corpo && e.corpo.etapaNegada) { modalEtapaNegada(e.corpo.etapaNegada, p.nPedido); carregarPedidos(); return; }
     erroExp(e, 'Não deu pra abrir o pedido');
   }
+}
+// Regra por operador (Tiago, 18/11/26: "Lima só entra em separação e o Alves só em carregamento"): a permissão fica no cadastro
+// do operador na retaguarda (Centro de Distribuição › Regras › Pode fazer) e quem trava é o servidor.
+function modalEtapaNegada(etapa, nPedido) {
+  const carga = etapa === 'expedicao';
+  abrirModal(`<div class="t">${carga ? 'Seu PIN só faz a Separação' : 'Seu PIN só faz o Carregamento'}</div><p style="font-size:13px;color:var(--ink2);margin:6px 0 10px">O pedido <b>#${esc(nPedido)}</b> está ${carga ? 'no <b>Carregamento de Caminhão</b>' : 'na <b>Separação de Pedidos</b>'}, que é com outra pessoa. Quem vai fazer digita o PIN pessoal dele.</p><div class="menuAc"><button class="btn btn-secondary" onclick="fecharModal();trocarOperador('troca')">Trocar de operador</button><button class="btn btn-ghost" onclick="fecharModal()">Voltar</button></div>`);
 }
 function voltarPedidos() { cartaoExp = null; $('xCartao').innerHTML = ''; mostrar('pedidos'); carregarPedidos(); }
 async function pollExp() { if (!visaoExp || cartaoExp || $('modal').innerHTML) return; try { const v = await api('/api/expedicao-publico/visao/' + visaoExp.id + '?' + qExp()); visaoExp = v; renderExp(); setNet(true); } catch (e) { if (!e.status) setNet(false); } }

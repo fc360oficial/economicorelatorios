@@ -261,6 +261,36 @@ test('operadores do CD: cadastro com PIN de 4 dígitos único, login por PIN ger
   assert.equal(E.salvarOperador({ id: a.id, nome: 'ana paula', pin: '1234' }).nome, 'ANA PAULA');
 });
 
+test('regra por operador (Tiago, 18/11): LIMA só Separação, ALVES só Carregamento — cada um barrado (409) na etapa do outro; sem regra faz as duas', async () => {
+  const c = setup(); const id = c.id;   // pedido 6853 aberto por MARIA (sem regra), em separação
+  const lima = E.salvarOperador({ nome: 'lima', pin: '1107', etapas: ['separacao'] }), alves = E.salvarOperador({ nome: 'alves', pin: '0428', etapas: ['expedicao'] });
+  assert.deepEqual(lima.etapas, ['separacao']); assert.deepEqual(alves.etapas, ['expedicao']);
+  assert.deepEqual(E.salvarOperador({ nome: 'tiago', pin: '1234' }).etapas, ['separacao', 'expedicao'], 'sem regra = as duas');
+  const LIMA = E.entrarOperador('1107').operador, ALVES = E.operadorPorToken(E.entrarOperador('0428').token);
+  assert.deepEqual(LIMA, { id: lima.id, nome: 'LIMA', etapas: ['separacao'] }); assert.deepEqual(ALVES.etapas, ['expedicao']);
+  // inativar/reativar não manda etapas: a regra fica
+  E.salvarOperador({ id: lima.id, nome: 'lima', pin: '1107', ativo: false }); assert.deepEqual(E.salvarOperador({ id: lima.id, nome: 'lima', pin: '1107', ativo: true }).etapas, ['separacao']);
+  // ALVES não entra na separação: nem retomar, nem pedido novo, nem bipar/separar/terminar
+  assert.equal(E.etapaNegada(c, ALVES), 'separacao'); assert.equal(E.etapaNegada(c, LIMA), null); assert.equal(E.etapaNegada(null, ALVES), 'separacao', 'pedido sem conferência = separação'); assert.equal(E.etapaNegada(c, MARIA), null);
+  assert.throws(() => E.abrirPedido({ nPedido: 6853, itens: [], operador: ALVES }), e => e.status === 409 && e.etapaNegada === 'separacao' && /ALVES só faz o Carregamento/.test(e.message));
+  assert.throws(() => E.abrirPedido({ nPedido: 7001, itens: ITENS, operador: ALVES }), e => e.etapaNegada === 'separacao');
+  await assert.rejects(E.separar(id, { cod: '789', quant: 5, emb: 1, operador: ALVES }), e => e.status === 409 && e.etapaNegada === 'separacao');
+  assert.throws(() => E.terminei(id, { operador: ALVES }), e => e.etapaNegada === 'separacao');
+  // LIMA separa tudo e fecha; a conferência guarda só { id, nome } de quem fez
+  assert.equal(E.abrirPedido({ nPedido: 6853, itens: [], operador: LIMA }).id, id);
+  await biparTudo(id, LIMA); assert.equal(E.terminei(id, { operador: LIMA }).fechou, true);
+  const sep = E.obter(id); assert.equal(sep.status, 'separada'); assert.equal(E.etapaNegada(sep, LIMA), 'expedicao'); assert.equal(E.etapaNegada(sep, ALVES), null);
+  // LIMA não entra no carregamento (nem de pedido que outra pessoa separou)
+  assert.throws(() => E.abrirPedido({ nPedido: 6853, itens: [], operador: LIMA }), e => e.status === 409 && e.etapaNegada === 'expedicao' && /LIMA só faz a Separação/.test(e.message));
+  // ALVES carrega
+  const car = E.abrirPedido({ nPedido: 6853, itens: [], operador: ALVES }); assert.equal(car.status, 'expedindo'); assert.deepEqual(car.etapas.expedicao.operador, { id: alves.id, nome: 'ALVES' });
+  await assert.rejects(E.bipar(id, { cod: '789', quant: 5, emb: 1, lote: 'U1', operador: LIMA }), e => e.etapaNegada === 'expedicao');
+  await biparTudo(id, ALVES); assert.equal(E.terminei(id, { operador: ALVES }).fechou, true); assert.equal(E.obter(id).status, 'conferida');
+  // tirar a regra na retaguarda (as duas etapas) libera na hora, sem entrar de novo
+  const tk = E.entrarOperador('1107').token; E.salvarOperador({ id: lima.id, nome: 'lima', pin: '1107', etapas: ['separacao', 'expedicao'] });
+  assert.deepEqual(E.operadorPorToken(tk), { id: lima.id, nome: 'LIMA' });
+});
+
 test('modelo antigo (sem etapas, gravado antes de 14/10): continua numa etapa só e fecha direto', async () => {
   const c = setup(); const dia = c.id.slice(4, 14);
   // simula uma conferência gravada pelo código antigo

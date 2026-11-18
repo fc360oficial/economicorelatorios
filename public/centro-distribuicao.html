@@ -965,6 +965,12 @@ function imprimir(id) {
 // 100 % contra o pedido. Quem separou não pode expedir: os operadores do CD têm PIN pessoal, cadastrado aqui (aba Regras).
 // O acompanhamento da saída (pendências do fiscal do CD, pedidos na saída) fica no Fiscal com a loja CD selecionada.
 let OPS = [];
+// Regra por operador (Tiago, 18/11/26: "Lima só vai poder entrar em separação e o Alves só em carregamento"): coluna "Pode fazer".
+// Chaves internas: separacao = Separação de Pedidos · expedicao = Carregamento de Caminhão. Sem o campo = as duas.
+const ETAPAS_OP = { todas: ['separacao', 'expedicao'], separacao: ['separacao'], expedicao: ['expedicao'] };
+const ROTULO_ETAPAS_OP = { todas: 'Separação e Carregamento', separacao: 'Só Separação', expedicao: 'Só Carregamento' };
+const chaveEtapasOp = o => (Array.isArray(o.etapas) && o.etapas.length === 1 && ETAPAS_OP[o.etapas[0]]) ? o.etapas[0] : 'todas';
+const selEtapasOp = (id, sel) => `<select class="cx" style="width:190px" id="op-etapas${id ? '-' + id : ''}">${Object.keys(ETAPAS_OP).map(k => `<option value="${k}" ${k === sel ? 'selected' : ''}>${ROTULO_ETAPAS_OP[k]}</option>`).join('')}</select>`;
 async function carregarOperadores() { OPS = await api('/api/expedicao/operadores'); renderOperadores(); }
 // aviso inline (não depende de alert, que o navegador pode estar suprimindo): some sozinho em 6 s
 let OPMSG = null;
@@ -975,9 +981,10 @@ async function salvarOperador(id) {
   if (!nome) { avisoOp('Digite o nome do operador.', true); elN.focus(); return; }
   if (!/^\d{4}$/.test(pin)) { avisoOp('PIN pessoal tem que ter 4 dígitos.', true); elP.focus(); return; }
   try {
-    const op = await api('/api/expedicao/operadores', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id || undefined, nome, pin, ativo: true }) });
+    const elE = $('#op-etapas' + (id ? '-' + id : '')); const etapas = elE ? ETAPAS_OP[elE.value] || ETAPAS_OP.todas : ETAPAS_OP.todas;
+    const op = await api('/api/expedicao/operadores', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id || undefined, nome, pin, ativo: true, etapas }) });
     if (!id) { elN.value = ''; elP.value = ''; }
-    avisoOp((id ? 'Salvo: ' : 'Cadastrado: ') + op.nome + ' · PIN ' + op.pin, false);
+    avisoOp((id ? 'Salvo: ' : 'Cadastrado: ') + op.nome + ' · PIN ' + op.pin + ' · ' + ROTULO_ETAPAS_OP[chaveEtapasOp(op)], false);
     try { await carregarOperadores(); } catch (e) { console.error('operadores: recarregar depois de salvar', e); avisoOp('Salvo, mas a lista não recarregou: ' + e.message + '. Atualize a página.', true); }
   } catch (e) { console.error('operadores: salvar', e); avisoOp('Não cadastrou: ' + e.message, true); }
 }
@@ -988,9 +995,9 @@ async function ativarOperador(id, ativo) {
 }
 function renderOperadores() {
   const el = $('#ops-cd'); if (!el) return;
-  const linhasO = OPS.map(o => `<tr class="${o.ativo ? '' : 'mut'}"><td><input class="cx" style="width:160px" id="op-nome-${o.id}" value="${esc(o.nome)}"></td><td><input class="cx" style="width:70px" id="op-pin-${o.id}" value="${esc(o.pin)}" maxlength="4" inputmode="numeric"></td><td>${o.ativo ? '<span class="pill p-ok">ativo</span>' : '<span class="pill">inativo</span>'}</td><td>${o.ativo ? `<button class="btn" onclick="salvarOperador('${esc(o.id)}')">Salvar</button> <button class="btn btn-sec" onclick="ativarOperador('${esc(o.id)}',false)">Inativar</button>` : `<button class="btn btn-sec" onclick="ativarOperador('${esc(o.id)}',true)">Reativar</button>`}</td></tr>`).join('');
-  el.innerHTML = `<h3 style="font-size:13px;margin:6px 0 8px">Operadores do CD <span class="s2" style="display:inline">nome e PIN pessoal de 4 dígitos pra entrar no coletor da loja 10 · quem separa não pode expedir o mesmo pedido · inativo não entra · a saída é acompanhada no <a href="/fiscal.html?loja=10&tab=expedicao">Fiscal › Expedição do CD</a></span> <span id="op-msg" class="contagem ${OPMSG ? (OPMSG.erro ? 'neg' : 'pos') : ''}" style="margin-left:8px">${OPMSG ? esc(OPMSG.txt) : ''}</span></h3>
-    <div class="table-wrap"><table class="main-t" style="max-width:640px"><thead><tr><th>Nome</th><th>PIN</th><th>Situação</th><th></th></tr></thead><tbody>${linhasO}<tr><td><input class="cx" style="width:160px" id="op-nome" placeholder="novo operador"></td><td><input class="cx" style="width:70px" id="op-pin" placeholder="4 dígitos" maxlength="4" inputmode="numeric"></td><td></td><td><button class="btn btn-amber" onclick="salvarOperador('')">Cadastrar</button></td></tr></tbody></table></div>`;
+  const linhasO = OPS.map(o => `<tr class="${o.ativo ? '' : 'mut'}"><td><input class="cx" style="width:160px" id="op-nome-${o.id}" value="${esc(o.nome)}"></td><td><input class="cx" style="width:70px" id="op-pin-${o.id}" value="${esc(o.pin)}" maxlength="4" inputmode="numeric"></td><td>${o.ativo ? selEtapasOp(esc(o.id), chaveEtapasOp(o)) : `<span class="mut">${ROTULO_ETAPAS_OP[chaveEtapasOp(o)]}</span>`}</td><td>${o.ativo ? '<span class="pill p-ok">ativo</span>' : '<span class="pill">inativo</span>'}</td><td>${o.ativo ? `<button class="btn" onclick="salvarOperador('${esc(o.id)}')">Salvar</button> <button class="btn btn-sec" onclick="ativarOperador('${esc(o.id)}',false)">Inativar</button>` : `<button class="btn btn-sec" onclick="ativarOperador('${esc(o.id)}',true)">Reativar</button>`}</td></tr>`).join('');
+  el.innerHTML = `<h3 style="font-size:13px;margin:6px 0 8px">Operadores do CD <span class="s2" style="display:inline">nome e PIN pessoal de 4 dígitos pra entrar no coletor da loja 10 · quem separa não pode expedir o mesmo pedido · "Pode fazer" limita a pessoa a uma etapa (mude e clique em Salvar) · inativo não entra · a saída é acompanhada no <a href="/fiscal.html?loja=10&tab=expedicao">Fiscal › Expedição do CD</a></span> <span id="op-msg" class="contagem ${OPMSG ? (OPMSG.erro ? 'neg' : 'pos') : ''}" style="margin-left:8px">${OPMSG ? esc(OPMSG.txt) : ''}</span></h3>
+    <div class="table-wrap"><table class="main-t" style="max-width:860px"><thead><tr><th>Nome</th><th>PIN</th><th title="Etapas da saída que a pessoa pode fazer no coletor do CD">Pode fazer</th><th>Situação</th><th></th></tr></thead><tbody>${linhasO}<tr><td><input class="cx" style="width:160px" id="op-nome" placeholder="novo operador"></td><td><input class="cx" style="width:70px" id="op-pin" placeholder="4 dígitos" maxlength="4" inputmode="numeric"></td><td>${selEtapasOp('', 'todas')}</td><td></td><td><button class="btn btn-amber" onclick="salvarOperador('')">Cadastrar</button></td></tr></tbody></table></div>`;
 }
 // Lotes no CD virou página própria: /lotes-cd.html (sidebar › CAHU Distribuidora › Lotes e Validades), 29/09/2026
 const DIAS_SEM = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];

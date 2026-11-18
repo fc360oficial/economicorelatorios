@@ -43,6 +43,29 @@ test('só o token da loja 10 entra; /pedidos lista pedidos abertos do Televendas
   assert.ok(!('un' in p), 'lista não leva quantidade do pedido');
 });
 
+test('regra por operador (18/11): /pedidos marca etapaNegada pro PIN limitado e /abrir responde 409 com etapaNegada (não 403, que derruba a sessão do coletor)', async () => {
+  const { routes, logs, t10 } = montar();
+  let r = res(); routes['POST /api/expedicao/operadores'](req({ body: { nome: 'lima', pin: '1107', etapas: ['separacao'] } }), r); assert.deepEqual(r.body.etapas, ['separacao']);
+  r = res(); routes['POST /api/expedicao/operadores'](req({ body: { nome: 'alves', pin: '0428', etapas: ['expedicao'] } }), r); assert.deepEqual(r.body.etapas, ['expedicao']);
+  assert.match(logs[logs.length - 1].msg, /só carregamento/);
+  const qL = { t: t10, o: expedicao.entrarOperador('1107').token }, qA = { t: t10, o: expedicao.entrarOperador('0428').token };
+  // pedido ainda sem conferência = separação: LIMA entra, ALVES vê travado
+  r = res(); await routes['GET /api/expedicao-publico/pedidos'](req({ query: qL }), r); assert.equal(r.body[0].etapaNegada, null);
+  r = res(); await routes['GET /api/expedicao-publico/pedidos'](req({ query: qA }), r); assert.equal(r.body[0].etapaNegada, 'separacao');
+  r = res(); await routes['POST /api/expedicao-publico/abrir'](req({ query: qA, body: { nPedido: '6853' } }), r);
+  assert.equal(r.statusCode, 409); assert.equal(r.body.etapaNegada, 'separacao'); assert.match(r.body.error, /ALVES só faz o Carregamento/); assert.equal(expedicao.acharPorPedido('6853'), null, 'não abriu nada');
+  assert.match(logs[logs.length - 1].msg, /sem permissão pra separação/);
+  // LIMA separa e fecha; a lista inverte: LIMA travado no carregamento, ALVES entra
+  r = res(); await routes['POST /api/expedicao-publico/abrir'](req({ query: qL, body: { nPedido: '6853' } }), r); assert.equal(r.statusCode, 200); const id = r.body.id;
+  r = res(); await routes['POST /api/expedicao-publico/bipar'](req({ query: qL, body: { id, cod: '7891150097605', quant: 4, emb: 27 } }), r);
+  r = res(); await routes['POST /api/expedicao-publico/bipar'](req({ query: qL, body: { id, cod: '17891000457099', quant: 2, emb: 1 } }), r);
+  r = res(); await routes['POST /api/expedicao-publico/terminei'](req({ query: qL, body: { id } }), r); assert.equal(r.body.fechou, true);
+  r = res(); await routes['GET /api/expedicao-publico/pedidos'](req({ query: qL }), r); assert.equal(r.body[0].etapaNegada, 'expedicao');
+  r = res(); await routes['POST /api/expedicao-publico/abrir'](req({ query: qL, body: { nPedido: '6853' } }), r); assert.equal(r.statusCode, 409); assert.equal(r.body.etapaNegada, 'expedicao');
+  r = res(); await routes['GET /api/expedicao-publico/pedidos'](req({ query: qA }), r); assert.equal(r.body[0].etapaNegada, null);
+  r = res(); await routes['POST /api/expedicao-publico/abrir'](req({ query: qA, body: { nPedido: '6853' } }), r); assert.equal(r.statusCode, 200); assert.equal(r.body.etapa, 'expedicao');
+});
+
 test('pedido Liberado/Aguardando no painel do Dlinks SEM bipagem lá continua na lista do coletor (8084, 18/11); com bipagem some', async () => {
   let m = montar({ bipadosDlinks: [] });
   let r = res(); await m.routes['GET /api/expedicao-publico/pedidos'](req({ query: { t: m.t10 } }), r);
