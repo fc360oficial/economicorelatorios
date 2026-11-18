@@ -876,17 +876,29 @@ new ResizeObserver(resize).observe(stage); resize(); updCam();
    abre em 960×540 e os números, o cartão e a faixa (desenhados pra 1920) cobriam o escritório inteiro. O 3D é desenhado no
    tamanho real da tela (ESC), vezes a qualidade do modo leve (QUAL: 1 → 0,75 → 0,6 se a TV não der conta). */
 let ESC=1, QUAL=1, NIVEL=1;
-function encaixar(){ if(!TV)return; const app=document.querySelector('.app'); ESC=Math.min(innerWidth/1920,innerHeight/1080)||1;
-  app.style.transform='scale('+ESC+')'; app.style.left=Math.max(0,(innerWidth-1920*ESC)/2)+'px'; app.style.top=Math.max(0,(innerHeight-1080*ESC)/2)+'px';
+/* 18/11/26, TV do Fiscal: o navegador dela tem barra em cima e a área que aparece é 1545×699 (mais larga que 16:9); além
+   disso a altura mudou depois da carga SEM o evento resize. O palco de 1920×1080 ficava com 20 % cortado embaixo (faixa,
+   cartão e o botão de tela cheia sumiam). Agora: mede a área visível de verdade (a menor entre a janela, o documento e o
+   visualViewport), o palco toma o FORMATO dela (mínimo 1920×1080: tela mais larga = palco mais largo, sem tarja nem corte)
+   e a medida é conferida de novo a cada 2 s. */
+let VW=0, VH=0, PW=1920, PH=1080;
+function areaVisivel(){ const d=document.documentElement, v=window.visualViewport; let w=innerWidth, h=innerHeight, x=0, y=0;
+  if(d.clientWidth&&d.clientWidth<w)w=d.clientWidth; if(d.clientHeight&&d.clientHeight<h)h=d.clientHeight;
+  if(v&&v.width>0&&v.height>0){ w=Math.min(w,v.width); h=Math.min(h,v.height); x=v.offsetLeft||0; y=v.offsetTop||0; }
+  return [Math.round(w),Math.round(h),x,y]; }
+function encaixar(){ if(!TV)return; const app=document.querySelector('.app'), [w,h,x,y]=areaVisivel(); if(!w||!h)return; VW=w; VH=h;
+  const a=w/h; if(a>=16/9){PH=1080; PW=Math.round(1080*a);} else {PW=1920; PH=Math.round(1920/a);}
+  ESC=h/PH; app.style.width=PW+'px'; app.style.height=PH+'px'; app.style.transform='scale('+ESC+')'; app.style.left=x+'px'; app.style.top=y+'px';
   renderer.setPixelRatio(ESC*QUAL); resize(); }
-if(TV){encaixar(); addEventListener('resize',encaixar);}
+if(TV){encaixar(); addEventListener('resize',encaixar); if(window.visualViewport)visualViewport.addEventListener('resize',encaixar);
+  setInterval(()=>{const [w,h]=areaVisivel(); if(w!==VW||h!==VH)encaixar();},2000);}
 let t0=performance.now(), last=t0, ledT=0, escT=0, ultRender=0, fpsN=0, fpsT0=t0, FPS=0, fpsJanelas=0;
 const fpsAlvo=()=>LEVE?(NIVEL>=3?12:20):30;
 // leve: a cada 10 s confere os quadros por segundo de verdade; abaixo de 60% do alvo por 2 janelas seguidas, desce um nível
 function medirFps(now){ fpsN++; if(now-fpsT0<10000)return; FPS=Math.round(fpsN*10000/(now-fpsT0))/10; fpsN=0; fpsT0=now;
   if(!LEVE||!TV||NIVEL>=3||document.hidden)return; if(FPS<fpsAlvo()*.6){ if(++fpsJanelas>=2){fpsJanelas=0; NIVEL++; QUAL=NIVEL===2?.75:.6; if(NIVEL===3)parts.forEach(p=>{p.m.visible=false;}); encaixar(); } } else fpsJanelas=0; }
 window.tvSlideAtual=()=>'3D'+(LEVE?' leve · nível '+NIVEL:'')+(FPS?' · '+String(FPS).replace('.',',')+' quadros/s':'')+(ENSAIO?' · ensaio #'+ENSAIO.id:'')
-  +(TV?' · '+(AMPLO?'ampla':'foco')+' z'+cam.zoom.toFixed(2)+' · '+innerWidth+'x'+innerHeight+' e'+ESC.toFixed(2)+(location.search?' '+location.search.slice(0,24):''):'');   // 18/11: o que a TV está de fato fazendo (diagnóstico pelo Monitor)
+  +(TV?' · '+(AMPLO?'ampla':'foco')+' z'+cam.zoom.toFixed(2)+' · '+VW+'x'+VH+(innerHeight!==VH||innerWidth!==VW?' (janela '+innerWidth+'x'+innerHeight+')':'')+' e'+ESC.toFixed(2)+(document.fullscreenElement?' cheia':'')+(location.search?' '+location.search.slice(0,24):''):'');   // 18/11: o que a TV está de fato fazendo (diagnóstico pelo Monitor)
 function frame(now){
   if(TV){ if(now-ultRender<1000/fpsAlvo()-4){requestAnimationFrame(frame); return;} ultRender=now; medirFps(now); }   // TV: 30 quadros/s; leve: 20 (12 no nível 3)
   const t=(now-t0)/1000, dt=Math.min(.1,(now-last)/1000); last=now; vt+=dt*1000*simF;
