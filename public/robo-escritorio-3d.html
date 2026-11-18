@@ -138,6 +138,13 @@ button.pill[aria-pressed="true"]{background:var(--navy);color:#fff}
 /* cartão do holofote: texto comprido (ex.: Sugestão lista dezenas de fornecedores) cobria metade da TV — corta em 4 linhas */
 .tvcard .ag{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:4;overflow:hidden}
 .tvcard li{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+/* vista ampla (TV): cartão fixo maior, com "posto 3 de 8" e o que vem depois; posto da vez com a etiqueta âmbar */
+.tvcard .k em{float:right;font-style:normal;color:var(--text3);letter-spacing:.5px;margin-left:12px}
+.tvcard .px{font-size:15px;color:var(--text2);margin-top:10px;padding-top:9px;border-top:1px solid var(--border);display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+.tvcard.amplo{width:560px;animation:none}
+.tvcard.amplo h3{font-size:34px}.tvcard.amplo .st{font-size:18px}.tvcard.amplo .ag{font-size:19px}.tvcard.amplo ul{font-size:16px;padding-left:0;list-style:none}.tvcard.amplo .px{font-size:16px}
+.tv .tag.sel b{background:var(--brand);border-color:var(--brand);color:#3b2a00}
+.tv .tag b{max-width:260px;overflow:hidden;text-overflow:ellipsis}   /* nome comprido (as compradoras, todas numa etiqueta) saía da tela */
 /* TV: palco fixo 1920×1080, encaixado no aparelho por transform no script (encaixar) — 18/11/26 */
 body.tv{background:#0e1626}
 .tv .app{position:absolute;left:0;top:0;width:1920px;height:1080px;grid-template-rows:1fr;transform-origin:0 0}
@@ -208,6 +215,11 @@ const TV=PUB||new URLSearchParams(location.search).get('tv')==='1';   // modo TV
 const QS=new URLSearchParams(location.search);
 const LEVE=QS.get('leve')==='1'||(QS.get('leve')!=='0'&&TV&&/Android|AFT|Silk|Tizen|Web0S|SmartTV|Smart TV/i.test(navigator.userAgent));
 if(LEVE)document.documentElement.classList.add('leve');
+/* VISTA AMPLA (18/11/26, Tiago vendo na TV do Fiscal: "a apresentação pra TV deveria ficar ampla e passando o que era pra ser
+   feito em algum local... ele fica focando em setores"). Na TV a câmera fica parada no escritório inteiro e um cartão fixo
+   (canto de baixo, à esquerda) passa posto por posto, 10 s cada: o que está fazendo, a fila e o que vem depois; o posto da vez
+   fica marcado na maquete (anel + etiqueta âmbar). ?foco=1 volta o holofote antigo, com a câmera indo até cada posto. */
+const AMPLO=TV&&QS.get('foco')!=='1';
 // material: físico (padrão) ou Lambert no modo leve — mesma cor, mesma textura, sem brilho/metal
 function STD(o){ if(!LEVE)return new THREE.MeshStandardMaterial(o); const p=Object.assign({},o); delete p.roughness; delete p.metalness; return new THREE.MeshLambertMaterial(p); }
 
@@ -766,11 +778,12 @@ window.__esc={achar,robots,ROBOS,ACTORS,plan,ACTS,reuniao,eventos,visitante,hora
 let tween=null, spotIdx=0, spotLock=0;   // TV é declarado no topo do script (usado antes deste bloco)
 function irPara(tx,tz,zoom,dur){tween={t0:performance.now(),dur:dur||1300,fx:target.x,fz:target.z,fk:cam.zoom,tx,tz,tk:zoom};}
 function stepTween(now){if(!tween)return; const k=Math.min(1,(now-tween.t0)/tween.dur), e=k<.5?2*k*k:-1+(4-2*k)*k; target.x=tween.fx+(tween.tx-tween.fx)*e; target.z=tween.fz+(tween.tz-tween.fz)*e; cam.zoom=tween.fk+(tween.tk-tween.fk)*e; cam.updateProjectionMatrix(); updCam(); if(k>=1)tween=null;}
-function tvCard(cls,k,titulo,st,ag,lista){const c=$('tvcard'); c.hidden=false; c.className='tvcard '+cls; c.innerHTML='<div class="k">'+esc(k)+'</div><h3>'+esc(titulo)+'</h3><p class="st">● '+esc(st)+'</p><p class="ag">'+esc(ag)+'</p>'+(lista&&lista.length?'<ul>'+lista.slice(0,2).map(f=>'<li>'+esc(f)+'</li>').join('')+'</ul>':'');}
+function tvCard(cls,k,titulo,st,ag,lista,prox,cont){const c=$('tvcard'); c.hidden=false; c.className='tvcard '+cls+(AMPLO?' amplo':''); c.innerHTML='<div class="k">'+(cont?'<em>'+esc(cont)+'</em>':'')+esc(k)+'</div><h3>'+esc(titulo)+'</h3><p class="st">● '+esc(st)+'</p><p class="ag">'+esc(ag)+'</p>'+(lista&&lista.length?'<ul>'+lista.slice(0,AMPLO?3:2).map(f=>'<li>'+esc(f)+'</li>').join('')+'</ul>':'')+(prox?'<p class="px"><b>Depois:</b> '+esc(prox)+'</p>':'');}
 function holofote(a){   // a = posto (ou null = vista geral)
-  if(!a){irPara(0,0,1.12,1500); $('tvcard').hidden=true; clearSel(); return;}
-  irPara(a.g.position.x-2.2,a.g.position.z-2.2,1.75,1500); select(a.id);   // alvo um pouco pro fundo: o boneco cai abaixo do centro, longe do título e dos números
-  tvCard(a.real||a.ens?'real':'sombra',a.papel+(a.real?' · dados reais':a.ens?' · ENSAIO · ERP de teste':' · sombra, nada vale'),a.nome,a.status||'',a.agora,a.fila);
+  if(!a){if(!AMPLO)irPara(0,0,1.12,1500); $('tvcard').hidden=true; clearSel(); return;}
+  if(!AMPLO)irPara(a.g.position.x-2.2,a.g.position.z-2.2,1.75,1500);   // alvo um pouco pro fundo: o boneco cai abaixo do centro, longe do título e dos números
+  select(a.id); const i=ROBOS.indexOf(a);
+  tvCard(a.real||a.ens?'real':'sombra',a.papel+(a.real?' · dados reais':a.ens?' · ENSAIO · ERP de teste':' · sombra, nada vale'),a.nome,a.status||'',a.agora,a.fila,AMPLO?a.proximo:'',AMPLO&&i>=0?(i+1)+' de '+ROBOS.length:'');
 }
 function tvKpis(){ if(!TV)return; const T=DADOS&&DADOS.total, F=SOMBRA&&SOMBRA.faria, D=DADOS; const graves=D?D.alertas.filter(a=>a.grav===3).length:null;
   $('tvk').innerHTML=[['projeção do mês',T?R0(T.lucroProj):'—','meta '+(T?R0(T.meta):'—'),T?(T.lucroProj>=T.meta?'ok':'crit'):''],
@@ -790,14 +803,26 @@ function tvTicker(){ if(!TV)return; const d=new Date(vt), hh=pad(d.getHours())+'
 }
 if(TV&&LEVE)setInterval(tkPasso,7000);
 if(TV&&QS.get('kiosk')==='1')document.body.style.cursor='none';   // ?kiosk=1: sem cursor e sem botão, como nos outros painéis
-if(TV&&QS.get('kiosk')!=='1'){const b=document.createElement('button'); b.type='button'; b.textContent='Tela cheia'; b.style.cssText='position:absolute;right:28px;bottom:84px;z-index:99;font:700 22px Inter,sans-serif;padding:12px 20px;border-radius:12px;border:0;background:#F5B800;color:#6B4E00;cursor:pointer'; $('stage').appendChild(b); b.addEventListener('pointerdown',e=>e.stopPropagation()); /* dentro do palco: encolhe junto na TV */ const cheia=()=>!!document.fullscreenElement; b.onclick=()=>cheia()?document.exitFullscreen():document.documentElement.requestFullscreen(); document.addEventListener('fullscreenchange',()=>{b.style.display=cheia()?'none':'';});}
+if(TV&&QS.get('kiosk')!=='1'){const b=document.createElement('button'); b.type='button'; b.textContent='Tela cheia'; b.style.cssText='position:absolute;right:28px;bottom:84px;z-index:99;font:700 22px Inter,sans-serif;padding:12px 20px;border-radius:12px;border:0;background:#F5B800;color:#6B4E00;cursor:pointer'; $('stage').appendChild(b); b.addEventListener('pointerdown',e=>e.stopPropagation()); /* dentro do palco: encolhe junto na TV */
+  /* 18/11/26 (Tiago, na TV do Fiscal: "pegou sim, mas não com o botão de tela cheia"): o botão ficava parado em cima do painel.
+     Agora some sozinho depois de 8 s (volta ao mexer o cursor), some de vez se o navegador da TV recusar a tela cheia, e o OK
+     do controle (Enter) ou a tecla F também ligam. Onde o navegador não deixa, a saída é o modo quiosque do próprio aparelho. */
+  const el=document.documentElement, pede=el.requestFullscreen||el.webkitRequestFullscreen, sai=document.exitFullscreen||document.webkitExitFullscreen;
+  const cheia=()=>!!(document.fullscreenElement||document.webkitFullscreenElement); let some=0, recusou=!pede;
+  const esconde=()=>{b.style.display='none';}, mostra=()=>{ if(recusou||cheia())return; b.style.display=''; clearTimeout(some); some=setTimeout(esconde,8000); };
+  const alterna=()=>{ try{ if(cheia()){sai.call(document); return;} const p=pede.call(el); if(p&&p.catch)p.catch(()=>{recusou=true; esconde();}); }catch(e){recusou=true; esconde();} };
+  b.onclick=alterna; ['fullscreenchange','webkitfullscreenchange'].forEach(ev=>document.addEventListener(ev,()=>{ if(cheia())esconde(); else mostra(); }));
+  addEventListener('pointermove',mostra); addEventListener('keydown',e=>{ if(e.key==='f'||e.key==='F'||e.key==='Enter'){ if(!recusou)alterna(); } else mostra(); });
+  if(recusou)esconde(); else mostra();}
 if(PUB){document.title='Painel Robô · Econômico'; const h1=document.querySelector('.brand h1'); if(h1)h1.textContent='Painel Robô';}
 if(TV){document.body.classList.add('tv'); $('tvk').hidden=false; $('ticker').hidden=false; $('tvclock').hidden=false; setZoom(1.12);
   // holofote: 13 s num posto, 7 s de vista geral, e assim por diante; momentos especiais travam o holofote
   let fase=0, prox=performance.now()+5000;
-  setInterval(()=>{const now=performance.now(); if(now<prox||spotLock>now)return; if(fase===0){holofote(ROBOS[spotIdx%ROBOS.length]); spotIdx++; fase=1; prox=now+13000;} else {holofote(null); fase=0; prox=now+7000;}},400);
+  if(AMPLO){target.x=-1.6; target.z=1.6; setZoom(1); updCam();}   // andar inteiro na tela, um pouco pra direita: o canto de baixo à esquerda fica livre pro cartão
+  if(AMPLO)setInterval(()=>{const now=performance.now(); if(now<prox||spotLock>now)return; holofote(ROBOS[spotIdx%ROBOS.length]); spotIdx++; prox=now+10000;},400);   // vista ampla: câmera parada, o cartão passa posto por posto
+  else setInterval(()=>{const now=performance.now(); if(now<prox||spotLock>now)return; if(fase===0){holofote(ROBOS[spotIdx%ROBOS.length]); spotIdx++; fase=1; prox=now+13000;} else {holofote(null); fase=0; prox=now+7000;}},400);
 }
-function momento(tx,tz,zoom,seg,card){ if(!TV)return; spotLock=performance.now()+seg*1000; clearSel(); irPara(tx,tz,zoom,1800); if(card)tvCard(...card); else $('tvcard').hidden=true; }
+function momento(tx,tz,zoom,seg,card){ if(!TV)return; spotLock=performance.now()+seg*1000; clearSel(); if(!AMPLO)irPara(tx,tz,zoom,1800); if(card)tvCard(...card); else $('tvcard').hidden=true; }
 
 /* ==================== ENSAIO do robô (12/11/2026): o que está sendo feito DE VERDADE ====================
    Tiago: "vai ser um painel estilo esse... mostrando pra mim tudo que tá sendo feito". Com ensaio em andamento
