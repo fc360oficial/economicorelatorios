@@ -13,7 +13,7 @@ function res() { const r = { statusCode: 200 }; r.status = c => { r.statusCode =
 const CAB = { nPedido: 6853, Nome: 'SERAFIM SUPERMERCADO', CPF: '35226657000156', Data: '2026-09-29', Hora: '09:56:19', Total: '5451.31', Status: 1, NFe: '0' };
 const ITENS = [{ cod: '7891150097605', descricao: 'ALA ERVA DOCE', und: 'UN', qtd: '108.000', qtdEmb: '0.00', conversao: '4 FD c/27' }, { cod: '17891000457099', descricao: 'BOMBOM GAROTO CX30', und: 'CX', qtd: '2.000', qtdEmb: '0.00', conversao: '2 CX c/01' }];
 
-function montar() {
+function montar(opt = {}) {
   const { app, routes } = fakeApp();
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'exp-rotas-'));
   recebimento.init({ dir: path.join(dir, 'rec'), cadastro: async () => null, xmlLoja: () => null });
@@ -22,6 +22,7 @@ function montar() {
   const q = async (sql, params) => {
     if (sql.includes('FROM central.delivery d WHERE')) return [{ nPedido: 6853, cliente: CAB.Nome, cnpj: CAB.CPF, Data: CAB.Data, hora: CAB.Hora, total: CAB.Total, status: 1 }, { nPedido: 6856, cliente: 'LOJA 3 PONTE', cnpj: '1', Data: CAB.Data, hora: '10:02:00', total: '1', status: 0 }, { nPedido: 6858, cliente: 'DIGITADO SEM PAINEL', cnpj: '1', Data: CAB.Data, hora: '10:05:00', total: '1', status: 0 }];
     if (sql.includes('FROM central.painel_televendas')) return [{ nPedido: '6853', status: 1 }, { nPedido: '6856', status: 2 }];
+    if (sql.includes('FROM central.conferencia_televendas') && sql.includes('GROUP BY nPedido')) return (opt.bipadosDlinks || ['6856']).filter(n => params.map(String).includes(n)).map(n => ({ nPedido: n, n: 3 }));
     if (sql.includes('FROM central.delivery_produtos WHERE nPedido IN')) return [{ nPedido: 6853, n: 2, un: 110 }];
     if (sql.includes('FROM central.delivery WHERE nLoja=?')) return String(params[1]) === '6853' ? [CAB] : [];
     if (sql.includes('FROM central.delivery_produtos WHERE nPedido=?')) return ITENS;
@@ -40,6 +41,17 @@ test('só o token da loja 10 entra; /pedidos lista pedidos abertos do Televendas
   assert.equal(r.statusCode, 200); assert.equal(r.body.length, 1, 'digitado sem painel, conferido (2) e liberado (4) no Dlinks somem da lista');
   const p = r.body[0]; assert.equal(p.nPedido, '6853'); assert.equal(p.cliente, 'SERAFIM SUPERMERCADO'); assert.equal(p.hora, '09:56'); assert.equal(p.itens, 2); assert.equal(p.painel, 1); assert.equal(p.conferencia, null);
   assert.ok(!('un' in p), 'lista não leva quantidade do pedido');
+});
+
+test('pedido Liberado/Aguardando no painel do Dlinks SEM bipagem lá continua na lista do coletor (8084, 18/11); com bipagem some', async () => {
+  let m = montar({ bipadosDlinks: [] });
+  let r = res(); await m.routes['GET /api/expedicao-publico/pedidos'](req({ query: { t: m.t10 } }), r);
+  assert.deepEqual(r.body.map(p => p.nPedido), ['6853', '6856']); assert.equal(r.body[1].painel, 2); assert.equal(r.body[1].dlinksSemBipe, true); assert.equal(r.body[0].dlinksSemBipe, false);
+  r = res(); await m.routes['GET /api/expedicao/detalhe-dlinks/:nPedido'](req({ params: { nPedido: '6853' } }), r);
+  assert.equal(r.statusCode, 200); assert.match(r.body.foraDoColetor, /últimos 3 dias/, 'pedido antigo: o Fiscal diz por que está fora do coletor');
+  m = montar();
+  r = res(); await m.routes['GET /api/expedicao-publico/pedidos'](req({ query: { t: m.t10 } }), r);
+  assert.deepEqual(r.body.map(p => p.nPedido), ['6853'], 'bipado no Dlinks: some, como antes');
 });
 
 test('duas etapas com PIN pessoal: MARIA separa → terminei vira "separada" → MARIA barrada (409) → JOAO expede → fecha, espelha SÓ a expedição; retaguarda vê as duas', async () => {
