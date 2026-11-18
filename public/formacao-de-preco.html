@@ -61,6 +61,11 @@ tr.bloq td{background:#FFF4F6}
 .modo.manual .pill{background:#FFF1C2;color:#6B4E00}
 .modo .txt{flex:1;min-width:260px;color:#0E1626}
 .modo .txt .mut{font-size:11.5px}
+.dica78{color:#6B4E00;font-weight:600}
+.det td:last-child{min-width:215px}
+.det td:last-child .sm{white-space:normal;max-width:260px;line-height:1.25}
+@media(max-width:1399px){.det td:last-child{min-width:185px}.det td.desc{min-width:150px}}
+@media(max-width:1299px){.det td:last-child{min-width:150px}.det td.desc{min-width:125px}.det th,.det td{padding-left:4px;padding-right:4px}.pv-card{padding:18px 16px 24px}}
 #view td.ls{white-space:normal;min-width:200px;line-height:1.3}
 #view td.cg{white-space:normal;min-width:150px;max-width:260px;line-height:1.3}
 #view td.cg .sm{white-space:normal}
@@ -242,12 +247,31 @@ async function abrir(id){abrirPv('<div class="pv-top"><h2>Carregando…</h2><but
 function margemTxt(pf,ci,mc){pf=parseFloat(String(pf).replace(',','.'));if(!(pf>0)||!(ci>0))return {t:'—',c:'mut'};const m=pf/ci-1;return {t:pct(m),c:mc!=null&&m*100<mc-0.005?'i-bloqueado':'i-desce'};}
 function margemFinal(pf,ci,mc){const x=margemTxt(pf,ci,mc);return '<div class="sm mf '+x.c+'" data-mc="'+(mc==null?'':mc)+'" title="margem que este preço final deixa sobre o custo novo'+(mc!=null?' · cadastro '+mc+'%':'')+'">'+x.t+'</div>';}
 function margemAoVivo(inp,ci){const d=inp.parentNode.querySelector('.mf');if(!d)return;const mc=d.dataset.mc===''?null:+d.dataset.mc,x=margemTxt(inp.value,ci,mc);d.textContent=x.t;d.className='sm mf '+x.c;}
+// Preço terminado em 8 = promoção da diretoria; em 7 = rebaixa (Tiago, 18/11/26: "poderia ter algo falando, uma dica, a seu critério mudar").
+// Etiqueta embaixo do preço atual, o motivo de o robô ter segurado a linha (com o preço que a conta daria) e um aviso no topo da lista.
+const fim78=p=>{const c=Math.round((+p||0)*100)%10;return p>0&&c===8?'promo':p>0&&c===7?'rebaixa':null;};
+function fimTag(p){const f=fim78(p);return f?'<div class="sm dica78" title="'+(f==='promo'?'preço terminado em 8 = promoção da diretoria':'preço terminado em 7 = rebaixa')+'">'+(f==='promo'?'final 8 · promoção':'final 7 · rebaixa')+'</div>':'';}
+function dicaRobo(i,aberto){
+  if(!i.robo||!i.robo.trava||i.status==='bloqueado')return '';
+  const seria=i.robo.seria>0&&Math.abs(i.robo.seria-(i.preco_atual||0))>0.004?' · a conta daria '+brl(i.robo.seria):'';
+  if(i.manual)return '<div class="sm mut">'+esc(i.robo.trava)+seria+'</div>';
+  return '<div class="sm mut">'+esc(i.robo.trava)+seria+'</div>'+(aberto&&fim78(i.preco_atual)?'<div class="sm dica78">mudar fica a seu critério</div>':'');
+}
+function aviso78(r,aberto){
+  const its=r.itens.filter(i=>i.status!=='bloqueado'),p=its.filter(i=>fim78(i.preco_atual)==='promo').length,b=its.filter(i=>fim78(i.preco_atual)==='rebaixa').length;
+  if(!p&&!b)return '';
+  const robo=!!(r.parametros&&r.parametros.regra_robo);
+  return '<div class="aviso"><b>'+[p?p+' produto(s) com preço terminado em 8 (promoção da diretoria)':'',b?b+' com preço terminado em 7 (rebaixa)':''].filter(Boolean).join(' e ')+'.</b> '+
+    (robo?'A regra do robô não mexe neles: ficam como "mantém".':'Nesta loja a regra recalcula esses preços como qualquer outro: confira antes de mandar.')+
+    (aberto?' Mudar fica a seu critério: digite o preço na coluna <b>Preço final</b> e a margem embaixo mostra como fica.':'')+'</div>';
+}
 function renderPv(){
   const r=REG,s=r.resumo||{},aberto=r.status==='a_precificar',l4=r.loja===4,conf=['aplicado','conferido'].includes(r.status);
   const itens=r.itens.filter(i=>filtroItem==='tudo'||(filtroItem==='bloq'?i.status==='bloqueado':(i.status==='sobe'||i.status==='desce'||i.manual||i.piso)));
   let h='<div class="pv-top"><div><div style="font-size:10px;font-weight:800;letter-spacing:.1em;color:#6B4E00">FORMAÇÃO DE PREÇO · LOJA '+r.loja+' '+LOJAS[r.loja]+'</div><h2>Pedido #'+r.pedidoId+' · '+esc(r.lista_nome)+((r.teste?'<span class="tag teste">TESTE</span>':'')+(r.regra_robo||(r.parametros&&r.parametros.regra_robo)?' <span class="tag teste" title="Regra do robô (lojas-teste): não baixa preço sozinho, não sobe alto giro, não mexe em final 7 e 8">REGRA ROBÔ</span>':''))+'</h2><div class="pv-sub">'+esc(r.fornecedor)+' · conciliado '+dt(r.conciliadoEm)+' · <span class="st st-'+r.status+'">'+STN[r.status]+'</span>'+(r.divergentes?' · <span class="st st-div" title="preço na central de produção (.252) ainda não é o da lista">'+r.divergentes+' divergente(s) na produção</span>':'')+(r.erp_teste?' · <span class="tag" title="gravado em central.itens + logpreco2 no MySQL de teste do .254">Carga ERP teste · '+r.erp_teste.itens+' item(ns) · '+dt(r.erp_teste.em)+'</span>'+(r.carga_divergentes>0?' <span class="st st-div" title="item enviado cujo preço no .254 não é o da lista">'+r.carga_divergentes+' não gravado(s) no teste</span>':r.carga_divergentes===0?' <span class="sm i-desce">✓ gravada no teste</span>':'')+' <a class="sm" target="_blank" href="/log.html?tabela=itens&de='+String(r.erp_teste.em).slice(0,10)+'&ate='+String(r.erp_teste.em).slice(0,10)+'">Ver no Log</a>':'')+'</div></div><button class="btn btn-amber" onclick="fecharPv()">Fechar</button></div>';
   if(r.ultimo_erro&&!conf)h+='<div class="aviso" style="background:#FBEAED;border-color:#E5B4BD">Esta lista não foi pro ERP na última tentativa ('+dt(r.ultimo_erro.em)+'): <b>'+esc(r.ultimo_erro.msg)+'</b>. '+(EXIGE?'':'Ela tenta de novo sozinha na próxima carga.')+'</div>';
   if(r.fora_carga&&r.fora_carga.length)h+='<div class="aviso" style="background:#FBEAED;border-color:#E5B4BD"><b>'+r.fora_carga.length+' produto(s) ficaram de fora da carga</b> porque não existem no cadastro do Dlinks (o resto da lista foi): '+r.fora_carga.map(x=>esc(x.cod+' '+(x.descricao||''))).join(' · ')+'</div>';
+  h+=aviso78(r,aberto);
   if(r.curva_disponivel===false)h+='<div class="aviso" style="background:#FBEAED;border-color:#E5B4BD">Curva A indisponível (radar ainda calculando): nenhum item repassou queda. Recalcule depois.</div>';
   h+='<div class="pv-tools"><span class="sm mut" title="1) custo novo igual ao atual → margem de cadastro · 2) custo novo maior → margem de cadastro · 3) comprou mais de 10% abaixo do custo atual → preço 10% abaixo do atual · queda de até 10% → mantém o preço">Regra: <b>custo ≥ atual → margem</b> · <b>10%+ mais barato → preço −10%</b> · queda menor → mantém</span>'+
      '<select id="d-arr" '+(aberto?'':'disabled')+' onchange="setParam()"><option value="9">Terminação 9</option><option value="5">Terminação 5</option><option value="nenhum">Sem arredondar</option></select>'+
@@ -263,14 +287,14 @@ function renderPv(){
   if(!itens.length)h+='<tr><td colspan="20" class="empty">Nenhum item neste filtro.</td></tr>';
   for(const i of itens){
     const bl=i.status==='bloqueado';
-    h+='<tr class="'+(bl?'bloq':'')+'"><td class="cod">'+esc(i.cod)+'</td><td class="desc">'+esc(i.descricao)+(i.nao_pedido?'<span class="tag">não pedido</span>':'')+'</td><td>'+(i.curvaA?'<b>A</b>':'<span class="mut">—</span>')+'</td><td class="n">'+i.recebida+'</td><td class="n">'+brl(i.custo_atual)+'</td><td class="n"><b>'+brl(i.custo_novo)+'</b></td><td class="n '+(i.variacao>0?'i-sobe':i.variacao<0?'i-desce':'mut')+'">'+(i.variacao>0?'▲ ':i.variacao<0?'▼ ':'')+pct(i.variacao)+'</td><td class="n">'+(i.margem!=null?i.margem+'%':'<span class="i-bloqueado">sem margem</span>')+'</td><td class="n">'+brl(i.preco_atual)+'</td><td class="n mut">'+pct(i.margem_se_mantem)+'</td><td class="n">'+brl(i.preco_sugerido)+(i.piso?' <span class="sm i-bloqueado">piso</span>':'')+'</td>'+
+    h+='<tr class="'+(bl?'bloq':'')+'"><td class="cod">'+esc(i.cod)+'</td><td class="desc">'+esc(i.descricao)+(i.nao_pedido?'<span class="tag">não pedido</span>':'')+'</td><td>'+(i.curvaA?'<b>A</b>':'<span class="mut">—</span>')+'</td><td class="n">'+i.recebida+'</td><td class="n">'+brl(i.custo_atual)+'</td><td class="n"><b>'+brl(i.custo_novo)+'</b></td><td class="n '+(i.variacao>0?'i-sobe':i.variacao<0?'i-desce':'mut')+'">'+(i.variacao>0?'▲ ':i.variacao<0?'▼ ':'')+pct(i.variacao)+'</td><td class="n">'+(i.margem!=null?i.margem+'%':'<span class="i-bloqueado">sem margem</span>')+'</td><td class="n">'+brl(i.preco_atual)+fimTag(i.preco_atual)+'</td><td class="n mut">'+pct(i.margem_se_mantem)+'</td><td class="n">'+brl(i.preco_sugerido)+(i.piso?' <span class="sm i-bloqueado">piso</span>':'')+'</td>'+
        '<td class="n">'+(bl?'—':(aberto?'<input class="pf'+(i.manual?' manual':'')+'" value="'+Number(i.preco_final).toFixed(2)+'" oninput="margemAoVivo(this,'+(+i.custo_imposto||0)+')" onchange="editar('+js(i.cod)+',this.value,null)">':'<b>'+brl(i.preco_final)+'</b>'+(i.manual?' <span class="sm mut">manual</span>':''))+margemFinal(i.preco_final,i.custo_imposto,i.margem))+'</td>'+
        (l4?'<td class="n">'+brl(i.preco_atacado_atual)+'</td><td class="n">'+(i.atacado?(aberto?'<input class="pf" value="'+Number(i.atacado.preco_final).toFixed(2)+'" onchange="editar('+js(i.cod)+',null,this.value)">':'<b>'+brl(i.atacado.preco_final)+'</b>')
           +(i.atacado.travado_varejo?'<div class="sm i-bloqueado" title="a margem de atacado daria um preço acima do varejo; travado no varejo">= varejo</div>':'')
           +(i.atacado.ligado?'<div class="sm mut">ligado'+(r.atacado_ligado&&r.atacado_ligado[i.cod]&&r.atacado_ligado[i.cod].por?' por '+esc(r.atacado_ligado[i.cod].por):'')+(aberto?' · <a href="#" onclick="ligarAtacado('+js(i.cod)+',false);return false">desligar</a>':'')+'</div>':'')
          :(i.atacado_desligado?'<span class="sm mut" title="margem de atacado cadastrada ('+i.margem_atacado+'%), mas preço de atacado zerado no ERP = item fora do atacado. A regra não cria preço; quem liga é você.">desligado</span>'+(aberto&&!bl?' <button class="btn btn-slate btn-sm" style="padding:1px 6px" onclick="ligarAtacado('+js(i.cod)+',true)">Ligar</button>':''):'<span class="mut">—</span>'))+'</td>':'')+
        (conf?'<td class="n '+(i.erp?(i.erp.ok?'i-desce':'i-bloqueado'):'mut')+'">'+(i.erp?brl(i.erp.preco)+(i.erp.ok?' ✓':' ✗'):'—')+'</td>':'')+(conf&&r.erp_teste?'<td class="n '+(i.carga?(i.carga.ok?'i-desce':'i-bloqueado'):'mut')+'">'+(i.carga?brl(i.carga.preco)+(i.carga.ok?' ✓':' ✗'):'<span title="não foi pra carga">—</span>')+'</td>':'')+
-       '<td class="i-'+i.status+'">'+({sobe:'sobe',desce:'desce',mantem:'mantém',sem_mudanca:'sem mudança',bloqueado:'bloqueado'}[i.status])+(i.manual&&!bl?'<div class="sm" style="color:#6B4E00">alterado na mão'+(i.status_regra&&i.status_regra!==i.status?' · a regra dava: '+({sobe:'sobe',desce:'desce',mantem:'mantém',sem_mudanca:'sem mudança'}[i.status_regra]||i.status_regra):'')+'</div>':'')+(i.regra?'<div class="sm mut">'+({margem:'margem de cadastro',desconto:'−10%: comprou 10%+ mais barato',mantem:'queda ≤ 10%: mantém preço'}[i.regra]||'')+'</div>':'')+(bl?'<div class="sm">'+esc(i.motivo)+(/margem/.test(i.motivo||'')?' · <a href="/fornecedores.html?aba=cadastro-pendente">Cadastro Pendente</a>':'')+'</div>':'')+'</td></tr>';
+       '<td class="i-'+i.status+'">'+({sobe:'sobe',desce:'desce',mantem:'mantém',sem_mudanca:'sem mudança',bloqueado:'bloqueado'}[i.status])+(i.manual&&!bl?'<div class="sm" style="color:#6B4E00">alterado na mão'+(i.status_regra&&i.status_regra!==i.status?' · a regra dava: '+({sobe:'sobe',desce:'desce',mantem:'mantém',sem_mudanca:'sem mudança'}[i.status_regra]||i.status_regra):'')+'</div>':'')+(i.regra?'<div class="sm mut">'+({margem:'margem de cadastro',desconto:'−10%: comprou 10%+ mais barato',mantem:'queda ≤ 10%: mantém preço'}[i.regra]||'')+'</div>':'')+dicaRobo(i,aberto)+(bl?'<div class="sm">'+esc(i.motivo)+(/margem/.test(i.motivo||'')?' · <a href="/fornecedores.html?aba=cadastro-pendente">Cadastro Pendente</a>':'')+'</div>':'')+'</td></tr>';
   }
   h+='</tbody></table></div>';
   abrirPv(h);$('#d-arr').value=r.parametros.arredondamento;$('#d-aj').checked=!!r.parametros.ajuste_centavos;if(r.parametros.ajuste_centavos)$('#d-ajr').value=r.parametros.ajuste_centavos;$('#d-fil').value=filtroItem;
