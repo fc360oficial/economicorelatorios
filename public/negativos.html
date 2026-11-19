@@ -244,7 +244,8 @@ function render() {
   const late = l => l.status === 'nao_iniciada' && v.criadoEm && (Date.now() - new Date(v.criadoEm)) > 2 * 3600e3 && v.data === new Date().toISOString().slice(0, 10);
   $('tLojas').innerHTML = v.lojas.map(l => {
     let [c, t] = PILL[l.ajustadoEm ? 'ajustada' : l.status]; if (late(l)) { c = 'late'; t = 'Sem resposta há +2h'; }
-    if (l.aprovadoEm) { [c, t] = (l.pendentes && l.pendentes.length) ? ['aprovp', `Aprovada c/ ${l.pendentes.length} pendente(s)`] : ['aprov', 'Aprovada no teste']; }
+    const noErp = l.aprovadoDestino === 'producao';   // ajuste gravado no Dlinks de produção (19/11/26)
+    if (l.aprovadoEm) { [c, t] = (l.pendentes && l.pendentes.length) ? ['aprovp', `${noErp ? 'No ERP' : 'Aprovada'} c/ ${l.pendentes.length} pendente(s)`] : ['aprov', noErp ? 'Gravada no ERP' : 'Aprovada no teste']; }
     const pct = l.itens ? Math.round(l.contados / l.itens * 100) : 0;
     return `<tr class="loja ${l.loja === selLoja ? 'sel' : ''}" onclick="toggleLoja(${l.loja})">
       <td><b>Loja ${l.loja}</b> · ${l.nome}</td>
@@ -254,10 +255,8 @@ function render() {
       <td class="num mono">${l.semNegativos ? '—' : '+' + l.diferenca}</td>
       <td class="who">${esc(l.resp) || '—'}</td><td class="mono" style="font-size:12px">${hora(l.iniciadoEm)}</td><td class="mono" style="font-size:12px">${hora(l.concluidoEm)}</td>
       <td class="acoes"><div class="acoes-w">${l.ajustadoEm
-        ? `<span class="feito"><span class="pill done">✔ Feito</span><span class="who">${esc(l.ajustadoPor) || '—'} · ${hora(l.ajustadoEm)}</span><button class="undo" title="Desmarcar" onclick="event.stopPropagation();ajustado(${l.loja}, true)">desfazer</button></span>`
-        : l.status === 'concluida' ? `<button class="btn btn-primary" onclick="event.stopPropagation();ajustado(${l.loja})">Feito</button><button class="btn btn-secondary" onclick="event.stopPropagation();reabrir(${l.loja})">Reabrir</button>` : ''}
-        ${l.status === 'concluida' && !l.aprovadoEm ? `<button class="btn btn-secondary" onclick="event.stopPropagation();previa(${l.loja}, false)">${destAjuste === 'producao' ? 'Aprovar ajuste no ERP' : 'Aprovar ajuste teste no .254'}</button>` : ''}
-        ${l.aprovadoEm && l.pendentes && l.pendentes.length ? `<button class="btn btn-secondary" onclick="event.stopPropagation();previa(${l.loja}, true)">Reprocessar pendentes</button>` : ''}</div></td></tr>`
+        ? `<span class="feito"><span class="pill done">✔ Feito</span><span class="who">${esc(l.ajustadoPor) || '—'} · ${hora(l.ajustadoEm)}${l.aprovadoDestino === 'producao' ? ' · gravado no ERP' : ''}</span><button class="undo" title="${l.aprovadoDestino === 'producao' ? 'Só desmarca o Feito. O ajuste já gravado no ERP se desfaz em Processos › Conector' : 'Desmarcar'}" onclick="event.stopPropagation();ajustado(${l.loja}, true)">desfazer</button></span>`
+        : l.status === 'concluida' ? botoesLoja(l) : ''}</div></td></tr>`
       + (l.loja === selLoja && !l.semNegativos ? `<tr class="det"><td colspan="11"><div class="detail">${detalheHtml(l)}</div></td></tr>` : '');
   }).join('');
   const itens = ativas.reduce((s, l) => s + l.itens, 0), cont = ativas.reduce((s, l) => s + l.contados, 0), ok = ativas.filter(l => l.status === 'concluida').length, dif = ativas.reduce((s, l) => s + l.diferenca, 0);
@@ -265,6 +264,25 @@ function render() {
   $('btnCobrar').disabled = ok === ativas.length;
   const l = v.lojas.find(x => x.loja === selLoja);
   $('detail').innerHTML = '';
+}
+// Botões da loja concluída e ainda não marcada como Feito.
+//  · Ajuste indo pro Dlinks de TESTE (como sempre foi): Feito só marca que alguém lançou o ajuste à mão no ERP; "Aprovar ajuste teste"
+//    grava no .254.
+//  · Ajuste indo pro Dlinks de PRODUÇÃO (19/11/26, Tiago: "tirar esse teste e colocar feito já pra ir pro 252"): um botão só.
+//    Feito abre a prévia e, confirmado, grava o ajuste no ERP pelo Conector e a loja fica marcada. Se algum item não gravar,
+//    ficam "Reprocessar pendentes" e "Marcar feito" (pra quem acertou o resto à mão).
+function botoesLoja(l) {
+  const b = (classe, acao, texto, dica) => `<button class="btn ${classe}" title="${dica || ''}" onclick="event.stopPropagation();${acao}">${texto}</button>`;
+  const reabrir = b('btn-secondary', `reabrir(${l.loja})`, 'Reabrir');
+  if (destAjuste === 'producao') {
+    const noErp = l.aprovadoDestino === 'producao';   // o ajuste desta loja já foi gravado no ERP de verdade (sobraram pendentes)
+    if (!noErp) return b('btn-primary', `previa(${l.loja}, false)`, 'Feito', 'Mostra o que vai ser gravado e, confirmado, grava o ajuste no ERP (Dlinks de produção) e marca a loja como feita') + reabrir;
+    return (l.pendentes && l.pendentes.length ? b('btn-primary', `previa(${l.loja}, true)`, 'Reprocessar pendentes', 'Tenta gravar de novo no ERP só os itens que não foram') : '')
+      + b('btn-secondary', `ajustado(${l.loja})`, 'Marcar feito', 'Só marca a loja como feita, sem gravar nada no ERP') + reabrir;
+  }
+  return b('btn-primary', `ajustado(${l.loja})`, 'Feito') + reabrir
+    + (!l.aprovadoEm ? b('btn-secondary', `previa(${l.loja}, false)`, 'Aprovar ajuste teste no .254') : '')
+    + (l.aprovadoEm && l.pendentes && l.pendentes.length ? b('btn-secondary', `previa(${l.loja}, true)`, 'Reprocessar pendentes') : '');
 }
 // Itens da loja: renderizado numa linha logo abaixo da loja clicada (não no rodapé)
 function detalheHtml(l) {
@@ -284,7 +302,7 @@ fetch('/api/contagem/link').then(r => r.ok ? r.json() : null).then(j => { if (j 
 // 19/11/26 (Tiago: "coloca os negativos já no novo instalador pra ir pro 252 também"): com a chave ligada em Processos › Conector, a
 // aprovação grava no Dlinks de PRODUÇÃO pelo Conector do servidor do ERP. A tela diz isso no botão, na prévia e no resultado.
 var destAjuste = 'teste';
-fetch('/api/contagem/destino-ajuste').then(r => r.ok ? r.json() : null).then(j => { if (j && j.destino && j.destino !== destAjuste) { destAjuste = j.destino; if (destAjuste === 'producao') $('ondeGrava').innerHTML = '<b style="color:var(--neg)">A aprovação do ajuste grava no ERP de verdade</b> (Dlinks de produção), com registro na Ficha de cada produto.'; if (v) render(); } }).catch(() => {});
+fetch('/api/contagem/destino-ajuste').then(r => r.ok ? r.json() : null).then(j => { if (j && j.destino && j.destino !== destAjuste) { destAjuste = j.destino; if (destAjuste === 'producao') $('ondeGrava').innerHTML = '<b style="color:var(--neg)">O botão Feito grava o ajuste no ERP de verdade</b> (Dlinks de produção), com registro na Ficha de cada produto. Antes de gravar ele mostra a prévia.'; if (v) render(); } }).catch(() => {});
 async function copiarLink() {
   const v = $('lnk').value;
   try { await navigator.clipboard.writeText(v); } catch (e) { $('lnk').select(); document.execCommand('copy'); }
@@ -332,7 +350,7 @@ function renderPrevia() {
     <td class="num mono" style="color:var(--neg)">${x.sys}</td><td class="num mono${x.mudou ? ' mud' : ''}">${x.atual ?? (x.semRegistro ? 'sem registro' : '—')}</td>
     <td class="num mono">${x.contado}</td><td class="num mono"><b>${esc(x.novo)}</b></td></tr>`).join('');
   $('modal').innerHTML = `<div class="ov" onclick="if(event.target===this)fecharPrevia()"><div class="md">
-    <div class="md-h"><h2>${p.pendentesSo ? 'Reprocessar pendentes' : 'Aprovar ajuste'} — Loja ${p.loja} · ${esc(p.nome)}</h2><button class="btn btn-ghost" onclick="fecharPrevia()">Fechar</button></div>
+    <div class="md-h"><h2>${p.pendentesSo ? 'Reprocessar pendentes' : prod ? 'Gravar ajuste no ERP' : 'Aprovar ajuste'} — Loja ${p.loja} · ${esc(p.nome)}</h2><button class="btn btn-ghost" onclick="fecharPrevia()">Fechar</button></div>
     <div class="md-b">
       <div class="kpis">
         <div class="kpi"><div class="label">Itens a gravar</div><div class="v">${p.itens.length}</div></div>

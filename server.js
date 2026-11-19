@@ -6326,7 +6326,10 @@ app.post('/api/contagem/:data/:loja/aprovar', async (req, res) => {
     const { l, ln } = lojaDaContagem(req);
     if (l.status !== 'concluida') return res.status(400).json({ error: 'A loja ainda não concluiu a contagem.' });
     const somentePendentes = !!(req.body && req.body.somentePendentes);
-    if (l.aprovadoEm && !somentePendentes) return res.status(400).json({ error: 'Essa loja já foi aprovada. Use "Reprocessar pendentes".' });
+    // Loja já aprovada só reprocessa os pendentes — menos quando a aprovação anterior foi no Dlinks de TESTE e agora o ajuste
+    // vai pro de PRODUÇÃO (19/11/26): aí a loja inteira ainda não foi pro ERP de verdade e pode ser gravada.
+    const jaNoDestino = l.aprovadoEm && !(conectorErp.ondeGrava('ajuste_estoque').remoto && l.aprovadoDestino !== 'producao');
+    if (jaNoDestino && !somentePendentes) return res.status(400).json({ error: 'Essa loja já foi aprovada. Use "Reprocessar pendentes".' });
     const excluir = Array.isArray(req.body && req.body.excluir) ? req.body.excluir.map(String) : [];
     const { gravar } = aprovarNeg.itensParaGravar(l.linhas, somentePendentes ? l.pendentes : null, excluir);
     if (!gravar.length) return res.status(400).json({ error: 'Nenhum item com contagem pra gravar.' });
@@ -6351,7 +6354,7 @@ app.post('/api/contagem/:data/:loja/aprovar', async (req, res) => {
         for (const n of res.nao_gravados || []) erros.push({ cod: n.codigo, desc: descDe[n.codigo], erro: n.motivo, id: r.id });
       }
       if (!gravados) return res.status(502).json({ error: 'Nada foi gravado. ' + ((erros[0] && erros[0].erro) || '') });
-      const m = contagemNeg.marcarAprovado(req.params.data, ln, { nome: quem, ids, pendentes: erros.map(e => e.cod) });
+      const m = contagemNeg.marcarAprovado(req.params.data, ln, { nome: quem, ids, pendentes: erros.map(e => e.cod), destino: prodAjuste ? 'producao' : 'teste' });
       // gravou tudo no Dlinks de PRODUÇÃO: a loja já fica como "Feito" (era o que alguém marcava depois de lançar o ajuste à mão no ERP)
       let feito = false; if (prodAjuste && !erros.length) { try { contagemNeg.marcarAjustado(req.params.data, ln, quem, false); feito = true; } catch (e) { console.error('[NEGATIVOS] marcar feito:', e.message); } }
       return res.json({ ok: erros.length === 0, via: 'conector', destino: prodAjuste ? 'producao' : 'teste', feito, gravados, movimentados, semMudanca, usuarioErp: aprovarNeg.USUARIO_ERP, erros, ids, tabela: 'ajuste_estoque', aprovadoEm: m.aprovadoEm });
@@ -6363,7 +6366,7 @@ app.post('/api/contagem/:data/:loja/aprovar', async (req, res) => {
       for (const x of rows) atual[String(x.CodigoBarra)] = { qtd: x.Qtd, unid: x.Unid };
     } catch (e) { return res.status(502).json({ error: 'MySQL de teste do .254 não respondeu (' + (e.code || e.message) + ')' }); }
     const r = await aprovarNeg.aprovarLoja({ escrever: escreverERP, itens: gravar, usuario: req.session.user.nome, data: req.params.data, ln, nomeLoja: l.nome, atual });
-    const m = contagemNeg.marcarAprovado(req.params.data, ln, { nome: req.session.user.nome, ids: r.ids, pendentes: r.erros.map(e => e.cod) });
+    const m = contagemNeg.marcarAprovado(req.params.data, ln, { nome: req.session.user.nome, ids: r.ids, pendentes: r.erros.map(e => e.cod), destino: 'teste' });
     res.json({ ok: r.erros.length === 0, gravados: r.gravados, movimentados: r.movimentados, semMudanca: r.semMudanca, usuarioErp: r.usuarioErp, erros: r.erros, ids: r.ids, tabela: r.tabela, aprovadoEm: m.aprovadoEm });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
