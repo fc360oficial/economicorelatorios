@@ -9897,6 +9897,8 @@ require('./lib/gestao-pessoas-rotas')(app, { pontocerto, listarUsuarios: () => u
 require('./lib/escalas-rotas')(app, { pontocerto });
 // Gerador Inteligente de Escalas 5×2 (11/11/2026): /api/escalas-5x2/* — simula, aplica como rascunho, valida, audita. Só lê o PontoCerto.
 require('./lib/escalas-5x2-rotas')(app, { pontocerto });
+// Escalas › Gerar por período (19/11/2026): /api/escalas-periodo/* — escala 5×2 no modelo da planilha (folga fixa + rotativa do domingo trabalhado).
+require('./lib/escalas-periodo-rotas')(app, { pontocerto });
 // TV do RH — Ponto e Jornada (26/10/2026, DP / RH › TV RH/DP): telão dentro do RH com o ponto do dia, nome a nome, a partir
 // da MESMA jornada diária da aba Jornada diária (pontocerto.jornadaDia, tolerância da Central de Gestão de Pessoas).
 // Link público por token igual à TV Açougue; regras e classificação pra TV em lib/tv-rh.js. Só leitura.
