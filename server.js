@@ -6209,6 +6209,8 @@ app.post('/api/contagem-publica/concluir', (req, res) => {
 // -- central (sessão) --
 // link público do app de contagem (as lojas entram de fora; location.origin na central mostraria o IP interno)
 app.get('/api/contagem/link', (req, res) => res.json({ link: `${PUBLIC_URL}/contagem.html` }));
+// Pra onde a aprovação dos negativos grava agora ('producao' | 'teste'): a tela usa no rótulo do botão (19/11/26). Fica antes das rotas com :data.
+app.get('/api/contagem/destino-ajuste', (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json({ destino: conectorErp.ondeGrava('ajuste_estoque').remoto ? 'producao' : 'teste' }); } catch (err) { res.json({ destino: 'teste' }); } });
 app.get('/api/contagem/dias', (req, res) => res.json(contagemNeg.listarDias().slice(0, 60)));
 app.get('/api/contagem/config', (req, res) => {
   if (req.session.user.perfil !== 'admin') return res.status(403).json({ error: 'Só admin.' });
@@ -6291,9 +6293,21 @@ app.get('/api/contagem/:data/:loja/previa-ajuste', async (req, res) => {
     const somente = req.query.pendentes === '1' ? l.pendentes : null;
     const excluir = String(req.query.excluir || '').split(',').filter(Boolean);
     const { gravar, semContagem, desmarcados } = aprovarNeg.itensParaGravar(l.linhas, somente, excluir);
-    // estoque ATUAL no MySQL de teste, pra avisar se a cópia mudou desde a contagem
+    // Pra onde a aprovação vai gravar (19/11/26): com a chave "Ajuste de negativos" em produção e o sistema ligado ao Conector do
+    // servidor do ERP, é o Dlinks de PRODUÇÃO; senão, o de teste, como sempre. O saldo ATUAL da prévia vem do mesmo lugar.
+    const prodAjuste = conectorErp.ondeGrava('ajuste_estoque').remoto;
+    // estoque ATUAL (no ERP de produção ou no MySQL de teste), pra avisar se mudou desde a contagem
     let atual = {}, erroTeste = null;
-    if (gravar.length) {
+    if (gravar.length && prodAjuste) {
+      try {
+        const cods = gravar.map(x => x.cod);
+        const rows = await q(`SELECT CodigoBarra, Qtd FROM central.estoquen${ln} WHERE CodigoBarra IN (${cods.map(() => '?').join(',')})`, cods);
+        for (const r of rows) atual[String(r.CodigoBarra)] = r.Qtd;
+        const e = await conectorErp.estadoProducao(), f = e && e.saude && e.saude.funcoes && e.saude.funcoes.ajuste_estoque;
+        if (!e || !e.no_ar || !e.autenticado) erroTeste = 'O Conector de produção (servidor do ERP) não respondeu';
+        else if (!f || !f.ligada) erroTeste = 'O ajuste de estoque está desligado no Conector de produção';
+      } catch (e) { erroTeste = 'O ERP de produção não respondeu (' + (e.code || e.message) + ')'; }
+    } else if (gravar.length) {
       try {
         const c = await mysql.createConnection(dbTeste);
         try {
@@ -6304,7 +6318,7 @@ app.get('/api/contagem/:data/:loja/previa-ajuste', async (req, res) => {
       } catch (e) { erroTeste = 'MySQL de teste do .254 não respondeu (' + (e.code || e.message) + ')'; }
     }
     const itens = gravar.map(x => ({ ...x, atual: atual[x.cod] ?? null, mudou: atual[x.cod] !== undefined && Number(atual[x.cod]) !== Number(x.sys), semRegistro: !erroTeste && atual[x.cod] === undefined }));
-    res.json({ loja: ln, nome: l.nome, data: req.params.data, status: l.status, aprovadoEm: l.aprovadoEm, pendentes: l.pendentes, itens, semContagem, desmarcados, mudaram: itens.filter(x => x.mudou).length, semRegistro: itens.filter(x => x.semRegistro).length, erroTeste, motivo: aprovarNeg.motivoAjuste(req.params.data, ln, l.nome) });
+    res.json({ loja: ln, nome: l.nome, data: req.params.data, status: l.status, aprovadoEm: l.aprovadoEm, pendentes: l.pendentes, itens, semContagem, desmarcados, mudaram: itens.filter(x => x.mudou).length, semRegistro: itens.filter(x => x.semRegistro).length, erroTeste, motivo: aprovarNeg.motivoAjuste(req.params.data, ln, l.nome), destino: prodAjuste ? 'producao' : 'teste' });
   } catch (err) { res.status(400).json({ error: err.message }); }
 });
 app.post('/api/contagem/:data/:loja/aprovar', async (req, res) => {
@@ -6320,7 +6334,10 @@ app.post('/api/contagem/:data/:loja/aprovar', async (req, res) => {
     // de ajuste e da Ficha (igual ao ERP). Sem isso não dá pra montar o movimento, então falha inteira.
     // 13/11/26: com o Conector 0.5.0+ ligado, o ajuste vai por ele (ordem ajuste_estoque): ele lê o saldo, grava o log do ajuste,
     // a Ficha e o saldo numa transação só, e a ordem aparece em Processos › Conector (com desfazer) e em Processos › Log.
-    if (conectorErp.ativo() && await conectorErp.suportaAjusteEstoque()) {
+    const prodAjuste = conectorErp.ondeGrava('ajuste_estoque').remoto;
+    const conectorAguenta = await conectorErp.suportaAjusteEstoque();
+    if (prodAjuste && !conectorAguenta) return res.status(502).json({ error: 'O ajuste dos negativos está ligado pro Dlinks de PRODUÇÃO, mas o Conector do servidor do ERP não respondeu ou é anterior à versão 0.8.0. Nada foi gravado (nem no teste). Confira em Processos › Conector.' });
+    if ((prodAjuste || conectorErp.ativo()) && conectorAguenta) {
       const quem = req.session.user.nome, motivo = aprovarNeg.motivoAjuste(req.params.data, ln, l.nome), descDe = {}; for (const g of gravar) descDe[g.cod] = g.desc;
       const ids = [], erros = []; let gravados = 0, movimentados = 0, semMudanca = 0;
       const minuto = Math.floor(Date.now() / 60000);   // clique duplo no mesmo minuto = mesma ordem; repetir depois grava de novo (ajuste repetido não movimenta nada)
@@ -6335,7 +6352,9 @@ app.post('/api/contagem/:data/:loja/aprovar', async (req, res) => {
       }
       if (!gravados) return res.status(502).json({ error: 'Nada foi gravado. ' + ((erros[0] && erros[0].erro) || '') });
       const m = contagemNeg.marcarAprovado(req.params.data, ln, { nome: quem, ids, pendentes: erros.map(e => e.cod) });
-      return res.json({ ok: erros.length === 0, via: 'conector', gravados, movimentados, semMudanca, usuarioErp: aprovarNeg.USUARIO_ERP, erros, ids, tabela: 'ajuste_estoque', aprovadoEm: m.aprovadoEm });
+      // gravou tudo no Dlinks de PRODUÇÃO: a loja já fica como "Feito" (era o que alguém marcava depois de lançar o ajuste à mão no ERP)
+      let feito = false; if (prodAjuste && !erros.length) { try { contagemNeg.marcarAjustado(req.params.data, ln, quem, false); feito = true; } catch (e) { console.error('[NEGATIVOS] marcar feito:', e.message); } }
+      return res.json({ ok: erros.length === 0, via: 'conector', destino: prodAjuste ? 'producao' : 'teste', feito, gravados, movimentados, semMudanca, usuarioErp: aprovarNeg.USUARIO_ERP, erros, ids, tabela: 'ajuste_estoque', aprovadoEm: m.aprovadoEm });
     }
     const atual = {};
     try {
@@ -10156,12 +10175,15 @@ app.post('/api/robo-ensaio/:id/simular-nota', async (req, res) => { try { res.js
 // Etapa 7 num clique (Tiago, 12/11/26: "onde aprova?"): mostra o que muda e, confirmado, fecha a lista de cada loja e manda pra carga
 // do ERP de TESTE (mesmas funções da Formação de Preço: precificacao.fechar + enviarCarga via escreverERP).
 // Situação do Conector (ponte com o Dlinks, instalado em 13/11/26). Só admin (prefixo robo-ensaio); nunca devolve a senha.
-app.get('/api/robo-ensaio/conector', async (req, res) => { res.set('Cache-Control', 'no-store'); try { const [est, tv] = await Promise.all([conectorErp.estado(), conectorErp.estadoTelevendas()]); res.json({ ...est, ligado: conectorErp.ativo(), televendas_auto: conectorErp.televendasAuto(), televendas: tv }); } catch (err) { res.status(500).json({ error: err.message }); } });
-// Conector do Televendas no servidor do ERP de PRODUÇÃO (19/11/26, Tiago: "colocar ele no 252, vamos testar na prática"): liga o
-// sistema a ele com o endereço e a senha de acesso que o instalador mostra. Confere antes de gravar e desliga a liberação
-// automática (quem liga de novo é uma pessoa). Só admin (prefixo robo-ensaio); a senha nunca é devolvida.
-app.post('/api/robo-ensaio/conector/televendas-destino', async (req, res) => { try { res.json(await conectorErp.setDestinoTelevendas({ url: req.body && req.body.url, senha: req.body && req.body.senha }, req.session.user?.nome || null)); } catch (err) { res.status(400).json({ error: err.message }); } });
-app.post('/api/robo-ensaio/conector/televendas-destino/remover', (req, res) => { try { res.json(conectorErp.removerDestinoTelevendas(req.session.user?.nome || null)); } catch (err) { res.status(400).json({ error: err.message }); } });
+app.get('/api/robo-ensaio/conector', async (req, res) => { res.set('Cache-Control', 'no-store'); try { const [est, prod] = await Promise.all([conectorErp.estado(), conectorErp.estadoProducao()]); res.json({ ...est, ligado: conectorErp.ativo(), televendas_auto: conectorErp.televendasAuto(), ajuste_producao: conectorErp.ajusteProducao(), producao: prod }); } catch (err) { res.status(500).json({ error: err.message }); } });
+// Conector de PRODUÇÃO, no servidor do ERP (19/11/26, Tiago: "colocar ele no 252, vamos testar na prática"): liga o sistema a ele
+// com o endereço e a senha de acesso que o instalador mostra. Confere antes de gravar e desliga a liberação automática e o ajuste
+// em produção (quem liga de novo é uma pessoa). Só admin (prefixo robo-ensaio); a senha nunca é devolvida.
+// ajuste-producao: chave que faz a aprovação dos negativos gravar no Dlinks de PRODUÇÃO (Tiago, 19/11: "coloca os negativos já no
+// novo instalador pra ir pro 252 também"). Nasce desligada; ligar confere que o Conector de produção tem a função ligada lá.
+app.post('/api/robo-ensaio/conector/ajuste-producao', async (req, res) => { try { res.json({ ok: true, ajuste_producao: (await conectorErp.setAjusteProducao(!!(req.body && req.body.ativo), req.session.user?.nome || null)).ajuste_producao === true }); } catch (err) { res.status(400).json({ error: err.message }); } });
+app.post('/api/robo-ensaio/conector/producao-destino', async (req, res) => { try { res.json(await conectorErp.setDestinoProducao({ url: req.body && req.body.url, senha: req.body && req.body.senha }, req.session.user?.nome || null)); } catch (err) { res.status(400).json({ error: err.message }); } });
+app.post('/api/robo-ensaio/conector/producao-destino/remover', (req, res) => { try { res.json(conectorErp.removerDestinoProducao(req.session.user?.nome || null)); } catch (err) { res.status(400).json({ error: err.message }); } });
 // Liberação do Televendas pelo Conector (19/11/26, Tiago: "assim que eu liberar no nosso, liberar no Dlinks"). Só admin (prefixo robo-ensaio).
 //  · televendas-auto: chave que faz toda saída liberada pelo fiscal do CD virar ordem de liberação no Dlinks (desligada por padrão)
 //  · televendas/:pedido: ENSAIO — consulta e libera um pedido pelo número, no banco em que o Conector grava (hoje o Dlinks de teste)
@@ -10187,7 +10209,7 @@ app.post('/api/robo-ensaio/reenviar-pedido/:id', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 app.get('/api/robo-ensaio/conector/ordens', async (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json(await conectorErp.ordens(req.query.limite, req.query.onde)); } catch (err) { res.status(502).json({ error: err.message }); } });
-// ?onde=televendas: ordens do Conector do servidor do ERP (quando ligado); sem isso, as do Conector desta máquina
+// ?onde=producao: ordens do Conector do servidor do ERP (quando ligado); sem isso, as do Conector desta máquina
 app.get('/api/robo-ensaio/conector/ordens/:id', async (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json(await conectorErp.ordem(req.params.id, req.query.onde)); } catch (err) { res.status(502).json({ error: err.message }); } });
 app.post('/api/robo-ensaio/conector/ordens/:id/desfazer', async (req, res) => { const u = req.session.user?.nome || null; if (!u) return res.status(400).json({ error: 'Entre com seu usuário pra desfazer' }); try { res.json(await conectorErp.desfazer(req.params.id, u, req.query.onde || (req.body && req.body.onde))); } catch (err) { res.status(409).json({ error: err.message }); } });
 app.post('/api/robo-ensaio/conector', (req, res) => { try { res.json(conectorErp.setAtivo(!!(req.body && req.body.ativo), req.session.user?.nome || null)); } catch (err) { res.status(400).json({ error: err.message }); } });

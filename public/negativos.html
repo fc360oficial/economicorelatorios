@@ -164,7 +164,7 @@ td.merc{color:var(--ink3);font-size:12px}
   <div class="page-hdr">
     <div>
       <h1>Negativos</h1>
-      <p>Contagem digitada pelos auxiliares no app Contagem. Nada é gravado no ERP: a diferença fica pro ajuste manual.<span id="sinc"></span></p>
+      <p>Contagem digitada pelos auxiliares no app Contagem. <span id="ondeGrava">Nada é gravado no ERP: a diferença fica pro ajuste manual.</span><span id="sinc"></span></p>
     </div>
     <div>
       <div class="btns">
@@ -256,7 +256,7 @@ function render() {
       <td class="acoes"><div class="acoes-w">${l.ajustadoEm
         ? `<span class="feito"><span class="pill done">✔ Feito</span><span class="who">${esc(l.ajustadoPor) || '—'} · ${hora(l.ajustadoEm)}</span><button class="undo" title="Desmarcar" onclick="event.stopPropagation();ajustado(${l.loja}, true)">desfazer</button></span>`
         : l.status === 'concluida' ? `<button class="btn btn-primary" onclick="event.stopPropagation();ajustado(${l.loja})">Feito</button><button class="btn btn-secondary" onclick="event.stopPropagation();reabrir(${l.loja})">Reabrir</button>` : ''}
-        ${l.status === 'concluida' && !l.aprovadoEm ? `<button class="btn btn-secondary" onclick="event.stopPropagation();previa(${l.loja}, false)">Aprovar ajuste teste no .254</button>` : ''}
+        ${l.status === 'concluida' && !l.aprovadoEm ? `<button class="btn btn-secondary" onclick="event.stopPropagation();previa(${l.loja}, false)">${destAjuste === 'producao' ? 'Aprovar ajuste no ERP' : 'Aprovar ajuste teste no .254'}</button>` : ''}
         ${l.aprovadoEm && l.pendentes && l.pendentes.length ? `<button class="btn btn-secondary" onclick="event.stopPropagation();previa(${l.loja}, true)">Reprocessar pendentes</button>` : ''}</div></td></tr>`
       + (l.loja === selLoja && !l.semNegativos ? `<tr class="det"><td colspan="11"><div class="detail">${detalheHtml(l)}</div></td></tr>` : '');
   }).join('');
@@ -281,6 +281,10 @@ function detalheHtml(l) {
 // link externo (as lojas entram de fora); location.origin mostraria o IP interno quando a central abre pela LAN
 $('lnk').value = 'https://hhk0a8gt2cn.sn.mynetname.net/contagem.html';
 fetch('/api/contagem/link').then(r => r.ok ? r.json() : null).then(j => { if (j && j.link) $('lnk').value = j.link; }).catch(() => {});
+// 19/11/26 (Tiago: "coloca os negativos já no novo instalador pra ir pro 252 também"): com a chave ligada em Processos › Conector, a
+// aprovação grava no Dlinks de PRODUÇÃO pelo Conector do servidor do ERP. A tela diz isso no botão, na prévia e no resultado.
+var destAjuste = 'teste';
+fetch('/api/contagem/destino-ajuste').then(r => r.ok ? r.json() : null).then(j => { if (j && j.destino && j.destino !== destAjuste) { destAjuste = j.destino; if (destAjuste === 'producao') $('ondeGrava').innerHTML = '<b style="color:var(--neg)">A aprovação do ajuste grava no ERP de verdade</b> (Dlinks de produção), com registro na Ficha de cada produto.'; if (v) render(); } }).catch(() => {});
 async function copiarLink() {
   const v = $('lnk').value;
   try { await navigator.clipboard.writeText(v); } catch (e) { $('lnk').select(); document.execCommand('copy'); }
@@ -299,7 +303,7 @@ async function ajustado(ln, desfazer) {
 }
 async function reabrir(ln) { if (!confirm(`Reabrir a contagem da Loja ${ln}? O auxiliar poderá editar de novo.`)) return; if (await post(`/api/contagem/${v.data}/${ln}/reabrir`, 'Reaberta.')) carregar(); }
 
-// ── Aprovar ajuste no MySQL de teste (.254) ──────────────────────────────────
+// ── Aprovar ajuste: no MySQL de teste (.254) ou, com a chave ligada, no Dlinks de PRODUÇÃO (p.destino) ──
 // Itens desmarcados na lista da loja (checkbox) ficam fora da aprovação. Estado só na tela.
 const excl = {};
 function excluidos(ln) { return excl[ln] || (excl[ln] = new Set()); }
@@ -323,7 +327,7 @@ async function previa(ln, pendentes) {
   } catch (e) { $('status').textContent = 'Falhou: ' + e.message; }
 }
 function renderPrevia() {
-  const p = pv, tab = 'estoquen' + p.loja;
+  const p = pv, tab = 'estoquen' + p.loja, prod = p.destino === 'producao', onde = prod ? 'no ERP' : 'no .254';
   const linhas = p.itens.map(x => `<tr><td class="desc"><span class="cod">${esc(x.cod)}</span>${esc(x.desc)}</td>
     <td class="num mono" style="color:var(--neg)">${x.sys}</td><td class="num mono${x.mudou ? ' mud' : ''}">${x.atual ?? (x.semRegistro ? 'sem registro' : '—')}</td>
     <td class="num mono">${x.contado}</td><td class="num mono"><b>${esc(x.novo)}</b></td></tr>`).join('');
@@ -337,17 +341,18 @@ function renderPrevia() {
         <div class="kpi"><div class="label">Tabela</div><div class="v" style="font-size:15px">central.${tab}</div></div>
       </div>
       ${p.erroTeste ? `<div class="aviso neg">${esc(p.erroTeste)} — não dá pra gravar agora.</div>` : ''}
-      ${p.mudaram ? `<div class="aviso">${p.mudaram} item(ns) com estoque atual no .254 diferente do dia da contagem (coluna destacada). O contado é gravado mesmo assim: é o que existe fisicamente na loja.</div>` : ''}
-      ${p.semRegistro ? `<div class="aviso neg">${p.semRegistro} item(ns) sem registro na tabela ${tab} do .254 — o UPDATE vai afetar 0 linhas e entra no Log como OK com 0 registros.</div>` : ''}
-      <div class="aviso" style="background:var(--wsh);color:var(--ink2)">Motivo que vai no Log: <b>${esc(p.motivo)}</b>. Grava só no MySQL de teste do .254; o ERP (.252) não é tocado.</div>
-      <div class="tblwrap"><table class="dtbl"><thead><tr><th>Produto</th><th class="num">Sistema (contagem)</th><th class="num">Atual no .254</th><th class="num">Contado</th><th class="num">Vai gravar</th></tr></thead>
+      ${p.mudaram ? `<div class="aviso">${p.mudaram} item(ns) com estoque atual ${onde} diferente do dia da contagem (coluna destacada). O contado é gravado mesmo assim: é o que existe fisicamente na loja.${prod ? ' Se a loja vendeu depois de contar, essa venda some do saldo.' : ''}</div>` : ''}
+      ${p.semRegistro ? `<div class="aviso neg">${p.semRegistro} item(ns) sem registro na tabela ${tab} ${prod ? 'do ERP: esses não são gravados e voltam na lista de pendentes.' : 'do .254 — o UPDATE vai afetar 0 linhas e entra no Log como OK com 0 registros.'}</div>` : ''}
+      ${prod ? `<div class="aviso neg"><b>GRAVA NO DLINKS DE PRODUÇÃO.</b> O saldo desta loja muda de verdade no ERP, com registro na Ficha de cada produto (usuário ECOBOOT, motivo AJUSTE NEGATIVOS). Dá pra desfazer em Processos › Conector. Motivo que vai no Log: <b>${esc(p.motivo)}</b>.</div>`
+        : `<div class="aviso" style="background:var(--wsh);color:var(--ink2)">Motivo que vai no Log: <b>${esc(p.motivo)}</b>. Grava só no MySQL de teste do .254; o ERP (.252) não é tocado.</div>`}
+      <div class="tblwrap"><table class="dtbl"><thead><tr><th>Produto</th><th class="num">Sistema (contagem)</th><th class="num">Atual ${onde}</th><th class="num">Contado</th><th class="num">Vai gravar</th></tr></thead>
       <tbody>${linhas || '<tr><td colspan="5" class="empty">Nenhum item com contagem.</td></tr>'}</tbody></table></div>
       ${p.semContagem.length ? `<p class="who" style="padding:10px 0">Sem contagem (não serão ajustados): ${p.semContagem.map(x => esc(x.cod)).join(', ')}</p>` : ''}
       <div id="resAprov"></div>
     </div>
     <div class="md-f">
       <span class="who">Digite o número da loja pra confirmar:</span><input id="confLoja" inputmode="numeric" placeholder="${p.loja}">
-      <button class="btn btn-primary" id="btnGravar" onclick="gravarAjuste()" ${p.erroTeste || !p.itens.length ? 'disabled' : ''}>Gravar no teste .254</button>
+      <button class="btn btn-primary" id="btnGravar" onclick="gravarAjuste()" ${p.erroTeste || !p.itens.length ? 'disabled' : ''}>${prod ? 'Gravar no ERP (produção)' : 'Gravar no teste .254'}</button>
       <button class="btn btn-secondary" onclick="fecharPrevia()">Cancelar</button>
       <span id="progAprov" class="who"></span>
     </div></div></div>`;
@@ -363,8 +368,8 @@ async function gravarAjuste() {
     const hoje = new Date().toISOString().slice(0, 10);
     const lnk = `/log.html?tabela=${j.tabela}&de=${hoje}&ate=${hoje}`;
     $('progAprov').textContent = '';
-    $('resAprov').innerHTML = `<div class="res"><h3 style="color:${j.erros.length ? 'var(--amk)' : 'var(--pos)'}">${j.gravados} gravado(s)${j.via === 'conector' ? ' pelo Conector' : ''}, ${j.erros.length} com erro</h3>
-      <p class="muted" style="margin:4px 0 8px">${j.movimentados || 0} com movimento na Ficha do ERP (usuário ${esc(j.usuarioErp || 'ECOBOOT')})${j.semMudanca ? `, ${j.semMudanca} já estavam iguais ao contado` : ''}.</p>
+    $('resAprov').innerHTML = `<div class="res"><h3 style="color:${j.erros.length ? 'var(--amk)' : 'var(--pos)'}">${j.gravados} gravado(s)${j.destino === 'producao' ? ' no Dlinks de PRODUÇÃO' : j.via === 'conector' ? ' pelo Conector (Dlinks de teste)' : ''}, ${j.erros.length} com erro</h3>
+      <p class="muted" style="margin:4px 0 8px">${j.movimentados || 0} com movimento na Ficha do ERP (usuário ${esc(j.usuarioErp || 'ECOBOOT')})${j.semMudanca ? `, ${j.semMudanca} já estavam iguais ao contado` : ''}.${j.feito ? ' A loja já ficou marcada como <b>Feito</b>.' : ''}</p>
       <a class="btn btn-secondary" href="${lnk}" style="text-decoration:none">Ver no Log</a>${j.via === 'conector' ? ' <a class="btn btn-secondary" href="/conector.html" style="text-decoration:none">Ver no Conector</a>' : ''}
       ${j.erros.length ? '<ul>' + j.erros.map(e => `<li><span class="mono">${esc(e.cod)}</span> ${esc(e.desc || '')}: ${esc(e.erro)}</li>`).join('') + '</ul>' : ''}</div>`;
     $('resAprov').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
