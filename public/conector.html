@@ -262,12 +262,28 @@ function detalhe(o) {
     (pode ? '<div style="margin-top:10px"><button class="btn btn-red btn-sm" onclick="desfazer(\'' + esc(d.id) + '\', this)">Desfazer esta ordem</button><div class="t" style="font-size:12px;margin-top:6px">' + (d.tipo === 'liberacao_televendas' ? 'Volta o pedido pra situação de antes no painel do Dlinks (só se ainda não foi faturado).' : d.tipo === 'ajuste_estoque' ? 'Lança o movimento inverso no estoque (fica registrado na Ficha).' : d.tipo === 'preco_venda' ? 'Volta os preços ao valor de antes.' : 'Cancela o pedido no Dlinks (só se ele ainda não andou por lá).') + '</div></div>' : '') + '</div>' +
     '<div><h3>Histórico</h3><div class="t">' + (hist || '—') + '</div></div>' +
     '<div><h3>' + (d.tipo === 'liberacao_televendas' ? 'O que mudou no painel do Dlinks · pedido #' + esc(dd.pedido) : itens.length + ' item(ns)') + '</h3><div class="tab-wrap">' + tab + '</div></div>' +
-    '</div></td></tr>';
+    '</div>' + (d.tipo === 'ajuste_estoque' && d.adaptador !== 'simulado' ? '<div style="margin-top:12px"><button class="btn btn-sm" onclick="conferirErp(\'' + esc(d.id) + '\', this)">Conferir no ERP</button> <span style="font-size:12px;color:#4E5A72">lê no ERP, sem gravar nada, o saldo de agora, o registro do ajuste e a linha da Ficha de cada produto</span><div id="conf-' + esc(d.id) + '" style="margin-top:10px">' + (CONF[d.id] || '') + '</div></div>' : '') + '</td></tr>';
 }
 // ── de qual Conector é a lista de ordens: '' = o desta máquina · 'televendas' = o do servidor do ERP (só existe se estiver ligado) ──
 var ONDE = '';
 var qOnde = function () { return ONDE === 'producao' && E && E.producao ? '?onde=producao' : ''; };
 function trocaOnde(o) { ONDE = o; ABERTA = null; DET = {}; ORD = []; document.getElementById('tb').innerHTML = '<tr><td colspan="8" class="vazio">Carregando…</td></tr>'; carregar(); }
+// ── Conferir no ERP: o que a ordem de ajuste deixou gravado (só leitura) ──
+var CONF = {};
+var CONF_SIT = { ok: ['p-ok', 'ajuste e Ficha ok'], sem_movimento: ['p-mut', 'sem movimento'], sem_ajuste: ['p-bad', 'sem registro do ajuste'], sem_ficha: ['p-bad', 'sem linha na Ficha'], nao_gravado: ['p-warn', 'não gravado'], ficha_nao_conferida: ['p-warn', 'Ficha não conferida'] };
+function conferirErp(id, b) {
+  b.disabled = true; b.textContent = 'Conferindo…';
+  api('/api/robo-ensaio/conector/ordens/' + encodeURIComponent(id) + '/conferir-erp' + qOnde()).then(function (r) {
+    var n = function (v) { return v == null ? '—' : String(v).replace('.', ','); };
+    CONF[id] = '<div style="font-size:12.5px;color:#4E5A72;margin-bottom:6px">Lido agora no <b>' + esc(r.banco) + '</b>, loja ' + LJ(r.loja) + ': <b>' + r.ok + '</b> com ajuste e Ficha ok · ' + r.semMovimento + ' sem movimento (o saldo já era o contado: não gera ajuste nem Ficha)' + (r.semAjuste + r.semFicha ? ' · <b style="color:#C22F49">' + (r.semAjuste + r.semFicha) + ' com falta de registro</b>' : '') + (r.naoGravados ? ' · ' + r.naoGravados + ' não gravado(s)' : '') + (r.saldoMudou ? ' · ' + r.saldoMudou + ' com o saldo já diferente do contado (movimento depois do ajuste)' : '') + (r.fichaMotivo ? ' · ' + esc(r.fichaMotivo) : '') + (r.desfeita ? ' · <b>ordem desfeita</b>' : '') + '</div>' +
+      '<table class="mini"><tr><th>Produto</th><th class="n">Antes</th><th class="n">Contado</th><th class="n">Saldo agora</th><th>Registro do ajuste</th><th>Ficha do dia</th><th>Situação</th></tr>' + r.linhas.map(function (l) {
+        var st = CONF_SIT[l.situacao] || ['p-mut', l.situacao];
+        var fd = (l.fichaDoDia || []).map(function (f) { return esc(f.hora) + ' ' + esc(f.tipo) + ' ' + n(f.qtd) + ' (' + n(f.anterior) + ' → ' + n(f.atual) + ') ' + esc(f.origem); }).join('<br>');
+        return '<tr><td>' + esc(l.codigo) + ' ' + esc(l.descricao) + '</td><td class="n">' + n(l.antes) + '</td><td class="n">' + n(l.contado) + '</td><td class="n"' + (l.saldoMudou ? ' style="color:#8A4A00;font-weight:700"' : '') + '>' + n(l.saldoAgora) + '</td><td>' + (l.ajuste ? 'nº ' + esc(l.ajuste.nReg) + ' · ' + esc(l.ajuste.tipo) + ' de ' + n(l.ajuste.qtd) + ' · ' + esc(l.ajuste.usuario) : '—') + '</td><td>' + (fd || (l.fichaDoDia ? 'nenhuma linha hoje' : '—')) + '</td><td><span class="pill ' + st[0] + '">' + esc(st[1]) + '</span></td></tr>';
+      }).join('') + '</table>';
+    desenhar();
+  }).catch(function (e) { CONF[id] = '<span style="color:#C22F49">Não conferiu: ' + esc(e.message) + '</span>'; desenhar(); });
+}
 function desenhar() {
   cards(); funcoes(); dest(); aj(); tv();
   var tb = document.getElementById('tb'), tvd = E && E.producao, daTv = ONDE === 'producao' && !!tvd, fonte = daTv ? tvd : E;

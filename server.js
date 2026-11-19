@@ -10214,6 +10214,17 @@ app.post('/api/robo-ensaio/reenviar-pedido/:id', async (req, res) => {
 app.get('/api/robo-ensaio/conector/ordens', async (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json(await conectorErp.ordens(req.query.limite, req.query.onde)); } catch (err) { res.status(502).json({ error: err.message }); } });
 // ?onde=producao: ordens do Conector do servidor do ERP (quando ligado); sem isso, as do Conector desta máquina
 app.get('/api/robo-ensaio/conector/ordens/:id', async (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json(await conectorErp.ordem(req.params.id, req.query.onde)); } catch (err) { res.status(502).json({ error: err.message }); } });
+// Conferir no ERP (19/11/26, Tiago: "alguns ajustou no ficha e outros não, por quê?"): SÓ LEITURA. Pra uma ordem de ajuste de
+// estoque, lê no banco em que ela gravou (produção ou teste) o saldo de agora, o registro do ajuste e a linha da Ficha de cada
+// produto. Ordem do Conector de produção lê o ERP de produção (q); do Conector desta máquina, o ERP de teste (qTeste).
+app.get('/api/robo-ensaio/conector/ordens/:id/conferir-erp', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    const o = await conectorErp.ordem(req.params.id, req.query.onde);
+    if (o.adaptador !== 'dlinks-producao' && o.adaptador !== 'dlinks-teste') return res.status(400).json({ error: 'Esta ordem não gravou em ERP nenhum (adaptador ' + o.adaptador + ').' });
+    res.json({ ...(await require('./lib/conferir-ajuste').conferir({ q: o.adaptador === 'dlinks-producao' ? q : qTeste, ordem: o })), banco: o.adaptador === 'dlinks-producao' ? 'Dlinks de produção' : 'Dlinks de teste' });
+  } catch (err) { res.status(400).json({ error: err.message }); }
+});
 app.post('/api/robo-ensaio/conector/ordens/:id/desfazer', async (req, res) => { const u = req.session.user?.nome || null; if (!u) return res.status(400).json({ error: 'Entre com seu usuário pra desfazer' }); try { res.json(await conectorErp.desfazer(req.params.id, u, req.query.onde || (req.body && req.body.onde))); } catch (err) { res.status(409).json({ error: err.message }); } });
 app.post('/api/robo-ensaio/conector', (req, res) => { try { res.json(conectorErp.setAtivo(!!(req.body && req.body.ativo), req.session.user?.nome || null)); } catch (err) { res.status(400).json({ error: err.message }); } });
 app.get('/api/robo-ensaio/:id/detalhe', (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json(roboEnsaio.detalhe(parseInt(req.params.id))); } catch (err) { res.status(400).json({ error: err.message }); } });
