@@ -4814,13 +4814,15 @@ app.get('/api/listas-compra/:id/cadastro', async (req, res) => {
     const [prazo] = await q(`SELECT Descricao FROM central.pedidoprazos WHERE nReg=?`, [lista.CodPrazoPag]).catch(() => []);
     const [vendedor] = await q(`SELECT Nome, email, whats FROM central.c_cotacao_agenda WHERE nLista=? LIMIT 1`, [id]).catch(() => []);
     const [comprador] = await q(`SELECT nome, email, whats FROM central.c_cotacao_agenda_comprador WHERE nLista=? LIMIT 1`, [id]).catch(() => []);
+    // vendedor: o do nosso cadastro manda sobre o do Dlinks, igual ao pedido (ver escolherVendedorLista, 19/11/26)
+    const esc = escolherVendedorLista(vendedor ? { nome: vendedor.Nome?.trim() || null, email: vendedor.email || null, whats: vendedor.whats || null } : null, vendedorNossoDaLista(id, lista.CodFornec));
     res.json({
       fornecedor: { codigo: lista.CodFornec, nome: lista.NomeFornec?.trim() },
       descricao: lista.Nome?.trim(),
       observacao: lista.Obs?.trim() || null,
       prazo_pagamento: prazo?.Descricao || null,
       pedido_minimo: lista.PedidoMinimo || null,
-      vendedor: vendedor ? { nome: vendedor.Nome?.trim() || null, email: vendedor.email || null, whats: vendedor.whats || null } : null,
+      vendedor: esc.vendedor, vendedor_origem: esc.vendedor_origem, vendedor_erp: esc.vendedor_erp,
       comprador: comprador ? { nome: comprador.nome?.trim() || null, email: comprador.email || null, whats: comprador.whats || null } : null
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -9356,15 +9358,38 @@ app.post('/api/pedidos-cd/config', (req, res) => {
   try { res.json(pedidosCD.salvarConfig(req.body || {})); } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
+// Vendedor da lista: o do NOSSO cadastro manda sobre o do Dlinks (Tiago, 19/11/26: "quero que mude no da gente e deixe o de João em
+// Monjolo"). Lista 303: a agenda do Dlinks dizia ELIEL, quem atende é o João (número dele no cadastro da lista, conta no portal). O
+// pedido do Radar nascia com o vendedor do Dlinks, ia pro número errado (#356 excluído como "ERRO") e não aparecia no portal do João
+// (pedidoEhDoVendedor casa pelo WhatsApp). "Nosso" = cópia do fornecedor DA PRÓPRIA LISTA em data/cotacoes-fornecedores.json (aba
+// Fornecedores / "Estamos atualizando nosso cadastro" / tela Vendedores), e só vale com WhatsApp. Mesmo número dos dois lados = mesma
+// pessoa: o que falta no nosso (nome, e-mail) vem do Dlinks. Nada é escrito no ERP.
+function vendedorNossoDaLista(id, codFornec) {
+  try {
+    const arr = lerCotForn()[id]; if (!Array.isArray(arr) || !(+codFornec > 0)) return null;
+    const cad = arr.find(x => x && +x.codFornec === +codFornec && !x.inativo), v = cad && cad.vendedor;
+    const w = String((v && v.whats) || '').replace(/\D/g, ''); if (w.length < 10) return null;
+    return { nome: String(v.nome || '').trim() || null, email: String(v.email || '').trim() || null, whats: w };
+  } catch (e) { return null; }
+}
+// devolve { vendedor, vendedor_origem: 'nosso' | 'erp', vendedor_erp } — vendedor_erp só quando o Dlinks tem OUTRA pessoa (a tela avisa)
+function escolherVendedorLista(erp, nosso) {
+  if (!nosso) return { vendedor: erp || null, vendedor_origem: 'erp', vendedor_erp: null };
+  const f8 = x => String(x || '').replace(/\D/g, '').slice(-8);
+  const mesmo = !!erp && !!f8(erp.whats) && f8(erp.whats) === f8(nosso.whats);
+  if (mesmo) return { vendedor: { nome: nosso.nome || erp.nome || null, email: nosso.email || erp.email || null, whats: nosso.whats }, vendedor_origem: 'nosso', vendedor_erp: null };
+  return { vendedor: nosso, vendedor_origem: 'nosso', vendedor_erp: erp && (erp.nome || erp.whats) ? erp : null };
+}
 async function cadastroLista(id) {
   const [lista] = await q(`SELECT Nome, Obs, CodFornec, NomeFornec, CodPrazoPag, PedidoMinimo FROM central.c_cotacao_lista WHERE nReg=?`, [id]);
   if (!lista) return null;
   const [prazo] = await q(`SELECT Descricao FROM central.pedidoprazos WHERE nReg=?`, [lista.CodPrazoPag]).catch(() => []);
   const [vendedor] = await q(`SELECT Nome, email, whats FROM central.c_cotacao_agenda WHERE nLista=? LIMIT 1`, [id]).catch(() => []);
   const [comprador] = await q(`SELECT nome, email, whats FROM central.c_cotacao_agenda_comprador WHERE nLista=? LIMIT 1`, [id]).catch(() => []);
+  const esc = escolherVendedorLista(vendedor ? { nome: vendedor.Nome?.trim() || null, email: vendedor.email || null, whats: vendedor.whats || null } : null, vendedorNossoDaLista(id, lista.CodFornec));
   return {
     prazo_pagamento: prazo?.Descricao || null,
-    vendedor: vendedor ? { nome: vendedor.Nome?.trim() || null, email: vendedor.email || null, whats: vendedor.whats || null } : null,
+    vendedor: esc.vendedor, vendedor_origem: esc.vendedor_origem, vendedor_erp: esc.vendedor_erp,
     comprador: comprador ? { nome: comprador.nome?.trim() || null, email: comprador.email || null, whats: comprador.whats || null } : null
   };
 }
