@@ -256,12 +256,23 @@ const sessionStore = new FileStore({
     sessionStore[m] = (sid, ...args) => { const cb = typeof args[args.length - 1] === 'function' ? args.pop() : () => {}; serializar(String(sid), fim => orig(sid, ...args, (...r) => { fim(); cb(...r); })); };
   }
 }
+// 19/11/2026 (segurança): o segredo que assina o cookie saiu do código e mora em data/sessao-segredo.txt (fora do git, criado
+// sozinho). O antigo abaixo só valida cookies já emitidos, até 21/11 — a troca não desloga ninguém; depois dessa data pode apagar.
+// Cookie "secure" automático: pelo link externo (https, via Caddy) o cookie só trafega em https; pela rede interna em
+// http (192.168.2.254:3003, TVs, coletores) continua como era. `proxy: true` = o https é lido do X-Forwarded-Proto do Caddy.
+const SEGREDOS_SESSAO = seguranca.segredosSessao({
+  arquivo: path.join(__dirname, 'data', 'sessao-segredo.txt'),
+  antigo: 'ec0n0mic0-bi-2026-xK9#mP',
+  antigoValeAte: '2026-11-21T03:00:00-03:00',
+});
+app.disable('x-powered-by');
 app.use(session({
   store: sessionStore,
-  secret: 'ec0n0mic0-bi-2026-xK9#mP',
+  secret: SEGREDOS_SESSAO,
+  proxy: true,
   resave: false,
   saveUninitialized: false,
-  cookie: { maxAge: 8 * 60 * 60 * 1000, httpOnly: true, sameSite: 'lax' }
+  cookie: { maxAge: 8 * 60 * 60 * 1000, httpOnly: true, sameSite: 'lax', secure: 'auto' }
 }));
 
 // Middleware de autenticação (antes do static)

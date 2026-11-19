@@ -67,6 +67,24 @@ test('carregarChaveDeploy: cria uma vez e depois devolve a mesma', () => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
+test('segredos da sessão: o novo vem do arquivo e assina; o antigo só vale até a data', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'seg-'));
+  const arq = path.join(dir, 'sessao-segredo.txt');
+  const limite = '2026-11-21T03:00:00-03:00';
+  const antes = s.segredosSessao({ arquivo: arq, antigo: 'velho', antigoValeAte: limite, agora: Date.parse('2026-11-19T10:00:00-03:00') });
+  assert.equal(antes.length, 2);
+  assert.equal(antes[0].length, 64);
+  assert.equal(antes[1], 'velho');
+  const depois = s.segredosSessao({ arquivo: arq, antigo: 'velho', antigoValeAte: limite, agora: Date.parse('2026-11-21T03:00:01-03:00') });
+  assert.deepEqual(depois, [antes[0]]);                       // mesmo segredo do arquivo, sem o antigo
+  assert.equal(s.segredosSessao({ arquivo: arq, antigoValeAte: limite, agora: 0 }).length, 1);   // sem antigo
+  assert.equal(s.segredosSessao({ arquivo: arq, antigo: 'velho', antigoValeAte: 'data ruim', agora: 0 }).length, 1);
+  const semDisco = s.segredosSessao({ arquivo: path.join(dir, 'nao-existe', 'x.txt'), antigo: 'velho', antigoValeAte: limite, agora: 0 });
+  assert.equal(semDisco[0].length, 64);                       // disco falhou: segredo em memória, nunca vazio
+  assert.notEqual(semDisco[0], antes[0]);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
 test('limite de login: 8 erros na mesma conta+IP bloqueiam; outra conta e outro IP seguem livres', () => {
   const l = s.criarLimiteLogin();
   const t0 = 1000000;
