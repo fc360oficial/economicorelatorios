@@ -10102,7 +10102,7 @@ roboEnsaio.init({ radarPedidos, pedidosFornec, precificacao, roboPrecif, cadastr
 // Painel Robô (TV, sem login; Tiago, 12/11/26: painel próprio, separado do Painel Precificação): é o Escritório 3D
 // (public/robo-escritorio-3d.html) em modo TV, mostrando o ensaio de verdade. As 2 rotas de dados abaixo são as mesmas
 // do escritório logado, só leitura.
-// /painel-robo.html = versão LEVE (7 etapas; a TV não aguentou o 3D, Tiago 12/11) · /painel-robo-3d.html = o escritório, pra computador
+// /painel-robo-3d.html = o escritório; desde 19/11 é o link oficial da TV (?leve=1, que a caixinha aguenta) · /painel-robo.html = painel simples (7 etapas), continua no ar
 app.get('/painel-robo-3d.html', (req, res) => { res.set('Cache-Control', 'no-store'); res.sendFile(path.join(__dirname, 'public', 'robo-escritorio-3d.html')); });
 app.get('/api/paineis-publico/robo-precificacao', (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json(roboPrecif.consultarLeve()); } catch (err) { res.status(503).json({ error: err.message }); } });
 app.get('/api/paineis-publico/comprador-sombra', async (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json(await compradorSombra.resumo(false)); } catch (err) { res.status(503).json({ error: err.message }); } });

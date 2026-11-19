@@ -121,16 +121,17 @@ body{font-family:var(--font,'InterVar','Inter','Segoe UI',system-ui,sans-serif);
   <section class="aba" id="aba-robo">
     <div class="card" style="margin-bottom:12px">
       <h2>Link da TV</h2>
-      <p class="d">Abra na TV. Não tem token nem login. Mostra o ensaio do robô de compras e preço, etapa por etapa, e avisa em amarelo quando ele está esperando aprovação. Tudo no ERP de teste. O ensaio começa em Processos › Ensaio do Robô.</p>
+      <p class="d">Abra na TV. Não tem token nem login. O link oficial é o <b>3D</b> (Tiago, 19/11): o escritório do robô com o que precisa de você agora, o que foi feito hoje e a meta do mês. O <b>painel simples</b> continua valendo: mostra só o ensaio, etapa por etapa. O ensaio começa em Processos › Ensaio do Robô e roda no ERP de teste.</p>
       <div class="links">
-        <span class="lb">Na rede</span><input class="lk" id="pr-lan" readonly><button class="btn" data-copia="pr-lan">Copiar</button>
-        <span class="lb">Fora</span><input class="lk" id="pr-ext" readonly><button class="btn" data-copia="pr-ext">Copiar</button>
         <span class="lb">3D na TV</span><input class="lk" id="pr-3dtv" readonly><button class="btn" data-copia="pr-3dtv">Copiar</button>
         <span class="lb">3D no PC</span><input class="lk" id="pr-3d" readonly><button class="btn" data-copia="pr-3d">Copiar</button>
+        <span class="lb">Simples</span><input class="lk" id="pr-lan" readonly><button class="btn" data-copia="pr-lan">Copiar</button>
+        <span class="lb">Simples · fora</span><input class="lk" id="pr-ext" readonly><button class="btn" data-copia="pr-ext">Copiar</button>
       </div>
-      <p class="como"><b>3D na TV</b> (18/11, em teste) é o escritório do robô em modo leve: sem sombra, 20 quadros por segundo, e baixa a resolução sozinho se a TV não der conta. Abra na TV e olhe no Monitor: a linha do Painel Robô mostra quantos quadros por segundo ela está conseguindo. Abaixo de 10, fique no link de cima (o painel simples). <b>3D no PC</b> é o escritório completo, com sombra: só pra computador.</p>
+      <p class="como"><b>3D na TV</b> é o modo leve: sem sombra, 20 quadros por segundo, e baixa a resolução sozinho se a TV não der conta. No Monitor, a linha do Painel Robô mostra quantos quadros por segundo a TV está conseguindo; abaixo de 10, use o <b>Simples</b> nessa TV. <b>3D no PC</b> é o escritório completo, com sombra: só pra computador.</p>
+      <div class="acoes" style="margin-top:12px"><span class="mut">Prévia:</span><button class="btn" data-previa="/painel-robo-3d.html?leve=1&embed=1" id="pr-previa-3d">3D</button><button class="btn" data-previa="/painel-robo.html?embed=1">Simples</button></div>
     </div>
-    <iframe data-src="/painel-robo.html?embed=1" title="Painel Robô" allowfullscreen style="height:auto;aspect-ratio:16/9;min-height:0"></iframe>
+    <iframe id="pr-frame" data-src="/painel-robo-3d.html?leve=1&embed=1" title="Painel Robô" allowfullscreen style="height:auto;aspect-ratio:16/9;min-height:0"></iframe>
   </section>
   <section class="aba" id="aba-fiscal">
     <div class="pc">
@@ -183,6 +184,10 @@ async function linksSimples() {
   $('#pp-lan').value = LAN + '/painel-precificacao.html'; $('#pp-ext').value = ext + '/painel-precificacao.html';
   $('#pr-lan').value = LAN + '/painel-robo.html'; $('#pr-ext').value = ext + '/painel-robo.html'; $('#pr-3dtv').value = LAN + '/painel-robo-3d.html?leve=1'; $('#pr-3d').value = LAN + '/painel-robo-3d.html?leve=0';
 }
+// Painel Robô tem duas páginas (3D e simples): os botões da prévia trocam qual aparece embaixo
+function marcarPrevia(src) { document.querySelectorAll('[data-previa]').forEach(b => { const on = b.dataset.previa === src; b.style.fontWeight = on ? '800' : ''; b.style.borderColor = on ? 'var(--ink)' : ''; }); }
+document.querySelectorAll('[data-previa]').forEach(b => b.addEventListener('click', () => { const fr = $('#pr-frame'); fr.dataset.src = b.dataset.previa; fr.src = b.dataset.previa; marcarPrevia(b.dataset.previa); }));
+marcarPrevia($('#pr-frame').dataset.src);
 document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => abrir(b.dataset.aba, true)));
 const ini = location.hash.replace('#', '');
 abrir(['monitor', 'compras', 'televendas', 'rh', 'acougue', 'fiscal', 'expedicao', 'precificacao', 'robo'].includes(ini) ? ini : 'monitor', false);
