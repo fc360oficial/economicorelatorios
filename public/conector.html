@@ -53,6 +53,11 @@ tr.det td{background:#F6F6F3;padding:14px 16px}
 .tv .lin{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .tv .res{margin-top:10px;font-size:13px;line-height:1.6}
 @media (max-width:899px){.tv{grid-template-columns:1fr}}
+.dest{padding:14px 16px;font-size:13px;line-height:1.6;color:var(--ink-2)}.dest b{color:var(--ink)}
+.dest .lin{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}
+.dest input{height:36px;padding:0 10px;border:1px solid var(--border-strong);border-radius:8px;font:inherit}
+.dest input.end{width:260px}.dest input.sen{width:320px;max-width:100%}
+.abas{display:flex;gap:6px;flex-wrap:wrap}.abas[hidden]{display:none}.abas .btn.on{background:var(--ink);border-color:var(--ink);color:#fff}
 .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:var(--ink);color:#fff;font-size:12.5px;font-weight:600;padding:10px 16px;border-radius:9px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:50;max-width:90%}
 .toast.on{opacity:1}
 /* 16/10/26: toda tela se ajusta sozinha a qualquer monitor */
@@ -65,7 +70,7 @@ tr.det td{background:#F6F6F3;padding:14px 16px}
   <div class="page-hdr">
     <div>
       <h1>Conector</h1>
-      <p>A ponte entre o nosso sistema e o Dlinks. Todo pedido de compra aprovado, todo preço de venda (do robô e das compradoras) e, a partir da versão 0.6.0, a liberação dos pedidos do Televendas viram uma <b>ordem</b> que passa por aqui: o Conector registra, grava no Dlinks e sabe desfazer. Cada função é ligada ou desligada na própria instalação. Hoje ele grava só no <b>Dlinks de teste</b>.</p>
+      <p>A ponte entre o nosso sistema e o Dlinks. Todo pedido de compra aprovado, todo preço de venda (do robô e das compradoras) e, a partir da versão 0.6.0, a liberação dos pedidos do Televendas viram uma <b>ordem</b> que passa por aqui: o Conector registra, grava no Dlinks e sabe desfazer. Cada função é ligada ou desligada na própria instalação. O Conector desta máquina grava só no <b>Dlinks de teste</b>; a liberação do Televendas pode ir por um segundo Conector, instalado no servidor do ERP de <b>produção</b>.</p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <a class="btn" href="/log.html">Ver em Processos › Log</a>
@@ -75,15 +80,20 @@ tr.det td{background:#F6F6F3;padding:14px 16px}
   <div class="cards" id="cards"></div>
   <!-- 19/11/26 (Tiago: "ter algo que eu vá escolhendo"): funções ligadas na instalação + liberação do Televendas (chave e ensaio) -->
   <div class="box" style="margin-bottom:16px">
-    <div class="box-h"><h2>Funções desta instalação</h2><span>ligar e desligar é no servidor onde o Conector está instalado: atalho <b>Funções do Conector</b></span></div>
+    <div class="box-h"><h2>Funções do Conector desta máquina</h2><span>ligar e desligar é no servidor onde o Conector está instalado: atalho <b>Funções do Conector</b></span></div>
     <div class="fn" id="funcoes"></div>
+  </div>
+  <!-- 19/11/26 (Tiago: "colocar ele no 252, vamos testar na prática"): segundo Conector, no servidor do ERP de produção, só pro Televendas -->
+  <div class="box" style="margin-bottom:16px" id="boxDest">
+    <div class="box-h"><h2>Conector do Televendas (produção)</h2><span id="destLbl"></span></div>
+    <div class="dest" id="dest"></div>
   </div>
   <div class="box" style="margin-bottom:16px" id="boxTv">
     <div class="box-h"><h2>Liberação do Televendas (expedição do CD)</h2><span id="tvLbl"></span></div>
     <div class="tv" id="tv"></div>
   </div>
   <div class="box">
-    <div class="box-h"><h2>Ordens recebidas</h2><span id="lbl"></span></div>
+    <div class="box-h"><h2>Ordens recebidas</h2><div class="abas" id="abas" hidden><button class="btn btn-sm" id="abaP" onclick="trocaOnde('')">Conector desta máquina (teste)</button><button class="btn btn-sm" id="abaT" onclick="trocaOnde('televendas')">Conector do Televendas</button></div><span id="lbl"></span></div>
     <div class="tab-wrap"><table>
       <thead><tr><th>Quando</th><th>O quê</th><th>Loja</th><th class="n">Itens</th><th>Aprovado por</th><th>Situação</th><th>Resultado</th><th></th></tr></thead>
       <tbody id="tb"><tr><td colspan="8" class="vazio">Carregando…</td></tr></tbody>
@@ -131,9 +141,45 @@ function funcoes() {
   if (!f) { el.innerHTML = '<div style="grid-column:1/-1"><b>Conector anterior à versão 0.6.0</b><small>Nesta versão ainda não existem as chaves por função: pedido de compra, preço de venda e ajuste de estoque ficam sempre ligados e a liberação do Televendas não existe. Atualize o Conector no servidor pra escolher o que fica ligado.</small></div>'; return; }
   el.innerHTML = Object.keys(f).map(function (k) { return '<div><b>' + esc(f[k].nome) + '</b><span class="pill ' + (f[k].ligada ? 'p-ok' : 'p-mut') + '">' + (f[k].ligada ? 'ligada' : 'desligada') + '</span><small>' + esc(FN_DESC[k] || '') + '</small></div>'; }).join('');
 }
+// ── Conector do Televendas no servidor do ERP de produção (E.televendas; null = não ligado) ──
+// Quem atende o Televendas: esse segundo Conector quando o sistema está ligado a ele; senão o Conector desta máquina.
+function quemTv() { var t = E && E.televendas; return t ? { estado: t, saude: t.saude || {}, no_ar: !!t.no_ar && !!t.autenticado, outro: true } : { estado: E, saude: (E && E.saude) || {}, no_ar: !!(E && E.no_ar), outro: false }; }
+var DEST_MODO = null;
+function dest() {
+  var el = document.getElementById('dest'), t = E && E.televendas, lbl = document.getElementById('destLbl');
+  if (!E) { el.innerHTML = ''; return; }
+  if (!t) {
+    lbl.textContent = 'não ligado: o Televendas vai pelo Conector desta máquina (Dlinks de teste)';
+    if (DEST_MODO !== 'form') { DEST_MODO = 'form';   // montado uma vez: o que foi digitado não se perde na atualização de 30 s
+      el.innerHTML = 'Depois de instalar o Conector no <b>servidor do ERP</b>, informe aqui o endereço e a senha de acesso que o instalador mostrou no fim (pra ver de novo: atalho <b>Mostrar ligacao do Conector</b> na pasta do programa, no servidor do ERP). A partir daí a liberação do Televendas passa a ir por ele e grava no <b>Dlinks de produção</b>; pedido de compra, preço e ajuste de estoque continuam no Conector desta máquina.' +
+        '<div class="lin"><input class="end" id="destUrl" placeholder="http://192.168.2.252:3210" autocomplete="off"><input class="sen" id="destSenha" type="password" placeholder="senha de acesso" autocomplete="new-password"><button class="btn btn-sm btn-amber" id="destBtn" onclick="destLigar()">Ligar o sistema a este Conector</button></div>'; }
+    return;
+  }
+  DEST_MODO = 'ligado';
+  var s = t.saude || {}, f = s.funcoes && s.funcoes.liberacao_televendas, ok = t.no_ar && t.autenticado;
+  lbl.textContent = 'ligado por ' + (t.ligadoPor || '—') + ' em ' + hora(t.ligadoEm);
+  el.innerHTML = '<span class="pill ' + (ok ? 'p-ok' : 'p-bad') + '">' + (ok ? 'no ar' : !t.no_ar ? 'fora do ar' : 'sem acesso') + '</span> ' +
+    (t.no_ar ? '<span class="pill ' + (s.producao ? 'p-bad' : 'p-warn') + '">' + (s.producao ? 'GRAVA NO DLINKS DE PRODUÇÃO' : s.adaptador === 'simulado' ? 'SIMULADO' : 'DLINKS DE TESTE') + '</span> ' +
+      '<span class="pill ' + (f && f.ligada ? 'p-ok' : 'p-mut') + '">Liberação do Televendas ' + (f && f.ligada ? 'ligada' : 'desligada') + ' lá</span>' +
+      '<div style="margin-top:8px"><b>' + esc(t.url) + '</b> · versão ' + esc(s.versao) + ' · instalação ' + esc(s.instalacao) + ' · no ar desde ' + hora(s.no_ar_desde) + '<br>' + esc((s.erp && s.erp.detalhe) || '') + (s.erp && s.erp.ok === false ? ' <span style="color:#C22F49"><b>não está conectando no banco do ERP</b></span>' : '') + (t.no_ar && !t.autenticado ? '<br><span style="color:#C22F49"><b>O Conector não aceitou a senha de acesso guardada.</b> Desligue e ligue de novo com a senha certa.</span>' : '') + '</div>'
+      : '<div style="margin-top:8px"><b>' + esc(t.url) + '</b> · <span style="color:#C22F49">' + esc(t.erro || 'não respondeu') + '</span>. Enquanto ele não responder, a liberação no Dlinks não sai (a nossa liberação continua valendo e a linha do fiscal oferece Tentar de novo).</div>') +
+    '<div class="lin"><button class="btn btn-sm btn-red" onclick="destDesligar()">Desligar o sistema deste Conector</button><span style="font-size:12px">Desligado, a liberação do Televendas volta a ir pelo Conector desta máquina (Dlinks de teste).</span></div>';
+}
+function destLigar() {
+  var url = document.getElementById('destUrl').value.trim(), senha = document.getElementById('destSenha').value.trim(), b = document.getElementById('destBtn');
+  if (!url || !senha) { toast('Informe o endereço e a senha de acesso'); return; }
+  b.disabled = true; b.textContent = 'Conferindo…';
+  api('/api/robo-ensaio/conector/televendas-destino', { url: url, senha: senha }).then(function (r) {
+    DEST_MODO = null; toast('Sistema ligado ao Conector do Televendas' + (r.producao ? ' (PRODUÇÃO)' : '') + '. A liberação automática ficou desligada.'); ONDE = 'televendas'; return carregar();
+  }).catch(function (e) { toast('Não ligou: ' + e.message); b.disabled = false; b.textContent = 'Ligar o sistema a este Conector'; });
+}
+function destDesligar() {
+  if (!confirm('Desligar o sistema do Conector do Televendas?\n\nA liberação automática é desligada e o Televendas volta a ir pelo Conector desta máquina (Dlinks de teste). O Conector do servidor do ERP continua instalado lá.')) return;
+  api('/api/robo-ensaio/conector/televendas-destino/remover', {}).then(function () { DEST_MODO = null; ONDE = ''; toast('Sistema desligado do Conector do Televendas'); return carregar(); }).catch(function (e) { toast('Não deu: ' + e.message); });
+}
 function tv() {
-  var el = document.getElementById('tv'), f = E && E.saude && E.saude.funcoes, tem = !!(f && f.liberacao_televendas), lig = tem && f.liberacao_televendas.ligada, prod = !!(E && E.saude && E.saude.producao);
-  document.getElementById('tvLbl').textContent = !E || !E.no_ar ? '' : !tem ? 'precisa do Conector 0.6.0 ou mais novo' : lig ? 'função ligada no Conector' : 'função desligada no Conector';
+  var q = quemTv(), el = document.getElementById('tv'), f = q.saude.funcoes, tem = !!(f && f.liberacao_televendas), lig = q.no_ar && tem && f.liberacao_televendas.ligada, prod = !!q.saude.producao;
+  document.getElementById('tvLbl').textContent = !E ? '' : !q.no_ar ? (q.outro ? 'o Conector do Televendas não respondeu' : '') : !tem ? 'precisa do Conector 0.6.0 ou mais novo' : (lig ? 'função ligada' : 'função desligada') + (q.outro ? ' no Conector do Televendas' : ' no Conector');
   if (!document.getElementById('tvPed')) el.innerHTML =   // montado uma vez só: o que foi digitado não se perde na atualização de 30 s
     '<div><h3>Automático ao liberar a saída</h3><div class="lin"><span class="pill" id="tvAuto"></span><button class="btn btn-sm" id="tvAutoBtn" onclick="tvAutoMuda()"></button></div>' +
     '<p>Ligado, toda saída que o fiscal do CD libera em <b>Fiscal › Expedição do CD</b> é liberada também no painel do Televendas do Dlinks, sem ninguém precisar ir lá. Se o Dlinks não aceitar, a nossa liberação continua valendo e a linha do fiscal mostra o motivo com o botão <b>Tentar de novo</b>.</p><p id="tvAviso"></p></div>' +
@@ -142,13 +188,15 @@ function tv() {
   var auto = !!(E && E.televendas_auto);
   document.getElementById('tvAuto').className = 'pill ' + (auto ? 'p-ok' : 'p-mut'); document.getElementById('tvAuto').textContent = auto ? 'ligado' : 'desligado';
   document.getElementById('tvAutoBtn').textContent = auto ? 'Desligar' : 'Ligar';
-  document.getElementById('tvOnde').textContent = prod ? 'PRODUÇÃO' : E && E.saude && E.saude.adaptador === 'simulado' ? 'simulado' : 'Dlinks de teste';
-  document.getElementById('tvAviso').innerHTML = prod ? '' : '<b style="color:#8A4A00">Enquanto o Conector grava no Dlinks de teste, deixe desligado:</b> os pedidos de hoje não existem na cópia de teste e cada liberação voltaria com erro na linha do fiscal. Pra testar, use o ensaio ao lado.';
+  document.getElementById('tvOnde').textContent = prod ? 'Dlinks de PRODUÇÃO' : q.saude.adaptador === 'simulado' ? 'simulado' : 'Dlinks de teste';
+  document.getElementById('tvOnde').style.cssText = prod ? 'color:#C22F49;font-weight:800' : '';
+  document.getElementById('tvAviso').innerHTML = prod ? '<b style="color:#C22F49">O Conector do Televendas grava no Dlinks de PRODUÇÃO.</b> Ligado, cada saída liberada pelo fiscal do CD libera o pedido de verdade no Televendas. Faça primeiro o ensaio ao lado com um pedido e confira no Dlinks.'
+    : '<b style="color:#8A4A00">Enquanto o Conector grava no Dlinks de teste, deixe desligado:</b> os pedidos de hoje não existem na cópia de teste e cada liberação voltaria com erro na linha do fiscal. Pra testar, use o ensaio ao lado.';
   document.getElementById('tvLib').disabled = !lig;
 }
 function tvAutoMuda() {
-  var ligar = !(E && E.televendas_auto), prod = !!(E && E.saude && E.saude.producao);
-  if (ligar && !confirm((prod ? '' : 'ATENÇÃO: o Conector está gravando no Dlinks de TESTE. Os pedidos de hoje não existem lá e o fiscal vai ver "não liberou no Dlinks" em cada saída.\n\n') + 'Ligar a liberação automática no Televendas a cada saída liberada pelo fiscal do CD?')) return;
+  var ligar = !(E && E.televendas_auto), prod = !!quemTv().saude.producao;
+  if (ligar && !confirm((prod ? 'ATENÇÃO: o Conector do Televendas grava no Dlinks de PRODUÇÃO.\nA partir de agora, toda saída que o fiscal do CD liberar vai liberar o pedido de verdade no painel do Televendas.\n\n' : 'ATENÇÃO: o Conector está gravando no Dlinks de TESTE. Os pedidos de hoje não existem lá e o fiscal vai ver "não liberou no Dlinks" em cada saída.\n\n') + 'Ligar a liberação automática no Televendas a cada saída liberada pelo fiscal do CD?')) return;
   api('/api/robo-ensaio/conector/televendas-auto', { ativo: ligar }).then(function () { toast(ligar ? 'Liberação automática ligada' : 'Liberação automática desligada'); return carregar(); }).catch(function (e) { toast('Não deu: ' + e.message); });
 }
 function tvNum() { var n = parseInt(document.getElementById('tvPed').value, 10); if (!(n > 0)) { toast('Digite o número do pedido'); return null; } return n; }
@@ -162,10 +210,11 @@ function tvConsultar() {
   api('/api/robo-ensaio/conector/televendas/' + n).then(function (c) { r.innerHTML = tvLinha(c); }).catch(function (e) { r.innerHTML = '<span style="color:#C22F49">' + esc(e.message) + '</span>'; });
 }
 function tvLiberar() {
-  var n = tvNum(); if (!n) return; var onde = document.getElementById('tvOnde').textContent;
-  if (!confirm('Liberar o pedido #' + n + ' no painel do Televendas (' + onde + ')?\n\nFica registrado no Log com o seu nome e pode ser desfeito na lista de ordens.')) return;
+  var n = tvNum(); if (!n) return; var onde = document.getElementById('tvOnde').textContent, prod = !!quemTv().saude.producao;
+  if (!confirm((prod ? 'ATENÇÃO: isto grava no Dlinks de PRODUÇÃO.\nO pedido #' + n + ' passa a Liberado de verdade no painel do Televendas.\n\n' : '') + 'Liberar o pedido #' + n + ' no painel do Televendas (' + onde + ')?\n\nFica registrado no Log com o seu nome e pode ser desfeito na lista de ordens enquanto o pedido não for faturado.')) return;
   var r = document.getElementById('tvRes'), b = document.getElementById('tvLib'); b.disabled = true; r.textContent = 'liberando…';
   api('/api/robo-ensaio/conector/televendas/' + n + '/liberar', {}).then(function (x) {
+    if (x.destino === 'televendas') ONDE = 'televendas';   // a ordem foi pro Conector do Televendas: a lista abaixo passa a mostrar as dele
     var res = x.resultado || {}, m = mudou(res.antes, res.depois);
     r.innerHTML = res.ja_liberado ? 'Pedido <b>#' + n + '</b> já estava Liberado: nada foi gravado.' : '<span style="color:#137A48"><b>Pedido #' + n + ' liberado.</b></span> Gravado no painel: ' + m.map(function (k) { return esc(k.campo) + ' ' + esc(k.antes == null ? 'vazio' : k.antes) + ' → <b>' + esc(k.depois) + '</b>'; }).join(' · ') + '<br>Ordem ' + esc(x.ordem) + ' (na lista abaixo).';
     return carregar();
@@ -192,10 +241,17 @@ function detalhe(o) {
     '<div><h3>' + (d.tipo === 'liberacao_televendas' ? 'O que mudou no painel do Dlinks · pedido #' + esc(dd.pedido) : itens.length + ' item(ns)') + '</h3><div class="tab-wrap">' + tab + '</div></div>' +
     '</div></td></tr>';
 }
+// ── de qual Conector é a lista de ordens: '' = o desta máquina · 'televendas' = o do servidor do ERP (só existe se estiver ligado) ──
+var ONDE = '';
+var qOnde = function () { return ONDE === 'televendas' && E && E.televendas ? '?onde=televendas' : ''; };
+function trocaOnde(o) { ONDE = o; ABERTA = null; DET = {}; ORD = []; document.getElementById('tb').innerHTML = '<tr><td colspan="8" class="vazio">Carregando…</td></tr>'; carregar(); }
 function desenhar() {
-  cards(); funcoes(); tv();
-  var tb = document.getElementById('tb');
-  if (!E || !E.no_ar) { tb.innerHTML = '<tr><td colspan="8" class="vazio">O Conector não respondeu. Confira se ele está rodando no servidor.</td></tr>'; return; }
+  cards(); funcoes(); dest(); tv();
+  var tb = document.getElementById('tb'), tvd = E && E.televendas, daTv = ONDE === 'televendas' && !!tvd, fonte = daTv ? tvd : E;
+  document.getElementById('abas').hidden = !tvd; document.getElementById('abaP').className = 'btn btn-sm' + (daTv ? '' : ' on'); document.getElementById('abaT').className = 'btn btn-sm' + (daTv ? ' on' : '');
+  document.getElementById('abaT').textContent = 'Conector do Televendas' + (tvd && tvd.saude && tvd.saude.producao ? ' (produção)' : '');
+  document.getElementById('lbl').textContent = '';
+  if (!fonte || !fonte.no_ar || !fonte.autenticado) { tb.innerHTML = '<tr><td colspan="8" class="vazio">' + (daTv ? 'O Conector do Televendas não respondeu ou não aceitou a senha. Confira no servidor do ERP se ele está rodando.' : 'O Conector não respondeu. Confira se ele está rodando no servidor.') + '</td></tr>'; return; }
   if (!ORD.length) { tb.innerHTML = '<tr><td colspan="8" class="vazio">Nenhuma ordem ainda.</td></tr>'; return; }
   tb.innerHTML = ORD.map(function (o) {
     var s = SIT[o.status] || ['p-mut', o.status];
@@ -207,18 +263,22 @@ function desenhar() {
 function abrir(id) {
   if (ABERTA === id) { ABERTA = null; desenhar(); return; }
   ABERTA = id; desenhar();
-  api('/api/robo-ensaio/conector/ordens/' + encodeURIComponent(id)).then(function (d) { DET[id] = d; desenhar(); }).catch(function (e) { toast('Não deu: ' + e.message); });
+  api('/api/robo-ensaio/conector/ordens/' + encodeURIComponent(id) + qOnde()).then(function (d) { DET[id] = d; desenhar(); }).catch(function (e) { toast('Não deu: ' + e.message); });
 }
 function desfazer(id, b) {
   var o = DET[id] || {};
-  if (!confirm('Desfazer a ordem ' + id + '?\n\n' + (o.tipo === 'liberacao_televendas' ? 'O pedido volta pra situação de antes no painel do Televendas.' : o.tipo === 'ajuste_estoque' ? 'O estoque volta pelo movimento inverso no Dlinks de teste (a Ficha do produto guarda a ida e a volta).' : o.tipo === 'preco_venda' ? 'Os preços dessa ordem voltam ao valor de antes no Dlinks de teste.' : 'O pedido é cancelado no Dlinks de teste.') + '\n\nFica registrado no Log com o seu nome.')) return;
+  if (!confirm('Desfazer a ordem ' + id + '?\n\n' + (o.tipo === 'liberacao_televendas' ? 'O pedido volta pra situação de antes no painel do Televendas' + (o.adaptador === 'dlinks-producao' ? ' do Dlinks de PRODUÇÃO.' : '.') : o.tipo === 'ajuste_estoque' ? 'O estoque volta pelo movimento inverso no Dlinks de teste (a Ficha do produto guarda a ida e a volta).' : o.tipo === 'preco_venda' ? 'Os preços dessa ordem voltam ao valor de antes no Dlinks de teste.' : 'O pedido é cancelado no Dlinks de teste.') + '\n\nFica registrado no Log com o seu nome.')) return;
   b.disabled = true; b.textContent = 'Desfazendo…';
-  api('/api/robo-ensaio/conector/ordens/' + encodeURIComponent(id) + '/desfazer', {}).then(function () { toast('Ordem desfeita'); delete DET[id]; return carregar(); }).then(function () { if (ABERTA === id) api('/api/robo-ensaio/conector/ordens/' + encodeURIComponent(id)).then(function (d) { DET[id] = d; desenhar(); }); })
+  api('/api/robo-ensaio/conector/ordens/' + encodeURIComponent(id) + '/desfazer' + qOnde(), {}).then(function () { toast('Ordem desfeita'); delete DET[id]; return carregar(); }).then(function () { if (ABERTA === id) api('/api/robo-ensaio/conector/ordens/' + encodeURIComponent(id) + qOnde()).then(function (d) { DET[id] = d; desenhar(); }); })
     .catch(function (e) { toast('Não desfez: ' + e.message); b.disabled = false; b.textContent = 'Desfazer esta ordem'; });
 }
 function carregar(aviso) {
-  return api('/api/robo-ensaio/conector').then(function (e) { E = e; if (!e.no_ar || !e.autenticado) { ORD = []; desenhar(); return; } return api('/api/robo-ensaio/conector/ordens').then(function (r) { ORD = r.ordens || []; desenhar(); if (aviso) toast('Atualizado'); }); })
-    .catch(function (e) { toast('Não deu: ' + e.message); });
+  return api('/api/robo-ensaio/conector').then(function (e) {
+    E = e; if (ONDE === 'televendas' && !e.televendas) ONDE = '';
+    var fonte = ONDE === 'televendas' ? e.televendas : e;
+    if (!fonte.no_ar || !fonte.autenticado) { ORD = []; desenhar(); return; }
+    return api('/api/robo-ensaio/conector/ordens' + qOnde()).then(function (r) { ORD = r.ordens || []; desenhar(); if (aviso) toast('Atualizado'); });
+  }).catch(function (e) { toast('Não deu: ' + e.message); });
 }
 carregar(); setInterval(function () { if (!document.hidden) carregar(); }, 30000);
 </script>

@@ -10156,7 +10156,12 @@ app.post('/api/robo-ensaio/:id/simular-nota', async (req, res) => { try { res.js
 // Etapa 7 num clique (Tiago, 12/11/26: "onde aprova?"): mostra o que muda e, confirmado, fecha a lista de cada loja e manda pra carga
 // do ERP de TESTE (mesmas funções da Formação de Preço: precificacao.fechar + enviarCarga via escreverERP).
 // Situação do Conector (ponte com o Dlinks, instalado em 13/11/26). Só admin (prefixo robo-ensaio); nunca devolve a senha.
-app.get('/api/robo-ensaio/conector', async (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json({ ...(await conectorErp.estado()), ligado: conectorErp.ativo(), televendas_auto: conectorErp.televendasAuto() }); } catch (err) { res.status(500).json({ error: err.message }); } });
+app.get('/api/robo-ensaio/conector', async (req, res) => { res.set('Cache-Control', 'no-store'); try { const [est, tv] = await Promise.all([conectorErp.estado(), conectorErp.estadoTelevendas()]); res.json({ ...est, ligado: conectorErp.ativo(), televendas_auto: conectorErp.televendasAuto(), televendas: tv }); } catch (err) { res.status(500).json({ error: err.message }); } });
+// Conector do Televendas no servidor do ERP de PRODUÇÃO (19/11/26, Tiago: "colocar ele no 252, vamos testar na prática"): liga o
+// sistema a ele com o endereço e a senha de acesso que o instalador mostra. Confere antes de gravar e desliga a liberação
+// automática (quem liga de novo é uma pessoa). Só admin (prefixo robo-ensaio); a senha nunca é devolvida.
+app.post('/api/robo-ensaio/conector/televendas-destino', async (req, res) => { try { res.json(await conectorErp.setDestinoTelevendas({ url: req.body && req.body.url, senha: req.body && req.body.senha }, req.session.user?.nome || null)); } catch (err) { res.status(400).json({ error: err.message }); } });
+app.post('/api/robo-ensaio/conector/televendas-destino/remover', (req, res) => { try { res.json(conectorErp.removerDestinoTelevendas(req.session.user?.nome || null)); } catch (err) { res.status(400).json({ error: err.message }); } });
 // Liberação do Televendas pelo Conector (19/11/26, Tiago: "assim que eu liberar no nosso, liberar no Dlinks"). Só admin (prefixo robo-ensaio).
 //  · televendas-auto: chave que faz toda saída liberada pelo fiscal do CD virar ordem de liberação no Dlinks (desligada por padrão)
 //  · televendas/:pedido: ENSAIO — consulta e libera um pedido pelo número, no banco em que o Conector grava (hoje o Dlinks de teste)
@@ -10169,7 +10174,7 @@ app.post('/api/robo-ensaio/conector/televendas/:pedido/liberar', async (req, res
     const n = pedidoTv(req.params.pedido);
     const r = await conectorErp.liberacaoTelevendas('eco-ensaio-tv-P' + n + '-' + Date.now(), u, { loja: 10, pedido: n, motivo: 'Ensaio da liberação do Televendas (Processos › Conector)' });
     if (!r.ok) return res.status(409).json({ error: r.erro || 'o Conector não liberou', ordem: r.ordem || null });
-    res.json({ ok: true, ordem: r.ordem, logId: r.id, resultado: r.resultado });
+    res.json({ ok: true, ordem: r.ordem, logId: r.id, resultado: r.resultado, destino: r.destino || 'padrao' });
   } catch (err) { res.status(400).json({ error: err.message }); }
 });
 // Reenvia pro ERP teste as lojas de um pedido aprovado que deram erro, em nome de quem aprovou (uso de manutenção, só admin).
@@ -10181,9 +10186,10 @@ app.post('/api/robo-ensaio/reenviar-pedido/:id', async (req, res) => {
     res.json(await gerarPedidoErpTeste(p, quem, null, req.session.user || null));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
-app.get('/api/robo-ensaio/conector/ordens', async (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json(await conectorErp.ordens(req.query.limite)); } catch (err) { res.status(502).json({ error: err.message }); } });
-app.get('/api/robo-ensaio/conector/ordens/:id', async (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json(await conectorErp.ordem(req.params.id)); } catch (err) { res.status(502).json({ error: err.message }); } });
-app.post('/api/robo-ensaio/conector/ordens/:id/desfazer', async (req, res) => { const u = req.session.user?.nome || null; if (!u) return res.status(400).json({ error: 'Entre com seu usuário pra desfazer' }); try { res.json(await conectorErp.desfazer(req.params.id, u)); } catch (err) { res.status(409).json({ error: err.message }); } });
+app.get('/api/robo-ensaio/conector/ordens', async (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json(await conectorErp.ordens(req.query.limite, req.query.onde)); } catch (err) { res.status(502).json({ error: err.message }); } });
+// ?onde=televendas: ordens do Conector do servidor do ERP (quando ligado); sem isso, as do Conector desta máquina
+app.get('/api/robo-ensaio/conector/ordens/:id', async (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json(await conectorErp.ordem(req.params.id, req.query.onde)); } catch (err) { res.status(502).json({ error: err.message }); } });
+app.post('/api/robo-ensaio/conector/ordens/:id/desfazer', async (req, res) => { const u = req.session.user?.nome || null; if (!u) return res.status(400).json({ error: 'Entre com seu usuário pra desfazer' }); try { res.json(await conectorErp.desfazer(req.params.id, u, req.query.onde || (req.body && req.body.onde))); } catch (err) { res.status(409).json({ error: err.message }); } });
 app.post('/api/robo-ensaio/conector', (req, res) => { try { res.json(conectorErp.setAtivo(!!(req.body && req.body.ativo), req.session.user?.nome || null)); } catch (err) { res.status(400).json({ error: err.message }); } });
 app.get('/api/robo-ensaio/:id/detalhe', (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json(roboEnsaio.detalhe(parseInt(req.params.id))); } catch (err) { res.status(400).json({ error: err.message }); } });
 app.post('/api/robo-ensaio/:id/aprovar-precos', async (req, res) => {
