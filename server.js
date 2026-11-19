@@ -204,10 +204,11 @@ const logAcessos = require('./lib/log-acessos');
 const seguranca = require('./lib/seguranca-acesso');
 const DEPLOY_CHAVE = seguranca.carregarChaveDeploy(path.join(__dirname, 'data', 'deploy-chave.txt'));
 const limiteLogin = seguranca.criarLimiteLogin();
-// Telas de TV sem login só da rede interna (lib/acesso-tvs.js). Começa em "observar": anota quem usa e de onde, sem barrar.
+// Telas de TV sem login só da rede interna (lib/acesso-tvs.js). Fechado desde 19/11/26 (Tiago); pra voltar a só anotar sem barrar,
+// gravar {"modo":"observar"} em data/acesso-tvs.json (vale em 15 s, sem deploy).
 const acessoTvs = require('./lib/acesso-tvs');
 const ROTEADORES_REDE = String(process.env.REDE_ROTEADORES || '192.168.2.1').split(',').map(s => s.trim()).filter(Boolean);
-const modoTvs = acessoTvs.criarModo(path.join(__dirname, 'data', 'acesso-tvs.json'), 'observar');
+const modoTvs = acessoTvs.criarModo(path.join(__dirname, 'data', 'acesso-tvs.json'), 'fechar');
 const registroTvs = acessoTvs.criarRegistro({ arquivo: path.join(__dirname, 'data', 'acessos-tvs-observados.json') });
 setInterval(() => registroTvs.gravar(), 60 * 1000).unref();
 process.on('exit', () => registroTvs.gravar());
