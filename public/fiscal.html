@@ -513,8 +513,17 @@ async function liberarSaida(id,decisao){
   if(!confirm(decisao==='liberar'?'Liberar a saída do pedido #'+n+'? O caminhão pode ir e a conferência é espelhada no ERP de teste.'
     :marc.length?'Mandar reconferir SÓ '+(marc.length===1?'este item':'estes '+marc.length+' itens')+' do pedido #'+n+'?\n\n'+marc.map(m=>'• '+m.descricao).join('\n')+'\n\nO resto do que foi bipado continua valendo.'
     :'NENHUM item marcado: mandar reconferir o carregamento TODO do pedido #'+n+'?\n\nTudo o que foi bipado vai pro histórico e o operador bipa o caminhão inteiro de novo.\n\n(Pra reconferir só um item, cancele e marque a caixinha Reconferir do item.)'))return;
-  try{const r=await fetch('/api/expedicao/liberar-saida',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,decisao,obs,itens:marc.map(m=>m.cod)})}).then(r=>r.json());if(r.error)throw new Error(r.error);if(r.erp&&!r.erp.ok)alert('Saída liberada, mas o espelho no ERP de teste falhou: '+r.erp.erro);await expCarregar();render();}
+  try{const r=await fetch('/api/expedicao/liberar-saida',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,decisao,obs,itens:marc.map(m=>m.cod)})}).then(r=>r.json());if(r.error)throw new Error(r.error);if(r.erp&&!r.erp.ok)alert('Saída liberada, mas o espelho no ERP de teste falhou: '+r.erp.erro);
+    // 19/11 (Tiago: "assim que eu liberar no nosso, liberar no Dlinks"): com a chave ligada em Processos › Conector, r.dlinks traz o resultado
+    if(r.dlinks&&!r.dlinks.ok)alert('Saída liberada aqui, mas o pedido NÃO foi liberado no Televendas do Dlinks:\n\n'+(r.dlinks.erro||'sem resposta')+'\n\nA linha do pedido fica com o botão "Tentar de novo".');
+    await expCarregar();render();}
   catch(e){alert('Não deu: '+e.message);}
+}
+async function liberarDlinks(id,b){
+  if(b){b.disabled=true;b.textContent='Liberando…';}
+  try{const r=await fetch('/api/expedicao/liberar-dlinks',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})}).then(r=>r.json());if(r.error)throw new Error(r.error);
+    if(r.dlinks&&!r.dlinks.ok)alert('O Dlinks ainda não liberou: '+(r.dlinks.erro||'sem resposta'));await expCarregar();render();}
+  catch(e){alert('Não deu: '+e.message);if(b){b.disabled=false;b.textContent='Tentar de novo';}}
 }
 // Busca dentro de "Pedidos na saída" (09/11, Tiago): mesmo filtro da busca do topo (#q); como o render refaz o campo, devolve o foco
 function expQ(el){const v=el.value;$('#q').value=v;render();const n=$('#qExp');if(n){n.focus();try{n.setSelectionRange(v.length,v.length);}catch(e){}}}
@@ -582,6 +591,7 @@ function confrontoHtml(l,comBotoes){
     +(l.reconferencias?' · <span class="neg">'+l.reconferencias+'ª reconferência</span>':'')
     +(l.saida&&l.saida.decisao==='liberada'?' · <span class="pos">saída liberada por <b>'+esc(l.saida.decididoPor||'')+'</b> '+dh(l.saida.decididoEm)+(l.saida.obs?' · '+esc(l.saida.obs):'')+'</span>':'')
     +(l.espelhadoEm?' · <span class="pos">espelhado no ERP de teste</span>':'')
+    +(l.dlinks?(l.dlinks.ok?' · <span class="pos">'+(l.dlinks.jaLiberado?'já estava liberado no Televendas do Dlinks':'liberado no Televendas do Dlinks '+dh(l.dlinks.em))+'</span>':' · <span class="neg"><b>não liberou no Televendas do Dlinks:</b> '+esc(l.dlinks.erro||'')+'</span> <button class="btn" style="height:26px;padding:0 9px;font-size:12px" onclick="event.stopPropagation();liberarDlinks(\''+esc(l.id)+'\',this)">Tentar de novo</button>'):'')
     +' · '+(l.divergencias?'<span class="neg"><b>'+l.divergencias+' de '+l.itens.length+' itens com diferença</b></span>':'<span class="pos"><b>'+l.itens.length+' itens, tudo conforme</b></span>')+'</div>'
     +'<table class="t ctb"><thead><tr>'+(comBotoes?'<th title="Marque só os itens que o operador tem que bipar de novo">Reconferir</th>':'')+'<th>EAN</th><th>Produto</th><th class="r">Pedido</th><th class="r">Separado</th><th class="r">Sep. × pedido</th><th class="r">Carregado</th><th class="r">Carga × sep.</th>'+(temLote?'<th>Lote sep.</th><th>Lote carga</th>':'')+'</tr></thead><tbody>'
     // 11/11 (Tiago, pedido 7906: "eu selecione só o item que eu quero reconferir"): caixinha por item; marcou → só ele volta pro operador
@@ -674,7 +684,7 @@ function renderExpedicao(){
       +(s==='aguardando_fiscal'?passo('now','Fiscal','você','decidir'):'')
       +passo(car.fechadoEm?'done':s==='expedindo'?'now':'','Carregamento',s==='separada'?'—':nomeCar,car.fechadoEm?dh(car.fechadoEm)+tent(car):s==='expedindo'?'em andamento':s==='separada'?(S&&S.decisao==='reconferir'?'reconferir':'falta carregar'):'')
       +(s==='aguardando_fiscal'?'':passo(s==='fechada'?'done':s==='conferida'?'now':'','Fiscal',s==='fechada'?((S||{}).decididoPor||c.fechadoPor):s==='conferida'?'você':'—',s==='fechada'?dh((S||{}).decididoEm||c.fechadoEm):s==='conferida'?'aguardando':''))
-      +passo(s==='fechada'?'done':'','Saída',s==='fechada'?'liberada':'—',s==='fechada'?(c.erpErro?'<span class="neg">ERP teste: erro</span>':'ERP teste ✓'):'');
+      +passo(s==='fechada'?'done':'','Saída',s==='fechada'?'liberada':'—',s==='fechada'?(c.erpErro?'<span class="neg">ERP teste: erro</span>':'ERP teste ✓')+(c.dlinks?(c.dlinks.ok?' · Dlinks ✓':' · <span class="neg">Dlinks: não liberou</span>'):''):'');
     const DL_SIT={0:['pe-breve','Dlinks · para separação'],1:['pe-breve','Dlinks · em separação'],2:['pe-dl','Dlinks · aguardando liberação'],3:['pe-dec','Dlinks · reconferir'],4:['pe-ok','Dlinks · liberado']};
     const sit=s==='dlinks'?'<span class="pill '+(DL_SIT[c.dlStatus]||['pe-breve','Dlinks'])[0]+'">'+(DL_SIT[c.dlStatus]||['','Dlinks'])[1]+'</span><div class="sub">'+(c.produtos?c.produtos+' de '+c.produtos_pedido+' produtos conferidos no Dlinks':c.produtos_pedido+' itens · nada bipado ainda')+'</div>'
       :s==='conferida'?'<span class="pill pe-hoje">Liberar saída</span><div class="sub">'+(saida?(saida.divergencias?'<span class="neg">'+saida.divergencias+' de '+saida.itens.length+' itens com diferença</span>':saida.itens.length+' de '+saida.itens.length+' itens conformes'):'carregado '+dh(c.conferidaEm))+'</div>'

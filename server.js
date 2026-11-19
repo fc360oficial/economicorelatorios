@@ -8862,7 +8862,7 @@ const rotasRecebimento = require('./lib/recebimento-rotas')(app, { q, path, escr
 {
   const expedicao = require('./lib/expedicao');
   expedicao.init({ dir: path.join(__dirname, 'data', 'expedicao'), cadastro: rotasRecebimento.cadastroItem, vinculo: vinculoCaixaUnidade });
-  require('./lib/expedicao-rotas')(app, { q, escreverERP, recebimento: require('./lib/recebimento'), expedicao, logColetor, LOG_COLETOR_DIR });
+  require('./lib/expedicao-rotas')(app, { q, escreverERP, recebimento: require('./lib/recebimento'), expedicao, logColetor, LOG_COLETOR_DIR, conector: require('./lib/conector') });
 }
 // Exclusão agendada de pedidos (roda uma vez ao subir): data/pedidos-excluir-no-boot.json = [{ id, lista }].
 // Serve pra apagar pedido de teste sem login na produção (Tiago, 23/09/2026). Só exclui se o pedido existir, for da
@@ -10149,7 +10149,22 @@ app.post('/api/robo-ensaio/:id/simular-nota', async (req, res) => { try { res.js
 // Etapa 7 num clique (Tiago, 12/11/26: "onde aprova?"): mostra o que muda e, confirmado, fecha a lista de cada loja e manda pra carga
 // do ERP de TESTE (mesmas funções da Formação de Preço: precificacao.fechar + enviarCarga via escreverERP).
 // Situação do Conector (ponte com o Dlinks, instalado em 13/11/26). Só admin (prefixo robo-ensaio); nunca devolve a senha.
-app.get('/api/robo-ensaio/conector', async (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json({ ...(await conectorErp.estado()), ligado: conectorErp.ativo() }); } catch (err) { res.status(500).json({ error: err.message }); } });
+app.get('/api/robo-ensaio/conector', async (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json({ ...(await conectorErp.estado()), ligado: conectorErp.ativo(), televendas_auto: conectorErp.televendasAuto() }); } catch (err) { res.status(500).json({ error: err.message }); } });
+// Liberação do Televendas pelo Conector (19/11/26, Tiago: "assim que eu liberar no nosso, liberar no Dlinks"). Só admin (prefixo robo-ensaio).
+//  · televendas-auto: chave que faz toda saída liberada pelo fiscal do CD virar ordem de liberação no Dlinks (desligada por padrão)
+//  · televendas/:pedido: ENSAIO — consulta e libera um pedido pelo número, no banco em que o Conector grava (hoje o Dlinks de teste)
+const pedidoTv = v => { const n = parseInt(v, 10); if (!(n > 0) || String(n) !== String(v).trim()) throw new Error('Informe o número do pedido do Televendas'); return n; };
+app.post('/api/robo-ensaio/conector/televendas-auto', (req, res) => { try { res.json(conectorErp.setTelevendasAuto(!!(req.body && req.body.ativo), req.session.user?.nome || null)); } catch (err) { res.status(400).json({ error: err.message }); } });
+app.get('/api/robo-ensaio/conector/televendas/:pedido', async (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json(await conectorErp.consultaTelevendas(10, pedidoTv(req.params.pedido))); } catch (err) { res.status(400).json({ error: err.message }); } });
+app.post('/api/robo-ensaio/conector/televendas/:pedido/liberar', async (req, res) => {
+  const u = req.session.user?.nome || null; if (!u) return res.status(400).json({ error: 'Entre com seu usuário pra liberar' });
+  try {
+    const n = pedidoTv(req.params.pedido);
+    const r = await conectorErp.liberacaoTelevendas('eco-ensaio-tv-P' + n + '-' + Date.now(), u, { loja: 10, pedido: n, motivo: 'Ensaio da liberação do Televendas (Processos › Conector)' });
+    if (!r.ok) return res.status(409).json({ error: r.erro || 'o Conector não liberou', ordem: r.ordem || null });
+    res.json({ ok: true, ordem: r.ordem, logId: r.id, resultado: r.resultado });
+  } catch (err) { res.status(400).json({ error: err.message }); }
+});
 // Reenvia pro ERP teste as lojas de um pedido aprovado que deram erro, em nome de quem aprovou (uso de manutenção, só admin).
 app.post('/api/robo-ensaio/reenviar-pedido/:id', async (req, res) => {
   try {

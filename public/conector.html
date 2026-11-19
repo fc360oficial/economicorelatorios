@@ -43,6 +43,16 @@ tr.det td{background:#F6F6F3;padding:14px 16px}
 .det-g div.t{font-size:13px;line-height:1.6;color:var(--ink-2)}.det-g b{color:var(--ink)}
 .mini{width:100%;background:#fff;border:1px solid var(--border);border-radius:8px;font-size:12.5px}.mini th,.mini td{padding:5px 9px}
 .vazio{padding:28px;text-align:center;color:var(--ink-2)}
+.fn{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:0}
+.fn>div{padding:12px 16px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);margin:0 -1px -1px 0}
+.fn b{display:block;font-size:13.5px;margin-bottom:5px}.fn small{display:block;color:var(--ink-2);font-size:12px;margin-top:5px;line-height:1.4}
+.tv{padding:14px 16px;display:grid;grid-template-columns:minmax(280px,1fr) minmax(320px,1.4fr);gap:18px}
+.tv h3{font-size:11px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--ink-2);margin-bottom:6px}
+.tv p{color:var(--ink-2);font-size:12.5px;line-height:1.5;margin-top:6px}
+.tv input{height:36px;width:150px;padding:0 10px;border:1px solid var(--border-strong);border-radius:8px;font:inherit;font-weight:700}
+.tv .lin{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.tv .res{margin-top:10px;font-size:13px;line-height:1.6}
+@media (max-width:899px){.tv{grid-template-columns:1fr}}
 .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:var(--ink);color:#fff;font-size:12.5px;font-weight:600;padding:10px 16px;border-radius:9px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:50;max-width:90%}
 .toast.on{opacity:1}
 /* 16/10/26: toda tela se ajusta sozinha a qualquer monitor */
@@ -55,7 +65,7 @@ tr.det td{background:#F6F6F3;padding:14px 16px}
   <div class="page-hdr">
     <div>
       <h1>Conector</h1>
-      <p>A ponte entre o nosso sistema e o Dlinks. Todo pedido de compra aprovado e todo preço de venda (do robô e das compradoras) viram uma <b>ordem</b> que passa por aqui: o Conector registra, grava no Dlinks e sabe desfazer. Hoje ele grava só no <b>Dlinks de teste</b>.</p>
+      <p>A ponte entre o nosso sistema e o Dlinks. Todo pedido de compra aprovado, todo preço de venda (do robô e das compradoras) e, a partir da versão 0.6.0, a liberação dos pedidos do Televendas viram uma <b>ordem</b> que passa por aqui: o Conector registra, grava no Dlinks e sabe desfazer. Cada função é ligada ou desligada na própria instalação. Hoje ele grava só no <b>Dlinks de teste</b>.</p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <a class="btn" href="/log.html">Ver em Processos › Log</a>
@@ -63,6 +73,15 @@ tr.det td{background:#F6F6F3;padding:14px 16px}
     </div>
   </div>
   <div class="cards" id="cards"></div>
+  <!-- 19/11/26 (Tiago: "ter algo que eu vá escolhendo"): funções ligadas na instalação + liberação do Televendas (chave e ensaio) -->
+  <div class="box" style="margin-bottom:16px">
+    <div class="box-h"><h2>Funções desta instalação</h2><span>ligar e desligar é no servidor onde o Conector está instalado: atalho <b>Funções do Conector</b></span></div>
+    <div class="fn" id="funcoes"></div>
+  </div>
+  <div class="box" style="margin-bottom:16px" id="boxTv">
+    <div class="box-h"><h2>Liberação do Televendas (expedição do CD)</h2><span id="tvLbl"></span></div>
+    <div class="tv" id="tv"></div>
+  </div>
   <div class="box">
     <div class="box-h"><h2>Ordens recebidas</h2><span id="lbl"></span></div>
     <div class="tab-wrap"><table>
@@ -79,12 +98,17 @@ function toast(m) { var t = document.getElementById('toast'); t.textContent = m;
 function api(url, body) { return fetch(url, body === undefined ? { cache: 'no-store' } : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) }).then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || j.erro || 'erro'); return j; }); }); }
 function hora(v) { return v ? new Date(v).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'; }
 function money(v) { return 'R$ ' + (+v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
-var TIPO = { pedido_compra: 'Pedido de compra', preco_venda: 'Preço de venda', ajuste_estoque: 'Ajuste de estoque' };
+var TIPO = { pedido_compra: 'Pedido de compra', preco_venda: 'Preço de venda', ajuste_estoque: 'Ajuste de estoque', liberacao_televendas: 'Liberação do Televendas' };
+var PAINEL_ST = { 0: 'Para separação', 1: 'Em separação', 2: 'Aguardando liberação', 3: 'Reconferir', 4: 'Liberado' };
+var stPainel = function (v) { return v == null ? '—' : (PAINEL_ST[+v] || 'situação ' + v); };
+// só os campos que mudaram entre a linha de antes e a de depois (o que a ordem gravou de verdade)
+function mudou(a, d) { var out = []; Object.keys(d || {}).forEach(function (k) { if (String((a || {})[k]) !== String(d[k])) out.push({ campo: k, antes: (a || {})[k], depois: d[k] }); }); return out; }
 var SIT = { executada: ['p-ok', 'executada'], desfeita: ['p-mut', 'desfeita'], recusada: ['p-warn', 'recusada'], erro: ['p-bad', 'erro'], recebida: ['p-mut', 'recebida'] };
 var LJ = function (n) { return +n === 10 ? 'CD' : 'E' + n; };
 function resultado(o) {
   var r = o.resultado || {};
   if (o.status === 'recusada' || o.status === 'erro') return '<span style="color:#C22F49">' + esc(r.motivo || '') + '</span>';
+  if (o.tipo === 'liberacao_televendas') return 'pedido <b>#' + esc(o.pedido != null ? o.pedido : r.pedido) + '</b>' + (r.cliente ? ' · ' + esc(r.cliente) : '') + (r.ja_liberado ? ' · já estava Liberado no Dlinks' : ' · ' + esc(stPainel(r.status_anterior)) + ' → <b>Liberado</b>');
   if (o.tipo === 'pedido_compra') return r.pedido ? 'pedido nº <b>' + esc(r.pedido) + '</b> no Dlinks' + (r.total ? ' · ' + money(r.total) : '') : '—';
   if (o.tipo === 'ajuste_estoque') return r.ajustados != null ? r.ajustados + ' saldo(s) gravado(s) · ' + (r.movimentados || 0) + ' com movimento' + ((r.nao_gravados || []).length ? ' · <span style="color:#C22F49">' + r.nao_gravados.length + ' não gravado(s)</span>' : '') : '—';
   return r.precos_gravados != null ? r.precos_gravados + ' preço(s) gravado(s)' : '—';
@@ -99,11 +123,62 @@ function cards() {
     '<div class="card"><div class="l">Uso pelo sistema</div><div class="v"><span class="pill ' + (E.ligado ? 'p-ok' : 'p-mut') + '">' + (E.ligado ? 'ligado' : 'desligado') + '</span></div><div class="s">' + (E.ligado ? 'pedidos aprovados, preços de venda e ajuste de negativos passam por ele' : 'o sistema grava pelo caminho antigo') + '</div></div>' +
     '<div class="card"><div class="l">Ordens</div><div class="v">' + (o.total || 0) + '</div><div class="s">' + (o.executada || 0) + ' executada(s) · ' + (o.desfeita || 0) + ' desfeita(s) · ' + ((o.recusada || 0) + (o.erro || 0)) + ' recusada(s) ou com erro</div></div>';
 }
+// ── funções ligadas na instalação (Conector 0.6.0+) e liberação do Televendas ──
+var FN_DESC = { liberacao_televendas: 'pedido que o fiscal do CD libera passa a Liberado no painel do Televendas', pedido_compra: 'pedido aprovado vira pedido de compra no Dlinks', preco_venda: 'preço de varejo e de atacado por loja', ajuste_estoque: 'saldo contado e aprovado vira ajuste de estoque' };
+function funcoes() {
+  var el = document.getElementById('funcoes'), f = E && E.saude && E.saude.funcoes;
+  if (!E || !E.no_ar) { el.innerHTML = '<div style="grid-column:1/-1"><small>O Conector não respondeu.</small></div>'; return; }
+  if (!f) { el.innerHTML = '<div style="grid-column:1/-1"><b>Conector anterior à versão 0.6.0</b><small>Nesta versão ainda não existem as chaves por função: pedido de compra, preço de venda e ajuste de estoque ficam sempre ligados e a liberação do Televendas não existe. Atualize o Conector no servidor pra escolher o que fica ligado.</small></div>'; return; }
+  el.innerHTML = Object.keys(f).map(function (k) { return '<div><b>' + esc(f[k].nome) + '</b><span class="pill ' + (f[k].ligada ? 'p-ok' : 'p-mut') + '">' + (f[k].ligada ? 'ligada' : 'desligada') + '</span><small>' + esc(FN_DESC[k] || '') + '</small></div>'; }).join('');
+}
+function tv() {
+  var el = document.getElementById('tv'), f = E && E.saude && E.saude.funcoes, tem = !!(f && f.liberacao_televendas), lig = tem && f.liberacao_televendas.ligada, prod = !!(E && E.saude && E.saude.producao);
+  document.getElementById('tvLbl').textContent = !E || !E.no_ar ? '' : !tem ? 'precisa do Conector 0.6.0 ou mais novo' : lig ? 'função ligada no Conector' : 'função desligada no Conector';
+  if (!document.getElementById('tvPed')) el.innerHTML =   // montado uma vez só: o que foi digitado não se perde na atualização de 30 s
+    '<div><h3>Automático ao liberar a saída</h3><div class="lin"><span class="pill" id="tvAuto"></span><button class="btn btn-sm" id="tvAutoBtn" onclick="tvAutoMuda()"></button></div>' +
+    '<p>Ligado, toda saída que o fiscal do CD libera em <b>Fiscal › Expedição do CD</b> é liberada também no painel do Televendas do Dlinks, sem ninguém precisar ir lá. Se o Dlinks não aceitar, a nossa liberação continua valendo e a linha do fiscal mostra o motivo com o botão <b>Tentar de novo</b>.</p><p id="tvAviso"></p></div>' +
+    '<div><h3>Ensaio com um pedido</h3><div class="lin"><input id="tvPed" inputmode="numeric" placeholder="nº do pedido" onkeydown="if(event.key===\'Enter\')tvConsultar()"><button class="btn btn-sm" onclick="tvConsultar()">Consultar</button><button class="btn btn-sm btn-amber" id="tvLib" onclick="tvLiberar()">Liberar no Dlinks</button></div>' +
+    '<p>Consulta e libera pelo número, no banco em que o Conector grava (<span id="tvOnde"></span>). A ordem aparece na lista abaixo, mostra o que mudou no painel e pode ser desfeita.</p><div class="res" id="tvRes"></div></div>';
+  var auto = !!(E && E.televendas_auto);
+  document.getElementById('tvAuto').className = 'pill ' + (auto ? 'p-ok' : 'p-mut'); document.getElementById('tvAuto').textContent = auto ? 'ligado' : 'desligado';
+  document.getElementById('tvAutoBtn').textContent = auto ? 'Desligar' : 'Ligar';
+  document.getElementById('tvOnde').textContent = prod ? 'PRODUÇÃO' : E && E.saude && E.saude.adaptador === 'simulado' ? 'simulado' : 'Dlinks de teste';
+  document.getElementById('tvAviso').innerHTML = prod ? '' : '<b style="color:#8A4A00">Enquanto o Conector grava no Dlinks de teste, deixe desligado:</b> os pedidos de hoje não existem na cópia de teste e cada liberação voltaria com erro na linha do fiscal. Pra testar, use o ensaio ao lado.';
+  document.getElementById('tvLib').disabled = !lig;
+}
+function tvAutoMuda() {
+  var ligar = !(E && E.televendas_auto), prod = !!(E && E.saude && E.saude.producao);
+  if (ligar && !confirm((prod ? '' : 'ATENÇÃO: o Conector está gravando no Dlinks de TESTE. Os pedidos de hoje não existem lá e o fiscal vai ver "não liberou no Dlinks" em cada saída.\n\n') + 'Ligar a liberação automática no Televendas a cada saída liberada pelo fiscal do CD?')) return;
+  api('/api/robo-ensaio/conector/televendas-auto', { ativo: ligar }).then(function () { toast(ligar ? 'Liberação automática ligada' : 'Liberação automática desligada'); return carregar(); }).catch(function (e) { toast('Não deu: ' + e.message); });
+}
+function tvNum() { var n = parseInt(document.getElementById('tvPed').value, 10); if (!(n > 0)) { toast('Digite o número do pedido'); return null; } return n; }
+function tvLinha(c) {
+  if (!c.existe) return '<span style="color:#C22F49">Pedido #' + esc(c.pedido) + ' não existe no Televendas deste banco.</span>';
+  var p = c.painel, cab = c.cabecalho || {};
+  return 'Pedido <b>#' + esc(c.pedido) + '</b> · ' + esc(String(cab.Nome || '').trim() || '—') + '<br>' + (p ? 'No painel: <b>' + esc(stPainel(p.Status)) + '</b>' + (p.DataEntrada ? ' · entrou ' + esc(p.DataEntrada) + ' ' + esc(p.HoraEntrada || '') : '') + (+p.Status === 4 && p.DataLiberacao ? ' · liberado ' + esc(p.DataLiberacao) + ' ' + esc(p.HoraLiberacao || '') : '') : '<span style="color:#C22F49">Ainda não está no painel de separação.</span>') + '<br>' + (c.bipes_dlinks ? c.bipes_dlinks + ' bipe(s) no coletor do Dlinks' : 'nada bipado no coletor do Dlinks');
+}
+function tvConsultar() {
+  var n = tvNum(); if (!n) return; var r = document.getElementById('tvRes'); r.textContent = 'consultando…';
+  api('/api/robo-ensaio/conector/televendas/' + n).then(function (c) { r.innerHTML = tvLinha(c); }).catch(function (e) { r.innerHTML = '<span style="color:#C22F49">' + esc(e.message) + '</span>'; });
+}
+function tvLiberar() {
+  var n = tvNum(); if (!n) return; var onde = document.getElementById('tvOnde').textContent;
+  if (!confirm('Liberar o pedido #' + n + ' no painel do Televendas (' + onde + ')?\n\nFica registrado no Log com o seu nome e pode ser desfeito na lista de ordens.')) return;
+  var r = document.getElementById('tvRes'), b = document.getElementById('tvLib'); b.disabled = true; r.textContent = 'liberando…';
+  api('/api/robo-ensaio/conector/televendas/' + n + '/liberar', {}).then(function (x) {
+    var res = x.resultado || {}, m = mudou(res.antes, res.depois);
+    r.innerHTML = res.ja_liberado ? 'Pedido <b>#' + n + '</b> já estava Liberado: nada foi gravado.' : '<span style="color:#137A48"><b>Pedido #' + n + ' liberado.</b></span> Gravado no painel: ' + m.map(function (k) { return esc(k.campo) + ' ' + esc(k.antes == null ? 'vazio' : k.antes) + ' → <b>' + esc(k.depois) + '</b>'; }).join(' · ') + '<br>Ordem ' + esc(x.ordem) + ' (na lista abaixo).';
+    return carregar();
+  }).catch(function (e) { r.innerHTML = '<span style="color:#C22F49">Não liberou: ' + esc(e.message) + '</span>'; carregar(); }).then(function () { tv(); });
+}
 function detalhe(o) {
   var d = DET[o.id]; if (!d) return '<tr class="det"><td colspan="8">carregando…</td></tr>';
-  var dd = d.dados || {}, itens = dd.itens || [], antes = {}; ((d.resultado && d.resultado.antes) || []).forEach(function (a) { antes[a.codigo] = d.tipo === 'ajuste_estoque' ? a.qtd : a.preco; });
+  var dd = d.dados || {}, itens = dd.itens || [], antes = {}; (Array.isArray(d.resultado && d.resultado.antes) ? d.resultado.antes : []).forEach(function (a) { antes[a.codigo] = d.tipo === 'ajuste_estoque' ? a.qtd : a.preco; });
   var nao = {}; ((d.resultado && d.resultado.nao_gravados) || []).forEach(function (a) { nao[a.codigo] = a.motivo; });
-  var tab = d.tipo === 'ajuste_estoque'
+  var rr = d.resultado || {}, mud = d.tipo === 'liberacao_televendas' ? mudou(rr.antes, rr.depois) : [];
+  var tab = d.tipo === 'liberacao_televendas'
+    ? (rr.ja_liberado ? '<div class="t">O pedido já estava Liberado no painel do Dlinks: nada foi gravado.</div>' : mud.length ? '<table class="mini"><tr><th>Campo do painel</th><th>Antes</th><th>Depois</th></tr>' + mud.map(function (m) { return '<tr><td>' + esc(m.campo) + '</td><td>' + esc(m.antes == null ? 'vazio' : m.antes) + (m.campo === 'Status' ? ' · ' + esc(stPainel(m.antes)) : '') + '</td><td><b>' + esc(m.depois == null ? 'vazio' : m.depois) + '</b>' + (m.campo === 'Status' ? ' · ' + esc(stPainel(m.depois)) : '') + '</td></tr>'; }).join('') + '</table>' : '<div class="t">—</div>')
+    : d.tipo === 'ajuste_estoque'
     ? '<table class="mini"><tr><th>Produto</th><th class="n">Saldo antes</th><th class="n">Saldo contado</th></tr>' + itens.slice(0, 400).map(function (i) { return '<tr><td>' + esc(i.codigo) + ' ' + esc(i.descricao || '') + (nao[i.codigo] ? ' <span style="color:#C22F49">não gravado: ' + esc(nao[i.codigo]) + '</span>' : '') + '</td><td class="n">' + esc(antes[i.codigo] != null ? antes[i.codigo] : '—') + '</td><td class="n">' + esc(i.qtd) + '</td></tr>'; }).join('') + '</table>'
     : d.tipo === 'preco_venda'
     ? '<table class="mini"><tr><th>Código</th><th class="n">Preço antes</th><th class="n">Preço gravado</th></tr>' + itens.map(function (i) { return '<tr><td>' + esc(i.codigo) + '</td><td class="n">' + esc(antes[i.codigo] != null ? antes[i.codigo] : '—') + '</td><td class="n">' + (+i.preco).toFixed(2).replace('.', ',') + '</td></tr>'; }).join('') + '</table>'
@@ -112,19 +187,19 @@ function detalhe(o) {
   var pode = d.status === 'executada' && d.desfazer;
   return '<tr class="det"><td colspan="8"><div class="det-g">' +
     '<div><h3>Ordem</h3><div class="t">Número: <b>' + esc(d.id) + '</b><br>Pedida por: <b>' + esc(d.origem || '—') + '</b> (sistema)<br>Aprovada por: <b>' + esc(d.aprovado_por) + '</b><br>' + (dd.motivo || dd.obs ? 'Motivo: ' + esc(dd.motivo || dd.obs) + '<br>' : '') + (d.tipo === 'pedido_compra' ? 'Fornecedor: ' + esc(dd.fornecedor && dd.fornecedor.codigo) + (dd.lista_nome ? ' · ' + esc(dd.lista_nome) : '') + '<br>' : '') + 'Gravada por: ' + esc(d.adaptador) + '</div>' +
-    (pode ? '<div style="margin-top:10px"><button class="btn btn-red btn-sm" onclick="desfazer(\'' + esc(d.id) + '\', this)">Desfazer esta ordem</button><div class="t" style="font-size:12px;margin-top:6px">' + (d.tipo === 'ajuste_estoque' ? 'Lança o movimento inverso no estoque (fica registrado na Ficha).' : d.tipo === 'preco_venda' ? 'Volta os preços ao valor de antes.' : 'Cancela o pedido no Dlinks (só se ele ainda não andou por lá).') + '</div></div>' : '') + '</div>' +
+    (pode ? '<div style="margin-top:10px"><button class="btn btn-red btn-sm" onclick="desfazer(\'' + esc(d.id) + '\', this)">Desfazer esta ordem</button><div class="t" style="font-size:12px;margin-top:6px">' + (d.tipo === 'liberacao_televendas' ? 'Volta o pedido pra situação de antes no painel do Dlinks (só se ainda não foi faturado).' : d.tipo === 'ajuste_estoque' ? 'Lança o movimento inverso no estoque (fica registrado na Ficha).' : d.tipo === 'preco_venda' ? 'Volta os preços ao valor de antes.' : 'Cancela o pedido no Dlinks (só se ele ainda não andou por lá).') + '</div></div>' : '') + '</div>' +
     '<div><h3>Histórico</h3><div class="t">' + (hist || '—') + '</div></div>' +
-    '<div><h3>' + itens.length + ' item(ns)</h3><div class="tab-wrap">' + tab + '</div></div>' +
+    '<div><h3>' + (d.tipo === 'liberacao_televendas' ? 'O que mudou no painel do Dlinks · pedido #' + esc(dd.pedido) : itens.length + ' item(ns)') + '</h3><div class="tab-wrap">' + tab + '</div></div>' +
     '</div></td></tr>';
 }
 function desenhar() {
-  cards();
+  cards(); funcoes(); tv();
   var tb = document.getElementById('tb');
   if (!E || !E.no_ar) { tb.innerHTML = '<tr><td colspan="8" class="vazio">O Conector não respondeu. Confira se ele está rodando no servidor.</td></tr>'; return; }
   if (!ORD.length) { tb.innerHTML = '<tr><td colspan="8" class="vazio">Nenhuma ordem ainda.</td></tr>'; return; }
   tb.innerHTML = ORD.map(function (o) {
     var s = SIT[o.status] || ['p-mut', o.status];
-    return '<tr class="lin" onclick="abrir(\'' + esc(o.id) + '\')"><td>' + hora(o.criadaEm) + '</td><td class="tx"><b>' + esc(TIPO[o.tipo] || o.tipo) + '</b><small>ordem ' + esc(o.id) + '</small></td><td>' + LJ(o.loja) + '</td><td class="n">' + (o.itens || 0) + '</td><td>' + esc(o.aprovado_por || '—') + '</td>' +
+    return '<tr class="lin" onclick="abrir(\'' + esc(o.id) + '\')"><td>' + hora(o.criadaEm) + '</td><td class="tx"><b>' + esc(TIPO[o.tipo] || o.tipo) + '</b><small>ordem ' + esc(o.id) + '</small></td><td>' + LJ(o.loja) + '</td><td class="n">' + (o.tipo === 'liberacao_televendas' ? '—' : (o.itens || 0)) + '</td><td>' + esc(o.aprovado_por || '—') + '</td>' +
       '<td><span class="pill ' + s[0] + '">' + esc(s[1]) + '</span>' + (o.desfeitaEm ? '<div style="font-size:11.5px;color:#4E5A72;margin-top:3px">' + hora(o.desfeitaEm) + '</div>' : '') + '</td><td class="tx">' + resultado(o) + '</td><td class="n"><button class="btn btn-sm" onclick="event.stopPropagation();abrir(\'' + esc(o.id) + '\')">' + (ABERTA === o.id ? 'Fechar' : 'Ver') + '</button></td></tr>' + (ABERTA === o.id ? detalhe(o) : '');
   }).join('');
   document.getElementById('lbl').textContent = ORD.length + ' ordem(ns), as mais novas primeiro';
@@ -136,7 +211,7 @@ function abrir(id) {
 }
 function desfazer(id, b) {
   var o = DET[id] || {};
-  if (!confirm('Desfazer a ordem ' + id + '?\n\n' + (o.tipo === 'ajuste_estoque' ? 'O estoque volta pelo movimento inverso no Dlinks de teste (a Ficha do produto guarda a ida e a volta).' : o.tipo === 'preco_venda' ? 'Os preços dessa ordem voltam ao valor de antes no Dlinks de teste.' : 'O pedido é cancelado no Dlinks de teste.') + '\n\nFica registrado no Log com o seu nome.')) return;
+  if (!confirm('Desfazer a ordem ' + id + '?\n\n' + (o.tipo === 'liberacao_televendas' ? 'O pedido volta pra situação de antes no painel do Televendas.' : o.tipo === 'ajuste_estoque' ? 'O estoque volta pelo movimento inverso no Dlinks de teste (a Ficha do produto guarda a ida e a volta).' : o.tipo === 'preco_venda' ? 'Os preços dessa ordem voltam ao valor de antes no Dlinks de teste.' : 'O pedido é cancelado no Dlinks de teste.') + '\n\nFica registrado no Log com o seu nome.')) return;
   b.disabled = true; b.textContent = 'Desfazendo…';
   api('/api/robo-ensaio/conector/ordens/' + encodeURIComponent(id) + '/desfazer', {}).then(function () { toast('Ordem desfeita'); delete DET[id]; return carregar(); }).then(function () { if (ABERTA === id) api('/api/robo-ensaio/conector/ordens/' + encodeURIComponent(id)).then(function (d) { DET[id] = d; desenhar(); }); })
     .catch(function (e) { toast('Não desfez: ' + e.message); b.disabled = false; b.textContent = 'Desfazer esta ordem'; });
