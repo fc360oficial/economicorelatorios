@@ -16,6 +16,7 @@ window.EscalaCompacta = (function () {
     'table.cal.pl td.n{padding:1px 6px;min-width:255px;background:#fff}table.cal.pl td.n b{display:inline-block;max-width:60%;vertical-align:middle;font-size:10.5px}table.cal.pl td.n span{display:inline-block;float:right;max-width:38%;font-size:10px;color:#14213D;line-height:19px}' +
     'table.cal.pl td.d{font-weight:700}table.cal td[data-ef]{cursor:pointer}table.cal td[data-ef]:hover{filter:brightness(.92)}table.cal.pl td.d .a{display:block;font-size:8px;font-weight:500}table.cal.pl td.ecau{font-size:9px;font-weight:600;color:#14213D}table.cal.pl td.ecrot{font-size:9.5px;font-weight:700}table.cal.pl td.vz{background:#F7F7F5;color:#9AA0A6}' +
     'table.cal.pl td.tot{background:#F4F4F1;color:#14213D;font-size:10.5px;padding:0 6px}table.cal.pl tr.g0>td{border-top:2px solid #14213D}' +
+    'a.ecoc{color:#D0021B;cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px}a.ecoc::after{content:" ▾";font-size:9px}a.ecoc:hover{text-decoration:underline}' +
     'table.cal td.n.ecvaga b{color:#D0021B}table.cal td.n a.ecx{float:right;margin-left:6px;color:#C22F49;font-weight:800;cursor:pointer;text-decoration:none;line-height:19px}' +
     '.ec-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 8px}.ec-bar .ec-end{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}' +
     '.ec-f{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.ec-f>small{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ink3);margin-right:2px}' +
@@ -136,14 +137,62 @@ window.EscalaCompacta = (function () {
     var cx = 'background:var(--crd,#fff);border:1px solid var(--ln,#DADDE3);border-radius:12px;padding:12px 14px;margin:0 0 14px';
     if (!total) return '<div style="' + cx + ';font-size:12.5px;color:var(--ink2,#3A4660)"><b style="color:var(--ink,#14213D)">Faltando contratar</b> — nenhuma vaga em aberto' + (soLoja == null ? ' nas lojas que você acompanha' : ' nesta loja') + '.</div>';
     return '<div style="' + cx + '"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b style="font-size:13.5px;color:var(--ink,#14213D)">Faltando contratar</b><span style="background:#D0021B;color:#fff;font-weight:800;border-radius:999px;padding:2px 10px;font-size:12px">' + total + ' vaga' + (total > 1 ? 's' : '') + '</span><span style="font-size:11.5px;color:var(--ink3,#6B7280)">posições que a escala já conta e ainda não têm pessoa</span><a class="ds-btn ds-btn-secondary" href="/vagas.html" style="margin-left:auto">Vagas e Quadro de Pessoal</a></div>' +
-      '<table style="border-collapse:collapse;width:100%;font-size:12px;margin-top:8px"><thead><tr>' + ['Loja', 'Função', 'Setor', 'Turno', 'Folga fixa', 'Incluída em'].map(function (h) { return '<th style="text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--ink3,#6B7280);padding:5px 8px;border-bottom:1px solid var(--ln,#DADDE3)">' + h + '</th>'; }).join('') + '</tr></thead><tbody>' +
+      '<table style="border-collapse:collapse;width:100%;font-size:12px;margin-top:8px"><thead><tr>' + ['Loja', 'Função', 'Setor', 'Turno', 'Folga fixa', 'Incluída em', 'Quem vai ocupar'].map(function (h) { return '<th style="text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--ink3,#6B7280);padding:5px 8px;border-bottom:1px solid var(--ln,#DADDE3)">' + h + '</th>'; }).join('') + '</tr></thead><tbody>' +
       lojas.map(function (l) { return l.itens.map(function (v, i) { return '<tr>' + (i === 0 ? '<td rowspan="' + l.itens.length + '" style="padding:5px 8px;border-bottom:1px solid var(--ln,#DADDE3);vertical-align:top"><a href="/escalas.html?loja=' + l.loja + '#cadastro" style="font-weight:800;color:inherit" title="Abrir o Cadastro da loja">' + e(l.lojaTxt) + '</a><br><small style="color:#D0021B;font-weight:700">' + l.vagas + ' vaga' + (l.vagas > 1 ? 's' : '') + '</small></td>' : '') +
-        ['<b style="color:#D0021B">' + e(v.grupo) + '</b>', e(v.setorTxt), v.turno ? e(v.turno + (v.horario ? ' · ' + v.horario : '')) : '—', v.folgaFixa ? DS[v.folgaFixa] : '—', v.desde ? new Date(v.desde).toLocaleDateString('pt-BR') + (v.por ? ' · ' + e(v.por) : '') : e(v.obs || '—')].map(function (c) { return '<td style="padding:5px 8px;border-bottom:1px solid var(--ln,#DADDE3)">' + c + '</td>'; }).join('') + '</tr>'; }).join(''); }).join('') + '</tbody></table></div>';
+        ['<b style="color:#D0021B">' + e(v.grupo) + '</b>', e(v.setorTxt), v.turno ? e(v.turno + (v.horario ? ' · ' + v.horario : '')) : '—', v.folgaFixa ? DS[v.folgaFixa] : '—', v.desde ? new Date(v.desde).toLocaleDateString('pt-BR') + (v.por ? ' · ' + e(v.por) : '') : e(v.obs || '—'), '<a class="ds-btn ds-btn-secondary" data-ecoc="' + v.id + '" data-ecloja="' + l.loja + '" style="white-space:nowrap" title="Escolher quem vai ocupar esta vaga: a pessoa assume a função, o turno e a folga fixa">Selecionar funcionário</a>'].map(function (c) { return '<td style="padding:5px 8px;border-bottom:1px solid var(--ln,#DADDE3)">' + c + '</td>'; }).join('') + '</tr>'; }).join(''); }).join('') + '</tbody></table></div>';
+  }
+  // ── Ocupar a vaga: escolher o funcionário que fica na linha CONTRATAR (19/11/2026) ──
+  /** o = { loja, id }. Lista quem está no VR da loja (primeiro quem ainda não tem posição na escala) e aceita um nome de quem
+   *  ainda não está no VR. Quem ocupa assume a função, o turno, a folga fixa e os dias já escalados da vaga. */
+  async function ocupar(o, depois) {
+    var G = window.G; var ov = document.createElement('div'); ov.className = 'f-ov';
+    ov.innerHTML = '<div class="f-md" style="max-width:620px"><div class="hd"><div><b>Ocupar a vaga</b><small>Lendo o quadro da loja no VR…</small></div><button class="x" type="button">×</button></div><div class="bd" style="padding:14px 16px;font-size:12.5px;color:var(--ink2,#3A4660)">Um instante: a primeira leitura do VR pode levar até 1 minuto.</div></div>';
+    document.body.appendChild(ov); var q = function (s) { return ov.querySelector(s); }; var fechar = function () { ov.remove(); }; q('.x').onclick = fechar;
+    var C; try { C = await G.api('/api/escalas-periodo/' + o.loja + '/cadastro'); } catch (x) { fechar(); G.toast(x.message, 'neg'); return; }
+    if (!ov.isConnected) return;
+    var V = (C.pessoas || []).filter(function (p) { return p.extra && p.vaga && +p.id === +o.id; })[0];
+    if (!V) { fechar(); G.toast('Esta vaga não está mais em aberto: ela já foi ocupada ou tirada da escala', 'neg'); if (depois) depois(null); return; }
+    if (!C.podeCadastrar) { fechar(); G.toast('Só o gerente da unidade, o RH Ponto ou a Coordenação definem quem ocupa uma vaga', 'neg'); return; }
+    var T = {}; (C.turnos || []).forEach(function (t) { T[t.codigo] = t; }); var pos = function (p) { return [p.grupo, p.turno ? p.turno + (T[p.turno] ? ' ' + T[p.turno].entrada + '–' + T[p.turno].saida : '') : null, p.folgaFixa ? 'folga ' + DS[p.folgaFixa].toLowerCase() : null].filter(Boolean).join(' · '); };
+    var vr = (C.pessoas || []).filter(function (p) { return !p.extra; }).sort(function (a, b) { return String(a.nome).localeCompare(String(b.nome)); });
+    var livres = vr.filter(function (p) { return !p.cadastrado || p.fora; }), postos = vr.filter(function (p) { return p.cadastrado && !p.fora; });
+    var opt = function (p, comPos) { return '<option value="' + p.id + '">' + e(p.nome + (comPos ? ' — hoje: ' + pos(p) : p.fora ? ' — fora da escala' : '')) + '</option>'; };
+    var est = 'padding:7px 9px;border:1px solid #C9CED6;border-radius:8px;font:inherit;font-size:12.5px;width:100%;box-sizing:border-box;background:var(--crd,#fff);color:var(--ink,#14213D)';
+    var lab = function (t, campo, id) { return '<label' + (id ? ' id="' + id + '"' : '') + ' style="font-size:11px;font-weight:700;color:var(--ink2,#3A4660);display:grid;gap:4px;align-content:start">' + t + campo + '</label>'; };
+    q('.hd small').textContent = 'Vaga de ' + V.grupo + (pos(V) ? ' · ' + pos(V).replace(V.grupo + ' · ', '') : '');
+    q('.bd').style.cssText = 'padding:14px 16px;display:grid;gap:10px';
+    q('.bd').innerHTML = '<div class="aviso inf" style="margin:0;font-size:12px">Quem ocupar a vaga assume a função, o turno e a folga fixa dela — e os dias que já estão escalados nesta linha, de amanhã em diante.</div>' +
+      lab('Funcionário que vai ocupar a vaga', '<select id="eo-quem" style="' + est + '"><option value="">escolha…</option>' +
+        (livres.length ? '<optgroup label="Do VR · ainda sem posição na escala (' + livres.length + ')">' + livres.map(function (p) { return opt(p, false); }).join('') + '</optgroup>' : '') +
+        (postos.length ? '<optgroup label="Do VR · já tem posição (passa para a da vaga)">' + postos.map(function (p) { return opt(p, true); }).join('') + '</optgroup>' : '') +
+        '<optgroup label="Ainda não está no VR"><option value="novo">Outra pessoa: escrever o nome…</option></optgroup></select>') +
+      lab('Nome <small style="font-weight:500">(como vai aparecer na escala; quando a pessoa entrar no VR com o mesmo nome, a linha passa a ser a dela)</small>', '<input id="eo-nome" maxlength="80" style="' + est + '">', 'eo-l-nome') +
+      '<label id="eo-l-abrir" style="display:none;gap:8px;align-items:flex-start;font-size:12.5px;font-weight:600;color:var(--ink,#14213D)"><input type="checkbox" id="eo-abrir" checked style="width:auto;margin-top:2px"><span>Abrir vaga no lugar que ele(a) deixa <small id="eo-abrir-t" style="display:block;font-weight:500;color:var(--ink3,#6B7280)"></small></span></label>' +
+      '<div id="eo-msg"></div><div class="acoes" style="display:flex;gap:8px;justify-content:flex-end"><button class="ds-btn ds-btn-ghost" id="eo-c" type="button">Cancelar</button><button class="ds-btn ds-btn-primary" id="eo-ok" type="button">Ocupar a vaga</button></div>';
+    q('#eo-c').onclick = fechar; var sel = q('#eo-quem');
+    var muda = function () { var v = sel.value; q('#eo-l-nome').style.display = v === 'novo' ? '' : 'none'; var p = postos.filter(function (x) { return String(x.id) === v; })[0]; q('#eo-l-abrir').style.display = p ? 'flex' : 'none'; if (p) q('#eo-abrir-t').textContent = pos(p) + ' — sem marcar, essa posição simplesmente deixa de existir na escala'; if (v === 'novo') q('#eo-nome').focus(); };
+    sel.onchange = muda; muda(); sel.focus();
+    q('#eo-ok').onclick = async function () {
+      var v = sel.value; if (!v) { q('#eo-msg').innerHTML = '<div class="aviso neg" style="margin:0">Escolha o funcionário que vai ocupar a vaga</div>'; return; }
+      var b = v === 'novo' ? { id: V.id, nome: q('#eo-nome').value } : { id: V.id, funcId: +v, abrirVaga: q('#eo-l-abrir').style.display !== 'none' && q('#eo-abrir').checked };
+      q('#eo-ok').disabled = true;
+      try { var r = await G.api('/api/escalas-periodo/' + o.loja + '/vaga/ocupar', { body: b }); G.toast(r.nome + ' passou a ocupar a vaga de ' + r.grupo + (r.abriuVaga ? ' · aberta vaga de ' + r.abriuVaga : '')); fechar(); if (depois) depois(r.nome + ' ocupou a vaga de ' + r.grupo, r); }
+      catch (x) { q('#eo-msg').innerHTML = '<div class="aviso neg" style="margin:0">' + e(x.message) + '</div>'; q('#eo-ok').disabled = false; }
+    };
+  }
+  /** Liga, dentro de `raiz`, a escolha de quem ocupa a vaga: o nome da linha CONTRATAR (id negativo) vira clicável e os botões
+   *  [data-ecoc] do quadro "Faltando contratar" abrem o mesmo diálogo. `loja` pode vir do próprio botão (data-ecloja). */
+  function ligarOcupar(raiz, loja, depois) {
+    var r = typeof raiz === 'string' ? document.querySelector(raiz) : raiz; if (!r) return; css();
+    r.querySelectorAll('td.ecvaga[data-fid], td.vaga[data-fid]').forEach(function (td) { var id = +td.getAttribute('data-fid'); if (!(id < 0)) return; var alvo = td.querySelector('b') || td; if (alvo.querySelector('.ecoc')) return;
+      var a = document.createElement('a'); a.className = 'ecoc'; a.title = 'Selecionar o funcionário que vai ocupar esta vaga'; a.textContent = alvo.textContent; alvo.textContent = ''; alvo.appendChild(a); alvo.removeAttribute('title');
+      a.onclick = function (ev) { ev.stopPropagation(); ocupar({ loja: loja, id: id }, depois); }; });
+    r.querySelectorAll('[data-ecoc]').forEach(function (b) { b.onclick = function (ev) { ev.stopPropagation(); ocupar({ loja: +b.getAttribute('data-ecloja') || loja, id: +b.getAttribute('data-ecoc') }, depois); }; });
   }
   /** × de tirar a linha (só em linha incluída à mão ou vaga: id negativo). */
   function xLinha(id, nome) { return +id < 0 ? '<a class="ecx" data-ecrm="' + id + '" data-ecnome="' + e(nome) + '" title="Tirar esta linha da escala">×</a>' : ''; }
   var ehVaga = function (f) { return !!(f && (f.vaga || /^CONTRATAR\b/.test(String(f.nome || '')))); };
 
-  var api = { css: css, ativo: ativo, alternar: alternar, th: th, cel: cel, chips: chips, botao: botao, horario: horario, filtro: filtro, passa: passa, ligarFiltro: ligarFiltro, botaoIncluir: botaoIncluir, incluir: incluir, ligarIncluir: ligarIncluir, editar: editar, faltandoHtml: faltandoHtml, xLinha: xLinha, ehVaga: ehVaga, COR_ROT: COR_ROT, TXT_ROT: TXT_ROT, aoMudar: null };
+  var api = { css: css, ativo: ativo, alternar: alternar, th: th, cel: cel, chips: chips, botao: botao, horario: horario, filtro: filtro, passa: passa, ligarFiltro: ligarFiltro, botaoIncluir: botaoIncluir, incluir: incluir, ligarIncluir: ligarIncluir, editar: editar, ocupar: ocupar, ligarOcupar: ligarOcupar, faltandoHtml: faltandoHtml, xLinha: xLinha, ehVaga: ehVaga, COR_ROT: COR_ROT, TXT_ROT: TXT_ROT, aoMudar: null };
   return api;
 })();

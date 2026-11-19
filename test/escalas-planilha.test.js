@@ -197,3 +197,36 @@ test('cadastro: turno novo, pessoa fora da escala, troca de turno de uma pessoa 
   const d = E.ler(5, '2026-12').dias['101|2026-12-15']; assert.equal(d.entrada + '-' + d.saida, '08:30-18:54'); assert.notEqual(d.origem, 'gerador'); assert.ok(E.ler(5, '2026-12').historico.some(h => h.data === '2026-12-15' && h.funcId === 101));
   await assert.rejects(S.editarDiaTurno(gerente, 5, { funcId: -9001, data: '2026-12-15', turno: 'T.2', justificativa: 'vaga' }, CTX), /todos os dias/);
 });
+test('ocupar a vaga: quem é escolhido assume função, turno, folga fixa e os dias da linha CONTRATAR; a vaga sai do "faltando contratar"', async () => {
+  for (const mes of ['2026-11', '2026-12']) { const e = E.ler(5, mes); e.funcionarios.push(func(105, 'EVA', 'FRENTE DE CAIXA')); E.salvar(e); }
+  S.salvarCadastro(gerente, 5, { pessoas: [{ id: 101, turno: 'T.1', folgaFixa: 2, domingo: true, grupo: 'Caixa' }, { id: 102, turno: 'T.3', folgaFixa: 4, domingo: true, grupo: 'Seção' },
+    { extra: true, nome: 'caixa', grupo: 'Caixa', setor: 'FRENTE DE CAIXA', turno: 'T.2', folgaFixa: 1, domingo: true, vaga: true }, { extra: true, nome: 'padeiro', grupo: 'Padeiro', setor: 'PADARIA', turno: 'T.5', folgaFixa: 3, domingo: true, vaga: true },
+    { extra: true, nome: 'seção', grupo: 'Seção', setor: 'REPOSICAO', turno: 'T.4', folgaFixa: 6, domingo: true, vaga: true }] });
+  await S.aplicar(gerente, 5, { de: '2026-12-06', ate: '2026-12-19', justificativa: 'escala com as três vagas em aberto' }, CTX);
+  const vaga = g => S.lojaCfg(5).extras.find(x => x.vaga && x.grupo === g); const vCx = vaga('Caixa'), vPd = vaga('Padeiro'), vSe = vaga('Seção'); assert.ok(vCx && vPd && vSe); assert.equal(S.faltando(gerente).total, 3);
+  const dez = () => E.ler(5, '2026-12'); assert.ok(dez().funcionarios.some(f => f.id === vCx.id && /^CONTRATAR/.test(f.nome)));
+  // recusas: sem papel, vaga que não existe, ninguém escolhido, pessoa de fora do quadro, escala em aprovação
+  await assert.rejects(S.ocuparVaga(outro, 5, { id: vCx.id, funcId: 105 }, CTX), /Só o gerente/);
+  await assert.rejects(S.ocuparVaga(gerente, 5, { id: -1, funcId: 105 }, CTX), /Vaga não encontrada/);
+  await assert.rejects(S.ocuparVaga(gerente, 5, { id: vCx.id }, CTX), /Escolha o funcionário/);
+  await assert.rejects(S.ocuparVaga(gerente, 5, { id: vCx.id, funcId: 999 }, CTX), /não está no quadro/);
+  dez().status = 'enviada_rh'; await assert.rejects(S.ocuparVaga(gerente, 5, { id: vCx.id, funcId: 105 }, CTX), /em aprovação/); dez().status = 'rascunho'; assert.ok(vaga('Caixa'), 'recusa não mexe no cadastro');
+  // 1) pessoa do ponto sem posição: assume a vaga inteira e a linha CONTRATAR some
+  const diaV = JSON.parse(JSON.stringify(dez().dias[vCx.id + '|2026-12-08']));
+  const r1 = await S.ocuparVaga(gerente, 5, { id: vCx.id, funcId: 105, abrirVaga: true }, CTX); assert.equal(r1.nome, 'EVA'); assert.equal(r1.grupo, 'Caixa'); assert.ok(r1.dias >= 10); assert.equal(r1.abriuVaga, null, 'quem não tinha posição não deixa vaga');
+  assert.deepEqual(S.lojaCfg(5).pessoas[105], { turno: 'T.2', folgaFixa: 1, domingo: true, grupo: 'Caixa', ordem: vCx.ordem }); assert.equal(vaga('Caixa'), undefined); assert.equal(S.faltando(gerente).total, 2);
+  assert.deepEqual(dez().dias['105|2026-12-08'], diaV); assert.ok(!dez().funcionarios.some(f => f.id === vCx.id)); assert.ok(!Object.keys(dez().dias).some(k => k.startsWith(vCx.id + '|')));
+  assert.ok(dez().fluxo[dez().fluxo.length - 1].texto.includes('EVA passou a ocupar a vaga de Caixa')); assert.equal(S.turnoFixoDe(5, { id: 105, nome: 'EVA', base: {} }).codigo, 'T.2');
+  // 2) pessoa que já tinha posição, abrindo vaga no lugar: as duas linhas trocam os dias e a vaga passa a ser a da função antiga
+  { const e = dez(); e.dias['101|2026-12-15'] = { tipo: 'folga', entrada: null, saida: null, almoco_ini: null, almoco_fim: null, setor: 'FRENTE DE CAIXA', obs: 'consulta', origem: 'manual' }; E.salvar(e); }
+  const antP = JSON.parse(JSON.stringify(dez().dias['101|2026-12-09'])), antV = JSON.parse(JSON.stringify(dez().dias[vPd.id + '|2026-12-09']));
+  const r2 = await S.ocuparVaga(gerente, 5, { id: vPd.id, funcId: 101, abrirVaga: true }, CTX); assert.equal(r2.abriuVaga, 'Caixa'); assert.equal(r2.preservados, 1);
+  assert.equal(S.lojaCfg(5).pessoas[101].grupo, 'Padeiro'); assert.equal(S.lojaCfg(5).pessoas[101].turno, 'T.5'); assert.equal(S.lojaCfg(5).pessoas[101].folgaFixa, 3);
+  const nova = S.lojaCfg(5).extras.find(x => x.id === vPd.id); assert.deepEqual([nova.vaga, nova.grupo, nova.turno, nova.folgaFixa, nova.nome], [true, 'Caixa', 'T.1', 2, 'CAIXA']); assert.equal(S.faltando(gerente).total, 2);
+  assert.deepEqual(dez().dias['101|2026-12-09'], antV); assert.deepEqual(dez().dias[vPd.id + '|2026-12-09'], antP); assert.equal(dez().dias['101|2026-12-15'].obs, 'consulta'); assert.equal(dez().funcionarios.find(f => f.id === vPd.id).nome, 'CONTRATAR · CAIXA');
+  // 3) quem ainda não está no ponto: a linha deixa de ser vaga e leva o nome
+  const r3 = await S.ocuparVaga(gerente, 5, { id: vSe.id, nome: 'joão da silva' }, CTX); assert.equal(r3.nome, 'JOÃO DA SILVA');
+  const lin = S.lojaCfg(5).extras.find(x => x.id === vSe.id); assert.equal(lin.vaga, false); assert.equal(lin.nome, 'JOÃO DA SILVA'); assert.equal(lin.turno, 'T.4');
+  const row = dez().funcionarios.find(f => f.id === vSe.id); assert.equal(row.nome, 'JOÃO DA SILVA'); assert.equal(row.vaga, false); assert.ok(dez().dias[vSe.id + '|2026-12-09']); assert.equal(S.faltando(gerente).total, 1);
+  await assert.rejects(S.ocuparVaga(gerente, 5, { id: vSe.id, funcId: 102 }, CTX), /Vaga não encontrada/);
+});

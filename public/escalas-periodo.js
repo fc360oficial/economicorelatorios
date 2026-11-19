@@ -35,7 +35,7 @@
       return '<td class="c au">' + (c.tipo === 'ferias' ? 'Férias' : 'Licença') + '</td>'; };
     let ant = null;
     const GS = SUB.pGrupos || (SUB.pGrupos = []); const linhas = R.linhas.filter(l => EscalaCompacta.passa(l, GS)).map(l => { const g0 = ant !== null && ant !== l.grupo; ant = l.grupo; const pend = l.fixaSugerida || l.turnoSugerido;
-      return '<tr' + (g0 ? ' class="g0"' : '') + '><td class="nm' + (l.vaga ? ' vaga' : '') + '" title="' + esc(l.nome + ' · ' + l.grupo + ' · ' + l.turno + ' · folga fixa ' + DS[l.folgaFixa].toLowerCase() + (l.fixaSugerida ? ' (sugerida: falta gravar no cadastro)' : '') + (l.domingo ? '' : ' · não trabalha domingo')) + '">' + esc(l.vaga ? 'CONTRATAR · ' + l.nome : l.nome) + (pend ? '<i title="Cadastro incompleto: turno ou folga fixa sugeridos"></i>' : '') + '</td><td class="cg">' + esc(l.grupo) + '</td>' + R.dias.map(d => cel(l, d)).join('') + '<td class="hr">' + esc(l.horas) + '</td></tr>'; }).join('');
+      return '<tr' + (g0 ? ' class="g0"' : '') + '><td class="nm' + (l.vaga ? ' vaga' : '') + '" data-fid="' + l.id + '" title="' + esc(l.nome + ' · ' + l.grupo + ' · ' + l.turno + ' · folga fixa ' + DS[l.folgaFixa].toLowerCase() + (l.fixaSugerida ? ' (sugerida: falta gravar no cadastro)' : '') + (l.domingo ? '' : ' · não trabalha domingo')) + '">' + (l.vaga ? '<b>' + esc('CONTRATAR · ' + l.nome) + '</b>' : esc(l.nome)) + (pend ? '<i title="Cadastro incompleto: turno ou folga fixa sugeridos"></i>' : '') + '</td><td class="cg">' + esc(l.grupo) + '</td>' + R.dias.map(d => cel(l, d)).join('') + '<td class="hr">' + esc(l.horas) + '</td></tr>'; }).join('');
     return '<div class="ec-bar" style="display:flex;margin:0 0 8px">' + EscalaCompacta.filtro(R.linhas, GS) + '</div><div id="per-print"><div class="per-wrap table-wrap"><table class="per"><thead><tr><th class="nm" rowspan="2">NOME</th><th class="cg" rowspan="2">CARGO</th>' + R.dias.map(d => '<th class="' + (dw(d) === 0 ? 'dom' : '') + (R.feriados[d] ? ' fer' : '') + '"' + (R.feriados[d] ? ' title="' + esc(R.feriados[d]) + '"' : '') + '>' + DS[dw(d)] + '</th>').join('') + '<th rowspan="2">Horas</th></tr>' +
       '<tr class="d2">' + R.dias.map(d => '<th' + (R.feriados[d] ? ' class="fer" title="' + esc(R.feriados[d]) + '"' : '') + '>' + dm(d) + '</th>').join('') + '</tr></thead><tbody>' + linhas + '</tbody>' +
       '<tfoot><tr><td class="nm" colspan="2" style="text-align:right">Trabalhando no dia</td>' + R.dias.map(d => '<td>' + R.porDia[d].trabalhando + '</td>').join('') + '<td></td></tr></tfoot></table></div>' +
@@ -101,10 +101,12 @@
     const ir0 = $('#per-ir-cad'); if (ir0) ir0.onclick = () => ir('cadastro');
   }
   function desenhar() {
-    if (MODO === 'cad') { $('#per-body').innerHTML = cadastroHtml(); ligar(); return; }
+    if (MODO === 'cad') { $('#per-body').innerHTML = cadastroHtml(); ligar(); EscalaCompacta.ligarOcupar('#per-body', SUB.loja, () => cadastroEscala()); return; }
     const pend = CAD ? CAD.pessoas.filter(p => !p.cadastrado && !p.fora).length : 0;
     $('#per-body').innerHTML = resultado() + '<div class="per-sec" style="padding:12px 14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap"><div style="flex:1;min-width:260px;font-size:12.5px;color:var(--ink2)"><b style="color:var(--ink)">Cadastro da escala</b> — pessoas do VR, vagas, funções, turnos e parâmetros da loja' + (pend ? ' · <span style="color:var(--neg)">' + pend + ' sem turno ou folga fixa gravados</span>' : '') + '</div><a class="ds-btn ds-btn-secondary" id="per-ir-cad">' + ic('settings') + 'Abrir o Cadastro</a></div>' + geracoesHtml();
-    ligar(); EscalaCompacta.css(); EscalaCompacta.ligarFiltro('#per-body', SUB.pGrupos || (SUB.pGrupos = []), desenhar); $('#per-apl').style.display = RES && RES.podeAplicar ? '' : 'none'; $('#per-imp').style.display = RES ? '' : 'none';
+    ligar(); EscalaCompacta.css(); EscalaCompacta.ligarFiltro('#per-body', SUB.pGrupos || (SUB.pGrupos = []), desenhar);
+    EscalaCompacta.ligarOcupar('#per-body', SUB.loja, async () => { try { CAD = await api('/api/escalas-periodo/' + SUB.loja + '/cadastro'); } catch (e) {} if (RES) gerar(true); else desenhar(); });   // clique em CONTRATAR: escolher quem ocupa a vaga e gerar de novo
+    $('#per-apl').style.display = RES && RES.podeAplicar ? '' : 'none'; $('#per-imp').style.display = RES ? '' : 'none';
   }
   async function gerar(silencioso) {
     const de = $('#per-de').value, ate = $('#per-ate').value; if (!de || !ate) return toast('Informe o início e o fim do período', 'neg'); SUB.pde = de; SUB.pate = ate;
