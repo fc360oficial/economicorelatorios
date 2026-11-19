@@ -14,7 +14,7 @@ window.EscalaCompacta = (function () {
     'table.cal.pl th.n{background:#fff;color:#14213D;font-size:10.5px;padding:2px 6px}' +
     'table.cal.pl td{border:1px solid #9AA0A6;border-radius:0;height:21px;padding:1px 2px;min-width:30px;font-size:10.5px;line-height:1.1;background:#fff}' +
     'table.cal.pl td.n{padding:1px 6px;min-width:255px;background:#fff}table.cal.pl td.n b{display:inline-block;max-width:60%;vertical-align:middle;font-size:10.5px}table.cal.pl td.n span{display:inline-block;float:right;max-width:38%;font-size:10px;color:#14213D;line-height:19px}' +
-    'table.cal.pl td.d{font-weight:700}table.cal.pl td.d .a{display:block;font-size:8px;font-weight:500}table.cal.pl td.ecau{font-size:9px;font-weight:600;color:#14213D}table.cal.pl td.ecrot{font-size:9.5px;font-weight:700}table.cal.pl td.vz{background:#F7F7F5;color:#9AA0A6}' +
+    'table.cal.pl td.d{font-weight:700}table.cal td[data-ef]{cursor:pointer}table.cal td[data-ef]:hover{filter:brightness(.92)}table.cal.pl td.d .a{display:block;font-size:8px;font-weight:500}table.cal.pl td.ecau{font-size:9px;font-weight:600;color:#14213D}table.cal.pl td.ecrot{font-size:9.5px;font-weight:700}table.cal.pl td.vz{background:#F7F7F5;color:#9AA0A6}' +
     'table.cal.pl td.tot{background:#F4F4F1;color:#14213D;font-size:10.5px;padding:0 6px}table.cal.pl tr.g0>td{border-top:2px solid #14213D}' +
     'table.cal td.n.ecvaga b{color:#D0021B}table.cal td.n a.ecx{float:right;margin-left:6px;color:#C22F49;font-weight:800;cursor:pointer;text-decoration:none;line-height:19px}' +
     '.ec-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 8px}.ec-bar .ec-end{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}' +
@@ -99,10 +99,40 @@ window.EscalaCompacta = (function () {
     r.querySelectorAll('a.ecx[data-ecrm]').forEach(function (a) { a.onclick = async function (ev) { ev.stopPropagation(); if (!confirm('Tirar "' + a.getAttribute('data-ecnome') + '" da escala desta loja?\nA linha deixa de entrar nas próximas gerações; o que já foi aplicado na grade não é apagado.')) return;
       try { await G.api('/api/escalas-periodo/' + loja + '/previsto/remover', { body: { id: +a.getAttribute('data-ecrm') } }); G.toast('Linha tirada da escala'); if (depois) depois(); } catch (x) { G.toast(x.message, 'neg'); } }; });
   }
+  // ── Trocar o horário clicando no dia (proposta do Gerador 5×2) ──
+  /** o = { loja, id, nome, data, dia, turnos, folgaFixa, verSemana }. "Só neste dia" grava um ajuste à mão na grade (com
+   *  justificativa; o gerador não mexe mais nele); "em todos os dias" muda o turno do funcionário no cadastro. */
+  function editar(o, depois) {
+    var G = window.G, c = o.dia || {}, previsto = +o.id < 0; var ov = document.createElement('div'); ov.className = 'f-ov';
+    var est = 'padding:7px 9px;border:1px solid #C9CED6;border-radius:8px;font:inherit;font-size:12.5px;width:100%;box-sizing:border-box;background:var(--crd,#fff);color:var(--ink,#14213D)';
+    var lab = function (t, campo, id) { return '<label' + (id ? ' id="' + id + '"' : '') + ' style="font-size:11px;font-weight:700;color:var(--ink2,#3A4660);display:grid;gap:4px;align-content:start">' + t + campo + '</label>'; };
+    var atual = c.tipo === 'trabalho' ? (c.cod ? c.cod + ' · ' : '') + c.entrada + '–' + c.saida + (c.almoco_ini ? ' (intervalo ' + c.almoco_ini + '–' + c.almoco_fim + ')' : '') : c.tipo === 'folga' ? 'Folga' + (c.folga ? ' ' + c.folga : '') : (c.tipo || '—');
+    var dBR = o.data.slice(8) + '/' + o.data.slice(5, 7) + ' (' + DS[new Date(o.data + 'T12:00:00').getDay()].toLowerCase() + ')';
+    ov.innerHTML = '<div class="f-md" style="max-width:560px"><div class="hd"><div><b>' + e(o.nome) + '</b><small>' + dBR + ' · hoje na proposta: ' + e(atual) + '</small></div><button class="x" type="button">×</button></div><div class="bd" style="padding:14px 16px;display:grid;gap:10px">' +
+      lab('Novo horário', '<select id="ed-turno" style="' + est + '">' + (o.turnos || []).map(function (t) { return '<option value="' + e(t.codigo) + '"' + (c.cod === t.codigo ? ' selected' : '') + '>' + e(t.codigo + ' · ' + horario(t)) + '</option>'; }).join('') + (previsto ? '' : '<option value="FOLGA">Folga neste dia</option>') + '</select>') +
+      '<div style="display:grid;gap:6px;font-size:12.5px;color:var(--ink,#14213D)">' + (previsto ? '' : '<label style="display:flex;gap:8px;align-items:center;font-weight:600"><input type="radio" name="ed-esc" value="dia" checked style="width:auto"> Só neste dia</label>') +
+      '<label style="display:flex;gap:8px;align-items:center;font-weight:600"><input type="radio" name="ed-esc" value="todos"' + (previsto ? ' checked' : '') + ' style="width:auto"> Em todos os dias — passa a ser o turno do funcionário</label></div>' +
+      lab('Justificativa <small style="font-weight:500">(obrigatória: fica na auditoria com seu nome)</small>', '<textarea id="ed-just" rows="2" style="' + est + '"></textarea>', 'ed-l-just') +
+      lab('Folga fixa do funcionário', '<select id="ed-fixa" style="' + est + '">' + [1, 2, 3, 4, 5, 6].map(function (d) { return '<option value="' + d + '"' + (+o.folgaFixa === d ? ' selected' : '') + '>' + DS[d] + '</option>'; }).join('') + '</select>', 'ed-l-fixa') +
+      '<div id="ed-msg"></div><div class="acoes" style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">' + (o.verSemana ? '<button class="ds-btn ds-btn-ghost" id="ed-sem" type="button" style="margin-right:auto">Ver a validação da semana</button>' : '') + '<button class="ds-btn ds-btn-ghost" id="ed-c" type="button">Cancelar</button><button class="ds-btn ds-btn-primary" id="ed-ok" type="button">Salvar e simular de novo</button></div></div></div>';
+    document.body.appendChild(ov); var q = function (s) { return ov.querySelector(s); }; var fechar = function () { ov.remove(); }; q('.x').onclick = fechar; q('#ed-c').onclick = fechar;
+    if (o.verSemana) q('#ed-sem').onclick = function () { fechar(); o.verSemana(); };
+    var escopo = function () { var r = ov.querySelector('input[name="ed-esc"]:checked'); return r ? r.value : 'todos'; };
+    var alterna = function () { var todos = escopo() === 'todos'; q('#ed-l-just').style.display = todos ? 'none' : ''; q('#ed-l-fixa').style.display = todos ? '' : 'none'; var fo = q('#ed-turno option[value="FOLGA"]'); if (fo) { fo.disabled = todos; if (todos && q('#ed-turno').value === 'FOLGA') q('#ed-turno').selectedIndex = 0; } };
+    ov.querySelectorAll('input[name="ed-esc"]').forEach(function (r) { r.onchange = alterna; }); alterna();
+    q('#ed-ok').onclick = async function () {
+      var b = q('#ed-ok'); b.disabled = true;
+      try {
+        if (escopo() === 'todos') await G.api('/api/escalas-periodo/' + o.loja + '/pessoa', { body: { id: o.id, nome: o.nome, turno: q('#ed-turno').value, folgaFixa: +q('#ed-fixa').value } });
+        else await G.api('/api/escalas-periodo/' + o.loja + '/dia', { body: { funcId: o.id, data: o.data, turno: q('#ed-turno').value, justificativa: q('#ed-just').value } });
+        G.toast(escopo() === 'todos' ? 'Turno de ' + o.nome + ' alterado' : 'Dia ' + dBR + ' ajustado'); fechar(); if (depois) depois();
+      } catch (x) { q('#ed-msg').innerHTML = '<div class="aviso neg" style="margin:0">' + e(x.message) + '</div>'; b.disabled = false; }
+    };
+  }
   /** × de tirar a linha (só em linha incluída à mão ou vaga: id negativo). */
   function xLinha(id, nome) { return +id < 0 ? '<a class="ecx" data-ecrm="' + id + '" data-ecnome="' + e(nome) + '" title="Tirar esta linha da escala">×</a>' : ''; }
   var ehVaga = function (f) { return !!(f && (f.vaga || /^CONTRATAR\b/.test(String(f.nome || '')))); };
 
-  var api = { css: css, ativo: ativo, alternar: alternar, th: th, cel: cel, chips: chips, botao: botao, horario: horario, filtro: filtro, passa: passa, ligarFiltro: ligarFiltro, botaoIncluir: botaoIncluir, incluir: incluir, ligarIncluir: ligarIncluir, xLinha: xLinha, ehVaga: ehVaga, COR_ROT: COR_ROT, TXT_ROT: TXT_ROT, aoMudar: null };
+  var api = { css: css, ativo: ativo, alternar: alternar, th: th, cel: cel, chips: chips, botao: botao, horario: horario, filtro: filtro, passa: passa, ligarFiltro: ligarFiltro, botaoIncluir: botaoIncluir, incluir: incluir, ligarIncluir: ligarIncluir, editar: editar, xLinha: xLinha, ehVaga: ehVaga, COR_ROT: COR_ROT, TXT_ROT: TXT_ROT, aoMudar: null };
   return api;
 })();

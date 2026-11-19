@@ -173,3 +173,18 @@ test('serviço: quem era linha prevista e entrou no ponto herda turno, folga fix
   const ord = S.organizar(5, [{ id: 102, nome: 'BIA', cargo: 'X', setor: 'REPOSICAO' }, novo, { id: 101, nome: 'ANA', cargo: 'X', setor: 'FRENTE DE CAIXA' }]);
   assert.deepEqual(ord.map(x => x.nome + ':' + x.grupo), ['ANA:Caixa', 'ZECA NOVO:Caixa', 'BIA:Seção']);
 });
+
+test('cadastro: turno novo, pessoa fora da escala, troca de turno de uma pessoa e de um dia só (ajuste à mão auditado)', async () => {
+  const c0 = await S.cadastro(gerente, 5, CTX); const pessoas = c0.pessoas.map(p => ({ ...p, fora: p.id === 102 }));
+  S.salvarCadastro(gerente, 5, { pessoas, turnos: c0.turnos.concat([{ codigo: 'T.6', cor: '#F4B183', entrada: '10:00', saida: '20:24', almoco_ini: '14:00', almoco_fim: '16:00', domingo: 'T.4' }]) });
+  const c1 = await S.cadastro(gerente, 5, CTX); assert.ok(c1.turnos.some(t => t.codigo === 'T.6')); assert.equal(c1.pessoas.find(p => p.id === 102).fora, true); assert.equal(S.foraDaEscala(5, { id: 102 }), true);
+  assert.ok(c1.quadro.every(q => q.total >= 1) && !c1.quadro.some(q => q.grupo === 'Seção'), 'quem está fora não conta no quadro por função');
+  const r = await S.gerar(gerente, 5, '2026-12-13', '2026-12-19', CTX); assert.ok(!r.linhas.some(l => l.id === 102), 'fora da escala não é gerado');
+  assert.throws(() => S.salvarCadastro(gerente, 5, { pessoas: c1.pessoas.map(p => ({ ...p, turno: p.id === 101 ? 'T.6' : p.turno })), turnos: c1.turnos.filter(t => t.codigo !== 'T.6') }), /saiu da tabela/);
+  await S.salvarPessoa(gerente, 5, { id: 101, turno: 'T.6', folgaFixa: 3 }, CTX); assert.equal(S.turnoFixoDe(5, { id: 101, nome: 'ANA', base: {} }).codigo, 'T.6'); assert.equal(S.turnoFixoDe(5, { id: 101, nome: 'ANA', base: {} }).domingo.codigo, 'T.4');
+  await assert.rejects(S.salvarPessoa(outro, 5, { id: 101, turno: 'T.1' }, CTX), /Só o gerente/);
+  await assert.rejects(S.editarDiaTurno(gerente, 5, { funcId: 101, data: '2026-12-15', turno: 'T.2', justificativa: '' }, CTX), /justificativa/i);
+  await S.editarDiaTurno(gerente, 5, { funcId: 101, data: '2026-12-15', turno: 'T.2', justificativa: 'troca combinada com a gerência' }, CTX);
+  const d = E.ler(5, '2026-12').dias['101|2026-12-15']; assert.equal(d.entrada + '-' + d.saida, '08:30-18:54'); assert.notEqual(d.origem, 'gerador'); assert.ok(E.ler(5, '2026-12').historico.some(h => h.data === '2026-12-15' && h.funcId === 101));
+  await assert.rejects(S.editarDiaTurno(gerente, 5, { funcId: -9001, data: '2026-12-15', turno: 'T.2', justificativa: 'vaga' }, CTX), /todos os dias/);
+});
