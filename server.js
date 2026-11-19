@@ -5549,13 +5549,18 @@ async function montarListaExpedicao() {
   // Painel HÍBRIDO (Tiago, 28/10: "tem que entender os dois até a gente ficar só com o da gente"): a coluna é a do lado
   // mais adiantado — painel do Dlinks (Status 0..4) ou nosso coletor (Separação → Carregamento → fiscal libera) — e
   // `origem` diz quem levou o pedido até ali. Nada é escrito no ERP.
+  // pedido alterado no Dlinks depois de liberado (19/11): a TV fica sempre ligada, então é ela que mantém a vigia rodando.
+  // Sem await (no máximo 1 vez por minuto, nunca lança): o painel não espera o ERP por causa disto.
+  try { const re = app.locals.rotasExpedicao; if (re && re.vigiarLiberados) re.vigiarLiberados(); } catch (e) {}
   let coletor = {}; try { coletor = require('./lib/expedicao').statusColetorPorPedido(7); } catch (e) { console.error('[PAINEL-CD] coletor:', e.message); }
   const RANK = { separacao: 0, em_separacao: 1, reconferir: 2, aguardando_liberacao: 3, liberado: 4 };
   const ECO_COL = { separando: 'em_separacao', aguardando_fiscal: 'em_separacao', separada: 'em_separacao', expedindo: 'em_separacao', conferida: 'aguardando_liberacao', fechada: 'liberado' };
   for (const r of rows) {
     const dl = STATUS_EXPEDICAO[r.Status] || 'separacao'; const eco = coletor[String(r.pedido)] || null;
     const ec = eco ? (eco.reconferir ? 'reconferir' : ECO_COL[eco.status] || null) : null;
-    const ecoGanha = !!ec && RANK[ec] >= RANK[dl];
+    // eco.reaberto (19/11): pedido alterado no Dlinks depois de liberado voltou pro nosso coletor. O painel do Dlinks pode
+    // seguir dizendo Liberado, mas a saída só vale quando o fiscal liberar de novo: aí quem manda na coluna é o nosso lado.
+    const ecoGanha = !!ec && (RANK[ec] >= RANK[dl] || !!eco.reaberto);
     colunas[ecoGanha ? ec : dl].push({ pedido: String(r.pedido), nome: r.nome || 'N/I', origem: ecoGanha ? 'eco' : 'dlinks', coletor: eco, dlinks: dl, entrada: momentoPainel(r.DataEntrada, r.HoraEntrada), conferido: momentoPainel(r.DataConferido, r.HoraConferido), liberacao: momentoPainel(r.DataLiberacao, r.HoraLiberacao) });
   }
   const resumo = { total: rows.length };
@@ -8862,7 +8867,7 @@ const rotasRecebimento = require('./lib/recebimento-rotas')(app, { q, path, escr
 {
   const expedicao = require('./lib/expedicao');
   expedicao.init({ dir: path.join(__dirname, 'data', 'expedicao'), cadastro: rotasRecebimento.cadastroItem, vinculo: vinculoCaixaUnidade });
-  require('./lib/expedicao-rotas')(app, { q, escreverERP, recebimento: require('./lib/recebimento'), expedicao, logColetor, LOG_COLETOR_DIR, conector: require('./lib/conector') });
+  app.locals.rotasExpedicao = require('./lib/expedicao-rotas')(app, { q, escreverERP, recebimento: require('./lib/recebimento'), expedicao, logColetor, LOG_COLETOR_DIR, conector: require('./lib/conector') });
 }
 // Exclusão agendada de pedidos (roda uma vez ao subir): data/pedidos-excluir-no-boot.json = [{ id, lista }].
 // Serve pra apagar pedido de teste sem login na produção (Tiago, 23/09/2026). Só exclui se o pedido existir, for da
