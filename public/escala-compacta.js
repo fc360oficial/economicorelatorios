@@ -88,7 +88,7 @@ window.EscalaCompacta = (function () {
     q('#ei-ok').onclick = async function () {
       var b = { vaga: q('#ei-tipo').value === 'v', nome: q('#ei-nome').value, grupo: q('#ei-grupo').value, setor: q('#ei-setor').value, turno: q('#ei-turno').value, folgaFixa: +q('#ei-fixa').value || null };
       q('#ei-ok').disabled = true;
-      try { var r = await G.api('/api/escalas-periodo/' + loja + '/previsto', { body: b }); G.toast((b.vaga ? 'Vaga incluída' : r.nome + ' incluído(a)') + ' na escala'); fechar(); if (depois) depois(r); }
+      try { var r = await G.api('/api/escalas-periodo/' + loja + '/previsto', { body: b }); G.toast((b.vaga ? 'Vaga incluída' : r.nome + ' incluído(a)') + ' na escala'); fechar(); if (depois) depois((b.vaga ? 'vaga de ' + b.grupo : r.nome) + ' incluída na escala'); }
       catch (x) { q('#ei-msg').innerHTML = '<div class="aviso neg" style="margin:0">' + e(x.message) + '</div>'; q('#ei-ok').disabled = false; }
     };
   }
@@ -97,7 +97,7 @@ window.EscalaCompacta = (function () {
     var r = typeof raiz === 'string' ? document.querySelector(raiz) : raiz; if (!r) return; var G = window.G;
     r.querySelectorAll('[data-ecinc]').forEach(function (b) { b.onclick = function () { incluir(loja, depois); }; });
     r.querySelectorAll('a.ecx[data-ecrm]').forEach(function (a) { a.onclick = async function (ev) { ev.stopPropagation(); if (!confirm('Tirar "' + a.getAttribute('data-ecnome') + '" da escala desta loja?\nA linha deixa de entrar nas próximas gerações; o que já foi aplicado na grade não é apagado.')) return;
-      try { await G.api('/api/escalas-periodo/' + loja + '/previsto/remover', { body: { id: +a.getAttribute('data-ecrm') } }); G.toast('Linha tirada da escala'); if (depois) depois(); } catch (x) { G.toast(x.message, 'neg'); } }; });
+      try { await G.api('/api/escalas-periodo/' + loja + '/previsto/remover', { body: { id: +a.getAttribute('data-ecrm') } }); G.toast('Linha tirada da escala'); if (depois) depois(a.getAttribute('data-ecnome') + ' tirada da escala'); } catch (x) { G.toast(x.message, 'neg'); } }; });
   }
   // ── Trocar o horário clicando no dia (proposta do Gerador 5×2) ──
   /** o = { loja, id, nome, data, dia, turnos, folgaFixa, verSemana }. "Só neste dia" grava um ajuste à mão na grade (com
@@ -125,14 +125,25 @@ window.EscalaCompacta = (function () {
       try {
         if (escopo() === 'todos') await G.api('/api/escalas-periodo/' + o.loja + '/pessoa', { body: { id: o.id, nome: o.nome, turno: q('#ed-turno').value, folgaFixa: +q('#ed-fixa').value } });
         else await G.api('/api/escalas-periodo/' + o.loja + '/dia', { body: { funcId: o.id, data: o.data, turno: q('#ed-turno').value, justificativa: q('#ed-just').value } });
-        G.toast(escopo() === 'todos' ? 'Turno de ' + o.nome + ' alterado' : 'Dia ' + dBR + ' ajustado'); fechar(); if (depois) depois();
+        var feito = escopo() === 'todos' ? 'turno de ' + o.nome + ' passou para ' + q('#ed-turno').value : 'dia ' + dBR + ' de ' + o.nome + ' ajustado'; G.toast(escopo() === 'todos' ? 'Turno de ' + o.nome + ' alterado' : 'Dia ' + dBR + ' ajustado'); fechar(); if (depois) depois(feito);
       } catch (x) { q('#ed-msg').innerHTML = '<div class="aviso neg" style="margin:0">' + e(x.message) + '</div>'; b.disabled = false; }
     };
+  }
+  // ── Faltando contratar: as vagas de cada loja, por função e turno (lista de trabalho do RH) ──
+  /** F = resposta de /api/escalas-periodo/faltando; soLoja = mostra só uma loja (aba Cadastro). */
+  function faltandoHtml(F, soLoja) {
+    if (!F) return ''; var lojas = (F.lojas || []).filter(function (l) { return soLoja == null || +l.loja === +soLoja; }); var total = lojas.reduce(function (t, l) { return t + l.vagas; }, 0);
+    var cx = 'background:var(--crd,#fff);border:1px solid var(--ln,#DADDE3);border-radius:12px;padding:12px 14px;margin:0 0 14px';
+    if (!total) return '<div style="' + cx + ';font-size:12.5px;color:var(--ink2,#3A4660)"><b style="color:var(--ink,#14213D)">Faltando contratar</b> — nenhuma vaga em aberto' + (soLoja == null ? ' nas lojas que você acompanha' : ' nesta loja') + '.</div>';
+    return '<div style="' + cx + '"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><b style="font-size:13.5px;color:var(--ink,#14213D)">Faltando contratar</b><span style="background:#D0021B;color:#fff;font-weight:800;border-radius:999px;padding:2px 10px;font-size:12px">' + total + ' vaga' + (total > 1 ? 's' : '') + '</span><span style="font-size:11.5px;color:var(--ink3,#6B7280)">posições que a escala já conta e ainda não têm pessoa</span><a class="ds-btn ds-btn-secondary" href="/vagas.html" style="margin-left:auto">Vagas e Quadro de Pessoal</a></div>' +
+      '<table style="border-collapse:collapse;width:100%;font-size:12px;margin-top:8px"><thead><tr>' + ['Loja', 'Função', 'Setor', 'Turno', 'Folga fixa', 'Incluída em'].map(function (h) { return '<th style="text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--ink3,#6B7280);padding:5px 8px;border-bottom:1px solid var(--ln,#DADDE3)">' + h + '</th>'; }).join('') + '</tr></thead><tbody>' +
+      lojas.map(function (l) { return l.itens.map(function (v, i) { return '<tr>' + (i === 0 ? '<td rowspan="' + l.itens.length + '" style="padding:5px 8px;border-bottom:1px solid var(--ln,#DADDE3);vertical-align:top"><a href="/escalas.html?loja=' + l.loja + '#cadastro" style="font-weight:800;color:inherit" title="Abrir o Cadastro da loja">' + e(l.lojaTxt) + '</a><br><small style="color:#D0021B;font-weight:700">' + l.vagas + ' vaga' + (l.vagas > 1 ? 's' : '') + '</small></td>' : '') +
+        ['<b style="color:#D0021B">' + e(v.grupo) + '</b>', e(v.setorTxt), v.turno ? e(v.turno + (v.horario ? ' · ' + v.horario : '')) : '—', v.folgaFixa ? DS[v.folgaFixa] : '—', v.desde ? new Date(v.desde).toLocaleDateString('pt-BR') + (v.por ? ' · ' + e(v.por) : '') : e(v.obs || '—')].map(function (c) { return '<td style="padding:5px 8px;border-bottom:1px solid var(--ln,#DADDE3)">' + c + '</td>'; }).join('') + '</tr>'; }).join(''); }).join('') + '</tbody></table></div>';
   }
   /** × de tirar a linha (só em linha incluída à mão ou vaga: id negativo). */
   function xLinha(id, nome) { return +id < 0 ? '<a class="ecx" data-ecrm="' + id + '" data-ecnome="' + e(nome) + '" title="Tirar esta linha da escala">×</a>' : ''; }
   var ehVaga = function (f) { return !!(f && (f.vaga || /^CONTRATAR\b/.test(String(f.nome || '')))); };
 
-  var api = { css: css, ativo: ativo, alternar: alternar, th: th, cel: cel, chips: chips, botao: botao, horario: horario, filtro: filtro, passa: passa, ligarFiltro: ligarFiltro, botaoIncluir: botaoIncluir, incluir: incluir, ligarIncluir: ligarIncluir, editar: editar, xLinha: xLinha, ehVaga: ehVaga, COR_ROT: COR_ROT, TXT_ROT: TXT_ROT, aoMudar: null };
+  var api = { css: css, ativo: ativo, alternar: alternar, th: th, cel: cel, chips: chips, botao: botao, horario: horario, filtro: filtro, passa: passa, ligarFiltro: ligarFiltro, botaoIncluir: botaoIncluir, incluir: incluir, ligarIncluir: ligarIncluir, editar: editar, faltandoHtml: faltandoHtml, xLinha: xLinha, ehVaga: ehVaga, COR_ROT: COR_ROT, TXT_ROT: TXT_ROT, aoMudar: null };
   return api;
 })();
