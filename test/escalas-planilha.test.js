@@ -142,3 +142,13 @@ test('serviço: desfazer devolve os dias da geração e deixa quieto o que foi m
   assert.equal(Object.keys(E.ler(5, '2026-12').dias).length, 1); assert.equal(E.ler(5, '2026-11').dias['101|2026-11-25'].obs, 'troca'); assert.equal(Object.keys(E.ler(5, '2026-11').dias).length, 1);
   assert.throws(() => S.desfazer(gerente, 5, g.id, 'de novo, por engano'), /já foi desfeita/);
 });
+
+test('visão compacta: toda jornada ganha código; horário novo vira T.6 e fica gravado com o mesmo código e cor', () => {
+  const dia = (en, sa, ai, af) => ({ tipo: 'trabalho', entrada: en, saida: sa, almoco_ini: ai || null, almoco_fim: af || null });
+  const funcs = () => [{ id: 1, dias: { a: dia('07:00', '17:24', '11:00', '13:00'), b: dia('07:30', '16:30'), c: { tipo: 'folga' } } }, { id: 2, dias: { a: dia('07:30', '16:30'), b: dia('08:00', '18:00', '12:00', '14:00') } }];
+  const f1 = funcs(); const r = S.codificar(6, f1);
+  assert.equal(f1[0].dias.a.cod, 'T.1'); assert.equal(f1[0].dias.b.cod, 'T.6'); assert.equal(f1[1].dias.a.cod, 'T.6'); assert.equal(f1[1].dias.b.cod, 'T.7'); assert.equal(f1[0].dias.c.cod, undefined);
+  const t6 = r.turnos.find(t => t.codigo === 'T.6'); assert.equal(t6.entrada, '07:30'); assert.equal(t6.n, 2); assert.equal(r.turnos.find(t => t.codigo === 'T.1').cor, '#FFE699'); assert.equal(r.corFolga, '#07973E');
+  const f2 = funcs().reverse(); const r2 = S.codificar(6, f2);   // outra ordem, outro mês: os códigos e as cores não mudam
+  assert.equal(f2[0].dias.b.cod, 'T.7'); assert.equal(f2[1].dias.b.cod, 'T.6'); assert.equal(r2.turnos.find(t => t.codigo === 'T.6').cor, t6.cor); assert.equal(r2.turnos.length, r.turnos.length);
+});
