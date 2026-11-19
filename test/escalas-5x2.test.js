@@ -7,6 +7,10 @@ process.env.GP_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'gp-5x2-'));
 process.env.ESCALAS_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'escalas-5x2-'));
 const test = require('node:test'); const assert = require('node:assert/strict');
 const GP = require('../lib/gestao-pessoas'); const E = require('../lib/escalas'); const S = require('../lib/escalas-5x2');
+// Desde 19/11/2026 toda unidade usa os turnos do modelo da planilha (lib/escalas-periodo.js › turnoFixoDe). Este arquivo testa o
+// gerador LIVRE (jornada de contrato, intervalo escalonado pela regra): as lojas daqui ficam com `modeloContrato`. O gerador com
+// os turnos do modelo é testado em test/escalas-planilha.test.js.
+fs.writeFileSync(path.join(process.env.ESCALAS_DIR, 'planilha.json'), JSON.stringify({ versao: 1, lojas: Object.fromEntries([1, 2, 3, 4, 5, 6, 10].map(n => [n, { modeloContrato: true }])) }));
 const U = { ger: { usuario: 'g1', nome: 'Gerente Socorro' }, rh: { usuario: 'rh', nome: 'RH Ponto' }, rh2: { usuario: 'rh2', nome: 'RH Muribeca' }, co: { usuario: 'co', nome: 'Coordenação' }, co2: { usuario: 'co2', nome: 'Coordenação 2' }, di: { usuario: 'di', nome: 'Diretoria' } };
 GP.salvarConfig({ designados: [{ usuario: 'g1', nome: 'G1', papeis: ['gerente'], lojas: [1] }, { usuario: 'rh', nome: 'RH', papeis: ['rh_ponto'] }, { usuario: 'rh2', nome: 'RH2', papeis: ['rh_ponto'], lojas: [2] }, { usuario: 'co', nome: 'Co', papeis: ['coordenacao'] }, { usuario: 'co2', nome: 'Co2', papeis: ['coordenacao'] }, { usuario: 'di', nome: 'Di', papeis: ['diretoria'] }] }, { usuario: 'adm', perfil: 'admin' });
 const HOJE = '2026-11-11', MES = '2026-12', MESN = '2026-11'; const status = s => e => e.status === s;
@@ -22,7 +26,7 @@ const regraBody = { nome: 'CCT Comerciários (teste)', estabelecimento: 1, vigen
 test('simular não grava nada, monta o quadro do ponto e bloqueia a aplicação sem regra validada', () => {
   const s = S.simular(U.rh, 1, MES, ctx());
   assert.equal(s.existe, false); assert.equal(s.de, '2026-12-01'); assert.equal(s.ate, '2026-12-31'); assert.equal(s.resultado.proposta.length, 8);
-  assert.equal(E.ler(1, MES), null, 'simular não cria a escala'); assert.deepEqual(fs.readdirSync(process.env.ESCALAS_DIR), [], 'nenhum arquivo gravado');
+  assert.equal(E.ler(1, MES), null, 'simular não cria a escala'); assert.deepEqual(fs.readdirSync(process.env.ESCALAS_DIR), ['planilha.json'], 'nenhum arquivo gravado (só o planilha.json que o próprio teste criou)');
   assert.equal(s.aplicacao.permitida, false); assert.deepEqual(s.aplicacao.pendencias.map(p => p.codigo), ['regra_nao_validada']);
   assert.equal(s.aplicacao.exigeCiencia, 8, 'todos com 44 h no contrato × 42 h planejadas');
   const ana = s.resultado.proposta.find(p => p.nome === 'Ana Lima'); for (let d = 7; d <= 16; d++) assert.equal(ana.dias['2026-12-' + String(d).padStart(2, '0')].tipo, 'ferias');

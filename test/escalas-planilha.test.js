@@ -169,7 +169,16 @@ test('serviço: quem era linha prevista e entrou no ponto herda turno, folga fix
   const novo = { id: 777, nome: 'ZECA NOVO', cargo: 'OPERADOR DE LOJA', setor: 'BALCAO', base: {} };
   const tf = S.turnoFixoDe(5, novo); assert.equal(tf.codigo, 'T.2'); assert.equal(tf.folgaFixa, 5); assert.equal(tf.domingo.codigo, 'T.1'); assert.equal(tf.sugerido, false);
   const semCad = S.turnoFixoDe(5, { id: 888, nome: 'OUTRO', base: { 1: { entrada: '09:30', saida: '19:00' } } }); assert.equal(semCad.codigo, 'T.3'); assert.equal(semCad.sugerido, true);
-  assert.equal(S.turnoFixoDe(6, novo), null);                               // loja sem cadastro da planilha: o gerador segue como era
+  // 19/11/2026 (Donato/Tiago: "somente esse modelo; replique para todas as lojas e o CD"): unidade sem cadastro gravado também
+  // usa os turnos do modelo — o mais parecido com a jornada de contrato (entrada + saída), como sugestão — e sai organizada por função
+  const outra = S.turnoFixoDe(6, { id: 901, nome: 'FULANO', base: { 1: { entrada: '09:00', saida: '20:00' } } }); assert.equal(outra.codigo, 'T.3'); assert.equal(outra.sugerido, true); assert.equal(outra.folgaFixa, null); assert.equal(outra.domingo.codigo, 'T.4');   // fecha às 20h: turno de fechamento
+  assert.equal(S.turnoFixoDe(6, { id: 903, nome: 'BELTRANA', base: { 1: { entrada: '08:00', saida: '19:00' } } }).codigo, 'T.2');
+  assert.equal(S.turnoFixoDe(6, { id: 904, nome: 'CICRANO', base: { 1: { entrada: '07:00', saida: '17:00' } } }).codigo, 'T.1');
+  assert.equal(S.turnoFixoDe(10, { id: 902, nome: 'DO CD', base: { 2: { entrada: '06:00', saida: '16:00' } } }).codigo, 'T.5');
+  assert.equal(S.turnoFixoDe(6, novo).codigo, 'T.1');                       // sem jornada no ponto: o primeiro turno, ainda como sugestão
+  const rede = S.organizar(3, [{ id: 1, nome: 'GIL', cargo: 'GERENTE', setor: 'ADMINISTRATIVO' }, { id: 2, nome: 'ROSA', cargo: 'OPERADOR DE LOJA', setor: 'REPOSICAO' }, { id: 3, nome: 'LIA', cargo: 'OPERAODR DE CAIXA', setor: 'FRENTE DE CAIXA' },
+    { id: 4, nome: 'ANA', cargo: 'OPERADORA DE CAIXA', setor: 'FRENTE DE CAIXA' }, { id: 5, nome: 'TOM', cargo: 'MOTORISTA', setor: 'OUTROS' }, { id: 6, nome: 'JOÃO', cargo: 'AÇOUGUEIRO', setor: 'ACOUGUE' }, { id: 7, nome: 'BETO', cargo: 'AUX. DE SERVIÇOS GERAIS', setor: 'OUTROS' }]);
+  assert.deepEqual(rede.map(x => x.nome + ':' + x.grupo), ['ANA:Caixa', 'LIA:Caixa', 'ROSA:Operador de Loja', 'JOÃO:Açougue', 'BETO:ASG', 'TOM:Motorista', 'GIL:Gerente']);
   const ord = S.organizar(5, [{ id: 102, nome: 'BIA', cargo: 'X', setor: 'REPOSICAO' }, novo, { id: 101, nome: 'ANA', cargo: 'X', setor: 'FRENTE DE CAIXA' }]);
   assert.deepEqual(ord.map(x => x.nome + ':' + x.grupo), ['ANA:Caixa', 'ZECA NOVO:Caixa', 'BIA:Seção']);
 });
