@@ -145,6 +145,40 @@ button.pill[aria-pressed="true"]{background:var(--navy);color:#fff}
 .tvcard.amplo h3{font-size:34px}.tvcard.amplo .st{font-size:18px}.tvcard.amplo .ag{font-size:19px}.tvcard.amplo ul{font-size:16px;padding-left:0;list-style:none}.tvcard.amplo .px{font-size:16px}
 .tv .tag.sel b{background:var(--brand);border-color:var(--brand);color:#3b2a00}
 .tv .tag b{max-width:260px;overflow:hidden;text-overflow:ellipsis}   /* nome comprido (as compradoras, todas numa etiqueta) saía da tela */
+/* 19/11/26 — conteúdo do painel na TV (Tiago: "o que você acha que precisa ter? só isso mesmo"). Antes era quase tudo "sombra" (o que o
+   robô faria). Agora, na vista ampla: bloco fixo "Precisa de você agora" (o que depende de gente, com o número na frente), "Feito hoje"
+   (as cargas de preço que rodaram de verdade), cartão do posto curto (número na frente, 3 linhas) e a meta do mês em barra. */
+.tvbox{position:absolute;border-radius:18px;pointer-events:none;box-shadow:0 10px 30px rgba(14,22,38,.22)}
+.tvbox[hidden]{display:none}
+.tvbox h4{font-size:15px;font-weight:800;text-transform:uppercase;letter-spacing:2px;margin:0 0 10px;display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.tvbox h4 em{font-style:normal;font-size:13px;letter-spacing:.3px;font-weight:700;opacity:.8;text-transform:none;white-space:nowrap}
+#tvprecisa{left:32px;top:178px;width:500px;background:rgba(19,41,75,.96);color:#fff;padding:16px 20px 8px;border-left:8px solid var(--brand)}
+#tvprecisa h4{color:var(--brand)}
+.pr{display:flex;align-items:center;gap:14px;padding:9px 0;border-top:1px solid rgba(255,255,255,.14)}
+.pr .n{font-family:var(--mono);font-size:36px;font-weight:600;line-height:1;min-width:96px;text-align:right;color:var(--brand);font-variant-numeric:tabular-nums}
+.pr.crit .n{color:#ff97a6}
+.pr>div:last-child{min-width:0;flex:1}
+.pr strong{display:block;font-size:20px;font-weight:800;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pr span{display:block;font-size:15.5px;color:#c3cde0;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pr.vazio strong{font-weight:600;color:#c3cde0;white-space:normal}
+#tvfeito{right:28px;bottom:92px;width:452px;background:rgba(255,255,255,.96);padding:16px 20px;border-left:8px solid var(--green)}
+#tvfeito h4{color:var(--green)}#tvfeito h4 em{color:var(--text2)}
+.cg{display:flex;gap:10px}
+.cg>div{flex:1;border-radius:12px;padding:8px 10px;background:#f1f1ee;border:2px solid transparent;min-width:0}
+.cg b{display:block;font-family:var(--mono);font-size:22px;font-weight:600;line-height:1.1;color:var(--text)}
+.cg span{display:block;font-size:14.5px;font-weight:700;color:var(--text2);line-height:1.25;margin-top:3px}
+.cg .ok{background:var(--green-bg);border-color:var(--green)}.cg .ok b,.cg .ok span{color:var(--green)}
+.cg .erro{background:var(--red-bg);border-color:var(--red)}.cg .erro b,.cg .erro span{color:var(--red)}
+.cg .espera{background:transparent;border:2px dashed var(--border-md)}.cg .espera b{color:var(--text3)}
+#tvfeito ul{list-style:none;padding:0;margin:10px 0 0;font-size:16px;color:var(--text2);line-height:1.45}
+#tvfeito li{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#tvfeito li b{color:var(--text)}
+.tk .bar{height:8px;border-radius:4px;background:#e2e2de;margin-top:8px;overflow:hidden}.tk .bar i{display:block;height:100%;border-radius:4px;background:var(--brand)}
+.tk.ok .bar i{background:var(--green)}.tk.crit .bar i{background:var(--red)}
+.tvcard.amplo h3 small{float:right;font-size:16px;font-weight:800;color:var(--amber);margin-top:14px}.tvcard.amplo.real h3 small{color:var(--navy)}
+.tvcard.amplo.curto .ag{font-size:24px;font-weight:800;line-height:1.2;margin:8px 0;-webkit-line-clamp:2}
+.tvcard.amplo.curto ul{font-size:17px;line-height:1.5}.tvcard.amplo.curto li{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tvcard.amplo.curto li b{color:var(--text);font-family:var(--mono);font-weight:600}
+.leve .tvbox{box-shadow:none}
 /* véu "Tela cheia" no meio da tela, igual aos outros painéis (painel-fiscal.html) */
 #fs{position:absolute;left:0;top:0;width:100%;height:100%;z-index:200;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);cursor:pointer;font-size:5vh}
 #fs[hidden]{display:none}
@@ -182,6 +216,8 @@ body.tv{background:#0e1626}
     <div class="tags" id="tags"></div>
     <div class="overlay" id="tvk" hidden></div>
     <div class="tvcard" id="tvcard" hidden></div>
+    <div class="tvbox" id="tvprecisa" hidden></div>
+    <div class="tvbox" id="tvfeito" hidden></div>
     <div class="ticker" id="ticker" hidden><div class="track"></div></div>
   </section>
   <aside class="panel">
@@ -612,6 +648,10 @@ async function carregarReal(){
     p.agora=`Fase 0: só observando · ${d.alertas.length} vazamentos, ${graves} graves, ${reb} rebaixa(s) pedida(s)`;
     p.fila=d.alertas.slice(0,5).map(a=>`${a.loja?'E'+a.loja+' · ':''}${a.desc}: ${a.txt}`);
     p.tag.lastChild.textContent=`${graves} vazamentos graves pra olhar`;
+    // 19/11: cartão curto da TV — o número na frente e 3 linhas [número, texto]
+    const U=d.urgentes, fora=Ls.filter(l=>!l.meta.projetaBater&&l.meta.reais>0).sort((a,b)=>(b.meta.reais-b.meta.lucroProj)-(a.meta.reais-a.meta.lucroProj));
+    v.curto={t:`Projeção ${R0(T.lucroProj)} · ${T.meta>0?Math.round(T.lucroProj/T.meta*100):0}% da meta do mês`, l:[[Ls.filter(l=>l.meta.projetaBater).length+' de '+Ls.length,'listas projetam bater a meta'],...fora.slice(0,2).map(l=>[R0(l.meta.reais-l.meta.lucroProj),'abaixo da meta · '+tc(l.nome)])]};
+    p.curto=U?{t:`${graves} vazamentos graves · ${R0s(U.vencendo.valor)} vencendo`, l:[[U.vencendo.n,'vencem em até 7 dias'],[U.queimaParada.n,'queimas paradas · '+R0s(U.queimaParada.valor)+' em estoque'],[U.abaixoCusto.n,'com preço abaixo do custo']]}:null;
     EVENTOS_REAL=d.alertas.slice(0,12).map(a=>['precif',a.grav===3?'crit':a.grav===2?'warn':'ok',(a.loja?'E'+a.loja+' · ':'')+a.desc+' · '+(d.tipos[a.tipo]?d.tipos[a.tipo].txt:a.tipo)]);
     EVENTOS_REAL.unshift(['vigia',T.lucroProj>=T.meta?'ok':'warn',`Projeção do mês ${R0(T.lucroProj)} × meta ${R0(T.meta)}`]);
     $('sub').textContent=`${new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'2-digit'})} · vigia de ${new Date(d.calculadoEm).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})} · 8 postos, 2 pessoas`;
@@ -630,14 +670,27 @@ async function carregarSombra(){
     if(!F){$('pill-sombra').textContent='Compras: sombra · '+(d.motivo||'sem base'); return;}
     const Ls=d.listas.filter(l=>l.ok), prox=F.proximas[0];
     const dm=s=>String(s||'').slice(8,10)+'/'+String(s||'').slice(5,7);
-    const set=(id,agora,fila,proximo)=>{const r=robots[id]; r.agora=agora; r.fila=fila; r.proximo=proximo; r.tag.lastChild.textContent=agora; if(selId===id)select(id);};
+    const set=(id,agora,fila,proximo,curto)=>{const r=robots[id]; r.agora=agora; r.fila=fila; r.proximo=proximo; r.curto=curto||null; r.tag.lastChild.textContent=agora; if(selId===id)select(id);};
+    // 19/11: cartão curto da TV (o número na frente e 3 linhas [número, texto]) — a lista de dezenas de fornecedores ninguém lia de longe
+    const maiores=F.pedir_hoje.slice().sort((a,b)=>(b.valor||0)-(a.valor||0)), porDona={};
+    F.pedir_hoje.forEach(p=>{const k=p.compradora||'sem dona'; const o=porDona[k]=porDona[k]||{n:0,v:0}; o.n++; o.v+=p.valor||0;});
+    const emTransito=Ls.filter(l=>l.transito_valor>0).sort((a,b)=>b.transito_valor-a.transito_valor), atrasados=F.cobrar.slice().sort((a,b)=>(b.mais_velha_dias||0)-(a.mais_velha_dias||0));
+    const CURTO={
+      sugestao:F.pedir_hoje.length?{t:`Pediria hoje: ${pl(F.pedir_hoje.length,'lista','listas')} · ${R0s(F.valor_hoje)}`, l:maiores.slice(0,3).map(p=>[R0s(p.valor),tc(p.nome)+' · '+p.itens+' itens'])}
+        :{t:'Nenhuma lista no ponto de pedir hoje', l:F.proximas.slice(0,3).map(p=>[p.dow+' '+dm(p.data),tc(p.nome)+' · '+R0s(p.valor)])},
+      aprovacao:{t:`Mandaria ${pl(F.aprovacao,'pedido','pedidos')} pra aprovação`, l:Object.keys(porDona).sort((a,b)=>porDona[b].v-porDona[a].v).slice(0,3).map(k=>[pl(porDona[k].n,'lista','listas'),tc(k).split(' ').slice(0,2).join(' ')+' · '+R0s(porDona[k].v)])},
+      erp:{t:`Gravaria ${pl(F.gravar_erp,'pedido','pedidos')} · 0 gravados`, l:[['0','gravados hoje · modo sombra, nada vale'],[R0s(F.valor_hoje),'iria pro ERP de teste, um pedido por loja']]},
+      radar:{t:`Em trânsito: ${R0s(F.transito_valor)} · ${F.transito_nfe} já com nota`, l:emTransito.slice(0,3).map(l=>[R0s(l.transito_valor),tc(l.nome)+' · '+l.transito_itens+' itens'])},
+      cobranca:F.cobrar.length?{t:`Cobraria ${pl(F.cobrar.length,'fornecedor','fornecedores')}`, l:atrasados.slice(0,3).map(c=>[(c.mais_velha_dias||0)+' dias',pl(c.sugestoes,'pedido','pedidos')+' sem nota · '+tc(c.fornecedor)])}:{t:'Nenhum fornecedor atrasado', l:[]},
+      resumo:{t:`${pl(F.rupturas,'ruptura','rupturas')} · ${F.curva_a_risco} curva A em risco`, l:[[F.ja_pedidas+' de '+F.pedir_hoje.length,'listas do dia já pedidas pelas compradoras'],[F.cobrar.length,F.cobrar.length===1?'fornecedor pra cobrar':'fornecedores pra cobrar'],['18:00','sairia o resumo do dia · sombra']]}
+    };
     set('sugestao', F.pedir_hoje.length?`Pediria hoje: ${F.pedir_hoje.map(p=>p.nome).join(', ')} · ${R0s(F.valor_hoje)}`:`Nenhuma lista no ponto hoje${prox?' · próxima '+prox.nome+' '+prox.dow+' '+dm(prox.data):''}`,
-      Ls.map(l=>`${l.nome} (lista ${l.id}): ${l.fazer_em===0?'HOJE':'em '+l.fazer_em+' d ('+l.dow+' '+dm(l.data)+')'} · ${R0s(l.pedido_valor)} · ${l.pedido_itens} itens · cobertura ${Math.round(l.cobertura_dias||0)} d${l.gatilho==='curva_a'?' · antecipada por curva A':''}`), 'Não pede nada: modo sombra. Mesma conta do Radar de Pedidos.');
-    set('aprovacao', `Mandaria ${F.aprovacao} pedido(s) pra aprovação · ${R0s(F.valor_hoje)}`, F.pedir_hoje.map(p=>`${p.nome}: ${R0s(p.valor)} · ${p.itens} itens · ${p.volumes} vol · dona: ${p.compradora||'—'}${p.abaixo_minimo?' · abaixo do mínimo':''}`), 'Não manda: as listas continuam com as compradoras.');
-    set('erp', `Gravaria ${F.gravar_erp} pedido(s) no ERP de teste · ${R0s(F.valor_hoje)}`, ['Gravados hoje: 0','Destino seria o MySQL de teste do .254 (pedidocompra por loja)','Rastro iria pro Processos › Log'], 'Não grava: modo sombra.');
-    set('radar', `Em trânsito ${R0s(F.transito_valor)} · ${F.transito_nfe} produto×loja já com NF-e`, Ls.filter(l=>l.transito_valor>0).map(l=>`${l.nome}: ${R0s(l.transito_valor)} · ${l.transito_itens} itens · E${l.transito_lojas.join(', E')}${l.transito_nfe?' · '+l.transito_nfe+' com NF-e':''}`), 'Isso é real: vem do Radar de Pedidos (sugestões abertas no ERP).');
-    set('cobranca', F.cobrar.length?`Cobraria ${F.cobrar.map(c=>c.fornecedor).join(', ')}`:'Nenhum fornecedor atrasado nas listas do robô', F.cobrar.map(c=>`${c.fornecedor}: ${c.sugestoes} sugestão(ões) sem NF-e, a mais velha há ${c.mais_velha_dias} dias`), 'Não manda mensagem: modo sombra.');
-    set('resumo', F.resumo_18h, [`${F.rupturas} ruptura(s) nas listas do robô`,`${F.curva_a_risco} curva A zerando antes da lista`,`${(d.historico||[]).length} dia×lista comparados nos últimos ${d.historico_dias||0} dias`], 'Não envia no WhatsApp: modo sombra.');
+      Ls.map(l=>`${l.nome} (lista ${l.id}): ${l.fazer_em===0?'HOJE':'em '+l.fazer_em+' d ('+l.dow+' '+dm(l.data)+')'} · ${R0s(l.pedido_valor)} · ${l.pedido_itens} itens · cobertura ${Math.round(l.cobertura_dias||0)} d${l.gatilho==='curva_a'?' · antecipada por curva A':''}`), 'Não pede nada: modo sombra. Mesma conta do Radar de Pedidos.', CURTO.sugestao);
+    set('aprovacao', `Mandaria ${F.aprovacao} pedido(s) pra aprovação · ${R0s(F.valor_hoje)}`, F.pedir_hoje.map(p=>`${p.nome}: ${R0s(p.valor)} · ${p.itens} itens · ${p.volumes} vol · dona: ${p.compradora||'—'}${p.abaixo_minimo?' · abaixo do mínimo':''}`), 'Não manda: as listas continuam com as compradoras.', CURTO.aprovacao);
+    set('erp', `Gravaria ${F.gravar_erp} pedido(s) no ERP de teste · ${R0s(F.valor_hoje)}`, ['Gravados hoje: 0','Destino seria o MySQL de teste do .254 (pedidocompra por loja)','Rastro iria pro Processos › Log'], 'Não grava: modo sombra.', CURTO.erp);
+    set('radar', `Em trânsito ${R0s(F.transito_valor)} · ${F.transito_nfe} produto×loja já com NF-e`, Ls.filter(l=>l.transito_valor>0).map(l=>`${l.nome}: ${R0s(l.transito_valor)} · ${l.transito_itens} itens · E${l.transito_lojas.join(', E')}${l.transito_nfe?' · '+l.transito_nfe+' com NF-e':''}`), 'Isso é real: vem do Radar de Pedidos (sugestões abertas no ERP).', CURTO.radar);
+    set('cobranca', F.cobrar.length?`Cobraria ${F.cobrar.map(c=>c.fornecedor).join(', ')}`:'Nenhum fornecedor atrasado nas listas do robô', F.cobrar.map(c=>`${c.fornecedor}: ${c.sugestoes} sugestão(ões) sem NF-e, a mais velha há ${c.mais_velha_dias} dias`), 'Não manda mensagem: modo sombra.', CURTO.cobranca);
+    set('resumo', F.resumo_18h, [`${F.rupturas} ruptura(s) nas listas do robô`,`${F.curva_a_risco} curva A zerando antes da lista`,`${(d.historico||[]).length} dia×lista comparados nos últimos ${d.historico_dias||0} dias`], 'Não envia no WhatsApp: modo sombra.', CURTO.resumo);
     // compradoras reais (donas das listas) na sala de vidro — nome do ERP, nada muda pra elas
     const donas=[...new Set(Ls.map(l=>l.compradora).filter(Boolean))]; const nomes=donas.map(n=>n.split(' ').slice(0,2).map(f=>f.charAt(0)+f.slice(1).toLowerCase()).join(' '));   // "Patricia Pereira", "Ana Kelly" (nome do ERP)
     const hi=HUMAN_INFO.luciana; hi.nome=nomes.join(' e ')||'Compradoras'; hi.agora=`Donas das listas do robô: ${nomes.join(' e ')||'—'} · continuam com elas`; hi.fila=Ls.map(l=>`${l.nome} (lista ${l.id}) · ${l.compradora||'—'}`);
@@ -782,20 +835,61 @@ window.__esc={achar,robots,ROBOS,ACTORS,plan,ACTS,reuniao,eventos,visitante,hora
 let tween=null, spotIdx=0, spotLock=0;   // TV é declarado no topo do script (usado antes deste bloco)
 function irPara(tx,tz,zoom,dur){tween={t0:performance.now(),dur:dur||1300,fx:target.x,fz:target.z,fk:cam.zoom,tx,tz,tk:zoom};}
 function stepTween(now){if(!tween)return; const k=Math.min(1,(now-tween.t0)/tween.dur), e=k<.5?2*k*k:-1+(4-2*k)*k; target.x=tween.fx+(tween.tx-tween.fx)*e; target.z=tween.fz+(tween.tz-tween.fz)*e; cam.zoom=tween.fk+(tween.tk-tween.fk)*e; cam.updateProjectionMatrix(); updCam(); if(k>=1)tween=null;}
-function tvCard(cls,k,titulo,st,ag,lista,prox,cont){const c=$('tvcard'); c.hidden=false; c.className='tvcard '+cls+(AMPLO?' amplo':''); c.innerHTML='<div class="k">'+(cont?'<em>'+esc(cont)+'</em>':'')+esc(k)+'</div><h3>'+esc(titulo)+'</h3><p class="st">● '+esc(st)+'</p><p class="ag">'+esc(ag)+'</p>'+(lista&&lista.length?'<ul>'+lista.slice(0,AMPLO?3:2).map(f=>'<li>'+esc(f)+'</li>').join('')+'</ul>':'')+(prox?'<p class="px"><b>Depois:</b> '+esc(prox)+'</p>':'');}
+function tvCard(cls,k,titulo,st,ag,lista,prox,cont,curto){const c=$('tvcard'); c.hidden=false;
+  if(AMPLO&&curto){   // 19/11: cartão curto — o número na frente (uma frase) e 3 linhas [número, texto]; a situação vai ao lado do nome
+    c.className='tvcard '+cls+' amplo curto'; c.innerHTML='<div class="k">'+(cont?'<em>'+esc(cont)+'</em>':'')+esc(k)+'</div><h3><small>● '+esc(st)+'</small>'+esc(titulo)+'</h3><p class="ag">'+esc(curto.t)+'</p><ul>'+curto.l.slice(0,3).map(f=>'<li><b>'+esc(f[0])+'</b> '+esc(f[1])+'</li>').join('')+'</ul>'; return;}
+  c.className='tvcard '+cls+(AMPLO?' amplo':''); c.innerHTML='<div class="k">'+(cont?'<em>'+esc(cont)+'</em>':'')+esc(k)+'</div><h3>'+esc(titulo)+'</h3><p class="st">● '+esc(st)+'</p><p class="ag">'+esc(ag)+'</p>'+(lista&&lista.length?'<ul>'+lista.slice(0,AMPLO?3:2).map(f=>'<li>'+esc(f)+'</li>').join('')+'</ul>':'')+(prox?'<p class="px"><b>Depois:</b> '+esc(prox)+'</p>':'');}
 function holofote(a){   // a = posto (ou null = vista geral)
   if(!a){if(!AMPLO)irPara(0,0,1.12,1500); $('tvcard').hidden=true; clearSel(); return;}
   if(!AMPLO)irPara(a.g.position.x-2.2,a.g.position.z-2.2,1.75,1500);   // alvo um pouco pro fundo: o boneco cai abaixo do centro, longe do título e dos números
   select(a.id); const i=ROBOS.indexOf(a);
-  tvCard(a.real||a.ens?'real':'sombra',a.papel+(a.real?' · dados reais':a.ens?' · ENSAIO · ERP de teste':' · sombra, nada vale'),a.nome,a.status||'',a.agora,a.fila,AMPLO?a.proximo:'',AMPLO&&i>=0?(i+1)+' de '+ROBOS.length:'');
+  tvCard(a.real||a.ens?'real':'sombra',a.papel+(a.real?' · dados reais':a.ens?' · ENSAIO · ERP de teste':' · sombra, nada vale'),a.nome,a.status||'',a.agora,a.fila,AMPLO?a.proximo:'',AMPLO&&i>=0?(i+1)+' de '+ROBOS.length:'',a.curto);
+}
+/* ---------- 19/11/26: o que o painel diz na TV (vista ampla) ----------
+   Tiago: "o que você acha que precisa ter? só isso mesmo" → "pode começar". O painel era bonito mas quase tudo era sombra (o que o robô
+   faria). Entram: (1) "Precisa de você agora", fixo no alto à esquerda — só o que é real e depende de gente, com o número na frente e o maior
+   caso embaixo; (2) "Feito hoje", fixo embaixo à direita — as cargas de preço de 09/12/15h que rodaram de verdade (Log Precificação),
+   o que as compradoras já pediram e a hora do vigia; (3) cartão do posto curto (r.curto); (4) a meta do mês em barra no 1º número. */
+let HOJE=null;
+const tc=s=>String(s||'').trim().replace(/\s+/g,' ').toLowerCase().replace(/(^|[\s\-\/.(])([a-zà-ú])/g,(m,a,b)=>a+b.toUpperCase()).replace(/ (De|Da|Do|Das|Dos|E|Em|Com) /g,m=>m.toLowerCase());   // "SAO BRAZ CAFE DE PE" → "Sao Braz Cafe de Pe" (maiúscula corrida cansa na TV)
+const pl=(n,um,varios)=>n+' '+(n===1?um:varios);
+const emDias=n=>n<=0?'hoje':n===1?'amanhã':'em '+n+' dias';
+const hmDe=iso=>iso?new Date(iso).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'';
+function tvPrecisa(){ if(!TV||!AMPLO)return; const el=$('tvprecisa'), D=DADOS, U=D&&D.urgentes, F=SOMBRA&&SOMBRA.faria, x=ENSAIO, it=[];
+  if(x&&!x.concluido&&x.agora&&x.agora.quem==='você'){const p=String(x.agora.pede||x.agora.titulo||'aprovar'); it.push(['crit','#'+x.id,p.charAt(0).toUpperCase()+p.slice(1),'ensaio do robô · etapa '+x.agora.n+' de 7 · '+tc(x.lista_nome)]);}
+  if(U&&U.vencendo.n){const m=U.vencendo.top[0]; it.push(['',U.vencendo.n,'vencem em até 7 dias · '+R0s(U.vencendo.valor),m?'maior: '+R0s(m.valor)+' '+emDias(m.dias)+' · E'+m.loja+' '+tc(m.desc):'']);}
+  if(F&&F.rupturas){const pn={}; (SOMBRA.listas||[]).forEach(l=>{if(l.rupturas>0)pn[l.nome]=(pn[l.nome]||0)+l.rupturas;});   // há listas com o mesmo nome: soma por nome
+    const ls=Object.keys(pn).map(nome=>({nome,rupturas:pn[nome]})).sort((a,b)=>b.rupturas-a.rupturas).slice(0,2); it.push(['',F.rupturas,(F.rupturas===1?'ruptura':'rupturas')+' nas listas de compra',ls.length?ls.map(l=>l.rupturas+' em '+tc(l.nome)).join(' · '):'']);}
+  if(U&&U.rebaixas.n){const m=U.rebaixas.top[0]; it.push(['',U.rebaixas.n,(U.rebaixas.n===1?'rebaixa pedida':'rebaixas pedidas')+' pela loja',m?'E'+m.loja+' '+tc(m.desc)+(m.validade?' · vence '+m.validade.slice(8,10)+'/'+m.validade.slice(5,7):''):'']);}
+  if(F&&F.cobrar.length)it.push(['',F.cobrar.length,(F.cobrar.length===1?'fornecedor atrasado':'fornecedores atrasados'),'pedido há '+Math.max(...F.cobrar.map(c=>c.mais_velha_dias||0))+' dias sem nota: '+F.cobrar.map(c=>{const w=tc(c.fornecedor).split(' ').slice(0,3); while(w.length>1&&/^(de|da|do|e|em|com)$/.test(w[w.length-1]))w.pop(); return w.join(' ');}).join(', ')]);
+  const piso=D&&D.listas?D.listas.filter(l=>l.status==='piso'):[]; if(piso.length)it.push(['',piso.length,(piso.length===1?'lista':'listas')+' abaixo do piso de margem',piso.slice().sort((a,b)=>a.periodos.atual.margem-b.periodos.atual.margem).slice(0,2).map(l=>tc(l.nome)+' '+P1(l.periodos.atual.margem)).join(' · ')]);
+  if(U&&U.abaixoCusto.n){const m=U.abaixoCusto.top[0]; it.push(['',U.abaixoCusto.n,'com preço abaixo do custo',m?'E'+m.loja+' '+tc(m.desc):'']);}
+  const linhas=it.length?it.slice(0,4).map(i=>'<div class="pr '+i[0]+'"><div class="n">'+esc(i[1])+'</div><div><strong>'+esc(i[2])+'</strong>'+(i[3]?'<span>'+esc(i[3])+'</span>':'')+'</div></div>').join('')
+    :'<div class="pr vazio"><div><strong>'+(D||F?'Nada esperando por você agora.':'carregando…')+'</strong></div></div>';
+  el.innerHTML='<h4>Precisa de você agora'+(D&&D.calculadoEm?'<em>vigia das '+hmDe(D.calculadoEm)+'</em>':'')+'</h4>'+linhas; el.hidden=false;
+}
+function tvFeito(){ if(!TV||!AMPLO)return; const el=$('tvfeito'), H=HOJE, F=SOMBRA&&SOMBRA.faria, D=DADOS; if(!H||!H.cargas){el.hidden=true; return;}
+  const d=new Date(), min=d.getHours()*60+d.getMinutes(), li=[];
+  const cx=H.cargas.map(c=>{const passou=min>=(+c.hora.slice(0,2))*60+(+c.hora.slice(3,5))+3;   // 3 min de folga: a carga leva um pouco pra aparecer no registro
+    const cls=c.precos?'ok':c.erros?'erro':passou?'':'espera';
+    const txt=c.precos?pl(c.listas,'lista','listas')+'<br>'+pl(c.precos,'preço','preços')+(c.erros?'<br>'+pl(c.erros,'erro','erros'):''):c.erros?pl(c.erros,'erro','erros'):passou?'nada pra<br>enviar':'ainda<br>não rodou';
+    return '<div class="'+cls+'"><b>'+(c.precos?'✓ ':'')+c.hora+'</b><span>'+txt+'</span></div>';}).join('');
+  if(H.manual&&H.manual.precos)li.push('Pelo botão: <b>'+pl(H.manual.listas,'lista','listas')+' · '+pl(H.manual.precos,'preço','preços')+'</b>');
+  if(!(H.total&&H.total.precos)&&H.ultima){const o=new Date(H.dia+'T12:00:00'); o.setDate(o.getDate()-1); const ontem=o.getFullYear()+'-'+pad(o.getMonth()+1)+'-'+pad(o.getDate());
+    const nd=H.ultima.noDia||H.ultima; li.push((H.ultima.dia===ontem?'Ontem':'Em '+H.ultima.dia.slice(8,10)+'/'+H.ultima.dia.slice(5,7))+': <b>'+pl(nd.listas,'lista','listas')+' · '+pl(nd.precos,'preço','preços')+'</b> · última às '+esc(H.ultima.hora));}
+  if(F&&F.pedir_hoje.length)li.push('Compradoras: <b>'+F.ja_pedidas+' de '+F.pedir_hoje.length+'</b> listas do dia já pedidas');
+  const horas=[D&&D.calculadoEm?'Vigia calculou às <b>'+hmDe(D.calculadoEm)+'</b>':'',SOMBRA&&SOMBRA.radar&&SOMBRA.radar.atualizadoEm?'Radar às <b>'+hmDe(SOMBRA.radar.atualizadoEm)+'</b>':''].filter(Boolean); if(horas.length)li.push(horas.join(' · '));
+  if(H.conferidas)li.push('<b>'+pl(H.conferidas,'lista conferida','listas conferidas')+'</b> com o ERP');
+  el.innerHTML='<h4>Feito hoje<em>carga de preço '+(H.automatico===false?'com aprovação':'automática')+'</em></h4><div class="cg">'+cx+'</div>'+(li.length?'<ul>'+li.slice(0,3).map(t=>'<li>'+t+'</li>').join('')+'</ul>':''); el.hidden=false;
 }
 function tvKpis(){ if(!TV)return; const T=DADOS&&DADOS.total, F=SOMBRA&&SOMBRA.faria, D=DADOS; const graves=D?D.alertas.filter(a=>a.grav===3).length:null;
-  $('tvk').innerHTML=[['projeção do mês',T?R0(T.lucroProj):'—','meta '+(T?R0(T.meta):'—'),T?(T.lucroProj>=T.meta?'ok':'crit'):''],
+  const pctMeta=T&&T.meta>0?Math.round(T.lucroProj/T.meta*100):null;   // 19/11: a meta do mês em barra (de longe se vê se está perto ou longe)
+  $('tvk').innerHTML=[['projeção do mês',T?R0(T.lucroProj):'—',(pctMeta!=null?pctMeta+'% da ':'')+'meta '+(T?R0(T.meta):'—'),T?(T.lucroProj>=T.meta?'ok':'crit'):'',pctMeta],
     ['margem das listas',T?P1(T.margem):'—',D?'dia '+Math.ceil(D.diasDecorridos)+' de '+D.diasMes:'',''],
     ['vazamentos graves',graves==null?'—':graves,D?'de '+D.alertas.length+' no total':'',graves?'crit':'ok'],
     ENSAIO?['ensaio · pedido #'+ENSAIO.id,ENSAIO.concluido?'7 de 7':'etapa '+ENSAIO.agora.n+'/7',ENSAIO.concluido?'ciclo completo':ENSAIO.agora.quem==='você'?'falta '+(ENSAIO.agora.pede||'aprovar'):'robô trabalhando',ENSAIO.concluido?'ok':ENSAIO.agora.quem==='você'?'warn':'ok']:['pediria hoje',F?R0s(F.valor_hoje):'—',F?F.pedir_hoje.length+' lista(s) · sombra':'',F&&F.pedir_hoje.length?'warn':'ok']]
-    .map(k=>'<div class="tk '+k[3]+'"><div class="n">'+k[1]+'</div><div class="l">'+k[0]+'</div><div class="s">'+k[2]+'</div></div>').join('');
-  tvTicker();
+    .map(k=>'<div class="tk '+k[3]+'"><div class="n">'+k[1]+'</div>'+(k[4]!=null?'<div class="bar"><i style="width:'+Math.max(2,Math.min(100,k[4]))+'%"></i></div>':'')+'<div class="l">'+k[0]+'</div><div class="s">'+k[2]+'</div></div>').join('');
+  tvTicker(); tvPrecisa(); tvFeito();
 }
 const EXTRAS=[];
 let tkItens=[], tkI=0;   // modo leve: uma notícia por vez, trocando a cada 7 s (faixa rolando engasga no navegador da TV)
@@ -839,7 +933,7 @@ function momento(tx,tz,zoom,seg,card){ if(!TV)return; spotLock=performance.now()
    na TV, o holofote vai pro posto. Sem ensaio, volta tudo pra sombra. Dados: /api/paineis-publico/robo-dados (sem link). */
 const POSTO_ETAPA={1:'sugestao',2:'aprovacao',3:'aprovacao',4:'erp',5:'radar',6:'precif',7:'precif'};
 let ensaioChave='';
-function setPosto(id,agora,fila,proximo){const r=robots[id]; r.agora=agora; r.fila=fila||[]; if(proximo!=null)r.proximo=proximo; r.tag.lastChild.textContent=agora; if(selId===id)select(id);}
+function setPosto(id,agora,fila,proximo){const r=robots[id]; r.curto=null; /* no ensaio o cartão conta a etapa de verdade, não o resumo curto da sombra */ r.agora=agora; r.fila=fila||[]; if(proximo!=null)r.proximo=proximo; r.tag.lastChild.textContent=agora; if(selId===id)select(id);}
 function aplicarEnsaio(){
   const x=ENSAIO, tg=HUMANS.find(h=>h.id==='tiago');
   ['sugestao','aprovacao','erp','radar'].forEach(id=>{robots[id].ens=!!x;});
@@ -850,7 +944,7 @@ function aplicarEnsaio(){
   setPosto('erp',st(4)==='feito'?'Pedido '+nm+' gravado no ERP de teste':'Esperando a aprovação pra gravar o pedido '+nm,[det(4)],'Grava só no ERP de teste; o rastro fica em Processos › Log.');
   setPosto('radar',st(5)==='feito'?'Nota do pedido '+nm+' conferida com o pedido':'Esperando a nota (simulada) do pedido '+nm,[det(5)],'No ensaio a nota é simulada: igual ao pedido, com os preços digitados.');
   const lp=st(7)==='feito'?'Ensaio '+nm+': preço de venda gravado no ERP de teste':st(6)==='feito'?'Ensaio '+nm+': preço de venda calculado · esperando o Tiago aprovar':null;
-  if(lp){const p=robots.precif; p.agora=lp; p.fila=[det(6),det(7)]; p.tag.lastChild.textContent=lp; if(selId==='precif')select('precif');}
+  if(lp){const p=robots.precif; p.curto=null; p.agora=lp; p.fila=[det(6),det(7)]; p.tag.lastChild.textContent=lp; if(selId==='precif')select('precif');}
   const ag=x.agora, vez=ag&&ag.quem==='você';
   if(tg){tg.tag.firstChild.textContent=vez?'sua vez':x.concluido?'ciclo completo':'acompanhando'; tg.tag.lastChild.textContent=vez?'Falta '+(ag.pede||ag.titulo):x.concluido?'Ensaio '+nm+' terminou':'Robô trabalhando no ensaio '+nm;}
   HUMAN_INFO.tiago.agora=vez?'Ensaio '+nm+': falta '+(ag.pede||ag.titulo):'Acompanhando o ensaio '+nm; HUMAN_INFO.tiago.fila=E.map(e=>(e.status==='feito'?'✓ ':e.status==='agora'?'▶ ':'· ')+e.n+'. '+e.titulo);
@@ -871,7 +965,7 @@ async function carregarEnsaio(){
   try{
     const r=await fetch('/api/paineis-publico/robo-dados',{cache:'no-store'}); if(!r.ok)throw new Error(r.status); const d=await r.json();
     const vivos=(d.ensaios||[]), x=vivos.find(e=>!e.concluido)||vivos[0]||null, tinha=!!ENSAIO;
-    ENSAIO=x; aplicarEnsaio();
+    ENSAIO=x; HOJE=d.hoje||null; aplicarEnsaio(); tvPrecisa(); tvFeito();
     if(tinha&&!x){ensaioChave=''; carregarSombra(); carregarReal();}   // ensaio acabou/cancelado: os postos voltam pra sombra
   }catch(e){ /* sem dados do ensaio: fica como está */ }
 }
@@ -898,7 +992,13 @@ function encaixar(){ if(!TV)return; const app=document.querySelector('.app'), [w
   const a=w/h; if(a>=16/9){PH=1080; PW=Math.round(1080*a);} else {PW=1920; PH=Math.round(1920/a);}
   ESC=h/PH; app.style.width=PW+'px'; app.style.height=PH+'px'; app.style.transform='scale('+ESC+')'; app.style.left=x+'px'; app.style.top=y+'px';
   const f=document.getElementById('fs'); if(f){f.style.left=x+'px'; f.style.top=y+'px'; f.style.width=w+'px'; f.style.height=h+'px'; f.style.fontSize=Math.round(h*.06)+'px';}   // véu da tela cheia: exatamente na área que aparece
-  renderer.setPixelRatio(ESC*QUAL); resize(); }
+  renderer.setPixelRatio(ESC*QUAL); resize(); enquadrarAmplo(); }
+/* 19/11/26: com os blocos fixos nos cantos ("Precisa de você agora" à esquerda, "Feito hoje" embaixo à direita) o escritório fica um pouco
+   menor (zoom 0,9) e vai pra direita o bastante pra ponta esquerda dele sair de baixo do bloco — sem passar da borda direita. Tela mais
+   larga que 16:9 (a TV do Fiscal é 2,21) tem folga dos dois lados e quase não precisa empurrar. 775 = meia largura do andar a zoom 1. */
+const ZAMPLO=.87;
+function enquadrarAmplo(){ if(!AMPLO)return; const k=ZAMPLO*PH/1080, meia=775*k, meio=PW/2+10*k, cx=Math.max(meio,Math.min(548+meia,PW-30-meia)), m=(cx-meio)/(PH*ZAMPLO/(2*ORTHO));   // o andar fica 10 px à direita do meio
+  target.x=-m*Math.cos(theta); target.z=m*Math.sin(theta); setZoom(ZAMPLO); updCam(); }
 if(TV){encaixar(); addEventListener('resize',encaixar); if(window.visualViewport)visualViewport.addEventListener('resize',encaixar);
   setInterval(()=>{const [w,h]=areaVisivel(); if(w!==VW||h!==VH)encaixar();},2000);}
 let t0=performance.now(), last=t0, ledT=0, escT=0, ultRender=0, fpsN=0, fpsT0=t0, FPS=0, fpsJanelas=0;

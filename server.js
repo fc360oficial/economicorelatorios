@@ -10078,6 +10078,7 @@ app.get('/api/paineis-publico/precificacao-dados', async (req, res) => {
 // vendedor (WhatsApp do bot central), a nota é simulada e cada etapa espera a aprovação dele. Grava só no ERP de TESTE (.254),
 // pelas rotas de sempre. Só admin (ver a lista de páginas do robô lá em cima).
 const roboEnsaio = require('./lib/robo-ensaio');
+const roboFeitoHoje = require('./lib/robo-feito-hoje');
 roboEnsaio.init({ radarPedidos, pedidosFornec, precificacao, roboPrecif, cadastroLista: id => cadastroLista(id),
   // 18/11/26 (Tiago: "tou clicando no link e tá abrindo o do gestão, e eu tenho o portal e o gestão"): o app Gestão vale pro site inteiro
   // (scope "/") e o Portal do Fornecedor só pra /fornecedor/. O link do pedido do robô em /pedido/<token> caía no Gestão; pelo atalho
@@ -10094,7 +10095,11 @@ roboEnsaio.init({ radarPedidos, pedidosFornec, precificacao, roboPrecif, cadastr
 app.get('/painel-robo-3d.html', (req, res) => { res.set('Cache-Control', 'no-store'); res.sendFile(path.join(__dirname, 'public', 'robo-escritorio-3d.html')); });
 app.get('/api/paineis-publico/robo-precificacao', (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json(roboPrecif.consultarLeve()); } catch (err) { res.status(503).json({ error: err.message }); } });
 app.get('/api/paineis-publico/comprador-sombra', async (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json(await compradorSombra.resumo(false)); } catch (err) { res.status(503).json({ error: err.message }); } });
-app.get('/api/paineis-publico/robo-dados', (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json({ lojas: roboEnsaio.LOJAS_PADRAO, ensaios: roboEnsaio.painel() }); } catch (err) { res.status(503).json({ error: 'Sem dados no momento: ' + err.message }); } });
+app.get('/api/paineis-publico/robo-dados', (req, res) => { res.set('Cache-Control', 'no-store'); try {
+  // hoje = o que a precificação FEZ de verdade no dia (cargas de preço 09/12/15h), pro bloco "Feito hoje" do Painel Robô (19/11/26)
+  let hoje = null; try { hoje = { ...roboFeitoHoje.resumo(LOG_PRECIF_DIR), automatico: precificacao.getModo().automatico }; } catch (e) { hoje = null; }
+  res.json({ lojas: roboEnsaio.LOJAS_PADRAO, ensaios: roboEnsaio.painel(), hoje });
+} catch (err) { res.status(503).json({ error: 'Sem dados no momento: ' + err.message }); } });
 app.get('/api/robo-ensaio', (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json(roboEnsaio.consultar()); } catch (err) { res.status(500).json({ error: err.message }); } });
 app.get('/api/robo-ensaio/opcoes', async (req, res) => { res.set('Cache-Control', 'no-store'); try { res.json({ lojas: roboEnsaio.LOJAS_PADRAO, listas: await roboEnsaio.opcoes() }); } catch (err) { res.status(500).json({ error: err.message }); } });
 app.post('/api/robo-ensaio/gerar', async (req, res) => { try { res.json(await roboEnsaio.gerar({ lista: req.body && req.body.lista, portal: !!(req.body && req.body.portal), usuario: req.session.user?.nome || null })); } catch (err) { res.status(400).json({ error: err.message }); } });
