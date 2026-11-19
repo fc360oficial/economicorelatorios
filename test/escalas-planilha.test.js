@@ -230,3 +230,39 @@ test('ocupar a vaga: quem é escolhido assume função, turno, folga fixa e os d
   const row = dez().funcionarios.find(f => f.id === vSe.id); assert.equal(row.nome, 'JOÃO DA SILVA'); assert.equal(row.vaga, false); assert.ok(dez().dias[vSe.id + '|2026-12-09']); assert.equal(S.faltando(gerente).total, 1);
   await assert.rejects(S.ocuparVaga(gerente, 5, { id: vSe.id, funcId: 102 }, CTX), /Vaga não encontrada/);
 });
+
+test('mover funcionário: muda de função/setor ou de loja; a posição que fica vira vaga a contratar, fica em aberto ou não é mantida', async () => {
+  const cg = GP.config(); cg.designados.push({ usuario: 'coord', nome: 'Coordenação', papeis: ['coordenacao'], lojas: [] }); fs.writeFileSync(path.join(process.env.GP_DIR, 'config.json'), JSON.stringify(cg)); if (GP.recarregar) GP.recarregar();
+  const coord = { usuario: 'coord', nome: 'Coordenação' }; assert.ok(S.podeCadastrar(coord, 6) && !S.podeCadastrar(gerente, 6));
+  const c0 = await S.cadastro(gerente, 5, CTX); const bia = c0.pessoas.find(p => p.id === 102); assert.deepEqual([bia.grupo, bia.turno, bia.folgaFixa], ['Seção', 'T.3', 4]);
+  // recusas: sem papel, sem dizer o que fica no lugar, nada mudou, loja de destino onde quem pede não cadastra
+  await assert.rejects(S.moverPessoa(outro, 5, { id: 102, grupo: 'Caixa', turno: 'T.1', folgaFixa: 2, noLugar: 'vaga' }, CTX), /Só o gerente/);
+  await assert.rejects(S.moverPessoa(gerente, 5, { id: 102, grupo: 'Caixa', turno: 'T.1', folgaFixa: 2 }, CTX), /posição que fica/);
+  await assert.rejects(S.moverPessoa(gerente, 5, { id: 102, grupo: 'Seção', turno: 'T.3', folgaFixa: 4, noLugar: 'vaga' }, CTX), /Nada mudou/);
+  await assert.rejects(S.moverPessoa(gerente, 5, { id: 102, paraLoja: 6, grupo: 'Caixa', turno: 'T.1', folgaFixa: 2, noLugar: 'vaga' }, CTX), /não altera o cadastro da escala/);
+  await assert.rejects(S.moverPessoa(gerente, 5, { id: 999, grupo: 'Caixa', turno: 'T.1', folgaFixa: 2, noLugar: 'vaga' }, CTX), /não está no quadro/);
+  // 1) mesma loja, outro setor, deixando a posição EM ABERTO: não entra no "faltando contratar", mas a linha fica na escala
+  const antes = S.faltando(gerente);
+  const r1 = await S.moverPessoa(gerente, 5, { id: 102, grupo: 'Caixa', setor: 'BALCAO', turno: 'T.1', folgaFixa: 2, noLugar: 'aberto' }, CTX); assert.equal(r1.noLugar, 'aberto'); assert.equal(r1.outraLoja, false); assert.ok(r1.gradesSalvas.includes('2026-12'), 'avisa que a escala salva não mudou');
+  const p102 = S.lojaCfg(5).pessoas[102]; assert.deepEqual([p102.grupo, p102.turno, p102.folgaFixa, p102.setor], ['Caixa', 'T.1', 2, 'BALCAO']); assert.equal(S.setorDe(5, { id: 102 }), 'BALCAO');
+  const ab = S.lojaCfg(5).extras.find(x => x.id === r1.vaga); assert.deepEqual([ab.vaga, ab.aberto, ab.grupo, ab.turno, ab.folgaFixa], [true, true, 'Seção', 'T.3', 4]); assert.equal(S.rotuloLinha(ab), 'EM ABERTO · SEÇÃO');
+  const f1 = S.faltando(gerente); assert.equal(f1.total, antes.total); assert.equal(f1.emAberto, antes.emAberto + 1); assert.ok(f1.lojas[0].itens.some(i => i.id === r1.vaga && i.aberto));
+  assert.ok(S.previstas(5, E.ler(5, '2026-12').funcionarios).some(x => x.nomeNaEscala === 'EM ABERTO · SEÇÃO'));
+  // salvar o cadastro pela tela não perde o setor da escala nem o "em aberto"; trocar o tipo para "a contratar" passa a contar
+  const c1 = await S.cadastro(gerente, 5, CTX); assert.equal(c1.pessoas.find(p => p.id === 102).setorNaEscala, true); assert.equal(c1.pessoas.find(p => p.id === r1.vaga).aberto, true);
+  S.salvarCadastro(gerente, 5, { pessoas: c1.pessoas }); assert.equal(S.lojaCfg(5).pessoas[102].setor, 'BALCAO'); assert.equal(S.lojaCfg(5).extras.find(x => x.id === r1.vaga).aberto, true);
+  S.salvarCadastro(gerente, 5, { pessoas: c1.pessoas.map(p => (p.id === r1.vaga ? { ...p, aberto: false } : p)) }); assert.equal(S.lojaCfg(5).extras.find(x => x.id === r1.vaga).aberto, undefined); assert.equal(S.faltando(gerente).total, antes.total + 1);
+  // 2) outra loja, abrindo vaga a contratar: sai da escala daqui (transferido) e entra na de lá como linha com o nome
+  const tot = S.faltando(coord).total;
+  const r2 = await S.moverPessoa(coord, 5, { id: 103, paraLoja: 6, grupo: 'Caixa', setor: 'FRENTE DE CAIXA', turno: 'T.3', folgaFixa: 5, noLugar: 'vaga' }, CTX); assert.equal(r2.outraLoja, true); assert.equal(r2.para.loja, 6);
+  const p103 = S.lojaCfg(5).pessoas[103]; assert.equal(p103.fora, true); assert.equal(p103.transferido.para, 6); assert.equal(S.foraDaEscala(5, { id: 103 }), true);
+  const vg = S.lojaCfg(5).extras.find(x => x.id === r2.vaga); assert.deepEqual([vg.vaga, vg.aberto, vg.grupo], [true, undefined, 'Caixa']); assert.equal(S.faltando(coord).total, tot + 1);
+  const la = S.lojaCfg(6).extras.find(x => x.funcId === 103); assert.deepEqual([la.nome, la.grupo, la.turno, la.folgaFixa, la.vaga, la.deLoja], ['CAIO', 'Caixa', 'T.3', 5, false, 5]);
+  assert.equal(S.turnoFixoDe(6, { id: 103, nome: 'CAIO', base: {} }).codigo, 'T.3', 'quando o VR mostrar a pessoa na loja nova, a linha é dela pelo nome');
+  const c2 = await S.cadastro(coord, 5, CTX); assert.equal(c2.pessoas.find(p => p.id === 103).transferido.para, 6); assert.ok(!(await S.gerar(coord, 5, '2026-12-20', '2026-12-26', CTX).catch(() => ({ linhas: [] }))).linhas.some(l => l.id === 103));
+  await assert.rejects(S.moverPessoa(coord, 5, { id: 103, paraLoja: 6, grupo: 'Caixa', turno: 'T.3', folgaFixa: 5, noLugar: 'nada' }, CTX), /já está na escala/);
+  // 3) "não manter a posição": só a pessoa muda
+  const nEx = S.lojaCfg(5).extras.length; const r3 = await S.moverPessoa(gerente, 5, { id: 104, grupo: 'Seção', turno: 'T.4', folgaFixa: 6, noLugar: 'nada' }, CTX); assert.equal(r3.vaga, null); assert.equal(S.lojaCfg(5).extras.length, nEx); assert.equal(S.lojaCfg(5).pessoas[104].grupo, 'Seção');
+  // 4) ocupar uma vaga deixando EM ABERTO a posição de quem ocupou
+  const r4 = await S.ocuparVaga(gerente, 5, { id: r2.vaga, funcId: 104, noLugar: 'aberto' }, CTX); assert.equal(r4.noLugar, 'aberto'); const tr = S.lojaCfg(5).extras.find(x => x.id === r2.vaga); assert.deepEqual([tr.vaga, tr.aberto, tr.grupo, tr.turno], [true, true, 'Seção', 'T.4']);
+});
