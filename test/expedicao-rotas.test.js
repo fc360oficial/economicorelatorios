@@ -22,6 +22,9 @@ function montar(opt = {}) {
   const q = async (sql, params) => {
     if (sql.includes('FROM central.delivery d WHERE')) return [{ nPedido: 6853, cliente: CAB.Nome, cnpj: CAB.CPF, Data: CAB.Data, hora: CAB.Hora, total: CAB.Total, status: 1 }, { nPedido: 6856, cliente: 'LOJA 3 PONTE', cnpj: '1', Data: CAB.Data, hora: '10:02:00', total: '1', status: 0 }, { nPedido: 6858, cliente: 'DIGITADO SEM PAINEL', cnpj: '1', Data: CAB.Data, hora: '10:05:00', total: '1', status: 0 }];
     if (sql.includes('FROM central.painel_televendas')) return [{ nPedido: '6853', status: 1 }, { nPedido: '6856', status: 2 }];
+    // busca de produto nos pedidos em aberto (19/11): itens de todos os pedidos abertos e o que o Dlinks bipou por código
+    if (opt.itensAbertos && sql.includes('Conversao conversao FROM central.delivery_produtos WHERE nPedido IN')) return opt.itensAbertos;
+    if (sql.includes('GROUP BY nPedido, Codigobarra')) { if (opt.bipFalha) throw new Error('sem conferencia_televendas'); return opt.bipAbertos || []; }
     if (sql.includes('FROM central.conferencia_televendas') && sql.includes('GROUP BY nPedido')) return (opt.bipadosDlinks || ['6856']).filter(n => params.map(String).includes(n)).map(n => ({ nPedido: n, n: 3 }));
     if (sql.includes('FROM central.delivery_produtos WHERE nPedido IN')) return [{ nPedido: 6853, n: 2, un: 110 }];
     if (sql.includes('FROM central.delivery WHERE nLoja=?')) return String(params[1]) === '6853' ? [CAB] : [];
@@ -179,4 +182,44 @@ test('Separação de Pedidos com lista + fiscal do CD: /produto acha ou avisa fo
   assert.deepEqual(logs.filter(l => ['exp_separar', 'exp_fiscal'].includes(l.tipo)).map(l => l.tipo + ':' + l.resultado), ['exp_separar:qtd_diferente', 'exp_fiscal:liberada', 'exp_fiscal:liberada'], 'liberação da separação + liberação da saída');
   assert.equal(logs.filter(l => l.tipo === 'exp_bipe' && l.msg === 'separação · produto não está no pedido').length, 2);
   assert.match(logs.find(l => l.tipo === 'exp_fechar' && l.resultado === 'fiscal').msg, /mandada pro fiscal do CD · faltou/);
+});
+
+test('busca de produto nos pedidos em aberto (19/11): acha por nome sem acento, por final do EAN, junta nosso coletor, Dlinks e digitado', async () => {
+  const ALA = '7891150097605';
+  const itensAbertos = [
+    { nPedido: 6853, cod: ALA, descricao: 'ALA ERVA DOCE', und: 'UN', qtd: '108.000', qtdEmb: '0.00', conversao: '4 FD c/27' },
+    { nPedido: 6853, cod: '17891000457099', descricao: 'BOMBOM GAROTO CX30', und: 'CX', qtd: '2.000', qtdEmb: '0.00', conversao: '2 CX c/01' },
+    { nPedido: 6856, cod: ALA, descricao: 'ALA ERVA DOCE', und: 'UN', qtd: '54.000', qtdEmb: '0.00', conversao: '2 FD c/27' },
+    { nPedido: 6856, cod: '17896000000013', descricao: 'AÇÚCAR CRISTAL 1KG', und: 'FD', qtd: '3.000', qtdEmb: '10.00', conversao: '3 FD c/10' },
+    { nPedido: 6858, cod: ALA, descricao: 'ALA ERVA DOCE', und: 'UN', qtd: '27.000', qtdEmb: '0.00', conversao: '1 FD c/27' }];
+  const bipAbertos = [{ nPedido: 6856, cod: ALA, qtd: '50.000' }, { nPedido: 6856, cod: '17896000000013', qtd: '3.000' }];
+  const { routes, t10 } = montar({ itensAbertos, bipAbertos });
+  const busca = async q => { const r = res(); await routes['GET /api/expedicao/produto-em-aberto'](req({ query: { q } }), r); return r; };
+  // o separador já separou 3 fardos (81 un) do ALA no pedido 6853 pelo nosso coletor
+  let r = res(); routes['POST /api/expedicao/operadores'](req({ body: { nome: 'lima', pin: '1107' } }), r);
+  const qL = { t: t10, o: expedicao.entrarOperador('1107').token };
+  r = res(); await routes['POST /api/expedicao-publico/abrir'](req({ query: qL, body: { nPedido: '6853' } }), r); assert.equal(r.statusCode, 200); const id = r.body.id;
+  r = res(); await routes['POST /api/expedicao-publico/separar'](req({ query: qL, body: { id, cod: ALA, quant: 3, emb: 27 } }), r); assert.equal(r.statusCode, 200);
+
+  r = await busca('a'); assert.equal(r.statusCode, 400, 'menos de 2 letras não busca');
+  r = await busca('ala erva'); assert.equal(r.statusCode, 200);
+  assert.equal(r.body.pedidosEmAberto, 3); assert.equal(r.body.dias, 30); assert.equal(r.body.total, 3);
+  assert.deepEqual(r.body.itens.map(i => i.nPedido), ['6858', '6856', '6853'], 'do pedido mais novo pro mais velho');
+  const [dig, dl, eco] = r.body.itens;
+  assert.deepEqual([eco.origem, eco.status, eco.id, eco.pedido, eco.separado, eco.carregado], ['eco', 'separando', id, 108, 81, 0], 'nosso coletor: o que já foi separado');
+  assert.deepEqual([dl.origem, dl.id, dl.dlStatus, dl.pedido, dl.separado, dl.carregado], ['dlinks', 'dl-6856', 2, 54, 50, null], 'Dlinks: coluna do painel e o que o coletor do Dlinks bipou');
+  assert.deepEqual([dig.origem, dig.id, dig.dlStatus, dig.separado], ['digitado', null, null, null], 'só digitado, fora do painel: não tem pra onde clicar');
+  assert.equal(eco.cliente, 'SERAFIM SUPERMERCADO'); assert.equal(eco.ean4, '7605'); assert.equal(eco.hora, '09:56'); assert.ok(!('busca' in eco) && !('dlinksUn' in eco), 'campos internos não saem');
+
+  r = await busca('7605'); assert.equal(r.body.total, 3, 'final do código de barras');
+  r = await busca('erva ALA'); assert.equal(r.body.total, 3, 'palavras em qualquer ordem');
+  r = await busca('bombom ala'); assert.equal(r.body.total, 0, 'todas as palavras têm que estar no mesmo produto');
+  r = await busca('acucar'); assert.equal(r.body.total, 1, 'sem acento acha AÇÚCAR');
+  const ac = r.body.itens[0]; assert.deepEqual([ac.nPedido, ac.emCaixa, ac.qtd, ac.emb, ac.pedido, ac.separado], ['6856', true, 3, 10, 30, 30], 'linha em fardo: pedido e bipado do Dlinks viram unidades');
+});
+
+test('busca de produto em aberto: sem a bipagem do Dlinks o separado vem vazio (não zero)', async () => {
+  const { routes } = montar({ bipFalha: true, itensAbertos: [{ nPedido: 6856, cod: '789', descricao: 'ARROZ TIO JOAO 5KG', und: 'UN', qtd: '10.000', qtdEmb: '0.00', conversao: '' }] });
+  const r = res(); await routes['GET /api/expedicao/produto-em-aberto'](req({ query: { q: 'arroz 5kg' } }), r);
+  assert.equal(r.statusCode, 200); assert.equal(r.body.itens.length, 1); assert.equal(r.body.itens[0].origem, 'dlinks'); assert.equal(r.body.itens[0].separado, null);
 });
