@@ -206,7 +206,10 @@ test('painel de alertas e destaque na escala', async () => {
   const d = await H.destaques(U.ger3, 3, deps, HOJE); assert.deepEqual(Object.keys(d).sort(), ['11', '12']);
   assert.deepEqual([d[11].rotulo, d[11].nivel], ['EXP 19d', 'ok']); assert.match(d[11].titulo, /término do período inicial em 01\/12\/2026 \(faltam 19 dia\(s\)\).*prorrogação pendente/);
   assert.equal(d[12].rotulo, 'EXP 51d', 'prorrogado: o marco passa a ser o término final (02/01/2027)'); assert.deepEqual(await H.destaques(U.ger3, 5, deps, HOJE), {}, 'loja fora do escopo não devolve nada'); assert.deepEqual(await H.destaques(U.x, 3, deps, HOJE), {});
-  const venc = await H.destaques(U.rh, 3, deps, '2026-12-20'); assert.deepEqual([venc[11].rotulo, venc[11].nivel], ['EXP vencido', 'critico']);
+  // 19/11/2026 (Tiago): passado o período inicial sem prorrogação registrada, o selo conta para o término final do modelo; passada a experiência, o selo some (nunca "EXP vencido")
+  const fim11 = (await H.listarContratos(U.rh, deps, { loja: 3, so: 'experiencia' }, '2026-12-20')).find(x => x.pessoa.id === 11).situacao.finalComProrrogacao; assert.ok(fim11 > '2026-12-20');
+  const venc = await H.destaques(U.rh, 3, deps, '2026-12-20'); assert.equal(venc[11].rotulo, 'EXP ' + H._util.diasEntre('2026-12-20', fim11) + 'd'); assert.match(venc[11].titulo, /término final do contrato em .*prorrogação ainda não foi registrada/); assert.ok(!Object.values(venc).some(v => /vencido/i.test(v.rotulo)));
+  const depois = await H.destaques(U.rh, 3, deps, H._util.soma(fim11, 1)); assert.equal(depois[11], undefined, 'a experiência passou: o selo some'); assert.ok(!Object.values(depois).some(v => /vencido/i.test(v.rotulo)));
   // lista de contratos com filtro
   const l = await H.listarContratos(U.rh, deps, { so: 'experiencia' }, HOJE); assert.deepEqual(l.map(x => x.pessoa.id).sort(), [11, 12, 13]); assert.equal((await H.listarContratos(U.rh, deps, { q: 'antigo' }, HOJE))[0].situacao.codigo, 'fora');
 });

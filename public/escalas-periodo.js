@@ -24,7 +24,7 @@
   const dm = s => s.slice(8) + '/' + MES[+s.slice(5, 7) - 1];
   const hTxt = hm => { const [h, m] = hm.split(':').map(Number); return h + 'h' + (m ? String(m).padStart(2, '0') + 'min' : ''); };
   const horario = t => hTxt(t.entrada) + (t.almoco_ini ? ' às ' + hTxt(t.almoco_ini) + ' - ' + hTxt(t.almoco_fim) + ' às ' : ' às ') + hTxt(t.saida);
-  let CAD = null, RES = null, GER = [];
+  let CAD = null, RES = null, GER = [], HF = null;   // HF = Contratos e Histórico Funcional (modelo do contrato de experiência); null = sem acesso
 
   function grade(R) {
     const T = Object.fromEntries(R.visual.turnos.map(t => [t.codigo, t]));
@@ -64,7 +64,7 @@
     const C = CAD; const pend = C.pessoas.filter(p => !p.cadastrado && !p.fora).length; const ed = C.podeCadastrar; const cods = C.turnos.filter(t => C.quadro.some(q => q.turnos[t.codigo])).map(t => t.codigo);
     const efet = Object.fromEntries(C.grupos.map(g => [g.grupo, g]));
     return AVISO + (C.vr ? '<div class="aviso ' + (C.vr.ok ? 'inf' : '') + '" style="margin-bottom:12px">' + (C.vr.ok ? 'Quadro lido direto do VR: <b>' + C.vr.pessoas + '</b> pessoa(s) ativa(s) nesta loja' + (C.vr.em ? ' (leitura de ' + new Date(C.vr.em).toLocaleString('pt-BR') + ')' : '') + '.' : 'O VR não respondeu agora (' + esc(C.vr.erro || '') + '): estou mostrando o quadro que já está na grade.') + '</div>' : '') +
-      (C.faltando ? EscalaCompacta.faltandoHtml(C.faltando, C.loja) : '') +
+      (C.faltando ? EscalaCompacta.faltandoHtml(C.faltando, C.loja) : '') + contratoHtml() +
       (!C.configurada ? '<div class="aviso" style="margin-bottom:12px"><b>Primeira vez nesta loja.</b> O turno, a folga fixa e a função abaixo são sugestões tiradas do contrato do VR. Confira, ajuste e clique em <b>Salvar cadastro</b>: a partir daí toda escala gerada para a loja se baseia nestes parâmetros (turnos, quem faz cada turno, quantas pessoas por função e o efetivo de domingo).</div>' : '') +
       '<div class="per-sec" id="per-cad"><div style="padding:14px">' +
       '<div class="ds-h2" style="margin:0 0 4px">Pessoas e vagas <small style="font-weight:500;color:var(--ink3)">' + C.pessoas.length + ' linhas · ' + (pend ? pend + ' sem turno ou folga fixa gravados' : 'todas com turno e folga fixa') + (C.alteradoEm ? ' · alterado por ' + esc(C.alteradoPor || '') + ' em ' + new Date(C.alteradoEm).toLocaleDateString('pt-BR') : '') + '</small></div>' +
@@ -124,6 +124,26 @@
       catch (e) { q('#mv-msg').innerHTML = '<div class="aviso neg" style="margin:0">' + esc(e.message) + '</div>'; q('#mv-ok').disabled = false; }
     };
   }
+  // ── Modelo do contrato de experiência (19/11/2026, Tiago): o mesmo prazo padrão de Contratos e Histórico Funcional, visível e
+  // editável aqui no Cadastro. É dele que sai o selo EXP da escala: dias que faltam para cada término; passou a experiência, some. ──
+  const MODELOS = [[30, 60], [45, 45], [60, 30], [90, 0]];
+  function contratoHtml() {
+    if (!HF || !HF.config) return ''; const c = HF.config; const ed = !!HF.podeConfig; const atual = c.diasIniciais + '+' + c.diasProrrogacao; const naLista = MODELOS.some(m => m.join('+') === atual);
+    const campo = 'height:30px;font-size:12px;border:1px solid var(--ln);border-radius:7px;padding:0 6px;background:var(--crd);color:var(--ink)';
+    return '<div class="per-sec" style="margin:0 0 14px;padding:12px 14px"><div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><div style="flex:1;min-width:300px;font-size:12.5px;line-height:1.5;color:var(--ink2)"><b style="color:var(--ink);font-size:13.5px">Contrato de experiência</b> — modelo atual: <b style="color:var(--ink)">' + c.diasIniciais + ' + ' + c.diasProrrogacao + '</b> (' + c.diasIniciais + ' dias' + (c.diasProrrogacao ? ' + prorrogação de ' + c.diasProrrogacao : ', sem prorrogação') + ' = ' + (c.diasIniciais + c.diasProrrogacao) + ' dias)' +
+      '<br><small style="color:var(--ink3)">É por ele que a escala mostra o selo <b>EXP</b> com os dias que faltam para cada término; passada a experiência, o selo some. Vale para toda a rede; contrato que o RH já confirmou na ficha mantém os prazos dele.</small></div>' +
+      (ed ? '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><select id="ct-mod" style="' + campo + '" title="Modelo do contrato de experiência">' + MODELOS.map(m => '<option value="' + m.join('+') + '"' + (m.join('+') === atual ? ' selected' : '') + '>' + (m[1] ? m[0] + ' + ' + m[1] : m[0] + ' dias, sem prorrogação') + '</option>').join('') + '<option value="outro"' + (naLista ? '' : ' selected') + '>Outro…</option></select>' +
+        '<input type="number" id="ct-ini" min="1" max="' + (HF.maxLegal || 90) + '" value="' + c.diasIniciais + '" style="' + campo + ';width:58px" title="Período inicial (dias)"><span style="font-weight:700;color:var(--ink2)">+</span><input type="number" id="ct-pro" min="0" max="' + (HF.maxLegal || 90) + '" value="' + c.diasProrrogacao + '" style="' + campo + ';width:58px" title="Prorrogação (dias)">' +
+        '<a class="ds-btn ds-btn-secondary" id="ct-salvar">Salvar modelo</a><a class="ds-btn ds-btn-ghost" href="/historico-funcional.html#config" title="Dias de alerta, contratos e fichas">Contratos e Histórico</a></div>' : '<small style="color:var(--ink3)">O modelo é alterado pelo RH ou pela Coordenação.</small>') + '</div></div>';
+  }
+  function ligarContrato() {
+    const sel = $('#ct-mod'); if (!sel) return; const ini = $('#ct-ini'), pro = $('#ct-pro');
+    sel.onchange = () => { if (sel.value === 'outro') { ini.focus(); return; } const [a, b] = sel.value.split('+').map(Number); ini.value = a; pro.value = b; };
+    const casar = () => { const k = (+ini.value || 0) + '+' + (+pro.value || 0); sel.value = MODELOS.some(m => m.join('+') === k) ? k : 'outro'; }; ini.oninput = casar; pro.oninput = casar;
+    $('#ct-salvar').onclick = async () => { const a = Math.round(+ini.value), b = Math.round(+pro.value || 0); if (a === HF.config.diasIniciais && b === HF.config.diasProrrogacao) return toast('O modelo já é ' + a + ' + ' + b);
+      const j = prompt('Mudar o modelo do contrato de experiência para ' + a + ' + ' + b + ' (' + (a + b) + ' dias) em toda a rede?\nVale para os contratos que o RH ainda não confirmou na ficha. Escreva o motivo (fica registrado com seu nome):'); if (!j) return;
+      try { HF.config = await api('/api/historico-funcional/config', { body: { diasIniciais: a, diasProrrogacao: b, justificativa: j } }); if (typeof selosContrato === 'function') selosContrato.c = {}; toast('Modelo do contrato: ' + a + ' + ' + b); desenhar(); } catch (e) { toast(e.message, 'neg'); } };
+  }
   function lerCadastro() {
     const pessoas = $$('#per-cad-b tr').map(tr => { const v = k => { const el = tr.querySelector('[data-k="' + k + '"]'); return !el ? undefined : el.type === 'checkbox' ? el.checked : el.value; };
       return { id: +tr.dataset.id || 0, extra: tr.dataset.extra === '1', nome: v('nome'), grupo: v('grupo'), setor: v('setor'), turno: v('turno') || null, folgaFixa: v('folgaFixa') ? +v('folgaFixa') : null, domingo: !!v('domingo'), vaga: v('tipo') === 'vaga' || v('tipo') === 'aberto', aberto: v('tipo') === 'aberto', fora: v('naEscala') === false }; });
@@ -139,7 +159,7 @@
       const tmp = document.createElement('tbody'); tmp.innerHTML = linhaTurno({ codigo: 'T.' + n, cor: cores[n % cores.length], entrada: '08:00', saida: '18:24', almoco_ini: '12:00', almoco_fim: '14:00', domingo: 'T.' + n }, true); const tr = tmp.firstChild; $('#per-tur').appendChild(tr); ligarX(); tr.querySelector('[data-k="entrada"]').focus(); toast('Turno T.' + n + ' criado: ajuste o horário e a cor e salve o cadastro para ele aparecer nas listas'); };
     const sv = $('#per-salvar'); if (sv) sv.onclick = async () => { sv.disabled = true; try { await api('/api/escalas-periodo/' + SUB.loja + '/cadastro', { body: lerCadastro() }); toast('Cadastro salvo: as próximas escalas desta loja já usam estes parâmetros'); const fa = CAD.faltando; CAD = await api('/api/escalas-periodo/' + SUB.loja + '/cadastro'); try { CAD.faltando = await api('/api/escalas-periodo/faltando'); } catch (e2) { CAD.faltando = fa; } desenhar(); } catch (e) { toast(e.message, 'neg'); sv.disabled = false; } };
     $$('[data-desf]').forEach(b => b.onclick = async () => { const j = prompt('Por que desfazer esta aplicação? (os dias voltam ao que eram antes)'); if (!j) return; try { const r = await api('/api/escalas-periodo/' + SUB.loja + '/desfazer', { body: { id: b.dataset.desf, justificativa: j } }); toast(r.voltou + ' dia(s) voltaram ao que eram' + (r.ficaram ? ' · ' + r.ficaram + ' mexidos depois ficaram como estão' : '')); GER = await api('/api/escalas-periodo/' + SUB.loja + '/geracoes'); desenhar(); } catch (e) { toast(e.message, 'neg'); } });
-    const ir0 = $('#per-ir-cad'); if (ir0) ir0.onclick = () => ir('cadastro');
+    const ir0 = $('#per-ir-cad'); if (ir0) ir0.onclick = () => ir('cadastro'); ligarContrato();
     $$('#per-cad-b [data-mover]').forEach(a => a.onclick = () => { const p = CAD.pessoas.find(x => String(x.id) === a.dataset.mover); if (p) moverDlg(p); });
   }
   function desenhar() {
@@ -177,7 +197,7 @@
     MODO = 'cad';
     $('#page').innerHTML = '<div class="tb"><span class="lbl">Loja</span><select class="ds-select" id="b-loja">' + selLoja(SUB.loja) + '</select><div class="end"><button class="ds-btn ds-btn-secondary" id="cad-vr">' + ic('refresh-cw') + 'Atualizar do VR</button></div></div><div id="per-body"><div class="aviso inf">Lendo o quadro da loja no VR… a primeira leitura pode levar até 1 minuto.</div>' + skel() + '</div>';
     $('#b-loja').onchange = () => { SUB.loja = +$('#b-loja').value; AVISO = ''; cadastroEscala(); }; $('#cad-vr').onclick = () => cadastroEscala(true);
-    try { CAD = await api('/api/escalas-periodo/' + SUB.loja + '/cadastro' + (forcarVR ? '?vr=novo' : '')); GER = []; try { CAD.faltando = await api('/api/escalas-periodo/faltando'); } catch (e2) {} } catch (e) { $('#per-body').innerHTML = erroBox(e); return; }
+    try { CAD = await api('/api/escalas-periodo/' + SUB.loja + '/cadastro' + (forcarVR ? '?vr=novo' : '')); GER = []; try { CAD.faltando = await api('/api/escalas-periodo/faltando'); } catch (e2) {} try { HF = await api('/api/historico-funcional/me'); } catch (e3) { HF = null; } } catch (e) { $('#per-body').innerHTML = erroBox(e); return; }
     if (MODO === 'cad') desenhar();
   }
   window.cadastroEscala = cadastroEscala;
