@@ -13,7 +13,7 @@ window.EscalaCompacta = (function () {
     'table.cal.pl td{border:1px solid #9AA0A6;border-radius:0;height:21px;padding:1px 2px;min-width:30px;font-size:10.5px;line-height:1.1;background:#fff}' +
     'table.cal.pl td.n{padding:1px 6px;min-width:255px;background:#fff}table.cal.pl td.n b{display:inline-block;max-width:60%;vertical-align:middle;font-size:10.5px}table.cal.pl td.n span{display:inline-block;float:right;max-width:38%;font-size:10px;color:#14213D;line-height:19px}' +
     'table.cal.pl td.d{font-weight:700}table.cal.pl td.d .a{display:block;font-size:8px;font-weight:500}table.cal.pl td.ecau{font-size:9px;font-weight:600;color:#14213D}table.cal.pl td.vz{background:#F7F7F5;color:#9AA0A6}' +
-    'table.cal.pl td.tot{background:#F4F4F1;color:#14213D;font-size:10.5px;padding:0 6px}' +
+    'table.cal.pl td.tot{background:#F4F4F1;color:#14213D;font-size:10.5px;padding:0 6px}table.cal.pl tr.g0>td{border-top:2px solid #14213D}' +
     '@media (max-width:1499px){table.cal.pl td{min-width:26px;font-size:10px}table.cal.pl th{font-size:9.5px;padding:2px 1px}table.cal.pl th small{font-size:9px}table.cal.pl td.n{min-width:215px}table.cal.pl td.n b{font-size:10px}table.cal.pl td.n span{font-size:9.5px}}' +
     '@media (max-width:1299px){table.cal.pl td.n{min-width:190px}table.cal.pl td.n b{max-width:64%}table.cal.pl td.n span{max-width:34%}}';
   function css() { if (document.getElementById('ec-css')) return; var s = document.createElement('style'); s.id = 'ec-css'; s.textContent = CSS; document.head.appendChild(s); }
@@ -38,7 +38,7 @@ window.EscalaCompacta = (function () {
   function chips(P) {
     var us = (P.turnos || []).filter(function (t) { return t.n > 0; }); if (!us.length) us = P.turnos || [];
     return us.map(function (t) { return '<span title="' + t.codigo + ': ' + horario(t) + (t.n ? ' · ' + t.n + ' dia(s) nesta grade' : '') + '"><i style="background:' + t.cor + '"></i><div><b>' + t.codigo + '</b><small>' + horario(t) + '</small></div></span>'; }).join('') +
-      '<span><i style="background:' + P.corFolga + '"></i><div><b>Folga</b><small>Folga fixa</small></div></span><span><i style="background:#fff;box-shadow:inset 0 0 0 1px #9AA0A6"></i><div><b>Em branco</b><small>Descanso do domingo · folga rotativa</small></div></span>';
+      '<span><i style="background:' + P.corFolga + '"></i><div><b>Folga</b><small>Folga fixa</small></div></span><span><i style="background:#fff;box-shadow:inset 0 0 0 1px #9AA0A6"></i><div><b>Em branco</b><small>Folg. rotativa · descanso do domingo</small></div></span>';
   }
   function botao() { return '<a class="ds-btn ds-btn-secondary" onclick="EscalaCompacta.alternar()" title="' + (ativo() ? 'Mostrar o horário de entrada, saída e intervalo dentro de cada dia' : 'Mostrar a escala no modelo da planilha: código e cor do turno') + '">' + (ativo() ? 'Ver horários' : 'Visão compacta') + '</a>'; }
   var api = { css: css, ativo: ativo, alternar: alternar, th: th, cel: cel, chips: chips, botao: botao, horario: horario, aoMudar: null };

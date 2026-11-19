@@ -40,7 +40,7 @@
       '<tr class="d2">' + R.dias.map(d => '<th' + (R.feriados[d] ? ' class="fer" title="' + esc(R.feriados[d]) + '"' : '') + '>' + dm(d) + '</th>').join('') + '</tr></thead><tbody>' + linhas + '</tbody>' +
       '<tfoot><tr><td class="nm" colspan="2" style="text-align:right">Trabalhando no dia</td>' + R.dias.map(d => '<td>' + R.porDia[d].trabalhando + '</td>').join('') + '<td></td></tr></tfoot></table></div>' +
       '<table class="perleg"><tr><th>LEGENDA</th><th>HORÁRIO</th></tr>' + R.visual.turnos.map(t => '<tr><td class="k" style="background:' + t.cor + ';color:' + t.texto + '">' + esc(t.codigo) + '</td><td>' + esc(horario(t)) + '</td></tr>').join('') +
-      '<tr><td class="k" style="background:' + R.visual.corFolga + ';color:#fff">Folga</td><td>Folga fixa da semana</td></tr><tr><td class="k"></td><td>Em branco: descanso do domingo ou folga rotativa de quem trabalhou o domingo</td></tr></table></div>';
+      '<tr><td class="k" style="background:' + R.visual.corFolga + ';color:#fff">Folga</td><td>Folga fixa da semana</td></tr><tr><td class="k"></td><td>FOLG. ROTATIVA (de quem trabalhou o domingo) ou descanso do domingo</td></tr></table></div>';
   }
   function resultado() {
     const R = RES; if (!R) return '<div class="empty"><b>Escolha o período e clique em Gerar escala</b>A escala sai no modelo da planilha: semana de domingo a sábado, cinco dias de trabalho, folga fixa e, para quem trabalhar o domingo, uma folga rotativa na mesma semana — longe da fixa sempre que der. Nada é gravado até você aplicar.</div>';

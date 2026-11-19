@@ -152,3 +152,24 @@ test('visão compacta: toda jornada ganha código; horário novo vira T.6 e fica
   const f2 = funcs().reverse(); const r2 = S.codificar(6, f2);   // outra ordem, outro mês: os códigos e as cores não mudam
   assert.equal(f2[0].dias.b.cod, 'T.7'); assert.equal(f2[1].dias.b.cod, 'T.6'); assert.equal(r2.turnos.find(t => t.codigo === 'T.6').cor, t6.cor); assert.equal(r2.turnos.length, r.turnos.length);
 });
+
+test('Gerador 5x2 com turno da planilha: a jornada é exatamente a do turno (domingo = turno de domingo) e a entrada nunca passa de 24 h', () => {
+  const G = require('../lib/escalas-gerador'); const T = M.TURNOS_PADRAO; const tf = k => ({ codigo: k, ...T[k], domingo: { codigo: T[k].domingo, ...T[T[k].domingo] } });
+  const base = {}; for (let w = 0; w < 7; w++) base[w] = w === 0 ? null : { entrada: '07:30', saida: '16:30', almoco_ini: null, almoco_fim: null };
+  const funcs = [1, 2, 3, 4, 5, 6].map(i => ({ id: i, nome: 'P' + i, setor: 'FRENTE DE CAIXA', estabelecimento: 5, folga_fixa: (i % 5) + 1, base, entrada: T[i % 2 ? 'T.3' : 'T.1'].entrada, turnoFixo: tf(i % 2 ? 'T.3' : 'T.1'), restricoes: {}, ausencias: [] }));
+  const r = G.gerar({ de: '2026-12-21', ate: '2027-01-17', funcionarios: funcs, regras: [{ id: 'R', validada: true, params: { descansoSemanalMin: 4200, intervaloMin: 120 } }], cobertura: { abre: '07:00', fecha: '20:00', setores: { 'FRENTE DE CAIXA': { min: 1 } }, entradas: [] }, feriados: [] });
+  const horarios = new Set(); let dias = 0;
+  for (const p of r.proposta) for (const [d, c] of Object.entries(p.dias)) { if (c.tipo !== 'trabalho') continue; dias++; horarios.add(c.entrada + '-' + c.saida + '/' + c.almoco_ini + '-' + c.almoco_fim); assert.ok(c.entrada < '24:00' && c.entrada < c.saida, p.nome + ' ' + d + ' ' + c.entrada);
+    const t = funcs.find(f => f.id === p.id).turnoFixo, esperado = new Date(d + 'T12:00:00').getDay() === 0 ? t.domingo : t; assert.equal(c.entrada + '-' + c.saida, esperado.entrada + '-' + esperado.saida, p.nome + ' ' + d); assert.equal(c.almoco_ini, esperado.almoco_ini); }
+  assert.ok(dias > 80, 'gerou ' + dias + ' dias'); assert.ok(horarios.size <= 4, 'horários distintos: ' + [...horarios].join(' '));
+});
+
+test('serviço: quem era linha prevista e entrou no ponto herda turno, folga fixa e função; a escala sai organizada por função', async () => {
+  S.salvarCadastro(gerente, 5, { pessoas: [{ id: 101, turno: 'T.1', folgaFixa: 2, domingo: true, grupo: 'Caixa' }, { id: 102, turno: 'T.3', folgaFixa: 4, domingo: true, grupo: 'Seção' }, { extra: true, nome: 'Zeca Novo', grupo: 'Caixa', setor: 'FRENTE DE CAIXA', turno: 'T.2', folgaFixa: 5, domingo: true }] });
+  const novo = { id: 777, nome: 'ZECA NOVO', cargo: 'OPERADOR DE LOJA', setor: 'BALCAO', base: {} };
+  const tf = S.turnoFixoDe(5, novo); assert.equal(tf.codigo, 'T.2'); assert.equal(tf.folgaFixa, 5); assert.equal(tf.domingo.codigo, 'T.1'); assert.equal(tf.sugerido, false);
+  const semCad = S.turnoFixoDe(5, { id: 888, nome: 'OUTRO', base: { 1: { entrada: '09:30', saida: '19:00' } } }); assert.equal(semCad.codigo, 'T.3'); assert.equal(semCad.sugerido, true);
+  assert.equal(S.turnoFixoDe(6, novo), null);                               // loja sem cadastro da planilha: o gerador segue como era
+  const ord = S.organizar(5, [{ id: 102, nome: 'BIA', cargo: 'X', setor: 'REPOSICAO' }, novo, { id: 101, nome: 'ANA', cargo: 'X', setor: 'FRENTE DE CAIXA' }]);
+  assert.deepEqual(ord.map(x => x.nome + ':' + x.grupo), ['ANA:Caixa', 'ZECA NOVO:Caixa', 'BIA:Seção']);
+});
