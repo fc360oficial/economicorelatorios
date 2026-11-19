@@ -4812,10 +4812,9 @@ app.get('/api/listas-compra/:id/cadastro', async (req, res) => {
     const [lista] = await q(`SELECT Nome, Obs, CodFornec, NomeFornec, CodPrazoPag, PedidoMinimo FROM central.c_cotacao_lista WHERE nReg=?`, [id]);
     if (!lista) return res.status(404).json({ error: 'Lista não encontrada' });
     const [prazo] = await q(`SELECT Descricao FROM central.pedidoprazos WHERE nReg=?`, [lista.CodPrazoPag]).catch(() => []);
-    const [vendedor] = await q(`SELECT Nome, email, whats FROM central.c_cotacao_agenda WHERE nLista=? LIMIT 1`, [id]).catch(() => []);
     const [comprador] = await q(`SELECT nome, email, whats FROM central.c_cotacao_agenda_comprador WHERE nLista=? LIMIT 1`, [id]).catch(() => []);
     // vendedor: o do nosso cadastro manda sobre o do Dlinks, igual ao pedido (ver escolherVendedorLista, 19/11/26)
-    const esc = escolherVendedorLista(vendedor ? { nome: vendedor.Nome?.trim() || null, email: vendedor.email || null, whats: vendedor.whats || null } : null, vendedorNossoDaLista(id, lista.CodFornec));
+    const esc = escolherVendedorLista(await vendedoresAgendaErp(id), vendedorNossoDaLista(id, lista.CodFornec));
     res.json({
       fornecedor: { codigo: lista.CodFornec, nome: lista.NomeFornec?.trim() },
       descricao: lista.Nome?.trim(),
@@ -9373,20 +9372,27 @@ function vendedorNossoDaLista(id, codFornec) {
   } catch (e) { return null; }
 }
 // devolve { vendedor, vendedor_origem: 'nosso' | 'erp', vendedor_erp } — vendedor_erp só quando o Dlinks tem OUTRA pessoa (a tela avisa)
+// `erp` = TODAS as linhas da agenda da lista no Dlinks (vendedoresAgendaErp) ou uma só. A agenda pode ter mais de um vendedor e a
+// consulta antiga pegava só a primeira linha (LIMIT 1 sem ordem): com o João já cadastrado lá, a tela seguia dizendo ELIEL (Tiago,
+// 19/11/26: "lá tá com João também"). O nosso vendedor casando com QUALQUER linha da agenda = mesma pessoa, sem aviso.
 function escolherVendedorLista(erp, nosso) {
-  if (!nosso) return { vendedor: erp || null, vendedor_origem: 'erp', vendedor_erp: null };
+  const linhas = (Array.isArray(erp) ? erp : [erp]).filter(Boolean), primeiro = linhas[0] || null;
+  if (!nosso) return { vendedor: primeiro, vendedor_origem: 'erp', vendedor_erp: null };
   const f8 = x => String(x || '').replace(/\D/g, '').slice(-8);
-  const mesmo = !!erp && !!f8(erp.whats) && f8(erp.whats) === f8(nosso.whats);
-  if (mesmo) return { vendedor: { nome: nosso.nome || erp.nome || null, email: nosso.email || erp.email || null, whats: nosso.whats }, vendedor_origem: 'nosso', vendedor_erp: null };
-  return { vendedor: nosso, vendedor_origem: 'nosso', vendedor_erp: erp && (erp.nome || erp.whats) ? erp : null };
+  const igual = linhas.find(x => f8(x.whats) && f8(x.whats) === f8(nosso.whats));
+  if (igual) return { vendedor: { nome: nosso.nome || igual.nome || null, email: nosso.email || igual.email || null, whats: nosso.whats }, vendedor_origem: 'nosso', vendedor_erp: null };
+  return { vendedor: nosso, vendedor_origem: 'nosso', vendedor_erp: primeiro && (primeiro.nome || primeiro.whats) ? primeiro : null };
+}
+async function vendedoresAgendaErp(id) {
+  const rows = await q(`SELECT Nome, email, whats FROM central.c_cotacao_agenda WHERE nLista=? LIMIT 20`, [id]).catch(() => []);
+  return rows.map(v => ({ nome: v.Nome?.trim() || null, email: v.email || null, whats: v.whats || null }));
 }
 async function cadastroLista(id) {
   const [lista] = await q(`SELECT Nome, Obs, CodFornec, NomeFornec, CodPrazoPag, PedidoMinimo FROM central.c_cotacao_lista WHERE nReg=?`, [id]);
   if (!lista) return null;
   const [prazo] = await q(`SELECT Descricao FROM central.pedidoprazos WHERE nReg=?`, [lista.CodPrazoPag]).catch(() => []);
-  const [vendedor] = await q(`SELECT Nome, email, whats FROM central.c_cotacao_agenda WHERE nLista=? LIMIT 1`, [id]).catch(() => []);
   const [comprador] = await q(`SELECT nome, email, whats FROM central.c_cotacao_agenda_comprador WHERE nLista=? LIMIT 1`, [id]).catch(() => []);
-  const esc = escolherVendedorLista(vendedor ? { nome: vendedor.Nome?.trim() || null, email: vendedor.email || null, whats: vendedor.whats || null } : null, vendedorNossoDaLista(id, lista.CodFornec));
+  const esc = escolherVendedorLista(await vendedoresAgendaErp(id), vendedorNossoDaLista(id, lista.CodFornec));
   return {
     prazo_pagamento: prazo?.Descricao || null,
     vendedor: esc.vendedor, vendedor_origem: esc.vendedor_origem, vendedor_erp: esc.vendedor_erp,
